@@ -66,13 +66,16 @@ article locators not verified locally), modeled after the Isabelle/AFP formaliza
 * `Cslib.GameTheory.VonNeumannMorgenstern.exists_best_overall`,
   `exists_worst_overall`: existence of best and worst lotteries on a finite nonempty outcome set.
 * `Cslib.GameTheory.VonNeumannMorgenstern.exists_isVNMUtility`: **von Neumann–Morgenstern
-  existence theorem** (AFP `Von_Neumann_Morgenstern_Utility_Theorem`).
+  existence theorem** (AFP `system_U_implies_vNM_utility`; requires `X.Nonempty`).
 * `Cslib.GameTheory.VonNeumannMorgenstern.IsVNMUtility.isRationalOn`,
-  `IsVNMUtility.isIndependentOn`, `IsVNMUtility.isContinuousOn`: the converse implications.
+  `IsVNMUtility.isIndependentOn`, `IsVNMUtility.isContinuousOn`: the converse implications (do not
+  require `X.Nonempty`).
 * `Cslib.GameTheory.VonNeumannMorgenstern.exists_isVNMUtility_iff`: **full characterization**
-  (AFP `expected_utilty_theorem_form_vnm_utility`).
+  (AFP `Von_Neumann_Morgenstern_Utility_Theorem`, `expected_utilty_theorem_form_vnm_utility`;
+  requires `X.Nonempty`).
 * `Cslib.GameTheory.VonNeumannMorgenstern.IsVNMUtility.exists_posAffine_eq`,
-  `isVNMUtility_iff_exists_posAffine_eq`: **uniqueness up to positive affine transformation**.
+  `isVNMUtility_iff_exists_posAffine_eq`: **uniqueness up to positive affine transformation** (do
+  not require `X.Nonempty`).
 
 ## References
 
@@ -82,8 +85,7 @@ article locators not verified locally), modeled after the Isabelle/AFP formaliza
   Utility*][HersteinMilnor1953] (locator not verified)
 * [A. Mas-Colell, M. D. Whinston, and J. R. Green, *Microeconomic
   Theory*][MasColellWhinstonGreen1995] (locator not verified)
-* [J. Parsert and C. Kaliszyk, *Expected Utility Theorem*][ParsertKaliszyk2018] (locator not
-  verified)
+* [J. Parsert and C. Kaliszyk, *Von-Neumann-Morgenstern Utility Theorem*][ParsertKaliszyk2018]
 -/
 
 public section
@@ -135,11 +137,6 @@ theorem bijOn_pure_degenerateLotteriesOn (X : Set α) :
       exact hsupp,
     Set.surjOn_image PMF.pure X⟩
 
-/-- Equivalence between outcomes in `X` and degenerate lotteries on `X`
-(AFP `card_degen_lotteries_equals_outcomes`). -/
-noncomputable def pureEquivDegenerate (X : Set α) : X ≃ degenerateLotteriesOn X :=
-  (bijOn_pure_degenerateLotteriesOn X).equiv PMF.pure
-
 /-- The convex mixture `a · p + (1 - a) · q` of two lotteries `p` and `q` with weight `a ∈ [0, 1]`,
 defined by binding a Bernoulli coin `Cslib.Probability.PMF.coin a`
 (AFP `PMF_Composition.mix_pmf`). -/
@@ -150,13 +147,14 @@ theorem mix_eq_coin_bind (a : I) (p q : PMF α) :
     mix a p q = (Cslib.Probability.PMF.coin a).bind fun b => if b then p else q := by
   rfl
 
-/-- Pointwise extended-nonnegative mass of a mixture (AFP `mix_pmf_apply`). -/
+/-- Pointwise extended-nonnegative mass of a mixture (`ℝ≥0∞` counterpart of AFP
+`PMF_Composition.pmf_mix`). -/
 theorem mix_apply (a : I) (p q : PMF α) (x : α) :
     mix a p q x = ENNReal.ofReal a * p x + ENNReal.ofReal (1 - a) * q x := by
   rw [mix, PMF.bind_apply, tsum_fintype, Fintype.sum_bool]
   simp only [Cslib.Probability.PMF.coin_apply, ↓reduceIte, Bool.false_eq_true]
 
-/-- Pointwise real-valued mass of a mixture. -/
+/-- Pointwise real-valued mass of a mixture (AFP `PMF_Composition.pmf_mix`). -/
 theorem mix_apply_toReal (a : I) (p q : PMF α) (x : α) :
     (mix a p q x).toReal = (a : ℝ) * (p x).toReal + (1 - a) * (q x).toReal := by
   rw [mix, Cslib.Probability.PMF.bind_apply_toReal, Fintype.sum_bool]
@@ -172,33 +170,33 @@ private theorem mem_support_iff_toReal_pos {p : PMF α} {x : α} :
   exact ⟨fun h => ⟨pos_iff_ne_zero.mpr h, lt_top_iff_ne_top.mpr (p.apply_ne_top x)⟩,
     fun h => ne_of_gt h.1⟩
 
-/-- Mixing with weight `0` returns the second lottery (AFP `mix_pmf_0`). -/
+/-- Mixing with weight `0` returns the second lottery (AFP `pmf_mix_0`). -/
 @[simp]
 theorem mix_zero (p q : PMF α) : mix 0 p q = q :=
   pmf_ext_toReal fun x => by
     simp only [mix_apply_toReal, Set.Icc.coe_zero, zero_mul, sub_zero, one_mul, zero_add]
 
-/-- Mixing with weight `1` returns the first lottery (AFP `mix_pmf_1`). -/
+/-- Mixing with weight `1` returns the first lottery (AFP `pmf_mix_1`). -/
 @[simp]
 theorem mix_one (p q : PMF α) : mix 1 p q = p :=
   pmf_ext_toReal fun x => by
     simp only [mix_apply_toReal, Set.Icc.coe_one, one_mul, sub_self, zero_mul, add_zero]
 
-/-- Mixing a lottery with itself leaves it unchanged. -/
+/-- Mixing a lottery with itself leaves it unchanged (AFP `set_pmf_mix_eq`). -/
 @[simp]
 theorem mix_self (a : I) (p : PMF α) : mix a p p = p :=
   pmf_ext_toReal fun x => by
     rw [mix_apply_toReal]
     ring
 
-/-- Symmetry of lottery mixtures (AFP `mix_pmf_comp_with_dif_equiv`). -/
+/-- Symmetry of lottery mixtures (AFP `pmf_inverse_switch_eqals`). -/
 theorem mix_symm (a : I) (p q : PMF α) : mix a p q = mix (σ a) q p :=
   pmf_ext_toReal fun x => by
     rw [mix_apply_toReal, mix_apply_toReal, unitInterval.coe_symm_eq]
     ring
 
 /-- Reduction of a compound mixture of two mixtures of `p` and `q` to a single mixture. -/
-theorem mix_mix_eq (a b c : I) (p q : PMF α) :
+private theorem mix_mix_eq (a b c : I) (p q : PMF α) :
     mix a (mix b p q) (mix c p q) =
       mix ⟨(a : ℝ) * b + (1 - a) * c,
         ⟨add_nonneg (mul_nonneg (unitInterval.nonneg a) (unitInterval.nonneg b))
@@ -211,14 +209,14 @@ theorem mix_mix_eq (a b c : I) (p q : PMF α) :
     ring
 
 /-- Iterated mixture on the left: `mix a (mix b p q) q = mix (a * b) p q`
-(AFP `mix_pmf_comp_left`). -/
-theorem mix_mix_right (a b : I) (p q : PMF α) : mix a (mix b p q) q = mix (a * b) p q :=
+(AFP `product_mix_pmf_prob_distrib`). -/
+theorem mix_mix_left (a b : I) (p q : PMF α) : mix a (mix b p q) q = mix (a * b) p q :=
   pmf_ext_toReal fun x => by
     simp only [mix_apply_toReal, Set.Icc.coe_mul]
     ring
 
 /-- Iterated mixture on the right: `mix a p (mix b p q) = mix (σ (σ a * σ b)) p q`. -/
-theorem mix_mix_left (a b : I) (p q : PMF α) :
+theorem mix_mix_right (a b : I) (p q : PMF α) :
     mix a p (mix b p q) = mix (σ (σ a * σ b)) p q :=
   pmf_ext_toReal fun x => by
     simp only [mix_apply_toReal, unitInterval.coe_symm_eq, Set.Icc.coe_mul]
@@ -347,7 +345,7 @@ theorem expectedUtility_pure {X : Finset α} (u : α → ℝ) {x : α} (hx : x �
   · intro h
     exact absurd hx h
 
-/-- Expected utility is affine in mixtures (AFP `expected_value_mix_pmf`, `is_linear`). -/
+/-- Expected utility is affine in mixtures (AFP `expected_value_mix_pmf`). -/
 theorem expectedUtility_mix (X : Finset α) (u : α → ℝ) (a : I) (p q : PMF α) :
     expectedUtility X u (mix a p q) =
       (a : ℝ) * expectedUtility X u p + (1 - a) * expectedUtility X u q := by
@@ -474,7 +472,8 @@ theorem mix_right_iff (hI : IsIndependentOn X rel) {p q r : PMF α}
   rw [mix_symm a r p, mix_symm a r q]
   exact hI hp hq hr (σ a) (by rw [unitInterval.coe_symm_eq]; linarith)
 
-/-- Left-side weak preservation for all weights `a ∈ [0, 1]` (AFP `geq_imp_mix_geq_left`). -/
+/-- Left-side weak preservation for all weights `a ∈ [0, 1]`
+(AFP `independent_vnmD4`, `mix_pmf_preferred_independence`). -/
 theorem mix_left_of_rel (hR : IsRationalOn X rel) (hI : IsIndependentOn X rel) {p q r : PMF α}
     (hp : p ∈ lotteriesOn X) (hq : q ∈ lotteriesOn X) (hr : r ∈ lotteriesOn X)
     (a : I) (h : rel p q) : rel (mix a p r) (mix a q r) := by
@@ -484,14 +483,16 @@ theorem mix_left_of_rel (hR : IsRationalOn X rel) (hI : IsIndependentOn X rel) {
     exact hR.refl hr
   · exact (hI hp hq hr a ha0).mp h
 
-/-- Right-side weak preservation for all weights `a ∈ [0, 1]` (AFP `geq_imp_mix_geq_right`). -/
+/-- Right-side weak preservation for all weights `a ∈ [0, 1]`
+(right-side counterpart of AFP `mix_pmf_preferred_independence`). -/
 theorem mix_right_of_rel (hR : IsRationalOn X rel) (hI : IsIndependentOn X rel) {p q r : PMF α}
     (hp : p ∈ lotteriesOn X) (hq : q ∈ lotteriesOn X) (hr : r ∈ lotteriesOn X)
     (a : I) (h : rel p q) : rel (mix a r p) (mix a r q) := by
   rw [mix_symm a r p, mix_symm a r q]
   exact hI.mix_left_of_rel hR hp hq hr (σ a) h
 
-/-- Left-side independence for strict preference (AFP `sg_imp_mix_sg`). -/
+/-- Left-side independence for strict preference
+(AFP `mix_pmf_strict_preferred_independence`). -/
 theorem mix_strictPref_left_iff (hI : IsIndependentOn X rel) {p q r : PMF α}
     (hp : p ∈ lotteriesOn X) (hq : q ∈ lotteriesOn X) (hr : r ∈ lotteriesOn X)
     {a : I} (ha : 0 < (a : ℝ)) :
@@ -540,7 +541,7 @@ theorem mix_indiff_congr (hR : IsRationalOn X rel) (hI : IsIndependentOn X rel)
 
 /-- Monotonicity of mixtures in the weight when `p ≻ q`: a strictly larger weight on `p` yields a
 strictly preferred mixture. -/
-theorem mix_strictPref_mix_of_lt (hI : IsIndependentOn X rel) {p q : PMF α}
+private theorem mix_strictPref_mix_of_lt (hI : IsIndependentOn X rel) {p q : PMF α}
     (hp : p ∈ lotteriesOn X) (hq : q ∈ lotteriesOn X) (hpq : strictPref rel p q)
     {a b : I} (hba : (b : ℝ) < a) : strictPref rel (mix a p q) (mix b p q) := by
   have ha0 : 0 < (a : ℝ) := lt_of_le_of_lt b.2.1 hba
@@ -549,7 +550,7 @@ theorem mix_strictPref_mix_of_lt (hI : IsIndependentOn X rel) {p q : PMF α}
   let t : I := ⟨(b : ℝ) / a, div_nonneg b.2.1 (le_of_lt ha0), (div_le_one ha0).mpr (le_of_lt hba)⟩
   have ht1 : (t : ℝ) < 1 := (div_lt_one ha0).mpr hba
   have hmix_eq : mix t (mix a p q) q = mix b p q := by
-    rw [mix_mix_right]
+    rw [mix_mix_left]
     congr 1
     exact Subtype.ext (div_mul_cancel₀ (b : ℝ) (ne_of_gt ha0))
   have hstrict := (hI.mix_strictPref_right_iff (mix_mem_lotteriesOn a hp hq) hq
@@ -570,11 +571,16 @@ theorem mix_rel_mix_iff (hR : IsRationalOn X rel) (hI : IsIndependentOn X rel) {
 
 /-- Strict monotonicity of mixtures in the weight: when `p ≻ q`,
 `mix a p q ≻ mix b p q ↔ b < a`. -/
-theorem mix_strictPref_mix_iff (hR : IsRationalOn X rel) (hI : IsIndependentOn X rel)
+theorem mix_strictPref_mix_iff (hI : IsIndependentOn X rel)
     {p q : PMF α} (hp : p ∈ lotteriesOn X) (hq : q ∈ lotteriesOn X) (hpq : strictPref rel p q)
     (a b : I) : strictPref rel (mix a p q) (mix b p q) ↔ (b : ℝ) < a := by
-  rw [strictPref_iff, hI.mix_rel_mix_iff hR hp hq hpq, hI.mix_rel_mix_iff hR hp hq hpq, not_le]
-  exact ⟨And.right, fun h => ⟨le_of_lt h, h⟩⟩
+  refine ⟨fun h => ?_, hI.mix_strictPref_mix_of_lt hp hq hpq⟩
+  rcases lt_trichotomy (b : ℝ) a with hlt | heq | hgt
+  · exact hlt
+  · exfalso
+    rw [Subtype.ext heq] at h
+    exact h.2 h.1
+  · exact absurd (hI.mix_strictPref_mix_of_lt hp hq hpq hgt).1 h.2
 
 /-- Uniqueness of indifference weights: when `p ≻ q`, `mix a p q ∼ mix b p q ↔ a = b`. -/
 theorem mix_indiff_mix_iff (hR : IsRationalOn X rel) (hI : IsIndependentOn X rel)
@@ -586,13 +592,15 @@ theorem mix_indiff_mix_iff (hR : IsRationalOn X rel) (hI : IsIndependentOn X rel
 
 end IsIndependentOn
 
-/-- **Continuity axiom** (AFP `continuous_vnm`; [MasColellWhinstonGreen1995]): whenever
-`p ≽ q ≽ r`, some mixture of `p` and `r` is indifferent to `q`. -/
+/-- **Continuity axiom** (indifference solvability; AFP `continuous_vnm`): whenever
+`p ≽ q ≽ r`, some mixture of `p` and `r` is indifferent to `q`. Under `IsRationalOn` and
+`IsIndependentOn`, this is equivalent to the closed-set mixture-continuity axiom of
+[HersteinMilnor1953] and [MasColellWhinstonGreen1995] (and to `IsArchimedeanOn`). -/
 @[expose] def IsContinuousOn (X : Set α) (rel : PMF α → PMF α → Prop) : Prop :=
   ∀ ⦃p⦄, p ∈ lotteriesOn X → ∀ ⦃q⦄, q ∈ lotteriesOn X → ∀ ⦃r⦄, r ∈ lotteriesOn X →
     rel p q → rel q r → ∃ a : I, indiff rel (mix a p r) q
 
-/-- **Archimedean axiom** ([vonNeumannMorgenstern1947], [HersteinMilnor1953]): whenever
+/-- **Archimedean axiom** (order-Archimedean form; [vonNeumannMorgenstern1947]): whenever
 `p ≻ q ≻ r`, some proper mixture of `p` and `r` is strictly preferred to `q` and some proper
 mixture of `p` and `r` is strictly worse than `q`. -/
 @[expose] def IsArchimedeanOn (X : Set α) (rel : PMF α → PMF α → Prop) : Prop :=
@@ -652,7 +660,7 @@ theorem isContinuousOn_iff_isArchimedeanOn {X : Set α} {rel : PMF α → PMF α
         rw [h0, mix_zero]
         exact hqr
       obtain ⟨⟨b, hb0, hb1, hbmix⟩, _⟩ := hA hastar_mem hq hr hgt hsqr
-      rw [mix_mix_right] at hbmix
+      rw [mix_mix_left] at hbmix
       have hba_lt : ((b * astar : I) : ℝ) < s := by
         change (b : ℝ) * astar < astar
         nlinarith
@@ -672,7 +680,7 @@ theorem isContinuousOn_iff_isArchimedeanOn {X : Set α} {rel : PMF α → PMF α
         rw [h1, mix_one]
         exact hpq
       obtain ⟨_, ⟨b, hb0, hb1, hbmix⟩⟩ := hA hp hq hastar_mem hspq hlt
-      rw [mix_mix_left] at hbmix
+      rw [mix_mix_right] at hbmix
       set w : I := σ (σ b * σ astar)
       have hwS : (w : ℝ) ∈ S := ⟨w, rfl, hbmix.1⟩
       have hw_le : (w : ℝ) ≤ s := le_csSup hS_bdd hwS
@@ -693,7 +701,7 @@ theorem isContinuousOn_iff_isArchimedeanOn {X : Set α} {rel : PMF α → PMF α
 /-! ### Existence of extremal lotteries and vNM utility representation -/
 
 /-- Every finite nonempty outcome set has a most preferred degenerate lottery under a rational
-preference relation. -/
+preference relation (used to establish AFP `overall_best_nonempty`). -/
 theorem exists_best_degenerate {X : Finset α} (hX : X.Nonempty)
     {rel : PMF α → PMF α → Prop} (hR : IsRationalOn (X : Set α) rel) :
     ∃ x ∈ X, ∀ y ∈ X, rel (PMF.pure x) (PMF.pure y) := by
@@ -726,7 +734,7 @@ theorem exists_best_degenerate {X : Finset α} (hX : X.Nonempty)
       · exact hb y hys
 
 /-- Every finite nonempty outcome set has a least preferred degenerate lottery under a rational
-preference relation. -/
+preference relation (used to establish AFP `overall_worst_nonempty`). -/
 theorem exists_worst_degenerate {X : Finset α} (hX : X.Nonempty)
     {rel : PMF α → PMF α → Prop} (hR : IsRationalOn (X : Set α) rel) :
     ∃ x ∈ X, ∀ y ∈ X, rel (PMF.pure y) (PMF.pure x) :=
@@ -787,7 +795,8 @@ private theorem lotteriesOn_induction {X : Finset α} {P : PMF α → Prop}
         exact hmix a x q hxX hq_mem (ih q hq_mem hq_card)
   exact hgen _ p hp le_rfl
 
-/-- A most preferred degenerate lottery is weakly preferred to every lottery on `X`. -/
+/-- A most preferred degenerate lottery is weakly preferred to every lottery on `X`
+(AFP `best_degenerate_in_best_overall`). -/
 theorem best_degenerate_is_best_overall {X : Finset α} {rel : PMF α → PMF α → Prop}
     (hR : IsRationalOn (X : Set α) rel) (hI : IsIndependentOn (X : Set α) rel)
     {x : α} (hx : x ∈ X) (hbest : ∀ y ∈ X, rel (PMF.pure x) (PMF.pure y)) :
@@ -798,7 +807,8 @@ theorem best_degenerate_is_best_overall {X : Finset α} {rel : PMF α → PMF α
   simpa only [mix_self] using hI.mix_rel_congr hR hx_mem (pure_mem_lotteriesOn_iff.mpr hy)
     hx_mem hq a (hbest y hy) hrel_q
 
-/-- A least preferred degenerate lottery is weakly worse than every lottery on `X`. -/
+/-- A least preferred degenerate lottery is weakly worse than every lottery on `X`
+(AFP `worst_degenerate_in_worst_overall`). -/
 theorem worst_degenerate_is_worst_overall {X : Finset α} {rel : PMF α → PMF α → Prop}
     (hR : IsRationalOn (X : Set α) rel) (hI : IsIndependentOn (X : Set α) rel)
     {x : α} (hx : x ∈ X) (hworst : ∀ y ∈ X, rel (PMF.pure y) (PMF.pure x)) :
@@ -824,17 +834,19 @@ theorem exists_worst_overall {X : Finset α} (hX : X.Nonempty)
   exists_best_overall hX hR.flip hI.flip
 
 /-- A utility function `u : α → ℝ` is a **von Neumann–Morgenstern utility** representing `rel` on
-lotteries over `X` if weak preference agrees with weak inequality of expected utility
-(AFP `vnm_utility`). -/
+lotteries over `X` if weak preference agrees with weak inequality of expected utility (AFP locale
+`vNM_utility`, except that AFP also bundles
+`relation ⊆ lotteries_on outcomes × lotteries_on outcomes` whereas `IsVNMUtility` leaves `rel`
+unconstrained outside `lotteriesOn X`). -/
 @[expose] def IsVNMUtility (X : Finset α) (rel : PMF α → PMF α → Prop) (u : α → ℝ) : Prop :=
   ∀ ⦃p⦄, p ∈ lotteriesOn (X : Set α) → ∀ ⦃q⦄, q ∈ lotteriesOn (X : Set α) →
     (rel p q ↔ expectedUtility X u q ≤ expectedUtility X u p)
 
 /-- **Von Neumann–Morgenstern expected utility existence theorem**
-(AFP `Von_Neumann_Morgenstern_Utility_Theorem`; [vonNeumannMorgenstern1947],
-[HersteinMilnor1953], [MasColellWhinstonGreen1995]): every rational, independent, and continuous
-preference relation on lotteries over a finite nonempty outcome set `X` admits a von
-Neumann–Morgenstern utility function `u : α → ℝ`. -/
+(AFP `system_U_implies_vNM_utility`; [vonNeumannMorgenstern1947], [HersteinMilnor1953],
+[MasColellWhinstonGreen1995]): every rational, independent, and continuous preference relation on
+lotteries over a finite nonempty outcome set `X` admits a von Neumann–Morgenstern utility function
+`u : α → ℝ`. -/
 theorem exists_isVNMUtility {X : Finset α} (hX : X.Nonempty)
     {rel : PMF α → PMF α → Prop} (hR : IsRationalOn (X : Set α) rel)
     (hI : IsIndependentOn (X : Set α) rel) (hC : IsContinuousOn (X : Set α) rel) :
@@ -913,8 +925,8 @@ theorem indiff_iff (hu : IsVNMUtility X rel u) {p q : PMF α}
   rw [VonNeumannMorgenstern.indiff_iff, hu hp hq, hu hq hp]
   exact ⟨fun ⟨h1, h2⟩ => le_antisymm h2 h1, fun h => ⟨le_of_eq h.symm, le_of_eq h⟩⟩
 
-/-- A vNM utility is an ordinal utility on degenerate lotteries
-(AFP `vnm_utility_is_ordinal_utility`). -/
+/-- A vNM utility induces an ordinal utility on degenerate lotteries (restricting
+`expectedUtility X u` to `PMF.pure`; cf. AFP `vnm_utility_is_ordinal_utility` on all lotteries). -/
 theorem pure_iff (hu : IsVNMUtility X rel u) {x y : α} (hx : x ∈ X) (hy : y ∈ X) :
     rel (PMF.pure x) (PMF.pure y) ↔ u y ≤ u x := by
   rw [hu (pure_mem_lotteriesOn_iff.mpr hx) (pure_mem_lotteriesOn_iff.mpr hy),
@@ -999,11 +1011,13 @@ theorem congr_on (hu : IsVNMUtility X rel u) (huv : ∀ x ∈ X, v x = u x) :
 
 /-- **Uniqueness up to positive affine transformation** ([vonNeumannMorgenstern1947],
 [HersteinMilnor1953], [MasColellWhinstonGreen1995]): any two vNM utility functions representing
-the same preference relation on lotteries over a finite nonempty set `X` agree on `X` up to a
-strictly positive scaling and an additive constant. -/
-theorem exists_posAffine_eq {hX : X.Nonempty} (hu : IsVNMUtility X rel u)
+the same preference relation on lotteries over a finite set `X` agree on `X` up to a strictly
+positive scaling and an additive constant. -/
+theorem exists_posAffine_eq (hu : IsVNMUtility X rel u)
     (hv : IsVNMUtility X rel v) :
     ∃ a b : ℝ, 0 < a ∧ ∀ x ∈ X, v x = a * u x + b := by
+  rcases X.eq_empty_or_nonempty with rfl | hX
+  · exact ⟨1, 0, one_pos, by simp⟩
   obtain ⟨xHi, hxHi, hmax⟩ := Finset.exists_max_image X u hX
   obtain ⟨xLo, hxLo, hmin⟩ := Finset.exists_min_image X u hX
   have hLo_le_Hi : u xLo ≤ u xHi := hmax xLo hxLo
@@ -1056,13 +1070,12 @@ theorem exists_posAffine_eq {hX : X.Nonempty} (hu : IsVNMUtility X rel u)
 
 end IsVNMUtility
 
-/-- Complete characterization of all vNM utility functions representing `rel` on a finite nonempty
-outcome set `X`: `v` represents `rel` iff `v` is a positive affine transformation of `u` on
-`X`. -/
-theorem isVNMUtility_iff_exists_posAffine_eq {X : Finset α} (hX : X.Nonempty)
+/-- Complete characterization of all vNM utility functions representing `rel` on a finite outcome
+set `X`: `v` represents `rel` iff `v` is a positive affine transformation of `u` on `X`. -/
+theorem isVNMUtility_iff_exists_posAffine_eq {X : Finset α}
     {rel : PMF α → PMF α → Prop} {u v : α → ℝ} (hu : IsVNMUtility X rel u) :
     IsVNMUtility X rel v ↔ ∃ a b : ℝ, 0 < a ∧ ∀ x ∈ X, v x = a * u x + b :=
-  ⟨fun hv => hu.exists_posAffine_eq (hX := hX) hv,
+  ⟨fun hv => hu.exists_posAffine_eq hv,
     fun ⟨_, _, ha, huv⟩ => (hu.posAffine ha _).congr_on huv⟩
 
 end Cslib.GameTheory.VonNeumannMorgenstern

@@ -72,7 +72,7 @@ theorem isVNMUtility_rel₃_posAffine :
 /-- Fixing two distinct anchor values pins down the remaining utility value uniquely. -/
 theorem rel₃_unique_anchor {w : Fin 3 → ℝ} (hw : IsVNMUtility X₃ rel₃ w)
     (h0 : w 0 = 0) (h2 : w 2 = 3) : w 1 = 1 := by
-  obtain ⟨a, b, _, haff⟩ := isVNMUtility_rel₃.exists_posAffine_eq (hX := Finset.univ_nonempty) hw
+  obtain ⟨a, b, _, haff⟩ := isVNMUtility_rel₃.exists_posAffine_eq hw
   have e0 := haff 0 (Finset.mem_univ (0 : Fin 3))
   have e1 := haff 1 (Finset.mem_univ (1 : Fin 3))
   have e2 := haff 2 (Finset.mem_univ (2 : Fin 3))
@@ -86,7 +86,7 @@ theorem degenerate_indiff_unique {v : Fin 3 → ℝ}
   have h0 : IsVNMUtility X₃ (fun _ _ => True) (fun _ => 0) := by
     intro p _ q _
     simp [expectedUtility]
-  obtain ⟨a, b, _, haff⟩ := h0.exists_posAffine_eq (hX := Finset.univ_nonempty) hv
+  obtain ⟨a, b, _, haff⟩ := h0.exists_posAffine_eq hv
   have hx := haff x (Finset.mem_univ x)
   have hy := haff y (Finset.mem_univ y)
   linarith
