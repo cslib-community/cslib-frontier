@@ -104,14 +104,12 @@ theorem copyWords_spec {w : ℕ} (args : CopyArgs) {xs : List ℕ} {F : ℕ} {s 
       t'.frontier = t.frontier ∧
       PreservesBelow G t t' ∧
       Block.HoldsList dst ys t'.mem := by
-    intro ys
-    induction ys with
+    intro ys src dst G t hwf_t hys hsrcG hGdst hdstF
+    induction ys generalizing src dst G t with
     | nil =>
-      intro src dst G t _ _ _ hGdst hdstF
       exact ⟨validHistory_pure w t _, rfl, PreservesBelow.refl (by omega),
         Block.holdsList_nil dst t.mem⟩
     | cons v rest ih =>
-      intro src dst G t hwf_t hys hsrcG hGdst hdstF
       simp only [List.length_cons] at hsrcG hdstF
       obtain ⟨hhead, htail⟩ := Block.holdsList_cons_iff.mp hys
       have hsrc_lt : src < t.frontier := by omega
@@ -212,8 +210,7 @@ theorem filterNe_spec {w : ℕ} (args : MemScanArgs) {xs : List ℕ} {s : Memory
       res.1 = s.frontier ∧
       res.2 = out.length ∧
       HoldsIn res.1 out s' := by
-  dsimp only
-  unfold filterNe
+  simp only [filterNe]
   have haux : ∀ (ys : List ℕ) (src dst cnt G : ℕ) (t : Memory.State),
       Memory.WellFormed w t →
       Block.HoldsList src ys t.mem →
@@ -227,14 +224,12 @@ theorem filterNe_spec {w : ℕ} (args : MemScanArgs) {xs : List ℕ} {s : Memory
       PreservesBelow G t t' ∧
       r.count = cnt + out.length ∧
       Block.HoldsList dst out t'.mem := by
-    intro ys
-    induction ys with
+    intro ys src dst cnt G t hwf_t hys hsrcG hGdst hdstF
+    induction ys generalizing src dst cnt G t with
     | nil =>
-      intro src dst cnt G t _ _ _ hGdst hdstF
       exact ⟨validHistory_pure w t _, rfl, PreservesBelow.refl (by omega), rfl,
         Block.holdsList_nil dst t.mem⟩
     | cons v rest ih =>
-      intro src dst cnt G t hwf_t hys hsrcG hGdst hdstF
       simp only [List.length_cons] at hsrcG hdstF
       obtain ⟨hhead, htail⟩ := Block.holdsList_cons_iff.mp hys
       have hsrc_lt : src < t.frontier := by omega

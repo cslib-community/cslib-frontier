@@ -110,9 +110,8 @@ theorem exists_saturated_augmentByBottleneck_of_slackNet (hst : L.s ≠ L.t) {g 
   have hslack : 0 < L.cap e.1 e.2 - g e.1 e.2 :=
     resCap_zero_slackNet (g := g) e.1 e.2 ▸ hp.pos_resCap he
   unfold resCap at hres heq
-  refine ⟨e, by omega, ?_⟩
   unfold augmentByBottleneck
-  omega
+  exact ⟨e, by omega, by omega⟩
 
 /-- Each bottleneck push along unsaturated arcs saturates a new arc and keeps saturated arcs
 saturated. -/
@@ -123,10 +122,8 @@ theorem card_unsatArcs_augmentByBottleneck_lt (hanti : ∀ u v, 0 < L.cap u v �
       g.unsatArcs.card := by
   obtain ⟨e, hlt, hsat⟩ := exists_saturated_augmentByBottleneck_of_slackNet hst hp
   have hsub : (g.augmentByBottleneck p (isAugmentingPath_of_slackNet hp)).unsatArcs ⊆
-      g.unsatArcs := fun x hx => by
-    rw [mem_unsatArcs] at hx ⊢
-    have := le_augmentByBottleneck_of_slackNet hanti hp x.1 x.2
-    omega
+      g.unsatArcs := fun x hx => (mem_unsatArcs _ _).mpr
+    ((le_augmentByBottleneck_of_slackNet hanti hp x.1 x.2).trans_lt ((mem_unsatArcs _ _).mp hx))
   exact Finset.card_lt_card ((Finset.ssubset_iff_of_subset hsub).mpr
     ⟨e, (mem_unsatArcs _ _).mpr hlt, mt (mem_unsatArcs _ _).mp (not_lt.mpr hsat)⟩)
 
@@ -232,8 +229,7 @@ theorem greedyBlockingFlow_spec {n : ℕ} {L : Network (Fin n)} {adj : Fin n →
       obtain ⟨hblk, hpush⟩ := greedyBlockingFlow_spec hadj hanti hst fuel
         (augmentFlowMatrix G p (Flow.isAugmentingPath_of_slackNet hp')) (k + 1)
         (by rw [hfun]; omega)
-      rw [hfun] at hpush
-      exact ⟨hblk, by omega⟩
+      exact ⟨hblk, by rw [hfun] at hpush; omega⟩
 
 /-- Output of Dinitz's algorithm on `N : Network (Fin n)`. -/
 structure DinitzOutput {n : ℕ} (N : Network (Fin n)) where
@@ -373,15 +369,14 @@ theorem dinitz_correct {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fi
   obtain ⟨hno, hcut, ⟨flows, hrun, _, _⟩, hk⟩ := dinitzLoop_spec hadj hst (n - 1)
     (FlowMatrix.ofFlow (Flow.zero N)) 0 0 (fun _ => Flow.zero N) (by omega)
     (fun i hi => absurd hi (Nat.not_lt_zero i)) (by simp) (by simp)
-  have hphases := hrun.length_le
-  rw [Fintype.card_fin] at hphases
+  have hphases := Fintype.card_fin n ▸ hrun.length_le
   simp only [dinitz, hst, ↓reduceIte]
   set out := dinitzLoop N adj (n - 1) (FlowMatrix.ofFlow (Flow.zero N)) 0 0
   have hno' : ¬ ∃ p, out.flow.IsAugmentingPath p :=
     mt out.flow.exists_augmentingPath_iff_resReachable.mp hno
   have hval := out.flow.value_eq_cutCapacity_reachableCut hno'
-  have hmin := out.flow.isMinCut_of_value_eq_cutCapacity (out.flow.reachableCut_isCut hno') hval
-  exact ⟨(out.flow.isMaxFlow_iff_not_exists_augmentingPath hst).mpr hno', hcut ▸ hmin,
+  exact ⟨(out.flow.isMaxFlow_iff_not_exists_augmentingPath hst).mpr hno',
+    hcut ▸ out.flow.isMinCut_of_value_eq_cutCapacity (out.flow.reachableCut_isCut hno') hval,
     hcut ▸ hval, hcut, hphases, hk.trans (Nat.mul_le_mul_right _ hphases)⟩
 
 /-- Correctness of `dinitzDense` without external adjacency obligations. -/

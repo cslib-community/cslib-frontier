@@ -169,7 +169,7 @@ theorem Reproducible.drop {W : ℕ} {h v : List α} (hv : Reproducible W h v) (k
   · exact Or.inl (by simp)
   · refine Or.inr ⟨d, h0, hW, by rw [List.length_append]; omega, ?_⟩
     have hlen : (h ++ v.take k).length - d = h.length - d + (v.take k).length := by
-      simp only [List.length_append]; omega
+      rw [List.length_append, Nat.sub_add_comm hh]
     have hdk : v.drop (v.take k).length = v.drop k := by
       rw [List.length_take, List.drop_eq_drop_iff, Nat.min_assoc, Nat.min_self]
     rw [List.append_assoc, List.take_append_drop, hlen, ← List.drop_drop, ← hdk]
@@ -228,9 +228,8 @@ theorem reproducible_take_copyLen (W : ℕ) (h r : List α) :
 
 /-- Every reproducible prefix of `r` is at most `copyLen` long. -/
 theorem le_copyLen {W : ℕ} {h r u : List α} (hu : Reproducible W h u) (hur : u <+: r) :
-    u.length ≤ copyLen W h r := by
-  refine Nat.le_findGreatest hur.length_le ?_
-  rwa [← List.prefix_iff_eq_take.1 hur]
+    u.length ≤ copyLen W h r :=
+  Nat.le_findGreatest hur.length_le (List.prefix_iff_eq_take.1 hur ▸ hu)
 
 private theorem parseAux_nil (W n : ℕ) (h : List α) : parseAux W n h [] = [] := by
   cases n <;> rfl
@@ -238,7 +237,7 @@ private theorem parseAux_nil (W n : ℕ) (h : List α) : parseAux W n h [] = [] 
 private theorem flatten_parseAux (W : ℕ) :
     ∀ (n : ℕ) (h r : List α), r.length ≤ n → (parseAux W n h r).flatten = r
   | 0, h, r, hr => by
-    rw [List.eq_nil_of_length_eq_zero (by omega : r.length = 0)]; rfl
+    simp [List.eq_nil_of_length_eq_zero (Nat.le_zero.mp hr), parseAux]
   | n + 1, h, [], _ => rfl
   | n + 1, h, a :: r, hr => by
     rw [parseAux, List.flatten_cons, flatten_parseAux W n _ _
@@ -275,8 +274,7 @@ private theorem isExhaustive_parseAux (W : ℕ) :
     refine ⟨fun hne hrep => ?_, isExhaustive_parseAux W n _ _⟩
     have hlt : copyLen W h (a :: r) + 1 < (a :: r).length :=
       lt_of_not_ge fun hge => hne (by rw [List.drop_eq_nil_of_le hge, parseAux_nil])
-    have := le_copyLen hrep (List.take_prefix _ _)
-    rw [List.length_take] at this
+    have := List.length_take ▸ le_copyLen hrep (List.take_prefix _ _)
     omega
 
 /-- The greedy parse is exhaustive: no phrase but the last is reproducible. -/
@@ -301,11 +299,9 @@ theorem length_add_length_le {W : ℕ} {h h' r u s : List α} (heq : h ++ r = h'
     exact List.append_inj heq (by simp only [List.length_append, List.length_take]; omega)
   have htk : u.dropLast.take k = u.take k := by
     rw [List.dropLast_eq_take, List.take_take, Nat.min_eq_left (by omega)]
-  have hrep' := hrep.drop k
-  rw [htk] at hrep'
   have hpre : u.dropLast.drop k <+: u.drop k ++ s :=
     ((List.dropLast_prefix u).drop k).trans (List.prefix_append _ _)
-  have := le_copyLen hrep' hpre
+  have := le_copyLen (htk ▸ hrep.drop k) hpre
   simp only [List.length_drop, List.length_dropLast, List.length_append,
     List.length_take] at this ⊢
   omega
@@ -317,7 +313,8 @@ private theorem length_parseAux_le (W : ℕ) :
   | [], n, h, h', r, _, heq, hh, _ => by
     have hlen := congrArg List.length heq
     simp only [List.flatten_nil, List.append_nil, List.length_append] at hlen
-    rw [List.eq_nil_of_length_eq_zero (by omega : r.length = 0), parseAux_nil]
+    have hr0 : r.length = 0 := by omega
+    rw [List.eq_nil_of_length_eq_zero hr0, parseAux_nil]
   | u :: ws, 0, h, h', r, _, _, _, _ => by simp [parseAux]
   | u :: ws, n + 1, h, h', [], _, _, _, _ => by simp [parseAux]
   | u :: ws, n + 1, h, h', a :: r, hr, heq, hh, ⟨_, hrep, hws⟩ => by
@@ -355,15 +352,15 @@ private theorem parseAux_eq_of_isExhaustive (W : ℕ) :
     have htake : ((a :: u') ++ ws.flatten).take (copyLen W h ((a :: u') ++ ws.flatten) + 1) =
         a :: u' := by
       rcases eq_or_ne ws [] with rfl | hws0
-      · rw [List.flatten_nil, List.append_nil]
-        exact List.take_of_length_le (by simp at hlow ⊢; omega)
+      · rw [List.flatten_nil, List.append_nil] at hlow ⊢
+        exact List.take_of_length_le (List.length_cons ▸ Nat.succ_le_succ hlow)
       · have hup : copyLen W h ((a :: u') ++ ws.flatten) < u'.length + 1 := by
           by_contra hge
           refine hnr hws0 ((reproducible_take_copyLen W h ((a :: u') ++ ws.flatten)).of_prefix ?_)
           exact List.prefix_of_prefix_length_le (List.prefix_append _ _) (List.take_prefix _ _)
             (by simp only [List.length_take, List.length_append, List.length_cons] at hge ⊢; omega)
-        have heq : copyLen W h ((a :: u') ++ ws.flatten) + 1 = (a :: u').length := by
-          simp only [List.length_cons]; omega
+        have heq : copyLen W h ((a :: u') ++ ws.flatten) + 1 = (a :: u').length :=
+          List.length_cons ▸ Nat.le_antisymm hup (Nat.succ_le_succ hlow)
         exact heq ▸ List.take_left
     have hdrop : ((a :: u') ++ ws.flatten).drop (copyLen W h ((a :: u') ++ ws.flatten) + 1) =
         ws.flatten :=
@@ -375,9 +372,8 @@ private theorem parseAux_eq_of_isExhaustive (W : ℕ) :
 its greedy parse. -/
 theorem parse_eq_of_isExhaustive {W : ℕ} {x : List α} {ws : List (List α)}
     (hx : ws.flatten = x) (hws : IsHistory W [] ws) (hex : IsExhaustive W [] ws) :
-    parse W x = ws := by
-  subst hx
-  exact parseAux_eq_of_isExhaustive W ws _ [] le_rfl hws hex
+    parse W x = ws :=
+  hx ▸ parseAux_eq_of_isExhaustive W ws _ [] le_rfl hws hex
 
 /-! ## The (distance, length, symbol) code -/
 
@@ -396,7 +392,6 @@ theorem bestDist_spec {W : ℕ} {h u : List α} {d : ℕ} (h0 : 0 < d) (hW : d �
       u <+: (h ++ u).drop (h.length - bestDist W h u) := by
   rcases eq_or_ne u [] with rfl | hne
   · exact Or.inl rfl
-  refine Or.inr ?_
   rw [bestDist, ite_eq_right hne]
   cases hf : (List.range' 1 (min W h.length)).find?
       (fun d => decide (u <+: (h ++ u).drop (h.length - d))) with
@@ -404,8 +399,8 @@ theorem bestDist_spec {W : ℕ} {h u : List α} {d : ℕ} (h0 : 0 < d) (hW : d �
     exact absurd (decide_eq_true hu) (List.find?_eq_none.1 hf d (List.mem_range'_1.2 (by omega)))
   | some e =>
     have hmem := List.mem_range'_1.1 (List.mem_of_find?_eq_some hf)
-    simp only [Option.getD_some]
-    exact ⟨hmem.1, by omega, of_decide_eq_true (List.find?_some hf :)⟩
+    dsimp only [Option.getD_some]
+    exact Or.inr ⟨hmem.1, by omega, of_decide_eq_true (List.find?_some hf :)⟩
 
 /-- Encode each nonempty phrase `u` after the text `h` as (distance, `|u| - 1`, last symbol of
 `u`). Empty phrases are skipped. -/

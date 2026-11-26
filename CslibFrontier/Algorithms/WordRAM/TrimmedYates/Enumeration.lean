@@ -59,11 +59,10 @@ theorem prefixesUpTo_spec {d : ℕ} (k : ℕ) :
     ∀ {coords : List (Fin d)}, coords.Nodup →
       (prefixesUpTo k coords).Nodup ∧
       ∀ S, S ∈ prefixesUpTo k coords ↔ S ⊆ coords.toFinset ∧ #S ≤ k := by
-  intro coords
+  intro coords hnd
   induction coords using List.reverseRecOn with
   | nil => simp [prefixesUpTo]
   | append_singleton coords c ih =>
-    intro hnd
     obtain ⟨hnd_prev, -, hdisj⟩ := List.nodup_append.mp hnd
     have hc_not : c ∉ coords := fun hc => hdisj c hc c (by simp) rfl
     obtain ⟨hprev_nd, hprev_mem⟩ := ih hnd_prev
@@ -97,22 +96,20 @@ theorem prefixesUpTo_spec {d : ℕ} (k : ℕ) :
               (Finset.mem_insert.mp (hsub (mem_of_mem_erase hx))).resolve_left
                 (ne_of_mem_erase hx), card_erase_le.trans hcard⟩,
             (card_erase_lt_of_mem hcS).trans_le hcard⟩, insert_erase hcS⟩
-        · left
-          exact (hprev_mem S).mpr
-            ⟨fun x hx => (Finset.mem_insert.mp (hsub hx)).resolve_left fun h => hcS (h ▸ hx), hcard⟩
+        · exact .inl ((hprev_mem S).mpr
+            ⟨fun x hx => (Finset.mem_insert.mp (hsub hx)).resolve_left fun h => hcS (h ▸ hx),
+              hcard⟩)
 
 theorem length_prefixesUpTo {d : ℕ} :
     ∀ (k : ℕ) {coords : List (Fin d)}, coords.Nodup →
       (prefixesUpTo k coords).length = ∑ j ∈ range (k + 1), coords.length.choose j := by
-  intro k coords
+  intro k coords hnd
   induction coords using List.reverseRecOn generalizing k with
   | nil => simp [prefixesUpTo, Finset.sum_range_succ']
   | append_singleton coords c ih =>
-    intro hnd
     have hnd_prev : coords.Nodup := (List.nodup_append.mp hnd).1
     rw [prefixesUpTo_append_singleton]
-    dsimp only
-    rw [List.length_append, List.length_map, List.length_append, List.length_singleton]
+    simp only [List.length_append, List.length_map, List.length_singleton]
     rcases k with _ | k
     · simp [ih 0 hnd_prev]
     · obtain ⟨hp_nd, hp_mem⟩ := prefixesUpTo_spec (k + 1) hnd_prev
@@ -123,17 +120,14 @@ theorem length_prefixesUpTo {d : ℕ} :
         congr 1
         ext S
         simp only [List.mem_toFinset, List.mem_filter, hp_mem, hk_mem, decide_eq_true_eq]
-        exact ⟨fun ⟨⟨hsub, _⟩, hlt⟩ => ⟨hsub, by omega⟩,
-          fun ⟨hsub, hle⟩ => ⟨⟨hsub, by omega⟩, by omega⟩⟩
+        exact ⟨fun ⟨⟨hsub, _⟩, hlt⟩ => ⟨hsub, Nat.lt_succ_iff.mp hlt⟩,
+          fun ⟨hsub, hle⟩ => ⟨⟨hsub, Nat.le_succ_of_le hle⟩, Nat.lt_succ_of_le hle⟩⟩
       rw [hflt_eq, ih (k + 1) hnd_prev, ih k hnd_prev, Finset.sum_range_succ' _ (k + 1),
         Finset.sum_range_succ' _ (k + 1)]
       simp only [Nat.choose_zero_right]
-      have hsum : ∑ j ∈ range (k + 1), coords.length.choose (j + 1) +
-          ∑ j ∈ range (k + 1), coords.length.choose j =
-          ∑ j ∈ range (k + 1), (coords.length + 1).choose (j + 1) := by
-        rw [← Finset.sum_add_distrib]
-        exact Finset.sum_congr rfl fun j _ => by rw [add_comm, Nat.choose_succ_succ]
-      omega
+      rw [add_right_comm, ← Finset.sum_add_distrib]
+      exact congrArg (· + 1) (Finset.sum_congr rfl fun j _ =>
+        by rw [add_comm, Nat.choose_succ_succ])
 
 /-- Inner step of `genLowSubsets`: extend `xs[rGenPos]` with `rGenBitMask` when `#xs[p] < k`. -/
 private def genInnerStep : Code .standard numRegs := ram[
@@ -449,8 +443,7 @@ theorem exec_extractCoords {w d coordsPtr : ℕ} (C : Finset (Fin d)) (x : Data 
       (ram[ rTrieRem ← rTrieKey; rCoordsLen ← #0; rGenIdx ← #0 ]) x x₀ 3 := by
     wram_exec [hk]
   have hx₀ : P (x₀.regs rGenIdx) x₀ := by
-    dsimp only [P, curAt]
-    simp [x₀, hz, ho, hd, hcptr]
+    simp [P, curAt, x₀, hz, ho, hd, hcptr]
   obtain ⟨y, hloop, hyP, _⟩ := ExecWithin.loop_count P (fun s hs => hs.2.2.1) hbody
     (by simp [x₀]) hx₀
   obtain ⟨_, _, _, _, hycl, _, hymem, hyframe⟩ := hyP
@@ -535,9 +528,10 @@ theorem exec_flipHighDom {w d domPtr : ℕ} (C : Finset (Fin d))
   obtain ⟨_, _, _, _, _, hydone, _, hyframe⟩ := hyP
   have he : ExecWithin w flipHighDom x y (12 * ys.length + 3) :=
     (hinit.seq hloop).mono (by simp [x₀]; omega)
-  refine ⟨y, he, fun j hj => ?_, hyframe, fun i hi => he.regs_eq (flipHighDom_preserves i hi)⟩
-  rw [List.length_map] at hj
-  simpa only [List.getElem_map] using hydone j hj hj
+  exact ⟨y, he, fun j hj => by
+      have hj' : j < ys.length := by simpa using hj
+      simpa only [List.getElem_map] using hydone j hj' hj',
+    hyframe, fun i hi => he.regs_eq (flipHighDom_preserves i hi)⟩
 
 /-- Write `[0, 1, ..., d - 1]` (`List.finRange d`) to `rCoordsPtr[0 .. Reg.dim - 1]`. -/
 private def initCoordsStep : Code .standard numRegs := ram[
@@ -590,9 +584,7 @@ theorem exec_initIdentityCoords {w d coordsPtr : ℕ} (x : Data numRegs)
   obtain ⟨_, _, _, hydone, hyframe⟩ := hyP
   have he : ExecWithin w initIdentityCoords x y (5 * d + 3) :=
     (hinit.seq hloop).mono (by simp [x₀]; omega)
-  refine ⟨y, he, fun j hj => ?_, hyframe,
+  exact ⟨y, he, fun j hj => by simpa using hydone j (by simpa using hj), hyframe,
     fun i hi => he.regs_eq (initIdentityCoords_preserves i hi)⟩
-  rw [List.length_finRange] at hj
-  simpa using hydone j hj
 
 end Cslib.Algorithms.WordRAM.TrimmedYates
