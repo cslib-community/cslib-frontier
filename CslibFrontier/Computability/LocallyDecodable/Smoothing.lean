@@ -138,10 +138,8 @@ private theorem evalWith_maskHandler (y : P → Γ) :
   | inl n => exact evalWith_query _ _
   | inr j =>
     change evalWith (wordOracle y) (maskAnswer H z j) = PMF.pure (splice H z y j)
-    rw [maskAnswer]
-    by_cases hj : j ∈ H
-    · rw [ite_eq_left hj, evalWith_pure, splice, ite_eq_left hj]
-    · rw [ite_eq_right hj, splice, ite_eq_right hj, ← decodeLaw_eq, decodeLaw_query]
+    rw [← decodeLaw_eq, maskAnswer, splice]
+    split_ifs <;> simp
 
 private theorem expectedCost_maskHandler (y : P → Γ) (j : P) (q' : ℕ ⊕ P) :
     expectedCost (wordOracle y) (readCost j) (maskHandler H z q') =
@@ -169,13 +167,8 @@ theorem expectedReads_mask (program : ProbOracleComp (fun _ : P => Γ) α) (y : 
     expectedReads (mask H z program) y j =
       if j ∈ H then 0 else expectedReads program (splice H z y) j := by
   rw [expectedReads_eq, mask, expectedCost_interpret, evalWith_maskHandler]
-  have hcost : (fun q' => expectedCost (wordOracle y) (readCost j) (maskHandler H z q')) =
-      if j ∈ H then 0 else readCost j := by
-    funext q'
-    rw [expectedCost_maskHandler]
-    split_ifs <;> rfl
-  rw [hcost]
-  split_ifs <;> simp [expectedCost_zero, expectedReads_eq]
+  simp_rw [expectedCost_maskHandler]
+  by_cases hj : j ∈ H <;> simp [hj, ← Pi.zero_def, expectedCost_zero, expectedReads_eq]
 
 /-- The spliced word differs from `y` only on `H`. -/
 theorem hammingDist_splice_le [Fintype P] [DecidableEq Γ] (y : P → Γ) :
@@ -764,20 +757,17 @@ theorem toReal_decodeLaw_nonadaptivize [Fintype Γ] [Nonempty Γ] [DecidableEq �
         simp_rw [hstep, hlin]
         rw [Finset.sum_add_distrib, ← Finset.sum_div, Finset.sum_sub_distrib, ← Finset.sum_mul,
           Probability.PMF.sum_toReal, one_mul]
-      rcases q with _ | _ | q
+      rcases q with _ | m
       · rw [nonadaptivize, decodeLaw_nonadaptivePlan, nonadaptivizePlan, ProbComp.eval_bind,
           PMF.map_bind]
         simp only [ProbComp.eval_pure, PMF.pure_map, NonadaptivePlan.eval, PMF.bind_pure,
           eval_stripQueries _ hq y, Nat.zero_sub, pow_zero, div_one]
         ring
-      · exact hinl 0 hq (by
+      · refine hinl m hq ?_
+        rcases m with _ | q <;>
           simp only [e, nonadaptivize, decodeLaw_nonadaptivePlan, nonadaptivizePlan,
-            ProbComp.eval_bind, ProbComp.eval_unifFin, PMF.map_bind]
-          rfl)
-      · exact hinl (q + 1) hq (by
-          simp only [e, nonadaptivize, decodeLaw_nonadaptivePlan, nonadaptivizePlan,
-            ProbComp.eval_bind, ProbComp.eval_unifFin, PMF.map_bind]
-          rfl)
+            ProbComp.eval_bind, ProbComp.eval_unifFin, PMF.map_bind] <;>
+          rfl
     | inr j =>
       have hinr_prog : decodeLaw (.liftBind (.inr j) cont) y = decodeLaw (cont (y j)) y := by
         change decodeLaw (OracleComp.query (.inr j) >>= cont) y = _

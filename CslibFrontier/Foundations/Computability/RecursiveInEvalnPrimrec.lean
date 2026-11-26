@@ -145,7 +145,7 @@ theorem primrec_recOn' {α σ}
   refine (nat_strong_rec (fun a n => F a (ofNat Code n)) this.to₂ fun a n => ?_)
     |>.comp .id (encode_iff.2 hc) |>.of_eq fun a => by simp
   iterate 5 rcases n with - | n; · simp [ofNatCode_eq, Code.ofNatCode]; rfl
-  simp only [G]; rw [List.length_map, List.length_range]
+  simp only [G, List.length_map, List.length_range]
   let m := n.div2.div2
   change G₁ ((a, (List.range (n + 5)).map fun n => F a (ofNat Code n)), n, m) =
     some (F a (ofNat Code (n + 5)))
@@ -153,9 +153,8 @@ theorem primrec_recOn' {α σ}
   have m1 : m.unpair.1 < n + 5 := lt_of_le_of_lt m.unpair_left_le hm
   have m2 : m.unpair.2 < n + 5 := lt_of_le_of_lt m.unpair_right_le hm
   simp only [List.length_map, List.length_range, List.getElem?_eq_getElem, hm, m1, m2,
-    List.getElem_map, List.getElem_range, Option.bind_some, Option.map_some, G₁, m]
-  rw [show ofNat Code (n + 5) = Code.ofNatCode (n + 5) from rfl]
-  simp only [Code.ofNatCode]
+    List.getElem_map, List.getElem_range, Option.bind_some, Option.map_some, G₁, m,
+    ofNatCode_eq, Code.ofNatCode]
   cases n.bodd <;> cases n.div2.bodd <;> rfl
 
 
@@ -280,13 +279,9 @@ private theorem hG : Primrec₂ G := by
 
 private theorem evaln_map (σ k c n) :
     ((List.range k)[n]?.bind fun a ↦ evaln σ k c a) = evaln σ k c n := by
-  by_cases kn : n < k
-  · simp [List.getElem?_range kn]
-  · rw [List.getElem?_eq_none]
-    · cases e : evaln σ k c n
-      · rfl
-      exact kn.elim (evaln_bound e)
-    simpa using kn
+  cases e : evaln σ k c n
+  · by_cases kn : n < k <;> simp [kn, e]
+  · simp [List.getElem?_range (evaln_bound e), e]
 
 /-- The `Nat.RecursiveIn.Code.evaln` function is primitive recursive. -/
 theorem primrec_evaln :

@@ -90,10 +90,10 @@ private theorem compDemoteStep_effect {metaBase itemBase U V w N m_cap b k : ℕ
     tailBijection_of_gm_eq hcpl.gm_eq htail_fix
   have hslab : SlabBijection N gm (fun b' => gm (gmQIdx b')) (gm 0) :=
     slabBijection_of_gm_eq hcpl.gm_eq hslab_fix
-  have hrb : gm (gmRIdx b) = k := by dsimp only [gm]; rw [hcpl.gm_eq]; exact hrb_fix
-  have hqb : 1 ≤ gm (gmQIdx b) := by dsimp only [gm]; rw [hcpl.gm_eq]; exact hqb_fix
+  have hrb : gm (gmRIdx b) = k := by simpa only [gm, hcpl.gm_eq] using hrb_fix
+  have hqb : 1 ≤ gm (gmQIdx b) := by simpa only [gm, hcpl.gm_eq] using hqb_fix
   have htot_N : (gm 0 - 1) * slabSize N + (slabSize N - k) + gm 1 ≤ N := by
-    dsimp only [gm]; rw [hcpl.gm_eq]; exact htot_fix
+    simpa only [gm, hcpl.gm_eq] using htot_fix
   set u := (slabSize N - 1) - k
   set g_del := gm (gmSlabTopIdx b) * slabSize N + u
   set g_last := (gm 0 - 1) * slabSize N + u
@@ -101,10 +101,8 @@ private theorem compDemoteStep_effect {metaBase itemBase U V w N m_cap b k : ℕ
   have hbwin_eq : (gm 0 - 1) * slabSize N + (slabSize N - k) = g_last + 1 := by
     dsimp only [g_last, u]; omega
   have hp_del_lt : gm (gmSlabTopIdx b) < gm 0 := hslab.top_lt hb (by omega)
-  have hg_del_le_last : g_del ≤ g_last := by
-    have hmul : gm (gmSlabTopIdx b) * slabSize N ≤ (gm 0 - 1) * slabSize N :=
-      Nat.mul_le_mul_right _ (by omega)
-    dsimp only [g_del, g_last]; omega
+  have hg_del_le_last : g_del ≤ g_last :=
+    Nat.add_le_add_right (Nat.mul_le_mul_right _ (Nat.le_sub_one_of_lt hp_del_lt)) u
   have hg_del_lt_b : g_del < g_last + 1 := by omega
   have hg_last_lt_b : g_last < g_last + 1 := Nat.lt_succ_self g_last
   have hg_del_m : g_del < m := by dsimp only [m]; omega
@@ -159,18 +157,14 @@ private theorem compDemoteStep_effect {metaBase itemBase U V w N m_cap b k : ℕ
   have hres_all : (Memory.spec 0).clientResult s (compDemoteStepGenProg d) = k + 1 := by
     dsimp only [d, compDemoteStepGenProg, compDemoteFinishStepProg, compDemoteWinAppendProg,
       compDemoteSwapItemsProg, writeCompItemGenProg]
-    simp only [bind_assoc, pure_bind]
-    rw [StateTransitionSpec.clientResult_bind, hst_gm, hres_gm,
-      StateTransitionSpec.clientResult_bind]
-    repeat rw [StateTransitionSpec.clientResult_bind]
-    rfl
+    simp only [bind_assoc, pure_bind, StateTransitionSpec.clientResult_bind, hst_gm, hres_gm,
+      StateTransitionSpec.clientResult_pure]
   have hst_all : s' = s₆ := by
     dsimp only [s', d, compDemoteStepGenProg, compDemoteFinishStepProg, compDemoteWinAppendProg,
       compDemoteSwapItemsProg, writeCompItemGenProg]
     simp only [bind_assoc, pure_bind]
     rw [StateTransitionSpec.clientState_bind, hst_gm, hres_gm,
-      StateTransitionSpec.clientState_bind, hrd_st, hrd_res,
-      StateTransitionSpec.clientState_bind]
+      StateTransitionSpec.clientState_bind, hrd_st, hrd_res]
     repeat rw [StateTransitionSpec.clientState_bind]
     rw [StateTransitionSpec.clientState_pure]
   have hframe : CompOpFrame metaBase itemBase U V w N m_cap s s' := by
@@ -242,13 +236,11 @@ private theorem compDemoteStep_effect {metaBase itemBase U V w N m_cap b k : ℕ
       g_del (by omega) (hp_eq.trans (physByBase_slab _ hg_del_lt_b).symm)
   refine ⟨hres_all, hframe, ?_, ?_⟩
   · rw [hst_all]
-    refine ⟨hgm6.trans (by rw [← hgm_fix_eq]; exact hgm_ds.symm),
-      hlm6.trans (hcpl0.lm_eq.trans hl_ds.symm),
-      by rw [hbwin6_eq, hgm6_1, htd6, hdt6]; exact hwspec.1,
-      fun i => by rw [htd6, hmax_eq]; exact hwspec.2.1 i,
-      fun i => by rw [hdt6, hmax_eq]; exact hwspec.2.2 i,
-      fun idx hidx => ?_,
-      fun idx hidx => ?_⟩
+    refine ⟨hgm6.trans (hgm_fix_eq ▸ hgm_ds.symm), hlm6.trans (hcpl0.lm_eq.trans hl_ds.symm),
+      by simpa only [hbwin6_eq, hgm6_1, htd6, hdt6, winGrowLeft] using hwspec.1,
+      fun i => by simpa only [htd6, hmax_eq, winGrowLeft] using hwspec.2.1 i,
+      fun i => by simpa only [hdt6, hmax_eq, winGrowLeft] using hwspec.2.2 i,
+      fun idx hidx => ?_, fun idx hidx => ?_⟩
     · rw [hbwin6_eq, hgm6_1, hm6_eq] at hidx ⊢
       rw [hdt6, hs6_mem, compQuotAt_writeCompVal henv.pos_w, hq_ds, hgm_fix_eq]
       unfold winGrowLeft; dsimp only

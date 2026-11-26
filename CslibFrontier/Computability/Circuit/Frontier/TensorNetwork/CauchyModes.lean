@@ -159,9 +159,7 @@ theorem localKernel_mul_eq {a i v : ℕ} {t d₀ d j u₀ : ℤ} (ht : t ∈ cau
       Polynomial.map_X, map_intCast, map_pow, map_ofNat]
   have hmap₂ : (C ((2 ^ (i + 1 - v) * j : ℤ) : ℤ₍₂₎)).map ℤ₍₂₎.subtype =
       C ((2 : ℚ) ^ (i + 1 - v) * j) := by
-    rw [Polynomial.map_C, map_intCast]
-    push_cast
-    rfl
+    rw [Polynomial.map_C, map_intCast, Int.cast_mul, Int.cast_pow, Int.cast_ofNat]
   rw [Polynomial.map_mul, Polynomial.map_mul, Polynomial.map_sub, hmap₁, hmap₂,
     map_localKernel ht hd, map_localKernel ht hd₀]
   set Y : ℚ[X] := C (t : ℚ) + C ((2 : ℚ) ^ (a + 1)) * X
@@ -264,11 +262,10 @@ theorem kernelValue_eq_sum (κ : ℤ₍₂₎ →+* R) (ζ : R) {p a i : ℕ} (h
   set u₀ := (t - d₀) / 2 ^ v
   have h : kernelValue κ ζ a t d * ((u₀ : R) + 2 ^ (a + 1 - v) * ζ - 2 ^ (i + 1 - v) * j) =
       kernelValue κ ζ a t d₀ * ((u₀ : R) + 2 ^ (a + 1 - v) * ζ) := by
-    have h := congrArg (eval₂ κ ζ) (localKernel_mul_eq ht hd₀ hd hdd hsplit hvi hia)
-    simp only [eval₂_mul, eval₂_sub, eval₂_add, eval₂_C, eval₂_X] at h
-    simp only [map_intCast, map_pow, map_ofNat] at h
-    push_cast at h
-    exact h
+    have h0 := congrArg (eval₂ κ ζ) (localKernel_mul_eq ht hd₀ hd hdd hsplit hvi hia)
+    simp only [eval₂_mul, eval₂_sub, eval₂_add, eval₂_C, eval₂_X] at h0
+    simpa only [kernelValue, map_mul, map_pow, map_ofNat, map_intCast, Int.cast_mul, Int.cast_pow,
+      Int.cast_ofNat] using h0
   -- The unit `U = u₀ + 2 ^ (a + 1 - v) ζ`.
   set U : R := (u₀ : R) + 2 ^ (a + 1 - v) * ζ
   set ρ := crossRatio a i t d₀ ζ
@@ -427,9 +424,7 @@ private theorem cauchyValueMatrix_eq_add_sum
     · exact ⟨h1.1, h2.1, h1.2.1, h1.2.2, h2.2.2⟩
     all_goals simp at hZ
   have hbit' {y₀ : ℕ} (hy : slot e' % 2 ^ (i + 1) = y₀) :
-      (slot e').testBit i = y₀.testBit i := by
-    subst hy
-    simp [Nat.testBit_mod_two_pow]
+      (slot e').testBit i = y₀.testBit i := by simp [← hy, Nat.testBit_mod_two_pow]
   by_cases hloc : group (N.tgt e') = group (N.src e)
   · -- Local entries: no mode term survives.
     rw [ite_eq_left hloc, left_eq_add]
@@ -476,10 +471,8 @@ private theorem cauchyValueMatrix_eq_add_sum
           (lt_of_lt_of_le y₀.isLt h2a)) (sub_mem_cauchyGrid (hslot e) (hslot e')) ?_
         (not_dvd_sub_sub_of_testBit_eq hti hti' y₀.isLt (hb.trans (hbit' hy₀.symm))) hia.le
       · have hslot_eq : ((slot e' : ℕ) : ℤ) =
-            (y₀ : ℕ) + 2 ^ (i + 1) * (slot e' / 2 ^ (i + 1) : ℕ) := by
-          exact_mod_cast hy₀ ▸ hdiv.symm
-        rw [hslot_eq]
-        ring
+            (y₀ : ℕ) + 2 ^ (i + 1) * (slot e' / 2 ^ (i + 1) : ℕ) := mod_cast hy₀ ▸ hdiv.symm
+        linear_combination hslot_eq
     · exact fun y₀' _ hne => sum_eq_zero fun b _ => by_contra fun hZ =>
         hne (Fin.ext ((hterm _ hZ).2.2.2.2.symm.trans hy₀.symm))
     · exact fun h => absurd (mem_univ _) h

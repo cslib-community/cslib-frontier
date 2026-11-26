@@ -126,17 +126,17 @@ theorem winv_initWin (d : Desc) (x : List ℕ) :
     WInv (descLen d) (descLen d + listMax id x + 1) 0 (x.length + 1) (initWin d x) := by
   refine ⟨by simpa [initWin] using Universal.q₀_le d, by simpa [initWin] using Universal.tapes_le d,
     ?_, ?_, ?_⟩ <;>
-    simp only [initWin, List.mem_cons, List.mem_replicate] <;> rintro t (rfl | ⟨-, rfl⟩)
-  · simp
-  · simp
-  · simp [cells]; omega
-  · simp [cells]
-  · intro o ho
-    simp only [List.cons_append, List.nil_append, List.mem_cons, List.mem_map] at ho
-    rcases ho with rfl | ⟨a, ha, rfl⟩
-    · simp
-    · simpa using (le_listMax (f := id) ha).trans (by omega)
-  · simp
+    simp only [initWin, List.mem_cons, List.mem_replicate]
+  · rintro t (rfl | ⟨-, rfl⟩) <;> simp
+  · rintro t (rfl | ⟨-, rfl⟩)
+    · simp [cells]; omega
+    · simp [cells]
+  · rintro t (rfl | ⟨-, rfl⟩) o ho
+    · simp only [List.cons_append, List.nil_append, List.mem_cons, List.mem_map] at ho
+      rcases ho with rfl | ⟨a, ha, rfl⟩
+      · simp
+      · simpa using (le_listMax (f := id) ha).trans (by omega)
+    · simp at ho
 
 /-! ### One step -/
 
@@ -308,15 +308,14 @@ private lemma exists_of_mem_zipWith {α β γ : Type} {f : α → β → γ} {l�
 
 private lemma valLe_restore {B r : ℕ} {outer inner : Win} (ho : ∀ t ∈ outer.2, ValLe B t)
     (hi : ∀ t ∈ inner.2, ValLe B t) : ∀ t ∈ (restore r outer inner).2, ValLe B t := by
-  intro t ht
+  intro t ht v hv
   obtain ⟨o, hmo, i, hmi, rfl⟩ := exists_of_mem_zipWith ht
-  intro v hv
   simp only [paste, List.mem_append] at hv
-  rcases hv with (hv | hv) | (hv | hv)
-  · exact hi i hmi v (List.mem_append_left _ hv)
-  · exact ho o hmo v (List.mem_append_left _ (List.mem_of_mem_drop hv))
-  · exact hi i hmi v (List.mem_append_right _ hv)
-  · exact ho o hmo v (List.mem_append_right _ (List.mem_of_mem_drop hv))
+  exact hv.elim
+    (·.elim (fun h => hi i hmi v (List.mem_append_left _ h))
+      fun h => ho o hmo v (List.mem_append_left _ (List.mem_of_mem_drop h)))
+    (·.elim (fun h => hi i hmi v (List.mem_append_right _ h))
+      fun h => ho o hmo v (List.mem_append_right _ (List.mem_of_mem_drop h)))
 
 private lemma valLe_extract {B r : ℕ} {w : Win} (h : ∀ t ∈ w.2, ValLe B t) :
     ∀ t ∈ (extract r w).2, ValLe B t := by
@@ -347,9 +346,8 @@ private lemma forall₂_sim (d : Desc) (n : ℕ) (w : Win) :
     rcases wstep_cases d w with h | ⟨i, ts, p, p', hw, h | h | ⟨e, -, h⟩⟩ <;> rw [h] <;>
       try rw [hw]
     · exact forall₂_grow_refl 1 _
-    · exact .cons (grow_moveIn i p p') (forall₂_grow_refl 1 _)
-    · exact .cons (grow_moveIn i p p') (forall₂_grow_refl 1 _)
-    · exact .cons (grow_moveIn i p p') (forall₂_applyTapes ts _)
+    all_goals refine .cons (grow_moveIn i p p') ?_
+    all_goals first | exact forall₂_grow_refl 1 _ | exact forall₂_applyTapes ts _
   | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     have hs := firstHalf_add_half (n + 2)
     exact forall₂_trans (fun _ _ _ ha hb => ⟨by omega, by omega⟩) (forall₂_restore ih₁)
@@ -362,10 +360,7 @@ private lemma state_sim {d : Desc} {D : ℕ} (hD : descLen d ≤ D) (n : ℕ) {w
   | case1 => exact hw -- 0 steps
   | case2 w => -- 1 step: `wstep`
     rcases wstep_cases d w with h | ⟨i, ts, p, p', -, h | h | ⟨e, he, h⟩⟩ <;> rw [h]
-    · exact hw
-    · exact hw
-    · simp
-    · exact (state_le he).trans hD
+    all_goals first | exact hw | exact Nat.zero_le D | exact (state_le he).trans hD
   | case3 n w r₁ w₁ r₂ ih₁ ih₂ => exact ih₂ (ih₁ hw) -- n + 2 steps: first half, then second half
 
 /-- The windowed simulation keeps a bound on the cells above the length of the description. -/
@@ -380,9 +375,8 @@ private lemma valLe_sim {d : Desc} {B : ℕ} (hB : descLen d ≤ B) (n : ℕ) {w
       rw [hw'] at hw
       simp only [List.mem_cons, forall_eq_or_imp] at hw ⊢
       refine ⟨valLe_moveIn hw.1 p p', ?_⟩
-    · exact hw.2
-    · exact hw.2
-    · exact valLe_applyTapes hw.2 fun ta hta => (write_le he hta).trans hB
+    all_goals first | exact hw.2 |
+      exact valLe_applyTapes hw.2 fun ta hta => (write_le he hta).trans hB
   | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     have h₁ : ∀ t ∈ w₁.2, ValLe B t := valLe_restore hw (ih₁ (valLe_extract hw))
     exact valLe_restore h₁ (ih₂ (valLe_extract h₁))

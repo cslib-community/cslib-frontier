@@ -117,22 +117,18 @@ private theorem exists_coeff_decomp (p : Program (affineSignature K) n g)
   induction w using p.wire_induction with
   | input i =>
     refine ⟨0, {i}, (Finset.card_singleton i).trans_le Nat.one_le_two_pow, fun j hj => ?_⟩
-    simp [coeff, show i ≠ j from fun h => hj (Finset.mem_singleton.2 h.symm)]
+    simp [coeff, Ne.symm (Finset.mem_singleton.not.1 hj)]
   | gate k ih =>
     -- every argument decomposes with at most `2 ^ ψ (.gate k) / 2` exceptional inputs
-    have harg : ∀ a, ∃ (β : Wire n g → K) (S : Finset (Fin n)), S.card ≤ 2 ^ ψ (.gate k) / 2 ∧
+    have harg (a) : ∃ (β : Wire n g → K) (S : Finset (Fin n)), S.card ≤ 2 ^ ψ (.gate k) / 2 ∧
         ∀ j ∉ S, p.coeff ((p.lines k).wires a) j = ∑ u ∈ T, β u * p.coeff u j := by
-      intro a
       by_cases ha : (p.lines k).wires a ∈ T
       · -- a wire in `T` is its own decomposition
         refine ⟨Pi.single ((p.lines k).wires a) 1, ∅, Nat.zero_le _, fun j _ => ?_⟩
-        rw [Finset.sum_eq_single_of_mem _ ha (fun u _ hu => by simp [hu])]
-        simp
+        rw [Finset.sum_eq_single_of_mem _ ha fun u _ hu => by simp [hu], Pi.single_eq_same, one_mul]
       · obtain ⟨β, S, hS, h⟩ := ih a
-        refine ⟨β, S, hS.trans ?_, h⟩
-        obtain ⟨d, hd⟩ := Nat.exists_eq_add_of_lt (hψ k a ha)
-        rw [hd, pow_succ, Nat.mul_div_cancel _ two_pos]
-        exact Nat.pow_le_pow_right two_pos (Nat.le_add_right _ _)
+        exact ⟨β, S, hS.trans ((Nat.le_div_iff_mul_le two_pos).2
+          (pow_succ 2 _ ▸ Nat.pow_le_pow_right two_pos (hψ k a ha))), h⟩
     choose β S hS h using harg
     refine ⟨fun u => ∑ a, (p.lines k).op.2.1 a * β a u, Finset.univ.biUnion S, ?_,
       fun j hj => ?_⟩
@@ -239,16 +235,14 @@ theorem Computes.rigidity_le {c : Circuit (affineSignature K) n m}
     Finset.mem_filter.2 ⟨Finset.mem_biUnion.2 ⟨k, Finset.mem_univ _,
       Finset.mem_image.2 ⟨a, Finset.mem_univ _, rfl⟩⟩, hk⟩
   -- the depths, capped below `2 ^ D`, grade these wires
-  have hgrade : IsGrading E (2 ^ D) fun w => min (c.program.wireDepths w) (2 ^ D - 1) := by
-    refine ⟨fun w => ?_, fun e he => ?_⟩
-    · exact (min_le_right _ _).trans_lt (Nat.sub_lt (Nat.two_pow_pos D) one_pos)
-    obtain ⟨he, hlt⟩ := Finset.mem_filter.1 he
-    obtain ⟨k, -, he⟩ := Finset.mem_biUnion.1 he
-    obtain ⟨a, -, rfl⟩ := Finset.mem_image.1 he
-    have h1 := c.program.wireDepths_lines_lt k a
-    have h2 : c.program.wireDepths (Wire.gate k) = c.program.depths k := rfl
-    dsimp only at hlt ⊢
-    omega
+  have hgrade : IsGrading E (2 ^ D) fun w => min (c.program.wireDepths w) (2 ^ D - 1) :=
+    ⟨fun _ => (min_le_right _ _).trans_lt (Nat.sub_lt (Nat.two_pow_pos D) one_pos), fun e he => by
+      obtain ⟨he, hlt⟩ := Finset.mem_filter.1 he
+      obtain ⟨k, -, he⟩ := Finset.mem_biUnion.1 he
+      obtain ⟨a, -, rfl⟩ := Finset.mem_image.1 he
+      have := c.program.wireDepths_lines_lt k a
+      have h2 : c.program.wireDepths (.gate k) = c.program.depths k := rfl
+      dsimp only at hlt ⊢; omega⟩
   -- Valiant's depth reduction
   obtain ⟨F, -, hFcard, g', hg'⟩ := hgrade.exists_sdiff htD
   let T : Finset (Wire n c.size) := F.image Prod.fst
@@ -328,11 +322,9 @@ theorem Computes.mul_log_log_lt_size {C k e : ℕ} (hC : 0 < C) (hk : 0 < k) (he
     exact (Nat.lt_of_mul_lt_mul_left h2).le
   have hbound := hc.rigidity_le hfan hdepthD htD
   -- the rigidity at rank `2 * t * c.size / D` is below the hypothesis, so that rank exceeds `n / e`
-  have hrank : n / e < 2 * t * c.size / D := by
-    by_contra hle
-    have h1 := (A.rigidity_antitone (not_lt.1 hle)).trans hbound
-    have h2 := Nat.mul_le_mul_left n (Nat.pow_le_pow_right two_pos hpow)
-    omega
+  have hrank : n / e < 2 * t * c.size / D := lt_of_not_ge fun hle =>
+    hrig.not_ge (((A.rigidity_antitone hle).trans hbound).trans
+      (Nat.mul_le_mul_left n (Nat.pow_le_pow_right two_pos hpow)))
   have hDpos : 0 < D := Nat.succ_pos _
   have h1 : (n / e + 1) * D ≤ 2 * t * c.size :=
     (Nat.le_div_iff_mul_le hDpos).1 (Nat.succ_le_of_lt hrank)

@@ -77,12 +77,10 @@ variable {F : Type} [Field F]
 def line {k : ℕ} (y w : Fin k → F) (t : F) : Fin k → F := fun j => y j + t * (w j - y j)
 
 theorem line_zero {k : ℕ} (y w : Fin k → F) : line y w 0 = y := by
-  funext
-  simp [line]
+  exact funext fun _ => by simp [line]
 
 theorem line_one {k : ℕ} (y w : Fin k → F) : line y w 1 = w := by
-  funext
-  simp [line]
+  exact funext fun _ => by simp [line]
 
 /-- The multilinear extension of `W`, restricted to the line through `y` and `w`: a polynomial of
 degree at most `k` in the line parameter. -/
@@ -311,10 +309,8 @@ theorem mem_language_rel_zero (W : (Fin (C.width i) → Bool) → F) (x : LayerC
     x.claim ∈ language (Sumcheck.rel (C.summand i W x.point) 0) ↔
       x ∈ C.layerLang (i + 1) (C.step i W) := by
   have hpoint (b : Fin (C.sumcheckVars i - 0) → Bool) :
-      Sumcheck.point x.claim.challenges b = bitPoint (R := F) b := by
-    funext
-    simp only [Sumcheck.point, Nat.not_lt_zero, dite_false, bitPoint, bitVal]
-    rfl
+      Sumcheck.point x.claim.challenges b = bitPoint (R := F) b :=
+    funext fun _ => by simp [Sumcheck.point, bitPoint, bitVal]
   simp only [language, Sumcheck.rel, Sumcheck.partialSum, hpoint, layerLang, Set.mem_ofPred_eq,
     exists_const, ← C.sum_eval_summand i W x.point]
   rfl
@@ -476,9 +472,8 @@ theorem inputStep_complete (x : (Fin (C.width 0) → Bool) → F) :
   intro y w hyw
   rw [Reduction.run, World.plain_eval_execute, PMF.toOuterMeasure_map_apply]
   simp only [inputStep, runStrategy, plainLaw_bind, plainLaw_pure, PMF.pure_bind]
-  refine le_of_eq ((PMF.toOuterMeasure_pure_apply _ _).trans
-    (ite_eq_right fun h => h ⟨?_, trivial⟩))
-  exact ite_eq_left hyw
+  exact le_of_eq ((PMF.toOuterMeasure_pure_apply _ _).trans
+    (ite_eq_right fun h => h ⟨ite_eq_left hyw, trivial⟩))
 
 omit [Fintype F] in
 /-- **The input step is round-by-round sound** without error. -/
@@ -565,8 +560,7 @@ theorem sum_descendError :
         ((C.sumcheckVars i : ℝ≥0∞) * (2 / Fintype.card F) + C.width i / Fintype.card F)
   | 0 => rfl
   | m + 1 => by
-    change PerChallenge.sum (C.layerSpec m ++ C.descendSpec m)
-      (PerChallenge.append _ _ (C.layerError m) (C.descendError m)) = _
+    dsimp only [descendSpec, descendError]
     rw [PerChallenge.sum_append, sum_layerError, sum_descendError m, Finset.sum_range_succ,
       add_comm]
 

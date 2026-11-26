@@ -158,7 +158,6 @@ theorem detectorTrial_le_one (hϕ0 : ∀ t, 0 ≤ ϕ t) (hϕ1 : ∀ t, ϕ t ≤ 
     (mul_le_mul_of_nonneg_left (hρ1 _) (hϕ0 _)).trans (by rw [mul_one]; exact hϕ1 _)
 
 theorem columnDetector_nonneg : 0 ≤ columnDetector X Y ϕ ρ J K f G y := by
-  rw [columnDetector]
   exact expect_nonneg fun _ _ => expect_nonneg fun _ _ => detectorTrial_nonneg
 
 theorem columnDetector_le_one (hϕ0 : ∀ t, 0 ≤ ϕ t) (hϕ1 : ∀ t, ϕ t ≤ 1)
@@ -263,8 +262,7 @@ theorem lt_card_of_lt_columnDetector (hch : RetentionChannels X Y f π cπ Cπ C
       (Nat.cast_le.mpr (((lt_kthLargest_iff hJ le_rfl).mp h).trans (card_le_card hsub)))
   -- summing over the start seeds counts each substantial entry with its retention probability
   have hsumX : ∑ s, (#{x ∈ A0 | X s x} : ℝ) = #A0 * (π * Fintype.card ι) := by
-    simp only [natCast_card_filter]
-    rw [sum_comm]
+    rw [sum_congr rfl fun _ _ => natCast_card_filter _ _, sum_comm]
     simp only [← natCast_card_filter, card_X hch, sum_const, nsmul_eq_mul]
   have hTr : (0 : ℝ) < #T := Nat.cast_pos.2 <| card_pos.2 <| nonempty_iff_ne_empty.2 fun hT => by
     linarith [show columnDetector X Y ϕ ρ J K f G y = 0 by simp [columnDetector_eq_sum, T, hT]]
@@ -281,10 +279,7 @@ theorem lt_card_of_lt_columnDetector (hch : RetentionChannels X Y f π cπ Cπ C
           simp only [sum_const, nsmul_eq_mul, Finset.mul_sum, Finset.sum_mul]
           exact sum_congr rfl fun s _ => by field_simp
       _ = #A0 * π * (Fintype.card ι * #T) := by rw [hsumX]; ring
-  have h1 : J / 4 < #A0 * π := by
-    have := hU.trans_le hUle
-    rw [lt_div_iff₀ hJr] at this
-    linarith
+  have h1 : J / 4 < #A0 * π := by linarith [(lt_div_iff₀ hJr).1 (hU.trans_le hUle)]
   have hπ : 0 < π := pos_of_mul_pos_right (by linarith : (0 : ℝ) < #A0 * π) (Nat.cast_nonneg _)
   have hCπ : 0 < Cπ * f := hπ.trans_le hch.upper
   rw [div_lt_iff₀ (by nlinarith)]
@@ -381,11 +376,8 @@ theorem le_columnDetector (hch : RetentionChannels X Y f π cπ Cπ Cpair Cvar) 
       detectorTrial ϕ ρ J K f G {x | X s x} {w | Y t w} y := by
     have h0 : 0 ≤ detectorTrial ϕ ρ J K f G {x | X s x} {w | Y t w} y := detectorTrial_nonneg
     by_cases h1 : 2 * N s < #A * π <;> by_cases h2 : #A * π < 4 * L s t <;>
-      simp only [b1, b2, h1, h2, ↓reduceIte, sub_zero]
-    · linarith
-    · linarith
-    · linarith
-    · exact hgood s t h1 h2
+      simp only [b1, b2, h1, h2, ↓reduceIte, sub_zero] <;>
+      first | linarith | exact hgood s t h1 h2
   have hb1 : ∑ s, b1 s ≤ Cvar / (#A * π) * Fintype.card ι := by
     simpa only [b1, N, sum_boole, dens_cast, div_le_iff₀ hιr] using hch.tail A hA
   have hb2 : ∑ s, ∑ t ∈ T, b2 s t ≤ 4 / (#A * π) * ∑ s, ∑ t ∈ T, L s t := by

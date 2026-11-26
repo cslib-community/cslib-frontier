@@ -153,8 +153,7 @@ private theorem exists_pack_advance {n m : ℕ} (a b : BitString n → BitVec k)
   have ha' : wordWires a ⊆ s := ha.trans Set.subset_union_left
   have hr : wordWires r ⊆ s := by
     rintro _ ⟨i, rfl⟩
-    simpa only [r, getLsbD_equivBitVec] using
-      (show (fun x => c.eval interpretation (init x) i) ∈ s from Or.inr ⟨i, rfl⟩)
+    exact Or.inr ⟨i, funext fun x => by simp only [r, getLsbD_equivBitVec]⟩
   have hs := synthesis_addResidue s a b r ha' (hb.trans Set.subset_union_left) hr
   have hcirc := Synthesis.circuit (I := interpretation) (s := inputs n) c (fun i x => init x i)
     hinit
@@ -213,20 +212,16 @@ theorem short_remainder_circuit (k m T : ℕ) (hT : T < 2 ^ m) :
   have hi (i : Fin (m + k)) : (fun x => init x i) ∈ s := by
     induction i using Fin.addCases with
     | left i => simpa only [init, Fin.append_left] using hc (bits i)
-    | right i => simpa only [init, Fin.append_right] using
-        (show (fun x : BitString k => x i) ∈ s from Or.inl ⟨i, rfl⟩)
+    | right i => exact Or.inl ⟨i, funext fun x => by simp [init]⟩
   have hr := Synthesis.circuit (I := interpretation) (s := s) rem (fun i x => init x i) hi
   have hz := Synthesis.word_eq_const (s := s) (fun x : BitString k => equivBitVec x)
-    (fun i => by simpa only [getLsbD_equivBitVec] using
-      (show (fun x : BitString k => x i) ∈ s from Or.inl ⟨i, rfl⟩)) 0
+    (fun i => Or.inl ⟨i, funext fun _ => by simp only [getLsbD_equivBitVec]⟩) 0
   let s1 := s ∪ (wires (fun x => rem.eval interpretation (init x)) ∪
     {fun x => decide (equivBitVec x = (0 : BitVec k))})
   have hm := Synthesis.word_mux (s := s1) (fun _ => (0 : BitVec k)) r
     (fun x => decide (equivBitVec x = (0 : BitVec k))) (Or.inr (Or.inr rfl))
-    (fun _ => Or.inl (hc _)) (fun i => by
-      simpa only [r, getLsbD_equivBitVec] using
-        (show (fun x => rem.eval interpretation (init x) i) ∈ s1 from
-          Or.inr (Or.inl ⟨i, rfl⟩)))
+    (fun _ => Or.inl (hc _))
+    (fun i => Or.inr (Or.inl ⟨i, funext fun _ => by simp only [r, getLsbD_equivBitVec]⟩))
   have hconst : Synthesis interpretation (inputs k) constants 2 :=
     (Synthesis.const false).union (Synthesis.const true)
   have h := hconst.trans ((hr.union hz).trans hm)
@@ -278,10 +273,9 @@ theorem hard_power_exponent_capacity (k m T : ℕ) (hT : T < 2 ^ m)
     (hard : ∀ c : Circuit signature (k + k) (k + k),
       c.Computes interpretation (power T) → lowerBudget k < c.size) :
     2 ^ k < 112640 * (m + 1) * (k + 1) ^ 2 := by
-  have h := hard_power_requires_long_exponent k m T hT hard
-  change 2 ^ k / (1024 * (k + 1)) < _ at h
-  have hn := (Nat.div_lt_iff_lt_mul (by positivity : 0 < 1024 * (k + 1))).mp h
-  nlinarith
+  have h : 2 ^ k / (1024 * (k + 1)) < 110 * (m + 1) * (k + 1) :=
+    hard_power_requires_long_exponent k m T hT hard
+  nlinarith [(Nat.div_lt_iff_lt_mul (by positivity : 0 < 1024 * (k + 1))).mp h]
 
 end ModulusCounter
 
@@ -387,7 +381,6 @@ theorem variable_time_counter_iff_remainder (m k : ℕ) :
     · simp only [hc (init x), inputTimeRemainder, ModulusCounter.remainder_word, init,
         Fin.append_left, Fin.append_right]
       rfl
-    · rw [inputTimeIterate, counterStep, ModulusCounter.iterate_power]
-      rfl
+    · rw [inputTimeIterate, counterStep, ModulusCounter.iterate_power]; rfl
 
 end Cslib.Circuits.Boolean.Iteration

@@ -76,20 +76,16 @@ theorem positiveChildError_fourth_le (l bin : ℕ) (t : RawTask k)
   let f := fun z => CA * |estimated R.right z y - canonical R.right z y| +
     |estimated R.left x z - canonical R.left x z| * CB
   have hf : ∀ z ∈ S, 0 ≤ f z := by intros; dsimp only [f]; positivity
-  have hp : ∀ z ∈ S, f z ^ 4 ≤ 8 * (CA ^ 4 * ER + CB ^ 4 * EL) := by
-    intro z hz
-    have hr := hR z (mem_filter.mp hz).2
-    have hl := hL z
+  have hp : ∀ z ∈ S, f z ^ 4 ≤ 8 * (CA ^ 4 * ER + CB ^ 4 * EL) := fun z hz => by
     refine (add_fourth_le (by positivity) (by positivity)).trans ?_
     simp only [mul_pow]
-    refine mul_le_mul_of_nonneg_left (add_le_add (mul_le_mul_of_nonneg_left hr (by positivity))
-      (by simpa only [mul_comm] using mul_le_mul_of_nonneg_left hl (pow_nonneg hCB 4)))
+    refine mul_le_mul_of_nonneg_left (add_le_add
+      (mul_le_mul_of_nonneg_left (hR z (mem_filter.mp hz).2) (by positivity))
+      (by simpa only [mul_comm] using mul_le_mul_of_nonneg_left (hL z) (pow_nonneg hCB 4)))
       (by norm_num)
-  have hs := sum_fourth_le S f hf hp
-  have hB : 0 ≤ 8 * (CA ^ 4 * ER + CB ^ 4 * EL) := by positivity
   have hcard : (#S : ℝ) ≤ Fintype.card V := by exact_mod_cast card_le_card (filter_subset _ _)
-  have hs' := hs.trans (mul_le_mul_of_nonneg_right
-    (pow_le_pow_left₀ (by positivity) hcard 4) hB)
+  have hs' := (sum_fourth_le S f hf hp).trans (mul_le_mul_of_nonneg_right
+    (pow_le_pow_left₀ (by positivity) hcard 4) (by positivity))
   dsimp only [positiveChildError]
   change (_ + _ * ∑ z ∈ S, f z) ^ 4 ≤ _
   refine (add_fourth_le (by positivity) (by positivity)).trans ?_
@@ -196,25 +192,23 @@ private theorem residualChildCost_fourth_le
       positiveChildError channels l i .residual source midpoint terminal (b i) CA CB
         (estimated i σ) (canonical i σ) x y ^ 4 ≤ coeff i * (q σ) := by
     have hqσ := hq σ
-    have hd := hcall i hi (r i).direct (by simp)
     have hl := hcall i hi (r i).left (by simp)
-    have hr := hcall i hi (r i).right (by simp)
     have hleft (z : V) : |estimated i σ (r i).left x z - canonical i σ (r i).left x z| ^ 4 ≤
         q σ := by
       by_cases hz : midpoint.retains channels σ z
       · exact herror i _ hl σ x z hx
       · rw [(hoff i _ hl σ x z hz).1, (hoff i _ hl σ x z hz).2, sub_self, abs_zero,
           zero_pow (by decide : 4 ≠ 0)]
-        exact hq σ
+        exact hqσ
     have hright (z : V) (hz : estimated i σ (r i).left x z ≠ 0 ∨
         canonical i σ (r i).left x z ≠ 0) :
         |estimated i σ (r i).right z y - canonical i σ (r i).right z y| ^ 4 ≤ (q σ) := by
       have hm : midpoint.retains channels σ z := by_contra fun hm =>
         hz.elim (· (hoff i _ hl σ x z hm).1) (· (hoff i _ hl σ x z hm).2)
-      exact herror i _ hr σ z y hm
+      exact herror i _ (hcall i hi (r i).right (by simp)) σ z y hm
     have hp := positiveChildError_fourth_le channels l i .residual source midpoint terminal
-      (b i) CA CB (estimated i σ) (canonical i σ) x y hCA hCB (hq σ) (hq σ)
-      (herror i _ hd σ x y hx) hleft hright
+      (b i) CA CB (estimated i σ) (canonical i σ) x y hCA hCB hqσ hqσ
+      (herror i _ (hcall i hi (r i).direct (by simp)) σ x y hx) hleft hright
     dsimp only at hp
     have hdc : |b i * usageRatio channels terminal (r i).direct y| ^ 4 ≤
         ∑ w : V, |b i * usageRatio channels terminal (r i).direct w| ^ 4 :=
@@ -229,9 +223,9 @@ private theorem residualChildCost_fourth_le
         (fun _ _ => by positivity) (mem_univ y)
     apply hp.trans
     dsimp only [coeff]
-    nlinarith only [mul_le_mul_of_nonneg_right hdc (hq σ),
-      mul_le_mul_of_nonneg_right hpc
-        (show 0 ≤ (Fintype.card V : ℝ) ^ 4 * (8 * (CA ^ 4 * (q σ) + CB ^ 4 * (q σ))) by positivity)]
+    have hnn : 0 ≤ (Fintype.card V : ℝ) ^ 4 * (8 * (CA ^ 4 * (q σ) + CB ^ 4 * (q σ))) := by
+      positivity
+    nlinarith only [mul_le_mul_of_nonneg_right hdc hqσ, mul_le_mul_of_nonneg_right hpc hnn]
   intro σ x y hx
   have hc : ∀ i ∈ bins, 0 ≤ positiveChildError channels l i .residual
       source midpoint terminal (b i) CA CB (estimated i σ) (canonical i σ) x y := fun _ _ => by

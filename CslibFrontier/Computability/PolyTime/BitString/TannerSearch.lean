@@ -163,11 +163,10 @@ def smallBiasCeil (r p q : ℕ) : ℕ :=
 /-- `smallBiasCeil r p q` is positive whenever `p > 0` and `q > 0`. -/
 theorem smallBiasCeil_pos (r : ℕ) {p q : ℕ} (hp : 0 < p) (hq : 0 < q) :
     0 < smallBiasCeil r p q := by
-  have h := Nat.le_ceilDiv_mul (a := 4 * (r + 1) * q ^ 2) (Nat.pow_pos hp (n := 2))
-  exact Nat.pos_of_ne_zero fun h0 => by
-    rw [smallBiasCeil] at h0
-    rw [h0, zero_mul] at h
-    nlinarith [Nat.pow_pos hq (n := 2)]
+  have h : 4 * (r + 1) * q ^ 2 ≤ smallBiasCeil r p q * p ^ 2 :=
+    Nat.le_ceilDiv_mul (Nat.pow_pos hp)
+  by_contra! h0
+  nlinarith [Nat.pow_pos hq (n := 2)]
 
 /-- The real ceiling `⌈4 (r + 1) / (p / q)²⌉` is at most `smallBiasCeil r p q`. -/
 theorem ceil_le_smallBiasCeil (r : ℕ) {p q : ℕ} (hp : 0 < p) (hq : 0 < q) :
@@ -193,11 +192,9 @@ theorem isSmallBias_findSmallBiasShifts_of_le {r d p q : ℕ} [NeZero d] (hp : 0
       shifts.length = d ∧ (∀ row ∈ shifts, row.length = r) ∧
       IsSmallBias ((p : ℝ) / q)
         ((uniformOfFintype (Fin d)).map fun j => ofList r (shifts.getD j.val [])) := by
-  have hε : (0 : ℝ) < (p : ℝ) / q := div_pos (by exact_mod_cast hp) (by exact_mod_cast hq)
-  have hceil : Nat.ceil (4 * ((Fintype.card (Fin r) : ℝ) + 1) / ((p : ℝ) / q) ^ 2) ≤ d := by
-    rw [Fintype.card_fin]
-    exact (ceil_le_smallBiasCeil r hp hq).trans hd
-  exact isSmallBias_findSmallBiasShifts hq (exists_isSmallBias_map_of_ceil_le hε hceil)
+  have hε : (0 : ℝ) < (p : ℝ) / q := div_pos (mod_cast hp) (mod_cast hq)
+  exact isSmallBias_findSmallBiasShifts hq (exists_isSmallBias_map_of_ceil_le hε
+    (by simpa only [Fintype.card_fin] using (ceil_le_smallBiasCeil r hp hq).trans hd))
 
 /-- Deterministic exhaustive search for `(p / q)`-biased shifts at size `smallBiasCeil r p q`. -/
 @[expose]
@@ -311,10 +308,9 @@ theorem weight_le_of_findLocalCheckMatrix_of_ballSize_le {c d h : ℕ}
     checkLocalCodeDistance c d (h + 1) H0 = true ∧
       H0.length = c ∧ (∀ row ∈ H0, row.length = d) ∧
       ∀ w : Fin d → Bool, w ≠ 0 →
-        (∀ i : Fin c, ofList d (H0.getD i.val []) ⬝ᵥ w = false) → h + 1 ≤ weight w := by
-  refine weight_le_of_findLocalCheckMatrix_of_ball_lt (lt_of_lt_of_le ?_ hb)
-  rw [← card_filter_weight_le_eq_ballSize d h]
-  exact card_filter_nonzero_weight_lt d h
+        (∀ i : Fin c, ofList d (H0.getD i.val []) ⬝ᵥ w = false) → h + 1 ≤ weight w :=
+  weight_le_of_findLocalCheckMatrix_of_ball_lt <|
+    (card_filter_nonzero_weight_lt d h).trans_le (card_filter_weight_le_eq_ballSize d h ▸ hb)
 
 /-- Unconditional correctness of `findLocalCheckMatrix c d (h + 1)` under `(d + 1) ^ h ≤ 2 ^ c`
 (strict variant `(d + 1) ^ h < 2 ^ c` holds a fortiori). -/
@@ -393,8 +389,7 @@ theorem tannerParityTestsWithBound_eq {M m r d c h p q : ℕ} (hM : 1 ≤ M) (hr
 private theorem two_pow_effectiveCubeDim_le (M r : ℕ) : 2 ^ effectiveCubeDim M r ≤ max M 1 := by
   unfold effectiveCubeDim
   split_ifs with h
-  · exact h
-  · rw [pow_zero]; exact le_max_right M 1
+  exacts [h, le_max_right M 1]
 
 /-- Input parameters for bounded end-to-end parity-test construction: unary vertex-count upper
 bound `maxVerts`, target block length `m`, cube dimension `r`, degree `d`, local check count `c`,

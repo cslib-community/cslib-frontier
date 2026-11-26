@@ -175,8 +175,7 @@ private theorem prop_crossing_term {J : Type} [Fintype J] (Ψ : J → α → β 
   have hα : (0 : ℝ) < Fintype.card α := Nat.cast_pos.2 Fintype.card_pos
   have hβ : (0 : ℝ) < Fintype.card β := Nat.cast_pos.2 Fintype.card_pos
   obtain ⟨j, hj⟩ := prop_crossing_some F Ψ hΨ x y v u
-  have : Nonempty J := ⟨j⟩
-  have hJ0 : (0 : ℝ) < Fintype.card J := Nat.cast_pos.2 Fintype.card_pos
+  have hJ0 : (0 : ℝ) < Fintype.card J := Nat.cast_pos.2 (@Fintype.card_pos _ _ ⟨j⟩)
   refine ⟨j, ?_⟩
   have hexp (s s' : ℝ) (n : ℕ) (e : ℝ) :
       (Fintype.card α : ℝ) ^ s * (Fintype.card β : ℝ) ^ s' * (n : ℝ) ^ e ≤
@@ -264,9 +263,8 @@ private theorem prop_crossing_products {κ : ℝ} (hκ : 0 < κ)
   have h2 : Real.log ((M : ℝ) + 1) ≤ δ * κ * √(n : ℝ) :=
     (Real.log_le_log (by positivity) (by linarith)).trans hlog
   have hsc : (stateCount M : ℝ) ≠ 0 := Nat.cast_ne_zero.2 (lowStates_card_pos M).ne'
-  have h5 : (√(M : ℝ) / √(n : ℝ) + δ) * (κ * √(n : ℝ)) = κ * √(M : ℝ) + δ * κ * √(n : ℝ) := by
-    field_simp
-  rw [h5, Nat.cast_mul, Nat.cast_add, Nat.cast_one, Real.log_mul (by positivity) hsc]
+  rw [Nat.cast_mul, Nat.cast_add, Nat.cast_one, Real.log_mul (by positivity) hsc, add_mul,
+    mul_left_comm (√(M : ℝ) / √(n : ℝ)) κ, div_mul_cancel₀ _ hsn.ne']
   linarith [hup M]
 
 /-- Proof of Proposition B.3, the tensors: for every `δ > 0` there are `s > 0` and finite sets
@@ -300,10 +298,6 @@ private theorem prop_crossing_tensors (K : Type) [Field K] {p q : ℝ} (hp : 0 �
     have h1 : (e₁ : ℝ) ≤ p ^ 2 * n := (Nat.cast_le.2 he₁).trans (Nat.floor_le (by positivity))
     have h2 : (e₂ : ℝ) ≤ q ^ 2 * n := (Nat.cast_le.2 he₂).trans (Nat.floor_le (by positivity))
     push_cast; linarith [hA]
-  have hnum' (M : ℕ) (hM : M ≤ 2 * (e₁ + e₂)) :
-      Real.log (((M + 1) * stateCount M : ℕ) : ℝ) ≤
-        (Real.sqrt M / Real.sqrt n + δ) * (c * Real.sqrt n) :=
-    hnum M ((Nat.cast_le.2 hM).trans hH)
   refine ⟨↥(states μ e₁), ↥(states ν e₂), Fin (2 * (e₁ + e₂) + 1), inferInstance, inferInstance,
     (Finset.card_pos.1 hpos₁).to_subtype, inferInstance, inferInstance,
     (Finset.card_pos.1 hpos₂).to_subtype, inferInstance, fun N a b c d => ((Ψ N a b c d : ℤ) : K),
@@ -317,14 +311,13 @@ private theorem prop_crossing_tensors (K : Type) [Field K] {p q : ℝ} (hp : 0 �
     exact ⟨fun k z => (g k z : K), fun k z => (h k z : K), fun a b c d => by simp [hgh]⟩
   · rw [← Int.cast_sum, hΨ, ite_and]
     split_ifs <;> simp
-  · rw [Fintype.card_fin]
-    push_cast at hH ⊢
-    linarith [Real.log_le_log (by positivity)
-      (show 2 * ((e₁ : ℝ) + e₂) + 1 ≤ A * n + 1 by linarith)]
+  · simpa only [Fintype.card_fin, Nat.cast_add, Nat.cast_one, mul_assoc] using
+      (Real.log_le_log (by positivity) (add_le_add_left hH 1)).trans hlog
   · have hN : (N : ℕ) ≤ 2 * (e₁ + e₂) := by omega
     refine ⟨Real.sqrt ((2 * (e₁ + e₂) - N : ℕ) : ℝ) / Real.sqrt n,
       Real.sqrt ((N : ℕ) : ℝ) / Real.sqrt n, by positivity, by positivity, ?_,
-      hnum' _ (Nat.sub_le _ _), hnum' _ hN⟩
+      hnum _ ((Nat.cast_le.2 (Nat.sub_le _ _)).trans hH),
+      hnum _ ((Nat.cast_le.2 hN).trans hH)⟩
     rwa [div_pow, div_pow, Real.sq_sqrt (Nat.cast_nonneg (2 * (e₁ + e₂) - N)),
       Real.sq_sqrt (Nat.cast_nonneg (N : ℕ)), Real.sq_sqrt hn0.le, ← add_div, div_le_iff₀ hn0,
       Nat.cast_sub hN, sub_add_cancel]

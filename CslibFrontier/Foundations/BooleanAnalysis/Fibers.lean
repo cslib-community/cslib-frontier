@@ -120,9 +120,8 @@ theorem sum_uniformMass {α : Type*} [Fintype α] [DecidableEq α]
 /-- Summing against uniform mass agrees with the finite-set expectation. -/
 theorem sum_uniformMass_mul {α : Type*} [Fintype α] [DecidableEq α]
     (X : Finset α) (f : α → ℝ) : (∑ x, uniformMass X x * f x) = 𝔼 x ∈ X, f x := by
-  simp only [uniformMass, ite_mul, zero_mul]
-  rw [sum_ite, sum_const_zero, add_zero]
-  simp only [filter_mem_eq_inter, univ_inter, ← mul_sum, expect_eq_sum_div_card]
+  simp only [uniformMass, ite_mul, zero_mul, sum_ite, sum_const_zero, add_zero,
+    filter_mem_eq_inter, univ_inter, ← mul_sum, expect_eq_sum_div_card]
   ring
 
 /-- Uniform densities are nonnegative, including for the empty set. -/
@@ -135,12 +134,11 @@ the documented real-logarithm convention. -/
 theorem uniformDeficit_nonneg {ι : Type*} [Fintype ι]
     (X : Finset (ι → Bool)) : 0 ≤ uniformDeficit X := by
   classical
-  by_cases hx : X.Nonempty
+  rcases X.eq_empty_or_nonempty with rfl | hx
+  · simp [uniformDeficit]
   · refine sub_nonneg.mpr ((Real.logb_le_iff_le_rpow (by norm_num)
       (by exact_mod_cast card_pos.mpr hx)).mpr ?_)
-    rw [Real.rpow_natCast]
-    exact_mod_cast (by simpa using card_le_univ X : X.card ≤ 2 ^ Fintype.card ι)
-  · simp [uniformDeficit, not_nonempty_iff_eq_empty.mp hx]
+    exact_mod_cast (card_le_univ X).trans_eq (by simp)
 
 /-- A nonempty subset has cardinality `2^(dimension - deficit)`. -/
 theorem card_eq_rpow_sub_uniformDeficit {ι : Type*} [Fintype ι] {X : Finset (ι → Bool)}
@@ -466,9 +464,8 @@ theorem expect_log_card_fiber {α β : Type*} [Fintype β] [Nonempty β] [Decida
     dsimp only [m]
     exact_mod_cast (card_eq_sum_card_fiberwise (s := X) (f := g) fun _ _ => mem_univ _).symm
   have hN : (0 : ℝ) < X.card := by exact_mod_cast card_pos.mpr hX
-  have hB : (0 : ℝ) < Fintype.card β := by exact_mod_cast Fintype.card_pos
   have h := Real.sum_mul_log_div_card_le univ (x := m) (fun _ _ => Nat.cast_nonneg _)
-  rw [card_univ, hsum, Real.log_div hN.ne' hB.ne'] at h
+  rw [card_univ, hsum, Real.log_div hN.ne' (Nat.cast_ne_zero.mpr Fintype.card_ne_zero)] at h
   have he : (∑ x ∈ X, Real.log (X.filter (fun y => g y = g x)).card) =
       ∑ b, m b * Real.log (m b) := by
     simp [← sum_fiberwise' X g (fun b => Real.log (m b)), m]
@@ -486,10 +483,9 @@ theorem expect_uniformDeficit_coordinateFiber {ι : Type*} [Fintype ι] [Decidab
       Fintype.card ι := by
     rw [← Nat.cast_add, Fintype.card_subtype_compl,
       Nat.add_sub_of_le (Fintype.card_subtype_le _)]
-  simp only [Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat,
-    Real.log_pow] at h
   have hd := div_le_div_of_nonneg_right h hl.le
-  simp only [sub_div, mul_div_cancel_right₀ _ hl.ne'] at hd
+  simp only [Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat,
+    Real.log_pow, sub_div, mul_div_cancel_right₀ _ hl.ne'] at hd
   simp only [uniformDeficit, Real.logb, expect_sub_distrib, ← expect_div, expect_const hX,
     card_coordinateFiber]
   linarith

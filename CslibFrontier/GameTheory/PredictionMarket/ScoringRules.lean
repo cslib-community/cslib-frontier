@@ -219,9 +219,7 @@ theorem IsStrictlyProperOn.expectedScore_lt {S : ScoringRule Ω} {P : Set (Ω �
 theorem IsStrictlyProperOn.isProperOn {S : ScoringRule Ω} {P : Set (Ω → ℝ)}
     (h : S.IsStrictlyProperOn P) : S.IsProperOn P := by
   intro q hq p hp
-  by_cases hpq : p = q
-  · subst hpq; exact le_rfl
-  · exact (h q hq p hp hpq).le
+  exact (eq_or_ne p q).elim (fun h' => h' ▸ le_rfl) fun hpq => (h q hq p hp hpq).le
 
 /-- Propriety is preserved under restricting the domain of distributions. -/
 theorem IsProperOn.mono {S : ScoringRule Ω} {P Q : Set (Ω → ℝ)} (h : S.IsProperOn P)
@@ -303,13 +301,8 @@ theorem bregmanDivergence_apply (G : (Ω → ℝ) → ℝ) (g : (Ω → ℝ) →
 theorem savageScoringRule_expectedScore {G : (Ω → ℝ) → ℝ} {g : (Ω → ℝ) → Ω → ℝ} {q p : Ω → ℝ}
     (hq : ∑ ω, q ω = 1) :
     (savageScoringRule G g).expectedScore q p = G p + (q - p) ⬝ᵥ g p := by
-  have h1 : ∑ ω, q ω * (G p + g p ω - p ⬝ᵥ g p) =
-      (∑ ω, q ω) * (G p - p ⬝ᵥ g p) + ∑ ω, q ω * g p ω := by
-    rw [sum_mul, ← sum_add_distrib]
-    exact sum_congr rfl fun ω _ => by ring
-  simp only [ScoringRule.expectedScore_apply, savageScoringRule_score]
-  rw [h1, hq, one_mul, sub_dotProduct]
-  simp only [dotProduct]
+  simp only [ScoringRule.expectedScore_apply, savageScoringRule_score, mul_sub, mul_add,
+    sum_sub_distrib, sum_add_distrib, ← sum_mul, hq, one_mul, dotProduct, Pi.sub_apply, sub_mul]
   ring
 
 theorem savageScoringRule_expectedScore_self {G : (Ω → ℝ) → ℝ} {g : (Ω → ℝ) → Ω → ℝ} {q : Ω → ℝ}
@@ -462,9 +455,7 @@ theorem quadraticScore_expectedScore_sub {Ω : Type*} [Fintype Ω] {q p : Ω →
   have heval (r : Ω → ℝ) : (quadraticScore Ω).expectedScore q r =
       2 * (∑ ω, q ω * r ω) - ∑ ω, r ω ^ 2 := by
     simp only [ScoringRule.expectedScore_apply, quadraticScore_score, mul_sub, sum_sub_distrib,
-      ← sum_mul, hq, one_mul]
-    rw [mul_sum]
-    exact congrArg (· - ∑ ω, r ω ^ 2) (sum_congr rfl fun _ _ => by ring)
+      ← sum_mul, hq, one_mul, mul_left_comm _ (2 : ℝ), ← mul_sum]
   rw [heval q, heval p]
   simp only [← sq, sub_sq, mul_assoc, sum_add_distrib, sum_sub_distrib, ← mul_sum]
   ring

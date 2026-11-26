@@ -133,13 +133,9 @@ theorem mem_newUnits {x : Fin E} {o : M.Channel → Fin U1} {id : UnitId A U0 M.
     id ∈ newUnits M x o ↔ ∃ ν k, id = .new ⟨x, ν⟩ k ∧ k ≤ o ⟨x, ν⟩ := by
   obtain _ | ⟨⟨x', ν⟩, k⟩ := id
   · simp
-  · rw [new_mem_newUnits]
-    constructor
-    · rintro ⟨rfl, hk⟩
-      exact ⟨ν, k, rfl, hk⟩
-    · rintro ⟨ν', k', h, hk⟩
-      cases h
-      exact ⟨rfl, hk⟩
+  · refine new_mem_newUnits.trans ⟨fun ⟨rfl, hk⟩ => ⟨ν, k, rfl, hk⟩, ?_⟩
+    rintro ⟨_, _, ⟨⟩, hk⟩
+    exact ⟨rfl, hk⟩
 
 section Role
 
@@ -210,12 +206,9 @@ private theorem eq_none_of_unitTable_ne_zero {p : L.Role}
     (ν : L.ChannelAt p) {k : Fin U1} (hk : o ν < k) : ζ ν k = none := by
   rw [unitTable, codeTable_eq_sum_sigma] at h
   obtain ⟨⟨i, g⟩, -, h⟩ := exists_ne_zero_of_sum_ne_zero h
-  obtain ⟨hc, h⟩ := ite_ne_right_iff.1 h
-  obtain ⟨ho, -⟩ := ite_ne_right_iff.1 h
-  rw [← hc ν]
-  refine unitsOf_eq_none.2 ?_
-  rw [unitCount, length_sideString, ← ho ν]
-  exact hk
+  obtain ⟨hc, ho, -⟩ := (ite_ne_right_iff.1 h).imp_right ite_ne_right_iff.1
+  simpa only [← hc ν, codeWord, unitsOf_eq_none, unitCount, length_sideString, ← ho ν,
+    Nat.add_one_le_iff] using Fin.lt_def.1 hk
 
 variable (X o) in
 /-- Tables with units, summed over the contents of the units on all channels: the sum over the
@@ -326,8 +319,7 @@ theorem move_outcome :
   · intro ζ _ hζ
     have hemb : Function.Injective fun q : (M.law x).Channel × Fin U1 =>
         (.new ⟨x, q.1⟩ q.2 : UnitId A U0 M.Channel U1) := by
-      rintro ⟨ν, k⟩ ⟨ν', k'⟩ h
-      cases h
+      rintro ⟨_, _⟩ ⟨_, _⟩ ⟨⟩
       rfl
     have hz (ν k) : Function.extend (fun q : (M.law x).Channel × Fin U1 =>
         (.new ⟨x, q.1⟩ q.2 : UnitId A U0 M.Channel U1)) (fun q => ζ q.1 q.2) (fun _ => none)

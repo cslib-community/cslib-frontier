@@ -201,9 +201,8 @@ private theorem evalScan_of_recv [DecidableEq P] {α : Type*} (E : Execution P)
         (some (E.evalScan defaultVal init next eSend)) := by
   have hlt : eSend.idx.val < eRecv.idx.val :=
     E.causalStep_idx_lt (.inr (E.messageOrder_of_recv hrecv))
-  rw [E.evalScan_step_eq defaultVal init next eRecv, hrecv]
-  dsimp only
-  rw [E.scanSteps_fst_eq_some_evalScan defaultVal init next eRecv.idx.isLt.le eSend hlt]
+  simp only [E.evalScan_step_eq defaultVal init next eRecv, hrecv,
+    E.scanSteps_fst_eq_some_evalScan defaultVal init next eRecv.idx.isLt.le eSend hlt]
 
 private theorem scanSteps_snd_succ_self [DecidableEq P] {α : Type*} (E : Execution P)
     (defaultVal : α) (init : P → α) (next : P → α → Option α → α) (e : E.Event) :
@@ -249,12 +248,10 @@ private theorem scanSteps_snd_provenance [DecidableEq P] {α : Type*} (E : Execu
     have hk_lt : k < E.steps.length := Nat.lt_of_succ_le hk
     let ek : E.Event := ⟨⟨k, hk_lt⟩⟩
     by_cases hq : q = ek.actor
-    · refine .inr ⟨ek, Nat.lt_succ_self k, hq.symm, ?_⟩
-      rw [hq]
-      exact E.scanSteps_snd_succ_self defaultVal init next ek
-    · rw [E.scanSteps_succ_of_lt init next hk_lt]
-      simp only [scanStepAux]
-      rw [Function.update_of_ne (show q ≠ (E.steps[k]).actor from hq)]
+    · exact .inr ⟨ek, Nat.lt_succ_self k, hq.symm,
+        hq ▸ E.scanSteps_snd_succ_self defaultVal init next ek⟩
+    · have hq' : q ≠ (E.steps[k]).actor := hq
+      simp only [E.scanSteps_succ_of_lt init next hk_lt, scanStepAux, Function.update_of_ne hq']
       exact (ih hk_lt.le).imp_right fun ⟨x, hxk, hact, heq⟩ =>
         ⟨x, Nat.lt_succ_of_lt hxk, hact, heq⟩
 
@@ -503,12 +500,10 @@ private theorem vc_eq_zero_or_exists_le [DecidableEq P] (E : Execution P) :
 theorem happensBeforeLe_iff_coord_le [DecidableEq P] {E : Execution P} {e₁ e₂ : E.Event} :
     E.HappensBeforeLe e₁ e₂ ↔ E.vc e₁ e₁.actor ≤ E.vc e₂ e₁.actor := by
   refine ⟨fun hle => E.vc_mono hle e₁.actor, fun hcoord => ?_⟩
-  have hpos : 0 < E.vc e₁ e₁.actor := E.vc_actor_pos e₁
   rcases E.vc_eq_zero_or_exists_le e₂ e₁.actor with h0 | ⟨x, hxact, hxe₂, hxeq⟩
-  · omega
+  · exact absurd (hcoord.trans_eq h0) (not_le_of_gt (E.vc_actor_pos e₁))
   · refine (E.programOrder_happensBeforeLe hxact.symm (le_of_not_gt fun hlt => ?_)).trans hxe₂
-    have hvc_lt := E.vc_actor_strictMono_of_sameActor hxact hlt
-    rw [hxact] at hvc_lt
+    have hvc_lt := hxact ▸ E.vc_actor_strictMono_of_sameActor hxact hlt
     omega
 
 /-- **Single-coordinate comparison of given timestamps (`≺`)** ([Mattern1989], §8, Theorem 11):

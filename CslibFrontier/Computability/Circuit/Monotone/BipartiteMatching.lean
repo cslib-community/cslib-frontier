@@ -313,9 +313,8 @@ private theorem run_oneRun_of_disjointness {x y : BitString m} (hxy : disjointne
 /-- If `i₀` is in both sets, every run answers `false`. -/
 private theorem run_oneRun_of_mem {x y : BitString m} (hx : x i₀ = true) (hy : y i₀ = true)
     (σ : Relabeling m e) : (oneRun p h i₀ σ).run x y = false := by
-  obtain ⟨i, -, hrun⟩ := exists_run_oneRun hp σ x y
-  rw [hrun, hx, hy]
-  simp
+  obtain ⟨_, -, hrun⟩ := exists_run_oneRun (h := h) (i₀ := i₀) hp σ x y
+  simpa [hx, hy] using hrun
 
 omit hp in
 /-- **The symmetry of the reduction.** If some `ℓ ≠ i₀` is in both sets, a run answers `true` for at
@@ -443,9 +442,7 @@ theorem ecomplexityFun_disjointness_le_mul_ecomplexity_bipartitePerfectMatching 
       (fun x _ y _ => by simp [disjointness]) (by positivity))).trans (by simp)
   cases hc : Protocol.ecomplexity ExceedsAt {x | bipartitePerfectMatching n x = true}
       {y | bipartitePerfectMatching n y = false} using ENat.recTopCoe with
-  | top =>
-    rw [top_add, ENat.mul_top (Nat.cast_ne_zero.mpr hk.ne')]
-    exact le_top
+  | top => simp [ENat.mul_top (Nat.cast_ne_zero.mpr hk.ne')]
   | coe c =>
     obtain ⟨p, hp, hpc⟩ := Protocol.ecomplexity_le_iff.mp hc.le
     have hcard : Fintype.card (Vertex m (n - 2 * m)) = n := by
@@ -473,8 +470,7 @@ theorem le_mul_ecomplexity_bipartitePerfectMatching_add (n : ℕ) :
     cases hr : PublicCoin.ecomplexityFun (1 / 2 ^ 6)
         (disjointness : BitString m → BitString m → Bool) using ENat.recTopCoe with
     | top =>
-      rw [hr] at h2
-      exact absurd (top_le_iff.mp h2) (by exact_mod_cast ENat.natCast_ne_top (6 * (c + 1)))
+      exact absurd (top_le_iff.mp (hr ▸ h2)) (by exact_mod_cast ENat.natCast_ne_top (6 * (c + 1)))
     | coe r =>
       have h1' : m ≤ 2 ^ 9 * r + 2 ^ 12 := by exact_mod_cast hr ▸ h1
       have h2' : r ≤ 6 * (c + 1) := by exact_mod_cast hr ▸ h2

@@ -110,15 +110,12 @@ theorem minEntropy_map_conditionalSnd_ge_of_apply_ge [Fintype L] (J : PMF (L × 
     rw [PMF.map_apply f (conditionalSnd J ℓ) y, ← ENNReal.tsum_mul_left]
     have hlhs : (∑' a, (J.map Prod.fst) ℓ * if y = f a then conditionalSnd J ℓ a else 0) =
         ∑' a, if y = f a then J (ℓ, a) else 0 := tsum_congr fun a => by
-      split_ifs
-      · exact marginal_mul_conditionalSnd J ℓ a
-      · rw [mul_zero]
+      split_ifs <;> simp only [marginal_mul_conditionalSnd, mul_zero]
     rw [hlhs, PMF.map_comp, PMF.map_apply, tsum_prod']
     exact le_tsum (f := fun l : L => ∑' a : α, if y = (f ∘ Prod.snd) (l, a) then J (l, a) else 0) ℓ
   have hreal : ((J.map Prod.fst) ℓ).toReal * (((conditionalSnd J ℓ).map f) y).toReal ≤
-      (((J.map Prod.snd).map f) y).toReal := by
-    rw [← ENNReal.toReal_mul]
-    exact ENNReal.toReal_mono (PMF.apply_ne_top _ _) henn
+      (((J.map Prod.snd).map f) y).toReal :=
+    ENNReal.toReal_mul ▸ ENNReal.toReal_mono (PMF.apply_ne_top _ _) henn
   have hdiv : (((conditionalSnd J ℓ).map f) y).toReal ≤
       2 ^ (-k) / (δ / Fintype.card L) := by
     calc (((conditionalSnd J ℓ).map f) y).toReal
@@ -142,11 +139,9 @@ theorem toOuterMeasure_badLeak_le [Fintype L] (μ : PMF L) {δ : ℝ} (hδ : 0 �
   have hL_pos : (0 : ℝ) < Fintype.card L := by exact_mod_cast Fintype.card_pos
   rw [toOuterMeasure_apply_toReal]
   calc ∑ ℓ, (if ℓ ∈ {ℓ | (μ ℓ).toReal < δ / Fintype.card L} then (μ ℓ).toReal else 0)
-      ≤ ∑ _ℓ : L, δ / Fintype.card L := by
-        refine Finset.sum_le_sum fun ℓ _ => ?_
-        split_ifs with h
-        · exact le_of_lt h
-        · exact div_nonneg hδ hL_pos.le
+      ≤ ∑ _ℓ : L, δ / Fintype.card L := Finset.sum_le_sum fun ℓ _ => by
+          split_ifs with h
+          exacts [h.le, div_nonneg hδ hL_pos.le]
     _ = δ := by
         rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_div_cancel₀ _ hL_pos.ne']
 
@@ -237,9 +232,7 @@ theorem exists_dist_le_and_le_minEntropy_map_of_dist_uniform [Fintype α] [Finty
         lt_of_le_of_ne ENNReal.toReal_nonneg (Ne.symm hy)
       have hterm (a : α) : (if y = f a then w a else 0) =
           (if y = f a then (A a).toReal else 0) * min 1 (u / ((A.map f) y).toReal) := by
-        split_ifs with h
-        · simp only [w, ← h, hy, ↓reduceIte]
-        · simp only [zero_mul]
+        simp +contextual only [eq_comm (a := y) (b := f a), w, hy, ↓reduceIte, ite_mul, zero_mul]
       simp_rw [hterm]
       rw [← Finset.sum_mul, ← map_apply_toReal A f y, mul_min_of_nonneg _ _ hy_pos.le,
         mul_one, mul_div_cancel₀ _ hy]

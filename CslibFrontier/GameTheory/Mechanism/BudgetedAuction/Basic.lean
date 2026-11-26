@@ -206,9 +206,7 @@ private theorem isClearedAndExhausted_of_isParetoOptimal
       split_ifs <;> linarith [hnn i, hnn j, hnn k]
     · rcases eq_or_ne k j with rfl | hkj
       · simp only [utility, o', Function.update_self]; nlinarith
-      · rcases eq_or_ne k i with rfl | hki
-        · simp [utility, o', hkj, hvi]
-        · simp [utility, o', hkj, hki]
+      · rcases eq_or_ne k i with rfl | hki <;> simp [utility, o', *]
   · have hltB : o.payment j < B j := lt_of_le_of_ne (hbf j) hne
     have hij : i ≠ j := fun h => lt_irrefl _ (h ▸ hvij)
     let mid : ℝ := (v i + v j) / 2
@@ -230,11 +228,9 @@ private theorem isClearedAndExhausted_of_isParetoOptimal
     have hsum_pay : o'.revenue = o.revenue := sum_update_transfer o.payment hij t
     have hgap : 0 < (v j - v i) / 2 * δ := by nlinarith
     have hutil_i : o.utility v i < o'.utility v i := by
-      simp only [utility, o', Function.update_of_ne hij, Function.update_self]
-      dsimp only [t, mid]; linarith
+      simp only [utility, o', Function.update_of_ne hij, Function.update_self, t, mid]; linarith
     have hutil_j : o.utility v j < o'.utility v j := by
-      simp only [utility, o', Function.update_self]
-      dsimp only [t, mid]; linarith
+      simp only [utility, o', Function.update_self, t, mid]; linarith
     refine hnd o' ⟨⟨fun k => ?_, by linarith⟩, fun k => ?_, fun k => ?_, hsum_pay.ge,
       Or.inl ⟨i, hutil_i⟩⟩
     · simp only [o', Function.update_apply]
@@ -293,7 +289,6 @@ private theorem isParetoOptimal_of_isClearedAndExhausted
         · rw [le_antisymm hle (hge_of_alloc_pos i hxi_pos)]
       · have hgt : pStar < v i := lt_of_not_ge hle
         have hvi_pos : 0 < v i := hpStar_pos.trans hgt
-        have hpi_eq : o.payment i = B i := hbudget_of_gt i hgt
         have hrew :
             (pStar / v i) * (v i * o'.alloc i - o'.payment i - (v i * o.alloc i - o.payment i)) +
               (o'.payment i - o.payment i) =
@@ -303,8 +298,8 @@ private theorem isParetoOptimal_of_isClearedAndExhausted
           ring
         rw [hrew]
         have hcoeff_nn : 0 ≤ 1 - pStar / v i := sub_nonneg.mpr ((div_le_one hvi_pos).mpr hgt.le)
-        have hpay_np : o'.payment i - o.payment i ≤ 0 := by linarith [hbf' i]
-        linarith [mul_nonpos_of_nonneg_of_nonpos hcoeff_nn hpay_np]
+        linarith [mul_nonpos_of_nonneg_of_nonpos hcoeff_nn
+          (sub_nonpos.mpr ((hbf' i).trans_eq (hbudget_of_gt i hgt).symm))]
     have hsum_le :
         (∑ i, w i * (o'.utility v i - o.utility v i)) + (o'.revenue - o.revenue) ≤ 0 := by
       calc (∑ i, w i * (o'.utility v i - o.utility v i)) + (o'.revenue - o.revenue)

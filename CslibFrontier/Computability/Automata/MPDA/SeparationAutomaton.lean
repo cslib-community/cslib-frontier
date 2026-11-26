@@ -148,18 +148,15 @@ private theorem replicate_eq_cons {y : ℕ} {γ : Sym} {t : List Sym}
     0 < y ∧ γ = .outer ∧ t = List.replicate (y - 1) .outer := by
   rcases y with _ | y
   · simp at h
-  · simp only [List.replicate_succ, List.cons.injEq] at h
-    exact ⟨by omega, h.1.symm, by simpa using h.2.symm⟩
+  · exact ⟨Nat.succ_pos y, (List.cons.inj h).1.symm, (List.cons.inj h).2.symm⟩
 
 private theorem replicate_append_eq_cons {x y : ℕ} {γ : Sym} {t : List Sym}
     (h : List.replicate x Sym.inner ++ List.replicate y .outer = γ :: t) :
     (0 < x ∧ γ = .inner ∧ t = List.replicate (x - 1) .inner ++ List.replicate y .outer) ∨
       (x = 0 ∧ 0 < y ∧ γ = .outer ∧ t = List.replicate (y - 1) .outer) := by
   rcases x with _ | x
-  · simp only [List.replicate_zero, List.nil_append] at h
-    exact .inr ⟨rfl, replicate_eq_cons h⟩
-  · simp only [List.replicate_succ, List.cons_append, List.cons.injEq] at h
-    exact .inl ⟨by omega, h.1.symm, by simpa using h.2.symm⟩
+  · exact .inr ⟨rfl, replicate_eq_cons h⟩
+  · exact .inl ⟨Nat.succ_pos x, (List.cons.inj h).1.symm, (List.cons.inj h).2.symm⟩
 
 private theorem pre_append_group (n k : ℕ) (gs : List (List Letter)) (p q : ℕ) :
     pre n k gs ++ List.replicate p .a ++ List.replicate (p + 1) .c ++ List.replicate q .b ++
@@ -373,12 +370,12 @@ private theorem accepts_of_mem_language {w : List Letter} (h : w ∈ language) :
         List.replicate n (.b, .push 1 .outer))
       ⟨.pb, Stacks.pair (List.replicate (n + 1) .outer) (List.replicate (n + 1) .outer)⟩ := by
     rw [Stacks.empty_eq_pair]
-    refine .comp _
+    exact .comp _
       (by simpa using configLTS_mTr_replicate_push_zero (M := automaton) Step.pa_a [] (n + 1) [])
-      (.stepL (step_iff.mpr ⟨.pa_b, Op.apply_push_one_pair.mpr rfl⟩) ?_)
-    simpa [List.replicate_succ'] using
-      configLTS_mTr_replicate_push_one (M := automaton) Step.pb_b
-        (List.replicate (n + 1) .outer) n [.outer]
+      (.stepL (step_iff.mpr ⟨.pa_b, Op.apply_push_one_pair.mpr rfl⟩) (by
+        simpa [List.replicate_succ'] using
+          configLTS_mTr_replicate_push_one (M := automaton) Step.pb_b
+            (List.replicate (n + 1) .outer) n [.outer]))
   obtain ⟨μs, hμs, hrun⟩ := run_groups gs hg (by rintro rfl; simp at hlen) (q₀ := .pb) (.inl rfl)
   rw [hlen] at hrun
   refine ⟨.pa, rfl, .ge, .inr rfl, (List.replicate (n + 1) (.a, .push 0 .outer) ++
@@ -414,13 +411,12 @@ theorem language_separates_holeBounded_scopeBounded :
     exact ⟨s, hs, s', hs', μs, rfl, h, holeBounded_two automaton_isVisibly h hw⟩
   · intro K State Γ M hM
     -- No run on `word (K + 1) ∈ L_bh` is `K'`-scope-bounded for `K' < 2 * (K + 1)`.
-    have hnot : ∀ (K' : ℕ), K' < 2 * (K + 1) → ∀ (P : List (Letter × Op 2 Γ) → Prop),
-        (∀ μs, P μs → ScopeBounded K' μs) → M.boundedLanguage P ≠ language := by
-      intro K' hK' P hP heq
-      have hw : word (K + 1) ∈ M.boundedLanguage P := heq ▸ word_mem_language (K + 1)
-      obtain ⟨s, hs, s', hs', μs, hμs, h, hb⟩ := hw
-      exact not_scopeBounded hM h hμs hK' (hP μs hb)
-    exact ⟨hnot K (by omega) _ fun _ h => h, hnot K (by omega) _ fun _ h => h.scopeBounded,
-      hnot (K * 2) (by omega) _ fun _ h => h.contextBounded.scopeBounded⟩
+    have hnot {K' : ℕ} (hK' : K' < 2 * (K + 1)) {P : List (Letter × Op 2 Γ) → Prop}
+        (hP : ∀ μs, P μs → ScopeBounded K' μs) (heq : M.boundedLanguage P = language) : False :=
+      let ⟨_, _, _, _, μs, hμs, h, hb⟩ := heq ▸ word_mem_language (K + 1)
+      not_scopeBounded hM h hμs hK' (hP μs hb)
+    exact ⟨hnot (by omega) fun _ h => h,
+      hnot (by omega) fun _ h => h.scopeBounded,
+      hnot (by omega) fun _ h => h.contextBounded.scopeBounded⟩
 
 end Cslib.Automata.MPDA.HoleSeparation

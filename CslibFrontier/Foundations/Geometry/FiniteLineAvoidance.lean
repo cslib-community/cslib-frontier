@@ -57,10 +57,8 @@ theorem exists_mem_ball_avoiding_lines {ι : Type*} [Finite ι]
     dsimp only [w]
     field_simp [hu]
   refine ⟨w, ?_, ?_⟩
-  · rw [Metric.mem_ball, dist_eq_norm,
-      show w - z = (t : ℂ) / u by dsimp only [w]; ring,
-      norm_div, Complex.norm_real, Real.norm_eq_abs, abs_of_pos ht.1]
-    exact (div_lt_iff₀ hnorm).mpr ht.2
+  · simpa only [Metric.mem_ball, dist_eq_norm, w, add_sub_cancel_left, norm_div,
+      Complex.norm_real, Real.norm_eq_abs, abs_of_pos ht.1] using (div_lt_iff₀ hnorm).mpr ht.2
   · intro i s heq
     have hm : (s : ℂ) * (u * b i - u * a i) + u * a i = u * z + t := by
       rw [← huw, ← heq, AffineMap.lineMap_apply_module', Complex.real_smul]
@@ -155,23 +153,20 @@ private theorem NoTripleLineContact.insert_point {points moved : Set ℂ}
       hj.elim (· ▸ left_mem_affineSpan_pair ℝ (a j) (b j))
         (· ▸ right_mem_affineSpan_pair ℝ (a j) (b j))
     have hold (j : Fin 3) (hij : i ≠ j) : a j ∈ points ∧ b j ∈ points := by
-      have hnotUse : ¬(a j = w ∨ b j = w) := by
-        intro hj
-        apply hdistinct hij
-        exact (affineSpan_pair_eq_of_mem_of_mem_of_ne (hz i) (hline i hi) hzw).symm.trans
+      have hnotUse : ¬(a j = w ∨ b j = w) := fun hj => hdistinct hij <|
+        (affineSpan_pair_eq_of_mem_of_mem_of_ne (hz i) (hline i hi) hzw).symm.trans
           (affineSpan_pair_eq_of_mem_of_mem_of_ne (hz j) (hline j hj) hzw)
-      exact ⟨(Set.mem_insert_iff.mp (hpoints j).1).resolve_left (fun h => hnotUse (Or.inl h)),
-        (Set.mem_insert_iff.mp (hpoints j).2.1).resolve_left (fun h => hnotUse (Or.inr h))⟩
+      exact ⟨(hpoints j).1.resolve_left (hnotUse ∘ Or.inl),
+        (hpoints j).2.1.resolve_left (hnotUse ∘ Or.inr)⟩
     let j : Fin 3 := i + 1
     let k : Fin 3 := i + 2
     obtain ⟨hij, hik, hjk⟩ : i ≠ j ∧ i ≠ k ∧ j ≠ k := by fin_cases i <;> decide
-    have hzCross : z ∈ lineCrossings points := by
-      exact Set.mem_iUnion.mpr
-        ⟨⟨(⟨⟨a j, (hold j hij).1⟩, ⟨b j, (hold j hij).2⟩⟩,
-            ⟨⟨a k, (hold k hik).1⟩, ⟨b k, (hold k hik).2⟩⟩), hdistinct hjk⟩, hz j, hz k⟩
+    have hzCross : z ∈ lineCrossings points := Set.mem_iUnion.mpr
+      ⟨⟨(⟨⟨a j, (hold j hij).1⟩, ⟨b j, (hold j hij).2⟩⟩,
+          ⟨⟨a k, (hold k hik).1⟩, ⟨b k, (hold k hik).2⟩⟩), hdistinct hjk⟩, hz j, hz k⟩
     have hother (c : ℂ) (hc : c ∈ insert w points) (hcw : c ≠ w)
         (hcz : c ≠ z) (hcl : c ∈ line i) : False := by
-      apply havoid c ((Set.mem_insert_iff.mp hc).resolve_left hcw) z hzCross hcz
+      apply havoid c (hc.resolve_left hcw) z hzCross hcz
       rw [affineSpan_pair_eq_of_mem_of_mem_of_ne hcl (hz i) hcz]
       exact hline i hi
     rcases hi with ha | hb
@@ -181,12 +176,11 @@ private theorem NoTripleLineContact.insert_point {points moved : Set ℂ}
         (he i).1.symm (left_mem_affineSpan_pair ℝ (a i) (b i))
   · have hne (i) : a i ≠ w ∧ b i ≠ w :=
       ⟨fun ha => hused ⟨i, Or.inl ha⟩, fun hb => hused ⟨i, Or.inr hb⟩⟩
-    apply h a b z ?_ ?_ hdistinct hz
-    · intro i
-      exact ⟨(Set.mem_insert_iff.mp (hpoints i).1).resolve_left (hne i).1,
-        (Set.mem_insert_iff.mp (hpoints i).2.1).resolve_left (hne i).2, (hpoints i).2.2⟩
-    · exact hmoved.imp fun i => Or.imp (fun ha => (Set.mem_insert_iff.mp ha).resolve_left (hne i).1)
-        fun hb => (Set.mem_insert_iff.mp hb).resolve_left (hne i).2
+    exact h a b z
+      (fun i => ⟨(hpoints i).1.resolve_left (hne i).1,
+        (hpoints i).2.1.resolve_left (hne i).2, (hpoints i).2.2⟩)
+      (hmoved.imp fun i => Or.imp (·.resolve_left (hne i).1) (·.resolve_left (hne i).2))
+      hdistinct hz
 
 /-- Arbitrarily small perturbations separate movable points, keep them off lines
 through other points, and exclude triple contacts away from the defining endpoints
@@ -253,19 +247,14 @@ theorem exists_injective_perturbation_avoiding_spans_and_crossings {ι : Type*} 
         rw [hpool] at ha hb
         rcases Finset.mem_insert.mp hj with rfl | hj
         · rw [hqnew] at hja hjb h
-          have ha' := (Set.mem_insert_iff.mp ha).resolve_left (Ne.symm hja)
-          have hb' := (Set.mem_insert_iff.mp hb).resolve_left (Ne.symm hjb)
-          exact hwspans a ha' b hb' hab h
+          exact hwspans a (ha.resolve_left hja.symm) b (hb.resolve_left hjb.symm) hab h
         · rw [hqold hj] at hja hjb h
-          rcases Set.mem_insert_iff.mp ha with haw | ha'
-          · subst a
-            have hb' := (Set.mem_insert_iff.mp hb).resolve_left hab.symm
-            apply hwspans _ (hold j hj) _ hb' hjb
+          rcases ha with rfl | ha'
+          · apply hwspans _ (hold j hj) _ (hb.resolve_left hab.symm) hjb
             rw [affineSpan_pair_eq_of_left_mem_of_ne h hjb]
             exact left_mem_affineSpan_pair _ _ _
-          · rcases Set.mem_insert_iff.mp hb with hbw | hb'
-            · subst b
-              apply hwspans _ ha' _ (hold j hj) hja.symm
+          · rcases hb with rfl | hb'
+            · apply hwspans _ ha' _ (hold j hj) hja.symm
               rw [affineSpan_pair_eq_of_right_mem_of_ne h hja]
               exact right_mem_affineSpan_pair _ _ _
             · exact hspans j hj a b (hpresent ▸ ha') (hpresent ▸ hb') hab hja hjb h

@@ -99,11 +99,8 @@ theorem justesenSourceLoop_parts_inSpace (ntm : MultiTapeNTM k Bool State) (c : 
 /-- Zero fuel returns no verdict and never starts a callback. -/
 theorem justesenSourceLoop_run_zero (ntm : MultiTapeNTM k Bool State) (c : ℕ)
     (context : JustesenSourceContext) (w bits : List Bool) :
-    (justesenSourceLoop ntm c context 0).run w bits = .inr none := by
-  let M := justesenSourceLoop ntm c context 0
-  change M.replay w bits M.init = .inr none
-  rw [M.replay_of_halted w (by rfl)]
-  rfl
+    (justesenSourceLoop ntm c context 0).run w bits = .inr none :=
+  (justesenSourceLoop ntm c context 0).replay_of_halted w (s := .inr none) rfl bits
 
 /-- Re-entry changes the retained context and loop limit of the fixed source-loop machine. -/
 theorem justesenSourceLoop_withInit (ntm : MultiTapeNTM k Bool State) (c : ℕ)
@@ -163,9 +160,8 @@ theorem configurationJustesenSourceLoop_haltsWithin_clock
     (justesenSourceLoop_closed ntm c context limit w)
     (configurationJustesenRetainedSourceRoundClock ntm c w)
     (configurationJustesenMembershipTallyClock ntm c w)
-    (fun r hr => by
-      rw [justesenRetainedSourceRound_withInit]
-      exact (hround w seed source target limit hlimit r hr).1)
+    (fun r hr => (justesenRetainedSourceRound_withInit ntm c initial r).symm ▸
+      (hround w seed source target limit hlimit r hr).1)
     (fun r hr => (hmember w seed source target limit hlimit r hr).1)
   exact HaltsWithin.mono (justesenSourceLoop ntm c context limit) w hrun <| Nat.add_le_add_right
     (Nat.add_le_add_right (Nat.mul_le_mul_right _ hlimit) _) 1
@@ -192,21 +188,18 @@ theorem configurationJustesenSourceLoop_length_run_le_log
   intro I n seed source target limit hlimit context M bits
   let b := Nat.log2 w.length + 1
   let initial := SourceRoundLoop.start context limit
-  let round := justesenRetainedSourceRound ntm c initial
-  let member := justesenSourceMembershipMachine ntm c
   have hctx : context.size = n :=
     configurationJustesenSourceContext_size ntm c w seed.val source.val target.val
   obtain ⟨hreg, hroundSize⟩ := henvelope w seed source target limit hlimit
-  have hlength := SourceRoundLoop.length_run_le initial round justesenRetainedSourceRoundEntry
-    justesenRetainedSourceRoundReply member justesenSourceMembershipStart
+  have hlength := SourceRoundLoop.length_run_le initial (justesenRetainedSourceRound ntm c initial)
+    justesenRetainedSourceRoundEntry justesenRetainedSourceRoundReply
+    (justesenSourceMembershipMachine ntm c) justesenSourceMembershipStart
     MembershipTally.retainedReply w encJustesenSourceContext encJustesenRetainedSourceRoundState
     (MembershipTally.encRetainedState encJustesenSubdivisionContext encJustesenSubdivisionState)
     _ (SourceRoundLoop.start_admissible context context.size limit)
     (justesenSourceLoop_closed ntm c context limit w) (B * b) (B * b + A * b) (D * b)
-    (fun r hr => by
-      have h := SourceRoundLoop.length_encRegisters_le encJustesenSourceContext hr
-      rw [hctx] at h
-      exact h.trans hreg)
+    (fun r hr =>
+      (hctx ▸ SourceRoundLoop.length_encRegisters_le encJustesenSourceContext hr).trans hreg)
     (fun r hr choices => by
       rw [← run_withInit, justesenRetainedSourceRound_withInit]
       exact ((hround w seed source target limit hlimit r hr).2 choices).trans
@@ -216,7 +209,6 @@ theorem configurationJustesenSourceLoop_length_run_le_log
   simp only [initial, SourceRoundLoop.start, Nat.add_zero, Nat.add_mul, Nat.mul_assoc]
   have hfuel : (encNat limit).length ≤ E * b :=
     (length_encNat_mono hlimit).trans (hsize w)
-  have hb : 1 ≤ b := Nat.succ_le_succ (Nat.zero_le _)
   change 2 * (B * b) + max (B * b + A * b) (D * b) + (encNat limit).length + 4 ≤
     3 * (B * b) + A * b + D * b + E * b + 4 * b
   omega
@@ -258,8 +250,7 @@ theorem configurationJustesenSourceLoop_exists_routines
       ((justesenSourceLoop ntm c (contextOf a) (limitOf a)).run (enc a) bits)).length ≤
         C * (Nat.log2 (enc a).length + 1) := by
     obtain ⟨seed, source, target, hctx, hlimit⟩ := hvalid a
-    rw [hctx]
-    exact hspace (enc a) seed source target (limitOf a) hlimit bits
+    exact hctx.symm ▸ hspace (enc a) seed source target (limitOf a) hlimit bits
   obtain ⟨R⟩ : Nonempty (Routines M entry enc (fun a => Nat.log2 (enc a).length + 1)) :=
     SourceRoundLoop.exists_routines encJustesenSourceContext encJustesenRetainedSourceRoundState
       encMember initial round justesenRetainedSourceRoundEntry justesenRetainedSourceRoundReply
@@ -271,7 +262,6 @@ theorem configurationJustesenSourceLoop_exists_routines
     (time := fun a => configurationJustesenSourceLoopClock ntm c (enc a)) ?_⟩
   intro a
   obtain ⟨seed, source, target, hctx, hlimit⟩ := hvalid a
-  dsimp only [M, entry]
   rw [justesenSourceLoop_withInit, hctx]
   exact configurationJustesenSourceLoop_haltsWithin_clock ntm c (enc a)
     seed source target (limitOf a) hlimit
@@ -365,9 +355,8 @@ theorem configurationJustesenSourceLoop_existsUnique_firstHalting
         justesenRetainedSourceRound ntm c r :=
     justesenRetainedSourceRound_withInit ntm c initial r
   have hnormalized (r : SourceRoundLoop.Registers JustesenSourceContext) (hr : P r) :
-      r = ⟨context, r.fuel, r.radius, expected edge source r.radius⟩ := by
-    obtain ⟨hctx, _, _, htally, _⟩ := hr
-    rw [← hctx, ← htally]
+      r = ⟨context, r.fuel, r.radius, expected edge source r.radius⟩ :=
+    hr.1 ▸ hr.2.2.2.1 ▸ rfl
   have hclosed : SourceRoundLoop.Closed round justesenRetainedSourceRoundEntry
       justesenRetainedSourceRoundReply w P := by
     intro r hr _ bits update hfirst hreply hbad hcount
@@ -398,15 +387,13 @@ theorem configurationJustesenSourceLoop_existsUnique_firstHalting
     justesenSourceMembershipStart MembershipTally.retainedReply w P hp (fun _ hr => hr.2.2.1)
     hclosed (fun r hr => (hround r hr).exists) (fun r hr => by
       obtain ⟨choices, hfirst, hsome⟩ := (hmember r hr).exists
-      obtain ⟨hit, hhit⟩ := Option.isSome_iff_exists.mp hsome
-      exact ⟨choices, hit, hfirst, hhit⟩)
+      exact ⟨choices, (Option.isSome_iff_exists.mp hsome).imp fun _ => And.intro hfirst⟩)
   have hunique := SourceRoundLoop.subsingleton_successful_firstHalting
     initial round justesenRetainedSourceRoundEntry justesenRetainedSourceRoundReply member
     justesenSourceMembershipStart MembershipTally.retainedReply w P hp hclosed
-    (fun r hr _ _ hl _ hr' => by
-      obtain ⟨left, hleft⟩ := Option.isSome_iff_exists.mp hl.2
-      obtain ⟨right, hright⟩ := Option.isSome_iff_exists.mp hr'.2
-      exact (hround r hr).unique ⟨left, hl.1, hleft⟩ ⟨right, hr'.1, hright⟩)
+    (fun r hr _ _ hl _ hr' => (hround r hr).unique
+      ((Option.isSome_iff_exists.mp hl.2).imp fun _ => And.intro hl.1)
+      ((Option.isSome_iff_exists.mp hr'.2).imp fun _ => And.intro hr'.1))
     (fun r hr _ _ hl _ hr' => (hmember r hr).unique hl hr')
   refine ⟨bits, ⟨verdict, hfirst, hreply⟩, ?_⟩
   rintro other ⟨result, hother, hret⟩

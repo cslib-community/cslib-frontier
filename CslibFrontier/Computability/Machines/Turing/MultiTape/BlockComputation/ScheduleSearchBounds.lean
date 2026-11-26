@@ -177,8 +177,7 @@ theorem initialized_allowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b σ q : 
   obtain ⟨ci, hci⟩ := prepared_metadata_le k s
   obtain ⟨cr, hcr⟩ := selected_queryStateBound_le k s
   let init := 16 * ci + 16 + 192 * (d + 1) * (2 * A + d.size)
-  refine ⟨init + 4 * H + reply + cr + 2, ?_⟩
-  intro N b σ q hb
+  refine ⟨init + 4 * H + reply + cr + 2, fun N b σ q hb => ?_⟩
   let B := Encoding.width k s b
   let m := chunkWidth d B
   let r := chunkCount d B
@@ -192,12 +191,9 @@ theorem initialized_allowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b σ q : 
   have hbs := Nat.size_le_self b
   have hqs := Nat.size_le_self q
   have hqmul : q ≤ q * (b.size + 1) := Nat.le_mul_of_pos_right _ (by omega)
-  have hqR : q ≤ R := by dsimp only [R]; omega
   have hargs : N.size + b.size + σ.size + q.size + 1 ≤ R := by
     dsimp only [R]; omega
   have hbR : b ≤ R := by dsimp only [R]; omega
-  have hNR : N.size ≤ R := by dsimp only [R]; omega
-  have hqsizeR : q.size ≤ R := hqs.trans hqR
   have hBR : B ≤ A * R := (width_le_mul k s hb).trans (Nat.mul_le_mul_left A hbR)
   have hmR : m ≤ M * R := by
     have hm := chunkWidth_le d B
@@ -272,8 +268,8 @@ theorem initialized_allowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b σ q : 
   change Initializer.space k ((Initializer.prepare k s (N, b, σ, q)).1) +
       RawController.Query.queryStateBound
         (ConcreteSupplier.encContext (N, b, σ, q, m, alphabet, limit)).length p d r q
-        (ConcreteSupplier.replySpace k s Q N b σ q m alphabet limit p d r) + 2 ≤ _
-  change _ ≤ (init + 4 * H + reply + cr + 2) * R
+        (ConcreteSupplier.replySpace k s Q N b σ q m alphabet limit p d r) + 2 ≤
+      (init + 4 * H + reply + cr + 2) * R
   rw [Nat.add_mul, Nat.add_mul, Nat.add_mul, Nat.add_mul, Nat.mul_assoc 4 H R]
   omega
 

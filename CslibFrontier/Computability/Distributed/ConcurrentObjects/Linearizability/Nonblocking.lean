@@ -65,12 +65,10 @@ theorem History.append_pending_inv_extension {P Obj : Type*} {Op Resp : Obj → 
     intro q
     simp only [H₁, List.append_assoc, History.procSubhistory_append, History.procSubhistory_cons,
       Event.proc_inv, History.procSubhistory_nil]
-    by_cases hqp : p = q
-    · subst hqp
-      simp only [↓reduceIte, hRp_nil, List.append_nil, hHp]
+    rcases eq_or_ne p q with rfl | hqp
+    · simp only [↓reduceIte, hRp_nil, List.append_nil, hHp]
       exact History.isSequential_flatMap_toEvents_append_inv cs_p p x op
-    · simp only [hqp, ↓reduceIte, List.nil_append, ← History.procSubhistory_append]
-      exact hwf' q
+    · simpa only [hqp, ↓reduceIte, List.nil_append, ← History.procSubhistory_append] using hwf' q
   have hcomp_eq : History.Equivalent (History.complete (H₁ ++ R)) (History.complete (H ++ R)) := by
     intro q
     rw [History.procSubhistory_complete, History.procSubhistory_complete]
@@ -139,12 +137,10 @@ theorem History.linearize_pending_in_extension {P Obj : Type*} {Op Resp : Obj �
     intro q
     simp only [R₁, ← List.append_assoc, History.procSubhistory_append, History.procSubhistory_cons,
       Event.proc_resp, History.procSubhistory_nil]
-    by_cases hqp : p = q
-    · subst hqp
-      simp only [↓reduceIte, hRp_nil, List.append_nil, hHp]
-      simpa only [List.append_assoc, List.cons_append, List.nil_append] using hpair_seq
-    · simp only [hqp, ↓reduceIte, List.append_nil, ← History.procSubhistory_append]
-      exact hwf' q
+    rcases eq_or_ne p q with rfl | hqp
+    · simpa only [↓reduceIte, hRp_nil, List.append_nil, hHp, List.append_assoc, List.cons_append,
+        List.nil_append] using hpair_seq
+    · simpa only [hqp, ↓reduceIte, List.append_nil, ← History.procSubhistory_append] using hwf' q
   have hseqS' : History.IsSequential S' :=
     History.isSequential_append_pair hseqS hevS p x op res
   have heqS' : History.Equivalent (History.complete (H ++ R₁)) S' := by
@@ -166,9 +162,8 @@ theorem History.linearize_pending_in_extension {P Obj : Type*} {Op Resp : Obj �
             omega)
       rw [hcomp_L, ← heqS p, History.procSubhistory_complete, History.procSubhistory_append,
         hRp_nil, List.append_nil, hHp, History.complete_flatMap_append_inv]
-    · simp only [hqp, ↓reduceIte, List.append_nil, ← History.procSubhistory_append,
-        ← History.procSubhistory_complete]
-      exact heqS q
+    · simpa only [hqp, ↓reduceIte, List.append_nil, ← History.procSubhistory_append,
+        ← History.procSubhistory_complete] using heqS q
   refine ⟨hR₁_resp, hwf_HR₁, hseqS', heqS', fun e₀ e₁ _ hc₁ ⟨r₀, i₁, hr₀_H, hi₁_H, hri⟩ => ?_⟩
   have hc₀_HR : History.IsCompletedOp (H ++ R) e₀ := by
     have hlen_H : 2 * e₀.idx + 1 < (History.procSubhistory H e₀.proc).length :=
@@ -186,11 +181,9 @@ theorem History.linearize_pending_in_extension {P Obj : Type*} {Op Resp : Obj �
   · obtain ⟨rS, iS, hrS, hiS, hltS⟩ := hprecS e₀ e₁ hc₀_HR hc₁_HR ⟨r₀, i₁, hr₀_H, hi₁_H, hri⟩
     have hc₁_S : History.IsCompletedOp S e₁ :=
       (heqS.isCompletedOp_iff e₁).mp ((History.isCompletedOp_complete_iff hwf' e₁).mpr hc₁_HR)
-    have hlt_iS : 2 * e₁.idx < (History.procSubhistory S e₁.proc).length := by
-      have := (History.isCompletedOp_iff_lt_length S e₁).mp hc₁_S
-      omega
-    exact ⟨rS, iS, hresp_S' hrS,
-      by rwa [History.invPos, History.nthProcPos_append_left _ hlt_iS], hltS⟩
+    exact ⟨rS, iS, hresp_S' hrS, by
+      rwa [History.invPos, History.nthProcPos_append_left _ (Nat.lt_of_succ_lt
+        ((History.isCompletedOp_iff_lt_length S e₁).mp hc₁_S))], hltS⟩
   · obtain ⟨rS₀, hrS₀⟩ := Option.isSome_iff_exists.mp hc₀_S
     have he₁_p : e₁.proc = p := Decidable.byContradiction fun hne => hc₁_HR <| by
       simpa only [R₁, History.isCompletedOp_iff_lt_length, History.procSubhistory_append,
@@ -318,9 +311,9 @@ theorem exists_linearizable_append_resp_of_total {P Obj : Type*} {Op Resp : Obj 
     intro y
     simp only [History.objSubhistory_append, History.objSubhistory_cons,
       History.objSubhistory_nil, Event.obj_inv, Event.obj_resp]
-    by_cases hxy : x = y
-    · subst hxy; simp only [↓reduceIte]; exact hSx_ext
-    · simp only [hxy, ↓reduceIte, List.append_nil]; exact hlegS y
+    rcases eq_or_ne x y with rfl | hxy
+    · simpa only [↓reduceIte] using hSx_ext
+    · simpa only [hxy, ↓reduceIte, List.append_nil] using hlegS y
   · have hm : Event.resp p' x' res ∈ History.procSubhistory R p := by simp [hRp_eq]
     have hp_eq : p' = p := of_decide_eq_true (List.mem_filter.mp hm).2
     subst hp_eq

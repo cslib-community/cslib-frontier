@@ -73,8 +73,7 @@ theorem rotationDistance_pow (o : Dart G) (k : ℕ) :
     have hiter : (r.rotate^[j]) o = (r.rotate^[k % Function.minimalPeriod r.rotate o]) o := by
       rw [r.rotate.iterate_eq_pow, heq, ← r.rotate.iterate_eq_pow,
         Function.iterate_mod_minimalPeriod_eq]
-    have := (Function.iterate_eq_iterate_iff_of_lt_minimalPeriod (hj.trans hlt) hlt).mp hiter
-    omega
+    exact hj.ne ((Function.iterate_eq_iterate_iff_of_lt_minimalPeriod (hj.trans hlt) hlt).mp hiter)
 
 /-- Forward rotation adds to a rank modulo the same vertex period. -/
 theorem rotationDistance_pow_from (o a : Dart G) (hoa : o.vertex = a.vertex) (k : ℕ) :
@@ -169,11 +168,10 @@ private theorem portRank_at (a d : Dart G) (had : a.vertex = d.vertex) :
 /-- Ranks distinguish every actual dart at a vertex. -/
 theorem portRank_injective (a b : Dart G) (hab : a.vertex = b.vertex)
     (heq : r.portRank a = r.portRank b) : a = b := by
-  let o := vertexDart a.vertex ⟨a, rfl⟩
-  have hoa : o.vertex = a.vertex := Classical.choose_spec (show ∃ d : Dart G,
-    d.vertex = a.vertex from ⟨a, rfl⟩)
+  have hoa : (vertexDart a.vertex ⟨a, rfl⟩).vertex = a.vertex :=
+    Classical.choose_spec (p := fun d : Dart G => d.vertex = a.vertex) ⟨a, rfl⟩
   rw [r.portRank_at a a rfl, r.portRank_at a b hab] at heq
-  exact (r.rotationDistance_eq_iff_eq o a b hoa (hoa.trans hab)).mp heq
+  exact (r.rotationDistance_eq_iff_eq _ a b hoa (hoa.trans hab)).mp heq
 
 /-- The chosen linear ranks retain the supplied clockwise cyclic interval. -/
 theorem mem_rotationInterval_iff_portRank (a b c : Dart G)
@@ -183,11 +181,10 @@ theorem mem_rotationInterval_iff_portRank (a b c : Dart G)
       (r.portRank a < r.portRank b ∧ r.portRank b < r.portRank c) ∨
       (r.portRank b < r.portRank c ∧ r.portRank c < r.portRank a) ∨
       (r.portRank c < r.portRank a ∧ r.portRank a < r.portRank b) := by
-  let o := vertexDart a.vertex ⟨a, rfl⟩
-  have hoa : o.vertex = a.vertex := Classical.choose_spec (show ∃ d : Dart G,
-    d.vertex = a.vertex from ⟨a, rfl⟩)
+  have hoa : (vertexDart a.vertex ⟨a, rfl⟩).vertex = a.vertex :=
+    Classical.choose_spec (p := fun d : Dart G => d.vertex = a.vertex) ⟨a, rfl⟩
   rw [r.portRank_at a a rfl, r.portRank_at a b hab, r.portRank_at a c (hab.trans hbc)]
-  exact r.mem_rotationInterval_iff_ranks o a b c hoa (hoa.trans hab)
+  exact r.mem_rotationInterval_iff_ranks _ a b c hoa (hoa.trans hab)
     (hoa.trans (hab.trans hbc)) hneab hnebc hneac
 
 /-- If no two distinct color classes alternate at a vertex, some nonempty class forms
@@ -214,10 +211,8 @@ theorem exists_consecutive_class_of_no_alternates {ι : Type*} (color : Dart G �
     obtain ⟨b, hbs, hmax⟩ := S.exists_max_image r.portRank hne
     obtain ⟨ha, hac⟩ := (hmem a).mp has
     obtain ⟨hb, hbc⟩ := (hmem b).mp hbs
-    refine ⟨a, b, ⟨ha, hb, hac.trans hbc.symm, ?_⟩, hac⟩
-    intro d hd hc
-    have hds := (hmem d).mpr ⟨hd, hc.trans hac⟩
-    exact ⟨hmin d hds, hmax d hds⟩
+    refine ⟨a, b, ⟨ha, hb, hac.trans hbc.symm, fun d hd hc =>
+      ⟨hmin d ((hmem d).mpr ⟨hd, hc.trans hac⟩), hmax d ((hmem d).mpr ⟨hd, hc.trans hac⟩)⟩⟩, hac⟩
   have hex : ∃ n : ℕ, ∃ a b, covers a b ∧ r.portRank b - r.portRank a = n := by
     obtain ⟨w, hw⟩ := hv
     obtain ⟨a, b, hab, _⟩ := classBounds w hw
@@ -233,10 +228,8 @@ theorem exists_consecutive_class_of_no_alternates {ι : Type*} (color : Dart G �
   have hnB (d : Dart G) (hd : d.vertex = v) (hc : color d ≠ color a) :
       r.portRank d ≠ r.portRank b :=
     fun h => hc ((congrArg color (r.portRank_injective d b (hd.trans hb.symm) h)).trans hab.symm)
-  have hzi : r.portRank a < r.portRank z ∧ r.portRank z < r.portRank b := by
-    have := hnA z hz hza
-    have := hnB z hz hza
-    omega
+  have hzi : r.portRank a < r.portRank z ∧ r.portRank z < r.portRank b :=
+    ⟨lt_of_le_of_ne hzspan.1 (hnA z hz hza).symm, lt_of_le_of_ne hzspan.2 (hnB z hz hza)⟩
   have inside (d : Dart G) (hd : d.vertex = v) (hc : color d = color z) :
       r.portRank a < r.portRank d ∧ r.portRank d < r.portRank b := by
     by_contra hn
@@ -372,10 +365,8 @@ theorem rotationDistance_le_iff_portRank_between (a b d : Dart G)
     fun h => hda (r.portRank_injective d a had.symm h)
   have hrb : r.portRank d ≠ r.portRank b :=
     fun h => hdb (r.portRank_injective d b (had.symm.trans hab) h)
-  have hdist : r.rotationDistance a d ≠ r.rotationDistance a b := by
-    intro h
-    exact hdb ((r.pow_rotationDistance a d had).symm.trans
-      (h ▸ r.pow_rotationDistance a b hab))
+  have hdist : r.rotationDistance a d ≠ r.rotationDistance a b := fun h =>
+    hdb ((r.pow_rotationDistance a d had).symm.trans (h ▸ r.pow_rotationDistance a b hab))
   by_cases he : a = b
   · subst b
     have hpos := r.rotationDistance_pos_of_ne a d had hda
@@ -416,7 +407,6 @@ theorem rotate_eq_of_same_incident_intervals (s : RotationSystem G) (a : Dart G)
   obtain ⟨k, hk, heq⟩ := Finset.mem_image.mp h
   have hlt := Finset.mem_range.mp hk
   rw [r.rotationDistance_rotate_of_ne a a rfl hr, r.rotationDistance_self] at hlt
-  have hk0 : k = 0 := by omega
-  exact hne (by simpa only [hk0, zero_add, pow_one] using heq)
+  exact hne (by simpa only [Nat.lt_one_iff.mp hlt, zero_add, pow_one] using heq)
 
 end Cslib.Complexity.Graph.RotationSystem

@@ -221,16 +221,13 @@ private theorem ceilDivFour_add_four_mul (coordinate multiple : ℕ) :
     ceilDivFour (coordinate + 4 * multiple) =
       ceilDivFour coordinate + multiple := by
   unfold ceilDivFour
-  rw [show coordinate + 4 * multiple + 3 =
-      (coordinate + 3) + 4 * multiple by omega]
-  exact Nat.add_mul_div_left (coordinate + 3) multiple (y := 4) (by decide)
+  have h : coordinate + 4 * multiple + 3 = (coordinate + 3) + 4 * multiple := by omega
+  rw [h, Nat.add_mul_div_left (coordinate + 3) multiple (y := 4) (by decide)]
 
 /-- Rounding an opening boundary up recovers its positive coarse coordinate. -/
 theorem ceilDivFour_four_mul_sub_three (n : ℕ) (positive : 0 < n) :
     ceilDivFour (4 * n - 3) = n := by
   unfold ceilDivFour
-  have threeLe : 3 ≤ 4 * n := by omega
-  rw [Nat.sub_add_cancel threeLe]
   omega
 
 /-- Two substitutions multiply every frame period by four. -/
@@ -580,19 +577,15 @@ theorem selectedBorder_eq_some_iff
   constructor
   · rintro ⟨index, candidate, _⟩
     by_cases zero : index.val = 0
-    · left
-      simpa [zero] using candidate
-    · right
-      exact ⟨index.val, Nat.one_le_iff_ne_zero.2 zero,
-        Nat.le_of_lt_succ index.isLt,
+    · exact .inl (by simpa [zero] using candidate)
+    · exact .inr ⟨index.val, Nat.one_le_iff_ne_zero.2 zero, Nat.le_of_lt_succ index.isLt,
         by simpa [zero] using candidate⟩
   · rintro (outer | ⟨depth, positive, bounded, border⟩)
-    · refine ⟨⟨0, Nat.zero_lt_succ level⟩, by simpa [] using outer, fun prior priorLt => ?_⟩
-      exact (Nat.not_lt_zero prior.val priorLt).elim
-    · refine ⟨⟨depth, by omega⟩, ?_, ?_⟩
+    · exact ⟨⟨0, Nat.zero_lt_succ level⟩, by simpa using outer,
+        fun prior priorLt => (Nat.not_lt_zero prior.val priorLt).elim⟩
+    · refine ⟨⟨depth, by omega⟩, ?_, fun prior priorLt => ?_⟩
       · simpa [Nat.ne_of_gt positive] using border
-      · intro prior priorLt
-        by_cases zero : prior.val = 0
+      · by_cases zero : prior.val = 0
         · cases outerEq : outerBorder coordinate transverse with
           | none => simp [zero]
           | some outerOrientation =>
@@ -698,10 +691,8 @@ private theorem selectedBorder_succ_block
           frameBorder 0
             (2 * (blockX % 2) + ceilDivFour offsetX)
             (2 * (blockY % 2) + ceilDivFour offsetY)) := by
-  rw [selectedBorder_succ, ceilDivFour_eight_mul_add,
-    ceilDivFour_eight_mul_add, liftBorder_eight_mul_add,
-    liftBorder_eight_mul_add]
-  rw [frameBorder_zero_parity]
+  rw [selectedBorder_succ, ceilDivFour_eight_mul_add, ceilDivFour_eight_mul_add,
+    liftBorder_eight_mul_add, liftBorder_eight_mul_add, frameBorder_zero_parity]
 
 private theorem selectedBorder_succ_child
     (level blockX blockY childX childY x y : ℕ) :
@@ -717,12 +708,9 @@ private theorem selectedBorder_succ_child
           frameBorder 0
             (2 * (blockX % 2) + ceilDivFour (2 * childX + x))
             (2 * (blockY % 2) + ceilDivFour (2 * childY + y))) := by
-  rw [show 2 * (4 * blockX + childX) + x =
-      8 * blockX + (2 * childX + x) by omega]
-  rw [show 2 * (4 * blockY + childY) + y =
-      8 * blockY + (2 * childY + y) by omega]
-  exact selectedBorder_succ_block level blockX blockY
-    (2 * childX + x) (2 * childY + y)
+  have hx : 2 * (4 * blockX + childX) + x = 8 * blockX + (2 * childX + x) := by omega
+  have hy : 2 * (4 * blockY + childY) + y = 8 * blockY + (2 * childY + y) := by omega
+  rw [hx, hy, selectedBorder_succ_block]
 
 /-- The arithmetic halo at a canonical node, including its one-quarter boundary margin. -/
 private def arithmeticState (level x y : ℕ) : BorderState where

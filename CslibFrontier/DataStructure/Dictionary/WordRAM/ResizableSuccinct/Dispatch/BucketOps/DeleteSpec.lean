@@ -153,9 +153,8 @@ theorem compDeleteWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items :
     fun _ => compValAt_congr henv.pos_w fun a ha => hmid_out a (by omega)
   have hcpl_mid : FixedCoupled metaBase itemBase U V w N s_fix s_mid :=
     ⟨hgm_mid.trans hcpl.gm_eq, hlm_mid.trans hcpl.lm_eq,
-      by rw [hgm_mid, htd_mid, hdt_mid]; exact hcpl.win_inv,
-      fun i => by rw [htd_mid]; exact hcpl.td_lt i,
-      fun i => by rw [hdt_mid]; exact hcpl.dt_lt i,
+      by simpa only [hgm_mid, htd_mid, hdt_mid] using hcpl.win_inv,
+      fun i => htd_mid.symm ▸ hcpl.td_lt i, fun i => hdt_mid.symm ▸ hcpl.dt_lt i,
       fun d hd => by
         rw [hgm_mid, hq_mid, hdt_mid]
         exact hcpl.quot_eq d (by simpa only [epochTotalSlots, hgm_mid] using hd),
@@ -222,12 +221,10 @@ theorem compDeleteWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items :
   have hm_items_mid : totalSlots N (compGmAt metaBase U w N s_mid.mem) ≤ m_items :=
     hgm_mid.symm ▸ hm_items
   have hpre_fin : CompDeleteFinishWithHashPre w d_fin s_mid := by
-    have hm_last_eq : h_q_last >>> cpBucketBits (mkCompParams U V w N) = m_last := by
-      rw [cpBucketBits_mk]; rfl
     refine ⟨fits_compFeistelCoords henv.pos_w henv.le_U henv.lt_pow_U henv.le_pow_V hfit_off
         (u.isLt.trans henv.lt_pow_U) (hValOfSeed_lt U N θ q),
       hfit_hq_last, hfit1, ?_⟩
-    rw [hb_eq, hm_eq, hm_last_eq]
+    rw [hb_eq, hm_eq, cpBucketBits_mk]
     intro hf1
     obtain ⟨hj_lt, hphys_eq, hmem_del, hmem_last⟩ := hfound_slot hf1
     dsimp only [gm₀] at hj_lt hphys_eq hmem_last
@@ -235,23 +232,19 @@ theorem compDeleteWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items :
     exact ⟨U, V, N, m_items, s_fix, L, rfl, henv_mid, hcpl_mid, hslot_mid, hm_items_mid,
       hb_lt, hm_lt, hm_last_lt, hj_lt, hphys_eq, hb_inv.hchains, hmem_del, hmem_last⟩
   unfold deleteFinishWithHashProg deleteFinishWithHashGenProg at hinv_fix'
-  simp only [p_bucketBits_mk, p_bucketMask_mk, deleteFinishGenProg_mk, pure_bind] at hinv_fix'
-  rw [and_mask_xor_eq_feistelBucket (bucketBits N) u.val h_q] at hinv_fix'
-  unfold deleteFinishProg deleteFinishGenProg at hinv_fix'
-  simp only [deleteFoundGenProg_mk, pure_bind] at hinv_fix'
+  simp only [p_bucketBits_mk, p_bucketMask_mk, pure_bind, and_mask_xor_eq_feistelBucket,
+    deleteFinishGenProg, deleteFoundGenProg_mk] at hinv_fix'
   set df_prog := compDeleteFinishGenProg
     ((((((mkCompParams U V w N, (metaBase, itemBase)), b), (found, j_del)), phys_del), m), m_last)
   have hs'_eq : s' = (Memory.spec 0).clientState s_mid df_prog := by
     dsimp only [s', prog_fin, d_fin, compDeleteFinishWithHashGenProg]
     rw [StateTransitionSpec.clientState_bind, clientState_compFeistelCoordsProg, hc_res_mid]
-    simp only [pure_bind, cpBucketBits_mk]
-    rfl
+    simp only [pure_bind, cpBucketBits_mk]; rfl
   have hcost_fin_eq : memoryCost prog_fin s_mid = memoryCost df_prog s_mid := by
     dsimp only [prog_fin, d_fin, compDeleteFinishWithHashGenProg]
     rw [memoryCost_bind_of_clientState_eq (clientState_compFeistelCoordsProg _ s_mid) _,
       memoryCost_compFeistelCoordsProg, hc_res_mid, zero_add]
-    simp only [pure_bind, cpBucketBits_mk]
-    rfl
+    simp only [pure_bind, cpBucketBits_mk]; rfl
   refine ⟨hprep_comp_res, hfound_iff, hpre_prep, hprep_comp_st, hq_last_lt, hpre_fin, ?_⟩
   dsimp only [gm', gm₀]
   rw [hs'_eq, hcost_fin_eq]

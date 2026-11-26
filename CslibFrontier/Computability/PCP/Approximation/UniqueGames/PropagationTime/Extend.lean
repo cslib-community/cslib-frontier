@@ -136,9 +136,8 @@ private theorem extendFwdLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x 
         set k := z.regs rLabIdx
         have hk_reg : z.regs rLabIdx = k := rfl
         have hfk_lt := (f ⟨k, hk⟩).isLt
-        have hfa : z.mem (tabBase g + g.edges[j].src * L + k) = (f ⟨k, hk⟩).val := by
-          rw [hzFr _ (fun ⟨h1, h2⟩ => not_in_tabRow (g := g) hsd hk ⟨h1, by omega⟩)]
-          exact hf_mem k hk
+        have hfa : z.mem (tabBase g + g.edges[j].src * L + k) = (f ⟨k, hk⟩).val :=
+          (hzFr _ fun ⟨h1, h2⟩ => not_in_tabRow (g := g) hsd hk ⟨h1, by omega⟩).trans (hf_mem k hk)
         have hcfa : z.mem (4 + j * (L + 2) + ((f ⟨k, hk⟩).val + 2)) =
             (g.edges[j].constraint (f ⟨k, hk⟩)).val := by
           rw [hzFr _ (by wram_omega),
@@ -256,10 +255,9 @@ private theorem invLoops_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x : Dat
               have hfin : g.edges[j].constraint ⟨k, hk⟩ = ⟨bk, hb⟩ := Fin.ext rfl
               simp [Function.update_self, invAt, htake_succ, hfind, hfin]
             · rw [Function.update_of_ne (by omega), hzInv b hb, hinv_ne b hb hbb]
-          · simp only [Data.write_mem, Data.set_mem]
-            intro addr haddr
-            rw [Function.update_of_ne (by omega : addr ≠ invBase g + bk)]
-            exact hzFr addr haddr
+          · simpa only [Data.write_mem, Data.set_mem] using fun addr haddr =>
+              (Function.update_of_ne (by omega : addr ≠ invBase g + bk) _ _).trans
+                (hzFr addr haddr)
         | some a0 =>
           have hcur_ne : invAt k bk hbk ≠ L := by simp [invAt, hfind, a0.isLt.ne]
           unfold invFillBody
@@ -272,13 +270,10 @@ private theorem invLoops_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x : Dat
             · subst hbb
               simp only [invAt, htake_succ, List.find?_append, hfind, Option.some_or]
             · exact (hinv_ne b hb hbb).symm
-          · simp only [Data.set_mem]
-            exact hzFr)
-      (by rw [hlab3]; exact Nat.zero_le _)
-      (by rw [hlab3]; refine ⟨hc3, hr3, fun b hb => ?_, fun addr haddr => ?_⟩
-          · rw [hm3, hinit_inv b hb]
-            simp only [invAt, List.take_zero, List.find?_nil, Option.elim_none]
-          · rw [hm3]; exact hfr2 addr haddr)
+          · simpa only [Data.set_mem] using hzFr)
+      (hlab3 ▸ Nat.zero_le _)
+      (hlab3 ▸ ⟨hc3, hr3, fun b hb => by simp [hm3, hinit_inv b hb, invAt],
+        fun addr haddr => (congrFun hm3 addr).trans (hfr2 addr haddr)⟩)
   rw [hlab3, Nat.sub_zero] at hx4
   refine ⟨y, (hx1.seq (hx2.seq (hx3.seq hx4))).mono (by omega), hyC, hyR, fun b hb => ?_, hyFr⟩
   rw [hyInv b hb]
@@ -499,8 +494,7 @@ theorem extendCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fi
       obtain ⟨x4, hx4, hc4, hr4', hrow4, hfr4⟩ :=
         extendBwdLoop_spec (w := w) g x3 j hj h hc3 hs_lt hd_lt hsd ht2_3 ht3_3 hlab3
           (fun a ha => by
-            rw [← he_def, hm3, hfr2 _ (by wram_omega), hm1]
-            exact htab_d a ha)
+            rw [← he_def, hm3, hfr2 _ (by wram_omega), hm1, htab_d a ha])
           (fun b hb => by simpa only [← he_def, hm3] using hinv2 b hb) hw
       have hr4 := hr4'.trans hr3
       simp only [← he_def] at hrow4 hfr4

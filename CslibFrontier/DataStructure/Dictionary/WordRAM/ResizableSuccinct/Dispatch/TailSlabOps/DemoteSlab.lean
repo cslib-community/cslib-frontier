@@ -119,8 +119,9 @@ private theorem iterate_compDemoteStep_spec {metaBase itemBase U V w N m_cap b :
     · unfold iterate; rw [StateTransitionSpec.clientState_bind, hres_s]
       exact hfr1.trans hfr_m
     · unfold iterate
+      have hk_add : k + (m + 1) = k + 1 + m := by omega
       rwa [StateTransitionSpec.clientState_bind, hres_s,
-        StateTransitionSpec.clientState_bind, hres_fix, show k + (m + 1) = (k + 1) + m by omega]
+        StateTransitionSpec.clientState_bind, hres_fix, hk_add]
     · dsimp only [s₁] at hcost_m
       simp only [iterate, Realization.memoryCost_bind', memoryCost_compDemoteStepGenProg,
         hres_s, hcost_m]
@@ -171,14 +172,12 @@ private theorem compDemoteSlab_loop_step {metaBase itemBase U V w N m_cap b : �
   have hb0 : bucketBits N ≠ 0 := hb_pos.ne'
   have hwg : 0 < ghostW w := by dsimp only [ghostW]; omega
   have hloop0 := demoteLoopInv_zero hpre
-  have hslab0 := slabBijection_of_gm_eq hcpl.gm_eq hpre.2.2.1
-  have hqb0 : 1 ≤ compGmAt metaBase U w N s.mem (gmQIdx b) := hcpl.gm_eq ▸ hpre.2.2.2.2.1
-  have hp_del_lt : compGmAt metaBase U w N s.mem (gmSlabTopIdx b) <
-      compGmAt metaBase U w N s.mem 0 :=
-    hslab0.top_lt hpre.1 (by omega)
+  have hgm0_pos : 0 < compGmAt metaBase U w N s.mem 0 :=
+    (Nat.zero_lt_of_lt (hpre.2.2.1.top_lt hpre.1 hpre.2.2.2.2.1)).trans_eq
+      (congrFun hcpl.gm_eq.symm 0)
   have hgm0_mul : (compGmAt metaBase U w N s.mem 0 - 1) * slabSize N + (slabSize N - 0) =
       compGmAt metaBase U w N s.mem 0 * slabSize N := by
-    rw [Nat.sub_zero, ← Nat.add_one_mul, Nat.sub_add_cancel (by omega)]
+    rw [Nat.sub_zero, ← Nat.add_one_mul, Nat.sub_add_cancel hgm0_pos]
   have hcpl0 : WindowCoupled metaBase itemBase U V w N
       ((compGmAt metaBase U w N s.mem 0 - 1) * slabSize N + (slabSize N - 0))
       (compGmAt metaBase U w N s.mem 1)
@@ -299,11 +298,10 @@ private theorem realizesBounded_compDemoteSlabGen :
       compDemoteSlab_loop_step henv hb_pos hpre hcpl hm_cap)
   · simpa only [cpSlabSize_mk] using hsafe_loop
   · simp only [cpSlabSize_mk, compDemoteLoopGenProg]
-    refine ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V, rfl,
-      ?_, hb_pos, hloopK.b_lt,
-      slabBijection_of_gm_eq hcpl_loop.gm_eq hloopK.slab_bij, ?_⟩
-    · rw [hfr_loop.frontier_eq]; exact henv.meta_le_frontier
-    · rw [hcpl_loop.gm_eq]; exact hloopK.qb_pos
+    exact ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V, rfl,
+      henv.meta_le_frontier.trans_eq hfr_loop.frontier_eq.symm, hb_pos, hloopK.b_lt,
+      slabBijection_of_gm_eq hcpl_loop.gm_eq hloopK.slab_bij,
+      hloopK.qb_pos.trans_eq (congrFun hcpl_loop.gm_eq.symm _)⟩
 
 private theorem validProg_compDemoteSlabGen {w : ℕ} {d : (CompParams × (ℕ × ℕ)) × ℕ}
     {s : Memory.State} (h : CompDemoteSlabPre w d s) :
@@ -319,10 +317,8 @@ private theorem validProg_compDemoteSlabGen {w : ℕ} {d : (CompParams × (ℕ �
     ?_
   dsimp only [compDemoteLoopGenProg]
   exact validProg_compGmPopSlabGen ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U,
-    henv.le_pow_V, rfl,
-    by rw [hfr_loop.frontier_eq]; exact henv.meta_le_frontier,
-    hb_pos, hloopK.b_lt,
-    slabBijection_of_gm_eq hcpl_loop.gm_eq hloopK.slab_bij,
-    by rw [hcpl_loop.gm_eq]; exact hloopK.qb_pos⟩
+    henv.le_pow_V, rfl, henv.meta_le_frontier.trans_eq hfr_loop.frontier_eq.symm, hb_pos,
+    hloopK.b_lt, slabBijection_of_gm_eq hcpl_loop.gm_eq hloopK.slab_bij,
+    hloopK.qb_pos.trans_eq (congrFun hcpl_loop.gm_eq.symm _)⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

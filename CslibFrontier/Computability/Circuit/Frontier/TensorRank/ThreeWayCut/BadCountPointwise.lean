@@ -136,9 +136,7 @@ private theorem four_mul_badCount_le [Fintype F] {Q : Multigraph W F} {q : ℝ} 
       Finset.sum_pair, fn_swap y x, fn_swap w y, fn_swap x w]
     · ring
     all_goals simp [hxy, hyw, hwx, hxy.symm, hyw.symm, hwx.symm]
-  have he₀ : e₀ ∈ s := by simp [s]
-  have he₁ : e₁ ∈ s := by simp [s]
-  have he₂ : e₂ ∈ s := by simp [s]
+  obtain ⟨he₀, he₁, he₂⟩ : e₀ ∈ s ∧ e₁ ∈ s ∧ e₂ ∈ s := by simp [s]
   obtain ⟨s₀, hs₀⟩ := exists_inOpenSector_of_ne_zero (hray e₀ he₀)
   obtain ⟨s₁, hs₁⟩ := exists_inOpenSector_of_ne_zero (hray e₁ he₁)
   obtain ⟨s₂, hs₂⟩ := exists_inOpenSector_of_ne_zero (hray e₂ he₂)
@@ -252,13 +250,12 @@ private theorem four_mul_badCount_le [Fintype F] {Q : Multigraph W F} {q : ℝ} 
           · linarith [hsum_s fun _ => 1]
           · rw [hsum_s fun e => (z e).1, hx']
           · rw [hsum_s fun e => (z e).2, hy']
-        · rcases lt_or_gt_of_ne hd01 with hn | hp0
-          · have := hr0_2 hn; omega
-          rcases lt_or_gt_of_ne hd12 with hn | hp1
-          · have := hr1_2 hn; omega
-          rcases lt_or_gt_of_ne hd20 with hn | hp2
-          · have := hr2_2 hn; omega
-          exact absurd ⟨hp0, hp1, hp2⟩ hall_pos
+        · refine le_trans ?_ (Nat.le_add_right _ _)
+          by_contra hgt
+          exact hall_pos
+            ⟨(lt_or_gt_of_ne hd01).resolve_left fun h => by have := hr0_2 h; omega,
+             (lt_or_gt_of_ne hd12).resolve_left fun h => by have := hr1_2 h; omega,
+             (lt_or_gt_of_ne hd20).resolve_left fun h => by have := hr2_2 h; omega⟩
 
 
 open Classical in
@@ -275,11 +272,9 @@ private theorem sum_cutAny_le_sum_badCount [Fintype F] {Q : Multigraph W F}
           then 1 else 0)) := by
     rw [Finset.card_filter]
     refine Finset.sum_le_sum fun e _ => ?_
-    by_cases hcut : ω ∈ cutAnyEvent Q q R e
-    · by_cases hs : inOpenSector (blockColor Q q R ω (Q.src e)) (edgeVec2 Q q R ω e)
-      · simp [hcut, hs, mt (inOpenSector_unique hs) hcut]
-      · simp [hcut, hs]
-    · simp [hcut]
+    split_ifs with hcut hs ht
+    all_goals try omega
+    exact absurd (inOpenSector_unique hs ht) hcut
   refine h1.trans ?_
   have hbad_sum : (∑ B : W, badCount Q q R ω B) =
       ∑ B : W, ∑ e : F,

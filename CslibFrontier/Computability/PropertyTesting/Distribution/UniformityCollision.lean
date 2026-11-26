@@ -237,25 +237,21 @@ theorem isTester_collisionTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
       (2 * N * ε ^ 2 / n) (by positivity) ?_ (sum_iid_mul_collisionCount_sub_sq _ k).le ?_
     · intro x hx
       simp only [Bool.not_eq_true', decide_eq_false_iff_not, not_le] at hx
-      rw [← hN, hcp, le_abs]
-      left
       have heq : 2 * N * ε ^ 2 / n = N * (1 + 2 * ε ^ 2) / n - N * n⁻¹ := by field_simp; ring
-      linarith only [hx, heq, hτ]
+      rw [← hN, hcp]
+      exact le_abs.mpr (.inl (by linarith only [hx, heq, hτ]))
     · rw [← hN, hcp, hcube, sub_self, mul_zero, add_zero]
-      have hle : 3 * (N * (n⁻¹ - n⁻¹ ^ 2)) ≤ 3 * N / n := by
-        rw [mul_sub, div_eq_mul_inv]
-        linarith only [mul_nonneg hN0.le (sq_nonneg n⁻¹)]
-      refine hle.trans ?_
-      rw [div_pow, mul_pow, mul_pow, div_le_div_iff₀ hn0 (by positivity)]
+      refine (by linarith only [mul_sub N n⁻¹ (n⁻¹ ^ 2), mul_nonneg hN0.le (sq_nonneg n⁻¹)] :
+        _ ≤ 3 * N * n⁻¹).trans ?_
+      rw [← div_eq_mul_inv, div_pow, mul_pow, mul_pow, div_le_div_iff₀ hn0 (by positivity)]
+      have hKN : K ^ 2 ≤ 4 * N := by rw [hNK]; linarith only [hK0, sq_nonneg K]
       have h4 : 3 * n ≤ 4 * N * ε ^ 4 := by
-        have hKN : K ^ 2 ≤ 4 * N := by rw [hNK]; linarith only [hK0, sq_nonneg K]
         linarith only [hn0, h1600, mul_le_mul_of_nonneg_right hKN (pow_nonneg hε.le 4)]
       linarith only [mul_le_mul_of_nonneg_left h4 (mul_pos hN0 hn0).le]
   · intro p hp
     have hfar : ε ≤ dist p (uniformOfFintype α) := hp _ rfl
     have hε1 : ε ≤ 1 := hfar.trans (dist_le_one _ _)
-    have hsq := dist_uniform_sq_le p
-    rw [← hn] at hsq
+    have hsq := hn.symm ▸ dist_uniform_sq_le p
     set s := collisionProbability p with hs
     set D := s - n⁻¹ with hD
     have hnD : 4 * ε ^ 2 ≤ n * D := by
@@ -280,12 +276,10 @@ theorem isTester_collisionTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
       rw [div_lt_iff₀ hn0, mul_comm]
       linarith only [hnD, sq_pos_of_pos hε]
     · intro x hx
-      simp only [decide_eq_true_eq] at hx
       have hτ' : collisionThreshold (Fintype.card α) k ε = N * s - N * (D - 2 * ε ^ 2 / n) := by
         rw [hτ, hD]; field_simp; ring
-      rw [← hN, ← hs, le_abs]
-      right
-      linarith only [hx, hτ']
+      rw [← hN, ← hs]
+      exact le_abs.mpr (.inr (by linarith only [of_decide_eq_true hx, hτ']))
     · have hcube := sum_cube_sub_sq_le p
       rw [← hn, ← hs, ← hD, ← hr] at hcube
       rw [← hN, ← hs, hM]

@@ -171,10 +171,9 @@ private theorem runWith_cappedHandler_eq {β : Type}
           (OracleComp.sumHandler
             (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
             (budgetHandler handler cap a)) program := by
-    refine OracleComp.QueriesSatisfy.interpret_congr hsat fun q hq => ?_
-    cases q with
-    | inl n => rfl
-    | inr req => exact cappedHandler_eq_budgetHandler handler cap a hq
+    exact OracleComp.QueriesSatisfy.interpret_congr hsat fun
+      | .inl _, _ => rfl
+      | .inr _, hq => cappedHandler_eq_budgetHandler handler cap a hq
   rw [ProbOracleComp.runWith_map, hinterp, ProbOracleComp.runWith_run_interpret,
     ProbOracleComp.runWith_run_interpret, ProbOracleComp.runWith_eq_run_interpret,
     ProbOracleComp.runWith_eq_run_interpret]
@@ -208,10 +207,9 @@ private theorem runWith_cappedHandler_eq {β : Type}
   simp only [PMF.pure_bind, rep] at hsim
   have hmap := congrArg (PMF.map fun ⟨_, res, s', ext'⟩ => ((res, s'), ext')) hsim
   simp only [PMF.map_bind, PMF.pure_map, PMF.map_comp, Function.comp_def, h₁, h₂] at hmap
-  rw [show (fun x : β × (State × ℕ) × ExtState =>
-        PMF.pure ((x.1, x.2.1.1), x.2.2)) =
-      PMF.pure ∘ fun x : β × (State × ℕ) × ExtState => ((x.1, x.2.1.1), x.2.2) from rfl,
-    PMF.bind_pure_comp] at hmap
+  have hcomp : (fun x : β × (State × ℕ) × ExtState => PMF.pure ((x.1, x.2.1.1), x.2.2)) =
+      PMF.pure ∘ fun x : β × (State × ℕ) × ExtState => ((x.1, x.2.1.1), x.2.2) := rfl
+  rw [hcomp, PMF.bind_pure_comp] at hmap
   simp only [PMF.map_comp, Function.comp_def, Prod.map, id_eq]
   exact hmap
 
@@ -261,10 +259,9 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
   obtain ⟨gC, gD, hg_bound⟩ := hgrowth.exists_le
   let G (a : Caller) : ℕ := gC * (2 * (input a).length + Q a + 2) ^ gD
   have hG_le (a : Caller) {w : List Bool} (hw : w.length ≤ Q a) : growth a w ≤ G a := by
-    have h := hg_bound (a, w)
-    simp only [length_encPair, encBits_apply] at h
-    exact h.trans (Nat.mul_le_mul_left gC
-      (Nat.pow_le_pow_left (by omega) gD))
+    refine (hg_bound (a, w)).trans (Nat.mul_le_mul_left gC (Nat.pow_le_pow_left ?_ gD))
+    simp only [length_encPair, encBits_apply]
+    omega
   have : Finite Operation := hprogram.finite_operations
   let _ : Fintype Operation := Fintype.ofFinite Operation
   let opMax : ℕ := Finset.univ.sup fun op : Operation => (operationEncoding op).length
@@ -309,9 +306,7 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
         have hstateEnc :
             (encPair stateEncoding encUnary (res.2, k + 1)).length ≤
               (encPair stateEncoding encUnary (s, k)).length + resources' a request.2 := by
-          simp only [length_encPair, encUnary_apply, List.length_replicate]
-          have hadd := hgro.trans (Nat.add_le_add_left hG _)
-          dsimp only [resources']
+          simp only [length_encPair, encUnary_apply, List.length_replicate, resources']
           omega
         exact ⟨⟨hinv', hguard.1, hstepLen⟩, hrepBound.trans (Nat.le_add_right _ _), hstateEnc⟩
       · rw [cappedHandler, ite_eq_right hguard] at hresult

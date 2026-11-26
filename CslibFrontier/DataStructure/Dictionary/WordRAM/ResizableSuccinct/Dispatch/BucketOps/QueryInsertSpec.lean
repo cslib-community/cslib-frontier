@@ -85,10 +85,10 @@ theorem compQueryWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items : 
   have hfix_spec := queryWithHashProg_dict_spec (w := ghostW w) hwf hg_env θ hinv u
   have hchain : IsDLChain N (lmHead N (compLmAt metaBase U w N s.mem) b m)
       (lmPrev N (compLmAt metaBase U w N s.mem) b)
-      (lmNext N (compLmAt metaBase U w N s.mem) b) (L b m) := by
-    rw [hcpl.lm_eq]; exact hb_inv.hchains.1 b hb_lt m hm_lt
-  have hc_lt : ∀ j ∈ L b m, j < bCount N (compGmAt metaBase U w N s.mem) b := fun j hj => by
-    rw [hcpl.gm_eq]; exact ((hb_inv.hchain_mem b hb_lt m hm_lt j).mp hj).1
+      (lmNext N (compLmAt metaBase U w N s.mem) b) (L b m) :=
+    hcpl.lm_eq.symm ▸ hb_inv.hchains.1 b hb_lt m hm_lt
+  have hc_lt (j : ℕ) (hj : j ∈ L b m) : j < bCount N (compGmAt metaBase U w N s.mem) b :=
+    hcpl.gm_eq.symm ▸ ((hb_inv.hchain_mem b hb_lt m hm_lt j).mp hj).1
   obtain ⟨hst_qb, hres_qb, hcost_qb⟩ := compQueryBodyGenProg_spec (q_target := q)
     henv hcpl hslot hm_items hb_lt hm_lt hchain hc_lt
   obtain ⟨hlen_pr, hovf_pr, _⟩ := chain_and_overflow_le_probeExcess θ hb_inv u
@@ -108,11 +108,9 @@ theorem compQueryWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items : 
       Nat.shiftRight_eq_div_pow u.val (bucketBits N)]
     rfl
   refine ⟨hpre, ?_, ?_, ?_⟩
-  · rw [hprog_eq, StateTransitionSpec.clientState_bind, clientState_compFeistelCoordsProg, hc_res]
-    exact hst_qb
+  · rwa [hprog_eq, StateTransitionSpec.clientState_bind, clientState_compFeistelCoordsProg, hc_res]
   · rw [hprog_eq, StateTransitionSpec.clientResult_bind, clientState_compFeistelCoordsProg,
-      hc_res, hres_qb, ← hfix_eq]
-    exact hfix_spec.2.2.1
+      hc_res, hres_qb, ← hfix_eq, hfix_spec.2.2.1]
   · rw [hprog_eq, memoryCost_bind_of_clientState_eq (clientState_compFeistelCoordsProg _ s) _,
       memoryCost_compFeistelCoordsProg, hc_res, zero_add]
     rw [hcpl.gm_eq, show epochHashSpace U (ghostW w) N = hashSpace U (ghostW w) N from rfl]
@@ -155,10 +153,10 @@ theorem compInsertSearchWithHashGenProg_dict_spec {metaBase itemBase U V w N m_i
   have hg_env := ghostDictEnvGen henv.pos_w henv.le_U henv.lt_pow_U henv.le_pow_V
   have hchain : IsDLChain N (lmHead N (compLmAt metaBase U w N s.mem) b m)
       (lmPrev N (compLmAt metaBase U w N s.mem) b)
-      (lmNext N (compLmAt metaBase U w N s.mem) b) (L b m) := by
-    rw [hcpl.lm_eq]; exact hb_inv.hchains.1 b hb_lt m hm_lt
-  have hc_lt : ∀ j ∈ L b m, j < bCount N (compGmAt metaBase U w N s.mem) b := fun j hj => by
-    rw [hcpl.gm_eq]; exact ((hb_inv.hchain_mem b hb_lt m hm_lt j).mp hj).1
+      (lmNext N (compLmAt metaBase U w N s.mem) b) (L b m) :=
+    hcpl.lm_eq.symm ▸ hb_inv.hchains.1 b hb_lt m hm_lt
+  have hc_lt (j : ℕ) (hj : j ∈ L b m) : j < bCount N (compGmAt metaBase U w N s.mem) b :=
+    hcpl.gm_eq.symm ▸ ((hb_inv.hchain_mem b hb_lt m hm_lt j).mp hj).1
   obtain ⟨hst_sb, hres_sb, hcost_sb⟩ := compSearchBucketGenProg_spec (q_target := q)
     henv hcpl hslot hm_items hb_lt hm_lt hchain hc_lt
   have hres_branch :=
@@ -318,11 +316,8 @@ theorem compInsertHit_dict_spec {metaBase itemBase U V w N m_items : ℕ}
     (slotOf_lt_and_injective hslot).1 b hb_lt j_hit hj_bc
   have eff_wv_fix := writeValProg_effect (base := 0) (U := U) (V := V) (w := ghostW w) (n_max := N)
     (h_space := epochHashSpace U (ghostW w) N) hwf.1 hphys_lt hv_lt s_fix
-  have hd_eq : d_wv = (((mkCompParams U V w N, (metaBase, itemBase)),
-      slotOf N (compGmAt metaBase U w N s.mem) b j_hit), v) :=
-    congrArg (fun p => (((mkCompParams U V w N, (metaBase, itemBase)), p), v)) hphys_eq
-  dsimp only [s']
-  rw [hd_eq]
+  dsimp only [s', d_wv]
+  rw [hphys_eq]
   exact ⟨⟨U, V, N, m_items, s_fix, b, j_hit, rfl, henv, hcpl, hslot, hm_items,
       hb_lt, hj_bc, rfl⟩,
     hfr_wv, hcpl_wv.gm_eq.trans (eff_wv_fix.2.2.2.2.2.trans hcpl.gm_eq.symm),

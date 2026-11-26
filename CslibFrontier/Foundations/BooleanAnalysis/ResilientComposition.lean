@@ -126,16 +126,14 @@ theorem isUndetermined_composeBlocks_iff {m w : ℕ} (g : BitString m → Bool)
               (Bool.eq_not_of_ne (Ne.symm hdiff)).trans (Bool.eq_not_of_ne (Ne.symm h1)).symm⟩
         · exact ⟨fun i => x (finProdFinEquiv (j, i)), fun _ _ => rfl, (hu j hj).symm⟩
       choose v hv_agree hv_val using hexj
-      refine ⟨fun k => v (finProdFinEquiv.symm k).1 (finProdFinEquiv.symm k).2, ?_, ?_⟩
-      · intro k hk
-        obtain ⟨⟨j, i⟩, rfl⟩ := finProdFinEquiv.surjective k
-        simp only [Equiv.symm_apply_apply]
-        exact hv_agree j i (by simpa [mem_tribePart] using hk)
-      · exact fun j => by simp only [Equiv.symm_apply_apply, hv_val]
+      refine ⟨fun k => v (finProdFinEquiv.symm k).1 (finProdFinEquiv.symm k).2, fun k hk => ?_,
+        fun j => by simp only [Equiv.symm_apply_apply, hv_val]⟩
+      obtain ⟨⟨j, i⟩, rfl⟩ := finProdFinEquiv.surjective k
+      simp only [Equiv.symm_apply_apply]
+      exact hv_agree j i (by simpa [mem_tribePart] using hk)
     obtain ⟨y, hyQ, hy_val⟩ := pick a fun j hj => ha j (by simp [hj])
     obtain ⟨z, hzQ, hz_val⟩ := pick b fun j hj => hb j (by simp [hj])
-    refine ⟨y, z, hyQ, hzQ, ?_⟩
-    simpa only [composeBlocks, hy_val, hz_val] using hne
+    exact ⟨y, z, hyQ, hzQ, by simpa only [composeBlocks, hy_val, hz_val] using hne⟩
 
 /-! ### Self-dual functions and `3`-majority composition -/
 
@@ -160,13 +158,10 @@ private theorem expect_not_isUndetermined_symm {f : (ι → Bool) → Bool}
     (hf : ∀ x, f (fun i => !x i) = !f x) (Q : Finset ι) :
     𝔼 x, (if ¬IsUndetermined Q f x ∧ f x = true then (1 : ℝ) else 0) =
       𝔼 x, (if ¬IsUndetermined Q f x ∧ f x = false then (1 : ℝ) else 0) := by
-  let inv : (ι → Bool) ≃ (ι → Bool) :=
-    { toFun := fun x i => !x i
-      invFun := fun x i => !x i
-      left_inv := fun x => funext fun i => Bool.not_not (x i)
-      right_inv := fun x => funext fun i => Bool.not_not (x i) }
-  refine Fintype.expect_equiv inv _ _ fun x => ?_
-  simp [inv, isUndetermined_compl Q hf x, hf x]
+  refine Fintype.expect_equiv ⟨fun x i => !x i, fun x i => !x i,
+    fun x => funext fun i => Bool.not_not (x i),
+    fun x => funext fun i => Bool.not_not (x i)⟩ _ _ fun x => ?_
+  simp [isUndetermined_compl Q hf x, hf x]
 
 /-- For a self-dual function, the uniform probabilities of being determined as `true` or as
 `false` outside `Q` are both `(1 - I_Q(f)) / 2`. -/
@@ -340,8 +335,7 @@ theorem coalitionInfluence_iterMaj3_le (d : ℕ) (Q : Finset (Fin (3 ^ d))) :
       (#Q : ℝ) / 2 ^ d := by
   induction d with
   | zero =>
-    change coalitionInfluence (PMF.uniformOfFintype (BitString (3 ^ 0))) Q (fun x => x 0) ≤
-      (#Q : ℝ) / 2 ^ 0
+    dsimp only [iterMaj3]
     by_cases h0 : (0 : Fin (3 ^ 0)) ∈ Q
     · exact (coalitionInfluence_le_one _ _ _).trans <|
         (by exact_mod_cast card_pos.mpr ⟨0, h0⟩ : (1 : ℝ) ≤ #Q).trans_eq (by norm_num)
@@ -353,9 +347,7 @@ theorem coalitionInfluence_iterMaj3_le (d : ℕ) (Q : Finset (Fin (3 ^ d))) :
       Q.map (Fin.castOrderIso (@Nat.pow_succ' 3 d)).toEquiv.toEmbedding
     have hre := coalitionInfluence_comp_finCast (@Nat.pow_succ' 3 d)
       (composeBlocks (majority 3) (fun _ => iterMaj3 d)) Q
-    change coalitionInfluence (PMF.uniformOfFintype (BitString (3 ^ (d + 1)))) Q
-        (fun x => composeBlocks (majority 3) (fun _ => iterMaj3 d) fun k =>
-          x (k.cast (@Nat.pow_succ' 3 d).symm)) ≤ (#Q : ℝ) / 2 ^ (d + 1)
+    dsimp only [iterMaj3]
     rw [hre, coalitionInfluence_composeBlocks_maj3 _ (fun _ => iterMaj3_not d) Q']
     dsimp only
     let p (j : Fin 3) :=

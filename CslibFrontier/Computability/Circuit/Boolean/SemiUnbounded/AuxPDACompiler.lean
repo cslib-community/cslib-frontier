@@ -156,20 +156,17 @@ private lemma stayStep_of_sameHeightRun_length_one {M : AuxPDA k Bool StackSym S
     have hlenEq := hsame.1
     cases hop : act.stackOp with
     | stay =>
-      rw [hop, StackOp.apply?_stay, Option.some.injEq] at hstack
-      subst hstack
+      obtain ⟨rfl⟩ := hop ▸ hstack
       exact .inr ⟨q, act, hq, htr, hop,
         hpLast.symm ▸ surface_apply_eq_applySurfaceTapes act.tape p.head p.head.stack⟩
     | push γ =>
-      rw [hop, StackOp.apply?_push, Option.some.injEq] at hstack
-      subst hstack
+      obtain ⟨rfl⟩ := hop ▸ hstack
       simp [hpLast] at hlenEq
     | pop =>
       cases hst : p.head.stack with
-      | nil => simp [hop, hst] at hstack
+      | nil => nomatch (hop ▸ hst ▸ hstack)
       | cons _ _ =>
-        rw [hop, hst, StackOp.apply?_pop_cons, Option.some.injEq] at hstack
-        subst hstack
+        obtain ⟨rfl⟩ := hop ▸ hst ▸ hstack
         simp [hpLast, hst] at hlenEq
 
 private lemma exists_boundedRealTree_of_sameHeightRun {M : AuxPDA k Bool StackSym State} (d : ℕ) :
@@ -222,8 +219,7 @@ private lemma exists_boundedRealTree_of_sameHeightRun {M : AuxPDA k Bool StackSy
         obtain ⟨Tmid, hszMid⟩ := ih d' (by omega) pmid hmidLen hmidSame hfitsMid
         obtain ⟨-, hpop⟩ := hpopFn (hmidSame.last_stack_eq.trans hmidHeadStack)
         refine ⟨.pushPop ⟨γ, ?_, ?_⟩ Tmid, ?_⟩
-        · unfold BoundedPushStep
-          simpa only [BoundedSurfaceCfg.toSurface_ofSurface] using hpush
+        · simpa only [BoundedPushStep, BoundedSurfaceCfg.toSurface_ofSurface] using hpush
         · unfold BoundedPopStep
           rwa [BoundedSurfaceCfg.toSurface_ofSurface, BoundedSurfaceCfg.toSurface_ofSurface]
         · simp only [RealTree.size]; omega
@@ -295,8 +291,8 @@ theorem accepts_iff_exists_boundedRealTree {M : AuxPDA k Bool StackSym State} {t
     (BoundedSurfaceCfg.toSurface_injective (by simp [q.head_eq]; rfl)) rfl T
   refine ⟨v, ⟨?_, List.head?_eq_none_iff.mpr hstack⟩, T', by omega⟩
   change v.toSurface.IsAccepting
-  rw [BoundedSurfaceCfg.toSurface_ofSurface, Cfg.isAccepting_surface_iff]
-  exact ⟨hqHalt, hqOut⟩
+  simpa only [v, BoundedSurfaceCfg.toSurface_ofSurface, Cfg.isAccepting_surface_iff] using
+    ⟨hqHalt, hqOut⟩
 
 end BoundedRealTree
 

@@ -230,12 +230,11 @@ private theorem edgeIndices_iff (G : Graph) (x : BitString (toCircuit G).1) :
     obtain ⟨hv₁, hv₂⟩ := mem_vertexSet.1 (Finset.mem_coe.1 hv)
     obtain ⟨-, hadj⟩ := Graph.toSimpleGraph_adj.1 hadj
     rcases hadj with he | he
-    · refine h _ (List.mem_map.2 ⟨(u, v), List.mem_filter.2 ⟨he, ?_⟩, rfl⟩) ?_
-      · simpa using ⟨hu₁, hv₁, huv⟩
-      · exact ⟨(hget u hu₁).trans hu₂, (hget v hv₁).trans hv₂⟩
-    · refine h _ (List.mem_map.2 ⟨(v, u), List.mem_filter.2 ⟨he, ?_⟩, rfl⟩) ?_
-      · simpa using ⟨hv₁, hu₁, Ne.symm huv⟩
-      · exact ⟨(hget v hv₁).trans hv₂, (hget u hu₁).trans hu₂⟩
+    · exact h _ (List.mem_map.2 ⟨(u, v), List.mem_filter.2 ⟨he, decide_eq_true ⟨hu₁, hv₁, huv⟩⟩,
+        rfl⟩) ⟨(hget u hu₁).trans hu₂, (hget v hv₁).trans hv₂⟩
+    · exact h _ (List.mem_map.2 ⟨(v, u),
+        List.mem_filter.2 ⟨he, decide_eq_true ⟨hv₁, hu₁, huv.symm⟩⟩, rfl⟩)
+        ⟨(hget v hv₁).trans hv₂, (hget u hu₁).trans hu₂⟩
   · rintro h e he ⟨h₁, h₂⟩
     obtain ⟨⟨a, b⟩, hab, rfl⟩ := List.mem_map.1 he
     simp only [List.mem_filter, decide_eq_true_eq] at hab
@@ -294,11 +293,9 @@ private theorem le_of_mem_evalCode_circuitGates (cost : Unbounded.Op → ℕ) {n
 /-- The circuit of a graph has weft at most `1`: its only large gate is the final conjunction. -/
 theorem weft_toCircuit_le (G : Graph) : (toCircuit G).2.weft ≤ 1 := by
   refine Circuit.depthWith_le_of_evalCode _ _ fun v hv => ?_
-  rw [code_toCircuit] at hv
-  have := le_of_mem_evalCode_circuitGates (largeGateCost Unbounded.signature)
+  simpa using le_of_mem_evalCode_circuitGates (largeGateCost Unbounded.signature)
     (fun e he => lt_of_mem_edgeIndices he) (c₁ := 0) (c₂ := 0) (by decide) (by decide)
-    (largeGateCost_le_one _) v hv
-  omega
+    (largeGateCost_le_one _) v (code_toCircuit G ▸ hv)
 
 /-- The circuit of a graph has depth at most `3`. -/
 theorem depth_toCircuit_le (G : Graph) : (toCircuit G).2.depth ≤ 3 := by
@@ -361,13 +358,12 @@ theorem computableInPolyTime_toWCS :
     ComputableInPolyTime toWCS encIndependentSetInstance (encWCS 1 3) := by
   have hc := computableInPolyTime_circuitCode
   have hV := Graph.computableInPolyTime_distinctVertices
-  have h : ComputableInPolyTime
+  refine (by fun_prop : ComputableInPolyTime
       (fun x : IndependentSetInstance =>
         ((x.graph.distinctVertices.length, circuitCode x.graph), x.m))
       encIndependentSetInstance
-      (encPair (encPair encUnary (Circuit.encCode Unbounded.encOp)) encNat) := by
-    fun_prop
-  refine h.of_enc_eq fun ⟨G, k⟩ => ?_
+      (encPair (encPair encUnary (Circuit.encCode Unbounded.encOp)) encNat)).of_enc_eq
+    fun ⟨G, k⟩ => ?_
   simp only [toWCS, encWCS_apply, encPair_apply, encWeftCircuit_apply, Circuit.encCircuit_apply,
     code_toCircuit]
   rfl

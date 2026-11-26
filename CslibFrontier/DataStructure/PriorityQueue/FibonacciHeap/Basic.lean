@@ -275,10 +275,8 @@ theorem RootList.addRoot {n : ℕ} {st st' : RawState n} {T_u : FHTree n} {ts : 
     (hts : ∀ T ∈ ts, ValidRoot st none T) (hrl : RootList st ts)
     (hadd : AddsRoot st T_u.root st') :
     (∀ T ∈ T_u :: ts, ValidRoot st' none T) ∧ RootList st' (T_u :: ts) := by
-  have hvalid : ∀ T ∈ T_u :: ts, ValidRoot st none T := by
-    intro T hT
-    rcases List.mem_cons.mp hT with rfl | hT
-    exacts [hTu, hts T hT]
+  have hvalid : ∀ T ∈ T_u :: ts, ValidRoot st none T :=
+    List.forall_mem_cons.mpr ⟨hTu, hts⟩
   -- A strict descendant is no root, so the frame of `ValidRoot` excludes the changed pointers.
   have hdesc : ∀ T ∈ T_u :: ts, ∀ x ∈ forestNodes T.children, ∀ R ∈ T_u :: ts, x ≠ R.root :=
     fun T hT x hx R hR => descendant_ne_root_of_nodup hnd hT hR hx
@@ -294,10 +292,8 @@ theorem RootList.addRoot {n : ℕ} {st st' : RawState n} {T_u : FHTree n} {ts : 
   · obtain rfl : ts = [] := (hrl.resolve_right fun ⟨_, _, hm', _⟩ => by omega).1
     refine ⟨fun T hT => (hvalid T hT).frame_tree (fun _ _ => ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩)
       fun x hx => ?_, Or.inr ⟨T_u.root, [], rfl, IsCircList.singleton _ _ _, by simp,
-        fun T hT => ?_⟩⟩
-    · simp [Function.update_of_ne (hdesc T hT x hx T_u List.mem_cons_self)]
-    · rw [List.mem_singleton.mp hT]
-      exact .refl _
+        List.forall_mem_singleton.mpr (.refl _)⟩⟩
+    simp [Function.update_of_ne (hdesc T hT x hx T_u List.mem_cons_self)]
   · obtain ⟨m', rtail, hm', hcirc, hperm, hle⟩ := hrl.resolve_left fun ⟨_, h0⟩ => by omega
     obtain rfl : m' = m := Fin.ext (by omega)
     obtain ⟨r', hr', hr'_mem⟩ := hcirc.right_head
@@ -314,17 +310,13 @@ theorem RootList.addRoot {n : ℕ} {st st' : RawState n} {T_u : FHTree n} {ts : 
     · have hperm' : (T_u.root :: m' :: rtail).Perm ((T_u :: ts).map FHTree.root) :=
         List.Perm.cons _ hperm
       by_cases hlt : IndexedMinPQ.PrioLT (T_u.root, st.key T_u.root) (m', st.key m')
-      · refine ⟨T_u.root, rtail ++ [m'], by simp [hlt], ?_, ?_, fun T hT => ?_⟩
-        · simpa using hcirc'.rotate_one
-        · exact (List.Perm.cons _ (List.perm_append_singleton _ _)).trans hperm'
-        · rcases List.mem_cons.mp hT with rfl | hT
-          · exact .refl _
-          · exact hlt.le.trans (hle T hT)
-      · refine ⟨m', T_u.root :: rtail, by simp [hlt], hcirc', (List.Perm.swap _ _ _).trans hperm',
-          fun T hT => ?_⟩
-        rcases List.mem_cons.mp hT with rfl | hT
-        · exact IndexedMinPQ.not_prioLT_iff_prioLE.mp hlt
-        · exact hle T hT
+      · exact ⟨T_u.root, rtail ++ [m'], by simp [hlt],
+          by simpa using hcirc'.rotate_one,
+          (List.Perm.cons _ (List.perm_append_singleton _ _)).trans hperm',
+          List.forall_mem_cons.mpr ⟨.refl _, fun T hT => hlt.le.trans (hle T hT)⟩⟩
+      · exact ⟨m', T_u.root :: rtail, by simp [hlt], hcirc',
+          (List.Perm.swap _ _ _).trans hperm',
+          List.forall_mem_cons.mpr ⟨IndexedMinPQ.not_prioLT_iff_prioLE.mp hlt, hle⟩⟩
 
 /-- Adding a root changes only the root list and the number of roots. -/
 theorem AddsRoot.exists_eq {n : ℕ} {st st' : RawState n} {u : Fin n} (h : AddsRoot st u st') :
@@ -353,9 +345,7 @@ theorem FibRawInv.insert {n K : ℕ} {s : IndexedMinPQ.State n} {st st' : RawSta
     FibRawInv n K (Function.update s v (some k)) { st' with sz := st'.sz + 1 } := by
   obtain ⟨ts, hts, hnd, hdom, hin, hkeys, hsz, hnr, hnm, hcons, hrl⟩ := h
   have hv_fn : v ∉ forestNodes ts := fun hm => by simpa [hv] using (hdom v).mp hm
-  have hin_v : st.inHeap v = 0 := by
-    by_contra h0
-    simpa [hv] using (hin v).1.mp h0
+  have hin_v : st.inHeap v = 0 := not_ne_iff.mp fun h0 => by simpa [hv] using (hin v).1.mp h0
   have hnd' : (forestNodes (.node v [] :: ts)).Nodup := by
     simpa [forestNodes, FHTree.nodes] using ⟨hv_fn, hnd⟩
   have hne : ∀ T ∈ ts, ∀ x ∈ T.nodes, x ≠ v := fun T hT x hx hxv =>
@@ -567,13 +557,12 @@ theorem wp_insert {K : ℕ} {g : Cell → ℕ} {v : Fin n} {k : ℕ} (hI : Inv n
   have hsz₂ : g₂ .sz = (view n g).sz := congrArg RawState.sz heq
   simp only [Record.wp_read, Cell.ok, true_and, hsz₂]
   refine ⟨hn.of_le hsz, ?_⟩
-  have hinv := FibRawInv.insert hI hv hk hadd
-  obtain ⟨hI', habs'⟩ := inv_of_fibRawInv (g := Function.update g₂ .sz ((view n g).sz + 1))
-    (by rw [view_update_sz, ← hsz₂]; exact hinv)
+  obtain ⟨hI', habs'⟩ := inv_of_fibRawInv (g := Function.update g₂ .sz ((view n g).sz + 1)) (by
+    rw [view_update_sz, ← hsz₂]
+    exact FibRawInv.insert hI hv hk hadd)
   refine ⟨habs', hI', ?_⟩
-  have hnr₂ : (view n g₂).numRoots = (view n g).numRoots + 1 := by rw [heq]; rfl
-  have hnm₂ : (view n g₂).numMarked = (view n g).numMarked := by rw [heq]; rfl
-  simp only [potential, credit, view_update_sz, hnr₂, hnm₂]
+  simp only [potential, credit, view_update_sz, congrArg RawState.numRoots heq,
+    congrArg RawState.numMarked heq, newNode]
   omega
 
 end Programs

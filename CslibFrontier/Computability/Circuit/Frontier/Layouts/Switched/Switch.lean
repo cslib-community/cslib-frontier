@@ -246,24 +246,19 @@ theorem switch_bound {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E
     have hcover1 : {x | ⟪a, x⟫ ≤ 0 ∧ ∃ i, 0 ≤ ⟪b i, x⟫} ⊆ {x | ⟪a, x⟫ = 0} ∪ A1 := by
       intro x ⟨hZ, i, hi⟩
       by_cases hgi : ⟪a, b i⟫ < 1
-      · right
-        refine ⟨hZ, ⟨i.val, by lia⟩, ?_⟩
-        simp only [w, hpick_eq i (by lia) hgi]
-        exact hgood i x hgi hZ hi
+      · exact Or.inr ⟨hZ, ⟨i.val, by lia⟩,
+          by simpa only [w, hpick_eq i (by lia) hgi] using hgood i x hgi hZ hi⟩
       · exact Or.inl (hbad i x hgi hZ hi)
     have hcover2 : {x | ⟪a, x⟫ ≤ 0 ∧ ∀ i, 0 ≤ ⟪b i, x⟫} ⊆ {x | ⟪a, x⟫ = 0} ∪ A2 := by
       intro x ⟨hZ, hall⟩
       by_cases hZ0 : ⟪a, x⟫ = 0
       · exact Or.inl hZ0
-      · right
-        refine ⟨hZ, fun j => ?_⟩
-        by_cases hgi : ⟪a, b (pick j)⟫ < 1
-        · exact hgood _ x hgi hZ (hall _)
-        · exact absurd (hbad _ x hgi hZ (hall _)) hZ0
+      · exact Or.inr ⟨hZ, fun j => if hgi : ⟪a, b (pick j)⟫ < 1 then hgood _ x hgi hZ (hall _)
+          else absurd (hbad _ x hgi hZ (hall _)) hZ0⟩
     have hb2 : (if d = 3 then μ.real {x | 0 ≤ ⟪a, x⟫ ∧ ∀ i, ⟪b i, x⟫ ≤ 0} else 0) ≤
         μ.real A2 := by
       split_ifs
-      · rw [hrefl]; exact hnullU hcover2
+      · exact hrefl ▸ hnullU hcover2
       · exact measureReal_nonneg
     calc _ ≤ μ.real A1 + μ.real A2 := add_le_add (hnullU hcover1) hb2
       _ ≤ _ := compare_switch ha hw hworth hr hr1
@@ -275,8 +270,7 @@ theorem switch_bound {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E
       hzero fun x ⟨hZ, i, hi⟩ => hbad i x (hI i).not_gt hZ hi
     have hb2 : (if d = 3 then μ.real {x | 0 ≤ ⟪a, x⟫ ∧ ∀ i, ⟪b i, x⟫ ≤ 0} else 0) ≤ 0 := by
       split_ifs with hd3
-      · rw [hrefl]
-        exact hzero fun x ⟨hZ, hall⟩ => hbad ⟨0, by lia⟩ x (hI _).not_gt hZ (hall _)
+      · exact hrefl ▸ hzero fun x ⟨hZ, hall⟩ => hbad ⟨0, by lia⟩ x (hI _).not_gt hZ (hall _)
       · exact le_rfl
     linarith
 

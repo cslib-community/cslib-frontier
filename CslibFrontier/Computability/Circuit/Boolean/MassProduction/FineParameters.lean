@@ -116,8 +116,7 @@ theorem dimension_le_two_pow_blockWidth : dimension num den X ≤ 2 ^ blockWidth
 
 /-- The block width is positive. -/
 theorem blockWidth_pos : 0 < blockWidth num den X := by
-  unfold blockWidth
-  have h := three_le_dimension (num := num) (den := den) (X := X)
+  have := three_le_dimension (num := num) (den := den) (X := X)
   exact Nat.clog_pos (by norm_num) (by omega)
 
 /-- The code points use all but `3 log₂ (n + 2)` of the prefix bits. -/
@@ -161,8 +160,7 @@ theorem eventually_add_depth_le (hnd : num < den) (c : ℕ) :
   have F1 : n * a < m * (p + 1) := Nat.lt_mul_div_succ _ hmpos
   have F2 : p < ℓ * F + ℓ * h + 3 * L := by
     have := Nat.lt_mul_div_succ (p - 3 * L) (Nat.mul_pos (by omega : 0 < ℓ) hhpos)
-    rw [hF, fieldWidth, blocks]
-    rw [← hp, ← hL, ← hℓ, ← hh]
+    rw [hF, fieldWidth, blocks, ← hp, ← hL, ← hℓ, ← hh]
     have e : ℓ * h * ((p - 3 * L) / (ℓ * h) + 1) =
         ℓ * (h * ((p - 3 * L) / (ℓ * h))) + ℓ * h := by ring
     omega
@@ -172,8 +170,7 @@ theorem eventually_add_depth_le (hnd : num < den) (c : ℕ) :
     obtain ⟨e, rfl⟩ : ∃ e, den = num + 1 + e := ⟨den - num - 1, by omega⟩
     rw [ha]
     nlinarith
-  have hℓ2 : ℓ - 2 = 4 * a + 1 := by omega
-  rw [hℓ2]
+  change c + D ≤ (4 * a + 1) * F
   -- Multiply the goal by `ℓ * m` and combine the scaled floor bounds.
   refine Nat.le_of_mul_le_mul_left ?_ (Nat.mul_pos (by omega : 0 < ℓ) hmpos)
   have R1 : ℓ * m * (c + D) = ℓ * m * c + ℓ * (X + 1) * (den * D) := by rw [hm]; ring
@@ -198,11 +195,10 @@ theorem eventually_le_blocks (hden : 0 < den) (c : ℕ) :
       blockWidth num den X) + 1)) (3 * (X + 1)) 2 one_lt_two] with n hn
   have hp := lt_mul_prefixWidth_add_one (X := X) (num := num) hden n
   unfold blocks
-  apply (Nat.le_div_iff_mul_le hℓh).mpr
-  have hlt : (X + 1) * (c * (dimension num den X * blockWidth num den X) + 1 +
-      3 * Nat.log 2 (n + 2)) < (X + 1) * (prefixWidth num den X n + 1) := by linarith
-  have := Nat.lt_of_mul_lt_mul_left hlt
-  omega
+  have := Nat.lt_of_mul_lt_mul_left (a := X + 1) (b := c * (dimension num den X *
+    blockWidth num den X) + 1 + 3 * Nat.log 2 (n + 2)) (c := prefixWidth num den X n + 1)
+    (by linarith)
+  exact (Nat.le_div_iff_mul_le hℓh).mpr (by omega)
 
 /-- Eventually the suffix has at least `c` bits, when the slack is positive. -/
 theorem eventually_le_suffixWidth (hnd : num < den) (hX : 0 < X) (c : ℕ) :
@@ -258,11 +254,9 @@ theorem eventually_mul_two_pow_dimension_le (hnd : num ≤ den) (X' : ℕ) :
   filter_upwards [eventually_ge_atTop (8 * X')] with n hn
   rcases dimension_mul_fieldWidth_le (num := num) (den := den) (X := X) n with h | h
   · have hd := three_le_dimension (num := num) (den := den) (X := X)
-    have hF : fieldWidth num den X n ≤ n := by
-      have := prefixWidth_le (X := X) hnd n
-      have : fieldWidth num den X n ≤ dimension num den X * fieldWidth num den X n :=
-        Nat.le_mul_of_pos_left _ (by omega)
-      omega
+    have hF : fieldWidth num den X n ≤ n :=
+      (Nat.le_mul_of_pos_left _ (by omega : 0 < dimension num den X)).trans
+        ((Nat.le_add_right _ _).trans (h.trans (prefixWidth_le hnd n)))
     have hlog : n + 2 < 2 * 2 ^ Nat.log 2 (n + 2) := by
       simpa only [pow_succ'] using Nat.lt_pow_succ_log_self one_lt_two (n + 2)
     have h8 : X' * fieldWidth num den X n ≤ 2 ^ (3 * Nat.log 2 (n + 2)) := by
@@ -296,11 +290,10 @@ theorem div_le_sub_depth_add_fieldWidth (hnd : num < den) (n : ℕ) :
     n / dimension num den X + depth num den n + fieldWidth num den X n ≤ n + 1 := by
   have hℓ3 : 3 ≤ dimension num den X := three_le_dimension
   -- `dimension * fieldWidth n ≤ n`.
-  have hF : dimension num den X * fieldWidth num den X n ≤ n := by
-    rcases dimension_mul_fieldWidth_le (num := num) (den := den) (X := X) n with h | h
-    · have := prefixWidth_le (X := X) hnd.le n
-      omega
-    · rw [h]; omega
+  have hF : dimension num den X * fieldWidth num den X n ≤ n :=
+    (dimension_mul_fieldWidth_le n).elim
+      (fun h => (Nat.le_add_right _ _).trans (h.trans (prefixWidth_le hnd.le n)))
+      fun h => by simp [h]
   -- `den * depth n ≤ num * n + den`.
   have hD : den * depth num den n ≤ num * n + den := by
     nlinarith [Nat.mul_div_le (num * n) den, show depth num den n = num * n / den + 1 from rfl]
