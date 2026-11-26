@@ -8,8 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.SearchTree.Cost
-public import Mathlib.Data.Nat.Fib.Basic
-public import Mathlib.Data.Nat.Log
+public import CslibFrontier.Foundations.Data.Nat.Fib
 
 /-!
 # Height-balanced AVL binary search trees
@@ -162,16 +161,6 @@ theorem HeightConsistent.eq_of_toBinaryTree_eq {t u : AVLTree α}
       obtain ⟨rfl, el, er⟩ := BinaryTree.node.inj eq
       rw [ht.1, hu.1, il ht.2.1 hu.2.1 el, ir ht.2.2 hu.2.2 er]
 
-/-- The Fibonacci step of the node-count bound: sibling heights `n`, `m` differing by at most `1`
-give `Nat.fib (1 + max n m + 2) ≤ Nat.fib (n + 2) + Nat.fib (m + 2)`. -/
-private theorem fib_one_add_max_add_two_le {n m : ℕ} (hnm : n ≤ m + 1) (hmn : m ≤ n + 1) :
-    Nat.fib (1 + max n m + 2) ≤ Nat.fib (n + 2) + Nat.fib (m + 2) := by
-  wlog hle : m ≤ n generalizing n m
-  · simpa only [max_comm, add_comm (Nat.fib (n + 2))] using this hmn hnm (by omega)
-  rw [max_eq_left hle, Nat.add_comm 1 n]
-  exact Nat.fib_add_two.trans_le ((Nat.add_le_add_right (Nat.fib_mono (by omega)) _).trans_eq
-    (Nat.add_comm _ _))
-
 /-- Fibonacci node-count lower bound ([Cormen et al., Problem 13-3(a)][CLRS2009]): any
 height-consistent, AVL-balanced tree `t` satisfies
 `Nat.fib (t.cachedHeight + 2) ≤ t.numNodes + 1`. -/
@@ -183,18 +172,11 @@ theorem fib_height_le_numNodes_add_one {t : AVLTree α}
   | node a h l r ihl ihr =>
     obtain ⟨rfl, hcl, hcr⟩ := hc
     obtain ⟨hlr, hrl, hbl, hbr⟩ := hb
-    have := fib_one_add_max_add_two_le hlr hrl
+    have := Nat.fib_max_add_three_le hlr hrl
     have := Nat.add_le_add (ihl hcl hbl) (ihr hcr hbr)
-    rw [numNodes_node, cachedHeight_node]
-    omega
-
-private theorem two_pow_half_succ_le_fib : ∀ h : ℕ, 2 ^ ((h + 1) / 2) ≤ Nat.fib (h + 2)
-  | 0 => by decide
-  | 1 => by decide
-  | h + 2 => by
-    have ih := two_pow_half_succ_le_fib h
-    have hmono : Nat.fib (h + 2) ≤ Nat.fib (h + 2 + 1) := Nat.fib_le_fib_succ
-    rw [Nat.add_right_comm h 2 1, Nat.add_div_right _ zero_lt_two, pow_succ, Nat.fib_add_two]
+    rw [numNodes_node, cachedHeight_node,
+      show 1 + max l.cachedHeight r.cachedHeight + 2 = max l.cachedHeight r.cachedHeight + 3 by
+        omega]
     omega
 
 /-- Construct a node computing its cached height in `O(1)` from its children's cached heights. -/
@@ -421,12 +403,9 @@ theorem card_elements {t : AVLTree α} (ht : Ordered t) :
 /-- Logarithmic height bound ([Cormen et al., Problem 13-3(a)][CLRS2009]): every valid AVL tree `t`
 has height at most `2 * Nat.log 2 ((elements t).card + 1)` (in particular `0` when empty). -/
 theorem Valid.cachedHeight_le_two_mul_log {t : AVLTree α} (ht : Valid t) :
-    t.cachedHeight ≤ 2 * Nat.log 2 ((elements t).card + 1) := by
-  have hlog : (t.cachedHeight + 1) / 2 ≤ Nat.log 2 ((elements t).card + 1) :=
-    Nat.le_log_of_pow_le (by decide) <|
-      (two_pow_half_succ_le_fib t.cachedHeight).trans
-        (card_elements ht.ordered ▸ fib_height_le_numNodes_add_one ht.heightConsistent ht.balanced)
-  omega
+    t.cachedHeight ≤ 2 * Nat.log 2 ((elements t).card + 1) :=
+  Nat.le_two_mul_log_of_fib_le
+    (card_elements ht.ordered ▸ fib_height_le_numNodes_add_one ht.heightConsistent ht.balanced)
 
 /-- Executable membership search on `AVLTree α` without allocating `toBinaryTree`. -/
 @[expose] def contains (x : α) : AVLTree α → Bool

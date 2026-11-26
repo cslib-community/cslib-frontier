@@ -1994,6 +1994,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Product.ThinWidth
 public import CslibFrontier.Probability.MinEntropy.ChainRule
 public import CslibFrontier.Computability.Circuit.Boolean.OracleFormula
+public import CslibFrontier.DataStructure.Rope.Balance
 public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Rotation
 public import CslibFrontier.GameTheory.Strategic.Symmetric
 public import CslibFrontier.Algorithms.WordRAM.Hungarian.Argmin
@@ -9366,6 +9367,7 @@ public import CslibFrontier.Foundations.Quantum.Algebra.Expect
 public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Matrix.Evaluation
 public import CslibFrontier.Crypto.Computational.ForgerBridge
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.TinyDesc
+public import CslibFrontier.Foundations.Data.Nat.Fib
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Sequential
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Deterministic
 public import CslibFrontier.Crypto.Computational.Commitment.Guessing
