@@ -337,10 +337,7 @@ private theorem AdditiveBounds.iterate {n : α → ℕ} {init : α → β} {step
     have hround : NativeCertificate.maxRoundTime cs (n a) (init a) +
         NativeCertificate.maxStateLength eb stepF (n a) (init a) +
         ((encNat (n a)).length + 1) ^ 2 ≤
-        M a * (pMax a + B a + ((encNat (n a)).length + 1) ^ 2 + R) := by
-      have := hmaxB.trans (Nat.le_mul_of_pos_left _ hMa)
-      have := Nat.le_mul_of_pos_left (((encNat (n a)).length + 1) ^ 2) hMa
-      nlinarith
+        M a * (pMax a + B a + ((encNat (n a)).length + 1) ^ 2 + R) := by nlinarith
     rw [NativeCertificate.iterate_time]
     exact (Nat.add_le_add (Nat.le_mul_of_pos_left _ hpos) (Nat.mul_le_mul_left _ hround)).trans
       ((by ring : _ = (n a + 1) * M a *
@@ -623,9 +620,8 @@ theorem computableInO_selectBestTestRow {countSys : List (List Bool) → ℕ}
   refine (h.comp' (unitInput encSelectBestIn)).mono_le (fun ⟨m, P, rows⟩ => ?_)
     fun ⟨m, P, rows⟩ => ?_
   all_goals
-    dsimp only
-    rw [show (encInput encUnit ((), m, P, rows)).length =
-      (encSelectBestIn (m, P, rows)).length + 1 from length_unitInput encSelectBestIn (m, P, rows)]
+    dsimp only [encInput]
+    rw [length_unitInput]
   · nlinarith [Nat.zero_le (candidateTupleCount m P * (encSelectBestIn (m, P, rows)).length)]
   · omega
 
@@ -671,8 +667,8 @@ theorem computableInO_greedyParityRows {countSys : List (List Bool) → ℕ}
   refine (h.comp' (unitInput encGreedyIn)).mono_le (fun ⟨n, m, P, rows⟩ => ?_)
     fun ⟨n, m, P, rows⟩ => ?_
   all_goals
-    dsimp only
-    rw [show (encGreedyInput encUnit ((), n, m, P, rows)).length = _ from length_unitInput _ _]
+    dsimp only [encGreedyInput]
+    rw [length_unitInput]
   · have hM : 1 ≤ (3 * n + 1) * (candidateTupleCount m P + 1) := Nat.mul_pos (by omega) (by omega)
     generalize (3 * n + 1) * (candidateTupleCount m P + 1) = M at hM ⊢
     nlinarith [Nat.mul_le_mul_right (encGreedyIn (n, m, P, rows)).length hM]

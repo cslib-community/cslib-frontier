@@ -50,17 +50,13 @@ theorem retentionChannels_affineRetains {ident : V → ZMod P} (hident : Functio
       (fun s v => affineRetains P H ⌈P * a⌉₊ s (ident v)) (a ^ H)
       ((((⌈P * a⌉₊ : ℕ) : ℝ) / P) ^ H) 1 (2 ^ H) (2 ^ H) 4 := by
   obtain ⟨hL, hlow, hup, hpair, htail⟩ := affineRetains_rates (H := H) hPa ha
-  have hdens : ∀ v, (dens {s | affineRetains P H ⌈P * a⌉₊ s (ident v)} : ℝ) =
-      (((⌈P * a⌉₊ : ℕ) : ℝ) / P) ^ H := fun v => by
-    rw [dens_affineRetains hL]; push_cast; rfl
-  refine ⟨hdens, hdens, by rw [one_mul]; exact hlow, hup, fun w y hwy => ?_, fun A hA => ?_⟩
-  · exact hpair _ _ (hident.ne hwy)
-  · have hcard : #(A.image ident) = #A := card_image_of_injective A hident
-    have hfilter : ∀ s, #{x ∈ A | affineRetains P H ⌈P * a⌉₊ s (ident x)} =
-        #{y ∈ A.image ident | affineRetains P H ⌈P * a⌉₊ s y} := fun s => by
-      rw [filter_image, card_image_of_injective _ hident]
-    have := htail (A.image ident) (hA.image ident)
-    simp only [hcard, ← hfilter] at this
-    exact this
+  have hdens (v : V) : (dens {s | affineRetains P H ⌈P * a⌉₊ s (ident v)} : ℝ) =
+      (((⌈P * a⌉₊ : ℕ) : ℝ) / P) ^ H := by
+    rw [dens_affineRetains hL]
+    push_cast; rfl
+  refine ⟨hdens, hdens, (one_mul (a ^ H)).symm ▸ hlow, hup,
+    fun _ _ hwy => hpair _ _ (hident.ne hwy), fun A hA => ?_⟩
+  simpa only [filter_image, card_image_of_injective _ hident] using
+    htail (A.image ident) (hA.image ident)
 
 end Cslib.Probability

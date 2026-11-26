@@ -197,7 +197,7 @@ theorem formulaSize_le_of_andreevBlock_nonempty {h : BooleanFunction b}
     (hblocks : ∀ j : Fin b, (ρ.free ∩ andreevBlock b m j).Nonempty) :
     formulaSize h ≤ formulaSize (andreev b m ∘ ρ.fill) := by
   have hpivot (j : Fin b) : ∃ t : Fin m, andreevBlockVar b m j t ∈ ρ.free := by
-    rcases hblocks j with ⟨_, hi⟩
+    obtain ⟨_, hi⟩ := hblocks j
     obtain ⟨t, -, rfl⟩ := mem_image.1 (mem_inter.1 hi).2
     exact ⟨t, (mem_inter.1 hi).1⟩
   choose t_fn ht_fn using hpivot
@@ -237,9 +237,8 @@ theorem formulaSize_le_of_andreevBlock_nonempty {h : BooleanFunction b}
         cases hρ : ρ (andreevBlockVar b m j t) <;> simp [y₀, PartialAssignment.fill, hρ, hσ_val, ht]
     have hy₀_false : y₀ j (t_fn j) = false :=
       PartialAssignment.fill_of_eq_none (PartialAssignment.mem_free.1 (ht_fn j)) (fun _ => false)
-    rw [hblock_eq, parity_update_of_eq_false hy₀_false]
-    change ((z j ^^ r j) ^^ r j) = z j
-    cases z j <;> cases r j <;> rfl
+    rw [hblock_eq, parity_update_of_eq_false hy₀_false, Bool.xor_assoc, Bool.xor_self,
+      Bool.xor_false]
   exact (formulaSize_le hbind_computes).trans ((F.leafSize_bind_le hσ_leaf).trans (by omega))
 
 /-! ### Andreev's reduction and explicit formula lower bound -/
@@ -269,12 +268,9 @@ theorem formulaSize_sub_sq_mul_pow_three_le_andreev (h : BooleanFunction b) (hb 
   have hle₀ : formulaSize (andreev b m ∘ ρ₀.fill) ≤ formulaSize (andreev b m) :=
     formulaSize_comp_fill_le (andreev b m) ρ₀
   have hsub_le :
-      (formulaSize h - 2 * b * r) ^ 2 ≤ (formulaSize (andreev b m ∘ ρ.fill) - 2 * k) ^ 2 := by
-    have : 2 * b * r = 2 * k := by ring
-    rw [this]
-    exact Nat.pow_le_pow_left (Nat.sub_le_sub_right hproj (2 * k)) 2
-  have hb3 : 0 < b ^ 3 := by positivity
-  refine Nat.le_of_mul_le_mul_right ?_ hb3
+      (formulaSize h - 2 * b * r) ^ 2 ≤ (formulaSize (andreev b m ∘ ρ.fill) - 2 * k) ^ 2 :=
+    mul_assoc 2 b r ▸ Nat.pow_le_pow_left (Nat.sub_le_sub_right hproj (2 * k)) 2
+  refine Nat.le_of_mul_le_mul_right ?_ (pow_pos hb 3)
   calc (formulaSize h - 2 * b * r) ^ 2 * m ^ 3 * b ^ 3
       = (formulaSize h - 2 * b * r) ^ 2 * (#ρ₀.free) ^ 3 := by
           rw [hfree₀]
@@ -293,8 +289,7 @@ theorem formulaSize_sub_sq_mul_pow_three_le_andreev_log (h : BooleanFunction b) 
     (formulaSize h - 2 * b * (Nat.log 2 b + 2)) ^ 2 * m ^ 3 ≤
       4 * formulaSize (andreev b m) ^ 2 * (Nat.log 2 b + 2) ^ 3 := by
   have hlt : b < 2 ^ (Nat.log 2 b + 1) := Nat.lt_pow_succ_log_self one_lt_two b
-  have hbr : 2 * b ≤ 2 ^ (Nat.log 2 b + 2) := by grind
-  exact formulaSize_sub_sq_mul_pow_three_le_andreev h hb (by omega) hm hbr
+  exact formulaSize_sub_sq_mul_pow_three_le_andreev h hb (by omega) hm (by grind)
 
 /-- **Shannon's counting bound for formula leaf size**: for all sufficiently large `b`, some
 Boolean function `h` on `b` bits satisfies `2 ^ b < 3 * b * L(h)`. -/
@@ -302,21 +297,16 @@ theorem exists_hard_function_formulaSize :
     ∃ B : ℕ, ∀ b ≥ B, ∃ h : BooleanFunction b, 2 ^ b < 3 * b * formulaSize h := by
   obtain ⟨N, hN⟩ := Shannon.exists_hard_function
   refine ⟨max N 1, fun b hb => ?_⟩
-  have hbN : N ≤ b := (le_max_left N 1).trans hb
   have hb1 : 1 ≤ b := (le_max_right N 1).trans hb
-  obtain ⟨h, hh⟩ := hN b hbN
+  obtain ⟨h, hh⟩ := hN b ((le_max_left N 1).trans hb)
   obtain ⟨F, hF, _, hsize⟩ := exists_computes_size_le h
-  have hcirc := hh F.toCircuit hF.toCircuit
-  rw [Formula.size_toCircuit] at hcirc
+  have hcirc := Formula.size_toCircuit F ▸ hh F.toCircuit hF.toCircuit
   have hmul_nat : 2 ^ b < F.size * b := by
     exact_mod_cast (div_lt_iff₀ (by positivity : (0 : ℝ) < b)).1 hcirc
   have hpow : b < 2 ^ b := b.lt_two_pow_self
-  have hmax : F.size ≤ 3 * formulaSize h := by
-    rcases hsize with ⟨c, rfl⟩ | hle
-    · rw [size_const] at hmul_nat
-      omega
-    · omega
-  exact ⟨h, by nlinarith⟩
+  rcases hsize with ⟨c, rfl⟩ | hle
+  · simp only [size_const] at hmul_nat; omega
+  · exact ⟨h, by nlinarith⟩
 
 /-- For `16 ≤ b`, `12 * b ^ 2 * (b + 2) ≤ 2 ^ b`. -/
 private theorem twelve_mul_sq_mul_add_two_le_two_pow {b : ℕ} (hb : 16 ≤ b) :
@@ -326,13 +316,9 @@ private theorem twelve_mul_sq_mul_add_two_le_two_pow {b : ℕ} (hb : 16 ≤ b) :
   induction d with
   | zero => decide
   | succ d ih =>
-    have hstep :
-        12 * (d + 16 + 1) ^ 2 * (d + 16 + 1 + 2) ≤
-          2 * (12 * (d + 16) ^ 2 * (d + 16 + 2)) := by
-      nlinarith
     calc 12 * (d + 1 + 16) ^ 2 * (d + 1 + 16 + 2)
         = 12 * (d + 16 + 1) ^ 2 * (d + 16 + 1 + 2) := by ring
-      _ ≤ 2 * (12 * (d + 16) ^ 2 * (d + 16 + 2)) := hstep
+      _ ≤ 2 * (12 * (d + 16) ^ 2 * (d + 16 + 2)) := by nlinarith
       _ ≤ 2 * 2 ^ (d + 16) := Nat.mul_le_mul_left 2 ih
       _ = 2 ^ (d + 1 + 16) := by ring
 

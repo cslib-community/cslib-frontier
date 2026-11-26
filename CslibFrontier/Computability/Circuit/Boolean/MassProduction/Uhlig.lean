@@ -86,8 +86,7 @@ theorem layerOverhead_mono {p w w' : ℕ} (h : w ≤ w') : layerOverhead p w ≤
 /-- A crude polynomial bound on the overhead of one pair. -/
 private theorem layerOverhead_le (p w : ℕ) :
     layerOverhead p w ≤ 32 * 8 ^ p * (p + 1) * (w + 2) := by
-  have h8 : 8 ^ p = 2 ^ p * 2 ^ p * 2 ^ p := by
-    rw [show 8 = 2 * 2 * 2 by rfl, mul_pow, mul_pow]
+  have h8 : 8 ^ p = 2 ^ p * 2 ^ p * 2 ^ p := by rw [← mul_pow, ← mul_pow]; rfl
   unfold layerOverhead selectorCost
   rw [h8, pow_add]
   generalize hA : 2 ^ p = A
@@ -127,11 +126,9 @@ theorem complexity_directProduct_two_pow_le {p m L H : ℕ}
     refine (complexity_directProduct_two_mul_le (t := 2 ^ d)
       (ih (d * p + m) rfl fun e he => hH e (Nat.lt_succ_of_lt he)) f).trans ?_
     have hHd := hH d (Nat.lt_succ_self d)
-    have hApos : 0 < (2 ^ p + 1) ^ d := by positivity
+    have hKA : 0 < (2 ^ p + 1) * (2 ^ p + 1) ^ d := by positivity
     generalize (2 ^ p + 1) ^ d = A at *
-    have hK : 1 ≤ 2 ^ p + 1 := Nat.le_add_left 1 _
     generalize 2 ^ d = T, 2 ^ p + 1 = K at *
-    have hKA : 1 ≤ K * A := Nat.mul_pos hK hApos
     calc K * (A * (L + d * T * H)) + T * layerOverhead p (d * p + m)
         ≤ K * (A * (L + d * T * H)) + K * A * (T * H) := by
           refine Nat.add_le_add_left ?_ _
@@ -154,13 +151,12 @@ theorem eventually_mul_complexity_single_le (Q : ℕ) :
   filter_upwards [eventually_ge_atTop (max m₀ 1)] with m hm g
   have h := hm₀ m (le_of_max_le_left hm) g
   have hmpos : (0 : ℝ) < m := by exact_mod_cast (show 0 < m by omega)
-  have hQpos : (0 : ℝ) < Q := by exact_mod_cast hQ
   rw [le_div_iff₀ hmpos] at h
   exact_mod_cast
     calc (Q : ℝ) * m * complexity interpretation (single g) =
           Q * (complexity interpretation (single g) * m) := by ring
       _ ≤ Q * ((1 + 1 / Q) * 2 ^ m) := by gcongr
-      _ = (Q + 1) * 2 ^ m := by field_simp
+      _ = (Q + 1) * 2 ^ m := by field_simp [Nat.cast_ne_zero.mpr hQ.ne']
 
 /-- The per-layer overhead with prefixes of `2 log₂ n + 2` bits is eventually below
 `2 ^ (n / 2)`, even after multiplication by `4 P n`. -/
@@ -176,9 +172,7 @@ private theorem eventually_overhead_le (P : ℕ) : ∀ᶠ n in atTop,
   have hlog : Nat.log 2 n < n := (Nat.lt_two_pow_self).trans_le hpow
   have h8 : 8 ^ (2 * Nat.log 2 n + 2) ≤ 64 * n ^ 6 := by
     calc 8 ^ (2 * Nat.log 2 n + 2) = 64 * (2 ^ Nat.log 2 n) ^ 6 := by
-          rw [show 8 = 2 ^ 3 by rfl, ← pow_mul, ← pow_mul]
-          rw [show 3 * (2 * Nat.log 2 n + 2) = Nat.log 2 n * 6 + 6 by ring, pow_add]
-          ring
+          rw [pow_add, pow_mul, pow_right_comm 2, mul_comm]; rfl
       _ ≤ 64 * n ^ 6 := by gcongr
   calc 4 * P * n * (32 * 8 ^ (2 * Nat.log 2 n + 2) * (2 * Nat.log 2 n + 3) * (n + 2))
       ≤ 4 * P * n * (32 * (64 * n ^ 6) * (3 * n) * (3 * n)) := by
@@ -277,8 +271,7 @@ theorem eventually_mul_complexity_directProduct_le {depth : ℕ → ℕ}
   set p := 2 * ℓ + 2 with hpdef
   have hℓ : 1 ≤ ℓ := Nat.log_pos (by norm_num) (by omega)
   have hltℓ : n < 2 * 2 ^ ℓ := by
-    simpa only [← hℓdef, pow_succ, mul_comm _ 2] using
-      Nat.lt_pow_succ_log_self (b := 2) one_lt_two n
+    simpa only [← hℓdef, pow_succ, mul_comm _ 2] using Nat.lt_pow_succ_log_self one_lt_two n
   have hdp : (X + 1) * (d * p) ≤ n :=
     calc (X + 1) * (d * p) ≤ (X + 1) * (d * (4 * ℓ)) := by gcongr; omega
       _ = 4 * (X + 1) * d * ℓ := by ring
@@ -309,9 +302,8 @@ theorem eventually_mul_massComplexity_le {depth : ℕ → ℕ} (hdepth : IsUhlig
       (P * n : ℕ∞) * massComplexity f k ≤ ((P + 1) * 2 ^ n : ℕ) := by
   filter_upwards [eventually_mul_complexity_directProduct_le hdepth P] with n h f k hk
   calc (P * n : ℕ∞) * massComplexity f k
-      ≤ (P * n : ℕ∞) * (complexity interpretation (directProduct f k) : ℕ) := by
-        gcongr
-        exact massComplexity_le_complexity
+      ≤ (P * n : ℕ∞) * (complexity interpretation (directProduct f k) : ℕ) :=
+        mul_le_mul_of_nonneg_left massComplexity_le_complexity zero_le
     _ = ((P * n * complexity interpretation (directProduct f k) : ℕ) : ℕ∞) := by push_cast; ring
     _ ≤ ((P + 1) * 2 ^ n : ℕ) := by exact_mod_cast h f k hk
 

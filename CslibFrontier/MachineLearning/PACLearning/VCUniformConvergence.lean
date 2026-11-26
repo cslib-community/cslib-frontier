@@ -107,8 +107,7 @@ private theorem card_filter_le_abs_sum_mul_sub_half_le_of_abs_le {m : ℕ} (w : 
   have hexp : 2 * ((m : ℝ) * ε / 2) ^ 2 / (m * 2 ^ 2) = m * ε ^ 2 / 8 := by
     rcases eq_or_ne m 0 with rfl | hm
     · simp
-    · field_simp [Nat.cast_ne_zero.mpr hm]
-      ring
+    · field_simp [Nat.cast_ne_zero.mpr hm]; ring
   simpa only [Fintype.card_fin, Finset.sum_const, Finset.card_univ, nsmul_eq_mul, hexp] using h
 
 /-- The double-sample event: some `g ∈ G` has counts on the two samples that differ by at least
@@ -226,7 +225,6 @@ theorem measure_pi_exists_le_abs_card_filter_div_sub_measure_le_of_card_filter_s
       _ ≤ 1 - ν A := tsub_le_tsub_left hA 1
       _ = ν Aᶜ := (prob_compl_eq_one_sub .of_discrete).symm
       _ ≤ ν (Prod.mk S ⁻¹' J) := measure_mono hsub
-  have hJB : ν B ≤ 2 * ν.prod ν J := measure_le_two_mul_measure_prod ν ν B hJ hfib
   -- Swaps: the double-sample event has probability at most `β`.
   have hK : ∀ z, ((Finset.univ.filter fun σ : Fin m → Bool => swapSamples σ z ∈ J).card :
       ℝ≥0∞) ≤ 2 ^ m * ENNReal.ofReal β := fun z => by
@@ -234,7 +232,7 @@ theorem measure_pi_exists_le_abs_card_filter_div_sub_measure_le_of_card_filter_s
       rw [ENNReal.ofReal_pow (by norm_num), ENNReal.ofReal_ofNat],
       ← ENNReal.ofReal_mul (by positivity)]
     exact ENNReal.ofReal_le_ofReal (hβ z)
-  calc ν B ≤ 2 * ν.prod ν J := hJB
+  calc ν B ≤ 2 * ν.prod ν J := measure_le_two_mul_measure_prod ν ν B hJ hfib
     _ ≤ 2 * ENNReal.ofReal β := by
         gcongr
         exact measure_prod_le_of_card_filter_swapSamples_mem_le μ hJ _ hK
@@ -265,11 +263,10 @@ theorem measure_pi_exists_le_abs_card_filter_div_sub_measure_le (μ : Measure Z)
     (((Set.ncard_pos (Set.toFinite _)).2 ⟨fun i => g₀ (Fin.append S₀ S₀ i),
       mem_restriction.2 ⟨g₀, hg₀, fun _ => rfl⟩⟩).trans_le
       (ncard_restriction_le_growthFunction G (Fin.append S₀ S₀)))
-  have hexp4 : Real.exp (-(m * ε ^ 2 / 8)) < 1 / 4 := by
+  have hexp : 4 * Real.exp (-(m * ε ^ 2 / 2)) ≤ 1 := by
+    have hexp_le : Real.exp (-(m * ε ^ 2 / 2)) ≤ Real.exp (-(m * ε ^ 2 / 8)) :=
+      Real.exp_le_exp.2 (by linarith [mul_nonneg (Nat.cast_nonneg m : (0 : ℝ) ≤ m) (sq_nonneg ε)])
     linarith [le_mul_of_one_le_left (Real.exp_pos (-(m * ε ^ 2 / 8))).le hN]
-  have hexp_le : Real.exp (-(m * ε ^ 2 / 2)) ≤ Real.exp (-(m * ε ^ 2 / 8)) :=
-    Real.exp_le_exp.2 (by linarith [mul_nonneg (Nat.cast_nonneg m : (0 : ℝ) ≤ m) (sq_nonneg ε)])
-  have hexp : 4 * Real.exp (-(m * ε ^ 2 / 2)) ≤ 1 := by linarith
   refine (measure_pi_exists_le_abs_card_filter_div_sub_measure_le_of_card_filter_swapSamples_le μ G
     m hε hexp (β := 2 * growthFunction G (m + m) * Real.exp (-(m * ε ^ 2 / 8))) fun z =>
       (card_filter_swapSamples_mem_gapEvent_le G hε z).trans_eq (by ring)).trans_eq
@@ -338,8 +335,7 @@ theorem four_mul_growthFunction_mul_exp_le_of_uniformConvergenceSampleSize_le
   have hT : 1 ≤ (10 / ε) ^ 2 := one_le_pow₀ (by rw [le_div_iff₀ hε]; linarith)
   have hexp : ((m + m : ℕ) : ℝ) / (10 / ε) ^ 2 = m * ε ^ 2 / 50 := by
     push_cast
-    field_simp
-    ring
+    field_simp; ring
   have hmε : 0 ≤ (m : ℝ) * ε ^ 2 := by positivity
   rw [uniformConvergenceSampleSize, div_mul_eq_mul_div, div_le_iff₀ (by positivity),
     Real.log_div (by norm_num) hδ.ne'] at hm
@@ -354,8 +350,7 @@ theorem four_mul_growthFunction_mul_exp_le_of_uniformConvergenceSampleSize_le
           Real.log_mul (by norm_num : (4 : ℝ) ≠ 0) (by positivity),
           Real.log_mul (Real.exp_pos _).ne' (by positivity), Real.log_exp, Real.log_exp,
           Real.log_pow, Real.log_pow]
-        push_cast
-        linarith
+        push_cast; linarith
 
 end SampleSize
 

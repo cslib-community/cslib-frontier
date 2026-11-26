@@ -115,11 +115,9 @@ private theorem dekker_write_not_lt_stale_read
     (eB1 : [c0, c1, c2, c3][jB1] = ⟨!reg, reg, .read, .readRet false⟩) :
     ¬ jA0 < jB1 := by
   intro hlt
-  have hother : ∀ (k : ℕ) (hk : k < 4), k ≠ jA0 → k ≠ jB1 →
+  have hother (k : ℕ) (hk : k < 4) (h1 : k ≠ jA0) (h2 : k ≠ jB1) :
       decide (([c0, c1, c2, c3][k]'hk).obj = reg) = false := by
-    intro k hk h1 h2
-    have hor : k = jA1 ∨ k = jB0 := by omega
-    rcases hor with rfl | rfl
+    rcases (by omega : k = jA1 ∨ k = jB0) with rfl | rfl
     · rw [eA1]; cases reg <;> rfl
     · rw [eB0]; cases reg <;> rfl
   have h6 : (jA0 = 0 ∧ jB1 = 1) ∨ (jA0 = 0 ∧ jB1 = 2) ∨ (jA0 = 0 ∧ jB1 = 3) ∨
@@ -134,13 +132,11 @@ private theorem dekker_write_not_lt_stale_read
     simp only [List.getElem_cons_zero, List.getElem_cons_succ] at h0 h1 h2 h3
     rcases h6 with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;>
       simp_all [List.filter]
-  rw [History.objSubhistory_flatMap_toEvents, hfil] at hleg
-  unfold registerSeqSpec at hleg
-  rw [SeqSpec.mem_ofMachine_allowed] at hleg
+  rw [History.objSubhistory_flatMap_toEvents, hfil, registerSeqSpec,
+    SeqSpec.mem_ofMachine_allowed] at hleg
   simp only [List.flatMap_cons, List.flatMap_nil, OpCall.toEvents, List.cons_append,
     List.nil_append, SeqSpec.evalMachine, registerStep] at hleg
-  obtain ⟨_, _, _, _, _, _, _, hbad, _⟩ := hleg
-  nomatch hbad
+  rcases hleg with ⟨_, _, _, _, _, _, _, ⟨⟩, _⟩
 
 /-- Original explicit 2-process, 1-register history that is **sequentially consistent** (`B`'s
 `read false` can be ordered before `A`'s `write true`) yet **not linearizable** (`A`'s `write true`
@@ -182,9 +178,9 @@ theorem exists_sequentiallyConsistent_not_linearizable :
     match cs, hlen_cs with
     | [c₀, c₁], _ =>
       have hleg0 := hlegS ()
-      rw [History.objSubhistory_eq_self_of_forall_obj (fun _ _ => rfl)] at hleg0
       unfold registerSeqSpec at hleg0
-      rw [SeqSpec.mem_ofMachine_allowed] at hleg0
+      rw [History.objSubhistory_eq_self_of_forall_obj (fun _ _ => rfl),
+        SeqSpec.mem_ofMachine_allowed] at hleg0
       cases hp₀ : c₀.proc
       · cases hp₁ : c₁.proc
         · have ht := heqS true
@@ -192,21 +188,16 @@ theorem exists_sequentiallyConsistent_not_linearizable :
             Bool.false_eq_true, decide_false, List.flatMap_nil] at ht
           nomatch ht
         · obtain rfl : c₀ = ⟨false, (), .write true, .writeAck⟩ :=
-            List.singleton_injective (flatMap_toEvents_injective (by
-              have h := (heqS false).symm
+            List.singleton_injective <| flatMap_toEvents_injective <| ((heqS false).trans (by
               simp only [History.procSubhistory_flatMap_toEvents, List.filter, hp₀, hp₁,
-                decide_true, Bool.true_eq_false, decide_false] at h
-              exact h))
+                decide_true, Bool.true_eq_false, decide_false])).symm
           obtain rfl : c₁ = ⟨true, (), .read, .readRet false⟩ :=
-            List.singleton_injective (flatMap_toEvents_injective (by
-              have h := (heqS true).symm
+            List.singleton_injective <| flatMap_toEvents_injective <| ((heqS true).trans (by
               simp only [History.procSubhistory_flatMap_toEvents, List.filter, hp₁,
-                Bool.false_eq_true, decide_false, decide_true] at h
-              exact h))
+                Bool.false_eq_true, decide_false, decide_true])).symm
           simp only [List.flatMap_cons, List.flatMap_nil, OpCall.toEvents, List.cons_append,
             List.nil_append, SeqSpec.evalMachine, registerStep] at hleg0
-          obtain ⟨_, _, _, _, _, _, _, hbad, _⟩ := hleg0
-          nomatch hbad
+          rcases hleg0 with ⟨_, _, _, _, _, _, _, ⟨⟩, _⟩
       · cases hp₁ : c₁.proc
         · obtain ⟨r, i, hr, hi, hlt⟩ := hpr_S
           simp only [History.respPos, History.invPos, List.flatMap_cons, List.flatMap_nil,
@@ -254,13 +245,10 @@ theorem exists_obj_sequentiallyConsistent_not_global :
     rw [List.append_nil] at hwf' heqS
     have hevS := History.even_length_of_equivalent_complete hwf' hseqS heqS
     obtain ⟨cs, rfl⟩ := History.exists_calls_of_isSequential_even hseqS hevS
-    have hc_cnt : ∀ b : Bool, countProcCalls b cs = 2 := by
-      intro b
+    have hc_cnt (b : Bool) : countProcCalls b cs = 2 := by
       have hb := congrArg List.length (heqS b)
-      rw [History.procSubhistory_flatMap_toEvents, History.length_flatMap_toEvents] at hb
-      have hb_val : (History.procSubhistory (History.complete H) b).length = 4 := by
-        cases b <;> rfl
-      rw [hb_val] at hb
+      rw [History.procSubhistory_flatMap_toEvents, History.length_flatMap_toEvents,
+        (by cases b <;> rfl : (History.procSubhistory (History.complete H) b).length = 4)] at hb
       dsimp only [countProcCalls]; omega
     have hcF0 := hc_cnt false
     have hcT0 := hc_cnt true
@@ -278,13 +266,12 @@ theorem exists_obj_sequentiallyConsistent_not_global :
         [⟨true, true, .write true, .writeAck⟩, ⟨true, false, .read, .readRet false⟩] :=
       flatMap_toEvents_injective
         (by rw [← History.procSubhistory_flatMap_toEvents, ← heqS true]; rfl)
-    have hc_S : ∀ b i, i < 2 → History.IsCompletedOp (cs.flatMap OpCall.toEvents) ⟨b, i⟩ := by
-      intro b i hi
+    have hc_S (b : Bool) (i : ℕ) (hi : i < 2) :
+        History.IsCompletedOp (cs.flatMap OpCall.toEvents) ⟨b, i⟩ := by
       rw [History.isCompletedOp_iff_lt_length, History.procSubhistory_flatMap_toEvents,
         History.length_flatMap_toEvents]
       have hb := hc_cnt b
-      dsimp only [countProcCalls] at hb ⊢
-      omega
+      dsimp only [countProcCalls] at hb ⊢; omega
     have hj_ord b {j0 j1} (hj0 : j0 < cs.length) (hj1 : j1 < cs.length)
         (hop0 : opIdAt cs j0 hj0 = ⟨b, 0⟩) (hop1 : opIdAt cs j1 hj1 = ⟨b, 1⟩) : j0 < j1 := by
       have hpr := History.prec_of_same_proc_lt (e₀ := ⟨b, 0⟩) (e₁ := ⟨b, 1⟩) rfl

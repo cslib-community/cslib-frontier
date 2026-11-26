@@ -9,12 +9,14 @@ module
 
 public import CslibFrontier.Computability.Complexity.FineGrained.CountingEncodings
 public import CslibFrontier.Computability.Complexity.Problems.SharpTwoSAT
+public meta import CslibFrontier.Computability.Complexity.Problems.SharpTwoSAT
+public meta import CslibFrontier.Computability.Complexity.Problems.SharpTwoSATParity
 public import CslibFrontier.Foundations.Data.Polynomial.FiniteDifference
 
 /-!
 # Tests for counting CNF encodings, finite-difference interpolation, and `#2SAT` completeness
 
-Kernel-checked strict-`module` examples (using no `native_decide` and no `import all`) exercising:
+Strict-`module` examples and concrete evaluations exercising:
 
 1. Univariate polynomial finite-difference zero-evaluation identity over `ℤ` (`degree ≤ 2`).
 2. All six bounded-width CNF counting encodings:
@@ -31,6 +33,7 @@ Kernel-checked strict-`module` examples (using no `native_decide` and no `import
 3. The `clauseWeightTwoSAT` width-`2` gadget reduction recovering `#SAT = 7` on a `3`-clause via
    `2 * P(1) - P(2) = 2 * 8 - 9 = 7`, `SharpTwoSAT_countingTuringComplete`,
    `SharpTwoSAT_polyTime_implies_P_eq_NP`, and all six conditional runtime transfer endpoints.
+4. Both parity queries evaluated on an empty clause and a repeated literal with a sparse label.
 -/
 
 public section
@@ -222,6 +225,22 @@ example :
     2 * SharpTwoSAT (clauseWeightTwoSAT single3Clause 0) -
       SharpTwoSAT (clauseWeightTwoSAT single3Clause 1) = single3Clause.modelCount := by
   decide
+
+-- An empty clause makes the two counts equal, even with no source variables.
+/-- info: (2, 2) -/
+#guard_msgs in
+#eval
+  let φ : CNF ℕ := [[]]
+  (SharpTwoSAT (SharpTwoSATParity.parityQuery φ false),
+    SharpTwoSAT (SharpTwoSATParity.parityQuery φ true))
+
+-- The two occurrences of variable 7 still represent one assignment bit.
+/-- info: (4, 3) -/
+#guard_msgs in
+#eval
+  let φ : CNF ℕ := [[(7, true), (7, true)]]
+  (SharpTwoSAT (SharpTwoSATParity.parityQuery φ false),
+    SharpTwoSAT (SharpTwoSATParity.parityQuery φ true))
 
 -- Strict `module`-boundary type checks of main completeness and runtime-transfer endpoints:
 section EndpointChecks

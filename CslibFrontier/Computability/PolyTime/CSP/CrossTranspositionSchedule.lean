@@ -143,18 +143,16 @@ private theorem recover_step (I : State Rel) (j : ℕ) (τ : ℕ → Bool)
     have hL : L.length = j := List.length_take_of_le hj.le
     have hports : I.ports = L ++ [x,y] ++ R := by
       simpa only [L, x, y, R, List.append_assoc, List.cons_append, List.nil_append] using hp.symm
-    have hI : I = (⟨I.body, L ++ [x,y] ++ R, I.rotation⟩ : State Rel) := by
+    have hI : (⟨I.body, L ++ [x,y] ++ R, I.rotation⟩ : State Rel) = I := by
       cases I
-      exact congrArg (fun ps => State.mk _ ps _) hports
-    have hr := recover_transposeAdjacent g w I.body L x y R I.rotation τ
-      (by simpa only [← hI, hL] using ht)
-    rw [ite_eq_left h]
-    simp only [pow_one]
-    have hr' : I.body.eval sem (fun z => τ (2*z)) = true ∧
+      exact congrArg (fun ps => State.mk _ ps _) hports.symm
+    obtain ⟨heval, hmap⟩ : I.body.eval sem (fun z => τ (2*z)) = true ∧
         (transposeAdjacent g w I j).ports.map τ =
           L.map (fun z => τ (2*z)) ++ [τ (2*y),τ (2*x)] ++ R.map (fun z => τ (2*z)) := by
-      simpa only [← hI, hL] using hr
-    refine ⟨hr'.1, hr'.2.trans ?_⟩
+      simpa only [hI, hL] using recover_transposeAdjacent g w I.body L x y R I.rotation τ
+        (by simpa only [hI, hL] using ht)
+    simp only [h, ↓reduceIte, pow_one]
+    refine ⟨heval, hmap.trans ?_⟩
     rw [hports, List.map_append, List.map_append, List.map_cons, List.map_cons,
       List.map_nil, ← hL, ← List.length_map (f := fun z => τ (2*z))]
     simp [List.swap_adjacent_eq_take_drop, List.drop_append]
@@ -188,16 +186,12 @@ theorem recover_transposeSchedule (I : State Rel) (js : List ℕ) (τ : ℕ → 
     rw [hp] at hstep
     have hprior := ih (fun z => τ (2^e*z)) hstep.1
     have hass : (fun z => τ (2^e*(2^(js.countP (fun t => decide (t+1<I.ports.length)))*z))) =
-        (fun z => τ (2^((js++[j]).countP (fun t => decide (t+1<I.ports.length)))*z)) := by
-      funext z
-      simp only [countP_snoc, e, pow_add]
-      congr 1
-      ac_rfl
+        (fun z => τ (2^((js++[j]).countP (fun t => decide (t+1<I.ports.length)))*z)) :=
+      funext fun z => congrArg τ (by simp only [countP_snoc, e, pow_add]; ring)
     refine ⟨by simpa only [hass] using hprior.1, ?_⟩
     rw [transposeSchedule_snoc]
     change (transposeAdjacent g w J j).ports.map τ = _
-    rw [hstep.2, hprior.2, List.foldl_append, List.foldl_cons, List.foldl_nil]
-    simp only [hass]
+    rw [hstep.2, hprior.2, List.foldl_append, List.foldl_cons, List.foldl_nil, hass]
 
 private theorem forward_step (I : State Rel) (j : ℕ) (σ : ℕ → Bool)
     (hs : I.body.eval sem σ = true) :
@@ -304,24 +298,15 @@ private theorem prefix_storage (I : State Rel) (js : List ℕ) :
   | nil => exact ⟨fun _ => rfl, by simp⟩
   | append_singleton js j ih =>
     let J := transposeSchedule g w I js
-    have hc := components_transposeSchedule g w I js
-    have hp := hc.2.2.1
-    change J.ports.length = I.ports.length at hp
+    obtain ⟨_, _, hp, _⟩ := components_transposeSchedule g w I js
     by_cases h : j+1<I.ports.length
-    · have hgood : j+1<J.ports.length := by rw [hp]; exact h
-      have hs := storage_transposeAdjacent g w J j hgood
-      have hn := counts_transposeAdjacent g w J j
-      simp only [ite_eq_left hgood, one_mul] at hn
+    · have hgood : j+1<J.ports.length := hp.symm ▸ h
+      obtain ⟨_, hm, _⟩ := counts_transposeAdjacent g w J j
+      simp only [ite_eq_left hgood, one_mul] at hm
       dsimp only
       rw [countP_snoc, ite_eq_left h]
       refine ⟨by omega, fun _ => ?_⟩
-      rw [transposeSchedule_snoc]
-      change (transposeAdjacent g w J j).rotation.successor.length =
-        2 * ((transposeAdjacent g w J j).body.occurrences.length + I.ports.length) ∧
-        ∀ v ∈ (transposeAdjacent g w J j).rotation.successor,
-          v.size ≤ (2 * ((transposeAdjacent g w J j).body.occurrences.length +
-            I.ports.length + 4)).size
-      simpa only [hn.2.1, hp] using hs
+      simpa only [transposeSchedule_snoc, J, hm, hp] using storage_transposeAdjacent g w J j hgood
     · have hbad : J.ports.length ≤ j+1 := by rw [hp]; omega
       dsimp only
       rw [countP_snoc, ite_eq_right h, add_zero, transposeSchedule_snoc,
@@ -401,20 +386,17 @@ private theorem prefix_size (encRel : Rel ↪ List Bool) (I : State Rel) (js s :
          _ = K := by dsimp only [K]; ring
   have hL : L = 8*K := by dsimp only [L, K]; ring
   have hpad : K ≤ L := by rw [hL]; omega
-  have hw : ∀ z ∈ J.body.vars ++ J.ports, z.size ≤ L := by
-    intro z hz
-    have hx := name_width_transposeSchedule_le g w I s S hb.2.2.2.2 z hz
+  have hw : ∀ z ∈ J.body.vars ++ J.ports, z.size ≤ L := fun z hz => by
+    have hx : z.size ≤ max S (2*g.numAux+7).size + k :=
+      name_width_transposeSchedule_le g w I s S hb.2.2.2.2 z hz
     have hmax : max S (2*g.numAux+7).size ≤ K :=
       max_le (hSU.trans hUK) (hC.2.2.2.1.trans hCK)
-    change z.size ≤ max S (2*g.numAux+7).size + k at hx
-    rw [hL]
-    omega
+    rw [hL]; omega
   have hstore := prefix_storage g w I s
   have hD : J.rotation.successor.length ≤ L ∧
       ∀ v ∈ J.rotation.successor, v.size ≤ L := by
     by_cases hzero : k=0
-    · have heq := hstore.1 hzero
-      change J = I at heq
+    · have heq : J = I := hstore.1 hzero
       rw [heq]
       refine ⟨hb.2.2.1.trans (hSU.trans (hUK.trans hpad)), ?_⟩
       intro v hv
@@ -435,8 +417,7 @@ private theorem prefix_size (encRel : Rel ↪ List Bool) (I : State Rel) (js s :
       · rw [ht.1, hL]; omega
       · intro v hv
         have hx := (ht.2 v hv).trans (Nat.size_le_self _)
-        rw [hL]
-        omega
+        rw [hL]; omega
   exact State.encoding_length_le encRel J L (hq.trans hpad) (hm.trans hpad)
     (hp.trans (hUK.trans hpad)) hD.1 (hr.trans hpad) hw hD.2
 

@@ -89,7 +89,7 @@ omit [Fintype F] [DecidableEq F] in
 theorem appendPoint_prefixDirection (i : Fin m) (v : Fin (i.val + 1) → F) :
     appendPoint (0 : F) (prefixDirection i v) = prefixDirection i.castSucc v :=
   funext fun j => Fin.lastCases
-    (by simp [prefixDirection, show ¬ m < i.val + 1 by have := i.isLt; omega])
+    (by simp [prefixDirection, Nat.not_lt.mpr (Nat.add_one_le_iff.mpr i.isLt)])
     (fun _ => by simp only [appendPoint_apply_castSucc, prefixDirection, Fin.val_castSucc]) j
 
 omit [DecidableEq F] in
@@ -101,9 +101,7 @@ theorem uniformPoint_succ :
   calc
     _ = ((uniformOfFintype F).bind fun x =>
         (uniformOfFintype (Point F m)).map fun u => (x, u)).map e := by
-      rw [PMF.map_bind]
-      simp only [PMF.map_comp]
-      rfl
+      simp only [PMF.map_bind, PMF.map_comp]; rfl
     _ = _ := by rw [uniformOfFintype_prod, uniformOfFintype_map_equiv]
 
 omit [DecidableEq F] in
@@ -245,18 +243,16 @@ private theorem lineHasDegree_append (x : F) (L : Finset (Point F m)) (d : ℕ)
     (f : L → F) :
     LineHasDegree (f ∘ (appendLineEquiv x L).symm) d ↔ LineHasDegree f d := by
   refine ⟨fun h => ?_, fun h => ?_⟩
-  · have ⟨u, v, hL, _, _, _⟩ := h
+  · obtain ⟨u, v, hL, -⟩ := id h
     have hinit : (fun p : Point F (m + 1) => Fin.init p) ∘ appendPoint x = id :=
       funext fun z => funext (appendPoint_apply_castSucc x z)
-    have hproj : (appendLine x L).image (fun p => Fin.init p) = L := by
-      rw [appendLine, map_eq_image, image_image, hinit, image_id]
     have hgeom : linePoints (Fin.init u) (Fin.init v) = L := by
-      rw [← hproj, ← hL]
-      simp only [linePoints, image_image]
-      congr 1
+      have himg := congrArg (Finset.image Fin.init) hL
+      simp only [appendLine, map_eq_image, linePoints, image_image, hinit, image_id] at himg
+      exact himg
     subst hgeom
     exact (lineHasDegree_append_iff x _ _ d f).mp h
-  · have ⟨u, v, hL, _, _, _⟩ := h
+  · obtain ⟨u, v, hL, -⟩ := id h
     subst hL
     exact (lineHasDegree_append_iff x u v d f).mpr h
 

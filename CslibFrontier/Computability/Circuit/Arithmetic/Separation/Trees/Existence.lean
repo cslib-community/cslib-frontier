@@ -118,10 +118,8 @@ private theorem sizes_le (hC : TowerConstants FL laws c ρ 1 q) (hm : m ≤ c * 
   have hc := hC.one_le
   have hJX : J + 1 ≤ Fintype.card (T.X 0) := Nat.lt_two_pow_self.trans_le
     ((Nat.pow_le_pow_left hC.two_lt_ratio.le J).trans (T.pow_le_card_X_zero hC.card_X_last_pos))
-  have hZ : 1 ≤ Z := by
-    by_contra h0
-    have : c * M = 0 := by simp [show M = 0 by omega]
-    omega
+  have hZ : 1 ≤ Z :=
+    (Nat.pos_of_ne_zero fun h0 => absurd (hJX.trans hX) (by simp [h0])).trans_le hMZ
   have hXG : Fintype.card (T.X 0) ≤ (c + 3) * Z := hX.trans (Nat.mul_le_mul (by omega) hMZ)
   refine ⟨Nat.le_mul_of_pos_right _ hZ |>.trans' (by omega), hm.trans ?_, hJX.trans hXG,
     hA.trans (hMZ.trans (Nat.le_mul_of_pos_left Z (by omega))), hXG⟩
@@ -180,9 +178,8 @@ private theorem exists_thinTrees_of_tower (Rt : Routes T m Uu)
     have h1 : 3 * c * constNormBound c m X N ≤ G ^ 19 :=
       (Nat.mul_le_mul (Nat.mul_le_mul_left 3 hcG) hcnb).trans
         (by rw [mul_assoc, ← pow_succ']; exact gk (by norm_num) (by norm_num))
-    have h2 : 3 * G ^ 1 ≤ G ^ 19 := gk (by norm_num) (by norm_num)
+    have h2 : 3 * G ≤ G ^ 19 := by simpa using gk (a := 1) (by norm_num) (by norm_num)
     have h3 : 2 * G ^ 19 ≤ G ^ 22 := gk (by norm_num) (by norm_num)
-    rw [pow_one] at h2
     omega
   -- the outcomes are below `U1`
   obtain ⟨U1, hU1⟩ : ∃ U1, U1 = constMoveCap c m X N N * (c + c) + 1 := ⟨_, rfl⟩
@@ -196,20 +193,16 @@ private theorem exists_thinTrees_of_tower (Rt : Routes T m Uu)
   have hGV {a : ℕ} (ha : a ≤ G) : a ≤ G ^ 26 := ha.trans (Nat.le_self_pow (by norm_num) G)
   have hV : SizeBound FL m A (G ^ 26) := hC.sizeBound (hGV hcG) (hmG.trans (gp (by norm_num)))
     (hGV (by omega)) (hGV hAG) (hGV hXG)
-  have hV' (e : ℕ) : (G ^ 26) ^ e = G ^ (26 * e) := (pow_mul G 26 e).symm
-  have hmove := card_move_le (R := Rt) (ch := ch) hD hV hH.b_pos
-  have hchan := card_moveChannel_le (R := Rt) (ch := ch) hD hV
-  have hslot := card_moveSlot_le (R := Rt) (ch := ch) hD hV hH.b_pos
-  have hunit := card_planUnit_le (R := Rt) hD hV Pl (hGV hNG) hU1G
-  have htgt := card_target_le (m := m) (A := A) hD hV hH.b_pos
-  have hnode := card_node_le hD hV
-  rw [hV'] at hmove hchan hslot hunit htgt hnode
-  replace hmove := hmove.trans (gk (a := 130) (a' := 133) (by norm_num) le_rfl)
-  replace hchan := hchan.trans (gk (a := 156) (a' := 159) (by norm_num) le_rfl)
-  replace hslot := hslot.trans (gk (a := 130) (a' := 133) (by norm_num) le_rfl)
-  replace hunit := hunit.trans (gk (a := 182) (a' := 185) (by norm_num) le_rfl)
-  replace htgt := htgt.trans (gk (a := 130) (a' := 133) (by norm_num) le_rfl)
-  have hnode' := hnode.trans (gk (a := 52) (a' := 55) (by norm_num) le_rfl)
+  have gkV {k e a' : ℕ} (hk : k ≤ 27) (ha : 26 * e + 3 ≤ a') : k * (G ^ 26) ^ e ≤ G ^ a' :=
+    (Nat.mul_le_mul_left k (pow_mul G 26 e).symm.le).trans (gk hk ha)
+  have hmove := (card_move_le (R := Rt) (ch := ch) hD hV hH.b_pos).trans (gkV (by norm_num) le_rfl)
+  have hchan := (card_moveChannel_le (R := Rt) (ch := ch) hD hV).trans (gkV (by norm_num) le_rfl)
+  have hslot := (card_moveSlot_le (R := Rt) (ch := ch) hD hV hH.b_pos).trans
+    (gkV (by norm_num) le_rfl)
+  have hunit := (card_planUnit_le (R := Rt) hD hV Pl (hGV hNG) hU1G).trans
+    (gkV (by norm_num) le_rfl)
+  have htgt := (card_target_le (m := m) (A := A) hD hV hH.b_pos).trans (gkV (by norm_num) le_rfl)
+  have hnode' := (card_node_le hD hV).trans (gkV (by norm_num) le_rfl)
   have hpair : Fintype.card (Sym2 T.Fl) ≤ G := hC.card_pair_le.trans hcG
   have hB : ProgramBound Rt ch FL N U1 (G ^ 190) := {
     base_mul_base_le :=
@@ -223,27 +216,22 @@ private theorem exists_thinTrees_of_tower (Rt : Routes T m Uu)
     card_kind_le := (hC.card_kind_le.trans hcG).trans (Nat.le_self_pow (by norm_num) G)
     types_le := (hC.types_le.trans hcG).trans (Nat.le_self_pow (by norm_num) G)
     endTime_le := by
-      have h1 : 9 * G ^ 8 ≤ G ^ 11 := gk (by norm_num) (by norm_num)
-      have h2 : G ≤ G ^ 8 := Nat.le_self_pow (by norm_num) G
-      have h3 := gp (a := 11) (a' := 190) (by norm_num)
+      have := gk (k := 9) (a := 8) (a' := 11) (by norm_num) le_rfl
+      have := Nat.le_self_pow (n := 8) (by decide) G
+      have := gp (a := 11) (a' := 190) (by norm_num)
       unfold endTime
       omega
     units_le := by
-      have h1 : b * Fintype.card (Sym2 T.Fl) * numUnits Rt ch FL N U1 ≤ G * G * G ^ 185 :=
-        Nat.mul_le_mul (Nat.mul_le_mul (hC.places_le.trans hcG) hpair)
-          ((card_planUnit Pl).symm.le.trans hunit)
-      have h2 : G * G * G ^ 185 + 2 ≤ G ^ 190 := by
-        have h3 : 3 * G ^ 187 ≤ G ^ 190 := gk (by norm_num) (by norm_num)
-        have h4 := Nat.one_le_pow 187 G (by omega)
-        rw [show G * G * G ^ 185 = G ^ 187 by ring]
-        omega
+      have h1 : b * Fintype.card (Sym2 T.Fl) * numUnits Rt ch FL N U1 ≤ G ^ 187 :=
+        (Nat.mul_le_mul (Nat.mul_le_mul (hC.places_le.trans hcG) hpair)
+          ((card_planUnit Pl).symm.le.trans hunit)).trans_eq (by ring)
+      have := gk (k := 3) (a := 187) (a' := 190) (by norm_num) le_rfl
+      have := Nat.one_le_pow 187 G (by omega)
       omega }
   have hB' : UnitBound Rt FL Pl N U1 (G ^ 190) 0 :=
     ⟨hslot.trans (gp (by norm_num)), hunit.trans (gp (by norm_num)), Nat.zero_le _⟩
   have hMNC {a : ℕ} (ha : a ≤ 2500) : G ^ a ≤ (M * N) ^ C :=
-    (gp ha).trans (by
-      rw [hG]
-      exact mul_pow_le_pow hMN (e1.trans hC0))
+    (gp ha).trans (hG ▸ mul_pow_le_pow hMN (e1.trans hC0))
   have hY : StepBase ((M * N) ^ C) (G ^ 190) :=
     ⟨hG3.trans (Nat.le_self_pow (by norm_num) G), by rw [← pow_mul]; exact hMNC (by norm_num)⟩
   have hsteps : Fintype.card ((Fin A × Fin A) ⊕ (moves Rt FL Pl).Channel) +
@@ -256,14 +244,14 @@ private theorem exists_thinTrees_of_tower (Rt : Routes T m Uu)
           (22 * G ^ 190 + 8 * G ^ 190) * (G ^ 190) ^ 12 := Nat.mul_le_mul_right _ (by omega)
         _ = 30 * G ^ 2470 := by ring
     have h2 : 30 * G ^ 2470 ≤ G ^ 2476 := by
-      have : 10 * G ^ 2470 ≤ G ^ 2473 := gk (by norm_num) (by norm_num)
-      have : 3 * G ^ 2473 ≤ G ^ 2476 := gk (by norm_num) (by norm_num)
+      have := gk (k := 10) (a := 2470) (a' := 2473) (by norm_num) le_rfl
+      have := gk (k := 3) (a := 2473) (a' := 2476) (by norm_num) le_rfl
       omega
     have h3 : A * A ≤ G ^ 2476 := (Nat.mul_le_mul hAG hAG).trans
       ((pow_two G).symm.le.trans (gp (by norm_num)))
-    have h4 : 3 * G ^ 2476 ≤ G ^ 2479 := gk (by norm_num) (by norm_num)
-    have h5 : G ^ 2479 ≤ (M * N) ^ C := hMNC (by norm_num)
-    have h6 : Fintype.card (MoveChannel Rt ch FL) ≤ G ^ 2476 := hchan.trans (gp (by norm_num))
+    have := gk (k := 3) (a := 2476) (a' := 2479) (by norm_num) le_rfl
+    have := hMNC (a := 2479) (by norm_num)
+    have := hchan.trans (gp (a' := 2476) (by norm_num))
     omega
   obtain ⟨prog⟩ := exists_treeProgram (R := Rt) (FL := FL) (Pl := Pl) hH.h_pos hH.b_pos N hY hB
     hB' hsteps
@@ -293,9 +281,8 @@ private theorem exists_thinTrees_of_tower (Rt : Routes T m Uu)
           (N + (M : ℝ) ^ 2) := by push_cast; ring
       _ ≤ _ := by gcongr
   have htot : treeUnitBound FL Uu A N ρ ≤ lg M ^ C * M * (N + M ^ 2) := by
-    have h0 : treeFactor c * c ≤ (c + 1) * treeFactor c := by
-      rw [mul_comm]
-      exact Nat.mul_le_mul_right _ (Nat.le_succ c)
+    have h0 : treeFactor c * c ≤ (c + 1) * treeFactor c :=
+      (mul_comm _ _).trans_le (Nat.mul_le_mul_right _ (Nat.le_succ c))
     have h1 : treeFactor c * c * lg M ^ 7 ≤ lg M ^ C :=
       Nat.mul_pow_le_pow_of_add_le hl (by omega)
     calc treeUnitBound FL Uu A N ρ ≤ 2 * c * constNormBound c m X N * c :=
@@ -414,10 +401,7 @@ private theorem exists_thinTrees_of_tower (Rt : Routes T m Uu)
     card_children_root_le := fun n o => (card_children_root_le _).trans (by omega)
     card_dead_le := fun o => card_image_le.trans ((Fintype.card_congr
       (moveChannelEquiv Rt FL Pl)).le.trans hdead)
-    stage_pos := fun r hr => by
-      change 0 < (Pl.party.symm (Pl.party ((moveOrder Rt ch FL r.1).party r.2))).stage
-      rw [Equiv.symm_apply_apply]
-      exact hstage _ hr _
+    stage_pos := fun r hr => (Equiv.symm_apply_apply Pl.party _).symm ▸ hstage _ hr _
     exists_parent := fun n hn o hg u hu => exists_parent _ (hInit hn) hg hu
     card_between_le := fun n hn o hg p hp => card_between_le _ (hInit hn) hg hp
     units_add_sum_le := fun n o p =>
@@ -455,10 +439,7 @@ theorem exists_thinTrees {A₀ : Type*} [CommSemiring A₀] {h : ℕ} [NeZero h]
   obtain ⟨c, hc⟩ := exists_towers h3 FL hgain
   refine ⟨treeExponent c, fun R _ _ M A N ℓ hM hA hN hℓ => ?_⟩
   obtain ⟨n, m, Uu, ⟨Rt⟩, hC, hX1, hX2, hm1, hm, hUu⟩ := hc R (algebraMap A₀ R) M (by omega)
-  have e : Real.logb 2 ((2 ^ SLTower.ee h : ℕ) : ℝ) = SLTower.ee h := by
-    push_cast
-    rw [Real.logb_pow, Real.logb_self_eq_one (by norm_num), mul_one]
-  rw [e]
-  exact exists_thinTrees_of_tower Rt hC le_rfl hm1 hm hUu hM hX1 hX2 hA hN hℓ
+  have e : Real.logb 2 ((2 ^ SLTower.ee h : ℕ) : ℝ) = SLTower.ee h := by simp [Real.logb_pow]
+  exact e ▸ exists_thinTrees_of_tower Rt hC le_rfl hm1 hm hUu hM hX1 hX2 hA hN hℓ
 
 end Cslib.Circuits.Arithmetic.Separation.Trees

@@ -152,12 +152,10 @@ private theorem firstAccepted_eq_terminal (stride : ℕ) (tryAt : ℕ → Option
   induction k generalizing start with
   | zero => rfl
   | succ k ih =>
-    rw [Fin.findSome?_succ]
-    simp only [Fin.val_zero, zero_mul, add_zero]
     have next (i : Fin k) : start + i.succ.val * stride = start + stride + i.val * stride := by
-      rw [Fin.val_succ, Nat.add_mul, Nat.one_mul]
-      lia
-    simp only [next]
+      rw [Fin.val_succ]; ring
+    rw [Fin.findSome?_succ]
+    simp only [Fin.val_zero, zero_mul, add_zero, next]
     cases h : tryAt start with
     | none => simp [signingRetryLoop, id_bind_eq, id_pure_eq, h, terminalReply]
     | some r =>
@@ -294,9 +292,8 @@ private theorem bounded_vector_reads {α : Type} {n : ℕ} (f : Fin n → Extend
   | zero => rw [Vector.ofFnM_zero]; exact .pure _ _
   | succ n ih =>
     rw [Vector.ofFnM_succ]
-    apply (ih _ (fun i => h i.castSucc)).bind
-    intro _
-    simpa only [Nat.add_zero] using (h (Fin.last n)).bind (m := 0) (fun _ => .pure _ _)
+    exact (ih _ fun i => h i.castSucc).bind fun _ => by
+      simpa only [Nat.add_zero] using (h (Fin.last n)).bind (m := 0) fun _ => .pure _ _
 
 private theorem signingRetryLoop_bounded {ι : Type} {spec : ι → Type} {α R : Type}
     (stride k : ℕ) (reply : Option α → R) (tryAt : ℕ → OracleComp spec (Option (Option α)))
@@ -305,28 +302,22 @@ private theorem signingRetryLoop_bounded {ι : Type} {spec : ι → Type} {α R 
   induction fuel generalizing κ with
   | zero => exact .pure _ _
   | succ n ih =>
-    rw [show k * (n + 1) = k + k * n by ring]
-    refine (htry κ).bind fun res => ?_
-    cases res with
-    | none => exact .pure _ _
-    | some sig =>
-      cases sig with
-      | none => exact ih (κ + stride)
-      | some _ => exact .pure _ _
+    rw [Nat.mul_succ, Nat.add_comm (k * n)]
+    refine (htry κ).bind fun
+      | none => .pure _ _
+      | some none => ih (κ + stride)
+      | some (some _) => .pure _ _
 
 /-- Each FIPS trial uses ℓ mask-row reads, one commitment read and one challenge-expansion read.
 Rejection and fatal expansion consume these reads before the result is examined. -/
 theorem signingQueries_bounded {R : Type} (s : Level) (sk : PrivateKey s) (A : PublicMatrix s)
     (μ : List Bool) (seed : List Byte) (reply : Option (List Byte) → R) (fuel κ : ℕ) :
     (signingQueries s sk A μ seed reply fuel κ).IsQueryBounded ((s.params.ℓ + 2) * fuel) := by
-  apply signingRetryLoop_bounded
-  intro nonce
-  have masks : (expandMaskReads s seed nonce).IsQueryBounded s.params.ℓ := by
-    apply bounded_vector_reads
-    intro _
-    exact .liftBind _ _ 0 fun _ => .pure _ _
-  rw [show s.params.ℓ + 2 = s.params.ℓ + (1 + (1 + 0)) by ring]
-  exact masks.bind fun _ => .liftBind _ _ _ fun _ => .liftBind _ _ _ fun _ => .pure _ _
+  refine signingRetryLoop_bounded _ _ _ _ (fun nonce => ?_) fuel κ
+  have hlen : s.params.ℓ + 2 = s.params.ℓ + (1 + (1 + 0)) := by omega
+  rw [hlen]
+  exact (bounded_vector_reads _ fun _ => .liftBind _ _ 0 fun _ => .pure _ _).bind fun _ =>
+    .liftBind _ _ _ fun _ => .liftBind _ _ _ fun _ => .pure _ _
 
 /-- Two prelude reads for the representative and hedging seed, followed by at most 814 trials. -/
 theorem Xofs.signInternalReads_bounded {R : Type} (H : Xofs) (s : Level) (key : List Byte)
@@ -470,16 +461,8 @@ theorem Xofs.length_signInternal {H : Xofs} {s : Level} {key : List Byte} {forma
     {rnd : FixedBytes 32} {sig : List Byte}
     (h : H.signInternal s key formatted rnd = some sig) :
     sig.length = signatureBytes s := by
-  unfold Xofs.signInternal Xofs.runSigning Xofs.startSigning Xofs.startSigningWithSeed
-    Xofs.startDecodedSigning Xofs.signingRetries at h
-  cases hd : decodePrivate s key with
-  | none => simp [hd] at h
-  | some sk =>
-    cases ha : H.expandA s sk.rho with
-    | none => simp [hd, ha] at h
-    | some A =>
-      simp only [hd, ha, Option.bind_eq_bind, Option.bind_some, Option.pure_def] at h
-      exact length_of_firstAccepted_attempt h
+  obtain ⟨_, -, hret⟩ := Option.bind_eq_some_iff.mp h
+  exact length_of_firstAccepted_attempt hret
 
 private theorem verified_of_attempt {H : Xofs} {s : Level} (sk : MLDSA.SecretKey s.params)
     (rho : FixedBytes 32) {key tr maskSeed : List Byte} {κ : ℕ} {f : Forgery}
@@ -523,9 +506,7 @@ theorem verify_of_sign {H : Xofs} {s : Level} {seed : FixedBytes 32} {keys : Key
     (hs : H.sign s keys.secretKey f.message f.context rnd = some f.signature) :
     H.verify s keys.publicKey f.message f.context f.signature = some true := by
   obtain ⟨rho, sk, hA, pk, decoded, _, short, _⟩ := privateKey_of_keyGen hg
-  have ctx : f.context.length ≤ 255 := by
-    by_contra h
-    simp [Xofs.sign, guard, h] at hs
+  have ctx : f.context.length ≤ 255 := of_not_not fun h => by simp [Xofs.sign, guard, h] at hs
   simp only [Xofs.sign, guard, ctx, ↓reduceIte, Option.pure_def, Option.bind_eq_bind,
     Option.bind_some, Xofs.signInternal, Xofs.runSigning, Xofs.signingRetries, Xofs.startSigning,
     Xofs.startSigningWithSeed, Xofs.startDecodedSigning, decoded, hA] at hs
@@ -690,10 +671,8 @@ recovers the byte-verifier key-only experiment exactly, including key-generation
 theorem sufCmaGame_sample_eq_keyOnlyGame (s : Level) (adv : List Byte → ProbComp Forgery) :
     sufCmaGame s (fun pk => ProbOracleComp.sample (adv pk)) = keyOnlyGame s adv := by
   unfold sufCmaGame Xofs.sufCmaGame keyOnlyGame Xofs.winsForgery
-  congr 1 with keys : 1
-  rw [ProbOracleComp.runWith_sample, PMF.map_comp]
-  congr 1 with f : 1
-  simp
+  refine congrArg (Xofs.shake.keyExperiment s) (funext fun keys => ?_)
+  simp [ProbOracleComp.runWith_sample, PMF.map_comp, Function.comp_def]
 
 /-- The finite set of actual Algorithm 29 raw inputs at the parameter set's digest width. -/
 def digestRows (s : Level) : Finset (List Bool) :=
@@ -838,10 +817,9 @@ private theorem refreshFirstSign_bind {α : Type} {H : Xofs} {s : Level} {seed :
   by_cases hc : q.context.length ≤ 255
   · cases hs : H.startSigning s keys.secretKey (formatMessage q.message q.context) rnd with
     | none =>
-      apply congrArg (PMF.bind _)
-      funext t
-      have hk := (startSigning_off_rows hg seen t q rnd).1.trans hs
-      simp [Xofs.refreshFirstSign, hc, hs, Xofs.sign, Xofs.signInternal, Xofs.runSigning, hk]
+      refine congrArg (PMF.bind _) (funext fun t => ?_)
+      simp [Xofs.refreshFirstSign, hc, hs, Xofs.sign, Xofs.signInternal, Xofs.runSigning,
+        (startSigning_off_rows hg seen t q rnd).1.trans hs]
     | some st =>
       let prep := H.prepareAttempt s st.A st.maskSeed 0
       let w := highBitsVec s.params prep.product
@@ -851,12 +829,9 @@ private theorem refreshFirstSign_bind {α : Type} {H : Xofs} {s : Level} {seed :
         keys.secretKey q.message q.context rnd)
       have uniform := PMF.uniformOfFintype_bind_bind_adaptiveUpdate (fun _ => key)
         (fun _ _ => rfl) run
-      refine Eq.trans ?_ uniform
-      apply congrArg (PMF.bind _)
-      funext t
+      refine Eq.trans (congrArg (PMF.bind _) (funext fun t => ?_)) uniform
       simp only [Xofs.refreshFirstSign, hc, ite_true, hs, PMF.bind_map]
-      apply congrArg (PMF.bind _)
-      funext fresh
+      refine congrArg (PMF.bind _) (funext fun fresh => ?_)
       let updated := Function.update t key fresh
       let K := H.withExpansionRows s seen updated
       obtain ⟨hk, shape⟩ := startSigning_off_rows hg seen updated q rnd
@@ -868,9 +843,10 @@ private theorem refreshFirstSign_bind {α : Type} {H : Xofs} {s : Level} {seed :
       have dg : K.commitmentDigest s w st.μ = d := digest_off_rows H seen updated w hμ
       have sample : K.sampleInBall s d = sampleInBallBytes s
           ((H.h256.read key (seen key) ++ List.ofFn fresh).take 221) := by
-        apply congrArg (sampleInBallBytes s)
         have h := H.h256.read_fill_window seen updated key (n := 221) (Nat.le_add_left ..)
-        rwa [show updated key = fresh from Function.update_self ..] at h
+        have hup : updated key = fresh := Function.update_self ..
+        rw [hup] at h
+        exact congrArg (sampleInBallBytes s) h
       apply congrArg (post updated)
       symm
       change K.sign s keys.secretKey q.message q.context rnd = _
@@ -880,9 +856,7 @@ private theorem refreshFirstSign_bind {α : Type} {H : Xofs} {s : Level} {seed :
       rw [firstAccepted_initial]
       dsimp only [Xofs.attempt, Xofs.attemptWithMask]
       rw [← Xofs.prepareAttempt, prepared, dg, sample]
-  · apply congrArg (PMF.bind _)
-    funext t
-    simp [Xofs.refreshFirstSign, hc, Xofs.sign]
+  · exact congrArg (PMF.bind _) (funext fun t => by simp [Xofs.refreshFirstSign, hc, Xofs.sign])
 
 /-- The continuation of an actual signing request. It receives the byte reply or failure
 and can make more randomized, adaptive signing requests before returning its forgery. -/
@@ -906,11 +880,9 @@ private theorem first_request {State : Type} (K : Xofs) (s : Level)
       (PMF.uniformOfFintype (FixedBytes 32)).bind fun rnd =>
         K.continueFirstSigning s keys q (K.sign s keys.secretKey q.message q.context rnd)
           (next st) := by
-  apply congrArg (K.keyExperiment s)
-  funext keys
+  refine congrArg (K.keyExperiment s) (funext fun keys => ?_)
   simp only [ProbOracleComp.runWith_sample_bind, PMF.map_bind]
-  apply congrArg (PMF.bind _)
-  funext ⟨q, st⟩
+  refine congrArg (PMF.bind _) (funext fun ⟨q, st⟩ => ?_)
   simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, Xofs.signingOracle,
     PMF.bind_map, PMF.map_bind, Xofs.continueFirstSigning, Xofs.signAndLog, Function.comp_def]
 
@@ -944,20 +916,16 @@ theorem refreshFirstRequest_sufCmaGame {State : Type} (H : Xofs) (s : Level) (se
   simp only [same, expand, Xofs.keyExperiment, setup_off_rows, PMF.monad_bind_eq_bind]
   rw [PMF.bind_comm (PMF.uniformOfFintype (digestRows s → FixedBytes 221))
     (PMF.uniformOfFintype (FixedBytes 32))]
-  apply congrArg (PMF.bind _)
-  funext seed
+  refine congrArg (PMF.bind _) (funext fun seed => ?_)
   cases hg : H.keyGen s seed with
   | none => simp
   | some keys =>
     rw [PMF.bind_comm (PMF.uniformOfFintype (digestRows s → FixedBytes 221))
       (choose prior keys.publicKey).eval]
-    apply congrArg (PMF.bind _)
-    funext ⟨q, st⟩
+    refine congrArg (PMF.bind _) (funext fun ⟨q, st⟩ => ?_)
     rw [PMF.bind_comm (PMF.uniformOfFintype (digestRows s → FixedBytes 221))
       (PMF.uniformOfFintype (FixedBytes 32))]
-    apply congrArg (PMF.bind _)
-    funext rnd
-    exact refreshFirstSign_bind hg seen q rnd
-      (fun t ans => (H.withExpansionRows s seen t).continueFirstSigning s keys q ans (next st))
+    exact congrArg (PMF.bind _) (funext fun rnd => refreshFirstSign_bind hg seen q rnd
+      fun t ans => (H.withExpansionRows s seen t).continueFirstSigning s keys q ans (next st))
 
 end Cslib.Crypto.MLDSA.FIPS204

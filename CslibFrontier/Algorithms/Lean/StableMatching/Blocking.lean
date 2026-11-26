@@ -104,19 +104,16 @@ private theorem exists_last_change (B : Finset (Fin n)) {p₀ : Fin n} (hp₀ : 
   have hT : T.Nonempty := by
     by_contra hT
     rw [Finset.not_nonempty_iff_eq_empty, Finset.filter_eq_empty_iff] at hT
+    simp only [Finset.mem_range, not_exists, not_and, Classical.not_not] at hT
     have key : ∀ k ≤ N, I.run k p₀ = 0 := by
       intro k hk
       induction k with
       | zero => rfl
-      | succ k ih =>
-        have h1 := hT (Finset.mem_range.2 (show k < N by omega))
-        push Not at h1
-        rw [← h1 p₀ hp₀, ih (by omega)]
+      | succ k ih => rw [← hT (by omega) p₀ hp₀, ih (by omega)]
     exact absurd (key N le_rfl) hpos.ne'
   set t := T.max' hT
-  have ht : t ∈ T := T.max'_mem hT
-  rw [Finset.mem_filter, Finset.mem_range] at ht
-  obtain ⟨htN, p, hpB, hp⟩ := ht
+  obtain ⟨htN, p, hpB, hp⟩ : t < N ∧ ∃ p ∈ B, I.run t p ≠ I.run (t + 1) p := by
+    simpa only [T, Finset.mem_filter, Finset.mem_range] using T.max'_mem hT
   refine ⟨t, htN, p, hpB, hp, fun q hq => ?_⟩
   have stable : ∀ k, t + 1 ≤ k → k ≤ N → I.run (t + 1) q = I.run k q := by
     intro k hk hkN
@@ -124,10 +121,9 @@ private theorem exists_last_change (B : Finset (Fin n)) {p₀ : Fin n} (hp₀ : 
     | base => rfl
     | succ k hk ih =>
       rw [ih (by omega)]
-      by_contra hne
-      have hmem : k ∈ T := Finset.mem_filter.2 ⟨Finset.mem_range.2 (by omega), q, hq, hne⟩
-      have := T.le_max' k hmem
-      omega
+      exact Classical.byContradiction fun hne => absurd
+        (T.le_max' k (Finset.mem_filter.2 ⟨Finset.mem_range.2 (by omega), q, hq, hne⟩))
+        (not_le.2 hk)
   exact stable N (by omega) le_rfl
 
 /-- The step taken at a time when proposer `p₀` changes is the one turning `p₀` down. -/
@@ -264,9 +260,7 @@ theorem propRank_deferredAcceptance_le_of_isStable_updatePropPref (p : Fin n)
     (π : Equiv.Perm (Fin n)) {μ : Matching n} (hμ : (I.updatePropPref p π).IsStable μ) :
     I.propRank p (I.deferredAcceptance p) ≤ I.propRank p (μ p) := by
   refine le_of_not_gt fun h => I.not_forall_mem_propRank_lt_of_isStable (J := I.updatePropPref p π)
-    (C := {p}) rfl (fun q hq => Function.update_of_ne hq _ _) ⟨p, rfl⟩ hμ ?_
-  rintro q rfl
-  exact h
+    (C := {p}) rfl (fun q hq => Function.update_of_ne hq _ _) ⟨p, rfl⟩ hμ fun _ hq => hq ▸ h
 
 /-- Truthful reporting is a dominant strategy for each proposer under deferred acceptance
 ([DubinsFreedman1981]; [Roth1982], Theorem 5). -/

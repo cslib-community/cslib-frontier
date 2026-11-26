@@ -76,15 +76,9 @@ private theorem pair_interior (k : Fin (n + 3)) (a b : Option (Fin q))
     (hpair : code.symm (u k) = .pair a b)
     (hstart : u 0 = code .start) (hfinish : u ⟨n + 2, by omega⟩ = code .finish) :
     0 < k.val ∧ k.val < n + 2 := by
-  constructor
-  · by_contra h
-    rw [show k = 0 from Fin.ext (by change k.val = 0; omega), hstart,
-      Equiv.symm_apply_apply] at hpair
-    cases hpair
-  · by_contra h
-    rw [show k = ⟨n + 2, by omega⟩ from Fin.ext (by have := k.isLt; change k.val = n + 2; omega),
-      hfinish, Equiv.symm_apply_apply] at hpair
-    cases hpair
+  refine ⟨Nat.pos_of_ne_zero fun hk0 => ?_, lt_of_le_of_ne (by omega) fun hkn => ?_⟩
+  · simp [(Fin.ext hk0 : k = 0), hstart] at hpair
+  · simp [(Fin.ext hkn : k = ⟨n + 2, by omega⟩), hfinish] at hpair
 
 private theorem first_marker_depth (hu : HWord.Legal (compatibility rules) u)
     (k : Fin (n + 3)) (hk : 0 < k.val) (i : Fin r)
@@ -92,12 +86,10 @@ private theorem first_marker_depth (hu : HWord.Legal (compatibility rules) u)
     (hstart : u 0 = code .start) : 3 ≤ k.val := by
   by_contra h
   rcases (by omega : k.val = 1 ∨ k.val = 2) with hc | hc
-  · rw [show (⟨k.val - 1, by omega⟩ : Fin (n + 3)) = 0 from
-      Fin.ext (by change k.val - 1 = 0; omega), hstart, Equiv.symm_apply_apply] at hm
-    cases hm
-  · have hedge := edge_view rules hu 0 ⟨k.val - 1, by omega⟩ (by change 0 + 1 = k.val - 1; omega)
-    rw [hstart, Equiv.symm_apply_apply, hm] at hedge
-    exact hedge
+  · have h0 : (⟨k.val - 1, by omega⟩ : Fin (n + 3)) = 0 := Fin.ext (by simp [hc])
+    simp [h0, hstart] at hm
+  · have hedge := edge_view rules hu 0 ⟨k.val - 1, by omega⟩ (by simp [hc])
+    rwa [hstart, Equiv.symm_apply_apply, hm] at hedge
 
 private structure FirstNeighborhood (u : Fin (n + 3) → Fin (Fintype.card (Symbol q r)))
     (k : Fin (n + 3)) (a a' b : Option (Fin q)) where
@@ -175,13 +167,11 @@ private theorem second_marker_depth (hu : HWord.Legal (compatibility rules) u)
     (hfinish : u ⟨n + 2, by omega⟩ = code .finish) : k.val < n := by
   by_contra h
   rcases (by omega : k.val = n ∨ k.val = n + 1) with hc | hc
-  · have hedge := edge_view rules hu ⟨k.val + 1, by omega⟩ ⟨n + 2, by omega⟩
-      (by change k.val + 1 + 1 = n + 2; omega)
-    rw [hm, hfinish, Equiv.symm_apply_apply] at hedge
-    exact hedge
-  · rw [show (⟨k.val + 1, by omega⟩ : Fin (n + 3)) = ⟨n + 2, by omega⟩ from
-      Fin.ext (by change k.val + 1 = n + 2; omega), hfinish, Equiv.symm_apply_apply] at hm
-    cases hm
+  · have hedge := edge_view rules hu ⟨k.val + 1, by omega⟩ ⟨n + 2, by omega⟩ (by simp [hc])
+    rwa [hm, hfinish, Equiv.symm_apply_apply] at hedge
+  · have hn2 : (⟨k.val + 1, by omega⟩ : Fin (n + 3)) = ⟨n + 2, by omega⟩ :=
+      Fin.ext (by simp [hc])
+    simp [hn2, hfinish] at hm
 
 private structure SecondNeighborhood (u : Fin (n + 3) → Fin (Fintype.card (Symbol q r)))
     (k : Fin (n + 3)) (a b b' : Option (Fin q)) where

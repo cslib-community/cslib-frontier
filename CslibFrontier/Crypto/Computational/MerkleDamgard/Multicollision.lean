@@ -313,11 +313,10 @@ theorem jouxFinder_success {stage : T → M → ProbOracleComp spec T} (O : (q :
     1 - 2 ^ b * ((1 + ε) / 2) ^ f / 2 ≤
       ((ProbComp.eval ((jouxFinder stage (ProbComp.uniform M) s f b t).run
         fun x => pure (O x))).toOuterMeasure (jouxSuccess step b t)).toReal := by
-  have h := jouxFinder_failure_le O step hstage D hD s hε f b t ht
-  have hadd := Probability.PMF.toOuterMeasure_toReal_add_compl
-    (ProbComp.eval ((jouxFinder stage (ProbComp.uniform M) s f b t).run fun x => pure (O x)))
-    (jouxSuccess step b t)
-  linarith
+  linarith [jouxFinder_failure_le O step hstage D hD s hε f b t ht,
+    Probability.PMF.toOuterMeasure_toReal_add_compl
+      (ProbComp.eval ((jouxFinder stage (ProbComp.uniform M) s f b t).run fun x => pure (O x)))
+      (jouxSuccess step b t)]
 
 /-- With attempts that find no collision with probability at most `1/2`, a budget of `3 b`
 attempts leaves success probability at least `1/2`: the bound is `(27/32) ^ b / 2`. -/
@@ -365,11 +364,11 @@ compression call per block. -/
 is not a running time. -/
 theorem isQueryBounded_merkleDamgardJouxFinder (ℓ s f b : ℕ) (iv : List Bool) :
     ProbOracleComp.IsQueryBounded (merkleDamgardJouxFinder ℓ s f b iv) (f * s) := by
-  simpa [merkleDamgardJouxFinder] using
-    isQueryBounded_jouxFinder (c := 1)
-      (stage := fun t (m : BitString ℓ) =>
-        ProbOracleComp.query (spec := fun _ : List Bool => List Bool) (t ++ List.ofFn m))
-      (fun t m => ProbOracleComp.IsQueryBounded.query _) (ProbComp.uniform (BitString ℓ)) s f b iv
+  simpa [merkleDamgardJouxFinder] using isQueryBounded_jouxFinder
+    (fun t (m : BitString ℓ) =>
+      ProbOracleComp.IsQueryBounded.query (spec := fun _ : List Bool => List Bool)
+        (t ++ List.ofFn m))
+    (ProbComp.uniform (BitString ℓ)) s f b iv
 
 private theorem foldl_blockStep {ℓ : ℕ} (t : List Bool) (ms : List (BitString ℓ)) :
     ms.foldl (fun t m => h k (t ++ List.ofFn m)) t =
@@ -387,11 +386,10 @@ theorem isMulticollision_merkleDamgardChain {ℓ : ℕ} {iv : List Bool}
   refine ⟨by rw [Finset.card_image_of_injective _ (List.map_injective_iff.mpr List.ofFn_injective),
     Finset.card_image_of_injective _ hc.jouxMessage_injective, Finset.card_univ, BitString.card],
     fun x hx y hy => ?_⟩
-  obtain ⟨_, hx', rfl⟩ := Finset.mem_image.mp hx
-  obtain ⟨_, hy', rfl⟩ := Finset.mem_image.mp hy
-  obtain ⟨σ, -, rfl⟩ := Finset.mem_image.mp hx'
-  obtain ⟨τ, -, rfl⟩ := Finset.mem_image.mp hy'
-  simp only [merkleDamgardChain_append, ← foldl_blockStep, hc.foldl_jouxMessage]
+  obtain ⟨σ, -, rfl⟩ := by simpa only [Finset.image_image, Finset.mem_image] using hx
+  obtain ⟨τ, -, rfl⟩ := by simpa only [Finset.image_image, Finset.mem_image] using hy
+  simp only [Function.comp_apply, merkleDamgardChain_append, ← foldl_blockStep,
+    hc.foldl_jouxMessage]
 
 /-- The outputs of `merkleDamgardJouxFinder` that are `b` pairs whose `2 ^ b` selections, each
 followed by any common list of blocks `tail`, are a `2 ^ b`-collision of the chain from `iv`. One
@@ -434,13 +432,13 @@ theorem merkleDamgardJouxFinder_success {n ℓ : ℕ}
       ((ProbComp.eval ((merkleDamgardJouxFinder ℓ s f b iv).run
         fun x => pure (h k x))).toOuterMeasure
           (multicollisionOutputs h k ℓ b iv)).toReal := by
-  have key := jouxFinder_success (spec := fun _ : List Bool => List Bool)
-    (stage := fun t (m : BitString ℓ) => ProbOracleComp.query (t ++ List.ofFn m))
-    (h k) (fun t (m : BitString ℓ) => h k (t ++ List.ofFn m))
-    (fun t m => ProbOracleComp.run_query _ _) (BitString.wordsOfLength n)
+  have key := jouxFinder_success (h k) (fun t (m : BitString ℓ) => h k (t ++ List.ofFn m))
+    (fun t (m : BitString ℓ) => ProbOracleComp.run_query (spec := fun _ : List Bool => List Bool)
+      (t ++ List.ofFn m) fun x => pure (h k x))
+    (BitString.wordsOfLength n)
     (fun t ht m => BitString.mem_wordsOfLength.mpr
-      (hlen _ (by simp [BitString.mem_wordsOfLength.mp ht]))) s (ε := ε)
-    (by rw [BitString.card_wordsOfLength, BitString.card]; push_cast; exact hε) f b
+      (hlen _ (by simp [BitString.mem_wordsOfLength.mp ht]))) s
+    (by simpa [BitString.card_wordsOfLength, BitString.card] using hε) f b
     (BitString.mem_wordsOfLength.mpr hiv)
   exact key.trans (ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
     (MeasureTheory.measure_mono (jouxSuccess_subset_multicollisionOutputs ℓ b iv)))
@@ -507,9 +505,7 @@ private theorem merkleDamgard_flatMap_ofFn {g : ℕ} (ms : List (BitString g)) :
         (h k (List.replicate k.length false ++ mdEndBlock k.length)) := by
   simp only [merkleDamgard, mdBlocks, merkleDamgardChain_cons]
   generalize h k (List.replicate k.length false ++ mdEndBlock k.length) = t
-  induction ms generalizing t with
-  | nil => simp
-  | cons m ms ih => simp [List.flatMap_cons, ih]
+  induction ms generalizing t <;> simp [List.flatMap_cons, *]
 
 /-- Lists of `g`-bit groups of the same length with the same concatenation are equal. -/
 private theorem flatMap_ofFn_inj {g : ℕ} {ms ms' : List (BitString g)}
@@ -551,11 +547,9 @@ most `1 + f * (s * g)` evaluations of the compression function on every path. Th
 calls only; it is not a running time. -/
 theorem isQueryBounded_merkleDamgardBitJouxFinder (n g s f b : ℕ) :
     ProbOracleComp.IsQueryBounded (merkleDamgardBitJouxFinder n g s f b) (1 + f * (s * g)) :=
-  (ProbOracleComp.IsQueryBounded.query _).bind fun t₀ =>
-    isQueryBounded_jouxFinder (c := g)
-      (fun t (m : BitString g) => by
-        simpa using isQueryBounded_absorbBits n t (List.ofFn m))
-      (ProbComp.uniform (BitString g)) s f b t₀
+  (ProbOracleComp.IsQueryBounded.query _).bind <| isQueryBounded_jouxFinder
+    (fun t m => by simpa using isQueryBounded_absorbBits n t (List.ofFn m))
+    (ProbComp.uniform (BitString g)) s f b
 
 /-- The outputs of `merkleDamgardBitJouxFinder` that are `b` pairs whose `2 ^ b` selections are a
 `2 ^ b`-collision of `merkleDamgard h k`. `mem_bitMulticollisionOutputs` unfolds membership. -/
@@ -594,14 +588,11 @@ theorem merkleDamgardBitJouxFinder_success
       (length_merkleDamgardChain hlen (BitString.mem_wordsOfLength.mp ht) (by simp))
   have ht₀ : h k (List.replicate k.length false ++ mdEndBlock k.length) ∈
       BitString.wordsOfLength k.length :=
-    BitString.mem_wordsOfLength.mpr (hlen _ (by simp; ring))
-  have key := jouxFinder_success (spec := fun _ : List Bool => List Bool)
-    (stage := fun t (m : BitString g) => absorbBits k.length t (List.ofFn m))
-    (h k) (fun t (m : BitString g) =>
-      merkleDamgardChain h k t ((List.ofFn m).map (mdDataBlock k.length)))
+    BitString.mem_wordsOfLength.mpr (hlen _ (by simp [two_mul]))
+  have key := jouxFinder_success (h k)
+    (fun t (m : BitString g) => merkleDamgardChain h k t ((List.ofFn m).map (mdDataBlock k.length)))
     (fun t m => run_absorbBits k.length t (List.ofFn m)) (BitString.wordsOfLength k.length) hD s
-    (ε := ε)
-    (by rw [BitString.card_wordsOfLength, BitString.card]; push_cast; exact hε) f b ht₀
+    (by simpa [BitString.card_wordsOfLength, BitString.card] using hε) f b ht₀
   rw [merkleDamgardBitJouxFinder, ProbOracleComp.run_bind, ProbOracleComp.run_query, pure_bind]
   refine key.trans (ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
     (MeasureTheory.measure_mono ?_))

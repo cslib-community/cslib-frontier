@@ -327,8 +327,7 @@ theorem happensBefore_idx_lt {E : Execution P} {e₁ e₂ : E.Event} (h : E.Happ
 /-- Reflexive causal precedence implies non-strict trace-index ordering. -/
 theorem happensBeforeLe_idx_le {E : Execution P} {e₁ e₂ : E.Event} (h : E.HappensBeforeLe e₁ e₂) :
     e₁.idx ≤ e₂.idx := by
-  rw [HappensBeforeLe, Relation.reflTransGen_iff_eq_or_transGen] at h
-  rcases h with rfl | hlt
+  rcases Relation.reflTransGen_iff_eq_or_transGen.mp h with rfl | hlt
   · exact le_rfl
   · exact (happensBefore_idx_lt hlt).le
 
@@ -364,11 +363,8 @@ theorem HappensBeforeLe.trans {E : Execution P} {e₁ e₂ e₃ : E.Event}
 /-- `HappensBeforeLe` is antisymmetric. -/
 theorem happensBeforeLe_antisymm {E : Execution P} {e₁ e₂ : E.Event}
     (h₁₂ : E.HappensBeforeLe e₁ e₂) (h₂₁ : E.HappensBeforeLe e₂ e₁) : e₁ = e₂ := by
-  rcases happensBeforeLe_iff.mp h₁₂ with rfl | hlt₁
-  · rfl
-  · rcases happensBeforeLe_iff.mp h₂₁ with rfl | hlt₂
-    · rfl
-    · exact absurd hlt₂ (happensBefore_asymm hlt₁)
+  refine (happensBeforeLe_iff.mp h₁₂).elim id fun h₁ =>
+    (happensBeforeLe_iff.mp h₂₁).elim Eq.symm fun h₂ => absurd h₂ (happensBefore_asymm h₁)
 
 /-- Every strict `HappensBefore` edge implies `HappensBeforeLe`. -/
 theorem HappensBefore.happensBeforeLe {E : Execution P} {e₁ e₂ : E.Event}
@@ -483,13 +479,9 @@ direction, or `Concurrent`. -/
 theorem causal_trichotomy (E : Execution P) (e₁ e₂ : E.Event) :
     e₁ = e₂ ∨ E.HappensBefore e₁ e₂ ∨ E.HappensBefore e₂ e₁ ∨ E.Concurrent e₁ e₂ := by
   by_cases h12 : E.HappensBeforeLe e₁ e₂
-  · rcases happensBeforeLe_iff.mp h12 with rfl | hlt
-    · exact .inl rfl
-    · exact .inr (.inl hlt)
+  · exact (happensBeforeLe_iff.mp h12).imp_right .inl
   · by_cases h21 : E.HappensBeforeLe e₂ e₁
-    · rcases happensBeforeLe_iff.mp h21 with rfl | hlt
-      · exact .inl rfl
-      · exact .inr (.inr (.inl hlt))
+    · exact (happensBeforeLe_iff.mp h21).elim (fun h => .inl h.symm) fun h => .inr (.inr (.inl h))
     · exact .inr (.inr (.inr ⟨h12, h21⟩))
 
 /-! ### Executable causal-past dynamic programming and decidability -/
@@ -570,12 +562,10 @@ private theorem contains_causalPastLists_iff [DecidableEq P] (E : Execution P) :
   | ind j ih =>
     intro hj x
     have hlen : (E.causalPastLists j).length = j := E.length_causalPastLists hj.le
-    rw [E.causalPastLists_succ_of_lt hj]
-    simp only [causalPastStep]
-    rw [List.getElem?_append_right hlen.le, hlen, Nat.sub_self, List.getElem?_cons_zero,
-      Option.getD_some, List.contains_eq_mem, List.decide_mem_cons, Bool.or_eq_true,
-      beq_iff_eq, decide_eq_true_eq, List.mem_filter, List.mem_range, List.any_eq_true,
-      happensBeforeLe_iff]
+    rw [E.causalPastLists_succ_of_lt hj, causalPastStep, List.getElem?_append_right hlen.le, hlen,
+      Nat.sub_self, List.getElem?_cons_zero, Option.getD_some, List.contains_eq_mem,
+      List.decide_mem_cons, Bool.or_eq_true, beq_iff_eq, decide_eq_true_eq, List.mem_filter,
+      List.mem_range, List.any_eq_true, happensBeforeLe_iff]
     constructor
     · rintro (hxeq | ⟨_, m, hm_mem, hm_ok⟩)
       · exact .inl (Event.ext (Fin.ext hxeq))

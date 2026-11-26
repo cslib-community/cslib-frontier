@@ -295,11 +295,8 @@ theorem treePassTable_iff_exists_subtreeEquilibrium {M : GraphicalGame ι S}
           ∃ qc : ∀ i, S i → ℝ, qc v = xv ∧ qc c.1 = u c ∧
             (∀ z ∈ hT.treeSide c.1 v, qc z ∈ allowed z) ∧
             (∀ z ∈ hT.treeSide c.1 v, M.IsApproxBestResponse ε z (qc z) (fun j => qc j.1)) := by
-        intro c
-        have hm := hlt_up c
-        have htab := hchild c
-        rcases c with ⟨c, hc_ne, rfl⟩
-        exact ((ih _ hm hc_ne rfl).mp htab).2
+        rintro ⟨c, hc_ne, rfl⟩
+        exact ((ih _ (hlt_up ⟨c, hc_ne, rfl⟩) hc_ne rfl).mp (hchild ⟨c, hc_ne, rfl⟩)).2
       classical
       choose qc hqc_par hqc_c hqc_allow hqc_br using hchild_eq
       -- Glue `qc` across the disjoint upstream subtrees, placing `xv` at `v` and `xw` elsewhere
@@ -326,8 +323,7 @@ theorem treePassTable_iff_exists_subtreeEquilibrium {M : GraphicalGame ι S}
         · rwa [hq_v]
         · obtain ⟨c₀, hc₀, hzc⟩ := mem_iUnion₂.mp hz_union
           let c : UpstreamNeighbors hT r v := ⟨c₀, (upstream_neighbor_iff hT r hv).mp hc₀⟩
-          rw [hq_on_child c hzc]
-          exact hqc_allow c z hzc
+          simpa only [hq_on_child c hzc] using hqc_allow c z hzc
       · rw [hT.treeSide_eq_insert_biUnion hadj_vp] at hz
         rcases mem_insert_iff.mp hz with rfl | hz_union
         · have hnbr : (fun j : M.graph.neighborSet z => q j.1) =
@@ -354,11 +350,10 @@ theorem treePassTable_iff_exists_subtreeEquilibrium {M : GraphicalGame ι S}
     · rintro ⟨hxw, q, hq_p, hq_v, hq_allow, hq_br⟩
       have hv_mem : v ∈ hT.treeSide v (hT.parent r v) := hT.self_mem_treeSide_of_adj hadj_vp
       refine ⟨fun c => q c.1, hxw, hq_v ▸ hq_allow v hv_mem, fun c => ?_, ?_⟩
-      · have hm := hlt_up c
-        have hsub := hsub_up c
+      · have hsub := hsub_up c
         rcases c with ⟨c, hc_ne, rfl⟩
-        exact (ih _ hm hc_ne rfl).mpr ⟨hq_v ▸ hq_allow _ hv_mem, q, hq_v, rfl,
-          fun z hz => hq_allow z (hsub hz), fun z hz => hq_br z (hsub hz)⟩
+        exact (ih _ (hlt_up ⟨c, hc_ne, rfl⟩) hc_ne rfl).mpr ⟨hq_v ▸ hq_allow _ hv_mem, q, hq_v,
+          rfl, fun z hz => hq_allow z (hsub hz), fun z hz => hq_br z (hsub hz)⟩
       · simpa only [← hq_p, assembleNeighbors_restrict, ← hq_v] using hq_br v hv_mem
 
 /-- **Root table characterization** ([Kearns2007], §7.3, p. 166): `rootPassTable` accepts `xr` iff
@@ -510,8 +505,7 @@ noncomputable def treePassUpstream {M : GraphicalGame ι S} (hT : M.graph.IsTree
     {allowed : ∀ i, Set (S i → ℝ)} {ε : ℝ} {xr : S r → ℝ}
     (hroot : rootPassTable M hT r allowed ε xr) :
     treePassUpstream hT hroot r = xr := by
-  unfold treePassUpstream
-  rw [treePassNode]
+  rw [treePassUpstream, treePassNode]
   simp
 
 theorem isTreePassOutput_treePassUpstream {M : GraphicalGame ι S} (hT : M.graph.IsTree) {r : ι}
@@ -521,27 +515,19 @@ theorem isTreePassOutput_treePassUpstream {M : GraphicalGame ι S} (hT : M.graph
   have hwit_fun : ∀ i : ι,
       (fun c : UpstreamNeighbors hT r i => treePassUpstream hT hroot c.1) =
         (treePassNode hT hroot i).witness := fun i => funext fun ⟨c, hc_ne, hc_par⟩ => by
-    unfold treePassUpstream
-    conv_lhs => rw [treePassNode]
+    subst hc_par
+    rw [treePassUpstream, treePassNode]
     simp only [hc_ne, ↓reduceDIte]
-    cases hc_par
-    rfl
   refine ⟨?_, fun v hv => ?_⟩
-  · rw [treePassUpstream_root, hwit_fun r, treePassNode]
-    simp only [↓reduceDIte, NodeChoice.ofEq_rfl]
-    exact Classical.choose_spec hroot
+  · simpa only [treePassUpstream_root, hwit_fun r, treePassNode, ↓reduceDIte, NodeChoice.ofEq_rfl]
+      using Classical.choose_spec hroot
   · rw [hwit_fun v]
-    unfold treePassUpstream
-    let hex := (treePassTable_iff_exists_witness hv).mp
-      ((treePassNode hT hroot (hT.parent r v)).valid ⟨v, hv, rfl⟩)
-    have hnv : treePassNode hT hroot v =
-        ⟨_, Classical.choose hex, (Classical.choose_spec hex).2.1,
-          (Classical.choose_spec hex).2.2.1⟩ := by
-      conv_lhs =>
-        rw [treePassNode]
-        simp only [hv, ↓reduceDIte]
-    rw [hnv]
-    exact Classical.choose_spec hex
+    let par := treePassNode hT hroot (hT.parent r v)
+    change IsTreePassWitness M hT r allowed ε hv par.val (treePassNode hT hroot v).val
+      (treePassNode hT hroot v).witness
+    rw [treePassNode]
+    simp only [hv, ↓reduceDIte]
+    exact Classical.choose_spec ((treePassTable_iff_exists_witness hv).mp (par.valid ⟨v, hv, rfl⟩))
 
 theorem treePassUpstream_isApproxNash {M : GraphicalGame ι S} (hT : M.graph.IsTree) {r : ι}
     {allowed : ∀ i, Set (S i → ℝ)} {ε : ℝ} {xr : S r → ℝ}
@@ -576,9 +562,8 @@ theorem exists_treeNashRootTable (M : GraphicalGame ι S) (hT : M.graph.IsTree) 
     [∀ i, Nonempty (S i)] :
     ∃ xr, M.treeNashRootTable hT r xr := by
   obtain ⟨p, hp⟩ := M.toCostGame.exists_isMixedNash
-  refine ⟨p r, ?_⟩
-  rw [treeNashRootTable, rootPassTable_iff_exists_isApproxNash]
-  exact ⟨p, rfl, hp.1, M.isApproxNash_zero_iff.mpr hp⟩
+  exact ⟨p r, rootPassTable_iff_exists_isApproxNash.mpr
+    ⟨p, rfl, hp.1, M.isApproxNash_zero_iff.mpr hp⟩⟩
 
 /-- Algorithm **`TreeNash`** ([Kearns2007], Figure 7.1 & Theorem 7.3, pp. 165–166): computes an
 exact mixed Nash equilibrium of a finite tree graphical game by running the downstream table pass to
@@ -937,15 +922,12 @@ each coordinate by at most `1 / (2 * m)`, hence changes the distribution in `L�
 theorem l1_nearestGridStrategy_le {m : ℕ} (hm : 1 ≤ m) {x : Bool → ℝ} (hx : IsMixedStrategy x) :
     ∑ b : Bool, |x b - nearestGridStrategy m x b| ≤ 1 / (m : ℝ) := by
   have hm_pos : (0 : ℝ) < m := Nat.cast_pos.mpr hm
-  let r := ⌊(m : ℝ) * x false + 1 / 2⌋₊
-  have hfalse : nearestGridStrategy m x false = (r : ℝ) / (m : ℝ) := by
-    simp only [nearestGridStrategy_false, min_eq_right (floor_mul_add_half_le hx), r]
-  have h1 : x false - (r : ℝ) / (m : ℝ) = ((m : ℝ) * x false - (r : ℝ)) / (m : ℝ) := by field_simp
-  have h2 : (1 : ℝ) / (m : ℝ) = 2 * ((1 / 2 : ℝ) / (m : ℝ)) := by field_simp
+  have h1 : x false - (⌊(m : ℝ) * x false + 1 / 2⌋₊ : ℝ) / m =
+      ((m : ℝ) * x false - ⌊(m : ℝ) * x false + 1 / 2⌋₊) / m := by field_simp
   rw [l1_bool_eq_two_abs hx (nearestGridStrategy_mem_binaryTauGrid hm x).1,
-    hfalse, h1, h2, abs_div, abs_of_pos hm_pos]
-  exact mul_le_mul_of_nonneg_left
-    (div_le_div_of_nonneg_right (abs_mul_sub_floor_le_half hx) hm_pos.le) (by norm_num)
+    nearestGridStrategy_false, min_eq_right (floor_mul_add_half_le hx), h1, abs_div,
+    abs_of_pos hm_pos, mul_div_assoc', div_le_div_iff_of_pos_right hm_pos]
+  linarith [abs_mul_sub_floor_le_half (m := m) hx]
 
 /-- **`L₁` optimality of `nearestGridStrategy`** ([Kearns2007], Lemma 7.4, p. 167):
 `nearestGridStrategy m x` minimizes the `L₁` distance to `x` over all strategies `y` in
@@ -966,12 +948,11 @@ theorem l1_nearestGridStrategy_le_of_mem {m : ℕ} (hm : 1 ≤ m) {x y : Bool �
     · have : (r : ℝ) + 1 ≤ (j : ℝ) := by exact_mod_cast Nat.succ_le_of_lt hr_lt
       exact hr_abs.trans ((by linarith [hr_bounds.2] : (1 / 2 : ℝ) ≤ (j : ℝ) - _).trans
         (abs_sub_comm (j : ℝ) _ ▸ le_abs_self _))
-  have hfalse : nearestGridStrategy m x false = (r : ℝ) / (m : ℝ) := by
-    simp only [nearestGridStrategy_false, min_eq_right (floor_mul_add_half_le hx), r]
   have h1 : x false - (r : ℝ) / (m : ℝ) = ((m : ℝ) * x false - (r : ℝ)) / (m : ℝ) := by field_simp
   have h2 : x false - (j : ℝ) / (m : ℝ) = ((m : ℝ) * x false - (j : ℝ)) / (m : ℝ) := by field_simp
   rw [l1_bool_eq_two_abs hx (nearestGridStrategy_mem_binaryTauGrid hm x).1,
-    l1_bool_eq_two_abs hx hy_mix, hy_false, hfalse, h1, h2, abs_div, abs_div, abs_of_pos hm_pos]
+    l1_bool_eq_two_abs hx hy_mix, hy_false, nearestGridStrategy_false,
+    min_eq_right (floor_mul_add_half_le hx), h1, h2, abs_div, abs_div, abs_of_pos hm_pos]
   exact mul_le_mul_of_nonneg_left (div_le_div_of_nonneg_right hscaled hm_pos.le) (by norm_num)
 
 /-- Rounding a binary mixed strategy `x` to `binaryTauGrid m` (`1 ≤ m`) never introduces a new
@@ -1067,7 +1048,7 @@ theorem exists_approxTreeNashRootTable {ι : Type*} [Fintype ι] [DecidableEq ι
     ∃ xr, rootPassTable M hT r (fun _ => binaryTauGrid (max 1 ⌈(d : ℝ) / ε⌉₊)) ε xr := by
   obtain ⟨p, hp⟩ := M.toCostGame.exists_isMixedNash
   obtain ⟨q, hq_out, _, _⟩ := M.exists_approxTreeNashOutput_of_isMixedNash hT r hε hpay hdeg hp
-  exact ⟨q r, q |> fun _ => ⟨fun c => q c.1, hq_out.1⟩⟩
+  exact ⟨q r, fun c => q c.1, hq_out.1⟩
 
 /-- Discretized algorithm **`ApproximateTreeNash`** ([Kearns2007], §7.3.1, p. 167): runs the
 two-pass dynamic program restricted to `binaryTauGrid (max 1 ⌈(d : ℝ) / ε⌉₊)` with `ε`-best

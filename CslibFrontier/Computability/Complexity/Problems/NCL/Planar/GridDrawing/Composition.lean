@@ -127,9 +127,7 @@ private theorem vertex_rows (P : DiagramDrawing I D₁) (Q : DiagramDrawing I D�
     (v : (D₁.comp D₂).Vtx I) :
     0 < (vertex P Q v).2 ∧ (vertex P Q v).2 < P.height + Q.height := by
   rcases v with v | v
-  · have hp := P.vertex_rows v
-    have hq := Q.height_pos
-    exact ⟨hp.1, by change (P.vertex v).2 < _; omega⟩
+  · exact ⟨(P.vertex_rows v).1, (P.vertex_rows v).2.trans_le (Nat.le_add_right _ _)⟩
   · have := Q.vertex_rows v
     simp only [vertex, Sum.elim_inr, Function.comp_def, shift]
     omega
@@ -194,8 +192,7 @@ private theorem path_new (P : DiagramDrawing I D₁) (Q : DiagramDrawing I D₂)
 private theorem row_le (P : DiagramDrawing I D₁) (Q : DiagramDrawing I D₂)
     (e : (D₁.comp D₂).Edge) (p : Point) (h : Trace P Q e p) : p.2 ≤ P.height + Q.height := by
   rcases h with ⟨e, _, hp⟩ | ⟨hy, e, _, hq⟩
-  · have := P.row_le e p hp
-    omega
+  · exact (P.row_le e p hp).trans (Nat.le_add_right _ _)
   · have := Q.row_le e _ hq
     omega
 
@@ -203,33 +200,26 @@ private theorem row_le (P : DiagramDrawing I D₁) (Q : DiagramDrawing I D₂)
 private theorem top_iff (P : DiagramDrawing I D₁) (Q : DiagramDrawing I D₂)
     (e : (D₁.comp D₂).Edge) (x : ℕ) :
     Trace P Q e (x, 0) ↔ ∃ i : Fin a.length, Sum.inl i = e ∧ x = 4 * i.val := by
-  constructor
-  · rintro (⟨e', he, hp⟩ | ⟨hy, _⟩)
-    · obtain ⟨i, hi, hx⟩ := (P.top_iff e' x).1 hp
-      exact ⟨i, (congrArg (compLeft D₁ D₂) hi).trans he, hx⟩
-    · have := P.height_pos
-      omega
-  · rintro ⟨i, rfl, rfl⟩
-    exact trace_left P Q (.inl i) ((P.top_iff _ _).2 ⟨i, rfl, rfl⟩)
+  refine ⟨?_, fun ⟨i, hi, hx⟩ =>
+    hi ▸ hx ▸ trace_left P Q (.inl i) ((P.top_iff _ _).2 ⟨i, rfl, rfl⟩)⟩
+  rintro (⟨e', he, hp⟩ | ⟨hy, _⟩)
+  · obtain ⟨i, hi, hx⟩ := (P.top_iff e' x).1 hp
+    exact ⟨i, (congrArg (compLeft D₁ D₂) hi).trans he, hx⟩
+  · exact absurd hy P.height_pos.not_ge
 
 /-- The combined bottom row retains the final output names. -/
 private theorem bottom_iff (P : DiagramDrawing I D₁) (Q : DiagramDrawing I D₂)
     (e : (D₁.comp D₂).Edge) (x : ℕ) :
     Trace P Q e (x, P.height + Q.height) ↔
       ∃ j : Fin c.length, (D₁.comp D₂).bottom j = e ∧ x = 4 * j.val := by
-  constructor
-  · rintro (⟨e', _, hp⟩ | ⟨hy, e', he, hq⟩)
-    · have := P.row_le e' _ hp
-      have := Q.height_pos
-      omega
-    · have hq' : Q.trace e' (x, Q.height) := by simpa only [Nat.add_sub_cancel_left] using hq
-      obtain ⟨j, hj, hx⟩ := (Q.bottom_iff e' x).1 hq'
-      exact ⟨j, by rw [bottom_comp, hj]; exact he, hx⟩
-  · rintro ⟨j, rfl, rfl⟩
-    rw [bottom_comp]
-    exact trace_right P Q (D₂.bottom j)
-      ⟨by omega, by simpa only [Nat.add_sub_cancel_left] using
-        (Q.bottom_iff _ _).2 ⟨j, rfl, rfl⟩⟩
+  refine ⟨?_, fun ⟨j, hj, hx⟩ => hj ▸ hx ▸ bottom_comp D₁ D₂ j ▸ trace_right P Q (D₂.bottom j)
+    ⟨Nat.le_add_right _ _,
+      by simpa only [Nat.add_sub_cancel_left] using
+        (Q.bottom_iff (D₂.bottom j) (4 * j.val)).2 ⟨j, rfl, rfl⟩⟩⟩
+  rintro (⟨e', _, hp⟩ | ⟨_, e', he, hq⟩)
+  · exact (((P.row_le e' _ hp).trans_lt (Nat.lt_add_of_pos_right Q.height_pos)).ne rfl).elim
+  · obtain ⟨j, hj, hx⟩ := (Q.bottom_iff _ _).1 (by simpa only [Nat.add_sub_cancel_left] using hq)
+    exact ⟨j, (bottom_comp D₁ D₂ j).trans ((congrArg (compRight D₁ D₂) hj).trans he), hx⟩
 
 /-- An upper true-direction port cannot leave the upper drawing through its bottom boundary. -/
 private theorem target_port_left (P : DiagramDrawing I D₁) (Q : DiagramDrawing I D₂)
@@ -265,9 +255,7 @@ private theorem target_spec_right (P : DiagramDrawing I D₁) (Q : DiagramDrawin
         target P Q (compRight D₁ D₂ e) = vertex P Q v := by
   rcases Q.target_spec e with ⟨j, hj⟩ | ⟨v, hp, hv⟩
   · exact .inl ⟨j, (bottom_comp D₁ D₂ j).trans (congrArg (compRight D₁ D₂) hj)⟩
-  · refine .inr ⟨.inr v, port_right hp, ?_⟩
-    rw [target_right]
-    exact congrArg (shift P.height) hv
+  · exact .inr ⟨.inr v, port_right hp, (target_right P Q e).trans (congrArg (shift P.height) hv)⟩
 
 /-- Upper first endpoints remain input ports or upper vertex ports. -/
 private theorem source_spec_left (P : DiagramDrawing I D₁) (Q : DiagramDrawing I D₂) (e : D₁.Edge) :
@@ -285,10 +273,7 @@ private theorem target_spec_left (P : DiagramDrawing I D₁) (Q : DiagramDrawing
         target P Q (compLeft D₁ D₂ e) = vertex P Q v := by
   classical
   by_cases h : ∃ j, D₁.bottom j = e
-  · have he : compRight D₁ D₂ (.inl h.choose) = compLeft D₁ D₂ e :=
-      congrArg (compLeft D₁ D₂) h.choose_spec
-    rw [← he]
-    exact target_spec_right P Q _
+  · exact congrArg (compLeft D₁ D₂) h.choose_spec ▸ target_spec_right P Q (.inl h.choose)
   · rcases P.target_spec e with ⟨j, hj⟩ | ⟨v, hp, hv⟩
     · exact (h ⟨j, hj⟩).elim
     · exact .inr ⟨.inl v, port_left hp, target_port_left P Q hp⟩
@@ -319,16 +304,11 @@ private theorem cross_equal (P : DiagramDrawing I D₁) (Q : DiagramDrawing I D�
     {e : D₁.Edge} {f : D₂.Edge} {p : Point}
     (hp : P.trace e p) (hq : Shift P.height (Q.trace f) p) :
     compLeft D₁ D₂ e = compRight D₁ D₂ f := by
-  have hbound := P.row_le e p hp
-  have hy : p.2 = P.height := by have := hq.1; omega
-  have hp' : P.trace e (p.1, P.height) := (Prod.ext rfl hy : p = (p.1, P.height)) ▸ hp
-  have hq' : Q.trace f (p.1, 0) := by simpa only [hy, Nat.sub_self] using hq.2
-  obtain ⟨i, hi, hxi⟩ := (P.bottom_iff _ _).1 hp'
-  obtain ⟨j, hj, hxj⟩ := (Q.top_iff _ _).1 hq'
-  have hij : i = j := Fin.ext (by omega)
-  subst j
-  rw [← hi, ← hj]
-  rfl
+  have hy : p.2 = P.height := le_antisymm (P.row_le e p hp) hq.1
+  obtain ⟨i, hi, hxi⟩ := (P.bottom_iff _ _).1 ((Prod.ext rfl hy : p = (p.1, P.height)) ▸ hp)
+  obtain ⟨j, hj, hxj⟩ := (Q.top_iff _ _).1 (by simpa only [hy, Nat.sub_self] using hq.2)
+  obtain rfl : i = j := Fin.ext (by omega)
+  exact (congrArg (compLeft D₁ D₂) hi).symm.trans (congrArg (compRight D₁ D₂) hj)
 
 /-- The common boundary joins equal edges, so new crossings cannot appear there. -/
 private theorem meet (P : DiagramDrawing I D₁) (Q : DiagramDrawing I D₂)
@@ -345,12 +325,11 @@ private theorem meet (P : DiagramDrawing I D₁) (Q : DiagramDrawing I D₂)
   · exact (hef (he.symm.trans ((cross_equal P Q hq ⟨hye, hp⟩).symm.trans hf))).elim
   · have hne : e' ≠ f' := fun h => hef (he.symm.trans ((congrArg _ h).trans hf))
     obtain ⟨v, hv, ⟨de, hde⟩, ⟨df, hdf⟩⟩ := Q.meet e' f' _ hne hp hq
-    have hpv : p = shift P.height (Q.vertex v) := by
-      have hx := congrArg Prod.fst hv
-      refine Prod.ext hx ?_
-      have hh : p.2 - P.height = (Q.vertex v).2 := congrArg Prod.snd hv
+    have hx := congrArg Prod.fst hv
+    have hpv : p = shift P.height (Q.vertex v) := Prod.ext hx (by
+      have := congrArg Prod.snd hv
       change p.2 = (Q.vertex v).2 + P.height
-      omega
+      omega)
     exact ⟨.inr v, hpv, he ▸ ⟨de, port_right hde⟩, hf ▸ ⟨df, port_right hdf⟩⟩
 
 /-- All false-direction ports remain first endpoints after stacking. -/

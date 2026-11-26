@@ -128,9 +128,7 @@ theorem walkM_replay_eq_some {edge : Fin N → Fin N → Bool} {target current :
     | zero => simp [walk_exhausted]
     | succ fuel =>
       rw [walk_next, hchain]
-      by_cases h : edge current next = true
-      · simp only [h, ite_true, ih, true_and, List.length_cons, Nat.add_succ, Nat.succ.injEq]
-      · simp [h]
+      by_cases h : edge current next = true <;> simp [h, ih, ← Nat.add_assoc]
 
 /-- A verified prefix's accumulated tally and membership bit. -/
 structure Result where
@@ -411,12 +409,7 @@ theorem run_eq_some_iff (edge : Fin N → Fin N → Bool) (source target : Fin N
   classical
   unfold run Passes Result.finish
   rw [tally_spec]
-  split_ifs with h
-  · dsimp only [Option.bind]
-    split_ifs with hm
-    · simp only [Option.some.injEq, and_iff_right h, and_iff_right hm]
-    · simp [hm]
-  · simp [h]
+  split_ifs <;> simp_all
 
 /-- The streaming scanner with the canonical choice provider returns a bit exactly when
 the corresponding transcript passes, and that bit records selection of the target. -/
@@ -481,8 +474,7 @@ private theorem candidate_registers_le (edge : Fin N → Fin N → Bool)
     r.tally.count ≤ 1 ∧ r.tally.lengthSum ≤ k := by
   rw [candidate_eq] at hr
   cases h : branch v <;> simp only [h, Option.some.injEq] at hr
-  · subst r
-    simp [Result.zero]
+  · simp [← hr, Result.zero]
   · obtain ⟨left, _, rfl⟩ := Option.map_eq_some_iff.mp hr
     exact ⟨le_rfl, Nat.sub_le _ _⟩
 
@@ -493,8 +485,7 @@ private theorem foldlM_registers_le (g : Fin N → Option Result) (k : ℕ)
   induction N generalizing r with
   | zero =>
     simp only [Fin.foldlM_zero, pure, Option.some.injEq] at hr
-    subst r
-    simp [Result.zero]
+    simp [← hr, Result.zero]
   | succ N ih =>
     rw [Fin.foldlM_succ_last] at hr
     change ((Fin.foldlM N (fun acc v => (g v.castSucc).map (add acc)) Result.zero).bind

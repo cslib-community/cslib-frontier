@@ -175,12 +175,11 @@ theorem isInArborescenceParent_iff {G : Digraph V} {r : V} {p : V → V} (hr : p
 /-- The arc cost of the digraph of a parent function is its cost. -/
 theorem arcCost_parentDigraph [Fintype V] [DecidableEq V] [AddCommMonoid β] (r : V) (p : V → V)
     (c : V → V → β) : arcCost (Digraph.parentDigraph r p) c = parentCost c r p := by
-  unfold arcCost parentCost
   have himg : (Finset.univ.erase r).image (fun v => (v, p v)) =
       Finset.univ.filter (fun e : V × V => (Digraph.parentDigraph r p).Adj e.1 e.2) := by
     ext ⟨v, w⟩
     simp [Digraph.parentDigraph_adj]
-  rw [← himg, Finset.sum_image fun x _ y _ h => (Prod.mk.inj h).1]
+  rw [arcCost, parentCost, ← himg, Finset.sum_image fun x _ y _ h => (Prod.mk.inj h).1]
 
 end Bridge
 
@@ -208,10 +207,9 @@ theorem cheapestParent_spec {v : V} (hv : v ≠ r) (hne : candidates a v ≠ [])
     a v (cheapestParent a c r v) = true ∧ cheapestParent a c r v ≠ v ∧
       ∀ w, a v w = true → w ≠ v → c v (cheapestParent a c r v) ≤ c v w := by
   obtain ⟨m, hm⟩ := List.exists_argmin_eq_some (f := c v) hne
-  have hsel : cheapestParent a c r v = m := by simp [cheapestParent, hv, hm]
-  rw [hsel]
-  have hmem := (mem_candidates a).mp (List.argmin_mem hm)
-  exact ⟨hmem.1, hmem.2, fun w hw hwv =>
+  simp only [cheapestParent, hv, ↓reduceIte, hm, Option.getD_some]
+  obtain ⟨hva, hmv⟩ := (mem_candidates a).mp (List.argmin_mem hm)
+  exact ⟨hva, hmv, fun w hw hwv =>
     List.le_of_mem_argmin ((mem_candidates a).mpr ⟨hw, hwv⟩) hm⟩
 
 end Select
@@ -420,15 +418,13 @@ theorem expandParent_spec (hfa : ∀ y ∈ C, a y (f y) = true) (hfC : ∀ y ∈
   obtain ⟨xs, hbo, hxsC, hxsa, -⟩ := bestExit_spec (c := c) (f := f) hex
   have hpC : ∀ v ∈ C, expandParent a c f C x0 q v = if v = xs then q x0 else f v := fun v hv => by
     simp [expandParent, hv, hbo]
-  have hqO : ∀ v ∉ C, q v ≠ x0 → q v ∉ C := by
-    intro v hv hqv hqC
-    have hvr : v ≠ r := by rintro rfl; exact hrC (hq.root ▸ hqC)
-    exact hqv ((contractAdj_out_mem_iff hv hqC).mp (hq.adj v hvr)).1
-  have hpO : ∀ v ∉ C, q v = x0 → ∃ y, y ∈ C ∧ a v y = true ∧ bestEntry a c C v = some y ∧
-      expandParent a c f C x0 q v = y := by
-    intro v hv hqv
-    have hvr : v ≠ r := by rintro rfl; exact hx0r (hqv ▸ hq.root)
-    have h := (contractAdj_out_mem_iff hv hx0).mp (hqv ▸ hq.adj v hvr)
+  have hqO (v : V) (hv : v ∉ C) (hqv : q v ≠ x0) (hqC : q v ∈ C) : False :=
+    hqv ((contractAdj_out_mem_iff hv hqC).mp (hq.adj v fun h => hrC (hq.root ▸ h ▸ hqC))).1
+  have hpO (v : V) (hv : v ∉ C) (hqv : q v = x0) :
+      ∃ y, y ∈ C ∧ a v y = true ∧ bestEntry a c C v = some y ∧
+        expandParent a c f C x0 q v = y := by
+    have h := (contractAdj_out_mem_iff hv hx0).mp
+      (hqv ▸ hq.adj v fun h => hx0r (hqv.symm.trans (h ▸ hq.root)))
     obtain ⟨y, hbi, hyC, hya, -⟩ := bestEntry_spec (c := c) h.2
     exact ⟨y, hyC, hya, hbi, by simp [expandParent, hv, hqv, hbi]⟩
   have hpO' : ∀ v ∉ C, q v ≠ x0 → expandParent a c f C x0 q v = q v := fun v hv hqv => by
@@ -446,20 +442,17 @@ theorem expandParent_spec (hfa : ∀ y ∈ C, a y (f y) = true) (hfC : ∀ y ∈
       (fun i hi => ⟨hiC i, Nat.find_min hex hi⟩), Nat.find_spec hex, hpC xs hxsC,
       ite_eq_left rfl]
   -- vertices outside `C` that reach `r` under `q` reach it under `p`
-  have hR2 : ∀ n u, u ∉ C → q^[n] u = r → ∃ m, p^[m] u = r := by
-    intro n
+  have hR2 (n : ℕ) : ∀ u ∉ C, q^[n] u = r → ∃ m, p^[m] u = r := by
     induction n using Nat.strong_induction_on with
     | _ n ih =>
       intro u hu hn
-      by_cases hur : u = r
-      · exact ⟨0, hur⟩
-      obtain ⟨n', rfl⟩ := Nat.exists_eq_add_one_of_ne_zero (n := n) (by rintro rfl; exact hur hn)
+      rcases n with _ | n'
+      · exact ⟨0, hn⟩
       rw [Function.iterate_succ_apply] at hn
       by_cases hqu : q u = x0
-      · rw [hqu] at hn
-        obtain ⟨n'', rfl⟩ :=
-          Nat.exists_eq_add_one_of_ne_zero (n := n') (by rintro rfl; exact hx0r hn)
-        rw [Function.iterate_succ_apply] at hn
+      · rcases n' with _ | n''
+        · exact absurd (hqu ▸ hn) hx0r
+        rw [hqu, Function.iterate_succ_apply] at hn
         obtain ⟨m, hm⟩ := ih n'' (by omega) (q x0) hwC hn
         obtain ⟨y, hyC, -, -, hpy⟩ := hpO u hu hqu
         obtain ⟨k, hk⟩ := hR1 y hyC
@@ -483,24 +476,19 @@ theorem expandParent_spec (hfa : ∀ y ∈ C, a y (f y) = true) (hfC : ∀ y ∈
   · intro v
     by_cases hvC : v ∈ C
     · obtain ⟨k, hk⟩ := hR1 v hvC
-      obtain ⟨n, hn⟩ := hq.reach (q x0)
-      obtain ⟨m, hm⟩ := hR2 n (q x0) hwC hn
+      obtain ⟨m, hm⟩ := (hq.reach (q x0)).elim fun n => hR2 n (q x0) hwC
       exact ⟨m + k, by rw [Function.iterate_add_apply, hk, hm]⟩
-    · obtain ⟨n, hn⟩ := hq.reach v
-      exact hR2 n v hvC hn
+    · exact (hq.reach v).elim fun n => hR2 n v hvC
   · have hsub : C ⊆ Finset.univ.erase r := fun y hy =>
       Finset.mem_erase.mpr ⟨fun h => hrC (h ▸ hy), Finset.mem_univ y⟩
-    unfold parentCost
-    rw [← Finset.sum_sdiff hsub, ← Finset.sum_sdiff hsub]
+    rw [parentCost, parentCost, ← Finset.sum_sdiff hsub, ← Finset.sum_sdiff hsub]
     congr 1
     · refine Finset.sum_congr rfl fun v hv => ?_
       have hvC : v ∉ C := (Finset.mem_sdiff.mp hv).2
       by_cases hqv : q v = x0
       · obtain ⟨y, -, -, hbi, hpy⟩ := hpO v hvC hqv
-        rw [hpy, hqv]
-        simp [contractCost, hvC, hbi]
-      · rw [hpO' v hvC hqv]
-        simp [contractCost, hvC, hqv]
+        simp [hpy, hqv, contractCost, hvC, hbi]
+      · simp [hpO' v hvC hqv, contractCost, hvC, hqv]
     · rw [← Finset.add_sum_erase C _ hxsC, ← Finset.add_sum_erase C _ hx0,
         hpC xs hxsC, ite_eq_left rfl]
       have h0 : ∑ v ∈ C.erase x0, contractCost a c f C x0 v (q v) = 0 :=
@@ -543,19 +531,16 @@ theorem exists_contract_le [IsOrderedAddMonoid β]
   have hqO : ∀ v ∉ C, q v = if t v ∈ C then x0 else t v := fun v hv => by simp [q, hv]
   have hq_r : q r = r := by rw [hqO r hrC, ht.root, ite_eq_right hrC]
   -- reachability from the exit vertex
-  have hQ : ∀ j < Nat.find hexk, ∀ w, t^[j] w = r → ∃ n, q^[n] w = r := by
-    intro j
+  have hQ (j : ℕ) : j < Nat.find hexk → ∀ w, t^[j] w = r → ∃ n, q^[n] w = r := by
     induction j with
-    | zero => intro _ w hw; exact ⟨0, hw⟩
+    | zero => exact fun _ _ hw => ⟨0, hw⟩
     | succ j ih =>
       intro hj w hw
       have hw0 := havoid w (j + 1) hj hw 0 (Nat.zero_le _)
-      have hw1 := havoid w (j + 1) hj hw 1 (by omega)
-      simp only [Function.iterate_zero, id_eq, Function.iterate_one] at hw0 hw1
+      have hw1 : t w ∉ C := havoid w (j + 1) hj hw 1 (by omega)
       rw [Function.iterate_succ_apply] at hw
       obtain ⟨n, hn⟩ := ih (by omega) (t w) hw
-      refine ⟨n + 1, ?_⟩
-      rw [Function.iterate_succ_apply, hqO w hw0, ite_eq_right hw1, hn]
+      exact ⟨n + 1, by rw [Function.iterate_succ_apply, hqO w hw0, ite_eq_right hw1, hn]⟩
   have hqx0 : ∃ n, q^[n] x0 = r := by
     obtain ⟨n, hn⟩ := hQ k' (by omega) (t x) htx
     exact ⟨n + 1, by rw [Function.iterate_succ_apply, hqC x0 hx0, ite_eq_left rfl, hn]⟩

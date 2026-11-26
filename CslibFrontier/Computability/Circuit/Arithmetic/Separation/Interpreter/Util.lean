@@ -27,6 +27,7 @@ From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `NS1.Util`.
 
 ## Main results
 
+* `Interpreter.wordT_eq_map_tbits`: the brackets of a tree are the letters of its bits.
 * `Interpreter.wordF_gives`, `Interpreter.nzB_gives`, `Interpreter.takeB_gives`.
 -/
 
@@ -61,6 +62,13 @@ theorem length_tbits (z : Tree) : (tbits z).length = z.size := by
   | nil => rfl
   | cons a b iha ihb =>
     simp only [tbits, List.length_cons, List.length_append, iha, ihb, Tree.size]
+
+/-- The brackets of a tree with the letters `t false` and `t true` are the letters of its bits. -/
+theorem wordT_eq_map_tbits (t : Bool → Tree) (z : Tree) :
+    wordT (t false) (t true) z = (tbits z).map t := by
+  induction z with
+  | nil => rfl
+  | cons a b iha ihb => simp only [wordT, tbits, List.map_cons, List.map_append, iha, ihb]
 
 /-- Write the brackets of a tree in front of a list. The argument is (this program, (tree, list)).
 -/

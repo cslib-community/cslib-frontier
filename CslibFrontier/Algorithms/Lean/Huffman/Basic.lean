@@ -127,10 +127,7 @@ theorem eq_leaf_of_leaves_perm_singleton {T : CodeTree α} {a : α}
     (h : T.leaves.Perm [a]) : T = leaf a := by
   cases T with
   | leaf b => exact congrArg leaf (List.singleton_inj.mp h.eq_singleton)
-  | branch l r =>
-    have hlen := h.length_eq
-    have h2 := two_le_length_leaves_of_branch l r
-    simp only [List.length_singleton] at hlen; omega
+  | branch l r => nomatch (h.length_eq ▸ two_le_length_leaves_of_branch l r)
 
 @[simp] theorem leaves_map (f : α → β) (T : CodeTree α) :
     (T.map f).leaves = T.leaves.map f := by
@@ -331,10 +328,8 @@ theorem pairwise_incomparable_codewords (T : CodeTree α) :
         ⟨fun hp => h'.1 (List.cons_prefix_cons.mp hp).2,
          fun hp => h'.2 (List.cons_prefix_cons.mp hp).2⟩
     rw [codewords, List.map_append, hmap, hmap, List.pairwise_append]
-    refine ⟨hcons false ihl, hcons true ihr, fun _ hx _ hy => ?_⟩
-    obtain ⟨_, _, rfl⟩ := List.mem_map.mp hx
-    obtain ⟨_, _, rfl⟩ := List.mem_map.mp hy
-    simp
+    exact ⟨hcons false ihl, hcons true ihr,
+      List.forall_mem_map.2 fun _ _ => List.forall_mem_map.2 fun _ _ => by simp⟩
 
 theorem nodup_map_snd_codewords (T : CodeTree α) :
     (T.codewords.map Prod.snd).Nodup :=
@@ -515,9 +510,8 @@ private theorem sum_codewords_count_cons [DecidableEq α] {L : List (α × List 
         List.map_congr_left fun q hq => by
           rw [List.count_cons_of_ne fun (h : a = q.1) =>
             hnodup.1 (h ▸ List.mem_map.mpr ⟨q, hq, rfl⟩)]
-      have hmul : c.length • (msg.count a + 1) = c.length • msg.count a + c.length :=
-        Nat.mul_succ _ _
-      simp only [List.count_cons_self, htail, hmul]; omega
+      rw [htail]
+      simp only [List.count_cons_self, Nat.nsmul_eq_mul, Nat.mul_succ]; omega
     · rw [List.count_cons_of_ne fun (h : a = p.1) =>
           hnodup.1 (h.symm ▸ List.mem_map.mpr ⟨_, hps, rfl⟩),
         ih hnodup.2 hps]

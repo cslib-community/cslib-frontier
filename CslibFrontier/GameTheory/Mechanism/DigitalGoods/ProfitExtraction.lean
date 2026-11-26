@@ -145,9 +145,8 @@ theorem singlePriceProfitOn_empty (m : ℕ) (b : ι → ℝ) :
 theorem singlePriceProfitOn_eq_zero_of_card_lt {m : ℕ} {s : Finset ι} (b : ι → ℝ)
     (hs : s.card < m) : singlePriceProfitOn m s b = 0 := by
   classical
-  unfold singlePriceProfitOn
-  refine dite_eq_right fun ⟨j, hj⟩ => ?_
-  exact not_le_of_gt hs ((mem_filter.1 hj).2.trans (card_filter_le s _))
+  exact dite_eq_right fun ⟨j, hj⟩ =>
+    not_le_of_gt hs ((mem_filter.1 hj).2.trans (card_filter_le s _))
 
 /-- `singlePriceProfitOn m s b` depends only on the values of `b` on `s`. -/
 theorem singlePriceProfitOn_congr {m : ℕ} {s : Finset ι} {b b' : ι → ℝ}
@@ -196,10 +195,7 @@ theorem mul_card_le_singlePriceProfitOn {m : ℕ} {s W : Finset ι} {b : ι → 
       _ ≤ b j * ((s.filter fun i => b j ≤ b i).card : ℝ) :=
           mul_le_mul_of_nonneg_left (Nat.cast_le.2 hcard) (hb j hjs)
       _ ≤ singlePriceProfitOn m s b := by
-          unfold singlePriceProfitOn
-          have hne : (s.filter fun k => m ≤ (s.filter fun i => b k ≤ b i).card).Nonempty :=
-            ⟨j, hjm⟩
-          simp only [hne, ↓reduceDIte]
+          rw [singlePriceProfitOn, dite_eq_left ⟨j, hjm⟩]
           exact le_sup' (fun k => b k * ((s.filter fun i => b k ≤ b i).card : ℝ)) hjm
 
 /-- Upper bound: if every candidate bid `b j` (`j ∈ s`, with at least `m` acceptors) gives revenue
@@ -229,9 +225,7 @@ theorem exists_mem_eq_singlePriceProfitOn {m : ℕ} {s : Finset ι} {b : ι → 
   obtain ⟨j, hjc, hjmax⟩ := exists_mem_eq_sup' hcne
     (fun j => b j * ((s.filter fun i => b j ≤ b i).card : ℝ))
   refine ⟨j, (mem_filter.1 hjc).1, (mem_filter.1 hjc).2, ?_⟩
-  unfold singlePriceProfitOn
-  simp only [hcne, ↓reduceDIte]
-  exact hjmax
+  simpa only [singlePriceProfitOn, hcne, ↓reduceDIte] using hjmax
 
 /-- The sorting-free benchmark `singlePriceProfitOn m Finset.univ b` agrees with the textbook
 order-statistic formula `max_{m ≤ k ≤ |ι|} k · v_(k)` ([HartlineKarlin2007], Definition 13.34,
@@ -419,19 +413,15 @@ theorem card_winners_profitExtractOn {s : Finset ι} {R : ℝ} {b : ι → ℝ}
   obtain ⟨hR, hmem⟩ := profitExtractSize_mem_of_pos hk
   obtain ⟨hk1, _, hge⟩ := mem_feasibleSizes_iff.1 hmem
   apply le_antisymm _ (by convert hge)
-  by_contra hlt
-  have hsucc : k + 1 ≤ (s.filter fun i => R / (k : ℝ) ≤ b i).card := by
-    exact Nat.succ_le_of_lt (lt_of_not_ge hlt)
-  have hle_s : k + 1 ≤ s.card := hsucc.trans (card_filter_le _ _)
+  by_contra! hlt
   have hprice : R / ((k + 1 : ℕ) : ℝ) ≤ R / (k : ℝ) :=
-    div_le_div_of_nonneg_left hR (Nat.cast_pos.2 hk1) (by exact_mod_cast (by omega : k ≤ k + 1))
+    div_le_div_of_nonneg_left hR (Nat.cast_pos.2 hk1) (Nat.cast_le.2 (Nat.le_succ k))
   have hsub : (s.filter fun i => R / (k : ℝ) ≤ b i) ⊆
       (s.filter fun i => R / ((k + 1 : ℕ) : ℝ) ≤ b i) :=
     fun i hi => mem_filter.2 ⟨(mem_filter.1 hi).1, hprice.trans (mem_filter.1 hi).2⟩
-  have hmem' : k + 1 ∈ feasibleSizes s R b :=
-    mem_feasibleSizes_iff.2 ⟨Nat.le_add_left 1 k, hle_s, hsucc.trans (card_le_card hsub)⟩
-  have hle_max : k + 1 ≤ k := le_profitExtractSize hR hmem'
-  omega
+  have hmem' : k + 1 ∈ feasibleSizes s R b := mem_feasibleSizes_iff.2
+    ⟨Nat.le_add_left 1 k, hlt.trans_le (card_filter_le _ _), hlt.trans_le (card_le_card hsub)⟩
+  exact Nat.not_succ_le_self k (le_profitExtractSize hR hmem')
 
 /-- Candidate group sizes assuming bidder `i ∈ s` accepts any price: `k ∈ {1, ..., #s}` such that
 at least `k - 1` other bidders in `s.erase i` bid at least `R / k`. -/
@@ -641,14 +631,10 @@ theorem sum_payment_profitExtractOn [Fintype ι] (s : Finset ι) {R : ℝ} (hR :
   rw [← sum_payment_profitExtractOn_eq_univ]
   rcases s.eq_empty_or_nonempty with rfl | hsne
   · simp only [sum_empty, singlePriceProfitOn_empty]
-    split_ifs with h
-    · linarith
-    · rfl
+    split_ifs <;> linarith
   · by_cases hle : R ≤ optimalProfitOn s b
     · simp only [hle, ↓reduceIte]
-      have hne : (feasibleSizes s R b).Nonempty :=
-        (feasibleSizes_nonempty_iff_le hR hb hsne).2 hle
-      obtain ⟨k₀, hk₀⟩ := hne
+      obtain ⟨k₀, hk₀⟩ := (feasibleSizes_nonempty_iff_le hR hb hsne).2 hle
       have hkpos : 0 < profitExtractSize s R b :=
         lt_of_lt_of_le (mem_feasibleSizes_iff.1 hk₀).1 (le_profitExtractSize hR hk₀)
       set k := profitExtractSize s R b
@@ -666,12 +652,10 @@ theorem sum_payment_profitExtractOn [Fintype ι] (s : Finset ι) {R : ℝ} (hR :
               rw [sum_const, nsmul_eq_mul]
         _ = (k : ℝ) * (R / (k : ℝ)) := by rw [hcard]
         _ = R := mul_div_cancel₀ R (Nat.cast_pos.2 hkpos).ne'
-    · simp only [hle, ↓reduceIte]
-      have hempty : ¬ (feasibleSizes s R b).Nonempty :=
-        mt (feasibleSizes_nonempty_iff_le hR hb hsne).1 hle
-      have hk0 : profitExtractSize s R b = 0 := by
-        simp [profitExtractSize_eq_feasibleSizes hR, hempty]
-      simp [profitExtractOn, hk0]
+    · have hk0 : profitExtractSize s R b = 0 := by
+        simp [profitExtractSize_eq_feasibleSizes hR,
+          mt (feasibleSizes_nonempty_iff_le hR hb hsne).1 hle]
+      simp [hle, profitExtractOn, hk0]
 
 /-- **Exercise 13.10** ([HartlineKarlin2007], p. 361; §13.4.4, p. 347): on nonnegative bids with
 `0 ≤ R ≤ ℱ(b)`, `profitExtract R` obtains total profit `R`. Paired with `profitExtractOn_isDSIC`
@@ -679,8 +663,7 @@ and `profitExtractOn_isIR` (with `s = Finset.univ`). -/
 theorem sum_payment_profitExtract_of_le [Fintype ι] {R : ℝ} (hR : 0 ≤ R) {b : ι → ℝ}
     (hb : 0 ≤ b) (hle : R ≤ optimalProfit b) :
     ∑ i, (profitExtract R).payment b i = R := by
-  rw [sum_payment_profitExtractOn Finset.univ hR (fun i _ => hb i)]
-  simp only [hle, ↓reduceIte]
+  simpa only [hle, ↓reduceIte] using sum_payment_profitExtractOn Finset.univ hR fun i _ => hb i
 
 end ProfitExtract
 
@@ -784,9 +767,8 @@ theorem sum_payment_rspe_eq (s : Finset ι) {b : ι → ℝ} (hb : 0 ≤ b) :
       (∑ i ∈ s, (profitExtractOn s (optimalProfitOn sᶜ b)).payment b i) +
         (∑ i ∈ sᶜ, (profitExtractOn sᶜ (optimalProfitOn s b)).payment b i) := by
     rw [← sum_add_sum_compl s]
-    congr 1 <;> refine sum_congr rfl fun i hi => ?_
-    · simp [rspe, hi]
-    · simp [rspe, mem_compl.1 hi]
+    exact congrArg₂ (· + ·) (sum_congr rfl fun i hi => ite_eq_left hi)
+      (sum_congr rfl fun i hi => ite_eq_right (mem_compl.1 hi))
   rw [hsplit, sum_payment_profitExtractOn_eq_univ, sum_payment_profitExtractOn_eq_univ,
     sum_payment_profitExtractOn s (singlePriceProfitOn_nonneg fun i _ => hb i) fun i _ => hb i,
     sum_payment_profitExtractOn sᶜ (singlePriceProfitOn_nonneg fun i _ => hb i) fun i _ => hb i]
@@ -913,15 +895,12 @@ theorem rspe_isCompetitive :
     IsCompetitive (optimalProfitTwo (ι := ι)) rspeExpectedProfit 4 := by
   refine ⟨by norm_num, fun b hb => ?_⟩
   rcases lt_or_ge (Fintype.card ι) 2 with hsmall | hcard
-  · have hzero : optimalProfitTwo b = 0 :=
-      singlePriceProfitOn_eq_zero_of_card_lt b (by simpa only [card_univ] using hsmall)
-    rw [hzero]
-    have hnn : 0 ≤ rspeExpectedProfit b := by
-      rw [rspeExpectedProfit_eq_div]
-      refine div_nonneg (sum_nonneg fun s _ => ?_) (by positivity)
-      exact le_trans (le_min (singlePriceProfitOn_nonneg fun i _ => hb i)
-        (singlePriceProfitOn_nonneg fun i _ => hb i)) (min_le_sum_payment_rspe s hb)
-    linarith
+  · dsimp only [optimalProfitTwo]
+    rw [singlePriceProfitOn_eq_zero_of_card_lt b ((card_univ (α := ι)).symm ▸ hsmall),
+      rspeExpectedProfit_eq_div]
+    refine mul_nonneg (by norm_num) (div_nonneg (sum_nonneg fun s _ => ?_) (by positivity))
+    exact (le_min (singlePriceProfitOn_nonneg fun i _ => hb i)
+      (singlePriceProfitOn_nonneg fun i _ => hb i)).trans (min_le_sum_payment_rspe s hb)
   · have hcard_pos : 0 < (univ : Finset ι).card := by rw [card_univ]; omega
     obtain ⟨j, _, hj2, hjeq⟩ :=
       exists_mem_eq_singlePriceProfitOn (m := 2) (card_pos.1 hcard_pos)
@@ -946,10 +925,9 @@ theorem rspe_isCompetitive :
     have hpow_pos : (0 : ℝ) < 2 ^ Fintype.card ι := by positivity
     have hcomb : (W.card : ℝ) * 2 ^ Fintype.card ι ≤
         4 * ∑ s : Finset ι, ((min (W ∩ s).card (W \ s).card : ℕ) : ℝ) := by
-      have hnat := card_mul_two_pow_le_four_mul_sum_min hj2
-      exact_mod_cast hnat
-    have hjeq' : optimalProfitTwo b = p * (W.card : ℝ) := hjeq
-    rw [rspeExpectedProfit_eq_div, hjeq', mul_div_assoc', le_div_iff₀ hpow_pos]
+      exact_mod_cast card_mul_two_pow_le_four_mul_sum_min hj2
+    dsimp only [optimalProfitTwo]
+    rw [rspeExpectedProfit_eq_div, hjeq, mul_div_assoc', le_div_iff₀ hpow_pos]
     calc p * (W.card : ℝ) * 2 ^ Fintype.card ι
         = p * ((W.card : ℝ) * 2 ^ Fintype.card ι) := by ring
       _ ≤ p * (4 * ∑ s : Finset ι, ((min (W ∩ s).card (W \ s).card : ℕ) : ℝ)) :=
@@ -1055,13 +1033,12 @@ theorem exists_rspe_tight (hcard : 2 ≤ Fintype.card ι) :
     rw [card_filter_mem_notMem hne, card_filter_mem_notMem hne.symm]
     push_cast
     ring
+  have hcard_eq : 2 + (Fintype.card ι - 2) = Fintype.card ι := by omega
   have hpow : (2 ^ Fintype.card ι : ℝ) = 4 * (2 ^ (Fintype.card ι - 2) : ℝ) := by
-    rw [show (4 : ℝ) = 2 ^ 2 by norm_num, ← pow_add]; congr 1; omega
+    rw [← hcard_eq, pow_add]; norm_num
   refine ⟨b, hb, hF2, ?_⟩
   rw [rspeExpectedProfit_eq_div, hsum, hpow]
-  have hpos : (2 ^ (Fintype.card ι - 2) : ℝ) ≠ 0 := by positivity
-  field_simp
-  norm_num
+  field_simp; norm_num
 
 /-- **Theorem 13.42** ([HartlineKarlin2007], §13.4.5, p. 348): for every finite bidder type with
 at least two bidders, the competitive ratio of **RSPE** with respect to `ℱ⁽²⁾` (`optimalProfitTwo`)
@@ -1071,8 +1048,7 @@ theorem isLeast_rspe_competitiveRatio (hcard : 2 ≤ Fintype.card ι) :
     IsLeast {β : ℝ | IsCompetitive (optimalProfitTwo (ι := ι)) rspeExpectedProfit β} 4 := by
   refine ⟨rspe_isCompetitive, fun β hβ => ?_⟩
   obtain ⟨b, hb, hF2, hexp⟩ := exists_rspe_tight hcard
-  have h := hβ.2 b hb
-  rw [hF2, hexp] at h
+  have hle : (2 : ℝ) ≤ β * (1 / 2) := by simpa only [hF2, hexp] using hβ.2 b hb
   linarith
 
 end RSPE

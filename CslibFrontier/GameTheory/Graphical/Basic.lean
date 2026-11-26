@@ -235,17 +235,12 @@ theorem _root_.Cslib.GameTheory.CostGame.isGraphicalOn_iff_exists_graphicalGame
     {ι : Type*} {S : ι → Type*} [∀ k, Nonempty (S k)] {G : SimpleGraph ι} {C : CostGame ι S} :
     C.IsGraphicalOn G ↔ ∃ M : GraphicalGame ι S, M.graph = G ∧ M.toCostGame = C := by
   classical
-  refine ⟨fun hC => ?_, ?_⟩
-  · refine ⟨{
-      graph := G
-      localPayoff := fun i u =>
-        -C.cost i fun k => if hk : k = i ∨ G.Adj i k then u ⟨k, hk⟩ else Classical.arbitrary (S k)
-    }, rfl, ?_⟩
-    cases C with
-    | mk cost =>
-      refine congrArg CostGame.mk (funext fun i => funext fun s => ?_)
-      simp only [payoff_eq_localPayoff, neg_neg]
-      exact hC i _ s fun j hj => by simp [hj]
+  refine ⟨fun hC => ⟨⟨G, fun i u =>
+    -C.cost i fun k => if hk : k = i ∨ G.Adj i k then u ⟨k, hk⟩ else Classical.arbitrary (S k)⟩,
+    rfl, ?_⟩, ?_⟩
+  · cases C
+    refine congrArg CostGame.mk (funext fun i => funext fun s => ?_)
+    simpa only [payoff_eq_localPayoff, neg_neg] using hC i _ s fun j hj => dite_eq_left hj
   · rintro ⟨M, rfl, rfl⟩
     exact M.toCostGame_isGraphicalOn
 
@@ -290,14 +285,11 @@ theorem tableEntries_le_card_mul_pow (M : GraphicalGame ι S) [DecidableRel M.gr
         M.graph.card_neighborFinset_eq_degree]
       exact Nat.add_le_add_right (hd i) 1
     rcases m.eq_zero_or_pos with rfl | hm_pos
-    · have hi : Fintype.card (S i) = 0 := Nat.eq_zero_of_le_zero (hm i)
-      rw [Finset.prod_eq_zero (Finset.mem_insert_self i _) hi]
-      exact Nat.zero_le _
+    · simp [Nat.eq_zero_of_le_zero (hm i)]
     · calc ∏ j ∈ insert i (M.graph.neighborFinset i), Fintype.card (S j)
           ≤ ∏ _j ∈ insert i (M.graph.neighborFinset i), m :=
             Finset.prod_le_prod fun j _ => hm j
-        _ = m ^ (insert i (M.graph.neighborFinset i)).card := by
-            rw [Finset.prod_const]
+        _ = m ^ (insert i (M.graph.neighborFinset i)).card := Finset.prod_const m
         _ ≤ m ^ (d + 1) := Nat.pow_le_pow_right hm_pos hcard
   calc ∑ i : ι, ∏ j ∈ insert i (M.graph.neighborFinset i), Fintype.card (S j)
       ≤ ∑ _i : ι, m ^ (d + 1) := Finset.sum_le_sum hterm
@@ -308,11 +300,9 @@ theorem tableEntries_of_graph_eq_top (M : GraphicalGame ι S) [DecidableRel M.gr
     (htop : M.graph = ⊤) :
     M.tableEntries = CostGame.normalFormEntries ι S := by
   rw [M.tableEntries_eq_sum_prod, CostGame.normalFormEntries_eq]
-  have hins : ∀ i : ι, insert i (M.graph.neighborFinset i) = univ := fun i => by
-    ext j
-    simp only [Finset.mem_insert, M.graph.mem_neighborFinset, htop, SimpleGraph.top_adj,
-      Finset.mem_univ, iff_true]
-    exact eq_or_ne j i |>.imp id Ne.symm
+  have hins (i : ι) : insert i (M.graph.neighborFinset i) = univ :=
+    ext fun j => by
+      simpa [M.graph.mem_neighborFinset, htop] using (eq_or_ne j i).imp id Ne.symm
   simp only [hins, Finset.sum_const, card_univ, smul_eq_mul]
 
 /-- Whenever `M.graph ≠ ⊤` and every player has at least `2` actions, the graphical game stores
@@ -330,22 +320,20 @@ theorem tableEntries_lt_normalFormEntries (M : GraphicalGame ι S) [DecidableRel
     simp [M.graph.mem_neighborFinset, hne.symm, hnadj]
   have hpos : 0 < ∏ j ∈ insert i₀ (M.graph.neighborFinset i₀), Fintype.card (S j) :=
     Finset.prod_pos fun j _ => lt_of_lt_of_le zero_lt_two (hcard j)
+  have hle (s : Finset ι) :
+      ∏ j ∈ s, Fintype.card (S j) ≤ ∏ j : ι, Fintype.card (S j) :=
+    Finset.prod_le_prod_of_subset_of_one_le (Finset.subset_univ s) fun j _ _ =>
+      Nat.one_le_of_lt (hcard j)
   have hlt : ∏ j ∈ insert i₀ (M.graph.neighborFinset i₀), Fintype.card (S j) <
       ∏ j : ι, Fintype.card (S j) :=
     calc ∏ j ∈ insert i₀ (M.graph.neighborFinset i₀), Fintype.card (S j)
         < ∏ j ∈ insert k₀ (insert i₀ (M.graph.neighborFinset i₀)), Fintype.card (S j) := by
           rw [Finset.prod_insert hk_not]
           exact lt_mul_of_one_lt_left hpos (hcard k₀)
-      _ ≤ ∏ j : ι, Fintype.card (S j) :=
-          Finset.prod_le_prod_of_subset_of_one_le (Finset.subset_univ _) fun j _ _ =>
-            Nat.one_le_of_lt (hcard j)
-  have hle : ∀ i ∈ (univ : Finset ι),
-      ∏ j ∈ insert i (M.graph.neighborFinset i), Fintype.card (S j) ≤
-        ∏ j : ι, Fintype.card (S j) := fun i _ =>
-    Finset.prod_le_prod_of_subset_of_one_le (Finset.subset_univ _) fun j _ _ =>
-      Nat.one_le_of_lt (hcard j)
+      _ ≤ ∏ j : ι, Fintype.card (S j) := hle _
   simpa only [Finset.sum_const, card_univ, smul_eq_mul] using
-    Finset.sum_lt_sum hle ⟨i₀, mem_univ i₀, hlt⟩
+    Finset.sum_lt_sum (fun i _ => hle (insert i (M.graph.neighborFinset i)))
+      ⟨i₀, mem_univ i₀, hlt⟩
 
 end RepresentationSize
 
@@ -388,11 +376,9 @@ theorem sum_productWeight_mul_restrict (P : ι → Prop) [DecidablePred P]
         refine sum_congr rfl fun u _ => sum_congr rfl fun v _ => ?_
         have hrestrict : (fun j : {j // P j} => e (u, v) j.1) = u :=
           funext fun j => by simp [e, Equiv.piEquivPiSubtypeProd, j.2]
-        rw [hprod u v, hrestrict]
-        ring
-    _ = ∑ u : (∀ j : {j // P j}, S j.1), (∏ j : {j // P j}, p j.1 (u j)) * f u := by
-        refine sum_congr rfl fun u _ => ?_
-        rw [← Finset.mul_sum, hrest, mul_one]
+        rw [hprod u v, hrestrict, mul_right_comm]
+    _ = ∑ u : (∀ j : {j // P j}, S j.1), (∏ j : {j // P j}, p j.1 (u j)) * f u :=
+        sum_congr rfl fun u _ => by rw [← Finset.mul_sum, hrest, mul_one]
 
 /-- Expected payoff `M_i(p) = E_{s ∼ p}[M.payoff i s]` of player `i` under independent mixed
 strategies `p` ([Kearns2007], §7.2, p. 162). -/
@@ -447,9 +433,8 @@ omit [Fintype ι] [∀ i, Fintype (S i)] in
 theorem payoff_update_eq_localNeighborPayoff (i : ι) (a : S i) (s : ∀ k, S k) :
     M.payoff i (update s i a) = M.localNeighborPayoff i a (fun j => s j.1) := by
   rw [payoff_eq_localPayoff, localNeighborPayoff]
-  congr 1
-  ext ⟨j, hj⟩
-  rcases eq_or_ne j i with rfl | hji <;> simp [*]
+  exact congrArg (M.localPayoff i)
+    (funext fun ⟨j, _⟩ => by rcases eq_or_ne j i with rfl | hji <;> simp [*])
 
 /-- Purely local expected payoff of player `i` playing pure action `a` when its neighbors in
 `M.graph` use mixed strategies `nbr`. -/
@@ -590,8 +575,7 @@ theorem isApproxNash_iff_local {ε : ℝ} {p : ∀ i, S i → ℝ} :
 and only if each `p i` is locally an exact best response to its neighbors in `M.graph`. -/
 theorem isMixedNash_toCostGame_iff_local {p : ∀ i, S i → ℝ} :
     M.toCostGame.IsMixedNash p ↔ ∀ i, M.IsBestResponse i (p i) (fun j => p j.1) := by
-  rw [← M.isApproxNash_zero_iff, M.isApproxNash_iff_local]
-  rfl
+  rw [← M.isApproxNash_zero_iff, M.isApproxNash_iff_local]; rfl
 
 end MixedExpectation
 
@@ -672,13 +656,9 @@ theorem exists_graphicalGame_not_expectedPayoffEquiv {G : SimpleGraph ι}
   classical
   simp only [LocalNeighborhoodEquiv, not_forall] at h
   obtain ⟨i₀, u₀, hne⟩ := h
-  refine ⟨{
-    graph := G
-    localPayoff := fun i u =>
-      if hi : i = i₀ then
-        if (hi ▸ u : ∀ j : ClosedNeighborhood G i₀, S j.1) = u₀ then 1 else 0
-      else 0
-  }, rfl, fun hep => hne ?_⟩
+  refine ⟨⟨G, fun i u =>
+    if hi : i = i₀ then if (hi ▸ u : ∀ j : ClosedNeighborhood G i₀, S j.1) = u₀ then 1 else 0
+    else 0⟩, rfl, fun hep => hne ?_⟩
   have hval (ρ : Convexity.StdSimplex ℝ (∀ i, S i)) :
       ρ.weights.sum (fun s w =>
         w * (if (fun j : ClosedNeighborhood G i₀ => s j.1) = u₀ then (1 : ℝ) else 0)) =
@@ -701,9 +681,8 @@ theorem LocalNeighborhoodEquiv.isApproxCorrelatedEquilibrium_iff [DecidableEq ι
   have hcost_upd (s : ∀ k, S k) :
       M.toCostGame.cost i (update s i (δ (s i))) = fδ (fun j => s j.1) := by
     simp only [GraphicalGame.toCostGame_cost, GraphicalGame.payoff_eq_localPayoff, fδ, neg_inj]
-    congr 1
-    ext ⟨j, hj⟩
-    rcases eq_or_ne j i with rfl | hji <;> simp [*]
+    exact congrArg (M.localPayoff i)
+      (funext fun ⟨j, _⟩ => by rcases eq_or_ne j i with rfl | hji <;> simp [*])
   simp only [hcost_upd, GraphicalGame.toCostGame_cost, GraphicalGame.payoff_eq_localPayoff]
   rw [sum_mul_local_eq_of_localNeighborhoodEquiv h i fun u => -M.localPayoff i u,
     sum_mul_local_eq_of_localNeighborhoodEquiv h i fδ]

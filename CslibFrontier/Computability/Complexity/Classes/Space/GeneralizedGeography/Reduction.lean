@@ -150,26 +150,15 @@ theorem mem_formulaArcs :
         w = valueNode (lastIdx xs l.1) (!l.2)) := by
   have hd (j : ℕ) : (u, w) ∈ diamondArcs j ↔ (u = topNode j ∧ ∃ b, w = valueNode j b) ∨
       (∃ b, u = valueNode j b ∧ w = bottomNode j) ∨ (u = bottomNode j ∧ w = topNode (j + 1)) := by
-    simp only [diamondArcs, List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false]
-    constructor
-    · rintro (⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩)
-      exacts [Or.inl ⟨rfl, _, rfl⟩, Or.inl ⟨rfl, _, rfl⟩, Or.inr (Or.inl ⟨_, rfl, rfl⟩),
-        Or.inr (Or.inl ⟨_, rfl, rfl⟩), Or.inr (Or.inr ⟨rfl, rfl⟩)]
-    · rintro (⟨rfl, (_ | _), rfl⟩ | ⟨(_ | _), rfl, rfl⟩ | ⟨rfl, rfl⟩) <;> simp
+    simp only [diamondArcs, List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false,
+      Bool.exists_bool, and_or_left, or_assoc]
   have hl : (∃ c ∈ ψ.zipIdx, (u, w) ∈ literalArcs xs c.2 c.1) ↔ ∃ i, ∃ h : i < ψ.length,
       ∃ l ∈ ψ[i], l.1 ∈ xs ∧ u = clauseNode i ∧ w = valueNode (lastIdx xs l.1) (!l.2) := by
-    constructor
-    · rintro ⟨⟨c, i⟩, hci, hlit⟩
-      obtain ⟨hi, rfl⟩ : ∃ h : i < ψ.length, ψ[i] = c :=
-        List.getElem?_eq_some_iff.1 (List.mem_zipIdx_iff_getElem?.1 hci)
-      simp only [literalArcs, List.mem_map, List.mem_filter, decide_eq_true_eq, Prod.mk.injEq]
-        at hlit
-      obtain ⟨l, ⟨hl, hlx⟩, rfl, rfl⟩ := hlit
-      exact ⟨i, hi, l, hl, hlx, rfl, rfl⟩
-    · rintro ⟨i, hi, l, hl, hlx, rfl, rfl⟩
-      refine ⟨(ψ[i], i), List.mem_zipIdx_iff_getElem?.2 (by simp [hi]), ?_⟩
-      simp only [literalArcs, List.mem_map, List.mem_filter, decide_eq_true_eq]
-      exact ⟨l, ⟨hl, hlx⟩, rfl⟩
+    simp only [List.mem_zipIdx_iff_getElem?, List.getElem?_eq_some_iff, literalArcs, List.mem_map,
+      List.mem_filter, decide_eq_true_eq, Prod.mk.injEq]
+    exact ⟨fun ⟨⟨_, i⟩, ⟨hi, hc⟩, l, ⟨hl, hlx⟩, hu, hw⟩ =>
+        ⟨i, hi, l, hc.symm ▸ hl, hlx, hu.symm, hw.symm⟩,
+      fun ⟨i, hi, l, hl, hlx, hu, hw⟩ => ⟨(ψ[i], i), ⟨hi, rfl⟩, l, ⟨hl, hlx⟩, hu.symm, hw.symm⟩⟩
   simp only [formulaArcs, List.mem_append, List.mem_cons, List.mem_flatMap, List.mem_range,
     List.mem_map, hd, hl, Prod.mk.injEq, or_assoc, @eq_comm _ chooserNode,
     @eq_comm _ (clauseNode _)]
@@ -389,24 +378,18 @@ private theorem geographyWins_topNode (heven : Even xs.length)
   | 0, z, hz => by
     have hz' : z.length = xs.length := by omega
     obtain ⟨m, hm⟩ := heven
-    have hpar : (z.length % 2 == 0) = true := by simp [show z.length % 2 = 0 by omega]
-    rw [hpar, iff_true_left rfl, List.replicate_zero, alternation_nil, List.append_nil, hz']
-    exact geographyWins_topNode_length hz' hvars
+    have hpar : xs.length % 2 = 0 := by omega
+    simpa [hz', hpar] using geographyWins_topNode_length hz' hvars
   | k + 1, z, hz => by
     have ih (b : Bool) := geographyWins_topNode heven hvars k (z ++ [b])
       (by simp only [List.length_append, List.length_singleton]; omega)
     simp only [List.length_append, List.length_singleton, List.append_assoc,
       List.singleton_append] at ih
     rw [geographyWins_topNode_lt (by omega), List.replicate_succ]
-    rcases Nat.mod_two_eq_zero_or_one z.length with h | h
-    · have h' : (z.length + 1) % 2 = 1 := by omega
-      simp only [h, h', beq_self_eq_true, true_iff, alternation_true_one_cons] at ih ⊢
-      exact exists_congr fun b => by simp [ih b]
-    · have h' : (z.length + 1) % 2 = 0 := by omega
-      simp only [h, h', beq_self_eq_true] at ih ⊢
-      rw [show (1 == 0) = false from rfl, iff_false_left Bool.false_ne_true,
-        alternation_false_one_cons, not_forall]
-      exact exists_congr fun b => by simp [ih b]
+    rcases Nat.mod_two_eq_zero_or_one z.length with h | h <;>
+      simp only [Nat.add_mod, h, Nat.reduceAdd, Nat.reduceMod, Nat.reduceBEq, beq_self_eq_true,
+        Bool.false_eq_true, true_iff, false_iff, alternation_true_one_cons,
+        alternation_false_one_cons, ih, not_forall, not_not]
 
 /-- **The first player wins on the graph of a formula** exactly when the existential player wins
 the game of single-bit moves in which the moves choose the values of the quantified variables,
@@ -433,14 +416,13 @@ theorem updates_eq_getD_lastIdx (σ : ℕ → Bool) :
     rw [QBF.updates]
     have hz' : bs.length = vs.length := by simpa using hz
     by_cases hxs : x ∈ vs
-    · rw [updates_eq_getD_lastIdx _ vs bs hz' x hxs]
-      have hlt := List.idxOf_lt_length_of_mem (List.mem_reverse.2 hxs)
-      rw [List.length_reverse] at hlt
-      have hidx : (v :: vs).reverse.idxOf x = vs.reverse.idxOf x := by
-        rw [List.reverse_cons, List.idxOf_append_of_mem (List.mem_reverse.2 hxs)]
-      rw [lastIdx, lastIdx, hidx, List.length_cons,
-        show vs.length + 1 - 1 - vs.reverse.idxOf x = (vs.length - 1 - vs.reverse.idxOf x) + 1 by
-          omega, List.getD_cons_succ]
+    · rw [updates_eq_getD_lastIdx _ vs bs hz' x hxs, lastIdx, lastIdx, List.reverse_cons,
+        List.idxOf_append_of_mem (List.mem_reverse.2 hxs), List.length_cons]
+      have hlt : vs.reverse.idxOf x < vs.length := by
+        simpa using List.idxOf_lt_length_of_mem (List.mem_reverse.2 hxs)
+      have hsub : vs.length + 1 - 1 - vs.reverse.idxOf x =
+          (vs.length - 1 - vs.reverse.idxOf x) + 1 := by omega
+      rw [hsub, List.getD_cons_succ]
     · obtain rfl : x = v := by simpa [hxs] using hx
       rw [QBF.updates_of_notMem hxs, Function.update_self, lastIdx, List.reverse_cons,
         List.idxOf_append_of_notMem (by simpa using hxs)]

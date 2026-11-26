@@ -107,15 +107,11 @@ theorem length_of_mem_support_iopRunRounds {d : ℕ} {Sym Chal : Type}
     [Fintype Chal] [Nonempty Chal] (P : InteractiveIOPProver d Sym Chal) :
     ∀ (k : ℕ) (pref tr : List (OracleTable d Sym × Chal)),
       tr ∈ (iopRunRounds P k pref).support → tr.length = pref.length + k
-  | 0, pref, tr, hmem => by
-    rw [iopRunRounds, PMF.support_pure, Set.mem_singleton_iff] at hmem
-    simp only [hmem, Nat.add_zero]
+  | 0, _, _, hmem => by rw [(PMF.mem_support_pure_iff _ _).mp hmem, Nat.add_zero]
   | k + 1, pref, tr, hmem => by
-    simp only [iopRunRounds, PMF.mem_support_bind_iff] at hmem
-    obtain ⟨π, _, c, _, hmem⟩ := hmem
+    obtain ⟨π, _, c, _, hmem⟩ := by simpa only [iopRunRounds, PMF.mem_support_bind_iff] using hmem
     have ih := length_of_mem_support_iopRunRounds P k (pref ++ [(π, c)]) tr hmem
-    simp only [List.length_append, List.length_singleton] at ih
-    omega
+    simp only [List.length_append, List.length_singleton] at ih; omega
 
 /-- Full `r`-round interactive public-coin IOP soundness game: runs `P` against `r` independent
 uniform verifier challenges and returns `iopVerify iop x chals oracles`. -/
@@ -183,10 +179,8 @@ theorem iopPrefixEscape_le_sum {d : ℕ} {Stmt Sym Chal : Type} [Fintype Chal] [
     (fun t pref' π ht hlen hd => by
       rw [Nat.zero_add] at hlen
       simpa only [εNat, ht, ↓reduceDIte] using hescape ⟨t, ht⟩ pref' π hlen hd)
-  refine hbound.trans_eq ?_
-  rw [← Fin.sum_univ_eq_sum_range]
-  refine Finset.sum_congr rfl fun j _ => ?_
-  simp only [εNat, j.isLt, ↓reduceDIte, Fin.eta]
+  refine hbound.trans_eq ((Fin.sum_univ_eq_sum_range _ k).symm.trans ?_)
+  exact Finset.sum_congr rfl fun j _ => by simp [εNat]
 
 /-- **Commit-phase-plus-final-oracle union bound** (abstract template for the commit-phase bound
 of [BenSassonCarmonIshaiKoppartySaraf2020, Lemma 8.2, pp. 38–39], proved via the bad-event sum in
@@ -288,11 +282,9 @@ private theorem getElem_causalPref {r d : ℕ} {Sym Chal : Type}
     by_cases hlt : k < j
     · rw [List.getElem_append_left (by rw [hlen]; exact hlt)]
       exact getElem_causalPref P j (Nat.le_of_succ_le hj) (fun i => hist i.castSucc) k hlt
-    · have hkeq : k = j := by omega
-      subst hkeq
+    · obtain rfl : k = j := by omega
       rw [List.getElem_append_right (by rw [hlen])]
-      simp only [hlen, Nat.sub_self, List.getElem_singleton]
-      rfl
+      simp only [hlen, Nat.sub_self, List.getElem_singleton]; rfl
 
 private theorem ofCausal_eq_pure {r d : ℕ} {Sym Chal : Type} [Nonempty Sym]
     (P : (j : Fin r) → (Fin j.val → Chal) → OracleTable d Sym)
@@ -301,9 +293,7 @@ private theorem ofCausal_eq_pure {r d : ℕ} {Sym Chal : Type} [Nonempty Sym]
     InteractiveIOPProver.ofCausal P pref = PMF.pure (P ⟨j, hj⟩ hist) := by
   subst hlen
   simp only [InteractiveIOPProver.ofCausal, hj, ↓reduceDIte]
-  congr 2
-  funext k
-  exact hget k
+  exact congrArg PMF.pure (congrArg (P ⟨pref.length, hj⟩) (funext hget))
 
 private theorem iopRunRounds_ofCausal_aux {r d : ℕ} {Sym Chal : Type}
     [Fintype Chal] [Nonempty Chal] [Nonempty Sym]
@@ -318,11 +308,9 @@ private theorem iopRunRounds_ofCausal_aux {r d : ℕ} {Sym Chal : Type}
   | 0, j, hjm, hist => by
     obtain rfl : j = r := by omega
     rw [iopRunRounds, ← PMF.map_const (PMF.uniformOfFintype (Fin 0 → Chal))]
-    congr 1
-    funext _
+    congr 1 with _ : 1
     dsimp only [Function.const]
-    congr 1
-    funext k
+    congr 1 with k : 1
     simp [k.isLt]
   | m + 1, j, hjm, hist => by
     have hj_lt : j < r := by omega
@@ -341,11 +329,9 @@ private theorem iopRunRounds_ofCausal_aux {r d : ℕ} {Sym Chal : Type}
       ← Cslib.Probability.PMF.uniformOfFintype_map_equiv
         (Fin.consEquiv (fun _ : Fin (m + 1) => Chal)).symm,
       PMF.map_comp]
-    congr 1
-    funext rest
+    congr 1 with rest : 1
     simp only [Function.comp_apply, Fin.consEquiv_symm_apply]
-    congr 1
-    funext k
+    congr 1 with k : 1
     rcases lt_trichotomy k.val j with hk | hkeq | hk
     · have hk1 : k.val < j + 1 := by omega
       simp only [hk, hk1, ↓reduceDIte]
@@ -354,9 +340,7 @@ private theorem iopRunRounds_ofCausal_aux {r d : ℕ} {Sym Chal : Type}
       rw [show (⟨j, Nat.lt_succ_self j⟩ : Fin (j + 1)) = Fin.last j from rfl, Fin.snoc_last]
       exact congrArg rest (Fin.ext (Nat.sub_self j).symm)
     · simp only [not_lt.mpr hk.le, not_lt.mpr (Nat.succ_le_of_lt hk), ↓reduceDIte, Fin.tail]
-      refine congrArg rest (Fin.ext ?_)
-      simp only [Fin.val_succ]
-      omega
+      exact congrArg rest (Fin.ext (by simp only [Fin.val_succ]; omega))
 
 /-- For a deterministic causal prover `P`, the sequential `iopInteractiveGame` coincides with
 evaluating `iopVerify` under a single uniform draw of `chals : Fin r → Chal`. -/

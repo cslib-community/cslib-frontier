@@ -190,7 +190,7 @@ theorem controlled_circuit (g : BitString q → BitString q)
     obtain ⟨c, hc', hs⟩ := ha (e j)
     have h := Synthesis.circuit (I := interpretation) (s := src) c (fun i x => v x i)
       (fun i => Or.inl ⟨_, rfl⟩)
-    rw [show c.eval interpretation = a (e j) from funext hc'] at h
+    rw [funext hc'] at h
     have hav : wires (records j) ⊆ src ∪ wires (fun x => a (e j) (v x)) := by
       rintro _ ⟨i, rfl⟩
       induction i using Fin.addCases with
@@ -212,10 +212,9 @@ theorem controlled_circuit (g : BitString q → BitString q)
     obtain ⟨j, _, hj, hout⟩ := chooseRecord_spec (fun j => flags j x)
       (fun j => records j x) (fun _ => false) (2 ^ q)
       ⟨e.symm (u x), (e.symm (u x)).isLt, by simp [flags]⟩
-    have hj' : u x = e j := of_decide_eq_true hj
+    have hj' : e j = u x := (of_decide_eq_true hj).symm
     rw [hout]
-    change Fin.append (g (e j)) (a (e j) (v x)) = Fin.append (g (u x)) (a (u x) (v x))
-    rw [hj']
+    exact congrArg₂ Fin.append (congrArg g hj') (congrFun (congrArg a hj') _)
   simp only [he] at hselect
   obtain ⟨c, hc', hs⟩ := (hconst.trans (hall.trans hselect)).exists_circuit_outputs
   refine ⟨c, hc', hs.trans ?_⟩
@@ -304,11 +303,9 @@ theorem affineHash_affineMapSeed (a : BitString p →ᵃ[Bool] BitString p) (v :
   have hlinear : a.linear v = ∑ j, v j • a.linear (Pi.single j 1) := by
     conv_lhs => rw [pi_eq_sum_univ' v]
     simp only [map_sum, map_smul]
-  have ha : a v = a.linear v + a 0 := congrFun a.decomp v
   funext i
-  rw [ha, hlinear]
-  simp only [affineHash, affineMapSeed, BitString.LinearHash.hash, dotProduct, Pi.add_apply,
-    Finset.sum_apply, Pi.smul_apply, smul_eq_mul, mul_comm]
+  simp only [congrFun a.decomp v, Pi.add_apply, hlinear, affineHash, affineMapSeed,
+    BitString.LinearHash.hash, dotProduct, Finset.sum_apply, Pi.smul_apply, smul_eq_mul, mul_comm]
 
 /-- Every affine Boolean payload has a De Morgan circuit of size at most `p * (5 * (p + 1) + 1)`. -/
 theorem affine_payload_circuit (a : BitString p →ᵃ[Bool] BitString p) :
@@ -339,10 +336,8 @@ theorem affine_controller_power (g : BitString q → BitString q)
 /-- The exact budget is `O(2 ^ q * (q + p ^ 2 + 1))`, including zero-width cases. -/
 theorem affineControllerBudget_le (q p : ℕ) :
     affineControllerBudget q p ≤ 32 * 2 ^ q * (q + p ^ 2 + 1) := by
-  have hp : p ≤ p ^ 2 := by nlinarith
-  have hb : p * (5 * (p + 1) + 1) + 6 * q + 4 * p + 1 ≤
-      16 * (q + p ^ 2 + 1) := by nlinarith
-  have hpow : 1 ≤ 2 ^ q := Nat.one_le_pow q 2 (by decide)
+  have hb : p * (5 * (p + 1) + 1) + 6 * q + 4 * p + 1 ≤ 16 * (q + p ^ 2 + 1) := by nlinarith
+  have := Nat.one_le_pow q 2 (by decide)
   have := Nat.mul_le_mul_left (2 ^ q) hb
   unfold affineControllerBudget
   nlinarith

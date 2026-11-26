@@ -166,11 +166,9 @@ theorem sum_max_sub_openTime_eq_openCost (I : FacilityLocationInstance A F) (i :
     · rw [Finset.not_nonempty_iff_eq_empty.1 hP, Finset.sum_empty]
       exact I.openCost_nonneg i
   · obtain ⟨S, hST, hSne, heq⟩ := I.exists_subset_eq_openTime i hT
-    have hcard_pos : (0 : ℝ) < S.card := by exact_mod_cast hSne.card_pos
-    have hmul : (S.card : ℝ) * t = I.openCost i + ∑ j ∈ S, I.connCost i j := by
-      have ht : t = (I.openCost i + ∑ j ∈ S, I.connCost i j) / (S.card : ℝ) := heq
-      field_simp [hcard_pos.ne'] at ht
-      linarith
+    have hcard_pos : (0 : ℝ) < S.card := mod_cast hSne.card_pos
+    have hmul : (S.card : ℝ) * t = I.openCost i + ∑ j ∈ S, I.connCost i j :=
+      (mul_comm (S.card : ℝ) t).trans ((eq_div_iff hcard_pos.ne').1 heq)
     calc
       I.openCost i = (S.card : ℝ) * t - ∑ j ∈ S, I.connCost i j := by linarith
       _ = ∑ j ∈ S, (t - I.connCost i j) := by
@@ -307,11 +305,8 @@ private theorem exists_greedy_cover {F : Type*} (rem : Finset F) (t : F → ℝ)
     by_cases hS : S.Nonempty
     · obtain ⟨i₀, hi₀, hi₀_min⟩ := Finset.exists_min_image S t hS
       let S' : Finset F := S.filter fun i => 2 * t i < dF i₀ i
-      have hi₀_nmem : i₀ ∉ S' := by
-        simp only [S', Finset.mem_filter, not_and, not_lt]
-        intro _
-        rw [hd_self i₀]
-        linarith [ht_nn i₀]
+      have hi₀_nmem : i₀ ∉ S' := fun h => by
+        linarith [(Finset.mem_filter.1 h).2, hd_self i₀, ht_nn i₀]
       obtain ⟨F', hF'sub, hind, hdom⟩ := ih S' (Finset.ssubset_iff_subset_ne.2
         ⟨Finset.filter_subset _ S, fun h => hi₀_nmem (h ▸ hi₀)⟩)
       refine ⟨insert i₀ F',
@@ -359,13 +354,10 @@ private theorem flCostShareScheme_cost_le_three_mul_sum (I : FacilityLocationIns
     let dF : F → F → ℝ := fun a b => dist (Sum.inr a : A ⊕ F) (Sum.inr b)
     have hdist_eq : ∀ i j, I.connCost i j = dist (Sum.inr i : A ⊕ F) (Sum.inl j) := hm
     obtain ⟨F', _, hind, hdom_univ⟩ := exists_greedy_cover (Finset.univ : Finset F) t dF
-      (fun i => I.openTime_nonneg i T)
-      (fun a b => dist_comm _ _)
-      (fun a => dist_self _)
-    have hdom : ∀ i : F, ∃ i' ∈ F', t i' ≤ t i ∧ dF i' i ≤ 2 * t i := fun i =>
+      (fun i => I.openTime_nonneg i T) (fun _ _ => dist_comm _ _) (fun _ => dist_self _)
+    have hdom (i : F) : ∃ i' ∈ F', t i' ≤ t i ∧ dF i' i ≤ 2 * t i :=
       hdom_univ i (Finset.mem_univ i)
-    obtain ⟨i₀⟩ := ‹Nonempty F›
-    obtain ⟨i₀', hi₀', _, _⟩ := hdom i₀
+    obtain ⟨i₀', hi₀', _, _⟩ := hdom ‹Nonempty F›.some
     have hF' : F'.Nonempty := ⟨i₀', hi₀'⟩
     let ball : F → Finset A := fun i => T.filter fun j => I.connCost i j ≤ t i
     have hdisj : Set.PairwiseDisjoint (F' : Set F) ball := by
@@ -383,23 +375,18 @@ private theorem flCostShareScheme_cost_le_three_mul_sum (I : FacilityLocationIns
     -- Every agent `j ∈ ball i` (`i ∈ F'`) satisfies `t i ≤ 3 * share T j`.
     have hball_share : ∀ i ∈ F', ∀ j ∈ ball i, t i ≤ 3 * I.flCostShareScheme.share T j := by
       intro i hiF j hjball
-      have hjT : j ∈ T := (Finset.mem_filter.1 hjball).1
-      have hdij : I.connCost i j ≤ t i := (Finset.mem_filter.1 hjball).2
+      obtain ⟨hjT, hdij⟩ := Finset.mem_filter.1 hjball
       set α := I.flCostShareScheme.share T j
       obtain ⟨i₁, hti₁, hdi₁⟩ : ∃ i₁, t i₁ ≤ α ∧ I.connCost i₁ j ≤ α := I.exists_le_share hjT
       have hα_nn : 0 ≤ α := I.flCostShareScheme_isNonneg T j
       obtain ⟨i₂, hi₂F, hti₂_le, hd_i₂i₁⟩ := hdom i₁
       by_cases heq : i₂ = i
-      · subst heq; linarith
+      · subst heq
+        linarith
       · by_contra hlt
-        have hα_lt : 3 * α < t i := lt_of_not_ge hlt
-        have htri1 : dF i i₂ ≤
-            dist (Sum.inr i : A ⊕ F) (Sum.inl j) + dist (Sum.inl j : A ⊕ F) (Sum.inr i₂) :=
-          dist_triangle _ _ _
-        have htri2 : dist (Sum.inl j : A ⊕ F) (Sum.inr i₂) ≤
-            dist (Sum.inl j : A ⊕ F) (Sum.inr i₁) + dist (Sum.inr i₁ : A ⊕ F) (Sum.inr i₂) :=
-          dist_triangle _ _ _
-        rw [← hdist_eq i j] at htri1
+        have htri1 : dF i i₂ ≤ I.connCost i j + dist (Sum.inl j : A ⊕ F) (Sum.inr i₂) :=
+          hdist_eq i j ▸ dist_triangle _ _ _
+        have htri2 := dist_triangle (Sum.inl j : A ⊕ F) (Sum.inr i₁) (Sum.inr i₂)
         rw [dist_comm (Sum.inl j : A ⊕ F) (Sum.inr i₁), ← hdist_eq i₁ j,
           dist_comm (Sum.inr i₁ : A ⊕ F) (Sum.inr i₂)] at htri2
         change dF i₂ i₁ ≤ 2 * t i₁ at hd_i₂i₁
@@ -424,15 +411,12 @@ private theorem flCostShareScheme_cost_le_three_mul_sum (I : FacilityLocationIns
     have hrest_bound : ∀ j ∈ T,
         F'.inf' hF' (fun i => I.connCost i j) ≤ 3 * I.flCostShareScheme.share T j := by
       intro j hjT
-      obtain ⟨i₁, hti₁, hdi₁⟩ : ∃ i₁, t i₁ ≤ I.flCostShareScheme.share T j ∧
-          I.connCost i₁ j ≤ I.flCostShareScheme.share T j := I.exists_le_share hjT
+      obtain ⟨i₁, hti₁, hdi₁⟩ := I.exists_le_share hjT
       obtain ⟨i', hi'F, _, hd_i'i₁⟩ := hdom i₁
-      have htri : dist (Sum.inr i' : A ⊕ F) (Sum.inl j) ≤
-          dist (Sum.inr i' : A ⊕ F) (Sum.inr i₁) + dist (Sum.inr i₁ : A ⊕ F) (Sum.inl j) :=
-        dist_triangle _ _ _
-      rw [← hdist_eq i' j, ← hdist_eq i₁ j] at htri
-      exact (Finset.inf'_le (fun i => I.connCost i j) hi'F).trans (by
-        change dF i' i₁ ≤ 2 * t i₁ at hd_i'i₁; linarith)
+      have htri : I.connCost i' j ≤ dF i' i₁ + I.connCost i₁ j := by
+        simpa only [hdist_eq, dF] using
+          dist_triangle (Sum.inr i' : A ⊕ F) (Sum.inr i₁) (Sum.inl j)
+      exact (Finset.inf'_le (fun i => I.connCost i j) hi'F).trans (by linarith)
     let U : Finset A := F'.biUnion ball
     have hUT : U ⊆ T := Finset.biUnion_subset.2 fun _ _ => Finset.filter_subset _ T
     have hconn_split :
@@ -452,14 +436,11 @@ private theorem flCostShareScheme_cost_le_three_mul_sum (I : FacilityLocationIns
       rw [← Finset.sum_biUnion hdisj, add_comm, Finset.sum_sdiff hUT]
     refine (I.toCostSharingGame_cost_le_planCost T F' hF').trans ?_
     rw [planCost_eq, hconn_split, hshare_split]
-    have hsum_F' : (∑ i ∈ F', I.openCost i) + ∑ i ∈ F', ∑ j ∈ ball i, I.connCost i j ≤
-        3 * ∑ i ∈ F', ∑ j ∈ ball i, I.flCostShareScheme.share T j := by
-      rw [← Finset.sum_add_distrib, Finset.mul_sum]
-      exact Finset.sum_le_sum hfac_bound
-    have hsum_rem : ∑ j ∈ T \ U, F'.inf' hF' (fun i => I.connCost i j) ≤
-        3 * ∑ j ∈ T \ U, I.flCostShareScheme.share T j := by
-      rw [Finset.mul_sum]
-      exact Finset.sum_le_sum fun j hj => hrest_bound j (Finset.mem_sdiff.1 hj).1
+    have hsum_F' := (Finset.sum_add_distrib.symm.trans_le (Finset.sum_le_sum hfac_bound)).trans_eq
+      (Finset.mul_sum F' (fun i => ∑ j ∈ ball i, I.flCostShareScheme.share T j) 3).symm
+    have hsum_rem := (Finset.sum_le_sum fun j (hj : j ∈ T \ U) =>
+      hrest_bound j (Finset.mem_sdiff.1 hj).1).trans_eq
+      (Finset.mul_sum (T \ U) (I.flCostShareScheme.share T) 3).symm
     linarith
   · simp [Finset.not_nonempty_iff_eq_empty.1 hT, I.toCostSharingGame.cost_empty]
 

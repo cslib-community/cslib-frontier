@@ -456,8 +456,7 @@ theorem isPPT_andSimulator
   simp only [andSimulator, andSimulateWord, Encoding.andProof, unframe_encPair, dropFrame_encPair,
     pmf_norm]
   rw [← hword₀ i y₀ c, hC i, ← hword₁ i y₁ c]
-  simp only [PMF.bind_map, Function.comp_def, Prod.map_apply, encPair_apply, encBits_apply]
-  rfl
+  simp [PMF.bind_map, Function.comp_def]
 
 /-- `andSimulator` realizes `andSimulate` with statistical error `δ₀ i + δ₁ i`. -/
 theorem simulatorRealizedBy_andSimulator
@@ -668,8 +667,7 @@ theorem isPPT_orSimulator [∀ i, Sub (C i)]
     pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun c₀ _ => ?_
   rw [hsub_eq, ← hword₀ i y₀ c₀, hC i, ← hword₁ i y₁ (c - c₀)]
-  simp only [PMF.bind_map, Function.comp_def, Prod.map_apply, encPair_apply, encBits_apply]
-  rfl
+  simp [PMF.bind_map, Function.comp_def]
 
 /-- `orSimulator` realizes `orSimulate` with statistical error `δC i + (δ₀ i + δ₁ i)`. -/
 theorem simulatorRealizedBy_orSimulator [∀ i, AddCommGroup (C i)] [∀ i, Fintype (C i)]
@@ -774,30 +772,22 @@ theorem computableInPolyTime_parallelExtractWord
         (List.range (frames input.2.2.2.1).length).find?
           fun idx => (frames input.2.2.2.1).getD idx [] != (frames input.2.2.2.2.2.1).getD idx [])
       encIn (encOption encUnary) := by
-    have : ComputableInPolyTime
-        (fun p : (I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool) × ℕ =>
-          (frames p.1.2.2.2.1).getD p.2 [])
-        (encPair encIn encUnary) encBits := by fun_prop
-    have : ComputableInPolyTime
-        (fun p : (I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool) × ℕ =>
-          (frames p.1.2.2.2.2.1).getD p.2 [])
-        (encPair encIn encUnary) encBits := by fun_prop
     simp only [bne]
-    exact ComputableInPolyTime.findWithInput (by fun_prop) (by fun_prop)
+    exact ComputableInPolyTime.findWithInput (by fun_prop)
+      (ComputableInPolyTime.bool_not.comp
+        ((by fun_prop : ComputableInPolyTime _ (encPair encIn encUnary) encBits).beq
+          (by fun_prop)))
   have hbody : ComputableInPolyTime
       (fun p : (I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool) × ℕ =>
         f (p.1.1, p.1.2.1, (frames p.1.2.2.1).getD p.2 [], (frames p.1.2.2.2.1).getD p.2 [],
           (frames p.1.2.2.2.2.1).getD p.2 [], (frames p.1.2.2.2.2.2.1).getD p.2 [],
           (frames p.1.2.2.2.2.2.2).getD p.2 []))
       (encPair encIn encUnary) encBits := by fun_prop
-  have hcond := ComputableInPolyTime.unary_beq
-    (by fun_prop : ComputableInPolyTime (fun x => (frames x.2.2.2.1).length) encIn encUnary)
-    (.const 0)
   unfold parallelExtractWord Encoding.parallelRepetition
   refine hfind.optionElimWithInput ?_ hbody
   simpa only [beq_iff_eq, Function.comp_def] using
-    hcond.ite (by fun_prop) (hbody.comp (show ComputableInPolyTime (fun x => (x, 0)) encIn
-      (encPair encIn encUnary) from by fun_prop))
+    (ComputableInPolyTime.unary_beq (by fun_prop) (.const 0)).ite (by fun_prop)
+      (hbody.comp (ComputableInPolyTime.id'.prod (.const 0)))
 
 /-- `parallelExtractWord` realizes `parallelExtract` on `enc.parallelRepetition k`. -/
 theorem extractorRealizedBy_parallelExtractWord

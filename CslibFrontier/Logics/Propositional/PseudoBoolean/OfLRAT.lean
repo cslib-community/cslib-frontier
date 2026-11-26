@@ -198,14 +198,10 @@ theorem propagate_eq_unitStep {c : PBConstr} (hv : (c.terms.map termVar).Nodup)
   unfold propagate Clause.unitStep Clause.residual
   rw [filter_map_snd, ← hF, hforce]
   match hFm : F with
-  | [] =>
-    have : slack ρ c < 0 := by rw [hslack, hFm]; simp
-    simp [this]
+  | [] => simp [hslack, hFm]
   | [t] =>
     have h1 := hFpos t (by simp [hFm])
-    have hs : ¬ slack ρ c < 0 := by rw [hslack, hFm]; simp; omega
-    have hlt : slack ρ c < t.1 := by rw [hslack, hFm]; simp
-    by_cases hc : t.2 ∈ ρ <;> simp [hs, hlt, hc]
+    by_cases hc : t.2 ∈ ρ <;> simp [hslack, hFm, h1.ne', hc]
   | t₁ :: t₂ :: ts =>
     have h1 := hFpos t₁ (by simp [hFm])
     have h2 := hFpos t₂ (by simp [hFm])
@@ -264,16 +260,13 @@ theorem Clause.degree_normalize_toPB_of_isTautology {d : Clause ℕ}
     | some t => !termPos t
     | none => false
   have hfalse : ∀ t ∈ N.terms, Literal.eval σ t.2 = false := by
-    intro t ht
-    have hf : (N.terms.find? (termVar · == termVar t)).isSome :=
-      List.find?_isSome.2 ⟨t, ht, by simp⟩
+    rintro ⟨a, v, b⟩ ht
+    have hf : (N.terms.find? (termVar · == v)).isSome :=
+      List.find?_isSome.2 ⟨(a, v, b), ht, by simp [termVar]⟩
     obtain ⟨t', ht'⟩ := Option.isSome_iff_exists.1 hf
-    have hkey : termVar t' = termVar t := by simpa using List.find?_some ht'
-    obtain rfl : t' = t := List.inj_on_of_nodup_map hv (List.mem_of_find?_eq_some ht') ht hkey
-    obtain ⟨a, v, b⟩ := t'
-    simp only [termVar_mk] at ht'
-    have hσ : σ v = !b := by simp only [σ, ht', termPos_mk]
-    simp [Literal.eval, hσ]
+    obtain rfl : t' = (a, v, b) := List.inj_on_of_nodup_map hv (List.mem_of_find?_eq_some ht') ht
+      (by simpa [termVar] using List.find?_some ht')
+    simp [Literal.eval, σ, ht', termPos_mk]
   have hholds : N.Holds σ := by
     rw [holds_normalize, Clause.holds_toPB_iff]
     exact CNF.eval_eq_true_of_isTautClause (by simpa [CNF.isTautClause] using hd) σ
@@ -530,17 +523,12 @@ private theorem check_aux : ∀ (cert : List LRAT.IntAction) (J : List Entry) (n
       decide
   | .addRup i c hints :: rest, J, n, hid, h => by
     have hJ : (J.map Entry.num).Nodup := pbPart_map_fst J ▸ hid.nodup
-    simp only [CNF.checkLRATAux, Bool.and_eq_true] at h
-    obtain ⟨h1, h2⟩ := h
-    have hstep : runStep (pbPart J) n
-        (.rup (Clause.ofDIMACS c.toList).toPB (.neg :: CNF.renameHints (renPart J) hints.toList)) =
-        some (pbPart (⟨i, n, Clause.ofDIMACS c.toList⟩ :: J), n + 1) := by
-      simp only [runStep]
-      rw [ite_eq_left (rup_toPB hJ _ _ h1)]
-      rfl
+    obtain ⟨h1, h2⟩ := Bool.and_eq_true_iff.1 h
     obtain ⟨D, m, hrun, hc⟩ :=
       check_aux rest (⟨i, n, Clause.ofDIMACS c.toList⟩ :: J) (n + 1) (hid.cons le_rfl _) h2
-    exact ⟨D, m, by simp only [CNF.toVeriPBAux, runSteps, hstep]; exact hrun, hc⟩
+    refine ⟨D, m, ?_, hc⟩
+    simp only [CNF.toVeriPBAux, runSteps, runStep, rup_toPB hJ _ _ h1, ↓reduceIte]
+    exact hrun
   | .addRat .. :: _, _, _, _, h => by simp [CNF.checkLRATAux] at h
   | .del ids :: rest, J, n, hid, h => by
     have hJ : (J.map Entry.num).Nodup := pbPart_map_fst J ▸ hid.nodup

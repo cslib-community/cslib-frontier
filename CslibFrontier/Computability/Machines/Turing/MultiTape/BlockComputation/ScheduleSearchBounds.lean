@@ -93,8 +93,7 @@ theorem selected_queryStateBound_le (k s : ℕ) : ∃ C, ∀ contextBits supplie
   have hmul := Nat.mul_le_mul_left (200 * (d + 1)) hinner
   have h4 := Nat.le_mul_of_pos_right 4 (by omega : 0 < b + q * (b.size + 1) + 1)
   dsimp only [d] at hraw hmul ⊢
-  rw [Nat.add_mul, Nat.mul_assoc]
-  omega
+  rw [Nat.add_mul, Nat.mul_assoc]; omega
 
 /-- The selected assignment capacity is a power of two with its exact binary length charged. -/
 theorem assignment_limit_size (d B : ℕ) :
@@ -177,8 +176,7 @@ theorem initialized_allowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b σ q : 
   obtain ⟨ci, hci⟩ := prepared_metadata_le k s
   obtain ⟨cr, hcr⟩ := selected_queryStateBound_le k s
   let init := 16 * ci + 16 + 192 * (d + 1) * (2 * A + d.size)
-  refine ⟨init + 4 * H + reply + cr + 2, ?_⟩
-  intro N b σ q hb
+  refine ⟨init + 4 * H + reply + cr + 2, fun N b σ q hb => ?_⟩
   let B := Encoding.width k s b
   let m := chunkWidth d B
   let r := chunkCount d B
@@ -192,12 +190,9 @@ theorem initialized_allowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b σ q : 
   have hbs := Nat.size_le_self b
   have hqs := Nat.size_le_self q
   have hqmul : q ≤ q * (b.size + 1) := Nat.le_mul_of_pos_right _ (by omega)
-  have hqR : q ≤ R := by dsimp only [R]; omega
   have hargs : N.size + b.size + σ.size + q.size + 1 ≤ R := by
     dsimp only [R]; omega
   have hbR : b ≤ R := by dsimp only [R]; omega
-  have hNR : N.size ≤ R := by dsimp only [R]; omega
-  have hqsizeR : q.size ≤ R := hqs.trans hqR
   have hBR : B ≤ A * R := (width_le_mul k s hb).trans (Nat.mul_le_mul_left A hbR)
   have hmR : m ≤ M * R := by
     have hm := chunkWidth_le d B
@@ -221,10 +216,10 @@ theorem initialized_allowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b σ q : 
       (by dsimp only [P]; rw [← Nat.mul_assoc])
   have hcell : r * (2 * p.size + 1) ≤ P * R :=
     ((Nat.le_mul_of_pos_left _ hd).trans_eq (Nat.mul_assoc d r _).symm).trans hpoint
-  have hlog := Nat.log2_le_size N
   have hsmall : b + Nat.log2 N + cards + 1 ≤ (cards + 3) * R := by
-    have hc := Nat.le_mul_of_pos_right cards hR
-    have hbN : b + N.size ≤ R := by dsimp only [R]; omega
+    have := Nat.le_mul_of_pos_right cards hR
+    have := Nat.log2_le_size N
+    have : b + N.size ≤ R := by dsimp only [R]; omega
     rw [Nat.add_mul cards 3 R]; omega
   have hreplay0 := Nat.mul_le_mul_left (1024 * (k + 1)) hsmall
   have hreplay : ConcreteSupplier.replaySpace k s Q N b q m r ≤ replay * R := by
@@ -257,8 +252,7 @@ theorem initialized_allowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b σ q : 
       16 * ((Initializer.encMetadata ((Initializer.prepare k s (N, b, σ, q)).1)).length + 1) +
         192 * (d + 1) * (2 * B + d.size) at hinit0
     dsimp only [init]
-    rw [Nat.add_mul, Nat.add_mul, Nat.mul_assoc 16 ci R, Nat.mul_assoc (192 * _)]
-    omega
+    rw [Nat.add_mul, Nat.add_mul, Nat.mul_assoc 16 ci R, Nat.mul_assoc (192 * _)]; omega
   have hraw := hcr (ConcreteSupplier.encContext (N, b, σ, q, m, alphabet, limit)).length
     (ConcreteSupplier.replySpace k s Q N b σ q m alphabet limit p d r) b q hb
   change RawController.Query.queryStateBound
@@ -272,10 +266,9 @@ theorem initialized_allowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b σ q : 
   change Initializer.space k ((Initializer.prepare k s (N, b, σ, q)).1) +
       RawController.Query.queryStateBound
         (ConcreteSupplier.encContext (N, b, σ, q, m, alphabet, limit)).length p d r q
-        (ConcreteSupplier.replySpace k s Q N b σ q m alphabet limit p d r) + 2 ≤ _
-  change _ ≤ (init + 4 * H + reply + cr + 2) * R
-  rw [Nat.add_mul, Nat.add_mul, Nat.add_mul, Nat.add_mul, Nat.mul_assoc 4 H R]
-  omega
+        (ConcreteSupplier.replySpace k s Q N b σ q m alphabet limit p d r) + 2 ≤
+      (init + 4 * H + reply + cr + 2) * R
+  rw [Nat.add_mul, Nat.add_mul, Nat.add_mul, Nat.add_mul, Nat.mul_assoc 4 H R]; omega
 
 /-- The uniform schedule allowance has the fixed-machine square-root-simulation storage shape. -/
 theorem scheduleAllowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b q : ℕ, 0 < b →
@@ -285,8 +278,7 @@ theorem scheduleAllowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b q : ℕ, 0 
   refine ⟨c * (2 * (k + 1) + 2), fun N b q hb => ?_⟩
   have hkq := Nat.mul_le_mul_left (2 * (k + 1))
     (Nat.le_mul_of_pos_right q (by omega : 0 < b.size + 1))
-  have hcounter := counter_encoding_le k q (3 ^ ((k + 1) * q)) le_rfl
-  rw [length_encNat_eq_size] at hcounter
+  have hcounter := length_encNat_eq_size _ ▸ counter_encoding_le k q (3 ^ ((k + 1) * q)) le_rfl
   have harg : b + q * (b.size + 1) + N.size + (3 ^ ((k + 1) * q)).size + 1 ≤
       (2 * (k + 1) + 2) * (b + q * (b.size + 1) + N.size + 1) := by
     simp only [Nat.add_mul (2 * (k + 1)) 2, Nat.mul_add (2 * (k + 1))]; omega

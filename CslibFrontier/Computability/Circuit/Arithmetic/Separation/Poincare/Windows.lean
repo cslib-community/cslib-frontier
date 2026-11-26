@@ -57,22 +57,20 @@ variable {G Z : Type*} [Group G] [Fintype G] [MetricSpace Z] [CompleteCAT0Space 
 private theorem dist_P_sq_add_le {q : Z} (hq : A.Fix q) (z : Z) :
     dist z (A.P z) ^ 2 + dist (A.P z) q ^ 2 ≤ dist z q ^ 2 := by
   have h := A.P_spec z q
-  have e : ∀ {y : Z}, A.Fix y → ∀ g, dist y (A g z) = dist y z := fun {y} hy g => by
-    rw [← (A g).dist_eq y z, hy g]
-  simp only [one_mul, e (A.P_fix z), e hq, sum_const, card_univ, nsmul_eq_mul, mul_one] at h
-  have hc : (0 : ℝ) < Fintype.card G := by exact_mod_cast Fintype.card_pos
-  rw [dist_comm q, dist_comm (A.P z) z, dist_comm q z] at h
-  exact le_of_mul_le_mul_left (by linarith) hc
+  have e {y : Z} (hy : A.Fix y) (g : G) : dist y (A g z) = dist y z :=
+    (congrArg (dist · (A g z)) (hy g)).symm.trans ((A g).dist_eq y z)
+  simp only [one_mul, e (A.P_fix z), e hq, sum_const, card_univ, nsmul_eq_mul, mul_one,
+    dist_comm q, dist_comm (A.P z) z] at h
+  exact le_of_mul_le_mul_left (by linarith) (Nat.cast_pos.2 (Fintype.card_pos (α := G)))
 
 theorem dist_P_le {y : Z} (hy : A.Fix y) (z : Z) : dist z (A.P z) ≤ dist z y :=
   (pow_le_pow_iff_left₀ dist_nonneg dist_nonneg two_ne_zero).1
     (by linarith [dist_P_sq_add_le A hy z, sq_nonneg (dist (A.P z) y)])
 
 private theorem eq_P_of_dist_le {y : Z} (hy : A.Fix y) {z : Z} (h : dist z y ≤ dist z (A.P z)) :
-    y = A.P z := by
-  have h1 := dist_P_sq_add_le A hy z
-  have h2 := pow_le_pow_left₀ dist_nonneg h 2
-  exact (dist_eq_zero.1 ((sq_nonpos_iff _).1 (by linarith))).symm
+    y = A.P z :=
+  (dist_eq_zero.1 ((sq_nonpos_iff _).1
+    (by linarith [dist_P_sq_add_le A hy z, pow_le_pow_left₀ dist_nonneg h 2]))).symm
 
 /-- "By Lemma C.4(c) … `|z, P z|² ≤ E_g |z, g z|²`." -/
 private theorem dist_P_sq_le (z : Z) :
@@ -126,13 +124,11 @@ theorem dist_P_window_sq_le (hμ : 2 ≤ μ) (hs : 1 ≤ s) (hA : ∀ z, Contr (
     rw [GroupSeminorm.comp_apply, IsoAct.len_apply, wh_eq hp, win_x, IsoAct.e, dite_eq_left hj]
     rfl
   have h3 : (∑ j : Fin (n - 1), A.e (p + j) z) ^ 2 ≤ n * ∑ j ∈ Ico p (p + n - 1), A.e j z ^ 2 := by
-    rw [sum_Ico_eq_sum_range, show p + n - 1 - p = n - 1 by omega,
+    rw [sum_Ico_eq_sum_range, Nat.sub_right_comm, Nat.add_sub_cancel_left,
       ← Fin.sum_univ_eq_sum_range (fun j => A.e (p + j) z ^ 2)]
-    refine (sq_sum_le_card_mul_sum_sq (s := univ)
-      (f := fun j : Fin (n - 1) => A.e (p + j) z)).trans ?_
-    rw [card_univ, Fintype.card_fin]
-    exact mul_le_mul_of_nonneg_right (by exact_mod_cast Nat.sub_le n 1)
-      (sum_nonneg fun _ _ => sq_nonneg _)
+    exact (sq_sum_le_card_mul_sum_sq (s := univ)
+      (f := fun j : Fin (n - 1) => A.e (p + j) z)).trans
+        (mul_le_mul_of_nonneg_right (by simp) (sum_nonneg fun _ _ => sq_nonneg _))
   rw [hS] at h1
   calc _ ≤ (Len.rms ((A.len z).comp (wh h p n))) ^ 2 := h2
     _ ≤ (kappa μ s n * ∑ j : Fin (n - 1), A.e (p + j) z) ^ 2 :=
@@ -164,28 +160,25 @@ private theorem dist_P_ge (hμ : 2 ≤ μ) (hs : 1 ≤ s) (hA : ∀ z, Contr (A.
   set R := dist a ((A.W p (3 * u)).P a)
   set B : ℕ → Z := fun k => (A.W (p + k) (3 * u - k)).P a
   have hBfix : ∀ k, (A.W (p + k) (3 * u - k)).Fix (B k) := fun k => IsoAct.P_fix _ a
-  have hBu : B u = (A.W (p + u) (2 * u)).P a := by
-    simp only [B]
-    rw [show 3 * u - u = 2 * u by omega]
-  have hu1 : (1 : ℝ) ≤ (u : ℝ) - 1 := by
-    linarith [(Nat.ofNat_le_cast (α := ℝ)).2 hu]
+  have hBu : B u = (A.W (p + u) (2 * u)).P a :=
+    congrArg (fun n => (A.W (p + u) n).P a) (by omega : 3 * u - u = 2 * u)
+  have hu1 : (1 : ℝ) ≤ (u : ℝ) - 1 := by linarith [(Nat.ofNat_le_cast (α := ℝ)).2 hu]
   -- Lemma C.4(d) at `b_k`
-  have hstep : ∀ k < 3 * u,
-      dist (B k) (B (k + 1)) ^ 2 ≤ dist a (B k) ^ 2 - dist a (B (k + 1)) ^ 2 := fun k hk => by
-      have := dist_P_sq_add_le (A.W (p + (k + 1)) (3 * u - (k + 1)))
-        ((hBfix k).sub A (by omega) (by omega) (by omega)) a
-      rw [dist_comm _ (B k)] at this
-      change _ ≤ _ - dist a ((A.W (p + (k + 1)) (3 * u - (k + 1))).P a) ^ 2
-      linarith
+  have hstep (k) (hk : k < 3 * u) :
+      dist (B k) (B (k + 1)) ^ 2 ≤ dist a (B k) ^ 2 - dist a (B (k + 1)) ^ 2 := by
+    have := dist_P_sq_add_le (A.W (p + (k + 1)) (3 * u - (k + 1)))
+      ((hBfix k).sub A (by omega) (by omega) (by omega)) a
+    rw [dist_comm _ (B k)] at this
+    dsimp only [B] at this ⊢; linarith
   have hφR : dist a (B u) ≤ R := dist_P_le _ (((A.W p (3 * u)).P_fix a).sub A (by omega)
     (by omega) hp) a
-  have hφ : ∀ k, u ≤ k → k ≤ 3 * u → dist a (B k) ≤ dist a (B u) := fun k hk => by
+  have hφ (k) (hk : u ≤ k) : k ≤ 3 * u → dist a (B k) ≤ dist a (B u) := by
     induction k, hk using Nat.le_induction with
     | base => exact fun _ => le_rfl
-    | succ k hk ih =>
-      refine fun hk3 => le_trans ?_ (ih (by omega))
-      exact (pow_le_pow_iff_left₀ dist_nonneg dist_nonneg two_ne_zero).1
-        (by linarith [hstep k (by omega), sq_nonneg (dist (B k) (B (k + 1)))])
+    | succ k _ ih =>
+      refine fun _ => le_trans ((pow_le_pow_iff_left₀ dist_nonneg dist_nonneg two_ne_zero).1 ?_)
+        (ih (by omega))
+      linarith [hstep k (by omega), sq_nonneg (dist (B k) (B (k + 1)))]
   -- the barycenter `b̄` of the `u − 1` points `b_k`, `u < k < 2u`
   have : Nonempty Z := ⟨a⟩
   obtain ⟨b, hb⟩ := exists_isBarycenter (fun _ : Fin (u - 1) => (1 : ℝ)) (fun _ => zero_le_one)
@@ -216,27 +209,30 @@ private theorem dist_P_ge (hμ : 2 ≤ μ) (hs : 1 ≤ s) (hA : ∀ z, Contr (A.
       rw [hw] at h1
       have h0 : 0 ≤ ((u : ℝ) - 1) * A.e (p + t) b := mul_nonneg (by linarith) (A.e_nonneg _ _)
       split_ifs with hc
-      · rw [sum_eq_single (⟨t - u, by omega⟩ : Fin (u - 1)) (fun i _ hi => he t ht _ (by omega)
-          (by omega) fun e => hi (Fin.ext (by simp only at e ⊢; omega))) (by simp),
-          show u + 1 + (t - u) = t + 1 by omega] at h1
-        have h2 := (h1.trans (A.e_le (hBfix t) (by omega) (by omega) (by omega) _)).trans_eq
-          (congrArg _ (dist_comm _ _))
-        have h3 := (pow_le_pow_left₀ h0 h2 2).trans_eq (by ring : (2 * dist (B t) (B (t + 1))) ^ 2 =
-          4 * dist (B t) (B (t + 1)) ^ 2)
+      · have hlt_tu : t - u < u - 1 := by omega
+        have hne_i (i : Fin (u - 1)) (hi : i ≠ ⟨t - u, hlt_tu⟩) : u + 1 + i.1 ≠ t + 1 :=
+          fun e => hi (Fin.ext (by dsimp; omega))
+        rw [sum_eq_single (⟨t - u, hlt_tu⟩ : Fin (u - 1))
+          (fun i _ hi => he t ht _ (by omega) (by omega) (hne_i i hi)) (by simp),
+          Nat.add_right_comm u 1, Nat.add_sub_of_le hc.1] at h1
+        have h2 := h1.trans (A.e_le (hBfix t) (by omega) (by omega) (by omega) _)
+        rw [dist_comm] at h2
+        have h3 := (pow_le_pow_left₀ h0 h2 2).trans_eq
+          (by ring : (2 * dist (B t) (B (t + 1))) ^ 2 = 4 * dist (B t) (B (t + 1)) ^ 2)
         linarith [hstep t (by omega)]
       · rw [sum_eq_zero fun i _ => he t ht _ (by omega) (by omega)
           fun e => hc ⟨by omega, by omega⟩] at h1
         simp [le_antisymm h1 h0]
   have hsum : ((u : ℝ) - 1) ^ 2 * ∑ j ∈ Ico p (p + 3 * u - 1), A.e j b ^ 2 ≤ 4 * R ^ 2 := by
-    rw [sum_Ico_eq_sum_range, show p + 3 * u - 1 - p = 3 * u - 1 by omega, mul_sum]
+    have hfilt : (range (3 * u - 1)).filter (fun t => u ≤ t ∧ t + 1 < 2 * u) = Ico u (2 * u - 1) :=
+      Finset.ext fun t => by simp only [mem_filter, mem_range, mem_Ico]; omega
+    rw [sum_Ico_eq_sum_range, Nat.sub_right_comm, Nat.add_sub_cancel_left, mul_sum]
     refine (sum_le_sum fun t ht => (mul_pow _ _ 2).symm.trans_le (hde t (mem_range.1 ht))).trans ?_
-    rw [← sum_filter, show (range (3 * u - 1)).filter (fun t => u ≤ t ∧ t + 1 < 2 * u) =
-      Ico u (2 * u - 1) by ext t; simp only [mem_filter, mem_range, mem_Ico]; omega, ← mul_sum]
-    rw [sum_Ico_eq_sum_range, show 2 * u - 1 - u = u - 1 by omega]
+    rw [← sum_filter, hfilt, ← mul_sum, sum_Ico_eq_sum_range, two_mul, Nat.sub_right_comm,
+      Nat.add_sub_cancel_left]
     have h4 := sum_range_sub' (fun k => dist a (B (u + k)) ^ 2) (u - 1)
-    simp only [add_zero, ← add_assoc, show u + (u - 1) = 2 * u - 1 by omega] at h4
-    rw [h4]
-    linarith [sq_nonneg (dist a (B (2 * u - 1))), pow_le_pow_left₀ dist_nonneg hφR 2]
+    simp only [add_zero, ← add_assoc, ← Nat.add_sub_assoc (Nat.one_le_of_lt hu), ← two_mul] at h4
+    rw [h4]; linarith [sq_nonneg (dist a (B (2 * u - 1))), pow_le_pow_left₀ dist_nonneg hφR 2]
   -- by (F.1), `b̄` is within `ζR` of a fixed point of `[p, p + 3u)`
   have hbP : dist b ((A.W p (3 * u)).P b) ≤ ζ * R := by
     refine (pow_le_pow_iff_left₀ dist_nonneg (by positivity) two_ne_zero).1
@@ -251,9 +247,8 @@ private theorem dist_P_ge (hμ : 2 ≤ μ) (hs : 1 ≤ s) (hA : ∀ z, Contr (A.
       _ = 4 * (kappa μ s (3 * u) ^ 2 * (3 * u : ℕ)) * R ^ 2 := by ring
       _ ≤ ζ ^ 2 * ((u : ℝ) - 1) ^ 2 * R ^ 2 := mul_le_mul_of_nonneg_right hC (sq_nonneg R)
       _ = ((u : ℝ) - 1) ^ 2 * (ζ * R) ^ 2 := by ring
-  have h1 := dist_P_le _ ((A.W p (3 * u)).P_fix b) a
   rw [← hBu]
-  linarith [dist_triangle a b ((A.W p (3 * u)).P b)]
+  linarith [dist_P_le _ ((A.W p (3 * u)).P_fix b) a, dist_triangle a b ((A.W p (3 * u)).P b)]
 
 /-- The proof of Lemma F.5 for two finite groups of isometries with a common fixed point `v`. If
 every point `q` at fraction `σ ∈ (0, 1]` from `v` to `a = P₁ z` has `(1 − c²)|vq|² ≤ |q, P₂ q|²`,
@@ -269,21 +264,19 @@ theorem dist_P_P_sq_le_of_fix {G₁ G₂ : Type*} [Group G₁] [Fintype G₁] [G
       dist z (A₁.P z) ^ 2 + dist z (A₂.P z) ^ 2 + 2 * c * (dist z (A₁.P z) * dist z (A₂.P z)) := by
   set a := A₁.P z
   set a' := A₂.P z
-  have hA1 := dist_P_sq_add_le A₁ hv1 z
-  have hA2 := dist_P_sq_add_le A₂ hv2 z
+  have hA1 := dist_comm a v ▸ dist_P_sq_add_le A₁ hv1 z
+  have hA2 := dist_comm a' v ▸ dist_P_sq_add_le A₂ hv2 z
   rcases (dist_nonneg (x := z) (y := a)).eq_or_lt with h0 | hr
   · simp [← dist_eq_zero.1 h0.symm]
   rcases (dist_nonneg (x := z) (y := a')).eq_or_lt with h0 | hr'
   · simp [← dist_eq_zero.1 h0.symm, dist_comm a z]
   have hpos : 0 ≤ 2 * c * (dist z a * dist z a') := by positivity
   rcases (dist_nonneg (x := v) (y := a)).eq_or_lt with h0 | hα
-  · rw [dist_eq_zero.1 h0.symm, dist_comm a' a] at hA2
+  · rw [dist_eq_zero.1 h0.symm] at hA2
     linarith [sq_nonneg (dist z a')]
   rcases (dist_nonneg (x := v) (y := a')).eq_or_lt with h0 | hβ
-  · rw [dist_eq_zero.1 h0.symm] at hA1
+  · rw [dist_eq_zero.1 h0.symm, dist_comm a' a] at hA1
     linarith [sq_nonneg (dist z a)]
-  rw [dist_comm a v] at hA1
-  rw [dist_comm a' v] at hA2
   set α := dist v a
   set β := dist v a'
   -- (F.2), from the points `q` at `σ` on `[v, a]` and `q'` at `τ` on `[v, a']`, `τβ = cσα`
@@ -299,15 +292,12 @@ theorem dist_P_P_sq_le_of_fix {G₁ G₂ : Type*} [Group G₁] [Fintype G₁] [G
     obtain ⟨q, hq1⟩ := exists_isPointAt v a hσ0.le hσ1
     obtain ⟨q', hq2⟩ := exists_isPointAt v a' hτ0.le hτ1
     have q1 := hq1.dist_left hσ0.le hσ1
-    have h2 := hq q σ hσ0 hσ1 hq1
+    have h2 := q1 ▸ hq q σ hσ0 hσ1 hq1
     have h4 : dist q (A₂.P q) ^ 2 ≤ dist q q' ^ 2 := pow_le_pow_left₀ dist_nonneg
       (dist_P_le A₂ (fix_of_isPointAt A₂ hv2 (A₂.P_fix z) hτ0.le hτ1 hq2) q) 2
-    have h5 := hq2 q
-    have h6 := hq1 a'
-    rw [dist_comm a' q, dist_comm a' v, dist_comm a' a] at h6
-    rw [dist_comm q v, q1] at h5
-    rw [q1] at h2
-    have h8 := mul_le_mul_of_nonneg_left h6 hτ0.le
+    have h5 := by simpa only [dist_comm q v, q1] using hq2 q
+    have h8 := mul_le_mul_of_nonneg_left
+      (by simpa only [dist_comm a' q, dist_comm a' v, dist_comm a' a] using hq1 a') hτ0.le
     have e1 : τ * β = c * (σ * α) := by simp only [τ, σ]; field_simp
     have h7 : (σ * τ) * (α ^ 2 + β ^ 2 - dist a a' ^ 2) ≤ (σ * τ) * (2 * c * (α * β)) := by
       have hid : (σ * τ) * (2 * c * (α * β)) - (σ * τ) * (α ^ 2 + β ^ 2 - dist a a' ^ 2) =
@@ -322,11 +312,9 @@ theorem dist_P_P_sq_le_of_fix {G₁ G₂ : Type*} [Group G₁] [Fintype G₁] [G
   -- Lemma C.4(a) twice, for the points at `η` on `[a, a']` and at `t` on `[z, v]`
   obtain ⟨m, hm⟩ := exists_isPointAt a a' hη0 hη1
   obtain ⟨g, hg⟩ := exists_isPointAt z v ht0 ht1
-  have h1 := mul_le_mul_of_nonneg_left (hm z) (show 0 ≤ 1 - t by linarith)
-  have h2 := mul_le_mul_of_nonneg_left (hm v) ht0
-  have h3 := hg m
-  rw [dist_comm m z, dist_comm m v] at h3
-  linarith [sq_nonneg (dist m g)]
+  have h3 := by simpa only [dist_comm m z, dist_comm m v] using hg m
+  linarith [mul_le_mul_of_nonneg_left (hm z) (sub_nonneg.2 ht1),
+    mul_le_mul_of_nonneg_left (hm v) ht0, sq_nonneg (dist m g)]
 
 /-- **Lemma F.5** (p. 40): for `u`, `p`, `ζ` as in Lemma F.4, `0 ≤ ζ ≤ 1`, `c > 0` and
 `1 − c² ≤ (1 − ζ)²`, the projections `a`, `a'` of `z` for the windows `[p, p + 2u)` and

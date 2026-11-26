@@ -110,9 +110,7 @@ theorem forcedToAtMostOne_iff_const_or_literal {ι : Type*} [DecidableEq ι]
           f (restrictUpdate B w u) =
             cond (u i₀) (f (restrictUpdate B w fun _ => true))
               (f (restrictUpdate B w fun _ => false)) := by
-        cases hu : u i₀
-        · exact hdep u _ hu
-        · exact hdep u _ hu
+        cases hu : u i₀ <;> exact hdep u _ hu
       cases hb₀ : f (restrictUpdate B w fun _ => false) <;>
         cases hb₁ : f (restrictUpdate B w fun _ => true)
       · exact Or.inl ⟨false, fun u => by simp [hval u, hb₀, hb₁]⟩
@@ -183,16 +181,12 @@ theorem not_forcedToConst_ltfEval_iff {ι : Type*} [Fintype ι] [DecidableEq ι]
   have hmax_eq := sum_ltfMaxAssign_eq_sum_ltfMinAssign_add a B w
   constructor
   · intro hnot
-    have hlt : (∑ i : ι, a i * (ltfMinAssign a B w i).toNat) < θ := by
-      by_contra hge
-      refine hnot ⟨true, fun u => ?_⟩
-      simp only [ltfEval, decide_eq_true_eq]
-      exact (not_lt.mp hge).trans (sum_ltfMinAssign_le_and_le_sum_ltfMaxAssign a B w u).1
-    have hge : θ ≤ ∑ i : ι, a i * (ltfMaxAssign a B w i).toNat := by
-      by_contra hlt'
-      refine hnot ⟨false, fun u => ?_⟩
-      simp only [ltfEval, decide_eq_false_iff_not, not_le]
-      exact (sum_ltfMinAssign_le_and_le_sum_ltfMaxAssign a B w u).2.trans_lt (not_le.mp hlt')
+    have hlt : (∑ i : ι, a i * (ltfMinAssign a B w i).toNat) < θ := by_contra fun hge =>
+      hnot ⟨true, fun u => decide_eq_true ((not_lt.mp hge).trans
+        (sum_ltfMinAssign_le_and_le_sum_ltfMaxAssign a B w u).1)⟩
+    have hge : θ ≤ ∑ i : ι, a i * (ltfMaxAssign a B w i).toNat := by_contra fun hlt' =>
+      hnot ⟨false, fun u => decide_eq_false (not_le.mpr
+        ((sum_ltfMinAssign_le_and_le_sum_ltfMaxAssign a B w u).2.trans_lt (not_le.mp hlt')))⟩
     exact ⟨by linarith, hlt⟩
   · rintro ⟨hlow, hhigh⟩ ⟨_, hc⟩
     have h12 : ltfEval a θ (ltfMinAssign a B w) = ltfEval a θ (ltfMaxAssign a B w) :=
@@ -228,10 +222,9 @@ theorem forcedToAtMostOne_ltfEval_of_card_inter_le_one {ι : Type*} [Fintype ι]
 theorem not_forcedToAtMostOne_ltfEval_imp {ι : Type*} [Fintype ι] [DecidableEq ι]
     {a : ι → ℝ} {θ : ℝ} {B : Finset ι} {w : ι → Bool}
     (h : ¬ ForcedToAtMostOne (ltfEval a θ) B w) :
-    2 ≤ #(B ∩ ltfSupport a) ∧ ¬ ForcedToConst (ltfEval a θ) B w := by
-  refine ⟨?_, fun hconst => h (Or.inl hconst)⟩
-  by_contra hlt
-  exact h (forcedToAtMostOne_ltfEval_of_card_inter_le_one a θ B (by omega) w)
+    2 ≤ #(B ∩ ltfSupport a) ∧ ¬ ForcedToConst (ltfEval a θ) B w :=
+  ⟨by_contra fun _ => h (forcedToAtMostOne_ltfEval_of_card_inter_le_one a θ B (by omega) w),
+    fun hconst => h (Or.inl hconst)⟩
 
 /-! ### Fixed-`B` LTF restriction bound (repaired Kane–Williams Equation `RestrictToBEqn`) -/
 
@@ -251,11 +244,9 @@ theorem card_not_forcedToConst_ltfEval_le {ι : Type*} [Fintype ι] [DecidableEq
   let kB (i : ι) : ℕ := #{j ∈ B ∩ S | |a i| ≤ |a j|}
   let minSum (w : ι → Bool) : ℝ := ∑ j : ι, a j * (ltfMinAssign a B w j).toNat
   have hk_split (i : ι) : ltfWeightRank a i = kB i + k' i := by
-    have h1 : {j ∈ B ∩ S | |a i| ≤ |a j|} = ({j ∈ S | |a i| ≤ |a j|}).filter (· ∈ B) := by
-      ext j; simp [and_left_comm, and_comm]
-    have h2 : {j ∈ S \ B | |a i| ≤ |a j|} = ({j ∈ S | |a i| ≤ |a j|}).filter (· ∉ B) := by
-      ext j; simp [and_left_comm, and_comm]
-    dsimp only [ltfWeightRank, S, kB, k']; rw [h1, h2, card_filter_add_card_filter_not]
+    rw [ltfWeightRank, ← card_filter_add_card_filter_not (· ∈ B)]
+    exact congrArg₂ (· + ·) (congrArg card (ext fun _ => by simp [S, and_left_comm, and_comm]))
+      (congrArg card (ext fun _ => by simp [S, and_left_comm, and_comm]))
   by_cases hcase : ∀ i ∈ B ∩ S, ltfWeightRank a i ≤ 2 * (k' i + 1)
   · let aOut : ι → ℝ := fun j => if j ∈ B then 0 else a j
     let cB : ℝ := ∑ j : ι, if j ∈ B then a j * (decide (a j < 0)).toNat else 0
@@ -266,13 +257,12 @@ theorem card_not_forcedToConst_ltfEval_le {ι : Type*} [Fintype ι] [DecidableEq
     have hLO (i : ι) (_hi : i ∈ B ∩ S) (c : ℝ) :
         (#{w : ι → Bool | c ≤ minSum w ∧ minSum w < c + |a i|} : ℝ) ≤
           (2 : ℝ) ^ Fintype.card ι / Real.sqrt (k' i + 1) := by
-      have hrewrite :
-          (univ.filter fun w : ι → Bool => c ≤ minSum w ∧ minSum w < c + |a i|) =
-          (univ.filter fun w : ι → Bool =>
-            c - cB ≤ ∑ j : ι, aOut j * (w j).toNat ∧
-              (∑ j : ι, aOut j * (w j).toNat) < (c - cB) + |a i|) := by
-        ext w; simp only [mem_filter, mem_univ, true_and, hmin_decomp]
-        constructor <;> intro h <;> constructor <;> linarith
+      have hrewrite := filter_congr (s := univ) fun w _ =>
+        show (c ≤ minSum w ∧ minSum w < c + |a i|) ↔
+          c - cB ≤ ∑ j : ι, aOut j * (w j).toNat ∧
+            (∑ j : ι, aOut j * (w j).toNat) < (c - cB) + |a i| by
+          simp only [hmin_decomp]
+          constructor <;> intro h <;> constructor <;> linarith
       rw [hrewrite]
       refine card_filter_sum_bool_Ico_le_two_pow_div_sqrt aOut
         ({j ∈ S \ B | |a i| ≤ |a j|}) (c - cB) fun j hj => ?_
@@ -280,13 +270,10 @@ theorem card_not_forcedToConst_ltfEval_le {ι : Type*} [Fintype ι] [DecidableEq
     have hunion :
         (#{w : ι → Bool | ¬ ForcedToConst (ltfEval a θ) B w} : ℝ) ≤
           ∑ i ∈ B ∩ S, (2 : ℝ) ^ Fintype.card ι / Real.sqrt (k' i + 1) := by
-      have hfilter :
-          (univ.filter fun w : ι → Bool => ¬ ForcedToConst (ltfEval a θ) B w) =
-            (univ.filter fun w : ι → Bool =>
-              θ - (∑ i ∈ B ∩ S, |a i|) ≤ minSum w ∧ minSum w < θ) := by
-        ext w; simp [S, minSum, not_forcedToConst_ltfEval_iff]
-      rw [hfilter]
-      exact card_filter_Ico_sum_le minSum (B ∩ S) (fun i => |a i|)
+      have hfilter : (univ.filter fun w : ι → Bool => ¬ ForcedToConst (ltfEval a θ) B w) =
+          univ.filter fun w => θ - (∑ i ∈ B ∩ S, |a i|) ≤ minSum w ∧ minSum w < θ :=
+        ext fun _ => by simp [S, minSum, not_forcedToConst_ltfEval_iff]
+      simpa only [hfilter] using card_filter_Ico_sum_le minSum (B ∩ S) (fun i => |a i|)
         (fun i => (2 : ℝ) ^ Fintype.card ι / Real.sqrt (k' i + 1)) hLO θ
     refine hunion.trans ?_
     rw [mul_sum, mul_sum]; refine sum_le_sum fun i hi => ?_
@@ -324,9 +311,7 @@ theorem card_not_forcedToConst_ltfEval_le {ι : Type*} [Fintype ι] [DecidableEq
       linarith
     have htriv : (#{w : ι → Bool | ¬ ForcedToConst (ltfEval a θ) B w} : ℝ) ≤
         (2 : ℝ) ^ Fintype.card ι := by
-      simpa [Fintype.card_fun, Fintype.card_bool] using
-        (Nat.cast_le (α := ℝ).mpr (card_filter_le univ fun w : ι → Bool =>
-          ¬ ForcedToConst (ltfEval a θ) B w))
+      exact_mod_cast (card_filter_le univ _).trans_eq (by simp)
     exact htriv.trans (le_mul_of_one_le_right (by positivity) hsum_ge)
 
 /-- **Fixed-`B` LTF single-input non-forcing bound**: if `#(B ∩ ltfSupport a) < 2`, no input fails
@@ -341,12 +326,9 @@ theorem card_not_forcedToAtMostOne_ltfEval_le {ι : Type*} [Fintype ι] [Decidab
       else 0 := by
   classical
   split_ifs with h2
-  · have hsub :
-        (univ.filter fun w : ι → Bool => ¬ ForcedToAtMostOne (ltfEval a θ) B w) ⊆
-          (univ.filter fun w : ι → Bool => ¬ ForcedToConst (ltfEval a θ) B w) :=
-      fun _ hw => mem_filter.mpr
-        ⟨mem_univ _, (not_forcedToAtMostOne_ltfEval_imp (mem_filter.mp hw).2).2⟩
-    exact (Nat.cast_le.mpr (card_le_card hsub)).trans (card_not_forcedToConst_ltfEval_le a θ B)
+  · exact (Nat.cast_le.mpr (card_le_card fun _ hw => mem_filter.mpr
+      ⟨mem_univ _, (not_forcedToAtMostOne_ltfEval_imp (mem_filter.mp hw).2).2⟩)).trans
+      (card_not_forcedToConst_ltfEval_le a θ B)
   · rw [filter_false_of_mem (fun w _ =>
       not_not.mpr (forcedToAtMostOne_ltfEval_of_card_inter_le_one a θ B (by omega) w)),
       card_empty, Nat.cast_zero]
@@ -417,12 +399,9 @@ theorem sum_card_not_forcedToAtMostOne_ltfEval_le {Ω ι : Type*} [Fintype Ω] [
       (#{ω : Ω | i ∈ B ω ∧ 2 ≤ #(B ω ∩ ltfSupport a)} : ℝ) ≤
         Real.sqrt #(ltfSupport a) * p * Real.sqrt p * (Fintype.card Ω : ℝ) := by
     set S := ltfSupport a
-    have hb1 : (#{ω : Ω | i ∈ B ω ∧ 2 ≤ #(B ω ∩ S)} : ℝ) ≤ p * (Fintype.card Ω : ℝ) := by
-      have hsub :
-          (univ.filter fun ω : Ω => i ∈ B ω ∧ 2 ≤ #(B ω ∩ S)) ⊆
-            (univ.filter fun ω : Ω => i ∈ B ω) :=
-        fun _ h => mem_filter.mpr ⟨mem_univ _, (mem_filter.mp h).2.1⟩
-      exact (Nat.cast_le.mpr (card_le_card hsub)).trans (hp1 i hi)
+    have hb1 : (#{ω : Ω | i ∈ B ω ∧ 2 ≤ #(B ω ∩ S)} : ℝ) ≤ p * (Fintype.card Ω : ℝ) :=
+      (Nat.cast_le.mpr (card_le_card fun _ h =>
+        mem_filter.mpr ⟨mem_univ _, (mem_filter.mp h).2.1⟩)).trans (hp1 i hi)
     have hb2 :
         (#{ω : Ω | i ∈ B ω ∧ 2 ≤ #(B ω ∩ S)} : ℝ) ≤
           (#S : ℝ) * p ^ 2 * (Fintype.card Ω : ℝ) := by
@@ -431,16 +410,12 @@ theorem sum_card_not_forcedToAtMostOne_ltfEval_le {Ω ι : Type*} [Fintype Ω] [
             (S.erase i).biUnion fun j => univ.filter fun ω : Ω => i ∈ B ω ∧ j ∈ B ω := by
         intro ω hω
         simp only [mem_filter, mem_univ, true_and, mem_biUnion] at hω ⊢
-        have hiBS : i ∈ B ω ∩ S := mem_inter.mpr ⟨hω.1, hi⟩
-        have hpos : 0 < #((B ω ∩ S).erase i) := by rw [card_erase_of_mem hiBS]; omega
-        obtain ⟨j, hj⟩ := card_pos.mp hpos
+        obtain ⟨j, hj⟩ := card_pos.mp
+          (by rw [card_erase_of_mem (mem_inter.mpr ⟨hω.1, hi⟩)]; omega)
         rw [mem_erase, mem_inter] at hj
         exact ⟨j, mem_erase.mpr ⟨hj.1, hj.2.2⟩, hω.1, hj.2.1⟩
-      have hreal :
-          (#{ω : Ω | i ∈ B ω ∧ 2 ≤ #(B ω ∩ S)} : ℝ) ≤
-            ∑ j ∈ S.erase i, (#{ω : Ω | i ∈ B ω ∧ j ∈ B ω} : ℝ) := by
-        exact_mod_cast (card_le_card hsub).trans card_biUnion_le
-      refine hreal.trans ((sum_le_sum fun j hj => hp2 i hi j hj).trans ?_)
+      refine ((Nat.cast_le.mpr ((card_le_card hsub).trans card_biUnion_le)).trans_eq
+        (Nat.cast_sum _ _)).trans ((sum_le_sum fun j hj => hp2 i hi j hj).trans ?_)
       rw [sum_const, nsmul_eq_mul, mul_assoc]
       exact mul_le_mul_of_nonneg_right (Nat.cast_le.mpr card_erase_le) (by positivity)
     have hsq :

@@ -1001,12 +1001,6 @@ theorem holds_atLeast (σ : ℕ → Bool) (f : Objective) (b : ℤ) :
   rw [atLeast, holds_fromLinear_iff, eval]
   omega
 
-private theorem linVal_map_neg (σ : ℕ → Bool) (L : List (ℕ × ℤ)) :
-    linVal σ (L.map fun e => (e.1, -e.2)) = -linVal σ L := by
-  induction L with
-  | nil => simp
-  | cons e L ih => simp only [List.map_cons, linVal_cons, ih]; ring
-
 /-- **The objective-improving constraint** `f ≤ u - 1` (equation (3.6) of the documentation). -/
 @[expose]
 def improving (f : Objective) (u : ℤ) : PBConstr :=

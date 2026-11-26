@@ -107,8 +107,7 @@ theorem foldl_setCell (d : ℕ) (F : ℕ → Entry β) : ∀ (l : List ℕ) (U :
     l.foldl (fun U i => setCell d U i (F i)) U a b = if a ∈ l ∧ b = a + d then F a else U a b
   | [], U, a, b => by simp only [List.foldl_nil, List.not_mem_nil, false_and, ↓reduceIte]
   | x :: l, U, a, b => by
-    rw [List.foldl_cons, foldl_setCell d F l, setCell]
-    simp only [List.mem_cons]
+    simp only [List.foldl_cons, foldl_setCell d F l, setCell, List.mem_cons]
     split_ifs <;> grind
 
 /-- The output of an optimal-BST algorithm: a cost and a tree. -/
@@ -140,11 +139,8 @@ def ScanInv (c : ℕ → β) (lo hi : ℕ) (e : Entry β) : Prop :=
 
 theorem scanInv_foldl (c : ℕ → β) (lo : ℕ) : ∀ m,
     ScanInv c lo (lo + m) ((List.range' (lo + 1) m).foldl (bestStep c) ⟨c lo, lo⟩)
-  | 0 => by
-    refine ⟨le_rfl, le_rfl, rfl, fun k h₁ h₂ => ?_, fun k h₁ h₂ => ?_⟩
-    · obtain rfl : k = lo := by omega
-      exact le_rfl
-    · exact absurd h₂ (by simp only [List.range'_zero, List.foldl_nil] at h₁; omega)
+  | 0 => ⟨le_rfl, le_rfl, rfl, fun _ h₁ h₂ => (congrArg c (le_antisymm h₁ h₂)).le,
+      fun _ h₁ h₂ => absurd h₂ h₁.not_ge⟩
   | m + 1 => by
     rw [List.range'_concat, List.foldl_append, List.foldl_cons, List.foldl_nil, one_mul,
       Nat.add_right_comm]
@@ -224,28 +220,26 @@ theorem entry_eq_opt_of_scanInv {w : ℕ → ℕ → β} {n d : ℕ} {T : Table 
     {e : Entry β} (he : ScanInv (T.candidate i (i + d + 1)) lo hi e) :
     (⟨w i (i + d + 1) + e.cost, e.root⟩ : Entry β) =
       ⟨optCost w i (i + d + 1), optRoot w i (i + d + 1)⟩ := by
-  have hc : ∀ k, i < k → k ≤ i + d + 1 →
+  have hc (k : ℕ) (hk₁ : i < k) (hk₂ : k ≤ i + d + 1) :
       T.candidate i (i + d + 1) k = splitCost w i (i + d + 1) k := by
-    intro k hk₁ hk₂
     rw [Table.candidate, splitCost, hT i (k - 1) (by omega) (by omega),
       hT k (i + d + 1) hj (by omega)]
   obtain ⟨e₁, e₂, e₃, e₄, e₅⟩ := he
   have hopt := mem_Ioc.1 (optRoot_mem w (show i < i + d + 1 by omega))
+  have her : e.root ∈ Ioc i (i + d + 1) := mem_Ioc.2 ⟨h₁.trans_le e₁, e₂.trans h₄⟩
+  have hecost : e.cost = splitCost w i (i + d + 1) e.root :=
+    e₃.trans (hc _ (h₁.trans_le e₁) (e₂.trans h₄))
   have hmin : ∀ k ∈ Ioc i (i + d + 1),
-      splitCost w i (i + d + 1) e.root ≤ splitCost w i (i + d + 1) k := by
-    intro k hk
-    calc splitCost w i (i + d + 1) e.root = e.cost := by rw [e₃, hc _ (by omega) (by omega)]
+      splitCost w i (i + d + 1) e.root ≤ splitCost w i (i + d + 1) k := fun k hk =>
+    calc splitCost w i (i + d + 1) e.root = e.cost := hecost.symm
       _ ≤ T.candidate i (i + d + 1) (optRoot w i (i + d + 1)) := e₄ _ h₂ h₃
       _ = splitCost w i (i + d + 1) (optRoot w i (i + d + 1)) := hc _ hopt.1 hopt.2
       _ ≤ splitCost w i (i + d + 1) k := splitCost_optRoot_le w hk
-  have hle := le_optRoot w (mem_Ioc.2 ⟨by omega, by omega⟩) hmin
-  have heq : e.root = optRoot w i (i + d + 1) := by
-    refine le_antisymm hle (not_lt.1 fun hlt => ?_)
-    have := e₅ _ hlt h₃
-    rw [e₃, hc _ (by omega) (by omega), hc _ hopt.1 hopt.2] at this
-    exact absurd (splitCost_optRoot_le w (mem_Ioc.2 ⟨by omega, by omega⟩)) (not_le.2 this)
+  have heq : e.root = optRoot w i (i + d + 1) := le_antisymm (le_optRoot w her hmin)
+    (not_lt.1 fun hlt => (hc _ hopt.1 hopt.2 ▸ hecost ▸ e₅ _ hlt h₃).not_ge
+      (splitCost_optRoot_le w her))
   ext
-  · rw [optCost_eq_optRoot w (by omega), ← heq, e₃, hc _ (by omega) (by omega)]
+  · rw [optCost_eq_optRoot w (by omega), ← heq, hecost]
   · exact heq
 
 /-- A scan over a window containing the largest optimal root computes the correct entry. -/
@@ -269,8 +263,7 @@ theorem agrees_diag {w : ℕ → ℕ → β} {W : Window β} {n d : ℕ} (hW : W
 theorem agrees_table {w : ℕ → ℕ → β} {W : Window β} {n : ℕ} (hW : W.Valid w n) :
     ∀ d, Agrees w n d (table w W n d)
   | 0 => fun a b _ hab => by
-    rw [optCost_of_le w (by omega), optRoot_of_le w (by omega)]
-    rfl
+    rw [table, optCost_of_le w (by omega), optRoot_of_le w (by omega)]
   | d + 1 => agrees_diag hW (agrees_table hW d)
 
 theorem Window.valid_plain (w : ℕ → ℕ → β) (n : ℕ) : (Window.plain : Window β).Valid w n := by
@@ -281,13 +274,10 @@ theorem Window.valid_plain (w : ℕ → ℕ → β) (n : ℕ) : (Window.plain : 
 theorem solve_eq {w : ℕ → ℕ → β} {W : Window β} {n : ℕ} (hW : W.Valid w n) :
     solve w W n = ⟨optCost w 0 n, optTree w 0 n⟩ := by
   have hT := agrees_table hW n
-  simp only [solve]
-  generalize table w W n n = T at hT
-  have hR : ∀ a b, 0 ≤ a → a < b → b ≤ n → (T a b).root = optRoot w a b := fun a b _ _ hb => by
-    rw [hT a b hb (by omega)]
-  rw [hT 0 n le_rfl (by omega), optTree, Nat.sub_zero,
-    buildTree_congr (R' := optRoot w) hR fun a b _ hab hb => hR a b (Nat.zero_le a) hab hb ▸
-      optRoot_mem w hab]
+  have hR : ∀ a b, 0 ≤ a → a < b → b ≤ n → (table w W n n a b).root = optRoot w a b :=
+    fun a b _ _ hb => congrArg Entry.root (hT a b hb ((Nat.sub_le b a).trans hb))
+  rw [solve, hT 0 n le_rfl le_rfl, optTree, Nat.sub_zero,
+    buildTree_congr hR fun a b ha hab hb => hR a b ha hab hb ▸ optRoot_mem w hab]
 
 /-- **Correctness of the cubic dynamic program**, for every weight: it returns the optimal cost and
 the tree read off the largest optimal roots. -/
@@ -307,19 +297,17 @@ variable [AddCommMonoid β] [LinearOrder β] [IsOrderedCancelAddMonoid β]
 theorem Window.valid_knuth {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w)
     (hmono : MonotoneOnIntervals w) (n : ℕ) : (Window.knuth : Window β).Valid w n := by
   intro d T i hT hj
-  have hopt := mem_Ioc.1 (optRoot_mem w (show i < i + d + 1 by omega))
   rcases d with _ | e
-  · simp only [Window.knuth, add_zero, lt_irrefl, ↓reduceIte]
-    simp only [add_zero] at hopt
+  · have hopt := mem_Ioc.1 (optRoot_mem w (Nat.lt_add_one i))
+    simp only [Window.knuth, add_zero, lt_irrefl, ↓reduceIte] at hopt ⊢
     omega
-  · have hmon := optRoot_mono hqi hmono (show i + 1 < i + (e + 1) + 1 by omega)
+  · have hij : i + 1 < i + (e + 1) + 1 := by omega
+    have hmon := optRoot_mono hqi hmono hij
     have h₁ := mem_Ioc.1 (optRoot_mem w (show i < i + (e + 1) by omega))
-    have h₂ := mem_Ioc.1 (optRoot_mem w (show i + 1 < i + (e + 1) + 1 by omega))
-    simp only [Window.knuth, show i + 1 < i + (e + 1) + 1 by omega, ↓reduceIte,
-      show i + (e + 1) + 1 - 1 = i + (e + 1) by omega] at hmon ⊢
+    have h₂ := mem_Ioc.1 (optRoot_mem w hij)
+    simp only [Window.knuth, hij, ↓reduceIte, Nat.add_sub_cancel] at hmon ⊢
     rw [hT i (i + (e + 1)) (by omega) (by omega), hT (i + 1) (i + (e + 1) + 1) hj (by omega)]
-    dsimp only
-    omega
+    exact ⟨h₁.1, hmon.1, hmon.2, h₂.2⟩
 
 /-- **Correctness of Knuth's algorithm** when the weight satisfies the quadrangle inequality and
 is monotone on intervals. -/
@@ -347,25 +335,25 @@ theorem sum_knuth_window_le {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w)
   · simp only [Window.knuth, zero_add, lt_irrefl, ↓reduceIte, Nat.sub_self,
       sum_const, card_range, Nat.nsmul_eq_mul, mul_one]
     omega
-  · set m := n + 1 - (e + 1 + 1) with hm
+  · set m := n + 1 - (e + 1 + 1)
     let a : ℕ → ℕ := fun i => optRoot w i (i + e + 1)
-    have hterm : ∀ i ∈ range m, (Window.knuth : Window β).hi T i (i + (e + 1 + 1)) -
-        (Window.knuth : Window β).lo T i (i + (e + 1 + 1)) + 1 = a (i + 1) - a i + 1 := by
-      intro i hi
+    have hsub (i : ℕ) : (i + 1) + e + 1 - 1 = i + e + 1 := by omega
+    have hterm (i : ℕ) (hi : i ∈ range m) :
+        (Window.knuth : Window β).hi T i (i + (e + 1 + 1)) -
+          (Window.knuth : Window β).lo T i (i + (e + 1 + 1)) + 1 = a (i + 1) - a i + 1 := by
       rw [mem_range] at hi
-      rw [show i + (e + 1 + 1) = (i + 1) + e + 1 by omega]
-      simp only [Window.knuth, show i + 1 < (i + 1) + e + 1 by omega, ↓reduceIte,
-        show (i + 1) + e + 1 - 1 = i + e + 1 by omega]
+      have heq : i + (e + 1 + 1) = (i + 1) + e + 1 := by omega
+      have hij : i + 1 < (i + 1) + e + 1 := by omega
+      simp only [Window.knuth, heq, hij, ↓reduceIte, hsub]
       rw [hT i (i + e + 1) (by omega) (by omega),
         hT (i + 1) ((i + 1) + e + 1) (by omega) (by omega)]
     rw [sum_congr rfl hterm]
     have ha : ∀ i < m, a i ≤ a (i + 1) := fun i _ => by
       have hmon := optRoot_mono hqi hmono (show i + 1 < (i + 1) + e + 1 by omega)
-      rw [show (i + 1) + e + 1 - 1 = i + e + 1 by omega] at hmon
-      exact hmon.1.trans hmon.2
+      exact (hsub i ▸ hmon.1).trans hmon.2
     have htel := sum_telescope a m ha
-    rcases Nat.eq_zero_or_pos m with hm0 | hm₀
-    · rw [hm0, sum_range_zero]; omega
+    rcases eq_or_ne m 0 with hm0 | _
+    · simp only [hm0, sum_range_zero, Nat.zero_le]
     · have h₀ := mem_Ioc.1 (optRoot_mem w (show 0 < 0 + e + 1 by omega))
       have hm' := mem_Ioc.1 (optRoot_mem w (show m < m + e + 1 by omega))
       dsimp only [a] at htel ⊢
@@ -383,21 +371,17 @@ variable [AddCommMonoid β] [LinearOrder β]
 theorem optCost_congr {w₁ w₂ : ℕ → ℕ → β} {i j : ℕ}
     (h : ∀ a b, i ≤ a → a < b → b ≤ j → w₁ a b = w₂ a b) :
     optCost w₁ i j = optCost w₂ i j := by
-  suffices H : ∀ f a b, (∀ x y, a ≤ x → x < y → y ≤ b → w₁ x y = w₂ x y) →
-      optCostAux w₁ f a b = optCostAux w₂ f a b from H (j - i) i j h
-  intro f
-  induction f with
-  | zero => intros; rfl
+  unfold optCost
+  generalize j - i = f
+  induction f generalizing i j with
+  | zero => rfl
   | succ f ih =>
-    intro a b hab
     simp only [optCostAux]
     split_ifs with hlt
-    · rw [hab a b le_rfl hlt le_rfl]
-      congr 1
-      refine inf'_congr _ rfl fun k hk => ?_
+    · refine congrArg₂ _ (h i j le_rfl hlt le_rfl) (inf'_congr _ rfl fun k hk => ?_)
       rw [mem_Ioc] at hk
-      rw [ih a (k - 1) fun x y h₁ h₂ h₃ => hab x y h₁ h₂ (by omega),
-        ih k b fun x y h₁ h₂ h₃ => hab x y (by omega) h₂ h₃]
+      rw [ih fun x y h₁ h₂ h₃ => h x y h₁ h₂ (by omega),
+        ih fun x y h₁ h₂ h₃ => h x y (by omega) h₂ h₃]
     · rfl
 
 section OrderedBound

@@ -117,8 +117,7 @@ def simonInput (E : Fin N ≃ (Fin n → Bool) × Fin n)
 
 @[simp] theorem simonFun_simonInput (E : Fin N ≃ (Fin n → Bool) × Fin n)
     (g : (Fin n → Bool) → Fin n → Bool) : simonFun E (simonInput E g) = g := by
-  funext a j
-  simp [simonFun, simonInput]
+  exact funext fun a => funext fun j => by simp [simonFun, simonInput]
 
 /-- Simon's promise with hidden string `0` says that `f` is injective. -/
 theorem simonPromise_zero_iff (f : (Fin n → Bool) → Fin n → Bool) :
@@ -130,19 +129,10 @@ theorem simonPromise_zero_iff (f : (Fin n → Bool) → Fin n → Bool) :
 /-- The hidden string of Simon's promise is unique. -/
 theorem SimonPromise.eq {f : (Fin n → Bool) → Fin n → Bool} {s s' : Fin n → Bool}
     (h : SimonPromise f s) (h' : SimonPromise f s') : s = s' := by
-  have key : ∀ {s s' : Fin n → Bool}, SimonPromise f s → SimonPromise f s' → s' = 0 → s = 0 := by
-    intro s s' h h' hs'
-    subst hs'
-    rcases (h' 0 s).mp ((h 0 s).mpr (Or.inr (zero_add s).symm)) with hs | hs
-    · exact hs
-    · simpa using hs
-  by_cases hs : s = 0
-  · exact hs.trans (key h' h hs).symm
-  by_cases hs' : s' = 0
-  · exact absurd (key h h' hs') hs
-  rcases (h' 0 s).mp ((h 0 s).mpr (Or.inr (zero_add s).symm)) with h0 | h0
-  · exact absurd h0 hs
-  · simpa using h0
+  rcases (h' 0 s).mp ((h 0 s).mpr (Or.inr (zero_add s).symm)) with rfl | hs
+  · have hs' : s' = 0 := by simpa using (h 0 s').mp ((h' 0 s').mpr (Or.inr (zero_add s').symm))
+    exact hs'.symm
+  · simpa using hs
 
 /-- The representative of `{a, a + s}`: the one that comes first in a fixed order. -/
 private noncomputable def simonRep (s a : Fin n → Bool) : Fin n → Bool :=
@@ -181,9 +171,7 @@ private theorem simonRep_eq_iff (s a b : Fin n → Bool) :
 
 private theorem simonPromise_comp_simonRep (π : Equiv.Perm (Fin n → Bool)) (s : Fin n → Bool) :
     SimonPromise (fun a => π (simonRep s a)) s := by
-  intro a b
-  simp only [EmbeddingLike.apply_eq_iff_eq]
-  exact simonRep_eq_iff s a b
+  exact fun a b => (EmbeddingLike.apply_eq_iff_eq π).trans (simonRep_eq_iff s a b)
 
 /-- The hard input with permutation `π` and hidden string `s`: `f = π ∘ rep_s`. -/
 noncomputable def simonHard (E : Fin N ≃ (Fin n → Bool) × Fin n) (π : Equiv.Perm (Fin n → Bool))
@@ -193,8 +181,7 @@ noncomputable def simonHard (E : Fin N ≃ (Fin n → Bool) × Fin n) (π : Equi
 theorem simonPromise_simonHard (E : Fin N ≃ (Fin n → Bool) × Fin n)
     (π : Equiv.Perm (Fin n → Bool)) (s : Fin n → Bool) :
     SimonPromise (simonFun E (simonHard E π s)) s := by
-  rw [simonHard, simonFun_simonInput]
-  exact simonPromise_comp_simonRep π s
+  simpa only [simonHard, simonFun_simonInput] using simonPromise_comp_simonRep π s
 
 /-- The inputs `a` of `f` some bit of whose value `f(a)` the tree queries on `X`. -/
 private def queriedInputs (E : Fin N ≃ (Fin n → Bool) × Fin n) (t : DecisionTree (Fin N) Bool)
@@ -281,10 +268,8 @@ private theorem simonHard_unfix {ρ : Equiv.Perm (Fin n → Bool)} {s : Fin n �
   have hag := simonInput_agree E t (g := fun a => ρ (simonRep 0 a))
     (g' := fun a => (ρ * simonFix s (queriedInputs E t (simonHard E ρ 0))) (simonRep s a))
     fun a ha => by
-      have ha' : simonFix s (queriedInputs E t (simonHard E ρ 0)) (simonRep s a) = a := by
-        rw [← simonFix_apply_of_mem hA ha]
-        exact simonFixFun_involutive s _ a
-      simp only [simonRep_zero, id, Equiv.Perm.mul_apply, ha']
+      simp only [simonRep_zero, id, Equiv.Perm.mul_apply, ← simonFix_apply_of_mem hA ha]
+      exact congrArg ρ (simonFixFun_involutive s _ a)
   exact ⟨t.eval_eq_of_forall_mem_queries hag,
     congrArg (image fun i => (E i).1) (t.queries_eq_of_forall_mem_queries hag)⟩
 
@@ -316,13 +301,10 @@ private theorem two_mul_card_not_pairFree_le (A : Finset (Fin n → Bool)) :
     _ ≤ ∑ s ∈ {s ∈ univ.erase (0 : Fin n → Bool) | ¬PairFree s A},
         #{p ∈ A.offDiag | p.1 + p.2 = s} := by
         refine sum_le_sum fun s hs => ?_
-        simp only [mem_filter, mem_erase, mem_univ, and_true, PairFree, not_forall, not_not] at hs
-        obtain ⟨hs0, a, ha, has⟩ := hs
+        obtain ⟨hs0, a, ha, has⟩ : s ≠ 0 ∧ ∃ a ∈ A, a + s ∈ A := by simpa [PairFree] using hs
         have hne : a ≠ a + s := fun h => hs0 (add_left_cancel (h.symm.trans (add_zero a).symm))
-        calc 2 = #{(a, a + s), (a + s, a)} := by
-              rw [card_pair]
-              intro h
-              exact hne (Prod.ext_iff.mp h).1
+        calc 2 = #{(a, a + s), (a + s, a)} :=
+              (card_pair fun h => hne (Prod.ext_iff.mp h).1).symm
           _ ≤ _ := by
               refine card_le_card fun p hp => ?_
               simp only [mem_insert, mem_singleton] at hp
@@ -534,10 +516,8 @@ total function `F` that answers Simon's problem on the promise inputs, `2^n ≤ 
 theorem simon_two_pow_le_randomizedComplexity_sq (F : (Fin N → Bool) → Bool)
     (hF : ∀ X s, SimonPromise (simonFun E X) s → F X = decide (s ≠ 0)) (hn : 1 ≤ n) :
     2 ^ n ≤ randomizedComplexity (1 / 3) F ^ 2 := by
-  obtain ⟨μ, hμ, hd⟩ :=
-    exists_computes_depth_eq_randomizedComplexity (ε := 1 / 3) F
-  rw [← hd]
-  exact simon_two_pow_le_depth_sq E μ F hF (fun X _ _ => hμ X) hn
+  obtain ⟨μ, hμ, hd⟩ := exists_computes_depth_eq_randomizedComplexity (ε := 1 / 3) F
+  exact hd ▸ simon_two_pow_le_depth_sq E μ F hF (fun X _ _ => hμ X) hn
 
 /-- **Exponential classical lower bound for the search variant including `s = 0`**: for `n ≥ 1`,
 a randomized decision tree that finds the hidden string with error `1/3` on every promise input,
@@ -601,21 +581,16 @@ theorem simon_search_ne_zero_two_pow_le_sq (μ : RandomizedDecisionTree (Fin N) 
     decide_eq_false fun ⟨hy, he⟩ => hy ((simonPromise_zero_iff _).mp hX he).symm
   set F : (Fin N → Bool) → Bool :=
     fun X => decide (S X ≠ 0 ∧ simonFun E X 0 = simonFun E X (S X)) with hFdef
-  have hF : ∀ X s, SimonPromise (simonFun E X) s → F X = decide (s ≠ 0) := by
-    intro X s hX
-    by_cases hs : s = 0
-    · subst hs
-      simpa [hFdef] using hzero X hX (S X)
+  have hF : ∀ X s, SimonPromise (simonFun E X) s → F X = decide (s ≠ 0) := fun X s hX => by
+    rcases eq_or_ne s 0 with rfl | hs
+    · simpa [hFdef] using hzero X hX (S X)
     · simp [hFdef, hS X s hX hs, hs, (hX 0 s).mpr (Or.inr (zero_add s).symm)]
   have hμ' : ∀ X s, SimonPromise (simonFun E X) s →
-      (RandomizedDecisionTree.mapTree φ μ).errorProb F X ≤ 1 / 3 := by
-    intro X s hX
-    by_cases hs : s = 0
-    · subst hs
-      refine (RandomizedDecisionTree.errorProb_mapTree_eq_zero φ μ F X fun t => ?_).trans_le
+      (RandomizedDecisionTree.mapTree φ μ).errorProb F X ≤ 1 / 3 := fun X s hX => by
+    rcases eq_or_ne s 0 with rfl | hs
+    · refine (RandomizedDecisionTree.errorProb_mapTree_eq_zero φ μ F X fun t => ?_).trans_le
         (by norm_num)
-      rw [heval, hzero X hX (t.eval X), hF X 0 hX]
-      simp
+      simp [heval, hzero X hX (t.eval X), hF X 0 hX]
     · exact (RandomizedDecisionTree.errorProb_mapTree_le φ μ S F X fun t ht => by
         rw [heval, ht]).trans (hμ X s hX hs)
   have hd : (RandomizedDecisionTree.mapTree φ μ).depth ≤ μ.depth + 2 * n :=

@@ -532,18 +532,13 @@ theorem seq_expected (C : ObliviousSequenceImpl.{u, v, z} P S w base params)
   obtain ⟨ν₀, he_init, hinv, hcaller₀⟩ := C.init_exec hx₀ hfr₀ hpar hfit₀
   obtain ⟨ν_final, T_ops, hex, hcontract, hcost⟩ := C.steps_exec ops ν₀ hv hfit_ops hinv
   have hmap {Q : SeqROutcome C.Latent S.Result r_ds → Prop}
-      (hQ : ∀ u ∈ ν₀.support, Q (.ofLatentRState u)) :
-      ∀ t ∈ (ν₀.map SeqROutcome.ofLatentRState).support, Q t := by
-    intro t ht
-    obtain ⟨u, hu, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp ht
-    exact hQ u hu
-  have hfr_fin := hex.frontier_le (hmap (C.frontier_le hinv))
-  rw [List.nil_append] at hfr_fin
-  refine ⟨ν₀, ν_final, T_ops, he_init, hcaller₀, hex, fun t ht =>
-    ⟨hex.bounded (hmap (C.bounded hinv)) t ht, hfr_fin t ht, hex.caller_mem (hmap hcaller₀) t ht⟩,
-    hcontract, ?_⟩
-  rw [add_assoc]
-  exact add_le_add le_rfl hcost
+      (hQ : ∀ u ∈ ν₀.support, Q (.ofLatentRState u)) (t)
+      (ht : t ∈ (ν₀.map SeqROutcome.ofLatentRState).support) : Q t :=
+    ((PMF.mem_support_map_iff _ _ _).mp ht).elim fun u ⟨hu, h⟩ => h ▸ hQ u hu
+  exact ⟨ν₀, ν_final, T_ops, he_init, hcaller₀, hex, fun t ht =>
+    ⟨hex.bounded (hmap (C.bounded hinv)) t ht, hex.frontier_le (hmap (C.frontier_le hinv)) t ht,
+      hex.caller_mem (hmap hcaller₀) t ht⟩,
+    hcontract, by simpa only [add_assoc, totalCharge] using add_le_add le_rfl hcost⟩
 
 /-- **End-to-end compiled flat-`RProgram` expected-time theorem (`seq_toExecRProgramDist`).** -/
 theorem seq_toExecRProgramDist (C : ObliviousSequenceImpl.{u, v, z} P S w base params)
@@ -723,19 +718,18 @@ private theorem steps_toObliviousSequenceImpl (C : StateTransitionImpl P D w bas
         Nat.add_le_add_left (hops_t ▸ hpeak t.latent.trace t.latent.state o htr_t hv_t.1) base
       refine ⟨C.bounded hrep_t, C.arguments_fit o hv_t.1,
         P.prepare_bounded (C.bounded hrep_t) (C.arguments_fit o hv_t.1), ?_, ?_⟩
-      · refine (he_rel.mono_peak hpeak_le).congr_dist ?_ le_rfl
-        dsimp only [μ_step]; rw [PMF.map_comp]; rfl
+      · exact (he_rel.mono_peak hpeak_le).congr_dist
+          (PMF.map_comp (liftStep t) (μ_rel (C.projCoupled t)) StepROutcome.data).symm le_rfl
       · intro u hu
         dsimp only [μ_step] at hu; rw [PMF.mem_support_map_iff] at hu; obtain ⟨q, hq, rfl⟩ := hu
         obtain ⟨a, hstep_a, hdec_a, hrep_q, hcaller_q⟩ := hq_rel q hq
-        have hout_eq : outOf q = a := by simp [outOf, hdec_a]
         obtain ⟨hlo_q, hhi_q, hbase_q⟩ := C.frontier_le hrep_q
         have hspace_q : C.spaceBound q.state ≤ seqSpaceBound (prefOps ++ [o]) := by
           simpa [hops_t] using
             hspace _ q.state (htr_t.append (.cons ⟨o, a, q.state⟩ hv_t.1 hstep_a (.nil q.state)))
         exact ⟨C.bounded hrep_q,
           ⟨hlo_q, hhi_q.trans (Nat.add_le_add_left hspace_q base), hbase_q⟩,
-          by simp [liftStep, hout_eq, hdec_a], hcaller_q⟩
+          by simp [liftStep, outOf, hdec_a], hcaller_q⟩
     · rw [List.map_cons, List.sum_cons, Nat.cast_add, Cslib.Probability.PMF.tsum_map_mul]
       refine add_le_add (Cslib.Probability.PMF.tsum_mul_le_of_support ν fun t ht => ?_) hC_rest
       exact Nat.cast_le.mpr (hcharge _ o (hsupp t ht).2.2.2.1.1)

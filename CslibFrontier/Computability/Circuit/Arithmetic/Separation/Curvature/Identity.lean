@@ -85,8 +85,7 @@ private def facB (K : ℕ) (x : R) (sc : Word μ) (sb : Word ν) : Matrix (Fin K
 
 private theorem sum_ite_val (K n : ℕ) (f : ℕ → R) :
     ∑ r : Fin K, (if n = (r : ℕ) then f r else 0) = if n < K then f n else 0 := by
-  rw [Fin.sum_univ_eq_sum_range (fun r => if n = r then f r else 0) K, Finset.sum_ite_eq]
-  simp
+  simp [Fin.sum_univ_eq_sum_range (fun r => if n = r then f r else 0) K]
 
 /-- Proof of Proposition B.2, the coefficients: the block of rows `a, d` and columns `c, b` is
 congruent modulo `X^(2K)` to `F D G`, with `F = facA`, `G = facB` and the block `blU`; its part at
@@ -108,28 +107,23 @@ private theorem prop_identity_blocks (K : ℕ) (x : R) (sa : Word μ) (sd : Word
     rw [sum_ite_val K (sa.row i) (fun r => x ^ (2 * r + 1) * if r = sc.col j then 1 else 0)]
     by_cases h1 : sa.row i < K
     · simp [h1]
-    · by_cases h2 : sa.row i = sc.col j
-      · rw [ite_eq_right h1, ite_eq_left h2, sub_zero]
-        exact hdvd _ h1
-      · simp [h1, h2]
+    · rw [ite_eq_right h1, sub_zero]
+      split_ifs
+      exacts [hdvd _ h1, dvd_zero _]
   · simp only
       [facA, facB, blU, of_apply, Sum.elim_inl, Sum.elim_inr, fromBlocks_apply₁₂, ite_mul, one_mul,
       zero_mul]
     rw [sum_ite_val K (sa.row i)
       (fun r => x ^ (2 * r + 1) * ((x ^ 2 - 1) * meixnerB (x ^ 2) r (sb.col j)))]
     by_cases h1 : sa.row i < K
-    · rw [ite_eq_left h1]
-      exact ⟨0, by ring⟩
-    · rw [ite_eq_right h1, sub_zero]
-      exact ((hdvd _ h1).mul_right _).mul_left _
+    · exact ⟨0, by rw [ite_eq_left h1]; ring⟩
+    · simpa only [ite_eq_right h1, sub_zero] using ((hdvd _ h1).mul_right _).mul_left _
   · simp only [facA, facB, blU, of_apply, Sum.elim_inl, Sum.elim_inr, fromBlocks_apply₂₁, mul_ite,
       mul_one, mul_zero, @eq_comm ℕ _ (sc.col j)]
     rw [sum_ite_val K (sc.col j) (fun r => meixnerB (x ^ 2) r (sd.row i) * x ^ (2 * r + 1))]
     by_cases h1 : sc.col j < K
-    · rw [ite_eq_left h1]
-      exact ⟨0, by ring⟩
-    · rw [ite_eq_right h1, sub_zero]
-      exact (hdvd _ h1).mul_right _
+    · exact ⟨0, by rw [ite_eq_left h1]; ring⟩
+    · simpa only [ite_eq_right h1, sub_zero] using (hdvd _ h1).mul_right _
   · simp only [facA, facB, blU, of_apply, Sum.elim_inr, fromBlocks_apply₂₂]
     obtain ⟨w, hw⟩ := pow_dvd_meixnerB_orthogonality (x ^ 2) K (sd.row i) (sb.col j)
     refine ⟨x * w, ?_⟩
@@ -141,9 +135,7 @@ private theorem prop_identity_blocks (K : ℕ) (x : R) (sa : Word μ) (sd : Word
       exact Finset.sum_congr rfl fun r _ => by rw [← pow_mul, pow_succ]; ring
     have z : (if sd.row i = sb.col j then x ^ (2 * sd.row i + 1) else 0) =
         x * (if sd.row i = sb.col j then (x ^ 2) ^ sd.row i else 0) := by
-      split_ifs
-      · rw [← pow_mul, pow_succ, mul_comm]
-      · simp
+      split_ifs <;> simp only [pow_mul, pow_succ', mul_zero]
     rw [e, z, pow_mul]
     linear_combination x * hw
 
@@ -280,12 +272,11 @@ private theorem prop_identity_one (μ ν : ℕ) : ∃ ε : ℤˣ,
     Matrix.ext fun i j => by rcases i with i | i <;> rcases j with j | j <;> simp [matM, e]
   have hY : blY (1 : ℤ) sc sb = 0 :=
     Matrix.ext fun i j => by rcases i with i | i <;> rcases j with j | j <;> simp [blY]
-  have hU : ∀ (sa : Word μ) (sd : Word ν) (sc : Word μ) (sb : Word ν),
-      StrictMono sa.row → StrictMono sd.row →
-      StrictMono sc.col → StrictMono sb.col →
+  have hU (sa : Word μ) (sd : Word ν) (sc : Word μ) (sb : Word ν)
+      (k1 : StrictMono sa.row) (k2 : StrictMono sd.row)
+      (k3 : StrictMono sc.col) (k4 : StrictMono sb.col) :
       (blU (1 : ℤ) sa sd sc sb).det = (-1) ^ ν * ((if sa.row = sc.col then 1 else 0) *
         (if sd.row = sb.col then 1 else 0)) := by
-    intro sa sd sc sb k1 k2 k3 k4
     have e1 : blU (1 : ℤ) sa sd sc sb =
         fromBlocks (of fun i j => if sa.row i = sc.col j then 1 else 0) 0
         (of fun i j => meixnerB 1 (sc.col j) (sd.row i))
@@ -303,12 +294,9 @@ private theorem prop_identity_one (μ ν : ℕ) : ∃ ε : ℤˣ,
   have hind : (if sa = sc.swap ∧ sb = sd.swap then (1 : ℤ) else 0) =
       ((if sa.row = sc.col then 1 else 0) * (if sd.row = sb.col then 1 else 0)) *
       ((if sa.col = sc.row then 1 else 0) * (if sd.col = sb.row then 1 else 0)) := by
-    have hmul (p q : Prop) [Decidable p] [Decidable q] :
-        (if p ∧ q then (1 : ℤ) else 0) = (if p then 1 else 0) * (if q then 1 else 0) := by
-      by_cases hp : p <;> by_cases hq : q <;> simp [hp, hq]
     simp only [Word.ext_iff, Word.row_swap, Word.col_swap, @eq_comm _ sb.row, @eq_comm _ sb.col,
-      hmul]
-    ring
+      ite_and]
+    split_ifs <;> rfl
   rw [psi, hind]
   push_cast
   linear_combination (-(matM (1 : ℤ) sa sb sc sd).det) * hs - ((Equiv.Perm.sign e : ℤˣ) : ℤ) * h1
@@ -329,11 +317,9 @@ private theorem exists_products {β γ κ : Type} [Fintype κ] {f : β → γ �
   rw [hf]
   refine Finset.sum_of_injOn (fun t => Fin.castLE hr (e t))
     (fun _ _ _ _ he => e.injective (Fin.castLE_injective hr he)) (fun _ _ => by simp)
-        (fun t _ ht => ?_) (fun t _ => ?_)
-  · have hlt : ¬ t.1 < Fintype.card κ :=
-      fun hlt => ht ⟨e.symm ⟨t.1, hlt⟩, by simp, by simp [Fin.castLE]⟩
-    simp [hlt]
-  · simp [(e t).2]
+    (fun t _ ht => ?_) (fun t _ => by simp [(e t).2])
+  dsimp only
+  rw [dite_eq_right fun hlt => ht ⟨e.symm ⟨t.1, hlt⟩, mem_univ _, by simp [Fin.castLE]⟩, zero_mul]
 
 section Expansion
 
@@ -477,9 +463,8 @@ private theorem prop_identity_coefficients (μ ν N : ℕ) :
     (fun s => (facA (N + 1) X s.1.swap s.2.swap)ᵀ)
     (fun t => blY X t.2 t.1) (fun t => facB (N + 1) X t.2 t.1)
     (fun t => -(facB (N + 1) X t.2.swap t.1.swap)ᵀ)
-  have key : ∀ (sa : Word μ) (sb : Word ν) (sc : Word μ) (sd : Word ν),
+  have key (sa : Word μ) (sb : Word ν) (sc : Word μ) (sd : Word ν) :
       (psi (Polynomial.X : ℤ[X]) sa sb sc sd).coeff N = ∑ k, g k (sa, sd) * h k (sb, sc) := by
-    intro sa sb sc sd
     rw [← hgh, ← sub_eq_zero, ← Polynomial.coeff_sub]
     refine (Polynomial.X_pow_dvd_iff (n := 2 * (N + 1))).1 ?_ N (by omega)
     refine dvd_det_sub _ _ _ fun i j => ?_
@@ -491,8 +476,7 @@ private theorem prop_identity_coefficients (μ ν N : ℕ) :
         ← Matrix.transpose_mul, ← Matrix.mul_assoc]
       convert (prop_identity_blocks (N + 1) (X : ℤ[X]) sa.swap sd.swap sc.swap sb.swap
           j i).neg_right using 1
-      simp only [Matrix.neg_apply, Matrix.transpose_apply]
-      ring
+      simp only [Matrix.neg_apply, Matrix.transpose_apply]; ring
     · simp [matM]
   have hcard : Fintype.card (↥(goodT (N + 1) N) × Fin (N + 1)) ≤ (N + 1) * stateCount N := by
     rw [Fintype.card_prod, Fintype.card_fin, Fintype.card_coe, Nat.mul_comm]
@@ -529,12 +513,12 @@ private theorem prop_identity_reverse (sa : Word μ) (sb : Word ν) (sc : Word �
     Polynomial.ringHom_ext (fun _ => by simp) (by simp [x])
   let φ : ℤ[X] →+* F := eval₂RingHom (Int.castRingHom F) x⁻¹
   let _ : Invertible (x⁻¹ : F) := ⟨x, hxz, mul_comm x x⁻¹ ▸ hxz⟩
-  have hrev : ι P.reverse * (x⁻¹) ^ P.natDegree = φ P := by
-    rw [hi, coe_eval₂RingHom]
-    exact eval₂_reverse_mul_pow (Int.castRingHom F) (x⁻¹ : F) P
+  have hrev : ι P.reverse * (x⁻¹) ^ P.natDegree = φ P :=
+    hi ▸ eval₂_reverse_mul_pow (Int.castRingHom F) (x⁻¹ : F) P
   have key := prop_identity_reflection hxz hx1 sa sb sc sd ha hb hc hd
   have hφP : psi (x⁻¹ : F) sa sb sc sd = φ P := by simp [hP, map_psi, φ]
-  rw [hφP, show psi x sa sd sc sb = ι Q by rw [hQ, map_psi], ← hrev] at key
+  have hιQ : psi x sa sd sc sb = ι Q := by rw [hQ, map_psi]
+  rw [hφP, hιQ, ← hrev] at key
   apply hι
   rw [map_mul, map_mul, map_pow, map_pow, ← key]
   change ι P.reverse * x ^ _ = _ * x ^ _
@@ -619,8 +603,6 @@ theorem exists_crossing_identity (μ ν e₁ e₂ : ℕ) :
     obtain ⟨g, h, hgh⟩ := prop_identity_coefficients μ ν (2 * (e₁ + e₂) - N)
     refine ⟨fun k p => ε * g k (word p.1, word p.2),
       fun k p => h k ((word p.2).swap, (word p.1).swap), fun a b c d => ?_⟩
-    dsimp only
-    rw [(hrefl a b c d).2 N (2 * (e₁ + e₂) - N) (by omega), hgh, Finset.mul_sum]
-    exact Finset.sum_congr rfl fun k _ => by ring
+    simp only [(hrefl a b c d).2 N (2 * (e₁ + e₂) - N) (by omega), hgh, Finset.mul_sum, mul_assoc]
 
 end Cslib.Circuits.Arithmetic.Separation.Curvature

@@ -216,10 +216,7 @@ theorem rate_le_of_lt_johnsonRadius [Fintype ι] [Nonempty ι] [Fintype α] [Dec
     rw [Real.logb_mul hCR.ne' (Real.exp_pos _).ne',
       Real.logb_mul (pow_ne_zero n (by positivity)) (by positivity),
       Real.logb_self_pow (zero_lt_one.trans hqR) hqR.ne'] at h1
-    have hexp : Real.logb q (Real.exp (n * Real.qaryEntropy q ((e : ℝ) / n))) =
-        (n : ℝ) * Real.qaryEntropy q ((e : ℝ) / n) / Real.log q := by
-      rw [Real.logb, Real.log_exp]
-    linarith [h1, hexp]
+    simpa only [Real.logb, Real.log_exp] using h1
   simp only [rate, Nat.card_coe_set_eq, Set.ncard_coe_finset]
   have hdiv := div_le_div_of_nonneg_right hlog hnR.le
   rw [add_div, add_div, div_self hnR.ne', mul_div_assoc, mul_div_cancel_left₀ _ hnR.ne'] at hdiv
@@ -258,15 +255,13 @@ theorem eventually_rate_le_one_sub_qaryEntropy_johnsonRadius
     simpa [johnsonRadius_zero_right] using htriv.trans (by linarith)
   set J : ℝ := johnsonRadius q δ
   have hq1 : 0 < (q : ℝ) - 1 := by linarith
-  have hJpos : 0 < J := by
-    have hθ : 0 < 1 - 1 / (q : ℝ) := sub_pos.2 ((div_lt_one (zero_lt_one.trans hqR)).2 hqR)
-    refine mul_pos hθ (sub_pos.2 ((Real.sqrt_lt' one_pos).2 ?_))
-    rw [one_pow]
-    exact sub_lt_self 1 (div_pos (mul_pos (zero_lt_one.trans hqR) hδpos) hq1)
+  have hJpos : 0 < J := mul_pos (sub_pos.2 ((div_lt_one (zero_lt_one.trans hqR)).2 hqR))
+    (sub_pos.2 ((Real.sqrt_lt' one_pos).2 ((sub_lt_self 1
+      (div_pos (mul_pos (zero_lt_one.trans hqR) hδpos) hq1)).trans_eq (one_pow 2).symm)))
   -- Use continuity of `Real.qaryEntropy q` at `J` to keep `H_q(e/n)` within `ε / 2 * log q`.
-  have hcont := (Real.qaryEntropy_continuous (q := q)).tendsto J
-  rw [Metric.tendsto_nhds_nhds] at hcont
-  obtain ⟨η₀, hη₀pos, hη₀⟩ := hcont (ε / 2 * Real.log q) (by positivity)
+  obtain ⟨η₀, hη₀pos, hη₀⟩ :=
+    Metric.tendsto_nhds_nhds.1 ((Real.qaryEntropy_continuous (q := q)).tendsto J)
+      (ε / 2 * Real.log q) (by positivity)
   set η : ℝ := min (η₀ / 2) J
   have hηpos : 0 < η := lt_min (half_pos hη₀pos) hJpos
   have hη_le_η₀ : η < η₀ := (min_le_left _ _).trans_lt (half_lt_self hη₀pos)
@@ -311,15 +306,14 @@ theorem eventually_rate_le_one_sub_qaryEntropy_johnsonRadius
           gcongr <;> linarith [show (d : ℝ) ≤ n from mod_cast hdn,
             show (1 : ℝ) ≤ n from mod_cast hs1]
       _ = (2 * q) * (n : ℝ) ^ 3 := by ring
-  have hpoly_pos : 0 < ((q : ℝ) - 1) * n * d * (n + 1) := by
-    have : 0 < d := Nat.ceil_pos.2 (mul_pos hδpos hnR')
-    positivity
+  have hpoly_pos : 0 < ((q : ℝ) - 1) * n * d * (n + 1) :=
+    mul_pos (mul_pos (mul_pos hq1 hnR') (Nat.cast_pos.2 (Nat.ceil_pos.2 (mul_pos hδpos hnR'))))
+      (by positivity)
   have htail : Real.logb q (((q : ℝ) - 1) * n * d * (n + 1)) / n ≤ ε / 2 := by
     have h := Real.log_le_log hpoly_pos hpoly
     rw [Real.log_mul (by positivity : (2 * q : ℝ) ≠ 0) (by positivity : (n : ℝ) ^ 3 ≠ 0),
       Real.log_pow, Nat.cast_ofNat] at h
-    rw [div_le_iff₀ hnR', Real.logb, div_le_iff₀ hlogq]
-    linarith
+    rw [div_le_iff₀ hnR', Real.logb, div_le_iff₀ hlogq]; linarith
   rw [sub_div] at hent'
   dsimp only [q, n] at hent' htail ⊢
   linarith

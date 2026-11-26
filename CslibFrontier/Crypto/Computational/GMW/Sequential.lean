@@ -407,20 +407,11 @@ theorem acceptProb_gmwSeqVerifier_gmwSeqProver {α : Type} {generator : List Boo
   have hrep (K : ℕ) : (OracleComp.replicate K (pure true : ProbComp Bool)) =
       pure (List.replicate K true) := by
     induction K <;> simp [OracleComp.replicate_succ, List.replicate_succ, *]
-  have hmap : (do
-      let coinsList ← OracleComp.replicate (k n) (sampleHonestCoins (n + 7) (f a) w)
-      Prod.fst <$> runSeq generator (n + 7) (length (n + 7)) (f a)
-        (gmwSeqVerifier generator length f k n a) (false, coinsList)) =
-      (fun bs : List Bool => bs.all id) <$> (do
-        let coinsList ← OracleComp.replicate (k n) (sampleHonestCoins (n + 7) (f a) w)
-        Prod.fst <$> runSeq generator (n + 7) (length (n + 7)) (f a)
-          (OracleComp.replicate (k n) (gmwVerifier generator length f n a))
-          (false, coinsList)) := by
-    simp only [gmwSeqVerifier, runSeq_map, map_bind, Functor.map_map, Prod.map_fst]
-  rw [acceptProb, run_gmwSeqProver_fst, hmap, ProbComp.eval_map,
-    eval_bind_replicate_runSeq_gmwVerifier,
-    ProbComp.eval_replicate_congr (h1'.trans (ProbComp.eval_pure true).symm), hrep (k n)]
-  simp
+  have h := congrArg (PMF.map fun bs : List Bool => bs.all id)
+    (eval_bind_replicate_runSeq_gmwVerifier generator length f n a w (k n))
+  rw [ProbComp.eval_replicate_congr (h1'.trans (ProbComp.eval_pure true).symm), hrep (k n)] at h
+  simp only [pmf_norm] at h
+  simp [acceptProb, run_gmwSeqProver_fst, gmwSeqVerifier, runSeq_map, Prod.map_fst, pmf_norm, h]
 
 /-- **Sequential soundness amplification for interactive proofs.** If no stateful prover makes
 `verifier` accept with probability greater than `c`, then running `verifier` `k` times sequentially
@@ -446,11 +437,9 @@ theorem acceptProb_replicate_all_le {Operation : Type}
     have hfalse (s' : P.State) :
         ProbOracleComp.acceptProbWith P.respond
           ((fun bs => false && bs.all id) <$> OracleComp.replicate k verifier) s' = 0 := by
-      let P' : Prover Operation := ⟨P.State, s', P.respond⟩
-      change acceptProb ((fun _ => false) <$> OracleComp.replicate k verifier) P' = 0
-      refine acceptProb_eq_zero P' fun x hx => ?_
-      rw [Prover.run_map, PMF.mem_support_map_iff] at hx
-      obtain ⟨y, _, rfl⟩ := hx; rfl
+      refine acceptProb_eq_zero ⟨P.State, s', P.respond⟩ fun x hx => ?_
+      obtain ⟨_, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp (Prover.run_map _ _ _ _ ▸ hx)
+      rfl
     have htrue (s' : P.State) :
         ProbOracleComp.acceptProbWith P.respond
           ((fun bs => true && bs.all id) <$> OracleComp.replicate k verifier) s' ≤ c ^ k := by
@@ -622,16 +611,12 @@ theorem mem_support_oneSessionStep {k : ℕ} {Control : Type}
     (hrem : rem ≤ T) (hcfg : FiniteConfig.SpaceBound W (T - rem) limit cfg)
     (hnext : (rem', q', cfg') ∈ OracleComp.support (oneSessionStep machine limit (rem, q, cfg))) :
     rem' ≤ rem ∧ q' ≤ q ∧ FiniteConfig.SpaceBound W (T - rem') limit cfg' := by
-  suffices h : ∀ next ∈ OracleComp.support (oneSessionStep machine limit (rem, q, cfg)),
-      next.1 ≤ rem ∧ next.2.1 ≤ q ∧ FiniteConfig.SpaceBound W (T - next.1) limit next.2.2 from
-    h _ hnext
-  intro next hnext
   simp only [oneSessionStep] at hnext
   split_ifs at hnext with hzero
-  · obtain rfl := OracleComp.eq_of_mem_supportWith_pure hnext
+  · rcases OracleComp.eq_of_mem_supportWith_pure hnext with ⟨rfl, rfl, rfl⟩
     exact ⟨le_rfl, le_rfl, hcfg⟩
   · simp only [Bool.or_eq_true, decide_eq_true_eq, not_or] at hzero
-    obtain ⟨p, hp, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
+    rcases OracleComp.mem_supportWith_map_iff.mp hnext with ⟨p, hp, rfl, rfl, rfl⟩
     have hstep : T - (rem - 1) = (T - rem) + 1 := by omega
     cases hs : cfg.tapes.state with
     | none =>
@@ -649,10 +634,9 @@ theorem mem_support_oneSessionStep {k : ℕ} {Control : Type}
         exact ⟨by omega, le_rfl, hstep ▸ hcfg.step action symbol move⟩
       | query channel nextState =>
         simp only [htr, sessionQueryHandler, Functor.map_map] at hp
-        obtain ⟨⟨ans, q'⟩, hans, hp⟩ := OracleComp.mem_supportWith_bind_iff.mp hp
+        obtain ⟨⟨ans, q₁⟩, hans, hp⟩ := OracleComp.mem_supportWith_bind_iff.mp hp
         obtain rfl := OracleComp.eq_of_mem_supportWith_pure hp
-        obtain ⟨raw, -, hraw⟩ := OracleComp.mem_supportWith_map_iff.mp hans
-        rcases Prod.mk.inj hraw with ⟨rfl, rfl⟩; dsimp only
+        rcases OracleComp.mem_supportWith_map_iff.mp hans with ⟨raw, -, rfl, rfl⟩
         exact ⟨by omega, by omega,
           hstep ▸ hcfg.receive channel nextState _ (List.length_take_le _ _)⟩
 
@@ -695,10 +679,9 @@ theorem isOraclePPTOn_sessionStep {k : ℕ} {Control : Type} [Finite Control]
   let inv (a : ℕ × ℕ × ℕ × FiniteConfig k Bool Control Unit) (_ : ℕ)
       (st : ℕ × ℕ × FiniteConfig k Bool Control Unit) : Prop :=
     st.1 ≤ a.2.1 ∧ st.2.1 ≤ a.2.2.1 ∧ FiniteConfig.SpaceBound (L₀ a) (T₀ a - st.1) a.1 st.2.2
-  have hbase (a : ℕ × ℕ × ℕ × FiniteConfig k Bool Control Unit) : inv a 0 a.2 := by
-    refine ⟨le_rfl, le_rfl, ?_⟩
-    rw [show T₀ a - a.2.1 = L₀ a from Nat.add_sub_cancel _ _]
-    exact (spaceBound_of_encFiniteConfig a.2.2.2).mono le_rfl le_rfl (Nat.zero_le _)
+  have hbase (a : ℕ × ℕ × ℕ × FiniteConfig k Bool Control Unit) : inv a 0 a.2 :=
+    ⟨le_rfl, le_rfl, (spaceBound_of_encFiniteConfig a.2.2.2).mono le_rfl
+      (Nat.add_sub_cancel (L₀ a) a.2.1).ge (Nat.zero_le _)⟩
   have hpres (a : ℕ × ℕ × ℕ × FiniteConfig k Bool Control Unit) (i : ℕ)
       (st : ℕ × ℕ × FiniteConfig k Bool Control Unit) (_ : i < a.2.1) (hst : inv a i st)
       (next : ℕ × ℕ × FiniteConfig k Bool Control Unit)
@@ -727,7 +710,8 @@ theorem isOraclePPTOn_sessionStep {k : ℕ} {Control : Type} [Finite Control]
       have hcf' : (encFiniteConfig st.2.2).length ≤ cf * (2 * ((encIn a).length + 1)) :=
         (hcf (L₀ a) (T₀ a - st.1) a.1 st.2.2 h3).trans (Nat.mul_le_mul_left cf (by omega))
       dsimp only [encCfg] at hstlen
-      rw [Nat.add_mul, show 4 * cf = 2 * (cf * 2) by omega, Nat.mul_assoc, Nat.mul_assoc]
+      have hmul : (4 * cf + 6) * ((encIn a).length + 1) =
+          2 * (cf * (2 * ((encIn a).length + 1))) + 6 * ((encIn a).length + 1) := by ring
       omega)).1
   exact hiter.map (output := encPair encUnary encCfg)
     ((ComputableInPolyTime.fst encUnary (encPair encUnary encCfg)).prod
@@ -804,8 +788,7 @@ private theorem runSeq_sessionStep_split {k : ℕ} {Control : Type}
     rw [hQ, sessionStep_succ, hq, sessionStep_succ]
     cases hs : cfg.tapes.state with
     | none =>
-      simp only [OpenOracleSimulation.step, hs, pure_bind]
-      rw [← hQ, ← hq]; exact ih inRound2 cfg
+      simpa only [OpenOracleSimulation.step, hs, pure_bind, ← hQ, ← hq] using ih inRound2 cfg
     | some control =>
       simp only [OpenOracleSimulation.step, hs, bind_pure_comp, bind_map_left,
         runSeq_bind, runTwoRound_bind, runSeq_sample, runTwoRound_sample, map_bind, bind_assoc]
@@ -813,8 +796,8 @@ private theorem runSeq_sessionStep_split {k : ℕ} {Control : Type}
       cases machine.tr control cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
           cfg.answerSymbols coin with
       | step action symbol move =>
-        simp only [pure_bind, runSeq_pure, runTwoRound_pure]
-        rw [← hQ, ← hq]; exact ih inRound2 (cfg.step action symbol move)
+        simpa only [pure_bind, runSeq_pure, runTwoRound_pure, ← hQ, ← hq] using
+          ih inRound2 (cfg.step action symbol move)
       | query channel next =>
         cases inRound2
         · simp only [Bool.cond_false, sessionQueryHandler, Functor.map_map,
@@ -844,9 +827,8 @@ theorem mem_support_acceptGuess_runTwoRound {β : Type} (f1 f2 : List Bool → L
       (ProbComp.eval (acceptGuess ch_guess <$> runTwoRound f1 f2 prog s)).support) :
     result ∈ OracleComp.support prog := by
   rw [ProbComp.eval_map, PMF.mem_support_map_iff] at h
-  obtain ⟨⟨view, st⟩, hp, hacc⟩ := h
-  obtain ⟨-, rfl⟩ := acceptGuess_eq_some.mp hacc
-  exact mem_support_runTwoRound f1 f2 prog s st hp
+  rcases h with ⟨⟨view, st⟩, hp, hacc⟩
+  exact (acceptGuess_eq_some.mp hacc).2 ▸ mem_support_runTwoRound f1 f2 prog s st hp
 
 theorem mem_support_gmwSimWithPads {β : Type} (generator : List Bool → List Bool)
     (s m : ℕ) (φ : CNF ℕ) (prog : WordOracleComp Unit β) (pads : List (List Bool)) {result : β}
@@ -913,14 +895,13 @@ theorem eval_replicate_runSeq_sessionStep {k : ℕ} {Control : Type}
     have hadd : limit + 2 * (K + 1) = (limit + 2 * K) + 2 := by omega
     have htwo := fun c r => runSeq_sessionStep_split machine generator s m limit φ false st.1
       (limit + 2 * K) st.2 c r [false, false, false]
-    dsimp only [Bool.cond_false] at htwo
     rw [hadd, OracleComp.replicate_succ, OracleComp.iterate_succ_bind]
+    simp only [Bool.cond_false] at htwo
     simp only [realSessionStep, bind_assoc, bind_map_left, htwo, ProbComp.eval_bind,
       ProbComp.eval_map]
-    refine congrArg (PMF.bind _) (funext fun coins => ?_)
-    rw [PMF.bind_comm]
-    refine congrArg (PMF.bind _) (funext fun p => ?_)
-    simpa only [ProbComp.eval_bind, ProbComp.eval_map] using ih p.1
+    refine congrArg (PMF.bind _) (funext fun coins => (PMF.bind_comm _ _ _).trans ?_)
+    exact congrArg (PMF.bind _) (funext fun p => by
+      simpa only [ProbComp.eval_bind, ProbComp.eval_map] using ih p.1)
 
 /-- `gmwSeqInteract` on a clocked machine run `machine.runOracle T word` has the exact same output
 distribution as `K` iterations of `realSessionStep` followed by `finishSessionRun`. -/

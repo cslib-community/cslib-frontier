@@ -606,9 +606,8 @@ theorem fits_of_le_globalMetaLen {U V w₀ n_max h_space w base x : ℕ}
     (hw : 0 < w₀) (hnU : n_max ≤ U) (hU : U < 2 ^ w₀)
     (hx : x ≤ globalMetaLen n_max) : Fits w x := by
   rcases h.env with ⟨rfl, _⟩
-  have hmax := max_n_one_lt_two_pow_w hw hnU hU
-  have hlen := globalMetaLen_le_of_bucketBits_pos hb_pos
-  exact hmax.of_le (by omega)
+  exact (max_n_one_lt_two_pow_w hw hnU hU).of_le
+    ((hx.trans (globalMetaLen_le_of_bucketBits_pos hb_pos)).trans (le_max_left _ _))
 
 theorem fits_of_le_max_n_one {U V w₀ n_max h_space w base x : ℕ}
     (h : DictEnvGen w (mkDictParams U V w₀ n_max h_space) base)
@@ -636,13 +635,10 @@ scoped macro "dictSide" : tactic =>
 theorem slabSize_le_max_n_one (n_max : ℕ) : slabSize n_max ≤ max n_max 1 := by
   rcases Nat.eq_zero_or_pos (bucketBits n_max) with hb0 | hb_pos
   · simp [slabSize, slabBits, hb0]
-  · have hcube := numBuckets_mul_slabScale_cubed_le hb_pos
-    have hK := (slabSize_eq_sq_of_pos hb_pos).1
-    have hB := numBuckets_pos n_max
-    have hS := two_le_slabScale n_max
-    have : slabSize n_max ≤ numBuckets n_max * (slabScale n_max) ^ 3 :=
-      hK ▸ (Nat.pow_le_pow_right (by omega) (by norm_num)).trans (Nat.le_mul_of_pos_left _ hB)
-    omega
+  · rw [(slabSize_eq_sq_of_pos hb_pos).1]
+    exact ((Nat.pow_le_pow_right (two_pos.trans_le (two_le_slabScale n_max)) (by decide)).trans
+      (Nat.le_mul_of_pos_left _ (numBuckets_pos n_max))).trans
+      ((numBuckets_mul_slabScale_cubed_le hb_pos).trans (le_max_left _ _))
 
 theorem dirSlabsPerBucket_le_globalMetaLen {n_max : ℕ} (hb : 0 < bucketBits n_max) :
     dirSlabsPerBucket n_max ≤ globalMetaLen n_max := by
@@ -660,10 +656,8 @@ theorem tailCapPerBucket_le_globalMetaLen {n_max : ℕ} (hb : 0 < bucketBits n_m
 
 theorem effBucketCap_eq_dirSlabs_mul_slabSize {n_max : ℕ} (hb : 0 < bucketBits n_max) :
     effBucketCap n_max = dirSlabsPerBucket n_max * slabSize n_max := by
-  have hb0 : bucketBits n_max ≠ 0 := by omega
-  rw [effBucketCap_eq_four_mul_slabScale_cubed_of_pos hb, (slabSize_eq_sq_of_pos hb).1]
-  unfold dirSlabsPerBucket
-  rw [ite_eq_right hb0]
+  rw [effBucketCap_eq_four_mul_slabScale_cubed_of_pos hb, (slabSize_eq_sq_of_pos hb).1,
+    dirSlabsPerBucket, ite_eq_right hb.ne']
   ring
 
 /-! ## Section 3: `readBucketCountProg` and `resolveIndexedSlotProg` via `realize` -/
@@ -715,8 +709,7 @@ theorem realizes_readBucketCountGen :
   · wram_omega
   · rw [clientState_readGMProg, clientResult_readGMProg _ hq, clientResult_readGMProg _ hr]
     have hbc := bCount_le_n_max hinv d.2
-    unfold bCount at hbc
-    simp only [hc, ↓reduceIte, hb, gmQIdx, gmRIdx] at hbc
+    simp only [bCount, hc, ↓reduceIte, hb, gmQIdx, gmRIdx] at hbc
     exact fits_of_le_max_n_one hdict hw hnU hU (by omega)
 
 theorem clientState_resolveIndexedSlotProg {U V w n_max h_space : ℕ}
@@ -788,9 +781,8 @@ private theorem resolveIndexedSlot_slab_fit {U V w₀ n_max h_space w : ℕ}
       slabSize n_max + (slabSize n_max - 1 - d.2 % slabSize n_max)) := by
   rw [clientResult_readGMProg (idx := 4 + 3 * d.1.2) _ (gmQIdx_lt hb_pos hb)] at hc
   have hs_dir := div_slabSize_lt_dirSlabs hb_pos hj_cap
-  have hs_q : d.2 / slabSize n_max < gmAt d.1.1 U V w₀ n_max h_space s.mem (gmQIdx d.1.2) := by
-    unfold gmQIdx
-    exact Nat.div_lt_of_lt_mul (Nat.mul_comm _ _ ▸ hc)
+  have hs_q : d.2 / slabSize n_max < gmAt d.1.1 U V w₀ n_max h_space s.mem (gmQIdx d.1.2) :=
+    Nat.div_lt_of_lt_mul (Nat.mul_comm _ _ ▸ hc)
   rw [clientState_readGMProg,
     clientResult_readGMProg _ (resolveIndexedSlot_dir_lt hb_pos hb hj_cap)]
   have hslab := hinv.multi_slab hb_pos
@@ -867,8 +859,7 @@ theorem realizes_resolveIndexedSlotGen :
   all_goals try dictSide
   · rw [clientResult_readGMProg _ hq]
     have hbc := bCount_le_n_max hinv d.1.2
-    unfold bCount at hbc
-    simp only [‹¬bucketBits n_max = 0›, ↓reduceIte, hb, gmQIdx] at hbc
+    simp only [bCount, ‹¬bucketBits n_max = 0›, ↓reduceIte, hb, gmQIdx] at hbc
     exact fits_of_le_max_n_one hdict hw hnU hU (by omega)
   · exact Nat.ne_of_gt (slabSize_pos n_max)
   · have : d.2 % slabSize n_max < slabSize n_max := Nat.mod_lt d.2 (slabSize_pos n_max)
@@ -1030,15 +1021,16 @@ theorem writeLMProg_effect {U V w n_max h_space c base idx val : ℕ}
     (hi := base + offGM U V w n_max h_space) (by wram_omega) (by stride_omega) s.mem
   have hlm : lmAt base U V w n_max h_space s'.mem =
       Function.update (lmAt base U V w n_max h_space s.mem) (c, idx) val := by
-    funext ⟨c', j⟩; unfold lmAt; rw [hmem]
-    by_cases hp_eq : (c', j) = (c, idx)
-    · injection hp_eq with hc_eq hj_eq; subst hc_eq hj_eq
-      rw [Function.update_self]; simp only [hc, hidx_lt, and_self, ↓reduceIte]
-      exact readPacked_writePacked_self _ _ _ _ _ hval_lt
-    · rw [Function.update_of_ne hp_eq]; split_ifs with hp_lt
-      · by_cases hc_eq : c' = c
-        · subst hc_eq
-          exact readPacked_writePacked_of_ne hw s.mem (fun h => hp_eq (congrArg _ h)) _
+    funext ⟨c', j⟩
+    unfold lmAt
+    rw [hmem]
+    rcases eq_or_ne (c', j) (c, idx) with hp_eq | hp_eq
+    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj hp_eq
+      simp [hc, hidx_lt, readPacked_writePacked_self _ _ _ _ _ hval_lt]
+    · rw [Function.update_of_ne hp_eq]
+      split_ifs with hp_lt
+      · rcases eq_or_ne c' c with rfl | hc_eq
+        · exact readPacked_writePacked_of_ne hw s.mem (fun h => hp_eq (congrArg _ h)) _
         · have hdisj : DisjointIntervals (base + offLMSub U V w n_max h_space c')
               (base + offLMSub U V w n_max h_space c' +
                 packedWords (totalMicroBuckets n_max) (effBucketPosBits n_max) w)
@@ -1117,9 +1109,8 @@ theorem gmAt_writeGMProg {U V w n_max h_space base idx val : ℕ}
     (s : Memory.State) :
     gmAt base U V w n_max h_space
         ((Memory.spec 0).clientState s (writeGMProg U V w n_max h_space ((base, idx), val))).mem =
-      Function.update (gmAt base U V w n_max h_space s.mem) idx val := by
-  unfold gmAt
-  exact readPacked_writePacked_bounded hw hidx hval s.mem
+      Function.update (gmAt base U V w n_max h_space s.mem) idx val :=
+  readPacked_writePacked_bounded hw hidx hval s.mem
 
 /-- Pure state effect of `writeGMProg`. -/
 theorem writeGMProg_effect {U V w n_max h_space base idx val : ℕ}

@@ -188,12 +188,10 @@ theorem cbcMacWord_append_block (family : List Bool → List Bool → List Bool)
     (hblock : block.length = n) :
     cbcMacWord family n key (msg ++ block) =
       (family key (List.zipWith xor (cbcMacWord family n key msg) block)).take n := by
-  have hdvd : n ∣ block.length := by simpa only [hblock] using (dvd_rfl : n ∣ n)
   have hrow : BitString.listRows (block.length / n) n block = [block] := by
     simpa only [List.length_singleton, List.flatten_singleton, hblock, Nat.div_self hn] using
-      BitString.listRows_flatten [block]
-        (fun _ hm => (List.mem_singleton.mp hm) ▸ hblock)
-  simp only [cbcMacWord, BitString.listRows_append_aligned hn hmsg hdvd, hrow,
+      BitString.listRows_flatten [block] fun _ hm => (List.mem_singleton.mp hm) ▸ hblock
+  simp only [cbcMacWord, BitString.listRows_append_aligned hn hmsg (dvd_of_eq hblock.symm), hrow,
     List.foldl_append, List.foldl_cons, List.foldl_nil]
 
 /-- Keyed-family presentation of basic CBC-MAC at block width `key.length`. -/
@@ -350,20 +348,17 @@ private theorem val_equivFin_testBit :
         Fin.cons (m.testBit 0) (fun j : Fin n => (m / 2).testBit j.val) := by
       refine funext (Fin.cases (by simp) fun _ => ?_)
       simp [Nat.testBit_succ]
-    have hdiv : m / 2 < 2 ^ n := by
-      rw [pow_succ] at hm
-      omega
+    have hdiv : m / 2 < 2 ^ n := Nat.div_lt_of_lt_mul (by rwa [pow_succ'] at hm)
     rw [hcons, BitString.val_equivFin_cons, val_equivFin_testBit hdiv, Nat.testBit_zero]
     rcases Nat.mod_two_eq_zero_or_one m with h | h <;> simp [h] <;> omega
 
 /-- The `n`-bit block `blockCountBlock h k` flattens to `BitString.lowBits n k.val`. -/
 theorem ofFn_blockCountBlock {n L : ℕ} (h : L < 2 ^ n) (k : Fin (L + 1)) :
     List.ofFn (blockCountBlock h k) = BitString.lowBits n k.val := by
-  have hk : k.val < 2 ^ n := k.isLt.trans_le h
   have hsymm : blockCountBlock h k = fun i : Fin n => k.val.testBit i.val := by
     apply (BitString.equivFin n).injective
     rw [blockCountBlock, Equiv.apply_symm_apply]
-    exact Fin.ext (val_equivFin_testBit hk).symm
+    exact Fin.ext (val_equivFin_testBit (k.isLt.trans_le h)).symm
   rw [hsymm, BitString.lowBits_eq_ofFn]
 
 private theorem foldl_cbcStep_map_ofFn {n : ℕ} {f : List Bool → List Bool}
@@ -375,9 +370,7 @@ private theorem foldl_cbcStep_map_ofFn {n : ℕ} {f : List Bool → List Bool}
   induction bs generalizing iv with
   | nil => rfl
   | cons b bs ih =>
-    have hxor : List.zipWith xor (List.ofFn iv) (List.ofFn b) = List.ofFn (iv + b) :=
-      (BitString.ofFn_add iv b).symm
-    simp only [List.map_cons, List.foldl_cons, hxor, hfg, cbcMacBlocks_cons]
+    simp only [List.map_cons, List.foldl_cons, ← BitString.ofFn_add, hfg, cbcMacBlocks_cons]
     exact ih (g (iv + b))
 
 private theorem cbcMacWord_eq_ofFn_cbcMacBlocks {n : ℕ} {f : List Bool → List Bool}
@@ -413,8 +406,7 @@ theorem computableInPolyTime_cbcBlockValid {ℓ : ℕ → ℕ}
     (hℓ : ComputableInPolyTime ℓ encUnary encUnary) :
     ComputableInPolyTime (fun (n, msg) => cbcBlockValid ℓ n msg)
       (encPair encUnary encBits) encBool := by
-  unfold cbcBlockValid
-  polytime
+  polytime [cbcBlockValid]
 
 /-- `lpBlockValid L` is computable in polynomial time whenever `L` is computable in polynomial time
 in unary. -/
@@ -422,8 +414,7 @@ theorem computableInPolyTime_lpBlockValid {L : ℕ → ℕ}
     (hL : ComputableInPolyTime L encUnary encUnary) :
     ComputableInPolyTime (fun (n, msg) => lpBlockValid L n msg)
       (encPair encUnary encBits) encBool := by
-  unfold lpBlockValid
-  polytime
+  polytime [lpBlockValid]
 
 /-! ### Section 3: Typed Codec Bridges to `CBCOracleSpec` and `LengthPrependedSpec` -/
 
@@ -734,11 +725,8 @@ private theorem cbcAdmissible_fixCoins_adapt {ℓ : ℕ → ℕ} {n Q : ℕ} (hn
     (hω : ω ∈ (ProbOracleComp.coinLaw ((cbcInputCodec n (ℓ n) hn).adapt program)).support) :
     CBCAdmissible Q (ProbOracleComp.fixCoins ((cbcInputCodec n (ℓ n) hn).adapt program) ω) := by
   intro o
-  have htreeQ :
-      (ProbOracleComp.fixCoins ((cbcInputCodec n (ℓ n) hn).adapt program) ω).IsQueryBounded Q :=
-    ProbOracleComp.isQueryBounded_fixCoins
-      (OracleCodec.isQueryBounded_adapt (cbcInputCodec n (ℓ n) hn) hQ) ω
-  refine ⟨?_, cbcQueryRun_length_le_of_isQueryBounded o htreeQ⟩
+  refine ⟨?_, cbcQueryRun_length_le_of_isQueryBounded o
+    (ProbOracleComp.isQueryBounded_fixCoins (OracleCodec.isQueryBounded_adapt _ hQ) ω)⟩
   obtain ⟨res, hres, hsub⟩ := exists_wordQueryRunDist_of_probCbcQueryRun hn o program
     (cbcQueryRun_fixCoins_mem_support o _ ω hω)
   have horacle (w : List Bool) : (cbcBlockValid ℓ n w = false → cbcOracleWord hn o w = []) ∧
@@ -749,10 +737,8 @@ private theorem cbcAdmissible_fixCoins_adapt {ℓ : ℕ → ℕ} {n Q : ℕ} (hn
     hpf (cbcOracleWord hn o) (fun w => (horacle w).1) (fun w => (horacle w).2) res hres
   have hvalid (z : CBCInput n (ℓ n)) :
       cbcBlockValid ℓ n ((cbcInputCodec n (ℓ n) hn).encodeQuery z).2 = true := by
-    rw [cbcBlockValid_eq_isSome_cbcInputCodec hn,
-      show ((), ((cbcInputCodec n (ℓ n) hn).encodeQuery z).2) =
-        (cbcInputCodec n (ℓ n) hn).encodeQuery z from rfl,
-      OracleCodec.decodeQuery_encodeQuery, Option.isSome_some]
+    rw [cbcBlockValid_eq_isSome_cbcInputCodec hn]
+    exact congrArg Option.isSome ((cbcInputCodec n (ℓ n) hn).decodeQuery_encodeQuery z)
   intro x hx y hy hxy hpre
   have hneWord : ((cbcInputCodec n (ℓ n) hn).encodeQuery x).2 ≠
       ((cbcInputCodec n (ℓ n) hn).encodeQuery y).2 := fun heq =>
@@ -855,8 +841,7 @@ private theorem isOraclePPTOn_cbcMacQueries :
 private theorem length_le_of_mem_support_cbcMacQueries (n : ℕ) (msg reply : List Bool)
     (hreply : reply ∈ OracleComp.support (cbcMacQueries n msg)) :
     reply.length ≤ n := by
-  unfold cbcMacQueries at hreply
-  dsimp only at hreply
+  dsimp only [cbcMacQueries] at hreply
   obtain ⟨⟨_, tag⟩, hstate, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
   exact OracleComp.iterate_invariant
     (invariant := fun _ (_, s) => s.length ≤ n)
@@ -930,16 +915,9 @@ private theorem isOraclePPT_interpret_wordGuard
     dsimp only [ECall]; fun_prop
   have hhandler : IsOraclePPTOn ECall encBits
       (fun c : (ℕ × List Bool) × (Unit × List Bool) => handler c.1.1 c.2) := by
-    have heq : (fun c : (ℕ × List Bool) × (Unit × List Bool) => handler c.1.1 c.2) =
-        (fun c => if valid c.1.1 c.2.2 then
-            (call ∘ (fun c : (ℕ × List Bool) × (Unit × List Bool) => (c.1.1, c.2.2))) c
-          else ProbOracleComp.sample (pure [])) := by
-      funext c
-      rw [hdef]
-      cases valid c.1.1 c.2.2 <;> rfl
-    rw [heq]
+    simp only [hdef]
     exact IsOraclePPTOn.cond (hvalid.comp hpair) (hcall.preprocess hpair)
-      ((ComputableInPolyTime.const []).isPPTOn.isOraclePPTOn)
+      (ComputableInPolyTime.const []).isPPTOn.isOraclePPTOn
   refine (hadversary.on.interpret_preprocess_open' (operationEncoding := encFinEnum Unit)
     (handler := fun c => handler c.1) (prepare := id) (resources := fun c _ => c.1)
     ComputableInPolyTime.id' hhandler
@@ -1134,11 +1112,8 @@ theorem advantage_cbcMac_le {family : List Bool → List Bool → List Bool}
         (ProbComp.eval (prfIdealGame id id (cbcMacToPrfDistinguisher ℓ adversary) n)) +
       (Q : ℝ≥0) ^ 2 * (ℓ n : ℝ≥0) ^ 2 / (2 * 2 ^ n) := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
-  · have hfalse : cbcBlockValid ℓ 0 = fun _ => false := by
-      funext msg
-      simp only [cbcBlockValid, Nat.mul_zero, Nat.le_zero, Bool.and_eq_false_iff,
-        decide_eq_false_iff_not]
-      omega
+  · have hfalse : cbcBlockValid ℓ 0 = fun _ => false := funext fun msg => by
+      cases msg <;> simp [cbcBlockValid]
     have hreal0 :
         ProbComp.eval (prfRealGameOn (cbcBlockValid ℓ) (cbcMacFamily family) adversary 0) =
         ProbComp.eval ((adversary 0 []).run fun _ => pure []) := by
@@ -1496,8 +1471,9 @@ theorem PseudorandomFunction.prfOver_cbcMac {family : List Bool → List Bool �
         fun n => isPrefixFreeOn_restrictLengthDistinguisher _ adversary n⟩
     refine negligible_of_eventually_le hsec ?_
     filter_upwards [Filter.eventually_ge_atTop 1] with n hn
+    have hn0 : 0 < n := hn
     have hsub (w : List Bool) (hw : w.length = ℓ n * n) : cbcBlockValid ℓ n w = true := by
-      simp [cbcBlockValid, hw, hpos n, Nat.pos_of_ne_zero (by omega : n ≠ 0), Nat.mul_mod_left]
+      simp [cbcBlockValid, hw, hpos n, hn0, Nat.mul_mod_left]
     rw [← eval_prfRealGameOn_restrictLengthDistinguisher (fun m => ℓ m * m)
       (fun key _ _ => length_cbcMacFamily hF.length_eq key _) hsub adversary,
       ← eval_prfIdealGameOn_restrictLengthDistinguisher (fun m => ℓ m * m) hsub adversary]
@@ -1630,12 +1606,9 @@ theorem eval_macSufCmaGameOn_eq_macEufCmaGameOn (valid : ℕ → List Bool → B
   rw [ProbOracleComp.eval_run_interpret_eq_runWith,
     ProbOracleComp.eval_run_interpret_eq_runWith, ← hsim, PMF.bind_map]
   refine PMF.bind_congr_on_support _ _ _ fun ⟨(msg, tag), queried⟩ _ => ?_
-  simp only [Function.comp_apply]
-  congr 1
   by_cases htag : tagFamily sk msg = tag
-  · subst htag
-    simp
-  · simp [beq_eq_false_iff_ne.mpr htag]
+  · simp [Function.comp_apply, htag]
+  · simp [Function.comp_apply, beq_eq_false_iff_ne.mpr htag]
 
 /-- Because `tagFamily` is deterministic with a unique valid tag per `(sk, msg)`, strong and
 ordinary adaptive chosen-message unforgeability on `valid` coincide. -/
@@ -1741,9 +1714,8 @@ private theorem run_macLogHandlerOn_eq_macSigningOracleOn
         (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
         (macLogHandlerOn valid n))
       prog).run []) ())
-  simp only [PMF.map_comp, Function.comp_def,
-    show (fun x : (List Bool × List Bool) × List (List Bool) => x) = id from rfl, PMF.map_id]
-    at hfst
+  rw [PMF.map_comp] at hfst
+  erw [PMF.map_id] at hfst
   simp only [ProbOracleComp.eval_interpret, ProbComp.eval_pure]
   rw [← OracleComp.evalWith_eq_interpret, ← hfst, ProbOracleComp.runWith_run_interpret,
     ProbOracleComp.eval_run_interpret_eq_runWith]
@@ -1764,8 +1736,7 @@ private theorem run_macLogHandlerOn_eq_macSigningOracleOn
         simp only [List.take_of_length_le hlenEq.le, pmf_norm]
       · simp only [Bool.eq_false_iff.mpr hv, Bool.false_eq_true, ↓reduceIte,
           OracleComp.interpret_pure, ProbComp.eval_pure]
-        rw [show (pure ([], queried) : StateT Unit PMF _) PUnit.unit =
-            PMF.pure (([], queried), PUnit.unit) from rfl]
+        dsimp only [Pure.pure, StateT.pure]
         simp only [PMF.pure_map])
     prog ([], ())
   unfold prfRealLogHandlerOn at hsim
@@ -1819,9 +1790,7 @@ private theorem prfIdealLogOracleOn_inv (valid : ℕ → List Bool → Bool) (ad
     (fun s => ∀ entry ∈ s.2, entry.1 ∈ s.1)
     ?_ (adversary n []) ([], []) (by simp) result state hmem
   intro ⟨⟨⟩, msg⟩ ⟨queried, cache⟩ hstate _ ⟨queried', cache'⟩ hstep
-  dsimp only [prfIdealLogOracleOn] at hstep
-  unfold macLogHandlerOn at hstep
-  dsimp only [StateT.run] at hstep
+  dsimp only [prfIdealLogOracleOn, macLogHandlerOn, StateT.run] at hstep
   by_cases hv : valid n msg = true
   · simp only [hv, ↓reduceIte, Functor.map_map, OracleComp.interpret_map,
       ProbOracleComp.interpret_query] at hstep
@@ -1838,8 +1807,7 @@ private theorem prfIdealLogOracleOn_inv (valid : ℕ → List Bool → Bool) (ad
     · exact List.forall_mem_cons.mpr ⟨List.mem_cons_self, htail⟩
   · simp only [Bool.eq_false_iff.mpr hv, Bool.false_eq_true, ↓reduceIte,
       OracleComp.interpret_pure] at hstep
-    rw [show (pure ([], queried) : StateT _ PMF _) cache =
-        PMF.pure (([], queried), cache) from rfl] at hstep
+    dsimp only [Pure.pure, StateT.pure] at hstep
     simp only [PMF.pure_map, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
     rcases hstep with ⟨-, rfl, rfl⟩
     exact hstate
@@ -1936,14 +1904,10 @@ theorem succProbability_macSufCmaGameOn_le {valid : ℕ → List Bool → Bool}
         (ProbComp.eval (prfIdealGameOn valid id (macToPrfOnDistinguisher valid adversary) n)) +
       (1 : ℝ≥0) / 2 ^ n := by
   rw [eval_macSufCmaGameOn_eq_macEufCmaGameOn,
-    ← eval_prfRealGameOn_macToPrfOnDistinguisher hlen adversary n]
-  have htri := Game.advantage_triangle
-    (ProbComp.eval (prfRealGameOn valid tagFamily (macToPrfOnDistinguisher valid adversary) n))
-    (ProbComp.eval (prfIdealGameOn valid id (macToPrfOnDistinguisher valid adversary) n))
-    (PMF.pure false)
-  simp only [Game.advantage_pure_false] at htri
-  exact htri.trans (add_le_add le_rfl
-    (succProbability_prfIdealGameOn_macToPrfOnDistinguisher_le valid adversary n))
+    ← eval_prfRealGameOn_macToPrfOnDistinguisher hlen adversary n, ← Game.advantage_pure_false]
+  refine (Game.advantage_triangle _ _ _).trans (add_le_add le_rfl ?_)
+  simpa only [Game.advantage_pure_false] using
+    succProbability_prfIdealGameOn_macToPrfOnDistinguisher_le valid adversary n
 
 /-- Helper step after [BonehShoup2023], Section 6.3, Theorem 6.2 (printed p. 224), not the
 standalone Theorem 6.2 endpoint (see `Cslib.Crypto.PseudorandomFunction.sufCma_prfMAC`): any
@@ -2065,7 +2029,7 @@ private theorem cbcMacFamily_zero_append_tag {family : List Bool → List Bool �
     simp only [tag, cbcMacFamily, hsk, cbcMacWord, List.length_replicate, hrows1,
       List.foldl_cons, List.foldl_nil, zipWith_xor_self, List.take_of_length_le hfamLen.le]
   have htagWord : cbcMacWord family n sk (List.replicate n false) = tag := by
-    rw [show tag = cbcMacFamily family sk (List.replicate n false) from rfl, cbcMacFamily, hsk]
+    simp only [tag, cbcMacFamily, hsk]
   rw [cbcMacFamily, hsk, cbcMacWord_append_block family hn sk (by simp) htagLen, htagWord,
     zipWith_xor_self, htagLen, ← htag1, List.take_of_length_le htagLen.le]
 
@@ -2089,25 +2053,21 @@ theorem eval_macSufCmaGameOn_cbcMacFamily_cbcExtensionForger
     StateT.run_map, ProbOracleComp.interpret_query, BitString.eval_sampleList, pmf_norm]
   dsimp only [StateT.run, macSigningOracleOn]
   simp only [hval1, ↓reduceIte, ProbComp.eval_pure, PMF.pure_bind]
-  trans PMF.bind (BitString.uniformList n) (fun _ => PMF.pure true)
-  · refine PMF.bind_congr_on_support _ _ _ fun sk hsk => ?_
-    have hskLen : sk.length = n := BitString.length_of_mem_support_uniformList hsk
-    have htagLen : (cbcMacFamily family sk (List.replicate n false)).length = n := by
-      rw [length_cbcMacFamily hlen, hskLen]
-    have hlen2 : (List.replicate n false ++
-        cbcMacFamily family sk (List.replicate n false)).length = 2 * n := by
-      rw [List.length_append, List.length_replicate, htagLen, Nat.two_mul]
-    have hval2 : lpBlockValid (fun _ => 2) n
-        (List.replicate n false ++ cbcMacFamily family sk (List.replicate n false)) = true := by
-      simp [lpBlockValid, hlen2, Nat.mul_mod_left]
-    have hne : List.replicate n false ++ cbcMacFamily family sk (List.replicate n false) ≠
-        List.replicate n false := fun hEq => by
-      have hlenEq := congrArg List.length hEq
-      rw [hlen2, List.length_replicate] at hlenEq
-      omega
-    rw [List.take_of_length_le htagLen.le]
-    simp [hval2, hne, cbcMacFamily_zero_append_tag hlen hn hskLen]
-  · exact PMF.bind_const _ _
+  refine (PMF.bind_congr_on_support _ _ (fun _ => PMF.pure true) fun sk hsk => ?_).trans
+    (PMF.bind_const _ _)
+  have hskLen : sk.length = n := BitString.length_of_mem_support_uniformList hsk
+  have htagLen : (cbcMacFamily family sk (List.replicate n false)).length = n :=
+    hskLen ▸ length_cbcMacFamily hlen sk _
+  have hlen2 : (List.replicate n false ++
+      cbcMacFamily family sk (List.replicate n false)).length = 2 * n := by
+    rw [List.length_append, List.length_replicate, htagLen, Nat.two_mul]
+  have hval2 : lpBlockValid (fun _ => 2) n
+      (List.replicate n false ++ cbcMacFamily family sk (List.replicate n false)) = true := by
+    simp [lpBlockValid, hlen2, Nat.mul_mod_left]
+  have hne : cbcMacFamily family sk (List.replicate n false) ≠ [] :=
+    List.ne_nil_of_length_pos (htagLen.symm ▸ hn)
+  rw [List.take_of_length_le htagLen.le]
+  simp [hval2, hne, cbcMacFamily_zero_append_tag hlen hn hskLen]
 
 /-- CBC-MAC step toward #5801 after [BonehShoup2023], Section 6.4.3 (printed pp. 230–231), not the
 full Section 6.4.2–6.4.3 / Definition 6.4 cascade and extendable-PRF endpoint: for every
@@ -2268,8 +2228,7 @@ theorem succProbability_sufCmaGame_cbcFixedBlockMAC_le (ℓ : ℕ → ℕ)
         (ProbComp.eval (prfIdealGame id id (cbcFixedBlockMacToPrfDistinguisher ℓ adversary) n)) +
       ((Q : ℝ≥0) + 1) ^ 2 * (ℓ n : ℝ≥0) ^ 2 / (2 * 2 ^ n) +
       (1 : ℝ≥0) / 2 ^ n := by
-  rw [eval_sufCmaGame_det (cbcFixedBlockMAC ℓ hℓ family hpoly) (by rfl) (cbcMacFamily family)
-    (by rfl) (by rfl)]
+  rw [eval_sufCmaGame_det (cbcFixedBlockMAC ℓ hℓ family hpoly) rfl (cbcMacFamily family) rfl rfl]
   simp only [cbcFixedBlockMAC_msgLen]
   have hmac := succProbability_macSufCmaGameOn_le
     (valid := fun m q => q.length == ℓ m * m)

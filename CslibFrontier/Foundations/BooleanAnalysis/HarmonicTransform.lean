@@ -194,11 +194,10 @@ theorem harmonicTransform_cons_false {n : ℕ}
     harmonicTransform f (Fin.cons false selected) =
       harmonicTransform
         (fun x => (f (Fin.cons false x) + f (Fin.cons true x)) / 2) selected := by
-  unfold harmonicTransform
-  rw [← harmonicMean_equiv (Fin.consEquiv (fun _ : Fin (n + 1) => Bool))]
+  rw [harmonicTransform, ← harmonicMean_equiv (Fin.consEquiv (fun _ : Fin (n + 1) => Bool))]
   dsimp only [Function.comp_def, Fin.consEquiv_apply]
   simp_rw [projectionAverage_cons_false]
-  simp [harmonicMean, Fintype.expect_prod_type]
+  simp [harmonicTransform, harmonicMean, Fintype.expect_prod_type]
 
 theorem harmonicTransform_cons_true {n : ℕ}
     {f : (Fin (n + 1) → Bool) → ℝ} (hf : ∀ x, 0 ≤ f x) (selected : Fin n → Bool) :
@@ -207,8 +206,7 @@ theorem harmonicTransform_cons_true {n : ℕ}
         harmonicTransform (fun x => f (Fin.cons true x)) selected /
       (harmonicTransform (fun x => f (Fin.cons false x)) selected +
         harmonicTransform (fun x => f (Fin.cons true x)) selected) := by
-  unfold harmonicTransform
-  rw [← harmonicMean_equiv (Fin.consEquiv (fun _ : Fin (n + 1) => Bool))]
+  rw [harmonicTransform, ← harmonicMean_equiv (Fin.consEquiv (fun _ : Fin (n + 1) => Bool))]
   dsimp only [Function.comp_def, Fin.consEquiv_apply]
   simp_rw [projectionAverage_cons_true]
   exact harmonicMean_pair fun b =>
@@ -312,13 +310,11 @@ private theorem add_sqrt_harmonicTransform_cons_le {n : ℕ} {f : (Fin (n + 1) �
     3 / 4 * Real.sqrt
         (harmonicTransform (fun x => (f (Fin.cons false x) + f (Fin.cons true x)) / 2) s) +
       1 / 4 * Real.sqrt (harmonicTransform f (Fin.cons true s)) := by
-  have h0 : ∀ x, 0 ≤ f (Fin.cons false x) := fun x => hf (Fin.cons false x)
-  have h1 : ∀ x, 0 ≤ f (Fin.cons true x) := fun x => hf (Fin.cons true x)
-  have hb := add_sqrt_div_two_le
-    (harmonicTransform_nonneg h0 s) (harmonicTransform_nonneg h1 s)
-  have hc := Real.sqrt_le_sqrt (harmonicTransform_midpoint h0 h1 s)
+  have h0 := fun x => hf (Fin.cons false x)
+  have h1 := fun x => hf (Fin.cons true x)
   rw [harmonicTransform_cons_true hf]
-  linarith
+  linarith [add_sqrt_div_two_le (harmonicTransform_nonneg h0 s) (harmonicTransform_nonneg h1 s),
+    Real.sqrt_le_sqrt (harmonicTransform_midpoint h0 h1 s)]
 
 private theorem expect_sqrt_le_bernoulliAverage_sqrt_harmonicTransform_fin {n : ℕ}
     {f : (Fin n → Bool) → ℝ} (hf : ∀ x, 0 ≤ f x) :
@@ -326,9 +322,8 @@ private theorem expect_sqrt_le_bernoulliAverage_sqrt_harmonicTransform_fin {n : 
       bernoulliAverage (1 / 4) (fun selected => Real.sqrt (harmonicTransform f selected)) := by
   induction n with
   | zero =>
-    have he : f = fun _ => f (fun i => Fin.elim0 i) :=
-      funext fun x => congrArg f (Subsingleton.elim _ _)
-    rw [he]
+    obtain ⟨c, rfl⟩ : ∃ c, f = fun _ => c :=
+      ⟨f Fin.elim0, funext fun _ => congrArg f (Subsingleton.elim _ _)⟩
     simp [harmonicTransform_const, bernoulliAverage_const]
   | succ n ih =>
     let f0 := fun x => f (Fin.cons false x)

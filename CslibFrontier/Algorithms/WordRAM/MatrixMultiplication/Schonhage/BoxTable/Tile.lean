@@ -130,9 +130,7 @@ theorem exec_tileValue {w L H D V AA BB A B s : ℕ} (x : Data registers)
       exact (Nat.count_le _).trans (by dsimp only [childSlot]; omega)
     obtain ⟨y, hy, _, hya, hym, _⟩ := exec_childLoop (R := (H + 1) * 10 ^ L) (C := C) u val rank
       (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) hTpos
-      (by regs_frame) (by simp only [u, Data.set_regs_self])
-      (by simp only [u, Data.set_regs_of_ne (by decide : Reg.accumulator ≠ Reg.term),
-        Data.set_regs_self])
+      (by regs_frame) rfl rfl
       (by regs_frame) (by regs_frame) (by regs_frame)
       (fun d hd => by
         simpa only [u, Data.set_mem, childSlot, childCode, rank, Nat.mod_eq_of_lt hd]
@@ -243,8 +241,7 @@ theorem exec_tileLoop {w L H D R V AA BB A B : ℕ} {μ : ℕ → ℕ} (x : Data
     obtain ⟨yp, yV, yA, yB, yK, yvalues, yframe⟩ := hy
     obtain ⟨s, hs, hvs, hsj⟩ := exists_count_rank (Eligible L H) hjlt
     have hlow (q : ℕ) (hq : q < V) : y.mem q = x.mem q := yframe q (by omega)
-    have hsK : Nat.count (Eligible L H) s < Nat.count (Eligible L H) ((H + 1) * 10 ^ L) :=
-      Nat.count_strict_mono hvs hs
+    have hsK := Nat.count_strict_mono hvs hs
     have hcode : recordCode L s < 10 ^ L := Nat.mod_lt _ (by positivity)
     obtain ⟨z, hz, hzj, hzm⟩ := exec_tileStep y a b hvs hs ha hb yp yV yA yB hsj.symm
       ((hlow _ (by omega)).trans (hcat.code s hs hvs))
@@ -253,8 +250,8 @@ theorem exec_tileLoop {w L H D R V AA BB A B : ℕ} {μ : ℕ → ℕ} (x : Data
       ((hlow _ (by omega)).trans (hleft ⟨recordCode L s, hcode⟩))
       ((hlow _ (by omega)).trans (hright ⟨recordCode L s, hcode⟩))
       (fun he d => by
-        have hchild : childSlot L s d < S := (childSlot_lt hvs he d).trans hs
-        rw [hlow _ (by dsimp only [S] at hchild; omega), hcat.directory _ hchild,
+        have hchild := (childSlot_lt hvs he d).trans hs
+        rw [hlow _ (by omega), hcat.directory _ hchild,
           directoryWord, ite_eq_left (eligible_childSlot hvs he d)])
       (fun he d => yvalues _ ((childSlot_lt hvs he d).trans hs)
         (eligible_childSlot hvs he d) ((child_rank_lt hvs he d).trans_eq hsj))
@@ -264,8 +261,7 @@ theorem exec_tileLoop {w L H D R V AA BB A B : ℕ} {μ : ℕ → ℕ} (x : Data
     · intro i hi hvi hji
       rw [hzm]
       by_cases hij : Nat.count (Eligible L H) i = Nat.count (Eligible L H) s
-      · obtain rfl := Nat.count_injective hvi hvs hij
-        exact Function.update_self ..
+      · exact Nat.count_injective hvi hvs hij ▸ Function.update_self ..
       · rw [Function.update_of_ne (by omega)]
         exact yvalues i hi hvi (by omega)
     · intro q hq

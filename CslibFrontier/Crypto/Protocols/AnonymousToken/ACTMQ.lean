@@ -361,10 +361,8 @@ theorem clawExperiment_eq_false_of_claims_nil [DecidableEq Target]
     (A : ClawAdversary PK M R Sig)
     (hnil : ∀ run ∈ (ProbComp.eval (runClaw S J A)).support, run.claims = []) :
     ProbComp.eval (clawExperiment S J A) = PMF.pure false := by
-  simp only [clawExperiment, ProbComp.eval_map]
-  apply PMF.map_eq_pure_iff.mpr
-  intro run hrun
-  simp [clawAccept, hnil run hrun]
+  rw [clawExperiment, ProbComp.eval_map]
+  exact PMF.map_eq_pure_iff.mpr fun run hrun => by simp [clawAccept, hnil run hrun]
 
 /-- When `S.Correct` holds, `invalidReplyExperiment` has success probability zero. -/
 theorem invalidReplyExperiment_eq_zero_of_correct
@@ -378,13 +376,8 @@ theorem invalidReplyExperiment_eq_zero_of_correct
     simp only [runExtracted, ProbComp.eval_bind, PMF.mem_support_bind_iff, ProbComp.eval_pure,
       PMF.mem_support_pure_iff] at hrun
     obtain ⟨keys, hkeys, res, hres, rfl⟩ := hrun
-    simp only [anyInvalidReply, List.any_eq_false, Bool.not_eq_true']
-    intro entry hentry
-    rw [Bool.not_eq_false]
-    exact ProbOracleComp.forall_mem_runLog
-      (P := fun e : Payload Message R × Sig =>
-        S.verify keys.1 (target e.1.message e.1.opening) e.2 = true)
-      (fun p σ hσ => hS keys hkeys _ σ hσ) (B keys.1) hres entry hentry
+    simp only [anyInvalidReply, List.any_eq_false, Bool.not_eq_true', Bool.not_eq_false]
+    exact ProbOracleComp.forall_mem_runLog (fun p σ hσ => hS keys hkeys _ σ hσ) (B keys.1) hres
   simp [Experiment.succProbability, Game.succProbability, hfalse]
 
 /-- `rangeBoundedAdversary` preserves any `q`-query bound from the underlying adversary `A`. -/
@@ -583,20 +576,18 @@ private theorem eval_runClaw_clawReduction_eq [DecidableEq Target]
               (fun r => (r, log ++ [(payload, r)])) <$>
                 S.sign sk (target payload.message payload.opening)).run [])).map
           fun ⟨token, extLog⟩ => ((token, (represent extLog).1), (represent extLog).2) := by
-    rw [ProbOracleComp.eval_runState, ProbOracleComp.eval_runState]
-    rw [ProbOracleComp.runWith_run_interpret
-      (clawReductionHandler S J embed pk)
-      (fun q log => ProbComp.eval ((fun r => (r, log ++ [(q, r)])) <$> S.sign sk (J q.1 q.2)))
-      (B pk) [] []]
-    rw [← hsim, PMF.map_comp]
+    rw [ProbOracleComp.eval_runState, ProbOracleComp.eval_runState,
+      ProbOracleComp.runWith_run_interpret (clawReductionHandler S J embed pk)
+        (fun q log => ProbComp.eval ((fun r => (r, log ++ [(q, r)])) <$> S.sign sk (J q.1 q.2)))
+        (B pk) [] [],
+      ← hsim, PMF.map_comp]
     rfl
   simp only [ProbOracleComp.runLog] at hrun ⊢
   rw [ProbOracleComp.runState_bind, StateT.run_bind, ProbComp.eval_bind, hrun, PMF.bind_map,
     PMF.bind_bind]
   refine Probability.PMF.bind_congr_on_support _ _ _ fun ⟨token, extLog⟩ _ => ?_
-  dsimp only [Function.comp_def, represent]
-  rw [PMF.pure_map]
-  dsimp only [clawExecutionOfExtracted]
+  rw [Function.comp_apply, PMF.pure_map]
+  dsimp only [represent, clawExecutionOfExtracted]
   split_ifs <;> simp [ProbOracleComp.runState_pure]
 
 private theorem foldl_stepValidClaim_subset [DecidableEq Target]
@@ -607,11 +598,9 @@ private theorem foldl_stepValidClaim_subset [DecidableEq Target]
   induction xs generalizing acc with
   | nil => exact hc
   | cons x xs ih =>
-    apply ih
+    refine ih _ ?_
     simp only [stepValidClaim]
-    split_ifs
-    · exact List.mem_append_left _ hc
-    · exact hc
+    split_ifs <;> simp [hc]
 
 private theorem stepValidClaim_invariant [DecidableEq Target]
     (S : Signature.Scheme PK SK Target Sig) (J : M → R → Target) (embed : Message → M)
@@ -667,13 +656,10 @@ private theorem stepValidClaim_invariant [DecidableEq Target]
       · have hhd_v := hall e List.mem_cons_self
         have hhd_in :
             J (embed e.1.message) e.1.opening ∈ acc'.map fun c => J c.message c.opening := by
-          simp only [acc', stepValidClaim]
-          by_cases hcont : (acc.map fun c => J c.message c.opening).contains
-              (J (embed e.1.message) e.1.opening) = true
-          · simp only [hhd_v, hcont, Bool.true_and, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-            exact List.contains_iff_mem.mp hcont
-          · have hnot := mt List.contains_iff_mem.mpr hcont
-            simp [hhd_v, hnot]
+          simp only [acc', stepValidClaim, hhd_v, Bool.true_and]
+          split_ifs with hcont
+          · simp
+          · exact List.contains_iff_mem.mp (by simpa using hcont)
         obtain ⟨c, hc_acc', hc_eq⟩ := List.mem_map.mp hhd_in
         exact List.mem_map.mpr ⟨c, foldl_stepValidClaim_subset S J embed pk tl acc' hc_acc', hc_eq⟩
       · exact hcov_tl (fun e' he' => hall e' (List.mem_cons_of_mem _ he')) e he_tl
@@ -773,12 +759,9 @@ theorem extractedExperiment_succProbability_le_claw_add_binding_add_invalid
           (μ.map fun run =>
             (findBindingWitness target run.output.payload run.log).any
               (checkBindingWitness target) || anyInvalidReply S target run) true := by
-    refine Cslib.Probability.PMF.map_true_le_add μ fun run _ h => ?_
-    rcases clawAccept_or_binding_or_invalid_of_extractedAccept S J embed target htarget run h with
-      hc | hb | hi
-    · exact Or.inl hc
-    · exact Or.inr (Bool.or_eq_true_iff.mpr (Or.inl hb))
-    · exact Or.inr (Bool.or_eq_true_iff.mpr (Or.inr hi))
+    exact Cslib.Probability.PMF.map_true_le_add μ fun run _ h =>
+      (clawAccept_or_binding_or_invalid_of_extractedAccept S J embed target htarget run h).imp_right
+        Bool.or_eq_true_iff.mpr
   have hsplit2 :
       (μ.map fun run =>
           (findBindingWitness target run.output.payload run.log).any (checkBindingWitness target) ||
@@ -923,9 +906,7 @@ private theorem actMQConservationExperiment_zero_eq_pure_false
     refine ProbOracleComp.runWith_invariant _ (fun log => log = []) ?_ (A keys.1) [] rfl
       res.1 res.2 hres
     intro req log rfl a log' hstep
-    have hfalse : requestInRange (Opening := Opening) (Commitment := Commitment)
-        (Sig := Sig) 0 req = false := by
-      cases req <;> simp [requestInRange]
+    have hfalse : requestInRange 0 req = false := by cases req <;> simp [requestInRange]
     simp only [hfalse, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure,
       PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
     exact hstep.2
@@ -962,17 +943,14 @@ private theorem noteForger_rangeBoundedAdversary_support
         (if requestInRange bound req then ProbOracleComp.query req else pure none)) =
         boundedNoteForgerHandler bound com tag S keys.1 := by
     funext req acc
-    by_cases h : requestInRange bound req = true
-    · simp [h, boundedNoteForgerHandler]
-    · simp only [h, Bool.false_eq_true, ↓reduceIte, boundedNoteForgerHandler,
-        OracleComp.interpret_pure]
-      rfl
+    dsimp only [boundedNoteForgerHandler]
+    split_ifs
+    · simp
+    · rw [OracleComp.interpret_pure]; rfl
   rw [ProbOracleComp.interpret_simulate, hhandler, ProbOracleComp.eval_runState,
-    ProbOracleComp.runWith_run_interpret, PMF.mem_support_map_iff] at hcomp
-  obtain ⟨⟨_, accepted', outerLog'⟩, hcomp', heq⟩ := hcomp
-  dsimp only at heq
-  obtain ⟨hpair, rfl⟩ := Prod.mk.inj heq
-  obtain ⟨_, rfl⟩ := Prod.mk.inj hpair
+    ProbOracleComp.runWith_run_interpret] at hcomp
+  simp only [PMF.mem_support_map_iff, Prod.mk.injEq] at hcomp
+  rcases hcomp with ⟨⟨_, accepted', outerLog'⟩, hcomp', ⟨-, rfl⟩, rfl⟩
   have hinv :
       (∀ r ∈ accepted', requestInRange bound r = true) ∧
         ∀ e ∈ outerLog', NoteInRange bound e.1.message := by
@@ -1002,9 +980,7 @@ private theorem noteForger_rangeBoundedAdversary_support
           · exact hlog e he_mem
           · obtain rfl := List.mem_singleton.mp he_mem
             cases req with
-            | issue ir =>
-              simp only [requestInRange, decide_eq_true_eq] at hrange
-              exact ⟨hrange.1, hrange.2⟩
+            | issue ir => exact of_decide_eq_true (p := ir.amount < bound ∧ 0 < bound) hrange
             | spend sr =>
               simp only [requestInRange, decide_eq_true_eq] at hrange
               exact ⟨hrange.2.2.1, hrange.2.2.2.1⟩
@@ -1020,22 +996,13 @@ private theorem noteForger_rangeBoundedAdversary_support
   | none =>
     exact ⟨hbound, hbound⟩
   | some tok =>
-    simp only [Conservation.findNoteForgery, List.findSome?_eq_some_iff] at hfn
-    obtain ⟨_, s, _, hsp, hfound, _⟩ := hfn
-    by_cases hmem : s.inputNote ∈ accepted'.map (fun r => r.outputPayload.message)
-    · simp [hmem] at hfound
-    · simp only [hmem, ↓reduceIte, Option.some.injEq] at hfound
-      subst hfound
-      have hs_spends : s ∈ Conservation.spends accepted' := by simp [hsp]
-      simp only [Conservation.spends, List.mem_filterMap] at hs_spends
-      obtain ⟨r, hr, hsome⟩ := hs_spends
-      cases r with
-      | issue _ => simp at hsome
-      | spend sr =>
-        cases hsome
-        have hsr := hinv.1 _ hr
-        simp only [requestInRange, decide_eq_true_eq] at hsr
-        exact ⟨hsr.1, hsr.2.1⟩
+    obtain ⟨s, hs_spends, rfl, -⟩ := Conservation.findNoteForgery_eq_some hfn
+    obtain ⟨_ | sr, hr, hsome⟩ := List.mem_filterMap.mp hs_spends
+    · simp at hsome
+    · cases hsome
+      have hsr := hinv.1 _ hr
+      simp only [requestInRange, decide_eq_true_eq] at hsr
+      exact ⟨hsr.1, hsr.2.1⟩
 
 /-- **Range-bounded extracted VOLE-ACT-MQ credit conservation.** Under `Set.InjOn` of
 `actEmbed encodeState refundEmbed` on notes satisfying `NoteInRange bound` (which holds over finite
@@ -1282,23 +1249,18 @@ theorem clawExperiment_zeroOpeningClawAttack_eq_pure_true {K : Type} [Field K]
           (zeroOpeningClawAttack scaleSig scalars μ)) =
       PMF.pure true := by
   simp only [clawExperiment, runClaw, zeroOpeningClawAttack, ProbComp.eval_map,
-    ProbComp.eval_bind, ProbComp.eval_pure, ProbOracleComp.runLog_query_bind_pure, PMF.bind_map]
-  rw [PMF.map_bind]
-  refine Probability.PMF.bind_eq_pure_of_forall_mem_support fun keys hkeys => ?_
-  rw [PMF.map_bind]
-  refine Probability.PMF.bind_eq_pure_of_forall_mem_support fun σ hσ => ?_
-  dsimp only [Function.comp_def]
-  rw [PMF.pure_map]
+    ProbComp.eval_bind, ProbComp.eval_pure, ProbOracleComp.runLog_query_bind_pure, PMF.bind_map,
+    PMF.map_bind, Function.comp_def, PMF.pure_map]
+  refine Probability.PMF.bind_eq_pure_of_forall_mem_support fun keys hkeys =>
+    Probability.PMF.bind_eq_pure_of_forall_mem_support fun σ hσ => ?_
   dsimp only [clawAccept]
   let claims := scalars.map fun a =>
     (⟨(a * a) • μ, (0 : R), scaleSig a σ⟩ : ClawClaim Message R Sig)
   have hclaims_nodup :
       (claims.map fun c => UOV.structuredTarget F G c.message c.opening).Nodup := by
-    have hmap : (claims.map fun c => UOV.structuredTarget F G c.message c.opening) =
-        (scalars.map fun a => a * a).map fun b => (b • μ, G 0) := by
-      simp [claims, UOV.structuredTarget, hF, List.map_map, Function.comp_def]
-    rw [hmap]
-    exact hnodup.map fun _ _ heq => smul_left_injective K hμ (congrArg Prod.fst heq)
+    simpa [claims, UOV.structuredTarget, hF, List.map_map, Function.comp_def] using
+      hnodup.map (f := fun b => (b • μ, G 0)) fun _ _ heq =>
+        smul_left_injective K hμ (congrArg Prod.fst heq)
   have hclaims_verify :
       claims.all (fun c =>
         S.verify keys.1 (UOV.structuredTarget F G c.message c.opening) c.preimage) = true := by
@@ -1403,12 +1365,9 @@ private theorem clawExperiment_zeroOpeningClawAttack_eq_false_of_exists
     PMF.mem_support_map_iff, PMF.mem_support_pure_iff] at hrun
   obtain ⟨keys, hkeys, _, ⟨sig, hsig, rfl⟩, rfl⟩ := hrun
   dsimp only [clawAccept]
-  rw [Bool.and_eq_false_iff]
-  right
-  rw [Bool.eq_false_iff]
-  intro h
-  rw [List.all_map, List.all_eq_true] at h
-  exact Bool.false_ne_true ((hfail keys hkeys sig hsig).symm.trans (h a ha))
+  rw [Bool.and_eq_false_iff, List.all_map]
+  exact Or.inr (Bool.eq_false_iff.mpr fun h =>
+    Bool.false_ne_true ((hfail keys hkeys sig hsig).symm.trans (List.all_eq_true.mp h a ha)))
 
 /-- A nonzero constant tail `G 0 ≠ 0` defeats `zeroOpeningClawAttack` for every scalar list of
 length at least two with distinct squares, over optional-preimage (`Option X`) homogeneous

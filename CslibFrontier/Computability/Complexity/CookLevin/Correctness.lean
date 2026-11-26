@@ -85,15 +85,10 @@ private theorem eval_inputClauses (t j : ℕ) :
       · simp only [inputAt, show j ≠ 0 by omega, ite_false]
         exact List.getElem?_eq_none (by simp only [List.length_append, length_certWord]; omega)
     simp [this]
-  · have : inputAt (u ++ certWord σ L) j = u[j - 1]? := by
-      simp only [inputAt, show j ≠ 0 by omega, ite_false]
-      exact List.getElem?_append_left (by omega)
-    simp [this]
-  · have : inputAt (u ++ certWord σ L) j = some (σ (.cert (j - 1 - u.length))) := by
-      simp only [inputAt, show j ≠ 0 by omega, ite_false]
-      rw [List.getElem?_append_right (by omega)]
-      simp [certWord, List.getElem?_map, List.getElem?_range (show j - 1 - u.length < L by omega)]
-    rw [this]
+  · rw [inputAt, ite_eq_right (by omega), List.getElem?_append_left (by omega)]
+    simp
+  · rw [inputAt, ite_eq_right (by omega), List.getElem?_append_right (by omega), certWord,
+      List.getElem?_map, List.getElem?_range (by omega), Option.map_some]
     cases hc : σ (.cert (j - 1 - u.length)) <;> cases hp : σ (.holds t (.inPos j)) <;>
       simp [hc, hp]
 
@@ -228,8 +223,7 @@ private theorem Agrees.step {cfg : Cfg k Bool State (u ++ certWord σ L)} {t : �
   obtain ⟨c, hc, hct⟩ := (holds_step_iff_exists_stepTerms tm hlen hb hφ).1 hφs
   refine (eval_stepClauses t).1 hstep φ hφ c hc fun l hl => ?_
   rcases mem_basic_of_mem_stepTerms tm hφ hc hl with hlb | ⟨y, rfl⟩
-  · rw [Bool.eq_iff_iff, hA _ hlb]
-    exact hct l hl
+  · exact Bool.eq_iff_iff.2 ((hA _ hlb).trans (hct l hl))
   · exact hA.sit hb hread hsit ((hct _ hl).2 rfl)
 
 /-- A satisfying assignment describes the run on the certificate it encodes, up to time `T`. -/
@@ -345,10 +339,8 @@ theorem tableau_satisfiable_iff :
       ∃ w : List Bool, w.length = L ∧ (tm.runFrom (tm.initCfg (u ++ w)) T).state = none ∧
         (tm.runFrom (tm.initCfg (u ++ w)) T).output = [true] := by
   refine ⟨fun ⟨σ, h⟩ => ⟨certWord σ L, length_certWord σ L,
-    exists_eval_tableau_iff.1 ⟨σ, by simp, by simpa using h⟩⟩, ?_⟩
-  rintro ⟨_, rfl, h⟩
-  obtain ⟨σ, -, hσ⟩ := exists_eval_tableau_iff.2 h
-  exact ⟨σ, hσ⟩
+    exists_eval_tableau_iff.1 ⟨σ, by simp, by simpa using h⟩⟩, fun ⟨_, hL, h⟩ => ?_⟩
+  exact (exists_eval_tableau_iff.2 h).imp fun _ hσ => hL ▸ hσ.2
 
 end Completeness
 

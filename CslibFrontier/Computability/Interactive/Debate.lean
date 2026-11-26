@@ -313,10 +313,8 @@ private theorem ev_query (law : List Bool → PMF Bool) (bits : List Bool) :
 /-- The law of the honest coin on a nonzero grid is uniform. -/
 private theorem ev_uniformCoin {N : ℕ} [NeZero N] (law : List Bool → PMF Bool) :
     ev law (uniformCoin N) = PMF.uniformOfFintype (ZMod N) := by
-  rw [ev]
-  simp only [uniformCoin, NeZero.ne N, ↓reduceDIte]
-  rw [OracleComp.evalWith_eq_interpret, ProbOracleComp.interpret_sample,
-    ← OracleComp.evalWith_eq_interpret]
+  rw [ev, uniformCoin, dite_eq_right (NeZero.ne N), OracleComp.evalWith_eq_interpret,
+    ProbOracleComp.interpret_sample, ← OracleComp.evalWith_eq_interpret]
   exact ProbComp.eval_uniform (ZMod N)
 
 /-! ### Sample counts -/
@@ -426,9 +424,7 @@ private theorem countLaw_tail (ν : PMF Bool) {n : ℕ} (hn : 0 < n) {e : ℝ} (
     have hmean : (∑ _i : Fin n, ∑ a, (ν a).toReal * if a = true then (1 : ℝ) else 0) =
         n * (ν true).toReal := by simp
     simp only [Set.mem_preimage, Set.mem_ofPred_eq, hsum, hmean]
-    rw [show (trueCount v : ℝ) / n - (ν true).toReal =
-        ((trueCount v : ℝ) - n * (ν true).toReal) / n by field_simp,
-      abs_div, abs_of_pos hn', le_div_iff₀ hn', mul_comm]
+    rw [div_sub' hn'.ne', abs_div, abs_of_pos hn', le_div_iff₀ hn', mul_comm]
   rwa [hsets]
 
 private theorem sampleCount_pos {e f : ℝ} (he : 0 < e) (hf0 : 0 < f) (hf : f < 2) :
@@ -439,13 +435,10 @@ private theorem sampleCount_pos {e f : ℝ} (he : 0 < e) (hf0 : 0 < f) (hf : f <
 
 private theorem two_mul_exp_sampleCount_le {e f : ℝ} (he : 0 < e) (hf0 : 0 < f) :
     2 * Real.exp (-2 * sampleCount e f * e ^ 2) ≤ f := by
-  have hpos : 0 < 2 * e ^ 2 := by positivity
-  have hceil : -Real.log (f / 2) / (2 * e ^ 2) ≤ sampleCount e f := Nat.le_ceil _
-  rw [div_le_iff₀ hpos] at hceil
-  have hexp : Real.exp (-2 * sampleCount e f * e ^ 2) ≤ f / 2 := by
-    rw [← Real.exp_log (show (0 : ℝ) < f / 2 by positivity)]
-    exact Real.exp_le_exp.2 (by nlinarith)
-  linarith
+  have hceil : -Real.log (f / 2) ≤ sampleCount e f * (2 * e ^ 2) :=
+    (div_le_iff₀ (by positivity)).1 (Nat.le_ceil _)
+  rw [← le_div_iff₀' two_pos, ← Real.exp_log (half_pos hf0)]
+  exact Real.exp_le_exp.2 (by linarith)
 
 /-- With `sampleCount e f` samples the sample mean is off by `e` or more with probability at
 most `f`. -/
@@ -563,15 +556,15 @@ private theorem ev_verdict (law : List Bool → PMF Bool) (P : Params) (bits : L
     ev law (verdict P bits claim) =
       (countLaw (law bits) P.verifierSamples).map fun count : Fin (P.verifierSamples + 1) =>
         decide (|(claim.val : ℝ) / P.grid - (count.val : ℝ) / P.verifierSamples| <
-          P.verifierTolerance) := by
-  exact (ev_bind _ _ _).trans (by rw [ev_countTrue]; rfl)
+          P.verifierTolerance) :=
+  (ev_bind _ _ _).trans (by rw [ev_countTrue]; rfl)
 
 /-- The law of the honest proposer's claim. -/
 private theorem ev_honestProposer_claim (law : List Bool → PMF Bool) (P : Params)
     (history : History P.grid) (state : (honestProposer P).State) :
     ev law (((honestProposer P).claim history).run state) =
-      (countLaw (law history.bits) P.grid).map fun count => (count, state) := by
-  exact (ev_bind _ _ _).trans (by rw [ev_countTrue]; rfl)
+      (countLaw (law history.bits) P.grid).map fun count => (count, state) :=
+  (ev_bind _ _ _).trans (by rw [ev_countTrue]; rfl)
 
 /-- The law of the honest challenger's decision to abort. -/
 private noncomputable def abortLaw (P : Params) (ν : PMF Bool) (claim : Fin (P.grid + 1)) :
@@ -612,7 +605,7 @@ private theorem mix_le_of_le {x x' z z' a b : ℝ≥0∞} (hx : x + x' = 1) (hz 
     (hxz : x ≤ z) (hba : b ≤ a) : x * a + x' * b ≤ z * a + z' * b := by
   obtain ⟨d, rfl⟩ := exists_add_of_le hxz
   have hx_top : x ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top (hx ▸ le_self_add)
-  rw [(ENNReal.add_right_inj hx_top).1 (by rw [hx, ← hz, add_assoc] : x + x' = x + (d + z'))]
+  rw [(ENNReal.add_right_inj hx_top).1 ((hx.trans hz.symm).trans (add_assoc x d z'))]
   calc x * a + (d + z') * b = x * a + z' * b + d * b := by ring
     _ ≤ x * a + z' * b + d * a := by gcongr
     _ = (x + d) * a + z' * b := by ring
@@ -622,7 +615,7 @@ private theorem mix_le_of_ge {x x' z z' a b : ℝ≥0∞} (hx : x + x' = 1) (hz 
     (hzx : z ≤ x) (hab : a ≤ b) : x * a + x' * b ≤ z * a + z' * b := by
   obtain ⟨d, rfl⟩ := exists_add_of_le hzx
   have hz_top : z ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top (hz ▸ le_self_add)
-  rw [(ENNReal.add_right_inj hz_top).1 (by rw [hz, ← hx, add_assoc] : z + z' = z + (d + x'))]
+  rw [(ENNReal.add_right_inj hz_top).1 ((hz.trans hx.symm).trans (add_assoc z d x'))]
   calc (z + d) * a + x' * b = z * a + x' * b + d * a := by ring
     _ ≤ z * a + x' * b + d * b := by gcongr
     _ = z * a + (d + x') * b := by ring
@@ -815,12 +808,6 @@ private theorem reject_ge (law : List Bool → PMF Bool) (P : Params) [NeZero P.
     simp only [ev_honestChallenger_abort, PMF.bind_map, Function.comp_def]
     rw [PMF.bind_apply]
     simp only [PMF.bind_apply, tsum_bool, Bool.false_eq_true, ite_false, ite_true]
-    have hIH (coinA : ZMod P.grid) :
-        (1 - vc) * (1 - qc) ^ n *
-            rejectValue law b n (coinBit x.1 coinA coinB :: history.bits) ≤
-          ev law (runFrom P A (honestChallenger P) n (⟨x.1, coinA, coinB⟩ :: history) x.2
-            stateB) false :=
-      reject_ge law P A hsb h1 h2 h3 n (⟨x.1, coinA, coinB⟩ :: history) x.2 stateB
     have ha := PMF.apply_true_add_apply_false (abortLaw P (law history.bits) x.1)
     have hv := PMF.apply_true_add_apply_false (ev law (verdict P history.bits x.1))
     have hbit : (bitLawLeft x.1 coinB true).toReal = (x.1.val : ℝ) / P.grid := by
@@ -859,7 +846,9 @@ private theorem reject_ge (law : List Bool → PMF Bool) (P : Params) [NeZero P.
           rw [tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul, add_comm]
           congr 1
           exact tsum_congr fun coinA => by ring
-      _ ≤ _ := tsum_le_tsum fun coinA => by gcongr; exact hIH coinA
+      _ ≤ _ := tsum_le_tsum fun coinA => by
+          gcongr
+          exact reject_ge law P A hsb h1 h2 h3 n (⟨x.1, coinA, coinB⟩ :: history) x.2 stateB
 
 /-! ### Completeness -/
 
@@ -929,9 +918,8 @@ private theorem accept_ge (law : List Bool → PMF Bool) (P : Params) [NeZero P.
       rw [lawFrom, PMF.bind_apply, tsum_bool, add_comm]
     rw [ev_runFrom_succ, ev_honestProposer_claim, PMF.bind_map, PMF.bind_apply, hlaw,
       ← tsum_countLaw_mul_mix (law history.bits) (N := P.grid), ← ENNReal.tsum_mul_left]
-    simp only [Function.comp_def, mul_left_comm (1 - vc) (countLaw _ _ _), Nat.cast_add,
-      Nat.cast_one, show (1 - vc) * ((n : ℝ≥0∞) + 1) * qc = (1 - vc) * n * qc + (1 - vc) * qc
-        by ring]
+    simp only [Function.comp_def, mul_left_comm (1 - vc) (countLaw _ _ _)]
+    conv_rhs => rw [Nat.cast_add, Nat.cast_one, mul_add, mul_one, add_mul]
     refine tsum_mul_le_tsum_mul_add_of_far _
       {k | c ≤ |(k.val : ℝ) / P.grid - (law history.bits true).toReal|}
       (fun k hk => ?_) (fun k _ => ?_) (hfar history.bits)
@@ -958,10 +946,9 @@ private theorem accept_ge (law : List Bool → PMF Bool) (P : Params) [NeZero P.
         exact ((mul_le_of_le_one_right' (PMF.coe_le_one _ _)).trans
           (one_sub_le_of_add_eq_one ((add_comm _ _).trans hv) (hver _ _ hk'.le))).trans le_self_add
     · have hT := map_coinBit_uniformOfFintype_right k (0 : ZMod P.grid)
-      have hF := apply_false_of_apply_true k _ hT
-      rw [← hT, ← hF]
+      rw [← hT, ← apply_false_of_apply_true k _ hT]
       exact mul_le_of_le_one_right' (mix_le_one (bitLawRight k 0)
-        (u := fun bit => lawFrom law n (bit :: history.bits) true) fun bit => PMF.coe_le_one _ _)
+        (u := fun bit => lawFrom law n (bit :: history.bits) true) fun _ => PMF.coe_le_one _ _)
 
 /-! ### The default parameters -/
 
@@ -1086,10 +1073,12 @@ theorem completeness_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ) {law : List Bo
     ENNReal.toReal_ofReal (by positivity), ENNReal.toReal_natCast, Nat.cast_add, Nat.cast_one]
     at hreal
   have hslack : (1 - 1 / 100 : ℝ) * ((T : ℝ) + 1) * (1 / (100 * (T + 1))) = 99 / 10000 := by
-    field_simp; ring
+    field_simp
+    ring
   rw [hslack] at hreal
-  rw [← ENNReal.toReal_le_toReal (ENNReal.div_ne_top (by simp) (by simp)) hfin]
-  linarith [show ((3 / 5 : ℝ≥0∞)).toReal = 3 / 5 by simp]
+  rw [← ENNReal.toReal_le_toReal (ENNReal.div_ne_top (by simp) (by simp)) hfin, ENNReal.toReal_div,
+    ENNReal.toReal_ofNat, ENNReal.toReal_ofNat]
+  linarith
 
 /-- **Soundness, as a step.** A step toward [BrownCohenIrvingPiliouras2024, Theorem 6.2], not
 that theorem: if the output of a `(T + 1)`-step computation is `K`-Lipschitz in its whole step
@@ -1136,26 +1125,23 @@ theorem soundness_of_lipschitzAt_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ)
     (ev law (run (Params.default K T) A (honestChallenger (Params.default K T))))
   have hclose' := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hUtop,
     ENNReal.mul_ne_top ENNReal.coe_ne_top ENNReal.ofReal_ne_top⟩) hclose
+  have hK20 : (K : ℝ) * (5 / (100 * (K : ℝ))) = 1 / 20 := by
+    field_simp
+    ring
   rw [ENNReal.toReal_add hUtop (ENNReal.mul_ne_top ENNReal.coe_ne_top ENNReal.ofReal_ne_top),
-    ENNReal.toReal_mul, ENNReal.coe_toReal, ENNReal.toReal_ofReal (by positivity),
-    show (K : ℝ) * (5 / (100 * (K : ℝ))) = 1 / 20 by field_simp; ring] at hclose'
+    ENNReal.toReal_mul, ENNReal.coe_toReal, ENNReal.toReal_ofReal (by positivity), hK20] at hclose'
+  have h1 : 1 / (100 * ((T : ℝ) + 1)) ≤ 1 := (div_le_one (by positivity)).2 (by linarith)
   have hrej' := ENNReal.toReal_mono (PMF.apply_ne_top _ _) hrej
   rw [ENNReal.toReal_mul, ENNReal.toReal_mul, ENNReal.toReal_pow,
     toReal_one_sub_ofReal (by norm_num) (by norm_num),
-    toReal_one_sub_ofReal (by positivity) ((div_le_one (by positivity)).2 (by linarith))]
-    at hrej'
+    toReal_one_sub_ofReal (by positivity) h1] at hrej'
   have hbern : (99 / 100 : ℝ) ≤ (1 - 1 / (100 * ((T : ℝ) + 1))) ^ (T + 1) := by
-    have h := one_add_mul_le_pow (a := -(1 / (100 * ((T : ℝ) + 1))))
-      (by linarith [show (0 : ℝ) < 1 / (100 * ((T : ℝ) + 1)) by positivity,
-        default_failure_lt_two T]) (T + 1)
-    rw [Nat.cast_add, Nat.cast_one,
-      show ((T : ℝ) + 1) * -(1 / (100 * ((T : ℝ) + 1))) = -(1 / 100) by field_simp,
-      ← sub_eq_add_neg, ← sub_eq_add_neg] at h
+    have h := one_add_mul_le_pow (a := -(1 / (100 * ((T : ℝ) + 1)))) (by linarith [h1]) (T + 1)
+    have hcancel : ((T : ℝ) + 1) * -(1 / (100 * ((T : ℝ) + 1))) = -(1 / 100) := by field_simp
+    rw [Nat.cast_add, Nat.cast_one, hcancel, ← sub_eq_add_neg, ← sub_eq_add_neg] at h
     linarith
-  have hU' : (37 / 60 : ℝ) ≤ (rejectValue law (5 / (100 * (K : ℝ))) (T + 1) []).toReal := by
-    linarith
-  rw [← ENNReal.toReal_le_toReal (PMF.apply_ne_top _ _)
-    (ENNReal.div_ne_top (by simp) (by simp))]
-  nlinarith [hbern, hU', show ((2 / 5 : ℝ≥0∞)).toReal = 2 / 5 by simp]
+  rw [← ENNReal.toReal_le_toReal (PMF.apply_ne_top _ _) (by finiteness), ENNReal.toReal_div,
+    ENNReal.toReal_ofNat, ENNReal.toReal_ofNat]
+  nlinarith [hbern]
 
 end Cslib.Interactive.Debate

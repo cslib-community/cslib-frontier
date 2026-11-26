@@ -147,10 +147,8 @@ private theorem gossipReplicaStates_le_of_forall_le {P S : Type*} [DecidableEq P
   | nil => exact h
   | cons hop tl ih =>
     obtain ⟨src, dst⟩ := hop
-    refine ih (Function.update cfg dst (cfg dst ⊔ cfg src)) fun p => ?_
-    by_cases hpd : p = dst
-    · subst hpd; simp [sup_le (h p) (h src)]
-    · simp [Function.update_of_ne hpd, h p]
+    refine ih _ fun p => ?_
+    rcases eq_or_ne p dst with rfl | hpd <;> simp [*, sup_le (h _) (h _)]
 
 /-- Distributed state of replicas running a semilattice `CvRDT` alongside an irrevocable output
 accumulator `emitted : P → Finset Fact` (modeling append-only transition outputs
@@ -281,14 +279,11 @@ theorem _root_.Monotone.semilatticeCoordinationFreeConsistent [Nonempty P]
 theorem semilatticeCoordinationFreeConsistent_iff_monotone [Nontrivial P]
     {emit : S → Finset Fact} :
     SemilatticeCoordinationFreeConsistent P emit ↔ Monotone emit := by
-  constructor
-  · intro hcfc s₁ s₂ hs f hf
-    obtain ⟨p₁, p₂, hp₁₂⟩ := exists_pair_ne P
-    -- Split-brain partition: `p₁` holds `s₁` while every peer `q ≠ p₁` (including `p₂`) holds `s₂`.
-    have hsub := hcfc (fun q => if q = p₁ then s₁ else s₂) [] p₁
-    rw [globalMergedState_splitBrain hp₁₂ hs] at hsub
-    exact hsub (by simpa [runGossipEmit, initIrrevocableState] using hf)
-  · exact Monotone.semilatticeCoordinationFreeConsistent
+  refine ⟨fun hcfc s₁ s₂ hs f hf => ?_, Monotone.semilatticeCoordinationFreeConsistent⟩
+  obtain ⟨p₁, _, hp₁₂⟩ := exists_pair_ne P
+  -- Split-brain partition: `p₁` holds `s₁` while every peer `q ≠ p₁` (including `p₂`) holds `s₂`.
+  exact globalMergedState_splitBrain hp₁₂ hs ▸
+    hcfc (fun q => if q = p₁ then s₁ else s₂) [] p₁ (by simpa [runGossipEmit, initIrrevocableState])
 
 omit [Fintype P] in
 private theorem foldl_hops_achieves_pairs (emit : S → Finset Fact)
@@ -301,15 +296,11 @@ private theorem foldl_hops_achieves_pairs (emit : S → Finset Fact)
     obtain ⟨u, v⟩ := hd
     intro src dst hmem
     let st₁ := gossipEmitStep emit st (u, v)
-    obtain ⟨hmono_tl, _⟩ := foldl_gossipEmitStep_mono emit st₁ tl
     rcases List.mem_cons.mp hmem with hhd | htl
-    · rcases Prod.mk.inj hhd with ⟨rfl, rfl⟩
-      have huv : st.replica src ≤ st₁.replica dst := by
-        simp [st₁, gossipEmitStep, le_sup_right]
-      exact le_trans huv (hmono_tl dst)
-    · have hu_le : st.replica src ≤ st₁.replica src :=
-        (foldl_gossipEmitStep_mono emit st [(u, v)]).1 src
-      exact le_trans hu_le (ih st₁ src dst htl)
+    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj hhd
+      exact le_trans (by simp [st₁, gossipEmitStep, le_sup_right])
+        ((foldl_gossipEmitStep_mono emit st₁ tl).1 dst)
+    · exact le_trans ((foldl_gossipEmitStep_mono emit st [(u, v)]).1 src) (ih st₁ src dst htl)
 
 /-- Under `Monotone emit`, any gossip schedule `hops` that covers every ordered pair `(src, dst)`
 (`∀ src dst, (src, dst) ∈ hops`) converges every replica `p`'s state to `globalMergedState cfg` and
@@ -357,23 +348,19 @@ theorem semilatticeCoordinationFreeConsistent_of_subsingleton [Nonempty P] [Subs
     (emit : S → Finset Fact) :
     SemilatticeCoordinationFreeConsistent P emit := by
   intro cfg hops p
-  have hcfg_const : ∀ q, cfg q = cfg p := fun q => congrArg cfg (Subsingleton.elim q p)
   have hglob : globalMergedState cfg = cfg p :=
-    le_antisymm (Finset.sup'_le _ _ fun q _ => (hcfg_const q).le)
+    le_antisymm (Finset.sup'_le _ _ fun q _ => (congrArg cfg (Subsingleton.elim q p)).le)
       (Finset.le_sup' cfg (Finset.mem_univ p))
-  have hinv : ∀ (l : List (P × P)) (st : IrrevocableReplicaState P S Fact),
-      (∀ q, st.replica q = cfg p) → (∀ q, st.emitted q = emit (cfg p)) →
-      ∀ q, (l.foldl (gossipEmitStep emit) st).emitted q = emit (cfg p) := by
-    intro l
-    induction l with
-    | nil => exact fun _ _ hem q => hem q
+  have hinv (l : List (P × P)) (st : IrrevocableReplicaState P S Fact)
+      (hrep : st.replica p = cfg p) (hem : st.emitted p = emit (cfg p)) :
+      (l.foldl (gossipEmitStep emit) st).emitted p = emit (cfg p) := by
+    induction l generalizing st with
+    | nil => exact hem
     | cons hop tl ih =>
-      intro st hrep hem
-      obtain ⟨src, dst⟩ := hop
-      refine ih (gossipEmitStep emit st (src, dst)) (fun q => ?_) (fun q => ?_) <;>
-        simp [gossipEmitStep, Function.update_apply, hrep, hem]
-  rw [runGossipEmit, hinv hops (initIrrevocableState emit cfg) hcfg_const
-    (fun q => congrArg emit (hcfg_const q)) p, hglob]
+      exact ih _
+        (by simp [gossipEmitStep, Subsingleton.elim hop.1 p, Subsingleton.elim hop.2 p, hrep])
+        (by simp [gossipEmitStep, Subsingleton.elim hop.1 p, Subsingleton.elim hop.2 p, hrep, hem])
+  rw [runGossipEmit, hinv hops _ rfl rfl, hglob]
 
 end IrrevocableCharacterization
 
@@ -406,13 +393,10 @@ theorem semilatticeObservableConsistent_iff_monotone {P S Out : Type*}
     [Fintype P] [DecidableEq P] [Nontrivial P] [SemilatticeSup S] [Preorder Out]
     {q : S → Out} :
     SemilatticeObservableConsistent P q ↔ Monotone q := by
-  constructor
-  · intro hobs s₁ s₂ hs
-    obtain ⟨p₁, p₂, hp₁₂⟩ := exists_pair_ne P
-    have hle := hobs (fun r => if r = p₁ then s₁ else s₂) [] p₁
-    rw [globalMergedState_splitBrain hp₁₂ hs] at hle
-    simpa [gossipReplicaStates] using hle
-  · exact Monotone.semilatticeObservableConsistent
+  refine ⟨fun hobs s₁ s₂ hs => ?_, Monotone.semilatticeObservableConsistent⟩
+  obtain ⟨p₁, _, hp₁₂⟩ := exists_pair_ne P
+  simpa [gossipReplicaStates, globalMergedState_splitBrain hp₁₂ hs] using
+    hobs (fun r => if r = p₁ then s₁ else s₂) [] p₁
 
 /-! ### Positive Monotone CRDT Query Instantiations -/
 

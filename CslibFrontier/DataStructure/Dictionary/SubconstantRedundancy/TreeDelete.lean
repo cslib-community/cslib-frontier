@@ -175,9 +175,8 @@ private theorem DeletePrefixPost.storeLvl_iff
     {j : ℕ} (hj : ℓ < j) :
     (storeLvl' w = j ↔ storeLvl w = j) ∧ (storeLvl' w < j ↔ storeLvl w < j) := by
   by_cases hw : w ∈ P.paddedDom d
-  · have hw' := mem_erase.mpr ⟨hwz, hw⟩
-    have := hpost.storeLvl_le_bounds w hw'
-    have := hpost.storeLvl_gt_eq w hw'
+  · have := hpost.storeLvl_le_bounds w (mem_erase.mpr ⟨hwz, hw⟩)
+    have := hpost.storeLvl_gt_eq w (mem_erase.mpr ⟨hwz, hw⟩)
     omega
   · simp [hpost.storeLvl_outside w (mt mem_of_mem_erase hw), hwf.storeLvl_outside w hw]
 
@@ -403,8 +402,7 @@ private theorem DeletePrefixPost.replaceAtNode
     rw [Function.update_of_ne hwz] at hslw
     by_cases hwy : w = y
     · subst hwy
-      rw [Function.update_self] at hslw
-      subst hslw
+      obtain rfl : m + 2 = j := by rwa [Function.update_self] at hslw
       obtain rfl : u = u₀ := hnw.symm.trans (SeedAssignment.mem_activeAt_iff.mp hy).2
       rw [nodeQuery_replaceAtNode_same scheme _ hj1 h2 hℓ _ _ _ _ _ _ hold hnew,
         Function.update_self, Option.some.inj (hdy.symm.trans hdw)]
@@ -509,13 +507,10 @@ theorem deleteAndGetQuotient_spec
           by_contra hne_lvl
           cases (hwf.wait_lookup_eq (m + 2) h2 hℓ u_cur z hz_act (by omega)).symm.trans hlk
         have hne_wait : (st.nodeWait (m + 2) h2 hℓ u_cur).dom.Nonempty := by
-          have hload_cur := hloads (m + 2) h2 le_rfl
-          rw [P.ancestorAt_refl] at hload_cur
+          have hload_cur := P.ancestorAt_refl u_cur ▸ hloads (m + 2) h2 le_rfl
           exact card_pos.mp (by rw [card_nodeWait_dom_eq hwf h2 hℓ u_cur]; omega)
-        dsimp only
-        rw [hwf.query_eq_of_storeLvl (m + 2) h1 hℓ u_cur z vz hdz hnz hslz_eq, Option.getD_some,
-          dite_eq_left hne_wait]
-        dsimp only
+        simp only [hwf.query_eq_of_storeLvl (m + 2) h1 hℓ u_cur z vz hdz hnz hslz_eq,
+          Option.getD_some, dite_eq_left hne_wait]
         -- the popped entry belongs to some key `y` waiting at `u_cur`
         obtain ⟨y, hy_filt, hy_id⟩ := mem_image.mp
           (hwf.wait_dom_eq (m + 2) h2 hℓ u_cur ▸ WaitingList.pop_fst_mem_dom _ hne_wait)
@@ -528,7 +523,7 @@ theorem deleteAndGetQuotient_spec
         obtain ⟨hq_rec, hv_rec, storeLvl_y, hpost_y⟩ :=
           ih h1_prev hlt_prev.le _ y vy hdy (hprev y hny) (by omega) hloads_prev
         rw [hy_prev, hq_rec, hv_rec, stepCoordEquiv_quotAt st.seeds h1_prev hlt_prev u_cur y hny]
-        exact ⟨rfl, rfl, _, hpost_y.replaceAtNode hwf hz_act hslz_eq hy_act hsly hdy hy_id
+        exact ⟨trivial, trivial, _, hpost_y.replaceAtNode hwf hz_act hslz_eq hy_act hsly hdy hy_id
           (WaitingList.dom_pop_snd _ _) (WaitingList.lookup_pop_snd _ _)⟩
       -- Branch 1: `z` is in the waiting list, so `storeLvl z < m + 2`
       · have hslz_lt : storeLvl z < m + 2 := by

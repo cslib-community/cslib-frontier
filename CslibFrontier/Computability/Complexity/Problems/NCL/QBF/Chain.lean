@@ -118,14 +118,9 @@ private theorem mem_of_neg (q : Quantifier) {t : q.gadget.Edge → Bool}
 
 private theorem literals_le (q : Quantifier) {t : q.gadget.Edge → Bool}
     (ht : (q.gadget.graph Gate.interp).Legal t) (htry : t (q.gadget.bottom 1) = true) :
-    List.Forall₂ (· ≤ ·) [t (q.gadget.bottom 2), t (q.gadget.bottom 3)] [t q.mem, !t q.mem] := by
-  refine .cons ?_ (.cons ?_ .nil)
-  · cases hp : t (q.gadget.bottom 2) with
-    | false => exact Bool.false_le _
-    | true => rw [q.mem_of_pos ht htry hp]
-  · cases hn : t (q.gadget.bottom 3) with
-    | false => exact Bool.false_le _
-    | true => rw [q.mem_of_neg ht htry hn]; exact le_rfl
+    List.Forall₂ (· ≤ ·) [t (q.gadget.bottom 2), t (q.gadget.bottom 3)] [t q.mem, !t q.mem] :=
+  .cons (Bool.le_iff_imp.2 (q.mem_of_pos ht htry))
+    (.cons (Bool.le_iff_imp.2 fun hn => by rw [q.mem_of_neg ht htry hn]; rfl) .nil)
 
 end Quantifier
 
@@ -471,11 +466,10 @@ theorem truth_of_reachable : ∀ (qs : List Quantifier) (r : List Color)
             Function.comp_def] using hadm v hv)
         (fun v w hv hvw => tail_context_eq r q qs o context hvw (hf v w hv hvw))
         (fun v hv hfinal => by
-          have hm' := hm v hv (by
-            simpa only [List.length_cons, control_cons_succ, Occurrence.emb_trans,
-              Function.comp_def] using hfinal)
           simpa only [memories, Occurrence.emb_trans, Function.comp_def, List.append_assoc,
-            List.cons_append, List.nil_append] using hm')
+            List.cons_append, List.nil_append] using hm v hv (by
+              simpa only [List.length_cons, control_cons_succ, Occurrence.emb_trans,
+                Function.comp_def] using hfinal))
         hu hsat') h hsat
 
 end Chain

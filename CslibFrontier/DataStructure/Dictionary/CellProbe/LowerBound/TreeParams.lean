@@ -45,9 +45,8 @@ open Cslib.CellProbe Cslib.DataStructure Cslib.DataStructure.Dictionary
 
 theorem real_le_logb_of_two_pow_le {M U : ℕ} (h : 2 ^ M ≤ U) :
     (M : ℝ) ≤ Real.logb 2 U := by
-  have h1 : (2 : ℝ) ^ M ≤ (U : ℝ) := by exact_mod_cast h
-  have hl := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2) (by positivity) h1
-  rwa [Real.logb_pow, Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2), mul_one] at hl
+  simpa only [Real.logb_pow, Real.logb_self_eq_one one_lt_two, mul_one] using
+    Real.logb_le_logb_of_le one_lt_two (by positivity) (by exact_mod_cast h : (2 : ℝ) ^ M ≤ U)
 
 theorem logb_le_real_of_le_two_pow {x : ℝ} {k : ℕ} (hx : 0 < x) (h : x ≤ (2 : ℝ) ^ k) :
     Real.logb 2 x ≤ (k : ℝ) := by
@@ -104,9 +103,8 @@ theorem logb_le_rpow_of_ge_pow {γ : ℝ} (hγ : 0 < γ) {n : ℕ}
   clear hM_def
   have hn1 : 1 ≤ n := (Nat.one_le_pow _ _ Nat.two_pos).trans hn_big
   set L := Nat.log 2 n
-  have hL_ge : 2 * M * (2 * M + 2) ≤ L := by
-    have h1 := Nat.log_mono_right (b := 2) hn_big
-    rwa [Nat.log_pow Nat.one_lt_two] at h1
+  have hL_ge : 2 * M * (2 * M + 2) ≤ L :=
+    (Nat.log_pow Nat.one_lt_two _).symm.trans_le (Nat.log_mono_right hn_big)
   set q := L / (2 * M)
   have hq_ge : 2 * M + 2 ≤ q := (Nat.le_div_iff_mul_le (by positivity)).mpr
     (by rw [mul_comm]; exact hL_ge)
@@ -189,9 +187,8 @@ theorem iterLog_tree_bounds {γ c_R : ℝ} (hγ : 0 < γ) (hγ1 : γ ≤ 1) (hcR
   have hb1_mul : (c_tree - 2) * n * Nat.iterLog k' n ≤ T.blockSize 1 * Nat.iterLog 1 n := by
     have hm := mul_iterLog_le_blockSize_one_add_iterLogMetaTree hn k' c_tree
     rw [hT_def, Nat.mul_assoc] at hm
-    rw [Nat.mul_assoc, Nat.sub_mul]
     rw [Nat.mul_assoc] at h2n_le
-    omega
+    rw [Nat.mul_assoc, Nat.sub_mul]; omega
   have hn_le_b1 : (n : ℝ) ≤ (T.blockSize 1 : ℝ) * Real.logb 2 n := by
     have h1 : n ≤ T.blockSize 1 * Nat.iterLog 1 n :=
       (Nat.le_mul_of_pos_left n (by omega : 0 < c_tree - 2)).trans
@@ -243,8 +240,7 @@ theorem iterLog_tree_bounds {γ c_R : ℝ} (hγ : 0 < γ) (hγ1 : γ ≤ 1) (hcR
     have hmul : (T.fanout (ℓ + 1) : ℝ) * (2 / γ) ≤ Real.logb 2 U :=
       (mul_le_mul_of_nonneg_left h2_div (Nat.cast_nonneg _)).trans
         (by rw [← Nat.cast_mul]; exact (Nat.cast_le.mpr hfm1).trans hlog1_logU)
-    have hdiv := (le_div_iff₀ (by positivity : 0 < 2 / γ)).mpr hmul
-    exact hdiv.trans_eq (by field_simp)
+    exact ((le_div_iff₀ (div_pos zero_lt_two hγ)).mpr hmul).trans_eq (by field_simp)
   have hct_sub : ((c_tree - 2 : ℕ) : ℝ) = (c_tree : ℝ) - 2 := by
     rw [Nat.cast_sub (by clear hF_lo; omega)]; norm_num
   set R := c_R * (n : ℝ) * (Nat.iterLog k' n : ℝ)
@@ -270,9 +266,8 @@ theorem iterLog_tree_bounds {γ c_R : ℝ} (hγ : 0 < γ) (hγ1 : γ ≤ 1) (hcR
     set x := Nat.iterLog (ℓ + 1) n
     set q := x / 3
     have h8q : 8 * q ≤ 2 ^ q := eight_mul_le_two_pow (by dsimp [q]; omega)
-    have hpow_y : 2 ^ x ≤ Nat.iterLog ℓ n := Nat.pow_log_le_self 2 fun h0 => by
-      have : x = 0 := by simp only [x, Nat.iterLog_succ, h0]; rfl
-      omega
+    have hpow_y : 2 ^ x ≤ Nat.iterLog ℓ n :=
+      Nat.pow_log_le_self 2 (Nat.ne_of_gt (lt_of_lt_of_le (by decide) hy71))
     have hmul_pow : 2 * x * 2 ^ q ≤ Nat.iterLog ℓ n :=
       calc 2 * x * 2 ^ q ≤ (8 * q) * 2 ^ q := Nat.mul_le_mul_right _ (by dsimp [q]; omega)
         _ ≤ 2 ^ q * 2 ^ q := Nat.mul_le_mul_right _ h8q
@@ -288,11 +283,9 @@ theorem iterLog_tree_bounds {γ c_R : ℝ} (hγ : 0 < γ) (hγ1 : γ ≤ 1) (hcR
       simp only [iterLogFanout, hd1, ← hidx]
       exact (hdiv_ge.trans (_root_.le_max_right _ _)).trans (Nat.le_mul_of_pos_left _ Nat.two_pos)
     have hlog_F : (x : ℝ) / 4 ≤ Real.logb 2 (T.fanout (ℓ + 1)) := by
-      have hq_log : (q : ℝ) ≤ Real.logb 2 (T.fanout (ℓ + 1)) :=
-        real_le_logb_of_two_pow_le hpow_le_F
       have hx_r : (x : ℝ) ≤ 4 * (q : ℝ) := by
         exact_mod_cast (show x ≤ 4 * q by clear hF_lo h8q; dsimp [q]; omega)
-      linarith
+      linarith [real_le_logb_of_two_pow_le hpow_le_F]
     have htel1 := blockSize_one_mul_iterLog_le_two_mul_iterLogMetaTree n k' c_tree
       (show 1 ≤ ℓ + 1 by clear hF_lo h8q; omega) hx71
     rw [hT_def] at htel1
@@ -312,19 +305,18 @@ theorem outer_budget_time_le {γ t U m : ℝ} (hγ : 0 < γ) (hm : 0 ≤ m)
   nlinarith [(div_le_iff₀ hγ).mp h11]
 
 theorem exists_gamma_query {α c_w : ℝ} (hα : 0 < α) (hcw : 0 ≤ c_w) :
-    ∃ γ : ℝ, 0 < γ ∧ γ ≤ 1 ∧ (20 + 24 * c_w) * γ = α / (1 + α) := by
-  refine ⟨α / ((20 + 24 * c_w) * (1 + α)), by positivity, ?_, ?_⟩
-  · exact (div_le_one (by positivity)).mpr (by nlinarith)
-  · field_simp
+    ∃ γ : ℝ, 0 < γ ∧ γ ≤ 1 ∧ (20 + 24 * c_w) * γ = α / (1 + α) :=
+  ⟨α / ((20 + 24 * c_w) * (1 + α)), by positivity,
+    (div_le_one (by positivity)).mpr (by nlinarith),
+    by field_simp⟩
 
 theorem exists_gamma_update {α_V c_w : ℝ} (hα_V : 0 < α_V) (hcw : 0 ≤ c_w) :
     ∃ γ : ℝ, 0 < γ ∧ γ ≤ 1 ∧ (5 + c_w) * γ ≤ min (1 / 4) (α_V / 16) := by
-  set η := min (1 / 4) (α_V / 16)
-  have hη : 0 < η := by dsimp only [η]; positivity
-  refine ⟨min (1 / 20) (η / (5 + c_w)), by positivity,
-    (min_le_left _ _).trans (by norm_num), ?_⟩
-  exact (mul_le_mul_of_nonneg_left (min_le_right _ _) (by positivity)).trans_eq
-    (mul_div_cancel₀ _ (by positivity))
+  have hη : 0 < min (1 / 4) (α_V / 16) := by positivity
+  exact ⟨min (1 / 20) (min (1 / 4) (α_V / 16) / (5 + c_w)), by positivity,
+    (min_le_left _ _).trans (by norm_num),
+    (mul_le_mul_of_nonneg_left (min_le_right _ _) (by positivity)).trans_eq
+      (mul_div_cancel₀ _ (by positivity))⟩
 
 theorem le_expectedSeqProbes_query_of_det {U V n cells w : ℕ}
     (hU : 2 * n ≤ U) (hV : 1 ≤ V) {B : ℝ}
@@ -380,24 +372,19 @@ theorem combine_iterLogStar_and_sublinear {c₁ c₂ L R E : ℝ} {n : ℕ}
     (mul_le_mul_of_nonneg_right
       (mul_le_mul_of_nonneg_right (min_le_left c₁ c₂) (Nat.cast_nonneg n)) hL_nn).trans hb₁
   have hm₂ : min c₁ c₂ * (n : ℝ) * max 0 (Real.logb 2 ((n : ℝ) / max R 1)) ≤ E := by
+    have hmax_pos : 0 < max R 1 := lt_of_lt_of_le zero_lt_one (_root_.le_max_right R 1)
     by_cases hRn : R ≤ (n : ℝ)
-    · have hdiv1 : 1 ≤ (n : ℝ) / max R 1 :=
-        (one_le_div (lt_of_lt_of_le zero_lt_one (_root_.le_max_right R 1))).mpr
-          (max_le hRn (by exact_mod_cast (show 1 ≤ n by omega)))
-      have hlog_nn : 0 ≤ Real.logb 2 ((n : ℝ) / max R 1) := Real.logb_nonneg (by norm_num) hdiv1
+    · have hlog_nn : 0 ≤ Real.logb 2 ((n : ℝ) / max R 1) :=
+        Real.logb_nonneg (by norm_num)
+          ((one_le_div hmax_pos).mpr (max_le hRn (Nat.one_le_cast.mpr (by omega))))
       rw [max_eq_right hlog_nn]
       exact (mul_le_mul_of_nonneg_right
         (mul_le_mul_of_nonneg_right (min_le_right c₁ c₂) (Nat.cast_nonneg n)) hlog_nn).trans
         (hb₂ hRn)
-    · push Not at hRn
-      have hdiv_le : (n : ℝ) / max R 1 ≤ 1 :=
-        (div_le_one (lt_of_lt_of_le zero_lt_one (_root_.le_max_right R 1))).mpr
-          (hRn.le.trans (_root_.le_max_left R 1))
-      have hlog_np : Real.logb 2 ((n : ℝ) / max R 1) ≤ 0 :=
-        Real.logb_nonpos (by norm_num) (div_nonneg (Nat.cast_nonneg n)
-          (le_trans zero_le_one (_root_.le_max_right R 1))) hdiv_le
-      rw [max_eq_left hlog_np, mul_zero]
-      exact hE_nn
+    · have hlog_np : Real.logb 2 ((n : ℝ) / max R 1) ≤ 0 :=
+        Real.logb_nonpos (by norm_num) (div_nonneg (Nat.cast_nonneg n) hmax_pos.le)
+          ((div_le_one hmax_pos).mpr ((not_le.mp hRn).le.trans (_root_.le_max_left R 1)))
+      rwa [max_eq_left hlog_np, mul_zero]
   linarith
 
 theorem mul_le_linear_of_le_half {c L n K : ℝ} (hn : 0 ≤ n) (hL_nn : 0 ≤ L)

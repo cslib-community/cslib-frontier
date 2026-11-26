@@ -164,10 +164,10 @@ theorem stdGaussian_map_inner_prod_eq_correlatedGaussian {u v : E} (hu : ‖u‖
 /-- For `-1 ≤ ρ ≤ 1` there are unit vectors of the plane with inner product `ρ`. -/
 private theorem exists_norm_eq_one_inner_eq {ρ : ℝ} (hρ : |ρ| ≤ 1) :
     ∃ u v : EuclideanSpace ℝ (Fin 2), ‖u‖ = 1 ∧ ‖v‖ = 1 ∧ ⟪u, v⟫ = ρ := by
-  refine ⟨EuclideanSpace.single 0 1, WithLp.toLp 2 ![ρ, √(1 - ρ ^ 2)], by simp, ?_, ?_⟩
-  · rw [EuclideanSpace.norm_eq, Fin.sum_univ_two]
-    simp [sq_sqrt (show 0 ≤ 1 - ρ ^ 2 by nlinarith [abs_le.1 hρ])]
-  · simp [EuclideanSpace.inner_single_left]
+  refine ⟨EuclideanSpace.single 0 1, WithLp.toLp 2 ![ρ, √(1 - ρ ^ 2)], by simp, ?_,
+    by simp [EuclideanSpace.inner_single_left]⟩
+  rw [EuclideanSpace.norm_eq, Fin.sum_univ_two]
+  simp [sq_sqrt (show 0 ≤ 1 - ρ ^ 2 by nlinarith [abs_le.1 hρ])]
 
 /-- The first coordinate of a correlated pair is a standard Gaussian. -/
 theorem correlatedGaussian_map_fst (ρ : ℝ) :
@@ -181,8 +181,7 @@ theorem correlatedGaussian_map_snd {ρ : ℝ} (hρ : |ρ| ≤ 1) :
   obtain ⟨u, v, hu, hv, rfl⟩ := exists_norm_eq_one_inner_eq hρ
   rw [← stdGaussian_map_inner_prod_eq_correlatedGaussian hu hv,
     Measure.map_map measurable_snd (by fun_prop)]
-  refine (stdGaussian_map_inner v).trans (congrArg _ (NNReal.eq ?_))
-  simp [hv]
+  exact (stdGaussian_map_inner v).trans (congrArg _ (NNReal.eq (by simp [hv])))
 
 /-- A `ρ`-correlated pair is symmetric: `(z', z)` has the same law as `(z, z')`. -/
 theorem correlatedGaussian_map_swap {ρ : ℝ} (hρ : |ρ| ≤ 1) :
@@ -191,7 +190,7 @@ theorem correlatedGaussian_map_swap {ρ : ℝ} (hρ : |ρ| ≤ 1) :
   conv_lhs => rw [← stdGaussian_map_inner_prod_eq_correlatedGaussian hu hv,
     Measure.map_map measurable_swap (by fun_prop)]
   exact (stdGaussian_map_inner_prod_eq_correlatedGaussian hv hu).trans
-    (by rw [real_inner_comm])
+    (congrArg _ (real_inner_comm u v))
 
 /-- A `ρ`-correlated pair is invariant under negation: `(-z, -z')` has the same law as
 `(z, z')`. -/
@@ -346,9 +345,7 @@ private theorem norm_signPos_le (x : ℝ) : ‖signPos x‖ ≤ 1 := by
 /-- A `0`-correlated pair is a pair of independent standard Gaussians. -/
 theorem correlatedGaussian_zero :
     correlatedGaussian 0 = (gaussianReal 0 1).prod (gaussianReal 0 1) := by
-  rw [correlatedGaussian]
-  simp only [zero_mul, zero_add, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow,
-    sub_zero, sqrt_one, one_mul, Prod.mk.eta, Measure.map_id']
+  simp [correlatedGaussian]
 
 /-- Negating the second coordinate of a `ρ`-correlated pair gives a `-ρ`-correlated pair. -/
 theorem correlatedGaussian_map_neg_snd (ρ : ℝ) :
@@ -360,10 +357,8 @@ theorem correlatedGaussian_map_neg_snd (ρ : ℝ) :
       gaussianReal_zero_map_neg]
   rw [correlatedGaussian, correlatedGaussian, Measure.map_map (by fun_prop) (by fun_prop)]
   conv_rhs => rw [← hprod, Measure.map_map (by fun_prop) (by fun_prop)]
-  congr 1
-  funext g
-  simp only [Function.comp_apply, neg_sq, Prod.mk.injEq, true_and]
-  ring
+  congr 1 with g : 1
+  exact Prod.ext rfl (by simp only [Function.comp_apply, neg_sq]; ring)
 
 /-- A `1`-correlated pair is a standard Gaussian repeated: `(g, g)`. -/
 theorem correlatedGaussian_one :
@@ -400,11 +395,10 @@ theorem integral_correlatedGaussian_indicator_Iic_mul {ρ : ℝ} (hρ : |ρ| ≤
     Integrable.of_bound hg.aestronglyMeasurable 1 (ae_of_all _ hb)
   have h1 := hint (g := fun p => signPos p.1) (by fun_prop) fun p => norm_signPos_le p.1
   have h2 := hint (g := fun p => signPos p.2) (by fun_prop) fun p => norm_signPos_le p.2
-  have h12 : Integrable (fun p : ℝ × ℝ => signPos p.1 * signPos p.2) (correlatedGaussian ρ) := by
-    refine hint (by fun_prop) fun p => ?_
-    rw [norm_mul]
-    exact (mul_le_mul (norm_signPos_le _) (norm_signPos_le _) (norm_nonneg _)
-      zero_le_one).trans_eq (one_mul 1)
+  have h12 : Integrable (fun p : ℝ × ℝ => signPos p.1 * signPos p.2) (correlatedGaussian ρ) :=
+    hint (by fun_prop) fun p => (norm_mul _ _).trans_le
+      ((mul_le_mul (norm_signPos_le _) (norm_signPos_le _) (norm_nonneg _)
+        zero_le_one).trans_eq (one_mul 1))
   have hpt (p : ℝ × ℝ) : (Iic (0 : ℝ)).indicator 1 p.1 * (Iic (0 : ℝ)).indicator 1 p.2 =
       1 / 4 * (1 - signPos p.1 - signPos p.2 + signPos p.1 * signPos p.2) := by
     rw [signPos_eq, signPos_eq]; ring
@@ -569,11 +563,9 @@ theorem gaussianNoiseStability_comp_dotProduct (ρ : ℝ) (a : ι → ℝ) {g : 
     gaussianNoiseStability ρ (fun z => g (a ⬝ᵥ z)) =
       ∫ p, g (√(a ⬝ᵥ a) * p.1) * g (√(a ⬝ᵥ a) * p.2) ∂correlatedGaussian ρ := by
   have hF : Measurable fun q : ℝ × ℝ => g q.1 * g q.2 := by fun_prop
-  have h := integral_map (μ := correlatedGaussianPi ι ρ)
-    (φ := fun p => (a ⬝ᵥ p.1, a ⬝ᵥ p.2)) (by fun_prop) hF.aestronglyMeasurable
+  refine (integral_map (μ := correlatedGaussianPi ι ρ) (φ := fun p => (a ⬝ᵥ p.1, a ⬝ᵥ p.2))
+    (by fun_prop) hF.aestronglyMeasurable).symm.trans ?_
   rw [correlatedGaussianPi_map_dotProduct, integral_map (by fun_prop) hF.aestronglyMeasurable]
-    at h
-  exact h.symm
 
 /-- **Example 11.19** [O'Donnell, Example 11.19][ODonnell2014]: the indicator `f` of
 `z i ≤ 0` has Gaussian noise stability `Stab_ρ[f] = 1 / 2 - arccos ρ / (2π)`. -/

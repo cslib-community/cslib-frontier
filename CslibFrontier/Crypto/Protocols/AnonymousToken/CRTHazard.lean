@@ -164,13 +164,11 @@ theorem parityCheck_uniform_zero_prob {H : Matrix (Fin r) (Fin m) K}
     (hsurj : Function.Surjective H.mulVecLin) :
     ((uniformOfFintype (Fin m → K)).map (fun y => decide (H *ᵥ y = 0))) true =
       ((Fintype.card K : ℝ≥0∞)⁻¹) ^ r := by
-  have hmap : (fun y : Fin m → K => decide (H *ᵥ y = 0)) =
-      (fun z : Fin r → K => decide (z = 0)) ∘ H.mulVec := rfl
-  rw [hmap, ← _root_.PMF.map_comp, parityCheck_map_uniformOfFintype hsurj, _root_.PMF.map_apply]
-  rw [tsum_eq_single (0 : Fin r → K)]
-  · simp [uniformOfFintype_apply, ENNReal.inv_pow]
-  · intro z hz
-    simp [hz]
+  change ((uniformOfFintype (Fin m → K)).map
+    ((fun z : Fin r → K => decide (z = 0)) ∘ H.mulVec)) true = _
+  rw [← _root_.PMF.map_comp, parityCheck_map_uniformOfFintype hsurj, _root_.PMF.map_apply,
+    tsum_eq_single (0 : Fin r → K) (fun z hz => by simp [hz])]
+  simp [uniformOfFintype_apply, ENNReal.inv_pow]
 
 /-- Across `nMask` i.i.d. uniform vectors over `ZMod 2`, all `nMask * r` parity checks pass
 simultaneously with probability `2⁻¹ ^ (nMask * r)`. -/
@@ -184,11 +182,8 @@ theorem multiMask_parityCheck_uniform_zero_prob {nMask : ℕ}
     funext y
     simp [funext_iff]
   rw [hmap, ← _root_.PMF.map_comp, multiMask_parityCheck_map_uniformOfFintype hsurj,
-    _root_.PMF.map_apply]
-  rw [tsum_eq_single (0 : Fin nMask → Fin r → ZMod 2)]
-  · simp [uniformOfFintype_apply, ZMod.card, ENNReal.inv_pow, ← pow_mul, mul_comm]
-  · intro z hz
-    simp [hz]
+    _root_.PMF.map_apply, tsum_eq_single 0 (fun z hz => by simp [hz])]
+  simp [uniformOfFintype_apply, ZMod.card, ENNReal.inv_pow, ← pow_mul, mul_comm]
 
 end UniformParity
 
@@ -328,8 +323,7 @@ theorem candidateLabel_ne_of_ne {IV : Type} {nMult lam nMask : ℕ}
   cases hact : active e <;>
     simp only [tbl, honestCRTMaskTable, hact, Bool.false_eq_true, ↓reduceIte,
       zmod2_vec_add_cancel_right] at hact_diff hother
-  · exact ⟨hact_diff, hother⟩
-  · exact ⟨hother, hact_diff⟩
+  exacts [⟨hact_diff, hother⟩, ⟨hother, hact_diff⟩]
 
 /-- Deterministic parity evaluation of a candidate prefix `wStar` against `kGates` subcircuit gates
 given an `H5` oracle function. -/
@@ -358,12 +352,11 @@ private theorem queryH5Prefix_isQueryBounded {IV : Type} {nMult lam : ℕ} (nMas
     ∀ (m : ℕ) (hm : m ≤ kGates), (queryH5Prefix nMask q m hm).IsQueryBounded m
   | 0, _ => by simpa [queryH5Prefix] using OracleComp.IsCostBounded.pure Fin.elim0 0
   | m + 1, hm => by
-      have ih := queryH5Prefix_isQueryBounded nMask q m (Nat.le_of_succ_le hm)
-      have hq : (ProbOracleComp.query (spec := H5Spec IV nMult lam nMask)
-          (q ⟨m, hm⟩)).IsQueryBounded 1 := ProbOracleComp.isCostBounded_query _ _
       dsimp only [queryH5Prefix]
-      exact ih.bind fun prev => hq.bind fun cur =>
-        OracleComp.IsCostBounded.pure (Fin.snoc (α := fun _ => Fin nMask → ZMod 2) prev cur) 0
+      exact (queryH5Prefix_isQueryBounded nMask q m (Nat.le_of_succ_le hm)).bind fun prev =>
+        (ProbOracleComp.IsQueryBounded.query (spec := H5Spec IV nMult lam nMask)
+          (q ⟨m, hm⟩)).bind fun cur =>
+          OracleComp.IsCostBounded.pure (Fin.snoc (α := fun _ => Fin nMask → ZMod 2) prev cur) 0
 
 private theorem queryH5Prefix_run {IV : Type} {nMult lam nMask kGates : ℕ}
     (q : Fin kGates → H5Query IV nMult lam) (h5 : H5Query IV nMult lam → Fin nMask → ZMod 2) :
@@ -372,18 +365,13 @@ private theorem queryH5Prefix_run {IV : Type} {nMult lam nMask kGates : ℕ}
         pure fun i : Fin m => h5 (q ⟨i.val, lt_of_lt_of_le i.isLt hm⟩)
   | 0, _ => by
       simp only [queryH5Prefix, ProbOracleComp.run_pure]
-      congr 1
-      ext i
-      exact i.elim0
+      exact congrArg pure (funext fun i => i.elim0)
   | m + 1, hm => by
       simp only [queryH5Prefix, ProbOracleComp.run_bind,
         queryH5Prefix_run q h5 m (Nat.le_of_succ_le hm),
         ProbOracleComp.run_query, ProbOracleComp.run_pure, pure_bind]
-      congr 1
-      funext i
-      cases i using Fin.lastCases with
-      | last => simp
-      | cast j => simp
+      refine congrArg pure (funext fun i => ?_)
+      cases i using Fin.lastCases <;> simp
 
 /-- The `kGates`-query `H5` prefix distinguisher: queries `H5` on each gate `sub i` with
 candidate label `candidateLabel tbl wStar (sub i)` and checks all `nMask * rSub` parities. -/
@@ -441,12 +429,10 @@ theorem crtPrefixTest_honest_true {IV : Type} {nMult lam nMask kGates rSub : ℕ
       h5 ⟨tbl.iv, sub i, candidateLabel tbl wPrefix (sub i)⟩ mask) =
       F.submatrix sub id *ᵥ maskInput mask := by
     funext i
-    have hrec := honestCRTMaskTable_reconstruct_true iv L0 uPrefix wPrefix active F maskInput h5
-      mask (sub i)
     simpa [tbl, hActive, honestCRTMaskTable, Matrix.submatrix_apply, Matrix.mulVec,
-      dotProduct] using hrec
-  rw [hvec]
-  exact Matrix.parityCheck_mulVec_of_eq_zero hHF (maskInput mask)
+      dotProduct] using honestCRTMaskTable_reconstruct_true iv L0 uPrefix wPrefix active F
+        maskInput h5 mask (sub i)
+  exact hvec ▸ Matrix.parityCheck_mulVec_of_eq_zero hHF (maskInput mask)
 
 /-- Helper factoring `Fin kGates ↪ H5Query IV nMult lam` for distinct `sub` gates. -/
 private def gateQueryEmbedding {IV : Type} {nMult lam kGates : ℕ}
@@ -490,18 +476,16 @@ theorem crtPrefixTest_wrong_guess_prob {IV : Type} [Fintype IV] [DecidableEq IV]
     (fun _ : H5Query IV nMult lam => Fin nMask → ZMod 2)
   let unsplit : (∀ q : I, Fin nMask → ZMod 2) × (∀ q : {q // q ∉ I}, Fin nMask → ZMod 2) →
       H5Query IV nMult lam → Fin nMask → ZMod 2 := eSplit.symm
-  have hnotMem₀ (e : Fin nMult) : (⟨iv, e, L0 e⟩ : H5Query IV nMult lam) ∉ I := by
+  have hcand_ne (e : Fin nMult) := candidateLabel_ne_of_ne iv L0 uPrefix wPrefix wStar active F
+    maskInput (fun _ _ => 0) hne hnonzero e
+  have hnotMem {f : Fin nMult → Fin lam → ZMod 2} (hf : ∀ e, candFun e ≠ f e) (e : Fin nMult) :
+      (⟨iv, e, f e⟩ : H5Query IV nMult lam) ∉ I := by
     intro hmem
     obtain ⟨i, -, hi⟩ := Finset.mem_image.mp hmem
-    obtain rfl : sub i = e := congrArg H5Query.gate hi
-    exact (candidateLabel_ne_of_ne iv L0 uPrefix wPrefix wStar active F maskInput
-      (fun _ _ => 0) hne hnonzero (sub i)).1 (congrArg H5Query.label hi)
-  have hnotMem₁ (e : Fin nMult) : (⟨iv, e, L0 e + uPrefix⟩ : H5Query IV nMult lam) ∉ I := by
-    intro hmem
-    obtain ⟨i, -, hi⟩ := Finset.mem_image.mp hmem
-    obtain rfl : sub i = e := congrArg H5Query.gate hi
-    exact (candidateLabel_ne_of_ne iv L0 uPrefix wPrefix wStar active F maskInput
-      (fun _ _ => 0) hne hnonzero (sub i)).2 (congrArg H5Query.label hi)
+    exact hf (sub i)
+      ((congrArg H5Query.label hi).trans (congrArg f (congrArg H5Query.gate hi).symm))
+  have hnotMem₀ := hnotMem (f := L0) fun e => (hcand_ne e).1
+  have hnotMem₁ := hnotMem (f := fun e => L0 e + uPrefix) fun e => (hcand_ne e).2
   have hnotMemAct (e : Fin nMult) :
       (⟨iv, e, if active e then L0 e + uPrefix else L0 e⟩ : H5Query IV nMult lam) ∉ I := by
     cases active e <;> simp [hnotMem₀, hnotMem₁]
@@ -527,8 +511,8 @@ theorem crtPrefixTest_wrong_guess_prob {IV : Type} [Fintype IV] [DecidableEq IV]
             fun i => h5 ⟨iv, sub i, tbl.activeLabel (sub i)⟩
           ProbComp.eval
             ((crtPrefixTest sub Hsub tbl hActive wStar).run (fun q => pure (h5 q))) := by
-    rw [← uniformOfFintype_map_equiv eSplit.symm, PMF.bind_map]
-    rw [← Probability.PMF.uniformOfFintype_prod, PMF.bind_bind]
+    rw [← uniformOfFintype_map_equiv eSplit.symm, PMF.bind_map,
+      ← Probability.PMF.uniformOfFintype_prod, PMF.bind_bind]
     simp_rw [PMF.bind_map, Function.comp_def]
     exact PMF.bind_comm _ _ _
   rw [hbindSplit, PMF.bind_apply]
@@ -557,13 +541,9 @@ theorem crtPrefixTest_wrong_guess_prob {IV : Type} [Fintype IV] [DecidableEq IV]
       { toFun := fun hIn mask i => base mask i + hIn (eIdx i) mask
         invFun := fun y q => fun mask => base mask (eIdx.symm q) + y mask (eIdx.symm q)
         left_inv := fun hIn => funext fun q => funext fun mask => by
-          dsimp only
-          have : eIdx (eIdx.symm q) = q := eIdx.apply_symm_apply q
-          rw [this, ← add_assoc, CharTwo.add_self_eq_zero, zero_add]
+          simp [← add_assoc, CharTwo.add_self_eq_zero]
         right_inv := fun y => funext fun mask => funext fun i => by
-          dsimp only
-          have : eIdx.symm (eIdx i) = i := eIdx.symm_apply_apply i
-          rw [this, ← add_assoc, CharTwo.add_self_eq_zero, zero_add] }
+          simp [← add_assoc, CharTwo.add_self_eq_zero] }
     have hinner : ∀ hIn : ∀ q : I, Fin nMask → ZMod 2,
         (let h5 := unsplit (hIn, hOut)
         let tbl := honestCRTMaskTable iv L0 uPrefix wPrefix active F maskInput h5
@@ -595,15 +575,10 @@ theorem crtPrefixTest_wrong_guess_prob {IV : Type} [Fintype IV] [DecidableEq IV]
         rw [← hemb, hunsplit_mem hsubMem]
         rfl
       simp only [crtPrefixEval, hcol]
-    have hstep :
-        ((uniformOfFintype (∀ q : I, Fin nMask → ZMod 2)).bind fun hIn =>
-          PMF.pure (decide (∀ mask, Hsub *ᵥ eFlip hIn mask = 0))) =
-        (uniformOfFintype (Fin nMask → Fin kGates → ZMod 2)).map
-          (fun y => decide (∀ mask, Hsub *ᵥ y mask = 0)) := by
-      rw [← uniformOfFintype_map_equiv eFlip, _root_.PMF.map_comp]
-      rfl
     simp_rw [hinner]
-    rw [hstep, multiMask_parityCheck_uniform_zero_prob hsurj]
+    rw [← multiMask_parityCheck_uniform_zero_prob hsurj, ← uniformOfFintype_map_equiv eFlip,
+      _root_.PMF.map_comp]
+    rfl
   simp_rw [hconst]
   rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
 
@@ -643,17 +618,11 @@ private theorem crtPrefixTest_wrong_guess_le {IV : Type} [Fintype IV] [Decidable
         by_cases hu : uPrefix = badU
         · simp only [hu, ↓reduceIte]
           exact le_add_of_le_right (PMF.coe_le_one _ _)
-        · have hnz : wPrefix + uPrefix + wStar ≠ 0 := by
-            intro h0
-            apply hu
-            have hsum : uPrefix + badU = 0 := by
-              rw [show badU = wPrefix + wStar from rfl, ← add_assoc, add_comm uPrefix wPrefix]
-              exact h0
-            exact (zmod2_vec_add_eq_zero_iff uPrefix badU).mp hsum
-          have hp := crtPrefixTest_wrong_guess_prob sub Hsub hsurj iv L0 uPrefix wPrefix wStar
-            active F maskInput hne hnz
-          rw [hp]
-          simp only [hu, ↓reduceIte, add_zero, le_rfl]
+        · have hnz : wPrefix + uPrefix + wStar ≠ 0 := fun h0 => hu
+            ((zmod2_vec_add_eq_zero_iff uPrefix badU).mp
+              (by simpa only [badU, ← add_assoc, add_comm uPrefix wPrefix] using h0))
+          simp [crtPrefixTest_wrong_guess_prob sub Hsub hsurj iv L0 uPrefix wPrefix wStar
+            active F maskInput hne hnz, hu]
     _ = (2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (uniformOfFintype (Fin lam → ZMod 2)) badU := by
         simp_rw [mul_add, mul_ite, mul_one, mul_zero]
         rw [tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul, tsum_ite_eq, add_comm]
@@ -741,12 +710,10 @@ theorem crtIssueSpendAdversary_advantage_ge {IV : Type} [Fintype IV] [DecidableE
   have htrue_succR : (Game.succProbability (g true) : ℝ) ≤
       (2 : ℝ)⁻¹ ^ (nMask * rSub) + (2 : ℝ)⁻¹ ^ lam := by
     rw [Game.coe_succProbability]
-    have hto := ENNReal.toReal_mono
-      (ENNReal.add_ne_top.mpr ⟨ENNReal.pow_ne_top (by norm_num), ENNReal.pow_ne_top (by norm_num)⟩)
-      htrue_le
-    simpa [ENNReal.toReal_add, ENNReal.toReal_pow] using hto
-  rw [Game.coe_advantage, hfalse_succ]
-  simp only [NNReal.coe_one]
+    have hfin : (2 : ℝ≥0∞)⁻¹ ≠ ⊤ := ENNReal.inv_ne_top.mpr two_ne_zero
+    simpa [ENNReal.toReal_add, ENNReal.toReal_pow] using ENNReal.toReal_mono
+      (ENNReal.add_ne_top.mpr ⟨ENNReal.pow_ne_top hfin, ENNReal.pow_ne_top hfin⟩) htrue_le
+  rw [Game.coe_advantage, hfalse_succ, NNReal.coe_one]
   exact le_trans (by linarith) (le_abs_self _)
 
 /-- Pack a `wBal`-bit balance prefix `tBits` and a `wRand`-bit randomness slice `rBits` into
@@ -761,8 +728,7 @@ theorem packBalancePrefix_inj_left {wBal wRand : ℕ}
     {t₀ t₁ : Fin wBal → ZMod 2} {r₀ r₁ : Fin wRand → ZMod 2}
     (h : packBalancePrefix t₀ r₀ = packBalancePrefix t₁ r₁) : t₀ = t₁ := by
   funext i
-  have hi := congrFun h (Fin.castAdd wRand i)
-  simpa [packBalancePrefix, Fin.append_left] using hi
+  simpa [packBalancePrefix, Fin.append_left] using congrFun h (Fin.castAdd wRand i)
 
 /-- Exhaustive Spend-prefix parity test across a list of `lam`-bit prefix guesses `guesses`. -/
 def crtSpendPrefixTest {IV : Type} {nMult lam nMask kGates rSub : ℕ}
@@ -826,9 +792,7 @@ theorem mem_balancePrefixGuesses {wBal wRand : ℕ} (tStar : Fin wBal → ZMod 2
     (r : Fin wRand → ZMod 2) :
     packBalancePrefix tStar r ∈ balancePrefixGuesses wBal wRand tStar := by
   simp only [balancePrefixGuesses, List.mem_map, List.mem_finRange, true_and]
-  refine ⟨Fin.cast (by simp [ZMod.card])
-    (Fintype.equivFin (Fin wRand → ZMod 2) r), ?_⟩
-  simp
+  exact ⟨Fin.cast (by simp [ZMod.card]) (Fintype.equivFin (Fin wRand → ZMod 2) r), by simp⟩
 
 /-- Candidates in `balancePrefixGuesses wBal wRand tStar` are disjoint from
 `packBalancePrefix tReal rReal` whenever `tStar ≠ tReal`. -/
@@ -908,8 +872,6 @@ theorem crtSpendPrefixTest_wrong_t_le {IV : Type} [Fintype IV] [DecidableEq IV]
   | nil =>
       simp [evalProg, crtSpendPrefixTest, ProbOracleComp.run_pure, ProbComp.eval_pure]
   | cons w ws ih =>
-      have hw : w ≠ wPrefix := hguesses w List.mem_cons_self
-      have ih_ws := ih fun u hu => hguesses u (List.mem_cons_of_mem w hu)
       have hpt_le (h5 : H5T) (u : UT) :
           (ProbComp.eval ((crtSpendPrefixTest sub Hsub (tbl h5 u) (hAct h5 u) (w :: ws)).run
             (fun q => pure (h5 q)))) true ≤
@@ -917,11 +879,9 @@ theorem crtSpendPrefixTest_wrong_t_le {IV : Type} [Fintype IV] [DecidableEq IV]
             (fun q => pure (h5 q)))) true +
           (ProbComp.eval ((crtSpendPrefixTest sub Hsub (tbl h5 u) (hAct h5 u) ws).run
             (fun q => pure (h5 q)))) true := by
-        rw [crtSpendPrefixTest_run, crtPrefixTest_run, crtSpendPrefixTest_run,
-          ProbComp.eval_pure, ProbComp.eval_pure, ProbComp.eval_pure]
-        simp only [List.any_cons, PMF.pure_apply]
-        cases crtPrefixEval sub Hsub _ _ h5 w <;>
-          cases List.any ws _ <;> simp
+        simp only [crtSpendPrefixTest_run, crtPrefixTest_run, ProbComp.eval_pure, List.any_cons,
+          PMF.pure_apply]
+        cases crtPrefixEval sub Hsub _ _ h5 w <;> cases List.any ws _ <;> simp
       have hterm_le :
           evalProg (fun h5 u => crtSpendPrefixTest sub Hsub (tbl h5 u) (hAct h5 u) (w :: ws))
             true ≤
@@ -934,13 +894,14 @@ theorem crtSpendPrefixTest_wrong_t_le {IV : Type} [Fintype IV] [DecidableEq IV]
         refine mul_le_mul_of_nonneg_left (tsum_le_tsum fun u => ?_) zero_le
         rw [← mul_add]
         exact mul_le_mul_of_nonneg_left (hpt_le h5 u) zero_le
-      have hw_bound :=
-        crtPrefixTest_wrong_guess_le sub Hsub hsurj iv L0 wPrefix w active F maskInput hw
       calc evalProg (fun h5 u => crtSpendPrefixTest sub Hsub (tbl h5 u) (hAct h5 u) (w :: ws)) true
           ≤ ((2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (2 : ℝ≥0∞)⁻¹ ^ (wBal + wRand)) +
               (ws.length : ℝ≥0∞) *
                 ((2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (2 : ℝ≥0∞)⁻¹ ^ (wBal + wRand)) :=
-            hterm_le.trans (add_le_add hw_bound ih_ws)
+            hterm_le.trans (add_le_add
+              (crtPrefixTest_wrong_guess_le sub Hsub hsurj iv L0 wPrefix w active F maskInput
+                (hguesses w List.mem_cons_self))
+              (ih fun u hu => hguesses u (List.mem_cons_of_mem w hu)))
         _ = ((w :: ws).length : ℝ≥0∞) *
               ((2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (2 : ℝ≥0∞)⁻¹ ^ (wBal + wRand)) := by
             simp [List.length_cons, Nat.cast_add, add_mul, one_mul, add_comm]
@@ -995,14 +956,12 @@ theorem crtSpendBalancePrefix_advantage_ge {IV : Type} [Fintype IV] [DecidableEq
   have htrue_succR : (Game.succProbability (g true) : ℝ) ≤
       (2 : ℝ) ^ wRand * ((2 : ℝ)⁻¹ ^ (nMask * rSub) + (2 : ℝ)⁻¹ ^ (wBal + wRand)) := by
     rw [Game.coe_succProbability]
-    have hto := ENNReal.toReal_mono
+    have hfin : (2 : ℝ≥0∞)⁻¹ ≠ ⊤ := ENNReal.inv_ne_top.mpr two_ne_zero
+    simpa [ENNReal.toReal_mul, ENNReal.toReal_add, ENNReal.toReal_pow] using ENNReal.toReal_mono
       (ENNReal.mul_ne_top (ENNReal.natCast_ne_top _)
-        (ENNReal.add_ne_top.mpr
-          ⟨ENNReal.pow_ne_top (by norm_num), ENNReal.pow_ne_top (by norm_num)⟩))
+        (ENNReal.add_ne_top.mpr ⟨ENNReal.pow_ne_top hfin, ENNReal.pow_ne_top hfin⟩))
       htrue_le
-    simpa [ENNReal.toReal_mul, ENNReal.toReal_add, ENNReal.toReal_pow] using hto
-  rw [Game.coe_advantage, hfalse_succ]
-  simp only [NNReal.coe_one]
+  rw [Game.coe_advantage, hfalse_succ, NNReal.coe_one]
   exact le_trans (by linarith) (le_abs_self _)
 
 /-- Witness-order repair view (in the witness-reuse CRT mode that reuses the witness prefix as the
@@ -1158,16 +1117,12 @@ theorem rFirst_breaks_witnessKnowingZK {IV : Type} [Fintype IV] [DecidableEq IV]
             ((uniformOfFintype (Fin nMask → Fin nMult → ZMod 2)).map
               fun cmultSim mask i => cmultSim mask (sub i)) =
             uniformOfFintype (Fin nMask → Fin kGates → ZMod 2) := by
-          let eSwap : (Fin nMask → Fin nMult → ZMod 2) ≃ (Fin nMult → Fin nMask → ZMod 2) :=
-            Equiv.piComm _
-          let eSwapK : (Fin kGates → Fin nMask → ZMod 2) ≃ (Fin nMask → Fin kGates → ZMod 2) :=
-            Equiv.piComm _
-          have hpull := uniformOfFintype_pi_map_comp_embedding (α := Fin nMask → ZMod 2) sub
-          have hcomp1 : (fun (cmultSim : Fin nMask → Fin nMult → ZMod 2) mask i =>
-              cmultSim mask (sub i)) =
-              eSwapK ∘ (fun f i => f (sub i)) ∘ eSwap := rfl
-          rw [hcomp1, ← _root_.PMF.map_comp, ← _root_.PMF.map_comp,
-            uniformOfFintype_map_equiv eSwap, hpull, uniformOfFintype_map_equiv eSwapK]
+          change ((uniformOfFintype _).map
+            (Equiv.piComm _ ∘ (fun f i => f (sub i)) ∘ Equiv.piComm _)) = _
+          rw [← _root_.PMF.map_comp, ← _root_.PMF.map_comp,
+            uniformOfFintype_map_equiv (Equiv.piComm _),
+            uniformOfFintype_pi_map_comp_embedding (α := Fin nMask → ZMod 2) sub,
+            uniformOfFintype_map_equiv (Equiv.piComm _)]
         let eShift : (Fin nMask → Fin kGates → ZMod 2) ≃ (Fin nMask → Fin kGates → ZMod 2) :=
           { toFun := fun y mask i => y mask i + base mask i
             invFun := fun y mask i => y mask i + base mask i
@@ -1215,8 +1170,7 @@ theorem rFirst_breaks_witnessKnowingZK {IV : Type} [Fintype IV] [DecidableEq IV]
     rw [Game.coe_succProbability]
     simpa [ENNReal.toReal_pow] using
       ENNReal.toReal_mono (ENNReal.pow_ne_top (by norm_num)) hsim_val
-  rw [Game.coe_advantage, hreal_succ]
-  simp only [NNReal.coe_one]
+  rw [Game.coe_advantage, hreal_succ, NNReal.coe_one]
   exact le_trans (by linarith) (le_abs_self _)
 
 end UnlinkabilityBreaks

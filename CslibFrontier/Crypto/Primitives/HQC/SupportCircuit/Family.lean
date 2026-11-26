@@ -127,9 +127,7 @@ private theorem computableInPolyTime_circuitCode :
 
 private theorem computableInPolyTime_seedBits :
     ComputableInPolyTime S.seedBits encUnary encUnary := by
-  unfold seedBits
-  exact unary_mul' S.computableInPolyTime_supportWeight
-    S.computableInPolyTime_wordWidth
+  exact unary_mul' S.computableInPolyTime_supportWeight S.computableInPolyTime_wordWidth
 
 /-- Clear the framed unary family input, prepare the fair seeds, run the reversible sampler, and
 move its output block to the measured prefix. -/
@@ -158,17 +156,15 @@ private theorem classicalRun_clearInput {s width : ℕ} (hwidth : 2 * s + 1 ≤ 
   apply funext_readBit
   intro c
   rw [readBit_classicalRun_flipCodes List.nodup_range
-    (by intro j hj; have := List.mem_range.mp hj; omega)]
-  rw [readBit_inputState (by simp [encUnary_apply]; omega),
-    readBit_inputState (by simp)]
+      (fun j hj => Nat.lt_of_lt_of_le (List.mem_range.mp hj) (by omega)),
+    readBit_inputState (by simp [encUnary_apply]; omega), readBit_inputState (Nat.zero_le width)]
   simp only [encPair_apply, encUnary_apply, encBits_apply, List.append_nil,
     frame_replicate_true]
   by_cases hc : c ≤ 2 * s
   · rw [List.getD_replicate_true_append_false_of_le [] hc]
     by_cases hlt : c < 2 * s <;> simp [hlt]
   · rw [List.getD_eq_default _ _ (by simp; omega)]
-    have hnot : ¬c < 2 * s := by omega
-    simp [hnot]
+    simp [Nat.not_lt.mpr (Nat.le_of_not_le hc)]
 
 private theorem run_gateCodes (s : ℕ) :
     Circuit.run (Circuit.ofCodes (S.activeWidth s) (S.gateCodes s))
@@ -248,12 +244,10 @@ private theorem computableInPolyTime_description :
       (fun input : OracleInputSize => S.description input.securityParameter
         input.classicalInputLength)
       encOracleInputSize encOracleCircuitDescription := by
-  have hs : ComputableInPolyTime
-      (fun input : OracleInputSize => input.securityParameter) encOracleInputSize encUnary := by
-    fun_prop
-  have hℓ : ComputableInPolyTime
-      (fun input : OracleInputSize => input.classicalInputLength) encOracleInputSize encUnary := by
-    fun_prop
+  have hs : ComputableInPolyTime OracleInputSize.securityParameter
+      encOracleInputSize encUnary := by fun_prop
+  have hℓ : ComputableInPolyTime OracleInputSize.classicalInputLength
+      encOracleInputSize encUnary := by fun_prop
   have hwidth := S.computableInPolyTime_activeWidth
   have huniverse := S.computableInPolyTime_universeSize
   have horacle := OracleGateCode.computableInPolyTime_gate (g := fun g : GateCode => (false, g))

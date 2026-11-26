@@ -69,12 +69,10 @@ private theorem heightMap_re (a b : ℂ) (h : ℝ) :
 private theorem mem_heightMap_image_iff {a b : ℂ} (hab : a.im ≠ b.im)
     (S : Set ℝ) (z : ℂ) :
     z ∈ heightMap a b '' S ↔ z.im ∈ S ∧ z.re = horizontalIntercept a b z.im := by
-  constructor
-  · rintro ⟨h, hh, rfl⟩
-    rw [heightMap_im hab, heightMap_re]
-    exact ⟨hh, rfl⟩
-  · rintro ⟨hz, hre⟩
-    exact ⟨z.im, hz, Complex.ext ((heightMap_re a b z.im).trans hre.symm) (heightMap_im hab _)⟩
+  refine ⟨?_, fun ⟨hz, hre⟩ =>
+    ⟨z.im, hz, Complex.ext ((heightMap_re a b z.im).trans hre.symm) (heightMap_im hab _)⟩⟩
+  rintro ⟨h, hh, rfl⟩
+  simpa only [heightMap_im hab, heightMap_re, and_true] using hh
 
 private theorem mem_segment_height_iff {a b : ℂ} (hab : a.im < b.im) (z : ℂ) :
     z ∈ segment ℝ a b ↔
@@ -140,11 +138,11 @@ private theorem common_open_iff {a b c d : ℂ} (hab : a.im < b.im) (hcd : c.im 
   · obtain ⟨⟨ha, hb⟩, hre1⟩ := (mem_openSegment_height_iff hab z).mp hz1
     obtain ⟨⟨hc, hd⟩, hre2⟩ := (mem_openSegment_height_iff hcd z).mp hz2
     exact ⟨z.im, ⟨⟨ha, hc⟩, ⟨hb, hd⟩⟩, hre1.symm.trans hre2⟩
-  · refine ⟨heightMap a b h, ?_, ?_⟩
-    · simpa only [mem_openSegment_height_iff hab, Set.mem_Ioo, heightMap_im hab.ne, heightMap_re,
-        and_true] using ⟨ha, hb⟩
-    · simp only [mem_openSegment_height_iff hcd, Set.mem_Ioo, heightMap_im hab.ne, heightMap_re]
-      exact ⟨⟨hc, hd⟩, hf⟩
+  · have him := heightMap_im hab.ne h
+    exact ⟨heightMap a b h,
+      (mem_openSegment_height_iff hab _).mpr ⟨him.symm ▸ ⟨ha, hb⟩, him.symm ▸ heightMap_re a b h⟩,
+      (mem_openSegment_height_iff hcd _).mpr
+        ⟨him.symm ▸ ⟨hc, hd⟩, him.symm ▸ (heightMap_re a b h).trans hf⟩⟩
 
 private theorem difference_boundary_ne_zero {a b c d : ℂ}
     (hab : a.im < b.im) (hcd : c.im < d.im)
@@ -165,10 +163,8 @@ private theorem difference_boundary_ne_zero {a b c d : ℂ}
     rw [mem_segment_height_iff hcd, heightMap_im hab.ne, heightMap_re]
     exact ⟨hCD, hz⟩
   rcases hend with rfl | rfl | rfl | rfl
-  · exact ha (by simpa only [heightMap_left] using hmCD)
-  · exact hb (by simpa only [heightMap_right hab.ne] using hmCD)
-  · exact hc (by simpa only [heq, heightMap_left] using hmAB)
-  · exact hd (by simpa only [heq, heightMap_right hcd.ne] using hmAB)
+  exacts [ha (heightMap_left a b ▸ hmCD), hb (heightMap_right hab.ne ▸ hmCD),
+    hc (heightMap_left c d ▸ heq ▸ hmAB), hd (heightMap_right hcd.ne ▸ heq ▸ hmAB)]
 
 open Classical in
 private theorem common_open_indicator {a b c d : ℂ}
@@ -184,16 +180,16 @@ private theorem common_open_indicator {a b c d : ℂ}
   let L := max a.im c.im
   let H := min b.im d.im
   by_cases hLH : L < H
-  · have hL : differenceMap a b c d L ≠ 0 := by
-      apply difference_boundary_ne_zero hab hcd ha hb hc hd
-      · exact ⟨le_max_left _ _, (hLH.trans_le (min_le_left _ _)).le⟩
-      · exact ⟨le_max_right _ _, (hLH.trans_le (min_le_right _ _)).le⟩
-      · rcases max_choice a.im c.im with h | h <;> simp [L, h]
-    have hH : differenceMap a b c d H ≠ 0 := by
-      apply difference_boundary_ne_zero hab hcd ha hb hc hd
-      · exact ⟨((le_max_left _ _).trans_lt hLH).le, min_le_left _ _⟩
-      · exact ⟨((le_max_right _ _).trans_lt hLH).le, min_le_right _ _⟩
-      · rcases min_choice b.im d.im with h | h <;> simp [H, h]
+  · have hL : differenceMap a b c d L ≠ 0 :=
+      difference_boundary_ne_zero hab hcd ha hb hc hd
+        ⟨le_max_left _ _, (hLH.trans_le (min_le_left _ _)).le⟩
+        ⟨le_max_right _ _, (hLH.trans_le (min_le_right _ _)).le⟩
+        ((max_choice a.im c.im).imp id (Or.inr ∘ Or.inl))
+    have hH : differenceMap a b c d H ≠ 0 :=
+      difference_boundary_ne_zero hab hcd ha hb hc hd
+        ⟨((le_max_left _ _).trans_lt hLH).le, min_le_left _ _⟩
+        ⟨((le_max_right _ _).trans_lt hLH).le, min_le_right _ _⟩
+        ((min_choice b.im d.im).elim (Or.inr ∘ Or.inl) (Or.inr ∘ Or.inr ∘ Or.inr))
     have hroot : (∃ h ∈ Set.Ioo L H, differenceMap a b c d h = 0) ↔
         0 ∈ openSegment ℝ (differenceMap a b c d L) (differenceMap a b c d H) := by
       rw [← image_openSegment ℝ (differenceMap a b c d) L H]
@@ -240,11 +236,9 @@ private theorem sweep_identity_ordered {a b c d : ℂ}
       simp [Sweep, min_eq_left hcd.le, max_eq_right hcd.le, differenceMap_apply,
         horizontalIntercept_right hab.ne, sub_pos, h, f, Bool.zero_eq_false]
   have hboundary := interval_boundary_parity a.im b.im c.im d.im hab hcd f
-  rw [← hC, ← hD, ← hA, ← hB,
-    ← common_open_indicator hab hcd ha hb hc hd] at hboundary
-  have h := congrArg (fun z : Bool => z + (decide (Sweep c d a) + decide (Sweep c d b)))
-    hboundary
-  simpa [add_assoc, add_comm, add_left_comm, BooleanRing.add_self] using h
+  rw [← hC, ← hD, ← hA, ← hB, ← common_open_indicator hab hcd ha hb hc hd] at hboundary
+  simpa [add_assoc, add_comm, add_left_comm, BooleanRing.add_self] using
+    congrArg (· + (decide (Sweep c d a) + decide (Sweep c d b))) hboundary
 
 open Classical in
 private theorem sweep_identity {a b c d : ℂ}
@@ -257,21 +251,17 @@ private theorem sweep_identity {a b c d : ℂ}
   rcases lt_or_gt_of_ne hab with hab | hab
   · rcases lt_or_gt_of_ne hcd with hcd | hcd
     · exact sweep_identity_ordered hab hcd ha hb hc hd
-    · have h := sweep_identity_ordered hab hcd
-        (by simpa only [segment_symm] using ha) (by simpa only [segment_symm] using hb)
-        hd hc
-      simpa [openSegment_symm, sweep_reverse hcd.ne.symm, add_comm] using
-        (show decide (RayCrosses a b c) + decide (RayCrosses a b d) = _ from h)
+    · simpa [openSegment_symm, sweep_reverse hcd.ne.symm, add_comm] using
+        sweep_identity_ordered hab hcd (segment_symm ℝ c d ▸ ha) (segment_symm ℝ c d ▸ hb) hd hc
   · have h : decide (RayCrosses b a d) + decide (RayCrosses b a c) =
         decide ((openSegment ℝ b a ∩ openSegment ℝ c d).Nonempty) +
           decide (Sweep c d b) + decide (Sweep c d a) := by
       rcases lt_or_gt_of_ne hcd with hcd | hcd
       · exact sweep_identity_ordered hab hcd hb ha
-          (by simpa only [segment_symm] using hc) (by simpa only [segment_symm] using hd)
-      · have h := sweep_identity_ordered hab hcd
-          (by simpa only [segment_symm] using hb) (by simpa only [segment_symm] using ha)
-          (by simpa only [segment_symm] using hd) (by simpa only [segment_symm] using hc)
-        simpa [openSegment_symm, sweep_reverse hcd.ne.symm, add_comm] using h
+          (segment_symm ℝ a b ▸ hc) (segment_symm ℝ a b ▸ hd)
+      · simpa [openSegment_symm, sweep_reverse hcd.ne.symm, add_comm] using
+          sweep_identity_ordered hab hcd (segment_symm ℝ c d ▸ hb) (segment_symm ℝ c d ▸ ha)
+            (segment_symm ℝ a b ▸ hd) (segment_symm ℝ a b ▸ hc)
     simpa [rayCrosses_reverse, openSegment_symm, add_comm, add_left_comm, add_assoc] using h
 
 open Classical in
@@ -288,8 +278,7 @@ private theorem weighted_sweeps_ordered {ι : Type*} [Fintype ι]
       (t := Finset.univ.image fun j : ι × Bool => (endpoint j).im)
       (g := fun j => (endpoint j).im)
       (fun j _ => Finset.mem_image_of_mem _ (Finset.mem_univ j))]
-    apply Finset.sum_eq_zero
-    intro h _
+    refine Finset.sum_eq_zero fun h _ => ?_
     rw [Finset.sum_filter]
     by_cases hwindow : c.im < h ∧ h ≤ d.im
     · have hz : heightMap c d h ∈ segment ℝ c d := by

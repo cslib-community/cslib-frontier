@@ -149,11 +149,8 @@ theorem two_mul_sin_mul_sum_cos (α : ℝ) (m : ℕ) :
 private theorem sum_sin_sq_eq (θ : ℝ) (m : ℕ) :
     ∑ j ∈ range m, Real.sin ((2 * j + 1) * θ) ^ 2 =
       m / 2 - (∑ j ∈ range m, Real.cos ((2 * j + 1) * (2 * θ))) / 2 := by
-  have h : ∀ j : ℕ, Real.sin ((2 * j + 1) * θ) ^ 2 =
-      1 / 2 - Real.cos ((2 * j + 1) * (2 * θ)) / 2 := fun j => by
-    rw [Real.sin_sq_eq_half_sub]
-    ring_nf
-  simp only [h, sum_sub_distrib, sum_const, card_range, nsmul_eq_mul, ← sum_div]
+  simp only [Real.sin_sq_eq_half_sub, mul_left_comm (2 : ℝ) _ θ, sum_sub_distrib, sum_const,
+    card_range, nsmul_eq_mul, ← sum_div]
   ring
 
 /-- **The average success probability of a random number of iterations** [Boyer, Brassard, Høyer,
@@ -175,12 +172,10 @@ Tapp][BoyerBrassardHoyerTapp1998] (Lemma 2): if `sin 2θ > 0`, then
 `m ≥ 1 / sin 2θ`. -/
 theorem le_sum_sin_sq (θ : ℝ) (m : ℕ) (hθ : 0 < Real.sin (2 * θ)) :
     m / 2 - 1 / (4 * Real.sin (2 * θ)) ≤ ∑ j ∈ range m, Real.sin ((2 * j + 1) * θ) ^ 2 := by
-  have hle : 2 * Real.sin (2 * θ) * ∑ j ∈ range m, Real.cos ((2 * j + 1) * (2 * θ)) ≤ 1 :=
-    two_mul_sin_mul_sum_cos (2 * θ) m ▸ Real.sin_le_one _
-  rw [sum_sin_sq_eq, show 4 * Real.sin (2 * θ) = 2 * Real.sin (2 * θ) * 2 by ring,
-    div_mul_eq_div_div]
-  have hdiv := (le_div_iff₀ (by positivity)).mpr (mul_comm (2 * Real.sin (2 * θ)) _ ▸ hle)
-  linarith
+  have h := two_mul_sin_mul_sum_cos (2 * θ) m
+  have h1 := Real.sin_le_one (2 * m * (2 * θ))
+  rw [sum_sin_sq_eq, sub_le_sub_iff_left, div_le_div_iff₀ zero_lt_two (by positivity)]
+  nlinarith
 
 /-- For `1 ≤ t < N` marked items and `c² N ≤ m²`, the range `m` is at least `c / sin 2θ`. -/
 theorem le_mul_sin_two_mul_searchAngle {t m : ℕ} {c : ℝ} (ht : 1 ≤ t) (htN : t < N) (hc : 0 ≤ c)
@@ -189,18 +184,16 @@ theorem le_mul_sin_two_mul_searchAngle {t m : ℕ} {c : ℝ} (ht : 1 ≤ t) (htN
   have ht1 : (1 : ℝ) ≤ t := by exact_mod_cast ht
   have htN1 : (t : ℝ) + 1 ≤ N := by exact_mod_cast htN
   rw [Real.sin_two_mul, sin_searchAngle htN.le, cos_searchAngle]
-  have hs := Real.sq_sqrt (show (0 : ℝ) ≤ t / N by positivity)
-  have hco := Real.sq_sqrt (show (0 : ℝ) ≤ 1 - t / N by
-    rw [sub_nonneg, div_le_one hN0]; linarith)
+  have h1 : (0 : ℝ) ≤ 1 - t / N := by rw [sub_nonneg, div_le_one hN0]; linarith
+  have hab : Real.sqrt (t / N) ^ 2 * Real.sqrt (1 - t / N) ^ 2 = t * (N - t) / N ^ 2 := by
+    rw [Real.sq_sqrt (div_nonneg (Nat.cast_nonneg t) hN0.le), Real.sq_sqrt h1]
+    field_simp
   set a := Real.sqrt (t / N)
   set b := Real.sqrt (1 - t / N)
   have ha : 0 ≤ a := Real.sqrt_nonneg _
   have hb : 0 ≤ b := Real.sqrt_nonneg _
   -- `(m sin 2θ)² = 4 m² t (N - t) / N² ≥ c²`, since `4 t (N - t) ≥ N`.
   have hkey : (N : ℝ) ≤ 4 * t * (N - t) := by nlinarith only [ht1, htN1]
-  have hab : a ^ 2 * b ^ 2 = t * (N - t) / N ^ 2 := by
-    rw [hs, hco]
-    field_simp
   have hsq : c ^ 2 ≤ (m * (2 * a * b)) ^ 2 := by
     rw [show (m * (2 * a * b)) ^ 2 = m ^ 2 * (4 * (a ^ 2 * b ^ 2)) by ring, hab,
       show (m : ℝ) ^ 2 * (4 * (t * (N - t) / N ^ 2)) = m ^ 2 * (4 * t * (N - t)) / N ^ 2 by ring,
@@ -243,10 +236,10 @@ theorem slice_run_randomGrover (hN : 0 < N) {m T : ℕ} (hT : m ≤ T + 1) (x : 
     (j : Fin m) :
     slice j (run (randomGrover N m) (randomGroverInit N m) x T) =
       (((Real.sqrt m)⁻¹ : ℝ) : ℂ) • flipCtrl (run (grover N) (uniform N) x j) := by
-  rw [show run (randomGrover N m) = run (fun s => controlled fun (j : Fin m) =>
-      park (j : ℕ) (grover N) s) from rfl, slice_run, slice_randomGroverInit, run_smul,
+  unfold randomGrover
+  rw [slice_run, slice_randomGroverInit, run_smul,
     run_park (fun _ _ => by simp [run_grover_of_weight hN])
-      (Nat.lt_succ_iff.mp (j.isLt.trans_le hT))]
+      (Nat.le_of_lt_succ (j.isLt.trans_le hT))]
 
 /-- After `T ≥ m - 1` queries every branch of `randomGrover` is parked: the control bit is `0`. -/
 theorem run_randomGrover_ctrl (hN : 0 < N) {m T : ℕ} (hT : m ≤ T + 1) (x : Fin N → Bool)
@@ -296,8 +289,7 @@ theorem le_sum_regProb_run_randomGrover (hN : 0 < N) {m : ℕ} {c : ℝ} (hc : 0
       pos_of_mul_pos_right (hc.trans_le hsin) hm'.le
     have := le_sum_sin_sq (searchAngle N (weight x)) m hpos
     have h4 : 1 / (4 * Real.sin (2 * searchAngle N (weight x))) ≤ m / (4 * c) := by
-      rw [div_le_div_iff₀ (by positivity) (by positivity)]
-      linarith
+      rw [div_le_div_iff₀ (mul_pos four_pos hpos) (mul_pos four_pos hc)]; linarith
     have : (1 / 2 - 1 / (4 * c)) * m = m / 2 - m / (4 * c) := by ring
     linarith
   · -- `t = N`: every number of iterations succeeds.
@@ -320,11 +312,10 @@ theorem randomGrover_search (hN : 0 < N) :
       ∀ x : Fin N → Bool, (∃ i, x i = true) → 1 / 4 ≤ ∑ i with x i = true,
         regProb (run (randomGrover N (Nat.sqrt N + 1)) (randomGroverInit N (Nat.sqrt N + 1)) x
           (Nat.sqrt N)) i :=
-  ⟨norm_randomGroverInit hN (Nat.succ_pos _), Real.nat_sqrt_le_real_sqrt, fun x hx => by
-    have := le_sum_regProb_run_randomGrover hN (m := Nat.sqrt N + 1) one_pos
-      (by rw [one_pow, one_mul]; exact_mod_cast (Nat.lt_succ_sqrt' N).le) x hx
-    norm_num at this ⊢
-    exact this⟩
+  ⟨norm_randomGroverInit hN (Nat.succ_pos _), Real.nat_sqrt_le_real_sqrt, fun x hx =>
+    (by norm_num : (1 / 4 : ℝ) ≤ 1 / 2 - 1 / (4 * 1)).trans <|
+      le_sum_regProb_run_randomGrover hN (m := Nat.sqrt N + 1) one_pos
+        (by simpa only [one_pow, one_mul] using mod_cast (Nat.lt_succ_sqrt' N).le) x hx⟩
 
 /-! ### Deciding `OR_N` with error `1/3` -/
 
@@ -355,9 +346,7 @@ def orAccept (N : ℕ) : Finset (Fin N × Bool ×
     ((Unit × Fin (orRange N)) × QueryBasis N (Unit × Fin (orRange N)))) :=
   univ.filter fun (_, b, _, q) => b = true ∨ q.ctrl = true
 
-private theorem orRange_pos (N : ℕ) : 0 < orRange N := by
-  unfold orRange
-  omega
+private theorem orRange_pos (N : ℕ) : 0 < orRange N := Nat.mul_pos (by decide) (Nat.succ_pos _)
 
 /-- A stage accepts with the average success probability of `randomGrover`. -/
 theorem measureProb_run_orStage (hN : 0 < N) (x : Fin N → Bool) :
@@ -385,10 +374,8 @@ theorem measureProb_run_orSearch (hN : 0 < N) (x : Fin N → Bool) :
   have h := measureProb_run_twice (T := orRange N) (U := orStage N)
     (norm_randomGroverInit hN (orRange_pos N)) x (univ.filter fun (_, b, _) => b = true)
   rw [measureProb_run_orStage hN, sum_regProb_run_randomGrover hN (by omega)] at h
-  rw [← h, orSearch, orSearchInit, orAccept]
-  congr 1
-  ext ⟨i, b, w, q⟩
-  simp
+  rw [← h, orSearch, orSearchInit]
+  exact congrArg _ (Finset.ext fun ⟨_, _, _, _⟩ => by simp [orAccept])
 
 /-- **Deciding `OR_N` with `O(√N)` queries** after [Boyer, Brassard, Høyer,
 Tapp][BoyerBrassardHoyerTapp1998]: `orSearch` accepts every input `x` with probability within
@@ -412,23 +399,23 @@ theorem abs_measureProb_run_orSearch_sub_le (hN : 0 < N) (x : Fin N → Bool) :
   rw [hacc, threshold_one_right]
   by_cases hx : ∃ i, x i = true
   · -- `OR_N(x) = 1`: each stage succeeds with probability at least `7/16`.
-    have h7 : 7 / 16 ≤ a := by
-      have := le_sum_regProb_run_randomGrover hN (m := orRange N) (c := 4) (by norm_num)
-        (by
-          have h' : (N : ℝ) ≤ ((Nat.sqrt N + 1 : ℕ) : ℝ) ^ 2 := by
-            exact_mod_cast (Nat.lt_succ_sqrt' N).le
-          calc (4 : ℝ) ^ 2 * N ≤ 4 ^ 2 * ((Nat.sqrt N + 1 : ℕ) : ℝ) ^ 2 := by gcongr
-            _ = (orRange N : ℝ) ^ 2 := by simp only [orRange, Nat.cast_mul, Nat.cast_ofNat]; ring)
-        x hx
-      norm_num at this
-      linarith
+    have h7 : 7 / 16 ≤ a :=
+      (by norm_num : (7 / 16 : ℝ) ≤ 1 / 2 - 1 / (4 * 4)).trans <|
+        le_sum_regProb_run_randomGrover hN (m := orRange N) (by norm_num)
+          (by
+            have h' : (N : ℝ) ≤ ((Nat.sqrt N + 1 : ℕ) : ℝ) ^ 2 := by
+              exact_mod_cast (Nat.lt_succ_sqrt' N).le
+            calc (4 : ℝ) ^ 2 * N ≤ 4 ^ 2 * ((Nat.sqrt N + 1 : ℕ) : ℝ) ^ 2 := by gcongr
+              _ = (orRange N : ℝ) ^ 2 := by simp only [orRange, Nat.cast_mul, Nat.cast_ofNat]; ring)
+          x hx
     simp only [hx, decide_true, bitVal_true]
     have hsq : (1 - a) ^ 2 ≤ (9 / 16 : ℝ) ^ 2 := pow_le_pow_left₀ (by linarith) (by linarith) 2
     rw [abs_le]
     constructor <;> linarith [sq_nonneg (1 - a)]
   · -- `OR_N(x) = 0`: there is no marked item, so `a = 0`.
-    rw [show a = 0 from sum_eq_zero fun i hi => absurd ⟨i, (mem_filter.mp hi).2⟩ hx]
-    simp only [hx, decide_false, bitVal_false]; norm_num
+    have ha : a = 0 := sum_eq_zero fun i hi => absurd ⟨i, (mem_filter.mp hi).2⟩ hx
+    simp only [ha, hx, decide_false, bitVal_false]
+    norm_num
 
 /-- **An `O(√N)`-query algorithm for `OR_N` with error `1/3`**, matching the polynomial-method
 lower bound `N ≤ 16 T²` up to a constant: `orSearch` starts from a unit state, makes
@@ -439,9 +426,7 @@ theorem orSearch_spec (hN : 0 < N) :
       ∀ x : Fin N → Bool, |measureProb (run (orSearch N) (orSearchInit N) x
         (orRange N + orRange N)) (orAccept N) - bitVal ℝ (threshold N 1 x)| ≤ 1 / 3 := by
   refine ⟨norm_orSearchInit hN, ?_, abs_measureProb_run_orSearch_sub_le hN⟩
-  have := Real.nat_sqrt_le_real_sqrt (a := N)
-  simp only [orRange]
-  push_cast
-  linarith
+  push_cast [orRange]
+  linarith [Real.nat_sqrt_le_real_sqrt (a := N)]
 
 end Cslib.Quantum

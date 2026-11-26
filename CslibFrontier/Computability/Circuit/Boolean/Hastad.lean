@@ -148,16 +148,10 @@ private theorem exists_dnf_of_trees {m : ℕ} (c : Bool) (t : Fin m → Decision
     exact ⟨(length_le_depth_of_mem_toDNF hu).trans_lt (by rw [depth_map]; exact hd j),
       nodup_of_mem_toDNF hu⟩
   · rw [Bool.eq_iff_iff, DNF.eval_eq_true_iff, decide_eq_true_iff]
-    simp only [List.mem_flatten, List.mem_ofFn]
-    constructor
-    · rintro ⟨u, ⟨_, ⟨j, rfl⟩, hu⟩, hux⟩
-      refine ⟨j, ?_⟩
-      rw [← eval_map (· != c), ← eval_toDNF, DNF.eval_eq_true_iff]
-      exact ⟨u, hu, hux⟩
-    · rintro ⟨j, hj⟩
-      rw [← eval_map (· != c), ← eval_toDNF, DNF.eval_eq_true_iff] at hj
-      obtain ⟨u, hu, hux⟩ := hj
-      exact ⟨u, ⟨_, ⟨j, rfl⟩, hu⟩, hux⟩
+    simp_rw [List.mem_flatten, List.mem_ofFn, ← eval_map (· != c), ← eval_toDNF,
+      DNF.eval_eq_true_iff]
+    exact ⟨fun ⟨u, ⟨_, ⟨j, rfl⟩, hu⟩, hux⟩ => ⟨j, u, hu, hux⟩,
+      fun ⟨j, u, hu, hux⟩ => ⟨u, ⟨_, ⟨j, rfl⟩, hu⟩, hux⟩⟩
 
 /-- **Operations applied to shallow functions are narrow formulas in disjunctive normal form**, up
 to negation: a disjunction is the disjunction of the paths to `true` of decision trees for its
@@ -171,9 +165,7 @@ theorem exists_dnf_of_shallow {op : Op} (hop : op ≠ .not) {args : Fin op.arity
   | not => exact absurd rfl hop
   | and m =>
     obtain ⟨D, hD, heval⟩ := exists_dnf_of_trees true t hd
-    refine ⟨D, true, hD, fun y => ?_⟩
-    rw [heval, Bool.eq_iff_iff]
-    simp [ht]
+    exact ⟨D, true, hD, fun y => Bool.eq_iff_iff.2 (by simp [heval, ht])⟩
   | or m =>
     obtain ⟨D, hD, heval⟩ := exists_dnf_of_trees false t hd
     exact ⟨D, false, hD, fun y => by simp [heval, ht]⟩
@@ -221,15 +213,12 @@ private theorem two_pow_mul_le_card_extensions {X k ℓ : ℕ}
   rw [PartialAssignment.card_extensions, PartialAssignment.card_extensions]
   set m := #ρ.free
   have hℓm : ℓ ≤ m := le_trans (Nat.le_mul_of_pos_left ℓ (by omega)) hℓ
-  have h2 : 2 ^ (m - (ℓ - s)) = 2 ^ (m - ℓ) * 2 ^ s := by
-    rw [← pow_add]
-    congr 1
-    omega
+  have h2 : 2 ^ (m - (ℓ - s)) = 2 ^ (m - ℓ) * 2 ^ s :=
+    (congrArg (2 ^ ·) (by omega)).trans (pow_add 2 (m - ℓ) s)
+  have h16 : (16 * k) ^ s = 2 ^ s * 2 ^ s * (4 * k) ^ s := by
+    rw [← mul_pow, ← mul_pow]; ring_nf
   calc 2 ^ s * (m.choose (ℓ - s) * 2 ^ (m - (ℓ - s)) * (4 * k) ^ s)
-      = (16 * k) ^ s * m.choose (ℓ - s) * 2 ^ (m - ℓ) := by
-        rw [h2, show (16 * k) ^ s = 2 ^ s * 2 ^ s * (4 * k) ^ s by
-          rw [← mul_pow, ← mul_pow]; ring_nf]
-        ring
+      = (16 * k) ^ s * m.choose (ℓ - s) * 2 ^ (m - ℓ) := by rw [h2, h16]; ring
     _ ≤ m.choose ℓ * 2 ^ (m - ℓ) :=
         Nat.mul_le_mul_right _ (Nat.pow_mul_choose_sub_le_choose_of_mul_le hsℓ hℓ)
 

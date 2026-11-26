@@ -124,12 +124,9 @@ theorem parityAmplifier_one : parityAmplifier 1 = 1 - X := by
 
 /-- At precision `2`, `parityAmplifier 2 = 1 - 3 * X ^ 2 + 2 * X ^ 3`. -/
 theorem parityAmplifier_two : parityAmplifier 2 = 1 - 3 * X ^ 2 + 2 * X ^ 3 := by
-  have hkern : parityKernel 2 = 1 + 2 * X := by
-    unfold parityKernel paritySeriesAux
-    rw [sum_range_succ, sum_range_one]
-    simp only [Nat.reduceSub, add_zero, Nat.choose_zero_right, Nat.cast_one, pow_zero, mul_one,
-      Nat.reduceAdd, Nat.choose_one_right, Nat.cast_ofNat, pow_one]
-  rw [parityAmplifier, hkern]
+  simp only [parityAmplifier, parityKernel, paritySeriesAux, sum_range_succ, range_zero, sum_empty,
+    Nat.reduceSub, zero_add, add_zero, Nat.choose_zero_right, Nat.cast_one, pow_zero, mul_one,
+    Nat.reduceAdd, Nat.choose_one_right, Nat.cast_ofNat, pow_one]
   ring
 
 /-- `(1 - X) ^ ℓ` divides `parityAmplifier ℓ` in `ℤ[X]`. -/
@@ -240,8 +237,7 @@ def hPoly : ℤ[X] :=
 /-- `hPoly = X ^ 2 - X` is monic. -/
 theorem monic_hPoly : hPoly.Monic := by
   apply Monic.sub_of_left (monic_X_pow 2)
-  rw [degree_X, degree_X_pow]
-  decide
+  simp [degree_X]
 
 /-- `hPoly` has degree `2`. -/
 @[simp]
@@ -295,8 +291,7 @@ def parityBaseDigit (ℓ j : ℕ) : ℤ[X] :=
 
 /-- Remainder modulo `hPoly` has degree at most `1`. -/
 theorem natDegree_modByMonic_hPoly_le (P : ℤ[X]) : (P %ₘ hPoly).natDegree ≤ 1 := by
-  have hlt := natDegree_modByMonic_lt P monic_hPoly hPoly_ne_one
-  rw [natDegree_hPoly] at hlt
+  have hlt := (natDegree_modByMonic_lt P monic_hPoly hPoly_ne_one).trans_eq natDegree_hPoly
   omega
 
 /-- Each `baseDigitByH P j` has degree at most `1`. -/
@@ -349,11 +344,9 @@ theorem iterDivByH_eq_zero_of_natDegree_lt {P : ℤ[X]} {j : ℕ}
 
 private theorem natDegree_paritySeriesAux_le (m K : ℕ) :
     (paritySeriesAux m K).natDegree ≤ K - 1 := by
-  refine natDegree_sum_le_of_forall_le (range K) _ fun j hj => ?_
-  rw [mem_range] at hj
-  refine natDegree_mul_le.trans ?_
+  refine natDegree_sum_le_of_forall_le (range K) _ fun j hj => natDegree_mul_le.trans ?_
   rw [natDegree_natCast, zero_add, natDegree_X_pow]
-  omega
+  exact Nat.le_sub_one_of_lt (mem_range.1 hj)
 
 /-- `parityKernel ℓ` has degree at most `ℓ - 1`. -/
 theorem natDegree_parityKernel_le (ℓ : ℕ) :
@@ -363,11 +356,10 @@ theorem natDegree_parityKernel_le (ℓ : ℕ) :
 /-- `parityAmplifier ℓ` has degree at most `2 * ℓ - 1`. -/
 theorem natDegree_parityAmplifier_le (ℓ : ℕ) :
     (parityAmplifier ℓ).natDegree ≤ 2 * ℓ - 1 := by
-  rw [parityAmplifier]
-  refine natDegree_mul_le.trans ?_
+  refine (natDegree_mul_le (p := (1 - X) ^ ℓ) (q := parityKernel ℓ)).trans ?_
   have h1 : ((1 - X : ℤ[X]) ^ ℓ).natDegree ≤ ℓ :=
     natDegree_pow_le.trans ((Nat.mul_le_mul_left ℓ
-      ((natDegree_sub_le 1 X).trans (by simp))).trans_eq (mul_one ℓ))
+      (by simpa using natDegree_sub_le (1 : ℤ[X]) X)).trans_eq (mul_one ℓ))
   have h2 := natDegree_parityKernel_le ℓ
   omega
 
@@ -425,10 +417,7 @@ theorem coeffNorm1_parityAmplifier_le (ℓ : ℕ) :
     coeffNorm1 ((1 - X) ^ ℓ * parityKernel ℓ)
       ≤ 2 ^ ℓ * coeffNorm1 (parityKernel ℓ) := coeffNorm1_one_sub_X_pow_mul_le ℓ _
     _ ≤ 2 ^ ℓ * 2 ^ (2 * ℓ) := Nat.mul_le_mul_left (2 ^ ℓ) (coeffNorm1_parityKernel_le ℓ)
-    _ = 2 ^ (3 * ℓ) := by
-      rw [← pow_add]
-      congr 1
-      omega
+    _ = 2 ^ (3 * ℓ) := by rw [← pow_add, ← one_add_mul]
 
 private theorem coeff_modByMonic_hPoly_add (p : ℤ[X]) (n : ℕ) :
     (p %ₘ hPoly).coeff n + ((p /ₘ hPoly * X ^ 2).coeff n - (p /ₘ hPoly * X).coeff n) =
@@ -488,17 +477,15 @@ theorem natAbs_coeff_divByMonic_hPoly_le (p : ℤ[X]) (n : ℕ) :
 theorem natAbs_coeff_modByMonic_hPoly_le (p : ℤ[X]) (k : ℕ) :
     ((p %ₘ hPoly).coeff k).natAbs ≤ coeffNorm1 p := by
   rcases k with _ | _ | k
-  · rw [coeff_modByMonic_hPoly_zero]
-    exact natAbs_coeff_le_coeffNorm1 p 0
+  · simpa only [coeff_modByMonic_hPoly_zero] using natAbs_coeff_le_coeffNorm1 p 0
   · rw [coeff_modByMonic_hPoly_one, coeff_divByMonic_hPoly_eq_sum]
     have hsum : p.coeff 1 + ∑ t ∈ range (p.natDegree + 1), p.coeff (0 + 2 + t) =
         ∑ t ∈ range (p.natDegree + 2), p.coeff (1 + t) := by
       rw [sum_range_succ' (fun t => p.coeff (1 + t)) (p.natDegree + 1), add_zero, add_comm]
       exact congrArg₂ _ (sum_congr rfl fun t _ => congrArg _ (by omega)) rfl
     exact hsum ▸ natAbs_sum_coeff_add_le p 1 _
-  · rw [coeff_eq_zero_of_natDegree_lt (by have := natDegree_modByMonic_hPoly_le p; omega),
-      Int.natAbs_zero]
-    exact Nat.zero_le _
+  · rw [coeff_eq_zero_of_natDegree_lt ((natDegree_modByMonic_hPoly_le p).trans_lt (by omega))]
+    simp
 
 private theorem coeffNorm1_le_mul_of_natDegree_lt {q : ℤ[X]} {N c : ℕ} (hq : q.natDegree < N)
     (hc : ∀ i, (q.coeff i).natAbs ≤ c) : coeffNorm1 q ≤ N * c := by
@@ -643,13 +630,10 @@ theorem totalDegree_evalInt_of_natDegree_le_one {σ R : Type*} [CommRing R] {q :
     (hq : q.natDegree ≤ 1) {y : MvPolynomial σ R} {d : ℕ} (hy : y.totalDegree ≤ d) :
     (evalInt y q).totalDegree ≤ d := by
   rw [evalInt, eq_X_add_C_of_natDegree_le_one hq, eval₂_add, eval₂_mul, eval₂_X, eval₂_C, eval₂_C]
-  have hcast (a : ℤ) : Int.castRingHom (MvPolynomial σ R) a = a • (1 : MvPolynomial σ R) := by
-    simp only [eq_intCast, zsmul_one]
-  rw [hcast, hcast, smul_mul_assoc, one_mul]
-  refine (MvPolynomial.totalDegree_add _ _).trans (max_le ?_ ?_)
-  · exact (MvPolynomial.totalDegree_smul_le _ _).trans hy
-  · exact (MvPolynomial.totalDegree_smul_le _ _).trans
-      (by simp only [MvPolynomial.totalDegree_one, zero_le])
+  simp only [eq_intCast, ← zsmul_one, smul_mul_assoc, one_mul]
+  exact (MvPolynomial.totalDegree_add _ _).trans (max_le
+    ((MvPolynomial.totalDegree_smul_le _ _).trans hy)
+    ((MvPolynomial.totalDegree_smul_le _ _).trans (by simp)))
 
 /-- Evaluating `hPoly = X ^ 2 - X` at `y : MvPolynomial σ R` of total degree at most `d` gives
 a polynomial of total degree at most `2 * d`. -/

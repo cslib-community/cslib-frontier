@@ -201,8 +201,8 @@ private theorem div_ceil_eq_div_of_mod_eq_zero {m n : ℕ} (h : m % n = 0) :
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · simp
   · obtain ⟨q, rfl⟩ := Nat.dvd_of_mod_eq_zero h
-    rw [show n * q + n - 1 = (n - 1) + n * q by omega, Nat.add_mul_div_left _ _ hn,
-      Nat.mul_div_right _ hn, Nat.div_eq_zero_iff.mpr (Or.inr (by omega)), zero_add]
+    rw [Nat.add_sub_assoc hn, Nat.mul_add_div hn, Nat.mul_div_right _ hn,
+      Nat.div_eq_of_lt (Nat.sub_lt hn Nat.one_pos), add_zero]
 
 /-- Deterministic nonce-based counter-mode stream cipher at block width `n` under
 nonce-to-initial-counter map `toIV`: encrypt (or decrypt) a word of length `len` by XORing it with
@@ -321,7 +321,7 @@ private theorem computableInPolyTime_nonceCTRValid {nonceLen : ℕ → ℕ}
       blockPairValid (n a) (m₀ a) (m₁ a) &&
         decide (Nat.clog 2 ((m₀ a).length / n a) ≤ n a - nonceLen (n a)) := by
     funext a
-    simp only [nonceCTRValid, Nat.clog_le_iff_le_pow (by decide : 1 < 2)]
+    simp only [nonceCTRValid, Nat.clog_le_iff_le_pow Nat.one_lt_two]
   have hclog : ComputableInPolyTime (fun a => Nat.clog 2 ((m₀ a).length / n a)) input encUnary :=
     (ComputableInPolyTime.unary_clog_const 2).comp (by polytime)
   rw [heq]
@@ -518,9 +518,8 @@ private theorem eval_prfRealGame_nonceCTRSimView {family : List Bool → List Bo
   congr 2
   funext request ⟨ok, seen⟩
   dsimp only [StateT.run]
-  rw [show (fun req : Unit × List Bool => PMF.pure (prfOracle family n k req.2)) =
-      (fun req => ProbComp.eval (pure (prfOracle family n k req.2))) from rfl,
-    ← ProbOracleComp.eval_run_eq_evalWith]
+  erw [← ProbOracleComp.eval_run_eq_evalWith
+    (oracle := fun req : Unit × List Bool => pure (prfOracle family n k req.2))]
   unfold nonceCTRHandler OracleCodec.wordOracle NonceCipher.cpaOracle
   cases hdec : NonceCipher.unitCPACodec.decodeQuery request with
   | none =>
@@ -536,12 +535,9 @@ private theorem eval_prfRealGame_nonceCTRSimView {family : List Bool → List Bo
       simp only [Bool.and_eq_true, decide_eq_true_eq] at hcond
       have hpair := hcond.1.1.2
       simp only [nonceCTRValid, blockPairValid, Bool.and_eq_true, beq_iff_eq] at hpair
-      rcases hpair with ⟨⟨hlenPair, hmod⟩, _⟩
-      have hselMod : (pair.select b).length % n = 0 := by
-        cases b <;> simp [MessagePair.select, ← hlenPair, hmod]
       have hselDiv : ((pair.select b).length + n - 1) / n = pair.msg₀.length / n := by
-        rw [div_ceil_eq_div_of_mod_eq_zero hselMod]
-        cases b <;> simp [MessagePair.select, hlenPair]
+        cases b <;>
+          simp [MessagePair.select, ← hpair.1.1, div_ceil_eq_div_of_mod_eq_zero hpair.1.2]
       dsimp only [Functor.map, StateT.map]
       simp [hcond.1.1.1, hcond.1.1.2, hcond.1.2, hcond.2, NonceCipher.unitCPACodec,
         nonceCTRCipher, nonceStreamCipher_encrypt_eq, hselDiv]
@@ -623,12 +619,10 @@ private theorem runWith_ctrKeystreamQueries_lazy {n s : ℕ} (hs : s ≤ n)
     intro k hk
     induction k with
     | zero =>
-      dsimp only
-      rw [OracleComp.iterate_zero, ProbOracleComp.runWith_pure]
-      refine ⟨fun res hres => ?_, by simp⟩
-      rw [PMF.mem_support_pure_iff] at hres
-      subst hres
-      exact ⟨rfl, by simp, fun x hx => Or.inl (hcache x hx)⟩
+      simp only [OracleComp.iterate_zero, ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff,
+        zero_mul, BitString.uniformList_zero, PMF.pure_map, and_true]
+      rintro _ rfl
+      exact ⟨rfl, rfl, fun x hx => Or.inl (hcache x hx)⟩
     | succ k ih =>
       obtain ⟨hsupp, hlaw⟩ := ih (Nat.le_of_succ_le hk)
       have hkPow : k < 2 ^ (n - s) := lt_of_lt_of_le (Nat.lt_succ_self k) (hk.trans hblocks)
@@ -666,8 +660,7 @@ private theorem runWith_ctrKeystreamQueries_lazy {n s : ℕ} (hs : s ≤ n)
       dsimp only
       rw [OracleComp.iterate_succ, ProbOracleComp.runWith_bind]
       refine ⟨fun res hres => ?_, ?_⟩
-      · rw [PMF.mem_support_bind_iff] at hres
-        obtain ⟨mid, hmid, hresMid⟩ := hres
+      · obtain ⟨mid, hmid, hresMid⟩ := (PMF.mem_support_bind_iff _ _ _).mp hres
         rw [hstep_of_supp mid hmid, PMF.mem_support_map_iff] at hresMid
         obtain ⟨y, -, rfl⟩ := hresMid
         obtain ⟨_, hstreamLen, hmidCache⟩ := hsupp mid hmid
@@ -687,11 +680,9 @@ private theorem runWith_ctrKeystreamQueries_lazy {n s : ℕ} (hs : s ≤ n)
   rw [ProbOracleComp.runWith_map]
   refine ⟨fun res hres x hx => ?_, by
     simpa only [PMF.map_comp, Function.comp_def, Prod.map] using hlaw⟩
-  rw [PMF.mem_support_map_iff] at hres
-  obtain ⟨mid, hmid, rfl⟩ := hres
-  rcases (hsupp mid hmid).2.2 x hx with hmem | ⟨hd, -⟩
-  · exact List.mem_cons_of_mem _ hmem
-  · exact hd ▸ List.mem_cons_self
+  obtain ⟨mid, hmid, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hres
+  exact ((hsupp mid hmid).2.2 x hx).elim (List.mem_cons_of_mem _) fun ⟨hd, _⟩ =>
+    hd ▸ List.mem_cons_self
 
 private theorem eval_prfIdealGame_nonceCTRSimView {nonceLen : ℕ → ℕ} {n : ℕ} (hs : nonceLen n ≤ n)
     (adversary : OracleDistinguisher) (b : Bool) :
@@ -717,26 +708,12 @@ private theorem eval_prfIdealGame_nonceCTRSimView {nonceLen : ℕ → ℕ} {n : 
       (jointOracle q state).map (fun (a, state') => (a, state'.1)) =
         nonceCTRIdealOracle nonceLen n q state.1 := by
     rintro request ⟨⟨ok, seen⟩, cache⟩ hinv
-    have hpure_inv (flag : Bool) :
-        (∀ a state', (a, state') ∈
-          ((ProbOracleComp.runWith
-              (fun req : Unit × List Bool => lazyRandomFunctionOracle n n req.2)
-              (pure (([] : List Bool), (flag, seen))) cache).map
-            fun r => (r.1.1, r.1.2, r.2)).support →
-          inv state') ∧
-        ((ProbOracleComp.runWith
-            (fun req : Unit × List Bool => lazyRandomFunctionOracle n n req.2)
-            (pure (([] : List Bool), (flag, seen))) cache).map
-          fun r => (r.1.1, r.1.2, r.2)).map
-          (fun p => (p.1, p.2.1)) = PMF.pure ([], (flag, seen)) := by
-      rw [ProbOracleComp.runWith_pure]
-      refine ⟨fun a s' hmem => ?_, by simp [PMF.pure_map]⟩
-      simp only [PMF.pure_map, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-      rcases hmem with ⟨_, rfl⟩
-      exact hinv
     dsimp only [jointOracle, nonceCTRHandler, nonceCTRIdealOracle, StateT.run]
     cases hdec : NonceCipher.unitCPACodec.decodeQuery request with
-    | none => exact hpure_inv ok
+    | none =>
+      simp only [ProbOracleComp.runWith_pure, PMF.pure_map, PMF.mem_support_pure_iff,
+        Prod.mk.injEq, and_true]
+      exact fun _ _ h => h.2.symm ▸ hinv
     | some q =>
       rcases q with ⟨pair, ⟨⟩, nonce⟩
       dsimp only
@@ -752,19 +729,15 @@ private theorem eval_prfIdealGame_nonceCTRSimView {nonceLen : ℕ → ℕ} {n : 
           Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmod)
         simp only [ProbOracleComp.runWith_map, PMF.map_comp, Function.comp_def, Prod.map, id_eq]
         refine ⟨fun a state' hmem => ?_, ?_⟩
-        · rw [PMF.mem_support_map_iff] at hmem
-          obtain ⟨ksRes, hksRes, ⟨⟩⟩ := hmem
+        · obtain ⟨ksRes, hksRes, ⟨⟩⟩ := (PMF.mem_support_map_iff _ _ _).mp hmem
           exact hsuppKs ksRes hksRes
-        · trans ((ProbOracleComp.runWith (fun req => lazyRandomFunctionOracle n n req.2)
-              (ctrKeystreamQueries n (nonceCTRCounter n (nonceLen n) nonce 0)
-                (pair.msg₀.length / n)) cache).map Prod.fst).map
-              (fun s => (true :: xorWithStream (pair.select b) s, (true, nonce :: seen)))
-          · rw [PMF.map_comp]; rfl
-          · rw [hlawKs, hmulBlocks]
-            conv_rhs => rw [← hselLen, ← uniformList_map_xorWithStream (pair.select b)]
-            rw [PMF.map_comp, hselLen]
-            rfl
-      · exact hpure_inv false
+        · rw [← hselLen, ← uniformList_map_xorWithStream (pair.select b), PMF.map_comp]
+          simpa only [PMF.map_comp, Function.comp_def, hmulBlocks, hselLen] using
+            congrArg (PMF.map fun s =>
+              (true :: xorWithStream (pair.select b) s, (true, nonce :: seen))) hlawKs
+      · simp only [ProbOracleComp.runWith_pure, PMF.pure_map, PMF.mem_support_pure_iff,
+          Prod.mk.injEq, and_true]
+        exact fun _ _ h => h.2.symm ▸ hinv
   have hsim := ProbOracleComp.runWith_map_state_of_invariant
     jointOracle (nonceCTRIdealOracle nonceLen n) Prod.fst inv
     (fun q s hs a s' hmem => (hstep_inv_and_law q s hs).1 a s' hmem)
@@ -815,21 +788,17 @@ theorem advantage_cpaExperiment_nonceCTRCipher_eq_two_mul
         (ProbComp.eval ((nonceCTRCipher family n (nonceLen n)).cpaExperiment
           (BitString.sampleList n) (nonceCTRValid nonceLen n) (nonceCTRValidNonce nonceLen n)
           (NonceCipher.unitCPACodec.adapt (adversary n [])) b)).map (· == b) := by
-    unfold prfRealGame
-    rw [eval_prfGame_nonceCTRToPRF_eq_bind]
-    refine congrArg (PMF.bind (PMF.uniformOfFintype Bool)) (funext fun b => ?_)
-    rw [← eval_prfRealGame_nonceCTRSimView hlen adversary b]
-    rfl
+    rw [prfRealGame, eval_prfGame_nonceCTRToPRF_eq_bind]
+    exact congrArg _ (funext fun b =>
+      congrArg (PMF.map (· == b)) (eval_prfRealGame_nonceCTRSimView hlen adversary b))
   have hideal : ProbComp.eval (prfIdealGame id id (nonceCTRToPRF nonceLen adversary) n) =
       PMF.uniformOfFintype Bool := by
-    unfold prfIdealGame
-    rw [eval_prfGame_nonceCTRToPRF_eq_bind]
+    rw [prfIdealGame, eval_prfGame_nonceCTRToPRF_eq_bind]
     refine (congrArg (PMF.bind (PMF.uniformOfFintype Bool)) (funext fun b => ?_)).trans
       (Game.uniform_bool_bind_map_beq_const
         ((ProbOracleComp.runWith (nonceCTRIdealOracle nonceLen n)
           (adversary n []) (true, [])).map fun (guess, ok, _) => ok && guess))
-    rw [← eval_prfIdealGame_nonceCTRSimView hs adversary b]
-    rfl
+    exact congrArg (PMF.map (· == b)) (eval_prfIdealGame_nonceCTRSimView hs adversary b)
   rw [hreal, hideal]
   exact Game.advantage_eq_two_mul_guessingAdvantage_uniform_bool_beq fun b =>
     ProbComp.eval ((nonceCTRCipher family n (nonceLen n)).cpaExperiment
@@ -923,7 +892,7 @@ theorem advantage_cpaExperiment_unscaledNonceCTRAdversary
   let m1 := List.replicate n true ++ List.replicate n false
   have hz2Mod : (2 * n) % n = 0 := Nat.mul_mod_left 2 n
   have hdiv2 : (2 * n + n - 1) / n = 2 := by
-    rw [div_ceil_eq_div_of_mod_eq_zero hz2Mod, Nat.mul_div_left 2 (by omega)]
+    rw [div_ceil_eq_div_of_mod_eq_zero hz2Mod, Nat.mul_div_left 2 hn]
   have hv0 : blockPairValid n z2 z2 = true := by simp [blockPairValid, z2, hz2Mod]
   have hv1 : blockPairValid n z2 m1 = true := by simp [blockPairValid, z2, m1, Nat.two_mul]
   have hvn (j : ℕ) : nonceCTRValidNonce id n (BitString.lowBits n j) = true := by
@@ -941,8 +910,8 @@ theorem advantage_cpaExperiment_unscaledNonceCTRAdversary
     simp only [unscaledNonceCTRAdversary, ProbOracleComp.runWith_bind,
       ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure]
     let y (j : ℕ) := family k (BitString.lowBits n j)
-    have hyLen (j : ℕ) : (y j).length = n := by
-      rw [hlen k _ (by rw [BitString.length_lowBits, hkLen]), hkLen]
+    have hyLen (j : ℕ) : (y j).length = n :=
+      (hlen k _ ((BitString.length_lowBits n j).trans hkLen.symm)).trans hkLen
     have hks (j : ℕ) (hj : j < 2 ^ n) :
         ctrWordKeystream family n k (BitString.lowBits n j) 2 = y j ++ y (j + 1) := by
       simp [ctrWordKeystream, List.range_succ, ctrWordCounter, BitString.lsbValue_lowBits hj, y]
@@ -951,8 +920,9 @@ theorem advantage_cpaExperiment_unscaledNonceCTRAdversary
           y j ++ y (j + 1) := by
       have hlenKs : (y j ++ y (j + 1)).length = 2 * n := by simp [hyLen, Nat.two_mul]
       rw [unscaledNonceCTRCipher, nonceStreamCipher_encrypt_eq]
-      simp only [z2, List.length_replicate, hdiv2, hks j hj]
-      rw [xorWithStream_eq_zipWith (by simp [hlenKs]), ← hlenKs]
+      dsimp only [z2]
+      simp only [List.length_replicate, hdiv2, hks j hj]
+      rw [xorWithStream_eq_zipWith (hlenKs.trans List.length_replicate.symm), ← hlenKs]
       exact zipWith_xor_replicate_false _
     have hwordCall (m₀ m₁ nonce : List Bool) (seen : List (List Bool))
         (hv : blockPairValid n m₀ m₁ = true) (hvn' : nonceCTRValidNonce id n nonce = true)
@@ -963,44 +933,42 @@ theorem advantage_cpaExperiment_unscaledNonceCTRAdversary
           ((), frame m₀ ++ frame m₁ ++ nonce) (true, seen) =
           PMF.pure (true :: (unscaledNonceCTRCipher family n).encrypt k
             ((MessagePair.mk m₀ m₁).select b) () nonce, (true, nonce :: seen)) := by
-      rw [show ((), frame m₀ ++ frame m₁ ++ nonce) =
-          NonceCipher.unitCPACodec.encodeQuery (⟨m₀, m₁⟩, (), nonce) from rfl,
-        NonceCipher.unitCPACodec.wordOracle_encodeQuery]
+      erw [NonceCipher.unitCPACodec.wordOracle_encodeQuery _ (⟨m₀, m₁⟩, (), nonce)]
       dsimp only [Functor.map, StateT.map]
       simp [NonceCipher.cpaOracle, NonceCipher.unitCPACodec, hv, hvn', hfresh, ProbComp.eval_pure]
     have hsel0 : (MessagePair.mk z2 z2).select b = z2 := by cases b <;> rfl
-    rw [hwordCall z2 z2 (BitString.lowBits n 0) [] hv0 (hvn 0) (by simp), hsel0,
+    rw [hwordCall z2 z2 (BitString.lowBits n 0) [] hv0 (hvn 0) List.not_mem_nil, hsel0,
       hct_z2 0 (Nat.two_pow_pos n)]
     simp only [PMF.pure_map, PMF.pure_bind, Prod.map, id_eq]
     rw [hwordCall z2 m1 (BitString.lowBits n 1) [BitString.lowBits n 0] hv1 (hvn 1)
-      (by simp [hnonceNe])]
+      (mt List.mem_singleton.mp hnonceNe)]
     simp only [PMF.pure_map, PMF.pure_bind, Prod.map, id_eq]
-    have hrTake (ct : List Bool) (hct : ct.length = 2 * n) :
-        (true :: ct).take (2 * n + 1) = true :: ct :=
-      List.take_of_length_le (by rw [List.length_cons, hct])
-    rw [hrTake (y 0 ++ y 1) (by simp [hyLen, Nat.two_mul]), List.drop_succ_cons, List.drop_zero,
-      List.drop_left' (hyLen 0)]
+    have hrTake (u v : List Bool) (hu : u.length = n) (hv : v.length = n) :
+        ((true :: (u ++ v)).take (2 * n + 1)).drop 1 = u ++ v := by
+      have huv : (true :: (u ++ v)).length ≤ 2 * n + 1 := by simp [hu, hv, Nat.two_mul]
+      rw [List.take_of_length_le huv, List.drop_succ_cons, List.drop_zero]
+    rw [hrTake _ _ (hyLen 0) (hyLen 1), List.drop_left' (hyLen 0)]
     cases b
     · dsimp only [MessagePair.select, cond]
-      rw [hct_z2 1 htwoPow, hrTake (y 1 ++ y 2) (by simp [hyLen, Nat.two_mul]),
-        List.drop_succ_cons, List.drop_zero, List.take_left' (hyLen 1)]
+      rw [hct_z2 1 htwoPow, hrTake _ _ (hyLen 1) (hyLen 2), List.take_left' (hyLen 1)]
       simp
     · have hct1True :
           (unscaledNonceCTRCipher family n).encrypt k m1 () (BitString.lowBits n 1) =
             List.zipWith Bool.xor (List.replicate n true) (y 1) ++ y 2 := by
         have hm1Len : m1.length = 2 * n := by simp [m1, Nat.two_mul]
+        have hksLen : (y 1 ++ y 2).length = m1.length := by simp [m1, hyLen]
+        have hrepLen : (List.replicate n true).length = (y 1).length := by simp [hyLen]
         rw [unscaledNonceCTRCipher, nonceStreamCipher_encrypt_eq, hm1Len, hdiv2, hks 1 htwoPow,
-          xorWithStream_eq_zipWith (by simp [m1, hyLen])]
-        dsimp only [m1]
-        rw [List.zipWith_append (by simp [hyLen]), ← hyLen 2, zipWith_xor_replicate_false]
+          xorWithStream_eq_zipWith hksLen, List.zipWith_append hrepLen,
+          ← hyLen 2, zipWith_xor_replicate_false]
       have hxorLen : (List.zipWith Bool.xor (List.replicate n true) (y 1)).length = n := by
         simp [hyLen]
       have hneBlock : List.zipWith Bool.xor (List.replicate n true) (y 1) ≠ y 1 :=
         hyLen 1 ▸ zipWith_xor_replicate_true_ne (y 1)
           (List.ne_nil_of_length_pos ((hyLen 1).symm ▸ hn))
       dsimp only [MessagePair.select, cond]
-      rw [hct1True, hrTake _ (by simp [hxorLen, hyLen, Nat.two_mul]), List.drop_succ_cons,
-        List.drop_zero, List.take_left' hxorLen, beq_eq_false_iff_ne.mpr hneBlock]
+      rw [hct1True, hrTake _ _ hxorLen (hyLen 2), List.take_left' hxorLen,
+        beq_eq_false_iff_ne.mpr hneBlock]
       simp
   rw [heval false, heval true, Game.advantage]
   simp [Game.succProbability]

@@ -70,12 +70,11 @@ private theorem sub_one_mul_prefixCharPoly {k : ℕ} (hk : 2 ≤ k) (x : ℝ) :
     ring
   | @step m hm ih =>
     have hm2 : 2 ≤ m := hm
-    have hdiff := prefixCharPoly_succ_sub hm2 x
+    have hdiff := sub_eq_iff_eq_add'.mp (prefixCharPoly_succ_sub hm2 x)
     obtain ⟨j, rfl⟩ : ∃ j, m = j + 1 := ⟨m - 1, by omega⟩
     change (x - 1) * prefixCharPoly (j + 1 + 1) x = x - 2 + x ^ (j + 1) * (1 + x - x ^ 2)
     simp only [Nat.add_sub_cancel] at ih hdiff
-    rw [show prefixCharPoly (j + 1 + 1) x = prefixCharPoly (j + 1) x + x ^ j * (1 + x - x ^ 2) by
-      linarith, mul_add, ih]
+    rw [hdiff, mul_add, ih]
     ring
 
 private theorem prefixCharPoly_continuous (k : ℕ) : Continuous (prefixCharPoly k) := by
@@ -90,8 +89,8 @@ private theorem prefixCharPoly_one_pos (k : ℕ) : 0 < prefixCharPoly k 1 := by
 private theorem prefixCharPoly_goldenRatio_neg {k : ℕ} (hk : 2 ≤ k) :
     prefixCharPoly k Real.goldenRatio < 0 := by
   have htel := sub_one_mul_prefixCharPoly hk Real.goldenRatio
-  rw [show 1 + Real.goldenRatio - Real.goldenRatio ^ 2 = 0 by linarith [Real.goldenRatio_sq],
-    mul_zero, add_zero] at htel
+  have hgold : 1 + Real.goldenRatio - Real.goldenRatio ^ 2 = 0 := by linarith [Real.goldenRatio_sq]
+  rw [hgold, mul_zero, add_zero] at htel
   exact neg_of_mul_neg_right (htel.trans_lt (by linarith [Real.goldenRatio_lt_two]))
     (sub_nonneg.mpr Real.one_lt_goldenRatio.le)
 
@@ -246,12 +245,7 @@ theorem tendsto_alphaRoot_atTop :
     have hc1 : 1 < c := lt_of_lt_of_le (by norm_num) (le_max_right a _)
     have hc_lt : c < Real.goldenRatio := max_lt ha h54_lt
     have hquad_pos : 0 < 1 + c - c ^ 2 := by
-      have hfac : 1 + c - c ^ 2 = (Real.goldenRatio - c) * (c + Real.goldenRatio - 1) := by
-        have hsq := Real.goldenRatio_sq
-        linarith [show (Real.goldenRatio - c) * (c + Real.goldenRatio - 1) =
-          Real.goldenRatio ^ 2 - Real.goldenRatio + c - c ^ 2 by ring]
-      rw [hfac]
-      exact mul_pos (sub_pos.mpr hc_lt) (by linarith [Real.one_lt_goldenRatio])
+      nlinarith [Real.goldenRatio_sq, Real.one_lt_goldenRatio]
     obtain ⟨M, hM⟩ := Filter.eventually_atTop.mp <| Filter.tendsto_atTop.mp
       (tendsto_pow_atTop_atTop_of_one_lt hc1) ((2 - c) / (1 + c - c ^ 2) + 1)
     refine Filter.eventually_atTop.mpr ⟨max 2 (M + 1), fun k hk => ?_⟩
@@ -281,7 +275,8 @@ private theorem pow_recurrence_sub {k D : ℕ} (hk : 2 ≤ k) (hD : k ≤ D) (x 
       exact ⟨k - i, by simp only [Finset.mem_Ico]; omega, by omega⟩
     · intro j hj
       simp only [Finset.mem_Ico] at hj
-      rw [← pow_add, show D - k + (k - j) = D - j by omega]
+      have hsub : D - k + (k - j) = D - j := by omega
+      rw [← pow_add, hsub]
   have hpow : x ^ D = x ^ (D - k) * x ^ k := by
     rw [← pow_add, Nat.sub_add_cancel hD]
   rw [hsum, hpow]

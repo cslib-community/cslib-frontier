@@ -88,10 +88,8 @@ private theorem FixedCoupled.writeQuot_slotOf {metaBase itemBase U V w N b j q :
     rw [hdt_f, hq_fix]
     by_cases hdeq : d' = d
     · subst hdeq
-      rw [compQuotAt_writeCompQuot_self s.mem hd_lt hq_lt]
-      change q = Function.update (quotAt 0 U (ghostW w) N (epochHashSpace U (ghostW w) N)
-        s_fix.mem) g q (physOfDense N gm (compDTAt metaBase U w N s.mem) d)
-      rw [hvirt, Function.update_self]
+      dsimp only [physOfDense] at hvirt
+      rw [compQuotAt_writeCompQuot_self s.mem hd_lt hq_lt, hvirt, Function.update_self]
     · rw [compQuotAt_writeCompQuot_of_ne hw s.mem hdeq]
       have hg_ne : physByBase N (gm 0 * slabSize N) (compDTAt metaBase U w N s.mem) d' ≠ g := by
         intro heq
@@ -255,39 +253,27 @@ private theorem compCopyLastPayloadGenProg_effect {metaBase itemBase U V w N m_c
       (writeValProg U V (ghostW w) N (epochHashSpace U (ghostW w) N)
         ((0, phys_del),
           valAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem phys_last)) := by
-    dsimp only [s_fix']
-    unfold copyLastPayloadProg copyLastPayloadGenProg
-    simp only [lastSlotOfGenProg_mk, readQuotGenProg_mk, readValGenProg_mk,
-      writeQuotGenProg_mk, writeValGenProg_mk]
+    simp only [s_fix', copyLastPayloadProg, copyLastPayloadGenProg, lastSlotOfGenProg_mk,
+      readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk]
     rw [StateTransitionSpec.clientState_bind, clientState_lastSlotOfProg,
-      clientResult_lastSlotOfProg (0, b) s_fix (hcpl.gm_eq ▸ hslot) hb (hcpl.gm_eq ▸ hbc)]
-    simp only [← hcpl.gm_eq]
-    rw [StateTransitionSpec.clientState_bind, clientState_readQuotProg,
-      clientResult_readQuotProg s_fix hphys_last_lt,
-      StateTransitionSpec.clientState_bind, clientState_readValProg,
-      clientResult_readValProg s_fix hphys_last_lt,
+      clientResult_lastSlotOfProg (0, b) s_fix (hcpl.gm_eq ▸ hslot) hb (hcpl.gm_eq ▸ hbc),
+      ← hcpl.gm_eq, StateTransitionSpec.clientState_bind, clientState_readQuotProg,
+      clientResult_readQuotProg s_fix hphys_last_lt, StateTransitionSpec.clientState_bind,
+      clientState_readValProg, clientResult_readValProg s_fix hphys_last_lt,
       StateTransitionSpec.clientState_bind]
-  have hq_lt : quotAt 0 U (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem phys_last <
-      2 ^ quotientBits U N := quotAt_lt _ _ _ _ _ _ _
-  have hv_lt : valAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem phys_last <
-      2 ^ valBits V := valAt_lt _ _ _ _ _ _ _ _
-  have hcpl1 := hcpl.writeQuot_slotOf henv.pos_w henv.meta_le_item hslot hb hj_del hq_lt
+  have hcpl1 := hcpl.writeQuot_slotOf henv.pos_w henv.meta_le_item hslot hb hj_del
+    (quotAt_lt 0 U (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem phys_last)
   obtain ⟨_, hgm1, htd1, _⟩ := writeCompQuot_meta_frame (metaBase := metaBase)
     (U := U) (V := V) (N := N)
     (q := quotAt 0 U (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem phys_last)
     henv.pos_w henv.meta_le_item hd_dst_lt s.mem
-  set s₁ : Memory.State := {
-    mem := writeCompQuot itemBase U V w N s.mem d_dst
-      (quotAt 0 U (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem phys_last),
-    frontier := s.frontier }
-  have hslot1 : SlotStoreInv N (compGmAt metaBase U w N s₁.mem) := hgm1.symm ▸ hslot
-  have hj_del1 : j_del < bCount N (compGmAt metaBase U w N s₁.mem) b := hgm1.symm ▸ hj_del
-  have hcpl2 := hcpl1.writeVal_slotOf henv.pos_w henv.meta_le_item hslot1 hb hj_del1 hv_lt
+  have hcpl2 := hcpl1.writeVal_slotOf henv.pos_w henv.meta_le_item (hgm1.symm ▸ hslot) hb
+    (hgm1.symm ▸ hj_del)
+    (valAt_lt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem phys_last)
   simp only [hgm1, htd1] at hcpl2
   rw [hs'_eq, hs_fix'_eq]
-  refine ⟨⟨rfl, fun a _ hi => ?_⟩, hcpl2⟩
-  exact (writeCompVal_outside henv.pos_w hd_dst_cap _ hi).trans
-    (writeCompQuot_outside henv.pos_w hd_dst_cap s.mem hi)
+  exact ⟨⟨rfl, fun a _ hi => (writeCompVal_outside henv.pos_w hd_dst_cap _ hi).trans
+    (writeCompQuot_outside henv.pos_w hd_dst_cap s.mem hi)⟩, hcpl2⟩
 
 private theorem realizesBounded_compCopyLastPayloadGen :
     RealizesBounded .exact compCopyLastPayloadGenProg

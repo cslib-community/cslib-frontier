@@ -198,34 +198,28 @@ variable {L t q : ℤ}
 
 private theorem gridFlip_mem (ht : t ∈ Ico (-L) L) (hq : q ∈ Ico (-L) L) :
     gridFlip L t q ∈ Ico (-L) L := by
-  rw [mem_Ico] at ht hq ⊢
-  unfold gridFlip
+  simp only [mem_Ico, gridFlip] at ht hq ⊢
   split_ifs <;> omega
 
 private theorem gridFlip_gridFlip (ht : t ∈ Ico (-L) L) (hq : q ∈ Ico (-L) L) :
     gridFlip L t (gridFlip L t q) = q := by
-  rw [mem_Ico] at ht hq
-  unfold gridFlip
+  simp only [mem_Ico, gridFlip] at ht hq ⊢
   split_ifs <;> omega
 
 private theorem gridFlip_eq_zero_iff (ht : t ∈ Ico (-L) L) (hq : q ∈ Ico (-L) L) :
     gridFlip L t q = 0 ↔ q = t := by
-  rw [mem_Ico] at ht hq
-  unfold gridFlip
+  simp only [mem_Ico, gridFlip] at ht hq ⊢
   split_ifs <;> omega
 
 private theorem gridFlip_eq_self_iff (ht : t ∈ Ico (-L) L) (hq : q ∈ Ico (-L) L) :
     gridFlip L t q = t ↔ q = 0 := by
-  rw [mem_Ico] at ht hq
-  unfold gridFlip
+  simp only [mem_Ico, gridFlip] at ht hq ⊢
   split_ifs <;> omega
 
 private theorem exists_gridFlip_eq (L t q : ℤ) : ∃ c : ℤ, gridFlip L t q = t - q + 2 * L * c := by
   unfold gridFlip
   split_ifs
-  · exact ⟨1, by ring⟩
-  · exact ⟨0, by ring⟩
-  · exact ⟨-1, by ring⟩
+  exacts [⟨1, by ring⟩, ⟨0, by ring⟩, ⟨-1, by ring⟩]
 
 end gridFlip
 
@@ -238,7 +232,7 @@ private theorem padicValInt_gridFlip (ht : t ∈ Ico (-(2 : ℤ) ^ a) (2 ^ a))
     (hq : q ∈ Ico (-(2 : ℤ) ^ a) (2 ^ a)) (hqt : q ≠ t) :
     padicValInt 2 (gridFlip (2 ^ a) t q) = padicValInt 2 (t - q) := by
   obtain ⟨c, hc⟩ := exists_gridFlip_eq (2 ^ a) t q
-  rw [hc, show 2 * (2 : ℤ) ^ a * c = 2 ^ (a + 1) * c by ring]
+  rw [hc, ← pow_succ']
   exact padicValInt_two_add_mul (sub_ne_zero.mpr hqt.symm) (natAbs_sub_lt ht hq) c
 
 /-- On the dyadic grid, `t` minus the reflection of `q ≠ 0` has the valuation of `q`. -/
@@ -297,18 +291,15 @@ private theorem sum_tapered_eq (m : ℕ → ℕ) (ht : t ∈ Ico (-(2 : ℤ) ^ a
   have h2 : ∑ q ∈ ((S.erase 0).erase t).filter (fun q => ¬i < v q), g q =
       ∑ q ∈ ((S.erase 0).erase t).filter (fun q => i < v q), g (φ q) := by
     rw [← sum_subset (s₁ := ((S.erase 0).erase t).filter (fun q => v q = i))
-      (fun q hq => by
-        simp only [mem_filter] at hq ⊢
-        exact ⟨hq.1, by omega⟩)
+      (fun q hq => mem_filter.2 ⟨(mem_filter.1 hq).1, (mem_filter.1 hq).2.not_gt⟩)
       fun q hq hq' => by
         simp only [mem_filter, not_and, not_lt] at hq hq'
         simp only [g, hlt (hmem.mp hq.1).2.1 (hq.2.lt_of_ne (hq' hq.1)), sub_self, mul_zero]]
     refine sum_nbij' φ φ (fun q hq => ?_) (fun q hq => ?_) (fun q hq => hφφ (mem_filter.mp hq).1)
       (fun q hq => hφφ (mem_filter.mp hq).1) fun q hq => by rw [hφφ (mem_filter.mp hq).1]
-    · rw [mem_filter] at hq ⊢
-      exact ⟨hφ hq.1, hvφ hq.1 ▸ heq (hmem.mp hq.1).2.1 (hmem.mp hq.1).2.2 hq.2⟩
-    · rw [mem_filter] at hq ⊢
-      exact ⟨hφ hq.1, by rw [hvφ hq.1, hgt hq.2]⟩
+    all_goals rw [mem_filter] at hq ⊢
+    · exact ⟨hφ hq.1, hvφ hq.1 ▸ heq (hmem.mp hq.1).2.1 (hmem.mp hq.1).2.2 hq.2⟩
+    · exact ⟨hφ hq.1, (hvφ hq.1).trans (hgt hq.2)⟩
   rw [h1, ← sum_filter_add_sum_filter_not _ (fun q => i < v q), h2, ← sum_add_distrib,
     ← sum_erase (S.erase 0) (a := t) (by simp only [i, lt_irrefl, ite_false]), sum_filter]
   refine sum_congr rfl fun q hq => ?_
@@ -339,16 +330,14 @@ theorem padicValRat_eval_zero_hermiteBasis_dyadic (m : ℕ → ℕ)
     have htq : ((t : ℚ) - q) ≠ 0 := sub_ne_zero.mpr (by exact_mod_cast hq.1.symm)
     rw [Ring.inverse_eq_inv, zero_sub]
     refine ⟨pow_ne_zero _ (mul_ne_zero (inv_ne_zero htq) (neg_ne_zero.mpr hq0)), ?_⟩
-    rw [padicValRat.pow, padicValRat.mul (inv_ne_zero htq) (neg_ne_zero.mpr hq0),
-      padicValRat.inv, padicValRat.neg, show (t : ℚ) - q = ((t - q : ℤ) : ℚ) by push_cast; ring,
-      padicValRat.of_int, padicValRat.of_int]
+    rw [padicValRat.pow, padicValRat.mul (inv_ne_zero htq) (neg_ne_zero.mpr hq0), padicValRat.inv,
+      padicValRat.neg, ← Int.cast_sub, padicValRat.of_int, padicValRat.of_int]
     ring
   rw [eval_hermiteBasis, padicValRat.prod _ fun q hq => (hfac q hq).1,
     sum_congr rfl fun q hq => (hfac q hq).2, sum_tapered_eq m ht ht0,
     sum_Ico_erase_zero_padicValInt_two a fun j => if padicValInt 2 t < j then
       ((j : ℤ) - padicValInt 2 t) * ((m j : ℤ) - m (padicValInt 2 t)) else 0]
-  simp only [mul_ite, mul_zero]
-  rw [← sum_filter]
+  simp only [mul_ite, mul_zero, ← sum_filter]
   refine sum_congr (Finset.ext fun j => ?_) fun _ _ => rfl
   simp only [mem_filter, mem_range, mem_Ioc]
   omega
@@ -407,9 +396,9 @@ theorem neg_le_padicValRat_eval_zero_hermiteBasis_dyadic {h : ℕ} {m : ℕ → 
     rw [show a - (i + 1 + k) = a - i - 1 - k by omega]
     ring
   rw [hreindex]
+  norm_cast
   have := sum_two_pow_mul_sq (a - i)
-  exact_mod_cast (by omega : ∑ k ∈ range (a - i), 2 ^ (a - i - 1 - k) * (k + 1) ^ 2 ≤
-    6 * 2 ^ (a - i))
+  omega
 
 /-- **The tapered multiplicities of Lemma D.5.** With `q(i) = h * max(0, u - i)` (natural
 subtraction), the Hermite basis value at `0` of a nonzero grid node `t` satisfies

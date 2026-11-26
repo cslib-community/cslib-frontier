@@ -366,14 +366,10 @@ private theorem windowCoupled_shrinkLeft_write {metaBase itemBase U V w N b_win 
     (U := U) (V := V) (N := N) (v := compValAt itemBase U V w N (b_win + (n' + 1)) s.mem b_win)
     hw hitem hd_last_lt _
   have hs1_mem : s₁.mem = _ := congrArg Memory.State.mem hs1_eq
-  have hgm1 : compGmAt metaBase U w N s₁.mem = compGmAt metaBase U w N s.mem :=
-    hs1_mem ▸ hgm_c2.trans hgm_c1
-  have hlm1 : compLmAt metaBase U w N s₁.mem = compLmAt metaBase U w N s.mem :=
-    hs1_mem ▸ hlm_c2.trans hlm_c1
-  have htd1 : compTDAt metaBase U w N s₁.mem = compTDAt metaBase U w N s.mem :=
-    hs1_mem ▸ htd_c2.trans htd_c1
-  have hdt1 : compDTAt metaBase U w N s₁.mem = compDTAt metaBase U w N s.mem :=
-    hs1_mem ▸ hdt_c2.trans hdt_c1
+  have hgm1 := (congrArg (compGmAt metaBase U w N) hs1_mem).trans (hgm_c2.trans hgm_c1)
+  have hlm1 := (congrArg (compLmAt metaBase U w N) hs1_mem).trans (hlm_c2.trans hlm_c1)
+  have htd1 := (congrArg (compTDAt metaBase U w N) hs1_mem).trans (htd_c2.trans htd_c1)
+  have hdt1 := (congrArg (compDTAt metaBase U w N) hs1_mem).trans (hdt_c2.trans hdt_c1)
   have htd_b (i) : compTDAt metaBase U w N s.mem i < maxTailItems N := hmax_eq ▸ hcpl.td_lt i
   have hdt_b (i) : compDTAt metaBase U w N s.mem i < maxTailItems N := hmax_eq ▸ hcpl.dt_lt i
   obtain ⟨_, htd2, hdt2, hlm2, hgm2, hq2, hv2, _⟩ :=
@@ -389,10 +385,8 @@ private theorem windowCoupled_shrinkLeft_write {metaBase itemBase U V w N b_win 
   have hspec := winShrinkLeft_spec hcpl.win_inv hM htd_b hdt_b
   have hp := physByBase_winShrinkLeft hb_pos hcpl.win_inv hM
   dsimp only [winShrinkLeft] at htd2 hdt2 hspec hp
-  have hgm_s3 : compGmAt metaBase U w N s₃.mem = compGmAt metaBase U w N s.mem :=
-    hgm4.trans (hgm3.trans (hgm2.trans hgm1))
-  have hlm_s3 : compLmAt metaBase U w N s₃.mem = compLmAt metaBase U w N s.mem :=
-    hlm4.trans (hlm3.trans (hlm2.trans hlm1))
+  have hgm_s3 := hgm4.trans (hgm3.trans (hgm2.trans hgm1))
+  have hlm_s3 := hlm4.trans (hlm3.trans (hlm2.trans hlm1))
   have htd_s3 := htd4.trans (htd3.trans htd2)
   have hdt_s3 := hdt4.trans (hdt3.trans hdt2)
   have hq_b_lt : compQuotAt itemBase U V w N (b_win + (n' + 1)) s.mem b_win <
@@ -477,13 +471,10 @@ private theorem validProg_writeCompItemGen {w : ℕ} {d : ((CompParams × ℕ) �
     {s : Memory.State} (h : WriteCompItemPre w d s) :
     ValidProg w 0 s (writeCompItemGenProg d) := by
   rcases d with ⟨⟨⟨cp, itemBase⟩, dst⟩, ⟨q_val, v_val⟩⟩
-  obtain ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hdst⟩ := h
-  dsimp only [writeCompItemGenProg]
-  refine validProg_bind_unit
-    (validProg_writeCompQuotGen ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hdst⟩)
-    fun s1 hs1 => ?_
-  have hfr1 : itemBase + compactedItemWords U V w N m_items ≤ s1.frontier := by
-    rw [hs1, clientState_writeCompQuotGenProg]; exact hfr
-  exact validProg_writeCompValGen ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr1⟩, hdst⟩
+  obtain ⟨m_items, hce, hdst⟩ := h
+  refine validProg_bind_unit (validProg_writeCompQuotGen ⟨m_items, hce, hdst⟩) fun s1 hs1 => ?_
+  obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩ := hce
+  rw [hs1, clientState_writeCompQuotGenProg]
+  exact validProg_writeCompValGen ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hdst⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

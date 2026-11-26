@@ -489,8 +489,8 @@ theorem eval_sufCmaVqGame_sufToVqForger (M : MACScheme) {tagBound : ℕ → ℕ}
       ProbComp.eval (M.sufCmaGame adversary n) := by
   simp only [sufCmaVqGame, sufCmaGame, sufToVqForger, ProbComp.eval_bind, ProbComp.eval_pure]
   refine PMF.bind_congr_on_support _ _ _ fun sk hsk => ?_
-  rw [ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.eval_run_interpret_eq_runWith]
-  rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_run_interpret, PMF.bind_map]
+  rw [ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.eval_run_interpret_eq_runWith,
+    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_run_interpret, PMF.bind_map]
   have hsim := ProbOracleComp.runWith_map_state
     (oracle := fun req s => ProbComp.eval (M.signingPairOracle n sk req s))
     (oracle' := fun req state =>
@@ -524,11 +524,10 @@ theorem eval_sufCmaVqGame_sufToVqForger (M : MACScheme) {tagBound : ℕ → ℕ}
 /-- Attack Game 6.2 security (`SUFCMAVq`) implies standard strong unforgeability (`SUFCMA`). -/
 theorem SUFCMAVq.sufCma {M : MACScheme} (h : M.SUFCMAVq) : M.SUFCMA := by
   obtain ⟨tagBound, htagPoly, htagValid⟩ := M.exists_tag_length_bound_of_length_eq
-  apply SUFCMA.of_negligible
-  intro adversary hadversary
-  refine (h.negligible (sufToVqForger tagBound adversary)
-    (isOraclePPT_sufToVqForger htagPoly hadversary)).congr fun n => ?_
-  rw [M.eval_sufCmaVqGame_sufToVqForger (htagValid n) adversary]
+  refine SUFCMA.of_negligible fun adversary hadversary =>
+    (h.negligible (sufToVqForger tagBound adversary)
+      (isOraclePPT_sufToVqForger htagPoly hadversary)).congr fun n =>
+        congrArg Game.succProbability (M.eval_sufCmaVqGame_sufToVqForger (htagValid n) adversary)
 
 /-! ### Direction 2: Theorem 6.1 (`SUFCMA` implies `SUFCMAVq`, `vqToSufForger`) -/
 
@@ -663,13 +662,10 @@ theorem isQueryBounded_vqToSufForger (M : MACScheme) (tagBound width Qv : ℕ �
       (adversary n [])).run (ProbOracleComp.PlantedOracleState.init j ([], []) []))).IsQueryBounded
         Q_s := by
     refine OracleComp.IsCostBounded.run_interpret (fun q s => ?_) hs _
-    cases q with
-    | inl k =>
-      exact ((ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin k)).bind
+    rcases q with k | ⟨b, raw⟩
+    · exact ((ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin k)).bind
         fun a => .pure (a, s) 0).mono (by omega)
-    | inr req =>
-      rcases req with ⟨b, raw⟩
-      dsimp only [OracleComp.sumHandler, vqToSufHandler, StateT.run, Sum.elim_inr]
+    · dsimp only [OracleComp.sumHandler, vqToSufHandler, StateT.run, Sum.elim_inr]
       cases s.planted.hasCaptured
       · cases b <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> split_ifs
         · simp only [map_eq_bind_pure_comp]
@@ -875,15 +871,8 @@ theorem SUFCMA.sufCmaVq {M : MACScheme} (h : M.SUFCMA) : M.SUFCMAVq := by
   let Qv : ℕ → ℕ := fun n => cq * (n + 2) ^ dq
   have hforger := h.negligible
     (M.vqToSufForger tagBound (fun n => n) Qv adversary)
-    (M.isOraclePPT_vqToSufForger htagPoly .id' (by
-      dsimp only [Qv]
-      fun_prop) hadversary)
-  have hbound : ∀ n,
-      Game.succProbability (ProbComp.eval (M.sufCmaVqGame adversary n)) ≤
-        Qv n * Game.succProbability
-            (ProbComp.eval
-              (M.sufCmaGame (M.vqToSufForger tagBound (fun n => n) Qv adversary) n)) +
-          Qv n / 2 ^ n := fun n =>
+    (M.isOraclePPT_vqToSufForger htagPoly .id' (by fun_prop) hadversary)
+  have hbound (n : ℕ) :=
     M.succProbability_sufCmaVqGame_le_mul_add (fun m => m) Qv (htagValid n)
       (IsWordVerificationQueryBounded.of_isQueryBounded (by simpa [Qv] using (hqbounds n []).1))
   dsimp only [Qv] at hforger hbound
@@ -1009,13 +998,10 @@ theorem isQueryBounded_vqMacToPrfDistinguisher_of_wellFormed {adversary : VqForg
   refine ((OracleComp.IsCostBounded.run_interpret (fun q s => ?_) h
     (⟨[], false⟩ : VqOracleState (List Bool) (List Bool))).bind
       fun _ => .pure _ 0).mono (by omega)
-  cases q with
-  | inl k =>
-    exact ((ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin k)).bind
+  rcases q with k | ⟨b, raw⟩
+  · exact ((ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin k)).bind
       fun a => .pure (a, s) 0).mono (by omega)
-  | inr req =>
-    rcases req with ⟨b, raw⟩
-    dsimp only [OracleComp.sumHandler, vqMacToPrfStep, StateT.run, Sum.elim_inr]
+  · dsimp only [OracleComp.sumHandler, vqMacToPrfStep, StateT.run, Sum.elim_inr]
     cases b <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> split_ifs <;>
       first
       | exact .pure _ _
@@ -1062,11 +1048,9 @@ private theorem isVerificationQueryBounded_toBitStringVq {n Q_v : ℕ}
     IsVerificationQueryBounded (toBitStringVq n prog) Q_v := by
   unfold IsVerificationQueryBounded toBitStringVq
   refine h.interpret fun q => ?_
-  cases q with
-  | inl k => exact ProbOracleComp.isCostBounded_sample _ (ProbComp.unifFin k)
-  | inr req =>
-    rcases req with ⟨b, raw⟩
-    cases b <;> dsimp only [OracleComp.sumHandler] <;>
+  rcases q with k | ⟨b, raw⟩
+  · exact ProbOracleComp.isCostBounded_sample _ (ProbComp.unifFin k)
+  · cases b <;> dsimp only [OracleComp.sumHandler] <;>
       simp only [Bool.false_eq_true, ↓reduceIte] <;> split_ifs <;>
       first
       | exact .pure _ _
@@ -1119,10 +1103,9 @@ private theorem eval_adapt_vqMacToPrfDistinguisher_run_pure (adversary : VqForge
             (fun r (u : Unit) => (PMF.pure (randomFunctionOracle n table r.2)).map (·, u))
             ((vqMacToPrfStep n req).run st.1) st.2).map (fun ⟨⟨a, b⟩, c⟩ => (a, b, c)))
         (adversary n []) (⟨[], false⟩, ())).bind (fun x => PMF.pure x.2.1.won) := by
-    unfold vqMacToPrfDistinguisher
-    simp only [ProbOracleComp.run, OracleComp.interpret_bind, OracleComp.interpret_pure,
-      ProbComp.eval_bind, ProbComp.eval_pure, eval_interpret_pure_eq_runWith,
-      ProbOracleComp.runWith_run_interpret, PMF.bind_map]
+    simp only [vqMacToPrfDistinguisher, ProbOracleComp.run, OracleComp.interpret_bind,
+      OracleComp.interpret_pure, ProbComp.eval_bind, ProbComp.eval_pure,
+      eval_interpret_pure_eq_runWith, ProbOracleComp.runWith_run_interpret, PMF.bind_map]
     rfl
   have hrun_typed :
       ProbComp.eval ((vqMacToPrfAdversary (fun _ => toBitStringVq n (adversary n []))).run
@@ -1136,12 +1119,10 @@ private theorem eval_adapt_vqMacToPrfDistinguisher_run_pure (adversary : VqForge
                 (fun ⟨⟨a, b⟩, c⟩ => (a, b, c)))
             (handler req))
         (adversary n []) (⟨[], false⟩, ())).bind (fun x => PMF.pure x.2.1.won) := by
-    unfold vqMacToPrfAdversary
-    simp only [ProbOracleComp.run, OracleComp.interpret_bind, OracleComp.interpret_pure,
-      ProbComp.eval_bind, ProbComp.eval_pure, eval_interpret_pure_eq_runWith,
-      ProbOracleComp.runWith_run_interpret]
-    dsimp only [toBitStringVq]
-    rw [ProbOracleComp.runWith_interpret_sumHandler, PMF.bind_map, PMF.bind_map]
+    simp only [vqMacToPrfAdversary, toBitStringVq, ProbOracleComp.run, OracleComp.interpret_bind,
+      OracleComp.interpret_pure, ProbComp.eval_bind, ProbComp.eval_pure,
+      eval_interpret_pure_eq_runWith, ProbOracleComp.runWith_run_interpret,
+      ProbOracleComp.runWith_interpret_sumHandler, PMF.bind_map]
     rfl
   rw [hrun_word, hrun_typed]
   let represent :
@@ -1176,10 +1157,8 @@ private theorem eval_adapt_vqMacToPrfDistinguisher_run_pure (adversary : VqForge
         by_cases hboth : ((unframe raw).length == n && (dropFrame raw).length == n) = true
         · obtain ⟨hmsg, htag⟩ : (unframe raw).length = n ∧ (dropFrame raw).length = n := by
             simpa [Bool.and_eq_true, beq_iff_eq] using hboth
-          have hofFn_msg : List.ofFn (BitString.ofList n (unframe raw)) = unframe raw :=
-            BitString.ofFn_ofList hmsg
-          have hofFn_tag : List.ofFn (BitString.ofList n (dropFrame raw)) = dropFrame raw :=
-            BitString.ofFn_ofList htag
+          have hofFn_msg := BitString.ofFn_ofList hmsg
+          have hofFn_tag := BitString.ofFn_ofList htag
           have hmem_iff :
               ((BitString.ofList n (unframe raw), BitString.ofList n (dropFrame raw)) ∈ st.log) ↔
                 ((st.log.map fun p => (List.ofFn p.1, List.ofFn p.2)).reverse.contains
@@ -1225,9 +1204,8 @@ theorem eval_prfRealGame_vqMacToPrfDistinguisher
     ProbOracleComp.run, OracleComp.interpret_bind, OracleComp.interpret_pure,
     ProbComp.eval_bind, ProbComp.eval_pure]
   refine PMF.bind_congr_on_support _ _ _ fun sk hsk => ?_
-  have hsk' : sk ∈ (ProbComp.eval (BitString.sampleList n)).support := hsk
-  rw [BitString.eval_sampleList] at hsk'
-  have hskLen : sk.length = n := BitString.length_of_mem_support_uniformList hsk'
+  have hskLen : sk.length = n :=
+    BitString.length_of_mem_support_uniformList (BitString.eval_sampleList n ▸ hsk)
   let ValidState := {st : VqOracleState (List Bool) (List Bool) //
     ∀ p ∈ st.log, p.1.length = n ∧ p.2 = family sk p.1}
   let validStep : Bool × List Bool → StateT ValidState PMF (List Bool) :=
@@ -1365,8 +1343,8 @@ theorem succProbability_sufCmaVqGame_prfMAC_le
       ← PRF.eval_realExperiment_atLevel_adapt hlen (vqMacToPrfDistinguisher adversary) n,
       ← eval_realExperiment_vqMacToPrfAdversary]
     simp only [PRF.realExperiment, ProbComp.eval_bind]
-    refine PMF.bind_congr_on_support _ _ _ fun key _ => ?_
-    exact eval_adapt_vqMacToPrfDistinguisher_run_pure adversary n (PRF.atLevel family n key)
+    exact congrArg _ (funext fun key =>
+      eval_adapt_vqMacToPrfDistinguisher_run_pure adversary n (PRF.atLevel family n key))
   rw [hreal_eq, advantage_vqMacToPrfDistinguisher_eq_atLevel hlen adversary n]
   refine (succProbability_vqForgeExperiment_prf_le (PRF.atLevel family n) Q_v
     (A := fun _ => toBitStringVq n (adversary n []))
@@ -1381,19 +1359,12 @@ theorem PseudorandomFunction.sufCmaVq_prfMAC
     {family : List Bool → List Bool → List Bool}
     (hprf : PseudorandomFunction family) :
     (prfMAC family hprf.polyTime).SUFCMAVq := by
-  apply MACScheme.SUFCMAVq.of_negligible
-  intro adversary hadversary
+  refine MACScheme.SUFCMAVq.of_negligible fun adversary hadversary => ?_
   obtain ⟨cq, dq, hqbounds⟩ := hadversary.query_bounds
   have hdist := hprf.secure (vqMacToPrfDistinguisher adversary)
     (isOraclePPT_vqMacToPrfDistinguisher hadversary)
-  have hbound : ∀ n,
-      Game.succProbability
-          (ProbComp.eval ((prfMAC family hprf.polyTime).sufCmaVqGame adversary n)) ≤
-        Game.advantage
-          (ProbComp.eval (prfRealGame id family (vqMacToPrfDistinguisher adversary) n))
-          (ProbComp.eval (prfIdealGame id id (vqMacToPrfDistinguisher adversary) n)) +
-        ((cq * (n + 2) ^ dq : ℕ) : ℝ≥0) / 2 ^ n := fun n =>
-    succProbability_sufCmaVqGame_prfMAC_le hprf.polyTime hprf.length_eq
+  have hbound (n : ℕ) :=
+    succProbability_sufCmaVqGame_prfMAC_le (Q_v := cq * (n + 2) ^ dq) hprf.polyTime hprf.length_eq
       (IsWordVerificationQueryBounded.of_isQueryBounded (by simpa using (hqbounds n []).1))
   negligible using hbound
 

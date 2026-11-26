@@ -172,9 +172,8 @@ theorem isQueryBounded_multiPhase2FilterHandler (decBound : List Bool → ℕ)
   unfold multiPhase2FilterHandler
   split_ifs
   · exact OracleComp.IsCostBounded.pure ([], s) 1
-  · rw [Functor.map_map]
-    exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
-      (ProbOracleComp.IsQueryBounded.query ((), request.2))
+  · simpa only [Functor.map_map, OracleComp.isCostBounded_map_iff] using
+      ProbOracleComp.IsQueryBounded.query ((), request.2)
 
 /-- Running a strict oracle PPT program through `multiPhase2FilterHandler` is uniformly strict
 oracle PPT whenever the reply-length cap and forbidden ciphertext list are computable in polynomial
@@ -451,13 +450,12 @@ private theorem isOraclePPTOn_cca2MultiToSingleAt_choose {Msg : Type} [Inhabited
       (fun ⟨(n, pk), split⟩ =>
         (cca2MultiToSingleAt valid encrypt decBound adversary split).choose n pk) := by
   dsimp only [cca2MultiToSingleAt]
-  refine (hA.choose.on.preprocess (by fun_prop)).bind_with ?_
-  refine IsOraclePPTOn.cond (by fun_prop) ?_ (by fun_prop)
-  refine (IsPPTOn.mapMWith (element := encPair encMsg encMsg) (by fun_prop)
-    (by fun_prop)).isOraclePPTOn.bind_with ?_
-  refine (IsPPTOn.mapMWith (element := encPair encMsg encMsg) (by fun_prop)
-    (by fun_prop)).isOraclePPTOn.bind_with ?_
-  fun_prop
+  refine (hA.choose.on.preprocess (by fun_prop)).bind_with
+    (IsOraclePPTOn.cond (by fun_prop) ?_ (by fun_prop))
+  exact (IsPPTOn.mapMWith (element := encPair encMsg encMsg) (by fun_prop)
+    (by fun_prop)).isOraclePPTOn.bind_with
+    ((IsPPTOn.mapMWith (element := encPair encMsg encMsg) (by fun_prop)
+      (by fun_prop)).isOraclePPTOn.bind_with (by fun_prop))
 
 /-- Phase 2 (`guess`) of `cca2MultiToSingleAt` is uniformly strict oracle PPT in
 `(n, state, ct)`. -/
@@ -531,12 +529,10 @@ theorem isPPT_cca2MultiToSingle {Msg : Type} [Inhabited Msg]
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (hA : adversary.IsPPT encMsg) :
     (cca2MultiToSingle valid encrypt decBound Q adversary).IsPPT encMsg where
-  choose := by
-    have hsample : IsOraclePPTOn (Operation := Unit) (encPair encUnary encBits) encUnary
-        (fun caller : ℕ × List Bool =>
-          ProbOracleComp.sample (ProbComp.sampleDyadicIndex (Q caller.1))) := by fun_prop
-    exact (hsample.bind_with
-      (isOraclePPTOn_cca2MultiToSingleAt_choose hvalid hencrypt hA)).isOraclePPT
+  choose := ((by fun_prop : IsOraclePPTOn (Operation := Unit) (encPair encUnary encBits) encUnary
+    fun caller : ℕ × List Bool =>
+      ProbOracleComp.sample (ProbComp.sampleDyadicIndex (Q caller.1))).bind_with
+    (isOraclePPTOn_cca2MultiToSingleAt_choose hvalid hencrypt hA)).isOraclePPT
   guess := isOraclePPTOn_cca2MultiToSingleAt_guess valid encrypt hdecBound hA 0
 
 /-- `cca2MultiToSingleAt` preserves both Phase 1 (`Q₁ n`) and Phase 2 (`Q₂ n`) decryption query
@@ -636,19 +632,15 @@ private theorem eval_cca2GameOn_cca2MultiToSingleAt {Msg Out : Type} [Inhabited 
   by_cases hcond :
       (decide (split < challenges.length) &&
         challenges.all (fun p => valid n keys.1 p.1 p.2)) = true
-  · obtain ⟨hltDec, hall⟩ := Bool.and_eq_true_iff.mp hcond
-    have hlt : split < challenges.length := decide_eq_true_eq.mp hltDec
-    have htarget_eq : challenges.getD split (default, default) = challenges[split] :=
-      List.getD_eq_getElem _ _ hlt
-    have hvalid_target :
-        valid n keys.1 (challenges.getD split (default, default)).1
-          (challenges.getD split (default, default)).2 = true :=
-      List.all_eq_true.mp hall _ (htarget_eq ▸ List.getElem_mem hlt)
+  · obtain ⟨hlt, hall⟩ : split < challenges.length ∧
+        challenges.all (fun p => valid n keys.1 p.1 p.2) = true := by simpa using hcond
+    have hvalid_target : valid n keys.1 challenges[split].1 challenges[split].2 = true :=
+      List.all_eq_true.mp hall _ (List.getElem_mem hlt)
     simp only [hcond, ↓reduceIte, ChoiceOut.msg₀, ChoiceOut.msg₁, ChoiceOut.state,
-      ChoiceOut.msgs, ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_bind,
-      ProbOracleComp.runWith_sample, ProbOracleComp.runWith_pure, PMF.bind_map, Function.comp_def,
-      PMF.bind_bind, PMF.pure_bind, hvalid_target, ProbComp.eval_bind,
-      multiCCA2StateDecoder.decode_enc]
+      ChoiceOut.msgs, List.getD_eq_getElem _ _ hlt, ProbOracleComp.eval_run_interpret_eq_runWith,
+      ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, ProbOracleComp.runWith_pure,
+      PMF.bind_map, Function.comp_def, PMF.bind_bind, PMF.pure_bind, hvalid_target,
+      ProbComp.eval_bind, multiCCA2StateDecoder.decode_enc]
     have hguess (ctsFront ctsBack : List (List Bool)) (ct : List Bool) :=
       (ProbOracleComp.eval_run_interpret_eq_runWith
         (cca2Phase2Oracle encOut decrypt n keys.2 ct) _ ()).symm.trans
@@ -657,18 +649,15 @@ private theorem eval_cca2GameOn_cca2MultiToSingleAt {Msg Out : Type} [Inhabited 
           (hdecBound keys hkeys) (adversary.guess n stateA (ctsFront ++ ct :: ctsBack)))
     simp only [hguess]
     cases bit
-    · simp only [Bool.false_eq_true, ↓reduceIte, cca2MultiHybridCont, ProbComp.eval_bind]
-      congr 1 with ctsFront : 1
-      rw [List.drop_eq_getElem_cons hlt, ← htarget_eq, List.mapM_cons]
-      simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
-      exact PMF.bind_comm _ _ _
-    · simp only [↓reduceIte, cca2MultiHybridCont, ProbComp.eval_bind]
-      rw [List.take_add_one, List.getElem?_eq_getElem hlt, Option.toList_some, ← htarget_eq,
-        List.mapM_append, List.mapM_cons, List.mapM_nil]
-      simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind,
-        List.append_assoc, List.singleton_append]
-      congr 1 with ctsFront : 1
-      exact PMF.bind_comm _ _ _
+    · simp only [Bool.false_eq_true, ↓reduceIte, cca2MultiHybridCont, ProbComp.eval_bind,
+        List.drop_eq_getElem_cons hlt, List.mapM_cons, ProbComp.eval_pure, PMF.bind_bind,
+        PMF.pure_bind]
+      exact congrArg _ (funext fun _ => PMF.bind_comm _ _ _)
+    · simp only [↓reduceIte, cca2MultiHybridCont, ProbComp.eval_bind, List.take_add_one,
+        List.getElem?_eq_getElem hlt, Option.toList_some, List.mapM_append, List.mapM_cons,
+        List.mapM_nil, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, List.append_assoc,
+        List.singleton_append]
+      exact congrArg _ (funext fun _ => PMF.bind_comm _ _ _)
   · simp only [hcond, Bool.false_eq_true, ↓reduceIte, ChoiceOut.msg₀, ChoiceOut.msg₁,
       ChoiceOut.state, ChoiceOut.msgs, OracleComp.interpret_pure, StateT.run_pure,
       ProbComp.eval_pure, PMF.pure_bind, decode_rejectMultiCCA2State]
@@ -848,8 +837,7 @@ theorem INDCCA2On.indcca2MultiOn {Msg Out : Type} [Inhabited Msg]
   obtain ⟨decBound, hdecBoundPoly, hdecBound⟩ := exists_decryption_length_bound hkeyGen hdecrypt
   obtain ⟨_, _, _, _, cq, dq, _, _, hlenCh⟩ := hA.query_bounds
   let Q : ℕ → ℕ := fun n => cq * (n + ck * (n + 1) ^ dk + 2) ^ dq
-  have hQPoly : ComputableInPolyTime Q encUnary encUnary := by
-    dsimp only [Q]; fun_prop
+  have hQPoly : ComputableInPolyTime Q encUnary encUnary := by fun_prop
   have hQ (n : ℕ) (keys : List Bool × List Bool)
       (hkeys : keys ∈ (ProbComp.eval (keyGen n)).support)
       (challenges : List (Msg × Msg)) (stateA : List Bool)

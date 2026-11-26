@@ -123,11 +123,8 @@ theorem isClassical_outputCopyCodes {W z base : ℕ} {outputs : List ℕ} (hzb :
     simpa only [Nat.zero_add] using (List.mem_zipIdx hp).2.1
   have hout : outQubit z p.1 ≤ z := by unfold outQubit; omega
   refine ⟨rfl, by simp, ?_, ?_⟩
-  · simp only [List.nodup_cons, List.mem_cons, List.not_mem_nil, or_false, List.nodup_nil,
-      not_false_eq_true, and_true]
-    omega
-  · simp only [List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
-    omega
+  · simp; omega
+  · simp; omega
 
 /-- The classical suffix is well formed for the sampler's declared width. -/
 theorem isClassical_samplerClassicalCodes (n : ℕ)
@@ -141,7 +138,6 @@ theorem isClassical_samplerClassicalCodes (n : ℕ)
 theorem wellFormed_samplerCodes (n : ℕ) (code : List (Op × List ℕ) × List ℕ) :
     ∀ g ∈ samplerCodes n code, g.WellFormed (samplerWidth n code) := by
   intro g hg
-  rw [samplerCodes] at hg
   rcases List.mem_append.mp hg with hg | hg
   · exact wellFormed_hadamardCodes (by unfold samplerWidth samplerOutputStart samplerZero; omega)
       g hg
@@ -162,30 +158,26 @@ theorem readBit_classicalRun_outputCopyCodes {W z base : ℕ} {outputs : List �
     (hj : j < outputs.length) :
     readBit (classicalRun (outputCopyCodes z base outputs) X) (base + j) =
       readBit X (outQubit z (outputs.getD j 0)) := by
-  have hlt : ∀ g ∈ outputCopyCodes z base outputs, g.2.1 < W := fun g hg => by
+  have hlt (g : GateCode) (hg : g ∈ outputCopyCodes z base outputs) : g.2.1 < W := by
     obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hg
     have := (List.mem_zipIdx hp).2.1
-    dsimp only
-    omega
+    dsimp only; omega
   have hnd : ((outputCopyCodes z base outputs).map fun g => g.2.1).Nodup := by
     rw [outputCopyCodes, List.map_map]
     change (outputs.zipIdx.map ((fun i => base + i) ∘ Prod.snd)).Nodup
     simpa only [List.map_map] using
       (List.nodup_zipIdx_map_snd outputs).map fun i j h => by omega
-  have hread : ∀ g ∈ outputCopyCodes z base outputs,
-      ∀ g' ∈ outputCopyCodes z base outputs, g.2.1 ∉ g'.2.2 := by
-    intro g hg g' hg'
+  have hread (g : GateCode) (hg : g ∈ outputCopyCodes z base outputs)
+      (g' : GateCode) (hg' : g' ∈ outputCopyCodes z base outputs) : g.2.1 ∉ g'.2.2 := by
     obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hg
     obtain ⟨p', hp', rfl⟩ := List.mem_map.mp hg'
     have hout : outQubit z p'.1 ≤ z := by unfold outQubit; omega
-    simp only [List.mem_cons, List.not_mem_nil, or_false]
-    omega
+    simp only [List.mem_cons, List.not_mem_nil, or_false]; omega
   have hmem : ((false, base + j, [outQubit z (outputs.getD j 0)]) : GateCode) ∈
-      outputCopyCodes z base outputs := by
-    rw [outputCopyCodes, List.mem_map]
-    refine ⟨(outputs[j], j), List.mem_zipIdx_iff_getElem?.mpr ?_, ?_⟩
-    · rw [List.getElem?_eq_getElem hj]
-    · simp [List.getD_eq_getElem?_getD, hj]
+      outputCopyCodes z base outputs :=
+    List.mem_map.mpr ⟨(outputs[j], j),
+      List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_getElem hj),
+      by simp [List.getD_eq_getElem?_getD, hj]⟩
   simpa [hX j hj] using
     (readBit_classicalRun_of_mem hlt hnd hread X hmem)
 
@@ -212,10 +204,7 @@ theorem samplerReadout_classicalRun {n m : ℕ} (C : Circuits.Circuit signature 
     readBit_classicalRun_codes le_rfl hzW hx hX₀ p
   have hzero (j : ℕ) (hj : j < C.code.2.length) : readBit X₁ (base + j) = false := by
     rw [hcodes]
-    apply List.getD_eq_default
-    have hlen : (evalCode interpretation false (List.ofFn x) C.code.1).length = z := by
-      simp [hx, z, samplerZero]
-    omega
+    exact List.getD_eq_default _ _ (by simp [hx, base, samplerOutputStart, samplerZero]; omega)
   funext j
   change readBit (classicalRun (samplerClassicalCodes n C.code) X₀) (base + j) =
     C.eval interpretation x j
@@ -246,12 +235,9 @@ theorem samplerDist_eq_outputDist {n m : ℕ} (C : Circuits.Circuit signature n 
   let U : Qubits W →ₗᵢ[ℂ] Qubits W :=
     (Circuit.eval (Circuit.ofCodes W (samplerClassicalCodes n C.code))).toLinearIsometry
   have hnW : 0 + n ≤ W := by
-    simp only [W, samplerWidth, samplerOutputStart, samplerZero]
-    omega
-  have hX (r : BitString n) : X r = glue (blockEmb 0 hnW) r X₀ := by
-    dsimp only [X, X₀]
-    rw [glue_blockEmb_inputState hnW [] rfl]
-    rfl
+    simp only [W, samplerWidth, samplerOutputStart, samplerZero]; omega
+  have hX (r : BitString n) : X r = glue (blockEmb 0 hnW) r X₀ :=
+    (glue_blockEmb_inputState hnW [] rfl r).symm
   have hXinj : Function.Injective X := by
     intro r r' h
     rw [hX, hX] at h
@@ -310,8 +296,7 @@ theorem computableInPolyTime_outputCopyCodes {z base : γ → ℕ} {outputs : γ
     (houtputs : ComputableInPolyTime outputs enc (encList encNat)) :
     ComputableInPolyTime (fun a => outputCopyCodes (z a) (base a) (outputs a)) enc
       (encList encGateCode) := by
-  unfold outputCopyCodes outQubit
-  fun_prop
+  fun_prop [outputCopyCodes, outQubit]
 
 /-- The first copied-output position is generated in polynomial time from the unary seed count
 and complete binary-wire circuit code. -/
@@ -320,16 +305,14 @@ theorem computableInPolyTime_samplerOutputStart {n : γ → ℕ}
     (hn : ComputableInPolyTime n enc encUnary)
     (hcode : ComputableInPolyTime code enc encCode) :
     ComputableInPolyTime (fun a => samplerOutputStart (n a) (code a)) enc encUnary := by
-  unfold samplerOutputStart samplerZero
-  fun_prop
+  fun_prop [samplerOutputStart, samplerZero]
 
 theorem computableInPolyTime_samplerWidth {n : γ → ℕ}
     {code : γ → List (Op × List ℕ) × List ℕ}
     (hn : ComputableInPolyTime n enc encUnary)
     (hcode : ComputableInPolyTime code enc encCode) :
     ComputableInPolyTime (fun a => samplerWidth (n a) (code a)) enc encUnary := by
-  unfold samplerWidth samplerOutputStart samplerZero
-  fun_prop
+  fun_prop [samplerWidth, samplerOutputStart, samplerZero]
 
 /-- The complete fair-seed reversible sampler is generated in polynomial time from the input arity
 and Boolean circuit code. This is an offline generator certificate, not an online execution-time
@@ -341,8 +324,7 @@ theorem computableInPolyTime_samplerCodes {n : γ → ℕ}
     ComputableInPolyTime (fun a => samplerCodes (n a) (code a)) enc
       (encList encGateCode) := by
   have hzero : ComputableInPolyTime (fun a => samplerZero (n a) (code a)) enc encUnary := by
-    unfold samplerZero
-    fun_prop
+    fun_prop [samplerZero]
   have hcompile := computableInPolyTime_codes hn hzero
     (gates := fun a => (code a).1) (by fun_prop)
   have hcopy := computableInPolyTime_outputCopyCodes hzero
@@ -350,7 +332,6 @@ theorem computableInPolyTime_samplerCodes {n : γ → ℕ}
     (outputs := fun a => (code a).2) (by fun_prop)
   have hhad := computableInPolyTime_hadamardCodes (o := fun _ => 0) (p := n)
     (by fun_prop) hn
-  unfold samplerCodes samplerClassicalCodes
-  fun_prop
+  fun_prop [samplerCodes, samplerClassicalCodes]
 
 end Cslib.Quantum.Reversible

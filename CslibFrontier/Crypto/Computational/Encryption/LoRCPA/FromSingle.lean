@@ -208,10 +208,9 @@ private theorem isPPTOn_lorToSingleAt_choose {Msg : Type} {encMsg : Msg ↪ List
     fun r choice => ((ChoiceOut.msg₀ choice, ChoiceOut.msg₁ choice),
       encLoRToSingleState ⟨true, r.1.1.1.2, r.1.1.2, ChoiceOut.state choice, r.2.2⟩)
   have hpost : ComputableInPolyTime (fun s : _ × ChoiceOut Msg => fPost s.1 s.2)
-      E3 (encPair (encPair encMsg encMsg) encBits) :=
-    ComputableInPolyTime.prod (by
-      dsimp only [E3, encChoiceOut]
-      fun_prop) hrec.encoding_comp
+      E3 (encPair (encPair encMsg encMsg) encBits) := by
+    dsimp only [E3, encChoiceOut]
+    exact ComputableInPolyTime.prod (by fun_prop) hrec.encoding_comp
   have hyes : IsPPTOn EIn (encPair (encPair encMsg encMsg) encBits)
       (fun p : (ℕ × List Bool) × ℕ => do
         let st₀ ← adversary.start p.1.1 p.1.2
@@ -219,11 +218,9 @@ private theorem isPPTOn_lorToSingleAt_choose {Msg : Type} {encMsg : Msg ↪ List
         let choice ← adversary.query p.1.1 mid.1 mid.2
         return fPost ((p, st₀), mid) choice) :=
     hstart.bind_with (hrun.bind_with (by simpa only [bind_pure_comp] using hquery.map_with hpost))
-  have hno : IsPPTOn EIn (encPair (encPair encMsg encMsg) encBits)
-      (fun _ => let m := dummyMsg adversary; return ((m, m), rejectLoRToSingleState)) :=
+  exact IsPPTOn.cond hcond hyes
     (ComputableInPolyTime.const ((dummyMsg adversary, dummyMsg adversary),
       rejectLoRToSingleState)).isPPTOn
-  exact IsPPTOn.cond hcond hyes hno
 
 /-- `lorToSingleAt` is uniformly strict PPT in `AdversaryOf.IsPPT encMsg`: `hvalid`, `hencrypt`,
 `hctBound`/`hctLen`, and `hQ` certify the prefix/suffix simulation (`valid`, `encrypt`, bounded
@@ -260,13 +257,11 @@ theorem isPPT_lorToSingleAt {Msg : Type} {encMsg : Msg ↪ List Bool}
         (ComputableInPolyTime.const false)
         (by
           have := encLoRToSingleState_split_polyTime hdecoded
-          dsimp only [encGuessInput]
-          fun_prop)
+          dsimp only [encGuessInput]; fun_prop)
         (by
           have := encLoRToSingleState_stateA_polyTime hdecoded
           have := encLoRToSingleState_transcript_polyTime hdecoded
-          dsimp only [encGuessInput, encLoRLoopState]
-          fun_prop)
+          dsimp only [encGuessInput, encLoRLoopState]; fun_prop)
     have harg : ComputableInPolyTime
         (fun q : (ℕ × List Bool × List Bool) × (List Bool × List (List Bool)) => (q.1.1, q.2))
         (encPair encGuessInput encLoRLoopState) encLoRStageInput := by
@@ -362,7 +357,7 @@ theorem lorHybridGameOn_step_gap {Msg : Type}
   · have hrem0 : Q n - split = (Q n - split - 1) + 1 := by omega
     have lhs_eq (bit : Bool) :
         ProbComp.eval
-          (lorHybridGameOn valid keyGen encrypt Q adversary (if bit then split + 1 else split) n) =
+          (lorHybridGameOn valid keyGen encrypt Q adversary (Bool.rec split (split + 1) bit) n) =
           (do
             let keys ← ProbComp.eval (keyGen n)
             let st₀ ← ProbComp.eval (adversary.start n keys.1)
@@ -413,31 +408,27 @@ theorem lorHybridGameOn_step_gap {Msg : Type}
             else PMF.pure false) := by
       simp only [gameOn, lorToSingleAt, decide_eq_true hlt, ↓reduceIte, pmf_norm,
         apply_ite ProbComp.eval, lorToSingleStateDecoder.decode_enc]
-    have h0 := lhs_eq false
-    have h1 := lhs_eq true
-    simp only [Bool.false_eq_true, ↓reduceIte] at h0 h1
-    rw [h0, h1, rhs_eq false, rhs_eq true]
+    rw [lhs_eq false, lhs_eq true, rhs_eq false, rhs_eq true]
     simp only [PMF.monad_bind_eq_bind]
     rw [sub_eq_sub_iff_add_eq_add, Game.coe_succProbability, Game.coe_succProbability,
       Game.coe_succProbability, Game.coe_succProbability,
       ← ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _),
       ← ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)]
-    refine congrArg ENNReal.toReal ?_
+    congr 1
     refine PMF.bind_apply_add_eq_on_support fun keys _ =>
       PMF.bind_apply_add_eq_on_support fun st₀ _ =>
       PMF.bind_apply_add_eq_on_support fun mid _ =>
       PMF.bind_apply_add_eq_on_support fun choice _ => ?_
-    by_cases hv : valid n keys.1 (ChoiceOut.msg₀ choice) (ChoiceOut.msg₁ choice) = true
-    · simp [hv]
-    · simp [hv, add_comm]
-  · have hle : Q n ≤ split := Nat.le_of_not_lt hlt
-    have heqR (bit : Bool) :
-        ProbComp.eval
-          (gameOn valid keyGen encrypt (lorToSingleAt valid encrypt Q adversary split) bit n) =
-          PMF.pure false := by
-      simp only [gameOn, lorToSingleAt, decide_eq_false hlt, Bool.false_eq_true,
-        ↓reduceIte, pmf_norm, apply_ite ProbComp.eval, decode_rejectLoRToSingleState,
-        PMF.bind_const, ite_self]
+    cases valid n keys.1 (ChoiceOut.msg₀ choice) (ChoiceOut.msg₁ choice)
+    · simp only [Bool.false_eq_true, Bool.true_eq_false, ↓reduceIte, pmf_norm,
+        PMF.pure_apply, add_zero, zero_add]
+    · rfl
+  · have hle := Nat.le_of_not_lt hlt
+    have heqR (bit : Bool) : ProbComp.eval
+        (gameOn valid keyGen encrypt (lorToSingleAt valid encrypt Q adversary split) bit n) =
+        PMF.pure false := by
+      simp only [gameOn, lorToSingleAt, decide_eq_false hlt, Bool.false_eq_true, ↓reduceIte,
+        pmf_norm, apply_ite ProbComp.eval, decode_rejectLoRToSingleState, PMF.bind_const, ite_self]
     rw [eval_lorHybridGameOn_of_le valid keyGen encrypt Q adversary hle,
       eval_lorHybridGameOn_of_le valid keyGen encrypt Q adversary (Nat.le_succ_of_le hle),
       sub_self, heqR false, heqR true, sub_self]
@@ -496,9 +487,8 @@ private theorem advantage_lorGameOn_eq_mixture {Msg : Type}
       (gameOn valid keyGen encrypt (lorToSingleAt valid encrypt Q adversary split) false n))
     (game2 := fun split => ProbComp.eval
       (gameOn valid keyGen encrypt (lorToSingleAt valid encrypt Q adversary split) true n))
-    (Q n) capacity hle 1
-    (fun split _ => by
-      rw [one_mul]; exact lorHybridGameOn_step_gap valid keyGen encrypt Q adversary split n)
+    (Q n) capacity hle 1 fun split _ => by
+      simpa only [one_mul] using lorHybridGameOn_step_gap valid keyGen encrypt Q adversary split n
   rw [eval_lorHybridGameOn_zero, eval_lorHybridGameOn_of_le valid keyGen encrypt Q adversary le_rfl,
     mul_one] at hred
   apply NNReal.eq

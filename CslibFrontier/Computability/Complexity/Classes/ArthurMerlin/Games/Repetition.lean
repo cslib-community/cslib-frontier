@@ -133,10 +133,9 @@ theorem value_repeatShape_prod (b : Bool) (m : ℕ) (g : List (AMMove × ℕ))
     obtain ⟨_ | _, n⟩ := x
     · simp only [value_arthur, copyTranscript_ofFn_append,
         ih (fun i t => f i _) (fun i t => hf i _)]
-      rw [prod_div_distrib, prod_const, card_univ, Fintype.card_fin, ← pow_mul, mul_comm n m]
-      congr 1
-      rw [Fintype.prod_sum]
-      exact Fintype.sum_equiv BitString.blocksEquiv _ _ fun r => rfl
+      rw [prod_div_distrib, prod_const, card_univ, Fintype.card_fin, ← pow_mul, mul_comm n m,
+        Fintype.prod_sum]
+      exact congrArg (· / _) (Fintype.sum_equiv BitString.blocksEquiv _ _ fun _ => rfl)
     · have hnn (i : Fin m) (y : Fin n → Bool) :
           0 ≤ value b g fun t => f i (List.ofFn y ++ t) := value_nonneg _ _ fun t => hf i _
       cases b
@@ -157,8 +156,7 @@ private theorem prod_one_add_toNat {m : ℕ} (b : Fin m → Bool) :
     ∏ i, (1 + ((b i).toNat : ℚ)) = 2 ^ #{i | b i = true} := by
   have h (i : Fin m) : (1 + ((b i).toNat : ℚ)) = if b i = true then 2 else 1 := by
     cases b i <;> norm_num
-  simp only [h]
-  rw [prod_ite, prod_const, prod_const_one, mul_one]
+  simp only [h, prod_ite, prod_const, one_pow, mul_one]
 
 private theorem majority_toNat_le (g : List (AMMove × ℕ)) (k : ℕ) (W : List Bool → Bool)
     (w : List Bool) :
@@ -172,7 +170,7 @@ private theorem majority_toNat_le (g : List (AMMove × ℕ)) (k : ℕ) (W : List
   · rw [decide_eq_true hk, Bool.toNat_true, Nat.cast_one, one_div,
       ← div_eq_inv_mul, le_div_iff₀ (by positivity), one_mul]
     exact pow_le_pow_right₀ (by norm_num) hk
-  · rw [decide_eq_false hk, Bool.toNat_false, Nat.cast_zero]
+  · rw [decide_eq_false hk]
     positivity
 
 private theorem not_majority_toNat_le (g : List (AMMove × ℕ)) (k : ℕ) (W : List Bool → Bool)
@@ -183,7 +181,7 @@ private theorem not_majority_toNat_le (g : List (AMMove × ℕ)) (k : ℕ) (W : 
   unfold majority
   rw [List.countP_range_eq_card_filter]
   by_cases hk : k < #{i : Fin (2 * k) | W (copyTranscript (2 * k) (↑i) g w) = true}
-  · rw [decide_eq_true hk, Bool.not_true, Bool.toNat_false, Nat.cast_zero]
+  · rw [decide_eq_true hk]
     positivity
   · rw [decide_eq_false hk, Bool.not_false, Bool.toNat_true, Nat.cast_one, one_div,
       ← div_eq_inv_mul, le_div_iff₀ (by positivity), one_mul]
@@ -211,8 +209,7 @@ theorem value_majority_le (g : List (AMMove × ℕ)) (k : ℕ) (W : List Bool �
     _ = (8 / 9) ^ k / 2 := by
       rw [pow_mul, pow_succ]
       field_simp
-      rw [← mul_pow]
-      norm_num
+      rw [← mul_pow]; norm_num
 
 private theorem toNat_not_cast (b : Bool) : (((!b).toNat : ℕ) : ℚ) = 1 - (b.toNat : ℚ) := by
   cases b <;> norm_num
@@ -222,8 +219,8 @@ theorem value_majority_ge (g : List (AMMove × ℕ)) (k : ℕ) (W : List Bool �
     (h : 2 ≤ 3 * value true g (fun t => ((W t).toNat : ℚ))) :
     1 - (8 / 9) ^ k ≤
       value true (repeatShape (2 * k) g) (fun w => ((majority g k W w).toNat : ℚ)) := by
-  rw [show (fun w => ((majority g k W w).toNat : ℚ)) = fun w => 1 - ((!majority g k W w).toNat : ℚ)
-    from funext fun w => by cases majority g k W w <;> norm_num, value_one_sub, Bool.not_true]
+  have hcast (b : Bool) : (b.toNat : ℚ) = 1 - ((!b).toNat : ℚ) := by simpa using toNat_not_cast (!b)
+  rw [funext fun w => hcast (majority g k W w), value_one_sub, Bool.not_true]
   set v := value true g (fun t => ((W t).toNat : ℚ))
   have hdual : value false g (fun t => ((!W t).toNat : ℚ)) = 1 - v := by
     simp only [toNat_not_cast, value_one_sub, Bool.not_false, v]
@@ -237,11 +234,7 @@ theorem value_majority_ge (g : List (AMMove × ℕ)) (k : ℕ) (W : List Bool �
           (fun _ t => 1 + ((!W t).toNat : ℚ)) (fun _ t => by positivity), prod_const, card_univ,
           Fintype.card_fin, value_const_add, hdual]
       _ ≤ 1 / 2 ^ k * (4 / 3) ^ (2 * k) + 0 := by gcongr <;> linarith
-      _ = (8 / 9) ^ k := by
-        rw [pow_mul]
-        field_simp
-        rw [← mul_pow]
-        norm_num
+      _ = (8 / 9) ^ k := by rw [← one_div_pow, pow_mul, ← mul_pow]; norm_num
   linarith
 
 theorem computableInPolyTime_copyTranscript {γ : Type} {encIn : γ ↪ List Bool}
@@ -331,32 +324,24 @@ theorem isAMGameVerifierWithErrorExponent_iff_value {enc : α ↪ List Bool} {e 
         (fun t => ((V (a, t)).toNat : ℚ)) ≤ 1) := by
   refine forall_congr' fun a => ?_
   have hp : (0 : ℚ) < 2 ^ arthurBits (evalShape G (enc a).length) := by positivity
-  refine and_congr (imp_congr_right fun _ => ?_) (imp_congr_right fun _ => ?_)
+  refine and_congr (imp_congr_right fun _ => ?_) (imp_congr_right fun _ => ?_) <;>
   · rw [← Nat.cast_le (α := ℚ)]
     push_cast [count_le_two_pow (evalShape G (enc a).length) fun t => V (a, t)]
     rw [count_eq]
-    exact ⟨fun h => by nlinarith,
-      fun h => by nlinarith⟩
-  · rw [← Nat.cast_le (α := ℚ)]
-    push_cast
-    rw [count_eq]
-    exact ⟨fun h => by nlinarith,
-      fun h => by nlinarith⟩
+    constructor <;> intro <;> nlinarith
 
 theorem IsAMGameVerifierWithErrorExponent.isAMGameVerifier {enc : α ↪ List Bool}
     {e : Polynomial ℕ} {G : List (AMMove × Polynomial ℕ)} {V : α × List Bool → Bool} {A : Set α}
     (h : IsAMGameVerifierWithErrorExponent enc e G V A) (he : ∀ n, 2 ≤ e.eval n) :
     IsAMGameVerifier enc G V A := by
   rw [isAMGameVerifierWithErrorExponent_iff_value] at h
-  rw [isAMGameVerifier_iff_value]
-  intro a
-  have h4 : (4 : ℚ) ≤ 2 ^ e.eval (enc a).length := by
+  refine isAMGameVerifier_iff_value.2 fun a => ?_
+  set v := value true (evalShape G (enc a).length) fun t => ((V (a, t)).toNat : ℚ)
+  have h4 : (4 : ℚ) ≤ 2 ^ e.eval (enc a).length :=
     calc (4 : ℚ) = 2 ^ 2 := by norm_num
       _ ≤ 2 ^ e.eval (enc a).length := pow_le_pow_right₀ (by norm_num) (he _)
-  have hv0 : 0 ≤ value true (evalShape G (enc a).length) (fun t => ((V (a, t)).toNat : ℚ)) :=
-    value_nonneg _ _ fun _ => by positivity
-  have hv1 : value true (evalShape G (enc a).length) (fun t => ((V (a, t)).toNat : ℚ)) ≤ 1 :=
-    value_le_one _ _ fun t => by cases V (a, t) <;> norm_num
+  have hv0 : 0 ≤ v := value_nonneg _ _ fun _ => by positivity
+  have hv1 : v ≤ 1 := value_le_one _ _ fun t => by cases V (a, t) <;> norm_num
   exact ⟨fun ha => by nlinarith [(h a).1 ha],
     fun ha => by nlinarith [(h a).2 ha]⟩
 
@@ -374,8 +359,7 @@ theorem mem_AMGameClass_iff_forall_errorExponent {enc : α ↪ List Bool} {π : 
     refine ⟨repeatShapePoly (2 * (6 * e)) G, amplifiedVerifier enc G (6 * e) V,
       by rw [map_fst_repeatShapePoly, hG], computableInPolyTime_amplifiedVerifier _ _ hV, ?_⟩
     rw [isAMGameVerifier_iff_value] at hA
-    rw [isAMGameVerifierWithErrorExponent_iff_value]
-    intro a
+    refine isAMGameVerifierWithErrorExponent_iff_value.2 fun a => ?_
     simp only [evalShape_repeatShapePoly, amplifiedVerifier, Polynomial.eval_mul,
       Polynomial.eval_ofNat]
     have hpow := eight_ninths_pow_le (e.eval (enc a).length)

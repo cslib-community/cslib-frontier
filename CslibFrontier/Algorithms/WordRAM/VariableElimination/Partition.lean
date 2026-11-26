@@ -280,18 +280,15 @@ theorem partitionLive_spec {w : ℕ} {args : PartitionArgs}
         · exact ⟨holdsFactorList_frame hb hwd_pres fun a _ ha => hwd_out a (Or.inl (by omega)),
             holdsFactorList_snoc hr hwd_pres (fun a ha => hwd_out a (Or.inl (by omega)))
               hf_new (hm0.symm ▸ hf_scF) (hm2.symm ▸ hf_enF)⟩
-      have hst : (Memory.spec 0).clientState t (partitionStep (args.x, st₀)) = t₁ := hstep_st
       have hres : (Memory.spec 0).clientResult t (partitionStep (args.x, st₀)) =
           ⟨cur + 4, bBase + 4 * bAcc'.length, bAcc'.length, rBuf + 4 + 4 * rAcc'.length,
             rAcc'.length⟩ := by
-        rw [hstep_res]
-        simp only [hhit, bAcc', rAcc']
+        simp only [st₀, hstep_res, hhit, bAcc', rAcc']
         split_ifs <;> simp <;> omega
       have hcost : memoryCost (partitionStep (args.x, st₀)) t ≤ 8 + maxScope := by
         have hms := memScan_cost ⟨args.x, t.mem cur, t.mem (cur + 1)⟩ t
         have := hmax_rem f (List.mem_cons_self ..)
-        dsimp only at hms
-        rw [hstep_cost]
+        dsimp only [st₀] at hms ⊢
         omega
       have hb' : bAcc'.length ≤ bAcc.length + 1 := by simp only [bAcc']; split_ifs <;> simp
       have hr' : rAcc'.length ≤ rAcc.length + 1 := by simp only [rAcc']; split_ifs <;> simp
@@ -308,16 +305,14 @@ theorem partitionLive_spec {w : ℕ} {args : PartitionArgs}
           rAcc' ++ rest.filter (fun g => decide (args.x ∉ g.scope)) := by
         by_cases hxf : args.x ∈ f.scope <;> simp [rAcc', hxf]
       dsimp only
-      rw [show iterate partitionStep args.x (f :: rest).length st₀ =
-          (partitionStep (args.x, st₀) >>= iterate partitionStep args.x rest.length) from rfl,
-        StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-        memoryCost_bind', hst, hres, hbOut, hrOut]
-      refine ⟨validHistory_bind_step (partitionStep_valid (by omega) ?_ hwd_val)
-          (by rw [hst, hres]; exact hv_i), hfr_i, hpres_i, hbCnt_i, hrCnt_i, hbH_i, hbD_i, hrH_i,
-        hrD_i, ?_⟩
-      · exact memScan_valid _ (by dsimp only; rw [hsl]; exact hsc.1)
-      · simp only [List.length_cons, add_one_mul]
-        omega
+      rw [List.length_cons, iterate, StateTransitionSpec.clientResult_bind,
+        StateTransitionSpec.clientState_bind, memoryCost_bind', hstep_st, hres, hbOut, hrOut]
+      refine ⟨validHistory_bind_step
+          (partitionStep_valid (by omega) (memScan_valid _ (hsl.symm ▸ hsc.1)) hwd_val)
+          (by simpa only [st₀, hstep_st, hres] using hv_i), hfr_i, hpres_i, hbCnt_i, hrCnt_i,
+        hbH_i, hbD_i, hrH_i, hrD_i, ?_⟩
+      dsimp only [st₀] at hcost
+      rw [add_one_mul]; omega
   have h := hloop live args.livePtr [] [] s₂ hwf₂ (by dsimp only [s₂]; omega) hpres₂
       hlive.bound (hlive.mono_frontier hpres₂)
       ((AllDataBelow.of_holdsFactorList hlive).frame fun _ _ _ => rfl) hmax

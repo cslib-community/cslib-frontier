@@ -104,14 +104,8 @@ private def externalPort (side : ExitSide) (offset : Nat) : Port :=
 /-- A port is listed in a rectangle exactly when both its coordinates are in bounds. -/
 theorem mem_portsIn_iff {p : Port} {width height : Nat} :
     p ∈ portsIn width height ↔ PortInBounds p width height := by
-  simp only [portsIn, List.mem_flatMap, List.mem_range, List.mem_cons,
-    List.not_mem_nil, or_false]
-  constructor
-  · rintro ⟨y, hy, x, hx, rfl | rfl | rfl | rfl⟩ <;> exact ⟨hx, hy⟩
-  · rintro ⟨hx, hy⟩
-    rcases p with ⟨px, py, side⟩
-    refine ⟨py, hy, px, hx, ?_⟩
-    cases side <;> simp
+  rcases p with ⟨px, py, _ | _ | _ | _⟩ <;>
+    simp [portsIn, PortInBounds, and_comm]
 
 /-- A strict bottom-side port of the cycle created in a depth-two block. -/
 @[expose] def cycleSource : Port := ⟨4, 3, .west⟩
@@ -181,18 +175,11 @@ private theorem Move.link {grid : Nat → Nat → Index} (m : Move)
     cases kind <;>
       simp only [Move.valid, Move.first, Move.second, Move.baseFirst, Move.baseSecond,
         Move.parity, Bool.false_eq_true, ↓reduceIte, Bool.and_eq_true, beq_self_eq_true] at h ⊢
-    · exact Link.horizontalMatch x y
-    · exact Link.verticalMatch x y
-    · exact Link.horizontal x y h
-    · exact Link.vertical x y h
-    · exact Link.westNorth x y h.1 h.2
-    · exact Link.westSouth x y h.1 h.2
-    · exact Link.eastNorth x y h.1 h.2
-    · exact Link.eastSouth x y h.1 h.2
-    · exact Link.crossing x y h.1 h.2
+    exacts [Link.horizontalMatch x y, Link.verticalMatch x y, Link.horizontal x y h,
+      Link.vertical x y h, Link.westNorth x y h.1 h.2, Link.westSouth x y h.1 h.2,
+      Link.eastNorth x y h.1 h.2, Link.eastSouth x y h.1 h.2, Link.crossing x y h.1 h.2]
   cases reverse
-  · exact h0
-  · exact h0.symm
+  exacts [h0, h0.symm]
 
 /-- One predecessor edge in a finite red-path certificate. Port codes use row-major
 coordinates with four sides in west/east/south/north order; move codes use row-major
@@ -246,26 +233,21 @@ private theorem Forest.sound {width : Nat} {grid : Nat → Nat → Index} {f : F
     (valid : f.Valid grid) (i : Nat) (hi : i < f.rows.length) :
     BoundedPath grid width width (decodePort width f.root) (decodePort width (f.row i).port)
       (f.row i).parity := by
-  obtain ⟨bounds, root | ⟨decreases, edge, first, second, parity⟩⟩ := valid.2 ⟨i, hi⟩
-  · rcases root with ⟨hp, hb⟩
-    rw [hp, hb]
-    exact BoundedPath.refl _ valid.1
+  obtain ⟨bounds, ⟨hp, hb⟩ | ⟨decreases, edge, first, second, parity⟩⟩ := valid.2 ⟨i, hi⟩
+  · simpa only [hp, hb] using BoundedPath.refl _ valid.1
   · have predecessorBounds := (valid.2 ⟨(f.row i).predecessor, lt_trans decreases hi⟩).1
     have step := BoundedPath.ofLink ((decodeMove width (f.row i).move).link edge)
       (first.symm ▸ predecessorBounds) (second.symm ▸ bounds)
     rw [first, second] at step
-    rw [parity]
-    exact BoundedPath.trans (Forest.sound valid _ (lt_trans decreases hi)) step
+    simpa only [parity] using BoundedPath.trans (Forest.sound valid _ (lt_trans decreases hi)) step
 termination_by i
 
 private theorem Forest.sound_mem {width : Nat} {grid : Nat → Nat → Index} {f : Forest width}
     (valid : f.Valid grid) {r : Row} (hr : r ∈ f.rows) :
     BoundedPath grid width width (decodePort width f.root) (decodePort width r.port) r.parity := by
-  obtain ⟨i, hi, equal⟩ := List.mem_iff_getElem.mp hr
-  have rowEq : f.row i = r := by
-    simp only [Forest.row, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi,
-      Option.getD_some, equal]
-  simpa only [rowEq] using Forest.sound valid i hi
+  obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hr
+  simpa only [Forest.row, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi,
+    Option.getD_some] using Forest.sound valid i hi
 
 -- Shared by all 104 parents: one predecessor per port, without repeated path tails.
 private def forest (id : Fin 32) : Forest 8 :=
@@ -619,8 +601,7 @@ private theorem Forest.reaches_sound {width : Nat} {grid : Nat → Nat → Index
     (valid : f.Valid grid) {target : Port} (h : f.reaches target = true) :
     ∃ parity, BoundedPath grid width width f.rootPort target parity := by
   obtain ⟨r, hr, eq⟩ := List.any_eq_true.mp h
-  have targetEq : decodePort width r.port = target := of_decide_eq_true eq
-  exact ⟨r.parity, targetEq ▸ Forest.sound_mem valid hr⟩
+  exact ⟨r.parity, of_decide_eq_true eq ▸ Forest.sound_mem valid hr⟩
 
 private theorem connects_sound {grid : Nat → Nat → Index} {f : Forest 8}
     (valid : f.Valid grid) {start finish : Port} (h : connects f start finish = true) :

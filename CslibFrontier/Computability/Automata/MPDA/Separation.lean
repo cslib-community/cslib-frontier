@@ -138,12 +138,10 @@ private theorem wellNested_of_replicate {c c' : Config 2 State Γ} {v : List (Le
       List.sum_append, List.sum_replicate, List.length_replicate, hx, hy, OpKind.net]
     split_ifs <;> simp
   · rintro ⟨i₁, i₂, p₁, p₂, z, hne, -, -, ⟨a₁, γ₁, h₁⟩, ⟨a₂, γ₂, h₂⟩, -⟩
-    have hstack : ∀ {i' : Fin 2} {t : ℕ} {l : Letter} {γ : Γ},
-        v[t]? = some (l, Op.push i' γ) → i' = i := by
-      intro i' t l γ ht
+    have hstack {i' : Fin 2} {t : ℕ} {l : Letter} {γ : Γ}
+        (ht : v[t]? = some (l, Op.push i' γ)) : i' = i := by
       have hk := hv _ (List.mem_of_getElem? ht)
-      have hmem : l ∈ v.map Prod.fst := List.mem_map.mpr ⟨_, List.mem_of_getElem? ht, rfl⟩
-      rw [hvp] at hmem
+      have hmem := hvp ▸ List.mem_map.mpr ⟨_, List.mem_of_getElem? ht, rfl⟩
       simp only [List.mem_append, List.mem_replicate] at hmem
       rcases hmem with ⟨-, rfl⟩ | ⟨-, rfl⟩
       · simpa [hx, Op.kind, eq_comm] using hk
@@ -206,10 +204,9 @@ private theorem wellMatched_of_groups {c c' : Config 2 State Γ} :
       by_cases hkc : k < p + (p + 1)
       · -- A letter `c` is a pop.
         rw [List.getElem?_append_left (by simp; omega), List.getElem?_append_left (by simp; omega),
-          List.getElem?_append_right (by simp; omega), List.getElem?_replicate] at hsym
-        simp only [List.length_replicate, show k - p < p + 1 by omega, ite_true,
-          Option.some.injEq] at hsym
-        subst hsym
+          List.getElem?_append_right (by simp; omega),
+          List.getElem?_replicate_of_lt (by simp; omega)] at hsym
+        cases hsym
         simp [kind] at hkind'
       by_cases hkb : k < p + (p + 1) + q
       · -- A push in `b^q`: it lies in the factor `b^q d^q`.
@@ -217,16 +214,14 @@ private theorem wellMatched_of_groups {c c' : Config 2 State Γ} :
             u ++ (la ++ lc ++ lb ++ ld ++ vr) ++ u' := by
           conv_rhs => rw [← List.take_append_drop q ld]
           simp only [List.append_assoc]
+        have hk_off : u.length + p + (p + 1) + (k - (p + (p + 1))) = u.length + k := by omega
         have := wellMatched_of_replicate (x := .b) (y := .d) (i := 1) (heq ▸ h) (heq ▸ hkind)
           rfl rfl (by rw [List.map_append, hlb, List.map_take, hld, List.take_replicate,
-            min_eq_left (Nat.le_succ q)]) (show k - (p + (p + 1)) < q by omega)
-        rwa [heq, List.length_append, List.length_append, hla', hlc',
-          show u.length + p + (p + 1) + (k - (p + (p + 1))) = u.length + k by omega] at this
+            min_eq_left (Nat.le_succ q)]) (k := k - (p + (p + 1))) (by omega)
+        rwa [heq, List.length_append, List.length_append, hla', hlc', hk_off] at this
       · -- A letter `d` is a pop.
         rw [List.getElem?_append_right (by simp; omega), List.getElem?_replicate] at hsym
-        simp only [List.length_append, List.length_replicate, Option.ite_none_right_eq_some,
-          Option.some.injEq] at hsym
-        obtain ⟨-, rfl⟩ := hsym
+        obtain ⟨-, ⟨rfl⟩⟩ := Option.ite_none_right_eq_some.mp hsym
         simp [kind] at hkind'
     · -- The push lies in a later group.
       have hk' : u.length + vg.length + (k - vg.length) = u.length + k := by omega
@@ -300,8 +295,7 @@ theorem word_mem_language (m : ℕ) : word m ∈ language :=
 private theorem getElem?_flatten_cd (r j : ℕ) :
     (List.replicate r [Letter.c, .d]).flatten[j]? =
       if j < 2 * r then some (if j % 2 = 0 then .c else .d) else none := by
-  rw [List.getElem?_flatten_replicate, List.length_cons, List.length_singleton,
-    show r * (1 + 1) = 2 * r by omega]
+  rw [List.getElem?_flatten_replicate, List.length_cons, List.length_singleton, Nat.mul_comm r 2]
   rcases Nat.mod_two_eq_zero_or_one j with h | h <;> simp [h]
 
 private theorem length_word (m : ℕ) : (word m).length = 4 * m := by
@@ -318,10 +312,9 @@ private theorem net_take_flatten_cd (r j : ℕ) :
     rcases j with _ | _ | j
     · simp
     · simp [kind, OpKind.net]
-    · rw [List.take_append, List.take_of_length_le (by simp), show j + 2 - [Letter.c, .d].length = j
-        by simp, List.map_append, List.sum_append, ih]
-      simp [kind, OpKind.net]
-      omega
+    · rw [List.cons_append, List.cons_append, List.nil_append, List.take_succ_cons,
+        List.take_succ_cons, List.map_cons, List.map_cons, List.sum_cons, List.sum_cons, ih]
+      simp [kind, OpKind.net]; omega
 
 /-- The net effect on stack `0` of a prefix of `aʳ bˢ (c d)ʳ`. -/
 private theorem net_take_abcd (r s k : ℕ) :
@@ -342,8 +335,7 @@ private theorem extract_word (m : ℕ) (hm : 1 ≤ m) :
   obtain ⟨m, rfl⟩ : ∃ m', m = m' + 1 := ⟨m - 1, by omega⟩
   have hw : word (m + 1) = Letter.a :: ((List.replicate m .a ++ List.replicate (m + 1) .b ++
       (List.replicate m [Letter.c, .d]).flatten) ++ [.c, .d]) := by
-    rw [word, List.replicate_succ' (n := m) (a := [Letter.c, .d]), List.flatten_append]
-    simp [List.replicate_succ]
+    simp [word, List.replicate_succ' (n := m) (a := [Letter.c, .d]), List.replicate_succ]
   rw [hw, List.extract_eq_take_drop, List.drop_succ_cons, List.drop_zero,
     List.take_append_of_le_length (by simp; omega), List.take_of_length_le (by simp; omega)]
   simp
@@ -367,11 +359,9 @@ theorem not_scopeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
   have hkind := hM.kind_eq h
   have hlen : w.length = 4 * m := by rw [← List.length_map (f := Prod.fst), hw, length_word]
   -- The letter at each position.
-  have hlet : ∀ t : ℕ, (w.map Prod.fst)[t]? = (word m)[t]? := fun t => by rw [hw]
-  have hpos : ∀ {t : ℕ} {x : Letter}, (word m)[t]? = some x →
+  have hpos {t : ℕ} {x : Letter} (ht : (word m)[t]? = some x) :
       ∃ μ, w[t]? = some μ ∧ μ.1 = x ∧ μ.2.kind = kind x := by
-    intro t x ht
-    rw [← hlet, List.getElem?_map] at ht
+    rw [← hw, List.getElem?_map] at ht
     obtain ⟨μ, hμ, rfl⟩ := Option.map_eq_some_iff.mp ht
     exact ⟨μ, hμ, rfl, hkind μ (List.mem_of_getElem? hμ)⟩
   have hword_a (hm : 0 < m) : (word m)[0]? = some .a := by
@@ -379,15 +369,15 @@ theorem not_scopeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
       List.getElem?_replicate_of_lt hm]
   have hword_cd {k : ℕ} (hk : k < 2 * m) :
       (word m)[2 * m + k]? = some (if k % 2 = 0 then .c else .d) := by
-    rw [word, List.getElem?_append_right (by simp; omega), getElem?_flatten_cd]
-    simp only [List.length_append, List.length_replicate,
-      show 2 * m + k - (m + m) = k by omega, hk, ↓reduceIte]
+    rw [word, List.getElem?_append_right (by simp; omega)]
+    simp [← Nat.two_mul, getElem?_flatten_cd, hk]
   -- The first `a` matches the last `c`.
   have hmatch : Matches w 0 (4 * m - 2) := by
     obtain ⟨μa, hμa, -, hka⟩ := hpos (hword_a (by omega))
-    obtain ⟨μc, hμc, -, hkc⟩ := hpos (t := 4 * m - 2) (x := .c) (by
-      simpa [show 4 * m - 2 = 2 * m + (2 * m - 2) by omega,
-        show (2 * m - 2) % 2 = 0 by omega] using hword_cd (k := 2 * m - 2) (by omega))
+    have hm2 : 4 * m - 2 = 2 * m + (2 * m - 2) := by omega
+    have hmod : (2 * m - 2) % 2 = 0 := by omega
+    obtain ⟨μc, hμc, -, hkc⟩ := hpos (t := 4 * m - 2) (x := .c)
+      (by simpa [hm2, hmod] using hword_cd (k := 2 * m - 2) (by omega))
     obtain ⟨γa, hγa⟩ := Op.kind_eq_push.mp hka
     obtain ⟨γc, hγc⟩ : ∃ γ, μc.2 = .pop 0 γ := by
       rcases hop : μc.2 with _ | ⟨i, γ⟩ | ⟨i, γ⟩ <;> rw [hop] at hkc <;> simp_all [Op.kind, kind]
@@ -430,8 +420,8 @@ theorem not_scopeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
     obtain ⟨μ, hμ, -, hμk⟩ := hpos hx
     exact ⟨μ, hμ, by rw [Op.stack_eq_kind_stack, hμk, hxs]⟩
   -- The scope bound gives at most `K + 1` contexts from the first `a` to the last `c`.
-  have hcb := hs 0 (4 * m - 2) hmatch
-  rw [show 4 * m - 2 + 1 = 4 * m - 1 by omega] at hcb
+  have hm1 : 4 * m - 2 + 1 = 4 * m - 1 := by omega
+  have hcb := hm1 ▸ hs 0 (4 * m - 2) hmatch
   have hcard := List.Splits.card_le (fun _ _ huv hv => IsContext.of_isInfix huv hv) hcb
     ((Finset.range (2 * m + 1)).image (altPos m)) (by
       intro t ht
@@ -466,10 +456,10 @@ theorem exists_not_roundBounded (hM : M.IsVisibly kind) (K : ℕ) :
     ∃ v ∈ language, ∀ {c c' : Config 2 State Γ} {w : List (Letter × Op 2 Γ)},
       M.configLTS.MTr c w c' → w.map Prod.fst = v →
         ¬ScopeBounded K w ∧ ¬ContextBounded K w ∧ ¬RoundBounded K w := by
-  refine ⟨word (K + 1), word_mem_language _, fun h hw => ⟨?_, ?_, ?_⟩⟩
-  · exact not_scopeBounded hM h hw (by omega)
-  · exact fun hc => not_scopeBounded hM h hw (by omega) hc.scopeBounded
-  · exact fun hr => not_scopeBounded hM h hw (by omega) hr.contextBounded.scopeBounded
+  refine ⟨word (K + 1), word_mem_language _, fun h hw => ?_⟩
+  have hns : ¬ScopeBounded K _ := not_scopeBounded hM h hw (by omega)
+  exact ⟨hns, fun hc => hns hc.scopeBounded,
+    fun hr => not_scopeBounded hM h hw (by omega) hr.contextBounded.scopeBounded⟩
 
 end HoleSeparation
 

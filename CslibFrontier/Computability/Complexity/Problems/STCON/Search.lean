@@ -152,9 +152,8 @@ def Inv (cfg : Config) : Prop :=
 private theorem inv_mk {l c n s t cur steps v : ℕ} :
     Inv I (l, [c, n, s, t, cur, steps, v]) ↔
       c ≤ 1 ∧ Bounded I n s t cur steps v ∧ Phase I l n s t cur steps v := by
-  refine ⟨fun ⟨_, _, _, _, _, _, _, h, hc⟩ => ?_, fun h => ⟨c, n, s, t, cur, steps, v, rfl, h⟩⟩
-  simp only [List.cons.injEq, and_true] at h
-  obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
+  refine ⟨?_, fun h => ⟨c, n, s, t, cur, steps, v, rfl, h⟩⟩
+  rintro ⟨_, _, _, _, _, _, _, ⟨⟩, hc⟩
   exact hc
 
 /-- The total budget of the rank. -/
@@ -196,8 +195,7 @@ private theorem reach_source : Reach I I.s := ⟨I.s.isLt, .refl⟩
 /-- A step that makes progress, from a configuration within the budget, decreases the rank. -/
 private theorem rank_lt {cfg cfg' : Config} (h : progress I cfg < progress I cfg')
     (hb : progress I cfg < budget I) : rank I cfg' < rank I cfg := by
-  unfold rank
-  omega
+  simp only [rank]; omega
 
 /-- Finish a case of `inv_step`, with additional facts for `simp`. -/
 local macro (name := searchFinish) "search_finish" " [" ts:term,* "]" : tactic => `(tactic| (
@@ -238,8 +236,7 @@ private theorem inv_step_header {l c n s t cur steps v : ℕ} (hl : l < 7)
     search_step
     rw [I.getElem?_encode_n hnI]
     by_cases h : n < I.n <;> simp only [h, decide_true, decide_false] <;> search_finish []
-  case «1» =>
-    obtain ⟨hnI, rfl, rfl, rfl, rfl, rfl⟩ := hP
+  case «1» | «3» | «5» =>
     search_step
     search_finish []
   case «2» =>
@@ -247,19 +244,11 @@ private theorem inv_step_header {l c n s t cur steps v : ℕ} (hl : l < 7)
     search_step
     rw [I.getElem?_encode_s hsI']
     by_cases h : s < I.s <;> simp only [h, decide_true, decide_false] <;> search_finish []
-  case «3» =>
-    obtain ⟨rfl, hsI', rfl, rfl, rfl, rfl⟩ := hP
-    search_step
-    search_finish []
   case «4» =>
     obtain ⟨rfl, rfl, htI', rfl, rfl, rfl⟩ := hP
     search_step
     rw [I.getElem?_encode_t htI']
     by_cases h : t < I.t <;> simp only [h, decide_true, decide_false] <;> search_finish []
-  case «5» =>
-    obtain ⟨rfl, rfl, htI', rfl, rfl, rfl⟩ := hP
-    search_step
-    search_finish []
   case «6» =>
     obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩ := hP
     search_step
@@ -286,9 +275,10 @@ private theorem inv_step_check {l c n s t cur steps v : ℕ} (hl7 : 7 ≤ l) (hl
     search_step
     by_cases h : (I.t : ℕ) < cur <;> simp only [h, ↓reduceIte]
     · search_finish [hR]
-    · have hmem : Relation.ReflTransGen I.Adj I.s I.t :=
-        (Fin.ext (show cur = I.t by omega) : (⟨cur, hR.1⟩ : Fin I.n) = I.t) ▸ hR.2
-      search_finish [show I ∈ STCON from hmem]
+    · have hct : cur = I.t := by omega
+      have hmem : Relation.ReflTransGen I.Adj I.s I.t :=
+        (Fin.ext hct : (⟨cur, hR.1⟩ : Fin I.n) = I.t) ▸ hR.2
+      search_finish [STCON, Set.mem_ofPred_eq, hmem]
   case «9» =>
     obtain ⟨rfl, rfl, rfl, hR, hst, hvn⟩ := hP
     search_step
@@ -369,9 +359,8 @@ private theorem inv_step (cfg : Config) (hinv : Inv I cfg) (hrun : searchProgram
   have hl := label_le_of_phase I hP
   interval_cases l <;> simp [CounterProgram.halted, instr, searchProgram, Instr.halts] at hrun
 
-private theorem inv_init : Inv I searchProgram.init := by
-  change Inv I (0, [0, 0, 0, 0, 0, 0, 0])
-  exact (inv_mk I).2 ⟨by omega, by simp [Bounded], by simp [Phase]⟩
+private theorem inv_init : Inv I searchProgram.init :=
+  (inv_mk I).2 ⟨by omega, by simp [Bounded], by simp [Phase]⟩
 
 /-- **The invariant holds on every branch.** -/
 theorem inv_run (choices : List Bool) :
@@ -390,10 +379,8 @@ private theorem le_length_of_mem_run (choices : List Bool) {r : ℕ}
     r ≤ I.encode.length := by
   obtain ⟨c, n, s, t, cur, steps, v, h, hc, ⟨hn, hs, ht, hcur, hsteps, hv⟩, -⟩ := inv_run I choices
   have hlen := I.length_encode
-  have := I.s.isLt
-  have := I.t.isLt
-  rw [h] at hr
-  simp only [List.mem_cons, List.not_mem_nil, or_false] at hr
+  have ⟨hsI, htI⟩ := (⟨I.s.isLt, I.t.isLt⟩ : (I.s : ℕ) < I.n ∧ (I.t : ℕ) < I.n)
+  simp only [h, List.mem_cons, List.not_mem_nil, or_false] at hr
   rcases hr with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> omega
 
 /-- **An accepting branch is sound**: the invariant at the accepting label says that `t` is
@@ -526,8 +513,7 @@ branch halting. -/
 theorem exists_decidesInLogSpace :
     ∃ (k : ℕ) (State : Type) (_ : Finite State) (ntm : Turing.MultiTapeNTM k Bool State) (c : ℕ),
       ntm.DecidesInSpace encSTCON STCON fun I => c * (Nat.log2 (encSTCON I).length + 1) :=
-  searchProgram.exists_decidesInLogSpace (fun I => rank I searchProgram.init) 1
-    (fun I => haltsWithin I)
+  searchProgram.exists_decidesInLogSpace (fun I => rank I searchProgram.init) 1 haltsWithin
     (fun I choices r hr => by
       simpa only [encSTCON_apply, pow_one] using
         (le_length_of_mem_run I choices hr).trans (Nat.le_succ _))

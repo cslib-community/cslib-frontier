@@ -211,8 +211,7 @@ private theorem run_overwrite (K : ℕ) (hγ : 0 < P.γ₁) (dist : PMF Digest)
         (expandSigningRetries P K program)).run [] := by
   simp only [runTrials, ↓reduceIte]
   apply run_interpret_map_state _ _ Prod.fst
-  rintro q ⟨cache, log⟩
-  rcases q with m | k
+  rintro (m | k) ⟨cache, log⟩
   · simp only [RandomOracle.overwriteProgramHandler, ↓reduceDIte, PMF.monad_bind_eq_bind,
       PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map, programmedTrial, trialCoins,
       PMF.map_comp, Function.comp_def, RandomOracle.programmedTrialStep, Bool.true_or, ↓reduceIte]
@@ -397,11 +396,8 @@ theorem isSolution_of_forgery_at_simulated_digest (hP : P.Valid) (hq : 2 * P.γ�
     (hexpand : expand raw = some σ.c) (hz : ResponseShort P σ.z) (hw : σ.recover d pk = w) :
     ∃ other, sent = some (raw, other) ∧ ModuleSIS.IsSolution (ModuleSIS.hermiteMatrix pk.A)
       (max (2 * (P.γ₁ - P.β)) (4 * P.γ₂ + 2)) (responseDifference d pk σ other) := by
-  simp only [simulatePartialTrial, hexpand, PMF.mem_support_map_iff] at ht
-  obtain ⟨_ | t, hout, he⟩ := ht
-  · cases he
-  change some (t.commitment, some (raw, t.signature)) = some (w, sent) at he
-  cases he
+  simp only [simulatePartialTrial, hexpand, PMF.mem_support_map_iff, terminalTranscript] at ht
+  rcases ht with ⟨_ | t, hout, ⟨⟩⟩
   obtain ⟨hc, hshort, _, hrec⟩ :=
     simulateFreshSigningAttempt_support P hP hq hγq d ω hβ pk σ.c hout
   exact ⟨t.signature, rfl, isSolution_responseDifference hP hγq d pk
@@ -446,10 +442,9 @@ theorem closeTo_partialSigningROM (hP : P.Valid) (hq : 2 * P.γ₁ < P.q)
   cases e : expand c with
   | none => simp [partialResult, e, trialPoint, SecretKey.publicKey]
   | some poly =>
-    dsimp only
-    rw [← freshSigningAttempt_eq_simulate P hP hq hβ d ω sk hs₁ hs₂ (hc c poly e)]
-    simp only [freshSigningAttempt, PMF.map_comp, Function.comp_def, terminalTranscript,
-      Option.map_map, partialResult, e, trialPoint]
+    simp only [e, ← freshSigningAttempt_eq_simulate P hP hq hβ d ω sk hs₁ hs₂ (hc c poly e),
+      freshSigningAttempt, PMF.map_comp, Function.comp_def, terminalTranscript, Option.map_map,
+      partialResult, trialPoint]
 
 /-- A digest cache write records the direct hash reply or the terminal answer of a signing
 request. A signing error is a terminal write, while an erased rejection makes no entry. -/
@@ -482,9 +477,7 @@ private theorem expand_partialSigningProgram (K : ℕ)
     expandSigningRetries P K (partialSigningProgram P program) =
       interpret (outerSigningQuery P K) program := by
   simp only [expandSigningRetries, partialSigningProgram, interpret_interpret]
-  congr 1
-  funext q
-  cases q <;> simp [sumHandler, outerSigningQuery]
+  congr 1 with (_ | _) <;> simp [sumHandler, outerSigningQuery]
 
 /-- Execute the partial signing simulator, recording the last writer at each cache entry and
 the actual outward query/reply transcript. Both lists are newest first. Retry attempts are
@@ -514,11 +507,9 @@ theorem simulatePartialSigningTranscript_forget (d ω K : ℕ) (hβ : P.β < P.�
       (outerSigningQuery P K q)) program [] [])
   rw [PMF.map_comp, ← interpret_interpret] at forget
   refine forget.trans ?_
-  unfold simulatePartialSigningROM runTerminalTrials
-  rw [expand_partialSigningProgram]
+  rw [simulatePartialSigningROM, runTerminalTrials, expand_partialSigningProgram]
   apply run_interpret_map_state _ _ erase
-  intro q st
-  rcases q with m | point
+  rintro (m | point) st
   · simp only [observedTrial, terminalTrialHandler, sumHandler, PMF.monad_bind_eq_bind,
       PMF.monad_pure_eq_pure, PMF.map_bind]
     congr 1 with raw : 1
@@ -647,8 +638,7 @@ private theorem lookup_of_queryForgeryDigest (d ω K : ℕ) (hβ : P.β < P.γ�
   cases eq : st.lookup (forged.signature.recover d pk, forged.message) with
   | some entry =>
     simp only [eq, PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hreply
-    obtain ⟨rfl, rfl⟩ := hreply
-    simp [eq]
+    simp [hreply.1, hreply.2, eq]
   | none =>
     simp only [eq, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
       PMF.mem_support_pure_iff, Prod.mk.injEq] at hreply

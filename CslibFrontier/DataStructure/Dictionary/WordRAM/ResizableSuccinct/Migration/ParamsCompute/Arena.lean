@@ -95,27 +95,23 @@ theorem newItemEnd_le_oldItemNextWord {U V w N_old N_new n j : ℕ}
   set S_old := quotientBits U N_old + valBits V
   set S_new := quotientBits U N_new + valBits V
   have hwo_eq : wOffQ (quotientBits U N_old) (valBits V) w j = (j * S_old) / w := by
-    have hid := wOffQ_mul_add_bOffQ
-      (q_bits := quotientBits U N_old) (v_bits := valBits V) (w := w) (d := j)
-    have hb := bOffQ_lt (q_bits := quotientBits U N_old) (v_bits := valBits V) (d := j) hw
-    rw [← hid, Nat.mul_comm _ w, Nat.mul_add_div hw, Nat.div_eq_of_lt hb, add_zero]
+    rw [← wOffQ_mul_add_bOffQ (q_bits := quotientBits U N_old) (v_bits := valBits V) (w := w)
+      (d := j), Nat.mul_comm _ w, Nat.mul_add_div hw, Nat.div_eq_of_lt (bOffQ_lt hw), add_zero]
   rw [hwo_eq]
-  have hceil : ∀ a, (a + w - 1) / w + 2 ≤ a / w + 3 := fun a => by
-    have := div_ceil_le_div_add_one (a := a) hw; omega
-  have hj_iw : compactedItemWords U V w N_new j ≤ (j * S_new) / w + 3 := hceil _
-  have hold_iw : compactedItemWords U V w N_old n ≤ (n * S_old) / w + 3 := hceil _
+  have hj_iw : compactedItemWords U V w N_new j ≤ (j * S_new) / w + 3 :=
+    Nat.add_le_add_right (div_ceil_le_div_add_one hw) 2
+  have hold_iw : compactedItemWords U V w N_old n ≤ (n * S_old) / w + 3 :=
+    Nat.add_le_add_right (div_ceil_le_div_add_one hw) 2
   have hnew_iw : (n * S_new) / w + 2 ≤ compactedItemWords U V w N_new n :=
     Nat.add_le_add_right (Nat.div_le_div_right (by omega : n * S_new ≤ n * S_new + w - 1)) 2
   unfold migrateArenaWords
   rcases le_total S_new S_old with hle | hge
-  · have hdiv : (j * S_new) / w ≤ (j * S_old) / w :=
-      Nat.div_le_div_right (Nat.mul_le_mul_left j hle)
+  · have := Nat.div_le_div_right (c := w) (Nat.mul_le_mul_left j hle)
     omega
   · have hconv : j * S_new + n * S_old ≤ n * S_new + j * S_old := by
       nlinarith [Nat.mul_le_mul_left (n - j) hge, Nat.add_sub_of_le hj]
-    have hdiv1 := div_add_div_le (a := j * S_new) (b := n * S_old) hw
-    have hdiv2 := Nat.div_le_div_right (c := w) hconv
-    have hdiv3 := Nat.add_div_le_div_add_div_add_one (n * S_new) (j * S_old) w
+    have := (div_add_div_le hw).trans ((Nat.div_le_div_right hconv).trans
+      (Nat.add_div_le_div_add_div_add_one _ _ w))
     omega
 
 /-- Shared metadata bit-packing bound `offCompItems U w N ≤ ⌈84 N log log N / w⌉ + 439` used by
@@ -144,15 +140,11 @@ private theorem offCompItems_le_div_eightyFour_logLog {U w N : ℕ}
       epochHashSpace epochQBits epochHashB lmSubWords
     unfold hashSpace qBits hashB at hh
     omega
-  have hll_N1 := Dynamic.one_le_logLogFactor N
-  have hlm := localMetaLen_mul_effBucketPosBits_le N
-  have hgm := globalMetaLen_mul_globalPtrBits_le N
-  have htail := maxTailItems_mul_globalPtrBits_le N
   have h84N : (2 * N) * 1 + localMetaLen N * effBucketPosBits N +
       globalMetaLen N * globalPtrBits N + (2 * maxTailItems N) * globalPtrBits N ≤
       84 * N * Dynamic.logLogFactor N := by
-    have h10 : 10 * N ≤ 10 * N * Dynamic.logLogFactor N := Nat.le_mul_of_pos_right _ hll_N1
-    nlinarith
+    nlinarith [Dynamic.one_le_logLogFactor N, localMetaLen_mul_effBucketPosBits_le N,
+      globalMetaLen_mul_globalPtrBits_le N, maxTailItems_mul_globalPtrBits_le N]
   exact hmeta_le.trans (Nat.add_le_add_right (Nat.div_le_div_right (by omega)) 439)
 
 /-- Compacted metadata word offset bound in terms of `n` when `N ≤ 4 * n`. -/
@@ -207,13 +199,10 @@ theorem migratePeakWords_le_succinctWords {U V w N_old n : ℕ}
     · omega
     · have hm_old := offCompItems_le_div_metaBits hw hNU_old hU.le hN4_old
       have hm_new := offCompItems_le_div_metaBits hw hNU_new hU.le hN4_new
-      have hi_old := compactedItemWords_le_div_optBits U V w hn_old hN4_old
-      have hi_new := compactedItemWords_le_div_optBits U V w hn_new hN4_new
       have har : migrateArenaWords U V w N_old (targetCap U n) n ≤
-          (Dynamic.optBits U V n + 11 * n * Dynamic.logLogFactor n + w - 1) / w + 8 := by
-        unfold migrateArenaWords
-        have hmax := max_le hi_old hi_new
-        omega
+          (Dynamic.optBits U V n + 11 * n * Dynamic.logLogFactor n + w - 1) / w + 8 :=
+        Nat.add_le_add_right (max_le (compactedItemWords_le_div_optBits U V w hn_old hN4_old)
+          (compactedItemWords_le_div_optBits U V w hn_new hN4_new)) 6
       set M := 1344 * n * Dynamic.logLogFactor n
       set I := Dynamic.optBits U V n + 11 * n * Dynamic.logLogFactor n
       have hc1 := div_ceil_add_div_ceil_le (A := M) (B := M) hw
@@ -253,18 +242,16 @@ theorem compactedItemWords_le_linear {U V w N n : ℕ}
   calc (n * (quotientBits U N + valBits V) + w - 1) / w + 2
       ≤ ((w - 1) + (2 * n) * w) / w + 2 := Nat.add_le_add_right (Nat.div_le_div_right hle) 2
     _ = 2 * n + 2 := by
-        rw [Nat.add_mul_div_right _ _ hw, Nat.div_eq_of_lt (by omega : w - 1 < w), Nat.zero_add]
+        rw [Nat.add_mul_div_right _ _ hw, Nat.div_eq_of_lt (Nat.sub_lt hw zero_lt_one),
+          Nat.zero_add]
 
 private theorem logLogFactor_le_three_mul_w {w N : ℕ} (hw : 0 < w) (hN : Fits w N) :
     Dynamic.logLogFactor N ≤ 3 * w := by
   unfold Dynamic.logLogFactor
   have hmax : max N 4 ≤ 2 ^ (w + 2) := by
-    have h4 : 4 ≤ 2 ^ (w + 2) := by
-      calc 4 = 2 ^ 2 := by decide
-        _ ≤ 2 ^ (w + 2) := Nat.pow_le_pow_right two_pos (by omega)
-    have hNw : N ≤ 2 ^ (w + 2) :=
-      hN.le.trans (Nat.pow_le_pow_right two_pos (by omega))
-    exact max_le hNw h4
+    refine max_le (hN.le.trans (Nat.pow_le_pow_right two_pos (by omega))) ?_
+    calc 4 = 2 ^ 2 := by decide
+      _ ≤ 2 ^ (w + 2) := Nat.pow_le_pow_right two_pos (by omega)
   have hc1 : Nat.clog 2 (max N 4) ≤ w + 2 :=
     (Nat.clog_le_iff_le_pow one_lt_two).mpr hmax
   exact (Nat.clog_mono_right 2 hc1).trans
@@ -284,7 +271,8 @@ theorem offCompItems_le_linear {U w N : ℕ}
   have hdiv : (84 * N * Dynamic.logLogFactor N + w - 1) / w ≤ 252 * N := by
     calc _ ≤ ((w - 1) + (252 * N) * w) / w := Nat.div_le_div_right (by omega)
       _ = 252 * N := by
-          rw [Nat.add_mul_div_right _ _ hw, Nat.div_eq_of_lt (by omega : w - 1 < w), Nat.zero_add]
+          rw [Nat.add_mul_div_right _ _ hw, Nat.div_eq_of_lt (Nat.sub_lt hw zero_lt_one),
+            Nat.zero_add]
   omega
 
 /-- Parameter-free `O(n)` linear word bound on `migratePeakWords` (`≤ 1514 * n + 886`), ensuring
@@ -296,18 +284,17 @@ theorem migratePeakWords_le_linear {U V w N_old n : ℕ}
   rcases hev with ⟨rfl, _⟩ | ⟨_, hn_old, hN4_old, hNU_old⟩
   · omega
   · have hnU : n ≤ U := hn_old.trans hNU_old
-    have htc_le_U : targetCap U n ≤ U := by
-      unfold targetCap; rw [ite_eq_right (by omega)]; exact min_le_right _ _
-    have htc_le_2n : targetCap U n ≤ 2 * n := by
-      unfold targetCap; rw [ite_eq_right (by omega)]; exact min_le_left _ _
+    have htc : targetCap U n = min (2 * n) U := by
+      unfold targetCap
+      exact ite_eq_right (by omega)
     have hm_old := (offCompItems_le_linear hw hNU_old hU).trans
       (Nat.add_le_add_right (Nat.mul_le_mul_left 252 hN4_old) 439)
-    have hm_new := (offCompItems_le_linear hw htc_le_U hU).trans
-      (Nat.add_le_add_right (Nat.mul_le_mul_left 252 htc_le_2n) 439)
-    have hi_old := compactedItemWords_le_linear (N := N_old) (n := n) hw hU.le hV
-    have hi_new := compactedItemWords_le_linear (N := targetCap U n) (n := n) hw hU.le hV
-    unfold migratePeakWords migrateArenaWords
-    have hmax := max_le hi_old hi_new
+    have hm_new := (offCompItems_le_linear hw (htc ▸ min_le_right _ _) hU).trans
+      (Nat.add_le_add_right (Nat.mul_le_mul_left 252 (htc ▸ min_le_left _ _)) 439)
+    have har : migrateArenaWords U V w N_old (targetCap U n) n ≤ 2 * n + 8 :=
+      Nat.add_le_add_right (max_le (compactedItemWords_le_linear hw hU.le hV)
+        (compactedItemWords_le_linear hw hU.le hV)) 6
+    unfold migratePeakWords
     omega
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

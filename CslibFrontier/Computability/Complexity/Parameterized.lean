@@ -381,15 +381,11 @@ theorem ComputableInFPTTime.comp {f : α → β} {g : β → γ}
 private theorem decidableInTimeO_natCast_iff {A : Set α} {T : α → ℕ} :
     DecidableInTimeO A encA (fun a => (T a : ℝ)) ↔
       ∃ g : α → Bool, ComputableInO g encA encBool T T ∧ ∀ a, a ∈ A ↔ g a = true := by
-  constructor
-  · intro h
-    obtain ⟨g, t, k, hg, hA, ht⟩ := h.exists_computableInO
-    have ht' : ∀ a, t a ≤ k * (T a + 1) := fun a => by
-      have : (t a : ℝ) ≤ ((k * (T a + 1) : ℕ) : ℝ) := by grind
-      exact_mod_cast this
-    exact ⟨g, hg.mono k ht' ht', hA⟩
-  · rintro ⟨g, hg, hA⟩
-    exact DecidableInTimeO.of_computableInO hg hA fun _ => le_rfl
+  refine ⟨fun h => ?_, fun ⟨g, hg, hA⟩ => .of_computableInO hg hA fun _ => le_rfl⟩
+  obtain ⟨g, t, k, hg, hA, ht⟩ := h.exists_computableInO
+  have ht' (a : α) : t a ≤ k * (T a + 1) :=
+    (Nat.cast_le (α := ℝ)).mp (by push_cast; linarith [ht a])
+  exact ⟨g, hg.mono k ht' ht', hA⟩
 
 /-- **`FPT` in terms of fpt-time computability**: a problem is fixed-parameter tractable exactly
 when a Boolean function deciding it is computable in fpt time. -/
@@ -399,8 +395,7 @@ theorem mem_FPT_iff_computableInFPTTime {A : Set α} :
   have e (f : ℕ → ℕ) (c : ℕ) : (fun a => (f (κ a) : ℝ) * ((encA a).length + 1) ^ c) =
       fun a => ((f (κ a) * ((encA a).length + 1) ^ c : ℕ) : ℝ) := funext fun _ => by push_cast; rfl
   refine ⟨fun ⟨f, c, h⟩ => ?_, fun ⟨g, hg, hA⟩ => ?_⟩
-  · rw [e, decidableInTimeO_natCast_iff] at h
-    obtain ⟨g, hg, hA⟩ := h
+  · obtain ⟨g, hg, hA⟩ := decidableInTimeO_natCast_iff.mp (e f c ▸ h)
     exact ⟨g, hg.computableInFPTTime, hA⟩
   · obtain ⟨f, c, hg⟩ := ComputableInFPTTime.exists_computableInO hg
     exact ⟨f, c, (e f c).symm ▸ decidableInTimeO_natCast_iff.mpr ⟨g, hg, hA⟩⟩
@@ -413,11 +408,10 @@ theorem mem_XP_iff_exists_computableInO {A : Set α} :
   have h (f e : ℕ → ℕ) : (fun a => (f (κ a) : ℝ) * ((encA a).length + 1) ^ e (κ a)) =
       fun a => ((f (κ a) * ((encA a).length + 1) ^ e (κ a) : ℕ) : ℝ) :=
     funext fun _ => by push_cast; rfl
-  refine ⟨fun ⟨f, e, hA⟩ => ?_, fun ⟨g, f, e, hg, hA⟩ => ?_⟩
-  · rw [h, decidableInTimeO_natCast_iff] at hA
-    obtain ⟨g, hg, hA⟩ := hA
-    exact ⟨g, f, e, hg, hA⟩
-  · exact ⟨f, e, (h f e).symm ▸ decidableInTimeO_natCast_iff.mpr ⟨g, hg, hA⟩⟩
+  refine ⟨fun ⟨f, e, hA⟩ => ?_, fun ⟨g, f, e, hg, hA⟩ =>
+    ⟨f, e, (h f e).symm ▸ decidableInTimeO_natCast_iff.mpr ⟨g, hg, hA⟩⟩⟩
+  obtain ⟨g, hg, hA⟩ := decidableInTimeO_natCast_iff.mp (h f e ▸ hA)
+  exact ⟨g, f, e, hg, hA⟩
 
 /-- **Bounded parameters.** For a parameter bounded by a constant, `FPT` is `P`. -/
 theorem FPT_eq_P_of_le {K : ℕ} (hκ : ∀ a, κ a ≤ K) : FPT encA κ = P encA := by
@@ -444,10 +438,9 @@ theorem XP_eq_P_of_le {K : ℕ} (hκ : ∀ a, κ a ≤ K) : XP encA κ = P encA 
 /-- **`FPT` is closed under complement.** -/
 theorem compl_mem_FPT {A : Set α} (hA : A ∈ FPT encA κ) : Aᶜ ∈ FPT encA κ := by
   obtain ⟨g, hg, hA⟩ := mem_FPT_iff_computableInFPTTime.mp hA
-  exact mem_FPT_iff_computableInFPTTime.mpr ⟨_, hg.ite
-    ((ComputableInPolyTime.const false).computableInFPTTime κ)
-    ((ComputableInPolyTime.const true).computableInFPTTime κ),
-    fun a => by cases h : g a <;> simp [*]⟩
+  exact mem_FPT_iff_computableInFPTTime.mpr
+    ⟨_, hg.ite ((ComputableInPolyTime.const false).computableInFPTTime κ)
+      ((ComputableInPolyTime.const true).computableInFPTTime κ), fun a => by simp [hA a]⟩
 
 /-- **`FPT` is closed under intersection.** -/
 theorem inter_mem_FPT {A B : Set α} (hA : A ∈ FPT encA κ) (hB : B ∈ FPT encA κ) :

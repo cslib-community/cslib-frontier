@@ -105,14 +105,12 @@ theorem exists_abs_sum_walk_pow_le (hG : G.toSimpleGraph.Preconnected) {f : V �
   obtain ⟨N₀, hN₀⟩ := Metric.tendsto_atTop.1 hlim ε hε
   refine ⟨max N₀ 1, fun N hN v => ?_⟩
   have hN1 : (1 : ℝ) ≤ N := by exact_mod_cast le_of_max_le_right hN
-  have h := hN₀ N (le_of_max_le_left hN)
-  rw [dist_zero_right] at h
   have hiter (j : ℕ) (x : EuclideanSpace ℝ V) : (W^[j] x).ofLp = (G.walk ^ j) x.ofLp := by
     induction j generalizing x with
     | zero => rfl
     | succ j ih => rw [Function.iterate_succ_apply', pow_succ', mul_apply_eq_comp, ← ih]; rfl
   have hcoord := (PiLp.norm_apply_le (birkhoffAverage ℝ W _root_.id N (WithLp.toLp 2 f)) v).trans
-    h.le
+    (by simpa only [dist_zero_right] using (hN₀ N (le_of_max_le_left hN)).le)
   rw [birkhoffAverage, birkhoffSum] at hcoord
   simp only [id, WithLp.ofLp_smul, WithLp.ofLp_sum, Pi.smul_apply, Finset.sum_apply, hiter,
     smul_eq_mul, Real.norm_eq_abs, abs_mul, abs_inv, Nat.abs_cast] at hcoord
@@ -155,9 +153,8 @@ private theorem expect_visitSum (f : V → ℝ) :
     simp_rw [h]
     rw [← walk_apply, map_add, map_sum, sum_range_succ', Pi.add_apply, Finset.sum_apply,
       pow_one, add_comm]
-    congr 1
-    refine sum_congr rfl fun j _ => ?_
-    rw [pow_succ' G.walk (j + 1), mul_apply_eq_comp]
+    exact congrArg (· + _) (sum_congr rfl fun j _ => by
+      rw [pow_succ' G.walk (j + 1), mul_apply_eq_comp])
 
 omit [Fintype V] [DecidableEq V] in
 private theorem expect_visitSum_sq_succ (f : V → ℝ) (t : ℕ) (u : V) :
@@ -203,14 +200,11 @@ theorem eventually_visits_mem_Icc (hG : G.toSimpleGraph.Connected) (u v : V) {ε
   have hn : (0 : ℝ) < n := by exact_mod_cast Fintype.card_pos
   set f : V → ℝ := fun x => (if x = v then 1 else 0) - 1 / n with hf_def
   have hf0 : ∑ x, f x = 0 := by
-    simp only [f, sum_sub_distrib, sum_ite_eq', mem_univ, ite_true, sum_const, card_univ,
-      nsmul_eq_mul]
-    field_simp
-    simp [n]
+    simp [f, sum_sub_distrib, n, hn.ne']
   have hf1 (x : V) : |f x| ≤ 1 := by
-    have h1 : 1 / (n : ℝ) ≤ 1 := by rw [div_le_one hn]; exact_mod_cast Fintype.card_pos
+    have h1 : 1 / (n : ℝ) ≤ 1 := div_le_one_of_le₀ (Nat.one_le_cast.2 Fintype.card_pos) hn.le
     have h0 : 0 < 1 / (n : ℝ) := by positivity
-    simp only [f]
+    dsimp only [f]
     split_ifs <;> exact abs_le.2 ⟨by linarith, by linarith⟩
   set η := ε ^ 3 / (4 * n ^ 2) with hη
   have hη0 : 0 < η := by positivity
@@ -256,14 +250,11 @@ theorem eventually_visits_mem_Icc (hG : G.toSimpleGraph.Connected) (u v : V) {ε
     have h2 : η * t * (t + 1) ≤ ε ^ 3 * t ^ 2 / (2 * n ^ 2) :=
       calc η * t * (t + 1) ≤ η * t * (2 * t) := by gcongr; linarith
         _ = _ := by rw [hη]; field_simp; ring
-    rw [show ε * a ^ 2 = 2 * (ε ^ 3 * t ^ 2 / (2 * n ^ 2)) by rw [ha]; field_simp]
+    have ha_sq : ε * a ^ 2 = 2 * (ε ^ 3 * t ^ 2 / (2 * n ^ 2)) := by rw [ha]; field_simp
     linarith
   -- Chebyshev
-  have hS : ∀ k : Fin t → D, visitSum G f u k = (G.visits u v k : ℝ) - t / n := by
-    intro k
-    simp only [visitSum, f, sum_sub_distrib, sum_const, card_range, nsmul_eq_mul, visits]
-    rw [sum_boole]
-    simp [div_eq_mul_inv]
+  have hS (k : Fin t → D) : visitSum G f u k = (G.visits u v k : ℝ) - t / n := by
+    simp [visitSum, f, sum_sub_distrib, sum_boole, visits, div_eq_mul_inv]
   have hgood (k : Fin t → D) (hk : |visitSum G f u k| ≤ a) :
       (G.visits u v k : ℝ) ∈ Set.Icc ((1 - ε) * t / n) ((1 + ε) * t / n) := by
     rw [hS, abs_le] at hk
@@ -272,18 +263,13 @@ theorem eventually_visits_mem_Icc (hG : G.toSimpleGraph.Connected) (u v : V) {ε
   -- Chebyshev: Markov's inequality for `S²` at level `a²`
   have hcard : (Fintype.card (Fin t → D) : ℝ) = (Fintype.card D : ℝ) ^ t := by simp
   have hd : (0 : ℝ) < (Fintype.card D : ℝ) ^ t := by positivity
-  have hmk := Fintype.mul_dens_filter_le_expect
-    (fun k : Fin t → D => sq_nonneg (visitSum G f u k)) (a ^ 2)
   have hbad : (#{k : Fin t → D | a ^ 2 ≤ visitSum G f u k ^ 2} : ℝ) ≤
       ε * (Fintype.card D : ℝ) ^ t := by
-    rw [dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast,
-      hcard] at hmk
-    have ha2 : 0 < a ^ 2 := by positivity
-    have h := hmk.trans hq'
-    rw [mul_div_assoc', div_le_iff₀ hd,
-      show ε * a ^ 2 * (Fintype.card D : ℝ) ^ t = a ^ 2 * (ε * (Fintype.card D : ℝ) ^ t) by
-        ring] at h
-    exact le_of_mul_le_mul_left h ha2
+    have h := (Fintype.mul_dens_filter_le_expect
+      (fun k : Fin t → D => sq_nonneg (visitSum G f u k)) (a ^ 2)).trans hq'
+    rw [dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast, hcard,
+      mul_div_assoc', div_le_iff₀ hd] at h
+    exact le_of_mul_le_mul_left (h.trans_eq (by ring)) (sq_pos_of_pos ha0)
   have hsplit' : (#{k : Fin t → D | ¬ a ^ 2 ≤ visitSum G f u k ^ 2} : ℝ) +
       #{k : Fin t → D | a ^ 2 ≤ visitSum G f u k ^ 2} = (Fintype.card D : ℝ) ^ t := by
     rw [← hcard, ← card_univ, add_comm, ← Nat.cast_add, card_filter_add_card_filter_not]

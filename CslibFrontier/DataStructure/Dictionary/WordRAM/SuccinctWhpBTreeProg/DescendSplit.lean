@@ -87,8 +87,7 @@ private theorem realizes_splitFullChildBody :
     obtain ⟨c, U, V, w₀, n_max, henv, rfl, hsIdx, halloc1, hcur, hchild, hc0, hr_le,
       hkw_cnt, hvw_cnt⟩ := h
     have hth := henv.2.2.2.1
-    have hw_eq := henv.2.2.1
-    subst hw_eq
+    obtain rfl := henv.2.2.1
     have ht8 := eight_le_tMinWhp hth
     have hns_lt_n := (large_bounds_lt_n_max hth).2.1
     obtain ⟨_, _, _, hns_lt_v⟩ := (btree_slice_param_bounds hth).1
@@ -199,11 +198,9 @@ private theorem realizes_descendSplitStepGen :
     rcases d with ⟨⟨⟨⟨cp, base⟩, sIdx⟩, q⟩, ⟨alloc, cur⟩⟩
     dsimp only [DescendSplitStepGenPre] at h
     obtain ⟨c, U, V, w₀, n_max, sl, isRoot, lo, hi, mapFn, T,
-      henv, rfl, hsIdx, hrep, halloc_eq, halloc1, hrt, hnf, hqlo, hqhi, hhi, hv⟩ := h
+      henv, rfl, hsIdx, hrep, rfl, halloc1, hrt, hnf, hqlo, hqhi, hhi, hv⟩ := h
     have hth := henv.2.2.2.1
-    have hw_eq := henv.2.2.1
-    subst hw_eq
-    subst halloc_eq
+    obtain rfl := henv.2.2.1
     have ht8 := eight_le_tMinWhp hth
     have hns_lt_n := (large_bounds_lt_n_max hth).2.1
     obtain ⟨ht3, _, hkey_lt, hns_lt_v⟩ := (btree_slice_param_bounds hth).1
@@ -244,14 +241,12 @@ private theorem realizes_descendSplitStepGen :
   all_goals
     cases T with
     | leaf idx c0 =>
-      dsimp only [BTreeTree.rootIdx] at hrt
-      subst idx
+      rcases hrt.symm with rfl
       have hm1 : (sl.nodes cur).metaWord % 2 = 1 := by
-        rw [hv.2.1]; simp [mkNodeMeta, Nat.add_mul_mod_self_left]
+        simp [hv.2.1, mkNodeMeta, Nat.add_mul_mod_self_left]
       simp_all
     | branch idx c0 childTrees =>
-      dsimp only [BTreeTree.rootIdx] at hrt
-      subst idx
+      rcases hrt.symm with rfl
       obtain ⟨hr_le, _, _, _⟩ := branch_child_routing (by omega) hkey_lt hv hhi hqlo hqhi
       obtain ⟨_, hmeta, _, _, _, hvw_cnt, _, _, _, _, _, _, hcs_sub⟩ := hv
       have hc0_eq : metaCount (sl.nodes cur).metaWord = c0 := by rw [hmeta, metaCount_mkNodeMeta]
@@ -399,11 +394,10 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
     dsimp only at hcs_n hres_n hmc_n hvp_n
     cases T with
     | leaf idx c0 =>
-      dsimp only [BTreeTree.rootIdx] at hrt
-      subst idx
+      rcases hrt.symm with rfl
       have hmeta : (sl.nodes cur).metaWord = mkNodeMeta true c0 := hv.2.1
       have hmod1 : (sl.nodes cur).metaWord % 2 = 1 := by
-        rw [hmeta]; simp [mkNodeMeta, Nat.add_mul_mod_self_left]
+        simp [hmeta, mkNodeMeta, Nat.add_mul_mod_self_left]
       have hstep : (Memory.spec 0).clientState s
             (descendSplitStepGenProg (d0, (sl.alloc, cur))) = s ∧
           (Memory.spec 0).clientResult s
@@ -414,20 +408,16 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
         unfold descendSplitStepGenProg
         simp only [pure_bind]
         refine ⟨?_, ?_, ?_, validProg_bind hvp_n ?_⟩
-        · rw [clientState_bind, hcs_n, hres_n]; simp only [hmod1, ↓reduceIte]; rfl
-        · rw [clientResult_bind, hcs_n, hres_n]
-          simp only [hmod1, ↓reduceIte, StateTransitionSpec.clientResult_pure]
-        · rw [memoryCost_bind', hcs_n, hmc_n, hres_n]
-          simp only [hmod1, ↓reduceIte, memoryCost_pure]; omega
-        · rw [hcs_n, hres_n]; simp only [hmod1, ↓reduceIte]; exact validProg_pure _
+        · rw [clientState_bind, hcs_n, hres_n, ite_eq_left hmod1]; rfl
+        · rw [clientResult_bind, hcs_n, hres_n, ite_eq_left hmod1]; rfl
+        · rw [memoryCost_bind', hcs_n, hmc_n, hres_n, ite_eq_left hmod1, memoryCost_pure]; omega
+        · rw [hcs_n, hres_n, ite_eq_left hmod1]
+          exact validProg_pure _
       have hdesc_eq : descendSplitToLeaf (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
           (f + 1) sl cur q =
           descendSplitToLeaf (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
             f sl cur q := by
-        simp only [descendSplitToLeaf, hmeta, metaIsLeaf_mkNodeMeta, ↓reduceIte]
-        cases f with
-        | zero => rfl
-        | succ f' => simp [descendSplitToLeaf, hmeta]
+        cases f <;> simp [descendSplitToLeaf, hmeta]
       obtain ⟨hS, hR, hM, hV, hI⟩ := descendSplitLoop_succ (f := f) hsafe1 hstep
       obtain ⟨ih_fr, ih_res, ih_mc, ih_vp, ih_safe, ih_rep, ih_lf, ih_oth, ih_bm, ih_out⟩ :=
         ih (cur := cur) (T := .leaf cur c0) hrep (by omega) rfl hnf (by simp [BTreeTree.height])
@@ -436,14 +426,12 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
       rw [hS, hR, hdesc_eq]
       exact ⟨ih_fr, ih_res, hM ih_mc, hV ih_vp, hI ih_safe, ih_rep, ih_lf, ih_oth, ih_bm, ih_out⟩
     | branch idx c0 cs =>
-      dsimp only [BTreeTree.rootIdx] at hrt
-      subst idx
+      rcases hrt.symm with rfl
       obtain ⟨hr_le, hclo_q, hq_chi, _⟩ := branch_child_routing (by omega) hkey_lt hv hhi hqlo hqhi
       obtain ⟨_, hmeta, _, _, hkw_cur, hvw_cur, _, hhi_last, hmono, hnot_cur, _, _, hcs_sub⟩ := hv
       have hc0_lt : c0 < 2 * tMinWhp n_max - 1 := by rwa [hmeta, metaCount_mkNodeMeta] at hnf
-      have hmod0 : (sl.nodes cur).metaWord % 2 ≠ 1 := by rw [hmeta]; simp [mkNodeMeta]
-      have hcnt_div : (sl.nodes cur).metaWord / 2 = c0 := by
-        rw [hmeta]; exact metaCount_mkNodeMeta false c0
+      have hmod0 : (sl.nodes cur).metaWord % 2 ≠ 1 := by simp [hmeta, mkNodeMeta]
+      have hcnt_div : (sl.nodes cur).metaWord / 2 = c0 := hmeta ▸ metaCount_mkNodeMeta false c0
       set r := swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) c0 q (sl.nodes cur).keysWord
       let r_fin : Fin (c0 + 1) := ⟨r, Nat.lt_succ_of_le hr_le⟩
       set childIdx := (cs r_fin).rootIdx
@@ -453,12 +441,11 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
         unfold childHi
         split_ifs with hrc
         · rcases eq_or_lt_of_le (by omega : r ≤ c0 - 1) with heq | hlt
-          · rw [heq]; exact hhi_last.le
+          · exact heq ▸ hhi_last.le
           · exact (hmono r (c0 - 1) hlt (by omega)).le.trans hhi_last.le
         · exact le_rfl
       have hchild_ht : (cs r_fin).height ≤ f := by
-        have hsup : (cs r_fin).height ≤ univ.sup fun i => (cs i).height :=
-          Finset.le_sup (f := fun i => (cs i).height) (mem_univ r_fin)
+        have := Finset.le_sup (f := fun i => (cs i).height) (mem_univ r_fin)
         simp only [BTreeTree.height] at hht_le; omega
       obtain ⟨hchild_lt, hcnt_c_le, _, _, hk_c, hv_c, _⟩ :=
         validSubtree_root_bounds hth (hchi_le.trans_lt hhi) (hcs_sub r_fin).2
@@ -626,14 +613,13 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
               lon ≤ q ∧ q ≤ hin ∧ hin < 2 ^ fpBitsWhp n_max ∧
               ValidSubtree isR (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
                 sl_mid.alloc sl_mid.nodes lon hin mapFn Tn := by
-          by_cases hsq : spPure.sep < q
-          · rw [show nextCur = sl.alloc by simp [nextCur, hsq]]
-            dsimp only [spPure, childIdx] at hsq
-            exact ⟨_, rightT, _, _, hrtR, by dsimp [sl_mid]; omega, by rw [hhtR]; exact hchild_ht,
+          dsimp only [nextCur]
+          split_ifs with hsq
+          · dsimp only [spPure, childIdx] at hsq
+            exact ⟨_, rightT, _, _, hrtR, hcntR_eq.trans_lt (by omega), hhtR.trans_le hchild_ht,
               by omega, hq_chi, hchi_le.trans_lt hhi, hvR⟩
-          · rw [show nextCur = childIdx by simp [nextCur, hsq]]
-            dsimp only [spPure, childIdx] at hsq
-            exact ⟨_, leftT, _, _, hrtL, by dsimp [sl_mid]; omega, by rw [hhtL]; exact hchild_ht,
+          · dsimp only [spPure, childIdx] at hsq
+            exact ⟨_, leftT, _, _, hrtL, hcntL_le.trans_lt (by omega), hhtL.trans_le hchild_ht,
               hclo_q, by omega, hsep_chi.trans_le (hchi_le.trans hhi.le), hvL⟩
         obtain ⟨hS, hR, hM, hV, hI⟩ :=
           descendSplitLoop_succ (f := f) hsafe1 hstep

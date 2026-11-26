@@ -64,15 +64,12 @@ private theorem QueueSlice.snoc {inst : SparseInstance} {bOff start : ℕ}
       mem' (bOff + inst.m + 1 + inst.numEdges + inst.r + 2 * inst.m + start + xs.length) = u.val) :
     QueueSlice inst bOff start (xs ++ [u]) mem' := by
   intro i hi
-  have hi_lt : i < xs.length + 1 := by
-    simpa only [List.length_append, List.length_singleton] using hi
+  simp only [List.length_append, List.length_singleton] at hi
   by_cases hlt : i < xs.length
   · rw [List.getElem_append_left hlt, hpre i hlt]
     exact h i hlt
-  · have heqi : i = xs.length := by omega
-    subst heqi
-    simpa only [List.getElem_append_right (le_refl _), Nat.sub_self, List.getElem_singleton] using
-      hlast
+  · obtain rfl : i = xs.length := by omega
+    simpa only [List.getElem_append_right le_rfl, Nat.sub_self, List.getElem_singleton] using hlast
 
 private def markMLBody : Code .standard 34 := ram[
   addr ← bColMateReg + idx; val ← *addr;
@@ -147,8 +144,7 @@ private theorem exec_markMLCode {w bOff : ℕ} {inst : SparseInstance}
           wram_simp
           rw [vget_vset_ne _ _ hne.symm]
           exact hm u
-      · wram_simp
-        exact hf a ha
+      · wram_simp [hf a ha]
   obtain ⟨y, hl, hPr, _⟩ := ExecWithin.loop_count P
     (fun y hy => (hy.1 rr (by decide)).trans hb.hrr) hbody
     (x := y₁.set idx 0) (by simp) (by simpa using hP₀)
@@ -301,8 +297,7 @@ private theorem exec_seedBfsCode {w bOff : ℕ} {inst : SparseInstance}
         rcases eq_or_ne w₀ u with rfl | hne
         · simp
         · simp [vget_vset_ne _ _ hne.symm, hiff w₀, hne]
-      · wram_simp
-        exact hf a (by omega)
+      · wram_simp [hf a (by omega)]
   obtain ⟨y₂, hl, hPm⟩ := ExecWithin.loop_count P
     (fun y hy => (hy.1 rm (by decide)).trans hb.hrm) hbody
     (x := ((((y₁.set qHead 0).set qTail 0).set rk 0).set rfound 0).set idx 0) (by simp)
@@ -509,9 +504,7 @@ private theorem exec_bfsEdgeLoop {w bOff : ℕ} {inst : SparseInstance}
           simp [hdw, encodeDist]
         have hw_in_filt : w₀ ∈ Finset.univ.filter
             (fun x₀ => vget (sk (y.regs idx)).dist x₀ = none) := by simp [hdw]
-        have hpos_card : 1 ≤ (Finset.univ.filter
-            (fun x₀ => vget (sk (y.regs idx)).dist x₀ = none)).card :=
-          Finset.card_pos.mpr ⟨w₀, hw_in_filt⟩
+        have := Finset.card_pos.mpr ⟨w₀, hw_in_filt⟩
         have hqt_lt_m : le + (sk (y.regs idx)).next.length < inst.m := by omega
         wram_exec [hby.hbEdges, hby.hbColMate, hby.hbDist, hby.hbQueue, hby.hrm, hby.hzero,
           hby.hone, hby.htwo, hrk_y, hqt_y, hedge_y, hmate_v, henc, hw_ne, hdist_w, henc_d]
@@ -535,9 +528,7 @@ private theorem exec_bfsEdgeLoop {w bOff : ℕ} {inst : SparseInstance}
             have := x₀.isLt
             have hne_val : x₀.val ≠ w₀.val := fun h => hne (Fin.ext h)
             wram_simp
-        · intro i hi
-          wram_simp
-          exact hq_pre_y i hi
+        · exact fun i hi => by wram_simp [hq_pre_y i hi]
         · rw [hsk_step]
           simp only [hkBfsStep, hGu, hmv, hdw, ↓reduceIte]
           exact hq_next_y.snoc w₀ (fun i hi => by wram_simp) (by wram_simp)
@@ -556,8 +547,7 @@ private theorem exec_bfsEdgeLoop {w bOff : ℕ} {inst : SparseInstance}
           simp only [hkBfsStep, hGu, hmv, hdw, ↓reduceIte, List.length_append,
             List.length_singleton]
           omega
-        · wram_simp
-          exact hf_y a ha
+        · wram_simp [hf_y a ha]
       | some d₀ =>
         have henc_ne : encodeDist (vget (sk (y.regs idx)).dist w₀) ≠ 0 := by
           simp [hdw, encodeDist]
@@ -712,11 +702,8 @@ private theorem exec_bfsLayersLoop {w bOff : ℕ} {inst : SparseInstance}
     · subst hnil
       have hc : ¬(Cond.eq active one).Holds x := by
         simpa [Cond.holds_eq, hact] using ne_of_ne_of_eq Nat.zero_ne_one hb.hone.symm
-      refine ⟨x, (ExecWithin.loop_exit hc).mono (by omega), fun _ _ => rfl, ?_, ?_, ?_,
+      exact ⟨x, (ExecWithin.loop_exit hc).mono (by omega), fun _ _ => rfl, hdM, hrk, hrf,
         fun _ _ => rfl⟩
-      · simpa [hkBfsLoop, hkBfsLayer] using hdM
-      · simpa [hkBfsLoop, hkBfsLayer] using hrk
-      · simpa [hkBfsLoop, hkBfsLayer] using hrf
     · have hpos_f : 0 < frontier.length := List.length_pos_iff.mpr hnil
       have hc : (Cond.eq active one).Holds x := by
         simpa [Cond.holds_eq, hact, hnil] using hb.hone.symm
@@ -786,8 +773,7 @@ private theorem exec_bfsLayersLoop {w bOff : ℕ} {inst : SparseInstance}
           wram_exec [hrf_zero, hb₂.hone, hb₂.hzero, hqh₂, hqt_eq_le]
           rfl
         · have hs_nnil : s.next ≠ [] := fun h => hs_empty (by simp [h])
-          have hlen_pos : 0 < s.next.length := List.length_pos_iff.mpr hs_nnil
-          have hqh_ne_qt : x₂.regs qHead ≠ x₂.regs qTail := by rw [hqh₂, hqt₂]; omega
+          have hqh_ne_qt : x₂.regs qHead ≠ x₂.regs qTail := by simpa [hqh₂, hqt₂] using hs_nnil
           have he_tail : ExecWithin w (ram[
               if rfound = one then [ active ← zero ] else [
                 if qHead = qTail then [ active ← zero ] else [ rk ← rk + one ] ] ] :
@@ -805,13 +791,14 @@ private theorem exec_bfsLayersLoop {w bOff : ℕ} {inst : SparseInstance}
               (by wram_simp) (by wram_simp [hrf_zero]) (by wram_simp [hqh₂])
               (by wram_simp [hqt₂]) (by wram_simp [hact₂, hs_nnil])
               (by omega) (by dsimp only [le] at hbound₂; omega) (by omega)
-          refine ⟨y, (ExecWithin.loop_iter hc (he_le.seq (he_front.seq he_tail)) he_rec).mono ?_,
+          have hloop : hkBfsLoop inst.graph inst.adj mate (fuel + 1) j dist frontier =
+              hkBfsLoop inst.graph inst.adj mate fuel (j + 1) s.dist s.next := by
+            simp [hkBfsLoop, ← hs_def, hsf, hs_empty]
+          rw [hloop]
+          exact ⟨y, (ExecWithin.loop_iter hc (he_le.seq (he_front.seq he_tail)) he_rec).mono
+              (by omega),
             fun i hi => (hr₄ i hi).trans (by wram_simp [hr₂ i hi]),
-            ?_, ?_, ?_, fun a ha => (hf₄ a ha).trans (hf₂ a ha)⟩
-          · omega
-          · simpa [hkBfsLoop, ← hs_def, hsf, hs_empty] using hdM₄
-          · simpa [hkBfsLoop, ← hs_def, hsf, hs_empty] using hrk₄
-          · simpa [hkBfsLoop, ← hs_def, hsf, hs_empty] using hrf₄
+            hdM₄, hrk₄, hrf₄, fun a ha => (hf₄ a ha).trans (hf₂ a ha)⟩
 
 /-- `O(m + r + |E|)` execution of `bfsCode`, agreeing with `hkBfs`. -/
 theorem exec_bfsCode {w bOff : ℕ} {inst : SparseInstance}
@@ -833,7 +820,7 @@ theorem exec_bfsCode {w bOff : ℕ} {inst : SparseInstance}
   obtain ⟨y₂, he₂, hr₂, hdM₂, hqM₂, hqh₂, hqt₂, hrk₂, hrf₂, hact₂, hnd₂, hiff₂, hf₂⟩ :=
     exec_seedBfsCode y₁ hb₁ hml₁ hfit
   set p := (List.finRange inst.m).foldl (hkBfsInitStep (hkMatchedLeft mate))
-    (Vector.replicate inst.m none, [])
+    (Vector.replicate inst.m none, []) with hp_def
   have hb₂ : BaseRegs inst bOff y₂ := hb₁.of_eq fun i hi => hr₂ i (by omega)
   have hcsr₂ : CSRMem inst bOff y₂.mem :=
     hcsr.of_outside fun a ha => (hf₂ a (by omega)).trans (hf₁ a (by omega))
@@ -841,33 +828,24 @@ theorem exec_bfsCode {w bOff : ℕ} {inst : SparseInstance}
     hmate.of_outside fun a ha => (hf₂ a (by omega)).trans (hf₁ a (by omega))
   have hcard_bound :
       p.2.length + (Finset.univ.filter fun w₀ => vget p.1 w₀ = none).card ≤ inst.m := by
-    have hlen_eq : p.2.length = (Finset.univ.filter fun w₀ => ¬ vget p.1 w₀ = none).card := by
-      rw [← List.toFinset_card_of_nodup hnd₂]
-      congr 1
-      ext w₀
-      simp [← hiff₂ w₀]
+    have hlen_eq : p.2.length = (Finset.univ.filter fun w₀ => ¬ vget p.1 w₀ = none).card :=
+      (List.toFinset_card_of_nodup hnd₂).symm.trans
+        (congrArg Finset.card (Finset.ext fun w₀ => by simp [← hiff₂ w₀]))
     rw [hlen_eq, Nat.add_comm, Finset.card_filter_add_card_filter_not]
     simp
   obtain ⟨y₃, he₃, hr₃, hdM₃, hrk₃, hrf₃, hf₃⟩ :=
     exec_bfsLayersLoop (inst.m + 1) 0 0 p.1 p.2 y₂ hb₂ hcsr₂ hmate₂ hdM₂ hqM₂ hrk₂ hrf₂ hqh₂
       (by simpa using hqt₂) hact₂ (by omega) (by simpa using hcard_bound) (by omega) hfit
-  have hinit_pot :
-      vecPotential (fun x : Option ℕ => x = none) (bfsVertWeight inst) p.1 +
-          (p.2.map (bfsVertWeight inst)).sum ≤
-        vecPotential (fun x : Option ℕ => x = none) (bfsVertWeight inst)
-            (Vector.replicate inst.m (none : Option ℕ)) +
-          ((List.finRange inst.m).map (bfsVertWeight inst)).sum := by
-    simpa [p] using bfsInit_potential (hkMatchedLeft mate) (bfsVertWeight inst)
-      (List.finRange inst.m) (Vector.replicate inst.m (none : Option ℕ), [])
+  have hinit_pot := bfsInit_potential (hkMatchedLeft mate) (bfsVertWeight inst)
+    (List.finRange inst.m) (Vector.replicate inst.m (none : Option ℕ), [])
+  simp only [← hp_def, List.map_nil, List.sum_nil, Nat.add_zero] at hinit_pot
   have hrep_le := (vecPotential_le_sum (p := fun x : Option ℕ => x = none) (bfsVertWeight inst)
     (Vector.replicate inst.m (none : Option ℕ))).trans_eq (sum_bfsVertWeight inst)
-  have hfin_sum : ((List.finRange inst.m).map (bfsVertWeight inst)).sum =
-      18 * inst.numEdges + 11 * inst.m :=
+  have hfin_sum : ((List.finRange inst.m).map (bfsVertWeight inst)).sum = _ :=
     (Fin.sum_univ_def _).symm.trans (sum_bfsVertWeight inst)
-  refine ⟨y₃, (he₁.seq (he₂.seq he₃)).mono ?_,
+  exact ⟨y₃, (he₁.seq (he₂.seq he₃)).mono (by omega),
     fun i hi => (hr₃ i hi).trans ((hr₂ i hi).trans (hr₁ i (by omega))),
     hdM₃, hrk₃, hrf₃,
     fun a ha => (hf₃ a (by omega)).trans ((hf₂ a (by omega)).trans (hf₁ a (by omega)))⟩
-  omega
 
 end Cslib.Algorithms.WordRAM.HopcroftKarp.Internal

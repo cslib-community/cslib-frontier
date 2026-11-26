@@ -245,16 +245,14 @@ theorem isLocallyNonsatiated_linearUtility_iff (v : G → ℝ) :
       (g := fun g => v g * b' g) (by simpa [linearUtility] using hpos)
     exact ⟨g, pos_of_mul_pos_left hg (hb'_nn g)⟩
   · rintro ⟨g₀, hg₀⟩ b hb_nn ε hε
-    refine ⟨Function.update b g₀ (b g₀ + ε / 2), ?_, ?_, ?_⟩
-    · exact le_update_iff.2 ⟨by linarith [hb_nn g₀], fun j _ => hb_nn j⟩
-    · intro g
-      rcases eq_or_ne g g₀ with rfl | h
+    refine ⟨Function.update b g₀ (b g₀ + ε / 2),
+      le_update_iff.2 ⟨by linarith [hb_nn g₀], fun j _ => hb_nn j⟩, fun g => ?_, ?_⟩
+    · rcases eq_or_ne g g₀ with rfl | h
       · simpa [abs_of_pos (half_pos hε)] using half_lt_self hε
       · simp only [Function.update_of_ne h, sub_self, abs_zero, hε]
     · have hdiff : linearUtility v (Function.update b g₀ (b g₀ + ε / 2)) - linearUtility v b =
           v g₀ * (ε / 2) := by
-        simp only [linearUtility, ← Finset.sum_sub_distrib, ← mul_sub, sum_mul_update_sub]
-        ring
+        simp [linearUtility, ← Finset.sum_sub_distrib, ← mul_sub, sum_mul_update_sub]
       nlinarith
 
 /-- If a bundle `b` is optimal for `linearUtility v` at nonnegative prices `p`, every good with
@@ -268,12 +266,10 @@ theorem price_pos_of_mem_demandSet_linearUtility {v p : G → ℝ} {m : ℝ} {b 
   have hb'_nn : ∀ g', 0 ≤ b' g' :=
     le_update_iff.2 ⟨by linarith [hb.1.1 g], fun j _ => hb.1.1 j⟩
   have hb'_exp : expenditure p b' = expenditure p b := by
-    rw [← sub_eq_zero]
-    simp only [b', expenditure, ← Finset.sum_sub_distrib, ← mul_sub, sum_mul_update_sub, hpg.symm,
-      zero_mul]
+    simp [← sub_eq_zero, b', expenditure, ← Finset.sum_sub_distrib, ← mul_sub,
+      sum_mul_update_sub, hpg.symm]
   have hdiff : linearUtility v b' - linearUtility v b = v g := by
-    simp only [b', linearUtility, ← Finset.sum_sub_distrib, ← mul_sub, sum_mul_update_sub]
-    ring
+    simp [b', linearUtility, ← Finset.sum_sub_distrib, ← mul_sub, sum_mul_update_sub]
   exact not_le_of_gt (by linarith) (hb.2 b' ⟨hb'_nn, hb'_exp.symm ▸ hb.1.2⟩)
 
 private theorem sum_mul_update_two_sub [DecidableEq G] (w b : G → ℝ) {g g' : G} (hgg' : g' ≠ g)
@@ -299,11 +295,8 @@ theorem mem_demandSet_linearUtility_iff {v p : G → ℝ} {m : ℝ} {b : G → �
   classical
   have hlns : IsLocallyNonsatiated (linearUtility v) :=
     (isLocallyNonsatiated_linearUtility_iff v).2 hns
-  constructor
-  · intro hb
-    refine ⟨hb.1.1, hlns.expenditure_eq_of_mem_demandSet hb, ?_⟩
-    intro g hbg g'
-    obtain rfl | hgg' := eq_or_ne g' g
+  refine ⟨fun hb => ⟨hb.1.1, hlns.expenditure_eq_of_mem_demandSet hb, fun g hbg g' => ?_⟩, ?_⟩
+  · obtain rfl | hgg' := eq_or_ne g' g
     · exact le_rfl
     · let b' : G → ℝ := Function.update (Function.update b g 0) g' (b g' + p g * b g / p g')
       have hb'_nn (k : G) : 0 ≤ b' k := by
@@ -513,10 +506,9 @@ theorem excessDemand_eq_zero_of_other_goods {p : G → ℝ} {x : I → G → ℝ
     (hother : ∀ g, g ≠ g₀ → E.excessDemand x g = 0) :
     E.excessDemand x g₀ = 0 := by
   classical
-  have hsingle : expenditure p (E.excessDemand x) = p g₀ * E.excessDemand x g₀ := by
-    exact Finset.sum_eq_single g₀ (fun g _ hne => by rw [hother g hne, mul_zero]) (by simp)
-  rw [hsingle] at hwalras
-  exact (mul_eq_zero.1 hwalras).resolve_left hp₀.ne'
+  have hsingle : expenditure p (E.excessDemand x) = p g₀ * E.excessDemand x g₀ :=
+    Finset.sum_eq_single g₀ (fun g _ hne => by rw [hother g hne, mul_zero]) (by simp)
+  exact (mul_eq_zero.1 (hsingle ▸ hwalras)).resolve_left hp₀.ne'
 
 /-- A **competitive (Walrasian) equilibrium** ([ArrowDebreu1954]; [CodenottiVaradarajan2007],
 Section 6.1.1, p. 136) consists of an allocation `x` and nonnegative prices `p` such that every
@@ -558,8 +550,7 @@ competitive equilibrium. -/
 theorem IsCompetitiveEquilibrium.sum_eq_totalSupply_of_price_pos {E : ExchangeMarket I G}
     {x : I → G → ℝ} {p : G → ℝ} (heq : E.IsCompetitiveEquilibrium x p) {g : G} (hpg : 0 < p g) :
     ∑ i : I, x i g = E.totalSupply g := by
-  have hz : E.excessDemand x g = 0 := (mul_eq_zero.1 (heq.2.2.2 g)).resolve_left hpg.ne'
-  linarith [show E.excessDemand x g = (∑ i : I, x i g) - E.totalSupply g from rfl]
+  exact sub_eq_zero.1 ((mul_eq_zero.1 (heq.2.2.2 g)).resolve_left hpg.ne')
 
 /-- A feasible allocation `x` is **Pareto optimal** if no feasible allocation `y` makes every
 trader weakly better off and at least one trader strictly better off ([ArrowDebreu1954]). -/
@@ -737,8 +728,7 @@ theorem IsEquilibrium.isFeasibleAllocation {M : FisherMarket I G} {x : I → G �
 theorem IsEquilibrium.sum_eq_supply_of_price_pos {M : FisherMarket I G}
     {x : I → G → ℝ} {p : G → ℝ} (heq : M.IsEquilibrium x p) {g : G} (hpg : 0 < p g) :
     ∑ i : I, x i g = M.supply g := by
-  have hz : M.supply g - ∑ i : I, x i g = 0 := (mul_eq_zero.1 (heq.2.2.2 g)).resolve_left hpg.ne'
-  linarith
+  exact (sub_eq_zero.1 ((mul_eq_zero.1 (heq.2.2.2 g)).resolve_left hpg.ne')).symm
 
 /-- **Fisher market Walras identity**: in any Fisher market equilibrium under local nonsatiation,
 the total market value of all supplies equals the aggregate buyer budget (`expenditure p M.supply =
@@ -795,9 +785,8 @@ omit [Fintype G] in
 omit [Fintype G] in
 theorem toExchangeMarket_totalSupply (hB : 0 < M.totalBudget) (g : G) :
     M.toExchangeMarket.totalSupply g = M.supply g := by
-  simp only [ExchangeMarket.totalSupply, toExchangeMarket, div_eq_mul_inv, ← Finset.sum_mul]
-  change (M.totalBudget * M.totalBudget⁻¹) * M.supply g = M.supply g
-  rw [mul_inv_cancel₀ hB.ne', one_mul]
+  simp only [ExchangeMarket.totalSupply, toExchangeMarket, div_eq_mul_inv, ← Finset.sum_mul,
+    ← M.totalBudget_eq_sum, mul_inv_cancel₀ hB.ne', one_mul]
 
 theorem toExchangeMarket_income (p : G → ℝ) (i : I) :
     M.toExchangeMarket.income p i = (M.budget i / M.totalBudget) * expenditure p M.supply := by
@@ -837,9 +826,8 @@ theorem isEquilibrium_smul_of_toExchangeMarket {x : I → G → ℝ} {p : G → 
     (heq : M.toExchangeMarket.IsCompetitiveEquilibrium x p)
     (hval : 0 < expenditure p M.supply) :
     M.IsEquilibrium x ((M.totalBudget / expenditure p M.supply) • p) := by
-  rw [M.isEquilibrium_iff_toExchangeMarket hB hlns]
-  refine ⟨?_, heq.smul (div_pos hB hval)⟩
-  rw [expenditure_smul_left, div_mul_cancel₀ _ hval.ne']
+  exact (M.isEquilibrium_iff_toExchangeMarket hB hlns).2
+    ⟨by rw [expenditure_smul_left, div_mul_cancel₀ _ hval.ne'], heq.smul (div_pos hB hval)⟩
 
 end FisherMarket
 

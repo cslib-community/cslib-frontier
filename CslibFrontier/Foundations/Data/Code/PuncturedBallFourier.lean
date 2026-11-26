@@ -149,28 +149,25 @@ noncomputable def ksGamma (ρ : ℝ) : ℝ :=
 
 /-- The exponent vanishes at the end of the range: `γ(1 / 2) = 0`. -/
 theorem ksGamma_half : ksGamma (1 / 2) = 0 := by
-  have h : (2 : ℝ) - 3 * (1 / 2) = 1 / 2 := by norm_num
-  rw [ksGamma, h, show (1 : ℝ) - 1 / 2 = 1 / 2 by norm_num, one_div, log_inv]
-  ring
+  norm_num [ksGamma]
+  simp only [one_div, log_inv]; ring
 
 /-- The derivative `γ'(ρ) = (4 log (1 - ρ) - log ρ - 3 log (2 - 3 ρ)) / 2`. -/
 private theorem hasDerivAt_ksGamma {ρ : ℝ} (h0 : 0 < ρ) (h1 : ρ < 1 / 2) :
     HasDerivAt ksGamma ((4 * log (1 - ρ) - log ρ - 3 * log (2 - 3 * ρ)) / 2) ρ := by
-  have ha : (1 - ρ) ≠ 0 := by linarith
-  have hb : (2 - 3 * ρ) ≠ 0 := by linarith
+  have ha : 0 < 1 - ρ := by linarith
+  have hb : 0 < 2 - 3 * ρ := by linarith
   have e1 := ((hasDerivAt_id ρ).div_const 2).mul (hasDerivAt_log h0.ne')
   have e2 := (((hasDerivAt_const ρ (1 : ℝ)).sub (hasDerivAt_id ρ)).const_mul 2).mul
-    (((hasDerivAt_const ρ (1 : ℝ)).sub (hasDerivAt_id ρ)).log ha)
+    (((hasDerivAt_const ρ (1 : ℝ)).sub (hasDerivAt_id ρ)).log ha.ne')
   have e3 := ((hasDerivAt_const ρ (1 : ℝ)).sub ((hasDerivAt_id ρ).const_mul 3 |>.div_const 2)).mul
-    (((hasDerivAt_const ρ (2 : ℝ)).sub ((hasDerivAt_id ρ).const_mul 3)).log hb)
-  have := ((e1.neg.sub e2).sub (hasDerivAt_const ρ (log 2))).add e3
-  convert this using 1
+    (((hasDerivAt_const ρ (2 : ℝ)).sub ((hasDerivAt_id ρ).const_mul 3)).log hb.ne')
+  convert ((e1.neg.sub e2).sub (hasDerivAt_const ρ (log 2))).add e3 using 1
   · ext x; simp [ksGamma]
   · simp only [id, Pi.sub_apply]
-    have k1 : (1 - 3 * ρ / 2) * ((0 - 3 * 1) / (2 - 3 * ρ)) = -3 / 2 := by field_simp; ring
-    have k2 : 2 * (1 - ρ) * ((0 - 1) / (1 - ρ)) = -2 := by field_simp; ring
-    have k3 : ρ / 2 * ρ⁻¹ = 1 / 2 := by field_simp
-    linear_combination k3 + k2 - k1
+    have hb' : 0 < 2 - ρ * 3 := by linarith
+    field_simp
+    ring
 
 /-- `(1 - ρ) ^ 4 < ρ (2 - 3 ρ) ^ 3` on `(3 / 20, 1 / 2)`: the difference is
 `(2 ρ - 1) (14 ρ ^ 3 - 22 ρ ^ 2 + 10 ρ - 1)` and the cubic is positive there. -/
@@ -192,24 +189,18 @@ private theorem pow_four_lt {ρ : ℝ} (h0 : 3 / 20 < ρ) (h1 : ρ < 1 / 2) :
 theorem strictAntiOn_ksGamma : StrictAntiOn ksGamma (Icc (3 / 20) (1 / 2)) := by
   refine strictAntiOn_of_deriv_neg (convex_Icc _ _) ?_ ?_
   · intro x hx
-    have : x ≠ 0 := by linarith [hx.1]
-    have : 1 - x ≠ 0 := by linarith [hx.2]
-    have : 2 - 3 * x ≠ 0 := by linarith [hx.2]
-    have : (2 : ℝ) ≠ 0 := two_ne_zero
     unfold ksGamma
-    exact ContinuousAt.continuousWithinAt (by fun_prop (disch := assumption))
+    exact ContinuousAt.continuousWithinAt (by fun_prop (disch := linarith [hx.1, hx.2]))
   · intro x hx
     rw [interior_Icc] at hx
     have h0 : 0 < x := by linarith [hx.1]
-    rw [(hasDerivAt_ksGamma h0 hx.2).deriv]
-    have hl := pow_four_lt hx.1 hx.2
     have hp1 : 0 < 1 - x := by linarith [hx.2]
     have hp2 : 0 < 2 - 3 * x := by linarith [hx.2]
-    have := log_lt_log (pow_pos hp1 4) hl
-    rw [log_pow, log_mul h0.ne' (pow_pos hp2 3).ne', log_pow] at this
-    push_cast at this
-    rw [div_lt_iff₀ two_pos, zero_mul]
-    linarith only [this]
+    have hlog := log_lt_log (pow_pos hp1 4) (pow_four_lt hx.1 hx.2)
+    rw [log_pow, log_mul h0.ne' (pow_pos hp2 3).ne', log_pow] at hlog
+    push_cast at hlog
+    rw [(hasDerivAt_ksGamma h0 hx.2).deriv, div_lt_iff₀ two_pos, zero_mul]
+    linarith only [hlog]
 
 /-- For `0 < ρ ≤ 3 / 20`, `ρ / 20 ≤ γ(ρ)`. -/
 private theorem div_le_ksGamma_of_le {ρ : ℝ} (h0 : 0 < ρ) (h1 : ρ ≤ 3 / 20) :
@@ -367,10 +358,8 @@ private theorem puncturedBall_facts (hw0 : 0 < w) (hwn : w ≤ n) :
     (∑ y, (charSum B y / #B) ^ 2) / 2 ^ n = (#B : ℝ)⁻¹ ∧
     √((#B : ℝ)⁻¹) * √(exp (n * binEntropy (w / n))) ≤ √(n + 1) := by
   intro B
-  have hcard : (#B : ℝ) = ∑ i ∈ Ico 1 (w + 1), (n.choose i : ℝ) := by
-    simp only [B]; rw [card_filter_ne_zero_hammingNorm_lt]; push_cast; rfl
   have hchoose : (n.choose w : ℝ) ≤ #B := by
-    rw [hcard]
+    simp only [B, card_filter_ne_zero_hammingNorm_lt, Nat.cast_sum]
     exact single_le_sum (f := fun i => (n.choose i : ℝ)) (fun i _ => by positivity)
       (mem_Ico.2 ⟨hw0, by omega⟩)
   have hpos : (0 : ℝ) < #B :=
@@ -420,11 +409,9 @@ theorem moment_le_of_ksThirdMomentBound (hKS : KSThirdMomentBound n w) (hw0 : 0 
       sqrt_eq_rpow]
   -- `n γ(ρ) ≥ 4 log n`
   have hγ : 4 * log n ≤ n * ksGamma (w / n) := by
-    have h1 : c * w ≤ n * ksGamma (w / n) := by
-      have := mul_le_mul_of_nonneg_left hc hnpos.le
-      rwa [show (n : ℝ) * (c * (w / n)) = c * w by field_simp] at this
+    rw [← mul_div_assoc, div_le_iff₀ hnpos] at hc
     have hlog := log_le_logb_two hn
-    linarith only [hlog, h1, mul_le_mul_of_nonneg_right hcK ((log_nonneg hn).trans hlog),
+    linarith only [hlog, hc, mul_le_mul_of_nonneg_right hcK ((log_nonneg hn).trans hlog),
       mul_le_mul_of_nonneg_left hK hc0.le]
   have hexp : exp (-(n * ksGamma (w / n))) ≤ ((n : ℝ) ^ 4)⁻¹ := by
     rw [← exp_neg_mul_log 4 hnpos]
@@ -435,13 +422,11 @@ theorem moment_le_of_ksThirdMomentBound (hKS : KSThirdMomentBound n w) (hw0 : 0 
     rw [← exp_half, ← exp_add]; ring_nf
   rw [hr, hsplit] at h
   have hsqn : √((n : ℝ) + 1) ≤ 2 * n := by
-    rw [sqrt_le_left (mul_nonneg zero_le_two hnpos.le)]
-    have hn2 : (n : ℝ) ≤ (n : ℝ) * n := le_mul_of_one_le_right hnpos.le hn
-    linarith only [hn, hn2, show (2 * (n : ℝ)) ^ 2 = 4 * ((n : ℝ) * n) by ring]
+    rw [sqrt_le_left (mul_nonneg zero_le_two hnpos.le), sq, mul_mul_mul_comm]
+    linarith only [hn, le_mul_of_one_le_right hnpos.le hn]
   calc (∑ y, |charSum B y / #B| ^ 3) / 2 ^ n
       ≤ (#B : ℝ)⁻¹ * (√((#B : ℝ)⁻¹) * √(exp (n * binEntropy (w / n)))) *
-          exp (-(n * ksGamma (w / n))) := by
-        exact h.trans_eq (by ring)
+          exp (-(n * ksGamma (w / n))) := h.trans_eq (by ring)
     _ ≤ (#B : ℝ)⁻¹ * (2 * n) * ((n : ℝ) ^ 4)⁻¹ :=
         mul_le_mul (mul_le_mul_of_nonneg_left (hsq.trans hsqn) (inv_nonneg.2 hV.le)) hexp
           (exp_pos _).le (mul_nonneg (inv_nonneg.2 hV.le) (mul_nonneg zero_le_two hnpos.le))

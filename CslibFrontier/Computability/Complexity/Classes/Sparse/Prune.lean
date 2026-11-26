@@ -135,11 +135,8 @@ theorem mem_searchRightFrom (hC : ∀ y ∈ N, C y ↔ ∀ w ∈ Q y, w ∈ K)
     (hr : r < N.length) (hrun : ∀ i (hi : i < N.length), l ≤ i → i ≤ r → C N[i])
     (hnext : ∀ hr' : r + 1 < N.length, ¬ C N[r + 1]) :
     r ∈ searchRightFrom Q s N l := by
-  have hsplit : (List.range N.length).drop l =
-      List.range' l (r - l) ++ r :: List.range' (r + 1) (N.length - (r + 1)) := by
-    rw [List.range_eq_range', List.drop_range', Nat.zero_add, Nat.mul_one]
-    exact range'_split hlr hr
-  rw [searchRightFrom, hsplit]
+  rw [searchRightFrom, List.range_eq_range', List.drop_range', Nat.zero_add, Nat.mul_one,
+    range'_split hlr hr]
   refine mem_searchRight (K := K) hc (fun x hx w hw => ?_) fun z hz => ?_
   · have hx' : l ≤ x ∧ x ≤ r := by
       simp only [List.mem_append, List.mem_range'_1, List.mem_singleton] at hx
@@ -167,10 +164,9 @@ theorem mem_searchLeftFrom (hC : ∀ y ∈ N, C y ↔ ∀ w ∈ Q y, w ∈ K)
     m ∈ searchLeftFrom Q s N r := by
   have hsplit : (List.range (r + 1)).reverse =
       (List.range' (m + 1) (r - m)).reverse ++ m :: (List.range m).reverse := by
-    have hrange : List.range (r + 1) = List.range m ++ m :: List.range' (m + 1) (r - m) := by
-      rw [List.range_eq_range', List.range_eq_range']
-      simpa using range'_split (Nat.zero_le m) (show m < r + 1 by omega)
-    rw [hrange, List.reverse_append, List.reverse_cons, List.append_assoc, List.singleton_append]
+    have hr := range'_split (Nat.zero_le m) (Nat.lt_add_one_of_le hmr)
+    simp only [Nat.sub_zero, Nat.add_sub_add_right, ← List.range_eq_range'] at hr
+    rw [hr, List.reverse_append, List.reverse_cons, List.append_assoc, List.singleton_append]
   rw [searchLeftFrom, hsplit]
   refine mem_searchRight (K := K) hc (fun x hx w hw => ?_) fun z hz => ?_
   · have hx' : m ≤ x ∧ x ≤ r := by
@@ -258,13 +254,10 @@ theorem length_prunePositions_le (n d : ℕ) (starts : List ℕ) :
       calc 2 * n * left.length * X ≤ 2 * n * (starts.length * P ^ 2) * X := by gcongr
         _ = 2 * n * Y := by ring
     have hgoal : 2 * (n + 1) * starts.length * P ^ (2 * (n + 1)) = 2 * (n + 1) * Y := by
-      rw [show 2 * (n + 1) = 2 + 2 * n by ring, pow_add]
+      rw [Nat.mul_add, mul_one, pow_add]
       ring
     rw [hgoal]
-    have := hright.trans h1
-    have := hleft.trans h2
-    have := hrec.trans h3
-    nlinarith
+    nlinarith [hright.trans h1, hleft.trans h2, hrec.trans h3]
 
 /-- **`PRUNE` keeps at most `2 D (s + 2) ^ (2 D)` nodes.** -/
 theorem length_prune_le : (prune Q s D N).length ≤ 2 * D * (s + 2) ^ (2 * D) := by
@@ -336,17 +329,13 @@ private theorem mem_prunePositions (hh : h < N.length)
     /- The longest run of nodes in `C (2 d)` from `l` ends at some `r ≥ h`. -/
     obtain ⟨r, hhr, hrN, hrun', hnext⟩ := exists_run_end
       (P := fun i => ∀ hi : i < N.length, C (2 * d) N[i]) (fun hi => hrun h hi hlh le_rfl) hh
-    have hrunr : ∀ i (hi : i < N.length), l ≤ i → i ≤ r → C (2 * d) N[i] := by
-      intro i hi hli hir
-      rcases le_or_gt i h with hih | hhi
-      · exact hrun i hi hli hih
-      · exact hrun' i hhi.le hir hi
+    have hrunr (i : ℕ) (hi : i < N.length) (hli : l ≤ i) (hir : i ≤ r) : C (2 * d) N[i] :=
+      (le_or_gt i h).elim (hrun i hi hli) fun hhi => hrun' i hhi.le hir hi
     have hr : r ∈ starts.flatMap (searchRightFrom (Q (2 * d)) s N) :=
       List.mem_flatMap.2 ⟨l, hl, mem_searchRightFrom (hQ _ (by omega)) (hc _ (by omega))
         (hlh.trans hhr) hrN hrunr fun hr' hC => hnext hr' fun _ => hC⟩
     /- The nodes after `h` up to `r` are not in `L`, so they are in `C (2 d + 1)`. -/
-    have hodd : ∀ i (hi : i < N.length), h < i → i ≤ r → C (2 * d + 1) N[i] := by
-      intro i hi hhi hir
+    have hodd (i : ℕ) (hi : i < N.length) (hhi : h < i) (hir : i ≤ r) : C (2 * d + 1) N[i] := by
       by_contra hout
       exact absurd ((hleft i hi).2 ⟨d, hdD, hrunr i hi (by omega) hir, hout⟩) (by omega)
     obtain ⟨m, hmh, hrunm, hprev⟩ := exists_run_start
@@ -363,8 +352,8 @@ private theorem mem_prunePositions (hh : h < N.length)
       in `L`, so in `C (2 d + 2)`. -/
       have hmh' : m ≤ h := by
         by_contra hmh'
-        exact hprev (by omega) (by simpa [show m - 1 = h by omega] using fun _ : h < N.length =>
-          hCh)
+        have hm1 : m - 1 = h := by omega
+        exact hprev (by omega) (hm1 ▸ fun _ => hCh)
       refine .inr (ih (d + 1) _ m (by omega) (hmem_left (hmh'.trans hhr)) hmh'
         fun i hi hmi hih => ?_)
       obtain ⟨d', hd', hin, hout⟩ := (hleft i hi).1 hih
@@ -487,15 +476,9 @@ theorem computableInPolyTime_prune {Q : γ → ℕ → α → List κ} {s : γ �
   have hpos : ComputableInPolyTime (fun x => prunePositions (Q x) (s x) (N x) D 0 [0]) encIn
       (encList encUnary) :=
     (computableInPolyTime_prunePositions hQ hs hN D 0).comp (id'.prod (const _))
-  have hzip : ComputableInPolyTime (fun x => (N x).zip (List.range (N x).length)) encIn
-      (encList (encPair encA encUnary)) :=
-    (zip encA encUnary).comp (hN.prod (range.comp ((length_list encA).comp hN)))
-  have htest : ComputableInPolyTime
-      (fun q : γ × (α × ℕ) => decide (q.2.2 ∈ prunePositions (Q q.1) (s q.1) (N q.1) D 0 [0]))
-      (encPair encIn (encPair encA encUnary)) encBool :=
-    decide_mem (hpos.comp (fst _ _)) ((snd encA encUnary).comp (snd _ _))
   have hfilter := filterWithInput (list := fun x => (N x).zip (List.range (N x).length))
-    (test := fun x p => decide (p.2 ∈ prunePositions (Q x) (s x) (N x) D 0 [0])) hzip htest
+    (test := fun x p => decide (p.2 ∈ prunePositions (Q x) (s x) (N x) D 0 [0])) (by fun_prop)
+    (decide_mem (hpos.comp (fst _ _)) ((snd encA encUnary).comp (snd _ _)))
   unfold prune
   fun_prop
 

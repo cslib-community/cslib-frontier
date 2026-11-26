@@ -586,17 +586,13 @@ theorem advantage_bind_sampleExp_le (n : ℕ) (d : F.Desc)
       ((ProbComp.eval (F.sampleExp n d)).bind fun s => k (s : ZMod (F.order d)))
       ((PMF.uniformOfFintype (ZMod (F.order d))).bind k) ≤
       1 / 2 ^ n := by
-  have hmap :
-      ((ProbComp.eval (F.sampleExp n d)).bind fun s => k (s : ZMod (F.order d))) =
-        ((ProbComp.eval (F.sampleExp n d)).map
-          (Nat.cast : ℕ → ZMod (F.order d))).bind k :=
-    (PMF.bind_map _ _ _).symm
   have hord_le : (F.order d : ℝ) ≤ 2 ^ (encNat (F.order d)).length := by
     exact_mod_cast (by simpa only [encNat_apply, ← Nat.size_eq_bits_len] using
       (Nat.lt_size_self (F.order d)).le)
-  rw [← NNReal.coe_le_coe, hmap, Game.advantage_eq_nndist, coe_nndist]
-  refine (PMF.dist_bind_le _ _ k).trans
-    ((ProbComp.dist_map_natCast_eval_sampleModNat_le _ _).trans ?_)
+  rw [← NNReal.coe_le_coe, Game.advantage_eq_nndist, coe_nndist]
+  refine le_of_eq_of_le
+    (congrArg (dist · _) (PMF.bind_map _ (Nat.cast : ℕ → ZMod (F.order d)) k).symm)
+    ((PMF.dist_bind_le _ _ k).trans ((ProbComp.dist_map_natCast_eval_sampleModNat_le _ _).trans ?_))
   rw [Nat.add_comm n, pow_add, ← div_div]
   simpa only [NNReal.coe_div, NNReal.coe_one, NNReal.coe_pow, NNReal.coe_ofNat] using
     div_le_div_of_nonneg_right ((div_le_one (by positivity)).mpr hord_le) (by positivity)
@@ -612,19 +608,16 @@ is within statistical distance `1 / 2 ^ n` of `PMF.uniformOfFintype (ZMod (F.ord
 theorem dist_sampleModZModLaw_le (n : ℕ) (d : F.Desc) :
     dist (PMF.uniformOfFintype (ZMod (F.order d))) (F.sampleModZModLaw n d) ≤ 1 / 2 ^ n := by
   have : NeZero (F.order d) := ⟨(F.prime_order d).ne_zero⟩
-  rw [dist_comm]
-  refine (ProbComp.dist_map_natCast_eval_sampleModNat_le
-    ((F.order d).size + n) (F.order d)).trans ?_
-  have hlt : (F.order d : ℝ) ≤ 2 ^ (F.order d).size := by
-    exact_mod_cast (Nat.lt_size_self (F.order d)).le
   have hpos : (0 : ℝ) < 2 ^ (F.order d).size := by positivity
+  rw [dist_comm]
+  refine (ProbComp.dist_map_natCast_eval_sampleModNat_le _ _).trans ?_
   calc
     (F.order d : ℝ) / 2 ^ ((F.order d).size + n)
       ≤ 2 ^ (F.order d).size / (2 ^ (F.order d).size * 2 ^ n) := by
         rw [pow_add]
         gcongr
-    _ = 1 / 2 ^ n := by
-        rw [div_mul_eq_div_div, div_self hpos.ne']
+        exact_mod_cast (Nat.lt_size_self (F.order d)).le
+    _ = 1 / 2 ^ n := by rw [div_mul_eq_div_div, div_self hpos.ne']
 
 /-! ### Efficient DDH random self-reduction -/
 
@@ -675,22 +668,16 @@ theorem isPPT_ddhSelfReduceDistinguisher {distinguisher : F.DDHDistinguisher}
       (hx : ComputableInPolyTime x enc F.encDDHInput) :
       IsPPTOn enc encNat fun a => F.sampleExp (x a).secParam (x a).groupParameters :=
     F.isPPTOn_sampleExp (by fun_prop) (by fun_prop)
-  refine IsPPTOn.bind_with (hs .id') ?_
-  refine IsPPTOn.bind_with (hs (by fun_prop)) ?_
-  refine IsPPTOn.bind_with (hs (by fun_prop)) ?_
+  refine IsPPTOn.bind_with (hs .id') <| IsPPTOn.bind_with (hs (by fun_prop)) <|
+    IsPPTOn.bind_with (hs (by fun_prop)) ?_
   let E := encPair (encPair (encPair F.encDDHInput encNat) encNat) encNat
   have hx : ComputableInPolyTime (fun p : ((F.DDHInput × ℕ) × ℕ) × ℕ => p.1.1.1) E
       F.encDDHInput := by fun_prop
   have hd := F.encDDHInput_groupParameters_polyTime hx
-  have h := computableInPolyTime_encode_ddhRerandomize hd
+  have h := computableInPolyTime_encode_ddhRerandomize
+    (r := fun p => p.1.1.2) (s₁ := fun p => p.1.2) (s₂ := fun p => p.2) hd
     (F.encDDHInput_leftPublic_polyTime hx) (F.encDDHInput_rightPublic_polyTime hx)
-    (F.encDDHInput_candidateShared_polyTime hx)
-    (show ComputableInPolyTime (fun p : ((F.DDHInput × ℕ) × ℕ) × ℕ => p.1.1.2) E encNat by
-      fun_prop)
-    (show ComputableInPolyTime (fun p : ((F.DDHInput × ℕ) × ℕ) × ℕ => p.1.2) E encNat by
-      fun_prop)
-    (show ComputableInPolyTime (fun p : ((F.DDHInput × ℕ) × ℕ) × ℕ => p.2) E encNat by
-      fun_prop)
+    (F.encDDHInput_candidateShared_polyTime hx) (by fun_prop) (by fun_prop) (by fun_prop)
   exact (hD.comp (F.encDDHInput_secParam_polyTime hx) hd h.1 h.2.1 h.2.2).congr
     fun _ => rfl
 
@@ -956,19 +943,10 @@ private theorem abs_sub_lt_abs_sub_of_close
     (hq : |q - p₁| ≤ ε / 12) (hq₁ : |q₁ - p₁| ≤ ε / 12) (hq₂ : |q₂ - p₂| ≤ ε / 12)
     (hx : |x - q| < ε / 7) (hx₁ : |x₁ - q₁| < ε / 7) (hx₂ : |x₂ - q₂| < ε / 7) :
     |x - x₁| < |x - x₂| := by
-  have hu : |x - p₁| < ε / 7 + ε / 12 :=
-    (abs_sub_le x q p₁).trans_lt (add_lt_add_of_lt_of_le hx hq)
-  have hv : |p₁ - x₁| < ε / 7 + ε / 12 := by
-    rw [abs_sub_comm]
-    exact (abs_sub_le x₁ q₁ p₁).trans_lt (add_lt_add_of_lt_of_le hx₁ hq₁)
-  have hw : |x₂ - p₂| < ε / 7 + ε / 12 :=
-    (abs_sub_le x₂ q₂ p₂).trans_lt (add_lt_add_of_lt_of_le hx₂ hq₂)
-  have h1 := abs_sub_le x p₁ x₁
-  have h2 : |p₁ - p₂| ≤ |x - p₁| + (|x - x₂| + |x₂ - p₂|) := by
-    rw [abs_sub_comm x p₁]
-    exact (abs_sub_le p₁ x p₂).trans (add_le_add_right (abs_sub_le x x₂ p₂) _)
-  clear hq hq₁ hq₂ hx hx₁ hx₂
-  linarith [abs_nonneg (x - p₁)]
+  have hxp₁ := abs_sub_le x q p₁
+  have hp₁x₁ := abs_sub_comm x₁ p₁ ▸ abs_sub_le x₁ q₁ p₁
+  have hp₁p₂ := abs_sub_comm p₁ x ▸ abs_sub_le p₁ x p₂
+  linarith [abs_nonneg (x - p₁), abs_sub_le x p₁ x₁, abs_sub_le x x₂ p₂, abs_sub_le x₂ q₂ p₂]
 
 private theorem toOuterMeasure_bind₃_failure_le_pow
     (μ₁ μ₂ μ₃ : PMF ℕ) (S₁ S₂ S₃ : Set ℕ) (f : ℕ → ℕ → ℕ → Bool) (b₀ : Bool) (n : ℕ)
@@ -1035,17 +1013,15 @@ theorem ddhAmplifiedDecider_error_le_pow (distinguisher : F.DDHDistinguisher)
         ((α' * β') • F.generator d)) true).toReal - pReal| ≤ ε / 12 := by
     rw [abs_sub_comm]
     refine (abs_succProbability_sub_le_of_advantage_le ?_).trans hmod'
-    simpa only [NNReal.coe_div, NNReal.coe_ofNat, NNReal.coe_pow] using
-      NNReal.coe_le_coe.mpr
-        (F.advantage_ddhRealExperiment_ddhSelfReduceDistinguisher_le distinguisher n d α' β')
+    exact_mod_cast F.advantage_ddhRealExperiment_ddhSelfReduceDistinguisher_le
+      distinguisher n d α' β'
   have hRandomClose {α' β' γ' : ZMod (F.order d)} (hγ' : γ' ≠ α' * β') :
       |(ProbComp.eval (trial (α' • F.generator d) (β' • F.generator d)
         (γ' • F.generator d)) true).toReal - pRandom| ≤ ε / 12 := by
     rw [abs_sub_comm]
     refine (abs_succProbability_sub_le_of_advantage_le ?_).trans hmod'
-    simpa only [NNReal.coe_div, NNReal.coe_ofNat, NNReal.coe_pow] using
-      NNReal.coe_le_coe.mpr
-        (F.advantage_ddhRandomExperiment_ddhSelfReduceDistinguisher_le distinguisher n d hγ')
+    exact_mod_cast F.advantage_ddhRandomExperiment_ddhSelfReduceDistinguisher_le
+      distinguisher n d hγ'
   have hRealRef : |(ProbComp.eval tReal true).toReal - pReal| ≤ ε / 12 := by
     simpa only [zero_smul, mul_zero] using hRealClose 0 0
   have hRandomRef : |(ProbComp.eval tRandom true).toReal - pRandom| ≤ ε / 12 := by
@@ -1056,7 +1032,7 @@ theorem ddhAmplifiedDecider_error_le_pow (distinguisher : F.DDHDistinguisher)
   have hconc (t : ProbComp Bool) :
       (((ProbComp.eval (OracleComp.countTrue N t)).toOuterMeasure (good t)ᶜ).toReal) ≤
         (1 / 2 : ℝ) ^ (n + 2) := by
-    simpa only [good, N, Set.compl_ofPred, not_lt, show n + 3 = (n + 2) + 1 by omega] using
+    simpa only [good, N, Set.compl_ofPred, not_lt] using
       ProbComp.countTrue_average_deviation_pow (n + 2) (7 * invEps n) h7pos t
   have hdet {cIn cReal cRandom : ℕ} (hcIn : cIn ∈ good tIn) (hcReal : cReal ∈ good tReal)
       (hcRandom : cRandom ∈ good tRandom) :
@@ -1105,9 +1081,9 @@ theorem ddhAmplifiedDecider_correct_ge_one_sub_pow (distinguisher : F.DDHDisting
 private theorem three_div_le_one_div_twelve_mul {a b : ℝ} (hb : 0 < b)
     (h : 1 / a ≤ 1 / (36 * b + 1)) : 3 / a ≤ 1 / (12 * b) := by
   have h1 : 1 / a ≤ 1 / (36 * b) :=
-    h.trans (one_div_le_one_div_of_le (mul_pos (by norm_num) hb)
-      (le_add_of_nonneg_right zero_le_one))
-  simpa only [div_eq_mul_one_div 3 a, show 3 * (1 / (36 * b)) = 1 / (12 * b) by ring] using
+    h.trans (one_div_le_one_div_of_le (by positivity) (by linarith))
+  have h12 : 3 * (1 / (36 * b)) = 1 / (12 * b) := by ring
+  simpa only [div_eq_mul_one_div 3 a, h12] using
     mul_le_mul_of_nonneg_left h1 (by norm_num : (0 : ℝ) ≤ 3)
 
 /-- **Worst-case DDH decider with negligible error** ([BonehShoup2023], Exercise 10.10, p. 426):
@@ -1129,15 +1105,10 @@ theorem negligible_ddhAmplifiedDecider_error {distinguisher : F.DDHDistinguisher
   have hgeom : Negligible fun n => ((2⁻¹ : ℝ≥0) ^ n) := by negligible
   have hpoly : PolynomiallyBounded fun n => 36 * invEps n + 1 :=
     ((PolynomiallyBounded.const 36).mul hinvEps.polynomiallyBounded).add (.const 1)
-  have hmod_ev : ∀ᶠ n in Filter.atTop, 3 / (2 ^ n : ℝ) ≤ 1 / (12 * (invEps n : ℝ)) := by
-    filter_upwards [hpos, hgeom.eventually_le_inv_polynomial hpoly (fun _ => Nat.succ_pos _)]
-      with n hn hlt
-    refine three_div_le_one_div_twelve_mul (Nat.cast_pos.mpr hn) ?_
-    simpa only [NNReal.coe_pow, NNReal.coe_inv, NNReal.coe_ofNat, inv_pow, one_div,
-      Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat, Nat.cast_one] using hlt
   negligible eventually (by
-    filter_upwards [hpos, hadv, hmod_ev] with n hn hadv_n hmod_n
-    exact F.ddhAmplifiedDecider_error_le_pow distinguisher invEps n (d n)
-      (α n) (β n) (γ n) hn hadv_n hmod_n)
+    filter_upwards [hpos, hadv,
+      hgeom.eventually_le_inv_polynomial hpoly (fun _ => Nat.succ_pos _)] with n hn hadv_n hlt
+    exact F.ddhAmplifiedDecider_error_le_pow distinguisher invEps n (d n) (α n) (β n) (γ n) hn
+      hadv_n (three_div_le_one_div_twelve_mul (Nat.cast_pos.mpr hn) (by simpa [one_div] using hlt)))
 
 end Cslib.Crypto.PrimeOrderGroupFamily

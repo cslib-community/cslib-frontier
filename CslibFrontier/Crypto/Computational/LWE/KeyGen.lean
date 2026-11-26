@@ -129,8 +129,7 @@ noncomputable def sampleResidue (w : ℕ) : ProbComp (ZMod (2 ^ w)) :=
 @[simp] theorem eval_sampleResidue (w : ℕ) :
     ProbComp.eval (sampleResidue w) = PMF.uniformOfFintype (ZMod (2 ^ w)) := by
   rw [sampleResidue, ProbComp.eval_map, eval_sampleBinaryNat_eq_map_val, PMF.map_comp]
-  simp only [Function.comp_def, ZMod.natCast_zmod_val]
-  exact PMF.map_id _
+  simp only [Function.comp_def, ZMod.natCast_zmod_val, ← Function.id_def, PMF.map_id]
 
 /-- Sample a uniformly random residue vector of length `count` modulo `2 ^ w`. -/
 noncomputable def sampleVector (count w : ℕ) : ProbComp (Fin count → ZMod (2 ^ w)) :=
@@ -305,8 +304,7 @@ theorem eval_decodeKeyInputs_sampleKeyInputsSerialized (n m w η : ℕ) :
     ProbComp.eval (decodeKeyInputs n m w <$> sampleKeyInputsSerialized n m w η) =
       ProbComp.eval (sampleKeyInputs n m w η) := by
   rw [ProbComp.eval_map, eval_sampleKeyInputsSerialized, PMF.map_comp]
-  simp only [Function.comp_def, decode_serializeKeyInputs]
-  exact PMF.map_id _
+  simp only [Function.comp_def, decode_serializeKeyInputs, ← Function.id_def, PMF.map_id]
 
 /-- Canonical public matrices use the generic fixed-width row-major representation. -/
 def serializePublicMatrix {n m w : ℕ}
@@ -418,24 +416,17 @@ theorem publicMatrixSerialized_eq (n m w : ℕ) (inputs : SerializedKeyInputs) :
         (decodeKeyInputs n m w inputs).secret (decodeKeyInputs n m w inputs).error) := by
   simp only [publicMatrixSerialized, serializePublicMatrix, Cslib.Matrix.toBinary_eq,
     List.flatMap_def, List.map_range_eq_ofFn, lowBits_eq_ofFn]
-  congr 1
-  apply congrArg List.ofFn
-  funext i
-  rw [List.ofFn_succ]
-  simp only [List.flatten_cons]
-  congr 1
-  · rw [publicRowHead_eq inputs i]
-  · simp [publicMatrixInt, publicMatrix, decodeKeyInputs, ZMod.val_natCast]
+  refine congrArg List.flatten (congrArg List.ofFn (funext fun i => ?_))
+  rw [List.ofFn_succ, List.flatten_cons, publicRowHead_eq inputs i]
+  simp [publicMatrixInt, publicMatrix, decodeKeyInputs, ZMod.val_natCast]
 
 /-- The total secret computation agrees with the same padded and modularly normalized inputs. -/
 theorem secretSerialized_eq (n w : ℕ) (secret : List ℕ) :
     secretSerialized n w secret =
       serializeSecret (fun i : Fin n => (secret.getD i.val 0 : ZMod (2 ^ w))) := by
-  unfold secretSerialized serializeSecret Cslib.Matrix.toBinary
-  rw [ofFn_blocksEquiv_symm]
-  simp only [List.ofFn_succ, List.ofFn_zero, List.flatten_cons, List.flatten_nil,
-    List.append_nil, ofFn_blocksEquiv_symm, List.flatMap_def, List.map_range_eq_ofFn,
-    lowBits_eq_ofFn, ZMod.val_natCast]
+  simp only [secretSerialized, serializeSecret, Cslib.Matrix.toBinary, ofFn_blocksEquiv_symm,
+    List.ofFn_succ, List.ofFn_zero, List.flatten_cons, List.flatten_nil, List.append_nil,
+    List.flatMap_def, List.map_range_eq_ofFn, lowBits_eq_ofFn, ZMod.val_natCast]
 
 /-- Canonical sampled inputs produce exactly the original typed public key. -/
 theorem publicMatrixSerialized_serializeKeyInputs {n m w : ℕ} (inputs : KeyInputs n m w) :
@@ -486,9 +477,8 @@ theorem eval_errorVector_mod (m w η : ℕ) :
 theorem eval_keyGen_publicMatrix (n m w η : ℕ) :
     (ProbComp.eval (keyGen n m w η)).map Prod.fst =
       publicMatrixLaw n m (noiseLaw w η) := by
-  simp only [pmf_norm, keyGen, eval_sampleKeyInputs, publicMatrixLaw]
-  rw [← eval_errorVector_mod m w η]
-  simp only [PMF.bind_map, Function.comp_def]
+  simp only [pmf_norm, keyGen, eval_sampleKeyInputs, publicMatrixLaw, ← eval_errorVector_mod m w η,
+    PMF.bind_map, Function.comp_def]
   rfl
 
 /-- Encoding the actual public marginal gives the encoded real matrix `realEnsemble` of
@@ -616,12 +606,10 @@ theorem computableInPolyTime_secretProductResidue {secretWord ciphertextWord : �
   have hterm : ComputableInPolyTime
       (fun p : α × ℕ => Cslib.Matrix.binaryEntry (n p.1 + 1) (w p.1) (ciphertextWord p.1)
         (i p.1) (p.2 + 1) * Cslib.Matrix.binaryEntry (n p.1) (w p.1) (secretWord p.1) 0 p.2)
-      (encPair input encUnary) encNat := by
-    apply binary_mul'
-    · exact matrixBinaryEntry (by fun_prop) (by fun_prop) (by fun_prop)
-        (by fun_prop) (by fun_prop)
-    · exact matrixBinaryEntry (by fun_prop) (by fun_prop) (by fun_prop)
-        (const 0) (snd input encUnary)
+      (encPair input encUnary) encNat :=
+    binary_mul'
+      (matrixBinaryEntry (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop))
+      (matrixBinaryEntry (by fun_prop) (by fun_prop) (by fun_prop) (const 0) (snd input encUnary))
   have hsum := (show ComputableInPolyTime List.sum (encList encNat) encNat by fun_prop).comp
     (mapWithInput
       (f := fun a j => Cslib.Matrix.binaryEntry (n a + 1) (w a) (ciphertextWord a) (i a) (j + 1) *

@@ -177,14 +177,10 @@ private theorem forall_hadamardCode_tensor_equationCoeff_iff_and {C : α → α 
     (∀ e, hadamardCode (tensor x x) (equationCoeff C e) = equationRhs e) ↔
       (∀ p p', ¬ Compatible C p p' → (x p && x p') = false) ∧
         ∀ b, ∑ a, x (b, a) = true := by
-  rw [Sum.forall]
-  refine and_congr ⟨fun h p p' hpp' ↦ ?_, fun h ⟨p, p'⟩ ↦ ?_⟩ (forall_congr' fun b ↦ ?_)
-  · have h := h (p, p')
-    rwa [hadamardCode_tensor_equationCoeff_inl, ite_eq_right hpp', equationRhs, Sum.elim_inl] at h
+  rw [Sum.forall, Prod.forall]
+  refine and_congr (forall₂_congr fun p p' ↦ ?_) (forall_congr' fun b ↦ ?_)
   · rw [hadamardCode_tensor_equationCoeff_inl, equationRhs, Sum.elim_inl]
-    split_ifs with hpp'
-    · rfl
-    · exact h p p' hpp'
+    exact ite_eq_left_iff
   · rw [hadamardCode_tensor_equationCoeff_inr, equationRhs, Sum.elim_inr]; rfl
 
 /-- **The quadratic equations of a constraint**: their solutions are exactly the one-hot encodings
@@ -211,16 +207,13 @@ theorem forall_hadamardCode_tensor_equationCoeff_iff {C : α → α → Prop}
     · by_cases ha : σ b = a
       · simpa [← ha] using hσ b
       · simp only [oneHot_apply, decide_eq_false ha, Bool.eq_false_iff]
-        intro hx
-        obtain ⟨_, _, hτ, hτ'⟩ := hboth hx (hσ b)
-        exact ha (hτ'.symm.trans hτ)
+        exact fun hx ↦ (hboth hx (hσ b)).elim fun _ ⟨_, hτ, hτ'⟩ ↦ ha (hτ'.symm.trans hτ)
   · rintro ⟨σ, hσ, rfl⟩
     refine ⟨fun p p' hpp' ↦ Bool.eq_false_iff.2 fun h ↦ ?_, fun b ↦ ?_⟩
     · simp only [oneHot_apply, Bool.and_eq_true, decide_eq_true_eq] at h
       exact hpp' ⟨σ, hσ, h.1, h.2⟩
-    · simp only [oneHot_apply]
-      rw [sum_eq_single (σ b) (fun a _ ha ↦ decide_eq_false (Ne.symm ha)) (by simp)]
-      exact decide_eq_true rfl
+    · simpa [oneHot_apply] using
+        sum_eq_single (σ b) (fun a _ ha ↦ decide_eq_false ha.symm) (by simp)
 
 /-- The assignment of the variables that is `r` on the variables of the end `b` and zero on those
 of the other end. -/
@@ -263,8 +256,7 @@ theorem acceptProb_blrTest [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → 
     (blrTest ι).acceptProb f = blrAcceptance f := by
   simp only [LocalTest.acceptProb, Fintype.expect_prod_type, LocalTest.Passes, blrTest,
     blrAcceptance, Matrix.cons_val]
-  refine expect_congr rfl fun x _ ↦ expect_congr rfl fun y _ ↦ ?_
-  congr
+  exact expect_congr rfl fun x _ ↦ expect_congr rfl fun y _ ↦ by congr
 
 /-- Second vector `z` in a tensor-test randomness tuple `(y, z, r, s, t)`. -/
 abbrev tensorSecond {ι : Type*}
@@ -304,9 +296,8 @@ theorem acceptProb_tensorTest [Fintype ι] [DecidableEq ι] (f : (ι → Bool) �
     (tensorTest ι).acceptProb (Sum.elim f g) = tensorTestAcceptance f g := by
   simp only [LocalTest.acceptProb, Fintype.expect_prod_type, LocalTest.Passes, tensorTest,
     tensorTestAcceptance, selfCorrect, Matrix.cons_val, Sum.elim_inl, Sum.elim_inr]
-  refine expect_congr rfl fun y _ ↦ expect_congr rfl fun z _ ↦ expect_congr rfl fun r _ ↦
-    expect_congr rfl fun s _ ↦ expect_congr rfl fun t _ ↦ ?_
-  congr
+  exact expect_congr rfl fun y _ ↦ expect_congr rfl fun z _ ↦ expect_congr rfl fun r _ ↦
+    expect_congr rfl fun s _ ↦ expect_congr rfl fun t _ ↦ by congr
 
 /-- The **equation test** for the linear equations `hadamardCode w (A e) = b e`, as a local test on
 a table `g : (ι → Bool) → Bool`: on the random string `(k, t)`, it compares the self-corrected read
@@ -323,8 +314,7 @@ theorem acceptProb_equationTest [Fintype ι] [DecidableEq ι] [Fintype κ] [Deci
     (equationTest A b).acceptProb g = equationTestAcceptance g A b := by
   simp only [LocalTest.acceptProb, Fintype.expect_prod_type, LocalTest.Passes, equationTest,
     equationTestAcceptance, selfCorrect, Matrix.cons_val]
-  refine expect_congr rfl fun k _ ↦ expect_congr rfl fun t _ ↦ ?_
-  congr
+  exact expect_congr rfl fun k _ ↦ expect_congr rfl fun t _ ↦ by congr
 
 /-- Point `r` in an input-test randomness tuple `(b, r, y)`. -/
 abbrev inputPoint {α : Type*} (ω : Fin 2 × (α → Bool) × (Fin 2 × α → Bool)) : α → Bool := ω.2.1
@@ -351,8 +341,7 @@ private theorem acceptProb_inputTest (T : Fin 2 → (α → Bool) → Bool)
       𝔼 b, 𝔼 r, 𝔼 y, if T b r = selfCorrect f (endEmbed b r) y then 1 else 0 := by
   simp only [LocalTest.acceptProb, Fintype.expect_prod_type, LocalTest.Passes, inputTest,
     selfCorrect, Matrix.cons_val, Sum.elim_inl, Sum.elim_inr]
-  refine expect_congr rfl fun b _ ↦ expect_congr rfl fun r _ ↦ expect_congr rfl fun y _ ↦ ?_
-  congr
+  exact expect_congr rfl fun b _ ↦ expect_congr rfl fun r _ ↦ expect_congr rfl fun y _ ↦ by congr
 
 /-- One step of a union bound: if `A` and `B` imply `F`, the indicator of the failure of `F` is at
 most the sum of the indicators of the failures of `A` and of `B`. -/
@@ -526,8 +515,7 @@ private theorem acceptProb_le (π : Pos α → Bool) :
     (h3.trans (acceptProb_and_le_right _ π)).trans_eq ?_⟩
   · rw [acceptProb_map, Sum.comp_elim]
     exact acceptProb_tensorTest _ _
-  · rw [acceptProb_map, Sum.comp_elim]
-    rfl
+  · rw [acceptProb_map, Sum.comp_elim]; rfl
 
 /-! ### Soundness -/
 
@@ -588,8 +576,7 @@ theorem exists_inputDist_le_of_le_acceptProb {π : Pos α → Bool} {ρ : ℝ} (
   refine ⟨σ, hσ, ?_⟩
   have hin := expect_hammingDist_div_le_one_sub_acceptProb_inputTest (T := inputTable π) hx
   simp only [hadamardCode_oneHot_endEmbed] at hin
-  rw [inputDist]
-  linarith
+  rw [inputDist]; linarith
 
 /-- **Soundness of the Hadamard assignment tester** [Dinur, Definition 3.1][Dinur2005]: if the
 constraint `C` is satisfiable, the tester of `C` rejects every proof with probability at least
@@ -599,11 +586,9 @@ theorem exists_inputDist_div_le_one_sub_acceptProb (hC : ∃ a b, C a b) (π : P
       inputDist π σ / 28 ≤ 1 - (hadamardTester C).acceptProb π := by
   by_cases hρ : 1 - (hadamardTester C).acceptProb π < 1 / 28
   · obtain ⟨σ, hσ, hd⟩ := exists_inputDist_le_of_le_acceptProb hρ (by linarith)
-    have := (hadamardTester C).acceptProb_le_one π
-    exact ⟨σ, hσ, by linarith⟩
+    exact ⟨σ, hσ, by linarith [(hadamardTester C).acceptProb_le_one π]⟩
   · obtain ⟨a, b, hab⟩ := hC
-    have := inputDist_le_one π ![a, b]
-    exact ⟨![a, b], hab, by linarith⟩
+    exact ⟨![a, b], hab, by linarith [inputDist_le_one π ![a, b]]⟩
 
 /-- **Soundness of the Hadamard assignment tester** for an unsatisfiable constraint: the tester
 rejects every proof with probability at least `1/28`. -/

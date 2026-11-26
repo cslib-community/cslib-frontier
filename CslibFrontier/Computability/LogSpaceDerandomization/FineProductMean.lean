@@ -95,16 +95,10 @@ theorem rowNormPow_conditionalTableMean_le {s : ℕ} {N u : ℝ} (hs : s ≠ 0)
   refine mul_le_mul_of_nonneg_left (sum_le_sum fun x _ => sum_le_sum fun y _ => ?_)
     (inv_nonneg.mpr hNu)
   let S : Finset Ω := {σ | X σ x ∧ Y σ y}
-  have hmask := expect_mask_const S (|conditionalTableMean X Y D x y| ^ s)
-  simp only [S, mem_filter, mem_univ, true_and] at hmask
-  rw [hmask]
-  have hpoint := mul_le_mul_of_nonneg_left (abs_expect_pow_le S hs (fun σ => D σ x y))
-    (show (0 : ℝ) ≤ dens S by positivity)
-  have hright : (dens S : ℝ) * (𝔼 σ ∈ S, |D σ x y| ^ s) =
-      𝔼 σ, if X σ x ∧ Y σ y then |D σ x y| ^ s else 0 := by
-    simpa only [S, mem_filter, mem_univ, true_and, NNRat.smul_def] using
-      (Fintype.expect_ite_mem S (fun σ => |D σ x y| ^ s)).symm
-  exact hright ▸ hpoint
+  have hmem (σ) : (X σ x ∧ Y σ y) ↔ σ ∈ S := by simp [S]
+  simp only [hmem]
+  rw [expect_mask_const, Fintype.expect_ite_mem, NNRat.smul_def]
+  exact mul_le_mul_of_nonneg_left (abs_expect_pow_le S hs fun σ => D σ x y) (NNRat.cast_nonneg _)
 
 /-- A deterministic table is weighted by the actual joint source/endpoint densities. -/
 theorem rowNormPow_const_eq_dens_sum (s : ℕ) (N u : ℝ) (X Y : Ω → V → Prop)
@@ -136,10 +130,8 @@ omit [Fintype V] in
 private theorem conditionalTableMean_two_product (D : (Γ × Υ) → V → V → ℝ) (x y : V) :
     conditionalTableMean (fun (σ : Γ × Υ) x => X σ.1 x) (fun (σ : Γ × Υ) y => Ya σ.2 y) D x y =
       𝔼 σ ∈ ({γ | X γ x} : Finset Γ) ×ˢ ({τ | Ya τ y} : Finset Υ), D σ x y := by
-  unfold conditionalTableMean
-  congr 1
-  ext σ
-  simp
+  rw [conditionalTableMean]
+  exact congrArg₂ _ (Finset.ext fun _ => by simp) rfl
 
 omit [Fintype V] in
 /-- Source and terminal masks on separate seed coordinates have the product of their actual
@@ -210,9 +202,8 @@ theorem rowNormPow_fineMean_le {s : ℕ} {N u c πa πb : ℝ} (hs : s ≠ 0)
         c * conditionalTableMean (fun (σ : Γ × Υ) x => X σ.1 x)
           (fun (σ : Γ × Υ) y => Yb σ.2 y) D x y := by
     have hcomm : (fun σ x y => c * (πa / πb) * D σ x y) =
-        fun σ x y => (πa / πb) * (c * D σ x y) := by
-      funext _ _ _
-      ring
+        fun σ x y => (πa / πb) * (c * D σ x y) :=
+      funext fun _ => funext fun _ => funext fun _ => by ring
     rw [hcomm, conditionalTableMean_change_terminal X Ya Yb hπb hYaπ hYbπ hsub
       (fun σ x y => c * D σ x y) (fun σ x y h => by rw [hD σ x y h, mul_zero])]
     exact (mul_expect ..).symm

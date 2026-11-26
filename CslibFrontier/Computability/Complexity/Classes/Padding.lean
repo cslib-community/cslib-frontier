@@ -149,8 +149,7 @@ def padded (ntm : MultiTapeNTM k Bool State) (c : ℕ) : Set (List Bool) :=
 /-- The padded problem is in `NP`, with certificates of length `c * |x|`. -/
 theorem padded_mem_NP (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
     ntm.padded c ∈ Cslib.Complexity.NP encBits :=
-  ⟨Polynomial.C c * Polynomial.X, ntm.checkPadded,
-    (ntm.computableInPolyTime_checkPadded),
+  ⟨Polynomial.C c * Polynomial.X, ntm.checkPadded, ntm.computableInPolyTime_checkPadded,
     fun x => by simp [padded]⟩
 
 /-- **Padded instances.** If `ntm` decides `A` within `t`, then the padded word
@@ -271,8 +270,8 @@ theorem NTIME_subset_iUnion_DTIME_of_agree_padded {t T : ℕ → ℕ}
   set n := (enc a).length
   set X := n + T n + 1
   have hX : 1 ≤ X := by omega
-  have hL : 2 * n + 1 + t n ≤ (c' + 2) * X := by
-    dsimp only [X]; nlinarith [show t n ≤ c' * (T n + 1) from ht a]
+  have htn : t n ≤ c' * (T n + 1) := ht a
+  have hL : 2 * n + 1 + t n ≤ (c' + 2) * X := by dsimp only [X]; nlinarith
   have h₁ : (2 * n + 1 + t n) ^ d ≤ (c' + 2) ^ d * X ^ (d + 1) := by
     calc (2 * n + 1 + t n) ^ d ≤ ((c' + 2) * X) ^ d := Nat.pow_le_pow_left hL d
       _ = (c' + 2) ^ d * X ^ d := Nat.mul_pow _ _ _
@@ -305,12 +304,9 @@ theorem NTIME_two_pow_subset_iUnion_DTIME_of_expPaddedNPEasy (hNP : ExpPaddedNPE
     NTIME enc (fun n => 2 ^ f n) ⊆ ⋃ d, DTIME enc fun n => 2 ^ (d * f n) := by
   intro A hA
   obtain ⟨d, hpad⟩ := exists_computableInO_two_pow_length hf
-  have hagree : ∀ B ∈ NP encBits, ∃ B' ∈ P encBits, ∀ u : List Bool,
-      (frame u ++ List.replicate (2 ^ f u.length) true ∈ B' ↔
-        frame u ++ List.replicate (2 ^ f u.length) true ∈ B) := fun B hB => by
-    obtain ⟨B', hB', h⟩ := hNP B hB
-    exact ⟨B', hB', fun u => h u _ (Nat.pow_le_pow_right (by norm_num) (hn _))⟩
-  obtain ⟨D, hD⟩ := Set.mem_iUnion.mp (NTIME_subset_iUnion_DTIME_of_agree_padded hagree
+  obtain ⟨D, hD⟩ := Set.mem_iUnion.mp (NTIME_subset_iUnion_DTIME_of_agree_padded
+    (fun B hB => (hNP B hB).imp fun B' ⟨hB', h⟩ =>
+      ⟨hB', fun u => h u _ (Nat.pow_le_pow_right (by norm_num) (hn _))⟩)
     (T := fun n => n + (n + 1) ^ d + (f n + 1) * 2 ^ f n) hpad hA)
   -- the padded instances are written within time `2 ^ O(f n)`
   refine Set.mem_iUnion.mpr ⟨(d + 2) * D, DTIME_mono_of_le_mul_add (C := 2 ^ (2 * D))
@@ -411,10 +407,8 @@ theorem preimage_mem_NTIME_of_mem_NP {B : Set (List Bool)} {g : α → List Bool
     intro final hfinal
     rw [MultiTapePTM.eval_runClosedConfigFrom_ofDeterministic, PMF.mem_support_pure_iff] at hfinal
     exact hfinal ▸ congrArg (·.state) (htm_run a)
-  have hout₁ (a : α) :
-      ProbComp.eval (M_pad.runClosed (t₁ a) (enc a)) = PMF.pure (g a) := by
-    rw [MultiTapePTM.eval_runClosed_ofDeterministic, htm_run a]
-    rfl
+  have hout₁ (a : α) : ProbComp.eval (M_pad.runClosed (t₁ a) (enc a)) = PMF.pure (g a) := by
+    rw [MultiTapePTM.eval_runClosed_ofDeterministic, htm_run a]; rfl
   -- Unpack `B ∈ NP encBits` into a halting fair-coin machine `M_NP`
   obtain ⟨p, V, hV, hVer⟩ := hB
   obtain ⟨k₁, State₁, hfinite₁, M_NP, c₁, d₁, heval₂, hhalt₂⟩ :=
@@ -428,8 +422,7 @@ theorem preimage_mem_NTIME_of_mem_NP {B : Set (List Bool)} {g : α → List Bool
           (M_NP.runClosedConfigFrom (t₂ a) (M_NP.initialConfig word))).support,
           final.tapes.state = none := by
     intro word hword final hfinal
-    rw [hout₁ a, PMF.mem_support_pure_iff] at hword
-    subst hword
+    obtain rfl : word = g a := by simpa [hout₁ a] using hword
     rw [M_NP.eval_runClosedConfigFrom_eq_of_halted _ (ht₂_le a) (hhalt₂ (g a))] at hfinal
     exact hhalt₂ (g a) final hfinal
   let M_comp := M_NP.comp M_pad false
@@ -544,10 +537,8 @@ theorem preimage_pad_prod_id_mem_EXP {B : Set (List Bool × List Bool)}
     simp only [length_encPair, encBits_apply, List.length_append, length_frame,
       List.length_replicate, pow_add]
     omega
-  have hpow : (encPair encBits encBits
-      (frame (enc p.1) ++ List.replicate (2 ^ f n) true, p.2)).length ^ d ≤ 2 ^ E :=
-    pow_le_two_pow_mul_of_add_one_le hlen (by omega)
-  omega
+  have hpow := pow_le_two_pow_mul_of_add_one_le (d := d) (e := d₀ + d + 2) hlen (by omega)
+  rw [← hE] at hpow; omega
 
 /-- Pulling back `B ∈ P (encPair encBits encUnary)` along
 `a ↦ (frame (enc a) ++ List.replicate (2 ^ f (enc a).length) true, 2 ^ g (enc a).length)`, where
@@ -585,10 +576,8 @@ theorem preimage_pad_prod_two_pow_mem_EXP {B : Set (List Bool × ℕ)}
     simp only [length_encPair, encBits_apply, encUnary_apply, List.length_append, length_frame,
       List.length_replicate, pow_add]
     omega
-  have hpow : (encPair encBits encUnary
-      (frame (enc a) ++ List.replicate (2 ^ f n) true, 2 ^ g n)).length ^ d ≤ 2 ^ E :=
-    pow_le_two_pow_mul_of_add_one_le hlen (by omega)
-  omega
+  have hpow := pow_le_two_pow_mul_of_add_one_le (d := d) (e := d₀ + d₁ + d + 2) hlen (by omega)
+  rw [← hE] at hpow; omega
 
 end Translation
 

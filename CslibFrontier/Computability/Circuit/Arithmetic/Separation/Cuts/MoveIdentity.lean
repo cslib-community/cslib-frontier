@@ -73,10 +73,7 @@ theorem length_bits_le (w : UnitContent ub) : w.bits.length ≤ ub := by
 /-- A unit that is not absent is determined by its bits. -/
 theorem bits_injOn : Set.InjOn (bits (ub := ub)) {w | w ≠ none} := by
   rintro (_ | v) h (_ | v') h' e
-  · rfl
-  · exact absurd rfl h
-  · exact absurd rfl h'
-  · exact congrArg some (List.ofFn_injective e)
+  exacts [rfl, absurd rfl h, absurd rfl h', congrArg some (List.ofFn_injective e)]
 
 end UnitContent
 
@@ -131,15 +128,11 @@ variable {F : Type*} [CommSemiring F] {A A' E U0 U1 ub : ℕ} {M : Moves F (A + 
 /-- The new units of a move are units of its channels. -/
 theorem mem_newUnits {x : Fin E} {o : M.Channel → Fin U1} {id : UnitId A U0 M.Channel U1} :
     id ∈ newUnits M x o ↔ ∃ ν k, id = .new ⟨x, ν⟩ k ∧ k ≤ o ⟨x, ν⟩ := by
-  obtain _ | ⟨⟨x', ν⟩, k⟩ := id
+  rcases id with _ | ⟨⟨x', ν⟩, k⟩
   · simp
-  · rw [new_mem_newUnits]
-    constructor
-    · rintro ⟨rfl, hk⟩
-      exact ⟨ν, k, rfl, hk⟩
-    · rintro ⟨ν', k', h, hk⟩
-      cases h
-      exact ⟨rfl, hk⟩
+  · refine new_mem_newUnits.trans ⟨fun ⟨rfl, h⟩ => ⟨ν, k, rfl, h⟩, ?_⟩
+    rintro ⟨_, _, ⟨⟩, h⟩
+    exact ⟨rfl, h⟩
 
 section Role
 
@@ -175,8 +168,7 @@ theorem roleTable_ne_zero (h : roleTable M x p t ids o y ≠ 0) :
 private theorem ChannelOk.ne_none {N : Type*} {ν : N} {J : ℕ} {str : List Bool}
     {y : UnitId A U0 N U1 → UnitContent ub} (h : ChannelOk ν J str y) {k : Fin U1}
     (hk : (k : ℕ) ≤ J) : y (.new ν k) ≠ none := by
-  rw [h.2 k, Ne, unitsOf_eq_none, h.1]
-  omega
+  rw [h.2 k, Ne, unitsOf_eq_none, h.1]; omega
 
 /-- The table of a role vanishes unless the new units of its channels are present. -/
 theorem roleTable_new_ne_none (h : roleTable M x p t ids o y ≠ 0) {ν : (M.law x).Channel}
@@ -210,12 +202,9 @@ private theorem eq_none_of_unitTable_ne_zero {p : L.Role}
     (ν : L.ChannelAt p) {k : Fin U1} (hk : o ν < k) : ζ ν k = none := by
   rw [unitTable, codeTable_eq_sum_sigma] at h
   obtain ⟨⟨i, g⟩, -, h⟩ := exists_ne_zero_of_sum_ne_zero h
-  obtain ⟨hc, h⟩ := ite_ne_right_iff.1 h
-  obtain ⟨ho, -⟩ := ite_ne_right_iff.1 h
-  rw [← hc ν]
-  refine unitsOf_eq_none.2 ?_
-  rw [unitCount, length_sideString, ← ho ν]
-  exact hk
+  obtain ⟨hc, ho, -⟩ := (ite_ne_right_iff.1 h).imp_right ite_ne_right_iff.1
+  simpa only [← hc ν, codeWord, unitsOf_eq_none, unitCount, length_sideString, ← ho ν,
+    Nat.add_one_le_iff] using Fin.lt_def.1 hk
 
 variable (X o) in
 /-- Tables with units, summed over the contents of the units on all channels: the sum over the
@@ -309,9 +298,8 @@ theorem move_outcome :
       by_cases hn : (.new ⟨x, ν⟩ k : UnitId A U0 M.Channel U1) ∈ newUnits M x o
       · exact Play.extend_of_holds hn (hν.imp fun d hd => congrArg (M.party x) hd)
       · rw [Play.extend_of_notMem hn, hnew, Play.mem_common.1 hz _ hn]
-    · rintro ⟨e, d, rfl⟩ id hid
-      rw [hext z _ e id hid]
-      exact hne e id hid d
+    · rintro ⟨e, d, rfl⟩ id hid h0
+      exact hne e id hid d ((hext z _ e id hid).symm.trans h0)
   rw [sum_congr rfl fun z hz => prod_congr rfl fun p _ => e1 z hz p,
     ← sum_prod_unitTable (fun p k e => (slotBits t (ids e) (y (M.party x p))).getD k false)
       (fun ν => o ⟨x, ν⟩) hub hm (by rwa [Nat.mul_right_comm, Nat.mul_div_cancel _ hub])]
@@ -326,8 +314,7 @@ theorem move_outcome :
   · intro ζ _ hζ
     have hemb : Function.Injective fun q : (M.law x).Channel × Fin U1 =>
         (.new ⟨x, q.1⟩ q.2 : UnitId A U0 M.Channel U1) := by
-      rintro ⟨ν, k⟩ ⟨ν', k'⟩ h
-      cases h
+      rintro ⟨_, _⟩ ⟨_, _⟩ ⟨⟩
       rfl
     have hz (ν k) : Function.extend (fun q : (M.law x).Channel × Fin U1 =>
         (.new ⟨x, q.1⟩ q.2 : UnitId A U0 M.Channel U1)) (fun q => ζ q.1 q.2) (fun _ => none)

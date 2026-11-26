@@ -121,32 +121,27 @@ private theorem keyBlock_keyMaterial_append_zeros (hash : List Byte → List Byt
     keyBlock blockBytes (keyMaterial hash blockBytes (key ++ List.replicate padding 0)) =
       keyBlock blockBytes (keyMaterial hash blockBytes key) := by
   have hkey : ¬ blockBytes < key.length := by omega
-  have hextended : ¬ blockBytes < (key ++ List.replicate padding 0).length := by
-    simp only [List.length_append, List.length_replicate]
-    omega
+  have hextended : ¬ blockBytes < (key ++ List.replicate padding 0).length := by simp; omega
   simp only [keyMaterial, hkey, hextended, ↓reduceIte]
   funext i
-  unfold keyBlock
   by_cases hi : i.val < key.length
   · exact List.getD_append key (List.replicate padding 0) 0 i.val hi
-  · rw [List.getD_append_right _ _ _ _ (Nat.le_of_not_gt hi)]
-    simp only [List.getD_eq_getElem?_getD, List.getElem?_getD_replicate_default_eq,
-      List.getElem?_eq_none (Nat.le_of_not_gt hi), Option.getD_none]
+  · rw [keyBlock, keyBlock, List.getD_append_right _ _ _ _ (Nat.le_of_not_gt hi)]
+    simp [List.getD_eq_getElem?_getD, List.getElem?_getD_replicate_default_eq,
+      List.getElem?_eq_none (Nat.le_of_not_gt hi)]
 
 /-- Appending zero bytes to a SHA-256 HMAC key does not change the result while the extended key
 still fits in one 64-byte SHA-256 block. -/
 theorem hmacSHA256_append_zeros (key text : List Byte) (padding : ℕ)
     (h : key.length + padding ≤ 64) :
     hmacSHA256 (key ++ List.replicate padding 0) text = hmacSHA256 key text := by
-  unfold hmacSHA256
-  rw [keyBlock_keyMaterial_append_zeros SHA2.sha256Bytes key padding h]
+  rw [hmacSHA256, hmacSHA256, keyBlock_keyMaterial_append_zeros SHA2.sha256Bytes key padding h]
 
 /-- Appending zero bytes to a SHA-512 HMAC key does not change the result while the extended key
 still fits in one 128-byte SHA-512 block. -/
 theorem hmacSHA512_append_zeros (key text : List Byte) (padding : ℕ)
     (h : key.length + padding ≤ 128) :
     hmacSHA512 (key ++ List.replicate padding 0) text = hmacSHA512 key text := by
-  unfold hmacSHA512
-  rw [keyBlock_keyMaterial_append_zeros SHA2.sha512Bytes key padding h]
+  rw [hmacSHA512, hmacSHA512, keyBlock_keyMaterial_append_zeros SHA2.sha512Bytes key padding h]
 
 end Cslib.Crypto.HMAC

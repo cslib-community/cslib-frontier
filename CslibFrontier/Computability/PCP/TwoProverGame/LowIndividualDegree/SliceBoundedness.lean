@@ -53,13 +53,12 @@ theorem evaluatedSlice_gated_stateDist_eq
     (∑ a, φ.norm ((evaluatePolynomialMeasurement P u).effect (some a) -
       P.successfulEffect * B.effect a) ^ 2) =
         2 * Measurement.successfulMismatch φ (evaluatePolynomialMeasurement P u) B := by
-  have hP : (evaluatePolynomialMeasurement P u).IsProjective :=
-    hp.map (Option.map fun g => eval u g.val)
   have hc' (a : Option F) (b : F) : Commute ((evaluatePolynomialMeasurement P u).effect a)
       (B.effect b) :=
     (Measurement.commute_map_right P _ _ (fun g => (hc g b).symm) a).symm
   simpa only [evaluatePolynomialMeasurement_successfulEffect] using
-    Measurement.sum_norm_sub_success_mul_sq_eq φ (evaluatePolynomialMeasurement P u) B hP hb hc'
+    Measurement.sum_norm_sub_success_mul_sq_eq φ (evaluatePolynomialMeasurement P u) B
+      (hp.map (Option.map fun g => eval u g.val)) hb hc'
 
 /-- A positive common majorant of the averaged point effects controls the failure term
 after sandwiching an evaluated slice by the successful effects of a second measurement.
@@ -94,7 +93,6 @@ theorem abs_average_evaluated_sandwich_failure_le {β : Type*} [Fintype β]
       (hpB _ u b).mul_left (hnB _ u b))
     (fun p => (hpZ _).mul_left (hnZ _))
     (fun p => commute_averagePolynomialPointEffect B p.2 _ (hpB none)) (hpZ none)
-  rw [Fintype.sum_prod_type] at h
   have hsum (u : (Fin m → F)) (a : β) :
       (∑ b : F, (φ (N.effect (some a) * (evaluatePolynomialMeasurement P u).effect (some b) *
           N.effect (some a) * P.effect none * (B u).effect b)).re) =
@@ -107,9 +105,9 @@ theorem abs_average_evaluated_sandwich_failure_le {β : Type*} [Fintype β]
       (𝔼 u : (Fin m → F), (φ (star (K (a, g)) * K (a, g) * P.effect none *
         (B u).effect (eval u g.val))).re) =
         (φ (star (K (a, g)) * K (a, g) * P.effect none * H (a, g))).re := by
-    rw [show H (a, g) = _ from averagePolynomialPointEffect_eq B g,
-      ← φ.re_apply_uniformAverage, ← mul_sum, ← mul_smul_comm]
-  simpa only [hsum, expect_sum_comm, hmean] using h
+    simp only [H, averagePolynomialPointEffect_eq, ← φ.re_apply_uniformAverage, ← mul_sum,
+      ← mul_smul_comm]
+  simpa only [Fintype.sum_prod_type, hsum, expect_sum_comm, hmean] using h
 
 /-- After moving the varying point effect to the right, the same majorant controls
 the failure term with a second fixed point measurement. -/
@@ -158,12 +156,11 @@ theorem abs_average_evaluated_failure_rightPoint_le {β : Type*} [Fintype β]
   have hY (u : Fin m → F) (p : β × BoundedPolynomial F m d) :
       φ.norm (Y u p) ^ 2 = (φ (star (K p * P.effect none) *
         (B u).effect (eval u p.2.val) * (K p * P.effect none))).re := by
-    let D := (B u).effect (eval u p.2.val)
-    have hc : Commute (K p * P.effect none) D :=
+    have hc : Commute (K p * P.effect none) ((B u).effect (eval u p.2.val)) :=
       ((hpB _ _ _).mul_left (hnB _ _ _)).mul_left (hpB none _ _)
-    change φ.norm ((K p * P.effect none) * D) ^ 2 = _
+    dsimp only [Y]
     rw [AlgState.norm_sq, hc.eq, star_mul, (B u).nonneg _ |>.isSelfAdjoint.star_eq,
-      mul_assoc, ← mul_assoc D D, hB, ← mul_assoc]
+      mul_assoc, ← mul_assoc ((B u).effect _) ((B u).effect _), hB, ← mul_assoc]
   have hmean (p : β × BoundedPolynomial F m d) :
       (𝔼 u : Fin m → F, φ.norm (Y u p) ^ 2) =
         (φ (star (K p * P.effect none) * averagePolynomialPointEffect B p.2 *
@@ -238,9 +235,8 @@ theorem abs_average_failure_pointOrder_sub_le {n : ℕ}
               ((decodedPoint S.alice v).effect b * (decodedPoint S.alice u).effect a))).re))| ≤
       √(64 * (n + 1 : ℝ) *
         (1 - (branchGame (F := F) n degree .diagonal).commutingWinProb S)) := by
-  rw [branchGame_eq_withDiagonalCap]
-  exact abs_average_failure_pointOrder_sub_le_atDegrees S hPoint hLine degree ((n + 1) * degree)
-    P hP
+  simpa only [branchGame_eq_withDiagonalCap] using
+    abs_average_failure_pointOrder_sub_le_atDegrees S hPoint hLine degree ((n + 1) * degree) P hP
 
 /-- The evaluated-slice term with a failure projection is bounded by the slice
 majorants and the diagonal test, as in Claim 11.3. -/
@@ -289,12 +285,12 @@ theorem abs_average_evaluated_failure_pointProduct_le_atDegrees
     have hnZ (b : Option F) : Commute ((P v).effect b) (Z x) :=
       (Measurement.commute_map_right (M (v (Fin.last m))) _ _
         (fun g => (hMZ _ _ g).symm) b).symm
-    have h := abs_average_evaluated_failure_rightPoint_le S.state (M x) (P v) (hM x) (hP v)
-      (fun u => Q (Fin.snoc u x)) (fun _ => hQ _) (Q v) (hQ v) (Z x) (hZ x) (hbound x)
-      (fun g u a => hMP x (Fin.snoc u x) g a) (fun b u a => hnQ b (Fin.snoc u x) a)
-      (fun g b => hMP x v g b) (fun b a => hnQ b v a) (fun g => hMZ x x g) hnZ
     simpa only [reordered, P, Fin.snoc_last, Fin.init_snoc,
-      evaluatePolynomialMeasurement_effect_none] using h
+      evaluatePolynomialMeasurement_effect_none] using
+      abs_average_evaluated_failure_rightPoint_le S.state (M x) (P v) (hM x) (hP v)
+        (fun u => Q (Fin.snoc u x)) (fun _ => hQ _) (Q v) (hQ v) (Z x) (hZ x) (hbound x)
+        (fun g u a => hMP x (Fin.snoc u x) g a) (fun b u a => hnQ b (Fin.snoc u x) a)
+        (fun g b => hMP x v g b) (fun b a => hnQ b v a) (fun g => hMZ x x g) hnZ
   have hremaining : |𝔼 u, 𝔼 v, reordered u v| ≤ √ζ := by
     rw [expect_comm univ univ]
     simp_rw [Fintype.expect_eq_expect_snoc (fun u => reordered u _)]
@@ -329,9 +325,8 @@ theorem abs_average_evaluated_failure_pointProduct_le
       √(64 * (m + 1 : ℝ) *
         (1 - (branchGame (F := F) m degree .diagonal).commutingWinProb S)) +
         √ζ := by
-  rw [branchGame_eq_withDiagonalCap]
-  exact abs_average_evaluated_failure_pointProduct_le_atDegrees S hPoint hLine degree ((m + 1)
-    * degree)
-    M hM Z hZ hbound hMP hMZ hfail
+  simpa only [branchGame_eq_withDiagonalCap] using
+    abs_average_evaluated_failure_pointProduct_le_atDegrees S hPoint hLine degree
+      ((m + 1) * degree) M hM Z hZ hbound hMP hMZ hfail
 
 end Cslib.PCP.LowIndividualDegree

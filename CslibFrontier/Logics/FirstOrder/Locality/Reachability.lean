@@ -157,11 +157,9 @@ private theorem isNbhdIso_shift {r : ℕ} {a b : Fin N} (ha : r ≤ (a : ℕ)) (
   let := relStructure (M := Fin N) (· ⋖ ·)
   refine ⟨⟨fun x hx => ?_, fun x hx y hy hxy => ?_, fun y hy => ?_⟩,
     fun _ => Fin.ext (by simp only; omega), ?_⟩
-  · rw [mem_ball_covBy] at hx ⊢
-    simp only
+  · simp only [mem_ball_covBy] at hx ⊢
     omega
-  · rw [mem_ball_covBy] at hx hy
-    simp only [Fin.mk.injEq] at hxy
+  · simp only [mem_ball_covBy, Fin.mk.injEq] at hx hy hxy
     exact Fin.ext (by omega)
   · rw [mem_ball_covBy] at hy
     exact ⟨⟨y + a - b, by omega⟩,
@@ -373,16 +371,11 @@ theorem not_exists_formula_reachable :
   rintro ⟨φ, hφ⟩
   have : 0 < 3 ^ (quantifierRank φ + 1) := pow_pos (by decide) _
   set m := 3 ^ (quantifierRank φ + 1) + 2
-  let e : ULift.{u} (Fin m) ≃ Fin m := Equiv.ulift
-  let G := (SimpleGraph.pathGraph m).comap e
-  have hG := SimpleGraph.Iso.comap e (SimpleGraph.pathGraph m)
-  have h := edist_le_of_realize_iff_reachable (G := G) (φ := φ)
-    (fun x y => hφ (ULift.{u} (Fin m) ⊕ ULift.{u} (Fin m)) (G ⊕g G) x y)
+  have hG := SimpleGraph.Iso.comap Equiv.ulift.{u} (SimpleGraph.pathGraph m)
+  have h := edist_le_of_realize_iff_reachable (φ := φ) (fun x y => hφ _ _ x y)
     (u := hG.symm ⟨0, by omega⟩) (v := hG.symm ⟨m - 1, by omega⟩)
     ((SimpleGraph.connected_pathGraph.2 (by omega)).preconnected _ _ |>.map hG.symm.toHom)
-  rw [← hG.edist_eq, hG.apply_symm_apply, hG.apply_symm_apply, SimpleGraph.edist_pathGraph,
-    Nat.cast_le] at h
-  simp only at h
+  simp only [← hG.edist_eq, hG.apply_symm_apply, SimpleGraph.edist_pathGraph, Nat.cast_le] at h
   omega
 
 /-! ### The locality radius must be exponential -/
@@ -442,19 +435,14 @@ theorem exists_nbhdIso_realize_distLE (k : ℕ) :
       (letI := G.structure; (distLE (k + 1)).Realize a) ∧
       ¬ (letI := G.structure; (distLE (k + 1)).Realize b) := by
   have hk : 1 ≤ 2 ^ k := Nat.one_le_two_pow
-  have hk' : 2 ^ (k + 1) = 2 * 2 ^ k := by rw [pow_succ, mul_comm]
   set m := 2 ^ (k + 1) + 1
   let P := SimpleGraph.pathGraph m
-  have hP : P.edist ⟨0, by omega⟩ ⟨2 ^ (k + 1), by omega⟩ = ((2 ^ (k + 1) : ℕ) : ℕ∞) := by
-    simp [P, SimpleGraph.edist_pathGraph]
   refine ⟨Fin m ⊕ Fin m, inferInstance, P ⊕g P, ![.inl ⟨0, by omega⟩, .inl ⟨2 ^ (k + 1), by omega⟩],
-    ![.inl ⟨0, by omega⟩, .inr ⟨2 ^ (k + 1), by omega⟩], ?_, ?_, ?_⟩
-  · exact nbhdIso_sum (by rw [hP, Nat.cast_lt]; omega)
-  · rw [realize_distLE]
-    exact ((SimpleGraph.Embedding.sumInl (G := P) (H := P)).toHom.edist_le _ _).trans hP.le
-  · rw [realize_distLE, SimpleGraph.edist_eq_top_of_not_reachable
-      (SimpleGraph.not_reachable_sum_inl_inr _ _)]
-    exact not_le.2 (ENat.natCast_lt_top _)
+    ![.inl ⟨0, by omega⟩, .inr ⟨2 ^ (k + 1), by omega⟩],
+    nbhdIso_sum (by simp only [P, SimpleGraph.edist_pathGraph, Nat.cast_lt, pow_succ]; omega),
+    by simp [realize_distLE, SimpleGraph.edist_sum_inl, P, SimpleGraph.edist_pathGraph], ?_⟩
+  simp [realize_distLE, SimpleGraph.edist_eq_top_of_not_reachable
+    (SimpleGraph.not_reachable_sum_inl_inr _ _)]
 
 /-- **No subexponential radius gives Gaifman locality**: if a radius `ρ n` makes every formula of
 quantifier rank at most `n` Gaifman-local on finite graphs (as `(3 ^ (n + 1) - 1) / 2` does,

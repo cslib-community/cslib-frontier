@@ -131,13 +131,11 @@ private theorem outcome_eq_ask_of_after_append_singleton {p : WordQueryComp Unit
     {m y : List Bool} (hp : (after p (h ++ [(m, y)])).isSome) : outcome p h = .ask m := by
   rw [after_append] at hp
   unfold outcome
-  rcases hah : after p h with _ | ⟨b⟩ | ⟨q, next⟩ <;> simp only [hah] at hp
-  · simp at hp
-  · simp at hp
-  · change (if m = q.2 then after (next y) [] else none).isSome = true at hp
-    split_ifs at hp with hm
-    · rw [hm]
-    · simp at hp
+  rcases hah : after p h with _ | ⟨b⟩ | ⟨q, next⟩ <;> rw [hah] at hp
+  · cases hp
+  · cases hp
+  · dsimp only [Option.bind, after] at hp
+    by_cases hm : m = q.2 <;> simp [hm] at hp ⊢
 
 /-! ### Acceptance against a prover -/
 
@@ -223,8 +221,7 @@ theorem value_le_card (n : ℕ) (h : History) :
   | zero =>
     refine Finset.card_le_card fun r hr => ?_
     simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hr ⊢
-    rw [hr]
-    exact nofun
+    exact hr ▸ nofun
   | succ n ih =>
     simp only [value, accepted]
     have hstep (m : List Bool) :
@@ -401,10 +398,9 @@ private theorem sum_acceptFrom_optimalProver_after (hF : IsBounded F D L) (n : �
 with probabilities summing to the value of the empty history. -/
 theorem sum_acceptFrom_optimalProver (hF : IsBounded F D L) :
     ∑ r, acceptFrom (optimalProver F L D) (optimalProver F L D).init (some (F r)) =
-      value F L D [] := by
-  have := sum_acceptFrom_optimalProver_after hF D [] (by simp)
-  simp only [after_nil] at this
-  exact this
+      value F L D [] :=
+  (Finset.sum_congr rfl fun r _ => congrArg (acceptFrom _ _) (after_nil (F r)).symm).trans
+    (sum_acceptFrom_optimalProver_after hF D [] (by simp))
 
 end Optimal
 

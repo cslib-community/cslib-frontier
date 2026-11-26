@@ -46,15 +46,11 @@ theorem bitBlast_arithmetic (enc : F → BitString w) (decode : BitString w → 
       (Set.range fun oj : Fin M × Fin w =>
         bitsOf enc (fun x => c.eval (arithInterpretation F) (fun i => φ i x) oj.1) oj.2)
       (c.size * bitBlastCost w) := by
-  have hsim := fullInterpretation_simulatesWithCost (k := 2) (arithInterpretation F)
-    (fun op => by cases op <;> simp [ArithOp.arity])
-  obtain ⟨d, hd, hsize⟩ := c.exists_simulation_le hsim
-  have hle : d.size ≤ c.size := by simpa using hsize
-  refine (bitBlast enc decode hdecode d φ hφ).mono Set.Subset.rfl ?_
-    (Nat.mul_le_mul_right _ hle)
+  obtain ⟨d, hd, hsize⟩ := c.exists_simulation_le <| fullInterpretation_simulatesWithCost (k := 2)
+    (arithInterpretation F) fun op => by cases op <;> simp [ArithOp.arity]
+  refine (bitBlast enc decode hdecode d φ hφ).mono .rfl ?_
+    (Nat.mul_le_mul_right _ (one_mul c.size ▸ hsize))
   rintro _ ⟨⟨o, j⟩, rfl⟩
-  refine ⟨(o, j), ?_⟩
-  funext x
-  simp only [bitsOf, hd]
+  exact ⟨(o, j), funext fun x => by simp only [bitsOf, hd]⟩
 
 end Cslib.Circuits.Synthesis

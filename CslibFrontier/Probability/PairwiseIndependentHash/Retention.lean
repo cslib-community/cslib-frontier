@@ -86,10 +86,8 @@ theorem expect_boole_apply_mem [Semifield 𝕜] [CharZero 𝕜] (hh : IsPairwise
     𝔼 i, (if h i x ∈ B then 1 else 0 : 𝕜) = #B / Fintype.card Y := by
   have hpt (i : ι) : (if h i x ∈ B then 1 else 0 : 𝕜) = ∑ y ∈ B, if h i x = y then 1 else 0 :=
     (sum_ite_eq B (h i x) fun _ ↦ (1 : 𝕜)).symm
-  simp only [hpt]
-  rw [expect_sum_comm]
-  simp only [Fintype.expect_boole, hh.dens_filter_apply_eq, NNRat.cast_inv, NNRat.cast_natCast,
-    sum_const, nsmul_eq_mul, div_eq_mul_inv]
+  simp only [hpt, expect_sum_comm, Fintype.expect_boole, hh.dens_filter_apply_eq, NNRat.cast_inv,
+    NNRat.cast_natCast, sum_const, nsmul_eq_mul, div_eq_mul_inv]
 
 /-- **Retention probability**: a point is retained, its hash lying in `B`, with probability
 `#B / |Y|`. -/
@@ -106,18 +104,10 @@ theorem expect_boole_apply_mem_and_apply_mem [Semifield 𝕜] [CharZero 𝕜]
       #B₁ / Fintype.card Y * (#B₂ / Fintype.card Y) := by
   have hpt (i : ι) : (if h i x₁ ∈ B₁ ∧ h i x₂ ∈ B₂ then 1 else 0 : 𝕜) =
       ∑ y₁ ∈ B₁, ∑ y₂ ∈ B₂, if h i x₁ = y₁ ∧ h i x₂ = y₂ then 1 else 0 := by
-    have e₂ : (if h i x₂ ∈ B₂ then 1 else 0 : 𝕜) =
-        ∑ y₂ ∈ B₂, if h i x₂ = y₂ then 1 else 0 :=
-      (sum_ite_eq B₂ (h i x₂) fun _ ↦ (1 : 𝕜)).symm
     rw [ite_and, ← sum_ite_eq B₁ (h i x₁) fun _ ↦ (if h i x₂ ∈ B₂ then 1 else 0 : 𝕜)]
     refine sum_congr rfl fun y₁ _ ↦ ?_
-    by_cases hy : h i x₁ = y₁
-    · simp only [hy, true_and, ite_true]
-      exact e₂
-    · simp [hy]
-  simp only [hpt]
-  rw [expect_sum_comm]
-  simp only [expect_sum_comm, Fintype.expect_boole, hh.dens_filter_apply_eq_and_apply_eq hx,
+    by_cases hy : h i x₁ = y₁ <;> simp [hy, sum_ite_eq]
+  simp only [hpt, expect_sum_comm, Fintype.expect_boole, hh.dens_filter_apply_eq_and_apply_eq hx,
     NNRat.cast_inv, NNRat.cast_pow, NNRat.cast_natCast, sum_const, nsmul_eq_mul]
   ring
 
@@ -277,8 +267,9 @@ theorem min_mul_div_two_le_dens_filter_exists_apply_mem (hh : IsPairwiseIndepend
       rw [hk_def, hk]
       calc (1 : ℚ) = 1 / p * p := (one_div_mul_cancel hp.ne').symm
         _ ≤ ⌈1 / p⌉₊ * p := mul_le_mul_of_nonneg_right (Nat.le_ceil _) hp.le
-  have h2 := mul_le_mul_of_nonneg_left hkp (by positivity : (0 : ℚ) ≤ k * p)
-  linarith [show (k : ℚ) * (k - 1) * p ^ 2 = (k * p) * ((k - 1) * p) by ring]
+  have h2 := mul_le_mul_of_nonneg_left hkp (mul_nonneg (Nat.cast_nonneg k) hp.le)
+  have hsq : (k : ℚ) * (k - 1) * p ^ 2 = (k * p) * ((k - 1) * p) := by ring
+  linarith
 
 /-- **A pairwise independent generator hits a sparse set** [Goldreich, Exercise 7.23, second
 claim][Goldreich2007DraftR4]: if the set `B` has density `p = #B / |Y|` with `p ≤ 1 / (2 #S)`, then
@@ -294,8 +285,8 @@ theorem three_quarters_mul_le_dens_filter_exists_apply_mem (hh : IsPairwiseIndep
   push_cast [cast_dens_eq B] at hSB ⊢
   rw [← hp_def]
   have hsp : 0 ≤ (#S : ℚ) * p := by positivity
-  have h1 := mul_nonneg hsp hp
   have h2 := mul_le_mul_of_nonneg_left (by linarith : (#S : ℚ) * p ≤ 1 / 2) hsp
-  linarith [show (#S : ℚ) * (#S - 1) * p ^ 2 = (#S * p) * (#S * p) - (#S * p) * p by ring]
+  have hsq : (#S : ℚ) * (#S - 1) * p ^ 2 = (#S * p) * (#S * p) - (#S * p) * p := by ring
+  linarith [mul_nonneg hsp hp]
 
 end Cslib.Probability.IsPairwiseIndependentHash

@@ -213,8 +213,7 @@ theorem polyTimeReducible_GapExactThreeLin_GapLin {c s s' : ℝ} (hc1 : c ≤ 1)
     PromiseProblem.PolyTimeReducible (encCSP encBool encNat) XORSAT.encoding
       (GapExactThreeLin c s) (GapLin c s') := by
   refine ⟨toGapLin, computableInPolyTime_toGapLin, fun F hF => ?_, fun F hF => ?_⟩
-  · rw [mem_yes_GapExactThreeLin] at hF
-    rw [mem_yes_GapLin]
+  · simp only [mem_yes_GapExactThreeLin, mem_yes_GapLin] at hF ⊢
     rcases eq_or_ne F [] with rfl | he
     · exact ⟨fun _ => false, hc1.trans_eq (by norm_num : (1 : ℝ) = ((1 : ℕ) : ℝ) / ((1 : ℕ) : ℝ))⟩
     · obtain ⟨σ, hσ⟩ := CSP.exists_countUnsat_div_eq_unsatVal CSP.paritySem F
@@ -277,8 +276,7 @@ theorem GapExactThreeLin_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
   let wMax : ℝ := min (δ / 2) (ε / 4)
   let baseLC : ℝ := 1 - 1 / (6000 * 2 ^ 186)
   let baseDrop : ℝ := 1 - 1 / (m : ℝ)
-  have hbaseDrop1 : baseDrop < 1 := by
-    dsimp only [baseDrop]; linarith [show (0 : ℝ) < 1 / m by positivity]
+  have hbaseDrop1 : baseDrop < 1 := sub_lt_self 1 (by positivity)
   obtain ⟨n₁, hn₁⟩ := exists_pow_lt_of_lt_one hη0 (by norm_num : baseLC < 1)
   obtain ⟨n₂, hn₂⟩ := exists_pow_lt_of_lt_one (lt_min (by linarith) (by linarith) :
     0 < wMax) hbaseDrop1
@@ -363,13 +361,11 @@ Theorem 6.5 (perfect completeness `1` vs `7 / 8 + ε`). -/
 theorem GapMaxExactThreeSAT_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
     (h : 7 / 8 + ε < 1 - δ) :
     PromiseProblem.NPHard encCNF (GapMaxExactThreeSAT (1 - δ) (7 / 8 + ε)) := by
-  have hlin := GapExactThreeLin_npHard (δ := 4 * δ) (ε := 4 * ε)
-    (by linarith) (by linarith) (by linarith)
-  have hred := polyTimeReducible_GapExactThreeLin_GapMaxExactThreeSAT
-    (c := 1 - 4 * δ) (s := 1 / 2 + 4 * ε) (by linarith)
-  rw [show (3 + (1 - 4 * δ)) / 4 = 1 - δ by ring,
-    show (3 + (1 / 2 + 4 * ε)) / 4 = 7 / 8 + ε by ring] at hred
-  exact hlin.trans hred
+  have hc : (3 + (1 - 4 * δ)) / 4 = 1 - δ := by ring
+  have hs : (3 + (1 / 2 + 4 * ε)) / 4 = 7 / 8 + ε := by ring
+  have h4 : 1 / 2 + 4 * ε < 1 - 4 * δ := by linarith
+  exact (GapExactThreeLin_npHard (mul_pos zero_lt_four hδ) (mul_pos zero_lt_four hε) h4).trans
+    (hc ▸ hs ▸ polyTimeReducible_GapExactThreeLin_GapMaxExactThreeSAT h4)
 
 /-! ### Approximation-factor consequences (`2 - ε` for MAX-E3LIN-2 and `8 / 7 - ε` for MAX-E3SAT) -/
 
@@ -378,11 +374,10 @@ theorem GapMaxExactThreeSAT_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
 private theorem exists_gap_params_of_gt {t ρ : ℝ} (ht0 : 0 ≤ t) (ht1 : t < 1) (hρ : t < ρ) :
     ∃ δ ε : ℝ, 0 < δ ∧ 0 < ε ∧ t + ε < 1 - δ ∧ t + ε < ρ * (1 - δ) := by
   let γ : ℝ := min ρ 1 - t
-  have hγ0 : 0 < γ := by dsimp only [γ]; linarith [lt_min hρ ht1]
-  have hγ_le : γ ≤ 1 - t := by dsimp only [γ]; linarith [min_le_right ρ 1]
-  refine ⟨γ / 4, γ / 4, by linarith, by linarith, by linarith, ?_⟩
-  dsimp only [γ]
-  nlinarith [min_le_left ρ 1]
+  have hγ0 : 0 < γ := sub_pos.2 (lt_min hρ ht1)
+  refine ⟨γ / 4, γ / 4, by linarith, by linarith, ?_, ?_⟩ <;> dsimp only [γ]
+  · linarith [min_le_right ρ 1]
+  · nlinarith [min_le_left ρ 1, min_le_right ρ 1]
 
 /-- Generic rational-threshold decider turning a polynomial-time `ρ`-approximation algorithm into a
 `PromiseP` decider for a restricted `gapMax (1 - uval)` problem when `0 ≤ s < c ≤ 1` and
@@ -402,10 +397,9 @@ private theorem gapMax_restrict_mem_PromiseP_of_approx {α : Type} {enc : α ↪
   set b := q.den
   have hb : (0 : ℝ) < b := by exact_mod_cast q.den_pos
   have hab : (q : ℝ) = a / b := by
-    have hnum : (0 : ℤ) ≤ q.num := Rat.num_nonneg.2 (by exact_mod_cast (hs0.trans_lt hsq).le)
-    rw [← Rat.num_div_den q]
-    push_cast
-    rw [show ((q.num : ℤ) : ℝ) = (a : ℝ) by exact_mod_cast (Int.toNat_of_nonneg hnum).symm]
+    have hnum : (a : ℤ) = q.num :=
+      Int.toNat_of_nonneg (Rat.num_nonneg.2 (by exact_mod_cast (hs0.trans_lt hsq).le))
+    rw [Rat.cast_def, ← hnum, Int.cast_natCast]
   have hiff (x : α) :
       a * len x + b * u x ≤ b * len x ↔ (q : ℝ) * len x ≤ (len x : ℝ) - u x := by
     rw [hab, div_mul_eq_mul_div, div_le_iff₀ hb, ← @Nat.cast_le ℝ]
@@ -426,11 +420,9 @@ private theorem gapMax_restrict_mem_PromiseP_of_approx {α : Type} {enc : α ↪
       PromiseProblem.mem_no_gapMax_of_lt (c := fun _ => c) (s := fun _ => s) hsc,
       Set.mem_ofPred_eq] at hx
     refine decide_eq_false fun h => ?_
-    have h := (hiff x).1 h
-    have hle := huval_le x hx.2
-    have hpos : (0 : ℝ) < len x := by exact_mod_cast hlen_pos x hx.2 (by linarith)
-    rw [le_div_iff₀ hpos] at hle
-    nlinarith
+    have hpos : (0 : ℝ) < len x := Nat.cast_pos.2 (hlen_pos x hx.2 (by linarith))
+    have hle := (le_div_iff₀ hpos).1 (huval_le x hx.2)
+    nlinarith [(hiff x).1 h]
 
 /-- **Håstad's Theorem 5.4: MAX-E3LIN-2 has no polynomial-time `(1 / 2 + ε)`-approximation
 algorithm (factor `2 - ε`) unless `P = NP`** `[Hastad2001]` (author PDF p. 27 / JACM p. 821).
@@ -451,16 +443,13 @@ theorem P_eq_NP_of_maxExactThreeLin_approx {A : CSP Bool ℕ → List ℕ} {ρ :
       (encCSP encBool encNat) encNat :=
     unary_to_binary.comp ((computableInPolyTime_countUnsat_mem encNat).comp
       ((CSP.computableInPolyTime_toCNFBounded_parity encNat).prod hA))
+  have hc {F : CSP Bool ℕ} (hF : ∀ e ∈ F, e.scope.length = 3 ∧ e.scope.Nodup) :=
+    CSP.countUnsat_toCNFBounded CSP.paritySem (fun e he => (hF e he).1.le)
   have hmem : GapExactThreeLin (1 - δ) (1 / 2 + ε) ∈ PromiseP (encCSP encBool encNat) :=
     gapMax_restrict_mem_PromiseP_of_approx (by linarith) hgap (by linarith) hsρc
-      (length_list_binary _) hu
-      (fun F hF => by
-        rw [CSP.countUnsat_toCNFBounded CSP.paritySem (fun e he => (hF e he).1.le)]
-        exact CSP.unsatVal_le CSP.paritySem F _)
+      (length_list_binary _) hu (fun F hF => hc hF _ ▸ CSP.unsatVal_le CSP.paritySem F _)
       (fun _ _ hpos => List.length_pos_of_ne_nil fun h0 => hpos.ne' (by simp [h0]))
-      (fun F hF => by
-        rw [CSP.countUnsat_toCNFBounded CSP.paritySem (fun e he => (hF e he).1.le)]
-        exact happrox F hF)
+      (fun F hF => hc hF _ ▸ happrox F hF)
   exact (GapExactThreeLin_npHard hδ hε hgap).P_eq_NP_of_mem_PromiseP hmem enc
 
 /-- **Håstad's Theorem 6.1: MAX-E3SAT has no polynomial-time `(7 / 8 + ε)`-approximation

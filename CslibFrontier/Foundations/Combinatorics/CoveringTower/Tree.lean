@@ -279,35 +279,31 @@ theorem stage_parent {P : T.Node} (hP : P ≠ root) : (P.parent hh Lf).stage = P
 private theorem filter_parent_eq_root :
     univ.filter (fun Q : T.Node => Q ≠ root ∧ Q.parent hh Lf = root) =
       univ.image (ofChamber (T := T) le_rfl) := by
-  ext Q
-  simp only [mem_filter, mem_univ, true_and, mem_image]
-  refine ⟨fun ⟨hQ, hp⟩ => ?_, ?_⟩
-  · obtain _ | ⟨⟨j, hj⟩, c⟩ := Q
-    · exact absurd rfl hQ
-    · have := (stage_parent hh Lf hQ).symm.trans (congrArg stage hp)
-      simp only [stage, lift, add_left_inj] at this
-      subst this
+  ext (_ | ⟨⟨j, hj⟩, c⟩)
+  · simp
+  · simp only [mem_filter, mem_univ, true_and, mem_image]
+    refine ⟨fun ⟨hQ, hp⟩ => ?_, ?_⟩
+    · obtain rfl : j = J := Nat.add_right_cancel
+        ((stage_parent hh Lf hQ).symm.trans (congrArg stage hp))
       exact ⟨c, rfl⟩
-  · rintro ⟨c, rfl⟩
-    exact ⟨ofChamber_ne_root, by simp [parent, ofChamber]⟩
+    · rintro ⟨c', ⟨⟩⟩
+      simp [parent]
 
 /-- The children of a chamber of the level `j + 1` are the chambers of the level `j` whose parent
 chamber it is. -/
 private theorem filter_parent_eq_ofChamber (hj : j + 1 ≤ J) (c : T.X (j + 1)) :
     univ.filter (fun Q : T.Node => Q ≠ root ∧ Q.parent hh Lf = ofChamber hj c) =
       (univ.filter (T.parentChamber hh Lf · = c)).image (ofChamber (by omega)) := by
-  ext Q
-  simp only [mem_filter, mem_univ, true_and, mem_image]
-  refine ⟨fun ⟨hQ, hp⟩ => ?_, ?_⟩
-  · obtain _ | ⟨⟨i, hi⟩, c'⟩ := Q
-    · exact absurd rfl hQ
-    · have := (stage_parent hh Lf hQ).symm.trans (congrArg stage hp)
-      simp only [stage, lift, ofChamber, add_left_inj] at this
-      subst this
+  ext (_ | ⟨⟨i, hi⟩, c'⟩)
+  · simp
+  · simp only [mem_filter, mem_univ, true_and, mem_image]
+    refine ⟨fun ⟨hQ, hp⟩ => ?_, ?_⟩
+    · obtain rfl : i = j := Nat.add_right_cancel
+        ((stage_parent hh Lf hQ).symm.trans (congrArg stage hp))
       simp only [parent, hj, dite_true] at hp
       exact ⟨c', ofChamber_inj.1 hp, rfl⟩
-  · rintro ⟨c', hc', rfl⟩
-    exact ⟨ofChamber_ne_root, by simp [parent, ofChamber, hj, hc']⟩
+    · rintro ⟨_, hc', ⟨⟩⟩
+      simp [parent, ofChamber, hj, hc']
 
 /-- A chamber of the level `0` has no children. -/
 private theorem filter_parent_eq_ofChamber_zero (c : T.X 0) :
@@ -338,12 +334,12 @@ theorem lift_childUnits_le (P : T.Node) :
     P.lift (T.childUnits hh Lf) (∑ c, T.parentUnits Lf J c) ≤
       ∑ Q ∈ univ.filter (fun Q => Q ≠ root ∧ Q.parent hh Lf = P), Q.lift (T.parentUnits Lf) 0 := by
   obtain _ | ⟨⟨_ | j, hj⟩, c⟩ := P
-  · rw [filter_parent_eq_root, sum_image fun _ _ _ _ h => ofChamber_inj.1 h]
+  · rw [filter_parent_eq_root, sum_image fun _ _ _ _ => ofChamber_inj.1]
     rfl
   · exact Nat.zero_le _
-  · rw [show chamber ⟨j + 1, hj⟩ c = ofChamber (by omega) c from rfl,
-      filter_parent_eq_ofChamber hh Lf (j := j) (by omega) c,
-      sum_image fun _ _ _ _ h => ofChamber_inj.1 h]
+  · have hP : (chamber ⟨j + 1, hj⟩ c : T.Node) = ofChamber (Nat.le_of_lt_succ hj) c := rfl
+    rw [hP, filter_parent_eq_ofChamber hh Lf (Nat.le_of_lt_succ hj) c,
+      sum_image fun _ _ _ _ => ofChamber_inj.1]
     rfl
 
 end Node

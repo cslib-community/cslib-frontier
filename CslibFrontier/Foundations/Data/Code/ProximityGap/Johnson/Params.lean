@@ -172,10 +172,9 @@ private theorem johnson_curve_params_gap {n k e m r : ℕ}
     Nat.ceil_le.2 (by rw [Nat.cast_sub he_le_n]; linarith)
   have hk_sqrt : (k : ℝ) ≤ Real.sqrt ((n : ℝ) * k) :=
     Real.le_sqrt_of_sq_le (by rw [sq]; gcongr)
-  have hk_le_t₀ : k ≤ t₀ := by
-    have : Real.sqrt ((n : ℝ) * k) ≤ (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k) :=
-      le_mul_of_one_le_left (Real.sqrt_nonneg _) (le_add_of_nonneg_right (by positivity))
-    exact Nat.cast_le.1 ((hk_sqrt.trans this).trans (Nat.le_ceil _))
+  have hk_le_t₀ : k ≤ t₀ := Nat.cast_le.1 <| (hk_sqrt.trans <|
+    le_mul_of_one_le_left (Real.sqrt_nonneg _) (le_add_of_nonneg_right (by positivity))).trans
+      (Nat.le_ceil _)
   have hroot : D < m' * (n - e) := by
     have : 1 ≤ m' * t₀ := Nat.mul_pos (by omega) (hk.trans hk_le_t₀)
     have := Nat.mul_le_mul_left m' ht₀_le_sub; omega
@@ -204,11 +203,9 @@ private theorem johnson_curve_params_gap {n k e m r : ℕ}
       exact div_le_div_of_nonneg_right (by linarith) hsqρ_pos.le
     · have hmulR : ((k - 1 : ℕ) : ℝ) * (maxYDeg (k - 1) D : ℝ) ≤ D := by
         exact_mod_cast mul_maxYDeg_le (k - 1) D
-      have hk_half : (k : ℝ) / 2 ≤ ((k - 1 : ℕ) : ℝ) := by
-        have : (k : ℝ) ≤ 2 * ((k - 1 : ℕ) : ℝ) := by exact_mod_cast (show k ≤ 2 * (k - 1) by omega)
-        linarith
+      have hk2' : (k : ℝ) ≤ 2 * ((k - 1 : ℕ) : ℝ) := by exact_mod_cast (by omega : k ≤ 2 * (k - 1))
       have h1 : (k : ℝ) / 2 * (maxYDeg (k - 1) D : ℝ) ≤ (5 / 2) * m' * n * Real.sqrt ρ :=
-        (mul_le_mul_of_nonneg_right hk_half (by positivity)).trans (hmulR.trans hD_upper)
+        (mul_le_mul_of_nonneg_right (by linarith) (by positivity)).trans (hmulR.trans hD_upper)
       rw [le_div_iff₀ hsqρ_pos]
       have h2 := mul_le_mul_of_nonneg_right h1 hsqρ_pos.le
       have hsqeq : (5 / 2) * (m' : ℝ) * n * Real.sqrt ρ * Real.sqrt ρ = (5 / 2) * m' * k := by
@@ -252,10 +249,8 @@ at most `W_tot / n`. -/
 theorem johnsonCurveBound_mul_le {n m d D r W_tot : ℕ} (hW : n ≤ W_tot) :
     johnsonCurveBound n m d D r W_tot * n ≤ johnsonCurveBound n m d D r n * W_tot := by
   dsimp only [johnsonCurveBound]
-  have hA : (siegelZDeg n m d D r + 2 * maxYDeg d D * (D + siegelZDeg n m d D r)) * n ≤
-      (siegelZDeg n m d D r + 2 * maxYDeg d D * (D + siegelZDeg n m d D r)) * W_tot :=
-    Nat.mul_le_mul_left _ hW
-  linarith
+  nlinarith [Nat.mul_le_mul_left
+    (siegelZDeg n m d D r + 2 * maxYDeg d D * (D + siegelZDeg n m d D r)) hW]
 
 /-- Quantitative Guruswami–Sudan parameter packaging for degree-`r` curves (`1 ≤ r`): given
 `1 ≤ k ≤ n`, `1 ≤ m`, and `(e : ℝ) / n ≤ 1 - √ρ - √ρ / (2 * m)` with `ρ = k / n`, the choice
@@ -385,28 +380,28 @@ theorem exists_multiplicity_of_eta {n k e : ℕ} {η : ℝ}
   have hx1 : (1 : ℝ) ≤ Real.sqrt ρ / (2 * η') :=
     (one_le_div (by positivity)).2 (by linarith [min_le_right η (Real.sqrt ρ / 2)])
   have hm : 1 ≤ m := by exact_mod_cast hx1.trans (Nat.le_ceil _)
-  have hfrac : Real.sqrt ρ / (2 * m) ≤ η := by
-    have hceil : Real.sqrt ρ / (2 * η') ≤ (m : ℝ) := Nat.le_ceil _
-    have : Real.sqrt ρ / (2 * m) ≤ η' :=
-      (div_le_iff₀ (by positivity)).2 (by linarith [(div_le_iff₀ (by positivity)).1 hceil])
-    exact this.trans (min_le_left _ _)
+  have hceil : Real.sqrt ρ ≤ m * (2 * η') := (div_le_iff₀ (by positivity)).1 (Nat.le_ceil _)
+  have hfrac : Real.sqrt ρ / (2 * m) ≤ η :=
+    ((div_le_iff₀ (by positivity)).2
+      (by linarith)).trans (min_le_left _ _)
   have hm1_le : (m : ℝ) + 1 ≤ 2 / η := by
     by_cases hle : η ≤ Real.sqrt ρ / 2
     · have hη'_eq : η' = η := min_eq_left hle
-      have hlt : (m : ℝ) < Real.sqrt ρ / (2 * η) + 1 := by
-        have h0 := Nat.ceil_lt_add_one (a := Real.sqrt ρ / (2 * η')) (by positivity)
-        change (m : ℝ) < _ at h0; rwa [hη'_eq] at h0
-      have hx1' : (1 : ℝ) ≤ Real.sqrt ρ / (2 * η) := by rwa [hη'_eq] at hx1
-      have : 3 * (Real.sqrt ρ / (2 * η)) ≤ 2 / η := by
-        rw [show 3 * (Real.sqrt ρ / (2 * η)) = (3 / 2 * Real.sqrt ρ) / η by ring]
-        exact div_le_div_of_nonneg_right (by linarith) hη.le
+      have hlt : (m : ℝ) < Real.sqrt ρ / (2 * η) + 1 :=
+        hη'_eq ▸ Nat.ceil_lt_add_one (a := Real.sqrt ρ / (2 * η')) (by positivity)
+      have hx1' : (1 : ℝ) ≤ Real.sqrt ρ / (2 * η) := hη'_eq ▸ hx1
+      have : 3 * (Real.sqrt ρ / (2 * η)) ≤ 2 / η :=
+        (by ring : 3 * (Real.sqrt ρ / (2 * η)) = (3 / 2 * Real.sqrt ρ) / η).trans_le
+          (div_le_div_of_nonneg_right (by linarith) hη.le)
       linarith
-    · have hη'_eq : η' = Real.sqrt ρ / 2 := min_eq_right (le_of_not_ge hle)
-      have hm1 : m = 1 := by
-        dsimp only [m]; rw [hη'_eq, show Real.sqrt ρ / (2 * (Real.sqrt ρ / 2)) = 1 by field_simp]
-        norm_num
+    · have h1 : Real.sqrt ρ / (2 * η') = 1 := by
+        dsimp only [η']
+        rw [min_eq_right (le_of_not_ge hle)]
+        field_simp
+      have hm1 : m = 1 := by simp [m, h1]
+      have he0 : (0 : ℝ) ≤ (e : ℝ) / n := by positivity
       rw [hm1, Nat.cast_one, le_div_iff₀ hη]
-      linarith [show (0 : ℝ) ≤ (e : ℝ) / n by positivity]
+      linarith
   refine ⟨m, hm, by linarith, (pow_le_pow_left₀ (by positivity) hm1_le 6).trans_eq ?_⟩
   rw [div_pow]; norm_num
 

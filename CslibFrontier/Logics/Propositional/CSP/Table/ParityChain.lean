@@ -43,9 +43,7 @@ open Cslib.BitString
 
 /-- Every row has exactly the declared width, including the nullary row. -/
 theorem wellFormed_evenTable (width : ℕ) : (evenTable width).wellFormed = true := by
-  apply wellFormed_eq_true.mpr
-  intro row hrow
-  exact length_of_mem_enumList (List.mem_filter.mp hrow).1
+  exact wellFormed_eq_true.mpr fun _ hrow => length_of_mem_enumList (List.mem_filter.mp hrow).1
 
 /-- The table includes the exact-arity guard even for malformed supplied rows. -/
 theorem sem_evenTable (width : ℕ) (row : List Bool) :
@@ -67,11 +65,8 @@ theorem booleanRelation_evenTable (width : ℕ) :
 theorem isEvenDeltaMatroid_evenTable (width : ℕ) :
     IsEvenDeltaMatroid (booleanRelation arity sem (evenTable width)) := by
   rw [booleanRelation_evenTable]
-  apply isEvenDeltaMatroid_parityOn_fiber
-  exact ⟨fun _ => false, by
-    rw [parityOn_eq_sum]
-    change (∑ _ : Fin width, (0 : Bool)) = 0
-    exact Finset.sum_const_zero⟩
+  exact isEvenDeltaMatroid_parityOn_fiber false
+    ⟨fun _ => false, (parityOn_eq_sum _ _).trans Finset.sum_const_zero⟩
 
 /-- Chain tail with the accumulated parity variable first. Each recursive step consumes one
 actual boundary entry and allocates one fresh binary name. -/
@@ -175,11 +170,9 @@ theorem parityChainTail_complete (fresh first : ℕ) (rest : List ℕ) (σ : ℕ
     have hfirst := hbound first (by simp)
     have hb := hbound b (by simp)
     have hread (v : ℕ) (hv : v < fresh) : σ' v = σ v := Function.update_of_ne (by omega) _ _
-    have hnext : ∀ v ∈ fresh :: c :: d :: rest, v < fresh + 1 := by
-      intro v hv
-      rcases List.mem_cons.mp hv with rfl | hv
-      · omega
-      · exact (hbound v (by simp [hv])).trans (Nat.lt_succ_self fresh)
+    have hnext (v : ℕ) (hv : v ∈ fresh :: c :: d :: rest) : v < fresh + 1 :=
+      (List.mem_cons.mp hv).elim (fun h => by omega) fun hv =>
+        (hbound v (by simp [hv])).trans (Nat.lt_succ_self fresh)
     have hparity' : wordParity ((fresh :: c :: d :: rest).map σ') = false := by
       have he : (c :: d :: rest).map σ' = (c :: d :: rest).map σ :=
         List.map_congr_left fun v hv => hread v (hbound v (by simp [hv]))
@@ -195,8 +188,7 @@ theorem parityChainTail_complete (fresh first : ℕ) (rest : List ℕ) (σ : ℕ
       simp only [List.map_cons, List.map_nil, wordParity_cons, wordParity_nil, Bool.xor_false]
       rw [hτ first (.inl (by omega)), hτ b (.inl (by omega)), hτ fresh (.inl (by omega)),
         hread first hfirst, hread b hb]
-      dsimp only [σ']
-      rw [Function.update_self]
+      simp only [σ', Function.update_self]
       cases σ first <;> cases σ b <;> rfl
   | _ => -- at most two boundary entries left
     refine ⟨σ, fun _ _ => rfl, ?_⟩

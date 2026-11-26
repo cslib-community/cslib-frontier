@@ -8,6 +8,7 @@ Authors: Erik Demaine
 import CslibFrontierResults.Registry
 import CslibFrontier.Computability.Complexity.FineGrained.SatisfiabilityHypothesis
 import CslibFrontier.Computability.Complexity.FineGrained.SharpSatisfiabilityHypothesis
+import CslibFrontier.Computability.Complexity.FineGrained.SharpTwoSATPower
 
 /-!
 # Collected results: the Satisfiability Hypothesis
@@ -74,3 +75,19 @@ register_result "sh-exponent-transfer" where
     rules out a deterministic target solver in 2 ^ O((N + 1) ^ p) times a polynomial in the \
     target encoding length whenever b > 0, p > 0 and b * p < 1. The hypothesis q < 1 allows \
     q = 0 for polynomial-time reductions. The reduction's time bounds the length it writes."
+
+register_result "sharp-sh-three-occurrence-sharp-two-sat" where
+  title := "The counting Satisfiability Hypothesis gives a bounded-degree #2SAT lower bound"
+  topic := "fine-grained complexity"
+  sources := [
+    { paper := MITHardnessGroup2026SH,
+      theorem := "Corollary 6.1",
+      locator := "arXiv:2611.02650v2, §6, p. 10" }
+  ]
+  theorems := [Cslib.Complexity.SharpSH.not_computableInPowerExpTime_sharpTwoSAT_threeOccurrence]
+  scope := "Under #SH, for every fixed 0 < p < 1 a deterministic multitape machine cannot count \
+    satisfying assignments in time 2 ^ O((n + m + 1) ^ p) times a polynomial in the encoded input \
+    length, where n counts occurring variables and m counts clauses. The promise requires width \
+    at most two and at most three literal occurrences per variable. Only promised inputs require \
+    correct binary counts (encNat) within the time bound. The subtype encoding sends only the \
+    ordinary binary CNF word (encCNF)."

@@ -56,8 +56,8 @@ variable {V D : Type*} [Fintype V] [Fintype D] [Nonempty V] [Nonempty D]
 omit [Fintype V] [Fintype D] [Nonempty V] [Nonempty D] in
 /-- A walk cannot have more visits than vertex times. -/
 theorem visitCount_le (W : Finset V) {t : ℕ} (p : V × (Fin t → D)) :
-    G.visitCount W p ≤ t + 1 := by
-  exact (card_filter_le _ _).trans_eq (card_range _)
+    G.visitCount W p ≤ t + 1 :=
+  (card_filter_le _ _).trans_eq (card_range _)
 
 omit [Fintype V] [Fintype D] [Nonempty V] [Nonempty D] in
 /-- No vertex time visits the empty set. -/
@@ -95,19 +95,12 @@ theorem sq_dens_filter_selected_walkAt_mem_le (W : Finset V) (t : ℕ)
   have h := G.sq_dens_filter_forall_walkAt_mem_le_of_step_bounds B t
     (fun i => c (i + 1)) (fun i => hc (i + 1)) hstep
   have hevent (p : V × (Fin t → D)) :
-      (∀ i ≤ t, G.walkAt p i ∈ B i) ↔ ∀ i ∈ S, G.walkAt p i ∈ W := by
-    constructor
-    · intro hp i hi
-      have hir := mem_range.mp (hS hi)
-      simpa [B, hi] using hp i (by omega)
-    · intro hp i _
-      by_cases hi : i ∈ S <;> simp [B, hi, hp i]
+      (∀ i ≤ t, G.walkAt p i ∈ B i) ↔ ∀ i ∈ S, G.walkAt p i ∈ W :=
+    ⟨fun hp i hi => by simpa [B, hi] using hp i (Nat.lt_succ_iff.mp (mem_range.mp (hS hi))),
+      fun hp i _ => by by_cases hi : i ∈ S <;> simp [B, hi, hp i]⟩
   simp only [hevent] at h
   have h0 : (dens (B 0) : ℝ) ≤ c 0 := by
-    by_cases hi : 0 ∈ S
-    · simp only [B, c, ite_eq_left hi]
-      exact le_add_of_nonneg_right (sq_nonneg _)
-    · simp [B, c, hi]
+    by_cases hi : 0 ∈ S <;> simp [B, c, q, hi, sq_nonneg]
   refine h.trans ((mul_le_mul_of_nonneg_right h0
     (prod_nonneg fun i _ => hc (i + 1))).trans_eq ?_)
   rw [mul_comm, ← prod_range_succ']
@@ -187,10 +180,9 @@ theorem dens_filter_visitCount_gt_lt (W : Finset V) (t m : ℕ)
     (dens {p : V × (Fin t → D) | m < G.visitCount W p} : ℝ) <
       Nat.choose (t + 1) m *
         ((dens W : ℝ) + G.spectralExpansion ^ 2) ^ ((m : ℝ) / 2) := by
-  refine (G.dens_filter_visitCount_gt_le W t m).trans_lt ?_
-  apply div_lt_self
-  · exact mul_pos (by exact_mod_cast Nat.choose_pos hmL) (Real.rpow_pos_of_pos hq _)
-  · exact_mod_cast (show 1 < m + 1 by omega)
+  refine (G.dens_filter_visitCount_gt_le W t m).trans_lt
+    (div_lt_self (mul_pos (mod_cast Nat.choose_pos hmL) (Real.rpow_pos_of_pos hq _))
+      (by exact_mod_cast Nat.lt_succ_of_le hm))
 
 /-- Goldreich's half-visits example for every positive vertex length `t + 1`.
 The event uses integer division, so odd lengths have their usual strict-majority meaning. -/
@@ -214,26 +206,20 @@ theorem dens_filter_visitCount_half_lt (W : Finset V) (t : ℕ)
         exact_mod_cast (show t + 1 ≤ 2 * k by dsimp [k]; omega)
       linarith
     have hevent : (dens {p : V × (Fin t → D) | (t + 1) / 2 < G.visitCount W p} : ℝ) ≤
-        dens ({p : V × (Fin t → D) | k ≤ G.visitCount W p} : Finset _) := by
-      have hsub : ({p : V × (Fin t → D) | (t + 1) / 2 < G.visitCount W p} : Finset _) ⊆
-          ({p : V × (Fin t → D) | k ≤ G.visitCount W p} : Finset _) := by
-        intro p hp
-        simp only [mem_filter, mem_univ, true_and] at hp ⊢
-        dsimp [k]
+        dens ({p : V × (Fin t → D) | k ≤ G.visitCount W p} : Finset _) :=
+      mod_cast dens_mono fun p hp => by
+        simp only [mem_filter, mem_univ, true_and, k] at hp ⊢
         omega
-      exact_mod_cast dens_mono hsub
     have hc : (0 : ℝ) < Nat.choose (t + 1) k := by
       exact_mod_cast Nat.choose_pos (show k ≤ t + 1 by dsimp [k]; omega)
     calc _ ≤ _ := hevent.trans (G.dens_filter_visitCount_ge_le W t k)
-      _ < (Nat.choose (t + 1) k : ℝ) * (2 * ρ) ^ ((k : ℝ) / 2) := by
-        apply mul_lt_mul_of_pos_left _ hc
-        exact Real.rpow_lt_rpow (by positivity) hq (div_pos (by exact_mod_cast hk) (by norm_num))
-      _ ≤ (2 : ℝ) ^ (t + 1) * (2 * ρ) ^ (((t + 1 : ℕ) : ℝ) / 4) := by
-        apply mul_le_mul
-        · exact_mod_cast Nat.choose_le_two_pow (t + 1) k
-        · exact Real.rpow_le_rpow_of_exponent_ge (by positivity) (by linarith) hkr
-        · positivity
-        · positivity
+      _ < (Nat.choose (t + 1) k : ℝ) * (2 * ρ) ^ ((k : ℝ) / 2) :=
+        mul_lt_mul_of_pos_left
+          (Real.rpow_lt_rpow (by positivity) hq (div_pos (mod_cast hk) (by norm_num))) hc
+      _ ≤ (2 : ℝ) ^ (t + 1) * (2 * ρ) ^ (((t + 1 : ℕ) : ℝ) / 4) :=
+        mul_le_mul (mod_cast Nat.choose_le_two_pow (t + 1) k)
+          (Real.rpow_le_rpow_of_exponent_ge (by positivity) (by linarith) hkr)
+          (by positivity) (by positivity)
       _ = _ := by
         rw [show (2 : ℝ) ^ (t + 1) = (16 : ℝ) ^ (((t + 1 : ℕ) : ℝ) / 4) by
           rw [show (16 : ℝ) = (2 : ℝ) ^ (4 : ℝ) by norm_num, ← Real.rpow_mul (by norm_num),

@@ -9,7 +9,9 @@ proofs in Lean, a language that lets a computer check each step. Our work builds
 An employee table has four rows and a department table has three. How can joining them on
 department ID give six? Follow the matches by hand, then see how Lean checks the counting rule.
 [Read the SQL walkthrough](https://www.cslib.io/cslib-frontier/guide/SQL-Query-Semantics/)
-or [browse the guide](https://www.cslib.io/cslib-frontier/guide/).
+or [browse the guide](https://www.cslib.io/cslib-frontier/guide/). The
+[codebase views](https://www.cslib.io/cslib-frontier/viz/) show how the modules depend on each
+other and how the library has grown.
 
 ## Get involved
 

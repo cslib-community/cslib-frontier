@@ -96,9 +96,7 @@ theorem lighter_eq_some {x y : Option (List ι)} {s : List ι} (h : lighter w x 
     | none => exact Or.inl h
     | some u =>
       simp only [lighter, Option.elim_some] at h
-      split_ifs at h
-      · exact Or.inr h
-      · exact Or.inl h
+      split_ifs at h <;> simp [h]
 
 /-- The lighter of a selection and anything weighs at most the selection. -/
 theorem exists_lighter_left (s : List ι) (y : Option (List ι)) :
@@ -108,8 +106,7 @@ theorem exists_lighter_left (s : List ι) (y : Option (List ι)) :
   | some t =>
     simp only [lighter, Option.elim_some]
     split_ifs with h
-    · exact ⟨t, rfl, h.le⟩
-    · exact ⟨s, rfl, le_rfl⟩
+    exacts [⟨t, rfl, h.le⟩, ⟨s, rfl, le_rfl⟩]
 
 /-- The lighter of anything and a selection weighs at most the selection. -/
 theorem exists_lighter_right (x : Option (List ι)) (t : List ι) :
@@ -119,8 +116,7 @@ theorem exists_lighter_right (x : Option (List ι)) (t : List ι) :
   | some s =>
     simp only [lighter, Option.elim_some]
     split_ifs with h
-    · exact ⟨t, rfl, le_rfl⟩
-    · exact ⟨s, rfl, not_lt.mp h⟩
+    exacts [⟨t, rfl, le_rfl⟩, ⟨s, rfl, not_lt.mp h⟩]
 
 /-- The entries of one step of the dynamic program. -/
 theorem getElem?_profitStep (T : List (Option (List ι))) (a : ι) (q : ℕ) :
@@ -188,19 +184,13 @@ theorem TableSpec.step {l : List ι} {T : List (Option (List ι))} (hT : TableSp
     omega
   · intro q s h
     rw [getElem?_profitStep] at h
-    split_ifs at h with hq hpq
-    · rw [Option.some.injEq] at h
-      rcases lighter_eq_some h with hx | hy
-      · exact ⟨(hT.sound q s (getD_eq_some hx)).1.trans (List.sublist_append_left l [a]),
-          (hT.sound q s (getD_eq_some hx)).2⟩
-      · obtain ⟨s', hs', rfl⟩ := Option.map_eq_some_iff.mp hy
-        obtain ⟨hsub, hsum⟩ := hT.sound _ s' (getD_eq_some hs')
-        exact ⟨hsub.append (List.Sublist.refl [a]), by simp [hsum]; omega⟩
-    · rw [Option.some.injEq] at h
-      rcases lighter_eq_some h with hx | hy
-      · exact ⟨(hT.sound q s (getD_eq_some hx)).1.trans (List.sublist_append_left l [a]),
-          (hT.sound q s (getD_eq_some hx)).2⟩
-      · cases hy
+    obtain ⟨_, h⟩ := Option.ite_none_right_eq_some.mp h
+    rcases lighter_eq_some (Option.some.inj h) with hx | hy
+    · exact (hT.sound q s (getD_eq_some hx)).imp_left (·.trans (List.sublist_append_left l [a]))
+    · obtain ⟨hpq, hy⟩ := Option.ite_none_right_eq_some.mp hy
+      obtain ⟨s', hs', rfl⟩ := Option.map_eq_some_iff.mp hy
+      obtain ⟨hsub, hsum⟩ := hT.sound _ s' (getD_eq_some hs')
+      exact ⟨hsub.append (List.Sublist.refl [a]), by simp [hsum]; omega⟩
   · intro s hs
     obtain ⟨l₁, l₂, rfl, h₁, h₂⟩ := List.sublist_append_iff.mp hs
     obtain ⟨r, hr, hrw⟩ := hT.complete l₁ h₁

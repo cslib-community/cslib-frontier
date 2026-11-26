@@ -401,14 +401,10 @@ theorem replace_indexed_labels_withAdvice {pair : SamplablePair} {gap : ℕ → 
   have hadv := hadversary.preprocess
     (hp1.fst'.fst'.prod (ComputableInPolyTime.bitsAppend hp1.snd' (.snd _ encBits)))
   have htest : IsPPTOn eIn encBool (fun ((a, i), middle) => test a i middle) :=
-    (show (fun ((a, i), middle) => test a i middle) = (fun p => test p.1.1 p.1.2 p.2) from rfl) ▸
-      (hfinish.bind_with (hsuffix.bind_with hadv) :
-        IsPPTOn eIn encBool (fun p => test p.1.1 p.1.2 p.2))
-  have h := hpair.extract_indexed_word_labels saved choose efficient.candidates_isPolyTime
+    hfinish.bind_with (hsuffix.bind_with hadv)
+  refine (hpair.extract_indexed_word_labels saved choose efficient.candidates_isPolyTime
     efficient.label_isPolyTime efficient.slack_isPolyTime efficient.numerator_isPolyTime
-    efficient.density_isPolyTime hchoose hvalid hbudget test htest
-  apply h.congr
-  intro n
+    efficient.density_isPolyTime hchoose hvalid hbudget test htest).congr fun n => ?_
   have hideal :
       ProbComp.eval (extractWordLabelsIdeal (Prod.fst <$> pair.sample n) (count n)
         (labelBits n (choose n)) >>= test (n, advice n) (choose n)) =
@@ -488,10 +484,8 @@ theorem SamplablePair.HasGapWithAdvice.extract_indexed_three {pair : SamplablePa
     (fun n => observationBits n (choose n)) (fun n => labelBits n (choose n))
     (fun n => remainingBits n (choose n)) hfits hfirst) continuation trivial
   simp only [ProbComp.eval_bind, BitString.eval_sampleList, continuation] at third middle first ⊢
-  apply negligible_of_le (third.add (middle.add first))
-  intro n
-  exact (Game.advantage_triangle _ _ _).trans
-    (add_le_add le_rfl (Game.advantage_triangle _ _ _))
+  exact negligible_of_le (third.add (middle.add first)) fun n =>
+    (Game.advantage_triangle _ _ _).trans (add_le_add le_rfl (Game.advantage_triangle _ _ _))
 
 /-- The three-source construction is computationally uniform relative to fixed advice under its
 three entropy budgets. The schedules must be computed by uniform polynomial-time algorithms.
@@ -533,9 +527,7 @@ theorem SamplablePair.HasGapWithAdvice.extract_three {pair : SamplablePair} {gap
   let p0 := ComputableInPolyTime.fst (encPair (encPair encUnary encBits) encUnary) encBits
   have htest : IsPPTOn (encPair (encPair (encPair encUnary encBits) encUnary) encBits)
       encBool (fun ((a, _), word) => adversary (a, word)) :=
-    (show (fun ((a, _), word) => adversary (a, word)) =
-        (fun x : ((ℕ × List Bool) × ℕ) × List Bool => adversary (x.1.1, x.2)) from rfl) ▸
-      hadversary.preprocess (p0.fst'.prod (.snd _ encBits))
+    hadversary.preprocess (p0.fst'.prod (.snd _ encBits))
   simpa only [distinguishingGame_eq_bind, PMF.monad_bind_eq_bind, ProbComp.eval_bind,
     BitString.eval_sampleList] using hpair.extract_indexed_three saved (fun _ => 0)
       (candidates := fun _ => 1) (observationBits := fun n _ => observationBits n)

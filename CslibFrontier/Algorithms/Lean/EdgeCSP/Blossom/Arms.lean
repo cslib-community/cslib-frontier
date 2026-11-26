@@ -37,8 +37,8 @@ variable {F : CSP Table ℕ} {w : Walk F}
   (w.drop (j.val + 1)).reverse.snoc w.steps[j.val].2 x
 
 private theorem boundary_ne_external {x o : Occurrence F} (hx : x.var ∉ internal w)
-    (ho : o ∈ w.edges) : o ≠ x := by
-  exact fun he => hx (List.mem_dedup.mpr (List.mem_map.mpr ⟨o, ho, congrArg Occurrence.var he⟩))
+    (ho : o ∈ w.edges) : o ≠ x :=
+  fun he => hx (List.mem_dedup.mpr (List.mem_map.mpr ⟨o, ho, congrArg Occurrence.var he⟩))
 
 private theorem external_not_mem {x : Occurrence F} (hx : x.var ∉ internal w) :
     x ∉ w.edges := fun he => boundary_ne_external hx he rfl
@@ -90,9 +90,7 @@ theorem outputArm_isWalk (hw : w.IsWalk) (hclosed : w.finish = w.start)
 
 private theorem edges_snoc (p : Walk F) (b x : Occurrence F) :
     (p.snoc b x).edges = p.edges ++ [b, x] := by
-  change Walk.edgesOf (p.steps ++ [(b, x)]) = _
-  rw [Walk.edgesOf_append]
-  rfl
+  simp [Walk.snoc, Walk.edges, Walk.edgesOf]
 
 private theorem cutAt_attachPort_flip {D Q : DAG F} {a : Arc F} {x : Occurrence F}
     {sub : Walk F} (f : OccurrenceLabeling F Bool)
@@ -101,12 +99,11 @@ private theorem cutAt_attachPort_flip {D Q : DAG F} {a : Arc F} {x : Occurrence 
     ((D.cutAt Q.copies a).attachPort ⟨x, a.time, !a.incoming⟩).flip f =
       (sub.snoc a.occurrence x).flip f := by
   unfold DAG.flip Walk.flip
-  simp only [attachPort]
-  rw [cutAt_arcs hp hq hs hsupp ha, Finset.image_insert, Finset.image_insert, hocc, edges_snoc]
-  apply congrArg (fun es => BitString.flipOn es f)
-  ext o
-  simp only [mem_insert, List.mem_toFinset, List.mem_append,
-    List.mem_cons, List.not_mem_nil, or_false]
+  rw [attachPort, cutAt_arcs hp hq hs hsupp ha, Finset.image_insert, Finset.image_insert, hocc,
+    edges_snoc]
+  refine congrArg (BitString.flipOn · f) (Finset.ext fun _ => ?_)
+  simp only [mem_insert, List.mem_toFinset, List.mem_append, List.mem_cons, List.not_mem_nil,
+    or_false]
   tauto
 
 /-- Completing the graph cut of a prefix flips exactly the executable prefix arm. -/
@@ -176,11 +173,10 @@ theorem exists_valid_arm {f : OccurrenceLabeling F Bool} (hb : w.IsBlossom Table
     have hi : Classical.decEq ℕ = instDecidableEqNat := Subsingleton.elim _ _
     exact congrArg (fun d => @blossomDAG Table ℕ F d w ts pivot) hi ▸ h0
   have hxT : x.var ∉ (blossomDAG w ts pivot).vars := by
-    rw [blossomDAG_vars w ts pivot hd.1]
-    intro hm
-    rcases mem_insert.mp hm with hxs | hm
+    rw [blossomDAG_vars w ts pivot hd.1, mem_insert, List.mem_toFinset]
+    rintro (hxs | hm)
     · exact hx (hxs ▸ List.mem_dedup.mpr (hb.1.start_mem_vars hb.2.2.1))
-    · exact hx (List.mem_dedup.mpr (List.mem_toFinset.mp hm))
+    · exact hx (List.mem_dedup.mpr hm)
   have hacc : accessibleArcs f (blossomArcs w.steps ts pivot) x ≠ [] := by
     obtain ⟨o, ho, hxo, hv⟩ := hex
     obtain ⟨a, ha, rfl⟩ := mem_image.mp
@@ -238,12 +234,9 @@ theorem armCandidates_edges {x : Occurrence F} {p : Walk F} (hp : p ∈ armCandi
     {o : Occurrence F} (ho : o ∈ p.edges) : o = x ∨ o ∈ w.edges := by
   have hsnoc {sub : Walk F} {b : Occurrence F} (h : o ∈ (sub.snoc b x).edges)
       (hsub : ∀ e ∈ sub.edges, e ∈ w.edges) (hb : b ∈ w.edges) : o = x ∨ o ∈ w.edges := by
-    rw [edges_snoc] at h
-    simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at h
+    rw [edges_snoc, List.mem_append, List.mem_cons, List.mem_singleton] at h
     rcases h with h | rfl | rfl
-    · exact Or.inr (hsub o h)
-    · exact Or.inr hb
-    · exact Or.inl rfl
+    exacts [Or.inr (hsub o h), Or.inr hb, Or.inl rfl]
   obtain ⟨j, _, rfl | rfl⟩ := (mem_armCandidates x p).mp hp
   · exact hsnoc ho
       (fun e he => (List.take_sublist j.val w.steps).flatMap (fun s => [s.1, s.2]) |>.subset he)

@@ -119,20 +119,15 @@ theorem sum_component_mul_randomWalk (u y : V) :
   classical
   by_cases hy : G.toSimpleGraph.Reachable u y
   · rw [ite_eq_left hy]
-    have : ∀ x, (if G.toSimpleGraph.Reachable u x then 1 else 0) * G.randomWalk x y =
-        G.randomWalk y x := by
-      intro x
-      by_cases hc : G.edgeCount x y = 0
-      · rw [randomWalk_apply, randomWalk_apply, G.edgeCount_comm y x, hc]; simp
-      · rw [ite_eq_left (hy.trans (reachable_of_edgeCount_ne_zero hc).symm), one_mul,
-          randomWalk_apply, randomWalk_apply, G.edgeCount_comm]
-    simp_rw [this]
-    exact sum_apply _ y
+    refine (sum_congr rfl fun x _ => ?_).trans (sum_apply G.randomWalk y)
+    by_cases hc : G.edgeCount x y = 0
+    · simp [randomWalk_apply, G.edgeCount_comm y x, hc]
+    · rw [ite_eq_left (hy.trans (reachable_of_edgeCount_ne_zero hc).symm), one_mul,
+        randomWalk_apply, randomWalk_apply, G.edgeCount_comm]
   · rw [ite_eq_right hy]
     refine sum_eq_zero fun x _ => ?_
     by_cases hx : G.toSimpleGraph.Reachable u x
-    · rw [randomWalk_apply, not_not.1 fun hc => hy (hx.trans (reachable_of_edgeCount_ne_zero hc))]
-      simp
+    · simp [randomWalk_apply, not_not.1 fun hc => hy (hx.trans (reachable_of_edgeCount_ne_zero hc))]
     · simp [hx]
 
 /-- In a regular multigraph, every vertex reaches every vertex of its component along transitions
@@ -323,12 +318,10 @@ theorem isStationary_uniform_randomWalk [Nonempty V] :
   classical
   ext y
   rw [PMF.bind_apply, tsum_fintype]
-  simp only [PMF.uniformOfFintype_apply]
-  rw [← mul_sum]
-  simp_rw [randomWalk_apply, G.edgeCount_comm _ y, div_eq_mul_inv, ← sum_mul]
-  rw [← Nat.cast_sum, G.sum_edgeCount,
-    ENNReal.mul_inv_cancel
-          (Nat.cast_ne_zero.2 Fintype.card_ne_zero) (ENNReal.natCast_ne_top _), mul_one]
+  simp only [PMF.uniformOfFintype_apply, randomWalk_apply, G.edgeCount_comm _ y, div_eq_mul_inv,
+    ← mul_sum, ← sum_mul, ← Nat.cast_sum, G.sum_edgeCount,
+    ENNReal.mul_inv_cancel (Nat.cast_ne_zero.2 Fintype.card_ne_zero) (ENNReal.natCast_ne_top _),
+    mul_one]
 
 omit [DecidableEq V] in
 /-- **Arora–Barak, Exercise 7.9(b)(i).** On a connected regular multigraph, the uniform
@@ -357,11 +350,10 @@ theorem isStationary_randomWalk_iff (hG : G.toSimpleGraph.Connected) (π : PMF V
     (ENNReal.toReal_eq_toReal_iff' (π.apply_ne_top x) (π.apply_ne_top u)).1
       (eq_of_forall_sum_edgeCount_mul_eq hG.preconnected hf x u)
   have hsum : (Fintype.card V : ℝ≥0∞) * π u = 1 := by
-    rw [← π.tsum_coe, tsum_fintype]
-    simp [hconst]
+    simpa [tsum_fintype, hconst] using π.tsum_coe
   ext x
   rw [PMF.uniformOfFintype_apply, hconst x]
-  exact (ENNReal.eq_inv_of_mul_eq_one_left (by rwa [mul_comm] at hsum))
+  exact ENNReal.eq_inv_of_mul_eq_one_left (mul_comm (Fintype.card V : ℝ≥0∞) (π u) ▸ hsum)
 
 /-! ### Spectral expansion and total-variation mixing -/
 

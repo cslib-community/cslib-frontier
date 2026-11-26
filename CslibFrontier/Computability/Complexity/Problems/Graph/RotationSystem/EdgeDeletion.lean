@@ -46,9 +46,8 @@ open Equiv Perm.CycleSurgery
 /-- The last two actual endpoints are exactly the supplied names. -/
 @[simp] theorem vertex_lastEdgeDart (G : Graph) (u v : ℕ) (b : Bool) :
     (lastEdgeDart G u v b).vertex = if b then v else u := by
-  cases b
-  · exact (by simp : ((G.edges ++ [(u, v)]).getD G.edges.length (0, 0)).1 = u)
-  · exact (by simp : ((G.edges ++ [(u, v)]).getD G.edges.length (0, 0)).2 = v)
+  have h : (G.edges ++ [(u, v)]).getD G.edges.length (0, 0) = (u, v) := by simp
+  exact Bool.rec (congrArg Prod.fst h) (congrArg Prod.snd h) b
 
 /-- Reversal interchanges the two last indexed ends. -/
 theorem reverse_lastEdgeDart (G : Graph) (u v : ℕ) (b : Bool) :
@@ -77,14 +76,11 @@ theorem _root_.Cslib.Complexity.Graph.exists_lastEdge_reindex (G : Graph) (i : F
     let u := (f i).1
     let v := (f i).2
     have hlenH : H.edges.length + 1 = E.length + 1 := by
-      change ((edge :: E).eraseIdx i.val).length + 1 = E.length + 1
-      rw [List.length_eraseIdx_of_lt i.isLt, List.length_cons]; omega
+      simp [H, List.length_eraseIdx_of_lt i.isLt]
     have hσi : σ i = Fin.last E.length := by
-      change (finSuccEquiv' (Fin.last E.length)).symm (finSuccEquiv' i i) = _
-      rw [finSuccEquiv'_eq_none.mpr rfl, finSuccEquiv'_symm_none]
+      simp [σ, finSuccEquiv'_eq_none.mpr rfl]
     have hσ (j : Fin E.length) : σ (i.succAbove j) = j.castSucc := by
-      change (finSuccEquiv' (Fin.last E.length)).symm (finSuccEquiv' i (i.succAbove j)) = _
-      rw [finSuccEquiv'_succAbove, ← finSuccEquiv'_last_apply_castSucc j, symm_apply_apply]
+      simp [σ, ← finSuccEquiv'_last_apply_castSucc j]
     have hlist : (lastEdgeGraph H u v).edges = List.ofFn (f ∘ σ.symm) := by
       have hrest : H.edges = List.ofFn (fun j => f (i.succAbove j)) := by
         change ((edge :: E).eraseIdx i.val) = _
@@ -118,10 +114,8 @@ theorem _root_.Cslib.Complexity.Graph.exists_lastEdge_reindex (G : Graph) (i : F
     · change (σ i).val = H.edges.length
       rw [hσi]
       exact Nat.add_right_cancel (by simpa only [Fin.val_last] using hlenH.symm)
-    · change (f i).1 = ((edge :: E).getD i.val (0, 0)).1
-      rw [List.getD_eq_getElem _ _ i.isLt]; rfl
-    · change (f i).2 = ((edge :: E).getD i.val (0, 0)).2
-      rw [List.getD_eq_getElem _ _ i.isLt]; rfl
+    · exact congrArg Prod.fst (List.getD_eq_getElem _ _ i.isLt).symm
+    · exact congrArg Prod.snd (List.getD_eq_getElem _ _ i.isLt).symm
 
 /-- Retain an old dart, without changing its edge-list index or end. -/
 @[expose] def retainedLastEdgeDart (G : Graph) (u v : ℕ) (d : Dart G) :

@@ -290,9 +290,7 @@ def leafCost (cost : X → ℕ) (σ : State X A Y) : ℕ :=
 
 private theorem length_pending_le {σ : State X A Y} {x : X} (hx : σ.2.1 = some x) :
     (encX x).length ≤ (encState encX encA encY σ).length := by
-  rcases σ with ⟨st, r, v⟩
-  simp only at hx
-  subst hx
+  rcases σ with ⟨st, _ | x', v⟩ <;> cases hx
   enc_len
 
 /-- **The cost of one step**: a polynomial in the state length, plus the leaf certificate at a
@@ -329,11 +327,9 @@ theorem exists_stepCertificate_le (h : R.PolyTime encX encA encY)
     cases hl : R.isLeaf x
     · simp only [leafCost, isLeafCall, Option.elim, hl, Bool.false_eq_true, ite_false, Nat.add_zero]
       constructor <;> omega
-    · simp only [leafCost, isLeafCall, Option.elim, hl, ite_true]
-      have hpair := length_encPair (enc₁ := encState encX encA encY) (enc₂ := encX)
-        ((st, some x, v), x)
-      dsimp only at hpair
-      rw [leafStepCertificate_time, leafStepCertificate_space]
+    · simp only [leafCost, isLeafCall, Option.elim, hl, ite_true,
+        leafStepCertificate_time, leafStepCertificate_space,
+        length_encPair (enc₁ := encState encX encA encY)]
       constructor <;> omega
 
 /-- **The native machine** for the clocked run: one fixed machine, from native certificates for
@@ -365,7 +361,6 @@ theorem length_encState_le {Inv : Invariant X A Y} {H F : ℕ} {σ : State X A Y
             have := hframe x a (hfr _ hf)
             omega
       _ ≤ H * (2 * F + 1) := by simpa [smul_eq_mul] using Nat.mul_le_mul_right (2 * F + 1) hlen
-  have hHF : H * (2 * F + 1) ≤ 2 * H * F + H := by rw [Nat.mul_add, Nat.mul_one]; ring_nf; omega
   rcases σ with ⟨st, r, v⟩
   rcases hreg with ⟨x, hr, hx⟩ | ⟨y, hr, hy⟩ <;> simp only [Prod.mk.injEq] at hr <;>
     obtain ⟨rfl, rfl⟩ := hr <;>
@@ -427,9 +422,7 @@ theorem certificate_le (h : R.PolyTime encX encA encY)
       (hB : ∀ x, Inv.node x → R.isLeaf x = true → cost x ≤ B) (j : ℕ) :
       R.leafCost cost (R.step^[j] ([], some (root a), none)) ≤ B := by
     obtain ⟨-, -, ⟨x, hr, hx⟩ | ⟨y', hr, -⟩⟩ := hgood j <;> simp only [leafCost, hr, Option.elim]
-    · split_ifs with hl
-      · exact hB x hx hl
-      · exact Nat.zero_le _
+    · cases hl : R.isLeaf x <;> simp [hl, hB x hx]
     · exact Nat.zero_le _
   have hround (j : ℕ) :
       (stepCertificate h leaf).time (R.step^[j] ([], some (root a), none)) ≤
@@ -437,9 +430,8 @@ theorem certificate_le (h : R.PolyTime encX encA encY)
         (stepCertificate h leaf).space (R.step^[j] ([], some (root a), none)) ≤
           K₀ * (5 * z + 1) ^ K₀ + SL := by
     obtain ⟨ht, hs⟩ := hK₀ (R.step^[j] ([], some (root a), none))
-    have hp : K₀ * ((encState encX encA encY (R.step^[j] ([], some (root a), none))).length + 1) ^
-        K₀ ≤ K₀ * (5 * z + 1) ^ K₀ :=
-      Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by have := hlen j; omega) _)
+    have hp := Nat.mul_le_mul_left K₀
+      (Nat.pow_le_pow_left (Nat.add_le_add_right (hlen j) 1) K₀)
     have hct := hcost leaf.time TL (fun x hx hl => ((hnode x hx).2 hl).1) j
     have hcs := hcost leaf.space SL (fun x hx hl => ((hnode x hx).2 hl).2) j
     constructor <;> omega
@@ -455,14 +447,10 @@ theorem certificate_le (h : R.PolyTime encX encA encY)
     NativeCertificate.prod_time, NativeCertificate.prod_space, NativeCertificate.const_time,
     NativeCertificate.const_space, NativeCertificate.some_time, NativeCertificate.some_space]
   refine ⟨?_, by omega⟩
-  have hstep : NativeCertificate.maxRoundTime (stepCertificate h leaf) (fuel a)
-      ([], some (root a), none) +
-      NativeCertificate.maxStateLength
-        (encPair (encList (encPair encX encA)) (encPair (encOption encX) (encOption encY)))
-        R.step (fuel a) ([], some (root a), none) + ((encNat (fuel a)).length + 1) ^ 2 ≤
-      (K₀ * 6 ^ K₀ + K₀ + 6) * z ^ (K₀ * 6 ^ K₀ + K₀ + 6) + TL +
-        ((encNat (fuel a)).length + 1) ^ 2 := by omega
-  have := Nat.mul_le_mul_left (fuel a + 1) hstep
+  have h := Nat.mul_le_mul_left (fuel a + 1) (Nat.add_le_add_right
+    ((Nat.add_le_add hmaxT hmaxL).trans
+      (by omega : _ ≤ (K₀ * 6 ^ K₀ + K₀ + 6) * z ^ (K₀ * 6 ^ K₀ + K₀ + 6) + TL))
+    (((encNat (fuel a)).length + 1) ^ 2))
   omega
 
 end Certificate

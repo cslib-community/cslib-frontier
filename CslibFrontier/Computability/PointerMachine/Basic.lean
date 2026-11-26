@@ -109,8 +109,7 @@ theorem Instr.effect_valid {i : Instr M L} {x : State M L} (hx : x.Valid) :
     exact hx.modify fun m hm f' b hb => by
       simp only [Function.update_apply] at hb
       split_ifs at hb
-      · exact hx.1 r b hb
-      · exact hx.2 m hm f' b hb
+      exacts [hx.1 r b hb, hx.2 m hm f' b hb]
   | storeData f base s => exact hx.modify fun m hm f' b hb => hx.2 m hm f' b hb
   | create r =>
     refine ⟨fun r' b hb => ?_, fun n hn f b hb => ?_⟩
@@ -127,10 +126,8 @@ theorem Instr.effect_valid {i : Instr M L} {x : State M L} (hx : x.Valid) :
 theorem Instr.effect_length {i : Instr M L} {x : State M L} :
     x.heap.length ≤ (i.effect x).heap.length ∧
       (i.effect x).heap.length ≤ x.heap.length + 1 := by
-  cases i <;> simp only [Instr.effect, State.setPtr, State.setData]
-  all_goals first
-    | (cases x.deref ‹_› <;> simp)
-    | simp
+  cases i <;> simp only [Instr.effect, State.setPtr, State.setData] <;>
+    first | (cases x.deref ‹_› <;> simp) | simp
 
 /-- A pointer in a register after an instruction was in a register before it, or in a field of
 a record specified by a register, or specifies the record just created. -/
@@ -184,8 +181,7 @@ theorem Instr.effect_heap_provenance {i : Instr M L} {x : State M L}
   case create r =>
     rcases List.mem_append.mp hn with hm | hm
     · exact old hm ha
-    · rw [List.mem_singleton.mp hm] at ha
-      cases ha
+    · cases List.mem_singleton.mp hm ▸ ha
   all_goals exact old hn ha
 
 /-- In a valid state, `create` returns a pointer that no register or record held. -/
@@ -201,13 +197,8 @@ theorem step_eq_some_iff {code : List (Instr M L)} {x y : State M L} :
     step code x = some y ↔
       ∃ i, code[x.pc]? = some i ∧ i ≠ .halt ∧ y = { i.effect x with pc := i.next x } := by
   unfold step
-  split
-  · simp_all
-  · simp_all
-  · next i hne hi => exact ⟨fun h => ⟨i, hi, by simpa using hne, (Option.some.inj h).symm⟩, by
-      rintro ⟨j, hj, -, rfl⟩
-      cases hi.symm.trans hj
-      rfl⟩
+  split <;> simp_all
+  grind
 
 /-- Program steps preserve validity. -/
 theorem step_valid {code : List (Instr M L)} {x y : State M L}

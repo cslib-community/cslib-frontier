@@ -72,26 +72,19 @@ private theorem exists_endpointPrefix (c q : Circuit signature n n) (hL : 0 < L)
   let src := s' ∪ ({fun _ => false} ∪ {fun _ => true} : Set (BooleanFunction n))
   have hbit (b : Bool) : (fun _ : BitString n => b) ∈ src := by cases b <;> simp [src]
   have hrow (i : Fin K) (j : Fin (n + n)) : (fun x => row x i j) ∈ src := by
-    cases j using Fin.addCases with
-    | left j =>
-      simpa only [row, Fin.append_left] using
-        (show (fun x => f^[cut i] x j) ∈ src from
-          Or.inl (Or.inl (Or.inr (prefix_mem f (by have := hcut i; dsimp [K]; lia) j))))
-    | right j => simpa only [row, Fin.append_right] using hbit _
+    cases j using Fin.addCases <;> simp only [row, Fin.append_left, Fin.append_right]
+    exacts [Or.inl (Or.inl (Or.inr (prefix_mem f
+      ((hcut i).le.trans (Nat.le_mul_of_pos_left L two_pos)) _))), hbit _]
   have hr := synthesis_chooseRecord src flags row (fun x => row x first)
     (fun j => Or.inl (Or.inr ⟨j, rfl⟩)) hrow (hrow first)
   obtain ⟨out, hout, hs⟩ := (ht.trans (hf.trans (hconst.trans hr))).exists_circuit_outputs
   refine ⟨out, fun x => cut (index x), fun x => ?_, fun x => ⟨hcut _, fun hi => ?_⟩,
     hs.trans (le_of_eq (by dsimp only [K]; ring))⟩
-  · rw [hout x]
-    change chooseRecord (flags x) (row x) (row x first) K = row x (index x)
-    exact (chooseRecord_map (row x) (flags x) id first K).symm
+  · exact (hout x).trans (chooseRecord_map (row x) (flags x) id first K).symm
   · obtain ⟨⟨j, hj⟩, hmin⟩ := leastRankFlag_spec (ranks x) first
     obtain ⟨i, _, hflag, he⟩ := chooseRecord_spec (flags x) id first K ⟨j, j.isLt, hj⟩
-    change index x = i at he
-    change IsEndpointCheckpoint f _ L (f^[cut (index x)] x)
-    rw [he]
-    exact isEndpointCheckpoint_of_min f _ hi i (hmin i hflag)
+    dsimp only [index, id] at he ⊢
+    exact he ▸ isEndpointCheckpoint_of_min f _ hi i (hmin i hflag)
 
 /-- Feed the selected checkpoint and the unspent time to a circuit that answers queries
 starting at a mark. Both operands of the subtraction are widened, so the time may have any
@@ -135,13 +128,10 @@ private theorem exists_shiftedQuery (c q : Circuit signature n n) (hL : 0 < L) (
   let arg y := Fin.append (mark y) (BitString.equivBitVec.symm (remTime y))
   have hc := Synthesis.circuit (I := interpretation) (s := src ∪ wordWires remTime) query
     (fun i y => arg y i) fun i => by
-      cases i using Fin.addCases with
-      | left j => simpa only [arg, Fin.append_left] using
-          (show (fun y => mark y j) ∈ src ∪ wordWires remTime from
-            Or.inl (Or.inl (Or.inr ⟨_, rfl⟩)))
-      | right j => simpa only [arg, Fin.append_right, BitString.equivBitVec_symm_apply,
-          ← BitVec.getLsbD_eq_getElem] using
-          (show (fun y => (remTime y).getLsbD j.val) ∈ src ∪ wordWires remTime from Or.inr ⟨j, rfl⟩)
+      cases i using Fin.addCases <;>
+        simp only [arg, Fin.append_left, Fin.append_right, BitString.equivBitVec_symm_apply,
+          ← BitVec.getLsbD_eq_getElem]
+      exacts [Or.inl (Or.inl (Or.inr ⟨_, rfl⟩)), Or.inr ⟨_, rfl⟩]
   obtain ⟨out, ho, hs⟩ :=
     (hpref.trans ((Synthesis.const false).trans (hr.trans hc))).exists_circuit_outputs
   refine ⟨out, fun x t ht0 hinj => ?_, by lia⟩
@@ -163,9 +153,8 @@ private theorem exists_shiftedQuery (c q : Circuit signature n n) (hL : 0 < L) (
         Nat.mod_eq_of_lt (hdLt.trans_le hLN)]
     dsimp only [remTime]
     rw [htime, hoff, BitVec.toNat_sub_of_le (by rw [BitVec.le_def, htw, hdw']; omega), htw, hdw']
-  refine (ho y).trans ?_
-  change query.eval interpretation
-    (Fin.append (mark y) (BitString.equivBitVec.symm (remTime y))) = _
+  rw [ho y]
+  dsimp only [arg]
   rw [hmark, hq _ ((hd x).2 hinj), hsub, ← Function.iterate_add_apply,
     Nat.sub_add_cancel (by omega)]
 
@@ -211,8 +200,7 @@ private theorem exists_markedPower {w : ℕ} (c q : Circuit signature n n)
   obtain ⟨out, hval, hs⟩ := exists_branch tree cycle 0 Fin.succ
   refine ⟨out, fun h hh u => ?_, ?_⟩
   · rw [hval]
-    dsimp only
-    rw [hflag h hh, Equiv.apply_symm_apply]
+    simp only [hflag h hh, Equiv.apply_symm_apply]
     by_cases hu : u.toNat < transientDepth (c.eval interpretation) h
     · simpa only [hu, decide_true, ite_true, Equiv.apply_symm_apply, Fin.tail_def] using
         (htree h hh (BitString.equivBitVec.symm u) (by simpa using hu))
@@ -259,10 +247,8 @@ theorem input_time_endpoint_tradeoff (c : Circuit signature n n) (m L : ℕ)
         Fin.append_castAdd_natAdd] using
         hlong x t (Nat.le_of_not_gt (fun ht => ready (.inl ht)))
           (injective_of_not_liveShortReady ready)
-  · have hcard : H.card ≤ 512 * (2 ^ n / L + 1) := by
-      apply Nat.le_of_lt
-      apply Nat.lt_of_mul_lt_mul_right (a := L)
-      nlinarith [Nat.lt_mul_div_succ (2 ^ n) hL]
+  · have hcard : H.card ≤ 512 * (2 ^ n / L + 1) := Nat.le_of_lt <|
+      Nat.lt_of_mul_lt_mul_right (a := L) (by nlinarith [Nat.lt_mul_div_succ (2 ^ n) hL])
     have hRank := Nat.mul_le_mul_left L hq
     have hSquare := Nat.mul_le_mul_right (n * n) hL
     have hLinear := Nat.mul_le_mul_right n hL

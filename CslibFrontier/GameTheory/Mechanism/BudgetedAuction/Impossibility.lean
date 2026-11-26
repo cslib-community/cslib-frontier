@@ -142,10 +142,8 @@ private theorem unconstrained_winner_payment_eq {M : BudgetedMechanism ι} {m : 
     refine (Finset.sum_eq_single j (fun k _ hkj => ?_) (by simp)).symm
     refine alloc_eq_zero_of_lt_unconstrained hbf hir hpo hθ' (a := j) ?_
       (by simpa only [Function.update_self] using hBw)
-    simp only [Function.update_self, Function.update_of_ne hkj]
-    rcases eq_or_ne k i with rfl | hki
-    · exact hw
-    · exact (hrest k hki hkj).trans hw
+    simpa only [Function.update_self, Function.update_of_ne hkj] using
+      (eq_or_ne k i).elim (fun hki => hki ▸ hw) fun hki => (hrest k hki hkj).trans hw
   have hir_le (w Bw : ℝ) (hw : (θ i).val < w) (hBw : w * m < Bw) :
       (M.outcome (Function.update θ j ⟨w, Bw⟩)).payment j ≤ w * m := by
     have hw_pos : 0 < w := (hθ i).1.trans hw
@@ -289,10 +287,7 @@ theorem pinning_of_isPrivateBudgetDSIC_isParetoOptimal {M : BudgetedMechanism ι
         hpj_le.trans ((by linarith : (θ j).budget ≤ (θ j).budget + 1).trans (le_max_right _ _)))
     simp only [Outcome.utility, Function.update_idem, Function.update_self, hxt, hpt] at hic_dev
     have hεm : ε * m = (x * (θ i).val - (θ j).budget) / 2 := by dsimp only [ε]; field_simp [hm.ne']
-    have : 0 ≤ ε * x := mul_nonneg hε_pos.le ((hpo _ hθw).1.1 j)
-    dsimp only [t] at hic_dev
-    linarith [show ((θ i).val + ε) * x = (θ i).val * x + ε * x by ring,
-      show ((θ i).val + ε) * m - (θ i).val * m = ε * m by ring]
+    nlinarith only [hic_dev, hεm, hpj_le, hgt, hε_pos, (hpo _ hθw).1.1 j]
   have hup_self : (M.outcome θ).alloc j ≤ (θ j).budget / (θ i).val := by
     simpa only [Function.update_eq_self] using hupper (θ j).val hlt_ij
   -- Whenever bidder `j` reports `w > v_i` with budget `B_j` and receives `< m`, its budget binds.
@@ -361,9 +356,8 @@ theorem pinning_of_isPrivateBudgetDSIC_isParetoOptimal {M : BudgetedMechanism ι
         linarith [h0 ▸ payment_le_of_ir hir hθ j]
       -- Pick `w` just above `v_i` with `w * alloc j < v_i * m = budget`.
       let w := (θ i).val + ((θ i).val * (m - (M.outcome θ).alloc j)) / (2 * (M.outcome θ).alloc j)
-      have hw : (θ i).val < w := by
-        linarith [div_pos (mul_pos hv_i_pos (sub_pos.mpr hxj_lt))
-          (by positivity : 0 < 2 * (M.outcome θ).alloc j)]
+      have hw : (θ i).val < w :=
+        lt_add_of_pos_right _ (div_pos (mul_pos hv_i_pos (sub_pos.mpr hxj_lt)) (by positivity))
       have hθw := update_pos hθ j (b := ⟨w, (θ j).budget⟩) ⟨hv_i_pos.trans hw, hB_j_pos⟩
       have hp_le :
           (M.outcome (Function.update θ j ⟨w, (θ j).budget⟩)).payment j ≤ (θ j).budget := by
@@ -375,11 +369,10 @@ theorem pinning_of_isPrivateBudgetDSIC_isParetoOptimal {M : BudgetedMechanism ι
         le_of_mul_le_mul_left (by linarith : (θ j).val * _ ≤ (θ j).val * _) (hθ j).1
       have hiru := payment_le_of_ir hir hθw j
       simp only [Function.update_self, hpay_if_lt w hw (lt_of_le_of_lt hxw_le hxj_lt)] at hiru
-      have hwm := mul_le_mul_of_nonneg_left hxw_le (hv_i_pos.trans hw).le
       have hcalc : w * (M.outcome θ).alloc j =
           (θ i).val * (M.outcome θ).alloc j + (θ i).val * (m - (M.outcome θ).alloc j) / 2 := by
         dsimp only [w]; field_simp [hxj_pos.ne']
-      nlinarith
+      nlinarith only [hiru, heq, hxj_lt, hv_i_pos, hw, hxw_le, hcalc]
     exact ⟨hxj_eq.trans hdiv_eq.symm, by linarith, hother0, fun h => absurd heq h.ne⟩
 
 /-- Harmonic telescoping upper bound `∑_{r=6}^{14} 1 / r = 348911 / 360360 < 1`. -/
@@ -424,12 +417,11 @@ private theorem payoff_at_overreport_budget {M : BudgetedMechanism ι} {m : ℝ}
             _ < 10 := by norm_num)
       (fun r hri hrj => by
         simp only [prof, Function.update_self, Function.update_of_ne hri, hbase_rest r hri hrj]
-        have : (1 : ℝ) / (2 * m) < 1 / m := (div_lt_div_iff₀ (by positivity) hm).mpr (by linarith)
-        linarith)
+        linarith [(div_lt_div_iff₀ (a := 1) (c := 1)
+          (mul_pos zero_lt_two hm) hm).mpr (by linarith)])
       (by simp only [prof, Function.update_self, Function.update_of_ne hij.symm, hbase_j]
-          have : (5 : ℝ) / (2 * m) < 100 / m :=
-            (div_lt_div_iff₀ (by positivity) hm).mpr (by linarith)
-          linarith)
+          linarith [(div_lt_div_iff₀ (a := 5) (c := 100)
+            (mul_pos zero_lt_two hm) hm).mpr (by linarith)])
       (by simp only [prof, Function.update_self, Function.update_of_ne hij.symm, hbase_j]
           calc (1 : ℝ)
             _ = (1 / m) * m := by field_simp [hm.ne']
@@ -440,8 +432,7 @@ private theorem payoff_at_overreport_budget {M : BudgetedMechanism ι} {m : ℝ}
       rw [halloc_i 0]
       simp only [t, Fin.val_zero, Nat.cast_zero, zero_add]
       field_simp [hm.ne']; ring
-    have h2 := payment_le_of_ir hir (hprof_pos 0) i
-    rw [ha0, mul_zero] at h2; linarith [hnn _ (hprof_pos 0) i]
+    linarith [ha0 ▸ payment_le_of_ir hir (hprof_pos 0) i, hnn _ (hprof_pos 0) i]
   have hstep (k : Fin 9) :
       (M.outcome (prof k.succ)).payment i - (M.outcome (prof k.castSucc)).payment i ≤
         1 / ((k.val : ℝ) + 6) := by
@@ -455,15 +446,12 @@ private theorem payoff_at_overreport_budget {M : BudgetedMechanism ι} {m : ℝ}
     have hdiff : t k.succ * ((m - 1 / t k.succ) - (m - 1 / t k.castSucc)) =
         1 / ((k.val : ℝ) + 6) := by
       simp only [t, Fin.val_succ, Fin.val_castSucc, Nat.cast_add, Nat.cast_one]
-      field_simp [hm.ne', (by positivity : ((k.val : ℝ) + 6) ≠ 0),
-        (by positivity : ((k.val : ℝ) + 1 + 6) ≠ 0)]
-      ring
+      field_simp; ring
     linarith
   have ht9 : t (Fin.last 9) = 5 / (2 * m) := by
     simp only [t, Fin.val_last]
     field_simp [hm.ne']; norm_num
-  have hprof9 : prof (Fin.last 9) = Function.update θbase i ⟨5 / (2 * m), 10⟩ := by
-    dsimp only [prof]; rw [ht9]
+  have hprof9 : prof (Fin.last 9) = Function.update θbase i ⟨5 / (2 * m), 10⟩ := by rw [← ht9]
   have htel := fin_sum_telescope fun k : Fin 10 => (M.outcome (prof k)).payment i
   have hbound := Finset.sum_le_sum fun k (_ : k ∈ Finset.univ) => hstep k
   rw [← hprof9]
@@ -487,8 +475,7 @@ theorem not_exists_privateBudgetDSIC_isParetoOptimal {m : ℝ} (hm : 0 < m)
       M.IsParetoOptimalOnPos m ∧
       M.IsPrivateBudgetDSIC := by
   rintro ⟨M, hfeas, hnn, hbf, hir, hpo, hic⟩
-  obtain ⟨i₀, -, i₁, -, hne⟩ := Finset.one_lt_card.mp (by rw [Finset.card_univ]; omega :
-    1 < (Finset.univ : Finset ι).card)
+  obtain ⟨i₀, i₁, hne⟩ := Fintype.one_lt_card_iff.mp hcard
   let θstar : ι → BidderType := fun k =>
     if k = i₀ ∨ k = i₁ then ⟨100 / m, 1⟩ else ⟨1 / (2 * m), 1⟩
   have hθ_pos (k : ι) : (θstar k).IsPos := by

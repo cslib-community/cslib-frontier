@@ -53,9 +53,8 @@ private theorem measurableSet_forall_lt (v : Fin 3 → E) (θ : ℝ) :
 private theorem prob_exists_ge_eq (v : Fin 3 → E) (θ : ℝ) :
     (stdGaussian E).real {x | ∃ j, θ ≤ ⟪v j, x⟫} =
       1 - (stdGaussian E).real {x | ∀ j, ⟪v j, x⟫ < θ} := by
-  have hcompl : {x : E | ∃ j, θ ≤ ⟪v j, x⟫} = {x | ∀ j, ⟪v j, x⟫ < θ}ᶜ := by
-    ext x
-    simp only [Set.mem_ofPred_eq, Set.mem_compl_iff, not_forall, not_lt]
+  have hcompl : {x : E | ∃ j, θ ≤ ⟪v j, x⟫} = {x | ∀ j, ⟪v j, x⟫ < θ}ᶜ :=
+    Set.ext fun _ => by simp only [Set.mem_ofPred_eq, Set.mem_compl_iff, not_forall, not_lt]
   rw [hcompl, measureReal_compl (measurableSet_forall_lt v θ), probReal_univ]
 
 /-- The ideal residual triple attains the equilateral value. -/
@@ -105,9 +104,7 @@ private theorem measurableSet_switchSet' {F : Type*} [NormedAddCommGroup F] [Inn
 /-- The ideal-star neighbor label in terms of the root and the residual. -/
 private theorem bstar_split {r : ℝ} (hs : 0 < Ideal.s r) (j : Fin 3) (y : E3) :
     0 ≤ ⟪bstar r j, y⟫ ↔ -(r * ⟪e 0, y⟫) / Ideal.s r ≤ ⟪u j, y⟫ := by
-  have hb : ⟪bstar r j, y⟫ = r * ⟪e 0, y⟫ + Ideal.s r * ⟪u j, y⟫ := by
-    simp [bstar, inner_add_left, real_inner_smul_left]
-  rw [hb, div_le_iff₀ hs]
+  simp only [bstar, inner_add_left, real_inner_smul_left, div_le_iff₀ hs]
   constructor <;> intro h <;> linarith
 
 /-- **Comparison with the ideal star.** -/
@@ -167,10 +164,10 @@ private theorem ideal_switch {r : ℝ} (hr : 0 < r) (hr1 : r < 1) :
       exact (measurableSet_le measurable_const (by fun_prop)).inter
         (MeasurableSet.iUnion fun j => measurableSet_le (by fun_prop) measurable_const)
     have hneg : {y : E3 | ⟪e 0, y⟫ ≤ 0 ∧ ∃ j, 0 ≤ ⟪bstar r j, y⟫} =
-        Neg.neg ⁻¹' {y | 0 ≤ ⟪e 0, y⟫ ∧ ∃ j, ⟪bstar r j, y⟫ ≤ 0} := by
-      ext y
-      simp only [Set.mem_ofPred_eq, Set.mem_preimage, inner_neg_right, Left.nonneg_neg_iff,
-        neg_nonpos]
+        Neg.neg ⁻¹' {y | 0 ≤ ⟪e 0, y⟫ ∧ ∃ j, ⟪bstar r j, y⟫ ≤ 0} :=
+      Set.ext fun _ => by
+        simp only [Set.mem_ofPred_eq, Set.mem_preimage, inner_neg_right, Left.nonneg_neg_iff,
+          neg_nonpos]
     rw [hneg, Measure.real, measure_neg_preimage_stdGaussian hm, ← Measure.real, idealProb]
   have h2 : μ.real {y | ⟪e 0, y⟫ ≤ 0 ∧ ∀ j, 0 ≤ ⟪bstar r j, y⟫} = 0 := by
     apply le_antisymm _ measureReal_nonneg
@@ -223,10 +220,8 @@ theorem switch_bound {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E
   have hrefl : μ.real {x | 0 ≤ ⟪a, x⟫ ∧ ∀ i, ⟪b i, x⟫ ≤ 0} =
       μ.real {x | ⟪a, x⟫ ≤ 0 ∧ ∀ i, 0 ≤ ⟪b i, x⟫} := by
     have hneg : {x | 0 ≤ ⟪a, x⟫ ∧ ∀ i, ⟪b i, x⟫ ≤ 0} =
-        Neg.neg ⁻¹' {x | ⟪a, x⟫ ≤ 0 ∧ ∀ i, 0 ≤ ⟪b i, x⟫} := by
-      ext x
-      simp only [Set.mem_ofPred_eq, Set.mem_preimage, inner_neg_right, neg_nonpos,
-        Left.nonneg_neg_iff]
+        Neg.neg ⁻¹' {x | ⟪a, x⟫ ≤ 0 ∧ ∀ i, 0 ≤ ⟪b i, x⟫} :=
+      Set.ext fun _ => by simp
     rw [hneg, Measure.real, measure_neg_preimage_stdGaussian hmE2, ← Measure.real]
   by_cases hI : ∃ i, ⟪a, b i⟫ < 1
   · obtain ⟨W, pick, hSpos, hWnorm, hWorth, hdecomp, hpick, hpick_eq⟩ :=
@@ -246,24 +241,19 @@ theorem switch_bound {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E
     have hcover1 : {x | ⟪a, x⟫ ≤ 0 ∧ ∃ i, 0 ≤ ⟪b i, x⟫} ⊆ {x | ⟪a, x⟫ = 0} ∪ A1 := by
       intro x ⟨hZ, i, hi⟩
       by_cases hgi : ⟪a, b i⟫ < 1
-      · right
-        refine ⟨hZ, ⟨i.val, by lia⟩, ?_⟩
-        simp only [w, hpick_eq i (by lia) hgi]
-        exact hgood i x hgi hZ hi
+      · exact Or.inr ⟨hZ, ⟨i.val, by lia⟩,
+          by simpa only [w, hpick_eq i (by lia) hgi] using hgood i x hgi hZ hi⟩
       · exact Or.inl (hbad i x hgi hZ hi)
     have hcover2 : {x | ⟪a, x⟫ ≤ 0 ∧ ∀ i, 0 ≤ ⟪b i, x⟫} ⊆ {x | ⟪a, x⟫ = 0} ∪ A2 := by
       intro x ⟨hZ, hall⟩
       by_cases hZ0 : ⟪a, x⟫ = 0
       · exact Or.inl hZ0
-      · right
-        refine ⟨hZ, fun j => ?_⟩
-        by_cases hgi : ⟪a, b (pick j)⟫ < 1
-        · exact hgood _ x hgi hZ (hall _)
-        · exact absurd (hbad _ x hgi hZ (hall _)) hZ0
+      · exact Or.inr ⟨hZ, fun j => if hgi : ⟪a, b (pick j)⟫ < 1 then hgood _ x hgi hZ (hall _)
+          else absurd (hbad _ x hgi hZ (hall _)) hZ0⟩
     have hb2 : (if d = 3 then μ.real {x | 0 ≤ ⟪a, x⟫ ∧ ∀ i, ⟪b i, x⟫ ≤ 0} else 0) ≤
         μ.real A2 := by
       split_ifs
-      · rw [hrefl]; exact hnullU hcover2
+      · exact hrefl ▸ hnullU hcover2
       · exact measureReal_nonneg
     calc _ ≤ μ.real A1 + μ.real A2 := add_le_add (hnullU hcover1) hb2
       _ ≤ _ := compare_switch ha hw hworth hr hr1
@@ -275,8 +265,7 @@ theorem switch_bound {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E
       hzero fun x ⟨hZ, i, hi⟩ => hbad i x (hI i).not_gt hZ hi
     have hb2 : (if d = 3 then μ.real {x | 0 ≤ ⟪a, x⟫ ∧ ∀ i, ⟪b i, x⟫ ≤ 0} else 0) ≤ 0 := by
       split_ifs with hd3
-      · rw [hrefl]
-        exact hzero fun x ⟨hZ, hall⟩ => hbad ⟨0, by lia⟩ x (hI _).not_gt hZ (hall _)
+      · exact hrefl ▸ hzero fun x ⟨hZ, hall⟩ => hbad ⟨0, by lia⟩ x (hI _).not_gt hZ (hall _)
       · exact le_rfl
     linarith
 

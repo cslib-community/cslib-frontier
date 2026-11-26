@@ -173,13 +173,10 @@ private theorem toOuterMeasure_uniform_linearForm_eq_le [NeZero q] (hq : q.Prime
     simp [ha, hc]
   · obtain ⟨i₀, hi₀⟩ := Function.ne_iff.mp ha
     have hd : (fun i => K.1 i - K'.1 i) i₀ ≠ 0 := sub_ne_zero.mpr hi₀
-    have key := Cslib.Probability.toOuterMeasure_uniform_linearComb_eq (F := ZMod q)
+    have key := ZMod.card q ▸ Cslib.Probability.toOuterMeasure_uniform_linearComb_eq (F := ZMod q)
       (d := fun i => K.1 i - K'.1 i) (i₀ := i₀) hd (K'.2 - K.2)
-    rw [ZMod.card] at key
-    refine le_of_eq_of_le (congrArg _ ?_) key.le
-    ext x
-    simp only [Set.mem_ofPred_eq]
-    rw [hsum]
+    refine le_of_eq_of_le (congrArg _ (Set.ext fun x => ?_)) key.le
+    simp only [Set.mem_ofPred_eq, hsum]
     constructor <;> intro hx <;> linear_combination hx
 
 /-! ### Tabulating queries -/
@@ -241,11 +238,7 @@ private theorem map_run_tabulateM {I I' K R R' Q Q' : Type} {spec : OracleSpec I
     ((OracleComp.interpret h (tabulateM act l)).run s).map (fun x => (fun k => φ (x.1 k), r x.2)) =
       (OracleComp.interpret h' (tabulateM act' l)).run (r s) := by
   induction l generalizing s with
-  | nil =>
-    simp only [tabulateM, interp_norm, pmf_norm]
-    congr 2
-    funext k
-    exact hφ
+  | nil => simp [tabulateM, interp_norm, pmf_norm, Pi.zero_def, hφ]
   | cons k l ih =>
     simp only [tabulateM, interp_norm, Probability.PMF.monad_bind_eq_bind,
       Probability.PMF.monad_pure_eq_pure]
@@ -350,16 +343,12 @@ private theorem lookup_rep_of_lookup {x : ι → ZMod q} {tab : Tab ι q}
     obtain ⟨K', m⟩ := e
     rw [List.map_cons, List.nodup_cons] at hval
     simp only [rep, List.map_cons, List.lookup_cons] at h ⊢
-    by_cases hK : K = K'
-    · subst hK
-      simp only [beq_self_eq_true, Option.some.injEq] at h
-      simp [h]
+    rcases eq_or_ne K K' with rfl | hK
+    · simpa using h
     · rw [beq_false_of_ne hK] at h
-      have hmem : ev x K ∈ tab.map fun e => ev x e.1 :=
-        List.mem_map.mpr ⟨(K, ℓ), List.mem_of_lookup_eq_some h, rfl⟩
-      have hne : ev x K ≠ ev x K' := fun heq => hval.1 (heq ▸ hmem)
-      rw [beq_false_of_ne hne]
-      exact ih hval.2 h
+      have hne : ev x K ≠ ev x K' := fun heq =>
+        hval.1 (heq ▸ List.mem_map.mpr ⟨(K, ℓ), List.mem_of_lookup_eq_some h, rfl⟩)
+      simpa only [rep, beq_false_of_ne hne] using ih hval.2 h
 
 section Tables
 
@@ -604,10 +593,8 @@ private theorem consistent_of_mem_support_realStep {x : ι → ZMod q} {tab : Ta
         have hℓ' := mem_of_mem_support_draw (freshLabels_nonempty hlen) hℓ
         simp only [freshLabels, Finset.mem_filter, Finset.mem_univ, true_and] at hℓ'
         exact ⟨List.nodup_cons.mpr ⟨hK, hcon.1⟩, List.nodup_cons.mpr ⟨hℓ', hcon.2⟩⟩
-      · simp only [realStep, h₁, h₂, PMF.mem_support_pure_iff] at hy
-        subst hy; exact hcon
-    · simp only [realStep, h₁, PMF.mem_support_pure_iff] at hy
-      subst hy; exact hcon
+      · exact ((PMF.mem_support_pure_iff _ _).mp (by simpa [realStep, h₁, h₂] using hy)).symm ▸ hcon
+    · exact ((PMF.mem_support_pure_iff _ _).mp (by simpa [realStep, h₁] using hy)).symm ▸ hcon
   | inv ℓ =>
     rcases h : keyOf tab ℓ with _ | K
     · have hℓ : ℓ ∉ tab.map Prod.snd := keyOf_eq_none_iff.mp h
@@ -627,8 +614,7 @@ private theorem consistent_of_mem_support_realStep {x : ι → ZMod q} {tab : Ta
       simp only [freshValues, Finset.mem_filter, Finset.mem_univ, true_and] at hv
       exact ⟨List.nodup_cons.mpr ⟨by simpa [ev_zero_left] using hv, hcon.1⟩,
         List.nodup_cons.mpr ⟨hℓ, hcon.2⟩⟩
-    · simp only [realStep, h, PMF.mem_support_pure_iff] at hy
-      subst hy; exact hcon
+    · exact ((PMF.mem_support_pure_iff _ _).mp (by simpa [realStep, h] using hy)).symm ▸ hcon
 
 omit [NeZero q] [Fintype ι] [DecidableEq ι] in
 /-- An outcome with a lowered flag has probability zero under a distribution that always raises
@@ -712,15 +698,10 @@ private theorem symFlag_preserve (x : ι → ZMod q) (p : Prim ι q) (s : Tab ι
     (h : (a, s') ∈ (withBadFlag (symStep x) p s).support) :
     s'.2 = true → HasImageCollision (ev x) s'.1 := by
   obtain ⟨tab, b⟩ := s
-  simp only [withBadFlag, PMF.mem_support_map_iff] at h
-  obtain ⟨y, hy, heq⟩ := h
+  simp only [withBadFlag, PMF.mem_support_map_iff, Prod.map, id, Prod.mk.injEq] at h
+  obtain ⟨y, hy, -, rfl⟩ := h
   obtain ⟨hsub, hflag⟩ := symStep_support p hy
-  simp only [Prod.map, id, Prod.mk.injEq] at heq
-  obtain ⟨-, rfl⟩ := heq
-  intro hb
-  rcases Bool.or_eq_true_iff.mp hb with hb | hb
-  · exact (hs hb).mono hsub
-  · exact hflag hb
+  exact fun hb => (Bool.or_eq_true_iff.mp hb).elim (fun h => (hs h).mono hsub) hflag
 
 omit [DecidableEq ι] in
 /-- The symbolic step adds at most one entry. -/
@@ -729,21 +710,19 @@ private theorem length_le_of_mem_support_symOracle (p : Prim ι q) (tab : Tab ι
     tab'.length ≤ tab.length + 1 := by
   cases p with
   | fwd K =>
-    rcases h₁ : tab.lookup K with _ | ℓ <;>
+    cases h₁ : tab.lookup K <;>
       simp only [symOracle, h₁, PMF.mem_support_map_iff, PMF.mem_support_pure_iff,
         Prod.mk.injEq] at h
     · obtain ⟨_, -, -, rfl⟩ := h
       exact le_rfl
-    · obtain ⟨-, rfl⟩ := h
-      omega
+    · exact h.2 ▸ Nat.le_succ _
   | inv ℓ =>
-    rcases h₂ : keyOf tab ℓ with _ | K <;>
+    cases h₂ : keyOf tab ℓ <;>
       simp only [symOracle, h₂, PMF.mem_support_map_iff, PMF.mem_support_pure_iff,
         Prod.mk.injEq] at h
     · obtain ⟨_, -, -, rfl⟩ := h
       exact le_rfl
-    · obtain ⟨-, rfl⟩ := h
-      omega
+    · exact h.2 ▸ Nat.le_succ _
 
 end Tables
 
@@ -840,12 +819,9 @@ private theorem isQueryBounded_primGame {T : ℕ}
   have hquery (p : Prim ι q) : (OracleComp.query (spec := PrimSpec ι q) p).IsQueryBounded 1 :=
     IsCostBounded.query p
   have htoPrim : ∀ query : GroupQuery q (ZMod q),
-      (toPrim (ι := ι) query).IsQueryBounded ((fun _ : GroupQuery q (ZMod q) => 3) query) := by
-    intro query
-    cases query with
-    | label β => exact (hquery _).mono (by norm_num)
-    | op ℓ₁ ℓ₂ c₁ c₂ =>
-      exact ((hquery _).bind fun _ => (hquery _).bind fun _ =>
+      (toPrim (ι := ι) query).IsQueryBounded ((fun _ : GroupQuery q (ZMod q) => 3) query) := fun
+    | .label _ => (hquery _).mono (by norm_num)
+    | .op _ _ _ _ => ((hquery _).bind fun _ => (hquery _).bind fun _ =>
         (hquery _).bind fun _ => IsCostBounded.pure _ 0).mono (by norm_num)
   have hD' (g : ZMod q) (u : ι → ZMod q) :
       IsCostBounded (fun _ : GroupQuery q (ZMod q) => 3) (D g u) (T * 3) :=
@@ -979,9 +955,8 @@ private theorem real_eq_lazy (x : ι → ZMod q)
   refine map_bind_eq_of_step (fun (t : Option ι → ZMod q) o => id (t o)) ψ r I
     (map_run_tabulateM _ _ _ _ id rfl r I hpres
       (fun o s hs => by
-        simp only [OracleComp.interpret_query, id]
-        rw [← ev_startKey]
-        exact realFl_fwd_map hs (startKey o))
+        simpa only [OracleComp.interpret_query, id, ev_startKey] using
+          realFl_fwd_map hs (startKey o))
       _ ([], false) h0)
     (fun y hy => OracleComp.run_interpret_invariant _ _ hpres _ ([], false) h0 y.1 y.2 hy) _ _ ?_
   intro u s₁ hs₁
@@ -996,9 +971,7 @@ private theorem real_eq_lazy (x : ι → ZMod q)
   dsimp only [id]
   refine map_bind_eq_of_step (fun (t : κ → (ι → ZMod q) × ZMod q) k => ev x (t k)) ψ r I
     (map_run_tabulateM _ _ _ _ (ev x) (by simp [ev]) r I hpres
-      (fun k s hs => by
-        simp only [OracleComp.interpret_query]
-        exact realFl_inv_map hs (out.2 k))
+      (fun k s hs => by simpa only [OracleComp.interpret_query] using realFl_inv_map hs (out.2 k))
       _ s₂ hs₂)
     (fun y hy => OracleComp.run_interpret_invariant _ _ hpres _ s₂ hs₂ y.1 y.2 hy) _ _ ?_
   intro F s₃ _
@@ -1013,10 +986,9 @@ private theorem uniform_interpret_eq_real (x : ι → ZMod q)
           (D (σ 1) fun i => σ (x i))).map fun out => (out.1, fun k => σ.symm (out.2 k))) =
       ((OracleComp.interpret (withBadFlag (realStep x)) (primGame D)).run ([], false)).map
         fun r => (r.1.1, fun k => ev x (r.1.2 k)) := by
-  have h := RandomPermutation.uniform_interpret_eq_lazy (permGame x D)
-  simp only [Probability.PMF.monad_bind_eq_bind, interpret_evalPerm_permGame] at h
-  rw [h, ← real_eq_lazy x D, PMF.map_comp]
-  rfl
+  simpa only [Probability.PMF.monad_bind_eq_bind, interpret_evalPerm_permGame,
+    ← real_eq_lazy x D, PMF.map_comp, Function.comp_def] using
+    RandomPermutation.uniform_interpret_eq_lazy (permGame x D)
 
 /-- The game against a deterministic adversary with a uniform permutation as labeling. -/
 private noncomputable def detGame (W : (ι → ZMod q) → γ → (κ → ZMod q) → Bool)
@@ -1041,12 +1013,9 @@ private theorem detGame_eq (W : (ι → ZMod q) → γ → (κ → ZMod q) → B
           (OracleComp.interpret (fun query => PMF.pure (answer σ query))
             (D (σ 1) fun i => σ (x i))).map fun out => (out.1, fun k => σ.symm (out.2 k))).bind
             fun r => PMF.pure (W x r.1 r.2) := by
-        rw [PMF.bind_bind]
-        simp_rw [PMF.bind_map]
-        rfl
+        simp only [PMF.bind_bind, PMF.bind_map]; rfl
     _ = _ := by
-        rw [uniform_interpret_eq_real, PMF.bind_map]
-        rfl
+        rw [uniform_interpret_eq_real, PMF.bind_map]; rfl
 
 /-- For a fixed `x`, the real game is won at most as often as the symbolic one, plus the
 probability that the symbolic table has two distinct keys that agree at `x`. -/
@@ -1202,12 +1171,11 @@ private theorem permLinearGame_eq_bind_detGame [NeZero q]
           ProbOracleComp.coinLaw (B gu.1 gu.2)).bind fun Ω =>
             OracleComp.interpret (fun query => PMF.pure (answer σ query))
               (ProbOracleComp.fixCoins (B g u) (Ω (g, u))) := by
-    have hpi : (Probability.PMF.pi fun gu : ZMod q × (ι → ZMod q) =>
-        ProbOracleComp.coinLaw (B gu.1 gu.2)).map (fun Ω => Ω (g, u)) =
-          ProbOracleComp.coinLaw (B g u) :=
-      Probability.PMF.pi_map_eval _ (g, u)
     unfold runLabeled
-    rw [← ProbOracleComp.bind_interpret_fixCoins (B g u) (answer σ), ← hpi, PMF.bind_map]
+    rw [← ProbOracleComp.bind_interpret_fixCoins (B g u) (answer σ),
+      ← Probability.PMF.pi_map_eval (fun gu : ZMod q × (ι → ZMod q) =>
+        ProbOracleComp.coinLaw (B gu.1 gu.2)) (g, u),
+      PMF.bind_map]
     rfl
   unfold permLinearGame detGame
   simp only [Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, key,

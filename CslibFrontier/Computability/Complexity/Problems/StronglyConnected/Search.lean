@@ -265,16 +265,12 @@ private theorem inv_step_header {l c n p cur steps v : ℕ} (hl : l < 5)
     by_cases h : p < G.n * G.n
     · simp only [h, ↓reduceIte]
       search_finish [hdone]
-    · have hmem : G ∈ StronglyConnected := by
-        intro a b
-        obtain ⟨ha, hb', hr⟩ := hdone (a * G.n + b) (by
-          have := Nat.mul_add_lt_mul_of_lt_of_lt a.isLt b.isLt
-          rw [Nat.mul_comm] at this
-          omega)
-        have hdiv : (a * G.n + b) / G.n = a := Nat.mul_add_div_fin a b
+    · have hmem : G ∈ StronglyConnected := fun a b => by
+        obtain ⟨_, _, hr⟩ := hdone (a * G.n + b) (Nat.mul_comm G.n a ▸
+          (Nat.mul_add_lt_mul_of_lt_of_lt a.isLt b.isLt).trans_le (Nat.le_of_not_lt h))
         have hmod : (a * G.n + b) % G.n = b := by
           rw [Nat.add_comm, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt b.isLt]
-        convert hr <;> simp [hdiv, hmod]
+        convert hr <;> simp [Nat.mul_add_div_fin, hmod]
       simp only [h, ↓reduceIte]
       search_finish [hmem]
   case «3» =>
@@ -404,14 +400,11 @@ private theorem inv_step (cfg : Config) (hinv : Inv G cfg)
   · exact inv_step_check G (by omega) hl9 hB hP b
   by_cases hl15 : l < 15
   · exact inv_step_guess G (by omega) hl15 hB hP b
-  by_cases hl : l = 15
-  · subst hl
-    exact inv_step_next G hB hP b
-  have hl : l ≤ 17 := by
-    by_contra h
-    rcases l with _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | l
-    all_goals first | omega | exact hP
-  interval_cases l <;> simp_all [CounterProgram.halted, instr, searchProgram, Instr.halts]
+  have hl : l ≤ 17 := Nat.le_of_not_lt fun h =>
+    match l, Nat.exists_eq_add_of_le' h, hP with | _, ⟨_, rfl⟩, hP => hP
+  interval_cases l
+  · exact inv_step_next G hB hP b
+  all_goals simp [CounterProgram.halted, instr, searchProgram, Instr.halts] at hrun
 
 private theorem inv_init : Inv G searchProgram.init := by
   change Inv G (0, [0, 0, 0, 0, 0, 0])
@@ -446,10 +439,8 @@ theorem mem_of_accepts (h : searchProgram.toNondeterministicQueryMachine.Accepts
   have hi := instr_of_accepts hhalt hacc
   obtain ⟨c, n, p, cur, steps, v, -, -, -, hP⟩ := inv_run G choices
   generalize (searchProgram.toNondeterministicQueryMachine.run G.encode choices).1 = l at hi hP
-  have hl : l ≤ 17 := by
-    by_contra h
-    rcases l with _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | l
-    all_goals first | omega | exact hP
+  have hl : l ≤ 17 := Nat.le_of_not_lt fun h =>
+    match l, Nat.exists_eq_add_of_le' h, hP with | _, ⟨_, rfl⟩, hP => hP
   interval_cases l <;> first | exact hP | simp [instr, searchProgram] at hi
 
 /-! ### An accepting branch -/
@@ -535,17 +526,15 @@ private theorem branches_walk {p : ℕ} (hp : p < G.n * G.n) : ∀ (m cur steps 
   intro m
   induction m with
   | zero =>
-    intro cur steps c v hc hpath _
-    have hct : cur = p % G.n := congrArg Fin.val (Relation.RelatesInSteps.zero hpath)
-    subst hct
+    rintro cur steps c v _ hpath _
+    obtain rfl : cur = p % G.n := congrArg Fin.val hpath.zero
     exact ⟨_, _, _, branches_at_target G p steps c v⟩
   | succ m ih =>
-    intro cur steps c v hc hpath hlt
-    obtain ⟨⟨next, hnext⟩, hadj, hrest⟩ := hpath.succ'
-    by_cases hct : cur = p % G.n
-    · subst hct
-      exact ⟨_, _, _, branches_at_target G p steps c v⟩
-    · obtain ⟨x, y, z, hregs⟩ := ih next (steps + 1) 0 next hnext hrest (by omega)
+    rintro cur steps c v hc hpath hlt
+    rcases eq_or_ne cur (p % G.n) with rfl | hct
+    · exact ⟨_, _, _, branches_at_target G p steps c v⟩
+    · obtain ⟨⟨next, hnext⟩, hadj, hrest⟩ := hpath.succ'
+      obtain ⟨x, y, z, hregs⟩ := ih next (steps + 1) 0 next hnext hrest (by omega)
       exact ⟨x, y, z, (branches_step G hc hnext hct (by omega) hadj).trans hregs⟩
 
 /-- **One pair**: when the digraph is strongly connected, some branch passes from the pair `p` to

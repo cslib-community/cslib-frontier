@@ -120,9 +120,8 @@ theorem sum_uniformMass {α : Type*} [Fintype α] [DecidableEq α]
 /-- Summing against uniform mass agrees with the finite-set expectation. -/
 theorem sum_uniformMass_mul {α : Type*} [Fintype α] [DecidableEq α]
     (X : Finset α) (f : α → ℝ) : (∑ x, uniformMass X x * f x) = 𝔼 x ∈ X, f x := by
-  simp only [uniformMass, ite_mul, zero_mul]
-  rw [sum_ite, sum_const_zero, add_zero]
-  simp only [filter_mem_eq_inter, univ_inter, ← mul_sum, expect_eq_sum_div_card]
+  simp only [uniformMass, ite_mul, zero_mul, sum_ite, sum_const_zero, add_zero,
+    filter_mem_eq_inter, univ_inter, ← mul_sum, expect_eq_sum_div_card]
   ring
 
 /-- Uniform densities are nonnegative, including for the empty set. -/
@@ -135,12 +134,11 @@ the documented real-logarithm convention. -/
 theorem uniformDeficit_nonneg {ι : Type*} [Fintype ι]
     (X : Finset (ι → Bool)) : 0 ≤ uniformDeficit X := by
   classical
-  by_cases hx : X.Nonempty
+  rcases X.eq_empty_or_nonempty with rfl | hx
+  · simp [uniformDeficit]
   · refine sub_nonneg.mpr ((Real.logb_le_iff_le_rpow (by norm_num)
       (by exact_mod_cast card_pos.mpr hx)).mpr ?_)
-    rw [Real.rpow_natCast]
-    exact_mod_cast (by simpa using card_le_univ X : X.card ≤ 2 ^ Fintype.card ι)
-  · simp [uniformDeficit, not_nonempty_iff_eq_empty.mp hx]
+    exact_mod_cast (card_le_univ X).trans_eq (by simp)
 
 /-- A nonempty subset has cardinality `2^(dimension - deficit)`. -/
 theorem card_eq_rpow_sub_uniformDeficit {ι : Type*} [Fintype ι] {X : Finset (ι → Bool)}
@@ -154,8 +152,8 @@ when the subset is nonempty. -/
 theorem uniformDeficit_le_iff {ι : Type*} [Fintype ι] {X : Finset (ι → Bool)}
     (hX : X.Nonempty) {k : ℝ} : uniformDeficit X ≤ k ↔
       (2 : ℝ) ^ ((Fintype.card ι : ℝ) - k) ≤ X.card := by
-  rw [card_eq_rpow_sub_uniformDeficit hX, Real.rpow_le_rpow_left_iff (by norm_num)]
-  exact ⟨fun _ => by linarith, fun _ => by linarith⟩
+  simp only [card_eq_rpow_sub_uniformDeficit hX, Real.rpow_le_rpow_left_iff one_lt_two,
+    sub_le_sub_iff_left]
 
 /-- A uniform deficit bound implies the light-patterns lemma's pointwise
 probability-mass hypothesis. -/
@@ -192,9 +190,7 @@ theorem uniformDensity_eq_deficit {ι : Type*} [Fintype ι] {X : Finset (ι → 
 /-- Normalization of the density of a nonempty finite cube subset. -/
 theorem expect_uniformDensity {ι : Type*} [Fintype ι] [DecidableEq ι] {X : Finset (ι → Bool)}
     (hX : X.Nonempty) : (𝔼 x, uniformDensity X x) = 1 := by
-  simp_rw [uniformDensity]
-  rw [Fintype.expect_eq_sum_div_card, ← mul_sum, sum_uniformMass hX]
-  simp
+  simp [uniformDensity, Fintype.expect_eq_sum_div_card, ← mul_sum, sum_uniformMass hX]
 
 /-- **Pigeonhole for deficits**: some fiber of a map from a nonempty set `X` to a type of at most
 `2 ^ m` elements is nonempty, of deficit at most the deficit of `X` plus `m`. -/
@@ -217,9 +213,8 @@ theorem exists_uniformDeficit_fiber_le {ι M : Type*} [Fintype ι] [Fintype M] [
   have hne : (X.filter fun x => send x = a).Nonempty :=
     card_pos.mp (by exact_mod_cast (show 0 < b by dsimp [b]; positivity).trans_le ha)
   refine ⟨a, hne, (uniformDeficit_le_iff hne).mpr ?_⟩
-  dsimp only [b] at ha
-  rw [card_eq_rpow_sub_uniformDeficit ⟨x, hx⟩, ← Real.rpow_sub (by norm_num)] at ha
-  rwa [sub_add_eq_sub_sub]
+  simpa +zetaDelta only [card_eq_rpow_sub_uniformDeficit ⟨x, hx⟩, ← Real.rpow_sub two_pos,
+    sub_add_eq_sub_sub] using ha
 
 /-! ### Gluing points along a set of coordinates -/
 
@@ -389,8 +384,8 @@ theorem coordinateMarginal_eq_expect_completePattern (f : (ι → Bool) → ℝ)
 /-- The projection of `f` at `x` is its marginal at the selected coordinates of `x`. -/
 theorem projectionAverage_eq_coordinateMarginal (f : (ι → Bool) → ℝ) (selected x : ι → Bool) :
     projectionAverage f selected x = coordinateMarginal f selected (fun i => x i) := by
-  rw [coordinateMarginal_eq_expect_completePattern, projectionAverage]
-  simp_rw [resample_eq_completePattern]
+  simp_rw [coordinateMarginal_eq_expect_completePattern, projectionAverage,
+    resample_eq_completePattern]
 
 /-- Marginalization preserves the uniform mean, hence also density normalization. -/
 theorem expect_coordinateMarginal (f : (ι → Bool) → ℝ) (selected : ι → Bool) :
@@ -436,8 +431,7 @@ the indicator of `X` to the coordinates outside `s`. -/
 theorem coordinateDensity_eq_projectionAverage (X : Finset (ι → Bool)) (s x : ι → Bool) :
     coordinateDensity X s x =
       projectionAverage (fun y => if y ∈ X then 1 else 0) (fun i => !s i) x := by
-  rw [coordinateDensity_eq_expect, projectionAverage]
-  simp_rw [resample_not]
+  simp_rw [coordinateDensity_eq_expect, projectionAverage, resample_not]
 
 /-- Projecting the restriction of `f` to the fiber over `x`, a function of the patterns on `s`, to
 the coordinates `R` is projecting `f` to `R` together with the coordinates outside `s`. -/
@@ -466,9 +460,8 @@ theorem expect_log_card_fiber {α β : Type*} [Fintype β] [Nonempty β] [Decida
     dsimp only [m]
     exact_mod_cast (card_eq_sum_card_fiberwise (s := X) (f := g) fun _ _ => mem_univ _).symm
   have hN : (0 : ℝ) < X.card := by exact_mod_cast card_pos.mpr hX
-  have hB : (0 : ℝ) < Fintype.card β := by exact_mod_cast Fintype.card_pos
   have h := Real.sum_mul_log_div_card_le univ (x := m) (fun _ _ => Nat.cast_nonneg _)
-  rw [card_univ, hsum, Real.log_div hN.ne' hB.ne'] at h
+  rw [card_univ, hsum, Real.log_div hN.ne' (Nat.cast_ne_zero.mpr Fintype.card_ne_zero)] at h
   have he : (∑ x ∈ X, Real.log (X.filter (fun y => g y = g x)).card) =
       ∑ b, m b * Real.log (m b) := by
     simp [← sum_fiberwise' X g (fun b => Real.log (m b)), m]
@@ -486,10 +479,9 @@ theorem expect_uniformDeficit_coordinateFiber {ι : Type*} [Fintype ι] [Decidab
       Fintype.card ι := by
     rw [← Nat.cast_add, Fintype.card_subtype_compl,
       Nat.add_sub_of_le (Fintype.card_subtype_le _)]
-  simp only [Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat,
-    Real.log_pow] at h
   have hd := div_le_div_of_nonneg_right h hl.le
-  simp only [sub_div, mul_div_cancel_right₀ _ hl.ne'] at hd
+  simp only [Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat,
+    Real.log_pow, sub_div, mul_div_cancel_right₀ _ hl.ne'] at hd
   simp only [uniformDeficit, Real.logb, expect_sub_distrib, ← expect_div, expect_const hX,
     card_coordinateFiber]
   linarith

@@ -273,8 +273,7 @@ private theorem mem_flips {x : Input} {i : Instruction} (hi : i ∈ flips x) :
     ∃ e b, e < x.initial.length ∧ i = ⟨0, check 0, e, b, !b⟩ := by
   obtain ⟨e, he, hi⟩ := List.mem_flatMap.1 hi
   rcases (by simpa using hi : i = _ ∨ i = _) with rfl | rfl
-  · exact ⟨e, false, List.mem_range.1 he, rfl⟩
-  · exact ⟨e, true, List.mem_range.1 he, rfl⟩
+  exacts [⟨e, false, List.mem_range.1 he, rfl⟩, ⟨e, true, List.mem_range.1 he, rfl⟩]
 
 private theorem mem_checks {x : Input} {i : Instruction} (hi : i ∈ checks x) :
     ∃ v k p, v < x.graph.vertices.length ∧ k < 8 ∧ p < 3 ∧
@@ -476,9 +475,7 @@ private theorem raw_complete {x : Input} (hx : x.graph.Valid)
       induction h with
       | refl => exact .refl
       | tail _ hm ih =>
-        exact ih.trans (run_source_step hx hlen
-          (by simpa only [List.length_ofFn] using hlen.symm)
-          (by simpa only [List.length_ofFn] using hlen.symm)
+        exact ih.trans (run_source_step hx hlen (by simp [hlen]) (by simp [hlen])
           (by simpa only [AndOrGraph.config_ofFn] using hm))
     simpa only [AndOrGraph.ofFn_config _ _ hlen, AndOrGraph.ofFn_config _ _ ht] using hsim hr
   exact ⟨⟨1, x.target⟩, hrun.trans (run_target (ht.trans hlen.symm)), rfl⟩
@@ -508,8 +505,7 @@ private abbrev encEmission := encPair encAndOrNCL (encPair (encVertex encNat) en
 @[fun_prop] private theorem check_polyTime {α : Type} {enc : α ↪ List Bool}
     {v : α → ℕ} (hv : ComputableInPolyTime v enc encNat) :
     ComputableInPolyTime (fun a => check (v a)) enc encNat := by
-  unfold check
-  fun_prop
+  fun_prop [check]
 
 @[fun_prop] private theorem target_polyTime {α : Type} {enc : α ↪ List Bool}
     {x : α → Input} {i : α → ℕ}
@@ -518,8 +514,7 @@ private abbrev encEmission := encPair encAndOrNCL (encPair (encVertex encNat) en
     ComputableInPolyTime (fun a => target (x a) (i a)) enc encNat := by
   have hn : ComputableInPolyTime (fun a => (x a).graph.vertices.length) enc encNat :=
     ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
-  unfold target
-  fun_prop
+  fun_prop [target]
 
 @[fun_prop] private theorem middle_polyTime {α : Type} {enc : α ↪ List Bool}
     {x : α → Input} {v k p : α → ℕ}
@@ -532,8 +527,7 @@ private abbrev encEmission := encPair encAndOrNCL (encPair (encVertex encNat) en
     ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
   have hm : ComputableInPolyTime (fun a => (x a).initial.length) enc encNat :=
     ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
-  unfold middle
-  fun_prop
+  fun_prop [middle]
 
 @[fun_prop] private theorem test_polyTime {α : Type} {enc : α ↪ List Bool}
     {a b r : α → ℕ} {v : α → Bool}
@@ -542,14 +536,12 @@ private abbrev encEmission := encPair encAndOrNCL (encPair (encVertex encNat) en
     (hr : ComputableInPolyTime r enc encNat)
     (hv : ComputableInPolyTime v enc encBool) :
     ComputableInPolyTime (fun x => test (a x) (b x) (r x) (v x)) enc encInstruction := by
-  unfold test
-  fun_prop
+  fun_prop [test]
 
 private theorem port_polyTime (i : ℕ) :
     ComputableInPolyTime (fun v : Vertex ℕ => port v i)
       (encVertex encNat) (encWeightedPort encNat) := by
-  unfold port
-  fun_prop
+  fun_prop [port]
 
 private theorem localVertex_polyTime :
     ComputableInPolyTime localVertex (encVertex encNat) (encVertex encNat) := by
@@ -557,15 +549,13 @@ private theorem localVertex_polyTime :
       (fun q : WeightedPort ℕ × ℕ =>
         (⟨⟨q.2, q.1.port.dir⟩, q.1.weight⟩ : WeightedPort ℕ))
       (encPair (encWeightedPort encNat) encUnary) (encWeightedPort encNat) := by
-    have hi : ComputableInPolyTime (fun q : WeightedPort ℕ × ℕ => q.2)
-        (encPair (encWeightedPort encNat) encUnary) encNat :=
+    have hi : ComputableInPolyTime (·.2) (encPair (encWeightedPort encNat) encUnary) encNat :=
       ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
     fun_prop
   have hp := (ComputableInPolyTime.map hm).comp (by fun_prop : ComputableInPolyTime
     (fun v : Vertex ℕ => v.ports.zipIdx) (encVertex encNat)
     (encList (encPair (encWeightedPort encNat) encUnary)))
-  unfold localVertex
-  fun_prop
+  fun_prop [localVertex]
 
 private theorem branchInstruction_polyTime (k p : ℕ) :
     ComputableInPolyTime
@@ -588,22 +578,19 @@ private theorem branch_polyTime (k : ℕ) :
     (ComputableInPolyTime.const (pattern k))
   have hbody := ComputableInPolyTime.mapConst (List.range 3)
     (fun p _ => branchInstruction_polyTime k p)
-  unfold branch
-  fun_prop
+  fun_prop [branch]
 
 private theorem flips_polyTime :
     ComputableInPolyTime flips encAndOrNCL (encList encInstruction) := by
   unfold flips
   refine ComputableInPolyTime.flatMapWithInput (by fun_prop) ?_
-  have hi : ComputableInPolyTime (fun q : Input × ℕ => q.2)
-      (encPair encAndOrNCL encUnary) encNat :=
+  have hi : ComputableInPolyTime (·.2) (encPair encAndOrNCL encUnary) encNat :=
     ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
   fun_prop
 
 private theorem checks_polyTime :
-    ComputableInPolyTime checks encAndOrNCL (encList encInstruction) := by
-  unfold checks
-  exact ComputableInPolyTime.flatMapWithInput (by fun_prop)
+    ComputableInPolyTime checks encAndOrNCL (encList encInstruction) :=
+  ComputableInPolyTime.flatMapWithInput (by fun_prop)
     (ComputableInPolyTime.flatMapConst (List.range 8) fun k _ => branch_polyTime k)
 
 private theorem targetTests_polyTime :
@@ -625,16 +612,14 @@ private theorem raw_polyTime : ComputableInPolyTime raw encAndOrNCL encProgram :
       encAndOrNCL encNat := ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
   have hi : ComputableInPolyTime (fun x : Input => x.initial) encAndOrNCL encBits :=
     ComputableInPolyTime.listToBits.comp (by fun_prop)
-  unfold raw
-  fun_prop
+  fun_prop [raw]
 
 private theorem guard_polyTime : ComputableInPolyTime guard encAndOrNCL encBool := by
   have hs : ComputableInPolyTime (fun x : Input => x.initial.length)
       encAndOrNCL encNat := ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
   have ht : ComputableInPolyTime (fun x : Input => x.target.length)
       encAndOrNCL encNat := ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
-  have hg : ComputableInPolyTime (fun x : Input => x.graph) encAndOrNCL encAndOrGraph := by
-    fun_prop
+  have hg : ComputableInPolyTime (·.graph) encAndOrNCL encAndOrGraph := by fun_prop
   exact (((AndOrGraph.computableInPolyTime_checkValid.comp hg).bool_and'
     (hs.decide_eq' (by fun_prop))).bool_and' (ht.decide_eq' (by fun_prop))).bool_and'
     (AndOrGraph.computableInPolyTime_checkLegal hg
@@ -646,7 +631,6 @@ All unbounded scans range over explicit lists; the eight local patterns are fixe
     ComputableInPolyTime compile encAndOrNCL encProgram := by
   have hg := guard_polyTime
   have hr := raw_polyTime
-  unfold compile reject
-  fun_prop
+  fun_prop [compile, reject]
 
 end Cslib.Complexity.SelfClosingDoor.RegisterProgram.NCLCompiler

@@ -160,12 +160,9 @@ theorem interpretation_andreevTruncatedBottomOp (b m r R : ℕ)
         (∑ i, andreevReflectedWeight b m idx.subset idx.form i) / 2 := by
     simp only [mul_sub, sum_sub_distrib, ← sum_mul]
     ring
-  unfold interpretation andreevTruncatedBottomOp
-  dsimp only
-  rw [decide_eq_decide, ← @Int.cast_le ℝ, hU, hsum]
+  simp only [interpretation, andreevTruncatedBottomOp, decide_eq_decide, ← @Int.cast_le ℝ, hU, hsum]
   refine sub_nonneg.symm.trans ((iff_of_eq (congrArg (0 ≤ ·) ?_)).trans sub_nonneg)
-  unfold andreevReflectedOffset
-  ring
+  dsimp only [andreevReflectedOffset]; ring
 
 /-- The truncated score in staircase form:
 `P_R = 2 X_∅ + ∑_{S, τ, k} η_S (f_R(θ_k) - f_R(θ_k - 1)) [θ_k ≤ X_S ± D_S]`. -/
@@ -209,22 +206,18 @@ theorem eval_andreevTruncatedCircuit (b m r R : ℕ) (w : BitString (2 ^ b + b *
       ← (andreevTruncatedBottomEquiv b r R).symm.sum_comp]
     refine sum_congr rfl fun idx _ => ?_
     simp only [andreevTruncatedTopWeight]
-    push_cast
-    ring
+    push_cast; ring
   have hinput : ∑ i, andreevTruncatedInputWeight b m i * ((w i).toNat : ℝ) =
       2 * 2 ^ b - 2 * (andreevTableScore b m ∅ w : ℝ) := by
     rw [cast_andreevTableScore_empty, Fin.sum_univ_add]
     simp only [andreevTruncatedInputWeight, Fin.addCases_left, Fin.addCases_right, zero_mul,
       sum_const_zero, add_zero, ← mul_sum]
     ring
-  have hlin : (((1 - andreevVoteThreshold b r + 2 * 2 ^ b : ℤ) : ℝ) ≤
-      -((andreevTruncatedScore b m r R w - 2 * andreevTableScore b m ∅ w : ℤ) : ℝ) +
-        (2 * 2 ^ b - 2 * (andreevTableScore b m ∅ w : ℝ))) ↔
-      ((1 - andreevVoteThreshold b r : ℤ) : ℝ) ≤ (-andreevTruncatedScore b m r R w : ℤ) := by
-    push_cast
-    constructor <;> intro h <;> linarith only [h]
-  rw [htop, hinput, decide_eq_decide, hlin, Int.cast_le]
-  omega
+  rw [htop, hinput, decide_eq_decide]
+  refine Iff.trans ?_ (by omega : 1 - andreevVoteThreshold b r ≤
+    -andreevTruncatedScore b m r R w ↔ _)
+  rw [← @Int.cast_le ℝ]
+  constructor <;> intro h <;> push_cast at h ⊢ <;> linarith only [h]
 
 /-- `andreevTruncatedCircuit b m r R` has `4 (2 ^ r - 1) (R + 1)` bottom gates and one output
 gate. -/
@@ -252,15 +245,11 @@ gate are all `1`, all `-1` or all `0`. -/
 theorem isSignCoherent_andreevTruncatedBottomOp (b m r R : ℕ)
     (j : Fin (4 * #(andreevPrefixSubsetsNonempty b r) * (R + 1))) :
     IsSignCoherent (andreevBlockVar b m) (argWeight (andreevTruncatedBottomOp b m r R j) id) := by
-  set idx := (andreevTruncatedBottomEquiv b r R).symm j with hidx
   rw [argWeight_id]
   intro i
-  have hblock (t : Fin m) :
-      andreevReflectedWeight b m idx.subset idx.form (andreevBlockVar b m i t) =
-        if i ∈ idx.subset then (if idx.form then 1 else -1) else 0 := by
-    simp only [andreevReflectedWeight, andreevBlockVar, Fin.addCases_right, Equiv.symm_apply_apply]
-  simp only [← hidx, hblock]
-  by_cases hi : i ∈ idx.subset <;> cases idx.form
+  simp only [andreevReflectedWeight, andreevBlockVar, Fin.addCases_right, Equiv.symm_apply_apply]
+  by_cases hi : i ∈ ((andreevTruncatedBottomEquiv b r R).symm j).subset <;>
+    cases ((andreevTruncatedBottomEquiv b r R).symm j).form
   · exact .inr fun _ => by simp [hi]
   all_goals exact .inl fun _ => by simp [hi]
 
@@ -312,7 +301,7 @@ theorem andreevTruncationRadius_le (b m r : ℕ) (δ : ℝ) :
 private theorem andreevVarianceProxy_of_balanced {b m : ℕ} (hbal : b * m = 2 ^ b) :
     andreevVarianceProxy b m = 5 / 4 * 2 ^ b := by
   unfold andreevVarianceProxy
-  rw [show (b : ℝ) * m = 2 ^ b by exact_mod_cast hbal]
+  rw [← Nat.cast_mul, hbal, Nat.cast_pow, Nat.cast_ofNat]
   ring
 
 private theorem balanced_radius_le {b m r : ℕ} (hbal : b * m = 2 ^ b)
@@ -416,8 +405,7 @@ theorem andreevVoteLevel_spec {b : ℕ} {ε : ℝ} (hε : 1 / Real.sqrt (2 ^ b) 
       linarith only [mul_le_mul_of_nonneg_right hε2 (by positivity : (0 : ℝ) ≤ 2 ^ (b - 1))])
     omega
   · rcases Nat.eq_zero_or_pos r with hr0 | hr0
-    · rw [hr0, pow_zero]
-      linarith only [hεN]
+    · simp only [hr0, pow_zero]; linarith only [hεN]
     · have hlt : ¬ 32 * ε ^ 2 * 2 ^ b ≤ (2 : ℝ) ^ (r - 1) := fun h =>
         absurd (andreevVoteLevel_le h) (by omega)
       rw [show (2 : ℝ) ^ r = 2 * 2 ^ (r - 1) by rw [← pow_succ', Nat.sub_add_cancel hr0]]

@@ -140,9 +140,8 @@ private theorem joined_simple {I : FixedRotationInput} (hI : Valid I)
     simp only [Route.endpoint_concat p q hpq, Bool.false_eq_true, ↓reduceIte, p, q, F.endpoint_eq]
     have hm (k : Fin 3) (b : Bool) :=
       ((referenceOrder_enumerates hI).2 _).mp ((subdivision_endpoint_spec hI (pieceEdge I i k)).1 b)
-    apply hF.vertex_ne (hm 0 false) (hm 1 true)
-    intro he
-    simpa using same_occurrence_end_contact hI i 0 1 (by decide) false true he
+    exact hF.vertex_ne (hm 0 false) (hm 1 true) fun he => by
+      simpa using same_occurrence_end_contact hI i 0 1 (by decide) false true he
   change ((p.concat q).concat r).IsSimple
   apply hprefix.concat (hF.simple (pieceEdge I i 2)) hopen (piece_open hI hF i 2)
     hjoin
@@ -151,18 +150,15 @@ private theorem joined_simple {I : FixedRotationInput} (hI : Valid I)
     specialize hval s
   · obtain ⟨c, d, hc, hd, hcd⟩ :=
       route_pair_contact hF i 0 2 (by decide) j b hs' ht' (hval.symm.trans he)
-    have hh : c = false ∧ d = true := by
+    obtain ⟨rfl, rfl⟩ : c = false ∧ d = true := by
       simpa using same_occurrence_end_contact hI i 0 2 (by decide) c d hcd
-    refine .inr ⟨?_, hh.2 ▸ hd⟩
-    change (a.val : ℝ) + s = 0
-    exact hj ▸ (hh.1 ▸ hc : p.AtEnd j s false)
+    exact .inr ⟨show (a.val : ℝ) + s = 0 from hj ▸ hc, hd⟩
   · obtain ⟨c, d, hc, hd, hcd⟩ :=
       route_pair_contact hF i 1 2 (by decide) j b hs' ht' (hval.symm.trans he)
-    have hh : c = true ∧ d = false := by
+    obtain ⟨rfl, rfl⟩ : c = true ∧ d = false := by
       simpa using same_occurrence_end_contact hI i 1 2 (by decide) c d hcd
-    refine .inl ⟨?_, hh.2 ▸ hd⟩
-    exact (end_position_of_shift hj (hh.1 ▸ hc : q.AtEnd j s true)).trans
-      (congrArg (fun n : ℕ => (n : ℝ)) (Route.segments_concat p q).symm)
+    exact .inl ⟨(end_position_of_shift hj hc).trans
+      (congrArg Nat.cast (Route.segments_concat p q).symm), hd⟩
 
 private def shift {I : FixedRotationInput} (F : PolygonalDrawing (subdivisionGraph I))
     (i : Edge I.graph) (k : Fin 3) : ℕ :=
@@ -202,11 +198,9 @@ private theorem joined_support {I : FixedRotationInput}
   rw [Route.support_concat _ _ hj, Route.support_concat _ _ hpq]
   ext x
   simp only [Set.mem_union, Set.mem_iUnion]
-  constructor
-  · rintro ((h | h) | h) <;> exact ⟨_, h⟩
-  · rintro ⟨k, hk⟩
-    fin_cases k
-    exacts [.inl (.inl hk), .inl (.inr hk), .inr hk]
+  refine ⟨by rintro ((h | h) | h) <;> exact ⟨_, h⟩, fun ⟨k, hk⟩ => ?_⟩
+  fin_cases k
+  exacts [.inl (.inl hk), .inl (.inr hk), .inr hk]
 
 /-- Undo the indexed twice subdivision of an actual embedding. Original vertex points and
 outgoing germs are retained, and each original route has exactly its three-piece support.
@@ -234,9 +228,8 @@ theorem exists_contracted_subdivision_embedding {I : FixedRotationInput} (hI : V
   have hbound (v : ℕ) (hv : v ∈ I.graph.vertices) : v < I.graph.vertices.length :=
     List.mem_range.mp (hnames ▸ hv)
   have hsub (v : ℕ) (hv : v ∈ I.graph.vertices) : v ∈ (subdivisionGraph I).vertices := by
-    have hlt := hbound v hv
     simp only [subdivisionGraph, subdivisionSize, List.mem_range]
-    omega
+    linarith [hbound v hv]
   have hevertex (d : Dart I.graph) : d.vertex ∈ I.graph.vertices :=
     RotationSystem.vertex_mem (fun v hv => hnames ▸ List.mem_range.mpr (hI.2.1 v hv)) d
   have hvertex : ∀ i (a : Fin (D.route i).segments) (s : ℝ), s ∈ Set.Icc 0 1 →
@@ -246,16 +239,11 @@ theorem exists_contracted_subdivision_embedding {I : FixedRotationInput} (hI : V
     obtain ⟨k, j, hj, hval⟩ := joined_trace F i a s
     obtain ⟨b, hb, hname⟩ := hF.vertex_contacts _ j s hs v (hsub v hv) (hval.symm.trans he)
     rcases piece_vertex_cases i k b with ⟨rfl, rfl, hend⟩ | ⟨rfl, rfl, hend⟩ | ⟨c, hnew⟩
-    · refine ⟨false, ?_, hend.symm.trans hname⟩
-      change (a.val : ℝ) + s = 0
-      rw [show a.val = j.val by simpa [shift] using hj]
-      exact hb
-    · refine ⟨true, ?_, hend.symm.trans hname⟩
-      change (a.val : ℝ) + s = (joinedRoute F i).segments
-      exact (end_position_of_shift hj hb).trans
-        (congrArg (fun n : ℕ => (n : ℝ)) (joined_segments F i).symm)
-    · have hlt := hbound v hv
-      omega
+    · have haj : a.val = j.val := by simpa [shift] using hj
+      exact ⟨false, show (a.val : ℝ) + s = 0 from haj ▸ hb, hend.symm.trans hname⟩
+    · exact ⟨true, (end_position_of_shift hj hb).trans
+        (congrArg (fun n : ℕ => (n : ℝ)) (joined_segments F i).symm), hend.symm.trans hname⟩
+    · linarith [hbound v hv]
   have hshared {i j : Edge I.graph} (hne : i ≠ j) (k l : Fin 3) (b c : Bool)
       (he : Dart.vertex (pieceEdge I i k, b) = Dart.vertex (pieceEdge I j l, c)) :
       Dart.vertex (pieceEdge I i k, b) ∈ I.graph.vertices := by
@@ -267,8 +255,8 @@ theorem exists_contracted_subdivision_embedding {I : FixedRotationInput} (hI : V
       · exact (he.trans hc).symm ▸ hevertex (j, true)
       · rw [hb, hc] at he
         exact (hne (Fin.ext (by cases d <;> cases a <;> simp at he <;> omega))).elim
-  refine ⟨D, ⟨?_, joined_simple hI hF, hvertex, ?_⟩, rfl, joined_support F, ?_⟩
-  · exact fun u hu v hv he => hF.vertices_injective (hsub u hu) (hsub v hv) he
+  refine ⟨D, ⟨fun u hu v hv => hF.vertices_injective (hsub u hu) (hsub v hv),
+    joined_simple hI hF, hvertex, ?_⟩, rfl, joined_support F, ?_⟩
   · intro i j hne a b s t hs ht he
     obtain ⟨k, a', _, ha⟩ := joined_trace F i a s
     obtain ⟨l, b', _, hb⟩ := joined_trace F j b t

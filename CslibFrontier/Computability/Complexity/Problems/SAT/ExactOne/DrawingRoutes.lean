@@ -89,14 +89,11 @@ theorem positiveStem_in_box {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
     (he : e ∈ (clauseGeometry φ d i c).incidenceRoutes)
     {p : ℝ × ℝ} (hp : p ∈ support (positiveStem φ d i e)) :
     inPointBox (positiveBoxOrigin φ d i + positiveTranslation) positiveRadius p := by
-  rw [positiveStem, support_translate] at hp
-  obtain ⟨q, hq, rfl⟩ := hp
+  obtain ⟨q, hq, rfl⟩ := by simpa only [positiveStem, support_translate] using hp
   rw [add_comm (positiveBoxOrigin φ d i) positiveTranslation, inPointBox_translate_iff]
-  apply support_inPointBox_of_points (r := e.route) ?_ hq
-  intro a ha
-  have hb := clauseGeometry_incidence_points_bounds hd hi c he a ha
+  refine support_inPointBox_of_points (fun a ha => ?_) hq
   norm_num [inPointBox, positiveTranslation, positiveRadius, realPoint]
-  exact_mod_cast hb
+  exact_mod_cast clauseGeometry_incidence_points_bounds hd hi c he a ha
 
 /-- The normalized inherited route remains properly orthogonal and continuously simple. -/
 theorem positiveExterior_regular {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
@@ -172,18 +169,16 @@ theorem collaredProfile_incidence_endpoints (p : ClauseProfile)
   · rw [collared_variablePoint _ _ hfend.2.1]
     dsimp only [LocalIncidence.route]
     split_ifs with ht
-    · have hend := hfend.2.2.2
-      rw [profile_prefix_terminal_endpoint p f.variableIndex ht] at hend
-      have hleft : (collarRoute (collarReflected s) f.route).getLast? =
+    · have hleft : (collarRoute (collarReflected s) f.route).getLast? =
           some (collarInnerPort (collarReflected s)
             (terminalIndex (profilePrefixGeometry p) f.variableIndex)) := by
-        rw [collarRoute_eq_map, List.getLast?_map, hend, Option.map_some,
+        rw [collarRoute_eq_map, List.getLast?_map, hfend.2.2.2,
+          profile_prefix_terminal_endpoint p f.variableIndex ht, Option.map_some,
           collarPoint_innerTemplatePort]
-      have hright :=
-        ((collar_check s hs).2 (terminalIndex (profilePrefixGeometry p) f.variableIndex)).2.1
-      rw [collarPrefixRoute, last_join hleft (by simpa only [List.head?_reverse] using hright),
+      let hc := (collar_check s hs).2 (terminalIndex (profilePrefixGeometry p) f.variableIndex)
+      rw [collarPrefixRoute, last_join hleft (by simpa only [List.head?_reverse] using hc.2.1),
         List.getLast?_reverse]
-      exact ((collar_check s hs).2 (terminalIndex (profilePrefixGeometry p) f.variableIndex)).1
+      exact hc.1
     · rw [collarRoute_eq_map, List.getLast?_map, hfend.2.2.2, Option.map_some]
 
 /-- The actual translated local incidence is proper and simple, with its prescribed endpoints.
@@ -292,8 +287,7 @@ theorem collaredProfile_routes_contact (p : ClauseProfile)
   obtain ⟨b, hb, rfl⟩ := List.mem_map.mp hf
   have hab : a ≠ b := fun heq => hne (heq ▸ rfl)
   obtain ⟨q, hq, hzq⟩ := profileCollarRoute_contact p h hs ha hb hab hz hw
-  rw [LocalGeometry.commonEndpoints, List.mem_append] at hq
-  rcases hq with hq | hq
+  rcases List.mem_append.mp hq with hq | hq
   · split_ifs at hq with hc
     · obtain rfl := List.mem_singleton.mp hq
       exact ⟨collarPoint (collarReflected s) ((profilePrefixGeometry p).clausePosition a.1),
@@ -356,8 +350,7 @@ theorem collaredProfile_clause_not_mem_support (p : ClauseProfile)
     realPoint ((collaredPrefixGeometry (profilePrefixGeometry p) s).clausePosition j) ∉
       support e.route := by
   obtain ⟨a, ha, rfl⟩ := List.mem_map.mp he
-  rw [collared_clausePoint _ _ j.isLt]
-  exact profileCollarRoute_clause_not_mem_support p h hs ha j hj
+  exact collared_clausePoint _ _ j.isLt ▸ profileCollarRoute_clause_not_mem_support p h hs ha j hj
 
 /-- Distinct local incidences cannot contact the source port of one another. -/
 theorem collaredProfile_other_terminal_not_mem_support (p : ClauseProfile)
@@ -387,13 +380,10 @@ theorem positiveStem_other_terminal_not_mem_support {φ : CNF ℕ}
     realPoint (positiveBoxOrigin φ d i +
       (clauseGeometry φ d i c).variablePosition f.variableIndex) ∉
       support (positiveStem φ d i e) := by
-  intro hz
-  rw [positiveStem, support_translate] at hz
-  obtain ⟨x, hx, hxp⟩ := hz
-  obtain rfl : x = realPoint ((clauseGeometry φ d i c).variablePosition f.variableIndex) := by
-    simpa [realPoint_add, add_comm (realPoint (positiveBoxOrigin φ d i))] using hxp
+  rw [positiveStem, support_translate, realPoint_add, add_comm (realPoint _)]
+  rintro ⟨x, hx, hxp⟩
   exact collaredProfile_other_terminal_not_mem_support _ h (clausePorts_spec hd hi).1
-    he hf hne ht hx
+    he hf hne ht (add_right_cancel hxp ▸ hx)
 
 /-- Inside one clause box, an inherited exterior is disjoint from every other local prefix.
 The shared clause center has already been cut away. -/

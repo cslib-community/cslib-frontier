@@ -156,10 +156,9 @@ private theorem inv_hdrT {i : ℕ} (hi : i ≤ I.t) :
   · simp only [step, init, lt_irrefl, decide_false, Bool.false_eq_true, ite_false]
     refine ⟨⟨le_rfl, le_rfl, by bound_tac, by bound_tac, ?_, ?_, by bound_tac, by bound_tac,
       by bound_tac, by bound_tac, by bound_tac, by bound_tac, by bound_tac⟩, rfl, ?_, ?_⟩
-    · simp only [depthOf, depth]; omega
-    · simp only [lenOf, walkLength, depth]; omega
-    · simp only [depthOf, depth]; ring
-    · simp only [lenOf, walkLength, depth]; ring
+    all_goals
+      simp only [depthOf, lenOf, walkLength, depth]
+      omega
 
 private theorem inv_size {m d l : ℕ} (hm : m ≤ I.n) (hd : d + 16 * Nat.size m = depthOf I)
     (hl : l + 4168 * Nat.size m = lenOf I) :
@@ -337,24 +336,19 @@ private theorem length_encState_le_of_bounds {q : State} (hb : Bounds I q) :
     length_encNat_eq_size x ▸ Nat.size_le_size hx
   have h_fields : _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ :=
     ⟨hle hb.cnt, hle hb.n, hle hb.s, hle hb.t, hle hb.v₁.le, hle hb.v₂.le⟩
-  have h₇ : (encNat q.depth).length ≤ 16 * a + 524 :=
-    (length_encNat_le_self _).trans (hD ▸ hb.depth)
-  have h₈ : (encNat q.len).length ≤ 4168 * a + 136240 :=
-    (length_encNat_le_self _).trans (hT ▸ hb.len)
-  have h₉ : (encNat q.j).length ≤ 4168 * a + 136240 :=
-    (length_encNat_le_self _).trans (hT ▸ hb.j)
+  have h_dlj : _ ∧ _ ∧ _ := ⟨(length_encNat_le_self _).trans (hD ▸ hb.depth),
+    (length_encNat_le_self _).trans (hT ▸ hb.len), (length_encNat_le_self _).trans (hT ▸ hb.j)⟩
   have h₁₀ : (encNat q.c).length ≤ 65 * (4168 * a + 136240) + 1 := by
     rw [length_encNat_eq_size, ← hT]; exact size_le_of_le_pow hb.c
   have h₁₁ : (encNat q.w).length ≤ 65 * (4168 * a + 136240) + 1 := by
     rw [length_encNat_eq_size, ← hT]; exact size_le_of_le_pow hb.w
   have h₁₂ : (encCtl q.ctl).length ≤ 10 := card_ctl ▸ (length_encFinEnum_lt _).le
-  have h₁₃ : (encList encLab q.ev.lower).length ≤ (16 * a + 525) * (2 * Nat.card Label + 1) :=
-    (length_encList_finEnum_le _).trans (Nat.mul_le_mul_right _ (by have := hb.lower; omega))
-  have h₁₄ : (encList encFrame q.ev.frames).length ≤
-      (16 * a + 525) * (2 * Nat.card (ReingoldPc × Label) + 1) :=
-    (length_encList_finEnum_le _).trans (Nat.mul_le_mul_right _ (by have := hb.frames; omega))
-  rw [natCard_label] at h₁₃
-  rw [card_frame] at h₁₄
+  have h₁₃ : (encList encLab q.ev.lower).length ≤ (16 * a + 525) * (2 * 257 ^ 8 + 1) :=
+    (length_encList_finEnum_le _).trans
+      (Nat.mul_le_mul (by have := hb.lower; omega) (congrArg (2 * · + 1) natCard_label).le)
+  have h₁₄ : (encList encFrame q.ev.frames).length ≤ (16 * a + 525) * (2 * (7 * 257 ^ 8) + 1) :=
+    (length_encList_finEnum_le _).trans
+      (Nat.mul_le_mul (by have := hb.frames; omega) (congrArg (2 * · + 1) card_frame).le)
   refine (length_encState_le q).trans ?_
   rw [stateConst, mul_assoc]
   exact Nat.mul_le_mul_left _ (by omega)

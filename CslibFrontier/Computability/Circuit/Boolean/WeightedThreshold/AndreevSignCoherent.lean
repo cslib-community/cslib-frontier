@@ -122,11 +122,9 @@ theorem andreev_andreevCubePoint (x : BitString (2 ^ b)) {s : Fin b → ℕ} (hs
     andreev b m (andreevCubePoint b m x s) =
       x (BitString.equivFin b fun j => decide (s j % 2 = 1)) := by
   rw [andreev_eq_table_parities, andreevTable, andreevCubePoint_andreevTableIndex]
-  congr 2
-  funext j
+  congr 2 with j
   simp only [andreevParities, parity, parityOn, andreevCubePoint_andreevBlockVar,
-    decide_eq_true_eq]
-  rw [Fin.card_filter_val_lt, min_eq_right (hs j)]
+    decide_eq_true_eq, Fin.card_filter_val_lt, min_eq_right (hs j)]
 
 /-- On a cube, the values of Andreev's function determine the table. -/
 theorem eq_of_andreev_andreevCubePoint_add {x x' : BitString (2 ^ b)} (q : Fin b → Fin m)
@@ -140,9 +138,8 @@ theorem eq_of_andreev_andreevCubePoint_add {x x' : BitString (2 ^ b)} (q : Fin b
   have hpar (a : ℕ) (c : Bool) : decide ((a + (c ^^ decide (a % 2 = 1)).toNat) % 2 = 1) = c := by
     cases c <;> rcases Nat.mod_two_eq_zero_or_one a with ha | ha <;> simp [ha] <;> omega
   have hz : (fun j => decide ((q j + (z j).toNat) % 2 = 1)) = p := funext fun j => hpar _ _
-  have := h z
-  rwa [andreev_andreevCubePoint x (hs z), andreev_andreevCubePoint x' (hs z), hz,
-    Equiv.apply_symm_apply] at this
+  simpa only [andreev_andreevCubePoint x (hs z), andreev_andreevCubePoint x' (hs z), hz, p,
+    Equiv.apply_symm_apply] using h z
 
 /-! ### Lemma 14: many gates split each cube -/
 
@@ -175,10 +172,9 @@ theorem andreevCubeSplitBound_anti (b : ℕ) {G G' : ℕ} (h : G ≤ G') :
   rcases le_or_gt ((2 : ℝ) ^ b - b - 1 - Real.logb 2 (G' + 1)) 0 with hn | hn
   · rw [max_eq_left hn, zero_div]
     exact div_nonneg (le_max_left _ _) (by positivity)
-  · have hb : (1 : ℝ) ≤ b := by
-      rcases Nat.eq_zero_or_pos b with rfl | hb
-      · simp at hn; linarith
-      · exact Nat.one_le_cast.mpr hb
+  · rcases Nat.eq_zero_or_pos b with rfl | hb
+    · simp at hn; linarith
+    have hb1 : (1 : ℝ) ≤ b := Nat.one_le_cast.mpr hb
     exact div_le_div₀ (le_max_left _ _) (max_le_max le_rfl (by linarith)) (by linarith)
       (by linarith)
 
@@ -206,9 +202,7 @@ theorem card_andreevCubeSplitCount_eq_le (c : Circuit signature (2 ^ b + b * m) 
     congrFun (hcomp w) 0
   have hinj : Set.InjOn (f ∘ P) ↑F := fun x _ x' _ h =>
     eq_of_andreev_andreevCubePoint_add q fun z => by
-      have := congrFun h z
-      simp only [Function.comp_apply, f, P] at this
-      rwa [← andreevCubePoint_add, ← andreevCubePoint_add, hcomp', hcomp'] at this
+      simpa only [Function.comp_apply, f, P, ← andreevCubePoint_add, hcomp'] using congrFun h z
   calc #F = #(F.image (f ∘ P)) := (card_image_of_injOn hinj).symm
     _ = #((F.image P).image f) := by rw [image_image]
     _ ≤ (#(outputBottomGates c 0)).choose D * (2 ^ Fintype.card (Fin b) - 1) ^ D *
@@ -245,19 +239,17 @@ theorem two_pow_mul_sub_le_mul_sum_andreevCubeSplitCount (c : Circuit signature 
   have key := Real.card_mul_log_sub_le_of_card_fiber_le (andreevCubeSplitCount c q)
     (andreevCubeSplitCount_le c q) (by positivity)
     (by have : (1 : ℝ) ≤ 2 ^ b := one_le_pow₀ one_le_two
-        nlinarith [(Nat.cast_nonneg G : (0 : ℝ) ≤ G)]) hfiber
-  have hcard : (Fintype.card (BitString (2 ^ b)) : ℝ) = (2 : ℝ) ^ 2 ^ b := by
-    simp [BitString]
+        nlinarith [Nat.cast_nonneg (α := ℝ) G]) hfiber
+  have hcard : (Fintype.card (BitString (2 ^ b)) : ℝ) = (2 : ℝ) ^ 2 ^ b := by simp [BitString]
   have hl2 : 0 < Real.log 2 := Real.log_pos one_lt_two
   have hG1 : (0 : ℝ) < G + 1 := by positivity
   rw [hcard, Real.log_pow, Real.log_pow, Real.log_mul hG1.ne' (by positivity), Real.log_pow]
     at key
   have hlogb : Real.log ((G : ℝ) + 1) = Real.logb 2 (G + 1) * Real.log 2 := by
-    rw [← Real.log_div_log, div_mul_cancel₀ _ hl2.ne']
+    rw [Real.logb, div_mul_cancel₀ _ hl2.ne']
   rw [hlogb] at key
   push_cast at key
-  refine le_of_mul_le_mul_right ?_ hl2
-  nlinarith [key]
+  exact le_of_mul_le_mul_right (by nlinarith [key]) hl2
 
 /-- **Lemma 14** (Reitwiessner, Lemma 14): for a circuit of depth at most two computing
 `andreev b m` with `G` bottom gates and every cube `q`, the number of splitting bottom gates
@@ -276,10 +268,9 @@ theorem two_pow_mul_andreevCubeSplitBound_le (c : Circuit signature (2 ^ b + b *
   unfold andreevCubeSplitBound
   rcases le_or_gt ((2 : ℝ) ^ b - b - 1 - Real.logb 2 (G + 1)) 0 with hn | hn
   · rwa [max_eq_left hn, zero_div, mul_zero]
-  · have hb : (1 : ℝ) ≤ b := by
-      rcases Nat.eq_zero_or_pos b with h0 | h0
-      · subst h0; simp at hn; linarith
-      · exact Nat.one_le_cast.mpr h0
+  · rcases Nat.eq_zero_or_pos b with rfl | h0
+    · simp at hn; linarith
+    have hb : (1 : ℝ) ≤ b := Nat.one_le_cast.mpr h0
     rwa [max_eq_right hn.le, ← mul_div_assoc, div_le_iff₀ (by linarith), mul_comm _ (_ + _)]
 
 /-! ### Lemma 15: a sign-coherent gate splits few cubes -/
@@ -293,14 +284,13 @@ theorem sum_mul_andreevCubePoint (a : Fin (2 ^ b + b * m) → ℝ) (x : BitStrin
         ∑ j, ∑ t : Fin m, if (t : ℕ) < s j then a (andreevBlockVar b m j t) else 0 := by
   rw [Fin.sum_univ_add]
   congr 1
-  · exact sum_congr rfl fun idx _ => by
-      rw [show Fin.castAdd (b * m) idx = andreevTableIndex b m idx from rfl,
-        andreevCubePoint_andreevTableIndex]
+  · exact sum_congr rfl fun idx _ =>
+      congrArg (a _ * Bool.toNat ·) (andreevCubePoint_andreevTableIndex x s idx)
   · rw [← finProdFinEquiv.sum_comp, Fintype.sum_prod_type]
     refine sum_congr rfl fun j _ => sum_congr rfl fun t _ => ?_
-    rw [show Fin.natAdd (2 ^ b) (finProdFinEquiv (j, t)) = andreevBlockVar b m j t from rfl,
-      andreevCubePoint_andreevBlockVar]
-    split_ifs with h <;> simp [h]
+    have hbv := andreevCubePoint_andreevBlockVar (b := b) x s j t
+    dsimp only [andreevBlockVar] at hbv ⊢
+    by_cases h : (t : ℕ) < s j <;> simp [hbv, h]
 
 /-- The block form of a block with nonnegative weights is monotone, and with nonpositive weights
 antitone. -/
@@ -311,11 +301,9 @@ theorem monotone_or_antitone_blockForm {a : Fin (2 ^ b + b * m) → ℝ}
         ∑ t : Fin m, if (t : ℕ) < s then a (andreevBlockVar b m j t) else 0 := by
   rcases ha j with h | h
   · refine Or.inl fun s s' hs => sum_le_sum fun t _ => ?_
-    have := h t
-    split_ifs <;> first | exact le_rfl | exact this | omega
+    split_ifs <;> first | exact le_rfl | exact h t | omega
   · refine Or.inr fun s s' hs => sum_le_sum fun t _ => ?_
-    have := h t
-    split_ifs <;> first | exact le_rfl | exact this | omega
+    split_ifs <;> first | exact le_rfl | exact h t | omega
 
 /-- A gate that splits the cube `q` for the table `x` makes the threshold of its block forms split
 `q`. -/
@@ -358,9 +346,8 @@ theorem card_cubes_mem_circuitSplitGates_le (c : Circuit signature (2 ^ b + b * 
   classical
   refine (card_le_card fun q hq => mem_filter.mpr ⟨mem_univ q,
     cubeSplits_of_mem_circuitSplitGates (mem_filter.mp hq).2⟩).trans ?_
-  refine (Cslib.Combinatorics.card_cubeSplits_le _ (monotone_or_antitone_blockForm hk)
-    _).trans_eq ?_
-  rw [Fintype.card_fin]
+  simpa only [Fintype.card_fin] using
+    Cslib.Combinatorics.card_cubeSplits_le _ (monotone_or_antitone_blockForm hk) _
 
 /-- Summed over all cubes, the splitting gates of a circuit with sign-coherent bottom gates number
 at most `G (m ^ b - (m - 1) ^ b)` for every table. -/
@@ -490,16 +477,13 @@ theorem min_le_card_outputBottomGates (c : Circuit signature (2 ^ b + b * m) 1)
     calc Real.logb 2 ((G : ℝ) + 1) ≤ Real.logb 2 ((2 : ℝ) ^ (2 * b)) :=
           Real.logb_le_logb_of_le one_lt_two (by linarith) hGN
       _ = 2 * b := by exact_mod_cast Real.logb_two_pow (2 * b)
-  have hD : ((2 : ℝ) ^ b - 3 * b - 1) / (3 * b) ≤ andreevCubeSplitBound b G := by
-    unfold andreevCubeSplitBound
-    exact div_le_div₀ (le_max_left _ _) ((by linarith : (2 : ℝ) ^ b - 3 * b - 1 ≤
-      (2 : ℝ) ^ b - b - 1 - Real.logb 2 (G + 1)).trans (le_max_right _ _))
-      (by linarith) (by linarith)
-  have hm0 : (0 : ℝ) ≤ m := Nat.cast_nonneg m
-  have hstep := (mul_le_mul_of_nonneg_left hD hm0).trans hmain
+  have hD : ((2 : ℝ) ^ b - 3 * b - 1) / (3 * b) ≤ andreevCubeSplitBound b G :=
+    div_le_div₀ (le_max_left _ _)
+      ((show (2 : ℝ) ^ b - 3 * b - 1 ≤ (2 : ℝ) ^ b - b - 1 - Real.logb 2 (G + 1) by
+        linarith).trans (le_max_right _ _)) (by linarith) (by linarith)
+  have hstep := (mul_le_mul_of_nonneg_left hD (Nat.cast_nonneg m)).trans hmain
   rw [div_le_iff₀ (by positivity)]
-  rw [mul_div_assoc', div_le_iff₀ (by positivity)] at hstep
-  nlinarith
+  rw [mul_div_assoc', div_le_iff₀ (by positivity)] at hstep; nlinarith
 
 /-- **Theorem 13, balanced form**: if `b m = N = 2 ^ b`, then `G ≥ N (N - 3 b - 1) / (3 b ^ 3)`,
 which is `Ω(n ^ 2 / log ^ 3 n)` for `n = 2 N`. -/
@@ -512,21 +496,19 @@ theorem le_card_outputBottomGates_of_balanced (c : Circuit signature (2 ^ b + b 
   have hmin := min_le_card_outputBottomGates c hd hcomp hcoh
   have hb : 0 < b := Nat.pos_of_ne_zero fun h => by simp [h] at hbal
   have hb1 : (1 : ℝ) ≤ b := Nat.one_le_cast.mpr hb
-  have hm : (m : ℝ) = (2 : ℝ) ^ b / b := by
-    rw [eq_div_iff (by positivity), mul_comm]; exact_mod_cast hbal
-  have hG : (0 : ℝ) ≤ #(outputBottomGates c 0) := Nat.cast_nonneg _
-  have hN : (1 : ℝ) ≤ 2 ^ b := one_le_pow₀ one_le_two
+  have hbalR : (m : ℝ) * b = (2 : ℝ) ^ b := by exact_mod_cast Nat.mul_comm m b ▸ hbal
   have heq : (m : ℝ) * ((2 : ℝ) ^ b - 3 * b - 1) / (3 * (b : ℝ) ^ 2) =
       (2 : ℝ) ^ b * ((2 : ℝ) ^ b - 3 * b - 1) / (3 * (b : ℝ) ^ 3) := by
-    rw [hm]; field_simp
+    field_simp
+    rw [hbalR]
   rw [heq] at hmin
   rcases le_or_gt ((2 : ℝ) ^ b - 3 * b - 1) 0 with hn | hn
   · exact (div_nonpos_of_nonpos_of_nonneg (mul_nonpos_of_nonneg_of_nonpos (by positivity) hn)
-      (by positivity)).trans hG
+      (by positivity)).trans (Nat.cast_nonneg _)
   refine le_trans (le_min ?_ le_rfl) hmin
   rw [div_le_iff₀ (by positivity)]
   have hb3 : (1 : ℝ) ≤ 3 * (b : ℝ) ^ 3 := by nlinarith [pow_le_pow_left₀ zero_le_one hb1 3]
-  nlinarith
+  nlinarith [one_le_pow₀ (a := (2 : ℝ)) (n := b) one_le_two]
 
 /-! ### Theorem 13 for `depthTwoInputs` circuits -/
 
@@ -567,9 +549,8 @@ theorem le_of_balanced_of_depthTwoInputs {G : ℕ} (bottom : Fin G → Op)
   obtain ⟨top, htop⟩ : ∃ top, c.outputs 0 = .gate top := ⟨_, rfl⟩
   have hB : #(outputBottomGates c 0) ≤ G :=
     Nat.lt_succ_iff.mp ((card_outputBottomGates_lt_size htop).trans_eq (size_depthTwoInputs ..))
-  refine (le_card_outputBottomGates_of_balanced c (depth_depthTwoInputs_le ..) hcomp
+  exact (le_card_outputBottomGates_of_balanced c (depth_depthTwoInputs_le ..) hcomp
     (fun k hk => isSignCoherent_inputWeight_depthTwoInputs bottom args u v θ hcoh htop
-      (by rwa [outputBottomGates_of_gate htop] at hk)) hbal).trans ?_
-  exact_mod_cast hB
+      (by rwa [outputBottomGates_of_gate htop] at hk)) hbal).trans (Nat.cast_le.mpr hB)
 
 end Cslib.Circuits.Boolean.WeightedThreshold

@@ -89,8 +89,8 @@ structure Horizon (P : ℕ) where
 @[positivity_lemma]
 theorem side_pos (P k : ℕ) (hP : 0 < P) : 0 < side P k :=
   Nat.pos_of_ne_zero fun h => hP.not_ge <| by
-    simpa [smul_eq_mul, show P ⌈/⌉ 2 ^ k = 0 from h] using
-      le_smul_ceilDiv (Nat.pow_pos two_pos : 0 < 2 ^ k) (b := P)
+    dsimp only [side] at h
+    simpa [smul_eq_mul, h] using le_smul_ceilDiv (Nat.pow_pos two_pos : 0 < 2 ^ k) (b := P)
 
 /-- Grid sides never exceed the supplied modulus. -/
 theorem side_le (P k : ℕ) : side P k ≤ P :=
@@ -235,11 +235,10 @@ theorem grid_retains (D : ZMod P) (role : Fin J) (k : ℕ)
 theorem rate_pos (k : ℕ) : 0 < rate k := by unfold rate; positivity
 
 /-- Increasing the exponent narrows the grid rate. -/
-theorem rate_antitone : Antitone rate := by
-  intro a b hab
+theorem rate_antitone : Antitone rate := fun _ _ hab => by
   unfold rate
-  apply pow_le_pow_left₀ (by positivity)
-  exact inv_anti₀ (by positivity) (pow_le_pow_right₀ (by norm_num) hab)
+  exact pow_le_pow_left₀ (by positivity)
+    (inv_anti₀ (by positivity) (pow_le_pow_right₀ (a := (2 : ℝ)) one_le_two hab)) 4
 
 /-- Usage minima correspond to maxima of natural exponents. -/
 theorem rate_min (k l : ℕ) : min (rate k) (rate l) = rate (max k l) := by
@@ -282,11 +281,10 @@ theorem retention {D : ZMod P} (hD : D ≠ 0) (suffix : List (ZMod P))
 theorem density (role : Fin J) (L : ℕ) (hL : L ≤ P) (a : ZMod P) :
     (dens {σ : Environment P J | frameRetains P 4 L (σ role) a} : ℝ) = ((L: ℝ) / P) ^ 4 := by
   classical
-  rw [dens_filter_pi_eval role (fun A : FrameChannel P 4 1 => frameRetains P 4 L A a)]
-  have h := congrArg (fun q : ℚ≥0 => (q : ℝ))
-    (dens_eval_mem_retentionBox (P := P) (H := 4) (r := 1) (by decide) hL a)
-  push_cast at h
-  simpa only [nnratCast_dens] using h
+  rw [dens_filter_pi_eval role (fun A : FrameChannel P 4 1 => frameRetains P 4 L A a),
+    dens_eval_mem_retentionBox (P := P) (H := 4) (r := 1) (by decide) hL a]
+  push_cast
+  rfl
 
 /-- Concrete mixed rank / usage pair law from frame conditioning, not unrestricted
 seed independence. Usage may have any other positive side; only rank's admissible
@@ -563,8 +561,8 @@ theorem rawNormalized_rank_dependency [Fintype V] {k : ℕ} {Input : Type*}
       Environment P J → Matrix V V ℝ)
     {a b : Input} (hab : ∀ j, ranks a j = ranks b j) :
     rawNormalized D ident R l bin ks km kt kb ss sm st cutoff gate 66 raw prep (ranks a) =
-      rawNormalized D ident R l bin ks km kt kb ss sm st cutoff gate 66 raw prep (ranks b) := by
-  rw [show ranks a = ranks b from funext hab]
+      rawNormalized D ident R l bin ks km kt kb ss sm st cutoff gate 66 raw prep (ranks b) :=
+  congrArg _ (funext hab)
 
 /-- The normalization split is exactly the single full-environment conditional
 mean, not a product of two independent copies of the full environment. -/
@@ -578,15 +576,11 @@ theorem normalizer_full {k : ℕ} (D : ZMod P) (ident : V → ZMod P)
     rowSliceMean (fun σ v => r.source.retains (channels D) σ (ident v))
       (fun σ v => r.usage.retains (channels D) σ (ident v)) prep x y := by
   classical
-  dsimp only [CorrectionRowRecipe.normalizer, rowSliceMean]
   let e := (Equiv.piSplitAt r.terminal.role (fun _ : Fin J => FrameChannel P 4 1)).trans
     (Equiv.prodComm _ _)
-  symm
-  refine Finset.expect_equiv e (fun σ => ?_) fun σ _ => by
-    change prep σ x y = prep (e.symm (e σ)) x y
-    rw [Equiv.symm_apply_apply]
-  simp [mem_filter, mem_univ, mem_product, e, Equiv.trans_apply,
-    Equiv.prodComm_apply, Equiv.piSplitAt_apply, coordinate,
+  refine (Finset.expect_equiv e (fun σ => ?_) fun σ _ =>
+    congrArg (fun τ => prep τ x y) (e.symm_apply_apply σ).symm).symm
+  simp [mem_filter, mem_product, e, Equiv.piSplitAt_apply, coordinate,
     CorrectionRowTask.Channel.retains, channels, hr.2.1]
 
 /-- Identity-matrix rows witness a nonzero actual normalized dense sample,
@@ -712,14 +706,11 @@ theorem hierarchy_prefix_bound (HP : HierarchyParams 16 1 16 32 8)
       hierarchy HP e X Y S l *ᵥ 1 ≤ 1 ∧
       ∀ x y, hierarchy HP e X Y S l x y ≤ rate l := by
   classical
-  dsimp only
-  rw [rate_eq_source_grid]
-  apply hierarchy_invariant he (π := fun i => ((side P i: ℝ) / P) ^ 4)
-    (by norm_num) (by norm_num) hS hS0 hS1 l
-  intro i hi
-  have hh := retention_environment_ident R.source R.terminal (ids i) (idt i)
-    (his i hi) (hit i hi) H (show i ≤ H.maxExponent by omega)
-  rwa [rate_eq_source_grid] at hh
+  simp only [rate_eq_source_grid]
+  refine hierarchy_invariant he (π := fun i => ((side P i : ℝ) / P) ^ 4)
+    (by norm_num) (by norm_num) hS hS0 hS1 l fun i hi => ?_
+  simpa only [rate_eq_source_grid] using retention_environment_ident R.source R.terminal
+    (ids i) (idt i) (his i hi) (hit i hi) H (by omega)
 
 /-- Exact density of any actual channel whose real rate has a natural grid
 certificate; no density oracle remains in importance weights. -/
@@ -747,11 +738,8 @@ theorem padding_law {D : ZMod P} (hD : D ≠ 0) (suffix : List (ZMod P))
       dens {σ : Environment P J | E (fun c => (σ c).eval)} := by
   rw [← dens_pi_eval_comp_affine (H := 4) (r := 1) (pow_ne_zero suffix.length hD)
     (CopyPadding.identifier D suffix 0) E]
-  congr 1
-  ext σ
-  simp only [mem_filter, mem_univ, true_and]
-  exact iff_of_eq (congrArg E (funext₂ fun c x =>
-    congrArg (σ c).eval (CopyPadding.identifier_affine D suffix x)))
+  exact congrArg dens <| filter_congr fun σ _ => iff_of_eq <| congrArg E <|
+    funext₂ fun c x => congrArg (σ c).eval (CopyPadding.identifier_affine D suffix x)
 
 /-- A fully concrete radix hierarchy prefix under one global supplied prime.
 Stage cardinalities and queried exponent horizon are explicit finite premises. -/
@@ -823,9 +811,9 @@ theorem normalizedRequest_formula [Fintype V] {k : ℕ} (D : ZMod P) (ident : V 
 
 /-- The source grid has exactly the requested adjacent-bin ratio. -/
 theorem adjacent_rate_ratio (k : ℕ) : rate k / rate (k + 1) = 16 := by
+  have hne : (16 : ℝ)⁻¹ ^ k ≠ 0 := by positivity
   rw [rate_eq_source_grid, rate_eq_source_grid, pow_succ]
-  have h : (16: ℝ)⁻¹ ^ k ≠ 0 := by positivity
-  field_simp
+  field_simp [hne]
 
 omit [Fact P.Prime] in
 /-- Every actual residual request stays on the natural-exponent grid (the usage min is a max
@@ -941,7 +929,7 @@ theorem rawIncomingNormalized_rank_dependency [Fintype V] {k : ℕ} {Input : Typ
     rawIncomingNormalized HP D ident R l bin ks km kt kb ss sm st
       I τ Kc binCutoff raw prep maximum (ranks a) =
     rawIncomingNormalized HP D ident R l bin ks km kt kb ss sm st
-      I τ Kc binCutoff raw prep maximum (ranks b) := by
-  rw [show ranks a = ranks b from funext hab]
+      I τ Kc binCutoff raw prep maximum (ranks b) :=
+  congrArg _ (funext hab)
 
 end Matrix.HierarchyParams.H4RankEnvironment

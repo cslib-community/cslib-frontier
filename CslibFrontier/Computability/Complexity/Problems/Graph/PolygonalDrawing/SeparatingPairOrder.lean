@@ -57,18 +57,14 @@ theorem HasRegularContacts.opposite_orders_of_induced_reachable {G : Graph}
       Function.Injective site ∧ ∀ i, site i ∈ S k := by
     rcases hpath k with hDirect | ⟨ha', hb', hr⟩
     · refine ⟨0, fun _ => a k, Fin.elim0, rfl, hDirect.symm,
-        fun i => Fin.eq_zero i ▸ ha k,
-        fun i => by
-          rw [show i = Fin.last 0 from Fin.eq_zero i, Fin.lastCases_last, ← hDirect]
-          exact hb k,
+        fun i => Fin.eq_zero i ▸ ha k, fun i => Fin.eq_zero i ▸ hDirect ▸ hb k,
         fun i j _ => (Fin.eq_zero i).trans (Fin.eq_zero j).symm,
         fun i => i.elim0, fun i => i.elim0⟩
-    · have haOutside : (a k).vertex ∉ S k := ha k ▸ (havoid k).1
-      have hbOutside : (b k).vertex ∉ S k := hb k ▸ (havoid k).2
-      have hab : a k ≠ b k := fun h => huv ((ha k).symm.trans
+    · have hab : a k ≠ b k := fun h => huv ((ha k).symm.trans
         ((congrArg Dart.vertex h).trans (hb k)))
       obtain ⟨n, path, site, hfirst, hlast, hs, ht, hi, hj, hre⟩ :=
-        Dart.exists_path_of_induced_reachable (a k) (b k) haOutside hbOutside hab ha' hb' hr
+        Dart.exists_path_of_induced_reachable (a k) (b k) (ha k ▸ (havoid k).1)
+          (hb k ▸ (havoid k).2) hab ha' hb' hr
       exact ⟨n, path, site, hfirst, hlast, by simpa only [ha k] using hs,
         by simpa only [hb k] using ht, hi, hj, fun i => (hre i).choose⟩
   choose length path site first last start finish injectiveEdges injectiveSite siteMem
@@ -84,9 +80,8 @@ theorem HasRegularContacts.opposite_orders_of_induced_reachable {G : Graph}
     · rw [hd, start]
       exact Fin.cases (Or.inl rfl) (fun j => Or.inr (Or.inr (siteMem k j))) i
     · rw [hd, finish]
-      refine Fin.lastCases ?_ (fun j => ?_) i
-      · simp [Fin.lastCases_last]
-      · simp [Fin.lastCases_castSucc, siteMem k j]
+      exact Fin.lastCases (by simp [Fin.lastCases_last])
+        (fun j => by simp [Fin.lastCases_castSucc, siteMem k j]) i
   have sharedFirst {k l : Fin 3} (hkl : k ≠ l) (i : Fin (length k + 1))
       (j : Fin (length l + 1)) (he : (path k i).1 = (path l j).1) : i = 0 := by
     cases i using Fin.cases with
@@ -99,11 +94,9 @@ theorem HasRegularContacts.opposite_orders_of_induced_reachable {G : Graph}
       · exact ((outside k t).2 hm).elim
       · exact (Set.disjoint_left.mp (hdisjoint hkl) (siteMem k t) hm).elim
   have edgeNe {k l : Fin 3} (hkl : k ≠ l) (i : Fin (length k + 1)) (j : Fin (length l + 1)) :
-      (path k i).1 ≠ (path l j).1 := by
-    intro he
-    have hi := sharedFirst hkl i j he
+      (path k i).1 ≠ (path l j).1 := fun he => by
     have hj := sharedFirst hkl.symm j i he.symm
-    rw [hi, hj, first, first] at he
+    rw [sharedFirst hkl i j he, hj, first, first] at he
     exact hkl (haInj he)
   have allEdges : Function.Injective (fun p : (k : Fin 3) × Fin (length k + 1) =>
       (path p.1 p.2).1) := fun ⟨k, i⟩ ⟨l, j⟩ he => by
@@ -158,9 +151,8 @@ theorem HasRegularContacts.rotationDistance_lt_iff_of_separating_components {G :
     r.rotationDistance (a o) (a i) < r.rotationDistance (a o) (a j) ↔
       r.rotationDistance (b o) (b j) < r.rotationDistance (b o) (b i) := by
   classical
-  by_cases hij : i = j
-  · subst j
-    simp
+  rcases eq_or_ne i j with rfl | hij
+  · simp
   let K := (G.toSimpleGraph.induce {w | w ≠ u}).induce {w | w ≠ v}
   let projection : K →g G.toSimpleGraph := ⟨fun w => w.val.val, fun h => h⟩
   let S (k : ι) : Set ℕ := (component k).elim ∅ (fun C => projection '' C.supp)
@@ -182,8 +174,7 @@ theorem HasRegularContacts.rotationDistance_lt_iff_of_separating_components {G :
         have hCE' := SimpleGraph.pairwise_disjoint_supp_connectedComponent K hCE
         simp only [S, hc, he, Option.elim_some, Set.disjoint_left]
         rintro w ⟨p, hp, rfl⟩ ⟨q, hq, hw⟩
-        have hpq : q = p := Subtype.ext (Subtype.ext hw)
-        exact Set.disjoint_left.mp hCE' hp (hpq ▸ hq)
+        exact Set.disjoint_left.mp hCE' hp (Subtype.ext (Subtype.ext hw) ▸ hq)
   have paths (k : ι) : b k = (a k).reverse ∨
       ∃ (ha' : (a k).reverse.vertex ∈ S k) (hb' : (b k).reverse.vertex ∈ S k),
         (G.toSimpleGraph.induce (S k)).Reachable
@@ -192,8 +183,9 @@ theorem HasRegularContacts.rotationDistance_lt_iff_of_separating_components {G :
     cases hc : component k with
     | none => exact Or.inl (by simpa only [hc] using hp)
     | some C =>
+      have hSk : S k = projection '' C.supp := by simp only [S, hc, Option.elim_some]
       simp only [hc, Set.image_image] at hp
-      rw [show S k = projection '' C.supp by simp only [S, hc, Option.elim_some]]
+      rw [hSk]
       exact Or.inr ⟨hp.1, hp.2, C.reachable_induce_image projection hp.1 hp.2⟩
   have aNe {x y : ι} (hxy : x ≠ y) : a x ≠ a y :=
     fun he => hxy (haInj (congrArg Prod.fst he))
@@ -276,11 +268,10 @@ theorem HasRegularContacts.mergeSort_eq_reverse_of_separating_components {G : Gr
   change order fromB = (order fromA).reverse
   refine ((hperm fromB).trans revPerm.symm).eq_of_pairwise ?_ (sorted fromB) revSorted
   intro i j hi hj hij hji
-  have hi' := (hperm fromB).mem_iff.mp hi
-  have hj' := revPerm.mem_iff.mp hj
-  have hEq := le_antisymm ((reverseLE hi' hj').mpr hji) ((reverseLE hj' hi').mpr hij)
-  exact haInj (congrArg Prod.fst
-    ((r.rotationDistance_eq_iff_eq _ _ _ ((ha o).trans (ha i).symm)
-      ((ha o).trans (ha j).symm)).mp hEq))
+  have hEq := le_antisymm
+    ((reverseLE ((hperm fromB).mem_iff.mp hi) (revPerm.mem_iff.mp hj)).mpr hji)
+    ((reverseLE (revPerm.mem_iff.mp hj) ((hperm fromB).mem_iff.mp hi)).mpr hij)
+  exact haInj (congrArg Prod.fst ((r.rotationDistance_eq_iff_eq _ _ _
+    ((ha o).trans (ha i).symm) ((ha o).trans (ha j).symm)).mp hEq))
 
 end Cslib.Complexity.Graph.PolygonalDrawing

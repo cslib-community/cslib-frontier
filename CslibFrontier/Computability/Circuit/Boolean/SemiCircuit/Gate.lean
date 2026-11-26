@@ -146,9 +146,8 @@ def Reads (o : Lit) (t : ℕ) : Prop :=
 
 /-- A literal's value depends only on the internal values it reads. -/
 theorem eval_congr {o : Lit} {val val' : ℕ → Bool} (h : ∀ i, o.Reads i → val i = val' i) :
-    o.eval val = o.eval val' := by
-  unfold eval
-  rw [Arg.eval_congr h]
+    o.eval val = o.eval val' :=
+  congrArg (· ^^ o.neg) (Arg.eval_congr h)
 
 /-- Rerouting `v` to a literal `ℓ` that does not read `v` yields a literal that does not read
 `v`. -/
@@ -299,11 +298,7 @@ assignment `Function.update val v b`. -/
 theorem args_of_reads {g : Gate} {z z' : ℕ} (hzz : z ≠ z') (hz : g.Reads z)
     (hz' : g.Reads z') : (g.left = .node z ∧ g.right = .node z') ∨
       (g.left = .node z' ∧ g.right = .node z) := by
-  rcases hz with hz | hz <;> rcases hz' with hz' | hz'
-  · exact absurd (Arg.node.inj (hz.symm.trans hz')) hzz
-  · exact Or.inl ⟨hz, hz'⟩
-  · exact Or.inr ⟨hz', hz⟩
-  · exact absurd (Arg.node.inj (hz.symm.trans hz')) hzz
+  rcases hz with hz | hz <;> rcases hz' with hz' | hz' <;> simp_all
 
 /-- A gate whose arguments are `x` and `y`, in either order, reads both. -/
 theorem reads_of_args {g : Gate} {x y : ℕ} (h : (g.left = .node x ∧ g.right = .node y) ∨
@@ -314,11 +309,8 @@ theorem reads_of_args {g : Gate} {x y : ℕ} (h : (g.left = .node x ∧ g.right 
 /-- A gate reading two distinct internal values reads nothing else. -/
 theorem eq_or_eq_of_reads {g : Gate} {a b i : ℕ} (hab : a ≠ b) (ha : g.Reads a)
     (hb : g.Reads b) (hi : g.Reads i) : i = a ∨ i = b := by
-  rcases args_of_reads hab ha hb with ⟨hl, hr⟩ | ⟨hl, hr⟩ <;> rcases hi with hi | hi
-  · exact Or.inl (Arg.node.inj (hi.symm.trans hl))
-  · exact Or.inr (Arg.node.inj (hi.symm.trans hr))
-  · exact Or.inr (Arg.node.inj (hi.symm.trans hl))
-  · exact Or.inl (Arg.node.inj (hi.symm.trans hr))
+  rcases args_of_reads hab ha hb with ⟨hl, hr⟩ | ⟨hl, hr⟩ <;>
+    rcases hi with hi | hi <;> simp_all
 
 /-- A gate reads at most two internal values. -/
 theorem card_filter_reads_le (g : Gate) (s : Finset ℕ) : (s.filter g.Reads).card ≤ 2 := by
@@ -417,8 +409,7 @@ theorem exists_eq_of_not_isAffineOp {op : Bool → Bool → Bool} (h : ¬ IsAffi
   unfold IsAffineOp at h
   simp only [Bool.exists_bool]
   revert h
-  generalize op false false = a; generalize op true false = b
-  generalize op false true = c; generalize op true true = d
+  generalize op false false = a, op true false = b, op false true = c, op true true = d
   revert a b c d; decide
 
 /-- An AND-type gate reading two internal values becomes constant once the value `w` is fixed
@@ -453,8 +444,7 @@ theorem exists_diag_const (op : Bool → Bool → Bool) :
     · right
       unfold IsUnaryOp
       revert h0 h1
-      generalize op false false = a₀; generalize op true false = b₀
-      generalize op false true = c₀; generalize op true true = d₀
+      generalize op false false = a₀, op true false = b₀, op false true = c₀, op true true = d₀
       revert a₀ b₀ c₀ d₀; decide
 
 /-- An operation that is not a projection or a negated projection is constant on a diagonal: a
@@ -479,8 +469,7 @@ theorem exists_and_form {op : Bool → Bool → Bool} (h : ¬ IsAffineOp op) :
   unfold IsAffineOp at h
   simp only [Bool.forall_bool]
   revert h
-  generalize op false false = a₀; generalize op true false = b₀
-  generalize op false true = c₀; generalize op true true = d₀
+  generalize op false false = a₀, op true false = b₀, op false true = c₀, op true true = d₀
   revert a₀ b₀ c₀ d₀; decide
 
 theorem and_form_spec {op : Bool → Bool → Bool} (h : ¬ IsAffineOp op) (x y : Bool) :
@@ -497,8 +486,7 @@ theorem exists_eq_of_not_isAffineOp' {op : Bool → Bool → Bool} (h : ¬ IsAff
   unfold IsAffineOp at h
   simp only [Bool.exists_bool]
   revert h
-  generalize op false false = a; generalize op true false = b
-  generalize op false true = c; generalize op true true = d
+  generalize op false false = a, op true false = b, op false true = c, op true true = d
   revert a b c d δ; decide
 
 /-- An affine operation that is neither constant nor a projection or a negated projection is
@@ -510,8 +498,7 @@ theorem exists_xor_form {op : Bool → Bool → Bool} (h : IsAffineOp op) (hu : 
   simp only [Bool.exists_bool] at hc
   simp only [Bool.forall_bool]
   revert h hu hc
-  generalize op false false = a₀; generalize op true false = b₀
-  generalize op false true = c₀; generalize op true true = d₀
+  generalize op false false = a₀, op true false = b₀, op false true = c₀, op true true = d₀
   revert a₀ b₀ c₀ d₀; decide
 
 /-- Of two operations of two bits, one AND-type, both are constant on a common line of `𝔽₂²`:
@@ -524,10 +511,8 @@ theorem exists_line_const {g h : Bool → Bool → Bool} (hg : ¬ IsAffineOp g) 
   simp only [Bool.exists_bool, Bool.forall_bool, Bool.false_xor, Bool.true_xor, Bool.not_false,
     Bool.not_true]
   revert hg
-  generalize g false false = a₀; generalize g true false = b₀
-  generalize g false true = c₀; generalize g true true = d₀
-  generalize h false false = a₁; generalize h true false = b₁
-  generalize h false true = c₁; generalize h true true = d₁
+  generalize g false false = a₀, g true false = b₀, g false true = c₀, g true true = d₀
+  generalize h false false = a₁, h true false = b₁, h false true = c₁, h true true = d₁
   revert a₀ b₀ c₀ d₀ a₁ b₁ c₁ d₁; decide
 
 /-- A gate reading the internal values `x` and `y` computes an operation of their values, which is

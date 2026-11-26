@@ -147,11 +147,10 @@ private theorem fs1_moveLast_invs {c U V n_max b loc_del loc_last : ℕ}
     dsimp [st_last, fs1, fastDeleteRemove]; omega
   have hrk_u_lt : fpReducedKey c U n_max θ.2 u < 2 ^ (cTabWhp c * bCharWhp n_max) :=
     fpReducedKey_lt c U n_max θ.2 u
-  have hfp_lt : ∀ salt, fpOfSalt c U n_max θ.2 salt u < 2 ^ fpBitsWhp n_max := fun salt => by
+  have hfp_lt (salt : ℕ) : fpOfSalt c U n_max θ.2 salt u < 2 ^ fpBitsWhp n_max := by
     unfold fpOfSalt
     split_ifs with hs
-    · exact fpHash_lt c U n_max θ.2 ⟨_, hs⟩ u
-    · exact Nat.two_pow_pos _
+    exacts [fpHash_lt c U n_max θ.2 ⟨_, hs⟩ u, Nat.two_pow_pos _]
   refine ⟨hll_tl,
     fun k hk => (hv.backPtr_valid b hb k (by omega)).1,
     fun i _ => (hv.qv_global i).1,
@@ -180,8 +179,7 @@ private theorem fs1_moveLast_invs {c U V n_max b loc_del loc_last : ℕ}
     dsimp only [fs1, fastDeleteRemove]
     rw [ite_update_apply_of_ne hne_lr, ite_update_apply_of_ne hne_lo, ite_update_apply_self]
     split_ifs
-    · exact ⟨_, hv_l.delete_spec hv.hth hlic_le (hfp_lt _)⟩
-    · exact ⟨lm, hv_l⟩
+    exacts [⟨_, hv_l.delete_spec hv.hth hlic_le (hfp_lt _)⟩, ⟨lm, hv_l⟩]
   · -- `overmarsSlice` in `fs1`
     obtain ⟨hins_om, om, hv_om⟩ := hom_fn ha1
     refine ⟨hins_om, ?_⟩
@@ -190,8 +188,7 @@ private theorem fs1_moveLast_invs {c U V n_max b loc_del loc_last : ℕ}
     dsimp only [fs1, fastDeleteRemove]
     rw [ite_update_apply_of_ne hne_or, ite_update_apply_self, ite_update_apply_of_ne hne_lo.symm]
     split_ifs
-    · exact ⟨_, hv_om.delete_spec hv.hth hins_om.le (hfp_lt _)⟩
-    · exact ⟨om, hv_om⟩
+    exacts [⟨_, hv_om.delete_spec hv.hth hins_om.le (hfp_lt _)⟩, ⟨om, hv_om⟩]
   · -- `rebSlice` in `fs1`
     obtain ⟨hins_r, rm, hv_r⟩ := hreb_fn hrbt
     refine ⟨(of_decide_eq_true hrbt).2.2.2.1, hins_r, ?_⟩
@@ -200,8 +197,7 @@ private theorem fs1_moveLast_invs {c U V n_max b loc_del loc_last : ℕ}
     rw [ite_update_apply_self, ite_update_apply_of_ne hne_or.symm,
       ite_update_apply_of_ne hne_lr.symm]
     split_ifs
-    · exact ⟨_, hv_r.delete_spec hv.hth hins_r.le (hfp_lt _)⟩
-    · exact ⟨rm, hv_r⟩
+    exacts [⟨_, hv_r.delete_spec hv.hth hins_r.le (hfp_lt _)⟩, ⟨rm, hv_r⟩]
 
 private theorem reb_valid_after_moveSlices {c n_max b loc_del loc_last fp : ℕ}
     {fs1 : FastState} (buf' : ℕ → BufTrie) {P : Prop}
@@ -389,10 +385,9 @@ theorem fastDeleteMoveLastGenProg_fastStep {c U V w n_max base b loc_del loc_las
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ
       (fastDeleteMoveLast c U n_max θ b loc_del loc_last rebActiveB fs1) s s' := by
-  have hth := henv.2.2.2.1
-  have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
-    simp [mkWhpParams, Nat.not_lt.mpr hth]
   set cp := mkWhpCoreParams c U V w n_max
+  have hwp1 : (mkWhpParams c U V w n_max).1 = cp := by
+    simp [mkWhpParams, Nat.not_lt.mpr henv.2.2.2.1, cp]
   set fs1 := fastDeleteRemove c U n_max θ fs u b loc_del
   set rebActiveB : Bool :=
     decide (fs.rebStage = 2 ∧ fs.dirtyIdx < fs.dirtyCount ∧
@@ -451,26 +446,23 @@ theorem fastDeleteMoveLastGenProg_fastStep {c U V w n_max base b loc_del loc_las
   obtain ⟨hmc_c, hvp_c, hstep_c⟩ :=
     delCopySlotGenProg_fastStep henv hb hlt hll_tl (by exact hbp1) (by exact hq1 _ hps_lt1)
       (by exact hv1_lt) hst_lt hstep_r.2.1 hstep_r.2.2.1 (s := sr)
-  dsimp only
   unfold fastDeleteMoveLastGenProg
   dsimp only
-  rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
+  rw [hwp1]
   have hs'_eq : (Memory.spec 0).clientState s
       (delMoveReadInfoGenProg (((mkWhpParams c U V w n_max, base), b), loc_last) >>= fun info =>
         delMoveApplyCoreGenProg ((((cp, base), b), (loc_del, loc_last)), (rebAct, info))) =
       (Memory.spec 0).clientState sr
         (delCopySlotGenProg ((((cp, base), b), (loc_del, loc_last)), st_last)) := by
     rw [clientState_bind, hri_st, hri_res]
-    unfold delMoveApplyCoreGenProg; dsimp only
+    unfold delMoveApplyCoreGenProg
+    dsimp only
     rw [clientState_bind, clientState_bind, clientState_bind]
   rw [hs'_eq]
   unfold fastDeleteMoveLast
   refine ⟨?_, ?_, ((hstep_b.trans hstep_lo).trans hstep_r).trans hstep_c⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hri_st, hri_res]
-    unfold delMoveApplyCoreGenProg
-    dsimp only
-    simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hri_st, hri_res,
+      delMoveApplyCoreGenProg]
     dsimp only [sb, slo, sr, cp, fs1, fs1b, st_last, rKey_last, fp_live_last, fp_cand_last,
       rebAct, rebActiveB] at hri_mc hmc_b hmc_lo hmc_r hmc_c ⊢
     omega

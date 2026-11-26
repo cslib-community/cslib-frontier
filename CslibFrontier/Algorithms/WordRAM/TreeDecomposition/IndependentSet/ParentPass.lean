@@ -82,7 +82,8 @@ private theorem parentPassPrefix_step (LB LP oldL bestL : List ℕ) {k : ℕ}
   refine List.ext_getElem (by simp [parentPassPrefix]) fun i hi1 hi2 => ?_
   rcases eq_or_ne k i with rfl | hik
   · simp [parentPassPrefix]
-  · simp [parentPassPrefix, hik, show (i < k) ↔ (i < k + 1) by omega]
+  · have hlt : (i < k) ↔ (i < k + 1) := by omega
+    simp [parentPassPrefix, hik, hlt]
 
 /-- Pointwise formula for `(parentPass LB LP old best c).getD s 0` without requiring `LP.Nodup`. -/
 theorem getD_parentPass_raw (LB LP : List ℕ) (old best : Array ℕ) {c s : ℕ}
@@ -103,16 +104,14 @@ theorem mem_parentPassPrefix_le {LB LP oldL bestL : List ℕ} {capO capB k : ℕ
     (hold : ∀ x ∈ oldL, x ≤ capO) (hbest : ∀ x ∈ bestL, x ≤ capB) :
     ∀ x ∈ parentPassPrefix LB LP oldL bestL k, x ≤ capO + capB := by
   intro x hx
-  rw [parentPassPrefix, List.mem_ofFn] at hx
-  obtain ⟨i, rfl⟩ := hx
+  obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hx
   have ho : oldL[i] ≤ capO := hold _ (List.getElem_mem i.isLt)
   split_ifs
-  · refine Nat.add_le_add ho ?_
-    rw [List.getD_eq_getElem?_getD]
+  · rw [List.getD_eq_getElem?_getD]
     cases hget : bestL[restrictMask LB LP i.val]? with
-    | none => exact Nat.zero_le _
-    | some v => exact hbest v (List.mem_of_getElem? hget)
-  · omega
+    | none => exact Nat.add_le_add ho (Nat.zero_le _)
+    | some v => exact Nat.add_le_add ho (hbest v (List.mem_of_getElem? hget))
+  · exact ho.trans (Nat.le_add_right _ _)
 
 /-! ### Word-RAM parent pass (`parentPassProg`) -/
 
@@ -166,14 +165,12 @@ private theorem parentPassStep_eval (a : ParentPassArgs) (curS : ℕ) (t : Memor
     (Memory.spec 0).clientState t (parentPassStep (a, curS)) =
       ⟨Function.update t.mem (a.tblPPtr + curS) (oldVal + bestVal), t.frontier⟩ ∧
     (Memory.spec 0).clientResult t (parentPassStep (a, curS)) = curS + 1 := by
-  have hr_st (x : ℕ) : (Memory.spec 0).clientState t (Memory.read x) = t := rfl
-  have hr_res (x : ℕ) : (Memory.spec 0).clientResult t (Memory.read x) = t.mem x := rfl
   unfold parentPassStep
   dsimp only
-  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind, hr_st, hr_res,
+  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
     StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
     restrictMaskProg_state,
-    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind, hr_st, hr_res]
+    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind]
   exact ⟨rfl, rfl⟩
 
 /-- Correctness, outside-table framing, and memory-cost bound for `parentPassProg`. -/
@@ -280,23 +277,17 @@ theorem parentPassProg_spec {w : ℕ} (args : ParentPassArgs)
     have hc_step : memoryCost (parentPassStep (args, curS)) st ≤ stepCost := by
       have hr_s (x : ℕ) : (Memory.spec 0).clientState st (Memory.read x) = st := rfl
       have hr_r (x : ℕ) : (Memory.spec 0).clientResult st (Memory.read x) = st.mem x := rfl
-      unfold parentPassStep
-      dsimp only
-      rw [memoryCost_bind', memoryCost_read, hr_s, hr_r,
-        memoryCost_bind', hst_rk, hr_rk,
-        memoryCost_bind', memoryCost_read, hr_s, hr_r,
-        memoryCost_bind', memoryCost_write, memoryCost_pure]
-      dsimp only [stepCost]
+      simp only [parentPassStep, memoryCost_bind', memoryCost_read, hr_s, hr_r, hst_rk, hr_rk,
+        memoryCost_write, memoryCost_pure, stepCost]
       omega
     obtain ⟨hv_rem, hfr_rem, hout_rem, hpfx_rem, hc_rem⟩ :=
       ih (curS + 1) st₁ (by omega) hfr hout₁ hpfx_next
+    have hadd : curS + (rem + 1) = curS + 1 + rem := by omega
     dsimp only [iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_, ?_, ?_, ?_⟩
     · rwa [StateTransitionSpec.clientState_bind, hst_step, hres_step]
     · rwa [StateTransitionSpec.clientState_bind, hst_step, hres_step]
-    · rw [StateTransitionSpec.clientState_bind, hst_step, hres_step,
-        show curS + (rem + 1) = curS + 1 + rem by omega]
-      exact hpfx_rem
+    · rwa [StateTransitionSpec.clientState_bind, hst_step, hres_step, hadd]
     · rw [memoryCost_bind', hst_step, hres_step]
       calc memoryCost (parentPassStep (args, curS)) st +
             memoryCost (iterate parentPassStep args rem (curS + 1)) st₁
@@ -336,14 +327,13 @@ theorem parentPassProg_realizes :
       (∀ addr, (addr < d.tblPPtr ∨ d.tblPPtr + d.tblPLen ≤ addr) → t.mem addr = s.mem addr) ∧
       HoldsIn d.tblPPtr (parentPassPrefix LB LP oldL bestL curS) t)
     (fun j curS t ⟨hj_le, hcur, hfr, hout, hpfx_t⟩ => ?_)
-    ⟨le_rfl, Nat.zero_add _, rfl, fun _ _ => rfl,
-      by rw [parentPassPrefix_zero]; exact hold_h⟩
+    ⟨le_rfl, Nat.zero_add _, rfl, fun _ _ => rfl, (parentPassPrefix_zero _ _ _ _).symm ▸ hold_h⟩
   have hLB_t : HoldsIn d.bagBPtr LB t :=
-    ⟨by rw [hfr]; exact hLB_h.1, hLB_h.2.frame fun a _ ha => hout a (.inl (by omega))⟩
+    ⟨hfr.symm ▸ hLB_h.1, hLB_h.2.frame fun a _ ha => hout a (.inl (by omega))⟩
   have hLP_t : HoldsIn d.bagPPtr LP t :=
-    ⟨by rw [hfr]; exact hLP_h.1, hLP_h.2.frame fun a _ ha => hout a (.inl (by omega))⟩
+    ⟨hfr.symm ▸ hLP_h.1, hLP_h.2.frame fun a _ ha => hout a (.inl (by omega))⟩
   have hbest_t : HoldsIn d.bestPtr bestL t :=
-    ⟨by rw [hfr]; exact hbest_h.1, hbest_h.2.frame fun a ha _ => hout a (.inr (by omega))⟩
+    ⟨hfr.symm ▸ hbest_h.1, hbest_h.2.frame fun a ha _ => hout a (.inr (by omega))⟩
   obtain ⟨_, _, hr_rk, _⟩ :=
     restrictMaskProg_spec (w := w) ⟨d.bagBPtr, d.bagBLen, d.bagPPtr, d.bagPLen, curS⟩
       hLB_t hLB_len hLP_t hLP_len
@@ -351,8 +341,7 @@ theorem parentPassProg_realizes :
   let rk := (Memory.spec 0).clientResult t
     (restrictMaskProg ⟨d.bagBPtr, d.bagBLen, d.bagPPtr, d.bagPLen, curS⟩)
   have hrk_lt : rk < bestL.length := by
-    rw [show rk = _ from hr_rk, hbest_len, ← hLP_len]
-    exact restrictMask_lt_two_pow LB LP curS
+    simpa only [rk, hr_rk, hbest_len, ← hLP_len] using restrictMask_lt_two_pow LB LP curS
   have hcur_lt : curS < oldL.length := by omega
   have hold_val : t.mem (d.tblPPtr + curS) = oldL[curS] := by
     simpa [parentPassPrefix] using
@@ -381,7 +370,7 @@ theorem parentPassProg_realizes :
   · have hrk_lt' : restrictMask LB LP curS < bestL.length := by rwa [← hr_rk]
     rw [hst_ev, hres_ev, ← parentPassPrefix_step LB LP oldL bestL hcur_lt,
       List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hrk_lt', Option.getD_some,
-      ← hold_val, ← hbest_t.get _ hrk_lt', ← show rk = _ from hr_rk]
+      ← hold_val, ← hbest_t.get _ hrk_lt', ← hr_rk]
     exact holdsIn_set hpfx_t
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

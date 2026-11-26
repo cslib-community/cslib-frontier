@@ -74,11 +74,9 @@ theorem successfulEffect_eq_success_prob
       ((M.distribution φ).toOuterMeasure {q | q.isSome}).toReal := by
   classical
   simp only [Cslib.Probability.PMF.toOuterMeasure_apply_toReal, Fintype.sum_option,
-    Set.mem_ofPred_eq,
-    Option.isSome_none, Option.isSome_some, Bool.false_eq_true, ite_false, ite_true, zero_add,
-    Measurement.distribution_apply, ENNReal.toReal_ofReal (M.prob_nonneg φ _)]
-  unfold Measurement.successfulEffect Measurement.prob
-  rw [map_sum, Complex.re_sum]
+    Set.mem_ofPred_eq, Option.isSome_none, Option.isSome_some, Bool.false_eq_true, ite_false,
+    ite_true, zero_add, Measurement.distribution_apply, ENNReal.toReal_ofReal (M.prob_nonneg φ _)]
+  simp only [Measurement.successfulEffect, Measurement.prob, map_sum, Complex.re_sum]
 
 /-- The success effect is a positive contraction. -/
 theorem successfulEffect_mem_Icc (P : Measurement (Option α) A) :
@@ -196,9 +194,8 @@ theorem norm_sum_successful_diff_sq_le (φ : AlgState A)
   calc
     _ ≤ ∑ b ∈ s, if b = a then φ.norm (D a) ^ 2 else 0 := by
       refine sum_le_sum fun b _ => ?_
-      by_cases hab : b = a
-      · subst b
-        rw [ite_eq_left rfl, AlgState.norm_sq]
+      rcases eq_or_ne b a with rfl | hab
+      · rw [ite_eq_left rfl, AlgState.norm_sq]
       · rw [ite_eq_right hab]
         have hp := hP.mul_eq_zero ((Option.some_injective α).ne (Ne.symm hab))
         have hr := hR.mul_eq_zero ((Option.some_injective α).ne (Ne.symm hab))
@@ -236,17 +233,15 @@ theorem norm_none_sub_sq_le_successfulCopyDefect (φ : AlgState A)
     rw [effect_none_eq_one_sub_successfulEffect, effect_none_eq_one_sub_successfulEffect,
       successfulEffect, successfulEffect, sum_sub_distrib]
     abel
-  rw [hd, AlgState.norm_neg]
-  exact norm_sum_successful_diff_sq_le φ P R hP hR hc univ
+  simpa only [hd, AlgState.norm_neg, successfulCopyDefect] using
+    norm_sum_successful_diff_sq_le φ P R hP hR hc univ
 
 /-- The completed copy defect costs at most twice the successful part. -/
 theorem copyDefect_le_two_mul_successfulCopyDefect (φ : AlgState A)
     (P R : Measurement (Option α) A) (hP : P.IsProjective) (hR : R.IsProjective)
     (hc : ∀ a b, Commute (P.effect (some a)) (R.effect (some b))) :
     copyDefect φ P R ≤ 2 * successfulCopyDefect φ P R := by
-  unfold copyDefect
-  rw [Fintype.sum_option]
-  change φ.norm (P.effect none - R.effect none) ^ 2 + successfulCopyDefect φ P R ≤ _
+  rw [copyDefect, Fintype.sum_option, ← successfulCopyDefect]
   linarith [norm_none_sub_sq_le_successfulCopyDefect φ P R hP hR hc]
 
 /-- Commutator defect restricted to pairs of successful outcomes. -/
@@ -285,15 +280,10 @@ theorem pairCommutatorDefect_le_successful (φ : AlgState A)
       successfulCopyDefect] using h
   have hright : (∑ a : α, f (some a) none) ≤
       8 * (successfulPairDefect φ P Q + successfulCopyDefect φ Q T) := by
-    have h := sum_successfulEffect_commutator_sq_le φ Q T P Function.Embedding.some
-      hQ hT hP (fun a b => hQT (some a) (some b)) (fun a b => hPT b (some a))
-    have hn (a : α) := (norm_commutator_none φ Q (P.effect (some a))).symm.trans
-      (φ.norm_sub_comm _ _)
-    have hs (a : α) (b : β) :=
-      φ.norm_sub_comm (Q.effect (some b) * P.effect (some a))
-        (P.effect (some a) * Q.effect (some b))
-    simpa only [Function.Embedding.some_apply, hn, hs, f,
-      successfulPairDefect, successfulCopyDefect] using h
+    simpa only [Function.Embedding.some_apply, ← norm_commutator_none,
+      φ.norm_sub_comm (Q.effect _ * _), f, successfulPairDefect, successfulCopyDefect] using
+      sum_successfulEffect_commutator_sq_le φ Q T P Function.Embedding.some
+        hQ hT hP (fun a b => hQT (some a) (some b)) (fun a b => hPT b (some a))
   have hsuccess : ∑ a : α, ∑ b, f (some a) b =
       (∑ a : α, f (some a) none) + successfulPairDefect φ P Q := by
     simp only [Fintype.sum_option, successfulPairDefect, sum_add_distrib, f]

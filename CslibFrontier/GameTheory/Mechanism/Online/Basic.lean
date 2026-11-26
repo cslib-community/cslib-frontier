@@ -161,19 +161,13 @@ theorem realizedValue_some_of_not_inWindow {θ : AgentType τ} {t : τ} (ht : ¬
   simp only [realizedValue, ht, ↓reduceIte]
 
 theorem realizedValue_nonneg (θ : AgentType τ) (o : Option τ) : 0 ≤ θ.realizedValue o := by
-  cases o with
-  | none => exact le_rfl
-  | some t =>
-    simp only [realizedValue]
-    split_ifs <;> simp [θ.value_nonneg]
+  cases o <;> simp only [realizedValue, le_refl]
+  split_ifs <;> simp [θ.value_nonneg]
 
 theorem realizedValue_le_value (θ : AgentType τ) (o : Option τ) :
     θ.realizedValue o ≤ θ.value := by
-  cases o with
-  | none => exact θ.value_nonneg
-  | some t =>
-    simp only [realizedValue]
-    split_ifs <;> simp [θ.value_nonneg]
+  cases o <;> simp only [realizedValue, θ.value_nonneg]
+  split_ifs <;> simp [θ.value_nonneg]
 
 end AgentType
 
@@ -288,15 +282,12 @@ theorem criticalValue_antitone {π : Policy ι τ} (hmono : π.IsMonotone)
     {θ : ι → AgentType τ} {i : ι} {a₁ d₁ a₂ d₂ : τ}
     (had₁ : a₁ ≤ d₁) (had₂ : a₂ ≤ d₂) (ha : a₂ ≤ a₁) (hd : d₁ ≤ d₂) :
     π.criticalValue θ i a₂ d₂ had₂ ≤ π.criticalValue θ i a₁ d₁ had₁ := by
-  refine le_sInf fun w hw => ?_
-  obtain ⟨r, hr, rfl, hwin⟩ := hw
-  refine ENNReal.le_of_forall_pos_le_add fun ε hε _ => ?_
-  have hεpos : (0 : ℝ) < ε := NNReal.coe_pos.mpr hε
-  have hrε : 0 ≤ r + (ε : ℝ) := by linarith
-  have hwin₂ : (π.alloc (Function.update θ i ⟨a₂, d₂, r + (ε : ℝ), had₂, hrε⟩) i).isSome :=
-    hmono i θ ⟨a₁, d₁, r, had₁, hr⟩ ⟨a₂, d₂, r + (ε : ℝ), had₂, hrε⟩ ha hd (by linarith) hwin
-  simpa only [ENNReal.ofReal_add hr hεpos.le, ENNReal.ofReal_coe_nnreal] using
-    criticalValue_le_of_isSome hrε hwin₂
+  refine le_sInf fun _ ⟨r, hr, heq, hwin⟩ => heq ▸
+    ENNReal.le_of_forall_pos_le_add fun ε hε _ => ?_
+  have hrε : 0 ≤ r + (ε : ℝ) := add_nonneg hr ε.coe_nonneg
+  simpa only [ENNReal.ofReal_add hr ε.coe_nonneg, ENNReal.ofReal_coe_nnreal] using
+    criticalValue_le_of_isSome hrε (hmono i θ ⟨a₁, d₁, r, had₁, hr⟩
+      ⟨a₂, d₂, r + (ε : ℝ), had₂, hrε⟩ ha hd (lt_add_of_pos_right r (NNReal.coe_pos.mpr hε)) hwin)
 
 /-- If `i` wins under `π` on `[a, d]` for every value strictly above `t ≥ 0` and only for values
 at least `t`, then `π.criticalValue θ i a d had = ENNReal.ofReal t`. -/
@@ -309,13 +300,11 @@ theorem criticalValue_eq_of_threshold {π : Policy ι τ} {θ : ι → AgentType
     π.criticalValue θ i a d had = ENNReal.ofReal t := by
   apply le_antisymm
   · refine ENNReal.le_of_forall_pos_le_add fun ε hε _ => ?_
-    have hεpos : (0 : ℝ) < ε := NNReal.coe_pos.mpr hε
-    have htε : 0 ≤ t + (ε : ℝ) := by linarith
-    simpa only [ENNReal.ofReal_add ht hεpos.le, ENNReal.ofReal_coe_nnreal] using
-      criticalValue_le_of_isSome htε (hwin (t + ε) htε (by linarith))
-  · refine le_sInf fun w hw => ?_
-    obtain ⟨r, hr, rfl, h⟩ := hw
-    exact ENNReal.ofReal_le_ofReal (hlose r hr h)
+    have htε : 0 ≤ t + (ε : ℝ) := add_nonneg ht ε.coe_nonneg
+    simpa only [ENNReal.ofReal_add ht ε.coe_nonneg, ENNReal.ofReal_coe_nnreal] using
+      criticalValue_le_of_isSome htε
+        (hwin (t + ε) htε (lt_add_of_pos_right t (NNReal.coe_pos.mpr hε)))
+  · exact le_sInf fun _ ⟨r, hr, heq, h⟩ => heq ▸ ENNReal.ofReal_le_ofReal (hlose r hr h)
 
 end CriticalValue
 
@@ -399,8 +388,7 @@ theorem criticalMechanism_isNPT (π : Policy ι τ) : π.criticalMechanism.IsNPT
 
 theorem criticalMechanism_isLoserZero (π : Policy ι τ) : π.criticalMechanism.IsLoserZero := by
   intro i θ hnone
-  simp only [criticalMechanism] at hnone ⊢
-  simp only [criticalPayment, hnone, Option.isSome_none, Bool.false_eq_true, ↓reduceIte]
+  simp_all [criticalMechanism, criticalPayment]
 
 /-- The critical-value mechanism of any deterministic online policy is individually rational
 ([Parkes2007], Theorem 16.13, IR part, locator not verified against primary PDF). -/
@@ -566,8 +554,7 @@ theorem IsDSIC.payment_eq_criticalPayment {M : Mechanism ι τ} (hdsic : M.IsDSI
         have hir_r := hir i (Function.update θ i θ_r)
         rw [M.utility_of_alloc_some ht_r, Function.update_self] at hir_r
         exact ENNReal.ofReal_le_ofReal (by rw [hpeq]; linarith)
-      have hreal := ENNReal.toReal_mono hcv_ne_top hp_le_cv
-      rwa [ENNReal.toReal_ofReal (hnpt i θ)] at hreal
+      exact ENNReal.toReal_ofReal (hnpt i θ) ▸ ENNReal.toReal_mono hcv_ne_top hp_le_cv
     · refine le_of_not_gt fun hlt => ?_
       set z : ℝ := (M.payment θ i + cv.toReal) / 2 with hz_def
       have hz_nonneg : 0 ≤ z := by linarith [hnpt i θ]

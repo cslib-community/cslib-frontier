@@ -152,13 +152,11 @@ theorem integrableOn_Ioi_and_integral_le
     (hR : ∀ y, y ⬝ᵥ (Aᵀ * W + W * A + Cᵀ * C) *ᵥ y ≤ 0) (hW : ∀ y, 0 ≤ y ⬝ᵥ W *ᵥ y) :
     IntegrableOn (fun t => C *ᵥ x t ⬝ᵥ C *ᵥ x t) (Ioi 0) ∧
       ∫ t in Ioi 0, C *ᵥ x t ⬝ᵥ C *ᵥ x t ≤ x 0 ⬝ᵥ W *ᵥ x 0 := by
-  have hbound : ∀ T, 0 ≤ T → ∫ t in 0..T, C *ᵥ x t ⬝ᵥ C *ᵥ x t ≤ x 0 ⬝ᵥ W *ᵥ x 0 := by
-    intro T hT
+  have hbound (T : ℝ) (hT : 0 ≤ T) : ∫ t in 0..T, C *ᵥ x t ⬝ᵥ C *ᵥ x t ≤ x 0 ⬝ᵥ W *ᵥ x 0 := by
     rw [integral_mulVec_dotProduct_eq (W := W) hx hT]
     have := intervalIntegral.integral_nonneg_of_forall (μ := volume) hT fun t =>
       neg_nonneg.2 (hR (x t))
-    rw [intervalIntegral.integral_neg] at this
-    linarith [hW (x T)]
+    rw [intervalIntegral.integral_neg] at this; linarith [hW (x T)]
   have hint := integrableOn_Ioi_of_bounded (fun t => dotProduct_self_nonneg' _)
     (integrableOn_Ioc_mulVec_dotProduct hx) (eventually_atTop.2 ⟨0, hbound⟩)
   exact ⟨hint, le_of_tendsto (intervalIntegral_tendsto_integral_Ioi 0 hint tendsto_id)
@@ -172,15 +170,13 @@ theorem integrableOn_Ioi_and_integral_eq
     (hR : Aᵀ * W + W * A + Cᵀ * C = 0) (hx₀ : Tendsto x atTop (𝓝 0)) :
     IntegrableOn (fun t => C *ᵥ x t ⬝ᵥ C *ᵥ x t) (Ioi 0) ∧
       ∫ t in Ioi 0, C *ᵥ x t ⬝ᵥ C *ᵥ x t = x 0 ⬝ᵥ W *ᵥ x 0 := by
-  have hpart : ∀ T, 0 ≤ T →
-      ∫ t in 0..T, C *ᵥ x t ⬝ᵥ C *ᵥ x t = x 0 ⬝ᵥ W *ᵥ x 0 - x T ⬝ᵥ W *ᵥ x T := fun T hT => by
-    simp [integral_mulVec_dotProduct_eq (W := W) hx hT, hR]
-  have hV : Tendsto (fun T => x T ⬝ᵥ W *ᵥ x T) atTop (𝓝 0) := by
-    simpa [Function.comp_def] using ((continuous_dotProduct_mulVec W).tendsto 0).comp hx₀
   have hlim : Tendsto (fun T => ∫ t in 0..T, C *ᵥ x t ⬝ᵥ C *ᵥ x t) atTop
       (𝓝 (x 0 ⬝ᵥ W *ᵥ x 0)) := by
-    refine (tendsto_congr' (eventually_atTop.2 ⟨0, fun T hT => (hpart T hT).symm⟩)).1 ?_
-    simpa using hV.const_sub (x 0 ⬝ᵥ W *ᵥ x 0)
+    refine (tendsto_congr' (f₁ := fun T => x 0 ⬝ᵥ W *ᵥ x 0 - x T ⬝ᵥ W *ᵥ x T)
+      (eventually_atTop.2 ⟨0, fun T hT => ?_⟩)).1 ?_
+    · simp [integral_mulVec_dotProduct_eq (W := W) hx hT, hR]
+    · simpa [Function.comp_def] using
+        (((continuous_dotProduct_mulVec W).tendsto 0).comp hx₀).const_sub (x 0 ⬝ᵥ W *ᵥ x 0)
   have hint := integrableOn_Ioi_of_bounded (fun t => dotProduct_self_nonneg' _)
     (integrableOn_Ioc_mulVec_dotProduct hx) (hlim.eventually (eventually_le_nhds (lt_add_one _)))
   exact ⟨hint, tendsto_nhds_unique (intervalIntegral_tendsto_integral_Ioi 0 hint tendsto_id) hlim⟩
@@ -276,9 +272,8 @@ theorem tendsto_exp_smul_mulVec [DecidableEq n]
   have hx := (isTrajectoryOn_toEuclideanCLM_iff (x := fun t => exp (t • A) *ᵥ y)
     (s := Ici (0 : ℝ))).2 (hasDerivWithinAt_exp_smul_mulVec A y)
   have hlim : Tendsto (fun t => M * Real.exp (-(α * t)) * ‖WithLp.toLp 2 y‖) atTop (𝓝 0) := by
-    have : Tendsto (fun t => Real.exp (-(α * t))) atTop (𝓝 0) :=
-      Real.tendsto_exp_atBot.comp (tendsto_neg_atTop_atBot.comp (tendsto_id.const_mul_atTop hα))
-    simpa using (this.const_mul M).mul_const ‖WithLp.toLp 2 y‖
+    simpa using ((Real.tendsto_exp_atBot.comp
+      (tendsto_neg_atTop_atBot.comp (tendsto_id.const_mul_atTop hα))).const_mul M).mul_const _
   have h0 : Tendsto (fun t : ℝ => WithLp.toLp 2 (exp (t • A) *ᵥ y)) atTop (𝓝 0) := by
     refine squeeze_zero_norm' ?_ hlim
     filter_upwards [eventually_ge_atTop 0] with t ht
@@ -430,14 +425,12 @@ theorem integrableOn_Ioi_and_integral_mulVec_le (hW : W.PosSemidef)
     IntegrableOn (fun t => S.responseKernel t *ᵥ v ⬝ᵥ S.responseKernel t *ᵥ v) (Ioi 0) ∧
       ∫ t in Ioi 0, S.responseKernel t *ᵥ v ⬝ᵥ S.responseKernel t *ᵥ v ≤
         S.B *ᵥ v ⬝ᵥ W *ᵥ (S.B *ᵥ v) := by
-  have h := integrableOn_Ioi_and_integral_le (C := S.C) (W := W)
-    (hasDerivWithinAt_exp_smul_mulVec S.A (S.B *ᵥ v))
-    (fun y => by
-      have := hR.dotProduct_mulVec_nonneg y
-      simp only [star_trivial, neg_mulVec, dotProduct_neg] at this
-      linarith)
-    (fun y => by simpa using hW.dotProduct_mulVec_nonneg y)
-  simpa only [zero_smul, NormedSpace.exp_zero, one_mulVec, responseKernel_mulVec_eq'] using h
+  simpa only [zero_smul, NormedSpace.exp_zero, one_mulVec, responseKernel_mulVec_eq'] using
+    integrableOn_Ioi_and_integral_le (C := S.C) (W := W)
+      (hasDerivWithinAt_exp_smul_mulVec S.A (S.B *ᵥ v))
+      (fun y => neg_nonneg.1 (by
+        simpa only [star_trivial, neg_mulVec, dotProduct_neg] using hR.dotProduct_mulVec_nonneg y))
+      (fun y => by simpa using hW.dotProduct_mulVec_nonneg y)
 
 /-- **Impulse-response energy bound.** If `W ⪰ 0` and `Aᵀ W + W A + Cᵀ C ⪯ 0`, then
 `‖h t‖_F²` is integrable on `(0, ∞)` and `∫₀^∞ ‖h t‖_F² ≤ tr (Bᵀ W B)`. No stability of `A` is
@@ -496,8 +489,7 @@ theorem frobeniusSq_responseKernel_le {α γ : ℝ}
   classical
   rw [sum_sq_eq_sum_mulVec_single, trace_eq_sum, Finset.mul_sum, Finset.sum_mul]
   refine Finset.sum_le_sum fun j _ => ?_
-  have := responseKernel_mulVec_sq_le_aux hP hC hγ (Pi.single j 1) ht
-  linarith
+  linarith [responseKernel_mulVec_sq_le_aux hP hC hγ (Pi.single j 1) ht]
 
 /-- **Certified energy tail.** If `α > 0`, `Aᵀ P + P A + 2 α P ⪯ 0` and `Cᵀ C ⪯ γ P` with
 `γ ≥ 0`, then for `T ≥ 0` the tail `‖h t‖_F²` is integrable on `(T, ∞)` and
@@ -516,20 +508,17 @@ theorem integrableOn_Ioi_and_integral_Ioi_frobeniusSq_le {α γ : ℝ} (hα : 0 
   have henv : ∀ t ∈ Ioi T, ∑ i, ∑ j, S.responseKernel t i j ^ 2 ≤ c * Real.exp (-(2 * α) * t) :=
     fun t ht => frobeniusSq_responseKernel_le hP hC hγ (hT.trans (le_of_lt ht))
   have hcont : ContinuousOn (fun t => ∑ i, ∑ j, S.responseKernel t i j ^ 2) (Ioi T) := by
-    refine ContinuousOn.congr (f := fun t => ∑ j, S.C *ᵥ (exp (t • S.A) *ᵥ (S.B *ᵥ
-      Pi.single j 1)) ⬝ᵥ S.C *ᵥ (exp (t • S.A) *ᵥ (S.B *ᵥ Pi.single j 1))) ?_
-      fun t _ => frobeniusSq_eq t
-    refine continuousOn_finsetSum _ fun j _ => ?_
+    refine (continuousOn_finsetSum _ fun j _ => ?_).congr fun t _ => frobeniusSq_eq t
     have hx : ContinuousOn (fun t => exp (t • S.A) *ᵥ (S.B *ᵥ Pi.single j 1)) (Ioi T) :=
       fun t ht => ((hasDerivWithinAt_exp_smul_mulVec S.A _ t
         (hT.trans (le_of_lt ht))).continuousWithinAt).mono fun τ hτ => hT.trans (le_of_lt hτ)
     exact ((continuous_const.matrix_mulVec continuous_id).dotProduct
       (continuous_const.matrix_mulVec continuous_id)).comp_continuousOn hx
-  have hf : IntegrableOn (fun t => ∑ i, ∑ j, S.responseKernel t i j ^ 2) (Ioi T) := by
-    refine hg.mono' (hcont.aestronglyMeasurable measurableSet_Ioi) ?_
-    refine (ae_restrict_iff' measurableSet_Ioi).2 (Eventually.of_forall fun t ht => ?_)
-    rw [Real.norm_of_nonneg (by positivity)]
-    exact henv t ht
+  have hf : IntegrableOn (fun t => ∑ i, ∑ j, S.responseKernel t i j ^ 2) (Ioi T) :=
+    hg.mono' (hcont.aestronglyMeasurable measurableSet_Ioi) <|
+      (ae_restrict_iff' measurableSet_Ioi).2 <| Eventually.of_forall fun t ht => by
+        rw [Real.norm_of_nonneg (by positivity)]
+        exact henv t ht
   refine ⟨hf, (setIntegral_mono_on hf hg measurableSet_Ioi henv).trans_eq ?_⟩
   rw [integral_const_mul, integral_exp_mul_Ioi hneg]
   field_simp

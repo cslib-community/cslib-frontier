@@ -116,9 +116,8 @@ theorem isQueryBounded_xorHashWordMultiQueryReduction (ℓ blockWidth width Q : 
   have htraverse := OracleComp.IsCostBounded.mapM (inputs := ms) fun m _ =>
     isQueryBounded_xorHashWordQueries (ℓ n) (width n) m
   refine (htraverse.bind fun _ => OracleComp.IsCostBounded.pure _ 0).mono ?_
-  have hlen : ms.length ≤ Q n :=
-    (List.length_filter_le _ _).trans (List.length_take_le _ _)
-  simpa only [Nat.add_zero] using Nat.mul_le_mul_right (ℓ n) hlen
+  simpa only [Nat.add_zero] using
+    Nat.mul_le_mul_right (ℓ n) ((List.length_filter_le _ _).trans (List.length_take_le _ _))
 
 private theorem polyTime_xorHashWordValid {α : Type} {input : α ↪ List Bool}
     {ℓ blockWidth : α → ℕ} {m : α → List (List Bool)}
@@ -130,12 +129,10 @@ private theorem polyTime_xorHashWordValid {α : Type} {input : α ↪ List Bool}
   have hlen := (ComputableInPolyTime.length_list encBits).comp hm
   have hcap : ComputableInPolyTime (fun p => decide ((m p).length ≤ ℓ p)) input encBool := by
     fun_prop
-  have hblocks : ComputableInPolyTime
-      (fun p => (m p).all (fun b => decide (b.length = blockWidth p))) input encBool :=
-    hm.allWithInput (ComputableInPolyTime.decide_eq'
+  exact ComputableInPolyTime.bool_and.comp (hcap.prod (hm.allWithInput
+    (ComputableInPolyTime.decide_eq'
       (ComputableInPolyTime.length_bits.comp (ComputableInPolyTime.snd input encBits))
-      (hb.comp (ComputableInPolyTime.fst input encBits)))
-  exact ComputableInPolyTime.bool_and.comp (hcap.prod hblocks)
+      (hb.comp (ComputableInPolyTime.fst input encBits)))))
 
 /-- The multi-query wrapper is strict oracle PPT whenever its adversary is strict PPT and
 its dimensions and list cap are polynomial-time computable in unary. -/
@@ -346,11 +343,9 @@ private theorem prfOracle_xorHashTaggedWord {ℓ blockWidth width : ℕ}
     let req := xorHashTaggedWord ℓ (List.ofFn block) i.val
     prfOracle family (ℓ + blockWidth) key req =
       List.ofFn (BitString.ofList width (family key req)) := by
-  let req := xorHashTaggedWord ℓ (List.ofFn block) i.val
-  have hreq : req.length = ℓ + blockWidth := taggedRequest_length (block, i)
-  change prfOracle family (ℓ + blockWidth) key req =
-    List.ofFn (BitString.ofList width (family key req))
-  simp only [prfOracle, hreq, ite_true, BitString.ofFn_ofList (hlength req hreq)]
+  have hreq : (xorHashTaggedWord ℓ (List.ofFn block) i.val).length = ℓ + blockWidth :=
+    taggedRequest_length (block, i)
+  simp only [prfOracle, hreq, ite_true, BitString.ofFn_ofList (hlength _ hreq)]
 
 /-- With the security parameter as public setup, running the reduction in the real PRF game gives
 exactly the computational collision game's law. The length hypothesis is the PRF's
@@ -485,9 +480,8 @@ private theorem eval_prfIdealGame_xorHashWordMultiQueryReduction_le
       (hinj (List.mem_toFinset.mpr (List.mem_map_of_mem hm))
         (List.mem_toFinset.mpr (List.mem_map_of_mem hm')) heq))
   · gcongr
-    refine ds.toFinset_card_le.trans ?_
-    rw [List.length_map]
-    exact (List.length_filter_le _ _).trans (List.length_take_le _ _)
+    exact ds.toFinset_card_le.trans ((List.length_map _).le.trans
+      ((List.length_filter_le _ _).trans (List.length_take_le _ _)))
 
 /-- The concrete bound (7.12) of Boneh–Shoup v0.6, §7.2.3, p. 261, for the explicit
 word distinguisher. The ideal-table contribution is the reciprocal of the digest cardinality. -/
@@ -514,11 +508,8 @@ theorem succProbability_xorHashWordFamily_le {ℓ blockWidth width : ℕ → ℕ
     simpa only [BitString.card, Nat.cast_pow, Nat.cast_ofNat] using
       eval_prfIdealGame_xorHashWordCollisionReduction_le ℓ blockWidth width A n
   rw [← eval_prfRealGame_xorHashWordCollisionReduction family hlength A n]
-  let I := ProbComp.eval (prfIdealGame (fun k => ℓ k + blockWidth k) width
-    (xorHashWordCollisionReduction ℓ blockWidth width A) n)
-  refine (Game.succProbability_le_add_of_advantage_le (g₁ := I) le_rfl).trans ?_
-  rw [add_comm (Game.succProbability I)]
-  exact add_le_add le_rfl hideal
+  simpa only [add_comm ((2 : ℝ≥0) ^ width n)⁻¹] using
+    (Game.succProbability_le_add_of_advantage_le le_rfl).trans (add_le_add hideal le_rfl)
 
 /-- Boneh–Shoup v0.6, Exercise 7.28, printed p. 285. A `Q`-message adversary's collision success
 is at most the advantage of the direct word PRF wrapper plus `Q² / (2 |Y|)`. The wrapper
@@ -551,10 +542,9 @@ theorem succProbability_multiQueryGame_xorHashWordFamily_le
   have hchoose : ((Q n).choose 2 : ℝ≥0) ≤ (Q n : ℝ≥0) ^ 2 / 2 := by
     simpa using Nat.choose_le_pow_div (α := ℝ≥0) 2 (Q n)
   rw [← eval_prfRealGame_xorHashWordMultiQueryReduction family hlength A n hQ]
-  refine (Game.succProbability_le_add_of_advantage_le (g₁ := I) le_rfl).trans ?_
-  rw [add_comm I.succProbability]
-  refine add_le_add le_rfl (hideal.trans ?_)
-  gcongr
+  simpa only [add_comm (((Q n : ℝ≥0) ^ 2 / 2) * ((2 : ℝ≥0) ^ width n)⁻¹)] using
+    (Game.succProbability_le_add_of_advantage_le (g₁ := I) le_rfl).trans
+      (add_le_add (hideal.trans (mul_le_mul_of_nonneg_right hchoose zero_le)) le_rfl)
 
 /-- Boneh–Shoup v0.6, Theorem 7.6, §7.2.3, printed pp. 261–262, for word PRFs with
 `n`-bit keys, fixed-width bit blocks, and a fixed-width unary position prefix. If
@@ -570,13 +560,11 @@ theorem isComputationalUHF_xorHashWordFamily {ℓ blockWidth width : ℕ → ℕ
     IsComputationalUHF encUnary (encList encBits) (fun n => pure n)
       (fun _ n => xorHashWordValid (ℓ n) (blockWidth n))
       (fun _ => xorHashWordFamily ℓ blockWidth width family) := by
-  apply Game.Indistinguishable.of_negligible_succProbability
-  intro A hA
-  have hinput : ComputableInPolyTime (fun n => ℓ n + blockWidth n) encUnary encUnary := by
-    fun_prop
-  have hw := hPRF.outLen_polyTime hinput
-  have hred := isOraclePPT_xorHashWordCollisionReduction hℓ hb hw hA
-  apply negligible_of_le ((hPRF.secure _ hred).add hout)
-  exact succProbability_xorHashWordFamily_le family hPRF.length_eq A
+  refine Game.Indistinguishable.of_negligible_succProbability fun A hA => ?_
+  have hinput : ComputableInPolyTime (fun n => ℓ n + blockWidth n) encUnary encUnary := by fun_prop
+  exact negligible_of_le
+    ((hPRF.secure _ (isOraclePPT_xorHashWordCollisionReduction hℓ hb
+      (hPRF.outLen_polyTime hinput) hA)).add hout)
+    (succProbability_xorHashWordFamily_le family hPRF.length_eq A)
 
 end Cslib.Crypto.UHF

@@ -113,7 +113,8 @@ theorem eval_sampleBoundedIndex_lt (bound value : ℕ) (hvalue : value < bound) 
   rw [Finset.sum_eq_single j]
   · simp [j, Nat.min_eq_right hvalue.le]
   · intro i _ hij
-    simp [Ne.symm (show min bound i.val ≠ value from fun h => hij (by fin_index [j]))]
+    have hne : value ≠ min bound i.val := fun h => hij (by fin_index [j])
+    simp [hne]
   · simp
 
 /-- All the excess dyadic mass is the rejection sentinel. -/
@@ -185,9 +186,10 @@ private theorem retry_some (bound value : ℕ) (next : PMF (Option ℕ)) :
     · rcases eq_or_ne i value with rfl | hiv
       · simp [hi, hi.ne]
       · simp [hi, hi.ne, hiv, hiv.symm]
-    · simp [show ¬(i = value ∧ value < i) by omega]
-    · rw [show μ i = 0 from capped_eq_zero hi]
-      simp [hi.ne', show ¬(i = value ∧ value < bound) by omega]
+    · by_cases hiv : i = value <;> simp [hiv]
+    · rcases eq_or_ne i value with rfl | hiv
+      · simp [μ, capped_eq_zero hi, hi.ne', hi.not_gt]
+      · simp [μ, capped_eq_zero hi, hi.ne', hiv]
   change (∑' i, μ i * (if i < bound then PMF.pure (some i) else next) (some value)) = _
   simp_rw [hterm]
   rw [tsum_add]
@@ -223,22 +225,18 @@ theorem eval_sampleUniformInterval_some (bound attempts value : ℕ) :
 theorem intervalFailure_le_half {bound : ℕ} (hbound : 0 < bound) :
     intervalFailure bound ≤ 1 / 2 := by
   have hsize : dyadicSize bound ≤ 2 * bound := by
-    have h := Nat.pow_log_le_self 2 hbound.ne'
-    unfold dyadicSize
-    rw [pow_succ]
-    omega
-  have hpos : (0 : ℝ≥0) < dyadicSize bound := by exact_mod_cast dyadicSize_pos bound
-  unfold intervalFailure
-  rw [div_le_div_iff₀ hpos (by norm_num : (0 : ℝ≥0) < 2)]
-  norm_num only [one_mul]
-  exact_mod_cast (show (dyadicSize bound - bound) * 2 ≤ dyadicSize bound by omega)
+    have := Nat.pow_log_le_self 2 hbound.ne'
+    simp only [dyadicSize, pow_succ]; omega
+  have hpos : (0 : ℝ≥0) < dyadicSize bound := mod_cast dyadicSize_pos bound
+  rw [intervalFailure, div_le_div_iff₀ hpos two_pos, one_mul]
+  exact_mod_cast (by omega : (dyadicSize bound - bound) * 2 ≤ dyadicSize bound)
 
 /-- Exhaustion is exponentially unlikely at a positive bound; zero remains a separate case. -/
 theorem eval_sampleUniformInterval_none_le {bound : ℕ} (hbound : 0 < bound) (attempts : ℕ) :
     ProbComp.eval (sampleUniformInterval bound attempts) none ≤ (1 / 2 : ℝ≥0∞) ^ attempts := by
   rw [eval_sampleUniformInterval_none]
-  gcongr
-  simpa using (ENNReal.coe_le_coe.mpr (intervalFailure_le_half hbound))
+  exact pow_le_pow_left' (by simpa using ENNReal.coe_le_coe.mpr (intervalFailure_le_half hbound))
+    attempts
 
 /-- A real-valued form of the complete success law, with no conditioning away of failure. -/
 theorem eval_sampleUniformInterval_some_toReal {bound : ℕ} (hbound : 0 < bound)
@@ -352,8 +350,8 @@ theorem expectedCost_sampleUniformIntervalRetry_le (bound attempts : ℕ) :
       {o : Option ℕ | ¬o.isSome = true} ≤ 2⁻¹ := by
     rw [hset, PMF.toOuterMeasure_apply_singleton, eval_sampleUniformIntervalAttempt]
     simpa using eval_sampleUniformInterval_none_le hbound 1
-  rw [← hcost]
-  exact OracleComp.expectedCost_retry_le_two_mul _ _ ProbComp.unifOracle _ hfail attempts
+  exact hcost.symm ▸ OracleComp.expectedCost_retry_le_two_mul _ _ ProbComp.unifOracle _ hfail
+    attempts
 
 private theorem option_false {α : Type} (μ : PMF (Option α)) :
     (μ.map Option.isSome) false = μ none := by
@@ -413,11 +411,12 @@ private theorem uniformFin_nat_apply (bound value : ℕ) [NeZero bound] :
   classical
   rw [PMF.map_apply]
   by_cases hv : value < bound
-  · rw [tsum_eq_single ⟨value, hv⟩ fun i hi =>
-      by simp [show value ≠ i.val from fun h => hi (Fin.ext h.symm)]]
+  · have hne (i : Fin bound) (hi : i ≠ ⟨value, hv⟩) : value ≠ i.val :=
+      fun h => hi (Fin.ext h.symm)
+    rw [tsum_eq_single ⟨value, hv⟩ fun i hi => by simp [hne i hi]]
     simp [hv]
-  · rw [tsum_eq_zero_iff.mpr fun i => by simp [show value ≠ i.val by omega]]
-    simp [hv]
+  · have hne (i : Fin bound) : value ≠ i.val := (i.isLt.trans_le (not_lt.mp hv)).ne'
+    simp [hv, hne]
 
 /-- The successful part of the full sampler law is its success mass times exact uniformity. -/
 theorem eval_sampleUniformInterval_some_eq (bound attempts value : ℕ) [NeZero bound] :
@@ -463,13 +462,7 @@ theorem collectBox_eq_some (values : List (Option ℤ)) (out : List ℤ) :
   | nil => cases out <;> simp [collectBox]
   | cons value values ih =>
     rw [collectBox_cons]
-    cases value with
-    | none => cases out <;> simp
-    | some z =>
-      cases out with
-      | nil => cases h : collectBox values <;> simp
-      | cons a out =>
-        cases h : collectBox values <;> simp [← ih, h]
+    cases value <;> cases out <;> cases h : collectBox values <;> simp [← ih, h]
 
 /-- Sample each coordinate of `[-radius,radius]^dimension` with its own finite attempt budget.
 The result is a list of exactly `dimension` integers on success. Radius is a unary resource in the
@@ -513,21 +506,15 @@ private theorem gather_iid_apply (μ : PMF (Option ℤ)) {n : ℕ} (f : Fin n �
 private theorem gather_off_length (μ : PMF (Option ℤ)) (n : ℕ) (out : List ℤ)
     (hlen : out.length ≠ n) :
     ((PMF.iid μ n).map (fun v => collectBox (List.ofFn v))) (some out) = 0 := by
-  rw [PMF.apply_eq_zero_iff]
-  intro h
+  refine (PMF.apply_eq_zero_iff _ _).mpr fun h => hlen ?_
   obtain ⟨v, _, hv⟩ := (PMF.mem_support_map_iff _ _ _).mp h
-  have heq := congrArg List.length ((collectBox_eq_some _ _).mp hv)
-  simp only [List.length_ofFn, List.length_map] at heq
-  exact hlen heq.symm
+  simpa using (congrArg List.length ((collectBox_eq_some _ _).mp hv)).symm
 
 private theorem iid_off_length (μ : PMF ℤ) (n : ℕ) (out : List ℤ)
     (hlen : out.length ≠ n) : ((PMF.iid μ n).map List.ofFn) out = 0 := by
-  rw [PMF.apply_eq_zero_iff]
-  intro h
-  obtain ⟨v, _, hv⟩ := (PMF.mem_support_map_iff _ _ _).mp h
-  have heq := congrArg List.length hv
-  simp only [List.length_ofFn] at heq
-  exact hlen heq.symm
+  refine (PMF.apply_eq_zero_iff _ _).mpr fun h => hlen ?_
+  obtain ⟨v, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp h
+  exact List.length_ofFn
 
 /-- The full successful box law is the exact uniform box law scaled by the probability that
 all coordinate samplers succeed. It includes zero dimension and zero attempts. -/
@@ -599,12 +586,10 @@ theorem eval_sampleIntegerBox_none_le (radius dimension attempts : ℕ) :
     -(intervalFailure (2 * radius + 1) : ℝ) ^ attempts by linarith) dimension
   calc
     _ ≤ dimension * (intervalFailure (2 * radius + 1) : ℝ) ^ attempts := by
-      rw [← sub_eq_add_neg] at hbern
-      linarith
+      rw [← sub_eq_add_neg] at hbern; linarith
     _ ≤ _ := by
       gcongr
-      have h := intervalFailure_le_half (by omega : 0 < 2 * radius + 1)
-      exact_mod_cast h
+      exact_mod_cast intervalFailure_le_half (Nat.succ_pos _)
 
 /-- Given success, the box has exactly its uniform product law. A positive attempt budget makes
 that event observable; the empty box already has its separate exact no-draw law. -/
@@ -649,23 +634,22 @@ private theorem optional_test_error {α : Type} (μ : PMF (Option α)) (ν : PMF
   have hu0 : 0 ≤ u := ENNReal.toReal_nonneg
   have hu1 : u ≤ 1 := PMF.toReal_apply_le_one _ true
   have hf0 : 0 ≤ (μ none).toReal := ENNReal.toReal_nonneg
-  have hfirst : (if test none then μ none else 0) ≠ (⊤ : ℝ≥0∞) := by
-    split_ifs <;> simp [μ.apply_ne_top]
+  have hpu0 : 0 ≤ (μ none).toReal * u := mul_nonneg hf0 hu0
+  have hpu1 : (μ none).toReal * u ≤ (μ none).toReal := mul_le_of_le_one_right hf0 hu1
   have hprod : mass * (ν.map (fun out => test (some out))) true ≠ ⊤ :=
     ENNReal.mul_ne_top hmass_top (PMF.apply_ne_top _ _)
-  have hreal := congrArg ENNReal.toReal hd
-  rw [ENNReal.toReal_add hfirst hprod, ENNReal.toReal_mul, hmass] at hreal
   change |(μ.map test true).toReal - u| ≤ (μ none).toReal
-  change (μ.map test true).toReal = _ + (1 - (μ none).toReal) * u at hreal
-  cases htest : test none
-  · simp only [htest, Bool.false_eq_true, ↓reduceIte, ENNReal.toReal_zero, zero_add] at hreal
-    rw [hreal, show (1 - (μ none).toReal) * u - u = -((μ none).toReal * u) by ring,
-      abs_neg, abs_of_nonneg (mul_nonneg hf0 hu0)]
-    simpa only [mul_one] using mul_le_mul_of_nonneg_left hu1 hf0
-  · simp only [htest, ↓reduceIte] at hreal
-    rw [hreal, show (μ none).toReal + (1 - (μ none).toReal) * u - u =
-      (μ none).toReal * (1 - u) by ring, abs_of_nonneg (mul_nonneg hf0 (sub_nonneg.mpr hu1))]
-    simpa only [mul_one] using mul_le_mul_of_nonneg_left (by linarith : 1 - u ≤ 1) hf0
+  rw [abs_le]
+  cases htest : test none <;> simp only [htest, Bool.false_eq_true, ↓reduceIte, zero_add] at hd
+  · have hreal : (μ.map test true).toReal = (1 - (μ none).toReal) * u := by
+      simpa only [ENNReal.toReal_mul, hmass] using congrArg ENNReal.toReal hd
+    rw [sub_mul, one_mul] at hreal
+    constructor <;> linarith
+  · have hreal : (μ.map test true).toReal = (μ none).toReal + (1 - (μ none).toReal) * u := by
+      simpa only [ENNReal.toReal_add (μ.apply_ne_top _) hprod, ENNReal.toReal_mul, hmass] using
+        congrArg ENNReal.toReal hd
+    rw [sub_mul, one_mul] at hreal
+    constructor <;> linarith
 
 /-- Any Boolean test changes acceptance probability by at most the explicit failure mass when
 compared with an exact uniform box. This is an unconditional statistical-error statement. -/
@@ -692,8 +676,7 @@ theorem sampleUniformInterval_test_error_le (bound attempts : ℕ) [NeZero bound
     _ ≤ _ := by
       rw [eval_sampleUniformInterval_none, ENNReal.toReal_pow, ENNReal.coe_toReal]
       gcongr
-      have h := intervalFailure_le_half (Nat.pos_of_ne_zero (NeZero.ne bound))
-      exact_mod_cast h
+      exact_mod_cast intervalFailure_le_half (Nat.pos_of_ne_zero (NeZero.ne bound))
 
 /-- Explicit statistical error of the bounded box sampler for every Boolean test. -/
 theorem sampleIntegerBox_test_error_le (radius dimension attempts : ℕ)
@@ -745,8 +728,7 @@ theorem integerBoxLaw_apply_index (radius dimension : ℕ)
           ((2 * radius + 1 : ℕ) : ℝ≥0∞)⁻¹ := by
     rw [PMF.map_apply, tsum_eq_single (v i)]
     · simp
-    · intro j hj
-      simp [show (v i : ℤ) - radius ≠ (j.val : ℤ) - radius from fun h => hj (by omega)]
+    · exact fun j hj => by simp [Fin.val_inj, hj.symm]
   simp_rw [hcoord]
   simp
 

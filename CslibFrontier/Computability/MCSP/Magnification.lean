@@ -118,17 +118,12 @@ private theorem exists_wordLt_min {m : ℕ} {P : List Bool → Prop}
   let S : Finset (Lex (BitString m)) :=
     Finset.univ.filter fun x => P (List.ofFn (ofLex x))
   obtain ⟨w₀, hw₀, hPw₀⟩ := h
-  have hS : S.Nonempty := by
-    refine ⟨toLex (BitString.ofList m w₀), Finset.mem_filter.2 ⟨Finset.mem_univ _, ?_⟩⟩
-    simp only [ofLex_toLex, BitString.ofFn_ofList hw₀, hPw₀]
-  let x_min := S.min' hS
-  have hx_mem : x_min ∈ S := Finset.min'_mem S hS
-  refine ⟨List.ofFn (ofLex x_min), List.length_ofFn, (Finset.mem_filter.1 hx_mem).2,
-    fun w' hw' hPw' => ?_⟩
-  have hy_mem : toLex (BitString.ofList m w') ∈ S := by
-    refine Finset.mem_filter.2 ⟨Finset.mem_univ _, ?_⟩
-    simp only [ofLex_toLex, BitString.ofFn_ofList hw', hPw']
-  have hle : x_min ≤ toLex (BitString.ofList m w') := Finset.min'_le S _ hy_mem
+  have hS : S.Nonempty := ⟨toLex (BitString.ofList m w₀),
+    Finset.mem_filter.2 ⟨Finset.mem_univ _, by simpa [BitString.ofFn_ofList hw₀] using hPw₀⟩⟩
+  refine ⟨List.ofFn (ofLex (S.min' hS)), List.length_ofFn,
+    (Finset.mem_filter.1 (Finset.min'_mem S hS)).2, fun w' hw' hPw' => ?_⟩
+  have hle : S.min' hS ≤ toLex (BitString.ofList m w') := Finset.min'_le S _
+    (Finset.mem_filter.2 ⟨Finset.mem_univ _, by simpa [BitString.ofFn_ofList hw'] using hPw'⟩)
   rw [← BitString.ofFn_ofList hw', Bool.eq_false_iff, ne_eq, BitString.wordLt_ofFn_iff]
   exact not_lt_of_ge hle
 
@@ -436,20 +431,11 @@ theorem circuitMinMergeLanguage_mem_PPolyOn (hNP : NP encBits ⊆ PPolyOn encBit
       PPolyOn encMerge :=
     PPolyOn.exists_of_computableInPolyTime_length hNP computableInPolyTime_mergeCertLength
       (PPolyOn.inf (isMinMergedCert_mem_PPolyOn hNP) hbit_q)
-  have h_eq : CircuitMinMergeLanguage =
-      {a : MergeInput | mergeOk₀ a = true ∧ mergeOk₁ a = true} ∩
-      {a : MergeInput |
-        ∃ w : List Bool, w.length = certLength a.header.arity a.header.size ∧
-          (IsMinMergedCert a.header.arity a.header.size a.header.subcube
-              (mergeCert₀ a) (mergeCert₁ a) w ∧
-            (a.header.bitIndex == 0 || w.getD (a.header.bitIndex - 1) false) = true)} := by
-    ext a
-    simp only [CircuitMinMergeLanguage, Set.mem_inter_iff, Set.mem_ofPred_eq, and_assoc]
-    refine and_congr_right fun _ => and_congr_right fun _ => exists_congr fun w => ?_
-    exact ⟨fun ⟨hmin, hbit⟩ => ⟨hmin.1.1, hmin, hbit⟩,
-      fun ⟨_, hmin, hbit⟩ => ⟨hmin, hbit⟩⟩
-  rw [h_eq]
-  exact PPolyOn.inf hok hex
+  convert PPolyOn.inf hok hex using 1
+  ext a
+  simp only [CircuitMinMergeLanguage, Set.mem_inter_iff, Set.mem_ofPred_eq, and_assoc]
+  exact and_congr_right fun _ => and_congr_right fun _ => exists_congr fun w =>
+    ⟨fun ⟨hmin, hbit⟩ => ⟨hmin.1.1, hmin, hbit⟩, fun ⟨_, hmin, hbit⟩ => ⟨hmin, hbit⟩⟩
 
 /-! ### Subcube certificates and semantic tree synthesis -/
 
@@ -468,10 +454,8 @@ def IsMinSubcubeCert (n s : ℕ) (f : BooleanFunction n) (p w : List Bool) : Pro
 
 private theorem exists_isMinSubcubeCert_iff {n s : ℕ} {f : BooleanFunction n} {p : List Bool} :
     (∃ w, IsMinSubcubeCert n s f p w) ↔ ∃ w, IsSubcubeCert n s f p w := by
-  refine ⟨fun ⟨w, hw, _⟩ => ⟨w, hw⟩, fun ⟨w₀, hw₀⟩ => ?_⟩
-  obtain ⟨w, _, hPw, hmin⟩ :=
-    exists_wordLt_min ⟨w₀, hw₀.1, hw₀⟩
-  exact ⟨w, hPw, hmin⟩
+  exact ⟨fun ⟨w, hw, _⟩ => ⟨w, hw⟩,
+    fun ⟨w₀, hw₀⟩ => (exists_wordLt_min ⟨w₀, hw₀.1, hw₀⟩).imp fun _ h => h.2⟩
 
 private theorem isMinSubcubeCert_unique {n s : ℕ} {f : BooleanFunction n} {p w₁ w₂ : List Bool}
     (h₁ : IsMinSubcubeCert n s f p w₁) (h₂ : IsMinSubcubeCert n s f p w₂) :
@@ -481,9 +465,8 @@ private theorem isMinSubcubeCert_unique {n s : ℕ} {f : BooleanFunction n} {p w
 private theorem isSubcubeCert_append_of_isSubcubeCert {n s : ℕ} {f : BooleanFunction n}
     {p w : List Bool} (hp : p.length < n) (hw : IsSubcubeCert n s f p w) (b : Bool) :
     IsSubcubeCert n s f (p ++ [b]) w := by
-  refine ⟨hw.1, hw.2.1, fun x hx => hw.2.2 x ?_⟩
-  have hx' : p.length < (List.ofFn x).length := by simpa using hp
-  exact ((isPrefixOf_append_singleton hx').1 hx).1
+  exact ⟨hw.1, hw.2.1, fun x hx =>
+    hw.2.2 x ((isPrefixOf_append_singleton (by simpa using hp)).1 hx).1⟩
 
 private theorem isMergedCert_iff_isSubcubeCert {n s : ℕ} {f : BooleanFunction n}
     {p w₀ w₁ w : List Bool} (hp : p.length < n)
@@ -505,8 +488,8 @@ private theorem isMergedCert_iff_isSubcubeCert {n s : ℕ} {f : BooleanFunction 
       ⟨BitString.ofList n x, BitString.ofFn_ofList hx⟩
     cases hin : p.isPrefixOf (List.ofFn y)
     · simp [agreesOnPoint, hin]
-    · rw [agreesOnPoint, hrhs y hin, h y hin]
-      simp
+    · simp only [agreesOnPoint, hin, Bool.not_true, Bool.false_or, beq_iff_eq, h y hin,
+        hrhs y hin]
 
 private theorem isMinMergedCert_iff_isMinSubcubeCert {n s : ℕ} {f : BooleanFunction n}
     {p w₀ w₁ w : List Bool} (hp : p.length < n)
@@ -542,18 +525,16 @@ private theorem getD_zero_ofFn_subcubeState_eq_true_iff (n s : ℕ) (f : Boolean
 private theorem drop_one_ofFn_subcubeState_eq {n s : ℕ} {f : BooleanFunction n}
     {p w : List Bool} (hw : IsMinSubcubeCert n s f p w) :
     (List.ofFn (subcubeState n s f p)).drop 1 = w := by
-  have hwlen : w.length = certLength n s := hw.1.1
   have hdlen : ((List.ofFn (subcubeState n s f p)).drop 1).length = w.length := by
-    rw [List.length_drop, List.length_ofFn, stateWidth, hwlen]
+    rw [List.length_drop, List.length_ofFn, stateWidth, hw.1.1]
     omega
   refine List.ext_getElem hdlen fun i h1 h2 => ?_
   rw [List.getElem_drop, List.getElem_ofFn, Bool.eq_iff_iff, subcubeState_eq_true_iff]
-  have hi : i < w.length := h2
-  simp only [show ((1 + i : ℕ) == 0) = false from beq_eq_false_iff_ne.2 (by omega), Bool.false_or,
-    show 1 + i - 1 = i by omega]
-  refine ⟨fun ⟨w', hw', hbit⟩ => ?_, fun hbit => ⟨w, hw, by rwa [List.getD_eq_getElem _ _ hi]⟩⟩
+  have h0 : ((1 + i : ℕ) == 0) = false := beq_eq_false_iff_ne.2 (by omega)
+  simp only [h0, Bool.false_or, Nat.add_sub_cancel_left]
+  refine ⟨fun ⟨w', hw', hbit⟩ => ?_, fun hbit => ⟨w, hw, by rwa [List.getD_eq_getElem _ _ h2]⟩⟩
   obtain rfl : w' = w := isMinSubcubeCert_unique hw' hw
-  rwa [List.getD_eq_getElem _ _ hi] at hbit
+  rwa [List.getD_eq_getElem _ _ h2] at hbit
 
 private theorem mergeOk₀_append_subcubeState (n s : ℕ) (f : BooleanFunction n) (p : List Bool)
     (j : ℕ) :
@@ -630,22 +611,15 @@ theorem mergeVec_eq_subcubeState {L : Language Bool}
   simp only [CircuitMinMergeLanguage, Set.mem_ofPred_eq, hdr, y, mergeOk₀_append_subcubeState,
     mergeOk₁_append_subcubeState, mergeCert₀_append_subcubeState, mergeCert₁_append_subcubeState,
     getD_zero_ofFn_subcubeState_eq_true_iff]
-  constructor
-  · rintro ⟨h0, h1, w, hmin, hbit⟩
-    obtain ⟨w₀, hw₀⟩ := exists_isMinSubcubeCert_iff.2 h0
-    obtain ⟨w₁, hw₁⟩ := exists_isMinSubcubeCert_iff.2 h1
-    rw [drop_one_ofFn_subcubeState_eq hw₀, drop_one_ofFn_subcubeState_eq hw₁] at hmin
-    exact ⟨w, (isMinMergedCert_iff_isMinSubcubeCert hp hw₀.1 hw₁.1).1 hmin, hbit⟩
-  · rintro ⟨w, hmin, hbit⟩
-    have h0 : ∃ w₀, IsSubcubeCert n s f (p ++ [false]) w₀ :=
-      ⟨w, isSubcubeCert_append_of_isSubcubeCert hp hmin.1 false⟩
-    have h1 : ∃ w₁, IsSubcubeCert n s f (p ++ [true]) w₁ :=
-      ⟨w, isSubcubeCert_append_of_isSubcubeCert hp hmin.1 true⟩
-    obtain ⟨w₀, hw₀⟩ := exists_isMinSubcubeCert_iff.2 h0
-    obtain ⟨w₁, hw₁⟩ := exists_isMinSubcubeCert_iff.2 h1
-    refine ⟨h0, h1, w, ?_, hbit⟩
-    rw [drop_one_ofFn_subcubeState_eq hw₀, drop_one_ofFn_subcubeState_eq hw₁]
-    exact (isMinMergedCert_iff_isMinSubcubeCert hp hw₀.1 hw₁.1).2 hmin
+  by_cases h01 : (∃ w₀, IsSubcubeCert n s f (p ++ [false]) w₀) ∧
+      ∃ w₁, IsSubcubeCert n s f (p ++ [true]) w₁
+  · obtain ⟨w₀, hw₀⟩ := exists_isMinSubcubeCert_iff.2 h01.1
+    obtain ⟨w₁, hw₁⟩ := exists_isMinSubcubeCert_iff.2 h01.2
+    simp [h01, drop_one_ofFn_subcubeState_eq hw₀, drop_one_ofFn_subcubeState_eq hw₁,
+      isMinMergedCert_iff_isMinSubcubeCert hp hw₀.1 hw₁.1]
+  · exact ⟨fun ⟨h0, h1, _⟩ => absurd ⟨h0, h1⟩ h01, fun ⟨w, hmin, _⟩ => absurd
+      ⟨⟨w, isSubcubeCert_append_of_isSubcubeCert hp hmin.1 false⟩,
+        ⟨w, isSubcubeCert_append_of_isSubcubeCert hp hmin.1 true⟩⟩ h01⟩
 
 private theorem complexity_mergeVec_le (L : Language Bool) (n s : ℕ) (p : List Bool) {M : ℕ}
     (hM : ∀ j : Fin (stateWidth n s),
@@ -666,12 +640,10 @@ private theorem complexity_single_comp_proj_le {m : ℕ} (g : Bool → Bool) (i�
   cases h0 : g false <;> cases h1 : g true
   · exact (Synthesis.of_forall_eq_const (s := inputs m) false fun x => by
       cases x i₀ <;> assumption).complexity_le
-  · rw [show (fun x : BitString m => g (x i₀)) = fun x => x i₀ from
-      funext fun x => by cases x i₀ <;> assumption, complexity_single_proj]
-    omega
-  · rw [show (fun x : BitString m => g (x i₀)) = fun x => !(x i₀) from
-      funext fun x => by cases x i₀ <;> simp [h0, h1]]
-    simpa [complexity_single_proj] using complexity_not_le (fun x : BitString m => x i₀)
+  · have hg : g = id := funext fun b => by cases b <;> assumption
+    simp [hg, complexity_single_proj]
+  · have hg : g = not := funext fun b => by cases b <;> simp [h0, h1]
+    simpa [hg, complexity_single_proj] using complexity_not_le (fun x : BitString m => x i₀)
   · exact (Synthesis.of_forall_eq_const (s := inputs m) true fun x => by
       cases x i₀ <;> assumption).complexity_le
 
@@ -794,10 +766,8 @@ private theorem length_frame_encHeader_add_le {n s : ℕ} {p : List Bool} (hp : 
     (frame (encHeader ⟨n, s, p, (j : ℕ)⟩)).length + (stateWidth n s + stateWidth n s) ≤
       48 * (n + s + 1) ^ 2 := by
   have hj : (j : ℕ) < stateWidth n s := j.isLt
-  have hsw : stateWidth n s ≤ 3 * (n + s + 1) ^ 2 + 1 := by
-    have := certLength_le_three_mul_sq n s
-    unfold stateWidth
-    omega
+  have hsw : stateWidth n s ≤ 3 * (n + s + 1) ^ 2 + 1 :=
+    Nat.add_le_add_right (certLength_le_three_mul_sq n s) 1
   simp only [encHeader_apply, encHeaderFields, length_frame, length_encPair, encUnary_apply,
     List.length_replicate, encBits_apply]
   nlinarith
@@ -821,19 +791,16 @@ theorem exists_complexity_yesSet_le_of_NP_subset_PPoly
   let C₁ : ℕ := 6 * (c₀ * 49 ^ c₀ + 3) + 1
   let D₁ : ℕ := 2 * c₀ + 2
   let c : ℕ := max C₁ D₁
-  have hc_pos : 0 < c := by unfold c C₁; omega
-  refine ⟨c, hc_pos, fun s n => ?_⟩
+  refine ⟨c, lt_of_lt_of_le (Nat.succ_pos _) (le_max_left C₁ D₁), fun s n => ?_⟩
   let N : ℕ := n + s n + 1
   have hN_pos : 1 ≤ N := by unfold N; omega
   let M : ℕ := c₀ * (48 * N ^ 2 + 1) ^ c₀
   have hM (p : List Bool) (hp : p.length ≤ n) (j : Fin (stateWidth n (s n))) :
       complexity interpretation
         (single (L.slice ((frame (encHeader ⟨n, s n, p, (j : ℕ)⟩)).length +
-          (stateWidth n (s n) + stateWidth n (s n))))) ≤ M := by
-    set m := (frame (encHeader ⟨n, s n, p, (j : ℕ)⟩)).length +
-      (stateWidth n (s n) + stateWidth n (s n))
-    have hm : m ≤ 48 * N ^ 2 := length_frame_encHeader_add_le hp j
-    exact (hc₀ m).trans (Nat.mul_le_mul_left c₀ (Nat.pow_le_pow_left (by omega) c₀))
+          (stateWidth n (s n) + stateWidth n (s n))))) ≤ M :=
+    (hc₀ _).trans (Nat.mul_le_mul_left c₀
+      (Nat.pow_le_pow_left (Nat.add_le_add_right (length_frame_encHeader_add_le hp j) 1) c₀))
   have htree : complexity interpretation
       (fun T : BitString (2 ^ n) => subcubeState n (s n) ((truthTable n).symm T) []) ≤
       2 ^ n * (stateWidth n (s n) * (M + 3)) := by
@@ -849,9 +816,7 @@ theorem exists_complexity_yesSet_le_of_NP_subset_PPoly
     rw [hslice]
     exact (complexity_comp_le (I := interpretation) _ _).trans
       (by simpa [complexity_single_proj] using htree)
-  have hsw : stateWidth n (s n) ≤ 6 * N ^ 2 := by
-    unfold stateWidth certLength N
-    nlinarith
+  have hsw : stateWidth n (s n) ≤ 6 * N ^ 2 := by dsimp [stateWidth, certLength, N]; nlinarith
   have h48 : 48 * N ^ 2 + 1 ≤ 49 * N ^ 2 := by nlinarith
   have hM_le : M + 3 ≤ (c₀ * 49 ^ c₀ + 3) * (N ^ 2) ^ c₀ := by
     have h1 : M ≤ c₀ * 49 ^ c₀ * (N ^ 2) ^ c₀ := by
@@ -920,8 +885,7 @@ theorem not_NP_subset_PPoly_of_yesSet_hard
     ¬ (NP encBits ⊆ PPolyOn encBits) := by
   intro hNP
   obtain ⟨c, hc_pos, hub⟩ := exists_complexity_yesSet_le_of_NP_subset_PPoly hNP
-  obtain ⟨s, n, hlb⟩ := h c hc_pos
-  exact (lt_irrefl _) ((hub s n).trans_lt hlb)
+  exact (h c hc_pos).elim fun s ⟨n, hlb⟩ => (hub s n).not_gt hlb
 
 /-- **Hardness magnification for `MCSP[s]` to `P ≠ NP`**: if for every `c > 0` there exist a
 schedule `s` and input arity `n` such that the `2 ^ n`-bit slice of `GapMCSP.yesSet s` requires
@@ -951,8 +915,7 @@ theorem not_NP_subset_PPoly_of_yesSet_pow_hard (k : ℕ)
     ¬ (NP encBits ⊆ PPolyOn encBits) := by
   intro hNP
   obtain ⟨c, hc_pos, hub⟩ := exists_complexity_yesSet_pow_le_of_NP_subset_PPoly hNP k
-  obtain ⟨n, hlb⟩ := h c hc_pos
-  exact (lt_irrefl _) ((hub n).trans_lt hlb)
+  exact (h c hc_pos).elim fun n hlb => (hub n).not_gt hlb
 
 /-- **Hardness magnification for `MCSP[n ^ k]` to `P ≠ NP`**: if for some `k` and every `c > 0`,
 there is `n` such that the `2 ^ n`-bit slice of `GapMCSP.yesSet (fun m => m ^ k)` requires more

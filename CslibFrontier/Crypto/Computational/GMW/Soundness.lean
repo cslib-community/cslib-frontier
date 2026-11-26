@@ -78,12 +78,9 @@ private theorem length_flatten_naorCommitSplit_true {generator : List Bool → L
     (hseeds : seeds.length = bits.length) (hgen : ∀ seed ∈ seeds, (generator seed).length = m) :
     (naorCommitSplit generator (BitString.listRow m 0 r)
       (List.replicate bits.length true) bits seeds []).flatten.length = bits.length * m := by
-  have hmem := length_mem_naorCommitSplit_true (r := BitString.listRow m 0 r) hseeds hgen
-  have hmap : List.map List.length (naorCommitSplit generator (BitString.listRow m 0 r)
-        (List.replicate bits.length true) bits seeds []) = List.replicate bits.length m := by
-    apply List.ext_getElem (by simp); intro i hi _
-    simp only [List.getElem_map, List.getElem_replicate]; exact hmem _ (List.getElem_mem _)
-  simp [List.length_flatten, hmap]
+  rw [List.length_flatten, List.map_congr_left
+    (length_mem_naorCommitSplit_true (r := BitString.listRow m 0 r) hseeds hgen), List.map_const']
+  simp [naorCommitSplit_eq_map]
 
 private theorem proverReply1_true_eq_flatten {generator : List Bool → List Bool} {m : ℕ}
     (r : List Bool) {bits : List Bool} {seeds : List (List Bool)}
@@ -127,19 +124,16 @@ private theorem verifyTranscript_honest {generator : List Bool → List Bool} {s
       (naorSelectSeeds s flags bits seeds).flatten := by
     simp [proverReply2, K, flags, bits, List.drop_left' hmask_len]
   have hmask_eq := naorMaskBits_realBits (m₀ := m₀) (m₁ := m₁) (m₂ := m₂) ch hw
-  have hflags_eq : allOpenFlags φ ch (naorMaskBits flags bits) = flags := by
-    dsimp only [flags, bits]
-    rw [hmask_eq]
-    exact (allOpenFlags_realBits φ ch w m₀ m₁ m₂).symm
+  have hflags_eq : allOpenFlags φ ch (naorMaskBits flags bits) = flags :=
+    hmask_eq ▸ (allOpenFlags_realBits φ ch w m₀ m₁ m₂).symm
   have h3sat : (φ.all fun c => decide (c.length ≤ 3)) = true :=
     (Bool.and_eq_true _ _).mp hw |>.1
   have hcopy :
       verifyCopyBits φ (ch.getD 0 false) (gmwCopy0 φ (naorMaskBits flags bits)) = true ∧
       verifyCopyBits φ (ch.getD 1 false) (gmwCopy1 φ (naorMaskBits flags bits)) = true ∧
       verifyCopyBits φ (ch.getD 2 false) (gmwCopy2 φ (naorMaskBits flags bits)) = true := by
-    dsimp only [flags, bits]
-    rw [hmask_eq]
-    simp [gmwCopy0_simBits, gmwCopy1_simBits, gmwCopy2_simBits, verifyCopyBits_simCopyBits]
+    simp [flags, bits, hmask_eq, gmwCopy0_simBits, gmwCopy1_simBits, gmwCopy2_simBits,
+      verifyCopyBits_simCopyBits]
   dsimp only [verifyTranscript, K, bits, flags] at htake hdrop hflags_eq hcopy ⊢
   rw [htake, hdrop, hflags_eq, h3sat]
   simp only [hcopy.1, hcopy.2.1, hcopy.2.2, Bool.true_and, verifyCommitments, List.all_eq_true,
@@ -147,12 +141,9 @@ private theorem verifyTranscript_honest {generator : List Bool → List Bool} {s
   intro i hi
   by_cases hfi : flags.getD i false = true
   · right
-    have hbit_i : (naorMaskBits flags bits).getD i false = bits.getD i false := by
-      rw [getD_naorMaskBits, hfi, Bool.true_and]
     have hi_bits : i < bits.length := hbits_len ▸ hi
-    have hi_seeds : i < seeds.length := hseeds ▸ hi
     have hseed_mem : seeds.getD i [] ∈ seeds := by
-      simp [List.getD, List.getElem?_eq_getElem hi_seeds]
+      simp [List.getD, List.getElem?_eq_getElem (hseeds ▸ hi)]
     have hseed_i : BitString.listRow s i (naorSelectSeeds s flags bits seeds).flatten =
         seeds.getD i [] := by
       rw [BitString.listRow_flatten (fun w hw => length_mem_naorSelectSeeds hw) (by simp [hi_bits]),
@@ -167,10 +158,8 @@ private theorem verifyTranscript_honest {generator : List Bool → List Bool} {s
       rw [← hbits_len, proverReply1_true_eq_flatten r (hseeds.trans hbits_len.symm) hgen_len,
         BitString.listRow_flatten hmem (by simp [hi_bits]),
         getD_naorCommitSplit _ _ _ _ _ _ i hi_bits]
-      have hrep : (List.replicate bits.length true).getD i false = true := by
-        simp [List.getD, hi_bits]
-      rw [hrep, naorCommitAt_true]
-    rw [hbit_i, hseed_i, hcommit_i]
+      simp [List.getD, hi_bits, naorCommitAt_true]
+    rw [getD_naorMaskBits, hfi, Bool.true_and, hseed_i, hcommit_i]
   · left; exact Bool.eq_false_iff.mpr hfi
 
 private theorem length_mem_support_replicate_sampleList {K s : ℕ} {seeds : List (List Bool)}
@@ -178,18 +167,14 @@ private theorem length_mem_support_replicate_sampleList {K s : ℕ} {seeds : Lis
     seeds.length = K ∧ ∀ seed ∈ seeds, seed.length = s := by
   induction K generalizing seeds with
   | zero =>
-    simp only [OracleComp.replicate_zero, ProbComp.eval_pure, PMF.support_pure,
-      Set.mem_singleton_iff] at hseeds
-    subst hseeds; simp
+    supp_cases hseeds [OracleComp.replicate_zero]
+    simp
   | succ K ih =>
-    simp only [OracleComp.replicate_succ, ProbComp.eval_map, ProbComp.eval_bind,
-      BitString.eval_sampleList, PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at hseeds
-    obtain ⟨seed, hseed, rest, hrest, rfl⟩ := hseeds
+    supp_cases hseeds [OracleComp.replicate_succ, BitString.eval_sampleList] with
+      ⟨seed, hseed, rest, hrest, rfl⟩
     obtain ⟨hrest_len, hrest_mem⟩ := ih hrest
-    refine ⟨by simp [hrest_len], fun u hu => ?_⟩
-    rcases List.mem_cons.mp hu with rfl | hu
-    · exact BitString.length_of_mem_support_uniformList hseed
-    · exact hrest_mem u hu
+    exact ⟨by simp [hrest_len], List.forall_mem_cons.mpr
+      ⟨BitString.length_of_mem_support_uniformList hseed, hrest_mem⟩⟩
 
 /-- **Completeness of the GMW protocol.** When `ThreeSAT.verifier (f a, w) = true`, the honest
 prover `gmwProver` makes `gmwVerifier` accept with probability `1`. -/
@@ -209,21 +194,15 @@ theorem acceptProb_gmwVerifier_gmwProver {α : Type} {generator : List Bool → 
   have hfalse : ProbComp.eval prog false = 0 := by
     rw [PMF.apply_eq_zero_iff]
     intro hmem
-    simp only [prog, ProbComp.eval_bind, ProbComp.eval_map, PMF.mem_support_bind_iff,
-      PMF.mem_support_map_iff] at hmem
-    obtain ⟨coins, hcoins, ⟨b, finalState⟩, hrun, hfst⟩ := hmem
-    simp only at hfst; subst hfst
-    simp only [sampleHonestCoins, ProbComp.eval_bind, ProbComp.eval_pure,
-      BitString.eval_sampleList, PMF.mem_support_bind_iff, PMF.support_pure,
-      Set.mem_singleton_iff] at hcoins
-    obtain ⟨m₀, _, m₁, _, m₂, _, seeds, hseeds, rfl⟩ := hcoins
-    simp only [gmwVerifier, runTwoRound_bind, runTwoRound_sample, runTwoRound_map,
-      runTwoRound_query, runTwoRound_pure, ProbComp.eval_bind, ProbComp.eval_map,
-      ProbComp.eval_pure, BitString.eval_sampleList, PMF.mem_support_bind_iff,
-      PMF.mem_support_map_iff, PMF.support_pure, Set.mem_singleton_iff] at hrun
-    obtain ⟨⟨r, s₁⟩, ⟨r', _, hr1⟩, ⟨commitReply, s₂⟩, ⟨⟨q1, s₁'⟩, hq1, hmap1⟩,
-      ⟨ch, s₃⟩, ⟨ch', hch, hch1⟩, ⟨openReply, s₄⟩, ⟨⟨q2, s₃'⟩, hq2, hmap2⟩, hfinal⟩ := hrun
-    cases hr1; cases hq1; cases hmap1; cases hch1; cases hq2; cases hmap2
+    supp_cases hmem [prog] with ⟨coins, hcoins, ⟨_, _⟩, hrun, rfl⟩
+    supp_cases hcoins [sampleHonestCoins, BitString.eval_sampleList] with
+      ⟨m₀, -, m₁, -, m₂, -, seeds, hseeds, rfl⟩
+    supp_cases hrun [gmwVerifier, BitString.eval_sampleList, runTwoRound_bind,
+      runTwoRound_sample, runTwoRound_map, runTwoRound_query, runTwoRound_pure, Prod.map_apply]
+      with ⟨⟨r, _⟩, ⟨_, -, ⟨⟩⟩, ⟨_, _⟩, ⟨rfl, rfl⟩, ⟨ch, _⟩, ⟨_, hch, ⟨⟩⟩, ⟨_, _⟩, ⟨rfl, rfl⟩,
+        hfalse_eq, -⟩
+    dsimp only [twoRoundStep, TwoRoundState.init, beq_self_eq_true, Nat.reduceBEq, ↓reduceIte,
+      id_eq] at hfalse_eq
     obtain ⟨hseeds_len, hseeds_mem⟩ := length_mem_support_replicate_sampleList hseeds
     have hch_len : ch.length = 3 := BitString.length_of_mem_support_uniformList hch
     have hch_row : BitString.listRow 3 0 ch = ch := by
@@ -237,12 +216,6 @@ theorem acceptProb_gmwVerifier_gmwProver {α : Type} {generator : List Bool → 
     have hr2_len :
         (honestReply2 s φ ⟨realBits φ w m₀ m₁ m₂, seeds⟩ ch).length = K * (s + 1) := by
       simpa [honestReply2, K] using length_proverReply2 s φ seeds (length_realBits φ w m₀ m₁ m₂)
-    have hfalse_eq := congrArg Prod.fst hfinal
-    dsimp only at hfalse_eq
-    change false = verifyTranscript generator s m φ r
-        (List.take (K * m) (honestReply1 generator m φ ⟨realBits φ w m₀ m₁ m₂, seeds⟩ r)) ch
-        (List.take (K * (s + 1))
-          (honestReply2 s φ ⟨realBits φ w m₀ m₁ m₂, seeds⟩ (BitString.listRow 3 0 ch))) at hfalse_eq
     rw [hch_row, List.take_of_length_le hr1_len.le, List.take_of_length_le hr2_len.le] at hfalse_eq
     exact Bool.false_ne_true (hfalse_eq.trans (verifyTranscript_honest (m₀ := m₀) (m₁ := m₁)
       (m₂ := m₂) (r := r) (ch := ch) hw hseeds_len hseeds_mem hgen_len))
@@ -272,13 +245,16 @@ private theorem satisfiable_of_verifyCopyBits {φ : CNF ℕ} {copy₀ copy₁ : 
       (activeTableFlags φ v).getD j false = true → (tableBits φ m).getD j false = true := by
     intro j hj hact
     have hj_len : 2 * φ.vars.length + j < copyLen φ := by unfold copyLen; omega
+    have hle (b₁ b₂ : Bool) :
+        (List.replicate φ.vars.length b₁ ++ List.replicate φ.vars.length b₂).length ≤
+          2 * φ.vars.length + j := by simp [Nat.two_mul]
     have hflag₀ : (copyOpenFlags φ false copy₀).getD (2 * φ.vars.length + j) false = true := by
       simp only [copyOpenFlags, Bool.false_eq_true, ↓reduceIte]
-      rw [List.getD_append_right _ _ _ _ (by simp [Nat.two_mul])]
+      rw [List.getD_append_right _ _ _ _ (hle _ _)]
       simp [List.getD_eq_getElem?_getD, hj, Nat.two_mul]
     have hflag₁ : (copyOpenFlags φ true copy₁).getD (2 * φ.vars.length + j) false = true := by
       simp only [copyOpenFlags, ↓reduceIte]
-      rw [List.getD_append_right _ _ _ _ (by simp [Nat.two_mul])]
+      rw [List.getD_append_right _ _ _ _ (hle _ _)]
       simpa [Nat.two_mul] using hact
     rw [← htab₀, tablePart, List.getD_take_drop copy₀ _ hj,
       hagree _ hj_len hflag₀ hflag₁, ← List.getD_take_drop copy₁ _ hj]
@@ -305,8 +281,7 @@ private theorem satisfiable_of_verifyCopyBits {φ : CNF ℕ} {copy₀ copy₁ : 
     hrow _ (fun _ => by simp), getD_clauseTableRow φ m φ[k] ht] at htab_true
   simp only [t, gmwBit0Of8_gmwActiveIdx, gmwBit1Of8_gmwActiveIdx,
     gmwBit2Of8_gmwActiveIdx] at htab_true
-  rw [← clauseEvalBits_eq_eval (hwidth φ[k] hc) (fun x => varBit φ v x ^^ varBit φ m x)]
-  exact htab_true
+  rwa [← clauseEvalBits_eq_eval (hwidth φ[k] hc) (fun x => varBit φ v x ^^ varBit φ m x)]
 
 private theorem getD_allOpenFlags_copy0 (φ : CNF ℕ) (ch bits : List Bool) {i : ℕ}
     (hi : i < copyLen φ) :
@@ -320,8 +295,9 @@ private theorem getD_allOpenFlags_copy1 (φ : CNF ℕ) (ch bits : List Bool) {i 
     (allOpenFlags φ ch bits).getD (copyLen φ + i) false =
       (copyOpenFlags φ (ch.getD 1 false) (gmwCopy1 φ bits)).getD i false := by
   simp only [allOpenFlags, List.append_assoc]
-  rw [List.getD_append_right _ _ _ _ (by simp), length_copyOpenFlags, Nat.add_sub_cancel_left,
-    List.getD_append _ _ _ _ (by simpa using hi)]
+  rw [List.getD_append_right _ _ _ _ ((length_copyOpenFlags _ _ _).trans_le (Nat.le_add_right _ i)),
+    length_copyOpenFlags, Nat.add_sub_cancel_left,
+    List.getD_append _ _ _ _ ((length_copyOpenFlags _ _ _).symm ▸ hi)]
 
 private theorem getD_allOpenFlags_copy2 (φ : CNF ℕ) (ch bits : List Bool) (i : ℕ) :
     (allOpenFlags φ ch bits).getD (2 * copyLen φ + i) false =
@@ -329,9 +305,9 @@ private theorem getD_allOpenFlags_copy2 (φ : CNF ℕ) (ch bits : List Bool) (i 
   have hlen :
       (copyOpenFlags φ (ch.getD 0 false) (gmwCopy0 φ bits) ++
         copyOpenFlags φ (ch.getD 1 false) (gmwCopy1 φ bits)).length = 2 * copyLen φ := by
-    simp only [List.length_append, length_copyOpenFlags]; omega
-  simp only [allOpenFlags]
-  rw [List.getD_append_right _ _ _ _ (by omega), hlen, Nat.add_sub_cancel_left]
+    rw [List.length_append, length_copyOpenFlags, length_copyOpenFlags, Nat.two_mul]
+  rw [allOpenFlags, List.getD_append_right _ _ _ _ (hlen ▸ Nat.le_add_right _ _), hlen,
+    Nat.add_sub_cancel_left]
 
 private theorem verifyCommitments_eq_of_true {generator : List Bool → List Bool} {s m : ℕ}
     {φ : CNF ℕ} {r flags₀ flags₁ commitReply opened₀ opened₁ seeds₀ seeds₁ : List Bool}
@@ -437,37 +413,31 @@ theorem acceptProb_gmwVerifier_le {α : Type} {generator : List Bool → List Bo
     ProbOracleComp.sample (BitString.sampleList 3) >>= step3 r commitReply
   let step1 (r : List Bool) : WordOracleComp Unit Bool :=
     (List.take (K * m) <$> ProbOracleComp.query ((), r)) >>= step2 r
-  have hverifier : gmwVerifier generator length f n a =
-      (ProbOracleComp.sample (BitString.sampleList m) >>= step1) := rfl
   have hstep2_le : ∀ r commitReply state₁,
       NaorBinding generator s (BitString.listRow m 0 r) →
       ProbOracleComp.acceptProbWith P.respond (step2 r commitReply) state₁ ≤ 1 / 8 := by
     intro r commitReply state₁ hbind
-    have heq :
-        ProbOracleComp.acceptProbWith P.respond (step2 r commitReply) state₁ =
-          ∑ x : BitString 3, (1 / 8 : ℝ≥0∞) *
-            ProbOracleComp.acceptProbWith P.respond (step3 r commitReply (List.ofFn x)) state₁ := by
-      rw [ProbOracleComp.acceptProbWith, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
-        BitString.eval_sampleList, BitString.uniformList, PMF.bind_map, PMF.map_bind,
-        PMF.bind_map, PMF.bind_apply, tsum_fintype]
-      refine Finset.sum_congr rfl fun x _ => ?_
-      rw [Probability.PMF.uniformOfFintype_apply]
-      simp [ProbOracleComp.acceptProbWith]
-    rw [heq]
+    rw [ProbOracleComp.acceptProbWith, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
+      BitString.eval_sampleList, BitString.uniformList, PMF.bind_map, PMF.map_bind,
+      PMF.bind_map, PMF.bind_apply, tsum_fintype]
     refine sum_le_of_subsingleton_support
-      (fun x => mul_le_of_le_one_right' (ProbOracleComp.acceptProbWith_le_one _ _ _))
+      (fun x => by
+        simpa [Probability.PMF.uniformOfFintype_apply, ProbOracleComp.acceptProbWith] using
+          (mul_le_of_le_one_right'
+            (ProbOracleComp.acceptProbWith_le_one P.respond
+              (step3 r commitReply (List.ofFn x)) state₁) : (1 / 8 : ℝ≥0∞) * _ ≤ 1 / 8))
       (fun x₁ x₂ hx₁ hx₂ => ?_)
     by_contra hne
-    have hv {x : BitString 3} (hx : (1 / 8 : ℝ≥0∞) *
-        ProbOracleComp.acceptProbWith P.respond (step3 r commitReply (List.ofFn x)) state₁ ≠ 0) :
+    have hv {x : BitString 3}
+        (hx : ((ProbOracleComp.runWith P.respond
+          (step3 r commitReply (List.ofFn x)) state₁).map Prod.fst) true ≠ 0) :
         ∃ o, verifyTranscript generator s m φ r commitReply (List.ofFn x) o = true := by
-      have h := right_ne_zero_of_mul hx
-      rw [ProbOracleComp.acceptProbWith, ← PMF.mem_support_iff] at h
+      have h := (PMF.mem_support_iff _ _).mpr hx
       supp_cases h [step3, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
         ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure]
       exact ⟨_, ‹_›⟩
     exact hnot (mem_ThreeSAT_of_verifyTranscript_ne hbind hne
-      (hv hx₁).choose_spec (hv hx₂).choose_spec)
+      (hv (right_ne_zero_of_mul hx₁)).choose_spec (hv (right_ne_zero_of_mul hx₂)).choose_spec)
   have hstep1_le : ∀ r, NaorBinding generator s (BitString.listRow m 0 r) →
       acceptProb (step1 r) P ≤ 1 / 8 := by
     intro r hbind
@@ -477,7 +447,7 @@ theorem acceptProb_gmwVerifier_le {α : Type} {generator : List Bool → List Bo
             (List.take (K * m) <$> ProbOracleComp.query ((), r)) P.init x * (1 / 8) :=
           tsum_le_tsum fun x => mul_le_mul_right (hstep2_le r x.1 x.2 hbind) _
       _ = 1 / 8 := by rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
-  rw [hverifier, acceptProb_sample_bind, BitString.eval_sampleList]
+  rw [gmwVerifier, acceptProb_sample_bind, BitString.eval_sampleList]
   have hterm_le : ∀ r,
       BitString.uniformList m r * acceptProb (step1 r) P ≤
         ({r | ¬ NaorBinding generator s r}.indicator (BitString.uniformList m) r) +
@@ -513,7 +483,7 @@ theorem acceptProb_gmwVerifier_le {α : Type} {generator : List Bool → List Bo
             (pow_le_pow_right' (by norm_num : (1 : ℝ≥0∞) ≤ 2) (by omega)))
     _ ≤ 1 / 3 := by
         rw [← two_mul,
-          ENNReal.le_div_iff_mul_le (Or.inl (by norm_num)) (Or.inl (by norm_num)),
+          ENNReal.le_div_iff_mul_le (Or.inl three_ne_zero) (Or.inl ENNReal.ofNat_ne_top),
           one_div, mul_comm (2 : ℝ≥0∞), mul_assoc]
         calc
           (8 : ℝ≥0∞)⁻¹ * (2 * 3) ≤ (8 : ℝ≥0∞)⁻¹ * 8 := by gcongr; norm_num

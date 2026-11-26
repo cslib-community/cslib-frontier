@@ -155,7 +155,7 @@ theorem matchingMatrix_mem_stablePolytope_iff (μ : Matching n) :
         not_lt_of_ge (h ▸ (Finset.mem_filter.1 hr').2).le hp
     have hr0 : I.recvBetterMass (matchingMatrix μ) r p = 0 :=
       Finset.sum_eq_zero fun p' hp' => ite_eq_right fun h =>
-        not_lt_of_ge ((show p' = μ.symm r by rw [← h, Equiv.symm_apply_apply]) ▸
+        not_lt_of_ge ((μ.symm_apply_apply p').symm.trans (congrArg μ.symm h) ▸
           (Finset.mem_filter.1 hp').2).le hr
     linarith [hstab p r]
   · intro hstab
@@ -255,21 +255,11 @@ theorem eq_one_of_mem_stablePolytope_of_pos {x : Fin n → Fin n → ℝ} (hx : 
   have hzero_slack :
       ∑ p₀ : Fin n, ∑ r₀ : Fin n,
         x p₀ r₀ * (x p₀ r₀ + I.propBetterMass x p₀ r₀ + I.recvBetterMass x r₀ p₀ - 1) = 0 := by
-    have hexpand :
-        2 * (∑ p₀ : Fin n, ∑ r₀ : Fin n,
-          x p₀ r₀ * (x p₀ r₀ + I.propBetterMass x p₀ r₀ + I.recvBetterMass x r₀ p₀ - 1)) =
-        (2 * (∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀ * I.propBetterMass x p₀ r₀) +
-          ∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀ ^ 2) +
-        (2 * (∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀ * I.recvBetterMass x r₀ p₀) +
-          ∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀ ^ 2) -
-        2 * (∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀) := by
-      have hpt (p₀ r₀ : Fin n) :
-          2 * (x p₀ r₀ * (x p₀ r₀ + I.propBetterMass x p₀ r₀ + I.recvBetterMass x r₀ p₀ - 1)) =
-            2 * (x p₀ r₀ * I.propBetterMass x p₀ r₀) + x p₀ r₀ ^ 2 +
-              (2 * (x p₀ r₀ * I.recvBetterMass x r₀ p₀) + x p₀ r₀ ^ 2) - 2 * x p₀ r₀ := by
-        ring
-      simp only [Finset.mul_sum]
-      simp_rw [hpt, Finset.sum_sub_distrib, Finset.sum_add_distrib]
+    have hpt (p₀ r₀ : Fin n) :
+        x p₀ r₀ * (x p₀ r₀ + I.propBetterMass x p₀ r₀ + I.recvBetterMass x r₀ p₀ - 1) =
+          x p₀ r₀ * I.propBetterMass x p₀ r₀ + x p₀ r₀ * I.recvBetterMass x r₀ p₀ +
+            x p₀ r₀ ^ 2 - x p₀ r₀ := by ring
+    simp_rw [hpt, Finset.sum_sub_distrib, Finset.sum_add_distrib]
     linarith
   have hterm_nn (p₀ r₀ : Fin n) :
       0 ≤ x p₀ r₀ * (x p₀ r₀ + I.propBetterMass x p₀ r₀ + I.recvBetterMass x r₀ p₀ - 1) :=
@@ -358,19 +348,13 @@ private theorem sum_fin_sub_telescope :
         (if ia.val ≤ k.val ∧ k.val < ib.val then f k.succ - f k.castSucc else 0) =
           (if ia.val ≤ k.val ∧ k.val < ib'.val then f k.succ - f k.castSucc else 0) +
             (if k = k₀ then f k.succ - f k.castSucc else 0) := by
-      by_cases hk : k = k₀
-      · subst hk
-        simp only [k₀, ib', show ia.val ≤ ia.val + d ∧ ia.val + d < ib.val by omega,
-          and_self, ↓reduceIte, lt_irrefl, and_false, zero_add]
-      · have hne : k.val ≠ ia.val + d := fun h => hk (Fin.ext h)
-        by_cases h1 : ia.val ≤ k.val ∧ k.val < ib'.val
-        · simp [h1, show ia.val ≤ k.val ∧ k.val < ib.val by dsimp [ib'] at h1; omega, hk]
-        · simp [h1, show ¬ (ia.val ≤ k.val ∧ k.val < ib.val) by dsimp [ib'] at h1; omega, hk]
+      simp only [Fin.ext_iff, ib', k₀]
+      split_ifs <;> first | ring1 | exact False.elim (by omega)
     simp_rw [hsplit, Finset.sum_add_distrib]
     rw [ih ib' (Nat.le_add_right ia.val d) rfl, Finset.sum_ite_eq']
-    simp only [Finset.mem_univ, ↓reduceIte,
-      show k₀.succ = ib from Fin.ext (by dsimp [k₀]; omega),
-      show k₀.castSucc = ib' from Fin.ext rfl]
+    have hk_succ : k₀.succ = ib := Fin.ext (by simp only [k₀, Fin.val_succ]; omega)
+    have hk_cast : k₀.castSucc = ib' := rfl
+    simp only [Finset.mem_univ, ↓reduceIte, hk_succ, hk_cast]
     ring
 
 /-- **Theorem 10.15** ([SchummerVohra2007], Section 10.4.2, p. 261; [VandeVate1989]; [Rothblum1992];

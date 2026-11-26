@@ -268,30 +268,25 @@ private theorem plantedLoopInv_step (S : IndexedSignatureScheme) {Mv Me : ℕ} (
     (node ++ [leaf.getD node.length false]) visited Mv
     (fun e he => by simpa only [encUnary_apply, List.length_replicate] using hinv.visited_le e he)
     (fun val hval => by
-      rw [OracleComp.eq_of_mem_supportWith_pure hval]
-      simpa only [encUnary_apply, List.length_replicate] using (Nat.min_le_right _ _).trans hMv)
+      simpa only [OracleComp.eq_of_mem_supportWith_pure hval, encUnary_apply,
+        List.length_replicate] using (Nat.min_le_right _ _).trans hMv)
     hvisStep
   have heBound := ProbOracleComp.memoize_call_size_le (encPair encBits encUnary) encBits
     (fun _ => signEdgeRaw S keys target sigCap idx
       (leaf.getD node.length false).toNat (keys.getD childIdx ([], [])).1)
-    (node, (leaf.getD node.length false).toNat) edges Me
-    (fun e he => by simpa only [encBits_apply] using hinv.edges_le e he)
-    (fun val hval => by
-      simpa only [encBits_apply] using
-        (length_le_of_mem_support_signEdgeRaw S keys target sigCap idx _ _ hval).trans hMe)
+    (node, (leaf.getD node.length false).toNat) edges Me hinv.edges_le
+    (fun _ hval =>
+      (length_le_of_mem_support_signEdgeRaw S keys target sigCap idx _ _ hval).trans hMe)
     hedgStep
   simp only [length_encPair, encBits_apply, encUnary_apply, List.length_replicate,
     List.length_append, List.length_singleton, hinv.node_len] at hvBound heBound
-  have hu : (leaf.getD i false).toNat ≤ 1 := Bool.toNat_le _
-  refine ⟨by simp [hinv.node_len], hvBound.1, by simp [hinv.certs_len], ?_,
-    hvBound.2.1, heBound.2.1, ?_, ?_⟩
+  refine ⟨by simp [hinv.node_len], hvBound.1,
+    by simp [hinv.certs_len], ?_, hvBound.2.1, heBound.2.1, ?_, ?_⟩
   · rintro c hc
-    rcases List.mem_append.mp hc with hc | hc
-    · exact hinv.certs_bound c hc
-    · rw [List.mem_singleton.mp hc]
-      exact ⟨length_fst_getD_keys_le keys childIdx, heBound.1⟩
+    exact (List.mem_append.mp hc).elim (hinv.certs_bound c) fun h =>
+      List.mem_singleton.mp h ▸ ⟨length_fst_getD_keys_le keys childIdx, heBound.1⟩
   · linarith only [hinv.visited_enc_le, hvBound.2.2]
-  · linarith only [hinv.edges_enc_le, heBound.2.2, hu]
+  · linarith only [hinv.edges_enc_le, heBound.2.2, Bool.toNat_le (leaf.getD i false)]
 
 private theorem plantedLoopInv_enc_bounds {Mv Me d i : ℕ} {a : CertLoopIn}
     {state : PlantedCertState} (hi : i ≤ d)
@@ -301,13 +296,11 @@ private theorem plantedLoopInv_enc_bounds {Mv Me d i : ℕ} {a : CertLoopIn}
       (encNodeCache a.visited).length + d * (4 * (d + 1) + 2 * Mv + 3) ∧
     (encEdgeCache state.2.2).length ≤
       (encEdgeCache a.edges).length + d * (8 * d + 2 * Me + 11) := by
-  have hcertsList : (encKeys state.1.2.2).length ≤
-      state.1.2.2.length * (2 * (2 * (encKeys a.keys).length + 1 + Me) + 1) :=
-    length_encList_le (encPair encBits encBits) _ fun c hc => by
+  refine ⟨le_trans (length_encList_le (encPair encBits encBits) _ fun c hc => by
       obtain ⟨h1, h2⟩ := hinv.certs_bound c hc
-      enc_len
-  refine ⟨hcertsList.trans (by rw [hinv.certs_len]; gcongr),
-    hinv.visited_enc_le.trans (by gcongr), hinv.edges_enc_le.trans (by gcongr)⟩
+      enc_len) (Nat.mul_le_mul_right _ (hinv.certs_len ▸ hi)),
+    hinv.visited_enc_le.trans (by gcongr),
+    hinv.edges_enc_le.trans (by gcongr)⟩
 
 private theorem isOraclePPTOn_certifyPlanted (S : IndexedSignatureScheme) {depth : ℕ → ℕ}
     (hdepth : ComputableInPolyTime depth encUnary encUnary) :
@@ -347,16 +340,15 @@ private theorem isOraclePPTOn_certifyPlanted (S : IndexedSignatureScheme) {depth
         ((pair.1.keys, (pair.1.target, pair.1.sigCap), pair.1.leaf), pair.2))
       (by fun_prop))
     (fun a i state => PlantedLoopInv (encLoopIn a).length (encLoopIn a).length a i state)
-    (fun a => ⟨rfl, Nat.zero_le _, rfl, by simp,
+    (fun a => ⟨rfl, Nat.zero_le _, rfl, List.forall_mem_nil _,
       fun e he => by
-        have h := ((length_le_encPair_right encBits encUnary e).trans
-          (length_le_encList_of_mem (encPair encBits encUnary) he)).trans (hleIn a).2.2.2.2.1
-        simpa only [encUnary_apply, List.length_replicate] using h,
-      fun e he => by
-        have h := ((length_le_encPair_right (encPair encBits encUnary) encBits e).trans
+        simpa only [encUnary_apply, List.length_replicate] using
+          ((length_le_encPair_right encBits encUnary e).trans
+            (length_le_encList_of_mem (encPair encBits encUnary) he)).trans (hleIn a).2.2.2.2.1,
+      fun e he =>
+        ((length_le_encPair_right (encPair encBits encUnary) encBits e).trans
           (length_le_encList_of_mem (encPair (encPair encBits encUnary) encBits) he)).trans
-          (hleIn a).2.2.2.2.2
-        simpa only [encBits_apply] using h,
+          (hleIn a).2.2.2.2.2,
       by simp, by simp⟩)
     (fun a i state _ hinv next hnext =>
       plantedLoopInv_step S a (hleIn a).1 (hleIn a).2.2.1 i state hinv next hnext)
@@ -471,15 +463,12 @@ private theorem plantedTreeHandler_preserve (S : IndexedSignatureScheme) (depth 
       have heLast := ProbOracleComp.memoize_call_size_le (encPair encBits encUnary) encBits
         (fun _ => signEdgeRaw S c.2 c.1.2 (sigCap c.1.1.1) idx
           (leaf.getLastD false).toNat request.2)
-        (node, (leaf.getLastD false).toNat) edges' (sigCap c.1.1.1)
-        (fun e he => by simpa only [encBits_apply] using hloop.edges_le e he)
-        (fun val hval => by
-          simpa only [encBits_apply] using
-            length_le_of_mem_support_signEdgeRaw S c.2 c.1.2 (sigCap c.1.1.1) idx _ _ hval)
+        (node, (leaf.getLastD false).toNat) edges' (sigCap c.1.1.1) hloop.edges_le
+        (fun _ hval =>
+          length_le_of_mem_support_signEdgeRaw S c.2 c.1.2 (sigCap c.1.1.1) idx _ _ hval)
         hsig
       simp only [length_encPair, encBits_apply, encUnary_apply, List.length_replicate,
         hloop.node_len] at heLast
-      have hu : (leaf.getLastD false).toNat ≤ 1 := Bool.toNat_le _
       have hslCons : (encList encBits (leaf :: seenLeaves)).length ≤
           (encList encBits seenLeaves).length + (2 * depth c.1.1.1 + 2) := by
         simp only [encList_cons, List.length_append, length_frame, encBits_apply, hleafLen]; omega
@@ -487,7 +476,8 @@ private theorem plantedTreeHandler_preserve (S : IndexedSignatureScheme) (depth 
       rw [plantedState_length_eq, plantedState_length_eq]
       dsimp only [plantedStateGrowth, loopIn, CertLoopIn.visited, CertLoopIn.edges,
         CertLoopIn.parameter, encNodeCache, encEdgeCache] at hvB heB heLast ⊢
-      linarith only [hvB, heB, heLast.2.2, hu, hslCons, hqCons, Nat.sub_le (depth c.1.1.1) 1]
+      linarith only [hvB, heB, heLast.2.2, Bool.toNat_le (leaf.getLastD false), hslCons, hqCons,
+        Nat.sub_le (depth c.1.1.1) 1]
   · rw [OracleComp.eq_of_mem_supportWith_pure hresult]; exact hpure bad
 
 private theorem computableInPolyTime_extractForgery :
@@ -525,13 +515,13 @@ theorem isOraclePPT_indexedForger (S : IndexedSignatureScheme) {depth slotBound 
     IsOraclePPT (encPair encUnary (encPair encBits encBits))
       (indexedForger S depth slotBound sigCap adversary) := by
   let encCaller := encPair (encPair (encPair encUnary encBits) encUnary) encKeys
+  have hgrowthP : ComputableInPolyTime (fun p : ForgerCaller × List Bool =>
+      plantedStateGrowth depth sigCap p.1 p.2) (encPair encCaller encBits) encUnary := by
+    dsimp only [plantedStateGrowth]
+    fun_prop
   have hgrowth : PolyBounded (fun p => (encPair encCaller encBits p).length)
       (fun p => plantedStateGrowth depth sigCap p.1 p.2) := by
-    simpa only [encUnary_apply, List.length_replicate] using
-      (by dsimp only [plantedStateGrowth]; fun_prop :
-        ComputableInPolyTime (fun p : ForgerCaller × List Bool =>
-          plantedStateGrowth depth sigCap p.1 p.2) (encPair encCaller encBits) encUnary
-        ).polyBounded_length
+    simpa only [encUnary_apply, List.length_replicate] using hgrowthP.polyBounded_length
   have hrun := hA.run_interpret_preprocess_open_of_bounded_growth (External := Unit)
     (operationEncoding := encFinEnum Unit)
     (handler := fun c : ForgerCaller =>
@@ -544,10 +534,7 @@ theorem isOraclePPT_indexedForger (S : IndexedSignatureScheme) {depth slotBound 
     (.const initPlantedState)
     (fun c state => (∀ e ∈ state.1.1, e.2 ≤ c.2.length) ∧
       (∀ e ∈ state.1.2, e.2.length ≤ sigCap c.1.1.1))
-    (fun _ => by
-      simp only [initPlantedState, List.mem_singleton, List.not_mem_nil, IsEmpty.forall_iff,
-        implies_true, and_true]
-      rintro _ rfl; exact Nat.zero_le _)
+    (fun _ => ⟨fun _ h => List.mem_singleton.mp h ▸ Nat.zero_le _, List.forall_mem_nil _⟩)
     hgrowth (plantedTreeHandler_preserve S depth sigCap)
   have hextract := computableInPolyTime_extractForgery.comp
     (by fun_prop : ComputableInPolyTime

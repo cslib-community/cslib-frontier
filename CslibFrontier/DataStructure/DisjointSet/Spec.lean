@@ -194,9 +194,8 @@ theorem numComponents_pos (hn : 0 < n) (p : Partition n) : 0 < p.numComponents :
 /-- The discrete partition on `Fin n` has `n` components. -/
 @[simp]
 theorem numComponents_discrete (n : ℕ) : (discrete n).numComponents = n := by
-  unfold numComponents components
-  rw [Finset.card_image_of_injective _ fun x y h => rel_discrete_eq_true.mp (classOf_eq_iff.mp h),
-    Finset.card_fin]
+  simpa [numComponents, components] using Finset.card_image_of_injective Finset.univ
+    fun x y h => rel_discrete_eq_true.mp (classOf_eq_iff.mp h)
 
 /-- Merge the equivalence classes of `x` and `y` in `p`. -/
 @[expose] def merge (p : Partition n) (x y : Fin n) : Partition n where
@@ -328,12 +327,9 @@ theorem numComponents_merge_of_not_rel {p : Partition n} {x y : Fin n}
     have hzx := mem_classOf.mp (hz ▸ Finset.mem_union_left _ (p.self_mem_classOf x))
     have hzy := mem_classOf.mp (hz ▸ Finset.mem_union_right _ (p.self_mem_classOf y))
     simp [p.trans (p.symm hzx) hzy] at h
-  rw [Finset.card_insert_of_notMem hunion_not_erase]
-  have hy_mem : p.classOf y ∈ p.components.erase (p.classOf x) :=
-    Finset.mem_erase.mpr ⟨hne, p.classOf_mem_components y⟩
-  have hcard₁ := Finset.card_erase_add_one hy_mem
-  have hcard₂ := Finset.card_erase_add_one (p.classOf_mem_components x)
-  omega
+  rw [Finset.card_insert_of_notMem hunion_not_erase,
+    Finset.card_erase_add_one (Finset.mem_erase.mpr ⟨hne, p.classOf_mem_components y⟩),
+    Finset.card_erase_add_one (p.classOf_mem_components x)]
 
 end Partition
 
@@ -392,9 +388,8 @@ theorem runClient_connectIfNew {n : ℕ} (x y : Fin n) (p : Partition n) :
       else
         (true, p.merge x y, [.same x y, .union x y]) := by
   unfold connectIfNew same union
-  cases h : p.rel x y
-  · simp [StateTransitionSpec.runClient_lift_bind', StateTransitionSpec.runClient_lift, spec, h]
-  · simp [StateTransitionSpec.runClient_lift_bind', spec, h]
+  cases h : p.rel x y <;>
+    simp [StateTransitionSpec.runClient_lift_bind', StateTransitionSpec.runClient_lift, spec, h]
 
 /-- Single-pass spanning-forest client (the cycle-filtering loop shared with Kruskal's algorithm)
 parameterized over an arbitrary edge type `E` with endpoint map `endpts : E → Fin n × Fin n`: scan
@@ -420,11 +415,7 @@ theorem eval_spanningForestEdges_cons {n : ℕ} {E : Type} (endpts : E → Fin n
       let rest := eval (spec n) (spanningForestEdges endpts es) (p.merge (endpts e).1 (endpts e).2)
       (if !p.rel (endpts e).1 (endpts e).2 then e :: rest.1 else rest.1, rest.2) := by
   simp only [spanningForestEdges, union, eval_lift_bind', spec]
-  change eval (spec n)
-      ((spanningForestEdges endpts es).bind fun rest =>
-        pure (if !p.rel (endpts e).1 (endpts e).2 then e :: rest else rest))
-      (p.merge (endpts e).1 (endpts e).2) = _
-  rw [eval_bind, eval_pure']
+  rw [← PFunctor.FreeM.bind_eq_bind, eval_bind, eval_pure']
 
 /-- Exact operation history issued by `spanningForestEdges endpts es`: one `Op.union` call per input
 edge in order. -/
@@ -435,15 +426,10 @@ theorem runClient_spanningForestEdges_history {n : ℕ} {E : Type} (endpts : E �
   induction es generalizing p with
   | nil => rfl
   | cons e es ih =>
-    simp only [spanningForestEdges, union, spec, List.map_cons]
-    change Op.union (endpts e).1 (endpts e).2 ::
-        (spec n).clientHistory (p.merge (endpts e).1 (endpts e).2)
-          ((spanningForestEdges endpts es) >>= fun rest =>
-            pure (if !p.rel (endpts e).1 (endpts e).2 then e :: rest else rest)) =
-      Op.union (endpts e).1 (endpts e).2 ::
-        List.map (fun e => Op.union (endpts e).1 (endpts e).2) es
-    rw [StateTransitionSpec.clientHistory_bind, ih, StateTransitionSpec.clientHistory_pure,
+    rw [spanningForestEdges, StateTransitionSpec.clientHistory_bind,
+      StateTransitionSpec.clientHistory_bind, ih, StateTransitionSpec.clientHistory_pure,
       List.append_nil]
+    rfl
 
 /-- `spanningForestEdges endpts es` issues `es.length` operations. -/
 theorem runClient_spanningForestEdges_length {n : ℕ} {E : Type} (endpts : E → Fin n × Fin n)
@@ -475,10 +461,8 @@ theorem spanningForestEdges_numComponents_add_length {n : ℕ} {E : Type}
     rw [eval_spanningForestEdges_cons]
     have hrec := ih (p.merge (endpts e).1 (endpts e).2)
     cases hrel : p.rel (endpts e).1 (endpts e).2
-    · have := Partition.numComponents_merge_of_not_rel hrel
-      simp; omega
-    · have := Partition.numComponents_merge_of_rel hrel
-      simp; omega
+    · simp [← Partition.numComponents_merge_of_not_rel hrel, ← hrec, Nat.add_assoc]
+    · simpa [Partition.numComponents_merge_of_rel hrel] using hrec
 
 /-- The final partition after `spanningForestEdges endpts es` is the exact equivalence closure of
 `p` together with all endpoint pairs in `es`. -/
@@ -493,7 +477,6 @@ theorem spanningForestEdges_rel_iff_eqvGen {n : ℕ} {E : Type} (endpts : E → 
     exact p.toSetoid.iseqv.eqvGen_iff.symm
   | cons e es ih =>
     rw [eval_spanningForestEdges_cons, ih (p.merge (endpts e).1 (endpts e).2)]
-    clear ih
     refine ⟨fun h => (Relation.EqvGen.is_equivalence _).eqvGen_iff.mp (h.mono ?_),
       fun h => h.mono ?_⟩
     · rintro u v (huv | ⟨f, hf, rfl, rfl⟩)

@@ -119,11 +119,9 @@ theorem relative_bound {scale : ℝ} (hs : 0 < scale)
     have hb := root_range HP ζ (b.row y 0) (b.row y 1) (firstRank s K b.defaultValue b.row)
     change 0 ≤ _ ∧ _ ≤ R at ha hb
     exact abs_sub_le_iff.mpr ⟨by linarith, by linarith⟩
-  have hg (d v r : ℝ) (hr : T ≤ r) : output HP ζ d v r = 0 :=
-    gate_zero HP (by
-      dsimp only [T] at hr
-      linarith [HP.toHierarchyParams.atomCap_gt, threshold_margin HP, HP.θ_lt_θ₂,
-        le_max_right ((HP.k : ℝ) + 1) HP.θ₂])
+  have hg (d v r : ℝ) (hr : T ≤ r) : output HP ζ d v r = 0 := gate_zero HP (by
+    linarith [hr, HP.toHierarchyParams.atomCap_gt, threshold_margin HP, HP.θ_lt_θ₂,
+      le_max_right ((HP.k : ℝ) + 1) HP.θ₂])
   obtain ⟨C, hC, hbound⟩ := Cslib.RowCompression.exists_iterate_root_bound
     (output HP ζ) hsat R (by positivity) hrange (root_dist HP hζ) hg (cap_pos HP)
   exact ⟨C, hC, fun s n floors Δ truth raw loss z m hz hm hn hf hfirst hsecond hloss ε hε herr
@@ -223,21 +221,18 @@ theorem firstOverflow_bound {scale : ℝ} (hs : 0 < scale) (_hmargin : scale ≤
       dsimp only [raw₀]
       rw [uncompressedRow_preloadedIncrement j (Nat.succ_pos i), preloadedError_succ]
       simpa only [Nat.add_assoc] using herr (j + i) (Nat.le_add_right _ _) (by omega) y hy
-  have hrow : raw₀ + loss = inputRow s n (fun _ => HP.K) ρ Δ ⟨0, raw⟩ j := by
-    funext y ν
-    dsimp only [raw₀, loss, run, inputRow, Pi.add_apply]
-    rw [uncompressedRow_succ]
-    ring
+  have hrow : raw₀ + loss = inputRow s n (fun _ => HP.K) ρ Δ ⟨0, raw⟩ j :=
+    funext fun y => funext fun ν => by
+      dsimp only [raw₀, loss, run, inputRow, Pi.add_apply]
+      rw [uncompressedRow_succ]; ring
   have hactual : iterate s (fun i => n (j + i)) (fun _ => HP.K) (fun i => ρ (j + i))
       (preloadedIncrement Δ j) ⟨z, raw₀ + loss⟩ (m - j) = run m := by
     rw [hrow]
     simpa only [hjr] using iterate_preloadedIncrement (s := s) (n := n) (K := fun _ => HP.K)
       (ρ := ρ) (Δ := Δ) (a := ⟨0, raw⟩) j hr
-  have hz : z ≤ scale := by
-    have h := stationaryState_defaultValue_le_dyadic (s := s) (n := n)
-      (K := fun _ => HP.K) (Δ := Δ) (a := ⟨0, raw⟩) (truth := truth)
-      hδ.le (by norm_num) (by dsimp; positivity) m j hj.le hover.1
-    exact h.trans hδs
+  have hz : z ≤ scale := (stationaryState_defaultValue_le_dyadic (s := s) (n := n)
+    (K := fun _ => HP.K) (Δ := Δ) (a := ⟨0, raw⟩) (truth := truth)
+    hδ.le le_rfl (by dsimp; positivity) m j hj.le hover.1).trans hδs
   have hlocal := hbound s (fun i => n (j + i)) (fun i => ρ (j + i))
     (preloadedIncrement Δ j) truth raw₀ loss z (m - j) hz hr
     (fun i hi => hn (j + i) (Nat.le_add_right _ _) (by omega))
@@ -348,12 +343,11 @@ theorem fixed_shape (HP : FourthRootHierarchyParams 16 1 16 32 8) :
       ζ ≤ scale / 2 ∧ ζ ≤ HP.θ / 2 := by
   let scale := min (HP.η / 2) (HP.toHierarchyParams.atomCap / 20000)
   have hs : 0 < scale := by dsimp only [scale]; positivity
-  refine ⟨scale, min (scale / 4) (HP.θ / 4), hs, ?_, ?_, ?_, ?_, ?_⟩
-  · exact (min_le_left _ _).trans (by linarith [HP.η_pos])
-  · exact (min_le_right _ _).trans (by linarith [cap_pos HP])
-  · positivity
-  · exact (min_le_left _ _).trans (by linarith)
-  · exact (min_le_right _ _).trans (by linarith [HP.θ_pos])
+  exact ⟨scale, min (scale / 4) (HP.θ / 4), hs,
+    (min_le_left _ _).trans (by linarith [HP.η_pos]),
+    (min_le_right _ _).trans (by linarith [cap_pos HP]),
+    by positivity, (min_le_left _ _).trans (by linarith),
+    (min_le_right _ _).trans (by linarith [HP.θ_pos])⟩
 
 
 end Matrix.FourthRootHierarchyParams.NormalizedRow

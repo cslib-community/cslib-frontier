@@ -88,9 +88,7 @@ theorem two_mul_sub_one_le_fuel {m p N D : ℕ} (hm : D + 2 ≤ m) (hp : p ≤ D
   have hσ : 1 ≤ σ := Nat.one_le_sqrt_log_two hm2
   -- The exponent of the count.
   have hCm : (p / m + 1) * m ≤ Y := by
-    have := Nat.div_mul_le_self p m
-    rw [add_mul, one_mul]
-    omega
+    rw [add_mul, one_mul]; linarith [Nat.div_mul_le_self p m]
   have hX : (245760 * (p / m + 1) + 37) * m ≤ 245797 * Y := by nlinarith
   -- `⌊log₂ (m + p)⌋ ≤ 3 ⌊log₂ m⌋`.
   have hYm : Y ≤ m * m := by nlinarith
@@ -117,16 +115,12 @@ theorem two_mul_sub_one_le_fuel {m p N D : ℕ} (hm : D + 2 ≤ m) (hp : p ≤ D
   have hE1 : (245760 * (p / m + 1) + 37) * m / σ ≤ 245797 * k + 245797 :=
     (Nat.div_le_div_right hX).trans (Nat.mul_div_le_mul_div_add _ _ _)
   have hE2 : 1398101 * k ≤ fuelConst * Y / Nat.sqrt (Nat.log 2 Y) := by
-    have h1 : fuelConst * Y / (3 * σ) ≤ fuelConst * Y / Nat.sqrt (Nat.log 2 Y) := by gcongr
-    have h2 : fuelConst * Y / (3 * σ) = fuelConst * Y / σ / 3 := by
-      rw [Nat.div_div_eq_div_mul, Nat.mul_comm σ 3]
-    have h3 : fuelConst * k ≤ fuelConst * Y / σ := by
-      rw [Nat.le_div_iff_mul_le hσ, Nat.mul_assoc]
-      exact Nat.mul_le_mul_left _ (Nat.div_mul_le_self Y σ)
     have h4 : 1398101 * k ≤ fuelConst * k / 3 := by
-      rw [Nat.le_div_iff_mul_le (by norm_num), fuelConst]
-      omega
-    omega
+      rw [Nat.le_div_iff_mul_le (by norm_num), fuelConst]; omega
+    refine (h4.trans (Nat.div_le_div_right ((Nat.le_div_iff_mul_le hσ).mpr
+      ((Nat.mul_assoc ..).trans_le (Nat.mul_le_mul_left _ (Nat.div_mul_le_self Y σ)))))).trans ?_
+    rw [Nat.div_div_eq_div_mul, Nat.mul_comm σ 3]
+    gcongr
   have hpow : 2 * N ≤ 2 ^ (fuelConst * Y / Nat.sqrt (Nat.log 2 Y)) :=
     calc 2 * N ≤ 2 * 2 ^ ((245760 * (p / m + 1) + 37) * m / σ) := Nat.mul_le_mul_left 2 hN
       _ = 2 ^ ((245760 * (p / m + 1) + 37) * m / σ + 1) := by rw [pow_succ]; ring
@@ -281,15 +275,12 @@ theorem length_modulus_le (m : ℕ) : (modulus m).length ≤ 32 * (m + 1) ^ 2 :=
   rw [length_modulus]
   set t := modulusExp m
   have h1 : 2 ^ t ≤ 4 * Nat.log 2 m + 2 := Nat.pow_log_le_self 2 (by omega)
-  have h2 : Nat.log 2 m ≤ m := by
-    rcases Nat.eq_zero_or_pos m with h | h
-    · simp [h]
-    · exact (Nat.log_lt_self 2 h.ne').le
+  have h2 : Nat.log 2 m ≤ m := if h : m = 0 then by simp [h] else (Nat.log_lt_self 2 h).le
   have h3 : 3 ^ t ≤ (2 ^ t) ^ 2 := by
     rw [← pow_mul, mul_comm, pow_mul]
     exact Nat.pow_le_pow_left (by norm_num) t
-  have h4 : (2 ^ t) ^ 2 ≤ (4 * (m + 1)) ^ 2 := Nat.pow_le_pow_left (by omega) 2
-  nlinarith
+  have h4 : 2 ^ t ≤ 4 * (m + 1) := by omega
+  nlinarith [Nat.pow_le_pow_left h4 2]
 
 /-- The coefficients of the modulus are `0` or `1`. -/
 theorem le_one_of_mem_modulus {m z : ℕ} (hz : z ∈ modulus m) : z ≤ 1 := by

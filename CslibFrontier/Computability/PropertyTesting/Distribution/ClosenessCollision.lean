@@ -183,13 +183,8 @@ expected collision statistic is `C(k, 2) ‖p - q‖₂²`
 theorem sum_sum_iid_mul_closenessStatistic :
     ∑ x, ∑ y, (iid p k x).toReal * (iid q k y).toReal * closenessStatistic x y =
       k.choose 2 * ∑ a, ((p a).toReal - (q a).toReal) ^ 2 := by
-  have h (x y : Fin k → α) : (iid p k x).toReal * (iid q k y).toReal * closenessStatistic x y =
-      (iid p k x).toReal * (iid q k y).toReal * collisionCount x +
-        (iid p k x).toReal * (iid q k y).toReal * collisionCount y -
-        ((k : ℝ) - 1) / k *
-          ((iid p k x).toReal * (iid q k y).toReal * crossCollisionCount x y) := by
-    rw [closenessStatistic_eq]; ring
-  simp only [h, sum_add_distrib, sum_sub_distrib, ← mul_sum]
+  simp only [closenessStatistic_eq, mul_add, mul_sub, mul_left_comm _ (((k : ℝ) - 1) / k),
+    sum_add_distrib, sum_sub_distrib, ← mul_sum]
   rw [sum_sum_left p q k (fun x => (collisionCount x : ℝ)),
     sum_sum_right p q k (fun y => (collisionCount y : ℝ)), sum_iid_mul_collisionCount,
     sum_iid_mul_collisionCount, sum_sum_iid_mul_crossCollisionCount, sum_sub_sq_eq,
@@ -296,11 +291,10 @@ theorem sum_sum_iid_mul_closenessStatistic_sub_sq_le_sqrt_sum_pow_four (p q : PM
         exact sum_congr rfl fun a _ => by ring
       linarith [sum_nonneg fun a (_ : a ∈ univ) => sq_nonneg ((p a).toReal - (q a).toReal)]
     have hS : 0 ≤ ∑ a, ((p a).toReal - (q a).toReal) ^ 4 := sum_nonneg fun _ _ => by positivity
-    rw [← Real.sqrt_sq zero_le_two, show (2 : ℝ) ^ 2 = 4 by norm_num, mul_assoc,
-      ← Real.sqrt_mul' _ hS, ← Real.sqrt_mul (by norm_num)]
-    refine Real.le_sqrt_of_sq_le (hcs.trans ?_)
-    rw [← mul_assoc]
-    gcongr
+    have h4 : (2 : ℝ) ^ 2 = 4 := by norm_num
+    rw [← Real.sqrt_sq zero_le_two, h4, ← Real.sqrt_mul zero_le_four,
+      ← Real.sqrt_mul (mul_nonneg zero_le_four hb)]
+    exact Real.le_sqrt_of_sq_le (hcs.trans (mul_le_mul_of_nonneg_right hA hS))
   calc (k - 1 : ℝ) * _
       ≤ (k - 1) * ((2 * k - 1) * b +
         (k ^ 2 - 1) * (2 * Real.sqrt b * Real.sqrt (∑ a, ((p a).toReal - (q a).toReal) ^ 4))) :=
@@ -463,9 +457,9 @@ theorem isClosenessTester_closenessTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
   have key (p : PMF α) : 36 * Real.sqrt 1 ≤
       (k - 1) * (2 * ε / Real.sqrt (Fintype.card α)) ^ 2 * (1 / 3) := by
     have hn := card_pos p
-    rw [Real.sqrt_one, div_pow, Real.sq_sqrt hn.le,
-      show ((k : ℝ) - 1) * ((2 * ε) ^ 2 / (Fintype.card α : ℝ)) * (1 / 3) =
-        4 / 3 * (((k : ℝ) - 1) * ε ^ 2) / Fintype.card α by ring, le_div_iff₀ hn]
+    have hr : ((k : ℝ) - 1) * ((2 * ε) ^ 2 / Fintype.card α) * (1 / 3) =
+        4 / 3 * (((k : ℝ) - 1) * ε ^ 2) / Fintype.card α := by ring
+    rw [Real.sqrt_one, div_pow, Real.sq_sqrt hn.le, hr, le_div_iff₀ hn]
     linarith
   refine ⟨fun p => ?_, fun p q hpq => ?_⟩
   · linarith [le_acceptProb₂_closenessTester (by norm_num : (0 : ℝ) < 1 / 3)
@@ -475,8 +469,7 @@ theorem isClosenessTester_closenessTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
     refine acceptProb₂_closenessTester_le (by norm_num) (collisionProbability_le_one p)
       (collisionProbability_le_one q) (key p) ?_
     -- Cauchy–Schwarz: `4 dist(p, q)² ≤ n ‖p - q‖₂²`.
-    rw [div_pow, Real.sq_sqrt hn.le, div_le_iff₀ hn, show (2 * ε) ^ 2 = 4 * ε ^ 2 by ring]
-    linarith [four_mul_dist_sq_le_card_mul_sum_sq p q,
-      mul_le_mul_of_nonneg_left (pow_le_pow_left₀ hε.le hpq 2) (by norm_num : (0 : ℝ) ≤ 4)]
+    rw [div_pow, Real.sq_sqrt hn.le, div_le_iff₀ hn]
+    nlinarith [four_mul_dist_sq_le_card_mul_sum_sq p q]
 
 end Cslib.DistributionTesting

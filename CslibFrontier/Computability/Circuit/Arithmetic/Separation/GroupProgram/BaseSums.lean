@@ -120,8 +120,7 @@ private theorem sum_map_cuts_fresh {m : ℕ} (hP : ∀ (fl : Fin m → ℕ) (acc
     rw [mem_range] at hj
     rw [hP _ _ _ (l.take (l.length - j)) _ _ (by rw [List.length_take]; omega)]
     have e1 : decide (l.drop (l.length - j) ≠ []) = decide (0 < j) := by
-      rw [decide_eq_decide, ne_eq, ← List.length_eq_zero_iff, List.length_drop]
-      omega
+      rw [decide_eq_decide, ne_eq, ← List.length_eq_zero_iff, List.length_drop]; omega
     have e2 (X : Fin m → List Γ) : cat X ++ l.drop (l.length - j) = l ↔
         cat X = l.take (l.length - j) := by
       conv_lhs => rhs; rw [← List.take_append_drop (l.length - j) l]
@@ -137,10 +136,9 @@ private theorem sum_map_cuts_fresh {m : ℕ} (hP : ∀ (fl : Fin m → ℕ) (acc
   · obtain ⟨j, hj, rfl⟩ := mem_image.1 hY
     exact List.mem_wordsLe.2 (by rw [List.length_drop]; omega)
   · rintro ⟨h, -⟩
-    refine absurd (mem_image.2 ⟨Y.length, mem_range.2 ?_, ?_⟩) hY
+    refine (hY (mem_image.2 ⟨Y.length, mem_range.2 ?_, ?_⟩)).elim
     · have := congrArg List.length h
-      simp only [hcat, List.length_append] at this
-      omega
+      simp only [hcat, List.length_append] at this; omega
     · rw [← h, hcat, List.drop_append_of_le_length (by simp), List.length_append,
         Nat.add_sub_cancel, List.drop_length, List.nil_append]
 
@@ -199,9 +197,8 @@ private theorem sum_map_cutTapes {F : Type} [CommRing F] {m : ℕ} (hm : 0 < m) 
     simp only [Fin.forall_fin_succ' (n := N), Fin.snoc_castSucc, Fin.snoc_last,
       List.ofFn_succ' (n := N), List.concat_eq_append, List.flatten_append, List.flatten_singleton,
       List.append_assoc]
-    split_ifs with h
-    · simp only [h, implies_true, and_self, and_true]
-    · simp only [h, and_false, ite_false, sum_const_zero]
+    split_ifs with h <;>
+      simp only [h, implies_true, and_self, and_true, and_false, ite_false, sum_const_zero]
 
 end Cuts
 
@@ -451,12 +448,10 @@ theorem sum_map_packSem (cb : Option Γ → Fin c → Bool)
   have hK : 0 < K + K := Nat.lt_of_le_of_lt (Nat.zero_le _) p.2
   have hwi : writeItems (baseBody ρ n key dkey p).flags o = List.ofFn fun i : Fin (tapeCount S) =>
       ⟨(List.ofFn fun b => rowFlag (ρ ((tapes S).get i.rev) p) b).reverse,
-        ((w ((tapes S).get i.rev, false)).map (letterCode cb)).reverse⟩ := by
-    refine congrArg List.ofFn (funext fun i => ?_)
-    have hi := i.2
-    simp only [tapeCount] at hi
-    simp [baseBody, ho, outputSide, List.getElem?_eq_getElem (show
-      (tapes S).length - (i + 1) < (tapes S).length by omega)]
+        ((w ((tapes S).get i.rev, false)).map (letterCode cb)).reverse⟩ :=
+    congrArg List.ofFn (funext fun i => by
+      simp [baseBody, ho, outputSide,
+        List.getElem?_eq_getElem (Nat.sub_lt ((Nat.zero_le _).trans_lt i.2) (Nat.succ_pos _))])
   have hri : readItems (K + K) o = List.ofFn fun i : Fin (tapeCount S) =>
       ⟨(List.ofFn fun _ : Fin (K + K) => 2).reverse,
         ((w ((tapes S).get i.rev, true)).map (letterCode cb)).reverse⟩ := by

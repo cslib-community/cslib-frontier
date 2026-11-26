@@ -92,7 +92,7 @@ private theorem sum_neg_one_pow_mul_choose_even_nonpos (d m : ℕ) (hd : 0 < d) 
   rcases m with _ | m
   · simp
   · obtain ⟨d', rfl⟩ := Nat.exists_eq_succ_of_ne_zero hd.ne'
-    rw [show 2 * (m + 1) = (2 * m + 1) + 1 by ring, sum_neg_one_pow_mul_choose_succ d' (2 * m + 1),
+    rw [Nat.mul_succ, sum_neg_one_pow_mul_choose_succ d' (2 * m + 1),
       pow_succ, pow_mul, neg_one_sq, one_pow, one_mul, neg_one_mul]
     exact neg_nonpos.mpr (Nat.cast_nonneg _)
 
@@ -110,15 +110,11 @@ private theorem sum_powersetCard_indicator [Fintype ι] (A : ι → Set Ω) (r :
   classical
   rw [natCard_subtype_mem_eq_card]
   set T : Finset ι := Finset.univ.filter fun i : ι => ω ∈ A i
-  have hsum : ∑ s ∈ (Finset.univ : Finset ι).powersetCard r,
-      (⋂ i ∈ s, A i).indicator (1 : Ω → ℝ) ω =
-      ∑ s ∈ (Finset.univ : Finset ι).powersetCard r, if s ∈ T.powerset then (1 : ℝ) else 0 :=
-    Finset.sum_congr rfl fun s _ => by
-      simp [Set.indicator_apply, T, Finset.mem_powerset, Finset.subset_iff]
-  have hinter : (Finset.univ : Finset ι).powersetCard r ∩ T.powerset = T.powersetCard r := by
-    ext s
-    simp [and_comm]
-  rw [hsum, Finset.sum_boole, Finset.filter_mem_eq_inter, hinter, Finset.card_powersetCard]
+  refine (Finset.sum_congr rfl fun s _ => show _ = if s ⊆ T then (1 : ℝ) else 0 by
+    simp [Set.indicator_apply, T, Finset.subset_iff]).trans ?_
+  have hinter : {s ∈ (Finset.univ : Finset ι).powersetCard r | s ⊆ T} = T.powersetCard r :=
+    Finset.ext fun _ => by simp [and_comm]
+  simp [hinter]
 
 /-- Pointwise Bonferroni identity expressing the truncated inclusion-exclusion error in terms of
 alternating binomial coefficients. -/
@@ -308,19 +304,15 @@ theorem tendsto_measureReal_natCard_eq_poisson_of_factorialMoments
   have hexp : Tendsto (fun M : ℕ =>
       (∑ r ∈ Finset.range M, (-1 : ℝ) ^ r * (lam ^ r / r.factorial)) *
         (lam ^ k / k.factorial)) atTop (𝓝 (Real.exp (-lam) * (lam ^ k / k.factorial))) := by
-    have hseries : HasSum (fun r : ℕ => (-lam) ^ r / r.factorial) (Real.exp (-lam)) := by
-      rw [Real.exp_eq_exp_ℝ]
-      exact NormedSpace.expSeries_div_hasSum_exp (-lam)
+    have hseries := Real.exp_eq_exp_ℝ ▸ NormedSpace.expSeries_div_hasSum_exp (-lam)
     refine (hseries.tendsto_sum_nat.congr fun M => Finset.sum_congr rfl fun r _ => ?_).mul_const _
     rw [neg_eq_neg_one_mul, mul_pow, mul_div_assoc]
   have hterm (r : ℕ) : ((r + k).choose k : ℝ) * (lam ^ (r + k) / (r + k).factorial) =
       (lam ^ r / r.factorial) * (lam ^ k / k.factorial) := by
     have hchoose :
         ((r + k).choose k : ℝ) * (r.factorial * k.factorial : ℝ) = (r + k).factorial := by
-      have h0 := Nat.choose_mul_factorial_mul_factorial (Nat.le_add_left k r)
-      rw [Nat.add_sub_cancel] at h0
-      exact_mod_cast (by linarith : (r + k).choose k * (r.factorial * k.factorial) =
-        (r + k).factorial)
+      exact_mod_cast ((mul_assoc _ _ _).symm.trans (mul_right_comm _ _ _)).trans
+        (Nat.add_sub_cancel r k ▸ Nat.choose_mul_factorial_mul_factorial (Nat.le_add_left k r))
     have hfac_ne : ((r + k).factorial : ℝ) ≠ 0 := by positivity
     calc ((r + k).choose k : ℝ) * (lam ^ (r + k) / (r + k).factorial)
         = (((r + k).choose k : ℝ) * (r.factorial * k.factorial : ℝ) / (r + k).factorial) *
@@ -336,15 +328,9 @@ theorem tendsto_measureReal_natCard_eq_poisson_of_factorialMoments
         (lam ^ k / k.factorial))) := by
     have hfin := tendsto_finsetSum (Finset.range M) fun r _ =>
       ((hmom (r + k)).const_mul (((r + k).choose k : ℝ))).const_mul ((-1 : ℝ) ^ r)
-    have hsum_eq : (∑ r ∈ Finset.range M, (-1 : ℝ) ^ r * (lam ^ r / r.factorial)) *
-        (lam ^ k / k.factorial) = ∑ r ∈ Finset.range M, (-1 : ℝ) ^ r *
-        (((r + k).choose k : ℝ) * (lam ^ (r + k) / (r + k).factorial)) := by
-      rw [Finset.sum_mul]
-      refine Finset.sum_congr rfl fun r _ => ?_
-      rw [hterm r]
-      ring
-    rw [hsum_eq]
-    exact hfin.congr fun n => Finset.sum_congr rfl fun r _ => by ring
+    convert (hfin.congr fun n => Finset.sum_congr rfl fun r _ => (mul_assoc _ _ _).symm) using 2
+    rw [Finset.sum_mul]
+    exact Finset.sum_congr rfl fun r _ => by rw [hterm r]; ring
   rw [Metric.tendsto_atTop]
   intro ε hε
   have hε2 : 0 < ε / 2 := by positivity

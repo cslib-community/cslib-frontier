@@ -421,14 +421,13 @@ theorem Rep.unique {w base c_exp U V n_max : ℕ} {θ : Seed c_exp n_max}
     (h₁ : Rep w base c_exp U V n_max θ s₁ x) (h₂ : Rep w base c_exp U V n_max θ s₂ x) :
     s₁ = s₂ := by
   funext u
-  rcases h : s₁ u with _ | v₁ <;> rcases h' : s₂ u with _ | v₂
-  · rfl
-  · obtain ⟨_, hT⟩ := h₂.table_rep.toTableRep.key_spec u v₂ h'
-    exact absurd ((h₁.table_rep.toTableRep.slot_spec _ u v₂ hT).1) (by simp [h])
+  rcases h : s₁ u with _ | v₁
+  · rcases h' : s₂ u with _ | v₂
+    · rfl
+    · obtain ⟨_, hT⟩ := h₂.table_rep.toTableRep.key_spec u v₂ h'
+      exact h.symm.trans (h₁.table_rep.toTableRep.slot_spec _ u v₂ hT).1
   · obtain ⟨_, hT⟩ := h₁.table_rep.toTableRep.key_spec u v₁ h
-    exact absurd ((h₂.table_rep.toTableRep.slot_spec _ u v₁ hT).1) (by simp [h'])
-  · obtain ⟨_, hT⟩ := h₁.table_rep.toTableRep.key_spec u v₁ h
-    exact (h' ▸ (h₂.table_rep.toTableRep.slot_spec _ u v₁ hT).1).symm
+    exact (h₂.table_rep.toTableRep.slot_spec _ u v₁ hT).1.symm
 
 theorem SlotArrayWF.congr_mem {base c_exp U n_max : ℕ} {mem mem' : ℕ → ℕ}
     (hmem : ∀ a ∈ (Block.mk base (space c_exp n_max)).footprint, mem' a = mem a)
@@ -705,10 +704,10 @@ private theorem map_fst_initSeedStatePMF (base c_exp n_max : ℕ) (x₁ : Data 1
   rw [initSeedStatePMF, PMF.map_comp]
   change (initSetupPMF base c_exp n_max x₁).map (extractSeedPair base c_exp n_max) = _
   simp_rw [initSetupPMF, PMF.map_bind, hstride]
-  rw [show (fun y₁ : Data 16 => (PMF.uniformOfFintype _).map fun S => (DoubleTabulation.extractSeed
-      base (numChars c_exp) (tupleLen c_exp) (charBits n_max) (bucketBits n_max) y₁.mem, S)) =
-      (fun P => (PMF.uniformOfFintype _).map (P, ·)) ∘ _ from rfl,
-    ← PMF.bind_map, map_extractSeed_resampleInitPMF]
+  change (resampleInitPMF base c_exp n_max (bucketBits n_max) x₁).bind
+      ((fun P => (PMF.uniformOfFintype _).map (P, ·)) ∘ fun y₁ => DoubleTabulation.extractSeed base
+        (numChars c_exp) (tupleLen c_exp) (charBits n_max) (bucketBits n_max) y₁.mem) = _
+  rw [← PMF.bind_map, map_extractSeed_resampleInitPMF]
   exact PMF.uniformOfFintype_prod _ _
 
 private theorem initSetup_execCodeDist {w base c_exp n_max : ℕ} {x₁ : Data 16}
@@ -960,6 +959,7 @@ private theorem opEvalHashesCode_execWithin {w base c_exp U V n_max : ℕ} {θ :
   have := two_mul_rawStrideHash_add_one_lt θ u
   have hval : (rawStrideHash θ u).val + (rawStrideHash θ u).val + 1 = (strideHash θ u).val := by
     rw [val_strideHash]; omega
+  rcases θ with ⟨⟨T₁, T₂⟩, ⟨S₁, S₂⟩⟩
   refine WP.exists_execWithin (WP.Exact.toWP ?_)
   unfold opEvalHashesCode opMidEvalCode opPostEvalCode
   wram_exec [hu]
@@ -967,23 +967,21 @@ private theorem opEvalHashesCode_execWithin {w base c_exp U V n_max : ℕ} {θ :
     (by simp only [Data.comap_regs]; wram_simp; exact hrep.regs_base)
     (by simp only [Data.comap_regs]; wram_simp) hrep.primary_rep hfit_btab hfit_powB hfit_powM
     hu_fit) renamed injective_dtMap with yP ⟨⟨hyP_mem, hyP_base, hyP_key, hyP_out⟩, hyP_frame⟩
-  have hyP_addr : yP.regs regAddr = (primaryHash θ u).val := by
-    rcases θ with ⟨⟨T₁, T₂⟩, _⟩; exact hyP_out
-  wram_exec (disch := first | fits | layout_omega)
-    [show yP.regs regBase = base from hyP_base, hyP_addr]
+  change yP.regs regBase = base at hyP_base
+  change yP.regs regAddr = (primaryHash ((T₁, T₂), (S₁, S₂)) u).val at hyP_out
+  wram_exec (disch := first | fits | layout_omega) [hyP_base, hyP_out]
   wram_call (DoubleTabulation.evalCode_exec u
-    (x := (((yP.set regSave (primaryHash θ u).val).set regAddr (singleTabSpace c_exp n_max)).set
-      regBase (base + singleTabSpace c_exp n_max)).comap dtMap)
+    (x := (((yP.set regSave (primaryHash ((T₁, T₂), (S₁, S₂)) u).val).set regAddr
+      (singleTabSpace c_exp n_max)).set regBase
+      (base + singleTabSpace c_exp n_max)).comap dtMap)
     (by simp only [Data.comap_regs]; wram_simp)
     (by simp only [Data.comap_regs]; wram_simp [hyP_key])
     (by simp only [Data.comap_mem, Data.set_mem, hyP_mem]; exact hrep.stride_rep)
     hfit_b2tab hfit_powB hfit_powM1 hu_fit)
     renamed injective_dtMap with yS ⟨⟨hyS_mem, hyS_base, -, hyS_out⟩, hyS_frame⟩
-  have hyS_addr : yS.regs regAddr = (rawStrideHash θ u).val := by
-    rcases θ with ⟨_, ⟨S₁, S₂⟩⟩; exact hyS_out
-  wram_exec (disch := first | fits | layout_omega)
-    [show yS.regs regBase = base + singleTabSpace c_exp n_max from hyS_base, hyS_addr,
-      hyS_frame, hval]
+  change yS.regs regBase = base + singleTabSpace c_exp n_max at hyS_base
+  change yS.regs regAddr = (rawStrideHash ((T₁, T₂), (S₁, S₂)) u).val at hyS_out
+  wram_exec (disch := first | fits | layout_omega) [hyS_base, hyS_out, hyS_frame, hval]
   rw [probePerm_zero]
   wram_simp [hyS_frame, hyP_frame, hyS_mem, hyP_mem, hu, hashEvalSteps]
   omega
@@ -1140,9 +1138,8 @@ private theorem finishInsertCode_execWithin {w base c_exp U V n_max : ℕ} {θ :
       (Dictionary.dom (Function.update s u (some v))).card ≤ n_max ∧
       Dictionary.ValuesBounded V (Function.update s u (some v)) ∧
       Modifies (Block.mk base (space c_exp n_max)).footprint x.mem y.mem := by
-  let slot := targetSlot (probePerm θ) (extractSlots base c_exp U n_max x.mem) u hO
+  set slot := targetSlot (probePerm θ) (extractSlots base c_exp U n_max x.mem) u hO
   have hslot_lt := slot.isLt
-  have hslot' : d.regs regSlot = slot.val := hslot
   have ha1 : base + slotOffset c_exp n_max + slot.val + numBuckets n_max =
       base + slotOffset c_exp n_max + numBuckets n_max + slot.val := by omega
   have ha2 : base + slotOffset c_exp n_max + numBuckets n_max + slot.val + numBuckets n_max =
@@ -1151,7 +1148,7 @@ private theorem finishInsertCode_execWithin {w base c_exp U V n_max : ℕ} {θ :
       singleTabSpace c_exp n_max := rfl
   refine WP.exists_execWithin ?_
   unfold finishInsertCode
-  wram_exec (disch := first | fits | layout_omega) [hsbase, hslot', hm, hu, hv, ha1, ha2]
+  wram_exec (disch := first | fits | layout_omega) [hsbase, hslot, hm, hu, hv, ha1, ha2]
   have hmem_eq : ((((((((d.set regAddr (base + slotOffset c_exp n_max + slot.val)).set regCond 1
       ).write (base + slotOffset c_exp n_max + slot.val) 1).set regAddr
       (base + slotOffset c_exp n_max + numBuckets n_max + slot.val)).write
@@ -1387,15 +1384,13 @@ theorem probeBound_le_doubleTabThreshold (c_exp n_max : ℕ) :
 theorem charge_le_expectedOpCharge (c_exp n_max : ℕ) :
     charge c_exp n_max ≤ expectedOpCharge c_exp := by
   have := probeBound_le_doubleTabThreshold c_exp n_max
-  dsimp only [charge, expectedOpCharge]
-  omega
+  dsimp only [charge, expectedOpCharge]; omega
 
 /-- Above the Double Tabulation threshold the per-operation charge is
 `13 * 3 + hashEvalSteps c_exp + 8`, independent of `doubleTabThreshold c_exp`. -/
 theorem charge_of_le {c_exp n_max : ℕ} (hge : doubleTabThreshold c_exp ≤ n_max) :
     charge c_exp n_max = hashEvalSteps c_exp + 47 := by
-  simp only [charge, probeBound, hge, ↓reduceIte]
-  omega
+  simp only [charge, probeBound, hge, ↓reduceIte]; omega
 
 private noncomputable instance instDecidableExistsOrderedTableProbe {U n_max : ℕ}
     (π : Fin U → Equiv.Perm (Fin (numBuckets n_max)))
@@ -1547,8 +1542,7 @@ theorem step_exec_spec {w base c_exp U V n_max : ℕ}
         ExecCodeDist.of_execWithin e
     · obtain rfl : q = (p.1, yOf p) := by simpa using hq
       exact ⟨decodeOp_eq_step o _ (by rwa [hy]), hy ▸ hrep_y, hy ▸ hmod⟩
-  · intro θ'
-    simpa [PMF.map_bind] using hseed θ'
+  · exact fun θ' => by simpa [PMF.map_bind] using hseed θ'
   · simp only [Nat.cast_zero, mul_zero, tsum_zero, add_zero]
     have hprobe := tsum_probeCount_le (s := s) hU (opKey o) ν
       (fun θ => by simpa only [one_mul] using hseed θ) T_probe

@@ -104,16 +104,15 @@ theorem majorityTester_passes_iff_sampleAccepts {n k : ℕ} [NeZero n] {δ : ℚ
   let b := n / 2 + 1
   have hs : weight (sampleAnswers r (fun i => x ((majorityTester n k δ).query r i))) = s :=
     congrArg weight (funext (sampleAnswers_query δ x r))
-  change (b : ℚ) / (M : ℕ) - δ / 4 ≤ _ ↔ _
-  rw [hs, majoritySampleAccepts]
-  change (b : ℚ) / (M : ℕ) - δ / 4 ≤ (s : ℚ) / k ↔
+  have hδ4 : δ / 4 = (δ.num.toNat : ℚ) / δ.den / 4 := by
+    conv_lhs => rw [← Rat.num_div_den δ, ← Int.toNat_of_nonneg (Rat.num_nonneg.mpr hδ),
+      Int.cast_natCast]
+  have hden : (0 : ℚ) < δ.den := Nat.cast_pos.mpr δ.den_pos
+  have hk' : (0 : ℚ) < k := Nat.cast_pos.mpr hk
+  have hM : (0 : ℚ) < (M : ℕ) := by positivity
+  change (b : ℚ) / (M : ℕ) - δ / 4 ≤ (weight (sampleAnswers r _) : ℚ) / k ↔
     4 * δ.den * k * b ≤ M * (4 * δ.den * s + δ.num.toNat * k)
-  have hnum : ((δ.num.toNat : ℕ) : ℚ) = δ.num := by
-    exact_mod_cast Int.toNat_of_nonneg (Rat.num_nonneg.mpr hδ)
-  have hden : (0 : ℚ) < δ.den := by exact_mod_cast δ.den_pos
-  have hk' : (0 : ℚ) < k := by exact_mod_cast hk
-  have hM : (0 : ℚ) < (M : ℕ) := by dsimp [M]; positivity
-  rw [sub_le_iff_le_add, show δ / 4 = (δ.num.toNat : ℚ) / δ.den / 4 by rw [hnum, Rat.num_div_den]]
+  rw [hs, sub_le_iff_le_add, hδ4]
   field_simp
   norm_cast
   simp only [mul_comm, mul_left_comm, mul_assoc, add_comm, left_distrib]
@@ -130,12 +129,11 @@ private theorem exists_majority_close {n : ℕ} (hn : 0 < n) (x : BitString n) :
   let y : BitString n := fun i => if i ∈ S then true else x i
   have hdisj : Disjoint S ones := disjoint_left.mpr fun i hi hi' =>
     Bool.false_ne_true ((mem_filter.mp (hS hi)).2.symm.trans (mem_filter.mp hi').2)
-  have hy : (univ.filter fun i => y i = true) = S ∪ ones := by
-    ext i
-    by_cases hi : i ∈ S <;> simp [y, ones, hi]
-  have hdiff : (univ.filter fun i => x i ≠ y i) = S := by
-    ext i
-    by_cases hi : i ∈ S <;> simp [y, hi, fun j (hj : j ∈ S) => (mem_filter.mp (hS hj)).2]
+  have hy : (univ.filter fun i => y i = true) = S ∪ ones :=
+    ext fun i => by by_cases hi : i ∈ S <;> simp [y, ones, hi]
+  have hdiff : (univ.filter fun i => x i ≠ y i) = S :=
+    ext fun i => by
+      by_cases hi : i ∈ S <;> simp [y, hi, fun j (hj : j ∈ S) => (mem_filter.mp (hS hj)).2]
   refine ⟨y, strictMajority_eq_true_iff.mpr ?_, ?_⟩
   · change n / 2 < #(univ.filter fun i => y i = true)
     rw [hy, card_union_of_disjoint hdisj, hcard]
@@ -159,10 +157,8 @@ private theorem majorityTester_error {n k : ℕ} [NeZero n] {δ : ℚ}
   let p := uniformOfFintype (BitString w)
   have hn : 0 < n := Nat.pos_of_ne_zero (NeZero.ne n)
   have hM : n ≤ M := (Nat.lt_pow_succ_log_self Nat.one_lt_two n).le
-  have hM' : M ≤ 2 * n := by
-    dsimp [M, w]
-    rw [pow_succ, mul_comm]
-    exact Nat.mul_le_mul_left 2 (Nat.pow_log_le_self 2 hn.ne')
+  have hM' : M ≤ 2 * n := ((pow_succ 2 (Nat.log 2 n)).trans (mul_comm _ _)).trans_le
+    (Nat.mul_le_mul_left 2 (Nat.pow_log_le_self 2 hn.ne'))
   have hMpos : (0 : ℝ) < M := by exact_mod_cast hn.trans_le hM
   have hp : (p.toOuterMeasure (A : Set (BitString w))).toReal = (weight x : ℝ) / M := by
     rw [toOuterMeasure_uniformOfFintype_toReal]
@@ -170,8 +166,10 @@ private theorem majorityTester_error {n k : ℕ} [NeZero n] {δ : ℚ}
       rw [weight]
       apply card_equiv (equivFin w)
       simp [A]
-    rw [show (univ.filter (· ∈ (A : Set (BitString w)))) = A by ext u; simp, hcard,
-      show Fintype.card (BitString w) = M from BitString.card, weight_zeroExtend hM x]
+    have hfilt : univ.filter (· ∈ (A : Set (BitString w))) = A := by
+      ext u
+      simp
+    rw [hfilt, hcard, BitString.card, weight_zeroExtend hM x]
   have hemp (r : Fin k → BitString w) :
       empiricalMass A r = (weight (sampleAnswers r
         (fun i => x ((majorityTester n k δ).query r i))) : ℝ) / k := by
@@ -201,15 +199,11 @@ private theorem majorityTester_error {n k : ℕ} [NeZero n] {δ : ℚ}
     have hmean : ((n / 2 + 1 : ℕ) : ℝ) / M ≤ (p.toOuterMeasure (A : Set (BitString w))).toReal := by
       rw [hp]
       exact div_le_div_of_nonneg_right (by exact_mod_cast strictMajority_eq_true_iff.mp hx) hMpos.le
-    have h := toOuterMeasure_empiricalMass_le_sub_le p A k hquarter
-    rw [iid_uniformOfFintype] at h
     rw [hprob, ← eq_sub_of_add_eq' (toOuterMeasure_toReal_add_compl μ event)]
-    refine (toOuterMeasure_toReal_mono μ ?_).trans h
-    intro r hr
-    have hr' := lt_of_not_ge (mt (hpasses r).mpr hr)
-    change empiricalMass A r ≤ (p.toOuterMeasure (A : Set (BitString w))).toReal -
-      (δ : ℝ) / 4
-    linarith
+    refine (toOuterMeasure_toReal_mono μ ?_).trans
+      (iid_uniformOfFintype (α := BitString w) k ▸
+        toOuterMeasure_empiricalMass_le_sub_le p A k hquarter)
+    exact fun r hr => Set.mem_ofPred.mpr (by linarith [mt (hpasses r).mpr hr])
   · intro hfar
     obtain ⟨y, hy, hd⟩ := exists_majority_close hn x
     have hdist : (δ : ℝ) * n ≤ ((n / 2 + 1 - weight x : ℕ) : ℝ) :=
@@ -227,15 +221,11 @@ private theorem majorityTester_error {n k : ℕ} [NeZero n] {δ : ℚ}
       have hscale := mul_le_mul_of_nonneg_left (show (M : ℝ) ≤ 2 * n by exact_mod_cast hM')
         hquarter
       linarith
-    have h := toOuterMeasure_add_le_empiricalMass_le p A k hquarter
-    rw [iid_uniformOfFintype] at h
     rw [hprob]
-    refine (toOuterMeasure_toReal_mono μ ?_).trans h
-    intro r hr
-    have hr' := (hpasses r).mp hr
-    change (p.toOuterMeasure (A : Set (BitString w))).toReal + (δ : ℝ) / 4 ≤
-      empiricalMass A r
-    linarith
+    refine (toOuterMeasure_toReal_mono μ ?_).trans
+      (iid_uniformOfFintype (α := BitString w) k ▸
+        toOuterMeasure_add_le_empiricalMass_le p A k hquarter)
+    exact fun r hr => Set.mem_ofPred.mpr (by linarith [(hpasses r).mp hr])
 
 /-- With `16 ≤ k δ²`, every seed probes at most `k` positions. The test accepts members
 with probability at least `2/3` and accepts inputs at relative Hamming distance at least
@@ -246,9 +236,8 @@ theorem majorityTester_spec {n k : ℕ} [NeZero n] {δ : ℚ} (hδ : 0 < δ)
     (∀ x, strictMajority n x = true → 2 / 3 ≤ (majorityTester n k δ).acceptProb x) ∧
     (∀ x, (∀ y, strictMajority n y = true → (δ : ℝ) * n ≤ hammingDist x y) →
       (majorityTester n k δ).acceptProb x ≤ 1 / 3) := by
-  have hexp : Real.exp (-2 * k * ((δ : ℝ) / 4) ^ 2) ≤ 1 / 3 := by
-    apply le_trans (Real.exp_le_exp.mpr _) Real.exp_neg_two_le_one_third
-    linarith [show -2 * k * ((δ : ℝ) / 4) ^ 2 = -(k * (δ : ℝ) ^ 2) / 8 by ring]
+  have hexp : Real.exp (-2 * k * ((δ : ℝ) / 4) ^ 2) ≤ 1 / 3 :=
+    (Real.exp_le_exp.mpr (by linarith)).trans Real.exp_neg_two_le_one_third
   refine ⟨fun r => ?_, fun x hx => ?_, fun x hx => ?_⟩
   · simpa only [FinEnum.card_fin] using (majorityTester n k δ).depth_decisionTree_le r
   · linarith [((majorityTester_error hδ x).1 hx).trans hexp]

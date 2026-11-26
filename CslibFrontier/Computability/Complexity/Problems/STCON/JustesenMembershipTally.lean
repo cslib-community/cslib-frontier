@@ -225,21 +225,17 @@ theorem configurationJustesenMembershipTally_acceptCount_eq_one
         (R.machine.initCfg (enc a)) = 1 := by
   intro I size seed source target radius adjacent edge hrank hparams hpass
   apply (R.acceptCount_eq_one_iff a hclock).mpr
-  have haccept (s : MembershipTally.RetainedState JustesenSubdivisionContext
-      JustesenSubdivisionState) :
-      (configurationJustesenMembershipTally ntm c w₀ rank₀ params₀).accept s =
-        (MembershipTally.retainedReply s).isSome :=
-    MembershipTally.retainedMachine_accept _ _ _ _ _ _ _ _
-  simp only [haccept, hrank, hparams]
+  simp only [hrank, hparams]
   let entered := (configurationJustesenMembershipTally ntm c w₀ rank₀ params₀).withInit
     (MembershipTally.retainedInitial
       (configurationJustesenSubdivisionContext ntm c (enc a) seed.val)
       ⟨size.vertexCount, source.val, target.val, radius, expected edge source radius⟩)
   change ∃! bits, entered.FirstHalting (enc a) bits entered.init ∧
-    (MembershipTally.retainedReply (entered.run (enc a) bits)).isSome
-  rw [show entered = _ from configurationJustesenMembershipTally_withInit _ _ _ _ _ _ _ _]
-  exact configurationJustesenMembershipTally_existsUnique_firstHalting ntm c (enc a) seed source
-    target radius hpass
+    entered.accept (entered.run (enc a) bits) = true
+  simp only [entered, configurationJustesenMembershipTally_withInit]
+  simpa only [configurationJustesenMembershipTally, MembershipTally.retainedMachine_accept] using
+    configurationJustesenMembershipTally_existsUnique_firstHalting ntm c (enc a) seed source
+      target radius hpass
 
 private theorem loopCaps_of_tightCaps {n : ℕ} {totals : Tally} (hn : 0 < n)
     (hc : totals.count ≤ n) (hs : totals.lengthSum ≤ n * n) :
@@ -356,10 +352,9 @@ theorem configurationJustesenMembershipTally_length_run_le_log_of_loop_caps
   have hcallee (u v : Fin size.vertexCount) (t : ℕ) (ht : t ≤ 3) :
       (encJustesenSubdivisionState (edge.runFrom w (start ctx u.val v.val) t)).length ≤ A * b :=
     (hcall w seed u v).2.2.2 t ht
-  have hrun := MembershipTally.retainedMachine_length_run_le edge start callbackVerdict 3
+  refine (MembershipTally.retainedMachine_length_run_le edge start callbackVerdict 3
     (tallyWalkInitial ntm c) ctx encJustesenSubdivisionContext encJustesenSubdivisionState
-    params source.isLt w (A * b) hcallee bits
-  refine hrun.trans ?_
+    params source.isLt w (A * b) hcallee bits).trans ?_
   simpa only [b, Nat.add_mul] using hbound w seed source target radius expected (A * b) hr hc hs
 
 /-- Every prefix of an initialized tally fits the uniform logarithmic encoded-state bound. -/
@@ -457,27 +452,17 @@ theorem configurationJustesenMembershipTally_exists_routines
   have hctx : ComputableInSpace ctx enc encJustesenSubdivisionContext S :=
     (configurationJustesenSubdivisionContext_inSpace ntm c hrank hrank_lt).mono_le hsmall
   have hsource (a : α) : (params a).source < (params a).size := (hvalid a).1 ▸ (hvalid a).2.1
-  have hcallee (a : α) (u v : Fin (params a).size) (t : ℕ) (ht : t ≤ 3) :
+  have hcallee (a : α) (u v : Fin (params a).size) : ∀ t ≤ 3,
       (encJustesenSubdivisionState (edge.runFrom (enc a) (start (ctx a) u.val v.val) t)).length ≤
-        A * b a := by
-    have hu : u.val < n a := by simpa only [(hvalid a).1] using u.isLt
-    have hv : v.val < n a := by simpa only [(hvalid a).1] using v.isLt
-    exact (hcall (enc a) (seed a) ⟨u.val, hu⟩ ⟨v.val, hv⟩).2.2.2 t ht
+        A * b a :=
+    (hcall (enc a) (seed a) (u.cast (hvalid a).1) (v.cast (hvalid a).1)).2.2.2
   have hstate (a : α) :
       MembershipTally.retainedStateBound 3 (params a) (encJustesenSubdivisionContext (ctx a)).length
         (A * b a) ≤ S a := by
-    obtain ⟨hsize, hsrc, hdst, hr, hc, hs⟩ := hvalid a
-    let source : Fin (n a) := ⟨(params a).source, hsrc⟩
-    let target : Fin (n a) := ⟨(params a).target, hdst⟩
-    have hshape :
-        params a = ⟨n a, source.val, target.val, (params a).radius, (params a).expected⟩ := by
-      dsimp only [source, target]
-      cases h : params a
-      simp only [h] at hsize
-      simp only [hsize, n]
-    rw [hshape]
-    refine (hbound (enc a) (seed a) source target (params a).radius (params a).expected
-      (A * b a) hr hc hs).trans ?_
+    have hv := hvalid a
+    rcases hp : params a with ⟨sz, src, dst, rad, exp⟩
+    obtain ⟨rfl, hsrc, hdst, hr, hc, hs⟩ : sz = n a ∧ _ := by simpa only [hp] using hv
+    refine (hbound (enc a) (seed a) ⟨src, hsrc⟩ ⟨dst, hdst⟩ rad exp (A * b a) hr hc hs).trans ?_
     simp only [S, b, Nat.add_mul, Nat.one_mul]
     exact Nat.le_add_right _ _
   obtain ⟨hq, hn, hh, _, _⟩ := justesenWeightedSubdivisionCallback_parts_inSpace ntm

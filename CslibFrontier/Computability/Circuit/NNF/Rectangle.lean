@@ -113,13 +113,11 @@ theorem Occurs.toFun_eq_true (hC : C.IsDecomposable) {y : ι → Bool} {v : N}
     exact ih (by rw [eval_and hg, hz, hl, hyl]; rfl) fun i hi =>
       hout i fun hir => hi (vars_and hg ▸ Finset.mem_union_right _ hir)
   | @orChild v l r c _ hg hc _ ih =>
-    have hev : C.eval z v = true := by
-      rw [eval_or hg]
-      rcases hc with rfl | rfl <;> simp [hz]
-    refine ih hev fun i hi =>
-      hout i fun hic => hi (vars_or hg ▸ ?_)
     rcases hc with rfl | rfl
-    exacts [Finset.mem_union_left _ hic, Finset.mem_union_right _ hic]
+    · exact ih (by simp [eval_or hg, hz]) fun i hi =>
+        hout i fun hic => hi (vars_or hg ▸ Finset.mem_union_left _ hic)
+    · exact ih (by simp [eval_or hg, hz]) fun i hi =>
+        hout i fun hic => hi (vars_or hg ▸ Finset.mem_union_right _ hic)
 
 /-! ### One rectangle per node -/
 
@@ -171,14 +169,12 @@ private theorem isBalancedRectangle_nodeRect (hn : 2 ≤ Fintype.card ι) (v : N
   · exact isBalancedRectangle_of_piecewise_mem hv fun _ hx _ hz =>
       piecewise_mem_certRect subset_rfl hx hz
   · split
-    · split_ifs with _ h _ h
-      · exact isBalancedRectangle_of_piecewise_mem h.choose_spec.2.2 fun _ hx _ hz =>
-          piecewise_mem_certRect h.choose_spec.1 hx hz
-      · exact isBalancedRectangle_empty hX₀
-      · exact isBalancedRectangle_of_piecewise_mem h.choose_spec.2.2 fun _ hx _ hz =>
-          piecewise_mem_certRect h.choose_spec.1 hx hz
-      all_goals exact isBalancedRectangle_empty hX₀
-    exact isBalancedRectangle_empty hX₀
+    · split_ifs with _ h _ h <;>
+        first
+        | exact isBalancedRectangle_of_piecewise_mem h.choose_spec.2.2 fun _ hx _ hz =>
+            piecewise_mem_certRect h.choose_spec.1 hx hz
+        | exact isBalancedRectangle_empty hX₀
+    · exact isBalancedRectangle_empty hX₀
 
 private theorem nodeRect_subset (hC : C.IsDecomposable) (v : N) :
     nodeRect C v ⊆ C.toFun ⁻¹' {true} := by
@@ -186,13 +182,12 @@ private theorem nodeRect_subset (hC : C.IsDecomposable) (v : N) :
   split_ifs
   · exact certRect_subset hC subset_rfl fun _ h => h
   · split
-    next l r hg =>
-      split_ifs with _ h _ h
-      · exact certRect_subset hC h.choose_spec.2.1 fun z hz => by simp [eval_or hg, hz]
-      · exact empty_subset _
-      · exact certRect_subset hC h.choose_spec.2.1 fun z hz => by simp [eval_or hg, hz]
-      all_goals exact empty_subset _
-    exact empty_subset _
+    · next l r hg =>
+        split_ifs with _ h _ h <;>
+          first
+          | exact certRect_subset hC h.choose_spec.2.1 fun z hz => by simp [eval_or hg, hz]
+          | exact empty_subset _
+    · exact empty_subset _
 
 private theorem isBalanced_iff {X : Finset ι} :
     IsBalanced X ↔ Fintype.card ι ≤ 3 * X.card ∧ 3 * X.card ≤ 2 * Fintype.card ι := by

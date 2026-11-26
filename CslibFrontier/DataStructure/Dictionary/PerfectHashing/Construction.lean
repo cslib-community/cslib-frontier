@@ -296,20 +296,17 @@ variable [DecidableEq X]
 theorem card_filter_eq_length {r : ℕ} {keys : List X} (hkeys : keys.Nodup)
     (f : X → Fin (r + 1)) (j : Fin (r + 1)) :
     (keys.toFinset.filter fun x => f x = j).card = (bucketOf keys (keys.map f) j).length := by
-  rw [bucketOf_map, ← List.toFinset_card_of_nodup (hkeys.filter _), List.toFinset_filter]
-  simp
+  simp [bucketOf_map, ← List.toFinset_card_of_nodup (hkeys.filter _)]
 
 theorem mem_bucket_iff_mem_bucketOf {F : Family X} {D : Description F} {keys : List X}
     {vs : List (Fin (D.top.range + 1))} (hvs : vs = keys.map D.top.apply)
     {j : Fin (D.top.range + 1)} {x : X} : x ∈ bucket D keys j ↔ x ∈ bucketOf keys vs j := by
-  subst hvs
-  simp [bucketOf_map, mem_bucket]
+  simp [hvs, bucketOf_map, mem_bucket]
 
 theorem card_bucket_eq_length {F : Family X} {D : Description F} {keys : List X}
     (hkeys : keys.Nodup) {vs : List (Fin (D.top.range + 1))} (hvs : vs = keys.map D.top.apply)
-    (j : Fin (D.top.range + 1)) : (bucket D keys j).card = (bucketOf keys vs j).length := by
-  subst hvs
-  exact card_filter_eq_length hkeys _ j
+    (j : Fin (D.top.range + 1)) : (bucket D keys j).card = (bucketOf keys vs j).length :=
+  hvs ▸ card_filter_eq_length hkeys _ j
 
 end Buckets
 
@@ -347,20 +344,17 @@ theorem valid_of_mem_support_build {fuel : ℕ} {keys : List X} (hkeys : keys.No
   · simp at hD
   · obtain ⟨hgood, ht⟩ := mem_supportWith_retry ho
     obtain ⟨-, htv⟩ := mem_supportWith_trial ht
-    simp only [Option.elim_some, buildRest, mem_supportWith_map_iff] at hD
+    simp only [Option.elim_some, buildRest, mem_supportWith_map_iff, mem_supportWith_pi_iff] at hD
     obtain ⟨sec, hsec, hasm⟩ := hD
     obtain ⟨hs, rfl⟩ := assemble_eq_some hasm
-    rw [mem_supportWith_pi_iff] at hsec
     have hcard := card_bucket_eq_length (D := ⟨⟨keys.length - 1, t.seed⟩,
       fun j => (sec j).get (hs j)⟩) hkeys htv
     have hsecj (j) := mem_supportWith_buildSecondary ((Option.some_get (hs j)).symm ▸ hsec j)
     refine ⟨rfl, by simpa only [hcard, TopGood] using hgood, fun j hj => ?_,
       fun j x hx y hy hxy => ?_⟩
-    · rw [hcard] at hj ⊢
-      have hpos : 0 < (bucketOf keys t.values j).length ^ 2 := by positivity
-      have hr := (hsecj j).1
-      dsimp only at hr ⊢
-      omega
+    · dsimp only
+      rw [hcard, (hsecj j).1]
+      exact Nat.sub_add_cancel (Nat.pow_pos (Nat.pos_of_ne_zero (hcard j ▸ hj)))
     · rw [Finset.mem_coe, mem_bucket_iff_mem_bucketOf htv] at hx hy
       exact (hsecj j).2 hx hy hxy
 

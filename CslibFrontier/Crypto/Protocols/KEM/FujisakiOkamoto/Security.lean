@@ -322,10 +322,8 @@ theorem advantage_play_le (A : RandomizedROAdversary PK M R CT K)
           ENNReal.ofReal_toReal (PMF.apply_ne_top _ _), ENNReal.ofReal_ofNat]
   have hsum : ∑' ω, ProbComp.eval A.coins ω * err ω =
       ENNReal.ofReal e + 2 * ProbComp.eval (A.coins >>= fun ω => ow (A.run ω)) true := by
-    simp only [err, mul_add, tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul,
-      ProbComp.eval_bind, PMF.bind_apply]
-    rw [← ENNReal.tsum_mul_left]
-    exact congrArg _ (tsum_congr fun ω => mul_left_comm _ _ _)
+    simp only [err, mul_add, mul_left_comm _ (2 : ℝ≥0∞), tsum_add, ENNReal.tsum_mul_right,
+      ENNReal.tsum_mul_left, PMF.tsum_coe, one_mul, ProbComp.eval_bind, PMF.bind_apply]
   ennreal_to_real using hsum ▸ Game.closeTo_iff_coe_advantage_le.mp hclose
 
 end RandomizedROAdversary
@@ -657,8 +655,7 @@ theorem interpret_decapsNotBotM {ι : Type} {spec : OracleSpec ι} {n : Type →
   cases S.pke.dec dk.sk c
   · rfl
   · simp only [OracleComp.interpret_bind]
-    congr 1 with r'
-    split_ifs <;> rfl
+    exact congrArg _ (funext fun _ => by split_ifs <;> rfl)
 
 omit [DecidableEq M] in
 /-- Interpreting `decapsBotM` against oracle calls runs it against the interpreted calls. -/
@@ -673,8 +670,7 @@ theorem interpret_decapsBotM {ι : Type} {spec : OracleSpec ι} {n : Type → Ty
   cases S.pke.dec sk c
   · simp
   · simp only [OracleComp.interpret_bind]
-    congr 1 with r'
-    split_ifs <;> simp
+    exact congrArg _ (funext fun _ => by split_ifs <;> simp)
 
 /-- The joined cache represented by the two list caches of an `ROCache`. -/
 private abbrev roTables (st : ROCache M R CT K) : RandomOracle.Cache (ROSpec M R CT K) :=
@@ -718,8 +714,7 @@ private theorem eval_run_romHandler_eq_eager [Fintype M] [Finite R] [Fintype CT]
       S.eval_roHash_map_roTables,
     ← RandomOracle.bind_complete_sum]
   congr 1 with T : 1
-  congr 1 with q : 1
-  rcases q with m | x <;> rfl
+  exact congrArg (OracleComp.interpret · _) (funext fun q => by cases q <;> rfl)
 
 /-- **Eager/lazy equivalence for the ROM IND-CCA experiment**: for every key generation and
 decapsulation program, the lazy experiment has the output distribution of the eager one. -/
@@ -779,10 +774,9 @@ def notBotDecaps (S : Scheme PK SK M R CT K) (dk : ImplicitSK PK SK M) (c : CT) 
 
 /-- `roHandler` is the lazy handler of `romProgram` with `FO-notbot` decapsulation. -/
 theorem roHandler_eq_romHandler (S : Scheme PK SK M R CT K) (dk : ImplicitSK PK SK M)
-    (cStar : CT) : S.roHandler dk cStar = S.romHandler (S.notBotDecaps dk) cStar := by
-  funext q
-  refine Eq.trans ?_ (dispatch_eq_interpret_romProgram _ _ cStar q)
-  simp only [roHandler, notBotDecaps, interp_norm, interpret_decapsNotBotM]
+    (cStar : CT) : S.roHandler dk cStar = S.romHandler (S.notBotDecaps dk) cStar :=
+  funext fun q => Eq.trans (by simp only [roHandler, notBotDecaps, interp_norm,
+    interpret_decapsNotBotM]) (dispatch_eq_interpret_romProgram _ _ cStar q)
 
 omit [DecidableEq M] in
 /-- `eagerHandler` is the eager handler of `romProgram` with `FO-notbot` decapsulation. -/
@@ -818,8 +812,7 @@ random-oracle game `S.eagerIndCcaGame A b`. -/
 theorem eval_roIndCcaGame_eq_eagerIndCcaGame [Fintype M] [Finite R] [Fintype CT] [Finite K]
     (S : Scheme PK SK M R CT K) (A : ROAdversary PK M R CT K) (b : Bool) :
     ProbComp.eval (S.roIndCcaGame A b) = S.eagerIndCcaGame A b := by
-  rw [← romIndCcaExperiment_notBot, ← eagerRomIndCcaExperiment_notBot]
-  exact S.eval_romIndCcaExperiment_eq_eager _ _ A b
+  simpa using S.eval_romIndCcaExperiment_eq_eager S.keyGenNotBot (fun _ dk => S.notBotDecaps dk) A b
 
 /-- The ROM IND-CCA advantage of a deterministic adversary `A` against `FO-notbot` equals the
 distinguishing advantage between `S.eagerIndCcaGame A false` and `S.eagerIndCcaGame A true`. -/
@@ -885,16 +878,15 @@ theorem simFilterHandler_gCache_length_le (S : Scheme PK SK M R CT K)
     exact Nat.le_add_right _ 1
   · split_ifs at hmem
     · erw [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hmem
-      rw [(Prod.mk.inj hmem).2, Nat.add_zero]
-    · cases hd : d st.gCache c
-      · simp only [filterDecaps, hd, Bool.cond_false] at hmem
-        erw [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hmem
-        rw [(Prod.mk.inj hmem).2, Nat.add_zero]
-      · simp only [filterDecaps, hd, Bool.cond_true] at hmem
-        erw [ProbComp.eval_bind, PMF.mem_support_bind_iff] at hmem
+      exact (Prod.mk.inj hmem).2 ▸ le_rfl
+    · cases hd : d st.gCache c <;> simp only [filterDecaps, hd, Bool.cond_false, Bool.cond_true]
+        at hmem
+      · erw [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hmem
+        exact (Prod.mk.inj hmem).2 ▸ le_rfl
+      · erw [ProbComp.eval_bind, PMF.mem_support_bind_iff] at hmem
         obtain ⟨z, hz, hmem₂⟩ := hmem
         erw [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hmem₂
-        rw [(Prod.mk.inj hmem₂).2, simHashHq_gCache_eq S.sampleKey c st z hz, Nat.add_zero]
+        rw [(Prod.mk.inj hmem₂).2, simHashHq_gCache_eq S.sampleKey c st z hz]; omega
 
 /-- Each query `q` to `S.simHandler pk cStar` increases `gCache.length` by at most
 `ROQuery.ghCost q`. -/
@@ -987,12 +979,12 @@ theorem succProbability_simFilterOwExperiment_le [Fintype M] [Nonempty M]
     Pr[A.coins >>= fun ω => S.simFilterOwExperiment d (A.run ω)] ≤
       (S.pke.cpaAdvantage (S.romFilterCpaReduction d A) : ℝ) +
         ((qG : ℝ) + qH) / Fintype.card M := by
-  have hfalse := S.succProbability_romFilterCpaReduction_false_le d A hq hmsg
   rw [← eval_cpaExperiment_romFilterCpaReduction_true (S := S) d A, ExplicitCoinPKE.cpaAdvantage,
     Experiment.coe_advantage]
-  linarith [neg_abs_le (Pr[S.pke.toPKE.cpaExperiment (fun _ _ _ => true)
-      (S.romFilterCpaReduction d A) false] -
-    Pr[S.pke.toPKE.cpaExperiment (fun _ _ _ => true) (S.romFilterCpaReduction d A) true])]
+  linarith [S.succProbability_romFilterCpaReduction_false_le d A hq hmsg,
+    neg_abs_le (Pr[S.pke.toPKE.cpaExperiment (fun _ _ _ => true)
+        (S.romFilterCpaReduction d A) false] -
+      Pr[S.pke.toPKE.cpaExperiment (fun _ _ _ => true) (S.romFilterCpaReduction d A) true])]
 
 end Scheme
 
