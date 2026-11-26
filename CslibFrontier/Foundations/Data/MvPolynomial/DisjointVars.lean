@@ -24,7 +24,8 @@ polynomials in disjoint sets of variables is multilinear.
 * `MvPolynomial.mul_mem_restrictDegree_of_disjoint_vars`: if `p` and `q` have degree at most `n`
   in each variable and no variable in common, so does `p * q`.
 * `MvPolynomial.X_mem_restrictDegree`, `MvPolynomial.C_mem_restrictDegree`,
-  `MvPolynomial.vars_X_subset`: variables and constants.
+  `MvPolynomial.vars_X_subset`: variables and constants. Unlike Mathlib's `MvPolynomial.vars_X`,
+  these hold without `[Nontrivial R]`.
 -/
 
 public section

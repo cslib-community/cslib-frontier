@@ -4019,6 +4019,7 @@ AMW 2018, CEUR Workshop Proceedings 2100, paper 19. https://ceur-ws.org/Vol-2100
 [DeterministicDecomposable.lean](../CslibFrontier/Computability/Circuit/Boolean/DeterministicDecomposable.lean) formalizes Definition 3 on De Morgan circuits (`Circuit.IsDeterministicDecomposable`), with binary and- and or-gates and with Boolean constants, which Definition 3 does not list.
 Definition 3 compares distinct predecessor gates, while the Lean conditions compare argument positions, which may read the same gate: `x ∨ x` fails determinism at `x = true` and `x ∧ x` fails decomposability.
 The two agree on circuits whose and- and or-gates have distinct predecessors, which removing repeated arguments achieves.
+The probability computation of Section 2 (PDF p. 4, checked 2026-11-26), a bottom-up pass evaluating and-gates using `×`, or-gates using `+` and not-gates using `1 - x`, is formalized in [DeterministicDecomposableArithmetic.lean](../CslibFrontier/Computability/Circuit/Boolean/DeterministicDecomposableArithmetic.lean): over every commutative ring a d-D with `s` gates has a syntactically multilinear circuit with at most `4s` gates computing the multilinear representative of its function (`Circuit.IsDeterministicDecomposable.exists_syntacticallyMultilinear`).
 
 <a id="mosertardos10"></a>
 ## mosertardos10
@@ -5498,9 +5499,11 @@ Checked firsthand on 2026-11-24: `src/keccak/segmented.hpp` (lines 1–35) insta
 ## volk26
 
 Ben Lee Volk.
-*A Lower Bound for Read-Once Parity Branching Programs* (`Volk2026`). arXiv:2607.05944v1, 2026. https://arxiv.org/abs/2607.05944v1 . Read in the arXiv HTML rendering of v1 on 2026-11-25 UTC: Section 1.1 with Definition 1.1 (a directed acyclic multigraph with a source and a target, edges labelled by `0`, `1`, `x_i` or `¬x_i`, acceptance when an odd number of source-to-target paths are consistent with the input, syntactic read-once on every source-to-target path, size the number of edges) and Section 2 with Claim 2.6 (replacing each `¬x_i` by `1 + x_i` turns a read-once parity program into a syntactically multilinear algebraic branching program over `F₂`).
+*A Lower Bound for Read-Once Parity Branching Programs* (`Volk2026`). arXiv:2607.05944v1, 2026. https://arxiv.org/abs/2607.05944v1 . Read in the arXiv HTML rendering of v1 on 2026-11-25 UTC: Section 1.1 with Definition 1.1 (a directed acyclic multigraph with a source and a target, edges labelled by `0`, `1`, `x_i` or `¬x_i`, acceptance when an odd number of source-to-target paths are consistent with the input, syntactic read-once on every source-to-target path, size the number of edges) and Section 2 with Claim 2.2 (a syntactically multilinear algebraic branching program of size `S` over `F₂` gives a syntactically multilinear circuit of size `O(S)`) and Claim 2.6 (lower bounds for syntactically multilinear algebraic branching programs transfer to read-once parity programs of the same size; its proof replaces each `¬x_i` by `1 + x_i`).
 [ReadOnceParity.lean](../CslibFrontier/Computability/BranchingProgram/ReadOnceParity.lean) formalizes Definition 1.1 on the nondeterministic branching programs `NBP` with parity acceptance: rectifiers are the edges labelled `1`, contacts the literals, and edges labelled `0` are omitted since deleting them changes no path count and lowers the size; `NBP.wireCount` is the size and `NBP.IsReadOnce` the read-once condition.
-The cancellation of parallel edges in pairs (`NBP.reduce`, `NBP.wireCount_reduce_le`) is not from this paper; Claim 2.6 and the lower bound (Theorem 1.2) are not formalized.
+The cancellation of parallel edges in pairs (`NBP.reduce`, `NBP.wireCount_reduce_le`) is not from this paper.
+[ReadOnceParityArithmetic.lean](../CslibFrontier/Computability/BranchingProgram/ReadOnceParityArithmetic.lean) combines the algebrization in the proof of Claim 2.6 with Claim 2.2: in characteristic two a read-once parity program with `w` edges has a syntactically multilinear circuit with at most `2 + 5w` gates computing the multilinear representative of its function (`NBP.exists_syntacticallyMultilinear`), built directly without the intermediate algebraic branching program.
+The lower bound (Theorem 1.2) is not formalized.
 
 <a id="vonstengel07"></a>
 ## vonstengel07

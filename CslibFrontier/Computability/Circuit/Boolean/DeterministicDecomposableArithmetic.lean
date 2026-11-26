@@ -17,43 +17,36 @@ public import Mathlib.Data.Fin.VecNotation
 # Arithmetizing deterministic decomposable circuits
 
 Over a commutative ring, replace every AND of a De Morgan circuit by a multiplication, every OR by
-an addition and every NOT by `x ↦ 1 - x` (`Cslib.Circuits.Boolean.ringInterpretation`). On the
-points `0` and `1` of the ring these agree with the Boolean operations, except that the OR of two
-ones is `2`. In a deterministic decomposable circuit (d-D) no OR sees two ones, so the arithmetic
-values at the Boolean points are the Boolean values
-(`Cslib.Circuits.Program.trace_ringInterpretation_bitPoint`)
+an addition and every NOT by `x ↦ 1 - x`. On the points `0` and `1` of the ring these agree with the
+Boolean operations, except that the OR of two ones is `2`. In a deterministic decomposable circuit
+(d-D) no OR sees two ones, so the arithmetic values at the Boolean points are the Boolean values
 [Monet and Olteanu, Section 2][MonetOlteanu2018].
 
-Each operation is computed by a small arithmetic circuit (`Cslib.Circuits.Boolean.arithImpl`): a
-multiplication, an addition, a constant, or `1 + (-1) * x` with four gates. Replacing the gates of a
-De Morgan circuit by these circuits (`Cslib.Circuits.Circuit.arithmetize`) gives an arithmetic
-circuit with at most four times as many gates (`Cslib.Circuits.Circuit.size_arithmetize_le`), which
-computes the ring interpretation in every algebra (`Cslib.Circuits.Circuit.eval_arithmetize`).
-Decomposable ANDs become multiplications of polynomials in disjoint sets of inputs, so the
-arithmetic circuit of a d-D is syntactically multilinear
+Each operation is computed by a small arithmetic circuit: a multiplication, an addition, a
+constant, or `1 + (-1) * x` with four gates. Replacing the gates of a De Morgan circuit by these
+circuits (`Cslib.Circuits.Circuit.arithmetize`) gives an arithmetic circuit with at most four times
+as many gates (`Cslib.Circuits.Circuit.size_arithmetize_le`). Decomposable ANDs become
+multiplications of polynomials in disjoint sets of inputs, so the arithmetic circuit of a d-D is
+syntactically multilinear
 (`Cslib.Circuits.Circuit.IsDeterministicDecomposable.isDecomposableAt_arithmetize`). It computes the
 multilinear extension of the Boolean function of the d-D
-(`Cslib.Circuits.Circuit.IsDeterministicDecomposable.eval_arithmetize_X`).
+(`Cslib.Circuits.Circuit.IsDeterministicDecomposable.eval_arithmetize_X`). So syntactically
+multilinear circuits simulate d-Ds with four gates per gate, and lower bounds for syntactically
+multilinear circuits transfer to d-Ds.
 
 ## Main definitions
 
-* `Cslib.Circuits.Boolean.ringInterpretation`: the De Morgan operations in a commutative ring.
-* `Cslib.Circuits.Boolean.arithImpl`: an arithmetic circuit for each De Morgan operation.
 * `Cslib.Circuits.Circuit.arithmetize`: the arithmetic circuit of a De Morgan circuit.
 
 ## Main results
 
 * `Cslib.Circuits.Circuit.size_arithmetize_le`: at most four gates for each gate.
-* `Cslib.Circuits.Circuit.eval_arithmetize`: the arithmetic circuit computes the ring
-  interpretation.
-* `Cslib.Circuits.Program.trace_ringInterpretation_bitPoint`: in a deterministic program the ring
-  interpretation agrees with the Boolean one on the Boolean points.
 * `Cslib.Circuits.Circuit.IsDeterministicDecomposable.isDecomposableAt_arithmetize`: the arithmetic
   circuit of a d-D is syntactically multilinear.
 * `Cslib.Circuits.Circuit.IsDeterministicDecomposable.eval_arithmetize_X`: it computes the
   multilinear extension of the function of the d-D.
-* `Cslib.Circuits.Circuit.IsDeterministicDecomposable.exists_syntacticallyMultilinear`: d-Ds
-  simulate syntactically multilinear circuits with four gates per gate.
+* `Cslib.Circuits.Circuit.IsDeterministicDecomposable.exists_syntacticallyMultilinear`:
+  syntactically multilinear circuits simulate d-Ds with four gates per gate.
 
 ## References
 
@@ -75,8 +68,7 @@ namespace Boolean
 
 /-- The De Morgan operations in a commutative ring: NOT is `x ↦ 1 - x`, AND is multiplication, OR is
 addition, and the constants are `0` and `1`. -/
-@[expose]
-def ringInterpretation (A : Type*) [CommRing A] : Interpretation signature A
+private def ringInterpretation (A : Type*) [CommRing A] : Interpretation signature A
   | .const b, _ => bitVal A b
   | .not, x => 1 - x 0
   | .and, x => x 0 * x 1
@@ -86,8 +78,7 @@ variable (R : Type u) [CommRing R]
 
 /-- An arithmetic circuit for each De Morgan operation: a constant gate, `1 + (-1) * x`, a
 multiplication or an addition. -/
-@[expose]
-def arithImpl : ∀ op : Op, Circuit (arithSignature R) (signature.Arity op) 1
+private def arithImpl : ∀ op : Op, Circuit (arithSignature R) (signature.Arity op) 1
   | .const b => ⟨(Program.empty : Program (arithSignature R) 0 0).gate
       ⟨ArithOp.const (bitVal R b), Fin.elim0⟩, fun _ => Wire.gate 0⟩
   | .not => ⟨((((Program.empty : Program (arithSignature R) 1 0).gate
@@ -100,11 +91,11 @@ def arithImpl : ∀ op : Op, Circuit (arithSignature R) (signature.Arity op) 1
       ⟨ArithOp.add, ![Wire.input 0, Wire.input 1]⟩, fun _ => Wire.gate 0⟩
 
 /-- Each replacement circuit has at most four gates. -/
-theorem size_arithImpl_le (op : Op) : (arithImpl R op).size ≤ 4 := by
+private theorem size_arithImpl_le (op : Op) : (arithImpl R op).size ≤ 4 := by
   cases op <;> simp [arithImpl]
 
 /-- Each replacement circuit computes its operation in every `R`-algebra. -/
-theorem computes_arithImpl (A : Type*) [CommRing A] [Algebra R A] (op : Op) :
+private theorem computes_arithImpl (A : Type*) [CommRing A] [Algebra R A] (op : Op) :
     (arithImpl R op).Computes (arithInterpretationWith R (algebraMap R A))
       (single (ringInterpretation A op)) := by
   intro x
@@ -121,7 +112,7 @@ theorem computes_arithImpl (A : Type*) [CommRing A] [Algebra R A] (op : Op) :
   | or => rfl
 
 /-- Each replacement circuit unions the supports of its arguments. -/
-theorem computes_arithImpl_support (op : Op) :
+private theorem computes_arithImpl_support (op : Op) :
     (arithImpl R op).Computes (supportInterpretation (arithSignature R) n)
       (single (supportInterpretation signature n op)) := by
   intro S
@@ -143,7 +134,7 @@ theorem computes_arithImpl_support (op : Op) :
 
 /-- The multiplications of each replacement circuit are decomposable over the supports of its
 arguments, when these are disjoint for an AND. -/
-theorem decomposesOver_arithImpl (op : Op) (S : Fin (signature.Arity op) → Finset (Fin n))
+private theorem decomposesOver_arithImpl (op : Op) (S : Fin (signature.Arity op) → Finset (Fin n))
     (hS : op = .and → Pairwise fun a b => Disjoint (S a) (S b)) :
     (arithImpl R op).program.DecomposesOver (· = .mul) S := by
   cases op with
@@ -168,7 +159,6 @@ variable (R : Type u) [CommRing R]
 
 /-- The arithmetic circuit of a De Morgan circuit: every gate replaced by its arithmetic circuit
 `Boolean.arithImpl`. -/
-@[expose]
 def Circuit.arithmetize (c : Circuit Boolean.signature n m) : Circuit (arithSignature R) n m :=
   c.simulate (Boolean.arithImpl R)
 
@@ -179,15 +169,15 @@ theorem Circuit.size_arithmetize_le (c : Circuit Boolean.signature n m) :
 
 /-- The arithmetic circuit computes, in every `R`-algebra, the ring interpretation of the De Morgan
 circuit. -/
-theorem Circuit.eval_arithmetize (c : Circuit Boolean.signature n m) (A : Type*) [CommRing A]
-    [Algebra R A] :
+private theorem Circuit.eval_arithmetize (c : Circuit Boolean.signature n m) (A : Type*)
+    [CommRing A] [Algebra R A] :
     (c.arithmetize R).eval (arithInterpretationWith R (algebraMap R A)) =
       c.eval (Boolean.ringInterpretation A) :=
   c.eval_simulate _ (Boolean.computes_arithImpl R A)
 
 /-- **Arithmetizing a deterministic program.** If no input makes both arguments of an OR true, the
 ring interpretation at the Boolean points is the Boolean value. -/
-theorem Program.trace_ringInterpretation_bitPoint (A : Type*) [CommRing A]
+private theorem Program.trace_ringInterpretation_bitPoint (A : Type*) [CommRing A]
     (p : Program Boolean.signature n g) (hp : p.IsDeterministic) (x : Fin n → Bool)
     (w : Wire n g) :
     p.trace (Boolean.ringInterpretation A) (bitPoint x) w =
@@ -263,7 +253,7 @@ theorem computesMultilinear_arithmetize {c : Circuit Boolean.signature n 1}
     (c.arithmetize R).ComputesMultilinear fun z => c.eval Boolean.interpretation z 0 :=
   hc.eval_arithmetize_X 0
 
-/-- **d-Ds simulate syntactically multilinear circuits.** The function of a d-D with `s` gates has
+/-- **Syntactically multilinear circuits simulate d-Ds.** The function of a d-D with `s` gates has
 a syntactically multilinear circuit with at most `4 s` gates computing its multilinear
 representative, over every commutative ring. -/
 theorem exists_syntacticallyMultilinear {c : Circuit Boolean.signature n 1}

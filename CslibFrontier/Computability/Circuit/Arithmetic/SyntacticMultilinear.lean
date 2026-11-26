@@ -35,8 +35,9 @@ program computes the multilinear extension of the function it computes on the Bo
 A circuit over a commutative ring `K` *computes the multilinear representative* of a Boolean
 function `f` when the polynomial at its output is the multilinear extension of `f`, with values `0`
 and `1` in `K` (`Cslib.Circuits.Circuit.ComputesMultilinear`). Lower bounds for syntactically
-multilinear circuits are stated in this model; deterministic decomposable circuits and read-once
-parity branching programs simulate it with linear overhead
+multilinear circuits are stated in this model. Syntactically multilinear circuits simulate
+deterministic decomposable circuits and read-once parity branching programs with linear overhead,
+so such lower bounds transfer to both models
 (`Cslib.Circuits.Circuit.IsDeterministicDecomposable.exists_syntacticallyMultilinear`,
 `Cslib.BranchingPrograms.NBP.exists_syntacticallyMultilinear`).
 
@@ -115,17 +116,8 @@ theorem Program.vars_trace_subset_and_mem_restrictDegree [DecidableEq τ]
         intro j hj
         exact hV fun hij => Finset.disjoint_left.mp hdisj hi (hij ▸ hj)
       | const c =>
-        refine ⟨by simp [Line.eval, arithInterpretationWith], ?_⟩
-        rw [mem_restrictDegree]
-        intro s hs i
-        classical
-        have hs' : s ∈ (C (φ c) : MvPolynomial τ K).support := by
-          simpa [Line.eval, arithInterpretationWith] using hs
-        rw [support_C] at hs'
-        split_ifs at hs' with h
-        · simp at hs'
-        · rw [Finset.mem_singleton.mp hs']
-          exact Nat.zero_le _
+        exact ⟨by simp [Line.eval, arithInterpretationWith],
+          by simpa [Line.eval, arithInterpretationWith] using C_mem_restrictDegree 1 (φ c)⟩
     · rw [trace_gate_castSucc, wireSupport_gate_castSucc]
       exact ih hp.1 w
 
@@ -139,6 +131,16 @@ theorem Program.trace_mem_restrictDegree
     p.trace (arithInterpretationWith F (C ∘ φ)) ρ w ∈ restrictDegree τ K 1 := by
   classical
   exact (p.vars_trace_subset_and_mem_restrictDegree hp φ ρ V hV hvars hdeg w).2
+
+/-- Evaluating the polynomial at a wire on specialized inputs evaluates the program at the
+evaluated inputs. -/
+theorem Program.eval_trace {τ K : Type*} [CommSemiring K] (p : Program (arithSignature F) n g)
+    (φ : F → K) (ρ : Fin n → MvPolynomial τ K) (z : τ → K) (w : Wire n g) :
+    MvPolynomial.eval z (p.trace (arithInterpretationWith F (C ∘ φ)) ρ w) =
+      p.trace (arithInterpretationWith F φ) (fun i => MvPolynomial.eval z (ρ i)) w := by
+  let h : Homomorphism (arithInterpretationWith F (C ∘ φ)) (arithInterpretationWith F φ) :=
+    ⟨MvPolynomial.eval z, fun op args => by cases op <;> simp [arithInterpretationWith]⟩
+  simpa [h, Function.comp_def] using congrFun (p.map_trace h ρ) w
 
 /-- **A syntactically multilinear program computes multilinear extensions.** The polynomial at a
 wire is the multilinear extension of the values of the wire at the points of the Boolean cube. -/
@@ -154,11 +156,7 @@ theorem Program.trace_eq_multilinearExtension {K : Type*} [CommRing K]
   rw [BitString.eq_multilinearExtension_of_mem_restrictDegree hmem]
   congr 1
   funext x
-  let h : Homomorphism (arithInterpretationWith F (C ∘ φ)) (arithInterpretationWith F φ) :=
-    ⟨MvPolynomial.eval (BitString.bitPoint x), fun op args => by
-      cases op <;> simp [arithInterpretationWith]⟩
-  have := congrFun (p.map_trace h X) w
-  simpa [h, Function.comp_def] using this
+  simp only [p.eval_trace, eval_X]
 
 /-! ### Circuits computing multilinear representatives -/
 
@@ -170,14 +168,13 @@ abbrev Circuit.IsSyntacticallyMultilinear (c : Circuit (arithSignature F) n m) :
   c.program.IsDecomposableAt (· = .mul)
 
 /-- Evaluating the polynomial computed by an arithmetic circuit on specialized inputs evaluates the
-circuit on the evaluated inputs. -/
+circuit on the evaluated inputs. With `ρ = X` this is
+`Cslib.Circuits.Circuit.eval_arithInterpretationWith_mvPolynomial`. -/
 theorem Circuit.eval_eval {τ K : Type*} [CommSemiring K] (c : Circuit (arithSignature F) n m)
     (φ : F → K) (ρ : Fin n → MvPolynomial τ K) (z : τ → K) (j : Fin m) :
     MvPolynomial.eval z (c.eval (arithInterpretationWith F (C ∘ φ)) ρ j) =
-      c.eval (arithInterpretationWith F φ) (fun i => MvPolynomial.eval z (ρ i)) j := by
-  let h : Homomorphism (arithInterpretationWith F (C ∘ φ)) (arithInterpretationWith F φ) :=
-    ⟨MvPolynomial.eval z, fun op args => by cases op <;> simp [arithInterpretationWith]⟩
-  simpa [h, Function.comp_def] using congrFun (c.map_eval h ρ) j
+      c.eval (arithInterpretationWith F φ) (fun i => MvPolynomial.eval z (ρ i)) j :=
+  c.program.eval_trace φ ρ z (c.outputs j)
 
 variable {K : Type*} [CommRing K]
 
