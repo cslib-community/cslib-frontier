@@ -620,6 +620,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser.Normal
 public import CslibFrontier.Probability.StatisticalDistance.CouplingBind
 public import CslibFrontier.Computability.LogSpaceDerandomization.NormalizedAtomRows.FiniteEnvelopePayment
 public import CslibFrontier.Crypto.Primitives.PRG.Parallel
+public import CslibFrontier.Foundations.Analysis.ODE.Descriptor
 public import CslibFrontier.Computability.QueryComplexity.SensitivitySeparation.Internal.Separation
 public import CslibFrontier.Crypto.Computational.Encryption.OneWay
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.InnerProduct
@@ -726,6 +727,7 @@ public import CslibFrontier.Computability.Complexity.Problems.NCL.Planar.GridDra
 public import CslibFrontier.Computability.TreeEval.Ary.Packed.Constant
 public import CslibFrontier.Computability.QueryComplexity.Quantum.BitQuery
 public import CslibFrontier.Algorithms.ExactTriangle.Weights
+public import CslibFrontier.Algorithms.LinearAlgebra.DescriptorCertificate
 public import CslibFrontier.Crypto.Computational.Pseudoentropy.ThreeSource.Seeded
 public import CslibFrontier.Foundations.Combinatorics.FunctionalGraph.PeriodicPts
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Diagram.Permutation
@@ -7613,6 +7615,7 @@ public import CslibFrontier.Probability.PairwiseIndependentHash.ProductValidated
 public import CslibFrontier.Algorithms.Lean.MaxFlow.MinCostFlow
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ShiftedLabel
 public import CslibFrontier.Computability.Circuit.Boolean.Razborov.Natural
+public import CslibFrontier.Engineering.Electrical.LinearCircuit
 public import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.Littlestone
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Carving.Decompositions
 public import CslibFrontier.Computability.Complexity.Problems.SAT.ExactOne.DrawingClauseVertices

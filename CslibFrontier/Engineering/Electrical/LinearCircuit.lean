@@ -299,7 +299,8 @@ variable (c : Netlist)
 @[expose] def eEntry (r j : ℕ) : ℚ :=
   if r < c.nodes then 0 else
     let br := c.branch (r - c.nodes)
-    br.elem.stamp.eV * vrow c.nodes br.pos br.neg j + br.elem.stamp.eI * crow c.nodes (r - c.nodes) j
+    br.elem.stamp.eV * vrow c.nodes br.pos br.neg j +
+      br.elem.stamp.eI * crow c.nodes (r - c.nodes) j
 
 /-- Entry `(r, j)` of `F`: `-incidence` in the KCL rows, the stamp in the branch rows. -/
 @[expose] def fEntry (r j : ℕ) : ℚ :=
@@ -380,9 +381,8 @@ private theorem sum_crow (b : Fin nb) :
   rw [Fin.sum_univ_add, Finset.sum_eq_zero, zero_add, Finset.sum_eq_single b]
   · simp [crow]
   · intro j _ hj
-    have : ¬ (n + j.val = n + b.val) := fun h => hj (Fin.ext (by omega))
-    simp [crow]
-    exact Or.inl fun h => hj (Fin.ext h)
+    have : ¬ (j.val = b.val) := fun h => hj (Fin.ext h)
+    simp [crow, this]
   · simp
   · intro j _
     have : ¬ (j.val = n + b.val) := by omega
@@ -617,7 +617,8 @@ theorem isExponentiallyStable_of_check {d : DecouplingCert} {z₀ : List ℚ} {l
         realOfRows d.k c.size d.Q₁' *ᵥ Fin.append (φ 0) (i 0) = x₀) ∧
       ∃ M α : ℝ, 0 < α ∧ ∀ φ i, c.IsTrajectoryOn 0 φ i (Ici 0) → ∀ t ≥ 0,
         ‖WithLp.toLp 2 (Fin.append (φ t) (i t) - realOfList c.size z₀)‖ ≤
-          M * Real.exp (-(α * t)) * ‖WithLp.toLp 2 (Fin.append (φ 0) (i 0) - realOfList c.size z₀)‖ := by
+          M * Real.exp (-(α * t)) *
+            ‖WithLp.toLp 2 (Fin.append (φ 0) (i 0) - realOfList c.size z₀)‖ := by
   have hs := uniqueDiffOn_Ici (0 : ℝ)
   have heq : c.mna.IsEquilibrium (realOfList c.size z₀) := isEquilibrium_of_isEquilibriumRows hz
   set D := DecouplingCert.toDecoupling (m := c.inputs) (G := c.gRows) (b := c.bList) hd
@@ -625,7 +626,8 @@ theorem isExponentiallyStable_of_check {d : DecouplingCert} {z₀ : List ℚ} {l
   · rw [isTrajectoryOn_iff hc hs]
     simpa only [append_split] using heq.isSolutionOn (Ici 0)
   · obtain ⟨z, hz, h0⟩ := (D.exists_isSolutionOn_Ici_iff (u := 0) continuousOn_const
-      (D.reconstruct x₀ 0)).2 (by rw [DescriptorSystem.IndexOneDecoupling.Q₁'_mulVec_reconstruct]; rfl)
+      (D.reconstruct x₀ 0)).2
+      (by rw [DescriptorSystem.IndexOneDecoupling.Q₁'_mulVec_reconstruct]; rfl)
     refine ⟨fun t j => z t (Fin.castAdd _ j), fun t b => z t (Fin.natAdd _ b), ?_, ?_⟩
     · have hz' : c.mna.IsSolutionOn 0 z (Ici 0) := hz
       rw [isTrajectoryOn_iff hc hs]

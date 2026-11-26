@@ -229,21 +229,25 @@ private theorem E_Q₂ : S.E * D.Q₂ = 0 := by
     Matrix.mul_zero, Matrix.mul_zero, add_zero]
 
 omit [Fintype m] in
-private theorem E_eq : S.E = S.E * D.Q₁ * D.Q₁' := by
+/-- `E` factors through the differential coordinates: `E = E Q₁ Q₁'`. In particular `E = 0`
+when there are no differential coordinates. -/
+theorem E_eq_mul_Q₁_mul_Q₁' : S.E = S.E * D.Q₁ * D.Q₁' := by
   conv_lhs => rw [mul_Q_inv (D := D) S.E]
   rw [E_Q₂, Matrix.zero_mul, add_zero]
 
 omit [Fintype m] in
 private theorem E_mulVec (z : ι → ℝ) : S.E *ᵥ z = (S.E * D.Q₁) *ᵥ (D.Q₁' *ᵥ z) := by
-  rw [mulVec_mulVec, ← E_eq]
+  rw [mulVec_mulVec, ← E_eq_mul_Q₁_mul_Q₁']
 
 omit [Fintype m] in
 private theorem P₁_E : D.P₁ * S.E = D.Q₁' := by
-  rw [E_eq (D := D), ← Matrix.mul_assoc, ← Matrix.mul_assoc, D.E₁₁, Matrix.one_mul]
+  rw [E_eq_mul_Q₁_mul_Q₁' (D := D), ← Matrix.mul_assoc, ← Matrix.mul_assoc, D.E₁₁,
+    Matrix.one_mul]
 
 omit [Fintype m] in
 private theorem P₂_E : D.P₂ * S.E = 0 := by
-  rw [E_eq (D := D), ← Matrix.mul_assoc, ← Matrix.mul_assoc, D.E₂₁, Matrix.zero_mul]
+  rw [E_eq_mul_Q₁_mul_Q₁' (D := D), ← Matrix.mul_assoc, ← Matrix.mul_assoc, D.E₂₁,
+    Matrix.zero_mul]
 
 omit [Fintype m] in
 private theorem P₁_F : D.P₁ * S.F = D.A * D.Q₁' := by
