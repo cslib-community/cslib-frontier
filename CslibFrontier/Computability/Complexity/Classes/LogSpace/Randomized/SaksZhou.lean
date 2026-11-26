@@ -118,11 +118,10 @@ private theorem abs_mulVec_acceptVec_sub_le {V : Finset (FiniteCfg k Bool State)
       ∑ y, |Q x y - R x y| := by
   simp only [Matrix.mulVec, dotProduct, ← Finset.sum_sub_distrib, ← sub_mul]
   refine (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun y _ => ?_)
-  rw [abs_mul]
   have hacc : |FiniteCfg.acceptVec ℝ V y| ≤ 1 := by
-    simp only [FiniteCfg.acceptVec]
+    unfold FiniteCfg.acceptVec
     split_ifs <;> norm_num
-  exact mul_le_of_le_one_right (abs_nonneg _) hacc
+  exact abs_mul (Q x y - R x y) _ ▸ mul_le_of_le_one_right (abs_nonneg _) hacc
 
 /-- **High-probability accuracy of `saksZhouAcceptEst`**: for `1 ≤ s`, `1 ≤ m`, `d ≤ 2 * m`, and
 `(|V| + 1) * ((2 ^ s - 1) * (|V| + 1) / 2 ^ m) ≤ ε ^ 2`, all but an
@@ -227,12 +226,9 @@ private theorem saksZhou_one_step_error_le (R d : ℕ) (hR : 1 ≤ R) (hd : d = 
     (s Vcard : ℕ) (hs : s = Nat.sqrt R + 1) (hVcard : Vcard ≤ 2 ^ R) :
     (2 : ℝ) ^ (s * s) * ((Vcard : ℝ) * (2 / 2 ^ d)) ≤ 1 / 16 := by
   have hs2 : s * s ≤ 3 * R + 1 := by
-    have h1 : Nat.sqrt R * Nat.sqrt R ≤ R := Nat.sqrt_le R
-    have h2 : Nat.sqrt R ≤ R := Nat.sqrt_le_self R
     rw [hs]
-    nlinarith
-  have hnum1 : (2 : ℝ) ^ (s * s) ≤ 2 ^ (3 * R + 1) :=
-    pow_le_pow_right₀ (by norm_num) hs2
+    nlinarith [Nat.sqrt_le R, Nat.sqrt_le_self R]
+  have hnum1 : (2 : ℝ) ^ (s * s) ≤ 2 ^ (3 * R + 1) := pow_le_pow_right₀ one_le_two hs2
   have hnum2 : (Vcard : ℝ) ≤ 2 ^ R := by exact_mod_cast hVcard
   have hden : (2 : ℝ) ^ (4 * R + 6) ≤ 2 ^ d := pow_le_pow_right₀ one_le_two (by omega)
   calc (2 : ℝ) ^ (s * s) * ((Vcard : ℝ) * (2 / 2 ^ d))
@@ -256,8 +252,7 @@ private theorem saksZhou_badSeed_density_le (R d m s Vcard : ℕ) (hR : 1 ≤ R)
     linarith [pow_le_pow_right₀ (one_le_two : (1 : ℝ) ≤ 2)
       (hs ▸ Nat.add_le_add_right (Nat.sqrt_le_self R) 1)]
   constructor
-  · have hm_ge : 19 * R + 23 ≤ m := by omega
-    have h2m : (2 : ℝ) ^ (19 * R + 23) ≤ 2 ^ m := pow_le_pow_right₀ (by norm_num) hm_ge
+  · have h2m : (2 : ℝ) ^ (19 * R + 23) ≤ 2 ^ m := pow_le_pow_right₀ one_le_two (by omega)
     have hdiv : (2 : ℝ) ^ (19 * R + 23) =
         (2 ^ (R + 1) * (2 ^ (R + 1) * 2 ^ (R + 1))) * (2 ^ (8 * R + 10)) ^ 2 := by ring
     calc (Vcard + 1 : ℝ) * ((2 ^ s - 1) * (Vcard + 1) / 2 ^ m)
@@ -290,7 +285,6 @@ private theorem saksZhou_badSeed_density_le (R d m s Vcard : ℕ) (hR : 1 ≤ R)
         _ ≤ 1 / 24 := by norm_num
     have hexpand : (s : ℝ) * (ε + (Vcard : ℝ) ^ 2 * (2 ^ d * ε + (2 ^ d)⁻¹)) =
         s * ε + s * ((Vcard : ℝ) ^ 2 * (2 ^ d * ε)) + s * ((Vcard : ℝ) ^ 2 * (2 ^ d)⁻¹) := by ring
-    rw [hexpand]
     linarith
 
 /-- **Saks–Zhou `O(log^{3/2} n)`-seed reduction for `BPL`**: a step of Saks and Zhou's proof of
@@ -364,14 +358,9 @@ theorem exists_saksZhouSeeds_of_mem_BPL (h : A ∈ BPL enc) :
     obtain ⟨herr_nisan, herr_bad⟩ :=
       saksZhou_badSeed_density_le R d m s V.card hR1 rfl rfl rfl hVcard
     have hfar := M.dens_saksZhouAcceptEst_far_le hV hinit hs1 hm1 hdm (by positivity) herr_nisan
-    have hsub : bad ⊆
-        (Finset.univ.filter fun p : Probability.SaksZhou.NisanShiftSeed (2 * m) s s d =>
-          (2 : ℝ) ^ (s * s) * (V.card * (2 / 2 ^ d)) < |M.saksZhouAcceptEst V hinit m s d p -
-            (M.acceptCoins (enc a) (2 ^ (s * s)) : ℝ) / 2 ^ (2 ^ (s * s))|) := by
-      intro p hp
-      simp only [bad, Finset.mem_filter, Finset.mem_univ, true_and] at hp ⊢
-      exact lt_of_le_of_lt herr_step hp
-    exact (NNRat.cast_le.2 (Finset.dens_le_dens hsub)).trans (hfar.trans herr_bad)
+    refine (NNRat.cast_le.2 (Finset.dens_le_dens fun p hp => ?_)).trans (hfar.trans herr_bad)
+    simp only [bad, Finset.mem_filter, Finset.mem_univ, true_and] at hp ⊢
+    exact herr_step.trans_lt hp
   have hposL : (0 : ℝ) < 2 ^ (2 ^ (s * s)) := by positivity
   refine ⟨V, hinit, hV, hVcard, saksZhou_seed_budget_le clk _, hfar_le, fun ha => ?_, fun ha => ?_⟩
   · have hacc_nat := (M.two_pow_mul_le_iff ht hL 2 3).mp (hmem ha)
@@ -392,8 +381,7 @@ theorem exists_saksZhouSeeds_of_mem_BPL (h : A ∈ BPL enc) :
         M.acceptCoins (enc a) (2 ^ (s * s)) * 3 ≤ 1 * 2 ^ (2 ^ (s * s)))
     have hsub_maj :
         (Finset.univ.filter fun p : Probability.SaksZhou.NisanShiftSeed (2 * m) s s d =>
-          (1 : ℝ) / 2 < M.saksZhouAcceptEst V hinit m s d p) ⊆ bad := by
-      intro p hp
+          (1 : ℝ) / 2 < M.saksZhouAcceptEst V hinit m s d p) ⊆ bad := fun p hp => by
       simp only [bad, Finset.mem_filter, Finset.mem_univ, true_and] at hp ⊢
       exact lt_of_lt_of_le (by linarith [hp, hacc]) (le_abs_self _)
     linarith [(NNRat.cast_le.2 (Finset.dens_le_dens hsub_maj)).trans hfar_le]

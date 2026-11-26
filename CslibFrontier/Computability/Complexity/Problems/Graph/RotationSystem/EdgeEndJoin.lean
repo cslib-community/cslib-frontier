@@ -152,9 +152,8 @@ private theorem lifted_rotationWord_eq {G H : Graph} (s : RotationSystem H)
     | zero => rfl
     | succ n ih =>
       rw [pow_succ', Perm.mul_apply, ih, Function.iterate_succ_apply']
-      apply hstep
-      rw [Perm.iterate_eq_pow]
-      exact (s.sameCycle_iff _ _).mp ((Perm.SameCycle.refl s.rotate root).pow_left (n := n))
+      exact hstep _ (Perm.iterate_eq_pow s.rotate n ▸
+        (s.sameCycle_iff _ _).mp ((Perm.SameCycle.refl s.rotate root).pow_left (n := n)))
   have hi : Function.Injective (fun d => (lift d).index) := fun _ _ h =>
     lift.injective ((Dart.indexEquiv G).injective (Fin.ext h))
   have hrecur (n : ℕ) : s.rotate^[n] root = root ↔ word.length ∣ n := by
@@ -274,9 +273,7 @@ theorem exists_numericalGenusZero_glueMarkerEdges {G : Graph} (r : RotationSyste
     rw [rotate_mergeVertices, permCongr_apply, symm_apply_apply, Perm.mul_apply, hswap,
       rotate_mergeVertices, permCongr_apply, symm_apply_apply]
     rfl
-  have hb' : (f b).vertex ≠ (f b.reverse).vertex := by
-    rwa [← (hfront : (f a).vertex = (f b).vertex),
-      ← (hback : (f a.reverse).vertex = (f b.reverse).vertex)]
+  have hb' : (f b).vertex ≠ (f b.reverse).vertex := hfront ▸ hback ▸ hnonloop
   have htag (tag : Bool) : f (b.1, tag) = ((f b).1, tag) := by cases tag <;> rfl
   have hnb : Dart.vertex (G := mergeGraph a' b') ((f b).1, false) ≠
       Dart.vertex ((f b).1, true) := by
@@ -303,13 +300,10 @@ theorem exists_numericalGenusZero_glueMarkerEdges {G : Graph} (r : RotationSyste
   let castIndex := finCongr hSize.symm
   let removed := castIndex b.1
   have hskipIndex (d : Dart H) : castIndex (lift d).1 = removed.succAbove d.1 := by
-    apply Fin.ext
-    change (lift d).1.val = (removed.succAbove d.1).val
-    rw [(coords d).2.2]
-    split_ifs with hd
-    · exact (Fin.succAbove_of_castSucc_lt _ _ (show d.1.castSucc < removed from hd)).symm ▸ rfl
-    · exact (Fin.succAbove_of_le_castSucc _ _
-        (show removed ≤ d.1.castSucc from Nat.le_of_not_gt hd)).symm ▸ rfl
+    ext
+    simp only [castIndex, finCongr_apply, Fin.val_cast, (coords d).2.2, Fin.succAbove,
+      Fin.lt_def, Fin.val_castSucc, removed]
+    split_ifs <;> rfl
   have hrange (d : Dart G) : d ∈ Set.range lift ↔ d.1 ≠ b.1 := by
     have hsurvivor : castIndex d.1 ∈ Set.range removed.succAbove ↔ d.1 ≠ b.1 := by
       simp [Fin.range_succAbove, removed]
@@ -319,21 +313,15 @@ theorem exists_numericalGenusZero_glueMarkerEdges {G : Graph} (r : RotationSyste
         (coords (j, d.2)).2.1⟩⟩
   have hstep (x y : Dart H) : s.rotate x = y ↔ splice (lift x) = lift y ∨
       ∃ tag, splice (lift x) = (b.1, tag) ∧ splice (b.1, tag) = lift y := by
-    have heq (d c : Dart G) : t.rotate (f d) = f c ↔ splice d = c := by
-      rw [hrotate, f.injective.eq_iff]
-    simpa only [← hLift, ← htag, heq] using hstep x y
+    simpa only [← hLift, ← htag, hrotate, f.injective.eq_iff] using hstep x y
   -- Each swap acts only at one of the two pairs of endpoint fibers.
   have differentEnds {x y : Dart G} (hx : SameComponent G a.vertex x.vertex)
       (hy : SameComponent G b.vertex y.vertex) : x.vertex ≠ y.vertex :=
     fun he => hsep (hx.trans (he.symm ▸ hy.symm))
-  have ca := SameComponent.refl (vertex_mem hG a)
-  have cb := SameComponent.refl (vertex_mem hG b)
-  have car := sameComponent_reverse hG a
-  have cbr := sameComponent_reverse hG b
-  have hab := differentEnds ca cb
-  have hab' := differentEnds ca cbr
-  have ha'b := differentEnds car cb
-  have ha'b' := differentEnds car cbr
+  have hab := differentEnds (.refl (vertex_mem hG a)) (.refl (vertex_mem hG b))
+  have hab' := differentEnds (.refl (vertex_mem hG a)) (sameComponent_reverse hG b)
+  have ha'b := differentEnds (sameComponent_reverse hG a) (.refl (vertex_mem hG b))
+  have ha'b' := differentEnds (sameComponent_reverse hG a) (sameComponent_reverse hG b)
   let front (d : Dart G) := d.vertex = a.vertex ∨ d.vertex = b.vertex
   let back (d : Dart G) := d.vertex = a.reverse.vertex ∨ d.vertex = b.reverse.vertex
   have disjoint (d : Dart G) (hf : front d) (hb' : back d) : False := by

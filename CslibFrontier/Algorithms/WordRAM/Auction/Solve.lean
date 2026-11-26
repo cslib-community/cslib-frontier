@@ -177,12 +177,8 @@ private theorem solveAuctionProg_spec {w maxMag : ℕ} (a : SolveArgs)
   have hfit_core : Fits w (4 * ws₀.scale * ws₀.M + 2 * ws₀.eps) :=
     hfit_p.of_le (by dsimp only [ws₀]; gcongr)
   obtain ⟨hsafe_fill, hv_fill, hmc_fill, hfr_fill, _, hC_filled⟩ :=
-    fillC_spec ws₀ s₁ hsc
-      (by dsimp only [ws₀, base]; rw [hs₀_fr])
-      (by dsimp only [ws₀, s₁]; omega)
-      hcost_mem hM_ge hfit2
-      (hfit_ws.of_le (by dsimp only [ws₀]; omega))
-      hfit_val
+    fillC_spec ws₀ s₁ hsc hs₀_fr.symm.le (by dsimp only [ws₀, s₁]; omega)
+      hcost_mem hM_ge hfit2 (hfit_ws.of_le (by dsimp only [ws₀]; omega)) hfit_val
   let s₃ := (Memory.spec 0).clientState s₁ (fillCProg ws₀)
   have hws₃ : ValidWS ws₀ s₃ := hws₁.of_frontier_eq hfr_fill
   let C_work : Fin a.n × Fin a.n → ℕ := fun p => a.scale * (cost p + (M : ℤ)).toNat
@@ -200,10 +196,8 @@ private theorem solveAuctionProg_spec {w maxMag : ℕ} (a : SolveArgs)
     dsimp only [C_work]
     rw [Nat.cast_mul, Int.toNat_of_nonneg (by omega), mul_add]
   have hs_eq : auction (fun e => (C_work e : ℤ)) (a.eps : ℤ) =
-      auction (fun e => (a.scale : ℤ) * cost e) (a.eps : ℤ) := by
-    rw [hC_cast]
-    exact auction_add_const (fun e => (a.scale : ℤ) * cost e)
-      ((a.scale : ℤ) * (M : ℤ)) (Nat.cast_pos.mpr hε)
+      auction (fun e => (a.scale : ℤ) * cost e) (a.eps : ℤ) :=
+    hC_cast ▸ auction_add_const _ _ (Nat.cast_pos.mpr hε)
   obtain ⟨hsafe_scat, hv_scat, hmc_scat, hfr_scat, _, hC_scat, hout_scat⟩ :=
     scatterProg_spec ws₀ (auctionInv_auction (Nat.cast_pos.mpr hε))
       (auction_free (Nat.cast_pos.mpr hε)) s₄ hws₄ ham_core hf1 hfit_ws
@@ -306,11 +300,9 @@ theorem epsMainProg_spec {w C : ℕ} (inst : EpsInstance) (hε : 0 < inst.eps)
   · rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
     have := Nat.mul_le_mul_right (4 * inst.n + 6) hbids_le
     omega
-  · rw [clientState_bind, clientState_pure, clientResult_bind, clientResult_pure]
-    exact hout_s
+  · rwa [clientState_bind, clientState_pure, clientResult_bind, clientResult_pure]
   · rw [clientResult_bind, clientResult_pure, inst.length_assignment]
-    rw [hws_n] at hfit_ws
-    exact hfit_ws.of_le (Nat.le_succ _)
+    exact (hws_n ▸ hfit_ws).of_le (Nat.le_succ _)
 
 /-- Exact `(n + 1)`-scaled auction solver returning the workspace descriptor `AuctionWS`. -/
 def scaledSolveProg (n : ℕ) : Memory.Prog AuctionWS :=
