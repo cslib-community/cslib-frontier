@@ -45,15 +45,14 @@ at least `1 - (1 - k / N) ^ rounds`.
   law of the copy chain is the same against every oracle (`evalWith_run_copyChain`), so the copy
   chain also satisfies the strict inequality for every `K > 0` against every oracle at positive
   distance.
-* The protocol is the interpreter `Debate.run`: claims and coins lie on a grid, and the bit of
-  each round is computed by the interpreter, as in the authors' formalization, which the source
-  says uses external randomness in place of the two shares (`dedebate.tex`, line 294). The
-  verifier's rule after an abort is that of
-  Figure 1, and so is the order of events, with the abort after the bit is set. The grid does
-  not weaken the refutation: it only restricts the proposer's claims to grid points, and with a
-  uniform coin from the proposer's own side the bit has exactly the claimed probability, as
-  with real numbers, so against every challenger the attack carries over to the real-valued
-  protocol of Figure 1.
+* The protocol is the interpreter `Debate.run`: claims and coins lie on a grid, and the bit of each
+  round is computed by the interpreter, as in the authors' formalization, which the source says uses
+  external randomness in place of the two shares (`dedebate.tex`, line 294). The verifier's rule
+  after an abort is that of Figure 1, and so is the order of events, with the abort after the bit is
+  set. The grid does not weaken the refutation: it only restricts the proposer's claims to grid
+  points, and with a uniform coin from the proposer's own side the bit has exactly the claimed
+  probability, as with real numbers, so against every challenger the attack carries over to the
+  real-valued protocol of Figure 1.
 * `Params.figure1` takes the constants of Figure 1 and of the proof of Theorem 6.2, with
   ceilings for the sample counts and the natural logarithm.
 
@@ -69,7 +68,8 @@ at least `1 - (1 - k / N) ^ rounds`.
   `Cslib.Interactive.Debate.evalWith_run_copyChain`: the copy chain satisfies Definition 6.1 with
   every constant and outputs `false`.
 * `Cslib.Interactive.Debate.le_evalWith_run_copyChainProposer`: the acceptance bound against
-  every challenger, for all parameters.
+  every challenger, for any parameters with at least one verifier sample and any claim `k / N`
+  that is positive and below the verifier's tolerance.
 * `Cslib.Interactive.Debate.not_sound_default_of_lipschitzAt_run`: the soundness step of
   `Debate.lean` fails when its hypothesis is replaced by Definition 6.1.
 * `Cslib.Interactive.Debate.not_sound_figure1_of_lipschitzAt_run`: the protocol of Figure 1 with
@@ -277,10 +277,10 @@ private theorem le_evalWith_runFrom_copyChainProposer {law : List Bool → PMF B
       rw [map_coinBit_uniformOfFintype_right_false, htrue]
       exact one_sub_pow_succ_le (htrue ▸ PMF.coe_le_one _ true) n
 
-/-- **The attack on a deterministic step.** For any parameters and any claim `k / N` that is
-positive and below the verifier's tolerance, `copyChainProposer` makes the verifier accept on the
-copy chain with probability at least `1 - (1 - k / N) ^ rounds`, against every challenger, although
-the copy chain outputs `false` with probability `1`.
+/-- **The attack on a deterministic step.** For any parameters with at least one verifier sample
+and any claim `k / N` that is positive and below the verifier's tolerance, `copyChainProposer`
+makes the verifier accept on the copy chain with probability at least `1 - (1 - k / N) ^ rounds`,
+against every challenger, although the copy chain outputs `false` with probability `1`.
 
 The challenger is an arbitrary program with private state. An abort does not help it: the
 verifier's samples of a deterministic step are exact, so it accepts the claim. -/

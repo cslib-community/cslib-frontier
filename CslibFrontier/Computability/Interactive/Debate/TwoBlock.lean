@@ -71,12 +71,11 @@ example is one with constant-length queries.
   does not satisfy the strict inequality with `K = 1`.
   `not_sound_figure1_of_lipschitzAt_run_twoBlockMachine`, with the constants for `K = 1`, is
   under the non-strict reading of Definition 6.1, which is `ProbOracleComp.LipschitzAt`.
-* The protocol is the interpreter `Debate.run`: claims and coins lie on a grid, and the bit of
-  each round is computed by the interpreter from the claim and the two coins, as in the authors'
+* The protocol is the interpreter `Debate.run`: claims and coins lie on a grid, and the bit of each
+  round is computed by the interpreter from the claim and the two coins, as in the authors'
   formalization, which the source says uses external randomness in place of the two shares
-  (`dedebate.tex`, line 294). The order of
-  events is that of Figure 1, where the challenger may abort (step 2(e), line 259) after the
-  bit of the round is set (step 2(d), line 258).
+  (`dedebate.tex`, line 294). The order of events is that of Figure 1, where the challenger may
+  abort (step 2(e), line 259) after the bit of the round is set (step 2(d), line 258).
 * The checked conclusions are about `Debate.run`. In Figure 1 the proposer can announce the
   same grid probabilities, supply a uniform share of the coin, and set the bit as prescribed;
   the probabilities and the argument for an abort are then the same.
@@ -94,7 +93,8 @@ example is one with constant-length queries.
   `Cslib.Interactive.Debate.lipschitzAt_run_twoBlockMachine`: the machine accepts with
   probability `c` and satisfies Definition 6.1 with constant `1`, non-strictly.
 * `Cslib.Interactive.Debate.le_evalWith_run_twoBlockProposer`: the acceptance bound against
-  every challenger, for all parameters.
+  every challenger, for general parameters, with the verifier's rejection probability in the last
+  round as a hypothesis.
 * `Cslib.Interactive.Debate.not_sound_figure1_two_of_lipschitzAt_run_twoBlockMachine`: with the
   constants of Figure 1 for `K = 2`, the protocol is not sound for this machine. This covers the
   printed, strict Definition 6.1.
@@ -287,11 +287,10 @@ theorem evalWith_run_twoBlockMachine (m : ℕ) (start : PMF Bool) (c : ℝ) (hc0
       ((twoBlockMachine m).run (2 * m + 3)) true = ENNReal.ofReal c := by
   rw [evalWith_run_twoBlockMachine_eq_bind, bind_pair_apply_true]
 
-/-- **The two-block machine satisfies Definition 6.1 with constant `1`, non-strictly**, for
-every `m`, every start law and every `c`. Under any one oracle the two blocks are independent
-with the same law,
-so the original pair lookup has expected answer `c`, and the lookup itself moves by at most the
-perturbation. -/
+/-- **The two-block machine satisfies Definition 6.1 with constant `1`, non-strictly**, for every
+`m`, every start law and every `c`. Under any one oracle the two blocks are independent with the
+same law, so the original pair lookup has expected answer `c`, and the lookup itself moves by at
+most the perturbation. -/
 theorem lipschitzAt_run_twoBlockMachine (m : ℕ) (start : PMF Bool) (c : ℝ) (hc0 : 0 ≤ c)
     (hc1 : 2 * c ≤ 1) :
     LipschitzAt 1 (twoBlockOracle start c hc0 hc1) ((twoBlockMachine m).run (2 * m + 3)) := by
@@ -601,13 +600,14 @@ private theorem twoBlockBound_le_evalWith_runFrom {law : List Bool → PMF Bool}
         · exact zero_le
 
 /-- **The attack on a machine with oracle queries of length at most two.** Let the oracle answer
-`false` at the empty address, and let the protocol have `2 m + 3` rounds. For any claim `k / N`
-that is positive and below the verifier's tolerance, and any last claims `κ₁ = 2 κ₀`,
-`twoBlockProposer` makes the verifier accept on the two-block machine with probability at least
-`(1 - v) (a + a (1 - (1 - k / N) ^ m))` against every challenger, where `a = κ₀ / N` and `v`
-bounds the probability that the verifier rejects the last claim after an abort. The machine
-itself accepts with probability `c`, and the bound is close to `c + c (1 - (1 - k / N) ^ m)`
-when `a` is close to `c` and `v` is small.
+`false` at the empty address, let its parameter satisfy `0 ≤ c` and `2 c ≤ 1`, and let the protocol
+have `2 m + 3` rounds and at least one verifier sample. For any claim `k / N` that is positive and
+below the verifier's tolerance, and any last claims `κ₁ = 2 κ₀`, `twoBlockProposer` makes the
+verifier accept on the two-block machine with probability at least
+`(1 - v) (a + a (1 - (1 - k / N) ^ m))` against every challenger, where `a = κ₀ / N` and `v` bounds
+the probability that the verifier rejects the last claim after an abort. The machine itself accepts
+with probability `c`, and the bound is close to `c + c (1 - (1 - k / N) ^ m)` when `a` is close to
+`c` and `v` is small.
 
 The challenger is an arbitrary program with private state. As in Figure 1, it decides whether
 to abort after the bit of the round is set. Before the last round an abort does not help it:
@@ -852,8 +852,7 @@ printed definition. The checked conclusion is about `Debate.run`, with `2 m + 3`
 for each step of the machine: claims and coins lie on a grid and the interpreter computes the
 bit of each round. In Figure 1 the proposer can announce the same grid probabilities, supply a
 uniform share and set the bit as prescribed, with the same probabilities and the same argument
-for an abort. The sample counts are rounded up and the logarithm is natural
-(`Params.figure1`). -/
+for an abort. The sample counts are rounded up and the logarithm is natural (`Params.figure1`). -/
 theorem not_sound_figure1_of_lipschitzAt_run_twoBlockMachine (m : ℕ) (hm : 601 ≤ m) :
     LipschitzAt 1 (twoBlockOracle (PMF.pure false) (1 / 4) (by norm_num) (by norm_num))
         ((twoBlockMachine m).run (2 * m + 3)) ∧
