@@ -86,9 +86,8 @@ private theorem lintegral_eq_lintegral_ennreal_lt {α : Type*} [MeasurableSpace 
       (measurableSet_lt measurable_const measurable_id).inter
         (measurableSet_lt ENNReal.measurable_ofReal measurable_const)
     have hslice : (fun t : ℝ => S.indicator (fun _ => (1 : ℝ≥0∞)) (x, t)) =
-        Tx.indicator (1 : ℝ → ℝ≥0∞) := by
-      ext t
-      simp [S, Tx, Set.indicator_apply]
+        Tx.indicator (1 : ℝ → ℝ≥0∞) :=
+      funext fun t => by simp [S, Tx, Set.indicator_apply]
     rw [hslice, lintegral_indicator hTxm]
     simp only [Pi.one_apply, lintegral_const, MeasurableSet.univ, Measure.restrict_apply,
       Set.univ_inter, one_mul]
@@ -412,11 +411,9 @@ theorem stochasticallyDominates_nat_iff_Ioi {μ ν : Measure ℕ}
     [IsProbabilityMeasure μ] [IsProbabilityMeasure ν] :
     StochasticallyDominates μ ν ↔ ∀ n : ℕ, ν (Set.Ioi n) ≤ μ (Set.Ioi n) := by
   rw [stochasticallyDominates_nat_iff_Ici]
-  have hIoi (n : ℕ) : Set.Ioi n = Set.Ici (n + 1) := by ext; simp
-  refine ⟨fun h n => hIoi n ▸ h (n + 1), fun h n => ?_⟩
-  rcases n with - | n
-  · simp [show Set.Ici (0 : ℕ) = Set.univ by ext; simp]
-  · exact hIoi n ▸ h n
+  have hIoi (n : ℕ) : Set.Ioi n = Set.Ici (n + 1) := Set.ext fun _ => Iff.rfl
+  exact ⟨fun h n => hIoi n ▸ h (n + 1),
+    fun h => Nat.rec (by simp [Set.Ici]) fun n _ => hIoi n ▸ h n⟩
 
 /-- Stochastic domination of probability measures on `ℕ` is equivalent to lower-tail comparison on
 `Set.Iic n`. -/
@@ -557,15 +554,12 @@ private theorem integrable_toMeasure_of_summable {α : Type*} [MeasurableSpace �
   refine ⟨hf_meas.aestronglyMeasurable, ?_⟩
   rw [hasFiniteIntegral_iff_norm, PMF.lintegral_toMeasure p
     (f := fun a => ENNReal.ofReal ‖f a‖) (ENNReal.measurable_ofReal.comp hf_meas.norm)]
-  have heq : (fun x => p x * ENNReal.ofReal ‖f x‖) =
-      fun x => (Real.toNNReal ((p x).toReal * |f x|) : ℝ≥0∞) := by
-    ext x
+  have heq (x : α) : p x * ENNReal.ofReal ‖f x‖ =
+      (Real.toNNReal ((p x).toReal * |f x|) : ℝ≥0∞) := by
     conv_lhs => rw [Real.norm_eq_abs, ← ENNReal.ofReal_toReal (PMF.apply_ne_top p x),
       ← ENNReal.ofReal_mul ENNReal.toReal_nonneg]
     rfl
-  change (∑' x, p x * ENNReal.ofReal ‖f x‖) < ⊤
-  rw [heq, ← ENNReal.coe_tsum (Summable.toNNReal hf)]
-  exact ENNReal.coe_lt_top
+  simpa only [heq, ← ENNReal.coe_tsum (Summable.toNNReal hf)] using ENNReal.coe_lt_top
 
 namespace StochasticallyDominates
 

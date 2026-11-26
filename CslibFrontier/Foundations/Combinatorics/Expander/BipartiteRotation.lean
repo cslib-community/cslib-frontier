@@ -151,9 +151,8 @@ theorem card_left_eq_card_right (B : BipartiteRotationMap L R D)
     [Fintype L] [Fintype R] [Finite D] [Nonempty D] :
     Fintype.card L = Fintype.card R := by
   let := Fintype.ofFinite D
-  have h := Fintype.card_congr B.toRight
-  rw [Fintype.card_prod, Fintype.card_prod] at h
-  exact Nat.eq_of_mul_eq_mul_right Fintype.card_pos h
+  exact Nat.eq_of_mul_eq_mul_right Fintype.card_pos
+    (by simpa only [Fintype.card_prod] using Fintype.card_congr B.toRight)
 
 section Walk
 
@@ -247,10 +246,8 @@ theorem expect_walkRight_eq_zero {f : L → ℝ} (hf : 𝔼 u : L, f u = 0) :
 omit [Fintype L] in
 /-- For a centered function `g - 𝔼 g`, `B.walkLeft` commutes with subtracting the mean. -/
 theorem walkLeft_sub_expect [Nonempty D] (g : R → ℝ) :
-    B.walkLeft (fun v => g v - 𝔼 w, g w) = fun u => B.walkLeft g u - 𝔼 w, g w := by
-  rw [show (fun v => g v - 𝔼 w, g w) = g - fun _ => 𝔼 w, g w from rfl,
-    map_sub, B.walkLeft_const]
-  rfl
+    B.walkLeft (fun v => g v - 𝔼 w, g w) = fun u => B.walkLeft g u - 𝔼 w, g w :=
+  (B.walkLeft.map_sub g (fun _ => 𝔼 w, g w)).trans (by rw [B.walkLeft_const]; rfl)
 
 end Walk
 
@@ -485,9 +482,7 @@ private theorem expect_boole_mem_walkLeft [Fintype L] [Fintype D]
   rw [← expect_product', univ_product_univ, Fintype.expect_eq_sum_div_card, Fintype.card_prod,
     Nat.cast_mul]
   simp only [ite_zero_mul_ite_zero, mul_one, sum_boole]
-  congr 3
-  ext p
-  simp
+  exact congrArg (fun n : ℕ => (n : ℝ) / _) (congrArg Finset.card (Finset.ext fun _ => by simp))
 
 /-- **Bipartite expander mixing lemma**, sharper form: for `B : BipartiteRotationMap L R D` with
 `d = |D| > 0` and `N = |L| = |R|`, the number of edges from `U ⊆ L` to `W ⊆ R` differs from
@@ -574,10 +569,9 @@ theorem card_interedges_le_of_nontrivialSingularValue_le [Fintype L] [Fintype R]
     [Nonempty D] {lam : ℝ} (hlam : B.nontrivialSingularValue ≤ lam) (U : Finset L) (W : Finset R) :
     (#(B.interedges U W) : ℝ) ≤
       Fintype.card D * #U * #W / Fintype.card L + lam * Fintype.card D * √((#U : ℝ) * #W) := by
-  have h1 := (le_abs_self _).trans (B.abs_card_interedges_sub_le_mul_sqrt U W)
   have h2 := mul_le_mul_of_nonneg_right hlam
-    (by positivity : 0 ≤ (Fintype.card D : ℝ) * √((#U : ℝ) * #W))
-  linarith
+    (mul_nonneg (Nat.cast_nonneg (Fintype.card D)) (Real.sqrt_nonneg ((#U : ℝ) * #W)))
+  linarith [(le_abs_self _).trans (B.abs_card_interedges_sub_le_mul_sqrt U W)]
 
 end Mixing
 

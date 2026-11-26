@@ -247,9 +247,7 @@ theorem one_le_renyiMoment {α : ℝ} (hα : 1 < α) (p q : PMF X) :
   have hmom : renyiMoment α p p = 1 := by
     rw [renyiMoment, ← p.tsum_coe]
     refine tsum_congr fun x => ?_
-    rcases eq_or_ne (p x) 0 with hx0 | hx0
-    · simp [hx0]
-    · rw [ENNReal.div_self hx0 (p.apply_ne_top x), ENNReal.one_rpow, mul_one]
+    by_cases hx0 : p x = 0 <;> simp [hx0, ENNReal.div_self, p.apply_ne_top x]
   simp [renyiDiv, hmom]
 
 /-- Finite-bound characterization of Rényi divergence: for `1 < α` and `0 ≤ ε`,
@@ -286,10 +284,8 @@ theorem renyiMoment_bind_le {α : ℝ} (hα : 1 ≤ α) (p q : PMF X) (K : X →
   have hstep (y : Y) :
       (p.bind K) y * ((p.bind K) y / (q.bind K) y) ^ (α - 1) ≤
         ∑' x, p x * (p x / q x) ^ (α - 1) * K x y := by
-    have hp_ne : ∑' x, p x * K x y ≠ ⊤ := by
-      simpa only [_root_.PMF.bind_apply] using (p.bind K).apply_ne_top y
-    have hq_ne : ∑' x, q x * K x y ≠ ⊤ := by
-      simpa only [_root_.PMF.bind_apply] using (q.bind K).apply_ne_top y
+    have hp_ne : ∑' x, p x * K x y ≠ ⊤ := _root_.PMF.bind_apply p K y ▸ (p.bind K).apply_ne_top y
+    have hq_ne : ∑' x, q x * K x y ≠ ⊤ := _root_.PMF.bind_apply q K y ▸ (q.bind K).apply_ne_top y
     calc (p.bind K) y * ((p.bind K) y / (q.bind K) y) ^ (α - 1)
         = (∑' x, p x * K x y) * ((∑' x, p x * K x y) / (∑' x, q x * K x y)) ^ (α - 1) := by
           simp only [_root_.PMF.bind_apply]
@@ -301,10 +297,8 @@ theorem renyiMoment_bind_le {α : ℝ} (hα : 1 ≤ α) (p q : PMF X) (K : X →
   calc renyiMoment α (p.bind K) (q.bind K)
       ≤ ∑' y, ∑' x, p x * (p x / q x) ^ (α - 1) * K x y := tsum_le_tsum hstep
     _ = ∑' x, ∑' y, p x * (p x / q x) ^ (α - 1) * K x y := tsum_comm
-    _ = renyiMoment α p q := by
-        rw [renyiMoment]
-        refine tsum_congr fun x => ?_
-        rw [ENNReal.tsum_mul_left, (K x).tsum_coe, mul_one]
+    _ = renyiMoment α p q :=
+        tsum_congr fun x => by rw [ENNReal.tsum_mul_left, (K x).tsum_coe, mul_one]
 
 /-- **Data-processing inequality** for Rényi divergence [Mironov2017, Section III]: for `1 < α`,
 applying a Markov kernel `K : X → PMF Y` cannot increase `renyiDiv α`. -/
@@ -393,11 +387,8 @@ theorem hockeyStick_le_of_renyiDiv_le {α ε δ : ℝ} (hα : 1 < α) (hε : 0 �
           ENNReal.ofReal (Real.exp ((α - 1) * ε)) := mul_le_mul_right hmom _
     _ = ENNReal.ofReal δ := by
         rw [← ENNReal.ofReal_mul (Real.exp_pos _).le, ← Real.exp_add]
-        have hexp : -((α - 1) * (ε + Real.log (1 / δ) / (α - 1))) + (α - 1) * ε =
-            Real.log δ := by
-          rw [one_div, Real.log_inv]
-          field_simp [ht.ne']
-          ring
+        have hexp : -((α - 1) * (ε + Real.log (1 / δ) / (α - 1))) + (α - 1) * ε = Real.log δ := by
+          rw [one_div, Real.log_inv, mul_add, mul_div_cancel₀ _ ht.ne']; ring
         rw [hexp, Real.exp_log hδ]
 
 end PMF

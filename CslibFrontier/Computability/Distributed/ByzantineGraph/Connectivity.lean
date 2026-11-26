@@ -403,10 +403,8 @@ private theorem purifiedOM_omTree_epoch_offset (v : ℕ) (i : P) :
   | 0, _ => rfl
   | s + 1, hs => by
     have hs' : s < epochLen P := by omega
-    have hstep : (v * epochLen P + s) % epochLen P + 1 ≠ epochLen P := by
-      rw [epoch_add_mod hs']
-      omega
-    rw [← Nat.add_assoc, purifiedOM_state_succ_omTree, ite_eq_right hstep]
+    rw [← Nat.add_assoc, purifiedOM_state_succ_omTree,
+      ite_eq_right (by rw [epoch_add_mod hs']; omega)]
     exact purifiedOM_omTree_epoch_offset v i hs'
 
 private def curBuf (v s : ℕ) (i : P) : List P → List P → Bool :=
@@ -501,14 +499,12 @@ private theorem purifiedOM_omTree_epoch_succ (hF : F.card ≤ t) (v : ℕ) {i u 
   have hL := epochLen_pos P
   have hpred_lt : epochLen P - 1 < epochLen P := by omega
   have hr_eq : (v + 1) * epochLen P = (v * epochLen P + (epochLen P - 1)) + 1 := by
-    rw [Nat.add_mul, one_mul]
-    omega
+    rw [Nat.add_mul, one_mul]; omega
   have hmod := epoch_add_mod (v := v) hpred_lt
   have hdiv := epoch_add_div (v := v) hpred_lt
   have hbuf : curBuf routes F adv x v (epochLen P) i =
       ((purifiedOM t routes).state F adv x ((v + 1) * epochLen P) i).buf := by
-    unfold curBuf
-    rw [ite_eq_right (by omega), Nat.add_mul, one_mul]
+    rw [curBuf, ite_eq_right (by omega), Nat.add_mul, one_mul]
   conv_lhs => rw [hr_eq]
   rw [purifiedOM_state_succ_omTree, hmod, hdiv, ite_eq_left (by omega)]
   dsimp only
@@ -533,13 +529,10 @@ private theorem purifiedOM_omTree_epoch_succ (hF : F.card ≤ t) (v : ℕ) {i u 
       rcases routes.internallyDisjoint i u (Ne.symm hu_eq) hne _ h₁.1
           (heq ▸ (hpick m₂ hm₂).1) with h_end | h_end
       exacts [hi (h_end ▸ h₁.2), hu (h_end ▸ h₁.2)]
-    refine strictMajorityOn_eq_of_forall_notMem (F := bad) (fun m _ hm => ?_) ?_
-    · have hsupp : ∀ z ∈ (W m).support, z ∉ F := by
-        intro z hz hzF
-        exact hm (Finset.mem_filter.mpr ⟨Finset.mem_univ m, z, hz, hzF⟩)
-      rw [curBuf_epochLen_walk routes F adv x v (routes.isPath i u (Ne.symm hu_eq) m) hsupp]
-    · rw [Finset.card_univ, Fintype.card_fin]
-      omega
+    refine strictMajorityOn_eq_of_forall_notMem (F := bad) (fun m _ hm => ?_)
+      (by rw [Finset.card_univ, Fintype.card_fin]; omega)
+    exact congrFun (curBuf_epochLen_walk routes F adv x v (routes.isPath i u (Ne.symm hu_eq) m)
+      fun z hz hzF => hm (Finset.mem_filter.mpr ⟨Finset.mem_univ m, z, hz, hzF⟩)) τ
 
 private theorem purifiedOM_omTree_freeze (i : P) (σ : List P) :
     ∀ d, ((purifiedOM t routes).state F adv x (σ.length * epochLen P + d) i).omTree σ =

@@ -312,9 +312,8 @@ private theorem searchStep_iterate_of_none {enc : α ↪ List Bool} {V : α × L
     simp [searchStep, h n (Nat.lt_succ_self n)]
 
 private theorem computableInPolyTime_searchInit (enc : α ↪ List Bool) :
-    ComputableInPolyTime (searchInit (α := α)) enc (encSearchState enc) := by
-  unfold searchInit
-  exact (optionSome _).comp ((sumInl _ _).comp (id'.prod (const 0)))
+    ComputableInPolyTime (searchInit (α := α)) enc (encSearchState enc) :=
+  (optionSome _).comp ((sumInl _ _).comp (id'.prod (const 0)))
 
 private theorem computableInPolyTime_searchStep {enc : α ↪ List Bool}
     {V : α × List Bool → Bool}
@@ -331,9 +330,8 @@ private theorem computableInPolyTime_searchStep {enc : α ↪ List Bool}
     ((sumElim hleft (const none)).comp (snd (encSearchState enc) _))
 
 private theorem computableInPolyTime_searchFin (enc : α ↪ List Bool) :
-    ComputableInPolyTime (searchFin (α := α)) (encSearchState enc) encBits := by
-  exact id'.optionElimWithInput (const [])
-    ((sumElim (const []) id').comp (snd (encSearchState enc) _))
+    ComputableInPolyTime (searchFin (α := α)) (encSearchState enc) encBits :=
+  id'.optionElimWithInput (const []) ((sumElim (const []) id').comp (snd (encSearchState enc) _))
 
 /-- **Native universal search machine for any polynomial-time verifier** (after
 [Levin][Levin1973] and [Goldreich, Theorem 2.33][Goldreich2008]; primary PDF locators not
@@ -410,10 +408,8 @@ theorem exists_native_levinSearch {enc : α ↪ List Bool} {V : α × List Bool 
           omega)
       (fun n hn => by
         rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.mp hn) with hlt | rfl
-        · rw [hstate_le (n + 1) hlt]
-          simp [encSearchState]
-        · rw [hstate_found]
-          simp [encSearchState])
+        · simp [hstate_le (n + 1) hlt, encSearchState]
+        · simp [hstate_found, encSearchState])
       (by rw [hstate_stop]; rfl)
     rw [hstate_found] at hrun
     dsimp only [searchFin, Option.elim_some, Sum.elim_inr, id_eq] at hrun
@@ -436,8 +432,7 @@ theorem exists_native_levinSearch {enc : α ↪ List Bool} {V : α × List Bool 
       | none => rfl
       | some w => exact (hna ⟨w, verifier_of_levinStage_eq_some hm⟩).elim
     refine hdiv a fun n => ?_
-    rw [searchStep_iterate_of_none (n + 1) fun m _ => hnone m]
-    simp [encSearchState]
+    simp [searchStep_iterate_of_none (n + 1) fun m _ => hnone m, encSearchState]
   have hhalts : ∀ a, tm.Halts (enc a) ↔ ∃ w, V (a, w) = true := fun a =>
     ⟨fun hh => Classical.byContradiction fun hna => hno a hna hh, fun hex => by
       obtain ⟨K, w, hK⟩ := exists_levinStage_eq_some_iff.mpr hex
@@ -612,11 +607,9 @@ theorem exists_native_levinSearch :
       simp [dec, d_tm, runWord_desc_of_halted eS tm (hbound φ hφ) hp_ge]
     · intro htrue
       obtain ⟨w, hw⟩ := Option.isSome_iff_exists.mp htrue
-      rw [show d_tm = desc eS eBit tm from rfl, runWord_desc] at hw
-      by_cases hh : (tm.runFrom (tm.initCfg (encCNF φ)) (p.eval (encCNF φ).length)).Halted
-      · exact (hhalts_sat φ).mp ⟨_, hh⟩
-      · rw [ite_eq_right hh] at hw
-        cases hw
+      rw [runWord_desc] at hw
+      split_ifs at hw with hh
+      exact (hhalts_sat φ).mp ⟨_, hh⟩
   · intro hSAT
     obtain ⟨g, ⟨t, s, ht, -, k', State', hfin', M, hM⟩, hg⟩ := exists_search hSAT
     obtain ⟨C_M, hoptM⟩ := hopt M

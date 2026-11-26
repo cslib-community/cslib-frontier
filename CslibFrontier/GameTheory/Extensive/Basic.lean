@@ -789,8 +789,7 @@ theorem ExtensiveTree.evalMixed_eq_sum_terminal [Fintype ι] [DecidableEq ι]
   rw [sum_comm]
   refine sum_congr rfl fun s _ => ?_
   rw [ExtensiveTree.evalPure_eq_sum_terminal s T j, mul_sum]
-  refine sum_congr rfl fun z _ => ?_
-  ring
+  exact sum_congr rfl fun _ _ => by ring
 
 /-- The strategic game in cost-minimization form induced by `T`. -/
 def ExtensiveTree.toCostGame (T : ExtensiveTree ι H Act) :
@@ -921,14 +920,10 @@ theorem RealizationEquivFactor.terminalProbMixed_eq [Fintype ι] [DecidableEq ι
           (∏ j ∈ univ.erase i, if MatchesSeq (s j) (z.seq j) then (1 : ℝ) else 0) =
           ∏ j, (if hj : j = i then if s j = hj ▸ s₀ then 1 else 0
             else if MatchesSeq (s j) (z.seq j) then μ j (s j) else 0) := by
-        rw [← mul_prod_erase univ (fun j => g j (s j)) (mem_univ i),
-          ← mul_prod_erase univ (fun j =>
-            if hj : j = i then if s j = hj ▸ s₀ then (1 : ℝ) else 0
-            else if MatchesSeq (s j) (z.seq j) then μ j (s j) else 0) (mem_univ i)]
+        rw [← mul_prod_erase univ _ (mem_univ i), mul_assoc, ← prod_mul_distrib]
+        conv_rhs => rw [← mul_prod_erase univ _ (mem_univ i)]
         simp only [g, ↓reduceDIte]
-        rw [mul_assoc, ← prod_mul_distrib]
-        congr 1
-        refine prod_congr rfl fun j hj => ?_
+        refine congrArg (_ * ·) (prod_congr rfl fun j hj => ?_)
         simp only [ne_of_mem_erase hj, ↓reduceDIte]
         split_ifs <;> simp
       rw [← hlhs]
@@ -1138,19 +1133,16 @@ private theorem exists_node_of_mem_seq [DecidableEq ι] {i : ι} {h : H i} :
       h ∈ (z.seq i).map Sigma.fst → ∃ v : Node T, v.IsDecisionOf i h
   | .leaf _, .leaf => fun hmem => by simp at hmem
   | @ExtensiveTree.chance _ _ _ _ _ _ _ _, .chance c sub => fun hmem =>
-      let ⟨v, hv⟩ := exists_node_of_mem_seq sub hmem
-      ⟨.chance c v, hv⟩
+      (exists_node_of_mem_seq sub hmem).elim fun v hv => ⟨.chance c v, hv⟩
   | .decision j h' _, .decision a sub => fun hmem => by
       by_cases hij : j = i
       · subst hij
         simp only [Terminal.seq_decision_self, List.map_cons, List.mem_cons] at hmem
         rcases hmem with rfl | hmem
         · exact ⟨.here, rfl⟩
-        · obtain ⟨v, hv⟩ := exists_node_of_mem_seq sub hmem
-          exact ⟨.decision a v, hv⟩
+        · exact (exists_node_of_mem_seq sub hmem).elim fun v hv => ⟨.decision a v, hv⟩
       · simp only [Terminal.seq_decision_ne hij] at hmem
-        obtain ⟨v, hv⟩ := exists_node_of_mem_seq sub hmem
-        exact ⟨.decision a v, hv⟩
+        exact (exists_node_of_mem_seq sub hmem).elim fun v hv => ⟨.decision a v, hv⟩
 
 /-- Perfect recall implies that no play visits any information set of player `i` twice. -/
 theorem PerfectRecall.noRepeatedInfoSet [DecidableEq ι] :

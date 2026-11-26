@@ -223,9 +223,8 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
   cases tree with
   | leaf b =>
     obtain rfl : b = some (m, M) := hb
-    have hlt_M : query < M := by
-      by_contra hge
-      simp [Tree.successor, hlt_m, hge] at hans
+    have hlt_M : query < M :=
+      Decidable.byContradiction fun hge => by simp [Tree.successor, hlt_m, hge] at hans
     have hans_eq : ans = M := by
       simpa [Tree.successor, hlt_m, hlt_M] using hans.symm
     apply successor_some_finish hs
@@ -235,9 +234,8 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
     exact ⟨by wram_simp, by constructor <;> wram_simp * [hans_eq]⟩
   | @node d b summary cluster =>
     obtain rfl : b = some (m, M) := hb
-    have hlt_M : query < M := by
-      by_contra hge
-      simp [Tree.successor, hlt_m, Nat.le_of_not_lt hge] at hans
+    have hlt_M : query < M :=
+      not_le.mp fun hge => by simp [Tree.successor, hlt_m, hge] at hans
     have hnot_le : ¬M ≤ query := not_le.mpr hlt_M
     obtain ⟨hi, hlo, hend⟩ := member_descent_safe ht hr (by simpa only [hM] using hlt_M)
     have hu_le : universeSize d ≤ span (d + 1) :=
@@ -273,16 +271,12 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
         simpa only [Tree.successor, hlt_m, hnot_le, hi, ↓reduceDIte, ↓reduceIte,
           i, lo, hc_max, Bool.false_eq_true, bind] using hans
       obtain ⟨j, hsuc, hans'⟩ := Option.bind_eq_some_iff.mp hans'
-      have hj : j < universeSize d := by
-        by_contra h
-        simp [h] at hans'
+      have hj : j < universeSize d := Decidable.byContradiction fun h => by simp [h] at hans'
       simp only [hj, ↓reduceDIte] at hans'
       set k : Fin (universeSize d) := ⟨j, hj⟩
-      cases hck : (cluster k).bounds with
-      | none => simp [Tree.minimum, hck] at hans'
-      | some cbounds =>
-        obtain ⟨cm, cM⟩ := cbounds
-        have hans_eq : j * universeSize d + cm = ans := by simpa [Tree.minimum, hck] using hans'
+      rcases hck : (cluster k).bounds with _ | ⟨cm, cM⟩
+      · simp [Tree.minimum, hck] at hans'
+      · have hans_eq : j * universeSize d + cm = ans := by simpa [Tree.minimum, hck] using hans'
         have hce := (ht.2.2.1 k).extrema_of_bounds hck
         have hcm_lt : cm < universeSize d := hce.1.trans_lt hce.2.1
         have hcm_mem : s.mem (base + 5 + (j + 1) * span d + 1) = cm := by
@@ -302,9 +296,8 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
           mem_frame
         exact hans_eq ▸ successorUnwindBody_summary_spec hs₂ hk_mem hpay_mem hqv_mem htv_mem
           hj hcm_s₁ hcm_lt ha (hfit.of_le (by omega))
-    cases hcb : (cluster i).bounds with
-    | none =>
-      have hch0 : s.mem (base + 5 + (query / universeSize d + 1) * span d) = 0 := by
+    rcases hcb : (cluster i).bounds with _ | ⟨cm, cM⟩
+    · have hch0 : s.mem (base + 5 + (query / universeSize d + 1) * span d) = 0 := by
         rw [hch_eq]
         simpa only [ch, hcb, Option.isSome_none, Bool.false_eq_true, ↓reduceIte] using
           (hr.2.2 i).header.1
@@ -315,9 +308,7 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
       wram_exec* [hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne, hch0]
       exact ⟨by struct_frame hs, ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩,
         by mem_frame⟩
-    | some cbounds =>
-      obtain ⟨cm, cM⟩ := cbounds
-      have hch1 : s.mem ch = 1 := by
+    · have hch1 : s.mem ch = 1 := by
         simpa only [ch, hcb, Option.isSome_some, ↓reduceIte] using (hr.2.2 i).header.1
       have hch_ne0 : s.mem (base + 5 + (query / universeSize d + 1) * span d) ≠ 0 := by
         rw [hch_eq, hch1]; decide
@@ -360,8 +351,7 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
         have hout_fit : Fits w (i.val * universeSize d + y) := by
           have hmul_lt : i.val * universeSize d + y < universeSize (d + 1) := by
             rw [universeSize_succ]
-            have h := Nat.mul_le_mul_right (universeSize d)
-              (show i.val + 1 ≤ universeSize d by exact hi)
+            have h := Nat.mul_le_mul_right (universeSize d) i.2
             rw [Nat.succ_mul] at h
             omega
           have hu1_le := universeSize_le_span (d + 1)

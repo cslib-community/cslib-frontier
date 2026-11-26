@@ -133,19 +133,17 @@ theorem correlation_mul_card_eq_sum [Fintype ι] [Fintype U] [DecidableEq ι] [N
     (S T : Set (ι → U)) [DecidablePred (· ∈ S)] [DecidablePred (· ∈ T)] :
     correlation S T * Fintype.card (ι → U) =
       ∑ x, if (x ∈ S ↔ x ∈ T) then (1 : ℝ) else -1 := by
-  have hN : (0 : ℝ) < Fintype.card (ι → U) := by exact_mod_cast Fintype.card_pos
-  have hsplit := Finset.card_filter_add_card_filter_not (s := Finset.univ)
-    (fun x : ι → U => x ∈ S ↔ x ∈ T)
-  rw [Finset.card_univ] at hsplit
+  have hN : (0 : ℝ) < Fintype.card (ι → U) := mod_cast Fintype.card_pos
+  have hsplit : ((Finset.univ.filter fun x : ι → U => x ∈ S ↔ x ∈ T).card : ℝ) +
+      (Finset.univ.filter fun x : ι → U => ¬(x ∈ S ↔ x ∈ T)).card = Fintype.card (ι → U) :=
+    mod_cast (Finset.card_filter_add_card_filter_not (fun x : ι → U => x ∈ S ↔ x ∈ T)).trans
+      Finset.card_univ
   have hagree : agreement S T * Fintype.card (ι → U) =
       (Finset.univ.filter fun x : ι → U => x ∈ S ↔ x ∈ T).card := by
     rw [agreement, Nat.card_eq_fintype_card, div_mul_cancel₀ _ hN.ne', ncard_eq_toFinset_card',
       Set.toFinset_ofPred]
   rw [Finset.sum_ite, Finset.sum_const, Finset.sum_const, nsmul_eq_mul, nsmul_eq_mul, mul_one,
     mul_neg_one, correlation_eq_two_mul_agreement_sub_one, sub_mul, mul_assoc, hagree]
-  have : ((Finset.univ.filter fun x : ι → U => x ∈ S ↔ x ∈ T).card : ℝ) +
-      (Finset.univ.filter fun x : ι → U => ¬(x ∈ S ↔ x ∈ T)).card = Fintype.card (ι → U) := by
-    exact_mod_cast hsplit
   linarith
 
 end Correlation
@@ -188,9 +186,8 @@ theorem div_pow_le_exp {q R μ : ℝ} {n : ℕ} (hq : 2 ≤ q) (hR : 0 < R) (hμ
   have hlq0 : 0 < Real.log q := Real.log_pos (by linarith)
   have hlogR : Real.log R ≤ (1 - μ) * n * Real.log q := by
     rwa [Real.logb, div_le_iff₀ hlq0] at h
-  have hexp : R / q ^ n = Real.exp (Real.log R - n * Real.log q) := by
-    rw [Real.exp_sub, Real.exp_log hR, ← Real.log_pow, Real.exp_log (pow_pos hq0 n)]
-  rw [hexp, Real.exp_le_exp]
+  rw [← Real.exp_log hR, ← Real.exp_log (pow_pos hq0 n), ← Real.exp_sub, Real.exp_le_exp,
+    Real.log_pow]
   nlinarith [mul_nonneg hμ (Nat.cast_nonneg (α := ℝ) n)]
 
 /-- `log_q (K ^ 3 (v + 1) q ^ (w + 4)) = w + 4 + 3 log_q K + log_q (v + 1)`. -/
@@ -240,9 +237,7 @@ theorem le_pow_half_of_logb {q K n : ℕ} (hq : 1 < q) (hK : 0 < K)
 /-- There are `|U| ^ n` inputs. -/
 private theorem card_input_eq {U : Type*} (n : ℕ) :
     (Nat.card (Fin n → U) : ℝ) = (Nat.card U : ℝ) ^ n := by
-  rw [Nat.card_fun, Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin]
-  push_cast
-  rfl
+  simp [Nat.card_fun]
 
 section Circuit
 
@@ -473,11 +468,10 @@ theorem multiaryAverageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout 
       have hVR : (V : ℝ) ≤ 4 * (c.multiarySize + q + (c.multiarySize + n) * (q : ℝ) ^ q) + 3 :=
         mod_cast (Compiler.card_vertex_le hfan').trans
           (Nat.add_le_add_right (Nat.mul_le_mul_left 4 (c'.innerSize_le_size.trans hsize_c')) 3)
-      have h1div : (0 : ℝ) ≤ 1 / Real.log 2 := by positivity
-      have hqq : (0 : ℝ) ≤ (q : ℝ) ^ q := by positivity
-      simp only [κ]
+      simp only [κ, one_div]
       nlinarith [Nat.cast_nonneg (α := ℝ) n, Nat.cast_nonneg (α := ℝ) c.multiarySize,
-        Nat.cast_nonneg (α := ℝ) q]
+        Nat.cast_nonneg (α := ℝ) q, pow_nonneg (Nat.cast_nonneg (α := ℝ) q) q,
+        inv_nonneg.mpr (Real.log_nonneg one_le_two)]
     have hmargin := hn c.multiarySize V w (Nat.cast_nonneg _) (Nat.cast_nonneg _) hVκ hsize hsupply
     have hlog : Real.logb q ((K' n ^ 3 * (V + 1) * q ^ (w + 4) : ℕ) : ℝ) ≤
         (1 - A * ε / 2) * n := by

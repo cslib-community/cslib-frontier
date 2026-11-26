@@ -100,12 +100,10 @@ theorem scheduleCost_true_eq_zero {B : Nat} {reqs : List Unit} {states : List Bo
   induction reqs generalizing states with
   | nil => cases states <;> rfl
   | cons r rs ih =>
-    cases states with
-    | nil => rfl
-    | cons b bs =>
-      obtain rfl : b = true := hv.1 rfl
-      change stepCost B true r true + _ = 0
-      rw [stepCost_true, ih hv.2]
+    rcases states with _ | ⟨b, bs⟩
+    · rfl
+    · obtain rfl : b = true := hv.1 rfl
+      simpa [Problem.scheduleCost] using ih hv.2
 
 /-- **Offline lower bound.** Every valid schedule from the initial state costs at least
 `min n B` on `n` ski days. -/
@@ -115,17 +113,15 @@ theorem min_le_scheduleCost {B : Nat} {reqs : List Unit} {states : List Bool}
   induction reqs generalizing states with
   | nil => simp only [List.length_nil, Nat.zero_min, Nat.zero_le]
   | cons r rs ih =>
-    cases states with
-    | nil => exact absurd hv id
-    | cons b bs =>
-      cases b with
-      | false =>
-        change _ ≤ stepCost B false r false + _
-        have := ih hv.2
-        simp only [stepCost_false_false, List.length_cons]; omega
-      | true =>
-        change _ ≤ stepCost B false r true + _
-        simp only [stepCost_false_true]; omega
+    rcases states with _ | ⟨_ | _, bs⟩
+    · cases hv
+    · have := ih hv.2
+      rw [Problem.scheduleCost, List.length_cons]
+      change _ ≤ stepCost B false r false + _
+      rw [stepCost_false_false]; omega
+    · rw [Problem.scheduleCost]
+      change _ ≤ stepCost B false r true + _
+      rw [stepCost_false_true]; omega
 
 /-- The constant schedule `replicate n b` is valid from `b₀` whenever `b₀ = true → b = true`. -/
 theorem validSchedule_replicate {B : Nat} {b₀ b : Bool} (h : b₀ = true → b = true)

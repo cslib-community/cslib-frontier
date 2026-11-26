@@ -432,10 +432,7 @@ private theorem fastInsertMissGenProg_spec {c U V w n_max base b q_val v_val : �
     obtain ⟨hcg_st, hcg_res, hcg_mc, hcg_vp⟩ :=
       insCheckRKeyGuardsGenProg_spec henv hv.curEp_or hv_cur hbo_fn hrep (rKey := rKey) (s := s)
     refine step hcp_st hcp_res hcp_mc hcp_vp ?_
-    simp only [↓reduceIte]
-    dsimp only [post]
-    rw [insAfterCapGenProg.eq_1, hwp1]
-    simp only [pure_bind]
+    simp only [↓reduceIte, post, insAfterCapGenProg.eq_1, hwp1, pure_bind]
     refine step her_st her_res her_mc her_vp (step hcg_st hcg_res hcg_mc hcg_vp ?_)
     dsimp only [post]
     by_cases hbad2 : (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey).isSome ∨
@@ -443,10 +440,7 @@ private theorem fastInsertMissGenProg_spec {c U V w n_max base b q_val v_val : �
           (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey).isSome)
     · rw [ite_eq_left hbad2, ite_eq_left hbad2]
       simpa only [zero_ne_one, ↓reduceIte] using pure_zero_opt (by omega)
-    · rw [ite_eq_right hbad2, ite_eq_right hbad2]
-      simp only [↓reduceIte]
-      rw [insAfterRKeyGenProg.eq_1, hwp1]
-      simp only [pure_bind]
+    · simp only [ite_eq_right hbad2, ↓reduceIte, insAfterRKeyGenProg.eq_1, hwp1, pure_bind]
       obtain ⟨liveMap, hv_live, _⟩ := hv.live_valid b hb
       have hlic := liveInsCount_le_eight hv.toCore hb (hv.overmars_valid b hb)
       have hlr_lt := (hv.roles_valid b hb).1
@@ -462,8 +456,7 @@ private theorem fastInsertMissGenProg_spec {c U V w n_max base b q_val v_val : �
           2 * sMaxWhp c n_max ≤ (fs.buf fs.curEp).itemAlloc
       · rw [ite_eq_left hbad3, ite_eq_left hbad3]
         simpa only [zero_ne_one, ↓reduceIte] using pure_zero_opt (by omega)
-      · rw [ite_eq_right hbad3, ite_eq_right hbad3]
-        simp only [↓reduceIte]
+      · simp only [ite_eq_right hbad3, ↓reduceIte]
         have hfp_lt : fp < 2 ^ fpBitsWhp n_max := by
           dsimp only [fp, fpOfSalt]
           split_ifs with hs
@@ -632,11 +625,9 @@ theorem fastInsertGenProg_spec {c U V w n_max base : ℕ}
     rcases ho : opt with _ | fs' <;>
       simpa only [ho, Option.elim_none, Option.elim_some] using h
   unfold fastInsertGenProg
-  refine bind_read_post hmh_st hmh_res hmh_mc.le hmh_vp ?_
-  refine bind_read_post hfs_st hfs_res hfs_mc hfs_vp ?_
-  unfold fastInsertBodyGenProg
-  dsimp only
-  simp only [pure_bind]
+  refine bind_read_post hmh_st hmh_res hmh_mc.le hmh_vp
+    (bind_read_post hfs_st hfs_res hfs_mc hfs_vp ?_)
+  simp only [fastInsertBodyGenProg, pure_bind]
   refine bind_read_post hfl_st hfl_res hfl_mc hfl_vp ?_
   cases hfind : fastFindLoc c U n_max θ fs u with
   | some loc =>
@@ -649,18 +640,15 @@ theorem fastInsertGenProg_spec {c U V w n_max base : ℕ}
     dsimp only [b, q_val] at hov_mc ⊢
     exact ⟨by omega, hov_vp, hov_res, hov_step⟩
   | none =>
-    rw [hfind] at hfl_res
+    unfold fastInsert at hopt
+    rw [hfind] at hfl_res hopt
     simp only [zero_ne_one, ↓reduceIte]
     obtain ⟨hms_mc, hms_vp, hms_match⟩ :=
       fastInsertMissGenProg_spec u henv hseed hrep hv hb hq_lt hv_v (v_val := v_val) (s := s)
-    dsimp only [b, q_val] at hms_mc hms_vp hms_match
-    cases hfi : opt
-    all_goals
-      rw [hopt] at hfi
-      unfold fastInsert at hfi
-      rw [hfind] at hfi
-      dsimp only [b, q_val] at hfi
-      rw [hfi] at hms_match
+    dsimp only [b, q_val] at hms_mc hms_vp hms_match hopt
+    rw [← hopt] at hms_match
+    rcases ho : opt with _ | fs' <;>
+      simp only [ho, Option.elim_none, Option.elim_some] at hms_match ⊢ <;>
       exact ⟨by omega, hms_vp, hms_match⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp

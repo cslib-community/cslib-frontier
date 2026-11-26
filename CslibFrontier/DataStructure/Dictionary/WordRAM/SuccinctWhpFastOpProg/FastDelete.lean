@@ -56,13 +56,10 @@ private theorem poolFreeTop_lt_of_backyard_active {c U V n_max b loc_last : ℕ}
     (hcf : capFrontWhp n_max ≤ loc_last) :
     fs.backPtr b (loc_last - capFrontWhp n_max) < poolSizeWhp n_max ∧
     fs.poolFreeTop < poolSizeWhp n_max := by
-  have hbp := (hv.backPtr_valid b hb (loc_last - capFrontWhp n_max) (by omega)).1
   have hpc := hv.pool_conservation
-  have hle_sum : fs.bktCount b - capFrontWhp n_max ≤
-      ∑ b' ∈ Finset.range (numBucketsWhp n_max), (fs.bktCount b' - capFrontWhp n_max) :=
-    Finset.single_le_sum (f := fun b' => fs.bktCount b' - capFrontWhp n_max)
-      (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr hb)
-  exact ⟨hbp, by omega⟩
+  have hle_sum := Finset.single_le_sum (f := fun b' => fs.bktCount b' - capFrontWhp n_max)
+    (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr hb)
+  exact ⟨(hv.backPtr_valid b hb (loc_last - capFrontWhp n_max) (by omega)).1, by omega⟩
 
 /-- Optional `fastDeleteMoveLast` wrapper (`if loc_del < loc_last`). -/
 @[irreducible] private def fastDeleteOptMoveGenProg :
@@ -313,8 +310,7 @@ private theorem fastDeleteHitGenProg_fastStep {c U V w n_max base loc_del : ℕ}
     refine ⟨?_, validProg_bind hdr_vp (validProg_bind hdm_vp hds_vp),
       (hdr_step.trans hdm_step).trans hds_step,
       OvermarsBucketStepBounds.of_core_and_pre hc_rel hb hom_rel⟩
-    dsimp only [s1, s2, loc_last, rebAct, rebActiveB, b] at hp_mc hdr_mc hdm_mc hds_mc ⊢
-    omega
+    dsimp only [s1, s2, loc_last, rebAct, rebActiveB, b] at hp_mc hdr_mc hdm_mc hds_mc ⊢; omega
   · simp only [hlt_ll, ↓reduceIte, pure_bind]
     obtain ⟨hds_mc, hds_vp, hds_step⟩ :=
       fastDeleteShrinkGenProg_fastStep (fs2 := fs1) henv hb hll_tl hback
@@ -322,8 +318,7 @@ private theorem fastDeleteHitGenProg_fastStep {c U V w n_max base loc_del : ℕ}
     obtain ⟨hc_last, _, hom_last, _⟩ := fastDelete_afterDel_last_spec hv u hld hq_del hlt_ll
     refine ⟨?_, validProg_bind hdr_vp hds_vp, hdr_step.trans hds_step,
       OvermarsBucketStepBounds.of_core_and_pre hc_last hb hom_last⟩
-    dsimp only [s1, loc_last, b] at hp_mc hdr_mc hds_mc ⊢
-    omega
+    dsimp only [s1, loc_last, b] at hp_mc hdr_mc hds_mc ⊢; omega
 
 /-- Foreground body of `fastDelete` prior to `overmarsStep`
 (`d = (((wp, base), bq), u_val)`). -/
@@ -518,8 +513,7 @@ theorem fastDeleteGenProg_fastStep {c U V w n_max base : ℕ}
   rw [(hM _ _).1, (hM _ _).2.2.1, (hM _ _).2.2.2, hmh_mc, (hS _ _).1, (hS _ _).2.2.1,
     (hS _ _).2.2.2, clientState_bind, memoryCost_bind']
   refine ⟨?_, validProg_bind hdb_vp hom_vp, hdb_step.trans hom_step⟩
-  dsimp only [s1, bq] at hfs_mc hdb_mc hom_mc ⊢
-  omega
+  dsimp only [s1, bq] at hfs_mc hdb_mc hom_mc ⊢; omega
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

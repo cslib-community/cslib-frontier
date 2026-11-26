@@ -150,9 +150,7 @@ private theorem length_eraseDupsBy_flatMap (pre : List α) :
 theorem searchRight_sublist (l : List α) : (searchRight Q s l).Sublist l := by
   have hmap : ((l.zip l.tail).zipIdx.map fun ((y, _), _) => y) = l.take (l.length - 1) := by
     rw [← List.dropLast_eq_take, ← map_fst_zip_tail]
-    conv_rhs => rw [← List.zipIdx_map_fst 0 (l.zip l.tail)]
-    rw [List.map_map]
-    rfl
+    exact (List.map_map ..).symm.trans (congrArg (List.map Prod.fst) (List.zipIdx_map_fst 0 _))
   conv_rhs => rw [← List.take_append_drop (l.length - 1) l]
   exact (hmap ▸ List.filter_sublist.map _).append (List.Sublist.refl _)
 
@@ -299,8 +297,8 @@ theorem atLeast_append_notMem_SAT_of_lt {c z : List (Literal ℕ)} (hc : IsLarge
   let b := z.map fun l => (l.1, σ l.1)
   have hbc := hc.2 b ((by simp [b, Function.comp_def] : b.map Prod.fst = _).trans hfst)
     (units_append_mem_SAT_iff.2 ⟨σ, hσ, by simp [b]⟩)
-  have hbz : b.map Prod.snd = z.map fun l => σ l.1 := by simp [b]
-  exact not_le_of_gt hlt (hzσ.trans (hbz ▸ hbc))
+  simp only [b, List.map_map, Function.comp_def] at hbc
+  exact not_le_of_gt hlt (hzσ.trans hbc)
 
 /-- Some child of the largest satisfiable node of a level is the largest satisfiable node of the
 next level. -/
@@ -333,17 +331,14 @@ theorem exists_isLargest_child {c : List (Literal ℕ)} (hc : IsLargest φ c) (v
     | true => le_rfl
   by_cases htrue : units (c ++ [(v, true)]) ++ φ ∈ SAT
   · refine ⟨true, htrue, fun b hfst hb => ?_⟩
-    rw [List.map_append, List.map_singleton] at hfst
-    rcases hext b hfst hb with hlt | ⟨y, rfl⟩
-    · simpa using (hlt true).le
-    · simpa using hle_true y
+    rw [List.map_append, List.map_singleton] at hfst ⊢
+    exact (hext b hfst hb).elim (fun hlt => (hlt true).le) fun ⟨y, hy⟩ =>
+      by simpa [hy] using hle_true y
   · obtain ⟨_ | _, hy⟩ := Fortune.exists_child_mem_SAT v hc.1
     · refine ⟨false, hy, fun b hfst hb => ?_⟩
-      rw [List.map_append, List.map_singleton] at hfst
+      rw [List.map_append, List.map_singleton] at hfst ⊢
       rcases hext b hfst hb with hlt | ⟨_ | _, rfl⟩
-      · simpa using (hlt false).le
-      · exact le_rfl
-      · exact absurd hb htrue
+      exacts [(hlt false).le, by simp, absurd hb htrue]
     · exact absurd hy htrue
 
 /-- Expanding a level in decreasing order gives a level in decreasing order: the `true` child of a

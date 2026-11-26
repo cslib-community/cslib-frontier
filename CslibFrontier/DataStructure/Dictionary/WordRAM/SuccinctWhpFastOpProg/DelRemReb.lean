@@ -78,10 +78,7 @@ private theorem realizes_delRemRebCheck :
           (fs.curEp = 0 ∨ fs.curEp = 1))
       (fun _ _ => 0) := by
   unfold delRemRebCheckProg
-  have hrb := realizes_readRebActiveBGen
-  have hrh := realizes_readHdr
-  have hro := realizes_readOldEp
-  realize
+  realize [realizes_readRebActiveBGen, realizes_readHdr, realizes_readOldEp]
   all_goals (
     rcases d with ⟨⟨⟨⟨cp, base⟩, b⟩, loc_del⟩, st_del⟩
     dsimp only at *
@@ -130,10 +127,7 @@ private theorem realizes_readCandFpGen :
           SeedWhpMemRep base c U w₀ n_max θ s.mem)
       (fun _ _ => 0) := by
   unfold readCandFpGenProg
-  have hrh := realizes_readHdr
-  have hmh := realizes_mkHashRtGen
-  have hfp := realizes_fpOfSaltOptRt
-  realize
+  realize [realizes_readHdr, realizes_mkHashRtGen, realizes_fpOfSaltOptRt]
   all_goals (
     rcases d with ⟨⟨wp, base⟩, u_val⟩
     dsimp only at *
@@ -179,10 +173,7 @@ private theorem realizes_delRemRebActive :
           ValidWhpSlice n_max fs.rebInsCount (fs.slices (fs.rebSliceIdx b)) rm)
       (fun _ _ => 0) := by
   unfold delRemRebActiveProg
-  have hrc := realizes_readCandFpGen
-  have hrs := realizes_readRebSliceIdxGen
-  have hbd := realizes_btreeDeleteGen
-  realize
+  realize [realizes_readCandFpGen, realizes_readRebSliceIdxGen, realizes_btreeDeleteGen]
   all_goals (
     rcases d with ⟨⟨⟨wp, base⟩, b⟩, u_val⟩
     dsimp only at *
@@ -256,9 +247,7 @@ theorem realizes_delRemRebGen :
             ∃ rm, ValidWhpSlice n_max fs.rebInsCount (fs.slices (fs.rebSliceIdx b)) rm))
       (fun _ _ => 0) := by
   unfold delRemRebGenProg
-  have hck := realizes_delRemRebCheck
-  have hac := realizes_delRemRebActive
-  realize
+  realize [realizes_delRemRebCheck, realizes_delRemRebActive]
   all_goals (
     rcases d with ⟨⟨⟨⟨wp, base⟩, b⟩, loc_del⟩, ⟨st_del, u_val⟩⟩
     dsimp only at *
@@ -297,8 +286,7 @@ theorem realizes_delRemRebGen :
           fs.dirtyBuckets fs.dirtyIdx = b ∧ fs.rebCandSalt < sMaxWhp c n_max ∧
           fs.rebCollision = 0) = true
       · exact fun _ => hd
-      · rw [ite_eq_right hd, ite_eq_right (by simp), clientResult_pure_whp]
-        omega
+      · rw [ite_eq_right hd, ite_eq_right (by simp), clientResult_pure_whp]; omega
     simp only [hcp_eq, hck_st] at *
     first
     | exact henv.fits_const (by decide)
@@ -431,12 +419,8 @@ theorem realizes_delRemReadInfoGen :
           loc_del < totalLocalCoordsWhp n_max)
       (fun _ _ => 0) := by
   unfold delRemReadInfoGenProg
-  have hrl := realizes_readFastLocGen
-  have hmh := realizes_mkHashRtGen
-  have hrk := realizes_fpReducedKeyOptRt
-  have hrb := realizes_readBktFieldGen
-  have hfp := realizes_fpOfSaltOptRt
-  realize
+  realize [realizes_readFastLocGen, realizes_mkHashRtGen, realizes_fpReducedKeyOptRt,
+    realizes_readBktFieldGen, realizes_fpOfSaltOptRt]
   all_goals (
     rcases d with ⟨⟨⟨⟨wp, base⟩, b⟩, loc_del⟩, u_val⟩
     dsimp only at *

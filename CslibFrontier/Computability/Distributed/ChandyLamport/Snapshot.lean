@@ -527,13 +527,10 @@ theorem mem_snapStates_iff_split [DecidableEq P] [DecidableRel sys.graph.Adj]
   induction hmtr with
   | @refl S₀ =>
     simp only [snapStates, List.mem_singleton]
-    constructor
-    · rintro rfl
-      exact ⟨[], [], rfl, .refl, .refl⟩
-    · rintro ⟨xl₁, xl₂, heq, hm₁, _⟩
-      obtain rfl := (List.append_eq_nil_iff.mp heq.symm).1
-      cases hm₁
-      rfl
+    refine ⟨fun h => h ▸ ⟨[], [], rfl, .refl, .refl⟩, fun ⟨xl₁, _, heq, hm₁, _⟩ => ?_⟩
+    obtain rfl := (List.append_eq_nil_iff.mp heq.symm).1
+    cases hm₁
+    rfl
   | @stepL S₀ a S₁ rest S_end htr hrest ih =>
     rcases htr with ⟨hen, rfl⟩
     simp only [snapStates, List.mem_cons]
@@ -597,8 +594,7 @@ theorem snapTr_project [DecidableEq P] [DecidableRel sys.graph.Adj]
     · have hpop : (if u = src ∧ v = dest then unmarker (S₁.chan u v).tail
           else unmarker (S₁.chan u v)) = unmarker (S₁.chan u v) := by
         split_ifs with h₂
-        · obtain ⟨rfl, rfl⟩ := h₂
-          simp [ht]
+        · simp [h₂.1, h₂.2, ht]
         · rfl
       simp only [project, stepSnap, applyRecvMarker]
       cases (S₁.proc dest).snapState <;>
@@ -760,15 +756,12 @@ theorem enabledSnap_recvMarker_spec {S₁ : SnapGlobalState P S M} {src dest : P
     ∃ t_sd, S₁.chan src dest = .marker :: t_sd ∧ .marker ∉ t_sd := by
   obtain ⟨hadj_sd, hhead_sd⟩ := hen
   obtain ⟨t_sd, ht_sd⟩ := List.head?_eq_some_iff.mp hhead_sd
-  have hmem_sd : .marker ∈ S₁.chan src dest := by simp [ht_sd]
-  have hsrc_some : (S₁.proc src).snapState.isSome = true := by
-    cases h : (S₁.proc src).snapState with
-    | none => exact absurd hmem_sd (hinv.unrecordedSrc src dest h).1
+  refine ⟨hadj_sd, ?_, t_sd, ht_sd, ?_⟩
+  · cases h : (S₁.proc src).snapState with
+    | none => exact absurd (by simp [ht_sd]) (hinv.unrecordedSrc src dest h).1
     | some _ => rfl
-  have hnotm_tail : .marker ∉ t_sd := by
-    simpa [ht_sd] using
+  · simpa [ht_sd] using
       notMem_tail_of_head_marker_of_countP_le_one hhead_sd (hinv.markerCount src dest)
-  exact ⟨hadj_sd, hsrc_some, t_sd, ht_sd, hnotm_tail⟩
 
 private lemma recording_of_eq_or_recordApp {M : Type*} {r r' : ChannelRec M} {buf : List M}
     (h : r' = r ∨ ∃ m, r' = r.recordApp m) (hr : r = .recording buf) :
@@ -928,8 +921,8 @@ theorem snapInv_tr [DecidableEq P] [DecidableRel sys.graph.Adj] :
               exact Or.inr ⟨msg, by simp [stepSnap, SnapGlobalState.applyApp, hv_some]⟩
             · refine Or.inl ?_
               rcases eq_or_ne v dest with rfl | hv
-              · simp [stepSnap, SnapGlobalState.applyApp, hv_some,
-                  show u ≠ src from fun h => hsd ⟨h, rfl⟩]
+              · have hus : u ≠ src := fun h => hsd ⟨h, rfl⟩
+                simp [stepSnap, SnapGlobalState.applyApp, hv_some, hus]
               · simp [stepSnap, SnapGlobalState.applyApp, hv]⟩
   | initiateSnapshot p =>
     exact hinv.of_record_node hwf₂ hen (by simp [stepSnap, applyInitiate])
@@ -952,13 +945,15 @@ theorem snapInv_tr [DecidableEq P] [DecidableRel sys.graph.Adj] :
         (fun v hv => by simp [hv])
         (fun u huv => by simp [huv])
         (fun hadj => by simp [hsrc_ne_dest.symm, hadj])
-        (fun v => by simp [show ¬ (dest = src ∧ v = dest) from fun hp => hsrc_ne_dest hp.1.symm])
+        (fun v => by simp [hsrc_ne_dest.symm])
         fun u v hu => by
           by_cases hsd : u = src ∧ v = dest
           · rcases hsd with ⟨rfl, rfl⟩
             exact Or.inr ⟨rfl, hadj_sd, hsrc_some, by simp [hu, hnotm_tail], by simp⟩
-          · exact Or.inl ⟨by simp [hu, hsd], fun hv hadj => by
-              subst hv; simp [show u ≠ src from fun h => hsd ⟨h, rfl⟩, hadj]⟩
+          · refine Or.inl ⟨by simp [hu, hsd], fun hv hadj => ?_⟩
+            subst hv
+            have hus : u ≠ src := fun h => hsd ⟨h, rfl⟩
+            simp [hus, hadj]
     | some s_d =>
       simp only [stepSnap, applyRecvMarker, hdest] at hwf₂ ⊢
       refine hinv.of_snapState_eq hwf₂

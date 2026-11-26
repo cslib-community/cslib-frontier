@@ -126,9 +126,8 @@ def pointEquivOption :
 /-- Over a finite field, the number of points on `M` is one (the point at infinity) plus the number
 of affine solutions of `M.Equation`. -/
 theorem natCard_point_eq_one_add [Finite F] :
-    Nat.card M.Point = 1 + Nat.card {uv : F × F // M.Equation uv.1 uv.2} := by
-  rw [Nat.card_congr M.pointEquivOption, add_comm]
-  exact Finite.card_option
+    Nat.card M.Point = 1 + Nat.card {uv : F × F // M.Equation uv.1 uv.2} :=
+  (Nat.card_congr M.pointEquivOption).trans ((Finite.card_option).trans (add_comm _ _))
 
 /-- The Weierstrass model `Y² = X³ + (A/B) X² + (1/B²) X` of `M`, obtained by substituting
 `(u, v) = (B X, B Y)`. This coincides with the quadratic twist
@@ -148,9 +147,7 @@ theorem toWeierstrass_eq_quadraticTwist :
 theorem toWeierstrass_Δ :
     M.toWeierstrass.Δ = 16 * (M.A ^ 2 - 4) / M.B ^ 6 := by
   rw [toWeierstrass_eq_quadraticTwist, quadraticTwist_Δ, Δ_of_isCharNeTwoNF]
-  simp only [ofCubic_a₂, ofCubic_a₄, ofCubic_a₆]
-  rw [div_eq_mul_inv, inv_pow]
-  ring
+  simp only [ofCubic_a₂, ofCubic_a₄, ofCubic_a₆, div_eq_mul_inv, inv_pow]; ring
 
 /-- When `2 ≠ 0` in `F`, `M.toWeierstrass` is an elliptic curve. -/
 theorem isElliptic_toWeierstrass (h2 : (2 : F) ≠ 0) : M.toWeierstrass.IsElliptic := by
@@ -241,8 +238,7 @@ theorem toShortWeierstrass_eq_toShortNF [Invertible (2 : F)] [Invertible (3 : F)
     rfl
   rw [toShortWeierstrass, WeierstrassCurve.toShortNF, h2nf, mul_one, one_smul]
   congr 2
-  simp only [toWeierstrass, ofCubic_a₂, invOf_eq_inv]
-  ring
+  simp only [toWeierstrass, ofCubic_a₂, invOf_eq_inv]; ring
 
 /-- When `3 ≠ 0`, `M.toShortWeierstrass` is in short Weierstrass normal form (`a₁ = a₂ = a₃ = 0`).
 -/
@@ -457,31 +453,25 @@ theorem four_dvd_natCard_toWeierstrass_point (M : MontgomeryCurve F) [Finite F]
       div_ne_zero (fun h ↦ M.discr_ne_zero (by linear_combination (M.A - 2) * h)) hB
     have hb0 : b ≠ 0 :=
       div_ne_zero (fun h ↦ M.discr_ne_zero (by linear_combination (M.A + 2) * h)) hB
-    have hns : ¬IsSquare (a * b) := by
-      rw [hab]
-      rintro ⟨u, hu⟩
-      apply hsq
-      refine ⟨M.B * u, ?_⟩
+    have hns : ¬IsSquare (a * b) := fun ⟨u, hu⟩ ↦ hsq ⟨M.B * u, by
+      rw [hab] at hu
       field_simp at hu
-      linear_combination hu
+      linear_combination hu⟩
     have hχ : quadraticChar F (a * b) = -1 := quadraticChar_neg_one_iff_not_isSquare.mpr hns
     rw [map_mul] at hχ
     rcases quadraticChar_dichotomy ha0 with hχa | hχa
     · obtain ⟨s, hs⟩ := (quadraticChar_one_iff_isSquare ha0).mp hχa
       exact four_dvd_of_fourTorsion M h2 1 s (by norm_num) (by rw [sq, ← hs]; dsimp [a]; ring)
-    · have hχb : quadraticChar F b = 1 := by
-        rw [hχa] at hχ
-        omega
-      obtain ⟨s, hs⟩ := (quadraticChar_one_iff_isSquare hb0).mp hχb
+    · obtain ⟨s, hs⟩ := (quadraticChar_one_iff_isSquare hb0).mp (by rw [hχa] at hχ; omega)
       exact four_dvd_of_fourTorsion M h2 (-1) s (by norm_num)
         (by rw [sq, ← hs]; dsimp [b]; ring)
 
 /-- Over a finite field of characteristic `≠ 2`, the order of any Montgomery curve is divisible by
 `4` ([BonehShoup2023], Section 15.2.1, p. 619). -/
 theorem four_dvd_natCard_point (M : MontgomeryCurve F) [Finite F] (hF : ringChar F ≠ 2) :
-    4 ∣ Nat.card M.Point := by
-  rw [Nat.card_congr (M.toWeierstrassEquiv (Ring.two_ne_zero hF))]
-  exact M.four_dvd_natCard_toWeierstrass_point hF
+    4 ∣ Nat.card M.Point :=
+  (Nat.card_congr (M.toWeierstrassEquiv (Ring.two_ne_zero hF))).symm ▸
+    M.four_dvd_natCard_toWeierstrass_point hF
 
 /-- No Montgomery curve over a finite field of characteristic `≠ 2` is related by a change of
 variables to a Weierstrass curve of odd order. -/

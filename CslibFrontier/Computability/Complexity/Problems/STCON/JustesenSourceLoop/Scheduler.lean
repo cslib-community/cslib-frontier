@@ -493,8 +493,7 @@ theorem configurationJustesenSeedScheduler_length_run_le_log {k : ℕ} {State : 
     obtain ⟨seed, source, _, _, hreenter⟩ :=
       justesenSeedSchedulerScan_withInit_of_valid ntm c w f hs hv
     have h := hscan w seed source ⟨setup.targetID, hends.2⟩ n le_rfl choices
-    rw [← hreenter] at h
-    exact h
+    rwa [← hreenter] at h
   have hmachine := SeedSchedulerMachine.length_run_le setup scan start SourceRoundLoop.reply
     encJustesenSourceLoopState w (B * bound) hends.1 hroot hcap bits
   rw [configurationJustesenSeedScheduler_replay ntm c w bits]
@@ -503,10 +502,8 @@ theorem configurationJustesenSeedScheduler_length_run_le_log {k : ℕ} {State : 
   rw [length_encPair]
   have hF : (encFieldContext field).length ≤ F * bound := hfield w
   have hA : (encSeedSearchSetup setup).length ≤ A * bound := hsetup w
-  have hM : (SeedSchedulerMachine.encState encJustesenSourceLoopState
-      ((justesenSeedSchedulerFor ntm c setup field).run w bits)).length ≤
-        24 * (encSeedSearchSetup setup).length + B * bound + 21 := hmachine
   have hconst : 22 ≤ 22 * bound := Nat.le_mul_of_pos_right _ (Nat.succ_pos _)
+  dsimp only [justesenSeedSchedulerFor, scan, start] at hmachine ⊢
   change _ ≤ (2 * F + 24 * A + B + 22) * bound
   simp only [Nat.add_mul, Nat.mul_assoc]
   omega
@@ -555,12 +552,9 @@ theorem configurationJustesenSeedScheduler_haltsWithin_clock {k : ℕ} {State : 
     configurationJustesenSeedScheduler_replay ntm c w bits]
   change (justesenSeedSchedulerFor ntm c empty field).halted
     ((justesenSeedSchedulerFor ntm c setup field).run w bits) = true
-  have hhalt := congrArg NondeterministicQueryMachine.halted
-    (SeedSchedulerMachine.machine_withInit empty setup scan start SourceRoundLoop.reply)
-  change (justesenSeedSchedulerFor ntm c empty field).halted =
-    (justesenSeedSchedulerFor ntm c setup field).halted at hhalt
-  rw [hhalt]
-  exact hscheduler bits hlen
+  exact congrFun (congrArg NondeterministicQueryMachine.halted
+    (SeedSchedulerMachine.machine_withInit empty setup scan start SourceRoundLoop.reply)) _ ▸
+    hscheduler bits hlen
 
 open NondeterministicQueryMachine in
 /-- Compile the fixed retained-field scheduler on the original input. All native

@@ -171,7 +171,7 @@ private theorem exists_windowSum_le [CompleteCAT0Space Z] (A : IsoAct (U h) Z) (
         (by have := window_le hh b; rw [hb, add_mul, one_mul] at this; omega)
         (by norm_num) hC (by norm_num) (by norm_num : 1 - (1 / 4 : ℝ) ^ 2 ≤ (1 - 1 / 32) ^ 2)
         (by norm_num) z
-      rw [show a.1 * u + u = b.1 * u by rw [hb]; ring] at h1
+      rw [← add_one_mul, ← hb] at h1
       have h2 : 2 * (dist z (Q a) * dist z (Q b)) ≤ r a + r b :=
         mul_assoc (2 : ℝ) _ _ ▸ two_mul_le_add_sq _ _
       linarith
@@ -185,13 +185,11 @@ private theorem exists_windowSum_le [CompleteCAT0Space Z] (A : IsoAct (U h) Z) (
       if a = b then 2 * r a else 0 := fun a b => by
     rcases lt_trichotomy a b with hab | rfl | hab
     · have := hlt a b hab
-      have hba : ¬ a.1 = b.1 + 1 := Nat.ne_of_lt (Nat.lt_succ_of_lt (Fin.lt_def.1 hab))
-      simp only [hab.ne, hba, ↓reduceIte]
+      simp only [hab.ne, Nat.ne_of_lt (Nat.lt_succ_of_lt (Fin.lt_def.1 hab)), ↓reduceIte]
       split_ifs at this ⊢ <;> linarith
     · simp [two_mul]
     · have := dist_comm (Q a) (Q b) ▸ hlt b a hab
-      have hba : ¬ b.1 = a.1 + 1 := Nat.ne_of_lt (Nat.lt_succ_of_lt (Fin.lt_def.1 hab))
-      simp only [hab.ne', hba, ↓reduceIte]
+      simp only [hab.ne', Nat.ne_of_lt (Nat.lt_succ_of_lt (Fin.lt_def.1 hab)), ↓reduceIte]
       split_ifs at this ⊢ <;> linarith
   have h1 : ∀ a : Fin L, #{b : Fin L | b.1 = a.1 + 1} ≤ 1 := fun a =>
     card_le_one.2 fun b hb b' hb' => Fin.ext (by simp at hb hb'; omega)
@@ -202,10 +200,9 @@ private theorem exists_windowSum_le [CompleteCAT0Space Z] (A : IsoAct (U h) Z) (
     simp only [sum_sub_distrib, sum_add_distrib, ← mul_sum, sum_ite_eq, mem_univ, ite_true,
       sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
     have s1 := sum_sum_ite_le r hr (fun a b => b.1 = a.1 + 1) h1
-    have s2 := sum_sum_ite_le r hr (fun b a => b.1 = a.1 + 1) h2
+    have s2 := sum_comm.trans_le (sum_sum_ite_le r hr (fun b a => b.1 = a.1 + 1) h2)
     have s3 := sum_sum_ite_le r hr (fun a b => a.1 = b.1 + 1) h2
-    have s4 := sum_sum_ite_le r hr (fun b a => a.1 = b.1 + 1) h1
-    rw [sum_comm] at s2 s4
+    have s4 := sum_comm.trans_le (sum_sum_ite_le r hr (fun b a => a.1 = b.1 + 1) h1)
     linarith [sum_nonneg fun a (_ : a ∈ univ) => hr a]
   -- the barycenter `b` of the points `Q_i z`
   have : Nonempty Z := ⟨z⟩
@@ -234,25 +231,22 @@ private theorem windowSum_le [CompleteCAT0Space Z] (A : IsoAct (U h) Z) (hμ : 2
     windowSum A u L z ≤ 2 * (kappa μ s (2 * u) ^ 2 * (2 * u : ℕ)) * ∑ j ∈ range h, A.e j z ^ 2 := by
   set g : ℕ → ℝ := fun j => A.e j z ^ 2
   have hg : ∀ j, 0 ≤ g j := fun j => sq_nonneg _
-  have hcons : ∀ m, ∑ a ∈ range m, ∑ j ∈ Ico (a * u) ((a + 1) * u), g j =
-      ∑ j ∈ range (m * u), g j :=
-    fun m => by
-      induction m with
-      | zero => simp
-      | succ m ih =>
-        rw [sum_range_succ, ih, sum_range_add_sum_Ico _ (Nat.mul_le_mul_right u (Nat.le_succ m))]
+  have hcons (m : ℕ) : ∑ a ∈ range m, ∑ j ∈ Ico (a * u) ((a + 1) * u), g j =
+      ∑ j ∈ range (m * u), g j := by
+    induction m with
+    | zero => simp
+    | succ m ih =>
+      rw [sum_range_succ, ih, sum_range_add_sum_Ico _ (Nat.mul_le_mul_right u (Nat.le_succ m))]
   set C := kappa μ s (2 * u) ^ 2 * (2 * u : ℕ)
   set S1 : ℕ → ℝ := fun a => ∑ j ∈ Ico (a * u) ((a + 1) * u), g j
   set S2 : ℕ → ℝ := fun a => ∑ j ∈ Ico ((a + 1) * u) ((a + 1 + 1) * u), g j
-  have hwin : ∀ a : Fin L, dist z ((A.W (a.1 * u) (2 * u)).P z) ^ 2 ≤ C * (S1 a + S2 a) :=
-    fun a => by
-      refine (dist_P_window_sq_le A hμ hs hA (window_le hh a) z).trans
-        (mul_le_mul_of_nonneg_left ?_ (by positivity))
-      have e : (a.1 + 1 + 1) * u = a.1 * u + 2 * u := by ring
-      simp only [S1, S2]
-      rw [sum_Ico_consecutive _ (Nat.mul_le_mul_right u (Nat.le_succ _))
-        (Nat.mul_le_mul_right u (Nat.le_succ _)), e]
-      exact sum_le_sum_of_subset_of_nonneg (Ico_subset_Ico le_rfl (by omega)) fun j _ _ => hg j
+  have hwin (a : Fin L) : dist z ((A.W (a.1 * u) (2 * u)).P z) ^ 2 ≤ C * (S1 a + S2 a) := by
+    refine (dist_P_window_sq_le A hμ hs hA (window_le hh a) z).trans
+      (mul_le_mul_of_nonneg_left ?_ (by positivity))
+    simp only [S1, S2]
+    rw [sum_Ico_consecutive _ (Nat.mul_le_mul_right u (Nat.le_succ _))
+      (Nat.mul_le_mul_right u (Nat.le_succ _)), Nat.succ_mul a.1.succ, Nat.succ_mul a.1]
+    exact sum_le_sum_of_subset_of_nonneg (Ico_subset_Ico le_rfl (by omega)) fun j _ _ => hg j
   refine (sum_le_sum fun a _ => hwin a).trans ?_
   rw [← Finset.mul_sum, sum_add_distrib, Fin.sum_univ_eq_sum_range S1,
     Fin.sum_univ_eq_sum_range S2]

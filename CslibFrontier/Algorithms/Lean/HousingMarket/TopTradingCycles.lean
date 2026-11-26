@@ -147,12 +147,11 @@ theorem mem_cycleAgents {R : Finset (Fin n)} (hR : R.Nonempty) {i : Fin n} :
   rw [cycleAgents, Finset.mem_filter]
   refine ⟨fun ⟨_, k, hk⟩ => mk_mem_periodicPts k.val.succ_pos hk, fun hi => ?_⟩
   have hpos := minimalPeriod_pos_of_mem_periodicPts hi
-  have hle : minimalPeriod (I.topChoice R) i ≤ n := by
-    simpa only [Fintype.card_fin] using minimalPeriod_le_card (f := I.topChoice R) (x := i)
-  have hfix : (I.topChoice R)^[minimalPeriod (I.topChoice R) i] i = i := iterate_minimalPeriod
-  refine ⟨?_, ⟨minimalPeriod (I.topChoice R) i - 1, by omega⟩, Nat.sub_add_cancel hpos ▸ hfix⟩
-  rw [← hfix, ← Nat.succ_pred_eq_of_pos hpos, iterate_succ_apply']
-  exact topChoice_mem hR _
+  have hle : minimalPeriod (I.topChoice R) i ≤ n :=
+    (minimalPeriod_le_card (f := I.topChoice R) (x := i)).trans_eq (Fintype.card_fin n)
+  have hk : (I.topChoice R)^[minimalPeriod (I.topChoice R) i - 1 + 1] i = i :=
+    Nat.sub_add_cancel hpos ▸ iterate_minimalPeriod (f := I.topChoice R) (x := i)
+  exact ⟨hk ▸ iterate_succ_apply' _ _ i ▸ topChoice_mem hR _, ⟨_, by omega⟩, hk⟩
 
 /-- An agent on a cycle points to an agent on a cycle. -/
 theorem topChoice_mem_cycleAgents {R : Finset (Fin n)} {i : Fin n} (hi : i ∈ I.cycleAgents R) :
@@ -237,15 +236,12 @@ theorem ttcRounds_injOn {k : ℕ} {R : Finset (Fin n)} (hk : R.card ≤ k) :
     have hmem {x : Fin n} (hx : x ∈ R) (hxC : x ∉ I.cycleAgents R) :
         I.ttcRounds k (R \ I.cycleAgents R) x ∉ I.cycleAgents R :=
       (Finset.mem_sdiff.1 (ttcRounds_mem hk' (Finset.mem_sdiff.2 ⟨hx, hxC⟩))).2
-    by_cases hCa : a ∈ I.cycleAgents R <;> by_cases hCb : b ∈ I.cycleAgents R
-    · rw [ttcRounds_succ_of_mem hCa, ttcRounds_succ_of_mem hCb] at hab
-      exact topChoice_injOn_cycleAgents R hCa hCb hab
-    · rw [ttcRounds_succ_of_mem hCa, ttcRounds_succ_of_notMem hCb] at hab
-      exact absurd (hab ▸ topChoice_mem_cycleAgents hCa) (hmem hb hCb)
-    · rw [ttcRounds_succ_of_notMem hCa, ttcRounds_succ_of_mem hCb] at hab
-      exact absurd (hab ▸ topChoice_mem_cycleAgents hCb) (hmem ha hCa)
-    · rw [ttcRounds_succ_of_notMem hCa, ttcRounds_succ_of_notMem hCb] at hab
-      exact ih hk' (Finset.mem_sdiff.2 ⟨ha, hCa⟩) (Finset.mem_sdiff.2 ⟨hb, hCb⟩) hab
+    rw [ttcRounds, ttcRounds] at hab
+    split_ifs at hab with hCa hCb hCb
+    · exact topChoice_injOn_cycleAgents R hCa hCb hab
+    · exact absurd (hab ▸ topChoice_mem_cycleAgents hCa) (hmem hb hCb)
+    · exact absurd (hab ▸ topChoice_mem_cycleAgents hCb) (hmem ha hCa)
+    · exact ih hk' (Finset.mem_sdiff.2 ⟨ha, hCa⟩) (Finset.mem_sdiff.2 ⟨hb, hCb⟩) hab
 
 variable (I)
 
@@ -254,10 +250,8 @@ theorem ttcRounds_injective {k : ℕ} {R : Finset (Fin n)} (hk : R.card ≤ k) :
   intro a b hab
   by_cases ha : a ∈ R <;> by_cases hb : b ∈ R
   · exact ttcRounds_injOn hk ha hb hab
-  · rw [ttcRounds_of_notMem hb] at hab
-    exact absurd (hab ▸ ttcRounds_mem hk ha) hb
-  · rw [ttcRounds_of_notMem ha] at hab
-    exact absurd (hab ▸ ttcRounds_mem hk hb) ha
+  · exact absurd (hab.trans (ttcRounds_of_notMem hb) ▸ ttcRounds_mem hk ha) hb
+  · exact absurd (hab.symm.trans (ttcRounds_of_notMem ha) ▸ ttcRounds_mem hk hb) ha
   · rwa [ttcRounds_of_notMem ha, ttcRounds_of_notMem hb] at hab
 
 /-- The top trading cycles allocation: `n` rounds of TTC starting from all agents. -/

@@ -81,9 +81,8 @@ private theorem tickStage1Fin_props {c U n_max : ℕ} {θ : SeedWhp c U n_max}
         rw [← Nat.succ_mul, Nat.succ_eq_add_one, Nat.sub_add_cancel (Nat.pos_of_ne_zero hdc0)]
         exact Nat.mul_le_mul_right _ hdc_le
       unfold stage2Max; omega
-    · intro _ hdi
-      obtain ⟨s_opt, hs_opt⟩ := hsalt_all ⟨s.dirtyBuckets 0, hd_lt 0 hdi⟩
-      exact ⟨s_opt, hs_opt, Nat.zero_le _⟩
+    · exact fun _ hdi =>
+        (hsalt_all ⟨s.dirtyBuckets 0, hd_lt 0 hdi⟩).imp fun _ hs => ⟨hs, Nat.zero_le _⟩
 
 private theorem tickStage1_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     {W_keys : Finset (Fin U)} {fs : FastState} {dict : State U}
@@ -205,8 +204,7 @@ private theorem tickStage2_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       have hsub1 : sMaxWhp c n_max - 1 - fs.rebCandSalt =
           (sMaxWhp c n_max - 1 - (fs.rebCandSalt + 1)) + 1 := by omega
       rw [hsub1, Nat.add_mul, one_mul]; omega
-    · intro _ _
-      refine ⟨s_opt, ?_, Nat.succ_le_of_lt (hm_cs.symm ▸ hlt_s_opt)⟩
+    · refine fun _ _ => ⟨s_opt, ?_, Nat.succ_le_of_lt (hm_cs.symm ▸ hlt_s_opt)⟩
       dsimp only
       rwa [hm_db, hm_di]
   · rw [ite_eq_right hcoll_nz]
@@ -235,9 +233,8 @@ private theorem tickStage2_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
         · intro _ hdi'
           dsimp only at hdi' ⊢
           rw [hm_db, hm_di]
-          rw [hm_dc, hm_di] at hdi'
-          obtain ⟨s_opt', hs_opt'⟩ := hsalt_all ⟨fs.dirtyBuckets (fs.dirtyIdx + 1), hd3 _ hdi'⟩
-          exact ⟨s_opt', hs_opt', Nat.zero_le _⟩
+          exact (hsalt_all ⟨fs.dirtyBuckets (fs.dirtyIdx + 1),
+            hd3 _ (by rwa [hm_dc, hm_di] at hdi')⟩).imp fun _ hs => ⟨hs, Nat.zero_le _⟩
     · rw [ite_eq_right hdone_b]
       refine ⟨hm_clk, by rw [hm_buf, hm_ep], ?_, ?_⟩
       · dsimp only [stageWorkRemaining]
@@ -298,15 +295,10 @@ private theorem tickStage3_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
         simp only [stageWorkRemaining, hs3, Nat.reduceEqDiff, ↓reduceIte]; omega
     | none =>
       dsimp only
-      by_cases hdone : (fs.buf fs.oldEp).itemAlloc ≤ fs.stageCursor + 1
-      · rw [ite_eq_left hdone]
-        refine ⟨rfl, rfl, ?_, fun h => by cases h⟩
-        simp only [stageWorkRemaining, Nat.reduceEqDiff, ↓reduceIte]
-        change (fs.buf fs.oldEp).nodeAlloc < _
-        rw [stage4Max]; omega
-      · rw [ite_eq_right hdone]
-        refine ⟨rfl, rfl, ?_, fun h => by simp [hs3] at h⟩
-        simp only [stageWorkRemaining, hs3, Nat.reduceEqDiff, ↓reduceIte]; omega
+      split_ifs with hdone <;>
+        refine ⟨rfl, rfl, ?_, fun h => by simp [hs3] at h⟩ <;>
+        simp only [stageWorkRemaining, FastState.oldEp, hs3, Nat.reduceEqDiff, ↓reduceIte,
+          stage4Max] at hna_le hmul_le ⊢ <;> omega
   · rw [ite_eq_right hlt]
     refine ⟨rfl, rfl, ?_, fun h => by cases h⟩
     simp only [stageWorkRemaining, Nat.reduceEqDiff, ↓reduceIte]
