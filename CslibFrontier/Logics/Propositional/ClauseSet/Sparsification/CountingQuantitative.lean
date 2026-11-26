@@ -91,11 +91,9 @@ private theorem countingPowerBudget_bounds {d : ℕ} (hd : 1 ≤ d) (n : ℕ) :
 theorem countingPowerBudget_quotient_le {d : ℕ} (hd : 1 ≤ d) (n : ℕ) :
     ((n / countingPowerBudget d n + 1 : ℕ) : ℝ) ≤
       3 * (n + 1 : ℝ) ^ (1 - (d : ℝ)⁻¹) := by
-  have hB : (0 : ℝ) < countingPowerBudget d n := by
-    exact_mod_cast (one_le_countingPowerBudget d n)
-  have hq : ((n / countingPowerBudget d n : ℕ) : ℝ) ≤ n / (countingPowerBudget d n : ℝ) := by
-    apply (le_div_iff₀ hB).mpr
-    exact_mod_cast Nat.div_mul_le_self n (countingPowerBudget d n)
+  have hB : (0 : ℝ) < countingPowerBudget d n := mod_cast one_le_countingPowerBudget d n
+  have hq : ((n / countingPowerBudget d n : ℕ) : ℝ) ≤ n / (countingPowerBudget d n : ℝ) :=
+    (le_div_iff₀ hB).mpr (mod_cast Nat.div_mul_le_self n (countingPowerBudget d n))
   have hq' : n / (countingPowerBudget d n : ℝ) ≤
       2 * (n + 1 : ℝ) ^ (1 - (d : ℝ)⁻¹) := by
     rw [Real.rpow_sub (by positivity), Real.rpow_one, ← mul_div_assoc]
@@ -105,11 +103,9 @@ theorem countingPowerBudget_quotient_le {d : ℕ} (hd : 1 ≤ d) (n : ℕ) :
           n / (countingPowerBudget d n : ℝ) * (2 * countingPowerBudget d n) :=
         mul_le_mul_of_nonneg_left (countingPowerBudget_bounds hd n).1 (by positivity)
       _ ≤ 2 * (n + 1 : ℝ) := by field_simp; linarith
-  have hone : 1 ≤ (n + 1 : ℝ) ^ (1 - (d : ℝ)⁻¹) :=
-    Real.one_le_rpow (le_add_of_nonneg_left (Nat.cast_nonneg n))
-      (sub_nonneg.mpr (inv_le_one_of_one_le₀ (by exact_mod_cast hd)))
   push_cast
-  linarith
+  linarith [Real.one_le_rpow (x := (n + 1 : ℝ)) (le_add_of_nonneg_left (Nat.cast_nonneg n))
+    (sub_nonneg.mpr (inv_le_one_of_one_le₀ (Nat.one_le_cast.mpr hd)))]
 
 private theorem countingThresholdBase_powerBudget_le {k : ℕ} (hk : 2 ≤ k) :
     ∃ A : ℕ, ∀ {d : ℕ}, 1 ≤ d → ∀ n : ℕ,
@@ -159,13 +155,13 @@ theorem exists_countingPowerBudget_clauseBound_le {k : ℕ} (hk : 2 ≤ k) :
       _ = _ := by
         have hexp : (d : ℝ)⁻¹ * ((2 * k : ℕ) : ℝ) = (2 * k : ℝ) / d := by
           push_cast
-          rw [div_eq_mul_inv]
-          ring
+          exact (div_eq_inv_mul _ _).symm
         rw [mul_pow, ← pow_mul, ← Real.rpow_natCast (x ^ (d : ℝ)⁻¹) (2 * k),
           ← Real.rpow_mul hx.le, hexp]
-  have hxpow : 1 ≤ x ^ (1 + (2 * k : ℝ) / d) :=
-    Real.one_le_rpow (show 1 ≤ x from le_add_of_nonneg_left (Nat.cast_nonneg n))
-      (by positivity)
+  have hxpow : 1 ≤ x * x ^ ((2 * k : ℝ) / d) := by
+    simpa only [Real.rpow_add hx, Real.rpow_one] using
+      Real.one_le_rpow (x := x) (le_add_of_nonneg_left (Nat.cast_nonneg n))
+        (by positivity : (0 : ℝ) ≤ 1 + (2 * k : ℝ) / d)
   change ((2 * (∑ j ∈ range k, M ^ j) * n + 1 : ℕ) : ℝ) ≤ _
   calc
     _ ≤ ((2 * (k * M ^ k) * n + 1 : ℕ) : ℝ) := by exact_mod_cast (by gcongr)
@@ -180,8 +176,7 @@ theorem exists_countingPowerBudget_clauseBound_le {k : ℕ} (hk : 2 ≤ k) :
     _ ≤ _ := by
       rw [Real.rpow_add hx, Real.rpow_one]
       push_cast
-      linarith [show 1 ≤ x * x ^ ((2 * k : ℝ) / d) from by
-        simpa only [Real.rpow_add hx, Real.rpow_one] using hxpow]
+      linarith
 
 /-- The normalized disjoint leaf list simultaneously has a power-saving count bound and a
 polynomial clause bound. Exact model counts use the original declared variable set. -/
@@ -203,10 +198,10 @@ theorem countingLeaves_nontautological_powerBudget_spec {k d : ℕ} (hk : 2 ≤ 
     countingLeaves_nontautological_thresholdBase_spec
       (one_le_countingPowerBudget d declared.card) φ hwidth declared hvars le_rfl
   refine ⟨?_, hcount, hpartition, fun L hL => ?_⟩
-  · apply le_trans _ (Real.rpow_le_rpow_of_exponent_le one_le_two
+  · refine le_trans ?_ (Real.rpow_le_rpow_of_exponent_le one_le_two
       (countingPowerBudget_quotient_le (by omega) declared.card))
-    rw [Real.rpow_natCast]
-    exact_mod_cast hlength
+    simpa only [Real.rpow_natCast, Nat.cast_pow, Nat.cast_ofNat] using
+      Nat.cast_le (α := ℝ).mpr hlength
   · have hsize := (hleaf L hL).2.2.2.2.2.2
     exact (Nat.cast_le.mpr hsize).trans (hA (by omega) declared.card)
 
