@@ -576,9 +576,7 @@ theorem card_msgs_add_traceSent {F : Finset P} {s₀ s₁ : State P S M V} {xl :
       simp only [traceSent, recvByz, recvCore, Multiset.card_add, Multiset.card_map,
         List.countP_cons, Action.isDeliver, Bool.false_eq_true, ↓reduceIte] at ih ⊢
       omega
-    | stutter =>
-      obtain rfl := htr
-      simpa [traceSent, Action.isDeliver] using ih
+    | stutter => simpa [traceSent, Action.isDeliver] using (htr : s' = s) ▸ ih
 
 /-! ### Reliable broadcast specification -/
 
@@ -688,17 +686,11 @@ private lemma directInv_start {P V : Type*} [Fintype P] [DecidableEq P] {dealer 
     (F : Finset P) (input : Option V) :
     directInv (dealer := dealer) F input ((directProtocol P V dealer).start F input) := by
   refine ⟨fun e he => ?_, fun i _ v hv => by simp [State.ProcDecided, Protocol.start] at hv⟩
-  obtain ⟨p, -, hp⟩ := Multiset.mem_bind.mp he
-  split_ifs at hp with hpF
-  · simp at hp
-  obtain ⟨⟨q, b⟩, hqb, rfl⟩ := Multiset.mem_map.mp hp
-  simp only [Protocol.initSend, directProtocol] at hqb
-  split_ifs at hqb with hpd
-  · subst hpd
-    cases input with
-    | none => simp at hqb
-    | some v => obtain ⟨_, _, ⟨⟩⟩ := Multiset.mem_map.mp hqb; exact ⟨rfl, rfl⟩
-  · simp at hqb
+  simp only [Protocol.start, Protocol.initSend, directProtocol, Multiset.mem_bind,
+    Finset.mem_val, Finset.mem_univ, true_and] at he
+  obtain ⟨p, hp⟩ := he
+  split_ifs at hp <;> cases input <;> simp_all [broadcastAll]
+  grind [tagSender]
 
 private lemma directInv_tr {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
     {dealer : P} {F : Finset P} (hd : dealer ∉ F) (input : Option V) :
@@ -775,9 +767,8 @@ private lemma direct_honest_totality {P V : Type*} [Fintype P] [DecidableEq P] [
     (ha : (directProtocol P V dealer).AdmissibleRun F input ss xs)
     {i j : P} (hi : i ∉ F) (hj : j ∉ F) {k : ℕ} {v : V} (hv : (ss k).ProcDecided i v) :
     ∃ k', (ss k').ProcDecided j v := by
-  have hinp := direct_noSpurious hd ((directProtocol P V dealer).admissibleRun_reachable ha k)
-    hi hv
-  subst hinp; exact direct_validity hd v ha hj
+  obtain rfl := direct_noSpurious hd (Protocol.admissibleRun_reachable _ ha k) hi hv
+  exact direct_validity hd v ha hj
 
 /-- Without faults (`t = 0`), `directProtocol` solves reliable broadcast on every finite `P`. -/
 theorem solvesReliableBroadcast_direct_of_zero {P V : Type*} [Fintype P] [DecidableEq P]

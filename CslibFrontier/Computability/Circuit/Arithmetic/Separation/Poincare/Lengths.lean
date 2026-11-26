@@ -169,8 +169,7 @@ private theorem len_le_of_vecMulVec {n : ℕ} (l : Len (U n)) (k : ℕ) {u φ : 
       ext i j
       rcases not_and_or.1 h0 with h0 | h0 <;> push Not at h0 <;>
         simp [hA, mat_one, vecMulVec_apply, h0]
-    rw [this, map_one_eq_zero]
-    linarith
+    rw [this, map_one_eq_zero]; linarith
   obtain ⟨⟨i0, hi0⟩, j0, hj0⟩ := h0
   obtain ⟨a, ha, hmax⟩ := exists_max_image (univ.filter fun i => u i ≠ 0) id
     ⟨i0, by simpa using hi0⟩
@@ -178,9 +177,8 @@ private theorem len_le_of_vecMulVec {n : ℕ} (l : Len (U n)) (k : ℕ) {u φ : 
   have hak := hu a ha0
   have hjk := hφ j0 hj0
   set j : Fin (n - 1) := ⟨a.1, by omega⟩
-  have hu' : ∀ i, lo j < i → u i = 0 := fun i hi => by
-    by_contra h
-    exact absurd (hmax i (by simpa using h)) (not_le.2 hi)
+  have hu' : ∀ i, lo j < i → u i = 0 := fun i hi =>
+    by_contra fun h => absurd (hmax i (by simpa using h)) hi.not_ge
   have hz : ∀ (ψ : Fin n → F2), (∀ i, i < hi j → ψ i = 0) → ∀ i c, c ≤ i → u i * ψ c = 0 :=
     fun ψ hψ i c hci => by
       by_cases h : u i = 0
@@ -331,10 +329,9 @@ theorem bd_kappa (hμ : 2 ≤ μ) (hs : 1 ≤ s) (n : ℕ) : Bd μ s n (kappa μ
       rw [← two_mul, ← pow_succ'] at h
       intro l hl
       refine (h l hl).trans (mul_le_mul_of_nonneg_right ?_ l.S_nonneg)
-      have := grow_mono μ hs (Nat.pow_le_pow_right (n := 2) (by norm_num) (Nat.le_succ i))
-      have : 18 * (i : ℝ) * grow μ s (2 ^ i) ≤ 18 * i * grow μ s (2 ^ (i + 1)) := by gcongr
+      have hgrow := grow_mono μ hs (Nat.pow_le_pow_right (n := 2) (by norm_num) (Nat.le_succ i))
       push_cast
-      linarith
+      linarith [mul_le_mul_of_nonneg_left hgrow (by positivity : (0 : ℝ) ≤ 18 * i)]
   exact bd_mono (Nat.le_pow_clog one_lt_two n)
     (by have := grow_nonneg μ hs (2 ^ Nat.clog 2 n); unfold kappa; positivity) (hpow _)
 
@@ -381,14 +378,10 @@ theorem exists_kappa_le (hμ : 2 ≤ μ) (hs : 1 ≤ s) (hsm : s ^ 2 < μ) :
       _ ≤ 648 * (μ : ℝ) ^ 4 * ε * n := by gcongr; exact hL₀ L hLL
       _ = 648 / 2 ^ 30 * n := by simp only [ε]; field_simp
   set u : ℝ := ((μ ^ L₀ + 2 : ℕ) : ℝ)
-  have hn : (n : ℝ) = 3 * u := by simp [n, u]
   have hu : 2 ≤ u := by simp only [u]; exact_mod_cast (by omega : 2 ≤ μ ^ L₀ + 2)
   calc 4 * (kappa μ s n ^ 2 * (n : ℝ))
       ≤ 4 * (648 / 2 ^ 30 * n * n) := by gcongr
-    _ = 23328 / 2 ^ 30 * u ^ 2 := by rw [hn]; ring
-    _ ≤ (1 / 32) ^ 2 * (u - 1) ^ 2 := by
-      have hsq : 0 ≤ (u - 2) * (3 * u - 2) := mul_nonneg (by linarith) (by linarith)
-      have hexp : (u - 2) * (3 * u - 2) = 3 * u ^ 2 - 8 * u + 4 := by ring
-      linarith
+    _ = 23328 / 2 ^ 30 * u ^ 2 := by simp only [n, u, Nat.cast_mul, Nat.cast_ofNat]; ring
+    _ ≤ (1 / 32) ^ 2 * (u - 1) ^ 2 := by linarith [sq_nonneg (u - 2)]
 
 end Cslib.Circuits.Arithmetic.Separation.Poincare

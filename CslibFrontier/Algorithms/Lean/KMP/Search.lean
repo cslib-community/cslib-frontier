@@ -89,11 +89,9 @@ equals `borderLen p.toList (j + 1)`. -/
 theorem IsPrefixTableFor.isDecreasingTable {α : Type*} [DecidableEq α]
     {p : Array α} {pi : Array ℕ} (h : IsPrefixTableFor p pi) : IsDecreasingTable pi := by
   intro j hj
-  have hp : p.toList ≠ [] := by
-    have := h.1
-    rw [← List.length_pos_iff, Array.length_toList]
-    omega
-  exact Nat.le_of_lt_succ (h.2 j hj ▸ borderLen_lt (by omega) hp)
+  have := h.1
+  exact Nat.le_of_lt_succ (h.2 j hj ▸ borderLen_lt (by omega)
+    (List.ne_nil_of_length_pos (by rw [Array.length_toList]; omega)))
 
 /-- Pattern `p` occurs in text `t` at shift `s` (`0`-indexed). -/
 @[expose] def IsMatchAt {α : Type*} (p t : Array α) (s : ℕ) : Prop :=
@@ -112,22 +110,16 @@ theorem toList_isSuffix_take_iff_isMatchAt {α : Type*} {p t : Array α} {i : �
     (hit : i < t.size) :
     p.toList <:+ t.toList.take (i + 1) ↔
       p.size ≤ i + 1 ∧ IsMatchAt p t (i + 1 - p.size) := by
-  rw [isMatchAt_iff_toList]
-  constructor
-  · intro hsuf
-    have hlen_le : p.size ≤ i + 1 := by
-      have h := hsuf.length_le
-      rwa [Array.length_toList, List.length_take_of_le (by rw [Array.length_toList]; omega)] at h
-    refine ⟨hlen_le, ⟨by omega, ?_⟩⟩
-    rw [show i + 1 = i + 1 - p.size + p.size by omega, List.take_add] at hsuf
-    obtain ⟨u, hu⟩ := hsuf
-    rw [List.prefix_iff_eq_take, Array.length_toList]
-    exact (List.append_inj' hu (by simp [List.length_take, List.length_drop]; omega)).2
-  · rintro ⟨hlen_le, _, hpref⟩
-    have htake_eq : p.toList = (t.toList.drop (i + 1 - p.size)).take p.size := by
-      simpa only [Array.length_toList] using List.prefix_iff_eq_take.mp hpref
-    rw [show i + 1 = i + 1 - p.size + p.size by omega, List.take_add, ← htake_eq]
-    exact ⟨_, rfl⟩
+  by_cases hle : p.size ≤ i + 1
+  · have hsplit : i + 1 = i + 1 - p.size + p.size := by omega
+    rw [isMatchAt_iff_toList, hsplit, List.take_add, List.prefix_iff_eq_take, Array.length_toList]
+    simp only [hle, ← hsplit, Nat.succ_le_of_lt hit, true_and]
+    exact ⟨fun ⟨u, hu⟩ =>
+      (List.append_inj' hu (by simp [List.length_take, List.length_drop]; omega)).2,
+      fun h => h ▸ List.suffix_append _ _⟩
+  · refine iff_of_false (fun hsuf => hle ?_) (by simp [hle])
+    have := hsuf.length_le
+    simp only [Array.length_toList, List.length_take] at this ⊢; omega
 
 /-! ## KMP automaton transition (`advance`) -/
 
@@ -308,8 +300,7 @@ private theorem kmpSearchLoop_spec {α : Type*} [DecidableEq α]
     omega
   | case1 i k hilt k' hfull ihFull =>
     have hplist : 0 < p.toList.length := by simpa only [Array.length_toList] using hp
-    have hadv_eq : k' = maxPrefixSuffixUpTo p.toList (t.toList.take (i + 1)) p.size :=
-      advance_eq_maxPrefixSuffixUpTo_take_succ hp hp_pi htab hilt hk
+    have hadv_eq := advance_eq_maxPrefixSuffixUpTo_take_succ hp hp_pi htab hilt hk
     have hfull_max : maxPrefixSuffixUpTo p.toList (t.toList.take (i + 1)) p.toList.length =
         p.toList.length := by
       simpa only [Array.length_toList, hadv_eq.symm] using hfull
@@ -318,21 +309,18 @@ private theorem kmpSearchLoop_spec {α : Type*} [DecidableEq α]
         take_maxPrefixSuffixUpTo_isSuffix p.toList (t.toList.take (i + 1)) p.toList.length
     obtain ⟨hple_i1, hmatch_here⟩ := (toList_isSuffix_take_iff_isMatchAt hilt).mp hpsuf
     have hpi_idx : p.size - 1 < pi.size := by omega
+    have hp_pred : p.size - 1 + 1 = p.toList.length := by rw [Array.length_toList]; omega
     have hkNext_eq : resetFullMatch p.size pi =
         maxPrefixSuffixUpTo p.toList (t.toList.take (i + 1)) (p.size - 1) := by
       simp only [resetFullMatch, hpi_idx, ↓reduceDIte, htab.2 (p.size - 1) hpi_idx]
-      rw [show p.size - 1 + 1 = p.toList.length by rw [Array.length_toList]; omega,
-        ← maxPrefixSuffixUpTo_pred_of_eq_length hplist hfull_max, Array.length_toList]
+      rw [hp_pred, ← maxPrefixSuffixUpTo_pred_of_eq_length hplist hfull_max, Array.length_toList]
     obtain ⟨hmem_rest, hpw_rest⟩ := ihFull (by omega) hkNext_eq
-    refine ⟨fun s => ?_, List.Pairwise.cons (fun s hs => ?_) hpw_rest⟩
-    · simp only [List.mem_cons, hmem_rest]
-      refine ⟨?_, fun ⟨hge, hm⟩ =>
-        (Nat.eq_or_lt_of_le hge).imp (fun _ => by omega) fun _ => ⟨by omega, hm⟩⟩
-      rintro (rfl | ⟨_, hm⟩)
-      · exact ⟨by omega, hmatch_here⟩
-      · exact ⟨by omega, hm⟩
-    · have := ((hmem_rest s).mp hs).1
-      omega
+    refine ⟨fun s => ?_,
+      List.Pairwise.cons (fun s hs => by have := ((hmem_rest s).mp hs).1; omega) hpw_rest⟩
+    rcases eq_or_ne s (i + 1 - p.size) with rfl | hne
+    · simp only [List.mem_cons, true_or, hmatch_here, and_true, true_iff]; omega
+    · simp only [List.mem_cons, hne, false_or, hmem_rest, and_congr_left_iff]
+      exact fun _ => by omega
   | case2 i k hilt k' hnotfull ih =>
     have hadv_eq : k' = maxPrefixSuffixUpTo p.toList (t.toList.take (i + 1)) p.size :=
       advance_eq_maxPrefixSuffixUpTo_take_succ hp hp_pi htab hilt hk
@@ -343,18 +331,15 @@ private theorem kmpSearchLoop_spec {α : Type*} [DecidableEq α]
     have hk'_pred : k' = maxPrefixSuffixUpTo p.toList (t.toList.take (i + 1)) (p.size - 1) := by
       simpa only [Array.length_toList, ← hadv_eq] using
         (maxPrefixSuffixUpTo_pred_of_lt_length hk'_lt).symm
-    have hnot_suf : ¬ (p.toList <:+ t.toList.take (i + 1)) := fun hsuf => by
-      have := le_maxPrefixSuffixUpTo (B := p.toList.length) (Nat.le_refl _) (Nat.le_refl _)
-        (by simpa only [List.take_length] using hsuf)
-      omega
     obtain ⟨hmem_rest, hpw_rest⟩ := ih (by omega) hk'_pred
-    refine ⟨fun s => ?_, hpw_rest⟩
-    rw [hmem_rest]
-    refine ⟨fun ⟨hge, hm⟩ => ⟨by omega, hm⟩, fun ⟨hge, hm⟩ => ?_⟩
-    rcases Nat.eq_or_lt_of_le hge with heq | hgt
-    · obtain rfl : s = i + 1 - p.size := by omega
-      exact (hnot_suf ((toList_isSuffix_take_iff_isMatchAt hilt).mpr ⟨by omega, hm⟩)).elim
-    · exact ⟨by omega, hm⟩
+    refine ⟨fun s => (hmem_rest s).trans (and_congr_left fun hm => ⟨by omega, fun hge => ?_⟩),
+      hpw_rest⟩
+    by_contra hlt
+    obtain rfl : s = i + 1 - p.size := by omega
+    have hsuf := (toList_isSuffix_take_iff_isMatchAt hilt).mpr ⟨by omega, hm⟩
+    have := le_maxPrefixSuffixUpTo (B := p.toList.length) (Nat.le_refl _) (Nat.le_refl _)
+      (by simpa only [List.take_length] using hsuf)
+    omega
 
 theorem kmpSearchWithPrefix_spec {α : Type*} [DecidableEq α]
     {p : Array α} {pi : Array ℕ} (t : Array α)
@@ -368,12 +353,11 @@ theorem kmpSearchWithPrefix_spec {α : Type*} [DecidableEq α]
     simp only [List.mem_range, IsMatchAt, Array.size_empty, Nat.add_zero]
     exact ⟨fun hlt => ⟨by omega, Array.extract_empty_of_stop_le_start (Nat.le_refl s)⟩,
       fun ⟨hle, _⟩ => by omega⟩
-  · have hk0 : 0 = maxPrefixSuffixUpTo p.toList (t.toList.take 0) (p.size - 1) :=
-      eq_maxPrefixSuffixUpTo_iff.mpr ⟨Nat.zero_le _, Nat.zero_le _, List.nil_suffix,
-        fun _ _ _ _ hsuf => by
-          have h := hsuf.length_le
-          simp only [List.take_zero, List.length_take, List.length_nil] at h
-          omega⟩
+  · have h0 := (take_maxPrefixSuffixUpTo_isSuffix p.toList [] (p.size - 1)).length_le
+    have := maxPrefixSuffixUpTo_le_length p.toList [] (p.size - 1)
+    have hk0 : 0 = maxPrefixSuffixUpTo p.toList (t.toList.take 0) (p.size - 1) := by
+      simp only [List.take_zero, List.length_take, List.length_nil, Array.length_toList] at *
+      omega
     obtain ⟨hmem, hpw⟩ := kmpSearchLoop_spec (by omega) hsize htab (Nat.zero_le _) hk0
     exact ⟨fun s => (hmem s).trans ⟨And.right, fun hm => ⟨by omega, hm⟩⟩, hpw⟩
 

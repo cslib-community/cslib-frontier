@@ -314,35 +314,28 @@ theorem abstractLoopStep_extract {n K V w a : ℕ}
             (scan u du)) := by
   let q : Memory.Prog (Option (Fin n × ℕ)) := M.methods (.inl .extractMin)
   change extract = q.map (Option.map fun p => (p.1.val, p.2)) at hex
-  unfold abstractLoopStep at hv
-  rw [StateTransitionSpec.clientHistory_bind, StateTransitionSpec.validHistory_append,
-    StateTransitionSpec.run_runClient] at hv
+  rw [abstractLoopStep, StateTransitionSpec.clientHistory_bind,
+    StateTransitionSpec.validHistory_append, StateTransitionSpec.run_runClient] at hv
   obtain ⟨_, hres, hstate, hinv⟩ := M.simulates_client (queue .extractMin) hf hv.1
   have hql : link M.methods (queue (n := n) (K := K) (V := V) .extractMin) = q :=
     PFunctor.FreeM.liftM_lift (P := (spec n K V).signature) M.methods (.inl .extractMin)
   rw [hql, clientResult_width] at hres
   rw [hql, clientState_width] at hstate hinv
-  have hrmap : (Memory.spec 0).clientResult s extract =
-      Option.map (fun p => (p.1.val, p.2))
-        ((spec n K V).clientResult (M.abs s) (queue .extractMin)) := by
-    rw [hex, StateTransitionSpec.clientResult]
-    simp only [client_simps, hres]
-  have hsmap : (Memory.spec 0).clientState s extract = (Memory.spec 0).clientState s q := by
-    simp only [hex, StateTransitionSpec.clientState, client_simps]
+  rw [hex, PFunctor.FreeM.map_eq_map, StateTransitionSpec.clientResult_map,
+    StateTransitionSpec.clientState_map, hres]
   rcases hq : (spec n K V).clientResult (M.abs s) (queue .extractMin) with _ | ⟨u, du⟩
-  · exact Or.inl (by simp only [hrmap, hq, Option.map_none])
+  · exact .inl rfl
   · have hfind : IndexedMinPQ.findMin (M.abs s).1 = some (u, du) := by
       change (IndexedMinPQ.step (M.abs s).1 .extractMin).2 = some (u, du) at hq
-      rcases h : IndexedMinPQ.findMin (M.abs s).1 with _ | ⟨v, dv⟩
-      · simp only [IndexedMinPQ.step, h, reduceCtorEq] at hq
-      · simpa only [IndexedMinPQ.step, h] using hq
-    refine Or.inr ⟨u, du, by simp only [hrmap, hq, Option.map_some],
-      hb u du (IndexedMinPQ.findMin_eq_some_state hfind), hsmap ▸ hinv, ?_⟩
+      rcases h : IndexedMinPQ.findMin (M.abs s).1 with _ | ⟨v, dv⟩ <;>
+        simp only [IndexedMinPQ.step, h, reduceCtorEq] at hq
+      exact hq
     have htail := hv.2
     rw [hq] at htail
     dsimp only at htail
     rw [StateTransitionSpec.clientHistory_bind, StateTransitionSpec.validHistory_append] at htail
-    exact hsmap ▸ hstate ▸ htail.1
+    exact .inr ⟨u, du, rfl, hb u du (IndexedMinPQ.findMin_eq_some_state hfind), hinv,
+      hstate ▸ htail.1⟩
 
 /-- Installing the source distance word at `f + G.source.val` and executing the queue insertion
 `ins0` leaves an admissible main loop with queued keys bounded by `K`. -/
@@ -363,8 +356,7 @@ theorem initial_loop_safe_insert {K V w f : ℕ}
     setDist G.source 0
     queue (.insert G.source 0)
   have hp : dijkstra (K := K) (V := V) G.source = (do p; loop G.n) := by
-    unfold dijkstra p
-    rw [bind_assoc]
+    exact (bind_assoc _ _ _).symm
   obtain ⟨hv, _⟩ := dijkstra_correct G hK hV
   rw [← habs, hp, StateTransitionSpec.clientHistory_bind,
     StateTransitionSpec.validHistory_append, StateTransitionSpec.run_runClient] at hv
@@ -380,12 +372,7 @@ theorem initial_loop_safe_insert {K V w f : ℕ}
     exact congrArg _ (funext fun _ =>
       (PFunctor.FreeM.liftM_lift (P := (spec G.n K V).signature) M.methods
         (.inl (.insert G.source 0))).trans hins)
-  have hs : (Memory.spec w).clientState s (link M.methods p) =
-      (Memory.spec 0).clientState
-        ⟨Function.update s.mem (f + G.source.val) 1, s.frontier⟩ ins0 := by
-    rw [hpeq, StateTransitionSpec.clientState_bind]
-    exact clientState_width _ _ _
-  rw [hs] at hstate hinv
+  rw [hpeq, StateTransitionSpec.clientState_bind, clientState_width] at hstate hinv
   refine ⟨hinv, hstate ▸ client_keys (M.abs s) p hv.1 fun v k hk => ?_, hstate ▸ hv.2⟩
   cases habs ▸ hk
 
