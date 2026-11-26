@@ -46,8 +46,7 @@ private theorem weight_ι (hH : H.checkGens Prim.interp.checkPorts = true)
     (i : (gen g : Diagram Prim a b).Edge) :
     H.edgeWeight (S.ι i) = boundaryWeight i := by
   rcases i with i | j
-  · rw [S.ι_top]
-    rfl
+  · exact congrArg H.edgeWeight (S.ι_top i)
   · exact (congrArg H.edgeWeight (S.ι_bottom j)).trans (edgeWeight_bottom Prim.interp H hH j)
 
 private theorem label_top (i : Fin a.length) : label S p (.inl i) = .inl (p (.inl i)) :=
@@ -94,9 +93,6 @@ theorem portMultiset_boundary [Fintype (Inner S)]
   let P : Multiset (WeightedPort (E ⊕ Inner S)) :=
     ∑ e : Inner S, ({⟨⟨Sum.inr e, false⟩, H.edgeWeight e⟩} +
       {⟨⟨Sum.inr e, true⟩, H.edgeWeight e⟩})
-  have hsrc : Multiset.map (WeightedPort.map
-      (fun x : Fin a.length ⊕ Fin b.length => Sum.inl (p x))) (↑(genVertex a b 0).ports) = A :=
-    boundary_ports S p
   have hbal := congrArg (Multiset.map (WeightedPort.map (label S p)))
     (portMultiset_add_boundary Prim.interp H hH)
   simp only [← Multiset.coe_mapAddMonoidHom, map_add, map_sum] at hbal
@@ -109,11 +105,9 @@ theorem portMultiset_boundary [Fintype (Inner S)]
     dsimp only [A, B, P, boundaryDirection, boundaryWeight] at hbal ⊢
     simp only [Fintype.sum_sum_type, Sum.elim_inl, Sum.elim_inr,
       Bool.not_true, Bool.not_false, add_assoc, graph, Finset.sum_add_distrib] at hbal ⊢
-    convert hbal using 1
-    rfl
-  rw [hsrc]
-  apply add_right_cancel (b := B)
-  exact hbal'.trans (by ac_rfl)
+    exact hbal
+  exact (add_right_cancel (b := B) (c := A + P) (hbal'.trans (by ac_rfl))).trans
+    (congrArg (· + P) (boundary_ports S p).symm)
 
 /-- A replacement retains its source ports and adds exactly the private-wire port pairs. -/
 theorem portMultiset [Fintype (Inner S)] (hg : Prim.interp.checkPorts g = true)
@@ -123,9 +117,7 @@ theorem portMultiset [Fintype (Inner S)] (hg : Prim.interp.checkPorts g = true)
         (↑(g.flatMap Vertex.ports)) +
       ∑ e : Inner S, ({⟨⟨Sum.inr e, false⟩, H.edgeWeight e⟩} +
         {⟨⟨Sum.inr e, true⟩, H.edgeWeight e⟩}) := by
-  have hg' : (↑(g.flatMap Vertex.ports) : Multiset (WeightedPort (Fin a.length ⊕ Fin b.length))) =
-      ↑(genVertex a b 0).ports := Multiset.coe_eq_coe.mpr (of_decide_eq_true hg)
-  rw [hg']
+  erw [Multiset.coe_eq_coe.mpr (of_decide_eq_true hg)]
   exact portMultiset_boundary S p hH
 
 end Cslib.Complexity.NCL.Diagram.Replacement

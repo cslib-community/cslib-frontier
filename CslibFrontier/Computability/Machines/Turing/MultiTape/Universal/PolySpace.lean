@@ -154,10 +154,8 @@ private lemma le_two_pow_of_first_halt {t₀ : ℕ}
     · exact False.elim (hlt_false hlt hj (eCfg.injective hij))
     · rfl
     · exact False.elim (hlt_false hgt hi (eCfg.injective hij.symm))
-  have hsub : (Finset.range t₀).image (fun k => eCfg (run d x (k + 1))) ⊆ shortWords b := by
-    intro w hw
-    obtain ⟨k, hk, rfl⟩ := Finset.mem_image.mp hw
-    exact mem_shortWords.mpr (hcfg_le k (Finset.mem_range.mp hk))
+  have hsub : (Finset.range t₀).image (fun k => eCfg (run d x (k + 1))) ⊆ shortWords b :=
+    Finset.image_subset_iff.mpr fun k hk => mem_shortWords.mpr (hcfg_le k (Finset.mem_range.mp hk))
   calc t₀ = (Finset.range t₀).card := (Finset.card_range t₀).symm
     _ = ((Finset.range t₀).image (fun k => eCfg (run d x (k + 1)))).card :=
       (Finset.card_image_of_injOn hinj).symm
@@ -526,9 +524,8 @@ theorem spaceLoopStep_iterate (t s k : ℕ) :
         have hb : ¬ boundsSpace (boundsAt d x (k + 1)) ≤ s := by rwa [boundsSpace_boundsAt]
         simp only [spaceLoopStep, ↓reduceIte, decide_eq_true_eq, ← run_succ, ← boundsAt_succ, hb]
       · obtain ⟨j, hj, hj_sp, heq⟩ := ih_gt hk
-        refine ⟨j, hj.trans (Nat.le_succ k), hj_sp, ?_⟩
-        rw [Function.iterate_succ_apply', heq]
-        rfl
+        exact ⟨j, hj.trans (Nat.le_succ k), hj_sp,
+          (Function.iterate_succ_apply' _ _ _).trans (congrArg spaceLoopStep heq)⟩
 
 /-- Every reachable state of `spaceLoopStep` from `spaceLoopInit (d, x, t, s)` is at some step
 `j ≤ k` of `run d x` with `j = 0 ∨ simSpace d x j ≤ s`. -/
@@ -546,9 +543,7 @@ symbols of `universal (d, x, t)` and whether it has halted. -/
 theorem spaceBoundedUniversal_eq_of_simSpace_le {t s : ℕ} (hsp : simSpace d x t ≤ s) :
     spaceBoundedUniversal (d, x, t, s) =
       ((universal (d, x, t)).1.take 2, (universal (d, x, t)).2) := by
-  simp only [spaceBoundedUniversal, (spaceLoopStep_iterate d x t s t).1 hsp, Bool.true_and,
-    universal, simulate]
-  rfl
+  simp [spaceBoundedUniversal, (spaceLoopStep_iterate d x t s t).1 hsp, universal, simulate, run]
 
 /-- When `¬ simSpace d x t ≤ s`, `spaceBoundedUniversal (d, x, t, s)` reports `false` in its second
 component. -/
@@ -713,21 +708,18 @@ private lemma length_eSpaceLoopState_iterate_le (i : Desc × List ℕ × ℕ × 
       have hmul : (2 * descLen d + 5) * simSpace d x j ≤ (2 * N + 5) * N :=
         Nat.mul_le_mul (by omega) (hsp'.trans hs)
       nlinarith
-  have hout_len : (((stepOut d x)^[j] (init d, [])).2.take 2).length ≤ 2 :=
-    List.length_take_le 2 _
   have hout : (encList encUnary (((stepOut d x)^[j] (init d, [])).2.take 2)).length ≤
       4 * N + 2 := by
-    have h₁ := length_encList_le encUnary (((stepOut d x)^[j] (init d, [])).2.take 2)
+    have h₁ := (length_encList_le encUnary (((stepOut d x)^[j] (init d, [])).2.take 2)
       (b := descLen d) fun o ho => by
         rw [encUnary_apply, List.length_replicate]
-        exact (inv_iterate d x j).2.2 o (List.mem_of_mem_take ho)
-    have h₂ := Nat.mul_le_mul_right (2 * descLen d + 1) hout_len
+        exact (inv_iterate d x j).2.2 o (List.mem_of_mem_take ho)).trans
+      (Nat.mul_le_mul_right (2 * descLen d + 1) (List.length_take_le 2 _))
     nlinarith
   have hbounds : (encList (encPair encUnary encUnary) (boundsAt d x j)).length ≤
       6 * N ^ 2 + 3 * N := by
-    have h₁ := length_boundsAt_le d x hsp
-    have h₂ : descLen d * (6 * s + 3) ≤ N * (6 * N + 3) :=
-      Nat.mul_le_mul hd (by omega)
+    have h₁ := (length_boundsAt_le d x hsp).trans
+      (Nat.mul_le_mul hd (show 6 * s + 3 ≤ 6 * N + 3 by omega))
     nlinarith
   simp only [eSpaceLoopState_apply, length_encPair, encUnary_apply, List.length_replicate,
     encBool_apply, List.length_singleton, descLen] at *

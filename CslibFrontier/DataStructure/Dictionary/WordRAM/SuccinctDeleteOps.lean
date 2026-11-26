@@ -754,14 +754,10 @@ private theorem deleteFoundProg_prePop_spec
     have hinj := (slotOf_lt_and_injective hinv.hslot).2
     dsimp only [tail] at hst_base hcost_base
     rw [ite_eq_left hlt] at hst_base hcost_base
-    have hq_mid : quotAt base U w₀ n_max h_space s_mid.mem =
-        Function.update (quotAt base U w₀ n_max h_space s.mem) phys_del
-          (quotAt base U w₀ n_max h_space s.mem (slotOf n_max gm₀ b j_last)) := by
-      rw [hq_sw, hgm_u1, hq_u1]
-    have hv_mid : valAt base U V w₀ n_max h_space s_mid.mem =
-        Function.update (valAt base U V w₀ n_max h_space s.mem) phys_del
-          (valAt base U V w₀ n_max h_space s.mem (slotOf n_max gm₀ b j_last)) := by
-      rw [hv_sw, hgm_u1, hv_u1]
+    rw [hgm_u1, hq_u1] at hq_sw
+    rw [hgm_u1, hv_u1] at hv_sw
+    change quotAt base U w₀ n_max h_space s_mid.mem = _ at hq_sw
+    change valAt base U V w₀ n_max h_space s_mid.mem = _ at hv_sw
     have hc_sw := memoryCost_deleteSwapProg_le U V w₀ n_max h_space
       ((((base, b), j_del), phys_del), (m_last, j_last)) s₁
     refine ⟨s_mid, L_mid, by rw [hst_base, StateTransitionSpec.clientState_bind],
@@ -774,12 +770,12 @@ private theorem deleteFoundProg_prePop_spec
       fun m' hm' j => ?_⟩
     · have hne_s : slotOf n_max gm₀ b' j ≠ phys_del :=
         fun heq => hne (hinj b' hb' j hj b hb j_del hj_del_lt heq).1
-      simp [hq_mid, hv_mid, Function.update_of_ne hne_s]
+      simp [hq_sw, hv_sw, Function.update_of_ne hne_s]
     · rcases eq_or_ne j j_del with rfl | hjeq
-      · simp [idxMap, hq_mid, hv_mid, phys_del]
+      · simp [idxMap, hq_sw, hv_sw, phys_del, j_last, gm₀]
       · have hne_s : slotOf n_max gm₀ b j ≠ phys_del := fun heq =>
           hjeq (hinj b hb j (hj.trans hj_last_lt) b hb j_del hj_del_lt heq).2
-        simp [idxMap, hjeq, hq_mid, hv_mid, Function.update_of_ne hne_s]
+        simp [idxMap, hjeq, hq_sw, hv_sw, Function.update_of_ne hne_s]
     · rw [hmem_mid b hb m' hm' j, hmem₁ b hb m' hm' j, hinv.hchain_mem b hb m' hm' j]
       rcases eq_or_ne j j_del with rfl | hjeq
       · simp only [idxMap, ite_eq_left rfl, true_and, not_true_eq_false, and_false, false_and,
@@ -1004,16 +1000,14 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
     have hnot_some : ¬(B b q_target).isSome := mt (hinv.hmap_dom b hb q_target).mp hex
     have hB_eq : B' = B := by
       simp only [B', Function.update_eq_self_iff, Option.not_isSome_iff_eq_none.mp hnot_some]
-    have hne1 : prep.1.1.1 ≠ 1 := by
-      dsimp only [prep]
-      exact ne_of_eq_of_ne hprep.1 (by decide)
     have hfin : deleteFinishProg U V w₀ n_max h_space d_fin = pure () := by
       simp only [d_fin, deletePrepHdr, deletePrepPhys, deleteFinishProg, deleteFinishGenProg,
         deleteFoundGenProg_mk, deleteFinishFound, pure_bind]
-      exact ite_eq_right hne1
+      exact ite_eq_right (ne_of_eq_of_ne hprep.1 (by decide))
     have hs'_eq : s' = s := by dsimp only [s']; rw [hfin]; rfl
     exact ⟨⟨henv, fun h => by
-        dsimp only [d_fin, deletePrepHdr, deletePrepPhys, deleteFinishFound] at h; omega⟩,
+        dsimp only [d_fin, prep, deletePrepHdr, deletePrepPhys, deleteFinishFound] at h
+        exact absurd h (ne_of_eq_of_ne hprep.1 (by decide))⟩,
       by rw [hs'_eq], fun _ _ => by rw [hs'_eq], ⟨L, by rw [hs'_eq, hB_eq]; exact hinv⟩,
       by dsimp only [gm', gm₀]; rw [hs'_eq, ite_eq_right hnot_some],
       by

@@ -622,21 +622,9 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
             (tMinWhp n_max) (f + 1) sl cur q =
             descendSplitToLeaf (fpBitsWhp n_max) (valLaneBitsWhp n_max)
               (tMinWhp n_max) f sl_mid nextCur q := by
-          dsimp only [descendSplitToLeaf]
-          have hc : (metaCount (sl.nodes childIdx).metaWord == 2 * tMinWhp n_max - 1) = true := by
-            simp [hfull_c]
-          rw [hmeta, metaIsLeaf_mkNodeMeta, metaCount_mkNodeMeta]
-          simp only [Bool.false_eq_true, ↓reduceIte]
-          change (
-            let r0 := swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) c0 q
-              (sl.nodes cur).keysWord
-            let childIdx0 := laneGet (valLaneBitsWhp n_max) (sl.nodes cur).valsWord r0
-            if (metaCount (sl.nodes childIdx0).metaWord == 2 * tMinWhp n_max - 1) = true
-            then _ else _) = _
-          dsimp only
-          rw [hr_eq_sw, hval_r, hc]
-          simp only [↓reduceIte]
-          rfl
+          simp only [descendSplitToLeaf, hmeta, metaIsLeaf_mkNodeMeta, metaCount_mkNodeMeta,
+            Bool.false_eq_true, ↓reduceIte, hr_eq_sw, hval_r, beq_iff_eq]
+          rw [ite_eq_left hfull_c]
         obtain ⟨isR, Tn, lon, hin, hrtn, hnfn, hhtn, hlon, hhin, hhin_lt, hvn⟩ :
             ∃ isR Tn lon hin, Tn.rootIdx = nextCur ∧
               metaCount (sl_mid.nodes nextCur).metaWord < 2 * tMinWhp n_max - 1 ∧ Tn.height ≤ f ∧
@@ -644,14 +632,12 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
               ValidSubtree isR (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
                 sl_mid.alloc sl_mid.nodes lon hin mapFn Tn := by
           by_cases hsq : spPure.sep < q
-          · have hnc : nextCur = sl.alloc := by simp [nextCur, hsq]
+          · rw [show nextCur = sl.alloc by simp [nextCur, hsq]]
             dsimp only [spPure, childIdx] at hsq
-            rw [hnc]
             exact ⟨_, rightT, _, _, hrtR, by dsimp [sl_mid]; omega, by rw [hhtR]; exact hchild_ht,
               by omega, hq_chi, hchi_le.trans_lt hhi, hvR⟩
-          · have hnc : nextCur = childIdx := by simp [nextCur, hsq]
+          · rw [show nextCur = childIdx by simp [nextCur, hsq]]
             dsimp only [spPure, childIdx] at hsq
-            rw [hnc]
             exact ⟨_, leftT, _, _, hrtL, by dsimp [sl_mid]; omega, by rw [hhtL]; exact hchild_ht,
               hclo_q, by omega, hsep_chi.trans_le (hchi_le.trans hhi.le), hvL⟩
         obtain ⟨hS, hR, hM, hV, hI⟩ :=
