@@ -383,13 +383,9 @@ theorem decodeOne_branch_length_lt {l r : CodeTree α} {bits rem : List Bool} {a
     | leaf _ => simp [decodeOne]
     | branch _ _ ihl ihr =>
       rintro (_ | ⟨false | true, _⟩) _ _ hd
-      · cases hd
-      · exact Nat.le_succ_of_le (ihl hd)
-      · exact Nat.le_succ_of_le (ihr hd)
+      exacts [(nomatch hd), Nat.le_succ_of_le (ihl hd), Nat.le_succ_of_le (ihr hd)]
   rcases bits with _ | ⟨false | true, _⟩
-  · cases h
-  · exact Nat.lt_succ_of_le (hle l h)
-  · exact Nat.lt_succ_of_le (hle r h)
+  exacts [(nomatch h), Nat.lt_succ_of_le (hle l h), Nat.lt_succ_of_le (hle r h)]
 
 /-- Decode a bit stream into a list of symbols using a non-leaf code tree `T`. -/
 @[expose] def decode : CodeTree α → List Bool → Option (List α)
@@ -424,14 +420,12 @@ theorem mem_codewords_of_encodeSym [DecidableEq α] {T : CodeTree α} {a : α} {
   | leaf b =>
     by_cases hab : a = b <;> simp_all [encodeSym, codewords]
   | branch l r ihl ihr =>
-    simp only [encodeSym] at h
-    cases hl : l.encodeSym a with
-    | some cl =>
-      obtain rfl : false :: cl = c := by simpa [hl] using h
-      exact List.mem_append_left _ (List.mem_map.mpr ⟨_, ihl hl, rfl⟩)
-    | none =>
-      obtain ⟨cr, hr, rfl⟩ := Option.map_eq_some_iff.mp (by simpa [hl] using h)
-      exact List.mem_append_right _ (List.mem_map.mpr ⟨_, ihr hr, rfl⟩)
+    simp only [encodeSym, codewords, List.mem_append, List.mem_map] at h ⊢
+    rcases hl : l.encodeSym a with _ | cl <;>
+      simp only [hl, Option.map_eq_some_iff, Option.some.injEq] at h
+    · obtain ⟨cr, hr, rfl⟩ := h
+      exact .inr ⟨_, ihr hr, rfl⟩
+    · exact .inl ⟨_, ihl hl, h ▸ rfl⟩
 
 theorem exists_encodeSym_of_mem_leaves [DecidableEq α] {T : CodeTree α} {a : α}
     (ha : a ∈ T.leaves) : ∃ c, T.encodeSym a = some c := by
