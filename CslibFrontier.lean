@@ -6371,6 +6371,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.Bitwise
 public import CslibFrontier.Computability.Circuit.HintDecoding
 public import CslibFrontier.Computability.Circuit.Frontier.ThresholdTop
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.Flat
+public import CslibFrontier.GameTheory.Market.Existence
 public import CslibFrontier.Crypto.Computational.Pseudoentropy.RepeatedExtraction
 public import CslibFrontier.Probability.MoserTardos.Symmetric
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.VertexPlacement
@@ -6887,6 +6888,7 @@ public import CslibFrontier.Computability.PolyTime.Int.Jet
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tape.WordCode
 public import CslibFrontier.Computability.Circuit.Boolean.Layered
 public import CslibFrontier.Foundations.Data.Nat.ProgressionFreeAddress
+public import CslibFrontier.GameTheory.Market.GaleNikaidoDebreu
 public import CslibFrontier.DataStructure.PriorityQueue.BinaryHeap.Native.Initialize
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Maps
 public import CslibFrontier.Foundations.BooleanAnalysis.SparseEquations.Degree
