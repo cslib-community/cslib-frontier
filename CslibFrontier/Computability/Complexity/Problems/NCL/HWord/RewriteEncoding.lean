@@ -137,18 +137,16 @@ theorem word_legal (rules : Fin r → Rule q) (s : Fin n → Fin q) (hn : 0 < n)
   apply (compatibility_adj rules _ _).mpr
   by_cases hi : i.val = 0
   · have hj : j.val = 1 := by omega
-    simp [encode, hi, hj, padded, Compatible]
-    omega
+    simp [encode, hi, hj, padded, Compatible]; omega
   · by_cases hj : j.val = n + 2
     · have hi' : i.val = n + 1 := by omega
-      simp [encode, hi', hj, padded, Compatible]
-      omega
-    · have hpad : padded s i.val = _ := dite_eq_left ⟨by omega, by omega⟩
-      have hj0 : j.val ≠ 0 := by omega
-      have hi2 : i.val ≠ n + 2 := by omega
-      have hsub : j.val - 1 = i.val := by omega
-      rw [encode, ite_eq_right hi, ite_eq_right hi2, encode, ite_eq_right hj0, ite_eq_right hj,
-        hsub, hpad]
+      simp [encode, hi', hj, padded, Compatible]; omega
+    · have := j.isLt
+      have hpad : padded s i.val = _ := dite_eq_left ⟨by omega, by omega⟩
+      rw [encode, encode, ← hij, Nat.add_sub_cancel, hpad]
+      split_ifs
+      any_goals contradiction
+      any_goals omega
       exact ⟨_, rfl, rfl⟩
 
 /-- Read a shared source letter from a pair on its left, or from the pair on its right. -/
@@ -199,8 +197,8 @@ theorem edge_view (rules : Fin r → Rule q)
 theorem decode_some (rules : Fin r → Rule q)
     {v : Fin (n + 3) → Fin (Fintype.card (Symbol q r))}
     (hv : HWord.Legal (compatibility rules) v) (i : Fin n) :
-    ∃ x, decode v i = some x := by
-  exact read_some rules
+    ∃ x, decode v i = some x :=
+  read_some rules
     (edge_view rules hv ⟨i.val, by omega⟩ ⟨i.val + 1, by omega⟩ rfl)
     (edge_view rules hv ⟨i.val + 1, by omega⟩ ⟨i.val + 2, by omega⟩ rfl)
     (edge_view rules hv ⟨i.val + 2, by omega⟩ ⟨i.val + 3, by omega⟩ rfl)
@@ -363,8 +361,7 @@ theorem rule_word_reachable (rules : Fin r → Rule q) (i : Fin r)
     HWord.Reachable (compatibility rules) (word s) (word t) := by
   let k := app.first.val
   have hki : k + 1 = app.second.val := app.adjacent
-  have hk : k + 1 < n := by have := app.second.isLt; omega
-  have hn : 0 < n := by omega
+  have hk : k + 1 < n := hki.symm ▸ app.second.isLt
   let window : Window (n + 3) 5 := ⟨k, by omega⟩
   let v : Symbol q r := encode s ⟨k, by omega⟩
   let w : Symbol q r := encode s ⟨k + 4, by omega⟩
@@ -374,11 +371,9 @@ theorem rule_word_reachable (rules : Fin r → Rule q) (i : Fin r)
   have hright : padded t (k + 3) = right :=
     (padded_unchanged app (k + 3) (by omega) (by omega)).symm
   have hvw : encode (r := r) s ⟨k, by omega⟩ = encode t ⟨k, by omega⟩ :=
-    encode_unchanged app _ (by change k ≠ k + 1; omega)
-      (by change k ≠ k + 2; omega) (by change k ≠ k + 3; omega)
+    encode_unchanged app _ (by simp [k]) (by simp [k]) (by simp [k])
   have hww : encode (r := r) s ⟨k + 4, by omega⟩ = encode t ⟨k + 4, by omega⟩ :=
-    encode_unchanged app _ (by change k + 4 ≠ k + 1; omega)
-      (by change k + 4 ≠ k + 2; omega) (by change k + 4 ≠ k + 3; omega)
+    encode_unchanged app _ (by simp [k]) (by simp [k]) (by simp [k])
   let target := segment v (.pair left (some (rules i).first'))
     (.pair (some (rules i).first') (some (rules i).second'))
     (.pair (some (rules i).second') right) w
@@ -387,7 +382,7 @@ theorem rule_word_reachable (rules : Fin r → Rule q) (i : Fin r)
   have hdst := word_window (r := r) t app.first app.second app.adjacent
   dsimp only [k] at hvw hww hleft hright
   simp only [← hvw, ← hww, hleft, hright, app.target_first, app.target_second] at hdst
-  have hlegal := word_legal rules s hn
+  have hlegal := word_legal rules s (by omega)
   obtain ⟨hv, hw⟩ := window_edges rules window (word s) hlegal v _ _ _ w hsrc
   exact patch_word app window rfl target hdst ▸
     rule_in_window rules window (word s) hlegal i left right v w hv hw hsrc

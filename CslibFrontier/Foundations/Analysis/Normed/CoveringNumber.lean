@@ -281,11 +281,11 @@ theorem coveringNumber_vadd (c : E) (s : Set E) (ε : ℝ) :
       (coveringNumber_le_card (T := T.image fun y => y + d) ?_).trans
         (Nat.cast_le.2 Finset.card_image_le)
     rintro _ ⟨x, hx, rfl⟩
-    obtain ⟨y, hy, hxy⟩ := hT x hx
+    let ⟨y, hy, hxy⟩ := hT x hx
     exact ⟨y + d, Finset.mem_image_of_mem _ hy, by simpa only [dist_add_right] using hxy⟩
-  refine le_antisymm (hle c s) ?_
-  simpa only [Set.image_image, add_neg_cancel_right, Set.image_id'] using
-    hle (-c) ((fun x => x + c) '' s)
+  exact le_antisymm (hle c s) (by
+    simpa only [Set.image_image, add_neg_cancel_right, Set.image_id'] using
+      hle (-c) ((fun x => x + c) '' s))
 
 end NormedGroup
 
@@ -315,10 +315,9 @@ theorem card_le_of_separated_closedBall {x₀ : E} {R ε : ℝ} (hR : 0 ≤ R) (
     fun y₁ hy₁ y₂ hy₂ hne => Set.disjoint_left.2 fun z hz₁ hz₂ => by
       linarith [hsep y₁ hy₁ y₂ hy₂ hne, dist_triangle y₁ z y₂, dist_comm y₁ z,
         Metric.mem_ball.1 hz₁, Metric.mem_ball.1 hz₂]
-  have hsub : (⋃ y ∈ P, Metric.ball y (ε / 2)) ⊆ Metric.ball x₀ (R + ε / 2) := fun z hz => by
-    obtain ⟨y, hy, hzy⟩ := Set.mem_iUnion₂.1 hz
-    exact Metric.mem_ball.2 <| by
-      linarith [dist_triangle z y x₀, Metric.mem_ball.1 hzy, Metric.mem_closedBall.1 (hP y hy)]
+  have hsub : (⋃ y ∈ P, Metric.ball y (ε / 2)) ⊆ Metric.ball x₀ (R + ε / 2) :=
+    Set.iUnion₂_subset fun y hy z hzy => Metric.mem_ball.2 (by
+      linarith [dist_triangle z y x₀, Metric.mem_ball.1 hzy, Metric.mem_closedBall.1 (hP y hy)])
   have hball_eq (y : E) {r : ℝ} (hr : 0 ≤ r) :
       μ (Metric.ball y r) = ENNReal.ofReal r ^ Module.finrank ℝ E * μ (Metric.ball 0 1) := by
     rw [μ.addHaar_ball y hr, ENNReal.ofReal_pow hr]
@@ -341,14 +340,10 @@ theorem card_le_of_separated_closedBall {x₀ : E} {R ε : ℝ} (hR : 0 ≤ R) (
             (measure_mono hsub)
       _ = ENNReal.ofReal (R + ε / 2) ^ Module.finrank ℝ E * μ (Metric.ball 0 1) :=
           hball_eq x₀ hbig_pos.le
-  have hcancel : (P.card : ℝ≥0∞) * ENNReal.ofReal (ε / 2) ^ Module.finrank ℝ E ≤
-      ENNReal.ofReal (R + ε / 2) ^ Module.finrank ℝ E :=
-    (ENNReal.mul_le_mul_iff_left hpos1.ne' hlt1.ne).1 hineq
-  have hreal : (P.card : ℝ) * (ε / 2) ^ Module.finrank ℝ E ≤
-      (R + ε / 2) ^ Module.finrank ℝ E := by
-    rwa [← ENNReal.ofReal_pow hhalf_pos.le, ← ENNReal.ofReal_natCast,
-      ← ENNReal.ofReal_mul (Nat.cast_nonneg _), ← ENNReal.ofReal_pow hbig_pos.le,
-      ENNReal.ofReal_le_ofReal_iff (by positivity)] at hcancel
+  have hreal := (ENNReal.mul_le_mul_iff_left hpos1.ne' hlt1.ne).1 hineq
+  rw [← ENNReal.ofReal_pow hhalf_pos.le, ← ENNReal.ofReal_natCast,
+    ← ENNReal.ofReal_mul (Nat.cast_nonneg _), ← ENNReal.ofReal_pow hbig_pos.le,
+    ENNReal.ofReal_le_ofReal_iff (by positivity)] at hreal
   exact ((le_div_iff₀ (pow_pos hhalf_pos _)).2 hreal).trans_eq
     ((div_pow _ _ _).symm.trans (congrArg (· ^ _) (by field_simp; ring)))
 
@@ -365,11 +360,10 @@ theorem packingNumber_closedBall_lt_top (x₀ : E) {R ε : ℝ} (hR : 0 ≤ R) (
 theorem packingNumber_closedBall_toNat_le (x₀ : E) {R ε : ℝ} (hR : 0 ≤ R) (hε : 0 < ε) :
     ((packingNumber (Metric.closedBall x₀ R) ε).toNat : ℝ) ≤
       (1 + 2 * R / ε) ^ Module.finrank ℝ E := by
-  have hle : packingNumber (Metric.closedBall x₀ R) ε ≤
-      ⌊(1 + 2 * R / ε) ^ Module.finrank ℝ E⌋₊ :=
-    packingNumber_le_of_forall_card_le fun P hP hsep =>
-      Nat.cast_le.2 (Nat.le_floor (card_le_of_separated_closedBall hR hε hP hsep))
-  exact (Nat.cast_le.2 (ENat.toNat_le_of_le_natCast hle)).trans (Nat.floor_le (by positivity))
+  exact (Nat.cast_le.2 (ENat.toNat_le_of_le_natCast (packingNumber_le_of_forall_card_le
+    fun P hP hsep => Nat.cast_le.2
+      (Nat.le_floor (card_le_of_separated_closedBall hR hε hP hsep))))).trans
+    (Nat.floor_le (by positivity))
 
 /-- **Volumetric internal covering bound** [Vershynin2018, Corollary 4.2.13] (locator unverified):
 `internalCoveringNumber (closedBall x₀ R) ε ≤ (1 + 2 * R / ε) ^ dim E` for `R ≥ 0, ε > 0`. -/
@@ -390,11 +384,10 @@ theorem coveringNumber_closedBall_toNat_le_three_pow (x₀ : E) {R ε : ℝ} (h�
   have hR : 0 ≤ R := hε.le.trans hεR
   have hlt := (internalCoveringNumber_le_packingNumber _ hε.le).trans_lt
     (packingNumber_closedBall_lt_top x₀ hR hε)
-  have hnat := ENat.toNat_le_toNat (coveringNumber_le_internalCoveringNumber _ _) hlt.ne
-  refine (Nat.cast_le.2 hnat).trans ((internalCoveringNumber_closedBall_toNat_le x₀ hR hε).trans
+  refine (Nat.cast_le.2 (ENat.toNat_le_toNat (coveringNumber_le_internalCoveringNumber _ _)
+    hlt.ne)).trans ((internalCoveringNumber_closedBall_toNat_le x₀ hR hε).trans
     (pow_le_pow_left₀ (by positivity) ?_ _))
-  have := (one_le_div hε).2 hεR
-  ring_nf at this ⊢; linarith
+  rw [one_add_div hε.ne', div_le_div_iff_of_pos_right hε]; linarith
 
 end Volumetric
 

@@ -149,9 +149,8 @@ def lastCode (u : List Bool) : Bool := decide (u = List.replicate (L + 1) true)
 def codeCount : ℕ := 2 ^ (L + 1) - 1
 
 private theorem iterate_firstCode (i : ℕ) :
-    increment^[i] (firstCode L) = increment^[i + 1] (List.replicate (L + 1) false) := by
-  rw [Function.iterate_succ_apply]
-  rfl
+    increment^[i] (firstCode L) = increment^[i + 1] (List.replicate (L + 1) false) :=
+  (Function.iterate_succ_apply increment i (List.replicate (L + 1) false)).symm
 
 variable {L}
 
@@ -174,9 +173,8 @@ private theorem lastCode_iterate_firstCode {i : ℕ} (hi : i < codeCount L) :
 private theorem true_mem_iterate_firstCode {i : ℕ} (hi : i < codeCount L) :
     true ∈ increment^[i] (firstCode L) := by
   by_contra h
-  have := BitString.lsbValue_eq_zero_of_true_not_mem h
-  rw [(lsbValue_iterate_firstCode hi).1] at this
-  lia
+  have := (lsbValue_iterate_firstCode hi).1
+  simp [BitString.lsbValue_eq_zero_of_true_not_mem h] at this
 
 /-- **The codes enumerate the short words**: decoding the first `codeCount L` codes gives every word
 of length at most `L` exactly once. -/
@@ -185,16 +183,14 @@ theorem image_decodeWord_iterate_firstCode :
       BitString.shortWords L := by
   ext w
   simp only [mem_image, mem_range, BitString.mem_shortWords]
-  constructor
-  · rintro ⟨i, hi, rfl⟩
-    exact length_decodeWord_le (lsbValue_iterate_firstCode hi).2
-  · intro hw
-    have hlen := length_encodeWord hw
-    have hlt := hlen ▸ BitString.lsbValue_lt (encodeWord L w)
-    refine ⟨lsbValue (encodeWord L w) - 1, by simp only [codeCount]; lia, ?_⟩
-    rw [iterate_firstCode,
-      Nat.sub_add_cancel (BitString.lsbValue_pos_of_true_mem (true_mem_encodeWord L w)),
-      ← hlen, BitString.iterate_increment_lsbValue, decodeWord_encodeWord]
+  refine ⟨fun ⟨i, hi, hw⟩ => hw ▸ length_decodeWord_le (lsbValue_iterate_firstCode hi).2,
+    fun hw => ?_⟩
+  have hlen := length_encodeWord hw
+  have hlt := hlen ▸ BitString.lsbValue_lt (encodeWord L w)
+  refine ⟨lsbValue (encodeWord L w) - 1, by simp only [codeCount]; lia, ?_⟩
+  rw [iterate_firstCode,
+    Nat.sub_add_cancel (BitString.lsbValue_pos_of_true_mem (true_mem_encodeWord L w)),
+    ← hlen, BitString.iterate_increment_lsbValue, decodeWord_encodeWord]
 
 private theorem injOn_decodeWord_iterate_firstCode :
     Set.InjOn (fun i => decodeWord (increment^[i] (firstCode L))) (range (codeCount L)) := by
@@ -242,9 +238,8 @@ theorem gameTree_value_eq {cap : ℕ} (hcap : Fintype.card R ≤ cap) (n : ℕ)
     congr 2
     rw [← image_decodeWord_iterate_firstCode,
       Finset.sum_image injOn_decodeWord_iterate_firstCode]
-    refine Finset.sum_congr rfl fun _ _ => ?_
-    simp only [ih, decodeHistory_cons, Finset.sup_image]
-    rfl
+    exact Finset.sum_congr rfl fun _ _ => by
+      simp [ih, decodeHistory_cons, Finset.sup_image, Function.comp_def]
 
 end GameTree
 
@@ -263,8 +258,7 @@ theorem computableInPolyTime_decodeWord :
 private theorem computableInPolyTime_decodeHistory :
     ComputableInPolyTime decodeHistory (encList (encPair encBits encBits)) encHistory := by
   have hd := computableInPolyTime_decodeWord
-  unfold decodeHistory
-  fun_prop
+  fun_prop [decodeHistory]
 
 end PolyTime
 
@@ -345,10 +339,10 @@ theorem step_none_eq (L cap : ℕ) (leaf : List (List Bool × List Bool) → ℕ
 private theorem evalStep_eq (s : EvalState α) : evalStep enc M fuel s =
     if s.2.2.isSome then (s.1, returnStep (fuel s.1) (2 ^ fuel s.1) s.2.1 (s.2.2.getD 0))
     else (s.1, pushStep (fuel s.1) s.2.1 (min (2 ^ fuel s.1)
-      (leafValue (coinFamily M (fuel s.1) (enc s.1)) (GameTree.history s.2.1)))) := by
-  obtain ⟨a, st, _ | v⟩ := s
-  · rfl
-  · exact congrArg _ (step_some_eq _ _ _ st v)
+      (leafValue (coinFamily M (fuel s.1) (enc s.1)) (GameTree.history s.2.1)))) :=
+  match s with
+  | ⟨_, _, none⟩ => rfl
+  | ⟨_, st, some v⟩ => congrArg _ (step_some_eq _ _ _ st v)
 
 end Evaluation
 
@@ -370,8 +364,8 @@ attribute [local fun_prop] binary_max' binary_min'
 @[local fun_prop] private theorem lastCode_pt {count : γ → ℕ} {word : γ → List Bool}
     (h : ComputableInPolyTime count input encUnary)
     (hword : ComputableInPolyTime word input encBits) :
-    ComputableInPolyTime (fun x => lastCode (count x) (word x)) input encBool := by
-  exact decide_eq' hword ((bitsReplicate true).comp (unary_succ.comp h))
+    ComputableInPolyTime (fun x => lastCode (count x) (word x)) input encBool :=
+  decide_eq' hword ((bitsReplicate true).comp (unary_succ.comp h))
 
 variable {α : Type} (enc : α ↪ List Bool) {k : ℕ} {Control : Type}
   (M : _root_.Turing.MultiTapePTM k Bool Control Unit) (fuel : α → ℕ)
@@ -518,7 +512,6 @@ theorem mem_iff_two_pow_lt_value {V : α → WordOracleComp Unit Bool} {A : Set 
       (W : ENNReal) / (2 ^ t : ℕ) := by
     rw [hacc, ENNReal.div_eq_inv_mul, Nat.cast_pow, Nat.cast_ofNat,
       sum_acceptFrom_optimalProver hbounded]
-  have h2pow := Nat.one_le_two_pow (n := t)
   refine ⟨fun ha => ?_, fun hlt => by_contra fun ha => ?_⟩
   · obtain ⟨P, hP⟩ := hA.complete a ha
     have h : ((2 : ℕ) : ENNReal) / (3 : ℕ) ≤ (W : ENNReal) / (2 ^ t : ℕ) := by

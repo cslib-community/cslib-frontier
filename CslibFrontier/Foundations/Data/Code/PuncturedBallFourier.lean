@@ -174,15 +174,12 @@ private theorem hasDerivAt_ksGamma {ρ : ℝ} (h0 : 0 < ρ) (h1 : ρ < 1 / 2) :
 private theorem pow_four_lt {ρ : ℝ} (h0 : 3 / 20 < ρ) (h1 : ρ < 1 / 2) :
     (1 - ρ) ^ 4 < ρ * (2 - 3 * ρ) ^ 3 := by
   set t := 1 / 2 - ρ
-  set s := ρ - 3 / 20
   have ht0 : 0 < t := sub_pos.2 h1
-  have hs0 : 0 < s := sub_pos.2 h0
+  have hs0 : 0 < ρ - 3 / 20 := sub_pos.2 h0
+  have hpos : 0 < 2 * t * ((ρ - 3 / 20) * (56000 * t ^ 2 + 23600 * t + 2260) + 209) := by positivity
   have hdiff : 4000 * (ρ * (2 - 3 * ρ) ^ 3 - (1 - ρ) ^ 4) =
-      2 * t * (s * (56000 * t ^ 2 + 23600 * t + 2260) + 209) := by
-    simp only [t, s]; ring
-  have hpos : 0 < 2 * t * (s * (56000 * t ^ 2 + 23600 * t + 2260) + 209) := by positivity
-  rw [← hdiff] at hpos
-  exact sub_pos.mp (pos_of_mul_pos_right hpos (by norm_num))
+      2 * t * ((ρ - 3 / 20) * (56000 * t ^ 2 + 23600 * t + 2260) + 209) := by simp only [t]; ring
+  linarith only [hpos, hdiff]
 
 /-- `γ` is strictly decreasing on `[3 / 20, 1 / 2]`, because
 `γ'(ρ) = log ((1 - ρ) ^ 4 / (ρ (2 - 3 ρ) ^ 3)) / 2` is negative there. -/
@@ -281,10 +278,9 @@ private theorem ksTailIntegrand_arg {ρ z : ℝ} (hρ0 : 0 ≤ ρ) (hρ : ρ < 1
   · rw [div_le_iff₀ hd]
     have hs : √((1 - 2 * ρ) ^ 2 - 4 * z * (1 - z)) ≤ (1 - 2 * ρ) * (1 - 2 * z) := by
       rw [sqrt_le_left (mul_nonneg h1ρ.le h1z)]
-      have h1 : (1 - 2 * ρ) ^ 2 ≤ 1 :=
-        pow_le_one₀ h1ρ.le (sub_le_self _ (mul_nonneg zero_le_two hρ0))
-      have h2 : 0 ≤ z * (1 - z) := mul_nonneg hz0 (sub_nonneg.mpr (hz.trans (by norm_num)))
-      linarith [mul_le_mul_of_nonneg_right h1 h2]
+      have h1 := pow_le_one₀ (n := 2) h1ρ.le (sub_le_self _ (mul_nonneg zero_le_two hρ0))
+      have h2 := mul_nonneg hz0 (sub_nonneg.mpr (hz.trans (half_le_self zero_le_one)))
+      linarith only [mul_le_mul_of_nonneg_right h1 h2]
     linarith only [hs]
 
 /-- **The tail exponent bound** [Saglam2027, Appendix A]: the integrand is at most
@@ -464,10 +460,7 @@ private theorem threshold_le {n w y V : ℝ} (hn : 2 ≤ n) (hρ0 : 0 ≤ w / n)
     linarith only [hm, hwy]
   have hn2 : exp (-(2 * log n)) = (n ^ 2)⁻¹ := by
     rw [← Nat.cast_two]; exact exp_neg_mul_log 2 hnpos
-  have hsqn : √(n + 1) ≤ n := by
-    rw [sqrt_le_left hnpos.le]
-    have h2 : 2 * n ≤ n ^ 2 := by rw [sq]; exact mul_le_mul_of_nonneg_right hn hnpos.le
-    linarith only [hn, h2]
+  have hsqn : √(n + 1) ≤ n := (sqrt_le_left hnpos.le).2 (by nlinarith only [hn])
   calc √V⁻¹ * exp (n * (ksTailExponent (w / n) y - binEntropy (w / n) / 2))
       ≤ √V⁻¹ * (√(exp (n * binEntropy (w / n))) * (n ^ 2)⁻¹) := by
         rw [← hn2]; exact mul_le_mul_of_nonneg_left hexp (sqrt_nonneg _)
