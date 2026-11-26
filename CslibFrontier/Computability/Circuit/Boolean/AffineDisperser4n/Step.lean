@@ -83,8 +83,7 @@ variable {n : ℕ}
 theorem Valid.exists_gate_of_normal {S : State n} {f : BooleanFunction n} {d : ℕ}
     (hS : S.Valid f) (hf : IsAffineDisperser f d) (ha : d < S.a) (_hN : S.Normal) :
     S.gates.Nonempty := by
-  by_contra hne
-  rw [Finset.not_nonempty_iff_eq_empty] at hne
+  refine Finset.nonempty_iff_ne_empty.2 fun hne => ?_
   cases hout : S.out.arg with
   | const b =>
     refine Valid.out_not_affine hS hf ha (b ^^ S.out.neg) (Finset.empty_subset _) fun val _ _ => ?_
@@ -105,10 +104,9 @@ theorem Valid.minGate_reads {S : State n} {f : BooleanFunction n} (hS : S.Valid 
     (hne : S.gates.Nonempty) :
     let G := S.gates.min' hne
     G ∈ S.gates ∧ ∀ i, (S.gate G).Reads i → i ∉ S.gates := by
-  refine ⟨Finset.min'_mem S.gates hne, fun i hread hi => ?_⟩
-  have hlt := hS.wf.reads_lt _ (Finset.min'_mem S.gates hne) i hi hread
-  have hle := Finset.min'_le S.gates i hi
-  omega
+  exact ⟨Finset.min'_mem S.gates hne, fun i hread hi =>
+    not_lt_of_ge (Finset.min'_le S.gates i hi)
+      (hS.wf.reads_lt _ (Finset.min'_mem S.gates hne) i hi hread)⟩
 
 /-- If gate `G` reads distinct inputs `a ≠ b` and the affine representation `c + ∑ T` of `a`
 uses no parameter other than `b`, then substituting that representation for `a` into `G` gives a
@@ -132,11 +130,8 @@ private theorem lit_subst_affineIn {S : State n} {G a b : ℕ} {c : Bool} {T : F
     · rcases Gate.reads_of_reads_subst (Gate.reads_of_lit_reads ht) with hr | ⟨_, harg⟩
       exacts [hr, by simp [Lit.const] at harg]
     · have hvac : val a = (Lit.const c).eval val := by
-        have := haff.2 val hval
-        rw [hTe, Finset.sum_empty] at this
-        cases c <;> simp [Lit.eval_const, this]
-      rw [← Gate.eval_subst hvac]
-      exact Gate.eval_lit hg'deg val
+        simp [haff.2 val hval, hTe, Lit.eval_const]
+      exact (Gate.eval_subst hvac).symm.trans (Gate.eval_lit hg'deg val)
   · simp only [ℓ, hTe, ↓reduceIte]
     have hT_eq : T = {b} := (Finset.subset_singleton_iff.1 hT).resolve_left hTe
     let ℓ_sub : Lit := ⟨.node b, c⟩
@@ -151,10 +146,8 @@ private theorem lit_subst_affineIn {S : State n} {G a b : ℕ} {c : Bool} {T : F
       exacts [hr, Arg.node.inj harg ▸ hGb]
     · have hvac : val a = ℓ_sub.eval val := by
         rw [haff.2 val hval, hT_eq, Finset.sum_singleton]
-        simp only [ℓ_sub, Lit.eval, Arg.eval_node]
-        exact Bool.xor_comm _ _
-      rw [← Gate.eval_subst hvac]
-      exact Gate.eval_lit hg'deg val
+        exact Bool.xor_comm c (val b)
+      exact (Gate.eval_subst hvac).symm.trans (Gate.eval_lit hg'deg val)
 
 /-- If a gate of a normal state reads distinct inputs `a ≠ b` with `a ∈ S.aux`, then `a`'s
 affine representation contains some unpaired parameter `y ≠ b` of degree at least `2`. -/
@@ -171,10 +164,8 @@ private theorem exists_param_for_swap_of_aux_input {S : State n} {f : BooleanFun
       haff.mem_terms hS.wf (fun hp => hS.wf.notMem_aux_of_mem_params hp ha) hyT
     obtain ⟨hyunp, hdeg⟩ := hN.unpaired_of_mem_terms he hye (haff.1 hyT)
     exact ⟨y, c, T, haff, hyT, hyb, hyunp, hdeg⟩
-  · rw [Finset.not_nonempty_iff_eq_empty] at hne
-    have hT : T ⊆ {b} := fun u hu => Finset.mem_singleton.2 <| by
-      by_contra hub
-      exact (Finset.eq_empty_iff_forall_notMem.1 hne) u (Finset.mem_erase.2 ⟨hub, hu⟩)
+  · have hT : T ⊆ {b} := fun u hu => Finset.mem_singleton.2 <|
+      by_contra fun hub => hne ⟨u, Finset.mem_erase.2 ⟨hub, hu⟩⟩
     obtain ⟨hreads, heval⟩ := lit_subst_affineIn hab hGa hGb haff hT
     exact absurd (Or.inl ⟨G, hG, _, hreads, heval⟩) hN.no_deletion
 
@@ -250,8 +241,7 @@ theorem Valid.preparation_swap_auxIn {S : State n} {f : BooleanFunction n} (hS :
   have hG : G ∈ S.gates := Finset.min'_mem S.gates hne
   obtain ⟨u, v, huv, hGu, hGv⟩ := hN.two_reads_of_gate hG
   have haux_or : u ∈ S.aux ∨ v ∈ S.aux := by
-    by_contra hno
-    push Not at hno
+    by_contra! hno
     dsimp only [auxIn] at hpos
     rcases Gate.args_of_reads huv hGu hGv with ⟨hl, hr⟩ | ⟨hl, hr⟩ <;> rw [hl, hr] at hpos <;>
       simp [auxArg, hno.1, hno.2] at hpos
@@ -301,11 +291,9 @@ theorem Valid.step_pairCreation_of {S : State n} {f : BooleanFunction n} (hS : S
       have hholds := (ZeroPair.holds_iff_and_eq_false pr val).1
         (hlocus pr (Finset.mem_insert_self _ _))
       change (S.gate G).eval val = γ
-      rw [hG_eval]
-      simp only [pr] at hholds
-      rw [hholds, Bool.false_xor]
-  have hG₁ : G ∈ S₁.gates := hG
-  have hred₂ := hS₁.reduction_deleteConst hG₁ hconstG
+      dsimp only [pr] at hholds
+      rw [hG_eval, hholds, Bool.false_xor]
+  have hred₂ := hS₁.reduction_deleteConst hG hconstG
   let S₂ := S₁.deleteGate G (Lit.const γ)
   have hW₂ : S₂.W + 1 ≤ S₁.W := reduction_W_add_one_le hred₂ hS₁
   have hdelK : S₂.Deletable (.inl K) := deletable_deleteGate_child γ hK hKG hKr
@@ -316,17 +304,11 @@ theorem Valid.step_pairCreation_of {S : State n} {f : BooleanFunction n} (hS : S
   have hm₃ : S₃.m = S.m := by
     simpa [m, S₁, addPair_params] using hred₃.m_add.trans hred₂.m_add
   have hs₃ : S₃.s + 2 = S.s := by
-    have h3 := hred₃.s_add
-    have h2 := hred₂.s_add
-    have hs1 : S₁.s = S.s := addPair_size S pr
-    simp only [List.length_singleton] at h2 h3
-    omega
+    simpa [s, S₁, addPair_size, Nat.add_assoc] using
+      (congrArg (· + [Sum.inl G].length) hred₃.s_add).trans hred₂.s_add
   have hq₃ : S₃.q = S.q + 1 := by
-    have h3 := hred₃.q_add
-    have h2 := hred₂.q_add
-    have hq1 : S₁.q = S.q + 1 := addPair_q hpc
-    rw [pairsMeeting_empty, Finset.card_empty, add_zero] at h2 h3
-    omega
+    simpa [S₁, pairsMeeting_empty, addPair_q hpc] using
+      (congrArg (· + (S₁.pairsMeeting ∅).card) hred₃.q_add).trans hred₂.q_add
   have ha₃ : S₃.a + 1 = S.a := by
     have hq_le := hS.q_le_m
     have hq3_le := hred₃.valid.q_le_m
@@ -349,21 +331,17 @@ theorem Valid.step_of_pairCreation {S : State n} {f : BooleanFunction n} {d : �
       (S.gate G).eval val = (((val t₁ ^^ α) && (val t₂ ^^ β)) ^^ γ) := by
     obtain ⟨α, β, γ, hop⟩ := exists_and_form hnotaff
     rcases Gate.args_of_reads htne hGt₁ hGt₂ with ⟨hl, hr⟩ | ⟨hl, hr⟩
-    · refine ⟨α, β, γ, fun val => ?_⟩
-      rw [Gate.eval_of_args hl hr, hop]
-    · refine ⟨β, α, γ, fun val => ?_⟩
-      rw [Gate.eval_of_args hl hr, hop, Bool.and_comm]
+    · exact ⟨α, β, γ, fun val => by rw [Gate.eval_of_args hl hr, hop]⟩
+    · exact ⟨β, α, γ, fun val => by rw [Gate.eval_of_args hl hr, hop, Bool.and_comm]⟩
   have houtG : ¬ S.out.Reads G := by
     intro hread
     refine Valid.false_of_fix hS hf ha ht₁par α ∅ (Finset.empty_subset _) (Finset.notMem_empty _)
       (γ ^^ S.out.neg) fun val hcons _ hfix => ?_
-    have hread' : S.out.arg = .node G := hread
     have hv1 : val t₁ = α := by simpa using hfix
-    simp only [Lit.eval, hread', Arg.eval_node, hcons.2 G hG, hG_eval, hv1, Bool.xor_self,
-      Bool.false_and, Bool.false_xor]
+    simp only [Lit.eval, show S.out.arg = .node G from hread, Arg.eval_node, hcons.2 G hG,
+      hG_eval, hv1, Bool.xor_self, Bool.false_and, Bool.false_xor]
   obtain ⟨K, hK, hKr⟩ : ∃ K ∈ S.gates, (S.gate K).Reads G := by
-    by_contra hno
-    push Not at hno
+    by_contra! hno
     exact hN.no_deletion (Or.inr (Or.inl ⟨G, hG, hno, houtG⟩))
   exact ⟨_, Valid.step_pairCreation_of hS hG htne hGt₁ hGt₂ ht₁unp ht₂unp hG_eval hK hKr⟩
 
@@ -419,9 +397,7 @@ and `d < S.a`, then there is a valid step from `S` strictly reducing `m + s` wit
 theorem Valid.exists_step {S : State n} {f : BooleanFunction n} {d : ℕ} (hS : S.Valid f)
     (hf : IsAffineDisperser f d) (ha : d < S.a) : ∃ S', Step f S S' :=
   let k₂ := if hne : S.gates.Nonempty then S.auxIn (S.gates.min' hne) else 0
-  Valid.exists_step_aux hf S.gates.card k₂ hS ha le_rfl fun hne => by
-    dsimp only [k₂]
-    rw [dite_eq_left hne]
+  Valid.exists_step_aux hf S.gates.card k₂ hS ha le_rfl fun hne => by simp [k₂, hne]
 
 end State
 

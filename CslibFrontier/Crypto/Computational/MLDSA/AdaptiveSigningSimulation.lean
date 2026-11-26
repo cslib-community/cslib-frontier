@@ -40,11 +40,10 @@ private theorem cut_at_budget {C : QuantumSigningForger} (prog : C.Program Forge
   | liftBind cmd k ih =>
     obtain ⟨enough, tail⟩ := OracleComp.IsCostBounded.liftBind_iff.mp calls
     rcases cmd with coin | op | q
-    · exact congrArg (PFunctor.FreeM.liftBind _) (funext fun r => ih r n (tail r))
-    · exact congrArg (PFunctor.FreeM.liftBind _) (funext fun r => ih r n (tail r))
-    · cases n with
-      | zero => simp [isSigningCall] at enough
-      | succ n => exact congrArg (PFunctor.FreeM.liftBind _) (funext fun r => ih r n (tail r))
+    any_goals exact congrArg (PFunctor.FreeM.liftBind _) (funext fun r => ih r n (tail r))
+    cases n with
+    | zero => simp [isSigningCall] at enough
+    | succ n => exact congrArg (PFunctor.FreeM.liftBind _) (funext fun r => ih r n (tail r))
 
 private theorem mixed_all_native (C : QuantumSigningForger) (s : Level) (H : Xofs)
     (A : PublicMatrix s) (keys : KeyPair) (sk : PrivateKey s) (prog : C.Program Forgery)
@@ -97,11 +96,10 @@ private theorem cut_succ {C : QuantumSigningForger} (prog : C.Program Forgery) (
   | pure f => rfl
   | liftBind cmd k ih =>
     rcases cmd with coin | op | q
-    · exact congrArg (PFunctor.FreeM.liftBind _) (funext fun r => ih r i)
-    · exact congrArg (PFunctor.FreeM.liftBind _) (funext fun r => ih r i)
-    · cases i with
-      | zero => rfl
-      | succ i => exact congrArg (PFunctor.FreeM.liftBind _) (funext fun r => ih r i)
+    any_goals exact congrArg (PFunctor.FreeM.liftBind _) (funext fun r => ih r i)
+    cases i with
+    | zero => rfl
+    | succ i => exact congrArg (PFunctor.FreeM.liftBind _) (funext fun r => ih r i)
 
 private noncomputable def nativeThenSimulated (C : QuantumSigningForger) (s : Level) (H : Xofs)
     (A : PublicMatrix s) (keys : KeyPair) (sk : PrivateKey s) (D : Register s) :
@@ -127,15 +125,13 @@ private theorem mixed_succ (C : QuantumSigningForger) (s : Level) (H : Xofs)
   | signing q k =>
     let G := H.withDigestRegister s D
     let r := G.signWithExpansionRow s keys.secretKey q (t.headD 0)
-    let cmd : Request C := .inr (.inr q)
-    let handler := OracleComp.withSampleListWhen isSigningCall (0 : Row s) fun row =>
-      C.signingCommand G (fun ask => G.signWithExpansionRow s keys.secretKey ask row)
-    change ((OracleComp.interpret handler
-      (OracleComp.query cmd >>= fun v => cut (C := C) (k v) 0)).run ((dev, l), t)).bind _ =
-      C.simulated s H A sk keys.publicKey (k r) D dev (q.logReply r l)
-    rw [← C.mixed_all_simulated s H A keys sk (k r) D dev (q.logReply r l) t.tail,
-      OracleComp.run_interpret_bind, OracleComp.run_interpret_query]
-    simp [handler, cmd, r, G, OracleComp.withSampleListWhen, OracleComp.withSampleList,
+    dsimp only [nextCut, nativeThenSimulated]
+    rw [← C.mixed_all_simulated s H A keys sk (k r) D dev (q.logReply r l) t.tail]
+    change PMF.bind (StateT.run (OracleComp.interpret _
+      (OracleComp.query (.inr (.inr q) : Request C) >>= fun v => cut (C := C) (k v) 0))
+        ((dev, l), t)) _ = _
+    rw [OracleComp.run_interpret_bind, OracleComp.run_interpret_query]
+    simp [r, G, OracleComp.withSampleListWhen, OracleComp.withSampleList,
       isSigningCall, signingCommand, OracleComp.sumHandler, pmf_norm, mixed, prefixRun,
       prefixInteraction]
 
@@ -199,12 +195,9 @@ private theorem mixed_write_window (C : QuantumSigningForger) (s : Level) (H : X
         resumeRetries, installedAttempt_eq, next, simulatedAfter, done]
       apply eraseRetries_le _ _ _ _ _ (by positivity)
       intro T value r
-      let m := BitString.ofList 512
-        (G.representativeFromTr sk.tr (formatMessage q.message q.context))
-      have h := C.simulated_gap s H A sk keys.publicKey m (k r)
+      exact (C.simulated_gap s H A sk keys.publicKey _ (k r)
         (cut_cost_after (hash _) i possible r) (cut_cost_after (calls _) i possible r)
-        T value dev (q.logReply r l)
-      exact h.trans_eq (by dsimp only [δ]; ring)
+        T value dev (q.logReply r l)).trans_eq (by ring)
 
 private noncomputable def fixedHybrid (C : QuantumSigningForger) (s : Level) (H : Xofs)
     (A : PublicMatrix s) (keys : KeyPair) (sk : PrivateKey s) (n j : ℕ) : Game :=
@@ -307,22 +300,12 @@ private theorem seeded_all_simulated (C : QuantumSigningForger) (s : Level) (bas
     simp only [key, pub, fixedHybrid, mixed_all_simulated, PMF.bind_const]
     apply congrArg (PMF.bind (PMF.uniformOfFintype (Register s)) ·)
     funext D
-    let G := H.withDigestRegister s D
-    let sk : PrivateKey s := ⟨rho.toList, (H.expandKeySeed s seed).drop 96,
-      H.h256.readBytes keys.publicKey 64, pair.s₁, pair.s₂,
-      publicKeyLowPart s.params 13 pair.publicKey⟩
-    let st : History s G sk.tr := ⟨G, [], [], .initial, by simp, by simp⟩
-    have law := C.simulated_eq_run s H G pair.A sk keys.publicKey (C.program keys.publicKey)
-      D C.initialDevice st rfl
-    have expand : G.expandA s sk.rho = some pair.A :=
+    have expand : (H.withDigestRegister s D).expandA s rho.toList = some pair.A :=
       (Xofs.expandA_congr (H := H) rfl s _).trans mat
-    change C.simulated s H pair.A sk keys.publicKey (C.program keys.publicKey) D
-      C.initialDevice [] =
-      (C.freshMaskSigning s G keys).map _
-    change decodePrivate s keys.secretKey = some sk at key
     simp only [freshMaskSigning, key, expand, runProgrammed, runSigningProgram,
       PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map]
-    exact law
+    exact C.simulated_eq_run s H (H.withDigestRegister s D) pair.A _ keys.publicKey
+      (C.program keys.publicKey) D C.initialDevice ⟨_, [], [], .initial, by simp, by simp⟩ rfl
 
 /-- Loss from replacing the native commitment digests of all signing requests by independent
 samples and erasing rejected writes. The cap is the 814-attempt option of FIPS 204. Each summand

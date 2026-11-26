@@ -180,39 +180,29 @@ private theorem split3 {x y z w : Letter Γ Λ} {L R : List Γ} {p s : List (Let
 
 private theorem peel_right_sym {R : List Γ} {s : List (Letter Γ Λ)} {c : Γ}
     (h : sym c :: s = R.map sym ++ [rb]) : ∃ R', R = c :: R' ∧ s = R'.map sym ++ [rb] := by
-  rcases R with _ | ⟨c', R'⟩
-  · simp at h
-  · simp only [List.map_cons, List.cons_append, List.cons.injEq, Letter.sym.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
-    exact ⟨R', rfl, rfl⟩
+  rcases R with _ | ⟨c', R'⟩ <;> cases h
+  exact ⟨R', rfl, rfl⟩
 
 private theorem peel_right_rb {R : List Γ} {s : List (Letter Γ Λ)}
     (h : (rb : Letter Γ Λ) :: s = R.map sym ++ [rb]) : R = [] ∧ s = [] := by
-  rcases R with _ | ⟨c', R'⟩
-  · simp only [List.map_nil, List.nil_append, List.cons.injEq] at h
-    exact ⟨rfl, h.2⟩
-  · simp at h
+  rcases R with _ | ⟨c', R'⟩ <;> cases h
+  exact ⟨rfl, rfl⟩
 
 private theorem peel_left_sym {L : List Γ} {p : List (Letter Γ Λ)} {c : Γ}
     (h : p ++ [sym c] = lb :: L.reverse.map sym) :
     ∃ L', L = c :: L' ∧ p = lb :: L'.reverse.map sym := by
   rcases L with _ | ⟨c', L'⟩
-  · obtain ⟨-, h₂⟩ := List.append_inj' (s₂ := []) (t₂ := [lb]) h rfl
-    simp at h₂
+  · exact nomatch (List.append_inj' (s₂ := []) (t₂ := [lb]) h rfl).2
   · rw [List.reverse_cons, List.map_append, List.map_singleton, ← List.cons_append] at h
-    obtain ⟨h₁, h₂⟩ := List.append_inj' h rfl
-    simp only [List.cons.injEq, Letter.sym.injEq, and_true] at h₂
-    subst h₂
-    exact ⟨L', rfl, h₁⟩
+    obtain ⟨rfl, ⟨⟩⟩ := List.append_inj' h rfl
+    exact ⟨L', rfl, rfl⟩
 
 private theorem peel_left_lb {L : List Γ} {p : List (Letter Γ Λ)}
     (h : p ++ [lb] = lb :: L.reverse.map sym) : L = [] ∧ p = [] := by
   rcases L with _ | ⟨c', L'⟩
-  · obtain ⟨h₁, -⟩ := List.append_inj' (s₂ := []) (t₂ := [lb]) h rfl
-    exact ⟨rfl, h₁⟩
+  · exact ⟨rfl, (List.append_inj' (s₂ := []) (t₂ := [lb]) h rfl).1⟩
   · rw [List.reverse_cons, List.map_append, List.map_singleton, ← List.cons_append] at h
-    obtain ⟨-, h₂⟩ := List.append_inj' h rfl
-    simp at h₂
+    exact nomatch (List.append_inj' h rfl).2
 
 private theorem rb_notMem_word {x : Letter Γ Λ} (hx : x ≠ rb) (L R : List Γ) :
     rb ∉ lb :: L.reverse.map sym ++ x :: R.map sym := by
@@ -288,33 +278,27 @@ private theorem good_of_rewrites {M : TM0.Machine Γ Λ} {l : List Γ} {u v : Li
   rcases hu with ⟨q, a, L, R, hr, hw⟩ | ⟨hh, hw | ⟨L, R, hw⟩⟩
   · cases hd with
     | stop hM =>
-      obtain ⟨rfl, h, rfl⟩ := split1 hw trivial
-      cases h
+      obtain ⟨rfl, ⟨⟩, rfl⟩ := split1 hw trivial
       exact Or.inr ⟨⟨_, hr, step_of_eq_none hM L R⟩, Or.inr ⟨L, R, by simp [word]⟩⟩
     | @write _ _ q' b hM =>
-      obtain ⟨rfl, h, rfl⟩ := split1 hw trivial
-      cases h
+      obtain ⟨rfl, ⟨⟩, rfl⟩ := split1 hw trivial
       exact Or.inl ⟨q', b, L, R, hr.tail (step_of_eq_write hM L R), by simp [word]⟩
     | @right _ _ q' c hM =>
-      obtain ⟨rfl, h, hs⟩ := split2 hw trivial
-      cases h
+      obtain ⟨rfl, ⟨⟩, hs⟩ := split2 hw trivial
       obtain ⟨R', rfl, rfl⟩ := peel_right_sym hs
       exact Or.inl ⟨q', c, _ :: L, R', hr.tail (step_of_eq_right hM L (c :: R')),
         by simp [word]⟩
     | @rightEnd _ _ q' hM =>
-      obtain ⟨rfl, h, hs⟩ := split2 hw trivial
-      cases h
+      obtain ⟨rfl, ⟨⟩, hs⟩ := split2 hw trivial
       obtain ⟨rfl, rfl⟩ := peel_right_rb hs
       exact Or.inl ⟨q', default, _ :: L, [], hr.tail (step_of_eq_right hM L []), by simp [word]⟩
     | @left _ _ q' c hM =>
-      obtain ⟨hp, h, rfl⟩ := split2' hw trivial
-      cases h
+      obtain ⟨hp, ⟨⟩, rfl⟩ := split2' hw trivial
       obtain ⟨L', rfl, rfl⟩ := peel_left_sym hp
       exact Or.inl ⟨q', c, L', _ :: R, hr.tail (step_of_eq_left hM (c :: L') R),
         by simp [word]⟩
     | @leftEnd _ _ q' hM =>
-      obtain ⟨hp, h, rfl⟩ := split2' hw trivial
-      cases h
+      obtain ⟨hp, ⟨⟩, rfl⟩ := split2' hw trivial
       obtain ⟨rfl, rfl⟩ := peel_left_lb hp
       exact Or.inl ⟨q', default, [], _ :: R, hr.tail (step_of_eq_left hM [] R), by simp [word]⟩
     | eatLeft c => exact nomatch (split2' hw trivial).2.1
@@ -384,14 +368,9 @@ private theorem reflTransGen_of_reaches {M : TM0.Machine Γ Λ} {c c' : TM0.Cfg 
   induction h using ReflTransGen.head_induction_on with
   | refl =>
     rintro q a L R rfl
-    have hM : M q a = none := by
-      rcases hM : M q a with _ | ⟨q', s⟩
-      · rfl
-      · change (M q a).map _ = none at hc'
-        rw [hM] at hc'
-        cases hc'
     refine ReflTransGen.head ⟨lb :: L.reverse.map sym, ⟨[cell q a], [halt]⟩, R.map sym ++ [rb],
-      Rule.stop hM, by simp [word], by simp [word]⟩ (halt_reflTransGen L R)
+      Rule.stop (Option.map_eq_none_iff.mp hc'), by simp [word], by simp [word]⟩
+      (halt_reflTransGen L R)
   | @head c₀ c₁ hstep _ ih =>
     rintro q a L R rfl
     rcases hM : M q a with _ | ⟨q', _ | b⟩
@@ -452,13 +431,11 @@ theorem primrec_mInstance [Fintype Γ] [Fintype Λ] [Primcodable Γ] [Primcodabl
     (M : TM0.Machine Γ Λ) : Primrec (mInstance M) := by
   have hsym : Primrec (sym : Γ → Letter Γ Λ) := Primrec.dom_finite _
   have hcell : Primrec fun a : Γ => (cell default a : Letter Γ Λ) := Primrec.dom_finite _
-  have hw : Primrec fun l : List Γ => word (cell (default : Λ) l.headI) [] l.tail := by
-    have : Primrec fun l : List Γ => (lb : Letter Γ Λ) :: (cell (default : Λ) l.headI ::
-        (l.tail.map sym ++ [rb])) :=
-      Primrec.list_cons.comp (Primrec.const _) (Primrec.list_cons.comp
-        (hcell.comp Primrec.list_headI) (Primrec.list_append.comp
-          (Primrec.list_map Primrec.list_tail (hsym.comp Primrec.snd).to₂) (Primrec.const _)))
-    exact this.of_eq fun _ => rfl
+  have hw : Primrec fun l : List Γ => word (cell (default : Λ) l.headI) [] l.tail :=
+    (Primrec.list_cons.comp (Primrec.const _) (Primrec.list_cons.comp
+      (hcell.comp Primrec.list_headI) (Primrec.list_append.comp
+        (Primrec.list_map Primrec.list_tail (hsym.comp Primrec.snd).to₂)
+        (Primrec.const _)))).of_eq fun _ => rfl
   exact (MInstance.primrec₂_mk.comp
     (Domino.primrec₂_mk.comp (Primrec.const ([] : List (Letter Γ Λ))) hw)
     (Primrec.const _)).of_eq fun _ => rfl

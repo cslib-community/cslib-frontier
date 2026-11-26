@@ -179,9 +179,8 @@ theorem verifierBits_append (g h : List (IPMove × ℕ)) :
   induction g with
   | nil => simp [verifierBits, AMGame.arthurBits]
   | cons x g ih =>
-    obtain ⟨_ | _, n⟩ := x
-    · rw [List.cons_append, verifierBits_verifier, verifierBits_verifier, ih, Nat.add_assoc]
-    · rw [List.cons_append, verifierBits_prover, verifierBits_prover, ih]
+    obtain ⟨_ | _, n⟩ := x <;>
+      simp only [List.cons_append, verifierBits_verifier, verifierBits_prover, ih, Nat.add_assoc]
 
 /-- The number of verifier moves of a private-coin game shape. -/
 def verifierMoves (g : List (IPMove × ℕ)) : ℕ := (g.map Prod.fst).count .verifier
@@ -212,11 +211,10 @@ theorem count_eq_value (g : List (IPMove × ℕ)) (f : List Bool → ℕ) :
       field_simp
     · rw [count, verifierBits_prover, toAM_cons]
       change _ = _ * AMGame.value true ((.merlin, n) :: toAM g) _
-      rw [AMGame.value_merlin_true, ← sup'_eq_sup univ_nonempty]
-      rw [Finset.apply_sup'_eq_sup'_comp univ_nonempty (Nat.cast : ℕ → ℚ)
-        fun x y => Nat.cast_max x y]
-      rw [Finset.apply_sup'_eq_sup'_comp univ_nonempty (fun x : ℚ => 2 ^ verifierBits g * x)
-        fun x y => mul_max_of_nonneg x y (by positivity)]
+      rw [AMGame.value_merlin_true, ← sup'_eq_sup univ_nonempty,
+        Finset.apply_sup'_eq_sup'_comp univ_nonempty (Nat.cast : ℕ → ℚ) Nat.cast_max,
+        Finset.apply_sup'_eq_sup'_comp univ_nonempty (2 ^ verifierBits g * ·)
+          fun x y => mul_max_of_nonneg x y (by positivity)]
       exact sup'_congr univ_nonempty rfl fun y _ => ih _
 
 /-- A count of a `0`/`1`-bounded payoff is at most `2 ^ verifierBits g`. -/
@@ -224,10 +222,7 @@ theorem count_le_two_pow (g : List (IPMove × ℕ)) (f : List Bool → ℕ) (hf 
     count g f ≤ 2 ^ verifierBits g := by
   have hv : AMGame.value true (toAM g) (fun t => (f t : ℚ)) ≤ 1 :=
     AMGame.value_le_one _ _ fun t => by exact_mod_cast hf t
-  have : (count g f : ℚ) ≤ 2 ^ verifierBits g := by
-    rw [count_eq_value]
-    exact mul_le_of_le_one_right (by positivity) hv
-  exact_mod_cast this
+  exact_mod_cast (count_eq_value g f).trans_le (mul_le_of_le_one_right (by positivity) hv)
 
 /-- The count of a concatenation of shapes: the count of the first shape, whose payoff is the count
 of the second. -/
@@ -236,9 +231,8 @@ theorem count_append (g h : List (IPMove × ℕ)) (f : List Bool → ℕ) :
   induction g generalizing f with
   | nil => rfl
   | cons x g ih =>
-    obtain ⟨_ | _, n⟩ := x
-    · simp only [List.cons_append, count_verifier, ih, List.append_assoc]
-    · simp only [List.cons_append, count_prover, ih, List.append_assoc]
+    obtain ⟨_ | _, n⟩ := x <;>
+      simp only [List.cons_append, count_verifier, count_prover, ih, List.append_assoc]
 
 /-! ### Verifiers with private coins -/
 
@@ -291,12 +285,11 @@ theorem run_congr (msg : ℕ → List Bool → List Bool) {P P' : ℕ → List B
   induction g generalizing j p with
   | nil => rfl
   | cons x g ih =>
-    obtain ⟨_ | _, n⟩ := x
-    · simp only [run]
-      rw [ih (j + 1) _ fun i q hi hq => h i q (by omega) ((List.prefix_append _ _).trans hq)]
-    · simp only [run]
-      rw [h j p le_rfl List.prefix_rfl]
-      rw [ih (j + 1) _ fun i q hi hq => h i q (by omega) ((List.prefix_append _ _).trans hq)]
+    have ih' (u : List Bool) :=
+      ih (j + 1) (p ++ u) fun i q _ hq => h i q (by omega) ((List.prefix_append _ _).trans hq)
+    obtain ⟨_ | _, n⟩ := x <;> simp only [run]
+    · rw [ih']
+    · rw [h j p le_rfl List.prefix_rfl, ih']
 
 /-- Splitting a count of coins by the first message of the verifier. -/
 private theorem card_filter_verifier (msg : C → ℕ → List Bool → List Bool) (n : ℕ) (j : ℕ)
@@ -348,24 +341,20 @@ theorem card_filter_run_le (msg : C → ℕ → List Bool → List Bool) (P : �
   | nil => exact le_rfl
   | cons x g ih =>
     obtain ⟨_ | _, n⟩ := x
-    · have hL : #(S.filter fun c => D c (run (msg c) P ((.verifier, n) :: g) j p) = true) =
-          #(S.filter fun c => (fun c u => D c (u ++ run (msg c) P g (j + 1) (p ++ u))) c
-            (List.ofFn (BitString.ofList n (msg c j p))) = true) := rfl
-      rw [hL, card_filter_verifier msg n j p S
-        (fun c u => D c (u ++ run (msg c) P g (j + 1) (p ++ u))), count_verifier]
-      refine sum_le_sum fun m _ => ?_
-      refine (ih (j + 1) (p ++ List.ofFn m) _ (fun c t => D c (List.ofFn m ++ t))).trans ?_
+    · rw [show #(S.filter fun c => D c (run (msg c) P ((.verifier, n) :: g) j p) = true) =
+        #(S.filter fun c => (fun c u => D c (u ++ run (msg c) P g (j + 1) (p ++ u))) c
+          (List.ofFn (BitString.ofList n (msg c j p))) = true) from rfl,
+        card_filter_verifier msg n j p S
+          (fun c u => D c (u ++ run (msg c) P g (j + 1) (p ++ u))), count_verifier]
+      refine sum_le_sum fun m _ =>
+        (ih (j + 1) (p ++ List.ofFn m) _ (fun c t => D c (List.ofFn m ++ t))).trans ?_
       exact le_of_eq (count_congr_of_length g fun t _ =>
         (card_filter_agrees_verifier msg n g j p S D m t).symm)
     · set y := BitString.ofList n (P j p)
-      have hL : #(S.filter fun c => D c (run (msg c) P ((.prover, n) :: g) j p) = true) =
-          #(S.filter fun c => (fun c t => D c (List.ofFn y ++ t)) c
-            (run (msg c) P g (j + 1) (p ++ List.ofFn y)) = true) := rfl
-      rw [hL]
       refine (ih (j + 1) (p ++ List.ofFn y) S (fun c t => D c (List.ofFn y ++ t))).trans ?_
       rw [count_prover]
-      refine le_trans (le_of_eq (count_congr_of_length g fun t _ =>
-        (card_filter_agrees_prover msg n g j p S D y t).symm)) ?_
+      refine (le_of_eq (count_congr_of_length g fun t _ =>
+        (card_filter_agrees_prover msg n g j p S D y t).symm)).trans ?_
       exact le_sup (f := fun y : Fin n → Bool => count g fun t =>
         #(S.filter fun c => (agrees (msg c) ((.prover, n) :: g) j p (List.ofFn y ++ t) &&
           D c (List.ofFn y ++ t)) = true)) (mem_univ y)
@@ -385,19 +374,18 @@ theorem exists_card_filter_run_eq (msg : C → ℕ → List Bool → List Bool)
           (fun c t => D c (List.ofFn m ++ t))
       set Q : ℕ → List Bool → List Bool := fun i q => P (BitString.ofList n (q.drop p.length)) i q
       refine ⟨Q, ?_⟩
-      have hL : #(S.filter fun c => D c (run (msg c) Q ((.verifier, n) :: g) j p) = true) =
-          #(S.filter fun c => (fun c u => D c (u ++ run (msg c) Q g (j + 1) (p ++ u))) c
-            (List.ofFn (BitString.ofList n (msg c j p))) = true) := rfl
-      rw [hL, card_filter_verifier msg n j p S
-        (fun c u => D c (u ++ run (msg c) Q g (j + 1) (p ++ u))), count_verifier]
+      rw [show #(S.filter fun c => D c (run (msg c) Q ((.verifier, n) :: g) j p) = true) =
+        #(S.filter fun c => (fun c u => D c (u ++ run (msg c) Q g (j + 1) (p ++ u))) c
+          (List.ofFn (BitString.ofList n (msg c j p))) = true) from rfl,
+        card_filter_verifier msg n j p S
+          (fun c u => D c (u ++ run (msg c) Q g (j + 1) (p ++ u))), count_verifier]
       refine sum_congr rfl fun m _ => ?_
       have hrun (c : C) : run (msg c) Q g (j + 1) (p ++ List.ofFn m) =
           run (msg c) (P m) g (j + 1) (p ++ List.ofFn m) := by
         refine run_congr _ g (j + 1) _ fun i q _ hq => ?_
         obtain ⟨s, rfl⟩ := hq
         simp only [Q, List.append_assoc, List.drop_left, BitString.ofList_ofFn_append]
-      simp only [hrun]
-      rw [hP m]
+      simp only [hrun, hP m]
       exact count_congr_of_length g fun t _ =>
         (card_filter_agrees_verifier msg n g j p S D m t).symm
     · set φ : (Fin n → Bool) → ℕ := fun y => count g fun t =>
@@ -407,17 +395,11 @@ theorem exists_card_filter_run_eq (msg : C → ℕ → List Bool → List Bool)
       obtain ⟨P, hP⟩ := ih (j + 1) (p ++ List.ofFn y) S (fun c t => D c (List.ofFn y ++ t))
       set Q : ℕ → List Bool → List Bool := fun i q => if i = j then List.ofFn y else P i q
       refine ⟨Q, ?_⟩
-      have hQ : BitString.ofList n (Q j p) = y := by simp [Q]
       have hrun (c : C) : run (msg c) Q g (j + 1) (p ++ List.ofFn y) =
           run (msg c) P g (j + 1) (p ++ List.ofFn y) :=
         run_congr _ g (j + 1) _ fun i q hi _ => ite_eq_right (by omega)
-      have hL : #(S.filter fun c => D c (run (msg c) Q ((.prover, n) :: g) j p) = true) =
-          #(S.filter fun c => (fun c t => D c (List.ofFn y ++ t)) c
-            (run (msg c) P g (j + 1) (p ++ List.ofFn y)) = true) := by
-        simp only [run, hQ, hrun]
-      rw [hL, hP, count_prover]
-      change φ y = _
-      rw [← hy]
+      simp only [run, Q, ↓reduceIte, BitString.ofList_ofFn, hrun]
+      rw [hP, show count g _ = φ y from rfl, ← hy, count_prover]
       congr 1 with y' : 1
       exact count_congr_of_length g fun t _ =>
         (card_filter_agrees_prover msg n g j p S D y' t).symm
@@ -624,37 +606,29 @@ theorem card_filter_matchArthur (g : List (AMMove × ℕ)) (t : List Bool)
       have hlen : (t.take n).length = n := List.length_take_of_le (by omega)
       change #(univ.filter fun w : Fin (n + AMGame.transcriptLength g) → Bool =>
         matchArthur ((.arthur, n) :: g) (List.ofFn w) t = true) = 2 ^ merlinBits g
-      have key := BitString.card_filter_ofFn_add n (AMGame.transcriptLength g) fun u v =>
-        (decide (t.take n = List.ofFn (BitString.ofList n u)) &&
-          matchArthur g v (t.drop n)) = true
       have hw (w : Fin (n + AMGame.transcriptLength g) → Bool) :
           matchArthur ((.arthur, n) :: g) (List.ofFn w) t =
             (decide (t.take n = List.ofFn (BitString.ofList n ((List.ofFn w).take n))) &&
               matchArthur g ((List.ofFn w).drop n) (t.drop n)) := by
         simp only [matchArthur, BitString.ofList_take]
       simp only [hw]
-      rw [key]
+      rw [BitString.card_filter_ofFn_add n (AMGame.transcriptLength g) fun u v =>
+        (decide (t.take n = List.ofFn (BitString.ofList n u)) &&
+          matchArthur g v (t.drop n)) = true]
       simp only [BitString.ofList_ofFn]
       rw [Finset.sum_eq_single (BitString.ofList n (t.take n))]
-      · rw [BitString.ofFn_ofList hlen]
-        simp only [decide_true, Bool.true_and]
+      · simp only [BitString.ofFn_ofList hlen, decide_true, Bool.true_and]
         exact ih (t.drop n) (by rw [List.length_drop]; omega)
       · intro u _ hu
-        refine card_eq_zero.2 (filter_eq_empty_iff.2 fun v _ => ?_)
+        rw [card_eq_zero, filter_eq_empty_iff]
         simp only [Bool.and_eq_true, decide_eq_true_eq, not_and]
-        intro h
-        exact absurd (by rw [h, BitString.ofList_ofFn]) hu
+        exact fun _ _ h => absurd (by rw [h, BitString.ofList_ofFn]) hu
       · exact fun h => absurd (mem_univ _) h
-    · change #(univ.filter fun w : Fin (n + AMGame.transcriptLength g) → Bool =>
-        matchArthur ((.merlin, n) :: g) (List.ofFn w) t = true) = 2 ^ (n + merlinBits g)
-      have ht' : t.length = n + AMGame.transcriptLength g := ht
-      have key := BitString.card_filter_ofFn_add n (AMGame.transcriptLength g) fun _ v =>
-        matchArthur g v (t.drop n) = true
-      have hw (w : Fin (n + AMGame.transcriptLength g) → Bool) :
-          matchArthur ((.merlin, n) :: g) (List.ofFn w) t =
-            matchArthur g ((List.ofFn w).drop n) (t.drop n) := rfl
-      simp only [hw]
-      rw [key]
+    · have ht' : t.length = n + AMGame.transcriptLength g := ht
+      change #(univ.filter fun w : Fin (n + AMGame.transcriptLength g) → Bool =>
+        matchArthur g ((List.ofFn w).drop n) (t.drop n) = true) = 2 ^ (n + merlinBits g)
+      rw [BitString.card_filter_ofFn_add n (AMGame.transcriptLength g) fun _ v =>
+        matchArthur g v (t.drop n) = true]
       simp only [ih (t.drop n) (by rw [List.length_drop]; omega), sum_const, card_univ,
         Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, smul_eq_mul, pow_add]
 
@@ -666,12 +640,8 @@ theorem acceptedCoins_reveal (g : List (AMMove × ℕ)) (V : List Bool → Bool)
     acceptedCoins (ρ := K) (fun c _ q => (List.ofFn c).drop q.length) (fun _ t => V t) (ofAM g)
       t = 2 ^ merlinBits g * (V t).toNat := by
   subst hK
-  unfold acceptedCoins
-  simp only [agrees_reveal g 0 [] _ t ht, List.length_nil, List.drop_zero]
-  cases V t
-  · simp
-  · simp only [Bool.and_true, Bool.toNat_true, mul_one]
-    exact card_filter_matchArthur g t ht
+  simp only [acceptedCoins, agrees_reveal g 0 [] _ t ht, List.length_nil, List.drop_zero]
+  cases V t <;> simp [card_filter_matchArthur g t ht]
 
 private theorem count_ofAM_mul (g : List (AMMove × ℕ)) (k : ℕ) (V : List Bool → Bool) :
     count (ofAM g) (fun t => k * (V t).toNat) = k * AMGame.count g V := by
@@ -713,26 +683,18 @@ theorem AMGameClass_subset_IPGameClass {enc : α ↪ List Bool} (π : List AMMov
     AMGameClass enc π ⊆ IPGameClass enc (π.map AMMove.toIP) := by
   rintro A ⟨G, V, hG, hV, hA⟩
   refine ⟨G.map fun x => (x.1.toIP, x.2), AMGame.transcriptLengthPoly G,
-    fun x => x.2.1.drop x.2.2.2.length, fun x => V (x.1, x.2.2), ?_, ?_, ?_, fun a => ?_⟩
-  · simp [← hG]
+    fun x => x.2.1.drop x.2.2.2.length, fun x => V (x.1, x.2.2), by simp [← hG], ?_, ?_,
+    fun a => ?_⟩
   · fun_prop
   · fun_prop
   · set n := (enc a).length
     have hK := (AMGame.transcriptLength_evalShape G n).symm
-    have hcount : IPGame.countAt enc (G.map fun x => (x.1.toIP, x.2))
-        (AMGame.transcriptLengthPoly G) (fun x => x.2.1.drop x.2.2.2.length)
-        (fun x => V (x.1, x.2.2)) a = 2 ^ merlinBits (AMGame.evalShape G n) *
-          AMGame.count (AMGame.evalShape G n) fun t => V (a, t) := by
-      unfold IPGame.countAt
-      rw [evalShape_map_toIP]
-      exact bestCount_reveal _ (fun t => V (a, t)) hK
-    rw [hcount, hK, transcriptLength_eq_arthurBits_add_merlinBits, pow_add]
+    rw [IPGame.countAt, evalShape_map_toIP, bestCount_reveal _ (fun t => V (a, t)) hK, hK,
+      transcriptLength_eq_arthurBits_add_merlinBits, pow_add]
     obtain ⟨h1, h2⟩ := hA a
     refine ⟨fun ha => ?_, fun ha => ?_⟩
-    · have := Nat.mul_le_mul_right (2 ^ merlinBits (AMGame.evalShape G n)) (h1 ha)
-      linarith
-    · have := Nat.mul_le_mul_right (2 ^ merlinBits (AMGame.evalShape G n)) (h2 ha)
-      linarith
+    · linarith [Nat.mul_le_mul_right (2 ^ merlinBits (AMGame.evalShape G n)) (h1 ha)]
+    · linarith [Nat.mul_le_mul_right (2 ^ merlinBits (AMGame.evalShape G n)) (h2 ha)]
 
 /-- **`AM[k] ⊆ IP[k]`**. -/
 theorem AMk_subset_IPk {enc : α ↪ List Bool} (k : ℕ) : AMk enc k ⊆ IPk enc k :=

@@ -158,12 +158,9 @@ theorem mem_block {r : List Bool} (hv : H.valid r = true) :
 theorem valid_of_mem_block {r r' : List Bool} (hv : H.valid r = true)
     (hlen : r'.length = r.length) (h1 : H.lo r ≤ BitString.binaryValue r')
     (h2 : BitString.binaryValue r' < H.hi r) :
-    H.valid r' = true ∧ H.header r' = H.header r := by
-  have hp : H.header r <+: r' := by
-    refine (BitString.isPrefix_iff_binaryValue (by rw [hlen]; exact H.length_header_le hv)).mpr ?_
-    rw [hlen]
-    exact ⟨h1, h2⟩
-  exact H.valid_of_isPrefix r r' hv hp
+    H.valid r' = true ∧ H.header r' = H.header r :=
+  H.valid_of_isPrefix r r' hv ((BitString.isPrefix_iff_binaryValue
+    (hlen ▸ H.length_header_le hv)).mpr (hlen ▸ ⟨h1, h2⟩))
 
 /-- A collapsed valid word is the top word of its block. -/
 theorem binaryValue_collapse_add_one {r : List Bool} (hv : H.valid r = true) :
@@ -227,28 +224,23 @@ theorem binaryValue_collapse_le_iff {r y : List Bool} (hlen : r.length = y.lengt
   · refine ⟨fun h => by omega, fun h => ?_⟩
     by_cases hvr : H.valid r = true
     · by_contra hc
-      have hcr := H.binaryValue_collapse_add_one hvr
-      have hlo := (H.mem_block hvr).1
-      obtain ⟨hvy, hhy⟩ := H.valid_of_mem_block hvr hlen.symm (by omega) (by omega)
-      have hcy := H.binaryValue_collapse_add_one hvy
-      rw [hy] at hcy
-      have := H.hi_eq_of_header_eq hhy hlen.symm
-      omega
+      have hmem : H.lo r ≤ BitString.binaryValue y ∧ BitString.binaryValue y < H.hi r := by
+        have := H.binaryValue_collapse_add_one hvr
+        have := (H.mem_block hvr).1
+        omega
+      rw [← hy, (H.collapse_eq_collapse_iff hvr hlen.symm).mpr hmem] at hc
+      exact hc le_rfl
     · rw [H.collapse_of_not_valid (by simpa using hvr)]
       omega
   · have hvy := H.valid_of_collapse_ne hy
-    have hcy := H.binaryValue_collapse_add_one hvy
-    have hyc : BitString.binaryValue y < BitString.binaryValue (H.collapse y) :=
-      (H.binaryValue_le_binaryValue_collapse y).lt_of_ne fun h =>
-        hy (BitString.binaryValue_injective_of_length_eq (H.length_collapse y) h.symm)
+    obtain ⟨hloy, hhiy⟩ := H.mem_block hvy
     refine ⟨fun h => ?_, fun h => ?_⟩
     · by_contra hc
-      obtain ⟨hvr, hhr⟩ := H.valid_of_mem_block hvy hlen (by omega) (by omega)
-      have hcr := H.binaryValue_collapse_add_one hvr
-      have := H.hi_eq_of_header_eq hhr hlen
-      omega
-    · have hloy := (H.mem_block hvy).1
-      by_cases hvr : H.valid r = true
+      have hmem : H.lo y ≤ BitString.binaryValue r ∧ BitString.binaryValue r < H.hi y := by omega
+      rw [(H.collapse_eq_collapse_iff hvy hlen).mpr hmem] at h
+      exact hy (BitString.binaryValue_injective_of_length_eq (H.length_collapse y)
+        (le_antisymm h (H.binaryValue_le_binaryValue_collapse y)))
+    · by_cases hvr : H.valid r = true
       · by_contra hc
         have hcr := H.binaryValue_collapse_add_one hvr
         have hlor := (H.mem_block hvr).1
@@ -274,19 +266,16 @@ theorem collapse_polyTime (hvalid : ComputableInPolyTime H.valid encBits encBool
   let idx : List Bool → ℕ := fun r =>
     ((List.range (r.length + 1)).find? (fun k => H.valid (r.take k))).getD 0
   let findHdr : List Bool → List Bool := fun r => r.take (idx r)
-  have hrange : Turing.MultiTapeTM.ComputableInPolyTime
+  have hrange : ComputableInPolyTime
       (fun r : List Bool => List.range (r.length + 1)) encBits (encList encUnary) :=
-    Turing.MultiTapeTM.ComputableInPolyTime.range.comp (by polytime)
-  have hfind : Turing.MultiTapeTM.ComputableInPolyTime
+    ComputableInPolyTime.range.comp (by polytime)
+  have hfind : ComputableInPolyTime
       (fun r : List Bool => (List.range (r.length + 1)).find? (fun k => H.valid (r.take k)))
       encBits (encOption encUnary) :=
-    Turing.MultiTapeTM.ComputableInPolyTime.findWithInput hrange (by polytime)
-  have hidx : Turing.MultiTapeTM.ComputableInPolyTime idx encBits encUnary :=
-    (Turing.MultiTapeTM.ComputableInPolyTime.optionGetDWithInput hfind
-      (Turing.MultiTapeTM.ComputableInPolyTime.const 0
-        (encIn := encBits) (encOut := encUnary)))
-  have hfindHdr_pt : Turing.MultiTapeTM.ComputableInPolyTime findHdr encBits encBits := by
-    polytime
+    ComputableInPolyTime.findWithInput hrange (by polytime)
+  have hidx : ComputableInPolyTime idx encBits encUnary :=
+    ComputableInPolyTime.optionGetDWithInput hfind (ComputableInPolyTime.const 0)
+  have hfindHdr_pt : ComputableInPolyTime findHdr encBits encBits := by polytime
   have hpoly : ComputableInPolyTime (fun r =>
       if H.valid r then findHdr r ++ List.replicate (r.length - (findHdr r).length) true
       else r)
@@ -308,9 +297,7 @@ theorem collapse_polyTime (hvalid : ComputableInPolyTime H.valid encBits encBool
       obtain ⟨hp_k, as, bs, hL, hmin⟩ := List.find?_eq_some_iff_append.mp hopt
       have hk_le_hdr : k ≤ (H.header r).length := by
         rcases List.mem_append.mp (hL ▸ hlen) with h_as | h_kbs
-        · exfalso
-          have := hmin _ h_as
-          simp [hp_hdr] at this
+        · exact absurd (hmin _ h_as) (by simp [hp_hdr])
         · rcases List.mem_cons.mp h_kbs with h_eq | h_bs
           · exact h_eq.ge
           · have hp_pw : (as ++ k :: bs).Pairwise (· < ·) := hL ▸ List.pairwise_lt_range
@@ -391,8 +378,7 @@ theorem ensemble_dist_collapse {r : List Bool} (hv : H.valid r = true) :
     ring
   rw [hhi, Nat.cast_add, ENNReal.add_div] at hblock
   rw [← (ENNReal.add_right_inj (by finiteness)).mp hblock]
-  have hlen := H.length_header_le hv
-  obtain ⟨k, hk⟩ := Nat.exists_eq_add_of_le hlen
+  obtain ⟨k, hk⟩ := Nat.exists_eq_add_of_le (H.length_header_le hv)
   rw [hk, Nat.add_sub_cancel_left]
   exact two_pow_div_two_pow_add _ _
 

@@ -473,11 +473,9 @@ theorem pivot_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false)
     rcases hcases v with rfl | rfl | ⟨h, hvr, hvs⟩
     · simp [dict, hr1, hrs]
     · simp [dict, hs1, hps, rowConst_succ_self hj hlow]
-    · by_cases hb : Basic N v
-      · rw [dict_coeff hb hsb, hps]
-        simp [dict, hvr, hvs, hb, hb1 v h, rowConst_succ_of_ne hj hlow (hne v h), div_neg,
-          sub_neg_eq_add]
-      · simp [dict, hvs, hb, hb1 v h]
+    · by_cases hb : Basic N v <;>
+        simp [dict, hvr, hvs, hb, hb1 v h, hsb, hps, rowConst_succ_of_ne hj hlow (hne v h),
+          div_neg, sub_neg_eq_add]
   · funext v u
     simp only [Dictionary.pivot]
     rw [hcrs]
@@ -485,10 +483,9 @@ theorem pivot_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false)
     · rcases hcases v with rfl | rfl | ⟨h, hvr, hvs⟩
       · simp [dict, hr1, hrs]
       · simp [dict, hs1, hr1, hrs, hps, hpr, rowCoeff_self]
-      · by_cases hb : Basic N v
-        · simp [dict, hvr, hvs, hb, hb1 v h, hsb, hr1, hrs, hps, hpr,
+      · by_cases hb : Basic N v <;>
+          simp [dict, hvr, hvs, hb, hb1 v h, hsb, hr1, hrs, hps, hpr,
             rowCoeff_succ_right hj hlow (hne v h), div_neg]
-        · simp [dict, hvr, hvs, hb, hb1 v h, hrs]
     · simp [dict, hs1]
     · by_cases hbu : Basic N u
       · simp [dict, hus, hur, hbu, hb1 u hu]
@@ -496,10 +493,9 @@ theorem pivot_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false)
         · simp [dict, hr1, hrs, hus, hur, hbu, hb1 u hu]
         · simp [dict, hs1, hus, hur, hbu, hb1 u hu, hrb, hps, hpr,
             rowCoeff_succ_left hj hlow (hne u hu), div_neg]
-        · by_cases hb : Basic N v
-          · simp [dict, hvr, hvs, hb, hb1 v h, hus, hur, hbu, hb1 u hu, hsb, hrb, hps, hpr,
+        · by_cases hb : Basic N v <;>
+            simp [dict, hvr, hvs, hb, hb1 v h, hus, hur, hbu, hb1 u hu, hsb, hrb, hps, hpr,
               rowCoeff_succ hj hlow (hne v h) (hne u hu), div_neg, sub_neg_eq_add]
-          · simp [dict, hvr, hvs, hb, hb1 v h, hus, hur, hbu, hb1 u hu]
   · simp only [Dictionary.pivot]
     rw [hcs, hrr, hcrs]
     simp [dict, zVal_succ_top hj hlow j.isLt, div_neg, sub_neg_eq_add]
@@ -613,10 +609,7 @@ theorem blandLeaving_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false) :
     rw [hd, show (j : ℕ) + (d + 1) - j = d + 1 by omega] at hneg ⊢
     rw [bitSign_of_testBit_false hj, mul_one] at hneg ⊢
     set X : K := 10 ^ (d + 1) with hX
-    have hX10 : (10 : K) ≤ X := by
-      rw [hX, pow_succ]
-      have : (1 : K) ≤ 10 ^ d := one_le_pow₀ (by norm_num)
-      nlinarith
+    have hX10 : (10 : K) ≤ X := le_self_pow₀ (by norm_num) (Nat.succ_ne_zero d)
     have h100 : (100 : K) ^ ((j : ℕ) + (d + 1)) = 100 ^ (j : ℕ) * X * X := by
       rw [hX, pow_add, show (100 : K) = 10 * 10 by norm_num, mul_pow, mul_pow]
       ring
@@ -710,23 +703,16 @@ end Ordered
 theorem eq_of_dict_basis_eq {N M : ℕ} (hN : N < 2 ^ n) (hM : M < 2 ^ n)
     (h : (dict n N : Dictionary (Fin (n + n)) K).basis =
       (dict n M : Dictionary (Fin (n + n)) K).basis) : N = M := by
-  have hfl : ∀ k < n, flipped N k = flipped M k := by
-    intro k hk
-    have := congrArg (var (⟨k, hk⟩ : Fin n) true ∈ ·) h
-    simp only [mem_dict_basis, Basic, isX_var, pair_var, eq_iff_iff] at this
-    cases hN' : flipped N k <;> cases hM' : flipped M k <;> simp_all
-  have hbit : ∀ d ≤ n, N.testBit (n - d) = M.testBit (n - d) := by
-    intro d hd
+  have hfl (k : ℕ) (hk : k < n) : flipped N k = flipped M k :=
+    Bool.eq_iff_iff.mpr (by
+      simpa [mem_dict_basis, Basic] using congrArg (var ⟨k, hk⟩ true ∈ ·) h)
+  have hbit (d : ℕ) (hd : d ≤ n) : N.testBit (n - d) = M.testBit (n - d) := by
     induction d with
     | zero => rw [Nat.sub_zero, Nat.testBit_lt_two_pow hN, Nat.testBit_lt_two_pow hM]
     | succ d ih =>
-      have h1 := hfl (n - (d + 1)) (by omega)
       have h2 := ih (by omega)
       rw [show n - d = n - (d + 1) + 1 by omega] at h2
-      unfold flipped at h1
-      rw [h2] at h1
-      revert h1
-      cases N.testBit (n - (d + 1)) <;> cases M.testBit (n - (d + 1)) <;> simp
+      simpa [flipped, h2] using hfl (n - (d + 1)) (by omega)
   refine Nat.eq_of_testBit_eq fun k => ?_
   rcases lt_or_ge k n with hk | hk
   · have := hbit (n - k) (by omega)
@@ -831,8 +817,7 @@ theorem isGreatest_kleeMinty (n : ℕ) :
   have hrun := dantzigRun_kleeMinty (K := K) (n + 1) (2 ^ (n + 1) - 1)
   rw [ite_eq_right (lt_irrefl _)] at hrun
   obtain ⟨h1, h2, -, h4⟩ := S.dantzigRun_eq_optimal hS hrun
-  rw [← image_value_slackDictionary, S.image_value_feasibleSet_eq h1]
-  have := (dict (n + 1) (2 ^ (n + 1) - 1) : Dictionary _ K).isGreatest_value h2 h4
-  rwa [objConst_dict_top] at this
+  rw [← image_value_slackDictionary, S.image_value_feasibleSet_eq h1, ← objConst_dict_top]
+  exact (dict (n + 1) (2 ^ (n + 1) - 1) : Dictionary _ K).isGreatest_value h2 h4
 
 end Cslib.Algorithms.Lean.Simplex

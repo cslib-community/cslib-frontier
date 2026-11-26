@@ -248,10 +248,9 @@ private theorem combined_step (σ : Signer Req Reply Point C Log S) (q : Req ⊕
       withSampleList σ.fallback (gameHandler σ) q s.1.toGame := by
   cases q with
   | inl q =>
-    obtain ⟨st, n⟩ := s
     rw [run_handler_inl, run_interpret_countingUniform_pure]
     simp only [PMF.monad_map_eq_map, PMF.pure_map, withSampleList, gameHandler, State.toGame]
-    cases (σ.step (st.samples.headD σ.fallback) q).2 <;> rfl
+    cases (σ.step (s.1.samples.headD σ.fallback) q).2 <;> rfl
   | inr x =>
     cases h : s.1.table.lookup x with
     | some e =>
@@ -390,31 +389,29 @@ theorem runWithAnswers_program (default : C) (σ : Signer Req Reply Point C Log 
   obtain ⟨hcount, hpos, hprog⟩ := hinv
   cases hl : st.table.lookup (κ.point m t) with
   | some e =>
-    obtain ⟨l₁, l₂, htable, -⟩ := List.lookup_eq_some_iff.mp hl
-    have hmem : (κ.point m t, e.1, e.2) ∈ st.table := by
-      rw [htable]
-      exact List.mem_append_right _ List.mem_cons_self
     obtain ⟨c, i⟩ := e
+    obtain ⟨l₁, l₂, htable, -⟩ := List.lookup_eq_some_iff.mp hl
+    have hmem : (κ.point m t, c, i) ∈ st.table :=
+      htable ▸ List.mem_append_right _ List.mem_cons_self
     simp only [finish, hl, runWithAnswers_pure, List.append_nil, verdict, Prod.mk.injEq] at hout
     obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hout
     cases i with
     | none =>
       obtain ⟨s, q, l, hr, hlog⟩ := hprog _ _ hmem
-      have hfresh := hκ s q _ c l hr m t st.log rfl hlog
-      simp [hfresh]
+      simp [hκ s q _ c l hr m t st.log rfl hlog]
     | some i =>
       obtain ⟨hq, hc⟩ := hpos _ _ _ hmem
       refine ⟨fun hwin => by simpa using hwin, fun j hj => ?_⟩
-      split_ifs at hj with hwin
-      cases hj
-      exact ⟨hq, hc, ((Bool.and_eq_true _ _).mp hwin).1⟩
+      obtain ⟨⟨hacc, -⟩, rfl⟩ : (_ ∧ _) ∧ _ = j :=
+        by simpa only [Option.ite_none_right_eq_some, Option.some.injEq, Bool.and_eq_true] using hj
+      exact ⟨hq, hc, hacc⟩
   | none =>
     simp only [finish, hl, runWithAnswers_map_query, verdict, Prod.mk.injEq] at hout
     obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hout
     refine ⟨fun hwin => by simpa using hwin, fun j hj => ?_⟩
-    split_ifs at hj with hwin
-    cases hj
-    refine ⟨by rw [hcount, List.getElem?_concat_length], ?_, ((Bool.and_eq_true _ _).mp hwin).1⟩
+    obtain ⟨⟨hacc, -⟩, rfl⟩ : (_ ∧ _) ∧ _ = j :=
+      by simpa only [Option.ite_none_right_eq_some, Option.some.injEq, Bool.and_eq_true] using hj
+    refine ⟨by rw [hcount, List.getElem?_concat_length], ?_, hacc⟩
     rw [hcount, List.getD_eq_getElem?_getD, List.headD_eq_head?_getD, List.head?_drop]
 
 /-- The reduction asks at most one query per hash call of the adversary, and one more to check
@@ -425,17 +422,11 @@ theorem isQueryBounded_program (σ : Signer Req Reply Point C Log S) (κ : Check
     IsQueryBounded (program σ κ A samples) (Qro + 1) := by
   have hhandler : ∀ (q : Req ⊕ Point) (st : State Point C Log S),
       IsQueryBounded ((handler σ q).run st) (hashCost q)
-    | .inl q, st => by
-      rw [run_handler_inl]
-      exact .pure _ _
+    | .inl _, _ => .pure _ _
     | .inr x, st => by
-      cases hl : st.table.lookup x with
-      | some e =>
-        rw [run_handler_inr_some σ hl]
-        exact .pure _ _
-      | none =>
-        rw [run_handler_inr_none σ hl]
-        exact .liftBind _ _ 0 fun _ => .pure _ 0
+      cases hl : st.table.lookup x <;> simp only [handler, StateT.run, hl]
+      · exact .liftBind _ _ 0 fun _ => .pure _ 0
+      · exact .pure _ _
   refine (hA.run_interpret hhandler ⟨[], [], 0, samples⟩).bind fun ⟨⟨m, t, _⟩, st⟩ => ?_
   cases hl : st.table.lookup (κ.point m t) <;> simp only [finish, hl]
   · exact .liftBind _ _ 0 fun _ => .pure _ 0

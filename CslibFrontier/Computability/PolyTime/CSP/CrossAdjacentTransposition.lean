@@ -146,13 +146,8 @@ private theorem positioned_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     J.body = F ∧ J.ports = R ++ L ++ [x, y] ∧
     (transposeAdjacent g w I L.length).ports =
       L.map (2 * ·) ++ [5, 7] ++ R.map (2 * ·) := by
-  dsimp only
-  let I : State Rel := ⟨F, L ++ [x, y] ++ R, c⟩
-  let J := (rotateRight^[R.length]) I
+  intro I J
   have hstate := positioned_state F L x y R c
-  have hb : J.body = F := congrArg (fun K : State Rel => K.body) hstate
-  have hJ : J.ports = (R ++ L) ++ [x, y] :=
-    congrArg (fun K : State Rel => K.ports) hstate
   have hvalid : L.length + 1 < I.ports.length := by
     simp only [I, List.length_append, List.length_cons, List.length_nil]
     omega
@@ -162,9 +157,9 @@ private theorem positioned_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   have hp := ports_transposeTail g w F (R ++ L) x y J.rotation
   rw [← hstate] at hp
   rw [transposeAdjacent, ite_eq_left hvalid, hr]
-  refine ⟨left_body _ _, hb, hJ, ?_⟩
-  rw [left_ports, hp, List.map_append, show R.length = (R.map (2 * ·)).length from
-    (List.length_map _).symm, List.append_assoc, List.rotate_append_length_eq]
+  refine ⟨left_body _ _, right_body I _, congrArg State.ports hstate, ?_⟩
+  rw [left_ports, hp, List.map_append, ← List.length_map (f := (2 * ·)), List.append_assoc,
+    List.rotate_append_length_eq]
 
 /-- The actual directed port word has fresh middle names carrying reversed values.
 Repeated names and malformed tables need no premise. -/
@@ -221,17 +216,12 @@ theorem eval_transposeAdjacent_iff (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   have hj := positioned_state F L x y R c
   constructor
   · intro hσ
-    obtain ⟨τ, ht, he, _⟩ :=
-      (eval_transposeTail_iff g w F (R ++ L) x y J.rotation σ).mp hσ
-    have hout : (transposeAdjacent g w I L.length).body.eval sem τ = true := by
-      rw [hf.1, hj]
-      exact ht
+    obtain ⟨τ, ht, he, _⟩ := (eval_transposeTail_iff g w F (R ++ L) x y J.rotation σ).mp hσ
+    have hout : (transposeAdjacent g w I L.length).body.eval sem τ = true := by rwa [hf.1, hj]
     refine ⟨τ, hout, he, ?_⟩
-    have hrec := (recover_transposeAdjacent g w F L x y R c τ hout).2
-    simpa only [show (fun z => τ (2 * z)) = σ from funext he, he] using hrec
+    simpa only [funext he, he] using (recover_transposeAdjacent g w F L x y R c τ hout).2
   · rintro ⟨τ, ht, he, _⟩
-    have hrec := (recover_transposeAdjacent g w F L x y R c τ ht).1
-    simpa only [show (fun z => τ (2 * z)) = σ from funext he] using hrec
+    simpa only [funext he] using (recover_transposeAdjacent g w F L x y R c τ ht).1
 
 /-- Wrong-arity old constraints stay wrong-arity; the actual CROSS supplies the new scopes. -/
 theorem wellFormed_transposeAdjacent_iff (I : State Rel) (j : ℕ) :
@@ -249,16 +239,12 @@ private theorem counts_valid (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     K.body.length = F.length + g.body.length ∧
     K.body.occurrences.length = F.occurrences.length + g.body.occurrences.length ∧
     K.ports.length = L.length + 2 + R.length := by
-  let I : State Rel := ⟨F, L ++ [x, y] ++ R, c⟩
-  let J := (rotateRight^[R.length]) I
   have hf := positioned_fields g w F L x y R c
   have hj := positioned_state F L x y R c
-  constructor
-  · rw [hf.1, hj, length_transposeTail_body]
-  constructor
-  · rw [hf.1, hj, length_transposeTail_occurrences]
-  · rw [ports_transposeAdjacent]
-    simp only [List.length_append, List.length_map, List.length_cons, List.length_nil]
+  refine ⟨by rw [hf.1, hj, length_transposeTail_body],
+    by rw [hf.1, hj, length_transposeTail_occurrences], ?_⟩
+  rw [ports_transposeAdjacent]
+  simp only [List.length_append, List.length_map, List.length_cons, List.length_nil]
 
 private theorem split_valid (I : State Rel) (j : ℕ) (h : j + 1 < I.ports.length) :
     ∃ L x y R, L.length = j ∧ I = (⟨I.body, L ++ [x, y] ++ R, I.rotation⟩ : State Rel) := by
@@ -316,18 +302,14 @@ theorem name_width_transposeAdjacent_le (F : CSP Rel ℕ) (L : List ℕ) (x y : 
   let J := (rotateRight^[R.length]) I
   have hf := positioned_fields g w F L x y R c
   have hj := positioned_state F L x y R c
-  have hW' : ∀ z ∈ F.vars ++ ((R ++ L) ++ [x, y]), z.size ≤ W := by
-    intro z hz
-    apply hW z
-    simpa only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false,
-      or_assoc, or_left_comm, or_comm] using hz
-  have ht := name_width_transposeTail_le g w F (R ++ L) x y J.rotation W hW'
+  have hW' : ∀ z ∈ F.vars ++ ((R ++ L) ++ [x, y]), z.size ≤ W := fun z hz =>
+    hW z (by simpa only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false,
+      or_assoc, or_left_comm, or_comm] using hz)
   intro z hz
   rw [hf.1, hj, ports_transposeAdjacent] at hz
-  apply ht z
-  rw [ports_transposeTail]
-  simpa only [List.map_append, List.mem_append, List.mem_cons, List.not_mem_nil,
-    or_false, or_assoc, or_left_comm, or_comm] using hz
+  refine name_width_transposeTail_le g w F (R ++ L) x y J.rotation W hW' z ?_
+  simpa only [ports_transposeTail, List.map_append, List.mem_append, List.mem_cons,
+    List.not_mem_nil, or_false, or_assoc, or_left_comm, or_comm] using hz
 
 -- The two offset loops are implementation details, with actual State steps throughout.
 private def turn (right : Bool) (I : State Rel) : State Rel :=
@@ -353,40 +335,34 @@ private theorem turn_table (b : Bool) (I : State Rel) (B : ℕ)
       max I.rotation.successor.length (2 * (I.body.occurrences.length + I.ports.length)) ∧
     ∀ v ∈ (turn b I).rotation.successor, v.size ≤ B := by
   rcases I with ⟨F, ports, c⟩
-  cases ports with
-  | nil =>
-    simpa only [turn, rotateLeft, rotateRight, ite_self, List.length_nil, Nat.add_zero] using
-      (show c.successor.length ≤ max c.successor.length (2 * F.occurrences.length) ∧
-        ∀ v ∈ c.successor, v.size ≤ B from ⟨le_max_left _ _, he⟩)
-  | cons x ps =>
-    cases ps with
-    | nil =>
-      simp only [turn, rotateLeft, rotateRight, ite_self]
-      exact ⟨le_max_left _ _, he⟩
-    | cons y ps =>
-      let N := (x :: y :: ps).length
-      let M := F.occurrences.length
-      have hN : 1 < N := by simp [N]
-      have hread (i : ℕ) : (c.successor.getD i 0).size ≤ B := by
-        by_cases hi : i < c.successor.length
-        · rw [List.getD_eq_getElem _ _ hi]
-          exact he _ (List.getElem_mem hi)
-        · rw [List.getD_eq_default _ _ (by omega)]
-          simp
-      have hentry (shift : ℕ → ℕ) (hs : ∀ j, shift j < N) (i : ℕ) :
-          (boundaryIndexMap M N shift (c.successor.getD i 0)).size ≤ B :=
-        (size_boundaryIndexMap_le M N shift hs _).trans (max_le (hread i) hd)
-      cases b <;>
-        simp only [turn, Bool.false_eq_true, ↓reduceIte, rotateLeft, rotateRight,
-          rotateBoundaryCertificate, rotateBoundaryCertificateRight_eq_reindex_mod,
-          show ¬(x :: y :: ps).length ≤ 1 from by simp, ↓reduceIte]
-      all_goals
-        constructor
-        · rw [RotationCertificate.length_reindex]
-          exact le_max_right _ _
-        · intro v hv
-          obtain ⟨i, _, rfl⟩ := List.mem_map.mp hv
-          exact hentry _ (fun _ => Nat.mod_lt _ (by omega)) _
+  match ports with
+  | [] | [_] =>
+    simp only [turn, rotateLeft, rotateRight, ite_self]
+    exact ⟨le_max_left _ _, he⟩
+  | x :: y :: ps =>
+    let N := (x :: y :: ps).length
+    let M := F.occurrences.length
+    have hN : 1 < N := by simp [N]
+    have hread (i : ℕ) : (c.successor.getD i 0).size ≤ B := by
+      by_cases hi : i < c.successor.length
+      · rw [List.getD_eq_getElem _ _ hi]
+        exact he _ (List.getElem_mem hi)
+      · rw [List.getD_eq_default _ _ (by omega)]
+        simp
+    have hentry (shift : ℕ → ℕ) (hs : ∀ j, shift j < N) (i : ℕ) :
+        (boundaryIndexMap M N shift (c.successor.getD i 0)).size ≤ B :=
+      (size_boundaryIndexMap_le M N shift hs _).trans (max_le (hread i) hd)
+    cases b <;>
+      simp only [turn, Bool.false_eq_true, ↓reduceIte, rotateLeft, rotateRight,
+        rotateBoundaryCertificate, rotateBoundaryCertificateRight_eq_reindex_mod,
+        show ¬(x :: y :: ps).length ≤ 1 from by simp, ↓reduceIte]
+    all_goals
+      constructor
+      · rw [RotationCertificate.length_reindex]
+        exact le_max_right _ _
+      · intro v hv
+        obtain ⟨i, _, rfl⟩ := List.mem_map.mp hv
+        exact hentry _ (fun _ => Nat.mod_lt _ (by omega)) _
 
 private theorem enc_ports_perm {xs ys : List ℕ} (h : xs.Perm ys) :
     (encList encNat xs).length = (encList encNat ys).length :=
@@ -479,7 +455,6 @@ private def boundedTurn (b : Bool) (I : State Rel) (n : ℕ) : State Rel :=
 private theorem boundedTurn_poly (encRel : Rel ↪ List Bool) (b : Bool) :
     ComputableInPolyTime (fun p : State Rel × ℕ => boundedTurn b p.1 p.2)
       (encPair (encState encRel) encNat) (encState encRel) := by
-  let input := encPair (encState encRel) encNat
   have hI := ComputableInPolyTime.fst (encState encRel) encNat
   have hn := ComputableInPolyTime.snd (encState encRel) encNat
   have hP := (ComputableInPolyTime.length_list encNat).comp
@@ -516,7 +491,6 @@ states have an internal component/bit-width budget; no growth provider is a hypo
 theorem computableInPolyTime_transposeAdjacent (encRel : Rel ↪ List Bool) :
     ComputableInPolyTime (fun p : State Rel × ℕ => transposeAdjacent g w p.1 p.2)
       (encPair (encState encRel) encNat) (encState encRel) := by
-  let input := encPair (encState encRel) encNat
   have hI := ComputableInPolyTime.fst (encState encRel) encNat
   have hj := ComputableInPolyTime.snd (encState encRel) encNat
   have hP := (ComputableInPolyTime.length_list encNat).comp
@@ -593,16 +567,13 @@ theorem storage_transposeAdjacent (I : State Rel) (j : ℕ) (h : j + 1 < I.ports
   let H := transposeTail g w J
   have hpJ : J.ports.length = I.ports.length := by
     rw [right_ports, List.length_reverse, List.length_rotate, List.length_reverse]
-  have hmJ : J.body = I.body := right_body I r
   have hpH : H.ports.length = I.ports.length := by rw [tail_ports_length, hpJ]
   have hout : transposeAdjacent g w I j = (rotateLeft^[r]) H := by
     rw [transposeAdjacent, ite_eq_left h]
-  have hc := counts_transposeAdjacent g w I j
-  simp only [ite_eq_left h, one_mul] at hc
   have hmH : H.body.occurrences.length =
       I.body.occurrences.length + g.body.occurrences.length := by
-    rw [hout, left_body] at hc
-    exact hc.2.1
+    have hc := (counts_transposeAdjacent g w I j).2.1
+    rwa [hout, left_body, ite_eq_left h, one_mul] at hc
   have ht := storage_transposeTail g w J (by rw [hpJ]; omega)
   let B := (2 * (I.body.occurrences.length + g.body.occurrences.length +
     I.ports.length + 4)).size
@@ -612,7 +583,7 @@ theorem storage_transposeAdjacent (I : State Rel) (j : ℕ) (h : j + 1 < I.ports
         (I.body.occurrences.length + g.body.occurrences.length + I.ports.length) 4)))
   have hs := normalized_loop_storage false H r B
     (by simpa only [hpJ, hpH] using ht.1)
-    (by simpa only [hmJ, hpJ] using ht.2) hb
+    (by simpa only [J, right_body, hpJ] using ht.2) hb
   rw [show (turn false : State Rel → State Rel) = rotateLeft from rfl] at hs
   rw [hout]
   refine ⟨?_, hs.2.2.2⟩

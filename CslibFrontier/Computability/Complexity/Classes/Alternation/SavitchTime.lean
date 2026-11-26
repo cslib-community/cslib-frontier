@@ -160,11 +160,9 @@ theorem computableInO_midpointLeaf (ntm : MultiTapeNTM k Bool State) :
     rcases o with _ | x <;>
       simp only [length_encPair, Option.elim, encBits_apply, encOption_some, List.length_cons, hN]
         at ho ⊢ <;> omega
-  have hlenu (p : P) : (encOption encBits p.2.2.1).length ≤ N p := by
-    obtain ⟨_, _, _, _⟩ := p
+  have hlenu : ∀ p : P, (encOption encBits p.2.2.1).length ≤ N p := fun ⟨_, _, _, _⟩ => by
     simp only [hN, hE, length_encPair]; omega
-  have hlenv (p : P) : (encOption encBits p.2.2.2).length ≤ N p := by
-    obtain ⟨_, _, _, _⟩ := p
+  have hlenv : ∀ p : P, (encOption encBits p.2.2.2).length ≤ N p := fun ⟨_, _, _, _⟩ => by
     simp only [hN, hE, length_encPair]; omega
   have ha := (((ComputableInO.optionElimSnd hcode (ComputableInO.snd E encBits)).comp
     ((ComputableInO.id' (encMid := E)).prod hu)).of_enc_eq (encC := encBits)
@@ -188,8 +186,7 @@ theorem computableInO_midpointLeaf (ntm : MultiTapeNTM k Bool State) :
     have hc : M + 1 ≤ c * (M + 1) := Nat.le_mul_of_pos_left _ (by omega)
     have h4c : 4 * c * (M + 1) = 4 * (c * (M + 1)) := by ring
     have h12 : (A + 1) * (A + B + 1) ≤ (4 * c * (M + 1)) ^ 2 := by
-      rw [pow_two]
-      exact Nat.mul_le_mul (by omega) (by omega)
+      simpa only [pow_two] using Nat.mul_le_mul (by omega) (by omega)
     have h33 : (2 * A + 1 + B) ^ 2 ≤ (4 * c * (M + 1)) ^ 2 := Nat.pow_le_pow_left (by omega) 2
     have h4M : 4 * M ≤ (4 * c * (M + 1)) ^ 2 :=
       (show 4 * M ≤ 4 * c * (M + 1) by omega).trans (Nat.le_self_pow two_ne_zero _)
@@ -201,14 +198,9 @@ theorem computableInO_midpointLeaf (ntm : MultiTapeNTM k Bool State) :
       _ = 96 * c ^ 2 * (M ^ 2 + 1) := by ring
   refine ((ComputableInO.or' (ComputableInO.eq' ha hb) (hedge.comp (ha.prod hb))).of_enc_eq
     (encC := encBool) fun _ => rfl).mono (96 * (ca + cb + 1) ^ 2) (fun p => ?_) fun p => ?_
-  · have hA := hca p
-    have hB := hcb p
-    simp only [length_encPair, encBits_apply, hN] at hA hB ⊢
-    exact hbd _ _ _ hA hB
-  · have hA := hca p
-    have hB := hcb p
-    simp only [length_encPair, encBits_apply, hN] at hA hB ⊢
-    have h := hbd _ _ _ hA hB
+  · simpa only [length_encPair, encBits_apply, hN] using hbd _ _ _ (hca p) (hcb p)
+  · have h := hbd _ _ _ (hca p) (hcb p)
+    simp only [length_encPair, encBits_apply, hN] at h ⊢
     generalize (p.2.2.1.getD (viewCode p.1 (ntm.initView p.2.1))).length = A at h ⊢
     generalize (p.2.2.2.getD (acceptCode p.1)).length = B at h ⊢
     have : 2 * A + 1 + B ≤ (A + 1) * (A + B + 1) := by nlinarith
@@ -229,12 +221,10 @@ private theorem length_encOption_lastMidpoint_le (w i : ℕ) (z : List Bool) (d 
   induction i generalizing z with
   | zero => simp [lastMidpoint]
   | succ i ih =>
-    have hi := ih (z.drop (2 * w + 2))
     simp only [lastMidpoint]
     rcases h : lastMidpoint w i (z.drop (2 * w + 2)) d with _ | m
     · split_ifs <;> simp [midpointMoves]
-    · rw [h] at hi
-      simpa using hi
+    · simpa [h] using ih (z.drop (2 * w + 2))
 
 /-- For a time-constructible `s` and a constant `K`, the number of moves of the midpoint game on
 codes of `2 * w + 2` bits, `w = K * (n + s n + 1)`, as in `exists_midpointGame_of_mem_NSPACE`, is
@@ -347,14 +337,8 @@ private theorem NSPACE_subset_ATIME_sq_of_midpointLeaf {s : ℕ → ℕ} (hs : T
     (computableInO_midpointMoveCount hs K) hV'
     (fun a => (hA a _ le_rfl).trans (Iff.of_eq (congrArg (Alternation true _)
       (funext fun z => by rw [midpointGame_eq_reach_lastMidpoint]; rfl))))
-    (fun a => by
-      dsimp only at *
-      have := hfin a
-      omega)
-    fun a z hz => by
-      dsimp only at *
-      have := hfin a
-      omega
+    (fun a => by linarith [hfin a])
+    fun a _ _ => by linarith [hfin a]
 
 /-- **Time-constructible step toward CKS Theorem 3.1 (`NSPACE s ⊆ ATIME ((n + s n) ^ 2)`)**: not
 the unrestricted [Chandra, Kozen and Stockmeyer, Theorem 3.1][ChandraKozenStockmeyer1981]

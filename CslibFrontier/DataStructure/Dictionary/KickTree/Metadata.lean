@@ -149,10 +149,7 @@ theorem popcount_eq_sum_testBit (B : ℕ) (w : Fin (2 ^ B)) :
 /-- Complementation: `rank0 w k + rank1 w k = k`. -/
 theorem rank0_add_rank1 (B : ℕ) (w : Fin (2 ^ B)) (k : Fin (B + 1)) :
     rank0 B w k + rank1 B w k = k.val := by
-  dsimp [rank0, rank1]
-  have h := List.length_eq_length_filter_add (l := List.range k.val) (fun i => w.val.testBit i)
-  rw [List.length_range] at h
-  omega
+  rw [rank0, rank1, Nat.add_comm, ← List.length_eq_length_filter_add, List.length_range]
 
 /-- Rank 1 is bounded by the prefix length `k`. -/
 theorem rank1_le (B : ℕ) (w : Fin (2 ^ B)) (k : Fin (B + 1)) :
@@ -179,18 +176,13 @@ theorem rank1_eq_popcount (B : ℕ) (w : Fin (2 ^ B)) :
 /-- Soundness of `select1`: any returned position genuinely holds a 1-bit. -/
 theorem select1_sound (B : ℕ) (w : Fin (2 ^ B)) (k : ℕ) (idx : Fin B)
     (h : select1 B w k = some idx) : w.val.testBit idx.val = true := by
-  have hmem := List.mem_of_getElem? h
-  rw [BitString.mem_positions] at hmem
-  rwa [BitString.equivFin_symm_apply] at hmem
+  simpa only [BitString.mem_positions, BitString.equivFin_symm_apply] using List.mem_of_getElem? h
 
 /-- Soundness of `select0`: any returned position genuinely holds a 0-bit. -/
 theorem select0_sound (B : ℕ) (w : Fin (2 ^ B)) (k : ℕ) (idx : Fin B)
     (h : select0 B w k = some idx) : w.val.testBit idx.val = false := by
-  have hmem := List.mem_of_getElem? h
-  rw [BitString.mem_positions] at hmem
-  rw [BitString.equivFin_symm_apply] at hmem
-  revert hmem
-  cases w.val.testBit idx.val <;> simp
+  simpa only [BitString.mem_positions, BitString.equivFin_symm_apply, Bool.not_eq_true'] using
+    List.mem_of_getElem? h
 
 /-- Find the least index of a 0-bit in `w < 2 ^ B` (`none` if all bits are 1). -/
 @[expose] def firstZeroBit (B : ℕ) (w : Fin (2 ^ B)) : Option (Fin B) :=
@@ -234,32 +226,28 @@ private theorem filter_range_length_eq_filter_positions_length {B : ℕ} (w : Fi
 private theorem rank1_eq_filter_positions_length {B : ℕ} (w : Fin (2 ^ B)) (idx : Fin B) :
     ((List.range idx.val).filter (fun i => w.val.testBit i)).length =
       ((BitString.positions ((BitString.equivFin B).symm w)).filter (· < idx)).length := by
-  have h := filter_range_length_eq_filter_positions_length w true idx.isLt.le
-  simp only [beq_true] at h
-  exact h
+  simpa only [beq_true, Fin.lt_def] using
+    filter_range_length_eq_filter_positions_length w true idx.isLt.le
 
 private theorem rank0_eq_filter_positions_length {B : ℕ} (w : Fin (2 ^ B)) (idx : Fin B) :
     ((List.range idx.val).filter (fun i => !w.val.testBit i)).length =
       ((BitString.positions (fun i => !((BitString.equivFin B).symm w i))).filter
         (· < idx)).length := by
-  have h := filter_range_length_eq_filter_positions_length w false idx.isLt.le
-  simp only [beq_false] at h
-  exact h
+  simpa only [beq_false, Fin.lt_def] using
+    filter_range_length_eq_filter_positions_length w false idx.isLt.le
 
 /-- Rank-select inversion: if `select1 B w k = some idx`, the rank of `idx` is `k`. -/
 theorem rank1_select1 (B : ℕ) (w : Fin (2 ^ B)) (k : ℕ) (idx : Fin B)
     (h : select1 B w k = some idx) :
     rank1 B w ⟨idx.val, Nat.lt_succ_of_lt idx.isLt⟩ = k := by
-  dsimp [rank1]
-  rw [rank1_eq_filter_positions_length w idx]
+  rw [rank1, rank1_eq_filter_positions_length w idx]
   exact filter_lt_of_getElem (BitString.pairwise_positions _) h
 
 /-- Rank-select inversion: if `select0 B w k = some idx`, the 0-rank of `idx` is `k`. -/
 theorem rank0_select0 (B : ℕ) (w : Fin (2 ^ B)) (k : ℕ) (idx : Fin B)
     (h : select0 B w k = some idx) :
     rank0 B w ⟨idx.val, Nat.lt_succ_of_lt idx.isLt⟩ = k := by
-  dsimp [rank0]
-  rw [rank0_eq_filter_positions_length w idx]
+  rw [rank0, rank0_eq_filter_positions_length w idx]
   exact filter_lt_of_getElem (BitString.pairwise_positions _) h
 
 /-- Population count matches the length of the set-bit positions list. -/
@@ -277,21 +265,14 @@ theorem popcount_eq_spec (B : ℕ) (w : Fin (2 ^ B)) :
 `k < popcount B w`. -/
 theorem select1_isSome_iff (B : ℕ) (w : Fin (2 ^ B)) (k : ℕ) :
     (select1 B w k).isSome ↔ k < popcount B w := by
-  dsimp [select1]
-  rw [popcount_eq_length_positions]
-  simp
+  simp [select1, popcount_eq_length_positions]
 
 /-- Domain completeness for `select0`: `select0 B w k` is defined if and only if
 `k < B - popcount B w`. -/
 theorem select0_isSome_iff (B : ℕ) (w : Fin (2 ^ B)) (k : ℕ) :
     (select0 B w k).isSome ↔ k < B - popcount B w := by
-  dsimp [select0]
-  rw [isSome_getElem?]
-  have hlen : (BitString.positions (fun i => !((BitString.equivFin B).symm w i))).length =
-      B - popcount B w := by
-    rw [BitString.length_positions, BitString.weight_not, Fintype.card_fin,
-      ← BitString.length_positions, ← popcount_eq_length_positions]
-  rw [hlen]
+  rw [select0, isSome_getElem?, BitString.length_positions, BitString.weight_not, Fintype.card_fin,
+    ← BitString.length_positions, ← popcount_eq_length_positions]
 
 /-- Specification of a Four-Russians bit-parallel lookup table of block size `B`. -/
 structure Table (B : ℕ) (α : Type*) where
@@ -375,16 +356,11 @@ theorem write_comm (A : MiniArray α K) {i j : Fin K} (h : i ≠ j) (u v : α) :
 /-- The total bit length of the unary delimiters equals `totalBits`. -/
 theorem delimiters_length_eq_totalBits (A : MiniArray α K) (sizeOf : α → ℕ) :
     (A.delimiters sizeOf).length = A.totalBits sizeOf := by
-  dsimp [delimiters, totalBits]
-  rw [List.length_flatten, List.map_ofFn]
   have hlen : (List.length ∘ fun i : Fin K =>
-      ((List.replicate (sizeOf (A.data i)) false).concat true)) =
-      (fun i => sizeOf (A.data i) + 1) := by
-    ext i
-    simp
-  rw [hlen]
-  have hsum := sum_ofFn_add_one (fun i => sizeOf (A.data i))
-  omega
+      (List.replicate (sizeOf (A.data i)) false).concat true) = fun i => sizeOf (A.data i) + 1 :=
+    funext fun _ => by simp
+  rw [delimiters, totalBits, List.length_flatten, List.map_ofFn, hlen, sum_ofFn_add_one,
+    Nat.add_comm]
 
 private lemma filter_id_replicate_false_concat_true (s : ℕ) :
     ((List.replicate s false).concat true).filter id = [true] := by
@@ -394,18 +370,10 @@ private lemma filter_id_replicate_false_concat_true (s : ℕ) :
 /-- Delimiter count: the total number of delimiter 1-bits across all `K` items is exactly `K`. -/
 theorem delimiters_count_delimiters (A : MiniArray α K) (sizeOf : α → ℕ) :
     ((A.delimiters sizeOf).filter id).length = K := by
-  dsimp [delimiters]
-  rw [List.filter_flatten]
-  induction K with
-  | zero => rfl
-  | succ K' ih =>
-    rw [List.ofFn_succ, List.map_cons, List.flatten_cons, List.length_append]
-    rw [filter_id_replicate_false_concat_true]
-    have this' := ih (⟨A.data ∘ Fin.succ⟩ : MiniArray α K')
-    dsimp at this'
-    rw [this']
-    simp
-    omega
+  dsimp only [delimiters]
+  simp only [List.filter_flatten, List.length_flatten, List.map_ofFn,
+    Function.comp_def, filter_id_replicate_false_concat_true]
+  simp
 
 end MiniArray
 
@@ -620,24 +588,14 @@ private theorem decodeHelper_encode (t : PrefixTrie α) (fuel : ℕ)
     (hfuel : nodeCount t ≤ fuel) (rest1 : List Bool) (rest2 : List α) :
     decodeHelper fuel (encodeE1 t ++ rest1) (encodeE2 t ++ rest2) = some (t, rest1, rest2) := by
   induction t generalizing fuel rest1 rest2 with
-  | empty =>
-    cases fuel <;> rfl
-  | leaf _ =>
-    cases fuel <;> rfl
+  | empty | leaf _ => cases fuel <;> rfl
   | branch l r ihl ihr =>
-    dsimp [nodeCount] at hfuel
     cases fuel with
-    | zero => omega
+    | zero => simp [nodeCount] at hfuel
     | succ fuel' =>
-      dsimp [encodeE1, encodeE2, decodeHelper]
-      have hfl : nodeCount l ≤ fuel' := by omega
-      have hfr : nodeCount r ≤ fuel' := by omega
-      rw [List.append_assoc (encodeE1 l) (encodeE1 r) rest1]
-      rw [List.append_assoc (encodeE2 l) (encodeE2 r) rest2]
-      rw [ihl fuel' hfl]
-      dsimp
-      rw [ihr fuel' hfr]
-      rfl
+      simp only [nodeCount] at hfuel
+      simp [encodeE1, encodeE2, decodeHelper, List.append_assoc,
+        ihl fuel' (by omega), ihr fuel' (by omega)]
 
 /-- Exact DFS roundtrip decoding theorem for prefix tries. -/
 theorem decode_encode (t : PrefixTrie α) :
@@ -792,25 +750,21 @@ private theorem isFree_node_mul_add {h : ℕ} (summary : Fin B → Bool)
 is genuinely free. -/
 theorem findFree?_sound : ∀ {h : ℕ} (t : FreeSlotTree B h), Valid t → ∀ {i : ℕ},
     findFree? t = some i → isFree t i = true
-  | 0, .leaf freeBits => fun _ i hfind => by
-    cases hhd : (BitString.positions freeBits).head? with
-    | none => simp [findFree?, hhd] at hfind
-    | some c =>
-      simp only [findFree?, hhd, Option.some.injEq] at hfind
-      subst hfind
-      simpa [isFree, c.isLt] using BitString.mem_positions.mp (List.mem_of_mem_head? hhd)
-  | h + 1, .node _ summary children => fun hv i hfind => by
+  | 0, .leaf freeBits => fun _ _ hfind => by
+    cases hhd : (BitString.positions freeBits).head? <;>
+      simp only [findFree?, hhd, Option.some.injEq, reduceCtorEq] at hfind
+    subst hfind
+    simpa [isFree] using BitString.mem_positions.mp (List.mem_of_mem_head? hhd)
+  | h + 1, .node _ summary children => fun hv _ hfind => by
     unfold findFree? at hfind
-    cases hcand : (BitString.positions summary).head? with
-    | none => simp [hcand] at hfind
-    | some c =>
-      cases hchild : findFree? (children c) with
-      | none => simp [hcand, hchild] at hfind
-      | some off =>
-        simp only [hcand, hchild, Option.some.injEq] at hfind
-        subst hfind
-        have hsound := findFree?_sound (children c) (hv.1 c) hchild
-        rwa [isFree_node_mul_add summary children c (isFree_lt _ off hsound)]
+    rcases hcand : (BitString.positions summary).head? with _ | c
+    · simp [hcand] at hfind
+    rcases hchild : findFree? (children c) with _ | off
+    · simp [hcand, hchild] at hfind
+    simp only [hcand, hchild, Option.some.injEq] at hfind
+    subst hfind
+    have hsound := findFree?_sound (children c) (hv.1 c) hchild
+    rwa [isFree_node_mul_add summary children c (isFree_lt _ off hsound)]
 
 private theorem ofFn_any_id_iff {n : ℕ} (f : Fin n → Bool) :
     (List.ofFn f).any id = true ↔ ∃ i : Fin n, f i = true := by

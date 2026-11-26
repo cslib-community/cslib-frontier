@@ -234,11 +234,8 @@ private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
     obtain ⟨hk', -, rfl⟩ := replicate_eq_cons ht
     refine ⟨_, _, rfl, n, k, gs ++ [group p 0], grouped_append_singleton hg ⟨p, 0, rfl⟩,
       by simp; omega, by simp; omega, ?_, ?_, ?_⟩
-    · rw [← pre_append_group]
-      simp
-    all_goals
-      simp only [List.length_append, List.length_singleton]
-      congr 1
+    · simp [← pre_append_group]
+    all_goals simp [Nat.sub_sub]
   | gB_b =>
     obtain ⟨n, k, gs, p, q, hg, hn, hk, hq, rfl, rfl, rfl⟩ := hinv
     exact ⟨_, _, Op.apply_push_one_pair.mp happ, n, k, gs, p, q + 1, hg, hn, hk, by omega,
@@ -265,11 +262,8 @@ private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
     · obtain rfl : r = q := by omega
       refine ⟨_, _, rfl, n, k, gs ++ [group p r], grouped_append_singleton hg ⟨p, r, rfl⟩,
         by simp; omega, by simp; omega, ?_, ?_, ?_⟩
-      · rw [← pre_append_group]
-        simp [List.replicate_succ', List.append_assoc]
-      all_goals
-        simp only [List.length_append, List.length_singleton]
-        congr 1
+      · simp [← pre_append_group, List.replicate_succ', List.append_assoc]
+      all_goals simp [Nat.sub_sub]
   | ge_a =>
     obtain ⟨n, k, gs, hg, hn, hk, rfl, rfl, rfl⟩ := hinv
     exact ⟨_, _, Op.apply_push_zero_pair.mp happ, n, k, gs, 1, hg, hn, hk, le_rfl, rfl, by simp,
@@ -292,11 +286,9 @@ private theorem mem_language_of_accepts {w : List Letter} (h : Acceptor.Accepts 
     obtain rfl : n = 0 := by simpa using congrArg List.length h0.symm
     exact ⟨0, [], rfl, by simp, by simpa using hu⟩
   · obtain ⟨n, k, gs, hg, hn, hk, hu, h0, h1⟩ := hinv
-    have l0 := congrArg List.length h0
-    have l1 := congrArg List.length h1
-    simp only [List.length_nil, List.length_replicate] at l0 l1
-    obtain rfl : n = gs.length := by omega
-    obtain rfl : k = gs.length := by omega
+    obtain ⟨rfl, rfl⟩ : n = gs.length ∧ k = gs.length :=
+      ⟨le_antisymm (by simpa [Nat.sub_eq_zero_iff_le] using congrArg List.length h0.symm) hn,
+        le_antisymm (by simpa [Nat.sub_eq_zero_iff_le] using congrArg List.length h1.symm) hk⟩
     exact ⟨gs.length, gs, rfl, hg, by simpa [pre] using hu⟩
 
 /-! ## Every word of `L_bh` is accepted -/
@@ -321,17 +313,13 @@ private theorem run_group {q₀ : State} (hq₀ : q₀ = .pb ∨ q₀ = .ge) (p 
       automaton.configLTS.MTr ⟨q₀, Stacks.pair (.outer :: t₀) (.outer :: t₁)⟩ μ₁
         ⟨.gb, Stacks.pair t₀ (.outer :: t₁)⟩ := by
     rcases p with _ | p
-    · refine ⟨[(.c, .pop 0 .outer)], rfl, .single _ (step_iff.mpr ⟨?_, Op.apply_pop_zero_pair.mpr
-        ⟨_, rfl, rfl⟩⟩)⟩
-      rcases hq₀ with rfl | rfl <;> [exact .pb_c; exact .ge_c]
+    · exact ⟨[(.c, .pop 0 .outer)], rfl, .single _ (step_iff.mpr
+        ⟨hq₀.elim (·.symm ▸ .pb_c) (·.symm ▸ .ge_c), Op.apply_pop_zero_pair.mpr ⟨_, rfl, rfl⟩⟩)⟩
     · refine ⟨(.a, .push 0 .inner) :: List.replicate p (.a, .push 0 .inner) ++
         (.c, .pop 0 .inner) :: List.replicate p (.c, .pop 0 .inner) ++ [(.c, .pop 0 .outer)],
         by simp [List.replicate_succ, replicate_append_singleton], ?_⟩
-      have hfirst : automaton.configLTS.Tr ⟨q₀, Stacks.pair (.outer :: t₀) (.outer :: t₁)⟩
-          (.a, .push 0 .inner) ⟨.ga, Stacks.pair (.inner :: .outer :: t₀) (.outer :: t₁)⟩ := by
-        refine step_iff.mpr ⟨?_, Op.apply_push_zero_pair.mpr rfl⟩
-        rcases hq₀ with rfl | rfl <;> [exact .pb_a; exact .ge_a]
-      refine .comp _ (.comp _ (.stepL hfirst
+      refine .comp _ (.comp _ (.stepL (step_iff.mpr
+          ⟨hq₀.elim (·.symm ▸ .pb_a) (·.symm ▸ .ge_a), Op.apply_push_zero_pair.mpr rfl⟩)
         (configLTS_mTr_replicate_push_zero (M := automaton) Step.ga_a _ p _))
         (.stepL (step_iff.mpr
           ⟨.ga_c, Op.apply_pop_zero_pair.mpr ⟨_, replicate_append_cons _ _ _, rfl⟩⟩)

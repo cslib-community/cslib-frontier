@@ -66,6 +66,10 @@ theorem length_bits {w : UnitContent ub} (h : w ≠ none) : w.bits.length = ub :
   obtain ⟨v, rfl⟩ := Option.ne_none_iff_exists'.1 h
   exact List.length_ofFn
 
+/-- A unit has at most `ub` bits. -/
+theorem length_bits_le (w : UnitContent ub) : w.bits.length ≤ ub := by
+  cases w <;> simp [bits]
+
 /-- A unit that is not absent is determined by its bits. -/
 theorem bits_injOn : Set.InjOn (bits (ub := ub)) {w | w ≠ none} := by
   rintro (_ | v) h (_ | v') h' e

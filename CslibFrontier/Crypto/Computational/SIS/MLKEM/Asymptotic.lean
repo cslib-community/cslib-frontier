@@ -238,31 +238,23 @@ private theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.extendedSamplePub
   have hs := ModuleLWE.sampleDecoder.computableInPolyTime.comp hsample
   have hrows := (Decoder.list (Decoder.list Decoder.nat)).computableInPolyTime.comp hs.fst'
   have hM := ComputableInPolyTime.entryResidues hk1 hk hn hrows
-  let I := encPair (encPair input encUnary) encUnary
-  have hentry : ComputableInPolyTime (fun p : (α × ℕ) × ℕ =>
-      ((ModuleLWE.entryResidues ((P p.1.1).k + 1) (P p.1.1).k (P p.1.1).n
-        ((Decoder.list (Decoder.list Decoder.nat)).decode
-          (ModuleLWE.sampleDecoder.decode (sample p.1.1)).1)).getD (p.2 + 1) []).getD p.1.2 [])
-      I (encList encNat) :=
+  let entry (x : α) (i j : ℕ) :=
+    ((ModuleLWE.entryResidues ((P x).k + 1) (P x).k (P x).n
+      ((Decoder.list (Decoder.list Decoder.nat)).decode
+        (ModuleLWE.sampleDecoder.decode (sample x)).1)).getD (j + 1) []).getD i []
+  have hentry : ComputableInPolyTime (fun p : (α × ℕ) × ℕ => entry p.1.1 p.1.2 p.2)
+      (encPair (encPair input encUnary) encUnary) (encList encNat) :=
     ComputableInPolyTime.listGetDWithInput
       (ComputableInPolyTime.listGetDWithInput (hM.comp (by fun_prop)) (by fun_prop) [])
       (by fun_prop) []
-  have hrow : ComputableInPolyTime (fun p : α × ℕ => (List.range (P p.1).k).map fun j =>
-      ((ModuleLWE.entryResidues ((P p.1).k + 1) (P p.1).k (P p.1).n
-        ((Decoder.list (Decoder.list Decoder.nat)).decode
-          (ModuleLWE.sampleDecoder.decode (sample p.1)).1)).getD (j + 1) []).getD p.2 [])
-      (encPair input encUnary) encPolyVecResidues :=
-    ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp (hk.comp (by fun_prop)))
-      hentry
-  have hA : ComputableInPolyTime (fun x => (List.range (P x).k).map fun i =>
-      (List.range (P x).k).map fun j =>
-        ((ModuleLWE.entryResidues ((P x).k + 1) (P x).k (P x).n
-          ((Decoder.list (Decoder.list Decoder.nat)).decode
-            (ModuleLWE.sampleDecoder.decode (sample x)).1)).getD (j + 1) []).getD i [])
+  have hA : ComputableInPolyTime
+      (fun x => (List.range (P x).k).map fun i => (List.range (P x).k).map (entry x i))
       input encMatrixResidues :=
-    ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hk) hrow
-  have hb := ComputableInPolyTime.listGetDWithInput hM (ComputableInPolyTime.const 0) []
-  exact (hA.prod hb).encoding_comp (output := encPublicKeyResidues)
+    ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hk)
+      (ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp (hk.comp (by fun_prop)))
+        hentry)
+  exact (hA.prod (ComputableInPolyTime.listGetDWithInput hM
+    (ComputableInPolyTime.const 0) [])).encoding_comp (output := encPublicKeyResidues)
 
 private theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.extendedSampleCiphertext
     {P : α → Params} {sample m : α → List Bool} (hP : ComputableInPolyTime P input encParams)
@@ -278,22 +270,19 @@ private theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.extendedSampleCip
   have hk1 : ComputableInPolyTime (fun x => (P x).k + 1) input encUnary := by fun_prop
   have hdu : ComputableInPolyTime (fun x => (P x).du) input encUnary := by fun_prop
   have hdv : ComputableInPolyTime (fun x => (P x).dv) input encUnary := by fun_prop
-  have hs := ModuleLWE.sampleDecoder.computableInPolyTime.comp hsample
-  have hw := ComputableInPolyTime.chunkResidues hk1 hn hs.snd'
-  have hui : ComputableInPolyTime (fun p : α × ℕ =>
-      (ModuleLWE.chunkResidues ((P p.1).k + 1) (P p.1).n
-        (ModuleLWE.sampleDecoder.decode (sample p.1)).2).getD (p.2 + 1) [])
-      (encPair input encUnary) (encList encNat) :=
-    ComputableInPolyTime.listGetDWithInput (hw.comp (by fun_prop)) (by fun_prop) []
-  have hu : ComputableInPolyTime (fun x => (List.range (P x).k).map fun i =>
-      (ModuleLWE.chunkResidues ((P x).k + 1) (P x).n
-        (ModuleLWE.sampleDecoder.decode (sample x)).2).getD (i + 1) [])
+  have hw := ComputableInPolyTime.chunkResidues hk1 hn
+    (ModuleLWE.sampleDecoder.computableInPolyTime.comp hsample).snd'
+  let ui (x : α) (i : ℕ) :=
+    (ModuleLWE.chunkResidues ((P x).k + 1) (P x).n
+      (ModuleLWE.sampleDecoder.decode (sample x)).2).getD (i + 1) []
+  have hu : ComputableInPolyTime (fun x => (List.range (P x).k).map (ui x))
       input encPolyVecResidues :=
-    ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hk) hui
-  have hcu : ComputableInPolyTime (fun x => ((List.range (P x).k).map fun i =>
-      (ModuleLWE.chunkResidues ((P x).k + 1) (P x).n
-        (ModuleLWE.sampleDecoder.decode (sample x)).2).getD (i + 1) []).map
-          (compressResidues (P x).q (P x).du)) input encPolyVecResidues :=
+    ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hk)
+      (ComputableInPolyTime.listGetDWithInput (hw.comp (by fun_prop))
+        (by fun_prop) [])
+  have hcu : ComputableInPolyTime
+      (fun x => ((List.range (P x).k).map (ui x)).map (compressResidues (P x).q (P x).du))
+      input encPolyVecResidues :=
     ComputableInPolyTime.mapWithInput hu
       (ComputableInPolyTime.compressResidues
         (hq.comp (ComputableInPolyTime.fst input (encList encNat)))
@@ -377,10 +366,9 @@ private theorem isPPT_mlweWordReduction [∀ κ, NeZero (P κ).q] {r : ℕ → �
         ProbComp.eval (mlweWordReduction P A b pkOf ctOf (κ, ModuleLWE.encodeSample (M, t)))) :
     D.IsPPT := by
   let E := encPair encUnary encBits
-  have hκ : ComputableInPolyTime (fun x : ℕ × List Bool => x.1) E encUnary := by fun_prop
-  have hchoose := hA.choose.on.preprocess (hκ.prod hpk)
   have hW : IsPPTOn E encBool (mlweWordReduction P A b pkOf ctOf) := by
-    refine hchoose.bind_with ?_
+    refine (hA.choose.on.preprocess
+      ((ComputableInPolyTime.fst encUnary encBits).prod hpk)).bind_with ?_
     let F := encPair E (Encryption.encChoiceOut encBits)
     have hvalid : ComputableInPolyTime
         (fun y : (ℕ × List Bool) × Encryption.ChoiceOut (List Bool) =>
@@ -392,19 +380,11 @@ private theorem isPPT_mlweWordReduction [∀ κ, NeZero (P κ).q] {r : ℕ → �
         (fun y : (ℕ × List Bool) × Encryption.ChoiceOut (List Bool) =>
           if b then y.2.1.2 else y.2.1.1) F encBits := by
       cases b <;> fun_prop
-    have hctF := hct.preprocess ((by fun_prop : ComputableInPolyTime
-      (fun y : (ℕ × List Bool) × Encryption.ChoiceOut (List Bool) => y.1) F E).prod hm)
-    let G := encPair F encBits
-    have hguess := hA.guess.preprocess
-      ((by fun_prop : ComputableInPolyTime
-          (fun z : ((ℕ × List Bool) × Encryption.ChoiceOut (List Bool)) × List Bool =>
-            z.1.1.1) G encUnary).prod
-        ((by fun_prop : ComputableInPolyTime
-          (fun z : ((ℕ × List Bool) × Encryption.ChoiceOut (List Bool)) × List Bool =>
-            z.1.2.2) G encBits).prod
-          (by fun_prop : ComputableInPolyTime
-            (fun z : ((ℕ × List Bool) × Encryption.ChoiceOut (List Bool)) × List Bool =>
-              z.2) G encBits)))
+    have hctF := hct.preprocess ((ComputableInPolyTime.fst E _).prod hm)
+    have hguess := hA.guess.preprocess (show ComputableInPolyTime
+      (fun z : ((ℕ × List Bool) × Encryption.ChoiceOut (List Bool)) × List Bool =>
+        (z.1.1.1, z.1.2.2, z.2))
+      (encPair F encBits) _ by fun_prop)
     exact IsPPTOn.cond hvalid (hctF.bind_with hguess) (ComputableInPolyTime.const false).isPPTOn
   have h := hW.preprocess (ComputableInPolyTime.of_eq fun _ => rfl :
     ComputableInPolyTime ModuleLWE.Input.words
@@ -422,21 +402,18 @@ theorem isPPT_keyReduction [∀ κ, NeZero (P κ).q] (hP : ComputableInPolyTime 
   refine isPPT_mlweWordReduction hP hA b keySamplePublicKey
     (ComputableInPolyTime.keySamplePublicKey (hP.comp (by fun_prop)) (by fun_prop))
     ctOf ?_ (keyReduction P A b) ?_
-  · have hL : ComputableInPolyTime (fun p : (ℕ × List Bool) × List Bool => coinLength (P p.1.1))
-        (encPair (encPair encUnary encBits) encBits) encUnary := by
-      have hPκ : ComputableInPolyTime (fun p : (ℕ × List Bool) × List Bool => P p.1.1)
-          (encPair (encPair encUnary encBits) encBits) encParams := hP.comp (by fun_prop)
+  · let E1 := encPair (encPair encUnary encBits) encBits
+    have hP1 := hP.comp (ComputableInPolyTime.fst (encPair encUnary encBits) encBits).fst'
+    have hL : ComputableInPolyTime (fun p : (ℕ × List Bool) × List Bool => coinLength (P p.1.1))
+        E1 encUnary := by
       unfold coinLength
       fun_prop
     refine (isPPTOn_sampleList.preprocess hL).bind_with ?_
-    let HC := encPair (encPair (encPair encUnary encBits) encBits) encBits
-    have hPHC : ComputableInPolyTime
-        (fun q : ((ℕ × List Bool) × List Bool) × List Bool => P q.1.1.1) HC encParams :=
-      hP.comp (by fun_prop)
-    have hpkHC := ComputableInPolyTime.keySamplePublicKey hPHC
-      (show ComputableInPolyTime (fun q : ((ℕ × List Bool) × List Bool) × List Bool => q.1.1.2)
-        HC encBits by fun_prop)
-    exact (ComputableInPolyTime.encDetWord hPHC hpkHC (by fun_prop) (by fun_prop)).isPPTOn
+    have hfst := ComputableInPolyTime.fst E1 encBits
+    have hPHC := hP1.comp hfst
+    exact (ComputableInPolyTime.encDetWord hPHC
+      (ComputableInPolyTime.keySamplePublicKey hPHC hfst.fst'.snd')
+      hfst.snd' (ComputableInPolyTime.snd E1 encBits)).isPPTOn
   · intro κ M t
     simp only [keyReduction, mlweKeyReduction, mlweWordReduction, keySamplePublicKey_encodeSample,
       wordAdversary, pmf_norm]
@@ -561,12 +538,11 @@ theorem advantage_gameOn_le (A : Encryption.WordAdversary) (κ : ℕ) :
             (ProbComp.eval (sampleVecCBD ((P κ).k + 1) (P κ).n (P κ).q (P κ).η₂))
             (ciphertextReduction P A true κ))) +
         ((P κ).k * (P κ).k * (P κ).n : ℝ≥0) / 2 ^ κ := by
-  have h₀ := advantage_gameOn_cpaExperiment_le P A false κ
-  have h₁ := advantage_gameOn_cpaExperiment_le P A true κ
-  have hcpa := cpaAdvantage_le (P κ) (wordAdversary P A κ)
-  rw [Game.advantage_comm] at h₁
-  refine (Game.advantage_triangle _ _ _).trans (add_le_add
-    ((Game.advantage_triangle _ _ _).trans (add_le_add h₀ hcpa)) h₁)
+  exact (Game.advantage_triangle _ _ _).trans (add_le_add
+    ((Game.advantage_triangle _ _ _).trans
+      (add_le_add (advantage_gameOn_cpaExperiment_le P A false κ)
+        (cpaAdvantage_le (P κ) (wordAdversary P A κ))))
+    ((Game.advantage_comm _ _).trans_le (advantage_gameOn_cpaExperiment_le P A true κ)))
 
 end Bridge
 
@@ -583,15 +559,12 @@ noncomputable def cbdLaw (k n q η : ℕ) [NeZero q] : PMF (Fin k → Fin n → 
 /-- K-PKE's vector sampler `sampleVecCBD` draws from `cbdLaw`. -/
 theorem eval_sampleVecCBD (k n q η : ℕ) [NeZero q] :
     ProbComp.eval (sampleVecCBD k n q η) = cbdLaw k n q η := by
-  have hpoly : ProbComp.eval (samplePolyCBD n q η) =
-      ProbComp.eval (OracleComp.replicateFin n
-        ((Int.cast : ℤ → ZMod q) <$> ProbComp.sampleCenteredBinomial η)) := by
-    rw [ProbComp.eval_replicateFin_map_coords, samplePolyCBD]
-    simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.map]
-    rfl
   rw [sampleVecCBD, ProbComp.eval_replicateFin, cbdLaw]
-  congr 1 with j : 1
-  rw [hpoly, ProbComp.eval_replicateFin, ProbComp.eval_map]
+  congr 1 with _ : 1
+  simp_rw [← ProbComp.eval_map, ← ProbComp.eval_replicateFin,
+    ProbComp.eval_replicateFin_map_coords, samplePolyCBD]
+  simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.map]
+  rfl
 
 /-- **IND-CPA of K-PKE with ideal coin expansion and the matrix in the public key** (fair coins in
 place of `PRF`; no `XOF` or `G` oracles), a step towards Kyber v3.02 Theorem 1 ([AvanziEtAl2021],

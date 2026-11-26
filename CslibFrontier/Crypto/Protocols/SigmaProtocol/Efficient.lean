@@ -373,7 +373,7 @@ theorem computableInPolyTime_andExtractWord
   have hf₁' : ComputableInPolyTime f₁ (encExtractorWordInput enc₀.index) encBits :=
     hI ▸ hf₁
   unfold andExtractWord Encoding.andProof encExtractorWordInput
-  exact by fun_prop
+  fun_prop
 
 /-- `andExtractWord` realizes `andExtract` on `enc₀.andProof enc₁` when `f₀` and `f₁` realize
 `extract₀` and `extract₁` and share the same challenge encoding. -/
@@ -578,10 +578,8 @@ theorem extractorRealizedBy_orExtractWord [∀ i, AddCommGroup (C i)] [∀ i, De
   simp only [orExtractWord, Encoding.orProof, unframe_encPair, dropFrame_encPair, hbeq, hsub_eq,
     orExtract]
   by_cases hc₀ : c₀ = c₀'
-  · simp only [hc₀, decide_true, ↓reduceIte, encSum_inr]
-    rw [hC i, h₁]
-  · simp only [hc₀, decide_false, Bool.false_eq_true, ↓reduceIte, encSum_inl]
-    rw [h₀]
+  · simp only [hc₀, decide_true, ↓reduceIte, encSum_inr, hC i, h₁ i]
+  · simp only [hc₀, decide_false, Bool.false_eq_true, ↓reduceIte, encSum_inl, h₀ i]
 
 /-- **Efficient special soundness of `orProof`.** -/
 theorem EfficientSpecialSoundness.orProof
@@ -839,15 +837,12 @@ theorem extractorRealizedBy_parallelExtractWord
     simp only [Option.map_none, Option.elim_none]
     by_cases hk : 0 < k i
     · simp only [Nat.ne_of_gt hk, ↓reduceIte, hk, ↓reduceDIte, List.map_ofFn,
-        List.getD_ofFn_of_lt _ hk]
-      exact hf i y (t ⟨0, hk⟩) (c ⟨0, hk⟩) (z ⟨0, hk⟩) (c' ⟨0, hk⟩) (z' ⟨0, hk⟩)
-    · have hk0 := Nat.eq_zero_of_not_pos hk
-      simp only [hk0, ↓reduceIte]
-      exact hdef_eq i hk0
+        List.getD_ofFn_of_lt _ hk, Function.comp_apply, hf i]
+    · simp only [Nat.eq_zero_of_not_pos hk, lt_self_iff_false, ↓reduceIte, ↓reduceDIte,
+        hdef_eq i (Nat.eq_zero_of_not_pos hk)]
   | some j =>
     simp only [Option.map_some, Option.elim_some, List.map_ofFn, List.getD_ofFn,
-      Function.comp_apply]
-    exact hf i y (t j) (c j) (z j) (c' j) (z' j)
+      Function.comp_apply, hf i]
 
 /-- Polynomial-time extraction for arbitrary repetition counts, including zero, when the encoded
 default witness is polynomial-time computable. Positive repetition uses
@@ -927,15 +922,8 @@ theorem isPPT_parallelSimulator
         (encList (encPair encBits encBits)) (encPair encBits encBits))
   · simp only [parallelSimulator, parallelSimulateWord, Encoding.parallelRepetition,
       encFinFn_apply, frames_encList, List.ofFn_eq_map, List.map_map, List.mapM_map,
-      Function.comp_def, ProbComp.eval_map, ← ProbComp.eval_pi_map_ofFn, ProbComp.eval_pi_eq_piFin]
-    have hcoord :
-        (PMF.piFin fun j => ProbComp.eval (prog (i, enc.statement i y, enc.challenge i (c j)))) =
-          (PMF.piFin fun j => ProbComp.eval (sim i y (c j))).map
-            fun tz j => (enc.commitment i (tz j).1, enc.response i (tz j).2) := by
-      simp only [← hword, PMF.piFin_map]
-      rfl
-    rw [hcoord]
-    simp only [PMF.map_comp]
+      Function.comp_def, ProbComp.eval_map, ← ProbComp.eval_pi_map_ofFn, ProbComp.eval_pi_eq_piFin,
+      ← hword, PMF.piFin_map, PMF.map_comp]
     refine congrArg (PMF.map · _) (funext fun tz => ?_)
     simp [Function.comp_def, Prod.map_apply, encList_eq_encList_bits_map, List.ofFn_eq_map,
       List.map_map]

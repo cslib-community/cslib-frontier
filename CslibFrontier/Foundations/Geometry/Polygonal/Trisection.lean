@@ -50,13 +50,11 @@ theorem endpoint_trisect (p : Route) (s t : ℝ) (k : Fin 3) (b : Bool) :
 theorem strictMono_trisectionBounds (p : Route) {s t : ℝ}
     (hs : 0 < s) (ht : 0 < t) (hst : s + t < 1) :
     StrictMono (p.trisectionBounds s t) := by
-  refine Fin.strictMono_iff_lt_succ.mpr ?_
-  intro k
+  refine Fin.strictMono_iff_lt_succ.mpr fun k => ?_
   fin_cases k
   · exact hs
   · change s < (p.segments : ℝ) - t
-    have hn : (1 : ℝ) ≤ (p.segments : ℝ) := by
-      exact_mod_cast Nat.le_add_left 1 p.bends
+    have hn : (1 : ℝ) ≤ p.segments := mod_cast Nat.le_add_left 1 p.bends
     linarith
   · exact sub_lt_self _ ht
 
@@ -105,11 +103,9 @@ private theorem middle_position_lower (p : Route) {s t : ℝ}
     s ≤ p.position i (p.cutTime s t i u) ∧
       (p.position i (p.cutTime s t i u) = s ↔ (p.cutEnds s t).AtEnd i u false) := by
   by_cases hi : i.val = 0
-  · have hi0 : i = 0 := Fin.ext hi
-    subst i
-    have hb := (p.cutTime_bounds hs.le ht.le hst 0 hu).1
-    have he := p.cutTime_eq_lower_iff hs.le ht.le hst 0 u
-    simpa [AtEnd, position, cutLower] using And.intro hb he
+  · obtain rfl : i = 0 := Fin.ext hi
+    simpa [AtEnd, position, cutLower] using
+      ⟨(p.cutTime_bounds hs.le ht.le hst 0 hu).1, p.cutTime_eq_lower_iff hs.le ht.le hst 0 u⟩
   · have hi1 : (1 : ℝ) ≤ i.val := by exact_mod_cast (show 1 ≤ i.val by omega)
     have hr := p.cutTime_mem hs.le ht.le hst i hu
     change s ≤ (i.val : ℝ) + p.cutTime s t i u ∧
@@ -229,12 +225,10 @@ theorem support_trisect (p : Route) {s t : ℝ}
   · intro hz
     obtain ⟨i, r, hr, rfl⟩ := (p.mem_support_iff z).mp hz
     rcases lt_or_ge r (p.cutLower s i) with hlow | hlow
-    · have hi : i = 0 := by
+    · obtain rfl : i = 0 := by
         by_contra h
-        have hn : i.val ≠ 0 := fun e => h (Fin.ext e)
-        simp only [cutLower, ite_eq_right hn] at hlow
-        exact (not_lt_of_ge hr.1) hlow
-      subst i
+        exact (not_lt_of_ge hr.1)
+          (by simpa only [cutLower, ite_eq_right (fun e : i.val = 0 => h (Fin.ext e))] using hlow)
       change r < s at hlow
       obtain ⟨u, hu, he⟩ := preimage hs.le ⟨hr.1, hlow.le⟩
       have hr' : s * u = r := by rw [AffineMap.lineMap_apply_ring'] at he; linarith

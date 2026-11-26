@@ -177,18 +177,13 @@ private theorem adaGradNorm_step_le {K : Set E} {proj : E → E}
   set x := adaGradNorm proj grad γ ε x₀
   set S := adaGradNormSqSum proj grad γ ε x₀
   have hSn : 0 ≤ S t := by
-    change 0 ≤ adaGradNormSqSum _ _ _ _ _ t
-    rw [adaGradNormSqSum_eq]
+    rw [show S t = adaGradNormSqSum proj grad γ ε x₀ t from rfl, adaGradNormSqSum_eq]
     exact add_nonneg hε (sum_nonneg fun _ _ => sq_nonneg _)
-  have hS1_nn : 0 ≤ S (t + 1) := by
-    change 0 ≤ S t + ‖grad t (x t)‖ ^ 2
-    exact add_nonneg hSn (sq_nonneg _)
+  have hS1_nn : 0 ≤ S (t + 1) := add_nonneg hSn (sq_nonneg _)
   rcases hS1_nn.eq_or_lt with hzero | hpos
   · have hg0 : ‖grad t (x t)‖ ^ 2 = 0 := by
-      have : S t + ‖grad t (x t)‖ ^ 2 = 0 := hzero.symm
-      linarith [sq_nonneg ‖grad t (x t)‖]
-    have hg : grad t (x t) = 0 := norm_eq_zero.mp (sq_eq_zero_iff.mp hg0)
-    simp [hg, ← hzero]
+      linarith [hSn, sq_nonneg ‖grad t (x t)‖, adaGradNormSqSum_succ proj grad γ ε x₀ t]
+    simp [norm_eq_zero.mp (sq_eq_zero_iff.mp hg0), ← hzero]
   · set r := √(S (t + 1))
     have hr : 0 < r := sqrt_pos.mpr hpos
     set η := γ / r
@@ -205,14 +200,12 @@ private theorem adaGradNorm_step_le {K : Set E} {proj : E → E}
     have hdiv := div_le_div_of_nonneg_right
       (by linarith : 2 * η * ⟪grad t (x t), x t - u⟫ ≤
         ‖x t - u‖ ^ 2 - ‖x (t + 1) - u‖ ^ 2 + η ^ 2 * ‖grad t (x t)‖ ^ 2) hη.le
-    have hL : 2 * η * ⟪grad t (x t), x t - u⟫ / η = 2 * ⟪grad t (x t), x t - u⟫ := by
-      field_simp
     have hR : (‖x t - u‖ ^ 2 - ‖x (t + 1) - u‖ ^ 2 + η ^ 2 * ‖grad t (x t)‖ ^ 2) / η =
         r / γ * (‖x t - u‖ ^ 2 - ‖x (t + 1) - u‖ ^ 2) +
           γ * (‖grad t (x t)‖ ^ 2 / r) := by
       simp only [η]
       field_simp
-    rwa [hL, hR] at hdiv
+    rwa [mul_div_right_comm, mul_div_cancel_right₀ _ hη.ne', hR] at hdiv
 
 /-- Linearized dynamic regret bound for scalar `AdaGrad-Norm` against any sequence of comparators
 `u : ℕ → E` in `K`. -/
@@ -227,9 +220,7 @@ theorem adaGradNorm_dynamic_sum_inner_le {K : Set E} {proj : E → E}
   set x := adaGradNorm proj grad γ ε x₀
   set S := adaGradNormSqSum proj grad γ ε x₀
   have hD0 : 0 ≤ D := (norm_nonneg (x₀ - u 0)).trans (hD _ hx₀ _ (hu 0))
-  have hS_mono (t : ℕ) : S t ≤ S (t + 1) := by
-    have : S (t + 1) = S t + ‖grad t (x t)‖ ^ 2 := adaGradNormSqSum_succ _ _ _ _ _ t
-    linarith [sq_nonneg ‖grad t (x t)‖]
+  have hS_mono (t : ℕ) : S t ≤ S (t + 1) := le_add_of_nonneg_right (sq_nonneg _)
   cases T with
   | zero =>
     simp only [range_zero, sum_empty, pathLength_zero, mul_zero, add_zero]
@@ -245,9 +236,8 @@ theorem adaGradNorm_dynamic_sum_inner_le {K : Set E} {proj : E → E}
         simp only [zero_add, range_one, sum_singleton, pathLength_one, mul_zero, zero_mul, add_zero]
         have hd0 : ‖x 0 - u 0‖ ^ 2 ≤ D ^ 2 :=
           pow_le_pow_left₀ (norm_nonneg _) (hD _ hx₀ _ (hu 0)) 2
-        have := mul_le_mul_of_nonneg_left (by linarith : ‖x 0 - u 0‖ ^ 2 - ‖x 1 - u 0‖ ^ 2 ≤
-          D ^ 2 - ‖x 1 - u 0‖ ^ 2) (div_nonneg (sqrt_nonneg (S 1)) hγ.le)
-        linarith
+        linarith [mul_le_mul_of_nonneg_left (by linarith : ‖x 0 - u 0‖ ^ 2 - ‖x 1 - u 0‖ ^ 2 ≤
+          D ^ 2 - ‖x 1 - u 0‖ ^ 2) (div_nonneg (sqrt_nonneg (S 1)) hγ.le)]
       | succ k ih =>
         have hstep := adaGradNorm_step_le hP hγ hε (hu (k + 1)) (k + 1) (grad := grad) (x₀ := x₀)
         have hr_le : √(S (k + 1)) ≤ √(S (k + 2)) := sqrt_le_sqrt (hS_mono (k + 1))
@@ -312,9 +302,8 @@ theorem adaGradNorm_regret_le {K : Set E} {proj : E → E} {f : ℕ → E → �
     ∑ t ∈ range T, (f t (adaGradNorm proj grad γ ε x₀ t) - f t u) ≤
       (D ^ 2 / (2 * γ) + γ) *
         √(ε + ∑ t ∈ range T, ‖grad t (adaGradNorm proj grad γ ε x₀ t)‖ ^ 2) - γ * √ε := by
-  have h := adaGradNorm_dynamic_regret_le (f := f) hP hx₀ hD hγ hε hsub (u := fun _ => u)
-    (fun _ => hu) T
-  simpa only [pathLength_const, mul_zero, add_zero] using h
+  simpa only [pathLength_const, mul_zero, add_zero] using
+    adaGradNorm_dynamic_regret_le (f := f) hP hx₀ hD hγ hε hsub (fun _ => hu) T
 
 /-- **Optimally scaled `AdaGrad-Norm`**: choosing `γ = D / √2` minimizes `D ^ 2 / (2 * γ) + γ` to
 `√2 * D`, giving data-dependent regret at most
@@ -416,9 +405,7 @@ theorem adaGradBox_mem {ι : Type*} {l r : ι → ℝ} (hlr : ∀ i, l i ≤ r i
     adaGradBox l r grad γ ε x₀ t ∈ Box l r := by
   cases t with
   | zero => exact hx₀
-  | succ t =>
-    intro i
-    exact (isPythagoreanProjection_clampProj (hlr i)).mem _
+  | succ t => exact fun i => (isPythagoreanProjection_clampProj (hlr i)).mem _
 
 private theorem adaGradBox_coord_eq {ι : Type*} (l r : ι → ℝ)
     (grad : ℕ → (ι → ℝ) → (ι → ℝ)) (γ ε : ℝ) (x₀ : ι → ℝ) (i : ι) (t : ℕ) :
@@ -431,12 +418,9 @@ private theorem adaGradBox_coord_eq {ι : Type*} (l r : ι → ℝ)
   induction t with
   | zero => exact ⟨rfl, rfl⟩
   | succ t ih =>
-    constructor
-    · simp only [adaGradBoxState, adaGradNorm_succ, adaGradNormSqSum_succ, ← ih.1, ← ih.2,
-        Real.norm_eq_abs, sq_abs, smul_eq_mul]
-      rfl
-    · simp only [adaGradBoxState, adaGradNormSqSum_succ, ← ih.2, Real.norm_eq_abs, sq_abs]
-      rfl
+    simp only [adaGradBoxState, adaGradNorm_succ, adaGradNormSqSum_succ, ← ih.1, ← ih.2,
+      Real.norm_eq_abs, sq_abs, smul_eq_mul]
+    exact ⟨rfl, rfl⟩
 
 /-- **Diagonal `AdaGrad` regret on an axis-aligned box** [Hazan2022]: each coordinate runs an
 independent adaptive step size `γ / √(ε + ∑ s ≤ t, (grad s (x s) i) ^ 2)`. With no prior bound
@@ -459,10 +443,7 @@ theorem adaGradBox_regret_le {ι : Type*} [Fintype ι] {l r : ι → ℝ} (hlr :
     rw [← sum_comm]
     refine sum_le_sum fun t _ => ?_
     have h := hsub t (x t) (adaGradBox_mem hlr grad γ ε hx₀ t) u hu
-    have hneg : ∑ i : ι, grad t (x t) i * (u i - x t i) =
-        - ∑ i : ι, grad t (x t) i * (x t i - u i) := by
-      rw [← sum_neg_distrib]
-      exact sum_congr rfl fun _ _ => by ring
+    simp only [mul_sub, sum_sub_distrib] at h ⊢
     linarith
   have hcoord (i : ι) : ∑ t ∈ range T, grad t (x t) i * (x t i - u i) ≤
       ((r i - l i) ^ 2 / (2 * γ) + γ) * √(ε + ∑ t ∈ range T, (grad t (x t) i) ^ 2) - γ * √ε := by

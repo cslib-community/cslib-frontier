@@ -161,9 +161,9 @@ private theorem le_half_of_agree {N : ℕ} {C E : BooleanFunction N} {ε : ℝ}
     have := card_le_univ (univ.filter fun y : BitString N => C y = E y)
     rw [BitString.card] at this
     exact_mod_cast this
-  have hpos : (0 : ℝ) < 2 ^ N := by positivity
-  have h1 : (1 / 2 + ε) * 2 ^ N ≤ 1 * 2 ^ N := hagree.trans (by linarith only [hN])
-  linarith only [le_of_mul_le_mul_right h1 hpos]
+  linarith only [le_of_mul_le_mul_right
+    (hagree.trans (by linarith only [hN]) : (1 / 2 + ε) * 2 ^ N ≤ 1 * 2 ^ N)
+    (by positivity : (0 : ℝ) < 2 ^ N)]
 
 variable [Fintype F] [DecidableEq F]
 
@@ -195,10 +195,8 @@ theorem exists_glPredictor_agree (enc : F ≃ BitString w) (h : BitString b ↪ 
   set good := (univ : Finset (BitString (m * w))).filter fun x =>
     1 / 2 + ε / 2 ≤ Crypto.GoldreichLevin.agreement (pred x) (target x)
   have hgood : ε / 2 * 2 ^ (m * w) ≤ #good := by
-    have hcount := Crypto.GoldreichLevin.card_filter_agreement_ge pred target hε.le (by
-      rw [← hpairs, hcard, ← mul_assoc, mul_assoc (1 / 2 + ε), ← pow_add]
-      exact hagree)
-    rwa [hcard] at hcount
+    simpa only [hcard] using Crypto.GoldreichLevin.card_filter_agreement_ge pred target hε.le
+      (by simpa only [← hpairs, hcard, ← mul_assoc, mul_assoc (1 / 2 + ε), ← pow_add] using hagree)
   -- Goldreich–Levin with fixed masks and guess
   obtain ⟨masks, guess, hgl⟩ := Crypto.GoldreichLevin.exists_card_candidate_eq pred target
     (ε / 2) (by positivity) hK hsize good fun x hx => (mem_filter.1 hx).2
@@ -214,11 +212,8 @@ theorem exists_glPredictor_agree (enc : F ≃ BitString w) (h : BitString b ↪ 
         Equiv.apply_symm_apply]
       rfl
     · simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hx ⊢
-      simp only [glPredictor]
-      rw [show (fun r => C (Fin.append (BitString.pointBits enc
-          ((BitString.pointEquiv enc).symm x)) r)) = pred x by
-        rw [BitString.pointBits_pointEquiv_symm]]
-      rw [hx, Equiv.symm_apply_apply]
+      simp only [glPredictor, BitString.pointBits_pointEquiv_symm,
+        show (fun r => C (Fin.append x r)) = pred x from rfl, hx, target, Equiv.symm_apply_apply]
   rw [hcount]
   have : (#good : ℝ) ≤ 2 ^ (K + 1) *
       #{x | Crypto.GoldreichLevin.candidate (pred x) masks guess = target x} := by
@@ -486,16 +481,11 @@ variable {w q M ℓ d K s : ℕ}
 
 private theorem bitBlastCost_le (hq : q = 2 ^ w) (_hw : 1 ≤ w) :
     bitBlastCost w ≤ 7 * w ^ 2 * q ^ 2 := by
-  have h2 : 2 ^ (2 * w) = q ^ 2 := by rw [hq, ← pow_mul, mul_comm]
   have hq1 : 1 ≤ q ^ 2 := Nat.one_le_pow _ _ (by rw [hq]; positivity)
-  unfold bitBlastCost
-  rw [h2]
   have hw2 : w ≤ w ^ 2 := Nat.le_self_pow (by decide : 2 ≠ 0) w
-  have h1 : w * q ^ 2 ≤ w ^ 2 * q ^ 2 := Nat.mul_le_mul_right _ hw2
-  have h3 : w ≤ w ^ 2 * q ^ 2 := hw2.trans (Nat.le_mul_of_pos_right _ hq1)
-  rw [show w * (q ^ 2 * (4 * w + 2) + 1) = 4 * (w ^ 2 * q ^ 2) + 2 * (w * q ^ 2) + w by ring,
-    show 7 * w ^ 2 * q ^ 2 = 7 * (w ^ 2 * q ^ 2) by ring]
-  omega
+  unfold bitBlastCost
+  rw [show 2 ^ (2 * w) = q ^ 2 by rw [hq, ← pow_mul, mul_comm]]
+  nlinarith [Nat.mul_le_mul_right (q ^ 2) hw2, hw2.trans (Nat.le_mul_of_pos_right _ hq1)]
 
 private theorem kernelVecCost_le (hM : M ≤ q ^ 2) (hq : 1 ≤ q) :
     kernelVecCost q M ≤ 64 * q ^ 5 := by
@@ -541,15 +531,12 @@ private theorem henselCost_le (hM : M ≤ q ^ 2) (hd : d ≤ q) (hq : 1 ≤ q) :
 
 private theorem glCost_le (hw : 1 ≤ w) : glCost w K s ≤ 7 * w * 4 ^ K * (s + 1) := by
   set X := 2 ^ K - 1
-  have hpow : 2 ^ K = X + 1 := by grind
   have h4 : 4 ^ K = (X + 1) ^ 2 := by
-    rw [← hpow, ← pow_mul, mul_comm, pow_mul]
-    norm_num
+    rw [show X + 1 = 2 ^ K by grind, ← pow_mul, mul_comm, pow_mul]; norm_num
   unfold glCost
   rw [h4]
   change 2 + w * (X * (s + 1) + (2 + X * (2 * (X + 2)))) ≤ _
-  ring_nf
-  omega
+  ring_nf; omega
 
 /-- **The reconstruction cost is polynomial**: with `q = 2 ^ w` and the parameters in the ranges
 guaranteed by the hypotheses of `complexity_le_of_agree_hardnessEncode` (`D < q`, `d + 1 ≤ q`,
@@ -637,11 +624,8 @@ theorem complexity_le_pow_of_agree_hardnessEncode (enc : F ≃ BitString w)
   have hε1 : ε ≤ 1 / 2 := le_half_of_agree hagree
   obtain ⟨-, hDq, hdq⟩ := reconstruction_ranges hq2 hε hε1 hn hmargin herr
   refine reconstructionCost_le hqw ?_ ?_ ?_ hDq ?_ (by omega)
-  · by_contra! hw
-    simp [Nat.lt_one_iff.mp hw] at hqw
-    omega
-  · by_contra! hm
-    simp [Nat.lt_one_iff.mp hm] at hd
+  · exact Nat.pos_of_ne_zero fun hw => by rw [hw, pow_zero] at hqw; omega
+  · exact Nat.pos_of_ne_zero fun hm => by simp [hm] at hd
   · simpa [BitString] using Fintype.card_le_of_embedding h
   · calc #(Sudan.monomials (m * (2 ^ b - 1)) D) ≤ #(range (D + 1) ×ˢ range (D + 1)) :=
           card_filter_le _ _

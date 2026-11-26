@@ -213,16 +213,14 @@ theorem cmpPrefix_pos_iff {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy : IsSi
     (K : ℕ) :
     0 < cmpPrefix x y K ↔ streamPrefix y K < streamPrefix x K := by
   rw [cmpPrefix_eq_clamp_sub hx hy K, streamPrefix_eq_intPrefix_div, streamPrefix_eq_intPrefix_div,
-    div_lt_div_iff_of_pos_right (by positivity : (0 : ℝ) < (2 : ℝ) ^ K)]
-  rw [Int.cast_lt]
+    div_lt_div_iff_of_pos_right (by positivity : (0 : ℝ) < (2 : ℝ) ^ K), Int.cast_lt]
   omega
 
 theorem cmpPrefix_neg_iff {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy : IsSignedStream y)
     (K : ℕ) :
     cmpPrefix x y K < 0 ↔ streamPrefix x K < streamPrefix y K := by
   rw [cmpPrefix_eq_clamp_sub hx hy K, streamPrefix_eq_intPrefix_div, streamPrefix_eq_intPrefix_div,
-    div_lt_div_iff_of_pos_right (by positivity : (0 : ℝ) < (2 : ℝ) ^ K)]
-  rw [Int.cast_lt]
+    div_lt_div_iff_of_pos_right (by positivity : (0 : ℝ) < (2 : ℝ) ^ K), Int.cast_lt]
   omega
 
 theorem cmpPrefix_nonneg_iff {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy : IsSignedStream y)
@@ -279,11 +277,9 @@ theorem pairAvgApprox_isScaledApprox {x y : ℕ → ℤ}
   have hA : (A : ℝ) / (32 : ℝ) =
       (2 : ℝ) ^ t * ((streamPrefix x (t + 4) + streamPrefix y (t + 4)) / 2) := by
     dsimp [A]
-    rw [streamPrefix_eq_intPrefix_div, streamPrefix_eq_intPrefix_div]
+    rw [streamPrefix_eq_intPrefix_div, streamPrefix_eq_intPrefix_div, ← add_div, div_right_comm,
+      ← div_sixteen_eq]
     push_cast
-    have hpow : (2 : ℝ) ^ (t + 4) = 16 * (2 : ℝ) ^ t := by ring
-    rw [hpow]
-    field_simp
     ring
   have hx_err := abs_streamVal_sub_streamPrefix_le hx (t + 4)
   have hy_err := abs_streamVal_sub_streamPrefix_le hy (t + 4)
@@ -418,19 +414,11 @@ theorem shiftClipApprox_isScaledApprox (v : ℤ) {x : ℕ → ℤ} (hx : IsSigne
       have hB : (((2 : ℤ) ^ (t + 4) : ℤ) : ℝ) / 16 = (2 : ℝ) ^ t := by
         push_cast
         ring
-      have hnegB : (-(((2 : ℤ) ^ (t + 4) : ℤ) : ℝ)) / 16 = -(2 : ℝ) ^ t := by
-        push_cast
-        ring
       rw [Int.cast_max, Int.cast_min, Int.cast_neg,
         ← max_div_div_right (by norm_num : (0 : ℝ) ≤ 16),
         ← min_div_div_right (by norm_num : (0 : ℝ) ≤ 16),
-        hB, hnegB, hscale]
-      have hmul_min := mul_min_of_nonneg (1 : ℝ) ((2 : ℝ) ^ v * streamPrefix x K)
-        (by positivity : (0 : ℝ) ≤ (2 : ℝ) ^ t)
-      have hmul_max := mul_max_of_nonneg (-1 : ℝ) (min 1 ((2 : ℝ) ^ v * streamPrefix x K))
-        (by positivity : (0 : ℝ) ≤ (2 : ℝ) ^ t)
-      rw [hmul_max, hmul_min]
-      ring_nf
+        neg_div, hB, hscale, mul_max_of_nonneg _ _ (by positivity),
+        mul_min_of_nonneg _ _ (by positivity), mul_neg_one, mul_one]
     have hx_err := abs_streamVal_sub_streamPrefix_le hx K
     rw [abs_sub_comm] at hx_err
     have htrunc : |(2 : ℝ) ^ t * shiftClipVal v (streamPrefix x K) -
@@ -599,11 +587,10 @@ theorem bufferedTest_eq_true_of_two_mul_lt {M R : ℕ} {s u : ℕ → ℤ}
     (hρ : 1 / (2 : ℝ) ^ R ≤ ρ) (huρ : ρ ≤ uVal) (hlt : 2 * uVal < sVal) :
     bufferedTest M R s u = true := by
   unfold bufferedTest
+  subst hsVal huVal
   rw [decide_eq_true_eq, cmpBuffered_pos_iff hs hu]
   have hs_err := abs_two_pow_mul_streamPrefix_sub_le M R hs
   have hu_err := abs_two_pow_mul_streamPrefix_sub_le M R hu
-  rw [← hsVal] at hs_err
-  rw [← huVal] at hu_err
   have hscaled : (2 : ℝ) ^ M * (3 * streamPrefix u (M + R + 7)) <
       (2 : ℝ) ^ M * (2 * streamPrefix s (M + R + 7)) := by
     linarith [five_mul_slack_lt hρ, neg_le_of_abs_le hs_err, le_of_abs_le hu_err]
@@ -618,13 +605,12 @@ theorem bufferedTest_eq_false_of_le {M R : ℕ} {s u : ℕ → ℤ}
     (hρ : 1 / (2 : ℝ) ^ R ≤ ρ) (huρ : ρ ≤ uVal) (hle : sVal ≤ uVal) :
     bufferedTest M R s u = false := by
   unfold bufferedTest
+  subst hsVal huVal
   rw [decide_eq_false_iff_not]
   intro hlt_raw
   have hlt := (cmpBuffered_pos_iff hs hu (M + R + 7)).mp hlt_raw
   have hs_err := abs_two_pow_mul_streamPrefix_sub_le M R hs
   have hu_err := abs_two_pow_mul_streamPrefix_sub_le M R hu
-  rw [← hsVal] at hs_err
-  rw [← huVal] at hu_err
   have hmul_lt := mul_lt_mul_of_pos_left hlt (by positivity : (0 : ℝ) < (2 : ℝ) ^ M)
   linarith [five_mul_slack_lt hρ, le_of_abs_le hs_err, neg_le_of_abs_le hu_err]
 

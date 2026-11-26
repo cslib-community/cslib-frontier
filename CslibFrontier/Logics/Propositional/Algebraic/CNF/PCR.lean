@@ -100,10 +100,7 @@ theorem Clause.toPCRPoly_cons_of_not_mem {l : Literal V} {c : Clause V} (hl : l 
 semiring, including the trivial one. -/
 theorem Clause.card_support_toPCRPoly_le (c : Clause V) : (c.toPCRPoly R).support.card ≤ 1 := by
   classical
-  have h : c.toPCRPoly R = monomial (∑ l ∈ c.toFinset, Finsupp.single l.negate 1) 1 := by
-    rw [monomial_sum_one]
-    rfl
-  rw [h]
+  erw [Clause.toPCRPoly, ← monomial_sum_one]
   exact (Finset.card_le_card support_monomial_subset).trans_eq (Finset.card_singleton _)
 
 /-- The degree of the squarefree polynomial is at most the number of distinct literals. -/
@@ -156,17 +153,13 @@ variable {R : Type*} [CommRing R]
 theorem card_support_complementAxiom_le (v : V) :
     (complementAxiom v : MvPolynomial (Literal V) R).support.card ≤ 3 := by
   classical
-  have hmono (m : Literal V →₀ ℕ) (a : R) : (monomial m a).support.card ≤ 1 :=
-    (Finset.card_le_card support_monomial_subset).trans_eq (Finset.card_singleton m)
-  have hadd (p q : MvPolynomial (Literal V) R) :
-      (p + q).support.card ≤ p.support.card + q.support.card :=
-    (Finset.card_le_card support_add).trans (Finset.card_union_le _ _)
-  have h1 : (-1 : MvPolynomial (Literal V) R).support.card ≤ 1 := by
-    simpa only [support_neg, ← one_def] using hmono 0 1
-  rw [complementAxiom, sub_eq_add_neg]
-  exact (hadd _ _).trans <| add_le_add
-    ((hadd _ _).trans <| add_le_add (hmono (Finsupp.single (v, true) 1) 1)
-      (hmono (Finsupp.single (v, false) 1) 1)) h1
+  refine (Finset.card_le_card
+    (t := {Finsupp.single (v, true) 1, Finsupp.single (v, false) 1, 0}) fun m hm => ?_).trans
+    Finset.card_le_three
+  by_contra hnot
+  simp only [Finset.mem_insert, Finset.mem_singleton, not_or] at hnot
+  exact mem_support_iff.1 hm (by
+    simp [complementAxiom, coeff_X, coeff_one, Ne.symm hnot.1, Ne.symm hnot.2.1, Ne.symm hnot.2.2])
 
 /-- A complementarity equation has degree at most one. -/
 theorem totalDegree_complementAxiom_le (v : V) :

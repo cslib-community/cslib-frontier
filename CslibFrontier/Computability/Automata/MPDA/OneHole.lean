@@ -330,13 +330,10 @@ theorem exists_pending_push {j : Fin n} {u : List (α × Op n Γ)}
   · simp only [h] at h1
     omega
   · refine ⟨K, hKlt, ⟨a, γ, hμ⟩, fun k => ?_⟩
-    have hsplit : u.take (K + 1 + k) = u.take (K + 1) ++ (u.drop (K + 1)).take k := List.take_add
-    have hK1 : net j (u.take (K + 1)) = 1 := by
-      rw [hstep, hPK, h]
-      rfl
+    have hK1 : net j (u.take (K + 1)) = 1 := by rw [hstep, hPK, h]; rfl
     by_cases hk' : K + 1 + k ≤ u.length
     · have := hgt (K + 1 + k) (by omega) hk'
-      rw [hsplit, net_append, hK1] at this
+      rw [List.take_add, net_append, hK1] at this
       omega
     · rw [List.take_of_length_le (by simp; omega)]
       have hu := List.take_length (l := u) ▸ hgt u.length hKlt le_rfl
@@ -461,10 +458,9 @@ private theorem wellNested_of_not_crossing_aux {M : MPDA n State α Γ} :
           zero_add] at this
     | pop j γ => simpa [Op.net] using (hbal j).2 1
     | push i γ =>
-      have hpushi : (Op.push i γ : Op n Γ).net i = 1 := by simp [Op.net]
       have hw'i : net i w' = -1 := by
         have := (hbal i).1
-        rw [net_cons, hpushi] at this
+        simp only [net_cons, Op.net, Op.kind, OpKind.net, ↓reduceIte] at this
         omega
       obtain ⟨u, b, δ, u', rfl, hu0, huk⟩ := exists_first_pop i w' 0 (by simp [hw'i])
       simp only [Nat.cast_zero, zero_add] at hu0 huk
@@ -493,9 +489,8 @@ private theorem wellNested_of_not_crossing_aux {M : MPDA n State α Γ} :
             simp [List.extract]
           have hqu : PendingAt u q (u.length - 1) := by
             refine ⟨by omega, by omega, j, hqj, fun k => ?_⟩
-            rw [show u.length - 1 + 1 = u.length by omega]
-            unfold List.extract
-            rw [List.take_of_length_le (l := u.drop (q + 1)) (by simp)]
+            rw [show u.length - 1 + 1 = u.length by omega, List.extract,
+              List.take_of_length_le (l := u.drop (q + 1)) (by simp)]
             exact hqk k
           have hqw := (hqu.append_right ((b, .pop i δ) :: u')).cons (a, .push i γ)
           rw [show u.length - 1 + 1 = u.length by omega] at hqw
@@ -504,12 +499,10 @@ private theorem wellNested_of_not_crossing_aux {M : MPDA n State α Γ} :
               by rwa [hfu]⟩,
             hqw.succ (μ := (b, .pop i δ)) ((hqj.append_right _).cons _) (by simp) ?_⟩
           simp [Op.net, hij]
-      have hpopnet : ∀ j, (Op.pop i δ : Op n Γ).net j + (Op.push i γ : Op n Γ).net j = 0 :=
-        fun j => by rw [Op.net_pop j i δ γ]; omega
       -- `u'` is balanced as well.
       have hL : ∀ j, net j ((a, Op.push i γ) :: (u ++ [(b, Op.pop i δ)])) = 0 := fun j => by
         rw [net_cons, net_append, net_cons, net_nil, hunet j]
-        have := hpopnet j
+        have := Op.net_pop j i δ γ
         dsimp only
         omega
       have e : (a, Op.push i γ) :: (u ++ (b, Op.pop i δ) :: u') =

@@ -386,19 +386,14 @@ private theorem measFold_run_eq (dc : SubsetPairFold.DecodedPair × SubsetStepCt
   change (MeasurementFold.runPrefix measurementStepBody dc.2.2.1 j
     (mkMeasCtx dc, zeroJet dc.2.jetOrder dc.2.precision)).2.2 = _
   rw [MeasurementFold.prefix_accumulator]; simp only [measurementStepBody_eq]
-  have hstep : (fun (acc : MeasStepCtx × JetRows) (i : ℕ) =>
-      (evalMeasPayload (Cslib.Radix.measurementValues dc.2.2.1.1 dc.2.2.1.2 i, acc.1)).elim acc
-        fun y => (acc.1, addJet acc.1.2.1.1 acc.1.2.1.2.1 acc.2 y)) =
-    fun pa i => (pa.1,
-      (evalMeasPayload (Cslib.Radix.measurementValues dc.2.2.1.1 dc.2.2.1.2 i, pa.1)).elim pa.2
-        fun y => addJet pa.1.2.1.1 pa.1.2.1.2.1 pa.2 y) :=
-    funext fun pa => funext fun i => by cases evalMeasPayload _ <;> rfl
-  rw [hstep]
-  exact List.foldl_keep_fst
+  refine Eq.trans ?_ (List.foldl_keep_fst
     (fun (m : MeasStepCtx) (acc : JetRows) (i : ℕ) =>
       (evalMeasPayload (Cslib.Radix.measurementValues dc.2.2.1.1 dc.2.2.1.2 i, m)).elim acc
         (fun y => addJet m.2.1.1 m.2.1.2.1 acc y))
-    (mkMeasCtx dc) (List.range j) (zeroJet dc.2.jetOrder dc.2.precision)
+    (mkMeasCtx dc) (List.range j) (zeroJet dc.2.jetOrder dc.2.precision))
+  congr 1
+  funext pa i
+  cases evalMeasPayload _ <;> rfl
 
 private theorem exists_measVisit_cert
     (cPay : Cert evalMeasPayload (encPair (encList encIntBin) encMeasStepCtx) (encOption encJet))
@@ -1160,9 +1155,8 @@ public theorem exists_boundedIncidenceBranchCertificate_time_bound
     (T := fun ns => boundedIncidenceBranchCertificate.time (prepareBranchEvalInput ns))
     fun n' sys' hfeas _ => by
     intro β' r Q R q
-    have hex := exists_refines_prepare_of_feasible hfeas
-    dsimp only [prepareBranchEvalInput, ParameterCheck.computeScheduleParams] at hex
-    obtain ⟨hQn, hRn, hrn, _, haux, _, D, href, hmeas_len, _⟩ := hex
+    obtain ⟨hQn, hRn, hrn, _, haux, _, D, href, hmeas_len, _⟩ :=
+      exists_refines_prepare_of_feasible hfeas
     let inp := prepareBranchEvalInput (n', sys')
     let A₀ := ReplacementParams.intervalStart β' n'
     have hQu_eq : branchQ_u inp = Q := Nat.min_eq_right hQn
@@ -1179,16 +1173,15 @@ public theorem exists_boundedIncidenceBranchCertificate_time_bound
     refine ⟨c_meas, d_max, ?_, ?_, ?_⟩
     · have hc_le : c_meas ≤ r * (D.h * #(measurementIndices Q r A₀ R)) :=
         (Nat.min_le_right _ _).trans (hmeas_len ▸ le_rfl)
-      have hrat_r := Rat.cast_le (K := ℝ).mpr D.total_measurement_rows_le
-      simp only [Rat.cast_natCast, Rat.cast_mul, Rat.cast_ofNat,
-        ReplacementParams.cast_tauRat] at hrat_r
-      exact (Nat.cast_le.mpr hc_le).trans hrat_r
+      exact (Nat.cast_le.mpr hc_le).trans (by
+        simpa only [Rat.cast_natCast, Rat.cast_mul, Rat.cast_ofNat, ReplacementParams.cast_tauRat]
+          using Rat.cast_le (K := ℝ).mpr D.total_measurement_rows_le)
     · exact listMax_range_le fun t ht => listMax_range_le fun g hg =>
         (Nat.min_le_right _ _).trans (href.2.2.1 ⟨t, ht⟩ ⟨g, hg⟩).2.1
-    · have ht := htime inp; have hp := hCp (n', sys')
-      change boundedIncidenceBranchCertificate.time inp ≤ _
-      dsimp only [boundedIncidenceBranchCertificate]; rw [hQu_eq, hru_eq, hDcap_eq, hq_eq] at ht
-      exact ht.trans (Nat.mul_le_mul_left _ hp)
+    · have ht := htime inp
+      dsimp only [boundedIncidenceBranchCertificate]
+      rw [hQu_eq, hru_eq, hDcap_eq, hq_eq] at ht
+      exact ht.trans (Nat.mul_le_mul_left _ (hCp (n', sys')))
 
 /-- **Instantiation of `BranchPolylogTimeBound`**: `boundedIncidenceBranchCertificate` satisfies
 `Cslib.Complexity.BranchedSparseCNFCounter.BranchPolylogTimeBound` for every `N₀_branch`. -/

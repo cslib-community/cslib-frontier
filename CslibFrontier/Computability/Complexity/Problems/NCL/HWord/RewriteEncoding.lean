@@ -114,16 +114,13 @@ private theorem padded_right (s : Fin n → Fin q) :
 theorem wordList_ofFn (s : Fin n → Fin q) :
     wordList (r := r) (List.ofFn s) = List.ofFn (word s) := by
   have hp : (fun i : Fin (n + 1) => word (r := r) s i.castSucc.succ) =
-      fun i => code (.pair (padded s i.val) (padded s (i.val + 1))) := by
-    funext i
-    exact congrArg code (encode_pair s i)
-  have hf : word (r := r) s (Fin.last (n + 1)).succ = code .finish := word_finish s
-  have hw : List.ofFn (word (r := r) s) = code .start ::
-      List.ofFn (fun i : Fin (n + 1) =>
-        code (.pair (padded s i.val) (padded s (i.val + 1)))) ++ [code .finish] := by
-    rw [List.ofFn_succ, word_start, List.ofFn_succ', hp, hf, List.concat_eq_append,
-      List.cons_append]
-  rw [wordList, ← padded_left, ← padded_right, List.map_zip_eq_zipWith, zipWith_ofFn, hw]
+      fun i => code (.pair (padded s i.val) (padded s (i.val + 1))) :=
+    funext fun i => congrArg code (encode_pair s i)
+  conv_rhs =>
+    rw [List.ofFn_succ, word_start, List.ofFn_succ', hp,
+      show word (r := r) s (Fin.last (n + 1)).succ = code .finish from word_finish s,
+      List.concat_eq_append, ← List.cons_append]
+  rw [wordList, ← padded_left, ← padded_right, List.map_zip_eq_zipWith, zipWith_ofFn]
   rfl
 
 /-- The first pair position sharing a source letter ends in that letter. -/
@@ -153,12 +150,9 @@ theorem word_legal (rules : Fin r → Rule q) (s : Fin n → Fin q) (hn : 0 < n)
       simp [encode, hi', hj, padded, Compatible]
       omega
     · have hi' : 1 ≤ i.val ∧ i.val ≤ n := by omega
-      have hj' : ¬j.val = 0 := by omega
-      have hin : ¬i.val = n + 2 := by omega
-      have hp : padded s i.val = some (s ⟨i.val - 1, by omega⟩) :=
-        dite_eq_left hi'
-      have he : j.val - 1 = i.val := by omega
-      simp only [encode, hi, hj, hj', hin, Compatible, he, hp]
+      simp only [encode, hi, hj, show j.val ≠ 0 by omega, show i.val ≠ n + 2 by omega,
+        ↓reduceIte, Compatible, show j.val - 1 = i.val by omega,
+        show padded s i.val = some (s ⟨i.val - 1, by omega⟩) from dite_eq_left hi']
       exact ⟨_, rfl, rfl⟩
 
 /-- Read a shared source letter from a pair on its left, or from the pair on its right. -/
@@ -188,22 +182,18 @@ private theorem read_some (rules : Fin r → Rule q) {a b c d : Symbol q r}
   | finish => cases c <;> simp [Compatible] at hbc
   | marker i =>
     cases c with
-    | start => exact False.elim hbc
-    | finish => exact False.elim hbc
-    | marker j => exact False.elim hbc
     | pair left right =>
       rcases hbc with h | h
       · exact ⟨(rules i).second, h⟩
       · exact ⟨(rules i).second', h⟩
+    | _ => exact False.elim hbc
   | pair left right =>
     cases right with
     | some x => exact ⟨x, rfl⟩
     | none =>
       cases c with
-      | start => simp [Compatible] at hbc
-      | marker i => simp [Compatible] at hbc
-      | pair l r => simp [Compatible] at hbc
       | finish => cases d <;> simp [Compatible] at hcd
+      | _ => simp [Compatible] at hbc
 
 /-- Consecutive positions of a coded legal word satisfy the symbolic compatibility relation. -/
 theorem edge_view (rules : Fin r → Rule q)
@@ -315,12 +305,9 @@ theorem Application.rewrites (rules : Fin r → Rule q) (i : Fin r) {s t : Fin n
         omega
       | succ m => exact front_rewrites rules i app hf
     · have hr := (ih (tail_application app hf)).append_left [s 0]
-      have hzero : s 0 = t 0 := app.unchanged 0 (Ne.symm hf) (by
-        intro he
-        have h := congrArg Fin.val he
-        have := app.adjacent
-        change 0 = app.second.val at h
-        omega)
+      have hzero : s 0 = t 0 := app.unchanged 0 (Ne.symm hf)
+        (Fin.ne_of_val_ne (by simpa only [Fin.val_zero, ← app.adjacent] using
+          (Nat.succ_ne_zero _).symm))
       simpa only [List.ofFn_succ, List.cons_append, List.nil_append, hzero] using hr
 
 private theorem padded_unchanged {rule : Rule q} {s t : Fin n → Fin q}
@@ -385,16 +372,11 @@ private theorem window_edges (rules : Fin r → Rule q) (window : Window n 5)
     (base : Fin n → Fin (Fintype.card (Symbol q r)))
     (hlegal : HWord.Legal (compatibility rules) base) (v a b c w : Symbol q r)
     (hsrc : ∀ j, segment v a b c w j = base (window.get j)) :
-    Compatible rules v a ∧ Compatible rules c w := by
-  constructor
-  · apply (compatibility_adj rules _ _).mp
-    have h := hlegal (window.get 0) (window.get 1) rfl
-    rw [← hsrc 0, ← hsrc 1] at h
-    simpa [segment] using h
-  · apply (compatibility_adj rules _ _).mp
-    have h := hlegal (window.get 3) (window.get 4) rfl
-    rw [← hsrc 3, ← hsrc 4] at h
-    simpa [segment] using h
+    Compatible rules v a ∧ Compatible rules c w :=
+  ⟨(compatibility_adj rules _ _).mp
+      (by simpa [segment, ← hsrc 0, ← hsrc 1] using hlegal (window.get 0) (window.get 1) rfl),
+    (compatibility_adj rules _ _).mp
+      (by simpa [segment, ← hsrc 3, ← hsrc 4] using hlegal (window.get 3) (window.get 4) rfl)⟩
 
 /-- Applying one source rule reconfigures the entire canonical encoded word, with all other
 source letters and all outside H-word positions retained. -/
@@ -429,9 +411,8 @@ theorem rule_word_reachable (rules : Fin r → Rule q) (i : Fin r)
   simp only [← hvw, ← hww, hleft, hright, app.target_first, app.target_second] at hdst
   have hlegal := word_legal rules s hn
   obtain ⟨hv, hw⟩ := window_edges rules window (word s) hlegal v _ _ _ w hsrc
-  have hr := rule_in_window rules window (word s) hlegal i left right v w hv hw hsrc
-  have hpatch := patch_word app window rfl target hdst
-  exact hpatch ▸ hr
+  exact patch_word app window rfl target hdst ▸
+    rule_in_window rules window (word s) hlegal i left right v w hv hw hsrc
 
 private theorem start_pair (rules : Fin r → Rule q) {v : Symbol q r}
     (h : Compatible rules .start v) : ∃ a, v = .pair none (some a) := by

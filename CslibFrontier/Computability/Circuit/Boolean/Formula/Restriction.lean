@@ -162,21 +162,12 @@ variable (x : BitString n)
 /-- `mkNot F` evaluates to the negation of `F`. -/
 @[simp] theorem eval_mkNot (F : Formula signature n) :
     (mkNot F).eval interpretation x = !F.eval interpretation x := by
-  rcases F with _ | ⟨_ | _ | _ | _, args⟩
-  · rfl
-  · rfl
-  · rw [gate_not_eq, mkNot_not, eval_not, Bool.not_not]
-  · rw [gate_and_eq, mkNot_and, eval_not]
-  · rw [gate_or_eq, mkNot_or, eval_not]
+  rcases F with _ | ⟨_ | _ | _ | _, args⟩ <;>
+    first | rfl | rw [gate_not_eq, mkNot_not, eval_not, Bool.not_not]
 
 /-- `mkNot` preserves leaf size. -/
 @[simp] theorem leafSize_mkNot (F : Formula signature n) : (mkNot F).leafSize = F.leafSize := by
-  rcases F with _ | ⟨_ | _ | _ | _, args⟩
-  · rfl
-  · rfl
-  · rw [gate_not_eq, mkNot_not, leafSize_not]
-  · rw [gate_and_eq, mkNot_and, leafSize_not]
-  · rw [gate_or_eq, mkNot_or, leafSize_not]
+  rcases F with _ | ⟨_ | _ | _ | _, args⟩ <;> rfl
 
 /-- `mkAnd F G` evaluates to the conjunction of `F` and `G`. -/
 @[simp] theorem eval_mkAnd (F G : Formula signature n) :
@@ -327,9 +318,7 @@ theorem leafSize_restrict_update_le (F : Formula signature n) (i : Fin n) (b : B
       F.leafSize := by
   have h := leafSize_restrict_le (Function.update PartialAssignment.empty i (some b)) F
   have hfree : PartialAssignment.free (Function.update PartialAssignment.empty i (some b)) =
-      {i}ᶜ := by
-    ext j
-    by_cases hj : j = i <;> simp [hj]
+      {i}ᶜ := Finset.ext fun j => by by_cases hj : j = i <;> simp [hj]
   rw [hfree] at h
   have := leafSizeIn_add_leafSizeIn_compl {i} F
   omega

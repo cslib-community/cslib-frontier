@@ -152,14 +152,12 @@ private theorem liveGraphWeight_eq_zero_of_not_le {V : Type*} [Fintype V] {G : D
     (IC : IndependentCascadeModel G) {H : Digraph V} (hnot : ¬ H ≤ G) :
     liveGraphWeight IC H = 0 := by
   classical
-  have hex : ∃ e : V × V, H.Adj e.1 e.2 ∧ ¬ G.Adj e.1 e.2 := by
-    by_contra hall
-    push Not at hall
-    exact hnot fun u v huv => hall (u, v) huv
-  rcases hex with ⟨e, heH, heG⟩
   unfold liveGraphWeight
-  refine Finset.prod_eq_zero (Finset.mem_univ e) ?_
-  simp [heH, IC.edgeProb_eq_zero_of_not_adj e.1 e.2 heG]
+  by_contra hne
+  exact hnot fun u v huv => by
+    by_contra hno
+    exact hne (Finset.prod_eq_zero (Finset.mem_univ (u, v))
+      (by simp [huv, IC.edgeProb_eq_zero_of_not_adj u v hno]))
 
 /-- Sum of independent Bernoulli product weights over subsets `E ⊆ U` containing `inSet` and
 disjoint from `outSet`. -/
@@ -336,12 +334,10 @@ theorem activeSetProb_eq_sum_liveGraphWeight
           ∏ e ∈ F, if e ∈ E₁ then IC.edgeProb e.1 e.2 else 1 - IC.edgeProb e.1 e.2) =
         (∏ e ∈ inE, IC.edgeProb e.1 e.2) * (∏ e ∈ outE, (1 - IC.edgeProb e.1 e.2)) := by
       convert sum_powerset_bernWeight (fun e => IC.edgeProb e.1 e.2) F inE outE hin hout hdisj
-    rw [hbij, Finset.sum_product, ← hFV, Finset.mul_sum]
-    refine Finset.sum_congr rfl fun E₀ _ => ?_
-    rw [Finset.sum_mul]
+    rw [hbij, Finset.sum_product, mul_comm, ← hFV, Finset.sum_mul]
     refine Finset.sum_congr rfl fun _ _ => ?_
     dsimp only
-    exact mul_comm _ _
+    rw [Finset.mul_sum]
   have h0 := IC.toCascadeModel.activeSetProb_eq_of_step hvalid S A
     (fun active tried =>
       ∑ H : Digraph V with
@@ -394,9 +390,8 @@ theorem activeSetProb_eq_sum_liveGraphWeight
           Finset.filter_true_of_mem (fun _ _ => trivial)]
         simp only [Finset.sum_singleton, Finset.prod_empty, one_mul, mul_one]
         rw [Finset.prod_biUnion]
-        · refine Finset.prod_congr rfl fun w _ => ?_
-          rw [IC.survivalProb_toCascadeModel w (tried w), Finset.prod_map]
-          rfl
+        · exact Finset.prod_congr rfl fun w _ =>
+            (Finset.prod_map _ _ _).trans (IC.survivalProb_toCascadeModel w (tried w)).symm
         · intro w₁ _ w₂ _ hne
           refine Finset.disjoint_left.mpr fun ⟨x, y⟩ h₁ h₂ => hne ?_
           rcases Finset.mem_map.mp h₁ with ⟨_, _, ⟨⟩⟩
@@ -476,20 +471,14 @@ theorem activeSetProb_eq_sum_liveGraphWeight
             ∑ E₀ ∈ (Finset.univ \ F).powerset with P (toE.symm E₀),
               ∏ e ∈ Finset.univ \ F,
                 if e ∈ E₀ then IC.edgeProb e.1 e.2 else 1 - IC.edgeProb e.1 e.2 := by
-          have h := hfactor F ∅ ∅ P (Finset.empty_subset _) (Finset.empty_subset _)
-            (Finset.disjoint_empty_left _) hP
           simpa only [Finset.notMem_empty, IsEmpty.forall_iff, implies_true, and_true,
-            Finset.prod_empty, one_mul] using h
+            Finset.prod_empty, one_mul] using hfactor F ∅ ∅ P (Finset.empty_subset _)
+              (Finset.empty_subset _) (Finset.disjoint_empty_left _) hP
         rw [hlhs_eq, hfactor F {(u, v)} outV P
           (Finset.singleton_subset_iff.mpr (by simp [F]))
-          (fun e he => by
-            rcases Finset.mem_map.mp he with ⟨_, _, heq⟩
-            rw [← heq]
-            simp only [F, Finset.mem_filter, Finset.mem_univ, true_and]
-            rfl)
+          (Finset.forall_mem_map.mpr fun _ _ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, rfl⟩)
           (Finset.disjoint_singleton_left.mpr fun h => by
-            rcases Finset.mem_map.mp h with ⟨_, hx, heq⟩
-            cases heq
+            rcases Finset.mem_map.mp h with ⟨_, hx, ⟨⟩⟩
             exact hu_untried hx)
           hP, ← hrhs_eq, Finset.prod_singleton, IC.survivalProb_toCascadeModel v (tried v),
           Finset.prod_map]
@@ -510,9 +499,7 @@ theorem activeSetProb_eq_sum_liveGraphWeight
             · exact hno' w hw x (by simp [tried', Function.update_of_ne hwv, hx]), hr⟩,
             hno' v hv_inact u (by simp [tried'])⟩⟩)
   rw [h0]
-  refine Finset.sum_congr ?_ fun _ _ => rfl
-  ext H
-  simp
+  exact Finset.sum_congr (Finset.ext fun _ => by simp) fun _ _ => rfl
 
 /-- **Live-Edge Expectation Formula** ([KempeKleinbergTardos2003]; [Kleinberg2007], Section 24.4,
 p. 625): expected influence in the Independent Cascade Model equals the weighted sum of reachable
@@ -538,18 +525,10 @@ theorem monotone_influence : Monotone IC.influence :=
 ([KempeKleinbergTardos2003]; [Kleinberg2007], Theorem 24.5, pp. 625–626): for every instance of
 the Independent Cascade Model, the expected influence function `IC.influence` is submodular. -/
 theorem isSubmodular_influence : IsSubmodular IC.influence := by
-  have hcov : ∀ H : Digraph V,
-      (fun S : Finset V => liveGraphWeight IC H * ((liveReachable H S).card : ℝ)) =
-        weightedCoverage (liveReachableFrom H) (fun _ => liveGraphWeight IC H) := by
-    intro H
-    ext S
-    simp [weightedCoverage, liveReachable, mul_comm]
-  have heq : IC.influence =
-      fun S => ∑ H : Digraph V,
-        weightedCoverage (liveReachableFrom H) (fun _ => liveGraphWeight IC H) S := by
-    ext S
-    rw [IC.influence_eq_sum_liveGraphWeight]
-    exact Finset.sum_congr rfl fun H _ => congrFun (hcov H) S
+  have heq : IC.influence = fun S => ∑ H : Digraph V,
+      weightedCoverage (liveReachableFrom H) (fun _ => liveGraphWeight IC H) S :=
+    funext fun S => (IC.influence_eq_sum_liveGraphWeight S).trans
+      (Finset.sum_congr rfl fun H _ => by simp [weightedCoverage, liveReachable, mul_comm])
   rw [heq]
   exact isSubmodular_sum Finset.univ fun H _ =>
     isSubmodular_weightedCoverage (liveReachableFrom H) fun _ => liveGraphWeight_nonneg IC H
@@ -566,15 +545,18 @@ section MosselRoch
 private noncomputable def reflectUnit (c z : ℝ) : ℝ :=
   if z ∈ Ioo c 1 then 1 + c - z else z
 
+private theorem sub_mem_Ioo {c z : ℝ} (hz : z ∈ Ioo c 1) : 1 + c - z ∈ Ioo c 1 :=
+  ⟨by linarith [hz.2],
+    by linarith [hz.1]⟩
+
+private theorem sub_mem_Ioo_iff {c z : ℝ} : 1 + c - z ∈ Ioo c 1 ↔ z ∈ Ioo c 1 :=
+  ⟨fun h => sub_sub_cancel (1 + c) z ▸ sub_mem_Ioo h, sub_mem_Ioo⟩
+
 private theorem reflectUnit_involutive (c : ℝ) : Function.Involutive (reflectUnit c) := by
   intro z
   unfold reflectUnit
   by_cases hz : z ∈ Ioo c 1
-  · have hz' : 1 + c - z ∈ Ioo c 1 := by
-      rcases hz with ⟨h1, h2⟩
-      exact ⟨by linarith, by linarith⟩
-    simp only [hz, ↓reduceIte, hz']
-    ring
+  · simp only [hz, ↓reduceIte, sub_mem_Ioo_iff]; ring
   · simp [hz]
 
 private theorem measurable_reflectUnit (c : ℝ) : Measurable (reflectUnit c) :=
@@ -589,22 +571,11 @@ private theorem measurePreserving_reflectUnit {c : ℝ} (hc0 : 0 ≤ c) :
     let J := Ioo c 1
     have hJ_sub : J ⊆ Icc 0 1 := fun z hz => ⟨hc0.trans hz.1.le, hz.2.le⟩
     have hpre_inJ : (fun z : ℝ => (1 + c) - z) ⁻¹' (s ∩ J) ⊆ J :=
-      fun _ ⟨_, h1, h2⟩ => ⟨by linarith, by linarith⟩
+      fun _ ⟨_, hz⟩ => sub_mem_Ioo_iff.mp hz
     have hpre : reflectUnit c ⁻¹' s = (fun z : ℝ => (1 + c) - z) ⁻¹' (s ∩ J) ∪ (s \ J) := by
       ext z
-      simp only [mem_preimage, reflectUnit, J, mem_union, mem_inter_iff, mem_sdiff]
-      by_cases hz : z ∈ Ioo c 1
-      · have hz' : (1 + c) - z ∈ Ioo c 1 := by
-          refine ⟨?_, ?_⟩
-          · linarith [hz.2]
-          · linarith [hz.1]
-        simp [hz, hz']
-      · have hz' : (1 + c) - z ∉ Ioo c 1 := fun h => by
-          apply hz
-          refine ⟨?_, ?_⟩
-          · linarith [h.2]
-          · linarith [h.1]
-        simp [hz, hz']
+      simp only [mem_preimage, reflectUnit, J, mem_union, mem_inter_iff, mem_sdiff, sub_mem_Ioo_iff]
+      by_cases hz : z ∈ Ioo c 1 <;> simp [hz]
     rw [hpre]
     have hdisj1 : Disjoint ((fun z : ℝ => (1 + c) - z) ⁻¹' (s ∩ J)) (s \ J) :=
       Disjoint.mono_left hpre_inJ disjoint_sdiff_right
@@ -632,26 +603,26 @@ variable {V : Type*} [DecidableEq V] [Fintype V] {G : Digraph V} [DecidableRel G
 private noncomputable def reflectMap (K : Finset V) (U : V → ℝ) : V → ℝ :=
   fun v => if v ∈ K then U v else reflectUnit (M.thresholdFn v K) (U v)
 
+private theorem reflectMap_of_notMem {K : Finset V} {U : V → ℝ} {v : V} (hv : v ∉ K)
+    (h1 : M.thresholdFn v K < U v) (h2 : U v < 1) :
+    M.reflectMap K U v = 1 + M.thresholdFn v K - U v := by
+  have hmem : U v ∈ Ioo (M.thresholdFn v K) 1 := ⟨h1, h2⟩
+  simp [reflectMap, hv, reflectUnit, hmem]
+
 private theorem reflectMap_involutive (K : Finset V) :
     Function.Involutive (M.reflectMap K) := by
   intro U
   ext v
-  unfold reflectMap
-  by_cases hv : v ∈ K
-  · simp [hv]
-  · simp only [hv, ↓reduceIte]
-    exact reflectUnit_involutive (M.thresholdFn v K) (U v)
+  by_cases hv : v ∈ K <;> simp [reflectMap, hv, reflectUnit_involutive (M.thresholdFn v K) (U v)]
 
 private theorem measurePreserving_reflectMap (K : Finset V) :
     MeasurePreserving (M.reflectMap K) (thresholdMeasure V) (thresholdMeasure V) := by
   rw [thresholdMeasure_def V]
   exact measurePreserving_pi (fun _ : V => unitMeasure) (fun _ : V => unitMeasure)
     (f := fun v z => if v ∈ K then z else reflectUnit (M.thresholdFn v K) z) fun v => by
-    by_cases hv : v ∈ K
-    · simp only [hv, ↓reduceIte]
-      exact MeasurePreserving.id unitMeasure
-    · simp only [hv, ↓reduceIte]
-      exact measurePreserving_reflectUnit (M.thresholdFn_nonneg v K)
+    split_ifs with hv
+    · exact MeasurePreserving.id unitMeasure
+    · exact measurePreserving_reflectUnit (M.thresholdFn_nonneg v K)
 
 /-- Conditional reflection coupling from seed `X` to superset `Y`: runs `X` under `U` to obtain
 `K = M.thresholdFinal U X`, reflects surviving thresholds on `Kᶜ`, and continues from `K ∪ Y`. -/
@@ -666,14 +637,10 @@ private theorem integral_reflectCouple {X Y : Finset V} (hXY : X ⊆ Y) (φ : Fi
       ∫ U, φ (M.thresholdFinal U Y) ∂thresholdMeasure V := by
   let E : Finset V → Set (V → ℝ) := fun K =>
     {U : V → ℝ | M.thresholdFinal U X = K ∧ ∀ v : V, U v < 1}
-  have hmE : ∀ K : Finset V, MeasurableSet (E K) := by
-    intro K
-    have heqE : E K = {U | M.thresholdFinal U X = K} ∩
-        ⋂ v : V, (fun U : V → ℝ => U v) ⁻¹' Iio 1 := by
-      ext U
-      simp [E]
-    rw [heqE]
-    exact (M.measurableSet_thresholdFinal_eq X K).inter
+  have hmE : ∀ K : Finset V, MeasurableSet (E K) := fun K => by
+    have heqE : E K = {U | M.thresholdFinal U X = K} ∩ ⋂ v : V, (· v) ⁻¹' Iio 1 :=
+      Set.ext fun _ => by simp [E]
+    exact heqE ▸ (M.measurableSet_thresholdFinal_eq X K).inter
       (MeasurableSet.iInter fun v => measurableSet_Iio.preimage (measurable_pi_apply v))
   have hmem_reflect : ∀ (K : Finset V) (U : V → ℝ), U ∈ E K ↔ M.reflectMap K U ∈ E K := by
     suffices dir : ∀ (K : Finset V) (U : V → ℝ), U ∈ E K → M.reflectMap K U ∈ E K from
@@ -689,26 +656,20 @@ private theorem integral_reflectCouple {X Y : Finset V} (hXY : X ⊆ Y) (φ : Fi
       · simp [Finset.piecewise_eq_of_notMem _ _ _ hv]
     refine ⟨(M.thresholdFinal_eq_iff_piecewise _ X K).mpr ⟨hpiece_eq ▸ hpiece, fun v hvK => ?_⟩,
       fun v => ?_⟩
-    · have hmem : U v ∈ Ioo (M.thresholdFn v K) 1 := ⟨hsurv v hvK, hlt1 v⟩
-      simp only [reflectMap, hvK, ↓reduceIte, reflectUnit, hmem]
-      linarith [hmem.2]
+    · rw [M.reflectMap_of_notMem hvK (hsurv v hvK) (hlt1 v)]
+      linarith [hlt1 v]
     · by_cases hvK : v ∈ K
       · simp [reflectMap, hvK, hlt1 v]
-      · have hmem : U v ∈ Ioo (M.thresholdFn v K) 1 := ⟨hsurv v hvK, hlt1 v⟩
-        simp only [reflectMap, hvK, ↓reduceIte, reflectUnit, hmem]
-        linarith [hmem.1]
+      · rw [M.reflectMap_of_notMem hvK (hsurv v hvK) (hlt1 v)]
+        linarith [hsurv v hvK]
   have hsum_ae : ∀ ψ : (V → ℝ) → ℝ, ∀ᵐ U ∂thresholdMeasure V,
       ψ U = ∑ K : Finset V, (E K).indicator ψ U := by
     intro ψ
     filter_upwards [ae_mem_Ioo_thresholdMeasure V] with U hU
     rw [Finset.sum_eq_single (M.thresholdFinal U X)]
-    · have hmem : U ∈ E (M.thresholdFinal U X) := ⟨rfl, fun v => (hU v).2⟩
-      rw [indicator_of_mem hmem]
-    · intro K _ hne
-      have hnot : U ∉ E K := fun h => hne h.1.symm
-      rw [indicator_of_notMem hnot]
-    · intro habs
-      exact absurd (Finset.mem_univ _) habs
+    · exact (indicator_of_mem (⟨rfl, fun v => (hU v).2⟩ : U ∈ E _) _).symm
+    · exact fun K _ hne => indicator_of_notMem (fun (h : U ∈ E K) => hne h.1.symm) _
+    · exact fun habs => absurd (Finset.mem_univ _) habs
   have hsum_lhs := hsum_ae fun U' => φ (M.reflectCouple X Y U')
   have hsum_rhs := hsum_ae fun U' => φ (M.thresholdFinal U' Y)
   have hint_piece_rhs : ∀ K : Finset V,
@@ -797,38 +758,20 @@ theorem isSubmodular_integral_thresholdFinal
   have hC_inter : Cstar ⊆ Astar ∩ Bstar := Finset.subset_inter hCA hCB
   -- Show `Dstar ⊆ Astar ∪ Bstar` via the least post-fixed point property of `thresholdFinal`.
   have hD_union : Dstar ⊆ Astar ∪ Bstar := by
-    have hD_eq : Dstar = M.thresholdFinal (M.reflectMap Astar U) (Astar ∪ B) := by
-      have hunion : Astar ∪ (A ∪ B) = Astar ∪ B := by
-        have hAsub : A ⊆ Astar := M.subset_thresholdFinal U A
-        ext v
-        simp only [Finset.mem_union]
-        exact ⟨fun h => h.elim Or.inl fun h' => h'.elim (fun hvA => Or.inl (hAsub hvA)) Or.inr,
-          fun h => h.elim Or.inl (Or.inr ∘ Or.inr)⟩
-      change M.thresholdFinal (M.reflectMap Astar U) (Astar ∪ (A ∪ B)) = _
-      rw [hunion]
-    rw [hD_eq]
+    change M.thresholdFinal (M.reflectMap Astar U) (Astar ∪ (A ∪ B)) ⊆ _
+    rw [← Finset.union_assoc, Finset.union_eq_left.mpr (M.subset_thresholdFinal U A)]
     have hB_sub : B ⊆ Bstar :=
       Finset.subset_union_right.trans (M.subset_thresholdFinal (M.reflectMap Cstar U) (Cstar ∪ B))
     refine M.thresholdFinal_subset_of_lt (Finset.union_subset_union_right hB_sub) fun v hvAB => ?_
     have hvA : v ∉ Astar := fun h => hvAB (Finset.mem_union_left _ h)
     have hvB : v ∉ Bstar := fun h => hvAB (Finset.mem_union_right _ h)
     have hvC : v ∉ Cstar := fun h => hvA (hCA h)
-    have hA_lt : M.thresholdFn v Astar < U v := M.thresholdFn_lt_of_notMem_thresholdFinal hvA
-    have hC_lt : M.thresholdFn v Cstar < U v := M.thresholdFn_lt_of_notMem_thresholdFinal hvC
     have hB_lt : M.thresholdFn v Bstar < M.reflectMap Cstar U v :=
       M.thresholdFn_lt_of_notMem_thresholdFinal hvB
-    have hRA : M.reflectMap Astar U v = 1 + M.thresholdFn v Astar - U v := by
-      have hmem : U v ∈ Ioo (M.thresholdFn v Astar) 1 := ⟨hA_lt, hlt1 v⟩
-      simp [reflectMap, hvA, reflectUnit, hmem]
-    have hRC : M.reflectMap Cstar U v = 1 + M.thresholdFn v Cstar - U v := by
-      have hmem : U v ∈ Ioo (M.thresholdFn v Cstar) 1 := ⟨hC_lt, hlt1 v⟩
-      simp [reflectMap, hvC, reflectUnit, hmem]
-    have hsub_v := hlocal v Astar Bstar
-    have hC_le_inter : M.thresholdFn v Cstar ≤ M.thresholdFn v (Astar ∩ Bstar) :=
-      M.monotone v hC_inter
-    rw [hRA]
-    rw [hRC] at hB_lt
-    linarith
+    rw [M.reflectMap_of_notMem hvC (M.thresholdFn_lt_of_notMem_thresholdFinal hvC) (hlt1 v)]
+      at hB_lt
+    rw [M.reflectMap_of_notMem hvA (M.thresholdFn_lt_of_notMem_thresholdFinal hvA) (hlt1 v)]
+    linarith [hlocal v Astar Bstar, M.monotone v hC_inter]
   calc φ Dstar + φ Cstar
       ≤ φ (Astar ∪ Bstar) + φ (Astar ∩ Bstar) :=
         add_le_add (hφ_mono hD_union) (hφ_mono hC_inter)
@@ -840,16 +783,10 @@ functions `M.thresholdFn v` are submodular, the global expected influence functi
 submodular. -/
 theorem isSubmodular_influence (hlocal : ∀ v, IsSubmodular (M.thresholdFn v)) :
     IsSubmodular M.influence := by
-  have heq : M.influence = fun S => ∫ θ, ((M.thresholdFinal θ S).card : ℝ) ∂thresholdMeasure V :=
-    funext M.influence_def
-  rw [heq]
-  have hcard_mono : Monotone (fun X : Finset V => (X.card : ℝ)) :=
-    fun _ _ h => Nat.cast_le.mpr (Finset.card_le_card h)
-  have hcard_sub : IsSubmodular (fun X : Finset V => (X.card : ℝ)) := by
-    intro A B
-    dsimp only
-    exact_mod_cast (Finset.card_union_add_card_inter A B).le
-  exact M.isSubmodular_integral_thresholdFinal hlocal hcard_mono hcard_sub
+  rw [funext M.influence_def]
+  exact M.isSubmodular_integral_thresholdFinal hlocal
+    (fun _ _ h => Nat.cast_le.mpr (Finset.card_le_card h)) fun A B => by
+      simpa only [← Nat.cast_add, Nat.cast_le] using (Finset.card_union_add_card_inter A B).le
 
 /-- Lifting a locally submodular `GeneralThresholdModel` to `timeLayeredDigraph G T` preserves
 submodularity of all local threshold functions. -/
@@ -864,12 +801,8 @@ theorem isSubmodular_toTimeLayered_thresholdFn
   · set prev : Fin (T + 1) := ⟨(vt.2 : ℕ) - 1, by omega⟩
     let slice : Finset (V × Fin (T + 1)) → Finset V :=
       fun X => Finset.univ.filter fun u => (u, prev) ∈ X
-    have hU : slice (A ∪ B) = slice A ∪ slice B := by
-      ext u
-      simp [slice]
-    have hI : slice (A ∩ B) = slice A ∩ slice B := by
-      ext u
-      simp [slice]
+    have hU : slice (A ∪ B) = slice A ∪ slice B := Finset.ext fun _ => by simp [slice]
+    have hI : slice (A ∩ B) = slice A ∩ slice B := Finset.ext fun _ => by simp [slice]
     change M.thresholdFn vt.1 (slice (A ∪ B)) + M.thresholdFn vt.1 (slice (A ∩ B)) ≤
       M.thresholdFn vt.1 (slice A) + M.thresholdFn vt.1 (slice B)
     rw [hU, hI]
@@ -901,16 +834,13 @@ theorem isSubmodular_nonprogStepInfluence
   let φ : Finset (V × Fin (T + 1)) → ℝ := fun X => ((X.filter (·.2 = t)).card : ℝ)
   have hφ_mono : Monotone φ :=
     fun _ _ h => Nat.cast_le.mpr (Finset.card_le_card (Finset.filter_subset_filter _ h))
-  have hφ_sub : IsSubmodular φ := by
-    intro X Y
+  have hφ_sub : IsSubmodular φ := fun X Y => by
     dsimp only [φ]
-    have hfU : (X ∪ Y).filter (·.2 = t) = X.filter (·.2 = t) ∪ Y.filter (·.2 = t) :=
-      Finset.filter_union _ _ _
-    have hfI : (X ∩ Y).filter (·.2 = t) = X.filter (·.2 = t) ∩ Y.filter (·.2 = t) := by
-      ext x
-      simp only [Finset.mem_filter, Finset.mem_inter]
-      tauto
-    rw [hfU, hfI]
+    have hfI : (X ∩ Y).filter (·.2 = t) = X.filter (·.2 = t) ∩ Y.filter (·.2 = t) :=
+      Finset.ext fun _ => by
+        simp only [Finset.mem_filter, Finset.mem_inter]
+        tauto
+    rw [Finset.filter_union, hfI]
     exact_mod_cast (Finset.card_union_add_card_inter _ _).le
   exact (M.toTimeLayered T).isSubmodular_integral_thresholdFinal
     (M.isSubmodular_toTimeLayered_thresholdFn hlocal T) hφ_mono hφ_sub
@@ -929,11 +859,9 @@ variable {V : Type*} [DecidableEq V] [Fintype V] {G : Digraph V} [DecidableRel G
 ([Kleinberg2007], Section 24.4, p. 626). -/
 theorem isSubmodular_toGeneralThresholdModel_thresholdFn (v : V) :
     IsSubmodular (L.toGeneralThresholdModel.thresholdFn v) := by
-  have heq : L.toGeneralThresholdModel.thresholdFn v = modularSum (fun u => L.weight u v) := by
-    ext X
-    simp [modularSum]
-  rw [heq]
-  exact isSubmodular_modularSum _
+  have heq : L.toGeneralThresholdModel.thresholdFn v = modularSum (fun u => L.weight u v) :=
+    funext fun _ => by simp [modularSum]
+  exact heq ▸ isSubmodular_modularSum _
 
 /-- Expected influence in any `LinearThresholdModel` is submodular
 ([KempeKleinbergTardos2003]; [Kleinberg2007], Section 24.4, p. 626). -/
@@ -976,9 +904,7 @@ pp. 624, 626): for any instance of the Cascade Model whose incremental functions
 `HasDiminishingReturns`, the resulting expected influence function `C.influence` is submodular. -/
 theorem isSubmodular_influence_of_diminishingReturns (hdim : C.HasDiminishingReturns) :
     IsSubmodular C.influence := by
-  have heq : C.influence = C.toGeneralThresholdModel.influence :=
-    funext C.influence_eq_toGeneralThresholdModel
-  rw [heq]
+  rw [funext C.influence_eq_toGeneralThresholdModel]
   exact C.toGeneralThresholdModel.isSubmodular_influence
     (C.isSubmodular_toGeneralThresholdModel_thresholdFn hdim)
 

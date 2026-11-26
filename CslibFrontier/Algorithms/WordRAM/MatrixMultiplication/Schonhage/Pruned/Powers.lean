@@ -62,16 +62,11 @@ theorem exec_powers {w L Q : ℕ} (x : Data registers) (hL : x.regs inputDepth =
     (by change Data.regs _ ten = 10; wram_simp)
     (by change Data.regs _ inputDepth = L; wram_simp [hL]) hfit_pow)
     with y ⟨hv, hc, ho, hm, hb', hd', hframe⟩
-  change y.regs span = 10 ^ L at hv
-  change y.regs index = L at hc
-  change y.regs one = 1 at ho
-  change y.regs ten = 10 at hb'
-  change y.regs inputDepth = L at hd'
   refine ⟨by omega, hm, hd', hv, hc, by regs_frame, ho, by regs_frame, hb', by regs_frame,
     by regs_frame, fun i hi => ?_⟩
   by_cases hid : i = inputDepth
   · subst hid
-    exact hd'.trans hL.symm
+    exact (hd' : y.regs inputDepth = L).trans hL.symm
   · simp only [PowersLocal, not_or] at hi
     rcases hi with ⟨h1, h2, h3, h4, h5, h6, h7, h8⟩
     rw [hframe i fun j => by fin_cases j <;> simp [powerRegisters] <;> tauto]

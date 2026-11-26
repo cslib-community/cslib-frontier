@@ -152,9 +152,7 @@ private theorem step_buffer_before_end {width : ℕ} (hw : 0 < width)
   simp only [scan, bufferCfg, ite_eq_right (by omega : cursor.val + 1 ≠ width),
     MultiTapeNTM.ChoiceTable.apply_idle, advance, Cfg.mk.injEq, Option.some.injEq,
     ScanState.mk.injEq, and_true, true_and]
-  constructor
-  · fin_index
-  · fin_index
+  constructor <;> fin_index
 
 private theorem step_buffer_at_end {width : ℕ} (hw : 0 < width)
     (machine : MultiTapeCTM k Bool State) (cfg : Cfg k Bool State input) (state : State)
@@ -184,16 +182,13 @@ private theorem stepCoins_prefix {width : ℕ} (hw : 0 < width)
     rw [MultiTapePTM.stepCoins_nil, simCfg_of_running hw cfg state hs]
     rfl
   | append_singleton bits bit ih =>
-    have hpre : bits.length < width := by grind
-    have hcursor : bits.length + 1 < width := by
-      simpa only [List.length_append, List.length_singleton] using hlen
     have hvalue : 2 * BitString.binaryValue bits + bit.toNat < 2 ^ width := by
       rw [← BitString.binaryValue_snoc]
       exact (BitString.binaryValue_lt_two_pow _).trans_le
         (Nat.pow_le_pow_right (by norm_num) hlen.le)
-    rw [MultiTapePTM.stepCoins_append, ih hpre, MultiTapePTM.stepCoins_cons,
+    rw [MultiTapePTM.stepCoins_append, ih (by grind), MultiTapePTM.stepCoins_cons,
       MultiTapePTM.stepCoins_nil,
-      step_buffer_before_end hw machine cfg state _ _ bit hcursor hvalue]
+      step_buffer_before_end hw machine cfg state _ _ bit (by simpa using hlen) hvalue]
     simp only [List.length_append, List.length_singleton, BitString.binaryValue_snoc]
 
 private theorem stepCoins_block_of_valid {width : ℕ} (hw : 0 < width)
@@ -205,15 +200,11 @@ private theorem stepCoins_block_of_valid {width : ℕ} (hw : 0 < width)
   induction bits using List.reverseRecOn with
   | nil => simp only [List.length_nil] at hlen; omega
   | append_singleton bits bit ih =>
-    have hpre : bits.length < width := by
-      simp only [List.length_append, List.length_singleton] at hlen
-      omega
-    rw [MultiTapePTM.stepCoins_append, stepCoins_prefix hw machine cfg state hs bits hpre,
+    simp only [List.length_append, List.length_singleton] at hlen
+    rw [MultiTapePTM.stepCoins_append, stepCoins_prefix hw machine cfg state hs bits (by omega),
       MultiTapePTM.stepCoins_cons, MultiTapePTM.stepCoins_nil]
-    apply step_buffer_at_end hw machine cfg state _ _ bit
-    · simpa only [List.length_append, List.length_singleton] using hlen
-    · exact hs
-    · simpa only [BitString.binaryValue_snoc] using hact
+    exact step_buffer_at_end hw machine cfg state _ _ bit hlen hs
+      (by simpa only [BitString.binaryValue_snoc] using hact)
 
 
 private theorem stepCoins_of_halted {width : ℕ} (hw : 0 < width)
@@ -247,21 +238,16 @@ private theorem stepCoins_block_of_invalid {width : ℕ} (hw : 0 < width)
   induction bits using List.reverseRecOn with
   | nil => simp only [List.length_nil] at hlen; omega
   | append_singleton bits bit ih =>
-    have hcursor : bits.length + 1 = width := by
-      simpa only [List.length_append, List.length_singleton] using hlen
+    have hcursor : bits.length + 1 = width := by simpa using hlen
     rw [MultiTapePTM.stepCoins_append, MultiTapePTM.stepCoins_append,
       stepCoins_prefix hw machine cfg state hs bits (by omega), MultiTapePTM.stepCoins_cons,
       MultiTapePTM.stepCoins_nil, step_table hw machine rfl]
     have hact' : (localActions machine state cfg.inputSymbol cfg.workTapeSymbols)[
         2 * BitString.binaryValue bits + bit.toNat]? = none := by
       simpa only [localActions, actions, hs, BitString.binaryValue_snoc] using hact
-    simp only [scan, bufferCfg, hcursor, ↓reduceIte]
     change ((table hw machine).stepCoins rest
-      ((match (localActions machine state cfg.inputSymbol cfg.workTapeSymbols)[
-          2 * BitString.binaryValue bits + bit.toNat]? with
-        | none => reject
-        | some action => perform hw (OutputTrack.ofWord cfg.output) action).apply _)).output ≠ _
-    rw [hact']
+      ((scan hw machine _ cfg.inputSymbol cfg.workTapeSymbols bit).apply _)).output ≠ _
+    simp only [scan, bufferCfg, hcursor, ↓reduceIte, hact']
     exact reject_continuation hw machine _ rest
 
 private theorem stepCoins_padding {width : ℕ} (hw : 0 < width)
@@ -278,8 +264,7 @@ private theorem stepCoins_padding {width : ℕ} (hw : 0 < width)
     rw [MultiTapePTM.stepCoins_cons, step_table hw machine rfl]
     cases bit with
     | false =>
-      simp only [scan, simCfg, startState, hs, Bool.false_eq_true, ↓reduceIte]
-      simp only [simCfg, startState, hs] at ih
+      simp only [scan, simCfg, startState, hs, Bool.false_eq_true, ↓reduceIte] at ih ⊢
       rw [apply_idle, ih]
       simp only [List.length_cons, List.replicate_succ, List.cons.injEq, true_and]
     | true =>
@@ -447,34 +432,28 @@ private theorem acceptCount_partial {width : ℕ} (hw : 0 < width)
       ((List.ofFn word).take (count * width)) ((List.ofFn word).drop (count * width))
       ht (by rw [hd]; exact hrest)
     rwa [List.take_append_drop, hd, ← hp word] at h
-  refine Finset.card_bij (fun word _ => prefWord word) ?_ ?_ ?_
-  · intro word hw'
-    exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, by
-      simpa only [decide_eq_true_eq] using
-        (haccept word).mp (by
-          simpa only [decide_eq_true_eq] using (Finset.mem_filter.mp hw').2) |>.1⟩
+  have mem_acc {m : ℕ} {f : Fin m → Bool} :
+      f ∈ Finset.univ.filter (fun w =>
+          decide ((table hw machine).runClosedCoins (List.ofFn w) input = [true])) ↔
+        (table hw machine).runClosedCoins (List.ofFn f) input = [true] := by
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, decide_eq_true_eq]
+  refine Finset.card_bij (fun word _ => prefWord word)
+    (fun word hw' => mem_acc.mpr ((haccept word).mp (mem_acc.mp hw')).1) ?_ ?_
   · intro left hl right hr heq
     apply List.ofFn_injective
-    have hleft := (haccept left).mp (by
-      simpa only [decide_eq_true_eq] using (Finset.mem_filter.mp hl).2)
-    have hright := (haccept right).mp (by
-      simpa only [decide_eq_true_eq] using (Finset.mem_filter.mp hr).2)
     rw [← List.take_append_drop (count * width) (List.ofFn left),
-      ← List.take_append_drop (count * width) (List.ofFn right), hleft.2, hright.2,
+      ← List.take_append_drop (count * width) (List.ofFn right),
+      ((haccept left).mp (mem_acc.mp hl)).2, ((haccept right).mp (mem_acc.mp hr)).2,
       ← hp left, ← hp right, heq]
   · intro word hword
     let extended := BitString.ofList (count * width + rest)
       (List.ofFn word ++ List.replicate rest false)
     have hext : List.ofFn extended = List.ofFn word ++ List.replicate rest false :=
-      BitString.ofFn_ofList (by simp only [List.length_append, List.length_ofFn,
-        List.length_replicate])
-    have hprefWord : prefWord extended = word := by
-      apply List.ofFn_injective
-      rw [hp, hext, List.take_left' (by simp)]
-    refine ⟨extended, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩, hprefWord⟩
-    simpa only [decide_eq_true_eq] using (haccept extended).mpr
-      ⟨hprefWord.symm ▸ by simpa only [decide_eq_true_eq] using (Finset.mem_filter.mp hword).2,
-        by rw [hext, List.drop_left' (by simp)]⟩
+      BitString.ofFn_ofList (by simp)
+    have hprefWord : prefWord extended = word :=
+      List.ofFn_injective (by rw [hp, hext, List.take_left' (by simp)])
+    exact ⟨extended, mem_acc.mpr ((haccept extended).mpr
+      ⟨hprefWord.symm ▸ mem_acc.mp hword, by rw [hext, List.drop_left' (by simp)]⟩), hprefWord⟩
 
 /-- Each occurrence-labelled terminal accepting branch corresponds to exactly one binary word.
 Repeated actions retain their multiplicity, while early halts have a unique zero continuation. -/
@@ -500,11 +479,7 @@ theorem acceptCount_table_div {width : ℕ} (hw : 0 < width)
     (horizon : ℕ) :
     (table hw machine).acceptCount input horizon =
       machine.acceptCount (horizon / width) (Cfg.init machine.initial input) := by
-  have hclock : horizon = horizon / width * width + horizon % width := by
-    have h := Nat.mod_add_div horizon width
-    rw [Nat.mul_comm width] at h
-    omega
-  conv_lhs => rw [hclock]
+  conv_lhs => rw [(Nat.div_add_mod' horizon width).symm]
   rw [acceptCount_partial hw machine input _ _ (Nat.mod_lt _ hw),
     acceptCount_table hw machine input hbound]
 

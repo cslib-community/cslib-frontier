@@ -123,15 +123,15 @@ new colours: equal new colours would force the same bit position `i` and `a`, `b
 `i`. -/
 theorem cvColor_ne {a b c : ℕ} (hab : a ≠ b) : cvColor a b ≠ cvColor b c := by
   intro h
-  have hb1 := Bool.toNat_le (a.testBit (lowestDiffBit a b))
-  have hb2 := Bool.toNat_le (b.testBit (lowestDiffBit b c))
-  have hi : lowestDiffBit a b = lowestDiffBit b c := by unfold cvColor at h; omega
-  have hb : (a.testBit (lowestDiffBit a b)).toNat = (b.testBit (lowestDiffBit b c)).toNat := by
-    unfold cvColor at h; omega
+  unfold cvColor at h
+  have := Bool.toNat_le (a.testBit (lowestDiffBit a b))
+  have := Bool.toNat_le (b.testBit (lowestDiffBit b c))
+  obtain ⟨hi, hb⟩ : lowestDiffBit a b = lowestDiffBit b c ∧
+      (a.testBit (lowestDiffBit a b)).toNat = (b.testBit (lowestDiffBit b c)).toNat := by omega
   rw [← hi] at hb
-  apply testBit_lowestDiffBit_ne hab
-  revert hb
-  cases a.testBit (lowestDiffBit a b) <;> cases b.testBit (lowestDiffBit a b) <;> decide
+  have hne := testBit_lowestDiffBit_ne hab
+  cases ha : a.testBit (lowestDiffBit a b) <;> cases hb' : b.testBit (lowestDiffBit a b) <;>
+    simp_all
 
 /-- Colours below `2 ^ L` give Cole–Vishkin colours below `2 L`. -/
 theorem cvColor_lt_of_lt_two_pow {a b L : ℕ} (hab : a ≠ b) (ha : a < 2 ^ L) (hb : b < 2 ^ L) :
@@ -202,13 +202,11 @@ theorem iterate_cvBound_twoTower_le (m s : ℕ) :
   | succ s ih =>
     rw [Function.iterate_succ_apply', show m + (s + 1) = m + 1 + s by omega]
     refine le_trans (cvBound_monotone (ih (m + 1))) ?_
-    have hT : 2 ≤ 2 ^ Nat.twoTower m := by
-      have := Nat.one_lt_two_pow (Nat.twoTower_pos m).ne'
-      omega
+    have hT := Nat.one_lt_two_pow (Nat.twoTower_pos m).ne'
     have hle : 4 + 2 * Nat.twoTower (m + 1) ≤ 2 ^ (Nat.twoTower m + 2) := by
       grind [Nat.twoTower_succ, pow_add]
-    unfold cvBound
     have := Nat.clog_le_of_le_pow hle
+    unfold cvBound
     omega
 
 /-- `log* N` Cole–Vishkin rounds take colours below `N` to colours below `6`. -/
@@ -316,7 +314,7 @@ theorem threeColoring_run_of_iterate_le {n K N : ℕ} {x : ZMod n → ℕ} (hx :
     IsProperColoring ((threeColoring K).run x r) ∧ ∀ v, (threeColoring K).run x r v < 3 := by
   obtain ⟨j, rfl⟩ := Nat.exists_eq_add_of_le hr
   have hrun : (threeColoring K).run x (K + 3 + j) = (threeColoring K).state x (K + 3) :=
-    funext (congrFun (threeColoring.state_add_three_add j))
+    threeColoring.state_add_three_add j
   rw [hrun]
   exact threeColoring.state_add_of_le hx hN h6 le_rfl
 
@@ -420,10 +418,8 @@ theorem fastThreeColoring_run {n N s : ℕ} {x : ZMod n → ℕ} (hx : IsProperC
       ∀ v, (fastThreeColoring s).run x r v < 3 := by
   obtain ⟨t, rfl⟩ := Nat.exists_eq_add_of_le hr
   have hrun : (fastThreeColoring s).run x (s + 3 + t) =
-      (threeColoring 0).run ((cvRule s).apply x) (3 + t) := by
-    funext v
-    rw [Nat.add_assoc]
-    exact LocalRule.andThen_run _ _ x _ v
+      (threeColoring 0).run ((cvRule s).apply x) (3 + t) :=
+    funext fun v => Nat.add_assoc s 3 t ▸ LocalRule.andThen_run _ _ x _ v
   rw [hrun]
   exact threeColoring_run_of_iterate_le (cvRule_apply_isProperColoring hx s)
     (cvRule_apply_lt hx hN hs) le_rfl (by omega)

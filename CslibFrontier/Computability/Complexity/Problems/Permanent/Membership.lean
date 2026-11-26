@@ -101,33 +101,25 @@ theorem verifier_ofFn (A : List (List Bool)) (w : Fin (A.length * A.length) → 
         (∀ i k j, w (finProdFinEquiv (i, j)) = true → w (finProdFinEquiv (k, j)) = true →
           i = k) ∧
         ∀ i j : Fin A.length, w (finProdFinEquiv (i, j)) = true → A[i].getD j false = true := by
-  have hbit : ∀ i j : Fin A.length,
-      bit (List.ofFn w) A.length i j = w (finProdFinEquiv (i, j)) := fun i j =>
+  have hall (p : ℕ → Bool) :
+      (List.range A.length).all p = true ↔ ∀ i : Fin A.length, p i = true :=
+    List.all_eq_true.trans ⟨fun h i => h i (List.mem_range.2 i.isLt),
+      fun h i hi => h ⟨i, List.mem_range.1 hi⟩⟩
+  have hany (p : ℕ → Bool) :
+      (List.range A.length).any p = true ↔ ∃ i : Fin A.length, p i = true :=
+    List.any_eq_true.trans ⟨fun ⟨i, hi, hp⟩ => ⟨⟨i, List.mem_range.1 hi⟩, hp⟩,
+      fun ⟨i, hp⟩ => ⟨i, List.mem_range.2 i.isLt, hp⟩⟩
+  have hbit (i j : Fin A.length) :
+      bit (List.ofFn w) A.length i j = w (finProdFinEquiv (i, j)) :=
     List.getD_ofFn_of_lt w (finProdFinEquiv (i, j)).isLt false
-  have hnot_or (a b : Bool) : (!a || b) = true ↔ (a = true → b = true) := by cases a <;> simp
-  simp only [verifier, List.all_eq_true, List.any_eq_true, List.mem_range, Bool.and_eq_true,
-    hnot_or, beq_iff_eq]
-  constructor
-  · intro h
-    refine ⟨fun i => ?_, fun i j k hj hk => ?_, fun i k j hi hk => ?_, fun i j hij => ?_⟩
-    · obtain ⟨j, hj, hb⟩ := (h i i.isLt).1
-      exact ⟨⟨j, hj⟩, (hbit i ⟨j, hj⟩).symm.trans hb⟩
-    · exact Fin.ext (((h i i.isLt).2 j j.isLt).2 k k.isLt |>.1
-        ⟨(hbit i j).trans hj, (hbit i k).trans hk⟩)
-    · exact Fin.ext (((h i i.isLt).2 j j.isLt).2 k k.isLt |>.2
-        ⟨(hbit i j).trans hi, (hbit k j).trans hk⟩)
-    · simpa only [List.getD_eq_getElem _ _ i.isLt, Fin.getElem_fin] using
-        ((h i i.isLt).2 j j.isLt).1 ((hbit i j).trans hij)
-  · rintro ⟨hrow, huniq, hcol, hsupp⟩ i hi
-    refine ⟨?_, fun j hj => ⟨fun h => ?_, fun k hk => ⟨fun ⟨h1, h2⟩ => ?_, fun ⟨h1, h2⟩ => ?_⟩⟩⟩
-    · obtain ⟨j, hj⟩ := hrow ⟨i, hi⟩
-      exact ⟨j, j.isLt, (hbit ⟨i, hi⟩ j).trans hj⟩
-    · simpa only [List.getD_eq_getElem _ _ hi, Fin.getElem_fin] using
-        hsupp ⟨i, hi⟩ ⟨j, hj⟩ ((hbit ⟨i, hi⟩ ⟨j, hj⟩).symm.trans h)
-    · exact congrArg Fin.val (huniq ⟨i, hi⟩ ⟨j, hj⟩ ⟨k, hk⟩
-        ((hbit ⟨i, hi⟩ ⟨j, hj⟩).symm.trans h1) ((hbit ⟨i, hi⟩ ⟨k, hk⟩).symm.trans h2))
-    · exact congrArg Fin.val (hcol ⟨i, hi⟩ ⟨k, hk⟩ ⟨j, hj⟩
-        ((hbit ⟨i, hi⟩ ⟨j, hj⟩).symm.trans h1) ((hbit ⟨k, hk⟩ ⟨j, hj⟩).symm.trans h2))
+  have hget (i : Fin A.length) : A.getD (i : ℕ) [] = A[i] := List.getD_eq_getElem _ _ i.isLt
+  have hnot_or (a b : Bool) : (!a || b) = true ↔ (a = true → b = true) := by
+    cases a <;> cases b <;> decide
+  simp only [verifier, hall, hany, Bool.and_eq_true, hnot_or, beq_iff_eq, hbit, hget, Fin.val_inj]
+  exact ⟨fun h => ⟨fun i => (h i).1, fun i j k hj hk => (((h i).2 j).2 k).1 ⟨hj, hk⟩,
+      fun i k j hi hk => (((h i).2 j).2 k).2 ⟨hi, hk⟩, fun i j hij => ((h i).2 j).1 hij⟩,
+    fun ⟨h1, h2, h3, h4⟩ i => ⟨h1 i, fun j => ⟨h4 i j, fun k =>
+      ⟨fun ⟨hj, hk⟩ => h2 i j k hj hk, fun ⟨hi, hk⟩ => h3 i k j hi hk⟩⟩⟩⟩
 
 /-- **The verifier counts the 0/1 permanent**: at certificate length `n * n` it accepts exactly
 the row-by-row permutation matrices supported on `true` entries. -/
@@ -141,9 +133,7 @@ theorem acceptCount_verifier (A : List (List Bool)) :
     (Equiv.arrowCongr finProdFinEquiv.symm (Equiv.refl Bool)).trans (Equiv.curry _ _ _)
   refine Finset.card_equiv e fun w => ?_
   simp only [Finset.mem_filter, Finset.mem_univ, true_and, verifier_ofFn]
-  have he : ∀ i j, e w i j = w (finProdFinEquiv (i, j)) := fun i j => by
-    simp [e, Equiv.arrowCongr_apply]
-  simp only [he]
+  exact Iff.rfl
 
 /-- **The 0/1 permanent is in #P** [Valiant][Valiant1979]. -/
 theorem mem_SharpP : ZeroOnePermanent ∈ SharpP encBoolTable := by

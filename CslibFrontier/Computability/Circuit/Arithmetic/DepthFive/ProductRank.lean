@@ -62,9 +62,7 @@ theorem Params.Good.multichoose_mul_le (hp : p.Good) {i j : ℕ} (hi : i ≤ p.k
     exact_mod_cast Nat.multichoose_add_mul_pow_le p.u p.b j
   have hi' : (i : ℝ) * 2 ≤ p.a + v' + 1 := by
     have h : i * 2 ≤ p.a := by have := hp.four_n_le_a; have := p.hkm; lia
-    have h' : ((i * 2 : ℕ) : ℝ) ≤ p.a := by exact_mod_cast h
-    push_cast at h'
-    linarith [v'.cast_nonneg (α := ℝ)]
+    linarith [show (i : ℝ) * 2 ≤ p.a by exact_mod_cast h, v'.cast_nonneg (α := ℝ)]
   have hW : (p.a + v' + 1 : ℝ) ^ i ≤ 2 * (p.a + v') ^ i := by
     have h := one_add_mul_le_pow (a := -1 / (p.a + v' + 1 : ℝ))
       (by rw [le_div_iff₀ (by positivity)]; linarith) i
@@ -107,15 +105,13 @@ private theorem rankMeasure_prod_component_le (hp : p.Good)
   have hPall := IsWeightedHomogeneous.prod univ P _ fun j _ => hP j
   by_cases h : ∑ j, (f j, e j - f j) = (p.k, p.m)
   swap
-  · rw [rankMeasure_eq_zero_of_ne hPall h, Nat.cast_zero]
-    positivity
+  · rw [rankMeasure_eq_zero_of_ne hPall h, Nat.cast_zero]; positivity
   have hk : ∑ j, f j = p.k := by simpa [Prod.fst_sum] using congrArg Prod.fst h
   let T := univ.filter fun j => p.lam * e j < f j
   have hPT : (∏ j ∈ T, P j).IsWeightedHomogeneous (bidegWeight s)
-      (∑ j ∈ T, f j, ∑ j ∈ T, (e j - f j)) := by
-    have := IsWeightedHomogeneous.prod T P _ fun j _ => hP j
-    rwa [show ∑ j ∈ T, (f j, e j - f j) = (∑ j ∈ T, f j, ∑ j ∈ T, (e j - f j)) from
-      Prod.ext Prod.fst_sum Prod.snd_sum] at this
+      (∑ j ∈ T, f j, ∑ j ∈ T, (e j - f j)) :=
+    (show ∑ j ∈ T, (f j, e j - f j) = (∑ j ∈ T, f j, ∑ j ∈ T, (e j - f j)) from
+      Prod.ext Prod.fst_sum Prod.snd_sum) ▸ IsWeightedHomogeneous.prod T P _ fun j _ => hP j
   have hI : ∑ j ∈ T, f j ≤ p.k := hk ▸ sum_le_sum_of_subset (subset_univ T)
   have hrank : rankMeasure s (p.k, p.m) (p.a, p.b) (∏ j, P j) ≤
       p.v.multichoose (p.a - ∑ j ∈ T, f j) * p.u.multichoose (p.b + ∑ j ∈ T, (e j - f j)) := by
@@ -126,23 +122,17 @@ private theorem rankMeasure_prod_component_le (hp : p.Good)
   have hn : (p.n : ℝ) ≠ 0 := by exact_mod_cast hp.n_pos.ne'
   have hm : (p.m : ℝ) ≠ 0 := by exact_mod_cast hp.m_pos.ne'
   have hρ : (1 + p.ρ) * p.lam = p.ρ := by
-    have : (p.n : ℝ) = p.k + p.m := by exact_mod_cast p.hkm.symm
-    rw [ρ, lam, this]
-    field_simp
-    ring
+    rw [ρ, lam, show (p.n : ℝ) = p.k + p.m by exact_mod_cast p.hkm.symm]
+    field_simp; ring
   have h0 : ∑ j, ((f j : ℝ) - p.lam * e j) = 0 := by
     rw [sum_sub_distrib, ← mul_sum, ← Nat.cast_sum, ← Nat.cast_sum, hk, he, lam,
       div_mul_cancel₀ _ hn, sub_self]
   have habs : ∑ j, |(f j : ℝ) - p.lam * e j| = 2 * ∑ j ∈ T, ((f j : ℝ) - p.lam * e j) := by
-    have h1 : ∀ j, |(f j : ℝ) - p.lam * e j| =
-        2 * (if p.lam * e j < f j then (f j : ℝ) - p.lam * e j else 0) -
-          ((f j : ℝ) - p.lam * e j) := by
-      intro j
-      split_ifs with hj
-      · rw [abs_of_pos (sub_pos.2 hj)]; ring
-      · rw [abs_of_nonpos (sub_nonpos.2 (not_lt.1 hj))]; ring
-    simp only [h1]
-    rw [sum_sub_distrib, h0, sub_zero, ← mul_sum, sum_filter]
+    rw [← add_zero (∑ j, |(f j : ℝ) - p.lam * e j|), ← h0, ← sum_add_distrib, sum_filter, mul_sum]
+    refine sum_congr rfl fun j _ => ?_
+    split_ifs with hj
+    · rw [abs_of_pos (sub_pos.2 hj)]; ring
+    · rw [abs_of_nonpos (sub_nonpos.2 (not_lt.1 hj))]; ring
   have hexp : ((∑ j ∈ T, f j : ℕ) : ℝ) - p.ρ * (∑ j ∈ T, (e j - f j) : ℕ) =
       (1 + p.ρ) / 2 * ∑ j, |(f j : ℝ) - p.lam * e j| := by
     rw [habs, Nat.cast_sum, Nat.cast_sum, mul_sum, mul_sum, mul_sum, ← sum_sub_distrib]

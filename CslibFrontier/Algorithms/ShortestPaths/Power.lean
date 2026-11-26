@@ -88,21 +88,18 @@ theorem exists_walk_of_pow (W : Matrix V V (MinTropical R)) :
     ∀ (m : ℕ) (i j : V), (W ^ m) i j = 0 ∨
       ∃ l : List V, l.length = m ∧ l.getLastD i = j ∧ walkWeight W i l = (W ^ m) i j
   | 0, i, j => by
-    by_cases h : i = j
-    · subst h
-      exact Or.inr ⟨[], rfl, rfl, by simp⟩
-    · left
-      simp [h]
+    rcases Decidable.eq_or_ne i j with rfl | h
+    · exact Or.inr ⟨[], rfl, rfl, by simp⟩
+    · exact Or.inl (by simp [h])
   | m + 1, i, j => by
     rw [pow_succ', Matrix.mul_apply]
     obtain ⟨v, -, hv⟩ :=
       exists_sum_eq (Finset.univ_nonempty_iff.2 ⟨i⟩) (fun v => W i v * (W ^ m) v j)
     rw [hv]
     rcases exists_walk_of_pow W m v j with h0 | ⟨l, hl, hlast, hw⟩
-    · left
-      rw [h0, mul_zero]
-    · right
-      exact ⟨v :: l, by simp [hl], by rw [List.getLastD_cons, hlast], by rw [walkWeight_cons, hw]⟩
+    · exact Or.inl (by rw [h0, mul_zero])
+    · exact Or.inr ⟨v :: l, by simp [hl], by rw [List.getLastD_cons, hlast],
+        by rw [walkWeight_cons, hw]⟩
 
 /-- `((1 + W) ^ k) i j` is at most the weight of every walk from `i` to `j` with at most `k`
 edges. -/
@@ -134,30 +131,23 @@ theorem exists_walk_of_one_add_pow (W : Matrix V V (MinTropical R)) :
     ∀ (k : ℕ) (i j : V), ((1 + W) ^ k) i j = 0 ∨
       ∃ l : List V, l.length ≤ k ∧ l.getLastD i = j ∧ walkWeight W i l = ((1 + W) ^ k) i j
   | 0, i, j => by
-    by_cases h : i = j
-    · subst h
-      exact Or.inr ⟨[], le_rfl, rfl, by simp⟩
-    · left
-      simp [h]
+    rcases Decidable.eq_or_ne i j with rfl | h
+    · exact Or.inr ⟨[], le_rfl, rfl, by simp⟩
+    · exact Or.inl (by simp [h])
   | k + 1, i, j => by
     rw [pow_succ', Matrix.mul_apply]
     obtain ⟨u, -, hu⟩ := exists_sum_eq (Finset.univ_nonempty_iff.2 ⟨i⟩)
       (fun u => (1 + W) i u * ((1 + W) ^ k) u j)
     rw [hu, Matrix.add_apply]
     rcases add_eq_or ((1 : Matrix V V (MinTropical R)) i u) (W i u) with h | h <;> rw [h]
-    · by_cases hiu : i = u
-      · subst hiu
-        rw [Matrix.one_apply_eq, one_mul]
-        rcases exists_walk_of_one_add_pow W k i j with h0 | ⟨l, hl, hlast, hw⟩
-        · exact Or.inl h0
-        · exact Or.inr ⟨l, by omega, hlast, hw⟩
-      · left
-        rw [Matrix.one_apply_ne hiu, zero_mul]
+    · rcases Decidable.eq_or_ne i u with rfl | hiu
+      · rw [Matrix.one_apply_eq, one_mul]
+        exact (exists_walk_of_one_add_pow W k i j).imp id
+          fun ⟨l, hl, hlast, hw⟩ => ⟨l, Nat.le_succ_of_le hl, hlast, hw⟩
+      · exact Or.inl (by rw [Matrix.one_apply_ne hiu, zero_mul])
     · rcases exists_walk_of_one_add_pow W k u j with h0 | ⟨l, hl, hlast, hw⟩
-      · left
-        rw [h0, mul_zero]
-      · right
-        exact ⟨u :: l, by simp only [List.length_cons]; omega, by rw [List.getLastD_cons, hlast],
+      · exact Or.inl (by rw [h0, mul_zero])
+      · exact Or.inr ⟨u :: l, Nat.succ_le_succ hl, by rw [List.getLastD_cons, hlast],
           by rw [walkWeight_cons, hw]⟩
 
 variable {W : Matrix V V (MinTropical R)}
@@ -167,9 +157,7 @@ shortest-distance matrix of `W` for every `k ≥ card V - 1`. -/
 theorem isShortestDistances_one_add_pow (hW : NoNegCycle W) {k : ℕ}
     (hk : Fintype.card V - 1 ≤ k) : IsShortestDistances W ((1 + W) ^ k) := by
   refine isShortestDistances_of_sound_complete hW (fun i j => ?_) (fun i l hnd => ?_)
-  · rcases exists_walk_of_one_add_pow W k i j with h | ⟨l, -, hl, hw⟩
-    · exact Or.inl h
-    · exact Or.inr ⟨l, hl, hw⟩
+  · exact (exists_walk_of_one_add_pow W k i j).imp id fun ⟨l, _, hl, hw⟩ => ⟨l, hl, hw⟩
   · apply one_add_pow_apply_le
     have := hnd.length_le_card
     simp only [List.length_cons] at this
@@ -190,18 +178,11 @@ theorem isShortestDistances_withOneDiag_pow (hW : NoNegCycle W) {k : ℕ}
 `(1 + W) ^ card V` is at least `1`, the tropical `0`. -/
 theorem noNegCycle_iff_one_le_one_add_pow_diag :
     NoNegCycle W ↔ ∀ i, 1 ≤ ((1 + W) ^ Fintype.card V) i i := by
-  constructor
-  · intro hW i
-    rcases exists_walk_of_one_add_pow W (Fintype.card V) i i with h0 | ⟨l, -, hl, hw⟩
-    · rw [h0]
-      exact le_zero _
-    · rw [← hw]
-      exact hW i l hl
-  · intro h
-    refine noNegCycle_of_forall_length_le fun i l hlen hl => ?_
-    have := one_add_pow_apply_le W _ i l hlen
-    rw [hl] at this
-    exact (h i).trans this
+  refine ⟨fun hW i => ?_, fun h => noNegCycle_of_forall_length_le fun i l hlen hl =>
+    (h i).trans (by simpa only [hl] using one_add_pow_apply_le W _ i l hlen)⟩
+  rcases exists_walk_of_one_add_pow W (Fintype.card V) i i with h0 | ⟨l, -, hl, hw⟩
+  · exact (le_zero _).trans_eq h0.symm
+  · exact (hW i l hl).trans_eq hw
 
 instance [DecidableLE R] : DecidablePred (NoNegCycle (R := R) (V := V)) := fun _ =>
   decidable_of_iff _ noNegCycle_iff_one_le_one_add_pow_diag.symm

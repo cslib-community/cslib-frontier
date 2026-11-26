@@ -142,20 +142,12 @@ theorem rank_lt_lowerCount_iff (y : Fin n → ℝ) (v : Fin n) :
   refine ⟨fun h => by_contra fun hv => h.not_ge (Finset.card_le_card fun u hu => ?_), fun hv => ?_⟩
   · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hu ⊢
     linarith
-  · apply lt_of_lt_of_le _ (Finset.card_le_card
-      (s := Finset.univ.filter fun u => y u < y v ∨ u = v) _)
-    · rw [Finset.filter_or, Finset.card_union_of_disjoint]
-      · simp only [rank, Finset.filter_eq', Finset.mem_univ, ite_true, Finset.card_singleton]
-        omega
-      · rw [Finset.disjoint_left]
-        intro u hu hu'
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hu hu'
-        exact lt_irrefl _ (hu' ▸ hu)
+  · apply Finset.card_lt_card
+    rw [Finset.ssubset_iff_of_subset]
+    · exact ⟨v, by simp [hv], by simp⟩
     · intro u hu
       simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hu ⊢
-      rcases hu with hu | rfl
-      · linarith
-      · exact hv
+      exact hu.le.trans hv
 
 end Rank
 
@@ -255,11 +247,8 @@ theorem exists_width_le_of_intervals {V E : Type*} [Fintype V] [Finite E]
     · rintro a ⟨ha, hlt⟩
       obtain ⟨hvP, hav⟩ := houtEnd ha
       obtain ⟨a', ha', hle'⟩ := (hmed (outEnd a)).exists_le_score
-      have h1 : tE a ≤ i := hm_le_i hlt.le
-      have h2 : i ≤ tE a' := hi_le_m ((hPc _ hvP).trans hle')
-      have hs1 := (hmem_t _ a hav).1
-      have he2 := (hmem_t _ a' ha').2
-      exact ⟨mem_intervalBag.2 ⟨by omega, by omega⟩, hvP⟩
+      exact ⟨mem_intervalBag.2 ⟨(hmem_t _ a hav).1.trans (hm_le_i hlt.le),
+        (hi_le_m ((hPc _ hvP).trans hle')).trans (hmem_t _ a' ha').2⟩, hvP⟩
     · rintro a ⟨ha, hlt⟩ b ⟨hb, hlt'⟩ heq
       obtain ⟨hvP, hav⟩ := houtEnd ha
       obtain ⟨_, hbv⟩ := houtEnd hb
@@ -279,11 +268,8 @@ theorem exists_width_le_of_intervals {V E : Type*} [Fintype V] [Finite E]
     · rintro a ⟨ha, hgt⟩
       obtain ⟨huP, hau⟩ := hinEnd ha
       obtain ⟨a', ha', hle'⟩ := (hmed (inEnd a)).exists_score_le
-      have h1 : tE a' ≤ i := hm_le_i (hle'.trans (hP _ huP))
-      have h2 : i ≤ tE a := hi_le_m hgt.le
-      have hs1 := (hmem_t _ a' ha').1
-      have he2 := (hmem_t _ a hau).2
-      exact ⟨mem_intervalBag.2 ⟨by omega, by omega⟩, huP⟩
+      exact ⟨mem_intervalBag.2 ⟨(hmem_t _ a' ha').1.trans (hm_le_i (hle'.trans (hP _ huP))),
+        (hi_le_m hgt.le).trans (hmem_t _ a hau).2⟩, huP⟩
     · rintro a ⟨ha, hgt⟩ b ⟨hb, hgt'⟩ heq
       obtain ⟨huP, hau⟩ := hinEnd ha
       obtain ⟨_, hbu⟩ := hinEnd hb

@@ -79,11 +79,7 @@ theorem length_prgFromPRF {family : List Bool → List Bool → List Bool} {ℓ 
       (family key query).length = outLen key.length)
     (x : ∀ n, Fin (ℓ n) ↪ BitString (inLen n)) (seed : List Bool) :
     (prgFromPRF family ℓ inLen x seed).length = ℓ seed.length * outLen seed.length := by
-  simp only [prgFromPRF, List.length_flatten, Function.comp_def, List.map_ofFn, List.sum_ofFn]
-  have hterm (i : Fin (ℓ seed.length)) :
-      (family seed (List.ofFn (x seed.length i))).length = outLen seed.length :=
-    hlength seed _ (List.length_ofFn)
-  simp only [hterm, Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
+  simp [prgFromPRF, Function.comp_def, List.map_ofFn, hlength seed _ List.length_ofFn]
 
 /-- `prgFromPRF` is deterministic polynomial time when `family` and the point list are. -/
 theorem computableInPolyTime_prgFromPRF
@@ -164,8 +160,8 @@ theorem isOraclePPT_prgFromPRFReduction {ℓ inLen outLen : ℕ → ℕ}
     IsOraclePPT encBool (prgFromPRFReduction ℓ inLen outLen x A) := by
   rw [← prgFromPRFReductionWord_eq]
   have hreplies := IsOraclePPTOn.mapM_query_take () hx hout
-  have hw := hout.comp (ComputableInPolyTime.fst encUnary (encList encBits))
-  have hw' := hw.comp (ComputableInPolyTime.fst (encPair encUnary (encList encBits)) encBits)
+  have hw' := (hout.comp (ComputableInPolyTime.fst encUnary (encList encBits))).comp
+    (ComputableInPolyTime.fst (encPair encUnary (encList encBits)) encBits)
   have hpad : ComputableInPolyTime
       (fun p : ℕ × List (List Bool) => p.2.flatMap fun r =>
         (r ++ List.replicate (outLen p.1) false).take (outLen p.1))
@@ -177,10 +173,9 @@ theorem isOraclePPT_prgFromPRFReduction {ℓ inLen outLen : ℕ → ℕ}
       (fun p : ℕ × List (List Bool) => ProbOracleComp.sample (A p.1 (p.2.flatMap fun r =>
         (r ++ List.replicate (outLen p.1) false).take (outLen p.1)))) :=
     hA.on.isOraclePPTOn.preprocess ((ComputableInPolyTime.fst _ _).prod hpad)
-  unfold prgFromPRFReductionWord
-  have hbody := hreplies.bind_with hsample (second := fun n replies => ProbOracleComp.sample
+  exact ((hreplies.bind_with hsample (second := fun n replies => ProbOracleComp.sample
     (A n (replies.flatMap fun r => (r ++ List.replicate (outLen n) false).take (outLen n))))
-  exact (hbody.preprocess (ComputableInPolyTime.fst encUnary encBits)).isOraclePPT
+      |>.preprocess (ComputableInPolyTime.fst encUnary encBits)).isOraclePPT)
 
 end Reduction
 
@@ -309,13 +304,9 @@ private theorem computableInPolyTime_outLen_of_pos
     simpa only [List.length_replicate] using
       (hfamily.length_eq (List.replicate n false) (List.ofFn (x n ⟨0, hpos n⟩))
         (by simp only [List.length_ofFn, List.length_replicate])).symm
-  have hpoly : ComputableInPolyTime
-      (fun n => (family (List.replicate n false)
-        ((List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i)).headD [])).length)
-      encUnary encUnary :=
-    ComputableInPolyTime.length_bits_comp (hfamily.polyTime.comp
-      ((ComputableInPolyTime.bitsReplicate false).prod ((ComputableInPolyTime.headD []).comp hx)))
-  simpa only [← heq] using hpoly
+  simpa only [← heq, Function.comp_def] using ComputableInPolyTime.length_bits_comp
+    (hfamily.polyTime.comp ((ComputableInPolyTime.bitsReplicate false).prod
+      ((ComputableInPolyTime.headD []).comp hx)))
 
 /-- **Pseudorandom generator from a pseudorandom function** ([BonehShoup2023], §4.4.4,
 Theorem 4.8, p. 138): evaluating a `PseudorandomFunctionOver inLen outLen` at `ℓ n` efficiently

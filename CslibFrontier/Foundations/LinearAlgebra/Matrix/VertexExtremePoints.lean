@@ -62,21 +62,16 @@ theorem isVertex_iff_mem_extremePoints_real {κ α : Type*} [Fintype κ] [Fintyp
     have hε : 0 < ε := by
       dsimp only [ε]
       split_ifs with hne
-      · refine (Finset.lt_inf'_iff hne).2 fun k hk => ?_
-        have hnot : k ∉ tightRows A b x := (mem_sdiff.1 hk).2
-        have hlt : (A *ᵥ x) k < b k :=
-          lt_of_le_of_ne (hx k) (fun h => hnot (mem_tightRows.2 h))
-        exact div_pos (sub_pos.2 hlt) (by positivity)
+      · exact (lt_inf'_iff hne).2 fun k hk => div_pos
+          (sub_pos.2 (lt_of_le_of_ne (hx k) fun h => (mem_sdiff.1 hk).2 (mem_tightRows.2 h)))
+          (by positivity)
       · exact one_pos
-    have hbound : ∀ k, ε * |(A *ᵥ v) k| ≤ b k - (A *ᵥ x) k := by
-      intro k
+    have hbound (k : κ) : ε * |(A *ᵥ v) k| ≤ b k - (A *ᵥ x) k := by
       by_cases htk : k ∈ tightRows A b x
       · simp [hv k htk, mem_tightRows.1 htk]
-      · have hkslack : k ∈ slack := mem_sdiff.2 ⟨mem_univ k, htk⟩
-        have hε_le : ε ≤ (b k - (A *ᵥ x) k) / (|(A *ᵥ v) k| + 1) := by
-          have hne : slack.Nonempty := ⟨k, hkslack⟩
-          simp only [ε, hne, ↓reduceDIte]
-          exact Finset.inf'_le _ hkslack
+      · have hk : k ∈ slack := mem_sdiff.2 ⟨mem_univ k, htk⟩
+        have hε_le : ε ≤ (b k - (A *ᵥ x) k) / (|(A *ᵥ v) k| + 1) :=
+          (dite_eq_left (⟨k, hk⟩ : slack.Nonempty)).trans_le (inf'_le _ hk)
         linarith [(le_div_iff₀ (by positivity : (0 : ℝ) < |(A *ᵥ v) k| + 1)).1 hε_le]
     have hx₁ : A *ᵥ (x + ε • v) ≤ b := fun k ↦ by
       rw [mulVec_add, mulVec_smul, Pi.add_apply, Pi.smul_apply, smul_eq_mul]

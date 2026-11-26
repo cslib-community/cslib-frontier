@@ -109,15 +109,10 @@ private theorem sum_single (l : List ℕ) (hl : l.Nodup) (v : ℕ) (a : ℕ → 
     (l.map fun w => Decidable.decide (v = w) * a w).sum =
       if v ∈ l then a v else 0 := by
   have heq (w : ℕ) : Decidable.decide (v = w) * a w = if w = v then a w else 0 := by
-    by_cases h : w = v
-    · subst w
-      simp only [decide_true, ite_true]
-      rfl
-    · simp only [Ne.symm h, decide_false, h, ite_false]
-      rfl
-  simp_rw [heq]
-  rw [← List.sum_toFinset _ hl]
-  simp
+    split_ifs with h
+    · exact decide_eq_true h.symm ▸ rfl
+    · exact decide_eq_false (Ne.symm h) ▸ rfl
+  simp [heq, ← List.sum_toFinset _ hl]
 
 private theorem sum_coefficients (l vs : List ℕ) (hl : l.Nodup)
     (hvs : ∀ v ∈ vs, v ∈ l) (a : ℕ → Bool) :
@@ -150,23 +145,17 @@ theorem holds_compile (F : System) (a : ℕ → Bool) :
 private theorem exists_assignment {l : List ℕ} (hl : l.Nodup) {a : List Bool}
     (ha : a.length = l.length) : ∃ f : ℕ → Bool, l.map f = a := by
   induction l generalizing a with
-  | nil =>
-    have : a = [] := List.eq_nil_of_length_eq_zero ha
-    exact ⟨fun _ => false, this.symm⟩
+  | nil => exact ⟨fun _ => false, (List.eq_nil_of_length_eq_zero ha).symm⟩
   | cons v l ih =>
     cases a with
     | nil => simp at ha
     | cons b a =>
       obtain ⟨hv, hl⟩ := List.nodup_cons.mp hl
-      obtain ⟨f, hf⟩ := ih hl (Nat.add_right_cancel ha)
+      obtain ⟨f, rfl⟩ := ih hl (Nat.add_right_cancel ha)
       refine ⟨Function.update f v b, ?_⟩
-      rw [List.map_cons, Function.update_self]
-      congr 1
-      rw [← hf]
-      apply List.map_congr_left
-      intro w hw
-      have hwv : w ≠ v := by rintro rfl; exact hv hw
-      exact Function.update_of_ne hwv _ _
+      simp only [List.map_cons, Function.update_self, List.cons.injEq, true_and]
+      exact List.map_congr_left fun w hw =>
+        Function.update_of_ne (fun e : w = v => hv (e ▸ hw)) _ _
 
 /-- Sparse satisfiability is equivalent to satisfiability of the compressed dense system. -/
 theorem satisfiable_compile_iff (F : System) :

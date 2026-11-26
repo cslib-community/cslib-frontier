@@ -308,11 +308,9 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
       have h1 : args.bestPtr + bestCur.length ≤ st.frontier := hbest_st.1
       omega
     have hfc_eq : st.mem (args.tblBPtr + curC) = tblB.getD curC 0 := by
-      rw [htblB_st.get curC hcur_tbl_lt, List.getD_eq_getElem?_getD,
-        List.getElem?_eq_getElem hcur_tbl_lt, Option.getD_some]
+      simpa [hcur_tbl_lt] using htblB_st.get curC hcur_tbl_lt
     have holdBest_eq : st.mem (args.bestPtr + key) = bestCur.getD key 0 := by
-      rw [hbest_st.get key hkey_lt, List.getD_eq_getElem?_getD,
-        List.getElem?_eq_getElem hkey_lt, Option.getD_some]
+      simpa [hkey_lt] using hbest_st.get key hkey_lt
     let fw := forgetWeight inst.wt LP LB curC
     let fc := st.mem (args.tblBPtr + curC)
     let oldBest := st.mem (args.bestPtr + key)
@@ -322,12 +320,12 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
         if oldBest < cand then cand else oldBest
       else oldBest
     have holdBest_le : oldBest ≤ cap := by
-      dsimp only [oldBest]
+      change st.mem (args.bestPtr + key) ≤ cap
       rw [hbest_st.get key hkey_lt]
       exact mem_childPassList_le (adj := inst.adj) hinit_le
         (fun t ht => hcand_le t (lt_trans ht hcur_lt)) _ (List.getElem_mem hkey_lt)
     have hcand_val_le : cand ≤ cap := by
-      dsimp only [cand, fw, fc]
+      change fw + st.mem (args.tblBPtr + curC) ≤ cap
       rw [hfc_eq]
       exact hcand_le curC hcur_lt
     have hnext_fit : Fits w nextVal := hfit_cap.of_le <| by
@@ -362,9 +360,9 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
           · exact (Nat.max_eq_left (Nat.not_lt.1 hlt)).symm
         · have hlt' : keyMask LB LP curC <
               (childPassList inst.adj inst.wt LB LP tblB initL curC).length := hkey_lt
-          simp only [Bool.eq_false_iff.2 hind, Bool.false_eq_true, ↓reduceIte]
-          rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlt', Option.getD_some]
-          exact List.set_getElem_self hlt'
+          simp only [Bool.eq_false_iff.2 hind, Bool.false_eq_true, ↓reduceIte,
+            List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlt', Option.getD_some]
+          exact List.set_getElem_self hkey_lt
       exact hlist_eq ▸ holdsIn_set hbest_st
     have hc_step : memoryCost (childPassStep (args, curC)) st ≤ stepCost := by
       have hr_s (x : ℕ) : (Memory.spec 0).clientState st (Memory.read x) = st := rfl
@@ -445,10 +443,8 @@ theorem childPassProg_realizes :
     keyMaskProg_spec (w := w) ⟨d.bagBPtr, d.bagBLen, d.bagPPtr, d.bagPLen, curC⟩
       hLB_t hLB_len hLP_t hLP_len
   dsimp only at hr_key
-  have hkey_lt_pow : (Memory.spec 0).clientResult t
-      (keyMaskProg ⟨d.bagBPtr, d.bagBLen, d.bagPPtr, d.bagPLen, curC⟩) < 2 ^ d.bagPLen := by
-    rw [hr_key, ← hLP_len]
-    exact keyMask_lt_two_pow LB LP curC
+  have hkey_lt_pow : keyMask LB LP curC < 2 ^ d.bagPLen :=
+    hLP_len ▸ keyMask_lt_two_pow LB LP curC
   have hfw_le := forgetWeightProg_result_le
     ⟨d.wtPtr, d.bagPPtr, d.bagPLen, d.bagBPtr, d.bagBLen, curC⟩
     hwt_t hLP_t hLP_len hLB_t hLB_len hLB_lt_wt
@@ -457,10 +453,7 @@ theorem childPassProg_realizes :
   have hfc_le : t.mem (d.tblBPtr + curC) ≤ tblB.foldl max 0 :=
     htblB_t.get curC hcur_tbl ▸ List.mem_le_foldl_max (List.getElem_mem hcur_tbl)
   have hfit_tbl_addr : Fits w (d.tblBPtr + curC) := hfit_tblB.of_le (by omega)
-  have hfit_best_addr : Fits w (d.bestPtr +
-      (Memory.spec 0).clientResult t
-        (keyMaskProg ⟨d.bagBPtr, d.bagBLen, d.bagPPtr, d.bagPLen, curC⟩)) :=
-    hfit_best.of_le (by omega)
+  have hfit_best_addr : Fits w (d.bestPtr + keyMask LB LP curC) := hfit_best.of_le (by omega)
   have hfit_cand : Fits w ((Memory.spec 0).clientResult t
       (forgetWeightProg ⟨d.wtPtr, d.bagPPtr, d.bagPLen, d.bagBPtr, d.bagBLen, curC⟩) +
       t.mem (d.tblBPtr + curC)) :=
@@ -469,7 +462,7 @@ theorem childPassProg_realizes :
   obtain ⟨hst_ev, hres_ev⟩ := childPassStep_eval d curC t
   refine ⟨?_, Nat.le_of_succ_le hj_le, by rw [hres_ev]; omega, ?_⟩
   · dsimp only [childPassStep]
-    rw [indepBagProg_state, keyMaskProg_state, forgetWeightProg_state]
+    rw [indepBagProg_state, keyMaskProg_state, forgetWeightProg_state, hr_key]
     repeat (
       first
       | split

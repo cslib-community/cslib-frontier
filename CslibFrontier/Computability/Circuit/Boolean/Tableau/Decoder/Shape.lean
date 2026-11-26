@@ -329,21 +329,12 @@ theorem refSrc_eval {t : ℕ} (j tag p : ℕ) (r : Ref k State) :
   rcases r with _ | _ | _ | ⟨q, l, cs, g⟩
   · rfl
   · rfl
-  · simp only [Key.refSrc, Ref.label, Key.ofFields]
-    have hcond : ((!decide (colOf (slotBits k State) (colBits T) p = 0) &&
-          !decide (n < colOf (slotBits k State) (colBits T) p)) = true) ↔
-        (1 ≤ colOf (slotBits k State) (colBits T) p ∧
-          colOf (slotBits k State) (colBits T) p ≤ n) := by
-      simp
-      omega
-    by_cases h : 1 ≤ colOf (slotBits k State) (colBits T) p ∧
-        colOf (slotBits k State) (colBits T) p ≤ n
-    · simp [hcond.2 h, h, LabelSrc.eval]
-    · simp [mt hcond.1 h, h, LabelSrc.eval]
+  · simp only [Key.refSrc, Ref.label, Key.ofFields, Bool.and_eq_true, Bool.not_eq_true',
+      decide_eq_false_iff_not, ← Nat.one_le_iff_ne_zero, not_lt]
+    split_ifs <;> rfl
   · simp only [Key.refSrc, Ref.label, Key.guard_ofFields]
     by_cases hg : g.test n T (colOf (slotBits k State) (colBits T) p) = true
-    · simp only [hg, ↓reduceIte, LabelSrc.eval, posLabel, colSrcOf_eval]
-      cases q <;> rfl
+    · cases q <;> simp [hg, LabelSrc.eval, TimeSrc.eval, posLabel, colSrcOf_eval]
     · simp [hg, LabelSrc.eval]
 
 theorem map_eval_lift (s cb p c t T : ℕ) (x : List Bool) (cl : Clause LabelSrc) :
@@ -357,66 +348,53 @@ theorem clauseOf_eq_map_shapeOf (x : List Bool) (n T j tag p : ℕ) :
         (Shape.eval (slotBits k State) (colBits T) p (colOf (slotBits k State) (colBits T) p)
           (timeOf (slotBits k State) (colBits T) p) T x) := by
   set κ := Key.ofFields (slotBits k State) (colBits T) x.length n T j tag p with hκ
-  have hκj : κ.j = j := rfl
-  have hκtag : κ.tag = tag := rfl
-  have hκslot : κ.slot = p % 2 ^ slotBits k State := rfl
-  rw [clauseOf, shapeOf, hκj, hκtag]
+  rw [clauseOf, shapeOf, show κ.j = j from rfl, show κ.tag = tag from rfl]
   by_cases hj : j < 3
   · simp only [hj, ↓reduceDIte]
     by_cases h0 : tag = 0
-    · simp only [h0, ↓reduceIte]
-      have h₁ : ((!κ.pGt1) = true) ↔ p < 2 := by simp [hκ, Key.ofFields]
-      by_cases hp : p < 2
-      · have h₂ : (!κ.p0) = decide (p = 1) := by
-          rw [Bool.eq_iff_iff]
-          simp [hκ, Key.ofFields]
-          omega
-        simp only [hp, h₁.2 hp, ↓reduceIte, h₂, map_eval_lift, relabel_tseitinClause]
-        rfl
-      · simp only [hp, mt h₁.1 hp, ↓reduceIte]
-        rfl
+    · simp only [show κ.pGt1 = decide (1 < p) from rfl, h0, ↓reduceIte,
+        Bool.not_eq_true', decide_eq_false_iff_not, not_lt, ← Nat.lt_succ_iff]
+      split_ifs with hp
+      · rcases p with _ | _ | p
+        · simp [hκ, Key.ofFields, map_eval_lift, relabel_tseitinClause, LabelSrc.eval, constLabel]
+        · simp [hκ, Key.ofFields, map_eval_lift, relabel_tseitinClause, LabelSrc.eval, constLabel]
+        · omega
+      · rfl
     · by_cases h1 : tag = 1
-      · simp only [h1, ↓reduceIte, one_ne_zero]
-        by_cases hp : j = 0 ∧ p < x.length
-        · have h₁ : (j = 0 ∧ κ.pLtX = true) := ⟨hp.1, by simp [hκ, Key.ofFields, hp.2]⟩
-          rw [dite_eq_left hp, ite_eq_left h₁]
-          simp [unitClause, Shape.eval, LabelSrc.eval, SignSrc.eval, List.getElem?_eq_getElem hp.2]
-        · rw [dite_eq_right hp, ite_eq_right (by simpa [hκ, Key.ofFields] using hp)]
-          rfl
+      · simp only [show κ.pLtX = decide (p < x.length) from rfl, h1, ↓reduceIte, one_ne_zero,
+          decide_eq_true_eq]
+        split_ifs with hp
+        · simp [unitClause, Shape.eval, LabelSrc.eval, SignSrc.eval, List.getElem?_eq_getElem hp.2]
+        · rfl
       · by_cases h2 : tag = 2
-        · simp only [h2, ↓reduceIte, OfNat.ofNat_ne_zero, OfNat.ofNat_ne_one, hκslot]
-          rcases hl : Loc.ofSlot (k := k) (State := State) (p % 2 ^ slotBits k State) with _ | l
+        · simp only [show κ.slot = p % 2 ^ slotBits k State from rfl,
+            h2, ↓reduceIte, OfNat.ofNat_ne_zero, OfNat.ofNat_ne_one]
+          rcases Loc.ofSlot (k := k) (State := State) (p % 2 ^ slotBits k State) with _ | l
           · rfl
-          · have hiff : (!κ.tGtT && κ.colOK l) = true ↔
+          · have hok_eq : (!κ.tGtT && κ.colOK l) = true ↔
                 (p / 2 ^ slotBits k State / 2 ^ colBits T ≤ T ∧
                   l.ColOK T (p / 2 ^ slotBits k State % 2 ^ colBits T)) := by
-              rw [Key.colOK_ofFields _ _ _ l]
-              simp [hκ, Key.ofFields]
-            simp only
-            by_cases hok : p / 2 ^ slotBits k State / 2 ^ colBits T ≤ T ∧
-                l.ColOK T (p / 2 ^ slotBits k State % 2 ^ colBits T)
-            · simp only [hok, hiff.2 hok, and_self, ↓reduceIte, map_eval_lift]
-              unfold posClause posShape
-              by_cases ht : p / 2 ^ slotBits k State / 2 ^ colBits T = 0
-              · have hκt : κ.t0 = true := by simp [hκ, Key.ofFields, ht]
-                simp only [ht, hκt, ↓reduceIte, relabel_tseitinClause]
+              rw [hκ, Key.colOK_ofFields]
+              simp [Key.ofFields, timeOf, colOf]
+            simp only [hok_eq]
+            split_ifs with hok
+            · simp only [map_eval_lift, posClause, posShape,
+                show κ.t0 = decide (p / 2 ^ slotBits k State / 2 ^ colBits T = 0) from rfl,
+                decide_eq_true_eq]
+              split_ifs with ht
+              · simp only [relabel_tseitinClause]
                 rw [hκ, Key.initBit_ofFields]
                 rfl
-              · have hκt : κ.t0 = false := by simp [hκ, Key.ofFields, ht]
-                rcases table tm l with ⟨op, a, b⟩
-                simp only [ht, hκt, ↓reduceIte, Bool.false_eq_true, relabel_tseitinClause]
+              · rcases table tm l with ⟨op, a, b⟩
+                simp only [relabel_tseitinClause]
                 rw [hκ, refSrc_eval, refSrc_eval]
                 rfl
-            · simp only [hok, mt hiff.1 hok, ↓reduceIte]
-              rfl
-        · simp only [h0, h1, h2, ↓reduceIte]
-          by_cases hp : j = 0 ∧ p = 0
-          · have h₁ : (j = 0 ∧ κ.p0 = true) := ⟨hp.1, by simp [hκ, Key.ofFields, hp.2]⟩
-            rw [ite_eq_left hp, ite_eq_left h₁]
-            simp [unitClause, Shape.eval, LabelSrc.eval, SignSrc.eval, outLabel, outSrc, posLabel,
+            · rfl
+        · simp only [show κ.p0 = decide (p = 0) from rfl, h0, h1, h2, ↓reduceIte, decide_eq_true_eq]
+          split_ifs with hp
+          · simp [unitClause, Shape.eval, LabelSrc.eval, SignSrc.eval, outLabel, outSrc, posLabel,
               ColSrc.eval, TimeSrc.eval]
-          · rw [ite_eq_right hp, ite_eq_right (by simpa [hκ, Key.ofFields] using hp)]
-            rfl
+          · rfl
   · simp only [hj, ↓reduceDIte]
     rfl
 
@@ -577,15 +555,11 @@ theorem outBit_shape {s cb tb p c t T : ℕ} {x : List Bool} {lk : Bool} (hs : 1
           · rw [Nat.testBit_sub_one_eq_xor (by omega)]; simp [hc]
       · obtain ⟨hsl, hC⟩ := hR
         rw [LabelSrc.payload, Nat.testBit_add_two_pow_mul_add_two_pow_mul hsl hC]
-        have hcol := colTerm_eq (c := c) (T := T) (q := q - s) (sl := sl) cs ts (decide (t = 0)) sg
-        have htime := timeTerm_eq (t := t) (T := T) (q := q - s - cb) (sl := sl) cs ts
-          (decide (c = 0)) sg
-        simp only [payTerm, hcol, htime]
-        have h0 : selOf (decide (c = 0)) (decide (t = 0)) (.pos sl cs ts, sg) 0 = false := by
-          cases sg <;> simp [selOf, LabelSrc.sel, SignSrc.sel]
-        have h1 : selOf (decide (c = 0)) (decide (t = 0)) (.pos sl cs ts, sg) 1 = false := by
-          cases sg <;> simp [selOf, LabelSrc.sel, SignSrc.sel]
-        simp only [h0, h1, Bool.false_and, Bool.or_false, tagSlot,
+        simp only [payTerm, colTerm_eq, timeTerm_eq]
+        have h01 : selOf (decide (c = 0)) (decide (t = 0)) (.pos sl cs ts, sg) 0 = false ∧
+            selOf (decide (c = 0)) (decide (t = 0)) (.pos sl cs ts, sg) 1 = false := by
+          cases sg <;> exact ⟨rfl, rfl⟩
+        simp only [h01.1, h01.2, Bool.false_and, Bool.or_false, tagSlot,
           show ¬ 2 + q < 2 by omega, ↓reduceIte, LabelSrc.slotVal, Nat.add_sub_cancel_left]
         by_cases hqs : q < s
         · simp [hqs, show ¬ s ≤ q by omega, show ¬ s + cb ≤ q by omega]
@@ -664,10 +638,8 @@ theorem inRange_of_mem_shapeOf {j tag p : ℕ} {sh : Shape}
   · intro _; trivial
   · intro hj l _ hok sh hsh
     obtain ⟨lit, hlit, rfl⟩ := List.mem_map.1 hsh
-    have hok' : l.ColOK T (colOf (slotBits k State) (colBits T) p) := by
-      simp only [Bool.and_eq_true, Key.colOK_ofFields, decide_eq_true_eq] at hok
-      exact hok.2
-    have hw := table_inWindow (n := n) hok'.lt tm l
+    simp only [Bool.and_eq_true, Key.colOK_ofFields, decide_eq_true_eq] at hok
+    have hw := table_inWindow (n := n) hok.2.lt tm l
     unfold posShape at hlit
     generalize table tm l = e at hw hlit
     obtain ⟨op, a, b⟩ := e
@@ -687,14 +659,11 @@ theorem lt_of_mem_shapeOf {j tag p : ℕ} {sh : Shape}
   revert hlk
   refine forall_mem_shapeOf (P := fun sh => sh.2 = .lookup → p < X) tm _ ?_ ?_ ?_ ?_ ?_ sh hsh
   · simp [tautShape]
-  · rintro _ _ hsh
-    obtain ⟨_, -, rfl⟩ := List.mem_map.1 hsh
-    simp
-  · intro h _
-    simpa [Key.ofFields] using h
-  · rintro _ _ _ _ _ hsh
-    obtain ⟨_, -, rfl⟩ := List.mem_map.1 hsh
-    simp
+  · rintro _ ⟨_, _⟩ h rfl
+    simp [lift] at h
+  · simp [Key.ofFields]
+  · rintro _ _ _ _ ⟨_, _⟩ h rfl
+    simp [lift] at h
   · simp
 
 /-- A shape has three literals. -/

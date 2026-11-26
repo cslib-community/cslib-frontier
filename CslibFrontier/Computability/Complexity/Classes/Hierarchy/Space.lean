@@ -196,11 +196,8 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
   obtain ⟨k, h⟩ := hc.ite (hU.restrict _) (hg.restrict _)
   have e : (fun x => if tinyDesc x then ((Diagonal.verdict ∘ budgetedUniversal) ∘
       universalInput G) x else false) = spaceDiagonal G := by
-    funext x
-    simp only [spaceDiagonal, Function.comp_apply, universalInput]
-    split_ifs with hx
-    · rw [tinyCut_of_tinyDesc hx]
-    · rfl
+    ext x
+    by_cases hx : tinyDesc x <;> simp [spaceDiagonal, universalInput, hx, tinyCut_of_tinyDesc]
   rw [e] at h
   -- the sizes of the pieces, up to constants, in `G n + log₂ n`
   obtain ⟨cD, hcD⟩ := exists_length_eDesc_decodeDesc_tinyCut_le
@@ -356,9 +353,7 @@ theorem setOf_spaceDiagonal_notMem_DSPACE {f G : ℕ → ℕ} (hlog : ∀ n, 4 *
     subst hx
     exact spaceDiagonal_desc eS tm pad G htiny hbudget hhalt hout
   have hgx := hg x
-  simp only [Set.mem_ofPred_eq, hd] at hgx
-  revert hgx
-  cases g x <;> decide
+  cases hgb : g x <;> simp [hd, hgb] at hgx
 
 /-! ### The space hierarchy theorem -/
 
@@ -387,11 +382,8 @@ theorem eventually_mul_log2_pow_add_le (k c : ℕ) :
   filter_upwards [eventually_ge_atTop (2 ^ (2 * c + 1))] with n hn
   have hl : 2 * c + 1 ≤ Nat.log2 n :=
     (Nat.le_log2 (by have := Nat.one_le_two_pow (n := 2 * c + 1); omega)).mpr hn
-  have h₁ : 1 ≤ Nat.log2 n ^ k := Nat.one_le_pow _ _ (by omega)
-  have h₂ := Nat.mul_le_mul_right (Nat.log2 n ^ k) hl
-  have h₃ := Nat.mul_le_mul_left c h₁
   rw [pow_succ]
-  nlinarith
+  nlinarith [Nat.one_le_pow k (Nat.log2 n) (by omega)]
 
 /-- **Polylogarithmic space has a strict hierarchy**:
 `DSPACE (log₂ n ^ (k + 1)) ⊂ DSPACE (log₂ n ^ (k + 2))`. -/

@@ -237,8 +237,7 @@ theorem lookup_evalPure_rainbowPreprocess [DecidableEq P] (h : P → Y) (g : ℕ
       starts.find? fun pw₀ => rainbowChainPure h g 0 τ pw₀ == z := by
   rw [evalPure_rainbowPreprocess, List.lookup_eq_findSome?, List.findSome?_map,
     List.find?_eq_findSome?_guard]
-  congr 1
-  funext pw₀
+  refine congrArg (List.findSome? · starts) (funext fun pw₀ => ?_)
   simp [Option.guard, @eq_comm _ z]
 
 /-- **Endpoint lookup in `A₀`'s table.** `List.lookup z` on the preprocessed table returns
@@ -379,11 +378,9 @@ theorem rainbowAttack_sound {h : P → Y} {lookup : P → Option P} {g : ℕ →
     h pw = y := by
   rw [evalPure_rainbowAttack] at heval
   obtain ⟨k, -, hk⟩ := List.exists_of_findSome?_eq_some heval
-  cases hlk : lookup (rainbowChainPure h g (τ - k) k (g (τ - 1 - k) y)) with
-  | none => simp [hlk] at hk
-  | some pw₀ =>
-    rw [hlk] at hk
-    dsimp only at hk
+  cases hlk : lookup (rainbowChainPure h g (τ - k) k (g (τ - 1 - k) y)) <;> rw [hlk] at hk
+  · cases hk
+  · dsimp only at hk
     split_ifs at hk with hcheck
     exact Option.some.inj hk ▸ hcheck
 
@@ -557,14 +554,10 @@ private theorem evalPure_hellmanLoop_succ (h : P → Y) (lookup : P → Option P
       | none => (hellmanLoop g₀ y m (g₀ (h z))).evalPure (OracleComp.sumPure h lookup) := by
   simp only [hellmanLoop, OracleComp.evalPure_bind, OracleComp.evalPure_liftRight,
     OracleComp.evalPure_query]
-  cases lookup z with
-  | none =>
-    simp only [OracleComp.evalPure_bind, OracleComp.evalPure_liftLeft, OracleComp.evalPure_query]
-  | some _ =>
-    simp only [OracleComp.evalPure_bind, OracleComp.evalPure_liftLeft, evalPure_rainbowChain,
-      rainbowChainPure_const, OracleComp.evalPure_query]
-    split_ifs <;> simp only [OracleComp.evalPure_pure, OracleComp.evalPure_bind,
-      OracleComp.evalPure_liftLeft, OracleComp.evalPure_query]
+  cases lookup z <;> simp only [OracleComp.evalPure_bind, OracleComp.evalPure_liftLeft,
+    evalPure_rainbowChain, rainbowChainPure_const, OracleComp.evalPure_query]
+  split_ifs <;> simp only [OracleComp.evalPure_pure, OracleComp.evalPure_bind,
+    OracleComp.evalPure_liftLeft, OracleComp.evalPure_query]
 
 private theorem hellmanLoop_sound {h : P → Y} {lookup : P → Option P} {g₀ : Y → P} {y : Y}
     {rem : ℕ} {z pw : P}
@@ -574,12 +567,10 @@ private theorem hellmanLoop_sound {h : P → Y} {lookup : P → Option P} {g₀ 
   | zero => cases heval
   | succ m ih =>
     rw [evalPure_hellmanLoop_succ] at heval
-    cases hlk : lookup z <;> rw [hlk] at heval
+    cases hlk : lookup z <;> simp only [hlk] at heval
     · exact ih heval
-    · dsimp only at heval
-      split_ifs at heval with hcheck
-      · exact Option.some.inj heval ▸ hcheck
-      · exact ih heval
+    · split_ifs at heval with hcheck
+      exacts [Option.some.inj heval ▸ hcheck, ih heval]
 
 /-- **Soundness of Hellman's inversion** ([BonehShoup2023], Section 18.7, line 5 of Algorithm `A₁`,
 p. 744): every password output by `hellmanAttack` satisfies `h pw = y`. -/
@@ -598,24 +589,18 @@ private theorem exists_evalPure_hellmanLoop_of_lookup_eq_some {h : P → Y} {loo
   induction d generalizing rem z with
   | zero =>
     obtain ⟨m, rfl⟩ : ∃ m, rem = m + 1 := ⟨rem - 1, by omega⟩
-    simp only [Function.iterate_zero_apply] at hlookup
-    simp only [Nat.add_sub_cancel, Nat.sub_zero] at hy
-    rw [evalPure_hellmanLoop_succ, hlookup]
-    simp only [hy, ↓reduceIte]
-    exact ⟨_, rfl, hy⟩
+    simp_all [evalPure_hellmanLoop_succ]
   | succ d ih =>
     obtain ⟨m, rfl⟩ : ∃ m, rem = m + 1 := ⟨rem - 1, by omega⟩
-    rw [show m + 1 - 1 - (d + 1) = m - 1 - d by omega] at hy
-    rw [Function.iterate_succ_apply] at hlookup
-    have hrec := ih (rem := m) (by omega) hy hlookup
+    have hrec := ih (rem := m) (by omega)
+      (by rwa [show m - 1 - d = m + 1 - 1 - (d + 1) by omega]) hlookup
     rw [evalPure_hellmanLoop_succ]
     cases lookup z with
     | none => exact hrec
     | some _ =>
       dsimp only
       split_ifs with hcheck
-      · exact ⟨_, rfl, hcheck⟩
-      · exact hrec
+      exacts [⟨_, rfl, hcheck⟩, hrec]
 
 /-- **Completeness of Hellman's inversion on covered points** ([BonehShoup2023], Section 18.7,
 pp. 743–744): if `y = h(pw)` for a point `pw = (g₀ ∘ h)^[col](pw₀)` at column `col < τ` whose

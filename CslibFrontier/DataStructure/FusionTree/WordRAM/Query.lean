@@ -98,12 +98,9 @@ theorem exec_build {w q p : ℕ} {xs : List ℕ} {x : Data registers}
     (ha : ArenaFits w p (Tree.build (branching w) xs)) (hq : Fits w q) :
     ∃ y, ExecWithin w (code w) x y (3100000 * (Nat.log w xs.length + 1) - 1) ∧
       Done q ((Tree.build (branching w) xs).predecessor q) x.mem y := by
-  have ht := Tree.valid_build (two_le_branching w) xs
-  have hs' : (Tree.build (branching w) xs).keys.Pairwise (· < ·) := by
-    simpa only [Tree.keys_build (two_le_branching w)] using hs
-  have hk' : ∀ k ∈ (Tree.build (branching w) xs).keys, Fits w k := by
-    simpa only [Tree.keys_build (two_le_branching w)] using hk
-  obtain ⟨y, hey, hy⟩ := exec hxq hxp ht hs' hk' hr ha hq
+  have hkeys := Tree.keys_build (two_le_branching w) xs
+  obtain ⟨y, hey, hy⟩ := exec hxq hxp (Tree.valid_build (two_le_branching w) xs)
+    (by rwa [hkeys]) (by rwa [hkeys]) hr ha hq
   exact ⟨y, hey.mono (total_time_le (height_build_branching_le hw xs)), hy⟩
 
 /-- Concrete preprocessed RAM, with only query and record base in the register file.
@@ -143,12 +140,10 @@ theorem query_spec {w p q : ℕ} {xs : List ℕ} (hw : 2 ≤ w)
   have hpr : (initial w xs p q).regs pointer = p := by simp +decide [initial]
   obtain ⟨y, ⟨k, hkbound, he⟩, hy⟩ := exec_build hw hqr hpr hs hk
     (rep_memory _ _ _) ha hq
-  refine ⟨initial_bounded hk ha hq, ?_, y, k, ?_, ?_, he.executes value, hy⟩
-  · rw [encode_length]
-    exact span_build_le (two_le_branching w) xs
-  · omega
-  · simpa only [Nat.zero_add] using
-      he.runs ((Program.Contains.self (program w)).append_left)
+  exact ⟨initial_bounded hk ha hq,
+    (encode_length ..).trans_le (span_build_le (two_le_branching w) xs), y, k, by omega,
+    by simpa only [Nat.zero_add] using he.runs ((Program.Contains.self (program w)).append_left),
+    he.executes value, hy⟩
 
 /-- Returned full keys are exactly the inclusive predecessors of the stored set. -/
 theorem answer_some_iff {w q a : ℕ} {xs : List ℕ} {mem : ℕ → ℕ}

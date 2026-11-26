@@ -191,9 +191,7 @@ private theorem countQueries_rangeQ_le_rootKeys {lo hi : α} {tr : BTree α β} 
     have hfirst : Occupied t first := hc first List.mem_cons_self
     have hchild := ih (fun _ h => hfirst.of_mem_children h) hm (by simpa using hmode)
     have hbudget := first_budget_le [] hfirst hm
-    simp only [countQueries_rangeQ_node_nil, range_node_nil, rootKeys_node, List.length_nil]
-    clear * - hchild hbudget
-    lia
+    simp only [countQueries_rangeQ_node_nil, range_node_nil, rootKeys_node, List.length_nil]; omega
   | node_cons first k v c rest hsf hsn hlt hgt ih₁ ih₂ =>
     obtain ⟨hfirst, hcf, hcn⟩ := occupied_children_node_cons hc
     rw [toList_node_cons, List.forall_mem_append, List.forall_mem_cons] at hmode
@@ -206,37 +204,26 @@ private theorem countQueries_rangeQ_le_rootKeys {lo hi : α} {tr : BTree α β} 
       rcases hmode with ⟨_, _, hright⟩ | hwide
       · have hrightCost := countQueries_rangeQ_le_of_forall_mem hsn
           fun p hp => ⟨hlo.trans (hgt p hp).le, hright p hp⟩
-        have hbudget_le := Nat.mul_le_mul_right
-          ((node first ((k, v, c) :: rest)).height - 1) hm
-        simp only [hlo, hhi, ↓reduceIte]
-        clear * - hleft hrightCost hbudget hbudget_le
-        lia
+        have hbudget_le := Nat.mul_le_mul_right ((node first ((k, v, c) :: rest)).height - 1) hm
+        simp only [hlo, hhi, ↓reduceIte]; omega
       · have hrightCost := countQueries_rangeQ_le_of_forall_lo_le (hi := hi) hsn
           fun p hp => (hlo.trans_lt (hgt p hp)).le
         have htailHeight := height_node_le_height_node_cons (first := first) (k := k)
           (v := v) (c := c) (rest := rest)
         let levels := (node first ((k, v, c) :: rest)).height - 1
         have hscale := Nat.mul_le_mul_right levels hwide
-        have hsplit := Nat.add_mul (4 * t - 2) 2 levels
-        have ht4 : 4 ≤ 4 * t := by simpa using Nat.mul_le_mul_left 4 ht
-        rw [Nat.sub_add_cancel ((by decide : 2 ≤ 4).trans ht4)] at hsplit
+        have hsplit : (4 * t - 2) * levels + 2 * levels = 4 * t * levels := by
+          rw [← Nat.add_mul, Nat.sub_add_cancel (by omega)]
         simp only [hlo, hhi, ↓reduceIte]
-        clear * - hleft hrightCost hbudget htailHeight hscale hsplit
         lia
     · have hleft := ih₁ hcf hm (hmode.imp And.left id)
       have hbudget := first_budget_le ((k, v, c) :: rest) hfirst hm
-      simp only [hlo, hhi, ↓reduceIte]
-      clear * - hleft hbudget
-      lia
+      simp only [hlo, hhi, ↓reduceIte]; omega
     · have hright := ih₂ hcn hm (hmode.imp (fun h => h.2.2) id)
       have hbudget := mul_height_node_sub_one_le m first k v c rest
       simp only [rootKeys_node] at hright
-      simp only [hlo, hhi, ↓reduceIte]
-      clear * - hright hbudget
-      lia
-    · simp only [hlo, hhi, ↓reduceIte]
-      clear * -
-      lia
+      simp only [hlo, hhi, ↓reduceIte]; omega
+    · simp only [hlo, hhi, ↓reduceIte]; omega
 
 /-! ### Comparison bounds -/
 

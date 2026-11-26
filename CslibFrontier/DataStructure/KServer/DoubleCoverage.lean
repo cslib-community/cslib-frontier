@@ -144,13 +144,11 @@ private theorem spread_update {k : Nat} (t : Fin k → Int) (a : Fin k) (y : Int
   have hdiff : spread t' - spread t = ∑ i, ∑ j, g i j := by
     simp only [spread, g, Finset.sum_sub_distrib]
   have haa : g a a = 0 := by simp only [g, sub_self, abs_zero]
-  have hsplit : ∑ i, ∑ j, g i j = 2 * ∑ j, g a j := by
+  have hsplit : ∑ i, ∑ j, g i j = 2 * ∑ j, (|y - t' j| - |t a - t j|) := by
     rw [← Finset.add_sum_erase _ _ (Finset.mem_univ a),
       Finset.sum_congr rfl fun i hi => hrow i (Finset.ne_of_mem_erase hi), Finset.sum_erase _ haa]
-    ring
-  have hga : ∀ j, g a j = |y - t' j| - |t a - t j| := fun j => by
     simp only [g, t', Function.update_self]
-  rw [Finset.sum_congr rfl fun j _ => hga j] at hsplit
+    ring
   linarith
 
 /-- Moving server `a` to `r` changes the spread by `2 * n * δ` when the distance from every other
@@ -311,28 +309,25 @@ private theorem dcSorted_step {n : Nat} {t : Fin (n + 1) → Int} (ht : Monotone
   unfold dcSorted
   by_cases h0 : countLe t r = 0
   · simp only [h0, ↓reduceDIte]
-    have hr0 : r < t 0 := by
-      have := (lt_countLe_iff ht r 0).not.1 (by rw [h0]; omega)
-      omega
-    have hm := matchCost_update_add_le t o hr 0 fun a => by
-      have := ht (Fin.zero_le a); omega
+    have hr0 : r < t 0 := lt_of_not_ge ((lt_countLe_iff ht r 0).not.1 (by simp [h0]))
+    have hm : (matchCost NatMetric.line (Function.update t 0 r) o : Int) +
+        ((t 0 - r).natAbs : Int) ≤ matchCost NatMetric.line t o :=
+      mod_cast matchCost_update_add_le t o hr 0 fun a => by
+        have := ht (Fin.zero_le a)
+        omega
     rw [moveCost_update, NatMetric.line_dist, spread_update_zero ht hr0.le]
-    have hδ : ((t 0 - r).natAbs : Int) = t 0 - r := by omega
-    have hm' : (matchCost NatMetric.line (Function.update t 0 r) o : Int) + (t 0 - r) ≤
-        matchCost NatMetric.line t o := by rw [← hδ]; exact_mod_cast hm
-    rw [hδ]
+    rw [Int.natCast_natAbs, abs_of_pos (sub_pos.mpr hr0)] at hm ⊢
     nlinarith
   by_cases h1 : countLe t r = n + 1
   · simp only [h1, Nat.add_one_ne_zero, ↓reduceDIte]
-    have hrl : t (Fin.last n) ≤ r := (lt_countLe_iff ht r (Fin.last n)).1 (by
-      rw [h1, Fin.val_last]; omega)
-    have hm := matchCost_update_add_le t o hr (Fin.last n) fun a => by
-      have := ht (Fin.le_last a); omega
+    have hrl : t (Fin.last n) ≤ r := (lt_countLe_iff ht r (Fin.last n)).1 (by simp [h1])
+    have hm : (matchCost NatMetric.line (Function.update t (Fin.last n) r) o : Int) +
+        ((t (Fin.last n) - r).natAbs : Int) ≤ matchCost NatMetric.line t o :=
+      mod_cast matchCost_update_add_le t o hr (Fin.last n) fun a => by
+        have := ht (Fin.le_last a)
+        omega
     rw [moveCost_update, NatMetric.line_dist, spread_update_last ht hrl]
-    have hδ : ((t (Fin.last n) - r).natAbs : Int) = r - t (Fin.last n) := by omega
-    have hm' : (matchCost NatMetric.line (Function.update t (Fin.last n) r) o : Int) +
-        (r - t (Fin.last n)) ≤ matchCost NatMetric.line t o := by rw [← hδ]; exact_mod_cast hm
-    rw [hδ]
+    rw [Int.natCast_natAbs, abs_of_nonpos (sub_nonpos.mpr hrl), neg_sub] at hm ⊢
     nlinarith
   simp only [h0, h1, ↓reduceDIte]
   have hc := countLe_le t r
@@ -354,10 +349,8 @@ private theorem dcSorted_step {n : Nat} {t : Fin (n + 1) → Int} (ht : Monotone
     spread_update_mid ht hab hd0 (by omega)]
   have h1' : |t a - (t a + d)| = d := by rw [abs_of_nonpos (by omega)]; ring
   have h2' : |t b - (t b - d)| = d := by rw [abs_of_nonneg (by omega)]; ring
-  simp only [Nat.cast_add, Int.natCast_natAbs]
-  rw [h1', h2']
-  have hm' := (Nat.cast_le (α := Int)).2 hm
-  nlinarith
+  simp only [Nat.cast_add, Int.natCast_natAbs, h1', h2']
+  nlinarith [(Nat.cast_le (α := Int)).2 hm]
 
 /-- Double Coverage on a sorted configuration serves the request. -/
 theorem exists_dcSorted_eq {n : Nat} (t : Fin (n + 1) → Int) (r : Int) :
@@ -436,11 +429,9 @@ theorem dcStep_amortized_offline {n : Nat} (s o o' : Fin (n + 1) → Int) {r : I
       2 * (n + 1) * moveCost NatMetric.line o o' +
         (2 * (n + 1) * matchCost NatMetric.line s o + pairSum NatMetric.line s) := by
   have h1 := dcStep_amortized s o' hr
-  have h2 := matchCost_le_add_moveCost NatMetric.line s o o'
-  generalize 2 * (n + 1) = K at h1 ⊢
-  have h3 := Nat.mul_le_mul_left K h2
-  rw [Nat.mul_add] at h3
-  omega
+  have h3 := Nat.mul_le_mul_left (2 * (n + 1)) (matchCost_le_add_moveCost NatMetric.line s o o')
+  generalize 2 * (n + 1) = K at h1 h3 ⊢
+  nlinarith
 
 /-! ### The strategy and its competitive ratio -/
 
@@ -487,13 +478,9 @@ theorem doubleCoverage_cost_le {n : Nat} (s₀ s_off : Fin (n + 1) → Int) (req
       (n + 1) * (problem NatMetric.line (n + 1)).scheduleCost s_off reqs offStates +
         ((n + 1) * matchCost NatMetric.line s₀ s_off + pairSum NatMetric.line s₀ / 2) := by
   have h := doubleCoverage_costFrom_le s₀ s_off reqs offStates hv
-  have hc : (doubleCoverage n).cost s₀ reqs = (doubleCoverage n).costFrom s₀ reqs :=
-    (doubleCoverage n).cost_eq_costFrom trivial reqs
-  rw [hc]
+  rw [(doubleCoverage n).cost_eq_costFrom trivial reqs]
+  change (doubleCoverage n).costFrom s₀ reqs ≤ _
   rw [Nat.mul_assoc 2 (n + 1), Nat.mul_assoc 2 (n + 1)] at h
-  generalize (n + 1) * (problem NatMetric.line (n + 1)).scheduleCost s_off reqs offStates = X
-    at h ⊢
-  generalize (n + 1) * matchCost NatMetric.line s₀ s_off = Y at h ⊢
   omega
 
 /-- **Chrobak–Karloff–Payne–Vishwanathan.** Double Coverage with `k = n + 1` servers on the line

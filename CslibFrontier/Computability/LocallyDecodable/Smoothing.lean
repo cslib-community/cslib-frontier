@@ -153,17 +153,10 @@ private theorem expectedCost_maskHandler (y : P → Γ) (j : P) (q' : ℕ ⊕ P)
   | inr j' =>
     change expectedCost (wordOracle y) (readCost j) (maskAnswer H z j') = _
     rw [readCost_inr, maskAnswer]
-    by_cases hj' : j' ∈ H <;> by_cases hj : j ∈ H
-    · simp only [hj', hj, ↓reduceIte]
-      exact expectedCost_pure _ _ _
-    · simp only [hj', hj, ↓reduceIte, expectedCost_pure]
-      exact (ite_eq_right fun h : j' = j => hj (h ▸ hj')).symm
-    · simp only [hj', hj, ↓reduceIte]
-      change expectedCost (wordOracle y) (readCost j) (OracleComp.query (.inr j')) = 0
-      rw [expectedCost_query, readCost_inr, ite_eq_right fun h : j' = j => hj' (h ▸ hj)]
-    · simp only [hj', hj, ↓reduceIte]
-      change expectedCost (wordOracle y) (readCost j) (OracleComp.query (.inr j')) = _
-      rw [expectedCost_query, readCost_inr]
+    by_cases hj' : j' ∈ H <;>
+      simp only [hj', ↓reduceIte, ProbOracleComp.query, expectedCost_pure, expectedCost_query,
+        readCost_inr] <;>
+      split_ifs <;> simp_all
 
 /-- The masked program run against `y` is the program run against `y` spliced with `z` on `H`. -/
 theorem decodeLaw_mask (program : ProbOracleComp (fun _ : P => Γ) α) (y : P → Γ) :
@@ -261,14 +254,12 @@ theorem isSmoothDecoder_mask_heavyPositions {C : (ι → Bool) → P → Γ} {q 
   isQueryBounded i := isQueryBounded_mask _ _ (hA.isQueryBounded i)
   correct x i := by
     rw [decodeLaw_mask]
-    refine hA.correct x _ i ?_
-    exact (Nat.cast_le.mpr (hammingDist_splice_le _ z (C x))).trans
-      (card_heavyPositions_le (hA.isQueryBounded i) z hδ)
+    exact hA.correct x _ i ((Nat.cast_le.mpr (hammingDist_splice_le _ z (C x))).trans
+      (card_heavyPositions_le (hA.isQueryBounded i) z hδ))
   smooth x i j := by
     rw [expectedReads_mask]
     split_ifs with hj
-    · rw [ENNReal.toReal_zero]
-      exact div_nonneg (div_nonneg (Nat.cast_nonneg _) hδ.le) (Nat.cast_nonneg _)
+    · simp only [ENNReal.toReal_zero]; positivity
     · rw [(hobl i).expectedReads_eq _ z]
       simpa [heavyPositions] using hj
 
@@ -329,9 +320,8 @@ theorem hasObliviousReads_of_isQueryBounded_one {program : ProbOracleComp (fun _
       congr 1
       exact tsum_congr fun a => congrArg _ (ih a n hn ((hcont a).mono (by simp)))
     | inr j' =>
-      have h0 (a : Γ) : ProbOracleComp.IsQueryBounded (cont a) 0 := by
-        have h := (hcont a).mono (m := 0) (by simp only [Sum.elim_inr] at hle ⊢; omega)
-        exact h
+      have h0 (a : Γ) : ProbOracleComp.IsQueryBounded (cont a) 0 :=
+        (hcont a).mono (by simp only [Sum.elim_inr] at hle ⊢; omega)
       simp only [expectedReads_eq_zero_of_isQueryBounded_zero (h0 _), mul_zero]
 
 end OneQuery
@@ -398,13 +388,10 @@ theorem card_querySet_le [DecidableEq P] (plan : NonadaptivePlan P Γ q) :
 theorem eval_eq_of_eqOn [DecidableEq P] (plan : NonadaptivePlan P Γ q) {y y' : P → Γ}
     (h : ∀ j ∈ plan.querySet, y j = y' j) : plan.eval y = plan.eval y' := by
   simp only [eval]
-  congr 1
-  funext k
+  refine congrArg plan.decide (funext fun k => ?_)
   cases hk : plan.queries k with
   | none => rfl
-  | some j =>
-    simp only [Option.map_some]
-    exact congrArg some (h j ((mem_querySet_iff plan j).mpr ⟨k, hk⟩))
+  | some j => exact congrArg some (h j ((mem_querySet_iff plan j).mpr ⟨k, hk⟩))
 
 /-- Evaluate a non-adaptive plan given only the symbols on its query set. -/
 def restrictEval [DecidableEq P] (plan : NonadaptivePlan P Γ q) (w : plan.querySet → Γ) : Bool :=
@@ -434,8 +421,7 @@ def mask [DecidableEq P] (H : Finset P) (z : P → Γ) (plan : NonadaptivePlan P
 theorem eval_mask [DecidableEq P] (H : Finset P) (z : P → Γ) (plan : NonadaptivePlan P Γ q)
     (y : P → Γ) : (plan.mask H z).eval y = plan.eval (splice H z y) := by
   simp only [eval, mask]
-  congr 1
-  funext k
+  refine congrArg plan.decide (funext fun k => ?_)
   cases hk : plan.queries k with
   | none => rfl
   | some j =>
@@ -510,31 +496,23 @@ private theorem isQueryBounded_readAllOption (Q : Fin q → Option P) :
       (ih (Fin.tail Q)).bind fun _ => .pure _ 0).mono (by omega)
 
 theorem isQueryBounded_nonadaptivePlan (planLaw : ProbComp (NonadaptivePlan P Γ q)) :
-    (nonadaptivePlan planLaw).IsQueryBounded q := by
-  have h := (IsQueryBounded.sample (spec := fun _ : P => Γ) planLaw).bind fun plan =>
+    (nonadaptivePlan planLaw).IsQueryBounded q :=
+  ((IsQueryBounded.sample (spec := fun _ : P => Γ) planLaw).bind fun plan =>
     (isQueryBounded_readAllOption (Γ := Γ) plan.queries).bind fun answers =>
-      .pure (plan.decide answers) 0
-  rw [Nat.zero_add, Nat.add_zero] at h
-  exact h
+      .pure (plan.decide answers) 0).mono (by omega)
 
 private theorem decodeLaw_readOption (o : Option P) (y : P → Γ) :
     decodeLaw (readOption o) y = PMF.pure (o.map y) := by
-  cases o with
-  | none => simp [readOption]
-  | some j => simp [readOption]
+  cases o <;> simp [readOption]
 
 private theorem decodeLaw_readAllOption (Q : Fin q → Option P) (y : P → Γ) :
     decodeLaw (readAllOption Q) y = PMF.pure (fun k => (Q k).map y) := by
   induction q with
-  | zero =>
-    rw [readAllOption, decodeLaw_pure]
-    congr 1 with k : 1
-    exact k.elim0
+  | zero => exact (decodeLaw_pure y _).trans (congrArg PMF.pure (funext fun k => k.elim0))
   | succ q ih =>
     simp only [readAllOption, decodeLaw_bind, decodeLaw_readOption, PMF.pure_bind, ih,
       decodeLaw_pure]
-    congr 1
-    exact Fin.cons_self_tail fun k => (Q k).map y
+    exact congrArg PMF.pure (Fin.cons_self_tail fun k => (Q k).map y)
 
 theorem decodeLaw_nonadaptivePlan (planLaw : ProbComp (NonadaptivePlan P Γ q)) (y : P → Γ) :
     decodeLaw (nonadaptivePlan planLaw) y =
@@ -653,12 +631,8 @@ private theorem eval_stripQueries {α : Type} (prog : ProbOracleComp (fun _ : P 
         decodeLaw (OracleComp.query (.inl k) >>= cont) y
       rw [ProbComp.eval_bind, ProbComp.eval_unifFin, decodeLaw_bind, decodeLaw_query_inl]
       change (ProbComp.unifOracle k).bind _ = (ProbComp.unifOracle k).bind _
-      congr 1
-      funext c
-      exact ih c _
-    | inr j =>
-      have h := (IsCostBounded.liftBind_iff.mp hq).1
-      simp at h
+      exact congrArg _ (funext fun c => ih c _)
+    | inr j => exact absurd (IsCostBounded.liftBind_iff.mp hq).1 (by simp)
 
 /-- Output `b` with probability `|Γ| ^ (-k)` and a uniform bit otherwise. -/
 private noncomputable def attenuate [Fintype Γ] [Nonempty Γ] [DecidableEq Γ]
@@ -750,26 +724,16 @@ theorem toReal_decodeLaw_nonadaptivize [Fintype Γ] [Nonempty Γ] [DecidableEq �
   | pure b₀ =>
     have hpure : decodeLaw (PFunctor.FreeM.pure b₀ : ProbOracleComp (fun _ : P => Γ) Bool) y =
         PMF.pure b₀ := decodeLaw_pure y b₀
-    cases q with
-    | zero =>
-      simp only [nonadaptivize, decodeLaw_nonadaptivePlan, nonadaptivizePlan, stripQueries,
-        ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, PMF.pure_map, NonadaptivePlan.eval,
-        hpure, Nat.zero_sub, pow_zero, div_one]
-      ring
-    | succ q =>
-      cases q with
-      | zero =>
-        simp only [nonadaptivize, decodeLaw_nonadaptivePlan, nonadaptivizePlan, ProbComp.eval_pure,
-          PMF.pure_map, NonadaptivePlan.eval, hpure, Nat.sub_self, pow_zero, div_one]
-        ring
-      | succ q =>
-        simp only [nonadaptivize, decodeLaw_nonadaptivePlan, nonadaptivizePlan, ProbComp.eval_bind,
-          ProbComp.eval_pure, PMF.map_bind, PMF.pure_map, NonadaptivePlan.eval, PMF.bind_pure,
-          hpure, Nat.add_sub_cancel]
-        rw [toReal_eval_attenuate]
-        by_cases hbb : b₀ = b
-        · subst hbb; simp
-        · simp [hbb, Ne.symm hbb]
+    rcases q with _ | _ | q
+    · simp [nonadaptivize, decodeLaw_nonadaptivePlan, nonadaptivizePlan, stripQueries,
+        NonadaptivePlan.eval]
+    · simp [nonadaptivize, decodeLaw_nonadaptivePlan, nonadaptivizePlan,
+        NonadaptivePlan.eval]
+    · simp only [nonadaptivize, decodeLaw_nonadaptivePlan, nonadaptivizePlan, ProbComp.eval_bind,
+        ProbComp.eval_pure, PMF.map_bind, PMF.pure_map, NonadaptivePlan.eval, PMF.bind_pure,
+        hpure, Nat.add_sub_cancel]
+      rw [toReal_eval_attenuate]
+      cases b₀ <;> cases b <;> simp
   | liftBind q' cont ih =>
     cases q' with
     | inl k =>
@@ -819,8 +783,7 @@ theorem toReal_decodeLaw_nonadaptivize [Fintype Γ] [Nonempty Γ] [DecidableEq �
         change decodeLaw (OracleComp.query (.inr j) >>= cont) y = _
         rw [decodeLaw_bind, decodeLaw_query_inr, PMF.pure_bind]
       rcases q with _ | _ | q
-      · have h := (IsCostBounded.liftBind_iff.mp hq).1
-        simp at h
+      · exact absurd (IsCostBounded.liftBind_iff.mp hq).1 (by simp)
       · have hlaw : decodeLaw (nonadaptivize 1 (.liftBind (.inr j) cont) hq) y =
             decodeLaw (cont (y j)) y := by
           rw [nonadaptivize, decodeLaw_nonadaptivePlan, nonadaptivizePlan, ProbComp.eval_bind,
@@ -884,10 +847,9 @@ theorem IsLocalDecoder.nonadaptivize [Fintype P] [Fintype Γ] [Nonempty Γ] [Dec
   correct x y i hy := by
     rw [toReal_decodeLaw_nonadaptivize]
     have hc := hA.correct x y i hy
-    have hpos : (0 : ℝ) < (Fintype.card Γ : ℝ) ^ (q - 1) := by positivity
     have hdiv : ε / (Fintype.card Γ : ℝ) ^ (q - 1) ≤
         ((decodeLaw (A i) y (x i)).toReal - 1 / 2) / (Fintype.card Γ : ℝ) ^ (q - 1) :=
-      div_le_div_of_nonneg_right (by linarith) hpos.le
+      div_le_div_of_nonneg_right (by linarith) (by positivity)
     linarith
 
 /-- Masking the heavy positions of a non-adaptive local decoder produces an explicit non-adaptive
@@ -903,14 +865,12 @@ theorem isSmoothDecoder_mask_nonadaptivePlan [Fintype P] [DecidableEq P] [Decida
   isQueryBounded i := isQueryBounded_nonadaptivePlan _
   correct x i := by
     rw [decodeLaw_nonadaptivePlan_mask]
-    refine hA.correct x _ i ?_
-    exact (Nat.cast_le.mpr (hammingDist_splice_le _ z (C x))).trans
-      (card_heavyPositions_le (hA.isQueryBounded i) z hδ)
+    exact hA.correct x _ i ((Nat.cast_le.mpr (hammingDist_splice_le _ z (C x))).trans
+      (card_heavyPositions_le (hA.isQueryBounded i) z hδ))
   smooth x i j := by
     rw [expectedReads_nonadaptivePlan_mask]
     split_ifs with hj
-    · rw [ENNReal.toReal_zero]
-      exact div_nonneg (div_nonneg (Nat.cast_nonneg _) hδ.le) (Nat.cast_nonneg _)
+    · simp only [ENNReal.toReal_zero]; positivity
     · rw [(hasObliviousReads_nonadaptivePlan _).expectedReads_eq _ z]
       simpa [heavyPositions] using hj
 

@@ -126,13 +126,10 @@ theorem exists_eq_add_majority_mul {m : ℕ} (f : BitString (2 * m + 1) → R) :
     fun x => f (fun i => !x i) - q (fun i => !x i)
   refine ⟨q, hq, _, comp_not_mem_lowDegree hr, fun x => ?_⟩
   by_cases hx : weight x ≤ m
-  · have hmaj : majority (2 * m + 1) x = false := by
-      rw [← Bool.not_eq_true, majority_eq_true_iff]
-      omega
+  · have hmaj : majority (2 * m + 1) x = false :=
+      Bool.eq_false_iff.2 (majority_eq_true_iff.not.2 (by omega))
     simp [hmaj, hqf x hx]
-  · have hmaj : majority (2 * m + 1) x = true := by
-      rw [majority_eq_true_iff]
-      omega
+  · have hmaj : majority (2 * m + 1) x = true := majority_eq_true_iff.2 (by omega)
     have hnot : weight (fun i => !x i) ≤ m := by
       rw [weight_not, Fintype.card_fin]
       omega
@@ -172,19 +169,15 @@ private theorem fst_flipFirst (a : Fin k → α × Bool) (i : Fin k) :
 
 private theorem flipFirst_flipFirst (a : Fin k → α × Bool) : flipFirst g (flipFirst g a) = a := by
   funext i
-  rw [flipFirst_apply (flipFirst g a) i]
-  simp only [fst_flipFirst]
-  split_ifs with h
-  · rw [flipFirst_apply, ite_eq_left h, Bool.not_not]
-  · rw [flipFirst_apply, ite_eq_right h]
+  simp only [flipFirst_apply (flipFirst g a), fst_flipFirst]
+  rw [flipFirst_apply]
+  split_ifs <;> simp
 
 /-- At most one coordinate is the first to satisfy `p`. -/
 private theorem eq_of_forall_lt_not {p : Fin k → Prop} {i j : Fin k} (hi : p i)
     (hmi : ∀ t < i, ¬p t) (hj : p j) (hmj : ∀ t < j, ¬p t) : i = j := by
-  obtain h | h | h := lt_trichotomy i j
-  · exact absurd hi (hmj i h)
-  · exact h
-  · exact absurd hj (hmi j h)
+  obtain h | rfl | h := lt_trichotomy i j
+  exacts [absurd hi (hmj i h), rfl, absurd hj (hmi j h)]
 
 omit [DecidablePred g] in
 private theorem firstFlagUnset_iff {a : Fin k → α × Bool} {i : Fin k} (hi : g (a i).1)
@@ -200,18 +193,13 @@ private theorem ite_firstFlagUnset_add_flipFirst (a : Fin k → α × Bool) :
   by_cases h : ∃ i, g (a i).1
   · have hi := Fin.find_spec h
     have hmi : ∀ j < Fin.find _ h, ¬g (a j).1 := fun j hj => Fin.find_min h hj
-    have hfi : g (flipFirst g a (Fin.find _ h)).1 := by rwa [fst_flipFirst]
-    have hfmi : ∀ j < Fin.find _ h, ¬g (flipFirst g a j).1 := by simpa only [fst_flipFirst]
     have e₁ := firstFlagUnset_iff hi hmi
-    have e₂ := firstFlagUnset_iff hfi hfmi
+    have e₂ := firstFlagUnset_iff ((fst_flipFirst (g := g) a _).symm ▸ hi)
+      fun j hj => (fst_flipFirst (g := g) a j).symm ▸ hmi j hj
     rw [flipFirst_apply, ite_eq_left ⟨hi, hmi⟩] at e₂
-    have h' : ¬∀ i, ¬g (a i).1 := fun h' => h.elim fun i hi => h' i hi
     cases hb : (a (Fin.find _ h)).2 <;> simp_all
   · push Not at h
-    have h₁ : FirstFlagUnset g a := fun i hi => absurd hi (h i)
-    have h₂ : FirstFlagUnset g (flipFirst g a) := fun i hi =>
-      absurd (by rwa [fst_flipFirst] at hi) (h i)
-    simp [h₁, h₂, h]
+    simp [FirstFlagUnset, fst_flipFirst, h]
 
 /-- Flipping the flag of the first coordinate whose first component satisfies `g` pairs the tuples
 in which that flag is unset with the others, except for the tuples without such a coordinate. -/
@@ -221,13 +209,11 @@ private theorem two_mul_card_filter_firstFlagUnset (S : Finset α) (k : ℕ) :
   set P := Fintype.piFinset fun _ : Fin k => S ×ˢ (univ : Finset Bool)
   have hP (a : Fin k → α × Bool) : flipFirst g a ∈ P ↔ a ∈ P := by
     simp only [P, Fintype.mem_piFinset, mem_product, mem_univ, and_true, fst_flipFirst]
-  have hflip : #{a ∈ P | FirstFlagUnset g (flipFirst g a)} = #{a ∈ P | FirstFlagUnset g a} := by
-    refine card_nbij' (flipFirst g) (flipFirst g) (fun a ha => ?_) (fun a ha => ?_)
+  have hflip : #{a ∈ P | FirstFlagUnset g (flipFirst g a)} = #{a ∈ P | FirstFlagUnset g a} :=
+    card_nbij' (flipFirst g) (flipFirst g)
+      (fun a ha => by simpa only [coe_filter, Set.mem_ofPred_eq, hP] using ha)
+      (fun a ha => by simpa only [coe_filter, Set.mem_ofPred_eq, hP, flipFirst_flipFirst] using ha)
       (fun a _ => flipFirst_flipFirst a) (fun a _ => flipFirst_flipFirst a)
-    · simp only [coe_filter, Set.mem_ofPred_eq] at ha ⊢
-      exact ⟨(hP a).2 ha.1, ha.2⟩
-    · simp only [coe_filter, Set.mem_ofPred_eq] at ha ⊢
-      exact ⟨(hP a).2 ha.1, by rw [flipFirst_flipFirst]; exact ha.2⟩
   have hsum : ∑ a ∈ P, (((if FirstFlagUnset g a then 1 else 0) +
       if FirstFlagUnset g (flipFirst g a) then 1 else 0) : ℕ) =
         ∑ a ∈ P, (1 + if ∀ i, ¬g (a i).1 then 1 else 0) :=
@@ -321,16 +307,12 @@ private theorem bitVal_mul_atom_mem {c : Finset (Fin (2 * m + 1)) × Bool} (hc :
   obtain ⟨A, b⟩ := c
   by_cases h : b = false ∧ #A < m
   · obtain ⟨rfl, hA⟩ := h
-    have hcard := card_insert_le j A
     refine Submodule.subset_span
-      ⟨(insert j A, false), ⟨show #(insert j A) ≤ m by omega, ?_⟩, ?_⟩
-    · simp only [atomWeight, Bool.false_eq_true, ↓reduceIte]
-      omega
-    · rw [atom_false, atom_false, ← monomial_singleton, monomial_mul, insert_eq]
+      ⟨(insert j A, false), ⟨(card_insert_le j A).trans hA, card_insert_le j A⟩, ?_⟩
+    rw [atom_false, atom_false, ← monomial_singleton, monomial_mul, insert_eq]
   · refine atomSpan_mono ?_ (atomSpan_eq_top (m := m) ▸ Submodule.mem_top)
     cases b
-    · simp only [true_and, not_lt] at h
-      simp only [atomWeight, Bool.false_eq_true, ↓reduceIte]
+    · simp only [atomWeight, Bool.false_eq_true, ↓reduceIte, true_and, not_lt] at h ⊢
       omega
     · simp [atomWeight]
 
@@ -373,15 +355,10 @@ private theorem comp_block_mul_mem_genSpan {a : Fin k → Finset (Fin (2 * m + 1
     from h hf
   refine Submodule.span_le.2 ?_
   rintro _ ⟨c, ⟨hc, hcw⟩, rfl⟩
-  refine Submodule.subset_span ⟨Function.update a i c, ⟨fun j => ?_, ?_⟩, ?_⟩
-  · by_cases hj : j = i
-    · subst hj
-      simpa using hc
-    · simpa [Function.update_of_ne hj] using ha j
-  · rw [genWeight_update]
-    omega
-  · funext x
-    simp [L, gen_update]
+  refine Submodule.subset_span ⟨Function.update a i c, ⟨fun j => ?_, ?_⟩,
+    funext fun x => by simp [L, gen_update]⟩
+  · by_cases hj : j = i <;> simp [hj, ha, hc]
+  · rw [genWeight_update]; omega
 
 /-- Multiplying by a variable raises the weight by at most one. -/
 private theorem bitVal_mul_mem_genSpan (v : Fin (k * (2 * m + 1))) {r : ℕ}
@@ -607,11 +584,8 @@ private theorem abs_expect_signVal_mul_le_of_two_mul_card_le {n : ℕ} {f p : Bo
   have hd : #{x | (!p x) = f x} = hammingDist f p := by
     simp only [hammingDist, hnot, ne_comm]
   have hsum : (#{x | p x = f x} : ℝ) + #{x | (!p x) = f x} = 2 ^ n := by
-    have h := card_filter_add_card_filter_not (s := (univ : Finset (BitString n)))
-      fun x => p x = f x
-    rw [card_univ, BitString.card] at h
-    simp only [← hnot] at h
-    exact_mod_cast h
+    simp only [hnot, ← Nat.cast_add, card_filter_add_card_filter_not, card_univ,
+      BitString.card, Nat.cast_pow, Nat.cast_ofNat]
   have hpos : (0 : ℝ) < 2 ^ n := by positivity
   have key : 1 - 2 * (hammingDist f p : ℝ) / 2 ^ n = (2 * #{x | p x = f x} - 2 ^ n) / 2 ^ n := by
     rw [eq_div_iff hpos.ne', sub_mul, div_mul_cancel₀ _ hpos.ne', one_mul, ← hd]
@@ -633,12 +607,9 @@ theorem abs_expect_signVal_xorMajority_mul_signVal_le_card {k m d : ℕ}
   have hinj (a b : Bool) : bitVal (ZMod 2) a = bitVal (ZMod 2) b ↔ a = b := by
     cases a <;> cases b <;> decide
   have h₁ := two_mul_card_agree_xorMajority_le hp
-  have h₂ := two_mul_card_agree_xorMajority_le (P := fun x => bitVal (ZMod 2) (!p x)) (by
-    have h : (fun x => bitVal (ZMod 2) (!p x)) = 1 - fun x => bitVal (ZMod 2) (p x) := by
-      funext x
-      simp [bitVal_not]
-    rw [h]
-    exact one_sub_mem_lowDegree hp)
+  have hnot_eq : (fun x => bitVal (ZMod 2) (!p x)) = 1 - fun x => bitVal (ZMod 2) (p x) :=
+    funext fun x => by simp [bitVal_not]
+  have h₂ := two_mul_card_agree_xorMajority_le (hnot_eq ▸ one_sub_mem_lowDegree hp)
   simp only [hinj] at h₁ h₂
   rw [div_pow, ← pow_mul, Nat.mul_comm (2 * m + 1)]
   exact abs_expect_signVal_mul_le_of_two_mul_card_le (by exact_mod_cast h₁) (by exact_mod_cast h₂)

@@ -217,30 +217,29 @@ theorem Exec.execRand {w : ℕ} {c : Code B r} {x y : Data r} {n : ℕ} (h : Exe
   induction h with
   | op ho => exact .op ho
   | @seq c₁ c₂ x y z m n _ _ ih₁ ih₂ =>
-    have hseq := ExecRand.seq ih₁ (m₂ := fun _ => pure (z, n)) fun z' hz' => by
+    simpa only [pure_bind] using ExecRand.seq ih₁ (m₂ := fun _ => pure (z, n)) fun z' hz' => by
       cases OracleComp.eq_of_mem_supportWith_pure hz'
       exact ih₂
-    simpa only [pure_bind] using hseq
   | branch_pos hc _ ih =>
     simpa only [map_pure] using ExecRand.branch_pos hc ih
   | branch_neg hc _ ih =>
     simpa only [map_pure] using ExecRand.branch_neg hc ih
   | loop_exit hc => exact .loop_exit hc
   | @loop_iter c body x y z m n hc _ _ ihb ihl =>
-    have hiter := ExecRand.loop_iter hc ihb (ml := fun _ => pure (z, n)) fun z' hz' => by
-      cases OracleComp.eq_of_mem_supportWith_pure hz'
-      exact ihl
-    simpa only [pure_bind] using hiter
+    simpa only [pure_bind] using
+      ExecRand.loop_iter hc ihb (ml := fun _ => pure (z, n)) fun z' hz' => by
+        cases OracleComp.eq_of_mem_supportWith_pure hz'
+        exact ihl
 
 /-- Prepending a deterministic `Exec` onto a randomized `ExecRand` shifts the instruction count by
 `n₁`. -/
 theorem Exec.seqRand {w : ℕ} {c₁ c₂ : Code B r} {x y : Data r} {n₁ : ℕ}
     {m₂ : ProbComp (Data r × ℕ)} (h₁ : Exec w c₁ x y n₁) (h₂ : ExecRand w c₂ y m₂) :
     ExecRand w (.seq c₁ c₂) x ((fun z => (z.1, n₁ + z.2)) <$> m₂) := by
-  have hseq := ExecRand.seq h₁.execRand (m₂ := fun _ => m₂) fun z' hz' => by
-    cases OracleComp.eq_of_mem_supportWith_pure hz'
-    exact h₂
-  simpa only [pure_bind, ← bind_pure_comp] using hseq
+  simpa only [pure_bind, ← bind_pure_comp] using
+    ExecRand.seq h₁.execRand (m₂ := fun _ => m₂) fun z' hz' => by
+      cases OracleComp.eq_of_mem_supportWith_pure hz'
+      exact h₂
 
 /-! ## Renaming registers in structured randomized executions -/
 
@@ -382,23 +381,20 @@ theorem seq (h₁ : ExecRandWithin w c₁ x P T₁ R₁)
     (h₂ : ∀ y, P y → ExecRandWithin w c₂ y Q T₂ R₂) :
     ExecRandWithin w (.seq c₁ c₂) x Q (T₁ + T₂) (R₁ + R₂) := by
   obtain ⟨m₁, hm₁, hq₁, hsup₁⟩ := h₁
-  have hstep : ∀ z₁ ∈ m₁.support,
+  have hstep (z₁) (hz₁ : z₁ ∈ m₁.support) :
       ExecRand w c₂ z₁.1 (codeComp w c₂ z₁.1) ∧
       (codeComp w c₂ z₁.1).IsQueryBounded R₂ ∧
       ∀ z₂ ∈ (codeComp w c₂ z₁.1).support, Q z₂.1 ∧ z₂.2 ≤ T₂ := by
-    intro z₁ hz₁
     obtain ⟨m₂, hm₂, hq₂, hsup₂⟩ := h₂ z₁.1 (hsup₁ z₁ hz₁).1
-    rw [hm₂.codeComp_eq]
-    exact ⟨hm₂, hq₂, hsup₂⟩
+    exact hm₂.codeComp_eq.symm ▸ ⟨hm₂, hq₂, hsup₂⟩
   refine ⟨_, ExecRand.seq hm₁ fun z₁ hz₁ => (hstep z₁ hz₁).1, ?_, ?_⟩
   · refine OracleComp.IsCostBounded.bind_on_support hq₁ fun z₁ hz₁ => ?_
     simpa only [Nat.add_zero] using
       (hstep z₁ hz₁).2.1.bind fun _ => .pure _ 0
   · intro z hz
     supp_cases hz with ⟨z₁, hz₁, z₂, hz₂, rfl⟩
-    have h₁' := hsup₁ z₁ hz₁
-    have h₂' := (hstep z₁ hz₁).2.2 z₂ hz₂
-    exact ⟨h₂'.1, Nat.add_le_add h₁'.2 h₂'.2⟩
+    exact ⟨((hstep z₁ hz₁).2.2 z₂ hz₂).1,
+      Nat.add_le_add (hsup₁ z₁ hz₁).2 ((hstep z₁ hz₁).2.2 z₂ hz₂).2⟩
 
 /-- Positive branch rule (`+1` step, same call budget). -/
 theorem branch_pos (hc : cond.Holds x) (h : ExecRandWithin w pos x P T R) :
@@ -437,23 +433,20 @@ theorem loop_iter (hc : cond.Holds x)
     (hl : ∀ y, P y → ExecRandWithin w (.loop cond body) y Q T₂ R₂) :
     ExecRandWithin w (.loop cond body) x Q (T₁ + T₂ + 2) (R₁ + R₂) := by
   obtain ⟨mb, hmb, hqb, hsupb⟩ := hb
-  have hstep : ∀ z₁ ∈ mb.support,
+  have hstep (z₁) (hz₁ : z₁ ∈ mb.support) :
       ExecRand w (.loop cond body) z₁.1 (codeComp w (.loop cond body) z₁.1) ∧
       (codeComp w (.loop cond body) z₁.1).IsQueryBounded R₂ ∧
       ∀ z₂ ∈ (codeComp w (.loop cond body) z₁.1).support, Q z₂.1 ∧ z₂.2 ≤ T₂ := by
-    intro z₁ hz₁
     obtain ⟨ml, hml, hql, hsupl⟩ := hl z₁.1 (hsupb z₁ hz₁).1
-    rw [hml.codeComp_eq]
-    exact ⟨hml, hql, hsupl⟩
+    exact hml.codeComp_eq.symm ▸ ⟨hml, hql, hsupl⟩
   refine ⟨_, ExecRand.loop_iter hc hmb fun z₁ hz₁ => (hstep z₁ hz₁).1, ?_, ?_⟩
   · refine OracleComp.IsCostBounded.bind_on_support hqb fun z₁ hz₁ => ?_
     simpa only [Nat.add_zero] using
       (hstep z₁ hz₁).2.1.bind fun _ => .pure _ 0
   · intro z hz
     supp_cases hz with ⟨z₁, hz₁, z₂, hz₂, rfl⟩
-    have h₁' := hsupb z₁ hz₁
-    have h₂' := (hstep z₁ hz₁).2.2 z₂ hz₂
-    exact ⟨h₂'.1, by omega⟩
+    exact ⟨((hstep z₁ hz₁).2.2 z₂ hz₂).1,
+      Nat.add_le_add_right (Nat.add_le_add (hsupb z₁ hz₁).2 ((hstep z₁ hz₁).2.2 z₂ hz₂).2) 2⟩
 
 /-- **Potential rule for randomized loops.** Suppose every state `x` satisfying `I x` and
 `cond.Holds x` runs `body` within some `T_b` instructions and `R_b` `rand` calls such that every
@@ -471,17 +464,14 @@ theorem loop_potential (I : Data r → Prop) (Φ Ψ : Data r → ℕ)
     subst hm
     by_cases hc : cond.Holds x
     · obtain ⟨T_b, R_b, hb⟩ := hbody x hx hc
-      have hnonempty : ∃ y, I y ∧ T_b + 2 + Φ y ≤ Φ x ∧ R_b + Ψ y ≤ Ψ x := by
-        obtain ⟨mb, -, -, hsupb⟩ := hb
-        obtain ⟨z₀, hz₀⟩ := ProbComp.support_nonempty mb
-        exact ⟨z₀.1, (hsupb z₀ hz₀).1⟩
-      obtain ⟨y₀, -, hΦ₀, hΨ₀⟩ := hnonempty
+      obtain ⟨mb, -, -, hsupb⟩ := id hb
+      obtain ⟨z₀, hz₀⟩ := ProbComp.support_nonempty mb
+      obtain ⟨-, hΦ₀, hΨ₀⟩ := (hsupb z₀ hz₀).1
       have hstep : ExecRandWithin w (.loop cond body) x (fun y => I y ∧ ¬cond.Holds y)
           (T_b + (Φ x - T_b - 2 + 2) + 2) (R_b + (Ψ x - R_b)) := by
         refine loop_iter hc hb ?_
         rintro y ⟨hIy, hΦy, hΨy⟩
-        have hlt : Φ y < Φ x := by omega
-        exact (ih (Φ y) hlt hIy rfl).mono (fun _ h => h) (by omega) (by omega)
+        exact (ih (Φ y) (by omega) hIy rfl).mono (fun _ h => h) (by omega) (by omega)
       exact hstep.mono (fun _ h => h) (by omega) (by omega)
     · exact (loop_exit hc ⟨hx, hc⟩).mono (fun _ h => h) (by omega) (Nat.zero_le _)
 
@@ -556,16 +546,15 @@ private theorem ExecRand.toGeneric {c : Code B r} {x : Data r}
     Cslib.Program.ExecRand (I := instructionSet w B r) (evalGenericOp w) c.toGeneric x m := by
   induction h with
   | @op o x y h =>
-    have he := Cslib.Program.ExecRand.op (I := instructionSet w B r)
+    simpa [Code.toGeneric] using Cslib.Program.ExecRand.op (I := instructionSet w B r)
       (evalRand := evalGenericOp w) (o := .inl o) (x := x) (m := pure y)
       (by simp [evalGenericOp, h])
-    simpa [Code.toGeneric] using he
   | @rand dst src x h =>
-    have he := Cslib.Program.ExecRand.op (I := instructionSet w B r)
-      (evalRand := evalGenericOp w) (o := .inr (dst, src)) (x := x)
-      (m := (fun k => x.set dst k.val) <$> ProbComp.unifFin (x.regs src))
-      (by simp [evalGenericOp, h])
-    simpa only [Code.toGeneric, ← bind_pure_comp, bind_assoc, pure_bind] using he
+    simpa only [Code.toGeneric, ← bind_pure_comp, bind_assoc, pure_bind] using
+      Cslib.Program.ExecRand.op (I := instructionSet w B r)
+        (evalRand := evalGenericOp w) (o := .inr (dst, src)) (x := x)
+        (m := (fun k => x.set dst k.val) <$> ProbComp.unifFin (x.regs src))
+        (by simp [evalGenericOp, h])
   | seq _ _ ih₁ ih₂ => exact .seq ih₁ ih₂
   | branch_pos h _ ih => exact .branch_pos h ih
   | branch_neg h _ ih => exact .branch_neg h ih
@@ -597,13 +586,10 @@ theorem ExecRand.runRand_program {c : Code B r} {x : Data r} {m : ProbComp (Data
   rw [h.runRand_assemble (Program.Contains.self (c.program out)).append_left hT_le,
     ← bind_pure_comp]
   refine OracleComp.bind_congr_on_support fun z hz => ?_
-  have h1 : 1 ≤ T - z.2 := by
-    have := hT z hz
-    omega
-  obtain ⟨k, hk⟩ : ∃ k, T - z.2 = k + 1 := ⟨T - z.2 - 1, by omega⟩
-  have hhalt : (c.program out)[0 + c.size]? = some (.halt out) := by
-    simp [Code.program]
-  rw [hk, runRand_succ, stepRand_halt (s := ⟨0 + c.size, z.1⟩) hhalt, pure_bind, runRand_halted]
+  have hk : T - z.2 = T - z.2 - 1 + 1 := (Nat.sub_add_cancel (Nat.sub_pos_of_lt (hT z hz))).symm
+  rw [hk, runRand_succ,
+    stepRand_halt (i := out) (s := ⟨0 + c.size, z.1⟩) (by simp [Code.program]),
+    pure_bind, runRand_halted]
 
 /-- Structured deterministic corollary: a compiled `Exec w c x y n` halts cleanly under `runRand`
 with output `y.regs out` and final machine data `y` at any fuel `T ≥ n + 1`. -/
@@ -627,16 +613,12 @@ theorem ExecRandWithin.program {c : Code B r} {x : Data r} {P : Data r → Prop}
   obtain ⟨m, hm, hq, hsup⟩ := h
   have hrun := hm.runRand_program out (T := T') fun z hz =>
     (Nat.add_le_add_right (hsup z hz).2 1).trans hT
-  refine ⟨?_, ?_, ?_⟩
-  · intro cfg hcfg
-    rw [hrun] at hcfg
-    obtain ⟨z, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hcfg
+  refine ⟨fun cfg hcfg => ?_, ?_, fun cfg hcfg => ?_⟩
+  · obtain ⟨z, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp (hrun ▸ hcfg)
     exact ⟨z.1.regs out, z.1, rfl⟩
   · rw [RandCallsBounded, hrun]
     exact (OracleComp.isCostBounded_map_iff _ _ _).mpr hq
-  · intro cfg hcfg
-    rw [hrun] at hcfg
-    obtain ⟨z, hz, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hcfg
+  · obtain ⟨z, hz, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp (hrun ▸ hcfg)
     exact ⟨z.1, rfl, (hsup z hz).1⟩
 
 end Compile

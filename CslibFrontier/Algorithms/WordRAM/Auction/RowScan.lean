@@ -247,17 +247,11 @@ theorem findBest_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n →
       rw [hres]
       dsimp only [d, bestNext]
       by_cases hk0 : b.idx = 0
-      · have hk_zero : k = 0 := by omega
-        subst hk_zero
-        have hjk0 : jk = ⟨0, hn_pos⟩ := Fin.ext hk0
-        rw [ite_eq_left hk0]
-        dsimp only
+      · subst hbidx
+        rw [hk0, ite_eq_left rfl]
         refine ⟨rfl, Or.inr ⟨⟨0, hn_pos⟩, Nat.one_pos, ?_, rfl, ?_⟩⟩
-        · rw [show (1 : ℕ) = 0 + 1 from rfl, List.take_succ_finRange hn_pos, List.take_zero,
-            List.nil_append]
-          rfl
-        · rw [← hjk0]
-          simpa only [jk, hk0] using hrc_z
+        · simp [List.take_succ_finRange hn_pos]
+        · simpa only [jk, hk0] using hrc_z
       · rw [ite_eq_right hk0]
         rcases harg with h0 | ⟨j₀, hj₀_lt, htake, hbj, hbv⟩
         · omega
@@ -390,9 +384,7 @@ theorem findSecond_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
           rw [List.take_succ_finRange hk, List.filter_append, List.map_append]
           simp [jk, hjk_eq]
         rw [ite_eq_left heq_j]
-        dsimp only
-        refine ⟨rfl, ?_⟩
-        simpa only [hpref_eq] using hmin
+        exact ⟨rfl, hpref_eq.symm ▸ hmin⟩
       · have hjk_ne : jk ≠ j₀ := fun e => heq_j (congrArg Fin.val e)
         have hpref_eq : prefList (b.idx + 1) = prefList b.idx ++ [redCost cZ st.price i₀ jk] := by
           dsimp only [prefList]
@@ -402,22 +394,13 @@ theorem findSecond_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
         rcases hl_prev : prefList b.idx with _ | ⟨hd_prev, tl_prev⟩
         · rw [hl_prev] at hmin hpref_eq
           dsimp only [List.min?] at hmin
-          rw [ite_eq_left hmin]
-          dsimp only
-          refine ⟨rfl, ?_⟩
-          rw [hpref_eq, List.nil_append, List.min?_singleton]
-          exact ⟨rfl, hrc_z, hrc_le⟩
-        · have hm_some : (hd_prev :: tl_prev).min? = some (tl_prev.foldl min hd_prev) := rfl
-          let wPrev := tl_prev.foldl min hd_prev
-          rw [hl_prev, hm_some] at hmin
+          rw [ite_eq_left hmin, hpref_eq, List.nil_append, List.min?_singleton]
+          exact ⟨rfl, rfl, hrc_z, hrc_le⟩
+        · let wPrev := tl_prev.foldl min hd_prev
+          rw [hl_prev, List.min?_cons'] at hmin
           obtain ⟨hhs1, hsv_z, hsv_le⟩ := hmin
-          have hhs_ne : b.hasSecond ≠ 0 := by omega
-          rw [ite_eq_right hhs_ne]
-          have hmin_app : (prefList (b.idx + 1)).min? =
-              some (min wPrev (redCost cZ st.price i₀ jk)) := by
-            rw [hpref_eq, hl_prev, List.cons_append, List.min?_cons', List.foldl_append,
-              List.foldl_cons, List.foldl_nil]
-          rw [hmin_app]
+          rw [ite_eq_right (by omega : b.hasSecond ≠ 0), hpref_eq, hl_prev, List.cons_append,
+            List.min?_cons', List.foldl_append, List.foldl_cons, List.foldl_nil]
           by_cases hlt : s₀.mem (rowBase + b.idx) + s₀.mem (ws.bPrice + b.idx) < b.secondVal
           · have hlt_z : redCost cZ st.price i₀ jk < wPrev :=
               hrc_z.symm.trans_lt ((Nat.cast_lt.mpr hlt).trans_eq hsv_z)
@@ -430,10 +413,8 @@ theorem findSecond_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
     ⟨0, 0, 0⟩ s₀ ⟨rfl, rfl, by simp [prefList]⟩
   obtain ⟨hsafe, hv, hmc, _, _, hs_eq, _, hfinal⟩ := hit
   have hpref_n : (prefList ws.n).min? = secondBest cZ st.price i₀ j₀ := by
-    dsimp only [prefList, secondBest]
-    rw [List.take_of_length_le (by simp)]
-  rw [hpref_n] at hfinal
-  exact ⟨hsafe, hv, hmc, hs_eq, hfinal⟩
+    simp [prefList, secondBest, List.take_of_length_le List.length_finRange.le]
+  exact ⟨hsafe, hv, hmc, hs_eq, hpref_n ▸ hfinal⟩
 
 end
 

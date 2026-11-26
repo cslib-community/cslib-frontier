@@ -156,10 +156,7 @@ theorem length_of_mem_cramerColZeroRows {mat : List (List ℤ)} {rhs : List ℤ}
   obtain ⟨⟨r, k⟩, hmem, rfl⟩ := hrow
   have hr_mem : r ∈ mat := (List.mem_zipIdx hmem).2.2 ▸ List.getElem_mem _
   have hr_len : r.length = mat.length := hmat r hr_mem
-  have hpos : 0 < mat.length := by
-    rcases mat with _ | ⟨_, _⟩
-    · simp at hr_mem
-    · simp
+  have hpos : 0 < mat.length := List.length_pos_of_mem hr_mem
   simp only [List.length_cons, List.length_tail, hr_len]
   omega
 
@@ -281,16 +278,12 @@ theorem detRows_cramerColZeroRows_hermiteRows (nodes : List ℤ) (J : ℕ) (jets
     detRows (cramerColZeroRows (hermiteRows nodes J) jets.flatten) =
       ((Polynomial.hermiteMatrix (fun i : Fin nodes.length => nodes[i]) J).updateCol
         (⟨0, hQ⟩, ⟨0, hJ⟩) fun r => rowEntry jets r.1 r.2).det := by
-  have hpos : 0 < (hermiteRows nodes J).length := by
-    rw [length_hermiteRows]
-    exact Nat.mul_pos hQ hJ
+  have hpos : 0 < (hermiteRows nodes J).length :=
+    (length_hermiteRows nodes J).symm ▸ Nat.mul_pos hQ hJ
   set e : Fin nodes.length × Fin J ≃ Fin (hermiteRows nodes J).length :=
     finProdFinEquiv.trans (finCongr (length_hermiteRows nodes J).symm)
-  have he0 : e.symm ⟨0, hpos⟩ = (⟨0, hQ⟩, ⟨0, hJ⟩) := by
-    apply e.injective
-    rw [Equiv.apply_symm_apply]
-    ext
-    simp [e]
+  have he0 : e.symm ⟨0, hpos⟩ = (⟨0, hQ⟩, ⟨0, hJ⟩) :=
+    e.symm_apply_eq.mpr (Fin.ext (by simp [e]))
   have hrhs : (fun r : Fin nodes.length × Fin J => jets.flatten.getD (e r) 0) =
       fun r => rowEntry jets r.1 r.2 := by
     funext ⟨i, j⟩
@@ -336,14 +329,10 @@ theorem detRows_cramerColZeroRows_eq_mul_eval_zero {nodes : List ℤ} {J : ℕ} 
     simp only [p, AddMonoidAlgebra.coeff_smul_apply, smul_eq_mul,
       Polynomial.coeff_eq_zero_of_natDegree_lt (hdeg.trans_le hm), mul_zero]
   have hp_c0 : p.coeff (finProdFinEquiv c0) = (Ω : ℚ) * (H_zero : ℚ) := by
-    have hc0_val : (finProdFinEquiv c0 : ℕ) = 0 := by simp [c0]
-    rw [hc0_val, AddMonoidAlgebra.coeff_smul_apply, smul_eq_mul,
-      Polynomial.coeff_zero_eq_eval_zero, hH0]
+    simp [p, c0, Polynomial.coeff_zero_eq_eval_zero, hH0]
   have hjet_eq : Polynomial.taylorJet (fun i => (t i : ℚ)) J p =
-      fun r => (rowEntry jets r.1 r.2 : ℚ) := by
-    funext ⟨i, j⟩
-    simp only [p, map_smul, Polynomial.taylorJet_apply, t]
-    exact (hjets i j).symm
+      fun r => (rowEntry jets r.1 r.2 : ℚ) :=
+    funext fun ⟨i, j⟩ => by simpa [p, Polynomial.taylorJet_apply, t] using (hjets i j).symm
   have hcramer := Polynomial.det_hermiteMatrix_mul_coeff t hp_deg c0
   rw [hp_c0, hjet_eq] at hcramer
   have hmap_update :
@@ -471,11 +460,8 @@ theorem intBits_emod_le_add_one_of_ne_zero (a : ℤ) {b : ℤ} (hb : b ≠ 0) :
 /-- Unconditionally on `b` (including `b = 0`),
 `intBits (a.emod b) ≤ max (intBits a) (intBits b)`. -/
 theorem intBits_emod_le_max (a b : ℤ) : intBits (a.emod b) ≤ max (intBits a) (intBits b) := by
-  by_cases hb : b = 0
-  · subst hb
-    change intBits (a % 0) ≤ _
-    rw [Int.emod_zero]
-    exact le_max_left _ _
+  rcases eq_or_ne b 0 with rfl | hb
+  · exact le_of_eq_of_le (congrArg intBits (Int.emod_zero a)) (le_max_left _ _)
   · exact (intBits_emod_le_of_ne_zero a hb).trans (le_max_right _ _)
 
 /-- Reducing modulo `2 ^ ℓ` produces an integer of sign-magnitude bit length at most `ℓ + 1`. -/
@@ -546,11 +532,9 @@ open Turing MultiTapeTM
 
 private theorem nat_choose_eq_ite (m j : ℕ) :
     m.choose j = if j ≤ m then m.factorial / (j.factorial * (m - j).factorial) else 0 := by
-  by_cases h : j ≤ m
-  · rw [ite_eq_left h]
-    exact Nat.choose_eq_factorial_div_factorial h
-  · rw [ite_eq_right h]
-    exact Nat.choose_eq_zero_of_lt (Nat.lt_of_not_ge h)
+  split_ifs with h
+  · exact Nat.choose_eq_factorial_div_factorial h
+  · exact Nat.choose_eq_zero_of_lt (not_le.mp h)
 
 @[local fun_prop]
 private theorem computableInPolyTime_choose_intBin {α : Type} {encIn : α ↪ List Bool}

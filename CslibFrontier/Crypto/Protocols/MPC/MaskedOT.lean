@@ -247,11 +247,7 @@ private theorem outputOfView_maskedOT_one (mask unmask : G → M → M)
       (∀ r, unmask r (mask r (if σ then (x 0).2 else (x 0).1)) =
         if σ then (x 0).2 else (x 0).1) →
       unmask (if σ then r.2 else r.1) (if σ then mask r.2 (x 0).2 else mask r.1 (x 0).1) =
-        if σ then (x 0).2 else (x 0).1 := by
-    intro σ h
-    cases σ
-    · exact h r.1
-    · exact h r.2
+        if σ then (x 0).2 else (x 0).1 := fun σ h => by cases σ <;> exact h _
   exact key (x 1) hmask
 
 /-- **Execution law of `maskedOT`.** When `unmask r` recovers the receiver's output
@@ -267,14 +263,11 @@ theorem evalWith_maskedOT (mask unmask : G → M → M) (samplePads : ProbComp (
   simp only [evalWith_maskedOTSteps, PMF.bind_bind, PMF.pure_bind, PMF.pure_map]
   refine congrArg (ProbComp.eval samplePads).bind
     (funext fun r => congrArg PMF.pure (Prod.ext ?_ ?_))
-  · funext i
-    fin_cases i
-    · exact maskedOTView_zero mask x r
-    · exact maskedOTView_one mask x r
-  · funext i
-    fin_cases i
-    · rfl
-    · exact outputOfView_maskedOT_one mask unmask samplePads x hmask r
+  · exact funext fun i => Fin.cases (maskedOTView_zero mask x r)
+      (fun j => Fin.fin_one_eq_zero j ▸ maskedOTView_one mask x r) i
+  · exact funext fun i => Fin.cases rfl
+      (fun j => Fin.fin_one_eq_zero j ▸ outputOfView_maskedOT_one mask unmask samplePads x hmask r)
+      i
 
 /-! ### A corrupted sender -/
 

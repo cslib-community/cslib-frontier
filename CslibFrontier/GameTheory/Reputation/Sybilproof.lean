@@ -493,18 +493,13 @@ theorem not_isKRankSybilproof_of_isSymmetric {K : ℕ} (hK : 1 ≤ K) {F : Globa
             rw [TrustGraph.contract_weight_of_ne _ _ hab, hflt a, hflt b]
             rcases eq_or_ne a v with rfl | hav <;> rcases eq_or_ne b v with rfl | hbv
             · exact absurd rfl hab
-            · simp [hbv, TrustGraph.disjointUnion]
-            · simp [hav, TrustGraph.disjointUnion]
-            · simp [hav, hbv, TrustGraph.disjointUnion] }
-    have hcard : S₀.sybils.card ≤ 2 := by
-      have hsub : S₀.sybils ⊆ {Sum.inl v, Sum.inr 0} := fun x hx => by
+            all_goals simp [*, TrustGraph.disjointUnion] }
+    have hcard : S₀.sybils.card ≤ 2 :=
+      (card_le_card (t := {Sum.inl v, Sum.inr 0}) fun x hx => by
         rw [SybilStrategy.mem_sybils] at hx
         rcases x with a | z
-        · simp only [S₀, Sum.elim_inl, id_eq] at hx
-          simp [hx]
-        · fin_cases z
-          simp
-      exact (card_le_card hsub).trans (card_insert_le _ _)
+        · simpa [S₀] using hx
+        · simp [Subsingleton.elim z 0]).trans (card_insert_le _ _)
     exact hSP1 G v S₀ hcard (Sum.inr 0) (by simp [S₀, SybilStrategy.sybils]) lastIdx hvw.symm hv_lt
   -- Inductive step: `Sum.inr ⟨k - 1, _⟩` stays strictly below `Sum.inl lastIdx` (`1 ≤ k ≤ n`).
   have hind : ∀ (k : ℕ) (hk1 : 1 ≤ k), k ≤ n →
@@ -537,10 +532,7 @@ theorem not_isKRankSybilproof_of_isSymmetric {K : ℕ} (hK : 1 ≤ K) {F : Globa
             collapse_honestEmbed := fun ⟨w, hw⟩ => by
               rcases w with i | j
               · rfl
-              · have hne : j.1 ≠ m - 1 := fun hv =>
-                  hw <| congrArg Sum.inr <| Fin.ext <| by
-                    dsimp
-                    exact hv
+              · have hne : j.1 ≠ m - 1 := fun hv => hw (congrArg Sum.inr (Fin.ext hv))
                 simp [πStep, stepFin, Nat.min_eq_left (by omega : j.1 ≤ m - 1)]
             honestEmbed_collapse := fun x hx => by
               rcases x with i | j
@@ -563,37 +555,29 @@ theorem not_isKRankSybilproof_of_isSymmetric {K : ℕ} (hK : 1 ≤ K) {F : Globa
                   dsimp only [TrustGraph.disjointUnion]
                   rw [← hcomp, TrustGraph.contract_weight_of_ne (stepFin hm_ge1) _ hab']
                   simp [sum_filter, Fintype.sum_sum_type, πStep] }
-        have hcard : Sk.sybils.card ≤ 2 := by
-          let u₁ : Fin n ⊕ Fin (m + 1) := Sum.inr ⟨m - 1, by omega⟩
-          let u₂ : Fin n ⊕ Fin (m + 1) := Sum.inr ⟨m, by omega⟩
-          have hsub : Sk.sybils ⊆ {u₁, u₂} := fun x hx => by
-            rw [SybilStrategy.mem_sybils] at hx
-            rcases x with i | j
-            · simp [Sk, πStep, target] at hx
-            · simp only [Sk, πStep, Sum.map_inr, stepFin, target, Sum.inr.injEq,
-                Fin.ext_iff] at hx
-              rcases (by omega : j.1 = m - 1 ∨ j.1 = m) with hj | hj
-              · simp [u₁, show j = ⟨m - 1, by omega⟩ from Fin.ext hj]
-              · simp [u₂, show j = ⟨m, by omega⟩ from Fin.ext hj]
-          exact (card_le_card hsub).trans (card_insert_le _ _)
+        have hcard : Sk.sybils.card ≤ 2 :=
+          (card_le_card (t := {Sum.inr ⟨m - 1, by omega⟩, Sum.inr ⟨m, by omega⟩})
+            fun x hx => by
+              rw [SybilStrategy.mem_sybils] at hx
+              rcases x with i | j
+              · simp [Sk, πStep, target] at hx
+              · simp only [Sk, πStep, Sum.map_inr, stepFin, target,
+                  Sum.inr.injEq, Fin.ext_iff] at hx
+                simp only [mem_insert, mem_singleton, Sum.inr.injEq, Fin.ext_iff]
+                omega).trans (card_insert_le _ _)
         simpa [Sk, SybilStrategy.honest] using hSP1 (G.disjointUnion (H m hm_ge1)) target Sk hcard
           (Sum.inr ⟨m, by omega⟩) (by simp [Sk, SybilStrategy.sybils, πStep, target, stepFin])
           (Sum.inl lastIdx) (by simp [target]) hprev
   have hfinal := hind n (by omega) le_rfl
   have hHn : H n (by omega) = G := by
-    have hclamp_id : clampFin (n := n) (k := n) (by omega) = id := by
-      ext i
-      simp [clampFin]
-      omega
+    have hclamp_id : clampFin (n := n) (k := n) (by omega) = id :=
+      funext fun i => Fin.ext (Nat.min_eq_left (by omega))
     simp [H, hclamp_id]
   rw [hHn] at hfinal
-  let swapSum := Equiv.sumComm (Fin n) (Fin n)
-  have hrelabel : (G.disjointUnion G).relabel swapSum = G.disjointUnion G := by
-    ext x y
-    cases x <;> cases y <;> rfl
-  have hsym := hSym (G.disjointUnion G) swapSum (Sum.inl lastIdx)
-  rw [hrelabel] at hsym
-  exact hfinal.ne (by simpa [swapSum] using hsym)
+  have hrelabel : (G.disjointUnion G).relabel (Equiv.sumComm _ _) = G.disjointUnion G := by
+    ext (_ | _) (_ | _) <;> rfl
+  exact hfinal.ne
+    (by simpa [hrelabel] using hSym (G.disjointUnion G) (Equiv.sumComm _ _) (Sum.inl lastIdx))
 
 /-- **Theorem 27.5** ([FriedmanResnickSami2007, p. 691];
 [ChengFriedman2005, Theorem 1, p. 130]): there is no nontrivial symmetric rank-sybilproof
@@ -633,9 +617,7 @@ theorem not_isRankStrategyproof_of_isSymmetric {F : GlobalRepFn} (hSym : F.IsSym
       have hrel : (G_pref 0).relabel (Equiv.swap x y) = G_pref 0 := by
         ext
         simp [G_pref]
-      have h := hSym (G_pref 0) (Equiv.swap x y) x
-      rw [hrel, Equiv.swap_apply_left] at h
-      exact h.symm
+      simpa [hrel] using (hSym (G_pref 0) (Equiv.swap x y) x).symm
     | succ k ih =>
       intro hkn x y
       have ihk := ih (Nat.le_of_succ_le hkn)
@@ -652,9 +634,7 @@ theorem not_isRankStrategyproof_of_isSymmetric {F : GlobalRepFn} (hSym : F.IsSym
   have hGn : G_pref n = G := by
     ext u v
     simp [G_pref, u.2]
-  have heq := hconst n le_rfl (e v₀) (e w₀)
-  rw [hGn] at heq
-  exact hlt.ne heq
+  exact hlt.ne (hGn ▸ hconst n le_rfl (e v₀) (e w₀))
 
 end GlobalRepFn
 
@@ -820,23 +800,19 @@ private theorem maxFlowRep_maxFlowCounterexampleGraph :
     · simp [cutWeight, Fin.sum_univ_three, maxFlowCounterexampleGraph]
     · simpa [maxFlowCounterexampleGraph] using
         weight_le_cutWeight maxFlowCounterexampleGraph hs ht
-  · refine maxFlowRep_eq_of_cut _ (by decide) (X₀ := {0, 1}) (by decide) (by decide) ?_
+  · have hc01 : cutWeight maxFlowCounterexampleGraph.weight {0, 1} = 6 / 5 := by
+      simp [cutWeight, Fin.sum_univ_three, maxFlowCounterexampleGraph]
+      norm_num
+    refine maxFlowRep_eq_of_cut _ (by decide) (X₀ := {0, 1}) (by decide) (by decide) hc01
       fun X hs ht => ?_
+    have hX : X = if (1 : Fin 3) ∈ X then {0, 1} else {0} := by
+      ext z
+      fin_cases z <;> by_cases h1 : (1 : Fin 3) ∈ X <;> simp [hs, h1, ht]
+    rw [hX]
+    split_ifs
+    · exact hc01.ge
     · simp [cutWeight, Fin.sum_univ_three, maxFlowCounterexampleGraph]
       norm_num
-    · by_cases h1 : (1 : Fin 3) ∈ X
-      · have hX : X = {0, 1} := by
-          ext z
-          fin_cases z <;> simp [hs, h1, ht]
-        rw [hX]
-        simp [cutWeight, Fin.sum_univ_three, maxFlowCounterexampleGraph]
-        norm_num
-      · have hX : X = {0} := by
-          ext z
-          fin_cases z <;> simp [hs, h1, ht]
-        rw [hX]
-        simp [cutWeight, Fin.sum_univ_three, maxFlowCounterexampleGraph]
-        norm_num
 
 private theorem maxFlowRep_maxFlowCounterexampleSybilGraph :
     maxFlowRep maxFlowCounterexampleSybilGraph 0 1 = 1 ∧
@@ -1049,10 +1025,7 @@ private theorem liftWalk_sybil {V : Type} [Fintype V] [DecidableEq V] {G : Trust
       p.head? = some x → p.getLast? = some w → v ∉ p →
         pathrankDist S.graph (S.honest x hx) (S.honest w hw) ≤ walkInvTrustLen G p
   | [], _, _, _, _, hh, _, _ => by simp at hh
-  | [z], x, w, hx, hw, hh, hl, _ => by
-      cases Option.some.inj hh
-      cases Option.some.inj hl
-      simp
+  | [z], x, w, hx, hw, hh, hl, _ => by simp [← Option.some.inj hh, ← Option.some.inj hl]
   | z :: y :: rest', x, w, hx, hw, hh, hl, hnot => by
       cases Option.some.inj hh
       have hyv : y ≠ v := fun h => hnot (List.mem_cons_of_mem z (h ▸ List.mem_cons_self))
@@ -1097,10 +1070,7 @@ private theorem pathrankDist_le_of_out_congr {V : Type*} {G G' : TrustGraph V}
     ∀ (p : List V) (x : V), p.head? = some x → p.getLast? = some v →
       pathrankDist G x v ≤ walkInvTrustLen G' p
   | [], _, hh, _ => by simp at hh
-  | [z], x, hh, hl => by
-      cases Option.some.inj hh
-      cases Option.some.inj hl
-      simp
+  | [z], x, hh, hl => by simp [← Option.some.inj hh, ← Option.some.inj hl]
   | z :: y :: rest', x, hh, hl => by
       cases Option.some.inj hh
       by_cases hzv : z = v

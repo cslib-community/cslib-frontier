@@ -201,10 +201,8 @@ theorem SignatureScheme.eufCmaGame_eq_worldGame_toROM (S : SignatureScheme) (adv
         (fun verified (⟨m, _⟩ : List Bool × List Bool) pairs =>
           verified && !(pairs.map Prod.fst).contains m) := by
   rw [S.eufCmaGame_eq_eufCmaExperiment, ← Signature.Scheme.worldGame_toROM_eufCma]
-  congr 1
-  funext _ _ _
-  simp only [List.contains_eq_mem]
-  congr
+  exact congrArg _ (funext fun _ => funext fun ⟨_, _⟩ => funext fun _ =>
+    congrArg (_ && !·) (by simp [List.contains_eq_mem, decide_eq_decide]))
 
 /-- At each parameter `n`, honest signatures of `n`-bit messages verify in
 `(S.toScheme n).toROM`. -/
@@ -223,10 +221,8 @@ theorem WordSignatureScheme.eufCmaGame_eq_worldGame_toROM (S : WordSignatureSche
         (fun verified (⟨m, _⟩ : List Bool × List Bool) pairs =>
           verified && !(pairs.map Prod.fst).contains m) := by
   rw [S.eufCmaGame_eq_eufCmaExperiment, ← Signature.Scheme.worldGame_toROM_eufCma]
-  congr 1
-  funext _ _ _
-  simp only [List.contains_eq_mem]
-  congr
+  exact congrArg _ (funext fun _ => funext fun ⟨_, _⟩ => funext fun _ =>
+    congrArg (_ && !·) (by simp [List.contains_eq_mem, decide_eq_decide]))
 
 /-- At each parameter `n`, `(S.toScheme n).toROM` is correct on every message. -/
 theorem WordSignatureScheme.correct_toROM (S : WordSignatureScheme) (n : ℕ) :

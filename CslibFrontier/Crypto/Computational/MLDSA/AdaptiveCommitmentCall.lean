@@ -116,12 +116,8 @@ private theorem retries_readout (C : QuantumSigningForger) (s : Level) (H : Xofs
       | none => exact ih _
     choose M law using branch
     refine ⟨POVM.mixture V (fun v => POVM.mixture μ (M v)), fun d => ?_⟩
-    simp only [runRegisterRetries, PMF.monad_bind_eq_bind,
-      observe, POVM.measureDensity_mixture]
-    apply congrArg (PMF.bind V ·)
-    funext v
-    apply congrArg (PMF.bind μ ·)
-    funext y
+    simp only [runRegisterRetries, PMF.monad_bind_eq_bind, observe, POVM.measureDensity_mixture]
+    refine congrArg (PMF.bind V ·) (funext fun v => congrArg (PMF.bind μ ·) (funext fun y => ?_))
     cases h : installedAttempt s H A sk m D y v <;>
       simpa only [h, μ, V, observe] using law v y d
 
@@ -234,10 +230,7 @@ private theorem write_stage (C : QuantumSigningForger) (s : Level) (H A keys sk)
       simp only [Preparation.isReady, Bool.and_self, ↓reduceIte, Preparation.point,
         nextPreparation, resumeRetries, runRegisterRetries, PMF.monad_bind_eq_bind,
         installedAttempt]
-      apply congrArg (PMF.bind V ·)
-      funext v
-      apply congrArg (PMF.bind μ ·)
-      funext y
+      refine congrArg (PMF.bind V ·) (funext fun v => congrArg (PMF.bind μ ·) (funext fun y => ?_))
       cases terminalReply ((H.withDigestRegister s
         (Function.update D (maskCommitmentAddress s A m y) v)).attemptWithMask
           s sk A (List.ofFn m) y) <;> rfl
@@ -265,10 +258,8 @@ private theorem window_step (C : QuantumSigningForger) (s : Level) (H : Xofs)
   have w : (μ.bind fun y => U.bind fun D => V.bind (go D true y)) =
       U.bind (C.callWindow s H A keys sk next i rows ys (fuel + 1)) := by
     rw [PMF.bind_comm μ U]
-    apply congrArg (PMF.bind U ·)
-    funext D
-    rw [PMF.bind_comm μ V]
-    exact C.write_stage s H A keys sk next i rows ys fuel D
+    exact congrArg (PMF.bind U ·) (funext fun D =>
+      (PMF.bind_comm μ V _).trans (C.write_stage s H A keys sk next i rows ys fuel D))
   have r D y : V.bind (go D false y) =
       C.callWindow s H A keys sk next i rows (ys ++ [y]) fuel D := by
     simp only [go, prog, probe, test, read_stage, PMF.bind_const]
@@ -324,7 +315,8 @@ private theorem maskList_eq_row (s : Level) :
       (law : (PMF.uniformOfFintype (Row s)).map schedule =
         PMF.iid (signingMaskLaw s.params (by cases s <;> decide)) n) :
       maskList s n = (PMF.uniformOfFintype (Row s)).map (fun r => List.ofFn (schedule r)) := by
-    rw [maskList, ← law, PMF.map_comp]; rfl
+    rw [maskList, ← law, PMF.map_comp]
+    rfl
   exact lists 814 (rowMasks s) (iid_maskFromRow s)
 
 private theorem all_reads_sign (C : QuantumSigningForger) (s : Level) (H : Xofs)
@@ -349,12 +341,10 @@ private theorem all_reads_sign (C : QuantumSigningForger) (s : Level) (H : Xofs)
   have read (ys : List (Mask s)) (r : Row s) :
       C.resumeRetries s H A next sk D 0 (.signing q k) (scanned s G A sk ys (.signing q k))
         l (r :: rest) d = conclude (draw ys) := by
-    by_cases large : 255 < q.context.length
-    · simp only [scanned, preparedPrefix, draw, large, ↓reduceIte, resumeRetries,
-        conclude, List.tail_cons]
-    · simp only [scanned, preparedPrefix, draw, large, ↓reduceIte, resumeRetries,
-        conclude, List.tail_cons]
-      cases ys.findSome? (fun y => terminalReply (G.attemptWithMask s sk A m y)) <;> rfl
+    by_cases large : 255 < q.context.length <;>
+      simp only [scanned, preparedPrefix, draw, large, ↓reduceIte, resumeRetries, conclude,
+        List.tail_cons]
+    cases ys.findSome? (fun y => terminalReply (G.attemptWithMask s sk A m y)) <;> rfl
   have native (r : Row s) : G.signWithExpansionRow s keys.secretKey q r =
       draw (List.ofFn (rowMasks s r)) := by
     by_cases large : 255 < q.context.length
@@ -380,12 +370,11 @@ private theorem read_window_eq (C : QuantumSigningForger) (s : Level) (H : Xofs)
     U.bind fun rows => C.expansionContinuation s G A keys (C.program keys.publicKey)
       C.initialDevice [] (List.ofFn rows) := by
   intro U G
-  let left (t : List (Row s)) := (maskList s 814).bind fun ys =>
-    C.callWindow s H A keys sk (C.nativeAfter s H A keys) i t ys 0 D
-  let right (t : List (Row s)) := C.expansionContinuation s G A keys (C.program keys.publicKey)
-    C.initialDevice [] t
-  apply uniform_tape_eq s i left right
-  intro pre rows len
+  refine uniform_tape_eq s i
+    (fun t => (maskList s 814).bind fun ys =>
+      C.callWindow s H A keys sk (C.nativeAfter s H A keys) i t ys 0 D)
+    (C.expansionContinuation s G A keys (C.program keys.publicKey) C.initialDevice [])
+    fun pre rows len => ?_
   let go (ys : List (Mask s)) (x : Boundary C) (d : C.Device) (l : List Forgery)
       (t : List (Row s)) := C.resumeRetries s H A (C.nativeAfter s H A keys) sk D 0 x
         (scanned s G A sk ys x) l t d
@@ -393,10 +382,8 @@ private theorem read_window_eq (C : QuantumSigningForger) (s : Level) (H : Xofs)
       C.prefixRun s G keys (C.program keys.publicKey) i C.initialDevice [] (pre ++ r :: rows)
         (go ys)) = _
   rw [← len]
-  apply C.prefixRun_eq s G keys A (maskList s 814) go
-  · intros; rfl
-  · intro q k d l rest
-    exact C.all_reads_sign s H keys sk A key mat (C.nativeAfter s H A keys) D q k d l rest
+  exact C.prefixRun_eq s G keys A (maskList s 814) go (fun _ _ _ _ _ => rfl)
+    (C.all_reads_sign s H keys sk A key mat (C.nativeAfter s H A keys) D) _ _ _ _ _
 
 private noncomputable def chosenCall (C : QuantumSigningForger) (s : Level) (H : Xofs)
     (A : PublicMatrix s) (keys : KeyPair) (i : ℕ) (D : Register s) (keep : Bool)
@@ -441,14 +428,12 @@ private theorem cut_cost_after {C : QuantumSigningForger} {cost : Request C → 
         true_and] at reached
       obtain ⟨b, hb⟩ := reached
       exact ih b (sub b) left hb
-    rcases cmd with coin | op | ask
+    rcases cmd with _ | _ | ask
     · exact earlier i rfl
     · exact earlier i rfl
     · cases i with
       | zero =>
-        have eq : Boundary.signing q next = Boundary.signing ask k :=
-          Set.mem_singleton_iff.mp reached
-        cases eq
+        cases Set.mem_singleton_iff.mp reached
         exact sub r
       | succ i => exact earlier i rfl
 
@@ -463,15 +448,12 @@ private theorem cut_bind_gap (C : QuantumSigningForger) (s : Level) (G : Xofs) (
     let past := C.cutInteraction s G keys i rows
     |prob (past.bind left) - prob (past.bind right)| ≤ e := by
   intro past
-  let ε : NNReal := ⟨e, he⟩
-  change |(Game.succProbability (past.bind left) : ℝ) - Game.succProbability (past.bind right)| ≤
-    (ε : ℝ)
-  rw [← Game.coe_advantage]
-  apply NNReal.coe_le_coe.mpr (Game.advantage_bind_le_of_support past _ _ ?_)
-  rintro ⟨x, ⟨d, l⟩, t⟩ hx
-  apply NNReal.coe_le_coe.mp
-  rw [Game.coe_advantage]
-  apply bound
+  rw [prob, prob, ← Game.coe_succProbability, ← Game.coe_succProbability, ← Game.coe_advantage,
+    ← NNReal.coe_mk e he, NNReal.coe_le_coe]
+  refine Game.advantage_bind_le_of_support past _ _ fun ⟨x, ⟨d, l⟩, t⟩ hx => ?_
+  rw [← NNReal.coe_le_coe, Game.coe_advantage, Game.coe_succProbability, Game.coe_succProbability,
+    NNReal.coe_mk]
+  refine bound x d l t ?_
   rw [show past = _ from (OracleComp.runWith_eq_run_interpret _ _ _).symm] at hx
   exact OracleComp.mem_supportWith_of_mem_support_runWith _ (fun _ _ _ _ _ => Set.mem_univ _) hx
 
@@ -573,7 +555,6 @@ theorem abs_refreshedCallGame_sub_freshExpansionGame_le (C : QuantumSigningForge
           814 * (2 * (4 * qH * √δ + (815 * i.val + 814) * δ))) := by
   intro matrices win orig
   let U := PMF.uniformOfFintype (Fin n → Row s)
-  let law := PMF.uniformOfFintype (FixedBytes 32)
   let cost (A : Option (PublicMatrix s)) := A.elim 0 fun M =>
     let δ := (commitmentGuessProbability s.params (by cases s <;> decide) M).toReal
     814 * (4 * qH * √δ + (815 * n + 2) * δ) +
@@ -604,7 +585,6 @@ theorem abs_refreshedCallGame_sub_freshExpansionGame_le (C : QuantumSigningForge
     simp only [test, kg, pub, Bool.false_eq_true, ↓reduceIte, generatedMatrix, Option.bind_eq_bind,
       Option.bind_some, cost, Option.elim_some]
     have read := C.read_at_generated s H seed keys kg i 0
-    dsimp only at read
     simp only [Xofs.expandA_congr (K := H.withDigestRegister s _) (H := H) rfl s, pub] at read
     rw [show (U.bind fun rs => C.commitmentTrialGame s H keys i 0 (List.ofFn rs) false) = _
       from read]

@@ -143,8 +143,7 @@ private theorem length_scanSteps [DecidableEq P] {α : Type*} (E : Execution P) 
   | succ k ih =>
     have hlt : k < E.steps.length := Nat.lt_of_succ_le hk
     rw [E.scanSteps_succ_of_lt init next hlt]
-    simp only [scanStepAux, List.length_append, List.length_singleton]
-    rw [ih hlt.le]
+    simp [scanStepAux, ih hlt.le]
 
 private theorem scanSteps_fst_lt [DecidableEq P] {α : Type*} (E : Execution P) (init : P → α)
     (next : P → α → Option α → α) {i k : ℕ} (hik : i < k) (hk : k ≤ E.steps.length) :
@@ -154,10 +153,9 @@ private theorem scanSteps_fst_lt [DecidableEq P] {α : Type*} (E : Execution P) 
   | succ k ih =>
     have hlt : k < E.steps.length := Nat.lt_of_succ_le hk
     rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hik) with hik' | rfl
-    · rw [E.scanSteps_succ_of_lt init next hlt]
-      simp only [scanStepAux]
-      rw [List.getElem?_append_left (by rw [E.length_scanSteps init next hlt.le]; exact hik')]
-      exact ih hik' hlt.le
+    · rw [E.scanSteps_succ_of_lt init next hlt, scanStepAux,
+        List.getElem?_append_left (by simp [E.length_scanSteps init next hlt.le, hik']),
+        ih hik' hlt.le]
     · rfl
 
 /-- Evaluate a `scanSteps` clock at event `e` (running the prefix up to `e.idx + 1`). -/
@@ -174,9 +172,8 @@ private theorem scanSteps_fst_succ_self [DecidableEq P] {α : Type*} (E : Execut
           | _ => none)) := by
   have hlen : (E.scanSteps init next e.idx.val).1.length = e.idx.val :=
     E.length_scanSteps init next e.idx.isLt.le
-  rw [E.scanSteps_succ_of_lt init next e.idx.isLt]
-  simp only [scanStepAux]
-  rw [List.getElem?_append_right hlen.le, hlen, Nat.sub_self, List.getElem?_cons_zero]
+  rw [E.scanSteps_succ_of_lt init next e.idx.isLt, scanStepAux,
+    List.getElem?_append_right hlen.le, hlen, Nat.sub_self, List.getElem?_cons_zero]
   rfl
 
 private theorem evalScan_step_eq [DecidableEq P] {α : Type*} (E : Execution P)
@@ -213,10 +210,7 @@ private theorem scanSteps_snd_succ_self [DecidableEq P] {α : Type*} (E : Execut
     (E.scanSteps init next (e.idx.val + 1)).2 e.actor =
       E.evalScan defaultVal init next e := by
   rw [E.evalScan_step_eq defaultVal init next e, E.scanSteps_succ_of_lt init next e.idx.isLt]
-  simp only [scanStepAux]
-  change Function.update (E.scanSteps init next e.idx.val).2 e.actor _ e.actor = _
-  rw [Function.update_self]
-  rfl
+  simp only [scanStepAux, Event.actor, Event.step, Fin.getElem_fin, Function.update_self]; rfl
 
 private theorem scanSteps_snd_mono [DecidableEq P] {α : Type*} [Preorder α] (E : Execution P)
     (init : P → α) (next : P → α → Option α → α)
@@ -230,12 +224,9 @@ private theorem scanSteps_snd_mono [DecidableEq P] {α : Type*} [Preorder α] (E
     · have hk_lt : k < E.steps.length := Nat.lt_of_succ_le hk₂
       refine (ih (Nat.le_of_lt_succ hlt) hk_lt.le).trans ?_
       rw [E.scanSteps_succ_of_lt init next hk_lt]
-      simp only [scanStepAux]
-      by_cases hq : q = (E.steps[k]).actor
-      · subst hq
-        rw [Function.update_self]
-        exact hstep _ _ _
-      · rw [Function.update_of_ne hq]
+      rcases eq_or_ne q (E.steps[k]).actor with rfl | hq
+      · simp [scanStepAux, hstep]
+      · simp [scanStepAux, Function.update_of_ne hq]
     · exact le_rfl
 
 private theorem evalScan_le_snd_of_lt [DecidableEq P] {α : Type*} [Preorder α] (E : Execution P)
@@ -408,16 +399,10 @@ RA1–RA4, which additionally increment the sender's entry upon receive). -/
   E.evalScan 0 (fun _ => 0) vcNext e
 
 private theorem le_vcNext [DecidableEq P] (p : P) (cur : VectorClock P)
-    (msg? : Option (VectorClock P)) : cur ≤ vcNext p cur msg? := by
-  intro q
-  simp only [vcNext]
-  by_cases hq : q = p
-  · subst hq
-    rw [Function.update_self]
-    simp only [Pi.sup_apply]
-    omega
-  · rw [Function.update_of_ne hq]
-    exact le_sup_left
+    (msg? : Option (VectorClock P)) : cur ≤ vcNext p cur msg? := fun q => by
+  rcases eq_or_ne q p with rfl | hq
+  · simp only [vcNext, Function.update_self, Pi.sup_apply]; omega
+  · simp [vcNext, Function.update_of_ne hq]
 
 /-- At every event `e`, its executing process's own vector-clock entry is strictly positive. -/
 theorem vc_actor_pos [DecidableEq P] (E : Execution P) (e : E.Event) :

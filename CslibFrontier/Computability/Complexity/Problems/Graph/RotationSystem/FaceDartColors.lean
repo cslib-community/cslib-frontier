@@ -38,12 +38,10 @@ variable {G : Graph} (r : RotationSystem G)
 /-- Positive vertex rotation moves to the clockwise color at the reverse dart. -/
 theorem faceDartColor_rotate (q : r.Face → Bool) (d : Dart G) :
     r.faceDartColor q (r.rotate d) = r.faceDartColor q d.reverse := by
-  have h := congrArg q (r.face_eq_next (r.rotate d).reverse)
-  have hnext : r.faceNext (r.rotate d).reverse = d := by
-    change r.rotate.symm (r.rotate d).reverse.reverse = d
-    rw [Dart.reverse_reverse, r.rotate.symm_apply_apply]
-  rw [hnext] at h
-  simpa only [faceDartColor, Dart.reverse_reverse] using h.symm
+  have hnext : r.faceNext (r.rotate d).reverse = d :=
+    (congrArg r.rotate.symm (Dart.reverse_reverse _)).trans (r.rotate.symm_apply_apply d)
+  simpa only [faceDartColor, hnext, Dart.reverse_reverse] using
+    (congrArg q (r.face_eq_next (r.rotate d).reverse)).symm
 
 /-- The colors at the two indexed ends recover the original face-boundary edge bit. -/
 theorem faceDartColor_xor_reverse (q : r.Face → Bool) (d : Dart G) :
@@ -182,8 +180,7 @@ theorem inverse_rotate_iff_not_inverse_rotate_of_three_paths {u v : ℕ}
         have hk : k ≠ 0 := by
           rintro rfl
           exact hf (Finset.mem_map.mpr ⟨j, Finset.mem_univ _, rfl⟩)
-        change true * crosses (path k j).1 (path 0 i).1 = 0
-        rw [hcross k 0 hk j i, mul_zero]
+        rw [show firstEdge i = (path 0 i).1 from rfl, hcross k 0 hk j i, mul_zero]
     rw [show contribution (firstEdge i) = ∑ f, label f * crosses f (firstEdge i) from rfl,
       ← Finset.sum_subset (Finset.subset_univ firstEdges) (fun f _ => outside f)]
     simp [firstEdges, Finset.sum_map, firstLabel, ← Bool.one_eq_true]
@@ -195,9 +192,8 @@ theorem inverse_rotate_iff_not_inverse_rotate_of_three_paths {u v : ℕ}
       (fun _ => Finset.mem_univ _) Prod.swap_swap
     · change crosses (firstEdge a.2) (firstEdge a.1) + crosses (firstEdge a.1) (firstEdge a.2) = 0
       rw [hsymm (firstEdge a.2) (firstEdge a.1), BooleanRing.add_self]
-    · rintro ⟨i, j⟩ hne he
-      have hij : j = i := congrArg Prod.fst he
-      exact hne (hij ▸ hdiag (firstEdge i))
+    · exact fun ⟨i, j⟩ hne he => hne
+        ((congrArg (crosses (firstEdge j) ∘ firstEdge) (Prod.mk.inj he).1).symm.trans (hdiag _))
   have lastRow (i : Fin (length 2 + 1)) : contribution (path 2 i).1 = 0 :=
     Finset.sum_eq_zero fun f _ => by
       cases hbit : label f
@@ -225,11 +221,9 @@ theorem inverse_rotate_iff_not_inverse_rotate_of_three_paths {u v : ℕ}
       ((ports 0).property.trans (ports 2).property.symm)
       (distinct (by decide)) (distinct (by decide)) (distinct (by decide)) (fun d hd => ?_) h0 h2
     obtain ⟨k, hk⟩ := ports.surjective ⟨d, hd.trans (ports 0).property⟩
-    have he := congrArg Subtype.val hk.symm
-    fin_cases k
-    · exact Or.inl he
-    · exact Or.inr (Or.inl he)
-    · exact Or.inr (Or.inr he)
+    have he (i) (h : k = i) : d = (ports i).val :=
+      congrArg Subtype.val (hk.symm.trans (congrArg ports h))
+    exact ((by decide : ∀ k : Fin 3, k = 0 ∨ k = 1 ∨ k = 2) k).imp (he 0) (Or.imp (he 1) (he 2))
   have opposite : ∀ p q s t : Bool, p + q = true → s + t = false →
       (p + s = true ↔ q + t ≠ true) := by decide
   refine (order start (hstart 0 ▸ firstLabel _) (hstart 2 ▸ hlast _)).symm.trans

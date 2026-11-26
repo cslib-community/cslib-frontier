@@ -70,8 +70,7 @@ theorem IsRuns.of_fib {P : Series F (Z × Γ)} {X : Type*} {em : X → Z → Lis
     {wt : X → F} (h : IsRuns P em wt) {v : Z → List Γ} (R : Finset X)
     (hR : ∀ x, x ∈ R ↔ em x = v) : hat P v = ∑ x ∈ R, wt x := by
   obtain ⟨R', h1, h2⟩ := h v
-  have heq : R' = R := by ext x; rw [h1, hR]
-  rw [h2, heq]
+  rwa [Finset.ext fun x => (h1 x).trans (hR x).symm] at h2
 
 theorem IsRuns.mul {f g : Series F (Z × Γ)} {X Y : Type*}
     {em : X → Z → List Γ} {wt : X → F} {em' : Y → Z → List Γ} {wt' : Y → F}
@@ -90,8 +89,7 @@ theorem IsRuns.mul {f g : Series F (Z × Γ)} {X Y : Type*}
   · rw [hat_mul, Finset.sum_biUnion]
     · exact Finset.sum_congr rfl fun p _ => by rw [hf2, hg2, Finset.sum_mul_sum, Finset.sum_product]
     · intro p _ q _ hpq
-      rw [Function.onFun, Finset.disjoint_left]
-      rintro ⟨x, y⟩ h h'
+      refine Finset.disjoint_left.mpr fun ⟨x, y⟩ h h' => ?_
       rw [Finset.mem_product, hf1, hg1] at h h'
       exact hpq (Prod.ext (h.1.symm.trans h'.1) (h.2.symm.trans h'.2))
 
@@ -147,45 +145,36 @@ theorem IsRuns.kstar {f : Series F (Z × Γ)} {X : Type*} {em : X → Z → List
       have hpos : 0 < ∑ z, (p.1 z).length := Nat.pos_iff_ne_zero.2 fun h0 => hp.2 <| funext fun z =>
         List.length_eq_zero_iff.1 (Finset.sum_eq_zero_iff.1 h0 z (Finset.mem_univ z))
       omega
-    have ih' : ∀ p, ∃ R : Finset (List X),
-        p ∈ (anti v).filter (fun p => p.1 ≠ fun _ => []) →
-          (∀ l, l ∈ R ↔ (fun z => l.flatMap fun x => em x z) = p.2) ∧
-          hat (Series.kstar f) p.2 = ∑ l ∈ R, (l.map wt).prod := by
-      intro p
-      by_cases hp : p ∈ (anti v).filter (fun p => p.1 ≠ fun _ => [])
-      · obtain ⟨R, h1, h2⟩ := ih _ (hlt p hp) p.2 rfl
-        exact ⟨R, fun _ => ⟨h1, h2⟩⟩
-      · exact ⟨∅, fun h => absurd h hp⟩
+    let A := (anti v).filter fun p => p.1 ≠ fun _ => []
+    have ih' (p : (Z → List Γ) × (Z → List Γ)) : ∃ R : Finset (List X), p ∈ A →
+        (∀ l, l ∈ R ↔ (fun z => l.flatMap fun x => em x z) = p.2) ∧
+          hat (Series.kstar f) p.2 = ∑ l ∈ R, (l.map wt).prod :=
+      if hp : p ∈ A then (ih _ (hlt p hp) p.2 rfl).imp fun _ h _ => h
+      else ⟨∅, fun h => absurd h hp⟩
     choose Rs hRs using ih'
-    let A := (anti v).filter (fun p => p.1 ≠ fun _ => [])
     let B : Finset (X × List X) := A.biUnion fun p => Rf p.1 ×ˢ Rs p
     have hB : ∀ x l, (x, l) ∈ B ↔ (fun z => em x z ++ l.flatMap fun x => em x z) = v := by
       intro x l
       simp only [B, Finset.mem_biUnion, Finset.mem_product]
       constructor
       · rintro ⟨p, hp, h1, h2⟩
-        rw [hf1] at h1
-        rw [(hRs p hp).1] at h2
-        have hmem := mem_anti.1 (Finset.mem_filter.1 hp).1
         funext z
-        rw [← hmem z, h1]
-        exact congrArg _ (congrFun h2 z)
+        rw [← (mem_anti.1 (Finset.mem_filter.1 hp).1) z, (hf1 _ _).1 h1,
+          congrFun (((hRs p hp).1 _).1 h2) z]
       · intro h
-        have hp : (em x, fun z => l.flatMap fun x => em x z) ∈ A := by
-          rw [Finset.mem_filter, mem_anti]
-          exact ⟨fun z => congrFun h z, hne x⟩
+        have hp : (em x, fun z => l.flatMap fun x => em x z) ∈ A :=
+          Finset.mem_filter.2 ⟨mem_anti.2 (congrFun h), hne x⟩
         exact ⟨_, hp, (hf1 _ _).2 rfl, ((hRs _ hp).1 _).2 rfl⟩
     let C : Finset (List X) :=
       B.map ⟨fun p => p.1 :: p.2, by rintro ⟨a, b⟩ ⟨c, d⟩ h; simpa using h⟩
     have hC : ∀ l, l ∈ C ↔ l ≠ [] ∧ (fun z => l.flatMap fun x => em x z) = v := by
       intro l
       simp only [C, Finset.mem_map, Prod.exists]
-      constructor
+      refine ⟨?_, fun ⟨h1, h2⟩ => ?_⟩
       · rintro ⟨x, l', h, rfl⟩
-        exact ⟨by simp, by rw [hB] at h; exact h⟩
-      · rintro ⟨h1, h2⟩
-        obtain ⟨x, l', rfl⟩ := List.exists_cons_of_ne_nil h1
-        exact ⟨x, l', (hB _ _).2 (by simpa using h2), rfl⟩
+        exact ⟨List.cons_ne_nil _ _, (hB x l').1 h⟩
+      · obtain ⟨x, l', rfl⟩ := List.exists_cons_of_ne_nil h1
+        exact ⟨x, l', (hB _ _).2 h2, rfl⟩
     refine ⟨(if v = fun _ => [] then {[]} else ∅) ∪ C, fun l => ?_, ?_⟩
     · rw [Finset.mem_union, hC]
       by_cases hl : l = [] <;> by_cases h : v = fun _ => [] <;> simp [hl, h, Ne.symm]
@@ -204,11 +193,7 @@ theorem IsRuns.kstar {f : Series F (Z × Γ)} {X : Type*} {em : X → Z → List
             rw [Finset.mem_product, hf1] at h h'
             exact hpq (Prod.ext (h.1.symm.trans h'.1)
               (((hRs p hp).1 y |>.1 h.2).symm.trans ((hRs q hq).1 y |>.1 h'.2)))
-      · rw [Finset.disjoint_left]
-        intro l hl hl'
-        split_ifs at hl
-        · exact (hC l |>.1 hl').1 (Finset.mem_singleton.1 hl)
-        · exact (Finset.notMem_empty _ hl).elim
+      · split_ifs <;> simp [hC]
 
 end RunsDef
 
@@ -236,11 +221,7 @@ private theorem proj_map_mk (z z' : Z) (w : List Γ) :
 
 theorem proj_chanWord [Fintype Z] (w : Z → List Γ) : proj (chanWord w) = w := by
   funext z
-  rw [chanWord, proj_flatMap]
-  have hf : (fun i => proj ((w i).map fun a => (i, a)) z) =
-      fun i => if i = z then w i else [] := by
-    funext i; rw [proj_map_mk]
-  rw [hf]
+  simp_rw [chanWord, proj_flatMap, proj_map_mk]
   exact List.flatMap_ite_key_eq _ id w (by simpa using Finset.nodup_toList _) (by simp)
 
 omit [DecidableEq Z] in
@@ -292,12 +273,9 @@ theorem add {n m : ℕ} {X Y : Type*} {em : X → Z → List Γ} {wt : X → F}
   refine ⟨P + Q, g1.add g3, fun v => ?_⟩
   obtain ⟨R, h1, h2⟩ := g2 v
   obtain ⟨R', h3, h4⟩ := g4 v
-  refine ⟨R.disjSum R', ?_, ?_⟩
-  · rintro (x | x)
-    · simp [h1]
-    · simp [h3]
-  · rw [hat_add, h2, h4, Finset.sum_disjSum]
-    simp
+  refine ⟨R.disjSum R', by rintro (x | x) <;> simp [h1, h3], ?_⟩
+  rw [hat_add, h2, h4, Finset.sum_disjSum]
+  simp
 
 theorem kstar {n : ℕ} {X : Type*} {em : X → Z → List Γ} {wt : X → F}
     (hf : Runs n em wt) (hne : ∀ x, ∃ z, em x z ≠ []) :
@@ -327,8 +305,7 @@ theorem pick {κ : Type*} [Fintype κ] (w : κ → Z → List Γ) (c : κ → F)
 /-- Fixed channel words `w` with weight `1`. -/
 theorem const (w : Z → List Γ) :
     Runs (2 * ∑ z, (w z).length + 1) (fun (_ : Unit) => w) (fun _ => (1 : F)) := by
-  have hp := pick (F := F) (fun _ : Unit => w) (fun _ => 1)
-  simpa using hp
+  simpa using pick (F := F) (fun _ : Unit => w) (fun _ => 1)
 
 /-- A sequence of `k` independent run choices. -/
 theorem pi {k : ℕ} {n : Fin k → ℕ} {X : Fin k → Type*}
@@ -339,21 +316,19 @@ theorem pi {k : ℕ} {n : Fin k → ℕ} {X : Fin k → Type*}
       (fun x => ∏ i, wt i (x i)) := by
   induction k with
   | zero =>
-    refine Runs.mono (n := 1) ((one (F := F) (Z := Z) (Γ := Γ)).congr
-      ⟨fun _ => (), fun _ i => i.elim0, fun x => ?_, fun _ => rfl⟩ ?_ ?_) (by omega)
-    · funext i; exact i.elim0
-    · intro _ _; simp
-    · intro _; simp
+    exact ((one (F := F) (Z := Z) (Γ := Γ)).congr
+      ⟨fun _ => (), fun _ i => i.elim0, fun _ => Subsingleton.elim _ _, fun _ => rfl⟩
+      (fun _ _ => by simp) (fun _ => by simp)).mono
+      (by omega)
   | succ k ih =>
     have h1 := (h 0).mul
       (ih (n := fun i => n i.succ) (X := fun i => X i.succ)
         (em := fun i => em i.succ) (wt := fun i => wt i.succ) fun i => h i.succ)
-    refine (h1.congr (Fin.consEquiv X).symm ?_ ?_).mono ?_
-    · intro y z
-      simp [Fin.consEquiv, List.ofFn_succ, Fin.tail]
-    · intro y
-      simp [Fin.consEquiv, Fin.prod_univ_succ, Fin.tail]
-    · rw [Fin.sum_univ_succ]; omega
+    refine (h1.congr (Fin.consEquiv X).symm
+      (fun y z => by simp [Fin.consEquiv, List.ofFn_succ, Fin.tail])
+      fun y => by simp [Fin.consEquiv, Fin.prod_univ_succ, Fin.tail]).mono ?_
+    rw [Fin.sum_univ_succ]
+    omega
 
 end Runs
 

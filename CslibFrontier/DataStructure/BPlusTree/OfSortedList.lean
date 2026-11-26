@@ -395,12 +395,9 @@ private theorem toList_pack (first : BPlusTree α β) (rest : List (Branch α β
     · rw [pack_cons_of_drop_eq_nil ss h]
       simp
     · rw [pack_cons_of_drop_eq_cons ss h]
-      have hr : rest = rest.take s ++ (k, c) :: rest' := by
-        rw [← h, List.take_append_drop]
-      have := ih c rest'
-      conv_rhs => rw [hr]
+      conv_rhs => rw [← List.take_append_drop s rest, h]
       simp only [toList_node, List.flatMap_cons, List.flatMap_append, List.append_assoc,
-        Branch.child_mk, this]
+        Branch.child_mk, ih c rest']
 
 /-- The first tree of a cut level starts with the entries of the level's first tree. -/
 private theorem toList_pack_fst (first : BPlusTree α β) (rest : List (Branch α β))
@@ -471,10 +468,7 @@ private theorem chunkSizes_bounds (ht : 2 ≤ t) {fuel n : ℕ} (hn : t - 1 ≤ 
       rcases List.mem_cons.1 hs with rfl | hs
       · split <;> omega
       · refine ih ?_ ?_ s hs <;> split <;> omega
-    · rw [chunkSizes_of_le h]
-      intro s hs
-      rw [List.mem_singleton.1 hs]
-      exact ⟨hn, h⟩
+    · simp [chunkSizes_of_le h]; omega
 
 /-- At most `2 * t - 1` entries are loaded into a single leaf. -/
 private theorem ofSortedList_of_length_le {l : List (α × β)} (ht : 2 ≤ t)
@@ -496,9 +490,7 @@ private theorem length_pack {r : ℕ} {ss : List ℕ} {first : BPlusTree α β}
   | last => rfl
   | @cut s r ss _ _ _ ih =>
     rcases hd : rest.drop s with _ | ⟨⟨k, c⟩, rest'⟩
-    · have := congrArg List.length hd
-      simp only [List.length_drop, List.length_nil] at this
-      omega
+    · exact absurd (List.drop_eq_nil_iff.1 hd) (by omega)
     · have := congrArg List.length hd
       simp only [List.length_drop, List.length_cons] at this
       rw [pack_cons_of_drop_eq_cons ss hd, List.length_cons, List.length_cons, ih (by omega)]
@@ -520,17 +512,13 @@ private theorem good_pack {h r : ℕ} {ss : List ℕ} {first : BPlusTree α β}
     exact ⟨good_node hf hr (by omega) (by omega), by simp⟩
   | @cut s r ss h₁ h₂ _ ih =>
     rcases hd : rest.drop s with _ | ⟨⟨k, c⟩, rest'⟩
-    · have := congrArg List.length hd
-      simp only [List.length_drop, List.length_nil] at this
-      omega
+    · exact absurd (List.drop_eq_nil_iff.1 hd) (by omega)
     · rw [pack_cons_of_drop_eq_cons ss hd]
-      have hmem : ∀ e ∈ rest.drop s, e ∈ rest := fun e he => List.mem_of_mem_drop he
-      rw [hd] at hmem
       have hlen' := congrArg List.length hd
       simp only [List.length_drop, List.length_cons] at hlen'
       obtain ⟨hf', hr'⟩ := ih (first := c) (rest := rest') (by omega)
-        (hr _ (hmem _ List.mem_cons_self))
-        (fun e he => hr e (hmem e (List.mem_cons_of_mem _ he)))
+        (hr _ (List.mem_of_mem_drop (hd ▸ List.mem_cons_self)))
+        (fun e he => hr e (List.mem_of_mem_drop (hd ▸ List.mem_cons_of_mem _ he)))
       refine ⟨good_node hf (fun e he => hr e (List.mem_of_mem_take he))
         (by rw [List.length_take]; omega) (by rw [List.length_take]; omega), ?_⟩
       rintro e (_ | ⟨_, he⟩)
@@ -591,15 +579,11 @@ private theorem good_leafBranches (ht : 2 ≤ t) {ss : List ℕ} {l : List (α �
     (hss : ∀ s ∈ ss, t - 1 ≤ s ∧ s ≤ 2 * t - 1) (hsum : ss.sum = l.length) :
     ∀ e ∈ leafBranches ss l, Good t 1 e.child ∧ HeadKey e := by
   induction ss generalizing l with
-  | nil =>
-    cases l with
-    | nil => simp [leafBranches_nil]
-    | cons p l => simp at hsum
+  | nil => rcases l with _ | ⟨p, l⟩ <;> simp [leafBranches_nil] at hsum ⊢
   | cons s ss ih =>
-    cases l with
-    | nil => simp [leafBranches_nil]
-    | cons p l =>
-      obtain ⟨h₁, h₂⟩ := hss s List.mem_cons_self
+    rcases l with _ | ⟨p, l⟩
+    · simp [leafBranches_nil]
+    · obtain ⟨h₁, h₂⟩ := hss s List.mem_cons_self
       rw [List.sum_cons] at hsum
       rw [leafBranches_cons_cons]
       intro e he
@@ -618,20 +602,16 @@ private theorem good_leafLevel (ht : 2 ≤ t) {l : List (α × β)}
     Good t 1 (leafLevel (chunkSizes t l.length l.length) l).1 ∧
       ∀ e ∈ (leafLevel (chunkSizes t l.length l.length) l).2,
         Good t 1 e.child ∧ HeadKey e := by
-  obtain ⟨n, hn⟩ : ∃ n, l.length = n + 1 := ⟨l.length - 1, by omega⟩
-  have hc : chunkSizes t l.length l.length =
-      (if l.length < 3 * t - 2 then t - 1 else 2 * t - 1) ::
-        chunkSizes t n (l.length - (if l.length < 3 * t - 2 then t - 1 else 2 * t - 1)) := by
-    have := chunkSizes_succ_of_lt (t := t) (fuel := n) hlt
-    rwa [← hn] at this
-  rw [hc, leafLevel_cons]
+  rcases hn : l.length with _ | n
+  · omega
+  rw [chunkSizes_succ_of_lt (hn ▸ hlt), ← hn, leafLevel_cons]
   generalize hsd : (if l.length < 3 * t - 2 then t - 1 else 2 * t - 1) = s
-  have hs₁ : t - 1 ≤ s := by rw [← hsd]; split <;> omega
-  have hs₂ : s ≤ 2 * t - 1 := by rw [← hsd]; split <;> omega
-  have hs₃ : t - 1 ≤ l.length - s := by rw [← hsd]; split <;> omega
+  have hs : (t - 1 ≤ s ∧ s ≤ 2 * t - 1) ∧ t - 1 ≤ l.length - s := by
+    rw [← hsd]
+    split <;> omega
   have hlen : (l.take s).length = s := by rw [List.length_take]; omega
   exact ⟨⟨.leaf, rfl, .leaf (by omega) (by omega)⟩,
-    good_leafBranches (l := l.drop s) ht (chunkSizes_bounds (fuel := n) ht hs₃ (by omega))
+    good_leafBranches (l := l.drop s) ht (chunkSizes_bounds (fuel := n) ht hs.2 (by omega))
       (by rw [sum_chunkSizes, List.length_drop])⟩
 
 /-- Bulk loading builds a tree of root shape at a minimum degree of at least `2`, for every
@@ -665,11 +645,8 @@ private theorem separated_node {first : BPlusTree α β} {rest : List (Branch α
   obtain ⟨-, hrs, hfr⟩ := List.isSortedAssoc_append_iff.1 hs
   refine .node hf hr (fun e he p hp => ?_) ?_ fun e he p hp => ?_
   · obtain ⟨v, l, hl⟩ := hk e he
-    have hc : e.child.toList.IsSortedAssoc := by
-      refine hrs.sublist ?_
-      rw [List.flatMap_def]
-      exact List.sublist_flatten_of_mem
-        (List.mem_map_of_mem (f := fun e : Branch α β => e.child.toList) he)
+    have hc : e.child.toList.IsSortedAssoc :=
+      hrs.sublist (List.flatMap_def .. ▸ List.sublist_flatten_of_mem (List.mem_map_of_mem he))
     rw [hl] at hc hp
     rcases List.mem_cons.1 hp with rfl | hp
     · exact le_rfl
@@ -698,17 +675,14 @@ private theorem separated_pack {first : BPlusTree α β} {rest : List (Branch α
     · rw [pack_cons_of_drop_eq_nil ss hd]
       exact ⟨separated_node hf hr hk hs, by simp⟩
     · rw [pack_cons_of_drop_eq_cons ss hd]
-      have hrest : rest = rest.take s ++ (k, c) :: rest' := by
-        rw [← hd, List.take_append_drop]
-      have hmem : ∀ e ∈ rest.drop s, e ∈ rest := fun e he => List.mem_of_mem_drop he
-      rw [hd] at hmem
-      have hs' : ((first.toList ++ (rest.take s).flatMap fun e => e.child.toList) ++
-          (c.toList ++ rest'.flatMap fun e => e.child.toList)).IsSortedAssoc := by
-        have := hs
-        rw [hrest] at this
-        simpa only [List.flatMap_append, List.flatMap_cons, List.append_assoc,
-          Branch.child_mk] using this
-      obtain ⟨hs₁, hs₂, -⟩ := List.isSortedAssoc_append_iff.1 hs'
+      have hmem : ∀ e ∈ (k, c) :: rest', e ∈ rest := fun e he =>
+        List.mem_of_mem_drop (hd ▸ he)
+      obtain ⟨hs₁, hs₂, -⟩ := List.isSortedAssoc_append_iff.1
+        (show ((first.toList ++ (rest.take s).flatMap fun e => e.child.toList) ++
+            (c.toList ++ rest'.flatMap fun e => e.child.toList)).IsSortedAssoc by
+          conv at hs => rw [← List.take_append_drop s rest, hd]
+          simpa only [List.flatMap_append, List.flatMap_cons, List.append_assoc,
+            Branch.child_mk] using hs)
       obtain ⟨hf', hr'⟩ := ih (first := c) (rest := rest')
         (hr _ (hmem _ List.mem_cons_self))
         (fun e he => hr e (hmem e (List.mem_cons_of_mem _ he)))

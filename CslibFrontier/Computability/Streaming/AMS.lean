@@ -173,16 +173,10 @@ theorem dens_amsSketch_error_le [Fintype ι] [DecidableEq α] [Fintype Y] [Decid
     (hh.mono (by norm_num)).expect_sq_sum_mul_sign hε hε₀ _ _
   simp only [run_amsSketch, hF]
   rcases eq_or_ne s [] with rfl | hs
-  · have hempty : ({ω : Fin (2 * r) → Fin k → ι | η * ∑ a ∈ ([] : List α).toFinset,
-        (([] : List α).count a : ℝ) ^ 2 < |medianOfMeans (fun θ => (∑ a ∈ ([] : List α).toFinset,
-          (([] : List α).count a : ℝ) * sgn (h θ a)) ^ 2) ω - ∑ a ∈ ([] : List α).toFinset,
-            (([] : List α).count a : ℝ) ^ 2|} : Finset _) = ∅ := by
-      have : Nonempty (Fin (2 * r)) := ⟨⟨0, by omega⟩⟩
-      refine filter_false_of_mem fun ω _ => ?_
-      simp only [List.toFinset_nil, sum_empty, mul_zero, sub_zero, not_lt, medianOfMeans,
-        ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, expect_const_zero, median_const,
-        abs_zero, le_refl]
-    rw [hempty, dens_empty, NNRat.cast_zero]
+  · have : Nonempty (Fin (2 * r)) := ⟨⟨0, by omega⟩⟩
+    simp only [List.toFinset_nil, sum_empty, mul_zero, sub_zero, medianOfMeans, ne_eq,
+      OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, expect_const_zero, median_const,
+      abs_zero, lt_self_iff_false, filter_false, dens_empty, NNRat.cast_zero]
     positivity
   · have hpos : 0 < ∑ a ∈ s.toFinset, ((s.count a : ℝ)) ^ 2 := by
       obtain ⟨a, ha⟩ := List.exists_mem_of_ne_nil s hs
@@ -199,8 +193,7 @@ theorem dens_amsSketch_error_le [Fintype ι] [DecidableEq α] [Fintype Y] [Decid
         _ = 6 * (∑ a ∈ s.toFinset, ((s.count a : ℝ)) ^ 2) ^ 2 := by ring
         _ ≤ k * η ^ 2 * (∑ a ∈ s.toFinset, ((s.count a : ℝ)) ^ 2) ^ 2 := by gcongr
         _ = _ := by ring
-    have := dens_abs_medianOfMeans_sub_gt_le (r := r) g (by positivity) hvar
-    rwa [hmean] at this
+    simpa only [hmean] using dens_abs_medianOfMeans_sub_gt_le (r := r) g (by positivity) hvar
 
 /-- The error of the randomized AMS sketch is the fraction of bad seeds. -/
 theorem errorProb_ams [Fintype ι] [Nonempty ι] (R : List α → ℝ → Prop) (s : List α)

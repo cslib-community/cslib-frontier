@@ -117,11 +117,9 @@ theorem sum_smul_mem_of_mem_interleavedLinear {κ ι R M : Type*} [Fintype κ] [
     [AddCommMonoid M] [Module R M] {C : Submodule R (ι → M)} {W : ι → κ → M}
     (hW : W ∈ interleavedLinear κ C) (z : κ → R) :
     (fun i => ∑ r : κ, z r • W i r) ∈ C := by
-  have heq : (fun i => ∑ r : κ, z r • W i r) = ∑ r : κ, z r • fun i => W i r := by
-    funext i
-    simp only [Finset.sum_apply, Pi.smul_apply]
-  rw [heq]
-  exact Submodule.sum_mem C fun r _ => C.smul_mem (z r) (hW r)
+  have heq : (fun i => ∑ r : κ, z r • W i r) = ∑ r : κ, z r • fun i => W i r :=
+    funext fun _ => by simp only [Finset.sum_apply, Pi.smul_apply]
+  exact heq ▸ Submodule.sum_mem C fun r _ => C.smul_mem (z r) (hW r)
 
 /-- Taking a row linear combination cannot increase column Hamming distance. -/
 theorem hammingDist_sum_smul_le {κ ι R M : Type*} [Fintype κ] [Fintype ι] [Semiring R]
@@ -328,13 +326,9 @@ private lemma exists_correlatedAgreement_affine_of_three_mul_lt_minDist
       (B_W := Fintype.card ι - e) (B_line := e + 1) (L := 1) hlist hline
       (fun _ => Fintype.one_lt_card) 0 (fun r i => W i r) T hT fun z hz => by
         obtain ⟨c, hc, hd⟩ := hclose z hz
-        have heq : (0 : ι → F) + ∑ r : Fin m, z r • (fun i => W i r) =
-            fun i => ∑ r : Fin m, z r • W i r :=
-          funext fun i => by simp [Finset.sum_apply]
         have := hagree (fun i => ∑ r : Fin m, z r • W i r) c
         refine ⟨c, hc, ?_⟩
-        rw [heq]
-        dsimp only
+        simp only [zero_add, Finset.sum_apply, Pi.smul_apply]
         omega
   exact exists_mem_interleavedLinear_hammingDist_le_iff.2
     ⟨D', by simpa only [← Finset.card_eq_sum_ones] using hD'_sum, v, hv,
@@ -358,8 +352,7 @@ theorem toOuterMeasure_sum_smul_close_le_of_three_mul_lt_minDist
   classical
   refine Cslib.Probability.PMF.toOuterMeasure_uniformOfFintype_le_div Fintype.card_pos ?_
   rw [Fintype.card_fun, Fintype.card_fin]
-  by_contra hlt
-  push Not at hlt
+  by_contra! hlt
   obtain ⟨V, hV, hdist⟩ := exists_correlatedAgreement_affine_of_three_mul_lt_minDist hmin W _ hlt
     fun z hz => (Finset.mem_filter.1 hz).2
   exact (hfar V hV).not_ge hdist
@@ -377,21 +370,17 @@ theorem exists_unique_mem_interleavedLinear_of_three_mul_lt_minDist
       (PMF.uniformOfFintype (Fin m → F)).toOuterMeasure
         {z | ∃ c ∈ C, hammingDist (fun i => ∑ r : Fin m, z r • W i r) c ≤ e}) :
     ∃! V : ι → Fin m → F, V ∈ interleavedLinear (Fin m) C ∧ hammingDist W V ≤ e := by
-  have hex : ∃ V ∈ interleavedLinear (Fin m) C, hammingDist W V ≤ e := by
-    by_contra hfar
-    push Not at hfar
+  obtain ⟨V, hV, hdist⟩ : ∃ V ∈ interleavedLinear (Fin m) C, hammingDist W V ≤ e := by
+    by_contra! hfar
     exact hprob.not_ge (toOuterMeasure_sum_smul_close_le_of_three_mul_lt_minDist hmin hfar)
-  obtain ⟨V, hV, hdist⟩ := hex
   have htwo : 2 * (e : ℕ∞) < minDist (C : Set (ι → F)) :=
     lt_of_le_of_lt (by gcongr; norm_num) hmin
   refine ⟨V, ⟨hV, hdist⟩, fun V' ⟨hV', hdist'⟩ => ?_⟩
   rcases Nat.eq_zero_or_pos m with rfl | hm
-  · funext i r
-    exact r.elim0
+  · exact funext fun _ => funext fun r => r.elim0
   · have : Nonempty (Fin m) := ⟨⟨0, hm⟩⟩
-    have hmin_int : 2 * (e : ℕ∞) < minDist (interleavedLinear (Fin m) C : Set (ι → Fin m → F)) := by
-      rwa [minDist_interleavedLinear]
-    exact eq_of_hammingDist_le_of_two_mul_lt_minDist hmin_int hV' hV
+    exact eq_of_hammingDist_le_of_two_mul_lt_minDist
+      (by rwa [minDist_interleavedLinear]) hV' hV
       (by rwa [hammingDist_comm]) (by rwa [hammingDist_comm])
 
 end LinearCodeThirdRadius
@@ -418,16 +407,14 @@ theorem toOuterMeasure_sum_smul_reedSolomon_close_le
   classical
   refine Cslib.Probability.PMF.toOuterMeasure_uniformOfFintype_le_div Fintype.card_pos ?_
   rw [Fintype.card_fun, Fintype.card_fin]
-  by_contra hlt
-  push Not at hlt
+  by_contra! hlt
   obtain ⟨D', hD', _, _, v, hv, hag, _⟩ :=
     exists_uniqueMaximal_correlatedAgreement_affine_unique hα hunique 0 (fun r i => W i r) _ hlt
       fun z hz => by
-        obtain ⟨c, hc, hd⟩ := (Finset.mem_filter.1 hz).2
-        refine ⟨c, hc, ?_⟩
-        convert hd using 2
-        funext i
-        simp only [Pi.add_apply, Pi.zero_apply, zero_add, Finset.sum_apply, Pi.smul_apply]
+        have heq : (0 : ι → F) + ∑ r : Fin m, z r • (fun i => W i r) =
+            fun i => ∑ r : Fin m, z r • W i r :=
+          funext fun _ => by simp
+        exact heq.symm ▸ (Finset.mem_filter.1 hz).2
   obtain ⟨V, hV, hdist⟩ := exists_mem_interleavedLinear_hammingDist_le_iff.2
     ⟨D', hD', v, hv, fun i hi r => (hag i hi).2 r⟩
   exact (hfar V hV).not_ge hdist

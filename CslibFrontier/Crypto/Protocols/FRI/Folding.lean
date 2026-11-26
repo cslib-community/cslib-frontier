@@ -208,8 +208,8 @@ theorem cosetEval_add_half {g ω : F} {d i : ℕ} (hω : IsPrimitiveRoot ω (2 ^
       omega⟩ =
       -cosetEval g ω d i ⟨j.val, lt_of_lt_of_le j.isLt (Nat.pow_le_pow_right (by omega)
         (by omega))⟩ := by
-  have hd : d - i = (d - (i + 1)) + 1 := by omega
-  have hsplit : 2 ^ (d - i) = 2 * 2 ^ (d - (i + 1)) := by rw [hd, pow_succ']
+  have hsplit : 2 ^ (d - i) = 2 * 2 ^ (d - (i + 1)) := by
+    rw [show d - i = (d - (i + 1)) + 1 by omega, pow_succ']
   have hneg := (isPrimitiveRoot_fiber (Nat.pow_pos (by omega))
     (hsplit ▸ isPrimitiveRoot_pow_two_pow hω hi.le)).eq_neg_one_of_two_right
   simp only [cosetEval, cosetPoint, pow_add, hneg, mul_neg, mul_one]
@@ -243,8 +243,7 @@ theorem degree_polyComp_lt {a k : ℕ} (ha : 0 < a) {p : F[X]} (hp : p.degree < 
   rw [degree_lt_iff_coeff_zero]
   refine fun t ht => (coeff_polyComp ha p r t).trans <|
     coeff_eq_zero_of_degree_lt <| lt_of_lt_of_le hp ?_
-  have hle : a * k ≤ a * t + r.val := by nlinarith
-  exact_mod_cast hle
+  exact_mod_cast (by nlinarith : a * k ≤ a * t + r.val)
 
 /-- Reconstruct a polynomial from its `a` residue components via
 `∑ r : Fin a, X ^ r * (ps r).comp (X ^ a)`. -/
@@ -261,18 +260,15 @@ private theorem coeff_reconstructPoly {a : ℕ} (ha : 0 < a) (ps : Fin a → F[X
     (reconstructPoly a ps).coeff n = (ps ⟨n % a, Nat.mod_lt n ha⟩).coeff (n / a) := by
   simp only [reconstructPoly, finsetSum_coeff, coeff_X_pow_mul']
   rw [Finset.sum_eq_single_of_mem ⟨n % a, Nat.mod_lt n ha⟩ (Finset.mem_univ _)]
-  · have hsub : n - n % a = a * (n / a) := by
-      have := Nat.div_add_mod n a
-      omega
-    simp only [Nat.mod_le, ↓reduceIte, ← expand_eq_comp_X_pow, coeff_expand ha, hsub,
-      dvd_mul_right, Nat.mul_div_cancel_left _ ha]
+  · simp only [Nat.mod_le, ↓reduceIte, ← expand_eq_comp_X_pow, coeff_expand ha,
+      Nat.sub_eq_of_eq_add (Nat.div_add_mod n a).symm, dvd_mul_right,
+      Nat.mul_div_cancel_left _ ha]
   · intro r _ hne
     simp only [← expand_eq_comp_X_pow, coeff_expand ha]
     split_ifs with hle hdvd
     · rcases hdvd with ⟨q, hq⟩
-      have hn : n = a * q + r.val := by omega
-      have hmod : n % a = r.val := by rw [hn, Nat.mul_add_mod, Nat.mod_eq_of_lt r.isLt]
-      exact absurd (Fin.ext hmod.symm) hne
+      refine absurd (Fin.ext ?_) hne.symm
+      simp only [Nat.eq_add_of_sub_eq hle hq, Nat.mul_add_mod, Nat.mod_eq_of_lt r.isLt]
     all_goals rfl
 
 /-- Exact decomposition identity: `p = ∑ r : Fin a, X ^ r * (polyComp a p r).comp (X ^ a)`. -/
@@ -373,14 +369,12 @@ private theorem sum_primitiveRoot_mul_inv {a : ℕ} {ζ : F} (hζ : IsPrimitiveR
   · subst hur
     simp [inv_pow, inv_mul_cancel₀ (pow_ne_zero _ hζ0)]
   · simp only [hur, ↓reduceIte]
-    set η : F := (ζ⁻¹) ^ r.val * ζ ^ u.val
-    have hη_pow : η ^ a = 1 := by
-      simp [η, mul_pow, pow_right_comm _ _ a, hζ.pow_eq_one]
-    have hη_ne : η ≠ 1 := fun h1 => hur <| Fin.ext <| hζ.pow_inj u.isLt r.isLt <| by
-      simpa [η, inv_pow, ← mul_assoc, hζ0] using congrArg (ζ ^ r.val * ·) h1
-    have hgeom : (∑ t : Fin a, η ^ t.val) * (η - 1) = 0 := by
-      rw [Fin.sum_univ_eq_sum_range, geom_sum_mul, hη_pow, sub_self]
-    exact (mul_eq_zero.mp hgeom).resolve_right (sub_ne_zero.mpr hη_ne)
+    have hη_ne : (ζ⁻¹) ^ r.val * ζ ^ u.val ≠ 1 := fun h1 =>
+      hur <| Fin.ext <| hζ.pow_inj u.isLt r.isLt <| by
+        simpa [inv_pow, ← mul_assoc, hζ0] using congrArg (ζ ^ r.val * ·) h1
+    refine mul_right_cancel₀ (sub_ne_zero.mpr hη_ne) ?_
+    rw [Fin.sum_univ_eq_sum_range, geom_sum_mul, zero_mul]
+    simp [mul_pow, pow_right_comm _ _ a, hζ.pow_eq_one]
 
 /-- `foldComp` commutes with polynomial evaluation: applying `foldComp` to the evaluations of `p`
 on `g * ⟨ω⟩` yields the evaluations of `polyComp a p r` on `g^a * ⟨ω^a⟩`. -/
@@ -592,29 +586,25 @@ theorem fold2Even_eq_foldComp {g ω : F} {N : ℕ} (f : Fin (2 * N) → F) :
     fold2Even f = foldComp g ω f ⟨0, by omega⟩ := by
   ext j
   simp only [fold2Even, foldComp, foldFiberComp, Fin.sum_univ_two, fiberIdx, pow_zero, mul_one,
-    zero_mul, one_mul, add_zero, Fin.val_zero, Fin.val_one, Nat.cast_ofNat]
-  rw [div_eq_inv_mul]
+    zero_mul, one_mul, add_zero, Fin.val_zero, Fin.val_one, Nat.cast_ofNat, div_eq_inv_mul]
 
 /-- `fold2Odd` agrees with `foldComp` at component `1` for `a = 2`. -/
 theorem fold2Odd_eq_foldComp {g ω : F} {N : ℕ} (hN : 0 < N) (hω : IsPrimitiveRoot ω (2 * N))
     (f : Fin (2 * N) → F) :
     fold2Odd g ω f = foldComp g ω f ⟨1, by omega⟩ := by
   ext j
-  have hneg : ω ^ N = -1 := pow_half_eq_neg_one hN hω
   simp only [fold2Odd, foldComp, foldFiberComp, cosetPoint, Fin.sum_univ_two, fiberIdx, pow_zero,
-    pow_one, zero_mul, one_mul, add_zero, Fin.val_zero, Fin.val_one, Nat.cast_ofNat, hneg, inv_neg,
-    inv_one, neg_mul, ← sub_eq_add_neg]
-  rw [div_eq_inv_mul]
+    pow_one, zero_mul, one_mul, add_zero, Fin.val_zero, Fin.val_one, Nat.cast_ofNat,
+    pow_half_eq_neg_one hN hω, inv_neg, inv_one, neg_mul, ← sub_eq_add_neg, div_eq_inv_mul]
 
 /-- At `a = 2`, the local `a`-to-1 fiber evaluator `foldFiber` coincides with `fold2Fiber`. -/
 theorem foldFiber_two_eq_fold2Fiber {g ω : F} {N : ℕ} (hN : 0 < N)
     (hω : IsPrimitiveRoot ω (2 * N)) (ys : Fin 2 → F) (j : Fin N) (z : F) :
     foldFiber g ω ys j z =
       fold2Fiber (ys 0) (ys 1) (cosetPoint g ω (2 * N) ⟨j.val, by omega⟩) z := by
-  have hneg : ω ^ N = -1 := pow_half_eq_neg_one hN hω
   simp only [foldFiber, foldFiberComp, fold2Fiber, cosetPoint, Fin.sum_univ_two, Fin.val_zero,
-    Fin.val_one, pow_zero, pow_one, one_mul, zero_mul, mul_one, Nat.cast_ofNat, hneg, inv_neg,
-    inv_one, neg_mul, ← sub_eq_add_neg, div_eq_inv_mul]
+    Fin.val_one, pow_zero, pow_one, one_mul, zero_mul, mul_one, Nat.cast_ofNat,
+    pow_half_eq_neg_one hN hω, inv_neg, inv_one, neg_mul, ← sub_eq_add_neg, div_eq_inv_mul]
 
 /-- The explicit 2-to-1 folding operator `fold2` coincides with `foldWord` at `a = 2`. -/
 theorem fold2_eq_foldWord {g ω : F} {N : ℕ} (hN : 0 < N) (hω : IsPrimitiveRoot ω (2 * N))
@@ -672,12 +662,10 @@ private theorem card_filter_poly_eq_le {a : ℕ} (u v : Fin a → F) (hne : u �
   classical
   let P : F[X] := ∑ r : Fin a, Polynomial.monomial r.val (u r - v r)
   have hP_ne : P ≠ 0 := by
-    obtain ⟨r, hr⟩ : ∃ r : Fin a, u r ≠ v r := not_forall.mp fun h => hne (funext h)
-    intro h0
-    have hcoeff : P.coeff r.val = 0 := by rw [h0, coeff_zero]
-    simp only [P, finsetSum_coeff, coeff_monomial, Finsupp.single_apply, Fin.val_inj,
-      Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte] at hcoeff
-    exact hr (sub_eq_zero.mp hcoeff)
+    obtain ⟨r, hr⟩ := Function.ne_iff.mp hne
+    refine fun h0 => hr (sub_eq_zero.mp ?_)
+    simpa [P, finsetSum_coeff, coeff_monomial, Finsupp.single_apply, Fin.val_inj] using
+      congrArg (·.coeff r.val) h0
   have hsub : (Z.filter fun z =>
       (∑ r : Fin a, z ^ r.val * u r) = ∑ r : Fin a, z ^ r.val * v r) ⊆ P.roots.toFinset := by
     intro z hz

@@ -163,11 +163,7 @@ theorem propagate_sound {σ : ℕ → Bool} {ρ : List (Literal ℕ)} {c : PBCon
   rw [htrue, ← lhs_eq_coeffSum_filter] at hsplit
   unfold Holds at hc
   have hs : 0 ≤ slack ρ c := by unfold slack; omega
-  refine ⟨_, by
-    unfold propagate
-    split
-    · exact absurd ‹_› (not_lt.mpr hs)
-    · rfl, fun l hl => ?_⟩
+  refine ⟨_, by rw [propagate, ite_eq_right (not_lt.mpr hs)], fun l hl => ?_⟩
   rcases List.mem_append.mp hl with hl | hl
   · obtain ⟨t, ht, rfl⟩ := List.mem_map.mp hl
     obtain ⟨htm, hp⟩ := List.mem_filter.mp ht
@@ -652,9 +648,8 @@ theorem runStep_effect :
     split at h <;> cases h
     exact .rupSearch
   | db, n, .pbc c sub q, db', n', h => by
-    simp only [runStep, Option.map_eq_some_iff] at h
-    obtain ⟨n'', hq, h⟩ := h
-    cases h
+    obtain ⟨n'', hq, rfl, rfl⟩ := by
+      simpa only [runStep, Option.map_eq_some_iff, Prod.mk.injEq] using h
     unfold subproofRefutes at hq
     split at hq
     · rename_i db₁ n₁ hsub

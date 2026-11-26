@@ -152,23 +152,14 @@ private theorem delMoveRebCollisionProg_fastStep {c U V w n_max base rIdx : ℕ}
   dsimp only
   unfold delMoveRebCollisionProg
   simp only [cp, pure_bind]
-  have hs'_eq : (Memory.spec 0).clientState s
-      (resetBTreeSliceGenProg ((cp, base), rIdx) >>= fun _ =>
-        readHdrProg (base, hdrRebCandSalt) >>= fun cand =>
-        writeHdrProg ((base, hdrRebCandSalt), cand + 1) >>= fun _ =>
-        writeHdrProg ((base, hdrRebScanCursor), 0) >>= fun _ =>
-        writeHdrProg ((base, hdrRebInsCount), 0)) =
-      (Memory.spec 0).clientState s3 (writeHdrProg ((base, hdrRebInsCount), 0)) := by
-    rw [clientState_bind, clientState_bind, hst_c, hres_c, clientState_bind,
-      clientState_bind]
-  rw [hs'_eq]
-  refine ⟨?_, ?_, ((hrs_step.trans hw1_step).trans hw2_step).trans hw3_step⟩
+  refine ⟨?_, validProg_bind hrs_vp (validProg_bind hvp_c ?_), ?_⟩
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
     dsimp only [s1, s2, s3, cp] at hrs_mc hst_c hres_c hmc_c hw1_mc hw2_mc hw3_mc ⊢
     rw [hst_c, hres_c, hmc_c]; omega
-  · refine validProg_bind hrs_vp ?_
-    refine validProg_bind hvp_c ?_; rw [hst_c, hres_c]
+  · rw [hst_c, hres_c]
     exact validProg_bind hw1_vp (validProg_bind hw2_vp hw3_vp)
+  · rw [clientState_bind, clientState_bind, hst_c, hres_c, clientState_bind, clientState_bind]
+    exact ((hrs_step.trans hw1_step).trans hw2_step).trans hw3_step
 
 /-- Sub-helper 6.2c (insert+inc): insert `(fp_cand_last, loc_del)` into `rIdx` and increment
 `rebInsCount`. -/
@@ -280,23 +271,10 @@ private theorem delMoveRebInsertIncProg_fastStep {c U V w n_max base rIdx loc_de
   dsimp only
   unfold delMoveRebInsertIncProg
   simp only [cp, pure_bind]
-  have hs'_eq : (Memory.spec 0).clientState s
-      (btreeInsertGenProg ((((cp, base), rIdx), fp_cand_last), loc_del) >>= fun _ =>
-        readHdrProg (base, hdrRebInsCount) >>= fun ins =>
-        writeHdrProg ((base, hdrRebInsCount), ins + 1)) =
-      (Memory.spec 0).clientState s_bi
-        (writeHdrProg ((base, hdrRebInsCount), fs.rebInsCount + 1)) := by
-    rw [clientState_bind, clientState_bind]
-    dsimp only [s_bi, cp] at hst_i hres_i ⊢
-    rw [hst_i, hres_i]
-  rw [hs'_eq]
-  refine ⟨?_, ?_, hbi_step.trans hwh_step⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    dsimp only [s_bi, cp] at hbi_mc hst_i hres_i hmc_i hwh_mc ⊢
-    rw [hst_i, hres_i, hmc_i]; omega
-  · refine validProg_bind hbi_vp ?_
-    dsimp only [s_bi, cp] at hst_i hres_i hvp_i hwh_vp ⊢
-    refine validProg_bind hvp_i ?_; rw [hst_i, hres_i]; exact hwh_vp
+  exact CostBoundedStep.elim
+    (.bind ⟨rfl, rfl, hbi_mc, hbi_vp⟩ <|
+      .bind ⟨hst_i, hres_i, hmc_i.le, hvp_i⟩ ⟨rfl, rfl, hwh_mc.le, hwh_vp⟩)
+    (by omega) (hbi_step.trans hwh_step)
 
 /-- Sub-helper 6.2c (active branch): relocate `loc_last → loc_del` in `rebSlice[b]` once
 `rebAct = 1` and `st_last ∈ {1, 2 + oldEp}` hold. -/

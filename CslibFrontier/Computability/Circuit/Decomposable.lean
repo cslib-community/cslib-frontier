@@ -203,19 +203,15 @@ theorem Occurs.subst {x : ι → U} {v : N} (h : P.Occurs x v) {y : ι → U}
       (P.accepts_congr fun i hi =>
         hout ((P.disjoint_product v l r hg).symm.notMem_of_mem_left hi)).mpr
         ((P.values_product v l r hg x).mp hv.accepts).2
-    refine .left (ih ((P.values_product v l r hg y).mpr ⟨hy, hr⟩) fun i hi =>
-      hout fun hil => hi ?_) hg
-    rw [P.scope_product v l r hg]
-    exact Or.inl hil
+    exact .left (ih ((P.values_product v l r hg y).mpr ⟨hy, hr⟩) fun i hi =>
+      hout fun hil => hi (P.scope_product v l r hg ▸ Or.inl hil)) hg
   | @right v l r hv hg ih =>
     have hl : y ∈ P.accepts l :=
       (P.accepts_congr fun i hi =>
         hout ((P.disjoint_product v l r hg).notMem_of_mem_left hi)).mpr
         ((P.values_product v l r hg x).mp hv.accepts).1
-    refine .right (ih ((P.values_product v l r hg y).mpr ⟨hl, hy⟩) fun i hi =>
-      hout fun hir => hi ?_) hg
-    rw [P.scope_product v l r hg]
-    exact Or.inr hir
+    exact .right (ih ((P.values_product v l r hg y).mpr ⟨hl, hy⟩) fun i hi =>
+      hout fun hir => hi (P.scope_product v l r hg ▸ Or.inr hir)) hg
 
 /-- **Substitution.** If a node occurs for `x`, then any input that the node accepts and that
 agrees with `x` outside the scope of the node is accepted. -/
@@ -264,10 +260,8 @@ theorem SmallSides.one_lt {P : DecomposableDAG ι U N} (h : P.SmallSides K)
     (hne : P.accepted.Nonempty) : 1 < K := by
   obtain ⟨x, hx⟩ := hne
   rcases h P.root with hr | hr <;> obtain ⟨hfin, hlt⟩ := encard_lt_coe_iff_finite_ncard_lt.mp hr
-  · have := (ncard_pos hfin).mpr ⟨_, hx⟩
-    omega
-  · have := (ncard_pos hfin).mpr ⟨_, x, .root hx, rfl⟩
-    omega
+  · exact (Nat.succ_le_of_lt ((ncard_pos hfin).mpr ⟨_, hx⟩)).trans_lt hlt
+  · exact (Nat.succ_le_of_lt ((ncard_pos hfin).mpr ⟨_, x, .root hx, rfl⟩)).trans_lt hlt
 
 /-- A node accepting at least `K` assignments has fewer than `K` contexts under `SmallSides K`. -/
 private theorem ncard_contexts_le (hS : P.SmallSides K) {v : N}
@@ -513,10 +507,9 @@ theorem ncard_accepted_le (hrect : RectangleFree P.accepted K) (hS : K ≤ P.acc
 `K`-rectangle-free and has at least `K` elements, then `|accepted| ≤ (K - 1) ^ 3 · size`. -/
 theorem ncard_accepted_le_size (hrect : RectangleFree P.accepted K)
     (hS : K ≤ P.accepted.ncard) : P.accepted.ncard ≤ (K - 1) ^ 3 * P.size := by
-  have hpow : (K - 1) ^ 2 ≤ (K - 1) ^ 3 := by
-    rcases Nat.eq_zero_or_pos (K - 1) with h | h
-    · simp [h]
-    · exact Nat.pow_le_pow_right h (by omega)
+  have hpow : (K - 1) ^ 2 ≤ (K - 1) ^ 3 :=
+    (Nat.eq_zero_or_pos (K - 1)).elim (by simp +contextual) fun h =>
+      Nat.pow_le_pow_right h (by omega)
   calc P.accepted.ncard ≤ (K - 1) ^ 2 * P.unionEdges + (K - 1) ^ 3 * P.products :=
         P.ncard_accepted_le hrect hS
     _ ≤ (K - 1) ^ 3 * P.unionEdges + (K - 1) ^ 3 * P.products := by gcongr

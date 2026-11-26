@@ -296,8 +296,7 @@ theorem reachable_start [Fintype P] (F : Finset P) (input : Option V) :
 theorem Reachable.trans [Fintype P] {π : Protocol P S M V dealer} {F : Finset P} {input : Option V}
     {s s' : State P S M V} (hs : π.Reachable F input s) (hreach : (π.lts F).CanReach s s') :
     π.Reachable F input s' := by
-  obtain ⟨xl, hxl⟩ := hs
-  obtain ⟨yl, hyl⟩ := hreach
+  rcases hs, hreach with ⟨⟨xl, hxl⟩, ⟨yl, hyl⟩⟩
   exact ⟨xl ++ yl, LTS.MTr.comp (π.lts F) hxl hyl⟩
 
 omit [DecidableEq P] [DecidableEq M] in
@@ -437,9 +436,8 @@ private lemma drainList_spec {F : Finset P} (s : State P S M V) (es : List (Enve
   | nil =>
     exact ⟨LTS.MTr.refl, rfl⟩
   | cons e es ih =>
-    have hcons : e ::ₘ Multiset.ofList es ≤ s.msgs := by simpa using hle
     have hes : Multiset.ofList es ≤ s.msgs.erase e := by
-      simpa using Multiset.erase_le_erase e hcons
+      simpa using Multiset.erase_le_erase e hle
     obtain ⟨hmtr, hmap⟩ := ih (π.recvHonest e s) (hes.trans (Multiset.le_add_right _ _))
       (fun x hx => hdest x (List.mem_cons_of_mem e hx))
     exact ⟨.stepL ⟨Multiset.mem_of_le hle (by simp), hdest e List.mem_cons_self, rfl⟩ hmtr,
@@ -487,9 +485,8 @@ theorem exists_fair_omegaExecution (F : Finset P) (s₀ : State P S M V) :
       ∀ k, (xs k).IsHonest := by
   let ts : ωSequence (State P S M V) := ωSequence.mk fun k => (π.drainSeq F s₀ k).2
   let xls : ωSequence (List (Action P M)) := (ωSequence.mk fun k => (π.drainSeq F s₀ k).1).tail
-  have hseg : ∀ k, (π.lts F).MTr (ts k) (xls k) (ts (k + 1)) ∧ 0 < (xls k).length ∧
+  have hseg (k : ℕ) : (π.lts F).MTr (ts k) (xls k) (ts (k + 1)) ∧ 0 < (xls k).length ∧
       (∀ a ∈ xls k, a.IsHonest) ∧ (∀ e ∈ (ts k).msgs, e.dest ∉ F → .deliver e ∈ xls k) := by
-    intro k
     simpa [ts, xls, drainSeq] using π.drainPhase_spec F (π.drainSeq F s₀ k).2
   have hpos : ∀ k, 0 < (xls k).length := fun k => (hseg k).2.1
   have : Inhabited (Action P M) := ⟨.stutter⟩
@@ -707,38 +704,28 @@ private lemma directInv_tr {P V : Type*} [Fintype P] [DecidableEq P] [DecidableE
     {dealer : P} {F : Finset P} (hd : dealer ∉ F) (input : Option V) :
     ((directProtocol P V dealer).lts F).TrInv (directInv (dealer := dealer) F input) := by
   intro s a s' htr ⟨hmsgs, hproc⟩
+  have hcore {src dest : P} {body : V} {msgsBase : Multiset (Envelope P V)}
+      (hbm : ∀ e ∈ msgsBase, e ∈ s.msgs) (hdest : dest ∉ F)
+      (hbody : src = dealer → input = some body) :
+      directInv (dealer := dealer) F input
+        ((directProtocol P V dealer).recvCore src dest body msgsBase s) := by
+    refine ⟨fun e he => hmsgs e (hbm e (by simpa [Protocol.recvCore, directProtocol] using he)),
+      fun i hi v hv => ?_⟩
+    simp only [State.ProcDecided, Protocol.recvCore, Protocol.updateProc, directProtocol] at hv
+    obtain rfl | hne := eq_or_ne i dest
+    · simp only [↓reduceIte] at hv
+      split_ifs at hv with hnone hsd
+      · exact (hbody hsd).trans (congrArg some (Option.some.inj hv))
+      · exact hproc i hdest v hv
+    · exact hproc i hi v (by simpa [hne] using hv)
   cases a with
   | deliver e =>
     obtain ⟨hmem, hdest, rfl⟩ := htr
-    refine ⟨?_, ?_⟩
-    · intro e' he'
-      simp only [Protocol.recvHonest, Protocol.recvCore, directProtocol, Multiset.map_zero,
-        add_zero] at he'
-      exact hmsgs e' (Multiset.mem_of_mem_erase he')
-    · intro i hi v hv
-      simp only [State.ProcDecided, Protocol.recvHonest, Protocol.recvCore, Protocol.updateProc]
-        at hv
-      split_ifs at hv with hid hnone
-      · simp only [directProtocol] at hv
-        split_ifs at hv
-        cases hv; exact (hmsgs e hmem).2
-      · subst hid; exact hproc e.dest hdest v hv
-      · exact hproc i hi v hv
+    exact hcore (fun _ => Multiset.mem_of_mem_erase) hdest fun _ => (hmsgs e hmem).2
   | byzRecv src dest body =>
-    obtain ⟨hsrcF, hdest, rfl⟩ := htr
-    have hne : src ≠ dealer := fun h => hd (h ▸ hsrcF)
-    refine ⟨?_, ?_⟩
-    · intro e' he'
-      simp only [Protocol.recvByz, Protocol.recvCore, directProtocol, Multiset.map_zero,
-        add_zero] at he'
-      exact hmsgs e' he'
-    · intro i hi v hv
-      simp only [State.ProcDecided, Protocol.recvByz, Protocol.recvCore, Protocol.updateProc] at hv
-      split_ifs at hv with hid hnone
-      · simp [directProtocol, hne] at hv
-      · subst hid; exact hproc i hdest v hv
-      · exact hproc i hi v hv
-  | stutter => obtain rfl := htr; exact ⟨hmsgs, hproc⟩
+    obtain ⟨hsrc, hdest, rfl⟩ := htr
+    exact hcore (fun _ => id) hdest fun h => (hd (h ▸ hsrc)).elim
+  | stutter => exact htr ▸ ⟨hmsgs, hproc⟩
 
 private lemma direct_noSpurious {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
     {dealer : P} {F : Finset P} (hd : dealer ∉ F) {input : Option V} {s : State P PUnit V V}
@@ -756,9 +743,8 @@ private lemma direct_validity {P V : Type*} [Fintype P] [DecidableEq P] [Decidab
   let e : Envelope P V := ⟨dealer, i, v⟩
   have he0 : e ∈ (ss 0).msgs := by
     rw [ha.1]
-    refine Multiset.mem_bind.mpr ⟨dealer, Finset.mem_univ _, ?_⟩
-    simp only [hd, ↓reduceIte, Protocol.initSend, directProtocol]
-    exact mem_broadcastAll_tag dealer i v
+    exact Multiset.mem_bind.mpr ⟨dealer, Finset.mem_univ _,
+      by simpa [hd, Protocol.initSend, directProtocol] using mem_broadcastAll_tag dealer i v⟩
   obtain ⟨j, _, hj⟩ := ha.2.2 e hi 0 he0
   obtain ⟨_, _, hnext⟩ : ((directProtocol P V dealer).lts F).Tr (ss j) (.deliver e) (ss (j + 1)) :=
     hj ▸ ha.2.1 j
@@ -797,14 +783,14 @@ private lemma direct_honest_totality {P V : Type*} [Fintype P] [DecidableEq P] [
 theorem solvesReliableBroadcast_direct_of_zero {P V : Type*} [Fintype P] [DecidableEq P]
     [DecidableEq V] (dealer : P) :
     (directProtocol P V dealer).SolvesReliableBroadcast 0 where
-  consistency F hF _ _ hr _ hi _ hj _ _ h₁ h₂ := by
-    obtain rfl := Finset.card_eq_zero.mp (Nat.le_zero.mp hF)
-    exact direct_honest_agreement (Finset.notMem_empty dealer) hr hi hj h₁ h₂
+  consistency _ hF _ _ hr _ hi _ hj _ _ h₁ h₂ :=
+    direct_honest_agreement
+      (Finset.card_eq_zero.mp (Nat.le_zero.mp hF) ▸ Finset.notMem_empty dealer) hr hi hj h₁ h₂
   noSpurious _ _ hd _ _ hr _ hi _ hv := direct_noSpurious hd hr hi hv
   validity _ _ hd v _ _ ha _ hi := direct_validity hd v ha hi
-  totality F hF _ _ _ ha _ hi _ _ hv _ hj := by
-    obtain rfl := Finset.card_eq_zero.mp (Nat.le_zero.mp hF)
-    exact direct_honest_totality (Finset.notMem_empty dealer) ha hi hj hv
+  totality _ hF _ _ _ ha _ hi _ _ hv _ hj :=
+    direct_honest_totality
+      (Finset.card_eq_zero.mp (Nat.le_zero.mp hF) ▸ Finset.notMem_empty dealer) ha hi hj hv
 
 /-- On at most two processes (`Fintype.card P ≤ 2`), `directProtocol` solves reliable broadcast
 against *any* fault bound `t`: if `dealer` is faulty, at most one correct process remains, so both

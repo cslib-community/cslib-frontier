@@ -165,13 +165,8 @@ theorem universalDistExperiment_false_eq_true {State₀ State₁ : Type} (d : F.
   rw [PMF.bind_comm]; conv_rhs => rw [PMF.bind_comm]
   refine PMF.bind_congr_on_support _ _ _ fun chal hchal => ?_
   rcases chal with ⟨v, w, st₁⟩
-  have hchal' :
-      (v, w, st₁) ∈ (ProbComp.eval ((A.chooseChallenge st₀ (projHashAux F d δ 0
-        (α • F.generator d))).run (fun (v', w') => pure (projHash F d δ 0 v' w')))).support := by
-    have haux : projHashAux F d δ 0 (α • F.generator d) = δ • F.generator d := by
-      simp only [projHashAux_generator_smul, mul_zero, add_zero]
-    rwa [haux]
-  obtain ⟨hvw, hpostQ⟩ := hpost δ 0 v w st₁ hchal'
+  obtain ⟨hvw, hpostQ⟩ := hpost δ 0 v w st₁
+    (by simpa only [projHashAux_generator_smul, mul_zero, add_zero] using hchal)
   have hpost_congr (τ : ZMod (F.order d)) (z : F.Carrier d) :
       ProbComp.eval ((A.guess st₁ z).run
         (fun (v', w') => pure (projHash F d (δ - α * τ) τ v' w'))) =
@@ -302,21 +297,9 @@ private theorem uniform_universal2Wins_le (d : F.Desc)
       tuples.any (fun (β', γ', ρ', z') =>
         decide (projHash2 F d (δ₁ - α * (ξ - ρ * τ₂)) (ξ - ρ * τ₂) (δ₂ - α * τ₂) τ₂ ρ'
           (β' • F.generator d) (γ' • F.generator d) = z')) := by
-    apply Bool.eq_iff_iff.mpr
-    simp only [universal2Wins, List.any_eq_true, decide_eq_true_eq, tuples,
-      List.mem_map, badGuesses, List.mem_filter]
-    constructor
-    · rintro ⟨⟨zHat, vHat, wHat, ρHat⟩, hmem, hnonDH, hρ, hz⟩
-      dsimp only at hnonDH hρ hz
-      refine ⟨toTuple (zHat, vHat, wHat, ρHat),
-        ⟨(zHat, vHat, wHat, ρHat), ⟨hmem, hnonDH, hρ⟩, rfl⟩, ?_⟩
-      dsimp only [toTuple]
-      rw [hchoose vHat, hchoose wHat, hz]
-    · rintro ⟨⟨β', γ', ρ', z'⟩, ⟨⟨zHat, vHat, wHat, ρHat⟩, ⟨hmem, hfilt⟩, hto⟩, hz⟩
-      cases hto
-      refine ⟨_, hmem, hfilt.1, hfilt.2, ?_⟩
-      rw [hchoose vHat, hchoose wHat] at hz
-      exact hz.symm
+    rw [universal2Wins, List.any_map, List.any_filter]
+    refine List.any_congr rfl fun ⟨zHat, vHat, wHat, ρHat⟩ => ?_
+    simp only [Function.comp_def, toTuple, hchoose, ← Bool.decide_and, and_assoc, @eq_comm _ _ zHat]
   simp_rw [hpoint]
   refine (uniform_projHash2_fiber_any_le F d α ρ δ₁ δ₂ ξ tuples hq).trans ?_
   have hlen_tuples : tuples.length ≤ Q := by
@@ -359,12 +342,8 @@ theorem succProbability_universal2GuessGame_le {State₀ State₁ : Type} (d : F
     rw [PMF.bind_comm]
     refine PMF.bind_apply_le_on_support _ fun chal hchal => ?_
     rcases chal with ⟨v, w, ρ, st₁⟩
-    have hchal' :
-        (v, w, ρ, st₁) ∈ (ProbComp.eval ((A.chooseChallenge st₀
-          (projHash2Aux F d δ₁ 0 δ₂ 0 (α • F.generator d))).run
-            (fun ((v', w'), ρ') => pure (projHash2 F d δ₁ 0 δ₂ 0 ρ' v' w')))).support := by
-      simpa only [projHash2Aux, projHashAux_generator_smul, mul_zero, add_zero] using hchal
-    have hpost_z := hpost δ₁ 0 δ₂ 0 v w ρ st₁ hchal'
+    have hpost_z := hpost δ₁ 0 δ₂ 0 v w ρ st₁
+      (by simpa only [projHash2Aux, projHashAux_generator_smul, mul_zero, add_zero] using hchal)
     rw [PMF.bind_comm]
     conv_lhs =>
       enter [1, 2, τ₂]; rw [← PMF.uniformOfFintype_bind_sub_right (ρ * τ₂)]

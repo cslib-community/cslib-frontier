@@ -116,9 +116,7 @@ theorem frozenReferenceObstacle_compl_isPathConnected {I : FixedRotationInput}
     (fun v => (referencePoint I v.val).re - 1 / 8) (fun v => right v.val) (-R) R
     (fun v => frozenStar_starConvex I v.val) hcenter ?_ ?_ (x := -1) ?_
   · intro v z hz
-    have hOb : z ∈ frozenReferenceObstacle I := by
-      unfold frozenReferenceObstacle
-      exact Set.mem_iUnion.mpr ⟨v, hz⟩
+    have hOb : z ∈ frozenReferenceObstacle I := Set.mem_iUnion.mpr ⟨v, hz⟩
     have hnorm : ‖z‖ < R := by
       simpa only [Metric.mem_ball, dist_zero_right] using hbound hOb
     refine ⟨?_, abs_lt.mp ((Complex.abs_im_le_norm z).trans_lt hnorm)⟩
@@ -137,9 +135,7 @@ theorem frozenReferenceObstacle_compl_isPathConnected {I : FixedRotationInput}
     · have hs := hsep _ (hmem v) _ (hmem u) h
       linarith only [hs, hv.2, hu.1]
   · intro v hv
-    have hnonneg : 0 ≤ (referencePoint I v.val).re := by
-      change (0 : ℝ) ≤ ((referenceOrder I).idxOf v.val : ℝ)
-      exact Nat.cast_nonneg _
+    have hnonneg : 0 ≤ (referencePoint I v.val).re := Nat.cast_nonneg _
     linarith only [hnonneg, hv.1]
 
 /-- An original vertex or the occurrence leaf at the end of a frozen reference spoke.
@@ -304,14 +300,12 @@ private theorem place_reference_vertex {I : FixedRotationInput} (hI : Valid I)
           (fun u hu _ => hzfree u hu)
       refine ⟨F, hF, ?_, ?_, hFroute⟩
       · intro u hu _ hpoint
-        by_cases huw : u = w
-        · subst u
-          exact hzne (hFpos.symm.trans hpoint.symm)
+        rcases eq_or_ne u w with rfl | huw
+        · exact hzne (hFpos.symm.trans hpoint.symm)
         · exact huw (hD.vertices_injective hu hw ((hpoint.trans (hFother u hu huw)).symm.trans heq))
       · intro u hu hpos
-        by_cases huw : u = w
-        · subst u
-          exact (hwrong hpos).elim
+        rcases eq_or_ne u w with rfl | huw
+        · exact (hwrong hpos).elim
         · exact (hFother u hu huw).trans hpos
     · exact ⟨D, hD, fun w hw hwv h => hcollision ⟨w, hw, hwv, h⟩, fun _ _ h => h, hroute⟩
   obtain ⟨F, hF, htarget, hplaced, hFroute⟩ := clear
@@ -321,9 +315,8 @@ private theorem place_reference_vertex {I : FixedRotationInput} (hI : Valid I)
     exists_move_unfrozen_reference_vertex hI hF hFcenter hFroute hv hvfree hvout htarget
   refine ⟨E, hE, hEpos, ?_, hEroute⟩
   intro w hw hpos
-  by_cases hwv : w = v
-  · subst w
-    exact hEpos
+  rcases eq_or_ne w v with rfl | hwv
+  · exact hEpos
   · exact (hEother w hw hwv).trans (hplaced w hw hpos)
 
 /-- Place every declared subdivision vertex at its reference point while retaining the

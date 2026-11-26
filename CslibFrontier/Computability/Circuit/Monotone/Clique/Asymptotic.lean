@@ -115,19 +115,13 @@ private theorem six_mul_succ_sq_lt_two_pow
 private theorem sunflowerBound_sq_mul_sixtyFour_pow_lt (w : Nat) (one_le : 1 ≤ w) :
     sunflowerBound (w ^ 2) w ^ 2 * 64 ^ w < (64 * w ^ 6) ^ (w + 1) := by
   let ratio := 64 * w ^ 6
-  have ratioPositive : 0 < ratio := by
-    simp only [ratio]
-    positivity
+  have ratioPositive : 0 < ratio := by dsimp only [ratio]; positivity
   have successorSmall : (w + 1) ^ 2 < ratio := by
     have : 1 ≤ w ^ 6 := one_le_pow₀ one_le
     have : (w + 1) ^ 2 ≤ 4 * w ^ 6 :=
-      calc (w + 1) ^ 2 ≤ (2 * w) ^ 2 := by
-            gcongr
-            omega
+      calc (w + 1) ^ 2 ≤ (2 * w) ^ 2 := Nat.pow_le_pow_left (by omega) 2
         _ = 4 * w ^ 2 := by ring
-        _ ≤ 4 * w ^ 6 := by
-            gcongr
-            omega
+        _ ≤ 4 * w ^ 6 := Nat.mul_le_mul_left 4 (Nat.pow_le_pow_right one_le (by decide))
     omega
   calc sunflowerBound (w ^ 2) w ^ 2 * 64 ^ w
       ≤ ((w + 1) * w ^ (3 * w)) ^ 2 * 64 ^ w := by
@@ -150,9 +144,7 @@ private theorem positive_budget
     Positive.errorCap n k (w ^ 2) w * 64 ^ w <
       Nat.choose n k := by
   let ratio := 64 * w ^ 6
-  have ratioPositive : 0 < ratio := by
-    simp only [ratio]
-    positivity
+  have ratioPositive : 0 < ratio := by dsimp only [ratio]; positivity
   have k_le_n : k ≤ n :=
     calc k ≤ 64 * w ^ 6 * k := Nat.le_mul_of_pos_left k ratioPositive
       _ ≤ n := verticesLarge
@@ -333,10 +325,8 @@ theorem two_rpow_sqrt_lt_size_of_separates {n k : ℕ} (hk : 2 ≤ k) (hn : k ^ 
     cast_linarith [sqrtPositive]
   calc (2 : ℝ) ^ Real.sqrt k ≤ (2 : ℝ) ^ ((2 * Nat.sqrt k : ℕ) : ℝ) :=
         Real.rpow_le_rpow_of_exponent_le (by norm_num) exponentBound
-    _ = ((2 ^ (2 * Nat.sqrt k) : ℕ) : ℝ) := by
-        rw [Real.rpow_natCast]
-        push_cast
-        rfl
+    _ = ((2 ^ (2 * Nat.sqrt k) : ℕ) : ℝ) :=
+        (Real.rpow_natCast 2 (2 * Nat.sqrt k)).trans (by push_cast; rfl)
     _ < C.size := by exact_mod_cast two_pow_two_mul_sqrt_lt_size_of_separates hk hn hC
 
 /-- **The monotone lower bound for cliques, real form.** For `2 ≤ k` with `k ^ 4 ≤ n`, every

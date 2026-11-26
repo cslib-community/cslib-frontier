@@ -207,8 +207,7 @@ theorem rate_le_of_lt_johnsonRadius [Fintype ι] [Nonempty ι] [Fintype α] [Dec
     linarith [mul_le_mul_of_nonneg_left hvol (Nat.cast_nonneg (α := ℝ) #C),
       mul_le_mul_of_nonneg_right hebR (by positivity : (0 : ℝ) ≤ n + 1)]
   have hCR : (0 : ℝ) < #C := Nat.cast_pos.2 hCpos
-  have hqR2 : (2 : ℝ) ≤ q := by exact_mod_cast hq
-  have hq1 : (0 : ℝ) < (q : ℝ) - 1 := by linarith
+  have hq1 : (0 : ℝ) < (q : ℝ) - 1 := sub_pos.2 hqR
   have hlog :
       Real.logb q (#C : ℝ) +
           (n : ℝ) * Real.qaryEntropy q ((e : ℝ) / n) / Real.log q ≤
@@ -221,10 +220,7 @@ theorem rate_le_of_lt_johnsonRadius [Fintype ι] [Nonempty ι] [Fintype α] [Dec
         (n : ℝ) * Real.qaryEntropy q ((e : ℝ) / n) / Real.log q := by
       rw [Real.logb, Real.log_exp]
     linarith [h1, hexp]
-  have hrate_eq : rate (C : Set (ι → α)) = Real.logb q (#C : ℝ) / n := by
-    simp only [rate, Nat.card_coe_set_eq, Set.ncard_coe_finset]
-    rfl
-  rw [hrate_eq]
+  simp only [rate, Nat.card_coe_set_eq, Set.ncard_coe_finset]
   have hdiv := div_le_div_of_nonneg_right hlog hnR.le
   rw [add_div, add_div, div_self hnR.ne', mul_div_assoc, mul_div_cancel_left₀ _ hnR.ne'] at hdiv
   linarith
@@ -275,8 +271,6 @@ theorem eventually_rate_le_one_sub_qaryEntropy_johnsonRadius
   have hηpos : 0 < η := lt_min (half_pos hη₀pos) hJpos
   have hη_le_η₀ : η < η₀ := (min_le_left _ _).trans_lt (half_lt_self hη₀pos)
   have hη_le_J : η ≤ J := min_le_right _ _
-  have h_n1 : ∀ᶠ s in l, 1 ≤ Fintype.card (ιs s) := hn.eventually_ge_atTop 1
-  have h_nη : ∀ᶠ s in l, 2 / η ≤ (Fintype.card (ιs s) : ℝ) := hnR.eventually_ge_atTop _
   have h_nconst :
       ∀ᶠ s in l, Real.log (2 * q) ≤ ε / 4 * Real.log q * (Fintype.card (ιs s) : ℝ) :=
     (hnR.eventually_ge_atTop (Real.log (2 * q) / (ε / 4 * Real.log q))).mono fun s hs => by
@@ -288,42 +282,34 @@ theorem eventually_rate_le_one_sub_qaryEntropy_johnsonRadius
     filter_upwards [hnR.eventually this, hnR.eventually_ge_atTop 1] with s hs hs1
     simpa only [Real.norm_eq_abs, id, abs_of_nonneg (Real.log_nonneg hs1),
       abs_of_nonneg (by linarith : (0 : ℝ) ≤ Fintype.card (ιs s))] using hs
-  filter_upwards [h_n1, h_nη, h_nconst, h_nlog] with s hs1 hsη hsconst hslog
+  filter_upwards [hn.eventually_ge_atTop 1, hnR.eventually_ge_atTop (2 / η), h_nconst,
+    h_nlog] with s hs1 hsη hsconst hslog
   have : Nonempty (ιs s) := Fintype.card_pos_iff.1 hs1
   set n : ℕ := Fintype.card (ιs s)
-  have hn0 : 0 < n := hs1
-  have hnR' : (0 : ℝ) < n := Nat.cast_pos.2 hn0
+  have hnR' : (0 : ℝ) < n := Nat.cast_pos.2 hs1
   set d : ℕ := ⌈δ * n⌉₊
-  have hδlt1 : δ < 1 := by nlinarith
   have hdn : d ≤ n := Nat.ceil_le.2 (by nlinarith)
-  have hdmin : (d : ℕ∞) ≤ minDist (C s : Set (ιs s → α)) := by
-    rw [le_minDist_iff]
-    intro x hx y hy hxy
-    exact_mod_cast Nat.ceil_le.2 (hC s x hx y hy hxy)
-  have hδd : δ ≤ (d : ℝ) / n := (le_div_iff₀ hnR').2 (Nat.le_ceil _)
-  have hJd : J ≤ johnsonRadius q ((d : ℝ) / n) := johnsonRadius_mono_right hqR hδd
+  have hdmin : (d : ℕ∞) ≤ minDist (C s : Set (ιs s → α)) :=
+    le_minDist_iff.2 fun x hx y hy hxy => mod_cast Nat.ceil_le.2 (hC s x hx y hy hxy)
+  have hJd : J ≤ johnsonRadius q ((d : ℝ) / n) :=
+    johnsonRadius_mono_right hqR ((le_div_iff₀ hnR').2 (Nat.le_ceil _))
   set e : ℕ := ⌊(J - η / 2) * n⌋₊
-  have hJη0 : 0 ≤ J - η / 2 := by linarith
-  have he_le : (e : ℝ) ≤ (J - η / 2) * n := Nat.floor_le (mul_nonneg hJη0 hnR'.le)
-  have he_lt : (J - η / 2) * n - 1 < e := sub_lt_iff_lt_add.2 (Nat.lt_floor_add_one _)
-  have he_lower : J - η ≤ (e : ℝ) / n := by
-    rw [le_div_iff₀ hnR']
-    linarith [(div_le_iff₀ hηpos).1 hsη]
+  have he_le : (e : ℝ) ≤ (J - η / 2) * n := Nat.floor_le (mul_nonneg (by linarith) hnR'.le)
+  have he_lower : J - η ≤ (e : ℝ) / n := (le_div_iff₀ hnR').2
+    (by linarith [(div_le_iff₀ hηpos).1 hsη, Nat.lt_floor_add_one ((J - η / 2) * n)])
   have he_upper : (e : ℝ) / n ≤ J - η / 2 := (div_le_iff₀ hnR').2 he_le
   have he_radius : (e : ℝ) / n < johnsonRadius q ((d : ℝ) / n) := by linarith
   have hfinite := rate_le_of_lt_johnsonRadius (C := C s) hq hdmin hdn he_radius
   have hdistJ : dist ((e : ℝ) / n) J < η₀ :=
     Real.dist_eq ((e : ℝ) / n) J ▸ abs_lt.2 ⟨by linarith, by linarith⟩
   have hent' : (Real.qaryEntropy q J - Real.qaryEntropy q ((e : ℝ) / n)) / Real.log q ≤ ε / 2 := by
-    have := hη₀ hdistJ
-    rw [Real.dist_eq, abs_lt] at this
     rw [div_le_iff₀ hlogq]
-    linarith
-  have hd_le : (d : ℝ) ≤ n := by exact_mod_cast hdn
-  have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast hn0
+    linarith [(abs_lt.1 ((Real.dist_eq _ _).symm.trans_lt (hη₀ hdistJ))).1]
   have hpoly : ((q : ℝ) - 1) * n * d * (n + 1) ≤ (2 * q) * (n : ℝ) ^ 3 :=
     calc ((q : ℝ) - 1) * n * d * (n + 1)
-        ≤ (q : ℝ) * n * n * (2 * n) := by gcongr <;> linarith
+        ≤ (q : ℝ) * n * n * (2 * n) := by
+          gcongr <;> linarith [show (d : ℝ) ≤ n from mod_cast hdn,
+            show (1 : ℝ) ≤ n from mod_cast hs1]
       _ = (2 * q) * (n : ℝ) ^ 3 := by ring
   have hpoly_pos : 0 < ((q : ℝ) - 1) * n * d * (n + 1) := by
     have : 0 < d := Nat.ceil_pos.2 (mul_pos hδpos hnR')

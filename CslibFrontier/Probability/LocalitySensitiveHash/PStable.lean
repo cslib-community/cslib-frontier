@@ -153,16 +153,15 @@ private theorem volume_Ico_floor_ne_of_le {x y : ℝ} (hxy : x ≤ y) (hgap : y 
       {b : ℝ | ⌊x + b⌋ ≠ ⌊y + b⌋}.indicator (fun _ => (1 : ℝ)) b =
         (⌊y + b⌋ : ℝ) - ⌊x + b⌋ := fun b => by
     have hle : ⌊x + b⌋ ≤ ⌊y + b⌋ := Int.floor_mono (by linarith)
-    have hlt : ⌊y + b⌋ ≤ ⌊x + b⌋ + 1 := by
-      rw [← Int.floor_add_one]
-      exact Int.floor_mono (by linarith)
+    have hlt : ⌊y + b⌋ ≤ ⌊x + b⌋ + 1 :=
+      Int.floor_add_one (x + b) ▸ Int.floor_mono (by linarith)
     simp only [Set.indicator_apply, Set.mem_ofPred_eq]
     split_ifs with h
     · simp [show ⌊y + b⌋ = ⌊x + b⌋ + 1 by omega]
     · simp [show ⌊y + b⌋ = ⌊x + b⌋ by omega]
   have hmeas : MeasurableSet {b : ℝ | ⌊x + b⌋ ≠ ⌊y + b⌋} :=
-    (measurableSet_eq_fun (Int.measurable_floor.comp (measurable_const.add measurable_id))
-      (Int.measurable_floor.comp (measurable_const.add measurable_id))).compl
+    (measurableSet_eq_fun (Int.measurable_floor.comp (by fun_prop))
+      (Int.measurable_floor.comp (by fun_prop))).compl
   have hdiff : ∀ b : ℝ, (⌊y + b⌋ : ℝ) - ⌊x + b⌋ =
       (y - x) + Int.fract (x + b) - Int.fract (y + b) := fun b => by
     simp only [Int.fract]
@@ -170,17 +169,15 @@ private theorem volume_Ico_floor_ne_of_le {x y : ℝ} (hxy : x ≤ y) (hgap : y 
   have hper : Function.Periodic (Int.fract : ℝ → ℝ) 1 := fun z => by
     simpa only [add_comm] using Int.fract_add_one z
   have hf_eq (u : ℝ) : ∫ b in (0 : ℝ)..1, Int.fract (u + b) = ∫ b in (0 : ℝ)..1, Int.fract b := by
-    have h1 := intervalIntegral.integral_comp_add_left (Int.fract : ℝ → ℝ) u (a := 0) (b := 1)
-    simp only [add_zero] at h1
-    rw [h1, hper.intervalIntegral_add_eq u 0, zero_add]
+    rw [intervalIntegral.integral_comp_add_left (Int.fract : ℝ → ℝ) u, add_zero,
+      hper.intervalIntegral_add_eq u 0, zero_add]
   have hix := intervalIntegrable_fract_add x
-  have hiy := intervalIntegrable_fract_add y
-  have hic : IntervalIntegrable (fun _ : ℝ => y - x) volume 0 1 := intervalIntegrable_const
   rw [volume_real_Ico_inter_eq_intervalIntegral zero_le_one hmeas]
   simp only [hind, hdiff]
-  rw [intervalIntegral.integral_sub (hic.add hix) hiy,
-    intervalIntegral.integral_add hic hix, intervalIntegral.integral_const, sub_zero,
-    smul_eq_mul, one_mul, hf_eq x, hf_eq y, add_sub_cancel_right]
+  rw [intervalIntegral.integral_sub (intervalIntegrable_const.add hix)
+      (intervalIntegrable_fract_add y),
+    intervalIntegral.integral_add intervalIntegrable_const hix, intervalIntegral.integral_const,
+    sub_zero, smul_eq_mul, one_mul, hf_eq x, hf_eq y, add_sub_cancel_right]
 
 /-- Measure of `{b ∈ [0, r) | ⌊(x + b) / r⌋ = ⌊(y + b) / r⌋}` under `uniformInterval r`. -/
 theorem measureReal_uniformInterval_floor_eq {r : ℝ} (hr : 0 < r) (x y : ℝ) :
@@ -188,22 +185,18 @@ theorem measureReal_uniformInterval_floor_eq {r : ℝ} (hr : 0 < r) (x y : ℝ) 
       max 0 (1 - |x - y| / r) := by
   wlog hxy : x ≤ y generalizing x y
   · simpa only [eq_comm, abs_sub_comm] using this y x (le_of_not_ge hxy)
-  have hm : ∀ z : ℝ, Measurable (fun b : ℝ => ⌊(z + b) / r⌋) := fun z =>
-    Int.measurable_floor.comp ((measurable_const.add measurable_id).div_const r)
   have hmeas : MeasurableSet {b : ℝ | ⌊(x + b) / r⌋ = ⌊(y + b) / r⌋} :=
-    measurableSet_eq_fun (hm x) (hm y)
+    measurableSet_eq_fun (Int.measurable_floor.comp (by fun_prop))
+      (Int.measurable_floor.comp (by fun_prop))
   have habs : |x - y| = y - x := abs_sub_comm x y ▸ abs_of_nonneg (sub_nonneg.2 hxy)
   rcases le_or_gt r (y - x) with hfar | hnear
-  · have hemp : {b : ℝ | ⌊(x + b) / r⌋ = ⌊(y + b) / r⌋} = ∅ := by
-      ext b
-      simp only [Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false]
-      have h1 : (x + b) / r + 1 ≤ (y + b) / r := by
-        rw [div_add_one hr.ne', div_le_div_iff_of_pos_right hr]
-        linarith
-      have h2 : ⌊(x + b) / r⌋ + 1 ≤ ⌊(y + b) / r⌋ := by
-        rw [← Int.floor_add_one]
-        exact Int.floor_mono h1
-      omega
+  · have hemp : {b : ℝ | ⌊(x + b) / r⌋ = ⌊(y + b) / r⌋} = ∅ :=
+      Set.eq_empty_iff_forall_notMem.mpr fun b (hb : ⌊(x + b) / r⌋ = ⌊(y + b) / r⌋) => by
+        have h1 : (x + b) / r + 1 ≤ (y + b) / r := by
+          rw [div_add_one hr.ne', div_le_div_iff_of_pos_right hr]
+          linarith
+        have := Int.floor_add_one ((x + b) / r) ▸ Int.floor_mono h1
+        omega
     rw [hemp, measureReal_empty, eq_comm, max_eq_left]
     rwa [habs, sub_nonpos, le_div_iff₀ hr, one_mul]
   · have hscale : volume.real (Set.Ico 0 r ∩ {b : ℝ | ⌊(x + b) / r⌋ = ⌊(y + b) / r⌋}) =
@@ -222,24 +215,22 @@ theorem measureReal_uniformInterval_floor_eq {r : ℝ} (hr : 0 < r) (x y : ℝ) 
             1 - {t : ℝ | ⌊x / r + t⌋ ≠ ⌊y / r + t⌋}.indicator (fun _ => (1 : ℝ)) t := fun t => by
         by_cases ht : ⌊x / r + t⌋ = ⌊y / r + t⌋ <;> simp [ht]
       have hm1 : MeasurableSet {t : ℝ | ⌊x / r + t⌋ ≠ ⌊y / r + t⌋} :=
-        (measurableSet_eq_fun (Int.measurable_floor.comp (measurable_const.add measurable_id))
-          (Int.measurable_floor.comp (measurable_const.add measurable_id))).compl
-      have hne_vol := volume_Ico_floor_ne_of_le (div_le_div_of_nonneg_right hxy hr.le)
-        (by rw [← sub_div, div_le_one hr]; exact hnear.le)
+        (measurableSet_eq_fun (Int.measurable_floor.comp (by fun_prop))
+          (Int.measurable_floor.comp (by fun_prop))).compl
       have hne_int : ∫ t in (0 : ℝ)..1,
           {t : ℝ | ⌊x / r + t⌋ ≠ ⌊y / r + t⌋}.indicator (fun _ => (1 : ℝ)) t = (y - x) / r := by
-        rw [← volume_real_Ico_inter_eq_intervalIntegral zero_le_one hm1, hne_vol, sub_div]
-      have hi1 : IntervalIntegrable (fun _ : ℝ => (1 : ℝ)) volume 0 1 := intervalIntegrable_const
-      have hi2 := intervalIntegrable_indicator_one hm1
+        rw [← volume_real_Ico_inter_eq_intervalIntegral zero_le_one hm1,
+          volume_Ico_floor_ne_of_le (div_le_div_of_nonneg_right hxy hr.le)
+            ((sub_div y x r).symm ▸ (div_le_one hr).2 hnear.le), sub_div]
       rw [volume_real_Ico_inter_eq_intervalIntegral hr.le hmeas, ← hr_int]
       simp_rw [hind_sc, hcompl]
-      rw [intervalIntegral.integral_sub hi1 hi2, intervalIntegral.integral_const, sub_zero,
-        smul_eq_mul, mul_one, hne_int]
+      rw [intervalIntegral.integral_sub intervalIntegrable_const
+          (intervalIntegrable_indicator_one hm1),
+        intervalIntegral.integral_const, sub_zero, smul_eq_mul, mul_one, hne_int]
       field_simp [hr.ne']
-    rw [uniformInterval_real_apply hr _, hscale, habs, eq_comm, max_eq_right]
-    · field_simp [hr.ne']
-    · rw [sub_nonneg, div_le_one hr]
-      exact hnear.le
+    rw [uniformInterval_real_apply hr _, hscale, habs, eq_comm,
+      max_eq_right (sub_nonneg.2 ((div_le_one hr).2 hnear.le))]
+    field_simp [hr.ne']
 
 /-- **General Fubini collision formula for `intervalFloorHash`**: under any probability measure
 `μ` on the projection space paired with `uniformInterval r`, `u` and `v` collide with probability
@@ -250,19 +241,14 @@ theorem measureCollisionProb_intervalFloorHash {α X : Type*} [MeasurableSpace �
     measureCollisionProb (μ.prod (uniformInterval r)) (intervalFloorHash r proj) u v =
       ∫ a, max (0 : ℝ) (1 - |proj a u - proj a v| / r) ∂μ := by
   have : IsProbabilityMeasure (uniformInterval r) := isProbabilityMeasure_uniformInterval hr
-  have hmeas := measurableSet_intervalFloorHash_eq r hproj u v
   have hprod : (μ.prod (uniformInterval r))
       {p : α × ℝ | intervalFloorHash r proj p u = intervalFloorHash r proj p v} =
       ∫⁻ a, ENNReal.ofReal (max (0 : ℝ) (1 - |proj a u - proj a v| / r)) ∂μ := by
-    rw [Measure.prod_apply hmeas]
+    rw [Measure.prod_apply (measurableSet_intervalFloorHash_eq r hproj u v)]
     refine lintegral_congr fun a => ?_
-    have hsect : Prod.mk a ⁻¹'
-        {p : α × ℝ | intervalFloorHash r proj p u = intervalFloorHash r proj p v} =
-        {b : ℝ | ⌊(proj a u + b) / r⌋ = ⌊(proj a v + b) / r⌋} := rfl
-    rw [hsect, ← ENNReal.ofReal_toReal (measure_ne_top (uniformInterval r) _),
-      ← measureReal_def, measureReal_uniformInterval_floor_eq hr]
-  have hf_meas : Continuous fun t : ℝ => max (0 : ℝ) (1 - |t| / r) :=
-    continuous_const.max (continuous_const.sub (continuous_abs.div_const r))
+    rw [← ENNReal.ofReal_toReal (measure_ne_top (uniformInterval r) _), ← measureReal_def]
+    exact congrArg ENNReal.ofReal (measureReal_uniformInterval_floor_eq hr (proj a u) (proj a v))
+  have hf_meas : Continuous fun t : ℝ => max (0 : ℝ) (1 - |t| / r) := by fun_prop
   have hf_int : Integrable (fun a => max (0 : ℝ) (1 - |proj a u - proj a v| / r)) μ := by
     refine Integrable.of_bound
       ((hf_meas.measurable.comp ((hproj u).sub (hproj v))).aestronglyMeasurable) 1
@@ -288,16 +274,11 @@ theorem measureCollisionProb_intervalFloorHash_of_map {α X : Type*} [Measurable
     (hc : 0 ≤ c) (hmap : μ.map (fun a => proj a u - proj a v) = ν.map (c * ·)) :
     measureCollisionProb (μ.prod (uniformInterval r)) (intervalFloorHash r proj) u v =
       stableCollisionProb ν r c := by
-  rw [measureCollisionProb_intervalFloorHash μ hr proj hproj u v]
-  have hcont : Continuous fun y : ℝ => max (0 : ℝ) (1 - |y| / r) :=
-    continuous_const.max (continuous_const.sub (continuous_abs.div_const r))
-  have h1 : ∫ a, max (0 : ℝ) (1 - |proj a u - proj a v| / r) ∂μ =
-      ∫ y, max (0 : ℝ) (1 - |y| / r) ∂(μ.map fun a => proj a u - proj a v) :=
-    (integral_map ((hproj u).sub (hproj v)).aemeasurable hcont.aestronglyMeasurable).symm
-  have h2 : ∫ y, max (0 : ℝ) (1 - |y| / r) ∂(ν.map (c * ·)) =
-      ∫ z, max (0 : ℝ) (1 - |c * z| / r) ∂ν :=
-    integral_map (measurable_const.mul measurable_id).aemeasurable hcont.aestronglyMeasurable
-  rw [h1, hmap, h2]
+  have hcont : Continuous fun y : ℝ => max (0 : ℝ) (1 - |y| / r) := by fun_prop
+  rw [measureCollisionProb_intervalFloorHash μ hr proj hproj u v,
+    ← integral_map (φ := fun a => proj a u - proj a v)
+      ((hproj u).sub (hproj v)).aemeasurable hcont.aestronglyMeasurable, hmap,
+    integral_map (by fun_prop) hcont.aestronglyMeasurable]
   simp only [abs_mul, abs_of_nonneg hc, stableCollisionProb]
 
 private theorem continuous_stableKernel (r c : ℝ) :
@@ -342,9 +323,8 @@ private theorem integrable_stableKernel (μ : Measure ℝ) [IsFiniteMeasure μ]
 
 theorem stableCollisionProb_le_one (μ : Measure ℝ) [IsProbabilityMeasure μ] {r c : ℝ}
     (hr : 0 < r) (hc : 0 ≤ c) : stableCollisionProb μ r c ≤ 1 := by
-  have h := integral_mono (integrable_stableKernel μ hr hc) (integrable_const (1 : ℝ)) fun z =>
-    (stableKernel_mem_Icc hr hc z).2
-  simpa [stableCollisionProb] using h
+  simpa [stableCollisionProb] using integral_mono (integrable_stableKernel μ hr hc)
+    (integrable_const (1 : ℝ)) fun z => (stableKernel_mem_Icc hr hc z).2
 
 theorem stableCollisionProb_anti (μ : Measure ℝ) [IsProbabilityMeasure μ] {r : ℝ} (hr : 0 < r)
     {c₁ c₂ : ℝ} (hc₁ : 0 ≤ c₁) (hle : c₁ ≤ c₂) :
@@ -417,10 +397,8 @@ private theorem stableCollisionProb_withDensity_eq_two_mul {f : ℝ → ℝ}
   have hsupp : ∀ z ∉ Set.Icc (-(r / c)) (r / c),
       f z * max (0 : ℝ) (1 - c * |z| / r) = 0 := fun z hz => by
     have habs : r / c < |z| := lt_of_not_ge fun hle => hz (abs_le.1 hle)
-    have h1 : 1 - c * |z| / r ≤ 0 := by
-      rw [sub_nonpos, one_le_div hr, mul_comm]
-      exact ((div_lt_iff₀ hc).1 habs).le
-    rw [max_eq_left h1, mul_zero]
+    rw [max_eq_left (sub_nonpos.2
+      ((one_le_div hr).2 (mul_comm c |z| ▸ ((div_lt_iff₀ hc).1 habs).le))), mul_zero]
   have hint_full := integrable_mul_stableKernel' hf_cont hf_nonneg hf_int hr hc.le
   have hzero : ∫ z in (Set.Icc (-(r / c)) (r / c))ᶜ, f z * max (0 : ℝ) (1 - c * |z| / r) = 0 :=
     setIntegral_eq_zero_of_forall_eq_zero hsupp
@@ -491,13 +469,10 @@ theorem p2StableProb_strictAnti {r c₁ c₂ : ℝ} (hr : 0 < r) (hc₁ : 0 ≤ 
 private theorem p2StableProb_eq_two_mul {r c : ℝ} (hr : 0 < r) (hc : 0 < c) :
     p2StableProb r c =
       2 * ∫ z in (0 : ℝ)..(r / c), (1 - c * z / r) * gaussianPDFReal 0 1 z := by
-  have heven : ∀ z, gaussianPDFReal 0 1 (-z) = gaussianPDFReal 0 1 z := fun z => by
-    simp [gaussianPDFReal_def]
-  have h2 := stableCollisionProb_withDensity_eq_two_mul (continuous_gaussianPDFReal 0 1)
-    (fun z => (gaussianPDFReal_pos 0 1 z one_ne_zero).le) (integrable_gaussianPDFReal 0 1)
-    heven hr hc
   rw [p2StableProb, gaussianReal_of_var_ne_zero 0 one_ne_zero]
-  exact h2
+  exact stableCollisionProb_withDensity_eq_two_mul (continuous_gaussianPDFReal 0 1)
+    (fun z => (gaussianPDFReal_pos 0 1 z one_ne_zero).le) (integrable_gaussianPDFReal 0 1)
+    (fun z => by simp [gaussianPDFReal_def]) hr hc
 
 /-- **Exact integral representation for `p = 2`** ([DatarImmorlicaIndykMirrokni2004]): for `r > 0`
 and `c > 0`, `p2StableProb r c = ∫ t in 0..r, (2 / c) * gaussianPDFReal 0 1 (t / c) * (1 - t / r)`.
@@ -548,27 +523,21 @@ theorem p2StableProb_eq_sub {r c : ℝ} (hr : 0 < r) (hc : 0 < c) :
   have htail : 2 * ∫ z in (0 : ℝ)..(r / c), (c * z / r) * gaussianPDFReal 0 1 z =
       √(2 / π) * (c / r) * (1 - Real.exp (-((r / c) ^ 2) / 2)) := by
     have hcongr : (fun z : ℝ => (c * z / r) * gaussianPDFReal 0 1 z) =
-        fun z => ((c / r) * (√(2 * π))⁻¹) * (z * Real.exp (-(z ^ 2) / 2)) := by
-      funext z
-      simp only [gaussianPDFReal_def, sub_zero, NNReal.coe_one, mul_one]
-      ring
+        fun z => ((c / r) * (√(2 * π))⁻¹) * (z * Real.exp (-(z ^ 2) / 2)) := funext fun z => by
+      simp only [gaussianPDFReal_def, sub_zero, NNReal.coe_one, mul_one]; ring
     have hderiv : ∀ z ∈ uIcc 0 (r / c),
-        HasDerivAt (fun s : ℝ => -Real.exp (-(s ^ 2) / 2)) (z * Real.exp (-(z ^ 2) / 2)) z := by
-      intro z _
-      exact ((hasDerivAt_pow 2 z).neg.div_const 2).exp.neg.congr_deriv (by norm_num; ring)
+        HasDerivAt (fun s : ℝ => -Real.exp (-(s ^ 2) / 2)) (z * Real.exp (-(z ^ 2) / 2)) z :=
+      fun z _ => ((hasDerivAt_pow 2 z).neg.div_const 2).exp.neg.congr_deriv (by dsimp; ring)
     have hie : IntervalIntegrable (fun z : ℝ => z * Real.exp (-(z ^ 2) / 2)) volume 0 (r / c) :=
       Continuous.intervalIntegrable (by fun_prop) _ _
     rw [hcongr, intervalIntegral.integral_const_mul,
       intervalIntegral.integral_eq_sub_of_hasDerivAt hderiv hie]
     simp only [zero_pow (by decide : 2 ≠ 0), neg_zero, zero_div, Real.exp_zero]
     have hsqrt : 2 * (√(2 * π))⁻¹ = √(2 / π) := by
-      have h2ne : √(2 : ℝ) ≠ 0 := Real.sqrt_ne_zero'.2 zero_lt_two
-      have hpne : √π ≠ 0 := Real.sqrt_ne_zero'.2 pi_pos
       rw [Real.sqrt_div zero_le_two, Real.sqrt_mul zero_le_two]
       field_simp
       rw [Real.sq_sqrt zero_le_two]
-    rw [← hsqrt]
-    ring
+    rw [← hsqrt]; ring
   rw [hnorm, htail, gaussianReal_of_var_ne_zero 0 one_ne_zero]
 
 /-- **Gaussian `p = 2` LSH collision probability** ([DatarImmorlicaIndykMirrokni2004]):
@@ -652,28 +621,22 @@ theorem p1StableProb_strictAnti {r c₁ c₂ : ℝ} (hr : 0 < r) (hc₁ : 0 ≤ 
 `p1StableProb r c = (2 / π) arctan (r / c) - (c / (π r)) log (1 + (r / c) ^ 2)`. -/
 theorem p1StableProb_eq {r c : ℝ} (hr : 0 < r) (hc : 0 < c) :
     p1StableProb r c = 2 / π * Real.arctan (r / c) - c / (π * r) * Real.log (1 + (r / c) ^ 2) := by
-  have heven : ∀ z, cauchyPDFReal 0 1 (-z) = cauchyPDFReal 0 1 z := fun z => by
-    simp [cauchyPDFReal_def]
-  have h2 := stableCollisionProb_withDensity_eq_two_mul continuous_cauchyPDFReal
-    (fun z => (cauchyPDF_pos 0 one_ne_zero z).le) (integrable_cauchyPDFReal 0) heven hr hc
   rw [p1StableProb, cauchyMeasure_of_scale_ne_zero 0 one_ne_zero]
-  change stableCollisionProb
-    (volume.withDensity fun z => ENNReal.ofReal (cauchyPDFReal 0 1 z)) r c = _
-  rw [h2]
+  refine (stableCollisionProb_withDensity_eq_two_mul continuous_cauchyPDFReal
+    (fun z => (cauchyPDF_pos 0 one_ne_zero z).le) (integrable_cauchyPDFReal 0)
+    (fun z => by simp [cauchyPDFReal_def]) hr hc).trans ?_
   have hcongr : (fun z : ℝ => (1 - c * z / r) * cauchyPDFReal 0 1 z) =
-      fun z => π⁻¹ * (1 + z ^ 2)⁻¹ - (c / (π * r)) * (z * (1 + z ^ 2)⁻¹) := by
-    funext z
-    simp only [cauchyPDFReal_def, sub_zero, NNReal.coe_one, mul_one]
-    ring
+      fun z => π⁻¹ * (1 + z ^ 2)⁻¹ - (c / (π * r)) * (z * (1 + z ^ 2)⁻¹) := funext fun z => by
+    simp only [cauchyPDFReal_def, sub_zero, NNReal.coe_one, mul_one]; ring
   have hd1 : ∀ z ∈ uIcc 0 (r / c),
       HasDerivAt Real.arctan (1 + z ^ 2)⁻¹ z := fun z _ => Real.hasDerivAt_arctan' z
   have hd2 : ∀ z ∈ uIcc 0 (r / c),
       HasDerivAt (fun s : ℝ => (2 : ℝ)⁻¹ * Real.log (1 + s ^ 2)) (z * (1 + z ^ 2)⁻¹) z := by
     intro z _
-    have hpos : 1 + z ^ 2 ≠ 0 := by positivity
     have hsq : HasDerivAt (fun s : ℝ => 1 + s ^ 2) (2 * z) z := by
       simpa using (hasDerivAt_pow 2 z).const_add 1
-    exact ((hsq.log hpos).const_mul (2 : ℝ)⁻¹).congr_deriv (by field_simp)
+    exact ((hsq.log (add_pos_of_pos_of_nonneg one_pos (sq_nonneg z)).ne').const_mul
+      (2 : ℝ)⁻¹).congr_deriv (by field_simp)
   have hie1 : IntervalIntegrable (fun z : ℝ => (1 + z ^ 2)⁻¹) volume 0 (r / c) :=
     Continuous.intervalIntegrable (Continuous.inv₀ (by fun_prop) fun z => by positivity) _ _
   have hie2 : IntervalIntegrable (fun z : ℝ => z * (1 + z ^ 2)⁻¹) volume 0 (r / c) :=

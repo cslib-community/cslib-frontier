@@ -128,10 +128,8 @@ deficit for both boundary layers, for even as well as odd input sizes.
 -/
 
 private theorem le_strictMajorityDeficitBound (n : ℕ) : 128 ≤ strictMajorityDeficitBound n := by
-  have h := Real.logb_nonneg (by norm_num : (1 : ℝ) < 2)
-    (show (1 : ℝ) ≤ 2 * ((n : ℝ) + 1) by have := Nat.cast_nonneg (α := ℝ) n; linarith)
-  unfold strictMajorityDeficitBound
-  linarith
+  exact le_add_of_nonneg_right <| Real.logb_nonneg (by norm_num)
+    (by linarith [Nat.cast_nonneg (α := ℝ) n])
 
 private theorem two_pow_le_succ_mul_choose_half (n : ℕ) : 2 ^ n ≤ (n + 1) * n.choose (n / 2) := by
   calc
@@ -153,16 +151,11 @@ private theorem weightLayer_deficit {n r : ℕ} (hr : r ≤ n)
     (weightLayer n r).Nonempty ∧
       uniformDeficit (weightLayer n r) ≤ strictMajorityDeficitBound n := by
   have hne : (weightLayer n r).Nonempty := weightLayer_nonempty hr
-  refine ⟨hne, ?_⟩
-  have hd : uniformDeficit (weightLayer n r) ≤ Real.logb 2 (2 * ((n : ℝ) + 1)) := by
-    apply (uniformDeficit_le_iff hne).mpr
-    simp only [Fintype.card_fin, card_weightLayer]
-    rw [Real.rpow_sub (by norm_num), Real.rpow_natCast,
-      Real.rpow_logb (by norm_num) (by norm_num) (by positivity)]
-    apply (div_le_iff₀ (by positivity)).mpr
-    exact_mod_cast (by simpa only [mul_comm] using hcard : 2 ^ n ≤ n.choose r * (2 * (n + 1)))
-  unfold strictMajorityDeficitBound
-  linarith
+  refine ⟨hne, ((uniformDeficit_le_iff hne).mpr ?_).trans (le_add_of_nonneg_left (by norm_num))⟩
+  simp only [Fintype.card_fin, card_weightLayer]
+  rw [Real.rpow_sub (by norm_num), Real.rpow_natCast,
+    Real.rpow_logb (by norm_num) (by norm_num) (by positivity), div_le_iff₀ (by positivity)]
+  exact_mod_cast (mul_comm (2 * (n + 1)) _ ▸ hcard)
 
 private theorem majority_layers_deficit {n : ℕ} (hn : 2 ≤ n) :
     ((weightLayer n (n / 2)).Nonempty ∧
@@ -194,10 +187,9 @@ private theorem coordinateDensity_of_neighbor {n : ℕ} (X : Finset (Fin n → B
     (hx : Function.update x i (!x i) ∈ X) (hsmall : weight P ≤ 128) :
     (2 : ℝ) ^ (-(128 : ℝ)) ≤ coordinateDensity X P x := by
   have he : completePattern P x (fun j => Function.update x i (!x i) j) =
-      Function.update x i (!x i) := by
-    funext j
-    by_cases hj : j = i
-    · subst hj; simp [completePattern, hi]
+      Function.update x i (!x i) := funext fun j => by
+    rcases eq_or_ne j i with rfl | hj
+    · simp [completePattern, hi]
     · by_cases hP : P j = true <;> simp [completePattern, hP, Function.update_of_ne hj]
   have hne : (coordinateFiber X P x).Nonempty := ⟨_, mem_filter.mpr ⟨mem_univ _, by rwa [he]⟩⟩
   have hc : (1 : ℝ) ≤ (coordinateFiber X P x).card := by exact_mod_cast card_pos.mpr hne
@@ -231,16 +223,12 @@ private theorem isDensityLimit_of_many_neighbors {n : ℕ} (hn : 16 ≤ n)
         (1 / 128) * (weight P : ℝ) ≤
       if (2 : ℝ) ^ (-(128 : ℝ)) ≤ coordinateDensity X P x then 1 else 0 := by
     have hw : (0 : ℝ) ≤ weight P := Nat.cast_nonneg _
-    by_cases hhit : ∃ i, s i = true ∧ P i = true
-    · rw [ite_eq_left hhit]
-      by_cases hsmall : weight P ≤ 128
-      · obtain ⟨i, hi, hPi⟩ := hhit
-        rw [ite_eq_left (coordinateDensity_of_neighbor X P x i hPi (hneighbor i hi) hsmall)]
-        linarith
-      · have hlarge : (128 : ℝ) < weight P := by exact_mod_cast (Nat.lt_of_not_ge hsmall)
-        split_ifs <;> linarith
-    · rw [ite_eq_right hhit]
-      split_ifs <;> linarith
+    split_ifs with h1 h2 h2
+    any_goals linarith
+    obtain ⟨i, hi, hPi⟩ := h1
+    have hgt : 128 < weight P := not_le.mp fun hle =>
+      h2 (coordinateDensity_of_neighbor X P x i hPi (hneighbor i hi) hle)
+    linarith [show (128 : ℝ) < weight P by exact_mod_cast hgt]
   have hh := bernoulliAverage_mono hp hp' hpoint
   have hhits : bernoulliAverage p (fun P : Fin n → Bool =>
       if ∃ i, s i = true ∧ P i = true then (1 : ℝ) else 0) = 1 - (1 - p) ^ weight s := by
@@ -260,22 +248,19 @@ private theorem majority_layers_limits {n : ℕ} (hn : 16 ≤ n) :
   have hp : (16 : ℝ) / n ≤ 1 := (div_le_one hnpos).mpr (by exact_mod_cast hn)
   constructor
   · intro x hx
-    have hx' : weight x = n / 2 := (mem_filter.mp hx).2
-    have hl := isDensityLimit_of_many_neighbors hn (weightLayer n (n / 2 + 1)) x
-      (fun i => !x i) (by rw [weight_not, Fintype.card_fin, hx']; omega) ?_
-    · exact hl.mono_right (by positivity) hp (le_strictMajorityDeficitBound n)
-    intro i hi
+    have hx' : weight x = n / 2 := mem_weightLayer.mp hx
+    refine (isDensityLimit_of_many_neighbors hn (weightLayer n (n / 2 + 1)) x (fun i => !x i)
+      (by rw [weight_not, Fintype.card_fin, hx']; omega) fun i hi => ?_).mono_right
+      (by positivity) hp (le_strictMajorityDeficitBound n)
     have hi' : x i = false := by simpa using hi
-    simp only [mem_weightLayer, hi', Bool.not_false]
-    rw [weight_update_true hi', hx']
+    simp only [mem_weightLayer, hi', Bool.not_false, weight_update_true hi', hx']
   · intro y hy
-    have hy' : weight y = n / 2 + 1 := (mem_filter.mp hy).2
-    have hl := isDensityLimit_of_many_neighbors hn (weightLayer n (n / 2)) y
-      y (by rw [hy']; omega) ?_
-    · exact hl.mono_right (by positivity) hp (le_strictMajorityDeficitBound n)
-    intro i hi
-    have hc := weight_update_false hi
+    have hy' : weight y = n / 2 + 1 := mem_weightLayer.mp hy
+    refine (isDensityLimit_of_many_neighbors hn (weightLayer n (n / 2)) y y
+      (by rw [hy']; omega) fun i hi => ?_).mono_right
+      (by positivity) hp (le_strictMajorityDeficitBound n)
     simp only [mem_weightLayer, hi, Bool.not_true]
+    have := weight_update_false hi
     omega
 
 /-! ### The communication lower bound for strict majority
@@ -308,14 +293,12 @@ theorem not_solvesKW_strictMajority {n d : ℕ} (P : KWRoundProtocol (Fin n) M (
   have ⟨hleft, hright⟩ := majority_layers_limits hn16
   have hbudget :
       (32768 * (194 : ℝ) ^ d * (m + strictMajorityDeficitBound n)) ^ d * (16 / n) ≤ 1 / 4 := by
-    rw [← mul_div_assoc, div_le_iff₀ hnpos]
-    linarith
+    rw [← mul_div_assoc, div_le_iff₀ hnpos]; linarith
   intro hsol
-  apply P.not_solves_bilateral_density hM hm (by linarith)
-    (show (0 : ℝ) < 16 / n by positivity) hX.1 hY.1 hX.2 hY.2 hleft hright hbudget
-  intro x hx y hy
-  exact hsol x y (strictMajority_eq_false_iff.mpr (mem_weightLayer.mp hx).le)
-    (strictMajority_eq_true_iff.mpr (by have := mem_weightLayer.mp hy; omega))
+  refine P.not_solves_bilateral_density hM hm (by linarith)
+    (by positivity) hX.1 hY.1 hX.2 hY.2 hleft hright hbudget fun x hx y hy => hsol x y
+      (strictMajority_eq_false_iff.mpr (mem_weightLayer.mp hx).le)
+      (strictMajority_eq_true_iff.mpr (by have := mem_weightLayer.mp hy; omega))
 
 end RoundProtocol
 

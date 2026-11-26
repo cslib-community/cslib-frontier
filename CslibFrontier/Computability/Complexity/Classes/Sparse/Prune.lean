@@ -111,12 +111,8 @@ variable {Q : α → List κ} {s : ℕ} {N : List α}
 /-- Splitting the positions from `a` below `c` at `b`. -/
 private theorem range'_split {a b c : ℕ} (hab : a ≤ b) (hbc : b < c) :
     List.range' a (c - a) = List.range' a (b - a) ++ b :: List.range' (b + 1) (c - (b + 1)) := by
-  rw [← List.range'_succ]
-  have happ := List.range'_append_1 (s := a) (m := b - a) (n := c - (b + 1) + 1)
-  rw [show a + (b - a) = b by omega] at happ
-  rw [happ]
-  congr 1
-  omega
+  rw [← List.range'_succ, show c - a = (b - a) + (c - (b + 1) + 1) by omega,
+    ← List.range'_append_1, show a + (b - a) = b by omega]
 
 omit [DecidableEq κ] in
 theorem queriesAt_of_lt {i : ℕ} (hi : i < N.length) : queriesAt Q N i = Q N[i] := by
@@ -156,8 +152,7 @@ theorem mem_searchRightFrom (hC : ∀ y ∈ N, C y ↔ ∀ w ∈ Q y, w ∈ K)
       · simp [hlen] at hz
       · rw [hlen, List.range'_succ, List.head?_cons, Option.mem_some_iff] at hz
         omega
-    have hout := hnext hz'
-    rw [hC _ (List.getElem_mem hz')] at hout
+    have hout := mt (hC _ (List.getElem_mem hz')).2 (hnext hz')
     push Not at hout
     rwa [queriesAt_of_lt hz']
 
@@ -191,8 +186,7 @@ theorem mem_searchLeftFrom (hC : ∀ y ∈ N, C y ↔ ∀ w ∈ Q y, w ∈ K)
           List.head?_cons, Option.mem_some_iff] at hz
         omega
     have hzN : m - 1 < N.length := by omega
-    have hout := hprev hm
-    rw [hC _ (List.getElem_mem hzN)] at hout
+    have hout := mt (hC _ (List.getElem_mem hzN)).2 (hprev hm)
     push Not at hout
     rwa [queriesAt_of_lt hzN]
 
@@ -379,9 +373,8 @@ private theorem mem_prunePositions (hh : h < N.length)
       · exact absurd (hmono _ (List.getElem_mem hi) _ _ (by omega) hodd') hout
       · exact hmono _ (List.getElem_mem hi) _ _ (by omega) hin
     · /- The node at `h` is not in `C (2 d + 1)`, so the run starts at `m = h + 1`. -/
-      have hm : m = h + 1 := by
-        refine le_antisymm hmh (Nat.succ_le_of_lt (lt_of_not_ge fun hmh' => hCh ?_))
-        exact hrunm h hmh' hhr hh
+      have hm : m = h + 1 := le_antisymm hmh
+        (Nat.succ_le_of_lt (lt_of_not_ge fun hmh' => hCh (hrunm h hmh' hhr hh)))
       rcases Nat.eq_or_lt_of_le hhr with rfl | hhr'
       · exact .inl (.inl hr)
       · exact .inl (.inr ⟨m, hmem_left (by omega), by omega⟩)

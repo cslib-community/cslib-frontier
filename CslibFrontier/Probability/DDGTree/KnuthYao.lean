@@ -115,14 +115,11 @@ private theorem exists_scale (hx : 0 < x) (hx1 : x ≤ 1) :
   classical
   have hex : ∃ m : ℕ, 1 ≤ (2 : ℝ) ^ m * x := by
     obtain ⟨m, hm⟩ := pow_unbounded_of_one_lt x⁻¹ (by norm_num : (1 : ℝ) < 2)
-    refine ⟨m, ?_⟩
-    rw [inv_lt_iff_one_lt_mul₀ hx] at hm
-    linarith [mul_comm x ((2 : ℝ) ^ m)]
+    exact ⟨m, le_of_lt (by simpa only [mul_comm x] using (inv_lt_iff_one_lt_mul₀ hx).mp hm)⟩
   refine ⟨Nat.find hex, Nat.find_spec hex, ?_⟩
   rcases hm : Nat.find hex with _ | m
-  · simp only [pow_zero, one_mul]; linarith
-  · have hlt := Nat.find_min hex (show m < Nat.find hex by omega)
-    rw [not_le] at hlt
+  · simpa only [pow_zero, one_mul] using hx1.trans_lt one_lt_two
+  · have hlt := not_le.mp (Nat.find_min hex (m := m) (by omega))
     rw [pow_succ]
     linarith [show (2 : ℝ) ^ m * 2 * x = 2 * ((2 : ℝ) ^ m * x) by ring]
 
@@ -232,15 +229,12 @@ theorem knuthYaoCost_eq_negMulLogb_iff (hx0 : 0 ≤ x) (hx1 : x ≤ 1) :
     have h1 := negMulLogb_le hx hm1
     have h2 := mul_le_knuthYaoCost hx hm2
     have hlog : Real.logb 2 x = -m := by
-      have h3 : x * -Real.logb 2 x = x * m := by
-        rw [mul_comm x (m : ℝ)]
-        exact le_antisymm h1 (h ▸ h2)
-      have := mul_left_cancel₀ hx.ne' h3
-      linarith
+      have h3 : x * -Real.logb 2 x = x * m :=
+        (le_antisymm h1 (h ▸ h2)).trans (mul_comm (m : ℝ) x)
+      linarith [mul_left_cancel₀ hx.ne' h3]
     refine ⟨m, ?_⟩
-    have := Real.rpow_logb (by norm_num : (0 : ℝ) < 2) (by norm_num) hx
-    rw [hlog, Real.rpow_neg (by norm_num), Real.rpow_natCast] at this
-    rw [← this, inv_pow]
+    rw [← Real.rpow_logb zero_lt_two (by norm_num) hx, hlog,
+      Real.rpow_neg zero_le_two, Real.rpow_natCast, inv_pow]
   · rintro (rfl | ⟨m, rfl⟩)
     · simp
     · rw [knuthYaoCost_inv_two_pow, inv_pow, Real.logb_inv, Real.logb_two_pow]
@@ -361,14 +355,12 @@ theorem run_knuthYao_none_le {T : DDGTree α} {p : PMF α} (hT : T.Generates p) 
     ennreal_to_real at hp
     rw [div_le_iff₀ (by positivity)] at hp
     linarith
-  have hT1 := T.run_none_add_sum n
   have hK1 := (knuthYao p).run_none_add_sum n
   have hfin : ∑ a, (knuthYao p).run n (some a) ≠ ⊤ :=
     ne_top_of_le_ne_top ENNReal.one_ne_top (hK1 ▸ le_add_self)
-  have hle := Finset.sum_le_sum fun a (_ : a ∈ Finset.univ) => hsome a
   refine (ENNReal.add_le_add_iff_right hfin).mp ?_
-  rw [hK1, ← hT1]
-  exact add_le_add_right hle _
+  rw [hK1, ← T.run_none_add_sum n]
+  exact add_le_add_right (Finset.sum_le_sum fun a _ => hsome a) _
 
 /-- Knuth–Yao optimality: no tree generating `p` uses fewer expected flips. -/
 theorem expectedFlips_knuthYao_le {T : DDGTree α} {p : PMF α} (hT : T.Generates p) :

@@ -233,21 +233,15 @@ private theorem forall_stable_fin_two_iff {a b c d p : ℝ} (hp0 : 0 ≤ p) (hp1
       · have h0 := h 0 le_rfl zero_le_one hp0'.ne
         have h1 := h 1 zero_le_one le_rfl hp1'.ne'
         have hL : (a - c) * p + (b - d) * (1 - p) = 0 := by
-          refine le_antisymm (by_contra fun hpos => ?_) (by_contra fun hneg => ?_)
-          · have hm := mul_neg_of_neg_of_pos (sub_neg.2 hp1') (not_le.1 hpos)
-            rcases h1 with h1 | ⟨h1, -⟩ <;> linarith
-          · rw [sub_zero] at h0
-            have hm := mul_neg_of_pos_of_neg hp0' (not_le.1 hneg)
-            rcases h0 with h0 | ⟨h0, -⟩ <;> linarith
+          rcases lt_trichotomy ((a - c) * p + (b - d) * (1 - p)) 0 with hneg | hL | hpos
+          · rcases h0 with h0 | ⟨h0, -⟩ <;> linarith [mul_neg_of_pos_of_neg hp0' hneg]
+          · exact hL
+          · rcases h1 with h1 | ⟨h1, -⟩ <;> linarith [mul_neg_of_neg_of_pos (sub_neg.2 hp1') hpos]
         simp only [hL, sub_zero, mul_zero, sub_self, zero_add, add_zero, mul_one, lt_irrefl,
           false_or, true_and] at h0 h1
-        have hdb : d < b := by
-          by_contra hle
-          linarith [mul_nonpos_of_nonneg_of_nonpos hp0'.le (sub_nonpos.2 (not_lt.1 hle))]
-        have hac : a < c := by
-          by_contra hle
-          linarith [mul_nonpos_of_nonpos_of_nonneg (sub_nonpos.2 hp1'.le)
-            (sub_nonneg.2 (not_lt.1 hle))]
+        have hdb : d < b := sub_pos.1 (pos_of_mul_pos_right h0 hp0'.le)
+        have hac : a < c :=
+          sub_pos.1 (pos_of_mul_pos_right (by linarith : 0 < (1 - p) * (c - a)) (sub_pos.2 hp1').le)
         exact Or.inr (Or.inr ⟨hac, hdb, (eq_div_iff (by linarith)).2 (by linarith)⟩)
       · refine Or.inr (Or.inl ⟨rfl, ?_⟩)
         rcases h 1 zero_le_one le_rfl one_ne_zero with h1 | ⟨h1, h1'⟩

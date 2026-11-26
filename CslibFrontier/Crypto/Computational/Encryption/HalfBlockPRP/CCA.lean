@@ -463,12 +463,10 @@ private theorem toOuterMeasure_coupledHandler_flag_le (n : ℕ) (bit : Bool)
     refine Set.disjoint_left.mpr fun x hx hbad => hr ?_
     obtain ⟨z, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
     exact coupledStep_flag_imp n bit request s r z hbad
-  · rw [add_zero]
-    have hset : {r | r ∈ s.2.map (fun t => (List.ofFn t.1).take n)} =
-        ↑(s.2.map (fun t => (List.ofFn t.1).take n)).toFinset := by
-      ext r
-      simp
-    rw [hset]
+  · have hset : {r | r ∈ s.2.map (fun t => (List.ofFn t.1).take n)} =
+        ↑(s.2.map (fun t => (List.ofFn t.1).take n)).toFinset :=
+      Set.ext fun _ => List.mem_toFinset.symm
+    rw [add_zero, hset]
     refine (BitString.toOuterMeasure_uniformList_finset_le n _).trans ?_
     gcongr
     exact_mod_cast (List.toFinset_card_le _).trans (by simp)
@@ -637,22 +635,18 @@ private theorem coupledHandler_map_coupledCache (n : ℕ) (bit : Bool) (request 
         have hlookup := invLookup_coupledCache_eq bit hs hy
         have hW := strongBitStringCodec_wordOracle_of_length
           (forgetfulAnswer (α := BitString (2 * n))) true hlen
+        simp only [ccaToStrongPRPHandler, coupledStep, PMF.bind_const, h1, h2, h3,
+          Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_map,
+          ProbOracleComp.runWith_query, hW, PermQuery.ofBoolProd, stateT_map_apply]
         cases hinv : invLookup (coupledCache n false records)
             (BitString.ofList (2 * n) request.2) with
         | some x =>
-          rw [hinv] at hlookup
-          simp only [ccaToStrongPRPHandler, coupledStep, PMF.bind_const, h1, h2, h3, hinv,
-            Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_map,
-            ProbOracleComp.runWith_query, hW, PermQuery.ofBoolProd, stateT_map_apply,
-            forgetfulAnswer_inverse_of_some hlookup, PMF.pure_map, Prod.map_apply, id_eq, htake]
+          simp only [forgetfulAnswer_inverse_of_some (hlookup.trans hinv), PMF.pure_map,
+            Prod.map_apply, id_eq, htake]
           exact PMF.map_const _ _
         | none =>
-          rw [hinv] at hlookup
-          simp only [ccaToStrongPRPHandler, coupledStep, PMF.bind_const, h1, h2, h3, hinv,
-            Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_map,
-            ProbOracleComp.runWith_query, hW, PermQuery.ofBoolProd, stateT_map_apply,
-            forgetfulAnswer_inverse_of_none hlookup, PMF.map_comp, Function.comp_def,
-            Prod.map_apply, id_eq, htake, coupledCache_cons, ite_self]
+          simp only [forgetfulAnswer_inverse_of_none (hlookup.trans hinv), PMF.map_comp,
+            Function.comp_def, Prod.map_apply, id_eq, htake, coupledCache_cons, ite_self]
       · simp only [ccaToStrongPRPHandler, coupledStep, PMF.bind_const, h1, h2, h3,
           Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure, PMF.pure_map]
         exact PMF.map_const _ _
@@ -756,18 +750,13 @@ private theorem advantage_forgetful_ccaToStrongPRPAdversary_le (adversary : CCAA
     Game.coe_advantage]
   have habs := (identicalUntilBad_coupledHandler n).abs_sub_le (adversary n [])
     (([], []), false) (fun x => PMF.pure x.1) true
-  have hbad := toOuterMeasure_runWith_coupledHandler_flag_le n false hQ
   have hne : (Q.choose 2 : ENNReal) * ((1 : ENNReal) / 2 ^ n) ≠ ⊤ :=
     ENNReal.mul_ne_top (ENNReal.natCast_ne_top _)
       (ENNReal.div_ne_top ENNReal.one_ne_top (by positivity))
-  have hreal := ENNReal.toReal_mono hne hbad
-  have hval : ((Q.choose 2 : ENNReal) * ((1 : ENNReal) / 2 ^ n)).toReal =
-      (Q.choose 2 : ℝ) * ((2 : ℝ) ^ n)⁻¹ := by
-    simp [ENNReal.toReal_mul]
-  rw [hval] at hreal
-  refine le_trans ?_ (habs.trans hreal)
-  simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal]
-  exact le_of_eq rfl
+  have hreal := ENNReal.toReal_mono hne
+    (toOuterMeasure_runWith_coupledHandler_flag_le n false hQ)
+  simpa [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal, ENNReal.toReal_mul] using
+    habs.trans hreal
 
 open scoped NNReal
 
@@ -875,10 +864,9 @@ theorem BlockCipher.StrongPRP.indcca_halfBlockCipher {F : BlockCipher} (hF : F.S
         (ccaToStrongPRPAdversary bit adversary) n))
       (IsOraclePPT encBool) := by
     intro adversary hadversary
-    have h := hF (ccaToStrongPRPAdversary bit adversary)
-      (isOraclePPT_ccaToStrongPRPAdversary hadversary bit)
-    rw [hbl] at h
-    simpa only [eval_strongPRPRealGame_ccaToStrongPRPAdversary F hblock] using h
+    simpa only [← hbl, eval_strongPRPRealGame_ccaToStrongPRPAdversary F hblock] using
+      hF (ccaToStrongPRPAdversary bit adversary)
+        (isOraclePPT_ccaToStrongPRPAdversary hadversary bit)
   have hideal : Game.Indistinguishable
       (fun (adversary : CCAAdversary) n => ProbComp.eval (strongPRPIdealGame (fun n => 2 * n)
         (ccaToStrongPRPAdversary false adversary) n))

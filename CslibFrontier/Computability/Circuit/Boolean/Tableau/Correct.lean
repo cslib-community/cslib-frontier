@@ -122,15 +122,9 @@ private theorem val_wire {t c : ℕ} {l : Loc k State} (hl : l.ColOK T c) (ht : 
   have hw : wire x.length T t l c = x.length + (wire x.length T t l c - x.length) := by
     simp only [wire]; omega
   rw [hw, val_add tm hg, gateCode_wire tm hl]
-  by_cases ht0 : t = 0
-  · have h : gateAt tm x.length T t c l = (.const (initBit tm T c l), []) := by
-      simp [gateAt, ht0]
-    rw [h]
-    simp [ht0, interpretation]
-  · have h : gateAt tm x.length T t c l = ((table tm l).1, argsOf (table tm l).1
-        ((table tm l).2.1.resolve x.length T t c) ((table tm l).2.2.resolve x.length T t c)) := by
-      simp [gateAt, ht0]
-    rw [h, ite_eq_right ht0]
+  rcases eq_or_ne t 0 with rfl | ht0
+  · rfl
+  · rw [gateAt, ite_eq_right ht0, ite_eq_right ht0]
     exact interpretation_argsOf _ _ _ _
 
 /-! ### The features of configurations -/
@@ -255,17 +249,12 @@ private theorem iff_exists_le_of_or_chain {n : ℕ} {v p : Fin (n + 1) → Prop}
     rw [hzero]
     exact ⟨fun h => ⟨0, le_rfl, h⟩, fun ⟨j', hj', h⟩ => by rwa [Fin.le_zero_iff.1 hj'] at h⟩
   | succ j ih =>
-    rw [hsucc, ih]
-    simp only [Fin.le_iff_val_le_val, Fin.val_castSucc, Fin.val_succ]
-    constructor
-    · rintro (⟨j', hj', h⟩ | h)
-      · exact ⟨j', by omega, h⟩
-      · exact ⟨j.succ, by simp only [Fin.val_succ, le_refl], h⟩
-    · rintro ⟨j', hj', h⟩
-      rcases Nat.lt_or_ge j'.val (j.val + 1) with h' | h'
-      · exact Or.inl ⟨j', by omega, h⟩
-      · obtain rfl : j' = j.succ := by fin_index
-        exact Or.inr h
+    simp only [hsucc, ih, Fin.le_iff_val_le_val, Fin.val_castSucc, Fin.val_succ,
+      Nat.le_add_one_iff]
+    exact ⟨fun h => h.elim (fun ⟨j', hj', hp⟩ => ⟨j', Or.inl hj', hp⟩)
+        fun hp => ⟨j.succ, Or.inr rfl, hp⟩,
+      fun ⟨j', hj', hp⟩ => hj'.elim (fun h => Or.inl ⟨j', h, hp⟩)
+        fun h => Or.inr ((Fin.ext h : j' = j.succ) ▸ hp)⟩
 
 section Step
 
@@ -356,20 +345,15 @@ private theorem val_acc (htT : t + 1 ≤ T) (q : ScanQ k) :
   induction c with
   | zero =>
     rw [val_wire tm (l := .scan (.acc q)) hc htT]
-    simp only [Nat.add_one_ne_zero, ↓reduceIte, table, Op.value, scanAt]
-    rw [val_resolve_node, val_resolve_node]
-    simp only [Guard.test, Bool.true_and, ↓reduceIte, ColSel.apply, Bool.false_eq_true]
-    simp only [show decide (1 ≤ 0) = false from rfl, Bool.false_and, Bool.false_or]
-    rw [val_term tm hinv htT hc]
-    simp only [Nat.le_zero, exists_eq_left]
+    simp only [Nat.add_one_ne_zero, ↓reduceIte, table, Op.value, scanAt, val_resolve_node,
+      Guard.test, Bool.true_and, ColSel.apply, Bool.false_eq_true, decide_false, Bool.false_and,
+      Bool.false_or, val_term tm hinv htT hc, Nat.le_zero, exists_eq_left]
   | succ c ih =>
     rw [val_wire tm (l := .scan (.acc q)) hc htT]
-    simp only [Nat.add_one_ne_zero, ↓reduceIte, table, Op.value, scanAt]
-    rw [val_resolve_node, val_resolve_node]
-    simp only [Guard.test, Bool.false_eq_true, ↓reduceIte, Bool.true_and, ColSel.apply,
-      Nat.add_sub_cancel, show 1 ≤ c + 1 by omega, decide_true, Bool.or_eq_true]
-    rw [ih (by omega), val_term tm hinv htT hc]
-    simp only [← Nat.lt_add_one_iff]
+    simp only [Nat.add_one_ne_zero, ↓reduceIte, table, Op.value, scanAt, val_resolve_node,
+      Guard.test, Bool.false_eq_true, ↓reduceIte, Bool.true_and, ColSel.apply,
+      Nat.add_sub_cancel, show 1 ≤ c + 1 by omega, decide_true, Bool.or_eq_true,
+      ih (by omega), val_term tm hinv htT hc, ← Nat.lt_add_one_iff]
     exact Nat.exists_lt_succ_right.symm
 
 /-- At the last column, the scan has found the symbols under the heads. -/
@@ -417,12 +401,9 @@ private theorem val_sit (hn : x.length < 2 * T) (htT : t + 1 ≤ T) (j : Fin (nu
     rw [ih, val_acc_last tm hinv hn htT]
     generalize tm.runFrom (tm.initCfg x) t = cfg
     simp only [readSem, Fin.val_castSucc, Fin.val_succ, and_assoc]
-    refine and_congr_right fun _ => and_congr_right fun _ => ⟨fun ⟨h₁, h₂⟩ i' hi' => ?_,
+    refine and_congr_right fun _ => and_congr_right fun _ => ⟨fun ⟨h₁, h₂⟩ i' hi' =>
+      (Nat.lt_succ_iff_lt_or_eq.mp hi').elim (h₁ i') fun h => Fin.ext h ▸ h₂,
       fun h => ⟨fun i' hi' => h i' (by omega), h i (by omega)⟩⟩
-    rcases Nat.lt_or_ge i'.val i.val with h | h
-    · exact h₁ i' h
-    · obtain rfl : i' = i := by omega
-      exact h₂
 
 /-- A situation holds exactly when its gate is true. -/
 private theorem val_sit_last (hn : x.length < 2 * T) (htT : t + 1 ≤ T) (j : Fin (numSit k State)) :
@@ -698,9 +679,7 @@ theorem evalOutput_gates (hn : x.length < 2 * T) :
 /-- The output wire of the tableau circuit. -/
 private theorem toNat_outputs_circuit (n T : ℕ) :
     ((circuit tm n T).outputs 0).toNat = outWire k State n T := by
-  have h := congrArg Prod.snd (code_circuit tm n T)
-  simp only [Circuit.code] at h
-  simpa using congrArg (fun l => l.headD 0) h
+  simpa [Circuit.code] using congrArg (fun p => p.2.headD 0) (code_circuit tm n T)
 
 /-- **The tableau circuit outputs the answer**: on inputs `y` of length `n < 2 T`, it outputs
 whether `tm`, started on `y`, has written exactly `[true]` after `T` steps. -/

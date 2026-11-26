@@ -131,7 +131,7 @@ private theorem halfStep_inSpace :
   have hbit := budget_comp natTestBit (budget_prod hk hoj) (.of_le_linear 64 64 fun s => by
     have := length_encNat_add_le_add s.1.1.2.2 s.2.1
     simp only [length_encPair] at this ⊢; omega)
-  have hxj := budget_comp_lin getD (linear_mul _) (budget_prod hx hj)
+  have hxj := budget_getD hx hj
   have hc := budget_comp_linear chi_inSpace (budget_prod (budget_prod hp hxj) hbit)
   have hm := budget_comp_linear mulMod_inSpace (budget_prod hp (budget_prod ha hc))
   exact budget_prod hpar (budget_prod hsucc hm)

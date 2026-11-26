@@ -69,20 +69,16 @@ theorem count_add_count_le_length_of_ne {α : Type*} [DecidableEq α] (xs : List
     simp only [List.count_cons, List.length_cons, beq_iff_eq]
     split_ifs with h1 h2
     · exact absurd (h1.symm.trans h2) hab
-    · omega
-    · omega
-    · omega
+    all_goals omega
 
 /-- Whenever `a` appears strictly more than half the time in `xs`, `plurality default xs = a`. -/
 theorem plurality_eq_of_length_lt_two_mul_count {α : Type*} [DecidableEq α] (default : α)
     {xs : List α} {a : α} (h : xs.length < 2 * xs.count a) :
     plurality default xs = a := by
-  have hpos : 0 < xs.count a := by omega
-  have ha : a ∈ xs := List.count_pos_iff.mp hpos
-  have hne : xs ≠ [] := List.ne_nil_of_mem ha
+  have ha : a ∈ xs := List.count_pos_iff.mp (by omega)
   unfold plurality
   rcases hm : xs.argmax (fun x => xs.count x) with _ | m
-  · exact (hne (List.argmax_eq_none.mp hm)).elim
+  · exact (List.ne_nil_of_mem ha (List.argmax_eq_none.mp hm)).elim
   · simp only [Option.getD_some]
     have hle : xs.count a ≤ xs.count m := List.le_of_mem_argmax ha hm
     by_contra hma
@@ -164,9 +160,7 @@ theorem one_sub_exp_le_eval_plurality_replicate_toReal {α : Type} [DecidableEq 
       (ProbComp.eval (plurality default <$> OracleComp.replicate k program) a).toReal := by
   set p := ProbComp.eval (plurality default <$> OracleComp.replicate k program)
   have hcompl := Cslib.Probability.PMF.toOuterMeasure_toReal_add_compl p ({a} : Set α)
-  rw [PMF.toOuterMeasure_apply_singleton] at hcompl
-  have hcompl_set : ({a} : Set α)ᶜ = {y | y ≠ a} := rfl
-  rw [hcompl_set] at hcompl
+  rw [PMF.toOuterMeasure_apply_singleton, show ({a} : Set α)ᶜ = {y | y ≠ a} from rfl] at hcompl
   linarith [toOuterMeasure_plurality_replicate_ne_toReal_le default a k program hγ hp]
 
 /-- Base-`2` exponential form of `one_sub_exp_le_eval_plurality_replicate_toReal`. -/

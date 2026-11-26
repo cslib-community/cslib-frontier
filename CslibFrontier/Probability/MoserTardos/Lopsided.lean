@@ -80,9 +80,8 @@ theorem not_lopsidependent_of_disjoint [DecidableEq V] (vbl : ι → Finset V)
     (A : ι → Set (∀ v, α v)) {i j : ι} (hd : Disjoint (vbl i) (vbl j)) :
     ¬Lopsidependent vbl A i j := by
   rintro ⟨f, g, hfg, hfi, hgj, hne⟩
-  have heq : f = g := funext fun v => hfg v (by simp [disjoint_iff_inter_eq_empty.1 hd])
-  subst heq
-  rcases hne with h | h <;> exact h (by assumption)
+  obtain rfl : f = g := funext fun v => hfg v (by simp [disjoint_iff_inter_eq_empty.1 hd])
+  exact hne.elim (· hgj) (· hfi)
 
 /-- Reflexive lopsidependency relation `i = j ∨ Lopsidependent vbl A i j`. -/
 def lopsidedAdj [DecidableEq V] (vbl : ι → Finset V) (A : ι → Set (∀ v, α v))
@@ -134,23 +133,19 @@ private theorem isLog_swap_cons {A : ι → Set (∀ v, α v)}
   let hfn : ∀ x, α x := fun x => if x ∈ vbl a ∩ vbl b then g x else f x
   have h_eq_f : ∀ x, x ∉ vbl a ∩ vbl b → hfn x = f x := fun x hx => ite_eq_right hx
   have h_eq_g : ∀ x ∈ (vbl a : Set V), hfn x = g x := fun x hx => by
-    have hxa : x ∈ vbl a := Finset.mem_coe.1 hx
     by_cases hxb : x ∈ vbl b
-    · exact ite_eq_left (mem_inter.2 ⟨hxa, hxb⟩)
-    · dsimp only [hfn, f, g]
-      rw [ite_eq_right (by simp [hxb]), current_apply, current_apply,
-        uses_cons, ite_eq_right hxb, add_zero]
+    · simp [hfn, Finset.mem_coe.1 hx, hxb]
+    · simp only [hfn, f, g, hxb, mem_inter, and_false, ↓reduceIte, current_apply]
+      rw [uses_cons, ite_eq_right hxb, add_zero]
   have ha_hfn : hfn ∈ A a := (hA a h_eq_g).mpr hg
   have hnot : ¬(hfn ∉ A b ∨ f ∉ A a) := fun hbad => hab ⟨hfn, f, h_eq_f, ha_hfn, hf, hbad⟩
   rw [not_or, not_not, not_not] at hnot
   have h_eq_φ : ∀ x ∈ (vbl b : Set V), hfn x = φ x := fun x hx => by
-    have hxb : x ∈ vbl b := Finset.mem_coe.1 hx
-    dsimp only [hfn, f, g, φ]
-    by_cases hxa : x ∈ vbl a
-    · rw [ite_eq_left (mem_inter.2 ⟨hxa, hxb⟩), current_apply, current_apply,
-        uses_cons, uses_cons, ite_eq_left hxb, ite_eq_left hxa]
-    · rw [ite_eq_right (by simp [hxa]), current_apply, current_apply,
-        uses_cons, ite_eq_right hxa, add_zero]
+    have hxb := Finset.mem_coe.1 hx
+    by_cases hxa : x ∈ vbl a <;>
+      simp only [hfn, f, g, φ, hxa, hxb, mem_inter, and_self, false_and, ↓reduceIte, current_apply]
+    · rw [uses_cons, uses_cons, ite_eq_left hxb, ite_eq_left hxa]
+    · rw [uses_cons, ite_eq_right hxa, add_zero]
   exact ⟨(hA b h_eq_φ).mp hnot.1, hnot.2, hv⟩
 
 private theorem isLog_swap {A : ι → Set (∀ v, α v)}
@@ -233,12 +228,9 @@ private theorem traceSteps_swap (hRs : ∀ {i j}, R i j → R j i) (S₀ : Finse
   have hb := levelRel_insert_of_not_rel hnab la S₀
   have ha (k : ℕ) := levelRel_insert_of_not_rel hnba k S₀
   refine ⟨hnab, ?_, (pushRel_comm_of_not_rel hnba hnab S₀).symm⟩
-  change (if levelRel R b S₁ = 0 then [none] else [some (b, levelRel R b S₁)]) = [o] at hst
-  rw [hb] at hst
-  have ho' : (if levelRel R b S₀ = 0 then none else some (b, levelRel R b S₀)) = o := by
-    split_ifs at hst ⊢ <;> exact (List.cons.inj hst).1
-  rw [← ho']
-  by_cases hb0 : levelRel R b S₀ = 0 <;> simp [traceSteps, hb0, ha0, ha, la]
+  by_cases hb0 : levelRel R b S₀ = 0 <;>
+    simp only [S₁, hb, hb0, ↓reduceIte, List.cons.injEq] at hst <;>
+    simp [traceSteps, hb0, ha0, ha, la, ← hst.1]
 
 private theorem traceSteps_map_some_eq (hRr : ∀ i, R i i) :
     ∀ (S₀ : Finset (ι × ℕ)) (w : List ι) (L : List (ι × ℕ)),
@@ -306,15 +298,12 @@ private theorem erase_first_skipped {A : ι → Set (∀ v, α v)}
       (witnessRel_cons_of_not_rel R hnib v).symm⟩
   | append_singleton u a ih =>
     let S := foldPush R {(i, 0)} u
-    have ha : levelRel R a S ≠ 0 := by
-      intro h
-      apply hu
-      rw [traceSteps_append]
-      exact List.mem_append_right _ (show none ∈ traceSteps R S [a] by simp [traceSteps, h])
+    have ha : levelRel R a S ≠ 0 := fun h =>
+      hu (traceSteps_append R {(i, 0)} u [a] ▸
+        List.mem_append_right _ (by simp [traceSteps, h] : none ∈ traceSteps R S [a]))
     have hb' : levelRel R b (insert (a, levelRel R a S) S) = 0 := by
       rw [foldPush_append] at hb
-      change levelRel R b (pushRel R a S) = 0 at hb
-      rwa [pushRel_of_ne_zero ha] at hb
+      rwa [show foldPush R S [a] = pushRel R a S from rfl, pushRel_of_ne_zero ha] at hb
     have hstep : traceSteps R S [a, b] = [some (a, levelRel R a S), none] := by
       simp [traceSteps, ha, hb']
     obtain ⟨hnab, _, hfold⟩ := traceSteps_swap R hRs S hstep (Or.inl rfl)
@@ -329,10 +318,9 @@ private theorem erase_first_skipped {A : ι → Set (∀ v, α v)}
     obtain ⟨w', hlen, hlog', hw'⟩ := ih (a :: v) hu' hb' hswap
     refine ⟨w', by simpa only [List.length_append, List.length_cons, List.length_nil,
       Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hlen, hlog', hw'.trans ?_⟩
-    simp only [witnessRel_eq_foldPush, List.append_assoc, List.singleton_append]
-    rw [show u ++ b :: a :: v = u ++ [b, a] ++ v by simp [List.append_assoc],
-      show u ++ a :: b :: v = u ++ [a, b] ++ v by simp [List.append_assoc],
-      foldPush_append, foldPush_append, foldPush_append, foldPush_append, hfold]
+    simp only [R, S, witnessRel_eq_foldPush, foldPush, List.foldl_append, List.foldl_cons,
+      List.foldl_nil] at hfold ⊢
+    rw [hfold]
 
 private theorem phase1_elim_none {A : ι → Set (∀ v, α v)}
     (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V)) {T : ∀ p : V × ℕ, α p.1}
@@ -444,13 +432,9 @@ private theorem isLog_canonList {A : ι → Set (∀ v, α v)}
   set sorted := S.toList.mergeSort (fun a b => decide (a.2 ≤ b.2))
   have hpermS : sorted.Perm S.toList := List.mergeSort_perm S.toList _
   have hpairS : sorted.Pairwise (fun a b => a.2 ≤ b.2) := by
-    refine (List.pairwise_mergeSort (le := fun (a b : ι × ℕ) => decide (a.2 ≤ b.2))
-      (fun a b c h1 h2 => decide_eq_true (Nat.le_trans (of_decide_eq_true h1)
-        (of_decide_eq_true h2)))
-      (fun a b => by
-        simp only [Bool.or_eq_true, decide_eq_true_eq]
-        omega)
-      S.toList).imp fun {a b} hab => of_decide_eq_true hab
+    simpa only [decide_eq_true_eq] using List.pairwise_mergeSort
+      (le := fun a b : ι × ℕ => decide (a.2 ≤ b.2))
+      (by grind) (by grind) S.toList
   have hroot : RootedRel R i S := hS₁ ▸ rooted_witnessRel R i (L.map Prod.fst)
   have hmem : (i, 0) ∈ sorted := hpermS.symm.subset (mem_toList.2 hroot.root)
   obtain ⟨p₀, t, hsorted⟩ := List.exists_cons_of_ne_nil (List.ne_nil_of_mem hmem)
@@ -512,17 +496,14 @@ private theorem isLog_dependsOn (A : ι → Set (∀ v, α v))
   | [], T, T', _ => by simp [isLog_nil]
   | j :: w, T, T', h => by
     have hcur : (fun v => T (v, uses vbl w v)) ∈ A j ↔
-        (fun v => T' (v, uses vbl w v)) ∈ A j := by
-      refine (hA j fun v hv => h (v, uses vbl w v) ?_).to_iff
-      exact Finset.mem_coe.2 (mem_union_left _ (mem_image_of_mem _ (Finset.mem_coe.1 hv)))
+        (fun v => T' (v, uses vbl w v)) ∈ A j :=
+      (hA j fun v hv => h (v, uses vbl w v)
+        (Finset.mem_coe.2 (mem_union_left _ (mem_image_of_mem _ (Finset.mem_coe.1 hv))))).to_iff
     have htail : IsLog vbl A T w = IsLog vbl A T' w :=
       isLog_dependsOn A hA w fun c hc =>
         h c (Finset.mem_coe.2 (mem_union_right _ (Finset.mem_coe.1 hc)))
-    have hfun : ∀ T₀ : ∀ p : V × ℕ, α p.1,
-        current vbl T₀ w = fun v => T₀ (v, uses vbl w v) :=
-      fun T₀ => funext fun v => current_apply vbl T₀ w v
     change IsLog vbl A T (j :: w) = IsLog vbl A T' (j :: w)
-    rw [isLog_cons, isLog_cons, hfun T, hfun T']
+    rw [isLog_cons, isLog_cons, funext (current_apply vbl T w), funext (current_apply vbl T' w)]
     exact propext (and_congr hcur (iff_of_eq htail))
 
 /-- For any fixed list `w`, the event `IsLog vbl A T w` reads pairwise disjoint table entries,
@@ -535,9 +516,7 @@ theorem table_isLog_eq_prod (A : ι → Set (∀ v, α v)) (hAm : ∀ i, Measura
     have heq : {T : ∀ p : V × ℕ, α p.1 | IsLog vbl A T (j :: w)} =
         (fun T v => T (v, uses vbl w v)) ⁻¹' A j ∩ {T | IsLog vbl A T w} := by
       ext T
-      have hcur : current vbl T w = fun v => T (v, uses vbl w v) :=
-        funext (current_apply vbl T w)
-      simp only [Set.mem_ofPred_eq, Set.mem_inter_iff, Set.mem_preimage, isLog_cons, hcur]
+      simp [isLog_cons, funext (current_apply vbl T w)]
     have hd1 : DependsOn
         (· ∈ (fun (T : ∀ p : V × ℕ, α p.1) v => T (v, uses vbl w v)) ⁻¹' A j)
         (((vbl j).image fun v => (v, uses vbl w v)) : Set (V × ℕ)) := fun T T' h =>

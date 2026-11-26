@@ -58,6 +58,15 @@ private theorem validHistory_readSplitCap {w : ℕ} {d : ((ℕ × ℕ) × ℕ) �
        · exact validHistory_ite (fun _ => validHistory_pure _ _ _)
            (fun _ => validHistory_pure _ _ _))
 
+private theorem flowAddr_lt_frontier {w n a b : ℕ} {s : Memory.State}
+    (hs : MemReady w n s) (ha : a < splitCount n) (hb : b < splitCount n) :
+    flowBase n + a * splitCount n + b < s.frontier := by
+  have hfr := hs.2
+  have hsq := splitCount_sq n
+  have hlt : a * splitCount n + b < splitCount n * splitCount n := by nlinarith
+  dsimp only [octWorkspace, flowBase, splitCount] at hfr hlt ⊢
+  omega
+
 private theorem validHistory_readResCap {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × ℕ} {s : Memory.State}
     (hs : MemReady w d.1.1.1 s) (hx : d.1.2 < splitCount d.1.1.1) (hy : d.2 < splitCount d.1.1.1) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (readResCap d)) := by
@@ -66,19 +75,9 @@ private theorem validHistory_readResCap {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × 
   unfold readResCap
   refine validHistory_bind_step (validHistory_readSplitCap hs) ?_
   rw [clientState_readSplitCap]
-  dsimp only
-  have hfr := hs.2
-  have hsq := splitCount_sq n
-  have h1 : flowBase n + x * splitCount n + y < s.frontier := by
-    have hlt : x * splitCount n + y < splitCount n * splitCount n := by nlinarith
-    dsimp only [octWorkspace, flowBase, splitCount] at hfr hlt ⊢
-    omega
-  have h2 : flowBase n + y * splitCount n + x < s.frontier := by
-    have hlt : y * splitCount n + x < splitCount n * splitCount n := by nlinarith
-    dsimp only [octWorkspace, flowBase, splitCount] at hfr hlt ⊢
-    omega
-  exact validHistory_read_bind h1 (validHistory_read_bind h2
-    (validHistory_ite (fun _ => validHistory_pure _ _ _) (fun _ => validHistory_pure _ _ _)))
+  exact validHistory_read_bind (flowAddr_lt_frontier hs hx hy)
+    (validHistory_read_bind (flowAddr_lt_frontier hs hy hx)
+      (validHistory_ite (fun _ => validHistory_pure _ _ _) (fun _ => validHistory_pure _ _ _)))
 
 private theorem validHistory_bfsProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.State}
     (hw : Fits w (octWorkspace d.1)) (hs : MemReady w d.1 s) :
@@ -187,18 +186,8 @@ private theorem validHistory_minSepProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.S
             omega)
         ?_
       refine validHistory_ite (fun hu => ?_) (fun _ => validHistory_pure _ _ _)
-      have had1 : flowBase n + cur * splitCount n +
-          t'.mem (parBase n + cur) < t'.frontier := by
-        have hlt : cur * splitCount n + t'.mem (parBase n + cur) <
-            splitCount n * splitCount n := by nlinarith
-        have := ht'.2
-        dsimp only [octWorkspace, flowBase, splitCount] at hlt this ⊢; omega
-      have had2 : flowBase n + t'.mem (parBase n + cur) * splitCount n +
-          cur < t'.frontier := by
-        have hlt : t'.mem (parBase n + cur) * splitCount n + cur <
-            splitCount n * splitCount n := by nlinarith
-        have := ht'.2
-        dsimp only [octWorkspace, flowBase, splitCount] at hlt this ⊢; omega
+      have had1 := flowAddr_lt_frontier ht' hcur hu
+      have had2 := flowAddr_lt_frontier ht' hu hcur
       refine validHistory_read_bind had1 ?_
       refine validHistory_ite (fun _ => ?_) (fun _ => ?_)
       · exact validHistory_write_bind had1 ((ht'.1.mem_fits _).of_le (Nat.sub_le _ _))
@@ -275,12 +264,9 @@ private theorem validHistory_buildWProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.S
             (validHistory_pure _ _ _))
           (fun _ => validHistory_pure _ _ _)
       refine validHistory_bind_step hvstep ?_
-      have ht' := MonotoneMemInv.pres ht hvstep
-      refine ih _ _ ?_ ?_ ht'
-      · obtain ⟨h1, _⟩ := clientResult_buildWListStep (n, vL) t
-        dsimp only [LoopAccArgs.idx, LoopAccArgs.acc] at h1; omega
-      · obtain ⟨h1, h2⟩ := clientResult_buildWListStep (n, vL) t
-        dsimp only [LoopAccArgs.idx, LoopAccArgs.acc] at h1 h2; omega
+      obtain ⟨h1, h2⟩ := clientResult_buildWListStep (n, vL) t
+      dsimp only [LoopAccArgs.idx, LoopAccArgs.acc] at h1 h2
+      exact ih _ _ (by omega) (by omega) (MonotoneMemInv.pres ht hvstep)
   exact validHistory_bind_step (hloop n (0, 0) _ (Nat.zero_add _) le_rfl hs2)
     (validHistory_pure _ _ _)
 
@@ -455,9 +441,8 @@ private theorem validHistory_leafProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × �
       have hcaddr : colBase n + v < t.frontier := by
         dsimp only [octWorkspace, colBase] at hfr hv ⊢; omega
       split_ifs <;>
-        first
-        | exact validHistory_write_bind hcaddr h1 (validHistory_pure _ _ _)
-        | exact validHistory_write_bind hcaddr (fits_zero w) (validHistory_pure _ _ _)
+        exact validHistory_write_bind hcaddr (by first | exact h1 | exact fits_zero w)
+          (validHistory_pure _ _ _)
     exact validHistory_ite
       (fun _ => validHistory_write_bind hsaddr h1 (hw1 1 h1))
       (fun _ => validHistory_write_bind hsaddr (fits_zero w) (hw1 0 (fits_zero w)))
@@ -516,35 +501,13 @@ private theorem validHistory_compressProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) �
 theorem inputFits_encodeInput {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
     {k w : ℕ} (hw : Fits w (octWorkspace n)) (hk : Fits w k) :
     InputFits w (encodeInput G k) := by
-  refine ⟨?_, ?_⟩
-  · rw [length_encodeInput]
-    apply hw.of_le
-    dsimp only [octWorkspace]
-    omega
-  · intro u hu
-    simp only [encodeInput, List.mem_cons] at hu
-    rcases hu with rfl | rfl | hu
-    · apply hw.of_le; dsimp only [octWorkspace]; omega
-    · exact hk
-    · simp only [encodeAdjMatrix, List.mem_ofFn] at hu
-      obtain ⟨idx, rfl⟩ := hu
-      split_ifs
-      · apply hw.of_le; dsimp only [octWorkspace]; omega
-      · exact fits_zero w
-
-private theorem init_mem_one {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (k : ℕ) :
-    (Memory.State.init (encodeInput G k)).mem 1 = n :=
-  rfl
-
-private theorem init_mem_two {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (k : ℕ) :
-    (Memory.State.init (encodeInput G k)).mem 2 = k :=
-  rfl
-
-private theorem init_frontier {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (k : ℕ) :
-    (Memory.State.init (encodeInput G k)).frontier = 3 + n * n := by
-  change (encodeInput G k).length + 1 = 3 + n * n
-  rw [length_encodeInput]
-  omega
+  refine ⟨hw.of_le (by simp only [length_encodeInput, octWorkspace]; omega), fun u hu => ?_⟩
+  simp only [encodeInput, List.mem_cons, encodeAdjMatrix, List.mem_ofFn] at hu
+  rcases hu with rfl | rfl | ⟨_, rfl⟩
+  · exact hw.of_le (by dsimp only [octWorkspace]; omega)
+  · exact hk
+  · split_ifs
+    exacts [hw.of_le (by dsimp only [octWorkspace]; omega), fits_zero w]
 
 /-- Every step of `octProg ()` is history-valid under `Memory.spec w`. -/
 theorem validHistory_octProg {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
@@ -552,29 +515,23 @@ theorem validHistory_octProg {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G
     let s₀ := Memory.State.init (encodeInput G k)
     (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (octProg ())) := by
   intro s₀
-  have hfr0 : s₀.frontier = 3 + n * n := init_frontier G k
-  have hm1 : s₀.mem 1 = n := init_mem_one G k
-  have hm2 : s₀.mem 2 = k := init_mem_two G k
-  have hin : InputFits w (encodeInput G k) := inputFits_encodeInput G hw hk
-  have hfit0 : Fits w ((encodeInput G k).length + 1) := by
-    rw [length_encodeInput]
-    apply hw.of_le
-    dsimp only [octWorkspace]
-    omega
-  have hwf0 : Memory.WellFormed w s₀ := Memory.wellFormed_init hin hfit0
+  have hfr0 : s₀.frontier = 3 + n * n := by
+    rw [show s₀.frontier = (encodeInput G k).length + 1 from rfl, length_encodeInput]; omega
+  have hwf0 : Memory.WellFormed w s₀ :=
+    Memory.wellFormed_init (inputFits_encodeInput G hw hk)
+      (hw.of_le (by simp only [length_encodeInput, octWorkspace]; omega))
   unfold octProg
   refine validHistory_read_bind (by omega) ?_
-  rw [hm1]
+  rw [show s₀.mem 1 = n from rfl]
   refine validHistory_read_bind (by omega) ?_
-  rw [hm2]
+  rw [show s₀.mem 2 = k from rfl]
   have halloc : (Memory.spec w).ValidHistory s₀
       ((Memory.spec w).clientHistory s₀ (Memory.alloc (octScratch n))) :=
     validHistory_alloc (by rw [hfr0, frontier_add_octScratch]; exact hw)
   refine validHistory_bind_step halloc ?_
-  have hs1 : MemReady w n ((Memory.spec 0).clientState s₀ (Memory.alloc (octScratch n))) := by
-    refine ⟨wellFormed_clientState hwf0 halloc, ?_⟩
-    change octWorkspace n ≤ s₀.frontier + octScratch n
-    rw [hfr0, frontier_add_octScratch]
+  have hs1 : MemReady w n ((Memory.spec 0).clientState s₀ (Memory.alloc (octScratch n))) :=
+    ⟨wellFormed_clientState hwf0 halloc,
+      ((congrArg (· + octScratch n) hfr0).trans (frontier_add_octScratch n)).ge⟩
   have hf1 := validHistory_fillRange (d := ((sepBase n, 0), n)) hs1
     (by dsimp only [octWorkspace, sepBase]; omega) (fits_zero w)
   refine validHistory_bind_step hf1 ?_

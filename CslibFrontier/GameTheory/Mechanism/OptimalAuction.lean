@@ -131,9 +131,8 @@ theorem integral_sum_payment_le_myerson (hμ : ∀ i, HasValueDensity (μ i) (f 
     (hxm : ∀ i, Measurable fun v => x v i) {M : Mechanism ι} (hM : M.IsDSIC) (hIR : M.IsIR)
     (hMX : ∀ v, 0 ≤ v → M.allocation v ∈ X) (hMm : ∀ i, Measurable fun v => M.allocation v i) :
     ∫ v, ∑ i, M.payment v i ∂Measure.pi μ ≤ ∫ v, ∑ i, (myerson x).payment v i ∂Measure.pi μ := by
-  have hbound : ∀ y ∈ X, ∀ i, |y i| ≤ 1 := fun y hy i => by
-    rw [abs_of_nonneg (hX y hy i).1]
-    exact (hX y hy i).2
+  have hbound : ∀ y ∈ X, ∀ i, |y i| ≤ 1 := fun y hy i =>
+    (abs_of_nonneg (hX y hy i).1).trans_le (hX y hy i).2
   have hMB : ∀ v, 0 ≤ v → ∀ i, |M.allocation v i| ≤ 1 := fun v hv => hbound _ (hMX v hv)
   have hxB : ∀ v, 0 ≤ v → ∀ i, |x v i| ≤ 1 := fun v hv => hbound _ (hx v hv).1
   refine (hM.integral_sum_payment_le hIR hμ hMm hMB).trans ?_
@@ -256,10 +255,8 @@ theorem isBinary_reserveAllocation (φ : ℝ → ℝ) : IsBinary (reserveAllocat
 /-- The reserve rule awards the item only to the Vickrey winner. -/
 theorem reserveAllocation_le_allocation (φ : ℝ → ℝ) (b : ι → ℝ) (i : ι) :
     reserveAllocation φ b i ≤ allocation b i := by
-  rcases reserveAllocation_binary φ b i with h | h
-  · rw [h]
-    rcases allocation_binary b i with h' | h' <;> simp [h']
-  · rw [h, allocation_eq_one_iff.2 (reserveAllocation_eq_one_iff.1 h).1]
+  unfold reserveAllocation allocation
+  split_ifs <;> simp_all
 
 /-- The reserve rule is monotone when `φ` is nondecreasing on `(0, ∞)`. -/
 theorem isMonotone_reserveAllocation {φ : ℝ → ℝ} (hφ : MonotoneOn φ (Ioi 0)) :
@@ -268,17 +265,12 @@ theorem isMonotone_reserveAllocation {φ : ℝ → ℝ} (hφ : MonotoneOn φ (Io
   change reserveAllocation φ (Function.update b i z) i ≤
     reserveAllocation φ (Function.update b i z') i
   rcases reserveAllocation_binary φ (Function.update b i z) i with h | h
-  · rw [h]
-    exact reserveAllocation_nonneg φ _ i
+  · exact h ▸ reserveAllocation_nonneg φ _ i
   · obtain ⟨hW, hzpos, h0⟩ := reserveAllocation_eq_one_iff.1 h
     rw [Function.update_self] at hzpos h0
-    have h' : reserveAllocation φ (Function.update b i z') i = 1 := by
-      refine reserveAllocation_eq_one_iff.2 ⟨hW.update_of_le hzz', ?_, ?_⟩
-      · rw [Function.update_self]
-        exact hzpos.trans_le hzz'
-      · rw [Function.update_self]
-        exact h0.trans (hφ hzpos (hzpos.trans_le hzz') hzz')
-    rw [h, h']
+    rw [h, reserveAllocation_eq_one_iff.2 ⟨hW.update_of_le hzz', ?_, ?_⟩]
+    · simpa only [Function.update_self] using hzpos.trans_le hzz'
+    · simpa only [Function.update_self] using h0.trans (hφ hzpos (hzpos.trans_le hzz') hzz')
 
 /-- The set of bid profiles at which bidder `i` wins is measurable. -/
 theorem measurableSet_wins [Countable ι] (i : ι) : MeasurableSet {b : ι → ℝ | Wins b i} :=
@@ -296,12 +288,10 @@ theorem measurable_allocation [Countable ι] (i : ι) :
 /-- The reserve rule is measurable in the bid profile. -/
 theorem measurable_reserveAllocation [Countable ι] {φ : ℝ → ℝ} (hφ : Measurable φ) (i : ι) :
     Measurable fun b : ι → ℝ => reserveAllocation φ b i := by
-  have hP : MeasurableSet {b : ι → ℝ | 0 < b i} :=
-    measurableSet_lt measurable_const (measurable_pi_apply i)
-  have hR : MeasurableSet {b : ι → ℝ | 0 ≤ φ (b i)} :=
-    measurableSet_le measurable_const (hφ.comp (measurable_pi_apply i))
   unfold reserveAllocation
-  exact Measurable.ite ((measurableSet_wins i).inter (hP.inter hR))
+  exact Measurable.ite ((measurableSet_wins i).inter
+    ((measurableSet_lt measurable_const (measurable_pi_apply i)).inter
+      (measurableSet_le measurable_const (hφ.comp (measurable_pi_apply i)))))
     measurable_const measurable_const
 
 variable [Fintype ι]
@@ -383,10 +373,8 @@ theorem criticalBid_reserveAllocation {φ : ℝ → ℝ} {r : ℝ} (hr : IsReser
   refine criticalBid_eq_of_threshold (le_max_of_le_left hr.1) (fun z hz => ?_) fun z hz h => ?_
   · refine reserveAllocation_eq_one_iff.2
       ⟨wins_update_of_lt ((le_max_right _ _).trans_lt hz), ?_, ?_⟩
-    · rw [Function.update_self]
-      exact (hr.1.trans (le_max_left _ _)).trans_lt hz
-    · rw [Function.update_self]
-      exact hr.2.1 z ((le_max_left _ _).trans_lt hz)
+    · simpa only [Function.update_self] using (hr.1.trans (le_max_left _ _)).trans_lt hz
+    · simpa only [Function.update_self] using hr.2.1 z ((le_max_left _ _).trans_lt hz)
   · obtain ⟨hW, hzpos, h0⟩ := reserveAllocation_eq_one_iff.1 h
     rw [Function.update_self] at hzpos h0
     exact max_le (hr.2.2 z hzpos h0) (highestOtherBid_le_of_wins hz hW)

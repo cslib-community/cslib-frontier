@@ -211,34 +211,28 @@ private theorem good_middle {x : Input} {s : State} (hg : Good x s)
     Candidate x s.bits ∧ Passed x s.bits v ∧
       (localVertex (vertex x v)).checkSat (pattern k) = true ∧ Matched x s.bits v k p := by
   rcases hg.2 with ⟨he, _⟩ | ⟨w, hw, he, _⟩ |
-    ⟨w, l, q, hw, hq, hlq, he, hc, hpassed, hsat, hm⟩ | ⟨i, hi, he, _⟩ | ⟨he, _⟩
-  · simp only [middle] at hl; omega
-  · simp only [check, middle] at he hl; omega
-  · simp only [middle] at he hl
-    obtain ⟨rfl, rfl, rfl⟩ : w = v ∧ l = k ∧ q = p := ⟨by omega, by omega, by omega⟩
-    exact ⟨hc, hpassed, hsat, hm⟩
-  all_goals simp only [target, middle] at he hl; omega
+    ⟨w, l, q, hw, hq, hlq, he, hc, hpassed, hsat, hm⟩ | ⟨i, hi, he, _⟩ | ⟨he, _⟩ <;>
+    simp only [check, target, middle] at he hl
+  all_goals try omega
+  obtain ⟨rfl, rfl, rfl⟩ : w = v ∧ l = k ∧ q = p := ⟨by omega, by omega, by omega⟩
+  exact ⟨hc, hpassed, hsat, hm⟩
 
 private theorem good_target {x : Input} {s : State} (hg : Good x s)
     {i : ℕ} (hi : i ≤ x.initial.length) (hl : s.location = target x i) :
     Origin x s.bits ∧ TargetPrefix x s.bits i := by
   rcases hg.2 with ⟨he, _⟩ | ⟨w, hw, he, _⟩ |
-    ⟨w, k, p, hw, hk, hp, he, _⟩ | ⟨j, hj, he, hr, hm⟩ | ⟨he, _⟩
-  · simp only [target] at hl; omega
-  · simp only [check, target] at he hl; omega
-  · simp only [target, middle] at he hl; omega
-  · exact (show j = i by simp only [target] at he hl; omega) ▸ ⟨hr, hm⟩
-  · simp only [target] at hl; omega
+    ⟨w, k, p, hw, hk, hp, he, _⟩ | ⟨j, hj, he, hr, hm⟩ | ⟨he, _⟩ <;>
+    simp only [check, target, middle] at he hl
+  all_goals try omega
+  exact (show j = i by omega) ▸ ⟨hr, hm⟩
 
 private theorem good_accept {x : Input} {s : State} (hg : Good x s)
     (hl : s.location = 1) : Origin x x.target := by
   rcases hg.2 with ⟨he, _⟩ | ⟨w, hw, he, _⟩ |
-    ⟨w, k, p, hw, hk, hp, he, _⟩ | ⟨j, hj, he, _⟩ | ⟨_, hr, hm⟩
-  · omega
-  · simp only [check] at he; omega
-  · simp only [middle] at he; omega
-  · simp only [target] at he; omega
-  · exact hm ▸ hr
+    ⟨w, k, p, hw, hk, hp, he, _⟩ | ⟨j, hj, he, _⟩ | ⟨he, hr, hm⟩ <;>
+    try simp only [check, target, middle] at he
+  all_goals try omega
+  exact hm ▸ hr
 
 private theorem vertex_mem {x : Input} {v : ℕ} (hv : v < x.graph.vertices.length) :
     vertex x v ∈ x.graph.vertices := by
@@ -382,12 +376,11 @@ private theorem raw_sound {x : Input} (hx : x.graph.Valid)
     (hinitial : x.graph.graph.Legal (x.graph.config x.initial))
     (h : (raw x).Accepts) : Origin x x.target := by
   obtain ⟨t, hrun, htarget⟩ := h
-  have hgood : Good x t := by
-    clear htarget
-    induction hrun with
-    | refl => exact ⟨rfl, Or.inl ⟨rfl, .refl⟩⟩
-    | tail _ hm ih => exact step_good hx hlen (ht.trans hlen.symm) hinitial ih hm
-  exact good_accept hgood htarget
+  refine good_accept ?_ htarget
+  clear htarget
+  induction hrun with
+  | refl => exact ⟨rfl, Or.inl ⟨rfl, .refl⟩⟩
+  | tail _ hm ih => exact step_good hx hlen (ht.trans hlen.symm) hinitial ih hm
 
 private theorem branch_mem {x : Input} {v k p : ℕ}
     (hv : v < x.graph.vertices.length) (hk : k < 8) (hp : p < 3)
@@ -499,13 +492,12 @@ private theorem reject_not_accepts : ¬ reject.Accepts := by
 /-- The compiled finite register program accepts exactly the valid NCL source instances. -/
 theorem compile_accepts_iff (x : AndOrNCL.Instance) :
     (compile x).Accepts ↔ x ∈ AndOrNCL := by
-  by_cases hg : guard x = true
-  · rw [compile, ite_eq_left hg]
-    obtain ⟨hv, hs, ht, hl⟩ := (guard_spec x).1 hg
+  rw [compile]
+  split_ifs with hg
+  · obtain ⟨hv, hs, ht, hl⟩ := (guard_spec x).1 hg
     exact ⟨fun hr => ⟨hv, hs, ht, hl, raw_sound hv hs ht hl hr⟩,
       fun ⟨_, _, _, _, hr⟩ => raw_complete hv hs ht hr⟩
-  · rw [compile, ite_eq_right hg]
-    exact ⟨fun hr => (reject_not_accepts hr).elim,
+  · exact ⟨fun hr => (reject_not_accepts hr).elim,
       fun hx => (hg ((guard_spec x).2 ⟨hx.1, hx.2.1, hx.2.2.1, hx.2.2.2.1⟩)).elim⟩
 
 open _root_.Turing.MultiTapeTM
@@ -601,16 +593,12 @@ private theorem branch_polyTime (k : ℕ) :
 
 private theorem flips_polyTime :
     ComputableInPolyTime flips encAndOrNCL (encList encInstruction) := by
-  have hbody : ComputableInPolyTime
-      (fun i => [Instruction.mk 0 (check 0) i false true,
-        Instruction.mk 0 (check 0) i true false]) encUnary (encList encInstruction) := by
-    have hi := ComputableInPolyTime.unary_to_binary
-    fun_prop
   unfold flips
-  simpa only [Function.comp_def, List.flatten_eq_flatMap, List.flatMap_map, id_eq] using
-    (ComputableInPolyTime.flatten encInstruction).comp ((ComputableInPolyTime.map hbody).comp
-      (by fun_prop : ComputableInPolyTime (fun x : Input => List.range x.initial.length)
-        encAndOrNCL (encList encUnary)))
+  refine ComputableInPolyTime.flatMapWithInput (by fun_prop) ?_
+  have hi : ComputableInPolyTime (fun q : Input × ℕ => q.2)
+      (encPair encAndOrNCL encUnary) encNat :=
+    ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
+  fun_prop
 
 private theorem checks_polyTime :
     ComputableInPolyTime checks encAndOrNCL (encList encInstruction) := by
@@ -647,10 +635,8 @@ private theorem guard_polyTime : ComputableInPolyTime guard encAndOrNCL encBool 
       encAndOrNCL encNat := ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
   have hg : ComputableInPolyTime (fun x : Input => x.graph) encAndOrNCL encAndOrGraph := by
     fun_prop
-  have he : ComputableInPolyTime (fun x : Input => x.graph.edgeCount) encAndOrNCL encNat := by
-    fun_prop
   exact (((AndOrGraph.computableInPolyTime_checkValid.comp hg).bool_and'
-    (hs.decide_eq' he)).bool_and' (ht.decide_eq' he)).bool_and'
+    (hs.decide_eq' (by fun_prop))).bool_and' (ht.decide_eq' (by fun_prop))).bool_and'
     (AndOrGraph.computableInPolyTime_checkLegal hg
       (ComputableInPolyTime.listToBits.comp (by fun_prop)))
 

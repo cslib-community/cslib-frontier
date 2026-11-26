@@ -384,16 +384,10 @@ theorem advantage_kdfGame_linearHashKDF_le (setup : ℕ → PMF F.Desc)
     conv_rhs => rw [PMF.bind_comm]
     congr 1 with seed : 1
     congr 1 with γ : 1
-    have hpad := F.ofFn_paddedGeneratorMultiple (hbound d hd) γ
-    have hhash :
-        F.linearHashKDF keyLen bound ((d, List.ofFn seed), F.encode d (γ • F.generator d)) =
-          List.ofFn (Cslib.BitString.LinearHash.hash
-            (Cslib.BitString.blocksEquiv (m := m) (k := W) seed)
-            (F.paddedGeneratorMultiple bound d γ)) := by
-      simp only [linearHashKDF, SeededDesc.seed, hkey d hd, ← hpad,
-        Cslib.BitString.LinearHash.wordHash_eq_ofFn,
-        Cslib.BitString.ofList_ofFn, Cslib.BitString.blocksEquiv_apply]
-    rw [hhash]
+    simp only [linearHashKDF, SeededDesc.seed, hkey d hd,
+      ← F.ofFn_paddedGeneratorMultiple (hbound d hd) γ,
+      Cslib.BitString.LinearHash.wordHash_eq_ofFn,
+      Cslib.BitString.ofList_ofFn, Cslib.BitString.blocksEquiv_apply]
   have hideal :
       (Cslib.BitString.uniformList (F.linearHashSeedLen msgLen bound n d)).bind (fun s =>
         (Cslib.BitString.uniformList m).bind fun pad =>
@@ -409,14 +403,13 @@ theorem advantage_kdfGame_linearHashKDF_le (setup : ℕ → PMF F.Desc)
     simp only [source,
       collisionProbability_map_of_injective _ _ (F.paddedGeneratorMultiple_injective (hbound d hd)),
       collisionProbability_uniform, ZMod.card]
-  have hcard : (Fintype.card (BitString m) : ℝ) = (2 : ℝ) ^ m := by
-    simp [BitString]
-  have hord_le : (F.order d : ℝ)⁻¹ ≤ (qMin : ℝ)⁻¹ :=
-    inv_anti₀ (by exact_mod_cast hq0) (by exact_mod_cast hq d hd)
   refine (dist_bind_le _ _ _).trans (hlhl.trans ?_)
-  rw [hcard, hcoll]
+  rw [show (Fintype.card (BitString m) : ℝ) = (2 : ℝ) ^ m by simp [BitString], hcoll]
   calc Real.sqrt ((2 : ℝ) ^ m * (F.order d : ℝ)⁻¹) / 2
-      ≤ Real.sqrt ((2 : ℝ) ^ m * (qMin : ℝ)⁻¹) / 2 := by gcongr
+      ≤ Real.sqrt ((2 : ℝ) ^ m * (qMin : ℝ)⁻¹) / 2 := by
+        have := inv_anti₀ (by exact_mod_cast hq0 : (0 : ℝ) < qMin)
+          (by exact_mod_cast hq d hd : (qMin : ℝ) ≤ F.order d)
+        gcongr
     _ = ↑(NNReal.sqrt ((2 : ℝ≥0) ^ m / (qMin : ℝ≥0)) / 2) := by
         push_cast
         rw [← div_eq_mul_inv]

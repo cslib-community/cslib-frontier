@@ -268,25 +268,20 @@ theorem simulation_enc_private [Fintype U] [Fintype C] [Fintype R]
     Diagram.Replacement.realizesOfLegalIff_canon]
 
 /-- Every vertex of the joined graph is a standard AND or OR vertex. -/
-theorem isAndOr : (graph N A).IsAndOr := by
-  apply ConstraintGraph.Replacement.isAndOr
-  intro v
-  apply ConstraintGraph.IsAndOr.reorient
-  intro w
-  apply Vertex.IsAndOr.map
-  exact isAndOr_of_checkGens Prim.interp _
-    ((checkGens_checkStandard_iff _).mp (cell N A v).checkStandard).1 w
+theorem isAndOr : (graph N A).IsAndOr :=
+  ConstraintGraph.Replacement.isAndOr _ fun v =>
+    ConstraintGraph.IsAndOr.reorient _ _ fun w =>
+      (isAndOr_of_checkGens Prim.interp _
+        ((checkGens_checkStandard_iff _).mp (cell N A v).checkStandard).1 w).map _
 
 /-- Local port injectivity and fresh private wires give a graph without self-loops. -/
 theorem loopFree : (graph N A).LoopFree := by
   classical
-  apply ConstraintGraph.Replacement.loopFree
-  intro v
-  apply ConstraintGraph.LoopFree.reorient
-  apply ConstraintGraph.LoopFree.map
-  · exact loopFree_of_checkGens Prim.interp _
-      ((checkGens_checkStandard_iff _).mp (cell N A v).checkStandard).2.1
-  · exact Diagram.Replacement.label_injective _ (port_injective N A v)
+  exact ConstraintGraph.Replacement.loopFree _ fun v =>
+    ConstraintGraph.LoopFree.reorient _ _ <|
+      (loopFree_of_checkGens Prim.interp _
+        ((checkGens_checkStandard_iff _).mp (cell N A v).checkStandard).2.1).map
+        (Diagram.Replacement.label_injective _ (port_injective N A v))
 
 private abbrev Boundary (v : Vert U C R) :=
   Fin (cell N A v).top.length ⊕ Fin (cell N A v).bottom.length
@@ -318,11 +313,9 @@ private theorem endpoint_boundary (v : Vert U C R) (x : Boundary N A v) :
 
 private theorem boundaryEnd_injective : Function.Injective (boundaryEnd N A) := by
   rintro ⟨v, x⟩ ⟨w, y⟩ h
-  have hv : v = w := (endpoint_boundary N A v x).symm.trans
+  obtain rfl : v = w := (endpoint_boundary N A v x).symm.trans
     ((congrArg (fun z => N.endpoints.endpoint z.1 z.2) h).trans (endpoint_boundary N A w y))
-  subst w
-  have hx := port_injective N A v (congrArg Prod.fst h)
-  cases hx
+  obtain rfl := port_injective N A v (congrArg Prod.fst h)
   rfl
 
 private theorem boundaryEnd_surjective : Function.Surjective (boundaryEnd N A) := by

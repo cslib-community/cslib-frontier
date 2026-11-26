@@ -216,10 +216,9 @@ private theorem two_mul_two_pow_le_three_mul_card_two_trials_of_forall {r m : �
     2 * 2 ^ (2 * r * m) ≤
       3 * #{x : BitString (2 * r * m) | r < #{i : Fin (2 * r) | P (BitString.block x i)}} := by
   subst hr
-  have hall (x : BitString (2 * 1 * m)) : 1 < #{i : Fin (2 * 1) | P (BitString.block x i)} := by
+  rw [filter_true_of_mem fun x _ => by
     rw [filter_true_of_mem fun i _ => hP (BitString.block x i)]
-    decide
-  rw [filter_true_of_mem fun x _ => hall x, card_univ, BitString.card]
+    decide, card_univ, BitString.card]
   omega
 
 /-- If at most half of the single-trial strings `s : BitString m` satisfy `P`, then at most a
@@ -237,10 +236,9 @@ private theorem two_mul_two_pow_le_three_mul_card_two_trials_not_of_two_mul_le {
   refine (Nat.mul_le_mul_left (2 ^ (2 * 1)) (card_le_card fun x hx => ?_)).trans
     (BitString.two_pow_mul_card_filter_forall_block_le P hP)
   have hx' := (mem_filter.1 hx).2
-  have hall : ∀ i ∈ (univ : Finset (Fin (2 * 1))), P (BitString.block x i) :=
-    filter_eq_self.1 (eq_of_subset_of_card_le (filter_subset _ _)
-      (by simp only [card_univ, Fintype.card_fin]; omega))
-  exact mem_filter.2 ⟨mem_univ _, fun i => hall i (mem_univ i)⟩
+  exact mem_filter.2 ⟨mem_univ _, fun i => filter_eq_self.1 (eq_of_subset_of_card_le
+    (filter_subset (fun j => P (BitString.block x j)) univ)
+    (by simp only [card_univ, Fintype.card_fin]; omega)) i (mem_univ i)⟩
 
 /-- Repeating a perfectly complete Merlin–Arthur verifier twice (`r = 1`) reduces its soundness
 error from `1 / 2` to `1 / 4 ≤ 1 / 3`. -/
@@ -261,12 +259,10 @@ theorem IsMerlinArthurOneVerifier.merlinArthurRepeat_one {q p : Polynomial ℕ}
   refine ⟨fun ha => ?_, fun ha y => ?_⟩
   · obtain ⟨y, hy⟩ := (h a).1 ha
     refine ⟨y, ?_⟩
-    unfold BoundedErrorAt
-    rw [hlen]
+    rw [BoundedErrorAt, hlen]
     simpa only [hrep y, decide_eq_true_iff] using
       two_mul_two_pow_le_three_mul_card_two_trials_of_forall Polynomial.eval_one _ hy
-  · unfold BoundedErrorAt
-    rw [hlen]
+  · rw [BoundedErrorAt, hlen]
     simpa only [hrep y, decide_eq_false_iff_not] using
       two_mul_two_pow_le_three_mul_card_two_trials_not_of_two_mul_le Polynomial.eval_one _
         ((h a).2 ha y)
@@ -344,9 +340,8 @@ theorem isMerlinArthurOneVerifier_sigmaTwoVerifier {e q k p : Polynomial ℕ}
   · obtain ⟨w, hw, hall⟩ := (halt a).1 ha
     simp only [List.map_cons, List.map_nil, alternation_false_cons,
       alternation_nil, List.append_nil] at hw hall
-    refine ⟨BitString.ofList _ w, fun r => ?_⟩
-    rw [BitString.ofFn_ofList hw]
-    exact hall (List.ofFn r) List.length_ofFn
+    exact ⟨BitString.ofList _ w, fun r => by
+      simpa only [BitString.ofFn_ofList hw] using hall (List.ofFn r) List.length_ofFn⟩
   · have hw : (List.ofFn w).length =
         q.eval (enc a).length + k.eval (enc a).length * p.eval (enc a).length := by
       simp [Polynomial.eval_add, Polynomial.eval_mul]

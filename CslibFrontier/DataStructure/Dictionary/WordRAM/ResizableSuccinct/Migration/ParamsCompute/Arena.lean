@@ -79,9 +79,7 @@ private theorem div_ceil_le_div_add_one {a w : ℕ} (hw : 0 < w) :
 /-- Sum of floor divisions is at most floor division of the sum for `0 < w`. -/
 theorem div_add_div_le {a b w : ℕ} (hw : 0 < w) :
     a / w + b / w ≤ (a + b) / w := by
-  have ha := Nat.mul_div_le a w
-  have hb := Nat.mul_div_le b w
-  exact (Nat.le_div_iff_mul_le hw).mpr (by nlinarith)
+  exact (Nat.le_div_iff_mul_le hw).mpr (by nlinarith [Nat.mul_div_le a w, Nat.mul_div_le b w])
 
 /-- **Shared-Arena Non-Overlap (`newItemEnd_le_oldItemNextWord`):**
 For every `j ≤ n` (`j = i + 1` after inserting item `i`), the end word offset
@@ -114,9 +112,7 @@ theorem newItemEnd_le_oldItemNextWord {U V w N_old N_new n j : ℕ}
       Nat.div_le_div_right (Nat.mul_le_mul_left j hle)
     omega
   · have hconv : j * S_new + n * S_old ≤ n * S_new + j * S_old := by
-      have hsub : (n - j) * S_old ≤ (n - j) * S_new := Nat.mul_le_mul_left (n - j) hge
-      have hnj : j + (n - j) = n := Nat.add_sub_of_le hj
-      nlinarith
+      nlinarith [Nat.mul_le_mul_left (n - j) hge, Nat.add_sub_of_le hj]
     have hdiv1 := div_add_div_le (a := j * S_new) (b := n * S_old) hw
     have hdiv2 := Nat.div_le_div_right (c := w) hconv
     have hdiv3 := Nat.add_div_le_div_add_div_add_one (n * S_new) (j * S_old) w
@@ -188,17 +184,13 @@ private theorem compactedItemWords_le_div_optBits (U V w : ℕ) {N n : ℕ}
   have h6n : 6 * n ≤ 6 * n * Dynamic.logLogFactor n := Nat.le_mul_of_pos_right _ hll_n
   have hnum0 : n * (quotientBits U N + valBits V) ≤
       Dynamic.optBits U V n + 11 * n * Dynamic.logLogFactor n := by nlinarith
-  have hnum : n * (quotientBits U N + valBits V) + w - 1 ≤
-      Dynamic.optBits U V n + 11 * n * Dynamic.logLogFactor n + w - 1 := by omega
   unfold compactedItemWords
-  exact Nat.add_le_add_right (Nat.div_le_div_right hnum) 2
+  exact Nat.add_le_add_right (Nat.div_le_div_right (by omega)) 2
 
 private theorem div_ceil_add_div_ceil_le {A B w : ℕ} (hw : 0 < w) :
     (A + w - 1) / w + (B + w - 1) / w ≤ (A + B + w - 1) / w + 1 := by
-  have h1 := div_add_div_le (a := A + w - 1) (b := B + w - 1) hw
-  have h2 : ((A + w - 1) + (B + w - 1)) / w ≤ (A + B + w - 1 + 1 * w) / w :=
-    Nat.div_le_div_right (by omega)
-  exact h1.trans (h2.trans_eq (Nat.add_mul_div_right (A + B + w - 1) 1 hw))
+  exact (div_add_div_le hw).trans ((Nat.div_le_div_right (by omega)).trans_eq
+    (Nat.add_mul_div_right (A + B + w - 1) 1 hw))
 
 /-- **`1 · OPT` Migration Peak Word-Space Bound (`migratePeakWords_le_succinctWords`):**
 Whenever `EpochValid U n N_old` and `1 ≤ n`, single-tape streaming capacity migration uses at most
@@ -275,10 +267,8 @@ private theorem logLogFactor_le_three_mul_w {w N : ℕ} (hw : 0 < w) (hN : Fits 
     exact max_le hNw h4
   have hc1 : Nat.clog 2 (max N 4) ≤ w + 2 :=
     (Nat.clog_le_iff_le_pow one_lt_two).mpr hmax
-  have hpow2 : w + 2 ≤ 2 ^ (3 * w) := by
-    have hlt := @Nat.lt_two_pow_self (3 * w)
-    omega
-  exact (Nat.clog_mono_right 2 hc1).trans ((Nat.clog_le_iff_le_pow one_lt_two).mpr hpow2)
+  exact (Nat.clog_mono_right 2 hc1).trans
+    ((Nat.clog_le_iff_le_pow one_lt_two).mpr (by linarith [@Nat.lt_two_pow_self (3 * w)]))
 
 /-- Parameter-free `O(N)` word bound on `offCompItems U w N` (`≤ 252 * N + 439`) for all
 `0 < w`, `N ≤ U`, and `Fits w U`, independent of `(U, V, w)`. -/

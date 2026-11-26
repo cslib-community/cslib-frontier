@@ -121,10 +121,8 @@ private theorem Valid.exists_reduction_sharedGate {S : State n} (hS : S.Valid f)
     (hcy : S.children y = {.inl G, .inl B}) (hBG : B ≠ G) :
     ∃ S' x' y', ((x' = x ∧ y' = y) ∨ (x' = y ∧ y' = x)) ∧
       Reduction f S S' {x'} [.inl G, .inl B] [] := by
-  obtain ⟨hB, hBx⟩ := (SemiCircuit.inl_mem_children _).1
-    (show Sum.inl B ∈ S.children x by simp [hcx])
-  obtain ⟨-, hBy⟩ := (SemiCircuit.inl_mem_children _).1
-    (show Sum.inl B ∈ S.children y by simp [hcy])
+  obtain ⟨hB, hBx⟩ := (SemiCircuit.inl_mem_children _).1 (hcx ▸ by simp : Sum.inl B ∈ S.children x)
+  obtain ⟨-, hBy⟩ := (SemiCircuit.inl_mem_children _).1 (hcy ▸ by simp : Sum.inl B ∈ S.children y)
   obtain ⟨φ, hφ, hG⟩ := h.exists_op
   obtain ⟨ψ, -, hBψ⟩ := Gate.exists_op_of_args (Gate.args_of_reads h.ne hBx hBy)
   have hyx := h.ne.symm
@@ -165,10 +163,8 @@ private theorem Valid.exists_reduction_sharedEqn {S : State n} (hS : S.Valid f) 
     {G x y e : ℕ} (h : S.MinimalAnd G x y) (hcx : S.children x = {.inl G, .inr e})
     (hcy : S.children y = {.inl G, .inr e}) :
     ∃ S', Reduction f S S' {x} [.inl G, .inr e] [] := by
-  obtain ⟨he, hxe⟩ := (SemiCircuit.inr_mem_children _).1
-    (show Sum.inr e ∈ S.children x by simp [hcx])
-  obtain ⟨-, hye⟩ := (SemiCircuit.inr_mem_children _).1
-    (show Sum.inr e ∈ S.children y by simp [hcy])
+  obtain ⟨he, hxe⟩ := (SemiCircuit.inr_mem_children _).1 (hcx ▸ by simp : Sum.inr e ∈ S.children x)
+  obtain ⟨-, hye⟩ := (SemiCircuit.inr_mem_children _).1 (hcy ▸ by simp : Sum.inr e ∈ S.children y)
   obtain ⟨φ, hφ, hG⟩ := h.exists_op
   have hyx := h.ne.symm
   obtain ⟨v, hva, hvx, hvy, hterms⟩ := Valid.eq_insert_of_mem_terms hS hN.no_deletion he
@@ -250,8 +246,7 @@ theorem Valid.card_isolated_le {S : State n} (hS : S.Valid f) {G : ℕ} (hG : G 
     (fun u => if hu : ∃ N ∈ S.children G, N ∈ S.children u then hu.choose else .inl G)
     (fun u hu => ?_) (fun u hu u' hu' heq => ?_)
   · obtain ⟨-, -, -, hex⟩ := Finset.mem_filter.1 hu
-    simp only [dite_eq_left hex]
-    exact hex.choose_spec.1
+    simpa only [dite_eq_left hex, Finset.mem_coe] using hex.choose_spec.1
   · obtain ⟨hus, -, -, hex⟩ := Finset.mem_filter.1 (Finset.mem_coe.1 hu)
     obtain ⟨hus', -, -, hex'⟩ := Finset.mem_filter.1 (Finset.mem_coe.1 hu')
     simp only [dite_eq_left hex, dite_eq_left hex'] at heq
@@ -370,9 +365,7 @@ private theorem MinimalAnd.not_isolatedBelow {S : State n} (hS : S.Valid f) {G x
   have hcG : S.children G = {.inl K} := children_eq_singleton hG1.le hNG
   refine ⟨K, u, fun K' hK' => ⟨fun hr => ?_, fun he => he ▸ hKG⟩, hK, hu1, hu2,
     ((SemiCircuit.inl_mem_children _).1 hNu).2⟩
-  have : Sum.inl K' ∈ S.children G := (SemiCircuit.inl_mem_children _).2 ⟨hK', hr⟩
-  rw [hcG, Finset.mem_singleton] at this
-  exact Sum.inl.inj this
+  exact Sum.inl.inj (Finset.mem_singleton.1 (hcG ▸ (SemiCircuit.inl_mem_children _).2 ⟨hK', hr⟩))
 
 /-- **Case 8** of [Mishra and Santhanam, Section 4.3][MishraSanthanam2026]: outside Case 7 and
 the bottleneck configuration, fix the input `x` of the minimal AND `G` so that `G` becomes
@@ -391,9 +384,8 @@ theorem Valid.step_fixInput {S : State n} (hS : S.Valid f) (hN : S.Normal) {G x 
       Reduction.wt_add_le_fixInput hS hN h h7 hred (by simpa using (Finset.mem_sdiff.1 hu).2)
   have hgain := Valid.card_isolated_le hS h.mem (S.params \ {x}) Finset.sdiff_subset
   rw [Finset.card_filter] at hgain
-  have hk : 1 ≤ S.deg G := by
-    obtain ⟨K, hK, hKG⟩ := h.has_child
-    exact Finset.card_pos.2 ⟨_, (SemiCircuit.inl_mem_children _).2 ⟨hK, hKG⟩⟩
+  obtain ⟨K, hK, hKG⟩ := h.has_child
+  have hk : 1 ≤ S.deg G := Finset.card_pos.2 ⟨_, (SemiCircuit.inl_mem_children _).2 ⟨hK, hKG⟩⟩
   have hym : y ∈ S.params \ {x} := Finset.mem_sdiff.2 ⟨h.mem_params_y, by simpa using h.ne.symm⟩
   have hloss : ∑ u ∈ S.params \ {x}, (if u = y ∧ S.deg x = 2 then 1 else 0) =
       if S.deg x = 2 then 1 else 0 := by
@@ -404,11 +396,10 @@ theorem Valid.step_fixInput {S : State n} (hS : S.Valid f) (hN : S.Normal) {G x 
   rw [Finset.card_singleton, hS.card_pairsMeeting_singleton, ite_eq_right hxu, config_ca]
   by_cases hx2' : S.deg x = 2
   · rw [ite_eq_left hx2'] at hW
-    rcases Nat.lt_or_ge 1 (S.deg G) with hG2 | hG1
-    · omega
-    · rw [Finset.sum_eq_zero fun u _ => ite_eq_right
-        (h.not_isolatedBelow hS hbot hx2' (by omega))] at hW
+    by_cases hG1 : S.deg G = 1
+    · rw [Finset.sum_eq_zero fun u _ => ite_eq_right (h.not_isolatedBelow hS hbot hx2' hG1)] at hW
       omega
+    · omega
   · rw [ite_eq_right hx2'] at hW
     omega
 
@@ -448,15 +439,13 @@ private theorem QuadOK.wt_add_le {S : State n} (hS : S.Valid f) {x y z G D : ℕ
   · rw [ite_eq_right huD]
     by_cases hu' : u ∈ (S.quad x y z G D α β γ c).unpaired
     · obtain ⟨hup, hun⟩ := mem_unpaired.1 hu'
-      have hup' : u ∈ S.params := by grind
-      have hus : u ∈ S.unpaired := mem_unpaired.2 ⟨hup', fun ⟨pr, hpr, hu⟩ =>
+      have hus : u ∈ S.unpaired := mem_unpaired.2 ⟨by grind, fun ⟨pr, hpr, hu⟩ =>
         hun ⟨pr, Finset.mem_insert_of_mem hpr, hu⟩⟩
       rw [wt_of_mem hu', wt_of_mem hus, config_weight]
       exact Nat.add_le_add_right (weight_mono (Finset.card_le_card
         ((quad_children_subset S x y z G D α β γ c u).trans
           ((Finset.erase_subset _ _).trans (Finset.erase_subset _ _))))) _
-    · rw [wt_of_notMem hu']
-      omega
+    · rw [wt_of_notMem hu']; omega
 
 /-- The quadratic reparameterisation of the bottleneck configuration, when `x` and `y` have
 degree at least two, is a step of gate elimination: `Δa = -1`, `ΔW ≤ -14`. -/
@@ -465,13 +454,11 @@ private theorem Valid.step_quad {S : State n} (hS : S.Valid f) {x y z G D : ℕ}
     Step f S (S.quad x y z G D α β γ c) := by
   set S' := S.quad x y z G D α β γ c
   have hDp := hS.wf.notMem_params_of_mem_gates h.mem_D
-  have hm : S'.m = S.m := by
-    change (insert D (S.params.erase z)).card = S.params.card
-    rw [Finset.card_insert_of_notMem fun h' => hDp (Finset.mem_of_mem_erase h'),
-      Finset.card_erase_add_one h.mem_z]
-  have hq : S'.q = S.q + 1 := by
-    change (insert (x, y) S.pairs).card = S.pairs.card + 1
-    exact Finset.card_insert_of_notMem fun h' => h.unpaired_x ⟨_, h', Or.inl rfl⟩
+  have hm : S'.m = S.m :=
+    (Finset.card_insert_of_notMem fun h' => hDp (Finset.mem_of_mem_erase h')).trans
+      (Finset.card_erase_add_one h.mem_z)
+  have hq : S'.q = S.q + 1 :=
+    Finset.card_insert_of_notMem fun h' => h.unpaired_x ⟨_, h', Or.inl rfl⟩
   have hs : S'.s + 2 = S.s := quad_size h
   have hqm := (Valid.quad hS h).q_le_m
   have hW := W_add_le (S := S) (S' := S') (N := insert D S.params) (Finset.subset_insert _ _)
@@ -549,16 +536,16 @@ theorem Valid.step_of_bottleneck_and {S : State n} (hS : S.Valid f) (hN : S.Norm
     (Gate.args_of_reads (h.ne_gate hS hzp) hDz hDG)
   obtain ⟨φ, hφ, hGφ⟩ := h.exists_op
   obtain ⟨x₀, y₀, hδ⟩ := exists_eq_of_not_isAffineOp' hφ δ
-  obtain ⟨Bx, hBx, hBxG⟩ := Finset.exists_mem_ne (show 1 < (S.children x).card by
-    change 1 < S.deg x; omega) (.inl G)
-  obtain ⟨By, hBy, hByG⟩ := Finset.exists_mem_ne (show 1 < (S.children y).card by
-    change 1 < S.deg y; omega) (.inl G)
+  obtain ⟨Bx, hBx, hBxG⟩ := Finset.exists_mem_ne (s := S.children x)
+    (show 1 < S.deg x from hx2.symm ▸ Nat.one_lt_two) (.inl G)
+  obtain ⟨By, hBy, hByG⟩ := Finset.exists_mem_ne (s := S.children y)
+    (show 1 < S.deg y from hy2.symm ▸ Nat.one_lt_two) (.inl G)
   have hBxD : Bx ≠ .inl D := fun he => hDx ((SemiCircuit.inl_mem_children _).1 (he ▸ hBx)).2
   have hByD : By ≠ .inl D := fun he => hDy ((SemiCircuit.inl_mem_children _).1 (he ▸ hBy)).2
   obtain ⟨S', hred⟩ := Valid.exists_reduction_bottleneck_and hS h hD
     (fun he => hS.not_reads_self h.mem (he ▸ hDG)) hc (x₀ := x₀) (y₀ := y₀)
-    (by rw [hGφ, Function.update_self, Function.update_of_ne h.ne.symm, Function.update_self]
-        exact hδ) hBx hBy hBxG hByG (fun he => h7 ⟨hx2, Bx, hBxG, hBx, he ▸ hBy⟩) hBxD hByD
+    (by simpa only [hGφ, Function.update_self, Function.update_of_ne h.ne.symm] using hδ)
+    hBx hBy hBxG hByG (fun he => h7 ⟨hx2, Bx, hBxG, hBx, he ▸ hBy⟩) hBxD hByD
   refine ⟨S', hred.step hS (Finset.card_le_two.trans (Nat.le_add_left _ _)) (by simp) ?_⟩
   have hW := hred.W_le (fun u => if u = z then 6 else 0) (fun _ => 0) fun u hu => by
     obtain ⟨-, huF⟩ := Finset.mem_sdiff.1 hu
@@ -569,14 +556,12 @@ theorem Valid.step_of_bottleneck_and {S : State n} (hS : S.Valid f) (hN : S.Norm
     · rw [ite_eq_right huz]
       refine Nat.add_le_add_right (Reduction.wt_le_of_exclusive hred hS hN.exclusive
         (fun w hw hwu => ?_) fun N hNL _ => ?_) 0
-      · rcases Finset.mem_insert.1 hw with rfl | hw
-        · exact (mem_unpaired.1 h.unpaired_x).2 hwu.paired
-        · obtain rfl := Finset.mem_singleton.1 hw
-          exact (mem_unpaired.1 h.unpaired_y).2 hwu.paired
-      · simp only [List.mem_cons, List.not_mem_nil, or_false] at hNL
-        rcases hNL with rfl | rfl
-        · exact ⟨x, h.mem_params_x, Ne.symm huF.1, hBx⟩
-        · exact ⟨y, h.mem_params_y, Ne.symm huF.2, hBy⟩
+      · rcases (by simpa using hw : w = x ∨ w = y) with rfl | rfl
+        exacts [(mem_unpaired.1 h.unpaired_x).2 hwu.paired,
+          (mem_unpaired.1 h.unpaired_y).2 hwu.paired]
+      · rcases (by simpa using hNL : N = Bx ∨ N = By) with rfl | rfl
+        exacts [⟨x, h.mem_params_x, Ne.symm huF.1, hBx⟩,
+          ⟨y, h.mem_params_y, Ne.symm huF.2, hBy⟩]
   have hk : (S.pairsMeeting {x, y}).card = 0 := by
     rw [hS.card_pairsMeeting_insert (by simpa using h.ne)
       (by simpa using fun hxy => (mem_unpaired.1 h.unpaired_x).2 hxy.paired),

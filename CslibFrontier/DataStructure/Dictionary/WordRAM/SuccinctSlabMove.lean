@@ -408,15 +408,7 @@ theorem realizes_promoteStepGen :
       promoteStep_bounds hw ⟨hinv, hbp⟩
     first
     | exact hdict
-    | with_reducible exact hk
-    | with_reducible exact hpu
-    | with_reducible exact hpt
-    | with_reducible exact h0
-    | with_reducible exact htu
-    | with_reducible exact httop
-    | with_reducible exact hgu
-    | with_reducible exact hgtop
-    | with_reducible exact hgslab
+    | with_reducible assumption
     | exact ⟨hdict, htail', hinv.1, hr1, hbp⟩
     | exact fits_of_le_globalMetaLen hdict hbp hw hnU hU hpu.le
     | exact fits_of_le_globalMetaLen hdict hbp hw hnU hU hpt.le
@@ -533,9 +525,7 @@ theorem promoteArrInv_step {α : Type*} {n_max b k : ℕ} {gm₀ gm : ℕ → �
         have ht'_lt := htail'.ptr_lt b' hb'
           (j - gmRemoveTail n_max gm b (gmQIdx b') * slabSize n_max) (by omega)
         rw [hpres.2.1] at ht'_lt; omega
-    dsimp only [arr₃]
-    rw [Function.update_of_ne hne_slab]
-    exact hupd_slot b' hb' j hj
+    simpa only [arr₃, Function.update_of_ne hne_slab] using hupd_slot b' hb' j hj
   have hslab_ne_gu : ∀ b' < numBuckets n_max, ∀ j < gm₀ (gmQIdx b') * slabSize n_max,
       slotOf n_max gm b' j ≠ g_u := by
     intro b' hb' j hj
@@ -587,18 +577,15 @@ theorem promoteArrInv_step {α : Type*} {n_max b k : ℕ} {gm₀ gm : ℕ → �
   · by_cases heq : u' = u
     · subst heq
       rw [harr3_slot b hb _ (by rw [hbc_b]; omega), ← hgu_eq_slot]
-      dsimp only [arr₁]; rw [Function.update_self, hgtop_eq_slot]
-      exact harr.high_tail u (by omega)
+      simpa only [arr₁, Function.update_self, hgtop_eq_slot] using harr.high_tail u (by omega)
     · exact (harr_tail u' (by omega) heq).trans (harr.shifted_tail u' (by omega) hu'_lt)
   · dsimp only [arr₃]
     by_cases heq : k' = k
     · subst heq; rw [← h0, Function.update_self, hgu_eq_slot]; exact harr.low_tail u (by omega)
-    · have hne_slab : gm₀ 0 * slabSize n_max + k' ≠ g_slab := by
-        dsimp only [g_slab]; rw [h0]; omega
-      have hne_gu : gm₀ 0 * slabSize n_max + k' ≠ g_u := by dsimp only [g_u]; rw [← h0]; omega
-      rw [Function.update_of_ne hne_slab]
+    · rw [Function.update_of_ne (by rw [← h0]; omega)]
       dsimp only [arr₂, g_del, g_last]
-      rw [hupd_low _ (by rw [← h0]; omega), harr1_ne _ hne_gu]
+      rw [hupd_low _ (by rw [← h0]; omega),
+        harr1_ne _ (by rw [← h0]; omega)]
       exact harr.new_slab k' (by omega)
 
 /-- Loop invariant at step `k ≤ slabSize n_max` of `promoteLoopProg`. -/
@@ -650,31 +637,29 @@ theorem promoteLoopInv_step {U V w₀ n_max h_space base b k : ℕ} {s₀ s : Me
   have hstep := promoteStepInv_of_loopInv hinv hk
   obtain ⟨hres, hf, hout, hq, hv, hl, hgm⟩ :=
     promoteStepProg_effect hw hb_pos s hstep
-  have hrb_eq : gmAt base U V w₀ n_max h_space s.mem (gmRIdx b) = 2 * slabSize n_max - k :=
-    hinv.rb_eq
-  have hr_pos : 1 ≤ gmAt base U V w₀ n_max h_space s.mem (gmRIdx b) := by omega
+  have hr_pos : 1 ≤ gmAt base U V w₀ n_max h_space s.mem (gmRIdx b) := by
+    rw [hinv.rb_eq]
+    omega
   have hpres := gmRemoveTail_preserves_nonTail hinv.b_lt hr_pos hinv.tail_bij
   have htail' := tailBijection_gmRemoveTail hinv.b_lt hr_pos hinv.tail_bij
   have ⟨_, hslab'⟩ := slabBijection_gmRemoveTail hinv.b_lt hr_pos hinv.tail_bij hinv.slab_bij
   have hgm1_pos : 1 ≤ gmAt base U V w₀ n_max h_space s.mem 1 := by
     have := r_le_ntails_of_tailBijection hinv.tail_bij hinv.b_lt
     omega
-  refine ⟨hres, ⟨hinv.b_lt, by omega, hf.trans hinv.frontier_eq,
+  have harr_step {arr₀ arr : ℕ → ℕ} :=
+    promoteArrInv_step (arr₀ := arr₀) (arr := arr) hb_pos hinv.b_lt hk hinv.tail_bij hinv.slab_bij
+      hinv.gm0_eq hinv.q_eq hinv.r_other hinv.rb_eq hinv.tot_le
+  exact ⟨hres, ⟨hinv.b_lt, by omega, hf.trans hinv.frontier_eq,
     fun a ha => (hout a ha).trans (hinv.mem_out a ha), hl.trans hinv.lm_eq,
-    by rw [hgm]; exact htail', by rw [hgm]; exact hslab',
+    hgm ▸ htail', hgm ▸ hslab',
     by rw [hgm, hpres.1, hinv.gm0_eq],
     by rw [hgm, hpres.2.1]; have := hinv.gm1_eq; omega,
-    by rw [hgm, hpres.2.2.1, hrb_eq]; omega,
+    by rw [hgm, hpres.2.2.1, hinv.rb_eq]; omega,
     fun b' hb' hne => by rw [hgm, hpres.2.2.2.1 b' hb' hne, hinv.r_other b' hb' hne],
     fun b' hb' => by rw [hgm, hpres.2.2.2.2.1 b' hb', hinv.q_eq b' hb'],
     by rw [hgm, hpres.1, hpres.2.1]; have := hinv.tot_le; omega,
-    ?_, ?_⟩⟩
-  · rw [hgm, hq]
-    exact promoteArrInv_step hb_pos hinv.b_lt hk hinv.tail_bij hinv.slab_bij
-      hinv.gm0_eq hinv.q_eq hinv.r_other hinv.rb_eq hinv.tot_le hinv.quot_inv
-  · rw [hgm, hv]
-    exact promoteArrInv_step hb_pos hinv.b_lt hk hinv.tail_bij hinv.slab_bij
-      hinv.gm0_eq hinv.q_eq hinv.r_other hinv.rb_eq hinv.tot_le hinv.val_inv
+    hgm ▸ hq ▸ harr_step hinv.quot_inv,
+    hgm ▸ hv ▸ harr_step hinv.val_inv⟩⟩
 
 theorem iterate_promoteStepProg_spec {U V w₀ n_max h_space w base b : ℕ} {s₀ : Memory.State}
     (hw : 0 < w₀) (hb_pos : 0 < bucketBits n_max) :
@@ -1003,13 +988,9 @@ theorem promoteSlabProg_effect {U V w n_max h_space base b : ℕ}
       exact ⟨hpres_arr hloopK.quot_inv b' hb' j hj, hpres_arr hloopK.val_inv b' hb' j hj⟩, ?_⟩
   simp only [promoteSlabProg, promoteSlabGenProg, p_slabSize_mk,
     promoteLoopGenProg_mk, gmPushSlabGenProg_mk]
-  unfold promoteLoopProg
-  rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-  change memoryCost
-      (iterate (promoteStepProg U V w n_max h_space) (base, b) (slabSize n_max) 0) s +
-    memoryCost (gmPushSlabProg U V w n_max h_space (base, b)) s₁ ≤ _
-  rw [hcost_loop]
   have hpush_cost := memoryCost_gmPushSlabProg_le U V w n_max h_space (base, b) s₁
+  dsimp only [s₁, promoteLoopProg] at hpush_cost ⊢
+  rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hcost_loop]
   omega
 
 theorem realizes_promoteSlabGen :

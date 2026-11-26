@@ -250,23 +250,17 @@ private theorem cubePoint_cubeSign_succ {k j : ℕ} (hj : j < k) (χ : Fin k →
     unfold cubeSign
     by_cases h1 : d.1 < j
     · simp [h1, h1.trans (Nat.lt_succ_self j)]
-    · by_cases h2 : d = ⟨j, hj⟩
-      · subst h2
-        by_cases h3 : x.1 < j
-        · have : x ≠ ⟨j, hj⟩ := fun h => h3.ne (congrArg Fin.val h)
-          simp [h3, this]
-        · by_cases h4 : x = ⟨j, hj⟩
-          · subst h4
-            cases s <;> simp [boolSign]
-          · cases s <;> simp [h3, h4, boolSign] <;> cases χ x <;> simp
+    · rcases eq_or_ne d ⟨j, hj⟩ with rfl | h2
+      · rcases eq_or_ne x ⟨j, hj⟩ with rfl | h4
+        · cases s <;> simp [boolSign]
+        · by_cases h3 : x.1 < j <;> cases s <;> cases hχ : χ x <;> simp [h3, h4, hχ, boolSign]
       · have h2' : ¬ d.1 < j + 1 := fun h => h2 (Fin.ext (show d.1 = j by omega))
-        by_cases h3 : x.1 < j
-        · simp [h1, h2', h3, h3.trans (Nat.lt_succ_self j)]
-        · by_cases h4 : x = ⟨j, hj⟩
-          · subst h4
-            cases s <;> cases χ d <;> simp [h1, h2, h2', boolSign]
-          · have h4' : ¬ x.1 < j + 1 := fun h => h4 (Fin.ext (show x.1 = j by omega))
-            simp [h1, h2, h2', h3, h4, h4']
+        rcases eq_or_ne x ⟨j, hj⟩ with rfl | h4
+        · cases s <;> cases χ d <;> simp [h1, h2, h2', boolSign]
+        · have h4' : x.1 < j + 1 ↔ x.1 < j :=
+            ⟨fun h => Nat.lt_of_le_of_ne (Nat.le_of_lt_succ h) fun e => h4 (Fin.ext e),
+              Nat.lt_succ_of_lt⟩
+          by_cases h3 : x.1 < j <;> simp [h1, h2, h2', h3, h4, h4']
   ext x
   rw [midpoint_eq_smul_add]
   simp only [PiLp.smul_apply, PiLp.add_apply, cubePoint_apply, smul_eq_mul, key, invOf_eq_inv]

@@ -49,8 +49,7 @@ theorem complexPoint_injective : Function.Injective complexPoint :=
 
 private theorem segment_succ_lt (r : Route) (h : 2 ≤ r.length)
     (i : Fin (toPolygonalRoute r h).segments) : i.val + 1 < r.length := by
-  have hi := i.isLt
-  change i.val < r.length - 2 + 1 at hi
+  have hi : i.val < r.length - 2 + 1 := i.isLt
   omega
 
 /-- The first polygonal point is the original first listed point. -/
@@ -90,10 +89,9 @@ private theorem point_injective_toPolygonalRoute {r : Route} (hr : r.Nodup)
 
 private theorem point_castSucc_ne_succ {r : Route} (hr : r.Nodup) (h : 2 ≤ r.length)
     (i : Fin (toPolygonalRoute r h).segments) :
-    (toPolygonalRoute r h).point i.castSucc ≠ (toPolygonalRoute r h).point i.succ := fun he => by
-  have := congrArg Fin.val (point_injective_toPolygonalRoute hr h he)
-  simp only [Fin.val_castSucc, Fin.val_succ] at this
-  omega
+    (toPolygonalRoute r h).point i.castSucc ≠ (toPolygonalRoute r h).point i.succ := fun he =>
+  Nat.ne_of_lt (Nat.lt_succ_self i.val)
+    (congrArg Fin.val (point_injective_toPolygonalRoute hr h he))
 
 private theorem parameter_eq_of_eval_eq_point {r : Route} (hr : r.Nodup)
     (h : 2 ≤ r.length) (i : Fin (toPolygonalRoute r h).segments)
@@ -121,10 +119,8 @@ theorem position_eq_of_eval_toPolygonalRoute_eq {r : Route} (hr : IsSimple r)
       (AffineMap.lineMap_injective ℝ (point_castSucc_ne_succ hr.1 h i) he)
   · have hic := segment_succ_lt r h i
     have hjc := segment_succ_lt r h j
-    have hpair : (r[i.val], r[i.val + 1]) ≠ (r[j.val], r[j.val + 1]) := by
-      intro hp
-      apply hij
-      exact Fin.ext (hr.1.getElem_inj_iff.mp (congrArg Prod.fst hp))
+    have hpair : (r[i.val], r[i.val + 1]) ≠ (r[j.val], r[j.val + 1]) := fun hp =>
+      hij (Fin.ext (hr.1.getElem_inj_iff.mp (congrArg Prod.fst hp)))
     obtain ⟨hi, hj⟩ := hr.2 _ (List.getElem_mem_consecutivePairs r _ hic)
       _ (List.getElem_mem_consecutivePairs r _ hjc) hpair
       _ (segment_mem_toPolygonalRoute r h i hs)
@@ -138,13 +134,9 @@ theorem position_eq_of_eval_toPolygonalRoute_eq {r : Route} (hr : IsSimple r)
           (toPolygonalRoute r h).eval k u = (toPolygonalRoute r h).point a ∧
           (toPolygonalRoute r h).position k u = a.val := by
       rcases hk with hk | hk
-      · have hq : (toPolygonalRoute r h).eval k u =
-            (toPolygonalRoute r h).point k.castSucc :=
-          Complex.equivRealProdCLM.injective (hk.trans (equivRealProd_complexPoint _).symm)
+      · have hq := Complex.equivRealProdCLM.injective (hk.trans (equivRealProd_complexPoint _).symm)
         exact ⟨k.castSucc, hq, parameter_eq_of_eval_eq_point hr.1 h k _ u hq (.inl rfl)⟩
-      · have hq : (toPolygonalRoute r h).eval k u =
-            (toPolygonalRoute r h).point k.succ :=
-          Complex.equivRealProdCLM.injective (hk.trans (equivRealProd_complexPoint _).symm)
+      · have hq := Complex.equivRealProdCLM.injective (hk.trans (equivRealProd_complexPoint _).symm)
         exact ⟨k.succ, hq, parameter_eq_of_eval_eq_point hr.1 h k _ u hq (.inr rfl)⟩
     obtain ⟨a, ha, hpa⟩ := hpoint i s hi
     obtain ⟨b, hb, hpb⟩ := hpoint j t (by simpa only [he] using hj)

@@ -41,11 +41,9 @@ theorem turnArg_mem {z : ℂ} (hz : z.im ≠ 0) :
     turnArg z ∈ Set.Ioo 0 (2 * Real.pi) := by
   have h := arg_mem_half_turn hz
   unfold turnArg
-  split_ifs with hneg
-  · rw [ite_eq_left hneg] at h
-    constructor <;> linarith [h.1, h.2, Real.pi_pos]
-  · rw [ite_eq_right hneg] at h
-    exact ⟨h.1, h.2.trans (by linarith [Real.pi_pos])⟩
+  split_ifs at h ⊢ with hneg
+  · constructor <;> linarith [h.1, h.2, Real.pi_pos]
+  · exact ⟨h.1, by linarith [h.2, Real.pi_pos]⟩
 
 /-- Changing the cut does not change the actual direction as a circular angle. -/
 @[simp] theorem turnArg_coe_angle (z : ℂ) :
@@ -62,18 +60,13 @@ theorem arg_lt_arg_iff_det_pos {u v : ℂ} (hu : u.im ≠ 0) (hv : v.im ≠ 0)
   have huarg := arg_mem_half_turn hu
   have hvarg := arg_mem_half_turn hv
   have hspan : u.arg - v.arg ∈ Set.Ioc (-Real.pi) Real.pi := by
-    by_cases hneg : u.im < 0
-    · rw [ite_eq_left hneg] at huarg
-      rw [ite_eq_left (hsame.mp hneg)] at hvarg
-      constructor <;> linarith [huarg.1, huarg.2, hvarg.1, hvarg.2]
-    · rw [ite_eq_right hneg] at huarg
-      rw [ite_eq_right (fun h => hneg (hsame.mpr h))] at hvarg
-      constructor <;> linarith [huarg.1, huarg.2, hvarg.1, hvarg.2]
+    simp only [← hsame] at hvarg
+    split_ifs at huarg hvarg
+    all_goals constructor <;> linarith [huarg.1, huarg.2, hvarg.1, hvarg.2]
   have hdiv : (u / v).arg = u.arg - v.arg := by
     have h := congrArg Real.Angle.toReal (Complex.arg_div_coe_angle hu0 hv0)
-    rw [Complex.arg_coe_angle_toReal_eq_arg, ← Real.Angle.coe_sub,
+    rwa [Complex.arg_coe_angle_toReal_eq_arg, ← Real.Angle.coe_sub,
       Real.Angle.toReal_coe_eq_self_iff_mem_Ioc.mpr hspan] at h
-    exact h
   have hnorm : 0 < Complex.normSq v := Complex.normSq_pos.mpr hv0
   calc
     u.arg < v.arg ↔ (u / v).arg < 0 := by rw [hdiv, sub_lt_zero]

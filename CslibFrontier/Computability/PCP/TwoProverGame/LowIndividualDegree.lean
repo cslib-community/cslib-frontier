@@ -182,9 +182,8 @@ theorem exists_eq_of_accepts_points (d : ℕ) (u v : Point F m) (a b : Answer F 
 
 omit [Fintype F] [DecidableEq F] in
 @[simp] theorem prefixDirection_zero (i : Fin m) :
-    prefixDirection (F := F) i 0 = 0 := by
-  funext j
-  simp [prefixDirection]
+    prefixDirection (F := F) i 0 = 0 :=
+  funext fun _ => by simp [prefixDirection]
 
 /-- Zero padding gives every direction in the prefix exactly once. -/
 def prefixDirectionEquiv (i : Fin m) :
@@ -214,9 +213,8 @@ that prefix. Zero directions occur with the sampling probability specified in Fi
 omit [Fintype F] [DecidableEq F] in
 /-- At the full prefix, extending the direction is the identity. -/
 @[simp] theorem prefixDirection_last {n : ℕ} (v : Point F (n + 1)) :
-    prefixDirection (Fin.last n) v = v := by
-  funext j
-  simp [prefixDirection, j.isLt]
+    prefixDirection (Fin.last n) v = v :=
+  funext fun j => by simp [prefixDirection, j.isLt]
 
 /-- Every prefix direction and either role assignment occurs in the diagonal branch. -/
 theorem mem_diagonalQuestions_support {n : ℕ} {q : Question F (n + 1) × Question F (n + 1)} :
@@ -261,41 +259,32 @@ noncomputable def branchGame (n d : ℕ) (b : Branch) :
 
 theorem branchGame_eq_withDiagonalCap (n d : ℕ) (b : Branch) :
     branchGame (F := F) n d b = branchGameWithDiagonalCap n d ((n + 1) * d) b := by
-  unfold branchGame
-  rfl
+  rw [branchGame]
 
 theorem branchGameWithDiagonalCap_questions (n d D : ℕ) (b : Branch) :
     (branchGameWithDiagonalCap (F := F) n d D b).questions = branchQuestions n b := by
-  unfold branchGameWithDiagonalCap
-  rfl
+  rw [branchGameWithDiagonalCap]
 
 theorem branchGameWithDiagonalCap_accepts (n d D : ℕ) (b : Branch) :
     (branchGameWithDiagonalCap (F := F) n d D b).accepts = acceptsWithDiagonalCap d D := by
-  unfold branchGameWithDiagonalCap
-  rfl
+  rw [branchGameWithDiagonalCap]
 
 theorem branchGame_questions (n d : ℕ) (b : Branch) :
     (branchGame (F := F) n d b).questions = branchQuestions n b := by
-  unfold branchGame
-  rfl
+  rw [branchGame, branchGameWithDiagonalCap]
 
 theorem branchQuestions_axis (n : ℕ) :
-    branchQuestions (F := F) n .axis = axisQuestions n := by
-  unfold branchQuestions
-  rfl
+    branchQuestions (F := F) n .axis = axisQuestions n := by rw [branchQuestions]
 
 theorem branchQuestions_diagonal (n : ℕ) :
-    branchQuestions (F := F) n .diagonal = diagonalQuestions n := by
-  unfold branchQuestions
-  rfl
+    branchQuestions (F := F) n .diagonal = diagonalQuestions n := by rw [branchQuestions]
 
 theorem branchQuestions_consistency (n : ℕ) :
-    branchQuestions (F := F) n .consistency = consistencyQuestions := by
-  unfold branchQuestions
-  rfl
+    branchQuestions (F := F) n .consistency = consistencyQuestions := by rw [branchQuestions]
 
 theorem branchGame_accepts (n d : ℕ) (b : Branch) :
-    (branchGame (F := F) n d b).accepts = accepts d := by unfold branchGame; rfl
+    (branchGame (F := F) n d b).accepts = accepts d := by
+  rw [branchGame, branchGameWithDiagonalCap, accepts]
 
 /-- The low individual degree game in positive ambient dimension `n + 1`. -/
 noncomputable def game (n d : ℕ) :
@@ -356,9 +345,7 @@ def honest (P : MvPolynomial (Fin m) F) : Question F m → Answer F m
 omit [Fintype F] [DecidableEq F] in
 /-- The honest point answer is the polynomial's value at that point. -/
 theorem honest_point (P : MvPolynomial (Fin m) F) (u : Point F m) :
-    honest P (.point u) = .inl (MvPolynomial.eval u P) := by
-  unfold honest
-  rfl
+    honest P (.point u) = .inl (MvPolynomial.eval u P) := by rw [honest]
 
 private theorem honest_lineAgrees (P : MvPolynomial (Fin m) F) (u v : Point F m) (d : ℕ)
     (hd : (P.restrictAffineLine u v).natDegree ≤ d) :

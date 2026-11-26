@@ -253,13 +253,11 @@ noncomputable def randGreedyProb (ℓ : ℕ → ι → ℝ) (t : ℕ) (i : ι) :
 
 theorem randGreedyProb_of_mem {ℓ : ℕ → ι → ℝ} {t : ℕ} {i : ι} (hi : i ∈ leaders ℓ t) :
     randGreedyProb ℓ t i = 1 / (leaders ℓ t).card := by
-  unfold randGreedyProb
-  simp only [hi, ↓reduceIte]
+  simp [randGreedyProb, hi]
 
 theorem randGreedyProb_of_notMem {ℓ : ℕ → ι → ℝ} {t : ℕ} {i : ι} (hi : i ∉ leaders ℓ t) :
     randGreedyProb ℓ t i = 0 := by
-  unfold randGreedyProb
-  simp only [hi, ↓reduceIte]
+  simp [randGreedyProb, hi]
 
 theorem randGreedyProb_nonneg (ℓ : ℕ → ι → ℝ) (t : ℕ) (i : ι) :
     0 ≤ randGreedyProb ℓ t i := by
@@ -276,9 +274,8 @@ theorem sum_randGreedyProb [Nonempty ι] (ℓ : ℕ → ι → ℝ) (t : ℕ) :
 theorem randGreedyProb_congr {ℓ ℓ' : ℕ → ι → ℝ} {t : ℕ} (h : ∀ s < t, ℓ s = ℓ' s) :
     randGreedyProb ℓ t = randGreedyProb ℓ' t := by
   funext i
-  have hl := leaders_congr h
   unfold randGreedyProb
-  rw [hl]
+  rw [leaders_congr h]
 
 omit [Fintype ι] in
 private theorem sum_nat_of_binary {ℓ : ℕ → ι → ℝ} {t : ℕ}
@@ -298,12 +295,11 @@ private theorem add_one_le_sum_of_notMem_leaders [Nonempty ι] {ℓ : ℕ → ι
   obtain ⟨j, hj⟩ := exists_sum_eq_minCumLoss ℓ t
   obtain ⟨ni, hni⟩ := sum_nat_of_binary hℓ i
   obtain ⟨nj, hnj⟩ := sum_nat_of_binary hℓ j
-  have hle : ∑ s ∈ range t, ℓ s j ≤ ∑ s ∈ range t, ℓ s i := hj.trans_le (minCumLoss_le ℓ t i)
-  have hne : ∑ s ∈ range t, ℓ s i ≠ minCumLoss ℓ t := mt mem_leaders.mpr hi
-  rw [← hj] at hne ⊢
-  rw [hni, hnj] at hle hne ⊢
-  have hlt : nj < ni := lt_of_le_of_ne (by exact_mod_cast hle) (fun h => hne (by rw [h]))
-  exact_mod_cast hlt
+  have hlt : (nj : ℝ) < ni := lt_of_le_of_ne
+    (hnj ▸ hni ▸ hj.trans_le (minCumLoss_le ℓ t i))
+    (hnj ▸ hni ▸ hj ▸ Ne.symm (mt mem_leaders.mpr hi))
+  rw [← hj, hni, hnj]
+  exact_mod_cast Nat.cast_lt.mp hlt
 
 /-- **Harmonic invariant for Randomized Greedy** [BlumMansour2007AGT, proof of Theorem 4.4, p. 84]:
 on `{0, 1}` loss sequences,
@@ -359,12 +355,8 @@ theorem randGreedy_loss_le_harmonic [Nonempty ι] {ℓ : ℕ → ι → ℝ} {T 
         · linarith [add_one_le_sum_of_notMem_leaders hℓ_prev hmem, hℓ_nn i]
       have hharm :
           ((S.card : ℝ) - S'.card) / S.card ≤ (harmonic S.card : ℝ) - harmonic S'.card := by
-        have hq : ((((S.card : ℚ) - S'.card) / S.card : ℚ) : ℝ) ≤
-            ((harmonic S.card - harmonic S'.card : ℚ) : ℝ) := by
-          exact_mod_cast sub_div_le_harmonic_sub (show S'.card ≤ S.card from
-            hS'_eq ▸ card_filter_le S _)
-        push_cast at hq
-        exact hq
+        exact_mod_cast sub_div_le_harmonic_sub
+          (le_of_eq_of_le (congrArg Finset.card hS'_eq) (card_filter_le S _))
       rw [hm_eq, ← hS'_eq]
       linarith
     · have hA1 (i : ι) (hi : i ∈ S) : ℓ t i = 1 :=
@@ -380,10 +372,10 @@ theorem randGreedy_loss_le_harmonic [Nonempty ι] {ℓ : ℕ → ι → ℝ} {T 
           by_cases hmem : i ∈ S
           · rw [mem_leaders.mp hmem, hA1 i hmem]
           · linarith [add_one_le_sum_of_notMem_leaders hℓ_prev hmem, hℓ_nn i]
-      have h1_le_HS : (1 : ℝ) ≤ harmonic S.card := by
-        exact_mod_cast one_le_harmonic (card_pos.mpr ⟨i₀, hi₀⟩).ne'
-      have hHS'_le : (harmonic S'.card : ℝ) ≤ harmonic (Fintype.card ι) := by
-        exact_mod_cast harmonic_mono (card_le_univ S')
+      have h1_le_HS : (1 : ℝ) ≤ harmonic S.card :=
+        mod_cast one_le_harmonic (card_pos.mpr ⟨i₀, hi₀⟩).ne'
+      have hHS'_le : (harmonic S'.card : ℝ) ≤ harmonic (Fintype.card ι) :=
+        mod_cast harmonic_mono (card_le_univ S')
       rw [hm_eq, mul_add, mul_one]
       linarith
 
@@ -393,13 +385,10 @@ theorem randGreedy_loss_le_log [Nonempty ι] {ℓ : ℕ → ι → ℝ} {T : ℕ
     (hℓ : ∀ t < T, ∀ i, ℓ t i = 0 ∨ ℓ t i = 1) :
     ∑ t ∈ range T, ∑ i, randGreedyProb ℓ t i * ℓ t i ≤
       log (Fintype.card ι) + (1 + log (Fintype.card ι)) * minCumLoss ℓ T := by
-  have h := randGreedy_loss_le_harmonic hℓ
-  have h1 : (1 : ℝ) ≤ harmonic (leaders ℓ T).card := by
-    exact_mod_cast one_le_harmonic (leaders_nonempty ℓ T).card_pos.ne'
-  have hlog : (harmonic (Fintype.card ι) : ℝ) ≤ 1 + log (Fintype.card ι) :=
-    harmonic_le_one_add_log (Fintype.card ι)
+  have h1 : (1 : ℝ) ≤ harmonic (leaders ℓ T).card :=
+    mod_cast one_le_harmonic (leaders_nonempty ℓ T).card_pos.ne'
   have hm_nn : 0 ≤ minCumLoss ℓ T :=
     minCumLoss_nonneg fun s hs i => by rcases hℓ s hs i with h0 | h1 <;> linarith
-  nlinarith
+  nlinarith [randGreedy_loss_le_harmonic hℓ, harmonic_le_one_add_log (Fintype.card ι)]
 
 end Cslib.MachineLearning.OnlineLearning.Experts

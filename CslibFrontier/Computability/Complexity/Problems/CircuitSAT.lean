@@ -173,14 +173,11 @@ private theorem isCodeFrom_circuitBlock {n k i : ℕ} (b e : Bool) (hi : e = fal
     Program.IsCodeFrom signature n (3 * k + 3) (circuitBlock (n + 3 * k) i b e) := by
   cases e
   · have hi := hi rfl
-    cases b <;>
-      refine ⟨⟨rfl, ?_⟩, ⟨rfl, ?_⟩, ⟨rfl, ?_⟩, trivial⟩ <;>
-      (intro _ h; simp only [Bool.false_eq_true, ↓reduceIte, List.mem_cons, List.not_mem_nil,
-        or_false, or_self] at h;
-        rcases h with rfl | rfl <;> omega)
+    cases b <;> refine ⟨⟨rfl, ?_⟩, ⟨rfl, ?_⟩, ⟨rfl, ?_⟩, trivial⟩ <;>
+      simp only [Bool.false_eq_true, ↓reduceIte, List.mem_cons, List.not_mem_nil, or_false,
+        forall_eq_or_imp, forall_eq] <;> omega
   · refine ⟨⟨rfl, ?_⟩, ⟨rfl, nofun⟩, ⟨rfl, ?_⟩, trivial⟩ <;>
-      (intro _ h; simp only [List.mem_cons, List.not_mem_nil, or_false] at h;
-        rcases h with rfl | rfl <;> omega)
+      simp only [List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq] <;> omega
 
 private theorem isCodeFrom_circuitBlocks (φ : CNF ℕ) (steps : List (Literal ℕ × Bool)) (k : ℕ)
     (h : ∀ s ∈ steps, s.2 = false → s.1.1 ∈ φ.vars) :
@@ -273,15 +270,13 @@ private theorem evalCode_flatMap (φ : CNF ℕ) (x : List Bool) (hx : x.length =
         hx'.getElem]
     refine ih (fun t ht => hsteps t (List.mem_cons_of_mem _ ht)) (k + 1) _ _ ?_
       (hx'.trans (List.prefix_append _ _)) ?_ ?_
-    · cases e
-      · simp [hV]; omega
-      · simp [hV]; omega
+    · rw [List.length_append, hV]
+      cases e <;> rfl
     · rw [show φ.vars.length + 3 * (k + 1) + 1 = V.length + 1 by omega,
         List.getD_append_right _ _ _ _ (by omega), Nat.add_sub_cancel_left, h₁]
       cases e
-      · have h := hread rfl
-        rw [List.getD_eq_getElem?_getD] at h
-        simp [circuitState, h]
+      · rw [hread rfl]
+        simp [circuitState]
       · simp [circuitState]
     · rw [show φ.vars.length + 3 * (k + 1) + 2 = V.length + 2 by omega,
         List.getD_append_right _ _ _ _ (by omega), Nat.add_sub_cancel_left, h₁, h₂]

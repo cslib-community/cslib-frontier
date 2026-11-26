@@ -83,14 +83,11 @@ private theorem monotoneOn_Ici_zero_of_hasDerivAt {f f' : ℝ → ℝ}
     MonotoneOn f (Ici 0) :=
   monotoneOn_of_deriv_nonneg (convex_Ici 0)
     (fun x hx => (hd x hx).continuousAt.continuousWithinAt)
-    (fun x hx =>
-      (hd x (by
-        rw [interior_Ici] at hx
-        exact hx.le)).differentiableAt.differentiableWithinAt)
+    (fun x hx => (hd x (Set.mem_Ioi.mp (interior_Ici (a := (0 : ℝ)) ▸ hx)).le).differentiableAt
+      |>.differentiableWithinAt)
     fun x hx => by
       rw [interior_Ici] at hx
-      rw [(hd x hx.le).deriv]
-      exact hnn x hx
+      exact (hd x hx.le).deriv.symm ▸ hnn x hx
 
 private theorem nonneg_of_hasDerivAt_Ici_zero {f f' : ℝ → ℝ} (hf0 : f 0 = 0)
     (hd : ∀ x : ℝ, 0 ≤ x → HasDerivAt f (f' x) x) (hnn : ∀ x : ℝ, 0 < x → 0 ≤ f' x)
@@ -243,15 +240,11 @@ theorem bennett_laplace_exponent_eq {b v ε : ℝ} (hb : 0 < b) (hv : 0 < v) (h�
       (v / b ^ 2) * (Real.exp (s * b) - 1 - s * b) - s * ε =
         -(v / b ^ 2) * klFun (1 + b * ε / v) := by
   intro s
-  have h1_le : 1 ≤ 1 + b * ε / v := by
-    have : 0 ≤ b * ε / v := by positivity
-    linarith
-  refine ⟨mul_nonneg (by positivity) (Real.log_nonneg h1_le), ?_⟩
+  refine ⟨mul_nonneg (by positivity) (Real.log_nonneg (le_add_of_nonneg_right (by positivity))), ?_⟩
   rw [show s * b = Real.log (1 + b * ε / v) by dsimp only [s]; field_simp,
     Real.exp_log (by positivity), klFun_apply]
   dsimp only [s]
-  field_simp
-  ring
+  field_simp; ring
 
 /-- Bennett's Poisson tail `exp (-(v / b²) klFun (1 + b ε / v))` is bounded above by Bernstein's
 rational tail `exp (-ε² / (2 (v + b ε / 3)))` (`b > 0, v > 0, ε ≥ 0`). -/
@@ -304,10 +297,7 @@ theorem mgf_le_exp_bennett_of_le {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : M
   rcases eq_or_lt_of_le ht with rfl | ht_pos
   · simp [mgf]
   · set c := (Real.exp (t * b) - 1 - t * b) / b ^ 2
-    have hc_nn : 0 ≤ c :=
-      div_nonneg
-        (by linarith [Real.add_one_le_exp (t * b)])
-        (by positivity)
+    have hc_nn : 0 ≤ c := div_nonneg (by linarith [Real.add_one_le_exp (t * b)]) (sq_nonneg b)
     have hint1 : Integrable (fun ω : Ω => (1 : ℝ) + t * X ω) μ :=
       (integrable_const (1 : ℝ)).add (hX.const_mul t)
     have hint2 : Integrable (fun ω : Ω => c * X ω ^ 2) μ := hX2.const_mul c
@@ -386,12 +376,11 @@ theorem tsum_mul_exp_le_bennett (q : PMF α) (d : α → ℝ) {b v : ℝ}
       · exact hupper x hx
       exact hb.le
     have hmul (f : ℝ → ℝ) (hf : f 0 = 0) :
-        (fun x => (q x).toReal * f (d' x)) = fun x => (q x).toReal * f (d x) := by
-      ext x
+        (fun x => (q x).toReal * f (d' x)) = fun x => (q x).toReal * f (d x) := funext fun x => by
       dsimp only [d']
       split_ifs with hx
       · rfl
-      rw [(q.apply_eq_zero_iff x).mpr hx, ENNReal.toReal_zero, zero_mul, zero_mul]
+      · simp [(q.apply_eq_zero_iff x).mpr hx]
     have hmul1 := hmul (fun z => z) rfl
     have hmul2 := hmul (· ^ 2) (by norm_num)
     have hsum_exp : Summable fun x => (q x).toReal * Real.exp (s * d' x) :=
@@ -400,10 +389,7 @@ theorem tsum_mul_exp_le_bennett (q : PMF α) (d : α → ℝ) {b v : ℝ}
           (Real.exp_le_exp.mpr (mul_le_mul_of_nonneg_left (hd'_le x) hs)) ENNReal.toReal_nonneg)
         ((summable_toReal q).mul_right (Real.exp (s * b)))
     set c := (Real.exp (s * b) - 1 - s * b) / b ^ 2
-    have hc_nn : 0 ≤ c :=
-      div_nonneg
-        (by linarith [Real.add_one_le_exp (s * b)])
-        (by positivity)
+    have hc_nn : 0 ≤ c := div_nonneg (by linarith [Real.add_one_le_exp (s * b)]) (sq_nonneg b)
     have hsd1 : Summable fun x => (q x).toReal * d' x := hmul1.symm ▸ hd1
     have hsd2 : Summable fun x => (q x).toReal * d' x ^ 2 := hmul2.symm ▸ hd2
     have hpt (x : α) : (q x).toReal * Real.exp (s * d' x) ≤

@@ -373,10 +373,8 @@ theorem length_snd_of_mem_support_uniformDraws {k : ℕ}
     {p : BitString n × List (BitString n)}
     (h : p ∈ ((PMF.uniformOfFintype (BitString n)).bind fun iv =>
       (uniformBlocks (n := n) k).map (iv, ·)).support) : p.2.length = k := by
-  rw [PMF.mem_support_bind_iff] at h
-  obtain ⟨iv, -, hp⟩ := h
-  rw [PMF.support_map] at hp
-  obtain ⟨us, hus, rfl⟩ := hp
+  obtain ⟨iv, -, hp⟩ := (PMF.mem_support_bind_iff _ _ _).mp h
+  obtain ⟨us, hus, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hp
   exact length_of_mem_support_uniformBlocks hus
 
 /-- XORing a fixed block sequence `ms` into `uniformBlocks ms.length` preserves the uniform
@@ -441,23 +439,15 @@ theorem toOuterMeasure_badChain_le :
     refine le_trans (Probability.PMF.toOuterMeasure_bind_failure_le _ _ S0ᶜ _ C
       fun iv _ hiv => ?_) ?_
     · rw [uniformBlocks_succ, PMF.map_bind]
-      have hnotMem : iv + b ∉ ks := hiv
-      have hih := toOuterMeasure_badChain_le bs ((iv + b) :: ks)
-      have hle :
-          ((PMF.uniformOfFintype (BitString n)).bind fun u =>
-            ((uniformBlocks (n := n) bs.length).map (u :: ·)).map (iv, ·)).toOuterMeasure
-            {p : BitString n × List (BitString n) | ¬goodChain ks p.1 (b :: bs) p.2} ≤
-          ((PMF.uniformOfFintype (BitString n)).bind fun u =>
-            (uniformBlocks (n := n) bs.length).map (u, ·)).toOuterMeasure
-            {p : BitString n × List (BitString n) | ¬goodChain ((iv + b) :: ks) p.1 bs p.2} := by
-        rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_bind_apply]
-        refine tsum_le_tsum fun u => mul_le_mul_of_nonneg_left ?_ zero_le
-        rw [PMF.map_comp, PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_map_apply]
-        refine MeasureTheory.measure_mono fun us hus => ?_
-        simp only [Set.mem_preimage, Function.comp_apply, Set.mem_ofPred_eq,
-          goodChain, hnotMem, not_false_eq_true, true_and] at hus ⊢
-        exact hus
-      exact hle.trans (by simpa [C] using hih)
+      refine (?_ : _ ≤ ((PMF.uniformOfFintype (BitString n)).bind fun u =>
+          (uniformBlocks (n := n) bs.length).map (u, ·)).toOuterMeasure
+          {p | ¬goodChain ((iv + b) :: ks) p.1 bs p.2}).trans
+        (by simpa [C] using toOuterMeasure_badChain_le bs ((iv + b) :: ks))
+      rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_bind_apply]
+      refine tsum_le_tsum fun u => mul_le_mul_of_nonneg_left ?_ zero_le
+      rw [PMF.map_comp, PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_map_apply]
+      exact MeasureTheory.measure_mono fun us => by
+        simp [goodChain, show iv + b ∉ ks from hiv]
     · rw [compl_compl]
       calc (PMF.uniformOfFintype (BitString n)).toOuterMeasure S0 + C
           ≤ (ks.length : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹ + C :=
@@ -544,10 +534,8 @@ theorem streamIVReuseRealGame_eq_pure_true (padDist : PMF (BitString n)) (m₀ m
 private theorem uniform_addHom_decide_eq_apply_true {α : Type*} [Fintype α] [AddGroup α]
     (φ : α →+ BitString n) (hsurj : Function.Surjective φ) (target : BitString n) :
     (PMF.uniformOfFintype α).map (fun x => decide (φ x = target)) true = ((2 : ℝ≥0∞) ^ n)⁻¹ := by
-  have hfactor : (PMF.uniformOfFintype α).map (fun x => decide (φ x = target)) =
-      ((PMF.uniformOfFintype α).map φ).map (fun s => decide (s = target)) := by
-    rw [PMF.map_comp]; rfl
-  rw [hfactor, PMF.uniformOfFintype_map_addHom φ hsurj, PMF.map_apply, tsum_fintype]
+  rw [show (fun x => decide (φ x = target)) = (fun s => decide (s = target)) ∘ φ from rfl,
+    ← PMF.map_comp, PMF.uniformOfFintype_map_addHom φ hsurj, PMF.map_apply, tsum_fintype]
   simp [PMF.uniformOfFintype_apply, eq_comm (a := true)]
 
 private theorem advantage_pure_true_of_apply_true_inv_two_pow {g₁ g₂ : Game}
@@ -687,12 +675,7 @@ theorem advantage_cbcPredictableIVGame_eq_one {f : BitString n → BitString n}
     (hf : Function.Injective f) (iv₁ iv₂ m₀ m₁ : BitString n) (hne : m₀ ≠ m₁) :
     Game.advantage (cbcPredictableIVGame f iv₁ iv₂ m₀ m₁ false)
       (cbcPredictableIVGame f iv₁ iv₂ m₀ m₁ true) = 1 := by
-  have hfalse : cbcPredictableIVGame f iv₁ iv₂ m₀ m₁ false = PMF.pure true := by
-    simp [cbcPredictableIVGame]
-  have htrue : cbcPredictableIVGame f iv₁ iv₂ m₀ m₁ true = PMF.pure false := by
-    simp [cbcPredictableIVGame, hf.eq_iff, hne]
-  rw [hfalse, htrue]
-  simp [Game.succProbability]
+  simp [cbcPredictableIVGame, Game.succProbability, hf.eq_iff, hne]
 /-- **Same-IV CFB plaintext recovery**: if two CFB encryptions reuse the same `iv`, given known
   message block `m₁`, its first ciphertext block `c₁ = f iv + m₁`, and a target first ciphertext
   block `cStar = f iv + mStar`, XORing `c₁ + m₁ + cStar` recovers `mStar` exactly for every block
@@ -741,10 +724,8 @@ theorem additiveModeDistinguisher_spec {B α : Type*} [AddCommGroup B] [Decidabl
     {π : B → α} (hπ : Function.Injective π) {δ : B} (hδ : δ ≠ 0) (r : B) :
     additiveModeDistinguisher (additiveModeCipher π δ r 0 0) = false ∧
       additiveModeDistinguisher (additiveModeCipher π δ r 0 (-δ)) = true := by
-  unfold additiveModeDistinguisher additiveModeCipher
-  refine ⟨?_, ?_⟩
-  · simp [hπ.eq_iff, hδ]
-  · simp
+  exact ⟨by simp [additiveModeDistinguisher, additiveModeCipher, hπ.eq_iff, hδ],
+    by simp [additiveModeDistinguisher, additiveModeCipher]⟩
 /-! ### Transmission error-propagation laws and separations (Exercises 3.29 and 3.30) -/
 /-- Flip bit `i : Fin n` of ciphertext block `b : ℕ` in an indexed block stream `c : ℕ →
   BitString n`. -/
@@ -785,19 +766,14 @@ theorem maskBlockDecrypt_ofbBlockMask_ofbEncryptBlocks (f : BitString n → BitS
     (hc : ∀ j (hj : j < ms.length), c (j + 1) = (ofbEncryptBlocks f iv ms)[j]'(by simpa)) :
     ∀ j (hj : j < ms.length), maskBlockDecrypt (ofbBlockMask f) iv c (j + 1) = ms[j] := by
   intro j hj
-  have hchain : ∀ (v : BitString n) (k i : ℕ) (hi : i < k),
+  have hchain (v : BitString n) (k : ℕ) : ∀ (i : ℕ) (hi : i < k),
       (ofbChain f v k)[i]'(by simpa) = (f^[i + 1]) v := by
-    intro v k
     induction k generalizing v with
-    | zero => intro i hi; omega
+    | zero => omega
     | succ k ih =>
-      intro i hi
-      cases i with
-      | zero => simp [ofbChain]
-      | succ i =>
-        simp only [ofbChain, List.getElem_cons_succ]
-        rw [ih (f v) i (by omega)]
-        simp only [Function.iterate_succ_apply]
+      rintro (_ | i) hi
+      · simp [ofbChain]
+      · simp [ofbChain, ih (f v) i (by omega), Function.iterate_succ_apply]
   rw [maskBlockDecrypt, ofbBlockMask, hc j hj]
   simp only [ofbEncryptBlocks, List.getElem_zipWith]
   rw [hchain iv ms.length j hj, ← add_assoc, BitString.add_self, zero_add]
@@ -818,6 +794,17 @@ private theorem flipCipherBlockBit_of_ne (c : ℕ → BitString n) {b j : ℕ} (
     flipCipherBlockBit c b i j = c j := by
   funext k; simp [flipCipherBlockBit, h]
 
+private theorem add_flipCipherBlockBit_self (x : BitString n) (c : ℕ → BitString n) (b : ℕ)
+    (i : Fin n) :
+    (x + flipCipherBlockBit c b i b) i = !(x + c b) i ∧
+      ∀ k : Fin n, k ≠ i → (x + flipCipherBlockBit c b i b) k = (x + c b) k := by
+  refine ⟨?_, fun k hk => ?_⟩
+  · change (x i ^^ flipCipherBlockBit c b i b i) = !(x i ^^ c b i)
+    simp only [flipCipherBlockBit, and_self, ↓reduceIte]
+    cases x i <;> cases c b i <;> rfl
+  · change (x k ^^ flipCipherBlockBit c b i b k) = (x k ^^ c b k)
+    simp [flipCipherBlockBit, hk]
+
 /-- **OFB / CTR single-bit flip law ([KatzLindell2020], Exercise 3.29)**: flipping bit `i` of
   ciphertext block `b` flips only bit `i` of recovered plaintext block `b` and leaves every other
   block `j ≠ b` and every other bit `k ≠ i` unchanged. -/
@@ -828,14 +815,8 @@ theorem maskBlockDecrypt_flipBit (mask : BitString n → ℕ → BitString n) (i
         maskBlockDecrypt mask iv (flipCipherBlockBit c b i) b k = maskBlockDecrypt mask iv c b k) ∧
       (∀ j : ℕ, j ≠ b →
         maskBlockDecrypt mask iv (flipCipherBlockBit c b i) j = maskBlockDecrypt mask iv c j) := by
-  refine ⟨?_, ?_, fun j hj => by simp [maskBlockDecrypt, flipCipherBlockBit_of_ne c i hj]⟩
-  · change (mask iv b i ^^ (if b = b ∧ i = i then !(c b i) else c b i)) =
-      !(mask iv b i ^^ c b i)
-    simp only [and_self, ↓reduceIte]
-    cases mask iv b i <;> cases c b i <;> rfl
-  · intro k hk
-    change (mask iv b k ^^ (if b = b ∧ k = i then !(c b k) else c b k)) = (mask iv b k ^^ c b k)
-    simp [hk]
+  obtain ⟨hflip, hother⟩ := add_flipCipherBlockBit_self (mask iv b) c b i
+  exact ⟨hflip, hother, fun j hj => by simp [maskBlockDecrypt, flipCipherBlockBit_of_ne c i hj]⟩
 /-- **OFB / CTR IV modification law ([KatzLindell2020], Exercise 3.29)**: replacing `iv` by `iv'`
   shifts every recovered plaintext block `j` by `mask iv' j + mask iv j`. -/
 theorem maskBlockDecrypt_changeIV (mask : BitString n → ℕ → BitString n) (iv iv' : BitString n)
@@ -862,19 +843,13 @@ theorem cbcBlockDecrypt_flipBit (fInv : BitString n → BitString n) (c : ℕ �
         cbcBlockDecrypt fInv (flipCipherBlockBit c b i) j = cbcBlockDecrypt fInv c j) := by
   have hprev := flipCipherBlockBit_of_ne c i (by omega : b - 1 ≠ b)
   have hnext := flipCipherBlockBit_of_ne c i (by omega : b + 1 ≠ b)
-  refine ⟨by simp [cbcBlockDecrypt, hprev], ?_, ?_, fun j hj hjb hjb1 => by
-    simp [cbcBlockDecrypt, flipCipherBlockBit_of_ne c i (by omega : j - 1 ≠ b),
-      flipCipherBlockBit_of_ne c i hjb]⟩
-  · change (flipCipherBlockBit c b i b i ^^ fInv (flipCipherBlockBit c b i (b + 1)) i) =
-      !(c b i ^^ fInv (c (b + 1)) i)
-    rw [hnext]
-    simp only [flipCipherBlockBit, and_self, ↓reduceIte]
-    cases c b i <;> cases fInv (c (b + 1)) i <;> rfl
-  · intro k hk
-    change (flipCipherBlockBit c b i b k ^^ fInv (flipCipherBlockBit c b i (b + 1)) k) =
-      (c b k ^^ fInv (c (b + 1)) k)
-    rw [hnext]
-    simp [flipCipherBlockBit, hk]
+  obtain ⟨hflip, hother⟩ := add_flipCipherBlockBit_self (fInv (c (b + 1))) c b i
+  refine ⟨?_, ?_, fun k hk => ?_, fun j hj hjb hjb1 => ?_⟩
+  · simp [cbcBlockDecrypt, hprev]
+  · simpa only [cbcBlockDecrypt, Nat.add_sub_cancel, hnext, add_comm] using hflip
+  · simpa only [cbcBlockDecrypt, Nat.add_sub_cancel, hnext, add_comm] using hother k hk
+  · simp [cbcBlockDecrypt, flipCipherBlockBit_of_ne c i (by omega : j - 1 ≠ b),
+      flipCipherBlockBit_of_ne c i hjb]
 /-- **CFB single-bit flip law**: flipping bit `i` of
   ciphertext block `b ≥ 1` flips only bit `i` of plaintext block `b`, replaces block `b + 1` with
   `f (flipCipherBlockBit c b i b) + c (b + 1)`, and leaves every block `j ∉ {b, b + 1}` (`j ≥ 1`)
@@ -890,19 +865,13 @@ theorem cfbBlockDecrypt_flipBit (f : BitString n → BitString n) (c : ℕ → B
         cfbBlockDecrypt f (flipCipherBlockBit c b i) j = cfbBlockDecrypt f c j) := by
   have hprev := flipCipherBlockBit_of_ne c i (by omega : b - 1 ≠ b)
   have hnext := flipCipherBlockBit_of_ne c i (by omega : b + 1 ≠ b)
-  refine ⟨?_, ?_, by simp [cfbBlockDecrypt, hnext], fun j hj hjb hjb1 => by
-    simp [cfbBlockDecrypt, flipCipherBlockBit_of_ne c i (by omega : j - 1 ≠ b),
-      flipCipherBlockBit_of_ne c i hjb]⟩
-  · change (f (flipCipherBlockBit c b i (b - 1)) i ^^ flipCipherBlockBit c b i b i) =
-      !(f (c (b - 1)) i ^^ c b i)
-    rw [hprev]
-    simp only [flipCipherBlockBit, and_self, ↓reduceIte]
-    cases f (c (b - 1)) i <;> cases c b i <;> rfl
-  · intro k hk
-    change (f (flipCipherBlockBit c b i (b - 1)) k ^^ flipCipherBlockBit c b i b k) =
-      (f (c (b - 1)) k ^^ c b k)
-    rw [hprev]
-    simp [flipCipherBlockBit, hk]
+  obtain ⟨hflip, hother⟩ := add_flipCipherBlockBit_self (f (c (b - 1))) c b i
+  refine ⟨?_, fun k hk => ?_, ?_, fun j hj hjb hjb1 => ?_⟩
+  · simpa only [cfbBlockDecrypt, hprev] using hflip
+  · simpa only [cfbBlockDecrypt, hprev] using hother k hk
+  · simp [cfbBlockDecrypt, hnext]
+  · simp [cfbBlockDecrypt, flipCipherBlockBit_of_ne c i (by omega : j - 1 ≠ b),
+      flipCipherBlockBit_of_ne c i hjb]
 
 private theorem pairBlockDecrypt_dropBlock (g : BitString n → BitString n → BitString n)
     (c : ℕ → BitString n) {b : ℕ} (hb : 1 ≤ b) :
@@ -951,13 +920,8 @@ theorem maskBlockDecrypt_dropBlock (mask : BitString n → ℕ → BitString n) 
       (∀ j : ℕ, b ≤ j →
         maskBlockDecrypt mask iv (dropCipherBlock c b) j =
           maskBlockDecrypt mask iv c (j + 1) + (mask iv j + mask iv (j + 1))) := by
-  refine ⟨?_, ?_⟩
-  · intro j _ hjb
-    simp [maskBlockDecrypt, dropCipherBlock, hjb]
-  · intro j hbj
-    have hnot : ¬(j < b) := by omega
-    simp only [maskBlockDecrypt, dropCipherBlock, hnot, ↓reduceIte]
-    rw [add_comm (mask iv j) (mask iv (j + 1)), ← add_assoc (mask iv (j + 1) + c (j + 1)),
-      add_right_comm (mask iv (j + 1)) (c (j + 1)) (mask iv (j + 1)),
-      BitString.add_self, zero_add, add_comm]
+  refine ⟨fun j _ hjb => by simp [maskBlockDecrypt, dropCipherBlock, hjb], fun j hbj => ?_⟩
+  have hnot : ¬(j < b) := by omega
+  simpa only [maskBlockDecrypt, dropCipherBlock, hnot, ↓reduceIte] using
+    maskBlockDecrypt_changeIV (fun v _ => v) (mask iv (j + 1)) (mask iv j) c (j + 1)
 end Cslib.Crypto

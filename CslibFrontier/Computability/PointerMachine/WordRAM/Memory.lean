@@ -148,17 +148,12 @@ private theorem cellAddr_ptr_ne_data (a b : ℕ) (f : Fin L.ptrFields) (g : Fin 
 
 /-- Pointer words retain pointer equality, including null. -/
 theorem ptrWord_injective : Function.Injective (ptrWord L) := by
-  intro p q h
-  cases p with
-  | none => cases q <;> simp_all [ptrWord, nodeAddr]; omega
-  | some a =>
-    cases q with
-    | none => simp [ptrWord, nodeAddr] at h
-    | some b =>
-      have hs : 0 < stride L := by simp [stride]
-      have hab := cellAddr_injective (L := L) (i := 0) (j := 0) hs hs
-        (by simpa [cellAddr, ptrWord] using h)
-      exact congrArg some hab.1
+  rintro (_ | a) (_ | b) h
+  · rfl
+  · simp only [ptrWord, nodeAddr] at h; omega
+  · simp only [ptrWord, nodeAddr] at h; omega
+  · simp only [ptrWord, nodeAddr, Nat.add_left_cancel_iff] at h
+    exact congrArg some (Nat.eq_of_mul_eq_mul_left (by simp [stride]) h)
 
 namespace Fits
 
@@ -271,14 +266,10 @@ private theorem modify (a : ℕ) (g : Record M L → Record M L)
   free := by simpa [hr] using h.free
   zero := by rw [hr]; exact h.zero
   heapPtr b n hn f := by
-    change (x.heap.modify a g)[b]? = some n at hn
-    rw [List.getElem?_modify] at hn
-    obtain ⟨m, hm, rfl⟩ := Option.map_eq_some_iff.mp hn
+    obtain ⟨m, hm, rfl⟩ := Option.map_eq_some_iff.mp (List.getElem?_modify .. ▸ hn)
     simpa only [eq_comm] using hp b m hm f
   heapData b n hn f := by
-    change (x.heap.modify a g)[b]? = some n at hn
-    rw [List.getElem?_modify] at hn
-    obtain ⟨m, hm, rfl⟩ := Option.map_eq_some_iff.mp hn
+    obtain ⟨m, hm, rfl⟩ := Option.map_eq_some_iff.mp (List.getElem?_modify .. ▸ hn)
     simpa only [eq_comm] using hd b m hm f
 
 /-- Storing a pointer field is a single word-memory update. -/
@@ -330,12 +321,11 @@ theorem append (n : Record M L)
       (a < x.heap.length ∧ x.heap[a]? = some m) ∨ (a = x.heap.length ∧ m = n) := by
     by_cases hl : a < x.heap.length
     · exact Or.inl ⟨hl, by simpa only [List.getElem?_append_left hl] using ha⟩
-    · have hb := (List.getElem?_eq_some_iff.mp ha).1
-      have he : a = x.heap.length := by
+    · obtain ⟨hb, ha⟩ := List.getElem?_eq_some_iff.mp ha
+      obtain rfl : a = x.heap.length := by
         simp only [List.length_append, List.length_singleton] at hb
         omega
-      exact Or.inr ⟨he, by simpa only [he, List.getElem?_concat_length,
-        Option.some.injEq] using ha.symm⟩
+      exact Or.inr ⟨rfl, by simpa using ha.symm⟩
   exact {
     ptr r := (hr _ (by simp; omega)
       (by simp [Fin.ext_iff]; omega)).trans (h.ptr r)

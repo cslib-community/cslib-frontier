@@ -33,34 +33,21 @@ private theorem boundaryDecision_of_halted (M : MultiTapeTM k Bool Q) (w : List 
     (τ clock : ℕ) (hhalt : (M.runFrom (Cfg.init M.q₀ w) τ).Halted) (hle : τ ≤ clock) :
     RootDecision.boundaryDecision M w clock =
       some (decide ((M.runFrom (Cfg.init M.q₀ w) τ).output = [true])) := by
-  classical
-  unfold RootDecision.boundaryDecision
-  rw [MultiTapeTM.runFrom_eq_of_halt M _ hle hhalt]
-  have hstate : (M.runFrom (Cfg.init M.q₀ w) τ).state = none := hhalt
-  simp only [hstate, Option.isNone_none, ↓reduceIte]
+  simp only [RootDecision.boundaryDecision, MultiTapeTM.runFrom_eq_of_halt M _ hle hhalt,
+    show (M.runFrom (Cfg.init M.q₀ w) τ).state = none from hhalt, Option.isNone_none, ↓reduceIte]
 
 private theorem boundaryDecision_safe (M : MultiTapeTM k Bool Q) (w : List Bool)
     (τ clock : ℕ) (hhalt : (M.runFrom (Cfg.init M.q₀ w) τ).Halted) :
     RootDecision.boundaryDecision M w clock = none ∨
       RootDecision.boundaryDecision M w clock =
         some (decide ((M.runFrom (Cfg.init M.q₀ w) τ).output = [true])) := by
-  classical
   by_cases hle : τ ≤ clock
   · exact Or.inr (boundaryDecision_of_halted M w τ clock hhalt hle)
-  · cases hv : RootDecision.boundaryDecision M w clock with
-    | none => exact Or.inl rfl
-    | some result =>
-      have hclock : (M.runFrom (Cfg.init M.q₀ w) clock).Halted := by
-        dsimp only [RootDecision.boundaryDecision] at hv
-        split at hv
-        · rename_i hstate
-          exact Option.isNone_iff_eq_none.mp hstate
-        · cases hv
-      have hs := boundaryDecision_of_halted M w clock τ hclock (by omega)
-      have hc := boundaryDecision_of_halted M w clock clock hclock le_rfl
-      have ht := boundaryDecision_of_halted M w τ τ hhalt le_rfl
-      rw [hv] at hc
-      exact Or.inr (hc.trans (hs.symm.trans ht))
+  · by_cases hclock : (M.runFrom (Cfg.init M.q₀ w) clock).Halted
+    · exact Or.inr (((boundaryDecision_of_halted M w clock clock hclock le_rfl).trans
+        (boundaryDecision_of_halted M w clock τ hclock (by omega)).symm).trans
+        (boundaryDecision_of_halted M w τ τ hhalt le_rfl))
+    · exact Or.inl (ite_eq_right (mt Option.isNone_iff_eq_none.mp hclock))
 
 /-- Every candidate's schedule search reaches a first halt with its exact bounded decision. -/
 theorem exists_first_candidate {E : ScheduleSearch.Evaluator} {M : MultiTapeTM k Bool Q}

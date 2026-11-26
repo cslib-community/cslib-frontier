@@ -104,11 +104,9 @@ theorem fastCut_of_ge_seven {k : ℕ} (hk : 7 ≤ k) (G : Graph) :
 theorem fastCutLaw_leaf {k : ℕ} (hk : k < 7) (G : Graph) :
     fastCutLaw k G = answerLaw G := by
   obtain ⟨n, W⟩ := G
-  rw [fastCutLaw, fastCut_of_lt_seven hk]
-  simp only [OracleComp.evalWith_bind, OracleComp.evalWith_query, OracleComp.evalWith_pure]
-  change (contractLaw (⟨n, W⟩, 2)).bind
-    (fun G => PMF.pure (totalDoubledWeight G.weight / 2)) = _
-  exact (PMF.bind_pure_comp _ _).trans (answerLaw_eq W).symm
+  rw [fastCutLaw, fastCut_of_lt_seven hk, answerLaw_eq W]
+  simp only [OracleComp.evalWith_bind, OracleComp.evalWith_query, OracleComp.evalWith_pure,
+    contractLaw, PMF.map, Function.comp_def]
 
 /-- The node law is the minimum of two independent answers from the same branch law. -/
 theorem fastCutLaw_node {k : ℕ} (hk : 7 ≤ k) (G : Graph) :
@@ -118,13 +116,7 @@ theorem fastCutLaw_node {k : ℕ} (hk : 7 ≤ k) (G : Graph) :
       branch.bind fun a => branch.map (min a) := by
   rw [fastCutLaw, fastCut_of_ge_seven hk]
   simp only [OracleComp.evalWith_bind, OracleComp.evalWith_query, OracleComp.evalWith_pure,
-    fastCutLaw]
-  change ((contractLaw (G, fastCutThreshold k)).bind fun child =>
-    (OracleComp.evalWith contractLaw (fastCut (fastCutThreshold k) child)).bind fun a =>
-      (contractLaw (G, fastCutThreshold k)).bind fun child =>
-        (OracleComp.evalWith contractLaw (fastCut (fastCutThreshold k) child)).bind fun b =>
-          PMF.pure (min a b)) = _
-  simp only [← PMF.bind_pure_comp, PMF.bind_bind, Function.comp_def]
+    fastCutLaw, PMF.map, PMF.bind_bind, Function.comp_def]
 
 /-- Contracting from `k` to `target ≥ 2` retains a fixed minimum cut with the existing exact
 survival lower bound. The target remains a variable before the recursive threshold is chosen. -/

@@ -157,11 +157,8 @@ private theorem simonRep_add (s a : Fin n → Bool) : simonRep s (a + s) = simon
   · rfl
   · exact absurd (le_of_lt (not_le.mp h2)) h1
 
-private theorem simonRep_mem (s a : Fin n → Bool) : simonRep s a = a ∨ simonRep s a = a + s := by
-  unfold simonRep
-  split_ifs
-  · exact Or.inl rfl
-  · exact Or.inr rfl
+private theorem simonRep_mem (s a : Fin n → Bool) : simonRep s a = a ∨ simonRep s a = a + s :=
+  ite_eq_or_eq _ _ _
 
 @[simp] private theorem simonRep_zero : simonRep (0 : Fin n → Bool) = id := by
   funext a
@@ -245,18 +242,12 @@ private theorem simonFix_apply_of_mem {s : Fin n → Bool} {A : Finset (Fin n �
   unfold simonFixFun
   rcases simonRep_mem s a with h | h
   · rw [h]
-    have hn : ¬((a ∈ A ∧ a ≠ a) ∨ (a + s ∈ A ∧ simonRep s (a + s) ≠ a + s)) := by
-      rintro (⟨_, hne⟩ | ⟨hmem, _⟩)
-      · exact hne rfl
-      · exact hA a ha hmem
-    exact ite_eq_right hn
+    exact ite_eq_right fun
+      | .inl ⟨_, hne⟩ => hne rfl
+      | .inr ⟨hmem, _⟩ => hA a ha hmem
   · rw [h]
-    have hy : (a ∈ A ∧ a + s ≠ a) ∨ (a + s ∈ A ∧ simonRep s (a + s) ≠ a + s) := by
-      left
-      refine ⟨ha, fun h' => ?_⟩
-      have : s = 0 := add_left_cancel (h'.trans (add_zero a).symm)
-      exact hA a ha (by rw [this, add_zero]; exact ha)
-    exact ite_eq_left hy
+    refine ite_eq_left (.inl ⟨ha, fun h' => hA a ha ?_⟩)
+    simpa only [add_left_cancel (h'.trans (add_zero a).symm), add_zero] using ha
 
 private theorem simonFix_simonFix (s : Fin n → Bool) (A : Finset (Fin n → Bool)) :
     simonFix s A * simonFix s A = 1 :=
@@ -494,9 +485,8 @@ theorem simon_randomized_lower_bound (μ : RandomizedDecisionTree (Fin N) Bool)
         ((μ.depth * μ.depth - μ.depth : ℕ) : ℝ) *
           ∑ t ∈ μ.weights.support, μ.weights t * (numFalse0 E t : ℝ) := by
     rw [mul_sum, mul_sum, mul_sum, ← sum_add_distrib]
-    refine sum_le_sum fun t ht => ?_
-    have := mul_le_mul_of_nonneg_left (hpt t ht) (μ.weights_nonneg t)
-    linarith
+    exact sum_le_sum fun t ht => by
+      linarith [mul_le_mul_of_nonneg_left (hpt t ht) (μ.weights_nonneg t)]
   have hε0 : 0 ≤ ε :=
     RandomizedDecisionTree.errorProb_nonneg.trans (hμ _ _ (simonPromise_simonHard E 1 0))
   have hQ : (0 : ℝ) ≤ ((μ.depth * μ.depth - μ.depth : ℕ) : ℝ) := Nat.cast_nonneg _
@@ -516,11 +506,9 @@ theorem simon_randomized_lower_bound_third (μ : RandomizedDecisionTree (Fin N) 
     (hμ : ∀ X s, SimonPromise (simonFun E X) s → μ.errorProb F X ≤ 1 / 3) :
     2 ^ n - 1 ≤ μ.depth * μ.depth - μ.depth := by
   have h := simon_randomized_lower_bound E μ F hF hμ (by norm_num)
-  have hR : ((2 ^ n - 1 : ℕ) : ℝ) ≤ ((μ.depth * μ.depth - μ.depth : ℕ) : ℝ) := by
-    rw [Nat.cast_sub Nat.one_le_two_pow]
-    push_cast
-    linarith
-  exact_mod_cast hR
+  suffices ((2 ^ n - 1 : ℕ) : ℝ) ≤ ((μ.depth * μ.depth - μ.depth : ℕ) : ℝ) from mod_cast this
+  rw [Nat.cast_sub Nat.one_le_two_pow]
+  push_cast; linarith
 
 /-- **Exponential classical lower bound**: for `n ≥ 1`, a randomized decision tree that decides
 Simon's problem with error `1/3` has depth `q` with `2^n ≤ q²`, so `q ≥ 2^{n/2}`. -/
@@ -533,10 +521,8 @@ theorem simon_two_pow_le_depth_sq (μ : RandomizedDecisionTree (Fin N) Bool)
   have h2 : 2 ≤ 2 ^ n := by
     calc 2 = 2 ^ 1 := rfl
       _ ≤ 2 ^ n := Nat.pow_le_pow_right (by norm_num) hn
-  rcases Nat.eq_zero_or_pos μ.depth with hd | hd
-  · rw [hd] at h
-    simp only [mul_zero, Nat.sub_zero, nonpos_iff_eq_zero] at h
-    omega
+  rcases eq_or_ne μ.depth 0 with hd | hd
+  · simp [hd] at h; omega
   · rw [sq]
     have hle := Nat.le_mul_self μ.depth
     generalize μ.depth * μ.depth = D at h hle ⊢
@@ -610,29 +596,26 @@ theorem simon_search_ne_zero_two_pow_le_sq (μ : RandomizedDecisionTree (Fin N) 
   have heval : ∀ t X, (φ t).eval X = decide (t.eval X ≠ 0 ∧
       simonFun E X 0 = simonFun E X (t.eval X)) := fun t X => by
     rw [hφ, DecisionTree.eval_bind, eval_simonCheck]
+  have hzero (X : Fin N → Bool) (hX : SimonPromise (simonFun E X) 0) (y : Fin n → Bool) :
+      decide (y ≠ 0 ∧ simonFun E X 0 = simonFun E X y) = false :=
+    decide_eq_false fun ⟨hy, he⟩ => hy ((simonPromise_zero_iff _).mp hX he).symm
   set F : (Fin N → Bool) → Bool :=
     fun X => decide (S X ≠ 0 ∧ simonFun E X 0 = simonFun E X (S X)) with hFdef
   have hF : ∀ X s, SimonPromise (simonFun E X) s → F X = decide (s ≠ 0) := by
     intro X s hX
     by_cases hs : s = 0
     · subst hs
-      have hinj := (simonPromise_zero_iff _).mp hX
-      simp only [hFdef, ne_eq, not_true_eq_false, decide_false, decide_eq_false_iff_not, not_and]
-      exact fun h0 he => h0 (hinj he).symm
-    · simp only [hFdef, hS X s hX hs, hs, ne_eq, not_false_eq_true, true_and, decide_true,
-        decide_eq_true_eq]
-      exact (hX 0 s).mpr (Or.inr (zero_add s).symm)
+      simpa [hFdef] using hzero X hX (S X)
+    · simp [hFdef, hS X s hX hs, hs, (hX 0 s).mpr (Or.inr (zero_add s).symm)]
   have hμ' : ∀ X s, SimonPromise (simonFun E X) s →
       (RandomizedDecisionTree.mapTree φ μ).errorProb F X ≤ 1 / 3 := by
     intro X s hX
     by_cases hs : s = 0
     · subst hs
-      have hinj := (simonPromise_zero_iff _).mp hX
       refine (RandomizedDecisionTree.errorProb_mapTree_eq_zero φ μ F X fun t => ?_).trans_le
         (by norm_num)
-      simp only [heval, hF X 0 hX, ne_eq, not_true_eq_false, decide_false,
-        decide_eq_false_iff_not, not_and]
-      exact fun h0 he => h0 (hinj he).symm
+      rw [heval, hzero X hX (t.eval X), hF X 0 hX]
+      simp
     · exact (RandomizedDecisionTree.errorProb_mapTree_le φ μ S F X fun t ht => by
         rw [heval, ht]).trans (hμ X s hX hs)
   have hd : (RandomizedDecisionTree.mapTree φ μ).depth ≤ μ.depth + 2 * n :=

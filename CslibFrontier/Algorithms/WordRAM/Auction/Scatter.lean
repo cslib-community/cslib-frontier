@@ -122,8 +122,7 @@ theorem scatterProg_spec {w : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
         rw [ho_k]; exact hfit_ws.of_le (by have := ik.isLt; omega)
       have hv : (Memory.spec w).ValidHistory s
           ((Memory.spec w).clientHistory s (scatterStep (ws, k))) := by
-        unfold scatterStep
-        dsimp only
+        dsimp only [scatterStep]
         exact validHistory_read_bind (by omega)
           (validHistory_write_bind (by rw [ho_k]; have := ik.isLt; omega)
             (hfit_ws.of_le (by omega)) (validHistory_pure w _ _))
@@ -171,12 +170,8 @@ theorem scatterProg_spec {w : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
     exact (hlow _ (by omega)).trans (ham.hC i j)
   · rw [clientState_bind_write, clientState_bind, clientState_pure, outputList_eq_iff]
     refine ⟨by simpa only [List.length_map, List.length_finRange] using hhdr, fun idx => ?_⟩
-    have hi_lt : idx.val < ws.n := by simpa using idx.isLt
-    let iFin : Fin ws.n := ⟨idx.val, hi_lt⟩
-    change ((Memory.spec 0).clientState s₁ (iterate scatterStep ws ws.n 0)).mem
-        (ws.outBase + 1 + idx.val) =
-      ((List.finRange ws.n).map fun i => (st.objectOf i).val)[idx.val]
-    simp only [List.getElem_map, List.getElem_finRange]
+    let iFin : Fin ws.n := ⟨idx.val, by simpa using idx.isLt⟩
+    simp only [Fin.getElem_fin, List.getElem_map, List.getElem_finRange]
     exact hscat (st.objectOf iFin) (st.objectOf iFin).isLt iFin (hinv.owner_objectOf hfree iFin)
 
 end

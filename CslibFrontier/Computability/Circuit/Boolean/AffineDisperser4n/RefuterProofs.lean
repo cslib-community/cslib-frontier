@@ -111,17 +111,14 @@ theorem nodup_getChildren (S : State n) (p : ℕ) : (getChildren S p).Nodup := b
   refine List.nodup_append.2 ⟨?_, ?_, ?_⟩
   · refine (Finset.sort_nodup _ _).filterMap fun J J' N h h' => ?_
     simp only [Option.mem_def, Option.ite_none_right_eq_some, Option.some.injEq] at h h'
-    rw [← h.2] at h'
-    exact (Sum.inl_injective h'.2).symm
+    exact Sum.inl_injective (h.2.trans h'.2.symm)
   · refine (Finset.sort_nodup _ _).filterMap fun e e' N h h' => ?_
     simp only [Option.mem_def, Option.ite_none_right_eq_some, Option.some.injEq] at h h'
-    rw [← h.2] at h'
-    exact (Sum.inr_injective h'.2).symm
-  · intro N h1 N' h2 heq
-    simp only [List.mem_filterMap, Option.ite_none_right_eq_some, Option.some.injEq] at h1 h2
-    obtain ⟨_, _, _, rfl⟩ := h1
-    obtain ⟨_, _, _, rfl⟩ := h2
-    cases heq
+    exact Sum.inr_injective (h.2.trans h'.2.symm)
+  · rintro _ h1 _ h2 rfl
+    obtain ⟨_, _, h1⟩ := List.mem_filterMap.1 h1
+    simp [← Option.some.inj (Option.ite_none_right_eq_some.1 h1).2,
+      Option.ite_none_right_eq_some] at h2
 
 /-- The number of listed children is the degree. -/
 theorem length_getChildren (S : State n) (p : ℕ) : (getChildren S p).length = S.deg p := by
@@ -207,37 +204,26 @@ theorem chooseStep?_spec {S : State n} {c : StepChoice} (h : chooseStep? S = som
                 · rcases h9 : findAndOnPair S with _ | ⟨G, p⟩
                   · simp only [h1, h2, h3, h4, h5, h6, h7, h8, h9] at h
                     split_ifs at h with hne hpos hug
-                    · cases h
-                      exact ⟨hN, h6, h7, h8, h9, hne, rfl, hpos⟩
-                    · cases h
-                      exact ⟨hN, h6, h7, h8, h9, hne, rfl, by omega, hug⟩
+                    · exact Option.some.inj h ▸ ⟨hN, h6, h7, h8, h9, hne, rfl, hpos⟩
+                    · exact Option.some.inj h ▸ ⟨hN, h6, h7, h8, h9, hne, rfl, by omega, hug⟩
                   · simp only [h1, h2, h3, h4, h5, h6, h7, h8, h9] at h
                     split_ifs at h with hug
-                    cases h
-                    exact ⟨hN, h6, h7, h8, h9, hug⟩
+                    exact Option.some.inj h ▸ ⟨hN, h6, h7, h8, h9, hug⟩
                 · simp only [h1, h2, h3, h4, h5, h6, h7, h8, Option.some.injEq] at h
-                  subst h
-                  exact ⟨hN, h6, h7, h8⟩
+                  exact h ▸ ⟨hN, h6, h7, h8⟩
               · simp only [h1, h2, h3, h4, h5, h6, h7, Option.some.injEq] at h
-                subst h
-                exact ⟨hN, h6, h7⟩
-            · simp only [h1, h2, h3, h4, h5, h6, Option.some.injEq] at h
-              subst h
+                exact h ▸ ⟨hN, h6, h7⟩
+            · obtain rfl := Option.some.inj (by simpa only [h1, h2, h3, h4, h5, h6] using h.symm)
               exact ⟨hN, h6⟩
-          · simp only [h1, h2, h3, h4, h5, Option.some.injEq] at h
-            subst h
+          · obtain rfl := Option.some.inj (by simpa only [h1, h2, h3, h4, h5] using h.symm)
             exact ⟨h1, h2, h3, h4, h5⟩
-        · simp only [h1, h2, h3, h4, Option.some.injEq] at h
-          subst h
+        · obtain rfl := Option.some.inj (by simpa only [h1, h2, h3, h4] using h.symm)
           exact ⟨h1, h2, h3, h4⟩
-      · simp only [h1, h2, h3, Option.some.injEq] at h
-        subst h
+      · obtain rfl := Option.some.inj (by simpa only [h1, h2, h3] using h.symm)
         exact ⟨h1, h2, h3⟩
-    · simp only [h1, h2, Option.some.injEq] at h
-      subst h
+    · obtain rfl := Option.some.inj (by simpa only [h1, h2] using h.symm)
       exact ⟨h1, h2⟩
-  · simp only [h1, Option.some.injEq] at h
-    subst h
+  · obtain rfl := Option.some.inj (by simpa only [h1] using h.symm)
     exact h1
 
 /-! ### Consequences of failed searches -/
@@ -316,12 +302,8 @@ private theorem findDegeneratePair_eq_some {S : State n} {p : ℕ}
   simpa using hd
 
 private theorem findDegeneratePair_eq_none {S : State n} (hS : S.Valid f)
-    (h : findDegeneratePair S = none) : ¬ S.DegeneratePair := by
-  intro hdp
-  obtain ⟨p, hp, hd⟩ := hdp
-  have := find?_sort_eq_none h p (hS.mem_params_of_paired hp)
-  simp only [decide_eq_false_iff_not] at this
-  exact this ⟨hp, hd⟩
+    (h : findDegeneratePair S = none) : ¬ S.DegeneratePair := fun ⟨p, hp, hd⟩ =>
+  of_decide_eq_false (find?_sort_eq_none h p (hS.mem_params_of_paired hp)) ⟨hp, hd⟩
 
 private theorem findPartnersShareChild_eq_some {S : State n} {p : ℕ}
     (h : findPartnersShareChild S = some p) :
@@ -330,12 +312,8 @@ private theorem findPartnersShareChild_eq_some {S : State n} {p : ℕ}
   simpa using hd
 
 private theorem findPartnersShareChild_eq_none {S : State n} (hS : S.Valid f)
-    (h : findPartnersShareChild S = none) : ¬ S.PartnersShareChild := by
-  intro hpsc
-  obtain ⟨pr, hpr, hsh⟩ := hpsc
-  have := find?_sort_eq_none h pr.fst (hS.pair_mem pr hpr).1
-  simp only [decide_eq_false_iff_not] at this
-  exact this ⟨pr, hpr, rfl, hsh⟩
+    (h : findPartnersShareChild S = none) : ¬ S.PartnersShareChild := fun ⟨pr, hpr, hsh⟩ =>
+  of_decide_eq_false (find?_sort_eq_none h pr.fst (hS.pair_mem pr hpr).1) ⟨pr, hpr, rfl, hsh⟩
 
 private theorem findPairInSystem_eq_some {S : State n} {p : ℕ} (h : findPairInSystem S = some p) :
     S.Paired p ∧ ∃ e ∈ S.eqns, p ∈ (S.eqn e).terms := by
@@ -344,10 +322,8 @@ private theorem findPairInSystem_eq_some {S : State n} {p : ℕ} (h : findPairIn
 
 private theorem findPairInSystem_eq_none {S : State n} (hS : S.Valid f)
     (h : findPairInSystem S = none) {p e : ℕ} (he : e ∈ S.eqns)
-    (hpe : p ∈ (S.eqn e).terms) : ¬ S.Paired p := fun hp => by
-  have := find?_sort_eq_none h p (hS.mem_params_of_paired hp)
-  simp only [decide_eq_false_iff_not] at this
-  exact this ⟨hp, e, he, hpe⟩
+    (hpe : p ∈ (S.eqn e).terms) : ¬ S.Paired p := fun hp =>
+  of_decide_eq_false (find?_sort_eq_none h p (hS.mem_params_of_paired hp)) ⟨hp, e, he, hpe⟩
 
 private theorem findAndOnPair_eq_none {S : State n} (h : findAndOnPair S = none) {G p w : ℕ}
     (hG : G ∈ S.gates) (hna : ¬ IsAffineOp (S.gate G).op) (hl : (S.gate G).left = .node p)
@@ -550,14 +526,10 @@ private theorem refuterStep_pairInSystem {S : State n} (hS : S.Valid f) {u p : �
     AffineDisperserCore.State.children_eq_singleton hdegp.le
       ((SemiCircuit.inr_mem_children _).2 ⟨he, hpe⟩)
   have hgp : getChildren S p = [.inr e] := by
-    obtain ⟨N, l', hl'⟩ := exists_getChildren_cons (S := S) (p := p) (by omega)
-    have hlen := length_getChildren S p
-    rw [hl', hdegp] at hlen
-    have hl'0 : l' = [] := List.eq_nil_of_length_eq_zero (by simpa using hlen)
-    subst hl'0
-    have hN : N ∈ S.children p := mem_getChildren.1 (by rw [hl']; simp)
-    rw [hcp, Finset.mem_singleton] at hN
-    rw [hl', hN]
+    obtain ⟨N, hl'⟩ := List.length_eq_one_iff.1 ((length_getChildren S p).trans hdegp)
+    have hN : N ∈ S.children p := mem_getChildren.1 (hl' ▸ List.mem_singleton_self _)
+    obtain rfl := Finset.mem_singleton.1 (by rwa [hcp] at hN)
+    exact hl'
   have hpout : ¬ S.out.Reads p := fun hr =>
     hu (Arg.node.inj (hout.symm.trans hr) ▸ hS.mem_params_of_paired hp)
   obtain ⟨hS₂, hpunp, hch, h0, hne0⟩ :=
@@ -566,11 +538,9 @@ private theorem refuterStep_pairInSystem {S : State n} (hS : S.Valid f) {u p : �
   split_ifs with hd
   · exact Or.inl ⟨h0 hd, deleteConstraint_gates_subset _ _⟩
   · set S₂ := (S.fixConst (pr.partner p) (pr.partnerBias p)).deleteConstraint Hr with hS₂def
-    obtain ⟨N, hN⟩ : (S₂.children p).Nonempty :=
-      Finset.card_pos.1 (Nat.pos_of_ne_zero hd)
-    have hNe := Finset.mem_singleton.1 (hch hN)
-    subst hNe
-    obtain ⟨he₂, hpe₂⟩ := (SemiCircuit.inr_mem_children _).1 hN
+    obtain ⟨N, hN⟩ := Finset.card_pos.1 (Nat.pos_of_ne_zero hd)
+    obtain ⟨he₂, hpe₂⟩ := (SemiCircuit.inr_mem_children _).1
+      (show .inr e ∈ S₂.children p by rwa [← Finset.mem_singleton.1 (hch hN)])
     obtain ⟨Q, hQ, hpQ, heq⟩ := unitDelete_eq hS₂ (mem_unpaired.1 hpunp).1 he₂ hpe₂
     rw [heq]
     exact Or.inl ⟨hne0 hd Q _ _ hQ (findAffineRep_spec hS₂.wf hQ) hpQ,
@@ -583,11 +553,9 @@ private theorem andOnPairStep_gates_subset (S : State n) (G : ℕ) (pr : ZeroPai
   rcases prw with _ | q
   · exact (deleteConstraint_gates_subset _ _).trans (deleteGate_gates_subset _ _ _)
   · dsimp only
-    by_cases hb : b = q.bias w
-    · rw [ite_eq_left hb]
-      exact (deleteConstraint_gates_subset _ _).trans (deleteGate_gates_subset _ _ _)
-    · rw [ite_eq_right hb]
-      exact (deleteConstraint_gates_subset _ _).trans
+    split
+    · exact (deleteConstraint_gates_subset _ _).trans (deleteGate_gates_subset _ _ _)
+    · exact (deleteConstraint_gates_subset _ _).trans
         ((deleteConstraint_gates_subset _ _).trans (deleteGate_gates_subset _ _ _))
 
 private theorem exists_find_reader_gate {S : State n} (hS : S.Valid f) {u G : ℕ}

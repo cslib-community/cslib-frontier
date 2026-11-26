@@ -173,17 +173,13 @@ that `4 (log_k n) k ^ m ≤ n`, following [CoverThomas2006], §13.5. -/
 theorem mul_logb_sub_le_of_forall_mul_le {k c n : ℕ} (hk : 2 ≤ k)
     (hc : ∀ m : ℕ, m * c ≤ n + 2 * k ^ m) :
     (c : ℝ) * (Real.logb k n - Real.logb k (Real.logb k n) - 4) ≤ n := by
-  have hk2' : (2 : ℝ) ≤ k := by exact_mod_cast hk
-  have hk1 : (1 : ℝ) < k := by linarith
-  have hk0 : (0 : ℝ) < k := by linarith
-  have hkne : (k : ℝ) ≠ 1 := hk1.ne'
+  have hk1 : (1 : ℝ) < k := mod_cast hk
+  have hk0 : (0 : ℝ) < k := by positivity
   have hlogk : 0 < Real.log k := Real.log_pos hk1
   set L := Real.logb k n with hL
   set t := L - Real.logb k L - 4 with ht
-  have hc0 : (0 : ℝ) ≤ c := c.cast_nonneg
-  have hn0 : (0 : ℝ) ≤ n := n.cast_nonneg
   rcases le_or_gt t 0 with ht0 | ht0
-  · nlinarith
+  · nlinarith [c.cast_nonneg (α := ℝ), n.cast_nonneg (α := ℝ)]
   have hL0 : 0 ≤ L := logb_natCast_nonneg hk1 n
   have hLpos : 0 < L := by grind [Real.logb_zero, sub_zero, zero_sub]
   have hn1 : (1 : ℝ) < n := by_contra fun h => by
@@ -221,15 +217,13 @@ theorem mul_logb_sub_le_of_forall_mul_le {k c n : ℕ} (hk : 2 ≤ k)
   have hpow : (k : ℝ) ^ m * ((k : ℝ) ^ 2 * L) ≤ n := by
     have := Real.rpow_le_rpow_of_exponent_le hk1.le
       (show (m : ℝ) + 2 + Real.logb k L ≤ L by rw [hmR]; linarith)
-    rw [Real.rpow_add hk0, Real.rpow_add hk0, Real.rpow_logb hk0 hkne hLpos, hL,
-      Real.rpow_logb hk0 hkne (by linarith), ← hL] at this
+    rw [Real.rpow_add hk0, Real.rpow_add hk0, Real.rpow_logb hk0 hk1.ne' hLpos, hL,
+      Real.rpow_logb hk0 hk1.ne' (by linarith), ← hL] at this
     simpa [Real.rpow_natCast, mul_assoc] using this
-  have hk2 : (4 : ℝ) ≤ (k : ℝ) ^ 2 := by nlinarith
-  have hkpow0 : 0 ≤ (k : ℝ) ^ m := by positivity
-  have hpow' : 4 * L * (k : ℝ) ^ m ≤ n := by nlinarith
+  have hk2 : (4 : ℝ) ≤ (k : ℝ) ^ 2 := mod_cast Nat.pow_le_pow_left hk 2
+  have hpow' : 4 * L * (k : ℝ) ^ m ≤ n := by nlinarith [pow_nonneg hk0.le m]
   have hcm : (m : ℝ) * c ≤ n + 2 * (k : ℝ) ^ m := mod_cast hc m
   have htm : t * (2 * L + 1) ≤ 2 * L * m := by rw [hmR]; nlinarith
-  have key : (c : ℝ) * t * (2 * L + 1) ≤ n * (2 * L + 1) := by nlinarith
   nlinarith
 
 /-- The slack `ε_n = min(1, (log_k log_k n + 4) / log_k n)` of [CoverThomas2006], §13.5
@@ -249,16 +243,10 @@ private theorem mul_one_sub_epsilon_le {k c n : ℕ} (hk : 2 ≤ k)
     (c : ℝ) * ((1 - epsilon k n) * Real.logb k n) ≤ n := by
   rw [epsilon_def]
   set L := Real.logb k n
-  set r := (Real.logb k L + 4) / L
   have hL0 : 0 ≤ L := logb_natCast_nonneg (mod_cast hk) n
   rcases hL0.lt_or_eq with hLpos | hL
-  · rcases le_total r 1 with hr | hr
-    · have hrL : (1 - r) * L = L - Real.logb k L - 4 := by
-        simp only [r]
-        field_simp
-        ring
-      rw [min_eq_right hr, hrL]
-      exact h
+  · rcases le_total ((Real.logb k L + 4) / L) 1 with hr | hr
+    · rwa [min_eq_right hr, sub_mul, one_mul, div_mul_cancel₀ _ hLpos.ne', sub_add_eq_sub_sub]
     · simp [min_eq_left hr]
   · simp [← hL]
 

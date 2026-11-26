@@ -248,23 +248,21 @@ private theorem countQueries_queyranneRecM_eq
     rcases blocks with _ | ⟨b₀, _ | ⟨b₁, bs⟩⟩ <;> simp at hlen
     simp [queyranneRecM]
   | steps + 1, blocks, hne, hdisj, hlen => by
-    rcases blocks with _ | ⟨b₀, _ | ⟨b₁, bs⟩⟩
-    · simp at hlen
-    · simp at hlen
-    · have hnd := nodup_of_pairwise_disjoint_nonempty hne hdisj
-      have hsearch := eval_qSearchM_mem oracle hnd
-      set sr := (qSearchM ValueQuery.ask b₀ b₁ bs).eval oracle
-      have hmerge := mergeBlocks_nonempty_disjoint hne hdisj hsearch.1 hsearch.2.1 hsearch.2.2
-      have hlen' : (mergeBlocks sr.fst sr.snd (b₀ :: b₁ :: bs)).length = steps + 2 := by
-        have hm := length_mergeBlocks hsearch.1 hsearch.2.1 hsearch.2.2
-        omega
-      have ih := countQueries_queyranneRecM_eq oracle steps
-        (mergeBlocks sr.fst sr.snd (b₀ :: b₁ :: bs)) hmerge.1 hmerge.2 hlen'
-      have hq := countQueries_qSearchM_eq oracle b₀ b₁ bs
-      have hbs : bs.length = steps + 1 := by simp only [List.length_cons] at hlen; omega
-      rw [hbs] at hq
-      simp only [queyranneRecM, FreeM.countQueries_bind]
-      split_ifs <;> simp only [FreeM.countQueries_pure, add_zero] <;> linarith
+    rcases blocks with _ | ⟨b₀, _ | ⟨b₁, bs⟩⟩ <;> simp at hlen
+    have hnd := nodup_of_pairwise_disjoint_nonempty hne hdisj
+    have hsearch := eval_qSearchM_mem oracle hnd
+    set sr := (qSearchM ValueQuery.ask b₀ b₁ bs).eval oracle
+    have hmerge := mergeBlocks_nonempty_disjoint hne hdisj hsearch.1 hsearch.2.1 hsearch.2.2
+    have hlen' : (mergeBlocks sr.fst sr.snd (b₀ :: b₁ :: bs)).length = steps + 2 := by
+      have hm := length_mergeBlocks hsearch.1 hsearch.2.1 hsearch.2.2
+      simp only [List.length_cons] at hm
+      omega
+    have ih := countQueries_queyranneRecM_eq oracle steps
+      (mergeBlocks sr.fst sr.snd (b₀ :: b₁ :: bs)) hmerge.1 hmerge.2 hlen'
+    have hq := countQueries_qSearchM_eq oracle b₀ b₁ bs
+    rw [show bs.length = steps + 1 by omega] at hq
+    simp only [queyranneRecM, FreeM.countQueries_bind]
+    split_ifs <;> simp only [FreeM.countQueries_pure, add_zero] <;> linarith
 
 /-- **Exact value-oracle query complexity** ([Queyranne1998]): when `2 ≤ n := vs.toFinset.card`,
 against any value oracle `queyranneQuery vs` performs `Q` queries satisfying
@@ -275,10 +273,8 @@ theorem countQueries_queyranneQuery_eq
       vs.toFinset.card * (vs.toFinset.card + 1) * (vs.toFinset.card + 2) + 6 := by
   have hu_nd : vs.eraseDups.Nodup := List.nodup_eraseDups vs
   have hu_len : vs.eraseDups.length = vs.toFinset.card := List.length_eraseDups vs
-  have hne : ∀ b ∈ vs.eraseDups.map ({·} : V → Finset V), b.Nonempty := by
-    intro b hb
-    obtain ⟨v, _, rfl⟩ := List.mem_map.mp hb
-    exact Finset.singleton_nonempty v
+  have hne : ∀ b ∈ vs.eraseDups.map ({·} : V → Finset V), b.Nonempty :=
+    List.forall_mem_map.mpr fun v _ => Finset.singleton_nonempty v
   have hdisj : (vs.eraseDups.map ({·} : V → Finset V)).Pairwise Disjoint :=
     List.pairwise_map.mpr (hu_nd.imp fun hab => Finset.disjoint_singleton.mpr hab)
   have hlen : (vs.eraseDups.map ({·} : V → Finset V)).length =
@@ -289,8 +285,7 @@ theorem countQueries_queyranneQuery_eq
   have h1 : vs.eraseDups.length - 2 + 2 = vs.toFinset.card := by omega
   have h2 : vs.eraseDups.length - 2 + 3 = vs.toFinset.card + 1 := by omega
   have h3 : vs.eraseDups.length - 2 + 4 = vs.toFinset.card + 2 := by omega
-  rw [h1, h2, h3] at hrec
-  exact hrec
+  rwa [h1, h2, h3] at hrec
 
 /-- On degenerate inputs with fewer than two distinct elements, `queyranneQuery vs` makes `1`
 query (`∅`). -/
@@ -300,14 +295,11 @@ theorem countQueries_queyranneQuery_eq_one_of_lt_two
   have hu_len : vs.eraseDups.length = vs.toFinset.card := List.length_eraseDups vs
   have hlen : vs.eraseDups.length < 2 := hu_len.symm ▸ hvs
   simp only [queyranneQuery, queyranneM]
-  cases hu : vs.eraseDups with
-  | nil => simp [queyranneRecM]
-  | cons a rest =>
-    cases hrest : rest with
-    | nil => simp [queyranneRecM]
-    | cons b bs =>
-      rw [hu, hrest] at hlen
-      simp at hlen
+  rcases hu : vs.eraseDups with _ | ⟨a, _ | ⟨b, bs⟩⟩
+  · simp [queyranneRecM]
+  · simp [queyranneRecM]
+  · rw [hu] at hlen
+    simp at hlen
 
 /-- When `2 ≤ vs.toFinset.card`, `3 * countQueries ≤ vs.toFinset.card ^ 3` against any oracle. -/
 theorem three_mul_countQueries_queyranneQuery_le

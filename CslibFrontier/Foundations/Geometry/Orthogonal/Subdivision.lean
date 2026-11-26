@@ -67,9 +67,7 @@ def walk (a d : Point) : ℕ → Route
     (walk a d k).getLast? = some (a + k • d) := by
   induction k generalizing a with
   | zero => simp [walk]
-  | succ k ih =>
-    rw [walk, List.getLast?_cons, ih, Option.getD_some, add_smul, one_smul]
-    exact congrArg some (by abel)
+  | succ k ih => rw [walk, List.getLast?_cons, ih, Option.getD_some, succ_nsmul', add_assoc]
 
 private theorem support_cons_of_head (a b : Point) {r : Route} (h : r.head? = some b) :
     support (a :: r) = segment a b ∪ support r := by
@@ -102,11 +100,8 @@ theorem support_walk (a d : Point) (k : ℕ) (hd : UnitVector d) :
   induction k generalizing a with
   | zero => simp [walk, support, segment, List.consecutivePairs]
   | succ k ih =>
-    have heq : a + d + k • d = a + (k + 1) • d := by
-      rw [add_smul, one_smul]
-      abel
-    rw [walk, support_cons_of_head a (a + d) (walk_head _ _ _), ih, heq]
-    exact segment_step_union a d k hd
+    simpa only [walk, support_cons_of_head a (a + d) (walk_head _ _ _), ih, succ_nsmul',
+      add_assoc] using segment_step_union a d k hd
 
 private theorem consecutivePairs_walk (a d : Point) (k : ℕ) :
     (walk a d (k + 1)).consecutivePairs =
@@ -205,10 +200,8 @@ theorem consecutivePairs_join {q r : Route} {p : Point}
     rcases q with _ | ⟨b, q⟩
     · rcases r with _ | ⟨b, r⟩
       · simp at hr
-      · have ha : a = p := Option.some.inj hq
-        have hb : b = p := Option.some.inj hr
-        subst ha
-        subst hb
+      · obtain rfl : a = p := Option.some.inj hq
+        obtain rfl : b = a := Option.some.inj hr
         rfl
     · exact congrArg ((a, b) :: ·) (ih (by simpa only [List.getLast?_cons_cons] using hq))
 
@@ -318,17 +311,13 @@ theorem walk_eq_map_range (a d : Point) (k : ℕ) :
   induction k generalizing a with
   | zero => simp [walk]
   | succ k ih =>
-    rw [walk, List.range_succ_eq_map, List.map_cons, List.map_map, ih]
-    simp only [zero_smul, add_zero, List.cons.injEq, true_and]
-    refine List.map_congr_left fun i _ => ?_
-    simp only [Function.comp_apply, succ_nsmul]
-    abel
+    simp only [walk, List.range_succ_eq_map, List.map_cons, zero_smul, add_zero, List.map_map,
+      ih, Function.comp_def, succ_nsmul', ← add_assoc]
 
 /-- Omitting the final endpoint gives exactly the strict prefix of the range enumeration. -/
 theorem walk_dropLast_eq_map_range (a d : Point) (k : ℕ) :
     (walk a d k).dropLast = (List.range k).map fun i => a + i • d := by
-  rw [walk_eq_map_range, List.range_succ, List.map_append]
-  simp
+  simp [walk_eq_map_range, List.range_succ]
 
 private theorem join_eq_dropLast_append {q r : Route} {p : Point}
     (hq : q.getLast? = some p) (hr : r.head? = some p) :
@@ -416,15 +405,12 @@ theorem first_segment_tail_contact {a b : Point} {r : Route}
   · simpa [support, List.consecutivePairs] using hq
   · obtain ⟨f, hf, hpf⟩ := mem_support_segment (by simp) hq
     have hfmem := List.of_mem_zip hf
-    have hne : (a, b) ≠ f := fun h => hnot (by simpa only [← h] using hfmem.1)
-    have hf' : f ∈ (a :: b :: c :: r).consecutivePairs := by
-      simpa only [List.consecutivePairs, List.tail_cons, List.zip_cons_cons, List.mem_cons]
-        using Or.inr hf
-    have hc := hs.2 (a, b) (by simp [List.consecutivePairs]) f hf' hne p hp hpf
+    have hc := hs.2 (a, b) (by simp [List.consecutivePairs]) f (List.mem_cons_of_mem _ hf)
+      (fun h => hnot (by simpa only [← h] using hfmem.1)) p hp hpf
     refine hc.1.resolve_left fun (hpa : p = realPoint a) => hnot ?_
-    rcases hc.2 with hpf | hpf
-    · exact realPoint_injective (hpa.symm.trans hpf) ▸ hfmem.1
-    · exact realPoint_injective (hpa.symm.trans hpf) ▸ List.mem_of_mem_tail hfmem.2
+    rcases hc.2 with hpf | hpf <;> obtain rfl := realPoint_injective (hpa.symm.trans hpf)
+    · exact hfmem.1
+    · exact List.mem_of_mem_tail hfmem.2
 
 /-- Unit subdivision of a continuously simple orthogonal route has no repeated lattice points.
 The proof uses the original segments' endpoint-contact certificates, not support equality alone. -/

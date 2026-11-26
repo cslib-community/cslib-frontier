@@ -205,24 +205,14 @@ private theorem toNat_castAdd {n k : ℕ} (w : Wire n k) (extra : ℕ) :
 /-- The serialized code of `c.append d` is `appendCode n c.code d.code`. -/
 theorem code_append {σ : Signature.{v}} {n m p : ℕ} (c : Circuit σ n m) (d : Circuit σ n p) :
     (c.append d).code = appendCode n c.code d.code := by
-  symm
-  simp only [appendCode, Circuit.code, Circuit.append, Program.code_append,
-    appendWireCode_input]
-  apply Prod.ext
-  · rw [Program.length_code]
-  rw [show (fun j => (Fin.append (Wire.castAdd d.size ∘ c.outputs)
-    (Program.appendedWire Wire.input ∘ d.outputs) j).toNat) =
+  have hout : (fun j => (Fin.append (Wire.castAdd d.size ∘ c.outputs)
+      (Program.appendedWire Wire.input ∘ d.outputs) j).toNat) =
       Fin.append (fun j => (c.outputs j).toNat)
-        (fun j => shiftCodeWire n c.size (d.outputs j).toNat) from ?_]
-  · simp only [List.ofFn_fin_append, List.map_ofFn]
-    rw [Program.length_code]
-    rfl
-  · funext j
-    induction j using Fin.addCases with
-    | left i => simp [toNat_castAdd]
-    | right i =>
-      simp only [Fin.append_right, Function.comp_apply, Program.appendedWire_toNat,
-        appendWireCode_input]
+        (shiftCodeWire n c.size ∘ fun j => (d.outputs j).toNat) :=
+    funext fun j => Fin.addCases (fun _ => by simp [toNat_castAdd])
+      (fun _ => by simp [Program.appendedWire_toNat, appendWireCode_input]) j
+  simp only [appendCode, Circuit.code, Circuit.append, Program.code_append, appendWireCode_input,
+    Program.length_code, hout, List.ofFn_fin_append, List.map_ofFn]
 
 /-- Combine a list of raw codes on shared inputs, preserving block and output order.
 Blocks may have different gate counts and any number of outputs. -/
@@ -389,18 +379,9 @@ private theorem compCodeWire_code {σ : Signature.{v}} {n m : ℕ} (c : Circuit 
 /-- The serialized code of `d.comp c` is `compCode n d.code c.code`. -/
 theorem code_comp {σ : Signature.{v}} {n m p : ℕ} (d : Circuit σ m p) (c : Circuit σ n m) :
     (d.comp c).code = compCode n d.code c.code := by
-  symm
-  have hwire : compCodeWire n c.code =
-      Program.appendWireCode n m c.size c.outputs := funext (compCodeWire_code c)
-  apply Prod.ext
-  · simp only [compCode, Circuit.code, Circuit.comp, Program.code_append]
-    change c.program.code ++ d.program.code.map (fun g => (g.1, g.2.map
-      (compCodeWire n c.code))) = _
-    rw [hwire]
-  · simp only [compCode, Circuit.code, Circuit.comp, List.map_ofFn, Function.comp_apply]
-    congr 1 with i : 1
-    rw [Program.appendedWire_toNat]
-    exact compCodeWire_code c _
+  rw [compCode, funext (compCodeWire_code c)]
+  simp only [Circuit.code, Circuit.comp, Program.code_append, List.map_ofFn, Function.comp_def,
+    Program.appendedWire_toNat]
 
 /-- Sequential composition retains both gate lists. -/
 @[simp] theorem length_compCode {Op : Type*} (n : ℕ) (d c : List (Op × List ℕ) × List ℕ) :

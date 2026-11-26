@@ -101,15 +101,11 @@ theorem wImplied_of_implied_eq_some {φ : CNF (Fin n)} {w : ℕ} {τ : Fin n →
 /-- `implied` returns a value exactly when some value is w-implied. -/
 theorem implied_ne_none_iff {φ : CNF (Fin n)} {w : ℕ} {τ : Fin n → Option Bool} {x : Fin n} :
     implied φ w τ x ≠ none ↔ ∃ b, WImplied φ w τ x b := by
-  refine ⟨fun h => (Option.ne_none_iff_exists'.mp h).imp fun _ => wImplied_of_implied_eq_some,
-    fun ⟨b, hb⟩ => ?_⟩
   unfold implied
   split_ifs with h1 h2
-  · exact Option.some_ne_none _
-  · exact Option.some_ne_none _
-  · rcases b with _ | _
-    · exact absurd hb h2
-    · exact absurd hb h1
+  · exact ⟨fun _ => ⟨true, h1⟩, fun _ => Option.some_ne_none _⟩
+  · exact ⟨fun _ => ⟨false, h2⟩, fun _ => Option.some_ne_none _⟩
+  · exact ⟨fun h => absurd rfl h, fun ⟨b, _⟩ => by cases b <;> contradiction⟩
 
 /-- **Implied values are correct**: if `σ` satisfies `φ` and agrees with `τ` where `τ` is defined,
 then the value implied on `x` under `τ`, if any, is `σ x`. -/
@@ -131,10 +127,8 @@ when `x = σ x` is not w-implied. -/
 theorem implied_eq_none_iff {φ : CNF (Fin n)} {w : ℕ} {σ : Fin n → Bool} (hσ : φ.eval σ = true)
     {τ : Fin n → Option Bool} (hτ : ∀ y b, τ y = some b → σ y = b) {x : Fin n} :
     implied φ w τ x = none ↔ ¬ WImplied φ w τ x (σ x) := by
-  refine ⟨fun h hI => (nomatch (implied_eq_some hσ hτ hI).symm.trans h),
-    fun h => by_contra fun hne => ?_⟩
-  obtain ⟨b, hb⟩ := implied_ne_none_iff.1 hne
-  exact h (hb.eq hσ hτ ▸ hb)
+  rw [← not_iff_not, ← ne_eq, implied_ne_none_iff, not_not]
+  exact ⟨fun ⟨_, hb⟩ => hb.eq hσ hτ ▸ hb, fun h => ⟨σ x, h⟩⟩
 
 /-! ### Runs -/
 
@@ -232,9 +226,8 @@ theorem wImplied_one_of_forced {φ : CNF (Fin n)} {τ : Fin n → Option Bool} {
     · have := hσ _ _ h'
       cases l.2 <;> simp [hls] at this
   unfold PPZ.forced at h
-  split_ifs at h with h1 h2
-  · exact Option.some.inj h ▸ key true h1
-  · exact Option.some.inj h ▸ key false h2
+  split_ifs at h with h1 h2 <;> cases h
+  exacts [key true h1, key false h2]
 
 /-- For `w ≥ 1`, every variable forced by a unit clause has an implied value (original). -/
 theorem implied_ne_none_of_forced {φ : CNF (Fin n)} {w : ℕ} (hw : 1 ≤ w)

@@ -72,21 +72,16 @@ theorem mem_reachabilityFormula {I : STCONInstance} {c : Clause ℕ} :
     c ∈ reachabilityFormula I ↔ c = [((I.s : ℕ), true)] ∨ c = [((I.t : ℕ), false)] ∨
       ∃ u v, arc I u v = true ∧ c = [(u, false), (v, true)] := by
   simp only [reachabilityFormula, List.mem_append, List.mem_cons, List.not_mem_nil, or_false,
-    List.mem_flatMap, List.mem_range]
-  refine ⟨?_, ?_⟩
-  · rintro ((h | h) | ⟨u, _, v, _, h⟩)
-    · exact .inl h
-    · exact .inr (.inl h)
-    · split_ifs at h with harc
-      · exact .inr (.inr ⟨u, v, harc, by simpa using h⟩)
-      · cases h
-  · rintro (h | h | ⟨u, v, harc, rfl⟩)
-    · exact .inl (.inl h)
-    · exact .inl (.inr h)
-    · have h := harc
-      simp only [arc] at h
-      split_ifs at h with huv
-      exact .inr ⟨u, huv.1, v, huv.2, by simp [harc]⟩
+    List.mem_flatMap, List.mem_range, or_assoc]
+  refine or_congr_right (or_congr_right ⟨fun ⟨u, _, v, _, h⟩ => ?_, ?_⟩)
+  · split_ifs at h with harc
+    · exact ⟨u, v, harc, by simpa using h⟩
+    · cases h
+  · rintro ⟨u, v, harc, rfl⟩
+    have h := harc
+    simp only [arc] at h
+    split_ifs at h with huv
+    exact ⟨u, huv.1, v, huv.2, by simp [harc]⟩
 
 /-- Any satisfying assignment of `reachabilityFormula I` propagates `true` along paths from `s`,
 excluding `I` from `STCON`. -/

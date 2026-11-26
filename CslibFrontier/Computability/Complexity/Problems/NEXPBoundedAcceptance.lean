@@ -198,15 +198,12 @@ theorem mem_iff_exists_verifier (a : NEXPBoundedAcceptanceInstance) :
     refine ⟨frame c ++ List.replicate (2 * a.steps - 2 * c.length) false, ?_, ?_⟩
     · rw [List.length_append, length_frame, List.length_replicate]
       omega
-    · rw [verifier_eq_true_iff]
-      dsimp only
-      rw [unframe_frame_append, List.length_append, length_frame,
-        List.length_replicate, Nat.min_eq_right (by omega)]
-      exact hacc
+    · simp only [verifier_eq_true_iff, unframe_frame_append, List.length_append, length_frame,
+        List.length_replicate]
+      rwa [Nat.min_eq_right (by omega)]
   · rintro ⟨w, hw, hV⟩
-    rw [verifier_eq_true_iff] at hV
-    dsimp only at hV
-    rw [hw, Nat.min_eq_right (by omega)] at hV
+    simp only [verifier_eq_true_iff, hw, Nat.min_eq_right (by omega : a.steps ≤ 2 * a.steps + 1)]
+      at hV
     have hlen := length_unframe_add_dropFrame_le w
     exact ⟨unframe w, by omega, hV⟩
 
@@ -241,30 +238,25 @@ theorem computableInPolyTime_verifier :
 /-- The binary step bound `a.steps` is strictly below `2 ^ |enc a|`. -/
 theorem steps_lt_two_pow_length (a : NEXPBoundedAcceptanceInstance) :
     a.steps < 2 ^ (encNEXPBoundedAcceptanceInstance a).length := by
-  have hlt : a.steps < 2 ^ a.steps.bits.length :=
-    Nat.size_eq_bits_len a.steps ▸ Nat.lt_size_self a.steps
-  have hle : a.steps.bits.length ≤ (encNEXPBoundedAcceptanceInstance a).length :=
-    encNEXPBoundedAcceptanceInstance_steps_length_le a
-  exact hlt.trans_le (Nat.pow_le_pow_right (by omega) hle)
+  exact (Nat.size_eq_bits_len a.steps ▸ Nat.lt_size_self a.steps).trans_le
+    (Nat.pow_le_pow_right (by omega) (encNEXPBoundedAcceptanceInstance_steps_length_le a))
 
 /-- **`NEXPBoundedAcceptance` is in `NE`.** -/
 theorem mem_NE : NEXPBoundedAcceptance ∈ NE encNEXPBoundedAcceptanceInstance := by
   rw [NE, Set.mem_iUnion]
-  have hcert : ComputableInPolyTime
-      (fun a : NEXPBoundedAcceptanceInstance => 2 * a.steps + 1)
-      encNEXPBoundedAcceptanceInstance encNat := by
-    fun_prop
-  obtain ⟨dC, _, hcert_deg⟩ := hcert.exists_degree
+  obtain ⟨dC, _, hcert_deg⟩ := (by fun_prop : ComputableInPolyTime
+    (fun a : NEXPBoundedAcceptanceInstance => 2 * a.steps + 1)
+    encNEXPBoundedAcceptanceInstance encNat).exists_degree
   have hℓ := ComputableInO.comp ComputableInO.natToUnary hcert_deg.inO
   obtain ⟨dV, _, hV_deg⟩ := computableInPolyTime_verifier.exists_degree
-  have hV := hV_deg.inO
   let k := dC + dV + 1
   refine ⟨k, ?_⟩
   have hset : NEXPBoundedAcceptance =
       {a | ∃ w : List Bool, w.length = 2 * a.steps + 1 ∧ verifier (a, w) = true} :=
     Set.ext mem_iff_exists_verifier
   rw [hset]
-  refine setOf_exists_mem_NTIME (t := fun n => 2 ^ (k * n)) hℓ hV (C := 5 + 4 ^ dV) fun a w hw => ?_
+  refine setOf_exists_mem_NTIME (t := fun n => 2 ^ (k * n)) hℓ hV_deg.inO (C := 5 + 4 ^ dV)
+    fun a w hw => ?_
   set n := (encNEXPBoundedAcceptanceInstance a).length
   have hsteps : a.steps < 2 ^ n := steps_lt_two_pow_length a
   have hn1 : n + 1 ≤ 2 ^ n := Nat.lt_two_pow_self
@@ -323,15 +315,11 @@ theorem polyTimeReducible {α : Type} {enc : α ↪ List Bool} {A : Set α} {p :
   let C := (cV + 1) * (M + 1) * (c₁ + c₂ + 4)
   let stepBound (a : α) : ℕ := 2 ^ (p (enc a).length + (enc a).length + C)
   let tV (q : List Bool × List Bool) : ℕ := cV * ((encPair encBits encBits q).length + 1)
-  have htV (q : List Bool × List Bool) :
-      tV q ≤ cV * ((encPair encBits encBits q).length + 1) := le_rfl
   refine ⟨fun a => ⟨desc eSV eBit tm, enc a, stepBound a⟩, ?_, fun a => ?_⟩
   · have hp_comp : ComputableInPolyTime (fun a => p (enc a).length) enc encUnary :=
       hp.comp (by fun_prop)
-    have hexp : ComputableInPolyTime (fun a => p (enc a).length + (enc a).length + C)
-        enc encUnary := by fun_prop
     have hsteps : ComputableInPolyTime stepBound enc encNat :=
-      ComputableInPolyTime.binary_two_pow.comp hexp
+      ComputableInPolyTime.binary_two_pow.comp (by fun_prop)
     fun_prop
   · rw [mem_iff]
     constructor
@@ -363,7 +351,7 @@ theorem polyTimeReducible {α : Type} {enc : α ↪ List Bool} {A : Set α} {p :
             2 * (enc a).length + c.length + 2 := by
           simp only [length_encPair, encBits, Function.Embedding.refl_apply]
           omega
-        exact ((htV _).trans (Nat.mul_le_mul (Nat.le_succ cV) (by omega))).trans hCE
+        exact (Nat.mul_le_mul (Nat.le_succ cV) (by omega)).trans hCE
       obtain ⟨hhalt, hout⟩ := (htm (enc a, c)).runFrom_of_le htV_step
       change (tm.runFrom (tm.initCfg (encPair encBits encBits (enc a, c))) (stepBound a)).output =
         [ntm.checkChoices encBits (enc a, c)] at hout

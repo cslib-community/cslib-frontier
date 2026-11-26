@@ -34,11 +34,9 @@ open QueryReplay MultiTapeNTM.ChoiceTable
 /-- Positive blocks absorb the fixed header overhead into a fixed multiplicative constant. -/
 theorem width_le_mul (k s : ℕ) {b : ℕ} (hb : 0 < b) :
     Encoding.width k s b ≤ widthConstant k s * b := by
-  have h := Encoding.width_le k s b
-  have hheader := Nat.le_mul_of_pos_right ((s + 1).size + 3) hb
-  rw [show widthConstant k s * b = (7 * k + 1) * b + ((s + 1).size + 3) * b by
-    dsimp only [widthConstant]; ring]
-  omega
+  have := Encoding.width_le k s b
+  have := Nat.le_mul_of_pos_right ((s + 1).size + 3) hb
+  simp only [widthConstant, Nat.add_mul, one_mul] at *; omega
 
 /-- Measuring the encoded value width adds only a fixed number of bits to the block width. -/
 theorem width_size_le (k s : ℕ) {b : ℕ} (hb : 0 < b) :
@@ -48,21 +46,19 @@ theorem width_size_le (k s : ℕ) {b : ℕ} (hb : 0 < b) :
 /-- The selected chunk width is logarithmic in the block width, uniformly in the horizon. -/
 theorem selected_chunkWidth_le (k s : ℕ) {b : ℕ} (hb : 0 < b) :
     chunkWidth (k * 3 + 1) (Encoding.width k s b) ≤
-      (k * 3 + 1).size + (widthConstant k s).size + b.size := by
-  have h := Nat.size_mul_le (k * 3 + 1) (Encoding.width k s b)
-  have hw := width_size_le k s hb
-  change ((k * 3 + 1) * Encoding.width k s b).size ≤ _
-  omega
+      (k * 3 + 1).size + (widthConstant k s).size + b.size :=
+  ((Nat.size_mul_le _ _).trans (Nat.add_le_add_left (width_size_le k s hb) _)).trans_eq
+    (Nat.add_assoc _ _ _).symm
 
 /-- This is the logarithmic estimate needed inside the horizon-dependent stack term. -/
 theorem horizon_chunkWidth_le (k s q : ℕ) {b : ℕ} (hb : 0 < b) :
     q * (chunkWidth (k * 3 + 1) (Encoding.width k s b) + 1) ≤
       ((k * 3 + 1).size + (widthConstant k s).size + 1) * q * (b.size + 1) := by
-  have hm := selected_chunkWidth_le k s hb
-  have hbs := Nat.le_mul_of_pos_left b.size
-    (by omega : 0 < (k * 3 + 1).size + (widthConstant k s).size + 1)
   have hscalar : chunkWidth (k * 3 + 1) (Encoding.width k s b) + 1 ≤
       ((k * 3 + 1).size + (widthConstant k s).size + 1) * (b.size + 1) := by
+    have := selected_chunkWidth_le k s hb
+    have := Nat.le_mul_of_pos_left b.size
+      (by omega : 0 < (k * 3 + 1).size + (widthConstant k s).size + 1)
     rw [Nat.mul_add_one (_ + 1)]; omega
   simpa only [Nat.mul_assoc, Nat.mul_left_comm q] using Nat.mul_le_mul_left q hscalar
 
@@ -104,17 +100,14 @@ theorem selected_queryStateBound_le (k s : ℕ) : ∃ C, ∀ contextBits supplie
 theorem assignment_limit_size (d B : ℕ) :
     ((2 ^ chunkWidth d B) ^ (d * chunkCount d B)).size =
       d * (chunkCount d B * chunkWidth d B) + 1 := by
-  rw [← pow_mul, Nat.size_pow]
-  congr 1
-  ring
+  rw [← pow_mul, Nat.size_pow, Nat.mul_comm (chunkWidth d B), Nat.mul_assoc]
 
 /-- Capacity bits are linear in the value width; the number of assignments is never charged. -/
 theorem assignment_limit_size_le {d B : ℕ} (hd : 0 < d) (hB : 0 < B) :
     ((2 ^ chunkWidth d B) ^ (d * chunkCount d B)).size ≤
       d * (B + chunkWidth d B) + 1 := by
   rw [assignment_limit_size]
-  have h := Nat.mul_le_mul_left d (chunkCount_mul_lt hd hB).le
-  omega
+  exact Nat.add_le_add_right (Nat.mul_le_mul_left d (chunkCount_mul_lt hd hB).le) 1
 
 /-- A full interpolation point has linear field-cell storage at the selected parameters. -/
 theorem selected_point_cost_le {d B : ℕ} (hd : 0 < d) (hB : 0 < B) :
@@ -133,11 +126,8 @@ theorem prepared_metadata_le (k s : ℕ) : ∃ C, ∀ N b σ q : ℕ,
   have h := hc (N, b, σ, q)
   simp only [Initializer.encState, Initializer.encArgs, Initializer.prepare,
     length_encPair, length_encNat_eq_size] at h ⊢
-  have hc4 := Nat.mul_le_mul_left c
-    (by omega : 2 * N.size + 1 + (2 * b.size + 1 + (2 * σ.size + 1 + q.size)) + 1 ≤
-      4 * (N.size + b.size + σ.size + q.size + 1))
-  rw [← Nat.mul_assoc, Nat.mul_comm c 4] at hc4
-  omega
+  rw [Nat.mul_comm 4 c, Nat.mul_assoc]
+  refine Nat.le_trans ?_ (h.trans (Nat.mul_le_mul_left c ?_)) <;> omega
 
 /-- Binary selected interpolation metadata retains the assignment capacity only once. -/
 theorem selected_metadataSpace_le (N b σ q d B : ℕ) (hd : 0 < d) (hB : 0 < B) :
@@ -256,10 +246,9 @@ theorem initialized_allowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b σ q : 
       48 * (H * R + 2 * (P * R) + R) + 16 * (A * R) + 3 * (P * R) + replay * R + 14 * R by
         dsimp only [reply]; simp only [Nat.add_mul, Nat.mul_add, Nat.mul_assoc, one_mul]]
     omega
-  have hmetadata := hci N b σ q
   have hmetadataR : (Initializer.encMetadata
       ((Initializer.prepare k s (N, b, σ, q)).1)).length ≤ ci * R :=
-    hmetadata.trans (Nat.mul_le_mul_left ci hargs)
+    (hci N b σ q).trans (Nat.mul_le_mul_left ci hargs)
   have hinit0 := Initializer.space_prepare_le k s N b σ q
   have hinit1 := Nat.mul_le_mul_left (192 * (d + 1))
     (show 2 * B + d.size ≤ (2 * A + d.size) * R by rw [Nat.add_mul, Nat.mul_assoc]; omega)
@@ -294,15 +283,13 @@ theorem scheduleAllowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b q : ℕ, 0 
       C * (b + q * (b.size + 1) + N.size + 1) := by
   obtain ⟨c, hc⟩ := initialized_allowance_le k s Q
   refine ⟨c * (2 * (k + 1) + 2), fun N b q hb => ?_⟩
-  have hq : q ≤ q * (b.size + 1) := Nat.le_mul_of_pos_right _ (by omega)
-  have hkq := Nat.mul_le_mul_left (2 * (k + 1)) hq
+  have hkq := Nat.mul_le_mul_left (2 * (k + 1))
+    (Nat.le_mul_of_pos_right q (by omega : 0 < b.size + 1))
   have hcounter := counter_encoding_le k q (3 ^ ((k + 1) * q)) le_rfl
   rw [length_encNat_eq_size] at hcounter
   have harg : b + q * (b.size + 1) + N.size + (3 ^ ((k + 1) * q)).size + 1 ≤
       (2 * (k + 1) + 2) * (b + q * (b.size + 1) + N.size + 1) := by
-    rw [show (2 * (k + 1) + 2) * (b + q * (b.size + 1) + N.size + 1) =
-      2 * (k + 1) * (q * (b.size + 1)) + 2 * (b + q * (b.size + 1) + N.size + 1) +
-        2 * (k + 1) * (b + N.size + 1) by ring]; omega
+    simp only [Nat.add_mul (2 * (k + 1)) 2, Nat.mul_add (2 * (k + 1))]; omega
   exact ((hc N b (3 ^ ((k + 1) * q)) q hb).trans (Nat.mul_le_mul_left c harg)).trans_eq
     (Nat.mul_assoc c _ _).symm
 

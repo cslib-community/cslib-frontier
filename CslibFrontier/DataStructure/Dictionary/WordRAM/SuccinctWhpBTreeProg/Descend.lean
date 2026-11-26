@@ -85,8 +85,7 @@ private theorem realizes_descendStepGen :
     obtain ⟨c, U, V, w₀, n_max, sl, isRoot, lo, hi, mapFn, T,
       henv, rfl, hsIdx, hrep, hrt, hqlo, hqhi, hhi, hv⟩ := h
     have hth := henv.2.2.2.1
-    have hw_eq := henv.2.2.1
-    subst hw_eq
+    obtain rfl := henv.2.2.1
     obtain ⟨hcur_lt, hcnt_le, _, hkw_cnt, _, _, hlanes⟩ := validSubtree_root_bounds hth hhi hv
     rw [hrt] at hcur_lt hcnt_le hkw_cnt hlanes
     obtain ⟨hcs_n, hres_n, _, _⟩ := readBTreeNodeGenProg_spec hth henv.2.1 hsIdx hcur_lt hrep
@@ -111,19 +110,14 @@ private theorem realizes_descendStepGen :
   · exact (Nat.le_mul_of_pos_left _ (by omega)).trans_lt hvw_lt
   · rw [clientResult_swarRankGenProg hth]
     obtain ⟨ht3, _, hkey_lt, _⟩ := (btree_slice_param_bounds hth).1
-    have hcnt_eq : (sl.nodes cur).metaWord / 2 = metaCount (sl.nodes cur).metaWord := rfl
-    rw [hcnt_eq]
-    have hlanes' : ∀ j < metaCount (sl.nodes cur).metaWord,
-        laneGet (fpBitsWhp n_max + 2) (sl.nodes cur).keysWord j < 2 ^ fpBitsWhp n_max := hlanes
+    change swarRank _ _ (metaCount (sl.nodes cur).metaWord) _ _ * _ + _ < _
     have hrank_le : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max)
         (metaCount (sl.nodes cur).metaWord) q (sl.nodes cur).keysWord ≤
         metaCount (sl.nodes cur).metaWord := by
-      rw [swarRank_eq_count_lt (by omega) hkey_lt (hqhi.trans_lt hhi) hkw_cnt hlanes']
+      rw [swarRank_eq_count_lt (by omega) hkey_lt (hqhi.trans_lt hhi) hkw_cnt hlanes]
       exact (card_filter_le _ _).trans_eq (card_range _)
-    have hsh_lt : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max)
-        (metaCount (sl.nodes cur).metaWord) q (sl.nodes cur).keysWord * valLaneBitsWhp n_max < w :=
-      (Nat.mul_le_mul_right _ (hrank_le.trans (by omega : _ ≤ 2 * tMinWhp n_max))).trans_lt hvw_lt
-    exact hsh_lt.trans Nat.lt_two_pow_self
+    exact ((Nat.mul_le_mul_right _ (hrank_le.trans (by omega : _ ≤ 2 * tMinWhp n_max))).trans_lt
+      hvw_lt).trans Nat.lt_two_pow_self
 
 
 /-- Bounded `iterate` loop refining `descendToLeaf`
@@ -196,7 +190,7 @@ theorem descendLoopGenProg_spec {isRoot : Bool}
       simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
       rw [memoryCost_bind, hcs_n, hmc_n, hres_n]
       split_ifs
-      · rw [memoryCost_pure]
+      · rfl
       · rw [memoryCost_bind, clientState_swarRankGenProg, memoryCost_swarRankGenProg,
           memoryCost_laneGetGenProg]
     have hstep_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s
@@ -208,8 +202,7 @@ theorem descendLoopGenProg_spec {isRoot : Bool}
       split_ifs
       · exact validProg_pure cur
       · refine validProg_bind (validWhpProg_swarRankGenProg _) ?_
-        rw [clientState_swarRankGenProg]
-        exact validWhpProg_laneGetGenProg _
+        simpa only [clientState_swarRankGenProg] using validWhpProg_laneGetGenProg _
     have hnext : ∃ (isRoot' : Bool) (cur' lo' hi' : ℕ) (T' : BTreeTree),
         (Memory.spec 0).clientResult s (descendStepGenProg (d0, cur)) = cur' ∧
         descendToLeaf (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
@@ -225,26 +218,22 @@ theorem descendLoopGenProg_spec {isRoot : Bool}
         subst idx
         have hmeta : (sl.nodes cur).metaWord = mkNodeMeta true c0 := hv.2.1
         have hmod1 : (sl.nodes cur).metaWord % 2 = 1 := by
-          rw [hmeta]; simp [mkNodeMeta, Nat.add_mul_mod_self_left]
+          simp [hmeta, mkNodeMeta, Nat.add_mul_mod_self_left]
         refine ⟨isRoot, cur, lo, hi, .leaf cur c0, ?_, ?_, rfl, hqlo, hqhi, hhi, hv⟩
         · unfold descendStepGenProg
           simp only [pure_bind]
           rw [clientResult_bind, hcs_n, hres_n]
           simp only [hmod1, ↓reduceIte, StateTransitionSpec.clientResult_pure]
         · simp only [descendToLeaf, hmeta, metaIsLeaf_mkNodeMeta, ↓reduceIte]
-          cases f with
-          | zero => rfl
-          | succ f' => simp [descendToLeaf, hmeta]
+          cases f <;> simp [descendToLeaf, hmeta]
       | branch idx c0 cs =>
         dsimp only [BTreeTree.rootIdx] at hrt
         subst idx
         obtain ⟨hr_le, hclo_q, hq_chi, _⟩ :=
           branch_child_routing (by omega) hkey_lt hv hhi hqlo hqhi
         obtain ⟨_, hmeta, _, _, _, _, _, hhi_last, hmono, _, _, _, hcs_sub⟩ := hv
-        have hmod0 : (sl.nodes cur).metaWord % 2 ≠ 1 := by
-          rw [hmeta]; simp [mkNodeMeta]
-        have hcnt_div : (sl.nodes cur).metaWord / 2 = c0 := by
-          rw [hmeta]; exact metaCount_mkNodeMeta false c0
+        have hmod0 : (sl.nodes cur).metaWord % 2 ≠ 1 := by simp [hmeta, mkNodeMeta]
+        have hcnt_div : (sl.nodes cur).metaWord / 2 = c0 := hmeta ▸ metaCount_mkNodeMeta false c0
         let r_fin : Fin (c0 + 1) := ⟨swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) c0 q
           (sl.nodes cur).keysWord, Nat.lt_succ_of_le hr_le⟩
         have hval_r : laneGet (valLaneBitsWhp n_max) (sl.nodes cur).valsWord r_fin.val =
@@ -254,7 +243,8 @@ theorem descendLoopGenProg_spec {isRoot : Bool}
           unfold childHi
           split_ifs with hrc
           · rcases eq_or_lt_of_le (by omega : r_fin.val ≤ c0 - 1) with heq | hlt
-            · rw [heq]; exact hhi_last.le
+            · rw [heq]
+              exact hhi_last.le
             · exact (hmono r_fin.val (c0 - 1) hlt (by omega)).le.trans hhi_last.le
           · exact le_rfl
         refine ⟨false, (cs r_fin).rootIdx, _, _, cs r_fin, ?_, ?_, rfl,
@@ -272,16 +262,16 @@ theorem descendLoopGenProg_spec {isRoot : Bool}
     obtain ⟨isRoot', cur', lo', hi', T', hstep_res, hdesc_eq, hrt', hlo', hhi', hhi_lt', hv'⟩ :=
       hnext
     obtain ⟨ih_st, ih_res, ih_mc, ih_vp, ih_safe⟩ := ih hrt' hlo' hhi' hhi_lt' hv'
-    dsimp only [descendLoopGenProg, iterate]
-    refine ⟨?_, ?_, ?_, ?_, hsafe1, ?_⟩
-    · rw [clientState_bind, hstep_st, hstep_res]; exact ih_st
-    · rw [clientResult_bind, hstep_st, hstep_res, hdesc_eq]; exact ih_res
-    · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hstep_st, hstep_res, hstep_mc]
-      change 6 + memoryCost (descendLoopGenProg ((d0, cur'), f)) s = 6 * (f + 1)
-      rw [ih_mc]; omega
-    · refine validProg_bind hstep_vp ?_
-      rw [hstep_st, hstep_res]; exact ih_vp
-    · rw [hstep_st, hstep_res]; exact ih_safe
+    dsimp only [descendLoopGenProg, iterate] at ih_st ih_res ih_mc ih_vp ⊢
+    refine ⟨?_, ?_, ?_, validProg_bind hstep_vp ?_, hsafe1, ?_⟩
+    · rw [clientState_bind, hstep_st, hstep_res]
+      exact ih_st
+    · rw [clientResult_bind, hstep_st, hstep_res, hdesc_eq]
+      exact ih_res
+    · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hstep_st, hstep_res, hstep_mc, ih_mc]
+      omega
+    · simpa only [hstep_st, hstep_res] using ih_vp
+    · simpa only [hstep_st, hstep_res] using ih_safe
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

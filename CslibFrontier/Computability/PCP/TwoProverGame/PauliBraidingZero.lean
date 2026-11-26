@@ -139,12 +139,9 @@ theorem expect_prob_true_pauliBraidingZero_le {𝒜 : Type*} [Fintype A] [Ring �
       pauliBraidingZeroBit).prob logical.state true) / Fintype.card (Fin n → Bool) ≤
       12 * (1 - (pauliBraidingBranchGame n G special decode 0).commutingWinProb S) := by
   intro logical
-  let bad (dummy : Fin n → Bool) :=
-    ((logical.bob (pauliBraidingZeroQuestion basis dummy)).map
-      pauliBraidingZeroBit).prob logical.state true
-  have h := expect_le_of_pauliBraidingDiagonal_checks G special decode roles basis S (fun _ => bad)
-    (prob_true_le_pauliBraidingDiagonal G special decode roles basis S)
-  simpa only [Fintype.expect_const] using h
+  simpa only [Fintype.expect_const] using
+    expect_le_of_pauliBraidingDiagonal_checks G special decode roles basis S _
+      (prob_true_le_pauliBraidingDiagonal G special decode roles basis S)
 
 open Quantum in
 /-- When the pair player receives the duplicated zero string, their second bit can be
@@ -246,12 +243,9 @@ theorem expect_prob_true_pauliBraidingConsistencyZero_le {𝒜 : Type*} [Fintype
       dsimp only at hq hread ⊢
       rw [hq, hread, lexSwap_zero_left]
       exact le_add_of_nonneg_right (by split_ifs <;> positivity)
-    · push Not at h
-      obtain ⟨rfl, hb⟩ := h
-      have hb' : basis = true := by cases basis <;> simp_all
+    · obtain ⟨rfl, rfl⟩ : dummy = 0 ∧ basis = true := by simpa using h
       have htie : lexSwap (0 : Fin n → Bool) 0 = false := by simp [lexSwap]
       have heq : consistency 0 = secondBit := by
-        subst basis
         dsimp [consistency, secondBit, PauliConsistencyQuestion.ofChecked,
           PauliConsistencyQuestion.toBraidingQuestion]
         rw [PauliConsistencyQuestion.braidingStrings, htie]

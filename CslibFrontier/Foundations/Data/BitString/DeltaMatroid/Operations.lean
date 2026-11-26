@@ -75,17 +75,13 @@ theorem IsDeltaMatroid.reindex (hR : IsDeltaMatroid R) (e : ι ≃ κ) :
     intro x y hx hy k hk
     obtain ⟨j, hj, hf⟩ := hR.exchange hx hy (i := e.symm k) (by simpa using hk)
     refine ⟨e j, hj, ?_⟩
-    change (fun i => flipOn {k, e j} x (e i)) ∈ R
-    have he : ({k, e j} : Finset κ) = ({e.symm k, j} : Finset ι).map e.toEmbedding := by
-      simp
-    rw [he]
+    have he : ({k, e j} : Finset κ) = ({e.symm k, j} : Finset ι).map e.toEmbedding := by simp
     have hr : (fun i => flipOn (({e.symm k, j} : Finset ι).map e.toEmbedding) x (e i)) =
         flipOn {e.symm k, j} (fun i => x (e i)) := by
       convert flipOn_reindex e x {e.symm k, j} using 1
-      funext i
-      exact congrFun (flipOn_congr_decidableEq _ _) (e i)
-    rw [hr]
-    exact hf
+      exact funext fun i => congrFun (flipOn_congr_decidableEq _ _) (e i)
+    change (fun i => flipOn {k, e j} x (e i)) ∈ R
+    rwa [he, hr]
 
 private theorem flipOn_union_of_disjoint {S T : Finset ι} (h : Disjoint S T) (x : ι → Bool) :
     flipOn S (flipOn T x) = flipOn (S ∪ T) x := by
@@ -122,8 +118,7 @@ theorem IsEvenDeltaMatroid.twist (hR : IsEvenDeltaMatroid R) (S : Finset ι) :
   isDeltaMatroid := hR.isDeltaMatroid.twist S
   parity_eq := by
     intro x y hx hy
-    have h := hR.parity_eq hx hy
-    simpa only [parityOn_univ_flipOn, Bool.xor_left_inj] using h
+    simpa only [parityOn_univ_flipOn, Bool.xor_left_inj] using hR.parity_eq hx hy
 
 omit [DecidableEq ι] [DecidableEq κ] in
 /-- Total parity is unchanged by a bijective renaming of coordinates. -/
@@ -173,12 +168,10 @@ theorem IsEvenDeltaMatroid.connected (hR : IsEvenDeltaMatroid R)
   induction n using Nat.strong_induction_on generalizing x with
   | ind n ih =>
     by_cases hxy : x = y
-    · subst y
-      exact .refl
+    · exact hxy ▸ .refl
     · obtain ⟨i, j, hij, _, _, hf, hd⟩ := hR.exists_exchange_hammingDist hx hy hxy
-      have hlt : hammingDist (flipOn {i, j} x) y < n := by omega
       exact (Relation.ReflTransGen.single ⟨hx, hf, i, j, hij, rfl⟩).trans
-        (ih _ hlt hf rfl)
+        (ih _ (by omega) hf rfl)
 
 /-- The four-coordinate exchange consequence used for property (5) in the proof of
 Lemma 35 of [KazdaKolmogorovRolinek2018], p. 17, and reused in Lemma 37.

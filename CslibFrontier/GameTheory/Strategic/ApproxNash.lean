@@ -200,17 +200,9 @@ theorem ncard_support_uniformMultiset_le {α : Type*} [DecidableEq α]
 private theorem uniformMultiset_dotProduct_of_map_univ {α : Type*} [Fintype α] [DecidableEq α]
     {k : ℕ} (ω : Fin k → α) (f : α → ℝ) :
     uniformMultiset ((univ : Finset (Fin k)).val.map ω) ⬝ᵥ f = (∑ t : Fin k, f (ω t)) / k := by
-  set m : Multiset α := (univ : Finset (Fin k)).val.map ω
-  have hcard : m.card = k := by simp [m]
-  change ∑ a : α, ((m.count a : ℝ) / m.card) * f a = (∑ t : Fin k, f (ω t)) / k
-  have hmul : ∑ a : α, ((m.count a : ℝ) / m.card) * f a =
-      (∑ a : α, (m.count a : ℝ) * f a) / k := by
-    rw [hcard, sum_div]
-    exact sum_congr rfl fun a _ => div_mul_eq_mul_div _ _ _
-  rw [hmul, sum_multiset_count_mul]
-  congr 1
-  simp only [m, Finset.sum, Multiset.map_map]
-  rfl
+  change ∑ a : α, _ = _
+  simp_rw [uniformMultiset_apply, div_mul_eq_mul_div, ← sum_div, sum_multiset_count_mul]
+  simp [Finset.sum, Function.comp_def]
 
 end UniformMultiset
 
@@ -244,30 +236,20 @@ theorem isApproxBestResponse₁_iff_pure :
     G.IsApproxBestResponse₁ ε x y ↔
       IsMixedStrategy x ∧ ∀ i : M, (G.A *ᵥ y) i ≤ G.payoff₁ x y + ε := by
   classical
-  constructor
-  · rintro ⟨hx, h⟩
-    refine ⟨hx, fun i => ?_⟩
-    have hi := h _ (isMixedStrategy_single i)
-    rwa [payoff₁_eq_dotProduct, single_dotProduct, one_mul] at hi
-  · rintro ⟨hx, h⟩
-    refine ⟨hx, fun x' hx' => ?_⟩
-    rw [payoff₁_eq_dotProduct]
-    exact hx'.dotProduct_le_of_forall_le h
+  refine and_congr_right fun _ => ⟨fun h i => ?_, fun h x' hx' =>
+    G.payoff₁_eq_dotProduct x' y ▸ hx'.dotProduct_le_of_forall_le h⟩
+  simpa only [payoff₁_eq_dotProduct, single_dotProduct, one_mul] using
+    h _ (isMixedStrategy_single i)
 
 /-- Pure-column characterization of `IsApproxBestResponse₂`. -/
 theorem isApproxBestResponse₂_iff_pure :
     G.IsApproxBestResponse₂ ε y x ↔
       IsMixedStrategy y ∧ ∀ j : N, (x ᵥ* G.B) j ≤ G.payoff₂ x y + ε := by
   classical
-  constructor
-  · rintro ⟨hy, h⟩
-    refine ⟨hy, fun j => ?_⟩
-    have hj := h _ (isMixedStrategy_single j)
-    rwa [payoff₂_eq_dotProduct, single_dotProduct, one_mul] at hj
-  · rintro ⟨hy, h⟩
-    refine ⟨hy, fun y' hy' => ?_⟩
-    rw [payoff₂_eq_dotProduct]
-    exact hy'.dotProduct_le_of_forall_le h
+  refine and_congr_right fun _ => ⟨fun h j => ?_, fun h y' hy' =>
+    G.payoff₂_eq_dotProduct x y' ▸ hy'.dotProduct_le_of_forall_le h⟩
+  simpa only [payoff₂_eq_dotProduct, single_dotProduct, one_mul] using
+    h _ (isMixedStrategy_single j)
 
 /-- Pure-deviation characterization of `IsApproxNash`. -/
 theorem isApproxNash_iff_pure :
@@ -325,33 +307,24 @@ theorem IsApproxNash.smul {c : ℝ} (hc : 0 ≤ c) (h : G.IsApproxNash ε x y) :
 mixed Nash equilibrium of `G.toCostGame`. -/
 theorem isApproxNash_iff_isApproxMixedNash :
     G.IsApproxNash ε x y ↔ G.toCostGame.IsApproxMixedNash ε (profile x y) := by
-  rw [isApproxNash_iff_pure, CostGame.IsApproxMixedNash]
-  constructor
-  · rintro ⟨⟨hx, hbr₁⟩, ⟨hy, hbr₂⟩⟩
-    refine ⟨fun b => ?_, fun b a => ?_⟩
-    · cases b
-      exacts [isMixedStrategy_profile_false_iff.2 hx, isMixedStrategy_profile_true_iff.2 hy]
-    · cases b
-      · obtain ⟨i⟩ := a
-        rw [expectedCost_toCostGame_false G y hx.sum_eq_one,
-          deviationCost_toCostGame_row G y hx.sum_eq_one i]
-        linarith [hbr₁ i]
-      · obtain ⟨j⟩ := a
-        rw [expectedCost_toCostGame_true G x hy.sum_eq_one,
-          deviationCost_toCostGame_column G x hy.sum_eq_one j]
-        linarith [hbr₂ j]
-  · rintro ⟨hmix, hdev⟩
-    have hx := isMixedStrategy_profile_false_iff.1 (hmix false)
-    have hy := isMixedStrategy_profile_true_iff.1 (hmix true)
-    refine ⟨⟨hx, fun i => ?_⟩, ⟨hy, fun j => ?_⟩⟩
-    · have hi := hdev false (ULift.up i)
-      rw [expectedCost_toCostGame_false G y hx.sum_eq_one,
-        deviationCost_toCostGame_row G y hx.sum_eq_one i] at hi
-      linarith
-    · have hj := hdev true (ULift.up j)
-      rw [expectedCost_toCostGame_true G x hy.sum_eq_one,
-        deviationCost_toCostGame_column G x hy.sum_eq_one j] at hj
-      linarith
+  rw [isApproxNash_iff_pure, CostGame.IsApproxMixedNash, Bool.forall_bool, Bool.forall_bool,
+    isMixedStrategy_profile_false_iff, isMixedStrategy_profile_true_iff]
+  refine ⟨fun ⟨⟨hx, h₁⟩, ⟨hy, h₂⟩⟩ => ⟨⟨hx, hy⟩, fun ⟨i⟩ => ?_, fun ⟨j⟩ => ?_⟩,
+    fun ⟨⟨hx, hy⟩, h₁, h₂⟩ => ⟨⟨hx, fun i => ?_⟩, ⟨hy, fun j => ?_⟩⟩⟩
+  · rw [expectedCost_toCostGame_false G y hx.sum_eq_one,
+      deviationCost_toCostGame_row G y hx.sum_eq_one i]
+    linarith [h₁ i]
+  · rw [expectedCost_toCostGame_true G x hy.sum_eq_one,
+      deviationCost_toCostGame_column G x hy.sum_eq_one j]
+    linarith [h₂ j]
+  · have hi := h₁ (ULift.up i)
+    rw [expectedCost_toCostGame_false G y hx.sum_eq_one,
+      deviationCost_toCostGame_row G y hx.sum_eq_one i] at hi
+    linarith
+  · have hj := h₂ (ULift.up j)
+    rw [expectedCost_toCostGame_true G x hy.sum_eq_one,
+      deviationCost_toCostGame_column G x hy.sum_eq_one j] at hj
+    linarith
 
 /-! #### Daskalakis–Mehta–Papadimitriou `1/2`-approximate Nash equilibrium -/
 

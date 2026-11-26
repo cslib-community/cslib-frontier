@@ -239,15 +239,9 @@ private lemma eatingInv_step {n : ℕ} (p : Profile n) {s : EatingState n} (hinv
   · rwa [show eatingStep p s = s from dite_eq_right h]
   set dt := eatingDuration p s.rem h
   have hdt_pos : 0 < dt := eatingDuration_pos p s.rem h
-  have hrem_eq : ∀ o : Fin n,
-      (eatingStep p s).rem o = s.rem o - (eatingDemand p s.rem h o : ℝ) * dt :=
-    eatingStep_pos_rem p s h
-  have halloc_eq : ∀ i o : Fin n,
-      (eatingStep p s).alloc i o =
-        s.alloc i o + if favObject p s.rem h i = o then dt else 0 :=
-    eatingStep_pos_alloc p s h
-  have hel_eq : (eatingStep p s).elapsed = s.elapsed + dt :=
-    eatingStep_pos_elapsed p s h
+  have hrem_eq := eatingStep_pos_rem p s h
+  have halloc_eq := eatingStep_pos_alloc p s h
+  have hel_eq := eatingStep_pos_elapsed p s h
   have hexh_eq := eatingStep_pos_exhaust p s h
   have hrem_zero_of_zero : ∀ o : Fin n, s.rem o = 0 → (eatingStep p s).rem o = 0 := by
     intro o ho
@@ -263,12 +257,10 @@ private lemma eatingInv_step {n : ℕ} (p : Profile n) {s : EatingState n} (hinv
   have hexh_new : ∀ x : Fin n, 0 < s.rem x → (eatingStep p s).rem x = 0 →
       (eatingStep p s).exhaustTime x = s.elapsed + dt := fun x hx hx0 =>
     (hexh_eq x).trans (ite_eq_left ⟨hx, (hrem_eq x).symm.trans hx0⟩)
-  have hcard_sum : ∀ o : Fin n,
+  have hcard_sum (o : Fin n) :
       (∑ i : Fin n, if favObject p s.rem h i = o then dt else 0) =
         (eatingDemand p s.rem h o : ℝ) * dt := by
-    intro o
-    rw [← Finset.sum_filter, Finset.sum_const, nsmul_eq_mul]
-    rfl
+    simp [← Finset.sum_filter, eatingDemand]
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro o
     rw [hrem_eq o]
@@ -281,46 +273,37 @@ private lemma eatingInv_step {n : ℕ} (p : Profile n) {s : EatingState n} (hinv
   · intro i
     simp [halloc_eq i, Finset.sum_add_distrib, hinv.row_sum i, hel_eq]
   · intro o
-    simp_rw [hrem_eq o, halloc_eq _ o, Finset.sum_add_distrib, hcard_sum o]
+    simp_rw [hrem_eq o, fun i => halloc_eq i o]
+    rw [Finset.sum_add_distrib, hcard_sum o]
     linarith [hinv.col_sum o]
   · rw [hel_eq]; linarith [hinv.elapsed_nonneg]
   · intro i j
-    have hi_le : (p i).symm (favObject p s.rem h i) ≤
-        (p i).symm (favObject p s.rem h j) :=
-      favObject_rank_le p s.rem h i (favObject p s.rem h j) (favObject_rem_pos p s.rem h j)
-    have hstep_dom : SDDominates (p i)
-        (fun o => if o = favObject p s.rem h i then dt else 0)
-        (fun o => if o = favObject p s.rem h j then dt else 0) :=
-      (sdDominates_single_iff (p i) _ _ hdt_pos).mpr hi_le
-    have hrow : ∀ a : Fin n, (eatingStep p s).alloc a =
-        s.alloc a + fun o => if o = favObject p s.rem h a then dt else 0 := by
-      intro a; funext o; rw [halloc_eq a o]; simp [eq_comm]
+    have hrow (a : Fin n) : (eatingStep p s).alloc a =
+        s.alloc a + fun o => if o = favObject p s.rem h a then dt else 0 :=
+      funext fun o => by simp [halloc_eq, eq_comm, dt]
     rw [hrow i, hrow j]
-    exact (hinv.envyFree i j).add hstep_dom
+    exact (hinv.envyFree i j).add <| (sdDominates_single_iff (p i) _ _ hdt_pos).mpr <|
+      favObject_rank_le p s.rem h i _ (favObject_rem_pos p s.rem h j)
   · intro o ho
     by_cases hpos : 0 < s.rem o
     · rw [hexh_new o hpos ho, hel_eq]
     · rw [hexh_old o (hz o hpos), hel_eq]
       linarith [hinv.exhaust_le o (hz o hpos)]
   · intro i a b hpos' hlt
-    rw [halloc_eq i b] at hpos'
-    rcases (hinv.alloc_nonneg i b).eq_or_lt with hzero | hold
-    · have hfav : favObject p s.rem h i = b := by
-        by_contra hne
-        simp [← hzero, hne] at hpos'
-      have ha0 : s.rem a = 0 := le_antisymm
-        (favObject_lt_le_zero p s.rem h i a (by rwa [hfav])) (hinv.rem_nonneg a)
-      refine ⟨hrem_zero_of_zero a ha0, fun hb0' => ?_⟩
-      rw [hexh_old a ha0, hexh_new b (hfav ▸ favObject_rem_pos p s.rem h i) hb0']
+    obtain ⟨ha0, horder⟩ : s.rem a = 0 ∧ (s.rem b = 0 → s.exhaustTime a < s.exhaustTime b) := by
+      rcases (hinv.alloc_nonneg i b).eq_or_lt with hzero | hold
+      · have hfav : favObject p s.rem h i = b := by
+          by_contra hne
+          simp [halloc_eq, ← hzero, hne] at hpos'
+        exact ⟨le_antisymm (favObject_lt_le_zero p s.rem h i a (hfav ▸ hlt)) (hinv.rem_nonneg a),
+          fun hb0 => absurd hb0 (hfav ▸ favObject_rem_pos p s.rem h i).ne'⟩
+      · exact hinv.trade_order i a b hold hlt
+    refine ⟨hrem_zero_of_zero a ha0, fun hb0' => ?_⟩
+    rw [hexh_old a ha0]
+    by_cases hb_pos : 0 < s.rem b
+    · rw [hexh_new b hb_pos hb0']
       linarith [hinv.exhaust_le a ha0]
-    · obtain ⟨ha0, horder⟩ := hinv.trade_order i a b hold hlt
-      refine ⟨hrem_zero_of_zero a ha0, fun hb0' => ?_⟩
-      rw [hexh_old a ha0]
-      by_cases hb_pos : 0 < s.rem b
-      · rw [hexh_new b hb_pos hb0']
-        linarith [hinv.exhaust_le a ha0]
-      · rw [hexh_old b (hz b hb_pos)]
-        exact horder (hz b hb_pos)
+    · exact hexh_old b (hz b hb_pos) ▸ horder (hz b hb_pos)
 
 private noncomputable def activeObjs {n : ℕ} (s : EatingState n) : Finset (Fin n) :=
   @Finset.filter (Fin n) (fun o => 0 < s.rem o) (Classical.decPred _) Finset.univ
@@ -520,23 +503,19 @@ private lemma eatingStep_padded {n : ℕ} (hn : 3 ≤ n) (p : Profile n) (s : Ea
         omega
       · rfl
   have hdt : eatingDuration p s.rem hex = dt := by
-    refine eatingDuration_eq_of_le p s.rem hex dt ?_ fun o hd => ?_
-    · obtain ⟨j, hj_pos, hj_eq⟩ := hdt_mem
-      refine ⟨⟨j.val, by omega⟩, ?_, ?_⟩
-      · simpa [hdem, j.isLt] using hj_pos
-      · simpa [hs, padVec, hdem, j.isLt] using hj_eq
-    · by_cases ho : o.val < 3
-      · simp only [hdem o, ho, ↓reduceDIte] at hd ⊢
-        simpa [hs, padVec, ho] using hdt_le ⟨o.val, ho⟩ hd
-      · simp only [hs o, padVec, hdem o, ho, ↓reduceDIte, Nat.cast_one, div_one]
-        exact hdt_d
+    obtain ⟨j, hj_pos, hj_eq⟩ := hdt_mem
+    refine eatingDuration_eq_of_le p s.rem hex dt
+      ⟨⟨j.val, by omega⟩, by simpa [hdem, j.isLt] using hj_pos,
+        by simpa [hs, padVec, hdem, j.isLt] using hj_eq⟩ fun o hd => ?_
+    by_cases ho : o.val < 3
+    · simp only [hdem o, ho, ↓reduceDIte] at hd ⊢
+      simpa [hs, padVec, ho] using hdt_le ⟨o.val, ho⟩ hd
+    · simpa [hs o, padVec, hdem o, ho] using hdt_d
   refine ⟨fun o => ?_, fun a => ?_⟩
   · rw [eatingStep_pos_rem p s hex o, hs o, hdem o, hdt]
     by_cases ho : o.val < 3 <;> simp [padVec, ho]
-  · rw [eatingStep_pos_alloc p s hex ⟨2, by omega⟩ ⟨a.val, by omega⟩, hdt]
-    have hf2 : favObject p s.rem hex ⟨2, by omega⟩ = ⟨(f 2).val, by omega⟩ := hfav 2
-    rw [hf2]
-    congr 1; simp [Fin.ext_iff]
+  · rw [eatingStep_pos_alloc p s hex ⟨2, by omega⟩ ⟨a.val, by omega⟩, hdt, hfav_all ⟨2, by omega⟩]
+    simp [Fin.ext_iff]
 
 /-- Generalized 3-object manipulation witness profile `(a b c …, a c b …, b a c …)` padded with
 dummy agents `k ≥ 3` whose top choice is object `k`. -/
@@ -789,14 +768,11 @@ theorem not_isSDStrategyProof_probabilisticSerial {n : ℕ} (hn : 3 ≤ n) :
     ext r
     simp only [Finset.mem_Iic, Finset.mem_insert, Finset.mem_singleton, Fin.le_def, Fin.ext_iff]
     omega
-  have hp2 : p ⟨2, by omega⟩ = Equiv.swap ⟨0, by omega⟩ ⟨1, by omega⟩ :=
-    psManip_eq_swap01 hn ⟨2, by omega⟩ rfl
-  have hsum : ∀ x : Fin n → ℝ,
+  have hsum (x : Fin n → ℝ) :
       upperContourSum (p ⟨2, by omega⟩) x ⟨1, by omega⟩ =
         x ⟨1, by omega⟩ + x ⟨0, by omega⟩ := by
-    intro x
-    unfold upperContourSum
-    rw [hiic, Finset.sum_pair (by simp [Fin.ext_iff]), hp2]
+    dsimp only [upperContourSum, p]
+    rw [hiic, Finset.sum_pair (by simp [Fin.ext_iff]), psManip_eq_swap01 hn ⟨2, by omega⟩ rfl]
     simp
   rw [hsum, hsum] at hdom
   obtain ⟨⟨ht0, ht1, _⟩, ⟨hm0, hm1, _⟩⟩ := probabilisticSerial_manip_values hn

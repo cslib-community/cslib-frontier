@@ -87,12 +87,10 @@ private theorem meanSq_add_le (hw : IsPrice K w) {i j : ℕ} (hij : i + j ≤ μ
     meanSq w (i + j) ≤ meanSq w i + meanSq w j := by
   obtain ⟨S, -, T, -, hST, rfl, rfl⟩ :=
     exists_disjoint_card_eq (s := (univ : Finset (Fin μ))) (by simpa using hij)
-  have h := sum_defect_eq hw hST
-  have h0 : 0 ≤ 2 * frames μ * (meanSq w S.card + meanSq w T.card -
-      meanSq w (S.card + T.card)) :=
-    h ▸ sum_nonneg fun _ _ => sum_nonneg fun _ _ => sum_nonneg fun _ _ => defect_nonneg hw _ _ _
-  have := frames_pos (μ := μ)
-  nlinarith
+  have h0 : 0 ≤ ∑ p : GLM (Fin μ), ∑ q : GLM (Fin μ), ∑ a, defect w a (X p q S) (X p q T) :=
+    sum_nonneg fun _ _ => sum_nonneg fun _ _ => sum_nonneg fun _ _ => defect_nonneg hw _ _ _
+  rw [sum_defect_eq hw hST] at h0
+  nlinarith [frames_pos (μ := μ)]
 
 private theorem meanSq_zero (hw : IsPrice K w) : meanSq w 0 = 0 := by
   rw [meanSq, sum_eq_zero fun a _ => ?_, zero_div]
@@ -187,9 +185,7 @@ private theorem exists_meanSq_eq (hK : ¬ ContractingCase K) (hμ : 2 ≤ μ) :
   rw [distAtRank, distAtRank, ← Real.sqrt_mul (le_max_of_le_left zero_le_one)]
   refine Real.sqrt_le_sqrt ?_
   rcases (meanSq_nonneg w 1).eq_or_lt with h0 | h1
-  · have := meanSq_le hw le_rfl
-    rw [← h0] at this ⊢
-    linarith [meanSq_nonneg w μ]
+  · exact (meanSq_le hw le_rfl).trans_eq (by rw [← h0, mul_zero, mul_zero])
   · have h := hM _ (scale w hw h1)
     rw [meanSq_smul, inv_pow, Real.sq_sqrt h1.le, inv_mul_le_iff₀ h1] at h
     exact h.trans ((mul_comm _ _).le.trans (mul_le_mul_of_nonneg_right (le_max_right 1 M) h1.le))
@@ -217,11 +213,10 @@ private theorem Extremal.sides (hx : Extremal K w) {W W' : Mt μ} (h : Transvers
     w a (a + W) = w (a + W + W') (a + W') ∧ w (a + W) (a + W + W') = w a (a + W') ∧
       defect w a W W' = 0 := by
   obtain ⟨p, q, S, hd, hW⟩ := (transversal_iff _).1 h
-  obtain rfl : W = X p q (S 0) := hW 0
-  obtain rfl : W' = X p q (S 1) := hW 1
+  obtain ⟨rfl, rfl⟩ : W = X p q (S 0) ∧ W' = X p q (S 1) := ⟨hW 0, hW 1⟩
   have hST := hd 0 1 (by decide)
-  have hc : (S 0).card + (S 1).card ≤ μ := by
-    rw [← card_union_of_disjoint hST]; exact card_le_univ _ |>.trans (Fintype.card_fin μ).le
+  have hc : (S 0).card + (S 1).card ≤ μ :=
+    card_union_of_disjoint hST ▸ (card_le_univ _).trans (Fintype.card_fin μ).le
   have h1 := sum_defect_eq hx.price hST
   rw [hx.meanSq_eq _ hc, hx.meanSq_eq _ (by omega), hx.meanSq_eq _ (by omega)] at h1
   simp only [Nat.cast_add, sub_self, mul_zero, ← Fintype.sum_prod_type'] at h1
@@ -252,31 +247,29 @@ private theorem Extremal.additive (hx : Extremal K w) {W₁ W₂ W₃ : Mt μ}
     (h : Transversal ![W₁, W₂, W₃]) (a : Mt μ) :
     BB w a W₁ (W₂ + W₃) = BB w a W₁ W₂ + BB w a W₁ W₃ := by
   obtain ⟨p, q, S, hd, hW⟩ := (transversal_iff _).1 h
-  obtain rfl : W₁ = X p q (S 0) := hW 0
-  obtain rfl : W₂ = X p q (S 1) := hW 1
-  obtain rfl : W₃ = X p q (S 2) := hW 2
+  have ⟨h0, h1, h2⟩ : W₁ = X p q (S 0) ∧ W₂ = X p q (S 1) ∧ W₃ = X p q (S 2) := ⟨hW 0, hW 1, hW 2⟩
   have e1 := hx.diagonal (transversal_X₂ (p := p) (q := q)
-    (disjoint_union_right.2 ⟨hd 0 1 (by decide), hd 0 2 (by decide)⟩)) (a + X p q (S 1))
+    (disjoint_union_right.2 ⟨hd 0 1 (by decide), hd 0 2 (by decide)⟩)) (a + W₂)
   have e2 := hx.diagonal (transversal_X₂ (p := p) (q := q)
     (disjoint_union_right.2 ⟨(hd 0 1 (by decide)).symm, hd 1 2 (by decide)⟩)) a
   have e3 := hx.diagonal (transversal_X₂ (p := p) (q := q)
     (disjoint_union_left.2 ⟨hd 0 2 (by decide), hd 1 2 (by decide)⟩)) a
   have e4 := hx.diagonal (transversal_X₂ (p := p) (q := q) (hd 1 2 (by decide))) a
   have e5 := hx.opposite (transversal_X₂ (p := p) (q := q) (hd 0 1 (by decide))) a
-  rw [X_union p q (hd 1 2 (by decide))] at e1
-  rw [X_union p q (hd 0 2 (by decide))] at e2
-  rw [X_union p q (hd 0 1 (by decide))] at e3
-  set A := X p q (S 0)
-  set B := X p q (S 1)
-  set C := X p q (S 2)
-  have f1 : a + B + A = a + (A + B) := by abel
-  have f2 : a + B + (B + C) = a + C := by rw [add_assoc, add_cancel_left]
-  have f3 : nn w (a + B) (B + C) = w (a + B) (a + C) ^ 2 := by rw [nn, f2]
-  have f4 : nn w (a + B) (A + (B + C)) = w (a + B) (a + (A + C)) ^ 2 := by
-    rw [nn, add_left_comm A, add_assoc, add_cancel_left]
-  rw [f1, f2, f3, f4, e2, e4, e5, e3] at e1
-  unfold BB
-  rw [show A + B + C = A + (B + C) by abel, show B + (A + C) = A + (B + C) by abel] at *
+  rw [X_union p q (hd 1 2 (by decide)), ← h0, ← h1, ← h2] at e1
+  rw [X_union p q (hd 0 2 (by decide)), ← h0, ← h1, ← h2] at e2
+  rw [X_union p q (hd 0 1 (by decide)), ← h0, ← h1, ← h2] at e3
+  rw [← h1, ← h2] at e4
+  rw [← h0, ← h1] at e5
+  dsimp only [nn] at e1 e5
+  have f1 : a + W₂ + W₁ = a + (W₁ + W₂) := by abel
+  have f2 : a + W₂ + (W₂ + W₃) = a + W₃ := by rw [add_assoc, add_cancel_left]
+  have f3 : a + W₂ + (W₁ + (W₂ + W₃)) = a + (W₁ + W₃) := by
+    rw [add_left_comm W₁, add_assoc, add_cancel_left]
+  rw [e5, f1, f2, f3, e2, e4, e3] at e1
+  unfold BB nn at *
+  rw [show W₁ + W₂ + W₃ = W₁ + (W₂ + W₃) by abel,
+    show W₂ + (W₁ + W₃) = W₁ + (W₂ + W₃) by abel] at *
   linarith
 
 /-! ### Step 5: `B_a` is constant on pairs of rank one -/
@@ -438,8 +431,7 @@ private theorem Extremal.nn_eq (hx : Extremal K w) (hμ : 3 ≤ μ) (a : Mt μ) 
   refine connect_rank_one' (W := 0) (fun V₁ V₂ h => ?_) (by rw [rank_zero]; omega)
     (transversal_zero V) (transversal_zero V') h1 h2
   obtain ⟨p, q, S, hd, hW⟩ := (transversal_iff _).1 h.tail
-  obtain rfl : V₁ = X p q (S 0) := hW 0
-  obtain rfl : V₂ = X p q (S 1) := hW 1
+  obtain ⟨rfl, rfl⟩ : V₁ = X p q (S 0) ∧ V₂ = X p q (S 1) := ⟨hW 0, hW 1⟩
   rw [← X_union p q (hd 0 1 (by decide)), hx.nn_X hμ, hx.nn_X hμ, hx.nn_X hμ,
     sum_union (hd 0 1 (by decide))]
 
@@ -479,9 +471,7 @@ theorem exists_sq_eq_rank (hK : ¬ ContractingCase K) (hμ : 3 ≤ μ) :
   have hx : Extremal K w := ⟨hw, hr⟩
   refine ⟨w, hw, fun a a' => ?_⟩
   obtain ⟨p, q, S, hS⟩ := exists_X (a + a')
-  have e : a - a' = a + a' := by
-    ext i j
-    exact CharTwo.sub_eq_add _ _
+  have e : a - a' = a + a' := Matrix.ext fun _ _ => CharTwo.sub_eq_add _ _
   rw [e, hS, rank_X, ← add_cancel_left a a', hS, ← nn, hx.nn_X hμ,
     sum_congr rfl fun i _ => hx.nn_eq_one hμ a (by simp [rank_X])]
   simp

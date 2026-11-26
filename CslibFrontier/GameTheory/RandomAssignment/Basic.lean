@@ -132,19 +132,21 @@ lemma upperContourSum_zero {n : ℕ} (π : Equiv.Perm (Fin n)) (x : Fin n → �
     omega
   rw [hsub, Finset.sum_singleton]
 
+private lemma apply_eq_of_upperContourSum_eq {n : ℕ} (π : Equiv.Perm (Fin n)) {x y : Fin n → ℝ}
+    {r : Fin n} (hr : upperContourSum π x r = upperContourSum π y r)
+    (hprev : ∀ _ : 0 < r.val,
+      upperContourSum π x ⟨r.val - 1, by omega⟩ = upperContourSum π y ⟨r.val - 1, by omega⟩) :
+    x (π r) = y (π r) := by
+  by_cases hr0 : r.val = 0
+  · rwa [upperContourSum_zero π x hr0, upperContourSum_zero π y hr0] at hr
+  · have hrpos : 0 < r.val := Nat.pos_of_ne_zero hr0
+    rw [upperContourSum_succ π x hrpos, upperContourSum_succ π y hrpos, hprev hrpos] at hr
+    linarith
+
 lemma eq_of_upperContourSum_eq {n : ℕ} (π : Equiv.Perm (Fin n)) {x y : Fin n → ℝ}
     (h : ∀ k : Fin n, upperContourSum π x k = upperContourSum π y k) : x = y := by
   funext o
-  have hko : x (π (π.symm o)) = y (π (π.symm o)) := by
-    set k := π.symm o
-    by_cases hk : k.val = 0
-    · simpa [upperContourSum_zero π x hk, upperContourSum_zero π y hk] using h k
-    · have hkpos : 0 < k.val := Nat.pos_of_ne_zero hk
-      have h1 := h k
-      have h0 := h ⟨k.val - 1, by omega⟩
-      rw [upperContourSum_succ π x hkpos, upperContourSum_succ π y hkpos] at h1
-      linarith
-  simpa using hko
+  simpa using apply_eq_of_upperContourSum_eq π (h (π.symm o)) fun _ => h _
 
 /-- First-order stochastic dominance: lottery `x` weakly `sd`-dominates lottery `y` with respect to
 the strict ranking `π` when every upper contour set `{π r | r ≤ k}` receives at least as much
@@ -202,11 +204,9 @@ lemma sdDominates_single_iff {n : ℕ} (π : Equiv.Perm (Fin n)) (a b : Fin n)
     simp [upperContourSum_eq_sum_filter]
   constructor
   · intro h
-    have hk := h (π.symm b)
-    rw [heval a (π.symm b), heval b (π.symm b)] at hk
-    simp only [le_refl, ↓reduceIte] at hk
     by_contra hlt
-    simp only [hlt, ↓reduceIte] at hk
+    have hk := h (π.symm b)
+    simp only [heval, le_refl, hlt, ↓reduceIte] at hk
     linarith
   · intro hab k
     rw [heval a k, heval b k]
@@ -227,10 +227,8 @@ private lemma sum_mul_eq_abel {n : ℕ} [NeZero n] (π : Equiv.Perm (Fin n)) (d 
   | zero => exact (NeZero.ne 0 rfl).elim
   | succ n =>
     have h := Fin.sum_univ_smul_by_parts_prefix (d ∘ π) (u ∘ π)
-    simp only [Function.comp_apply, smul_eq_mul] at h
-    rw [Equiv.sum_comp π d] at h
-    rw [← Equiv.sum_comp π (fun o => d o * u o)]
-    rw [h.trans (add_comm _ _)]
+    simp only [Function.comp_apply, smul_eq_mul, Equiv.sum_comp π d] at h
+    rw [← Equiv.sum_comp π (fun o => d o * u o), h.trans (add_comm _ _)]
     simp only [Nat.succ_sub_one]
     congr 1
 
@@ -246,23 +244,15 @@ theorem sdDominates_iff_forall_antitone {n : ℕ} (π : Equiv.Perm (Fin n)) {x y
     rcases Nat.eq_zero_or_pos n with rfl | hn
     · simp
     have : NeZero n := ⟨hn.ne'⟩
-    have hdiff : ∑ o : Fin n, (x - y) o * u o =
-        ∑ o : Fin n, x o * u o - ∑ o : Fin n, y o * u o := by
-      simp only [Pi.sub_apply, sub_mul, Finset.sum_sub_distrib]
-    suffices h : 0 ≤ ∑ o : Fin n, (x - y) o * u o by linarith
-    rw [sum_mul_eq_abel π (x - y) u]
-    have hzero : ∑ o : Fin n, (x - y) o = 0 := by
-      simp only [Pi.sub_apply, Finset.sum_sub_distrib, hsum, sub_self]
-    rw [hzero, zero_mul, add_zero]
+    suffices h : 0 ≤ ∑ o : Fin n, (x - y) o * u o by
+      simp only [Pi.sub_apply, sub_mul, Finset.sum_sub_distrib] at h
+      linarith
+    have hzero : ∑ o : Fin n, (x - y) o = 0 := by simp [Finset.sum_sub_distrib, hsum]
+    rw [sum_mul_eq_abel π (x - y) u, hzero, zero_mul, add_zero]
     refine Finset.sum_nonneg fun k _ => mul_nonneg ?_ ?_
-    · have hk : upperContourSum π (x - y) ⟨k.val, by omega⟩ =
-          upperContourSum π x ⟨k.val, by omega⟩ -
-            upperContourSum π y ⟨k.val, by omega⟩ := by
-        simp [upperContourSum, Finset.sum_sub_distrib]
-      rw [hk]
+    · simp only [upperContourSum, Pi.sub_apply, Finset.sum_sub_distrib]
       exact sub_nonneg.mpr (hdom ⟨k.val, by omega⟩)
-    · refine sub_nonneg.mpr (hu ?_)
-      simp [Fin.le_def]
+    · exact sub_nonneg.mpr (hu (by simp [Fin.le_def]))
   · intro hexp k
     let u : Fin n → ℝ := fun o => if π.symm o ≤ k then 1 else 0
     have hu : Antitone (fun r : Fin n => u (π r)) := by
@@ -271,13 +261,10 @@ theorem sdDominates_iff_forall_antitone {n : ℕ} (π : Equiv.Perm (Fin n)) {x y
       by_cases h₂ : r₂ ≤ k
       · simp [h₂, hr.trans h₂]
       · simp only [h₂, ↓reduceIte]; split_ifs <;> norm_num
-    have hspec := hexp u hu
-    have heq : ∀ z : Fin n → ℝ, ∑ o : Fin n, z o * u o = upperContourSum π z k := by
-      intro z
+    have heq (z : Fin n → ℝ) : ∑ o : Fin n, z o * u o = upperContourSum π z k := by
       rw [upperContourSum_eq_sum_filter, Finset.sum_filter]
-      refine Finset.sum_congr rfl fun o _ => ?_
-      simp [u, mul_ite]
-    simpa only [heq] using hspec
+      exact Finset.sum_congr rfl fun o _ => by simp [u, mul_ite]
+    simpa only [heq] using hexp u hu
 
 /-- Equal treatment of equals (ETE): agents with identical strict preferences receive the exact
 same lottery row. -/
@@ -293,9 +280,7 @@ every other agent's lottery under that agent's strict preference order. -/
 lemma IsSDEnvyFree.equalTreatmentOfEquals {n : ℕ} {p : Profile n} {P : Matrix (Fin n) (Fin n) ℝ}
     (hef : IsSDEnvyFree p P) : IsEqualTreatmentOfEquals p P := by
   intro i j hij
-  refine SDDominates.antisymm (hef i j) ?_
-  have h := hef j i
-  rwa [← hij] at h
+  exact SDDominates.antisymm (hef i j) (hij.symm ▸ hef j i)
 
 /-- Ordinal (`sd`-) efficiency of a random assignment `P`: `P` is doubly stochastic and no other
 doubly stochastic matrix `Q` weakly `sd`-dominates `P` for every agent and strictly for at least
@@ -345,20 +330,12 @@ theorem IsSDStrategyProof.upperContour_eq {n : ℕ} {φ : AssignmentRule n}
     (k : Fin n) (hset : ∀ o : Fin n, (p i).symm o ≤ k ↔ π'.symm o ≤ k) :
     upperContourSum (p i) (φ p i) k =
       upperContourSum (p i) (φ (Function.update p i π') i) k := by
-  have h1 : upperContourSum (p i) (φ (Function.update p i π') i) k ≤
-      upperContourSum (p i) (φ p i) k := hsp p i π' k
-  have hback : Function.update (Function.update p i π') i (p i) = p := by simp
   have h2 := hsp (Function.update p i π') i (p i) k
-  rw [hback, Function.update_self] at h2
-  have hcongr : ∀ x : Fin n → ℝ,
-      upperContourSum π' x k = upperContourSum (p i) x k := by
-    intro x
-    rw [upperContourSum_eq_sum_filter, upperContourSum_eq_sum_filter]
-    refine Finset.sum_congr ?_ (fun _ _ => rfl)
-    ext o
-    simp [hset o]
+  simp only [Function.update_idem, Function.update_eq_self, Function.update_self] at h2
+  have hcongr (x : Fin n → ℝ) : upperContourSum π' x k = upperContourSum (p i) x k := by
+    simp only [upperContourSum_eq_sum_filter, ← hset]
   rw [hcongr, hcongr] at h2
-  exact le_antisymm h2 h1
+  exact le_antisymm h2 (hsp p i π' k)
 
 /-- Swapping two adjacent ranks `k` and `k + 1` in agent `i`'s preference leaves the probability of
 every other object unchanged and preserves the sum of the two swapped objects' probabilities. -/
@@ -387,37 +364,21 @@ theorem IsSDStrategyProof.adjSwap_invariance {n : ℕ} {φ : AssignmentRule n}
     · subst h2; simp only [Fin.le_def]; omega
     · exact Iff.rfl
   refine ⟨fun r hr1 hr2 => ?_, ?_⟩
-  · by_cases hr0 : r.val = 0
-    · have hu := huc r hr1
-      rw [upperContourSum_zero (p i) _ hr0, upperContourSum_zero (p i) _ hr0] at hu
-      exact hu.symm
-    · have hrpos : 0 < r.val := Nat.pos_of_ne_zero hr0
-      have hprev : (⟨r.val - 1, by omega⟩ : Fin n) ≠ k := by
-        intro heq
-        apply hr2
-        have hv : r.val - 1 = k.val := congrArg Fin.val heq
-        ext; change r.val = k.val + 1; omega
-      have hu1 := huc r hr1
-      have hu0 := huc ⟨r.val - 1, by omega⟩ hprev
-      rw [upperContourSum_succ (p i) _ hrpos, upperContourSum_succ (p i) _ hrpos] at hu1
-      linarith
-  · have hk1ne : (⟨k.val + 1, hk⟩ : Fin n) ≠ k := by simp [Fin.ext_iff]
-    have htop := huc ⟨k.val + 1, hk⟩ hk1ne
+  · refine (apply_eq_of_upperContourSum_eq (p i) (huc r hr1) fun _ => huc _ ?_).symm
+    intro heq
+    have hv : r.val - 1 = k.val := congrArg Fin.val heq
+    exact hr2 (Fin.ext (by dsimp; omega))
+  · have htop := huc ⟨k.val + 1, hk⟩ (by simp [Fin.ext_iff])
     have hk1pos : 0 < (⟨k.val + 1, hk⟩ : Fin n).val := Nat.succ_pos k.val
-    rw [upperContourSum_succ (p i) _ hk1pos, upperContourSum_succ (p i) _ hk1pos] at htop
-    have hsub_eq : (⟨(⟨k.val + 1, hk⟩ : Fin n).val - 1, by omega⟩ : Fin n) = k := by
-      ext; exact Nat.add_sub_cancel k.val 1
-    rw [hsub_eq] at htop
+    have hsub_eq : (⟨(⟨k.val + 1, hk⟩ : Fin n).val - 1, by omega⟩ : Fin n) = k :=
+      Fin.ext (Nat.add_sub_cancel k.val 1)
+    rw [upperContourSum_succ (p i) _ hk1pos, upperContourSum_succ (p i) _ hk1pos, hsub_eq] at htop
     by_cases hk0 : k.val = 0
     · rw [upperContourSum_zero (p i) _ hk0, upperContourSum_zero (p i) _ hk0] at htop
       linarith
     · have hkpos : 0 < k.val := Nat.pos_of_ne_zero hk0
-      have hprev : (⟨k.val - 1, by omega⟩ : Fin n) ≠ k := by
-        intro heq
-        have hv : k.val - 1 = k.val := congrArg Fin.val heq
-        omega
-      have hbot := huc ⟨k.val - 1, by omega⟩ hprev
-      rw [upperContourSum_succ (p i) _ hkpos, upperContourSum_succ (p i) _ hkpos] at htop
+      have hbot := huc ⟨k.val - 1, by omega⟩ (Fin.ne_of_val_ne (Nat.sub_one_lt hk0).ne)
+      rw [upperContourSum_succ (p i) _ hkpos, upperContourSum_succ (p i) _ hkpos, hbot] at htop
       linarith
 
 /-- The pairwise trade (envy/improvement) relation induced by a random assignment `P`: there is a
@@ -439,37 +400,27 @@ lemma exists_simple_tradeCycle {n : ℕ} {p : Profile n} {P : Matrix (Fin n) (Fi
     Relation.exists_nodup_of_cycle_chain (List.ne_nil_of_mem hal) hch₀
   rcases l with _ | ⟨x, t⟩
   · exact absurd rfl hlne
-  have hchain : (x :: t ++ [x]).IsChain (Function.swap (tradeRel p P)) := by
-    rw [Cycle.chain_coe_cons] at hlch
-    exact hlch
+  rw [Cycle.chain_coe_cons] at hlch
   set m := (x :: t).length
   have hm_pos : 0 < m := Nat.zero_lt_succ _
   have hget_chain : ∀ k (hk : k < m),
       tradeRel p P ((x :: t)[(k + 1) % m]'(Nat.mod_lt _ hm_pos)) ((x :: t)[k]) := by
     intro k hk
     have hlt_ext : k + 1 < (x :: t ++ [x]).length := by simp [m] at hk ⊢; omega
-    have hrel := List.isChain_iff_getElem.mp hchain k hlt_ext
+    have hrel := List.isChain_iff_getElem.mp hlch k hlt_ext
     change tradeRel p P (x :: t ++ [x])[k + 1] (x :: t ++ [x])[k] at hrel
-    have hfst : (x :: t ++ [x])[k] = (x :: t)[k] := List.getElem_append_left hk
-    rw [hfst] at hrel
+    rw [List.getElem_append_left hk] at hrel
     by_cases hlast : k + 1 = m
-    · have hmod : (k + 1) % m = 0 := by rw [hlast, Nat.mod_self]
-      have hsnd : (x :: t ++ [x])[k + 1] = (x :: t)[0] := by
-        rw [List.getElem_append_right (by omega)]
-        simp [m, hlast]
-      rw [hsnd] at hrel
-      simpa only [hmod] using hrel
+    · rw [List.getElem_append_right (by omega)] at hrel
+      simpa [m, hlast] using hrel
     · have hlt' : k + 1 < m := by omega
-      have hmod : (k + 1) % m = k + 1 := Nat.mod_eq_of_lt hlt'
-      have hsnd : (x :: t ++ [x])[k + 1] = (x :: t)[k + 1] := List.getElem_append_left hlt'
-      rw [hsnd] at hrel
-      simpa only [hmod] using hrel
+      rw [List.getElem_append_left hlt'] at hrel
+      simpa only [Nat.mod_eq_of_lt hlt'] using hrel
   have hm2 : 2 ≤ m := by
     by_contra hlt
     have h0 : (0 + 1) % m = 0 := by rw [show m = 1 by lia]
     obtain ⟨_, _, hlt'⟩ := hget_chain 0 hm_pos
-    simp only [h0] at hlt'
-    exact lt_irrefl _ hlt'
+    exact lt_irrefl _ (by simpa only [h0] using hlt')
   exact ⟨m, hm2, fun j => (x :: t)[j.val],
     fun _ _ h => Fin.ext ((List.Nodup.getElem_inj_iff hlnd).mp h),
     fun j => hget_chain j.val j.isLt⟩
@@ -519,10 +470,7 @@ theorem isSDEfficient_iff_isAcyclicTrade {n : ℕ} (p : Profile n) (P : Matrix (
               have hne : ¬ (agent j' = agent j ∧ c j' = c j) := fun h => hj' (hc_inj h.2)
               simp [hne]
             · intro hj; exact absurd (Finset.mem_univ j) hj
-          · have hzero : ∑ j : Fin m, (if agent j = i ∧ c j = o then ε else 0) = 0 :=
-              Finset.sum_eq_zero fun j _ =>
-                ite_eq_right_iff.mpr fun h => absurd ⟨j, h⟩ hex
-            rw [hzero]
+          · rw [Finset.sum_eq_zero fun j _ => ite_eq_right_iff.mpr fun h => absurd ⟨j, h⟩ hex]
             exact hPds.1 i o
         rw [Finset.sum_sub_distrib]
         linarith
@@ -539,16 +487,11 @@ theorem isSDEfficient_iff_isAcyclicTrade {n : ℕ} (p : Profile n) (P : Matrix (
             ∑ i : Fin n, ∑ j : Fin m, (if agent j = i ∧ f j = o then ε else 0) =
               ∑ j : Fin m, (if f j = o then ε else 0) := fun f => by
           rw [Finset.sum_comm]
-          refine Finset.sum_congr rfl fun j _ => ?_
-          by_cases h : f j = o
-          · simp only [h, and_true, Finset.sum_ite_eq, Finset.mem_univ, ↓reduceIte]
-          · simp only [h, and_false, ite_false, Finset.sum_const_zero]
+          exact Finset.sum_congr rfl fun j _ => by by_cases h : f j = o <;> simp [h]
         simp only [Q, Matrix.of_apply, Finset.sum_add_distrib, Finset.sum_sub_distrib,
           hcol_sum next, hcol_sum c]
-        have hsum_rot : ∑ j : Fin m, (if next j = o then ε else 0) =
-            ∑ j : Fin m, (if c j = o then ε else 0) :=
-          Equiv.sum_comp (finRotate m) (fun j => if c j = o then ε else 0)
-        rw [hsum_rot, sub_self, add_zero, hPds.2.2 o]
+        rw [Equiv.sum_comp (finRotate m) (fun j => if c j = o then ε else 0),
+          sub_self, add_zero, hPds.2.2 o]
     have hdiff : ∀ (i k : Fin n),
         upperContourSum (p i) (Q i) k - upperContourSum (p i) (P i) k =
           ∑ j : Fin m,
@@ -557,19 +500,15 @@ theorem isSDEfficient_iff_isAcyclicTrade {n : ℕ} (p : Profile n) (P : Matrix (
       intro i k
       rw [upperContourSum_eq_sum_filter, upperContourSum_eq_sum_filter,
         ← Finset.sum_sub_distrib]
-      have : ∀ o : Fin n, Q i o - P i o =
-          ∑ j : Fin m, ((if agent j = i ∧ next j = o then ε else 0) -
-            (if agent j = i ∧ c j = o then ε else 0)) := fun o => by
-        simp [Q]
-      simp_rw [this]
+      simp only [Q, Matrix.of_apply, add_sub_cancel_left]
       rw [Finset.sum_comm]
       have hterm_uc : ∀ (f : Fin m → Fin n) (j : Fin m),
           ∑ o ∈ Finset.univ.filter (fun o => (p i).symm o ≤ k),
               (if agent j = i ∧ f j = o then ε else 0) =
             if agent j = i ∧ (p i).symm (f j) ≤ k then ε else 0 := fun f j => by
         by_cases hji : agent j = i <;> simp [hji]
-      refine Finset.sum_congr rfl fun j _ => ?_
-      rw [Finset.sum_sub_distrib, hterm_uc next j, hterm_uc c j]
+      exact Finset.sum_congr rfl fun j _ => by
+        rw [Finset.sum_sub_distrib, hterm_uc next j, hterm_uc c j]
     have hterm_nonneg : ∀ (i k : Fin n) (j : Fin m),
         0 ≤ (if agent j = i ∧ (p i).symm (next j) ≤ k then ε else 0) -
             (if agent j = i ∧ (p i).symm (c j) ≤ k then ε else 0) := by
@@ -579,11 +518,8 @@ theorem isSDEfficient_iff_isAcyclicTrade {n : ℕ} (p : Profile n) (P : Matrix (
         simp [show (p (agent j)).symm (next j) ≤ k from (hpref j).le.trans h, h]
       · simp only [hck, ↓reduceIte, sub_zero]
         split_ifs <;> linarith
-    have hweak : ∀ i : Fin n, SDDominates (p i) (Q i) (P i) := fun i k => by
-      have hge : 0 ≤ upperContourSum (p i) (Q i) k - upperContourSum (p i) (P i) k := by
-        rw [hdiff i k]
-        exact Finset.sum_nonneg fun j _ => hterm_nonneg i k j
-      linarith
+    have hweak : ∀ i : Fin n, SDDominates (p i) (Q i) (P i) := fun i k =>
+      sub_nonneg.mp ((Finset.sum_nonneg fun j _ => hterm_nonneg i k j).trans_eq (hdiff i k).symm)
     refine ⟨Q, hQds, hweak, agent j₀, hweak (agent j₀), (p (agent j₀)).symm (next j₀), ?_⟩
     have h := Finset.single_le_sum
       (fun j _ => hterm_nonneg (agent j₀) ((p (agent j₀)).symm (next j₀)) j) (Finset.mem_univ j₀)
@@ -610,32 +546,24 @@ theorem isSDEfficient_iff_isAcyclicTrade {n : ℕ} (p : Profile n) (P : Matrix (
       · rw [← hzero]; exact hQds.1 i a
       · have hdom := hweak i ((p i).symm a)
         rw [upperContourSum_eq_sum_filter, upperContourSum_eq_sum_filter] at hdom
-        have hlt_eq : ∀ b : Fin n, (p i).symm b < (p i).symm a → Q i b = P i b := by
-          intro b hba
-          by_contra hne
-          exact hsrc b (Finset.mem_filter.mpr ⟨Finset.mem_univ _, i, hne⟩) ⟨i, hpos, hba⟩
-        have hsplit : (Finset.univ.filter fun o : Fin n => (p i).symm o ≤ (p i).symm a) =
-            insert a (Finset.univ.filter fun o : Fin n => (p i).symm o < (p i).symm a) := by
-          ext o
-          simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert]
-          exact ⟨fun h => h.eq_or_lt.imp (fun he => (p i).symm.injective he) id,
-            fun h => h.elim (fun he => he ▸ le_rfl) le_of_lt⟩
-        have hnotmem : a ∉
-            (Finset.univ.filter fun o : Fin n => (p i).symm o < (p i).symm a) := by
-          intro hm
-          exact lt_irrefl _ (Finset.mem_filter.mp hm).2
-        rw [hsplit, Finset.sum_insert hnotmem, Finset.sum_insert hnotmem] at hdom
+        have ha_mem : a ∈ Finset.univ.filter (fun o : Fin n => (p i).symm o ≤ (p i).symm a) :=
+          Finset.mem_filter.mpr ⟨Finset.mem_univ a, le_rfl⟩
+        rw [← Finset.add_sum_erase _ _ ha_mem, ← Finset.add_sum_erase _ _ ha_mem] at hdom
         have hpref_eq :
-            ∑ o ∈ Finset.univ.filter (fun o => (p i).symm o < (p i).symm a), Q i o =
-              ∑ o ∈ Finset.univ.filter (fun o => (p i).symm o < (p i).symm a), P i o :=
-          Finset.sum_congr rfl fun b hb => hlt_eq b (Finset.mem_filter.mp hb).2
+            ∑ o ∈ (Finset.univ.filter fun o => (p i).symm o ≤ (p i).symm a).erase a, Q i o =
+              ∑ o ∈ (Finset.univ.filter fun o => (p i).symm o ≤ (p i).symm a).erase a, P i o :=
+          Finset.sum_congr rfl fun b hb => by
+            obtain ⟨hb_ne, hb_le⟩ := Finset.mem_erase.mp hb
+            have hba : (p i).symm b < (p i).symm a :=
+              lt_of_le_of_ne (Finset.mem_filter.mp hb_le).2 ((p i).symm.injective.ne hb_ne)
+            by_contra hne
+            exact hsrc b (Finset.mem_filter.mpr ⟨Finset.mem_univ _, i, hne⟩) ⟨i, hpos, hba⟩
         linarith
     have hcol : ∑ i : Fin n, (Q i a - P i a) = 0 := by
       rw [Finset.sum_sub_distrib, hQds.2.2 a, hPds.2.2 a, sub_self]
-    have hall_eq : ∀ i ∈ (Finset.univ : Finset (Fin n)), Q i a - P i a = 0 :=
-      (Finset.sum_eq_zero_iff_of_nonneg fun i _ => sub_nonneg.mpr (hle i)).mp hcol
     obtain ⟨i, hi⟩ := (Finset.mem_filter.mp haR).2
-    exact hi (sub_eq_zero.mp (hall_eq i (Finset.mem_univ i)))
+    exact hi (sub_eq_zero.mp ((Finset.sum_eq_zero_iff_of_nonneg fun i _ =>
+      sub_nonneg.mpr (hle i)).mp hcol i (Finset.mem_univ i)))
 
 lemma IsSDEfficient.not_twoCycle {n : ℕ} {p : Profile n} {P : Matrix (Fin n) (Fin n) ℝ}
     (heff : IsSDEfficient p P) {i j a b : Fin n}
@@ -670,22 +598,18 @@ theorem IsSDEfficient.isExPostEfficient {n : ℕ} {p : Profile n} {P : Matrix (F
       exact Finset.single_le_sum (f := fun σ => (w σ • σ.permMatrix ℝ) i j)
         (fun σ _ => mul_nonneg (hw_nn σ) ((hperm σ).1 i j)) (Finset.mem_univ μ)
     linarith [mul_nonneg hwμ.le ((hperm ν).1 i j)]
-  have hperm_uc : ∀ (π σ : Equiv.Perm (Fin n)) (i k : Fin n),
-      upperContourSum π (σ.permMatrix ℝ i) k =
-        if π.symm (σ i) ≤ k then 1 else 0 := by
-    intro π σ i k
-    simp [upperContourSum_eq_sum_filter]
   have hQ_uc : ∀ i k : Fin n,
       upperContourSum (p i) (Q i) k = upperContourSum (p i) (P i) k +
         w μ * ((if (p i).symm (ν i) ≤ k then 1 else 0) -
-               (if (p i).symm (μ i) ≤ k then 1 else 0)) := by
-    intro i k
-    have hdiff_row : ∀ o : Fin n, Q i o =
-        P i o + w μ * (ν.permMatrix ℝ i o - μ.permMatrix ℝ i o) := fun o => rfl
-    unfold upperContourSum
-    simp_rw [hdiff_row, Finset.sum_add_distrib, ← Finset.mul_sum, Finset.sum_sub_distrib]
-    congr 2
-    rw [← upperContourSum, ← upperContourSum, hperm_uc, hperm_uc]
+               (if (p i).symm (μ i) ≤ k then 1 else 0)) := fun i k => by
+    have hperm_uc (σ : Equiv.Perm (Fin n)) :
+        ∑ r ∈ Finset.Iic k, σ.permMatrix ℝ i (p i r) =
+          if (p i).symm (σ i) ≤ k then 1 else 0 := by
+      simpa only [upperContourSum] using
+        (by simp [upperContourSum_eq_sum_filter] :
+          upperContourSum (p i) (σ.permMatrix ℝ i) k = _)
+    simp only [upperContourSum, Q, Matrix.add_apply, Matrix.smul_apply, Matrix.sub_apply,
+      smul_eq_mul, Finset.sum_add_distrib, ← Finset.mul_sum, Finset.sum_sub_distrib, hperm_uc]
   have hQ_dom : ∀ i : Fin n, SDDominates (p i) (Q i) (P i) := fun i k => by
     rw [hQ_uc]
     have hdiff : (0 : ℝ) ≤ (if (p i).symm (ν i) ≤ k then 1 else 0) -

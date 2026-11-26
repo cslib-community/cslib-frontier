@@ -219,23 +219,16 @@ theorem boundedErrorAt_repeatMajority_sq {q p : Polynomial ℕ} {V : α × List 
       (2 * (univ.filter fun r : Fin (p.eval (enc a).length) → Bool =>
         V (a, List.ofFn r) = b).card - 2 ^ p.eval (enc a).length)) :
     BoundedErrorAt enc (2 * q ^ 2 * p) (repeatMajority enc (q ^ 2) p V) a b := by
-  have hlen : (2 * q ^ 2 * p).eval (enc a).length =
-      2 * (q ^ 2).eval (enc a).length * p.eval (enc a).length := by
-    simp only [eval_mul, eval_ofNat]
-  have hsq : (q ^ 2).eval (enc a).length = q.eval (enc a).length ^ 2 := eval_pow _
   unfold BoundedErrorAt
-  rw [hlen]
+  rw [eval_mul, eval_mul, eval_ofNat]
   refine BitString.two_mul_two_pow_le_of_four_mul_card_filter_not_le
     (fun x => repeatMajority enc (q ^ 2) p V (a, List.ofFn x) = b) ?_
-  have hnot : (univ.filter fun x : BitString (2 * (q ^ 2).eval (enc a).length *
-        p.eval (enc a).length) => ¬repeatMajority enc (q ^ 2) p V (a, List.ofFn x) = b) =
-      univ.filter fun x => repeatMajority enc (q ^ 2) p V (a, List.ofFn x) = !b :=
-    filter_congr fun _ _ => by cases b <;> simp
-  rw [hnot]
+  rw [filter_congr (q := fun x => repeatMajority enc (q ^ 2) p V (a, List.ofFn x) = !b)
+    fun _ _ => by cases b <;> simp]
   have h1 := card_filter_repeatMajority_eq_not_le (enc := enc) (r := q ^ 2) (p := p) (V := V) a b
   have h2 := BitString.five_mul_card_filter_card_filter_block_le (q := q.eval (enc a).length)
     (fun s => V (a, List.ofFn s) = b) h
-  rw [← hsq] at h2
+  rw [← eval_pow] at h2
   calc 4 * _ ≤ 5 * _ := Nat.mul_le_mul_right _ (by norm_num)
     _ ≤ 5 * _ := Nat.mul_le_mul_left 5 h1
     _ ≤ _ := h2
@@ -260,22 +253,18 @@ theorem BPPWithError_subset_BPP {ε : ℕ → ℝ} (q : Polynomial ℕ)
   have hlong (a : α) (hN' : N ≤ (enc a).length) (b : Bool) (hb : b = true ↔ a ∈ A) :
       BoundedErrorAt enc (2 * q ^ 2 * p) V' a b := by
     obtain ⟨hq₀, hε⟩ := hN _ hN'
-    have hsum := acceptCount_add_card_filter_eq_false (V := V) (a := a)
-      (n := p.eval (enc a).length)
+    have hsum : (acceptCount V a (p.eval (enc a).length) : ℝ) +
+        (univ.filter fun r : Fin (p.eval (enc a).length) → Bool =>
+          V (a, List.ofFn r) = false).card = 2 ^ p.eval (enc a).length := by
+      exact_mod_cast acceptCount_add_card_filter_eq_false (V := V) (a := a)
+        (n := p.eval (enc a).length)
     have hp2 : (0 : ℝ) < 2 ^ p.eval (enc a).length := pow_pos two_pos _
     refine (boundedErrorAt_repeatMajority_sq (V := V) (two_mul_le_mul_sub_of_le hq₀ ?_)).congr
       fun r => by simp [V', hN']
     cases b
-    · have := (hA a).2 (by simpa using hb)
-      have hcast : ((univ.filter fun r : Fin (p.eval (enc a).length) → Bool =>
-          V (a, List.ofFn r) = false).card : ℝ) =
-          2 ^ p.eval (enc a).length - acceptCount V a (p.eval (enc a).length) := by
-        rw [eq_sub_iff_add_eq, add_comm]
-        exact_mod_cast hsum
-      rw [hcast]; nlinarith
-    · have := (hA a).1 (by simpa using hb)
-      change _ ≤ ((acceptCount V a _ : ℕ) : ℝ)
-      nlinarith
+    · nlinarith [(hA a).2 (by simpa using hb)]
+    · change _ ≤ ((acceptCount V a _ : ℕ) : ℝ)
+      nlinarith [(hA a).1 (by simpa using hb)]
   have hA' : {a | a ∈ A ∧ N ≤ (enc a).length} ∈ BPP enc :=
     ⟨2 * q ^ 2 * p, V', hV', fun a => ⟨fun ha => hlong a ha.2 true (iff_of_true rfl ha.1),
       fun ha => if hN' : N ≤ (enc a).length then
@@ -286,9 +275,7 @@ theorem BPPWithError_subset_BPP {ε : ℕ → ℝ} (q : Polynomial ℕ)
   suffices A = {a | a ∈ A ∧ N ≤ (enc a).length} ∪ (A ∩ {a | (enc a).length < N}) from
     this ▸ union_mem_BPP hA' (P_subset_BPP hfin.mem_P)
   ext a
-  simp only [Set.mem_union, Set.mem_inter_iff]
-  exact ⟨fun ha => (le_or_gt N (enc a).length).imp (⟨ha, ·⟩) (⟨ha, ·⟩),
-    fun h => h.elim (·.1) (·.1)⟩
+  simp only [Set.mem_union, Set.mem_inter_iff, Set.mem_ofPred_eq, ← and_or_left, le_or_gt, and_true]
 
 /-- **Exponential error reduction into `BPP_ε`.** If `2 ^ (-q(n)) ≤ ε(n)` for a polynomial `q`, then
 `BPP ⊆ BPP_ε`. -/
@@ -327,8 +314,7 @@ theorem setOf_exists_BPPWithError_rpow_eq_BPP {c : ℝ} (hc : 0 < c) :
   · rintro ⟨N, hA⟩
     refine BPPWithError_subset_BPP (X ^ ⌈c⌉₊)
       (eventually_atTop.2 ⟨max N 1, fun n hn => ⟨?_, ?_⟩⟩) hA
-    · simp only [eval_pow, eval_X]
-      exact pow_pos (by omega) _
+    · simpa only [eval_pow, eval_X] using pow_pos (by omega) _
     · have := inv_pow_ceil_le_rpow_neg (by exact_mod_cast le_of_max_le_right hn : (1 : ℝ) ≤ n) c
       simp only [show ¬n < N by omega, ↓reduceIte, eval_pow, eval_X, Nat.cast_pow, one_div]
       linarith
@@ -380,15 +366,15 @@ theorem two_pow_le_two_mul_acceptCount_repeatAny {q p : Polynomial ℕ}
   -- the strings rejected by one run make up at most a `1 - 1 / k` fraction
   set F := (univ.filter fun u : Fin m → Bool => V (a, List.ofFn u) = false).card
   have hpos : (0 : ℝ) < 2 ^ m := by positivity
-  obtain ⟨x, hx⟩ : ∃ x : ℝ, x = c / 2 ^ m := ⟨_, rfl⟩
-  have hx₁ : x ≤ 1 := by rw [hx, div_le_one hpos]; exact_mod_cast hc
+  let x : ℝ := c / 2 ^ m
+  have hx₁ : x ≤ 1 := (div_le_one hpos).2 (by exact_mod_cast hc)
   have hkx : (1 : ℝ) ≤ k * x := by
-    rw [hx, ← mul_div_assoc, le_div_iff₀ hpos, one_mul]
+    rw [← mul_div_assoc, le_div_iff₀ hpos, one_mul]
     exact_mod_cast h
-  have hB := Cslib.one_sub_pow_mul_one_add_mul_le_one (by rw [hx]; positivity) hx₁ k
+  have hB := Cslib.one_sub_pow_mul_one_add_mul_le_one (by positivity : 0 ≤ x) hx₁ k
   have hFr : (F : ℝ) = 2 ^ m * (1 - x) := by
-    rw [hx, show F = 2 ^ m - c by omega, Nat.cast_sub hc]
-    push_cast
+    rw [show F = 2 ^ m - c by omega, Nat.cast_sub hc]
+    push_cast [x]
     field_simp
   have hpow : 2 * F ^ k ≤ 2 ^ (k * m) := by
     suffices (2 : ℝ) * (F : ℝ) ^ k ≤ (2 : ℝ) ^ (k * m) by exact_mod_cast this

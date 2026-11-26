@@ -99,23 +99,9 @@ private theorem buf_oldEp_ite_locState {α : Type*} {fs : FastState}
     (if s = 2 then Function.update buf 0 b2
      else if s = 3 then Function.update buf 1 b3
      else buf) fs.oldEp = buf fs.oldEp := by
-  rcases hce_or with hce | hce
-  · have ho : fs.oldEp = 1 := by
-      unfold FastState.oldEp
-      omega
-    rw [ho]
-    split_ifs with h2 h3
-    · exact Function.update_of_ne (by decide) _ _
-    · exact absurd h3 (h1 ho)
-    · rfl
-  · have ho : fs.oldEp = 0 := by
-      unfold FastState.oldEp
-      omega
-    rw [ho]
-    split_ifs with h2 h3
-    · exact absurd h2 (h0 ho)
-    · exact Function.update_of_ne (by decide) _ _
-    · rfl
+  rcases hce_or with hce | hce <;> simp only [FastState.oldEp, hce] at h1 h0 ⊢
+  all_goals
+    split_ifs <;> first | rfl | exact absurd ‹_› (h1 trivial) | exact absurd ‹_› (h0 trivial)
 
 /-- `fastDelete` preserves `epochTickWillSucceed`. -/
 theorem epochTickWillSucceed_fastDelete {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
@@ -156,9 +142,8 @@ theorem epochTickWillSucceed_fastDelete {c U V n_max : ℕ} {θ : SeedWhp c U n_
         dsimp only [fs2]
         split_ifs with hlt_l
         · have hne_l := hno_old b hb (fs.bktCount b - 1) (by omega)
-          have hls1 : fs1.locState = fs.locState := rfl
           dsimp only [fastDeleteMoveLast]
-          rw [hls1]
+          rw [show fs1.locState = fs.locState from rfl]
           exact (buf_oldEp_ite_locState hv.curEp_or
             (fun ho => by rwa [ho] at hne_l)
             (fun ho => by rwa [ho] at hne_l) _ _ _).trans hrem_buf
@@ -283,15 +268,11 @@ theorem checkEpochTickOkGenProg_spec {c U V w n_max base : ℕ}
       (hvp : ValidProg w (base + largeSpaceWhp c U V w n_max) s p)
       (hn : c₁ + c₂ ≤ n) {k : α → Memory.Prog ℕ} (hk : Spec c₂ (k v) r) :
       Spec n (p >>= k) r := by
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · rw [clientState_bind, hst, hres, hk.1]
-    · rw [clientResult_bind, hst, hres, hk.2.1]
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hst, hres]
-      exact (Nat.add_le_add hmc hk.2.2.1).trans hn
-    · refine validProg_bind hvp ?_
-      rw [hst, hres]
-      exact hk.2.2.2
+    refine ⟨by rw [clientState_bind, hst, hres, hk.1],
+      by rw [clientResult_bind, hst, hres, hk.2.1], ?_,
+      validProg_bind hvp (by simpa only [hst, hres] using hk.2.2.2)⟩
+    simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres]
+    exact (Nat.add_le_add hmc hk.2.2.1).trans hn
   dsimp only
   change Spec 5 _ _
   unfold checkEpochTickOkGenProg

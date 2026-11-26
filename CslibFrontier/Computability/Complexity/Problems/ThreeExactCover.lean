@@ -153,9 +153,8 @@ private theorem computableInPolyTime_occ_unary :
 private theorem computableInPolyTime_occ :
     ComputableInPolyTime (fun p : CNF ℕ × ℕ => occ p.1 p.2) (encPair encCNF encNat)
       (encList encNat) := by
-  have h := (ComputableInPolyTime.map (encA := encUnary) (encB := encNat) (f := fun n => n)
-    ComputableInPolyTime.unary_to_binary).comp computableInPolyTime_occ_unary
-  simpa using h
+  simpa using (ComputableInPolyTime.map ComputableInPolyTime.unary_to_binary).comp
+    computableInPolyTime_occ_unary
 
 private theorem computableInPolyTime_gadget :
     ComputableInPolyTime (fun p : ℕ × List ℕ => gadget p.1 p.2) (encPair encUnary (encList encNat))
@@ -415,10 +414,8 @@ theorem oneSatisfiable_of_mem {φ : CNF ℕ}
     refine List.mem_append_left _ (List.mem_flatMap.mpr ⟨w, hvars w hw, ?_⟩)
     exact append_range_mem_gadget (off := 0) hocc₁ hocc₃ fun i hi => by omega
   obtain ⟨S₀, hS₀⟩ := Finset.card_eq_one.mp (hD j hjC)
-  have hmem : S₀ ∈ D.filter (j ∈ ·) := hS₀ ▸ Finset.mem_singleton_self S₀
-  obtain ⟨hS₀D, hjS₀⟩ := Finset.mem_filter.mp hmem
-  have huniq : ∀ S ∈ D, j ∈ S → S = S₀ := fun S hS hjS =>
-    Finset.mem_singleton.mp (hS₀ ▸ Finset.mem_filter.mpr ⟨hS, hjS⟩)
+  obtain ⟨⟨hS₀D, hjS₀⟩, huniq⟩ : (S₀ ∈ D ∧ j ∈ S₀) ∧ ∀ S, S ∈ D ∧ j ∈ S → S = S₀ := by
+    simpa only [Finset.eq_singleton_iff_unique_mem, Finset.mem_filter] using hS₀
   obtain ⟨w', hw', hS₀occ⟩ := exists_occ_of_mem_reduce hs (hDC S₀ hS₀D) hjS₀ hj
   -- the true variable of the clause is the least one with the occurrences of `S₀`
   have hP : ∃ n, n ∈ φ.vars ∧ occ φ n = occ φ w' := ⟨w', hw', rfl⟩
@@ -433,7 +430,7 @@ theorem oneSatisfiable_of_mem {φ : CNF ℕ}
     exact Nat.find_min' hP ⟨hu, hocc.trans hvocc⟩
   · obtain ⟨S, hSD, hSocc, hmin⟩ := of_decide_eq_true hσv
     have hjS : j ∈ S := (List.mem_filter.mp (hSocc ▸ mem_occ_of_mem hj hv)).1
-    have hoccv : occ φ v = occ φ w' := by rw [← hSocc, huniq S hSD hjS, hS₀occ]
+    have hoccv : occ φ v = occ φ w' := by rw [← hSocc, huniq S ⟨hSD, hjS⟩, hS₀occ]
     exact le_antisymm (hmin _ hvs (hvocc.trans hoccv.symm))
       (Nat.find_min' hP ⟨hvars v hv, hoccv⟩)
 
@@ -465,8 +462,7 @@ private theorem perm_flatten_padBlocks (m : ℕ) (Os : List (List ℕ)) (off : �
       congr 1
       exact List.map_congr_left fun i _ => by simp only [Function.comp_apply]; omega
     simp only [padBlocks, List.flatten_cons, List.append_assoc, hr]
-    refine List.Perm.append_left O ?_
-    refine ((ih _).append_left _).trans ?_
+    refine List.Perm.append_left O (((ih _).append_left _).trans ?_)
     exact List.perm_iff_count.mpr fun a => by simp only [List.count_append]; omega
 
 private theorem flatten_restTriples (start q : ℕ) :
@@ -554,16 +550,10 @@ theorem mem_of_oneSatisfiable {φ : CNF ℕ}
   -- the exact cover
   let L := padBlocks m Os 0 ++ restTriples (m + deficit Os) (m - Os.length)
   have hL : L.flatten.Perm (List.range (3 * m)) := by
-    have e₁ := ((perm_flatten_padBlocks m Os 0).trans (hperm_O.append_right _)).append
-      (List.Perm.refl (restTriples (m + deficit Os) (m - Os.length)).flatten)
-    rw [List.flatten_append]
-    refine e₁.trans (List.Perm.of_eq ?_)
-    rw [flatten_restTriples, List.append_assoc,
-      show 3 * m = m + (deficit Os + 3 * (m - Os.length)) by omega, List.range_add,
-      List.range_add, List.map_append, List.map_map]
-    congr 1
-    congr 1
-    exact List.map_congr_left fun i _ => by simp only [Function.comp_apply]; omega
+    rw [List.flatten_append, flatten_restTriples,
+      show 3 * m = (m + deficit Os) + 3 * (m - Os.length) by omega, List.range_add, List.range_add]
+    simpa only [Nat.add_zero] using
+      ((perm_flatten_padBlocks m Os 0).trans (hperm_O.append_right _)).append (List.Perm.refl _)
   have hLnodup : L.flatten.Nodup := hL.nodup_iff.mpr List.nodup_range
   have hLlt : ∀ S ∈ L, ∀ x ∈ S, x < 3 * m := fun S hS x hx =>
     List.mem_range.mp (hL.subset (List.mem_flatten.mpr ⟨S, hS, hx⟩))
@@ -612,12 +602,11 @@ end ThreeExactCover
 open ThreeExactCover in
 /-- 3XC is in NP: a certificate selects the sets of the exact cover. -/
 theorem ThreeExactCover_mem_NP : ThreeExactCover ∈ NP encNatSetList := by
-  have h := mem_NP_of_subsetWitness (enc := encNatSetList) (encγ := encList encNat)
+  convert mem_NP_of_subsetWitness (enc := encNatSetList) (encγ := encList encNat)
     (vs := fun C => C) (check := check)
     (P := fun C D => (∀ S ∈ C, S.length = 3 ∧ S.Nodup) ∧
       ∀ u ∈ C.flatten, (D.filter (u ∈ ·)).card = 1)
-    (by fun_prop) computableInPolyTime_check fun C l hl _ => check_iff C l hl
-  convert h using 1
+    (by fun_prop) computableInPolyTime_check (fun C l hl _ => check_iff C l hl) using 1
   ext C
   simp only [ThreeExactCover, IsExactCover, Set.mem_ofPred_eq]
   tauto

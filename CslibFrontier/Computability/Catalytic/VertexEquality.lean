@@ -406,9 +406,7 @@ private theorem run_twoStageSqDistProc (B n : ℕ) (c₂ : ZMod (2 ^ innerAccBit
           ((stageOneSqDistProc B n 1).run x y T₁).2.val)
         T₂) := by
   have hinv : (stageOneSqDistProc B n (-1)).run x y ((stageOneSqDistProc B n 1).run x y T₁) =
-      T₁ := by
-    rw [stageOneSqDistProc, stageOneSqDistProc, run_sqDistProc, run_sqDistProc]
-    exact addSqDist_neg_addSqDist 1 () _ _ T₁
+      T₁ := addSqDist_neg_addSqDist 1 () _ _ T₁
   rw [twoStageSqDistProc, ExcursionProc.run_liftAlternating _ _ _ _ rfl hinv, run_sqDistProc]
 
 private theorem run_twoStageSqDistProc_neg (B n x y : ℕ)
@@ -443,10 +441,7 @@ theorem run_vertexEqProc_chunk (B n x y : ℕ) (cat : VertexCatState B n) (s₀ 
       (cat, s₀ + if natChunkVec (outerChunkBits B) (outerDigits B n) x =
           natChunkVec (outerChunkBits B) (outerDigits B n) y then 1 else 0) := by
   obtain ⟨T₁, T₂, W⟩ := cat
-  have hsymm : (vertexStateEquiv B n).symm ((T₁, T₂, W), s₀) = ((T₁, T₂), (W, s₀)) := by
-    simp only [vertexStateEquiv, Equiv.symm_trans_apply, Equiv.prodCongr_symm,
-      Equiv.refl_symm, Equiv.prodCongr_apply, Equiv.prodAssoc_symm_apply, Equiv.refl_apply,
-      Prod.map_apply, Equiv.symm_symm, Equiv.prodAssoc_apply]
+  have hsymm : (vertexStateEquiv B n).symm ((T₁, T₂, W), s₀) = ((T₁, T₂), (W, s₀)) := rfl
   rw [vertexEqProc, ExcursionProc.run_mapState, hsymm,
     ExcursionProc.run_liftAlternating _ _ _ _ rfl (run_twoStageSqDistProc_neg B n x y (T₁, T₂)),
     run_keyTestProc]
@@ -460,8 +455,8 @@ and adds `if x = y then 1 else 0` to `s₀`. -/
 theorem run_vertexEqProc {B n x y : ℕ} (hx : x < 2 ^ n) (hy : y < 2 ^ n)
     (cat : VertexCatState B n) (s₀ : ZMod 2) :
     (vertexEqProc B n).run x y (cat, s₀) = (cat, s₀ + if x = y then 1 else 0) := by
-  have hq₁ : 0 < outerChunkBits B := by simp [outerChunkBits]
-  have hcov : n ≤ outerDigits B n * outerChunkBits B := Nat.le_ceilDiv_mul hq₁
+  have hcov : n ≤ outerDigits B n * outerChunkBits B :=
+    Nat.le_ceilDiv_mul (by simp [outerChunkBits])
   rw [run_vertexEqProc_chunk]
   simp only [natChunkVec_eq_iff
     (hx.trans_le (Nat.pow_le_pow_right (by decide) hcov))
@@ -518,8 +513,7 @@ theorem card_vertexCatState (B n : ℕ) :
       Fintype.card ((Unit → Fin ℓ → ZMod (2 ^ k)) × ZMod (2 ^ k)) = 2 ^ ((ℓ + 1) * k) := by
     rw [Fintype.card_prod, Fintype.card_fun, Fintype.card_fun, ZMod.card, Fintype.card_fin,
       Fintype.card_unique, pow_one, ← pow_mul, ← pow_add]
-    congr 1
-    ring
+    exact congrArg (2 ^ ·) (by ring)
   rw [Fintype.card_prod, card_reg, Fintype.card_prod, card_reg,
     Fintype.card_fun, ZMod.card, ZMod.card, vertexCatBits, pow_add, pow_add]
   ring
@@ -543,11 +537,9 @@ private theorem outerAccBits_le {B n C_N : ℕ} (hn : n ≤ C_N * B) :
           Nat.mul_lt_mul_of_pos_right hc (by positivity)
       _ = 2 ^ (Nat.log 2 (C_N + 1) + outerChunkBits B + 2) := by
           rw [← pow_add]
-          congr 1
-          omega
+          exact congrArg (2 ^ ·) (by omega)
   have := Nat.log_lt_of_lt_pow' (by omega) hℓ₁_lt
-  rw [outerAccBits]
-  omega
+  rw [outerAccBits]; omega
 
 /-- **Constant Stage-2 chunk count.** When `n ≤ C_N * B`, the number of inner chunks
 `innerDigits B n` is bounded by `Nat.log 2 (C_N + 1) + 11`, independently of `B`. -/
@@ -574,20 +566,17 @@ theorem vertexCatBits_le {B n C_N : ℕ} (hn : n ≤ C_N * B) :
   -- Stage 1 bit bound: `(ℓ₁ + 1) * k₁ ≤ (c + 5) * (C_N + 2) * (B + 1)`.
   have hk₁_le : outerAccBits B n ≤ (c + 5) * outerChunkBits B := by
     have := outerAccBits_le hn
-    have : c ≤ c * outerChunkBits B := Nat.le_mul_of_pos_right c hq₁_pos
-    rw [Nat.add_mul]
-    omega
+    have := Nat.le_mul_of_pos_right c hq₁_pos
+    rw [Nat.add_mul]; omega
   have hℓ₁_mul : outerDigits B n * outerChunkBits B < n + outerChunkBits B :=
     Nat.ceilDiv_mul_lt hq₁_pos
   have hstage1 : (outerDigits B n + 1) * outerAccBits B n ≤ (c + 5) * (C_N + 2) * (B + 1) := by
     calc (outerDigits B n + 1) * outerAccBits B n
         ≤ (outerDigits B n + 1) * ((c + 5) * outerChunkBits B) := Nat.mul_le_mul_left _ hk₁_le
       _ = (c + 5) * (outerDigits B n * outerChunkBits B + outerChunkBits B) := by ring
-      _ ≤ (c + 5) * ((C_N + 2) * (B + 1)) := by
-          refine Nat.mul_le_mul_left _ ?_
-          have : C_N * B ≤ C_N * (B + 1) := Nat.mul_le_mul_left C_N (by omega)
-          rw [Nat.add_mul]
-          omega
+      _ ≤ (c + 5) * ((C_N + 2) * (B + 1)) := Nat.mul_le_mul_left _ <| by
+          have := Nat.mul_le_mul_left C_N (Nat.le_add_right B 1)
+          rw [Nat.add_mul]; omega
       _ = (c + 5) * (C_N + 2) * (B + 1) := by ring
   -- Stage 2 bit bound and Stage 3 table bound via `k₂ ≤ 2 * q₂ + d`.
   have hℓ₂ : innerDigits B n ≤ c + 11 := innerDigits_le hn
@@ -595,8 +584,7 @@ theorem vertexCatBits_le {B n C_N : ℕ} (hn : n ≤ C_N * B) :
   have hk₂ : innerAccBits B n ≤ 2 * innerChunkBits B + d := by grind [innerAccBits]
   have hk₂_lin : innerAccBits B n ≤ (d + 2) * (B + 1) := by
     have : d ≤ d * (B + 1) := Nat.le_mul_of_pos_right d (by omega)
-    rw [Nat.add_mul]
-    omega
+    rw [Nat.add_mul]; omega
   have hstage2 : (innerDigits B n + 1) * innerAccBits B n ≤ (c + 12) * (d + 2) * (B + 1) :=
     (Nat.mul_le_mul (show innerDigits B n + 1 ≤ c + 12 by omega) hk₂_lin).trans_eq (by ring)
   have hpow_q₂ : 2 ^ (2 * innerChunkBits B) ≤ 4 * (B + 1) := by

@@ -106,12 +106,8 @@ theorem toOuterMeasure_mul_le_bhattacharyya_div_sqrt (p q : PMF α) {c : ℝ} (h
 bhattacharyya p q`. -/
 theorem toOuterMeasure_le_bhattacharyya (p q : PMF α) :
     (p.toOuterMeasure {a | p a ≤ q a}).toReal ≤ bhattacharyya p q := by
-  have heq : {a : α | p a ≤ q a} = {a : α | 1 * (p a).toReal ≤ (q a).toReal} := by
-    ext a
-    simp only [Set.mem_ofPred_eq, one_mul,
-      ENNReal.toReal_le_toReal (p.apply_ne_top a) (q.apply_ne_top a)]
-  rw [heq]
-  simpa using toOuterMeasure_mul_le_bhattacharyya_div_sqrt p q zero_lt_one
+  simpa [ENNReal.toReal_le_toReal (p.apply_ne_top _) (q.apply_ne_top _)] using
+    toOuterMeasure_mul_le_bhattacharyya_div_sqrt p q zero_lt_one
 
 /-- Real-valued form of the single-sample likelihood-ratio Chernoff bound. -/
 theorem toOuterMeasure_toReal_le_bhattacharyya (p q : PMF α) :
@@ -145,24 +141,17 @@ theorem toOuterMeasure_iid_prod_toReal_le_bhattacharyya_pow [Finite α]
     (p q : PMF α) (n : ℕ) :
     ((iid p n).toOuterMeasure {x | ∏ i, (p (x i)).toReal ≤ ∏ i, (q (x i)).toReal}).toReal ≤
       bhattacharyya p q ^ n := by
-  have heq :
-      {x : Fin n → α | ∏ i, (p (x i)).toReal ≤ ∏ i, (q (x i)).toReal} =
-        {x : Fin n → α | iid p n x ≤ iid q n x} := by
-    ext x
-    simp only [Set.mem_ofPred_eq, ← ENNReal.toReal_prod, ← iid_apply,
-      ENNReal.toReal_le_toReal ((iid p n).apply_ne_top x) ((iid q n).apply_ne_top x)]
-  rw [heq]
-  exact toOuterMeasure_iid_le_bhattacharyya_pow p q n
+  simpa only [← ENNReal.toReal_prod, ← iid_apply,
+    ENNReal.toReal_le_toReal ((iid p n).apply_ne_top _) ((iid q n).apply_ne_top _)] using
+    toOuterMeasure_iid_le_bhattacharyya_pow p q n
 
 /-- Exponential upper bound on the `n`-th power of the Bhattacharyya coefficient:
 `bhattacharyya p q ^ n ≤ Real.exp (-n * hellingerSq p q)`. -/
 theorem bhattacharyya_pow_le_exp_hellingerSq (p q : PMF α) (n : ℕ) :
     bhattacharyya p q ^ n ≤ Real.exp (-(n : ℝ) * hellingerSq p q) := by
   rw [hellingerSq_eq_one_sub_bhattacharyya]
-  have hpow := Real.one_sub_pow_le_exp (p := 1 - bhattacharyya p q)
-    (c := (n : ℝ) * (1 - bhattacharyya p q)) (R := n) (by linarith [bhattacharyya_nonneg p q])
-    le_rfl
-  simpa only [sub_sub_cancel, neg_mul] using hpow
+  simpa only [sub_sub_cancel, neg_mul] using Real.one_sub_pow_le_exp
+    (c := (n : ℝ) * (1 - bhattacharyya p q)) (by linarith [bhattacharyya_nonneg p q]) le_rfl
 
 /-- Exponential Hellinger form of the `n`-fold i.i.d. likelihood-ratio Chernoff bound in terms of
 `hellingerSq`. -/

@@ -130,17 +130,10 @@ prefers their core bundle `x i` to their initial endowment `E.endowment i`. -/
 theorem IsInCore.individuallyRational {E : ExchangeMarket I G} {x : I → G → ℝ}
     (hcore : E.IsInCore x) (i : I) :
     E.utility i (E.endowment i) ≤ E.utility i (x i) := by
-  by_contra hlt
-  push Not at hlt
-  refine hcore.2 {i} E.endowment ⟨singleton_nonempty i, ?_, ?_, ?_, ⟨i, mem_singleton_self i, hlt⟩⟩
-  · intro j hj g
-    rw [mem_singleton.1 hj]
-    exact E.endowment_nonneg i g
-  · intro g
-    simp
-  · intro j hj
-    rw [mem_singleton.1 hj]
-    exact hlt.le
+  by_contra! hlt
+  exact hcore.2 {i} E.endowment ⟨singleton_nonempty i,
+    fun j hj g => mem_singleton.1 hj ▸ E.endowment_nonneg i g, fun _ => le_rfl,
+    fun j hj => mem_singleton.1 hj ▸ hlt.le, ⟨i, mem_singleton_self i, hlt⟩⟩
 
 /-- **Competitive equilibria belong to the core** ([DebreuScarf1963]): in any locally nonsatiated
 exchange economy (with no convexity hypothesis), no coalition can block a competitive equilibrium
@@ -153,12 +146,10 @@ theorem IsCompetitiveEquilibrium.isInCore {E : ExchangeMarket I G} {x : I → G 
   obtain ⟨_, hz_nn, hz_endow, hz_le, ⟨i₀, hi₀S, hi₀_lt⟩⟩ := hblock
   have hdem : ∀ i, x i ∈ Market.demandSet (E.utility i) p (E.income p i) :=
     fun i => (E.mem_demandSet).1 (heq.2.1 i)
-  have hall_le : ∀ i ∈ S, E.income p i ≤ expenditure p (z i) :=
-    fun i hi => (hlns i).le_expenditure_of_mem_demandSet (hdem i) (hz_nn i hi) (hz_le i hi)
-  have hstrict : E.income p i₀ < expenditure p (z i₀) :=
-    lt_expenditure_of_mem_demandSet (hdem i₀) (hz_nn i₀ hi₀S) hi₀_lt
   have hsum_lt : ∑ i ∈ S, E.income p i < ∑ i ∈ S, expenditure p (z i) :=
-    sum_lt_sum hall_le ⟨i₀, hi₀S, hstrict⟩
+    sum_lt_sum
+      (fun i hi => (hlns i).le_expenditure_of_mem_demandSet (hdem i) (hz_nn i hi) (hz_le i hi))
+      ⟨i₀, hi₀S, lt_expenditure_of_mem_demandSet (hdem i₀) (hz_nn i₀ hi₀S) hi₀_lt⟩
   have hsum_le : ∑ i ∈ S, expenditure p (z i) ≤ ∑ i ∈ S, E.income p i := by
     calc
       ∑ i ∈ S, expenditure p (z i) = ∑ g : G, p g * ∑ i ∈ S, z i g := by
@@ -251,13 +242,8 @@ theorem eq_of_isInCore_replica {E : ExchangeMarket I G} {r : ℕ} [NeZero r]
   have hr_rpos : 0 < (r : ℝ) := Nat.cast_pos.2 hr_pos
   have : Nonempty (Fin r) := Fin.pos_iff_nonempty.1 hr_pos
   -- For each type `k : I`, pick a worst-off replica `cMin k : Fin r`.
-  have hmin_ex : ∀ k : I, ∃ cm : Fin r, ∀ c : Fin r,
-      E.utility k (y (k, cm)) ≤ E.utility k (y (k, c)) := by
-    intro k
-    obtain ⟨cm, -, hcm⟩ :=
-      exists_min_image univ (fun c : Fin r => E.utility k (y (k, c))) univ_nonempty
-    exact ⟨cm, fun c => hcm c (mem_univ c)⟩
-  choose cMin hcMin using hmin_ex
+  choose cMin _ hcMin using fun k : I =>
+    exists_min_image univ (fun c : Fin r => E.utility k (y (k, c))) univ_nonempty
   -- Form the underdog coalition `U = {(k, cMin k) | k : I}` and type-average allocation `avg`.
   let emb : I ↪ I × Fin r := ⟨fun k => (k, cMin k), fun _ _ h => (Prod.mk.inj h).1⟩
   have hemb : ∀ k : I, emb k = (k, cMin k) := fun _ => rfl
@@ -268,9 +254,6 @@ theorem eq_of_isInCore_replica {E : ExchangeMarket I G} {r : ℕ} [NeZero r]
     fun _ _ => one_div_pos.2 hr_rpos
   have hw_sum : ∑ _c : Fin r, (1 / (r : ℝ)) = 1 := by
     simp [hr_rpos.ne']
-  have havg_nn : ∀ (k : I) (g : G), 0 ≤ avg k g := fun k g => by
-    simp only [avg, Finset.sum_apply, Pi.smul_apply, smul_eq_mul]
-    exact sum_nonneg fun c _ => mul_nonneg (one_div_nonneg.2 hr_rpos.le) (hcore.1.1 (k, c) g)
   have hmin_le : ∀ k : I, E.utility k (y (k, cMin k)) ≤
       ∑ c : Fin r, (1 / (r : ℝ)) * E.utility k (y (k, c)) := fun k => by
     calc
@@ -279,21 +262,20 @@ theorem eq_of_isInCore_replica {E : ExchangeMarket I G} {r : ℕ} [NeZero r]
           rw [← sum_mul, hw_sum, one_mul]
       _ ≤ ∑ c : Fin r, (1 / (r : ℝ)) * E.utility k (y (k, c)) :=
           sum_le_sum fun c _ =>
-            mul_le_mul_of_nonneg_left (hcMin k c) (one_div_nonneg.2 hr_rpos.le)
+            mul_le_mul_of_nonneg_left (hcMin k c (mem_univ c)) (one_div_nonneg.2 hr_rpos.le)
   -- Show `U` blocks `y` via `z`.
   refine hcore.2 U z ⟨⟨emb i, mem_map.2 ⟨i, mem_univ i, rfl⟩⟩, ?_, ?_, ?_, ?_⟩
   · intro ic _ g
-    exact havg_nn ic.1 g
+    simp only [z, avg, Finset.sum_apply, Pi.smul_apply, smul_eq_mul]
+    exact sum_nonneg fun c _ => mul_nonneg (one_div_nonneg.2 hr_rpos.le) (hcore.1.1 (ic.1, c) g)
   · intro g
     simp only [U, z, sum_map, hemb, replica_endowment]
     have hsum_avg : ∑ k : I, avg k g = (1 / (r : ℝ)) * ∑ ic : I × Fin r, y ic g := by
       simp only [avg, Finset.sum_apply, Pi.smul_apply, smul_eq_mul, ← mul_sum,
         Fintype.sum_prod_type]
-    rw [hsum_avg, ← E.totalSupply_eq_sum]
-    have hfeas := hcore.1.2 g
-    rw [E.replica_totalSupply r g] at hfeas
-    have := mul_le_mul_of_nonneg_left hfeas (one_div_nonneg.2 hr_rpos.le)
-    rwa [← mul_assoc, one_div_mul_cancel hr_rpos.ne', one_mul] at this
+    rw [hsum_avg, one_div_mul_eq_div, div_le_iff₀' hr_rpos, ← E.totalSupply_eq_sum,
+      ← E.replica_totalSupply]
+    exact hcore.1.2 g
   · intro ic hic
     obtain ⟨k, -, rfl⟩ := mem_map.1 hic
     simp only [emb, replica_utility, z]
@@ -350,12 +332,10 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
     rintro z₁ ⟨S₁, α₁, b₁, hS₁, hα₁_pos, hα₁_sum, hb₁_nn, hb₁_gt, hz₁⟩
       z₂ ⟨S₂, α₂, b₂, hS₂, hα₂_pos, hα₂_sum, hb₂_nn, hb₂_gt, hz₂⟩ t₁ t₂ ht₁ ht₂ ht
     rcases eq_or_lt_of_le ht₁ with rfl | ht₁_pos
-    · have ht₂1 : t₂ = 1 := by linarith
-      subst ht₂1
+    · obtain rfl : t₂ = 1 := by linarith
       simpa using ⟨S₂, α₂, b₂, hS₂, hα₂_pos, hα₂_sum, hb₂_nn, hb₂_gt, hz₂⟩
     rcases eq_or_lt_of_le ht₂ with rfl | ht₂_pos
-    · have ht₁1 : t₁ = 1 := by linarith
-      subst ht₁1
+    · obtain rfl : t₁ = 1 := by linarith
       simpa using ⟨S₁, α₁, b₁, hS₁, hα₁_pos, hα₁_sum, hb₁_nn, hb₁_gt, hz₁⟩
     · let S : Finset I := S₁ ∪ S₂
       let w₁ : I → ℝ := fun i => if i ∈ S₁ then t₁ * α₁ i else 0
@@ -369,13 +349,10 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
         dsimp only [w₂]
         split_ifs with h
         exacts [mul_nonneg ht₂_pos.le (hα₂_pos i h).le, le_rfl]
-      have hα_pos : ∀ i ∈ S, 0 < α i := by
-        intro i hi
+      have hα_pos : ∀ i ∈ S, 0 < α i := fun i hi => by
         rcases mem_union.1 hi with hi₁ | hi₂
-        · have hw₁_pos : 0 < w₁ i := by simp [w₁, hi₁, mul_pos ht₁_pos (hα₁_pos i hi₁)]
-          linarith [hw₂_nn i]
-        · have hw₂_pos : 0 < w₂ i := by simp [w₂, hi₂, mul_pos ht₂_pos (hα₂_pos i hi₂)]
-          linarith [hw₁_nn i]
+        · linarith [hw₂_nn i, show 0 < w₁ i by simp [w₁, hi₁, mul_pos ht₁_pos (hα₁_pos i hi₁)]]
+        · linarith [hw₁_nn i, show 0 < w₂ i by simp [w₂, hi₂, mul_pos ht₂_pos (hα₂_pos i hi₂)]]
       have hsum_w₁ : ∑ i ∈ S, w₁ i = t₁ := by
         rw [sum_ite_mem, inter_eq_right.2 subset_union_left, ← mul_sum, hα₁_sum, mul_one]
       have hsum_w₂ : ∑ i ∈ S, w₂ i = t₂ := by
@@ -397,31 +374,20 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
             have hc₁_nn : 0 ≤ w₁ i / α i := div_nonneg (hw₁_nn i) hαi.le
             have hc₂_nn : 0 ≤ w₂ i / α i := div_nonneg (hw₂_nn i) hαi.le
             have hc_sum : w₁ i / α i + w₂ i / α i = 1 := by
-              rw [← add_div]
-              exact div_self hαi.ne'
+              rw [← add_div, div_self hαi.ne']
             have hcomb := hconv i (hx_feas.1 i) ⟨hb₁_nn i hi₁, hb₁_gt i hi₁⟩
               ⟨hb₂_nn i hi₂, hb₂_gt i hi₂⟩ hc₁_nn hc₂_nn hc_sum
-            have hbi_eq : b i = (w₁ i / α i) • b₁ i + (w₂ i / α i) • b₂ i := by simp [b, hi₁, hi₂]
-            refine ⟨by rw [hbi_eq]; exact hcomb.1, by rw [hbi_eq]; exact hcomb.2, fun g => ?_⟩
-            rw [hbi_eq]
+            simp only [b, hi₁, hi₂, ↓reduceIte]
+            refine ⟨hcomb.1, hcomb.2, fun g => ?_⟩
             simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
-            have hα_def : α i = w₁ i + w₂ i := rfl
             field_simp [hαi.ne']
-            rw [hα_def]
+            dsimp only [α]
             ring
-          · have hbi_eq : b i = b₁ i := by simp [b, hi₁, hi₂]
-            have hw₂0 : w₂ i = 0 := by simp [w₂, hi₂]
-            refine ⟨by rw [hbi_eq]; exact hb₁_nn i hi₁, by rw [hbi_eq]; exact hb₁_gt i hi₁,
-              fun g => ?_⟩
-            rw [hbi_eq]
-            simp only [α, hw₂0, add_zero, zero_mul]
+          · simp only [b, w₂, α, hi₁, hi₂, ↓reduceIte, add_zero, zero_mul]
+            exact ⟨hb₁_nn i hi₁, hb₁_gt i hi₁, fun _ => trivial⟩
         · have hi₂ : i ∈ S₂ := (mem_union.1 hi).resolve_left hi₁
-          have hbi_eq : b i = b₂ i := by simp [b, hi₁]
-          have hw₁0 : w₁ i = 0 := by simp [w₁, hi₁]
-          refine ⟨by rw [hbi_eq]; exact hb₂_nn i hi₂, by rw [hbi_eq]; exact hb₂_gt i hi₂,
-            fun g => ?_⟩
-          rw [hbi_eq]
-          simp only [α, hw₁0, zero_add, zero_mul]
+          simp only [b, w₁, α, hi₁, ↓reduceIte, zero_add, zero_mul]
+          exact ⟨hb₂_nn i hi₂, hb₂_gt i hi₂, fun _ => trivial⟩
       refine ⟨S, α, b, hS₁.mono subset_union_left, hα_pos, hα_sum,
         fun i hi => (hb_props i hi).1, fun i hi => (hb_props i hi).2.1, fun g => ?_⟩
       have hsum_eq : ∑ i ∈ S, α i * (b i g - E.endowment i g) =
@@ -451,17 +417,11 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
     obtain ⟨g₀, -, hg₀⟩ := exists_min_image univ (fun g : G => -D g) univ_nonempty
     set δ : ℝ := -D g₀
     have hδ_pos : 0 < δ := hD_neg g₀
-    have hD_le : ∀ g : G, D g ≤ -δ := fun g => by
-      have := hg₀ g (mem_univ g)
-      linarith
+    have hD_le : ∀ g : G, D g ≤ -δ := fun g => by linarith [hg₀ g (mem_univ g)]
     set B : ℝ := ∑ i ∈ S, ∑ g : G, |b i g - E.endowment i g|
-    have hB_nn : 0 ≤ B := sum_nonneg fun _ _ => sum_nonneg fun _ _ => abs_nonneg _
     set M : ℕ := Nat.floor ((B + 1) / δ) + 1
-    have hM_gt : (B + 1) / δ < (M : ℝ) := by
-      dsimp only [M]
-      push_cast
-      exact Nat.lt_floor_add_one _
-    have hMδ_gt : B + 1 < (M : ℝ) * δ := (div_lt_iff₀ hδ_pos).1 hM_gt
+    have hMδ_gt : B + 1 < (M : ℝ) * δ :=
+      (div_lt_iff₀ hδ_pos).1 (by exact_mod_cast Nat.lt_floor_add_one ((B + 1) / δ))
     let k : I → ℕ := fun i => Nat.floor ((M : ℝ) * α i) + 1
     have hk_pos : ∀ i ∈ S, 0 < k i := fun _ _ => Nat.succ_pos _
     set r : ℕ := S.sup' hS k
@@ -473,52 +433,40 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
       (univ.filter (fun c : Fin r => c.val < k i)).map
         ⟨fun c => (i, c), fun _ _ h => (Prod.mk.inj h).2⟩
     let C : Finset (I × Fin r) := S.biUnion slice
-    have hslice_disj : (S : Set I).PairwiseDisjoint slice := by
-      intro i₁ _ i₂ _ hne
-      change Disjoint (slice i₁) (slice i₂)
-      rw [Finset.disjoint_left]
-      intro ic hic₁ hic₂
-      obtain ⟨c₁, -, rfl⟩ := mem_map.1 hic₁
-      obtain ⟨c₂, -, heq⟩ := mem_map.1 hic₂
-      exact hne (Prod.mk.inj heq).1.symm
+    have hslice_disj : (S : Set I).PairwiseDisjoint slice := fun i₁ _ i₂ _ hne =>
+      Finset.disjoint_left.2 fun _ hic₁ hic₂ => by
+        obtain ⟨_, -, rfl⟩ := mem_map.1 hic₁
+        obtain ⟨_, -, heq⟩ := mem_map.1 hic₂
+        exact hne (Prod.mk.inj heq).1.symm
     have hcard_slice : ∀ i ∈ S, (slice i).card = k i := by
       intro i hi
       have hki_le : k i ≤ r := le_sup' k hi
       simp only [slice, card_map]
-      have hbij : (univ.filter (fun c : Fin r => c.val < k i)).card = (Finset.range (k i)).card :=
-        Finset.card_bij (fun (c : Fin r) _ => c.val)
-          (fun c hc => mem_range.2 (mem_filter.1 hc).2)
-          (fun _ _ _ _ h => Fin.ext h)
-          (fun m hm => ⟨⟨m, lt_of_lt_of_le (mem_range.1 hm) hki_le⟩,
-            mem_filter.2 ⟨mem_univ _, mem_range.1 hm⟩, rfl⟩)
-      rw [hbij, card_range]
+      exact (Finset.card_bij (fun (c : Fin r) _ => c.val)
+        (fun c hc => mem_range.2 (mem_filter.1 hc).2)
+        (fun _ _ _ _ h => Fin.ext h)
+        (fun m hm => ⟨⟨m, lt_of_lt_of_le (mem_range.1 hm) hki_le⟩,
+          mem_filter.2 ⟨mem_univ _, mem_range.1 hm⟩, rfl⟩)).trans (card_range _)
     have hmem_C : ∀ {ic : I × Fin r}, ic ∈ C ↔ ic.1 ∈ S ∧ ic.2.val < k ic.1 := by
       intro ⟨i, c⟩
       simp only [C, mem_biUnion, slice, mem_map, mem_filter, mem_univ, true_and]
-      constructor
-      · rintro ⟨j, hjS, c', hc', heq⟩
-        obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq
-        exact ⟨hjS, hc'⟩
-      · rintro ⟨hiS, hc⟩
-        exact ⟨i, hiS, c, hc, rfl⟩
-    have hc₀_lt : 0 < r := hr_pos
-    have hic₀_mem : (i₀, (⟨0, hc₀_lt⟩ : Fin r)) ∈ C :=
+      exact ⟨fun ⟨_, hjS, _, hc', h⟩ =>
+          ⟨(Prod.mk.inj h).1 ▸ hjS, (Prod.mk.inj h).1 ▸ (Prod.mk.inj h).2 ▸ hc'⟩,
+        fun ⟨hiS, hc⟩ => ⟨i, hiS, c, hc, rfl⟩⟩
+    have hic₀_mem : (i₀, (⟨0, hr_pos⟩ : Fin r)) ∈ C :=
       hmem_C.2 ⟨hi₀S, hk_pos i₀ hi₀S⟩
-    refine (hcore r).2 C (fun ic => b ic.1) ⟨⟨_, hic₀_mem⟩, ?_, ?_, ?_, ?_⟩
-    · intro ic hic g
-      exact hb_nn ic.1 (hmem_C.1 hic).1 g
+    refine (hcore r).2 C (fun ic => b ic.1)
+      ⟨⟨_, hic₀_mem⟩, fun ic hic g => hb_nn ic.1 (hmem_C.1 hic).1 g, ?_,
+        fun ic hic => (hb_gt ic.1 (hmem_C.1 hic).1).le, _, hic₀_mem, hb_gt i₀ hi₀S⟩
     · intro g
       have hsum_C (f : I → ℝ) : ∑ ic ∈ C, f ic.1 = ∑ i ∈ S, (k i : ℝ) * f i := by
         rw [Finset.sum_biUnion hslice_disj]
         refine sum_congr rfl fun i hi => ?_
-        have hconst : ∀ ic ∈ slice i, f ic.1 = f i := fun ic hic => by
-          obtain ⟨c, -, rfl⟩ := mem_map.1 hic
-          rfl
+        have hconst : ∀ ic ∈ slice i, f ic.1 = f i := fun _ hic =>
+          congrArg (fun p => f p.1) (mem_map.1 hic).choose_spec.2.symm
         rw [sum_congr rfl hconst, sum_const, hcard_slice i hi, nsmul_eq_mul]
-      have hsum_endow :
-          ∑ ic ∈ C, (E.replica r).endowment ic g = ∑ i ∈ S, (k i : ℝ) * E.endowment i g :=
-        hsum_C (fun i => E.endowment i g)
-      rw [hsum_C (fun i => b i g), hsum_endow]
+      simp only [replica_endowment]
+      rw [hsum_C (fun i => b i g), hsum_C (fun i => E.endowment i g)]
       -- Bound `∑ i ∈ S, k i * (b i g - w i g) = M * D g + ∑ i ∈ S, (k i - M * α i) * (...) < 0`.
       suffices hneg_diff : ∑ i ∈ S, (k i : ℝ) * (b i g - E.endowment i g) ≤ 0 by
         simp only [mul_sub, sum_sub_distrib] at hneg_diff
@@ -532,14 +480,11 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
           ∑ i ∈ S, ((k i : ℝ) - (M : ℝ) * α i) * (b i g - E.endowment i g) ≤ B :=
         calc ∑ i ∈ S, ((k i : ℝ) - (M : ℝ) * α i) * (b i g - E.endowment i g)
             ≤ ∑ i ∈ S, |b i g - E.endowment i g| := sum_le_sum fun i hi => by
-              have hfl := Nat.floor_le (mul_nonneg (Nat.cast_nonneg M) (hα_pos i hi).le)
-              have hlt := Nat.lt_floor_add_one ((M : ℝ) * α i)
+              have hk_cast : (k i : ℝ) = ↑⌊(M : ℝ) * α i⌋₊ + 1 := by simp [k]
               have hrem_nn : 0 ≤ (k i : ℝ) - (M : ℝ) * α i := by
-                dsimp only [k]
-                push_cast; linarith
+                linarith [hk_cast, Nat.lt_floor_add_one ((M : ℝ) * α i)]
               have hrem_le_1 : (k i : ℝ) - (M : ℝ) * α i ≤ 1 := by
-                dsimp only [k]
-                push_cast; linarith
+                linarith [hk_cast, Nat.floor_le (mul_nonneg (Nat.cast_nonneg M) (hα_pos i hi).le)]
               calc ((k i : ℝ) - (M : ℝ) * α i) * (b i g - E.endowment i g)
                   ≤ ((k i : ℝ) - (M : ℝ) * α i) * |b i g - E.endowment i g| :=
                     mul_le_mul_of_nonneg_left (le_abs_self _) hrem_nn
@@ -547,13 +492,7 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
                     mul_le_of_le_one_left (abs_nonneg _) hrem_le_1
           _ ≤ B := sum_le_sum fun i _ =>
               single_le_sum (fun l _ => abs_nonneg (b i l - E.endowment i l)) (mem_univ g)
-      have hMD_le : (M : ℝ) * D g ≤ -(M : ℝ) * δ := by
-        have := mul_le_mul_of_nonneg_left (hD_le g) (Nat.cast_nonneg M)
-        linarith
-      linarith
-    · intro ic hic
-      exact (hb_gt ic.1 (hmem_C.1 hic).1).le
-    · exact ⟨_, hic₀_mem, hb_gt i₀ hi₀S⟩
+      linarith [mul_le_mul_of_nonneg_left (hD_le g) (Nat.cast_nonneg M)]
   have hzero : ∀ ε : ℝ, 0 < ε → ∃ z ∈ K, ∀ g : G, |z g| < ε := fun ε hε => by
     obtain ⟨b, hb_nn, hb_gt, hb_le⟩ :=
       hx_feas.exists_forall_utility_lt_sum_sub_totalSupply_le hlns (half_pos hε)
@@ -578,17 +517,11 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
     exists_price_of_convex_disjoint_negOrthant hK_conv hK_ne hdisj hzero
   -- Singleton `S = {i}` gives `E.income p i ≤ expenditure p b` whenever `u_i(x_i) < u_i(b)`.
   have hsupp_i : ∀ (i : I) (b : G → ℝ), (∀ g, 0 ≤ b g) → E.utility i (x i) < E.utility i b →
-      E.income p i ≤ expenditure p b := by
-    intro i b hb_nn hub
-    have hz_mem : (fun g => b g - E.endowment i g) ∈ K :=
+      E.income p i ≤ expenditure p b := fun i b hb_nn hub => by
+    have hge0 := hsep (b - E.endowment i)
       ⟨{i}, fun _ => 1, fun _ => b, singleton_nonempty i, fun _ _ => zero_lt_one, by simp,
-        fun _ _ => hb_nn, fun j hj => by rw [mem_singleton.1 hj]; exact hub,
-        fun g => by simp⟩
-    have hge0 : 0 ≤ expenditure p (fun g => b g - E.endowment i g) := hsep _ hz_mem
-    have hsub : expenditure p (fun g => b g - E.endowment i g) =
-        expenditure p b - E.income p i := by
-      rw [E.income_eq]
-      exact expenditure_sub p b (E.endowment i)
+        fun _ _ => hb_nn, fun j hj => mem_singleton.1 hj ▸ hub, fun _ => by simp⟩
+    rw [expenditure_sub, ← E.income_eq] at hge0
     linarith
   -- Approaching `x i` via `hlns i` gives `E.income p i ≤ expenditure p (x i)` for every `i`.
   have hinc_le_exp : ∀ i : I, E.income p i ≤ expenditure p (x i) := fun i => by
@@ -600,13 +533,9 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
   have hsum_le : ∑ i : I, expenditure p (x i) ≤ ∑ i : I, E.income p i := by
     rw [E.sum_income p]
     exact hx_feas.sum_expenditure_le_totalSupply hp_nn
-  have hexp_eq_inc : ∀ i : I, expenditure p (x i) = E.income p i := by
-    intro i
-    by_contra hne
-    have hlt : E.income p i < expenditure p (x i) := lt_of_le_of_ne (hinc_le_exp i) (Ne.symm hne)
-    have : ∑ j : I, E.income p j < ∑ j : I, expenditure p (x j) :=
-      sum_lt_sum (fun j _ => hinc_le_exp j) ⟨i, mem_univ i, hlt⟩
-    linarith
+  have hexp_eq_inc : ∀ i : I, expenditure p (x i) = E.income p i := fun i =>
+    ((sum_eq_sum_iff_of_le fun j _ => hinc_le_exp j).1
+      (le_antisymm (sum_le_sum fun j _ => hinc_le_exp j) hsum_le) i (mem_univ i)).symm
   have hex0 : expenditure p (E.excessDemand x) = 0 := by
     rw [E.expenditure_excessDemand]
     exact sum_eq_zero fun i _ => by rw [hexp_eq_inc i, sub_self]

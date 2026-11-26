@@ -98,11 +98,8 @@ theorem intToEuclidean_eq_ratToEuclidean (v : Fin m → ℤ) :
     intToEuclidean v = ratToEuclidean fun k => (v k : ℚ) := by
   ext k; simp [intToEuclidean]
 
-theorem intToEuclidean_injective : Function.Injective (intToEuclidean (m := m)) := by
-  intro v w h
-  funext k
-  have := congrArg (fun x : EuclideanSpace ℝ (Fin m) => x k) h
-  simpa [intToEuclidean] using this
+theorem intToEuclidean_injective : Function.Injective (intToEuclidean (m := m)) :=
+  fun _ _ h => funext fun k => by simpa [intToEuclidean] using congrArg (· k) h
 
 /-- The rows of `B` as vectors of `ℝᵐ`. -/
 noncomputable def realRows (B : Vector (Vector ℤ m) n) : Fin n → EuclideanSpace ℝ (Fin m) :=
@@ -138,10 +135,9 @@ theorem span_realRows (B : Vector (Vector ℤ m) n) :
 theorem mem_span_realRows_of_eq_sum {B : Vector (Vector ℤ m) n} {v : Fin m → ℤ} {e : Fin n → ℤ}
     (h : v = ∑ i, e i • rows B i) :
     intToEuclidean v ∈ Submodule.span ℤ (Set.range (realRows B)) := by
-  rw [span_realRows]
-  refine Submodule.mem_map_of_mem ?_
-  rw [h]
-  exact Submodule.sum_mem _ fun i _ => Submodule.smul_mem _ _ (Submodule.subset_span ⟨i, rfl⟩)
+  rw [span_realRows, h]
+  exact Submodule.mem_map_of_mem
+    (Submodule.sum_mem _ fun i _ => Submodule.smul_mem _ _ (Submodule.subset_span ⟨i, rfl⟩))
 
 /-- The rows of `B` cast to `ℚ`. -/
 def castRows (B : Vector (Vector ℤ m) n) : Vector (Vector ℚ m) n :=
@@ -163,10 +159,8 @@ theorem IsGramSchmidtRows.ratToEuclidean_eq {G : Vector (Vector ℚ m) n}
 theorem isGramSchmidtRows_gramSchmidtRows (B : Vector (Vector ℤ m) n) :
     IsGramSchmidtRows (gramSchmidtRows B) B := by
   intro j
-  have h : (fun l : Fin n => ratToEuclidean fun k : Fin m => (castRows B)[l][k]) = realRows B := by
-    funext l
-    rw [realRows_apply]
-    simp [castRows]
+  have h : (fun l : Fin n => ratToEuclidean fun k : Fin m => (castRows B)[l][k]) = realRows B :=
+    funext fun l => by simp [realRows_apply, castRows]
   rw [gramSchmidtRows, gramSchmidtRowsAux_spec _ n j j.isLt, h]
 
 theorem IsGramSchmidtRows.of_isSizeStep {G : Vector (Vector ℚ m) n} {B C : Vector (Vector ℤ m) n}
@@ -263,9 +257,8 @@ theorem reduceRow_spec (G : Vector (Vector ℚ m) n) (i : Fin n) :
       fun _ _ _ => rfl⟩
   | succ t ih =>
     intro B ht hG hli
-    have htn : t < n := by omega
-    have hti : (⟨t, htn⟩ : Fin n) < i := by
-      change t < (i : ℕ); omega
+    have htn : t < n := by have := i.isLt; omega
+    have hti : (⟨t, htn⟩ : Fin n) < i := by simp only [Fin.lt_def]; omega
     simp only [reduceRow, htn, dite_true]
     have hstep := isSizeStep_reduceStep G B hti
     obtain ⟨h1, h2, h3, h4⟩ := ih (reduceStep G B i ⟨t, htn⟩) (by omega) (hG.of_isSizeStep hstep)
@@ -275,12 +268,11 @@ theorem reduceRow_spec (G : Vector (Vector ℚ m) n) (i : Fin n) :
     · rw [h2 i' hi', rows_reduceStep_of_ne G B hi']
     · rcases Nat.lt_succ_iff_lt_or_eq.1 hl with hl | hl
       · exact h3 l hl
-      · have hlt : (⟨t, htn⟩ : Fin n) = l := Fin.ext hl.symm
-        subst hlt
+      · obtain rfl : l = ⟨t, htn⟩ := Fin.ext hl
         rw [h4 _ le_rfl hti]
         exact hG.abs_gramSchmidtCoeff_reduceStep_le hti hli
     · rw [h4 l (by omega) hli']
-      exact gramSchmidtCoeff_reduceStep_of_lt G B hti (by change t < (l : ℕ); omega)
+      exact gramSchmidtCoeff_reduceStep_of_lt G B hti (by simp only [Fin.lt_def]; omega)
 
 theorem reflTransGen_isSizeStep {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
     {b c : Fin n → E} (h : Relation.ReflTransGen IsSizeStep b c) :
@@ -304,11 +296,8 @@ theorem span_reduceRow (G : Vector (Vector ℚ m) n) (i : Fin n) :
   | succ t ih =>
     intro B ht
     have htn : t < n := by omega
-    have hti : (⟨t, htn⟩ : Fin n) < i := by
-      change t < (i : ℕ); omega
     simp only [reduceRow, htn, dite_true]
-    rw [ih _ (by omega), reduceStep, rows_subRow,
-      Submodule.span_range_update_sub_smul (ne_of_lt hti)]
+    rw [ih _ (by omega), span_reduceStep _ _ (Fin.mk_lt_mk.2 (by omega))]
 
 /-! ### Exchange -/
 
@@ -317,11 +306,7 @@ theorem rows_swap (B : Vector (Vector ℤ m) n) (i j : Fin n) :
   funext l k
   simp only [rows, Function.comp_apply, Fin.getElem_fin, Vector.getElem_swap,
     Equiv.swap_apply_def]
-  rcases eq_or_ne l i with rfl | h1
-  · simp
-  · rcases eq_or_ne l j with rfl | h2
-    · simp [h1, Fin.val_ne_of_ne h1]
-    · simp [h1, h2, Fin.val_ne_of_ne h1, Fin.val_ne_of_ne h2]
+  grind [Fin.ext_iff]
 
 theorem realRows_swap (B : Vector (Vector ℤ m) n) (i j : Fin n) :
     realRows (B.swap i j) = realRows B ∘ Equiv.swap i j := by
@@ -414,9 +399,9 @@ theorem PrefixReduced.succ {δ : ℝ} {b : Fin n → E} {k : ℕ} (hb : PrefixRe
       exact hsize j hji
   · rcases Nat.lt_succ_iff_lt_or_eq.1 hj with hj | hj
     · exact hb.2 i j hj hij
-    · have hk1 : k - 1 < n := by omega
-      obtain rfl : j = ⟨k, hk⟩ := Fin.ext hj
-      obtain rfl : i = ⟨k - 1, hk1⟩ := Fin.ext (by simp only at hij ⊢; omega)
+    · obtain rfl : j = ⟨k, hk⟩ := Fin.ext hj
+      obtain rfl : i = ⟨k - 1, (Nat.sub_le k 1).trans_lt hk⟩ :=
+        Fin.ext (by simp only at hij ⊢; omega)
       exact hex (by simp only at hij; omega)
 
 end Prefix
@@ -472,8 +457,7 @@ theorem lllLoop_spec {δ : ℚ} (hδ0 : 0 < δ) : ∀ (fuel : ℕ) (B : Vector (
   induction fuel with
   | zero =>
     intro B k s hli hpre hpot hfuel
-    have hs : s = 0 := by omega
-    subst hs
+    obtain rfl : s = 0 := by omega
     rw [pow_zero] at hpot
     exact absurd hpot (not_lt.2 (hpos B hli))
   | succ fuel ih =>
@@ -546,13 +530,11 @@ def sqNormSum (B : Vector (Vector ℤ m) n) : ℕ :=
 
 theorem norm_sq_realRows_le (B : Vector (Vector ℤ m) n) (i : Fin n) :
     ‖realRows B i‖ ^ 2 ≤ (sqNormSum B : ℝ) := by
-  have hterm : ∀ j, 0 ≤ dotProduct (rows B j) (rows B j) :=
-    fun j => Finset.sum_nonneg fun _ _ => mul_self_nonneg _
-  have hle : dotProduct (rows B i) (rows B i) ≤ ∑ j, dotProduct (rows B j) (rows B j) :=
-    Finset.single_le_sum (fun j _ => hterm j) (Finset.mem_univ i)
+  have hterm (j : Fin n) : 0 ≤ dotProduct (rows B j) (rows B j) :=
+    Finset.sum_nonneg fun _ _ => mul_self_nonneg _
   rw [norm_sq_realRows, ← Int.cast_natCast, sqNormSum,
     Int.toNat_of_nonneg (Finset.sum_nonneg fun j _ => hterm j)]
-  exact_mod_cast hle
+  exact_mod_cast Finset.single_le_sum (fun j _ => hterm j) (Finset.mem_univ i)
 
 /-- The number of exchange steps allowed by the potential argument: `3 (⌊log₂ B⌋ + 1) · n(n-1)/2`
 bounds `log_{4/3} B^{n(n-1)/2}`. -/
@@ -652,10 +634,8 @@ theorem lll_eq_lllWith (B : Vector (Vector ℤ m) n) : lll B = lllWith (3 / 4) B
 independent. -/
 theorem isReduced_lll (B : Vector (Vector ℤ m) n) (hB : LinearIndependent ℝ (realRows B)) :
     IsReduced (3 / 4) (realRows (lll B)) ∧ LinearIndependent ℝ (realRows (lll B)) := by
-  have h := isReduced_lllWith (δ := 3 / 4) (by norm_num) (by norm_num) B hB
-  have hδ : ((3 / 4 : ℚ) : ℝ) = 3 / 4 := by norm_num
-  rw [hδ, ← lll_eq_lllWith] at h
-  exact h
+  rw [lll_eq_lllWith, show (3 / 4 : ℝ) = ((3 / 4 : ℚ) : ℝ) by norm_num]
+  exact isReduced_lllWith (by norm_num) (by norm_num) B hB
 
 /-- LLL preserves the lattice. -/
 theorem span_lll (B : Vector (Vector ℤ m) n) :

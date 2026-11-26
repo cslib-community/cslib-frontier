@@ -73,15 +73,11 @@ theorem exists_projective_polynomial_POVMs {k : ℕ} (D : ℕ)
   let L := QuantumStrategy.leftMeasurement (κ := κ) Gₐ
   let R := QuantumStrategy.rightMeasurement (ι := ι) Gᵦ
   let f (u : Pt) (g : Poly) := MvPolynomial.eval u g.val
-  have hLR : 1 - ζ ≤ Measurement.agreement φ L R := by
-    change 1 - Measurement.agreement φ L R ≤ ζ at hpoly
-    linarith only [hpoly]
+  have hLR : 1 - ζ ≤ Measurement.agreement φ L R := by linarith only [hpoly]
   obtain ⟨Pₐ, Pᵦ, hPₐ, hPᵦ, hL, hR⟩ :=
     QuantumStrategy.exists_projective_pair_of_agreement φ Gₐ Gᵦ hLR
   let PL := QuantumStrategy.leftMeasurement (κ := κ) Pₐ
   let PR := QuantumStrategy.rightMeasurement (ι := ι) Pᵦ
-  change (∑ a, φ.norm (L.effect a - PL.effect a) ^ 2) ≤ 18 * ζ at hL
-  change (∑ a, φ.norm (R.effect a - PR.effect a) ^ 2) ≤ 18 * ζ at hR
   have hswapPoint (M : POVM Poly ι) (u : Pt) :
       Measurement.agreement φ ((QuantumStrategy.leftMeasurement (κ := κ) M).map (f u))
         (decodedPoint C.bob u) =
@@ -110,8 +106,7 @@ theorem exists_projective_polynomial_POVMs {k : ℕ} (D : ℕ)
     change (𝔼 u : Pt, (1 - Measurement.agreement φ (L.map (f u)) (decodedPoint C.bob u))) ≤ σ
       at hpointA
     simpa only [L, hswapPoint Gₐ] using hpointA
-  · change 1 - Measurement.agreement φ PL PR ≤ ζ + 2 * √(18 * ζ)
-    have hright := (Measurement.abs_agreement_sub_right_le φ L R PR).trans (Real.sqrt_le_sqrt hR)
+  · have hright := (Measurement.abs_agreement_sub_right_le φ L R PR).trans (Real.sqrt_le_sqrt hR)
     have hleft := (Measurement.abs_agreement_sub_right_le φ PR L PL).trans (Real.sqrt_le_sqrt hL)
     rw [← Measurement.agreement_comm φ L PR
           (fun a => QuantumStrategy.commute_liftedEffects Gₐ Pᵦ a a),
@@ -181,9 +176,8 @@ theorem exists_projective_polynomial_POVMs_of_winProb {k : ℕ}
   have h₁ : σ₀ + √(8 * ζ₀ + 4 * √(18 * ζ₀)) ≤ errors.point := by
     change _ ≤ σ + √(8 * ζ + 4 * √(18 * ζ))
     gcongr
-  have h₂ : ζ₀ + 2 * √(18 * ζ₀) ≤ errors.polynomial := by
-    change _ ≤ ζ + 2 * √(18 * ζ)
-    gcongr
-  exact ⟨Pₐ, Pᵦ, hPₐ, hPᵦ, hpointB.trans h₁, hpointA.trans h₁, hpoly.trans h₂⟩
+  refine ⟨Pₐ, Pᵦ, hPₐ, hPᵦ, hpointB.trans h₁, hpointA.trans h₁, hpoly.trans ?_⟩
+  change _ ≤ ζ + 2 * √(18 * ζ)
+  gcongr
 
 end Cslib.PCP.LowIndividualDegree

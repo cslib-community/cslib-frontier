@@ -253,11 +253,10 @@ private theorem synthesis_reads (ht : t ≤ T) :
   have hi := Synthesis.biUnion (I := interpretation) (s := inputs n ∪ basicAt tm T t)
     (Finset.univ : Finset (Option Bool)) (fun s => {featureFn tm t (.inRead s)})
     (fun _ => (n + 2) * 3 + 1) fun s _ => synthesis_inRead tm s
-  refine (hw.union hi).mono Set.Subset.rfl ?_ (le_of_eq ?_)
-  · rintro f ⟨φ, ⟨i, s, rfl⟩ | ⟨s, rfl⟩, rfl⟩
-    · exact Or.inl (Set.mem_biUnion (x := (i, s)) (Finset.mem_univ _) rfl)
-    · exact Or.inr (Set.mem_biUnion (x := s) (Finset.mem_univ _) rfl)
-  · simp [readsCost, Fintype.card_option]
+  refine (hw.union hi).mono Set.Subset.rfl ?_ (by simp [readsCost, Fintype.card_option])
+  rintro f ⟨φ, ⟨i, s, rfl⟩ | ⟨s, rfl⟩, rfl⟩
+  · exact Or.inl (Set.mem_biUnion (x := (i, s)) (Finset.mem_univ _) rfl)
+  · exact Or.inr (Set.mem_biUnion (x := s) (Finset.mem_univ _) rfl)
 
 /-- The indicator of a situation, from the state and the symbols read. -/
 private theorem synthesis_sit (y : Situation k State) :
@@ -281,11 +280,10 @@ private theorem synthesis_sit (y : Situation k State) :
 private theorem synthesis_sits :
     Synthesis interpretation (inputs n ∪ basicAt tm T t ∪ readsAt tm t) (sitsAt tm t)
       (Fintype.card (Situation k State) * (k + 3)) := by
-  refine (Synthesis.biUnion (I := interpretation) (Finset.univ : Finset (Situation k State))
+  exact (Synthesis.biUnion (I := interpretation) (Finset.univ : Finset (Situation k State))
     (fun y => {featureFn tm t (.sit y)}) (fun _ => k + 3) fun y _ =>
-      synthesis_sit tm y).mono Set.Subset.rfl ?_ (by simp)
-  rintro f ⟨y, rfl⟩
-  exact Set.mem_biUnion (x := y) (Finset.mem_univ _) rfl
+      synthesis_sit tm y).mono Set.Subset.rfl
+    (Set.range_subset_iff.2 fun y => Set.mem_biUnion (x := y) (Finset.mem_univ _) rfl) (by simp)
 
 /-! #### Phase 3: the next configuration -/
 
@@ -334,11 +332,10 @@ private theorem synthesis_nexts (ht : t ≤ T) :
       (featureCount n T k State * featureCost k State) := by
   refine (Synthesis.biUnion (I := interpretation) (basicFeatures n T)
     (fun φ => {featureFn (n := n) tm (t + 1) φ}) (fun _ => featureCost k State)
-    fun φ hφ => synthesis_next tm ht hφ).mono Set.Subset.rfl ?_ ?_
-  · rintro f ⟨φ, hφ, rfl⟩
-    exact Set.mem_biUnion hφ rfl
-  · rw [Finset.sum_const, Nat.nsmul_eq_mul]
-    exact Nat.mul_le_mul_right _ (card_basicFeatures_le n T)
+    fun φ hφ => synthesis_next tm ht hφ).mono Set.Subset.rfl
+    (Set.image_subset_iff.2 fun _ hφ => Set.mem_biUnion hφ rfl) ?_
+  simpa only [Finset.sum_const, Nat.nsmul_eq_mul] using
+    Nat.mul_le_mul_right _ (card_basicFeatures_le n T)
 
 /-- The cost of one step of the simulation. -/
 def stepCost (n T k : ℕ) (State : Type) [Fintype State] : ℕ :=
@@ -364,19 +361,17 @@ private theorem synthesis_basic_zero :
     Synthesis interpretation (inputs n) (basicAt tm T 0) (featureCount n T k State) := by
   have h0 : ∀ x : Fin n → Bool, cfgAt tm 0 x = tm.initCfg (List.ofFn x) := fun _ => rfl
   refine (Synthesis.biUnion (I := interpretation) (basicFeatures n T)
-    (fun φ => {featureFn (n := n) tm 0 φ}) (fun _ => 1) fun φ hφ => ?_).mono Set.Subset.rfl ?_ ?_
-  · rcases mem_basic.1 (List.mem_toFinset.1 hφ) with ⟨q, rfl⟩ | ⟨j, -, rfl⟩ | ⟨i, z, -, rfl⟩ |
+    (fun φ => {featureFn (n := n) tm 0 φ}) (fun _ => 1) fun φ hφ => ?_).mono Set.Subset.rfl
+    (Set.image_subset_iff.2 fun _ hφ => Set.mem_biUnion hφ rfl)
+    (by simpa using card_basicFeatures_le n T)
+  rcases mem_basic.1 (List.mem_toFinset.1 hφ) with ⟨q, rfl⟩ | ⟨j, -, rfl⟩ | ⟨i, z, -, rfl⟩ |
       ⟨i, z, b, -, rfl⟩ | ⟨o, rfl⟩
-    · exact .of_forall_eq_const (decide (some tm.q₀ = q)) fun _ => by simp [featureFn, h0, eq_comm]
-    · exact .of_forall_eq_const (decide (1 = j)) fun _ => by simp [featureFn, h0, eq_comm]
-    · exact .of_forall_eq_const (decide (0 = z)) fun _ => by simp [featureFn, h0, eq_comm]
-    · exact .of_forall_eq_const (decide (none = b)) fun _ => by simp [featureFn, h0, eq_comm]
-    · exact .of_forall_eq_const (decide (OutView.empty = o)) fun _ => by
-        simp [featureFn, h0, eq_comm, OutView.ofList]
-  · rintro f ⟨φ, hφ, rfl⟩
-    exact Set.mem_biUnion hφ rfl
-  · rw [Finset.sum_const, Nat.nsmul_eq_mul, mul_one]
-    exact card_basicFeatures_le n T
+  · exact .of_forall_eq_const (decide (some tm.q₀ = q)) fun _ => by simp [featureFn, h0, eq_comm]
+  · exact .of_forall_eq_const (decide (1 = j)) fun _ => by simp [featureFn, h0, eq_comm]
+  · exact .of_forall_eq_const (decide (0 = z)) fun _ => by simp [featureFn, h0, eq_comm]
+  · exact .of_forall_eq_const (decide (none = b)) fun _ => by simp [featureFn, h0, eq_comm]
+  · exact .of_forall_eq_const (decide (OutView.empty = o)) fun _ => by
+      simp [featureFn, h0, eq_comm, OutView.ofList]
 
 /-- **The simulation**: the basic features at every time `t ≤ T`, from the inputs. -/
 theorem synthesis_basic : ∀ t ≤ T,

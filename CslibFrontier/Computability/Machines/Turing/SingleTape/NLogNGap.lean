@@ -157,17 +157,14 @@ distinct, then `|S| ⌊(⌊log₂ |S|⌋ - 1) / d⌋ ≤ 2 t`, where `d = ⌈log
 private lemma card_mul_le_of_injOn (a : tm.AbsCfg) (t : ℕ) {S : Finset ℕ}
     (hS : Set.InjOn (fun b : ℕ => a.crossings (b : ℤ) t) S) :
     S.card * ((Nat.log 2 S.card - 1) / Nat.clog 2 (Fintype.card tm.State + 2)) ≤ 2 * t := by
-  obtain ⟨d, hd_def⟩ : ∃ d, d = Nat.clog 2 (Fintype.card tm.State + 2) := ⟨_, rfl⟩
-  rw [← hd_def]
+  set d := Nat.clog 2 (Fintype.card tm.State + 2) with hd_def
   have hd : 0 < d := hd_def ▸ Nat.clog_pos one_lt_two (by omega)
   have hsum : ∑ b ∈ S, (a.crossings (b : ℤ) t).length ≤ t := by
     have h := a.sum_length_crossings_le (S.image fun b : ℕ => (b : ℤ)) t
     rwa [Finset.sum_image fun i _ j _ hij => by exact_mod_cast hij] at h
-  obtain ⟨m, hm⟩ : ∃ m, m = S.card := ⟨_, rfl⟩
-  obtain ⟨L, hL⟩ : ∃ L, L = (Nat.log 2 m - 1) / d := ⟨_, rfl⟩
+  set m := S.card
+  set L := (Nat.log 2 m - 1) / d with hL
   have hcnt := Finset.card_sub_pow_mul_le_sum_length hS L
-  rw [← hm] at hcnt ⊢
-  rw [← hL]
   have hpow : Fintype.card (Option tm.State) + 1 ≤ 2 ^ d := by
     rw [Fintype.card_option, hd_def]
     exact Nat.le_pow_clog one_lt_two _
@@ -179,7 +176,7 @@ private lemma card_mul_le_of_injOn (a : tm.AbsCfg) (t : ℕ) {S : Finset ℕ}
   · have hdiv : d * L + (Nat.log 2 m - 1) % d = Nat.log 2 m - 1 := hL ▸ Nat.div_add_mod _ d
     have hdL : 1 ≤ d * L := Nat.mul_pos hd hLpos
     have hlog : d * L + 1 ≤ Nat.log 2 m := by omega
-    have hm0 : m ≠ 0 := by rintro rfl; simp at hlog
+    have hm0 : m ≠ 0 := fun h => by simp [h] at hlog
     have h2P : 2 * 2 ^ (d * L) ≤ m :=
       calc 2 * 2 ^ (d * L) = 2 ^ (d * L + 1) := by ring
         _ ≤ 2 ^ Nat.log 2 m := Nat.pow_le_pow_right two_pos hlog
@@ -221,8 +218,7 @@ theorem isRegular_of_time_le_mul_log (hdec : tm.DecidesByHeadInTime ι L yes T) 
   set N₀ := max N (2 ^ (2 * d + 3))
   set K := ∑ n ∈ Finset.range N₀, T n
   refine isRegular_of_crossings_le hdec K ?_
-  by_contra hbad
-  push Not at hbad
+  by_contra! hbad
   obtain ⟨w₀, b₀, h1, h2, h3⟩ := hbad
   have hex : ∃ n, ∃ w : List α, w.length = n ∧ ∃ b : ℕ, 1 ≤ b ∧ b ≤ n ∧
       K < ((tm.absInit (w.map ι)).crossings (b : ℤ) (T n)).length :=
@@ -269,14 +265,13 @@ theorem isRegular_of_time_le_mul_log (hdec : tm.DecidesByHeadInTime ι L yes T) 
 theorem isRegular_of_isLittleO (hdec : tm.DecidesByHeadInTime ι L yes T)
     (hT : (fun n : ℕ => (T n : ℝ)) =o[Filter.atTop] fun n : ℕ => (n : ℝ) * Real.log n) :
     L.IsRegular := by
-  obtain ⟨d, hd_def⟩ : ∃ d, d = Nat.clog 2 (Fintype.card tm.State + 2) := ⟨_, rfl⟩
+  set d := Nat.clog 2 (Fintype.card tm.State + 2) with hd_def
   have hd : 0 < d := hd_def ▸ Nat.clog_pos one_lt_two (by omega)
   have hlog2 := Real.log_pos one_lt_two
   have hd' : (0 : ℝ) < d := by exact_mod_cast hd
   have hc : (0 : ℝ) < 1 / (16 * d * Real.log 2) := by positivity
   obtain ⟨N, hN⟩ := Filter.eventually_atTop.mp (hT.bound hc)
   refine isRegular_of_time_le_mul_log hdec (N := max N 2) fun n hn => ?_
-  rw [← hd_def]
   have hn2 : 2 ≤ n := le_of_max_le_right hn
   have h1 := hN n (le_of_max_le_left hn)
   have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast (by omega : 1 ≤ n)

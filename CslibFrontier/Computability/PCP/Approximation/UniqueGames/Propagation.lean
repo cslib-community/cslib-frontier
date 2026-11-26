@@ -262,16 +262,15 @@ theorem vertices_le_slots {C : Type} (g : Graph C) : g.vertices ≤ slots g :=
 /-- On a well-formed graph the slots are exactly the declared vertices. -/
 theorem slots_eq_vertices {C : Type} {g : Graph C} (hg : g.WellFormed) :
     slots g = g.vertices := by
-  have key : ∀ l : List (Edge C), (∀ e ∈ l, e.src < g.vertices ∧ e.dst < g.vertices) →
-      l.foldl (fun n e => max n (max e.src e.dst + 1)) g.vertices = g.vertices := by
-    intro l hl
-    induction l with
-    | nil => rfl
-    | cons e l ih =>
-      have he := hl e (by simp)
-      rw [List.foldl_cons, max_eq_left (by omega)]
-      exact ih fun d hd => hl d (List.mem_cons_of_mem _ hd)
-  exact key g.edges hg
+  have hg' : ∀ e ∈ g.edges, e.src < g.vertices ∧ e.dst < g.vertices := hg
+  unfold slots
+  generalize g.edges = l at hg'
+  induction l with
+  | nil => rfl
+  | cons e l ih =>
+    have he := hg' e List.mem_cons_self
+    rw [List.foldl_cons, max_eq_left (by omega)]
+    exact ih fun d hd => hg' d (List.mem_cons_of_mem _ hd)
 
 namespace State
 
@@ -485,25 +484,13 @@ private theorem visit_settled (labels : List α) {S : State α} {e : Edge (α �
     (hsrc : e.src < S.table.length) (hdst : e.dst < S.table.length)
     (hvis : (S.get e.src).isSome ∨ (S.get e.dst).isSome) :
     (visit labels S e).Settled e := by
-  have key : ∃ f h, (extend labels S e).get e.src = some f ∧
+  obtain ⟨f, h, hf, hh⟩ : ∃ f h, (extend labels S e).get e.src = some f ∧
       (extend labels S e).get e.dst = some h := by
-    unfold extend
-    cases hs : S.get e.src with
-    | none =>
-      cases hd : S.get e.dst with
-      | none => simp [hs, hd] at hvis
-      | some h =>
-        by_cases heq : e.src = e.dst
-        · rw [heq] at hs; simp [hs] at hd
-        · exact ⟨_, h, get_push_self hsrc _, by rw [get_push_ne S heq, hd]⟩
-    | some f =>
-      cases hd : S.get e.dst with
-      | none =>
-        by_cases heq : e.src = e.dst
-        · rw [heq] at hs; simp [hs] at hd
-        · exact ⟨f, _, by rw [get_push_ne S (Ne.symm heq), hs], get_push_self hdst _⟩
-      | some h => exact ⟨f, h, hs, hd⟩
-  obtain ⟨f, h, hf, hh⟩ := key
+    cases hs : S.get e.src <;> cases hd : S.get e.dst
+    · simp [hs, hd] at hvis
+    · exact ⟨_, _, by simpa [extend, hs, hd] using get_push_self hsrc _, get_extend labels e hd⟩
+    · exact ⟨_, _, get_extend labels e hs, by simpa [extend, hs, hd] using get_push_self hdst _⟩
+    · exact ⟨_, _, get_extend labels e hs, get_extend labels e hd⟩
   refine ⟨f, h, (get_prune _ e _).trans hf, (get_prune _ e _).trans hh, fun a ha => ?_⟩
   simp only [visit, prune, hf, hh, Bool.and_eq_true, decide_eq_true_eq] at ha
   exact ha.2
@@ -1154,11 +1141,9 @@ theorem solvedBy_gapUniqueGames_one [DecidableEq α] [Inhabited α] {labels : Li
   · obtain ⟨hu, hsat⟩ := mem_yes_gapUniqueGames_one_iff.1 hg
     exact (solve_isSome_iff hlabels hu).2 hsat
   · obtain ⟨⟨h1, h2⟩, hu⟩ := hg
-    rw [Bool.eq_false_iff]
-    intro h
+    refine Bool.eq_false_iff.2 fun h => ?_
     have h0 := (solve_isSome_iff_unsatVal_eq_zero hlabels hu).1 h
-    simp only at h1 h2
-    rw [h0] at h1
+    dsimp only at h1 h2
     linarith
 
 end Cslib.Complexity

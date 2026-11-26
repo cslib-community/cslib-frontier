@@ -301,24 +301,14 @@ theorem fromRaw_toRaw : ∀ {n} (φ : L.BoundedFormula α n), fromRaw n φ.toRaw
     congr 2
     funext i
     obtain ⟨v, hv⟩ := term_eq_var (ts i)
-    have key : ∀ (y : ℕ) (h : (varOfRaw (α := α) n y).isSome), y = rawVar v →
-        Term.var (L := L) ((varOfRaw n y).get h) = ts i := by
-      rintro y h rfl
-      rw [hv, Option.get_of_eq_some h (varOfRaw_rawVar v)]
-    exact key _ _ (by simp [hv])
-  | _, imp φ ψ => by
-    rw [toRaw_imp, fromRaw, fromRaw_toRaw φ, fromRaw_toRaw ψ]
-    rfl
-  | n, all φ => by
-    rw [toRaw_all, fromRaw, ite_eq_left rfl, fromRaw_toRaw φ]
-    rfl
+    rw [Option.get_of_eq_some _ (a := v) (by simp [hv]), hv]
+  | _, imp φ ψ => by simp [fromRaw, fromRaw_toRaw φ, fromRaw_toRaw ψ]
+  | n, all φ => by simp [fromRaw, fromRaw_toRaw φ]
 
 /-- `toRaw` inverts `fromRaw n` wherever `fromRaw n` is defined. -/
 theorem toRaw_of_fromRaw :
     ∀ {n} {χ : RawFormula} {φ : L.BoundedFormula α n}, fromRaw n χ = some φ → φ.toRaw = χ
-  | _, .falsum, _, h => by
-    cases h
-    rfl
+  | _, .falsum, _, rfl => rfl
   | n, .equal x y, _, h => by
     obtain ⟨v, w, hv, hw, rfl⟩ := Option.map₂_eq_some_iff.1 h
     simp [rawVar_of_varOfRaw hv, rawVar_of_varOfRaw hw]
@@ -405,9 +395,7 @@ theorem encode_eq_encode_toRaw (φ : L.BoundedFormula α n) : encode φ = encode
 /-- A function into bounded formulas is primitive recursive iff its raw formulas are. -/
 theorem primrec_iff_primrec_toRaw {β : Type*} [Primcodable β] {f : β → L.BoundedFormula α n} :
     Primrec f ↔ Primrec fun b => (f b).toRaw :=
-  Primrec.encode_iff.symm.trans <| by
-    simp only [encode_eq_encode_toRaw]
-    exact Primrec.encode_iff
+  Primrec.encode_iff.symm.trans (by simpa only [encode_eq_encode_toRaw] using Primrec.encode_iff)
 
 /-- The translation `toRaw` is primitive recursive under `RawCoding`. -/
 theorem primrec_toRaw : Primrec (toRaw : L.BoundedFormula α n → RawFormula) :=
@@ -478,10 +466,8 @@ private theorem toRaw_eq_rename (e₁ e₂ : Encodable (Σ l, L.Relations l)) :
   let σ := (List.range B).map fun r => ((@decode₂ _ e₁ r).map fun R => @encode _ e₂ R).getD r
   have hB : ∀ R, @encode _ e₁ R < B := fun R => Nat.lt_succ_of_le
     (List.le_max_of_le' 0 (List.mem_map.2 ⟨R, hl R, rfl⟩) le_rfl)
-  have hσ : ∀ R, σ.getD (@encode _ e₁ R) (@encode _ e₁ R) = @encode _ e₂ R := by
-    intro R
-    rw [List.getD_eq_getElem?_getD]
-    simp [σ, hB R, @encodek₂ _ e₁]
+  have hσ (R) : σ.getD (@encode _ e₁ R) (@encode _ e₁ R) = @encode _ e₂ R := by
+    simp [List.getD_eq_getElem?_getD, σ, hB R, @encodek₂ _ e₁]
   refine ⟨σ, fun φ => ?_⟩
   induction φ with
   | falsum => rfl
@@ -528,16 +514,15 @@ theorem realize_toRaw {I : ℕ → List M → Prop}
     ∀ {n} (φ : L.BoundedFormula α n) {ρ : ℕ → M} {v : α → M} {xs : Fin n → M},
       (∀ w, ρ (rawVar w) = Sum.elim v xs w) → (φ.toRaw.Realize I ρ ↔ φ.Realize v xs)
   | _, falsum, _, _, _, _ => Iff.rfl
-  | _, equal t₁ t₂, ρ, v, xs, hρ => by
+  | _, equal _ _, _, _, _, hρ => by
     rw [toRaw_equal, RawFormula.realize_equal, rawTerm_realize hρ, rawTerm_realize hρ]
     rfl
-  | _, rel R ts, ρ, v, xs, hρ => by
-    rw [toRaw_rel, RawFormula.realize_rel, List.map_ofFn]
-    simp only [Function.comp_def, rawTerm_realize hρ]
+  | _, rel R _, _, _, _, hρ => by
+    simp only [toRaw_rel, RawFormula.realize_rel, List.map_ofFn, Function.comp_def,
+      rawTerm_realize hρ]
     exact hI R _
-  | _, imp φ ψ, ρ, v, xs, hρ => by
-    simp only [toRaw_imp, RawFormula.realize_imp, realize_toRaw hI φ hρ, realize_toRaw hI ψ hρ]
-    rfl
+  | _, imp φ ψ, _, _, _, hρ => by
+    simp [RawFormula.realize_imp, realize_toRaw hI φ hρ, realize_toRaw hI ψ hρ]
   | k, all φ, ρ, v, xs, hρ => by
     simp only [toRaw_all, RawFormula.realize_all]
     refine forall_congr' fun m => realize_toRaw hI φ fun w => ?_

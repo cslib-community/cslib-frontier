@@ -191,19 +191,13 @@ theorem HeapShape.swap {mem : ℕ → ℕ} {a b : ℕ} (h : HeapShape N base S m
     · have hvp := h.vertex_pos v hv hv0
       rw [hH _ (by omega) (h.pos_le v hv), ite_eq_right fun he => h2 (by rw [← hvp, he]),
         ite_eq_right fun he => h1 (by rw [← hvp, he]), hvp]
-  · simp only [heapEntry]
-    rw [hH a ha haS, ite_eq_right hab, ite_eq_left rfl, hK _ hvb]
-  · simp only [heapEntry]
-    rw [hH b hb hbS, ite_eq_left rfl, hK _ hva]
+  · simp only [heapEntry, hH a ha haS, hab, ↓reduceIte, hK _ hvb]
+  · simp only [heapEntry, hH b hb hbS, ↓reduceIte, hK _ hva]
   · intro i hi hiS hia hib
-    simp only [heapEntry]
-    rw [hH i hi hiS, ite_eq_right hib, ite_eq_right hia, hK _ (h.vertex_lt i hi hiS)]
+    simp only [heapEntry, hH i hi hiS, hib, hia, ↓reduceIte, hK _ (h.vertex_lt i hi hiS)]
   · intro v hv
     rw [hP v hv]
-    split_ifs with h1 h2
-    · subst h1; rw [hpa]; omega
-    · subst h2; rw [hpb]; omega
-    · rfl
+    split_ifs <;> simp [*, Nat.ne_of_gt ha, Nat.ne_of_gt hb]
 
 /-- The child of `a` with the highest priority in a heap of size `S`: the right child when it
 exists and has strictly higher priority than the left child, and the left child otherwise. -/

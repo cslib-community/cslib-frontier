@@ -247,7 +247,6 @@ private theorem replay_coinStep (t : ℕ) (cfg : FiniteConfig k Bool Control Uni
     (h : History) :
     (replay (coinStep M t cfg b)).run h = replayStep M t (cfg, h) b := by
   unfold coinStep MultiTapeMachine.finiteStep replayStep
-  simp only
   cases cfg.tapes.state with
   | none => rfl
   | some c =>
@@ -256,11 +255,9 @@ private theorem replay_coinStep (t : ℕ) (cfg : FiniteConfig k Bool Control Uni
     | step => rfl
     | query op next =>
       simp only [replay, bind_map_left, interp_norm]
-      cases h with
-      | nil => rfl
-      | cons x h =>
-        obtain ⟨m, y⟩ := x
-        change (if m = (cfg.channels op).1 then (Except.ok (y, h) : Except (Option (List Bool)) _)
+      rcases h with _ | ⟨⟨m, y⟩, h⟩
+      · rfl
+      · change (if m = (cfg.channels op).1 then (Except.ok (y, h) : Except (Option (List Bool)) _)
           else .error none) >>= _ = _
         split_ifs with hm <;> simp [hm]
 
@@ -276,10 +273,8 @@ read off the replay. -/
 theorem outcome_coinProgram (t : ℕ) (x r : List Bool) (h : History) :
     outcome (coinProgram M t x r) h = replayOutcome ((simulate M t x r h).map fun p =>
       (decide (p.1.tapes.output = [true]), p.2)) := by
-  rw [outcome_eq_replay]
-  congr 1
-  rw [coinProgram, replay, OracleComp.interpret_map, StateT.run_map, ← replay, replay_foldlM,
-    StateT.foldlM_run_except]
+  rw [outcome_eq_replay, coinProgram, replay, OracleComp.interpret_map, StateT.run_map, ← replay,
+    replay_foldlM, StateT.foldlM_run_except]
   simp only [replay_coinStep, simulate]
   rfl
 
@@ -316,11 +311,9 @@ private theorem replayInv_step {t : ℕ} {x : List Bool} {h : History} {i : ℕ}
         exact ⟨⟨pre, hpre, by omega⟩, hspace.step action symbol move⟩
       | query op next =>
         dsimp only
-        cases rest with
-        | nil => exact ⟨by rw [hpre, List.append_nil]; omega, by have := hspace.query op; omega⟩
-        | cons e rest =>
-          obtain ⟨m, y⟩ := e
-          dsimp only
+        rcases rest with _ | ⟨⟨m, y⟩, rest⟩
+        · exact ⟨by simpa [hpre] using Nat.lt_succ_of_le hlen, Nat.lt_succ_of_le (hspace.query op)⟩
+        · dsimp only
           split_ifs
           · exact ⟨⟨pre ++ [(m, y)], by simp [hpre], by simp; omega⟩,
               hspace.receive op next _ (List.length_take_le _ _)⟩
@@ -361,11 +354,9 @@ private theorem replayStep_truncate (t : ℕ) (cfg : FiniteConfig k Bool Control
     | step => simp only [Except.map, truncate_idemp]
     | query op next =>
       dsimp only
-      cases h with
-      | nil => rfl
-      | cons e h =>
-        obtain ⟨m, y⟩ := e
-        simp only [truncate, List.map_cons, List.take_take, min_self]
+      rcases h with _ | ⟨⟨m, y⟩, h⟩
+      · rfl
+      · simp only [truncate, List.map_cons, List.take_take, min_self]
         split_ifs <;> simp [Except.map, List.map_map, Function.comp_def, List.take_take]
 
 /-- The replay reads replies only through their first `t` bits. -/
@@ -400,8 +391,7 @@ private theorem replayInv_of_outcome_ask {t : ℕ} {x : List Bool} {r : Fin t �
   rw [coinFamily, outcome_coinProgram] at hm
   rcases hs : simulate M t x (List.ofFn r) h with (_ | ⟨m'⟩) | ⟨cfg, _ | ⟨_, _⟩⟩ <;>
     simp only [hs, Except.map, replayOutcome, reduceCtorEq, Outcome.ask.injEq] at hm
-  subst hm
-  simpa only [hs, List.length_ofFn, ReplayInv] using hinv
+  simpa only [hs, ← hm, List.length_ofFn, ReplayInv] using hinv
 
 /-- **The programs of `t` coins form a bounded family**: at most `t` messages, each of length at
 most `t`, and only the first `t` bits of each reply matter. -/

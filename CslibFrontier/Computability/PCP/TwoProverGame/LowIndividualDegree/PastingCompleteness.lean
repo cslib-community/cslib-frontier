@@ -78,11 +78,10 @@ theorem card_locallyInterpolable_mul_card_le [Fintype F] (x : ι ↪ F)
     intro u hu
     simp only [mem_filter, mem_univ, true_and] at hu ⊢
     obtain ⟨f, hf, hagree⟩ := hu
-    have hline : evalPrefix u p.val = f := by
-      refine evalPrefix_eq_of_paste_agrees x u hp hf fun j r hr => hagree j r ?_
-      by_cases hj : j ∈ s
-      · simpa [selected, hj] using hr
-      · simp [selected, hj] at hr
+    have hline : evalPrefix u p.val = f :=
+      evalPrefix_eq_of_paste_agrees x u hp hf fun j r hr => hagree j r <|
+        if hj : j ∈ s then (ite_eq_left hj).symm.trans hr
+        else nomatch (ite_eq_right hj).symm.trans hr
     rw [hagree i q hq, ← hline, eval_evalPrefix]
     rfl
   exact (Nat.mul_le_mul_right _ (card_le_card hsubset)).trans
@@ -191,10 +190,8 @@ open scoped Real
 private theorem transcriptSuccessCount_eq_card {k : ℕ}
     (g : Fin k → Option (BoundedPolynomial F m d)) :
     Measurement.transcriptSuccessCount Option.isSome g = (successfulSlices g).card := by
-  have h : successfulSlices g = univ.filter (fun i => (g i).isSome) := by
-    ext i
-    simp
-  rw [h, card_filter, Measurement.transcriptSuccessCount]
+  rw [Measurement.transcriptSuccessCount, ← card_filter]
+  exact congrArg card (Finset.ext fun _ => by simp)
 
 variable {A : Type*} [Fintype F] [CStarAlgebra A] [PartialOrder A] [StarOrderedRing A]
 
@@ -282,10 +279,9 @@ private theorem enoughSlices_successfulEffect_le {β : Type*} [Fintype β]
   have htuple (x : Fin k ↪ F) : score x ≤
       (((pasteProjectiveSlices x S.alice hM).distribution S.state).toOuterMeasure
         {q | q.isSome}).toReal + (𝔼 u, misses u x) + (m * d : ℝ) / Fintype.card F := by
-    have h := enoughSlices_prob_le_paste_prob_add_union x lineValue hline
-      (fun u => T.answers x u) ((T.alice x).distribution S.state) (fun u => T.answers_map_fst x u)
-    rw [← Measurement.distribution_map] at h
-    exact h
+    have h := enoughSlices_prob_le_paste_prob_add_union x lineValue hline (T.answers x)
+      ((T.alice x).distribution S.state) (T.answers_map_fst x)
+    rwa [← Measurement.distribution_map] at h
   have hswap : (𝔼 x : Fin k ↪ F, 𝔼 u, misses u x) ≤
       (𝔼 u, 𝔼 x : Fin k → F, misses u x) + (k.choose 2 : ℝ) / Fintype.card F := by
     rw [expect_comm univ univ]
@@ -347,8 +343,7 @@ theorem pastedSuccessfulEffect_lower_bound {β : Type*} [Fintype β]
     hmass hpair hcopy
   obtain ⟨hp, hs⟩ := Measurement.average_completedDefects_le S.state S.alice R hM hR hc hpair hcopy
   have h₂ := enoughSlices_successfulEffect_le k S hM R hR hc lineValue hline hp hs hlocal
-  have he : 2 * (81 * χ + 80 * ζ) + 8 * (2 * ζ) = 162 * χ + 176 * ζ := by ring
-  rw [he] at h₂
+  rw [show (2 : ℝ) * (81 * χ + 80 * ζ) + 8 * (2 * ζ) = 162 * χ + 176 * ζ by ring] at h₂
   linarith
 
 end Sequential

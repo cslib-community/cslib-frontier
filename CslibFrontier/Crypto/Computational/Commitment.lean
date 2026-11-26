@@ -171,9 +171,8 @@ every receiver string `r` and bit `b`. -/
     (BitString.uniformList m).map (naorCommit id r b) = BitString.uniformList m := by
   cases b
   · exact PMF.map_id _
-  · refine (Probability.PMF.map_congr_on_support _ _
-      (fun y => BitString.listXor m [y, r]) ?_).trans (BitString.uniformList_map_listXor m r)
-    intro y hy
+  · refine (Probability.PMF.map_congr_on_support _ _ (fun y => BitString.listXor m [y, r])
+      fun y hy => ?_).trans (BitString.uniformList_map_listXor m r)
     simp only [naorCommit_true, id_eq, BitString.length_of_mem_support_uniformList hy]
 
 /-! ### Computational hiding -/
@@ -513,9 +512,8 @@ theorem eval_commitmentHidingGame_naorCommit (generator : List Bool → List Boo
     ProbComp.eval (commitmentHidingGame (naorCommit generator) receiver aux bit n) =
       distinguishingGame (generatorEnsemble generator n)
         (fun pad => naorReceiverDistinguisher receiver bit ((n, aux), pad)) := by
-  rw [distinguishingGame_eq_bind]
-  unfold commitmentHidingGame generatorEnsemble naorReceiverDistinguisher
-  simp only [pmf_norm, BitString.eval_sampleList]
+  simp only [distinguishingGame_eq_bind, commitmentHidingGame, generatorEnsemble,
+    naorReceiverDistinguisher, pmf_norm, BitString.eval_sampleList]
   exact PMF.bind_comm _ _ _
 
 /-- On a truly uniform `m`-bit pad, `naorReceiverDistinguisher receiver bit ((n, aux), ·)` presents
@@ -668,11 +666,10 @@ private theorem card_not_naorBinding_le_image {generator : List Bool → List Bo
     (hlen : ∀ s, (generator s).length = length s.length) (n : ℕ) :
     (Finset.univ.filter (fun r : BitString (length n) =>
       ¬ NaorBinding generator n (List.ofFn r))).card ≤
-      (Finset.univ.image (naorBadShift generator (length n) n)).card := by
-  apply Finset.card_le_card
-  intro r hr
-  simpa only [BitString.ofList_ofFn] using
-    mem_image_naorBadShift_of_not_naorBinding hlen (Finset.mem_filter.mp hr).2
+      (Finset.univ.image (naorBadShift generator (length n) n)).card :=
+  Finset.card_le_card fun _ hr => by
+    simpa only [BitString.ofList_ofFn] using
+      mem_image_naorBadShift_of_not_naorBinding hlen (Finset.mem_filter.mp hr).2
 
 /-- At most `2 ^ (2 * n)` receiver strings of length `length n` violate `NaorBinding`. -/
 theorem card_not_naorBinding_le {generator : List Bool → List Bool} {length : ℕ → ℕ}
@@ -969,9 +966,8 @@ theorem naorMaskBits_append {flags₁ flags₂ bits₁ bits₂ : List Bool}
   induction bits₁ generalizing flags₁ with
   | nil => cases flags₁ <;> simp_all [naorMaskBits]
   | cons b bits₁ ih =>
-    cases flags₁ with
-    | nil => simp at h
-    | cons f flags₁ => simp [naorMaskBits, ih (Nat.succ.inj h)]
+    match flags₁, h with
+    | f :: flags₁, h => simp [naorMaskBits, ih (Nat.succ.inj h)]
 
 /-- `naorCommitSplit` distributes over list append when the first segments have equal length. -/
 theorem naorCommitSplit_append (generator : List Bool → List Bool) (r : List Bool)
@@ -985,13 +981,9 @@ theorem naorCommitSplit_append (generator : List Bool → List Bool) (r : List B
   induction bits₁ generalizing flags₁ seeds₁ pads₁ with
   | nil => cases flags₁ <;> cases seeds₁ <;> cases pads₁ <;> simp_all [naorCommitSplit]
   | cons b bits₁ ih =>
-    rcases flags₁ with _ | ⟨f, flags₁⟩
-    · simp at hflags
-    rcases seeds₁ with _ | ⟨s, seeds₁⟩
-    · simp at hseeds
-    rcases pads₁ with _ | ⟨p, pads₁⟩
-    · simp at hpads
-    simp [naorCommitSplit, ih (Nat.succ.inj hflags) (Nat.succ.inj hseeds) (Nat.succ.inj hpads)]
+    match flags₁, seeds₁, pads₁, hflags, hseeds, hpads with
+    | f :: flags₁, s :: seeds₁, p :: pads₁, hflags, hseeds, hpads =>
+      simp [naorCommitSplit, ih (Nat.succ.inj hflags) (Nat.succ.inj hseeds) (Nat.succ.inj hpads)]
 
 /-- Select seeds of width `s` at opened coordinates and pad unopened coordinates with `s` false
 bits. -/
@@ -1015,8 +1007,7 @@ theorem length_mem_naorSelectSeeds {s : ℕ} {openFlags bits : List Bool}
   induction bits generalizing openFlags seeds w with
   | nil => simp only [naorSelectSeeds, List.not_mem_nil] at hw
   | cons _ bits ih =>
-    simp only [naorSelectSeeds, List.mem_cons] at hw
-    rcases hw with rfl | hw
+    rcases List.mem_cons.mp hw with rfl | hw
     · split_ifs <;> simp only [BitString.length_listRow, List.length_replicate]
     · exact ih hw
 
@@ -1090,9 +1081,7 @@ theorem naorCommitSplit_eq_naorSelectPads (generator : List Bool → List Bool) 
     simp only [naorCommitSplit, naorSelectPads, List.length_cons, List.replicate_succ,
       List.headD_cons, List.tail_cons, naorCommitAt_false]
     congr 1
-    · cases openFlags.headD false with
-      | false => rfl
-      | true => exact naorCommit_eq_comp_id generator r b (seeds.headD [])
+    · cases openFlags.headD false <;> rfl
     · exact ih openFlags.tail seeds.tail pads.tail
 
 /-- When `pads` are drawn from `generator <$> BitString.sampleList s` and `seeds` from

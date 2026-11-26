@@ -14,8 +14,8 @@ public import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 -- (`lines_eq_spec`, `tokens_eq_spec`, `lineTokens`, `lexLine`, `flushToken`), unfold its private
 -- parsers (`nat?`, `dropChar?`, `startsWithChar`, `terms`, `constr`, `opbLines`, `objTerms`,
 -- `objective`, `presVars`, `dimacsClauses`) and the unexposed bodies of `parseOPB`,
--- `parseOPBWith`, `opbTokenLines`, `parseDIMACS`, `splitChars`, `tokens`, `int?`, `stdVar?`,
--- `Names.var?` and `Names.nameChars`.
+-- `parseOPBWith`, `parseOPBLabelled`, `isLabel`, `opbTokenLines`, `parseDIMACS`, `splitChars`,
+-- `tokens`, `int?`, `stdVar?`, `Names.var?` and `Names.nameChars`.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 
 /-! # Printing OPB instances, with round-trip theorems
@@ -602,18 +602,18 @@ private theorem presVars_presWords (M N : Names) (π : ℕ → ℕ) (P : List �
       rfl
     · simp
 
-/-- The first token of a constraint line is not a keyword of the header lines and does not start
-with `*`. -/
+/-- The first token of a constraint line is not a keyword of the header lines and neither starts
+with `*` nor is a label. -/
 private theorem head_constrWords (N : Names) (c : PBConstr) :
     ∃ t ts, (constrWords N c).map String.ofList = t :: ts ∧ startsWithChar '*' t = false ∧
-      t ≠ "min:" ∧ t ≠ "preserved:" := by
+      isLabel t = false ∧ t ≠ "min:" ∧ t ≠ "preserved:" := by
   match hterms : c.terms with
   | [] =>
     have e : (constrWords N c).map String.ofList =
         ">=" :: [Nat.toDecimal c.degree, [';']].map String.ofList := by
       rw [constrWords, hterms, List.flatMap_nil, List.nil_append, List.map_cons,
         show String.ofList ['>', '='] = ">=" by decide]
-    exact ⟨_, _, e, by decide, by decide, by decide⟩
+    exact ⟨_, _, e, by decide, by decide, by decide, by decide⟩
   | (a, l) :: rest =>
     obtain ⟨d, ds, h, hd⟩ := Nat.exists_toDecimal_eq_cons a
     have e : (constrWords N c).map String.ofList = String.ofList (d :: ds) ::
@@ -621,22 +621,27 @@ private theorem head_constrWords (N : Names) (c : PBConstr) :
           [['>', '='], Nat.toDecimal c.degree, [';']])).map String.ofList := by
       rw [constrWords, hterms, List.flatMap_cons, termWords, h]
       rfl
-    refine ⟨_, _, e, ?_, ne_keyword (.inr hd) (by simp), ne_keyword (.inr hd) (by simp)⟩
-    rw [startsWithChar_ofList]
-    simpa using Dimacs.ne_of_isDigit hd (by decide)
+    refine ⟨_, _, e, ?_, ?_, ne_keyword (.inr hd) (by simp), ne_keyword (.inr hd) (by simp)⟩
+    · rw [startsWithChar_ofList]
+      simpa using Dimacs.ne_of_isDigit hd (by decide)
+    · have hne : d ≠ '@' := Dimacs.ne_of_isDigit hd (by decide)
+      rw [isLabel, String.toList_ofList]
+      split
+      · next h => exact absurd (List.cons.inj h).1 hne
+      · rfl
 
 private theorem opbLines_constrs (M N : Names) (π : ℕ → ℕ) (cs : List PBConstr)
-    (h : ∀ c ∈ cs, ∀ t ∈ c.terms, Reads M N π (termVar t)) :
-    opbLines M (cs.map fun c => (constrWords N c).map String.ofList) =
-      some (cs.map fun c => rereadConstr (Instance.renameConstr π c)) := by
-  induction cs with
+    (h : ∀ c ∈ cs, ∀ t ∈ c.terms, Reads M N π (termVar t)) (k : ℕ) :
+    opbLines M k (cs.map fun c => (constrWords N c).map String.ofList) =
+      some (cs.map fun c => rereadConstr (Instance.renameConstr π c), []) := by
+  induction cs generalizing k with
   | nil => rfl
   | cons c cs ih =>
     have hc := constr_constrWords M N π c (h c List.mem_cons_self)
-    obtain ⟨t, ts, hts, ht, -⟩ := head_constrWords N c
+    obtain ⟨t, ts, hts, ht, hl, -⟩ := head_constrWords N c
     rw [List.map_cons, hts, opbLines]
     rw [hts] at hc
-    simp [ht, hc, ih fun c hc => h c (List.mem_cons_of_mem _ hc)]
+    simp [ht, hl, hc, ih (fun c hc => h c (List.mem_cons_of_mem _ hc))]
 
 /-! #### Instances -/
 
@@ -705,7 +710,8 @@ private theorem head_constrLines {N : Names} {I : Instance} {l : List String}
     (hl : l ∈ constrLines N I) :
     ∃ t ts, l = t :: ts ∧ startsWithChar '*' t = false ∧ t ≠ "min:" ∧ t ≠ "preserved:" := by
   obtain ⟨c, -, rfl⟩ := List.mem_map.1 hl
-  exact head_constrWords N c
+  obtain ⟨t, ts, h, hs, -, hm, hp⟩ := head_constrWords N c
+  exact ⟨t, ts, h, hs, hm, hp⟩
 
 /-- The token lines of a printed instance, after dropping the comments and empty lines. -/
 private theorem filter_lines (I : Instance) (N : Names)
@@ -757,9 +763,9 @@ name of each variable `v` as `π v`. -/
 private theorem parseOPBWith_printOPB {M N : Names} {π : ℕ → ℕ} {I : Instance}
     (h : ∀ v ∈ I.varList, Reads M N π v) :
     parseOPBWith M (printOPB I N) = some (reread (I.rename π)) := by
-  have hc : opbLines M (constrLines N I) =
-      some (I.constraints.map fun c => rereadConstr (Instance.renameConstr π c)) :=
-    opbLines_constrs M N π I.constraints fun c hc t ht => h _ (mem_varList_constr hc ht)
+  have hc : opbLines M 1 (constrLines N I) =
+      some (I.constraints.map fun c => rereadConstr (Instance.renameConstr π c), []) :=
+    opbLines_constrs M N π I.constraints (fun c hc t ht => h _ (mem_varList_constr hc ht)) 1
   have hne := constrLines_ne N I
   have hobj : ∀ f, I.objective = some f → objective M ((objTermWords N f).map String.ofList ++
       [";"]) = some (rereadObj (Instance.renameObj π f)) := fun f hf => by
@@ -767,7 +773,7 @@ private theorem parseOPBWith_printOPB {M N : Names} {π : ℕ → ℕ} {I : Inst
   have hpres : ∀ P, I.preserved = some P →
       presVars M (P.map (String.ofList ∘ N.nameChars) ++ [";"]) = some (P.map π) :=
     fun P hP => by simpa using presVars_presWords M N π P fun v hv => h _ (mem_varList_pres hP hv)
-  unfold parseOPBWith
+  unfold parseOPBWith parseOPBLabelled
   rw [opbTokenLines_printOPB I N fun v hv => (h v hv).2]
   obtain ⟨cs, obj, pres⟩ := I
   cases obj <;> cases pres <;>

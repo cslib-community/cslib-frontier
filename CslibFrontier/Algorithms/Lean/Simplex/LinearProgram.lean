@@ -198,15 +198,13 @@ theorem mem_slackDictionary_basis {i : Fin (n + m)} :
 
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 theorem castAdd_notMem_slackDictionary_basis (j : Fin n) :
-    Fin.castAdd m j ∉ (slackDictionary A b c).basis := by
-  rw [mem_slackDictionary_basis, Fin.val_castAdd, not_le]
-  exact j.isLt
+    Fin.castAdd m j ∉ (slackDictionary A b c).basis :=
+  mt (mem_slackDictionary_basis A b c).1 (not_le.2 j.isLt)
 
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 theorem natAdd_mem_slackDictionary_basis (i : Fin m) :
-    Fin.natAdd n i ∈ (slackDictionary A b c).basis := by
-  rw [mem_slackDictionary_basis, Fin.val_natAdd]
-  exact Nat.le_add_right n i
+    Fin.natAdd n i ∈ (slackDictionary A b c).basis :=
+  (mem_slackDictionary_basis A b c).2 (Fin.val_natAdd n i ▸ Nat.le_add_right n i)
 
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 private theorem sum_compl_slack (f : Fin (n + m) → K) :
@@ -276,10 +274,9 @@ theorem withSlack_natAdd (x : Fin n → K) (i : Fin m) :
 
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 theorem isSolution_withSlack (x : Fin n → K) :
-    (slackDictionary A b c).IsSolution (withSlack A b x) := by
-  rw [isSolution_slackDictionary_iff]
-  intro i
-  simp only [withSlack_natAdd, withSlack_castAdd, mulVec, dotProduct]
+    (slackDictionary A b c).IsSolution (withSlack A b x) :=
+  (isSolution_slackDictionary_iff A b c).2 fun i => by
+    simp only [withSlack_natAdd, withSlack_castAdd, mulVec, dotProduct]
 
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 /-- Every solution of the slack dictionary is a point extended by its slacks. -/
@@ -344,8 +341,7 @@ theorem simplex_slackDictionary_spec (hb : 0 ≤ b) :
     obtain ⟨h1, h2⟩ := (withSlack_mem_feasibleSet_iff A b c _).1 hmem
     refine .inl ⟨D, hrun, hgreat, h1, h2, ?_⟩
     rw [← value_withSlack A b c, ← hz, hequiv.value_eq _ hsolS, D.value_basicSolution]
-  · rw [image_value_slackDictionary] at hunb
-    exact .inr ⟨hrun, hunb⟩
+  · exact .inr ⟨hrun, image_value_slackDictionary A b c ▸ hunb⟩
 
 /-- The **dual solution read off a dictionary** on the variables of a slack dictionary: the
 negated reduced cost of the slack variable of each row, and `0` when that slack variable is basic.

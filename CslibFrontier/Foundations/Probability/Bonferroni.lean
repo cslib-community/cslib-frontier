@@ -71,10 +71,8 @@ variable {Ω ι : Type*}
 private theorem sum_neg_one_pow_mul_choose_succ (d M : ℕ) :
     ∑ r ∈ Finset.range (M + 1), (-1 : ℝ) ^ r * ((d + 1).choose r : ℝ) =
       (-1 : ℝ) ^ M * (d.choose M : ℝ) := by
-  have h := congrArg (Int.cast (R := ℝ))
+  simpa using congrArg (Int.cast (R := ℝ))
     (Int.alternating_sum_range_choose_eq_choose (n := d) (m := M))
-  push_cast at h
-  exact h
 
 private theorem sum_neg_one_pow_mul_choose_eq_zero (N : ℕ) (hN : 0 < N) :
     ∑ r ∈ Finset.range N, (-1 : ℝ) ^ r * ((0 : ℕ).choose r : ℝ) = 1 := by
@@ -94,9 +92,8 @@ private theorem sum_neg_one_pow_mul_choose_even_nonpos (d m : ℕ) (hd : 0 < d) 
   rcases m with _ | m
   · simp
   · obtain ⟨d', rfl⟩ := Nat.exists_eq_succ_of_ne_zero hd.ne'
-    have heq : 2 * (m + 1) = (2 * m + 1) + 1 := by ring
-    rw [heq, sum_neg_one_pow_mul_choose_succ d' (2 * m + 1), pow_succ, pow_mul, neg_one_sq,
-      one_pow, one_mul, neg_one_mul]
+    rw [show 2 * (m + 1) = (2 * m + 1) + 1 by ring, sum_neg_one_pow_mul_choose_succ d' (2 * m + 1),
+      pow_succ, pow_mul, neg_one_sq, one_pow, one_mul, neg_one_mul]
     exact neg_nonpos.mpr (Nat.cast_nonneg _)
 
 private theorem natCard_subtype_mem_eq_card [Fintype ι] (A : ι → Set Ω) (ω : Ω)
@@ -120,9 +117,7 @@ private theorem sum_powersetCard_indicator [Fintype ι] (A : ι → Set Ω) (r :
       simp [Set.indicator_apply, T, Finset.mem_powerset, Finset.subset_iff]
   have hinter : (Finset.univ : Finset ι).powersetCard r ∩ T.powerset = T.powersetCard r := by
     ext s
-    simp only [Finset.mem_inter, Finset.mem_powersetCard, Finset.subset_univ, true_and,
-      Finset.mem_powerset]
-    tauto
+    simp [and_comm]
   rw [hsum, Finset.sum_boole, Finset.filter_mem_eq_inter, hinter, Finset.card_powersetCard]
 
 /-- Pointwise Bonferroni identity expressing the truncated inclusion-exclusion error in terms of
@@ -143,11 +138,8 @@ private theorem bonferroni_pointwise [Fintype ι] (A : ι → Set Ω) (k N : ℕ
   simp_rw [sum_powersetCard_indicator]
   have hmul (r : ℕ) : ((r + k).choose k : ℝ) * (t.choose (r + k) : ℝ) =
       (t.choose k : ℝ) * ((t - k).choose r : ℝ) := by
-    have h := congrArg (Nat.cast (R := ℝ))
-      (Nat.choose_mul (n := t) (k := r + k) (s := k) (Nat.le_add_left k r))
-    rw [Nat.add_sub_cancel] at h
-    push_cast at h
-    linarith
+    rw [mul_comm, ← Nat.cast_mul, Nat.choose_mul (n := t) (Nat.le_add_left k r),
+      Nat.add_sub_cancel, Nat.cast_mul]
   calc
     (∑ r ∈ Finset.range N, (-1 : ℝ) ^ r * ((r + k).choose k : ℝ) * (t.choose (r + k) : ℝ)) -
         ({ω' : Ω | Nat.card {i : ι // ω' ∈ A i} = k} : Set Ω).indicator (1 : Ω → ℝ) ω
@@ -239,18 +231,15 @@ theorem measureReal_natCard_eq_le_bonferroni [Fintype ι] (μ : Measure Ω) [IsF
     μ.real {ω : Ω | Nat.card {i : ι // ω ∈ A i} = k} ≤
       ∑ r ∈ Finset.range (2 * m + 1), (-1 : ℝ) ^ r * ((r + k).choose k : ℝ) *
         ∑ s ∈ (Finset.univ : Finset ι).powersetCard (r + k), μ.real (⋂ i ∈ s, A i) := by
-  have hmono := integral_mono ((integrable_const (1 : ℝ)).indicator (measurableSet_natCard_eq hA k))
-    (integrable_bonferroni_sum μ hA k (2 * m + 1)) fun ω =>
-      show ({ω' : Ω | Nat.card {i : ι // ω' ∈ A i} = k} : Set Ω).indicator (1 : Ω → ℝ) ω ≤ _ from
-        sub_nonneg.mp <| by
-          rw [bonferroni_pointwise A k (2 * m + 1) (Nat.succ_pos _) ω]
-          refine mul_nonneg (Nat.cast_nonneg _) ?_
-          split_ifs with hkt
-          · exact sum_neg_one_pow_mul_choose_odd_nonneg _ m (Nat.sub_pos_of_lt hkt)
-          · exact le_rfl
-  change ∫ ω, ({ω' : Ω | Nat.card {i : ι // ω' ∈ A i} = k} : Set Ω).indicator 1 ω ∂μ ≤ _ at hmono
-  rwa [integral_indicator_one (measurableSet_natCard_eq hA k),
-    integral_bonferroni_sum μ hA k (2 * m + 1)] at hmono
+  rw [← integral_indicator_one (measurableSet_natCard_eq hA k),
+    ← integral_bonferroni_sum μ hA k (2 * m + 1)]
+  refine integral_mono ((integrable_const (1 : ℝ)).indicator (measurableSet_natCard_eq hA k))
+    (integrable_bonferroni_sum μ hA k (2 * m + 1)) fun ω => sub_nonneg.mp ?_
+  rw [bonferroni_pointwise A k (2 * m + 1) (Nat.succ_pos _) ω]
+  refine mul_nonneg (Nat.cast_nonneg _) ?_
+  split_ifs with hkt
+  · exact sum_neg_one_pow_mul_choose_odd_nonneg _ m (Nat.sub_pos_of_lt hkt)
+  · exact le_rfl
 
 /-- **Bonferroni lower bound**: truncating the inclusion-exclusion sum for
 `Nat.card {i | ω ∈ A i} = k` at even length `2 * m` gives a lower bound on
@@ -262,18 +251,16 @@ theorem bonferroni_le_measureReal_natCard_eq [Fintype ι] (μ : Measure Ω) [IsF
       μ.real {ω : Ω | Nat.card {i : ι // ω ∈ A i} = k} := by
   rcases m with _ | m
   · simp [measureReal_nonneg]
-  have hmono := integral_mono (integrable_bonferroni_sum μ hA k (2 * (m + 1)))
+  rw [← integral_indicator_one (measurableSet_natCard_eq hA k),
+    ← integral_bonferroni_sum μ hA k (2 * (m + 1))]
+  refine integral_mono (integrable_bonferroni_sum μ hA k (2 * (m + 1)))
     ((integrable_const (1 : ℝ)).indicator (measurableSet_natCard_eq hA k)) fun ω =>
-      show _ ≤ ({ω' : Ω | Nat.card {i : ι // ω' ∈ A i} = k} : Set Ω).indicator (1 : Ω → ℝ) ω from
-        sub_nonpos.mp <| by
-          rw [bonferroni_pointwise A k (2 * (m + 1)) (by omega) ω]
-          refine mul_nonpos_of_nonneg_of_nonpos (Nat.cast_nonneg _) ?_
-          split_ifs with hkt
-          · exact sum_neg_one_pow_mul_choose_even_nonpos _ (m + 1) (Nat.sub_pos_of_lt hkt)
-          · exact le_rfl
-  change _ ≤ ∫ ω, ({ω' : Ω | Nat.card {i : ι // ω' ∈ A i} = k} : Set Ω).indicator 1 ω ∂μ at hmono
-  rwa [integral_indicator_one (measurableSet_natCard_eq hA k),
-    integral_bonferroni_sum μ hA k (2 * (m + 1))] at hmono
+      sub_nonpos.mp ?_
+  rw [bonferroni_pointwise A k (2 * (m + 1)) (by omega) ω]
+  refine mul_nonpos_of_nonneg_of_nonpos (Nat.cast_nonneg _) ?_
+  split_ifs with hkt
+  · exact sum_neg_one_pow_mul_choose_even_nonpos _ (m + 1) (Nat.sub_pos_of_lt hkt)
+  · exact le_rfl
 
 /-- Specialization of `measureReal_natCard_eq_le_bonferroni` to `k = 0`: the event that none
 of `A i` holds has probability at most the odd-length alternating sum of intersection
@@ -283,9 +270,8 @@ theorem measureReal_forall_notMem_le_bonferroni [Fintype ι] (μ : Measure Ω) [
     μ.real {ω : Ω | ∀ i, ω ∉ A i} ≤
       ∑ r ∈ Finset.range (2 * m + 1), (-1 : ℝ) ^ r *
         ∑ s ∈ (Finset.univ : Finset ι).powersetCard r, μ.real (⋂ i ∈ s, A i) := by
-  have h := measureReal_natCard_eq_le_bonferroni μ hA 0 m
-  rw [setOf_natCard_eq_zero] at h
-  simpa only [add_zero, Nat.choose_zero_right, Nat.cast_one, mul_one] using h
+  simpa only [← setOf_natCard_eq_zero, add_zero, Nat.choose_zero_right, Nat.cast_one,
+    mul_one] using measureReal_natCard_eq_le_bonferroni μ hA 0 m
 
 /-- Specialization of `bonferroni_le_measureReal_natCard_eq` to `k = 0`: the even-length
 alternating sum of intersection probabilities bounds `μ.real {ω | ∀ i, ω ∉ A i}` from below. -/
@@ -294,9 +280,8 @@ theorem bonferroni_le_measureReal_forall_notMem [Fintype ι] (μ : Measure Ω) [
     ∑ r ∈ Finset.range (2 * m), (-1 : ℝ) ^ r *
         ∑ s ∈ (Finset.univ : Finset ι).powersetCard r, μ.real (⋂ i ∈ s, A i) ≤
       μ.real {ω : Ω | ∀ i, ω ∉ A i} := by
-  have h := bonferroni_le_measureReal_natCard_eq μ hA 0 m
-  rw [setOf_natCard_eq_zero] at h
-  simpa only [add_zero, Nat.choose_zero_right, Nat.cast_one, mul_one] using h
+  simpa only [← setOf_natCard_eq_zero, add_zero, Nat.choose_zero_right, Nat.cast_one,
+    mul_one] using bonferroni_le_measureReal_natCard_eq μ hA 0 m
 
 end Measure
 

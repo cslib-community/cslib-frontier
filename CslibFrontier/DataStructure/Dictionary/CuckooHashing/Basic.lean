@@ -84,10 +84,8 @@ def maxEvictions (n_max : ℕ) : ℕ :=
 
 theorem seven_le_tableBits (n_max : ℕ) : 7 ≤ tableBits n_max := by
   unfold tableBits
-  have h128 : 128 ≤ 32 * max n_max 4 := by omega
-  have h7 : Nat.clog 2 128 = 7 := by decide
-  rw [← h7]
-  exact Nat.clog_mono_right 2 h128
+  have h7 : 7 = Nat.clog 2 128 := by decide
+  exact h7 ▸ Nat.clog_mono_right 2 (by omega)
 
 theorem two_le_tableBits (n_max : ℕ) : 2 ≤ tableBits n_max := by
   have := seven_le_tableBits n_max
@@ -139,11 +137,7 @@ theorem tableSize_le_sixtyFour_mul_max (n_max : ℕ) :
 
 theorem eighteen_le_maxEvictions (n_max : ℕ) : 18 ≤ maxEvictions n_max := by
   unfold maxEvictions
-  have h1 : 1 ≤ Nat.clog 2 (max n_max 2) := by
-    have h2 : 2 ≤ max n_max 2 := le_max_right _ _
-    have hc : Nat.clog 2 2 = 1 := by decide
-    rw [← hc]
-    exact Nat.clog_mono_right 2 h2
+  have := (by decide : 1 = Nat.clog 2 2) ▸ Nat.clog_mono_right 2 (le_max_right n_max 2)
   omega
 
 theorem maxEvictions_pos (n_max : ℕ) : 0 < maxEvictions n_max := by
@@ -251,13 +245,10 @@ def lookupEntry {U m : ℕ} (h₁ h₂ : Fin U → Fin m) (tbl : PureTable U m) 
 theorem WellPlaced.entryIn_iff_home {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {tbl : PureTable U m}
     (hwp : WellPlaced h₁ h₂ tbl) (e : SlotEntry U) :
     EntryIn tbl e ↔ tbl.t1 (h₁ e.key) = some e ∨ tbl.t2 (h₂ e.key) = some e := by
-  constructor
-  · rintro (⟨i, hi⟩ | ⟨i, hi⟩)
-    · left; rw [hwp.t1_home i e hi]; exact hi
-    · right; rw [hwp.t2_home i e hi]; exact hi
-  · rintro (h | h)
-    · exact Or.inl ⟨h₁ e.key, h⟩
-    · exact Or.inr ⟨h₂ e.key, h⟩
+  refine ⟨?_, fun h => h.elim (fun h => Or.inl ⟨_, h⟩) fun h => Or.inr ⟨_, h⟩⟩
+  rintro (⟨i, hi⟩ | ⟨i, hi⟩)
+  · exact Or.inl (hwp.t1_home i e hi ▸ hi)
+  · exact Or.inr (hwp.t2_home i e hi ▸ hi)
 
 theorem WellPlaced.entry_unique_of_key_eq {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {tbl : PureTable U m}
     (hwp : WellPlaced h₁ h₂ tbl) {e₁ e₂ : SlotEntry U}
@@ -265,14 +256,10 @@ theorem WellPlaced.entry_unique_of_key_eq {U m : ℕ} {h₁ h₂ : Fin U → Fin
     e₁ = e₂ := by
   rcases (hwp.entryIn_iff_home e₁).mp h₁in with ht1 | ht2 <;>
     rcases (hwp.entryIn_iff_home e₂).mp h₂in with hs1 | hs2
-  · rw [hk] at ht1
-    exact Option.some.inj (ht1.symm.trans hs1)
-  · exfalso
-    exact hwp.disjoint_keys _ _ _ _ ht1 hs2 hk
-  · exfalso
-    exact hwp.disjoint_keys _ _ _ _ hs1 ht2 hk.symm
-  · rw [hk] at ht2
-    exact Option.some.inj (ht2.symm.trans hs2)
+  · exact Option.some.inj ((hk ▸ ht1).symm.trans hs1)
+  · exact (hwp.disjoint_keys _ _ _ _ ht1 hs2 hk).elim
+  · exact (hwp.disjoint_keys _ _ _ _ hs1 ht2 hk.symm).elim
+  · exact Option.some.inj ((hk ▸ ht2).symm.trans hs2)
 
 theorem WellPlaced.lookupEntry_eq_some_iff {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {tbl : PureTable U m}
     (hwp : WellPlaced h₁ h₂ tbl) (u : Fin U) (e : SlotEntry U) :
@@ -293,11 +280,7 @@ theorem WellPlaced.lookupEntry_eq_none_iff {U m : ℕ} {h₁ h₂ : Fin U → Fi
     (hwp : WellPlaced h₁ h₂ tbl) (u : Fin U) :
     lookupEntry h₁ h₂ tbl u = none ↔ ¬ HasKey tbl u := by
   rw [Option.eq_none_iff_forall_not_mem]
-  constructor
-  · intro hall ⟨e, hin, hk⟩
-    exact hall e ((hwp.lookupEntry_eq_some_iff u e).mpr ⟨hin, hk⟩)
-  · intro hno e he
-    exact hno ⟨e, (hwp.lookupEntry_eq_some_iff u e).mp he⟩
+  simp only [Option.mem_def, hwp.lookupEntry_eq_some_iff, HasKey, not_exists]
 
 /-- Place entry `e` into `T₁[h₁ e.key]`, returning the updated table and any displaced entry. -/
 @[expose]
@@ -528,24 +511,17 @@ theorem pureReplay_spec {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {maxLoop : ℕ
       (∀ d : SlotEntry U, EntryIn tbl d ↔ (d.key, d.idx) ∈ ks.zipIdx) := by
   obtain ⟨hwp, hent⟩ := foldlM_zipIdx_spec ks 0 (wellPlaced_empty h₁ h₂) hnodup
     (fun u _ => not_hasKey_empty u) hrep
-  refine ⟨hwp, fun d => ?_⟩
-  rw [hent d]
-  simp
+  exact ⟨hwp, fun d => by simp [hent d]⟩
 
 theorem pureReplay_hasKey_iff {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {maxLoop : ℕ}
     {ks : List (Fin U)} {tbl : PureTable U m} (hnodup : ks.Nodup)
     (hrep : pureReplay h₁ h₂ maxLoop ks = some tbl) (u : Fin U) :
     HasKey tbl u ↔ u ∈ ks := by
   obtain ⟨_, hent⟩ := pureReplay_spec hnodup hrep
-  constructor
-  · rintro ⟨d, hdin, rfl⟩
-    rw [hent, List.mem_zipIdx_iff_getElem?] at hdin
-    exact List.mem_of_getElem? hdin
-  · intro hu
-    obtain ⟨idx, hlt, hget⟩ := List.mem_iff_getElem.mp hu
-    refine ⟨⟨u, idx⟩, ?_, rfl⟩
-    rw [hent, List.mem_zipIdx_iff_getElem?]
-    simp [hlt, hget]
+  simp only [HasKey, hent, List.mem_zipIdx_iff_getElem?]
+  exact ⟨fun ⟨⟨_, _⟩, hdin, rfl⟩ => List.mem_of_getElem? hdin, fun hu =>
+    let ⟨idx, hlt, hget⟩ := List.mem_iff_getElem.mp hu
+    ⟨⟨u, idx⟩, by simp [hlt, hget], rfl⟩⟩
 
 theorem pureReplay_lookupEntry_of_mem {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {maxLoop : ℕ}
     {ks : List (Fin U)} {tbl : PureTable U m} (hnodup : ks.Nodup)
@@ -734,18 +710,12 @@ theorem mem_survivingSeeds_of_goodForSet {Θ : Type*} [Fintype Θ] {U m : ℕ}
 theorem pureReplay_isSome_of_length_le_one {U m : ℕ} (h₁ h₂ : Fin U → Fin m)
     {maxLoop : ℕ} (hloop : 0 < maxLoop) {ks : List (Fin U)} (hlen : ks.length ≤ 1) :
     (pureReplay h₁ h₂ maxLoop ks).isSome := by
-  cases ks with
-  | nil => simp
-  | cons u rest =>
-    cases rest with
-    | nil =>
-      cases maxLoop with
-      | zero => omega
-      | succ k =>
-        simp [pureReplay, pureEvict, pureEvictRound, putT1, PureTable.empty]
-    | cons v _ =>
-      simp only [List.length_cons] at hlen
-      omega
+  rcases ks with _ | ⟨u, _ | ⟨v, _⟩⟩
+  · simp
+  · obtain ⟨k, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hloop.ne'
+    simp [pureReplay, pureEvict, pureEvictRound, putT1, PureTable.empty]
+  · simp only [List.length_cons] at hlen
+    omega
 
 /-- When `ks` has length at most `2` and `0 < maxLoop`, `pureReplay` succeeds for every hash pair
 `(h₁, h₂)` in at most `1` displacement round per key: the first key lands in `T₁`, and even if the

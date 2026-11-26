@@ -50,9 +50,7 @@ private theorem synthesis_prefixThresholds (s : Set (BooleanFunction a))
       Synthesis interpretation (s ∪ Synthesis.stages q t) {fun x => decide ((v x).val < t)} 0).or
       (Synthesis.of_mem (Or.inl (hv i)))).mono Set.Subset.rfl ?_ le_rfl
     rintro _ rfl
-    apply Set.mem_singleton_iff.mpr
-    funext _
-    apply Bool.eq_iff_iff.mpr
+    refine Set.mem_singleton_iff.mpr (funext fun _ => Bool.eq_iff_iff.mpr ?_)
     simp only [Bool.or_eq_true, decide_eq_true_eq, Fin.ext_iff, i]
     lia
   · rintro _ ⟨j, rfl⟩
@@ -97,18 +95,13 @@ private def highPart (k : ℕ) (hk : k ≤ b) (x : Fin (2 ^ b)) : Fin (2 ^ (b - 
 private theorem le_split (k : ℕ) (hk : k ≤ b) (x y : Fin (2 ^ b)) :
     x ≤ y ↔ highPart k hk x ≤ highPart k hk y ∧
       (highPart k hk x = highPart k hk y → lowPart k x ≤ lowPart k y) := by
-  change x.val ≤ y.val ↔ x.val / 2 ^ k ≤ y.val / 2 ^ k ∧
-    ((⟨_, _⟩ : Fin (2 ^ (b - k))) = ⟨_, _⟩ → x.val % 2 ^ k ≤ y.val % 2 ^ k)
-  simp only [Fin.mk.injEq]
+  simp only [Fin.le_def, Fin.ext_iff, highPart, lowPart]
   have hx := Nat.mod_add_div x.val (2 ^ k)
   have hy := Nat.mod_add_div y.val (2 ^ k)
-  constructor
-  · intro h
-    refine ⟨Nat.div_le_div_right h, fun he => ?_⟩
-    rw [he] at hx
+  refine ⟨fun h => ⟨Nat.div_le_div_right h, fun he => ?_⟩, fun ⟨h, he⟩ => ?_⟩
+  · rw [he] at hx
     lia
-  · rintro ⟨h, he⟩
-    obtain hlt | hq := h.lt_or_eq
+  · obtain hlt | hq := h.lt_or_eq
     · exact le_of_not_gt fun hn => hlt.not_ge (Nat.div_le_div_right hn.le)
     · have hmod := he hq
       rw [hq] at hx
@@ -144,24 +137,18 @@ private theorem synthesis_splitTests (s : Set (BooleanFunction a)) (v : BitStrin
       Synthesis.of_mem (Or.inr (Or.inr (Or.inr ⟨C, rfl⟩)))
     have htHi : Synthesis interpretation src {testHi} 0 := Synthesis.of_mem <| by
       cases reverse
-      · exact Or.inr (Or.inr (Or.inl (Or.inl ⟨C, rfl⟩)))
-      · exact Or.inr (Or.inr (Or.inl (Or.inr ⟨C, rfl⟩)))
+      exacts [Or.inr (Or.inr (Or.inl (Or.inl ⟨C, rfl⟩))),
+        Or.inr (Or.inr (Or.inl (Or.inr ⟨C, rfl⟩)))]
     have htLo : Synthesis interpretation src {testLo} 0 := Synthesis.of_mem <| by
       cases reverse
-      · exact Or.inr (Or.inl (Or.inl (Or.inl ⟨D, rfl⟩)))
-      · exact Or.inr (Or.inl (Or.inl (Or.inr ⟨D, rfl⟩)))
+      exacts [Or.inr (Or.inl (Or.inl (Or.inl ⟨D, rfl⟩))),
+        Or.inr (Or.inl (Or.inl (Or.inr ⟨D, rfl⟩)))]
     refine (htHi.and (hEq.not.or htLo)).congr_iff fun x => ?_
-    cases reverse
-    · simp only [testHi, testLo, eqh, Bool.false_eq_true, ite_false, Bool.and_eq_true,
-        Bool.or_eq_true, Bool.not_eq_true', decide_eq_false_iff_not, decide_eq_true_eq]
-      rw [le_split k hk (v x) (c j)]
-      change (_ ∧ (¬hi x = C ∨ _)) ↔ (_ ∧ (hi x = C → _))
-      tauto
-    · simp only [testHi, testLo, eqh, ite_true, Bool.and_eq_true, Bool.or_eq_true,
-        Bool.not_eq_true', decide_eq_false_iff_not, decide_eq_true_eq]
-      rw [le_split k hk (c j) (v x)]
-      change (_ ∧ (¬hi x = C ∨ _)) ↔ (_ ∧ (C = hi x → _))
-      tauto
+    cases reverse <;>
+      simp only [testHi, testLo, eqh, le_split k hk, Bool.false_eq_true, ite_false, ite_true,
+        Bool.and_eq_true, Bool.or_eq_true, Bool.not_eq_true', decide_eq_false_iff_not,
+        decide_eq_true_eq] <;>
+      grind
   refine ((hlo.union hhi).trans (Synthesis.family (s := src) _ _ row)).mono
     Set.Subset.rfl Set.Subset.rfl ?_
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul]
@@ -193,10 +180,8 @@ private theorem synthesis_firstFlag (s : Set (BooleanFunction a))
     Synthesis interpretation s (Set.range fun j x => firstFlag (flags x) j) (1 + 3 * M) := by
   let q (t : ℕ) : Set (BooleanFunction a) := {fun x => beforeFlag (flags x) t}
   let src := s ∪ {fun _ : BitString a => false}
-  have hsteps := Synthesis.steps (I := interpretation) (s := src) q 1 M (by
-    rintro _ rfl
-    apply Or.inr
-    simp [beforeFlag]) fun t ht => ?_
+  have hsteps := Synthesis.steps (I := interpretation) (s := src) q 1 M
+    (Set.singleton_subset_iff.mpr (Or.inr (by simp [beforeFlag]))) fun t ht => ?_
   · let seen := src ∪ Synthesis.stages q M
     have hflags := Synthesis.family (s := seen) (fun j x => firstFlag (flags x) j) (fun _ => 2)
       fun j => (Synthesis.of_mem (Or.inl (Or.inl (hf j))) :
@@ -208,19 +193,11 @@ private theorem synthesis_firstFlag (s : Set (BooleanFunction a))
     refine ((Synthesis.of_mem (Or.inr (Synthesis.subset_stages q le_rfl rfl)) :
       Synthesis interpretation (src ∪ Synthesis.stages q t) {fun x => beforeFlag (flags x) t} 0).or
       (Synthesis.of_mem (Or.inl (Or.inl (hf i))))).congr_iff fun x => ?_
-    simp only [beforeFlag, Bool.or_eq_true, decide_eq_true_eq]
-    refine ⟨?_, fun ⟨j, hj, he⟩ => ?_⟩
-    · rintro (⟨j, hj, he⟩ | he)
-      · exact ⟨j, by lia, he⟩
-      · exact ⟨i, by simp [i], he⟩
-    · by_cases h : j.val < t
-      · exact Or.inl ⟨j, h, he⟩
-      · right
-        have hij : i = j := by
-          ext
-          dsimp only [i]
-          lia
-        rwa [hij]
+    simp only [beforeFlag, Bool.or_eq_true, decide_eq_true_eq, Nat.lt_succ_iff, le_iff_lt_or_eq]
+    refine ⟨?_, fun ⟨j, hj, he⟩ => hj.imp (⟨j, ·, he⟩) fun h => (Fin.ext (Eq.symm h) : i = j) ▸ he⟩
+    rintro (⟨j, hj, he⟩ | he)
+    · exact ⟨j, .inl hj, he⟩
+    · exact ⟨i, .inr rfl, he⟩
 
 private def windowFlags (q target : Fin (2 ^ b)) (lo hi floor height : Fin M → Fin (2 ^ b))
     (j : Fin M) : Bool := decide (lo j ≤ q ∧ q ≤ hi j ∧ floor j ≤ target ∧ target ≤ height j)
@@ -249,8 +226,7 @@ private theorem synthesis_windowFlags (s : Set (BooleanFunction a))
     have h₄ : Synthesis interpretation src {fun x => decide (d x ≤ height j)} 0 :=
       Synthesis.of_mem (Or.inr (Or.inr (Or.inr ⟨j, rfl⟩)))
     exact (h₁.and (h₂.and (h₃.and h₄))).congr_iff (by simp [windowFlags])
-  have hh := Synthesis.family (s := src) _ _ row
-  apply (tests.trans hh).mono Set.Subset.rfl Set.Subset.rfl
+  apply (tests.trans (Synthesis.family (s := src) _ _ row)).mono Set.Subset.rfl Set.Subset.rfl
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul]
   have h₁ := Nat.pow_le_pow_right (by decide : 0 < 2) (show b / 2 ≤ (b + 1) / 2 by lia)
   have h₂ := Nat.pow_le_pow_right (by decide : 0 < 2) (show b - b / 2 ≤ (b + 1) / 2 by lia)
@@ -426,12 +402,10 @@ theorem transient_window_circuit {n : ℕ} (c : Circuit signature n n) (H : Fins
   have hz : (fun _ : BitString (n + m) => false) ∈ src := Or.inr (Or.inl rfl)
   have htimes : wordWires time ⊆ src := by
     rintro _ ⟨i, rfl⟩
-    simp only [time, BitString.getLsbD_equivBitVec, Function.comp_apply]
-    exact Or.inl ⟨Fin.natAdd n i, rfl⟩
+    exact Or.inl ⟨Fin.natAdd n i, by simp [time]⟩
   have hheight : wordWires htWord ⊆ src := by
     rintro _ ⟨i, rfl⟩
-    simp only [htWord, BitString.getLsbD_equivBitVec]
-    exact Or.inr (Or.inr (Or.inr ⟨i, rfl⟩))
+    exact Or.inr (Or.inr (Or.inr ⟨i, by simp [htWord]⟩))
   have hsub := Synthesis.word_sub (s := src) htWord (fun z => (time z).setWidth n)
     (fun i => hheight ⟨i, rfl⟩) (fun i => wordWires_setWidth_subset htimes hz ⟨i, rfl⟩)
   have hflag := Synthesis.word_ult (s := src)
@@ -478,8 +452,7 @@ theorem transient_window_circuit {n : ℕ} (c : Circuit signature n n) (H : Fins
       change (targetWord (Fin.append h t)).toNat = _
       simp only [targetWord, hTime, hDepth hh]
       rw [BitVec.toNat_sub_of_le]
-      · simp only [code_toNat, BitVec.toNat_setWidth, htrunc]
-        rfl
+      · simp only [code_toNat, BitVec.toNat_setWidth, htrunc, depthCode]
       · simp only [BitVec.le_def, code_toNat, BitVec.toNat_setWidth, htrunc]
         exact htrans.le
     conv_rhs => rw [← hStart h t]

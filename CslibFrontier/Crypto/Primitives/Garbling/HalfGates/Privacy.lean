@@ -418,18 +418,13 @@ private theorem isCostBounded_tableRun_tweak [DecidableEq T] (htw : Function.Inj
   | zero => exact OracleComp.IsCostBounded.pure _ _
   | succ k ih =>
     refine (ih.bind fun ct => isCostBounded_gateStep_tweak C H tw x htw X k ct t).mono ?_
-    by_cases h1 : ∃ s : Slot C, (s.gate : ℕ) < k ∧ tw s = t
-    · have ⟨s, hs, hst⟩ := h1
-      have h2 : ¬ ∃ s' : Slot C, (s'.gate : ℕ) = k ∧ tw s' = t := fun ⟨s', hs', hs't⟩ => by
-        cases htw (hst.trans hs't.symm)
-        omega
-      have h3 : ∃ s' : Slot C, (s'.gate : ℕ) < k + 1 ∧ tw s' = t := ⟨s, by omega, hst⟩
-      simp only [h1, h2, h3, ↓reduceIte, Nat.add_zero, le_refl]
-    · by_cases h2 : ∃ s : Slot C, (s.gate : ℕ) = k ∧ tw s = t
-      · have ⟨s, hs, hst⟩ := h2
-        have h3 : ∃ s' : Slot C, (s'.gate : ℕ) < k + 1 ∧ tw s' = t := ⟨s, by omega, hst⟩
-        simp only [h1, h2, h3, ↓reduceIte, zero_add, le_refl]
-      · simp only [h1, h2, ↓reduceIte, Nat.add_zero, Nat.zero_le]
+    by_cases hs : ∃ s : Slot C, tw s = t
+    · rcases hs with ⟨s, rfl⟩
+      simp only [htw.eq_iff, exists_eq_right]
+      generalize (s.gate : ℕ) = g
+      split_ifs <;> omega
+    · have hnone (P : Slot C → Prop) : ¬ ∃ s, P s ∧ tw s = t := fun ⟨s, _, ht⟩ => hs ⟨s, ht⟩
+      simp only [hnone, ↓reduceIte, Nat.add_zero, le_rfl]
 
 end Table
 
@@ -539,10 +534,8 @@ theorem map_oracleTable (htw : Function.Injective tw) (X : Fin n → K × Bool) 
       (slotQuery_injective C tw x htw (evalLabels C H tw ct X)))
   simp only [PMF.map_apply, PMF.uniformOfFintype_apply] at hu ⊢
   rw [← hu]
-  refine tsum_congr fun f => ?_
-  congr 1
-  exact propext ⟨fun h => ((oracleTable_eq_iff C H tw x f X ct).1 h.symm).symm,
-    fun h => ((oracleTable_eq_iff C H tw x f X ct).2 h.symm).symm⟩
+  exact tsum_congr fun f =>
+    if_congr (eq_comm.trans ((oracleTable_eq_iff C H tw x f X ct).trans eq_comm)) rfl rfl
 
 /-- The simulated experiment is the CCR game with the reduction and a random function. -/
 theorem simGame_reduction (htw : Function.Injective tw) (D : View C K → ProbComp Bool) :

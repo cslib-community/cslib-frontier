@@ -94,8 +94,7 @@ theorem norm_uniform (hN : 0 < N) : ‖uniform N‖ = 1 := by
       Complex.norm_real, Real.norm_eq_abs, sq_abs]
     rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, inv_pow,
       Real.sq_sqrt (Nat.cast_nonneg N)]
-    field_simp
-    ring
+    simp [hN.ne']
   nlinarith [norm_nonneg (uniform N)]
 
 /-- The **diffusion** `D = 2|s⟩⟨s| - I`: the reflection about the uniform superposition. -/
@@ -113,9 +112,8 @@ theorem diffusion_apply (hN : 0 < N) (ψ : State N Unit) (p : Fin N × Bool × U
   simp only [one_pow, PiLp.sub_apply, PiLp.smul_apply,
     EuclideanSpace.inner_eq_star_dotProduct, uniform, smul_eq_mul, nsmul_eq_mul]
   have hsq : ((Real.sqrt N : ℂ))⁻¹ * ((Real.sqrt N : ℂ))⁻¹ = (N : ℂ)⁻¹ := by
-    rw [← mul_inv, ← Complex.ofReal_mul, Real.mul_self_sqrt (Nat.cast_nonneg N)]
-    push_cast
-    ring
+    rw [← mul_inv, ← Complex.ofReal_mul, Real.mul_self_sqrt (Nat.cast_nonneg N),
+      Complex.ofReal_natCast]
   simp only [dotProduct, Pi.star_apply, RCLike.star_def, apply_ite, Complex.conj_ofReal, map_zero]
   push_cast
   rw [div_one]
@@ -139,12 +137,10 @@ noncomputable def grover (N : ℕ) : ℕ → State N Unit →ₗᵢ[ℂ] State N
 noncomputable def groverAngle (N : ℕ) : ℝ := Real.arcsin (Real.sqrt N)⁻¹
 
 /-- The sine of the Grover angle: `sin θ = 1 / √N` for `N ≥ 2`. -/
-private theorem sin_groverAngle (hN : 2 ≤ N) : Real.sin (groverAngle N) = (Real.sqrt N)⁻¹ := by
-  have hpos : (0 : ℝ) < Real.sqrt N := Real.sqrt_pos.mpr (by positivity)
-  have hle : (Real.sqrt N)⁻¹ ≤ 1 := by
-    rw [inv_le_one₀ hpos, Real.one_le_sqrt]
-    exact_mod_cast (by omega : 1 ≤ N)
-  exact Real.sin_arcsin (by linarith [inv_nonneg.mpr hpos.le]) hle
+private theorem sin_groverAngle (hN : 2 ≤ N) : Real.sin (groverAngle N) = (Real.sqrt N)⁻¹ :=
+  Real.sin_arcsin (by linarith [inv_nonneg.mpr (Real.sqrt_nonneg N)])
+    ((inv_le_one₀ (Real.sqrt_pos.mpr (by positivity))).mpr
+      (Real.one_le_sqrt.mpr (by exact_mod_cast (by omega : 1 ≤ N))))
 
 /-- The angle `θ ∈ [0, π / 2]` with `sin² θ = t / N`. -/
 noncomputable def searchAngle (N t : ℕ) : ℝ := Real.arcsin (Real.sqrt (t / N))
@@ -198,11 +194,9 @@ theorem run_grover_of_weight (hN : 0 < N) (x : Fin N → Bool) (k : ℕ) (p : Fi
   -- A marked item exists only if `t ≠ 0`, and an unmarked one only if `t ≠ N`.
   have hmarked : ∀ i, x i = true → st ≠ 0 := fun i hi =>
     (Real.sqrt_pos.mpr (Nat.cast_pos.mpr (card_pos.mpr ⟨i, by simp [hi]⟩ : 0 < t))).ne'
-  have hunmarked : ∀ i, x i = false → su ≠ 0 := by
-    intro i hi
+  have hunmarked : ∀ i, x i = false → su ≠ 0 := fun i hi => by
     have h1 : 0 < #{j | x j = false} := card_pos.mpr ⟨i, by simp [hi]⟩
-    have h2 := card_filter_eq_false_eq_card_sub_weight x
-    rw [Fintype.card_fin] at h2
+    have h2 := Fintype.card_fin N ▸ card_filter_eq_false_eq_card_sub_weight x
     exact (Real.sqrt_pos.mpr (sub_pos.mpr (by exact_mod_cast (by omega : t < N)))).ne'
   induction k generalizing p with
   | zero =>
@@ -211,15 +205,9 @@ theorem run_grover_of_weight (hN : 0 < N) (x : Fin N → Bool) (k : ℕ) (p : Fi
       Nat.cast_zero, mul_zero, zero_add, one_mul]
     cases c
     · rfl
-    simp only [ite_true]
-    congr 1
     cases hi : x i
-    · simp only [Bool.false_eq_true, ite_false, hc]
-      field_simp [hunmarked i hi]
-      rfl
-    · simp only [ite_true, hs]
-      field_simp [hmarked i hi]
-      rfl
+    · simp [hc, div_div_cancel_left₀ (hunmarked i hi), sN]
+    · simp [hs, div_div_cancel_left₀ (hmarked i hi), sN]
   | succ k ih =>
     set S := Real.sin ((2 * k + 1) * θ) with hS
     set C := Real.cos ((2 * k + 1) * θ) with hC
@@ -257,28 +245,22 @@ theorem run_grover_of_weight (hN : 0 < N) (x : Fin N → Bool) (k : ℕ) (p : Fi
     simp only [groverControl_mk, Bool.true_and, ite_true]
     cases hi : x i
     · have hsu0 := hunmarked i hi
-      have hreal : 2 * ((N : ℝ)⁻¹ * (-(st * S) + su * C)) - C / su =
-          Real.cos ((2 * ((k + 1 : ℕ) : ℝ) + 1) * θ) / su := by
-        rw [harg, Real.cos_add, Real.sin_two_mul, Real.cos_two_mul, hs, hc, ← hS, ← hC]
-        field_simp
-        rw [← hsN2]
-        ring
-      simp only [Bool.false_eq_true, ite_false]
-      rw [← hreal]
-      push_cast
+      suffices 2 * ((N : ℝ)⁻¹ * (-(st * S) + su * C)) - C / su =
+          Real.cos ((2 * ((k + 1 : ℕ) : ℝ) + 1) * θ) / su by
+        simpa [hi] using congrArg (Complex.ofReal : ℝ → ℂ) this
+      rw [harg, Real.cos_add, Real.sin_two_mul, Real.cos_two_mul, hs, hc, ← hS, ← hC]
+      field_simp
+      rw [← hsN2]
       ring
     · have hst0 := hmarked i hi
-      have hreal : 2 * ((N : ℝ)⁻¹ * (-(st * S) + su * C)) + S / st =
-          Real.sin ((2 * ((k + 1 : ℕ) : ℝ) + 1) * θ) / st := by
-        have hrel : sN ^ 2 = st ^ 2 + su ^ 2 := by rw [hsN2, hst2, hsu2]; ring
-        rw [harg, Real.sin_add, Real.sin_two_mul, Real.cos_two_mul, hs, hc, ← hS, ← hC]
-        field_simp
-        rw [← hsN2]
-        linear_combination (2 * S * sN ^ 2) * hrel
-      simp only [ite_true]
-      rw [← hreal]
-      push_cast
-      ring
+      have hrel : sN ^ 2 = st ^ 2 + su ^ 2 := by rw [hsN2, hst2, hsu2]; ring
+      suffices 2 * ((N : ℝ)⁻¹ * (-(st * S) + su * C)) + S / st =
+          Real.sin ((2 * ((k + 1 : ℕ) : ℝ) + 1) * θ) / st by
+        simpa [hi, sub_neg_eq_add] using congrArg (Complex.ofReal : ℝ → ℂ) this
+      rw [harg, Real.sin_add, Real.sin_two_mul, Real.cos_two_mul, hs, hc, ← hS, ← hC]
+      field_simp
+      rw [← hsN2]
+      linear_combination (2 * S * sN ^ 2) * hrel
 
 variable [DecidableEq (Fin N)]
 
@@ -336,13 +318,11 @@ theorem grover_success (hN : 2 ≤ N) (z : Fin N) :
     -- So `|cos y| = |sin (π/2 - y)| ≤ sin θ`.
     have hcos : Real.cos y ^ 2 ≤ Real.sin θ ^ 2 := by
       rw [← Real.sin_pi_div_two_sub]
-      have hu1 : -θ ≤ Real.pi / 2 - y := by linarith
-      have hu2 : Real.pi / 2 - y ≤ θ := by linarith
       have h1 : Real.sin (Real.pi / 2 - y) ≤ Real.sin θ :=
-        Real.sin_le_sin_of_le_of_le_pi_div_two (by linarith) hθpi hu2
-      have h2 : Real.sin (-θ) ≤ Real.sin (Real.pi / 2 - y) :=
-        Real.sin_le_sin_of_le_of_le_pi_div_two (by linarith) (by linarith) hu1
-      rw [Real.sin_neg] at h2
+        Real.sin_le_sin_of_le_of_le_pi_div_two (by linarith) hθpi (by linarith)
+      have h2 : -Real.sin θ ≤ Real.sin (Real.pi / 2 - y) := by
+        rw [← Real.sin_neg]
+        exact Real.sin_le_sin_of_le_of_le_pi_div_two (by linarith) (by linarith) (by linarith)
       nlinarith
     rw [hs, inv_pow, Real.sq_sqrt hN0.le] at hcos
     nlinarith [Real.sin_sq_add_cos_sq y]

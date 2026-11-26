@@ -121,14 +121,9 @@ theorem twistBody_size {n : ℕ} (a : Fin n → Bool) :
     | cons i L ih => cases ha : a i <;> simp [f, ha] at * <;> omega
   have hc := hl (List.finRange n)
   have hv := hw (List.finRange n)
-  simp only [List.length_finRange] at hc hv
-  constructor
-  · change ((List.finRange n).flatMap f).length + 1 ≤ 1 + 2 * n
-    omega
-  · change (List.ofFn (fun i : Fin n => Sum.inr (i.castAdd n)) ++
-      (((List.finRange n).flatMap f).flatMap Constraint.scope)).length ≤ 5 * n
-    rw [List.length_append, List.length_ofFn]
-    omega
+  simp only [twistBody, vars, f, List.length_cons, List.flatMap_cons, List.length_append,
+    List.length_ofFn, List.length_finRange] at hc hv ⊢
+  omega
 
 /-- Exact scope widths of the initial conjunction, including arities zero and one. -/
 theorem wellFormed_twistBody {n : ℕ} (a : Fin n → Bool) :
@@ -265,22 +260,16 @@ theorem CyclicExchangeObstruction.zero {n : ℕ} {P : Set (Fin (n + 2) → Bool)
 /-- No failed-exchange witness fits on fewer than four cyclic difference coordinates. -/
 theorem CyclicExchangeObstruction.four_le {n : ℕ} {P : Set (Fin (n + 1) → Bool)}
     {d : Fin (n + 1) → Bool} (h : CyclicExchangeObstruction P d) : 4 ≤ n + 1 := by
-  have hp := parityOn_mem_cyclicDifferenceRelation h.feasible
   by_contra hn
+  suffices ∃ j, j ≠ 0 ∧ d j = true ∧ d = flipOn {0, j} (fun _ => false) by
+    obtain ⟨j, hj, hd, he⟩ := this
+    exact h.forbidden j hj hd (he ▸ h.feasible)
+  have hp := parityOn_mem_cyclicDifferenceRelation h.feasible
+  have hf := h.first
   have hn3 : n ≤ 2 := by omega
-  interval_cases n
-  · have he : ∀ d : Fin 1 → Bool, parityOn Finset.univ d = false → d 0 ≠ true := by decide
-    exact he d hp h.first
-  · have he : ∀ d : Fin 2 → Bool, parityOn Finset.univ d = false → d 0 = true →
-        ∃ j, j ≠ 0 ∧ d j = true ∧ d = flipOn {0, j} (fun _ => false) := by
-      decide
-    obtain ⟨j, hj, hd, he⟩ := he d hp h.first
-    exact h.forbidden j hj hd (he ▸ h.feasible)
-  · have he : ∀ d : Fin 3 → Bool, parityOn Finset.univ d = false → d 0 = true →
-        ∃ j, j ≠ 0 ∧ d j = true ∧ d = flipOn {0, j} (fun _ => false) := by
-      decide
-    obtain ⟨j, hj, hd, he⟩ := he d hp h.first
-    exact h.forbidden j hj hd (he ▸ h.feasible)
+  clear h P hn
+  revert d hp hf
+  interval_cases n <;> decide
 
 /-- The witnessed failed exchange rules out the even delta-matroid axiom. -/
 theorem CyclicExchangeObstruction.not_isEvenDeltaMatroid {n : ℕ}
@@ -341,12 +330,9 @@ theorem CyclicExchangeObstruction.cap {n : ℕ} {P : Set (Fin (n + 4) → Bool)}
       ⟨fun ⟨z, hz⟩ => ⟨fun i => !z i, capPort_not y z ▸ (h.selfComplementary _).mp hz⟩,
         fun ⟨z, hz⟩ => ⟨fun i => !z i, by
           convert (h.selfComplementary _).mp hz using 1
-          funext i
-          rcases hcp : capPort i with a | a <;> simp [hcp]⟩⟩
-  · exact ⟨fun _ => false, by
-      convert h.zero_mem using 1
-      funext i
-      simp⟩
+          ext i
+          cases hcp : capPort i <;> simp [hcp]⟩⟩
+  · exact ⟨fun _ => false, by simpa using h.zero_mem⟩
   · exact (mem_cyclicDifferenceRelation_capRelation P _).mpr ⟨_, h.feasible, rfl, rfl⟩
   · intro j hj hd hp
     obtain ⟨s, hs, h12, hsd⟩ := (mem_cyclicDifferenceRelation_capRelation P _).mp hp
@@ -489,14 +475,10 @@ theorem exists_failed_exchange {n : ℕ} {R : Set (Fin n → Bool)} (hne : R.Non
   classical
   have hd : ¬IsDeltaMatroid (cyclicDifferenceRelation R) := fun h => hn ⟨h, fun x y hx hy => by
     rw [parityOn_mem_cyclicDifferenceRelation hx, parityOn_mem_cyclicDifferenceRelation hy]⟩
-  have hw : ∃ x ∈ cyclicDifferenceRelation R, ∃ y ∈ cyclicDifferenceRelation R,
-      ∃ e, x e ≠ y e ∧ ∀ j, x j ≠ y j → flipOn {e, j} x ∉ cyclicDifferenceRelation R := by
-    by_contra h
-    push Not at h
-    exact hd ⟨(cyclicDifferenceRelation_nonempty_iff R).mpr hne,
-      fun x y hx hy e he => h x hx y hy e he⟩
-  obtain ⟨_, ⟨a, ha, rfl⟩, _, ⟨b, hb, rfl⟩, e, he, hf⟩ := hw
-  exact ⟨a, ha, b, hb, e, he, hf⟩
+  by_contra! h
+  refine hd ⟨(cyclicDifferenceRelation_nonempty_iff R).mpr hne, ?_⟩
+  rintro _ _ ⟨a, ha, rfl⟩ ⟨b, hb, rfl⟩ e he
+  exact h a ha b hb e he
 
 /-- A completed finite normalization recipe. Its starting tuple is feasible in the input,
 and the first operation is the specified cyclic rotation of the twisted literal. -/
@@ -568,9 +550,7 @@ theorem Program.gadget_symbols {Rel : Type} {ar : Rel → ℕ} {s : Rel → List
     (p.gadget g).body.map Constraint.rel = g.body.map Constraint.rel := by
   induction p with
   | done => rfl
-  | rotate e rest ih =>
-    exact (ih _).trans (by simp [PPGadget.relabelFree, relabel, Constraint.relabel, List.map_map])
-  | zero i rest ih =>
+  | rotate _ _ ih | zero _ _ ih =>
     exact (ih _).trans (by simp [PPGadget.relabelFree, relabel, Constraint.relabel, List.map_map])
   | cap _ rest ih =>
     exact (ih _).trans (by simp [PPGadget.substitute, relabel, Constraint.relabel, List.map_map])
@@ -581,8 +561,7 @@ theorem Program.gadget_width {Rel : Type} {ar : Rel → ℕ} {s : Rel → List B
     (p.gadget g).body.vars.length = g.body.vars.length := by
   induction p with
   | done => rfl
-  | rotate e rest ih => exact (ih _).trans (by simp [PPGadget.relabelFree])
-  | zero i rest ih => exact (ih _).trans (by simp [PPGadget.relabelFree])
+  | rotate _ _ ih | zero _ _ ih => exact (ih _).trans (by simp [PPGadget.relabelFree])
   | cap _ rest ih => exact (ih _).trans (by simp [PPGadget.substitute])
 
 /-- The cap adds precisely one fresh auxiliary label; all old auxiliaries survive. -/
@@ -591,8 +570,7 @@ theorem Program.gadget_numAux {Rel : Type} {ar : Rel → ℕ} {s : Rel → List 
     (p.gadget g).numAux = g.numAux + p.caps := by
   induction p with
   | done => simp [gadget, caps]
-  | rotate e rest ih => simpa [gadget, caps, PPGadget.relabelFree] using ih _
-  | zero i rest ih => simpa [gadget, caps, PPGadget.relabelFree] using ih _
+  | rotate _ _ ih | zero _ _ ih => simpa [gadget, caps, PPGadget.relabelFree] using ih _
   | cap _ rest ih => exact (ih _).trans (by simp only [PPGadget.substitute, caps]; omega)
 
 /-- The final gadget has at most `3n-4` auxiliaries, counting the redundant twist labels. -/
@@ -609,11 +587,8 @@ theorem Construction.body_bounds {n : ℕ} {R : Set (Fin n → Bool)}
       c.gadget.body.vars.length ≤ 5 * n := by
   have hl := congrArg List.length
     ((Program.rotate c.start c.reduction).gadget_symbols (twistGadget R c.tuple))
-  simp only [List.length_map] at hl
   have hw := (Program.rotate c.start c.reduction).gadget_width (twistGadget R c.tuple)
-  change c.gadget.body.length = (twistBody c.tuple).length at hl
-  change c.gadget.body.vars.length = (twistBody c.tuple).vars.length at hw
-  rw [hl, hw]
-  exact twistBody_size c.tuple
+  simp only [List.length_map] at hl
+  exact hl.symm ▸ hw.symm ▸ twistBody_size c.tuple
 
 end Cslib.Logic.PL.CSP.Normalization

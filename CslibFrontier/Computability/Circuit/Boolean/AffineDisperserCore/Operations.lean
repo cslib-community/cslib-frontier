@@ -495,20 +495,16 @@ theorem Valid.deleteEqn {S : State cfg n} (hS : S.Valid f) {e v : ℕ} {ℓ : Li
 theorem dropEqn_size {S : State cfg n} {e v : ℕ} (h : S.DropEqnOK e v) :
     (S.dropEqn e v).size + 1 = S.size := by
   have := Finset.card_erase_add_one h.mem
-  simp only [SemiCircuit.size] at *
-  change S.gates.card + (S.eqns.erase e).card + 1 = _
+  change S.gates.card + (S.eqns.erase e).card + 1 = S.gates.card + S.eqns.card
   omega
 
 /-- Dropping equation `e` removes `.inr e` from the children of `z`. -/
 theorem dropEqn_children (S : State cfg n) (e v z : ℕ) :
     (S.dropEqn e v).children z = (S.children z).erase (.inr e) := by
   ext (K | e')
-  · simp only [SemiCircuit.inl_mem_children, Finset.mem_erase, ne_eq, reduceCtorEq,
-      not_false_eq_true, true_and]
-    rfl
-  · simp only [SemiCircuit.inr_mem_children, Finset.mem_erase, ne_eq, Sum.inr.injEq]
-    change (e' ∈ S.eqns.erase e ∧ _) ↔ _
-    rw [Finset.mem_erase]
+  · simp [SemiCircuit.inl_mem_children, dropEqn, SemiCircuit.dropEqn]
+  · simp only [SemiCircuit.inr_mem_children, Finset.mem_erase, ne_eq, Sum.inr.injEq,
+      dropEqn, SemiCircuit.dropEqn]
     tauto
 
 /-- Dropping an equation with an auxiliary variable occurring only there preserves validity. -/
@@ -532,20 +528,16 @@ theorem Valid.dropEqn {S : State cfg n} (hS : S.Valid f) {e v : ℕ} (h : S.Drop
 theorem dropTrivialEqn_size {S : State cfg n} {e : ℕ} (he : e ∈ S.eqns) :
     (S.dropTrivialEqn e).size + 1 = S.size := by
   have := Finset.card_erase_add_one he
-  simp only [SemiCircuit.size] at *
-  change S.gates.card + (S.eqns.erase e).card + 1 = _
+  change S.gates.card + (S.eqns.erase e).card + 1 = S.gates.card + S.eqns.card
   omega
 
 /-- Dropping trivial equation `e` removes `.inr e` from the children of `z`. -/
 theorem dropTrivialEqn_children (S : State cfg n) (e z : ℕ) :
     (S.dropTrivialEqn e).children z = (S.children z).erase (.inr e) := by
   ext (K | e')
-  · simp only [SemiCircuit.inl_mem_children, Finset.mem_erase, ne_eq, reduceCtorEq,
-      not_false_eq_true, true_and]
-    rfl
-  · simp only [SemiCircuit.inr_mem_children, Finset.mem_erase, ne_eq, Sum.inr.injEq]
-    change (e' ∈ S.eqns.erase e ∧ _) ↔ _
-    rw [Finset.mem_erase]
+  · simp [SemiCircuit.inl_mem_children, dropTrivialEqn, SemiCircuit.dropTrivialEqn]
+  · simp only [SemiCircuit.inr_mem_children, Finset.mem_erase, ne_eq, Sum.inr.injEq,
+      dropTrivialEqn, SemiCircuit.dropTrivialEqn]
     tauto
 
 /-- Deleting an equation without terms preserves validity. -/
@@ -617,9 +609,7 @@ theorem inl_mem_children_rewire (S : State cfg n) (J : ℕ) (g : Gate) (z K : �
       K ∈ S.gates ∧ (if K = J then g.Reads z else (S.gate K).Reads z) := by
   rw [SemiCircuit.inl_mem_children]
   change K ∈ S.gates ∧ (Function.update S.gate J g K).Reads z ↔ _
-  by_cases hKJ : K = J
-  · subst hKJ; rw [Function.update_self, ite_eq_left rfl]
-  · rw [Function.update_of_ne hKJ, ite_eq_right hKJ]
+  by_cases hKJ : K = J <;> simp [hKJ]
 
 /-- Rewiring a gate preserves the equation children of every variable. -/
 theorem inr_mem_children_rewire (S : State cfg n) (J : ℕ) (g : Gate) (z e : ℕ) :

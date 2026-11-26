@@ -211,15 +211,9 @@ private theorem waitFree_of_decides_in_one_step [Finite P]
   refine Protocol.WaitFree.of_wellFounded
     (Subrelation.wf ?_ (InvImage.wf activeCount wellFounded_lt))
   rintro c' c ⟨p, hact, rfl⟩
-  have hnot_act : ¬ (π.step p c).Active p := by
-    intro hact'
-    rw [π.step_of_active hact] at hact'
-    simp only [Config.Active, Function.update_self] at hact'
-    have hsome := hdec p (c.proc p).state
-      ((objs (π.target p (c.proc p).state)).step
-        (π.op p (c.proc p).state) (c.mem (π.target p (c.proc p).state))).2
-    rw [hact'] at hsome
-    exact Bool.noConfusion hsome
+  have hnot_act : ¬ (π.step p c).Active p := fun hact' => by
+    simp only [π.step_of_active hact, Config.Active, Function.update_self] at hact'
+    exact Option.ne_none_iff_isSome.mpr (hdec _ _ _) hact'
   simp only [InvImage, activeCount]
   apply Finset.card_lt_card
   rw [Finset.ssubset_iff_of_subset]
@@ -289,13 +283,11 @@ theorem solvesWaitFreeConsensus_one {P I V : Type*} {Op Resp ObjState : I → Ty
       refine ⟨rfl, fun v hv => ?_⟩
       simp only [Protocol.initConfig, reduceCtorEq] at hv
     · intro c₁ q hinit hact_q p
-      by_cases hpq : p = q
-      · subst hpq
-        rw [π.step_of_active hact_q]
+      rcases eq_or_ne p q with rfl | hpq
+      · rw [π.step_of_active hact_q]
         simp only [π, oneProcProtocol, Function.update_self, Option.some.injEq]
         exact ⟨(hinit p).1, fun v hv => hv.symm.trans (hinit p).1⟩
-      · rw [π.step_proc_of_ne c₁ hpq]
-        exact hinit p
+      · simpa only [π.step_proc_of_ne c₁ hpq] using hinit p
   refine ⟨hwf, ?_, ?_⟩
   · rintro inp c hr v₁ v₂ ⟨p₁, hp₁⟩ ⟨p₂, hp₂⟩
     rw [(hinv inp c hr p₁).2 v₁ hp₁, (hinv inp c hr p₂).2 v₂ hp₂, Subsingleton.elim p₁ p₂]
@@ -315,32 +307,23 @@ theorem not_waitFreeConsensus_registers {P I S : Type*} {Val : I → Type*}
   refine false_of_same_object_critical π hcons hcard ?_
   intro cstar p q hpq i op_p next_p dec_p op_q next_q dec_q ha_p ha_q huf hut hr_pq hr_qp
   have hqp : q ≠ p := hpq.symm
-  cases op_p with
-  | read =>
-    cases op_q with
-    | read =>
-      refine Protocol.not_univalent_of_indistinguishable q ha_p ha_q huf hut hr_pq hr_qp
-        ?_ ?_
-      · simp only [applyAt, registerObj, Function.update_eq_self]
-      · simp only [applyAt, registerObj, Function.update_eq_self, Function.update_self,
-          Function.update_of_ne hqp]
-    | write vq =>
-      refine Protocol.not_univalent_of_indistinguishable q ha_p ha_q huf hut
-        hr_pq (LTS.CanReach.refl _ _) ?_ ?_
-      · simp only [applyAt, registerObj, Function.update_eq_self]
-      · simp only [applyAt, registerObj, Function.update_self]
-  | write vp =>
-    cases op_q with
-    | read =>
-      refine Protocol.not_univalent_of_indistinguishable p ha_p ha_q huf hut
-        (LTS.CanReach.refl _ _) hr_qp ?_ ?_
-      · simp only [applyAt, registerObj, Function.update_eq_self]
-      · simp only [applyAt, registerObj, Function.update_self]
-    | write vq =>
-      refine Protocol.not_univalent_of_indistinguishable q ha_p ha_q huf hut
-        hr_pq (LTS.CanReach.refl _ _) ?_ ?_
-      · simp only [applyAt, registerObj, Function.update_idem]
-      · simp only [applyAt, registerObj, Function.update_self]
+  cases op_p <;> cases op_q
+  · exact Protocol.not_univalent_of_indistinguishable q ha_p ha_q huf hut hr_pq hr_qp
+      (by simp only [applyAt, registerObj, Function.update_eq_self])
+      (by simp only [applyAt, registerObj, Function.update_eq_self, Function.update_self,
+        Function.update_of_ne hqp])
+  · exact Protocol.not_univalent_of_indistinguishable q ha_p ha_q huf hut
+      hr_pq (LTS.CanReach.refl _ _)
+      (by simp only [applyAt, registerObj, Function.update_eq_self])
+      (by simp only [applyAt, registerObj, Function.update_self])
+  · exact Protocol.not_univalent_of_indistinguishable p ha_p ha_q huf hut
+      (LTS.CanReach.refl _ _) hr_qp
+      (by simp only [applyAt, registerObj, Function.update_eq_self])
+      (by simp only [applyAt, registerObj, Function.update_self])
+  · exact Protocol.not_univalent_of_indistinguishable q ha_p ha_q huf hut
+      hr_pq (LTS.CanReach.refl _ _)
+      (by simp only [applyAt, registerObj, Function.update_idem])
+      (by simp only [applyAt, registerObj, Function.update_self])
 
 /-- **Sharp Level-1 consensus characterization:** wait-free binary consensus
 (`SolvesWaitFreeConsensus`) is solvable using atomic multi-reader multi-writer read/write registers
@@ -740,12 +723,9 @@ private theorem exists_other_of_card_le_two {P : Type*} [Fintype P]
   refine ⟨fun p => if h : ∃ q : P, q ≠ p then Classical.choose h else p, fun p q hpq => ?_⟩
   have hex : ∃ r : P, r ≠ p := ⟨q, hpq.symm⟩
   simp only [hex, ↓reduceDIte]
-  let r := Classical.choose hex
-  have hrp : r ≠ p := Classical.choose_spec hex
   by_contra hrq
-  have hcard3 : ({p, q, r} : Finset P).card = 3 :=
-    Finset.card_eq_three.mpr ⟨p, q, r, hpq, hrp.symm, Ne.symm hrq, rfl⟩
-  have hle := Finset.card_le_univ ({p, q, r} : Finset P)
+  have := (Finset.card_eq_three.mpr ⟨p, q, _, hpq, (Classical.choose_spec hex).symm,
+    Ne.symm hrq, rfl⟩).symm.trans_le (Finset.card_le_univ _)
   omega
 
 /-- **2-process `TestAndSet` sufficiency (`test&set` instance of [Herlihy1991], §3.2, Figure 7,
@@ -839,11 +819,7 @@ theorem not_isCommutingOrOverwriting_casObj {α : Type*} [DecidableEq α] (init 
     ¬ IsCommutingOrOverwriting (casObj init) := by
   intro hco
   have h := hco ⟨a, b⟩ ⟨a, c⟩ a
-  simp only [casObj, ↓reduceIte, hab.symm, hac.symm] at h
-  rcases h with h₁ | h₂ | h₃
-  · exact hbc h₁
-  · exact hbc h₂
-  · exact hbc h₃.symm
+  simp [casObj, hab.symm, hac.symm, hbc, hbc.symm] at h
 
 /-- `casObj` over `Option V` (for any `[Nontrivial V]`, including `Option Bool`) is not
 commuting-or-overwriting. -/
@@ -909,16 +885,15 @@ theorem solvesWaitFreeConsensus_cas {P V : Type*} [Finite P] [DecidableEq P] [De
           simp only [π, casConsensusProtocol, casObj, hst q, reduceCtorEq, ↓reduceIte]
       rw [hstep_c]
       refine ⟨fun p => ?_, ⟨fun hn => ?_, fun w hw => ?_⟩⟩
-      · by_cases hpq : p = q
-        · subst hpq; simp only [Function.update_self]
-        · simp only [Function.update_of_ne hpq]; exact hst p
+      · rcases eq_or_ne p q with rfl | hpq
+        · simp only [Function.update_self]
+        · simpa only [Function.update_of_ne hpq] using hst p
       · simp only [Function.update_self, reduceCtorEq] at hn
       · simp only [Function.update_self, Option.some.injEq] at hw
         subst hw
         refine ⟨hw_valid, fun p v hpv => ?_⟩
-        by_cases hpq : p = q
-        · subst hpq
-          simp only [Function.update_self, Option.some.injEq] at hpv
+        rcases eq_or_ne p q with rfl | hpq
+        · simp only [Function.update_self, Option.some.injEq] at hpv
           exact hpv.symm
         · simp only [Function.update_of_ne hpq] at hpv
           exact hw_dec p v hpv

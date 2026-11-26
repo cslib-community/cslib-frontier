@@ -137,17 +137,14 @@ theorem exists_complexity_le_of_bounds {A₁ E₁ A₂ E₂ : ℕ} (hS : Schedul
   -- The code and its rate.
   obtain ⟨C, hC⟩ := HighRate.exists_lineCode (K := K) h m hℓh hcard
   obtain ⟨N, hNdef⟩ : ∃ N, N = Fintype.card K ^ ℓ := ⟨_, rfl⟩
-  have hN : N = (2 ^ (h * ℓ)) ^ m := by
-    rw [hNdef, hcard, ← pow_mul, ← pow_mul, hbdef]; ring_nf
   have hNb : N = 2 ^ (ℓ * b) := by rw [hNdef, hcard, ← pow_mul, mul_comm]
   have hrate' : X * N ≤ (X + 1) * C.info.card := by
-    rw [hC, hN]
+    rw [hNb, hbdef, ← mul_assoc, mul_comm ℓ h, pow_mul, hC]
     exact HighRate.retainedDimension_rate _ m X hm hrate
   have hNpos : 0 < N := by rw [hNb]; positivity
   have hKpos : 0 < C.info.card := Nat.pos_of_ne_zero fun h0 => by
-    rw [h0, Nat.mul_zero] at hrate'
     have := Nat.mul_pos hX hNpos
-    omega
+    rw [h0, Nat.mul_zero] at hrate'; omega
   set copies := HighRate.packingCopies (2 ^ p) C.info.card b with hcopies
   obtain ⟨emb⟩ := HighRate.nonempty_embedding_packingCopies (I := C.info) (2 ^ p) b
     (by rwa [Fintype.card_coe]) (by omega)
@@ -165,20 +162,16 @@ theorem exists_complexity_le_of_bounds {A₁ E₁ A₂ E₂ : ℕ} (hS : Schedul
       ∃ menu : Fin r → Fin k → Fin ℓ → K, IsUniversalMenu (2 ^ D) menu := by
     intro k hk hkt
     refine ⟨menuLength (2 ^ D) k (ℓ * b), ?_, exists_isUniversalMenu hcard hbudget' hk hkt⟩
-    have := mul_menuLength_le (2 ^ D) k (ℓ * b)
-    nlinarith
+    nlinarith [mul_menuLength_le (2 ^ D) k (ℓ * b)]
   obtain ⟨sched, hsched, hsize⟩ := hS K ℓ b (2 ^ b - 1) D bits scalar hmenu
   have hpipe := hP K ℓ b (2 ^ b - 1) (2 ^ D) p w copies L bits scalar C place sched hsched hL f
-  rw [← hNdef, hs1] at hpipe
-  have hpow : (2 ^ b) ^ ℓ = N := by rw [hNdef, hcard]
-  rw [hpow] at hpipe
+  rw [← hNdef, hs1, ← pow_mul, mul_comm b ℓ, ← hNb] at hpipe
   have hlossN : X * (N * b) ≤ 2 ^ p := by rw [hNb]; linarith
   refine ⟨copies * N * b, sched.size + A₂ * (2 ^ p + 2 ^ D * 2 ^ b + copies * N) *
       (p + w + ℓ * b + Nat.log 2 (2 ^ D + copies) + 2) ^ E₂,
     hpipe.trans (le_of_eq (by ring)), ?_, ?_⟩
   -- The resource bank.
-  · have hstore := HighRate.mul_packingCopies_mul_le (2 ^ p) C.info.card N b X hrate'
-    linarith
+  · linarith [HighRate.mul_packingCopies_mul_le (2 ^ p) C.info.card N b X hrate']
   -- The overhead.
   · have hcN : copies * N ≤ 3 * 2 ^ p := by
       have hN2 : N ≤ 2 * C.info.card := by nlinarith

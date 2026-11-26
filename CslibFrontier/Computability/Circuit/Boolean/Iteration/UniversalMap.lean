@@ -104,10 +104,9 @@ theorem exists_hardwired_comp {n m p : ℕ} (u : Circuit signature m p)
       (∀ x, d.eval interpretation x = u.eval interpretation (hardwired place x)) ∧
       d.size ≤ u.size + 2 := by
   refine ⟨u.comp (substituteCircuit place), fun x => ?_, ?_⟩
-  · rw [Circuit.eval_comp, eval_substituteCircuit]
-    rfl
-  · simp only [Circuit.size_comp, size_substituteCircuit, Nat.add_comm]
-    exact le_rfl
+  · exact (Circuit.eval_comp ..).trans
+      (congrArg (u.eval interpretation) (eval_substituteCircuit place x))
+  · simp [Circuit.size_comp, size_substituteCircuit, Nat.add_comm]
 
 /-- Hardwire constants, run `u`, and read selected output wires. -/
 theorem exists_hardwired_projection {n m p k : ℕ} (u : Circuit signature m p)
@@ -168,16 +167,13 @@ theorem prodMap_power_circuit {m k : ℕ} (U : BitString m → BitString m)
   let a : BitString m := fun _ => false
   let place : Fin (m + k) → Fin k ⊕ Bool :=
     Fin.append (fun _ : Fin m => Sum.inr false) Sum.inl
-  have hpl (y : BitString k) : hardwired place y = Fin.append a y := by
-    funext j
-    induction j using Fin.addCases with
-    | left i => simp [hardwired, place, a]
-    | right i => simp [hardwired, place]
+  have hpl (y : BitString k) : hardwired place y = Fin.append a y :=
+    funext fun j => Fin.addCases (fun _ => by simp [hardwired, place, a])
+      (fun _ => by simp [hardwired, place]) j
   obtain ⟨d, hd, hs⟩ := exists_hardwired_projection u place (Fin.natAdd m)
   refine ⟨d, fun y => ?_, hs⟩
   rw [hd y, hu, hpl y, prodMap_iterate_append]
-  funext i
-  simp
+  exact funext fun _ => by simp
 
 /-- Each power of a product map is at least as hard as the same power of its first factor. -/
 theorem prodMap_power_circuit_left {m k : ℕ} (U : BitString m → BitString m)
@@ -188,16 +184,13 @@ theorem prodMap_power_circuit_left {m k : ℕ} (U : BitString m → BitString m)
   let a : BitString k := fun _ => false
   let place : Fin (m + k) → Fin m ⊕ Bool :=
     Fin.append Sum.inl (fun _ : Fin k => Sum.inr false)
-  have hpl (y : BitString m) : hardwired place y = Fin.append y a := by
-    funext j
-    induction j using Fin.addCases with
-    | left i => simp [hardwired, place]
-    | right i => simp [hardwired, place, a]
+  have hpl (y : BitString m) : hardwired place y = Fin.append y a :=
+    funext fun j => Fin.addCases (fun _ => by simp [hardwired, place])
+      (fun _ => by simp [hardwired, place, a]) j
   obtain ⟨d, hd, hs⟩ := exists_hardwired_projection u place (Fin.castAdd k)
   refine ⟨d, fun y => ?_, hs⟩
   rw [hd y, hu, hpl y, prodMap_iterate_append]
-  funext i
-  simp
+  exact funext fun _ => by simp
 
 /-! ### Group actions by a hardwired element -/
 
@@ -224,11 +217,8 @@ theorem smul_zpow_circuit {G α : Type*} [Group G] [MulAction G α] {k n : ℕ}
   obtain ⟨d, hd, hs⟩ := exists_hardwired_comp act place
   refine ⟨d, fun x => ?_, hs⟩
   rw [hd, ← hact]
-  congr 1
-  funext j
-  induction j using Fin.addCases with
-  | left i => simp [hardwired, place]
-  | right i => simp [hardwired, place]
+  exact congrArg _ (funext fun j => Fin.addCases (fun _ => by simp [hardwired, place])
+    (fun _ => by simp [hardwired, place]) j)
 
 /-- Every power of the action of a fixed element, as an iterate. -/
 theorem smul_iterate_circuit {G α : Type*} [Group G] [MulAction G α] {k n : ℕ}
@@ -416,11 +406,7 @@ theorem step_round (I : Interpretation σ V) (c : Circuit σ n n) (pad : σ.Op)
   congr 1
   funext i
   simp only [describe, Circuit.eval, Function.comp_apply, Program.trace]
-  apply read_wireIndex
-  · intro b _
-    omega
-  · intro b hbG _
-    exact hw ⟨b, hbG⟩ hbG b.isLt
+  exact read_wireIndex _ _ _ _ (fun _ _ => by omega) fun b hbG _ => hw ⟨b, hbG⟩ hbG b.isLt
 
 /-- `(G + 1) * T` steps of the universal map run `T` rounds of the circuit. -/
 theorem step_iterate (I : Interpretation σ V) (c : Circuit σ n n) (pad : σ.Op)

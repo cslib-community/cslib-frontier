@@ -277,11 +277,10 @@ theorem seeds_overwriteAtNode
     (qv : Fin (P.quotUniv L) × Fin P.valBound) :
     (st.overwriteAtNode scheme L h1L hLL uL k qv).seeds = st.seeds := by
   rcases st.overwriteAtNode_cases scheme h1L hLL uL k qv with
-    h | ⟨rfl, nd, hs, _, h⟩ | ⟨h2, hlt, nd, hs, _, _, h⟩ | ⟨rfl, ln, hs, _, _, h⟩
-  · rw [h]
-  · rw [h]; exact st.seeds_updateRoot_of_seed_eq _ _ hs
-  · rw [h]; exact st.seeds_updateInner_of_seed_eq h2 hlt _ _ hs
-  · rw [h]; exact st.seeds_updateLeaf_of_seed_eq _ _ hs
+    h | ⟨rfl, nd, hs, _, h⟩ | ⟨h2, hlt, nd, hs, _, _, h⟩ | ⟨rfl, ln, hs, _, _, h⟩ <;> rw [h]
+  · exact st.seeds_updateRoot_of_seed_eq _ _ hs
+  · exact st.seeds_updateInner_of_seed_eq h2 hlt _ _ hs
+  · exact st.seeds_updateLeaf_of_seed_eq _ _ hs
 
 theorem sentCount_overwriteAtNode
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
@@ -303,18 +302,16 @@ theorem nodeDom_overwriteAtNode
   by_cases hsame : ∃ h_eq : ℓ = L, h_eq ▸ u = uL
   · obtain ⟨rfl, rfl⟩ := hsame
     rcases st.overwriteAtNode_cases scheme h1L hLL u k qv with
-      h | ⟨rfl, nd, _, htm, h⟩ | ⟨h2, hlt, nd, _, _, htm, h⟩ | ⟨rfl, ln, _, _, hdom, h⟩
-    · rw [h]
-    · rw [h]; simp [updateRoot, htm]
-    · rw [h]; simp [nodeDom_inner _ h1 h2 hlt hℓ, updateInner, htm]
-    · rw [h]; simp [updateLeaf, hdom]
+      h | ⟨rfl, nd, _, htm, h⟩ | ⟨h2, hlt, nd, _, _, htm, h⟩ | ⟨rfl, ln, _, _, hdom, h⟩ <;> rw [h]
+    · simp [updateRoot, htm]
+    · simp [nodeDom_inner _ h1 h2 hlt hℓ, updateInner, htm]
+    · simp [updateLeaf, hdom]
   · push Not at hsame
     rcases st.overwriteAtNode_cases scheme h1L hLL uL k qv with
-      h | ⟨rfl, nd, _, _, h⟩ | ⟨h2, hlt, nd, _, _, _, h⟩ | ⟨rfl, ln, _, _, _, h⟩
-    · rw [h]
-    · rw [h]; exact st.nodeDom_updateRoot_other uL nd h1 hℓ u hsame
-    · rw [h]; exact st.nodeDom_updateInner_other h2 hlt uL nd h1 hℓ u hsame
-    · rw [h]; exact st.nodeDom_updateLeaf_other uL ln h1 hℓ u hsame
+      h | ⟨rfl, nd, _, _, h⟩ | ⟨h2, hlt, nd, _, _, _, h⟩ | ⟨rfl, ln, _, _, _, h⟩ <;> rw [h]
+    · exact st.nodeDom_updateRoot_other uL nd h1 hℓ u hsame
+    · exact st.nodeDom_updateInner_other h2 hlt uL nd h1 hℓ u hsame
+    · exact st.nodeDom_updateLeaf_other uL ln h1 hℓ u hsame
 
 theorem nodeWait_overwriteAtNode
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
@@ -334,11 +331,10 @@ theorem nodeWait_overwriteAtNode
     · rw [h]; simp [updateLeaf, hw]
   · push Not at hsame
     rcases st.overwriteAtNode_cases scheme h1L hLL uL k qv with
-      h | ⟨rfl, nd, _, _, h⟩ | ⟨h2L, hlt, nd, _, _, _, h⟩ | ⟨rfl, ln, _, _, _, h⟩
-    · rw [h]
-    · rw [h]; simp
-    · rw [h]; exact st.nodeWait_updateInner_other h2L hlt uL nd h2 hℓ u hsame
-    · rw [h]; exact st.nodeWait_updateLeaf_other uL ln h2 hℓ u hsame
+      h | ⟨rfl, nd, _, _, h⟩ | ⟨h2L, hlt, nd, _, _, _, h⟩ | ⟨rfl, ln, _, _, _, h⟩ <;> rw [h]
+    · simp
+    · exact st.nodeWait_updateInner_other h2L hlt uL nd h2 hℓ u hsame
+    · exact st.nodeWait_updateLeaf_other uL ln h2 hℓ u hsame
 
 theorem nodeQuery_overwriteAtNode_same
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
@@ -351,25 +347,17 @@ theorem nodeQuery_overwriteAtNode_same
   by_cases hL1 : L = 1
   · subst hL1
     rw [nodeDom_one] at hk
-    rw [dite_eq_left rfl, nodeQuery_one, funext (nodeQuery_one scheme st h1L hLL uL)]
-    dsimp only [overwriteRootAt]
-    rw [dite_eq_left hk]
-    simp [updateRoot]
+    simp [overwriteRootAt, hk, updateRoot, nodeQuery_one,
+      funext (nodeQuery_one scheme st h1L hLL uL)]
   · by_cases hLlt : L < P.depth
     · have h2 : 2 ≤ L := by omega
       rw [nodeDom_inner st h1L h2 hLlt hLL] at hk
-      rw [dite_eq_right hL1, dite_eq_left hLlt, nodeQuery_inner _ _ h1L h2 hLlt hLL,
+      simp [hL1, hLlt, overwriteInnerAt, hk, updateInner, nodeQuery_inner _ _ h1L h2 hLlt hLL,
         funext (nodeQuery_inner scheme st h1L h2 hLlt hLL uL)]
-      dsimp only [overwriteInnerAt]
-      rw [dite_eq_left hk]
-      simp [updateInner]
     · obtain rfl : L = P.depth := by omega
       rw [nodeDom_depth] at hk
-      rw [dite_eq_right hL1, dite_eq_right (lt_irrefl _), nodeQuery_depth,
+      simp [hL1, overwriteLeafAt, hk, updateLeaf, nodeQuery_depth,
         funext (nodeQuery_depth scheme st h1L hLL uL)]
-      dsimp only [overwriteLeafAt]
-      rw [dite_eq_left hk]
-      simp [updateLeaf]
 
 theorem nodeQuery_overwriteAtNode_other
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
@@ -381,11 +369,10 @@ theorem nodeQuery_overwriteAtNode_other
     (st.overwriteAtNode scheme L h1L hLL uL k qv).nodeQuery scheme ℓ h1 hℓ u k' =
       st.nodeQuery scheme ℓ h1 hℓ u k' := by
   rcases st.overwriteAtNode_cases scheme h1L hLL uL k qv with
-    h | ⟨rfl, nd, _, _, h⟩ | ⟨h2, hlt, nd, _, _, _, h⟩ | ⟨rfl, ln, _, _, _, h⟩
-  · rw [h]
-  · rw [h]; exact st.nodeQuery_updateRoot_other scheme uL nd h1 hℓ u k' hdiff
-  · rw [h]; exact st.nodeQuery_updateInner_other scheme h2 hlt uL nd h1 hℓ u k' hdiff
-  · rw [h]; exact st.nodeQuery_updateLeaf_other scheme uL ln h1 hℓ u k' hdiff
+    h | ⟨rfl, nd, _, _, h⟩ | ⟨h2, hlt, nd, _, _, _, h⟩ | ⟨rfl, ln, _, _, _, h⟩ <;> rw [h]
+  · exact st.nodeQuery_updateRoot_other scheme uL nd h1 hℓ u k' hdiff
+  · exact st.nodeQuery_updateInner_other scheme h2 hlt uL nd h1 hℓ u k' hdiff
+  · exact st.nodeQuery_updateLeaf_other scheme uL ln h1 hℓ u k' hdiff
 
 /-- Overwrite loop scanning root-to-leaf for the stored level of an active key (`Section 5.3`). -/
 noncomputable def rawOverwriteLoop
@@ -416,50 +403,37 @@ noncomputable def rawOverwrite
 
 private theorem sentCount_and_seeds_rawOverwriteLoop
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
-    (st : P.TreeState) (v_new : Fin P.valBound) :
-    ∀ (k m : ℕ), m + k = P.depth → (h1 : 1 ≤ m) → (hml : m ≤ P.depth) →
-      ∀ c : P.LevelCoord m,
-        (st.rawOverwriteLoop scheme v_new m h1 hml c).sentCount = st.sentCount ∧
-        (st.rawOverwriteLoop scheme v_new m h1 hml c).seeds = st.seeds := by
-  intro k
-  induction k with
-  | zero =>
-    intro m hsum h1 hml c
-    obtain rfl : m = P.depth := by omega
+    (st : P.TreeState) (v_new : Fin P.valBound) (ℓ : ℕ) (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth)
+    (c : P.LevelCoord ℓ) :
+    (st.rawOverwriteLoop scheme v_new ℓ h1 hℓ c).sentCount = st.sentCount ∧
+    (st.rawOverwriteLoop scheme v_new ℓ h1 hℓ c).seeds = st.seeds := by
+  generalize hk : P.depth - ℓ = k
+  induction k using Nat.strongRecOn generalizing ℓ with
+  | ind k ih =>
     unfold rawOverwriteLoop
     split
-    · split_ifs
-      · exact ⟨st.sentCount_overwriteAtNode scheme h1 hml _ _ _,
-          st.seeds_overwriteAtNode scheme h1 hml _ _ _⟩
-      · omega
+    · split_ifs with _ hlt
+      · exact ⟨st.sentCount_overwriteAtNode scheme h1 hℓ _ _ _,
+          st.seeds_overwriteAtNode scheme h1 hℓ _ _ _⟩
+      · exact ih _ (by omega) (ℓ + 1) (by omega) hlt _ rfl
       · exact ⟨rfl, rfl⟩
-    · rw [dite_eq_right (lt_irrefl _)]
-      exact ⟨rfl, rfl⟩
-  | succ k ih =>
-    intro m hsum h1 hml c
-    have hlt : m < P.depth := by omega
-    unfold rawOverwriteLoop
-    split
-    · split_ifs
-      · exact ⟨st.sentCount_overwriteAtNode scheme h1 hml _ _ _,
-          st.seeds_overwriteAtNode scheme h1 hml _ _ _⟩
-      · exact ih (m + 1) (by omega) (by omega) hlt _
-    · rw [dite_eq_left hlt]
-      exact ih (m + 1) (by omega) (by omega) hlt _
+    · split_ifs with hlt
+      · exact ih _ (by omega) (ℓ + 1) (by omega) hlt _ rfl
+      · exact ⟨rfl, rfl⟩
 
 theorem sentCount_rawOverwrite
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
     (st : P.TreeState) (x : Fin P.paddedUniv) (v_new : Fin P.valBound) :
     (st.rawOverwrite scheme x v_new).sentCount = st.sentCount :=
-  (st.sentCount_and_seeds_rawOverwriteLoop scheme v_new (P.depth - 1) 1
-    (by have := P.two_le_depth; omega) le_rfl (Nat.one_le_of_lt P.two_le_depth) _).1
+  (st.sentCount_and_seeds_rawOverwriteLoop scheme v_new 1 le_rfl
+    (Nat.one_le_of_lt P.two_le_depth) _).1
 
 theorem seeds_rawOverwrite
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
     (st : P.TreeState) (x : Fin P.paddedUniv) (v_new : Fin P.valBound) :
     (st.rawOverwrite scheme x v_new).seeds = st.seeds :=
-  (st.sentCount_and_seeds_rawOverwriteLoop scheme v_new (P.depth - 1) 1
-    (by have := P.two_le_depth; omega) le_rfl (Nat.one_le_of_lt P.two_le_depth) _).2
+  (st.sentCount_and_seeds_rawOverwriteLoop scheme v_new 1 le_rfl
+    (Nat.one_le_of_lt P.two_le_depth) _).2
 
 theorem wellFormedPadded_rawOverwrite
     {scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth)}
@@ -521,44 +495,39 @@ theorem wellFormedPadded_rawOverwrite
   rw [heq_target]
   have hseeds : st_target.seeds = st.seeds :=
     st.seeds_overwriteAtNode scheme hlo_x hhi_x uL idL (qL, v_new)
+  dsimp only [st_target] at hseeds ⊢
   refine
-    { goodSeeds := by rw [hseeds, hdom_upd]; exact hwf.goodSeeds
-      storeLvl_bounds := by rw [hdom_upd]; exact hwf.storeLvl_bounds
-      storeLvl_outside := by rw [hdom_upd]; exact hwf.storeLvl_outside
+    { goodSeeds := by simpa only [hseeds, hdom_upd] using hwf.goodSeeds
+      storeLvl_bounds := by simpa only [hdom_upd] using hwf.storeLvl_bounds
+      storeLvl_outside := by simpa only [hdom_upd] using hwf.storeLvl_outside
       dom_eq := fun ℓ h1' hℓ' u => by
-        rw [st.nodeDom_overwriteAtNode scheme hlo_x hhi_x uL idL (qL, v_new) h1' hℓ' u,
-          hseeds, hdom_upd]
-        exact hwf.dom_eq ℓ h1' hℓ' u
+        simpa only [st.nodeDom_overwriteAtNode scheme hlo_x hhi_x uL idL (qL, v_new) h1' hℓ' u,
+          hseeds, hdom_upd] using hwf.dom_eq ℓ h1' hℓ' u
       query_eq_of_storeLvl := fun ℓ h1' hℓ' u y vy hdy hny hsly => ?_
       inner_full := fun ℓ h2' hlt' u => by
-        have hd := st.nodeDom_overwriteAtNode scheme hlo_x hhi_x uL idL (qL, v_new)
-          (by omega) hlt'.le u
-        rw [nodeDom_inner _ _ h2' hlt' hlt'.le, nodeDom_inner _ _ h2' hlt' hlt'.le] at hd
-        rw [hd]; exact hwf.inner_full ℓ h2' hlt' u
+        simpa only [nodeDom_inner _ (Nat.one_le_of_lt h2') h2' hlt' hlt'.le,
+          hwf.inner_full ℓ h2' hlt' u] using
+          congrArg Finset.card (st.nodeDom_overwriteAtNode scheme hlo_x hhi_x uL idL (qL, v_new)
+            (Nat.one_le_of_lt h2') hlt'.le u)
       wait_dom_eq := fun ℓ h2' hℓ' u => by
-        rw [st.nodeWait_overwriteAtNode scheme hlo_x hhi_x uL idL (qL, v_new) h2' hℓ' u,
-          hseeds, hdom_upd]
-        exact hwf.wait_dom_eq ℓ h2' hℓ' u
+        simpa only [st.nodeWait_overwriteAtNode scheme hlo_x hhi_x uL idL (qL, v_new) h2' hℓ' u,
+          hseeds, hdom_upd] using hwf.wait_dom_eq ℓ h2' hℓ' u
       wait_lookup_eq := fun ℓ h2' hℓ' u y hy hsly => by
-        rw [st.nodeWait_overwriteAtNode scheme hlo_x hhi_x uL idL (qL, v_new) h2' hℓ' u,
-          hseeds]
         rw [hseeds, hdom_upd] at hy
-        exact hwf.wait_lookup_eq ℓ h2' hℓ' u y hy hsly }
+        simpa only [st.nodeWait_overwriteAtNode scheme hlo_x hhi_x uL idL (qL, v_new) h2' hℓ' u,
+          hseeds] using hwf.wait_lookup_eq ℓ h2' hℓ' u y hy hsly }
   rw [hseeds] at hny ⊢
   by_cases hyx : y = x
   · subst y
     rw [Function.update_self, Option.some.injEq] at hdy
     obtain rfl : ℓ = L := hsly.symm
     subst hdy hny
-    dsimp only [st_target]
     rw [st.nodeQuery_overwriteAtNode_same _ _ _ _ _ _ _ hmemL, Function.update_self]
   · rw [Function.update_of_ne hyx] at hdy
     have hy_in : y ∈ P.paddedDom d := (P.mem_paddedDom_iff d y).mpr (by simp [hdy])
     have hy_old := hwf.query_eq_of_storeLvl ℓ h1' hℓ' u y vy hdy hny hsly
     by_cases hsame : ∃ h_eq : ℓ = L, h_eq ▸ u = uL
-    · obtain ⟨h_eq, hu_eq⟩ := hsame
-      subst h_eq; subst hu_eq
-      dsimp only [st_target]
+    · obtain ⟨rfl, rfl⟩ := hsame
       rw [st.nodeQuery_overwriteAtNode_same _ _ _ _ _ _ _ hmemL]
       have hid_ne : st.seeds.idAt L h1' hℓ' y ≠ idL := fun h =>
         hyx (st.seeds.injOn_idAt_activeAt hwf.goodSeeds hlo_x hhi_x uL
@@ -566,7 +535,6 @@ theorem wellFormedPadded_rawOverwrite
           (SeedAssignment.mem_activeAt_iff.mpr ⟨hx, rfl⟩) h)
       rw [Function.update_of_ne hid_ne, hy_old]
     · push Not at hsame
-      dsimp only [st_target]
       rw [st.nodeQuery_overwriteAtNode_other _ _ _ _ _ _ h1' hℓ' u _ hsame, hy_old]
 
 end TreeSchedule.TreeState

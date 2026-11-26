@@ -113,12 +113,9 @@ private lemma coefficientRing_noZeroDivisors (B : Γ → Rˣ) (h0 : B 0 = 1)
     NoZeroDivisors (coefficientRing B h0 hB) := by
   refine ⟨fun {x y} hxy => or_iff_not_imp_left.mpr fun hx => by_contra fun hy => ?_⟩
   have hunit (z : coefficientRing B h0 hB) (hz : z ≠ 0) :
-      IsUnit (z : HahnSeries Γ R).leadingCoeff := by
-    have hline : (z : HahnSeries Γ R).leadingCoeff ∈
-        line (K := K) B (z : HahnSeries Γ R).order := by
-      rw [HahnSeries.leadingCoeff_eq]
-      exact z.property _
-    exact line_isUnit B hline (HahnSeries.leadingCoeff_ne_zero.mpr (by exact_mod_cast hz))
+      IsUnit (z : HahnSeries Γ R).leadingCoeff :=
+    line_isUnit B ((HahnSeries.leadingCoeff_eq (x := (z : HahnSeries Γ R))).symm ▸ z.property _)
+      (HahnSeries.leadingCoeff_ne_zero.mpr (by exact_mod_cast hz))
   have hh := congrArg (fun z : coefficientRing B h0 hB =>
     (z : HahnSeries Γ R).coeff ((x : HahnSeries Γ R).order + (y : HahnSeries Γ R).order)) hxy
   change ((x : HahnSeries Γ R) * (y : HahnSeries Γ R)).coeff _ = 0 at hh
@@ -333,12 +330,9 @@ lemma inverse_candidate_mem (x : HahnSeries Γ R)
     (hx : x ∈ coefficientRing B h0 hB) (u : Rˣ) (hu : x.leadingCoeff = (u : R)) :
     (geometricPowers (1 - HahnSeries.single (-x.order) (↑u⁻¹ : R) * x)).hsum *
       HahnSeries.single (-x.order) (↑u⁻¹ : R) ∈ coefficientRing B h0 hB := by
-  have hline : x.leadingCoeff ∈ line (K := K) B x.order := by
-    rw [leadingCoeff_eq]
-    exact hx _
   let v : HahnSeries Γ R := HahnSeries.single (-x.order) (↑u⁻¹ : R)
   have hv : v ∈ coefficientRing B h0 hB :=
-    single_mem B h0 hB (line_inv_unit B h0 hB u (hu ▸ hline))
+    single_mem B h0 hB (line_inv_unit B h0 hB u (hu ▸ (leadingCoeff_eq (x := x)).symm ▸ hx _))
   have hz : 1 - v * x ∈ coefficientRing B h0 hB :=
     (coefficientRing B h0 hB).sub_mem (coefficientRing B h0 hB).one_mem
       ((coefficientRing B h0 hB).mul_mem hv hx)
@@ -349,11 +343,9 @@ lemma inverse_candidate_mem (x : HahnSeries Γ R)
 private lemma inverse_exists (x : coefficientRing B h0 hB) (hx : x ≠ 0) :
     ∃ y : coefficientRing B h0 hB, x * y = 1 := by
   have hx' : (x : HahnSeries Γ R) ≠ 0 := fun h => hx (Subtype.ext h)
-  have hline : (x : HahnSeries Γ R).leadingCoeff ∈
-      line (K := K) B (x : HahnSeries Γ R).order := by
-    rw [leadingCoeff_eq]
-    exact x.property _
-  obtain ⟨u, hu⟩ := line_isUnit (K := K) B hline (leadingCoeff_ne_zero.mpr hx')
+  obtain ⟨u, hu⟩ := line_isUnit (K := K) B
+    ((leadingCoeff_eq (x := (x : HahnSeries Γ R))).symm ▸ x.property _)
+    (leadingCoeff_ne_zero.mpr hx')
   exact ⟨⟨_, inverse_candidate_mem B h0 hB x x.property u hu.symm⟩,
     Subtype.ext (normalized_right_inverse (x : HahnSeries Γ R) u hu.symm)⟩
 

@@ -149,23 +149,15 @@ theorem span_exec_succinct {U V w n_max base : ℕ}
   let s₁ := x.set baseReg (x.regs frontierReg)
   let s₂ := s₁.set curReg (space U V w n_max)
   let s₃ := s₂.set frontierReg (base + space U V w n_max)
-  have e₁ : ExecWithin (B := .exact) w
-      (.op (.copy baseReg frontierReg)) x s₁ 1 :=
-    ExecWithin.copy
-  have e₂ : ExecWithin (B := .exact) w
-      (.op (.const curReg (space U V w n_max))) s₁ s₂ 1 :=
-    ExecWithin.const (by fits)
   have e₃ : ExecWithin (B := .exact) w
       (.op (.exactBin .add frontierReg frontierReg curReg)) s₂ s₃ 1 := by
     apply ExecWithin.op
-    rw [Op.eval_exactBin]
-    have hfr₂ : s₂.regs frontierReg = base := by
-      simp only [s₂, s₁, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hfr]
-    have hcur₂ : s₂.regs curReg = space U V w n_max := by
-      simp only [s₂, Data.set_regs, update_sReg, ↓reduceIte]
-    rw [hfr₂, hcur₂]
+    have hfr₂ : s₂.regs frontierReg = base := by simp [s₂, s₁, hfr]
+    have hcur₂ : s₂.regs curReg = space U V w n_max := by simp [s₂]
+    rw [Op.eval_exactBin, hfr₂, hcur₂]
     exact Data.put_of_fits hfit
-  refine ⟨s₃, e₁.seq (e₂.seq e₃), rfl, ?_, ?_, fun j => Fin.elim0 j⟩
+  refine ⟨s₃, ExecWithin.copy.seq ((ExecWithin.const (by fits)).seq e₃), rfl, ?_, ?_,
+    fun j => Fin.elim0 j⟩
   · simp only [s₃, s₂, s₁, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hfr]
   · simp only [s₃, Data.set_regs, update_sReg, ↓reduceIte]
 
@@ -225,31 +217,22 @@ theorem setup_exec_succinct {U V w n_max base : ℕ}
         refine ⟨hz0, htab', hseed', fun a ha => hframe a ?_, le_of_eq hsteps⟩
         simp only [Block.mem_footprint, Block.Owns, not_and_or, not_le, not_lt] at ha
         exact ha.imp_right ((Nat.add_le_add_left (Nat.le_add_right _ _) base).trans))
-  have he_res_ren := he_res.rename coreReg_injective
   let lift0 : LatentState (QuotHashSeed U n_max) 240 →
       QuotHashSeed U n_max × Data rSuccinct :=
     fun p => (p.latent, p.data.extend coreReg x₂)
   let ν₀ := ν_core.map lift0
-  have he_res_ν₀ : ExecCodeDist w
-      ((ReducedKWise.resampleCode (qBits U n_max) (hashB n_max)
-        (totalMicroBits n_max) 3).rename coreReg)
-      x₂ (ν₀.map Prod.snd)
-      (ReducedKWise.resampleSteps (qBits U n_max) (hashB n_max) (totalMicroBits n_max) 3 :
-        ℝ≥0∞) := by
-    refine he_res_ren.congr_dist ?_ le_rfl
-    dsimp only [ν₀, lift0]
-    rw [PMF.map_comp, PMF.map_comp]
-    rfl
   refine ⟨ν₀, ?_, ?_, ?_⟩
-  · simpa only [subroutineCode, Nat.cast_add] using he_tab_ren.seq_pure he_res_ν₀
+  · have hdist :
+        (ν_core.map LatentState.data).map (Data.extend coreReg · x₂) = ν₀.map Prod.snd := by
+      simp only [ν₀, lift0, PMF.map_comp]
+      rfl
+    simpa only [subroutineCode, Nat.cast_add] using
+      he_tab_ren.seq_pure ((he_res.rename coreReg_injective).congr_dist hdist le_rfl)
   · intro θ
-    dsimp only [ν₀, lift0]
-    rw [PMF.map_comp]
-    change (ν_core.map LatentState.latent) θ ≤ _
-    rw [hunif, one_mul]
+    simp only [ν₀, lift0, PMF.map_comp]
+    exact le_of_eq ((congrArg (· θ) hunif).trans (one_mul _).symm)
   · intro p hp
-    rw [PMF.mem_support_map_iff] at hp
-    obtain ⟨q, hq, rfl⟩ := hp
+    obtain ⟨q, hq, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hp
     obtain ⟨hq_base, hq_tab, hq_seed, hq_mod⟩ := hsupp_res q hq
     have hq_bdd : q.data.Bounded w :=
       he_res.bounded (hx₂_bdd.comap coreReg) q.data
@@ -640,16 +623,11 @@ theorem seq_expected_amortized {U V w n_max base : ℕ}
   let C := impl hw hnU hU hV hfit
   obtain ⟨ν₀, ν_final, T_ops, he_init, hex_steps, hseed_final, hrep_final, hamort⟩ :=
     C.seq_expected_amortized_ofFn ops hx hfr (fun j => Fin.elim0 j) hz hv
-  refine ⟨ν₀, ν_final, T_ops, he_init, hex_steps, fun θ => ?_, hrep_final, ?_⟩
-  · have hs := hseed_final θ
-    change (ν_final.map Prod.fst) θ ≤ 1 * (PMF.uniformOfFintype (QuotHashSeed U n_max)) θ at hs
-    rwa [one_mul] at hs
-  · change C.initTime + T_ops +
-        (∑' q, ν_final q * (potential U V w n_max base q.1 q.2 : ℝ≥0∞)) ≤
-      C.initTime + (0 : ℕ) +
-        ((Dynamic.spec U V n_max).totalCost charge (Dictionary.empty U) ops : ℝ≥0∞)
-      at hamort
-    rw [totalCost_charge_eq] at hamort
-    simpa only [Nat.cast_zero, add_zero] using hamort
+  refine ⟨ν₀, ν_final, T_ops, he_init, hex_steps,
+    fun θ => (hseed_final θ).trans_eq (one_mul _), hrep_final, ?_⟩
+  have hp0 : C.initPotential = 0 := rfl
+  have hch : C.charge = charge := rfl
+  have hpot : C.potential = potential U V w n_max base := rfl
+  simpa only [hp0, hch, hpot, totalCost_charge_eq, Nat.cast_zero, add_zero] using hamort
 
 end Cslib.DataStructure.Dictionary.WordRAM.Succinct

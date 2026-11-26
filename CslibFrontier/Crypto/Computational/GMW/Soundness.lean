@@ -116,39 +116,32 @@ private theorem verifyTranscript_honest {generator : List Bool → List Bool} {s
       (proverReply1 generator m r (List.replicate (totalLen φ) true)
         (realBits φ w m₀ m₁ m₂) seeds []) ch
       (proverReply2 s φ ch (realBits φ w m₀ m₁ m₂) seeds) = true := by
-  let K := totalLen φ; let bits := realBits φ w m₀ m₁ m₂
+  let K := totalLen φ
+  let bits := realBits φ w m₀ m₁ m₂
   have hbits_len : bits.length = K := length_realBits φ w m₀ m₁ m₂
   let flags := allOpenFlags φ ch bits
-  have hmask_len :
-      (naorMaskBits (allOpenFlags φ ch (realBits φ w m₀ m₁ m₂))
-        (realBits φ w m₀ m₁ m₂)).length = totalLen φ := by simp
-  have htake : (proverReply2 s φ ch (realBits φ w m₀ m₁ m₂) seeds).take (totalLen φ) =
-      naorMaskBits (allOpenFlags φ ch (realBits φ w m₀ m₁ m₂)) (realBits φ w m₀ m₁ m₂) := by
-    simp [proverReply2, List.take_left' hmask_len]
-  have hdrop : (proverReply2 s φ ch (realBits φ w m₀ m₁ m₂) seeds).drop (totalLen φ) =
-      (naorSelectSeeds s (allOpenFlags φ ch (realBits φ w m₀ m₁ m₂))
-        (realBits φ w m₀ m₁ m₂) seeds).flatten := by
-    simp [proverReply2, List.drop_left' hmask_len]
+  have hmask_len : (naorMaskBits flags bits).length = K := by simp [K, bits]
+  have htake : (proverReply2 s φ ch bits seeds).take K = naorMaskBits flags bits := by
+    simp [proverReply2, K, flags, bits, List.take_left' hmask_len]
+  have hdrop : (proverReply2 s φ ch bits seeds).drop K =
+      (naorSelectSeeds s flags bits seeds).flatten := by
+    simp [proverReply2, K, flags, bits, List.drop_left' hmask_len]
   have hmask_eq := naorMaskBits_realBits (m₀ := m₀) (m₁ := m₁) (m₂ := m₂) ch hw
-  have hflags_eq : allOpenFlags φ ch (naorMaskBits (allOpenFlags φ ch (realBits φ w m₀ m₁ m₂))
-        (realBits φ w m₀ m₁ m₂)) = allOpenFlags φ ch (realBits φ w m₀ m₁ m₂) := by
-    rw [hmask_eq]; exact (allOpenFlags_realBits φ ch w m₀ m₁ m₂).symm
+  have hflags_eq : allOpenFlags φ ch (naorMaskBits flags bits) = flags := by
+    dsimp only [flags, bits]
+    rw [hmask_eq]
+    exact (allOpenFlags_realBits φ ch w m₀ m₁ m₂).symm
   have h3sat : (φ.all fun c => decide (c.length ≤ 3)) = true :=
     (Bool.and_eq_true _ _).mp hw |>.1
-  dsimp only [verifyTranscript]; rw [htake, hdrop, hflags_eq, h3sat]
   have hcopy :
       verifyCopyBits φ (ch.getD 0 false) (gmwCopy0 φ (naorMaskBits flags bits)) = true ∧
       verifyCopyBits φ (ch.getD 1 false) (gmwCopy1 φ (naorMaskBits flags bits)) = true ∧
       verifyCopyBits φ (ch.getD 2 false) (gmwCopy2 φ (naorMaskBits flags bits)) = true := by
-    dsimp only [flags, bits]; rw [hmask_eq]
+    dsimp only [flags, bits]
+    rw [hmask_eq]
     simp [gmwCopy0_simBits, gmwCopy1_simBits, gmwCopy2_simBits, verifyCopyBits_simCopyBits]
-  change (true &&
-      verifyCopyBits φ (ch.getD 0 false) (gmwCopy0 φ (naorMaskBits flags bits)) &&
-      verifyCopyBits φ (ch.getD 1 false) (gmwCopy1 φ (naorMaskBits flags bits)) &&
-      verifyCopyBits φ (ch.getD 2 false) (gmwCopy2 φ (naorMaskBits flags bits)) &&
-      verifyCommitments generator s m φ r flags
-        (proverReply1 generator m r (List.replicate K true) bits seeds [])
-        (naorMaskBits flags bits) (naorSelectSeeds s flags bits seeds).flatten) = true
+  dsimp only [verifyTranscript, K, bits, flags] at htake hdrop hflags_eq hcopy ⊢
+  rw [htake, hdrop, hflags_eq, h3sat]
   simp only [hcopy.1, hcopy.2.1, hcopy.2.2, Bool.true_and, verifyCommitments, List.all_eq_true,
     List.mem_range, Bool.or_eq_true, Bool.not_eq_true', beq_iff_eq]
   intro i hi
@@ -287,12 +280,8 @@ private theorem satisfiable_of_verifyCopyBits {φ : CNF ℕ} {copy₀ copy₁ : 
       simp only [copyOpenFlags, ↓reduceIte]
       rw [List.getD_append_right _ _ _ _ (by simp [Nat.two_mul])]
       simpa [Nat.two_mul] using hact
-    have hcopy_eq := hagree (2 * φ.vars.length + j) hj_len hflag₀ hflag₁
-    have hpart₀ := List.getD_take_drop copy₀ (2 * φ.vars.length) hj false
-    have hpart₁ := List.getD_take_drop copy₁ (2 * φ.vars.length) hj false
-    rw [← htab₀]
-    change ((copy₀.drop (2 * φ.vars.length)).take (8 * φ.length)).getD j false = true
-    rw [hpart₀, hcopy_eq, ← hpart₁]
+    rw [← htab₀, tablePart, List.getD_take_drop copy₀ _ hj,
+      hagree _ hj_len hflag₀ hflag₁, ← List.getD_take_drop copy₁ _ hj]
     exact htab₁ j hj hact
   refine ⟨fun x => varBit φ v x ^^ varBit φ m x, CNF.eval_eq_true_iff _ _ |>.mpr ?_⟩
   intro c hc
@@ -303,22 +292,17 @@ private theorem satisfiable_of_verifyCopyBits {φ : CNF ℕ} {copy₀ copy₁ : 
     (varBit φ v (φ[k].getD 2 (0, false)).1)
   have ht : t < 8 := gmwActiveIdx_lt_eight _ _ _
   have hkt : k * 8 + t < 8 * φ.length := by omega
-  have hrow_act : BitString.listRow 8 k (activeTableFlags φ v) = clauseActiveRow φ v φ[k] := by
-    unfold activeTableFlags
-    rw [BitString.listRow_flatten (by intro w hw; obtain ⟨_, _, rfl⟩ := List.mem_map.mp hw; simp)
-      (by simpa using hk)]
-    simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hk]
-  have hrow_tab : BitString.listRow 8 k (tableBits φ m) = clauseTableRow φ m φ[k] := by
-    unfold tableBits
-    rw [BitString.listRow_flatten (by intro w hw; obtain ⟨_, _, rfl⟩ := List.mem_map.mp hw; simp)
-      (by simpa using hk)]
+  have hrow (f : Clause ℕ → List Bool) (hf : ∀ c, (f c).length = 8) :
+      BitString.listRow 8 k (φ.map f).flatten = f φ[k] := by
+    rw [BitString.listRow_flatten (by simp [hf]) (by simpa using hk)]
     simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hk]
   have hact_true : (activeTableFlags φ v).getD (k * 8 + t) false = true := by
-    rw [← BitString.getD_listRow (row := k) ht, hrow_act, getD_clauseActiveRow φ v φ[k] ht]
+    rw [← BitString.getD_listRow (row := k) ht, activeTableFlags,
+      hrow _ (fun _ => by simp), getD_clauseActiveRow φ v φ[k] ht]
     simp [t]
   have htab_true := htab_eq (k * 8 + t) hkt hact_true
-  rw [← BitString.getD_listRow (row := k) ht, hrow_tab,
-    getD_clauseTableRow φ m φ[k] ht] at htab_true
+  rw [← BitString.getD_listRow (row := k) ht, tableBits,
+    hrow _ (fun _ => by simp), getD_clauseTableRow φ m φ[k] ht] at htab_true
   simp only [t, gmwBit0Of8_gmwActiveIdx, gmwBit1Of8_gmwActiveIdx,
     gmwBit2Of8_gmwActiveIdx] at htab_true
   rw [← clauseEvalBits_eq_eval (hwidth φ[k] hc) (fun x => varBit φ v x ^^ varBit φ m x)]
@@ -383,20 +367,17 @@ private theorem mem_ThreeSAT_of_verifyTranscript_false_true
   obtain ⟨⟨⟨⟨_, hv₁_0⟩, hv₁_1⟩, hv₁_2⟩, hc₁⟩ := hv₁
   refine ⟨hwidth, ?_⟩
   rcases hdiff with ⟨hb₀, hb₁⟩ | ⟨hb₀, hb₁⟩ | ⟨hb₀, hb₁⟩
-  · rw [hb₀] at hv₀_0; rw [hb₁] at hv₁_0
-    refine satisfiable_of_verifyCopyBits hwidth hv₀_0 hv₁_0 fun i hi hf₀ hf₁ => ?_
+  · refine satisfiable_of_verifyCopyBits hwidth (hb₀ ▸ hv₀_0) (hb₁ ▸ hv₁_0) fun i hi hf₀ hf₁ => ?_
     simpa [gmwCopy0, List.getD_eq_getElem?_getD, List.getElem?_take_of_lt hi] using
       verifyCommitments_eq_of_true hbind hc₀ hc₁ (idx := i)
         (by simp only [totalLen]; omega) (by rwa [getD_allOpenFlags_copy0 φ ch₀ opened₀ hi, hb₀])
         (by rwa [getD_allOpenFlags_copy0 φ ch₁ opened₁ hi, hb₁])
-  · rw [hb₀] at hv₀_1; rw [hb₁] at hv₁_1
-    refine satisfiable_of_verifyCopyBits hwidth hv₀_1 hv₁_1 fun i hi hf₀ hf₁ => ?_
+  · refine satisfiable_of_verifyCopyBits hwidth (hb₀ ▸ hv₀_1) (hb₁ ▸ hv₁_1) fun i hi hf₀ hf₁ => ?_
     simpa only [gmwCopy1, List.getD_take_drop _ _ hi] using
       verifyCommitments_eq_of_true hbind hc₀ hc₁ (idx := copyLen φ + i)
         (by simp only [totalLen]; omega) (by rwa [getD_allOpenFlags_copy1 φ ch₀ opened₀ hi, hb₀])
         (by rwa [getD_allOpenFlags_copy1 φ ch₁ opened₁ hi, hb₁])
-  · rw [hb₀] at hv₀_2; rw [hb₁] at hv₁_2
-    refine satisfiable_of_verifyCopyBits hwidth hv₀_2 hv₁_2 fun i hi hf₀ hf₁ => ?_
+  · refine satisfiable_of_verifyCopyBits hwidth (hb₀ ▸ hv₀_2) (hb₁ ▸ hv₁_2) fun i hi hf₀ hf₁ => ?_
     simpa only [gmwCopy2, List.getD_take_drop _ _ hi] using
       verifyCommitments_eq_of_true hbind hc₀ hc₁ (idx := 2 * copyLen φ + i)
         (by simp only [totalLen]; omega) (by rwa [getD_allOpenFlags_copy2 φ ch₀ opened₀ i, hb₀])

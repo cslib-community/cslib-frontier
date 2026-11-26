@@ -184,13 +184,11 @@ theorem iknpSenderViewWords_injective :
   rintro ⟨X, s, ⟨Q, Y, ⟨⟩⟩⟩ ⟨X', s', ⟨Q', Y', ⟨⟩⟩⟩ h
   simp only [iknpSenderViewWords, IKNPSenderViewWords.mk.injEq] at h
   obtain ⟨h₀, h₁, hs, hQ⟩ := h
-  have h₀ := List.ofFn_injective h₀
-  have h₁ := List.ofFn_injective h₁
   refine PartyView.ext ?_ (List.ofFn_injective hs) (Prod.ext ?_ (Prod.ext ?_ rfl))
   · funext j b
     cases b
-    · exact congrFun h₀ j
-    · exact congrFun h₁ j
+    · exact congrFun (List.ofFn_injective h₀) j
+    · exact congrFun (List.ofFn_injective h₁) j
   · refine Round.received_oracle_ext fun sl hsl => ?_
     fin_cases sl
     · exact absurd hsl (by simp [iknpRoleReversal])
@@ -204,8 +202,6 @@ theorem iknpReceiverViewWords_injective :
   rintro ⟨r, T, ⟨Q, Y, ⟨⟩⟩⟩ ⟨r', T', ⟨Q', Y', ⟨⟩⟩⟩ h
   simp only [iknpReceiverViewWords, IKNPReceiverViewWords.mk.injEq] at h
   obtain ⟨hr, hT, h₀, h₁⟩ := h
-  have h₀ := List.ofFn_injective h₀
-  have h₁ := List.ofFn_injective h₁
   refine PartyView.ext (List.ofFn_injective hr)
     (funext fun j => List.ofFn_injective (congrFun (List.ofFn_injective hT) j))
     (Prod.ext ?_ (Prod.ext ?_ rfl))
@@ -215,8 +211,8 @@ theorem iknpReceiverViewWords_injective :
     · exact absurd hsl (by simp [iknpRoleReversal])
   · refine Round.received_message_ext fun _ => funext fun j => funext fun b => ?_
     cases b
-    · exact congrFun h₀ j
-    · exact congrFun h₁ j
+    · exact congrFun (List.ofFn_injective h₀) j
+    · exact congrFun (List.ofFn_injective h₁) j
 
 end ViewWords
 
@@ -452,13 +448,10 @@ theorem isPPT_iknpReceiverSim (hh : ComputableInPolyTime hash encBits encBool) :
     BitString.uniformList, PMF.bind_map, PMF.map_bind, PMF.pure_map, Function.comp_def]
   refine congrArg _ (funext fun T => congrArg _ (funext fun u => congrArg PMF.pure ?_))
   refine Eq.trans ?_ ((iknpEncoding hash m).view.encCoalition_singleton n d 1 _).symm
-  obtain ⟨r, hr⟩ : ∃ r : Fin (m n) → Bool, xs receiver = r := ⟨_, rfl⟩
-  obtain ⟨z, hz⟩ : ∃ z : Fin (m n) → Bool, ys receiver = z := ⟨_, rfl⟩
-  have hr' : (iknpEncoding hash m).input.rep n d 1 (xs receiver) = List.ofFn r := by rw [hr]; rfl
-  have hz' : (iknpEncoding hash m).output.rep n d 1 (ys receiver) = List.ofFn z := by rw [hz]; rfl
-  simp only [receiverSimWord, hr', hz', List.map_ofFn, Function.comp_def, bitsZipWith4_ofFn]
-  simp only [receiver] at hr hz
-  simp only [hr, hz]
+  let r : Fin (m n) → Bool := xs receiver
+  let z : Fin (m n) → Bool := ys receiver
+  change receiverSimWord hash (List.ofFn r) (List.ofFn z) _ _ = _
+  simp only [receiverSimWord, List.map_ofFn, Function.comp_def, bitsZipWith4_ofFn]
   rfl
 
 /-! ### Corrupted receiver: the reduction to correlation robustness -/
@@ -478,9 +471,9 @@ theorem realGame_iknp_receiver_eq (Z : Environment (iknpFamily hash m) {1}) (n :
     (iknpFamily hash m).realGame (fun _ => PMF.pure ()) {1} Z n =
       CorrelationRobust.realGame (CorrelationRobust.atLevel hash n (m n))
         (iknpReceiverToCR hash m Z n) := by
-  simp only [ProtocolFamily.realGame, PMF.monad_bind_eq_bind, PMF.pure_bind]
-  simp only [realJoint_iknp_receiver_bind]
-  simp only [CorrelationRobust.realGame, iknpReceiverToCR, ProbComp.eval_bind]
+  simp only [ProtocolFamily.realGame, PMF.monad_bind_eq_bind, PMF.pure_bind,
+    realJoint_iknp_receiver_bind, CorrelationRobust.realGame, iknpReceiverToCR,
+    ProbComp.eval_bind]
   pmf_swap
 
 /-- The ideal game against a corrupted receiver with `iknpReceiverSim` is the ideal
@@ -489,8 +482,8 @@ theorem idealGame_iknp_receiver_eq (Z : Environment (iknpFamily hash m) {1}) (n 
     (iknpFamily hash m).idealGame (fun _ => PMF.pure ()) {1}
         (fun n _ => iknpReceiverSim (CorrelationRobust.atLevel hash n (m n))) Z n =
       CorrelationRobust.idealGame (iknpReceiverToCR hash m Z n) := by
-  simp only [ProtocolFamily.idealGame, PMF.monad_bind_eq_bind, PMF.pure_bind]
-  simp only [← ProbComp.eval_bind, idealJoint_iknp_receiver_bind]
+  simp only [ProtocolFamily.idealGame, PMF.monad_bind_eq_bind, PMF.pure_bind,
+    ← ProbComp.eval_bind, idealJoint_iknp_receiver_bind]
   simp only [CorrelationRobust.idealGame, iknpReceiverToCR, ProbComp.eval_bind]
   pmf_swap
 

@@ -327,11 +327,9 @@ variable (W : Fin k₁ → ℤ → Option Bool) (P : Fin k₁ → ℤ) (F : ℤ 
 
 private theorem apply_secondAction (c : Cfg k₂ Bool S₂ input) (a : Turing.Action k₂ Bool S₂) :
     (secondAction (k₁ := k₁) a).apply (embed₂ W P F c) = embed₂ W P F (a.apply c) := by
-  refine Cfg.ext ?_ rfl ?_ ?_ ?_
-  · simp [secondAction, embed₂]
+  refine Cfg.ext (by simp [secondAction, embed₂]) rfl ?_ ?_ (by simp [secondAction, embed₂])
   · apply funext_layout <;> simp [secondAction, embed₂, Turing.Action.apply_workTapes]
   · apply funext_layout <;> simp [secondAction, embed₂]
-  · simp [secondAction, embed₂]
 
 private theorem step_cont_embed₂ (second : MultiTapePTM k₂ Bool S₂) (bit : Bool)
     (c : Config k₂ Bool S₂ Empty input) :
@@ -381,6 +379,9 @@ private theorem step_cont_rewind (second : MultiTapePTM k₂ Bool S₂) (bit : B
   cases (ctrl (k₂ := k₂) (S₂ := S₂) W P F (some true) pos out).inputSymbol <;>
     tm_step [ctrl, embed₂, rewindAction]
 
+private theorem moveInputPos_zero_one {n : ℕ} : moveInputPos (0 : Fin (n + 2)) 1 = 1 :=
+  Fin.ext (by simp [moveInputPos])
+
 /-- Rewinding from input position `q` takes `q + 1` steps and starts the second machine on the
 first input symbol. -/
 private theorem eval_cont_rewind (second : MultiTapePTM k₂ Bool S₂) (out : List Bool) (m : ℕ) :
@@ -395,23 +396,16 @@ private theorem eval_cont_rewind (second : MultiTapePTM k₂ Bool S₂) (out : L
     have hsym : (ctrl (k₂ := k₂) (S₂ := S₂) W P F (some true) (0 : Fin (input.length + 2))
         out).inputSymbol = none := by
       simp [Cfg.inputSymbol, ctrl]
-    have hmove : moveInputPos (0 : Fin (input.length + 2)) 1 = 1 :=
-      Fin.ext (by simp [moveInputPos])
     rw [eval_runClosedConfigFrom_succ_of_step _ fun bit => step_cont_rewind W P F second bit 0 out,
-      hsym]
-    dsimp only
-    rw [hmove]
+      hsym, moveInputPos_zero_one]
   | q + 1, pos, hpos, hq => by
     have hsym : (ctrl (k₂ := k₂) (S₂ := S₂) W P F (some true) pos out).inputSymbol =
-        some input[q] := by
-      refine inputSymbolInner q ?_ (by omega)
-      simp only [ctrl, hpos]
-      omega
+        some input[q] :=
+      inputSymbolInner q (by simp only [ctrl, hpos]; omega) hq
     have hne : pos ≠ 0 := fun h => by simp [h] at hpos
     rw [show m + (q + 1 + 1) = m + (q + 1) + 1 from rfl,
       eval_runClosedConfigFrom_succ_of_step _ fun bit => step_cont_rewind W P F second bit pos out,
       hsym]
-    dsimp only
     refine eval_cont_rewind second out m q _ ?_ (by omega)
     rw [show (-1 : SignType) = .neg from rfl, moveInputPos_neg_of_ne_left pos hne]
     simp [hpos]
@@ -488,8 +482,7 @@ private theorem halted_of_mem_support_contResult (second : MultiTapePTM k₂ Boo
     final.tapes.state = none := by
   unfold contResult at hfinal
   split_ifs at hfinal
-  · rw [PMF.support_pure, Set.mem_singleton_iff] at hfinal
-    subst hfinal
+  · obtain rfl := (PMF.mem_support_pure_iff _ _).mp hfinal
     rfl
   · obtain ⟨c₂, hc₂, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hfinal
     simp [liftCfg, embed₂, ht c₂ hc₂]
@@ -539,19 +532,15 @@ private theorem eval_runClosedConfigFrom_orElse (t₁ t₂ : ℕ)
     hP1, Probability.PMF.monad_bind_eq_bind, PMF.bind_map]
   case hfirst =>
     intro r hr
-    rw [hP1] at hr
-    obtain ⟨c, hc, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hr
+    obtain ⟨c, hc, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp (hP1 ▸ hr)
     simp [liftCfg, embed₁, h₁ c hc]
   case hsecond =>
     intro r hr final hfinal
-    rw [hP1] at hr
-    obtain ⟨c, hc, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hr
-    rw [eval_cont_start second t₂ h₂ c (h₁ c hc)] at hfinal
-    exact halted_of_mem_support_contResult second t₂ h₂ c hfinal
-  apply Probability.PMF.bind_congr_on_support
-  intro c hc
-  simp only [Function.comp_apply]
-  rw [eval_cont_start second t₂ h₂ c (h₁ c hc)]
+    obtain ⟨c, hc, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp (hP1 ▸ hr)
+    exact halted_of_mem_support_contResult second t₂ h₂ c
+      (eval_cont_start second t₂ h₂ c (h₁ c hc) ▸ hfinal)
+  exact Probability.PMF.bind_congr_on_support _ _ _ fun c hc =>
+    congrArg (PMF.map Sequential.right) (eval_cont_start second t₂ h₂ c (h₁ c hc))
 
 /-! ### Space -/
 
@@ -600,25 +589,18 @@ private theorem reachable_ctrl_step (bit : Bool) (coins : List Bool) (W : Fin k�
       have hsym : (ctrl (k₂ := k₂) (S₂ := S₂) W (reach first input coins).tapes.workTapePos F
           (some true) (0 : Fin (input.length + 2)) []).inputSymbol = none := by
         simp [Cfg.inputSymbol, ctrl]
-      have hmove : moveInputPos (0 : Fin (input.length + 2)) 1 = 1 :=
-        Fin.ext (by simp [moveInputPos])
-      rw [hsym]
-      dsimp only
-      rw [hmove]
+      rw [hsym, moveInputPos_zero_one]
       exact .inr (.inr (.inr ⟨coins, W, F, [], rfl⟩))
     · have hp := hpos rfl
       have hne : pos.val ≠ 0 := fun h => h0 (Fin.ext h)
       have hsym : (ctrl (k₂ := k₂) (S₂ := S₂) W (reach first input coins).tapes.workTapePos F
-          (some true) pos []).inputSymbol = some input[pos.val - 1] := by
-        refine inputSymbolInner _ ?_ (by omega)
-        simp only [ctrl]
-        omega
+          (some true) pos []).inputSymbol = some input[pos.val - 1] :=
+        inputSymbolInner _ (by simp only [ctrl]; omega)
+          (by omega)
       rw [hsym]
-      dsimp only
       refine .inr (.inl ⟨coins, W, F, true, _, rfl, fun _ => ?_⟩)
       rw [show (-1 : SignType) = .neg from rfl, moveInputPos_neg_of_ne_left pos h0]
-      simp only
-      omega
+      simp only; omega
 
 private theorem reachable_step (bit : Bool) {c} (hc : Reachable first second input c) :
     Reachable first second input (((first.orElse second).withCoin bit).step c) := by
@@ -733,8 +715,7 @@ theorem eval_runClosed_orElse :
   congr 1 with c : 1
   simp only [Function.comp_apply, OrElse.contResult, PMF.map_comp]
   split_ifs with hacc
-  · rw [PMF.pure_map]
-    rfl
+  · exact PMF.pure_map _ _
   · rw [runClosed_eq_map, ProbComp.eval_map, PMF.map_comp]
     rfl
 

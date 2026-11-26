@@ -141,8 +141,7 @@ theorem exists_agree_of_mem_HeurP {L : DistProblem} (hL : L ∈ HeurP) (q : Poly
   obtain ⟨A, hA⟩ := hL
   have hpt := hA.polyTime
   refine ⟨fun x => A (x, q.eval x.length), by polytime, fun x hx => hA.correct_of_lt ?_⟩
-  refine lt_of_lt_of_le (ENNReal.inv_lt_inv' ?_) hx
-  exact_mod_cast Nat.lt_succ_self _
+  exact lt_of_lt_of_le (ENNReal.inv_lt_inv' (by exact_mod_cast Nat.lt_succ_self _)) hx
 
 /-- **Exact decision on the support.** If `L ∈ HeurP` and every instance in the support of the
 ensemble has probability at least `1/q(|x|)`, then a polynomial-time decider agrees with `L` on
@@ -153,9 +152,7 @@ theorem exists_agree_on_support_of_mem_HeurP {L : DistProblem} (hL : L ∈ HeurP
     ∃ f : List Bool → Bool, ComputableInPolyTime f encBits encBool ∧
       ∀ n x, x ∈ (L.ens.dist n).support → (f x = true ↔ x ∈ L.lang) := by
   obtain ⟨f, hf, hagree⟩ := exists_agree_of_mem_HeurP hL q
-  refine ⟨f, hf, fun n x hx => hagree x ?_⟩
-  rw [L.ens.length_eq n x hx]
-  exact hq n x hx
+  exact ⟨f, hf, fun n x hx => hagree x (L.ens.length_eq n x hx ▸ hq n x hx)⟩
 
 /-- **`(L, U) ∈ HeurP` implies `L ∈ E`.** A word `x` has probability `2^{-|x|}` under the uniform
 ensemble, so the heuristic scheme run with confidence parameter `2^{|x|}` decides `L` exactly, in
@@ -168,8 +165,7 @@ theorem mem_E_of_mem_HeurP_uniform {L : Set (List Bool)}
   refine (hA.correct_of_lt (x := x) (k := 2 ^ x.length) ?_).symm
   change _ < Ensemble.uniform.dist x.length x
   rw [Ensemble.uniform_apply]
-  refine ENNReal.inv_lt_inv' ?_
-  exact_mod_cast Nat.lt_succ_self _
+  exact ENNReal.inv_lt_inv' (by exact_mod_cast Nat.lt_succ_self _)
 
 /-- **`(L, U) ∈ AvgP` implies `L ∈ E`.** -/
 theorem mem_E_of_mem_AvgP_uniform {L : Set (List Bool)}
@@ -235,9 +231,7 @@ theorem ensemble_dist_frame_append (u : List Bool) (m : ℕ) :
   have hv : parser.valid (frame u ++ List.replicate m true) = true := valid_frame_append _ _
   have h := parser.ensemble_dist_collapse hv
   rw [HeaderParser.collapse_of_valid _ hv] at h
-  change parser.ensemble.dist _ (header _ ++ List.replicate (_ - (header _).length) true) =
-    (2 ^ (header _).length : ℝ≥0∞)⁻¹ at h
-  simpa only [ensemble, header_frame_append, List.length_append, List.length_replicate,
+  simpa only [ensemble, parser, header_frame_append, List.length_append, List.length_replicate,
     Nat.add_sub_cancel_left, length_frame] using h
 
 end PaddedFrame

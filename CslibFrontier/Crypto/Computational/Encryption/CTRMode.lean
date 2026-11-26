@@ -290,17 +290,23 @@ private theorem runWith_freshStep_ctrMaskQueriesFrom
       (ProbOracleComp.runWith freshStep (ctrMaskQueriesFrom counter iv (i + 1) k) p.2).map
         fun q => (p.1 :: q.1, q.2)) = _
     simp only [freshStep, Function.comp_def, ← PMF.bind_pure_comp, PMF.bind_bind, PMF.pure_bind]
-    have hstep : ∀ u : BitString n,
-        ProbOracleComp.runWith freshStep (ctrMaskQueriesFrom counter iv (i + 1) k)
-          ((counter iv i, u) :: s.1, s.2 || (s.1.lookup (counter iv i)).isSome) =
-          (uniformBlocks k).map fun us =>
-            (us, (ctrCache ((counter iv i, u) :: s.1) counter iv (i + 1) us,
-              s.2 || ((s.1.lookup (counter iv i)).isSome || ctrAnyHit s.1 counter iv (i + 1) k))) :=
-      fun u => by
-        rw [ih (i + 1) _ hsub, ctrAnyHit_cons_eq s.1 counter iv u i (i + 1) k hdistinct]
-        simp only [Bool.or_assoc]
-    simp only [hstep, uniformBlocks_succ, Function.comp_def, ← PMF.bind_pure_comp, PMF.bind_bind,
+    simp_rw [ih (i + 1) _ hsub, ctrAnyHit_cons_eq s.1 counter iv _ i (i + 1) k hdistinct,
+      Bool.or_assoc]
+    simp only [uniformBlocks_succ, Function.comp_def, ← PMF.bind_pure_comp, PMF.bind_bind,
       PMF.pure_bind, ctrCache, ctrAnyHit]
+
+private theorem runWith_freshStep_ctrMaskQueriesFrom_blocks
+    (counter : BitString n → ℕ → BitString n) (ℓ : ℕ) (q : BlockModeQuery n)
+    (iv : BitString n) (s : FlagState n)
+    (hintra : ∀ iv i j, i < ℓ → j < ℓ → i ≠ j → counter iv i ≠ counter iv j) :
+    ProbOracleComp.runWith freshStep (ctrMaskQueriesFrom counter iv 0 (blockModeBlocks ℓ q)) s =
+      (uniformBlocks (blockModeBlocks ℓ q)).map fun us =>
+        (us, (ctrCache s.1 counter iv 0 us,
+          s.2 || ctrAnyHit s.1 counter iv 0 (blockModeBlocks ℓ q))) :=
+  runWith_freshStep_ctrMaskQueriesFrom counter iv 0 (blockModeBlocks ℓ q) s
+    fun a b' _ ha _ hb hab =>
+      hintra iv a b' (lt_of_lt_of_le (by omega) (blockModeBlocks_le ℓ q))
+        (lt_of_lt_of_le (by omega) (blockModeBlocks_le ℓ q)) hab
 
 private theorem runWith_freshStep_ctrQueryProgram
     (counter : BitString n → ℕ → BitString n) (ℓ : ℕ) (b : Bool) (q : BlockModeQuery n)
@@ -316,11 +322,7 @@ private theorem runWith_freshStep_ctrQueryProgram
     ProbOracleComp.runWith_sample, ProbComp.eval_uniform, length_blockModeSelect, Function.comp_def,
     ← PMF.bind_pure_comp, PMF.bind_bind, PMF.pure_bind]
   refine PMF.bind_congr_on_support _ _ _ fun iv _ => ?_
-  have hinj : ∀ a b', 0 ≤ a → a < 0 + blockModeBlocks ℓ q → 0 ≤ b' → b' < 0 + blockModeBlocks ℓ q →
-      a ≠ b' → counter iv a ≠ counter iv b' := fun a b' _ ha _ hb hab =>
-    hintra iv a b' (lt_of_lt_of_le (by omega) (blockModeBlocks_le ℓ q))
-      (lt_of_lt_of_le (by omega) (blockModeBlocks_le ℓ q)) hab
-  rw [runWith_freshStep_ctrMaskQueriesFrom counter iv 0 (blockModeBlocks ℓ q) s hinj]
+  rw [runWith_freshStep_ctrMaskQueriesFrom_blocks counter ℓ q iv s hintra]
   simp only [ProbOracleComp.runWith_pure, Function.comp_def, ← PMF.bind_pure_comp, PMF.bind_bind,
     PMF.pure_bind]
 
@@ -406,13 +408,7 @@ private theorem toOuterMeasure_bad_freshQuery_le
             simpa using (ctrAnyHit_eq_true_iff s.1 counter iv 0 (blockModeBlocks ℓ q)).1 hhit
           rw [Set.indicator_of_mem hex, Pi.one_apply]
           exact PMF.toOuterMeasure_le_one _ _
-        · have hpre2 :
-              ((iv, ·) ⁻¹' {p : BitString n × List (BitString n) |
-                ctrAnyHit s.1 counter p.1 0 (blockModeBlocks ℓ q) = true}) = ∅ := by
-            ext us
-            simp [hhit]
-          rw [hpre2]
-          simp
+        · simp [Set.preimage, hhit]
     _ = (PMF.uniformOfFintype (BitString n)).toOuterMeasure
           {iv' | ∃ j < blockModeBlocks ℓ q, counter iv' j ∈ s.1.map Prod.fst} := by
         rw [← PMF.toOuterMeasure_eq_tsum_mul_indicator]
@@ -484,13 +480,7 @@ theorem advantage_idealExperiment_ctrReduction_le
       (K : ℝ) ^ 2 / 2 ^ n := by
   have hfresh := freshGame_eq_blockModeIdealExperiment
     (fun iv k => ctrMaskQueriesFrom counter iv 0 k) ℓ b adversary fun q iv s => by
-      have hinj : ∀ a b', 0 ≤ a → a < 0 + blockModeBlocks ℓ q → 0 ≤ b' →
-          b' < 0 + blockModeBlocks ℓ q → a ≠ b' → counter iv a ≠ counter iv b' :=
-        fun a b' _ ha _ hb hab =>
-          hintra iv a b' (lt_of_lt_of_le (by omega) (blockModeBlocks_le ℓ q))
-            (lt_of_lt_of_le (by omega) (blockModeBlocks_le ℓ q)) hab
-      rw [runWith_freshStep_ctrMaskQueriesFrom counter iv 0 (blockModeBlocks ℓ q) s hinj,
-        PMF.map_comp]
+      rw [runWith_freshStep_ctrMaskQueriesFrom_blocks counter ℓ q iv s hintra, PMF.map_comp]
       exact PMF.map_id _
   rw [ctrReduction, ← hfresh]
   refine (advantage_idealExperiment_freshStep_le _).trans ?_

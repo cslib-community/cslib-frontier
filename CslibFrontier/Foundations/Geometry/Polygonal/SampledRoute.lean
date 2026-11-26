@@ -65,11 +65,9 @@ private theorem sampled_segment (γ : ℝ → ℂ) (m : ℕ) (i : Fin (sampled �
   have hiv : (i.val : ℝ) + 1 ≤ m + 1 := by exact_mod_cast i.isLt
   have ha : a ∈ Icc 0 1 := ⟨by positivity, (div_le_one hmpos).mpr (by linarith)⟩
   have hb : b ∈ Icc 0 1 := ⟨by positivity, (div_le_one hmpos).mpr hiv⟩
-  refine ⟨a, b, ha, hb, ?_, rfl, ?_⟩
-  · dsimp [a, b]
-    ring
-  · change γ (((i.val + 1 : ℕ) : ℝ) / (m + 1 : ℝ)) = γ b
-    rw [Nat.cast_add, Nat.cast_one]
+  refine ⟨a, b, ha, hb, by dsimp [a, b]; ring, rfl, ?_⟩
+  change γ (((i.val + 1 : ℕ) : ℝ) / (m + 1 : ℝ)) = γ b
+  rw [Nat.cast_add, Nat.cast_one]
 
 /-- All sufficiently fine uniform samples of a continuous path stay in any positive
 open metric thickening of its image, including along the interiors of the chords. -/
@@ -122,15 +120,12 @@ theorem eventually_sampled_outward (γ : ℝ → ℂ) (z : ℂ) {K : ℝ≥0}
   have hchord : ‖γ b - γ a‖ ≤ (K : ℝ) * (b - a) := by
     simpa only [dist_eq_norm, Real.norm_eq_abs, abs_of_pos hpos] using hγ.dist_le_mul b hb a ha
   have hsmall : (K : ℝ) ^ 2 * (b - a) < 2 * r * (R - r) := by
-    rw [← hstep] at hmesh
-    have h := (lt_div_iff₀ (by positivity : 0 < (K : ℝ) ^ 2 + 1)).mp hmesh
-    linarith
+    linarith [(lt_div_iff₀ (by positivity : 0 < (K : ℝ) ^ 2 + 1)).mp (hstep ▸ hmesh)]
   have hsum : 2 * r ≤ AffineMap.lineMap r R b + AffineMap.lineMap r R a := by
     simp only [AffineMap.lineMap_apply_ring']
     linarith [mul_nonneg ha.1 hslope.le, mul_nonneg hb.1 hslope.le]
   have hdiff : AffineMap.lineMap r R b - AffineMap.lineMap r R a = (b - a) * (R - r) := by
-    simp only [AffineMap.lineMap_apply_ring']
-    ring
+    simp only [AffineMap.lineMap_apply_ring']; ring
   rw [hleft, hright, hrad a ha, hrad b hb]
   calc
     _ ≤ ((K : ℝ) * (b - a)) ^ 2 :=
@@ -149,11 +144,8 @@ theorem exists_support_subset_of_joinedIn {U : Set ℂ} {a b : ℂ}
     (hU : IsOpen U) (h : JoinedIn U a b) :
     ∃ p : Route, p.start = a ∧ p.finish = b ∧ p.support ⊆ U := by
   let γ := h.somePath
-  have hcompact : IsCompact (Set.range γ) := isCompact_range (map_continuous γ)
-  have hsub : Set.range γ ⊆ U := by
-    rintro z ⟨t, rfl⟩
-    exact h.somePath_mem t
-  obtain ⟨ε, hε, hthick⟩ := hcompact.exists_thickening_subset_open hU hsub
+  obtain ⟨ε, hε, hthick⟩ := (isCompact_range (map_continuous γ)).exists_thickening_subset_open hU
+    (Set.range_subset_iff.mpr h.somePath_mem)
   obtain ⟨m, hm⟩ :=
     (eventually_sampled_support_subset γ.extend γ.continuous_extend.continuousOn hε).exists
   rw [γ.image_extend_of_subset Subset.rfl] at hm

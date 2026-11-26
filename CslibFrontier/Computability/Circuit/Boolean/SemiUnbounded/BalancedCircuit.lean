@@ -313,35 +313,26 @@ private lemma realCtx_split_at {V : Type*} {stay : V → V → Prop}
           (b' = b ∧ ∃ L : RealTree stay pushPop a a', L.size < C.size) ∨
           (a' = a ∧ ∃ R : RealTree stay pushPop b' b, R.size < C.size)) := by
   induction C with
-  | hole _ _ =>
-    intro K h1 hle
-    simp [RealCtx.size] at hle
-    omega
+  | hole _ _ => exact fun h1 hle => absurd (h1.trans hle) (Nat.not_succ_le_zero 0)
   | @pushPop u u' v' v x y h rest ih =>
     intro K h1 hle
     simp only [RealCtx.size] at hle ⊢
     by_cases hK : K = 1
-    · exact ⟨u, v, u', v', .hole u v, rest,
-        by simp [RealCtx.size]; omega,
-        by omega, .inl h⟩
+    · exact ⟨u, v, u', v', .hole u v, rest, h1, by omega, .inl h⟩
     · exact realCtx_split_lift (.pushPop h) (fun _ => rfl) Nat.one_pos (by omega)
         (ih (by omega) (by omega))
   | @transLeft u w v x y l rest ih =>
     intro K h1 hle
     simp only [RealCtx.size] at hle ⊢
     by_cases hK : K ≤ 1 + l.size
-    · exact ⟨u, v, w, v, .hole u v, rest,
-        by simp [RealCtx.size]; omega,
-        by omega, .inr (.inl ⟨rfl, l, by omega⟩)⟩
+    · exact ⟨u, v, w, v, .hole u v, rest, h1, by omega, .inr (.inl ⟨rfl, l, by omega⟩)⟩
     · exact realCtx_split_lift (.transLeft l) (fun _ => rfl) (by omega) (by omega)
         (ih (by omega) (by omega))
   | @transRight u w v x y rest r ih =>
     intro K h1 hle
     simp only [RealCtx.size] at hle ⊢
     by_cases hK : K ≤ 1 + r.size
-    · exact ⟨u, v, u, w, .hole u v, rest,
-        by simp [RealCtx.size]; omega,
-        by omega, .inr (.inr ⟨rfl, r, by omega⟩)⟩
+    · exact ⟨u, v, u, w, .hole u v, rest, h1, by omega, .inr (.inr ⟨rfl, r, by omega⟩)⟩
     · rw [show 1 + rest.size + r.size = (1 + r.size) + rest.size by omega]
       exact realCtx_split_lift (stepSz := 1 + r.size) (fun Ctop => .transRight Ctop r)
         (fun _ => by simp only [RealCtx.size]; omega) (by omega) (by omega)
@@ -587,18 +578,12 @@ private lemma eval_or_andTrue_iff {g : BalancedGate V R} {P : Prop}
 
 private lemma eval_orP_zero_iff (u v : V) :
     (C start accept stay pushPop R).Eval (.orP ⟨0, Nat.succ_pos R⟩ u v) ↔ u = v ∨ stay u v :=
-  eval_or_andTrue_iff rfl
-    (fun c hch => by
-      cases c <;> simp only [C, balancedCircuit, BalancedGate.orChild] at hch; exact hch)
-    id
+  eval_or_andTrue_iff rfl (fun | .andTrue, hch => hch) id
 
 private lemma eval_orQ_zero_iff (u v x y : V) :
     (C start accept stay pushPop R).Eval (.orQ ⟨0, Nat.succ_pos R⟩ u v x y) ↔
       (u = x ∧ v = y) ∨ pushPop u x y v :=
-  eval_or_andTrue_iff rfl
-    (fun c hch => by
-      cases c <;> simp only [C, balancedCircuit, BalancedGate.orChild] at hch; exact hch)
-    id
+  eval_or_andTrue_iff rfl (fun | .andTrue, hch => hch) id
 
 private lemma eval_andBinary_castSucc {r : ℕ} (hr : r + 1 < R + 1) {r' : Fin R}
     (hr' : r'.val = r) {c : BalancedGate V R}
@@ -608,9 +593,8 @@ private lemma eval_andBinary_castSucc {r : ℕ} (hr : r + 1 < R + 1) {r' : Fin R
     (hev : (C start accept stay pushPop R).Eval c) :
     (C start accept stay pushPop R).Eval (g₁ ⟨r, by omega⟩) ∧
       (C start accept stay pushPop R).Eval (g₂ ⟨r, by omega⟩) := by
-  rw [(C start accept stay pushPop R).eval_andBinary hkind,
-    show r'.castSucc = ⟨r, by omega⟩ from Fin.ext hr'] at hev
-  exact hev
+  simpa only [(C start accept stay pushPop R).eval_andBinary hkind,
+    show r'.castSucc = ⟨r, by omega⟩ from Fin.ext hr'] using hev
 
 private lemma eval_or_of_andBinary {g c g₁ g₂ : BalancedGate V R}
     (hor : (C start accept stay pushPop R).kind g = .or)
@@ -684,8 +668,7 @@ private lemma eval_orQ_mono {r₁ r₂ : ℕ} (hle : r₁ ≤ r₂) (hr₂ : r�
     (C start accept stay pushPop R).Eval (.orQ ⟨r₂, hr₂⟩ u v x y) := by
   induction r₂ with
   | zero =>
-    have hr1 : r₁ = 0 := by omega
-    subst hr1
+    obtain rfl := Nat.eq_zero_of_le_zero hle
     exact h
   | succ r₂ ih =>
     rcases lt_or_eq_of_le hle with hlt | rfl
@@ -698,8 +681,7 @@ private lemma eval_orP_mono {r₁ r₂ : ℕ} (hle : r₁ ≤ r₂) (hr₂ : r�
     (C start accept stay pushPop R).Eval (.orP ⟨r₂, hr₂⟩ u v) := by
   induction r₂ with
   | zero =>
-    have hr1 : r₁ = 0 := by omega
-    subst hr1
+    obtain rfl := Nat.eq_zero_of_le_zero hle
     exact h
   | succ r₂ ih =>
     rcases lt_or_eq_of_le hle with hlt | rfl
@@ -723,12 +705,8 @@ private lemma eval_orP_orQ_sound :
       ihQ u v x y hq (ihP x y hp), fun u v x y h hT => ?_⟩
     rcases (eval_orQ_succ_iff hr u v x y).mp h with ⟨a, b, h1, h2⟩ | ⟨w, h1, h2⟩ | ⟨w, h1, h2⟩
     · exact ihQ u v a b h1 (ihQ a b x y h2 hT)
-    · exact let ⟨Tl⟩ := ihP u w h1
-      let ⟨Tr⟩ := ihQ w v x y h2 hT
-      ⟨.trans Tl Tr⟩
-    · exact let ⟨Tl⟩ := ihQ u w x y h1 hT
-      let ⟨Tr⟩ := ihP w v h2
-      ⟨.trans Tl Tr⟩
+    · exact (ihP u w h1).elim fun Tl => (ihQ w v x y h2 hT).elim fun Tr => ⟨.trans Tl Tr⟩
+    · exact (ihQ u w x y h1 hT).elim fun Tl => (ihP w v h2).elim fun Tr => ⟨.trans Tl Tr⟩
 
 /-- **Soundness of `balancedCircuit`**: if the output gate evaluates to `true` (at any round
 count `R`), there exists an accepting vertex `v` and a `RealTree` from `start` to `v`. -/
@@ -752,13 +730,8 @@ private lemma eval_orP_orQ_complete :
         cases T with
         | refl _ => exact (eval_orP_zero_iff _ _).mpr (.inl rfl)
         | stay h => exact (eval_orP_zero_iff _ _).mpr (.inr h)
-        | pushPop _ sub =>
+        | pushPop _ sub | trans sub _ =>
           have := sub.size_pos
-          simp only [RealTree.size, growthBound] at hsz
-          omega
-        | trans l r =>
-          have := l.size_pos
-          have := r.size_pos
           simp only [RealTree.size, growthBound] at hsz; omega,
      fun Ctx hsz => by
         cases Ctx with
@@ -767,14 +740,12 @@ private lemma eval_orP_orQ_complete :
           cases rest with
           | hole _ _ => exact (eval_orQ_zero_iff _ _ _ _).mpr (.inr h)
           | pushPop _ _ => simp [RealCtx.size, growthBound] at hsz
-          | transLeft l _ =>
-            have := l.size_pos; simp only [RealCtx.size, growthBound] at hsz; omega
-          | transRight _ r =>
-            have := r.size_pos; simp only [RealCtx.size, growthBound] at hsz; omega
-        | transLeft l _ =>
-          have := l.size_pos; simp only [RealCtx.size, growthBound] at hsz; omega
-        | transRight _ r =>
-          have := r.size_pos; simp only [RealCtx.size, growthBound] at hsz; omega⟩
+          | transLeft l _ | transRight _ l =>
+            have := l.size_pos
+            simp only [RealCtx.size, growthBound] at hsz; omega
+        | transLeft l _ | transRight _ l =>
+          have := l.size_pos
+          simp only [RealCtx.size, growthBound] at hsz; omega⟩
   | k + 1, hk => by
     obtain ⟨ihP, ihQ⟩ := eval_orP_orQ_complete k (by omega)
     have hP1 {u v} (T : RealTree stay pushPop u v) (hsz : T.size ≤ growthBound (k + 1)) :
@@ -813,9 +784,7 @@ accepting realizability tree of size at most `sz` makes the output gate evaluate
 theorem balancedCircuit_eval_output_complete {sz : ℕ} (hR : roundsForSize sz ≤ R)
     {v : V} (hacc : accept v) (T : RealTree stay pushPop start v) (hsz : T.size ≤ sz) :
     (balancedCircuit start accept stay pushPop R).Eval .output := by
-  have h3k : 3 * (2 * (Nat.log2 sz + 1)) ≤ R := by
-    unfold roundsForSize at hR
-    omega
+  have h3k : 3 * (2 * (Nat.log2 sz + 1)) ≤ R := by rw [roundsForSize] at hR; omega
   have hev3k := (eval_orP_orQ_complete (start := start) (accept := accept) (stay := stay)
     (pushPop := pushPop) (R := R) (2 * (Nat.log2 sz + 1)) (by omega)).1 T
     (hsz.trans (le_growthBound_roundsForSize sz))
@@ -919,18 +888,15 @@ theorem balancedGateCount_le (S R : ℕ) :
   unfold balancedGateCount
   have hd (d : ℕ) (hd6 : d ≤ 6) : S ^ d ≤ (S + 1) ^ 6 :=
     (Nat.pow_le_pow_left (Nat.le_succ S) d).trans (Nat.pow_le_pow_right (Nat.succ_pos S) hd6)
+  have h2 : S * S ≤ (S + 1) ^ 6 := by simpa only [sq] using hd 2 (by decide)
+  have h4 : (S * S) * (S * S) ≤ (S + 1) ^ 6 := by
+    simpa only [show (S * S) * (S * S) = S ^ 4 by ring] using hd 4 (by decide)
+  have h5 : ((S * S) * (S * S)) * S ≤ (S + 1) ^ 6 := by
+    simpa only [show ((S * S) * (S * S)) * S = S ^ 5 by ring] using hd 5 (by decide)
+  have h6 : ((S * S) * (S * S)) * (S * S) ≤ (S + 1) ^ 6 := by
+    simpa only [show ((S * S) * (S * S)) * (S * S) = S ^ 6 by ring] using hd 6 le_rfl
   nlinarith [Nat.one_le_pow 6 (S + 1) (Nat.succ_pos S),
-    (Nat.le_succ S).trans (Nat.le_self_pow (by decide : 6 ≠ 0) (S + 1)),
-    show S * S ≤ (S + 1) ^ 6 by simpa only [sq] using hd 2 (by decide),
-    show (S * S) * (S * S) ≤ (S + 1) ^ 6 by
-      rw [show (S * S) * (S * S) = S ^ 4 by ring]
-      exact hd 4 (by decide),
-    show ((S * S) * (S * S)) * S ≤ (S + 1) ^ 6 by
-      rw [show ((S * S) * (S * S)) * S = S ^ 5 by ring]
-      exact hd 5 (by decide),
-    show ((S * S) * (S * S)) * (S * S) ≤ (S + 1) ^ 6 by
-      rw [show ((S * S) * (S * S)) * (S * S) = S ^ 6 by ring]
-      exact hd 6 le_rfl]
+    (Nat.le_succ S).trans (Nat.le_self_pow (by decide : 6 ≠ 0) (S + 1))]
 
 /-- The `Fin N`-indexed balanced-depth normal-form semi-unbounded circuit over `Fin S`. -/
 def balancedCircuitFin {S : ℕ} (start : Fin S) (accept : Fin S → Prop)
@@ -960,10 +926,9 @@ theorem balancedCircuitFin_andLevel_le {S : ℕ} (start : Fin S) (accept : Fin S
     (stay : Fin S → Fin S → Prop) (pushPop : Fin S → Fin S → Fin S → Fin S → Prop) (R : ℕ)
     (g : Fin (balancedGateCount S R)) :
     (balancedCircuitFin start accept stay pushPop R).andLevel g ≤ R + 2 := by
-  have h := balancedCircuit_andLevel_le start accept stay pushPop R
-    ((balancedGateEquivFin S R).symm g)
   simpa only [balancedCircuitFin, LayeredSemiUnboundedCircuit.andLevel,
-    LayeredSemiUnboundedCircuit.reindex] using h
+    LayeredSemiUnboundedCircuit.reindex] using
+    balancedCircuit_andLevel_le start accept stay pushPop R ((balancedGateEquivFin S R).symm g)
 
 theorem balancedCircuitFin_eval_output_sound {S : ℕ} {start : Fin S} {accept : Fin S → Prop}
     {stay : Fin S → Fin S → Prop} {pushPop : Fin S → Fin S → Fin S → Fin S → Prop} {R : ℕ}

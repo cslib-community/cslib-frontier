@@ -76,13 +76,7 @@ theorem clauseGeometry_incidence_points_bounds {φ : CNF ℕ} {d : Graph.Orthogo
 theorem inPointBox_translate_iff (c v : Point) (radius : ℕ) (p : ℝ × ℝ) :
     inPointBox (c + v) radius (p + realPoint v) ↔ inPointBox c radius p := by
   simp only [inPointBox, Prod.fst_add, Prod.snd_add, realPoint, Int.cast_add]
-  constructor <;> intro h
-  all_goals
-    constructor
-    · linarith [h.1]
-    constructor
-    · linarith [h.2.1]
-    constructor <;> linarith [h.2.2.1, h.2.2.2]
+  refine and_congr ?_ (and_congr ?_ (and_congr ?_ ?_)) <;> constructor <;> intro <;> linarith
 
 /-- The translated local prefix used by an actual output incidence. -/
 def positiveStem (φ : CNF ℕ) (d : Graph.OrthogonalDrawing) (i : ℕ)
@@ -212,11 +206,9 @@ theorem positiveStem_regular {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
   refine ⟨(isOrthogonal_translate_iff _ _).2
     (collaredProfile_incidence_orthogonal _ h hs he),
     (isSimple_translate_iff _ _).2 (collaredProfile_incidence_isSimple _ h hs he), ?_, ?_⟩
-  · unfold positiveStem translate
-    rw [List.head?_map, hept.2.2.1, Option.map_some]
+  · rw [positiveStem, translate, List.head?_map, hept.2.2.1]
     exact congrArg some (add_comm _ _)
-  · unfold positiveStem translate
-    rw [List.getLast?_map, hept.2.2.2, Option.map_some]
+  · rw [positiveStem, translate, List.getLast?_map, hept.2.2.2]
     exact congrArg some (add_comm _ _)
 
 /-- A local source-placeholder lookup identifies its unique terminal slot, including the
@@ -306,34 +298,26 @@ theorem collaredProfile_routes_contact (p : ClauseProfile)
       z = realPoint q := by
   obtain ⟨a, ha, rfl⟩ := List.mem_map.mp he
   obtain ⟨b, hb, rfl⟩ := List.mem_map.mp hf
-  have hab : a ≠ b := by intro heq; subst b; exact hne rfl
-  have hz' : z ∈ support (profileCollarRoute p s a) := hz
-  have hw' : z ∈ support (profileCollarRoute p s b) := hw
-  obtain ⟨q, hq, hzq⟩ := profileCollarRoute_contact p h hs ha hb hab hz' hw'
+  have hab : a ≠ b := fun heq => hne (heq ▸ rfl)
+  obtain ⟨q, hq, hzq⟩ := profileCollarRoute_contact p h hs ha hb hab hz hw
   rw [LocalGeometry.commonEndpoints, List.mem_append] at hq
   rcases hq with hq | hq
   · split_ifs at hq with hc
-    · simp only [List.mem_singleton] at hq
-      subst q
-      refine ⟨collarPoint (collarReflected s) ((profilePrefixGeometry p).clausePosition a.1),
-        ?_, ?_⟩
-      · apply List.mem_append_left
-        simp only [hc, ↓reduceIte, List.mem_singleton]
-        exact (collared_clausePoint _ _ (LocalGeometry.prefix_incidence_endpoints h hb).1).symm
-      · exact hzq.trans (realPoint_collarPoint _ _).symm
-    · exact False.elim (List.not_mem_nil hq)
+    · obtain rfl := List.mem_singleton.mp hq
+      exact ⟨collarPoint (collarReflected s) ((profilePrefixGeometry p).clausePosition a.1),
+        List.mem_append_left _ (by
+          simp [hc, collared_clausePoint _ _ (LocalGeometry.prefix_incidence_endpoints h hb).1]),
+        hzq.trans (realPoint_collarPoint _ _).symm⟩
+    · cases hq
   · split_ifs at hq with hv
-    · simp only [List.mem_singleton] at hq
-      subst q
+    · obtain rfl := List.mem_singleton.mp hq
       have ht := profile_prefix_shared_variable_not_terminal p ha hb hab hv
       refine ⟨collarPoint (collarReflected s) ((profilePrefixGeometry p).variablePosition a.2.1),
-        ?_, ?_⟩
-      · apply List.mem_append_right
-        simp only [hv, ↓reduceIte, List.mem_singleton]
-        rw [collared_variablePoint _ _ (LocalGeometry.prefix_incidence_endpoints h hb).2.1,
-          ite_eq_right (hv ▸ ht)]
-      · exact hzq.trans (realPoint_collarPoint _ _).symm
-    · exact False.elim (List.not_mem_nil hq)
+        List.mem_append_right _ ?_, hzq.trans (realPoint_collarPoint _ _).symm⟩
+      simp only [hv, ↓reduceIte, List.mem_singleton]
+      rw [collared_variablePoint _ _ (LocalGeometry.prefix_incidence_endpoints h hb).2.1,
+        ite_eq_right (hv ▸ ht)]
+    · cases hq
 
 /-- Different local prefixes in one clause box meet only at their common actual endpoints. -/
 theorem positiveStem_contacts {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
@@ -349,14 +333,10 @@ theorem positiveStem_contacts {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
   rw [positiveStem, support_translate] at hz hw
   obtain ⟨x, hx, rfl⟩ := hz
   obtain ⟨y, hy, hyx⟩ := hw
-  have hy' : y = x := add_right_cancel hyx
-  subst y
-  obtain ⟨q, hq, hxq⟩ := collaredProfile_routes_contact _ h (clausePorts_spec hd hi).1
+  obtain rfl : y = x := add_right_cancel hyx
+  obtain ⟨q, hq, rfl⟩ := collaredProfile_routes_contact _ h (clausePorts_spec hd hi).1
     he hf hne hx hy
-  refine ⟨q, hq, ?_⟩
-  rw [hxq]
-  change realPoint q + realPoint (positiveBoxOrigin φ d i) = _
-  rw [← realPoint_add, add_comm q]
+  exact ⟨q, hq, by rw [add_comm (positiveBoxOrigin φ d i), realPoint_add]⟩
 
 /-- Actual collared routes avoid every other local variable, including exposed source ports.
 -/
@@ -398,11 +378,8 @@ theorem collaredProfile_other_terminal_not_mem_support (p : ClauseProfile)
       f.variableIndex) ∉ support e.route := by
   obtain ⟨a, ha, rfl⟩ := List.mem_map.mp he
   obtain ⟨b, hb, rfl⟩ := List.mem_map.mp hf
-  have hv : b.2.1 ≠ a.2.1 := by
-    intro hv
-    have hab := profile_prefix_terminal_unique p b hb ht a ha hv
-    subst a
-    exact hne rfl
+  have hv : b.2.1 ≠ a.2.1 := fun hv =>
+    hne (profile_prefix_terminal_unique p b hb ht a ha hv ▸ rfl)
   exact collaredProfile_variable_not_mem_support p h hs (List.mem_map_of_mem ha)
     ⟨b.2.1, profile_prefix_terminal_lt p _ ht⟩ hv
 
@@ -418,15 +395,13 @@ theorem positiveStem_other_terminal_not_mem_support {φ : CNF ℕ}
     realPoint (positiveBoxOrigin φ d i +
       (clauseGeometry φ d i c).variablePosition f.variableIndex) ∉
       support (positiveStem φ d i e) := by
-  have hn := collaredProfile_other_terminal_not_mem_support _ h (clausePorts_spec hd hi).1
-    he hf hne ht
   intro hz
   rw [positiveStem, support_translate] at hz
   obtain ⟨x, hx, hxp⟩ := hz
-  have hx' : x = realPoint ((clauseGeometry φ d i c).variablePosition f.variableIndex) := by
-    apply add_right_cancel (b := realPoint (positiveBoxOrigin φ d i))
-    simpa only [realPoint_add, add_comm (realPoint (positiveBoxOrigin φ d i))] using hxp
-  exact hn (hx' ▸ hx)
+  obtain rfl : x = realPoint ((clauseGeometry φ d i c).variablePosition f.variableIndex) := by
+    simpa [realPoint_add, add_comm (realPoint (positiveBoxOrigin φ d i))] using hxp
+  exact collaredProfile_other_terminal_not_mem_support _ h (clausePorts_spec hd hi).1
+    he hf hne ht hx
 
 /-- Inside one clause box, an inherited exterior is disjoint from every other local prefix.
 The shared clause center has already been cut away. -/
@@ -440,13 +415,9 @@ theorem positiveStem_other_exterior_disjoint {φ : CNF ℕ} {d : Graph.Orthogona
       .inl (.inl j)) :
     Disjoint (support (positiveStem φ d i e)) (support (positiveExterior φ d i j)) := by
   obtain ⟨j', rfl, hj, hterm, hpoint⟩ := source_incidence_port hd hi h hf hget
-  rw [Set.disjoint_left]
-  intro z hz hw
-  have hzport := positiveExterior_box_contact hd hi j' hj hw
-    (positiveStem_in_box hd hi φ[i] he hz)
-  apply positiveStem_other_terminal_not_mem_support hd hi φ[i] h he hf hne hterm
-  rw [hpoint, ← hzport]
-  exact hz
+  refine Set.disjoint_left.mpr fun z hz hw =>
+    positiveStem_other_terminal_not_mem_support hd hi φ[i] h he hf hne hterm ?_
+  rwa [hpoint, ← positiveExterior_box_contact hd hi j' hj hw (positiveStem_in_box hd hi φ[i] he hz)]
 
 /-- A source incidence's finite stem and inherited exterior have the same actual integer
 endpoint. This identity also supports exact wire-length and segment-count bookkeeping. -/

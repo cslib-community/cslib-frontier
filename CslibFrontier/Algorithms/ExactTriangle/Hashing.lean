@@ -234,11 +234,9 @@ variable {n D p : ℕ} {κ : ℝ} (wAB wBC wAC : Fin n → Fin n → ℤ)
 minimum of the modular-zero count.
 -/
 theorem exists_isSelectedPrime (D : ℕ) (hD : 16 ≤ D) : ∃ p, IsSelectedPrime wAB wBC wAC D p := by
-  have hsqrt : (4 : ℝ) ≤ Real.sqrt D := Real.four_le_sqrt_natCast hD
-  obtain ⟨q, hq⟩ :=
-    Nat.exists_prime_half_le_and_lt (Real.sqrt D) hsqrt
-  exact Finset.exists_min_image (Nat.sqrtPrimeWindow D) (countZeroMod wAB wBC wAC) ⟨q,
-      Nat.mem_sqrtPrimeWindow.2 hq⟩
+  obtain ⟨q, hq⟩ := Nat.exists_prime_half_le_and_lt (Real.sqrt D) (Real.four_le_sqrt_natCast hD)
+  exact Finset.exists_min_image (Nat.sqrtPrimeWindow D) (countZeroMod wAB wBC wAC)
+    ⟨q, Nat.mem_sqrtPrimeWindow.2 hq⟩
 
 /-- A selected minimum of the modular-zero count also minimizes the false-positive count over the
 same prime window.
@@ -248,9 +246,7 @@ theorem IsSelectedPrime.falsePositiveCount_le {wAB wBC wAC : Fin n → Fin n →
     ∀ q ∈ Nat.sqrtPrimeWindow D,
       (falsePositiveCount wAB wBC wAC) p ≤ (falsePositiveCount wAB wBC wAC) q := by
   intro q hq
-  have h := hp.2 q hq
-  rw [countZeroMod_eq, countZeroMod_eq] at h
-  omega
+  simpa [countZeroMod_eq] using hp.2 q hq
 
 /-!
 ### The bound on the number of false positives of the selected prime -/
@@ -346,9 +342,7 @@ private theorem log_le_four_mul_log_sqrt_div_two (D : ℕ) (hD : 16 ≤ D) :
     (by exact_mod_cast (show 0 < D by omega))
   -- `log(√D/2) = (log D)/2 - log 2`, and `4 log 2 = log 16 ≤ log D`.
   have hlog16 : 4 * Real.log 2 ≤ Real.log D := by
-    have h := Real.log_le_log (by norm_num) (show (2 : ℝ) ^ 4 ≤ D by linarith)
-    rw [Real.log_pow] at h
-    exact_mod_cast h
+    simpa [Real.log_pow] using Real.log_le_log (by norm_num) (show (2 : ℝ) ^ 4 ≤ D by linarith)
   rw [Real.log_div hsqrt.ne' (by norm_num), Real.log_sqrt (by linarith)]
   linarith [hlog16]
 

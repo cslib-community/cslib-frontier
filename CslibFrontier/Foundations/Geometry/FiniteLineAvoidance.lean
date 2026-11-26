@@ -81,17 +81,14 @@ private theorem exists_mem_ball_avoiding_spans (points : Finset ℂ) (z : ℂ)
   let P := {p : (↑points : Set ℂ) × (↑points : Set ℂ) // p.1.val ≠ p.2.val}
   let a : (↑points : Set ℂ) ⊕ P → ℂ := Sum.elim Subtype.val fun p => p.val.1.val
   let b : (↑points : Set ℂ) ⊕ P → ℂ := Sum.elim (fun p => p.val + 1) fun p => p.val.2.val
-  have hne (i : (↑points : Set ℂ) ⊕ P) : a i ≠ b i := by
-    cases i with
-    | inl p => exact (by simp : p.val ≠ p.val + 1)
-    | inr p => exact p.property
+  have hne : ∀ i : (↑points : Set ℂ) ⊕ P, a i ≠ b i
+    | .inl _ => by simp [a, b]
+    | .inr p => p.property
   obtain ⟨w, hw, havoid⟩ := exists_mem_ball_avoiding_lines a b hne z hρ
-  refine ⟨w, hw, ?_, ?_⟩
-  · intro h
-    exact havoid (.inl ⟨w, h⟩) 0 (AffineMap.lineMap_apply_zero _ _)
-  · intro x hx y hy hxy h
-    obtain ⟨t, ht⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp h
-    exact havoid (.inr ⟨⟨⟨x, hx⟩, ⟨y, hy⟩⟩, hxy⟩) t ht
+  refine ⟨w, hw, fun h => havoid (.inl ⟨w, h⟩) 0 (AffineMap.lineMap_apply_zero _ _),
+    fun x hx y hy hxy h => ?_⟩
+  obtain ⟨t, ht⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp h
+  exact havoid (.inr ⟨⟨⟨x, hx⟩, ⟨y, hy⟩⟩, hxy⟩) t ht
 
 /-- Three distinct supporting lines determined by the specified endpoints can meet
 only at one of their endpoints if at least one line uses a moved point. -/
@@ -138,9 +135,7 @@ private noncomputable def lineCrossings (S : Set ℂ) : Set ℂ :=
 private theorem lineCrossings_finite {S : Set ℂ} (hS : S.Finite) :
     (lineCrossings S).Finite := by
   let _ := hS.fintype
-  apply Set.finite_iUnion
-  intro p
-  exact (affineSpan_pair_inter_subsingleton p.property).finite
+  exact Set.finite_iUnion fun p => (affineSpan_pair_inter_subsingleton p.property).finite
 
 private theorem NoTripleLineContact.insert_point {points moved : Set ℂ}
     (h : NoTripleLineContact points moved)

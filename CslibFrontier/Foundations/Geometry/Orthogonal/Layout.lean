@@ -107,15 +107,12 @@ theorem fan_bounds {v : ℕ} {s : Fin 3} {p : ℝ × ℝ} (hp : p ∈ fan v s) :
     8 * (v : ℝ) + 2 ≤ p.1 ∧ p.1 ≤ 8 * (v : ℝ) + 6 ∧
     8 * (v : ℝ) + 4 ≤ p.2 ∧ p.2 ≤ 8 * (v : ℝ) + 6 := by
   have hb := mem_segment_bounds hp
-  have hs : (s : ℕ) ≤ 2 := by omega
-  have hs' : (s : ℝ) ≤ 2 := by exact_mod_cast hs
+  have hs' : (s : ℝ) ≤ 2 := by exact_mod_cast (by omega : (s : ℕ) ≤ 2)
   have hs0 : (0 : ℝ) ≤ s := by positivity
   simp only [center, elbow, column, Set.mem_uIcc] at hb
   push_cast at hb
-  split_ifs at hb <;> rcases hb with ⟨hx, hy⟩ <;>
-    rcases hx with hx | hx <;> rcases hy with hy | hy <;> constructor <;> try linarith
-  all_goals constructor <;> try linarith
-  all_goals constructor <;> linarith
+  split_ifs at hb <;> rcases hb with ⟨hx | hx, hy | hy⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_⟩ <;> linarith
 
 /-- Distinct vertex boxes have disjoint local fans. -/
 theorem fan_disjoint {u v : ℕ} (huv : u ≠ v) (s t : Fin 3) :
@@ -129,14 +126,12 @@ theorem fan_disjoint {u v : ℕ} (huv : u ≠ v) (s t : Fin 3) :
 /-- Membership in a stem fixes its column and its closed vertical interval. -/
 theorem mem_stem {n e v : ℕ} {s : Fin 3} {p : ℝ × ℝ} :
     p ∈ stem n e v s ↔ p.1 = (column v s : ℝ) ∧
-      p.2 ∈ Set.uIcc ((elbow v s).2 : ℝ) (track n e : ℝ) := by
-  exact mem_vertical
+      p.2 ∈ Set.uIcc ((elbow v s).2 : ℝ) (track n e : ℝ) := mem_vertical
 
 /-- Membership in a bridge fixes its row and its closed horizontal interval. -/
 theorem mem_bridge {n e u v : ℕ} {s t : Fin 3} {p : ℝ × ℝ} :
     p ∈ bridge n e u v s t ↔ p.2 = (track n e : ℝ) ∧
-      p.1 ∈ Set.uIcc (column u s : ℝ) (column v t : ℝ) := by
-  exact mem_horizontal
+      p.1 ∈ Set.uIcc (column u s : ℝ) (column v t : ℝ) := mem_horizontal
 
 /-- The three local fans, in left/up/right order, have these explicit real supports. -/
 theorem mem_fan {v : ℕ} {s : Fin 3} {p : ℝ × ℝ} :
@@ -392,11 +387,8 @@ theorem bridge_stem_transverse {n e f u v w : ℕ} (hw : w < n) (hef : e ≠ f)
     have hupper : track n e ≤ track n f := by exact_mod_cast hmem.2
     have hne : track n e ≠ track n f := by simp only [track]; omega
     exact ⟨hlow, lt_of_le_of_ne hupper hne⟩
-  refine Or.inl ⟨rfl, rfl, Prod.ext hs.1 hb.1, hx.1, hx.2, ?_, ?_⟩
-  · change min (elbow w q).2 (track n f) < track n e
-    omega
-  · change track n e < max (elbow w q).2 (track n f)
-    omega
+  exact Or.inl ⟨rfl, rfl, Prod.ext hs.1 hb.1, hx.1, hx.2,
+    (min_eq_left hfhigh.le).trans_lt hy.1, hy.2.trans_eq (max_eq_right hfhigh.le).symm⟩
 
 /-- A bridge/stem transverse crossing has its exact integer column/row coordinates. -/
 theorem bridge_stem_crossing_point {n e f u v w : ℕ} {s t q : Fin 3} {p : ℝ × ℝ}

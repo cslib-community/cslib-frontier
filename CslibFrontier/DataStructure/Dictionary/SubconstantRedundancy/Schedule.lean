@@ -410,8 +410,7 @@ theorem nLow_le_nHigh (ℓ : ℕ) : P.nLow ℓ ≤ P.nHigh ℓ := by
 theorem nHigh_sub_nLow {ℓ : ℕ} (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth) :
     P.nHigh ℓ - P.nLow ℓ = P.waitCap ℓ := by
   have hd := P.delta_lt_nFloor ℓ h1 hℓ
-  have h0 : ℓ ≠ 0 := by omega
-  simp only [nHigh, nLow, waitCap, h0, ↓reduceIte]
+  simp only [nHigh, nLow, waitCap, Nat.ne_of_gt h1, ↓reduceIte]
   omega
 
 /-- Quotient remainder bit-shift `I_ℓ - s_ℓ - I_{ℓ + 1}` on edge `ℓ → ℓ + 1`. -/
@@ -645,9 +644,8 @@ theorem targetSize_le_of_step {n U r k : ℕ}
   induction ℓ with
   | zero => simp [targetSize]
   | succ j ih =>
-    have hj : j < k := Nat.lt_of_succ_le hℓ
-    have h1 := hstep j hj
-    have h2 := ih hj.le
+    have h1 := hstep j (Nat.lt_of_succ_le hℓ)
+    have h2 := ih (Nat.le_of_succ_le hℓ)
     omega
 
 theorem targetSize_pos {n U r k ℓ : ℕ}
@@ -669,19 +667,16 @@ theorem numNodes_mul_targetSize_bounds {n U r k ℓ : ℕ}
     simp only [↓reduceIte, pow_zero, one_mul]
     omega
   · set T := targetSize n U r k ℓ
-    have hmax : max T 1 = T := max_eq_left hpos
     have hS : cumBranchBits n U r k ℓ = Nat.log 2 (n / T) := by
       dsimp only [cumBranchBits]
-      rw [ite_eq_right hℓ_pos.ne', hmax]
+      rw [ite_eq_right hℓ_pos.ne', max_eq_left hpos]
     set q := n / T
-    have hq1 : 1 ≤ q := (Nat.le_div_iff_mul_le hpos).mpr (by linarith [one_mul T])
+    have hq1 : 1 ≤ q := Nat.div_pos hle hpos
     have hlo : numNodes n U r k ℓ ≤ q := by
-      dsimp only [numNodes]
-      rw [hS]
+      rw [numNodes, hS]
       exact Nat.pow_log_le_self 2 (by omega : q ≠ 0)
     have hhi : q < 2 * numNodes n U r k ℓ := by
-      dsimp only [numNodes]
-      rw [hS, mul_comm 2, ← pow_succ]
+      rw [numNodes, hS, mul_comm 2, ← pow_succ]
       exact Nat.lt_pow_succ_log_self Nat.one_lt_two q
     refine ⟨(Nat.mul_le_mul_right T hlo).trans (Nat.div_mul_le_self n T), ?_⟩
     calc n < T * (q + 1) := Nat.lt_mul_div_succ n hpos
@@ -694,9 +689,8 @@ theorem targetSize_le_nFloor_and_lt {n U r k ℓ : ℕ}
       nFloor n U r k ℓ < 2 * targetSize n U r k ℓ := by
   obtain ⟨hlo, hhi⟩ := numNodes_mul_targetSize_bounds hpos hle
   have hN_pos : 0 < numNodes n U r k ℓ := Nat.two_pow_pos _
-  refine ⟨(Nat.le_div_iff_mul_le hN_pos).mpr (by rwa [Nat.mul_comm]), ?_⟩
-  refine (Nat.div_lt_iff_lt_mul hN_pos).mpr ?_
-  linarith
+  exact ⟨(Nat.le_div_iff_mul_le hN_pos).mpr (by rwa [Nat.mul_comm]),
+    (Nat.div_lt_iff_lt_mul hN_pos).mpr (by linarith)⟩
 
 theorem cumBranchBits_add_seventeen_le {n U r k ℓ : ℕ}
     (hpos_cur : 1 ≤ targetSize n U r k ℓ)
@@ -819,12 +813,9 @@ theorem nHigh_sq_mul_nFloor_sq_le_four_mul_two_pow_idBits {n U r k ℓ : ℕ}
   set y := nFloor n U r k ℓ
   have hd : 2 * delta n U r k ℓ ≤ y := two_mul_delta_le_nFloor_of_eight_le h8
   have hnh : nHigh n U r k ℓ ≤ 2 * y := by
-    dsimp only [nHigh]
-    rw [ite_eq_right (by omega)]
-    omega
-  have hmy : max y 1 = y := max_eq_left (by omega)
+    simp only [nHigh, Nat.ne_of_gt h1, ↓reduceIte]; omega
   have h2y_pow : 2 * y ≤ 2 ^ Nat.clog 2 (2 * max y 1) := by
-    rw [hmy]
+    rw [max_eq_left (by omega)]
     exact Nat.le_pow_clog Nat.one_lt_two (2 * y)
   calc (nHigh n U r k ℓ) ^ 2 * y ^ 2
       ≤ (2 * y) ^ 2 * y ^ 2 := Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hnh 2)
@@ -866,11 +857,8 @@ theorem idBits_pred_le_mul_levelScale {n U r ℓ : ℕ}
   intro k
   have hr256 : 256 ≤ r := hr
   obtain ⟨hlo, hhi⟩ := targetSize_le_nFloor_and_lt hpos_pred hle_pred
-  have hpred_lt : ℓ - 1 < k := by omega
-  have hT_eq : targetSize n U r k (ℓ - 1) = (Nat.iterLog (ℓ - 1) U) ^ 9 := by
-    rw [targetSize_eq_levelScale_pow (by omega)]
-    dsimp only [levelScale]
-    rw [ite_eq_left hpred_lt]
+  have hT_eq : targetSize n U r (treeDepth U r) (ℓ - 1) = (Nat.iterLog (ℓ - 1) U) ^ 9 := by
+    rw [targetSize_eq_levelScale_pow (by omega), levelScale, ite_eq_left (by omega)]
   have heq : Nat.iterLog ℓ U = Nat.log 2 (Nat.iterLog (ℓ - 1) U) := by
     rw [← Nat.iterLog_succ, Nat.sub_add_cancel (by omega : 1 ≤ ℓ)]
   set X := Nat.iterLog (ℓ - 1) U
@@ -885,10 +873,8 @@ theorem idBits_pred_le_mul_levelScale {n U r ℓ : ℕ}
   have hX_lt : X < 2 ^ (4 * s + 1) :=
     (Nat.lt_pow_succ_log_self Nat.one_lt_two X).trans_le
       (Nat.pow_le_pow_right Nat.two_pos (by omega))
-  have hy_pos : 1 ≤ nFloor n U r k (ℓ - 1) := hpos_pred.trans hlo
   have h2y_le : 2 * max (nFloor n U r k (ℓ - 1)) 1 ≤ 2 ^ (36 * s + 11) := by
-    rw [max_eq_left hy_pos]
-    dsimp only [k] at hT_eq
+    rw [max_eq_left (hpos_pred.trans hlo)]
     rw [hT_eq] at hhi
     calc 2 * nFloor n U r k (ℓ - 1)
         ≤ 4 * X ^ 9 := by dsimp only [k]; omega

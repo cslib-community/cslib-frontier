@@ -124,18 +124,14 @@ theorem khintchine_rademacher_abs_sum (T : ℕ) :
         _ = radSum σ ^ 2 := by rw [← sq, sq_abs]
     have hR1 : ∑ σ : Fin T → Bool, Real.sqrt |radSum σ| ^ 2 = S1 :=
       Finset.sum_congr rfl fun σ _ => Real.sq_sqrt (abs_nonneg _)
-    have hR2 : ∑ σ : Fin T → Bool, (|radSum σ| * Real.sqrt |radSum σ|) ^ 2 = S3 := by
-      refine Finset.sum_congr rfl fun σ _ => ?_
-      rw [mul_pow, Real.sq_sqrt (abs_nonneg _)]
-      ring
+    have hR2 : ∑ σ : Fin T → Bool, (|radSum σ| * Real.sqrt |radSum σ|) ^ 2 = S3 :=
+      Finset.sum_congr rfl fun σ _ => by rw [mul_pow, Real.sq_sqrt (abs_nonneg _)]; ring
     rwa [hL, hR1, hR2] at h
   have hcs2 : S3 ^ 2 ≤ S2 * S4 := by
     have h := Finset.sum_mul_sq_le_sq_mul_sq (Finset.univ : Finset (Fin T → Bool))
       (fun σ => |radSum σ|) (fun σ => radSum σ ^ 2)
-    have hL : ∑ σ : Fin T → Bool, |radSum σ| * radSum σ ^ 2 = S3 := by
-      refine Finset.sum_congr rfl fun σ _ => ?_
-      rw [← sq_abs (radSum σ)]
-      ring
+    have hL : ∑ σ : Fin T → Bool, |radSum σ| * radSum σ ^ 2 = S3 :=
+      Finset.sum_congr rfl fun σ _ => by rw [← sq_abs (radSum σ)]; ring
     have hR1 : ∑ σ : Fin T → Bool, |radSum σ| ^ 2 = S2 :=
       Finset.sum_congr rfl fun σ _ => sq_abs _
     have hR2 : ∑ σ : Fin T → Bool, (radSum σ ^ 2) ^ 2 = S4 :=
@@ -223,14 +219,10 @@ theorem sum_rademacherLinear_eval_eq_zero {K : Set E} {T : ℕ} (L : CausalLearn
     ∑ σ : Fin T → Bool, ∑ t : Fin T, rademacherLinear e G (σ t) (L.eval σ t) = 0 := by
   rw [Finset.sum_comm]
   refine Finset.sum_eq_zero fun t _ => ?_
-  have heq : ∀ σ : Fin T → Bool,
-      rademacherLinear e G (σ t) (L.eval σ t) = signVal (σ t) * (G * ⟪e, L.eval σ t⟫) :=
-    fun σ => by simp only [rademacherLinear]; ring
-  rw [Finset.sum_congr rfl fun σ _ => heq σ]
+  simp_rw [rademacherLinear, mul_assoc]
   refine sum_signVal_mul_eq_zero t (fun σ => G * ⟪e, L.eval σ t⟫) fun σ b => ?_
-  have hpref : (fun i (hi : i < t) => Function.update σ t b i) = fun i _ => σ i := by
-    ext i hi
-    exact Function.update_of_ne (ne_of_lt hi) b σ
+  have hpref : (fun i (hi : i < t) => Function.update σ t b i) = fun i _ => σ i :=
+    funext₂ fun _ hi => Function.update_of_ne hi.ne b σ
   simp only [CausalLearner.eval, hpref]
 
 /-- **Minimax `Ω(D * G * √T)` regret lower bound for online convex optimization** [Hazan2022]
@@ -249,17 +241,13 @@ theorem exists_oco_regret_ge {K : Set E} {x₀ e : E} {D G : ℝ}
   set radSum : (Fin T → Bool) → ℝ := fun σ => ∑ t : Fin T, signVal (σ t)
   let uOf (σ : Fin T → Bool) : E := if 0 ≤ radSum σ then x₀ - (D / 2) • e else x₀ + (D / 2) • e
   have huOf_mem (σ : Fin T → Bool) : uOf σ ∈ K := by
-    dsimp only [uOf]
-    split_ifs <;> assumption
+    by_cases hs : 0 ≤ radSum σ <;> simp [uOf, hs, hminus, hplus]
   have hee : ⟪e, e⟫ = 1 := by rw [real_inner_self_eq_norm_sq, he, one_pow]
   have huOf_sum (σ : Fin T → Bool) :
       ∑ t : Fin T, rademacherLinear e G (σ t) (uOf σ) =
         radSum σ * G * ⟪e, x₀⟫ - D * G / 2 * |radSum σ| := by
-    have hfac : ∑ t : Fin T, rademacherLinear e G (σ t) (uOf σ) = radSum σ * (G * ⟪e, uOf σ⟫) := by
-      simp only [rademacherLinear, radSum, Finset.sum_mul]
-      exact Finset.sum_congr rfl fun _ _ => by ring
-    rw [hfac]
-    dsimp only [uOf]
+    simp_rw [rademacherLinear, mul_assoc, ← Finset.sum_mul]
+    dsimp only [radSum, uOf]
     split_ifs with hs
     · rw [inner_sub_right, real_inner_smul_right, hee, mul_one, abs_of_nonneg hs]; ring
     · rw [inner_add_right, real_inner_smul_right, hee, mul_one, abs_of_neg (lt_of_not_ge hs)]; ring
@@ -274,11 +262,7 @@ theorem exists_oco_regret_ge {K : Set E} {x₀ e : E} {D G : ℝ}
             (rademacherLinear e G (σ t) (L.eval σ t) - rademacherLinear e G (σ t) (uOf σ)) =
         D * G / 2 * ∑ σ : Fin T → Bool, |radSum σ| := by
     have hshift : ∑ σ : Fin T → Bool, radSum σ * G * ⟪e, x₀⟫ = 0 := by
-      have hmul : ∑ σ : Fin T → Bool, radSum σ * G * ⟪e, x₀⟫ =
-          (∑ σ : Fin T → Bool, radSum σ) * (G * ⟪e, x₀⟫) := by
-        rw [Finset.sum_mul]
-        exact Finset.sum_congr rfl fun _ _ => by ring
-      rw [hmul, hsum_rad, zero_mul]
+      simp only [mul_assoc, ← Finset.sum_mul, hsum_rad, zero_mul]
     rw [Finset.sum_congr rfl fun σ _ => Finset.sum_sub_distrib _ _, Finset.sum_sub_distrib,
       sum_rademacherLinear_eval_eq_zero, zero_sub,
       Finset.sum_congr rfl fun σ _ => huOf_sum σ, Finset.sum_sub_distrib, hshift, ← Finset.mul_sum]

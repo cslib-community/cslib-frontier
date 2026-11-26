@@ -82,13 +82,7 @@ theorem recursive_joint_zero_at {k r h : ℕ} {I : Type} [Fintype I]
       have hgoff' := ((rowClause_eq_true_iff T A.label F q' _ i).mp hi').2 j hij
       rw [recursiveChild_flip_same] at hgoff'
       refine Finset.mem_union_right _ (Finset.mem_biUnion.mpr ⟨i, hig, ?_⟩)
-      have hn :
-          F (gateIndex q') (BitString.flipOn {a} (recursiveChild x j (A.label i j))) ≠
-            F (gateIndex q') (recursiveChild x j (A.label i j)) ∧
-          F (gateIndex q) (BitString.flipOn {a} (recursiveChild x j (A.label i j))) ≠
-            F (gateIndex q) (recursiveChild x j (A.label i j)) := by
-        simp [hgon, hgoff, hgon', hgoff']
-      simpa [childJointChanges, w, hj] using hn
+      simp [childJointChanges, w, ← hj, hgon, hgoff, hgon', hgoff']
   have hU : U.card ≤ 15 * sideSensitivity F false :=
     targetCandidates_biUnion_card_le T A F hF hr q x
   have hV : V.card ≤ 3 * jointSensitivity F true := by

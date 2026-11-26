@@ -181,15 +181,13 @@ theorem localKernel_mul_eq {a i v : ℕ} {t d₀ d j u₀ : ℤ} (ht : t ∈ cau
     rw [mul_add, ← C_mul, ← mul_assoc, ← C_mul, h1, h2]
     simp only [Y, C_sub]
     ring
-  have hcomp : ∀ e ∈ cauchyGrid (2 ^ a),
+  have hcomp {e} (he : e ∈ cauchyGrid (2 ^ a)) :
       (cauchyKernel (2 ^ a) e).comp Y * (Y - C (e : ℚ)) =
         (C ((Lagrange.nodal ((cauchyGrid (2 ^ a)).erase 0) (Int.cast : ℤ → ℚ)).eval 0)⁻¹ *
           Lagrange.nodal (cauchyGrid (2 ^ a)) (Int.cast : ℤ → ℚ)).comp Y := by
-    intro e he
     rw [← cauchyKernel_mul_X_sub he, mul_comp, sub_comp, X_comp, C_comp]
-  have h2v : C ((2 : ℚ) ^ v) ≠ 0 := C_ne_zero.mpr (pow_ne_zero _ two_ne_zero)
-  refine mul_left_cancel₀ h2v ?_
-  rw [mul_left_comm, hYd, mul_left_comm, hYd₀, hcomp d hd, hcomp d₀ hd₀]
+  refine mul_left_cancel₀ (C_ne_zero.mpr (pow_ne_zero (n := v) two_ne_zero)) ?_
+  rw [mul_left_comm, hYd, mul_left_comm, hYd₀, hcomp hd, hcomp hd₀]
 
 /-! ### Values in a ring where `2` is nilpotent -/
 
@@ -337,8 +335,8 @@ theorem not_dvd_sub_sub_of_testBit_eq {t : ℤ} {i x y₀ : ℕ} (hti : (2 : ℤ
   subst hx hy
   -- Then `0 < K + lx - ly < 2 K` would be a multiple of `2 K`.
   push_cast at hn
-  have hlx' : (lx : ℤ) < K := by exact_mod_cast hlx
-  have hly' : (ly : ℤ) < K := by exact_mod_cast hly
+  have hlx' : (lx : ℤ) < K := mod_cast hlx
+  have hly' : (ly : ℤ) < K := mod_cast hly
   have h2K : (0 : ℤ) ≤ 2 * K := by positivity
   have hw : (K : ℤ) + lx - ly = 2 * K * (n - c - q) := by linear_combination hn
   have h1 : 0 < n - c - q :=
@@ -428,25 +426,23 @@ private theorem cauchyValueMatrix_eq_add_sum
     split_ifs at hZ with h1 h2
     · exact ⟨h1.1, h2.1, h1.2.1, h1.2.2, h2.2.2⟩
     all_goals simp at hZ
-  have hbit' : ∀ y₀ : ℕ, slot e' % 2 ^ (i + 1) = y₀ → (slot e').testBit i = y₀.testBit i := by
-    rintro y₀ rfl
-    rw [Nat.testBit_mod_two_pow]
-    simp
+  have hbit' {y₀ : ℕ} (hy : slot e' % 2 ^ (i + 1) = y₀) :
+      (slot e').testBit i = y₀.testBit i := by
+    subst hy
+    simp [Nat.testBit_mod_two_pow]
   by_cases hloc : group (N.tgt e') = group (N.src e)
   · -- Local entries: no mode term survives.
     rw [ite_eq_left hloc, left_eq_add]
     refine sum_eq_zero fun Z _ => by_contra fun hZ => ?_
     obtain ⟨h1, h2, h3, h4, h5⟩ := hterm Z hZ
-    have hb : (slot e').testBit i = (slot e).testBit i := (hbit' _ h5).trans h4.symm
+    have hb : (slot e').testBit i = (slot e).testBit i := (hbit' h5).trans h4.symm
     rw [htgt, hsrc, hb, h2, h1] at hloc
     split_ifs at hloc
     exacts [h3 hloc, h3 hloc.symm]
   rw [ite_eq_right hloc, zero_add]
   by_cases hq : packet e = packet e'
   · -- Crossing entries of one packet: the geometric expansion.
-    have hσ : (sym (packet e)).1 ≠ (sym (packet e)).2 := by
-      intro hσ
-      apply hloc
+    have hσ : (sym (packet e)).1 ≠ (sym (packet e)).2 := fun hσ => hloc <| by
       rw [htgt, hsrc, ← hq]
       split_ifs <;> simp only [hσ]
     have hb : (slot e).testBit i = (slot e').testBit i := by
@@ -461,15 +457,14 @@ private theorem cauchyValueMatrix_eq_add_sum
       ⟨⟨_, hy₀lt⟩, rfl⟩
     rw [Fintype.sum_prod_type, sum_eq_single (packet e), Fintype.sum_prod_type,
       sum_eq_single y₀]
-    · have hcoef : ∀ b : Fin p,
+    · have hcoef (b : Fin p) :
           cauchyModeCoeff κ ζ a i t packet slot sym e (packet e, y₀, b) *
               cauchyModeForm R i packet slot sym (packet e, y₀, b) e' =
             kernelValue κ ζ a t ((y₀ : ℕ) - slot e) *
                 crossRatio a i t ((y₀ : ℕ) - slot e) ζ ^ (b : ℕ) *
               (((slot e' / 2 ^ (i + 1) : ℕ) : ℤ) : R) ^ (b : ℕ) := by
-        intro b
         unfold cauchyModeCoeff cauchyModeForm
-        rw [ite_eq_left ⟨rfl, hσ, hb.trans (hbit' _ hy₀.symm)⟩,
+        rw [ite_eq_left ⟨rfl, hσ, hb.trans (hbit' hy₀.symm)⟩,
           ite_eq_left ⟨hq.symm, hσ, hy₀.symm⟩, Int.cast_natCast]
       simp only [hcoef]
       rw [Fin.sum_univ_eq_sum_range (fun b => kernelValue κ ζ a t ((y₀ : ℕ) - slot e) *
@@ -479,26 +474,21 @@ private theorem cauchyValueMatrix_eq_add_sum
       have hdiv := Nat.mod_add_div (slot e') (2 ^ (i + 1))
       refine kernelValue_eq_sum κ ζ hp ht (sub_mem_cauchyGrid (hslot e)
           (lt_of_lt_of_le y₀.isLt h2a)) (sub_mem_cauchyGrid (hslot e) (hslot e')) ?_
-        (not_dvd_sub_sub_of_testBit_eq hti hti' y₀.isLt (hb.trans (hbit' _ hy₀.symm))) hia.le
-      · have : ((slot e' : ℕ) : ℤ) = ((y₀ : ℕ) : ℤ) +
-            2 ^ (i + 1) * ((slot e' / 2 ^ (i + 1) : ℕ) : ℤ) := by
-          rw [hy₀]
-          exact_mod_cast hdiv.symm
-        rw [this]
+        (not_dvd_sub_sub_of_testBit_eq hti hti' y₀.isLt (hb.trans (hbit' hy₀.symm))) hia.le
+      · have hslot_eq : ((slot e' : ℕ) : ℤ) =
+            (y₀ : ℕ) + 2 ^ (i + 1) * (slot e' / 2 ^ (i + 1) : ℕ) := by
+          exact_mod_cast hy₀ ▸ hdiv.symm
+        rw [hslot_eq]
         ring
-    · intro y₀' _ hne
-      refine sum_eq_zero fun b _ => by_contra fun hZ => hne ?_
-      exact Fin.ext ((hterm _ hZ).2.2.2.2.symm.trans hy₀.symm)
+    · exact fun y₀' _ hne => sum_eq_zero fun b _ => by_contra fun hZ =>
+        hne (Fin.ext ((hterm _ hZ).2.2.2.2.symm.trans hy₀.symm))
     · exact fun h => absurd (mem_univ _) h
-    · intro q' _ hne
-      refine sum_eq_zero fun Z _ => by_contra fun hZ => hne ?_
-      exact (hterm _ hZ).1.symm
+    · exact fun q' _ hne => sum_eq_zero fun Z _ => by_contra fun hZ => hne (hterm _ hZ).1.symm
     · exact fun h => absurd (mem_univ _) h
   · -- Different packets: the entry and every mode term vanish.
     rw [cauchyValueMatrix, ite_eq_right hq]
-    refine (sum_eq_zero fun Z _ => by_contra fun hZ => hq ?_).symm
-    obtain ⟨h1, h2, -⟩ := hterm Z hZ
-    exact h1.trans h2.symm
+    exact (sum_eq_zero fun Z _ => by_contra fun hZ =>
+      hq ((hterm Z hZ).1.trans (hterm Z hZ).2.1.symm)).symm
 
 /-- **The modes of the Cauchy matrix (§D.4.5).** Let the edges of `N` be packed into packets of
 `2 ^ a` slots, with an orientation in coordinate `i < a`: each packet `q` has a pair of groups

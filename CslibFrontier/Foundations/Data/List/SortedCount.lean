@@ -53,26 +53,21 @@ theorem Pairwise.filter_key_eq {α β : Type*} [LinearOrder β] (f : α → β) 
     rw [pairwise_cons] at h
     have ih := Pairwise.filter_key_eq f g h.2
     rcases lt_trichotomy (f x) g with hx | hx | hx
-    · have e1 : (x :: l).countP (fun x => f x < g) = l.countP (fun x => f x < g) + 1 :=
-        countP_cons_of_pos (by simpa using hx)
-      have e2 : (x :: l).countP (fun x => f x = g) = l.countP (fun x => f x = g) :=
-        countP_cons_of_neg (by simpa using hx.ne)
-      rw [filter_cons_of_neg (by simpa using hx.ne), e1, e2, drop_succ_cons]
+    · rw [filter_cons_of_neg (by simpa using hx.ne), countP_cons_of_neg (by simpa using hx.ne),
+        countP_cons_of_pos (by simpa using hx), drop_succ_cons]
       exact ih
     · have hlt : l.countP (fun x => f x < g) = 0 :=
         countP_eq_zero.mpr fun y hy => by simpa [← hx] using h.1 y hy
-      have e1 : (x :: l).countP (fun x => f x < g) = 0 :=
-        (countP_cons_of_neg (by simp [hx])).trans hlt
-      have e2 : (x :: l).countP (fun x => f x = g) = l.countP (fun x => f x = g) + 1 :=
-        countP_cons_of_pos (by simpa using hx)
       rw [hlt, drop_zero] at ih
-      rw [filter_cons_of_pos (by simpa using hx), e1, e2, drop_zero, ih, take_succ_cons]
-    · have h1 : l.countP (fun x => f x < g) = 0 :=
-        countP_eq_zero.mpr fun y hy => by simpa using not_lt.mpr (hx.le.trans (h.1 y hy))
+      rw [filter_cons_of_pos (by simpa using hx), countP_cons_of_pos (by simpa using hx),
+        countP_cons_of_neg (by simp [hx]), hlt, drop_zero, ih, take_succ_cons]
+    · have hgt : ∀ y ∈ l, g < f y := fun y hy => lt_of_lt_of_le hx (h.1 y hy)
+      have h1 : l.countP (fun x => f x < g) = 0 :=
+        countP_eq_zero.mpr fun y hy => by simpa using not_lt.mpr (hgt y hy).le
       have h2 : l.countP (fun x => f x = g) = 0 :=
-        countP_eq_zero.mpr fun y hy => by simpa using (lt_of_lt_of_le hx (h.1 y hy)).ne'
+        countP_eq_zero.mpr fun y hy => by simpa using (hgt y hy).ne'
       have h3 : l.filter (fun x => f x = g) = [] :=
-        filter_eq_nil_iff.mpr fun y hy => by simpa using (lt_of_lt_of_le hx (h.1 y hy)).ne'
+        filter_eq_nil_iff.mpr fun y hy => by simpa using (hgt y hy).ne'
       simp [hx.ne', not_lt.mpr hx.le, h1, h2, h3]
 
 /-- In a sorted list, the prefix that ends `k` places into the block of `c` contains
@@ -96,15 +91,11 @@ theorem Pairwise.count_take_countP_lt_add {α : Type*} [LinearOrder α] (c : α)
         have := Pairwise.count_take_countP_lt_add x k h.2
         rw [hlt, Nat.zero_add] at this
         rw [take_succ_cons, count_cons_self, this, Nat.succ_min_succ]
-    · have h1 : (x :: l).countP (· < c) = 0 := countP_eq_zero.mpr fun y hy => by
-        rcases mem_cons.mp hy with rfl | hy
-        · simpa using not_lt.mpr hx.le
-        · simpa using not_lt.mpr (hx.le.trans (h.1 y hy))
-      have h2 : (x :: l).count c = 0 := count_eq_zero.mpr fun hy => by
-        rcases mem_cons.mp hy with rfl | hy
-        · exact hx.ne' rfl
-        · exact (lt_of_lt_of_le hx (h.1 c hy)).ne' rfl
-      rw [h1, h2, Nat.zero_add, Nat.min_zero, count_eq_zero]
-      exact fun hc => count_eq_zero.mp h2 (take_subset _ _ hc)
+    · have hgt : ∀ y ∈ x :: l, c < y :=
+        forall_mem_cons.mpr ⟨hx, fun y hy => lt_of_lt_of_le hx (h.1 y hy)⟩
+      have h1 : (x :: l).countP (· < c) = 0 :=
+        countP_eq_zero.mpr fun y hy => by simpa using not_lt.mpr (hgt y hy).le
+      rw [h1, Nat.zero_add, count_eq_zero.mpr fun hy => (hgt c hy).ne' rfl, Nat.min_zero]
+      exact count_eq_zero.mpr fun hy => (hgt c (take_subset _ _ hy)).ne' rfl
 
 end List

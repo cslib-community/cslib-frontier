@@ -147,10 +147,7 @@ theorem stateFrom_shift_eq {n : ℕ} [NeZero n] (s₀ : Fin n → S) (k : Fin n)
     P.stateFrom s₀ r (i + k) = P.stateFrom (fun j => s₀ (j + k)) r i := by
   induction r generalizing i with
   | zero => rfl
-  | succ r ih =>
-    have hpred : i + k - 1 = i - 1 + k := add_sub_right_comm i k 1
-    have hsucc : i + k + 1 = i + 1 + k := add_right_comm i k 1
-    rw [stateFrom_succ, stateFrom_succ, hpred, hsucc, ih, ih, ih]
+  | succ r ih => rw [stateFrom_succ, stateFrom_succ, add_sub_right_comm, add_right_comm, ih, ih, ih]
 
 /-- From a uniform initial state on `Fin n`, shifting any node index by `+ k` mod `n` leaves its
 state unchanged after every synchronous round `r`. -/
@@ -159,16 +156,14 @@ theorem state_shift_eq (n : ℕ) [NeZero n] (r : ℕ) (i k : Fin n) :
   P.stateFrom_shift_eq (fun _ => P.init) k r i
 
 private theorem run_eq (n : ℕ) [NeZero n] (r : ℕ) (i j : Fin n) :
-    P.run n r i = P.run n r j := by
-  have h := P.state_shift_eq n r j (i - j)
-  rwa [add_sub_cancel] at h
+    P.run n r i = P.run n r j :=
+  add_sub_cancel j i ▸ P.state_shift_eq n r j (i - j)
 
 private theorem isLeader_run_forall_of_exists (n : ℕ) [NeZero n] (r : ℕ)
     (hex : ∃ i : Fin n, P.isLeader (P.run n r i) = true) :
-    ∀ i : Fin n, P.isLeader (P.run n r i) = true := by
-  obtain ⟨i₀, hi₀⟩ := hex
-  intro i
-  rwa [P.run_eq n r i i₀]
+    ∀ i : Fin n, P.isLeader (P.run n r i) = true :=
+  let ⟨i₀, hi₀⟩ := hex
+  fun i => P.run_eq n r i i₀ ▸ hi₀
 
 /-- The set of nodes declaring `isLeader = true` after `r` rounds on `Fin n`. -/
 @[expose] def leaders (n : ℕ) [NeZero n] (r : ℕ) : Finset (Fin n) :=
@@ -397,10 +392,8 @@ private theorem step_shift_eq {n : ℕ} [NeZero n] (e : AnonEvent n) (k : Fin n)
       · exact update_shift cfg.node t k _ i
       · dsimp only [AnonAsyncConfig.shift]
         have h1 : (Function.update (fun j => cfg.chanSucc (j + k)) (t - 1) rest) =
-            fun j => Function.update cfg.chanSucc (t + k - 1) rest (j + k) := by
-          funext j
-          rw [← hpred]
-          exact update_shift cfg.chanSucc (t - 1) k rest j
+            fun j => Function.update cfg.chanSucc (t + k - 1) rest (j + k) :=
+          funext fun j => hpred ▸ update_shift cfg.chanSucc (t - 1) k rest j
         rw [h1]
         exact update_shift (Function.update cfg.chanSucc (t + k - 1) rest) t k _ i
       · exact update_shift cfg.chanPred t k _ i
@@ -415,10 +408,8 @@ private theorem step_shift_eq {n : ℕ} [NeZero n] (e : AnonEvent n) (k : Fin n)
       · exact update_shift cfg.chanSucc t k _ i
       · dsimp only [AnonAsyncConfig.shift]
         have h1 : (Function.update (fun j => cfg.chanPred (j + k)) (t + 1) rest) =
-            fun j => Function.update cfg.chanPred (t + k + 1) rest (j + k) := by
-          funext j
-          rw [← hsucc]
-          exact update_shift cfg.chanPred (t + 1) k rest j
+            fun j => Function.update cfg.chanPred (t + k + 1) rest (j + k) :=
+          funext fun j => hsucc ▸ update_shift cfg.chanPred (t + 1) k rest j
         rw [h1]
         exact update_shift (Function.update cfg.chanPred (t + k + 1) rest) t k _ i
 
@@ -670,28 +661,22 @@ private theorem step_counter_eq_dual {n : ℕ} [NeZero n] (t : Fin n)
       (funext fun i => by simp only [neg_neg])
       (funext fun i => by simp only [neg_neg])
   | cons m rest =>
+    dsimp only [reflectConfig]
     refine AnonAsyncConfig.ext (funext fun i => ?_) (funext fun i => ?_)
       (funext fun i => ?_)
-    · have h := (update_neg cfg.node (-t) (P.recvFromSucc (cfg.node t) m).nextState i).symm
-      rwa [neg_neg] at h
-    · have h :=
+    · simpa only [neg_neg] using
+        (update_neg cfg.node (-t) (P.recvFromSucc (cfg.node t) m).nextState i).symm
+    · simpa only [neg_neg] using
         (update_neg cfg.chanSucc (-t) (cfg.chanSucc t ++ (P.recvFromSucc (cfg.node t) m).toSucc)
           i).symm
-      rwa [neg_neg] at h
-    · dsimp only [reflectConfig]
-      have h1 : Function.update (fun j => cfg.chanPred (-j)) (-(t + 1)) rest =
-          fun j => Function.update cfg.chanPred (t + 1) rest (-j) := by
-        funext j
-        have := update_neg cfg.chanPred (-(t + 1)) rest (-j)
-        simpa only [neg_neg] using this
+    · have h1 : Function.update (fun j => cfg.chanPred (-j)) (-(t + 1)) rest =
+          fun j => Function.update cfg.chanPred (t + 1) rest (-j) :=
+        funext fun j => by simpa only [neg_neg] using update_neg cfg.chanPred (-(t + 1)) rest (-j)
       rw [h1]
-      dsimp only
-      rw [neg_neg]
-      have h :=
+      simpa only [neg_neg] using
         (update_neg (Function.update cfg.chanPred (t + 1) rest) (-t)
           (Function.update cfg.chanPred (t + 1) rest t ++ (P.recvFromSucc (cfg.node t) m).toPred)
           i).symm
-      rwa [neg_neg] at h
 
 private theorem enabled_counter_iff_dual {n : ℕ} [NeZero n] (t : Fin n)
     (cfg : AnonAsyncConfig n S M) :
@@ -807,9 +792,8 @@ theorem exists_rotWave_trace_leaders_card_ne_one {n : ℕ} [NeZero n] (hn : 2 �
           obtain ⟨hw_mtr, hw_uni⟩ := P.mtr_clockwiseWave_uniform huni'
           refine ⟨sched ++ clockwiseWave n, P.exec cfg (clockwiseWave n), _, _, _,
             hmtr.comp (P.lts n) hw_mtr, hw_uni, Or.inl ?_⟩
-          have hcw_len : (clockwiseWave n).length = n := by
-            simp only [clockwiseWave, List.length_map, List.length_finRange]
-          rw [List.length_append, hcw_len, Nat.succ_mul]
+          simp only [clockwiseWave, List.length_append, List.length_map, List.length_finRange,
+            Nat.succ_mul]
           omega
         | nil =>
           cases hcp_eq : cp with
@@ -818,9 +802,8 @@ theorem exists_rotWave_trace_leaders_card_ne_one {n : ℕ} [NeZero n] (hn : 2 �
             obtain ⟨hw_mtr, hw_uni⟩ := P.mtr_counterWave_uniform huni'
             refine ⟨sched ++ counterWave n, P.exec cfg (counterWave n), _, _, _,
               hmtr.comp (P.lts n) hw_mtr, hw_uni, Or.inl ?_⟩
-            have hccw_len : (counterWave n).length = n := by
-              simp only [counterWave, List.length_map, List.length_finRange]
-            rw [List.length_append, hccw_len, Nat.succ_mul]
+            simp only [counterWave, List.length_append, List.length_map, List.length_finRange,
+              Nat.succ_mul]
             omega
           | nil =>
             subst hcs_eq hcp_eq

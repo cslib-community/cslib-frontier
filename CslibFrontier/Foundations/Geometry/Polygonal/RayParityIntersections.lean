@@ -135,23 +135,16 @@ private theorem differenceMap_apply (a b c d : ℂ) (h : ℝ) :
 private theorem common_open_iff {a b c d : ℂ} (hab : a.im < b.im) (hcd : c.im < d.im) :
     (openSegment ℝ a b ∩ openSegment ℝ c d).Nonempty ↔
       ∃ h ∈ Set.Ioo (max a.im c.im) (min b.im d.im), differenceMap a b c d h = 0 := by
-  constructor
-  · rintro ⟨z, hz⟩
-    obtain ⟨haz, ha⟩ := (mem_openSegment_height_iff hab z).mp hz.1
-    obtain ⟨hcz, hc⟩ := (mem_openSegment_height_iff hcd z).mp hz.2
-    refine ⟨z.im, ⟨max_lt_iff.mpr ⟨haz.1, hcz.1⟩,
-      lt_min_iff.mpr ⟨haz.2, hcz.2⟩⟩, ?_⟩
-    rw [differenceMap_apply, sub_eq_zero]
-    exact ha.symm.trans hc
-  · rintro ⟨h, hh, hf⟩
-    rw [differenceMap_apply, sub_eq_zero] at hf
-    refine ⟨heightMap a b h, ?_, ?_⟩
-    · rw [mem_openSegment_height_iff hab, heightMap_im hab.ne, heightMap_re]
-      exact ⟨⟨(le_max_left _ _).trans_lt hh.1,
-        hh.2.trans_le (min_le_left _ _)⟩, rfl⟩
-    · rw [mem_openSegment_height_iff hcd, heightMap_im hab.ne, heightMap_re]
-      exact ⟨⟨(le_max_right _ _).trans_lt hh.1,
-        hh.2.trans_le (min_le_right _ _)⟩, hf⟩
+  simp only [Set.mem_Ioo, max_lt_iff, lt_min_iff, differenceMap_apply, sub_eq_zero]
+  refine ⟨fun ⟨z, hz1, hz2⟩ => ?_, fun ⟨h, ⟨⟨ha, hc⟩, ⟨hb, hd⟩⟩, hf⟩ => ?_⟩
+  · obtain ⟨⟨ha, hb⟩, hre1⟩ := (mem_openSegment_height_iff hab z).mp hz1
+    obtain ⟨⟨hc, hd⟩, hre2⟩ := (mem_openSegment_height_iff hcd z).mp hz2
+    exact ⟨z.im, ⟨⟨ha, hc⟩, ⟨hb, hd⟩⟩, hre1.symm.trans hre2⟩
+  · refine ⟨heightMap a b h, ?_, ?_⟩
+    · simpa only [mem_openSegment_height_iff hab, Set.mem_Ioo, heightMap_im hab.ne, heightMap_re,
+        and_true] using ⟨ha, hb⟩
+    · simp only [mem_openSegment_height_iff hcd, Set.mem_Ioo, heightMap_im hab.ne, heightMap_re]
+      exact ⟨⟨hc, hd⟩, hf⟩
 
 private theorem difference_boundary_ne_zero {a b c d : ℂ}
     (hab : a.im < b.im) (hcd : c.im < d.im)
@@ -162,10 +155,9 @@ private theorem difference_boundary_ne_zero {a b c d : ℂ}
     differenceMap a b c d h ≠ 0 := by
   intro hz
   rw [differenceMap_apply, sub_eq_zero] at hz
-  have heq : heightMap a b h = heightMap c d h := by
-    apply Complex.ext
-    · simpa only [heightMap_re] using hz
-    · rw [heightMap_im hab.ne, heightMap_im hcd.ne]
+  have heq : heightMap a b h = heightMap c d h :=
+    Complex.ext ((heightMap_re a b h).trans (hz.trans (heightMap_re c d h).symm))
+      ((heightMap_im hab.ne h).trans (heightMap_im hcd.ne h).symm)
   have hmAB : heightMap a b h ∈ segment ℝ a b := by
     rw [mem_segment_height_iff hab, heightMap_im hab.ne, heightMap_re]
     exact ⟨hAB, rfl⟩
@@ -175,10 +167,8 @@ private theorem difference_boundary_ne_zero {a b c d : ℂ}
   rcases hend with rfl | rfl | rfl | rfl
   · exact ha (by simpa only [heightMap_left] using hmCD)
   · exact hb (by simpa only [heightMap_right hab.ne] using hmCD)
-  · rw [heq, heightMap_left] at hmAB
-    exact hc hmAB
-  · rw [heq, heightMap_right hcd.ne] at hmAB
-    exact hd hmAB
+  · exact hc (by simpa only [heq, heightMap_left] using hmAB)
+  · exact hd (by simpa only [heq, heightMap_right hcd.ne] using hmAB)
 
 open Classical in
 private theorem common_open_indicator {a b c d : ℂ}
@@ -213,10 +203,9 @@ private theorem common_open_indicator {a b c d : ℂ}
     by_cases hposL : 0 < differenceMap a b c d L <;>
       by_cases hposH : 0 < differenceMap a b c d H <;>
       simp [hposL, hposH, Xor, L, H, Bool.add_eq_xor]
-  · have hno : ¬(openSegment ℝ a b ∩ openSegment ℝ c d).Nonempty := by
-      rintro hz
-      obtain ⟨h, hh, _⟩ := (common_open_iff hab hcd).mp hz
-      exact hLH (hh.1.trans hh.2)
+  · have hno : ¬(openSegment ℝ a b ∩ openSegment ℝ c d).Nonempty := fun hz =>
+      let ⟨_, hh, _⟩ := (common_open_iff hab hcd).mp hz
+      hLH (hh.1.trans hh.2)
     dsimp only [L, H] at hLH
     simp only [hno, decide_false, ite_eq_right hLH, Bool.zero_eq_false]
 
@@ -232,34 +221,24 @@ private theorem sweep_identity_ordered {a b c d : ℂ}
   let f : ℝ → Bool := fun h => decide (0 < differenceMap a b c d h)
   have hC : decide (RayCrosses a b c) =
       if a.im ≤ c.im ∧ c.im < b.im then f c.im else 0 := by
-    have hsign : c.re < horizontalIntercept a b c.im ↔
-        0 < differenceMap a b c d c.im := by
-      rw [differenceMap_apply, horizontalIntercept_left, sub_pos]
     by_cases h : a.im ≤ c.im ∧ c.im < b.im <;>
-      simp [RayCrosses, min_eq_left hab.le, max_eq_right hab.le, ← and_assoc, hsign, h, f,
-        Bool.zero_eq_false]
+      simp [RayCrosses, min_eq_left hab.le, max_eq_right hab.le, ← and_assoc,
+        differenceMap_apply, horizontalIntercept_left, sub_pos, h, f, Bool.zero_eq_false]
   have hD : decide (RayCrosses a b d) =
       if a.im ≤ d.im ∧ d.im < b.im then f d.im else 0 := by
-    have hsign : d.re < horizontalIntercept a b d.im ↔
-        0 < differenceMap a b c d d.im := by
-      rw [differenceMap_apply, horizontalIntercept_right hcd.ne, sub_pos]
     by_cases h : a.im ≤ d.im ∧ d.im < b.im <;>
-      simp [RayCrosses, min_eq_left hab.le, max_eq_right hab.le, ← and_assoc, hsign, h, f,
-        Bool.zero_eq_false]
+      simp [RayCrosses, min_eq_left hab.le, max_eq_right hab.le, ← and_assoc,
+        differenceMap_apply, horizontalIntercept_right hcd.ne, sub_pos, h, f, Bool.zero_eq_false]
   have hA : decide (Sweep c d a) =
       if c.im < a.im ∧ a.im ≤ d.im then f a.im else 0 := by
-    have hsign : horizontalIntercept c d a.im < a.re ↔
-        0 < differenceMap a b c d a.im := by
-      rw [differenceMap_apply, horizontalIntercept_left, sub_pos]
     by_cases h : c.im < a.im ∧ a.im ≤ d.im <;>
-      simp [Sweep, min_eq_left hcd.le, max_eq_right hcd.le, hsign, h, f, Bool.zero_eq_false]
+      simp [Sweep, min_eq_left hcd.le, max_eq_right hcd.le, differenceMap_apply,
+        horizontalIntercept_left, sub_pos, h, f, Bool.zero_eq_false]
   have hB : decide (Sweep c d b) =
       if c.im < b.im ∧ b.im ≤ d.im then f b.im else 0 := by
-    have hsign : horizontalIntercept c d b.im < b.re ↔
-        0 < differenceMap a b c d b.im := by
-      rw [differenceMap_apply, horizontalIntercept_right hab.ne, sub_pos]
     by_cases h : c.im < b.im ∧ b.im ≤ d.im <;>
-      simp [Sweep, min_eq_left hcd.le, max_eq_right hcd.le, hsign, h, f, Bool.zero_eq_false]
+      simp [Sweep, min_eq_left hcd.le, max_eq_right hcd.le, differenceMap_apply,
+        horizontalIntercept_right hab.ne, sub_pos, h, f, Bool.zero_eq_false]
   have hboundary := interval_boundary_parity a.im b.im c.im d.im hab hcd f
   rw [← hC, ← hD, ← hA, ← hB,
     ← common_open_indicator hab hcd ha hb hc hd] at hboundary

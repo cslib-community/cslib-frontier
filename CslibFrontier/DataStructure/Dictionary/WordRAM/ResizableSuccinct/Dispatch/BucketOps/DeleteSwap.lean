@@ -95,13 +95,10 @@ private theorem FixedCoupled.writeQuot_slotOf {metaBase itemBase U V w N b j q :
     · rw [compQuotAt_writeCompQuot_of_ne hw s.mem hdeq]
       have hg_ne : physByBase N (gm 0 * slabSize N) (compDTAt metaBase U w N s.mem) d' ≠ g := by
         intro heq
-        apply hdeq
         obtain ⟨hb'_lt, hj'_lt, hd'_eq⟩ := ownerBucketOfDense_lt_and_slotOf hslot htd hd'
-        have hv' := physOfDense_eq_slotOf_owner hslot htd hd'
-        change physOfDense N gm (compDTAt metaBase U w N s.mem) d' = g at heq
-        rw [hv'] at heq
-        obtain ⟨rfl, rfl⟩ := (slotOf_lt_and_injective hslot).2 _ hb'_lt _ hj'_lt b hb j hj heq
-        exact hd'_eq.symm
+        obtain ⟨rfl, rfl⟩ := (slotOf_lt_and_injective hslot).2 _ hb'_lt _ hj'_lt b hb j hj
+          ((physOfDense_eq_slotOf_owner hslot htd hd').symm.trans heq)
+        exact hdeq hd'_eq.symm
       rw [Function.update_of_ne hg_ne]
       exact hcpl.quot_eq d' hd'
   · rw [hgm_f] at hd' ⊢
@@ -120,9 +117,7 @@ private theorem clientState_compResolveCopyPairProg
     (d : ((CompParams × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (compResolveCopyPairProg d) = s := by
   rcases d with ⟨⟨⟨cp, metaBase⟩, b⟩, phys_del⟩
-  unfold StateTransitionSpec.clientState
-  dsimp only [compResolveCopyPairProg]
-  simp only [prog_runClient_state_bind, StateTransitionSpec.clientState,
+  simp only [StateTransitionSpec.clientState, compResolveCopyPairProg, prog_runClient_state_bind,
     runClient_state_compLastSlotOfGenProg, runClient_state_denseOfPhysGenProg,
     prog_runClient_state_pure]
 
@@ -251,12 +246,6 @@ private theorem compCopyLastPayloadGenProg_effect {metaBase itemBase U V w N m_c
       clientResult_compResolveCopyPairProg henv hcpl hslot hb hj_del,
       clientState_copyCompItemGenProg (m_items := epochTotalSlots N gm) hd_src_lt,
       hq_src, hv_src]
-  have hslot_fix : SlotStoreInv N
-      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) := by
-    rw [← hcpl.gm_eq]; exact hslot
-  have hbc_fix : 1 ≤ bCount N
-      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b := by
-    rw [← hcpl.gm_eq]; exact hbc
   have hphys_last_lt : phys_last < N := (slotOf_lt_and_injective hslot).1 b hb j_last hj_last
   have hs_fix'_eq : s_fix' = (Memory.spec 0).clientState
       ((Memory.spec 0).clientState s_fix
@@ -271,7 +260,7 @@ private theorem compCopyLastPayloadGenProg_effect {metaBase itemBase U V w N m_c
     simp only [lastSlotOfGenProg_mk, readQuotGenProg_mk, readValGenProg_mk,
       writeQuotGenProg_mk, writeValGenProg_mk]
     rw [StateTransitionSpec.clientState_bind, clientState_lastSlotOfProg,
-      clientResult_lastSlotOfProg (0, b) s_fix hslot_fix hb hbc_fix]
+      clientResult_lastSlotOfProg (0, b) s_fix (hcpl.gm_eq ▸ hslot) hb (hcpl.gm_eq ▸ hbc)]
     simp only [← hcpl.gm_eq]
     rw [StateTransitionSpec.clientState_bind, clientState_readQuotProg,
       clientResult_readQuotProg s_fix hphys_last_lt,
@@ -294,7 +283,6 @@ private theorem compCopyLastPayloadGenProg_effect {metaBase itemBase U V w N m_c
   have hslot1 : SlotStoreInv N (compGmAt metaBase U w N s₁.mem) := hgm1.symm ▸ hslot
   have hj_del1 : j_del < bCount N (compGmAt metaBase U w N s₁.mem) b := hgm1.symm ▸ hj_del
   have hcpl2 := hcpl1.writeVal_slotOf henv.pos_w henv.meta_le_item hslot1 hb hj_del1 hv_lt
-  dsimp only [s₁] at hcpl2
   simp only [hgm1, htd1] at hcpl2
   rw [hs'_eq, hs_fix'_eq]
   refine ⟨⟨rfl, fun a _ hi => ?_⟩, hcpl2⟩
@@ -384,67 +372,6 @@ private def CompDeleteSwapCopyPre (w : ℕ) :
     ∃ j_del, CompDeleteSwapPre w
       (((((cp, (metaBase, itemBase)), (b, j_del)), phys_del), (m_last, j_last))) s
 
-private theorem realizesBounded_compDeleteSwapCopy :
-    RealizesBounded .exact compDeleteSwapCopyProg
-      (WordEncoding.encode (α := (((CompParams × (ℕ × ℕ)) × ℕ) × ℕ) × (ℕ × ℕ)))
-      (WordEncoding.encode (α := Unit))
-      CompDeleteSwapCopyPre (fun _ _ => 0) := by
-  have hu := realizesBounded_compUnlinkIfIndexedGen
-  have hcp := realizesBounded_compCopyLastPayloadGen
-  realize
-  all_goals (
-    rcases d with ⟨⟨⟨⟨cp, ⟨metaBase, itemBase⟩⟩, b⟩, phys_del⟩, ⟨m_last, j_last⟩⟩
-    obtain ⟨j_del, U, V, N, m_cap, s_fix, L, rfl, henv, hcpl, hslot, hm_cap,
-      hb, hm_last, hj_lt, hj_last_bc, rfl, hval, hmem_last⟩ := h
-    have hbounds : j_last < effBucketCap N →
-        lmPrev N (compLmAt metaBase U w N s.mem) b j_last ≤ effBucketCap N ∧
-        lmNext N (compLmAt metaBase U w N s.mem) b j_last ≤ effBucketCap N := fun hj_cap => by
-      rw [hcpl.lm_eq]
-      exact ⟨(hval.1 b hb m_last hm_last).prev_le_cap (hmem_last hj_cap),
-        (hval.1 b hb m_last hm_last).next_le_cap (hmem_last hj_cap)⟩)
-  · exact ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V,
-      rfl, henv.meta_le_frontier, hb, hm_last, hbounds⟩
-  · obtain ⟨hfr_u, hcpl_u⟩ := compUnlinkIfIndexedGenProg_effect
-      (m_cap := m_cap) henv.pos_w henv.meta_le_item hcpl hb hm_last hbounds
-    have hwg : 0 < ghostW w := by unfold ghostW; omega
-    have hj_last_n : j_last < N :=
-      lt_of_lt_of_le hj_last_bc (bCount_le_n_max hslot b)
-    have eff_u := unlinkIfIndexedProg_allChainsValid (U := U) (V := V) (w := ghostW w)
-      (n_max := N) (h_space := epochHashSpace U (ghostW w) N) (base := 0) (b := b)
-      (m := m_last) (j_del := j_last) hwg hb hm_last hj_last_n hval hmem_last
-    set s₁ := (Memory.spec 0).clientState s
-      (compUnlinkIfIndexedGenProg (((mkCompParams U V w N, metaBase), (b, m_last)), j_last))
-    have hgm₁ : compGmAt metaBase U w N s₁.mem = compGmAt metaBase U w N s.mem :=
-      hcpl_u.gm_eq.trans (eff_u.2.2.2.2.1.trans hcpl.gm_eq.symm)
-    exact ⟨U, V, N, m_cap, _, j_del, rfl, henv.of_mem_eq (by rw [hfr_u.frontier_eq]), hcpl_u,
-      hgm₁.symm ▸ hslot, hgm₁.symm ▸ hm_cap, hb, hgm₁.symm ▸ (lt_trans hj_lt hj_last_bc),
-      by rw [hgm₁]⟩
-
-/-- Compacted swap helper for `delete` when `j_del < j_last` (`¬ReadsWidth`). -/
-private def compDeleteSwapGenProg :
-    (((CompParams × (ℕ × ℕ)) × (ℕ × ℕ)) × ℕ) × (ℕ × ℕ) → Memory.Prog Unit
-  | ((((cp, (metaBase, itemBase)), (b, j_del)), phys_del), (m_last, j_last)) => do
-    compDeleteSwapCopyProg (((((cp, (metaBase, itemBase)), b), phys_del), (m_last, j_last)))
-    compPrependIfIndexedGenProg (((cp, metaBase), (b, m_last)), j_del)
-
-private theorem memoryCost_compDeleteSwapGenProg_le
-    (d : (((CompParams × (ℕ × ℕ)) × (ℕ × ℕ)) × ℕ) × (ℕ × ℕ)) (s : Memory.State) :
-    memoryCost (compDeleteSwapGenProg d) s ≤ 54 := by
-  rcases d with ⟨⟨⟨⟨cp, ⟨metaBase, itemBase⟩⟩, ⟨b, j_del⟩⟩, phys_del⟩, ⟨m_last, j_last⟩⟩
-  dsimp only [compDeleteSwapGenProg, compDeleteSwapCopyProg]
-  simp only [Realization.memoryCost_bind', prog_runClient_state_bind]
-  have h1 := memoryCost_compUnlinkIfIndexedGenProg_le (((cp, metaBase), (b, m_last)), j_last) s
-  set s₁ := (Memory.spec 0).clientState s
-    (compUnlinkIfIndexedGenProg (((cp, metaBase), (b, m_last)), j_last))
-  have h2 := memoryCost_compCopyLastPayloadGenProg_le
-    (((cp, (metaBase, itemBase)), b), phys_del) s₁
-  set s₂ := (Memory.spec 0).clientState s₁
-    (compCopyLastPayloadGenProg (((cp, (metaBase, itemBase)), b), phys_del))
-  have h3 := memoryCost_compPrependIfIndexedGenProg_le
-    (((cp, metaBase), (b, m_last)), j_del) s₂
-  dsimp only [s₁, s₂] at h2 h3 ⊢
-  omega
-
 private theorem compDeleteSwap_stages
     {metaBase itemBase U V w N m_cap b j_del m_last j_last : ℕ}
     {L : ℕ → ℕ → List ℕ} {s_fix s : Memory.State}
@@ -471,6 +398,8 @@ private theorem compDeleteSwap_stages
     CompOpFrame metaBase itemBase U V w N m_cap s₁ s₂ ∧
     FixedCoupled metaBase itemBase U V w N sf₂ s₂ ∧
     lmHead N (compLmAt metaBase U w N s₂.mem) b m_last ≤ effBucketCap N ∧
+    gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₂.mem =
+      compGmAt metaBase U w N s.mem ∧
     CompUnlinkIfIndexedPre w (((mkCompParams U V w N, metaBase), (b, m_last)), j_last) s ∧
     CompCopyLastPayloadPre w (((mkCompParams U V w N, (metaBase, itemBase)), b), phys_del) s₁ ∧
     CompPrependIfIndexedPre w (((mkCompParams U V w N, metaBase), (b, m_last)), j_del) s₂ := by
@@ -500,20 +429,15 @@ private theorem compDeleteSwap_stages
     compCopyLastPayloadGenProg_effect henv1 hcpl1 hslot1 hm_cap1 hb hj_del_bc1
   have hphys_eq1 : slotOf N (compGmAt metaBase U w N s₁.mem) b j_del = phys_del := by rw [hgm1]
   rw [hphys_eq1] at hfr2 hcpl2
-  have hslot_sf1 : SlotStoreInv N
-      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₁.mem) := by
-    rw [eff_u.2.2.2.2.1, ← hcpl.gm_eq]; exact hslot
-  have hbc_sf1 : 1 ≤ bCount N
-      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₁.mem) b := by
-    rw [eff_u.2.2.2.2.1, ← hcpl.gm_eq]; omega
+  have hgm_sf1 := eff_u.2.2.2.2.1.trans hcpl.gm_eq.symm
   have eff_c := copyLastPayloadProg_effect (U := U) (V := V) (w := ghostW w) (n_max := N)
     (h_space := epochHashSpace U (ghostW w) N) (base := 0) (b := b) (phys_del := phys_del)
-    hwg hslot_sf1 hb hbc_sf1 hphys_del_lt
+    hwg (hgm_sf1.symm ▸ hslot) hb (hgm_sf1.symm ▸ Nat.one_le_of_lt hj_last_bc) hphys_del_lt
   obtain ⟨L₁, hval₁, _⟩ := eff_u.2.2.2.2.2
   have hold2 : lmHead N (compLmAt metaBase U w N s₂.mem) b m_last ≤ effBucketCap N := by
     rw [hcpl2.lm_eq, eff_c.2.2.2.2.1]
     exact (hval₁.1 b hb m_last hm_last).head_le_cap
-  refine ⟨hfr1, hfr2, hcpl2, hold2,
+  refine ⟨hfr1, hfr2, hcpl2, hold2, eff_c.2.2.2.2.2.trans hgm_sf1,
     ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V,
       rfl, henv.meta_le_frontier, hb, hm_last, hbounds⟩,
     ⟨U, V, N, m_cap, sf₁, j_del, rfl, henv1, hcpl1, hslot1, hm_cap1, hb, hj_del_bc1,
@@ -521,6 +445,48 @@ private theorem compDeleteSwap_stages
     ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V,
       rfl, ?_, hb, hm_last, hold2⟩⟩
   rw [hfr2.frontier_eq, hfr1.frontier_eq]; exact henv.meta_le_frontier
+
+private theorem realizesBounded_compDeleteSwapCopy :
+    RealizesBounded .exact compDeleteSwapCopyProg
+      (WordEncoding.encode (α := (((CompParams × (ℕ × ℕ)) × ℕ) × ℕ) × (ℕ × ℕ)))
+      (WordEncoding.encode (α := Unit))
+      CompDeleteSwapCopyPre (fun _ _ => 0) := by
+  have hu := realizesBounded_compUnlinkIfIndexedGen
+  have hcp := realizesBounded_compCopyLastPayloadGen
+  realize
+  all_goals (
+    rcases d with ⟨⟨⟨⟨cp, ⟨metaBase, itemBase⟩⟩, b⟩, phys_del⟩, ⟨m_last, j_last⟩⟩
+    obtain ⟨j_del, U, V, N, m_cap, s_fix, L, rfl, henv, hcpl, hslot, hm_cap,
+      hb, hm_last, hj_lt, hj_last_bc, rfl, hval, hmem_last⟩ := h)
+  · exact (compDeleteSwap_stages henv hcpl hslot hm_cap hb hm_last hj_lt hj_last_bc
+      hval hmem_last).2.2.2.2.2.1
+  · exact (compDeleteSwap_stages henv hcpl hslot hm_cap hb hm_last hj_lt hj_last_bc
+      hval hmem_last).2.2.2.2.2.2.1
+
+/-- Compacted swap helper for `delete` when `j_del < j_last` (`¬ReadsWidth`). -/
+private def compDeleteSwapGenProg :
+    (((CompParams × (ℕ × ℕ)) × (ℕ × ℕ)) × ℕ) × (ℕ × ℕ) → Memory.Prog Unit
+  | ((((cp, (metaBase, itemBase)), (b, j_del)), phys_del), (m_last, j_last)) => do
+    compDeleteSwapCopyProg (((((cp, (metaBase, itemBase)), b), phys_del), (m_last, j_last)))
+    compPrependIfIndexedGenProg (((cp, metaBase), (b, m_last)), j_del)
+
+private theorem memoryCost_compDeleteSwapGenProg_le
+    (d : (((CompParams × (ℕ × ℕ)) × (ℕ × ℕ)) × ℕ) × (ℕ × ℕ)) (s : Memory.State) :
+    memoryCost (compDeleteSwapGenProg d) s ≤ 54 := by
+  rcases d with ⟨⟨⟨⟨cp, ⟨metaBase, itemBase⟩⟩, ⟨b, j_del⟩⟩, phys_del⟩, ⟨m_last, j_last⟩⟩
+  dsimp only [compDeleteSwapGenProg, compDeleteSwapCopyProg]
+  simp only [Realization.memoryCost_bind', prog_runClient_state_bind]
+  have h1 := memoryCost_compUnlinkIfIndexedGenProg_le (((cp, metaBase), (b, m_last)), j_last) s
+  set s₁ := (Memory.spec 0).clientState s
+    (compUnlinkIfIndexedGenProg (((cp, metaBase), (b, m_last)), j_last))
+  have h2 := memoryCost_compCopyLastPayloadGenProg_le
+    (((cp, (metaBase, itemBase)), b), phys_del) s₁
+  set s₂ := (Memory.spec 0).clientState s₁
+    (compCopyLastPayloadGenProg (((cp, (metaBase, itemBase)), b), phys_del))
+  have h3 := memoryCost_compPrependIfIndexedGenProg_le
+    (((cp, metaBase), (b, m_last)), j_del) s₂
+  dsimp only [s₁, s₂] at h2 h3 ⊢
+  omega
 
 private theorem compDeleteSwapGenProg_effect
     {metaBase itemBase U V w N m_cap b j_del m_last j_last : ℕ}
@@ -544,31 +510,16 @@ private theorem compDeleteSwapGenProg_effect
     CompOpFrame metaBase itemBase U V w N m_cap s s' ∧
     FixedCoupled metaBase itemBase U V w N s_fix' s' := by
   intro phys_del d s' s_fix'
-  obtain ⟨hfr1, hfr2, hcpl2, hold2, _, _, _⟩ :=
+  have hstg :=
     compDeleteSwap_stages henv hcpl hslot hm_cap hb hm_last hj_lt hj_last_bc hval hmem_last
   obtain ⟨hfr3, hcpl3⟩ := compPrependIfIndexedGenProg_effect
-    (m_cap := m_cap) (j_new := j_del) henv.pos_w henv.meta_le_item hcpl2 hb hm_last hold2
-  have hs'_eq : s' = (Memory.spec 0).clientState
-      ((Memory.spec 0).clientState
-        ((Memory.spec 0).clientState s
-          (compUnlinkIfIndexedGenProg (((mkCompParams U V w N, metaBase), (b, m_last)), j_last)))
-        (compCopyLastPayloadGenProg (((mkCompParams U V w N, (metaBase, itemBase)), b), phys_del)))
-      (compPrependIfIndexedGenProg (((mkCompParams U V w N, metaBase), (b, m_last)), j_del)) := by
-    dsimp only [s', d, compDeleteSwapGenProg, compDeleteSwapCopyProg]
-    repeat rw [StateTransitionSpec.clientState_bind]
-  have hs_fix'_eq : s_fix' = (Memory.spec 0).clientState
-      ((Memory.spec 0).clientState
-        ((Memory.spec 0).clientState s_fix
-          (unlinkIfIndexedProg U V (ghostW w) N (epochHashSpace U (ghostW w) N)
-            (((0, b), m_last), j_last)))
-        (copyLastPayloadProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) ((0, b), phys_del)))
-      (prependIfIndexedProg U V (ghostW w) N (epochHashSpace U (ghostW w) N)
-        (((0, b), m_last), j_del)) := by
-    dsimp only [s_fix']; unfold deleteSwapProg deleteSwapGenProg
-    simp only [unlinkIfIndexedGenProg_mk, copyLastPayloadGenProg_mk, prependIfIndexedGenProg_mk]
-    repeat rw [StateTransitionSpec.clientState_bind]
-  rw [hs'_eq, hs_fix'_eq]
-  exact ⟨hfr1.trans (hfr2.trans hfr3), hcpl3⟩
+    (m_cap := m_cap) (j_new := j_del) henv.pos_w henv.meta_le_item hstg.2.2.1 hb hm_last
+    hstg.2.2.2.1
+  dsimp only [s', s_fix', d, phys_del, compDeleteSwapGenProg, compDeleteSwapCopyProg]
+  unfold deleteSwapProg deleteSwapGenProg
+  simp only [unlinkIfIndexedGenProg_mk, copyLastPayloadGenProg_mk, prependIfIndexedGenProg_mk]
+  repeat rw [StateTransitionSpec.clientState_bind]
+  exact ⟨hstg.1.trans (hstg.2.1.trans hfr3), hcpl3⟩
 
 private theorem realizesBounded_compDeleteSwapGen :
     RealizesBounded .exact compDeleteSwapGenProg
@@ -584,16 +535,15 @@ private theorem realizesBounded_compDeleteSwapGen :
       hb, hm_last, hj_lt, hj_last_bc, rfl, hval, hmem_last⟩ := h)
   · exact ⟨j_del, U, V, N, m_cap, s_fix, L, rfl, henv, hcpl, hslot, hm_cap,
       hb, hm_last, hj_lt, hj_last_bc, rfl, hval, hmem_last⟩
-  · obtain ⟨_, _, _, _, _, _, hpre_p⟩ :=
-      compDeleteSwap_stages henv hcpl hslot hm_cap hb hm_last hj_lt hj_last_bc hval hmem_last
-    change CompPrependIfIndexedPre w _
+  · change CompPrependIfIndexedPre w _
       ((Memory.spec 0).clientState s
         (compDeleteSwapCopyProg
           (((((mkCompParams U V w N, (metaBase, itemBase)), b),
             slotOf N (compGmAt metaBase U w N s.mem) b j_del), (m_last, j_last)))))
     dsimp only [compDeleteSwapCopyProg]
     rw [StateTransitionSpec.clientState_bind]
-    exact hpre_p
+    exact (compDeleteSwap_stages henv hcpl hslot hm_cap hb hm_last hj_lt hj_last_bc
+      hval hmem_last).2.2.2.2.2.2.2
 
 private theorem validProg_compDeleteSwapGen {w : ℕ}
     {d : (((CompParams × (ℕ × ℕ)) × (ℕ × ℕ)) × ℕ) × (ℕ × ℕ)} {s : Memory.State}
@@ -601,13 +551,13 @@ private theorem validProg_compDeleteSwapGen {w : ℕ}
   rcases d with ⟨⟨⟨⟨cp, ⟨metaBase, itemBase⟩⟩, ⟨b, j_del⟩⟩, phys_del⟩, ⟨m_last, j_last⟩⟩
   obtain ⟨U, V, N, m_cap, s_fix, L, rfl, henv, hcpl, hslot, hm_cap,
     hb, hm_last, hj_lt, hj_last_bc, rfl, hval, hmem_last⟩ := h
-  obtain ⟨_, _, _, _, hpre_u, hpre_c, hpre_p⟩ :=
-    compDeleteSwap_stages henv hcpl hslot hm_cap hb hm_last hj_lt hj_last_bc hval hmem_last
+  have hpre := (compDeleteSwap_stages henv hcpl hslot hm_cap hb hm_last hj_lt hj_last_bc
+    hval hmem_last).2.2.2.2.2
   dsimp only [compDeleteSwapGenProg, compDeleteSwapCopyProg]
   simp only [bind_assoc]
-  exact validProg_bind (validProg_compUnlinkIfIndexedGen hpre_u) <|
-    validProg_bind (validProg_compCopyLastPayloadGen hpre_c) <|
-      validProg_compPrependIfIndexedGen hpre_p
+  exact validProg_bind (validProg_compUnlinkIfIndexedGen hpre.1) <|
+    validProg_bind (validProg_compCopyLastPayloadGen hpre.2.1) <|
+      validProg_compPrependIfIndexedGen hpre.2.2
 
 private theorem compGmAt_compDeleteSwapGenProg
     {metaBase itemBase U V w N m_cap b j_del m_last j_last : ℕ}
@@ -629,48 +579,18 @@ private theorem compGmAt_compDeleteSwapGenProg
             (m_last, j_last))))).mem =
       compGmAt metaBase U w N s.mem := by
   have hwg : 0 < ghostW w := by unfold ghostW; omega
-  set phys_del := slotOf N (compGmAt metaBase U w N s.mem) b j_del
-  have hj_del_bc : j_del < bCount N (compGmAt metaBase U w N s.mem) b := lt_trans hj_lt hj_last_bc
-  have hj_last_n : j_last < N := lt_of_lt_of_le hj_last_bc (bCount_le_n_max hslot b)
-  have hphys_del_lt : phys_del < N := (slotOf_lt_and_injective hslot).1 b hb j_del hj_del_bc
+  have hstg := (compDeleteSwap_stages henv hcpl hslot hm_cap hb hm_last hj_lt hj_last_bc
+    hval hmem_last).2.2
   obtain ⟨_, hcpl_sw⟩ := compDeleteSwapGenProg_effect
     henv hcpl hslot hm_cap hb hm_last hj_lt hj_last_bc hval hmem_last
-  have eff_u := unlinkIfIndexedProg_allChainsValid (U := U) (V := V) (w := ghostW w)
-    (n_max := N) (h_space := epochHashSpace U (ghostW w) N) (base := 0) (b := b)
-    (m := m_last) (j_del := j_last) hwg hb hm_last hj_last_n hval hmem_last
-  set sf₁ := (Memory.spec 0).clientState s_fix
-    (unlinkIfIndexedProg U V (ghostW w) N (epochHashSpace U (ghostW w) N)
-      (((0, b), m_last), j_last))
-  have hslot_sf1 : SlotStoreInv N
-      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₁.mem) := by
-    rw [eff_u.2.2.2.2.1, ← hcpl.gm_eq]; exact hslot
-  have hbc_sf1 : 1 ≤ bCount N
-      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₁.mem) b := by
-    rw [eff_u.2.2.2.2.1, ← hcpl.gm_eq]; exact Nat.one_le_of_lt hj_last_bc
-  have eff_c := copyLastPayloadProg_effect (U := U) (V := V) (w := ghostW w) (n_max := N)
-    (h_space := epochHashSpace U (ghostW w) N) (base := 0) (b := b) (phys_del := phys_del)
-    hwg hslot_sf1 hb hbc_sf1 hphys_del_lt
-  obtain ⟨L₁, hval₁, _⟩ := eff_u.2.2.2.2.2
-  set sf₂ := (Memory.spec 0).clientState sf₁
-    (copyLastPayloadProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) ((0, b), phys_del))
-  have hold_sf2 :
-      lmHead N (lmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₂.mem) b m_last ≤
-        effBucketCap N := by
-    rw [eff_c.2.2.2.2.1]
-    exact (hval₁.1 b hb m_last hm_last).head_le_cap
   have hgm_pr := gmAt_prependIfIndexedProg (U := U) (V := V) (w := ghostW w) (n_max := N)
     (h_space := epochHashSpace U (ghostW w) N) (base := 0) (b := b) (m := m_last) (j_new := j_del)
-    hwg hb hm_last sf₂ hold_sf2
-  have hst_fix_sw : (Memory.spec 0).clientState s_fix
-      (deleteSwapProg U V (ghostW w) N (epochHashSpace U (ghostW w) N)
-        ((((0, b), j_del), phys_del), (m_last, j_last))) =
-      (Memory.spec 0).clientState sf₂
-        (prependIfIndexedProg U V (ghostW w) N (epochHashSpace U (ghostW w) N)
-          (((0, b), m_last), j_del)) := by
-    unfold deleteSwapProg deleteSwapGenProg
-    simp only [unlinkIfIndexedGenProg_mk, copyLastPayloadGenProg_mk, prependIfIndexedGenProg_mk]
-    repeat rw [StateTransitionSpec.clientState_bind]
-  rw [hcpl_sw.gm_eq, hst_fix_sw, hgm_pr, eff_c.2.2.2.2.2, eff_u.2.2.2.2.1, ← hcpl.gm_eq]
+    hwg hb hm_last _ (hstg.1.lm_eq ▸ hstg.2.1)
+  rw [hcpl_sw.gm_eq]
+  unfold deleteSwapProg deleteSwapGenProg
+  simp only [unlinkIfIndexedGenProg_mk, copyLastPayloadGenProg_mk, prependIfIndexedGenProg_mk]
+  repeat rw [StateTransitionSpec.clientState_bind]
+  exact hgm_pr.trans hstg.2.2.1
 
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

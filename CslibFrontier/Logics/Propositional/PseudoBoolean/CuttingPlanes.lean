@@ -103,8 +103,7 @@ theorem PBConstr.bound_sum_termIneq (ts : List (ℕ × Literal ℕ)) :
   | nil => simp only [List.map_nil, List.sum_nil, bound_zero, negSum, Nat.cast_zero, neg_zero]
   | cons t ts ih =>
     simp only [List.map_cons, List.sum_cons, bound_add, ih, bound_termIneq, negSum]
-    split <;> simp only [Nat.cast_add, zero_add]
-    all_goals ring
+    split <;> simp only [Nat.cast_add, zero_add] <;> ring
 
 theorem PBConstr.coeff_toIneq (c : PBConstr) :
     c.toIneq.coeff = (c.terms.map fun t => Finsupp.single (termVar t) (termCoeff t)).sum := by
@@ -151,11 +150,16 @@ theorem Clause.toIneq_toPB (c : Clause ℕ) : c.toPB.toIneq = c.toIneq := by
   rw [show Clause.toIneq c = Clause.toIneq c.dedup by
       simp only [Clause.toIneq, List.toFinset_dedup],
     Clause.toIneq_of_nodup (List.nodup_dedup c)]
-  simp only [Clause.toPB, PBConstr.toIneq, List.map_map]
-  rw [add_comm]
-  congr 1
-  congr 1
-  exact List.map_congr_left fun l _ => by simp only [Function.comp_apply, termIneq, one_nsmul]
+  simp only [Clause.toPB, PBConstr.toIneq, List.map_map, Function.comp_def, termIneq, one_nsmul]
+  exact add_comm _ _
+
+/-- The inequalities of the constraints of the clauses of `φ` are its clause inequalities. -/
+theorem CNF.toIneqs_eq_toPB (φ : CNF ℕ) :
+    {I | ∃ c ∈ φ.map Clause.toPB, c.toIneq = I} = φ.toIneqs := by
+  ext I
+  simp only [Set.mem_ofPred_eq, List.mem_map, CNF.toIneqs]
+  exact ⟨fun ⟨_, ⟨cl, hcl, rfl⟩, hI⟩ => ⟨cl, hcl, Clause.toIneq_toPB cl ▸ hI⟩,
+    fun ⟨cl, hcl, hI⟩ => ⟨cl.toPB, ⟨cl, hcl, rfl⟩, (Clause.toIneq_toPB cl).symm ▸ hI⟩⟩
 
 /-- **Refutation completeness of cutting planes for pseudo-Boolean constraints**: the
 inequalities of a list of constraints have a cutting planes refutation iff the constraints have no
@@ -233,9 +237,8 @@ theorem negSum_add_negSum_negate (ts : List (ℕ × Literal ℕ)) :
   | nil => simp only [List.map_nil, negSum_nil, add_zero, coeffSum_nil]
   | cons t ts ih =>
     obtain ⟨a, v, b⟩ := t
-    simp only [List.map_cons, negSum_cons, coeffSum_cons]
-    have hn : Std.Sat.Literal.negate (v, b) = (v, !b) := rfl
-    rw [hn]
+    simp only [List.map_cons, negSum_cons, coeffSum_cons,
+      show Std.Sat.Literal.negate (v, b) = (v, !b) from rfl]
     cases b <;>
       simp only [termPos, Bool.not_false, Bool.not_true, Bool.false_eq_true, ↓reduceIte] <;>
       omega
@@ -323,6 +326,86 @@ theorem negSum_fromLinear (L : List (ℕ × ℤ)) (D : ℤ) :
     · rw [he]; simp only [negSum_cons, ih, termPos_mk, Bool.false_eq_true, ↓reduceIte]
     · rw [he]; simp only [ih, neg_zero, Int.toNat_zero, zero_add]
 
+/-- Normalization keeps the coefficients. -/
+theorem cf_normalize (c : PBConstr) : cf c.normalize.terms = cf c.terms := by
+  rw [PBConstr.normalize, cf_fromLinear, cf_eq_lin]
+
+/-- Normalization keeps the coefficients of the inequality. -/
+theorem coeff_toIneq_normalize (c : PBConstr) : c.normalize.toIneq.coeff = c.toIneq.coeff := by
+  rw [toIneq_eq, toIneq_eq]
+  exact cf_normalize c
+
+/-- Normalization can only raise the bound of the inequality: it clamps the degree at `0`. -/
+theorem bound_toIneq_le_normalize (c : PBConstr) : c.toIneq.bound ≤ c.normalize.toIneq.bound := by
+  rw [toIneq_eq, toIneq_eq]
+  simp only [PBConstr.normalize]
+  rw [negSum_fromLinear]
+  simp only [fromLinear]
+  omega
+
+/-- The inequality of the sum of two constraints, before normalization, is the sum of their
+inequalities. -/
+theorem toIneq_append (c d : PBConstr) :
+    (⟨c.terms ++ d.terms, c.degree + d.degree⟩ : PBConstr).toIneq = c.toIneq + d.toIneq := by
+  rw [toIneq_eq, toIneq_eq, toIneq_eq]
+  ext <;> simp only [coeff_add, cf_append, bound_add, Nat.cast_add, negSum_append]; ring
+
+/-! ### Coefficients of terms on distinct variables -/
+
+/-- A variable without terms has coefficient `0`. -/
+theorem cf_apply_of_notMem {ts : List (ℕ × Literal ℕ)} {v : ℕ} (h : v ∉ ts.map termVar) :
+    cf ts v = 0 := by
+  induction ts with
+  | nil => rfl
+  | cons t ts ih =>
+    simp only [List.map_cons, List.mem_cons, not_or] at h
+    simp [cf_cons, Ne.symm h.1, ih h.2]
+
+/-- On distinct variables, the coefficient of a term's variable is the term's signed
+coefficient. -/
+theorem cf_apply_of_nodup {ts : List (ℕ × Literal ℕ)} (h : (ts.map termVar).Nodup)
+    {t : ℕ × Literal ℕ} (ht : t ∈ ts) : cf ts (termVar t) = termCoeff t := by
+  induction ts with
+  | nil => cases ht
+  | cons t' ts ih =>
+    rw [List.map_cons, List.nodup_cons] at h
+    rcases List.mem_cons.1 ht with rfl | ht
+    · simp [cf_cons, cf_apply_of_notMem h.1]
+    · have hne : termVar t' ≠ termVar t := fun he => h.1 (by rw [he]; exact List.mem_map_of_mem ht)
+      simp [cf_cons, hne, ih h.2 ht]
+
+/-! ### Multiplying the terms of a constraint -/
+
+theorem cf_map_mul (k : ℕ) (ts : List (ℕ × Literal ℕ)) :
+    cf (ts.map fun t => (k * t.1, t.2)) = (k : ℤ) • cf ts := by
+  induction ts with
+  | nil => simp only [List.map_nil, cf_nil, smul_zero]
+  | cons t ts ih =>
+    obtain ⟨a, v, b⟩ := t
+    simp only [List.map_cons, cf_cons, ih, smul_add, Finsupp.smul_single]
+    cases b <;> simp only [termVar, termCoeff, termPos, Bool.false_eq_true, ↓reduceIte,
+      smul_eq_mul, Nat.cast_mul, mul_neg]
+
+theorem negSum_map_mul (k : ℕ) (ts : List (ℕ × Literal ℕ)) :
+    negSum (ts.map fun t => (k * t.1, t.2)) = k * negSum ts := by
+  induction ts with
+  | nil => simp only [List.map_nil, negSum_nil, mul_zero]
+  | cons t ts ih =>
+    obtain ⟨a, v, b⟩ := t
+    simp only [List.map_cons, negSum_cons, ih]
+    cases b <;> simp only [termPos, Bool.false_eq_true, ↓reduceIte] <;> ring
+
+/-- The inequality of a constraint multiplied by `k`, before normalization, is `k` times its
+inequality. -/
+theorem toIneq_map_mul (k : ℕ) (c : PBConstr) :
+    (⟨c.terms.map fun t => (k * t.1, t.2), k * c.degree⟩ : PBConstr).toIneq = k • c.toIneq := by
+  rw [toIneq_eq, toIneq_eq]
+  ext
+  · simp only [cf_map_mul, coeff_nsmul]
+    rfl
+  · simp only [negSum_map_mul, bound_nsmul, nsmul_eq_mul, Nat.cast_mul]
+    ring
+
 end PBConstr
 
 /-! ### Derivability -/
@@ -383,8 +466,7 @@ theorem Der.termIneq (t : ℕ × Literal ℕ) : Der Γ (termIneq t) := by
   rcases Nat.eq_zero_or_pos a with rfl | ha
   · exact Der.zero.of_eq (by simp only [PBConstr.termIneq, zero_smul])
   · cases b
-    · exact (Der.leOne v).smul ha
-    · exact (Der.nonneg v).smul ha
+    exacts [(Der.leOne v).smul ha, (Der.nonneg v).smul ha]
 
 /-- A constraint of degree `0` is a sum of literal axioms. -/
 theorem Der.degree_zero (ts : List (ℕ × Literal ℕ)) : Der Γ (⟨ts, 0⟩ : PBConstr).toIneq := by
@@ -397,57 +479,26 @@ theorem Der.degree_zero (ts : List (ℕ × Literal ℕ)) : Der Γ (⟨ts, 0⟩ :
     simp only [PBConstr.toIneq, List.map_cons, List.sum_cons, add_assoc]
 
 theorem Der.normalize {c : PBConstr} (h : Der Γ c.toIneq) : Der Γ c.normalize.toIneq := by
-  set D : ℤ := (c.degree : ℤ) - negSum c.terms
-  have hcoeff : c.normalize.toIneq.coeff = c.toIneq.coeff := by
-    rw [toIneq_eq, toIneq_eq]
-    rw [PBConstr.normalize, cf_fromLinear, cf_eq_lin]
+  have hcoeff := coeff_toIneq_normalize c
   by_cases hd : c.normalize.degree = 0
-  · have : c.normalize = ⟨c.normalize.terms, 0⟩ := by rw [← hd]
-    rw [this]; exact Der.degree_zero _
+  · rw [show c.normalize = ⟨c.normalize.terms, 0⟩ by rw [← hd]]
+    exact Der.degree_zero _
   · refine h.lower hcoeff (le_of_eq ?_)
     rw [toIneq_eq, toIneq_eq]
-    simp only [PBConstr.normalize] at hd ⊢
-    rw [negSum_fromLinear]
+    simp only [PBConstr.normalize, negSum_fromLinear] at hd ⊢
     simp only [fromLinear] at hd ⊢
     omega
 
 theorem Der.add' {c d : PBConstr} (hc : Der Γ c.toIneq) (hd : Der Γ d.toIneq) :
-    Der Γ (c.add d).toIneq := by
-  refine Der.normalize ((hc.add hd).of_eq ?_)
-  rw [toIneq_eq, toIneq_eq, toIneq_eq]
-  ext <;> simp only [coeff_add, cf_append, bound_add, Nat.cast_add, negSum_append]; ring
-
-theorem cf_map_mul (k : ℕ) (ts : List (ℕ × Literal ℕ)) :
-    cf (ts.map fun t => (k * t.1, t.2)) = (k : ℤ) • cf ts := by
-  induction ts with
-  | nil => simp only [List.map_nil, cf_nil, smul_zero]
-  | cons t ts ih =>
-    obtain ⟨a, v, b⟩ := t
-    simp only [List.map_cons, cf_cons, ih, smul_add, Finsupp.smul_single]
-    cases b <;> simp only [termVar, termCoeff, termPos, Bool.false_eq_true, ↓reduceIte,
-      smul_eq_mul, Nat.cast_mul, mul_neg]
-
-theorem negSum_map_mul (k : ℕ) (ts : List (ℕ × Literal ℕ)) :
-    negSum (ts.map fun t => (k * t.1, t.2)) = k * negSum ts := by
-  induction ts with
-  | nil => simp only [List.map_nil, negSum_nil, mul_zero]
-  | cons t ts ih =>
-    obtain ⟨a, v, b⟩ := t
-    simp only [List.map_cons, negSum_cons, ih]
-    cases b <;> simp only [termPos, Bool.false_eq_true, ↓reduceIte] <;> ring
+    Der Γ (c.add d).toIneq :=
+  Der.normalize ((hc.add hd).of_eq (toIneq_append c d).symm)
 
 theorem Der.mul' {c : PBConstr} (hc : Der Γ c.toIneq) (k : ℕ) : Der Γ (c.mul k).toIneq := by
   refine Der.normalize ?_
   rcases Nat.eq_zero_or_pos k with rfl | hk
   · simpa only [PBConstr.mul, Nat.zero_mul, ↓reduceIte] using
       Der.degree_zero (Γ := Γ) (c.terms.map fun t => (0 * t.1, t.2))
-  · refine (hc.smul hk).of_eq ?_
-    rw [toIneq_eq, toIneq_eq]
-    ext
-    · simp only [cf_map_mul, coeff_nsmul]
-      rfl
-    · simp only [negSum_map_mul, bound_nsmul, nsmul_eq_mul, Nat.cast_mul]
-      ring
+  · exact (hc.smul hk).of_eq (toIneq_map_mul k c).symm
 
 theorem Der.litAxiom' (l : Literal ℕ) : Der Γ (litAxiom l).toIneq := Der.degree_zero _
 
@@ -512,9 +563,8 @@ theorem Der.div' {c : PBConstr} (hc : Der Γ c.toIneq) (k : ℕ) : Der Γ (c.div
   have hbound : ((⟨ts, d⟩ : PBConstr).toIneq + (⟨E, 0⟩ : PBConstr).toIneq).bound =
       (d : ℤ) - k * negSum u := by
     simp only [toIneq_eq, bound_add]
-    have : ((negSum ts : ℕ) : ℤ) + negSum E = k * negSum u := by exact_mod_cast hns
-    push_cast
-    linarith
+    have : ((negSum ts : ℕ) : ℤ) + negSum E = k * negSum u := mod_cast hns
+    push_cast; linarith
   refine (hsum.div hk fun v => ?_).of_eq ?_
   · rw [hcoeff]
     exact dvd_mul_right _ _
@@ -546,15 +596,10 @@ theorem Der.weaken' {c : PBConstr} (hc : Der Γ c.toIneq) (v : ℕ) :
     rw [toIneq_eq, toIneq_eq, toIneq_eq]
     refine Ineq.ext ?_ ?_
     · simp only [coeff_add, cf_map_negate, ← hcf, rem, rest]; abel
-    · simp only [bound_add]
-      have : ((negSum rest : ℕ) : ℤ) + negSum rem = negSum ts := by exact_mod_cast hns
-      have : ((negSum rem : ℕ) : ℤ) +
-          negSum (rem.map fun t => (t.1, Std.Sat.Literal.negate t.2)) = coeffSum rem := by
-        exact_mod_cast hneg
-      push_cast [hd]
-      linarith
-  · have : d - coeffSum rem = 0 := by omega
-    rw [this]; exact Der.degree_zero _
+    · simp only [bound_add, rem, rest] at hneg hd ⊢
+      omega
+  · rw [Nat.sub_eq_zero_of_le (le_of_not_ge hd)]
+    exact Der.degree_zero _
 
 /-- A contradiction derives `0 ≥ 1`. -/
 theorem Der.contra {c : PBConstr} (hc : Der Γ c.toIneq) (h : c.IsContradiction) :
@@ -567,12 +612,7 @@ theorem Der.contra {c : PBConstr} (hc : Der Γ c.toIneq) (h : c.IsContradiction)
     simp only [coeff_add, cf_map_negate, add_neg_cancel, coeff_contra]
   · rw [toIneq_eq, toIneq_eq]
     simp only [bound_add, bound_contra]
-    have : ((negSum c.terms : ℕ) : ℤ) +
-        negSum (c.terms.map fun t => (t.1, Std.Sat.Literal.negate t.2)) = coeffSum c.terms := by
-      exact_mod_cast hneg
-    have : (coeffSum c.terms : ℤ) + 1 ≤ c.degree := by exact_mod_cast h
-    push_cast
-    linarith
+    omega
 
 /-! ### Proofs made of cutting-planes steps -/
 
@@ -635,8 +675,7 @@ theorem runSteps_der : ∀ (db : List (ℕ × PBConstr)) (n : ℕ) (ss : List St
     runSteps db n ss = some (db', n') → ∀ e ∈ db', Der Γ e.2.toIneq
   | db, n, [], db', n', _, hdb, h => by
     simp only [runSteps, Option.some.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, -⟩ := h
-    exact hdb
+    exact h.1 ▸ hdb
   | db, n, s :: ss, db', n', hss, hdb, h => by
     simp only [List.all_cons, Bool.and_eq_true] at hss
     simp only [runSteps] at h
@@ -657,8 +696,7 @@ theorem runSteps_der : ∀ (db : List (ℕ × PBConstr)) (n : ℕ) (ss : List St
         simp only [runStep] at h₁
         split at h₁
         · simp only [Option.some.injEq, Prod.mk.injEq] at h₁
-          obtain ⟨rfl, -⟩ := h₁
-          exact fun e he => hdb e (List.mem_of_mem_filter he)
+          exact h₁.1 ▸ fun e he => hdb e (List.mem_of_mem_filter he)
         · cases h₁
       | rup | rupSearch | pbc => simp only [Step.IsCP, Bool.false_eq_true, false_and] at hss
     · cases h
@@ -674,9 +712,8 @@ theorem exists_isProof_contra_of_check {F : List PBConstr} {P : Proof} (h : chec
     obtain ⟨⟨c, i⟩, hci, rfl⟩ := List.mem_map.mp he
     refine Der.normalize (Der.hyp ⟨c, ?_, rfl⟩)
     obtain ⟨j, hj, hji⟩ := List.mem_iff_getElem.1 hci
-    rw [List.getElem_zipIdx] at hji
-    simp only [Prod.mk.injEq] at hji
-    exact List.mem_iff_getElem.2 ⟨j, by simpa only [List.length_zipIdx] using hj, hji.1⟩
+    rw [List.getElem_zipIdx, Prod.mk.injEq] at hji
+    exact hji.1 ▸ List.getElem_mem (by simpa only [List.length_zipIdx] using hj)
   unfold check at h
   split at h
   · rename_i db n hrun
@@ -691,15 +728,8 @@ theorem exists_isProof_contra_of_check {F : List PBConstr} {P : Proof} (h : chec
 `φ.toIneqs`. -/
 theorem exists_isProof_contra_of_check_cnf {φ : CNF ℕ} {P : Proof}
     (h : check (φ.map Clause.toPB) P = true) (hP : P.steps.all Step.IsCP) :
-    ∃ s, RefutableInSize φ.toIneqs s := by
-  obtain ⟨s, hs⟩ := exists_isProof_contra_of_check h hP
-  refine ⟨s, ?_⟩
-  have : {I | ∃ c ∈ φ.map Clause.toPB, c.toIneq = I} = φ.toIneqs := by
-    ext I
-    simp only [Set.mem_ofPred_eq, List.mem_map, CNF.toIneqs]
-    exact ⟨fun ⟨_, ⟨cl, hcl, rfl⟩, hI⟩ => ⟨cl, hcl, Clause.toIneq_toPB cl ▸ hI⟩,
-      fun ⟨cl, hcl, hI⟩ => ⟨cl.toPB, ⟨cl, hcl, rfl⟩, (Clause.toIneq_toPB cl).symm ▸ hI⟩⟩
-  rwa [this] at hs
+    ∃ s, RefutableInSize φ.toIneqs s :=
+  CNF.toIneqs_eq_toPB φ ▸ exists_isProof_contra_of_check h hP
 
 end VeriPB
 

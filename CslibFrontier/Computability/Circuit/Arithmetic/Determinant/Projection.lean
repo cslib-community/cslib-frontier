@@ -112,14 +112,13 @@ determinant of an `m × m` specialization matrix. -/
 theorem isProjection_det_iff_exists_isSubstMatrix {P : MvPolynomial σ K} {m : ℕ} :
     IsProjection P (genericMatrix K m).det ↔
       ∃ M : Matrix (Fin m) (Fin m) (MvPolynomial σ K), IsSubstMatrix M ∧ M.det = P := by
-  constructor
-  · rintro ⟨ρ, rfl⟩
-    exact ⟨Matrix.of fun i j => Sum.elim X (fun a => C a) (ρ (finProdFinEquiv (i, j))),
+  refine ⟨fun ⟨ρ, hρ⟩ =>
+    ⟨Matrix.of fun i j => Sum.elim X (fun a => C a) (ρ (finProdFinEquiv (i, j))),
       fun i j => ⟨ρ (finProdFinEquiv (i, j)), rfl⟩,
-      (projection_det_genericMatrix ρ).symm⟩
-  · rintro ⟨M, hM, rfl⟩
-    have h := hM.isProjection_det
-    rwa [Fintype.card_fin] at h
+      (projection_det_genericMatrix ρ).symm.trans hρ⟩, ?_⟩
+  rintro ⟨M, hM, rfl⟩
+  have h := hM.isProjection_det
+  rwa [Fintype.card_fin] at h
 
 /-- **Multiplicative closure of determinant projections**: if `P` is a projection of the `m × m`
 generic determinant and `Q` is a projection of the `k × k` generic determinant, then `P * Q` is a
@@ -216,20 +215,16 @@ private theorem abpCombine_eq_zero_of_le {R : Type*} [Zero R] {k₁ k₂ : ℕ}
   obtain ⟨x, rfl⟩ := (abpEquiv k₁ k₂).surjective i
   obtain ⟨y, rfl⟩ := (abpEquiv k₁ k₂).surjective j
   simp only [abpCombine, Matrix.submatrix_apply, Equiv.symm_apply_apply]
+  simp only [abpEquiv, Equiv.trans_apply, finCongr_apply, Fin.le_iff_val_le_val,
+    Fin.val_cast] at hji
   rcases x with a | b <;> rcases y with a' | b'
-  · refine hN₁ a a' ?_
-    simp only [abpEquiv, Equiv.trans_apply, finCongr_apply, Fin.le_iff_val_le_val, Fin.val_cast,
-      finSumFinEquiv_apply_left, Fin.val_castAdd] at hji ⊢
-    exact hji
-  · exfalso
-    simp only [abpEquiv, Equiv.trans_apply, finCongr_apply, Fin.le_iff_val_le_val, Fin.val_cast,
-      finSumFinEquiv_apply_left, finSumFinEquiv_apply_right, Fin.val_castAdd,
+  · exact hN₁ a a' (by simpa using hji)
+  · simp only [finSumFinEquiv_apply_left, finSumFinEquiv_apply_right, Fin.val_castAdd,
       Fin.val_natAdd] at hji
     omega
   · rfl
-  · refine hN₂ b.succ b'.succ ?_
-    simp only [abpEquiv, Equiv.trans_apply, finCongr_apply, Fin.le_iff_val_le_val, Fin.val_cast,
-      finSumFinEquiv_apply_right, Fin.val_natAdd, Fin.val_succ] at hji ⊢
+  · refine hN₂ b.succ b'.succ (Fin.le_iff_val_le_val.mpr ?_)
+    simp only [finSumFinEquiv_apply_right, Fin.val_natAdd, Fin.val_succ] at hji ⊢
     omega
 
 private theorem pathSum_abpCombine {R : Type*} [CommRing R] {k₁ k₂ : ℕ}
@@ -247,23 +242,15 @@ private theorem pathSum_abpCombine {R : Type*} [CommRing R] {k₁ k₂ : ℕ}
   have hvm : (q ᵥ* abpCombine N₁ B N₂) (abpEquiv k₁ k₂ y) =
       (Sum.elim q₁ r ᵥ* Matrix.fromBlocks N₁ B 0 (N₂.submatrix Fin.succ Fin.succ)) y := by
     simp only [q, abpCombine, Matrix.vecMul, dotProduct, Matrix.submatrix_apply,
-      Equiv.symm_apply_apply, Function.comp_apply]
-    rw [← (abpEquiv k₁ k₂).sum_comp]
-    simp only [Equiv.symm_apply_apply]
+      Function.comp_apply, ← (abpEquiv k₁ k₂).sum_comp, Equiv.symm_apply_apply]
   simp only [Pi.add_apply, hvm, Matrix.vecMul_fromBlocks, Matrix.vecMul_zero, add_zero]
   rcases y with a | b
   · simp only [q, Function.comp_apply, Equiv.symm_apply_apply, Sum.elim_inl, Sum.elim_comp_inl,
-      ← abpEquiv_inl_zero k₁ k₂]
-    rcases eq_or_ne a 0 with rfl | ha
-    · simpa only [Pi.add_apply, Pi.single_eq_same] using congrFun hq₁ 0
-    · simpa only [Pi.add_apply,
-        Pi.single_eq_of_ne (fun h => ha (Sum.inl.inj ((abpEquiv k₁ k₂).injective h))),
-        Pi.single_eq_of_ne ha] using congrFun hq₁ a
-  · simp only [q, Function.comp_apply, Equiv.symm_apply_apply, Sum.elim_inr]
-    have hne : abpEquiv k₁ k₂ (.inr b) ≠ 0 := by
-      rw [← abpEquiv_inl_zero k₁ k₂]
-      exact fun h => nomatch (abpEquiv k₁ k₂).injective h
-    rw [Pi.single_eq_of_ne hne, zero_add]
+      ← abpEquiv_inl_zero k₁ k₂, Pi.single_apply, Equiv.apply_eq_iff_eq, Sum.inl.injEq]
+    simpa only [Pi.add_apply, Pi.single_apply] using congrFun hq₁ a
+  · simp only [q, Function.comp_apply, Equiv.symm_apply_apply, Sum.elim_inr,
+      ← abpEquiv_inl_zero k₁ k₂, Pi.single_apply, Equiv.apply_eq_iff_eq, reduceCtorEq, ↓reduceIte,
+      zero_add]
     exact hr b
 
 /-- A specialization branching program of size `k + 1` gives a projection of the
@@ -292,11 +279,9 @@ theorem of_isSubstEntry {P : MvPolynomial σ K} (hP : IsSubstEntry P) :
   · simp only [Matrix.of_apply, ite_eq_right_iff, and_imp]
     rintro rfl rfl
     exact absurd hji (by decide)
-  · funext j
-    refine Fin.cases ?_ (fun i => ?_) j
-    · simp [Matrix.vecMul, dotProduct]
-    · rw [Subsingleton.elim i 0, Fin.cases_succ]
-      simp [Matrix.vecMul, dotProduct]
+  · refine funext (Fin.cases (by simp [Matrix.vecMul, dotProduct]) fun i => ?_)
+    rw [Subsingleton.elim i 0, Fin.cases_succ]
+    simp [Matrix.vecMul, dotProduct]
 
 /-- **Multiplicative closure** of specialization branching programs by series composition. -/
 theorem mul {k₁ k₂ : ℕ} {P Q : MvPolynomial σ K}
@@ -379,8 +364,7 @@ theorem exists_isSubstABP (f : MvPolynomial σ K) : ∃ k, IsSubstABP k f := by
   induction f using MvPolynomial.induction_on with
   | C a => exact ⟨0, .of_isSubstEntry (.C a)⟩
   | add p q hp hq =>
-    obtain ⟨k₁, h₁⟩ := hp
-    obtain ⟨k₂, h₂⟩ := hq
+    rcases hp, hq with ⟨⟨k₁, h₁⟩, ⟨k₂, h₂⟩⟩
     exact ⟨k₁ + k₂ + 1, h₁.add h₂⟩
   | mul_X p i hp =>
     obtain ⟨k₁, h₁⟩ := hp

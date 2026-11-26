@@ -117,15 +117,11 @@ private theorem exists_slotHit {idx : Q → ℕ} {f : X → X} {n d : ℕ} (hd :
       ¬ (m + 1 = d ∨ ∃ r ∈ log, idx r.1 / d = idx q / d ∧ idx r.1 % d = m + 1) :=
     fun _ => Nat.find_min hP
   generalize Nat.find hP = p at hp hmin
-  have hpd : p < d := by
-    rcases hp with hp | ⟨r, -, -, hr⟩
-    · omega
-    · have := Nat.mod_lt (idx r.1) hd
-      omega
-  have hbp : idx q % d ≤ p := by
+  have ⟨hpd, hbp⟩ : p < d ∧ idx q % d ≤ p := by
     rcases hp with hp | ⟨r, hr, hra, hrp⟩
     · omega
-    · have := (hcons' r hr hra).1
+    · have := Nat.mod_lt (idx r.1) hd
+      have := (hcons' r hr hra).1
       omega
   have hgd : (idx q / d * d + p) / d = idx q / d := by
     rw [Nat.add_comm, Nat.add_mul_div_right _ _ hd, Nat.div_eq_of_lt hpd, zero_add]
@@ -168,9 +164,8 @@ private theorem chainSlot_eq_of_not_below {idx : Q → ℕ} {f : X → X} {d g :
     rw [← hfront] at h
     rcases Nat.lt_or_gt_of_ne h with h | h
     · simp [List.getD_eq_getElem?_getD, List.getElem?_append_left h]
-    · obtain ⟨k, hk⟩ : ∃ k, idx q / d = front.length + (k + 1) :=
-        ⟨idx q / d - front.length - 1, by omega⟩
-      simp [List.getD_eq_getElem?_getD, hk, List.getElem?_append_right]
+    · rw [show idx q / d = front.length + ((idx q / d - front.length - 1) + 1) by omega]
+      simp [List.getD_eq_getElem?_getD, List.getElem?_append_right]
 
 omit [Inhabited X] [DecidableEq X] in
 /-- The public key that `slotInverter` builds from the challenge above slot `g` is the public key
@@ -178,10 +173,8 @@ of the seeds `front ++ x₀ :: back`. -/
 private theorem slotKey_eq {f : X → X} {d p : ℕ} (hp : p < d) (front back : List X) (x₀ : X) :
     front.map f^[d] ++ f^[d - 1 - p] (f (f^[p] x₀)) :: back.map f^[d] =
       (front ++ x₀ :: back).map f^[d] := by
-  have e : f^[d - 1 - p] (f (f^[p] x₀)) = f^[d] x₀ := by
-    rw [← Function.iterate_succ_apply' f, ← Function.iterate_add_apply]
-    exact congrArg (fun k => f^[k] x₀) (by omega)
-  rw [e, List.map_append, List.map_cons]
+  rw [← Function.iterate_succ_apply' f, ← Function.iterate_add_apply,
+    show d - 1 - p + (p + 1) = d by omega, List.map_append, List.map_cons]
 
 /-- An event of one law whose outcomes are at least as likely under a second law, and satisfy a
 second event, is at most as likely as the second event under the second law. -/
@@ -213,12 +206,10 @@ theorem succProbability_repeatedIterateExperiment_le_sum (idx : Q → ℕ) (samp
     rintro ⟨xs, z⟩ hw
     simp only [hD, PMF.mem_support_bind_iff, PMF.mem_support_map_iff, Prod.mk.injEq] at hw
     obtain ⟨xs', hxs', z', hz', rfl, rfl⟩ := hw
-    refine ⟨((ProbComp.mem_support_replicate_iff _ _ _).mp hxs').1, ?_⟩
     rw [← ProbOracleComp.runLogWith_some] at hz'
-    exact ProbOracleComp.forall_mem_runLogWith
-      (P := fun p => p.2 = chainSlot f d xs' (idx p.1)) (fun log q program hprog r hr => by
-        cases hprog
-        simpa using hr) _ hz'
+    exact ⟨((ProbComp.mem_support_replicate_iff _ _ _).mp hxs').1,
+      ProbOracleComp.forall_mem_runLogWith (P := fun p => p.2 = chainSlot f d xs' (idx p.1))
+        (fun _ _ _ hprog _ hr => by simpa [← Option.some.inj hprog] using hr) _ hz'⟩
   have hreal : ProbComp.eval (repeatedIterateExperiment idx sample f n d A) =
       D.map fun w => chainVerify f d (w.1.map f^[d]) (idx w.2.1.1) w.2.1.2 &&
         chainConsistent idx f d w.2.1.1 w.2.1.2 w.2.2 := by
@@ -292,9 +283,8 @@ theorem succProbability_repeatedInversionExperiment_le_sum (idx : Q → ℕ) (sa
     Experiment.succProbability (repeatedInversionExperiment idx sample f t A) ≤
       ∑ g ∈ Finset.range t, Experiment.succProbability
         (inversionExperiment sample f (slotInverter idx sample f t 1 g A)) := by
-  have h := succProbability_repeatedIterateExperiment_le_sum idx sample f t Nat.one_pos A
-  simpa only [repeatedIterateExperiment_one, mul_one, Nat.mod_one, Function.iterate_zero,
-    id_map] using h
+  simpa only [repeatedIterateExperiment_one, mul_one, Nat.mod_one, Function.iterate_zero, id_map]
+    using succProbability_repeatedIterateExperiment_le_sum idx sample f t Nat.one_pos A
 
 /-- The adversary `B` in the proof of [BonehShoup2023], Lemma 13.5, on the typed game: plant the
 challenge at an exactly uniform index below `t`. It has no efficiency certificate, since a strict
@@ -332,13 +322,8 @@ theorem succProbability_repeatedInversionExperiment_le (idx : Q → ℕ) (sample
         Nat.sub_add_cancel ht]
     have htop : ∀ g ∈ Finset.range t, ProbComp.eval (inversionExperiment sample f
         (slotInverter idx sample f t 1 g A)) true ≠ ⊤ := fun g _ => PMF.apply_ne_top _ _
-    have hsucc : Experiment.succProbability
-          (inversionExperiment sample f (plantInverter idx sample f t A)) =
-        (t : ℝ≥0)⁻¹ * ∑ g ∈ Finset.range t, Experiment.succProbability
-          (inversionExperiment sample f (slotInverter idx sample f t 1 g A)) := by
-      change (ProbComp.eval _ true).toNNReal = _
-      rw [key, ENNReal.toNNReal_mul, ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast,
-        ENNReal.toNNReal_sum htop]
-    rw [hsucc, mul_inv_cancel_left₀ (Nat.cast_ne_zero.mpr ht.ne')]
+    simpa only [Experiment.succProbability, Game.succProbability, key, ENNReal.toNNReal_mul,
+      ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast, ENNReal.toNNReal_sum htop,
+      mul_inv_cancel_left₀ ((Nat.cast_ne_zero (R := ℝ≥0)).mpr ht.ne')] using le_rfl
 
 end Cslib.Crypto

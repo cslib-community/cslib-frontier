@@ -392,14 +392,12 @@ private theorem Good.underfull {c : BPlusTree α β} {h : ℕ} (hc : Good t h c)
 private theorem Underfull.good {c : BPlusTree α β} {h : ℕ} (hc : Underfull t h c)
     (hu : underflows t c = false) : Good t h c := by
   have hw : t - 1 ≤ c.width := by simpa [underflows] using hu
-  have ho := hc.children_occupied
-  have hk := hc.width_le
   refine ⟨hc.balanced, hc.height_eq, ?_⟩
   cases c with
-  | leaf es => exact .leaf hw hk
+  | leaf es => exact .leaf hw hc.width_le
   | node f r =>
-    exact .node hw hk (ho f List.mem_cons_self)
-      fun e he => ho _ (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
+    exact .node hw hc.width_le (hc.children_occupied f List.mem_cons_self)
+      fun e he => hc.children_occupied _ (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
 
 /-- A subtree one item short that underflows has exactly `t - 2` items at its root. -/
 private theorem Underfull.width_eq_of_underflows {c : BPlusTree α β} {h : ℕ}
@@ -429,8 +427,7 @@ private theorem mended_ofLeaf {entries : List (α × β)} (hlo : t - 1 ≤ entri
     exact ⟨.leaf, rfl, .leaf hlo hle⟩
   · obtain ⟨l, s, r, heq, hl, hr⟩ :=
       InsertResult.exists_good_split_ofLeaf (t := t) (entries := entries) (by omega) hhi
-    rw [heq]
-    exact ⟨hl, hr⟩
+    exact heq ▸ ⟨hl, hr⟩
 
 /-- A node of `t - 1` to `2 * t - 1 + t + 1` separators over good children, split when it
 overflows, is good. -/
@@ -443,8 +440,7 @@ private theorem mended_ofNode {first : BPlusTree α β} {rest : List (Branch α 
     exact good_node hf hr hlo hle
   · obtain ⟨l, s, r, heq, hl, hr'⟩ :=
       InsertResult.exists_good_split_ofNode hf hr (by omega) (by omega)
-    rw [heq]
-    exact ⟨hl, hr'⟩
+    exact heq ▸ ⟨hl, hr'⟩
 
 /-- Placing a repaired result among good branches keeps them good, adding at most one. -/
 private theorem mended_withRest {x : InsertResult α β} {h : ℕ} (hx : Mended t h x)
@@ -469,20 +465,16 @@ private theorem mended_mergeSplit {l r : BPlusTree α β} {h : ℕ} (hl : Underf
       simp only [width_leaf] at hlo hhi
       exact mended_ofLeaf (by simp; omega) (by simp; omega)
     | node rf rr =>
-      have h₁ := hl.height_eq
-      have h₂ := hr.height_eq
-      rw [hr.balanced.height_node] at h₂
       have := rf.height_pos
-      simp only [height_leaf] at h₁
+      have : rf.height + 1 = 1 :=
+        hr.balanced.height_node.symm.trans (hr.height_eq.trans hl.height_eq.symm)
       omega
   | node lf lr =>
     cases r with
     | leaf re =>
-      have h₁ := hl.height_eq
-      have h₂ := hr.height_eq
-      rw [hl.balanced.height_node] at h₁
       have := lf.height_pos
-      simp only [height_leaf] at h₂
+      have : lf.height + 1 = 1 :=
+        hl.balanced.height_node.symm.trans (hl.height_eq.trans hr.height_eq.symm)
       omega
     | node rf rr =>
       obtain ⟨h', rfl⟩ : ∃ h', h = h' + 1 :=
@@ -632,9 +624,7 @@ private theorem eraseRest_spec {rest : List (Branch α β)}
           (lt_of_lt_of_le (hprev (s, c) List.mem_cons_self p hp) hk).ne
       simp only [hk, ↓reduceIte]
       rcases rest with _ | ⟨e, rest⟩
-      · simp only
-        rw [toList_rebalanceLast]
-        simp [hpre, hcc]
+      · simp [toList_rebalanceLast, hpre, hcc]
       · have ih := ih (fun e he => hle e (List.mem_cons_of_mem _ he))
           (fun e he => hne e (List.mem_cons_of_mem _ he)) hpw₂
           (fun e he => hc e (List.mem_cons_of_mem _ he)) c (eraseSubtree t k c)
@@ -733,10 +723,9 @@ private theorem eraseFits_eraseSubtree (ht : 2 ≤ t) (k : α) (tr : BPlusTree �
             EraseFits t c (eraseSubtree t k c)) →
         Underfull t first.height (eraseSubtree t k c) := by
       intro c hc hg ih
-      have := (ih hg.balanced (fun _ hc' => hg.occupied.of_mem_children hc')
+      exact hg.height_eq ▸ (ih hg.balanced (fun _ hc' => hg.occupied.of_mem_children hc')
         (fun _ => by have := hg.occupied.le_width; omega)
         (hs.sublist (toList_sublist_of_mem_children hc))).underfull hg.occupied
-      rwa [hg.height_eq] at this
     have hpe := hchild first List.mem_cons_self hf ihf
     have hc : ∀ e ∈ rest, Good t first.height e.child ∧
         Underfull t first.height (eraseSubtree t k e.child) := fun e he =>
@@ -766,9 +755,7 @@ private theorem Linked.append {a c : BPlusTree α β} {l₁ l₂ : List (Branch 
     obtain ⟨s', c'⟩ := e
     obtain ⟨g₁, g₂, g₃⟩ := h₁
     refine ⟨g₁, g₂, ih g₃ fun p hp => hlt p ?_⟩
-    rw [toList_node] at hp ⊢
-    rw [List.flatMap_cons]
-    exact List.mem_append_right _ hp
+    simpa only [toList_node, List.flatMap_cons] using List.mem_append_right a.toList hp
 
 /-- Merging two separated siblings, with the keys of the left one below their separator and
 those of the right one at least it, gives a result with the separator convention, when the
@@ -825,8 +812,7 @@ private theorem linked_eraseRest (ht : 2 ≤ t) {h : ℕ} {rest : List (Branch �
     have hrs : ∀ e ∈ rest, Separated e.child := fun e he =>
       (hc e (List.mem_cons_of_mem _ he)).2.2.1
     simp only [List.flatMap_cons, Branch.child_mk] at hs ⊢
-    have hs' := hs
-    rw [List.isSortedAssoc_append_iff] at hs'
+    have hs' := List.isSortedAssoc_append_iff.1 hs
     obtain ⟨q, hq⟩ := List.exists_mem_of_ne_nil _
       (List.ne_nil_of_length_pos (gc.occupied.size_pos ht))
     rw [eraseRest_cons]
@@ -844,10 +830,9 @@ private theorem linked_eraseRest (ht : 2 ≤ t) {h : ℕ} {rest : List (Branch �
               (hne hp) (hne' uce)
           obtain ⟨l₁, l₂, l₃⟩ := linked_withRest_of_sep (c := eraseSubtree t k c) (rest := [])
             hsep trivial (by simp) (by simp)
-          refine ⟨l₁, l₂, l₃, fun x hx => ?_⟩
-          have hx := mem_toList_of_mem_withRest_fst hx
-          rw [toList_mergeSplit] at hx
-          exact (List.mem_append.1 hx).imp id fun hx => List.mem_append_left _ (subc.subset hx)
+          refine ⟨l₁, l₂, l₃, fun x hx =>
+            (List.mem_append.1 (toList_mergeSplit _ _ _ ▸ mem_toList_of_mem_withRest_fst hx)).imp
+              id fun hx => List.mem_append_left _ (subc.subset hx)⟩
         · exact ⟨⟨h₁, fun p hp' => h₂ p (subc.subset hp'), trivial⟩, hps, by simpa using sce,
             fun x hx => Or.inl hx⟩
       · -- the search moves on
@@ -873,10 +858,9 @@ private theorem linked_eraseRest (ht : 2 ≤ t) {h : ℕ} {rest : List (Branch �
           · exact (lt_of_lt_of_le (h₁ p (hsub.subset hp')) (h₂ q hq)).trans (h₃.1 q hq)
           · exact h₃.1 p hp'
         obtain ⟨l₁, l₂, l₃⟩ := linked_withRest_of_sep hsep h₃ hrs hb
-        refine ⟨l₁, l₂, l₃, fun x hx => ?_⟩
-        have hx := mem_toList_of_mem_withRest_fst hx
-        rw [toList_mergeSplit] at hx
-        exact (List.mem_append.1 hx).imp (hsub.subset ·) (List.mem_append_left _ ·)
+        refine ⟨l₁, l₂, l₃, fun x hx =>
+          (List.mem_append.1 (toList_mergeSplit _ _ _ ▸ mem_toList_of_mem_withRest_fst hx)).imp
+            (hsub.subset ·) (List.mem_append_left _ ·)⟩
       · exact ⟨⟨fun p hp' => h₁ p (hsub.subset hp'), h₂, h₃⟩, hpes,
           List.forall_mem_cons.2 ⟨sc, hrs⟩, fun x hx => Or.inl (hsub.subset hx)⟩
 
@@ -906,9 +890,9 @@ private theorem separated_eraseSubtree (k : α) (tr : BPlusTree α β)
         have := hg.occupied.le_width
         omega
       refine ⟨?_, ih hsc hg.balanced hcp, ?_⟩
-      · have hfit := eraseFits_eraseSubtree ht k c hg.balanced hsc.occupied hcp hsc.sorted
-        have := hfit.underfull hg.occupied
-        rwa [hg.height_eq] at this
+      · exact hg.height_eq ▸
+          (eraseFits_eraseSubtree ht k c hg.balanced hsc.occupied hcp hsc.sorted).underfull
+            hg.occupied
       · rw [toList_eraseSubtree_of k c hsc, SortedAssoc.erase_def]
         exact List.filter_sublist
     obtain ⟨uf, sf, subf⟩ := hchild first List.mem_cons_self hgf ihf
@@ -937,40 +921,27 @@ theorem toList_erase (h : IsWF t tr) (k : α) :
 theorem IsWF.erase (h : IsWF t tr) (k : α) : IsWF t (erase t k tr) := by
   have ht := h.two_le
   have hw := h.width_le
-  have hfit := eraseFits_eraseSubtree ht k tr h.balanced h.occupied_of_mem_children h.width_pos
-    h.sorted
-  have hb := hfit.balanced
-  have hco := hfit.children_occupied
-  have hk₁ := hfit.width_le
-  clear hfit
+  obtain ⟨hb, -, hco, hk₁, -⟩ :=
+    eraseFits_eraseSubtree ht k tr h.balanced h.occupied_of_mem_children h.width_pos h.sorted
   have hp := separated_eraseSubtree k tr h.searchInvariant h.balanced h.width_pos
-  have hs : (BPlusTree.erase t k tr).toList.IsSortedAssoc := by
-    rw [toList_erase h]
-    exact SortedAssoc.isSortedAssoc_erase h.sorted
+  have hs : (BPlusTree.erase t k tr).toList.IsSortedAssoc :=
+    toList_erase h k ▸ SortedAssoc.isSortedAssoc_erase h.sorted
   rw [erase_eq_collapse] at hs ⊢
   generalize eraseSubtree t k tr = c at *
-  rcases c with es | ⟨f, _ | ⟨e, r⟩⟩
-  · simp only [collapse] at hs ⊢
-    exact ⟨ht, hk₁.trans hw, fun hne => absurd rfl (hne es), by simp, .leaf, .leaf, hs⟩
-  · simp only [collapse] at hs ⊢
-    exact (hco f (by simp)).isWF ht (hb.of_mem_children (c := f) (by simp)) hp.first hs
-  · simp only [collapse] at hs ⊢
-    exact ⟨ht, hk₁.trans hw, fun _ => by simp, hco, hb, hp, hs⟩
+  rcases c with es | ⟨f, _ | ⟨e, r⟩⟩ <;> simp only [collapse] at hs ⊢
+  · exact ⟨ht, hk₁.trans hw, fun hne => absurd rfl (hne es), by simp, .leaf, .leaf, hs⟩
+  · exact (hco f List.mem_cons_self).isWF ht (hb.of_mem_children List.mem_cons_self) hp.first hs
+  · exact ⟨ht, hk₁.trans hw, fun _ => by simp, hco, hb, hp, hs⟩
 
 /-- On a well-formed tree, erasure either keeps the height or lowers it by one. -/
 theorem height_erase (h : IsWF t tr) (k : α) :
     (erase t k tr).height = tr.height ∨ (erase t k tr).height + 1 = tr.height := by
-  have hfit := eraseFits_eraseSubtree h.two_le k tr h.balanced h.occupied_of_mem_children
-    h.width_pos h.sorted
-  have hb := hfit.balanced
-  have hh := hfit.height_eq
-  clear hfit
+  obtain ⟨hb, hh, -, -, -⟩ := eraseFits_eraseSubtree h.two_le k tr h.balanced
+    h.occupied_of_mem_children h.width_pos h.sorted
   rw [erase_eq_collapse]
   generalize eraseSubtree t k tr = c at *
   rcases c with es | ⟨f, _ | ⟨e, r⟩⟩
-  · exact Or.inl hh
-  · exact Or.inr (by simp only [collapse]; rw [← hh, hb.height_node])
-  · exact Or.inl hh
+  exacts [Or.inl hh, Or.inr (hb.height_node.symm.trans hh), Or.inl hh]
 
 /-- Erasure removes one entry when the key is present and none otherwise. -/
 theorem size_erase (h : IsWF t tr) (k : α) :

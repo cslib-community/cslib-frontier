@@ -195,13 +195,9 @@ private theorem bad_fs_step_cases {r d : ℕ} {Stmt Sym Chal : Type} {S : Set St
     have hrts_split : rts =
         rts₀.take (rts₀.length - 1) ++ [(rts₀[rts₀.length - 1]?).getD []] := by
       subst hrts_eq
-      have h1 := List.take_succ_eq_append_getElem hi₀
-      rw [hlast, List.take_length] at h1
-      simpa [hi₀_eq, List.getElem?_eq_getElem hi₀] using h1
+      simp [hi₀_eq, hlast, List.getElem?_eq_getElem hi₀]
     have hchals_split : chals = prev₀ ++ [c] := by
-      have h1 := List.take_succ_eq_append_getElem (hlen ▸ hi₀)
-      rw [show i₀ + 1 = chals.length from by omega, List.take_length] at h1
-      simpa [← hprev₀_eq, ← hc_eq] using h1
+      simp [hlast.trans hlen, ← hprev₀_eq, ← hc_eq]
     have hlen_p : (rts₀.take (rts₀.length - 1)).length = prev₀.length := by
       simp [hi₀_eq, ← hprev₀_eq, Nat.min_eq_left (by omega : i₀ ≤ rts₀.length),
         Nat.min_eq_left (by omega : i₀ ≤ chals.length)]
@@ -254,11 +250,9 @@ theorem toOuterMeasure_memoize_not_bcsChainDoomed_step {r d : ℕ} {Stmt Sym Cha
       · refine (PMF.toOuterMeasure_uniformOfFintype_mem_list_le _).trans ?_
         gcongr
         exact length_fsOutOfOrderTargets_le _ tr_FS
-    · have h0 : {c : Chal | ¬ BCSChainDoomed r d S doomed decSym defaultSym tr_MT
-          (((x₀, rts₀, prev₀), c) :: tr_FS)} = ∅ :=
-        Set.eq_empty_iff_forall_notMem.mpr fun _ hbad =>
-          hx₀ (bad_fs_step_cases hstep hdoomed hbad).1
-      simp [h0]
+    · exact (MeasureTheory.measure_mono_null
+        (fun _ hbad => False.elim (hx₀ (bad_fs_step_cases hstep hdoomed hbad).1))
+        MeasureTheory.measure_empty).trans_le zero_le
 
 
 /-! The sticky-bad wrapper `bcsStickyMemoize` runs `bcsMemoize` and records in a flag whether
@@ -381,8 +375,8 @@ private theorem toOuterMeasure_bcsStickyMemoize_step [BEq Stmt] [BEq Chal]
       refine ((BitString.uniformList σ).toOuterMeasure.mono
           (s₂ := {ans | ans ∈ bcsForbiddenDigests r (tr_MT, tr_FS)}) fun ans hbad => by
         rcases hbad with hflag | hng
-        · dsimp only at hflag; rw [Bool.false_or] at hflag
-          rcases of_decide_eq_true hflag with hng | ⟨_, _, hcons, hmem⟩
+        · rcases of_decide_eq_true ((Bool.false_or _).symm.trans hflag) with
+            hng | ⟨_, _, hcons, hmem⟩
           · exact mem_bcsForbiddenDigests_of_not_bcsGoodState_cons hst hng
           · exact (Prod.mk.inj (List.cons.inj hcons).1).2 ▸ hmem
         · exact mem_bcsForbiddenDigests_of_not_bcsGoodState_cons hst hng).trans
@@ -396,8 +390,8 @@ private theorem toOuterMeasure_bcsStickyMemoize_step [BEq Stmt] [BEq Chal]
           (s₂ := {x | ¬ BCSChainDoomed r d S doomed decSym defaultSym tr_MT x.2})
           fun x hbad hfs => by
         rcases hbad with hflag | hng
-        · dsimp only at hflag; rw [Bool.false_or] at hflag
-          rcases of_decide_eq_true hflag with hng | ⟨_, _, heq, -⟩
+        · rcases of_decide_eq_true ((Bool.false_or _).symm.trans hflag) with
+            hng | ⟨_, _, heq, -⟩
           · exact hng ⟨hst.1, hfs⟩
           · exact absurd (congrArg List.length heq) (by simp)
         · exact hng ⟨hst.1, hfs⟩).trans

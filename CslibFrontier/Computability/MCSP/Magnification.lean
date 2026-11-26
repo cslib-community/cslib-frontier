@@ -490,28 +490,23 @@ private theorem isMergedCert_iff_isSubcubeCert {n s : ℕ} {f : BooleanFunction 
     (hw₀ : IsSubcubeCert n s f (p ++ [false]) w₀)
     (hw₁ : IsSubcubeCert n s f (p ++ [true]) w₁) :
     IsMergedCert n s p w₀ w₁ w ↔ IsSubcubeCert n s f p w := by
+  have hrhs (x : BitString n) (hx : p.isPrefixOf (List.ofFn x) = true) :
+      (if (List.ofFn x).getD p.length false then evalCertificate n s w₁ (List.ofFn x)
+        else evalCertificate n s w₀ (List.ofFn x)) = f x := by
+    have hlen : p.length < (List.ofFn x).length := by simpa using hp
+    cases hb : (List.ofFn x).getD p.length false <;> simp only [Bool.false_eq_true, ↓reduceIte]
+    · exact hw₀.2.2 x ((isPrefixOf_append_singleton hlen).2 ⟨hx, hb⟩)
+    · exact hw₁.2.2 x ((isPrefixOf_append_singleton hlen).2 ⟨hx, hb⟩)
   refine and_congr_right fun _ => and_congr_right fun _ => ⟨fun h x hx => ?_, fun h x hx => ?_⟩
   · have hpt := h (List.ofFn x) List.length_ofFn
     simp only [agreesOnPoint, hx, Bool.not_true, Bool.false_or, beq_iff_eq] at hpt
-    have hlen : p.length < (List.ofFn x).length := by simpa using hp
-    cases hb : (List.ofFn x).getD p.length false
-    · simp only [hb, Bool.false_eq_true, ↓reduceIte] at hpt
-      exact hpt.trans (hw₀.2.2 x ((isPrefixOf_append_singleton hlen).2 ⟨hx, hb⟩))
-    · simp only [hb, ↓reduceIte] at hpt
-      exact hpt.trans (hw₁.2.2 x ((isPrefixOf_append_singleton hlen).2 ⟨hx, hb⟩))
+    exact hpt.trans (hrhs x hx)
   · obtain ⟨y, rfl⟩ : ∃ y : BitString n, List.ofFn y = x :=
       ⟨BitString.ofList n x, BitString.ofFn_ofList hx⟩
-    have hlen : p.length < (List.ofFn y).length := by simpa using hp
-    simp only [agreesOnPoint, Bool.or_eq_true, Bool.not_eq_true', beq_iff_eq]
     cases hin : p.isPrefixOf (List.ofFn y)
-    · left; rfl
-    · right
-      rw [h y hin]
-      cases hb : (List.ofFn y).getD p.length false
-      · simp only [Bool.false_eq_true, ↓reduceIte]
-        exact (hw₀.2.2 y ((isPrefixOf_append_singleton hlen).2 ⟨hin, hb⟩)).symm
-      · simp only [↓reduceIte]
-        exact (hw₁.2.2 y ((isPrefixOf_append_singleton hlen).2 ⟨hin, hb⟩)).symm
+    · simp [agreesOnPoint, hin]
+    · rw [agreesOnPoint, hrhs y hin, h y hin]
+      simp
 
 private theorem isMinMergedCert_iff_isMinSubcubeCert {n s : ℕ} {f : BooleanFunction n}
     {p w₀ w₁ w : List Bool} (hp : p.length < n)
@@ -567,10 +562,7 @@ private theorem mergeOk₀_append_subcubeState (n s : ℕ) (f : BooleanFunction 
         (subcubeState n s f (p ++ [true])))⟩ =
       (List.ofFn (subcubeState n s f (p ++ [false]))).getD 0 false := by
   simp only [mergeOk₀, List.ofFn_fin_append]
-  have hlen : 0 < (List.ofFn (subcubeState n s f (p ++ [false]))).length := by
-    rw [List.length_ofFn, stateWidth]
-    omega
-  exact List.getD_append _ _ _ _ hlen
+  exact List.getD_append _ _ _ _ (by rw [List.length_ofFn, stateWidth]; omega)
 
 private theorem mergeOk₁_append_subcubeState (n s : ℕ) (f : BooleanFunction n) (p : List Bool)
     (j : ℕ) :
@@ -588,9 +580,8 @@ private theorem mergeCert₀_append_subcubeState (n s : ℕ) (f : BooleanFunctio
         (subcubeState n s f (p ++ [true])))⟩ =
       (List.ofFn (subcubeState n s f (p ++ [false]))).drop 1 := by
   simp only [mergeCert₀, List.ofFn_fin_append]
-  have hlen : (List.ofFn (subcubeState n s f (p ++ [false]))).length = certLength n s + 1 :=
-    List.length_ofFn
-  rw [List.drop_append_of_le_length (by omega), List.take_left' (by simp [hlen])]
+  rw [List.drop_append_of_le_length (by rw [List.length_ofFn, stateWidth]; omega),
+    List.take_left' (by rw [List.length_drop, List.length_ofFn, stateWidth]; omega)]
 
 private theorem mergeCert₁_append_subcubeState (n s : ℕ) (f : BooleanFunction n) (p : List Bool)
     (j : ℕ) :
@@ -598,13 +589,10 @@ private theorem mergeCert₁_append_subcubeState (n s : ℕ) (f : BooleanFunctio
       List.ofFn (Fin.append (subcubeState n s f (p ++ [false]))
         (subcubeState n s f (p ++ [true])))⟩ =
       (List.ofFn (subcubeState n s f (p ++ [true]))).drop 1 := by
-  simp only [mergeCert₁, List.ofFn_fin_append]
-  have hdrop : stateWidth n s + 1 =
-      (List.ofFn (subcubeState n s f (p ++ [false]))).length + 1 := by simp
-  have hlen1 : (List.ofFn (subcubeState n s f (p ++ [true]))).length = certLength n s + 1 :=
-    List.length_ofFn
-  rw [hdrop, List.drop_append, List.drop_eq_nil_of_le (by omega), List.nil_append,
-    Nat.add_sub_cancel_left, List.take_of_length_le (by simp [hlen1])]
+  simp only [mergeCert₁, List.ofFn_fin_append, List.drop_append]
+  rw [List.length_ofFn, List.drop_eq_nil_of_le (by rw [List.length_ofFn]; omega), List.nil_append,
+    Nat.add_sub_cancel_left,
+    List.take_of_length_le (by rw [List.length_drop, List.length_ofFn, stateWidth]; omega)]
 
 /-- The multi-output merge step obtained by hardwiring the header `⟨n, s, p, j⟩` into the
 slices of a language `L` for each output bit `j : Fin (stateWidth n s)`. When `L` encodes
@@ -693,14 +681,10 @@ private theorem isSubcubeCert_of_length_eq {n s : ℕ} {f : BooleanFunction n} {
       w.length = certLength n s ∧ validCertificate n s w = true ∧
         evalCertificate n s w p = f (BitString.ofList n p) := by
   refine and_congr_right fun _ => and_congr_right fun _ => ⟨fun h => ?_, fun h x hx => ?_⟩
-  · have h1 := h (BitString.ofList n p)
+  · simpa [BitString.ofFn_ofList hp] using h (BitString.ofList n p)
       (by simp [isPrefixOf_eq_take_beq, BitString.ofFn_ofList hp])
-    rwa [BitString.ofFn_ofList hp] at h1
-  · have hx' : List.ofFn x = p :=
-      (isPrefixOf_of_length_eq (hp.trans List.length_ofFn.symm)).1 hx
-    have hxy : x = BitString.ofList n p := by
-      rw [← hx', BitString.ofList_ofFn]
-    rw [hx', hxy, h]
+  · obtain rfl := ((isPrefixOf_of_length_eq (hp.trans List.length_ofFn.symm)).1 hx).symm
+    simpa [BitString.ofList_ofFn] using h
 
 /-- The state of a full-length prefix `p`, a single point of `{0, 1} ^ n`, depends only on the
 value of `f` at that point. -/
@@ -854,23 +838,17 @@ theorem exists_complexity_yesSet_le_of_NP_subset_PPoly
       (fun T : BitString (2 ^ n) => subcubeState n (s n) ((truthTable n).symm T) []) ≤
       2 ^ n * (stateWidth n (s n) * (M + 3)) := by
     refine (complexity_subcubeState_tree_le hL hM n [] (by simp)).trans ?_
-    have hle : 2 ^ n - 1 ≤ 2 ^ n := Nat.sub_le _ _
-    have hmul := Nat.mul_le_mul_right (stateWidth n (s n) * (M + 2)) hle
-    nlinarith
+    nlinarith [Nat.mul_le_mul_right (stateWidth n (s n) * (M + 2)) (Nat.sub_le (2 ^ n) 1)]
   have hslice : single ((GapMCSP.yesSet s).slice (2 ^ n)) =
       (single fun v : BitString (stateWidth n (s n)) => v ⟨0, Nat.succ_pos _⟩) ∘
-        fun T => subcubeState n (s n) ((truthTable n).symm T) [] := by
-    funext T i
-    rw [Subsingleton.elim i 0]
-    exact (subcubeState_nil_zero_eq_slice_yesSet s n T).symm
+        fun T => subcubeState n (s n) ((truthTable n).symm T) [] :=
+    funext fun T => funext fun i =>
+      Subsingleton.elim i 0 ▸ (subcubeState_nil_zero_eq_slice_yesSet s n T).symm
   have hcomp : complexity interpretation (single ((GapMCSP.yesSet s).slice (2 ^ n))) ≤
       2 ^ n * (stateWidth n (s n) * (M + 3)) := by
     rw [hslice]
-    have h0 := complexity_comp_le (I := interpretation)
-      (fun T : BitString (2 ^ n) => subcubeState n (s n) ((truthTable n).symm T) [])
-      (single fun v : BitString (stateWidth n (s n)) => v ⟨0, Nat.succ_pos _⟩)
-    rw [complexity_single_proj, Nat.add_zero] at h0
-    exact h0.trans htree
+    exact (complexity_comp_le (I := interpretation) _ _).trans
+      (by simpa [complexity_single_proj] using htree)
   have hsw : stateWidth n (s n) ≤ 6 * N ^ 2 := by
     unfold stateWidth certLength N
     nlinarith
@@ -920,14 +898,11 @@ theorem exists_complexity_yesSet_pow_le_of_NP_subset_PPoly
     calc (n + n ^ k + 1) ^ c₀
         ≤ (2 * (n + 1) ^ (k + 1)) ^ c₀ := Nat.pow_le_pow_left hbase c₀
       _ = 2 ^ c₀ * (n + 1) ^ D₁ := by rw [Nat.mul_pow, ← Nat.pow_mul]
-  have hC : C₁ ≤ c := le_max_left _ _
-  have hD : D₁ ≤ c := (le_max_left _ _).trans (le_max_right _ _)
   calc complexity interpretation (single ((GapMCSP.yesSet fun m => m ^ k).slice (2 ^ n)))
       ≤ 2 ^ n * c₀ * (n + n ^ k + 1) ^ c₀ := hc₀ (fun m => m ^ k) n
     _ ≤ 2 ^ n * c₀ * (2 ^ c₀ * (n + 1) ^ D₁) := Nat.mul_le_mul_left _ hpow
     _ = 2 ^ n * (C₁ * (n + 1) ^ D₁) := by unfold C₁; ring
-    _ ≤ 2 ^ n * (c * (n + 1) ^ c) :=
-        Nat.mul_le_mul_left _ (Nat.mul_le_mul hC (Nat.pow_le_pow_right (by omega) hD))
+    _ ≤ 2 ^ n * (c * (n + 1) ^ c) := by gcongr <;> omega
     _ = 2 ^ n * c * (n + 1) ^ c := by rw [Nat.mul_assoc]
 
 /-- **Hardness magnification for `MCSP[s]` against `NP ⊆ P/poly`**

@@ -63,10 +63,8 @@ theorem positiveFormulaDrawing_occurrence_injective (φ : CNF ℕ)
     (ho : o ∈ Cslib.Logic.PL.occurrences (CNF.PositiveExactOneCompile.rawFormula φ))
     (ht : t ∈ Cslib.Logic.PL.occurrences (CNF.PositiveExactOneCompile.rawFormula φ))
     (hclause : o.clause = t.clause) (hvar : o.lit.1 = t.lit.1) : o = t := by
-  rcases o with ⟨i, j, l⟩
-  rcases t with ⟨i', j', l'⟩
-  change i = i' at hclause
-  subst i'
+  rcases o, t with ⟨⟨i, j, l⟩, ⟨i', j', l'⟩⟩
+  obtain rfl : i = i' := hclause
   obtain ⟨hi, hj, hl⟩ := Cslib.Logic.PL.mem_occurrences.mp ho
   obtain ⟨_, hj', hl'⟩ := Cslib.Logic.PL.mem_occurrences.mp ht
   have hnd := CNF.PositiveExactOneCompile.nodup_rawFormula φ _ (List.getElem_mem hi)
@@ -75,8 +73,7 @@ theorem positiveFormulaDrawing_occurrence_injective (φ : CNF ℕ)
       (((CNF.PositiveExactOneCompile.rawFormula φ)[i]).map Prod.fst)[j']'(by simpa using hj') := by
     simpa only [List.getElem_map, ← hl, ← hl'] using hvar
   obtain rfl := hnd.getElem_inj_iff.mp he
-  obtain rfl : l = l' := hl.trans hl'.symm
-  rfl
+  exact congrArg (Occurrence.mk i j) (hl.trans hl'.symm)
 
 /-- Every actual route begins at its actual output clause and ends at its actual output variable. -/
 theorem positiveFormulaDrawing_endpoints {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
@@ -88,9 +85,8 @@ theorem positiveFormulaDrawing_endpoints {φ : CNF ℕ} {d : Graph.OrthogonalDra
       ((positiveFormulaDrawing φ d).incidenceRoute o).getLast? =
         some ((positiveFormulaDrawing φ d).variablePoint o.lit.1) := by
   obtain ⟨i, hi, e, he, hr, hc, hv⟩ := positiveFormulaDrawing_incidence φ d ho
-  rw [hr, hc]
-  change _ ∧ _ = some (positiveVariablePoint φ d o.lit.1)
-  rw [hv]
+  rw [hr, hc, show (positiveFormulaDrawing φ d).variablePoint o.lit.1 =
+    positiveVariablePoint φ d o.lit.1 from rfl, hv]
   exact positiveIncidenceRoute_endpoints hd hi (profilePrefixGeometry_check _) he
 
 /-- Every actual output route is proper, orthogonal and continuously simple. -/

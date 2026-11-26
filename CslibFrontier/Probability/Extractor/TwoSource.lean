@@ -141,8 +141,7 @@ theorem dist_map_uniformOfFintype_bool {α : Type*} [Fintype α] (p : PMF α) (f
     ring
   rw [hsign, show (1 : ℝ) - 2 * ∑ a, (if true = f a then (p a).toReal else 0) =
     -(2 * ((∑ a, if true = f a then (p a).toReal else 0) - 1 / 2)) by ring, abs_neg, abs_mul,
-    abs_two]
-  ring
+    abs_two, mul_div_cancel_left₀ _ two_ne_zero]
 
 /-! ### The Chor–Goldreich theorem -/
 
@@ -188,15 +187,10 @@ theorem isStrongTwoSourceExtractor_dotProduct (k₁ k₂ : ℝ) :
     IsStrongTwoSourceExtractor (fun x y : ι → Bool => x ⬝ᵥ y) k₁ k₂
       (2 ^ ((Fintype.card ι - k₁ - k₂) / 2) / 2) := by
   intro p q hp hq
-  have hpair (y : ι → Bool) :
-      (p.map fun x => (y, x ⬝ᵥ y)) = (p.map fun x => x ⬝ᵥ y).map fun z => (y, z) := by
-    rw [PMF.map_comp]
-    rfl
-  simp only [hpair]
-  rw [dist_bind_pair]
-  simp only [dist_map_uniformOfFintype_bool, mul_div_assoc', ← sum_div]
-  gcongr
-  exact sum_mul_abs_bias_dotProduct_le hp hq
+  have hpair (y : ι → Bool) : (p.map fun x => (y, x ⬝ᵥ y)) = (p.map (· ⬝ᵥ y)).map (y, ·) :=
+    (PMF.map_comp _ _ _).symm
+  simp only [hpair, dist_bind_pair, dist_map_uniformOfFintype_bool, mul_div_assoc', ← sum_div]
+  exact div_le_div_of_nonneg_right (sum_mul_abs_bias_dotProduct_le hp hq) zero_le_two
 
 omit [DecidableEq ι] in
 /-- **The Chor–Goldreich theorem.** The inner product modulo two of bit strings indexed by `ι`,
@@ -259,9 +253,8 @@ theorem not_isTwoSourceExtractor_dotProduct (S : Finset ι) (hε : ε < 1 / 2) :
     ¬ IsTwoSourceExtractor (fun x y : ι → Bool => x ⬝ᵥ y) S.card Sᶜ.card ε := by
   obtain ⟨p, q, hp, hq, hconst⟩ := exists_minEntropy_bind_dotProduct_eq_pure S
   intro h
-  have hdist := h p q hp.ge hq.ge
+  have hdist := (h p q hp.ge hq.ge).trans_lt hε
   rw [hconst, dist_uniformOfFintype_bool] at hdist
   norm_num at hdist
-  linarith
 
 end Cslib.Probability

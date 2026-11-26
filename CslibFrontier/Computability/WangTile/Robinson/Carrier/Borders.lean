@@ -126,11 +126,8 @@ private theorem depthAt_eq_some_iff {bound coordinate depth : ℕ} :
         ∀ smaller, 0 < smaller → smaller < depth → inFrame smaller coordinate = false := by
   rw [depthAt_eq_find?, List.find?_range'_eq_some, List.mem_range'_1]
   simp only [Bool.not_eq_eq_eq_not, Bool.not_true]
-  constructor
-  · rintro ⟨inside, range, least⟩
-    exact ⟨by omega, inside, fun smaller positive below => least smaller positive below⟩
-  · rintro ⟨range, inside, least⟩
-    exact ⟨inside, by omega, fun smaller positive below => least smaller positive below⟩
+  exact ⟨fun ⟨inside, range, least⟩ => ⟨by omega, inside, least⟩,
+    fun ⟨range, inside, least⟩ => ⟨inside, by omega, least⟩⟩
 
 private theorem depthAt_eq_none_iff {bound coordinate : ℕ} :
     depthAt bound coordinate = none ↔
@@ -290,10 +287,7 @@ private theorem inFrame_ceilDivFour_periodic (depth : ℕ) :
     Function.Periodic (fun coordinate =>
       inFrame depth (ceilDivFour coordinate)) (period (depth + 1)) := by
   intro coordinate
-  rw [period_succ]
-  change inFrame depth (ceilDivFour (coordinate + 4 * period depth)) = _
-  rw [ceilDivFour_add_four_mul]
-  simp [inFrame]
+  simp [inFrame, period_succ, ceilDivFour_add_four_mul]
 
 private theorem inFrame_periodic (depth : ℕ) :
     Function.Periodic (inFrame depth) (period depth) := by
@@ -335,13 +329,7 @@ private theorem boundaryLiftCondition_periodic
       ceilDivFour coordinate % period depth = side.boundaryResidue depth ∧
         coordinate % 4 = side.fineResidue) (period (depth + 1)) := by
   intro coordinate
-  rw [period_succ]
-  apply propext
-  change
-    ceilDivFour (coordinate + 4 * period depth) % period depth = _ ∧
-        (coordinate + 4 * period depth) % 4 = side.fineResidue ↔ _
-  rw [ceilDivFour_add_four_mul]
-  simp
+  exact propext (by simp [period_succ, ceilDivFour_add_four_mul])
 
 private theorem boundary_periodic (side : FrameSide) (depth : ℕ) :
     Function.Periodic (fun coordinate =>
@@ -410,14 +398,10 @@ private theorem frameBorder_succ (depth coordinate transverse : ℕ) :
   rw [frameBorder, frameBorder,
     ← inFrame_succ_iff_ceilDivFour depth transverse]
   simp only [openingBoundary_succ_iff, closingBoundary_succ_iff]
-  have boundaryDistinct :
-      frameStartResidue depth ≠ frameEndResidue depth := by
-    have scalePositive : 0 < scale depth := scale_pos depth
+  have boundaryDistinct : frameStartResidue depth ≠ frameEndResidue depth := by
+    have := scale_pos depth
     simp only [frameStartResidue, frameEndResidue]
     omega
-  have boundaryDistinctSymm :
-      frameEndResidue depth ≠ frameStartResidue depth :=
-    Ne.symm boundaryDistinct
   by_cases inside : inFrame (depth + 1) transverse <;>
     simp only [inside, ite_true]
   · by_cases opening :
@@ -427,7 +411,7 @@ private theorem frameBorder_succ (depth coordinate transverse : ℕ) :
     · by_cases closing :
           ceilDivFour coordinate % period depth = frameEndResidue depth
       · by_cases fineClosing : coordinate % 4 = 0 <;>
-          simp [liftBorder, closing, fineClosing, boundaryDistinctSymm]
+          simp [liftBorder, closing, fineClosing, boundaryDistinct.symm]
       · simp [liftBorder, opening, closing]
   · rfl
 
@@ -554,13 +538,9 @@ private theorem frameBorders_disjoint_of_lt
       coordinate % period small = 1 := by
     cases largeOrientation with
     | false =>
-        left
-        exact largeClosing_mod_small h
-          ((frameBorder_eq_some_false_iff _ _ _).1 largeBorder).2
+      exact .inl (largeClosing_mod_small h ((frameBorder_eq_some_false_iff _ _ _).1 largeBorder).2)
     | true =>
-        right
-        exact largeOpening_mod_small h
-          ((frameBorder_eq_some_true_iff _ _ _).1 largeBorder).2
+      exact .inr (largeOpening_mod_small h ((frameBorder_eq_some_true_iff _ _ _).1 largeBorder).2)
   have smallResidue := frameBorder_residue_gt_one smallBorder
   omega
 
@@ -569,10 +549,8 @@ private theorem outerBorder_frameBorder_disjoint
     (outer : outerBorder coordinate transverse = some outerOrientation)
     (frame : frameBorder depth coordinate transverse = some frameOrientation) :
     False := by
-  have coordinateOne := (outerBorder_eq_some_iff _ _ _).mp outer |>.1
-  have oneLtPeriod := one_lt_period depth
   have coordinateMod : coordinate % period depth = 1 := by
-    rw [coordinateOne, Nat.mod_eq_of_lt oneLtPeriod]
+    rw [((outerBorder_eq_some_iff _ _ _).mp outer).1, Nat.mod_eq_of_lt (one_lt_period depth)]
   have boundary := frameBorder_residue_gt_one frame
   omega
 
@@ -609,10 +587,8 @@ theorem selectedBorder_eq_some_iff
         Nat.le_of_lt_succ index.isLt,
         by simpa [zero] using candidate⟩
   · rintro (outer | ⟨depth, positive, bounded, border⟩)
-    · refine ⟨⟨0, Nat.zero_lt_succ level⟩, ?_, ?_⟩
-      · simpa [] using outer
-      · intro prior priorLt
-        exact (Nat.not_lt_zero prior.val priorLt).elim
+    · refine ⟨⟨0, Nat.zero_lt_succ level⟩, by simpa [] using outer, fun prior priorLt => ?_⟩
+      exact (Nat.not_lt_zero prior.val priorLt).elim
     · refine ⟨⟨depth, by omega⟩, ?_, ?_⟩
       · simpa [Nat.ne_of_gt positive] using border
       · intro prior priorLt
@@ -664,16 +640,8 @@ private theorem frameBorder_zero_parity (coordinate transverse offsetX offsetY :
     frameBorder 0 (2 * coordinate + offsetX) (2 * transverse + offsetY) =
       frameBorder 0 (2 * (coordinate % 2) + offsetX)
         (2 * (transverse % 2) + offsetY) := by
-  have coordinateMod :
-      (2 * coordinate + offsetX) % 4 =
-        (2 * (coordinate % 2) + offsetX) % 4 := by
-    omega
-  have transverseMod :
-      (2 * transverse + offsetY) % 4 =
-        (2 * (transverse % 2) + offsetY) % 4 := by
-    omega
-  simp [frameBorder, inFrame, period, frameStartResidue, frameEndResidue,
-    scale, coordinateMod, transverseMod]
+  have hmod (a b : ℕ) : (2 * a + b) % 4 = (2 * (a % 2) + b) % 4 := by omega
+  simp [frameBorder, inFrame, period, frameStartResidue, frameEndResidue, scale, hmod]
 
 private theorem liftBorder_eight_mul_add (block offset : ℕ)
     (border : Option Bool) :
@@ -700,25 +668,21 @@ private theorem selectedBorder_succ (level coordinate transverse : ℕ) :
   constructor
   · rintro (outer | ⟨depth, positive, bounded, border⟩)
     · exact Or.inl (Or.inl outer)
-    · by_cases depthOne : depth = 1
-      · right
-        refine ⟨?_, by simpa [depthOne] using border⟩
+    · rcases eq_or_ne depth 1 with rfl | depthNe
+      · refine .inr ⟨?_, border⟩
         cases oldEq : liftBorder coordinate
             (selectedBorder level (ceilDivFour coordinate)
               (ceilDivFour transverse)) with
         | none => rfl
-        | some oldOrientation =>
-            exfalso
-            rcases (lift_selectedBorder_eq_some_iff _ _ _ _).1 oldEq with
-              oldOuter | ⟨oldDepth, oldLower, _, oldBorder⟩
-            · exact outerBorder_frameBorder_disjoint oldOuter border
-            · exact frameBorders_disjoint_of_lt (by omega) border oldBorder
-      · left
-        exact Or.inr ⟨depth, by omega, bounded, border⟩
-  · rintro (old | ⟨_, new⟩)
-    · rcases old with outer | ⟨depth, lower, bounded, border⟩
-      · exact Or.inl outer
-      · exact Or.inr ⟨depth, by omega, bounded, border⟩
+        | some _ =>
+          rcases (lift_selectedBorder_eq_some_iff _ _ _ _).1 oldEq with
+            oldOuter | ⟨_, oldLower, _, oldBorder⟩
+          · exact (outerBorder_frameBorder_disjoint oldOuter border).elim
+          · exact (frameBorders_disjoint_of_lt oldLower border oldBorder).elim
+      · exact .inl (.inr ⟨depth, by omega, bounded, border⟩)
+  · rintro ((outer | ⟨depth, lower, bounded, border⟩) | ⟨_, new⟩)
+    · exact Or.inl outer
+    · exact Or.inr ⟨depth, by omega, bounded, border⟩
     · exact Or.inr ⟨1, by omega, by omega, new⟩
 
 private theorem selectedBorder_succ_block
@@ -802,21 +766,15 @@ private theorem arithmeticState_admissible (level x y : ℕ)
     (arithmeticState level x y).Admissible := by
   induction level generalizing x y with
   | zero =>
-    have xzero : x = 0 := by simpa using hx
-    have yzero : y = 0 := by simpa using hy
-    subst x
-    subst y
-    rw [arithmeticState_zero]
-    exact BorderState.seed_admissible
+    obtain rfl : x = 0 := by simpa using hx
+    obtain rfl : y = 0 := by simpa using hy
+    exact arithmeticState_zero.symm ▸ BorderState.seed_admissible
   | succ level ih =>
     have hx' : x / 4 < 4 ^ level := by rw [pow_succ] at hx; omega
     have hy' : y / 4 < 4 ^ level := by rw [pow_succ] at hy; omega
-    have refined := BorderState.refine_admissible (ih _ _ hx' hy')
-      ⟨x % 4, Nat.mod_lt _ (by decide)⟩ ⟨y % 4, Nat.mod_lt _ (by decide)⟩
-    rw [← arithmeticState_succ] at refined
-    have xeq : 4 * (x / 4) + x % 4 = x := by omega
-    have yeq : 4 * (y / 4) + y % 4 = y := by omega
-    simpa only [xeq, yeq] using refined
+    simpa only [← arithmeticState_succ, Nat.div_add_mod] using
+      BorderState.refine_admissible (ih _ _ hx' hy')
+        ⟨x % 4, Nat.mod_lt _ (by decide)⟩ ⟨y % 4, Nat.mod_lt _ (by decide)⟩
 
 /-- The three certified ways index zero occurs in a canonical child block. -/
 theorem supertileIndexGrid_zero_cases
@@ -837,13 +795,11 @@ theorem supertileIndexGrid_zero_cases
   let j : Fin 4 := ⟨y % 4, Nat.mod_lt _ (by decide)⟩
   have eqn : (arithmeticState level (x / 4) (y / 4)).refine i j =
       arithmeticState (level + 1) x y := by
-    rw [← arithmeticState_succ]
-    congr 1 <;> dsimp only [i, j] <;> omega
-  have childZero : ((arithmeticState level (x / 4) (y / 4)).refine i j).node.parent = 0 :=
-    eqn ▸ indexZero
+    simp only [← arithmeticState_succ, i, j, Nat.div_add_mod]
   simpa only [arithmeticState, supertileIndexGrid, Fin.ext_iff, i, j, Fin.val_zero, Fin.val_one,
     Fin.val_two] using
-    BorderState.corner_transition (arithmeticState_admissible level _ _ hx' hy') i j childZero
+    BorderState.corner_transition (arithmeticState_admissible level _ _ hx' hy') i j
+      (eqn ▸ indexZero)
 
 private theorem interiors_seed_eq_selectedBorder
     (level x y : ℕ) (hx : x < side level) (hy : y < side level) :
@@ -854,9 +810,7 @@ private theorem interiors_seed_eq_selectedBorder
   have observation := BorderState.observations
     (arithmeticState_admissible level _ _ hx' hy')
     ⟨x % 2, Nat.mod_lt _ (by decide)⟩ ⟨y % 2, Nat.mod_lt _ (by decide)⟩
-  have xeq : 2 * (x / 2) + x % 2 = x := by omega
-  have yeq : 2 * (y / 2) + y % 2 = y := by omega
-  simpa only [arithmeticState, Fin.val_castSucc, xeq, yeq, rowInterior, columnInterior] using
+  simpa only [arithmeticState, Fin.val_castSucc, Nat.div_add_mod, rowInterior, columnInterior] using
     And.intro observation.1.symm observation.2.symm
 
 /-- Actual selected vertical borders of the seed patch are precisely the arithmetic borders. -/

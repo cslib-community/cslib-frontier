@@ -110,15 +110,10 @@ theorem shiftCoordinate_publicMatrix {n m q : ℕ} [Fact (Nat.Prime q)]
       (fun i => e i + (g - s j) * r i) := by
   funext i c
   refine Fin.cases ?_ (fun c => ?_) c
-  · have h : ((fun i c => if c = j then A i c + r i else A i c) *ᵥ s) i =
-        (A *ᵥ s) i + r i * s j := by
-      simp only [Matrix.mulVec, dotProduct, ite_mul, add_mul]
-      rw [show (∑ x, if x = j then A i x * s x + r i * s x else A i x * s x) =
-          ∑ x, (A i x * s x + if x = j then r i * s x else 0) from
-        Finset.sum_congr rfl fun x _ => by split_ifs <;> ring]
-      rw [Finset.sum_add_distrib, Finset.sum_ite_eq']
-      simp
-    simp only [shiftCoordinate, publicMatrix, Fin.cons_zero, h]
+  · have hite (x : Fin n) : (if x = j then A i x + r i else A i x) * s x =
+        A i x * s x + if x = j then r i * s x else 0 := by split_ifs <;> ring
+    simp only [shiftCoordinate, publicMatrix, Fin.cons_zero, Matrix.mulVec, dotProduct, hite,
+      Finset.sum_add_distrib, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
     ring
   · simp only [shiftCoordinate, publicMatrix, Fin.cons_succ]
 
@@ -330,11 +325,9 @@ private theorem pi_pure {ι γ : Type} [Fintype ι] [Finite γ] (c : ι → γ) 
   ext x
   simp only [PMF.pi_apply, PMF.pure_apply]
   by_cases h : x = c
-  · subst h
-    simp
+  · simp [h]
   · obtain ⟨i, hi⟩ : ∃ i, x i ≠ c i := by simpa [funext_iff] using h
-    simp only [h, ↓reduceIte]
-    exact Finset.prod_eq_zero (Finset.mem_univ i) (by simp [hi])
+    simpa [h] using Finset.prod_eq_zero (Finset.mem_univ i) (by simp [hi])
 
 /-- The rows of an LWE sample with a fixed secret are independent. -/
 theorem sampleLaw_eq_pi (n m q : ℕ) [Fact (Nat.Prime q)] (noise : PMF (ZMod q))
@@ -365,16 +358,9 @@ private theorem pi_map_sampleBlock {n q N m : ℕ} [Fact (Nat.Prime q)]
     (PMF.pi fun _ : Fin (searchSamples n q N m) => μ).map sampleBlock =
       PMF.pi fun _ : Option (Fin n × ZMod q) => PMF.pi fun _ : Fin N =>
         PMF.pi fun _ : Fin m => μ := by
-  let reindex (b : Fin (searchSamples n q N m) → Fin (n + 1) → ZMod q)
-      (k : (Option (Fin n × ZMod q) × Fin N) × Fin m) : Fin (n + 1) → ZMod q :=
-    b (blockRow n q N m k)
-  have h : (PMF.pi fun _ : Fin (searchSamples n q N m) => μ).map sampleBlock =
-      (((PMF.pi fun _ : Fin (searchSamples n q N m) => μ).map reindex).map
-        Function.curry).map Function.curry := by
-    rw [PMF.map_comp, PMF.map_comp]
-    rfl
-  refine h.trans ?_
-  rw [PMF.pi_map_comp_equiv, PMF.pi_map_curry, PMF.pi_map_curry]
+  change (PMF.pi fun _ : Fin (searchSamples n q N m) => μ).map
+      (Function.curry ∘ Function.curry ∘ fun b k => b (blockRow n q N m k)) = _
+  rw [← PMF.map_comp, ← PMF.map_comp, PMF.pi_map_comp_equiv, PMF.pi_map_curry, PMF.pi_map_curry]
 
 /-- With secret `s`, the blocks of a `searchSamples n q N m`-row sample are independent
 `m`-row samples. -/
@@ -466,15 +452,13 @@ private theorem pi_trueCount_far_le {N : ℕ} (μ : PMF Bool) {ε : ℝ} (hε : 
     ((PMF.pi fun _ : Fin N => μ).toOuterMeasure
       {x | ε ≤ |(trueCount x : ℝ) - N * (μ true).toReal|}).toReal ≤
         2 * Real.exp (-2 * ε ^ 2 / N) := by
-  have h := PMF.pi_sum_abs_sub_mean_ge (fun _ : Fin N => μ)
-    (fun _ b => if b then (1 : ℝ) else 0) (bound := 1) zero_le_one
-    (fun _ b _ => by cases b <;> simp) hε
   have hsum (x : Fin N → Bool) : ∑ i, (if x i then (1 : ℝ) else 0) = trueCount x := by
     simp [trueCount, Finset.sum_boole]
   have hmean : ∑ _i : Fin N, ∑ a : Bool, (μ a).toReal * (if a then (1 : ℝ) else 0) =
-      N * (μ true).toReal := by
-    simp
-  simpa only [hsum, hmean, Fintype.card_fin, one_pow, mul_one] using h
+      N * (μ true).toReal := by simp
+  simpa only [hsum, hmean, Fintype.card_fin, one_pow, mul_one] using
+    PMF.pi_sum_abs_sub_mean_ge (fun _ : Fin N => μ) (fun _ b => if b then (1 : ℝ) else 0)
+      (bound := 1) zero_le_one (fun _ b _ => by cases b <;> simp) hε
 
 /-- When the trials are drawn from their estimators' laws, `guessSecret` misses the secret with
 probability at most `(n * q + 1) * 2 * exp (-N * |pR - pU| ^ 2 / 8)`. -/
@@ -575,12 +559,10 @@ theorem searchToDecision {n m q : ℕ} [Fact (Nat.Prime q)] {noise : PMF (ZMod q
   have hR : distinguishingGame
       (realEnsemble (fun _ => n) (fun _ => m) (fun _ => q) (fun _ => noise) 0) adversary =
         realLaw noise D := by
-    simp only [distinguishingGame_eq_bind, realEnsemble, realLaw, pmf_norm]
-    rfl
+    simp only [distinguishingGame_eq_bind, realEnsemble, realLaw, D, pmf_norm]
   have hU : distinguishingGame (uniformEnsemble (fun _ => n) (fun _ => m) (fun _ => q) 0)
       adversary = uniformLaw D := by
-    simp only [distinguishingGame_eq_bind, uniformEnsemble, uniformLaw, pmf_norm]
-    rfl
+    simp only [distinguishingGame_eq_bind, uniformEnsemble, uniformLaw, D, pmf_norm]
   rw [Game.coe_advantage, Game.coe_succProbability, Game.coe_succProbability, hR, hU,
     Game.coe_succProbability]
   set B := (n * q + 1) * (2 * Real.exp (-(N * |(realLaw noise D true).toReal -
@@ -595,9 +577,8 @@ theorem searchToDecision {n m q : ℕ} [Fact (Nat.Prime q)] {noise : PMF (ZMod q
       fun X => decide (guessSecret X = s)) false ≤ _
     rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
       ENNReal.le_ofReal_iff_toReal_le (PMF.toOuterMeasure_ne_top _ _) hB]
-    convert pi_estimatorLaw_guessSecret_ne_le N noise D s using 3
-    ext X
-    simp
+    simpa only [Set.preimage, Set.mem_singleton_iff, decide_eq_false_iff_not] using
+      pi_estimatorLaw_guessSecret_ne_le N noise D s
   linarith [PMF.toReal_false_eq_one_sub game, ENNReal.toReal_le_of_le_ofReal hB hfalse]
 
 end Cslib.Crypto.PrimeLWE

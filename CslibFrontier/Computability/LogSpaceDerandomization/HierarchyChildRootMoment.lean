@@ -190,9 +190,8 @@ private theorem residualChildCost_fourth_le
     simp only [residualErrorCalls, mem_union, mem_biUnion]
     refine Or.inl ⟨i, hi, ?_⟩
     rcases ha with rfl | rfl | rfl <;> simp only [r, mem_insert, mem_singleton, true_or, or_true]
-  have hn : (0, neg) ∈ residualErrorCalls (k := k) bins l source midpoint terminal b := by
-    simp only [residualErrorCalls, mem_union, mem_singleton]
-    exact Or.inr rfl
+  have hn : (0, neg) ∈ residualErrorCalls (k := k) bins l source midpoint terminal b :=
+    mem_union_right _ (mem_singleton_self _)
   have hpos (σ : Ω) (x y : V) (hx : source.retains channels σ x) (i : ℕ) (hi : i ∈ bins) :
       positiveChildError channels l i .residual source midpoint terminal (b i) CA CB
         (estimated i σ) (canonical i σ) x y ^ 4 ≤ coeff i * (q σ) := by
@@ -204,9 +203,9 @@ private theorem residualChildCost_fourth_le
         q σ := by
       by_cases hz : midpoint.retains channels σ z
       · exact herror i _ hl σ x z hx
-      · have h := hoff i _ hl σ x z hz
-        simp only [h.1, h.2, sub_self, abs_zero, zero_pow (by decide : 4 ≠ 0)]
-        exact (hq σ)
+      · rw [(hoff i _ hl σ x z hz).1, (hoff i _ hl σ x z hz).2, sub_self, abs_zero,
+          zero_pow (by decide : 4 ≠ 0)]
+        exact hq σ
     have hright (z : V) (hz : estimated i σ (r i).left x z ≠ 0 ∨
         canonical i σ (r i).left x z ≠ 0) :
         |estimated i σ (r i).right z y - canonical i σ (r i).right z y| ^ 4 ≤ (q σ) := by
@@ -235,8 +234,7 @@ private theorem residualChildCost_fourth_le
         (show 0 ≤ (Fintype.card V : ℝ) ^ 4 * (8 * (CA ^ 4 * (q σ) + CB ^ 4 * (q σ))) by positivity)]
   intro σ x y hx
   have hc : ∀ i ∈ bins, 0 ≤ positiveChildError channels l i .residual
-      source midpoint terminal (b i) CA CB (estimated i σ) (canonical i σ) x y := by
-    intros
+      source midpoint terminal (b i) CA CB (estimated i σ) (canonical i σ) x y := fun _ _ => by
     unfold positiveChildError
     positivity
   have hcoeff : ∀ i ∈ bins, coeff i ≤ ∑ j ∈ bins, coeff j :=
@@ -250,8 +248,7 @@ private theorem residualChildCost_fourth_le
       (fun _ _ => by positivity) (mem_univ y)
   have hn0 : 0 ≤ negativeChildError channels l 0 .residual source midpoint terminal (b 0)
       (estimated 0 σ) (canonical 0 σ) x y := by
-    simp only [negativeChildError, rawRequests]
-    positivity
+    simp only [negativeChildError, rawRequests]; positivity
   have hn4 : negativeChildError channels l 0 .residual source midpoint terminal (b 0)
       (estimated 0 σ) (canonical 0 σ) x y ^ 4 ≤
       (∑ w : V, |midpoint.rate * usageRatio channels terminal neg w| ^ 4) * q σ := by
@@ -328,18 +325,13 @@ theorem conditionalChildCost_le_of_root_budgets
     by_cases hy : r.usage.retains channels σ y
     · have hy' : y ∈ ({y | r.usage.retains channels σ y} : Finset V) := by simpa using hy
       have hx' : x ∈ ({x | r.source.retains channels σ x} : Finset V) := by simpa using hx
-      have hrow : |estimated i σ r x y - canonical i σ r x y| ^ 4 ≤
-          ∑ w ∈ ({w | r.usage.retains channels σ w} : Finset V),
-            |estimated i σ r x w - canonical i σ r x w| ^ 4 :=
-        single_le_sum (f := fun w => |estimated i σ r x w - canonical i σ r x w| ^ 4)
-          (fun _ _ => by positivity) hy'
-      have htable : (∑ w ∈ ({w | r.usage.retains channels σ w} : Finset V),
-          |estimated i σ r x w - canonical i σ r x w| ^ 4) ≤ entry (i, r) σ :=
-        single_le_sum (f := fun v =>
-          ∑ w ∈ ({w | r.usage.retains channels σ w} : Finset V),
-            |estimated i σ r v w - canonical i σ r v w| ^ 4)
-          (fun _ _ => sum_nonneg fun _ _ => by positivity) hx'
-      exact hrow.trans (htable.trans (single_le_sum (fun a _ => he0 a σ) hr))
+      exact (single_le_sum (f := fun w => |estimated i σ r x w - canonical i σ r x w| ^ 4)
+          (fun _ _ => by positivity) hy').trans
+        (le_trans (b := entry (i, r) σ)
+          (single_le_sum (f := fun v => ∑ w ∈ ({w | r.usage.retains channels σ w} : Finset V),
+              |estimated i σ r v w - canonical i σ r v w| ^ 4)
+            (fun _ _ => sum_nonneg fun _ _ => by positivity) hx')
+          (single_le_sum (fun a _ => he0 a σ) hr))
     · rw [(hoff i r hr σ x y hy).1, (hoff i r hr σ x y hy).2, sub_self, abs_zero,
         zero_pow (by decide : 4 ≠ 0)]
       exact hq σ

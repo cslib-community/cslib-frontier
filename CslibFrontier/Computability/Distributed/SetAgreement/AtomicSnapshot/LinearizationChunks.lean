@@ -108,17 +108,13 @@ private theorem doneUpdate_inj_of_trace {P Data : Type*} [Fintype P] [DecidableE
           ∃ hk₀ : k < (τ.stateAt t).history.length,
             ((τ.stateAt t).history[k]'hk₀).status = .doneUpdate w := by
         intro k hk hst
-        have hk₀ : k < (τ.stateAt t).history.length := by
-          by_contra hge
-          obtain rfl : k = (τ.stateAt t).history.length := by
-            rw [hhist, List.length_append, List.length_singleton] at hk; omega
-          rw [List.getElem_of_eq hhist hk] at hst
-          simp only [List.getElem_append_right (le_refl _), Nat.sub_self,
-            List.getElem_singleton, hpend] at hst
-          cases hst
-        refine ⟨hk₀, ?_⟩
-        rwa [List.getElem_of_eq hhist hk,
-          List.getElem_append_left hk₀] at hst
+        rw [List.getElem_of_eq hhist hk, List.getElem_append] at hst
+        split_ifs at hst with hk₀
+        · exact ⟨hk₀, hst⟩
+        · obtain rfl : k = (τ.stateAt t).history.length := by
+            rw [hhist, List.length_append, List.length_singleton] at hk
+            omega
+          simp only [Nat.sub_self, List.getElem_singleton, hpend, reduceCtorEq] at hst
       obtain ⟨hk₁, hs₁'⟩ := lt_old h₁ hst₁
       obtain ⟨hk₂, hs₂'⟩ := lt_old h₂ hst₂
       exact ih_t id₁ id₂ hk₁ hk₂ w hs₁' hs₂'
@@ -189,16 +185,13 @@ theorem mem_linScansAt_iff (τ : SnapshotTrace ord dInit) (t id : ℕ) :
         ((τ.stateAt τ.events.length).history[id]'hId).status = .doneScan r sn ∧
         τ.linScanPoint ((τ.stateAt τ.events.length).history[id]'hId).invStep r sn = t := by
   simp only [linScansAt, List.mem_filter, List.mem_range]
-  constructor
-  · rintro ⟨hId, hpred⟩
-    simp only [List.getElem?_eq_getElem hId] at hpred
-    cases hst : ((τ.stateAt τ.events.length).history[id]'hId).status with
-    | pending | doneUpdate _ => simp only [hst, Bool.false_eq_true] at hpred
-    | doneScan r sn =>
-      simp only [hst, decide_eq_true_eq] at hpred
-      exact ⟨hId, r, sn, hst, hpred⟩
-  · rintro ⟨hId, r, sn, hst, hsp⟩
-    exact ⟨hId, by simp only [List.getElem?_eq_getElem hId, hst, hsp, decide_true]⟩
+  refine ⟨?_, fun ⟨hId, r, sn, hst, hsp⟩ =>
+    ⟨hId, by simp only [List.getElem?_eq_getElem hId, hst, hsp, decide_true]⟩⟩
+  rintro ⟨hId, hpred⟩
+  simp only [List.getElem?_eq_getElem hId] at hpred
+  cases hst : ((τ.stateAt τ.events.length).history[id]'hId).status with
+  | pending | doneUpdate _ => simp only [hst, Bool.false_eq_true] at hpred
+  | doneScan r sn => exact ⟨hId, r, sn, hst, by simpa only [hst, decide_eq_true_eq] using hpred⟩
 
 /-- Membership characterization for `linUpdatesAt`. -/
 theorem mem_linUpdatesAt_iff (τ : SnapshotTrace ord dInit) (t id : ℕ) :
@@ -206,16 +199,19 @@ theorem mem_linUpdatesAt_iff (τ : SnapshotTrace ord dInit) (t id : ℕ) :
       ∃ hId : id < (τ.stateAt τ.events.length).history.length,
         ((τ.stateAt τ.events.length).history[id]'hId).status = .doneUpdate t := by
   simp only [linUpdatesAt, List.mem_filter, List.mem_range]
-  constructor
-  · rintro ⟨hId, hpred⟩
-    simp only [List.getElem?_eq_getElem hId] at hpred
-    cases hst : ((τ.stateAt τ.events.length).history[id]'hId).status with
-    | pending | doneScan _ _ => simp only [hst, Bool.false_eq_true] at hpred
-    | doneUpdate w =>
-      simp only [hst, decide_eq_true_eq] at hpred
-      exact ⟨hId, hpred ▸ hst⟩
-  · rintro ⟨hId, hst⟩
-    exact ⟨hId, by simp only [List.getElem?_eq_getElem hId, hst, decide_true]⟩
+  refine ⟨?_, fun ⟨hId, hst⟩ =>
+    ⟨hId, by simp only [List.getElem?_eq_getElem hId, hst, decide_true]⟩⟩
+  rintro ⟨hId, hpred⟩
+  simp only [List.getElem?_eq_getElem hId] at hpred
+  cases hst : ((τ.stateAt τ.events.length).history[id]'hId).status with
+  | pending | doneScan _ _ => simp only [hst, Bool.false_eq_true] at hpred
+  | doneUpdate w => exact ⟨hId, (by simpa only [hst, decide_eq_true_eq] using hpred) ▸ hst⟩
+
+private theorem disjoint_linScansAt_linUpdatesAt (τ : SnapshotTrace ord dInit) {t₁ t₂ x : ℕ}
+    (h₁ : x ∈ τ.linScansAt t₁) (h₂ : x ∈ τ.linUpdatesAt t₂) : False := by
+  obtain ⟨_, _, _, hs₁, -⟩ := (τ.mem_linScansAt_iff t₁ x).mp h₁
+  obtain ⟨_, hs₂⟩ := (τ.mem_linUpdatesAt_iff t₂ x).mp h₂
+  cases hs₁.symm.trans hs₂
 
 /-- Every linearized index appears in at most one step chunk `linChunk τ t`. -/
 theorem eq_of_mem_linChunk (τ : SnapshotTrace ord dInit) {t₁ t₂ x : ℕ}
@@ -225,12 +221,8 @@ theorem eq_of_mem_linChunk (τ : SnapshotTrace ord dInit) {t₁ t₂ x : ℕ}
     obtain ⟨_, r₂, sn₂, hs₂, hp₂⟩ := (τ.mem_linScansAt_iff t₂ x).mp h₂
     obtain ⟨rfl, rfl⟩ := SnapshotOpStatus.doneScan.inj (hs₁.symm.trans hs₂)
     exact hp₁.symm.trans hp₂
-  · obtain ⟨_, _, _, hs₁, -⟩ := (τ.mem_linScansAt_iff t₁ x).mp h₁
-    obtain ⟨_, hs₂⟩ := (τ.mem_linUpdatesAt_iff t₂ x).mp h₂
-    exact absurd (hs₁.symm.trans hs₂) nofun
-  · obtain ⟨_, hs₁⟩ := (τ.mem_linUpdatesAt_iff t₁ x).mp h₁
-    obtain ⟨_, _, _, hs₂, -⟩ := (τ.mem_linScansAt_iff t₂ x).mp h₂
-    exact absurd (hs₁.symm.trans hs₂) nofun
+  · exact (τ.disjoint_linScansAt_linUpdatesAt h₁ h₂).elim
+  · exact (τ.disjoint_linScansAt_linUpdatesAt h₂ h₁).elim
   · obtain ⟨_, hs₁⟩ := (τ.mem_linUpdatesAt_iff t₁ x).mp h₁
     obtain ⟨_, hs₂⟩ := (τ.mem_linUpdatesAt_iff t₂ x).mp h₂
     exact SnapshotOpStatus.doneUpdate.inj (hs₁.symm.trans hs₂)
@@ -243,11 +235,8 @@ theorem nodup_linPrefix (τ : SnapshotTrace ord dInit) (k : ℕ) :
     List.Pairwise.imp (fun {t₁ t₂} hne x hx₁ hx₂ => hne (τ.eq_of_mem_linChunk hx₁ hx₂))
       List.nodup_range⟩
   rw [linChunk, List.nodup_append]
-  refine ⟨List.nodup_range.filter _, List.nodup_range.filter _, fun a ha b hb hab => ?_⟩
-  subst hab
-  obtain ⟨_, _, _, hs₁, -⟩ := (τ.mem_linScansAt_iff t a).mp ha
-  obtain ⟨_, hs₂⟩ := (τ.mem_linUpdatesAt_iff t a).mp hb
-  exact absurd (hs₁.symm.trans hs₂) nofun
+  exact ⟨List.nodup_range.filter _, List.nodup_range.filter _,
+    fun a ha _ hb hab => τ.disjoint_linScansAt_linUpdatesAt ha (hab ▸ hb)⟩
 
 /-- All scans linearized at `t` validate against and preserve `memSnapshot (τ.stateAt t).reg`. -/
 private theorem linScansAt_valid (τ : SnapshotTrace ord dInit)
@@ -347,10 +336,9 @@ theorem linPrefix_valid (τ : SnapshotTrace ord dInit)
   intro k hk
   induction k with
   | zero =>
-    dsimp only [linPrefix]
-    refine ⟨by simp only [List.range_zero, List.flatMap_nil, seqSnapshotValid], fun _ => ?_⟩
-    simp only [List.range_zero, List.flatMap_nil, seqSnapshotMemAfter, stateAt_zero]
-    rfl
+    simp only [linPrefix, List.range_zero, List.flatMap_nil, seqSnapshotValid,
+      seqSnapshotMemAfter, stateAt_zero]
+    exact ⟨trivial, fun _ => rfl⟩
   | succ k ih_k =>
     obtain ⟨hv_k, hm_k⟩ := ih_k (Nat.le_of_succ_le hk)
     have hk_le_T : k ≤ τ.events.length := Nat.le_of_succ_le_succ hk

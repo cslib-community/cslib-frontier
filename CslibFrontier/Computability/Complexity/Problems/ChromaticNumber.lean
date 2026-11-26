@@ -119,15 +119,10 @@ private theorem check_iff (x : ChromaticNumberInstance × List ℕ) :
         colorOf x.1.graph x.2 u ≠ colorOf x.1.graph x.2 v := by
   simp only [check, List.all_eq_true, Bool.and_eq_true, decide_eq_true_eq, Bool.not_eq_true',
     Bool.and_eq_false_iff, Graph.adjBool_eq_false_iff, decide_eq_false_iff_not]
-  constructor
-  · intro h
-    exact ⟨fun v hv => (h v hv).1, fun u hu v hv huv =>
-      ((h u hu).2 v hv).resolve_left (not_not.2 huv)⟩
-  · rintro ⟨hlt, hadj⟩ u hu
-    refine ⟨hlt u hu, fun v hv => ?_⟩
-    by_cases huv : x.1.graph.toSimpleGraph.Adj u v
-    · exact Or.inr (hadj u hu v hv huv)
-    · exact Or.inl huv
+  exact ⟨fun h => ⟨fun v hv => (h v hv).1, fun u hu v hv huv =>
+      ((h u hu).2 v hv).resolve_left (not_not.2 huv)⟩,
+    fun ⟨hlt, hadj⟩ u hu => ⟨hlt u hu, fun v hv =>
+      or_iff_not_imp_left.2 fun h => hadj u hu v hv (not_not.1 h)⟩⟩
 
 /-- `ChromaticNumber` belongs to `NP`, with a list of colors as the witness. Colors are taken
 below the number of declared vertices, so witnesses stay polynomial although the number of colors
@@ -152,12 +147,10 @@ theorem mem_NP : ChromaticNumber ∈ NP encChromaticNumber := by
       · exact hadj u hu v hv huv
       · exact fun heq => huv.ne ((List.idxOf_inj hu).1 heq)
   refine mem_NP_of_colorOf ChromaticNumberInstance.graph computableInPolyTime_check
-    (fun ⟨G, k⟩ => by
-      rw [encChromaticNumber_apply]
-      exact G.length_vertices_le_encGraph.trans (length_le_encPair_left _ _ (G, k)))
-    (fun ⟨G, k⟩ cs h => ?_) (fun ⟨G, k⟩ h => hcert G k h)
-  obtain ⟨hlt, hadj⟩ := (check_iff (⟨G, k⟩, cs)).1 h
-  exact mem_KColoring_iff.2 ⟨colorOf G cs, hlt, hadj⟩
+    (fun ⟨G, k⟩ => (encChromaticNumber_apply ⟨G, k⟩).symm ▸
+      G.length_vertices_le_encGraph.trans (length_le_encPair_left _ _ (G, k)))
+    (fun ⟨G, k⟩ cs h => mem_KColoring_iff.2 ⟨colorOf G cs, (check_iff (⟨G, k⟩, cs)).1 h⟩)
+    fun ⟨G, k⟩ => hcert G k
 
 end ChromaticNumber
 

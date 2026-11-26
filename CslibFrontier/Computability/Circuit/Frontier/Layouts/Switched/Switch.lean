@@ -61,18 +61,15 @@ private theorem prob_exists_ge_eq (v : Fin 3 → E) (θ : ℝ) :
 /-- The ideal residual triple attains the equilateral value. -/
 private theorem Fv_u {θ : ℝ} (hθ : 0 < θ) : Fv u θ = planarProb (2 * π / 3) (2 * π / 3) θ := by
   unfold Fv
-  have hempty : {y : E3 | ∀ j, θ ≤ ⟪u j, y⟫} = ∅ := by
-    rw [Set.eq_empty_iff_forall_notMem]
-    intro y hy
-    have hs : 0 < ∑ j, ⟪u j, y⟫ :=
-      Finset.sum_pos (fun j _ => hθ.trans_le (hy j)) Finset.univ_nonempty
-    rw [← sum_inner, sum_u, inner_zero_left] at hs
-    exact (lt_irrefl _ hs)
+  have hempty : {y : E3 | ∀ j, θ ≤ ⟪u j, y⟫} = ∅ :=
+    Set.eq_empty_of_forall_notMem fun y hy => by
+      have hs := Finset.sum_pos (fun j _ => hθ.trans_le (hy j)) Finset.univ_nonempty
+      simp [← sum_inner, sum_u] at hs
   have hneg : {y : E3 | ∀ j, ⟪u j, y⟫ < θ} =
       Neg.neg ⁻¹' {y | ⟪-u 0, y⟫ < θ ∧ ⟪-u 1, y⟫ < θ ∧ ⟪-u 2, y⟫ < θ} := by
     ext y
-    simp only [Set.mem_ofPred_eq, Set.mem_preimage, inner_neg_neg]
-    simp only [Fin.forall_fin_succ, Fin.isValue, Fin.forall_fin_zero, and_true]
+    simp only [Set.mem_ofPred_eq, Set.mem_preimage, inner_neg_neg, Fin.forall_fin_succ,
+      Fin.isValue, Fin.forall_fin_zero, and_true]
     rfl
   have hm : MeasurableSet {y : E3 | ⟪-u 0, y⟫ < θ ∧ ⟪-u 1, y⟫ < θ ∧ ⟪-u 2, y⟫ < θ} := by
     simp only [Set.ofPred_and]
@@ -87,10 +84,8 @@ private theorem switch_cond {w : Fin 3 → E} (hw : ∀ j, ‖w j‖ = 1) {θ : 
     (stdGaussian E).real {x | ∃ j, θ ≤ ⟪w j, x⟫} + (stdGaussian E).real {x | ∀ j, θ ≤ ⟪w j, x⟫} ≤
       (stdGaussian E3).real {y | ∃ j, θ ≤ ⟪u j, y⟫} +
         (stdGaussian E3).real {y | ∀ j, θ ≤ ⟪u j, y⟫} := by
-  have h1 := eqMin w hw hθ
-  rw [← Fv_u hθ] at h1
-  unfold Fv at h1
-  rw [prob_exists_ge_eq, prob_exists_ge_eq]
+  have h1 := (Fv_u hθ).symm ▸ eqMin w hw hθ
+  simp only [Fv, prob_exists_ge_eq] at h1 ⊢
   linarith
 
 private theorem measurableSet_switchSet {F : Type*} [NormedAddCommGroup F] [InnerProductSpace ℝ F]
@@ -274,16 +269,14 @@ theorem switch_bound {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E
       _ ≤ _ := compare_switch ha hw hworth hr hr1
       _ ≤ kappa r := ideal_switch hr hr1
   · push Not at hI
-    have hb1 : μ.real {x | ⟪a, x⟫ ≤ 0 ∧ ∃ i, 0 ≤ ⟪b i, x⟫} ≤ 0 := by
-      refine (hnullU (A := ∅) ?_).trans_eq measureReal_empty
-      rintro x ⟨hZ, i, hi⟩
-      exact Or.inl (hbad i x (hI i).not_gt hZ hi)
+    have hzero {S : Set E} (hS : ∀ x ∈ S, ⟪a, x⟫ = 0) : μ.real S ≤ 0 :=
+      (hnullU fun x hx => Or.inl (hS x hx)).trans_eq measureReal_empty
+    have hb1 : μ.real {x | ⟪a, x⟫ ≤ 0 ∧ ∃ i, 0 ≤ ⟪b i, x⟫} ≤ 0 :=
+      hzero fun x ⟨hZ, i, hi⟩ => hbad i x (hI i).not_gt hZ hi
     have hb2 : (if d = 3 then μ.real {x | 0 ≤ ⟪a, x⟫ ∧ ∀ i, ⟪b i, x⟫ ≤ 0} else 0) ≤ 0 := by
       split_ifs with hd3
       · rw [hrefl]
-        refine (hnullU (A := ∅) ?_).trans_eq measureReal_empty
-        rintro x ⟨hZ, hall⟩
-        exact Or.inl (hbad ⟨0, by lia⟩ x (hI _).not_gt hZ (hall _))
+        exact hzero fun x ⟨hZ, hall⟩ => hbad ⟨0, by lia⟩ x (hI _).not_gt hZ (hall _)
       · exact le_rfl
     linarith
 

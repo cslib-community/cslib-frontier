@@ -296,10 +296,8 @@ theorem loopEmit_entry (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l 
     wram_simp [x₂]
     exact h₁f frontier fun i => hf _
   · intro i
-    change z.regs (env i) = _
     wram_simp [z, x₂]
-    rw [h₁f _ fun _ => (hd _ _).symm]
-    exact henv i
+    exact (h₁f _ fun _ => (hd _ _).symm).trans (henv i)
   · intro i
     change z.regs (st i) = _
     wram_simp [z, x₂, st, zero, ctr]
@@ -415,11 +413,10 @@ private theorem loopBody_tail_inv {input : δ ↪ (Fin k → ℕ)} {output : σ 
   simp only [clientResult_width] at huo
   obtain ⟨y', ht, htm, hts, htc, htz, htf⟩ :=
     loopBody_tail frontier tmp hi hf w j hub hyc huf
-  have hrest := hvparts.2
-  rw [clientState_width w, clientResult_width w] at hrest
   exact ⟨y', ht, ht.bounded hub, htm.trans hum,
     fun i => (htf _ (hs _) fun _ => (hd _ _).symm).trans (hye i),
-    fun i => (hts i).trans (huo i), htc, htz.trans hyz, hysafe.2, hrest,
+    fun i => (hts i).trans (huo i), htc, htz.trans hyz, hysafe.2,
+    by simpa only [clientState_width w, clientResult_width w, iterationStep] using hvparts.2,
     fun i hif htmp => (htf i hif htmp).trans (hyframe i hif htmp)⟩
 
 private theorem LoopInv.finish {input : δ ↪ (Fin k → ℕ)} {output : σ ↪ (Fin l → ℕ)}
@@ -435,9 +432,8 @@ private theorem LoopInv.finish {input : δ ↪ (Fin k → ℕ)} {output : σ ↪
       ∀ i, i ≠ frontier → (∀ j, tmp j ≠ i) → y.regs i = x.regs i := by
   rw [← iterate_result_state body d₀ fuel a₀ s₀] at hIy
   obtain ⟨_, hym, _, hys, _, _, _, _, hyf⟩ := hIy
-  refine ⟨?_, ?_, hyf⟩
-  · rw [clientState_width w]; exact hym
-  · intro i; rw [clientResult_width w]; exact hys i
+  exact ⟨hym.trans (clientState_width w _ _).symm,
+    fun i => (hys i).trans (congrArg (output · i) (clientResult_width w _ _).symm), hyf⟩
 
 namespace Realizes
 
@@ -616,15 +612,14 @@ theorem iterateRuntime (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l 
   have hwhole := (lift_regOnly h₁ (copyBank_isRegOnlyCode _ _ _)).seq
     ((lift_regOnly h₂ trivial).seq ((lift_regOnly h₃ trivial).seq hy))
   rw [← hy_fr] at hwhole
-  have hsumC := congrArg (C * ·) (iterationSum_eq body work d₀ fuel a₀ s₀)
-  have hcount : fuel ≤ memoryCost (iterate body d₀ fuel a₀) s₀ +
-      iterationWork body work d₀ fuel a₀ s₀ := by
-    have := iterationSum_eq body work d₀ fuel a₀ s₀; omega
-  have hscaled := Nat.mul_le_mul_left (l + 5) (Nat.add_le_add_right hcount 1)
+  have hsum := iterationSum_eq body work d₀ fuel a₀ s₀
+  have hscaled := Nat.mul_le_mul_left (l + 5)
+    (by omega : fuel + 1 ≤ memoryCost (iterate body d₀ fuel a₀) s₀ +
+      iterationWork body work d₀ fuel a₀ s₀ + 1)
   refine ⟨y, hwhole.mono ?_, hym, hys, hyf⟩
   change _ ≤ (C + 2 * l + 8) *
     (memoryCost (iterate body d₀ fuel a₀) s₀ + iterationWork body work d₀ fuel a₀ s₀ + 1)
-  nlinarith [hsumC, hscaled]
+  nlinarith [congrArg (C * ·) hsum, hscaled]
 
 end RealizesBounded
 end Cslib.WordRAM.Realization

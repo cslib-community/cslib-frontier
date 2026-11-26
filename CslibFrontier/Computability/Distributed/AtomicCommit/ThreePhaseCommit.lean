@@ -351,9 +351,7 @@ variable {P : Type*} [DecidableEq P] [Fintype P] {coord₀ : P} {votes : P → V
 private theorem threePC_canReach_trans {s₁ s₂ s₃ : ThreePCState P}
     (h₁ : (threePCLts votes).CanReach s₁ s₂) (h₂ : (threePCLts votes).CanReach s₂ s₃) :
     (threePCLts votes).CanReach s₁ s₃ := by
-  rcases h₁ with ⟨tr₁, hm₁⟩
-  rcases h₂ with ⟨tr₂, hm₂⟩
-  exact ⟨tr₁ ++ tr₂, hm₁.comp _ hm₂⟩
+  exact h₁.elim fun _ hm₁ => h₂.elim fun _ hm₂ => ⟨_, hm₁.comp _ hm₂⟩
 
 omit [Fintype P] in
 private theorem threePC_decision_update {st : P → ThreePCLocalState} {q p : P}
@@ -901,11 +899,8 @@ theorem threePCTerminate_mTr_globalPhase {s : ThreePCState P}
     threePC_canReach_trans hreach ⟨tr, hmtr⟩
   obtain ⟨d, hdec⟩ : ∃ d, OperationalDecided s.alive (threePCTerminate b s).decision d := by
     dsimp only [threePCTerminate]
-    cases backupPhase s.alive s.localState with
-    | committing | preCommitting =>
-      exact ⟨.commit, fun p hp => by simp [ThreePCState.decision, hp]⟩
-    | collectingVotes | aborting =>
-      exact ⟨.abort, fun p hp => by simp [ThreePCState.decision, hp]⟩
+    cases backupPhase s.alive s.localState <;>
+      exact ⟨_, fun p hp => by simp only [ThreePCState.decision, hp, ↓reduceIte]; rfl⟩
   exact ⟨tr, d, hcf, hmtr, hdec, threePC_agreement_globalPhase hreach_fin,
     threePC_abort_of_vote_no_globalPhase hreach_fin⟩
 
@@ -1188,9 +1183,7 @@ private theorem partition_canReach_trans {π : CommitProtocol P S M} {G₁ G₂ 
     {s₁ s₂ s₃ : PartitionState P S M}
     (h₁ : (π.lts G₁ G₂).CanReach s₁ s₂) (h₂ : (π.lts G₁ G₂).CanReach s₂ s₃) :
     (π.lts G₁ G₂).CanReach s₁ s₃ := by
-  rcases h₁ with ⟨tr₁, hm₁⟩
-  rcases h₂ with ⟨tr₂, hm₂⟩
-  exact ⟨tr₁ ++ tr₂, hm₁.comp _ hm₂⟩
+  exact h₁.elim fun _ hm₁ => h₂.elim fun _ hm₂ => ⟨_, hm₁.comp _ hm₂⟩
 
 private def GroupViewEq (G : Finset P) (c₁ c₂ : CommitConfig P S M) : Prop :=
   (∀ p ∈ G, c₁.localState p = c₂.localState p) ∧ intraMsgs G c₁.msgs = intraMsgs G c₂.msgs
@@ -1256,26 +1249,20 @@ private theorem groupViewEq_of_normalStep_outside {π : CommitProtocol P S M} {G
     (hstep : π.ConfigNormalStep p recv cfg cfg') : GroupViewEq G cfg cfg' := by
   rcases hstep with ⟨s', out, hout, _, hrec⟩
   have ⟨hnone, hsome⟩ := groupViewEq_of_step_outside (cfg := cfg) (s' := s') hp hout
-  cases recv with
-  | none => subst hrec; exact hnone
-  | some e =>
-    rcases hrec with ⟨he, hdest, rfl⟩
-    exact hsome he hdest
+  rcases recv with _ | e
+  · exact hrec ▸ hnone
+  · exact hrec.2.2 ▸ hsome hrec.1 hrec.2.1
 
 private theorem groupViewEq_of_groupStep_disjoint {π : CommitProtocol P S M} {G₁ G₂ : Finset P}
     (hdisj : Disjoint G₁ G₂) {p : P} {recv : Option (CommitEnvelope P M)}
     {cfg cfg' : CommitConfig P S M} (hstep : π.GroupStepOn G₁ p recv cfg cfg') :
     GroupViewEq G₂ cfg cfg' := by
   rcases hstep with ⟨hp₁, s', out, hout, hrec⟩
-  have hp₂ : p ∉ G₂ := Finset.disjoint_left.mp hdisj hp₁
-  have ⟨hnone, hsome⟩ := groupViewEq_of_step_outside (cfg := cfg) (s' := s') hp₂ hout
-  cases recv with
-  | none =>
-    rcases hrec with ⟨_, rfl⟩
-    exact hnone
-  | some e =>
-    rcases hrec with ⟨he, _, hdest, _, rfl⟩
-    exact hsome he hdest
+  have ⟨hnone, hsome⟩ :=
+    groupViewEq_of_step_outside (cfg := cfg) (s' := s') (Finset.disjoint_left.mp hdisj hp₁) hout
+  rcases recv with _ | e
+  · exact hrec.2 ▸ hnone
+  · exact hrec.2.2.2.2 ▸ hsome hrec.1 hrec.2.2.1
 
 omit [DecidableEq M] in
 private theorem groupViewEq_cutCfg_left (G₁ G₂ : Finset P) (hdisj : Disjoint G₁ G₂)
@@ -1337,10 +1324,8 @@ private theorem canReach_of_normalSteps {π : CommitProtocol P S M} {G₁ G₂ :
     (π.lts G₁ G₂).CanReach ⟨false, c₁⟩ ⟨false, c₂⟩ := by
   induction h with
   | refl => exact LTS.CanReach.refl _ _
-  | @tail c_mid c_end p recv _ hstep ih =>
-    have htr : (π.lts G₁ G₂).Tr ⟨false, c_mid⟩ (.normal p recv) ⟨false, c_end⟩ :=
-      ⟨rfl, rfl, hstep⟩
-    exact partition_canReach_trans ih ⟨[.normal p recv], LTS.MTr.single _ htr⟩
+  | @tail _ _ p recv _ hstep ih =>
+    exact partition_canReach_trans ih ⟨[.normal p recv], LTS.MTr.single _ ⟨rfl, rfl, hstep⟩⟩
 
 private theorem canReach_of_groupSteps {π : CommitProtocol P S M} {G₁ G₂ : Finset P}
     (side : Bool) {c₁ c₂ : CommitConfig P S M}
@@ -1348,10 +1333,9 @@ private theorem canReach_of_groupSteps {π : CommitProtocol P S M} {G₁ G₂ : 
     (π.lts G₁ G₂).CanReach ⟨true, c₁⟩ ⟨true, c₂⟩ := by
   induction h with
   | refl => exact LTS.CanReach.refl _ _
-  | @stepL c_start c_mid _ p recv hstep _ ih =>
-    have htr : (π.lts G₁ G₂).Tr ⟨true, c_start⟩ (.groupStep side p recv) ⟨true, c_mid⟩ :=
-      ⟨rfl, rfl, hstep⟩
-    exact partition_canReach_trans ⟨[.groupStep side p recv], LTS.MTr.single _ htr⟩ ih
+  | @stepL _ _ _ p recv hstep _ ih =>
+    exact partition_canReach_trans
+      ⟨[.groupStep side p recv], LTS.MTr.single _ ⟨rfl, rfl, hstep⟩⟩ ih
 
 private theorem groupSteps_preserve_outside {π : CommitProtocol P S M} {G₁ G₂ : Finset P}
     (hdisj : Disjoint G₁ G₂) {c₁ c₂ : CommitConfig P S M} (h : π.GroupSteps G₁ c₁ c₂) :
@@ -1501,46 +1485,25 @@ theorem not_nonblocking_atomicCommit_of_partitionCut {P S M : Type*} [DecidableE
   -- Step 2: Walk the partition-free all-`.yes` commit execution (`AC3`) to find an adjacent
   -- single-site transition `c_prev →[p*] c_next` crossing from both-abort-only to some-can-commit.
   obtain ⟨cfg_m, hnorm_m, hcommit_m⟩ := hres.failureFreeCommit
+  have ⟨u₁, hu₁⟩ := hG₁
   have hcan_m : CommitProtocol.CanGroupCommit π G₁ (cutCfg G₁ G₂ cfg_m) ∨
-      CommitProtocol.CanGroupCommit π G₂ (cutCfg G₁ G₂ cfg_m) := by
-    obtain ⟨u₁, hu₁⟩ := hG₁
-    exact Or.inl ⟨cutCfg G₁ G₂ cfg_m, .refl _, u₁, hu₁, hcommit_m u₁⟩
-  have hcross_gen : ∀ {c : CommitConfig P S M},
-      π.NormalSteps (π.initConfig allYes) c →
-      (CommitProtocol.CanGroupCommit π G₁ (cutCfg G₁ G₂ c) ∨
-        CommitProtocol.CanGroupCommit π G₂ (cutCfg G₁ G₂ c)) →
-      ∃ (c_prev c_next : CommitConfig P S M) (pStar : P)
-        (recv : Option (CommitEnvelope P M)),
-        π.NormalSteps (π.initConfig allYes) c_prev ∧
-        π.ConfigNormalStep pStar recv c_prev c_next ∧
-        ¬ CommitProtocol.CanGroupCommit π G₁ (cutCfg G₁ G₂ c_prev) ∧
-        ¬ CommitProtocol.CanGroupCommit π G₂ (cutCfg G₁ G₂ c_prev) ∧
-        (CommitProtocol.CanGroupCommit π G₁ (cutCfg G₁ G₂ c_next) ∨
-          CommitProtocol.CanGroupCommit π G₂ (cutCfg G₁ G₂ c_next)) := by
-    intro c hsteps
-    induction hsteps with
-    | refl =>
-      intro hcan₀
-      exact False.elim (hcan₀.elim hno_commit_init₁ hno_commit_init₂)
-    | @tail c_prev c_next pStar recv hprev hstep ih =>
-      intro hcan_next
-      by_cases hprev_can : CommitProtocol.CanGroupCommit π G₁ (cutCfg G₁ G₂ c_prev) ∨
-          CommitProtocol.CanGroupCommit π G₂ (cutCfg G₁ G₂ c_prev)
-      · exact ih hprev_can
-      · push Not at hprev_can
-        exact ⟨c_prev, c_next, pStar, recv, hprev, hstep, hprev_can.1, hprev_can.2, hcan_next⟩
-  obtain ⟨c_prev, c_next, pStar, recv, hprev_steps, hstep_star, hn₁, hn₂, hnext_can⟩ :=
-    hcross_gen hnorm_m hcan_m
-  have hnext_steps : π.NormalSteps (π.initConfig allYes) c_next := .tail hprev_steps hstep_star
-  -- Step 3: Because `Disjoint G₁ G₂`, `pStar ∉ G₂` or `pStar ∉ G₁`; apply the crossing lemma
-  -- directly or symmetrically via `hres.symm`.
-  by_cases hp₂ : pStar ∈ G₂
-  · have hp_not₁ : pStar ∉ G₁ := Finset.disjoint_right.mp hdisj hp₂
-    rw [cutCfg_comm G₁ G₂] at hn₁ hnext_can
-    exact CommitProtocol.contradiction_of_crossing_outside_right hG₁ hdisj.symm hres.symm
-      hnext_steps hstep_star hp_not₁ hn₁ hnext_can.symm
-  · exact CommitProtocol.contradiction_of_crossing_outside_right hG₂ hdisj hres
-      hnext_steps hstep_star hp₂ hn₂ hnext_can
+      CommitProtocol.CanGroupCommit π G₂ (cutCfg G₁ G₂ cfg_m) :=
+    Or.inl ⟨cutCfg G₁ G₂ cfg_m, .refl _, u₁, hu₁, hcommit_m u₁⟩
+  clear hcommit_m
+  induction hnorm_m with
+  | refl => exact hcan_m.elim hno_commit_init₁ hno_commit_init₂
+  | @tail c_prev c_next pStar recv hprev hstep ih =>
+    obtain ⟨hn₁, hn₂⟩ := not_or.mp ih
+    have hnext_steps : π.NormalSteps (π.initConfig allYes) c_next := .tail hprev hstep
+    -- Step 3: Because `Disjoint G₁ G₂`, `pStar ∉ G₂` or `pStar ∉ G₁`; apply the crossing lemma
+    -- directly or symmetrically via `hres.symm`.
+    by_cases hp₂ : pStar ∈ G₂
+    · have hp_not₁ : pStar ∉ G₁ := Finset.disjoint_right.mp hdisj hp₂
+      rw [cutCfg_comm G₁ G₂] at hn₁ hcan_m
+      exact CommitProtocol.contradiction_of_crossing_outside_right hG₁ hdisj.symm hres.symm
+        hnext_steps hstep hp_not₁ hn₁ hcan_m.symm
+    · exact CommitProtocol.contradiction_of_crossing_outside_right hG₂ hdisj hres
+        hnext_steps hstep hp₂ hn₂ hcan_m
 
 /-- Partition-cut step after [SkeenStonebraker1983], §V-A, Theorem 4 (p. 225), not the cited
 crash-recovery endpoint (#7289): on any process set with `2 ≤ Fintype.card P`, there exists a

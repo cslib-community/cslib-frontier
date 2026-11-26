@@ -160,12 +160,9 @@ theorem HeightConsistent.eq_of_toBinaryTree_eq {t u : AVLTree α}
     | nil => cases eq
     | node key' height' l' r' =>
       obtain ⟨rfl, el, er⟩ := BinaryTree.node.inj eq
-      have left := il ht.2.1 hu.2.1 el
-      have right := ir ht.2.2 hu.2.2 er
-      subst l' r'
-      have same : height = height' := ht.1.trans hu.1.symm
-      subst height'
-      rfl
+      obtain rfl := il ht.2.1 hu.2.1 el
+      obtain rfl := ir ht.2.2 hu.2.2 er
+      rw [ht.1, hu.1]
 
 /-- The Fibonacci step of the node-count bound: sibling heights `n`, `m` differing by at most `1`
 give `Nat.fib (1 + max n m + 2) ≤ Nat.fib (n + 2) + Nat.fib (m + 2)`. -/
@@ -435,12 +432,10 @@ theorem card_elements {t : AVLTree α} (ht : Ordered t) :
 has height at most `2 * Nat.log 2 ((elements t).card + 1)` (in particular `0` when empty). -/
 theorem Valid.cachedHeight_le_two_mul_log {t : AVLTree α} (ht : Valid t) :
     t.cachedHeight ≤ 2 * Nat.log 2 ((elements t).card + 1) := by
-  have hcard : (elements t).card = t.numNodes := card_elements ht.ordered
-  have hpow : 2 ^ ((t.cachedHeight + 1) / 2) ≤ (elements t).card + 1 :=
-    (two_pow_half_succ_le_fib t.cachedHeight).trans
-      (hcard ▸ fib_height_le_numNodes_add_one ht.heightConsistent ht.balanced)
   have hlog : (t.cachedHeight + 1) / 2 ≤ Nat.log 2 ((elements t).card + 1) :=
-    Nat.le_log_of_pow_le (by decide) hpow
+    Nat.le_log_of_pow_le (by decide) <|
+      (two_pow_half_succ_le_fib t.cachedHeight).trans
+        (card_elements ht.ordered ▸ fib_height_le_numNodes_add_one ht.heightConsistent ht.balanced)
   omega
 
 /-- Executable membership search on `AVLTree α` without allocating `toBinaryTree`. -/
@@ -535,8 +530,7 @@ theorem elements_balance (a : α) (l r : AVLTree α) :
       dsimp only
       split
       · exact elements_rotateRight a _ r
-      · rw [elements_rotateRight, elements_rotateLeft]
-        rfl
+      · simp only [elements_rotateRight, elements_rotateLeft, elements_node]
   · split
     · cases r with
       | nil => rfl
@@ -544,8 +538,7 @@ theorem elements_balance (a : α) (l r : AVLTree α) :
         dsimp only
         split
         · exact elements_rotateLeft a l _
-        · rw [elements_rotateLeft, elements_rotateRight]
-          rfl
+        · simp only [elements_rotateLeft, elements_rotateRight, elements_node]
     · rfl
 
 /-- Single right rotation preserves strict BST ordering. -/

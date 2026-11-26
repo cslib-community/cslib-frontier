@@ -217,12 +217,8 @@ theorem friSmoothBatchBCS_corrAgree_romSoundness_bound_of_johnson [Fintype F] [D
       friBatchCorrAgreeLang_eq_proximityLang params.initialCode t hα_le] at hMT ⊢
   refine (friSmoothBatchBCS_romSoundness_bound_of_johnson params t hmJ he_slack hdec σ hFS
     hMT).trans ?_
-  have hrbr := friSmoothBatchRBRError_ceil_le params
-    (ENNReal.ofReal
-      (1800 * ((mJ + 1 : ℝ) ^ 6) * ((2 ^ params.d : ℝ) ^ 2) /
-        (((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) * (Fintype.card F : ℝ))))
-    hα_pos hα_le (friSmoothJohnsonCommitBound params mJ)
   gcongr
+  exact friSmoothBatchRBRError_ceil_le params _ hα_pos hα_le _
 
 /-- **Original explicit-constant real-`α` Johnson adaptive two-channel smooth batched BCS-FRI ROM
 soundness with separate prover/verifier Merkle budgets on `batchCorrAgreeLang`**
@@ -261,12 +257,8 @@ theorem friSmoothBatchBCS_corrAgree_romSoundness_bound_of_prover_verifier_of_joh
       friBatchCorrAgreeLang_eq_proximityLang params.initialCode t hα_le]
   refine (friSmoothBatchBCS_romSoundness_bound_of_prover_verifier_of_johnson params t hmJ he_slack
     hdec σ hMT hFS hops).trans ?_
-  have hrbr := friSmoothBatchRBRError_ceil_le params
-    (ENNReal.ofReal
-      (1800 * ((mJ + 1 : ℝ) ^ 6) * ((2 ^ params.d : ℝ) ^ 2) /
-        (((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) * (Fintype.card F : ℝ))))
-    hα_pos hα_le (friSmoothJohnsonCommitBound params mJ)
   gcongr
+  exact friSmoothBatchRBRError_ceil_le params _ hα_pos hα_le _
 
 
 end SmoothClosedFormJohnsonROM

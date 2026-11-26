@@ -255,6 +255,29 @@ private theorem normalizeDistinct_eq {c : PBConstr} (h : (c.terms.map termVar).N
     c.normalizeDistinct = c.normalize := by
   simp [normalizeDistinct, normalize, toLinear_of_nodup h]
 
+/-- **A constraint on distinct variables with positive coefficients is in normal form** up to the
+order of its terms: normalization only reverses them. -/
+theorem normalize_of_nodup {c : PBConstr} (h : (c.terms.map termVar).Nodup)
+    (hpos : ∀ t ∈ c.terms, 0 < t.1) : c.normalize = ⟨c.terms.reverse, c.degree⟩ := by
+  have hterm : ∀ t ∈ c.terms, entryTerm (termVar t, termCoeff t) = some t := by
+    rintro ⟨a, v, b⟩ ht
+    have ha := hpos _ ht
+    cases b <;> simp [entryTerm, termCoeff, ha]
+  have hfm : (c.terms.map fun t => (termVar t, termCoeff t)).filterMap entryTerm = c.terms := by
+    rw [List.filterMap_map]
+    exact (List.filterMap_congr (g := some) fun t ht => hterm t ht).trans (by simp)
+  have hmass :
+      negMass (c.terms.map fun t => (termVar t, termCoeff t)).reverse = negSum c.terms := by
+    simp only [negMass, negSum, List.map_reverse, List.sum_reverse, List.map_map]
+    congr 1
+    refine List.map_congr_left fun t ht => ?_
+    obtain ⟨a, v, b⟩ := t
+    cases b <;> simp [termCoeff]
+  rw [← normalizeDistinct_eq h]
+  simp only [normalizeDistinct, fromLinear, List.filterMap_reverse, hfm, hmass]
+  congr 1
+  omega
+
 /-- `Cslib.Logic.PL.PBConstr.add` through `Cslib.Logic.PL.PBConstr.normalizeFast`. -/
 private def addFast (c d : PBConstr) : PBConstr :=
   normalizeFast ⟨c.terms ++ d.terms, c.degree + d.degree⟩
@@ -458,11 +481,9 @@ private theorem nodupFast_go_iff :
       rw [nodupFast_go_iff xs]
       simp only [Std.HashSet.contains_insert, Bool.or_eq_false_iff, List.nodup_cons,
         List.mem_cons, forall_eq_or_imp, beq_eq_false_iff_ne]
-      constructor
-      · rintro ⟨hn, h⟩
-        exact ⟨⟨fun hm => (h x hm).1 rfl, hn⟩, by simpa using hx, fun y hy => (h y hy).2⟩
-      · rintro ⟨⟨hm, hn⟩, -, h⟩
-        exact ⟨hn, fun y hy => ⟨fun e => hm (e ▸ hy), h y hy⟩⟩
+      exact ⟨fun ⟨hn, h⟩ =>
+          ⟨⟨fun hm => (h x hm).1 rfl, hn⟩, by simpa using hx, fun y hy => (h y hy).2⟩,
+        fun ⟨⟨hm, hn⟩, _, h⟩ => ⟨hn, fun y hy => ⟨fun e => hm (e ▸ hy), h y hy⟩⟩⟩
 
 @[simp] private theorem nodupFast_eq (l : List ℕ) : nodupFast l = decide l.Nodup := by
   rw [Bool.eq_iff_iff, nodupFast, nodupFast_go_iff, decide_eq_true_iff]
@@ -483,13 +504,9 @@ theorem lookup_filter_ne (l : List (ℕ × PBConstr)) (i n : ℕ) :
     by_cases hm : m = i
     · subst hm
       rw [List.filter_cons_of_neg (by simp), ih, lookup_cons]
-      by_cases hn : n = m
-      · subst hn; simp
-      · simp [hn, Ne.symm hn]
+      by_cases hn : n = m <;> simp [hn, eq_comm]
     · rw [List.filter_cons_of_pos (by simpa using hm), lookup_cons, lookup_cons, ih]
-      by_cases hn : n = i
-      · subst hn; simp [hm]
-      · simp [hn]
+      by_cases hn : n = i <;> simp [hn, hm]
 
 theorem isSome_lookup_iff (l : List (ℕ × PBConstr)) (n : ℕ) :
     (lookup l n).isSome ↔ ∃ e ∈ l, e.1 = n := by
@@ -737,13 +754,13 @@ private theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f
   have hc' : f.toState.core = f.core.toList := rfl
   have ht : f.toState.tcb = f.s.tcb := rfl
   have ho : f.toState.order = f.s.order := rfl
-  have fallback : ∀ t, Option.map FState.toState (Option.map FState.ofState
-      (stepTop F obj f.toState t)) = stepTop F obj f.toState t := fun t => by
+  have fallback (t) : Option.map FState.toState (Option.map FState.ofState
+      (stepTop F obj f.toState t)) = stepTop F obj f.toState t := by
     simp [Option.map_map, Function.comp_def]
-  have fallbackWF : ∀ t, ∀ f' ∈ (stepTop F obj f.toState t).map FState.ofState, f'.WF :=
-    fun t f' hf' => by
-      obtain ⟨s', -, rfl⟩ := Option.mem_map.1 hf'
-      exact FState.wf_ofState s'
+  have fallbackWF (t) : ∀ f' ∈ (stepTop F obj f.toState t).map FState.ofState, f'.WF :=
+    fun _ hf' =>
+      let ⟨s', _, he⟩ := Option.mem_map.1 hf'
+      he ▸ FState.wf_ofState s'
   cases t with
   | step st =>
     cases st with

@@ -247,10 +247,8 @@ theorem totalWordQueries_eq (params : FRIParams F) :
 
 /-- Injectivity of the `kFinal` anchor points of the final coset `L_m`. -/
 theorem finalAnchorPoints_injective (params : FRIParams F) :
-    Function.Injective params.finalAnchorPoints := by
-  intro t₁ t₂ h
-  have hfin := cosetEval_injective params.hg params.hω params.hm h
-  exact Fin.ext (Fin.mk.inj hfin)
+    Function.Injective params.finalAnchorPoints :=
+  fun _ _ h => Fin.ext (Fin.mk.inj (cosetEval_injective params.hg params.hω params.hm h))
 
 /-- Each 2-to-1 folding round halves the Reed–Solomon code dimension. -/
 theorem dim_eq_two_mul_succ (params : FRIParams F) {i : ℕ} (hi : i < params.m) :
@@ -434,10 +432,8 @@ theorem totalWordQueries_eq (params : FRISmoothParams F) :
 
 /-- Injectivity of the `kFinal` anchor points of the final coset `L_m`. -/
 theorem finalAnchorPoints_injective (params : FRISmoothParams F) :
-    Function.Injective params.finalAnchorPoints := by
-  intro t₁ t₂ h
-  have hfin := cosetEval_injective params.hg params.hω params.htotal h
-  exact Fin.ext (Fin.mk.inj hfin)
+    Function.Injective params.finalAnchorPoints :=
+  fun _ _ h => Fin.ext (Fin.mk.inj (cosetEval_injective params.hg params.hω params.htotal h))
 
 /-- Any prefix cumulative log-arity `cumLog i` (`i ≤ m`) is at most `totalLog`. -/
 theorem cumLog_le_totalLog (params : FRISmoothParams F) {i : ℕ} (hi : i ≤ params.m) :
@@ -525,20 +521,16 @@ theorem sum_arity_sub_one_mul_domainSize (params : FRISmoothParams F) :
 theorem arity_sub_one_mul_domainSize_le_first (params : FRISmoothParams F) (i : Fin params.m) :
     (params.arity i - 1) * params.domainSize (i.val + 1) ≤
       2 ^ params.d - 2 ^ (params.d - params.firstStepLog) := by
-  have hm_pos : 0 < params.m := Nat.pos_of_ne_zero fun h => by have := i.isLt; omega
-  have hcum1 : params.cumLog 1 = params.firstStepLog := by
-    simp [cumLog, firstStepLog, hm_pos, friCumLog_succ_of_lt _ hm_pos]
-  rw [params.arity_sub_one_mul_domainSize i]
+  have hdom1 : params.domainSize 1 = 2 ^ (params.d - params.firstStepLog) := by
+    simp [domainSize, cumLog, firstStepLog, i.pos, friCumLog_succ_of_lt _ i.pos]
+  rw [params.arity_sub_one_mul_domainSize i, show 2 ^ params.d = params.domainSize 0 from rfl,
+    ← hdom1]
   rcases Nat.eq_zero_or_pos i.val with hi0 | hi_pos
-  · simp [domainSize, hi0, hcum1]
-  · have hdom_le : params.domainSize i.val ≤ params.domainSize 1 := params.domainSize_anti hi_pos
-    have hdom0 := params.domainSize_eq_arity_mul_succ ⟨0, hm_pos⟩
-    have hmul : 2 * params.domainSize 1 ≤ params.domainSize 0 :=
-      (Nat.mul_le_mul_right _ (params.two_le_arity ⟨0, hm_pos⟩)).trans_eq hdom0.symm
-    change params.domainSize i.val - params.domainSize (i.val + 1) ≤
-      params.domainSize 0 - 2 ^ (params.d - params.firstStepLog)
-    have h1 : params.domainSize 1 = 2 ^ (params.d - params.firstStepLog) := by
-      simp [domainSize, hcum1]
+  · rw [hi0]
+  · have : params.domainSize i.val ≤ params.domainSize 1 := params.domainSize_anti hi_pos
+    have : 2 * params.domainSize 1 ≤ params.domainSize 0 :=
+      (Nat.mul_le_mul_right _ (params.two_le_arity ⟨0, i.pos⟩)).trans_eq
+        (params.domainSize_eq_arity_mul_succ ⟨0, i.pos⟩).symm
     omega
 
 end FRISmoothParams
@@ -864,9 +856,8 @@ theorem friSmoothHonestWord_congr (params : FRISmoothParams F) (f₀ : OracleTab
   | 0, _, _, _, _ => rfl
   | j + 1, hj, zs₁, zs₂, h => by
     simp only [friSmoothHonestWord]
-    have ih := friSmoothHonestWord_congr params f₀ j (Nat.le_of_succ_le hj)
-      (fun k => h k.castSucc)
-    rw [ih, h (Fin.last j)]
+    rw [friSmoothHonestWord_congr params f₀ j (Nat.le_of_succ_le hj) (fun k => h k.castSucc),
+      h (Fin.last j)]
 
 /-- Iterated 2-to-1 honest FRI prover word at round `j ≤ m`, computed causally from the initial
 oracle `f₀` and the first `j` folding scalars `zs : Fin j → F`. -/
@@ -979,9 +970,8 @@ theorem friHonestWord_congr (params : FRIParams F) (f₀ : OracleTable params.d 
   | 0, _, _, _, _ => rfl
   | j + 1, hj, zs₁, zs₂, h => by
     simp only [friHonestWord]
-    have ih := friHonestWord_congr params f₀ j (Nat.le_of_succ_le hj)
-      (fun i => h i.castSucc)
-    rw [ih, h (Fin.last j)]
+    rw [friHonestWord_congr params f₀ j (Nat.le_of_succ_le hj) (fun i => h i.castSucc),
+      h (Fin.last j)]
 
 end OraclePaddingAndHonestProver
 
@@ -1597,8 +1587,7 @@ theorem length_friInputQueries (params : FRIParams F)
 `params.rsCode params.m`. -/
 theorem friFinalCodeword_mem_rsCode (params : FRIParams F) (πFinal : OracleTable params.d F) :
     friFinalCodeword params πFinal ∈ params.rsCode params.m := by
-  have hdim : params.dim params.m = params.kFinal := by simp [FRIParams.dim]
-  rw [FRIParams.rsCode, hdim]
+  rw [FRIParams.rsCode, show params.dim params.m = params.kFinal by simp [FRIParams.dim]]
   exact evalLagrange_mem_reedSolomon params.finalAnchorPoints_injective _ _
 
 /-- Check the folding chain and final Lagrange equation against the answer list for a single

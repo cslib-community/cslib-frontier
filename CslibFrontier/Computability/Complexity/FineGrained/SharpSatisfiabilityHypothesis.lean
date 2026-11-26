@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.Complexity.FineGrained.CountingExponents
 public import CslibFrontier.Computability.Complexity.FineGrained.PowerTime
+public import CslibFrontier.Computability.Complexity.FineGrained.SatisfiabilityHypothesis
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -33,6 +35,7 @@ over occurring variables. For a declared finite superset of those variables,
 ## Main results
 
 * `Cslib.Complexity.SharpSH_iff_SharpKSAT`: the fixed-width size formulation.
+* `Cslib.Complexity.SH.sharpSH`: the decision hypothesis implies the counting hypothesis.
 
 ## References
 
@@ -80,22 +83,20 @@ theorem SharpSH_iff_SharpKSAT {k : ℕ} (hk : 3 ≤ k) :
   constructor
   · intro h p hp hp₁ hsolver
     apply h p hp hp₁
-    have hcomp : SharpKSAT k ∘ toSharpThreeSAT = SharpSAT := by
-      funext φ
-      have hw : ∀ c ∈ toSharpThreeSAT φ, c.length ≤ k :=
-        fun _ hc => (length_le_three_of_mem_toSharpThreeSAT hc).trans hk
-      exact (SharpKSAT_of_width hw).trans (modelCount_toSharpThreeSAT φ)
+    have hcomp : SharpKSAT k ∘ toSharpThreeSAT = SharpSAT := funext fun φ =>
+      (SharpKSAT_of_width fun _ hc =>
+        (length_le_three_of_mem_toSharpThreeSAT hc).trans hk).trans
+        (modelCount_toSharpThreeSAT φ)
     have hsize (φ : CNF ℕ) :
         (((toSharpThreeSAT φ).numVars + (toSharpThreeSAT φ).length : ℕ) + 1 : ℝ) ≤
           (11 + 1 : ℝ) * ((φ.numVars + φ.length + φ.vars.length : ℕ) + 1 : ℝ) ^ (1 : ℝ) := by
       rw [Real.rpow_one]
       have h := toSharpThreeSAT_size_le φ
-      exact_mod_cast (show (toSharpThreeSAT φ).numVars + (toSharpThreeSAT φ).length + 1 ≤
-        (11 + 1) * (φ.numVars + φ.length + φ.vars.length + 1) by omega)
+      exact_mod_cast (by omega : (toSharpThreeSAT φ).numVars + (toSharpThreeSAT φ).length + 1 ≤
+        (11 + 1) * (φ.numVars + φ.length + φ.vars.length + 1))
     simpa only [hcomp, one_mul] using hsolver.comp_polyTime computableInPolyTime_toSharpThreeSAT
       (K := 11) hsize zero_le_one hp.le
-  · intro h p hp hp₁
-    rintro ⟨C, e, hsolver⟩
+  · rintro h p hp hp₁ ⟨C, e, hsolver⟩
     apply h p hp hp₁
     let D : ℕ := ⌈(C : ℝ) * (k + 1 : ℝ) ^ p⌉₊
     have hscale (φ : CNF ℕ) (hφ : (φ.all fun c => decide (c.length ≤ k)) = true) :
@@ -126,5 +127,17 @@ theorem SharpSH_iff_SharpKSAT {k : ℕ} (hk : 3 ≤ k) :
     refine ⟨D, e', ?_⟩
     delta SharpKSAT
     exact hguard
+
+/-- The Satisfiability Hypothesis implies its counting counterpart
+[MITHardnessGroup2026SH, v2, §2, p. 5]. Testing the binary model count for positivity preserves
+the exponent power because the count has polynomially bounded bit length. -/
+theorem SH.sharpSH (h : SH) : SharpSH := by
+  rintro p hp hp₁ ⟨C, e, hcount⟩
+  obtain ⟨d, hdec⟩ := DecidableInTimeO.of_computableInTimeO_polyBounded
+    (fun _ => by positivity) hcount polyBounded_length_encNat_SharpSAT
+    ComputableInPolyTime.binary_pos
+  rw [(Set.ext fun _ => by simp [SharpSAT.mem_SAT_iff] :
+    {φ | decide (0 < SharpSAT φ) = true} = SAT)] at hdec
+  exact h p hp hp₁ ⟨C, d, hdec⟩
 
 end Cslib.Complexity

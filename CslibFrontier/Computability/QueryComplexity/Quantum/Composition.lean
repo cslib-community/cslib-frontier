@@ -335,9 +335,7 @@ theorem run_add {U V : ℕ → State N W →ₗᵢ[ℂ] State N W} {T : ℕ} (h0
     run U ψ₀ x (T + s) = run V (run U ψ₀ x T) x s := by
   induction s with
   | zero => simp [run, h0]
-  | succ s ih =>
-    rw [← Nat.add_assoc]
-    simp only [run, hV, ih]
+  | succ s ih => rw [← Nat.add_assoc, run, run, hV, ih]
 
 /-! ### Checking an output -/
 
@@ -383,8 +381,7 @@ theorem hadCtrl_phaseOracle_hadCtrl_eq_permute (x : Fin N → Bool) (ψ : State 
     hadCtrl (phaseOracle x (hadCtrl ψ)) = permute (bitFlip x) ψ := by
   have h2 : (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) * (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) = 1 / 2 := by
     rw [← Complex.ofReal_mul, ← mul_inv, Real.mul_self_sqrt zero_le_two]
-    push_cast
-    ring
+    norm_num
   ext ⟨i, b, w⟩
   simp only [hadCtrl_apply, phaseOracle_apply, permute_apply, bitFlip_symm, bitFlip_apply]
   generalize (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) = c at h2 ⊢
@@ -541,21 +538,14 @@ theorem measureProb_run_twice [DecidableEq W] {T : ℕ} {U : ℕ → State N W �
   have hprod (f₁ f₂ : Fin N × Bool × W → ℝ) :
       ∑ p : Fin N × Bool × (W × QueryBasis N W), f₁ (fstCopy p) * f₂ (sndCopy p) =
         (∑ q, f₁ q) * ∑ g, f₂ g := by
-    have hinner (g : QueryBasis N W) :
-        (∑ q : Fin N × Bool × W, f₁ (fstCopy (splitEquiv.symm (g, q))) *
-          f₂ (sndCopy (splitEquiv.symm (g, q)))) =
-        ∑ q : Fin N × Bool × W, f₁ q * f₂ (QueryBasis.equiv g) :=
-      sum_congr rfl fun ⟨_, _, _⟩ _ => rfl
-    rw [sum_split]
-    simp_rw [hinner]
-    rw [Fintype.sum_equiv QueryBasis.equiv _ (fun r => ∑ q, f₁ q * f₂ r) fun _ => rfl,
-      sum_mul_sum, sum_comm]
+    rw [sum_split, Fintype.sum_equiv QueryBasis.equiv _
+      (fun r => ∑ q : Fin N × Bool × W, f₁ q * f₂ r)
+      (fun _ => sum_congr rfl fun ⟨_, _, _⟩ _ => rfl), sum_mul_sum, sum_comm]
   have hF : ∑ q, f q = 1 := by
     simp only [f, ← EuclideanSpace.norm_sq_eq, F, norm_run, hψ₀, one_pow]
   have hSc : ∑ q, (if q ∈ S then 0 else f q) = 1 - measureProb F S := by
-    rw [← hF, measureProb]
-    change (∑ q, if q ∈ S then 0 else f q) = (∑ q, f q) - ∑ q ∈ S, f q
-    rw [← univ_inter S, ← sum_ite_mem, ← sum_sub_distrib]
+    rw [← hF, measureProb, show (∑ p ∈ S, ‖F.ofLp p‖ ^ 2) = ∑ q ∈ S, f q from rfl,
+      ← univ_inter S, ← sum_ite_mem, ← sum_sub_distrib]
     exact sum_congr rfl fun q _ => by by_cases hq : q ∈ S <;> simp [hq]
   rw [measureProb, sum_filter, sum_congr rfl (g := fun p => f (fstCopy p) * f (sndCopy p) -
       (if fstCopy p ∈ S then 0 else f (fstCopy p)) *

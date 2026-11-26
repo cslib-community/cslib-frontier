@@ -221,13 +221,9 @@ def StochasticallyRelevant : Prop :=
 theorem stochasticallyRelevant_iff :
     M.StochasticallyRelevant ↔
       ∀ s₁ s₂ : S, s₁ ≠ s₂ → ∃ s' : S, M.peerPosterior s₁ s' ≠ M.peerPosterior s₂ s' := by
-  constructor
-  · intro hinj s₁ s₂ hne
-    exact Function.ne_iff.mp fun heq => hne (hinj heq)
-  · intro h s₁ s₂ heq
-    by_contra hne
-    obtain ⟨s', hs'⟩ := h s₁ s₂ hne
-    exact hs' (congrFun heq s')
+  refine ⟨fun hinj _ _ hne => Function.ne_iff.mp fun heq => hne (hinj heq), fun h s₁ s₂ heq => ?_⟩
+  by_contra hne
+  exact (h s₁ s₂ hne).elim fun s' hs' => hs' (congrFun heq s')
 
 /-! ### Simultaneous reporting game (Equation `(27.1)`) -/
 
@@ -288,9 +284,8 @@ theorem sum_condSignalProb_mul_ref [DecidableEq S] {I : Type*} [Fintype I]
       rw [← mul_prod_erase univ (fun j => M.likelihood θ (f j)) (mem_univ i),
         ← mul_prod_erase (univ.erase i) (fun j => M.likelihood θ (f j))
           (mem_erase.mpr ⟨hri, mem_univ r⟩), hset, prod_map]
-      have hrest : ∏ x : Rest, M.likelihood θ (f x.1) = ∏ j : Rest, M.likelihood θ (rest j) :=
-        prod_congr rfl fun ⟨j, hj⟩ _ => by simp [f, equiv, hj.1, hj.2]
-      rw [Function.Embedding.coeFn_mk, hrest]
+      rw [Function.Embedding.coeFn_mk, prod_congr (g := fun j => M.likelihood θ (rest j)) rfl
+        fun ⟨j, hj⟩ _ => by simp [f, equiv, hj.1, hj.2]]
       simp [f, equiv, hri, mul_assoc]
     have hsum_joint : ∑ rest : Rest → S, M.jointSignalProb (equiv.symm (s_i, s_r, rest)) =
         ∑ θ, M.prior θ * M.likelihood θ s_i * M.likelihood θ s_r := by
@@ -336,9 +331,7 @@ theorem IsStrictBayesNashReporting.isBayesNashReporting [DecidableEq S] {I : Typ
     (h : M.IsStrictBayesNashReporting τ σ) :
     M.IsBayesNashReporting τ σ := by
   intro i s_i report
-  by_cases hne : report = σ i s_i
-  · subst hne; exact le_rfl
-  · exact (h i s_i report hne).le
+  exact (eq_or_ne report (σ i s_i)).elim (fun e => e ▸ le_rfl) fun hne => (h i s_i report hne).le
 
 /-- Truthful signal announcement strategy `x_m^i = s_m` for every rater `i`
 [FriedmanResnickSami2007, §27.4.1, p. 686]. -/
@@ -360,10 +353,8 @@ theorem interimTransfer_logPeerTransfer [DecidableEq S] {I : Type*} [Fintype I]
     M.interimTransfer (M.logPeerTransfer r α β) σ i s_i report =
       ∑ s_r : S, M.peerPosterior s_i s_r *
         (α * Real.log (M.peerPosterior report (σ (r i) s_r)) + β) := by
-  have hri : r i ≠ i := hr i
-  simp only [interimTransfer, logPeerTransfer, Function.update_self,
-    Function.update_of_ne hri]
-  exact M.sum_condSignalProb_mul_ref hri s_i fun s_r =>
+  simp only [interimTransfer, logPeerTransfer, Function.update_self, Function.update_of_ne (hr i)]
+  exact M.sum_condSignalProb_mul_ref (hr i) s_i fun s_r =>
     α * Real.log (M.peerPosterior report (σ (r i) s_r)) + β
 
 /-- **Proposition 1** ([FriedmanResnickSami2007, §27.4.2, p. 687];
@@ -417,7 +408,6 @@ theorem exists_scale_effort_incentive [Nontrivial S]
       (∀ s₀ : S, α * M.uninformedExpectedLogScore s₀ + β <
         α * M.informedExpectedLogScore + β - c) ∧
       ∀ {I : Type*} (r : I → I) (x : I → S) (i : I), 0 ≤ M.logPeerTransfer r α β x i := by
-  classical
   have hgap_pos (s₀ : S) : 0 < M.informedExpectedLogScore - M.uninformedExpectedLogScore s₀ := by
     obtain ⟨s₁, hs₁⟩ := exists_ne s₀
     have hterm (s : S) (hne : s₀ ≠ s) :
@@ -427,44 +417,32 @@ theorem exists_scale_effort_incentive [Nontrivial S]
         (M.isMixedStrategy_peerPosterior s₀) (M.isMixedStrategy_peerPosterior s)
         (M.peerPosterior_pos s₀) (M.peerPosterior_pos s) fun heq => hne (hrel heq))
     rw [informedExpectedLogScore, uninformedExpectedLogScore, ← sum_sub_distrib]
-    refine sum_pos' (fun s _ => ?_) ⟨s₁, mem_univ s₁, ?_⟩
-    · rw [← mul_sub]
-      rcases eq_or_ne s₀ s with rfl | hs
-      · simp
-      · exact (hterm s hs).le
-    · rw [← mul_sub]
-      exact hterm s₁ hs₁.symm
-  obtain ⟨s_bar⟩ : Nonempty S := inferInstance
-  let gapSet : Finset ℝ := univ.image fun s₀ : S =>
+    refine sum_pos' (fun s _ => ?_)
+      ⟨s₁, mem_univ s₁, (mul_sub (M.signalProb s₁) _ _).symm ▸ hterm s₁ hs₁.symm⟩
+    rw [← mul_sub]
+    rcases eq_or_ne s₀ s with rfl | hs
+    · simp
+    · exact (hterm s hs).le
+  let minGap : ℝ := univ.inf' univ_nonempty fun s₀ =>
     M.informedExpectedLogScore - M.uninformedExpectedLogScore s₀
-  have hgap_ne : gapSet.Nonempty := ⟨_, mem_image_of_mem _ (mem_univ s_bar)⟩
-  let minGap : ℝ := gapSet.min' hgap_ne
-  have hminGap : 0 < minGap := by
-    obtain ⟨s₀, _, hmin_eq⟩ := mem_image.mp (min'_mem gapSet hgap_ne)
-    linarith [hgap_pos s₀, show minGap = gapSet.min' hgap_ne from rfl]
+  have hminGap : 0 < minGap := (lt_inf'_iff _).mpr fun s₀ _ => hgap_pos s₀
   let α : ℝ := (c + 1) / minGap
   have hα : 0 < α := div_pos (by linarith) hminGap
-  have hpair_mem : (s_bar, s_bar) ∈ (univ : Finset S) ×ˢ (univ : Finset S) :=
-    mem_product.mpr ⟨mem_univ s_bar, mem_univ s_bar⟩
-  let minLog : ℝ := ((univ ×ˢ univ).image fun p : S × S =>
-    Real.log (M.peerPosterior p.1 p.2)).min'
-      ⟨_, mem_image_of_mem _ hpair_mem⟩
+  let minLog : ℝ := (univ ×ˢ univ).inf' (univ_nonempty.product univ_nonempty) fun p : S × S =>
+    Real.log (M.peerPosterior p.1 p.2)
   let β : ℝ := -α * minLog
   refine ⟨α, β, hα, fun s₀ => ?_, fun {I} r x i => ?_⟩
   · have hle : minGap ≤ M.informedExpectedLogScore - M.uninformedExpectedLogScore s₀ :=
-      min'_le _ _ (mem_image_of_mem _ (mem_univ s₀))
+      inf'_le _ (mem_univ s₀)
     have hmul : c + 1 ≤ α * (M.informedExpectedLogScore - M.uninformedExpectedLogScore s₀) := by
       calc c + 1 = α * minGap := (div_mul_cancel₀ (c + 1) hminGap.ne').symm
         _ ≤ α * (M.informedExpectedLogScore - M.uninformedExpectedLogScore s₀) :=
           mul_le_mul_of_nonneg_left hle hα.le
     linarith
   · simp only [logPeerTransfer, β]
-    have hmem : Real.log (M.peerPosterior (x i) (x (r i))) ∈
-        (univ ×ˢ univ).image fun p : S × S => Real.log (M.peerPosterior p.1 p.2) :=
-      mem_image.mpr ⟨(x i, x (r i)), mem_product.mpr ⟨mem_univ _, mem_univ _⟩, rfl⟩
-    have hle : minLog ≤ Real.log (M.peerPosterior (x i) (x (r i))) := min'_le _ _ hmem
-    have hmul := mul_le_mul_of_nonneg_left hle hα.le
-    linarith
+    have hle : minLog ≤ Real.log (M.peerPosterior (x i) (x (r i))) :=
+      inf'_le (b := (x i, x (r i))) _ (mem_product.mpr ⟨mem_univ _, mem_univ _⟩)
+    linarith [mul_le_mul_of_nonneg_left hle hα.le]
 
 /-- **Budget-balanced peer-prediction transfer** (Equation `(4)` of
 [MillerResnickZeckhauser2005, §2.3, p. 10]; [FriedmanResnickSami2007, §27.4.2, p. 688]):
@@ -499,14 +477,10 @@ theorem truthful_isStrictBayesNash_balancedLogPeerTransfer [DecidableEq S]
           ∑ s_prof : I → S, M.condSignalProb i s_i s_prof *
             M.logPeerTransfer r α 0 (fun j => truthfulStrategy I j (s_prof j)) (b i) := by
     intro a
-    simp only [interimTransfer, balancedLogPeerTransfer, mul_sub, sum_sub_distrib]
-    congr 1
-    refine sum_congr rfl fun s_prof _ => ?_
-    congr 1
-    simp only [logPeerTransfer, Function.update_of_ne (hb i), Function.update_of_ne (hrb i)]
+    simp only [interimTransfer, balancedLogPeerTransfer, mul_sub, sum_sub_distrib,
+      logPeerTransfer, Function.update_of_ne (hb i), Function.update_of_ne (hrb i)]
   rw [hsplit report, hsplit (truthfulStrategy I i s_i)]
-  have hbase := M.truthful_isStrictBayesNash_logPeerTransfer hr hrel hα 0 i s_i report hne
-  linarith
+  linarith [M.truthful_isStrictBayesNash_logPeerTransfer hr hrel hα 0 i s_i report hne]
 
 /-! ### Uninformative constant equilibria & sequential manipulation (Footnote 2 & Exercise 27.6) -/
 

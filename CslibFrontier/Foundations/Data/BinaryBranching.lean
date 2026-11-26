@@ -165,9 +165,8 @@ theorem IsLeafWord.eq_nil {s : σ} (hs : T.IsLeaf s) {w : List Bool} (hw : T.IsL
 theorem isLeafWord_iff {s : σ} {w : List Bool} :
     T.IsLeafWord s w ↔ T.IsNodeWord s w ∧ T.IsLeaf (T.walk s w) := by
   induction w generalizing s with
-  | nil => exact ⟨fun h => ⟨trivial, h⟩, fun h => h.2⟩
-  | cons b w ih =>
-    exact ⟨fun h => ⟨⟨h.1, (ih.mp h.2).1⟩, (ih.mp h.2).2⟩, fun h => ⟨h.1.1, ih.mpr ⟨h.1.2, h.2⟩⟩⟩
+  | nil => simp [IsLeafWord, IsNodeWord, walk]
+  | cons b w ih => simp [IsLeafWord, IsNodeWord, walk, ih, and_assoc]
 
 theorem IsNodeWord.append {s : σ} {u v : List Bool} (hu : T.IsNodeWord s u)
     (hv : T.IsNodeWord (T.walk s u) v) : T.IsNodeWord s (u ++ v) := by
@@ -216,12 +215,7 @@ theorem walkSeq_eq_walk {s : σ} {w : List Bool} (hw : T.IsLeafWord s w)
     {f : ℕ → Bool} (hf : ∀ i < w.length, f i = w.getD i false) {n : ℕ} (hn : w.length ≤ n) :
     T.walkSeq n s f = T.walk s w := by
   induction w generalizing s f n with
-  | nil =>
-    cases n with
-    | zero => rfl
-    | succ n =>
-      simp only [walkSeq, walk]
-      exact ite_eq_left hw
+  | nil => cases n <;> simp_all [walkSeq, walk, IsLeafWord]
   | cons b w ih =>
     obtain ⟨n, rfl⟩ : ∃ n', n = n' + 1 := ⟨n - 1, by simp only [List.length_cons] at hn; omega⟩
     simp only [walkSeq, walk, ite_eq_right hw.1, show f 0 = b by simpa using hf 0 (by simp)]
@@ -245,13 +239,9 @@ theorem card_le_sum_choose_of_isLeafWord {s : σ} {W : Finset (List Bool)}
   have hinj : Set.InjOn pos W := fun w hw w' hw' h =>
     (hW w hw).eq_of_getD_eq (hW w' hw') fun i => by
       by_cases hi : i < Λ
-      · have hmem := congrArg (i ∈ ·) h
-        simp only [pos, mem_filter, mem_range, hi, true_and, eq_iff_iff] at hmem
-        cases hwi : w.getD i false <;> cases hw'i : w'.getD i false <;> simp_all
-      · have := hlen w hw
-        have := hlen w' hw'
-        rw [List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega),
-          List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega)]
+      · exact Bool.eq_iff_iff.mpr (by simpa [pos, hi] using congrArg (i ∈ ·) h)
+      · rw [List.getD_eq_getElem?_getD, List.getElem?_eq_none ((hlen w hw).trans (not_lt.mp hi)),
+          List.getD_eq_getElem?_getD, List.getElem?_eq_none ((hlen w' hw').trans (not_lt.mp hi))]
   calc W.card = (W.image pos).card := (card_image_of_injOn hinj).symm
     _ ≤ #{S ∈ (range Λ).powerset | #S ≤ ρ} := card_le_card fun S hS => by
         obtain ⟨w, hw, rfl⟩ := mem_image.mp hS
@@ -278,8 +268,7 @@ theorem exists_isLeafWord (s : σ) : ∃ w, T.IsLeafWord s w := by
 theorem IsNodeWord.exists_isLeafWord_append {s : σ} {w : List Bool} (h : T.IsNodeWord s w) :
     ∃ u, T.IsLeafWord s (w ++ u) := by
   obtain ⟨u, hu⟩ := exists_isLeafWord hT (T.walk s w)
-  rw [isLeafWord_iff] at hu
-  exact ⟨u, isLeafWord_iff.mpr ⟨h.append hu.1, walk_append s w u ▸ hu.2⟩⟩
+  exact ⟨u, isLeafWord_iff.mpr ⟨h.append hu.isNodeWord, walk_append s w u ▸ hu.isLeaf_walk⟩⟩
 
 omit hT in
 /-- At an inner state, the leaf words are those of the two children after their branch. -/
@@ -291,9 +280,8 @@ private theorem nodup_and_mem_iff_isLeafWord {s : σ} (hs : ¬ T.IsLeaf s)
       ∀ w, w ∈ L₀.map (false :: ·) ++ L₁.map (true :: ·) ↔ T.IsLeafWord s w := by
   refine ⟨(hnd₀.map List.cons_injective).append (hnd₁.map List.cons_injective)
     (List.disjoint_left.mpr fun w hw₀ hw₁ => ?_), fun w => ?_⟩
-  · obtain ⟨u₀, -, rfl⟩ := List.mem_map.mp hw₀
-    obtain ⟨u₁, -, hu₁⟩ := List.mem_map.mp hw₁
-    exact Bool.false_ne_true (List.head_eq_of_cons_eq hu₁).symm
+  · obtain ⟨_, -, rfl⟩ := List.mem_map.mp hw₀
+    simp at hw₁
   · cases w with
     | nil => simp [IsLeafWord, hs]
     | cons b u => cases b <;> simp [IsLeafWord, hs, hL₀, hL₁]
@@ -330,11 +318,8 @@ theorem exists_iterate_searchStep (f : α → σ → α) (s : σ) {h : ℕ}
         w.length ≤ h - 1 := by
       have := hh (b :: w) ⟨hs, hw⟩
       simp only [List.length_cons] at this; omega
-    obtain ⟨u, hu⟩ := exists_isLeafWord hT s
-    have hh1 : 1 ≤ h := by
-      cases u with
-      | nil => exact absurd hu hs
-      | cons b u => have := hh _ hu; simp only [List.length_cons] at this; omega
+    obtain ⟨u, hu⟩ := exists_isLeafWord hT (T.next s false)
+    have hh1 : 1 ≤ h := (Nat.zero_lt_succ u.length).trans_le (hh (false :: u) ⟨hs, hu⟩)
     obtain ⟨L₀, hnd₀, hL₀, N₀, hN₀, h₀⟩ := ih false (hh' false)
     obtain ⟨L₁, hnd₁, hL₁, N₁, hN₁, h₁⟩ := ih true (hh' true)
     have hstep (rest : List σ) (acc : α) : T.searchStep f (s :: rest, acc) =

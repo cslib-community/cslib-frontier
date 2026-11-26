@@ -140,10 +140,9 @@ private theorem nodup_foldl_elim {α β : Type*} [DecidableEq β] (f : α → Op
   | nil => exact h
   | cons r l ih =>
     rw [List.foldl_cons]
-    refine ih ?_
     cases f r with
-    | none => exact h
-    | some c => exact h.insert
+    | none => exact ih h
+    | some _ => exact ih h.insert
 
 omit [DecidableEq T] in
 /-- A scan adds exactly the matches of the rules. -/
@@ -159,23 +158,29 @@ theorem nodup_scan {f : ChomskyNormalFormRule T G.NT → Option G.NT} {acc : Lis
 
 theorem mem_leafCell {i : ℕ} {A : G.NT} :
     A ∈ leafCell G w i ↔ ∃ a, w[i]? = some a ∧ leaf A a ∈ G.rules := by
-  rw [leafCell, mem_scan]
+  simp only [leafCell, mem_scan, List.not_mem_nil, false_or]
   constructor
-  · rintro (h | ⟨r, hr, h⟩)
-    · simp at h
-    · cases r with
-      | leaf B a =>
-        simp only [leafMatch, Option.ite_none_right_eq_some, Option.some.injEq] at h
-        obtain ⟨h, rfl⟩ := h
-        exact ⟨a, h, hr⟩
-      | node => simp [leafMatch] at h
+  · rintro ⟨⟨B, a⟩ | ⟨_, _, _⟩, hr, h⟩
+    · obtain ⟨ha, rfl⟩ := by
+        simpa only [leafMatch, Option.ite_none_right_eq_some, Option.some.injEq] using h
+      exact ⟨a, ha, hr⟩
+    · cases h
   · rintro ⟨a, h, hr⟩
-    exact Or.inr ⟨leaf A a, hr, by simp [leafMatch, h]⟩
+    exact ⟨leaf A a, hr, by simp [leafMatch, h]⟩
 
 omit [DecidableEq T] in
 theorem mem_nodeCell {tbl : Table G} {i l : ℕ} {A : G.NT} :
     A ∈ nodeCell G tbl i l ↔ ∃ k < l - 1, ∃ B C, node A B C ∈ G.rules ∧
       B ∈ tbl i (k + 1) ∧ C ∈ tbl (i + k + 1) (l - k - 1) := by
+  have hnm (L R : List G.NT) :
+      (∃ r ∈ G.rules, nodeMatch G L R r = some A) ↔
+        ∃ B C, node A B C ∈ G.rules ∧ B ∈ L ∧ C ∈ R := by
+    constructor
+    · rintro ⟨⟨_, _⟩ | ⟨A', B, C⟩, hr, h⟩
+      · cases h
+      · obtain ⟨⟨hB, hC⟩, heq⟩ := Option.ite_none_right_eq_some.1 h
+        exact ⟨B, C, Option.some.inj heq ▸ hr, hB, hC⟩
+    · exact fun ⟨B, C, hr, hB, hC⟩ => ⟨node A B C, hr, ite_eq_left ⟨hB, hC⟩⟩
   have key : ∀ (ks : List ℕ) (acc : List G.NT), A ∈ ks.foldl (fun acc k =>
       scan G (nodeMatch G (tbl i (k + 1)) (tbl (i + k + 1) (l - k - 1))) acc) acc ↔
       A ∈ acc ∨ ∃ k ∈ ks, ∃ B C, node A B C ∈ G.rules ∧
@@ -185,24 +190,8 @@ theorem mem_nodeCell {tbl : Table G} {i l : ℕ} {A : G.NT} :
     | nil => simp
     | cons k ks ih =>
       intro acc
-      rw [List.foldl_cons, ih, mem_scan]
-      constructor
-      · rintro ((h | ⟨r, hr, h⟩) | ⟨k', hk', h⟩)
-        · exact Or.inl h
-        · cases r with
-          | leaf => simp [nodeMatch] at h
-          | node A' B C =>
-            simp only [nodeMatch, Option.ite_none_right_eq_some, Option.some.injEq] at h
-            obtain ⟨⟨hB, hC⟩, rfl⟩ := h
-            exact Or.inr ⟨k, List.mem_cons_self, B, C, hr, hB, hC⟩
-        · exact Or.inr ⟨k', List.mem_cons_of_mem _ hk', h⟩
-      · rintro (h | ⟨k', hk', B, C, hr, hB, hC⟩)
-        · exact Or.inl (Or.inl h)
-        · rcases List.mem_cons.mp hk' with rfl | hk'
-          · exact Or.inl (Or.inr ⟨node A B C, hr, by simp [nodeMatch, hB, hC]⟩)
-          · exact Or.inr ⟨k', hk', B, C, hr, hB, hC⟩
-  rw [nodeCell, key]
-  simp
+      simp only [List.foldl_cons, ih, mem_scan, hnm, List.mem_cons, exists_eq_or_imp, or_assoc]
+  simpa [nodeCell] using key (List.range (l - 1)) []
 
 omit [DecidableEq T] [DecidableEq G.NT] in
 private theorem foldl_setCell (c : ℕ → List G.NT) (l : ℕ) (is : List ℕ) (tbl : Table G)
@@ -220,22 +209,14 @@ theorem level_apply (tbl : Table G) (l i' l' : ℕ) :
     level G w tbl l i' l' =
       if l' = l ∧ i' + l ≤ w.length then cell G w tbl i' l else tbl i' l' := by
   rw [level, foldl_setCell]
-  congr 1
-  simp only [List.mem_range]
-  apply propext
-  constructor <;> rintro ⟨rfl, h⟩ <;> exact ⟨rfl, by omega⟩
+  exact if_congr (and_congr_right fun _ => by simp; omega) rfl rfl
 
 /-- Once level `l` has been filled (`l ≤ L`), cells of length `l` are unchanged by later levels. -/
 theorem table_eq_of_le {l L : ℕ} (hl : l ≤ L) (i : ℕ) :
     table G w L i l = table G w l i l := by
-  induction L with
-  | zero =>
-    obtain rfl : l = 0 := by omega
-    rfl
-  | succ L ih =>
-    rcases eq_or_lt_of_le hl with rfl | hlt
-    · rfl
-    · rw [table, level_apply, ite_eq_right (fun h => by omega), ih (by omega)]
+  induction hl with
+  | refl => rfl
+  | step hm ih => rw [table, level_apply, ite_eq_right (fun h => (Nat.lt_succ_of_le hm).ne h.1), ih]
 
 /-- The cell of length `L + 1` at `i` lists exactly the nonterminals deriving the subword, given
 that the table is correct for all shorter subwords. -/
@@ -313,20 +294,15 @@ theorem mem_table_iff {L i l : ℕ} (hl : 0 < l) (hlL : l ≤ L) (hi : i + l ≤
     split_ifs with h
     · obtain ⟨rfl, -⟩ := h
       exact mem_cell_iff hi (fun i l hl hlL hi A => ih hl hlL hi A) A
-    · have : l ≤ L := by
-        by_contra h'
-        exact h ⟨by omega, by omega⟩
-      exact ih hl this hi A
+    · exact ih hl (by omega) hi A
 
 /-- **Correctness of CYK** [Hopcroft, Motwani and Ullman, Section 7.4.4][Hopcroft2006]: the test
 accepts exactly the words of the language of the grammar. -/
 theorem cyk_eq_true_iff : cyk G w = true ↔ w ∈ G.toCFG.language := by
   rw [cyk]
   split_ifs with hw
-  · subst hw
-    exact mem_language_nil_iff.symm
-  · rw [decide_eq_true_iff, mem_table_iff (List.length_pos_of_ne_nil hw) le_rfl (by simp)]
-    simp
+  · exact hw ▸ mem_language_nil_iff.symm
+  · simp [mem_table_iff (List.length_pos_of_ne_nil hw) le_rfl (Nat.zero_add _).le]
 
 /-- Membership in the language of a grammar in Chomsky normal form is decidable, by CYK. -/
 instance decidableMemLanguage : DecidablePred (· ∈ G.toCFG.language) :=

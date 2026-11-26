@@ -58,16 +58,12 @@ private theorem bindRead_fastStep {α : Type} {c U V w n_max base c₁ c₂ : �
     memoryCost (p >>= k) s ≤ c₁ + c₂ ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s (p >>= k) ∧
     FastStateStep base c U V w n_max θ fs' s ((Memory.spec 0).clientState s (p >>= k)) := by
-  refine ⟨?_, ?_, ?_⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hst, hres]
-    have := hk.1
-    omega
-  · refine validProg_bind hvp ?_
-    rw [hst, hres]
-    exact hk.2.1
-  · rw [clientState_bind, hst, hres]
-    exact hk.2.2
+  obtain ⟨hk_mc, hk_vp, hk_st⟩ := hk
+  refine ⟨?_, validProg_bind hvp ?_, ?_⟩
+  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres]
+    exact Nat.add_le_add hmc hk_mc
+  · rwa [hst, hres]
+  · rwa [clientState_bind, hst, hres]
 
 private theorem weakenCost {c U V w n_max base c₁ c₂ : ℕ}
     {θ : SeedWhp c U n_max} {fs' : FastState} {s : Memory.State} {p : Memory.Prog Unit}
@@ -106,11 +102,8 @@ private theorem realizes_stage2CollisionReset :
           fs.rebCandSalt < sMaxWhp c n_max)
       (fun _ _ => 0) := by
   unfold stage2CollisionResetProg
-  have hrs := realizes_readRebSliceIdxGen
-  have hrb := realizes_resetBTreeSliceGen
-  have hrh := realizes_readHdr
-  have hzh := realizes_resetRebScanHdrs
-  realize
+  realize [realizes_readRebSliceIdxGen, realizes_resetBTreeSliceGen, realizes_readHdr,
+    realizes_resetRebScanHdrs]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -189,9 +182,7 @@ private theorem realizes_stage2SwapRoles :
       (fun w ((cp, base), b) _ => WhpLargeEnvGen w cp base ∧ b < wpM cp)
       (fun _ _ => 0) := by
   unfold stage2SwapRolesProg
-  have hro := realizes_readRebAndOmRoleGen
-  have hwb := realizes_writeBktFieldGen
-  realize
+  realize [realizes_readRebAndOmRoleGen, realizes_writeBktFieldGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -219,10 +210,9 @@ private theorem stage2SwapRolesProg_fastStep {c U V w n_max base b : ℕ}
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ
       { fs with liveRole := Function.update fs.liveRole b (fs.rebRole b) } s s' := by
-  have h3_le : 3 ≤ n_max := by
-    have := henv.numBuckets_le_n_max
-    have := (large_bounds_lt_n_max henv.2.2.2.1).1
-    omega
+  have h3_le : 3 ≤ n_max :=
+    (by decide : 3 ≤ 1024).trans
+      ((large_bounds_lt_n_max henv.2.2.2.1).1.trans henv.numBuckets_le_n_max)
   obtain ⟨hro_st, hro_res, hro_mc, hro_vp⟩ := readRebAndOmRoleGenProg_spec henv hb hrep (s := s)
   rw [ite_eq_left ⟨by omega, by omega⟩] at hro_res
   obtain ⟨hw1_mc, hw1_vp, hw1_step⟩ :=
@@ -233,16 +223,14 @@ private theorem stage2SwapRolesProg_fastStep {c U V w n_max base b : ℕ}
   unfold stage2SwapRolesProg
   simp only [pure_bind]
   refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientResult_bind, hro_st, hro_res, clientResult_bind]; rfl
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hro_st, hro_res, hro_mc]
-    simp only [memoryCost_pure]
+  · simp only [clientResult_bind, hro_st, hro_res, clientResult_pure_whp]
+  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_pure,
+      hro_st, hro_res, hro_mc]
     omega
   · refine validProg_bind hro_vp ?_
     rw [hro_st, hro_res]
     exact validProg_bind hw1_vp (validProg_pure _)
-  · rw [clientState_bind, hro_st, hro_res, clientState_bind, clientState_pure_whp]
-    exact hw1_step
+  · rwa [clientState_bind, hro_st, hro_res, clientState_bind, clientState_pure_whp]
 
 @[irreducible] private def stage2SwapCountsProg :
     (WhpCoreParams × ℕ) × ℕ → Memory.Prog Unit
@@ -261,9 +249,7 @@ private theorem realizes_stage2SwapCounts :
       (fun w ((cp, base), b) _ => WhpLargeEnvGen w cp base ∧ b < wpM cp)
       (fun _ _ => 0) := by
   unfold stage2SwapCountsProg
-  have hrh := realizes_readHdr
-  have hwb := realizes_writeBktFieldGen
-  realize
+  realize [realizes_readHdr, realizes_writeBktFieldGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -328,10 +314,7 @@ private theorem realizes_stage2SwapClearOm :
       (fun w ((cp, base), b) _ => WhpLargeEnvGen w cp base ∧ b < wpM cp)
       (fun _ _ => 0) := by
   unfold stage2SwapClearOmProg
-  have hmb := realizes_mkBktMetaRt
-  have hsa := realizes_setOvermarsActRt
-  have hwb := realizes_writeBktFieldGen
-  realize
+  realize [realizes_mkBktMetaRt, realizes_setOvermarsActRt, realizes_writeBktFieldGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -397,10 +380,7 @@ private theorem realizes_stage2SwapScalars :
       (fun w ((cp, base), b) _ => WhpLargeEnvGen w cp base ∧ b < wpM cp)
       (fun _ _ => 0) := by
   unfold stage2SwapScalarsProg
-  have h1 := realizes_stage2SwapRoles
-  have h2 := realizes_stage2SwapCounts
-  have h3 := realizes_stage2SwapClearOm
-  realize
+  realize [realizes_stage2SwapRoles, realizes_stage2SwapCounts, realizes_stage2SwapClearOm]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -439,7 +419,7 @@ private theorem stage2SwapScalarsProg_fastStep {c U V w n_max base b : ℕ}
   dsimp only
   unfold stage2SwapScalarsProg
   refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientResult_bind, h1_res, clientResult_bind, clientResult_bind]; rfl
+  · simp only [clientResult_bind, h1_res, clientResult_pure_whp]
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_pure]; omega
   · exact validProg_bind h1_vp (validProg_bind h2_vp (validProg_bind h3_vp (validProg_pure _)))
   · rw [clientState_bind, clientState_bind, clientState_bind, clientState_pure_whp]
@@ -473,11 +453,8 @@ private theorem realizes_stage2SwapPreAdvance :
           fs.dirtyIdx < fs.dirtyCount)
       (fun _ _ => 0) := by
   unfold stage2SwapPreAdvanceProg
-  have hrb := realizes_resetBTreeSliceGen
-  have hrh := realizes_readHdr
-  have hwh := realizes_writeHdr
-  have hzh := realizes_resetRebScanHdrs
-  realize
+  realize [realizes_resetBTreeSliceGen, realizes_readHdr, realizes_writeHdr,
+    realizes_resetRebScanHdrs]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, ⟨b, omRole⟩⟩
     dsimp only at *
@@ -536,29 +513,26 @@ private theorem stage2SwapPreAdvanceProg_fastStep {c U V w n_max base b omRole :
   obtain ⟨hdi_st, hdi_res, hdi_mc, hdi_vp⟩ :=
     readHdr_large_spec henv (by decide) (fastMemHdrs hrs1_step.2.2.1).dirtyIdx
   dsimp only at hdi_res
-  have hw := writeHdrStep henv (by decide)
+  obtain ⟨hw_mc, hw_vp, hw_step⟩ := writeHdrStep henv (by decide)
     (henv.fits_of_le_n_max (by omega))
     (fun h6 => by dsimp [hdrDirtyIdx] at h6; omega)
     hrs1_step.2.1 hrs1_step.2.2.1 (hdrOff := hdrDirtyIdx) (val := fs.dirtyIdx + 1)
   obtain ⟨hzh_mc, hzh_vp, hzh_step⟩ := resetRebScanHdrsProg_fastStep henv
-    (Nat.two_pow_pos w) hw.2.2.2.1 hw.2.2.2.2.1 (cand := 0)
+    (Nat.two_pow_pos w) hw_step.2.1 hw_step.2.2.1 (cand := 0)
   dsimp only
   unfold stage2SwapPreAdvanceProg
   simp only [pure_bind]
   refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientResult_bind, clientResult_bind, hdi_st, hdi_res,
-      clientResult_bind, clientResult_bind]
-    rfl
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_pure]
-    have := hw.1
-    rw [hdi_st, hdi_res, hdi_mc]
+  · simp only [clientResult_bind, hdi_st, hdi_res, clientResult_pure_whp]
+  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_pure,
+      hdi_st, hdi_res, hdi_mc]
     omega
   · refine validProg_bind hrs1_vp (validProg_bind hdi_vp ?_)
     rw [hdi_st, hdi_res]
-    exact validProg_bind hw.2.1 (validProg_bind hzh_vp (validProg_pure _))
+    exact validProg_bind hw_vp (validProg_bind hzh_vp (validProg_pure _))
   · rw [clientState_bind, clientState_bind, hdi_st, hdi_res,
       clientState_bind, clientState_bind, clientState_pure_whp]
-    exact (hrs1_step.trans hw.2.2).trans hzh_step
+    exact (hrs1_step.trans hw_step).trans hzh_step
 
 @[irreducible] private def stage2SwapAdvanceNextProg :
     (WhpCoreParams × ℕ) × ℕ → Memory.Prog Unit
@@ -585,12 +559,8 @@ private theorem realizes_stage2SwapAdvanceNext :
             fsSw.rebSliceIdx (fsSw.dirtyBuckets nextIdx) < 3 * numBucketsWhp n_max))
       (fun _ _ => 0) := by
   unfold stage2SwapAdvanceNextProg
-  have hrh := realizes_readHdr
-  have ht3 := realizes_tickToStage3
-  have hrd := realizes_readDirtyBucketGen
-  have hrs := realizes_readRebSliceIdxGen
-  have hrb := realizes_resetBTreeSliceGen
-  realize
+  realize [realizes_readHdr, realizes_tickToStage3, realizes_readDirtyBucketGen,
+    realizes_readRebSliceIdxGen, realizes_resetBTreeSliceGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, nextIdx⟩
     dsimp only at *
@@ -688,9 +658,7 @@ private theorem realizes_stage2SwapFinish :
             fs.rebSliceIdx (fs.dirtyBuckets (fs.dirtyIdx + 1)) < 3 * numBucketsWhp n_max))
       (fun _ _ => 0) := by
   unfold stage2SwapFinishProg
-  have hpa := realizes_stage2SwapPreAdvance
-  have han := realizes_stage2SwapAdvanceNext
-  realize
+  realize [realizes_stage2SwapPreAdvance, realizes_stage2SwapAdvanceNext]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, ⟨b, omRole⟩⟩
     dsimp only at *
@@ -746,12 +714,10 @@ private theorem stage2SwapFinishProg_fastStep {c U V w n_max base b : ℕ}
   dsimp only
   unfold stage2SwapFinishProg
   refine ⟨?_, ?_, ?_⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hpa_res]
+  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hpa_res]
     omega
   · refine validProg_bind hpa_vp ?_
-    rw [hpa_res]
-    exact han_vp
+    rwa [hpa_res]
   · rw [clientState_bind, hpa_res]
     exact hpa_step.trans han_step
 
@@ -799,12 +765,8 @@ theorem realizes_stage2PostScanGen :
               3 * numBucketsWhp n_max))
       (fun _ _ => 0) := by
   unfold stage2PostScanGenProg
-  have hrh := realizes_readHdr
-  have hrb := realizes_readBktFieldGen
-  have hss := realizes_stage2SwapScalars
-  have hsf := realizes_stage2SwapFinish
-  have hcr := realizes_stage2CollisionReset
-  realize
+  realize [realizes_readHdr, realizes_readBktFieldGen, realizes_stage2SwapScalars,
+    realizes_stage2SwapFinish, realizes_stage2CollisionReset]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -894,12 +856,10 @@ theorem stage2PostScanGenProg_fastStep {c U V w n_max base b : ℕ}
           (bindRead_fastStep (c₂ := 72) hcr_st hcr_res hcr_mc.le hcr_vp (by
             rw [ite_eq_left hdone_b]
             refine ⟨?_, ?_, ?_⟩
-            · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-              rw [hss_res]
+            · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hss_res]
               exact Nat.add_le_add hss_mc hsf_mc
             · refine validProg_bind hss_vp ?_
-              rw [hss_res]
-              exact hsf_vp
+              rwa [hss_res]
             · rw [clientState_bind, hss_res]
               exact hss_step.trans hsf_step))))
     · rw [ite_eq_right hdone_b]

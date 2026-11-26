@@ -209,9 +209,7 @@ private theorem syndromeEntry_eq {n m w : ℕ} (inputs : SerializedKeyInputs) (j
   rw [List.map_range_eq_ofFn, List.sum_ofFn, ← ZMod.val_natCast]
   congr 1
   simp only [Nat.cast_sum, _root_.Matrix.vecMul, dotProduct, castVector]
-  apply Finset.sum_congr rfl
-  intro i _
-  cases inputs.bits.getD i.val false <;> simp
+  exact Finset.sum_congr rfl fun i _ => by cases inputs.bits.getD i.val false <;> simp
 
 private theorem publicKeySerialized_eq (n m w : ℕ) (inputs : SerializedKeyInputs) :
     publicKeySerialized n m w inputs = serializePublicKey
@@ -241,11 +239,7 @@ theorem eval_keyGenSerialized (n m w : ℕ) :
   congr 1 with A : 1
   congr 1 with bits : 1
   refine congrArg PMF.pure (Prod.ext (congrArg serializePublicKey ?_) ?_)
-  · congr 1
-    · ext i j
-      simp [decodeKeyInputs]
-    · funext i
-      simp [decodeKeyInputs]
+  · congr 1 <;> ext <;> simp [decodeKeyInputs]
   · simp only [secretSerialized, serializeSecret, List.map_range_eq_ofFn, List.getD_ofFn, id_eq]
     congr 1 with i : 1
     change bits i = decide (((bits i).toNat : ℤ) ≠ 0)
@@ -420,15 +414,13 @@ theorem decryptResidue_eq (m w : ℕ) (secretWord ciphertextWord : List Bool) :
       decodeSecret, castVector, dotProduct, Cslib.Matrix.ofBinary_apply, Fin.val_zero,
       Fin.val_succ]
     congr 1
-    apply Finset.sum_congr rfl
-    intro i _
-    cases secretWord.getD i.val false <;> simp
+    exact Finset.sum_congr rfl fun i _ => by cases secretWord.getD i.val false <;> simp
   unfold decryptResidue
   rw [List.map_range_eq_ofFn, List.sum_ofFn]
   change (value % (2 ^ w : ℤ)).toNat = _
   rw [← hcast]
-  have hv := congrArg Int.toNat (ZMod.val_intCast (n := 2 ^ w) value)
-  simpa only [Int.toNat_natCast, Nat.cast_pow, Nat.cast_ofNat] using hv.symm
+  simpa only [Int.toNat_natCast, Nat.cast_pow, Nat.cast_ofNat] using
+    (congrArg Int.toNat (ZMod.val_intCast (n := 2 ^ w) value)).symm
 
 /-- Serialized dual-Regev decryption agrees with typed `DualRegev.decrypt` on the decoded binary
 secret and ciphertext for all dimensions and widths. -/
@@ -599,15 +591,12 @@ theorem computableInPolyTime_encryptEntry
       (f := fun a j => Cslib.Matrix.binaryEntry (n a) (w a) (publicWord a) (idx a) j *
         (coins a).secret.getD j 0)
       (range.comp hn) hterm)
-  have hboolUnary : ComputableInPolyTime Bool.toNat encBool encUnary := of_finite Bool.toNat
-  have hpad : ComputableInPolyTime
-      (fun a => ((message a).toNat : ℤ) * 2 ^ (w a - 1)) input encIntBin :=
-    intBin_mul' (intBin_natCast_unary.comp (hboolUnary.comp hmessage))
-      (intBin_natCast.comp (binary_pow' (const 2) (by fun_prop)))
   have hzero : ComputableInPolyTime
       (fun a => (coins a).scalarError + ((message a).toNat : ℤ) * 2 ^ (w a - 1)) input
         encIntBin :=
-    intBin_add' (encSerializedEncCoins_scalarError_polyTime hcoins) hpad
+    intBin_add' (encSerializedEncCoins_scalarError_polyTime hcoins)
+      (intBin_mul' (intBin_natCast_unary.comp ((of_finite Bool.toNat).comp hmessage))
+        (intBin_natCast.comp (binary_pow' (const 2) (by fun_prop))))
   have htail : ComputableInPolyTime
       (fun a => (coins a).error.getD (idx a - 1) 0) input encIntBin :=
     (listGetD (encA := encIntBin) 0).comp
@@ -616,9 +605,8 @@ theorem computableInPolyTime_encryptEntry
       (fun a => if idx a = 0 then (coins a).scalarError + ((message a).toNat : ℤ) * 2 ^ (w a - 1)
         else (coins a).error.getD (idx a - 1) 0) input encIntBin := by
     simpa only [Function.comp_apply, beq_iff_eq] using (beq hidx (const 0)).ite' hzero htail
-  have hadd := intBin_add' (intBin_natCast.comp hsum) herr
   simpa only [Function.comp_apply, Nat.cast_pow, Nat.cast_ofNat] using
-    intBin_emodNat' hadd (binary_pow' (const 2) hw)
+    intBin_emodNat' (intBin_add' (intBin_natCast.comp hsum) herr) (binary_pow' (const 2) hw)
 
 /-- Assemble all serialized dual-Regev ciphertext bits deterministically in polynomial time. -/
 @[fun_prop]
@@ -708,12 +696,8 @@ private theorem lweExtractPublicKey_toBinary {n m w : ℕ}
   unfold lweExtractPublicKey
   conv_rhs => unfold serializePublicKey; rw [Cslib.Matrix.toBinary_eq]
   simp only [List.flatMap_def, List.map_range_eq_ofFn, _root_.Matrix.of_apply]
-  congr 1
-  apply congrArg List.ofFn
-  funext i
-  congr 1
-  apply congrArg List.ofFn
-  funext j
+  refine congrArg List.flatten (congrArg List.ofFn (funext fun i =>
+    congrArg List.flatten (congrArg List.ofFn (funext fun j => ?_))))
   rw [← lowBits_val_natCast, ← Fin.val_succ j, Cslib.Matrix.binaryEntry_toBinary M i j.succ,
     lowBits_eq_ofFn]
   refine Fin.cases rfl (fun _ => rfl) i
@@ -733,9 +717,7 @@ private theorem lweExtractChallenge_toBinary {n m w : ℕ}
     rw [lowBits_mod_two_pow, ← lowBits_val_natCast, Nat.cast_add, Nat.cast_mul, Nat.cast_pow,
       Nat.cast_ofNat, h0, lowBits_eq_ofFn]
     cases message <;> simp [LWE.encodeBit]
-  · congr 1
-    apply congrArg List.ofFn
-    funext i
+  · refine congrArg List.flatten (congrArg List.ofFn (funext fun i => ?_))
     have hi := Cslib.Matrix.binaryEntry_toBinary M i.succ 0
     simp only [Fin.val_zero] at hi
     rw [← lowBits_val_natCast, ← Fin.val_succ i, hi, lowBits_eq_ofFn]
@@ -789,10 +771,8 @@ theorem computableInPolyTime_lweExtractChallenge {lweWord : α → List Bool} {m
   · apply bitsLow hw
     have hhead := matrixBinaryEntry (by fun_prop) hw hlweWord (const 0) (const 0)
       (cols := fun a => n a + 1)
-    have hboolUnary : ComputableInPolyTime Bool.toNat encBool encUnary := of_finite Bool.toNat
-    have hhalf : ComputableInPolyTime (fun a => w a - 1) input encUnary := by fun_prop
-    have hpad := binary_mul' (unary_to_binary.comp (hboolUnary.comp hmessage))
-      (binary_pow' (const 2) hhalf)
+    have hpad := binary_mul' (unary_to_binary.comp ((of_finite Bool.toNat).comp hmessage))
+      (binary_pow' (exponent := fun a => w a - 1) (const 2) (by fun_prop))
     exact binary_mod.comp ((binary_add.comp (hhead.prod hpad)).prod (binary_pow' (const 2) hw))
   · apply flatMapToBitsWithInput (range.comp hm)
     apply bitsLow (hw.comp (fst input encUnary))
@@ -966,34 +946,18 @@ theorem advantage_game_le (n m w η : ℕ → ℕ) (adversary : Encryption.Adver
         (distinguishingGame unifPK (Encryption.keyDistinguisher enc adversary security)) ≤
         (hidingError (n security) (m security) (w security) : ℝ) := by
     rw [Game.advantage_eq_nndist, coe_nndist]
+    let cont (pk : PublicKey (n security) (m security) (w security)) :=
+      ProbComp.eval (Encryption.keyDistinguisher enc adversary security (serializePublicKey pk))
     have hd :
         dist (distinguishingGame realPK (Encryption.keyDistinguisher enc adversary security))
           (distinguishingGame unifPK (Encryption.keyDistinguisher enc adversary security)) ≤
-          dist ((ProbComp.eval (keyGen (n security) (m security) (w security))).map Prod.fst)
-            (do
-              let A ← PMF.uniformOfFintype
-                (_root_.Matrix (Fin (m security)) (Fin (n security)) (ZMod (2 ^ w security)))
-              let u ← PMF.uniformOfFintype (Fin (n security) → ZMod (2 ^ w security))
-              return (A, u)) := by
-      have hLHS : distinguishingGame realPK
-          (Encryption.keyDistinguisher enc adversary security) =
-          ((ProbComp.eval (keyGen (n security) (m security) (w security))).map Prod.fst).bind
-            fun pk => ProbComp.eval
-              (Encryption.keyDistinguisher enc adversary security (serializePublicKey pk)) := by
-        simp only [distinguishingGame_eq_bind, realPK, pmf_norm]
-      have hRHS : distinguishingGame unifPK
-          (Encryption.keyDistinguisher enc adversary security) =
-          (do
-            let A ← PMF.uniformOfFintype
-              (_root_.Matrix (Fin (m security)) (Fin (n security)) (ZMod (2 ^ w security)))
-            let u ← PMF.uniformOfFintype (Fin (n security) → ZMod (2 ^ w security))
-            return (A, u)).bind fun pk => ProbComp.eval
-              (Encryption.keyDistinguisher enc adversary security (serializePublicKey pk)) := by
-        simp only [unifPK, uniformPublicKeyWord, distinguishingGame_eq_bind,
-          ← PMF.uniformOfFintype_prod, pmf_norm]
-      rw [hLHS, hRHS]
-      exact Probability.PMF.dist_bind_le _ _ _
-    have hbound := hd.trans (dist_keyGen_uniform_le (n security) (m security) (w security))
+          Real.sqrt ((2 : ℝ) ^ (w security * n security) / (2 : ℝ) ^ m security) / 2 := by
+      refine le_of_eq_of_le (congr (congrArg dist ?_) ?_)
+        ((Probability.PMF.dist_bind_le _ _ cont).trans
+          (dist_keyGen_uniform_le (n security) (m security) (w security)))
+      · simp only [distinguishingGame_eq_bind, realPK, cont, pmf_norm]
+      · simp only [unifPK, uniformPublicKeyWord, distinguishingGame_eq_bind, cont,
+          ← PMF.uniformOfFintype_prod, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, pmf_norm]
     have hcoe : (hidingError (n security) (m security) (w security) : ℝ) =
         Real.sqrt ((2 : ℝ) ^ (w security * n security) / (2 : ℝ) ^ m security) := by
       simp [hidingError]

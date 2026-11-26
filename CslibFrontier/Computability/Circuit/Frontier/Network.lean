@@ -208,11 +208,11 @@ private theorem frontierValues_of_notMem {t : ℕ} {α : E → U} {e : E} (he : 
 `N.frontier π t`. -/
 theorem frontierValues_eq_iff {t : ℕ} {α β : E → U} :
     N.frontierValues π t α = N.frontierValues π t β ↔ EqOn α β (N.frontier π t) := by
-  refine ⟨fun h e he => ?_, fun h => funext fun e => ?_⟩
-  · simpa [frontierValues, he] using congrFun h e
-  · by_cases he : e ∈ N.frontier π t
-    · simp [frontierValues, he, h he]
-    · simp [frontierValues, he]
+  refine ⟨fun h e he => by simpa [frontierValues, he] using congrFun h e,
+    fun h => funext fun e => ?_⟩
+  simp only [frontierValues]
+  split_ifs with he
+  exacts [congrArg some (h he), rfl]
 
 /-- The inputs revealed by time `t`: those read by the first `t` vertices, and after the last
 vertex, all inputs, including those the network does not read. -/
@@ -237,15 +237,10 @@ private theorem revealedBy_succ_diff {t : ℕ} (ht : t < Nat.card V) :
   ext i
   simp only [revealedBy, show t + 1 ≤ Nat.card V by omega, ht.le, ite_true, mem_sdiff, readIn,
     readAt, mem_ofPred_eq, Layout.mem_initial]
-  constructor
-  · rintro ⟨⟨u, hu, hiu⟩, hi'⟩
-    have hut : (π u : ℕ) = t := by
-      by_contra hne
-      exact hi' ⟨u, by omega, hiu⟩
+  refine ⟨fun ⟨⟨u, hu, hiu⟩, hi'⟩ => ?_, fun hi => ⟨⟨_, by simp, hi⟩, fun ⟨u, hu, hiu⟩ => ?_⟩⟩
+  · have hut : (π u : ℕ) = t := of_not_not fun hne => hi' ⟨u, by omega, hiu⟩
     exact hiu.trans (congrArg some (π.symm_apply_eq.mpr (Fin.ext hut.symm)).symm)
-  · rintro hi
-    refine ⟨⟨_, by simp, hi⟩, fun ⟨u, hu, hiu⟩ => ?_⟩
-    simp [Option.some.inj (hiu.symm.trans hi)] at hu
+  · simp [Option.some.inj (hiu.symm.trans hi)] at hu
 
 /-- The inputs revealed while processing the vertex numbered `t` are read at that vertex. -/
 theorem revealedBy_succ_diff_subset {t : ℕ} (ht : t < Nat.card V) :
@@ -372,25 +367,19 @@ theorem exists_satisfies_of_isAcceptingPath {x : ι → U} {γ : ℕ → E → O
     refine N.constraint_congr _ (ys t) x (αs t) _ (fun i hread => ?_) (fun e he => ?_)
       (hcheck t (by omega) ht)
     · -- The inputs read at the vertex are read during its step.
-      have hi' : i ∈ (N.branchingProgram π).newly t := by rwa [N.newly_branchingProgram π ht]
-      exact congrFun (hys t (by omega)) ⟨i, hi'⟩
+      exact congrFun (hys t (by omega)) ⟨i, (N.revealedBy_succ_diff π ht).symm ▸ hread⟩
     · -- The vertex is the earlier end of the edge, or the edge is on the frontier before it.
-      have hend : lo e = t ∨ lo e < t ∧ t ≤ hi e := by
-        have : (π (N.src e) : ℕ) = t ∨ (π (N.tgt e) : ℕ) = t :=
-          he.imp (fun h => by rw [h, hπt]) (fun h => by rw [h, hπt])
-        simp only [lo, hi]
-        omega
-      rcases hend with h | ⟨h₁, h₂⟩
-      · rw [h]
-      · have h := hpersist e t h₁ h₂
-        rw [hfv t (by omega), N.frontierValues_of_mem π ((hmem e t).mpr ⟨h₁, h₂⟩)] at h
-        exact Option.some_injective _ h
+      rcases (show lo e = t ∨ lo e < t ∧ t ≤ hi e by
+          rcases he with h | h <;> simp only [h, hπt, lo, hi] <;> omega) with rfl | ⟨h₁, h₂⟩
+      · rfl
+      · simpa only [hfv t (by omega), N.frontierValues_of_mem π ((hmem e t).mpr ⟨h₁, h₂⟩),
+          Option.some.injEq] using hpersist e t h₁ h₂
   · by_cases he : e ∈ N.frontier π t
-    · rw [N.frontierValues_of_mem π he]
-      exact hpersist e t ((hmem e t).mp he).1 ((hmem e t).mp he).2
+    · exact (hpersist e t ((hmem e t).mp he).1 ((hmem e t).mp he).2).trans
+        (N.frontierValues_of_mem π he).symm
     · rw [N.frontierValues_of_notMem π he]
       rcases ht.lt_or_eq with ht | rfl
-      · rw [hfv t ht, N.frontierValues_of_notMem π he]
+      · exact hfv t ht ▸ N.frontierValues_of_notMem π he
       · exact congrFun hγ.accept e
 
 /-- **Exactness.** The branching program of a layout accepts exactly the accepted inputs of the
@@ -479,9 +468,7 @@ theorem ncard_image_path_le [Finite U] [Finite E] (π : Layout V) {t : ℕ}
     obtain ⟨α, -, hα⟩ :=
       N.exists_satisfies_of_isAcceptingPath π ((N.branchingProgram π).isAcceptingPath_path hx)
     refine ⟨F.domRestrict α, funext fun e => ?_⟩
-    dsimp only
-    rw [hα t (by omega)]
-    simp only [φ, frontierValues, Set.domRestrict_apply]
+    simp only [φ, hα t (by omega), frontierValues, Set.domRestrict_apply]
     split_ifs <;> rfl
   calc _ ≤ (range φ).ncard := ncard_le_ncard hsub (toFinite _)
     _ ≤ Nat.card (F → U) := by
@@ -531,10 +518,9 @@ theorem ncard_accepted_le [Finite ι] [Finite U] [Nonempty U] [Finite E] {K : �
     (hd : N.MaxDegreeLE d) (hm : ∀ v, (N.readAt v).ncard ≤ m) :
     N.accepted.ncard ≤
       (K - 1) ^ 2 * (Nat.card V * Nat.card U ^ (w + d + m) + Nat.card U ^ N.readᶜ.ncard) := by
-  have h := (N.branchingProgram π).ncard_accepted_le (Nat.succ_pos _) (K := K)
-    (by rwa [accepted_branchingProgram])
-  rw [accepted_branchingProgram] at h
-  exact h.trans (Nat.mul_le_mul_left _ (N.size_branchingProgram_le π hw hd hm))
+  refine (N.accepted_branchingProgram π ▸ (N.branchingProgram π).ncard_accepted_le
+    (Nat.succ_pos _) (by rwa [accepted_branchingProgram])).trans ?_
+  exact Nat.mul_le_mul_left _ (N.size_branchingProgram_le π hw hd hm)
 
 /-- **Peeling for networks.** Let `S` have bias at most `b ≥ 0` on rectangles with both sides
 of size at least `K`, and let every input have at most one satisfying assignment. If a layout

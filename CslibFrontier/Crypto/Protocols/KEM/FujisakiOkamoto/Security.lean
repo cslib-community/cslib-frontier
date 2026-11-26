@@ -873,55 +873,32 @@ theorem simFilterHandler_gCache_length_le (S : Scheme PK SK M R CT K)
     (q : ROQuery M CT) (st : SimState M R CT K) (res : ROResp R K q) (st' : SimState M R CT K)
     (hmem : (res, st') ∈ (ProbComp.eval (S.simFilterHandler d pk cStar q st)).support) :
     st'.gCache.length ≤ st.gCache.length + q.ghCost := by
-  cases q with
-  | G m =>
-    simpa only [simFilterHandler, simFilterDispatch, ROQuery.ghCost, ROQuery.dispatch,
-      filterDecaps] using
-      simHashG_gCache_length_le S.pke.sampleCoins m st (res, st') hmem
-  | H x =>
-    rcases x with ⟨false | true, m, c⟩
-    · dsimp only [simFilterHandler, simFilterDispatch, simHashH, ROQuery.ghCost, ROQuery.dispatch,
-        filterDecaps] at hmem ⊢
-      change (res, st') ∈ (ProbComp.eval (simHashG S.pke.sampleCoins m st >>= fun z =>
-        (if S.pke.encDet pk m z.fst = c then
-          simHashHq S.sampleKey c
-        else
-          simHashHRaw S.sampleKey (false, m, c)) z.snd)).support at hmem
-      rw [ProbComp.eval_bind, PMF.mem_support_bind_iff] at hmem
-      obtain ⟨z, hz, hmem₂⟩ := hmem
-      split_ifs at hmem₂ with henc
-      · rw [simHashHq_gCache_eq S.sampleKey c z.snd (res, st') hmem₂]
-        exact simHashG_gCache_length_le S.pke.sampleCoins m st z hz
-      · rw [simHashHRaw_gCache_eq S.sampleKey (false, m, c) z.snd (res, st') hmem₂]
-        exact simHashG_gCache_length_le S.pke.sampleCoins m st z hz
-    · dsimp only [simFilterHandler, simFilterDispatch, simHashH, ROQuery.ghCost, ROQuery.dispatch,
-        filterDecaps] at hmem ⊢
-      rw [simHashHRaw_gCache_eq S.sampleKey (true, m, c) st (res, st') hmem]
-      exact Nat.le_add_right _ 1
-  | decaps c =>
-    dsimp only [simFilterHandler, simFilterDispatch, ROQuery.ghCost, ROQuery.dispatch,
+  rcases q with m | ⟨false | true, m, c⟩ | c <;>
+    dsimp only [simFilterHandler, simFilterDispatch, simHashH, ROQuery.ghCost, ROQuery.dispatch,
       filterDecaps] at hmem ⊢
-    by_cases hc : c = cStar
-    · simp only [hc, ↓reduceIte] at hmem
-      change (res, st') ∈ (ProbComp.eval (pure (none, st))).support at hmem
-      simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-      obtain ⟨-, rfl⟩ := hmem
-      simp
-    · simp only [hc, ↓reduceIte] at hmem
-      cases hd : d st.gCache c
-      · simp only [hd, filterDecaps, Bool.cond_false] at hmem
-        change (res, st') ∈ (ProbComp.eval (pure (none, st))).support at hmem
-        simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-        obtain ⟨-, rfl⟩ := hmem
-        simp
-      · simp only [hd, filterDecaps, Bool.cond_true] at hmem
-        change (res, st') ∈ (ProbComp.eval (simHashHq S.sampleKey c st >>= fun a =>
-          pure (some a.fst, a.snd))).support at hmem
-        rw [ProbComp.eval_bind, PMF.mem_support_bind_iff] at hmem
+  · exact simHashG_gCache_length_le S.pke.sampleCoins m st (res, st') hmem
+  · erw [ProbComp.eval_bind, PMF.mem_support_bind_iff] at hmem
+    obtain ⟨⟨r, z_st⟩, hz, hmem₂⟩ := hmem
+    dsimp only at hmem₂
+    have hst : st'.gCache = z_st.gCache := by
+      split_ifs at hmem₂
+      · exact simHashHq_gCache_eq S.sampleKey c z_st (res, st') hmem₂
+      · exact simHashHRaw_gCache_eq S.sampleKey (false, m, c) z_st (res, st') hmem₂
+    exact hst ▸ simHashG_gCache_length_le S.pke.sampleCoins m st (r, z_st) hz
+  · rw [simHashHRaw_gCache_eq S.sampleKey (true, m, c) st (res, st') hmem]
+    exact Nat.le_add_right _ 1
+  · split_ifs at hmem
+    · erw [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hmem
+      rw [(Prod.mk.inj hmem).2, Nat.add_zero]
+    · cases hd : d st.gCache c
+      · simp only [filterDecaps, hd, Bool.cond_false] at hmem
+        erw [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hmem
+        rw [(Prod.mk.inj hmem).2, Nat.add_zero]
+      · simp only [filterDecaps, hd, Bool.cond_true] at hmem
+        erw [ProbComp.eval_bind, PMF.mem_support_bind_iff] at hmem
         obtain ⟨z, hz, hmem₂⟩ := hmem
-        simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem₂
-        obtain ⟨-, rfl⟩ := hmem₂
-        rw [simHashHq_gCache_eq S.sampleKey c st z hz, Nat.add_zero]
+        erw [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hmem₂
+        rw [(Prod.mk.inj hmem₂).2, simHashHq_gCache_eq S.sampleKey c st z hz, Nat.add_zero]
 
 /-- Each query `q` to `S.simHandler pk cStar` increases `gCache.length` by at most
 `ROQuery.ghCost q`. -/
@@ -1017,14 +994,8 @@ theorem succProbability_simFilterOwExperiment_le [Fintype M] [Nonempty M]
       (S.pke.cpaAdvantage (S.romFilterCpaReduction d A) : ℝ) +
         ((qG : ℝ) + qH) / Fintype.card M := by
   have hfalse := S.succProbability_romFilterCpaReduction_false_le d A hq hmsg
-  have hadv := (Experiment.coe_advantage
-    (S.pke.toPKE.cpaExperiment (fun _ _ _ => true) (S.romFilterCpaReduction d A) false)
-    (S.pke.toPKE.cpaExperiment (fun _ _ _ => true) (S.romFilterCpaReduction d A) true))
-  rw [← ExplicitCoinPKE.cpaAdvantage] at hadv
-  have htrue : Pr[A.coins >>= fun ω => S.simFilterOwExperiment d (A.run ω)] =
-      Pr[S.pke.toPKE.cpaExperiment (fun _ _ _ => true) (S.romFilterCpaReduction d A) true] := by
-    rw [eval_cpaExperiment_romFilterCpaReduction_true]
-  rw [htrue, hadv]
+  rw [← eval_cpaExperiment_romFilterCpaReduction_true (S := S) d A, ExplicitCoinPKE.cpaAdvantage,
+    Experiment.coe_advantage]
   linarith [neg_abs_le (Pr[S.pke.toPKE.cpaExperiment (fun _ _ _ => true)
       (S.romFilterCpaReduction d A) false] -
     Pr[S.pke.toPKE.cpaExperiment (fun _ _ _ => true) (S.romFilterCpaReduction d A) true])]

@@ -414,9 +414,7 @@ theorem popMin_node (first : BTree α β) (rest : List (Triple α β)) :
 @[simp] theorem toList_mergeSplit (l : BTree α β) (k : α) (v : β) (r : BTree α β) :
     (mergeSplit t l k v r).toList = l.toList ++ (k, v) :: r.toList := by
   unfold mergeSplit
-  split
-  · simp
-  · rfl
+  split <;> simp
 
 /-- Repair against the right sibling keeps the entries. -/
 theorem toList_rebalanceRight (c : BTree α β) (k : α) (v : β) (s : BTree α β)
@@ -460,9 +458,7 @@ theorem toList_popMin {tr : BTree α β} :
 /-- Collapsing an empty root keeps the entries. -/
 @[simp] theorem toList_collapse (tr : BTree α β) : (collapse tr).toList = tr.toList := by
   unfold collapse
-  split
-  · simp
-  · rfl
+  split <;> simp
 
 /-! ### Shape -/
 
@@ -507,9 +503,7 @@ theorem Good.underfull {c : BTree α β} {h : ℕ} (hc : Good t h c) : Underfull
 /-- A good tree of positive height is a node. -/
 theorem Good.ne_leaf {c : BTree α β} {h : ℕ} (hc : Good t h c) (hh : 1 ≤ h) : c ≠ .leaf := by
   rintro rfl
-  have := hc.height_eq
-  simp at this
-  omega
+  simp [← hc.height_eq] at hh
 
 /-- A subtree that does not underflow is occupied. -/
 theorem Underfull.occupied {c : BTree α β} {h : ℕ} (hc : Underfull t h c)
@@ -819,8 +813,8 @@ theorem eraseRest_spec {rest : List (Triple α β)}
         have hk : k < k' := lt_of_le_of_ne h₁ fun h => h₂ (h ▸ le_rfl)
         simp only [h₁, h₂, ↓reduceIte]
         have htail : SortedAssoc.erase k ((k', v') :: (c.toList ++ toListRest rest)) =
-            (k', v') :: (c.toList ++ toListRest rest) := by
-          exact SortedAssoc.erase_of_forall_ne
+            (k', v') :: (c.toList ++ toListRest rest) :=
+          SortedAssoc.erase_of_forall_ne
             (List.forall_mem_cons.2 ⟨hk.ne', fun p hp => (hk.trans (hgt p hp)).ne'⟩)
         rw [toList_rebalanceRight, hpe hpre, toListRest_cons, SortedAssoc.erase_append, htail]
         simp
@@ -925,15 +919,10 @@ theorem toList_erase (h : IsWF t tr) (k : α) :
 theorem IsWF.erase (h : IsWF t tr) (k : α) : IsWF t (erase t k tr) := by
   have ht := h.two_le
   have hrk := h.rootKeys_le
-  have hfit := eraseFits_eraseSubtree (k := k) ht h.balanced h.occupied_of_mem_children
-    h.rootKeys_pos
-  have hb := hfit.balanced
-  have hco := hfit.children_occupied
-  have hk₁ := hfit.rootKeys_le
-  clear hfit
-  have hs : (BTree.erase t k tr).toList.IsSortedAssoc := by
-    rw [toList_erase h]
-    exact SortedAssoc.isSortedAssoc_erase h.sorted
+  obtain ⟨hb, -, hco, hk₁, -⟩ := eraseFits_eraseSubtree (k := k) ht h.balanced
+    h.occupied_of_mem_children h.rootKeys_pos
+  have hs : (BTree.erase t k tr).toList.IsSortedAssoc :=
+    (toList_erase h k).symm ▸ SortedAssoc.isSortedAssoc_erase h.sorted
   rw [erase_eq_collapse] at hs ⊢
   generalize eraseSubtree t k tr = c at *
   rcases c with _ | ⟨f, _ | ⟨e, r⟩⟩
@@ -947,11 +936,8 @@ theorem IsWF.erase (h : IsWF t tr) (k : α) : IsWF t (erase t k tr) := by
 /-- On a well-formed tree, erasure either keeps the height or lowers it by one. -/
 theorem height_erase (h : IsWF t tr) (k : α) :
     (erase t k tr).height = tr.height ∨ (erase t k tr).height + 1 = tr.height := by
-  have hfit := eraseFits_eraseSubtree (k := k) h.two_le h.balanced h.occupied_of_mem_children
-    h.rootKeys_pos
-  have hb := hfit.balanced
-  have hh := hfit.height_eq
-  clear hfit
+  obtain ⟨hb, hh, -, -, -⟩ := eraseFits_eraseSubtree (k := k) h.two_le h.balanced
+    h.occupied_of_mem_children h.rootKeys_pos
   rw [erase_eq_collapse]
   generalize eraseSubtree t k tr = c at *
   rcases c with _ | ⟨f, _ | ⟨e, r⟩⟩
@@ -984,9 +970,8 @@ theorem size_erase (h : IsWF t tr) (k : α) :
 unchanged elsewhere. -/
 @[simp] theorem lookup_erase_of_isSortedAssoc (h : tr.toList.IsSortedAssoc) (k k' : α) :
     lookup k' (erase t k tr) = if k' = k then none else lookup k' tr := by
-  have hs : (erase t k tr).toList.IsSortedAssoc := by
-    rw [toList_erase_of_isSortedAssoc h]
-    exact SortedAssoc.isSortedAssoc_erase h
+  have hs : (erase t k tr).toList.IsSortedAssoc :=
+    (toList_erase_of_isSortedAssoc h).symm ▸ SortedAssoc.isSortedAssoc_erase h
   rw [lookup_eq_of_isSortedAssoc hs, toList_erase_of_isSortedAssoc h,
     lookup_eq_of_isSortedAssoc h]
   split_ifs with hk

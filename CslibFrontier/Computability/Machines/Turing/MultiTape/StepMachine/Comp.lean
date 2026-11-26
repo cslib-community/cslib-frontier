@@ -196,8 +196,8 @@ lemma rewind_iterate (s : CompState σf σg) (out : List Out) (r : ℕ) (hr : r 
     convert ih (by omega) using 2
     have hsym : (MultiTapeTM.inputSymbolAt x ⟨r + 1, by omega⟩).isNone = false := by
       simp [MultiTapeTM.inputSymbolAt, List.getElem?_eq_getElem (show r < x.length by omega)]
-    simp only [stepCfg, stepAt, comp, compStep, hsym]
-    simp [moveInputPos, SignType.cast, show r < x.length + 2 by omega]
+    simp [stepCfg, stepAt, comp, compStep, hsym, moveInputPos, SignType.cast,
+      show r < x.length + 2 by omega]
 
 /-- While rewinding, the input head moves to the left and nothing else changes. -/
 lemma rewind_iterate_le (s : CompState σf σg) (out : List Out) {j r : ℕ} (hj : j ≤ r)
@@ -214,10 +214,7 @@ lemma rewind_iterate_le (s : CompState σf σg) (out : List Out) {j r : ℕ} (hj
         List.getElem?_eq_getElem (show r - j - 1 < x.length by omega)]
     simp only [stepCfg, stepAt, comp, compStep, hsym, reduceCtorEq, decide_false, Bool.false_and,
       Bool.false_eq_true, ↓reduceIte, List.append_nil, Cfg.mk.injEq, true_and, and_true]
-    refine Fin.ext ?_
-    rw [val_moveInputPos]
-    simp only [moveOn]
-    omega
+    exact Fin.ext ((val_moveInputPos _ (-1)).trans (Nat.sub_sub r j 1))
 
 /-- The time of the rewind from the position `p`. -/
 def rewindTime (p : ℕ) : ℕ := p - 1 + 2
@@ -229,9 +226,7 @@ lemma stepCfg_rewindStart (s : CompState σf σg) (out : List Out) (p : Fin (x.l
         (⟨{ s with phase := .rewindStart }, p, out⟩ : Cfg (CompState σf σg) Out x) =
       ⟨{ s with phase := .rewind }, ⟨p.val - 1, by omega⟩, out⟩ := by
   simp only [stepCfg, stepAt, comp, compStep]
-  refine congrArg₂ _ rfl (congrArg₂ _ (Fin.ext ?_) (by simp))
-  rw [show p = ⟨p.val, p.isLt⟩ from rfl, val_moveInputPos]
-  rfl
+  exact congrArg₂ _ rfl (congrArg₂ _ (Fin.ext (val_moveInputPos p.isLt (-1))) (by simp))
 
 lemma rewindStart_iterate (s : CompState σf σg) (out : List Out) (p : Fin (x.length + 2)) :
     (g.comp f).stepCfg^[rewindTime p]
@@ -352,12 +347,10 @@ theorem along_run_comp {uf ug : ℕ} (hf : f.HaltsAt x uf) (hg : g.HaltsAt (f.ru
 theorem exists_haltsAt_comp {uf ug : ℕ} (hf : f.HaltsAt x uf)
     (hg : g.HaltsAt (f.run x uf).out ug) :
     ∃ t ≤ ug * compPeriod f x uf, (g.comp f).HaltsAt x t ∧
-      ((g.comp f).run x t).out = (g.run (f.run x uf).out ug).out :=
-  by
-  have h := (simulates_comp f g x hf).exists_haltsAt (run_zero_comp f g x) (u := ug)
+      ((g.comp f).run x t).out = (g.run (f.run x uf).out ug).out := by
+  rw [← Nat.zero_add (ug * _)]
+  exact (simulates_comp f g x hf).exists_haltsAt (run_zero_comp f g x) (u := ug)
     (fun i hi => Bool.eq_false_iff.mpr (hg.2 i hi)) hg.1
-  rw [Nat.zero_add] at h
-  exact h
 
 /-- **Composition**: `g.comp f` computes `g` after `f`. -/
 theorem Computes.comp {y : List Bool} {z : List Out} (hf : f.Computes x y) (hg : g.Computes y z) :

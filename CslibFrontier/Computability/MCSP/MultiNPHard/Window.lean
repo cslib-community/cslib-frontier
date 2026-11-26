@@ -347,12 +347,8 @@ private theorem value_eq_eval (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^
       exact h
     · rw [dite_eq_right hk, elim_gateWire, value_grid, value_grid, ← Bool.decide_and]
       refine decide_eq_decide.mpr
-        ⟨fun h => ⟨fun b hb => h b ?_, h k le_rfl⟩, fun ⟨h, hk'⟩ b hb => ?_⟩
-      · fin_index
-      · rcases (Fin.le_iff_val_le_val.mp hb).lt_or_eq with hlt | heq
-        · exact h b (by fin_index)
-        · obtain rfl : b = k := Fin.ext heq
-          exact hk'
+        ⟨fun h => ⟨fun b hb => h b (by fin_index), h k le_rfl⟩, fun ⟨h, hk'⟩ b hb => ?_⟩
+      exact hb.lt_or_eq.elim (fun hlt => h b (by fin_index)) fun he => he ▸ hk'
   | window i y =>
     simp only [line, eval_orLine]
     have hsel : Wire.elim x (template A T x)
@@ -366,19 +362,13 @@ private theorem value_eq_eval (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^
     rw [hsel, value_window]
     split <;> rename_i hy0
     · rw [elim_gateWire, value_zero, Bool.false_or]
-      refine decide_eq_decide.mpr ⟨fun ⟨hle, hm, hT⟩ => ?_, fun ⟨he, hm, hT⟩ => ?_⟩
-      · have he : BitString.equivFin p x = y := by omega
-        exact ⟨he, he ▸ hm, he ▸ hT⟩
-      · exact ⟨he.le, he ▸ hm, he ▸ hT⟩
+      refine decide_eq_decide.mpr ⟨fun ⟨hle, hP⟩ => ?_, fun ⟨he, hP⟩ => ⟨he.le, he.symm ▸ hP⟩⟩
+      have he : BitString.equivFin p x = y := by omega
+      exact ⟨he, he ▸ hP⟩
     · rw [elim_gateWire, value_window, ← Bool.decide_or]
-      refine decide_eq_decide.mpr ⟨fun ⟨hle, hm, hT⟩ => ?_, ?_⟩
-      · rcases (Fin.le_iff_val_le_val.mp hle).lt_or_eq with hlt | heq
-        · exact .inl ⟨by fin_index, hm, hT⟩
-        · have he : BitString.equivFin p x = y := Fin.ext heq
-          exact .inr ⟨he, he ▸ hm, he ▸ hT⟩
-      · rintro (⟨hle, hm, hT⟩ | ⟨he, hm, hT⟩)
-        · exact ⟨by fin_index, hm, hT⟩
-        · exact ⟨he.le, he ▸ hm, he ▸ hT⟩
+      refine decide_eq_decide.mpr ⟨fun ⟨hle, hP⟩ => ?_, fun h => ?_⟩
+      · exact hle.lt_or_eq.imp (fun hlt => ⟨by fin_index, hP⟩) fun he => ⟨he, he ▸ hP⟩
+      · exact h.elim (fun ⟨hle, hP⟩ => ⟨by fin_index, hP⟩) fun ⟨he, hP⟩ => ⟨he.le, he.symm ▸ hP⟩
 
 /-- A wire is *early* for gate `κ` when it is an input or a gate numbered before `κ`. -/
 private def Early (κ : Gate p t) (w : Wire p (gateCount p t)) : Prop :=

@@ -222,7 +222,6 @@ theorem expect_walkLeft [Nonempty D] (g : R → ℝ) :
   simp only [walkLeft_apply, neighborRight, ← expect_product', univ_product_univ]
   rw [Fintype.expect_equiv B.toRight (fun p => g (B.toRight p).1) (fun q => g q.1)
     fun _ => rfl, Fintype.expect_prod_type]
-  dsimp only
   simp only [Fintype.expect_const]
 
 /-- `B.walkLeft` and `B.walkRight` are adjoint with respect to uniform expectations on `L` and `R`.
@@ -231,10 +230,7 @@ theorem expect_mul_walkLeft (f : L → ℝ) (g : R → ℝ) :
     𝔼 u : L, f u * B.walkLeft g u = 𝔼 v : R, B.walkRight f v * g v := by
   simp only [walkLeft_apply, walkRight_apply, mul_expect, expect_mul, neighborRight, neighborLeft,
     ← expect_product', univ_product_univ, Prod.mk.eta]
-  exact Fintype.expect_equiv B.toRight
-    (fun p => f p.1 * g (B.toRight p).1)
-    (fun q => f (B.toRight.symm q).1 * g q.1)
-    fun p => by simp only [Equiv.symm_apply_apply]
+  exact Fintype.expect_equiv B.toRight _ _ fun _ => by simp only [Equiv.symm_apply_apply]
 
 /-- `B.walkLeft` preserves mean zero. -/
 theorem expect_walkLeft_eq_zero {g : R → ℝ} (hg : 𝔼 v : R, g v = 0) :
@@ -421,10 +417,10 @@ theorem abs_eigenvalue_le_nontrivialSingularValue_of_isBipartiteBalanced
   have hpos : 0 < 𝔼 u : L, fL u ^ 2 + 𝔼 v : R, fR v ^ 2 := by
     obtain ⟨u₀ | v₀, hx₀⟩ := Function.ne_iff.1 hf0
     · exact add_pos_of_pos_of_nonneg
-        (expect_pos' (fun _ _ => sq_nonneg _) ⟨u₀, mem_univ u₀, sq_pos_iff.2 hx₀⟩)
+        (Fintype.expect_sq_pos (f := fL) (Function.ne_iff.2 ⟨u₀, hx₀⟩))
         (expect_nonneg fun _ _ => sq_nonneg _)
     · exact add_pos_of_nonneg_of_pos (expect_nonneg fun _ _ => sq_nonneg _)
-        (expect_pos' (fun _ _ => sq_nonneg _) ⟨v₀, mem_univ v₀, sq_pos_iff.2 hx₀⟩)
+        (Fintype.expect_sq_pos (f := fR) (Function.ne_iff.2 ⟨v₀, hx₀⟩))
   exact abs_le_of_sq_le_sq (le_of_mul_le_mul_right h_sum_le hpos) B.nontrivialSingularValue_nonneg
 
 /-- In the Euclidean space `EuclideanSpace ℝ (L ⊕ R)`, `IsBipartiteBalanced f` holds iff
@@ -442,8 +438,7 @@ theorem isBipartiteBalanced_iff_inner_eq_zero [Fintype L] [Fintype R] [Finite D]
     EuclideanSpace.inner_toLp_toLp, dotProduct, Fintype.sum_sum_type, star_trivial,
     mul_one, Sum.elim_inl, Sum.elim_inr, mul_neg, Finset.sum_neg_distrib,
     div_eq_zero_iff, or_iff_left hL0, or_iff_left hR0]
-  exact ⟨fun ⟨h₁, h₂⟩ => ⟨by linarith, by linarith⟩,
-    fun ⟨h₁, h₂⟩ => ⟨by linarith, by linarith⟩⟩
+  constructor <;> rintro ⟨h₁, h₂⟩ <;> exact ⟨by linarith, by linarith⟩
 
 end Spectral
 
@@ -509,8 +504,7 @@ theorem abs_card_interedges_sub_le [Fintype L] [Fintype R] [Fintype D]
   rcases (Fintype.card L).eq_zero_or_pos with hL | hL
   · have : IsEmpty L := Fintype.card_eq_zero_iff.1 hL
     have : IsEmpty R := Fintype.card_eq_zero_iff.1 (B.card_left_eq_card_right ▸ hL)
-    have hU : U = ∅ := Subsingleton.elim U ∅
-    simp [hU]
+    simp [Subsingleton.elim U ∅]
   have hLR : Fintype.card L = Fintype.card R := B.card_left_eq_card_right
   have : Nonempty L := Fintype.card_pos_iff.1 hL
   have hn : (0 : ℝ) < Fintype.card L := Nat.cast_pos.2 hL
@@ -566,8 +560,7 @@ theorem abs_card_interedges_sub_le_mul_sqrt [Fintype L] [Fintype R] [Fintype D]
   refine (B.abs_card_interedges_sub_le U W).trans ?_
   have hlam := B.nontrivialSingularValue_nonneg
   rcases (Fintype.card L).eq_zero_or_pos with hL | hL
-  · rw [hL, Nat.cast_zero, div_zero]
-    positivity
+  · rw [hL, Nat.cast_zero, div_zero]; positivity
   have hn : (0 : ℝ) < Fintype.card L := Nat.cast_pos.2 hL
   have hU : (#Uᶜ : ℝ) ≤ Fintype.card L := Nat.cast_le.2 (card_le_univ _)
   have hW : (#Wᶜ : ℝ) ≤ Fintype.card L := by

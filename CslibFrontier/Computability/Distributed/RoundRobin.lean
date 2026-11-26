@@ -69,10 +69,8 @@ theorem exists_rotatingCoordinator_eq {P : Type*} [DecidableEq P]
       rw [Nat.mul_add, Nat.mul_one]; omega
     rw [Nat.add_mod_mod, hsum, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hidx]
   refine ⟨rStar, Nat.le_add_right r₀ delta, by omega, ?_⟩
-  unfold rotatingCoordinator
-  change (if h : rStar % L < L then procs.dedup[rStar % L] else fallback) = qStar
-  simp only [hmod, L, hidx, ↓reduceDIte]
-  exact hget
+  simp only [rotatingCoordinator, show rStar % procs.dedup.length = idx from hmod, hidx,
+    ↓reduceDIte, hget]
 
 /-- Original pigeonhole coordinator window: when `procs` enumerates `P` and
 `F.card ≤ t < Fintype.card P`, every window `[r₀, r₀ + t]` of `t + 1` consecutive slots contains at
@@ -81,17 +79,16 @@ theorem exists_rotatingCoordinator_notMem {P : Type*} [Fintype P] [DecidableEq P
     {procs : List P} (hprocs : ∀ p : P, p ∈ procs) (fallback : P)
     {F : Finset P} {t : ℕ} (hF : F.card ≤ t) (ht : t < Fintype.card P) (r₀ : ℕ) :
     ∃ rStar, r₀ ≤ rStar ∧ rStar ≤ r₀ + t ∧ rotatingCoordinator procs fallback rStar ∉ F := by
-  have huniv : procs.dedup.toFinset = (Finset.univ : Finset P) :=
-    Finset.eq_univ_iff_forall.mpr fun p => List.mem_toFinset.mpr (List.mem_dedup.mpr (hprocs p))
   have hlen : procs.dedup.length = Fintype.card P := by
-    rw [← List.toFinset_card_of_nodup procs.nodup_dedup, huniv, Finset.card_univ]
+    rw [← List.toFinset_card_of_nodup procs.nodup_dedup,
+      Finset.eq_univ_iff_forall.mpr fun p =>
+        List.mem_toFinset.mpr (List.mem_dedup.mpr (hprocs p)),
+      Finset.card_univ]
   have hpos : 0 < procs.dedup.length := by omega
   let f : Fin (t + 1) → P := fun k => rotatingCoordinator procs fallback (r₀ + k.val)
   have hinj : Function.Injective f := by
     intro k₁ k₂ heq
-    have hlt₁ : (r₀ + k₁.val) % procs.dedup.length < procs.dedup.length := Nat.mod_lt _ hpos
-    have hlt₂ : (r₀ + k₂.val) % procs.dedup.length < procs.dedup.length := Nat.mod_lt _ hpos
-    simp only [f, rotatingCoordinator, hlt₁, hlt₂, ↓reduceDIte] at heq
+    simp only [f, rotatingCoordinator, Nat.mod_lt _ hpos, ↓reduceDIte] at heq
     have hmod : (r₀ + k₁.val) % procs.dedup.length = (r₀ + k₂.val) % procs.dedup.length :=
       (List.Nodup.getElem_inj_iff (List.nodup_dedup procs)).1 heq
     have hd₁ := Nat.div_add_mod (r₀ + k₁.val) procs.dedup.length
@@ -105,11 +102,10 @@ theorem exists_rotatingCoordinator_notMem {P : Type*} [Fintype P] [DecidableEq P
     · rw [h] at hd₁; omega
     · have := Nat.mul_le_mul_left procs.dedup.length (Nat.succ_le_of_lt h)
       rw [Nat.mul_succ] at this; omega
-  let img : Finset P := Finset.univ.image f
-  have hcard : img.card = t + 1 := by
+  have hcard : F.card < (Finset.univ.image f).card := by
     rw [Finset.card_image_of_injective _ hinj, Finset.card_fin]
-  obtain ⟨p, hp_img, hpF⟩ := Finset.exists_mem_notMem_of_card_lt_card
-    (show F.card < img.card by omega)
+    omega
+  obtain ⟨_, hp_img, hpF⟩ := Finset.exists_mem_notMem_of_card_lt_card hcard
   obtain ⟨k, -, rfl⟩ := Finset.mem_image.1 hp_img
   exact ⟨r₀ + k.val, Nat.le_add_right r₀ k.val, by omega, hpF⟩
 

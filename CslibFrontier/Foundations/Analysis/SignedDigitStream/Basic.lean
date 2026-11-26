@@ -149,18 +149,13 @@ theorem intPrefix_succ (x : ℕ → ℤ) (K : ℕ) :
   rw [sum_range_succ, Nat.sub_self, pow_zero, mul_one, mul_sum]
   congr 1
   refine sum_congr rfl fun j hj => ?_
-  have hjle : j ≤ K := Nat.lt_succ_iff.mp (mem_range.mp hj)
-  have hsub : K + 1 - j = (K - j) + 1 := by omega
-  rw [hsub, pow_succ]
+  rw [Nat.succ_sub (Nat.lt_succ_iff.mp (mem_range.mp hj)), pow_succ]
   ring
 
 theorem abs_intPrefix_le {x : ℕ → ℤ} (hx : IsSignedStream x) (K : ℕ) :
     |intPrefix x K| ≤ 12 * (2 : ℤ) ^ K - 6 := by
   induction K with
-  | zero =>
-    have h0 := hx 0
-    simp only [intPrefix_zero, pow_zero, mul_one, IsSignedDigit] at h0 ⊢
-    omega
+  | zero => simpa [IsSignedDigit] using hx 0
   | succ K ih =>
     rw [intPrefix_succ, pow_succ]
     have hxK : |x (K + 1)| ≤ 6 := hx (K + 1)
@@ -266,8 +261,7 @@ theorem abs_diffDigit_zero_le {z : ℝ} {N : ℕ → ℤ} (hz : |z| ≤ 1) (hN :
   have h0 : |(N 0 : ℝ) - z| < 2 := by simpa only [pow_zero, one_mul] using hN 0
   have hint : |N 0| < 3 := by
     exact_mod_cast (by linarith [abs_sub_abs_le_abs_sub (N 0 : ℝ) z] : |(N 0 : ℝ)| < 3)
-  simp only [diffDigit]
-  omega
+  simpa only [diffDigit] using Int.le_of_lt_add_one hint
 
 theorem abs_diffDigit_succ_le {z : ℝ} {N : ℕ → ℤ} (hN : IsScaledApprox z N) (t : ℕ) :
     |diffDigit N (t + 1)| ≤ 5 := by
@@ -335,8 +329,7 @@ theorem hasSum_diffDigit {z : ℝ} {N : ℕ → ℤ} (hz : |z| ≤ 1) (hN : IsSc
 @[simp]
 theorem centeredResidue_emod (q : ℕ) (r : ℤ) :
     centeredResidue q (r % (2 : ℤ) ^ q) = centeredResidue q r := by
-  unfold centeredResidue
-  simp only [Int.emod_emod]
+  simp only [centeredResidue, Int.emod_emod]
 
 theorem centeredResidue_eq_self {q : ℕ} (hq : 4 ≤ q) {d : ℤ} (hd : IsSignedDigit d) :
     centeredResidue q d = d := by
@@ -362,9 +355,8 @@ theorem decodeDiffResidue_eq_diffDigit {q : ℕ} (hq : 4 ≤ q) {z : ℝ} {N : �
   have hdig : IsSignedDigit (diffDigit N t) := diffDigit_isSignedStream hz hN t
   cases t with
   | zero =>
-    unfold decodeDiffResidue
-    rw [centeredResidue_emod]
-    exact centeredResidue_eq_self hq hdig
+    simpa only [decodeDiffResidue, centeredResidue_emod, diffDigit] using
+      centeredResidue_eq_self hq hdig
   | succ t =>
     simp only [decodeDiffResidue, Nat.add_sub_cancel]
     have hmod : (N (t + 1) % (2 : ℤ) ^ q - 2 * (N t % (2 : ℤ) ^ q)) % (2 : ℤ) ^ q =

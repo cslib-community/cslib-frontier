@@ -619,12 +619,7 @@ omit [AddGroup G] in
 (original bound). -/
 theorem idealPermGame_feistel1CPAAttack_true_le [Nonempty G] (l₀ r₀ : G) :
     (idealPermGame (feistel1CPAAttack l₀ r₀) true).toReal ≤ (Fintype.card G : ℝ)⁻¹ := by
-  have hgame :
-      idealPermGame (feistel1CPAAttack l₀ r₀) =
-        (PMF.uniformOfFintype (Equiv.Perm (G × G))).bind fun π =>
-          PMF.pure (decide ((π (l₀, r₀)).1 = r₀)) := by
-    simp [idealPermGame, feistel1CPAAttack, PMF.monad_bind_eq_bind]
-  rw [hgame]
+  simp only [interp_norm, pmf_norm, idealPermGame, feistel1CPAAttack]
   refine (perm_decide_toReal_le_biUnion (Finset.univ : Finset G) (k := 1)
     (fun _ => ![(l₀, r₀)]) (fun _ _ => Function.injective_of_subsingleton _)
     (fun w => ![(r₀, w)])
@@ -681,12 +676,7 @@ theorem idealPermGame_feistel2CPAAttack_true_le [Nonempty G] {l₀ l₁ : G} (r�
     (h01 : l₀ ≠ l₁) (hG : 2 ≤ Fintype.card G) :
     (idealPermGame (feistel2CPAAttack l₀ l₁ r₀) true).toReal ≤
       (Fintype.card G : ℝ) / ((Fintype.card G : ℝ) ^ 2 - 1) := by
-  have hgame :
-      idealPermGame (feistel2CPAAttack l₀ l₁ r₀) =
-        (PMF.uniformOfFintype (Equiv.Perm (G × G))).bind fun π =>
-          PMF.pure (decide ((π (l₀, r₀)).1 - (π (l₁, r₀)).1 = l₀ - l₁)) := by
-    simp [idealPermGame, feistel2CPAAttack, PMF.monad_bind_eq_bind]
-  rw [hgame]
+  simp only [interp_norm, pmf_norm, idealPermGame, feistel2CPAAttack]
   refine (perm_decide_toReal_le_biUnion (Finset.univ : Finset ((G × G) × G)) (k := 2)
     (fun _ => ![(l₀, r₀), (l₁, r₀)]) (fun _ _ => injective_pair fun h => h01 (congrArg Prod.fst h))
     (fun aw => ![aw.1, (-(l₀ - l₁) + aw.1.1, aw.2)]) fun π hπ =>
@@ -755,12 +745,7 @@ theorem idealPermGame_feistel3RepeatedKeyCPAAttack_true_le [Nonempty G] (x : G)
     (hG : 2 ≤ Fintype.card G) :
     (idealPermGame (feistel3RepeatedKeyCPAAttack x) true).toReal ≤
       2 / (Fintype.card G : ℝ) ^ 2 := by
-  have hgame :
-      idealPermGame (feistel3RepeatedKeyCPAAttack x) =
-        (PMF.uniformOfFintype (Equiv.Perm (G × G))).bind fun π =>
-          PMF.pure (decide (π (π (x, x)).swap = (x, x))) := by
-    simp [idealPermGame, feistel3RepeatedKeyCPAAttack, Prod.swap, PMF.monad_bind_eq_bind]
-  rw [hgame]
+  simp only [interp_norm, pmf_norm, idealPermGame, feistel3RepeatedKeyCPAAttack]
   set p₀ : G × G := (x, x)
   refine (perm_decide_toReal_le_biUnion_union
     ({()} : Finset Unit) (k₁ := 1)
@@ -808,15 +793,7 @@ theorem idealStrongGame_feistel3CCAAttack_true_le_inv_card_sub_one [Nonempty G]
     {l₀ l₁ : G} (r₀ : G) (h01 : l₀ ≠ l₁) (hG : 2 ≤ Fintype.card G) :
     (idealStrongGame (feistel3CCAAttack l₀ l₁ r₀) true).toReal ≤
       ((Fintype.card G : ℝ) - 1)⁻¹ := by
-  have hgame :
-      idealStrongGame (feistel3CCAAttack l₀ l₁ r₀) =
-        (PMF.uniformOfFintype (Equiv.Perm (G × G))).bind fun π =>
-          let vw₀ := π (l₀, r₀)
-          let vw₁ := π (l₁, r₀)
-          let lr₂ := π.symm (vw₀.1, (l₁ - l₀) + vw₀.2)
-          PMF.pure (decide (-vw₀.1 + lr₂.2 = -vw₁.1 + r₀)) := by
-    simp [idealStrongGame, feistel3CCAAttack, feistelStrongOracle, PMF.monad_bind_eq_bind]
-  rw [hgame]
+  simp only [interp_norm, pmf_norm, idealStrongGame, feistel3CCAAttack, feistelStrongOracle]
   set x : G × G := (l₀, r₀)
   set y : G × G := (l₁, r₀)
   have hxy : x ≠ y := fun h => h01 (congrArg Prod.fst h)

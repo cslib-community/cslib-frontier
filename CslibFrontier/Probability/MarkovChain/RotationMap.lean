@@ -143,9 +143,9 @@ theorem hittingTime_randomWalk_ne_top {u x : V} (hx : G.toSimpleGraph.Reachable 
     (fun y hy => ?_) hx
   · exact (ha : G.toSimpleGraph.Reachable u a).trans
       (reachable_of_edgeCount_ne_zero (randomWalk_ne_zero_iff.1 hab))
-  · refine Relation.ReflTransGen.mono (fun a b h => randomWalk_ne_zero_iff.2
-      (edgeCount_ne_zero_of_adj h)) _ _ ((SimpleGraph.reachable_iff_reflTransGen y u).1 ?_)
-    exact (hy : G.toSimpleGraph.Reachable u y).symm
+  · exact Relation.ReflTransGen.mono
+      (fun a b h => randomWalk_ne_zero_iff.2 (edgeCount_ne_zero_of_adj h)) _ _
+      ((SimpleGraph.reachable_iff_reflTransGen y u).1 (hy : G.toSimpleGraph.Reachable u y).symm)
 
 /-- **Arora–Barak, Exercise 7.9(c).** The expected return time of the random walk to `u` is the
 number of vertices of the connected component of `u`. -/
@@ -157,9 +157,8 @@ theorem returnTime_randomWalk_eq_card (u : V) :
   · rw [ite_eq_left (SimpleGraph.Reachable.refl u), one_mul] at h
     rw [h, sum_boole, Nat.card_eq_fintype_card, Fintype.card_subtype]
   · refine (ENNReal.sum_lt_top.2 fun x _ => ?_).ne
-    by_cases hx : G.toSimpleGraph.Reachable u x
-    · simpa [hx] using (hittingTime_randomWalk_ne_top hx).lt_top
-    · simp [hx]
+    by_cases hx : G.toSimpleGraph.Reachable u x <;>
+      simp [hx, hittingTime_randomWalk_ne_top, lt_top_iff_ne_top]
 
 /-- **Arora–Barak, Exercise 7.9(c).** On a connected regular multigraph, the expected return time
 to every vertex is the number of vertices. -/
@@ -191,11 +190,9 @@ theorem hittingTime_randomWalk_le_of_edgeCount_ne_zero {x y : V} (h : G.edgeCoun
   have hle : (Fintype.card D : ℝ≥0∞)⁻¹ * hittingTime G.randomWalk y x ≤ Fintype.card V := by
     refine le_trans ?_ (returnTime_randomWalk_le_card (G := G) y)
     rw [returnTime_eq]
-    refine le_trans ?_ le_add_self
-    exact (by gcongr : (Fintype.card D : ℝ≥0∞)⁻¹ * hittingTime G.randomWalk y x ≤
-        G.randomWalk y x * hittingTime G.randomWalk y x).trans
-      (single_le_sum (f := fun z => G.randomWalk y z * hittingTime G.randomWalk y z)
-        (fun _ _ => zero_le) (mem_univ x))
+    exact ((mul_le_mul_of_nonneg_right hP zero_le).trans (single_le_sum
+      (f := fun z => G.randomWalk y z * hittingTime G.randomWalk y z)
+      (fun _ _ => zero_le) (mem_univ x))).trans le_add_self
   calc hittingTime G.randomWalk y x
       = Fintype.card D * ((Fintype.card D : ℝ≥0∞)⁻¹ * hittingTime G.randomWalk y x) := by
         rw [← mul_assoc, ENNReal.mul_inv_cancel
@@ -250,9 +247,7 @@ theorem survival_randomWalk_mul_pow (t : V) :
     ∀ (T : ℕ) (s : V), survival G.randomWalk t T s * (Fintype.card D : ℝ≥0∞) ^ T =
       #{k : Fin T → D | ∀ i ≤ T, G.walkAt (s, k) i ≠ t}
   | 0, s => by
-    by_cases hs : s = t
-    · subst hs; simp
-    · rw [survival_zero_of_ne hs]; simp [hs]
+    by_cases hs : s = t <;> simp [hs, survival_zero_of_ne]
   | T + 1, s => by
     by_cases hs : s = t
     · subst hs
@@ -305,8 +300,7 @@ theorem ten_mul_card_filter_walkAt_ne_le (hD : Fintype.card D ≤ Fintype.card V
       exact_mod_cast (show (n - 1) * (Fintype.card D * n) ≤ n ^ 3 by
         rw [pow_three]; gcongr; omega)
     have hT : (10 : ℝ≥0∞) * (n : ℝ≥0∞) ^ 3 ≤ (T : ℝ≥0∞) + 1 := by
-      have : 10 * n ^ 3 ≤ T + 1 := by omega
-      exact_mod_cast this
+      exact_mod_cast (by omega : 10 * n ^ 3 ≤ T + 1)
     have hn3 : (n : ℝ≥0∞) ^ 3 ≠ 0 := pow_ne_zero _ (by exact_mod_cast (by omega : n ≠ 0))
     have hn3' : (n : ℝ≥0∞) ^ 3 ≠ ⊤ := ENNReal.pow_ne_top (ENNReal.natCast_ne_top _)
     refine (ENNReal.mul_le_mul_iff_left hn3 hn3').1 ?_
@@ -315,11 +309,10 @@ theorem ten_mul_card_filter_walkAt_ne_le (hD : Fintype.card D ≤ Fintype.card V
       _ ≤ ((T : ℝ≥0∞) + 1) * survival G.randomWalk t T s := by gcongr
       _ ≤ (n : ℝ≥0∞) ^ 3 := hM.trans (hH.trans hnum)
       _ = 1 * (n : ℝ≥0∞) ^ 3 := (one_mul _).symm
-  have : (10 * #{k : Fin T → D | ∀ i ≤ T, G.walkAt (s, k) i ≠ t} : ℝ≥0∞) ≤
-      (Fintype.card D : ℝ≥0∞) ^ T := by
-    rw [← survival_randomWalk_mul_pow (G := G) t T s, ← mul_assoc]
-    exact mul_le_of_le_one_left' hsurv
-  exact_mod_cast this
+  suffices (10 * #{k : Fin T → D | ∀ i ≤ T, G.walkAt (s, k) i ≠ t} : ℝ≥0∞) ≤
+      (Fintype.card D : ℝ≥0∞) ^ T from mod_cast this
+  rw [← survival_randomWalk_mul_pow (G := G) t T s, ← mul_assoc]
+  exact mul_le_of_le_one_left' hsurv
 
 /-! ### Uniqueness of the stationary distribution -/
 
@@ -346,12 +339,8 @@ theorem isStationary_randomWalk_iff (hG : G.toSimpleGraph.Connected) (π : PMF V
   have := hG.nonempty
   refine ⟨fun h => ?_, fun h => h ▸ isStationary_uniform_randomWalk⟩
   -- stationarity as an averaging identity in `ℝ≥0∞`
-  have hst : ∀ y, ∑ x, (G.edgeCount y x : ℝ≥0∞) * π x = Fintype.card D * π y := by
-    intro y
-    have hy : ∑ x, π x * G.randomWalk x y = π y := by
-      rw [← tsum_fintype (L := .unconditional V), ← PMF.bind_apply]
-      exact congrArg (· y) h
-    rw [← hy, mul_sum]
+  have hst : ∀ y, ∑ x, (G.edgeCount y x : ℝ≥0∞) * π x = Fintype.card D * π y := fun y => by
+    rw [← congrArg (· y) h, PMF.bind_apply, tsum_fintype, mul_sum]
     refine sum_congr rfl fun x _ => ?_
     rw [randomWalk_apply, G.edgeCount_comm x y, mul_comm (π x), ← mul_assoc,
       ENNReal.mul_div_cancel
@@ -416,9 +405,7 @@ theorem randomWalk_lazy : G.lazy.randomWalk = G.randomWalk.lazy := by
       Fintype.sum_sum_type]
     simp only [neighbor_lazy_inl, neighbor_lazy_inr]
     congr 1
-    rcases eq_or_ne y x with rfl | hyx
-    · simp
-    · simp [hyx, Ne.symm hyx]
+    by_cases hxy : x = y <;> simp [hxy, eq_comm]
   have hne1 : (2 : ℝ≥0∞)⁻¹ * G.randomWalk x y ≠ ⊤ :=
     ENNReal.mul_ne_top (by simp) ((G.randomWalk x).apply_ne_top y)
   have hne2 : (if y = x then (2 : ℝ≥0∞)⁻¹ else 0) ≠ ⊤ := by split_ifs <;> simp
@@ -446,9 +433,8 @@ theorem spectralContraction_randomWalk [Nonempty V] :
   · refine G.spectralExpansion_le
       (G.randomWalk.spectralContraction_nonneg (PMF.uniformOfFintype V)) fun f hf => ?_
     rw [← hunif] at hf
-    have hle :=
+    simpa only [stepOp_randomWalk, hunif] using
       (isStationary_uniform_randomWalk (G := G)).sum_mul_stepOp_sq_le_spectralContraction hf
-    rwa [stepOp_randomWalk, hunif, hunif] at hle
 
 omit [DecidableEq V] in
 /-- **Total-variation contraction of a regular random walk**:

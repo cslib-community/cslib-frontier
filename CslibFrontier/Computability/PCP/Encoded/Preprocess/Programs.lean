@@ -110,11 +110,7 @@ theorem preprocessRotation_eq (g : Graph C) (eval : C → α → α → Bool) (f
   · exact congrArg (fun p => (p.1, Sum.inl (Sum.inl (Sum.inr p.2))))
       (g.cloudRotation_eq eval fallback family rotate hrotate
         ((g.toGraph eval).endpoint v) ⟨v, rfl⟩ d)
-  · change (halfEdgeOfNumber (rotate (2 * g.edges.length,
-        halfEdgeNumber (v.1.val, v.2), d)).1,
-        Sum.inl (Sum.inr (rotate (2 * g.edges.length,
-          halfEdgeNumber (v.1.val, v.2), d)).2)) = _
-    rw [← halfEdgeEquiv_val, hrotate, halfEdgeOfNumber_eq]
+  · simp only [preprocessRotation, ← halfEdgeEquiv_val, hrotate, halfEdgeOfNumber_eq]
     rfl
   · rfl
 
