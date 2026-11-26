@@ -509,9 +509,7 @@ private theorem exec_bfsEdgeLoop {w bOff : ℕ} {inst : SparseInstance}
           simp [hdw, encodeDist]
         have hw_in_filt : w₀ ∈ Finset.univ.filter
             (fun x₀ => vget (sk (y.regs idx)).dist x₀ = none) := by simp [hdw]
-        have hpos_card : 1 ≤ (Finset.univ.filter
-            (fun x₀ => vget (sk (y.regs idx)).dist x₀ = none)).card :=
-          Finset.card_pos.mpr ⟨w₀, hw_in_filt⟩
+        have := Finset.card_pos.mpr ⟨w₀, hw_in_filt⟩
         have hqt_lt_m : le + (sk (y.regs idx)).next.length < inst.m := by omega
         wram_exec [hby.hbEdges, hby.hbColMate, hby.hbDist, hby.hbQueue, hby.hrm, hby.hzero,
           hby.hone, hby.htwo, hrk_y, hqt_y, hedge_y, hmate_v, henc, hw_ne, hdist_w, henc_d]
@@ -712,11 +710,8 @@ private theorem exec_bfsLayersLoop {w bOff : ℕ} {inst : SparseInstance}
     · subst hnil
       have hc : ¬(Cond.eq active one).Holds x := by
         simpa [Cond.holds_eq, hact] using ne_of_ne_of_eq Nat.zero_ne_one hb.hone.symm
-      refine ⟨x, (ExecWithin.loop_exit hc).mono (by omega), fun _ _ => rfl, ?_, ?_, ?_,
+      exact ⟨x, (ExecWithin.loop_exit hc).mono (by omega), fun _ _ => rfl, hdM, hrk, hrf,
         fun _ _ => rfl⟩
-      · simpa [hkBfsLoop, hkBfsLayer] using hdM
-      · simpa [hkBfsLoop, hkBfsLayer] using hrk
-      · simpa [hkBfsLoop, hkBfsLayer] using hrf
     · have hpos_f : 0 < frontier.length := List.length_pos_iff.mpr hnil
       have hc : (Cond.eq active one).Holds x := by
         simpa [Cond.holds_eq, hact, hnil] using hb.hone.symm
@@ -786,8 +781,7 @@ private theorem exec_bfsLayersLoop {w bOff : ℕ} {inst : SparseInstance}
           wram_exec [hrf_zero, hb₂.hone, hb₂.hzero, hqh₂, hqt_eq_le]
           rfl
         · have hs_nnil : s.next ≠ [] := fun h => hs_empty (by simp [h])
-          have hlen_pos : 0 < s.next.length := List.length_pos_iff.mpr hs_nnil
-          have hqh_ne_qt : x₂.regs qHead ≠ x₂.regs qTail := by rw [hqh₂, hqt₂]; omega
+          have hqh_ne_qt : x₂.regs qHead ≠ x₂.regs qTail := by simpa [hqh₂, hqt₂] using hs_nnil
           have he_tail : ExecWithin w (ram[
               if rfound = one then [ active ← zero ] else [
                 if qHead = qTail then [ active ← zero ] else [ rk ← rk + one ] ] ] :
@@ -805,13 +799,14 @@ private theorem exec_bfsLayersLoop {w bOff : ℕ} {inst : SparseInstance}
               (by wram_simp) (by wram_simp [hrf_zero]) (by wram_simp [hqh₂])
               (by wram_simp [hqt₂]) (by wram_simp [hact₂, hs_nnil])
               (by omega) (by dsimp only [le] at hbound₂; omega) (by omega)
-          refine ⟨y, (ExecWithin.loop_iter hc (he_le.seq (he_front.seq he_tail)) he_rec).mono ?_,
+          have hloop : hkBfsLoop inst.graph inst.adj mate (fuel + 1) j dist frontier =
+              hkBfsLoop inst.graph inst.adj mate fuel (j + 1) s.dist s.next := by
+            simp [hkBfsLoop, ← hs_def, hsf, hs_empty]
+          rw [hloop]
+          exact ⟨y, (ExecWithin.loop_iter hc (he_le.seq (he_front.seq he_tail)) he_rec).mono
+              (by omega),
             fun i hi => (hr₄ i hi).trans (by wram_simp [hr₂ i hi]),
-            ?_, ?_, ?_, fun a ha => (hf₄ a ha).trans (hf₂ a ha)⟩
-          · omega
-          · simpa [hkBfsLoop, ← hs_def, hsf, hs_empty] using hdM₄
-          · simpa [hkBfsLoop, ← hs_def, hsf, hs_empty] using hrk₄
-          · simpa [hkBfsLoop, ← hs_def, hsf, hs_empty] using hrf₄
+            hdM₄, hrk₄, hrf₄, fun a ha => (hf₄ a ha).trans (hf₂ a ha)⟩
 
 /-- `O(m + r + |E|)` execution of `bfsCode`, agreeing with `hkBfs`. -/
 theorem exec_bfsCode {w bOff : ℕ} {inst : SparseInstance}
