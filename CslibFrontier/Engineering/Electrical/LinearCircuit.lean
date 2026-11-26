@@ -244,14 +244,23 @@ end Netlist
 /-- The coefficients of an element's equation `d/dt (eV v + eI i) = fV v + fI i + fC v_c + src
 + u_input`, with `v_c = φ_cp - φ_cn`. -/
 structure Stamp where
+  /-- The coefficient of the branch voltage under the derivative. -/
   eV : ℚ := 0
+  /-- The coefficient of the branch current under the derivative. -/
   eI : ℚ := 0
+  /-- The coefficient of the branch voltage. -/
   fV : ℚ := 0
+  /-- The coefficient of the branch current. -/
   fI : ℚ := 0
+  /-- The coefficient of the control voltage. -/
   fC : ℚ := 0
+  /-- The positive control node. -/
   cp : ℕ := 0
+  /-- The negative control node. -/
   cn : ℕ := 0
+  /-- The constant source value. -/
   src : ℚ := 0
+  /-- The input port added to the source value. -/
   input : Option ℕ := none
 
 /-- The stamp of an element. -/
@@ -599,18 +608,19 @@ private theorem append_split (z : Fin c.size → ℝ) :
 
 /-- **Certified exponential stability of a circuit.** Let the netlist be well formed, let `d`
 be an accepted index-one decoupling of its modified nodal equations, `z₀` an exactly checked
-equilibrium (`F z₀ + b = 0`) and `l` an accepted Lyapunov certificate for the reduced matrix
-`d.A`. Then, with zero input,
+equilibrium (`F z₀ + b = 0`), and let `ẋ = A x` be exponentially stable for the checked reduced
+matrix `d.A`, for instance by an accepted Lyapunov certificate
+(`Cslib.LinearAlgebra.LyapunovCert.isExponentiallyStable_of_check`). Then, with zero input,
 
 1. the operating point `z₀ = (φ₀, i₀)` is a (constant) circuit trajectory;
 2. every differential state `x₀`, read through `Q₁'`, starts a circuit trajectory on `[0, ∞)`;
 3. every circuit trajectory on `[0, ∞)` converges to `z₀` exponentially: for constants `M` and
    `α > 0` independent of the trajectory, `‖(φ t, i t) - z₀‖ ≤ M exp (-α t) ‖(φ 0, i 0) - z₀‖`
    in the Euclidean norm of all potentials and branch currents. -/
-theorem isExponentiallyStable_of_check {d : DecouplingCert} {z₀ : List ℚ} {l : LyapunovCert}
-    {P : List (List ℚ)} (hc : c.check = true) (hd : d.check c.size c.eRows c.fRows = true)
+theorem isExponentiallyStable_of_check {d : DecouplingCert} {z₀ : List ℚ}
+    (hc : c.check = true) (hd : d.check c.size c.eRows c.fRows = true)
     (hz : isEquilibriumRows c.size c.fRows c.bList z₀ = true)
-    (hl : l.check d.k d.A P = true) :
+    (hA : (toEuclideanCLM (𝕜 := ℝ) (realOfRows d.k d.k d.A)).IsExponentiallyStable) :
     c.IsTrajectoryOn 0 (fun _ j => realOfList c.size z₀ (Fin.castAdd _ j))
         (fun _ b => realOfList c.size z₀ (Fin.natAdd _ b)) (Ici 0) ∧
       (∀ x₀ : Fin d.k → ℝ, ∃ φ i, c.IsTrajectoryOn 0 φ i (Ici 0) ∧
@@ -637,7 +647,7 @@ theorem isExponentiallyStable_of_check {d : DecouplingCert} {z₀ : List ℚ} {l
     · rw [append_split, h0]
       exact DescriptorSystem.IndexOneDecoupling.Q₁'_mulVec_reconstruct (D := D) x₀ 0
   · obtain ⟨M, α, hα, hM⟩ := DecouplingCert.isExponentiallyStableAt_of_check
-      (m := c.inputs) (G := c.gRows) hd hz hl
+      (m := c.inputs) (G := c.gRows) hd hz hA
     exact ⟨M, α, hα, fun φ i h t ht => hM _ ((isTrajectoryOn_iff hc hs).1 h) t ht⟩
 
 /-- The checked realization of a circuit for the probes `probes` and its input ports, with the

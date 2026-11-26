@@ -36,9 +36,12 @@ uniqueness theorems of the decoupling. Rejection of a particular certificate, ho
 nothing about the system.
 
 An equilibrium `F z₀ + b = 0` is checked exactly (`Cslib.LinearAlgebra.isEquilibriumRows`), and
-`DecouplingCert.isExponentiallyStableAt_of_check` composes the decoupling with the Lyapunov
-checker `Cslib.LinearAlgebra.LyapunovCert.check` applied to `DecouplingCert.A`: acceptance proves that
-every solution with zero input converges exponentially to `z₀`.
+`DecouplingCert.isExponentiallyStableAt_of_check` transfers exponential stability of the reduced
+matrix `DecouplingCert.A`, for instance from an accepted dense Lyapunov certificate
+(`Cslib.LinearAlgebra.LyapunovCert.isExponentiallyStable_of_check`) or a sparse one
+(`Cslib.LinearAlgebra.SparseLyapunovCert.isExponentiallyStable_of_check` with
+`Cslib.LinearAlgebra.ofSparse_toSparse`), to every solution of the descriptor system with zero
+input.
 
 ## Main definitions
 
@@ -52,8 +55,8 @@ every solution with zero input converges exponentially to `z₀`.
   decoupling of the real system, with `DecouplingCert.A` as its state matrix
   (`DecouplingCert.A_toDecoupling`).
 * `Cslib.LinearAlgebra.isEquilibrium_of_isEquilibriumRows`: soundness of the equilibrium check.
-* `Cslib.LinearAlgebra.DecouplingCert.isExponentiallyStableAt_of_check`: decoupling, equilibrium
-  and Lyapunov certificates prove exponential stability of the descriptor equilibrium.
+* `Cslib.LinearAlgebra.DecouplingCert.isExponentiallyStableAt_of_check`: a checked decoupling and
+  equilibrium transfer exponential stability of `ẋ = A x` to the descriptor equilibrium.
 -/
 
 public section
@@ -89,19 +92,44 @@ rational rows of `E`, `F`, `G` and the entries of `b`. -/
   (List.range n).all fun i => (List.range n).all fun j =>
     (rows.getD i []).getD j 0 == if i = j then 1 else 0
 
-theorem ofLists_eq_zero_of_isZeroRows {m n : ℕ} {rows : List (List ℚ)}
+private theorem ofLists_eq_zero_of_isZeroRows {m n : ℕ} {rows : List (List ℚ)}
     (h : isZeroRows m n rows = true) : ofLists m n rows = 0 := by
   ext i j
   simp only [isZeroRows, List.all_eq_true, List.mem_range, beq_iff_eq] at h
   simpa [ofLists_apply, ofList_apply] using h i i.is_lt j j.is_lt
 
-theorem ofLists_eq_one_of_isOneRows {n : ℕ} {rows : List (List ℚ)}
+private theorem ofLists_eq_one_of_isOneRows {n : ℕ} {rows : List (List ℚ)}
     (h : isOneRows n rows = true) : ofLists n n rows = 1 := by
   ext i j
   simp only [isOneRows, List.all_eq_true, List.mem_range, beq_iff_eq] at h
   have := h i i.is_lt j j.is_lt
   rw [Matrix.one_apply]
   simpa [ofLists_apply, ofList_apply, Fin.val_inj] using this
+
+/-- `rowDot` that skips the products with a zero factor, so that the kernel does no rational
+arithmetic for them. -/
+@[expose] def rowDotNZ : List ℚ → List ℚ → ℚ
+  | a :: r, b :: t => if a = 0 ∨ b = 0 then rowDotNZ r t else a * b + rowDotNZ r t
+  | _, _ => 0
+
+theorem rowDotNZ_eq : ∀ r t : List ℚ, rowDotNZ r t = rowDot r t
+  | a :: r, b :: t => by
+    rw [rowDotNZ, rowDot, rowDotNZ_eq r t]
+    split_ifs with h
+    · rcases h with h | h <;> simp [h]
+    · rfl
+  | [], _ => by simp [rowDotNZ, rowDot]
+  | _ :: _, [] => by simp [rowDotNZ, rowDot]
+
+/-- `rowsMul` with `rowDotNZ`: the same product (`rowsMulNZ_eq`), cheaper on sparse rows. -/
+@[expose] def rowsMulNZ (l m n : ℕ) (A B : List (List ℚ)) : List (List ℚ) :=
+  let cols := ListMatrix.transpose n B
+  (A.rightpad l []).map fun row => cols.map (rowDotNZ (row.take m))
+
+theorem rowsMulNZ_eq (l m n : ℕ) (A B : List (List ℚ)) :
+    rowsMulNZ l m n A B = rowsMul l m n A B := by
+  have : rowDotNZ = rowDot := funext fun r => funext (rowDotNZ_eq r)
+  simp only [rowsMulNZ, rowsMul, this]
 
 /-- The rows of `A *ᵥ v` for `A` read as `m × n` and `v` read as a length-`n` vector. -/
 @[expose] def rowsMulVec (m n : ℕ) (A : List (List ℚ)) (v : List ℚ) : List ℚ :=
@@ -123,7 +151,7 @@ theorem ofList_rowsMulVec (m n : ℕ) (A : List (List ℚ)) (v : List ℚ) :
   | 0, _, _ => true
   | n + 1, v, w => v.headD 0 + w.headD 0 == 0 && sumIsZero n v.tail w.tail
 
-theorem getD_add_getD_eq_zero_of_sumIsZero :
+private theorem getD_add_getD_eq_zero_of_sumIsZero :
     ∀ {n : ℕ} {v w : List ℚ}, sumIsZero n v w = true → ∀ i < n, v.getD i 0 + w.getD i 0 = 0
   | 0, _, _, _, i, hi => absurd hi (Nat.not_lt_zero i)
   | n + 1, v, w, h, i, hi => by
@@ -224,22 +252,24 @@ variable (c : DecouplingCert) (N : ℕ)
 /-- Whether `c` is an index-one decoupling of the pencil `(E, F)` with `N` unknowns. All
 products are recomputed exactly over `ℚ`. -/
 @[expose] def check (E F : List (List ℚ)) : Bool :=
-  let PE₁ := rowsMul c.k N N c.P₁ E
-  let PE₂ := rowsMul c.r N N c.P₂ E
-  let PF₁ := rowsMul c.k N N c.P₁ F
-  let PF₂ := rowsMul c.r N N c.P₂ F
-  isOneRows c.k (rowsMul c.k N c.k PE₁ c.Q₁) &&
-  isZeroRows c.k c.r (rowsMul c.k N c.r PE₁ c.Q₂) &&
-  isZeroRows c.r c.k (rowsMul c.r N c.k PE₂ c.Q₁) &&
-  isZeroRows c.r c.r (rowsMul c.r N c.r PE₂ c.Q₂) &&
-  isZeroRows c.k c.r (rowsMul c.k N c.r PF₁ c.Q₂) &&
-  isZeroRows c.r c.k (rowsMul c.r N c.k PF₂ c.Q₁) &&
-  isOneRows c.r (rowsMul c.r N c.r PF₂ c.Q₂) &&
-  isOneRows N (rowsMap₂ (· + ·) N N (rowsMul N c.k N c.P₁' c.P₁) (rowsMul N c.r N c.P₂' c.P₂)) &&
-  isOneRows N (rowsMap₂ (· + ·) N N (rowsMul N c.k N c.Q₁ c.Q₁') (rowsMul N c.r N c.Q₂ c.Q₂')) &&
-  isOneRows c.k (rowsMul c.k N c.k c.Q₁' c.Q₁) &&
-  isZeroRows c.k c.r (rowsMul c.k N c.r c.Q₁' c.Q₂) &&
-  isZeroRows c.k c.k (rowsMap₂ (· - ·) c.k c.k (rowsMul c.k N c.k PF₁ c.Q₁) c.A)
+  let PE₁ := rowsMulNZ c.k N N c.P₁ E
+  let PE₂ := rowsMulNZ c.r N N c.P₂ E
+  let PF₁ := rowsMulNZ c.k N N c.P₁ F
+  let PF₂ := rowsMulNZ c.r N N c.P₂ F
+  isOneRows c.k (rowsMulNZ c.k N c.k PE₁ c.Q₁) &&
+  isZeroRows c.k c.r (rowsMulNZ c.k N c.r PE₁ c.Q₂) &&
+  isZeroRows c.r c.k (rowsMulNZ c.r N c.k PE₂ c.Q₁) &&
+  isZeroRows c.r c.r (rowsMulNZ c.r N c.r PE₂ c.Q₂) &&
+  isZeroRows c.k c.r (rowsMulNZ c.k N c.r PF₁ c.Q₂) &&
+  isZeroRows c.r c.k (rowsMulNZ c.r N c.k PF₂ c.Q₁) &&
+  isOneRows c.r (rowsMulNZ c.r N c.r PF₂ c.Q₂) &&
+  isOneRows N
+    (rowsMap₂ (· + ·) N N (rowsMulNZ N c.k N c.P₁' c.P₁) (rowsMulNZ N c.r N c.P₂' c.P₂)) &&
+  isOneRows N
+    (rowsMap₂ (· + ·) N N (rowsMulNZ N c.k N c.Q₁ c.Q₁') (rowsMulNZ N c.r N c.Q₂ c.Q₂')) &&
+  isOneRows c.k (rowsMulNZ c.k N c.k c.Q₁' c.Q₁) &&
+  isZeroRows c.k c.r (rowsMulNZ c.k N c.r c.Q₁' c.Q₂) &&
+  isZeroRows c.k c.k (rowsMap₂ (· - ·) c.k c.k (rowsMulNZ c.k N c.k PF₁ c.Q₁) c.A)
 
 variable {c N} {m : ℕ} {E F G : List (List ℚ)} {b : List ℚ}
 
@@ -256,54 +286,54 @@ system. -/
   Q₁' := realOfRows c.k N c.Q₁'
   Q₂' := realOfRows c.r N c.Q₂'
   E₁₁ := by
-    simp only [check, Bool.and_eq_true] at h
+    simp only [check, Bool.and_eq_true, rowsMulNZ_eq] at h
     simp only [descriptorOfRows, realOfRows_mul]
     exact realOfRows_eq_one (h.1.1.1.1.1.1.1.1.1.1.1)
   E₁₂ := by
-    simp only [check, Bool.and_eq_true] at h
+    simp only [check, Bool.and_eq_true, rowsMulNZ_eq] at h
     simp only [descriptorOfRows, realOfRows_mul]
     exact realOfRows_eq_zero (h.1.1.1.1.1.1.1.1.1.1.2)
   E₂₁ := by
-    simp only [check, Bool.and_eq_true] at h
+    simp only [check, Bool.and_eq_true, rowsMulNZ_eq] at h
     simp only [descriptorOfRows, realOfRows_mul]
     exact realOfRows_eq_zero (h.1.1.1.1.1.1.1.1.1.2)
   E₂₂ := by
-    simp only [check, Bool.and_eq_true] at h
+    simp only [check, Bool.and_eq_true, rowsMulNZ_eq] at h
     simp only [descriptorOfRows, realOfRows_mul]
     exact realOfRows_eq_zero (h.1.1.1.1.1.1.1.1.2)
   F₁₂ := by
-    simp only [check, Bool.and_eq_true] at h
+    simp only [check, Bool.and_eq_true, rowsMulNZ_eq] at h
     simp only [descriptorOfRows, realOfRows_mul]
     exact realOfRows_eq_zero (h.1.1.1.1.1.1.1.2)
   F₂₁ := by
-    simp only [check, Bool.and_eq_true] at h
+    simp only [check, Bool.and_eq_true, rowsMulNZ_eq] at h
     simp only [descriptorOfRows, realOfRows_mul]
     exact realOfRows_eq_zero (h.1.1.1.1.1.1.2)
   F₂₂ := by
-    simp only [check, Bool.and_eq_true] at h
+    simp only [check, Bool.and_eq_true, rowsMulNZ_eq] at h
     simp only [descriptorOfRows, realOfRows_mul]
     exact realOfRows_eq_one (h.1.1.1.1.1.2)
   P_inv := by
-    simp only [check, Bool.and_eq_true] at h
+    simp only [check, Bool.and_eq_true, rowsMulNZ_eq] at h
     simp only [realOfRows_mul, realOfRows_add]
     exact realOfRows_eq_one (h.1.1.1.1.2)
   Q_inv := by
-    simp only [check, Bool.and_eq_true] at h
+    simp only [check, Bool.and_eq_true, rowsMulNZ_eq] at h
     simp only [realOfRows_mul, realOfRows_add]
     exact realOfRows_eq_one (h.1.1.1.2)
   Q₁'_Q₁ := by
-    simp only [check, Bool.and_eq_true] at h
+    simp only [check, Bool.and_eq_true, rowsMulNZ_eq] at h
     simp only [realOfRows_mul]
     exact realOfRows_eq_one (h.1.1.2)
   Q₁'_Q₂ := by
-    simp only [check, Bool.and_eq_true] at h
+    simp only [check, Bool.and_eq_true, rowsMulNZ_eq] at h
     simp only [realOfRows_mul]
     exact realOfRows_eq_zero (h.1.2)
 
 /-- The state matrix of the decoupling is the matrix of the checked `DecouplingCert.A`. -/
 theorem A_toDecoupling (h : c.check N E F = true) :
     (toDecoupling (m := m) (G := G) (b := b) h).A = realOfRows c.k c.k c.A := by
-  simp only [check, Bool.and_eq_true] at h
+  simp only [check, Bool.and_eq_true, rowsMulNZ_eq] at h
   have h0 := realOfRows_eq_zero h.2
   rw [← realOfRows_sub, sub_eq_zero] at h0
   simp only [toDecoupling, DescriptorSystem.IndexOneDecoupling.A, descriptorOfRows]
@@ -331,17 +361,17 @@ theorem realization_toDecoupling (h : c.check N E F = true) (p : ℕ) (H : List 
     ext i j
     simp
 
-/-- **End-to-end descriptor stability certificate.** If `c` is an accepted decoupling of
-`(E, F)`, `z₀` passes the exact equilibrium check, and the Lyapunov certificate `l` is accepted
-for the reduced matrix `A` and a rational `P`, then every solution with zero input of the
-real descriptor system converges to `z₀` exponentially, in the Euclidean norm. -/
-theorem isExponentiallyStableAt_of_check {z₀ : List ℚ} {l : LyapunovCert} {P : List (List ℚ)}
-    (hc : c.check N E F = true) (hz : isEquilibriumRows N F b z₀ = true)
-    (hl : l.check c.k (c.A) P = true) :
-    (descriptorOfRows N m E F G b).IsExponentiallyStableAt (realOfList N z₀) := by
-  refine (toDecoupling hc).isExponentiallyStableAt (isEquilibrium_of_isEquilibriumRows hz) ?_
-  rw [A_toDecoupling]
-  exact LyapunovCert.isExponentiallyStable_of_check hl
+/-- **Descriptor stability from the reduced matrix.** If `c` is an accepted decoupling of
+`(E, F)`, `z₀` passes the exact equilibrium check and `ẋ = A x` is exponentially stable for the
+checked reduced matrix `c.A` (for instance by an accepted Lyapunov certificate), then every
+solution with zero input of the real descriptor system converges to `z₀` exponentially, in the
+Euclidean norm. -/
+theorem isExponentiallyStableAt_of_check {z₀ : List ℚ} (hc : c.check N E F = true)
+    (hz : isEquilibriumRows N F b z₀ = true)
+    (hA : (toEuclideanCLM (𝕜 := ℝ) (realOfRows c.k c.k c.A)).IsExponentiallyStable) :
+    (descriptorOfRows N m E F G b).IsExponentiallyStableAt (realOfList N z₀) :=
+  (toDecoupling hc).isExponentiallyStableAt (isEquilibrium_of_isEquilibriumRows hz)
+    (A_toDecoupling hc ▸ hA)
 
 end DecouplingCert
 

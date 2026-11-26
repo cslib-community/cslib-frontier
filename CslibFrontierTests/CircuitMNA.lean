@@ -81,7 +81,8 @@ theorem rcLyap_check : rcLyap.check rcDec.k rcDec.A rcP = true := by
 
 /-- Every RC trajectory with the source at 1 V converges exponentially to the operating point,
 which is itself a trajectory, and every capacitor state starts one. -/
-example := rc.isExponentiallyStable_of_check rc_check rcDec_check rcEq_check rcLyap_check
+example := rc.isExponentiallyStable_of_check rc_check rcDec_check rcEq_check
+  (LyapunovCert.isExponentiallyStable_of_check rcLyap_check)
 
 /-- The probes: the capacitor voltage and the source node voltage. -/
 def rcProbes : List Probe := [.voltage 2 0, .voltage 1 0]
@@ -118,13 +119,33 @@ def rlcDec : DecouplingCert where
   k := 2
   r := 5
   P₁ := [[0, 0, 2, 0, 0, 0, 2], [0, 3, 0, 1, 1, 1, 0]]
-  P₂ := [[0, 0, 0, -1, 0, 0, 0], [0, -3, 0, -1, -1, 0, 0], [-1, -1, 0, 0, 0, 0, 0], [0, 1, 0, 0, 0, 0, 0], [0, 0, -1, 0, 0, 0, 0]]
+  P₂ := [[0, 0, 0, -1, 0, 0, 0],
+    [0, -3, 0, -1, -1, 0, 0],
+    [-1, -1, 0, 0, 0, 0, 0],
+    [0, 1, 0, 0, 0, 0, 0],
+    [0, 0, -1, 0, 0, 0, 0]]
   P₁' := [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 1], [(1/2 : ℚ), 0]]
-  P₂' := [[0, 0, -1, -1, 0], [0, 0, 0, 1, 0], [0, 0, 0, 0, -1], [-1, 0, 0, 0, 0], [1, -1, 0, -3, 0], [0, 1, 0, 0, 0], [0, 0, 0, 0, 1]]
+  P₂' := [[0, 0, -1, -1, 0],
+    [0, 0, 0, 1, 0],
+    [0, 0, 0, 0, -1],
+    [-1, 0, 0, 0, 0],
+    [1, -1, 0, -3, 0],
+    [0, 1, 0, 0, 0],
+    [0, 0, 0, 0, 1]]
   Q₁ := [[0, 0], [0, -3], [1, 0], [0, -1], [0, 1], [0, 1], [0, 1]]
-  Q₂ := [[1, 0, 0, 0, 0], [0, 1, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 1, 0, 0], [0, 0, 0, 1, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 1]]
+  Q₂ := [[1, 0, 0, 0, 0],
+    [0, 1, 0, 0, 0],
+    [0, 0, 0, 0, 0],
+    [0, 0, 1, 0, 0],
+    [0, 0, 0, 1, 0],
+    [0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1]]
   Q₁' := [[0, 0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 1, 0]]
-  Q₂' := [[1, 0, 0, 0, 0, 0, 0], [0, 1, 0, 0, 0, 3, 0], [0, 0, 0, 1, 0, 1, 0], [0, 0, 0, 0, 1, -1, 0], [0, 0, 0, 0, 0, -1, 1]]
+  Q₂' := [[1, 0, 0, 0, 0, 0, 0],
+    [0, 1, 0, 0, 0, 3, 0],
+    [0, 0, 0, 1, 0, 1, 0],
+    [0, 0, 0, 0, 1, -1, 0],
+    [0, 0, 0, 0, 0, -1, 1]]
   A := [[0, 2], [-1, -3]]
 
 /-- The operating point of `rlc`. -/
@@ -146,7 +167,8 @@ theorem rlcLyap_check :
   decide +kernel
 
 /-- Exponential stability of every damped RLC trajectory about the operating point. -/
-example := rlc.isExponentiallyStable_of_check rlc_check rlcDec_check rlcEq_check rlcLyap_check
+example := rlc.isExponentiallyStable_of_check rlc_check rlcDec_check rlcEq_check
+  (LyapunovCert.isExponentiallyStable_of_check rlcLyap_check)
 
 /-! ### Ideal LC: an accepted decoupling, but no asymptotic stability -/
 
@@ -194,7 +216,8 @@ theorem lc_osc (ε : ℝ) :
       simpa using ((Real.hasDerivAt_cos t).const_mul ε).hasDerivWithinAt
 
 /-- The potential of the oscillation does not tend to the equilibrium value `0`. -/
-theorem lc_not_tendsto {ε : ℝ} (hε : ε ≠ 0) : ¬ Tendsto (fun t : ℝ => ε * Real.cos t) atTop (𝓝 0) := by
+theorem lc_not_tendsto {ε : ℝ} (hε : ε ≠ 0) :
+    ¬ Tendsto (fun t : ℝ => ε * Real.cos t) atTop (𝓝 0) := by
   intro h
   have h2 := h.comp ((tendsto_natCast_atTop_atTop (R := ℝ)).const_mul_atTop
     (by positivity : (0 : ℝ) < 2 * Real.pi))
@@ -208,7 +231,9 @@ theorem lc_not_tendsto {ε : ℝ} (hε : ε ≠ 0) : ¬ Tendsto (fun t : ℝ => 
 there are trajectories that do not converge to it. -/
 example : ∀ δ > 0, ∃ φ i, lc.IsTrajectoryOn 0 φ i (Ici 0) ∧ |φ 0 0| < δ ∧
     ¬ Tendsto (fun t => φ t 0) atTop (𝓝 0) := fun δ hδ =>
-  ⟨_, _, lc_osc (δ / 2), by simp only [Real.cos_zero, mul_one]; rw [abs_of_pos (half_pos hδ)]; linarith, lc_not_tendsto (by positivity)⟩
+  ⟨_, _, lc_osc (δ / 2),
+    by simp only [Real.cos_zero, mul_one]; rw [abs_of_pos (half_pos hδ)]; linarith,
+    lc_not_tendsto (by positivity)⟩
 
 private theorem norm_le_of_apply {n : ℕ} (z : Fin n → ℝ) (j : Fin n) :
     |z j| ≤ ‖WithLp.toLp 2 z‖ := by
@@ -219,7 +244,7 @@ theorem lc_no_lyapunov (l : LyapunovCert) (P : List (List ℚ)) :
     l.check lcDec.k lcDec.A P = false := by
   by_contra hl
   obtain ⟨-, -, M, α, hα, hM⟩ := lc.isExponentiallyStable_of_check lc_check lcDec_check
-    lcEq_check (Bool.eq_true_of_not_eq_false hl)
+    lcEq_check (LyapunovCert.isExponentiallyStable_of_check (Bool.eq_true_of_not_eq_false hl))
   have hq : ofList lc.size lcEq = 0 := by funext j; fin_cases j <;> decide
   have hz : realOfList lc.size lcEq = 0 := by
     funext j; simp only [realOfList, hq, Pi.zero_apply, Rat.cast_zero]
@@ -287,7 +312,8 @@ theorem neg_grow (ε : ℝ) :
 whose potential is unbounded. -/
 example : ∀ δ > 0, ∃ φ i, neg.IsTrajectoryOn 0 φ i (Ici 0) ∧ |φ 0 0| < δ ∧
     ∀ B : ℝ, ∃ t ≥ 0, B < φ t 0 := fun δ hδ => by
-  refine ⟨_, _, neg_grow (δ / 2), by simp only [Real.exp_zero, mul_one]; rw [abs_of_pos (half_pos hδ)]; linarith, fun B => ?_⟩
+  refine ⟨_, _, neg_grow (δ / 2),
+    by simp only [Real.exp_zero, mul_one]; rw [abs_of_pos (half_pos hδ)]; linarith, fun B => ?_⟩
   have hB : 0 ≤ 2 * |B| / δ := by positivity
   refine ⟨Real.log (2 * |B| / δ + 1), Real.log_nonneg (by linarith), ?_⟩
   rw [Real.exp_log (by positivity)]
@@ -299,7 +325,7 @@ theorem neg_no_lyapunov (l : LyapunovCert) (P : List (List ℚ)) :
     l.check negDec.k negDec.A P = false := by
   by_contra hl
   obtain ⟨-, -, M, α, hα, hM⟩ := neg.isExponentiallyStable_of_check neg_check negDec_check
-    negEq_check (Bool.eq_true_of_not_eq_false hl)
+    negEq_check (LyapunovCert.isExponentiallyStable_of_check (Bool.eq_true_of_not_eq_false hl))
   have hq : ofList neg.size negEq = 0 := by funext j; fin_cases j <;> decide
   have hz : realOfList neg.size negEq = 0 := by
     funext j; simp only [realOfList, hq, Pi.zero_apply, Rat.cast_zero]
