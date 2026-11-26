@@ -132,41 +132,15 @@ theorem computableInPolyTime_listReplyStep :
       machine.listReplyStep x.1 x.2) (encPair (encPair encBits (encList encBits)) encBits)
       encBits := by
   let _ := Fintype.ofFinite Operation
-  have hpair : ComputableInPolyTime
-      (fun x : (List Bool × List (List Bool)) × List Bool => (x.1.1, x.2))
-      (encPair (encPair encBits (encList encBits)) encBits) (encPair encBits encBits) :=
-    (ComputableInPolyTime.fst _ _).fst'.prod (.snd _ _)
-  have hcfg : ComputableInPolyTime
-      (fun x : (List Bool × List (List Bool)) × List Bool => machine.replayConfig x.1.1 x.2)
-      (encPair (encPair encBits (encList encBits)) encBits) encFiniteConfig :=
-    machine.replayConfig_pt.comp
-      (g := fun x : (List Bool × List (List Bool)) × List Bool => (x.1.1, x.2)) hpair
-  have hquery : ComputableInPolyTime
-      (fun x : (List Bool × List (List Bool)) × List Bool =>
-        (machine.pendingQuery (machine.replayConfig x.1.1 x.2)).isSome)
-      (encPair (encPair encBits (encList encBits)) encBits) encBool :=
-    (ComputableInPolyTime.of_finite Option.isSome).comp
-      (machine.pendingQuery_pt.comp (g := fun x : (List Bool × List (List Bool)) × List Bool =>
-        machine.replayConfig x.1.1 x.2) hcfg)
-  have hmem : ComputableInPolyTime
-      (fun x : (List Bool × List (List Bool)) × List Bool =>
-        decide (machine.pendingRequest (machine.replayConfig x.1.1 x.2) ∈ x.1.2))
-      (encPair (encPair encBits (encList encBits)) encBits) encBool :=
-    ComputableInPolyTime.decide_mem (ComputableInPolyTime.fst _ _).snd'
-      (machine.pendingRequest_pt.comp (g := fun x : (List Bool × List (List Bool)) × List Bool =>
-        machine.replayConfig x.1.1 x.2) hcfg)
-  have hbit : ComputableInPolyTime
-      (fun x : (List Bool × List (List Bool)) × List Bool =>
-        if (machine.pendingQuery (machine.replayConfig x.1.1 x.2)).isSome then
-          decide (machine.pendingRequest (machine.replayConfig x.1.1 x.2) ∈ x.1.2) else false)
-      (encPair (encPair encBits (encList encBits)) encBits) encBool :=
-    ComputableInPolyTime.ite' hquery hmem (ComputableInPolyTime.const false)
-  have hsingle : ComputableInPolyTime (fun b : Bool => [b]) encBool encBits :=
-    .of_eq fun _ => rfl
-  exact ComputableInPolyTime.bitsAppend (ComputableInPolyTime.snd _ _)
-    (hsingle.comp (g := fun x : (List Bool × List (List Bool)) × List Bool =>
-      if (machine.pendingQuery (machine.replayConfig x.1.1 x.2)).isSome then
-        decide (machine.pendingRequest (machine.replayConfig x.1.1 x.2) ∈ x.1.2) else false) hbit)
+  have hfst := ComputableInPolyTime.fst (encPair encBits (encList encBits)) encBits
+  have hsnd := ComputableInPolyTime.snd (encPair encBits (encList encBits)) encBits
+  have hcfg := machine.replayConfig_pt.comp (hfst.fst'.prod hsnd)
+  have hquery := (ComputableInPolyTime.of_finite (encOut := encBool) Option.isSome).comp
+    (machine.pendingQuery_pt.comp hcfg)
+  have hmem := ComputableInPolyTime.decide_mem hfst.snd' (machine.pendingRequest_pt.comp hcfg)
+  have hbit := ComputableInPolyTime.ite' hquery hmem (ComputableInPolyTime.const false)
+  have hsingle : ComputableInPolyTime (fun b : Bool => [b]) encBool encBits := .of_eq fun _ => rfl
+  exact hsnd.bitsAppend (hsingle.comp hbit)
 
 end PolyTime
 

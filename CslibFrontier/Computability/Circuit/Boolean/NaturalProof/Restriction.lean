@@ -53,17 +53,13 @@ private theorem prob_constant_restriction {n : ℕ} (ρ : PartialAssignment (Fin
   let S : Finset (BitString n) := univ.filter (ρ.Agrees ·)
   have hS : S.card = 2 ^ ρ.free.card := by
     rw [← PartialAssignment.card_filter_outside_eq ρ]
-    congr 1
-    ext x
-    simp only [S, mem_filter, mem_univ, true_and]
-    constructor
-    · intro hx
-      funext i
-      cases hi : ρ i with
-      | none => simp [PartialAssignment.outside, hi]
-      | some b => simp [PartialAssignment.outside, hi, hx i b hi]
-    · intro hx i b hi
-      simpa [PartialAssignment.outside, hi] using congrFun hx i
+    congr 1 with x
+    simp only [S, mem_filter, mem_univ, true_and, funext_iff, PartialAssignment.outside,
+      PartialAssignment.mem_free]
+    refine ⟨fun hx i => ?_, fun hx i b hi => by simpa [hi] using hx i⟩
+    cases hi : ρ i
+    · simp
+    · simp [hx i _ hi]
   let c (b : Bool) : S → Bool := fun _ => b
   have hset : {f : BitString n → Bool | ∃ b : Bool, ∀ x, ρ.Agrees x → f x = b} =
       S.restrict ⁻¹' (({c false} : Set (S → Bool)) ∪ ({c true} : Set (S → Bool))) := by
@@ -155,24 +151,19 @@ theorem tendsto_prob_no_constant_restriction (ε : ℝ) (hε : ε ∈ Set.Ioo (0
           norm_num
     · simpa using (tendsto_pow_atTop_nhds_zero_of_lt_one
         (show (0 : ℝ) ≤ 1 / 4 by norm_num) (by norm_num)).const_mul 2
-  have hgood := (tendsto_const_nhds (x := (1 : ℝ))).sub hbad
-  rw [sub_zero] at hgood
-  refine hgood.congr fun n => ?_
-  have hset : (bad n)ᶜ = {f | ∀ ρ : PartialAssignment (Fin n),
-      (ρ.support.card : ℝ) ≤ n - (n : ℝ) ^ ε →
-      ¬ ∃ b : Bool, ∀ x, ρ.Agrees x → f x = b} := by
-    ext f
-    simp only [bad, Set.mem_compl_iff, Set.mem_ofPred_eq, not_exists, not_and, Nat.ceil_le]
+  simpa only [sub_zero] using ((tendsto_const_nhds (x := (1 : ℝ))).sub hbad).congr fun n => by
     have hcard (ρ : PartialAssignment (Fin n)) :
-        (ρ.free.card : ℝ) + ρ.support.card = n := by
-      exact_mod_cast (show ρ.free.card + ρ.support.card = n by
-        rw [← ρ.compl_free, card_add_card_compl, Fintype.card_fin])
-    exact forall_congr' fun ρ => by
-      rw [show ((n : ℝ) ^ ε ≤ ρ.free.card) ↔
-        (ρ.support.card : ℝ) ≤ n - (n : ℝ) ^ ε by constructor <;> intro h <;> linarith [hcard ρ]]
-  rw [← hset]
-  have h := Probability.PMF.toOuterMeasure_toReal_add_compl
-    (PMF.uniformOfFintype (BitString n → Bool)) (bad n)
-  linarith
+        (ρ.free.card : ℝ) = n - ρ.support.card :=
+      eq_sub_of_add_eq <| by
+        exact_mod_cast (ρ.compl_free ▸ card_add_card_compl ρ.free).trans (Fintype.card_fin n)
+    have hset : (bad n)ᶜ = {f | ∀ ρ : PartialAssignment (Fin n),
+        (ρ.support.card : ℝ) ≤ n - (n : ℝ) ^ ε →
+        ¬ ∃ b : Bool, ∀ x, ρ.Agrees x → f x = b} := by
+      ext f
+      simp only [bad, Set.mem_compl_iff, Set.mem_ofPred_eq, not_exists, not_and, Nat.ceil_le,
+        hcard, le_sub_comm]
+    rw [← hset]
+    linarith [Probability.PMF.toOuterMeasure_toReal_add_compl
+      (PMF.uniformOfFintype (BitString n → Bool)) (bad n)]
 
 end Cslib.Circuits.Boolean

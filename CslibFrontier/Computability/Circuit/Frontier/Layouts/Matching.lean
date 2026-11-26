@@ -135,19 +135,13 @@ theorem pairKey_mem {α : Type*} [LinearOrder α] (a b c d : α) :
   unfold pairKey
   rcases min_choice (max a b) (max (min a b) (min c d)) with h | h
   · rw [h]
-    rcases max_choice a b with h' | h'
-    · exact Or.inl h'
-    · exact Or.inr (Or.inl h')
+    exact (max_choice a b).imp id Or.inl
   · rw [h]
     rcases max_choice (min a b) (min c d) with h' | h'
     · rw [h']
-      rcases min_choice a b with h'' | h''
-      · exact Or.inl h''
-      · exact Or.inr (Or.inl h'')
+      exact (min_choice a b).imp id Or.inl
     · rw [h']
-      rcases min_choice c d with h'' | h''
-      · exact Or.inr (Or.inr (Or.inl h''))
-      · exact Or.inr (Or.inr (Or.inr h''))
+      exact Or.inr (Or.inr (min_choice c d))
 
 /-- Disagreement count at a single cubic vertex with three incident edge colors `a, b, c` and
 vertex color `x`. -/
@@ -299,12 +293,9 @@ private theorem eq_of_mem_isMatching {M : Set E} (hM : G.IsMatching M) {e f : E}
     (he : e ∈ M) (hf : f ∈ M) {v : V} (hev : e ∈ G.incidenceSet v) (hfv : f ∈ G.incidenceSet v) :
     e = f := by
   by_contra hne
-  have hdis := hM he hf hne
-  have hv1 : v ∈ ({G.src e, G.tgt e} : Set V) := by
-    rcases hev with h | h <;> simp [h]
-  have hv2 : v ∈ ({G.src f, G.tgt f} : Set V) := by
-    rcases hfv with h | h <;> simp [h]
-  exact disjoint_left.mp hdis hv1 hv2
+  exact disjoint_left.mp (hM he hf hne)
+    (by rcases hev with h | h <;> simp [h] : v ∈ _)
+    (by rcases hfv with h | h <;> simp [h])
 
 /-- Mate of a vertex `v` under matching `M` (returning `v` when `v` is unmatched). -/
 noncomputable def mate (G : Multigraph V E) (M : Set E) (v : V) : V :=

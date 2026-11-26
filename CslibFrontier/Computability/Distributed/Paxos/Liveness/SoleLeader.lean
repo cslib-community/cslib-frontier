@@ -71,8 +71,7 @@ theorem paxos_liveness_from_phase2a_crashStop {inputs : Proposer → V}
       simp only [(hexec j₃).2, hj₃_act, synodStep, synodStepCore, hallows_j₃, ↓reduceIte,
         Finset.mem_insert_self]
     obtain ⟨j₄, _, hj₄_act⟩ := hphase2b (j₃ + 1) a v haQ h2b_mem
-    refine ⟨j₄ + 1, ?_⟩
-    simp only [(hexec j₄).2, hj₄_act, synodStep, synodStepCore, ↓reduceIte, Finset.mem_insert_self]
+    exact ⟨j₄ + 1, by simp [(hexec j₄).2, hj₄_act, synodStep, synodStepCore]⟩
   let recvStep : Acceptor → ℕ := fun a =>
     if h : a ∈ Q then Classical.choose (hQ_recv a h) else 0
   let k_final := Q.sup recvStep
@@ -152,19 +151,15 @@ theorem paxos_liveness_of_sole_leader_crashStop {inputs : Proposer → V}
         | succ n ih =>
           intro v hm
           rw [(hexec n).2] at hm
-          rcases mem_msgs_synodStep_cases hm with hold | ⟨_, _, _, h⟩ | ⟨_, _, _, _, h⟩ |
-              ⟨q, _, _, _, r_q, _, hact, _, _, hprop_t, h⟩ | ⟨_, _, _, _, _, h⟩
+          rcases mem_msgs_synodStep_cases hm with hold | ⟨_, _, _, ⟨⟩⟩ | ⟨_, _, _, _, ⟨⟩⟩ |
+              ⟨q, _, _, _, r_q, _, hact, _, _, hprop_t, h⟩ | ⟨_, _, _, _, _, ⟨⟩⟩
           · exact ih v hold
-          · cases h
-          · cases h
           · injection h with hb_eq _
-            have hqp : q = p := (congrArg Ballot.proposer hb_eq).symm
-            subst hqp
+            obtain rfl : q = p := (congrArg Ballot.proposer hb_eq).symm
             rcases eq_or_ne n 0 with rfl | hn0
             · rw [hprep₀] at hact; cases hact
             · have hp1 := hprop_false (n + 1) (by omega)
               rw [(hexec n).2, hprop_t] at hp1; cases hp1
-          · cases h
       have hacc_1b : ∀ n a, ((ss n).acceptors a).maxBal = some b →
           ∃ j mv, Msg.phase1b a b mv ∈ (ss j).msgs := by
         intro n
@@ -189,11 +184,8 @@ theorem paxos_liveness_of_sole_leader_crashStop {inputs : Proposer → V}
         have hex_1b : ∃ j_m mv, Msg.phase1b a b mv ∈ (ss j_m).msgs := by
           cases hab : aboveMaxBal ((ss j₁).acceptors a).maxBal b with
           | true =>
-            refine ⟨j₁ + 1, ((ss j₁).acceptors a).maxVoted, ?_⟩
-            rw [(hexec j₁).2, hj₁_act]
-            dsimp only [synodStep, synodStepCore]
-            rw [ite_eq_left hab]
-            exact Finset.mem_insert_self _ _
+            exact ⟨j₁ + 1, ((ss j₁).acceptors a).maxVoted, by
+              simp [(hexec j₁).2, hj₁_act, synodStep, synodStepCore, hab]⟩
           | false =>
             cases hmb_cur : ((ss j₁).acceptors a).maxBal with
             | none => rw [hmb_cur] at hab; cases hab

@@ -12,6 +12,7 @@ import CslibFrontier.Foundations.Data.Rat.ClearDenom
 import Mathlib.Data.List.GetD
 import Mathlib.Data.Rat.Cast.Order
 import Mathlib.LinearAlgebra.Matrix.ConjTranspose
+import Mathlib.Tactic.LinearCombination
 
 /-!
 # Sparse and envelope `LDLᵀ` certificates, checked by the kernel
@@ -897,6 +898,15 @@ private theorem cast_alignDot {f g : ℕ} {r r' dw : List ℚ} {dg : ℕ → ℚ
   · rw [List.getD_eq_default _ _ hk]
     simp
 
+/-- The integer check of one entry, read back over `ℚ`. -/
+private theorem mul_eq_of_num_mul {v : ℚ} {S : ℕ} {D : ℤ} (h : v.num * (S : ℤ) = D * v.den) :
+    v * S = D := by
+  have hden : (v.den : ℚ) ≠ 0 := Nat.cast_ne_zero.2 v.den_nz
+  have h' : (v.num : ℚ) * S = D * v.den := by exact_mod_cast h
+  rw [← Rat.mul_den_eq_num] at h'
+  apply mul_right_cancel₀ hden
+  linear_combination h'
+
 /-- An accepted exact check factors every symmetric matrix that the rows give. -/
 theorem eq_of_factorsLower {rows : List (List (ℕ × ℚ))}
     (hsymm : (ofSparse n n rows)ᵀ = ofSparse n n rows) (h : c.factorsLower n rows = true) :
@@ -984,7 +994,7 @@ theorem eq_of_factorsLower {rows : List (List (ℕ × ℚ))}
       simp only [rowData] at hx
       rw [show fr.1 + p = (j : ℕ) by omega] at hx
       set v := sparseGet (rows.getD i []) j
-      have hq := LDLCert.entry_eq_of_scaled v.den_pos (Rat.mul_den_eq_num v).symm hx
+      have hq := mul_eq_of_num_mul hx
       obtain ⟨hfj, hnej⟩ := hshape' j j.is_lt
       rw [cast_alignDot (n := n) (dg := fun k => c.diag.getD k 0) (by omega)
         (fun q hq' => by

@@ -92,13 +92,9 @@ theorem readVertex_eq_some_iff (bits rest : List Bool) (v : Fin N) :
     readVertex bits = some (v, rest) ↔ bits = vertex v ++ rest := by
   simp only [readVertex, Option.map_eq_some_iff, Prod.mk.injEq,
     decodeVertex_eq_some_iff]
-  constructor
-  · rintro ⟨a, ha, hav, hr⟩
-    subst a
-    rw [← hr, ← ha]
-    exact (List.take_append_drop N.size bits).symm
-  · rintro rfl
-    exact ⟨v, by simp, rfl, by simp⟩
+  refine ⟨?_, fun h => ⟨v, by simp [h], rfl, by simp [h]⟩⟩
+  rintro ⟨_, ha, rfl, rfl⟩
+  exact ha ▸ (List.take_append_drop N.size bits).symm
 
 /-- Destinations followed by a stop bit; the source is implicit. -/
 @[expose] def destinations : List (Fin N) → List Bool
@@ -222,11 +218,9 @@ theorem decode_eq_some_iff (k : ℕ) (bits : List Bool) (b : Branch N) :
     split at hb
     · split at hb
       · subst rest
-        have hss : ss = List.ofFn b := by
-          rw [← Option.some.inj hb]
-          exact List.ext_getElem (by simp [*]) fun _ _ _ => by simp
-        obtain ⟨_, hbound, hbits⟩ := (readEntries_eq_some_iff k N bits [] ss).mp hs
-        subst ss
+        obtain rfl : ss = List.ofFn b :=
+          List.ext_getElem (by simp [*]) fun _ _ _ => by simp [← Option.some.inj hb]
+        obtain ⟨_, hbound, hbits⟩ := (readEntries_eq_some_iff k N bits [] (List.ofFn b)).mp hs
         exact ⟨fun v vs hv => hbound (b v) (List.mem_ofFn.mpr ⟨v, rfl⟩) vs hv,
           by simpa [encode] using hbits⟩
       · cases hb
@@ -243,10 +237,8 @@ theorem decode_encode (k : ℕ) (b : Branch N) (hb : Bounded k b) :
 
 /-- Distinct bounded branches remain distinct binary traces. -/
 theorem encode_injective (k : ℕ) {a b : Branch N}
-    (ha : Bounded k a) (hb : Bounded k b) (h : encode a = encode b) : a = b := by
-  have hd := decode_encode k a ha
-  rw [h, decode_encode k b hb] at hd
-  exact (Option.some.inj hd).symm
+    (ha : Bounded k a) (hb : Bounded k b) (h : encode a = encode b) : a = b :=
+  Option.some.inj ((decode_encode k a ha).symm.trans (h ▸ decode_encode k b hb))
 
 /-- Any nonempty suffix after a bounded branch is rejected, including zero padding. -/
 theorem decode_encode_append (k : ℕ) (b : Branch N) (hb : Bounded k b)

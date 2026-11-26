@@ -609,14 +609,7 @@ private theorem verified (parent : Index) : Verified parent := by
   have key : ∀ k : Fin 8, ∀ i : Fin 13, Verified ⟨13 * k.val + i.val, by omega⟩ := by
     intro k
     fin_cases k
-    · exact verified0
-    · exact verified1
-    · exact verified2
-    · exact verified3
-    · exact verified4
-    · exact verified5
-    · exact verified6
-    · exact verified7
+    exacts [verified0, verified1, verified2, verified3, verified4, verified5, verified6, verified7]
   have h := key ⟨parent.val / 13, by omega⟩ ⟨parent.val % 13, Nat.mod_lt _ (by decide)⟩
   have e : (⟨13 * (parent.val / 13) + parent.val % 13, by omega⟩ : Index) = parent :=
     Fin.ext (Nat.div_add_mod _ _)
@@ -633,12 +626,10 @@ private theorem Forest.reaches_sound {width : Nat} {grid : Nat → Nat → Index
 private theorem connects_sound {grid : Nat → Nat → Index} {f : Forest 8}
     (valid : f.Valid grid) {start finish : Port} (h : connects f start finish = true) :
     BoundedPath grid 8 8 start finish false := by
-  simp only [connects, Bool.and_eq_true] at h
-  obtain ⟨hroot, hnode⟩ := h
-  have rootEq : decodePort 8 f.root = start := of_decide_eq_true hroot
+  obtain ⟨hroot, hnode⟩ := Bool.and_eq_true_iff.mp h
   obtain ⟨r, hr, hend⟩ := List.any_eq_true.mp hnode
   obtain ⟨targetEq, parityEq⟩ := of_decide_eq_true hend
-  simpa only [rootEq, targetEq, parityEq] using Forest.sound_mem valid hr
+  simpa only [of_decide_eq_true hroot, targetEq, parityEq] using Forest.sound_mem valid hr
 
 end RedPathCertificate
 open RedPathCertificate
@@ -930,10 +921,9 @@ theorem livePortPath (grid : Nat → Nat → Index) (port : Port)
     · have present : portPresent (coarseGrid (grid (port.x / 2) (port.y / 2)))
         (internalPort .east (port.y % 2)) = true := by
         simpa only [internalPort, hs, hx] using (portPresent_local grid port).trans live
-      have path := boundedPath_two_block grid (port.x / 2) (port.y / 2)
-        (boundedConnectorPath _ .east (by omega) present)
-      simpa [sparsePort, refinedPort, hs, exitCoordinate, hx,
-        internalPort, externalPort, translatePort, sparseCoordinate] using path
+      simpa [sparsePort, refinedPort, hs, exitCoordinate, hx, internalPort, externalPort,
+        translatePort, sparseCoordinate] using boundedPath_two_block grid (port.x / 2)
+          (port.y / 2) (boundedConnectorPath _ .east (by omega) present)
     · simpa [refinedPort, hs, exitCoordinate, hx, sparsePort]
         using Path.refl (sparsePort port)
   | north =>
@@ -941,10 +931,9 @@ theorem livePortPath (grid : Nat → Nat → Index) (port : Port)
     · have present : portPresent (coarseGrid (grid (port.x / 2) (port.y / 2)))
         (internalPort .north (port.x % 2)) = true := by
         simpa only [internalPort, hs, hy] using (portPresent_local grid port).trans live
-      have path := boundedPath_two_block grid (port.x / 2) (port.y / 2)
-        (boundedConnectorPath _ .north (by omega) present)
-      simpa [sparsePort, refinedPort, hs, exitCoordinate, hy,
-        internalPort, externalPort, translatePort, sparseCoordinate] using path
+      simpa [sparsePort, refinedPort, hs, exitCoordinate, hy, internalPort, externalPort,
+        translatePort, sparseCoordinate] using boundedPath_two_block grid (port.x / 2)
+          (port.y / 2) (boundedConnectorPath _ .north (by omega) present)
     · simpa [refinedPort, hs, exitCoordinate, hy, sparsePort]
         using Path.refl (sparsePort port)
 

@@ -159,19 +159,17 @@ private theorem productDepth_derivLast_le (j : ℕ) (F : SPFormula K (n + 1)) :
   fin_cases i
   refine (productDepth_coeffLast_le _ _ _).trans <|
     (productDepth_substFormula_le (B := 0) (fun k => ?_) F).trans_eq (add_zero _)
-  refine Fin.lastCases ?_ (fun k => ?_) k
-  · rw [addLastInput, Fin.lastCases_last, productDepth_add]
-    exact Finset.sup_le fun i _ => by fin_cases i <;> simp
-  · simp [addLastInput]
+  refine Fin.lastCases ?_ (fun k => by simp [addLastInput]) k
+  rw [addLastInput, Fin.lastCases_last, productDepth_add]
+  exact Finset.sup_le fun i _ => by fin_cases i <;> simp
 
 private theorem nodeCount_derivLast_le (j : ℕ) (F : SPFormula K (n + 1)) :
     (derivLast j F).nodeCount ≤ (3 * F.nodeCount + 1) * (3 * F.nodeCount) + 2 := by
   have hH : (substFormula addLastInput F).nodeCount ≤ 3 * F.nodeCount := by
     refine (nodeCount_substFormula_le (S := 3) (fun k => ?_) (by norm_num) F).trans_eq
       (mul_comm _ _)
-    refine Fin.lastCases ?_ (fun k => ?_) k
-    · simp [addLastInput, Fin.sum_univ_two]
-    · simp [addLastInput]
+    exact Fin.lastCases (by simp [addLastInput, Fin.sum_univ_two])
+      (fun _ => by simp [addLastInput]) k
   rw [derivLast, Formula.nodeCount_gate, Fin.sum_univ_one, Matrix.cons_val_zero]
   have := nodeCount_coeffLast_le j (substFormula addLastInput F).nodeCount
     (substFormula addLastInput F)
@@ -284,9 +282,7 @@ theorem exists_formula_of_root [CharZero K] {N Δ : ℕ} {F : SPFormula K (N + 1
           rw [card_range, smul_eq_mul]
           ring
         _ ≤ _ := by omega
-    have hS1 : 1 ≤ S.nodeCount := by
-      rw [hS, nodeCount_sumOn]
-      omega
+    have hS1 : 1 ≤ S.nodeCount := by simp [hS, nodeCount_sumOn]
     have hTn : T.nodeCount = L.nodeCount + 2 := by
       simp [hT, Formula.nodeCount_gate, Fin.sum_univ_two]
     have hLn : L.nodeCount ≤ (S.nodeCount + 1) * (3 * S.nodeCount) + 1 :=
@@ -298,8 +294,6 @@ theorem exists_formula_of_root [CharZero K] {N Δ : ℕ} {F : SPFormula K (N + 1
       _ ≤ 27 * (47527 * ((D + 1) ^ 3 * (s + 1) ^ 4)) ^ 2 := by gcongr
       _ = (27 * 47527 ^ 2) * ((s + 1) ^ 8 * (D + 1) ^ 6) := by ring
       _ ≤ 2 ^ 36 * ((s + 1) ^ 8 * (D + 1) ^ 6) := Nat.mul_le_mul_right _ (by norm_num)
-      _ = rootCost s D := by
-        rw [rootCost]
-        ring
+      _ = rootCost s D := by simp only [rootCost]; ring
 
 end Cslib.Circuits.Arithmetic.SPFormula

@@ -144,9 +144,8 @@ private theorem columnDetector_eq_sum :
     columnDetector X Y ϕ ρ J K f G y =
       (∑ s, ∑ t ∈ {t | Y t y}, detectorTrial ϕ ρ J K f G {x | X s x} {w | Y t w} y) /
         (Fintype.card ι * #({t | Y t y} : Finset κ)) := by
-  rw [columnDetector, Fintype.expect_eq_sum_div_card]
-  simp only [expect_eq_sum_div_card]
-  rw [← Finset.sum_div, div_div, mul_comm (#({t | Y t y} : Finset κ) : ℝ)]
+  simp only [columnDetector, expect_eq_sum_div_card, card_univ, ← Finset.sum_div, div_div]
+  rw [mul_comm (#({t | Y t y} : Finset κ) : ℝ)]
 
 omit [Fintype V] in
 theorem detectorTrial_nonneg {S T : Finset V} : 0 ≤ detectorTrial ϕ ρ J K f G S T y :=
@@ -206,13 +205,11 @@ theorem card_filter_rowGate_lt_one_mul_le (T : Finset κ) (x : V) (hf : 0 < f) {
   have hswap : ∑ t ∈ T, (#{w ∈ W | Y t w} : ℝ) = ∑ w ∈ W, (#{t ∈ T | Y t w} : ℝ) := by
     simpa only [natCast_card_filter] using sum_comm
   have hterm : ∀ w ∈ W, (#{t ∈ T | Y t w} : ℝ) ≤ (if y = w then (#T : ℝ) else 0) +
-      c * f * #T := by
-    intro w _
+      c * f * #T := fun w _ => by
     split_ifs with hwy
-    · have hle : (#{t ∈ T | Y t w} : ℝ) ≤ #T := by exact_mod_cast card_filter_le _ _
-      have : 0 ≤ c * f * #T := by positivity
-      linarith
-    · rw [zero_add]; exact hpair w (Ne.symm hwy)
+    · linarith [show (#{t ∈ T | Y t w} : ℝ) ≤ #T by exact_mod_cast card_filter_le _ _,
+        show 0 ≤ c * f * #T by positivity]
+    · simpa only [zero_add] using hpair w (Ne.symm hwy)
   have hWf : (#W : ℝ) * f ≤ k / η := by
     rw [le_div_iff₀ hη]; linarith
   calc (#{t ∈ T | rowGate ρ K f G {w | Y t w} x < 1} : ℝ) * K
@@ -274,14 +271,11 @@ theorem lt_card_of_lt_columnDetector (hch : RetentionChannels X Y f π cπ Cπ C
     simp only [natCast_card_filter]
     rw [sum_comm]
     simp only [← natCast_card_filter, card_X hch, sum_const, nsmul_eq_mul]
-  have hT : 0 < #T := card_pos.2 <| nonempty_iff_ne_empty.2 fun hT => by
-    have : columnDetector X Y ϕ ρ J K f G y = 0 := by rw [columnDetector_eq_sum]; simp [T, hT]
-    linarith
-  have hι : 0 < Fintype.card ι := Fintype.card_pos_iff.2 <| not_isEmpty_iff.1 fun hι => by
-    have : columnDetector X Y ϕ ρ J K f G y = 0 := by rw [columnDetector_eq_sum]; simp
-    linarith
-  have hTr : (0 : ℝ) < #T := by exact_mod_cast hT
-  have hιr : (0 : ℝ) < Fintype.card ι := by exact_mod_cast hι
+  have hTr : (0 : ℝ) < #T := Nat.cast_pos.2 <| card_pos.2 <| nonempty_iff_ne_empty.2 fun hT => by
+    linarith [show columnDetector X Y ϕ ρ J K f G y = 0 by simp [columnDetector_eq_sum, T, hT]]
+  have hιr : (0 : ℝ) < Fintype.card ι := Nat.cast_pos.2 <| Fintype.card_pos_iff.2 <|
+    not_isEmpty_iff.1 fun _ => by
+      linarith [show columnDetector X Y ϕ ρ J K f G y = 0 by simp [columnDetector_eq_sum]]
   have hUle : columnDetector X Y ϕ ρ J K f G y ≤ #A0 * π / J := by
     rw [columnDetector_eq_sum, div_le_div_iff₀ (by positivity) hJr]
     calc (∑ s, ∑ t ∈ T, detectorTrial ϕ ρ J K f G {x | X s x} {w | Y t w} y) * J
@@ -335,9 +329,7 @@ theorem le_columnDetector (hch : RetentionChannels X Y f π cπ Cπ Cpair Cvar) 
     linarith [mul_lt_mul_of_pos_left h1 hcπ,
       mul_le_mul_of_nonneg_left hch.lower (Nat.cast_nonneg (α := ℝ) #A)]
   have hnπ0 : 0 < (#A : ℝ) * π := by linarith
-  have hA : A.Nonempty := by
-    rw [← card_pos, ← Nat.cast_pos (α := ℝ)]
-    exact pos_of_mul_pos_left hnπ0 hπ.le
+  have hA : A.Nonempty := card_pos.1 (Nat.cast_pos.1 (pos_of_mul_pos_left hnπ0 hπ.le))
   obtain ⟨hι, -⟩ := card_pos_of_dens hπ (hch.dens_X y)
   obtain ⟨hκ, hT⟩ := card_pos_of_dens hπ (hch.dens_Y y)
   have hκr : (0 : ℝ) < Fintype.card κ := by exact_mod_cast hκ
@@ -405,10 +397,7 @@ theorem le_columnDetector (hch : RetentionChannels X Y f π cπ Cπ Cpair Cvar) 
       linarith
     · simpa only [b1, b2, h1, h2, ↓reduceIte, sub_zero] using hgood s t h1 h2
   have hb1 : ∑ s, b1 s ≤ Cvar / (#A * π) * Fintype.card ι := by
-    have ht := hch.tail A hA
-    rw [dens_cast, div_le_iff₀ hιr] at ht
-    simp only [b1, N]
-    rwa [sum_boole]
+    simpa only [b1, N, sum_boole, dens_cast, div_le_iff₀ hιr] using hch.tail A hA
   have hb2 : ∑ s, ∑ t ∈ T, b2 s t ≤ 4 / (#A * π) * ∑ s, ∑ t ∈ T, L s t := by
     simp only [mul_sum]
     refine sum_le_sum fun s _ => sum_le_sum fun t _ => ?_

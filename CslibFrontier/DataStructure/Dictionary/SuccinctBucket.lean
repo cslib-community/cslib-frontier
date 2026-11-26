@@ -254,9 +254,8 @@ theorem totalMicroBuckets_le (n : ℕ) : totalMicroBuckets n ≤ max n 1 := by
   · exact (Nat.pow_log_le_self 2 (by omega)).trans (le_max_left n 1)
 
 /-- When `1 ≤ n`, `totalMicroBuckets n ≤ n`. -/
-theorem totalMicroBuckets_le_self {n : ℕ} (hn : 1 ≤ n) : totalMicroBuckets n ≤ n := by
-  have h := totalMicroBuckets_le n
-  rwa [max_eq_left hn] at h
+theorem totalMicroBuckets_le_self {n : ℕ} (hn : 1 ≤ n) : totalMicroBuckets n ≤ n :=
+  (totalMicroBuckets_le n).trans_eq (max_eq_left hn)
 
 /-- For every `n : ℕ`, `n ≤ 2 * totalMicroBuckets n`. -/
 theorem le_two_mul_totalMicroBuckets (n : ℕ) : n ≤ 2 * totalMicroBuckets n := by
@@ -344,9 +343,8 @@ theorem numBuckets_mul_effBucketCap_le (n : ℕ) :
 
 /-- When `1 ≤ n`, `numBuckets n * effBucketCap n ≤ 4 * n`. -/
 theorem numBuckets_mul_effBucketCap_le_four_mul {n : ℕ} (hn : 1 ≤ n) :
-    numBuckets n * effBucketCap n ≤ 4 * n := by
-  have h := numBuckets_mul_effBucketCap_le n
-  rwa [max_eq_left hn] at h
+    numBuckets n * effBucketCap n ≤ 4 * n :=
+  (numBuckets_mul_effBucketCap_le n).trans_eq (by rw [max_eq_left hn])
 
 /-- `slabSize n` is always at least `1`. -/
 theorem one_le_slabSize (n : ℕ) : 1 ≤ slabSize n := by
@@ -370,15 +368,11 @@ theorem slabSize_eq_sq_of_pos {n : ℕ} (hb : 0 < bucketBits n) :
 theorem numBuckets_mul_slabScale_cubed_le {n : ℕ} (hb : 0 < bucketBits n) :
     numBuckets n * (slabScale n) ^ 3 ≤ n := by
   have hle : 3 * Dynamic.logLogFactor n < Nat.log 2 n := by grind [bucketBits]
-  have hn : 0 < n := by
-    by_contra h0
-    have hn0 : n = 0 := by omega
-    subst hn0
-    simp at hle
-  unfold numBuckets bucketBits slabScale
-  rw [← pow_mul, ← pow_add, Nat.mul_comm (Dynamic.logLogFactor n) 3,
-    Nat.sub_add_cancel (by omega)]
-  exact Nat.pow_log_le_self 2 (by omega)
+  rcases Nat.eq_zero_or_pos n with rfl | hn
+  · simp at hle
+  · unfold numBuckets bucketBits slabScale
+    rw [← pow_mul, ← pow_add, Nat.mul_comm (Dynamic.logLogFactor n) 3, Nat.sub_add_cancel hle.le]
+    exact Nat.pow_log_le_self 2 hn.ne'
 
 /-- `n` is strictly less than `2 ^ globalPtrBits n`. -/
 theorem lt_two_pow_globalPtrBits (n : ℕ) : n < 2 ^ globalPtrBits n := by
@@ -573,12 +567,9 @@ def popBackWork (K q r : ℕ) : ℕ :=
 theorem pushBackCounts_sum (K q r : ℕ) :
     (pushBackCounts K q r).1 * K + (pushBackCounts K q r).2 = q * K + r + 1 := by
   unfold pushBackCounts
-  split_ifs with h
-  · dsimp only
-    rw [Nat.add_mul, Nat.one_mul]
-    omega
-  · dsimp only
-    omega
+  split_ifs with h <;> dsimp only
+  · rw [Nat.add_mul, Nat.one_mul]; omega
+  · omega
 
 /-- `pushBackCounts` preserves the hysteresis upper bound `r' < 2 * K` and positivity `1 ≤ r'`. -/
 theorem pushBackCounts_bounds {K q r : ℕ} (hK : 1 ≤ K) (hr : r < 2 * K) :
@@ -711,12 +702,8 @@ theorem feistelMicroHash_val_eq {U : ℕ} (n_max : ℕ) (qOf : Fin U → Q)
     (feistelMicroHash n_max qOf H i u).val =
       (feistelLocalMicro n_max qOf H i u).val * 2 ^ bucketBits n_max +
         (feistelBucketHash n_max qOf H i u).val := by
-  have hdiv := feistelMicroHash_val_div n_max qOf H i u
-  have hmod : (feistelMicroHash n_max qOf H i u).val % 2 ^ bucketBits n_max =
-      (feistelBucketHash n_max qOf H i u).val := rfl
-  have h := Nat.div_add_mod (feistelMicroHash n_max qOf H i u).val (2 ^ bucketBits n_max)
-  rw [hdiv, hmod, Nat.mul_comm] at h
-  exact h.symm
+  rw [← feistelMicroHash_val_div, Nat.mul_comm]
+  exact (Nat.div_add_mod _ _).symm
 
 omit [Fintype ι] in
 /-- Two keys land in the same global micro-bucket `feistelMicroHash` if and only if they land in
@@ -868,13 +855,10 @@ theorem probeExcess_le_two_mul_card {U n_max : ℕ}
     (qOf : Fin U → Q) (H : ι → Q → Fin (2 ^ totalMicroBits n_max)) (i : ι)
     (S : Finset (Fin U)) (u : Fin U) :
     probeExcess n_max qOf H i S u ≤ 2 * #(S.erase u) := by
-  unfold probeExcess microCollCount bucketOvfCount
-  have h1 : #{x ∈ S.erase u | feistelMicroHash n_max qOf H i x = feistelMicroHash n_max qOf H i u} ≤
-      #(S.erase u) := card_filter_le _ _
-  have h2 : #{x ∈ S.erase u |
-      feistelBucketHash n_max qOf H i x = feistelBucketHash n_max qOf H i u} -
-        effBucketCap n_max ≤ #(S.erase u) :=
+  have h1 : microCollCount n_max qOf H i S u ≤ #(S.erase u) := card_filter_le _ _
+  have h2 : bucketOvfCount n_max qOf H i S u ≤ #(S.erase u) :=
     (Nat.sub_le _ _).trans (card_filter_le _ _)
+  unfold probeExcess
   omega
 
 omit [Fintype ι] in
@@ -997,20 +981,13 @@ theorem succinct_space_le_succinctWords {U V w n_max B_aux C_aux C_pad C_hdr : �
       Dynamic.succinctWords (C_aux + 5) (C_pad + C_hdr) U V w n_max := by
   unfold Dynamic.succinctWords
   have hqv := quotient_val_bits_le_optBits (U := U) (V := V) (n := n_max)
-  have hnum :
-      n_max * quotientBits U n_max + n_max * valBits V + B_aux + w - 1 ≤
-        Dynamic.optBits U V n_max + (C_aux + 5) * n_max * Dynamic.logLogFactor n_max + w - 1 := by
-    have hmul : n_max * (quotientBits U n_max + valBits V) =
-        n_max * quotientBits U n_max + n_max * valBits V := Nat.left_distrib _ _ _
-    have hdist : (C_aux + 5) * n_max * Dynamic.logLogFactor n_max =
-        C_aux * n_max * Dynamic.logLogFactor n_max + 5 * n_max * Dynamic.logLogFactor n_max := by
-      ring
-    omega
-  have hdiv :
-      (n_max * quotientBits U n_max + n_max * valBits V + B_aux + w - 1) / w ≤
-        (Dynamic.optBits U V n_max +
-          (C_aux + 5) * n_max * Dynamic.logLogFactor n_max + w - 1) / w :=
-    Nat.div_le_div_right hnum
+  rw [Nat.left_distrib] at hqv
+  have hle : n_max * quotientBits U n_max + n_max * valBits V + B_aux ≤
+      Dynamic.optBits U V n_max + (C_aux + 5) * n_max * Dynamic.logLogFactor n_max := by
+    rw [Nat.right_distrib, Nat.right_distrib]; omega
+  have := Nat.div_le_div_right (c := w)
+    (by omega : n_max * quotientBits U n_max + n_max * valBits V + B_aux + w - 1 ≤
+      Dynamic.optBits U V n_max + (C_aux + 5) * n_max * Dynamic.logLogFactor n_max + w - 1)
   omega
 
 /-- Total number of `effBucketPosBits n`-bit entries in the local micro-bucket metadata array
@@ -1108,23 +1085,19 @@ theorem globalMetaLen_mul_globalPtrBits_le (n : ℕ) :
 /-- When `0 < bucketBits n`, `globalMetaLen n ≤ n`. -/
 theorem globalMetaLen_le_of_bucketBits_pos {n : ℕ} (hb : 0 < bucketBits n) :
     globalMetaLen n ≤ n := by
-  have hb0 : bucketBits n ≠ 0 := by omega
+  have hb0 : bucketBits n ≠ 0 := hb.ne'
+  have hb' : 0 < Nat.log 2 n - 3 * Dynamic.logLogFactor n := hb
+  have hll_of {k c : ℕ} (hk : k ≤ Nat.log 2 n) (hc : c = Nat.clog 2 k) :
+      c ≤ Dynamic.logLogFactor n :=
+    hc ▸ Nat.clog_mono_right 2
+      ((hk.trans (Nat.log_mono_right (le_max_left n 4))).trans (Nat.log_le_clog 2 _))
   have hll1 := Dynamic.one_le_logLogFactor n
-  have hlog4 : 4 ≤ Nat.log 2 n := by grind [bucketBits]
-  have hclog4 : 4 ≤ Nat.clog 2 (max n 4) :=
-    (hlog4.trans (Nat.log_mono_right (le_max_left n 4))).trans (Nat.log_le_clog 2 _)
-  have hll2 : 2 ≤ Dynamic.logLogFactor n := by
-    unfold Dynamic.logLogFactor
-    rw [show (2 : ℕ) = Nat.clog 2 4 by decide]
-    exact Nat.clog_mono_right 2 hclog4
-  have hlog7 : 7 ≤ Nat.log 2 n := by grind [bucketBits]
-  have hclog5 : 5 ≤ Nat.clog 2 (max n 4) :=
-    ((by omega : 5 ≤ Nat.log 2 n).trans (Nat.log_mono_right (le_max_left n 4))).trans
-      (Nat.log_le_clog 2 _)
-  have hll3 : 3 ≤ Dynamic.logLogFactor n := by
-    unfold Dynamic.logLogFactor
-    rw [show (3 : ℕ) = Nat.clog 2 5 by decide]
-    exact Nat.clog_mono_right 2 hclog5
+  have hll2 : 2 ≤ Dynamic.logLogFactor n :=
+    hll_of (k := 4) (by omega)
+      (by decide)
+  have hll3 : 3 ≤ Dynamic.logLogFactor n :=
+    hll_of (k := 5) (by omega)
+      (by decide)
   have hS8 : 8 ≤ slabScale n := by
     unfold slabScale
     rw [show (8 : ℕ) = 2 ^ 3 by decide]
@@ -1178,32 +1151,14 @@ theorem tableArrays_words_le_succinctWords {U V w n_max C_hdr : ℕ} :
     (globalMetaLen n_max) (globalPtrBits n_max) w
   have hlm := localMetaLen_mul_effBucketPosBits_le n_max
   have hgm := globalMetaLen_mul_globalPtrBits_le n_max
-  have haux :
-      localMetaLen n_max * effBucketPosBits n_max +
-        globalMetaLen n_max * globalPtrBits n_max ≤
-        74 * n_max * Dynamic.logLogFactor n_max := by
-    have hdist : 74 * n_max * Dynamic.logLogFactor n_max =
-        54 * n_max * Dynamic.logLogFactor n_max + 20 * n_max * Dynamic.logLogFactor n_max := by
-      ring
-    omega
-  have hmaster :
-      (n_max * quotientBits U n_max + n_max * valBits V +
-        (localMetaLen n_max * effBucketPosBits n_max +
-          globalMetaLen n_max * globalPtrBits n_max) + w - 1) / w + 35 + C_hdr ≤
-        Dynamic.succinctWords 79 (35 + C_hdr) U V w n_max :=
-    succinct_space_le_succinctWords
-      (U := U) (V := V) (w := w) (n_max := n_max)
-      (B_aux := localMetaLen n_max * effBucketPosBits n_max +
-        globalMetaLen n_max * globalPtrBits n_max)
-      (C_aux := 74) (C_pad := 35) (C_hdr := C_hdr) haux
-  have hassoc :
-      n_max * quotientBits U n_max + n_max * valBits V +
-        localMetaLen n_max * effBucketPosBits n_max +
-        globalMetaLen n_max * globalPtrBits n_max =
-      n_max * quotientBits U n_max + n_max * valBits V +
-        (localMetaLen n_max * effBucketPosBits n_max +
-          globalMetaLen n_max * globalPtrBits n_max) := by ring
-  rw [hassoc] at h1234
+  have haux : localMetaLen n_max * effBucketPosBits n_max +
+      globalMetaLen n_max * globalPtrBits n_max ≤
+      74 * n_max * Dynamic.logLogFactor n_max :=
+    (Nat.add_le_add hlm hgm).trans_eq (by ring)
+  have hmaster := succinct_space_le_succinctWords (U := U) (V := V) (w := w) (n_max := n_max)
+    (C_aux := 74) (C_pad := 35) (C_hdr := C_hdr) haux
+  rw [show 74 + 5 = 79 from rfl,
+    ← Nat.add_assoc (n_max * quotientBits U n_max + n_max * valBits V)] at hmaster
   omega
 
 end Cslib.DataStructure.Dictionary.SuccinctBucket

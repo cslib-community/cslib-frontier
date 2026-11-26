@@ -142,15 +142,9 @@ theorem parallelRun_eq_of_eq_nil {psel : (∀ p : V × ℕ, α p.1) → List ι 
     {T : ∀ p : V × ℕ, α p.1} {n : ℕ} (hn : psel T (parallelRun psel T n) = []) :
     ∀ {m : ℕ}, n ≤ m → parallelRun psel T m = parallelRun psel T n := by
   intro m hm
-  induction m with
-  | zero =>
-    obtain rfl : n = 0 := Nat.le_zero.1 hm
-    rfl
-  | succ m ih =>
-    rcases Nat.eq_or_lt_of_le hm with rfl | hlt
-    · rfl
-    · have hmn : n ≤ m := Nat.lt_succ_iff.1 hlt
-      rw [parallelRun_succ, ih hmn, hn, List.nil_append]
+  induction hm with
+  | refl => rfl
+  | step _ ih => rw [parallelRun_succ, ih, hn, List.nil_append]
 
 /-- Once a round returns `[]`, all subsequent rounds return `[]`. -/
 theorem psel_parallelRun_eq_nil_of_le {psel : (∀ p : V × ℕ, α p.1) → List ι → List ι}
@@ -226,11 +220,8 @@ theorem succ_le_parallelRounds_iff (psel : (∀ p : V × ℕ, α p.1) → List �
 theorem exists_eq_nil_of_parallelRounds_ne_top (psel : (∀ p : V × ℕ, α p.1) → List ι → List ι)
     {T : ∀ p : V × ℕ, α p.1} (hfin : parallelRounds psel T ≠ ⊤) :
     ∃ n : ℕ, psel T (parallelRun psel T n) = [] := by
-  by_contra hne
-  push Not at hne
-  apply hfin
-  rw [eq_top_iff]
-  refine le_of_forall_lt fun c hc => ?_
+  by_contra! hne
+  refine hfin (eq_top_iff.mpr <| le_of_forall_lt fun c hc => ?_)
   obtain ⟨n, hn⟩ := ENNReal.exists_nat_gt hc.ne_top
   exact hn.trans_le (le_self_add.trans ((succ_le_parallelRounds_iff psel T n).2 (hne n)))
 
@@ -507,15 +498,12 @@ private theorem pushList_batchSlice_depth [DecidableEq V] [DecidableEq ι]
           p.2 = t + d ∧ p.1 ∈ psel T (parallelRun psel T r)) := by
   intro d
   induction d with
-  | zero =>
-    intro r t S hle hex
-    exact ⟨hle, hex⟩
+  | zero => exact fun _ _ _ hle hex => ⟨hle, hex⟩
   | succ d ih =>
     intro r t S hle hex
     rw [batchSlice_succ_right, pushList_append]
-    have hidx : r + (d + 1) = (r + 1) + d := by omega
-    rw [hidx] at hex
-    obtain ⟨hle', ⟨p, hpS', hpt, hp_in⟩⟩ := ih (r + 1) t S hle hex
+    obtain ⟨hle', ⟨p, hpS', hpt, hp_in⟩⟩ := ih (r + 1) t S hle
+      (by rwa [← Nat.add_assoc, Nat.add_right_comm] at hex)
     obtain ⟨j, hj, hadj⟩ := parallel_step_adj vbl A hA hrule T r hp_in
     have hspec := mem_pushList_spec (Adj vbl) (hrule.pairwise T (parallelRun psel T r))
       (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S)
@@ -530,9 +518,8 @@ private theorem pushList_batchSlice_depth [DecidableEq V] [DecidableEq ι]
         have := hle' q hq
         omega
     have hlt :
-        t + d < levelRel (Adj vbl) j (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S) := by
-      rw [← hpt]
-      exact lt_levelRel hpS' hadj
+        t + d < levelRel (Adj vbl) j (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S) :=
+      hpt ▸ lt_levelRel hpS' hadj
     have hjeq : levelRel (Adj vbl) j (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S) =
         t + d + 1 :=
       le_antisymm (hj_bound j hj) hlt
@@ -541,11 +528,7 @@ private theorem pushList_batchSlice_depth [DecidableEq V] [DecidableEq ι]
       rcases hspec.1 q hq with hq' | ⟨x, hx, -, rfl⟩
       · exact (hle' q hq').trans (by omega)
       · exact (hj_bound x hx).trans (by omega)
-    · refine ⟨(j, t + (d + 1)), ?_, rfl, hj⟩
-      have hne : levelRel (Adj vbl) j (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S) ≠ 0 := by
-        omega
-      have hmem := hspec.2 j hj hne
-      rwa [hjeq] at hmem
+    · exact ⟨(j, t + (d + 1)), hjeq ▸ hspec.2 j hj (by omega), rfl, hj⟩
 
 /-- **Parallel witness-tree depth lemma** [MoserTardos2010, Lemma 4.1]: if round `k` selects a
 non-empty batch containing `i` (with suffix `suff` after `i` in that batch), then the witness

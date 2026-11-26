@@ -248,17 +248,12 @@ theorem monic_hPoly : hPoly.Monic := by
 /-- `hPoly` has degree `2`. -/
 @[simp]
 theorem natDegree_hPoly : hPoly.natDegree = 2 := by
-  rw [hPoly, natDegree_sub_eq_left_of_natDegree_lt]
-  · exact natDegree_X_pow 2
-  · rw [natDegree_X, natDegree_X_pow]
-    omega
+  rw [hPoly, natDegree_sub_eq_left_of_natDegree_lt (by simp), natDegree_X_pow]
 
 /-- `hPoly` is not equal to `1`. -/
 theorem hPoly_ne_one : hPoly ≠ 1 := by
   intro h
-  have := congr_arg natDegree h
-  rw [natDegree_hPoly, natDegree_one] at this
-  omega
+  simpa using congr_arg natDegree h
 
 /-- Evaluation of an integer polynomial `P : ℤ[X]` at `y : A` via the canonical cast `ℤ →+* A`. -/
 def evalInt {A : Type*} [CommRing A] (y : A) (P : ℤ[X]) : A :=
@@ -372,12 +367,9 @@ theorem natDegree_parityAmplifier_le (ℓ : ℕ) :
     (parityAmplifier ℓ).natDegree ≤ 2 * ℓ - 1 := by
   rw [parityAmplifier]
   refine natDegree_mul_le.trans ?_
-  have h1 : ((1 - X : ℤ[X]) ^ ℓ).natDegree ≤ ℓ := by
-    refine natDegree_pow_le.trans ?_
-    have h1X : (1 - X : ℤ[X]).natDegree ≤ 1 := by
-      refine (natDegree_sub_le 1 X).trans ?_
-      simp only [natDegree_one, natDegree_X, max_le_iff, zero_le, le_refl, and_self]
-    nlinarith
+  have h1 : ((1 - X : ℤ[X]) ^ ℓ).natDegree ≤ ℓ :=
+    natDegree_pow_le.trans ((Nat.mul_le_mul_left ℓ
+      ((natDegree_sub_le 1 X).trans (by simp))).trans_eq (mul_one ℓ))
   have h2 := natDegree_parityKernel_le ℓ
   omega
 
@@ -386,18 +378,15 @@ theorem iterDivByH_parityAmplifier_self (ℓ : ℕ) :
     iterDivByH (parityAmplifier ℓ) ℓ = 0 := by
   rcases Nat.eq_zero_or_pos ℓ with rfl | hℓ
   · exact iterDivByH_eq_zero_of_natDegree_lt (Or.inl parityAmplifier_zero)
-  · apply iterDivByH_eq_zero_of_natDegree_lt
-    right
-    have := natDegree_parityAmplifier_le ℓ
-    omega
+  · exact iterDivByH_eq_zero_of_natDegree_lt
+      (Or.inr ((natDegree_parityAmplifier_le ℓ).trans_lt (by omega)))
 
 /-- **Lemma 5.1 (base-`h` decomposition)**: for every `ℓ : ℕ`,
 `parityAmplifier ℓ = ∑ j ∈ range ℓ, parityBaseDigit ℓ j * hPoly ^ j`. -/
 theorem parityAmplifier_eq_sum_baseDigit (ℓ : ℕ) :
     parityAmplifier ℓ = ∑ j ∈ range ℓ, parityBaseDigit ℓ j * hPoly ^ j := by
-  have h := eq_sum_baseDigitByH_add_iterDivByH (parityAmplifier ℓ) ℓ
-  rw [iterDivByH_parityAmplifier_self, zero_mul, add_zero] at h
-  exact h
+  simpa [iterDivByH_parityAmplifier_self, parityBaseDigit] using
+    eq_sum_baseDigitByH_add_iterDivByH (parityAmplifier ℓ) ℓ
 
 /-- Evaluation of `parityAmplifier ℓ` in any commutative ring `A` via `parityBaseDigit`. -/
 theorem evalInt_parityAmplifier_eq_sum {A : Type*} [CommRing A] (ℓ : ℕ) (y : A) :
@@ -670,8 +659,7 @@ theorem totalDegree_evalInt_of_natDegree_le_one {σ R : Type*} [CommRing R] {q :
     (hq : q.natDegree ≤ 1) {y : MvPolynomial σ R} {d : ℕ} (hy : y.totalDegree ≤ d) :
     (evalInt y q).totalDegree ≤ d := by
   rw [evalInt, eq_X_add_C_of_natDegree_le_one hq, eval₂_add, eval₂_mul, eval₂_X, eval₂_C, eval₂_C]
-  have hcast : ∀ a : ℤ, (Int.castRingHom (MvPolynomial σ R) a) = a • (1 : MvPolynomial σ R) := by
-    intro a
+  have hcast (a : ℤ) : Int.castRingHom (MvPolynomial σ R) a = a • (1 : MvPolynomial σ R) := by
     simp only [eq_intCast, zsmul_one]
   rw [hcast, hcast, smul_mul_assoc, one_mul]
   refine (MvPolynomial.totalDegree_add _ _).trans (max_le ?_ ?_)
@@ -744,9 +732,7 @@ theorem totalDegree_coeff_prod_parityFactor_le_of_lt {ι σ R : Type*} [CommRing
     {ℓ s : ℕ} (hs : s < ℓ) {y : ι → MvPolynomial σ R} {d : ℕ}
     (hy : ∀ i ∈ I, (y i).totalDegree ≤ d) :
     ((∏ i ∈ I, parityFactor ℓ (y i)).coeff s).totalDegree ≤ d * (#I + 2 * (ℓ - 1)) := by
-  refine (totalDegree_coeff_prod_parityFactor_le I ℓ hy s).trans ?_
-  refine Nat.mul_le_mul_left d ?_
-  omega
+  exact (totalDegree_coeff_prod_parityFactor_le I ℓ hy s).trans (Nat.mul_le_mul_left d (by omega))
 
 /-- **Lemma 5.2 (truncated sum total-degree bound)**: the truncated coefficient sum
 `sumCoeffsBelow ℓ (∏ i ∈ I, parityFactor ℓ (y i))` has total degree at most

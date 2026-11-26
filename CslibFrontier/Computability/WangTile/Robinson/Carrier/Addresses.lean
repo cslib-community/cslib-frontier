@@ -95,11 +95,8 @@ private theorem isFreeCoordinate_eq_true_of_owner
 
 private theorem depthAt_self_eq_some_of_isFreeCoordinate
     {depth coordinate : Nat} (free : isFreeCoordinate depth coordinate = true) :
-    depthAt depth coordinate = some depth := by
-  have free' : depthAt depth coordinate = some depth ∧
-      onFrameBoundary depth coordinate = false := by
-    simpa [isFreeCoordinate] using free
-  exact free'.1
+    depthAt depth coordinate = some depth :=
+  (by simpa [isFreeCoordinate] using free : _ ∧ _).1
 
 /-- At a mutual horizontal/vertical crossing, the row and column have the
 same smallest owner depth. -/
@@ -821,30 +818,17 @@ private theorem between_borders_of_intervalEdge_eq_none
   have edgeData := (Canonical.intervalEdge_eq_none_iff
     interior length position).1 clear
   constructor
-  · rcases Nat.lt_trichotomy position opening with before | equal | after
-    · have nextTrue : Canonical.nextInterior interior position
-          (length - position) = some true := by
-        apply Canonical.nextInterior_eq_of_no_opposite_before
-          openingBorder
-          noClosingBeforeOpening before.le
-          (openingBeforeClosing.trans closingBeforeEnd)
-      rw [nextTrue] at edgeData
+  · rcases Nat.lt_trichotomy position opening with before | rfl | after
+    · rw [Canonical.nextInterior_eq_of_no_opposite_before openingBorder
+        noClosingBeforeOpening before.le (openingBeforeClosing.trans closingBeforeEnd)] at edgeData
       simp at edgeData
-    · subst opening
-      rw [positionClear] at openingBorder
-      simp at openingBorder
+    · exact absurd (positionClear.symm.trans openingBorder) nofun
     · exact after
-  · rcases Nat.lt_trichotomy position closing with before | equal | after
+  · rcases Nat.lt_trichotomy position closing with before | rfl | after
     · exact before
-    · subst closing
-      rw [positionClear] at closingBorder
-      simp at closingBorder
-    · have previousFalse :
-          Canonical.previousInterior interior position =
-            some false := by
-        exact Canonical.previousInterior_eq_of_none_between
-          closingBorder noBorderAfterClosing after
-      exact (edgeData.2 previousFalse).elim
+    · exact absurd (positionClear.symm.trans closingBorder) nofun
+    · exact (edgeData.2 (Canonical.previousInterior_eq_of_none_between
+        closingBorder noBorderAfterClosing after)).elim
 
 private theorem selectedBorder_ne_some_false_before_frameOpening
     {level depth coordinate transverse candidate : Nat}
@@ -877,10 +861,8 @@ private theorem selectedBorder_ne_some_false_before_frameOpening
       largeClosing_mod_small larger closing
     have coordinateBaseLe : frameBase depth coordinate ≤ coordinate :=
       Nat.mul_div_le coordinate (period depth)
-    have candidateEq : candidate = frameBase depth coordinate := by omega
-    have coordinateEq : coordinate = candidate := by omega
-    rw [← coordinateEq, coordinateClear] at selected
-    simp at selected
+    rw [show candidate = coordinate by omega, coordinateClear] at selected
+    cases selected
 
 private theorem selectedBorder_eq_none_after_frameClosing
     {level depth coordinate transverse candidate : Nat}

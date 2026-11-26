@@ -88,11 +88,10 @@ theorem transportRows_project (g : OccurrenceLabeling F Bool) (vs : List ℕ)
   rw [get_transportRows_old]
   split
   next hp =>
-    have he := List.isEmpty_iff.mp hp
-    have hl : (localTuple g i).length = F[i.val].scope.length := by simp [localTuple]
-    simp only [he, outsidePositions, List.contains_nil, Bool.not_false, List.filter_true,
-      project, List.append_nil]
-    rw [← hl, List.map_getD_range]
+    simp only [List.isEmpty_iff.mp hp, outsidePositions, List.contains_nil, Bool.not_false,
+      List.filter_true, project, List.append_nil]
+    rw [show F[i.val].scope.length = (localTuple g i).length by simp [localTuple],
+      List.map_getD_range]
   · rfl
 
 /-- Arbitrarily changed outside values survive the actual positional transport. -/
@@ -265,12 +264,10 @@ theorem defects_transport (hF : EdgeInstance F) (f g : OccurrenceLabeling F Bool
   simp only [mem_defects, mem_union, mem_sdiff, List.mem_toFinset]
   constructor
   · intro hv
-    have hm : v ∈ (contract f vs).vars := by
-      obtain ⟨o, _, ho, _, _⟩ := hv
-      exact ho ▸ o.var_mem
+    have ⟨o', _, ho', _, _⟩ := hv
     have hset : v ∈ (F.vars.toFinset \ vs.toFinset) ∪ (connectors F vs).toFinset := by
       rw [← vars_contract f vs]
-      exact List.mem_toFinset.mpr hm
+      exact List.mem_toFinset.mpr (ho' ▸ o'.var_mem)
     rcases mem_union.mp hset with hset | hset
     · obtain ⟨hm, hn⟩ := mem_sdiff.mp hset
       obtain ⟨o, rfl⟩ := (exists_occurrence_iff v).mpr (List.mem_toFinset.mp hm)
@@ -301,11 +298,8 @@ theorem connectorDefects_zero (vs : List ℕ) (hne : touched F vs ≠ []) :
   ext v
   simp only [connectorDefects, List.mem_toFinset, List.mem_map, List.mem_filter,
     List.mem_finRange, true_and, hpred, mem_singleton]
-  constructor
-  · rintro ⟨⟨_, _⟩, rfl, he⟩
-    simpa only [baseConnector, List.getElem_zero] using he.symm
-  · rintro rfl
-    exact ⟨⟨0, hpos⟩, rfl, by simp only [baseConnector, List.getElem_zero]⟩
+  exact ⟨fun ⟨⟨_, _⟩, rfl, he⟩ => by simpa only [baseConnector, List.getElem_zero] using he.symm,
+    fun h => ⟨⟨0, hpos⟩, rfl, h ▸ congrArg (connector F) (List.getElem_zero hpos)⟩⟩
 
 /-- General zero-connector transport deletes the old internal defects and inserts exactly one
 fresh connector defect, even when every outside value has changed. -/

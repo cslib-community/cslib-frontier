@@ -295,6 +295,21 @@ theorem mem_reroot_arcs {a b e : Arc F} :
 @[expose] def removeRootCopy (T : DAG F) (u : V) (c : Copy F) : DAG F :=
   T.restrict (T.vars.erase u) (T.copies.erase c)
 
+private theorem IsFDAG.restrict_erase_copy (h : T.IsFDAG sem f)
+    (hM : EdgeInstance.EvenConstraints sem F) (V' : Finset V) {a b : Arc F}
+    (ha : a ∈ T.arcs) (hb : b ∈ T.arcs) (hai : a.incoming = true)
+    (hne : a.occurrence ≠ b.occurrence) (hab : a.copy = b.copy) (he : T.Earliest a.copy) :
+    (T.restrict V' (T.copies.erase a.copy)).IsFDAG sem (pairFlip f a.occurrence b.occurrence) := by
+  have hs := h.restrict V' (T.copies.erase a.copy)
+  refine ⟨h.feasible a ha b hb hai hab, hs.supported, hs.unique, hs.indegree, hs.ordered,
+    fun x hx y hy hxi hxy => ?_, fun x hx y hy hxi hxy ht => ?_⟩
+  · obtain ⟨hxt, _, hxc⟩ := mem_filter.mp hx
+    exact h.feasible_after_earlier hM ha hb hxt (mem_filter.mp hy).1 hai hne hab hxi hxy
+      (h.time_lt_of_earliest he hxt (mem_erase.mp hxc).1)
+  · obtain ⟨hxt, _, hxc⟩ := mem_filter.mp hx
+    exact h.noShortcut_after_earlier hM ha hb hxt (mem_filter.mp hy).1 hai hne hab hxi hxy
+      (h.time_lt_of_earliest he hxt (mem_erase.mp hxc).1) ht
+
 /-- Earliest-copy deletion preserves the full f-DAG invariant after its two-port move.
 This stronger form deletes every incident arc at the selected root and copy; the degree
 hypotheses in Lemma 35 identify these with precisely its two displayed arcs. -/
@@ -304,22 +319,9 @@ theorem IsFDAG.removeRootCopy (h : T.IsFDAG sem f)
     (hai : a.incoming = true) (hbo : b.incoming = false) (hab : a.copy = b.copy)
     (he : T.Earliest a.copy) :
     (T.removeRootCopy a.occurrence.var a.copy).IsFDAG sem
-      (pairFlip f a.occurrence b.occurrence) := by
-  have hs := h.restrict (T.vars.erase a.occurrence.var) (T.copies.erase a.copy)
-  refine ⟨h.feasible a ha b hb hai hab, hs.supported, hs.unique, hs.indegree,
-    hs.ordered, ?_, ?_⟩
-  · intro x hx y hy hxi hxy
-    obtain ⟨hxt, _, hxc⟩ := mem_filter.mp hx
-    obtain ⟨hyt, _, _⟩ := mem_filter.mp hy
-    exact h.feasible_after_earlier hM ha hb hxt hyt hai
-      (h.occurrence_ne_of_orientation_ne ha hb (by simp [hai, hbo])) hab hxi hxy
-      (h.time_lt_of_earliest he hxt (mem_erase.mp hxc).1)
-  · intro x hx y hy hxi hxy ht
-    obtain ⟨hxt, _, hxc⟩ := mem_filter.mp hx
-    obtain ⟨hyt, _, _⟩ := mem_filter.mp hy
-    exact h.noShortcut_after_earlier hM ha hb hxt hyt hai
-      (h.occurrence_ne_of_orientation_ne ha hb (by simp [hai, hbo])) hab hxi hxy
-      (h.time_lt_of_earliest he hxt (mem_erase.mp hxc).1) ht
+      (pairFlip f a.occurrence b.occurrence) :=
+  h.restrict_erase_copy hM _ ha hb hai
+    (h.occurrence_ne_of_orientation_ne ha hb (by simp [hai, hbo])) hab he
 
 /-- Lemma 35, KKR v6, printed pp. 16–17: flip `u C v`, remove `u,C^s` and exactly
 the two displayed arcs. Both local feasibility and no shortcuts are proved by even exchange. -/
@@ -449,20 +451,8 @@ theorem IsFDAG.removeCopy (h : T.IsFDAG sem f)
     (ha : a ∈ T.arcs) (hb : b ∈ T.arcs) (hai : a.incoming = true)
     (hne : a.occurrence ≠ b.occurrence) (hab : a.copy = b.copy)
     (he : T.Earliest a.copy) :
-    (T.removeCopy a.copy).IsFDAG sem (pairFlip f a.occurrence b.occurrence) := by
-  have hs := h.restrict T.vars (T.copies.erase a.copy)
-  refine ⟨h.feasible a ha b hb hai hab, hs.supported, hs.unique, hs.indegree,
-    hs.ordered, ?_, ?_⟩
-  · intro x hx y hy hxi hxy
-    obtain ⟨hxt, _, hxc⟩ := mem_filter.mp hx
-    obtain ⟨hyt, _, _⟩ := mem_filter.mp hy
-    exact h.feasible_after_earlier hM ha hb hxt hyt hai hne hab hxi hxy
-      (h.time_lt_of_earliest he hxt (mem_erase.mp hxc).1)
-  · intro x hx y hy hxi hxy ht
-    obtain ⟨hxt, _, hxc⟩ := mem_filter.mp hx
-    obtain ⟨hyt, _, _⟩ := mem_filter.mp hy
-    exact h.noShortcut_after_earlier hM ha hb hxt hyt hai hne hab hxi hxy
-      (h.time_lt_of_earliest he hxt (mem_erase.mp hxc).1) ht
+    (T.removeCopy a.copy).IsFDAG sem (pairFlip f a.occurrence b.occurrence) :=
+  h.restrict_erase_copy hM _ ha hb hai hne hab he
 
 /-- Each supported constraint copy has precisely two incident arcs, at least one incoming.
 This purely graph-theoretic condition includes directed paths and two paths meeting at a copy.

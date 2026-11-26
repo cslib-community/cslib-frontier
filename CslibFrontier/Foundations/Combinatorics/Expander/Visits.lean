@@ -176,26 +176,16 @@ private theorem expect_visitSum_sq_le (f : V → ℝ) (hf : ∀ x, |f x| ≤ 1) 
     ∀ (t : ℕ) (u : V), 𝔼 k : Fin t → D, visitSum G f u k ^ 2 ≤ ∑ s ∈ range t, (1 + 2 * M s)
   | 0, u => by simp [visitSum]
   | t + 1, u => by
-    rw [expect_visitSum_sq_succ, sum_range_succ]
-    have hb : ∀ w, |f w ^ 2 + 2 * f w * (𝔼 k : Fin t → D, visitSum G f w k) +
-        𝔼 k : Fin t → D, visitSum G f w k ^ 2| ≤ ∑ s ∈ range t, (1 + 2 * M s) + (1 + 2 * M t) := by
-      intro w
-      have h1 : f w ^ 2 ≤ 1 := by
-        rw [← sq_abs]; exact pow_le_one₀ (abs_nonneg _) (hf w)
-      have h2 : |2 * f w * (𝔼 k : Fin t → D, visitSum G f w k)| ≤ 2 * M t := by
-        rw [abs_mul, abs_mul, abs_two, mul_assoc]
-        exact mul_le_mul_of_nonneg_left ((mul_le_mul (hf w) (hM t w) (abs_nonneg _)
-          zero_le_one).trans_eq (one_mul _)) zero_le_two
-      have h3 := expect_visitSum_sq_le f hf M hM t w
-      have h4 : 0 ≤ 𝔼 k : Fin t → D, visitSum G f w k ^ 2 :=
-        expect_nonneg fun _ _ => sq_nonneg _
-      rw [abs_le]
-      constructor
-      · linarith [sq_nonneg (f w), (abs_le.1 h2).1, (abs_nonneg _).trans (hM t w),
-          sum_nonneg (s := range t) (f := fun s => (1 + 2 * M s)) fun s _ =>
-            by linarith [(abs_nonneg _).trans (hM s w)]]
-      · linarith [(abs_le.1 h2).2]
-    exact (le_abs_self _).trans (abs_walk_le hb u)
+    rw [expect_visitSum_sq_succ, sum_range_succ, walk_apply]
+    refine expect_le univ_nonempty fun a _ => ?_
+    set w := G.neighbor u a
+    have h1 : f w ^ 2 ≤ 1 := (sq_le_one_iff_abs_le_one (f w)).2 (hf w)
+    have h2 : 2 * f w * (𝔼 k : Fin t → D, visitSum G f w k) ≤ 2 * M t := by
+      refine (le_abs_self _).trans ?_
+      rw [abs_mul, abs_mul, abs_two, mul_assoc]
+      exact mul_le_mul_of_nonneg_left ((mul_le_mul (hf w) (hM t w) (abs_nonneg _)
+        zero_le_one).trans_eq (one_mul _)) zero_le_two
+    linarith [expect_visitSum_sq_le f hf M hM t w]
 
 /-! ### Concentration -/
 

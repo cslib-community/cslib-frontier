@@ -148,12 +148,10 @@ theorem run_take_modeOps_eq_ite (withQueries : Bool) {U V n t₀ : ℕ}
       fun u => if u ∈ s.activeKeys t₀ ht₀ then some (s.kv u).val else none := by
   rw [s.run_take_modeOps_fst withQueries ht₀, windowDict_coe]
   funext u
-  by_cases hu : u ∈ s.activeKeys t₀ ht₀
-  · simp only [hu, ↓reduceIte]
-    obtain ⟨k, _, rfl⟩ := Finset.mem_map.mp hu
+  split_ifs with hu
+  · obtain ⟨k, _, rfl⟩ := Finset.mem_map.mp hu
     rw [dictOfEmb_apply_self, windowVals_apply, windowEmb_apply]
-  · simp only [hu, ↓reduceIte]
-    exact dictOfEmb_apply_eq_none _ _ fun k heq =>
+  · exact dictOfEmb_apply_eq_none _ _ fun k heq =>
       hu (Finset.mem_map.mpr ⟨k, Finset.mem_univ k, heq⟩)
 
 theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V n t₀ m : ℕ}
@@ -192,12 +190,9 @@ theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V n t₀ m
     intro k hk
     induction k with
     | zero =>
-      have hf : ∀ g : Fin m → Fin U,
-          (Finset.univ.filter fun r : Fin m => r.val < 0).image g = ∅ := fun _ => by
-        simp only [Nat.not_lt_zero, Finset.filter_false, Finset.image_empty]
-      simp only [modeCandPrefix, List.take_zero, List.flatMap_nil, List.append_nil,
-        hf d, hf b, Finset.sdiff_empty, Finset.union_empty]
-      exact ⟨hpref_vh, hpref_st⟩
+      simpa only [modeCandPrefix, List.take_zero, List.flatMap_nil, List.append_nil,
+        Nat.not_lt_zero, Finset.filter_false, Finset.image_empty, Finset.sdiff_empty,
+        Finset.union_empty] using ⟨hpref_vh, hpref_st⟩
     | succ k ih =>
       have hk_lt : k < m := hk
       obtain ⟨hvh_k, hst_k⟩ := ih (Nat.le_of_succ_le hk)
@@ -267,16 +262,10 @@ theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V n t₀ m
         (Dynamic.spec U V n).run_append (Dictionary.empty U)
           (pref_bef ++ modeCandPrefix withQueries d b s.kv k)]
       dsimp only
-      cases withQueries
-      · simp only [modeCandUnit, Bool.false_eq_true, ↓reduceIte,
-          StateTransitionSpec.validHistory_cons, StateTransitionSpec.validHistory_nil,
-          Dynamic.spec]
-        exact ⟨⟨hvh_k, trivial, ⟨Or.inl hcard_del, (s.kv (b r₀)).isLt⟩, trivial⟩, hupd_st⟩
-      · simp only [modeCandUnit, ↓reduceIte,
-          StateTransitionSpec.validHistory_cons, StateTransitionSpec.validHistory_nil,
-          Dynamic.spec]
-        exact ⟨⟨hvh_k, trivial, trivial, ⟨Or.inl hcard_del, (s.kv (b r₀)).isLt⟩, trivial⟩,
-          hupd_st⟩
+      cases withQueries <;> simp only [modeCandUnit, Bool.false_eq_true, ↓reduceIte,
+        StateTransitionSpec.validHistory_cons, StateTransitionSpec.validHistory_nil, Dynamic.spec]
+      · exact ⟨⟨hvh_k, trivial, ⟨Or.inl hcard_del, (s.kv (b r₀)).isLt⟩, trivial⟩, hupd_st⟩
+      · exact ⟨⟨hvh_k, trivial, trivial, ⟨Or.inl hcard_del, (s.kv (b r₀)).isLt⟩, trivial⟩, hupd_st⟩
   obtain ⟨hvh_m, hst_m⟩ := hloop m le_rfl
   have hfull : modeCandPrefix withQueries d b s.kv m =
       s.modeCandidateOps withQueries t₀ m ht₀ B hB := by
@@ -292,7 +281,6 @@ theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V n t₀ m
     rw [← hfull, modeCandPrefix_full]
     cases withQueries <;> simp only [Bool.false_eq_true, ↓reduceIte, stride, modeStride,
       length_candidateQueryDeleteInsertOps, length_candidateDeleteInsertOps]
-  refine ⟨hvh_m, ?_, hst_m⟩
-  rw [List.length_append, hpref_len, hlen_B]; ring
+  exact ⟨hvh_m, by rw [List.length_append, hpref_len, hlen_B]; ring, hst_m⟩
 
 end Cslib.DataStructure.Dictionary.CellProbe

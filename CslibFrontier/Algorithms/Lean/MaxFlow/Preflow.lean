@@ -368,10 +368,7 @@ theorem IsValidLabeling.isMaxFlow_toFlow {f : N.Preflow} {h : V → ℕ} (hh : f
 theorem IsValidLabeling.exists_gap {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h) :
     ∃ k, 0 < k ∧ k < Fintype.card V ∧ ∀ v, h v ≠ k := by
   classical
-  by_contra hcon
-  have hocc : ∀ k, 0 < k → k < Fintype.card V → ∃ v, h v = k := fun k h0 h1 => by
-    by_contra hne
-    exact hcon ⟨k, h0, h1, fun v hv => hne ⟨v, hv⟩⟩
+  by_contra! hocc
   have hsub : Finset.range (Fintype.card V + 1) ⊆ Finset.univ.image h := by
     intro k hk
     rw [Finset.mem_range] at hk
@@ -464,19 +461,8 @@ theorem sum_pushFun_sub (f : V → V → ℕ) (u v : V) (δ : ℕ) (x : V) :
       (∑ y, (f y x : ℤ)) - (∑ y, (f x y : ℤ)) - (if x = u then (δ : ℤ) else 0) +
         (if x = v then (δ : ℤ) else 0) := by
   rw [← Finset.sum_sub_distrib, ← Finset.sum_sub_distrib]
-  have hpt : ∀ y, (pushFun f u v δ y x : ℤ) - (pushFun f u v δ x y : ℤ) =
-      ((f y x : ℤ) - (f x y : ℤ)) + ((if y = u ∧ x = v then (δ : ℤ) else 0) -
-        (if y = v ∧ x = u then (δ : ℤ) else 0)) := by
-    intro y
-    rw [pushFun_sub_pushFun f u v δ y x]
-    omega
-  simp only [hpt]
-  rw [Finset.sum_add_distrib, Finset.sum_sub_distrib]
-  have h1 : ∑ y, (if y = u ∧ x = v then (δ : ℤ) else 0) = if x = v then (δ : ℤ) else 0 := by
-    by_cases hx : x = v <;> simp [hx]
-  have h2 : ∑ y, (if y = v ∧ x = u then (δ : ℤ) else 0) = if x = u then (δ : ℤ) else 0 := by
-    by_cases hx : x = u <;> simp [hx]
-  rw [Finset.sum_sub_distrib, h1, h2]
+  simp only [pushFun_sub_pushFun, add_sub_assoc, Finset.sum_add_distrib, Finset.sum_sub_distrib,
+    ite_and, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
   omega
 
 /-- Push `f.pushAmount u v` units from `u` to `v`, cancelling reverse flow first ([CLRS2009],
@@ -524,11 +510,7 @@ theorem resCap_push_coe (f : N.Preflow) (u v x y : V) :
     ((f.push u v).resCap x y : ℤ) =
       f.resCap x y - (if x = u ∧ y = v then (f.pushAmount u v : ℤ) else 0) +
         (if x = v ∧ y = u then (f.pushAmount u v : ℤ) else 0) := by
-  rw [resCap_coe, resCap_coe]
-  have := pushFun_sub_pushFun f.toFun u v (f.pushAmount u v) x y
-  change (N.cap x y : ℤ) - ((pushFun f u v (f.pushAmount u v) x y : ℤ) -
-    (pushFun f u v (f.pushAmount u v) y x : ℤ)) = _
-  rw [this]
+  rw [resCap_coe, resCap_coe, push_apply, push_apply, pushFun_sub_pushFun]
   omega
 
 theorem resCap_push_self (f : N.Preflow) {u v : V} (huv : u ≠ v) :

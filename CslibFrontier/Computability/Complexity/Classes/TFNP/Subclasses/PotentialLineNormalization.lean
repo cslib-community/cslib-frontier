@@ -205,15 +205,13 @@ theorem sinkOfPotentialLineViolationRel_iff_promised_or :
 relation of [Fearnley et al., Definition 9][FearnleyGordonMehtaSavani2020]. -/
 theorem endOfPotentialLineViolationRel_iff_promised_of_promise (h : LineSourcePromise n P S a) :
     endOfPotentialLineViolationRel n P S V a x ↔ endOfPotentialLinePromisedRel n P S V a x := by
-  rw [endOfPotentialLineViolationRel_iff_promised_or]
-  simp [h]
+  simp [endOfPotentialLineViolationRel_iff_promised_or, h]
 
 /-- Under `LineSourcePromise`, the totalized sink violation relation coincides with the pure
 sink-only `(R1)/(R2)` relation. -/
 theorem sinkOfPotentialLineViolationRel_iff_promised_of_promise (h : LineSourcePromise n P S a) :
     sinkOfPotentialLineViolationRel n P S V a x ↔ sinkOfPotentialLinePromisedRel n P S V a x := by
-  rw [sinkOfPotentialLineViolationRel_iff_promised_or]
-  simp [h]
+  simp [sinkOfPotentialLineViolationRel_iff_promised_or, h]
 
 /-- Any length-preserving family satisfying `LineSourcePromise` is total for the pure `(R1)/(R2)`
 relation `endOfPotentialLinePromisedRel`. -/
@@ -448,12 +446,9 @@ to its binary representation. -/
 theorem size_normalizedPotential_le (V : α × List Bool → ℕ) (a : α) (w : List Bool) :
     (normalizedPotential V (a, w)).size ≤ (V (a, w.tail)).size + 1 := by
   unfold normalizedPotential
-  dsimp only
   split_ifs
-  · refine Nat.size_le.2 ?_
-    rw [Nat.pow_succ]
-    have hlt := Nat.lt_size_self (V (a, w.tail))
-    omega
+  · rw [Nat.size_le, Nat.pow_succ]
+    linarith [Nat.lt_size_self (V (a, w.tail))]
   · simp
 
 /-- If `V` lies below `B` on `{0, 1} ^ (n a)`, then `normalizedPotential V` lies below `B + 1` on
@@ -465,10 +460,9 @@ theorem normalizedPotential_lt_succ {B : ℕ}
   cases w with
   | nil => simp [normalizedPotentialWidth] at hw
   | cons b u =>
-    have hu : u.length = n a := by simpa [normalizedPotentialWidth] using hw
     cases b
     · simp
-    · simpa using Nat.succ_lt_succ (hB u hu)
+    · exact Nat.succ_lt_succ (hB u (by simpa [normalizedPotentialWidth] using hw))
 
 /-- If `V` fits in `m` bits (`< 2 ^ m`) on `{0, 1} ^ (n a)`, then `normalizedPotential V` fits in
 `m + 1` bits (`< 2 ^ (m + 1)`) on `{0, 1} ^ (n a + 1)`. -/
@@ -476,10 +470,8 @@ theorem normalizedPotential_lt_two_pow_succ {m : ℕ}
     (hm : ∀ u, u.length = n a → V (a, u) < 2 ^ m)
     (hw : w.length = normalizedPotentialWidth n a) :
     normalizedPotential V (a, w) < 2 ^ (m + 1) := by
-  have h := normalizedPotential_lt_succ hm hw
-  have hpow : 1 ≤ 2 ^ m := Nat.one_le_two_pow
   rw [Nat.pow_succ]
-  omega
+  linarith [normalizedPotential_lt_succ hm hw, @Nat.one_le_two_pow m]
 
 /-! ### Active edges and exact witness bijection -/
 
@@ -1000,12 +992,10 @@ theorem mem_EOPL_iff_promised {R : α → List Bool → Prop} :
       promisedPotentialLine_normalized n P S V,
       hred.trans (endOfPotentialLineRel_searchReducible_promised_normalized hS_len)⟩
   · rintro ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len, hprom, hred⟩
-    refine mem_EOPL_iff_violation.mpr ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len,
-      hred.trans (.of_isTotalSearch ?_ ComputableInPolyTime.id' (snd enc encBits)
-        fun a _ hw => (endOfPotentialLineViolationRel_iff_promised_of_promise (hprom a).1).mp hw)⟩
-    intro a
-    obtain ⟨u, hu⟩ := isTotalSearch_endOfPotentialLineRel (P := P) (V := V) hS_len a
-    exact ⟨_, endOfPotentialLineViolationRel_potentialLineBack (hP_len a) hu⟩
+    have heq : endOfPotentialLinePromisedRel n P S V = endOfPotentialLineViolationRel n P S V :=
+      funext fun a => funext fun _ =>
+        propext (endOfPotentialLineViolationRel_iff_promised_of_promise (hprom a).1).symm
+    exact mem_EOPL_iff_violation.mpr ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len, heq ▸ hred⟩
 
 /-- **`EOPL` under the promised convention with explicit unary potential bit-bound `m`.** Includes
 the range bound `V (a, u) < 2 ^ m a` (`{0, …, 2 ^ m - 1}`) of
@@ -1056,12 +1046,10 @@ theorem mem_SOPL_iff_promised {R : α → List Bool → Prop} :
       promisedPotentialLine_normalized n P S V,
       hred.trans (sinkOfPotentialLineRel_searchReducible_promised_normalized hS_len)⟩
   · rintro ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len, hprom, hred⟩
-    refine mem_SOPL_iff_violation.mpr ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len,
-      hred.trans (.of_isTotalSearch ?_ ComputableInPolyTime.id' (snd enc encBits)
-        fun a _ hw => (sinkOfPotentialLineViolationRel_iff_promised_of_promise (hprom a).1).mp hw)⟩
-    intro a
-    obtain ⟨u, hu⟩ := isTotalSearch_sinkOfPotentialLineRel (P := P) (V := V) hS_len a
-    exact ⟨_, sinkOfPotentialLineViolationRel_potentialLineBack hu⟩
+    have heq : sinkOfPotentialLinePromisedRel n P S V = sinkOfPotentialLineViolationRel n P S V :=
+      funext fun a => funext fun _ =>
+        propext (sinkOfPotentialLineViolationRel_iff_promised_of_promise (hprom a).1).symm
+    exact mem_SOPL_iff_violation.mpr ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len, heq ▸ hred⟩
 
 /-- **`SOPL` under the promised convention with explicit unary potential bit-bound `m`.** -/
 theorem mem_SOPL_iff_promised_bounded {R : α → List Bool → Prop} :

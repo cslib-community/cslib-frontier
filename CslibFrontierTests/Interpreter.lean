@@ -7,12 +7,13 @@ Authors: Anthropic, Christian Reitwiessner
 import CslibFrontier.Foundations.FieldTheory.FiniteOfFiniteType
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.EvalThm
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Comp
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Parts
 import Mathlib.Algebra.Field.ZMod
 
 /-! Tests of the first interpreter layer: finiteness of fields of finite type over `ℤ`,
 deterministic evaluation of small formulas, and the interpreter theorem on a named
 multiplication with a one-unit and an exhausted budget; budgets of constants, and the
-compositional rules for weighted values. -/
+compositional rules for weighted values; the program library of lists, tries and terms. -/
 
 namespace CslibFrontierTests.Interpreter
 
@@ -89,5 +90,23 @@ example (x : Tree) :
 /-- `hd` of a pair, then the first component: the value is computed step by step. -/
 example (a b : Tree) : Gives θ (.hd (.cons (.quote a) (.quote b))) .nil a (1 + 1 + 1 + 1) :=
   Gives.hd (Gives.cons (Gives.quote a _) (Gives.quote b _))
+
+/-! ### The program library -/
+
+/-- A trie returns the value written at a path, and the empty tree at another path. -/
+example (c : Tree) : tget [true] (tset [true] c .nil) = c ∧ tget [false] (tset [true] c .nil) =
+    .nil := by
+  simp [tget_tset, tget_nil]
+
+/-- Equality of a tree with itself has the value `1`. -/
+example (a x : Tree) : Gives θ (eqF (.quote a) (.quote a)) x (Tree.bit (decide (a = a)))
+    (1 + 1 + 60 * a.size + 10) :=
+  eqF_gives (Gives.quote a x) (Gives.quote a x)
+
+/-- A term for `1 + c`, where `c` is the constant named by the empty word. -/
+example : (WE.add .one (.nm [])).val θ = 1 + θ [] := by rfl
+
+/-- There are four bit lists of length two. -/
+example : (allBits 2).length = 4 := by decide
 
 end CslibFrontierTests.Interpreter

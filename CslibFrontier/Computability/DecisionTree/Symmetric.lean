@@ -111,30 +111,22 @@ theorem card_le_depth_of_eval_eq_comp_card_filter (t : DecisionTree ι β) (S : 
       · -- answer `false`: the count is unchanged
         have := ih₀ (S.erase i) (Function.update a i false) g m (fun x hx => by
           obtain ⟨hx', hxi, hc⟩ := eq_off_and_card_filter_of_eq_off_erase hi a false x hx
-          have := ht x hx'
-          rw [eval_node, hxi] at this
-          simpa [hc] using this) hm' hg
+          simpa [eval_node, hxi, hc] using ht x hx') hm' hg
         omega
       · -- answer `true`: the count shifts by one
         have hm1 : 1 ≤ m := by omega
         have := ih₁ (S.erase i) (Function.update a i true) (fun k => g (k + 1)) (m - 1)
           (fun x hx => by
             obtain ⟨hx', hxi, hc⟩ := eq_off_and_card_filter_of_eq_off_erase hi a true x hx
-            have := ht x hx'
-            rw [eval_node, hxi] at this
-            simpa [hc] using this) (by omega) (by rwa [Nat.sub_add_cancel hm1])
+            simpa [eval_node, hxi, hc] using ht x hx') (by omega) (by rwa [Nat.sub_add_cancel hm1])
         omega
     · -- the queried bit is fixed: follow the branch of `a i`
       cases hai : a i with
       | false =>
-        have := ih₀ S a g m (fun x hx => by
-          have := ht x hx
-          rwa [eval_node, hx i hi, hai] at this) hm hg
+        have := ih₀ S a g m (fun x hx => by simpa [eval_node, hx i hi, hai] using ht x hx) hm hg
         omega
       | true =>
-        have := ih₁ S a g m (fun x hx => by
-          have := ht x hx
-          rwa [eval_node, hx i hi, hai] at this) hm hg
+        have := ih₁ S a g m (fun x hx => by simpa [eval_node, hx i hi, hai] using ht x hx) hm hg
         omega
 
 /-- A function `g : ℕ → Bool` taking different values at two points `≤ n` changes between two

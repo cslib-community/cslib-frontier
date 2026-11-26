@@ -291,12 +291,9 @@ theorem sum_le_four_mul_degree_mul_expectedPriceSampling
       Prod.ext (hM.2.2 e₁.1 e₂.1 e₁.2 h₁ (hsnd ▸ h₂)) hsnd
     have hM_le_R : ∑ e ∈ M, w e.1 ≤ ∑ r ∈ Ract, w (h r) := by
       calc ∑ e ∈ M, w e.1
-          ≤ ∑ e ∈ M, w (h e.2) := by
-            refine Finset.sum_le_sum fun ⟨l, r⟩ he => ?_
-            have hr_act : r ∈ Ract :=
-              Finset.mem_filter.mpr ⟨Finset.mem_univ _, ⟨l, hM.1 (l, r) he⟩⟩
-            have hl_N : l ∈ N r := Finset.mem_filter.mpr ⟨Finset.mem_univ _, hM.1 (l, r) he⟩
-            exact hh_max r hr_act l hl_N
+          ≤ ∑ e ∈ M, w (h e.2) := Finset.sum_le_sum fun ⟨l, r⟩ he =>
+              hh_max r (Finset.mem_filter.mpr ⟨Finset.mem_univ _, ⟨l, hM.1 (l, r) he⟩⟩) l
+                (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hM.1 (l, r) he⟩)
         _ = ∑ r ∈ M.image Prod.snd, w (h r) :=
             (Finset.sum_image (f := fun r => w (h r)) (fun e₁ h₁ e₂ h₂ => hinj h₁ h₂)).symm
         _ ≤ ∑ r ∈ Ract, w (h r) := by
@@ -372,10 +369,9 @@ theorem sum_le_four_mul_degree_mul_expectedPriceSampling
           have ha_le : w a ≤ w s2 := hs2_max a
             (Finset.mem_erase.mpr ⟨ha_ne, Finset.mem_filter.mpr ⟨Finset.mem_univ _, haG⟩⟩)
           linarith [hp_eq]
-        · have hne_other : (Finset.univ.erase l).Nonempty := Finset.card_pos.mp <| by
+        · obtain ⟨l', hl'⟩ : (Finset.univ.erase l).Nonempty := Finset.card_pos.mp <| by
             rw [Finset.card_erase_of_mem (Finset.mem_univ l), Finset.card_univ]
             omega
-          obtain ⟨l', hl'⟩ := hne_other
           refine ⟨l', (Finset.mem_erase.mp hl').1, fun σ _ hlNS => ?_⟩
           have hempty : (sampleSet σ s).filter (fun y => G (y, r) = true) = ∅ :=
             Finset.filter_eq_empty_iff.mpr fun y hyS hyG =>
@@ -406,8 +402,7 @@ theorem sum_le_four_mul_degree_mul_expectedPriceSampling
           _ = ∑ σ : Fin (Fintype.card L) ≃ L, (μ σ).toReal *
                 if lcmp ∈ sampleSet σ s ∧ l ∉ sampleSet σ s then (1 : ℝ) else 0 := by
               rw [Finset.mul_sum]
-              refine Finset.sum_congr rfl fun σ _ => ?_
-              simp [μ, uniformOfFintype_apply, hcard_perm]
+              exact Finset.sum_congr rfl fun σ _ => by simp [μ, uniformOfFintype_apply, hcard_perm]
       have hw_mul := mul_le_mul_of_nonneg_right (hprob.trans_eq hprob_eq) hwl_pos.le
       rw [Finset.sum_mul] at hw_mul
       have hterm_le : ∑ σ : Fin (Fintype.card L) ≃ L,
@@ -668,10 +663,8 @@ theorem priceSamplingUSV_truthful (profile : L → USVType R) (σ : Fin (Fintype
       by_cases hdes : trueType.desired r' = true
       · simp only [hdes, ↓reduceIte]
         by_cases hlt : p r' < trueType.value
-        · have hdesT : profileGraph profT (l, r') = true := by
-            simpa only [profileGraph, profT, Function.update_self] using hdes
-          have hltT : p r' < profileWeight profT l := by
-            simpa only [profileWeight, profT, Function.update_self] using hlt
+        · have hdesT : profileGraph profT (l, r') = true := by simp [profileGraph, profT, hdes]
+          have hltT : p r' < profileWeight profT l := by simp [profileWeight, profT, hlt]
           have hcandT : (Finset.univ.filter fun r : R =>
               profileGraph profT (l, r) = true ∧ p r < profileWeight profT l ∧
                 r ∉ Mbefore.image Prod.snd).Nonempty :=
@@ -684,11 +677,9 @@ theorem priceSamplingUSV_truthful (profile : L → USVType R) (σ : Fin (Fintype
           obtain ⟨-, hG₀, -, -, hmin₀⟩ := mem_priceSamplingStep_of_notMem hmT_step (hnot_Mb r₀)
           have hallocT : priceSamplingUSVAlloc profT σ l = some r₀ :=
             (priceSamplingUSVAlloc_eq_some_iff profT σ l r₀).mpr ((hiffT r₀).mpr hmT_step)
-          have hr₀_des : trueType.desired r₀ = true := by
-            simpa only [profileGraph, profT, Function.update_self] using hG₀
-          have hp_min : p r₀ ≤ p r' := hmin₀ r' hdesT hltT hr'_snd
-          simp only [priceSamplingUSVUtility, priceSamplingUSVPayment, hallocT, hr₀_des, ↓reduceIte]
-          linarith
+          simp only [profileGraph, profT, Function.update_self] at hG₀
+          simp only [priceSamplingUSVUtility, priceSamplingUSVPayment, hallocT, hG₀, ↓reduceIte]
+          linarith [hmin₀ r' hdesT hltT hr'_snd]
         · linarith
       · simp only [hdes, Bool.false_eq_true, ↓reduceIte, zero_sub]
         linarith [hp_nonneg r']

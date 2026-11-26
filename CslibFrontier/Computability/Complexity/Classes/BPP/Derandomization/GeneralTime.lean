@@ -171,11 +171,8 @@ theorem CanonicalDerandomizer.exists_mem_DTIME_of_mem_BPTIME {G : List Bool → 
         _ ≤ L ^ 2 := Nat.pow_le_pow_left (Nat.mul_div_le L E) 2
     refine (seedDecider_eq_true_iff_of_advantage_lt hyes (fun hx => ?_) hG.length_eq gen seed
       (fun z => ?_) hmL (hG.fools _ _ hcirc)).symm
-    · have h := hno hx
-      have hsum := acceptCount_add_acceptCount_not V x (L / E)
-      omega
-    · simp only [gen, hG.length_eq, List.length_ofFn]
-      rfl
+    · linarith [hno hx, acceptCount_add_acceptCount_not V x (L / E)]
+    · simp only [gen, hG.length_eq, List.length_ofFn, L]
   -- the running time: the decider is polynomial-time on instances padded to `2 ^ seed x`
   obtain ⟨D₀, hGO⟩ := hG.time
   set encP := encPair enc encUnary
@@ -204,11 +201,9 @@ theorem CanonicalDerandomizer.exists_mem_DTIME_of_mem_BPTIME {G : List Bool → 
     (fun q z => (G (z.take (Nat.log 2 q.2))).take ((G (z.take (Nat.log 2 q.2))).length / E)) hV
     hgen (fun x z hz => by simp only [gen, Nat.log_pow Nat.one_lt_two, ← hz, List.take_length])
     hseed
-  have hmem := setOf_mem_DTIME_of_computableInO hO
-    (t := fun n => C * 2 ^ (D * k n) * (n + 1) ^ D) fun x => le_rfl
-  refine ⟨D, ?_⟩
-  rw [hAeq]
-  exact DTIME_mono_of_le_mul_add (C := C) (fun n => by rw [mul_assoc]; omega) hmem
+  exact ⟨D, hAeq ▸ DTIME_mono_of_le_mul_add (C := C) (fun n => by rw [mul_assoc]; omega)
+    (setOf_mem_DTIME_of_computableInO hO
+      (t := fun n => C * 2 ^ (D * k n) * (n + 1) ^ D) fun _ => le_rfl)⟩
 
 /-- **Not Goldreich's Proposition 8.15: a conditional result under a growth hypothesis and a
 polynomial-time seed schedule.** [Goldreich, Proposition 8.15][Goldreich2007DraftR4] (draft r4,
@@ -242,13 +237,12 @@ theorem BPTIME_subset_DTIME_of_canonicalDerandomizer_of_growth {G : List Bool �
     have h1 : 3 * c * ℓ (k n) ≤ ℓ (d * (k n + 1) + e) :=
       (hd (k n)).trans (hG.monotone (Nat.le_add_right _ _))
     have h2 : ℓ e ≤ ℓ (d * (k n + 1) + e) := hG.monotone (Nat.le_add_left _ _)
-    have h3 := hkt n
-    have h4 := ht n
     rcases Nat.eq_zero_or_pos (t n) with h0 | h0
-    · obtain rfl : n = 0 := by omega
+    · obtain rfl : n = 0 := by linarith [ht n]
       rw [h0]
       omega
-    · nlinarith [Nat.mul_le_mul_left c h3, Nat.mul_le_mul_left c h4, Nat.mul_le_mul_left c h0]
+    · nlinarith [Nat.mul_le_mul_left c (hkt n), Nat.mul_le_mul_left c (ht n),
+        Nat.mul_le_mul_left c h0]
   refine Set.mem_iUnion.2 ⟨D * d + D,
     DTIME_mono_of_le_mul_add (C := 2 ^ (D * d + D * e)) (fun n => ?_) hD⟩
   set P := 2 ^ k n * (t n + 1)

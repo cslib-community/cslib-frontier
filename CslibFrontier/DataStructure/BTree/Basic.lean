@@ -554,15 +554,13 @@ theorem Balanced.height_node (h : Balanced (.node fst rest)) :
   omega
 
 /-- The first child of a balanced node is balanced. -/
-theorem Balanced.first (h : Balanced (.node fst rest)) : Balanced fst := by
-  cases h
-  assumption
+theorem Balanced.first (h : Balanced (.node fst rest)) : Balanced fst :=
+  match h with | .node h _ _ => h
 
 /-- Every child among the triples of a balanced node is balanced. -/
 theorem Balanced.of_mem_rest (h : Balanced (.node fst rest)) {e : Triple α β}
-    (he : e ∈ rest) : Balanced e.child := by
-  cases h with
-  | node _ h _ => exact h e he
+    (he : e ∈ rest) : Balanced e.child :=
+  match h with | .node _ h _ => h e he
 
 /-- A node whose children are balanced and as tall as its first child is balanced, and one
 taller than its first child. -/
@@ -591,25 +589,21 @@ theorem Balanced.of_mem_children {c : BTree α β} (h : Balanced tr) (hc : c ∈
   cases h with | leaf => cases hc | node hf hr => exact children_node_forall Balanced hf hr hc
 
 /-- The first child of an occupied node is occupied. -/
-theorem Occupied.first (h : Occupied t (.node fst rest)) : Occupied t fst := by
-  cases h
-  assumption
+theorem Occupied.first (h : Occupied t (.node fst rest)) : Occupied t fst :=
+  match h with | .node _ _ h _ => h
 
 /-- Every child among the triples of an occupied node is occupied. -/
 theorem Occupied.of_mem_rest (h : Occupied t (.node fst rest)) {e : Triple α β}
-    (he : e ∈ rest) : Occupied t e.child := by
-  cases h with
-  | node _ _ _ h => exact h e he
+    (he : e ∈ rest) : Occupied t e.child :=
+  match h with | .node _ _ _ h => h e he
 
 /-- An occupied node has at most `2 * t - 1` keys. -/
-theorem Occupied.length_le (h : Occupied t (.node fst rest)) : rest.length ≤ 2 * t - 1 := by
-  cases h
-  assumption
+theorem Occupied.length_le (h : Occupied t (.node fst rest)) : rest.length ≤ 2 * t - 1 :=
+  match h with | .node _ h _ _ => h
 
 /-- An occupied node has at least `t - 1` keys. -/
-theorem Occupied.le_length (h : Occupied t (.node fst rest)) : t - 1 ≤ rest.length := by
-  cases h
-  assumption
+theorem Occupied.le_length (h : Occupied t (.node fst rest)) : t - 1 ≤ rest.length :=
+  match h with | .node h _ _ _ => h
 
 /-- An occupied tree has at most `2 * t - 1` root keys. -/
 theorem Occupied.rootKeys_le {c : BTree α β} (h : Occupied t c) : c.rootKeys ≤ 2 * t - 1 := by

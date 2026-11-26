@@ -84,8 +84,7 @@ theorem countingMachine_haltsWithin {input : List Bool} {fuel : ℕ}
       (Cfg.init (.init I.q₀) input) := by
   apply MultiTapeCTM.haltsWithin_of_paths (countingMachine_nonblocking I P F C)
   rw [toNTM_countingMachine]
-  intro p hp hlen
-  exact h ⟨p, hp⟩ hlen
+  exact fun p hp hlen => h ⟨p, hp⟩ hlen
 
 private def atChoice {input : List Bool} (cfg : Cfg k Bool (State SI SP SF) input) : Bool :=
   match cfg.state with
@@ -178,17 +177,14 @@ theorem replayChoices_choose_ne_nil {input : List Bool}
     (hhalt : final.Halted) : bits ≠ [] := by
   cases indices with
   | nil =>
-    have hf := congrArg (fun x => x.map (fun p => p.2.state)) hr
-    simp only [replayChoices_nil, Option.map_some, hcfg, hhalt] at hf
-    cases hf
+    obtain ⟨-, rfl⟩ := Prod.mk.inj (Option.some.inj ((replayChoices_nil I P F C cfg).symm.trans hr))
+    cases hcfg.symm.trans hhalt
   | cons j indices =>
     rw [replayChoices] at hr
     obtain ⟨_, _, hrest⟩ := Option.bind_eq_some_iff.mp hr
     obtain ⟨⟨_, _⟩, _, heq⟩ := Option.map_eq_some_iff.mp hrest
     rintro rfl
-    have he := congrArg Prod.fst heq
-    simp only [atChoice, hcfg, ↓reduceIte] at he
-    cases he
+    simp only [atChoice, hcfg, ↓reduceIte, Prod.mk.injEq, reduceCtorEq, false_and] at heq
 
 /-- A live native step outside a choice boundary has one occurrence and records no bit. -/
 theorem replayChoices_step_zero {input : List Bool}
@@ -294,16 +290,14 @@ theorem eq_occurrences_of_replayChoices {input : List Bool}
     · exact (claim h₂ h₁ hh₂ hl).symm
   intro a b x y ha hb hx hab
   obtain ⟨suffix, rfl⟩ := prefix_occurrences_of_replayChoices I P F C ha hb hab (List.prefix_refl _)
-  have hra := congrArg (Option.map Prod.snd) ha
-  have hrb := congrArg (Option.map Prod.snd) hb
-  rw [map_snd_replayChoices] at hra hrb
-  change _ = some x at hra
+  have hra : (countingMachine I P F C).runBranch cfg a = some x := by
+    simpa only [map_snd_replayChoices, Option.map_some] using congrArg (Option.map Prod.snd) ha
+  have hrb : (countingMachine I P F C).runBranch cfg (a ++ suffix) = some y := by
+    simpa only [map_snd_replayChoices, Option.map_some] using congrArg (Option.map Prod.snd) hb
   rw [MultiTapeCTM.runBranch_append, hra] at hrb
   cases suffix with
   | nil => simp
-  | cons j suffix =>
-    change (countingMachine I P F C).runBranch x (j :: suffix) = some y at hrb
-    simp [MultiTapeCTM.runBranch_of_halted _ hx] at hrb
+  | cons j suffix => simp [Option.bind, MultiTapeCTM.runBranch_of_halted _ hx] at hrb
 
 /-- If a verdict determines the genuine choice sequence on every terminal replay, it has
 at most one counted branch. -/

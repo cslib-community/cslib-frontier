@@ -186,31 +186,21 @@ theorem isNash_iff_isMixedNash {G : BimatrixGame M N} {x : M → ℝ} {y : N →
   · obtain ⟨h₁, h₂⟩ := isNash_iff.1 h
     have hx := h₁.isMixedStrategy
     have hy := h₂.isMixedStrategy
-    refine ⟨fun b => by
-      cases b
-      exacts [isMixedStrategy_profile_false_iff.2 hx, isMixedStrategy_profile_true_iff.2 hy],
-      fun b a => ?_⟩
-    cases b
-    · obtain ⟨i⟩ := a
-      rw [expectedCost_toCostGame_false G y hx.sum_eq_one,
-        deviationCost_toCostGame_row G y hx.sum_eq_one i]
-      exact neg_le_neg (h₁.le_payoff₁ i)
-    · obtain ⟨j⟩ := a
-      rw [expectedCost_toCostGame_true G x hy.sum_eq_one,
-        deviationCost_toCostGame_column G x hy.sum_eq_one j]
-      exact neg_le_neg (h₂.le_payoff₂ j)
+    refine ⟨fun | false => isMixedStrategy_profile_false_iff.2 hx
+                | true => isMixedStrategy_profile_true_iff.2 hy, fun b a => ?_⟩
+    cases b <;> obtain ⟨k⟩ := a
+    · simp [expectedCost_toCostGame_false G y hx.sum_eq_one,
+        deviationCost_toCostGame_row G y hx.sum_eq_one, h₁.le_payoff₁ k]
+    · simp [expectedCost_toCostGame_true G x hy.sum_eq_one,
+        deviationCost_toCostGame_column G x hy.sum_eq_one, h₂.le_payoff₂ k]
   · have hx := isMixedStrategy_profile_false_iff.1 (h.1 false)
     have hy := isMixedStrategy_profile_true_iff.1 (h.1 true)
     refine isNash_iff.2 ⟨isBestResponse₁_iff.2 ⟨hx, fun i hi => isPureBestResponse₁_iff.2
       fun i' => ?_⟩, isBestResponse₂_iff.2 ⟨hy, fun j hj => isPureBestResponse₂_iff.2
       fun j' => ?_⟩⟩
-    · have hle := (h.deviationCost_eq_of_pos false (a := ULift.up i) hi).trans_le
-        (h.2 false (ULift.up i'))
-      simp only [deviationCost_toCostGame_row G y hx.sum_eq_one] at hle
-      linarith
-    · have hle := (h.deviationCost_eq_of_pos true (a := ULift.up j) hj).trans_le
-        (h.2 true (ULift.up j'))
-      simp only [deviationCost_toCostGame_column G x hy.sum_eq_one] at hle
-      linarith
+    · simpa [deviationCost_toCostGame_row G y hx.sum_eq_one] using
+        (h.deviationCost_eq_of_pos false (a := ULift.up i) hi).trans_le (h.2 false (ULift.up i'))
+    · simpa [deviationCost_toCostGame_column G x hy.sum_eq_one] using
+        (h.deviationCost_eq_of_pos true (a := ULift.up j) hj).trans_le (h.2 true (ULift.up j'))
 
 end Cslib.GameTheory.BimatrixGame

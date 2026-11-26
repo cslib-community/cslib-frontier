@@ -53,12 +53,8 @@ theorem delta_pos_of_le_depth {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) {j : ℕ}
     (hj : j ≤ (canonicalSchedule h).depth) :
     1 ≤ (canonicalSchedule h).delta j := by
-  have hnF : 256 ^ 9 ≤ (canonicalSchedule h).nFloor j := nFloor_ge_pow_256 h hj
-  have hy1 : 1 ≤ (canonicalSchedule h).nFloor j :=
-    (Nat.one_le_pow 9 256 (by decide)).trans hnF
-  rw [canonicalSchedule_delta_eq h j]
-  dsimp only [delta]
-  rw [← canonicalSchedule_nFloor_eq h j]
+  have hy1 : 1 ≤ (canonicalSchedule h).nFloor j := le_trans (by decide) (nFloor_ge_pow_256 h hj)
+  rw [canonicalSchedule_delta_eq h j, delta, ← canonicalSchedule_nFloor_eq h j]
   exact (Nat.le_nthRoot_iff (by decide)).mpr (by rw [one_pow]; exact Nat.one_le_pow 2 _ hy1)
 
 private theorem numNodes_mul_tableCap_of_schedule (P : TreeSchedule) {ℓ : ℕ}
@@ -352,11 +348,7 @@ private theorem rootExtra_and_poolDir_of_schedule (P : TreeSchedule) {n r L s1 p
     (hdiv _).trans (by rw [TreeSchedule.rootValPoolCap]; omega)
   have hrem_dir : (P.numNodes 1 * (1 + K) + 4) * (ptrBits * r) ≤ 3 * n := by
     have hL2 : 1 ≤ L ^ 2 := Nat.one_le_pow 2 L (by omega)
-    have hK5 : 1 + K ≤ 5 * L ^ 2 := by
-      have hsq := Nat.pow_le_pow_left hptr_hi 2
-      rw [mul_pow] at hsq
-      rw [hK_eq]
-      omega
+    have hK5 : 1 + K ≤ 5 * L ^ 2 := by rw [hK_eq]; nlinarith only [hptr_hi, hL2]
     have hK9 : P.numNodes 1 * (1 + K) + 4 ≤ P.numNodes 1 * (9 * L ^ 2) :=
       calc _ ≤ P.numNodes 1 * (5 * L ^ 2) + P.numNodes 1 * (4 * L ^ 2) :=
             Nat.add_le_add (Nat.mul_le_mul_left _ hK5)

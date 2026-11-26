@@ -261,41 +261,29 @@ theorem permanent_entryChain (L : ℕ) :
     have hz : ∀ i j, (N ≤ i ∨ N ≤ j) → edgeWeight E i j = 0 :=
       fun i j h => edgeWeight_eq_zero_of_within hE h
     -- remove the relay vertex `N + 1`
-    rw [permanent_edgeMatrix_relay (K := N + 1) (s := N) (t := v) (a := 1) (b := 1) _
-      (by omega) (by omega)
-      (by
-        simp only [edgeWeight_append, edgeWeight_cons, edgeWeight_nil,
-          edgeWeight_chainLevel_zero_row_succ hu hv, hz (N + 1) (N + 1) (by omega)]
-        split_ifs <;> omega)
-      (fun j hj => by
-        simp only [edgeWeight_append, edgeWeight_cons, edgeWeight_nil,
-          edgeWeight_chainLevel_zero_row_succ hu hv, hz (N + 1) j (by omega)]
-        split_ifs <;> omega)
-      (fun i hi => by
-        simp only [edgeWeight_append, edgeWeight_cons, edgeWeight_nil,
-          edgeWeight_chainLevel_zero_col_succ hu hv, hz i (N + 1) (by omega)]
-        split_ifs <;> omega)]
     -- remove the doubling vertex `N`
-    rw [permanent_edgeMatrix_relay (K := N) (s := u) (t := v) (a := w / 2) (b := 2) _ hu hv
-      (by
-        simp only [edgeWeight_append, edgeWeight_cons, edgeWeight_nil,
-          edgeWeight_chainLevel_zero_row hu hv, hz N N (by omega)]
-        split_ifs <;> omega)
-      (fun j hj => by
-        simp only [edgeWeight_append, edgeWeight_cons, edgeWeight_nil,
-          edgeWeight_chainLevel_zero_row hu hv, hz N j (by omega), true_and]
-        split_ifs <;> omega)
-      (fun i hi => by
-        simp only [edgeWeight_append, edgeWeight_cons, edgeWeight_nil,
-          edgeWeight_chainLevel_zero_col hu hv, hz i N (by omega), and_true]
-        split_ifs <;> omega)]
-    refine congrArg Matrix.permanent ?_
-    ext i j
-    have hi := i.isLt
-    have hj := j.isLt
-    simp only [edgeMatrix, Matrix.of_apply, edgeWeight_append, edgeWeight_cons, edgeWeight_nil,
-      edgeWeight_chainLevel_zero_of_lt hi hj]
-    split_ifs <;> omega
+    have hz1r (j : ℕ) := hz (N + 1) j (.inl (Nat.le_succ N))
+    have hz1c (i : ℕ) := hz i (N + 1) (.inr (Nat.le_succ N))
+    have hz0r (j : ℕ) := hz N j (.inl le_rfl)
+    have hz0c (i : ℕ) := hz i N (.inr le_rfl)
+    rw [permanent_edgeMatrix_relay (K := N + 1) (s := N) (t := v) (a := 1) (b := 1) _
+        (by omega) (by omega) ?_ ?_ ?_,
+      permanent_edgeMatrix_relay (K := N) (s := u) (t := v) (a := w / 2) (b := 2) _ hu hv
+        ?_ ?_ ?_]
+    · refine congrArg Matrix.permanent ?_
+      ext i j
+      have hi := i.isLt
+      have hj := j.isLt
+      simp only [edgeMatrix, Matrix.of_apply, edgeWeight_append, edgeWeight_cons, edgeWeight_nil,
+        edgeWeight_chainLevel_zero_of_lt hi hj]
+      split_ifs <;> omega
+    all_goals
+      try intro k hk
+      simp only [edgeWeight_append, edgeWeight_cons, edgeWeight_nil,
+        edgeWeight_chainLevel_zero_row_succ hu hv, edgeWeight_chainLevel_zero_col_succ hu hv,
+        edgeWeight_chainLevel_zero_row hu hv, edgeWeight_chainLevel_zero_col hu hv,
+        hz1r, hz1c, hz0r, hz0c, true_and, and_true]
+      split_ifs <;> omega
 
 /-! ### Chains of a table -/
 
@@ -509,16 +497,10 @@ theorem length_natTableToZeroOne (A : List (List ℕ)) :
 
 theorem any_edgeTable_iff (E : List WeightedEdge) (i j : ℕ) :
     (E.any fun e => e.src == i && e.dst == j && e.weight != 0) = true ↔ edgeWeight E i j ≠ 0 := by
-  simp only [List.any_eq_true, Bool.and_eq_true, beq_iff_eq, bne_iff_ne, ne_eq, edgeWeight]
-  rw [List.sum_eq_zero_iff]
-  simp only [List.mem_map, forall_exists_index, and_imp, forall_apply_eq_imp_iff₂, not_forall]
-  constructor
-  · rintro ⟨e, he, ⟨h1, h2⟩, h3⟩
-    exact ⟨e, he, by simp [h1, h2, h3]⟩
-  · rintro ⟨e, he, h⟩
-    split_ifs at h with h'
-    · exact ⟨e, he, h', h⟩
-    · exact absurd rfl h
+  simp only [List.any_eq_true, Bool.and_eq_true, beq_iff_eq, bne_iff_ne, ne_eq, edgeWeight,
+    List.sum_eq_zero_iff, List.mem_map, forall_exists_index, and_imp, forall_apply_eq_imp_iff₂,
+    not_forall, exists_prop]
+  exact exists_congr fun e => and_congr_right fun _ => by split_ifs with h <;> simp [h]
 
 theorem getD_edgeTable {N : ℕ} {E : List WeightedEdge} {i j : ℕ} (hi : i < (edgeTable N E).length)
     (hj : j < N) :

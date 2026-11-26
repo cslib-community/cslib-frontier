@@ -261,10 +261,7 @@ private theorem compPromoteStep_read_spec {metaBase itemBase U V w N m_cap b k :
     simp [compPromoteReadGMProg, compPromoteReadPtrsProg, compPromoteReadCountsProg]
   have hres1 : (Memory.spec 0).clientResult s
       (compPromoteReadGMProg (((mkCompParams U V w N, metaBase), b), k)) =
-      ((compGmAt metaBase U w N s.mem 0 * slabSize N + k, compGmAt metaBase U w N s.mem 1 - 1),
-       (compGmAt metaBase U w N s.mem (gmTailPtrIdx N b ((slabSize N - 1) - k)),
-        compGmAt metaBase U w N s.mem
-          (gmTailPtrIdx N b (slabSize N + ((slabSize N - 1) - k))))) := by
+      ((b_win, n'), (t_u, t_top)) := by
     dsimp only [compPromoteReadGMProg, compPromoteReadPtrsProg, compPromoteReadCountsProg]
     simp only [bind_assoc, pure_bind, cpSlabSizeSubOne_mk, cpSlabSize_mk, cpGmTailPtrBase_mk,
       cpTailCap_mk]
@@ -276,28 +273,14 @@ private theorem compPromoteStep_read_spec {metaBase itemBase U V w N m_cap b k :
       clientResult_readCompGMGenProg h1_lt, clientState_readCompGMGenProg]
     rfl
   have hst2 : (Memory.spec 0).clientState s
-      (compPromoteReadDenseProg ((mkCompParams U V w N, metaBase),
-        ((compGmAt metaBase U w N s.mem 0 * slabSize N + k, compGmAt metaBase U w N s.mem 1 - 1),
-         (compGmAt metaBase U w N s.mem (gmTailPtrIdx N b ((slabSize N - 1) - k)),
-          compGmAt metaBase U w N s.mem
-            (gmTailPtrIdx N b (slabSize N + ((slabSize N - 1) - k))))))) = s := by
+      (compPromoteReadDenseProg
+        ((mkCompParams U V w N, metaBase), ((b_win, n'), (t_u, t_top)))) = s := by
     unfold StateTransitionSpec.clientState
     simp [compPromoteReadDenseProg, compPromoteReadTDProg, compPromoteCalcDenseProg]
   have hres2 : (Memory.spec 0).clientResult s
-      (compPromoteReadDenseProg ((mkCompParams U V w N, metaBase),
-        ((compGmAt metaBase U w N s.mem 0 * slabSize N + k, compGmAt metaBase U w N s.mem 1 - 1),
-         (compGmAt metaBase U w N s.mem (gmTailPtrIdx N b ((slabSize N - 1) - k)),
-          compGmAt metaBase U w N s.mem
-            (gmTailPtrIdx N b (slabSize N + ((slabSize N - 1) - k))))))) =
-      (denseOfCirc (maxTailItems N) (compGmAt metaBase U w N s.mem 0 * slabSize N + k)
-         (compTDAt metaBase U w N s.mem
-           (compGmAt metaBase U w N s.mem (gmTailPtrIdx N b ((slabSize N - 1) - k)))),
-       (denseOfCirc (maxTailItems N) (compGmAt metaBase U w N s.mem 0 * slabSize N + k)
-          (compTDAt metaBase U w N s.mem
-            (compGmAt metaBase U w N s.mem
-              (gmTailPtrIdx N b (slabSize N + ((slabSize N - 1) - k))))),
-        denseOfCirc (maxTailItems N) (compGmAt metaBase U w N s.mem 0 * slabSize N + k)
-          (compTDAt metaBase U w N s.mem (compGmAt metaBase U w N s.mem 1 - 1)))) := by
+      (compPromoteReadDenseProg
+        ((mkCompParams U V w N, metaBase), ((b_win, n'), (t_u, t_top)))) =
+      (d_u, (d_top, d_last)) := by
     dsimp only [compPromoteReadDenseProg, compPromoteReadTDProg, compPromoteCalcDenseProg]
     simp only [bind_assoc, pure_bind]
     rw [StateTransitionSpec.clientResult_bind, clientResult_readCompTDGenProg htu_max,

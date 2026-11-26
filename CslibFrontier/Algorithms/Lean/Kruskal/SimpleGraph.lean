@@ -199,14 +199,9 @@ theorem numComponents_edgePartition_eq_one_iff_connected {n : ℕ} {W : Type}
     have hcomp : (edgePartition es).components = {(edgePartition es).classOf v₀} := by
       ext c
       simp only [Partition.mem_components, Finset.mem_singleton]
-      constructor
-      · rintro ⟨x, rfl⟩
-        exact Partition.classOf_eq_iff.mpr
-          ((rel_edgePartition_iff_reachable es x v₀).mpr (hconn x v₀))
-      · rintro rfl
-        exact ⟨v₀, rfl⟩
-    unfold Partition.numComponents
-    rw [hcomp, Finset.card_singleton]
+      exact ⟨fun ⟨x, hx⟩ => hx.symm.trans (Partition.classOf_eq_iff.mpr
+        ((rel_edgePartition_iff_reachable es x v₀).mpr (hconn x v₀))), fun hc => ⟨v₀, hc.symm⟩⟩
+    rw [Partition.numComponents, hcomp, Finset.card_singleton]
 
 private theorem isAcyclic_append_singleton {n : ℕ} {W : Type}
     (F : List (WeightedEdge n W)) (e : WeightedEdge n W) :
@@ -353,15 +348,11 @@ pairs `(u, v)` with `u < v` and `G.Adj u v`, weighted by `w s(u, v)`. Each undir
 theorem mem_graphEdges {n : ℕ} {W : Type} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
     (w : Sym2 (Fin n) → W) (e : WeightedEdge n W) :
     e ∈ graphEdges G w ↔ e.u < e.v ∧ G.Adj e.u e.v ∧ e.weight = w s(e.u, e.v) := by
+  cases e
   simp only [graphEdges, List.mem_flatMap, List.mem_finRange, true_and, List.mem_map,
-    List.mem_filter, Bool.and_eq_true, decide_eq_true_eq]
-  constructor
-  · rintro ⟨u, v, ⟨hlt, hadj⟩, rfl⟩
-    exact ⟨hlt, hadj, rfl⟩
-  · rintro ⟨hlt, hadj, hw⟩
-    refine ⟨e.u, e.v, ⟨hlt, hadj⟩, ?_⟩
-    cases e
-    simp_all
+    List.mem_filter, Bool.and_eq_true, decide_eq_true_eq, WeightedEdge.mk.injEq]
+  exact ⟨fun ⟨_, _, ⟨hlt, hadj⟩, rfl, rfl, hw⟩ => ⟨hlt, hadj, hw.symm⟩,
+    fun ⟨hlt, hadj, hw⟩ => ⟨_, _, ⟨hlt, hadj⟩, rfl, rfl, hw.symm⟩⟩
 
 /-- `(graphEdges G w)` contains no duplicate edges. -/
 theorem nodup_graphEdges {n : ℕ} {W : Type} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]

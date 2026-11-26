@@ -117,22 +117,18 @@ private theorem exists_le_certLen_clock (d c c₂ : ℕ) : ∃ M, ∀ m, M ≤ m
     c * (m + 1) ^ d + c ≤ certLen d m ∧ c₂ * (2 * m + 1 + certLen d m + 1) ≤ clock d m := by
   refine ⟨2 * c + 3 * c₂, fun m hm => ⟨?_, ?_⟩⟩
   · have hX : 1 ≤ (m + 1) ^ d := Nat.one_le_pow _ _ (by omega)
-    have h₁ : c * (m + 1) ^ d + c ≤ (2 * c) * (m + 1) ^ d := by
-      have := Nat.le_mul_of_pos_right c hX
-      have : (2 * c) * (m + 1) ^ d = c * (m + 1) ^ d + c * (m + 1) ^ d := by ring
-      omega
+    have h₁ : c * (m + 1) ^ d + c ≤ (2 * c) * (m + 1) ^ d := by nlinarith only [hX]
     have h₂ : 2 * c ≤ (m + 1) ^ 2 :=
       (by omega : 2 * c ≤ m + 1).trans (Nat.le_self_pow two_ne_zero _)
-    exact h₁.trans ((Nat.mul_le_mul_right _ h₂).trans (le_of_eq (by simp only [certLen]; ring)))
+    exact h₁.trans ((Nat.mul_le_mul_right _ h₂).trans_eq (by simp only [certLen]; ring))
   · have hX : 1 ≤ (m + 1) ^ d := Nat.one_le_pow _ _ (by omega)
     set Y := certLen d m
     have hY : m + 1 ≤ Y :=
       (Nat.le_self_pow two_ne_zero _).trans
-        ((Nat.le_mul_of_pos_left _ hX).trans (le_of_eq (by simp only [Y, certLen]; ring)))
-    have h₁ : c₂ * (2 * m + 1 + Y + 1) ≤ (3 * c₂) * Y :=
-      (Nat.mul_le_mul_left c₂ (by omega : 2 * m + 1 + Y + 1 ≤ 3 * Y)).trans (le_of_eq (by ring))
-    exact h₁.trans ((Nat.mul_le_mul_right Y (by omega : 3 * c₂ ≤ m + 1)).trans
-      (le_of_eq (by simp only [Y, certLen, clock]; ring)))
+        ((Nat.le_mul_of_pos_left _ hX).trans_eq (by simp only [Y, certLen]; ring))
+    have h₁ : c₂ * (2 * m + 1 + Y + 1) ≤ (3 * c₂) * Y := by nlinarith only [hY]
+    exact h₁.trans ((Nat.mul_le_mul_right Y (by omega : 3 * c₂ ≤ m + 1)).trans_eq
+      (by simp only [Y, certLen, clock]; ring))
 
 /-- **The lazy diagonal is not decidable in nondeterministic time `O((n + 1) ^ d)`**
 (`Cslib.Complexity.Diagonal.lazyLanguage_notMem_NTIME`): certificates of length `certLen d m` and
@@ -247,17 +243,14 @@ private theorem exists_computableInO_verifier (d : ℕ) :
     have he : (4 + 2 * (G + 4) ^ 2) * (cheap d p + 1) =
         4 * cheap d p + 2 * ((G + 4) ^ 2 * cheap d p) + (4 + 2 * (G + 4) ^ 2) := by ring
     omega
-  have hQ (p) : (2 * (encPair encBits encBits p).length + 4 +
-      (2 * (unframe p.1).length + 1 + 1) ^ (d + 3)) ^ 2 ≤ (G + 4) ^ 2 * cheap d p :=
-    (hfacts p).2.2
   obtain ⟨S₀, S₁, S₂, hc₀, hc₁', hc₂'⟩ := Diagonal.exists_computableInO_lazyTests
     (H := clock d) (hE'.of_enc_eq fun p => by
-      simp only [Function.comp_apply, clock, length_frame]) (fun p => (hfacts p).1) hQ
+      simp only [Function.comp_apply, clock, length_frame])
+    (fun p => (hfacts p).1) (fun p => (hfacts p).2.2)
   obtain ⟨S, h⟩ := Diagonal.exists_computableInO_lazyVerifier
     (β := fun y _ => clock d y.length) (L := certLen d) (H := clock d) hacc hbrute hc₀ hc₁' hc₂'
     (fun p => (hfacts p).1)
-  refine ⟨D, K, S, ?_⟩
-  simpa only [verifier, length_frame] using h
+  exact ⟨D, K, S, by simpa only [verifier, length_frame] using h⟩
 
 /-- **The lazy diagonal is decidable in nondeterministic time `O((n + 1) ^ (6 * d + 14))`.** Guess
 a certificate of length `(n + 2) ^ (d + 2)` and run the verifier

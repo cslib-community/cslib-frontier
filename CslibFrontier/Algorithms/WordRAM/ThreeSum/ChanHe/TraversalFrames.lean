@@ -107,15 +107,9 @@ theorem Entry.read_eq (e : Entry) (j : Fin 3) (i : ℕ) (hi : i < (e.data j).len
 theorem Entry.image_read (e : Entry) (j : Fin 3) :
     (Finset.range (e.data j).length).image (e.read j) = (e.data j).toFinset := by
   ext z
-  constructor
-  · intro hz
-    obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hz
-    have hi' := Finset.mem_range.mp hi
-    rw [e.read_eq j i hi', List.mem_toFinset]
-    exact List.getElem_mem hi'
-  · intro hz
-    obtain ⟨i, hi, he⟩ := List.mem_iff_getElem.mp (List.mem_toFinset.mp hz)
-    exact Finset.mem_image.mpr ⟨i, Finset.mem_range.mpr hi, (e.read_eq j i hi).trans he⟩
+  simp only [Finset.mem_image, Finset.mem_range, List.mem_toFinset, List.mem_iff_getElem]
+  exact ⟨fun ⟨i, hi, hz⟩ => ⟨i, hi, (e.read_eq j i hi).symm.trans hz⟩,
+    fun ⟨i, hi, hz⟩ => ⟨i, hi, (e.read_eq j i hi).trans hz⟩⟩
 
 /-- A duplicate-free compact list meets the actual native collision-counting premise. -/
 theorem Entry.read_injOn (e : Entry) (j : Fin 3) (h : (e.data j).Nodup) :
@@ -164,10 +158,7 @@ theorem Entry.task_child (e : Entry) (j : Fin 3) (base : ℕ) (zs : List ℤ) :
       ⟨e.fuel - 1, Function.update e.task.sets j zs.toFinset⟩ := by
   unfold Entry.child Entry.task
   congr 1 with k : 1
-  by_cases he : k = j
-  · subst k
-    simp only [Function.update_self]
-  · simp only [Function.update_of_ne he]
+  rcases eq_or_ne k j with rfl | hne <;> simp [*]
 
 /-- The native child-record words represent exactly the changed data block, with the two
 other columns and their original enumeration orders preserved. -/
@@ -257,25 +248,14 @@ theorem Entry.task_children (e : Entry) (Q : Finset ℕ) (Λ : ℕ)
     [(e.child 0 (bases 0) (zs 0)).task, (e.child 1 (bases 1) (zs 1)).task,
       (e.child 2 (bases 2) (zs 2)).task] = e.task.children Q Λ (e.fuel - 1) := by
   let M := (e.task.node Q Λ).M
-  have h₀ : Function.update e.task.sets 0
-      (Cslib.Algorithms.ThreeSum.ChanHe.heavy (e.task.sets 0) M) =
-      ![Cslib.Algorithms.ThreeSum.ChanHe.heavy (e.task.sets 0) M,
-        e.task.sets 1, e.task.sets 2] := by
+  have hupd (i : Fin 3) (S : Finset ℤ) : Function.update e.task.sets i S =
+      ![if i = 0 then S else e.task.sets 0,
+        if i = 1 then S else e.task.sets 1,
+        if i = 2 then S else e.task.sets 2] := by
     funext j
-    fin_cases j <;> rfl
-  have h₁ : Function.update e.task.sets 1
-      (Cslib.Algorithms.ThreeSum.ChanHe.heavy (e.task.sets 1) M) =
-      ![e.task.sets 0, Cslib.Algorithms.ThreeSum.ChanHe.heavy (e.task.sets 1) M,
-        e.task.sets 2] := by
-    funext j
-    fin_cases j <;> rfl
-  have h₂ : Function.update e.task.sets 2
-      (Cslib.Algorithms.ThreeSum.ChanHe.heavy (e.task.sets 2) M) =
-      ![e.task.sets 0, e.task.sets 1,
-        Cslib.Algorithms.ThreeSum.ChanHe.heavy (e.task.sets 2) M] := by
-    funext j
-    fin_cases j <;> rfl
-  rw [Entry.task_child, Entry.task_child, Entry.task_child, hz 0, hz 1, hz 2, h₀, h₁, h₂]
+    fin_cases i <;> fin_cases j <;> rfl
+  rw [Entry.task_child, Entry.task_child, Entry.task_child, hz 0, hz 1, hz 2,
+    hupd 0, hupd 1, hupd 2]
   rfl
 
 /-- The native word-stack length records exactly seven cells per pending entry. -/

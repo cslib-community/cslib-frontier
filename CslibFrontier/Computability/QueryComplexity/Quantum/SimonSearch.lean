@@ -196,20 +196,14 @@ theorem measureProb_not_simonDetermines_le (E : Fin N ≃ (Fin n → Bool) × Fi
   have hsub : (Z.filter fun zs => ∀ r, Function.curry zs r ⬝ᵥ s = false) ⊆ T := by
     intro zs hzs
     obtain ⟨hzZ, hzs⟩ := mem_filter.mp hzs
-    have hnd : ¬SimonDetermines zs s := (mem_filter.mp hzZ).2
-    simp only [SimonDetermines, not_forall] at hnd
-    obtain ⟨w, hw⟩ := hnd
-    have hw0 : w ≠ 0 := by
-      rintro rfl
-      exact hw ⟨fun _ => Or.inl rfl, fun _ r => by simp [Bool.zero_eq_false]⟩
-    have hws : w ≠ s := by
-      rintro rfl
-      exact hw ⟨fun _ => Or.inr rfl, fun _ => hzs⟩
-    have hwo : ∀ r, Function.curry zs r ⬝ᵥ w = false := by
-      by_contra hc
-      exact hw ⟨fun h => absurd h hc, fun h => h.elim (fun h0 => absurd h0 hw0)
-        (fun h1 => absurd h1 hws)⟩
-    exact mem_biUnion.mpr ⟨w, mem_erase.mpr ⟨hws, mem_erase.mpr ⟨hw0, mem_univ _⟩⟩,
+    obtain ⟨w, hw⟩ := not_forall.mp (mem_filter.mp hzZ).2
+    have hback : w = 0 ∨ w = s → ∀ r, Function.curry zs r ⬝ᵥ w = false := by
+      rintro (rfl | rfl) <;> simp only [dotProduct_zero, Bool.zero_eq_false, hzs, implies_true]
+    have hnQ : ¬(w = 0 ∨ w = s) := fun hQ => hw ⟨fun _ => hQ, hback⟩
+    have hwo : ∀ r, Function.curry zs r ⬝ᵥ w = false :=
+      by_contra fun hP => hw (iff_of_false hP hnQ)
+    exact mem_biUnion.mpr ⟨w, mem_erase.mpr ⟨(not_or.mp hnQ).2,
+      mem_erase.mpr ⟨(not_or.mp hnQ).1, mem_univ _⟩⟩,
       mem_filter.mpr ⟨mem_univ _, fun r => ⟨hzs r, hwo r⟩⟩⟩
   have hpair : ∀ w ∈ W, #(K w) * 4 ^ m = 2 ^ (m * n) := by
     intro w hw
@@ -231,9 +225,7 @@ theorem measureProb_not_simonDetermines_le (E : Fin N ≃ (Fin n → Bool) × Fi
             Fintype.card_bool, Fintype.card_fin, smul_eq_mul]
   have hreal : (#T : ℝ) * (2 ^ m * 2 ^ m) ≤ (2 ^ n - 1) * 2 ^ (m * n) := by
     have h1 : ((2 ^ n - 1 : ℕ) : ℝ) = 2 ^ n - 1 := by
-      rw [Nat.cast_sub Nat.one_le_two_pow]
-      push_cast
-      ring
+      simp only [Nat.cast_sub Nat.one_le_two_pow, Nat.cast_pow, Nat.cast_ofNat, Nat.cast_one]
     rw [← mul_pow, ← h1]
     exact_mod_cast hcard
   rw [hfilt]

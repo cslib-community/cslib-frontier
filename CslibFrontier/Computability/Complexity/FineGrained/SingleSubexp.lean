@@ -349,28 +349,23 @@ theorem ComputableInSingleSubexpTime.of_reduction {μA : α → ℕ} {μB : β �
     (hμ : ∀ a, μB (r a) ≤ c * μA a + c)
     (hg : ComputableInSingleSubexpTime g encMid encOut μB) :
     ComputableInSingleSubexpTime (g ∘ r) encIn encOut μA := by
+  refine ComputableInSingleSubexpTime.mono_measure (μ := fun a => μB (r a)) hμ ?_
   obtain ⟨s, e, hnn, hs_o, hg_time⟩ := hg
-  obtain ⟨sBar, hmono, hnnBar, hle, hsBar_o⟩ := exists_monotone_isLittleO_ge hnn hs_o
   obtain ⟨t, k, hgO, ht⟩ := hg_time.exists_computableInO
   obtain ⟨d, _, hr'⟩ := hr.exists_degree
   obtain ⟨l, hl⟩ := hr'.inO.length_le_time
-  let s' (n : ℕ) : ℝ := sBar (c * n + c)
-  refine ⟨s', d * (e + 1), fun n => hnnBar _,
-    isLittleO_comp_linear hsBar_o c c,
+  refine ⟨s, d * (e + 1), hnn, hs_o,
     (ComputableInTimeO.of_computableInO (hgO.comp hr'.inO) fun _ => le_rfl).mono
       (1 + k * (2 * l + 1) ^ e + k) (fun a => ?_) fun _ => by positivity⟩
   set P : ℝ := (((encIn a).length : ℝ) + 1) ^ d
-  set X : ℝ := (2 : ℝ) ^ s' (μA a)
+  set X : ℝ := (2 : ℝ) ^ s (μB (r a))
   have hP : 1 ≤ P := one_le_pow₀ (le_add_of_nonneg_left (Nat.cast_nonneg _))
-  have hX : 1 ≤ X := Real.one_le_rpow (by norm_num) (hnnBar _)
+  have hX : 1 ≤ X := Real.one_le_rpow (by norm_num) (hnn _)
   have hn : ((encMid (r a)).length : ℝ) ≤ l * (P + 1) := by
     dsimp only [P]
     exact_mod_cast hl a
-  have hexp : (2 : ℝ) ^ s (μB (r a)) ≤ X := by
-    refine Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_
-    exact (hle _).trans (hmono (hμ a))
-  have hsum := reduction_add_time_le (C := 1) (Y := (2 : ℝ) ^ s (μB (r a)))
-    hP hX (by norm_num) hn (by simpa only [one_mul] using hexp) (ht (r a))
+  have hsum := reduction_add_time_le (C := 1) (Y := X)
+    hP hX (by norm_num) hn (by simp only [one_mul, le_rfl]) (ht (r a))
   simp only [mul_one] at hsum
   change ((((encIn a).length + 1) ^ d + t (r a) : ℕ) : ℝ) ≤ _
   have hc_nn : (0 : ℝ) ≤ (1 + k * (2 * l + 1) ^ e + k : ℕ) := Nat.cast_nonneg _
@@ -496,18 +491,16 @@ theorem ComputableInSingleSubexpTime.of_uniformFamily {f : α → β} {μ : α �
         _ = (C_sched * 2 ^ N : ℝ) * (2 ^ (δ * μ a) * (L1 ^ (ds * d) * L1 ^ e)) := by ring
         _ ≤ (C_sched * 2 ^ N : ℝ) * (2 ^ (δ * μ a) * L1 ^ (dp + ds * d + e)) :=
             by gcongr
+    set X : ℝ := 2 ^ (δ * μ a) * L1 ^ (dp + ds * d + e)
     have hc_prod := mul_le_mul_of_nonneg_left hprod (Nat.cast_nonneg c : (0 : ℝ) ≤ c)
     have hX1 : (1 : ℝ) ≤ 2 ^ (δ * μ a) := Real.one_le_rpow (by norm_num) (by positivity)
-    have hdp_le : L1 ^ dp ≤ 2 ^ (δ * μ a) * L1 ^ (dp + ds * d + e) :=
+    have hdp_le : L1 ^ dp ≤ X :=
       (pow_le_pow_right₀ hL1 (by omega)).trans (le_mul_of_one_le_left (by positivity) hX1)
-    have hc_one : (0 : ℝ) ≤ (c : ℝ) * (2 ^ (δ * μ a) * L1 ^ (dp + ds * d + e)) := by positivity
-    set X : ℝ := 2 ^ (δ * μ a) * L1 ^ (dp + ds * d + e)
     have hring : (1 + (c : ℝ) * C_sched * 2 ^ N + c) * X =
         X + (c : ℝ) * ((C_sched * 2 ^ N : ℝ) * X) + (c : ℝ) * X := by ring
-    have hnn_extra : (0 : ℝ) ≤ 1 + (c : ℝ) * C_sched * 2 ^ N := by positivity
-    dsimp only [C_total, L1, X] at hT_le hc_prod hdp_le hc_one hring hnn_extra ⊢
+    dsimp only [C_total, L1, X] at hT_le hc_prod hdp_le hring ⊢
     push_cast at hc_prod ⊢
-    linarith
+    linarith [show (0 : ℝ) ≤ (c : ℝ) * X + (1 + c * C_sched * 2 ^ N) by positivity]
   obtain ⟨s, hnn, hs_o, hbound⟩ := exists_isLittleO_of_forall_exp_bound hforall
   exact ⟨s, dp + ds * d + e, hnn, hs_o, ComputableInTimeO.of_computableInO hfO hbound⟩
 

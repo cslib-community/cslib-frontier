@@ -181,14 +181,11 @@ private theorem simHashG_support {sc : ProbComp R} {m : M} {st : SimState M R CT
     {z : R × SimState M R CT K} (hz : z ∈ (ProbComp.eval (simHashG sc m st)).support) :
     (m, z.1) ∈ z.2.gCache ∧ st.gCache ⊆ z.2.gCache ∧ z.2.hqCache = st.hqCache := by
   supp_cases hz [simHashG, RandomOracle.eval_zoomStateT_memoize] with ⟨⟨r, c'⟩, hc', rfl⟩
-  rcases (RandomOracle.mem_support_memoize_iff _ _ _ _).mp hc' with ⟨hl, hnext⟩ | ⟨-, -, hnext⟩
-  · dsimp only at hl hnext ⊢
-    subst hnext
-    obtain ⟨l₁, l₂, hlist, -⟩ := List.lookup_eq_some_iff.mp hl
-    exact ⟨by simp [hlist], List.Subset.refl _, rfl⟩
-  · dsimp only at hnext ⊢
-    subst hnext
-    exact ⟨by simp, List.subset_cons_self _ _, rfl⟩
+  rcases (RandomOracle.mem_support_memoize_iff _ _ _ _).mp hc' with ⟨hl, hnext⟩ | ⟨-, -, hnext⟩ <;>
+    dsimp only at hnext ⊢
+  · obtain ⟨l₁, l₂, hlist, -⟩ := List.lookup_eq_some_iff.mp hl
+    exact ⟨by simp [hnext, hlist], by simp [hnext], rfl⟩
+  · exact ⟨by simp [hnext], hnext ▸ List.subset_cons_self _ _, rfl⟩
 
 omit [DecidableEq M] in
 /-- A supported transition of `simHashHq c` keeps `gCache` and only adds the key `c` to
@@ -199,11 +196,10 @@ private theorem simHashHq_support {sk : ProbComp K} {c cStar : CT} {st : SimStat
       ((z.2.hqCache.lookup cStar).isSome → c = cStar ∨ (st.hqCache.lookup cStar).isSome) := by
   supp_cases hz [simHashHq, RandomOracle.eval_zoomStateT_memoize] with ⟨⟨r, c'⟩, hc', rfl⟩
   refine ⟨rfl, fun h => ?_⟩
-  rcases (RandomOracle.mem_support_memoize_iff _ _ _ _).mp hc' with ⟨-, hnext⟩ | ⟨-, -, hnext⟩
-  · dsimp only at hnext h
-    exact Or.inr (hnext ▸ h)
-  · dsimp only at hnext h
-    obtain ⟨p, hp, hpk⟩ := List.lookup_isSome_iff.mp (hnext ▸ h)
+  rcases (RandomOracle.mem_support_memoize_iff _ _ _ _).mp hc' with ⟨-, hnext⟩ | ⟨-, -, hnext⟩ <;>
+    dsimp only at hnext h
+  · exact Or.inr (hnext ▸ h)
+  · obtain ⟨p, hp, hpk⟩ := List.lookup_isSome_iff.mp (hnext ▸ h)
     rcases List.mem_cons.mp hp with rfl | hp
     · exact Or.inl (eq_of_beq hpk).symm
     · exact Or.inr (List.lookup_isSome_iff.mpr ⟨p, hp, hpk⟩)
@@ -957,9 +953,7 @@ private theorem closeTo_genRun_preset (S : Scheme PK SK M R CT K)
     (gs₂ := fun _ => S.pke.sampleCoins) (hs₁ := S.progHq cStar kq)
     (hs₂ := fun _ => S.sampleKey) (mStar := mStar) cStar (fun m hm => by simp [progG, hm])
     (fun c hc => by simp [progHq, hc])
-  have h := (hiub.closeTo_run (A ⟨pk, cStar, k⟩) {}).map Prod.fst
-  rw [hiub.bad_eq] at h
-  exact h
+  simpa only [genRun, hiub.bad_eq] using (hiub.closeTo_run (A ⟨pk, cStar, k⟩) {}).map Prod.fst
 
 /-! ### The challenge hop of the keyless simulator
 

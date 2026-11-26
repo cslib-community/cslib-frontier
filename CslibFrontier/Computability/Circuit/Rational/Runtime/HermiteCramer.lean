@@ -156,10 +156,7 @@ theorem length_of_mem_cramerColZeroRows {mat : List (List ℤ)} {rhs : List ℤ}
   obtain ⟨⟨r, k⟩, hmem, rfl⟩ := hrow
   have hr_mem : r ∈ mat := (List.mem_zipIdx hmem).2.2 ▸ List.getElem_mem _
   have hr_len : r.length = mat.length := hmat r hr_mem
-  have hpos : 0 < mat.length := by
-    rcases mat with _ | ⟨_, _⟩
-    · simp at hr_mem
-    · simp
+  have hpos : 0 < mat.length := List.length_pos_of_mem hr_mem
   simp only [List.length_cons, List.length_tail, hr_len]
   omega
 
@@ -281,16 +278,12 @@ theorem detRows_cramerColZeroRows_hermiteRows (nodes : List ℤ) (J : ℕ) (jets
     detRows (cramerColZeroRows (hermiteRows nodes J) jets.flatten) =
       ((Polynomial.hermiteMatrix (fun i : Fin nodes.length => nodes[i]) J).updateCol
         (⟨0, hQ⟩, ⟨0, hJ⟩) fun r => rowEntry jets r.1 r.2).det := by
-  have hpos : 0 < (hermiteRows nodes J).length := by
-    rw [length_hermiteRows]
-    exact Nat.mul_pos hQ hJ
+  have hpos : 0 < (hermiteRows nodes J).length :=
+    (length_hermiteRows nodes J).symm ▸ Nat.mul_pos hQ hJ
   set e : Fin nodes.length × Fin J ≃ Fin (hermiteRows nodes J).length :=
     finProdFinEquiv.trans (finCongr (length_hermiteRows nodes J).symm)
-  have he0 : e.symm ⟨0, hpos⟩ = (⟨0, hQ⟩, ⟨0, hJ⟩) := by
-    apply e.injective
-    rw [Equiv.apply_symm_apply]
-    ext
-    simp [e]
+  have he0 : e.symm ⟨0, hpos⟩ = (⟨0, hQ⟩, ⟨0, hJ⟩) :=
+    e.symm_apply_eq.mpr (Fin.ext (by simp [e]))
   have hrhs : (fun r : Fin nodes.length × Fin J => jets.flatten.getD (e r) 0) =
       fun r => rowEntry jets r.1 r.2 := by
     funext ⟨i, j⟩
@@ -471,11 +464,8 @@ theorem intBits_emod_le_add_one_of_ne_zero (a : ℤ) {b : ℤ} (hb : b ≠ 0) :
 /-- Unconditionally on `b` (including `b = 0`),
 `intBits (a.emod b) ≤ max (intBits a) (intBits b)`. -/
 theorem intBits_emod_le_max (a b : ℤ) : intBits (a.emod b) ≤ max (intBits a) (intBits b) := by
-  by_cases hb : b = 0
-  · subst hb
-    change intBits (a % 0) ≤ _
-    rw [Int.emod_zero]
-    exact le_max_left _ _
+  rcases eq_or_ne b 0 with rfl | hb
+  · exact le_of_eq_of_le (congrArg intBits (Int.emod_zero a)) (le_max_left _ _)
   · exact (intBits_emod_le_of_ne_zero a hb).trans (le_max_right _ _)
 
 /-- Reducing modulo `2 ^ ℓ` produces an integer of sign-magnitude bit length at most `ℓ + 1`. -/

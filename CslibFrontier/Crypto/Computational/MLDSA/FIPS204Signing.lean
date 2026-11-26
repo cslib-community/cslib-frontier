@@ -447,14 +447,11 @@ private theorem attempt_of_firstAccepted {stride fuel start : ℕ}
   induction fuel generalizing start with
   | zero => simp [signingRetryLoop, id_pure_eq] at h
   | succ fuel ih =>
-    cases hf : f start with
-    | none => simp [signingRetryLoop, id_bind_eq, id_pure_eq, hf] at h
-    | some v =>
-      cases v with
-      | none => exact ih (by simpa [signingRetryLoop, id_bind_eq, hf] using h)
-      | some bytes =>
-        have he : bytes = sig := by simpa [signingRetryLoop, id_bind_eq, id_pure_eq, hf] using h
-        exact ⟨start, he ▸ hf⟩
+    rcases hf : f start with _ | _ | bytes
+    · simp [signingRetryLoop, id_bind_eq, id_pure_eq, hf] at h
+    · exact ih (by simpa [signingRetryLoop, id_bind_eq, hf] using h)
+    · exact ⟨start,
+        (by simpa [signingRetryLoop, id_bind_eq, id_pure_eq, hf] using h : bytes = sig) ▸ hf⟩
 
 private theorem length_of_firstAccepted_attempt {H : Xofs} {s : Level} {sk : PrivateKey s}
     {A : PublicMatrix s} {μ : List Bool} {seed : List Byte} {fuel κ : ℕ} {sig : List Byte}
@@ -505,20 +502,15 @@ private theorem verified_of_attempt {H : Xofs} {s : Level} (sk : MLDSA.SecretKey
   let digest := H.commitmentDigest s (highBitsVec s.params w) μ
   have vecGet {n : ℕ} {α : Type} (g : Fin n → α) : (Vector.ofFn g).get = g :=
     funext (Vector.get_ofFn g)
+  simp only [Xofs.attempt, Xofs.attemptWithMask, AttemptCommitment.ofMask, finishSigningAttempt,
+    tabulateRingVector_eq, vecGet] at hs
+  change ((H.sampleInBall s digest).bind _) = _ at hs
   cases hc : H.sampleInBall s digest with
-  | none =>
-    simp only [Xofs.attempt, Xofs.attemptWithMask, AttemptCommitment.ofMask, finishSigningAttempt,
-      tabulateRingVector_eq] at hs
-    change (H.sampleInBall s digest).bind _ = _ at hs
-    simp [hc] at hs
+  | none => simp [hc] at hs
   | some c =>
     let resp := compressedResponse s.params (hintLimit s) sk.s₁ sk.s₂
       (publicKeyLowPart s.params 13 sk.publicKey) y w c
     have out : resp.map (fun σ => encodeSignature s ⟨digest, σ.z, σ.h⟩) = some f.signature := by
-      simp only [Xofs.attempt, Xofs.attemptWithMask, AttemptCommitment.ofMask, finishSigningAttempt,
-        tabulateRingVector_eq,
-        vecGet] at hs
-      change ((H.sampleInBall s digest).bind _) = _ at hs
       simpa [hc, resp, y, w] using hs
     cases he : resp with
     | none => simp [he] at out
@@ -780,12 +772,9 @@ private theorem startSigning_off_rows {H : Xofs} {s : Level} {seed : FixedBytes 
     Option.bind_eq_bind,
     Option.bind_some, matrix, hA,
     Option.pure_def]
-  change some _ = some _ ∧ _
-  constructor
-  · rw [rep, mask]
-  · intro st he
-    cases he
-    exact ⟨mlen, H.h256.length_read ..⟩
+  refine ⟨by rw [rep, mask], ?_⟩
+  rintro _ ⟨⟩
+  exact ⟨mlen, H.h256.length_read ..⟩
 
 private theorem prepare_off_rows (H : Xofs) {s : Level} (seen : List Bool → ℕ)
     (table : digestRows s → FixedBytes 221) (A : PublicMatrix s) {seed : List Byte}

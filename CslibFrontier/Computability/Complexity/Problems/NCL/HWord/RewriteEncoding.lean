@@ -188,22 +188,18 @@ private theorem read_some (rules : Fin r → Rule q) {a b c d : Symbol q r}
   | finish => cases c <;> simp [Compatible] at hbc
   | marker i =>
     cases c with
-    | start => exact False.elim hbc
-    | finish => exact False.elim hbc
-    | marker j => exact False.elim hbc
     | pair left right =>
       rcases hbc with h | h
       · exact ⟨(rules i).second, h⟩
       · exact ⟨(rules i).second', h⟩
+    | _ => exact False.elim hbc
   | pair left right =>
     cases right with
     | some x => exact ⟨x, rfl⟩
     | none =>
       cases c with
-      | start => simp [Compatible] at hbc
-      | marker i => simp [Compatible] at hbc
-      | pair l r => simp [Compatible] at hbc
       | finish => cases d <;> simp [Compatible] at hcd
+      | _ => simp [Compatible] at hbc
 
 /-- Consecutive positions of a coded legal word satisfy the symbolic compatibility relation. -/
 theorem edge_view (rules : Fin r → Rule q)
@@ -315,12 +311,9 @@ theorem Application.rewrites (rules : Fin r → Rule q) (i : Fin r) {s t : Fin n
         omega
       | succ m => exact front_rewrites rules i app hf
     · have hr := (ih (tail_application app hf)).append_left [s 0]
-      have hzero : s 0 = t 0 := app.unchanged 0 (Ne.symm hf) (by
-        intro he
-        have h := congrArg Fin.val he
-        have := app.adjacent
-        change 0 = app.second.val at h
-        omega)
+      have hzero : s 0 = t 0 := app.unchanged 0 (Ne.symm hf)
+        (Fin.ne_of_val_ne (by simpa only [Fin.val_zero, ← app.adjacent] using
+          (Nat.succ_ne_zero _).symm))
       simpa only [List.ofFn_succ, List.cons_append, List.nil_append, hzero] using hr
 
 private theorem padded_unchanged {rule : Rule q} {s t : Fin n → Fin q}
@@ -385,16 +378,11 @@ private theorem window_edges (rules : Fin r → Rule q) (window : Window n 5)
     (base : Fin n → Fin (Fintype.card (Symbol q r)))
     (hlegal : HWord.Legal (compatibility rules) base) (v a b c w : Symbol q r)
     (hsrc : ∀ j, segment v a b c w j = base (window.get j)) :
-    Compatible rules v a ∧ Compatible rules c w := by
-  constructor
-  · apply (compatibility_adj rules _ _).mp
-    have h := hlegal (window.get 0) (window.get 1) rfl
-    rw [← hsrc 0, ← hsrc 1] at h
-    simpa [segment] using h
-  · apply (compatibility_adj rules _ _).mp
-    have h := hlegal (window.get 3) (window.get 4) rfl
-    rw [← hsrc 3, ← hsrc 4] at h
-    simpa [segment] using h
+    Compatible rules v a ∧ Compatible rules c w :=
+  ⟨(compatibility_adj rules _ _).mp
+      (by simpa [segment, ← hsrc 0, ← hsrc 1] using hlegal (window.get 0) (window.get 1) rfl),
+    (compatibility_adj rules _ _).mp
+      (by simpa [segment, ← hsrc 3, ← hsrc 4] using hlegal (window.get 3) (window.get 4) rfl)⟩
 
 /-- Applying one source rule reconfigures the entire canonical encoded word, with all other
 source letters and all outside H-word positions retained. -/

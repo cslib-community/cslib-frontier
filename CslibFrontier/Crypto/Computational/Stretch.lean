@@ -204,10 +204,9 @@ theorem eval_real_hop (generator : List Bool → List Bool) (count : ℕ → ℕ
       else PMF.pure false := by
   by_cases hi : i < count n
   · simp only [hi, ↓reduceIte]
-    have h := congrArg (fun distribution : PMF (List Bool) =>
-      distribution.bind (fun word => ProbComp.eval (adversary n word)))
-      (real_hop generator n (count n) i hi)
-    simpa only [pmf_norm, hop, hi, ↓reduceIte, eval_sampleList] using h
+    simpa only [pmf_norm, hop, hi, ↓reduceIte, eval_sampleList] using
+      congrArg (·.bind fun word => ProbComp.eval (adversary n word))
+        (real_hop generator n (count n) i hi)
   · simp [hop, hi, PMF.bind_const]
 
 /-- The ideal challenge at a fixed hop realizes the next hybrid experiment. -/
@@ -221,10 +220,9 @@ theorem eval_ideal_hop (generator : List Bool → List Bool) (count : ℕ → �
       else PMF.pure false := by
   by_cases hi : i < count n
   · simp only [hi, ↓reduceIte]
-    have h := congrArg (fun distribution : PMF (List Bool) =>
-      distribution.bind (fun word => ProbComp.eval (adversary n word)))
-      (ideal_hop generator n (count n) i)
-    simpa only [pmf_norm, hop, hi, ↓reduceIte, eval_sampleList] using h
+    simpa only [pmf_norm, hop, hi, ↓reduceIte, eval_sampleList] using
+      congrArg (·.bind fun word => ProbComp.eval (adversary n word))
+        (ideal_hop generator n (count n) i)
   · simp [hop, hi, PMF.bind_const]
 
 /-- Exact loss of the uniform reduction, including the padded sampling outcomes. -/
@@ -398,14 +396,11 @@ theorem pseudorandomGenerator {generator : List Bool → List Bool} {count : ℕ
     (hgenerator : PseudorandomGenerator generator (fun n => n + 1))
     (hcount : ComputableInPolyTime count encUnary encUnary)
     (hpositive : ∀ n, 0 < count n) :
-    PseudorandomGenerator (stretch generator count) (fun n => n + count n) := by
-  refine PseudorandomGenerator.of_indistinguishable
-    (polyTime_stretch hgenerator.polyTime (hcount)) ?_ ?_
-    (indistinguishable hgenerator (hcount))
-  · intro seed
-    exact length_iterate hgenerator.length_eq _ _ _
-  · intro n
-    exact Nat.lt_add_of_pos_right (hpositive n)
+    PseudorandomGenerator (stretch generator count) (fun n => n + count n) :=
+  PseudorandomGenerator.of_indistinguishable (polyTime_stretch hgenerator.polyTime hcount)
+    (fun _ => length_iterate hgenerator.length_eq _ _ _)
+    (fun n => Nat.lt_add_of_pos_right (hpositive n))
+    (indistinguishable hgenerator hcount)
 
 /-- A positive efficiently computed number of one-bit expansions of a nonuniform PRG is a
 nonuniform PRG. -/
@@ -432,14 +427,9 @@ theorem PseudorandomGenerator.amplify {generator : List Bool → List Bool}
     (target : ℕ → ℕ) (htarget : ComputableInPolyTime target encUnary encUnary)
     (hstretch : ∀ n, n < target n) :
     PseudorandomGenerator (PRGStretch.stretch generator (fun n => target n - n)) target := by
-  have hcount : ComputableInPolyTime (fun n => target n - n) encUnary encUnary := by polytime
-  have h := PRGStretch.pseudorandomGenerator hgenerator (hcount) (fun n => by
-    have := hstretch n
-    lia)
-  convert h using 1
-  funext n
-  have := hstretch n
-  lia
+  convert PRGStretch.pseudorandomGenerator hgenerator (by fun_prop)
+    (fun n => Nat.sub_pos_of_lt (hstretch n)) using 1
+  exact funext fun n => (Nat.add_sub_of_le (hstretch n).le).symm
 
 /-- Truncating a PRG to an efficiently computed, still-expanding length preserves security. -/
 theorem PseudorandomGenerator.truncate {generator : List Bool → List Bool} {length : ℕ → ℕ}
@@ -449,13 +439,12 @@ theorem PseudorandomGenerator.truncate {generator : List Bool → List Bool} {le
     (hle : ∀ n, target n ≤ length n) (hstretch : ∀ n, n < target n) :
     PseudorandomGenerator (fun seed => (generator seed).take (target seed.length)) target := by
   have hpoly := hgenerator.polyTime
-  refine PseudorandomGenerator.of_indistinguishable ((by polytime)) ?_ hstretch ?_
-  · intro seed
-    simp only [List.length_take, hgenerator.length_eq, Nat.min_eq_left (hle _)]
-  · have h := hgenerator.indistinguishable.map
-      (f := fun n word => word.take (target n)) (by polytime)
-    simpa only [← generatorEnsemble_postprocess generator (fun n word => word.take (target n)),
-      uniformList_take (hle _)] using h
+  refine PseudorandomGenerator.of_indistinguishable (by fun_prop)
+    (fun _ => by simp only [List.length_take, hgenerator.length_eq, Nat.min_eq_left (hle _)])
+    hstretch ?_
+  simpa only [← generatorEnsemble_postprocess generator (fun n word => word.take (target n)),
+    uniformList_take (hle _)] using
+    hgenerator.indistinguishable.map (f := fun n word => word.take (target n)) (by fun_prop)
 
 /-- Amplify a one-bit nonuniform PRG to any efficiently computed, strictly larger output
 length. -/
@@ -464,14 +453,9 @@ theorem NonuniformPRG.amplify {generator : List Bool → List Bool}
     (target : ℕ → ℕ) (htarget : ComputableInPolyTime target encUnary encUnary)
     (hstretch : ∀ n, n < target n) :
     NonuniformPRG (PRGStretch.stretch generator (fun n => target n - n)) target := by
-  have hcount : ComputableInPolyTime (fun n => target n - n) encUnary encUnary := by fun_prop
-  have h := PRGStretch.nonuniformPRG hgenerator hcount (fun n => by
-    have := hstretch n
-    lia)
-  convert h using 1
-  funext n
-  have := hstretch n
-  lia
+  convert PRGStretch.nonuniformPRG hgenerator (by fun_prop)
+    (fun n => Nat.sub_pos_of_lt (hstretch n)) using 1
+  exact funext fun n => (Nat.add_sub_of_le (hstretch n).le).symm
 
 /-- Truncating a nonuniform PRG to an efficiently computed, still-expanding length preserves
 nonuniform security. -/

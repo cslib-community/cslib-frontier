@@ -189,10 +189,8 @@ private theorem sandwichedPolynomial_left (M : Q → POVM Ans ι) (T : POVM Poly
         (decodedPoint fun q => QuantumStrategy.leftMeasurement (κ := κ) (M q))
         (QuantumStrategy.leftMeasurement T) =
       QuantumStrategy.leftMeasurement (sandwichedPolynomialMeasurement
-        (decodedPoint fun q => (M q).toMeasurement) T.toMeasurement).toPOVM := by
-  apply Measurement.ext
-  intro a
-  exact sandwichedPolynomial_effect_lift (kroneckerOne (κ := κ)) M T
+        (decodedPoint fun q => (M q).toMeasurement) T.toMeasurement).toPOVM :=
+  Measurement.ext fun a => sandwichedPolynomial_effect_lift (kroneckerOne (κ := κ)) M T
     (fun q => QuantumStrategy.leftMeasurement (M q)) (QuantumStrategy.leftMeasurement T)
     (fun _ _ => rfl) (fun _ => rfl) a
 
@@ -201,10 +199,8 @@ private theorem sandwichedPolynomial_right (M : Q → POVM Ans ι) (T : POVM Pol
         (decodedPoint fun q => QuantumStrategy.rightMeasurement (ι := κ) (M q))
         (QuantumStrategy.rightMeasurement T) =
       QuantumStrategy.rightMeasurement (sandwichedPolynomialMeasurement
-        (decodedPoint fun q => (M q).toMeasurement) T.toMeasurement).toPOVM := by
-  apply Measurement.ext
-  intro a
-  exact sandwichedPolynomial_effect_lift (oneKronecker (ι := κ)) M T
+        (decodedPoint fun q => (M q).toMeasurement) T.toMeasurement).toPOVM :=
+  Measurement.ext fun a => sandwichedPolynomial_effect_lift (oneKronecker (ι := κ)) M T
     (fun q => QuantumStrategy.rightMeasurement (M q)) (QuantumStrategy.rightMeasurement T)
     (fun _ _ => rfl) (fun _ => rfl) a
 
@@ -352,17 +348,15 @@ theorem exists_symmetricSelfImprovement
       2 * √(2 * δ) + 2 * √ξ at hpoint
     simp only [Measurement.successfulMismatch, mul_sub, mul_one, map_sub, hevalMass,
       hcompare, ← (hcomm _ _ _).eq] at hpoint
-    refine le_trans ?_ (show 2 * √(2 * δ) + 2 * √ξ ≤ ζ from ?_)
-    · simpa only [Measurement.successfulMismatch, mul_sub, mul_one, map_sub] using hpoint
-    · rw [hz]
-      linarith only [hδsqrt, hξsqrt, hδmt, hmt, ht]
+    refine le_trans ?_
+      (show 2 * √(2 * δ) + 2 * √ξ ≤ ζ by rw [hz]; linarith only [hδsqrt, hξsqrt, hδmt, hmt, ht])
+    simpa only [Measurement.successfulMismatch, mul_sub, mul_one, map_sub] using hpoint
   · change _ - (𝔼 u : Point F (n + 1), ∑ b,
       (C.state ((evaluatePolynomialMeasurement L u).effect (some b) *
         (decodedPoint C.bob u).effect b)).re) ≤ 5 * √(2 * δ) + 2 * √ξ at hgap
-    refine le_trans ?_ (show 5 * √(2 * δ) + 2 * √ξ ≤ ζ from ?_)
-    · simpa only [hcompare] using hgap
-    · rw [hz]
-      linarith only [hδsqrt, hξsqrt, hδmt, hmt, ht]
+    refine le_trans ?_
+      (show 5 * √(2 * δ) + 2 * √ξ ≤ ζ by rw [hz]; linarith only [hδsqrt, hξsqrt, hδmt, hmt, ht])
+    simpa only [hcompare] using hgap
   · change (C.state R.successfulEffect).re -
       ∑ g, (C.state (R.effect (some g) * L.effect (some g))).re ≤ _ at hstrong
     rw [htrace] at hstrong
@@ -388,8 +382,6 @@ theorem exists_symmetricSelfImprovement
       have hrone : 1 ≤ √r := by
         simpa only [Real.sqrt_one] using Real.sqrt_le_sqrt (le_of_not_ge hsmall)
       rw [hz]
-      change (C.state L.successfulEffect).re -
-        ∑ g, (C.state (L.effect (some g) * R.effect (some g))).re ≤ 100 * (m * t)
       linarith only [hmass_le, hagree, hrone, hrmt']
 
 end Cslib.PCP.LowIndividualDegree

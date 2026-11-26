@@ -40,8 +40,7 @@ open Iter Turing
 /-- **Bertrand's postulate** bounds the prime: `primeFor ℓ ≤ 4ℓ + 2`. -/
 theorem primeFor_le (ℓ : ℕ) : primeFor ℓ ≤ 4 * ℓ + 2 := by
   obtain ⟨q, hq, hlt, hle⟩ := Nat.exists_prime_lt_and_le_two_mul (2 * ℓ + 1) (by omega)
-  have := Nat.find_min' (Nat.exists_infinite_primes (2 * ℓ + 2)) ⟨by omega, hq⟩
-  rw [← primeFor] at this
+  have : primeFor ℓ ≤ q := Nat.find_min' _ ⟨by omega, hq⟩
   omega
 
 /-- The invariant of the procedure: the parameters read, a bounded modulus, well-formed registers, a
@@ -74,8 +73,7 @@ private theorem inv_step {s : State} (hs : Inv ℓ H s) (hh : machine.halt s = f
   obtain ⟨e, h, p, R, st, m, c⟩ := s
   cases c with
   | hdrLength n =>
-    obtain ⟨heq, hn⟩ := hs
-    obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, -⟩ := State.mk.inj heq
+    rcases hs with ⟨⟨⟩, hn⟩
     rcases Nat.lt_or_ge n ℓ with hlt | hge
     · simp only [machine, step, addr, ReadMachine.readBit, List.getD_eq_getElem?_getD,
         getElem?_encode_lt_ell (T := T) hlt, Option.getD_some, ↓reduceIte]
@@ -85,9 +83,7 @@ private theorem inv_step {s : State} (hs : Inv ℓ H s) (hh : machine.halt s = f
         getElem?_encode_ell (T := T), Option.getD_some, Bool.false_eq_true, ↓reduceIte]
       exact ⟨rfl, Nat.zero_le _⟩
   | hdrHeight n =>
-    obtain ⟨heq, hn⟩ := hs
-    obtain ⟨he, rfl, rfl, rfl, rfl, rfl, -⟩ := State.mk.inj heq
-    subst e
+    rcases hs with ⟨⟨⟩, hn⟩
     rcases Nat.lt_or_ge n H with hlt | hge
     · simp only [machine, step, addr, ReadMachine.readBit, List.getD_eq_getElem?_getD,
         getElem?_encode_height (T := T) hlt, Option.getD_some, ↓reduceIte]
@@ -97,9 +93,7 @@ private theorem inv_step {s : State} (hs : Inv ℓ H s) (hh : machine.halt s = f
         getElem?_encode_height_end (T := T), Option.getD_some, Bool.false_eq_true, ↓reduceIte]
       exact ⟨rfl, le_rfl, le_primeFor ℓ, le_rfl, by omega⟩
   | prime q d =>
-    obtain ⟨heq, hq, hqp, hd, hdq⟩ := hs
-    obtain ⟨he, hh₁, rfl, rfl, rfl, rfl, -⟩ := State.mk.inj heq
-    subst e h
+    rcases hs with ⟨⟨⟩, hq, hqp, hd, hdq⟩
     by_cases hlt : d < q
     · by_cases hmod : q % d = 0
       · have hne : q ≠ primeFor ℓ := fun he =>

@@ -51,10 +51,7 @@ private theorem result_ne_frontier (i : Fin 4) : result i ≠ Backend.frontier f
   Backend.tmp_ne_frontier family true _
 
 private theorem tag_ne_zero : tag ≠ zero := by
-  intro h
-  have hv := congrArg Fin.val (result_injective h)
-  change (0 : ℕ) = 1 at hv
-  omega
+  exact result_injective.ne (by decide)
 
 private theorem prepare_frame (w capacity : ℕ) (o : Queue.QueueOp ℕ) (x : Data registers)
     (i : Fin registers) (ht : i ≠ tag) (ha : i ≠ src 4) :
@@ -123,19 +120,14 @@ private theorem staged_input {w base capacity : ℕ} {front back : List ℕ} {x 
 private theorem staged_memory (w capacity : ℕ) (o : Queue.QueueOp ℕ) (x : Data registers) :
     memoryState (Backend.frontier family) (staged w capacity o x) =
       memoryState (Backend.frontier family) x := by
-  refine Memory.State.ext ?_ ?_
-  · change ((implementation w capacity).prepare o x).mem = x.mem
-    exact DynamicProgram.prepare_mem _ _ _
-  · change Function.update _ zero 0 (Backend.frontier family) = _
-    rw [Function.update_of_ne (result_ne_frontier 1).symm]
-    exact prepare_frontier w capacity o x
+  exact Memory.State.ext (DynamicProgram.prepare_mem (implementation w capacity) o x)
+    ((Function.update_of_ne (result_ne_frontier 1).symm 0 _).trans
+      (prepare_frontier w capacity o x))
 
 private theorem staged_tag (w capacity : ℕ) (o : Queue.QueueOp ℕ) (x : Data registers) :
     (staged w capacity o x).regs tag =
       match o with | .enqueue _ => 0 | .dequeue => 1 := by
-  change Function.update _ zero 0 tag = _
-  rw [Function.update_of_ne tag_ne_zero]
-  exact prepare_tag w capacity o x
+  exact (Function.update_of_ne tag_ne_zero 0 _).trans (prepare_tag w capacity o x)
 
 private theorem staged_zero (w capacity : ℕ) (o : Queue.QueueOp ℕ) (x : Data registers) :
     (staged w capacity o x).regs zero = 0 := by
@@ -317,23 +309,19 @@ theorem execute_dequeue {w base capacity : ℕ} {front back : List ℕ} {x : Dat
   let m : Counts := ⟨p.1.front.length, p.1.rear.length⟩
   have hcommit : Exec w commit b (committed m b) 2 := commit_exec (ho 0) (ho 1)
   have hcond : ¬(Cond.eq tag zero).Holds z := by
-    change ¬z.regs tag = z.regs zero
-    rw [staged_tag, staged_zero]
-    decide
+    simp [z, Cond.Holds, staged_tag, staged_zero]
   have he : Exec w program ((implementation w capacity).prepare .dequeue x)
       (committed m b) (1 + (n + 2 + 2)) :=
     (stage_exec w capacity .dequeue x).seq ((Exec.branch_neg hcond hb).seq hcommit)
   have hsrc (i : Fin 5) : b.regs (src i) = d i := by
     rw [hframe _ (src_ne_frontier i) (fun a => (Backend.src_ne_tmp family false true i a).symm)]
     exact congrFun (staged_input hr .dequeue) i
-  have hfrontier : b.regs (Backend.frontier family) = x.regs (Backend.frontier family) := by
-    have hf := congrArg Memory.State.frontier hm
-    rw [clientState_width w] at hf
-    exact hf.trans hi.2.2.2.1
+  have hm0 := hm.trans (clientState_width w _ _)
+  have hfrontier : b.regs (Backend.frontier family) = x.regs (Backend.frontier family) :=
+    (congrArg Memory.State.frontier hm0).trans hi.2.2.2.1
   have hmem : b.mem =
-      ((Memory.spec 0).clientState (memoryState (Backend.frontier family) x) (dequeue d)).mem := by
-    rw [← clientState_width w]
-    exact congrArg Memory.State.mem hm
+      ((Memory.spec 0).clientState (memoryState (Backend.frontier family) x) (dequeue d)).mem :=
+    congrArg Memory.State.mem hm0
   have hs := pairStep_length_le (w := w) (capacity := capacity) (s := ⟨front, back⟩)
     (by simpa only [Stacks.contents_length] using hr.size_le) .dequeue trivial
   refine ⟨committed m b, 1 + (n + 2 + 2), he, by

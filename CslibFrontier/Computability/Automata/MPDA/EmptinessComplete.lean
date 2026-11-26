@@ -86,11 +86,11 @@ theorem wnEnd_event (hp : p ≤ w.length) (hlt : wnEnd w p < w.length) :
     have := le_wnEnd (show wnEnd w p + 1 ≤ w.length by omega) (by omega) hext
     omega
   · rintro ⟨m, hm, hmwn⟩
+    have hpm := hm.1
     have hext : WellNested (w.extract p (m + 1)) := by
-      rw [← w.extract_append_extract hpe (by have := hm.1; omega)]
+      rw [← w.extract_append_extract hpe (by omega)]
       exact hwn.append hmwn
-    have := le_wnEnd hm.lt_length (by have := hm.1; omega) hext
-    have := hm.1
+    have := le_wnEnd hm.lt_length (by omega) hext
     omega
 
 end Events
@@ -129,9 +129,8 @@ theorem Ext.eq_of_le {i : Fin n} {q r r' : ℕ} (h : Ext w i q r) (h' : Ext w i 
 open Classical in
 private theorem Ext.find_sub_lt {i : Fin n} {q : ℕ} (h : ∃ r, Ext w i q r) :
     w.length - Nat.find h < w.length - q := by
-  have hspec := Nat.find_spec h
-  have := hspec.2.1.1.lt_length
-  have := hspec.1
+  obtain ⟨hlt, ⟨hp, -⟩, -⟩ := Nat.find_spec h
+  have := hp.lt_length
   omega
 
 open Classical in
@@ -338,16 +337,12 @@ theorem stacksOf_eq_cons {C : List (HoleChain n Γ)} (hne : ∀ c ∈ C, c.pushe
   | append_singleton C d ih =>
     rw [stacksOf_append_singleton] at h
     by_cases hd : d.stack = i
-    · subst hd
-      rw [Function.update_self] at h
-      obtain ⟨⟨p, γ'⟩, ps, hps⟩ := List.exists_cons_of_ne_nil (hne d (by simp))
-      rw [hps] at h
-      simp only [List.map_cons, List.cons_append, List.cons.injEq] at h
-      obtain ⟨rfl, -⟩ := h
-      refine ⟨C, [], p, ps, ?_, by simp⟩
-      obtain ⟨stk, pushes⟩ := d
-      simp only at hps ⊢
-      rw [hps]
+    · rcases d with ⟨stk, pushes⟩
+      obtain rfl : stk = i := hd
+      obtain ⟨⟨p, γ'⟩, ps, rfl⟩ :=
+        List.exists_cons_of_ne_nil (hne ⟨stk, pushes⟩ (by simp) : pushes ≠ [])
+      obtain ⟨rfl, -⟩ := List.cons.inj (by simpa [Function.update_self] using h)
+      exact ⟨C, [], p, ps, rfl, by simp⟩
     · rw [Function.update_of_ne (Ne.symm hd)] at h
       obtain ⟨pre, post, p, ps, rfl, hpost⟩ :=
         ih (fun c hc => hne c (by simp [hc])) h
@@ -425,35 +420,28 @@ theorem exists_block_run {w : List (Symbol × Op n Γ)} {i : Fin n} :
       rw [w.drop_eq_extract_append_drop he₁] at hrest
       obtain ⟨c₂, hws, hrest'⟩ := LTS.MTr.split hrest
       obtain ⟨hwsc, hcont⟩ := (hwn.configLTS_mTr_iff).mp hws
-      refine ⟨c₂, (mem_atomicHoles M).mpr ⟨a, c₁.state, hpushT,
-        wellNestedReach_iff.mpr ⟨_, hwn, hwsc⟩⟩, ?_, hrest'⟩
-      rw [hcont]
-      exact Op.apply_push.mp hpushA
+      exact ⟨c₂, (mem_atomicHoles M).mpr ⟨a, c₁.state, hpushT,
+        wellNestedReach_iff.mpr ⟨_, hwn, hwsc⟩⟩, hcont.trans (Op.apply_push.mp hpushA), hrest'⟩
     rw [chainFrom_eq, blockEnd]
     split_ifs with h
     · -- The chain extends to the least extension `q₂`.
-      have hspec := Nat.find_spec h
+      obtain ⟨hqq₂, ⟨hq₂p, -⟩, hwn₂⟩ := Nat.find_spec h
       set q₂ := Nat.find h
-      obtain ⟨c₂, hγ, hc₂, hrun₂⟩ := hseg q₂ (by have := hspec.1; omega)
-        (by have := hspec.2.1.1.lt_length; omega) hspec.2.2
+      have hq₂len := hq₂p.lt_length
+      obtain ⟨c₂, hγ, hc₂, hrun₂⟩ := hseg q₂ hqq₂ hq₂len.le hwn₂
       obtain ⟨c', r, ps, hb, hpsf, hpss, hr, hc', hrun', hlt, hle⟩ :=
-        exists_block_run q₂ hspec.2.1.1 c₂ cf hrun₂
+        exists_block_run q₂ hq₂p c₂ cf hrun₂
       refine ⟨c', r ++ [(γ, c₂.state)], ps ++ [(q, γ)], ?_, by simp [hpsf], by simp [hpss],
-        hr.prepend hγ, ?_, hrun', by have := hspec.1; omega, hle⟩
-      · have hlen : q + 1 + (w.extract (q + 1) q₂).length = q₂ := by
-          rw [List.extract_eq_take_drop, List.length_take, List.length_drop]
-          have := hspec.1
-          have := hspec.2.1.1.lt_length
-          omega
-        have hb' : HoleBlock i (q + 1 + (w.extract (q + 1) q₂).length)
-            (w.extract q₂ (blockEnd w i q₂)) ps := by rw [hlen]; exact hb
-        convert hb'.prepend (a := a) (γ := γ) hspec.2.2 using 1
-        rw [← w.extract_append_extract (show q ≤ q₂ by have := hspec.1; omega)
-          (show q₂ ≤ blockEnd w i q₂ by omega),
-          ← w.extract_append_extract (by omega) (show q + 1 ≤ q₂ by have := hspec.1; omega),
-          List.extract_eq_singleton hqa]
-        simp
-      · rw [hc', hc₂]; simp
+        hr.prepend hγ, by simp [hc', hc₂], hrun', hqq₂.trans hlt, hle⟩
+      have hlen : q + 1 + (w.extract (q + 1) q₂).length = q₂ := by
+        rw [List.extract_eq_take_drop, List.length_take, List.length_drop]
+        omega
+      have hb' : HoleBlock i (q + 1 + (w.extract (q + 1) q₂).length)
+          (w.extract q₂ (blockEnd w i q₂)) ps := by rwa [hlen]
+      convert hb'.prepend (a := a) (γ := γ) hwn₂ using 1
+      rw [← w.extract_append_extract hqq₂.le hlt.le,
+        ← w.extract_append_extract (by omega) hqq₂, List.extract_eq_singleton hqa]
+      simp
     · -- The chain stops: one segment, then the longest well-nested factor.
       obtain ⟨hle₁, hle₂, hwn⟩ := wnEnd_spec (w := w) (p := q + 1) (by omega)
       obtain ⟨c₂, hγ, hc₂, hrun₂⟩ := hseg _ hle₁ hle₂ hwn
@@ -845,8 +833,7 @@ private theorem cinv_hole {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {
   · rw [hc', hcont, stacksOf_append_singleton, hpssnd]
   · refine List.forall_mem_append.mpr ⟨hne, List.forall_mem_singleton.mpr fun hps => ?_⟩
     have h₂ : t ∈ (chainFrom w i t).reverse := List.mem_reverse.mpr mem_chainFrom_self
-    dsimp at hps
-    simp [← hpsfst, hps] at h₂
+    simp [← hpsfst, show ps = [] from hps] at h₂
   · refine List.forall_mem_append.mpr ⟨hhole, List.forall_mem_singleton.mpr fun e he => ?_⟩
     have : e.1 ∈ chainFrom w i t := List.mem_reverse.mp (hpsfst ▸ List.mem_map_of_mem he)
     by_cases het : e.1 = t

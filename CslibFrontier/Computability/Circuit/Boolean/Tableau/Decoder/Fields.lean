@@ -555,13 +555,12 @@ theorem allGates_consistentAt_fieldGates (hm : Nat.size x.length ≤ s + cb + tb
       simp only [Nat.add_sub_cancel]
       have hlit : fieldVal s cb tb x n T idx (if q.testBit ℓ then 4 + ℓ else 4 + (s + cb + tb) + 2 +
           (4 + ℓ)) = decide ((idx / 16).testBit ℓ = q.testBit ℓ) := by
-        have h16 : idx / 16 = idx / 2 ^ 4 := rfl
-        rw [h16, Nat.testBit_div_two_pow, Nat.add_comm ℓ 4]
+        rw [show idx / 16 = idx / 2 ^ 4 from rfl, Nat.testBit_div_two_pow, Nat.add_comm ℓ 4]
         split_ifs with hb
-        · rw [fieldVal_input idx (by omega), hb]; cases idx.testBit (4 + ℓ) <;> rfl
+        · rw [fieldVal_input idx (by omega)]
+          simp [hb]
         · rw [fieldVal_not idx (by omega)]
-          simp only [Bool.not_eq_true] at hb
-          rw [hb]; cases idx.testBit (4 + ℓ) <;> rfl
+          simp [hb]
       rw [consistentAt_two, fieldVal_tree idx hℓ hq,
         fieldVal_tree idx (by omega) (Nat.mod_lt q (Nat.two_pow_pos ℓ)), hlit]
       simp only [Op.value, Bool.decide_and, mod_two_pow_succ_eq_iff hq]
@@ -582,15 +581,11 @@ theorem allGates_consistentAt_fieldGates (hm : Nat.size x.length ≤ s + cb + tb
       cases h : decide (idx / 16 % 2 ^ Nat.size x.length = 0) <;> simp_all [Op.value]
     · simp only [h₀, ↓reduceIte]
       rw [fieldVal_or idx]
-      by_cases hlt : idx / 16 % 2 ^ Nat.size x.length < i
-      · have h₁ : idx / 16 % 2 ^ Nat.size x.length ≤ i - 1 := by omega
-        have h₂ : idx / 16 % 2 ^ Nat.size x.length ≠ i := by omega
-        simp [Op.value, h₁, hlt.le, h₂]
-      · by_cases heq : idx / 16 % 2 ^ Nat.size x.length = i
-        · simp [Op.value, heq]
-        · have h₁ : ¬ idx / 16 % 2 ^ Nat.size x.length ≤ i - 1 := by omega
-          have h₂ : ¬ idx / 16 % 2 ^ Nat.size x.length ≤ i := by omega
-          simp [Op.value, h₁, h₂, heq]
+      by_cases heq : idx / 16 % 2 ^ Nat.size x.length = i
+      · simp [Op.value, heq]
+      · have hp : (idx / 16 % 2 ^ Nat.size x.length ≤ i - 1) ↔
+            idx / 16 % 2 ^ Nat.size x.length ≤ i := by omega
+        simp [Op.value, heq, hp]
 
 /-- **The field stage computes the intended values** of its wires on the bits of a clause
 number. -/

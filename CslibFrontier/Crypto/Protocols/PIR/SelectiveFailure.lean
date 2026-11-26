@@ -181,8 +181,8 @@ theorem eval_runWithServer (x : ι → β) (s₀ : S) (malAns : Q → A) (i : ι
     ProbComp.eval (P.runWithServer x s₀ malAns i) =
       (ProbComp.eval (P.query i)).map (fun rq =>
         P.reconstruct i rq.1
-          (Function.update (fun s => P.answer s x (rq.2 s)) s₀ (malAns (rq.2 s₀)))) := by
-  rw [runWithServer, ProbComp.eval_map]
+          (Function.update (fun s => P.answer s x (rq.2 s)) s₀ (malAns (rq.2 s₀)))) :=
+  ProbComp.eval_map _ _
 
 /-- When server `s₀` uses its honest answer function `P.answer s₀ x`, `runWithServer` has the same
 output distribution as the honest execution `P.run x i`. -/
@@ -267,15 +267,11 @@ variable [Fintype S] [DecidableEq S] {P : Scheme ι S R Q Bool}
 by `b + f s₀`. -/
 private theorem sum_update_bool (f : S → Bool) (s₀ : S) (b : Bool) :
     (∑ s : S, Function.update f s₀ b s) = (∑ s : S, f s) + (b + f s₀) := by
-  have hupd : Function.update f s₀ b = f + Pi.single s₀ (b + f s₀) := by
-    funext s
-    by_cases hs : s = s₀
-    · subst hs
-      simp only [Function.update_self, Pi.add_apply, Pi.single_eq_same]
-      cases b <;> cases f s <;> decide
-    · simp [hs]
-  rw [hupd, Pi.add_def, Finset.sum_add_distrib, Finset.sum_pi_single',
-    ite_eq_left (Finset.mem_univ s₀)]
+  rw [← Finset.add_sum_erase _ _ (Finset.mem_univ s₀),
+    ← Finset.add_sum_erase _ f (Finset.mem_univ s₀), Function.update_self,
+    Finset.sum_congr rfl fun s hs => Function.update_of_ne (Finset.ne_of_mem_erase hs) b f]
+  nth_rw 1 [show b = f s₀ + (b + f s₀) by cases b <;> cases f s₀ <;> decide]
+  abel
 
 /-- In `Bool` (`BooleanRing`), `decide (a + δ ≠ a) = δ`. -/
 private theorem decide_add_ne_self_bool (a δ : Bool) : decide (a + δ ≠ a) = δ := by
@@ -524,13 +520,8 @@ private theorem readAnswer_update_coverFlipAttack_of_ne (x : (D → ι) → Bool
           (K.coverFlipAttack x s₀ r₀ k₀ (q s₀))) =
       K.readAnswer i (K.cover w) (fun s => (K.scheme ι).answer s x (q s)) := by
   have hcov_ne : K.cover w ≠ (s₀, some r₀) := fun h => hne (K.cover_injective (h.trans hw₀.symm))
-  rcases hcov : K.cover w with ⟨s, _ | r⟩
-  · by_cases hs : s = s₀ <;> simp [hs, readAnswer, coverFlipAttack]
-  · by_cases hs : s = s₀
-    · subst hs
-      have hr : r ≠ r₀ := fun hr => hcov_ne (by rw [hcov, hr])
-      simp [readAnswer, coverFlipAttack, hr]
-    · simp [readAnswer, hs]
+  rcases hcov : K.cover w with ⟨s, _ | r⟩ <;> by_cases hs : s = s₀ <;>
+    simp_all [readAnswer, coverFlipAttack]
 
 /-- At the unique vertex `w₀` with `K.cover w₀ = (s₀, some r₀)`, `K.readAnswer` on the perturbed
 answer profile equals `!(honest)` when `i (K.dir s₀ r₀) = k₀` and `honest` otherwise. -/
@@ -581,8 +572,7 @@ theorem isDeterministicAttack_scheme (x : (D → ι) → Bool) {w₀ : D → Boo
   · intro i ⟨r, q⟩ hrq hik
     dsimp only [Scheme.selectiveFailureModel]
     rw [hsum, K.isCorrect_scheme.reconstruct_eq x i hrq, decide_eq_true hik]
-    generalize x i = b
-    cases b <;> decide
+    cases x i <;> decide
   · intro i ⟨r, q⟩ hrq hik
     dsimp only [Scheme.selectiveFailureModel]
     rw [hsum, decide_eq_false hik]
@@ -699,15 +689,10 @@ theorem isDeterministicAttack (x : ι → Bool) (s₀ : S) {Δ : F} (hΔ0 : Δ �
       (Function.update (fun s => P.answer s x (rq.2 s)) s₀
         (P.lagrangeShiftAttack params x s₀ Δ (rq.2 s₀))))
     (s₀, P.lagrangeShiftAttack params x s₀ Δ)
-    (fun i => by
-      refine congrArg (· <$> P.query i) (funext fun rq => ?_)
-      rw [hP.reconstruct_eq])
-    ?_
-  intro i ⟨r, q⟩ hrq
+    (fun i => congrArg (· <$> P.query i) (funext fun _ => hP.reconstruct_eq _ _ _))
+    fun i ⟨r, q⟩ hrq => ?_
   rw [hP.reconstruct_update_lagrangeShiftAttack x s₀ Δ i hrq]
-  cases x i
-  · simpa using hΔ1
-  · simp [hΔ0]
+  cases x i <;> simp [hΔ1, hΔ0]
 
 include hP in
 /-- Under `lagrangeShiftAttack` with `Δ ≠ 0` and `Δ ≠ 1`, a single server `s₀` distinguishes any two

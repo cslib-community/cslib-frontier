@@ -234,15 +234,9 @@ private theorem reindexOfFn_certificate {F : CSP Rel V} {n : ℕ} {v : Fin n →
     change (reindexOfFn w hn p q hq hrev).certificate.successor.length = _
     simpa only [List.length_ofFn] using
       (reindexOfFn w hn p q hq hrev).length_certificate
-  have hm := scope_index_maps B none x q f b
-    (by simpa only [hM] using hf)
-    (by simpa only [hM] using hb)
-    (by simpa only [hM] using hfp)
-    (by simpa only [hM] using hbp)
   change reindexLastScopeCertificate B none x q w.certificate hr = _
-  have ht := scope_table_reindex B none x q w.certificate hr f b hm
-  rw [hcount] at ht
-  exact ht
+  exact hcount ▸ scope_table_reindex B none x q w.certificate hr f b
+    (scope_index_maps B none x q f b (hM ▸ hf) (hM ▸ hb) (hM ▸ hfp) (hM ▸ hbp))
 
 private theorem reindexOfFn_short_certificate {F : CSP Rel V} {n : ℕ} {v : Fin n → V}
     (w : Witness F (List.ofFn v)) (hn : (List.ofFn v).Nodup)
@@ -250,27 +244,16 @@ private theorem reindexOfFn_short_certificate {F : CSP Rel V} {n : ℕ} {v : Fin
     {hq : ∀ j, q (finRotate n j) = finRotate n (q j)}
     {hrev : ∀ j, (q j).rev = p j.rev} (hshort : n ≤ 1) :
     (reindexOfFn w hn p q hq hrev).certificate = w.certificate := by
-  have hj : ∀ j : Fin n, (q.symm j).val = j.val := by
-    intro j
-    have h₁ := j.isLt
-    have h₂ := (q.symm j).isLt
-    omega
-  have ht := reindexOfFn_certificate (p := p) (q := q) (hq := hq) (hrev := hrev)
+  have hj (j : Fin n) : (q.symm j).val = j.val := by omega
+  refine (reindexOfFn_certificate (p := p) (q := q) (hq := hq) (hrev := hrev)
     w hn id id (fun _ _ => rfl) (fun _ _ => rfl)
-    (by intro j side; simp only [id_eq, hj])
-    (by intro j side; simp only [id_eq, hj])
-  refine ht.trans ?_
+    (fun j side => by simp only [id_eq, hj])
+    (fun j side => by simp only [id_eq, hj])).trans ?_
   have hc : w.certificate.successor.length = 2 * (F.occurrences.length + n) := by
     simpa only [List.length_ofFn] using w.length_certificate
-  cases hcert : w.certificate with
-  | mk values =>
-    apply congrArg RotationCertificate.mk
-    change (List.range (2 * (F.occurrences.length + n))).map
-      (fun i => values.getD i 0) = values
-    have hv : values.length = 2 * (F.occurrences.length + n) := by
-      simpa only [hcert] using hc
-    rw [← hv]
-    exact List.map_getD_range _ 0
+  cases hcert : w.certificate
+  simp only [hcert] at hc
+  simp only [RotationCertificate.reindex, id_eq, ← hc, List.map_getD_range]
 
 private theorem reindexOfFn_boundary_certificate {F : CSP Rel V} {n : ℕ} {v : Fin n → V}
     (w : Witness F (List.ofFn v)) (hn : (List.ofFn v).Nodup)

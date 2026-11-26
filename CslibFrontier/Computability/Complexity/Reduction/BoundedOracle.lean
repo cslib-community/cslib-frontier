@@ -654,11 +654,9 @@ private theorem list_sum_affine_le {ι : Type} (f g : ι → ℕ) (scale offset 
 
 private theorem map_sum_le_mul {ι : Type} {f : ι → ℕ} {l : List ι} {m k : ℕ}
     (hmem : ∀ x ∈ l, f x ≤ m) (hlen : l.length ≤ k) : (l.map f).sum ≤ k * m := by
-  have h : (l.map f).sum ≤ l.length * m := by
-    simpa only [List.length_map, smul_eq_mul] using
-      List.sum_le_length_nsmul (l.map f) m fun _ hx => by
-        obtain ⟨x, hx', rfl⟩ := List.mem_map.mp hx; exact hmem x hx'
-  exact h.trans (Nat.mul_le_mul_right m hlen)
+  refine le_trans ?_ (Nat.mul_le_mul_right m hlen)
+  simpa only [List.length_map, smul_eq_mul] using
+    List.sum_le_length_nsmul (l.map f) m (List.forall_mem_map.mpr hmem)
 
 /-- Shared handler substitution identity for `BoundedOracleProgram.comp` and
 `totalQueryLength_comp_affine`. -/
@@ -1205,10 +1203,8 @@ theorem mem_PWithOracleQueries {A : Set α} {B : Set β}
     (hr : ∀ a, R.qcount a ≤ r (encA a).length) :
     A ∈ PWithOracleQueries (encB '' B) r encA := by
   classical
-  refine ⟨fun a => decide (a ∈ A), ⟨R.program, R.isOraclePPTOn, fun a => ⟨?_, ?_⟩⟩,
-    fun _ => by simp⟩
-  · exact R.toProgram.eval_eq a
-  · exact (R.respects_bound a).1.trans (hr a)
+  exact ⟨fun a => decide (a ∈ A), ⟨R.program, R.isOraclePPTOn,
+    fun a => ⟨R.toProgram.eval_eq a, (R.respects_bound a).1.trans (hr a)⟩⟩, fun _ => by simp⟩
 
 /-- Conversely, any membership witness `A ∈ PWithOracleQueries (encB '' B) r encA` yields a
 `BoundedOracleReduction encA encB A B` with `qcount a = r |encA a|`, polynomial `qlen`,
@@ -1395,10 +1391,7 @@ private theorem guardedRun_decides_iff {α β : Type} {encA : α ↪ List Bool} 
     intro q hq
     refine congrArg List.singleton ?_
     rw [decide_mem_image_eq_of_decoder D hgB q.2]
-    by_cases hcan : encB (D.decode q.2) = q.2
-    · have hle : μB (D.decode q.2) ≤ K a := hparam a q hq (D.decode q.2) hcan
-      simp [hcan, hle]
-    · simp [hcan]
+    by_cases hcan : encB (D.decode q.2) = q.2 <;> simp_all [hparam a q hq (D.decode q.2)]
   have hm_out : ((machine.answerStep ans_a)^[clk a]
       (Turing.MultiTapeMachine.FiniteConfig.init machine.initial (encA a))).tapes.output =
       encBool (OracleComp.interpret (m := Id) (languageOracle (encB '' B)) (R.program a)) := by
@@ -1599,10 +1592,8 @@ theorem decidableInSubexpTime {A : Set α} {B : Set β} {μA : α → ℕ} {μB 
     (hB : DecidableInSubexpTime B encB μB) :
     DecidableInSubexpTime A encA μA := by
   intro ε hε
-  set δ : ℝ := ε / (scale + 1)
-  have hδ : 0 < δ := by positivity
-  refine (R.decidableInExpTime D hμA hμB hparam hδ.le (hB δ hδ)).mono ?_
-  dsimp only [δ]
+  have hδ : 0 < ε / (scale + 1) := by positivity
+  refine (R.decidableInExpTime D hμA hμB hparam hδ.le (hB _ hδ)).mono ?_
   rw [mul_div_assoc', div_le_iff₀ (by positivity)]
   nlinarith
 

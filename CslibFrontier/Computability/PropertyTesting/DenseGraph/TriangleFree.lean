@@ -83,8 +83,7 @@ theorem card_orderedTriangles (V : Type*) [Fintype V] [DecidableEq V] (G : Simpl
   set T : Finset (V × V × V) :=
     univ.filter fun x => G.Adj x.1 x.2.1 ∧ G.Adj x.2.1 x.2.2 ∧ G.Adj x.1 x.2.2 with hT
   have hsum : (∑ u, ∑ v, ∑ w, if G.Adj u v ∧ G.Adj v w ∧ G.Adj u w then 1 else 0 : ℕ) = #T := by
-    rw [hT, Finset.card_filter, Fintype.sum_prod_type]
-    simp only [Fintype.sum_prod_type]
+    simp only [hT, Finset.card_filter, Fintype.sum_prod_type]
   rw [hsum]
   have hmaps : ∀ x ∈ T, ({x.1, x.2.1, x.2.2} : Finset V) ∈ G.cliqueFinset 3 := by
     rintro ⟨u, v, w⟩ hx
@@ -117,10 +116,7 @@ theorem card_orderedTriangles (V : Type*) [Fintype V] [DecidableEq V] (G : Simpl
         | exact (‹_› : G.Adj _ _).symm
         | (ext; simp only [Finset.mem_insert, Finset.mem_singleton, or_comm, or_left_comm])
   rw [hfib]
-  have hab' := hab.ne
-  have hac' := hac.ne
-  have hbc' := hbc.ne
-  simp [Finset.card_insert_of_notMem, hab', hac', hbc', hab'.symm, hac'.symm, hbc'.symm]
+  simp [Finset.card_insert_of_notMem, hab.ne, hac.ne, hbc.ne, hab.ne', hac.ne', hbc.ne']
 
 /-! ### The triangle tester -/
 
@@ -231,9 +227,7 @@ theorem oneSidedTestable_cliqueFree_three :
       (fun ε => 3 * ⌈(3 * triangleRemovalBound ε)⁻¹⌉₊) := by
   refine oneSidedTestable_iff.mpr fun ε hε n => ?_
   refine ⟨triangleTester n _, isOneSidedTester_triangleTester hε ?_⟩
-  have hpos : 0 < 3 * triangleRemovalBound ε := by
-    have := triangleRemovalBound_pos hε
-    positivity
+  have hpos : 0 < 3 * triangleRemovalBound ε := by linarith [triangleRemovalBound_pos hε]
   calc (1 : ℝ) = 3 * triangleRemovalBound ε * (3 * triangleRemovalBound ε)⁻¹ :=
         (mul_inv_cancel₀ hpos.ne').symm
     _ ≤ _ := mul_le_mul_of_nonneg_left (Nat.le_ceil _) hpos.le

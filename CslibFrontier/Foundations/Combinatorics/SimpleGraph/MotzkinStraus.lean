@@ -332,29 +332,22 @@ theorem exists_nonneg_dotProduct_copositiveCliqueMatrix_lt_zero_iff [Fintype V]
     by_contra hlt
     have hωk : (G.cliqueNum : K) + 1 ≤ k := mod_cast Nat.not_le.mp hlt
     have hωK : (0 : K) < G.cliqueNum := mod_cast Nat.pos_of_ne_zero G.cliqueNum_ne_zero_of_finite
+    have hk1 : (1 : K) ≤ k := mod_cast le_trans (by decide : 1 ≤ 2) hk
     have h1 : 1 ≤ ((k : K) - 1) * (1 / G.cliqueNum) := by
       rw [mul_one_div, le_div_iff₀ hωK]
       linarith
-    linarith [mul_le_mul_of_nonneg_left hms (by linarith : (0 : K) ≤ k - 1)]
+    linarith [mul_le_mul_of_nonneg_left hms (sub_nonneg.2 hk1)]
   · intro hle
-    classical
-    obtain ⟨S, hS⟩ := G.exists_isNClique_cliqueNum
-    let x : V → K := fun v => if v ∈ S then 1 else 0
-    refine ⟨x, fun v => by dsimp [x]; split_ifs <;> positivity, ?_⟩
-    rw [dotProduct_copositiveCliqueMatrix]
-    have hxout : ∀ v, v ∉ S → x v = 0 := fun v hv => by simp [x, hv]
-    have hval : ∀ v ∈ S, x v = 1 := fun v hv => by simp [x, hv]
-    have hs1 : ∑ v ∈ S, x v = G.cliqueNum := by
-      rw [Finset.sum_congr rfl hval, Finset.sum_const, hS.card_eq, nsmul_eq_mul, mul_one]
-    have hs2 : ∑ v ∈ S, x v ^ 2 = G.cliqueNum := by
-      rw [Finset.sum_congr rfl fun v hv => congrArg (· ^ 2) (hval v hv), Finset.sum_const,
-        hS.card_eq, nsmul_eq_mul, one_pow, mul_one]
-    rw [← Finset.sum_subset (Finset.subset_univ S) fun v _ hv => hxout v hv,
-      dotProduct_adjMatrix_eq_of_isClique G hS.isClique hxout, hs1, hs2]
-    have homegaK : (0 : K) < G.cliqueNum := by
-      exact_mod_cast (lt_of_lt_of_le (by omega : 0 < 2) (hk.trans hle))
-    have hleK : (k : K) ≤ G.cliqueNum := by exact_mod_cast hle
-    linarith [mul_le_mul_of_nonneg_left hleK homegaK.le]
+    obtain ⟨y, hy⟩ := (isGreatest_quadraticForm_adjMatrix (K := K) G).1
+    dsimp only at hy
+    refine (Matrix.exists_nonneg_dotProduct_lt_zero_iff_stdSimplex _).2 ⟨y, ?_⟩
+    rw [dotProduct_copositiveCliqueMatrix, y.total_of_fintype, one_pow, mul_one, hy]
+    have hωK : (0 : K) < G.cliqueNum := mod_cast Nat.pos_of_ne_zero G.cliqueNum_ne_zero_of_finite
+    have hleK : (k : K) ≤ G.cliqueNum := mod_cast hle
+    have hlt1 : ((k : K) - 1) * (1 / G.cliqueNum) < 1 := by
+      rw [mul_one_div, div_lt_one hωK]
+      linarith
+    linarith
 
 end MotzkinStraus
 

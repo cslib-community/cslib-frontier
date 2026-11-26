@@ -83,17 +83,14 @@ theorem run_modSumStep {c : C} {j : ℕ} (hj : j ≤ count c) :
 /-- **The streamed sum is the sum modulo the modulus.** -/
 theorem modSum_eq_sum_mod (r : C × ℕ → ℕ) (modulus count : C → ℕ) (c : C) :
     modSum r modulus count c = (∑ i ∈ Finset.range (count c), r (c, i)) % modulus c := by
-  have h := Nat.foldl_range_add_mod (fun i => r (c, i)) (modulus c) 0 (count c)
-  rw [Nat.zero_mod, Nat.zero_add] at h
-  rw [modSum, run_modSumStep le_rfl, h]
+  rw [modSum, run_modSumStep le_rfl]
+  simpa using Nat.foldl_range_add_mod (fun i => r (c, i)) (modulus c) 0 (count c)
 
 private theorem foldl_add_mod_lt {f : ℕ → ℕ} {m : ℕ} (hm : 0 < m) (j : ℕ) :
     (List.range j).foldl (fun acc i => (acc + f i) % m) 0 < m := by
   cases j with
   | zero => exact hm
-  | succ j =>
-    rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil]
-    exact Nat.mod_lt _ hm
+  | succ j => simpa [List.range_succ] using Nat.mod_lt _ hm
 
 /-- **Resource bound of the streamed sum.** Suppose the number of terms and the modulus are
 computable in polynomial time, the modulus is positive, every summed term lies below it, and a
@@ -175,8 +172,7 @@ theorem exists_computableInO_modSum {encC : C ↪ List Bool}
     split_ifs with hlt
     · have hjc : j < count c := of_decide_eq_true hlt
       have hq : (encPair (encPair encC encNat) encNat ((c, acc), r (c, j))).length ≤ S' c := by
-        have hacc_lt : acc < modulus c := foldl_add_mod_lt (hpos c) j
-        have := length_encNat_mono hacc_lt.le
+        have ha := length_encNat_mono (show acc < modulus c from foldl_add_mod_lt (hpos c) j).le
         have := length_encNat_mono (hr c j hjc).le
         enc_len [S', L, lm] at *
       have hW := (bW (j, (c, acc))).imp (·.trans (mW hs)) (·.trans (mW hs))
@@ -207,10 +203,9 @@ theorem exists_computableInO_modSum {encC : C ↪ List Bool}
   · have hK := (bK c).1
     have hI := (bI c).1
     have hVc := hV c
-    have hone : 1 ≤ count c + 1 := by omega
-    have hmul : V c + R c ≤ (count c + 1) * (V c + R c) := Nat.le_mul_of_pos_left _ hone
+    have hmul := Nat.le_mul_of_pos_left (V c + R c) (Nat.succ_pos (count c))
     have hmono : (count c + 1) * (V c + R c) ≤ (count c + 1) * (a * (L c + 1) ^ d + R c) :=
-      Nat.mul_le_mul_left _ (by omega)
+      Nat.mul_le_mul_left _ (Nat.add_le_add_right hVc _)
     simp only [V, L, lk] at hK hI hVc hmul hmono ⊢
     nlinarith
   · have hK := (bK c).2

@@ -306,11 +306,8 @@ private theorem lazyProgramStep_map_fst [BEq Query]
     split_ifs with h
     · simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map_bind, PMF.map_comp]
       exact congrArg (PMF.bind _) (funext fun ts => (PMF.bind_pure_comp _ _).symm)
-    · simp only [PMF.map_comp]
-      rfl
-  | inr q =>
-    simp only [lazyProgramStep, lazyProgramHandler, PMF.map_comp]
-    rfl
+    · exact PMF.map_comp _ _ _
+  | inr q => exact PMF.map_comp _ _ _
 
 private theorem overwriteProgramStep_map_fst [BEq Query]
     (dist : PMF Digest) (active : Req → Bool)
@@ -329,11 +326,8 @@ private theorem overwriteProgramStep_map_fst [BEq Query]
     split_ifs with h
     · simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map_bind, PMF.map_comp]
       exact congrArg (PMF.bind _) (funext fun ts => (PMF.bind_pure_comp _ _).symm)
-    · simp only [PMF.map_comp]
-      rfl
-  | inr q =>
-    simp only [overwriteProgramStep, overwriteProgramHandler, PMF.map_comp]
-    rfl
+    · exact PMF.map_comp _ _ _
+  | inr q => exact PMF.map_comp _ _ _
 
 private theorem lazyProgramStep_agree_overwriteProgramStep [BEq Query]
     (dist : PMF Digest) (active : Req → Bool)
@@ -794,27 +788,13 @@ equivalent to `¬(cache.map Prod.snd).Nodup`. -/
 theorem hasOutputCollision_iff_not_nodup_snd {Query Digest : Type*}
     {cache : List (Query × Digest)} (hfst : (cache.map Prod.fst).Nodup) :
     HasOutputCollision cache ↔ ¬(cache.map Prod.snd).Nodup := by
-  constructor
-  · rintro ⟨e₁, he₁, e₂, he₂, hne, heq⟩ hnodup
-    obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem he₁
-    obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem he₂
-    have hij : i ≠ j := fun h => hne (by subst h; rfl)
-    have hget : (cache.map Prod.snd)[i]'(hi.trans_eq (List.length_map _).symm) =
-        (cache.map Prod.snd)[j]'(hj.trans_eq (List.length_map _).symm) := by
-      simpa only [List.getElem_map] using heq
-    exact hij (hnodup.getElem_inj_iff.mp hget)
-  · intro hnot
-    obtain ⟨i, j, hget, hij⟩ :=
-      Function.not_injective_iff.mp (mt List.nodup_iff_injective_get.mpr hnot)
-    have hi : i.val < cache.length := by simpa using i.isLt
-    have hj : j.val < cache.length := by simpa using j.isLt
-    have hkey : cache[i.val].1 ≠ cache[j.val].1 := fun hk => by
-      have hgetFst : (cache.map Prod.fst)[i.val]'(hi.trans_eq (List.length_map _).symm) =
-          (cache.map Prod.fst)[j.val]'(hj.trans_eq (List.length_map _).symm) := by
-        simpa only [List.getElem_map] using hk
-      exact Fin.val_ne_of_ne hij (hfst.getElem_inj_iff.mp hgetFst)
-    exact ⟨cache[i.val], List.getElem_mem hi, cache[j.val], List.getElem_mem hj, hkey,
-      by simpa using hget⟩
+  rw [List.nodup_map_iff_inj_on (hfst.of_map Prod.fst)]
+  have hinj := (List.nodup_map_iff_inj_on (hfst.of_map Prod.fst)).mp hfst
+  refine ⟨fun ⟨e₁, he₁, e₂, he₂, hne, heq⟩ h => hne (congrArg Prod.fst (h e₁ he₁ e₂ he₂ heq)),
+    fun h => ?_⟩
+  push Not at h
+  obtain ⟨e₁, he₁, e₂, he₂, heq, hne⟩ := h
+  exact ⟨e₁, he₁, e₂, he₂, fun hk => hne (hinj e₁ he₁ e₂ he₂ hk), heq⟩
 
 private theorem step_not_nodup_snd_memoize_le {Query Digest : Type} [BEq Query]
     (dist : PMF Digest) {δ : ℝ≥0∞} (hdist : ∀ y, dist y ≤ δ)

@@ -241,8 +241,8 @@ private theorem State.adjointSum_accumulate (s : State C n g m) (w : Wire n g)
   have h (u) : (s.accumulate w t).program.trace I x ((s.accumulate w t).adjoint u) • D (v u) =
       s.program.trace I x (s.adjoint u) • D (v u) +
         if u = w then s.program.trace I x t • D (v w) else 0 := by
-    rw [State.trace_adjoint_accumulate, add_smul, ite_smul, zero_smul]
-    by_cases hu : u = w <;> simp [hu]
+    rw [State.trace_adjoint_accumulate, add_smul]
+    rcases eq_or_ne u w with rfl | hu <;> simp [*]
   rw [State.adjointSum, Finset.sum_congr rfl fun u _ => h u, Finset.sum_add_distrib,
     Finset.sum_ite_eq' Finset.univ w, ite_eq_left (Finset.mem_univ w)]
   rfl
@@ -354,9 +354,8 @@ private theorem init_adjointSum (c : Circuit (arithSignature C) n m) (j : Fin m)
         if w = c.outputs j then constant seed • D (c.eval I x j) else 0 := by
     rcases eq_or_ne w (c.outputs j) with rfl | hw
     · simp only [init, ite_true, Program.trace_gate_castSucc, Program.trace_gate_last]; rfl
-    · simp only [init, hw, ite_false]
-      rw [Program.trace_gate_last]
-      simp [hzero]
+    · simp only [init, hw, ite_false, Program.trace_gate_last, arithInterpretationWith, hzero,
+        zero_smul]
   rw [State.adjointSum, Finset.sum_congr rfl fun w _ => h w, Finset.sum_ite_eq' Finset.univ,
     ite_eq_left (Finset.mem_univ _)]
 
@@ -408,12 +407,11 @@ variable {m : ℕ}
 /-- An arithmetic program has at most as many additions and multiplications together as gates. -/
 theorem Program.cost_addCost_add_cost_mulCost_le {g : ℕ} (p : Program (arithSignature C) n g) :
     p.cost ArithOp.addCost + p.cost ArithOp.mulCost ≤ g := by
-  have h : p.cost ArithOp.addCost + p.cost ArithOp.mulCost =
-      p.cost fun op => op.addCost + op.mulCost := by
-    simp only [Program.cost_eq_sum, Finset.sum_add_distrib]
-  rw [h]
-  refine (p.cost_le_mul (b := 1) fun op => ?_).trans_eq (one_mul g)
-  cases op <;> simp [ArithOp.addCost, ArithOp.mulCost]
+  refine (le_of_eq ?_).trans
+    ((p.cost_le_mul (cost := fun op => op.addCost + op.mulCost) (b := 1) fun op => ?_).trans_eq
+      (one_mul g))
+  · simp [Program.cost_eq_sum, Finset.sum_add_distrib]
+  · cases op <;> simp [ArithOp.addCost, ArithOp.mulCost]
 
 section Evaluation
 
@@ -488,18 +486,14 @@ theorem Circuit.mulCost_withGradient (c : Circuit (arithSignature C) n m) (j : F
     (seed zero : C) :
     (c.withGradient j seed zero).program.cost ArithOp.mulCost =
       3 * c.program.cost ArithOp.mulCost := by
-  rw [c.cost_program_withGradient]
-  simp only [ArithOp.mulCost]
-  omega
+  simp only [c.cost_program_withGradient, ArithOp.mulCost]; omega
 
 /-- The number of additions after reverse-mode differentiation. -/
 theorem Circuit.addCost_withGradient (c : Circuit (arithSignature C) n m) (j : Fin m)
     (seed zero : C) :
     (c.withGradient j seed zero).program.cost ArithOp.addCost =
       3 * c.program.cost ArithOp.addCost + 2 * c.program.cost ArithOp.mulCost := by
-  rw [c.cost_program_withGradient]
-  simp only [ArithOp.addCost]
-  omega
+  simp only [c.cost_program_withGradient, ArithOp.addCost]; omega
 
 end Cost
 
@@ -572,9 +566,9 @@ theorem Circuit.exists_pow_of_psum {d : ℕ} {u : K} (hu : u * (d + 1) = 1)
   refine ⟨⟨g.program, fun i => g.outputs (Fin.natAdd m i)⟩, c.size_withGradient_le j u 0,
     c.mulCost_withGradient j u 0, fun i => ?_⟩
   change g.polynomial (Fin.natAdd m i) = _
-  have hd : (d + 1 : MvPolynomial (Fin n) K) = MvPolynomial.C ((d : K) + 1) := by simp
-  rw [c.polynomial_withGradient_natAdd j u i, hc, pderiv_psum_succ, ← mul_assoc, hd, ← map_mul, hu,
-    map_one, one_mul]
+  rw [c.polynomial_withGradient_natAdd j u i, hc, pderiv_psum_succ, ← mul_assoc,
+    ← map_natCast MvPolynomial.C d, ← map_one MvPolynomial.C, ← map_add, ← map_mul, hu, map_one,
+    one_mul]
 
 /-- **Lower-bound transfer for power sums.** If `d + 1` is invertible in `K` and every circuit
 computing the power map `(X 0 ^ d, …, X (n - 1) ^ d)` has at least `S` multiplications, then every

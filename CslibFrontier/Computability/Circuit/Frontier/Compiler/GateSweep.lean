@@ -96,9 +96,7 @@ universe u v
 /-- The gate-sweep denominator `r + 2 ^ k₀ - k₀ - 1` is positive for `1 ≤ r`. -/
 private theorem gateSweep_denom_pos {r : ℕ} (hr : 1 ≤ r) (k₀ : ℕ) :
     (0 : ℝ) < (r : ℝ) + (2 : ℝ) ^ k₀ - k₀ - 1 := by
-  have h1 := quadFormGateSweep_denom_ge r k₀
-  have h2 : (1 : ℝ) ≤ r := by exact_mod_cast hr
-  linarith
+  linarith [quadFormGateSweep_denom_ge r k₀, (by exact_mod_cast hr : (1 : ℝ) ≤ r)]
 
 theorem gateSweepCoefficient_pos {r : ℕ} (hr : 1 ≤ r) (k₀ : ℕ) :
     0 < gateSweepCoefficient r k₀ := by
@@ -113,12 +111,10 @@ theorem exists_log_sub_log_log_le_mul_gateSweepCoefficient {r : ℕ} (hr : 2 ≤
         (r - 1 : ℝ) * gateSweepCoefficient r k₀ := by
   rcases lt_or_ge r 4 with hsmall | hr4
   · refine ⟨1, ?_⟩
-    have hr_cases : r = 2 ∨ r = 3 := by omega
-    rcases hr_cases with rfl | rfl
+    obtain rfl | rfl : r = 2 ∨ r = 3 := by omega
     · rw [show ((2 : ℕ) : ℝ) = (2 : ℝ) ^ (1 : ℕ) by norm_num, Real.logb_two_pow, Nat.cast_one,
         Real.logb_one]
-      unfold gateSweepCoefficient
-      norm_num
+      norm_num [gateSweepCoefficient]
     · have hlog3_ge : 1 ≤ Real.logb 2 (3 : ℝ) := by
         rw [← Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2)]
         exact Real.logb_le_logb_of_le (by norm_num) (by norm_num) (by norm_num)
@@ -127,13 +123,10 @@ theorem exists_log_sub_log_log_le_mul_gateSweepCoefficient {r : ℕ} (hr : 2 ≤
             ≤ Real.logb 2 ((2 : ℝ) ^ (2 : ℕ)) :=
               Real.logb_le_logb_of_le (by norm_num) (by norm_num) (by norm_num)
           _ = 2 := by rw [Real.logb_two_pow]; norm_num
-      have hll_nn : 0 ≤ Real.logb 2 (Real.logb 2 (3 : ℝ)) :=
-        Real.logb_nonneg (by norm_num) hlog3_ge
       have hrhs : ((3 : ℕ) - 1 : ℝ) * gateSweepCoefficient 3 1 = 2 := by
-        unfold gateSweepCoefficient
-        norm_num
+        norm_num [gateSweepCoefficient]
       push_cast at hrhs ⊢
-      linarith
+      linarith [Real.logb_nonneg (by norm_num : (1 : ℝ) < 2) hlog3_ge]
   · obtain ⟨k₀, _, hk₀_pow, hlog⟩ := exists_mul_two_pow_le_and_logb_sub_logb_le hr4
     refine ⟨k₀, ?_⟩
     have hk₀_alg : (k₀ : ℝ) ≤ (r - 1 : ℝ) * gateSweepCoefficient r k₀ := by
@@ -141,8 +134,7 @@ theorem exists_log_sub_log_log_le_mul_gateSweepCoefficient {r : ℕ} (hr : 2 ≤
       rw [mul_div_assoc', le_div_iff₀ (gateSweep_denom_pos (by omega) k₀)]
       have hk₀_pow_r : (k₀ : ℝ) * (2 : ℝ) ^ k₀ ≤ r := by exact_mod_cast hk₀_pow
       have hr4_r : (4 : ℝ) ≤ r := by exact_mod_cast hr4
-      have hk₀_nn : (0 : ℝ) ≤ k₀ := Nat.cast_nonneg k₀
-      nlinarith [sq_nonneg (k₀ : ℝ)]
+      nlinarith [sq_nonneg (k₀ : ℝ), Nat.cast_nonneg (α := ℝ) k₀]
     linarith
 
 /-! ### Tangent upper bounds on expected straddle counts -/
@@ -275,10 +267,8 @@ section SingleCircuit
 theorem Compiler.accepted_steinerNetwork_of_decides {U : Type u} {σ : Signature.{v}} {n : ℕ}
     {c : Circuit σ n 1} {I : Interpretation σ U} {Acc : Set U} {S : Set (Fin n → U)}
     (hS : c.Decides I Acc S) {π : Layout (Compiler.Node c)} :
-    (Compiler.steinerNetwork c I (fun _ => Acc) π).accepted = S := by
-  rw [Compiler.accepted_steinerNetwork_single]
-  ext x
-  exact (hS x).symm
+    (Compiler.steinerNetwork c I (fun _ => Acc) π).accepted = S :=
+  Compiler.accepted_steinerNetwork_single.trans (Set.ext fun x => (hS x).symm)
 
 private theorem logb_ncard_le_of_steinerGraph {U : Type u} [Finite U] [Nontrivial U]
     {σ : Signature.{v}} {n n_in m r K : ℕ} {c : Circuit σ n_in m} {S : Set (Fin n → U)}
@@ -294,9 +284,7 @@ private theorem logb_ncard_le_of_steinerGraph {U : Type u} [Finite U] [Nontrivia
   have hd : N.MaxDegreeLE (2 * (r + 1)) := hg ▸ Compiler.maxDegreeLE_steinerGraph hfan
   have hdem := N.logb_ncard_accepted_le (hacc ▸ hfree) (hacc ▸ hbig) π hw hd hm
   rw [hacc] at hdem
-  refine hdem.trans_eq ?_
-  push_cast
-  ring
+  exact hdem.trans_eq (by push_cast; ring)
 
 variable {U : Type u} [Finite U] [Nontrivial U] {σ : Signature.{v}} {n : ℕ}
   (I : Interpretation σ U) (Acc : Set U) (c : Circuit σ n 1)
@@ -315,10 +303,7 @@ theorem logb_ncard_le_signalWidth {r K : ℕ} {S : Set (Fin n → U)} (hr : 2 �
   set N := Compiler.steinerNetwork c I (fun _ => Acc) π
   have hacc : N.accepted = S := Compiler.accepted_steinerNetwork_of_decides hdec
   have hunread := hfree.pow_ncard_compl_lt (hacc ▸ N.dependsOn_read) hbig
-  have hread_compl : N.readᶜ = {i : Fin n | ¬ Compiler.Reach c (.input i)} := by
-    rw [Compiler.read_steinerNetwork]
-    rfl
-  rw [hread_compl] at hunread
+  rw [congrArg compl Compiler.read_steinerNetwork] at hunread
   exact ⟨logb_ncard_le_of_steinerGraph Compiler.steinerNetwork_toMultigraph hfan
     (fun u => (Compiler.ncard_readAt_steinerNetwork_le hfan u).trans_eq (max_eq_left (by omega)))
     hacc hfree hbig, hunread⟩
@@ -328,12 +313,9 @@ theorem agreement_le_of_not_reach {S : Set (Fin n → U)} {K : ℕ} {b : ℝ}
     (hS : RectangleBias S K b) (hb : 0 ≤ b) (hK : 1 ≤ K)
     (hu : K ≤ Nat.card U ^ {i : Fin n | ¬ Compiler.Reach c (.input i)}.ncard) :
     agreement S {x | c.eval I x 0 ∈ Acc} ≤
-      1 / 2 + b + (Nat.card U * K ^ 2 : ℕ) / (Nat.card U : ℝ) ^ n := by
-  have hread : (Compiler.network c I fun _ => Acc).readᶜ =
-      {i : Fin n | ¬ Compiler.Reach c (.input i)} := by
-    rw [Compiler.read_network]
-    rfl
-  exact agreement_le_of_unread I Acc c hS hb hK (hread.symm ▸ hu)
+      1 / 2 + b + (Nat.card U * K ^ 2 : ℕ) / (Nat.card U : ℝ) ^ n :=
+  agreement_le_of_unread I Acc c hS hb hK
+    ((congrArg compl (Compiler.read_network I fun _ => Acc)).symm ▸ hu)
 
 /-- **Agreement along a Steiner node layout.** -/
 theorem agreement_le_of_signalWidth {S : Set (Fin n → U)} {K r : ℕ} {b : ℝ} (hr : 2 ≤ r)
@@ -352,13 +334,11 @@ theorem agreement_le_of_signalWidth {S : Set (Fin n → U)} {K r : ℕ} {b : ℝ
       (fun _ _ _ => Compiler.satisfies_steinerNetwork_unique) hb hS
       (w := w) (d := 2 * (r + 1)) (m := r)
       (by rw [Compiler.steinerNetwork_toMultigraph, Compiler.width_steinerGraph_eq])
-      (by
-        rw [Compiler.steinerNetwork_toMultigraph]
-        exact Compiler.maxDegreeLE_steinerGraph hfan)
+      (Compiler.steinerNetwork_toMultigraph ▸ Compiler.maxDegreeLE_steinerGraph hfan)
       (fun u => (Compiler.ncard_readAt_steinerNetwork_le hfan u).trans_eq (max_eq_left (by omega)))
   have hread (A : Set U) : (Compiler.steinerNetwork c I (fun _ => A) π).readᶜ =
-      {i : Fin n | ¬ Compiler.Reach c (.input i)} := by
-    rw [Compiler.read_steinerNetwork]; rfl
+      {i : Fin n | ¬ Compiler.Reach c (.input i)} :=
+    congrArg compl Compiler.read_steinerNetwork
   have hdeg_eq : w + 2 * (r + 1) + r = w + 3 * r + 2 := by omega
   have h₁ := bound Acc
   have h₂ := bound Accᶜ
@@ -384,16 +364,11 @@ theorem agreement_le_of_signalWidth {S : Set (Fin n → U)} {K r : ℕ} {b : ℝ
           q ^ {i : Fin n | ¬ Compiler.Reach c (.input i)}.ncard) : ℕ) : ℝ) ≤
         ((K ^ 3 * (V + 1) * q ^ (w + 3 * r + 2) : ℕ) : ℝ) := by
     exact_mod_cast hres
-  have hN_card : (Nat.card (Fin n → U) : ℝ) = (q : ℝ) ^ n := by
-    rw [Nat.card_fun, Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin]
-    push_cast
-    rfl
+  have hN_card : (Nat.card (Fin n → U) : ℝ) = (q : ℝ) ^ n := by simp [q, Nat.card_fun]
   have hN_pos : (0 : ℝ) < (q : ℝ) ^ n := pow_pos (Nat.cast_pos.mpr Nat.card_pos) n
   rw [hN_card] at h
   refine h.trans ?_
-  have hhalf : ∀ R : ℝ, (R + R) / (2 * (q : ℝ) ^ n) = R / (q : ℝ) ^ n := fun R => by
-    field_simp
-    ring
+  have hhalf (R : ℝ) : (R + R) / (2 * (q : ℝ) ^ n) = R / (q : ℝ) ^ n := by field_simp; ring
   rw [hhalf]
   linarith [div_le_div_of_nonneg_right hresR hN_pos.le]
 
@@ -404,17 +379,13 @@ end SingleCircuit
 private theorem isLittleO_logb_of_log {K : ℕ → ℕ}
     (hK : (fun n => Real.log (K n)) =o[atTop] fun n => (n : ℝ)) (q : ℝ) :
     (fun n => Real.logb q (K n)) =o[atTop] fun n => (n : ℝ) :=
-  (hK.const_mul_left (1 / Real.log q)).congr_left fun n => by
-    simp only [Real.logb]
-    ring
+  (hK.const_mul_left (1 / Real.log q)).congr_left fun n => by simp only [Real.logb]; ring
 
 private theorem exists_nat_pos_mul_ge {A δ : ℝ} (hδ : 0 < δ) :
     ∃ M : ℕ, 1 ≤ M ∧ A ≤ δ * M := by
-  refine ⟨⌈A / δ⌉₊ + 1, Nat.le_add_left 1 _, ?_⟩
-  have h1 : A / δ ≤ (⌈A / δ⌉₊ + 1 : ℕ) :=
-    (Nat.le_ceil _).trans (by exact_mod_cast Nat.le_succ _)
-  have h2 := (div_le_iff₀ hδ).mp h1
-  linarith
+  refine ⟨⌈A / δ⌉₊ + 1, Nat.le_add_left 1 _,
+    mul_comm _ δ ▸ (div_le_iff₀ hδ).mp ((Nat.le_ceil _).trans ?_)⟩
+  exact_mod_cast Nat.le_succ _
 
 private theorem mul_sqrt_le_of_sq_le {a M K V δ : ℝ} {N_sq n : ℕ}
     (ha : 0 ≤ a) (hM : 0 ≤ M) (hK : 0 ≤ K) (hδ : 0 < δ) (hV : V ≤ K * n)
@@ -1000,9 +971,7 @@ theorem eventually_six_sub_lt_innerSize_add_twelve_mul_multiFanoutSize {U : Type
         (6 - ε) * n < c.innerSize + 12 * Compiler.multiFanoutSize c := by
   filter_upwards [eventually_lt_innerSize_add_multiFanoutSize.{u, v} (k₀ := 4) (by decide)
     hSK hε] with n hn σ I Acc c hfan hdec
-  have h := hn σ I Acc c hfan hdec
-  norm_num at h
-  exact h
+  convert hn σ I Acc c hfan hdec using 2 <;> norm_num
 
 /-- **Family 3 (average-case) — Low-reuse agreement bound at fan-in two.** Below
 `(k₀ + 2 - ε) n` in `c.innerSize + (2 ^ k₀ - k₀) * Compiler.multiFanoutSize c`, agreement with any

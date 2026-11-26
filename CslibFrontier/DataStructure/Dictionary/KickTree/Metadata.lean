@@ -179,18 +179,13 @@ theorem rank1_eq_popcount (B : ℕ) (w : Fin (2 ^ B)) :
 /-- Soundness of `select1`: any returned position genuinely holds a 1-bit. -/
 theorem select1_sound (B : ℕ) (w : Fin (2 ^ B)) (k : ℕ) (idx : Fin B)
     (h : select1 B w k = some idx) : w.val.testBit idx.val = true := by
-  have hmem := List.mem_of_getElem? h
-  rw [BitString.mem_positions] at hmem
-  rwa [BitString.equivFin_symm_apply] at hmem
+  simpa only [BitString.mem_positions, BitString.equivFin_symm_apply] using List.mem_of_getElem? h
 
 /-- Soundness of `select0`: any returned position genuinely holds a 0-bit. -/
 theorem select0_sound (B : ℕ) (w : Fin (2 ^ B)) (k : ℕ) (idx : Fin B)
     (h : select0 B w k = some idx) : w.val.testBit idx.val = false := by
-  have hmem := List.mem_of_getElem? h
-  rw [BitString.mem_positions] at hmem
-  rw [BitString.equivFin_symm_apply] at hmem
-  revert hmem
-  cases w.val.testBit idx.val <;> simp
+  simpa only [BitString.mem_positions, BitString.equivFin_symm_apply, Bool.not_eq_true'] using
+    List.mem_of_getElem? h
 
 /-- Find the least index of a 0-bit in `w < 2 ^ B` (`none` if all bits are 1). -/
 @[expose] def firstZeroBit (B : ℕ) (w : Fin (2 ^ B)) : Option (Fin B) :=
@@ -234,17 +229,15 @@ private theorem filter_range_length_eq_filter_positions_length {B : ℕ} (w : Fi
 private theorem rank1_eq_filter_positions_length {B : ℕ} (w : Fin (2 ^ B)) (idx : Fin B) :
     ((List.range idx.val).filter (fun i => w.val.testBit i)).length =
       ((BitString.positions ((BitString.equivFin B).symm w)).filter (· < idx)).length := by
-  have h := filter_range_length_eq_filter_positions_length w true idx.isLt.le
-  simp only [beq_true] at h
-  exact h
+  simpa only [beq_true, Fin.lt_def] using
+    filter_range_length_eq_filter_positions_length w true idx.isLt.le
 
 private theorem rank0_eq_filter_positions_length {B : ℕ} (w : Fin (2 ^ B)) (idx : Fin B) :
     ((List.range idx.val).filter (fun i => !w.val.testBit i)).length =
       ((BitString.positions (fun i => !((BitString.equivFin B).symm w i))).filter
         (· < idx)).length := by
-  have h := filter_range_length_eq_filter_positions_length w false idx.isLt.le
-  simp only [beq_false] at h
-  exact h
+  simpa only [beq_false, Fin.lt_def] using
+    filter_range_length_eq_filter_positions_length w false idx.isLt.le
 
 /-- Rank-select inversion: if `select1 B w k = some idx`, the rank of `idx` is `k`. -/
 theorem rank1_select1 (B : ℕ) (w : Fin (2 ^ B)) (k : ℕ) (idx : Fin B)
@@ -286,12 +279,8 @@ theorem select1_isSome_iff (B : ℕ) (w : Fin (2 ^ B)) (k : ℕ) :
 theorem select0_isSome_iff (B : ℕ) (w : Fin (2 ^ B)) (k : ℕ) :
     (select0 B w k).isSome ↔ k < B - popcount B w := by
   dsimp [select0]
-  rw [isSome_getElem?]
-  have hlen : (BitString.positions (fun i => !((BitString.equivFin B).symm w i))).length =
-      B - popcount B w := by
-    rw [BitString.length_positions, BitString.weight_not, Fintype.card_fin,
-      ← BitString.length_positions, ← popcount_eq_length_positions]
-  rw [hlen]
+  rw [isSome_getElem?, BitString.length_positions, BitString.weight_not, Fintype.card_fin,
+    ← BitString.length_positions, ← popcount_eq_length_positions]
 
 /-- Specification of a Four-Russians bit-parallel lookup table of block size `B`. -/
 structure Table (B : ℕ) (α : Type*) where
@@ -375,16 +364,11 @@ theorem write_comm (A : MiniArray α K) {i j : Fin K} (h : i ≠ j) (u v : α) :
 /-- The total bit length of the unary delimiters equals `totalBits`. -/
 theorem delimiters_length_eq_totalBits (A : MiniArray α K) (sizeOf : α → ℕ) :
     (A.delimiters sizeOf).length = A.totalBits sizeOf := by
-  dsimp [delimiters, totalBits]
-  rw [List.length_flatten, List.map_ofFn]
   have hlen : (List.length ∘ fun i : Fin K =>
-      ((List.replicate (sizeOf (A.data i)) false).concat true)) =
-      (fun i => sizeOf (A.data i) + 1) := by
-    ext i
-    simp
-  rw [hlen]
-  have hsum := sum_ofFn_add_one (fun i => sizeOf (A.data i))
-  omega
+      (List.replicate (sizeOf (A.data i)) false).concat true) = fun i => sizeOf (A.data i) + 1 :=
+    funext fun _ => by simp
+  rw [delimiters, totalBits, List.length_flatten, List.map_ofFn, hlen, sum_ofFn_add_one,
+    Nat.add_comm]
 
 private lemma filter_id_replicate_false_concat_true (s : ℕ) :
     ((List.replicate s false).concat true).filter id = [true] := by
@@ -399,13 +383,11 @@ theorem delimiters_count_delimiters (A : MiniArray α K) (sizeOf : α → ℕ) :
   induction K with
   | zero => rfl
   | succ K' ih =>
-    rw [List.ofFn_succ, List.map_cons, List.flatten_cons, List.length_append]
-    rw [filter_id_replicate_false_concat_true]
-    have this' := ih (⟨A.data ∘ Fin.succ⟩ : MiniArray α K')
-    dsimp at this'
-    rw [this']
-    simp
-    omega
+    have hrec := ih ⟨A.data ∘ Fin.succ⟩
+    dsimp at hrec
+    rw [List.ofFn_succ, List.map_cons, List.flatten_cons, List.length_append,
+      filter_id_replicate_false_concat_true, hrec]
+    exact Nat.add_comm 1 K'
 
 end MiniArray
 
@@ -620,23 +602,16 @@ private theorem decodeHelper_encode (t : PrefixTrie α) (fuel : ℕ)
     (hfuel : nodeCount t ≤ fuel) (rest1 : List Bool) (rest2 : List α) :
     decodeHelper fuel (encodeE1 t ++ rest1) (encodeE2 t ++ rest2) = some (t, rest1, rest2) := by
   induction t generalizing fuel rest1 rest2 with
-  | empty =>
-    cases fuel <;> rfl
-  | leaf _ =>
-    cases fuel <;> rfl
+  | empty | leaf _ => cases fuel <;> rfl
   | branch l r ihl ihr =>
     dsimp [nodeCount] at hfuel
     cases fuel with
     | zero => omega
     | succ fuel' =>
       dsimp [encodeE1, encodeE2, decodeHelper]
-      have hfl : nodeCount l ≤ fuel' := by omega
-      have hfr : nodeCount r ≤ fuel' := by omega
-      rw [List.append_assoc (encodeE1 l) (encodeE1 r) rest1]
-      rw [List.append_assoc (encodeE2 l) (encodeE2 r) rest2]
-      rw [ihl fuel' hfl]
+      rw [List.append_assoc (encodeE1 l), List.append_assoc (encodeE2 l), ihl fuel' (by omega)]
       dsimp
-      rw [ihr fuel' hfr]
+      rw [ihr fuel' (by omega)]
       rfl
 
 /-- Exact DFS roundtrip decoding theorem for prefix tries. -/

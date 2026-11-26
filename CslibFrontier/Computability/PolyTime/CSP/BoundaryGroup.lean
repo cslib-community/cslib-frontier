@@ -168,11 +168,8 @@ private theorem prefix_size (encRel : Rel ↪ List Bool) (p : State Rel × List 
   have hts : ts.length≤I.ports.length-1 := hp.length_le.trans (tasks_bound p)
   obtain ⟨f,hb,ht,hn,he,hd⟩ := fold_resource I ts hts
   have hS : (encState encRel I).length≤N := by
-    apply le_trans (show (encState encRel I).length≤(encStateMetadata encRel p).length by
-      change (encState encRel p.1).length ≤ _
-      enc_len [encStateMetadata])
-    dsimp [N,scale]
-    omega
+    change (encState encRel p.1).length ≤ _
+    enc_len [N, scale, encStateMetadata]
   have hN : 1≤N := by dsimp [N,scale]; omega
   by_cases hz : ts=[]
   · rw [he hz]
@@ -182,21 +179,18 @@ private theorem prefix_size (encRel : Rel ↪ List Bool) (p : State Rel × List 
     have hQ : I.body.length≤N := by dsimp [N,scale,I]; omega
     have hM : I.body.occurrences.length≤N := by dsimp [N,scale,I]; omega
     have hP : I.ports.length≤N := by dsimp [N,scale,I]; omega
-    have hnames : ∀ z∈I.body.vars++I.ports, (encNat z).length≤N := by
-      intro z hz
-      apply (SizedListEncoding.length_elem_le (encA := encNat)
-        (encL := encList encNat) (I.body.vars++I.ports) z hz).trans
-      dsimp [N,scale,I]
-      omega
+    have hnames (z : ℕ) (hz : z∈I.body.vars++I.ports) : (encNat z).length≤N :=
+      (SizedListEncoding.length_elem_le (encA := encNat)
+        (encL := encList encNat) (I.body.vars++I.ports) z hz).trans (by dsimp [N,scale,I]; omega)
     have hrow : ∀ c∈J.body, (encConstraint encRel encNat c).length≤4*(N+1)^2 := by
       intro c hc
       rw [hb] at hc
       obtain ⟨d,hdc,rfl⟩ := List.mem_map.mp hc
       have hdc' : (encConstraint encRel encNat d).length≤N := by
-        apply (SizedListEncoding.length_elem_le (encA := encConstraint encRel encNat)
-          (encL := encCSP encRel encNat) I.body d hdc).trans
-        apply le_trans (show (encCSP encRel encNat I.body).length≤(encState encRel I).length by
-          enc_len [encState_apply,encStateFields]) hS
+        have hbody : (encCSP encRel encNat I.body).length ≤ (encState encRel I).length := by
+          enc_len [encState_apply, encStateFields]
+        exact (SizedListEncoding.length_elem_le (encA := encConstraint encRel encNat)
+          (encL := encCSP encRel encNat) I.body d hdc).trans (hbody.trans hS)
       have hr : (encRel d.rel).length≤N := le_trans (show (encRel d.rel).length≤
         (encConstraint encRel encNat d).length by enc_len [encConstraint_apply]) hdc'
       have hs : d.scope.length≤N := (SizedListEncoding.length_le (encA := encNat)
@@ -214,10 +208,8 @@ private theorem prefix_size (encRel : Rel ↪ List Bool) (p : State Rel × List 
     have hq : J.body.length≤N := by rw [hb]; simpa only [CSP.relabel,List.length_map] using hQ
     have hb'' := hb'.trans (Nat.mul_le_mul_right _ hq)
     have hp' : J.ports.length≤N := by rw [ht,List.length_map,List.length_drop]; omega
-    have hvp : ∀ z∈J.ports, (encNat z).length≤N := by
-      intro z hz
-      rw [ht] at hz
-      obtain ⟨v,hv,rfl⟩ := List.mem_map.mp hz
+    have hvp (z : ℕ) (hz : z∈J.ports) : (encNat z).length≤N := by
+      obtain ⟨v,hv,rfl⟩ := List.mem_map.mp (ht ▸ hz)
       exact hnames _ (hn v (List.mem_append_right _ ((List.drop_sublist _ _).subset hv)))
     have hports := (length_encList_le encNat J.ports hvp).trans
       (Nat.mul_le_mul_right _ hp')

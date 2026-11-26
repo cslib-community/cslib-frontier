@@ -223,16 +223,12 @@ theorem stepChar_spec {σ : ℕ} {T : PTrie} (hT : TreeInv σ T) {u a : ℕ}
             rw [Function.update_self, Function.update_of_ne (by omega)]
         trie_oob := fun x hx c => by
           dsimp only at hx ⊢
-          have hne : ¬(x = u ∧ c = a) := by omega
-          simp only [hne, ↓reduceIte]
+          rw [ite_eq_right (by omega)]
           exact hT.trie_oob x (by omega) c
         depth_oob := fun x hx => by
           dsimp only at hx ⊢
-          rw [Function.update_of_ne (by omega)]
-          exact hT.depth_oob x (by omega)
-        term_oob := fun x hx => by
-          dsimp only at hx ⊢
-          exact hT.term_oob x (by omega) }
+          rw [Function.update_of_ne (by omega), hT.depth_oob x (by omega)]
+        term_oob := fun x hx => hT.term_oob x (by dsimp only at hx; omega) }
   · rcases hT.trie_spec u hu a ha with hnil | ⟨hpos, hstr⟩
     · exact absurd hnil h0
     · exact ⟨hT, Nat.le_refl _, Nat.le_succ _, hpos, hT.trie_lt u hu a ha, hstr,
@@ -404,13 +400,9 @@ theorem build_trie_spec (P : List (List ℕ)) (σ : ℕ)
       rw [hT₂_term]
       by_cases hp_nil : p = []
       · subst hp_nil
-        have hu0 : u = 0 := by
-          dsimp only [u, PTrie.insertChars]
-        have hnot_pos : ¬(0 < u) := by omega
-        simp only [hnot_pos, ↓reduceIte]
-        have hv₀ : v < T.numStates := hv
-        rw [(hpres₁ v hv₀).2, (hpres₁ v hv₀).1, hterm v hv₀]
-        by_cases hne : T.strOf v = [] <;> simp [hne, List.mem_append]
+        change T₁.isTerm v = _
+        rw [(hpres₁ v hv).2, (hpres₁ v hv).1, hterm v hv]
+        by_cases hne : T.strOf v = [] <;> simp [hne]
       · have hu_p : 0 < u := hu_pos hp_nil
         simp only [hu_p, ↓reduceIte]
         by_cases hvu : v = u
@@ -424,11 +416,9 @@ theorem build_trie_spec (P : List (List ℕ)) (σ : ℕ)
           · rw [(hpres₁ v hv₀).2, hterm v hv₀, ← (hpres₁ v hv₀).1]
             simp [List.mem_append, hne_p]
           · obtain ⟨ht0, _⟩ := hnew₁ v hv₀ hv
-            have hnot_Q : T₁.strOf v ∉ Q := by
-              intro hmQ
-              obtain ⟨w, hw, hws⟩ := hcomp (T₁.strOf v) (isNode_of_mem hmQ)
-              have hw_str : T₁.strOf w = T₁.strOf v := (hpres₁ w hw).1.trans hws
-              have hweq := hT₁.str_inj w (lt_of_lt_of_le hw hle₁) v hv hw_str
+            have hnot_Q : T₁.strOf v ∉ Q := fun hmQ => by
+              obtain ⟨w, hw, hws⟩ := hcomp _ (isNode_of_mem hmQ)
+              have := hT₁.str_inj w (lt_of_lt_of_le hw hle₁) v hv ((hpres₁ w hw).1.trans hws)
               omega
             rw [ht0]
             simp [List.mem_append, hnot_Q, hne_p]

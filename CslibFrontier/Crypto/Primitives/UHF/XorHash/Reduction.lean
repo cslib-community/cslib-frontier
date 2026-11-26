@@ -323,26 +323,17 @@ private theorem run_xorHashWordMultiQueryReduction (ℓ blockWidth width Q : ℕ
         run_xorHashWordQueries_of_valid (hm m List.mem_cons_self) table oracle h, pure_bind,
         ih (fun m hm' => hm m (List.mem_cons_of_mem _ hm')), List.map_cons,
         Function.comp_def, digest]
-  simp only [xorHashWordMultiQueryReduction, ProbOracleComp.run_bind, ProbOracleComp.run_sample]
+  simp only [xorHashWordMultiQueryReduction, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
+    ProbOracleComp.run_pure]
   refine bind_congr fun gs => ?_
   let ms := (gs.take (Q n)).filter (xorHashWordValid (ℓ n) (blockWidth n))
-  change (do
-    let ds ← (ms.mapM (xorHashWordQueries (ℓ n) (width n))).run (fun q => pure (oracle q.2))
-    pure (hasDistinctCollision (ds.zip ms))) = _
-  rw [hmap ms (fun m hm => (List.mem_filter.mp hm).2), pure_bind]
-  apply congrArg (pure : Bool → ProbComp Bool)
+  rw [hmap ms (fun m hm => (List.mem_filter.mp hm).2), pure_bind, List.zip_map_left,
+    List.zip_eq_zipWith, List.zipWith_self]
+  congr 1
   rw [Bool.eq_iff_iff]
-  rw [List.zip_map_left, List.zip_eq_zipWith, List.zipWith_self, List.map_map]
-  simp only [hasDistinctCollision, List.any_eq_true, Bool.and_eq_true, beq_iff_eq, bne_iff_ne,
-    decide_eq_true_eq]
-  constructor
-  · rintro ⟨a, ha, b, hb, heq, hne⟩
-    obtain ⟨m, hm, rfl⟩ := List.mem_map.mp ha
-    obtain ⟨m', hm', rfl⟩ := List.mem_map.mp hb
-    exact ⟨m, hm, m', hm', hne, List.ofFn_injective heq⟩
-  · rintro ⟨m, hm, m', hm', hne, heq⟩
-    exact ⟨_, List.mem_map.mpr ⟨m, hm, rfl⟩, _, List.mem_map.mpr ⟨m', hm', rfl⟩,
-      congrArg List.ofFn heq, hne⟩
+  simp only [hasDistinctCollision, List.map_map, List.any_map, List.any_eq_true, Bool.and_eq_true,
+    beq_iff_eq, bne_iff_ne, decide_eq_true_eq, Function.comp_def, Prod.map_apply, id_eq,
+    List.ofFn_injective.eq_iff, and_comm, ms, digest]
 
 private theorem taggedRequest_length {ℓ blockWidth : ℕ} (p : BitString blockWidth × Fin ℓ) :
     (xorHashTaggedWord ℓ (List.ofFn p.1) p.2.val).length = ℓ + blockWidth := by
@@ -409,10 +400,8 @@ theorem eval_prfRealGame_xorHashWordMultiQueryReduction {ℓ blockWidth width Q 
   rw [PMF.bind_comm]
   refine Probability.PMF.bind_congr_on_support _ _ _ fun ms hms => ?_
   rw [List.take_of_length_le (hQ ms hms)]
-  apply congrArg (fun f => (PMF.uniformOfFintype (BitString n)).bind f)
-  funext key
-  refine congrArg PMF.pure (Bool.eq_iff_iff.mpr
-    (decide_eq_true_iff.trans (Iff.trans ?_ decide_eq_true_iff.symm)))
+  refine congrArg (fun f => (PMF.uniformOfFintype (BitString n)).bind f)
+    (funext fun key => congrArg PMF.pure (decide_eq_decide.mpr ?_))
   simp only [List.mem_filter]
   exact ⟨fun ⟨m, ⟨hm, hv⟩, m', ⟨hm', hv'⟩, hne, heq⟩ => ⟨m, hm, m', hm', hne, hv, hv', heq⟩,
     fun ⟨m, hm, m', hm', hne, hv, hv', heq⟩ => ⟨m, ⟨hm, hv⟩, m', ⟨hm', hv'⟩, hne, heq⟩⟩

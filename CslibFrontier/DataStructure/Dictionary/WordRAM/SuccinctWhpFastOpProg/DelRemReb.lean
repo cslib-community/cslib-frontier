@@ -303,8 +303,7 @@ theorem realizes_delRemRebGen :
       · cases hd : decide (fs.rebStage = 2 ∧ fs.dirtyIdx < fs.dirtyCount ∧
             fs.dirtyBuckets fs.dirtyIdx = b ∧ fs.rebCandSalt < sMaxWhp c n_max ∧
             fs.rebCollision = 0)
-        · have h01 : (0 : ℕ) = 1 := by simpa [hd] using hcond.1
-          cases h01
+        · cases (by simpa [hd] using hcond.1 : (0 : ℕ) = 1)
         · rfl
       · rw [ite_eq_right hcond, clientResult_pure_whp] at h1
         cases h1
@@ -397,15 +396,11 @@ theorem delRemRebGenProg_fastStep {c U V w n_max base b loc_del st_del : ℕ}
       mkHashRtGenProg_spec (c := c) (U := U) (V := V) (w := w) (n_max := n_max) (base := base) hth s
     obtain ⟨hfp_st, hfp_res, hfp_mc, hfp_vp⟩ :=
       fpOfSaltOptRtProg_spec (salt := fs.rebCandSalt) (kv := u.val) henv hseed (s := s)
-    have hfp_eq : (if hs : fs.rebCandSalt < sMaxWhp c n_max then
-        if hu : u.val < U then fpHash c U n_max θ.2 ⟨fs.rebCandSalt, hs⟩ ⟨u.val, hu⟩ else 0
-       else 0) = fpOfSalt c U n_max θ.2 fs.rebCandSalt u := by
-      unfold fpOfSalt
-      split_ifs with hs hu <;> first | rfl | exact absurd u.isLt hu
-    rw [hfp_eq] at hfp_res
+    simp only [u.isLt, ↓reduceDIte] at hfp_res
+    change _ = fpOfSalt c U n_max θ.2 fs.rebCandSalt u at hfp_res
     obtain ⟨hrs_st, hrs_res, hrs_mc, hrs_vp⟩ := readRebSliceIdxGenProg_spec henv hb hrep (s := s)
     have hfp_lt : fpOfSalt c U n_max θ.2 fs.rebCandSalt u < 2 ^ fpBitsWhp n_max := by
-      rw [← hfp_eq]; exact fpOfSaltOpt_lt c U n_max _ _ θ.2
+      simpa only [fpOfSalt, u.isLt, ↓reduceDIte] using fpOfSaltOpt_lt c U n_max _ u.val θ.2
     obtain ⟨hbd_mc, hbd_vp, hbd_step⟩ :=
       btreeDeleteGenProg_fastStep henv hrIdx hins_r hseed hrep hv_r hfp_lt (s := s)
     have hact : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
@@ -512,15 +507,8 @@ theorem delRemReadInfoGenProg_spec {c U V w n_max base b loc_del : ℕ}
   simp only [getBktField] at hs1_res
   obtain ⟨hfp_st, hfp_res, hfp_mc, hfp_vp⟩ :=
     fpOfSaltOptRtProg_spec (salt := fs.bktSalt b) (kv := u.val) henv hseed (s := s)
-  have hrk_eq : (if hu' : u.val < U then fpReducedKey c U n_max θ.2 ⟨u.val, hu'⟩ else 0) =
-      fpReducedKey c U n_max θ.2 u := dite_eq_left u.isLt
-  have hfp_eq : (if hs : fs.bktSalt b < sMaxWhp c n_max then
-      if hu' : u.val < U then fpHash c U n_max θ.2 ⟨fs.bktSalt b, hs⟩ ⟨u.val, hu'⟩ else 0
-     else 0) = fpOfSalt c U n_max θ.2 (fs.bktSalt b) u := by
-    unfold fpOfSalt
-    split_ifs with hs hu' <;> first | rfl | exact absurd u.isLt hu'
-  rw [hrk_eq] at hrk_res
-  rw [hfp_eq] at hfp_res
+  simp only [u.isLt, ↓reduceDIte] at hrk_res hfp_res
+  change _ = fpOfSalt c U n_max θ.2 (fs.bktSalt b) u at hfp_res
   dsimp only
   suffices h : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
       (delRemReadInfoGenProg ((((mkWhpParams c U V w n_max, base), b), loc_del), u.val)) s

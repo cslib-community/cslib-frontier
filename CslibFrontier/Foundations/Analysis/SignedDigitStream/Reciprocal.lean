@@ -528,50 +528,33 @@ theorem scaled_mem_Icc_of_dyadicWeight_ne_zero {m r : ℕ} {w : ℝ}
     w / (2 : ℝ) ^ (r + 1) ∈ Set.Icc (1 / 4 : ℝ) 1 := by
   obtain ⟨hw_lo, hw_hi⟩ := hw
   rcases Nat.eq_zero_or_pos m with rfl | hm
-  · unfold dyadicWeight at hne
-    by_cases hr0 : r = 0
-    · subst hr0
-      norm_num at hw_hi ⊢
+  · rcases eq_or_ne r 0 with rfl | hr0
+    · norm_num at hw_hi ⊢
       exact ⟨by linarith, by linarith⟩
-    · simp [hr0] at hne
-  · have hm_ne : m ≠ 0 := hm.ne'
-    by_cases hr0 : r = 0
-    · subst hr0
-      have hlt2 : w < 2 := by
+    · simp [dyadicWeight, hr0] at hne
+  · rcases eq_or_ne r 0 with rfl | hr0
+    · have hlt2 : w < 2 := by
         by_contra! hge
-        have h1 := dyadicSwitch_eq_one_of_ge (k := 0) (w := w) (by norm_num; linarith)
-        unfold dyadicWeight at hne
-        simp [hm_ne, h1] at hne
+        simp [dyadicWeight, hm.ne', dyadicSwitch_eq_one_of_ge (k := 0) (by simpa using hge)] at hne
       norm_num
       exact ⟨by linarith, by linarith⟩
-    · by_cases hrm : r < m
-      · have hgt_lo : (2 : ℝ) ^ (r - 1) < w := by
-          by_contra! hle
-          have hs1 := dyadicSwitch_eq_zero_of_le hle
-          have hle2 : w ≤ (2 : ℝ) ^ r := hle.trans (pow_le_pow_right₀ (by norm_num) (by omega))
-          have hs2 := dyadicSwitch_eq_zero_of_le hle2
-          unfold dyadicWeight at hne
-          simp [hm_ne, hr0, hrm, hs1, hs2] at hne
-        have hlt_hi : w < (2 : ℝ) ^ (r + 1) := by
-          by_contra! hge
+    · have hgt_lo : (2 : ℝ) ^ (r - 1) < w := by
+        by_contra! hle
+        have hs1 := dyadicSwitch_eq_zero_of_le hle
+        have hs2 :=
+          dyadicSwitch_eq_zero_of_le (k := r) (hle.trans (pow_le_pow_right₀ one_le_two (by omega)))
+        simp_all [dyadicWeight, hm.ne']
+      have hhi : w ≤ (2 : ℝ) ^ (r + 1) := by
+        rcases lt_trichotomy r m with hrm | rfl | hgt
+        · by_contra! hge
           have hge1 : (2 : ℝ) ^ ((r - 1) + 1) ≤ w := by
             rw [Nat.sub_add_cancel (Nat.pos_of_ne_zero hr0)]
-            exact (pow_le_pow_right₀ (by norm_num) (Nat.le_succ r)).trans hge
-          have hs1 := dyadicSwitch_eq_one_of_ge hge1
-          have hs2 := dyadicSwitch_eq_one_of_ge hge
-          unfold dyadicWeight at hne
-          simp [hm_ne, hr0, hrm, hs1, hs2] at hne
-        exact scaled_mem_Icc_of_two_pow_pred_lt hr0 hgt_lo hlt_hi.le
-      · by_cases hreq : r = m
-        · subst hreq
-          have hgt_lo : (2 : ℝ) ^ (r - 1) < w := by
-            by_contra! hle
-            have hs1 := dyadicSwitch_eq_zero_of_le hle
-            unfold dyadicWeight at hne
-            simp [hm_ne, hs1] at hne
-          exact scaled_mem_Icc_of_two_pow_pred_lt hr0 hgt_lo hw_hi
-        · unfold dyadicWeight at hne
-          simp [hm_ne, hr0, hrm, hreq] at hne
+            exact (pow_le_pow_right₀ one_le_two (Nat.le_succ r)).trans hge.le
+          simp [dyadicWeight, hm.ne', hr0, hrm, dyadicSwitch_eq_one_of_ge hge1,
+            dyadicSwitch_eq_one_of_ge hge.le] at hne
+        · exact hw_hi
+        · simp [dyadicWeight, hm.ne', hr0, not_lt_of_gt hgt, hgt.ne'] at hne
+      exact scaled_mem_Icc_of_two_pow_pred_lt hr0 hgt_lo hhi
 
 /-- **Smooth dyadic partition-of-unity reciprocal formula**: for every `w ∈ [1, 2 ^ (m + 1)]`,
 `1 / w` equals a weighted sum of `m + 1` reciprocals whose arguments are all clamped to the

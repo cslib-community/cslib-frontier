@@ -421,10 +421,10 @@ theorem abs_eigenvalue_le_nontrivialSingularValue_of_isBipartiteBalanced
   have hpos : 0 < 𝔼 u : L, fL u ^ 2 + 𝔼 v : R, fR v ^ 2 := by
     obtain ⟨u₀ | v₀, hx₀⟩ := Function.ne_iff.1 hf0
     · exact add_pos_of_pos_of_nonneg
-        (expect_pos' (fun _ _ => sq_nonneg _) ⟨u₀, mem_univ u₀, sq_pos_iff.2 hx₀⟩)
+        (Fintype.expect_sq_pos (f := fL) (Function.ne_iff.2 ⟨u₀, hx₀⟩))
         (expect_nonneg fun _ _ => sq_nonneg _)
     · exact add_pos_of_nonneg_of_pos (expect_nonneg fun _ _ => sq_nonneg _)
-        (expect_pos' (fun _ _ => sq_nonneg _) ⟨v₀, mem_univ v₀, sq_pos_iff.2 hx₀⟩)
+        (Fintype.expect_sq_pos (f := fR) (Function.ne_iff.2 ⟨v₀, hx₀⟩))
   exact abs_le_of_sq_le_sq (le_of_mul_le_mul_right h_sum_le hpos) B.nontrivialSingularValue_nonneg
 
 /-- In the Euclidean space `EuclideanSpace ℝ (L ⊕ R)`, `IsBipartiteBalanced f` holds iff

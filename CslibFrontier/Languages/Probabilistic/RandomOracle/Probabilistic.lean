@@ -153,8 +153,7 @@ theorem eval_zoom_memoize_bind {Key Value St T β : Type} [DecidableEq Key]
       (answer (fun _ => ProbComp.eval d) q (ofList (get s))).bind Φ := by
   rw [ProbComp.eval_bind, eval_zoomStateT_memoize, ← memoize_map_ofList, PMF.map_bind,
     PMF.bind_map, PMF.bind_map]
-  congr 1 with ⟨v, c⟩ : 1
-  exact hf v c
+  exact congrArg (PMF.bind _) (funext fun ⟨v, c⟩ => hf v c)
 
 end List
 
@@ -175,12 +174,12 @@ theorem run_interpret_answer_complete_prob [DecidableEq Query]
           (sumHandler ProbComp.unifOracle (fun q => PMF.pure (table q))) program).map
             (·, table)) := by
   simp only [PMF.monad_bind_eq_bind]
-  have h := ProbOracleComp.runWith_simulation (answer distribution)
+  refine (ProbOracleComp.runWith_simulation (answer distribution)
     (fun q table => (PMF.pure (table q)).map (·, table)) (complete distribution)
     (fun q cache => by
       simpa only [PMF.monad_bind_eq_bind, PMF.map, Function.comp_def, PMF.pure_bind] using
-        answer_complete distribution cache q) program cache
-  refine h.trans (congrArg ((complete distribution cache).bind) (funext fun table => ?_))
+        answer_complete distribution cache q) program cache).trans
+    (congrArg ((complete distribution cache).bind) (funext fun table => ?_))
   simpa only [OracleComp.evalWith_eq_interpret] using ProbOracleComp.runWith_readOnly
     (fun q (table : (q : Query) → Response q) => PMF.pure (table q)) program table
 
@@ -235,15 +234,14 @@ theorem interpret_prob_eq_memoize_map {Value Key' Value' : Type} [Finite Value]
         (sumHandler ProbComp.unifOracle (fun key => PMF.pure (valueMap (table key)))) program) =
       ((OracleComp.interpret (sumHandler (fun n => StateT.lift (ProbComp.unifOracle n))
         (fun key => memoize sample' (keyMap key))) program).run []).map Prod.fst := by
-  let represent := fun cache : List (Query × Value) =>
-    cache.map (fun entry => (keyMap entry.1, valueMap entry.2))
-  have hrun := ProbOracleComp.run_interpret_map_response_state (fun _ => valueMap)
-    (memoize distribution) (fun key => memoize sample' (keyMap key)) represent
-    (fun key cache => by
-      simpa only [represent, PMF.monad_map_eq_map] using
-        memoize_map keyMap valueMap distribution sample' hsample key cache) program []
-  have houtput := congrArg (PMF.map Prod.fst) hrun
-  simp only [PMF.map_comp, Function.comp_def, represent, List.map_nil] at houtput
+  have houtput := congrArg (PMF.map Prod.fst) <|
+    ProbOracleComp.run_interpret_map_response_state (fun _ => valueMap) (memoize distribution)
+      (fun key => memoize sample' (keyMap key))
+      (List.map fun entry => (keyMap entry.1, valueMap entry.2))
+      (fun key cache => by
+        simpa only [PMF.monad_map_eq_map] using
+          memoize_map keyMap valueMap distribution sample' hsample key cache) program []
+  simp only [PMF.map_comp, Function.comp_def, List.map_nil] at houtput
   rw [← houtput]
   simpa only [ProbOracleComp.runWith_eq_run_interpret, OracleComp.interpret_interpret,
     OracleComp.interpret_sumHandler, interp_norm, pmf_norm,
@@ -276,12 +274,10 @@ theorem answer_bind_complete (d : Q → PMF V) (c : Cache (fun _ : Q => V))
     (hF : ∀ v c₁ c₂, F (v, c₁) = F (v, c₂)) :
     (answer d q c).bind (fun x => (complete d x.2).bind (F x)) =
       (complete d c).bind (fun T => F (T q, c) T) := by
-  have h := congrArg (fun p => p.bind (fun x => F (x.1, c) x.2)) (answer_complete d c q)
+  have h := congrArg (fun p => p.bind fun x => F (x.1, c) x.2) (answer_complete d c q)
   simp only [Probability.PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.bind_map,
     Function.comp_def] at h
-  rw [← h]
-  congr 1 with ⟨v, c'⟩ : 1
-  rw [hF v c' c]
+  exact (congrArg (PMF.bind _) (funext fun ⟨v, c'⟩ => by rw [hF v c' c])).trans h
 
 /-- `answer_bind_complete` past one independent sample `p`. -/
 theorem answer_bind_complete₁ (d : Q → PMF V) (c : Cache (fun _ : Q => V))

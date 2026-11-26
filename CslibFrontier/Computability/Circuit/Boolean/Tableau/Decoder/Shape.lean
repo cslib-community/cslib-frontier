@@ -581,11 +581,10 @@ theorem outBit_shape {s cb tb p c t T : ℕ} {x : List Bool} {lk : Bool} (hs : 1
         have htime := timeTerm_eq (t := t) (T := T) (q := q - s - cb) (sl := sl) cs ts
           (decide (c = 0)) sg
         simp only [payTerm, hcol, htime]
-        have h0 : selOf (decide (c = 0)) (decide (t = 0)) (.pos sl cs ts, sg) 0 = false := by
-          cases sg <;> simp [selOf, LabelSrc.sel, SignSrc.sel]
-        have h1 : selOf (decide (c = 0)) (decide (t = 0)) (.pos sl cs ts, sg) 1 = false := by
-          cases sg <;> simp [selOf, LabelSrc.sel, SignSrc.sel]
-        simp only [h0, h1, Bool.false_and, Bool.or_false, tagSlot,
+        have h01 : selOf (decide (c = 0)) (decide (t = 0)) (.pos sl cs ts, sg) 0 = false ∧
+            selOf (decide (c = 0)) (decide (t = 0)) (.pos sl cs ts, sg) 1 = false := by
+          cases sg <;> exact ⟨rfl, rfl⟩
+        simp only [h01.1, h01.2, Bool.false_and, Bool.or_false, tagSlot,
           show ¬ 2 + q < 2 by omega, ↓reduceIte, LabelSrc.slotVal, Nat.add_sub_cancel_left]
         by_cases hqs : q < s
         · simp [hqs, show ¬ s ≤ q by omega, show ¬ s + cb ≤ q by omega]
@@ -664,10 +663,8 @@ theorem inRange_of_mem_shapeOf {j tag p : ℕ} {sh : Shape}
   · intro _; trivial
   · intro hj l _ hok sh hsh
     obtain ⟨lit, hlit, rfl⟩ := List.mem_map.1 hsh
-    have hok' : l.ColOK T (colOf (slotBits k State) (colBits T) p) := by
-      simp only [Bool.and_eq_true, Key.colOK_ofFields, decide_eq_true_eq] at hok
-      exact hok.2
-    have hw := table_inWindow (n := n) hok'.lt tm l
+    simp only [Bool.and_eq_true, Key.colOK_ofFields, decide_eq_true_eq] at hok
+    have hw := table_inWindow (n := n) hok.2.lt tm l
     unfold posShape at hlit
     generalize table tm l = e at hw hlit
     obtain ⟨op, a, b⟩ := e
@@ -687,14 +684,11 @@ theorem lt_of_mem_shapeOf {j tag p : ℕ} {sh : Shape}
   revert hlk
   refine forall_mem_shapeOf (P := fun sh => sh.2 = .lookup → p < X) tm _ ?_ ?_ ?_ ?_ ?_ sh hsh
   · simp [tautShape]
-  · rintro _ _ hsh
-    obtain ⟨_, -, rfl⟩ := List.mem_map.1 hsh
-    simp
-  · intro h _
-    simpa [Key.ofFields] using h
-  · rintro _ _ _ _ _ hsh
-    obtain ⟨_, -, rfl⟩ := List.mem_map.1 hsh
-    simp
+  · rintro _ ⟨_, _⟩ h rfl
+    simp [lift] at h
+  · simp [Key.ofFields]
+  · rintro _ _ _ _ ⟨_, _⟩ h rfl
+    simp [lift] at h
   · simp
 
 /-- A shape has three literals. -/

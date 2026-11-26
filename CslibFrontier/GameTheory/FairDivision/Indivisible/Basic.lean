@@ -221,18 +221,12 @@ theorem giveGood_bundle_of_ne (A : BundleAllocation n m) {i j : Fin n} (g : Fin 
   simp only [mem_allocatedGoods, Finset.mem_insert, giveGood]
   refine ⟨?_, ?_⟩
   · rintro ⟨j, hj⟩
-    by_cases hji : j = i
-    · subst hji
-      rw [ite_eq_left rfl] at hj
-      exact (Finset.mem_insert.1 hj).imp id fun hx => ⟨j, hx⟩
-    · rw [ite_eq_right hji] at hj
-      exact Or.inr ⟨j, hj⟩
+    split_ifs at hj with hji
+    · exact (Finset.mem_insert.1 hj).imp_right fun hx => ⟨i, hx⟩
+    · exact Or.inr ⟨j, hj⟩
   · rintro (rfl | ⟨j, hj⟩)
     · exact ⟨i, by simp⟩
-    · by_cases hji : j = i
-      · subst hji
-        exact ⟨j, by simp [hj]⟩
-      · exact ⟨j, by simp [hji, hj]⟩
+    · exact ⟨j, by split_ifs with hji <;> simp_all⟩
 
 /-- Permutes bundles across agents via `σ : Equiv.Perm (Fin n)` (`i` receives `A.bundle (σ i)`). -/
 @[expose] def relabel (A : BundleAllocation n m) (σ : Equiv.Perm (Fin n)) :
@@ -321,15 +315,12 @@ theorem isComplete_transferGood {A : BundleAllocation n m} (j i : Fin n) (g : Fi
   · subst hxg
     exact ⟨i, by simp⟩
   · obtain ⟨k, hkx⟩ := hA x
-    by_cases hki : k = i
-    · subst hki
-      exact ⟨k, by simp [hkx]⟩
-    · refine ⟨k, ?_⟩
-      by_cases hkj : k = j
-      · subst hkj
-        rw [transferGood_bundle_source A g hg hki]
-        exact Finset.mem_sdiff.2 ⟨hkx, Finset.notMem_singleton.2 hxg⟩
-      · rwa [transferGood_bundle_other A g hg hki hkj]
+    refine ⟨k, ?_⟩
+    dsimp only [transferGood]
+    split_ifs with hki hkj
+    · exact Finset.mem_insert_of_mem (hki ▸ hkx)
+    · exact Finset.mem_sdiff.2 ⟨hkj ▸ hkx, Finset.notMem_singleton.2 hxg⟩
+    · exact hkx
 
 end BundleAllocation
 
@@ -495,11 +486,8 @@ theorem bundleVal_insert {i : Fin n} {g : Fin m} {S : Finset (Fin m)} (hg : g �
 
 theorem bundleVal_sdiff_singleton_add {i : Fin n} {g : Fin m} {S : Finset (Fin m)} (hg : g ∈ S) :
     W.bundleVal i (S \ {g}) + W.weight i g = W.bundleVal i S := by
-  have h := W.bundleVal_insert (i := i) (g := g) (S := S \ {g}) (by simp)
-  have hins : insert g (S \ {g}) = S := by
-    rw [Finset.sdiff_singleton_eq_erase, Finset.insert_erase hg]
-  rw [hins] at h
-  exact h.symm
+  simpa only [Finset.sdiff_singleton_eq_erase, Finset.insert_erase hg] using
+    (W.bundleVal_insert (i := i) (g := g) (S := S \ {g}) (by simp)).symm
 
 end Basic
 
@@ -725,13 +713,8 @@ theorem isEF1_roundRobin (hn : 0 < n) : W.toMonotoneValuation.IsEF1 (W.roundRobi
       have hq_pos : ∀ t ∈ T', 1 ≤ t.val / n := fun t ht => by
         obtain ⟨ht_turn, ht_ne⟩ := Finset.mem_sdiff.1 ht
         have hmod : t.val % n = j.val := (Finset.mem_filter.1 ht_turn).2
-        have hne_val : t.val ≠ j.val := fun hv =>
-          Finset.notMem_singleton.1 ht_ne (Fin.ext hv)
-        have hdiv := Nat.div_add_mod t.val n
-        rcases Nat.eq_zero_or_pos (t.val / n) with hq0 | hpos
-        · rw [hq0, Nat.mul_zero, zero_add, hmod] at hdiv
-          exact absurd hdiv.symm hne_val
-        · exact hpos
+        have hne_val : t.val ≠ j.val := fun hv => Finset.notMem_singleton.1 ht_ne (Fin.ext hv)
+        exact Nat.div_pos (not_lt.1 fun hlt => hne_val ((Nat.mod_eq_of_lt hlt).symm.trans hmod)) hn
       refine hmap T' (fun t => t.val / n - 1)
         (fun t ht => (Finset.mem_filter.1 (Finset.mem_sdiff.1 ht).1).2)
         (fun t₁ ht₁ t₂ ht₂ h => by

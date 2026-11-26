@@ -62,17 +62,11 @@ private theorem budget_le (n m : ℕ) (hn : 0 < n) :
   · rw [Nat.min_eq_left h]
     refine (Nat.add_le_add_left (min_le_left _ _) 5).trans ?_
     dsimp only [rate]
-    rw [show n * (92 * (Nat.log 2 n + 1)) = 92 * (n * (Nat.log 2 n + 1)) by ring]
-    have hl : n ≤ n * (Nat.log 2 n + 1) := Nat.le_mul_of_pos_right n hL
-    omega
+    nlinarith only [hn, hL]
   · rw [Nat.min_eq_right (by omega)]
     refine (Nat.add_le_add_left (min_le_right _ _) 5).trans ?_
     dsimp only [rate]
-    rw [show (m + 2) * (92 * (Nat.log 2 n + 1)) =
-      92 * ((m + 1) * (Nat.log 2 n + 1)) + 92 * (Nat.log 2 n + 1) by ring]
-    have hl : m + 1 ≤ (m + 1) * (Nat.log 2 n + 1) := Nat.le_mul_of_pos_right _ hL
-    have hL' : Nat.log 2 n + 1 ≤ (m + 1) * (Nat.log 2 n + 1) := Nat.le_mul_of_pos_left _ (by omega)
-    omega
+    nlinarith only [h, hL]
 
 /-- The actual Fibonacci memory program preserves the original admissibility and output
 contract. Its sharper bound includes the five header/allocation queries, and pays the heap's
@@ -93,15 +87,13 @@ theorem run_spec (G : ListInstance) {w : ℕ}
   let base := f + G.n
   let s₁ : Memory.State := ⟨s₀.mem, base + (9 * G.n + 5)⟩
   have hf : s₀.frontier = G.n + 2 * G.m + 4 := Memory.frontier_init G
-  have hend : Fits w (base + (9 * G.n + 5)) :=
-    hfit.of_le (by
-      have h16 : 8 * (G.n + G.m + 2) * 2 ≤ 8 * (G.n + G.m + 2) * (G.maxWeight + 2) :=
-        Nat.mul_le_mul_left _ (by omega)
-      dsimp only [base, f]; rw [hf]; omega)
+  have hend : Fits w (base + (9 * G.n + 5)) := hfit.of_le <| by
+    dsimp only [base, f]
+    rw [hf]
+    nlinarith only
   have hn : Fits w G.n := hend.of_le (by dsimp only [base, f]; omega)
-  have hK1 : Fits w (K + 1) := hfit.of_le ((show K + 1 ≤ (G.n + 1) * (G.maxWeight + 1) by
-    dsimp only [K]; rw [Nat.add_one_mul, Nat.mul_add_one]; omega).trans
-    (Nat.mul_le_mul (by omega) (by omega)))
+  have hK1 : Fits w (K + 1) :=
+    hfit.of_le (by dsimp only [K]; nlinarith only)
   have hK : Fits w K := hK1.of_le (by omega)
   have hT : Dictionary.Memory.Valid T w G.n (K + 1) := ⟨rfl, hK1⟩
   have hA : (Memory.inputGraph G.n G.m).Valid G.n := ⟨rfl⟩

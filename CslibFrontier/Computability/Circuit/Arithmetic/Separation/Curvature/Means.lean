@@ -173,10 +173,8 @@ private theorem lem_means_display (hN : CrossingLength N) (hh : IsHomogeneous N)
   have e1 (Z : ℤ × ℤ) : N (Z - -Z) = 2 * N Z := by
     rw [show Z - -Z = 2 • Z by module, hh]
     norm_num
-  have en (X Y : ℤ × ℤ) : N (-X - Y) = N (X - -Y) := by
-    rw [← hN.neg]
-    congr 1
-    module
+  have en (X Y : ℤ × ℤ) : N (-X - Y) = N (X - -Y) :=
+    (congrArg N (by module : -X - Y = -(X - -Y))).trans (hN.neg _)
   have e6 : ((2 * N a) ^ 2 + (2 * N b) ^ 2) / (2 * τ) = 4 * ((N a ^ 2 + N b ^ 2) / (2 * τ)) := by
     ring
   rw [e1 p, e1 q, e1 a, e1 b, en p (-a), en p (-b), en q (-a), en q b, neg_neg, neg_neg, e6] at h
@@ -202,8 +200,7 @@ private theorem lem_means_convex (hN : CrossingLength N) (hh : IsHomogeneous N) 
   have hmono : Monotone fun t : ℕ => N ((t + 1) • c + s) - N (t • c + s) := by
     refine monotone_nat_of_le_succ fun t => ?_
     have h1 := hN.add ((t + 1 + 1) • c + s) (t • c + s)
-    have h2 : (t + 1 + 1) • c + s + (t • c + s) = 2 • ((t + 1) • c + s) := by module
-    rw [h2, hh] at h1
+    rw [show (t + 1 + 1) • c + s + (t • c + s) = 2 • ((t + 1) • c + s) by module, hh] at h1
     push_cast at h1
     linarith
   obtain ⟨M, rfl⟩ : ∃ M', M = M' + 1 := ⟨M - 1, by omega⟩
@@ -214,8 +211,7 @@ private theorem lem_means_convex (hN : CrossingLength N) (hh : IsHomogeneous N) 
   rw [h1, Finset.sum_const, Finset.card_range, nsmul_eq_mul (α := ℝ), zero_smul, zero_add] at h2
   have h3 := hN.sub_le ((M + 1) • c + s) s
   rw [add_sub_cancel_right, hh] at h3
-  have h4 : (M + 1) • c + s - c = M • c + s := by module
-  rw [h4]
+  rw [show (M + 1) • c + s - c = M • c + s by module]
   have hM' : (0 : ℝ) < ((M + 1 : ℕ) : ℝ) := by positivity
   have h5 : N c - 2 * N s / ((M + 1 : ℕ) : ℝ) =
       (((M + 1 : ℕ) : ℝ) * N c - 2 * N s) / ((M + 1 : ℕ) : ℝ) := by field_simp
@@ -263,10 +259,8 @@ private theorem lem_means_near (hN : CrossingLength N) (hh : IsHomogeneous N)
     rw [add_sub_cancel_left, hh i e] at h1
     nlinarith [hN.nonneg e]
   · have h1 := hN.abs_sub_le (M • c + i • e - a) (M • c)
-    have h2 : M • c + i • e - a - M • c = i • e - a := by module
-    rw [h2] at h1
-    have h3 := hN.sub_le (i • e) a
-    rw [hh i e] at h3
+    rw [show M • c + i • e - a - M • c = i • e - a by module] at h1
+    have h3 := hh i e ▸ hN.sub_le (i • e) a
     nlinarith [hN.nonneg e]
 
 /-- `∂` is bounded by `N(a) + N(b)`, so `N(p) ∂p = M f ∂p + O(R)`, and the same for `∂'` at `q` with
@@ -383,14 +377,10 @@ private theorem lem_means_average (hN : CrossingLength N) (hh : IsHomogeneous N)
 private theorem lem_means_parallelogram_le (hN : CrossingLength N) (hh : IsHomogeneous N)
     (a b : ℤ × ℤ) :
     N (a + b) ^ 2 + N (a - b) ^ 2 ≤ 2 * (N a ^ 2 + N b ^ 2) := by
-  have h1 : Tendsto (fun R : ℕ => 2 * (N a ^ 2 + N b ^ 2) + 36 * (N a + N b) ^ 2 * (1 / (R : ℝ)))
-      atTop
-      (𝓝 (2 * (N a ^ 2 + N b ^ 2) + 36 * (N a + N b) ^ 2 * 0)) :=
-    (tendsto_one_div_atTop_nhds_zero_nat.const_mul _).const_add _
+  have h1 := (tendsto_one_div_atTop_nhds_zero_nat.const_mul (36 * (N a + N b) ^ 2)).const_add
+    (2 * (N a ^ 2 + N b ^ 2))
   rw [mul_zero, add_zero] at h1
-  refine ge_of_tendsto h1 ?_
-  filter_upwards [eventually_gt_atTop 0] with R hR
-  exact lem_means_average hN hh a b hR
+  exact ge_of_tendsto h1 ((eventually_gt_atTop 0).mono fun R => lem_means_average hN hh a b)
 
 end Parallelogram
 

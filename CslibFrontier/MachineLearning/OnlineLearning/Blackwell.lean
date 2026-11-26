@@ -375,10 +375,8 @@ private theorem attainable_compact_convex [Nonempty I] (m : I → J → E) (q : 
   refine ⟨hsim_ne.image _, ?_, isCompact_probSimplex.image hcont⟩
   rintro _ ⟨p, hp, rfl⟩ _ ⟨p', hp', rfl⟩ a b ha hb hab
   refine ⟨a • p + b • p', hsim_cvx hp hp' ha hb hab, ?_⟩
-  simp only [bilinearPayoff, Pi.add_apply, Pi.smul_apply, smul_eq_mul, smul_sum, smul_smul,
-    ← sum_add_distrib]
-  refine sum_congr rfl fun i _ => sum_congr rfl fun j _ => ?_
-  rw [add_mul, add_smul, mul_assoc, mul_assoc]
+  simp only [bilinearPayoff_eq_sum_row, Pi.add_apply, Pi.smul_apply, smul_eq_mul, add_smul,
+    mul_smul, sum_add_distrib, ← smul_sum]
 
 /-- Separating-hyperplane lemma: if `C` is nonempty, compact, convex and `S` is nonempty, complete,
 convex, and `Disjoint C S`, then a nearest point `c₀ ∈ C` to `S` gives `δ = distToSet S c₀ > 0`
@@ -407,9 +405,8 @@ private theorem exists_strict_sep_compact_complete {C S : Set E}
   have hδ_pos : 0 < δ := distToSet_pos_of_not_mem hSne hSc hScvx hc₀_not
   refine ⟨c₀, δ, hc₀_mem, hδ_pos, fun v hv => hc₀_min hv, ?_, ?_⟩
   · intro s hs
-    have hvar := inner_sub_metricProjection_le_zero hSc hScvx c₀ hs
-    rw [inner_sub_right] at hvar
-    linarith
+    linarith [inner_sub_right (𝕜 := ℝ) (c₀ - s₀) s s₀,
+      inner_sub_metricProjection_le_zero hSc hScvx c₀ hs]
   · intro v hv
     have hproj : metricProjection C s₀ = c₀ :=
       (metricProjection_eq_iff_forall_norm_le hCcmp.isComplete hCcvx hc₀_mem).mpr fun z hz => by
@@ -673,15 +670,11 @@ theorem blackwell_expect_dist_sq_le {S : Set E} (hc : IsComplete S) (hS : Convex
             (by linarith [hR i (adv [])] : _ ≤ 2 * R)) 2) (strat.nonneg [] i)).trans_eq ?_
         rw [← sum_mul, strat.sum_eq_one, one_mul]
       · have hkr : (0 : ℝ) < (k : ℝ) := Nat.cast_pos.mpr hkpos
-        have hpt : ∀ (h : List I), h.length = k →
-            ∑ i : I, strat.prob h i *
-              ‖sumPayoff m adv (i :: h) -
-                ((k + 1 : ℕ) : ℝ) • metricProjection S
-                  (((k + 1 : ℕ) : ℝ)⁻¹ • sumPayoff m adv (i :: h))‖ ^ 2 ≤
-              ‖sumPayoff m adv h -
-                (k : ℝ) • metricProjection S ((k : ℝ)⁻¹ • sumPayoff m adv h)‖ ^ 2 +
-              (2 * R) ^ 2 := by
-          intro h hh
+        refine (expectHistory_mono strat (g := fun h =>
+            ‖sumPayoff m adv h -
+              (k : ℝ) • metricProjection S ((k : ℝ)⁻¹ • sumPayoff m adv h)‖ ^ 2 +
+            (2 * R) ^ 2) fun h hh => ?_).trans ?_
+        · rw [List.length_nil, zero_add] at hh
           set X := sumPayoff m adv h
           set s := metricProjection S ((k : ℝ)⁻¹ • X)
           have hs_mem : s ∈ S := metricProjection_mem ⟨s₀, hs₀⟩ hc hS _
@@ -700,10 +693,11 @@ theorem blackwell_expect_dist_sq_le {S : Set E} (hc : IsComplete S) (hS : Convex
             have hm := pow_le_pow_left₀ (norm_nonneg _)
               (sum_sub_smul_metricProjection_le hc hS hs_mem (sumPayoff m adv (i :: h))
                 k.succ_pos) 2
-            rw [show sumPayoff m adv (i :: h) - ((k + 1 : ℕ) : ℝ) • s =
-                (X - (k : ℝ) • s) + (m i (adv h) - s) by
-              rw [sumPayoff_cons, Nat.cast_succ, add_smul, one_smul]; abel,
-              norm_add_sq_real] at hm
+            have hdecomp : sumPayoff m adv (i :: h) - ((k + 1 : ℕ) : ℝ) • s =
+                (X - (k : ℝ) • s) + (m i (adv h) - s) := by
+              rw [sumPayoff_cons, Nat.cast_succ, add_smul, one_smul]
+              abel
+            rw [hdecomp, norm_add_sq_real] at hm
             have hms : ‖m i (adv h) - s‖ ^ 2 ≤ (2 * R) ^ 2 := pow_le_pow_left₀ (norm_nonneg _)
               (norm_sub_metricProjection_le_two_mul hc hS hs₀ (hR i (adv h)) hys) 2
             linarith
@@ -722,12 +716,9 @@ theorem blackwell_expect_dist_sq_le {S : Set E} (hc : IsComplete S) (hS : Convex
           simp only [mul_add, sum_add_distrib, ← sum_mul, strat.sum_eq_one, one_mul,
             mul_left_comm (strat.prob h _) 2, ← mul_sum, hlin] at hsum
           linarith
-        have hstep_exp := expectHistory_mono strat (t := k) (h := [])
-          (fun h hh => hpt h (by simpa using hh))
-        rw [expectHistory_add, expectHistory_const] at hstep_exp
-        refine hstep_exp.trans ?_
-        push_cast
-        linarith
+        · rw [expectHistory_add, expectHistory_const]
+          push_cast
+          linarith
   have hTpos : (0 : ℝ) < (T : ℝ) := Nat.cast_pos.mpr hT
   have hscale :
       expectHistory strat T []
@@ -830,9 +821,8 @@ theorem exists_approachStrategy_of_response [Fintype J] [Nonempty I]
     intro y
     set s := metricProjection S y
     have hsep : ∀ z ∈ S, ⟪y - s, z⟫ ≤ ⟪y - s, s⟫ := fun z hz => by
-      have hvar := inner_sub_metricProjection_le_zero hc hS y hz
-      rw [inner_sub_right] at hvar
-      linarith
+      linarith [inner_sub_right (𝕜 := ℝ) (y - s) z s,
+        inner_sub_metricProjection_le_zero hc hS y hz]
     obtain ⟨p, hp0, hp1, hp_le⟩ := hhalf (y - s) ⟪y - s, s⟫ hsep
     refine ⟨p, hp0, hp1, fun j => ?_⟩
     rw [inner_sub_right]
@@ -846,15 +836,12 @@ theorem exists_approachStrategy_of_response [Fintype J] [Nonempty I]
       ⟪y - metricProjection S y, expectedPayoff m (rule.prob y) j - metricProjection S y⟫ ≤ 0 :=
     fun y j => (hchoice y).choose_spec.2.2 j
   refine ⟨rule, hrule_step, fun adv T hT => ?_⟩
-  have hcond : ∀ (h : List I), 0 < h.length →
-      let y := (h.length : ℝ)⁻¹ • sumPayoff m adv h
-      let s := metricProjection S y
-      ⟪y - s, expectedPayoff m ((rule.toStrategy m adv).prob h) (adv h) - s⟫ ≤ 0 :=
-    fun h _ => hrule_step _ (adv h)
-  exact ⟨blackwell_expect_dist_sq_le hc hS hs₀ m hRnn hR (rule.toStrategy m adv) adv hcond T hT,
-    blackwell_expect_dist_le hc hS hs₀ m hRnn hR (rule.toStrategy m adv) adv hcond T hT,
-    fun ε hε =>
-      blackwell_prob_dist_ge_le hc hS hs₀ m hRnn hR (rule.toStrategy m adv) adv hcond T hT hε⟩
+  exact ⟨blackwell_expect_dist_sq_le hc hS hs₀ m hRnn hR (rule.toStrategy m adv) adv
+      (fun h _ => hrule_step _ (adv h)) T hT,
+    blackwell_expect_dist_le hc hS hs₀ m hRnn hR (rule.toStrategy m adv) adv
+      (fun h _ => hrule_step _ (adv h)) T hT,
+    fun ε hε => blackwell_prob_dist_ge_le hc hS hs₀ m hRnn hR (rule.toStrategy m adv) adv
+      (fun h _ => hrule_step _ (adv h)) T hT hε⟩
 
 end AdaptiveRandomized
 

@@ -158,9 +158,8 @@ private theorem writeHashParamsLoProg_spec {w U N dstMetaBase : ℕ} {s : Memory
     dsimp only [prog, d, writeHashParamsLoProg, p01]
     rw [heq_sp, heq0, heq1, heq2, heq3, heq7, heq6, heq5, heq4, heq11, heq10, heq8, heq9,
       bind_assoc]
-  set s3 := (Memory.spec 0).clientState s2
-    (writeBlock4Prog (dstMetaBase + 8 + 8, ((hp 8, hp 9), (hp 10, hp 11))))
-  have hs'_eq : s' = s3 := by
+  have hs'_eq : s' = (Memory.spec 0).clientState s2
+      (writeBlock4Prog (dstMetaBase + 8 + 8, ((hp 8, hp 9), (hp 10, hp 11)))) := by
     dsimp only [s']
     rw [hprog_eq, StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
       StateTransitionSpec.clientState_pure]
@@ -214,13 +213,9 @@ private theorem realizesBounded_writeHashParamsLo :
       Nat.pow_lt_pow_right one_lt_two (by have := qBits_pos U N; omega)
     have hl0_le : reducedHalfLimbs t ≤ 27 := reducedHalfLimbs_le t
     have hspace_fit : Fits w (epochHashSpace U w N) := hfit_hash.of_le (by omega)
-    have hp_le : reducedPackShift t w ≤ reducedChunkBits t + reducedChunkBits t := by
-      dsimp only [reducedPackShift]
-      have := Nat.min_le_left (2 * reducedChunkBits t) (Nat.log 2 (w / (2 * reducedChunkBits t)))
-      omega
+    have hp_le : reducedPackShift t w ≤ reducedChunkBits t + reducedChunkBits t :=
+      (reducedPackShift_le t w).trans_eq (two_mul _)
     have h2c_eq : reducedChunkBits t + reducedChunkBits t = 2 * reducedChunkBits t := by ring
-    have h6l_eq : reducedHalfLimbs t * 6 = 3 * reducedLimbCount t := by
-      dsimp only [reducedLimbCount]; ring
     try rw [Nat.shiftLeft_eq, one_mul]
     try rw [Nat.shiftRight_eq_div_pow, pow_one]
     first
@@ -310,14 +305,13 @@ private theorem writeHashParamsHiProg_spec {w U N dstMetaBase : ℕ} {s : Memory
   obtain ⟨_, hv1, hfr1, hm1, hframe1, hc1⟩ :=
     writeBlock3Prog_spec (dstMetaBase + 8 + 16) (hp 16) (hp 17) (hp 18) (s := s1)
       (by omega) (hfit27.of_le (by omega)) (hhp 16) (hhp 17) (hhp 18)
-  set s2 := (Memory.spec 0).clientState s1
-    (writeBlock3Prog (dstMetaBase + 8 + 16, (hp 16, (hp 17, hp 18))))
   have hprog_eq : prog =
       writeBlock4Prog (dstMetaBase + 8 + 12, ((hp 12, hp 13), (hp 14, hp 15))) >>= fun _ =>
         writeBlock3Prog (dstMetaBase + 8 + 16, (hp 16, (hp 17, hp 18))) := by
     dsimp only [prog, d, writeHashParamsHiProg]
     rw [heq13, heq12, heq15, heq14, heq16, heq17, heq18]
-  have hs'_eq : s' = s2 := by
+  have hs'_eq : s' = (Memory.spec 0).clientState s1
+      (writeBlock3Prog (dstMetaBase + 8 + 16, (hp 16, (hp 17, hp 18)))) := by
     dsimp only [s']
     rw [hprog_eq, StateTransitionSpec.clientState_bind]
   refine ⟨⟨U, N, dstMetaBase, hw, hN, hNU, hU, rfl, rfl, rfl, rfl, rfl, h27, hfit_dst⟩,
@@ -469,19 +463,17 @@ theorem realizesBounded_writeHashParamsSub :
     obtain ⟨U, N, hw, hN, hNU, hU, hwVal, rfl, rfl, hhdr, h27, hfit_dst⟩ := h
     subst wVal
     dsimp only at *
-    have hfit27 : Fits w (dstMetaBase + 27) := fits_add_of_fits_offCompItems hfit_dst (by decide))
+    have hfit27 : Fits w (dstMetaBase + 27) := fits_add_of_fits_offCompItems hfit_dst (by decide)
+    obtain ⟨_, hst_core, hres_core, _⟩ :=
+      computeHashCoreProg_exec (s := s) hw hN hNU hU hhdr hfit_dst)
   all_goals try exact hfit27.of_le (by omega)
   · exact ⟨U, N, dstMetaBase, hw, hN, hNU, hU, rfl, rfl, rfl, hhdr, hfit_dst⟩
-  · obtain ⟨_, hst_core, hres_core, _⟩ :=
-      computeHashCoreProg_exec (s := s) hw hN hNU hU hhdr hfit_dst
-    rw [hst_core, hres_core]; dsimp only
+  · rw [hst_core, hres_core]
     exact ⟨U, N, dstMetaBase, hw, hN, hNU, hU, rfl, rfl, rfl, rfl, rfl, rfl, h27, hfit_dst⟩
-  · obtain ⟨_, hst_core, hres_core, _⟩ :=
-      computeHashCoreProg_exec (s := s) hw hN hNU hU hhdr hfit_dst
-    rw [hst_core, hres_core]; dsimp only
+  · rw [hst_core, hres_core]
     obtain ⟨_, _, _, hfr_lo, _, _, _⟩ :=
       writeHashParamsLoProg_spec (s := s) hw hN hNU hU h27 hfit_dst
-    exact ⟨U, N, dstMetaBase, hw, hN, hNU, hU, rfl, rfl, rfl, rfl, rfl,
-      by rw [hfr_lo]; exact h27, hfit_dst⟩
+    exact ⟨U, N, dstMetaBase, hw, hN, hNU, hU, rfl, rfl, rfl, rfl, rfl, hfr_lo.symm ▸ h27,
+      hfit_dst⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct.ParamsComputeAux

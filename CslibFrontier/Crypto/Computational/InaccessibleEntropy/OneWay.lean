@@ -673,10 +673,9 @@ private theorem rompelBase_escape_seed_toReal_le (c : ℕ) (g : List Bool → Li
       ((rompelBaseHashFin_eq_iff gFin z' z).mp hhash).2.2.2, ?_⟩
     · rw [rompelAccessibleSet, mem_map]
       refine ⟨z', ?_, by simp [rompelBaseInputEquiv, hpack']⟩
-      have hz' : z' ∈ rompelAccessibleInputSet c gFin z :=
+      simpa only [rompelAccessibleInputSet, gFin, m, z,
+        (rompelBaseInputEquiv n (outLen n)).symm_apply_apply] using
         mem_filter.mpr ⟨(mem_fiberSet _ _ _).mpr hhash, hlight⟩
-      dsimp only [gFin, m, z] at hz' ⊢
-      simpa only [(rompelBaseInputEquiv n (outLen n)).symm_apply_apply] using hz'
     · nth_rw 1 [← hpack']
       rw [RompelBaseInput.packWord, List.append_assoc,
         List.take_left' (List.length_ofFn (f := z'.preimage)), hg_ofFn]
@@ -1117,11 +1116,9 @@ private theorem rompelBase_escape_density_sum_eq {n m : ℕ} (c : ℕ)
   let S := (Fin n → BitString m) × BitString n
   have hcard_Z : (Fintype.card (RompelBaseInput n m) : ℝ) =
       (2 ^ n : ℝ) * (2 ^ rompelTruncWidth n : ℝ) * (Fintype.card S : ℝ) := by
-    rw [← Fintype.card_congr (rompelTupleEquiv n m)]
-    have : Fintype.card (BitString n × S × BitString (rompelTruncWidth n)) =
-        2 ^ n * Fintype.card S * 2 ^ rompelTruncWidth n := by
-      simp only [Fintype.card_prod, Cslib.BitString.card, mul_assoc]
-    rw [this]; push_cast; ring
+    rw [← Fintype.card_congr (rompelTupleEquiv n m), Fintype.card_prod, Fintype.card_prod]
+    simp only [Cslib.BitString.card, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]
+    ring
   conv_lhs => rw [← (rompelTupleEquiv n m).sum_comp, Fintype.sum_prod_type]
   conv_rhs => rw [Fintype.sum_prod_type]
   refine sum_congr rfl fun x _ => ?_
@@ -1233,12 +1230,11 @@ private theorem rompelBase_goodLightPairs_frac_ge {n m : ℕ} (c : ℕ)
               rw [mul_assoc, ← pow_add, Nat.sub_add_cancel ht]
           _ ≤ 2 * (#eqPairs * 2 ^ t) := Nat.mul_le_mul_left 2 (Nat.mul_le_mul_right _ hmarkov)
           _ = 2 * 2 ^ t * #eqPairs := by ring
-      have hbad_r : (#badNeqPairs : ℝ) ≤ 2 * (2 : ℝ) ^ t * (#eqPairs : ℝ) := mod_cast hbad_nat
-      have hpow2 : (2 : ℝ) ≤ (2 : ℝ) ^ t := by
-        exact_mod_cast Nat.pow_le_pow_right (by decide : 0 < 2) ht_pos
+      have hpow2 : (2 : ℝ) ≤ (2 : ℝ) ^ t :=
+        mod_cast Nat.pow_le_pow_right (by decide : 0 < 2) ht_pos
       have hcoeff : (1 + 2 * (2 : ℝ) ^ t) * (#eqPairs : ℝ) ≤
           (4 * (2 : ℝ) ^ t - 3) * (#eqPairs : ℝ) := by gcongr; linarith
-      linarith
+      linarith [show (#badNeqPairs : ℝ) ≤ 2 * (2 : ℝ) ^ t * (#eqPairs : ℝ) from mod_cast hbad_nat]
   rw [hcoll_eq, div_le_div_iff₀ (by norm_num) (by positivity)]
   have hcover_r : (2 ^ n : ℝ) * (2 ^ n : ℝ) ≤
       (#eqPairs : ℝ) + (#badNeqPairs : ℝ) + (#lightNeqPairs : ℝ) := mod_cast hcover
@@ -1385,13 +1381,11 @@ theorem logGap_le_inv_rompelGapDenom {d : ℝ} (hd : 0 < d) {c n : ℕ}
     d * Real.logb 2 n / n ≤ 1 / (rompelGapDenom c n : ℝ) := by
   have hlog1 : 1 ≤ Nat.log 2 n := Nat.le_log_of_pow_le Nat.one_lt_two (by simpa using hn)
   have hlogb : Real.logb 2 n ≤ 2 * (Nat.log 2 n : ℝ) := by
-    have hpow_le : (n : ℝ) ≤ (2 : ℝ) ^ (Nat.log 2 n + 1) := by
-      exact_mod_cast (Nat.lt_pow_succ_log_self Nat.one_lt_two n).le
-    have h1 := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2) (by positivity) hpow_le
-    rw [Real.logb_two_pow] at h1
-    have : (Nat.log 2 n : ℝ) + 1 ≤ 2 * (Nat.log 2 n : ℝ) := by
-      exact_mod_cast (show Nat.log 2 n + 1 ≤ 2 * Nat.log 2 n by omega)
-    push_cast at h1; linarith
+    have h1 := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2)
+      (by positivity) (mod_cast (Nat.lt_pow_succ_log_self Nat.one_lt_two n).le :
+        (n : ℝ) ≤ (2 : ℝ) ^ (Nat.log 2 n + 1))
+    simp only [Nat.cast_ofNat, Real.logb_two_pow, Nat.cast_add, Nat.cast_one] at h1
+    linarith [show (1 : ℝ) ≤ (Nat.log 2 n : ℝ) from mod_cast hlog1]
   have hprod_nat : rompelGapDenom c n * (c * Nat.log 2 n) ≤ 128 * n := by
     let b := c * Nat.log 2 n + 1
     calc

@@ -279,17 +279,14 @@ private theorem directional_log_increase {m₁ m₂ U₁ U₂ u₁ u₂ c : ℝ}
   set b : ℝ := u₂ / U₂
   have ha : 0 ≤ a := div_nonneg hu₁ hU₁.le
   have hb_nn : 0 ≤ b := div_nonneg hu₂ hU₂.le
-  have hΔ : 0 < m₂ * b - m₁ * a := by
-    have hslope' : m₁ * a < m₂ * b := by
-      simpa only [a, b, mul_div_assoc] using hslope
-    linarith
+  have hΔ : 0 < m₂ * b - m₁ * a :=
+    sub_pos.2 (by simpa only [a, b, mul_div_assoc] using hslope)
   set D₁ : ℝ := 2 * (a + 1)
   set D₂ : ℝ := 2 * ((m₁ + m₂) * a * b + 1)
   have hD₁ : 0 < D₁ := by positivity
   have hD₂ : 0 < D₂ := by positivity
   set ε : ℝ := min (c / 2) (min (1 / D₁) ((m₂ * b - m₁ * a) / D₂))
-  have hε_pos : 0 < ε := by
-    refine lt_min (half_pos hc) (lt_min (div_pos one_pos hD₁) (div_pos hΔ hD₂))
+  have hε_pos : 0 < ε := lt_min (half_pos hc) (lt_min (div_pos one_pos hD₁) (div_pos hΔ hD₂))
   have hε_lt_c : ε < c := lt_of_le_of_lt (min_le_left _ _) (half_lt_self hc)
   have hε_D₁ : ε ≤ 1 / D₁ := (min_le_right _ _).trans (min_le_left _ _)
   have hε_D₂ : ε ≤ (m₂ * b - m₁ * a) / D₂ := (min_le_right _ _).trans (min_le_right _ _)
@@ -306,34 +303,26 @@ private theorem directional_log_increase {m₁ m₂ U₁ U₂ u₁ u₂ c : ℝ}
   have hU₂' : 0 < U₂ + u₂ * ε := by rw [hU₂_add]; exact mul_pos hU₂ hx₂
   refine ⟨ε, hε_pos, hε_lt_c, hU₁', hU₂', ?_⟩
   have hlog₁ : -(a * ε) / (1 - a * ε) ≤ Real.log (1 - a * ε) := by
-    have h := Real.one_sub_inv_le_log_of_pos hx₁
-    have halg : 1 - (1 - a * ε)⁻¹ = -(a * ε) / (1 - a * ε) := by
+    have h1 : -(a * ε) / (1 - a * ε) = 1 - (1 - a * ε)⁻¹ := by
       field_simp [hx₁.ne']
       ring
-    rwa [← halg]
+    exact h1.trans_le (Real.one_sub_inv_le_log_of_pos hx₁)
   have hlog₂ : (b * ε) / (1 + b * ε) ≤ Real.log (1 + b * ε) := by
-    have h := Real.one_sub_inv_le_log_of_pos hx₂
-    have halg : 1 - (1 + b * ε)⁻¹ = (b * ε) / (1 + b * ε) := by
+    have h2 : (b * ε) / (1 + b * ε) = 1 - (1 + b * ε)⁻¹ := by
       field_simp [hx₂.ne']
       ring
-    rwa [← halg]
+    exact h2.trans_le (Real.one_sub_inv_le_log_of_pos hx₂)
   have hcross : m₁ * a * (1 + b * ε) < m₂ * b * (1 - a * ε) := by
     have hle : ε * D₂ ≤ m₂ * b - m₁ * a := (le_div_iff₀ hD₂).1 hε_D₂
     have hab_nn : 0 ≤ (m₁ + m₂) * a * b := by positivity
     nlinarith
   have hfrac : m₁ * ((a * ε) / (1 - a * ε)) < m₂ * ((b * ε) / (1 + b * ε)) := by
-    have hmul : m₁ * (a * ε) * (1 + b * ε) < m₂ * (b * ε) * (1 - a * ε) := by
-      have h1 : (m₁ * a * (1 + b * ε)) * ε < (m₂ * b * (1 - a * ε)) * ε :=
-        mul_lt_mul_of_pos_right hcross hε_pos
-      linarith
     rw [← mul_div_assoc, ← mul_div_assoc, div_lt_div_iff₀ hx₁ hx₂]
-    exact hmul
+    linarith [mul_lt_mul_of_pos_right hcross hε_pos]
   have hsum_pos : 0 < m₁ * Real.log (1 - a * ε) + m₂ * Real.log (1 + b * ε) := by
-    have hm₁_le : m₁ * (-(a * ε) / (1 - a * ε)) ≤ m₁ * Real.log (1 - a * ε) :=
-      mul_le_mul_of_nonneg_left hlog₁ hm₁.le
-    have hm₂_le : m₂ * ((b * ε) / (1 + b * ε)) ≤ m₂ * Real.log (1 + b * ε) :=
-      mul_le_mul_of_nonneg_left hlog₂ hm₂.le
-    have hneg : m₁ * (-(a * ε) / (1 - a * ε)) = - (m₁ * ((a * ε) / (1 - a * ε))) := by ring
+    have hm₁_le := mul_le_mul_of_nonneg_left hlog₁ hm₁.le
+    have hm₂_le := mul_le_mul_of_nonneg_left hlog₂ hm₂.le
+    rw [neg_div, mul_neg] at hm₁_le
     linarith
   rw [hU₁_sub, hU₂_add, Real.log_mul hU₁.ne' hx₁.ne', Real.log_mul hU₂.ne' hx₂.ne']
   linarith
@@ -495,25 +484,19 @@ theorem IsEquilibrium.isEisenbergGaleKKT {M : LinearFisherMarket I G}
         field_simp [(hp_pos g).ne']
     rw [buyerUtility_eq, linearUtility_eq_sum, Finset.sum_congr rfl fun g _ => hterm g,
       ← Finset.mul_sum, ← expenditure_eq_sum, hexp i]
-  have hUi_pos : ∀ i : I, 0 < M.buyerUtility x i := by
-    intro i
+  have hUi_pos : ∀ i : I, 0 < M.buyerUtility x i := fun i => by
     obtain ⟨g₀, hg₀⟩ := hex_buy i
     obtain ⟨g₁, hg₁⟩ := hbuyer i
-    have hpos_ratio : 0 < M.utility i g₀ / p g₀ :=
-      lt_of_lt_of_le (div_pos hg₁ (hp_pos g₁)) (hmax i g₀ hg₀ g₁)
     rw [hUi_eq i hg₀]
-    exact mul_pos hpos_ratio (hbudget i)
+    exact mul_pos ((div_pos hg₁ (hp_pos g₁)).trans_le (hmax i g₀ hg₀ g₁)) (hbudget i)
   refine ⟨fun g => (hp_pos g).le, ⟨heq.isFeasibleAllocation, hUi_pos⟩, ?_, ?_, heq.2.2.2⟩
   · intro i g
     obtain ⟨g₀, hg₀⟩ := hex_buy i
-    have hUi_val := hUi_eq i hg₀
     have hratio : M.utility i g / p g ≤ M.utility i g₀ / p g₀ := hmax i g₀ hg₀ g
-    rw [div_le_iff₀ (hUi_pos i), hUi_val]
-    have hle := mul_le_mul_of_nonneg_right ((div_le_iff₀ (hp_pos g)).1 hratio) (hbudget i).le
-    linarith
+    rw [div_le_iff₀ (hUi_pos i), hUi_eq i hg₀]
+    linarith [mul_le_mul_of_nonneg_right ((div_le_iff₀ (hp_pos g)).1 hratio) (hbudget i).le]
   · intro i g hxg
-    have hUi_val := hUi_eq i hxg
-    rw [div_eq_iff (hUi_pos i).ne', hUi_val]
+    rw [div_eq_iff (hUi_pos i).ne', hUi_eq i hxg]
     field_simp [(hp_pos g).ne']
 
 /-- **Eisenberg–Gale KKT equivalence** ([Vazirani2007], Section 5.2, p. 106,

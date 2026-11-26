@@ -92,10 +92,8 @@ the continuation is charged from the same state. Unlike `memoryCost_bind`, this 
 theorem memoryCost_bind_of_clientState_eq {α β : Type} {p : Memory.Prog α} {s : Memory.State}
     (hp : (Memory.spec 0).clientState s p = s) (k : α → Memory.Prog β) :
     memoryCost (p >>= k) s =
-      memoryCost p s + memoryCost (k ((Memory.spec 0).clientResult s p)) s := by
-  have h := memoryCost_bind p k s
-  rw [hp] at h
-  exact h
+      memoryCost p s + memoryCost (k ((Memory.spec 0).clientResult s p)) s :=
+  (memoryCost_bind p k s).trans (by rw [hp])
 
 /-! ## Section 1: Dictionary array `Memory.Prog` primitives (`Quot`, `Val`, `LM`, `GM`) -/
 
@@ -544,9 +542,8 @@ theorem realizes_readLMGen (c : Fin 9) :
   fin_cases c <;>
   · realizeDict
     rcases henv with ⟨rfl, hspace⟩
-    refine ⟨totalMicroBuckets n_max, rfl, hw, effBucketPosBits_le_of_lt_pow hnU hU, h.2,
-      hspace.of_le ?_⟩
-    wram_omega
+    exact ⟨totalMicroBuckets n_max, rfl, hw, effBucketPosBits_le_of_lt_pow hnU hU, h.2,
+      hspace.of_le (by wram_omega)⟩
 
 theorem realizes_writeLMGen (c : Fin 9) :
     Realizes .exact (writeLMGenProg c)
@@ -558,9 +555,8 @@ theorem realizes_writeLMGen (c : Fin 9) :
   fin_cases c <;>
   · realizeDict
     rcases henv with ⟨rfl, hspace⟩
-    refine ⟨totalMicroBuckets n_max, rfl, hw, effBucketPosBits_le_of_lt_pow hnU hU, h.2,
-      hspace.of_le ?_⟩
-    wram_omega
+    exact ⟨totalMicroBuckets n_max, rfl, hw, effBucketPosBits_le_of_lt_pow hnU hU, h.2,
+      hspace.of_le (by wram_omega)⟩
 
 theorem realizes_readGMGen :
     Realizes .exact readGMGenProg
@@ -800,22 +796,20 @@ private theorem resolveIndexedSlot_slab_fit {U V w₀ n_max h_space w : ℕ}
       (readGMProg U V w₀ n_max h_space
         (d.1.1, gmSlabDirBase n_max + d.1.2 * dirSlabsPerBucket n_max + d.2 / slabSize n_max)) *
       slabSize n_max + (slabSize n_max - 1 - d.2 % slabSize n_max)) := by
-  have hj_slab := hc
-  have hq_lt : 4 + 3 * d.1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos hb
-  rw [clientResult_readGMProg _ hq_lt] at hj_slab
+  rw [clientResult_readGMProg (idx := 4 + 3 * d.1.2) _ (gmQIdx_lt hb_pos hb)] at hc
   have hs_dir := div_slabSize_lt_dirSlabs hb_pos hj_cap
-  have hs_q : d.2 / slabSize n_max < gmAt d.1.1 U V w₀ n_max h_space s.mem (gmQIdx d.1.2) :=
-    Nat.div_lt_of_lt_mul (by unfold gmQIdx; rw [Nat.mul_comm]; exact hj_slab)
-  have hdir_lt := resolveIndexedSlot_dir_lt hb_pos hb hj_cap
-  rw [clientState_readGMProg, clientResult_readGMProg _ hdir_lt]
-  have hdir_eq := (hinv.multi_slab hb_pos).dir_eq d.1.2 hb (d.2 / slabSize n_max) hs_q hs_dir
+  have hs_q : d.2 / slabSize n_max < gmAt d.1.1 U V w₀ n_max h_space s.mem (gmQIdx d.1.2) := by
+    unfold gmQIdx
+    exact Nat.div_lt_of_lt_mul (Nat.mul_comm _ _ ▸ hc)
+  rw [clientState_readGMProg,
+    clientResult_readGMProg _ (resolveIndexedSlot_dir_lt hb_pos hb hj_cap)]
+  have hslab := hinv.multi_slab hb_pos
+  have hdir_eq := hslab.dir_eq d.1.2 hb (d.2 / slabSize n_max) hs_q hs_dir
   unfold gmSlabDirIdx at hdir_eq
   rw [hdir_eq]
-  have hslab := hinv.multi_slab hb_pos
   have hp_lt : slabPtrOf n_max (gmAt d.1.1 U V w₀ n_max h_space s.mem)
-      d.1.2 (d.2 / slabSize n_max) < gmAt d.1.1 U V w₀ n_max h_space s.mem 0 := by
-    rw [hslab.nslabs_eq]
-    exact hslab.ptr_lt d.1.2 hb _ hs_q
+      d.1.2 (d.2 / slabSize n_max) < gmAt d.1.1 U V w₀ n_max h_space s.mem 0 :=
+    hslab.nslabs_eq ▸ hslab.ptr_lt d.1.2 hb _ hs_q
   have htot := hinv.multi_total_le hb_pos
   exact fits_of_le_max_n_one henv hw hnU hU (by stride_omega [slabSize_pos n_max])
 
@@ -831,10 +825,8 @@ private theorem resolveIndexedSlot_tailIdx_lt {U V w₀ n_max h_space : ℕ}
       (d.2 - (Memory.spec 0).clientResult s
         (readGMProg U V w₀ n_max h_space (d.1.1, 4 + 3 * d.1.2)) *
         slabSize n_max)) < globalMetaLen n_max := by
-  have hj_not_slab := hc
-  have hq_lt : 4 + 3 * d.1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos hb
-  rw [clientResult_readGMProg _ hq_lt] at hj_not_slab ⊢
-  exact gmTailPtrIdx_lt hb_pos hb (hinv.tailOffset_lt hb_pos hb hj_bc hj_not_slab).2
+  rw [clientResult_readGMProg (idx := 4 + 3 * d.1.2) _ (gmQIdx_lt hb_pos hb)] at hc ⊢
+  exact gmTailPtrIdx_lt hb_pos hb (hinv.tailOffset_lt hb_pos hb hj_bc hc).2
 
 private theorem resolveIndexedSlot_tail_le {U V w₀ n_max h_space : ℕ}
     (hb_pos : 0 < bucketBits n_max)
@@ -851,21 +843,15 @@ private theorem resolveIndexedSlot_tail_le {U V w₀ n_max h_space : ℕ}
           (d.2 - (Memory.spec 0).clientResult s
             (readGMProg U V w₀ n_max h_space (d.1.1, 4 + 3 * d.1.2)) *
             slabSize n_max)))) ≤ n_max - 1 := by
-  have hptr_lt := resolveIndexedSlot_tailIdx_lt hb_pos d s hinv hb hj_bc hc
-  have hj_not_slab := hc
-  have hq_lt : 4 + 3 * d.1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos hb
-  rw [clientState_readGMProg, clientResult_readGMProg _ hptr_lt]
-  rw [clientResult_readGMProg _ hq_lt] at hj_not_slab ⊢
-  have hr_lt : d.2 - gmAt d.1.1 U V w₀ n_max h_space s.mem (4 + 3 * d.1.2) * slabSize n_max <
-      gmAt d.1.1 U V w₀ n_max h_space s.mem (gmRIdx d.1.2) :=
-    (hinv.tailOffset_lt hb_pos hb hj_bc hj_not_slab).1
+  rw [clientState_readGMProg,
+    clientResult_readGMProg _ (resolveIndexedSlot_tailIdx_lt hb_pos d s hinv hb hj_bc hc)]
+  rw [clientResult_readGMProg (idx := 4 + 3 * d.1.2) _ (gmQIdx_lt hb_pos hb)] at hc ⊢
   have htail := hinv.multi_tail hb_pos
   have ht_lt : gmAt d.1.1 U V w₀ n_max h_space s.mem
       (gmTailPtrIdx n_max d.1.2
         (d.2 - gmAt d.1.1 U V w₀ n_max h_space s.mem (4 + 3 * d.1.2) * slabSize n_max)) <
-      gmAt d.1.1 U V w₀ n_max h_space s.mem 1 := by
-    rw [htail.ntails_eq]
-    exact htail.ptr_lt d.1.2 hb _ hr_lt
+      gmAt d.1.1 U V w₀ n_max h_space s.mem 1 :=
+    htail.ntails_eq ▸ htail.ptr_lt d.1.2 hb _ (hinv.tailOffset_lt hb_pos hb hj_bc hc).1
   have htot := hinv.multi_total_le hb_pos
   wram_omega [ht_lt]
 

@@ -441,9 +441,8 @@ private theorem validHistory_leafProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × �
       have hcaddr : colBase n + v < t.frontier := by
         dsimp only [octWorkspace, colBase] at hfr hv ⊢; omega
       split_ifs <;>
-        first
-        | exact validHistory_write_bind hcaddr h1 (validHistory_pure _ _ _)
-        | exact validHistory_write_bind hcaddr (fits_zero w) (validHistory_pure _ _ _)
+        exact validHistory_write_bind hcaddr (by first | exact h1 | exact fits_zero w)
+          (validHistory_pure _ _ _)
     exact validHistory_ite
       (fun _ => validHistory_write_bind hsaddr h1 (hw1 1 h1))
       (fun _ => validHistory_write_bind hsaddr (fits_zero w) (hw1 0 (fits_zero w)))
@@ -518,41 +517,24 @@ theorem inputFits_encodeInput {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
       · apply hw.of_le; dsimp only [octWorkspace]; omega
       · exact fits_zero w
 
-private theorem init_mem_one {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (k : ℕ) :
-    (Memory.State.init (encodeInput G k)).mem 1 = n :=
-  rfl
-
-private theorem init_mem_two {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (k : ℕ) :
-    (Memory.State.init (encodeInput G k)).mem 2 = k :=
-  rfl
-
-private theorem init_frontier {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (k : ℕ) :
-    (Memory.State.init (encodeInput G k)).frontier = 3 + n * n := by
-  change (encodeInput G k).length + 1 = 3 + n * n
-  rw [length_encodeInput]
-  omega
-
 /-- Every step of `octProg ()` is history-valid under `Memory.spec w`. -/
 theorem validHistory_octProg {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
     {k w : ℕ} (hw : Fits w (octWorkspace n)) (hk : Fits w k) :
     let s₀ := Memory.State.init (encodeInput G k)
     (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (octProg ())) := by
   intro s₀
-  have hfr0 : s₀.frontier = 3 + n * n := init_frontier G k
-  have hm1 : s₀.mem 1 = n := init_mem_one G k
-  have hm2 : s₀.mem 2 = k := init_mem_two G k
-  have hin : InputFits w (encodeInput G k) := inputFits_encodeInput G hw hk
-  have hfit0 : Fits w ((encodeInput G k).length + 1) := by
+  have hfr0 : s₀.frontier = 3 + n * n := by
+    change (encodeInput G k).length + 1 = 3 + n * n
     rw [length_encodeInput]
-    apply hw.of_le
-    dsimp only [octWorkspace]
     omega
-  have hwf0 : Memory.WellFormed w s₀ := Memory.wellFormed_init hin hfit0
+  have hwf0 : Memory.WellFormed w s₀ :=
+    Memory.wellFormed_init (inputFits_encodeInput G hw hk)
+      (hw.of_le (by simp only [length_encodeInput, octWorkspace]; omega))
   unfold octProg
   refine validHistory_read_bind (by omega) ?_
-  rw [hm1]
+  rw [show s₀.mem 1 = n from rfl]
   refine validHistory_read_bind (by omega) ?_
-  rw [hm2]
+  rw [show s₀.mem 2 = k from rfl]
   have halloc : (Memory.spec w).ValidHistory s₀
       ((Memory.spec w).clientHistory s₀ (Memory.alloc (octScratch n))) :=
     validHistory_alloc (by rw [hfr0, frontier_add_octScratch]; exact hw)

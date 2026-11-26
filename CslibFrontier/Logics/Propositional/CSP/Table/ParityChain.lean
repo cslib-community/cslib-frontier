@@ -124,12 +124,11 @@ theorem parityChain_tables (fresh : ℕ) (scope : List ℕ)
       IsEvenDeltaMatroid (booleanRelation arity sem c.rel) := by
   cases scope with
   | nil =>
-    have he : c = ⟨evenTable 0, []⟩ := by simpa [parityChain] using hc
-    subst c
+    obtain rfl : c = ⟨evenTable 0, []⟩ := by simpa [parityChain] using hc
     exact ⟨rfl, by decide, isEvenDeltaMatroid_evenTable 0⟩
   | cons first rest =>
     obtain ⟨hw, hb, n, _, hn⟩ := parityChainTail_width fresh first rest c hc
-    exact ⟨hw, hb, by rw [hn]; exact isEvenDeltaMatroid_evenTable n⟩
+    exact ⟨hw, hb, hn ▸ isEvenDeltaMatroid_evenTable n⟩
 
 /-- Every satisfying chain assignment has even boundary parity. This direction needs no
 freshness or distinctness assumption, so repeated boundary names cause no semantic shortcut. -/
@@ -216,9 +215,7 @@ theorem parityChain_complete (fresh : ℕ) (scope : List ℕ) (σ : ℕ → Bool
     change (evenTable 0).sem [] && true = true
     decide
   | cons first rest =>
-    have hlen : (first :: rest).length - 3 = rest.length - 2 := by
-      simp only [List.length_cons]; omega
-    simpa only [parityChain, hlen] using
+    simpa only [parityChain, List.length_cons, Nat.succ_sub_succ_eq_sub] using
       parityChainTail_complete fresh first rest σ hbound hparity
 
 /-- Exactly two occurrences of each allocated auxiliary, and the original multiplicity of
@@ -242,9 +239,8 @@ theorem count_vars_parityChain (fresh : ℕ) (scope : List ℕ) (v : ℕ) :
   cases scope with
   | nil => simp [parityChain, CSP.vars]
   | cons first rest =>
-    have hlen : (first :: rest).length - 3 = rest.length - 2 := by
-      simp only [List.length_cons]; omega
-    simpa only [parityChain, hlen] using count_vars_parityChainTail fresh first rest v
+    simpa only [parityChain, List.length_cons, Nat.succ_sub_succ_eq_sub] using
+      count_vars_parityChainTail fresh first rest v
 
 /-- Output names are boundary names or precisely the allocated consecutive auxiliary interval. -/
 theorem mem_vars_parityChain (fresh : ℕ) (scope : List ℕ) (v : ℕ) :
@@ -275,17 +271,12 @@ theorem parityChainTail_scopes_nodup (fresh first : ℕ) (rest : List ℕ)
       simp only [List.nodup_cons, List.mem_cons,
         not_or, List.not_mem_nil, not_false_eq_true, and_true]
       exact ⟨⟨hne, by omega⟩, by omega, trivial, List.nodup_nil⟩
-    · apply ih ?_ ?_ hc
-      · apply List.nodup_cons.mpr
-        refine ⟨?_, hnd.tail.tail⟩
-        intro hf
-        have := hbound fresh (List.mem_cons_of_mem first (List.mem_cons_of_mem b hf))
+    · refine ih (List.nodup_cons.mpr ⟨fun hf => ?_, hnd.tail.tail⟩) (fun v hv => ?_) hc
+      · have := hbound fresh (by simp [hf])
         omega
-      · intro v hv
-        rcases List.mem_cons.mp hv with rfl | hv
+      · rcases List.mem_cons.mp hv with rfl | hv
         · omega
-        · exact (hbound v (List.mem_cons_of_mem first
-            (List.mem_cons_of_mem b hv))).trans (Nat.lt_succ_self fresh)
+        · exact (hbound v (by simp [hv])).trans (Nat.lt_succ_self fresh)
   | _ => -- at most two boundary entries left
     obtain rfl := List.mem_singleton.mp hc
     exact hnd
@@ -297,8 +288,7 @@ theorem parityChain_scopes_nodup (fresh : ℕ) (scope : List ℕ) (hnd : scope.N
     constraint.scope.Nodup := by
   cases scope with
   | nil =>
-    have he : constraint = ⟨evenTable 0, []⟩ := by simpa [parityChain] using hc
-    subst constraint
+    obtain rfl : constraint = ⟨evenTable 0, []⟩ := by simpa [parityChain] using hc
     exact List.nodup_nil
   | cons first rest => exact parityChainTail_scopes_nodup fresh first rest hnd hbound constraint hc
 

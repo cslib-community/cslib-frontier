@@ -138,11 +138,9 @@ private theorem stages_le_pairValues (k : ℕ) :
   induction k with
   | zero => exact bot_le
   | succ k ih =>
-    intro j
-    have hj : _ ⊆ readState target input pairs (pairValues target input pairs) _ ∩
-        readState target input pairs (pairValues target input pairs) _ :=
-      step_mono target input pairs ih j
-    simpa only [readState_pairValues, stages, pairValues] using hj
+    exact fun j => by
+      simpa only [readState_pairValues, stages, step, pairValues] using
+        step_mono target input pairs ih j
 
 /-- After one round per pair, reconstruction is exactly the generated semifilter closure. -/
 theorem readState_stages :
@@ -194,9 +192,8 @@ theorem eval_stageCircuit (k : ℕ) :
     obtain ⟨output, houtput⟩ := ih
     refine ⟨readState target input pairs (stages target input pairs k) ∅, ?_⟩
     have hrestrict : Fin.lastCases output (stages target input pairs k) ∘ Fin.castSucc =
-        stages target input pairs k := by
-      funext j
-      simp only [Function.comp_apply, Fin.lastCases_castSucc]
+        stages target input pairs k :=
+      funext fun j => Fin.lastCases_castSucc (motive := fun _ => Set U) j
     simp only [stageCircuit, Circuit.iterate, Circuit.eval_comp] at houtput ⊢
     rw [houtput]
     simp only [circuit_simps, roundCircuit, Fin.append_comp_castAdd, eval_updateCircuit, hrestrict]
@@ -267,9 +264,8 @@ noncomputable def PairCover.toCircuit (c : PairCover target input) :
     c.pairs.length
   have hrestrict : Fin.lastCases output
       (PairClosureCompiler.stages target input c.pairs c.pairs.length) ∘ Fin.castSucc =
-        PairClosureCompiler.stages target input c.pairs c.pairs.length := by
-    funext j
-    simp only [Function.comp_apply, Fin.lastCases_castSucc]
+        PairClosureCompiler.stages target input c.pairs c.pairs.length :=
+    funext fun j => Fin.lastCases_castSucc (motive := fun _ => Set U) j
   funext i
   rw [PairCover.toCircuit, Circuit.eval_comp, houtput, Formula.eval_toCircuit,
     PairClosureCompiler.eval_readFormula, hrestrict, PairClosureCompiler.readState_stages,

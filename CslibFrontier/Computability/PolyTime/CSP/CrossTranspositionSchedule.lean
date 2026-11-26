@@ -122,8 +122,7 @@ theorem components_transposeSchedule (I : State Rel) (js : List ℕ) :
       · rw [hm, ih.2.1]; simp only [Nat.add_mul, one_mul]; omega
       · rw [hr, ih.2.2.2, List.replicate_add]
         simp [List.flatten_append, List.append_assoc]
-    · simp only [zero_mul, add_zero] at hc
-      simp only [List.append_nil] at hr
+    · simp only [zero_mul, add_zero, List.append_nil] at hc hr
       exact ⟨hc.1.trans ih.1, hc.2.1.trans ih.2.1, hc.2.2, hr.trans ih.2.2.2⟩
 
 private theorem recover_step (I : State Rel) (j : ℕ) (τ : ℕ → Bool)
@@ -188,20 +187,17 @@ theorem recover_transposeSchedule (I : State Rel) (js : List ℕ) (τ : ℕ → 
     have hstep := recover_step g w J j τ (by rwa [transposeSchedule_snoc] at ht)
     rw [hp] at hstep
     have hprior := ih (fun z => τ (2^e*z)) hstep.1
-    have hk : (js++[j]).countP (fun t => decide (t+1<I.ports.length)) =
-        js.countP (fun t => decide (t+1<I.ports.length)) + e := by simp [e]
     have hass : (fun z => τ (2^e*(2^(js.countP (fun t => decide (t+1<I.ports.length)))*z))) =
         (fun z => τ (2^((js++[j]).countP (fun t => decide (t+1<I.ports.length)))*z)) := by
       funext z
-      rw [hk, pow_add]
+      simp only [countP_snoc, e, pow_add]
       congr 1
       ac_rfl
-    refine ⟨?_, ?_⟩
-    · simpa only [hass] using hprior.1
-    · rw [transposeSchedule_snoc]
-      change (transposeAdjacent g w J j).ports.map τ = _
-      rw [hstep.2, hprior.2, List.foldl_append, List.foldl_cons, List.foldl_nil]
-      simp only [hass]
+    refine ⟨by simpa only [hass] using hprior.1, ?_⟩
+    rw [transposeSchedule_snoc]
+    change (transposeAdjacent g w J j).ports.map τ = _
+    rw [hstep.2, hprior.2, List.foldl_append, List.foldl_cons, List.foldl_nil]
+    simp only [hass]
 
 private theorem forward_step (I : State Rel) (j : ℕ) (σ : ℕ → Bool)
     (hs : I.body.eval sem σ = true) :
@@ -252,22 +248,16 @@ theorem eval_transposeSchedule_iff (I : State Rel) (js : List ℕ) (σ : ℕ →
         obtain ⟨τ, ht, he⟩ := forward_step g w J j ν hν
         have hp := (components_transposeSchedule g w I js).2.2.1
         rw [hp] at he
-        refine ⟨τ, ?_, ?_⟩
-        · rwa [transposeSchedule_snoc]
-        intro z
-        have h := (he (2^(js.countP (fun t => decide (t+1<I.ports.length)))*z)).trans (ha z)
+        refine ⟨τ, by rwa [transposeSchedule_snoc], fun z => ?_⟩
         simpa [List.countP_append, pow_add, Nat.mul_assoc, Nat.mul_comm, Nat.mul_left_comm]
-          using h
+          using (he (2^(js.countP (fun t => decide (t+1<I.ports.length)))*z)).trans (ha z)
     obtain ⟨τ, ht, ha⟩ := hext
     refine ⟨τ, ht, ha, ?_⟩
     have hr := (recover_transposeSchedule g w I js τ ht).2
-    simp_rw [← List.swap_adjacent_eq_take_drop] at hr
-    simpa only [show (fun z => τ (2^(js.countP (fun j => decide (j+1<I.ports.length)))*z)) = σ
-      from funext ha] using hr
+    simp_rw [← List.swap_adjacent_eq_take_drop, funext ha] at hr
+    exact hr
   · rintro ⟨τ, ht, ha, _⟩
-    have hr := (recover_transposeSchedule g w I js τ ht).1
-    simpa only [show (fun z => τ (2^(js.countP (fun j => decide (j+1<I.ports.length)))*z)) = σ
-      from funext ha] using hr
+    simpa only [funext ha] using (recover_transposeSchedule g w I js τ ht).1
 
 /-- Every successful request increases the maximum binary name width by at most one;
 invalid requests preserve the whole State. The bound includes unused boundary names. -/
@@ -277,9 +267,7 @@ theorem name_width_transposeSchedule_le (I : State Rel) (js : List ℕ) (W : ℕ
       z.size ≤ max W (2*g.numAux+7).size +
         js.countP (fun j => decide (j+1<I.ports.length)) := by
   induction js using List.reverseRecOn with
-  | nil =>
-    intro z hz
-    exact (hW z hz).trans (le_max_left _ _)
+  | nil => exact fun z hz => (hW z hz).trans (le_max_left _ _)
   | append_singleton js j ih =>
     let J := transposeSchedule g w I js
     have hp := (components_transposeSchedule g w I js).2.2.1
@@ -293,13 +281,10 @@ theorem name_width_transposeSchedule_le (I : State Rel) (js : List ℕ) (W : ℕ
         J.ports[j] J.ports[j+1] (J.ports.drop (j+2)) J.rotation _
         (by simpa only [List.append_assoc, List.cons_append, List.nil_append, hs] using ih)
       intro z hz
-      have hJ : J = (⟨J.body, J.ports.take j ++ [J.ports[j],J.ports[j+1]] ++
-          J.ports.drop (j+2), J.rotation⟩ : State Rel) := by
-        have hps : J.ports = J.ports.take j ++ [J.ports[j], J.ports[j+1]] ++
-            J.ports.drop (j+2) := by
-          simpa only [List.append_assoc, List.cons_append, List.nil_append] using hs.symm
-        exact congrArg (fun ps => State.mk J.body ps J.rotation) hps
-      rw [← hJ, hlen] at hb
+      have hps : J.ports = J.ports.take j ++ [J.ports[j], J.ports[j+1]] ++
+          J.ports.drop (j+2) := by
+        simpa only [List.append_assoc, List.cons_append, List.nil_append] using hs.symm
+      rw [← congrArg (fun ps => State.mk J.body ps J.rotation) hps, hlen] at hb
       have hz' := hb z (by rwa [transposeSchedule_snoc] at hz)
       rw [countP_snoc, ite_eq_left h]
       exact hz'.trans (by omega)

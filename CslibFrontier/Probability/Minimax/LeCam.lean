@@ -127,10 +127,9 @@ theorem leCam_measure_max_ge (μ ν : Measure α) [IsProbabilityMeasure μ] [IsP
     (hint₀ : Integrable L₀ μ) (hint₁ : Integrable L₁ ν)
     (hsep : ∀ x, sep ≤ L₀ x + L₁ x) :
     (sep / 2) * (1 - tvDist μ ν / 2) ≤ max (∫ x, L₀ x ∂μ) (∫ x, L₁ x ∂ν) := by
-  have hsum := leCam_measure_add_ge μ ν hL₀ hL₁ hint₀ hint₁ hsep
-  have h0 := le_max_left (∫ x, L₀ x ∂μ) (∫ x, L₁ x ∂ν)
-  have h1 := le_max_right (∫ x, L₀ x ∂μ) (∫ x, L₁ x ∂ν)
-  linarith
+  linarith [leCam_measure_add_ge μ ν hL₀ hL₁ hint₀ hint₁ hsep,
+    le_max_left (∫ x, L₀ x ∂μ) (∫ x, L₁ x ∂ν),
+    le_max_right (∫ x, L₀ x ∂μ) (∫ x, L₁ x ∂ν)]
 
 /-- **Measure-theoretic Le Cam–Pinsker bound**: when `0 ≤ sep` and `klDiv μ ν ≠ ⊤`,
 `(sep / 2) · (1 - √(KL(μ ‖ ν) / 2)) ≤ max (∫ L₀ ∂μ) (∫ L₁ ∂ν)`. -/
@@ -144,13 +143,10 @@ theorem leCam_measure_max_ge_of_klDiv (μ ν : Measure α) [IsProbabilityMeasure
       max (∫ x, L₀ x ∂μ) (∫ x, L₁ x ∂ν) := by
   have hpinsker : tvDist μ ν ^ 2 / 2 ≤ (klDiv μ ν).toReal :=
     (ENNReal.ofReal_le_iff_le_toReal hkl).mp (ofReal_tvDist_sq_div_two_le_klDiv μ ν)
-  have htv_le : tvDist μ ν / 2 ≤ Real.sqrt ((klDiv μ ν).toReal / 2) := by
-    apply Real.le_sqrt_of_sq_le
-    linarith
-  have hmono : (sep / 2) * (1 - Real.sqrt ((klDiv μ ν).toReal / 2)) ≤
-      (sep / 2) * (1 - tvDist μ ν / 2) :=
-    mul_le_mul_of_nonneg_left (by linarith) (by positivity)
-  exact hmono.trans (leCam_measure_max_ge μ ν hL₀ hL₁ hint₀ hint₁ hsep)
+  have htv_le : tvDist μ ν / 2 ≤ Real.sqrt ((klDiv μ ν).toReal / 2) :=
+    Real.le_sqrt_of_sq_le (by linarith)
+  exact (mul_le_mul_of_nonneg_left (sub_le_sub_left htv_le 1) (by positivity)).trans
+    (leCam_measure_max_ge μ ν hL₀ hL₁ hint₀ hint₁ hsep)
 
 /-- **Neyman–Pearson testing lower bound**: for every measurable acceptance region `A`, the sum of
 type-I and type-II error probabilities satisfies `1 - tvDist μ ν / 2 ≤ μ.real Aᶜ + ν.real A`. -/
@@ -164,9 +160,8 @@ theorem neymanPearson_measureReal_compl_add_ge (μ ν : Measure α) [IsProbabili
     ((integrable_const (1 : ℝ)).indicator hA.compl)
     ((integrable_const (1 : ℝ)).indicator hA)
     (fun x => by by_cases hx : x ∈ A <;> simp [hx])
-  rw [integral_indicator_const (1 : ℝ) hA.compl, integral_indicator_const (1 : ℝ) hA,
-    smul_eq_mul, smul_eq_mul, mul_one, mul_one, one_mul] at h
-  exact h
+  simpa only [integral_indicator_const _ hA.compl, integral_indicator_const _ hA,
+    smul_eq_mul, mul_one, one_mul] using h
 
 /-- **Neyman–Pearson testing optimality**: there exists a measurable acceptance region `A` attaining
 `μ.real Aᶜ + ν.real A = 1 - tvDist μ ν / 2`. -/
@@ -174,9 +169,7 @@ theorem exists_measurableSet_measureReal_compl_add_eq (μ ν : Measure α) [IsPr
     [IsProbabilityMeasure ν] :
     ∃ A : Set α, MeasurableSet A ∧ μ.real Aᶜ + ν.real A = 1 - tvDist μ ν / 2 := by
   obtain ⟨s, hs⟩ := exists_isHahnDecomposition μ ν
-  refine ⟨sᶜ, hs.measurableSet.compl, ?_⟩
-  rw [compl_compl]
-  exact hahn_overlap_eq μ ν hs
+  exact ⟨sᶜ, hs.measurableSet.compl, by simpa only [compl_compl] using hahn_overlap_eq μ ν hs⟩
 
 end Measure
 
@@ -196,10 +189,8 @@ theorem leCam_add_ge (p₀ p₁ : PMF X) {L₀ L₁ : X → ℝ} {sep : ℝ}
     sep * (1 - dist p₀ p₁) ≤
       (∑ x, (p₀ x).toReal * L₀ x) + ∑ x, (p₁ x).toReal * L₁ x := by
   let _ : MeasurableSpace X := ⊤
-  have h₀ : Integrable L₀ p₀.toMeasure := .of_finite
-  have h₁ : Integrable L₁ p₁.toMeasure := .of_finite
   simpa only [PMF.integral_eq_sum, smul_eq_mul, dist_eq_tvDist_toMeasure_div_two] using
-    leCam_measure_add_ge p₀.toMeasure p₁.toMeasure hL₀ hL₁ h₀ h₁ hsep
+    leCam_measure_add_ge p₀.toMeasure p₁.toMeasure hL₀ hL₁ .of_finite .of_finite hsep
 
 /-- **Le Cam two-point minimax bound** for deterministic estimators `est : X → T`: if
 `∀ t, sep ≤ loss t θ₀ + loss t θ₁`, then worst-case expected loss over `{θ₀, θ₁}` is at least

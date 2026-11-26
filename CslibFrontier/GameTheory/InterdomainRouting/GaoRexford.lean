@@ -159,32 +159,22 @@ private theorem valleyFree_customer_propagate {G : SimpleGraph V} {rel : V → V
       Relation.TransGen (IsProviderOf G rel) u x ∧ rel x y = .customer
   | [], _, _, _, _, hhead, _, _, _ => by simp at hhead
   | [a], u, x, y, t, hhead, hchain, hvf, hfirst => by
-    simp only [List.head?_cons, Option.some.injEq] at hhead
-    subst hhead
+    obtain rfl : a = u := Option.some.inj hhead
     simp only [List.singleton_append] at hchain hvf hfirst
-    have hadj : G.Adj a x := (List.isChain_cons_cons.mp hchain).1
-    have hxy : rel x y = .customer := hvf.1 (by simp [hfirst])
-    exact ⟨Relation.TransGen.single ⟨hadj, hfirst⟩, hxy⟩
+    exact ⟨.single ⟨(List.isChain_cons_cons.mp hchain).1, hfirst⟩, hvf.1 (by simp [hfirst])⟩
   | a :: b :: r, u, x, y, t, hhead, hchain, hvf, hfirst => by
-    simp only [List.head?_cons, Option.some.injEq] at hhead
-    subst hhead
+    obtain rfl : a = u := Option.some.inj hhead
     simp only [List.cons_append] at hchain hvf hfirst
-    have hadj : G.Adj a b := (List.isChain_cons_cons.mp hchain).1
-    have hchain' : (b :: (r ++ x :: y :: t)).IsChain G.Adj :=
-      (List.isChain_cons_cons.mp hchain).2
     cases hr : r ++ x :: y :: t with
     | nil => exact (List.append_ne_nil_of_right_ne_nil r (List.cons_ne_nil x (y :: t)) hr).elim
     | cons c rest =>
       rw [hr] at hvf
       have hbc : rel b c = .customer := hvf.1 (by simp [hfirst])
-      have hvf' : IsValleyFree rel ((b :: r) ++ x :: y :: t) := by
-        simpa only [List.cons_append, hr] using hvf.2
-      have hfirst' : (match (b :: r) ++ x :: y :: t with
-          | a :: b :: _ => rel a b = .customer | _ => False) := by
-        simpa only [List.cons_append, hr] using hbc
-      obtain ⟨hreach, hxy⟩ :=
-        valleyFree_customer_propagate (q := b :: r) rfl hchain' hvf' hfirst'
-      exact ⟨Relation.TransGen.head ⟨hadj, hfirst⟩ hreach, hxy⟩
+      obtain ⟨hreach, hxy⟩ := valleyFree_customer_propagate (q := b :: r) rfl
+        (List.isChain_cons_cons.mp hchain).2
+        (by simpa only [List.cons_append, hr] using hvf.2)
+        (by simpa only [List.cons_append, hr] using hbc)
+      exact ⟨.head ⟨(List.isChain_cons_cons.mp hchain).1, hfirst⟩ hreach, hxy⟩
 
 /-- Backward provider propagation: if `q` is nonempty, `q ++ x :: y :: t` is a valley-free chain
 in `G`, and `rel x y ≠ .customer`, then every edge of `q` into `x` is a `provider` edge; hence `x`
@@ -200,41 +190,27 @@ private theorem valleyFree_provider_backprop {G : SimpleGraph V} {rel : V → V 
         (match q ++ x :: y :: t with | a :: b :: _ => rel a b = .provider | _ => False)
   | [], _, _, _, _, hhead, _, _, _ => by simp at hhead
   | [a], u, x, y, t, hhead, hchain, hvf, hxy => by
-    simp only [List.head?_cons, Option.some.injEq] at hhead
-    subst hhead
+    obtain rfl : a = u := Option.some.inj hhead
     simp only [List.singleton_append] at hchain hvf ⊢
     have hadj : G.Adj a x := (List.isChain_cons_cons.mp hchain).1
-    have hax : rel a x = .provider := by
-      by_contra hne
-      exact hxy (hvf.1 hne)
-    have hxa : rel x a = .customer := by
-      rw [hsymm a x hadj, hax]; rfl
-    exact ⟨Relation.TransGen.single ⟨hadj.symm, hxa⟩, hax⟩
+    have hax : rel a x = .provider := by_contra fun hne => hxy (hvf.1 hne)
+    have hxa : rel x a = .customer := by simp [hsymm a x hadj, hax, CommercialRel.flip]
+    exact ⟨.single ⟨hadj.symm, hxa⟩, hax⟩
   | a :: b :: r, u, x, y, t, hhead, hchain, hvf, hxy => by
-    simp only [List.head?_cons, Option.some.injEq] at hhead
-    subst hhead
+    obtain rfl : a = u := Option.some.inj hhead
     simp only [List.cons_append] at hchain hvf ⊢
     have hadj : G.Adj a b := (List.isChain_cons_cons.mp hchain).1
-    have hchain' : ((b :: r) ++ x :: y :: t).IsChain G.Adj :=
-      (List.isChain_cons_cons.mp hchain).2
     cases hr : r ++ x :: y :: t with
     | nil => exact (List.append_ne_nil_of_right_ne_nil r (List.cons_ne_nil x (y :: t)) hr).elim
     | cons c rest =>
       rw [hr] at hvf
-      have hvf' : IsValleyFree rel ((b :: r) ++ x :: y :: t) := by
-        simpa only [List.cons_append, hr] using hvf.2
-      obtain ⟨hreach, hbc⟩ :=
-        valleyFree_provider_backprop hsymm (q := b :: r) rfl hchain' hvf' hxy
-      have hbc' : rel b c = .provider := by
-        simpa only [List.cons_append, hr] using hbc
-      have hab : rel a b = .provider := by
-        by_contra hne
-        have : rel b c = .customer := hvf.1 hne
-        rw [hbc'] at this
-        exact CommercialRel.noConfusion this
-      have hba : rel b a = .customer := by
-        rw [hsymm a b hadj, hab]; rfl
-      exact ⟨Relation.TransGen.tail hreach ⟨hadj.symm, hba⟩, hab⟩
+      obtain ⟨hreach, hbc⟩ := valleyFree_provider_backprop hsymm (q := b :: r) rfl
+        (List.isChain_cons_cons.mp hchain).2
+        (by simpa only [List.cons_append, hr] using hvf.2) hxy
+      have hbc' : rel b c = .provider := by simpa only [List.cons_append, hr] using hbc
+      have hab : rel a b = .provider := by_contra fun hne => by simpa [hbc'] using hvf.1 hne
+      have hba : rel b a = .customer := by simp [hsymm a b hadj, hab, CommercialRel.flip]
+      exact ⟨.tail hreach ⟨hadj.symm, hba⟩, hab⟩
 
 private theorem transGen_cycle_forward {R : V → V → Prop} {k : ℕ} (hk : 0 < k) (f : Fin k → V)
     (hstep : ∀ i : Fin k, Relation.TransGen R (f i) (f ⟨(i.val + 1) % k, Nat.mod_lt _ hk⟩)) :

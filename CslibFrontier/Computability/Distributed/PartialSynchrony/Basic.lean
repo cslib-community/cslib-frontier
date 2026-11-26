@@ -249,19 +249,15 @@ also solves omission/crash partial-synchrony consensus against `t` faults. -/
 theorem SolvesByzantinePartialSync.toOmission {π : PartialSyncProtocol P V S M} {t : ℕ}
     (h : π.SolvesByzantinePartialSync t) : π.SolvesOmissionPartialSync t where
   irrevocable deliver x r₁ r₂ hr i v hdec := by
-    have heq₁ := congrArg (π.output i) (π.omissionState_eq_byzantineState ∅ deliver x r₁ i)
-    have heq₂ := congrArg (π.output i) (π.omissionState_eq_byzantineState ∅ deliver x r₂ i)
-    exact heq₂.trans (h.irrevocable ∅ (Nat.zero_le t) deliver _ x r₁ r₂ hr i
-      (Finset.notMem_empty i) v (heq₁.symm.trans hdec))
+    simp only [omissionDecision, π.omissionState_eq_byzantineState ∅] at hdec ⊢
+    exact h.irrevocable ∅ (Nat.zero_le t) deliver _ x r₁ r₂ hr i (Finset.notMem_empty i) v hdec
   agreement F hF deliver x r₁ r₂ i hi j hj v₁ v₂ h₁ h₂ := by
-    have heq₁ := congrArg (π.output i) (π.omissionState_eq_byzantineState F deliver x r₁ i)
-    have heq₂ := congrArg (π.output j) (π.omissionState_eq_byzantineState F deliver x r₂ j)
-    exact h.agreement F hF deliver _ x r₁ r₂ i hi j hj v₁ v₂
-      (heq₁.symm.trans h₁) (heq₂.symm.trans h₂)
+    simp only [omissionDecision, π.omissionState_eq_byzantineState F] at h₁ h₂
+    exact h.agreement F hF deliver _ x r₁ r₂ i hi j hj v₁ v₂ h₁ h₂
   validity deliver x v hv r i w hdec := by
-    have heq := congrArg (π.output i) (π.omissionState_eq_byzantineState ∅ deliver x r i)
+    simp only [omissionDecision, π.omissionState_eq_byzantineState ∅] at hdec
     exact h.validity ∅ (Nat.zero_le t) deliver _ x v (fun j _ => hv j) r i
-      (Finset.notMem_empty i) w (heq.symm.trans hdec)
+      (Finset.notMem_empty i) w hdec
   termination F hF deliver gst x hgst i hi := by
     obtain ⟨r, hr⟩ := h.termination F hF deliver gst (π.omissionAdv deliver x) x hgst i hi
     exact ⟨r, by simpa only [omissionDecision, byzantineDecision,
@@ -452,14 +448,11 @@ structure Proposal (V : Type*) where
 
 theorem pickMaxLock_eq_none_iff {V : Type*} {lks : List (ViewLock V)} :
     pickMaxLock lks = none ↔ lks = [] := by
-  induction lks with
+  cases lks with
   | nil => simp only [pickMaxLock]
-  | cons lk lks _ =>
+  | cons lk lks =>
     simp only [pickMaxLock, reduceCtorEq, iff_false]
-    cases pickMaxLock lks with
-    | none => simp only [reduceCtorEq, not_false_eq_true]
-    | some best =>
-      by_cases hle : best.view ≤ lk.view <;> simp [hle]
+    split <;> (try split_ifs) <;> simp
 
 theorem pickMaxLock_mem {V : Type*} {lks : List (ViewLock V)} {best : ViewLock V}
     (h : pickMaxLock lks = some best) : best ∈ lks := by
@@ -1245,13 +1238,9 @@ private theorem first_decision_round {F : Finset P} {deliver : ℕ → P → P �
         F deliver adv x r i).decided with
     | none => exact ⟨r, Nat.lt_succ_self r, hprev, h⟩
     | some w =>
-      have hw : (byzQuorumProtocol P V procs leader t).byzantineDecision
-          F deliver adv x (r + 1) i = some w :=
-        byzQuorum_irrevocable leader F deliver adv x (Nat.le_succ r) i w hprev
-      have heq : w = val := Option.some.inj (hw.symm.trans h)
-      subst heq
-      obtain ⟨m, hm_lt, hmn, hms⟩ := first_decision_round r i hprev
-      exact ⟨m, Nat.lt_succ_of_lt hm_lt, hmn, hms⟩
+      obtain rfl := Option.some.inj
+        ((byzQuorum_irrevocable leader F deliver adv x r.le_succ i w hprev).symm.trans h)
+      exact (first_decision_round r i hprev).imp fun _ hm => ⟨Nat.lt_succ_of_lt hm.1, hm.2⟩
 
 /-- **Unconditional pre-GST global agreement (`byzQuorum_agreement`):** for `3 * t < Fintype.card P`
 and `F.card ≤ t`, no two processes ever decide distinct values in `byzQuorumProtocol` (even under
@@ -1611,11 +1600,10 @@ private theorem omission_first_decision (deliver : ℕ → P → P → Bool) (x 
         deliver x r i).decided with
     | none => exact ⟨r, Nat.lt_succ_self r, hprev, h⟩
     | some w =>
-      have hw := omission_irrevocable leader deliver x (Nat.le_succ r) i w hprev
-      have heq : w = val := Option.some.inj (hw.symm.trans h)
-      subst heq
-      obtain ⟨m, hm_lt, hmn, hms⟩ := omission_first_decision deliver x r i hprev
-      exact ⟨m, Nat.lt_succ_of_lt hm_lt, hmn, hms⟩
+      obtain rfl := Option.some.inj
+        ((omission_irrevocable leader deliver x r.le_succ i w hprev).symm.trans h)
+      exact (omission_first_decision deliver x r i hprev).imp fun _ hm =>
+        ⟨Nat.lt_succ_of_lt hm.1, hm.2⟩
 
 private theorem omission_decision_step_quorum [Fintype P] (hprocs : ∀ p : P, p ∈ procs)
     (hn : 2 * t < Fintype.card P) (deliver : ℕ → P → P → Bool) (x : P → V)

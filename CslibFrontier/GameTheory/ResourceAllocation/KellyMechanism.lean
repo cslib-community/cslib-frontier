@@ -177,9 +177,7 @@ marginal utility everywhere on `[0, ∞)`. -/
 theorem derivWithin_pos {u : ℝ → ℝ} (hu : IsAdmissibleUtility u) {x : ℝ} (hx : 0 ≤ x) :
     0 < derivWithin u (Ici 0) x := by
   have hx1 : (0 : ℝ) ≤ x + 1 := by linarith
-  have hlt : u x < u (x + 1) := hu.strictMonoOn hx hx1 (by linarith)
-  have hle := hu.le_add_derivWithin hx hx1
-  linarith
+  linarith [hu.strictMonoOn hx hx1 (by linarith), hu.le_add_derivWithin hx hx1]
 
 end IsAdmissibleUtility
 
@@ -322,13 +320,10 @@ private theorem exists_simplex_maximizer {G : KellyGame ι} (hC : 0 ≤ G.capaci
     {f : ι → ℝ → ℝ} (hcont : ∀ i, ContinuousOn (f i) (Icc 0 G.capacity)) :
     ∃ d, G.IsFeasibleAllocation d ∧
       ∀ x, G.IsFeasibleAllocation x → ∑ i, f i (x i) ≤ ∑ i, f i (d i) := by
-  have hobj : ContinuousOn (fun d : ι → ℝ => ∑ i, f i (d i))
-      {d : ι → ℝ | G.IsFeasibleAllocation d} :=
-    continuousOn_finsetSum _ fun i _ =>
+  obtain ⟨d, hd, hmax⟩ := isCompact_isFeasibleAllocation.exists_isMaxOn
+    (nonempty_feasibleAllocation hC) <| continuousOn_finsetSum _ fun i _ =>
       (hcont i).comp (continuous_apply i).continuousOn fun d hd =>
         ⟨hd.1 i, G.isFeasibleAllocation_le_capacity hd i⟩
-  obtain ⟨d, hd, hmax⟩ := isCompact_isFeasibleAllocation.exists_isMaxOn
-    (nonempty_feasibleAllocation hC) hobj
   exact ⟨d, hd, fun x hx => hmax hx⟩
 
 private theorem sum_comp_update_eq [DecidableEq ι] (g : ι → ℝ → ℝ) (d : ι → ℝ)
@@ -363,15 +358,13 @@ private theorem simplex_maximizer_sum_eq_capacity [Nonempty ι] {G : KellyGame �
     · have := sum_comp_update_eq (fun _ t => t) d i₀ (d i₀ + δ)
       linarith
   have hdi₀ : d i₀ ∈ Icc 0 G.capacity := ⟨hd.1 i₀, G.isFeasibleAllocation_le_capacity hd i₀⟩
-  have hxi₀ : d i₀ + δ ∈ Icc 0 G.capacity := by
-    have := Finset.add_sum_erase Finset.univ d (Finset.mem_univ i₀)
-    have : 0 ≤ ∑ j ∈ Finset.univ.erase i₀, d j := Finset.sum_nonneg fun j _ => hd.1 j
-    exact ⟨by linarith [hd.1 i₀],
-      by linarith⟩
-  have hstrict : ∑ i, f i (d i) < ∑ i, f i (x i) := by
-    rw [sum_comp_update_eq f d i₀ (d i₀ + δ)]
-    linarith [hmono i₀ hdi₀ hxi₀ (by linarith : d i₀ < d i₀ + δ)]
-  exact (hmax x hx_feas).not_gt hstrict
+  have hxi₀ : d i₀ + δ ∈ Icc 0 G.capacity :=
+    ⟨by linarith [hd.1 i₀],
+      by linarith [Finset.add_sum_erase Finset.univ d (Finset.mem_univ i₀),
+        Finset.sum_nonneg (s := Finset.univ.erase i₀) fun j _ => hd.1 j]⟩
+  have hle := hmax x hx_feas
+  rw [sum_comp_update_eq f d i₀ (d i₀ + δ)] at hle
+  linarith [hmono i₀ hdi₀ hxi₀ (by linarith : d i₀ < d i₀ + δ)]
 
 /-- Pairwise first-order optimality condition on the simplex: at a social optimum `d`, if user `i`
 receives positive allocation `d i > 0`, shifting infinitesimal capacity from `i` to `j` cannot
@@ -458,10 +451,8 @@ private theorem simplex_variational_of_kkt {G : KellyGame ι}
       ≤ ∑ i, μ * (x i - d i) := by
         refine Finset.sum_le_sum fun i _ => ?_
         rcases eq_or_lt_of_le (hd0 i) with h0 | hpos
-        · have hle' := hle i
-          rw [← h0] at hle' ⊢
-          rw [sub_zero]
-          exact mul_le_mul_of_nonneg_right hle' (hx.1 i)
+        · rw [← h0, sub_zero]
+          exact mul_le_mul_of_nonneg_right (h0 ▸ hle i) (hx.1 i)
         · rw [heq i hpos]
     _ = μ * (∑ i, x i - ∑ i, d i) := by
         rw [← Finset.mul_sum, Finset.sum_sub_distrib]
@@ -598,26 +589,21 @@ theorem exists_isCompetitiveEquilibrium [Nonempty ι] {G : KellyGame ι} (hC : 0
     ∃ w μ, G.IsCompetitiveEquilibrium w μ ∧ G.IsSocialOptimum (G.allocation w) := by
   obtain ⟨d, hd, hmax⟩ := exists_simplex_maximizer hC.le fun i =>
     (hU i).continuousOn.mono fun _ hz => hz.1
-  have hopt : G.IsSocialOptimum d := ⟨hd, hmax⟩
-  obtain ⟨_, hsum, μ, hμ, hle, heq⟩ := (isSocialOptimum_iff_kkt hC hU).mp hopt
+  obtain ⟨_, hsum, μ, hμ, hle, heq⟩ := (isSocialOptimum_iff_kkt hC hU).mp ⟨hd, hmax⟩
   set w : ι → ℝ := fun i => μ * d i
   have hw : ∀ i, 0 ≤ w i := fun i => mul_nonneg hμ.le (hd.1 i)
   have hprice : μ = G.price w := by
     simp only [price, w, ← Finset.mul_sum, hsum, mul_div_cancel_right₀ _ hC.ne']
   have hce : G.IsCompetitiveEquilibrium w μ := by
     refine ⟨hw, hμ, hprice, fun i t ht => ?_⟩
-    have hdiv : w i / μ = d i := mul_div_cancel_left₀ (d i) hμ.ne'
-    rw [hdiv]
+    rw [show w i / μ = d i from mul_div_cancel_left₀ (d i) hμ.ne']
     have htan := (hU i).le_add_derivWithin (hd.1 i) (div_nonneg ht hμ.le)
     have hprod : (derivWithin (G.utility i) (Ici 0) (d i) - μ) * (t / μ - d i) ≤ 0 := by
       rcases eq_or_lt_of_le (hd.1 i) with h0 | hpos
-      · have hle' := hle i
-        rw [← h0] at hle' ⊢
-        rw [sub_zero]
-        exact mul_nonpos_of_nonpos_of_nonneg (sub_nonpos.mpr hle') (div_nonneg ht hμ.le)
+      · rw [← h0, sub_zero]
+        exact mul_nonpos_of_nonpos_of_nonneg (sub_nonpos.mpr (h0 ▸ hle i)) (div_nonneg ht hμ.le)
       · rw [heq i hpos, sub_self, zero_mul]
-    have hμt : μ * (t / μ) = t := mul_div_cancel₀ t hμ.ne'
-    nlinarith [show w i = μ * d i from rfl]
+    nlinarith [mul_div_cancel₀ t hμ.ne', show w i = μ * d i from rfl]
   exact ⟨w, μ, hce, hce.isSocialOptimum hC⟩
 
 /-- When utilities are also strictly concave on `[0, ∞)`, the competitive equilibrium `(w, μ)` is
@@ -683,13 +669,11 @@ private theorem hasDerivWithinAt_integral_of_continuousOn {u : ℝ → ℝ} {C x
       (hu.stronglyMeasurableAtFilter_nhdsWithin measurableSet_Ici 0).filter_mono
         (nhdsWithin_mono 0 Ioi_subset_Ici_self)
     have hcont : ContinuousWithinAt u (Ioi 0) 0 := (hu 0 le_rfl).mono Ioi_subset_Ici_self
-    have hderiv :=
-      intervalIntegral.integral_hasDerivWithinAt_right (s := Ici 0) (t := Ioi 0) hint hmeas hcont
-    exact hderiv.mono fun _ hz => hz.1
-  · have hmeas : StronglyMeasurableAtFilter u (𝓝 x) := by
-      have h1 : StronglyMeasurableAtFilter u (𝓝[Ici 0] x) volume :=
+    exact (intervalIntegral.integral_hasDerivWithinAt_right (s := Ici 0) (t := Ioi 0)
+      hint hmeas hcont).mono fun _ hz => hz.1
+  · have hmeas : StronglyMeasurableAtFilter u (𝓝 x) :=
+      nhdsWithin_eq_nhds.mpr (Ici_mem_nhds hx_pos) ▸
         hu.stronglyMeasurableAtFilter_nhdsWithin measurableSet_Ici x
-      rwa [nhdsWithin_eq_nhds.mpr (Ici_mem_nhds hx_pos)] at h1
     have hcont : ContinuousAt u x := hu.continuousAt (Ici_mem_nhds hx_pos)
     exact (intervalIntegral.integral_hasDerivAt_right hint hmeas hcont).hasDerivWithinAt
 
@@ -748,9 +732,8 @@ theorem modifiedUtility_strictMonoOn {G : KellyGame ι} (hC : 0 < G.capacity) {i
     fun x hx => (hasDerivWithinAt_modifiedUtility hu hx).continuousWithinAt
   refine strictMonoOn_of_deriv_pos (convex_Icc 0 G.capacity) hcont fun x hx => ?_
   rw [interior_Icc] at hx
-  have hd := ((hasDerivWithinAt_modifiedUtility hu (Ioo_subset_Icc_self hx)).hasDerivAt
-    (Icc_mem_nhds hx.1 hx.2)).deriv
-  rw [hd]
+  rw [((hasDerivWithinAt_modifiedUtility hu (Ioo_subset_Icc_self hx)).hasDerivAt
+    (Icc_mem_nhds hx.1 hx.2)).deriv]
   exact mul_pos (by rw [sub_pos, div_lt_one hC]; exact hx.2) (hu.derivWithin_pos hx.1.le)
 
 end ModifiedUtility
@@ -829,20 +812,17 @@ private theorem concaveOn_propAlloc {C s : ℝ} (hC : 0 < C) (hs : 0 < s) :
   have hy0 : 0 ≤ y := mem_Ici.mp hy
   have hax : 0 ≤ a * x := mul_nonneg ha hx0
   have hby : 0 ≤ b * y := mul_nonneg hb hy0
+  have hxs : 0 < x + s := by linarith
+  have hys : 0 < y + s := by linarith
+  have habs : 0 < a * x + b * y + s := by linarith
   simp only [smul_eq_mul]
   have hdiff :
       C * (a * x + b * y) / (a * x + b * y + s) -
         (a * (C * x / (x + s)) + b * (C * y / (y + s))) =
       C * s * a * b * (x - y) ^ 2 / ((a * x + b * y + s) * (x + s) * (y + s)) := by
-    have : 0 < x + s := by linarith
-    have : 0 < y + s := by linarith
-    have : 0 < a * x + b * y + s := by linarith
     field_simp
     rw [show a = 1 - b by linarith]; ring
   have : 0 ≤ C * s * a * b * (x - y) ^ 2 / ((a * x + b * y + s) * (x + s) * (y + s)) := by
-    have : 0 < x + s := by linarith
-    have : 0 < y + s := by linarith
-    have : 0 < a * x + b * y + s := by linarith
     positivity
   linarith
 

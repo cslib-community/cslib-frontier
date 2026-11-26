@@ -168,26 +168,20 @@ private lemma cellAt_move (t : Tape) (m : SignType) (i : ℤ) :
   · simp [Tape.move, SignType.zero_eq_zero]
   · rw [show ((SignType.neg : SignType) : ℤ) = -1 by simp [SignType.neg_eq_neg_one]]
     rcases lt_trichotomy i 0 with hi | rfl | hi
-    · rw [cellAt_of_neg _ hi, cellAt_of_neg _ (by omega)]
-      simp only [Tape.move, getD_tail']
-      congr 1
-      omega
+    · rw [cellAt_of_neg _ hi, cellAt_of_neg _ (by omega), Tape.move, getD_tail',
+        show (-i - 1).toNat + 1 = (-(i + -1) - 1).toNat by omega]
     · simp only [cellAt, Tape.move]
       cases t.left <;> rfl
-    · rw [cellAt_of_nonneg _ hi.le, cellAt_of_nonneg _ (by omega)]
-      simp only [Tape.move]
-      rw [show i.toNat = (i + -1).toNat + 1 by omega, List.getD_cons_succ]
+    · rw [cellAt_of_nonneg _ hi.le, cellAt_of_nonneg _ (by omega), Tape.move,
+        show i.toNat = (i + -1).toNat + 1 by omega, List.getD_cons_succ]
   · rw [show ((SignType.pos : SignType) : ℤ) = 1 by simp [SignType.pos_eq_one]]
     rcases lt_trichotomy i (-1) with hi | rfl | hi
-    · rw [cellAt_of_neg _ (by omega), cellAt_of_neg _ (by omega)]
-      simp only [Tape.move]
-      rw [show (-i - 1).toNat = (-(i + 1) - 1).toNat + 1 by omega, List.getD_cons_succ]
+    · rw [cellAt_of_neg _ (by omega), cellAt_of_neg _ (by omega), Tape.move,
+        show (-i - 1).toNat = (-(i + 1) - 1).toNat + 1 by omega, List.getD_cons_succ]
     · simp only [cellAt, Tape.move, Tape.read]
       cases t.right <;> rfl
-    · rw [cellAt_of_nonneg _ (by omega), cellAt_of_nonneg _ (by omega)]
-      simp only [Tape.move, getD_tail']
-      congr 1
-      omega
+    · rw [cellAt_of_nonneg _ (by omega), cellAt_of_nonneg _ (by omega), Tape.move, getD_tail',
+        show (i + 1).toNat = i.toNat + 1 by omega]
 
 private lemma head_apply (t : Tape) (a : Option (Option ℕ) × SignType) :
     (t.apply a).head = t.head + a.2 := by
@@ -465,12 +459,8 @@ private lemma tr_comp {n r s : ℕ} (hn : r + s = n) {W I J : Tape} {F F₁ F₂
   refine ⟨by omega, by omega, fun z hz => ?_, a₂, fun z hz => ?_, fun hl => ?_, fun hr => ?_⟩
   · rw [h₂.real z (by omega), h₁.real z (by omega)]
   · rw [o₂ z (by omega), o₁ z (by omega)]
-  · have := l₁ (by omega)
-    have := l₂ (by omega)
-    omega
-  · have := r₁ (by omega)
-    have := r₂ (by omega)
-    omega
+  · linarith [l₁ (by omega), l₂ (by omega)]
+  · linarith [r₁ (by omega), r₂ (by omega)]
 
 /-! ### Correctness of the windowed simulation -/
 
@@ -842,10 +832,7 @@ theorem sim_cells (d : Desc) (S : Option ℕ → Prop) (h0 : S none)
       · exact htable e he
   | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     have hr : ∀ r w, (∀ W ∈ w.2, Cells S W) → ∀ W ∈ (extract r w).2, Cells S W :=
-      fun r w hw W hW => by
-        simp only [extract, List.mem_map] at hW
-        obtain ⟨W, hW, rfl⟩ := hW
-        exact cells_cut (hw W hW) r
+      fun r w hw => List.forall_mem_map.2 fun W hW => cells_cut (hw W hW) r
     have hp : ∀ r o i, (∀ W ∈ o.2, Cells S W) → (∀ W ∈ i.2, Cells S W) →
         ∀ W ∈ (restore r o i).2, Cells S W := fun r o i ho hi W hW => by
       obtain ⟨k, hk⟩ := List.mem_iff_getElem?.1 hW

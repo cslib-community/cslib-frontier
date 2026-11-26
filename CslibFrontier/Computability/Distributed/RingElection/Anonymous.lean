@@ -397,10 +397,8 @@ private theorem step_shift_eq {n : ℕ} [NeZero n] (e : AnonEvent n) (k : Fin n)
       · exact update_shift cfg.node t k _ i
       · dsimp only [AnonAsyncConfig.shift]
         have h1 : (Function.update (fun j => cfg.chanSucc (j + k)) (t - 1) rest) =
-            fun j => Function.update cfg.chanSucc (t + k - 1) rest (j + k) := by
-          funext j
-          rw [← hpred]
-          exact update_shift cfg.chanSucc (t - 1) k rest j
+            fun j => Function.update cfg.chanSucc (t + k - 1) rest (j + k) :=
+          funext fun j => hpred ▸ update_shift cfg.chanSucc (t - 1) k rest j
         rw [h1]
         exact update_shift (Function.update cfg.chanSucc (t + k - 1) rest) t k _ i
       · exact update_shift cfg.chanPred t k _ i
@@ -415,10 +413,8 @@ private theorem step_shift_eq {n : ℕ} [NeZero n] (e : AnonEvent n) (k : Fin n)
       · exact update_shift cfg.chanSucc t k _ i
       · dsimp only [AnonAsyncConfig.shift]
         have h1 : (Function.update (fun j => cfg.chanPred (j + k)) (t + 1) rest) =
-            fun j => Function.update cfg.chanPred (t + k + 1) rest (j + k) := by
-          funext j
-          rw [← hsucc]
-          exact update_shift cfg.chanPred (t + 1) k rest j
+            fun j => Function.update cfg.chanPred (t + k + 1) rest (j + k) :=
+          funext fun j => hsucc ▸ update_shift cfg.chanPred (t + 1) k rest j
         rw [h1]
         exact update_shift (Function.update cfg.chanPred (t + k + 1) rest) t k _ i
 
@@ -670,28 +666,22 @@ private theorem step_counter_eq_dual {n : ℕ} [NeZero n] (t : Fin n)
       (funext fun i => by simp only [neg_neg])
       (funext fun i => by simp only [neg_neg])
   | cons m rest =>
+    dsimp only [reflectConfig]
     refine AnonAsyncConfig.ext (funext fun i => ?_) (funext fun i => ?_)
       (funext fun i => ?_)
-    · have h := (update_neg cfg.node (-t) (P.recvFromSucc (cfg.node t) m).nextState i).symm
-      rwa [neg_neg] at h
-    · have h :=
+    · simpa only [neg_neg] using
+        (update_neg cfg.node (-t) (P.recvFromSucc (cfg.node t) m).nextState i).symm
+    · simpa only [neg_neg] using
         (update_neg cfg.chanSucc (-t) (cfg.chanSucc t ++ (P.recvFromSucc (cfg.node t) m).toSucc)
           i).symm
-      rwa [neg_neg] at h
-    · dsimp only [reflectConfig]
-      have h1 : Function.update (fun j => cfg.chanPred (-j)) (-(t + 1)) rest =
-          fun j => Function.update cfg.chanPred (t + 1) rest (-j) := by
-        funext j
-        have := update_neg cfg.chanPred (-(t + 1)) rest (-j)
-        simpa only [neg_neg] using this
+    · have h1 : Function.update (fun j => cfg.chanPred (-j)) (-(t + 1)) rest =
+          fun j => Function.update cfg.chanPred (t + 1) rest (-j) :=
+        funext fun j => by simpa only [neg_neg] using update_neg cfg.chanPred (-(t + 1)) rest (-j)
       rw [h1]
-      dsimp only
-      rw [neg_neg]
-      have h :=
+      simpa only [neg_neg] using
         (update_neg (Function.update cfg.chanPred (t + 1) rest) (-t)
           (Function.update cfg.chanPred (t + 1) rest t ++ (P.recvFromSucc (cfg.node t) m).toPred)
           i).symm
-      rwa [neg_neg] at h
 
 private theorem enabled_counter_iff_dual {n : ℕ} [NeZero n] (t : Fin n)
     (cfg : AnonAsyncConfig n S M) :

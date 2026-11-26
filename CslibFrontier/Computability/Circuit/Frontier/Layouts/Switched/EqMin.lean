@@ -294,15 +294,12 @@ private theorem allEqual (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ}
   have hvv : ∀ i, ⟪v i, v i⟫ = 1 := fun i => by rw [real_inner_self_eq_norm_sq, hv i]; norm_num
   have e00 : ⟪e 0, e 0⟫ = 1 := by simpa using inner_e 0 0
   have hg : Fv v h = Fv (fun _ : Fin 3 => e 0) h := by
-    apply Fv_gram
-    intro i j
+    refine Fv_gram v _ (fun i j => ?_) h
     rw [e00]
-    have h10 : ⟪v 1, v 0⟫ = 1 := by rw [real_inner_comm]; exact h01
-    have h20 : ⟪v 2, v 0⟫ = 1 := by rw [real_inner_comm]; exact h02
-    have h21 : ⟪v 2, v 1⟫ = 1 := by rw [real_inner_comm]; exact h12
     fin_cases i <;> fin_cases j <;>
       simp only [Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk, Fin.isValue, hvv, h01, h02, h12,
-        h10, h20, h21]
+        real_inner_comm (v 0) (v 1) ▸ h01, real_inner_comm (v 0) (v 2) ▸ h02,
+        real_inner_comm (v 1) (v 2) ▸ h12]
   rw [hg]
   refine le_trans (planarProb_ge_eq (γ₀ := π) (γ₁ := π) Real.pi_pos.le le_rfl Real.pi_pos.le
     le_rfl) (le_of_eq ?_)
@@ -314,8 +311,6 @@ private theorem allEqual (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ}
   unfold Fv
   simp only [planarSet, Set.preimage, Set.mem_ofPred_eq, Real.cos_pi, Real.sin_pi, forall_const]
   set μ := stdGaussian E3
-  have hm : ∀ S : Set ℝ, MeasurableSet S → MeasurableSet {y : E3 | ⟪e 0, y⟫ ∈ S} :=
-    fun S hS => (by fun_prop : Measurable fun y : E3 => ⟪e 0, y⟫) hS
   -- `P(Z < h) - P(Z ≥ h) = P(-h < Z < h)`
   have hsym : μ.real {y : E3 | h ≤ ⟪e 0, y⟫} = μ.real {y : E3 | ⟪e 0, y⟫ ≤ -h} := by
     have hs : {y : E3 | ⟪e 0, y⟫ ≤ -h} = Neg.neg ⁻¹' {y : E3 | h ≤ ⟪e 0, y⟫} := by
@@ -500,17 +495,14 @@ private theorem eqMin_E3 (v : Fin 3 → E3) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ
     have h3 : ⟪v 1, v 2⟫ ≤ 1 := real_inner_le_one_of_norm_eq_one (hv 1) (hv 2)
     have heq : v 1 = v 0 ∧ v 2 = v 0 := by
       unfold Pot at hP
-      rcases le_total ⟪v 0, v 2⟫ ⟪v 1, v 2⟫ with ha | ha <;>
-        rcases le_total ⟪v 0, v 1⟫ (max ⟪v 0, v 2⟫ ⟪v 1, v 2⟫) with hb | hb
-      · rw [max_eq_right hb, max_eq_right ha] at hP
-        exact ⟨eq_of_inner_eq_one (hv 0) (hv 1) (by linarith only [h1, h2, hP]),
-          eq_of_inner_eq_one (hv 0) (hv 2) (by linarith only [h1, h2, hP])⟩
-      · rw [max_eq_left hb] at hP
-        have e2 := eq_of_inner_eq_one (hv 0) (hv 2) (by linarith only [h2, h3, hP])
-        exact ⟨(eq_of_inner_eq_one (hv 1) (hv 2) (by linarith only [h2, h3, hP])).symm.trans e2, e2⟩
-      · rw [max_eq_right hb, max_eq_left ha] at hP
-        have e1 := eq_of_inner_eq_one (hv 0) (hv 1) (by linarith only [h1, h3, hP])
-        exact ⟨e1, (eq_of_inner_eq_one (hv 1) (hv 2) (by linarith only [h1, h3, hP])).trans e1⟩
+      rcases le_total ⟪v 0, v 1⟫ (max ⟪v 0, v 2⟫ ⟪v 1, v 2⟫) with hb | hb
+      · rcases le_total ⟪v 0, v 2⟫ ⟪v 1, v 2⟫ with ha | ha
+        · rw [max_eq_right hb, max_eq_right ha] at hP
+          exact ⟨eq_of_inner_eq_one (hv 0) (hv 1) (by linarith only [h1, h2, hP]),
+            eq_of_inner_eq_one (hv 0) (hv 2) (by linarith only [h1, h2, hP])⟩
+        · rw [max_eq_right hb, max_eq_left ha] at hP
+          have e1 := eq_of_inner_eq_one (hv 0) (hv 1) (by linarith only [h1, h3, hP])
+          exact ⟨e1, (eq_of_inner_eq_one (hv 1) (hv 2) (by linarith only [h1, h3, hP])).trans e1⟩
       · rw [max_eq_left hb] at hP
         have e2 := eq_of_inner_eq_one (hv 0) (hv 2) (by linarith only [h2, h3, hP])
         exact ⟨(eq_of_inner_eq_one (hv 1) (hv 2) (by linarith only [h2, h3, hP])).symm.trans e2, e2⟩

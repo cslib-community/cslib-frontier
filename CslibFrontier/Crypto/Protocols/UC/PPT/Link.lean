@@ -334,17 +334,12 @@ private theorem runWith_wordHandle_lowerWith_eq_runWith_lowerWith_runFrom
   | liftBind q cont ih =>
     cases q with
     | inl k =>
-      change ProbOracleComp.runWith oracle
-          ((OracleComp.interpret H
-            (ProbOracleComp.lowerWith iE L
-              (ProbOracleComp.sample (ProbComp.unifFin k) >>= cont))).run (cod.enc s0)) s =
-        (ProbOracleComp.runWith oracle
-          (ProbOracleComp.lowerWith iI p.replyBound
-            (m.runFrom (ProbOracleComp.sample (ProbComp.unifFin k) >>= cont) s0)) s).map
-          (fun x => ((x.1.1, cod.enc x.1.2), x.2))
-      rw [ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind, ProbOracleComp.simulate_sample,
-        Machine.runFrom_bind, Machine.runFrom_sample, ProbOracleComp.lowerWith,
-        ProbOracleComp.simulate_bind, ProbOracleComp.simulate_map, ProbOracleComp.simulate_sample]
+      have hk : PFunctor.FreeM.liftBind (Sum.inl k : ℕ ⊕ ιE) cont =
+          (ProbOracleComp.sample (ProbComp.unifFin k) >>= cont) := rfl
+      rw [hk, ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind,
+        ProbOracleComp.simulate_sample, Machine.runFrom_bind, Machine.runFrom_sample,
+        ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind, ProbOracleComp.simulate_map,
+        ProbOracleComp.simulate_sample]
       simp only [OracleComp.interpret_bind, StateT.run_bind, ProbOracleComp.interpret_sample,
         ProbComp.unifFin, OracleComp.interpret_query, H, StateT.run_lift,
         ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, ProbOracleComp.runWith_map,
@@ -352,17 +347,11 @@ private theorem runWith_wordHandle_lowerWith_eq_runWith_lowerWith_runFrom
         Function.comp_def, Prod.map_apply, id_eq]
       exact congrArg _ (funext fun a => ih a s0 s)
     | inr eQ =>
-      change ProbOracleComp.runWith oracle
-          ((OracleComp.interpret H
-            (ProbOracleComp.lowerWith iE L
-              (ProbOracleComp.query eQ >>= cont))).run (cod.enc s0)) s =
-        (ProbOracleComp.runWith oracle
-          (ProbOracleComp.lowerWith iI p.replyBound
-            (m.runFrom (ProbOracleComp.query eQ >>= cont) s0)) s).map
-          (fun x => ((x.1.1, cod.enc x.1.2), x.2))
-      rw [ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind, ProbOracleComp.simulate_query,
-        WordInterface.lowerQuery, Machine.runFrom_bind, Machine.runFrom_query,
-        ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind]
+      have hq_eq : PFunctor.FreeM.liftBind (Sum.inr eQ : ℕ ⊕ ιE) cont =
+          (ProbOracleComp.query eQ >>= cont) := rfl
+      rw [hq_eq, ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind,
+        ProbOracleComp.simulate_query, WordInterface.lowerQuery, Machine.runFrom_bind,
+        Machine.runFrom_query, ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind]
       have hwh : wordHandle M iI iE codec p (iE.channel eQ, iE.request eQ) (cod.enc s0) =
           (fun res => (iE.reply eQ res.1, cod.enc res.2)) <$>
             ProbOracleComp.lowerWith iI p.replyBound ((m.handle eQ).run s0) := by

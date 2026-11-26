@@ -441,7 +441,7 @@ example :
     let labels := C.criticalCoordinateFingerprintLabels (d := fun _ => 1) Decoder.nat
       (fun _ => 0) (fun _ => by decide) (fun _ => (totalDegree_X_le 0).trans (by decide))
       (.const 1) (.const 0) (.const 5) (.const 2) (.const (-1)) (fun _ => by decide)
-      (fun _ => by decide)
+      (.const 7) (fun _ => by decide) (fun _ => by decide)
     labels.evaluate ∈ CountingFunction 20 (encEvaluation encNat) encNat := by
   intro F C labels
   exact labels.evaluate_mem
@@ -456,17 +456,23 @@ example : ∃ word : List Bool, word.length = coordinateFingerprintWitnessWidth 
   obtain ⟨word, hw, hd⟩ := exists_coordinateFingerprintWitness f hf
   exact ⟨word, hw, hd 0, hd 1⟩
 
--- Both the raw witness word and the binary address are evaluator inputs.
-example :
+-- The word and address are evaluator inputs, but the bounds are shared by all addresses.
+example (w : List Bool) (j : ℕ) :
     let F : MvPolynomial (Fin 1) ℤ := X 0
     let C : Controlled (fun _ : List Bool => F) encBits 0 :=
       Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
-    let labels := C.wordCoordinateFingerprintLabels (d := fun _ => 1) Decoder.bits
+    let labels := C.wordCoordinateFingerprintTests (d := fun _ => 1) Decoder.bits
       (fun _ => by decide) (fun _ => by decide) (fun _ => (totalDegree_X_le 0).trans (by decide))
       (.const 1) id ComputableInPolyTime.id'
-    labels.evaluate ∈ CountingFunction 20 (encEvaluation (encPair encBits encNat)) encNat := by
+    labels.evaluate ∈ CountingFunction 20 (encEvaluation (encPair encBits encNat)) encNat ∧
+      labels.degreeBound (w, j) = labels.degreeBound (w, 0) ∧
+      labels.massExponent (w, j) = labels.massExponent (w, 0) ∧
+      labels.cutoff (w, j) = labels.cutoff (w, 0) := by
   intro F C labels
-  exact labels.evaluate_mem
+  exact ⟨labels.evaluate_mem, C.wordCoordinateFingerprintTests_bounds_eq
+    (n := fun _ : List Bool => 1) (d := fun _ => 1) Decoder.bits
+    (fun _ => by decide) (fun _ => by decide) (fun _ => (totalDegree_X_le 0).trans (by decide))
+    (.const 1) id ComputableInPolyTime.id' w j⟩
 
 -- Lifting the single variable to coordinate 1 reads the second input with zero padding.
 example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
@@ -501,8 +507,8 @@ example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
   rw [List.getD_eq_getElem?_getD]
   rfl
 
--- Row zero reads the source even though the family also contains its coordinate equations.
-example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
+-- The cutoff at any binary address suffices to evaluate the source at row zero.
+example (w j p : ℕ) (z : List ℕ) (hp : p.Prime) :
     let F : MvPolynomial (Fin 1) ℤ := X 0
     let C : Controlled (fun _ : ℕ => F) encNat 0 :=
       Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
@@ -510,10 +516,14 @@ example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
       (fun _ => by decide) (fun _ => by decide) (fun _ => (totalDegree_X_le 0).trans (by decide))
       (.const 1)
     rows.evaluate ∈ CountingFunction 18 (encEvaluation (encPair encNat encNat)) encNat ∧
-      (rows.cutoff (w, 0) < p → rows.evaluate ((w, 0), p, z) = z.getD 0 0 % p) := by
+      (rows.cutoff (w, j) < p → rows.evaluate ((w, 0), p, z) = z.getD 0 0 % p) := by
   intro F C rows
   refine ⟨rows.evaluate_mem, fun hcut => ?_⟩
-  rw [rows.evaluate_eq (w, 0) p z hp hcut, selectionEquation_zero]
+  obtain ⟨_, _, hc⟩ := C.selectionEquations_bounds_eq
+    (n := fun _ : ℕ => 1) (d := fun _ => 1) Decoder.nat
+    (fun _ => by decide) (fun _ => by decide) (fun _ => (totalDegree_X_le 0).trans (by decide))
+    (.const 1) w j
+  rw [rows.evaluate_eq (w, 0) p z hp (hc ▸ hcut), selectionEquation_zero]
   simp only [F, evaluation, MvPolynomial.eval₂_X, ZMod.val_natCast,
     List.getD_eq_getElem?_getD, Fin.val_zero]
 

@@ -226,10 +226,8 @@ theorem forall_holds_isoConstraints_iff (P : SimpleGraph (Fin p)) [DecidableRel 
       omega
     choose f hf using fun a => Finset.card_eq_one.1 (hone a)
     have hσ : ∀ a u, σ (isoVar t a u) = decide (f a = u) := fun a u => by
-      have := congrArg (u ∈ ·) (hf a)
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton,
-        eq_iff_iff] at this
-      rw [Bool.eq_iff_iff, decide_eq_true_eq, this, eq_comm]
+      rw [Bool.eq_iff_iff, decide_eq_true_eq]
+      simpa using (Finset.ext_iff.1 (hf a) u).trans (Finset.mem_singleton.trans eq_comm)
     have hinj' : Function.Injective f := fun a b hab => by
       have hle : (Finset.univ.filter fun a : Fin p => σ (isoVar t a (f b)) = true).card ≤ 1 := by
         have := card_true_add_card_false fun a : Fin p => σ (isoVar t a (f b))
@@ -298,17 +296,14 @@ private theorem isoName_inj {a u a' u' : ℕ} (h : isoName a u = isoName a' u') 
 
 private theorem isOPBName_isoName (a u : ℕ) : isOPBName (isoName a u) = true := by
   obtain ⟨d, ds, hd, -⟩ := Nat.exists_toDecimal_eq_cons a
-  have hc (c) (hc : c ∈ Nat.toDecimal a ++ '_' :: Nat.toDecimal u) : isNameChar c = true := by
-    rcases List.mem_append.1 hc with hc | hc
-    · simp [isNameChar, Char.isAlphanum, Nat.isDigit_of_mem_toDecimal hc]
-    · rcases List.mem_cons.1 hc with rfl | hc
-      · decide
-      · simp [isNameChar, Char.isAlphanum, Nat.isDigit_of_mem_toDecimal hc]
   rw [isOPBName, isoName, String.toList_ofList, hd, List.cons_append, List.cons_append]
-  simp only [Bool.and_eq_true, List.all_eq_true]
-  refine ⟨by decide, fun c hc' => hc c ?_⟩
-  rw [hd]
-  simpa using hc'
+  simp only [Bool.and_eq_true, List.all_eq_true, ← List.cons_append, ← hd, List.mem_append,
+    List.mem_cons]
+  refine ⟨by decide, fun c hc => ?_⟩
+  rcases hc with hc | rfl | hc
+  · simp [isNameChar, Char.isAlphanum, Nat.isDigit_of_mem_toDecimal hc]
+  · decide
+  · simp [isNameChar, Char.isAlphanum, Nat.isDigit_of_mem_toDecimal hc]
 
 private theorem isoVar_lt (a : Fin p) (u : Fin t) : isoVar t a u < p * t :=
   val_finProdFinEquiv_eq_isoVar a u ▸ (finProdFinEquiv (a, u)).isLt
@@ -337,13 +332,10 @@ private theorem lt_of_mem_varList_isoConstraints (P : SimpleGraph (Fin p)) [Deci
 /-- **CakePB's name of a variable**: the variable `xₐᵤ = t·a + u` is named `xa_u`. -/
 @[simp] theorem name_isoNames_isoVar (a : Fin p) (u : Fin t) :
     (isoNames p t).name (isoVar t a u) = isoName a u := by
-  have hlt := isoVar_lt a u
   have hd : isoVar t a u / t = a := by
-    rw [isoVar, Nat.mul_add_div (Fin.pos u), Nat.div_eq_of_lt u.isLt,
-      Nat.add_zero]
-  have hm : isoVar t a u % t = u := by
-    rw [isoVar, Nat.mul_add_mod, Nat.mod_eq_of_lt u.isLt]
-  simp [Names.name, Names.nameChars, isoNames, hlt, hd, hm]
+    rw [isoVar, Nat.mul_add_div (Fin.pos u), Nat.div_eq_of_lt u.isLt, Nat.add_zero]
+  have hm : isoVar t a u % t = u := by rw [isoVar, Nat.mul_add_mod, Nat.mod_eq_of_lt u.isLt]
+  simp [Names.name, Names.nameChars, isoNames, isoVar_lt a u, hd, hm]
 
 /-- **CakePB's names cover the encoding** (`Cslib.Logic.PL.VeriPB.Text.Names.Covers`): they are
 distinct OPB names, and every variable of the encoding is named, `xa_u`. -/

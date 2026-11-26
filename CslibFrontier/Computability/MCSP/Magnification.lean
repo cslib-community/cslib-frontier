@@ -490,28 +490,23 @@ private theorem isMergedCert_iff_isSubcubeCert {n s : ℕ} {f : BooleanFunction 
     (hw₀ : IsSubcubeCert n s f (p ++ [false]) w₀)
     (hw₁ : IsSubcubeCert n s f (p ++ [true]) w₁) :
     IsMergedCert n s p w₀ w₁ w ↔ IsSubcubeCert n s f p w := by
+  have hrhs (x : BitString n) (hx : p.isPrefixOf (List.ofFn x) = true) :
+      (if (List.ofFn x).getD p.length false then evalCertificate n s w₁ (List.ofFn x)
+        else evalCertificate n s w₀ (List.ofFn x)) = f x := by
+    have hlen : p.length < (List.ofFn x).length := by simpa using hp
+    cases hb : (List.ofFn x).getD p.length false <;> simp only [Bool.false_eq_true, ↓reduceIte]
+    · exact hw₀.2.2 x ((isPrefixOf_append_singleton hlen).2 ⟨hx, hb⟩)
+    · exact hw₁.2.2 x ((isPrefixOf_append_singleton hlen).2 ⟨hx, hb⟩)
   refine and_congr_right fun _ => and_congr_right fun _ => ⟨fun h x hx => ?_, fun h x hx => ?_⟩
   · have hpt := h (List.ofFn x) List.length_ofFn
     simp only [agreesOnPoint, hx, Bool.not_true, Bool.false_or, beq_iff_eq] at hpt
-    have hlen : p.length < (List.ofFn x).length := by simpa using hp
-    cases hb : (List.ofFn x).getD p.length false
-    · simp only [hb, Bool.false_eq_true, ↓reduceIte] at hpt
-      exact hpt.trans (hw₀.2.2 x ((isPrefixOf_append_singleton hlen).2 ⟨hx, hb⟩))
-    · simp only [hb, ↓reduceIte] at hpt
-      exact hpt.trans (hw₁.2.2 x ((isPrefixOf_append_singleton hlen).2 ⟨hx, hb⟩))
+    exact hpt.trans (hrhs x hx)
   · obtain ⟨y, rfl⟩ : ∃ y : BitString n, List.ofFn y = x :=
       ⟨BitString.ofList n x, BitString.ofFn_ofList hx⟩
-    have hlen : p.length < (List.ofFn y).length := by simpa using hp
-    simp only [agreesOnPoint, Bool.or_eq_true, Bool.not_eq_true', beq_iff_eq]
     cases hin : p.isPrefixOf (List.ofFn y)
-    · left; rfl
-    · right
-      rw [h y hin]
-      cases hb : (List.ofFn y).getD p.length false
-      · simp only [Bool.false_eq_true, ↓reduceIte]
-        exact (hw₀.2.2 y ((isPrefixOf_append_singleton hlen).2 ⟨hin, hb⟩)).symm
-      · simp only [↓reduceIte]
-        exact (hw₁.2.2 y ((isPrefixOf_append_singleton hlen).2 ⟨hin, hb⟩)).symm
+    · simp [agreesOnPoint, hin]
+    · rw [agreesOnPoint, hrhs y hin, h y hin]
+      simp
 
 private theorem isMinMergedCert_iff_isMinSubcubeCert {n s : ℕ} {f : BooleanFunction n}
     {p w₀ w₁ w : List Bool} (hp : p.length < n)
@@ -567,10 +562,7 @@ private theorem mergeOk₀_append_subcubeState (n s : ℕ) (f : BooleanFunction 
         (subcubeState n s f (p ++ [true])))⟩ =
       (List.ofFn (subcubeState n s f (p ++ [false]))).getD 0 false := by
   simp only [mergeOk₀, List.ofFn_fin_append]
-  have hlen : 0 < (List.ofFn (subcubeState n s f (p ++ [false]))).length := by
-    rw [List.length_ofFn, stateWidth]
-    omega
-  exact List.getD_append _ _ _ _ hlen
+  exact List.getD_append _ _ _ _ (by rw [List.length_ofFn, stateWidth]; omega)
 
 private theorem mergeOk₁_append_subcubeState (n s : ℕ) (f : BooleanFunction n) (p : List Bool)
     (j : ℕ) :
@@ -588,9 +580,8 @@ private theorem mergeCert₀_append_subcubeState (n s : ℕ) (f : BooleanFunctio
         (subcubeState n s f (p ++ [true])))⟩ =
       (List.ofFn (subcubeState n s f (p ++ [false]))).drop 1 := by
   simp only [mergeCert₀, List.ofFn_fin_append]
-  have hlen : (List.ofFn (subcubeState n s f (p ++ [false]))).length = certLength n s + 1 :=
-    List.length_ofFn
-  rw [List.drop_append_of_le_length (by omega), List.take_left' (by simp [hlen])]
+  rw [List.drop_append_of_le_length (by rw [List.length_ofFn, stateWidth]; omega),
+    List.take_left' (by rw [List.length_drop, List.length_ofFn, stateWidth]; omega)]
 
 private theorem mergeCert₁_append_subcubeState (n s : ℕ) (f : BooleanFunction n) (p : List Bool)
     (j : ℕ) :
@@ -598,13 +589,10 @@ private theorem mergeCert₁_append_subcubeState (n s : ℕ) (f : BooleanFunctio
       List.ofFn (Fin.append (subcubeState n s f (p ++ [false]))
         (subcubeState n s f (p ++ [true])))⟩ =
       (List.ofFn (subcubeState n s f (p ++ [true]))).drop 1 := by
-  simp only [mergeCert₁, List.ofFn_fin_append]
-  have hdrop : stateWidth n s + 1 =
-      (List.ofFn (subcubeState n s f (p ++ [false]))).length + 1 := by simp
-  have hlen1 : (List.ofFn (subcubeState n s f (p ++ [true]))).length = certLength n s + 1 :=
-    List.length_ofFn
-  rw [hdrop, List.drop_append, List.drop_eq_nil_of_le (by omega), List.nil_append,
-    Nat.add_sub_cancel_left, List.take_of_length_le (by simp [hlen1])]
+  simp only [mergeCert₁, List.ofFn_fin_append, List.drop_append]
+  rw [List.length_ofFn, List.drop_eq_nil_of_le (by rw [List.length_ofFn]; omega), List.nil_append,
+    Nat.add_sub_cancel_left,
+    List.take_of_length_le (by rw [List.length_drop, List.length_ofFn, stateWidth]; omega)]
 
 /-- The multi-output merge step obtained by hardwiring the header `⟨n, s, p, j⟩` into the
 slices of a language `L` for each output bit `j : Fin (stateWidth n s)`. When `L` encodes

@@ -121,13 +121,11 @@ noncomputable def ogd (proj : E → E) (η : ℕ → ℝ) (grad : ℕ → E → 
 
 variable {K : Set E} {proj : E → E} {η : ℕ → ℝ} {grad : ℕ → E → E} {x₀ : E}
 
-@[simp] theorem ogd_zero : ogd proj η grad x₀ 0 = x₀ := by
-  rw [ogd]
+@[simp] theorem ogd_zero : ogd proj η grad x₀ 0 = x₀ := by rfl
 
 theorem ogd_succ (t : ℕ) :
     ogd proj η grad x₀ (t + 1) =
-      proj (ogd proj η grad x₀ t - η t • grad t (ogd proj η grad x₀ t)) := by
-  rw [ogd]
+      proj (ogd proj η grad x₀ t - η t • grad t (ogd proj η grad x₀ t)) := by rfl
 
 theorem ogd_mem (hP : IsPythagoreanProjection K proj) (hx₀ : x₀ ∈ K) (t : ℕ) :
     ogd proj η grad x₀ t ∈ K := by
@@ -404,8 +402,7 @@ theorem norm_sub_le_of_strongConvex {f : E → ℝ} {g : E → E} {G α : ℝ} (
   rw [le_div_iff₀ hα]
   rcases (norm_nonneg (x - y)).eq_or_lt with h0 | hpos
   · rw [← h0, zero_mul]
-    have := (norm_nonneg (g x)).trans (hG x hx)
-    linarith
+    linarith [(norm_nonneg (g x)).trans (hG x hx)]
   · nlinarith
 
 /-- **Logarithmic regret for strongly convex losses** [Hazan2022, Theorem 3.3]: if every loss
@@ -449,13 +446,7 @@ theorem ogd_regret_le_log {f : ℕ → E → ℝ} (hP : IsPythagoreanProjection 
       push_cast
       linarith
   have hH : ∑ t ∈ range T, 1 / ((t : ℝ) + 1) ≤ 1 + log T := by
-    have h := harmonic_le_one_add_log T
-    have e : ((harmonic T : ℚ) : ℝ) = ∑ t ∈ range T, 1 / ((t : ℝ) + 1) := by
-      rw [harmonic]
-      push_cast
-      simp only [one_div]
-    rw [← e]
-    exact_mod_cast h
+    simpa [harmonic] using harmonic_le_one_add_log T
   have hnn : 0 ≤ α * T * ‖x T - u‖ ^ 2 := by positivity
   have hGα : 0 ≤ G ^ 2 / α := by positivity
   rw [show G ^ 2 / (2 * α) * (1 + log T) = G ^ 2 / α * (1 + log T) / 2 by ring]

@@ -33,8 +33,8 @@ namespace Fin
 theorem sum_eq_sum_range_of_eq_zero {M : Type*} [AddCommMonoid M] {n k : ℕ} (hk : k ≤ n)
     (f : ℕ → M) (hf : ∀ j, k ≤ j → f j = 0) :
     ∑ j : Fin n, f j = ∑ j ∈ range k, f j := by
-  rw [Fin.sum_univ_eq_sum_range f n, ← Finset.sum_range_add_sum_Ico _ hk]
-  rw [Finset.sum_eq_zero (s := Ico k n) fun j hj => hf j (Finset.mem_Ico.1 hj).1, add_zero]
+  rw [Fin.sum_univ_eq_sum_range f n, ← Finset.sum_range_add_sum_Ico _ hk,
+    Finset.sum_eq_zero (s := Ico k n) fun j hj => hf j (Finset.mem_Ico.1 hj).1, add_zero]
 
 /-- The differences within indexed pairs and across consecutive pairs telescope
 to the difference from the first entry to the last exit. -/
@@ -73,12 +73,11 @@ theorem sum_univ_smul_by_parts_prefix {R M : Type*} [Ring R] [AddCommGroup M] [M
         ← sum_neg_distrib, ← Fin.sum_univ_eq_sum_range _ n]
       congr 1
       refine sum_congr rfl fun i _ => ?_
-      have hcast : Fin.ofNat (n + 1) i.val = i.castSucc := hofNat i.castSucc
-      have hsucc : Fin.ofNat (n + 1) (i.val + 1) = i.succ := hofNat i.succ
       have hi := hprefix i.castSucc
       simp only [Fin.val_castSucc] at hi
       rw [hi]
-      simp only [g, hcast, hsucc, ← smul_neg, neg_sub]
+      simp only [g, show Fin.ofNat (n + 1) i.val = i.castSucc from hofNat i.castSucc,
+        show Fin.ofNat (n + 1) (i.val + 1) = i.succ from hofNat i.succ, ← smul_neg, neg_sub]
 
 /-- Summation by parts on a finite vector using tail sums and successive differences. -/
 theorem sum_univ_smul_by_parts_tail {R M : Type*} [Ring R] [AddCommGroup M] [Module R M]
@@ -94,13 +93,9 @@ theorem sum_univ_smul_by_parts_tail {R M : Type*} [Ring R] [AddCommGroup M] [Mod
       (∑ j ∈ Iic i.castSucc, a j.rev) = ∑ j ∈ Ici i.rev.succ, a j := by
     rw [← rev_castSucc, ← map_revPerm_Iic i.castSucc, Finset.sum_map]
     rfl
-  have hrev (i : Fin (n + 1)) : revPerm i = i.rev := rfl
-  simp only [Function.comp_apply, hrev] at h
-  rw [hs, htotal, rev_last] at h
-  simp only [htail, rev_castSucc, rev_succ] at h
-  rw [h]
-  congr 1
-  exact Equiv.sum_comp revPerm
-    (fun i => (∑ j ∈ Ici i.succ, a j) • (b i.succ - b i.castSucc))
+  simp only [Function.comp_apply, show ∀ i : Fin (n + 1), revPerm i = i.rev from fun _ => rfl,
+    hs, htotal, rev_last, htail, rev_castSucc, rev_succ] at h
+  exact h.trans (congrArg ((∑ i, a i) • b 0 + ·)
+    (Equiv.sum_comp revPerm fun i => (∑ j ∈ Ici i.succ, a j) • (b i.succ - b i.castSucc)))
 
 end Fin

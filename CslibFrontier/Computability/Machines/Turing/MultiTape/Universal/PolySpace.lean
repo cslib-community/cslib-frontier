@@ -197,14 +197,12 @@ theorem exists_simSpace_le_and_universal_eq_true_iff (s : ℕ) (out : List ℕ) 
     (∃ t, simSpace d x t ≤ s ∧ universal (d, x, t) = (out, true)) ↔
       (simSpace d x T ≤ s ∧ universal (d, x, T) = (out, true)) := by
   refine ⟨fun ⟨t, hsp, ht⟩ => ?_, fun h => ⟨T, h⟩⟩
-  have hhalt : (universal (d, x, t)).2 = true := by rw [ht]
   obtain ⟨t₀, ht₀_le, ht₀_sp, ht₀_eq⟩ :=
-    exists_simSpace_le_and_universal_le_two_pow d x hsp hhalt hb
+    exists_simSpace_le_and_universal_le_two_pow d x hsp (by rw [ht]) hb
   have ht₀_halt : (universal (d, x, t₀)).2 = true := by rw [ht₀_eq, ht]
-  have ht₀_state : (run d x t₀).state = none := Option.isNone_iff_eq_none.mp ht₀_halt
   have hT_le : t₀ ≤ T := ht₀_le.trans hT
-  exact ⟨simSpace_eq_of_state_eq_none d x ht₀_state hT_le ▸ ht₀_sp,
-    by rw [universal_eq_of_snd d x ht₀_halt hT_le, ht₀_eq, ht]⟩
+  exact ⟨simSpace_eq_of_state_eq_none d x (Option.isNone_iff_eq_none.mp ht₀_halt) hT_le ▸ ht₀_sp,
+    (universal_eq_of_snd d x ht₀_halt hT_le).trans (ht₀_eq.trans ht)⟩
 
 /-! ### Configuration-count clock and polynomial-space certificate for `budgetedUniversal` -/
 
@@ -289,10 +287,9 @@ theorem exists_budgetedUniversal_eq_true_iff (out : List ℕ) {T : ℕ} (hT : 2 
     (∃ t, budgetedUniversal (d, x, t, b) = (out, true)) ↔
       budgetedUniversal (d, x, T, b) = (out, true) := by
   refine ⟨fun ⟨t, ht⟩ => ?_, fun h => ⟨T, h⟩⟩
-  have hhalt : (budgetedUniversal (d, x, t, b)).2 = true := by rw [ht]
-  obtain ⟨t₀, ht₀_le, ht₀_eq⟩ := exists_budgetedUniversal_le_two_pow d x b hhalt
-  rw [← ht, ← ht₀_eq]
-  exact budgetedUniversal_eq_of_le_of_snd d x b (by rw [ht₀_eq, ht]) (ht₀_le.trans hT)
+  obtain ⟨t₀, ht₀_le, ht₀_eq⟩ := exists_budgetedUniversal_le_two_pow d x b (by rw [ht])
+  exact (budgetedUniversal_eq_of_le_of_snd d x b (by rw [ht₀_eq, ht])
+    (ht₀_le.trans hT)).trans (ht₀_eq.trans ht)
 
 private lemma listMax_le_length_encList_encUnary (x : List ℕ) :
     x.foldr max 0 ≤ (encList encUnary x).length := by
@@ -393,11 +390,7 @@ theorem visited_eq_Icc_boundsAt (j : ℕ) {i : ℕ} (hi : i < d.tapes) :
       -(((boundsAt d x j).getD i (0, 0)).1 : ℤ) ≤ headAt d x j i ∧
       headAt d x j i ≤ (((boundsAt d x j).getD i (0, 0)).2 : ℤ) := by
   induction j with
-  | zero =>
-    have hget : (boundsAt d x 0).getD i (0, 0) = (0, 0) := by
-      simp [boundsAt, initBounds, hi]
-    rw [hget, headAt_zero]
-    simp [visited, headAt_zero]
+  | zero => simp [boundsAt, initBounds, hi, visited, headAt_zero]
   | succ j ih =>
     obtain ⟨hvis, hlo, hhi⟩ := ih
     have hget : (boundsAt d x (j + 1)).getD i (0, 0) =
@@ -416,9 +409,7 @@ theorem visited_eq_Icc_boundsAt (j : ℕ) {i : ℕ} (hi : i < d.tapes) :
     set h' := headAt d x (j + 1) i
     have hl' : -((max l (-h').toNat : ℕ) : ℤ) = min (-(l : ℤ)) h' := by omega
     have hr' : ((max r h'.toNat : ℕ) : ℤ) = max (r : ℤ) h' := by omega
-    rw [hget]
-    dsimp only
-    rw [visited_succ, hvis, insert_Icc_of_step ⟨hlo, hhi⟩ hstep, hl', hr']
+    rw [hget, visited_succ, hvis, insert_Icc_of_step ⟨hlo, hhi⟩ hstep, hl', hr']
     exact ⟨rfl, by omega, by omega⟩
 
 theorem card_visited_eq_boundsAt (j : ℕ) {i : ℕ} (hi : i < d.tapes) :
@@ -635,16 +626,14 @@ theorem computableInPolyTime_keepTwo :
 @[fun_prop]
 theorem computableInPolyTime_initBounds :
     ComputableInPolyTime initBounds eDesc eBounds := by
-  unfold initBounds eBounds
-  fun_prop
+  fun_prop [initBounds, eBounds]
 
 /-- `updateBounds` is computable in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_updateBounds :
     ComputableInPolyTime (fun p : List Tape × List (ℕ × ℕ) => updateBounds p.1 p.2)
       (encPair (encList eTape) eBounds) eBounds := by
-  unfold updateBounds eBounds
-  fun_prop
+  fun_prop [updateBounds, eBounds]
 
 /-- `boundsSpace` is computable in polynomial time. -/
 @[fun_prop]
@@ -657,8 +646,7 @@ theorem computableInPolyTime_boundsSpace :
 @[fun_prop]
 theorem computableInPolyTime_spaceLoopInit :
     ComputableInPolyTime spaceLoopInit eInS eSpaceLoopState := by
-  unfold spaceLoopInit
-  fun_prop
+  fun_prop [spaceLoopInit]
 
 /-- `spaceLoopStep` is computable in polynomial time on `eSpaceLoopState`. -/
 @[fun_prop]

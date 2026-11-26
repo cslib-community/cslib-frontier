@@ -192,23 +192,20 @@ theorem Formula.mul_le_leafSize (F : Formula signature n) {s₀ s₁ : ℕ}
     s₀ * s₁ ≤ F.leafSize := by
   rcases B.eq_empty_or_nonempty with rfl | hBne
   · obtain ⟨a, ha⟩ := hAne
-    have := h₁ a ha
-    simp only [filter_empty, card_empty, Nat.le_zero] at this
-    simp [this]
-  have e₁ : #A • s₁ ≤ #(hammingEdges A B) := by
-    rw [card_hammingEdges_eq_sum_card_filter]
-    exact card_nsmul_le_sum _ _ _ h₁
-  have e₀ : #B • s₀ ≤ #(hammingEdges A B) := by
-    rw [card_hammingEdges_comm, card_hammingEdges_eq_sum_card_filter]
-    exact card_nsmul_le_sum _ _ _ h₀
-  rw [smul_eq_mul] at e₁ e₀
-  have := F.sq_card_hammingEdges_le hA hB
+    have h0 : s₁ = 0 := by simpa using h₁ a ha
+    simp [h0]
+  have e₁ : #A * s₁ ≤ #(hammingEdges A B) := by
+    simpa only [smul_eq_mul, card_hammingEdges_eq_sum_card_filter] using
+      card_nsmul_le_sum A _ s₁ h₁
+  have e₀ : #B * s₀ ≤ #(hammingEdges A B) := by
+    rw [card_hammingEdges_comm, card_hammingEdges_eq_sum_card_filter, ← smul_eq_mul]
+    exact card_nsmul_le_sum B _ s₀ h₀
   have hpos : 0 < #A * #B := Nat.mul_pos (card_pos.2 hAne) (card_pos.2 hBne)
   refine Nat.le_of_mul_le_mul_right ?_ hpos
   calc s₀ * s₁ * (#A * #B) = (#B * s₀) * (#A * s₁) := by ring
     _ ≤ #(hammingEdges A B) * #(hammingEdges A B) := Nat.mul_le_mul e₀ e₁
     _ = #(hammingEdges A B) ^ 2 := (sq _).symm
-    _ ≤ F.leafSize * #A * #B := this
+    _ ≤ F.leafSize * #A * #B := F.sq_card_hammingEdges_le hA hB
     _ = F.leafSize * (#A * #B) := by ring
 
 namespace Boolean
@@ -241,10 +238,8 @@ private theorem le_card_neighbors_weight_succ {k : ℕ} {b : BitString n}
     n - k ≤ #{a ∈ BitString.weightLayer n (k + 1) | hammingDist b a = 1} := by
   have hb' : BitString.weight b = k := BitString.mem_weightLayer.1 hb
   have hz : #(univ.filter fun j => ¬b j = true) = n - k := by
-    have := BitString.weight_not b
-    simp only [Fintype.card_fin, hb'] at this
-    rw [← this, BitString.weight]
-    simp
+    rw [← hb']
+    simpa [BitString.weight] using BitString.weight_not b
   calc n - k = #(univ.filter fun j => ¬b j = true) := hz.symm
     _ ≤ _ := card_le_card_of_injOn (fun i => update b i true) (fun i hi => by
         have hbi : b i = false := by simpa using (mem_filter.1 hi).2
@@ -347,11 +342,9 @@ theorem parityOn_consecutive_add (o a b : ℕ) (x : BitString n) :
     ext i
     simp only [mem_filter, mem_univ, true_and, mem_union]
     omega
-  rw [hsplit, parityOn_union]
-  rw [disjoint_left]
-  intro i hi hi'
-  simp only [mem_filter, mem_univ, true_and] at hi hi'
-  omega
+  rw [hsplit, parityOn_union (disjoint_left.2 fun i hi hi' => by
+    simp only [mem_filter, mem_univ, true_and] at hi hi'
+    omega)]
 
 /-- The parity of the single bit `o` is that bit. -/
 theorem parityOn_consecutive_one (o : ℕ) (h : o < n) (x : BitString n) :

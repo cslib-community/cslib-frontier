@@ -175,16 +175,13 @@ Tapp][BoyerBrassardHoyerTapp1998] (Lemma 2): if `sin 2θ > 0`, then
 `m ≥ 1 / sin 2θ`. -/
 theorem le_sum_sin_sq (θ : ℝ) (m : ℕ) (hθ : 0 < Real.sin (2 * θ)) :
     m / 2 - 1 / (4 * Real.sin (2 * θ)) ≤ ∑ j ∈ range m, Real.sin ((2 * j + 1) * θ) ^ 2 := by
-  have hcos := two_mul_sin_mul_sum_cos (2 * θ) m
   have hle : 2 * Real.sin (2 * θ) * ∑ j ∈ range m, Real.cos ((2 * j + 1) * (2 * θ)) ≤ 1 :=
-    hcos ▸ Real.sin_le_one _
-  rw [sum_sin_sq_eq]
+    two_mul_sin_mul_sum_cos (2 * θ) m ▸ Real.sin_le_one _
+  rw [sum_sin_sq_eq, show 4 * Real.sin (2 * θ) = 2 * Real.sin (2 * θ) * 2 by ring,
+    div_mul_eq_div_div]
   have : ∑ j ∈ range m, Real.cos ((2 * j + 1) * (2 * θ)) ≤ 1 / (2 * Real.sin (2 * θ)) := by
     rw [le_div_iff₀ (by positivity)]
     linarith
-  have h4 : 1 / (4 * Real.sin (2 * θ)) = 1 / (2 * Real.sin (2 * θ)) / 2 := by
-    field_simp
-    ring
   linarith
 
 /-- For `1 ≤ t < N` marked items and `c² N ≤ m²`, the range `m` is at least `c / sin 2θ`. -/
@@ -239,13 +236,11 @@ theorem slice_randomGroverInit (m : ℕ) (j : Fin m) :
   split_ifs <;> push_cast <;> ring
 
 theorem norm_randomGroverInit (hN : 0 < N) {m : ℕ} (hm : 0 < m) : ‖randomGroverInit N m‖ = 1 := by
-  have h : ‖randomGroverInit N m‖ ^ 2 = 1 := by
-    rw [norm_sq_eq_sum_slice]
-    simp only [slice_randomGroverInit, norm_smul, norm_uniform hN, mul_one,
-      Complex.norm_real, Real.norm_eq_abs, sq_abs, sum_const, card_univ, Fintype.card_fin,
-      nsmul_eq_mul, inv_pow, Real.sq_sqrt (Nat.cast_nonneg m)]
-    field_simp
-  exact (sq_eq_sq₀ (norm_nonneg _) zero_le_one).mp (by simpa using h)
+  rw [← sq_eq_sq₀ (norm_nonneg _) zero_le_one, one_pow, norm_sq_eq_sum_slice]
+  simp only [slice_randomGroverInit, norm_smul, norm_uniform hN, mul_one,
+    Complex.norm_real, Real.norm_eq_abs, sq_abs, sum_const, card_univ, Fintype.card_fin,
+    nsmul_eq_mul, inv_pow, Real.sq_sqrt (Nat.cast_nonneg m)]
+  field_simp
 
 /-- After `T ≥ m - 1` queries, the slice of `randomGrover` where the register holds `j` is the
 state of Grover's algorithm after `j` queries, parked and scaled by `1 / √m`. -/
@@ -264,10 +259,9 @@ theorem slice_run_randomGrover (hN : 0 < N) {m T : ℕ} (hT : m ≤ T + 1) (x : 
 theorem run_randomGrover_ctrl (hN : 0 < N) {m T : ℕ} (hT : m ≤ T + 1) (x : Fin N → Bool)
     (i : Fin N) (w : Unit × Fin m) :
     (run (randomGrover N m) (randomGroverInit N m) x T).ofLp (i, true, w) = 0 := by
-  have := congrArg (fun φ => φ.ofLp (i, true, w.1)) (slice_run_randomGrover hN hT x w.2)
-  simp only [slice_apply, PiLp.smul_apply, flipCtrl_apply, smul_eq_mul, Bool.not_true,
-    run_grover_of_weight hN, groverControl_mk, Bool.false_eq_true, ite_false, mul_zero] at this
-  exact this
+  simpa only [slice_apply, PiLp.smul_apply, flipCtrl_apply, smul_eq_mul, Bool.not_true,
+    run_grover_of_weight hN, groverControl_mk, Bool.false_eq_true, ite_false, mul_zero] using
+    congrArg (fun φ => φ.ofLp (i, true, w.1)) (slice_run_randomGrover hN hT x w.2)
 
 /-- **The success probability of a random number of iterations**: after `T ≥ m - 1` queries,
 `randomGrover` measures a marked item with probability
@@ -421,12 +415,10 @@ theorem abs_measureProb_run_orSearch_sub_le (hN : 0 < N) (x : Fin N → Bool) :
   -- `a` is a probability.
   have ha0 : 0 ≤ a := sum_nonneg fun i _ => by rw [regProb]; exact measureProb_nonneg _ _
   have ha1 : a ≤ 1 := by
-    have := measureProb_le_measureProb_univ
-      (run (orStage N) (randomGroverInit N (orRange N)) x (orRange N))
-      (univ.filter fun (_, b, _) => b = true)
-    rw [measureProb_univ, norm_run, norm_randomGroverInit hN (orRange_pos N), one_pow,
-      measureProb_run_orStage hN] at this
-    exact this
+    simpa only [measureProb_univ, norm_run, norm_randomGroverInit hN (orRange_pos N), one_pow,
+      measureProb_run_orStage hN] using measureProb_le_measureProb_univ
+        (run (orStage N) (randomGroverInit N (orRange N)) x (orRange N))
+        (univ.filter fun (_, b, _) => b = true)
   rw [hacc, threshold_one_right]
   by_cases hx : ∃ i, x i = true
   · -- `OR_N(x) = 1`: each stage succeeds with probability at least `7/16`.
@@ -445,10 +437,8 @@ theorem abs_measureProb_run_orSearch_sub_le (hN : 0 < N) (x : Fin N → Bool) :
     rw [abs_le]
     constructor <;> linarith [sq_nonneg (1 - a)]
   · -- `OR_N(x) = 0`: there is no marked item, so `a = 0`.
-    have h0 : a = 0 := by
-      rw [ha_def]
-      refine sum_eq_zero fun i hi => absurd ⟨i, (mem_filter.mp hi).2⟩ hx
-    simp [hx, h0]
+    rw [show a = 0 from sum_eq_zero fun i hi => absurd ⟨i, (mem_filter.mp hi).2⟩ hx]
+    simp only [hx, decide_false, bitVal_false]; norm_num
 
 /-- **An `O(√N)`-query algorithm for `OR_N` with error `1/3`**, matching the polynomial-method
 lower bound `N ≤ 16 T²` up to a constant: `orSearch` starts from a unit state, makes

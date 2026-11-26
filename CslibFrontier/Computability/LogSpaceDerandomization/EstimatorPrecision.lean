@@ -92,9 +92,8 @@ theorem precision_child_sub (K A : ℝ) (M m i i' : ℕ) {a a' u u' : ℝ}
 theorem precision_mono_budget {K A a u : ℝ} (hK : 0 < K) (i : ℕ) :
     Monotone fun M => precision K A M i a u := by
   intro M m hMm
-  have := div_le_div_of_nonneg_right (Nat.cast_le.2 hMm) hK.le
   unfold precision
-  linarith
+  linarith [div_le_div_of_nonneg_right (Nat.cast_le.2 hMm) hK.le]
 
 /-- Budget-zero tasks at rates in `(0, 1]` are inactive. -/
 theorem precision_zero_nonpos {K A a u : ℝ} (hA : 0 ≤ A) (ha : 0 < a) (ha1 : a ≤ 1)
@@ -139,9 +138,7 @@ theorem binNormCost_mul_accuracy {s : ℝ} (hs : s ≠ 0) (h : ℝ) :
 theorem source_cost_mul_accuracy {s r : ℝ} (hr : 0 < r) :
     r ^ (1 / s) * r ^ (-(1 / 2 : ℝ)) = r ^ (-scaleMargin s) := by
   rw [← Real.rpow_add hr]
-  refine congrArg _ ?_
-  unfold scaleMargin
-  ring
+  exact congrArg _ (by simp only [scaleMargin]; ring)
 
 /-- Resetting the source to a broader rate costs at most one after its precision gain, for every
 moment exponent strictly above two. -/
@@ -169,9 +166,7 @@ theorem child_cost_mul_accuracy {s K A a a' u u' : ℝ} (hs : s ≠ 0)
   have hg : (2 : ℝ) ^ (Real.logb 2 (u' / u) / s) * (2 : ℝ) ^ (-Real.logb 2 (u' / u) / 2) =
       (2 : ℝ) ^ (-scaleMargin s * Real.logb 2 (u' / u)) := by
     rw [← Real.rpow_add (by norm_num)]
-    refine congrArg _ ?_
-    unfold scaleMargin
-    ring
+    exact congrArg _ (by simp only [scaleMargin]; ring)
   rw [he, Real.rpow_add (by norm_num), Real.rpow_add (by norm_num)]
   calc _ = (binNormCost s (Real.logb 2 (a' / a)) * (2 : ℝ) ^ (-Real.logb 2 (a' / a) / 2)) *
         ((2 : ℝ) ^ (Real.logb 2 (u' / u) / s) * (2 : ℝ) ^ (-Real.logb 2 (u' / u) / 2)) *

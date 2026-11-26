@@ -497,10 +497,8 @@ private theorem attrIdx_lt (v : Attr k State) : attrIdx v < Fintype.card (Attr k
 /-- The index of a global gate position is strictly less than `globWidth k State`. -/
 theorem GlobLoc.idx_lt (l : GlobLoc k State) : l.idx < globWidth k State := by
   rcases l with ⟨j, i⟩ | ⟨v, j⟩ <;> simp only [GlobLoc.idx, globWidth]
-  · have := mul_add_lt_mul j.isLt i.isLt
-    omega
-  · have := mul_add_lt_mul (attrIdx_lt v) j.isLt
-    omega
+  · exact lt_of_lt_of_le (mul_add_lt_mul j.isLt i.isLt) (Nat.le_add_right _ _)
+  · simpa only [Nat.add_assoc] using Nat.add_lt_add_left (mul_add_lt_mul (attrIdx_lt v) j.isLt) _
 
 /-- Decoding the index of a global gate position recovers the position. -/
 theorem GlobLoc.ofIdx_idx (l : GlobLoc k State) : GlobLoc.ofIdx l.idx = l := by
@@ -618,19 +616,14 @@ private theorem colStart_add_lt {c : ℕ} (hc : c < numCols T) (f : ColFeat k)
 /-- A position lies within its block. -/
 theorem Loc.offset_lt {l : Loc k State} {c : ℕ} (hl : l.ColOK T c) :
     l.offset T c < blockSize k State T := by
-  have hgs : globStart k T ≤ gfStart k State T := Nat.le_add_right _ _
-  have hgc : gfStart k State T ≤ colStart k State T := Nat.le_add_right _ _
-  have hcb : colStart k State T ≤ blockSize k State T := Nat.le_add_right _ _
-  rcases l with l | l | ⟨f, b, j⟩ | ⟨f, b, j⟩ <;> simp only [Loc.offset] <;>
-    simp only [Loc.ColOK] at hl
-  · have := mul_add_lt_mul hl l.idx_lt
-    simp only [globStart] at hgs
+  rcases l with l | l | ⟨f, b, j⟩ | ⟨f, b, j⟩ <;> simp only [Loc.offset]
+  · have := scan_offset_lt_globStart hl l
+    simp only [blockSize, colStart, gfStart]
     omega
   · have := l.idx_lt
-    simp only [gfStart] at hgc
+    simp only [blockSize, colStart, gfStart]
     omega
-  · have := gfStart_add_gadgetIdx_lt (k := k) (T := T) f b j
-    omega
+  · exact lt_of_lt_of_le (gfStart_add_gadgetIdx_lt f b j) (Nat.le_add_right _ _)
   · exact colStart_add_lt hl f b j
 
 /-- Every position lies within its block, for a column of the window. -/
@@ -771,21 +764,16 @@ private theorem gadgetIdx_decode (m : ℕ) : gadgetIdx (m / 16) (gadgetB m) (gad
 /-- **Every gate after the constants sits at a position** of a block. -/
 theorem exists_wire_eq {n T g : ℕ} (hg₂ : 2 ≤ g) (hg : g < numGates k State T) :
     ∃ t ≤ T, ∃ (l : Loc k State) (c : ℕ), l.ColOK T c ∧ wire n T t l c - n = g := by
-  have hB : 0 < blockSize k State T := by
-    have := Loc.offset_lt_of_lt (k := k) (State := State) (l := .scan .nx) (T := T) (c := 0)
+  have hB : 0 < blockSize k State T := Nat.zero_lt_of_lt <|
+    Loc.offset_lt_of_lt (k := k) (State := State) (l := .scan .nx) (T := T) (c := 0)
       (by simp [numCols])
-    omega
   have hdm := Nat.div_add_mod' (g - 2) (blockSize k State T)
   set t := (g - 2) / blockSize k State T
   set r := (g - 2) % blockSize k State T
   have hr : r < blockSize k State T := Nat.mod_lt _ hB
   have hgr : g = 2 + t * blockSize k State T + r := by omega
-  have ht : t ≤ T := by
-    have h₁ : g - 2 < (T + 1) * blockSize k State T := by
-      simp only [numGates] at hg
-      omega
-    have : (g - 2) / blockSize k State T < T + 1 := (Nat.div_lt_iff_lt_mul hB).2 h₁
-    omega
+  have ht : t ≤ T := Nat.lt_succ_iff.mp <| (Nat.div_lt_iff_lt_mul hB).2
+    (show g - 2 < (T + 1) * blockSize k State T by simp only [numGates] at hg; omega)
   refine ⟨t, ht, ?_⟩
   have hsw := scanWidth_pos (k := k)
   have hcw : 0 < colWidth k := by simp only [colWidth]; omega

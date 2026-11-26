@@ -143,16 +143,11 @@ theorem dens_abs_sum_ite_mul_sign_gt_le (hh : IsTwoUniversal (PMF.uniformOfFinty
       exact ht
     rw [hempty, dens_empty, NNRat.cast_zero]
     norm_num
-  have ht0 : 0 < t := by
-    rcases ht.eq_or_lt with rfl | ht0
-    · have : (0 : ℝ) < 3 * V := by positivity
-      simp only [ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, mul_zero] at hw
-      linarith
-    · exact ht0
-  have hw0 : (0 : ℝ) < w := by
-    by_contra hw0
-    have : (w : ℝ) = 0 := le_antisymm (not_lt.1 hw0) (Nat.cast_nonneg w)
-    rw [this, zero_mul] at hw
+  have ht0 : 0 < t := ht.lt_of_ne' fun h0 => by
+    rw [h0, zero_pow two_ne_zero, mul_zero] at hw
+    linarith
+  have hw0 : (0 : ℝ) < w := (Nat.cast_nonneg w).lt_of_ne' fun h0 => by
+    rw [h0, zero_mul] at hw
     linarith
   set N := fun p : ι × κ => ∑ x ∈ S, if h p.1 x = h p.1 a then f x * ε (g p.2 x) else 0
   refine (Fintype.dens_lt_abs_le_expect_sq_div_sq N ht0).trans ?_

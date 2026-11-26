@@ -88,8 +88,8 @@ theorem exists_sole_leader_execution_crashStop [Finite Acceptor] {inputs : Propo
     cases hpr : (s₀.proposers p).round with
     | none => trivial
     | some r₀ =>
-      have hle : propBound ≤ r := le_max_left _ _
-      simpa only [propBound, hpr, Nat.succ_le_iff] using hle
+      simpa only [r, propBound, hpr, Nat.succ_le_iff] using
+        le_max_left propBound (max msgBound accBound)
   let s₁ := synodStep qs s₀ (.prepare p r)
   have htr_prep : (synodLts qs).Tr s₀ (.prepare p r) s₁ := ⟨⟨hp_live, hp_round_ok⟩, rfl⟩
   let ts : ωSequence (SynodState Proposer Acceptor Learner V) :=
@@ -155,10 +155,8 @@ theorem exists_sole_leader_execution_crashStop [Finite Acceptor] {inputs : Propo
       m ∈ (ss n).msgs → act ∈ soleLeaderMsgActs b p Q l m →
       ∃ j, n ≤ j ∧ xs j = act := by
     intro n m act hm hact_m
-    have hts_m : m ∈ (ts n).msgs := by
-      have hsub := hmsgs_mono (Nat.le_succ_of_le ((cumLen_strictMono hpos).id_le n))
-      have hss_eq : ss (xls.cumLen n + 1) = ts n := hcum n
-      exact (hss_eq ▸ hsub) hm
+    have hts_m : m ∈ (ts n).msgs :=
+      (hcum n ▸ hmsgs_mono (Nat.le_succ_of_le ((cumLen_strictMono hpos).id_le n))) hm
     have hmem : act ∈ soleLeaderSweep b p Q l (ts n) :=
       List.mem_append_left _ (List.mem_flatMap.mpr ⟨m, Finset.mem_toList.mpr hts_m, hact_m⟩)
     obtain ⟨i, hi, hget⟩ := List.mem_iff_getElem.mp hmem
@@ -170,16 +168,12 @@ theorem exists_sole_leader_execution_crashStop [Finite Acceptor] {inputs : Propo
       learner_live := fun n => (hss_inv n).2.2
       no_drop_ballot := fun n m hm => absurd hm ((hxs_nodel n).1 m)
       fair_phase1a := fun n hm a haQ =>
-        hex_fair n (.phase1a b) (.recvPhase1a a b) hm
-          (by simp only [soleLeaderMsgActs, ↓reduceIte]
-              exact List.mem_map_of_mem (Finset.mem_toList.mpr haQ))
+        hex_fair n (.phase1a b) (.recvPhase1a a b) hm (by simp [soleLeaderMsgActs, haQ])
       fair_phase1b := fun n a mv haQ hm =>
         hex_fair n (.phase1b a b mv) (.recvPhase1b p a b mv) hm
           (by simp only [soleLeaderMsgActs, true_and, haQ, ↓reduceIte, List.mem_singleton])
       fair_phase2a := fun n v hm a haQ =>
-        hex_fair n (.phase2a b v) (.recvPhase2a a b v) hm
-          (by simp only [soleLeaderMsgActs, ↓reduceIte]
-              exact List.mem_map_of_mem (Finset.mem_toList.mpr haQ))
+        hex_fair n (.phase2a b v) (.recvPhase2a a b v) hm (by simp [soleLeaderMsgActs, haQ])
       fair_phase2b := fun n a v haQ hm =>
         hex_fair n (.phase2b a b v) (.recvPhase2b l a b v) hm
           (by simp only [soleLeaderMsgActs, true_and, haQ, ↓reduceIte, List.mem_singleton]) }

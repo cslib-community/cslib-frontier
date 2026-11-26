@@ -276,14 +276,12 @@ theorem equation_iff_toShortWeierstrass (x y : F) :
     M.Equation (M.B * x - M.A / 3) (M.B * y) ↔ M.toShortWeierstrass.toAffine.Equation x y := by
   have hB : M.B ≠ 0 := M.B_ne_zero
   rw [toShortWeierstrass, variableChange_equation_iff, ← equation_iff_toWeierstrass]
-  have hx : M.B * ((1 : Fˣ) ^ 2 * x + -M.A / (3 * M.B)) = M.B * x - M.A / 3 := by
+  simp only [Units.val_one, one_pow, one_mul, zero_mul, mul_zero, add_zero]
+  have hx : M.B * (x + -M.A / (3 * M.B)) = M.B * x - M.A / 3 := by
     by_cases h3 : (3 : F) = 0
     · simp [h3]
-    · field_simp
-      simp only [Units.val_one]
-      ring
-  have hy : M.B * ((1 : Fˣ) ^ 3 * y + (1 : Fˣ) ^ 2 * 0 * x + 0) = M.B * y := by simp
-  rw [hx, hy]
+    · field_simp; ring
+  rw [hx]
 
 end Basic
 
@@ -306,14 +304,8 @@ private lemma four_dvd_of_twoTorsion (M : MontgomeryCurve F) (h2 : (2 : F) ≠ 0
   let x₂ : F := (-M.A + -1 * r) / (2 * M.B)
   have hroot_ne (s : F) (hs : s ^ 2 = 1) : (-M.A + s * r) / (2 * M.B) ≠ 0 := by
     intro h
-    have hA : M.A = s * r := by
-      have hnum := (div_eq_zero_iff.mp h).resolve_right (mul_ne_zero h2 hB)
-      linear_combination -hnum
-    have h4 : (2 : F) * 2 = 0 := by
-      have : M.A ^ 2 = s ^ 2 * r ^ 2 := by rw [hA]; ring
-      rw [hs, one_mul, hr] at this
-      linear_combination this
-    exact mul_ne_zero h2 h2 h4
+    have hnum := (div_eq_zero_iff.mp h).resolve_right (mul_ne_zero h2 hB)
+    exact mul_ne_zero h2 h2 (by linear_combination -(M.A + s * r) * hnum + r ^ 2 * hs + hr)
   have hx₁0 : x₁ ≠ 0 := hroot_ne 1 (one_pow 2)
   have hx₂0 : x₂ ≠ 0 := hroot_ne (-1) (by norm_num)
   have hx₁₂ : x₁ ≠ x₂ := by
@@ -523,12 +515,9 @@ theorem not_variableChange_of_odd {W : WeierstrassCurve F} [Finite F] (hF : ring
     (hodd : Odd (Nat.card W.toAffine.Point)) (M : MontgomeryCurve F) (C : VariableChange F) :
     C • M.toWeierstrass ≠ W := by
   classical
-  intro hC
+  rintro rfl
   have h4 := M.four_dvd_natCard_toWeierstrass_point hF
-  have he : (C • M.toWeierstrass).toAffine.Point ≃+ M.toWeierstrass.toAffine.Point :=
-    variableChangePointEquiv C M.toWeierstrass
-  rw [hC] at he
-  rw [← Nat.card_congr he.toEquiv] at h4
+  rw [← Nat.card_congr (variableChangePointEquiv C M.toWeierstrass).toEquiv] at h4
   exact Nat.not_odd_iff_even.mpr (even_iff_two_dvd.mpr (dvd_trans (by norm_num) h4)) hodd
 
 end DivFour

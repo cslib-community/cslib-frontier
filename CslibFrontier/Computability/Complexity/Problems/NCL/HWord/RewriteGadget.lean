@@ -141,9 +141,7 @@ private theorem legal_row {a b c d e : Symbol q r}
     HWord.Legal (compatibility rules) (segment a b c d e) := by
   intro i j hij
   fin_cases i <;> fin_cases j <;> norm_num at hij
-  all_goals
-    apply (compatibility_adj rules _ _).mpr
-    assumption
+  all_goals exact (compatibility_adj rules _ _).mpr ‹_›
 
 private theorem framed_change {v a b c w a' b' c' : Symbol q r}
     (hs : HWord.Legal (compatibility rules) (segment v a b c w))
@@ -188,16 +186,12 @@ private theorem rule_reachable_framed (i : Fin r) (left right : Option (Fin q)) 
     hv (by simp [Compatible]) (by simp [Compatible]) hw
   have hmarker' := legal_row rules (c := .marker i)
     hleft (by simp [Compatible]) (by simp [Compatible]) hright
-  have hstart := framed_middle rules hs hmarker
-  have hend := framed_middle rules hmarker' ht
-  apply hstart.trans
-  apply Relation.ReflTransGen.trans ?_ hend
+  refine (framed_middle rules hs hmarker).trans (Relation.ReflTransGen.trans ?_
+    (framed_middle rules hmarker' ht))
   rcases (rules i).oneChange with h | h
-  · apply framed_change rules hmarker hmarker' 3
-    intro j hj
+  · refine framed_change rules hmarker hmarker' 3 fun j hj => ?_
     fin_cases j <;> simp_all [segment]
-  · apply framed_change rules hmarker hmarker' 1
-    intro j hj
+  · refine framed_change rules hmarker hmarker' 1 fun j hj => ?_
     fin_cases j <;> simp_all [segment]
 
 /-- Every source rule is realized inside an arbitrary-length legal H-word. The framing
@@ -219,9 +213,7 @@ theorem rule_in_window {n : ℕ} (window : Window n 5)
   have hfirst : code v = base (window.get 0) := by simpa [segment] using he 0
   have hlast : code w = base (window.get 4) := by simpa [segment] using he 4
   rw [hfirst, hlast] at hr
-  have hpath := window.reachable_patch (by decide) hb hr
-  rw [window.patch_eq he] at hpath
-  exact hpath
+  simpa only [window.patch_eq he] using window.reachable_patch (by decide) hb hr
 
 private theorem choice_pair {a a' x y : Fin q}
     (hx : x = a ∨ x = a') (hy : y = a ∨ y = a') (hne : x ≠ y) :

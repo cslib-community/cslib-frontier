@@ -390,13 +390,8 @@ private theorem eval_monotoneMux (v : Fin 4 → Bool) :
     monotoneMux.eval interpretation v 0 = ((v 0 && v 1) || (v 2 && v 3)) := by
   simp only [monotoneMux, Circuit.eval_comp, Circuit.eval_oneGate, interpretation_or,
     Circuit.eval_append, Matrix.cons_val_zero, Matrix.cons_val_one]
-  have h0 : Fin.append ((Circuit.oneGate (σ := signature) Op.and ![0, 1]).eval interpretation v)
-      ((Circuit.oneGate (σ := signature) Op.and ![2, 3]).eval interpretation v) (0 : Fin 2) =
-      (v 0 && v 1) := Fin.append_left _ _ (0 : Fin 1)
-  have h1 : Fin.append ((Circuit.oneGate (σ := signature) Op.and ![0, 1]).eval interpretation v)
-      ((Circuit.oneGate (σ := signature) Op.and ![2, 3]).eval interpretation v) (1 : Fin 2) =
-      (v 2 && v 3) := Fin.append_right _ _ (0 : Fin 1)
-  rw [h0, h1]
+  erw [Fin.append_left _ _ (0 : Fin 1), Fin.append_right _ _ (0 : Fin 1)]
+  simp
 
 private theorem cost_monotoneMux : monotoneMux.program.cost binaryCost = 3 := by
   simp only [circuit_simps, monotoneMux, binaryCost_or, binaryCost_and]
@@ -523,15 +518,8 @@ private theorem eval_orInputList (n : ℕ) :
   | r :: r' :: rs, z => by
     simp only [orInputList, Circuit.eval_comp, Circuit.eval_oneGate, interpretation_or,
       Circuit.eval_append, Matrix.cons_val_zero, Matrix.cons_val_one]
-    have h0 : Fin.append ((Circuit.wiring signature fun _ : Fin 1 => r).eval interpretation z)
-        ((orInputList n (r' :: rs)).eval interpretation z) (0 : Fin 2) = z r :=
-      Fin.append_left _ _ (0 : Fin 1)
-    have h1 : Fin.append ((Circuit.wiring signature fun _ : Fin 1 => r).eval interpretation z)
-        ((orInputList n (r' :: rs)).eval interpretation z) (1 : Fin 2) =
-        (orInputList n (r' :: rs)).eval interpretation z 0 :=
-      Fin.append_right _ _ (0 : Fin 1)
-    rw [h0, h1, eval_orInputList n (r' :: rs) z]
-    rfl
+    erw [Fin.append_left _ _ (0 : Fin 1), Fin.append_right _ _ (0 : Fin 1)]
+    simp [eval_orInputList n (r' :: rs) z]
 
 private theorem cost_orInputList_le (n : ℕ) :
     ∀ idxs : List (Fin n), (orInputList n idxs).program.cost binaryCost ≤ idxs.length
@@ -795,23 +783,15 @@ private def inputsWithin {N G : ℕ} (p : Program signature N G) :
 
 private theorem inputsWithin_mono {N G : ℕ} (p : Program signature N G) :
     ∀ {d₁ d₂ : ℕ}, d₁ ≤ d₂ → ∀ w : Wire N G, inputsWithin p d₁ w ⊆ inputsWithin p d₂ w := by
-  have hstep : ∀ (d : ℕ) (w : Wire N G), inputsWithin p d w ⊆ inputsWithin p (d + 1) w := by
-    intro d
+  have hstep (d : ℕ) : ∀ w : Wire N G, inputsWithin p d w ⊆ inputsWithin p (d + 1) w := by
     induction d with
-    | zero =>
-      intro w
-      cases w with
-      | input idx => exact Subset.rfl
-      | gate g => exact empty_subset _
+    | zero => rintro (_ | _) <;> simp [inputsWithin]
     | succ d ih =>
-      intro w
-      cases w with
-      | input idx => exact Subset.rfl
-      | gate g =>
-        intro x hx
+      rintro (_ | g)
+      · exact Subset.rfl
+      · intro x hx
         rw [inputsWithin, mem_biUnion] at hx ⊢
-        obtain ⟨a, ha, hx⟩ := hx
-        exact ⟨a, ha, ih _ hx⟩
+        exact hx.imp fun a ha => ⟨ha.1, ih _ ha.2⟩
   intro d₁ d₂ hd
   induction d₂, hd using Nat.le_induction with
   | base => intro _; exact Subset.rfl

@@ -1135,11 +1135,7 @@ private theorem rtfMeasure_lt_rtfFuel {adj : V → List V} {st : RTFState N} (hi
     unfold sumHeightMax
     omega
   have h2 := Nat.mul_le_mul_right (Fintype.card V - 2) h1
-  have hmul :
-      (Fintype.card V - 2) * (2 * Fintype.card V - 1) * (Fintype.card V - 2) =
-        (Fintype.card V - 2) * ((Fintype.card V - 2) * (2 * Fintype.card V - 1)) := by
-    ring
-  rw [hmul] at h2
+  rw [Nat.mul_right_comm, Nat.mul_assoc] at h2
   unfold rtfMeasure rtfFuel
   rw [Nat.mul_add, Nat.mul_one]
   omega
@@ -1193,33 +1189,22 @@ private theorem rtfLoop_shift_counters {adj : V → List V} :
             { ca := d.ca, done := [u], todo := st.done ++ rest, discharges := 0, advances := 0 }
           else
             { ca := d.ca, done := st.done ++ [u], todo := rest, discharges := 0, advances := 0 }
-        have h1 :
+        have hst' (x y : ℕ) :
             (if d.relabeled then
-              { ca := d.ca, done := [u], todo := st.done ++ rest,
-                discharges := a + 1, advances := b + d.advances }
+              { ca := d.ca, done := [u], todo := st.done ++ rest, discharges := x, advances := y }
             else
-              { ca := d.ca, done := st.done ++ [u], todo := rest,
-                discharges := a + 1, advances := b + d.advances } : RTFState N) =
-            { st'₀ with discharges := a + 1, advances := b + d.advances } := by
-          dsimp only [st'₀]; split_ifs <;> rfl
-        have h2 :
-            (if d.relabeled then
-              { ca := d.ca, done := [u], todo := st.done ++ rest,
-                discharges := 0 + 1, advances := 0 + d.advances }
-            else
-              { ca := d.ca, done := st.done ++ [u], todo := rest,
-                discharges := 0 + 1, advances := 0 + d.advances } : RTFState N) =
-            { st'₀ with discharges := 1, advances := d.advances } := by
-          dsimp only [st'₀]; split_ifs <;> simp
-        have h0 : ({ st'₀ with discharges := 0, advances := 0 } : RTFState N) = st'₀ := by
-          dsimp only [st'₀]; split_ifs <;> rfl
+              { ca := d.ca, done := st.done ++ [u], todo := rest, discharges := x, advances := y } :
+                RTFState N) =
+            { st'₀ with discharges := x, advances := y } := by
+          dsimp only [st'₀]
+          split_ifs <;> rfl
         have ih1 := rtfLoop_shift_counters (adj := adj) fuel st'₀ (a + 1) (b + d.advances)
-        have ih2 := rtfLoop_shift_counters (adj := adj) fuel st'₀ 1 d.advances
-        rw [h0] at ih1 ih2
+        have ih2 := rtfLoop_shift_counters (adj := adj) fuel st'₀ (0 + 1) (0 + d.advances)
+        rw [← hst' 0 0] at ih1 ih2
         change (let r := rtfLoop adj id id fuel _; (d.ops ++ r.1, r.2)) = _
-        rw [h1, h2, ih1, ih2]
+        rw [hst' (a + 1) (b + d.advances), hst' (0 + 1) (0 + d.advances), ih1, ih2]
         dsimp only
-        simp only [Nat.add_assoc]
+        simp only [Nat.zero_add, Nat.add_assoc]
         rfl
 
 /-- One outer iteration of `rtfLoop adj id id (rtfFuel V) st` when `st.todo = u :: rest`. -/

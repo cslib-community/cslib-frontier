@@ -243,11 +243,9 @@ theorem hittingTime_ne_top {S : Set V}
     (hreach : ∀ y ∈ S, Relation.ReflTransGen (fun a b => P a b ≠ 0) y v) {x : V} (hx : x ∈ S) :
     hittingTime P v x ≠ ⊤ := by
   classical
-  have hm (y : V) : ∃ m, y ∈ S → survival P v m y < 1 := by
-    by_cases hy : y ∈ S
-    · obtain ⟨m, hm⟩ := exists_survival_lt_one (hreach y hy)
-      exact ⟨m, fun _ => hm⟩
-    · exact ⟨0, fun h => (hy h).elim⟩
+  have hm (y : V) : ∃ m, y ∈ S → survival P v m y < 1 :=
+    if hy : y ∈ S then (exists_survival_lt_one (hreach y hy)).imp fun _ h _ => h
+    else ⟨0, False.elim ∘ hy⟩
   choose m hm using hm
   set M := univ.sup m + 1
   set c := univ.sup fun y => if y ∈ S then survival P v M y else 0
@@ -293,7 +291,7 @@ private theorem tsum_mul_tsum_eq_tsum_sum_range (f g : ℕ → ℝ≥0∞) :
   simp_rw [← ENNReal.tsum_mul_left]
   rw [← tsum_prod' (f := fun p : ℕ × ℕ => f p.1 * g p.2),
     ← HasAntidiagonal.sigmaAntidiagonalEquivProd.tsum_eq, tsum_sigma']
-  refine tsum_congr fun n => ?_
+  refine tsum_congr fun _ => ?_
   rw [← Finset.tsum_subtype]
   rfl
 
@@ -317,8 +315,7 @@ theorem sum_firstHit_add_survival (v : V) :
     · simp [firstHit, survival, hx]
   | t + 1, x => by
     rcases eq_or_ne x v with rfl | hx
-    · rw [sum_range_succ']
-      simp [firstHit]
+    · simp [sum_range_succ', firstHit]
     · rw [sum_range_succ', firstHit_zero_of_ne hx, add_zero, survival_succ_of_ne hx]
       simp_rw [firstHit_succ_of_ne hx]
       rw [sum_comm, ← sum_add_distrib]
@@ -345,8 +342,7 @@ theorem survival_le_survival_add_sum (v w : V) :
     rcases eq_or_ne x w with rfl | hxw
     · simp
     rcases eq_or_ne x v with rfl | hxv
-    · rw [sum_range_succ']
-      simp [firstHit]
+    · simp [sum_range_succ', firstHit]
     rw [survival_succ_of_ne hxw, survival_succ_of_ne hxv, sum_range_succ', firstHit_zero_of_ne hxv,
       zero_mul, add_zero]
     simp_rw [firstHit_succ_of_ne hxv, Nat.add_sub_add_right, sum_mul]

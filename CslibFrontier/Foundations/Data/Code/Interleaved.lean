@@ -328,13 +328,9 @@ private lemma exists_correlatedAgreement_affine_of_three_mul_lt_minDist
       (B_W := Fintype.card ι - e) (B_line := e + 1) (L := 1) hlist hline
       (fun _ => Fintype.one_lt_card) 0 (fun r i => W i r) T hT fun z hz => by
         obtain ⟨c, hc, hd⟩ := hclose z hz
-        have heq : (0 : ι → F) + ∑ r : Fin m, z r • (fun i => W i r) =
-            fun i => ∑ r : Fin m, z r • W i r :=
-          funext fun i => by simp [Finset.sum_apply]
         have := hagree (fun i => ∑ r : Fin m, z r • W i r) c
         refine ⟨c, hc, ?_⟩
-        rw [heq]
-        dsimp only
+        simp only [zero_add, Finset.sum_apply, Pi.smul_apply]
         omega
   exact exists_mem_interleavedLinear_hammingDist_le_iff.2
     ⟨D', by simpa only [← Finset.card_eq_sum_ones] using hD'_sum, v, hv,
@@ -424,10 +420,10 @@ theorem toOuterMeasure_sum_smul_reedSolomon_close_le
     exists_uniqueMaximal_correlatedAgreement_affine_unique hα hunique 0 (fun r i => W i r) _ hlt
       fun z hz => by
         obtain ⟨c, hc, hd⟩ := (Finset.mem_filter.1 hz).2
-        refine ⟨c, hc, ?_⟩
-        convert hd using 2
-        funext i
-        simp only [Pi.add_apply, Pi.zero_apply, zero_add, Finset.sum_apply, Pi.smul_apply]
+        have heq : (0 : ι → F) + ∑ r : Fin m, z r • (fun i => W i r) =
+            fun i => ∑ r : Fin m, z r • W i r :=
+          funext fun _ => by simp
+        exact ⟨c, hc, heq.symm ▸ hd⟩
   obtain ⟨V, hV, hdist⟩ := exists_mem_interleavedLinear_hammingDist_le_iff.2
     ⟨D', hD', v, hv, fun i hi r => (hag i hi).2 r⟩
   exact (hfar V hV).not_ge hdist

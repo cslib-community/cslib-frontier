@@ -85,11 +85,8 @@ theorem finish_loop_eq (d : Env) (fuel k : ℕ) (hf : Nat.log 2 k ≤ fuel) :
       pure ()) = PriorityQueue.BinaryHeap.Memory.siftUp d.layout k := by
   induction fuel generalizing k with
   | zero =>
-    have hk : ¬2 ≤ k := by
-      intro hk
-      have := Nat.log_of_one_lt_of_le one_lt_two hk
-      omega
-    rw [PriorityQueue.BinaryHeap.Memory.siftUp, ite_eq_right hk]
+    have hk : k < 2 := Nat.lt_pow_of_log_lt one_lt_two (Nat.lt_succ_of_le hf)
+    rw [PriorityQueue.BinaryHeap.Memory.siftUp, ite_eq_right hk.not_ge]
     rfl
   | succ fuel ih =>
     rw [PriorityQueue.BinaryHeap.Memory.siftUp]
@@ -200,10 +197,9 @@ theorem realizes_loop :
       (fun (d, k) s => whileWork guard step (fun _ _ => 0) d (Nat.log 2 k) k s) := by
   realize [realizes_step]
   intro hv
-  refine whileSafe_of_measure _ _ _ w _ (Shape w d.1) (fun k _ => Nat.log 2 k)
-    (fun k _ _ hz hk => by
-      have := Nat.log_of_one_lt_of_le one_lt_two hk
-      omega)
+  refine whileSafe_of_measure guard step _ w _ (Shape w d.1) (fun k _ => Nat.log 2 k)
+    (fun k _ _ hz hk =>
+      absurd hk (Nat.lt_pow_of_log_lt one_lt_two (Nat.lt_succ_of_le hz.le)).not_ge)
     (fun k t hi hg _ => ?_) h le_rfl hv
   obtain ⟨_, _, hp⟩ := triple_iff.mp (step_triple hi hg)
   rw [clientResult_width w, clientState_width w] at hp
@@ -223,9 +219,7 @@ theorem realizes_siftUp :
       (fun d : IndexArgument => PriorityQueue.BinaryHeap.Memory.siftUp d.layout d.index)
       indexWords (Equiv.ofUnique Unit (Fin 0 → ℕ)).toEmbedding
       (fun w d s => Shape w (d.heap, ()) d.index s) (fun _ _ => 0) := by
-  have hquery (x t) : 1 ≤ memoryCost (step x) t := by
-    change 1 ≤ 1 + _
-    omega
+  have hquery (x t) : 1 ≤ memoryCost (step x) t := Nat.le_add_right 1 _
   have hLoop := realizes_loop.mono_mul (work' := fun _ _ => 0) 1 fun (d, k) s => by
     have hc := whileWork_zero_le guard step hquery d (Nat.log 2 k) k s
     dsimp only; omega

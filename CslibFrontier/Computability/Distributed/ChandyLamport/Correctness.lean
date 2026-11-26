@@ -271,8 +271,7 @@ theorem preRecv_pops_preInFlight [DecidableEq P] [DecidableRel sys.graph.Adj]
     | some _ =>
       rcases hinv.recordedSrc src dest (by simp [hsrc]) hadj with ⟨hm, _⟩ | ⟨_, hv_some, _⟩
       · exact absurd hm hnotm
-      · rw [hpre_dest] at hv_some
-        simp at hv_some
+      · simp [hpre_dest] at hv_some
   · exact ⟨takeBeforeMarker ws, by simp [hch, takeBeforeMarker]⟩
 
 /-- **`chanRec` captures the exact pre-snapshot sends received post-snapshot:** when an
@@ -307,10 +306,8 @@ theorem postRecv_records_iff_preInFlight [DecidableEq P] [DecidableRel sys.graph
     have hsrc_some : (S₁.proc src).snapState.isSome = true := by simp [hsrc]
     rcases hinv.recordedSrc src dest hsrc_some hadj with ⟨hmem, hrec⟩ | ⟨hnotm, _, ⟨sv, hsv⟩⟩
     · obtain ⟨buf, hbuf⟩ := hrec hpost_dest
-      have hany : (S₁.chan src dest).any WireMsg.isMarker = true :=
-        any_isMarker_eq_true_iff.mpr hmem
       have hpre_eq : preInFlight S₁ src dest = msg :: takeBeforeMarker ws := by
-        rw [preInFlight_of_recorded hsrc_some, hany, hch]
+        rw [preInFlight_of_recorded hsrc_some, any_isMarker_eq_true_iff.mpr hmem, hch]
         rfl
       left
       refine ⟨by simp [hpre_eq], by simp [hpre_eq], ?_⟩
@@ -410,16 +407,10 @@ private lemma pre_post_pop_marker {P S M : Type*}
     (hnotm_tail : .marker ∉ t_sd) :
     preInFlight S₂ u v = preInFlight S₁ u v ∧
     postInFlight S₂ u v = postInFlight S₁ u v := by
-  have hany₁ : (S₁.chan u v).any WireMsg.isMarker = true :=
-    any_isMarker_eq_true_iff.mpr (by simp [ht_sd])
-  have hany₂ : (S₂.chan u v).any WireMsg.isMarker = false := by
-    rw [hch₂]; exact any_isMarker_eq_false_iff.mpr hnotm_tail
-  refine ⟨?_, ?_⟩
-  · rw [preInFlight_eq_nil_of_recorded_of_notMem hu₂ (hch₂ ▸ hnotm_tail),
-      preInFlight_of_recorded hu₁, hany₁, ht_sd]
-    rfl
-  · rw [postInFlight_of_recorded hu₂, hany₂, hch₂, postInFlight_of_recorded hu₁, hany₁, ht_sd]
-    rfl
+  exact ⟨by simp [preInFlight_eq_nil_of_recorded_of_notMem hu₂ (hch₂ ▸ hnotm_tail),
+      preInFlight_of_recorded hu₁, ht_sd, takeBeforeMarker],
+    by simp [postInFlight_of_recorded hu₂, postInFlight_of_recorded hu₁, hch₂, ht_sd,
+      any_isMarker_eq_false_iff.mpr hnotm_tail, dropAfterMarker]⟩
 
 private lemma pre_post_congr {P S M : Type*} {S₁ S₂ : SnapGlobalState P S M} {u v : P}
     (hproc : (S₂.proc u).snapState = (S₁.proc u).snapState)
@@ -552,9 +543,7 @@ private lemma applyApp_snapState {P S M : Type*} [DecidableEq P]
     ((S₁.applyApp e).proc r).snapState = (S₁.proc r).snapState := by
   cases e with
   | internal p _ _ | recv _ p _ _ _ =>
-    rcases eq_or_ne r p with rfl | hr
-    · simp only [SnapGlobalState.applyApp, ↓reduceIte]
-    · simp only [SnapGlobalState.applyApp, hr, ↓reduceIte]
+    by_cases hr : r = p <;> simp only [SnapGlobalState.applyApp, hr, ↓reduceIte]
 
 private lemma applyApp_chan {P S M : Type*} [DecidableEq P]
     (S₁ : SnapGlobalState P S M) (e : Event P S M) (u v : P) :
@@ -751,8 +740,7 @@ private lemma swap_cross_pre [DecidableEq P] {C₀ C₁ C₂ : CutState P S M}
   have hep : e.actor ≠ p := by rintro h; simp [h] at he_none
   have hC₀_e_none : C₀.snapProc e.actor = none := by simpa [hep] using he_none
   have hproc_p : C₂.s.proc p = C₀.s.proc p := by
-    rw [htr_e.2, hC₁s, GlobalState.applyEvent_proc]
-    simp [hep.symm]
+    simp [htr_e.2, hC₁s, GlobalState.applyEvent_proc, hep.symm]
   let C₁' : CutState P S M :=
     { s := C₂.s
       snapProc := C₀.snapProc
@@ -776,8 +764,7 @@ private lemma swap_post_cross [DecidableEq P] {C₀ C₁ C₂ : CutState P S M}
   have hC₀_q_none : C₀.snapProc q = none := hC₁snap ▸ hq_none
   have heq : e.actor ≠ q := by rintro rfl; simp [hC₀_q_none] at he_some
   have hproc_q : C₁.s.proc q = C₀.s.proc q := by
-    rw [htr_e.2, GlobalState.applyEvent_proc]
-    simp [heq.symm]
+    simp [htr_e.2, GlobalState.applyEvent_proc, heq.symm]
   let C₁' : CutState P S M :=
     { s := C₀.s
       snapProc := C₂.snapProc

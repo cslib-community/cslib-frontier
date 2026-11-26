@@ -114,8 +114,7 @@ theorem polyOfBits_eq_zero_iff {l : List Bool} : polyOfBits l = 0 ↔ ∀ b ∈ 
     · intro h
       have h0 := congrArg (·.coeff 0) h
       simp only [coeff_add, coeff_C_zero, coeff_X_mul_zero, add_zero, coeff_zero] at h0
-      have hb : b = false := by revert h0; cases b <;> decide
-      subst hb
+      obtain rfl : b = false := by cases b <;> simp_all
       rw [bitEquiv_symm_false, C_0, zero_add] at h
       exact ⟨rfl, (mul_eq_zero.1 h).resolve_left X_ne_zero⟩
     · rintro ⟨rfl, h⟩
@@ -136,10 +135,9 @@ theorem degree_polyOfBits_lt (l : List Bool) : (polyOfBits l).degree < l.length 
     · rcases eq_or_ne (polyOfBits l) 0 with h | h
       · rw [h, mul_zero, degree_zero]
         exact WithBot.bot_lt_coe _
-      · rw [degree_mul, degree_X, degree_eq_natDegree h]
+      · rw [degree_mul, degree_X, degree_eq_natDegree h, add_comm 1]
         rw [degree_eq_natDegree h] at ih
-        have : (polyOfBits l).natDegree < l.length := mod_cast ih
-        rw [← Nat.cast_one, ← Nat.cast_add, Nat.cast_lt]; omega
+        exact_mod_cast Nat.succ_lt_succ (WithBot.coe_lt_coe.1 ih)
 
 /-- Dropping a top coefficient that is zero does not change the polynomial. -/
 private theorem polyOfBits_take_of_getD {l : List Bool} {m : ℕ} (hl : l.length = m + 1)
@@ -162,9 +160,7 @@ theorem aeval_polyOfBits {A : Type*} [CommSemiring A] [Algebra (ZMod 2) A] (α :
     simp only [List.getD_cons_succ, List.getD_cons_zero, pow_zero,
       Algebra.algebraMap_eq_smul_one]
     rw [add_comm]
-    congr 1
-    refine Finset.sum_congr rfl fun d _ => ?_
-    rw [mul_smul_comm, pow_succ']
+    exact congrArg (· + _) (Finset.sum_congr rfl fun d _ => by rw [mul_smul_comm, pow_succ'])
 
 /-- The coefficient list of the code `m`, its binary digits, gives the polynomial with code `m`. -/
 theorem polyOfBits_bits (m : ℕ) : polyOfBits m.bits = polyOfCode m := by
@@ -192,9 +188,8 @@ theorem natDegree_polyOfBits_append_true (l : List Bool) :
   rw [polyOfBits_append]
   simp only [polyOfBits_cons, bitEquiv_symm_true, map_one, polyOfBits_nil, mul_zero, add_zero,
     mul_one]
-  rw [add_comm, natDegree_add_eq_left_of_degree_lt, natDegree_X_pow]
-  rw [degree_X_pow]
-  exact degree_polyOfBits_lt l
+  rw [add_comm, natDegree_add_eq_left_of_degree_lt
+    ((degree_polyOfBits_lt l).trans_eq (degree_X_pow _).symm), natDegree_X_pow]
 
 
 /-! ### Reduction modulo a binary polynomial -/
@@ -362,14 +357,7 @@ theorem any_modBits_bits_iff {d : ℕ} (hd : d ≠ 0) (f : List Bool) :
     (modBits d.bits f).any id = true ↔ ¬ polyOfCode d ∣ polyOfBits f := by
   obtain ⟨l, hl⟩ := exists_bits_eq_append_true hd
   rw [← polyOfBits_bits, hl, ← modBits_all_false_iff]
-  simp only [List.any_eq_true, id_eq]
-  constructor
-  · rintro ⟨b, hb, rfl⟩ h
-    exact Bool.true_eq_false.mp (h true hb)
-  · intro h
-    push Not at h
-    obtain ⟨b, hb, hb'⟩ := h
-    exact ⟨b, hb, by simpa using hb'⟩
+  simp [List.any_eq_true]
 
 /-- One trial divisor passes when its degree is outside the tested range or its remainder
 is nonzero. Both codes use their little-endian binary coefficient words. -/
@@ -475,10 +463,9 @@ theorem pow_eq_sum_powerTable {A : Type*} [CommRing A] [Algebra (ZMod 2) A] (l :
     rw [List.getD_eq_getElem _ _ (by rw [length_powerTable, hlen]; exact he)]
     simp [powerTable]
   rw [hget, ← length_modBits l (List.replicate e false ++ [true]), ← aeval_polyOfBits]
-  have h := mk_polyOfBits_modBits l (List.replicate e false ++ [true])
-  rw [AdjoinRoot.mk_eq_mk, polyOfBits_replicate_append_true] at h
+  have h := AdjoinRoot.mk_eq_mk.1 (mk_polyOfBits_modBits l (List.replicate e false ++ [true]))
+  rw [polyOfBits_replicate_append_true] at h
   have h0 := aeval_eq_zero_of_dvd_aeval_eq_zero h hα
-  rw [map_sub, sub_eq_zero] at h0
-  rw [h0, aeval_X_pow]
+  rwa [map_sub, aeval_X_pow, sub_eq_zero, eq_comm] at h0
 
 end Cslib

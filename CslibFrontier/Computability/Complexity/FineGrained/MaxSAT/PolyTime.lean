@@ -91,9 +91,7 @@ private theorem clauseCode_polyTime :
 private theorem scoreCircuit_code (F : Instance) :
     (scoreCircuit F).code = appendCodes F.1 (F.2.map (clauseCode F.1)) := by
   rw [scoreCircuit, ← appendCodes_code]
-  congr 1
-  apply List.ext_getElem (by simp)
-  intro i hi hj
+  refine congrArg _ (List.ext_getElem (by simp) fun _ _ _ => ?_)
   simp [clauseCode_eq]
 
 /-- The complete code of the clause-value circuit is generated in native polynomial time. -/
@@ -142,13 +140,10 @@ private theorem compiledFormula_polyTime :
     (fun (_ : Fin 1) b => b)).comp computableInPolyTime_thresholdCircuit
 
 private theorem countShift_polyTime :
-    ComputableInPolyTime countShift encQuery encUnary := by
-  have h := (CircuitCounting.computableInPolyTime_freeShift (σ := Boolean.signature)
+    ComputableInPolyTime countShift encQuery encUnary :=
+  ((CircuitCounting.computableInPolyTime_freeShift (σ := Boolean.signature)
     Boolean.encOp interpretation (fun (_ : Fin 1) b => b)).comp
-      computableInPolyTime_thresholdCircuit
-  apply h.of_enc_eq
-  intro p
-  rfl
+      computableInPolyTime_thresholdCircuit).of_enc_eq fun _ => rfl
 
 private theorem thresholdCircuit_fanIn (p : Query) :
     (thresholdCircuit p.1 p.2).FanInAtMost 2 :=
@@ -164,11 +159,9 @@ private theorem compiledFormula_density (p : Query) :
   Compiler.length_toCNF_le_numVars interpretation (fun _ b => b) (thresholdCircuit_fanIn p)
 
 private theorem compiledFormula_vars (p : Query) :
-    (compiledFormula p).numVars ≤ 957 * workSize p.1 + 957 := by
-  apply (Compiler.numVars_toCNF_le interpretation (fun _ b => b)
-    (thresholdCircuit_fanIn p)).trans
-  have hs := size_thresholdCircuit_le p.1 p.2
-  omega
+    (compiledFormula p).numVars ≤ 957 * workSize p.1 + 957 :=
+  (Compiler.numVars_toCNF_le interpretation (fun _ b => b)
+    (thresholdCircuit_fanIn p)).trans (by have := size_thresholdCircuit_le p.1 p.2; omega)
 
 /-- One native machine computes the exact threshold count in the contraction rate, with an
 explicit structural parameter and polynomial space. Its constants are independent of clause

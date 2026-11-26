@@ -1255,14 +1255,8 @@ private theorem voleithBudget_grow {d sdLen comLen rowLen : ℕ}
       simp only [hlook, PMF.mem_support_map_iff] at hx
       obtain ⟨out, -, rfl⟩ := hx
       simp only [voleithBudget, voleithLeafCost, voleithFSCost, Nat.cast_one, one_mul,
-        Nat.cast_zero, zero_mul, add_zero, List.length_cons]
-      have hnum : ((tr₁.length + 1 + 2 ^ d * tr₂.length : ℕ) : ℝ≥0∞) =
-          ((tr₁.length + 2 ^ d * tr₂.length : ℕ) : ℝ≥0∞) + 1 := by
-        push_cast
-        ring
-      simp only [div_eq_mul_inv] at hnum ⊢
-      rw [hnum]
-      exact le_of_eq (by ring)
+        Nat.cast_zero, zero_mul, add_zero, List.length_cons, div_eq_mul_inv]
+      exact le_of_eq (by push_cast; ring)
   · dsimp only [voleithStepKernel] at hx
     cases hlook : tr₂.lookup qf with
     | some delta =>
@@ -1273,14 +1267,8 @@ private theorem voleithBudget_grow {d sdLen comLen rowLen : ℕ}
       simp only [hlook, PMF.mem_support_map_iff] at hx
       obtain ⟨delta, -, rfl⟩ := hx
       simp only [voleithBudget, voleithLeafCost, voleithFSCost, Nat.cast_zero, zero_mul,
-        add_zero, Nat.cast_one, one_mul, List.length_cons]
-      have hnum : ((tr₁.length + 2 ^ d * (tr₂.length + 1) : ℕ) : ℝ≥0∞) =
-          ((tr₁.length + 2 ^ d * tr₂.length : ℕ) : ℝ≥0∞) + (2 ^ d : ℝ≥0∞) := by
-        push_cast
-        ring
-      simp only [div_eq_mul_inv] at hnum ⊢
-      rw [hnum]
-      exact le_of_eq (by ring)
+        add_zero, Nat.cast_one, one_mul, List.length_cons, div_eq_mul_inv]
+      exact le_of_eq (by push_cast; ring)
 
 /-- Two-budget bad-state probability bound for any `VOLEITHROSpec` program starting at an
 arbitrary clean state `(st, false)` under `voleithStickyMemoize`. -/
@@ -1317,21 +1305,14 @@ private theorem toOuterMeasure_runWith_voleithStickyMemoize_bad_le_of_state
       cases q with
       | inl m =>
         simp only [Sum.elim_inl, Nat.cast_zero, zero_mul, add_zero]
-        change (StateT.lift (ProbComp.unifOracle m) s).toOuterMeasure
-          {x : Fin (m + 1) × _ | OracleComp.FlagBad x.2} ≤ 0
-        rw [nonpos_iff_eq_zero, PMF.toOuterMeasure_apply_eq_zero_iff]
-        refine Set.disjoint_left.mpr fun x hx hbad => hs ?_
-        obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-        exact hbad
+        exact (Cslib.Probability.PMF.toOuterMeasure_lift_eq_zero (ProbComp.unifOracle m) s hs).le
       | inr q =>
         exact toOuterMeasure_voleithStickyMemoize_step_le expand decWit chalToIdx Rel checkRel
           hSound q s hs)
     (fun q s hs x hx hgood => by
       cases q with
       | inl m =>
-        change x ∈ ((ProbComp.unifOracle m).map (·, s)).support at hx
-        obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-        simp
+        simp [Cslib.Probability.PMF.snd_eq_of_mem_support_lift hx]
       | inr q =>
         exact voleithBudget_grow expand decWit chalToIdx Rel checkRel q s hs x hx hgood)
     hleaf hfs (by simp [OracleComp.FlagBad])
@@ -1498,8 +1479,7 @@ private theorem collectOpenRows_sound_of_clean {d sdLen comLen rowLen : ℕ}
       obtain ⟨hinv_mid, htr2_mid, hleaf_mid, hprev⟩ :=
         ih (Nat.le_of_lt hk) st st_mid prevRows hclean hinv hfsMem hrest hclean_mid
       by_cases hk0 : (⟨k, hk⟩ : Fin (2 ^ d)) = 0
-      · have hk_eq : k = 0 := congrArg Fin.val hk0
-        subst hk_eq
+      · obtain rfl : k = 0 := congrArg Fin.val hk0
         simp only [collectOpenRows, OracleComp.liftLeft_pure, OracleComp.liftRight_pure,
           ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff, Prod.mk.injEq,
           Option.some.injEq] at hrest
@@ -1509,11 +1489,7 @@ private theorem collectOpenRows_sound_of_clean {d sdLen comLen rowLen : ℕ}
           at hstep
         obtain ⟨rfl, rfl⟩ := hstep
         refine ⟨hinv_mid, htr2_mid, hleaf_mid, fun i hi => ?_⟩
-        have hi0 : i = 0 := by
-          apply Fin.ext
-          simp only [Fin.val_zero]
-          omega
-        subst hi0
+        obtain rfl : i = 0 := Fin.ext (Nat.lt_one_iff.mp hi)
         simp [FAEST.verifierRows]
       · simp only [hk0, ↓reduceIte, OracleComp.liftLeft_bind, OracleComp.liftLeft_query,
           OracleComp.liftRight_bind, OracleComp.liftRight_query, ProbOracleComp.runWith_bind,
@@ -1525,11 +1501,7 @@ private theorem collectOpenRows_sound_of_clean {d sdLen comLen rowLen : ℕ}
         · simp only [OracleComp.liftLeft_pure, OracleComp.liftRight_pure,
             ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff, Prod.mk.injEq,
             Option.map_some, Option.some.injEq] at hite
-          obtain ⟨hopen_eq, hst_eq⟩ := hite
-          subst hst_eq
-          have hinv_after : VOLEITHGoodInv expand decWit chalToIdx Rel checkRel st'.1 :=
-            voleithStickyMemoize_preserves_goodInv expand decWit chalToIdx Rel checkRel
-              (.inl _) st_mid (fun _ => hinv_mid) out st' hq_supp hclean'
+          obtain ⟨hopen_eq, rfl⟩ := hite
           rcases st_mid with ⟨⟨tr₁_m, tr₂_m⟩, bm⟩
           dsimp only at hclean_mid
           subst hclean_mid
@@ -1541,12 +1513,8 @@ private theorem collectOpenRows_sound_of_clean {d sdLen comLen rowLen : ℕ}
             rw [hlook_q] at hq_supp
             simp only [PMF.mem_support_pure_iff, Prod.mk.injEq] at hq_supp
             obtain ⟨rfl, rfl⟩ := hq_supp
-            have hmem_cached : (⟨openKeys (FAEST.xorIndex ⟨k, hk⟩ hidden), iv,
-                FAEST.xorIndex ⟨k, hk⟩ hidden⟩, out) ∈ tr₁_m := by
-              obtain ⟨b_, a_, heq⟩ := List.lookup_eq_some_iff.mp hlook_q
-              simp [heq.1]
-            have hleaf_pIdx := extractLeafFromTrace_eq_of_mem_pairwise hinv_mid.1 hmem_cached
-              rfl rfl hcom
+            have hleaf_pIdx := extractLeafFromTrace_eq_of_mem_pairwise hinv_mid.1
+              (mem_of_lookup_eq_some hlook_q) rfl rfl hcom
             refine ⟨hinv_mid, htr2_mid, hleaf_mid, fun i hi => ?_⟩
             rw [hopen_eq]
             by_cases hik : i = ⟨k, hk⟩
@@ -1676,6 +1644,16 @@ while `extractWitnessFromTrace` on `P`'s pre-verification trace `tr_P` fails `Re
       fun (ok, _) => ok && !Rel stmt (extractWitnessFromTrace expand decWit st_mid.1 prf)
 
 
+private theorem toOuterMeasure_mono_on_support {α : Type*} (p : PMF α) {s t : Set α}
+    (h : ∀ x ∈ p.support, x ∈ s → x ∈ t) :
+    p.toOuterMeasure s ≤ p.toOuterMeasure t := by
+  have hzero : p.toOuterMeasure (s \ t) = 0 :=
+    (PMF.toOuterMeasure_apply_eq_zero_iff p _).mpr
+      (Set.disjoint_left.mpr fun x hx ⟨hxs, hxt⟩ => hxt (h x hx hxs))
+  exact (MeasureTheory.measure_mono (μ := p.toOuterMeasure)
+    fun x hx => (Classical.em (x ∈ t)).imp id (⟨hx, ·⟩)).trans
+    ((MeasureTheory.measure_union_le t (s \ t)).trans (by simp [hzero]))
+
 /-- Bounded, conditional step toward straight-line VOLEitH knowledge soundness (#7068, #4987), not
 the cited lemma itself: conditional on `hSound : VOLEITHSoundnessError ... ε_rel` for a single
 challenge repetition (`µ = 1`) over flat `2 ^ d`-leaf `leaf_hash::shake` RO commitments
@@ -1720,10 +1698,6 @@ theorem voleithKnowledgeSoundness_bound {d sdLen comLen rowLen : ℕ}
         (voleithKSBound d comLen (Q_leaf + (2 ^ d - 1)) (Q_FS + 1) ε_rel : ℝ≥0∞) :=
     toOuterMeasure_runWith_voleithStickyMemoize_bad_le expand decWit chalToIdx Rel checkRel hSound
       hcomb_leaf hcomb_fs
-  have hforget1 :
-      (ProbOracleComp.runWith S P (([], []), false)).map (Prod.map id Prod.fst) =
-        ProbOracleComp.runWith voleithMemoize P ([], []) :=
-    voleithStickyMemoize_map_forget expand decWit chalToIdx Rel checkRel P ([], []) false
   have hks_eq :
       voleithKSFailurePMF expand decWit chalToIdx Rel checkRel P =
         (ProbOracleComp.runWith S P (([], []), false)).bind fun ((stmt, prf), st_mid) =>
@@ -1731,15 +1705,14 @@ theorem voleithKnowledgeSoundness_bound {d sdLen comLen rowLen : ℕ}
               stmt prf) st_mid).map fun (ok, _) =>
             ok && !Rel stmt (extractWitnessFromTrace expand decWit st_mid.1.1 prf) := by
     unfold voleithKSFailurePMF
-    rw [← hforget1, PMF.bind_map]
+    rw [← voleithStickyMemoize_map_forget expand decWit chalToIdx Rel checkRel P ([], []) false,
+      PMF.bind_map]
     congr 1
-    funext x
-    rcases x with ⟨⟨stmt, prf⟩, st_mid⟩
+    funext ⟨⟨stmt, prf⟩, st_mid⟩
     dsimp only [Function.comp_apply, Prod.map, id_eq]
-    have hforget2 :=
-      voleithStickyMemoize_map_forget expand decWit chalToIdx Rel checkRel
-        (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel stmt prf) st_mid.1 st_mid.2
-    rw [← hforget2, PMF.map_comp]
+    rw [← voleithStickyMemoize_map_forget expand decWit chalToIdx Rel checkRel
+      (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel stmt prf) st_mid.1 st_mid.2,
+      PMF.map_comp]
     rfl
   have hinvP : ∀ (res : Stmt × VOLEITHProof d comLen rowLen Seed IV PreMsg)
       (st_mid : VOLEITHStickyState d sdLen comLen rowLen Stmt Seed IV PreMsg Chal),
@@ -1761,32 +1734,19 @@ theorem voleithKnowledgeSoundness_bound {d sdLen comLen rowLen : ℕ}
     by_cases hsupp1 : ((stmt, prf), st_mid) ∈ (ProbOracleComp.runWith S P (([], []), false)).support
     · gcongr
       rw [PMF.toOuterMeasure_map_apply]
-      simp only [PMF.toOuterMeasure_apply, OracleComp.FlagBad]
-      refine tsum_le_tsum fun ⟨ok, st_end⟩ => ?_
-      by_cases hsupp2 : (ok, st_end) ∈
-          (ProbOracleComp.runWith S (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel
-            stmt prf) st_mid).support
-      · by_cases heq :
-            (ok && !Rel stmt (extractWitnessFromTrace expand decWit st_mid.1.1 prf)) = true
-        · have hok : ok = true := by simp_all
-          have hrel_f :
-              Rel stmt (extractWitnessFromTrace expand decWit st_mid.1.1 prf) = false := by
-            simp_all
-          have hbad_end : st_end.2 = true := by
-            by_contra hclean_end
-            have hc_end : st_end.2 = false := Bool.eq_false_iff.mpr hclean_end
-            have hc_mid : st_mid.2 = false :=
-              runWith_sticky_flagBad_false expand decWit chalToIdx Rel checkRel hsupp2 hc_end
-            have hinv_mid := hinvP (stmt, prf) st_mid hsupp1 hc_mid
-            rcases st_mid with ⟨ro_mid, b_mid⟩
-            dsimp only at hc_mid hinv_mid hrel_f
-            subst hc_mid
-            have hgood_rel := voleithVerifyROM_sound_of_clean expand decWit chalToIdx Rel checkRel
-              stmt prf ro_mid st_end hinv_mid (hok ▸ hsupp2) hc_end
-            exact absurd (hgood_rel.symm.trans hrel_f) (by decide)
-          simp [heq, hbad_end]
-        · simp [heq]
-      · simp [Set.indicator_apply, (PMF.apply_eq_zero_iff _ _).mpr hsupp2]
+      refine toOuterMeasure_mono_on_support _ fun ⟨ok, st_end⟩ hsupp2 heq => ?_
+      simp only [Set.mem_preimage, Set.mem_singleton_iff, Bool.and_eq_true,
+        Bool.not_eq_true'] at heq
+      refine Bool.eq_true_of_not_eq_false fun hc_end => ?_
+      have hc_mid : st_mid.2 = false :=
+        runWith_sticky_flagBad_false expand decWit chalToIdx Rel checkRel hsupp2 hc_end
+      have hinv_mid := hinvP (stmt, prf) st_mid hsupp1 hc_mid
+      rcases st_mid with ⟨ro_mid, b_mid⟩
+      dsimp only at hc_mid hinv_mid heq
+      subst hc_mid
+      have hgood_rel := voleithVerifyROM_sound_of_clean expand decWit chalToIdx Rel checkRel
+        stmt prf ro_mid st_end hinv_mid (heq.1 ▸ hsupp2) hc_end
+      exact Bool.false_ne_true (heq.2.symm.trans hgood_rel)
     · simp [(PMF.apply_eq_zero_iff _ _).mpr hsupp1]
   exact hle_comb.trans hbad_bound
 
@@ -2110,27 +2070,15 @@ theorem voleithMultiVerifyROM_sound_bound {d sdLen comLen rowLen : ℕ}
     ((ProbOracleComp.runWith (voleithMultiVerifyHandler expand decWit chalToIdx Rel checkRel)
         A (([], []), false)).map fun (_, _, bad) => bad) true ≤
       (voleithKSBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel : ℝ≥0∞) := by
-  have hleaf_tot :
-      IsCostBounded (Sum.elim (fun _ => 0) mvLeafCost) A (Q_leaf + m * (2 ^ d - 1)) :=
-    isCostBounded_mvLeafCost_add hm hleaf
-  have hfs_tot : IsCostBounded (Sum.elim (fun _ => 0) mvFSCost) A (Q_FS + m) :=
-    isCostBounded_mvFSCost_add hm hfs
-  have hmap :
-      ((ProbOracleComp.runWith
-          (voleithMultiVerifyStickyHandler expand decWit chalToIdx Rel checkRel)
-          A ((([], []), false), false)).map (Prod.map id mvDropFlag)) =
-        ProbOracleComp.runWith (voleithMultiVerifyHandler expand decWit chalToIdx Rel checkRel)
-          A (([], []), false) :=
-    ProbOracleComp.runWith_map_state _ _ mvDropFlag
-      (voleithMultiVerifyStickyHandler_map_forget expand decWit chalToIdx Rel checkRel)
-      A ((([], []), false), false)
   have hprob_eq :
       ((ProbOracleComp.runWith (voleithMultiVerifyHandler expand decWit chalToIdx Rel checkRel)
           A (([], []), false)).map fun (_, _, bad) => bad) true =
         ((ProbOracleComp.runWith
           (voleithMultiVerifyStickyHandler expand decWit chalToIdx Rel checkRel)
           A ((([], []), false), false)).map fun (_, _, bad) => bad) true := by
-    rw [← hmap, PMF.map_comp]
+    erw [← ProbOracleComp.runWith_map_state _ _ mvDropFlag
+      (voleithMultiVerifyStickyHandler_map_forget expand decWit chalToIdx Rel checkRel)
+      A ((([], []), false), false), PMF.map_comp]
     rfl
   rw [hprob_eq, ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
   have hinv_A :
@@ -2157,24 +2105,16 @@ theorem voleithMultiVerifyROM_sound_bound {d sdLen comLen rowLen : ℕ}
                 Bool) ⁻¹' {true}) ≤
         (ProbOracleComp.runWith
           (voleithMultiVerifyStickyHandler expand decWit chalToIdx Rel checkRel)
-          A ((([], []), false), false)).toOuterMeasure {x | OracleComp.FlagBad x.2.1} := by
-    simp only [PMF.toOuterMeasure_apply, OracleComp.FlagBad]
-    refine tsum_le_tsum fun ⟨a, x'⟩ => ?_
-    by_cases hmem : (a, x') ∈ (ProbOracleComp.runWith
-        (voleithMultiVerifyStickyHandler expand decWit chalToIdx Rel checkRel)
-        A ((([], []), false), false)).support
-    · by_cases hfail : x'.2 = true
-      · have hnotclean : x'.1.2 ≠ false := fun hc => by simp [hinv_A a x' hmem hc] at hfail
-        have hbad : x'.1.2 = true := by cases hsb : x'.1.2 <;> simp_all
-        simp [hfail, hbad]
-      · simp [hfail]
-    · have hz := (PMF.apply_eq_zero_iff _ _).mpr hmem
-      simp [Set.indicator_apply, hz]
+          A ((([], []), false), false)).toOuterMeasure {x | OracleComp.FlagBad x.2.1} :=
+    toOuterMeasure_mono_on_support _ fun ⟨a, x'⟩ hmem hfail =>
+      Bool.eq_true_of_not_eq_false fun hc => by
+        simp [Set.mem_preimage, hinv_A a x' hmem hc] at hfail
   refine hle_bad.trans ?_
   rw [voleithKSBound_coe]
   simpa [voleithBudget] using
     toOuterMeasure_run_mvSticky_bad_le expand decWit chalToIdx Rel checkRel hSound A
-      hleaf_tot hfs_tot (([], []), false) false rfl
+      (isCostBounded_mvLeafCost_add hm hleaf) (isCostBounded_mvFSCost_add hm hfs)
+      (([], []), false) false rfl
 
 private theorem voleithStickyMemoize_goodInv_backwards {d sdLen comLen rowLen : ℕ}
     {Stmt Seed IV PreMsg Chal Wit : Type}
@@ -2758,8 +2698,6 @@ private theorem verifyGatedSticky_bad_le {d sdLen comLen rowLen : ℕ}
       obtain ⟨⟨ok, st_res⟩, hst_mem, htail⟩ := hs'
       dsimp only at htail
       obtain ⟨hres2, hro_eq⟩ := verifyGatedSticky_inl_tail_clean htail
-      have hbs : bs = false :=
-        runWith_sticky_flagBad_false expand decWit chalToIdx Rel checkRel hst_mem hres2
       exact hro_eq ▸ runWith_sticky_preserves_goodInv expand decWit chalToIdx Rel checkRel
         hs hst_mem hres2
     · simp only [verifyGatedStickyHandler, PMF.mem_support_map_iff, Prod.mk.injEq] at hs'
@@ -2777,20 +2715,11 @@ private theorem verifyGatedSticky_bad_le {d sdLen comLen rowLen : ℕ}
         (ProbOracleComp.runWith
           (verifyGatedStickyHandler (comLen := comLen) (Seed := Seed) (IV := IV)
             expand decWit chalToIdx Rel toStmt toProof checkRel onReject (fun _ => onAccept))
-          prog ((([], []), log₀), false)).toOuterMeasure {x | x.2.2 = true} := by
-    simp only [PMF.toOuterMeasure_apply]
-    refine tsum_le_tsum fun ⟨a, st⟩ => ?_
-    by_cases hmem : (a, st) ∈ (ProbOracleComp.runWith
-        (verifyGatedStickyHandler (comLen := comLen) (Seed := Seed) (IV := IV)
-          expand decWit chalToIdx Rel toStmt toProof checkRel onReject (fun _ => onAccept))
-        prog ((([], []), log₀), false)).support
-    · by_cases hst2 : st.2 = true
-      · simp [verifyGatedBad, hst2]
-      · have hclean : st.2 = false := Bool.eq_false_iff.mpr hst2
-        have hg := hinv_bad a st hmem hclean
-        simp [verifyGatedBad, hst2, hg]
-    · have hz := (PMF.apply_eq_zero_iff _ _).mpr hmem
-      simp [Set.indicator_apply, hz]
+          prog ((([], []), log₀), false)).toOuterMeasure {x | x.2.2 = true} :=
+    toOuterMeasure_mono_on_support _ fun ⟨a, st⟩ hmem hbad =>
+      Bool.eq_true_of_not_eq_false fun hclean =>
+        hbad.elim (fun h => Bool.false_ne_true (hclean.symm.trans h))
+          (fun h => h (hinv_bad a st hmem hclean))
   refine hle_flag.trans ?_
   let mvProg : ProbOracleComp (VOLEITHMultiVerifySpec d sdLen comLen rowLen
       Stmt Seed IV PreMsg Chal) (α × Log) :=
@@ -2800,22 +2729,15 @@ private theorem verifyGatedSticky_bad_le {d sdLen comLen rowLen : ℕ}
         (verifyGatedToMVInner (d := d) (sdLen := sdLen) (Chal := Chal)
           toStmt toProof onReject onAccept))
       prog).run log₀
-  have hmv_m :
-      IsCostBounded (Sum.elim (fun _ => 0)
-        (Sum.elim (fun _ => 1) (fun _ => 0))) mvProg m :=
-    verifyGatedToMVInner_cost (d := d) (sdLen := sdLen) (Chal := Chal)
-      toStmt toProof onReject onAccept 1 (fun _ => 0) prog log₀ hm
+  have hmv_m := verifyGatedToMVInner_cost (d := d) (sdLen := sdLen) (Chal := Chal)
+    toStmt toProof onReject onAccept 1 (fun _ => 0) prog log₀ hm
   have hmv_leaf := verifyGatedToMVInner_cost (d := d) (sdLen := sdLen) (Chal := Chal)
     toStmt toProof onReject onAccept 0 voleithLeafCost prog log₀ hleaf
   have hmv_fs := verifyGatedToMVInner_cost (d := d) (sdLen := sdLen) (Chal := Chal)
     toStmt toProof onReject onAccept 0 voleithFSCost prog log₀ hfs
-  have hleaf_tot :
-      IsCostBounded (Sum.elim (fun _ => 0) mvLeafCost) mvProg (Q_leaf + m * (2 ^ d - 1)) :=
-    isCostBounded_mvLeafCost_add hmv_m hmv_leaf
-  have hfs_tot : IsCostBounded (Sum.elim (fun _ => 0) mvFSCost) mvProg (Q_FS + m) :=
-    isCostBounded_mvFSCost_add hmv_m hmv_fs
   have hmv_bad := toOuterMeasure_run_mvSticky_bad_le expand decWit chalToIdx Rel checkRel
-    hSound mvProg hleaf_tot hfs_tot (([], []), false) false rfl
+    hSound mvProg (isCostBounded_mvLeafCost_add hmv_m hmv_leaf)
+    (isCostBounded_mvFSCost_add hmv_m hmv_fs) (([], []), false) false rfl
   let dropLog : (VOLEITHTraceState d sdLen comLen rowLen Stmt Seed IV PreMsg Chal × Log) × Bool →
       VOLEITHStickyState d sdLen comLen rowLen Stmt Seed IV PreMsg Chal × Log :=
     fun ((roSt, log), b) => ((roSt, b), log)
@@ -2850,29 +2772,12 @@ private theorem verifyGatedSticky_bad_le {d sdLen comLen rowLen : ℕ}
           (verifyGatedRoOnlyStickyHandler (comLen := comLen) (Seed := Seed) (IV := IV)
             expand decWit chalToIdx Rel toStmt toProof checkRel onReject onAccept)
           prog ((([], []), false), log₀) := by
-    have hrun := ProbOracleComp.runWith_run_interpret
+    dsimp only [mvProg]
+    rw [ProbOracleComp.runWith_run_interpret
       (verifyGatedToMVInner (d := d) (sdLen := sdLen) (Chal := Chal)
         toStmt toProof onReject onAccept)
       (voleithMultiVerifyStickyHandler expand decWit chalToIdx Rel checkRel)
-      prog log₀ ((([], []), false), false)
-    have hrun' :
-        ((ProbOracleComp.runWith
-            (voleithMultiVerifyStickyHandler expand decWit chalToIdx Rel checkRel)
-            mvProg ((([], []), false), false)).map
-          fun ((a, log), st_mv) => (a, (st_mv.1, log))) =
-        ((ProbOracleComp.runWith
-            (fun q state =>
-              PMF.map (fun ⟨⟨a, b⟩, c⟩ => (a, b, c))
-                (ProbOracleComp.runWith
-                  (voleithMultiVerifyStickyHandler expand decWit chalToIdx Rel checkRel)
-                  ((verifyGatedToMVInner (d := d) (sdLen := sdLen) (Chal := Chal)
-                    toStmt toProof onReject onAccept q).run state.1) state.2))
-            prog (log₀, ((([], []), false), false))).map
-          (Prod.map id dropMV)) := by
-      dsimp only [mvProg]
-      rw [hrun, PMF.map_comp]
-      rfl
-    rw [hrun']
+      prog log₀ ((([], []), false), false), PMF.map_comp]
     refine ProbOracleComp.runWith_map_state _ _ dropMV (fun q x => ?_)
       prog (log₀, ((([], []), false), false))
     rcases x with ⟨log, ⟨s_mv, failed⟩⟩
@@ -2962,14 +2867,6 @@ theorem toOuterMeasure_runWith_verifyGatedHandler_le {d sdLen comLen rowLen : �
     expand decWit chalToIdx Rel toStmt toProof checkRel onReject (fun _ => onAccept₁)
   let s₂ := verifyGatedStickyHandler (comLen := comLen) (Seed := Seed) (IV := IV)
     expand decWit chalToIdx Rel toStmt toProof checkRel onReject onAccept₂
-  have hf₁ := ProbOracleComp.runWith_map_state _ _ Prod.fst
-    (verifyGatedStickyHandler_map_forget expand decWit chalToIdx Rel toStmt toProof checkRel
-      onReject (fun _ => onAccept₁))
-    prog ((([], []), log₀), false)
-  have hf₂ := ProbOracleComp.runWith_map_state _ _ Prod.fst
-    (verifyGatedStickyHandler_map_forget expand decWit chalToIdx Rel toStmt toProof checkRel
-      onReject onAccept₂)
-    prog ((([], []), log₀), false)
   have heq₁ :
       ((ProbOracleComp.runWith
           (verifyGatedHandler (comLen := comLen) (Seed := Seed) (IV := IV)
@@ -2977,7 +2874,10 @@ theorem toOuterMeasure_runWith_verifyGatedHandler_le {d sdLen comLen rowLen : �
           prog (([], []), log₀)).map pred) =
         ((ProbOracleComp.runWith s₁ prog ((([], []), log₀), false)).map
           fun x => pred (x.1, x.2.1)) := by
-    rw [← hf₁, PMF.map_comp]
+    rw [← ProbOracleComp.runWith_map_state _ _ Prod.fst
+      (verifyGatedStickyHandler_map_forget expand decWit chalToIdx Rel toStmt toProof checkRel
+        onReject (fun _ => onAccept₁))
+      prog ((([], []), log₀), false), PMF.map_comp]
     rfl
   have heq₂ :
       ((ProbOracleComp.runWith
@@ -2986,16 +2886,19 @@ theorem toOuterMeasure_runWith_verifyGatedHandler_le {d sdLen comLen rowLen : �
           prog (([], []), log₀)).map pred) =
         ((ProbOracleComp.runWith s₂ prog ((([], []), log₀), false)).map
           fun x => pred (x.1, x.2.1)) := by
-    rw [← hf₂, PMF.map_comp]
+    rw [← ProbOracleComp.runWith_map_state _ _ Prod.fst
+      (verifyGatedStickyHandler_map_forget expand decWit chalToIdx Rel toStmt toProof checkRel
+        onReject onAccept₂)
+      prog ((([], []), log₀), false), PMF.map_comp]
     rfl
   rw [heq₁, heq₂]
-  have hiub := ProbOracleComp.IdenticalUntilBad.bind_apply_le
+  exact (ProbOracleComp.IdenticalUntilBad.bind_apply_le
     (verifyGatedSticky_identicalUntilBad expand decWit chalToIdx Rel toStmt toProof checkRel
       onReject (fun _ => onAccept₁) onAccept₂ hAgree)
-    prog ((([], []), log₀), false) (fun x => PMF.pure (pred (x.1, x.2.1))) true
-  have hbad := verifyGatedSticky_bad_le expand decWit chalToIdx Rel toStmt toProof checkRel hSound
-    onReject onAccept₁ log₀ prog hm hleaf hfs
-  exact hiub.trans (add_le_add_right hbad _)
+    prog ((([], []), log₀), false) (fun x => PMF.pure (pred (x.1, x.2.1))) true).trans
+    (add_le_add_right
+      (verifyGatedSticky_bad_le expand decWit chalToIdx Rel toStmt toProof checkRel hSound
+        onReject onAccept₁ log₀ prog hm hleaf hfs) _)
 
 end VerifyGatedBridge
 

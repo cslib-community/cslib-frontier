@@ -355,17 +355,14 @@ private theorem clinchRun_dsic [DecidableEq ι] (rule : DemandRule ι) (B : ι �
       (List.mem_cons.mp hq).elim (fun h => h.symm.le) ((List.pairwise_cons.mp hsort).1 q)
     have hp : 0 < p := hpos p (List.mem_cons_self ..)
     by_cases hpb : p ≤ b i <;> by_cases hpv : p ≤ v
-    · have hstep_eq : clinchStep rule B b p s =
-          clinchStep rule B (Function.update b i v) p s := by
-        have hdem : clinchDemands rule B b p s =
-            clinchDemands rule B (Function.update b i v) p s := funext fun k => by
-          by_cases hki : k = i
-          · subst hki
-            simp only [clinchDemands, Function.update_self, hpb, hpv, ↓reduceIte]
-          · simp only [clinchDemands, Function.update_of_ne hki]
-        dsimp only [clinchStep]
-        rw [hdem]
-      simp only [clinchRun, ← hstep_eq]
+    · have hdem : clinchDemands rule B b p s =
+          clinchDemands rule B (Function.update b i v) p s := funext fun k => by
+        rcases eq_or_ne k i with rfl | hki
+        · simp only [clinchDemands, Function.update_self, hpb, hpv, ↓reduceIte]
+        · simp only [clinchDemands, Function.update_of_ne hki]
+      have hstep_eq : clinchStep rule B (Function.update b i v) p s =
+          clinchStep rule B b p s := by simp only [clinchStep, hdem]
+      rw [clinchRun, clinchRun, hstep_eq]
       exact clinchRun_dsic rule B i b v ps (List.pairwise_cons.mp hsort).2
         (fun q hq => hpos q (List.mem_cons_of_mem p hq))
         (clinchStep rule B b p s) (clinchStep_payment_le rule B b hp s hbf)
@@ -422,10 +419,8 @@ theorem clinchMechanism_isNormalized [DecidableEq ι] (rule : DemandRule ι) (m 
     {prices : List ℝ} (hpos : ∀ p ∈ prices, 0 < p) {B : ι → ℝ} (hB : ∀ i, 0 ≤ B i) :
     (clinchMechanism rule m prices B).IsNormalized := by
   intro i b _
-  have hfr := clinchRun_frozen rule B (Function.update b i 0) i prices hpos
-    (fun p hp => by rw [Function.update_self]; exact hpos p hp)
-    ⟨fun _ => 0, fun _ => 0, m⟩ hB
-  exact hfr.2
+  exact (clinchRun_frozen rule B (Function.update b i 0) i prices hpos
+    (fun p hp => by simpa using hpos p hp) ⟨fun _ => 0, fun _ => 0, m⟩ hB).2
 
 /-- **Dominant-strategy incentive compatibility** of the discrete `n`-bidder ascending clinching
 auction (`clinchMechanism`) for fixed public budgets `B` whenever `prices` is sorted ascending and
@@ -452,21 +447,17 @@ private theorem clinchRun_clear_or_exhaust_divisible {m : ℝ} (B v : ι → ℝ
     · have hpi : p ≤ v i := hqp ▸ hqi
       have hsum_d : (∑ j, clinchDemands (DemandRule.divisible ι) B v p s j) =
           clinchDemands (DemandRule.divisible ι) B v p s i :=
-        Finset.sum_eq_single i (fun j _ hji =>
-          (clinchAmt_clinchDemands_eq_zero_of_lt _ B v s (hqp ▸ hq_other j hji)).2)
-          fun hi => absurd (Finset.mem_univ i) hi
+        Finset.sum_eq_single_of_mem i (Finset.mem_univ i) fun j _ hji =>
+          (clinchAmt_clinchDemands_eq_zero_of_lt _ B v s (hqp ▸ hq_other j hji)).2
       have hsum_c : (∑ j, clinchAmt (clinchDemands (DemandRule.divisible ι) B v p s)
           s.remSupply j) =
           clinchAmt (clinchDemands (DemandRule.divisible ι) B v p s) s.remSupply i :=
-        Finset.sum_eq_single i (fun j _ hji =>
-          (clinchAmt_clinchDemands_eq_zero_of_lt _ B v s (hqp ▸ hq_other j hji)).1)
-          fun hi => absurd (Finset.mem_univ i) hi
-      have hdi : clinchDemands (DemandRule.divisible ι) B v p s i =
-          (B i - s.payment i) / p := by
-        simp only [clinchDemands, DemandRule.divisible, hpi, ↓reduceIte]
+        Finset.sum_eq_single_of_mem i (Finset.mem_univ i) fun j _ hji =>
+          (clinchAmt_clinchDemands_eq_zero_of_lt _ B v s (hqp ▸ hq_other j hji)).1
       have hci : clinchAmt (clinchDemands (DemandRule.divisible ι) B v p s) s.remSupply i =
           min ((B i - s.payment i) / p) s.remSupply := by
-        rw [clinchAmt, hsum_d, sub_self, sub_zero, max_eq_right hs.2.2.2.1, hdi]
+        rw [clinchAmt, hsum_d, sub_self, sub_zero, max_eq_right hs.2.2.2.1]
+        simp only [clinchDemands, DemandRule.divisible, hpi, ↓reduceIte]
       have hmono := clinchRun_mono_rem (DemandRule.divisible ι) B v ps hps_pos
         (clinchStep (DemandRule.divisible ι) B v p s) hs'.2.2.1
       have hval_end := clinchRun_valid (DemandRule.divisible ι) B v ps hps_pos

@@ -43,18 +43,15 @@ private theorem not_mem_dom_of_bufLookup_some {c U V n_max : ℕ} {θ : SeedWhp 
       (bufLookup (cTabWhp c) (bCharWhp n_max) tr (fpReducedKey c U n_max θ.2 u)).isSome = true) :
     False := by
   have hrk_lt := fpReducedKey_lt c U n_max θ.2 u
-  cases hlk : bufLookup (cTabWhp c) (bCharWhp n_max) tr (fpReducedKey c U n_max θ.2 u) with
-  | none => rw [hlk] at hlk_some; cases hlk_some
-  | some bp0 =>
-    rcases bp0 with ⟨b', l'⟩
-    rw [hv_tr.lookup_eq hrk_lt] at hlk
-    obtain ⟨hb', hl', _, hrk_eq⟩ := (hrel.2 _ b' l').mp hlk
-    obtain ⟨hm', _⟩ := hc.mem_dom_of_loc hb' hl'
-    let u' : Fin U := ⟨fs.keyValAt c U n_max θ.1 b' l', (hc.active_item b' hb' l' hl').1⟩
-    have hrk_u' : fpReducedKey c U n_max θ.2 u' = fpReducedKey c U n_max θ.2 u := by
-      dsimp only [FastState.rKeyAt] at hrk_eq
-      simpa [u'.isLt, u'] using hrk_eq
-    exact hu_ndom (hinj_rkey (hdom_sub hm') hu_W hrk_u' ▸ hm')
+  obtain ⟨⟨b', l'⟩, hlk⟩ := Option.isSome_iff_exists.mp hlk_some
+  rw [hv_tr.lookup_eq hrk_lt] at hlk
+  obtain ⟨hb', hl', _, hrk_eq⟩ := (hrel.2 _ b' l').mp hlk
+  obtain ⟨hm', _⟩ := hc.mem_dom_of_loc hb' hl'
+  let u' : Fin U := ⟨fs.keyValAt c U n_max θ.1 b' l', (hc.active_item b' hb' l' hl').1⟩
+  have hrk_u' : fpReducedKey c U n_max θ.2 u' = fpReducedKey c U n_max θ.2 u := by
+    dsimp only [FastState.rKeyAt] at hrk_eq
+    simpa [u'.isLt, u'] using hrk_eq
+  exact hu_ndom (hinj_rkey (hdom_sub hm') hu_W hrk_u' ▸ hm')
 
 theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     {W_keys W_ins BadIns : Finset (Fin U)} {fs : FastState} {dict : State U}
@@ -114,9 +111,7 @@ theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_
       set dict' := (Dynamic.step dict (.insert u v)).1
       have hdom' : Dictionary.dom dict' = insert u (Dictionary.dom dict) := by
         ext x
-        by_cases hx : x = u
-        · subst hx; simp [dict', Dictionary.dom]
-        · simp [dict', Dictionary.dom, hx]
+        by_cases hx : x = u <;> simp [dict', Dictionary.dom, hx]
       have hcard_dom' : #(Dictionary.dom dict') ≤ n_max := by
         rw [hdom', Finset.card_insert_of_notMem hu_ndom]
         rcases hval.1 with hlt | hsome
@@ -222,9 +217,9 @@ theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_
       obtain ⟨_, q2, q3, q4, q5, q6, q7, _, q9, q10⟩ := hom_m s_i
       refine stageWorkRemaining_eq_of_meta c n_max (q4.trans r1) (q5.trans r2)
         (q6.trans r3) (q7.trans r4) (q9.trans r5) (q10.trans r6) ?_
-      have hold_eq : (overmarsStep c U n_max θ b s_i).oldEp = s_i.oldEp := by
-        dsimp only [FastState.oldEp]; rw [q2]
-      rw [hold_eq, q3]; exact r7
+      dsimp only [FastState.oldEp]
+      rw [q2, q3]
+      exact r7
     have hst_i : ∀ (s_i : FastState),
         s_i.rebStage = fs.rebStage → s_i.dirtyCount = fs.dirtyCount →
         s_i.dirtyIdx = fs.dirtyIdx → s_i.dirtyBuckets = fs.dirtyBuckets →
@@ -250,24 +245,15 @@ theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_
           have hs_b := hc.bktSalt_lt b hb
           have hfp_lt : fpOfSalt c U n_max θ.2 (fs.bktSalt b) u < 2 ^ fpBitsWhp n_max := by
             dsimp only [fpOfSalt]; simp [hs_b, fpHash_lt]
-          cases hlk : btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-              (fs.slices (fs.liveSliceIdx b)) (fpOfSalt c U n_max θ.2 (fs.bktSalt b) u) with
-          | none => rw [hlk] at hfpc; cases hfpc
-          | some loc_v =>
-            rw [hvl.lookup_eq hc.hth (hv.liveInsCount_le hb) hfp_lt] at hlk
-            obtain ⟨hlv, _, hfp_v⟩ := (hrl.2 _ loc_v).mp hlk
-            obtain ⟨hm_v, hfb_v⟩ := hc.mem_dom_of_loc hb hlv
-            let y : Fin U := ⟨fs.keyValAt c U n_max θ.1 b loc_v, (hc.active_item b hb loc_v hlv).1⟩
-            have hy_ne : u ≠ y := fun h => hu_ndom (h ▸ hm_v)
-            refine hbad_def u hu_ins ⟨y, mem_filter.mpr ⟨hdom_sub hm_v, hfb_v⟩, hy_ne,
-              ⟨fs.bktSalt b, hs_b⟩, ?_⟩
-            have h1_fp : fpOfSalt c U n_max θ.2 (fs.bktSalt b) u =
-                fpHash c U n_max θ.2 ⟨fs.bktSalt b, hs_b⟩ u := by
-              dsimp only [fpOfSalt]; simp [hs_b]
-            have h2_fp : fs.fpAt c U n_max θ (fs.bktSalt b) b loc_v =
-                fpHash c U n_max θ.2 ⟨fs.bktSalt b, hs_b⟩ y := by
-              dsimp only [FastState.fpAt]; simp [hs_b, y.isLt, y]
-            exact h1_fp.symm.trans (hfp_v.symm.trans h2_fp)
+          obtain ⟨loc_v, hlk⟩ := Option.isSome_iff_exists.mp hfpc
+          rw [hvl.lookup_eq hc.hth (hv.liveInsCount_le hb) hfp_lt] at hlk
+          obtain ⟨hlv, _, hfp_v⟩ := (hrl.2 _ loc_v).mp hlk
+          obtain ⟨hm_v, hfb_v⟩ := hc.mem_dom_of_loc hb hlv
+          let y : Fin U := ⟨fs.keyValAt c U n_max θ.1 b loc_v, (hc.active_item b hb loc_v hlv).1⟩
+          have hy_ne : u ≠ y := fun h => hu_ndom (h ▸ hm_v)
+          refine hbad_def u hu_ins ⟨y, mem_filter.mpr ⟨hdom_sub hm_v, hfb_v⟩, hy_ne,
+            ⟨fs.bktSalt b, hs_b⟩, ?_⟩
+          simpa [fpOfSalt, FastState.fpAt, hs_b, y.isLt, y] using hfp_v.symm
         obtain ⟨_, _, _, hvc, _⟩ := hc.bufCur_valid
         have hins := hvc.insert_spec (b := b) (loc := fs.bktCount b) hrk_lt
         set tr' := bufInsert (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey b (fs.bktCount b)

@@ -268,8 +268,7 @@ theorem holeBounded_two (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
       exact (hnot (by simpa using this)).elim
     · -- Every other pending `a` or `b` belongs to the hole of the push before it.
       simp only [Set.mem_insert_iff, Set.mem_singleton_iff]
-      by_contra hq0
-      simp only [not_or] at hq0
+      by_contra! hq0
       have hsame : ∀ (x' : Letter) (j : Fin 2), kind x' = .push j →
           (List.replicate n Letter.a ++ List.replicate n Letter.b ++ gs.flatten)[q - 1]? = some x' →
           (List.replicate n Letter.a ++ List.replicate n Letter.b ++ gs.flatten)[q]? = some x' →
@@ -306,8 +305,7 @@ private theorem getElem?_flatten_cd (r j : ℕ) :
   rcases Nat.mod_two_eq_zero_or_one j with h | h <;> simp [h]
 
 private theorem length_word (m : ℕ) : (word m).length = 4 * m := by
-  simp [word]
-  omega
+  simp [word]; omega
 
 /-- The net effect on stack `0` of a prefix of `(c d)ʳ`. -/
 private theorem net_take_flatten_cd (r j : ℕ) :
@@ -334,8 +332,7 @@ private theorem net_take_abcd (r s k : ℕ) :
   simp only [List.take_append, List.take_replicate, List.map_append, List.map_replicate,
     List.sum_append, List.sum_replicate, List.length_append, List.length_replicate, kind,
     OpKind.net]
-  simp
-  omega
+  simp; omega
 
 /-- The factor of `word m` strictly between its first `a` and the last `c`. -/
 private theorem extract_word (m : ℕ) (hm : 1 ≤ m) :
@@ -392,9 +389,8 @@ theorem not_scopeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
       simpa [show 4 * m - 2 = 2 * m + (2 * m - 2) by omega,
         show (2 * m - 2) % 2 = 0 by omega] using hword_cd (k := 2 * m - 2) (by omega))
     obtain ⟨γa, hγa⟩ := Op.kind_eq_push.mp hka
-    have hpc : ∃ γ, μc.2 = .pop 0 γ := by
+    obtain ⟨γc, hγc⟩ : ∃ γ, μc.2 = .pop 0 γ := by
       rcases hop : μc.2 with _ | ⟨i, γ⟩ | ⟨i, γ⟩ <;> rw [hop] at hkc <;> simp_all [Op.kind, kind]
-    obtain ⟨γc, hγc⟩ := hpc
     have hsub : ∀ μ ∈ w.extract 1 (4 * m - 2), μ.2.kind = kind μ.1 := fun μ hμ =>
       hkind μ ((List.extract_isInfix w _ _).subset hμ)
     have hfst : (w.extract 1 (4 * m - 2)).map Prod.fst =
@@ -420,7 +416,7 @@ theorem not_scopeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
   have hfstack : ∀ k < 2 * m + 1, ∃ μ, w[altPos m k]? = some μ ∧
       μ.2.stack = some (⟨k % 2, Nat.mod_lt _ (by omega)⟩ : Fin 2) := by
     intro k hk
-    have hletter : ∃ x, (word m)[altPos m k]? = some x ∧
+    obtain ⟨x, hx, hxs⟩ : ∃ x, (word m)[altPos m k]? = some x ∧
         (kind x).stack = some (⟨k % 2, Nat.mod_lt _ (by omega)⟩ : Fin 2) := by
       rcases k with _ | _ | k
       · exact ⟨.a, hword_a (by omega), rfl⟩
@@ -431,7 +427,6 @@ theorem not_scopeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
       · refine ⟨if k % 2 = 0 then .c else .d, hword_cd (by omega), ?_⟩
         rcases Nat.mod_two_eq_zero_or_one k with hk2 | hk2 <;>
           simp [hk2, kind, OpKind.stack, Nat.add_mod]
-    obtain ⟨x, hx, hxs⟩ := hletter
     obtain ⟨μ, hμ, -, hμk⟩ := hpos hx
     exact ⟨μ, hμ, by rw [Op.stack_eq_kind_stack, hμk, hxs]⟩
   -- The scope bound gives at most `K + 1` contexts from the first `a` to the last `c`.
@@ -447,12 +442,11 @@ theorem not_scopeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
       intro t ht t' ht' htt'
       obtain ⟨k, hk, rfl⟩ := Finset.mem_image.mp ht
       obtain ⟨k', hk', rfl⟩ := Finset.mem_image.mp ht'
-      have hk := Finset.mem_range.mp hk
-      have hk' := Finset.mem_range.mp hk'
+      rw [Finset.mem_range] at hk hk'
       have hkk : k < k' := hf.lt_iff_lt.mp htt'
-      have hle : altPos m (k + 1) ≤ altPos m k' := hf.monotone hkk
       have hmax : altPos m k' ≤ 4 * m - 2 := by
         rcases k' with _ | _ | k' <;> simp [altPos] <;> omega
+      have hle : altPos m (k + 1) ≤ altPos m k' := hf.monotone hkk
       rw [List.extract_extract _ (by omega), Nat.zero_add, Nat.zero_add]
       obtain ⟨μ₁, hμ₁, hs₁⟩ := hfstack k (by omega)
       obtain ⟨μ₂, hμ₂, hs₂⟩ := hfstack (k + 1) (by omega)

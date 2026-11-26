@@ -102,9 +102,8 @@ private theorem exists_formula_computes_parity [Fact (2 ≤ n)] (P : L.Relations
       exact h S
     simp only [Circuits.Formula.eval_gate, Unbounded.interpretation_not, Matrix.cons_val_zero]
     change _ = decide (#S % 2 = 1)
-    rw [Nat.even_iff] at hreal
     refine Bool.eq_iff_iff.2 ?_
-    simp only [Bool.not_eq_true', ← Bool.not_eq_true, hreal, decide_eq_true_iff]
+    simp only [Bool.not_eq_true', ← Bool.not_eq_true, hreal, Nat.even_iff, decide_eq_true_iff]
     omega
   · have := depth_toUnbounded_le e φ Fin.elim0
     circuit_bound
@@ -135,18 +134,14 @@ theorem not_definable_even_card (P : L.Relations 1) :
     let N : L.Structure (Fin n) := ⟨fun f => isEmptyElim f, fun _ _ => False⟩
     refine exists_formula_computes_parity P N φ fun S => ?_
     let : L.Structure (Fin n) := inferInstanceAs (L.Structure (Expansion P N S))
-    let M : Cslib.Logic.FO.Ordered.Structure L :=
-      ⟨n, hn, inferInstanceAs (L.Structure (Expansion P N S))⟩
+    let M : Cslib.Logic.FO.Ordered.Structure L := ⟨n, hn, ‹_›⟩
     have hcard : Nat.card {x : M // Structure.RelMap P ![x]} = #S :=
       (Nat.card_congr (Equiv.subtypeEquivRight fun x =>
         Expansion.relMap_self (P := P) (N := N) (S := S) ![x])).trans (Nat.card_eq_finsetCard S)
-    have hM : (Fin n ⊨ φ) ↔ Even (Nat.card {x : M // Structure.RelMap P ![x]}) := (hφ M).symm
-    rwa [hcard] at hM
+    exact hcard ▸ (hφ M).symm
   · rcases (by omega : n = 0 ∨ n = 1) with rfl | rfl
     · refine ⟨constUnbounded false, fun _ => by simp [parity], by simp [constUnbounded], ?_⟩
-      simp only [constUnbounded, Bool.false_eq_true, ↓reduceIte, Circuits.Formula.size_gate,
-        Finset.univ_eq_empty, Finset.sum_empty, zero_add]
-      exact Nat.succ_le_of_lt (by positivity)
+      simpa [constUnbounded] using Nat.one_le_iff_ne_zero.mpr (by positivity)
     · exact ⟨.input 0, fun _ => by simp [parity, Finset.univ_unique, Fin.default_eq_zero],
         by simp, by simp⟩
 

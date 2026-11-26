@@ -139,16 +139,13 @@ private theorem joinFillProg_spec {w : ℕ} (counting : Bool) (a : JoinFillArgs)
       hlBag_t hlBag_len hrBag_t hrBag_len
   simp only [radixProjAssign, Nat.zero_ne_one, ↓reduceIte] at hr_rp hc_rp
   let mr := toRadix a.q (bagList right) (ofRadix a.q (bagList left) m)
-  have hl_len : (dpInstTree counting a.q cs vars left).length = a.tblLen := by
-    rw [length_dpInstTree, hlBag_len, htblLen]
-  have hr_len : (dpInstTree counting a.q cs vars right).length = a.q ^ a.rBagLen := by
-    rw [length_dpInstTree, hrBag_len]
-  have hmr_lt : mr < a.q ^ a.rBagLen := by
-    rw [← hrBag_len]; exact toRadix_lt hq _ _
+  have hmr_lt : mr < a.q ^ a.rBagLen := hrBag_len ▸ toRadix_lt hq _ _
   have hm_lv : t.mem (a.lTblPtr + m) = (dpInstTree counting a.q cs vars left).getD m 0 :=
-    (hlTbl_t.get m (by rw [hl_len]; exact hm_lt)).trans (List.getElem_eq_getD 0)
+    (hlTbl_t.get m (by rw [length_dpInstTree, hlBag_len, ← htblLen]; omega)).trans
+      (List.getElem_eq_getD 0)
   have hm_rv : t.mem (a.rTblPtr + mr) = (dpInstTree counting a.q cs vars right).getD mr 0 :=
-    (hrTbl_t.get mr (by rw [hr_len]; exact hmr_lt)).trans (List.getElem_eq_getD 0)
+    (hrTbl_t.get mr (by rw [length_dpInstTree, hrBag_len]; omega)).trans
+      (List.getElem_eq_getD 0)
   let entryVal := targetTbl[m]'(by rw [htarget_len]; exact hm_lt)
   have hprod_eq : t.mem (a.lTblPtr + m) * t.mem (a.rTblPtr + mr) = entryVal := by
     rw [hm_lv, hm_rv]
@@ -218,15 +215,12 @@ private theorem joinFillProg_realizes :
     hfit_rTbl.of_le (by omega)
   have hfit_taddr : Fits w (d.tblPtr + m) := hfit_tbl.of_le (by omega)
   have hlv_le : t.mem (d.lTblPtr + m) ≤ lCap := by
-    have hm_l : m < lTbl.length := by rwa [hl_len]
-    rw [hl_t.get m hm_l]
-    exact hl_le _ (List.getElem_mem hm_l)
+    rw [hl_t.get m (hl_len ▸ hm_lt)]
+    exact hl_le _ (List.getElem_mem _)
   have hrv_le :
       t.mem (d.rTblPtr + (Memory.spec 0).clientResult t (radixProjProg rpArgs)) ≤ rCap := by
-    have hm_r : (Memory.spec 0).clientResult t (radixProjProg rpArgs) < rTbl.length := by
-      rwa [hr_len]
-    rw [hr_t.get _ hm_r]
-    exact hr_le _ (List.getElem_mem hm_r)
+    rw [hr_t.get _ (hr_len ▸ hmr_lt)]
+    exact hr_le _ (List.getElem_mem _)
   have hfit_mul :
       Fits w (t.mem (d.lTblPtr + m) *
         t.mem (d.rTblPtr + (Memory.spec 0).clientResult t (radixProjProg rpArgs))) :=
@@ -240,14 +234,7 @@ private theorem joinFillProg_realizes :
   refine ⟨?_, Nat.le_of_succ_le hj_le, ?_, ?_, ?_⟩
   · dsimp only [joinFillStep]
     rw [radixProjProg_state]
-    refine ⟨hfit_laddr, hrp_safe, ?_⟩
-    repeat (
-      first
-      | refine And.intro ?_ ?_
-      | exact hfit_raddr
-      | exact hfit_taddr
-      | exact hfit_mul
-      | exact hfit_m1)
+    exact ⟨hfit_laddr, hrp_safe, hfit_raddr, ⟨hfit_taddr, hfit_mul⟩, hfit_m1⟩
   · rw [hres_ev]; omega
   · rw [hst_ev]
     exact holdsIn_write_outside hl_t (.inr (by rw [hl_len]; omega))

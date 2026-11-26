@@ -165,19 +165,13 @@ theorem wOffQ_add_one_lt_compactedItemWords {U V w N n d : ℕ} (hw : 0 < w) (hd
 theorem wOffV_add_one_lt_compactedItemWords {U V w N n d : ℕ} (hw : 0 < w) (hd : d < n) :
     wOffV (quotientBits U N) (valBits V) w d + 1 < compactedItemWords U V w N n :=
   wOff_add_one_lt_compactedItemWords hw (bOffV_lt hw) wOffV_mul_add_bOffV <| by
-    have hsucc : (d + 1) * (quotientBits U N + valBits V) ≤
-        n * (quotientBits U N + valBits V) := Nat.mul_le_mul_right _ hd
-    rw [Nat.add_one_mul] at hsucc
-    omega
+    have := Nat.mul_le_mul_right (quotientBits U N + valBits V) hd
+    nlinarith
 
 theorem compactedItemWords_mono {U V w N n₁ n₂ : ℕ} (h : n₁ ≤ n₂) :
     compactedItemWords U V w N n₁ ≤ compactedItemWords U V w N n₂ := by
   unfold compactedItemWords
-  have hmul : n₁ * (quotientBits U N + valBits V) ≤ n₂ * (quotientBits U N + valBits V) := by gcongr
-  have hdiv : (n₁ * (quotientBits U N + valBits V) + w - 1) / w ≤
-      (n₂ * (quotientBits U N + valBits V) + w - 1) / w :=
-    Nat.div_le_div_right (by omega)
-  omega
+  gcongr
 
 /-- Adding `1` live item increases `compactedItemWords` by at most `2` words when `U, V ≤ 2 ^ w`. -/
 theorem compactedItemWords_succ_sub_le_two {U V w N n : ℕ} (hw : 0 < w)
@@ -227,15 +221,13 @@ theorem compQuotAt_lt (itemBase U V w N n : ℕ) (mem : ℕ → ℕ) (d : ℕ) :
     compQuotAt itemBase U V w N n mem d < 2 ^ quotientBits U N := by
   unfold compQuotAt
   split_ifs
-  · exact readBitSlice_lt _ _ _ _ _ _
-  · positivity
+  exacts [readBitSlice_lt _ _ _ _ _ _, by positivity]
 
 theorem compValAt_lt (itemBase U V w N n : ℕ) (mem : ℕ → ℕ) (d : ℕ) :
     compValAt itemBase U V w N n mem d < 2 ^ valBits V := by
   unfold compValAt
   split_ifs
-  · exact readBitSlice_lt _ _ _ _ _ _
-  · positivity
+  exacts [readBitSlice_lt _ _ _ _ _ _, by positivity]
 
 theorem compQuotAt_writeCompQuot_self {itemBase U V w N n d q : ℕ} (mem : ℕ → ℕ)
     (hd : d < n) (hq : q < 2 ^ quotientBits U N) :
@@ -478,9 +470,7 @@ theorem succinctWords_mul_w_le_bits (C C₀ U V w n : ℕ) :
     calc w * ((B + w - 1) / w + C₀)
         = w * ((B + w - 1) / w) + C₀ * w := by ring
       _ ≤ (B + w - 1) + C₀ * w := Nat.add_le_add_right hmul _
-      _ ≤ B + (C₀ + 1) * w := by
-        have : (C₀ + 1) * w = C₀ * w + w := by ring
-        omega
+      _ ≤ B + (C₀ + 1) * w := by rw [Nat.succ_mul]; omega
 
 /-! ## Section 3: Pure Metadata Extractors and Runtime `CompParams` -/
 

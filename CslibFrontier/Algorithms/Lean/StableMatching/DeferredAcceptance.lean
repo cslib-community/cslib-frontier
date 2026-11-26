@@ -109,13 +109,9 @@ theorem step_cases (s : State n) :
   unfold step
   split
   · rename_i p hp
-    right
-    exact ⟨p, by simpa using List.find?_some hp, rfl⟩
+    exact .inr ⟨p, by simpa using List.find?_some hp, rfl⟩
   · rename_i hp
-    left
-    refine ⟨rfl, fun p hd => ?_⟩
-    have := List.find?_eq_none.1 hp p (List.mem_finRange p)
-    simp_all
+    exact .inl ⟨rfl, fun p => by simpa using List.find?_eq_none.1 hp p (List.mem_finRange p)⟩
 
 /-- Within the list, `target` is the choice of rank `s p`. -/
 theorem target_of_lt {s : State n} {p : Fin n} (h : s p < n) :
@@ -252,27 +248,20 @@ theorem sum_le {s : State n} (hs : I.Inv s) : ∑ p, s p ≤ (n - 1) ^ 2 := by
   by_cases hlast : ∃ p, s p + 1 = n
   · obtain ⟨p, hp⟩ := hlast
     rw [← Finset.add_sum_erase _ _ (Finset.mem_univ p)]
-    have hrest : ∑ x ∈ Finset.univ.erase p, s x ≤ (Finset.univ.erase p).card * (n - 2) := by
-      rw [← smul_eq_mul]
-      refine Finset.sum_le_card_nsmul _ _ _ fun x hx => ?_
-      have hxp := Finset.ne_of_mem_erase hx
-      have h1 := hs.lt x
-      have h2 : s x + 1 ≠ n := fun h => hxp (hs.last_unique x p h hp)
-      omega
-    rw [Finset.card_erase_of_mem (Finset.mem_univ p), Finset.card_univ, Fintype.card_fin] at hrest
+    have hrest : ∑ x ∈ Finset.univ.erase p, s x ≤ (n - 1) * (n - 2) := by
+      simpa [Finset.card_univ] using Finset.sum_le_card_nsmul (Finset.univ.erase p) s (n - 2)
+        fun x hx => by
+          have := hs.lt x
+          have : s x + 1 ≠ n := fun h => Finset.ne_of_mem_erase hx (hs.last_unique x p h hp)
+          omega
     have := (sq_aux n).1
-    have hsp : s p = n - 1 := by omega
-    rw [hsp]
-    linarith
+    omega
   · push Not at hlast
-    have h : ∑ x, s x ≤ (Finset.univ : Finset (Fin n)).card * (n - 2) := by
-      rw [← smul_eq_mul]
-      refine Finset.sum_le_card_nsmul _ _ _ fun x _ => ?_
-      have h1 := hs.lt x
-      have h2 := hlast x
+    refine le_trans ?_ (sq_aux n).2
+    simpa using Finset.sum_le_card_nsmul Finset.univ s (n - 2) fun x _ => by
+      have := hs.lt x
+      have := hlast x
       omega
-    rw [Finset.card_univ, Fintype.card_fin] at h
-    exact h.trans (sq_aux n).2
 
 
 private theorem sum_update_succ (s : State n) (p : Fin n) :
@@ -329,9 +318,7 @@ theorem run_le_run_succ (k : ℕ) (p : Fin n) : I.run k p ≤ I.run (k + 1) p :=
   rcases I.step_cases (I.run k) with ⟨h, -⟩ | ⟨q, -, h⟩
   · rw [h]
   · rw [h]
-    by_cases hpq : p = q
-    · subst hpq; rw [Function.update_self]; omega
-    · rw [Function.update_of_ne hpq]
+    grind [Function.update_apply]
 
 /-- Rejection counts are monotone in the number of rounds. -/
 theorem run_mono {j k : ℕ} (hjk : j ≤ k) (p : Fin n) : I.run j p ≤ I.run k p := by

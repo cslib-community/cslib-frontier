@@ -217,13 +217,7 @@ theorem idealUOVSystem_toRawScheme (F : Type) [Field F] [Fintype F] [DecidableEq
 theorem TrapdoorPreimageSystem.eval_sampleRealPair_map_fst [Fintype Target] [Nonempty Target]
     (sys : TrapdoorPreimageSystem PK SK Target Preimage) (sk : SK) :
     (ProbComp.eval (sys.sampleRealPair sk)).map Prod.fst = PMF.uniformOfFintype Target := by
-  simp only [sampleRealPair, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
-    PMF.map_bind, PMF.pure_map]
-  have hconst (y : Target) :
-      ((ProbComp.eval (sys.invert sk y)).bind fun _ => PMF.pure y) = PMF.pure y := by
-    have := (ProbComp.eval (sys.invert sk y)).map_const y
-    simpa only [PMF.map, Function.comp_def, Function.const_apply] using this
-  simp [hconst]
+  simp [sampleRealPair, ProbComp.eval_bind, ProbComp.eval_uniform, ← PMF.bind_pure_comp]
 
 /-- An adaptive distinguisher in the preimage-simulatability (`PS`) game (after
 `[KosugeXagawa2022]`, Section 2.3, Figure 4 and Definition 7, adapted to retain `Option Preimage`
@@ -612,11 +606,8 @@ private theorem saltedSamplePre_minEnt {Salt : Type} [Fintype Target]
       (Fintype.card Salt : ℝ≥0∞)⁻¹ := by
   have hmap : (saltedSamplePre sys sk m).map (fun coins => (m, coins.1)) =
       (PMF.uniformOfFintype Salt).map (fun r => (m, r)) := by
-    simp only [saltedSamplePre, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-      PMF.map_bind, PMF.pure_map]
-    refine congrArg ((PMF.uniformOfFintype Salt).bind ·) (funext fun r => ?_)
-    have := (PMF.pi fun y => ProbComp.eval (sys.invert sk y)).map_const (m, r)
-    simpa only [PMF.map, Function.comp_def, Function.const_apply] using this
+    simp [saltedSamplePre, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+      ← PMF.bind_pure_comp, Function.comp_def]
   rw [hmap]
   have hinj : Function.Injective (fun r : Salt => (m, r)) := fun _ _ h => (Prod.mk.inj h).2
   simpa only [Function.comp_id] using
@@ -1085,32 +1076,24 @@ private theorem saltedSim_le_mul_targetExperiment {Salt : Type} [DecidableEq M] 
         ⟨[], [], 0, none⟩).map (fun ⟨out, st⟩ => (out, (st.cache, st.signed, st.hCount))) =
       (ProbOracleComp.runWith (saltedTrackHandler sys pk 0) (forger pk)
         ⟨[], [], 0, none⟩).map (fun ⟨out, st⟩ => (out, (st.cache, st.signed, st.hCount))) := by
+    let projH : (q : M ⊕ (M × Salt)) →
+        StateT (List ((M × Salt) × (Target × Option ℕ)) × List M × ℕ) PMF
+          (ROMSignature.ForgerSpec M (M × Salt) (Salt × Option Preimage) Target q) :=
+      fun q (cache, signed, hCount) =>
+        (saltedTrackHandler sys pk 0 q ⟨cache, signed, hCount, none⟩).map
+          fun (a, st') => (a, (st'.cache, st'.signed, st'.hCount))
     have hmap (j : ℕ) :
         (ProbOracleComp.runWith (saltedTrackHandler sys pk j) (forger pk)
           ⟨[], [], 0, none⟩).map (fun ⟨out, st⟩ => (out, (st.cache, st.signed, st.hCount))) =
-        ProbOracleComp.runWith
-          (fun q ((cache, signed, hCount) :
-              List ((M × Salt) × (Target × Option ℕ)) × List M × ℕ) =>
-            match q with
-            | .inl m => do
-                let r ← PMF.uniformOfFintype Salt
-                let yx ← ProbComp.eval (sys.sampleSimPair pk)
-                return ((r, yx.2), (((m, r), (yx.1, none)) :: cache, m :: signed, hCount))
-            | .inr hq =>
-                match cache.lookup hq with
-                | some (y, _) => PMF.pure (y, (cache, signed, hCount))
-                | none => do
-                    let y ← PMF.uniformOfFintype Target
-                    return (y, ((hq, (y, some hCount)) :: cache, signed, hCount + 1)))
-          (forger pk) ([], [], 0) := by
-      refine ProbOracleComp.runWith_map_state _ _
+        ProbOracleComp.runWith projH (forger pk) ([], [], 0) := by
+      refine ProbOracleComp.runWith_map_state _ projH
         (fun (st : SaltedTrackState M Salt Target) => (st.cache, st.signed, st.hCount))
         (fun q st => ?_) (forger pk) (⟨[], [], 0, none⟩ : SaltedTrackState M Salt Target)
       cases q with
       | inl m =>
-        simp [saltedTrackHandler, PMF.map_bind, PMF.pure_map]
+        simp [projH, saltedTrackHandler, PMF.map_bind, PMF.pure_map]
       | inr hq =>
-        dsimp only [saltedTrackHandler]
+        dsimp only [projH, saltedTrackHandler]
         cases st.cache.lookup hq <;> simp [PMF.map_bind, PMF.pure_map]
     rw [hmap jStar.val, hmap 0]
   have htrack_eq (jStar : Fin (q_H + 1)) : trackProj jStar = trackProj 0 := by
@@ -1937,6 +1920,18 @@ private theorem interpret_pure_oracle_eq_runWith {Q α : Type} {S : Q → Type}
   simpa only [PMF.map_comp, Function.comp_def, PMF.map_id', OracleComp.evalWith_eq_interpret]
     using h.symm
 
+private theorem interpret_pure_run_interpret {Q₁ Q₂ σ α : Type} {S₁ : Q₁ → Type} {S₂ : Q₂ → Type}
+    (inner : (q : Q₁) → StateT σ (ProbOracleComp S₂) (S₁ q))
+    (f : (q : Q₂) → S₂ q) (prog : ProbOracleComp S₁ α) (init : σ) :
+    OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle fun q => PMF.pure (f q))
+      ((OracleComp.interpret
+        (OracleComp.sumHandler (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+          inner) prog).run init) =
+      ProbOracleComp.runWith
+        (fun q s => ProbComp.eval ((inner q s).run fun q' => pure (f q'))) prog init := by
+  simpa only [ProbOracleComp.eval_run, ProbComp.eval_pure] using
+    eval_run_run_interpret inner (fun q => pure (f q)) prog init
+
 private theorem toOuterMeasure_flagBad_fresh_le {α σ : Type} [DecidableEq Target]
     [Fintype Target] [Nonempty Target]
     (sys : TrapdoorPreimageSystem PK SK Target Preimage) (sk : SK)
@@ -2070,26 +2065,18 @@ private theorem detWorld_le_detPSReal_add_birthday [DecidableEq M] [DecidableEq 
                 (detEagerHandler (M := M) (Target := Target) (Preimage := Preimage)))
               (forger pk)).run ([], [])) =
           ProbOracleComp.runWith eagerH (forger pk) ([], []) := by
-        rw [interpret_pure_oracle_eq_runWith invTable, ProbOracleComp.runWith_run_interpret]
-        have hdrop := ProbOracleComp.runWith_map_state
-          (fun q (st : (List (M × (Target × Option Preimage)) × List M) × Unit) =>
-            (ProbOracleComp.runWith
-              (fun y (_ : Unit) => (PMF.pure (invTable y)).map (·, ()))
-              ((detEagerHandler (M := M) (Target := Target) (Preimage := Preimage) q).run st.1)
-              st.2).map fun ⟨⟨a, b⟩, c⟩ => (a, b, c))
-          eagerH Prod.fst
-          (by
-            rintro (m | m) ⟨⟨cache, signed⟩, _⟩ <;>
-            · dsimp only [detEagerHandler, eagerH, StateT.run]
-              cases cache.lookup m with
-              | some yx => simp [ProbOracleComp.runWith_pure, PMF.pure_map]
-              | none =>
-                simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
-                  ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, ProbComp.eval_uniform,
-                  PMF.map_bind, PMF.pure_map, PMF.pure_bind, PMF.bind_map, Function.comp_apply]
-                exact (PMF.bind_pure_comp _ _).symm)
-          (forger pk) (([], []), ())
-        simpa only [PMF.map_comp, Function.comp_def, Prod.map] using hdrop
+        rw [interpret_pure_run_interpret]
+        congr 1
+        funext q ⟨cache, signed⟩
+        rcases q with m | m <;>
+        · dsimp only [detEagerHandler, eagerH, StateT.run]
+          cases cache.lookup m with
+          | some yx => simp [ProbOracleComp.run_pure, ProbComp.eval_pure]
+          | none =>
+            simp only [ProbOracleComp.run_bind, ProbOracleComp.run_sample,
+              ProbOracleComp.run_query, ProbOracleComp.run_pure, ProbComp.eval_bind,
+              ProbComp.eval_uniform, ProbComp.eval_pure, PMF.pure_bind]
+            exact (PMF.bind_pure_comp _ _).symm
       rw [hleft]
       refine PMF.bind_congr_on_support _ _ _ fun ⟨⟨mStar, sigStar⟩, cache, signed⟩ _ => ?_
       cases cache.lookup mStar with
@@ -2108,81 +2095,6 @@ private theorem detWorld_le_detPSReal_add_birthday [DecidableEq M] [DecidableEq 
         exact (PMF.bind_pure_comp _ _).symm
     rw [hrun_eager]
     -- Project the worldGame execution to `(cache, signed)` via invariant `x = invTable y`.
-    have hworld_run :
-        ProbOracleComp.runWith (ROMSignature.forgerWorldImpl (detScheme sys) (sk, invTable))
-          (ROMSignature.runLoggedForger (forger pk)) [] =
-        (ProbOracleComp.runWith
-          (fun q ((pairs, cache) : List (M × Option Preimage) × List (M × Target)) =>
-            match q with
-            | .inl m =>
-              match cache.lookup m with
-              | some y => PMF.pure (invTable y, ((m, invTable y) :: pairs, cache))
-              | none =>
-                (PMF.uniformOfFintype Target).map fun y =>
-                  (invTable y, ((m, invTable y) :: pairs, (m, y) :: cache))
-            | .inr m =>
-              match cache.lookup m with
-              | some y => PMF.pure (y, (pairs, cache))
-              | none =>
-                (PMF.uniformOfFintype Target).map fun y =>
-                  (y, (pairs, (m, y) :: cache)))
-          (forger pk) ([], [])).map fun (out, (pairs, cache)) => ((out, pairs), cache) := by
-      simp only [ROMSignature.runLoggedForger, ProbOracleComp.runWith_run_interpret]
-      have hbody :
-          (fun (q : M ⊕ M) (state : List (M × Option Preimage) × List (M × Target)) =>
-            PMF.map (fun ((a, b), c) => (a, b, c))
-              (ProbOracleComp.runWith (ROMSignature.forgerWorldImpl (detScheme sys) (sk, invTable))
-                ((ROMSignature.logSigning q).run state.1) state.2)) =
-          (fun (q : M ⊕ M) ((pairs, cache) : List (M × Option Preimage) × List (M × Target)) =>
-            match q with
-            | .inl m =>
-              match cache.lookup m with
-              | some y => PMF.pure (invTable y, ((m, invTable y) :: pairs, cache))
-              | none =>
-                (PMF.uniformOfFintype Target).map fun y =>
-                  (invTable y, ((m, invTable y) :: pairs, (m, y) :: cache))
-            | .inr m =>
-              match cache.lookup m with
-              | some y => PMF.pure (y, (pairs, cache))
-              | none =>
-                (PMF.uniformOfFintype Target).map fun y =>
-                  (y, (pairs, (m, y) :: cache)) :
-            (q : M ⊕ M) → StateT (List (M × Option Preimage) × List (M × Target)) PMF
-              (ROMSignature.ForgerSpec M M (Option Preimage) Target q)) := by
-        funext q ⟨pairs, cache⟩
-        cases q with
-        | inl m =>
-          simp only [ROMSignature.logSigning, StateT.run, ProbOracleComp.runWith_bind,
-            ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, ROMSignature.forgerWorldImpl,
-            detScheme, interp_norm, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.pure_bind]
-          change PMF.map (fun ((a, b), c) => (a, b, c))
-            ((((ROMSignature.oracle Target m).run cache).bind fun x =>
-              PMF.pure (invTable x.1, x.2)).bind fun x =>
-              PMF.pure ((x.1, (m, x.1) :: pairs), x.2)) = _
-          cases hlu : cache.lookup m with
-          | some y =>
-            rw [ROMSignature.run_oracle_of_lookup_eq_some hlu]
-            simp [PMF.pure_bind, PMF.pure_map]
-          | none =>
-            rw [ROMSignature.run_oracle_of_lookup_eq_none hlu]
-            simp only [PMF.bind_bind, PMF.pure_bind, PMF.map_bind, PMF.pure_map]
-            exact (PMF.bind_pure_comp _ _).symm
-        | inr m =>
-          simp only [ROMSignature.logSigning, StateT.run, ProbOracleComp.runWith_bind,
-            ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, ROMSignature.forgerWorldImpl,
-            detScheme, interp_norm, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.pure_bind]
-          change PMF.map (fun ((a, b), c) => (a, b, c))
-            (((ROMSignature.oracle Target m).run cache).bind fun x =>
-              PMF.pure ((x.1, pairs), x.2)) = _
-          cases hlu : cache.lookup m with
-          | some y =>
-            rw [ROMSignature.run_oracle_of_lookup_eq_some hlu]
-            simp [PMF.pure_bind, PMF.pure_map]
-          | none =>
-            rw [ROMSignature.run_oracle_of_lookup_eq_none hlu]
-            simp only [PMF.bind_bind, PMF.pure_bind, PMF.map_bind, PMF.pure_map]
-            exact (PMF.bind_pure_comp _ _).symm
-      rw [hbody]
     -- Compare the two `runWith` distributions projected to `(out, (cache.map ..., signed))`.
     have hproj_world :
         (ProbOracleComp.runWith (ROMSignature.forgerWorldImpl (detScheme sys) (sk, invTable))
@@ -2211,15 +2123,41 @@ private theorem detWorld_le_detPSReal_add_birthday [DecidableEq M] [DecidableEq 
                   (PMF.uniformOfFintype Target).map fun y =>
                     (y, ((m, y) :: cache, signed)))
             (forger pk) ([], []) := by
-        rw [hworld_run, PMF.map_comp]
-        exact ProbOracleComp.runWith_map_state _ _
+        rw [ROMSignature.runLoggedForger, ProbOracleComp.runWith_run_interpret, PMF.map_comp]
+        refine ProbOracleComp.runWith_map_state _ _
           (fun (st : List (M × Option Preimage) × List (M × Target)) =>
             (st.2, st.1.map Prod.fst))
-          (by
-            rintro (m | m) ⟨pairs, cache⟩ <;>
-            · cases hlu : cache.lookup m <;>
-                simp [hlu, PMF.pure_map, PMF.map_comp, Function.comp_def])
-          (forger pk) ([], [])
+          ?_ (forger pk) ([], [])
+        rintro (m | m) ⟨pairs, cache⟩
+        · simp only [ROMSignature.logSigning, StateT.run, ProbOracleComp.runWith_bind,
+            ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, ROMSignature.forgerWorldImpl,
+            detScheme, interp_norm, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.pure_bind,
+            PMF.map_comp, Function.comp_def]
+          change PMF.map _ ((((ROMSignature.oracle Target m).run cache).bind fun x =>
+            PMF.pure (invTable x.1, x.2)).bind fun x =>
+            PMF.pure ((x.1, (m, x.1) :: pairs), x.2)) = _
+          cases hlu : cache.lookup m with
+          | some y =>
+            rw [ROMSignature.run_oracle_of_lookup_eq_some hlu]
+            simp [PMF.pure_bind, PMF.pure_map]
+          | none =>
+            rw [ROMSignature.run_oracle_of_lookup_eq_none hlu]
+            simp only [PMF.bind_bind, PMF.pure_bind, PMF.map_bind, PMF.pure_map, List.map_cons]
+            exact (PMF.bind_pure_comp _ _).symm
+        · simp only [ROMSignature.logSigning, StateT.run, ProbOracleComp.runWith_bind,
+            ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, ROMSignature.forgerWorldImpl,
+            detScheme, interp_norm, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.pure_bind,
+            PMF.map_comp, Function.comp_def]
+          change PMF.map _ (((ROMSignature.oracle Target m).run cache).bind fun x =>
+            PMF.pure ((x.1, pairs), x.2)) = _
+          cases hlu : cache.lookup m with
+          | some y =>
+            rw [ROMSignature.run_oracle_of_lookup_eq_some hlu]
+            simp [PMF.pure_bind, PMF.pure_map]
+          | none =>
+            rw [ROMSignature.run_oracle_of_lookup_eq_none hlu]
+            simp only [PMF.bind_bind, PMF.pure_bind, PMF.map_bind, PMF.pure_map]
+            exact (PMF.bind_pure_comp _ _).symm
       rw [h1]
       symm
       refine ProbOracleComp.runWith_map_state_of_invariant eagerH _
@@ -2348,39 +2286,9 @@ private theorem detWorld_le_detPSReal_add_birthday [DecidableEq M] [DecidableEq 
     let lazyH : (q : M ⊕ M) →
         StateT (List (M × (Target × Option Preimage)) × List M × List (Target × Option Preimage))
           PMF (ROMSignature.ForgerSpec M M (Option Preimage) Target q) :=
-      fun q (cache, signed, invCache) =>
-        match q with
-        | .inl m =>
-          match cache.lookup m with
-          | some (_, x) => PMF.pure (x, (cache, m :: signed, invCache))
-          | none =>
-            (PMF.uniformOfFintype Target).bind fun y =>
-              match invCache.lookup y with
-              | some x => PMF.pure (x, ((m, (y, x)) :: cache, m :: signed, invCache))
-              | none =>
-                (ProbComp.eval (sys.invert sk y)).map fun x =>
-                  (x, ((m, (y, x)) :: cache, m :: signed, (y, x) :: invCache))
-        | .inr m =>
-          match cache.lookup m with
-          | some (y, _) => PMF.pure (y, (cache, signed, invCache))
-          | none =>
-            (PMF.uniformOfFintype Target).bind fun y =>
-              match invCache.lookup y with
-              | some x => PMF.pure (y, ((m, (y, x)) :: cache, signed, invCache))
-              | none =>
-                (ProbComp.eval (sys.invert sk y)).map fun x =>
-                  (y, ((m, (y, x)) :: cache, signed, (y, x) :: invCache))
+      fun q st => (detLazyInvStep sys sk q st).map fun (a, s, _) => (a, s)
     have hdrop := ProbOracleComp.runWith_withBadFlag_map_fst (detLazyInvStep sys sk) lazyH
-      (by
-        rintro (m | m) ⟨cache, signed, invCache⟩ <;>
-        · dsimp only [detLazyInvStep, lazyH]
-          cases cache.lookup m with
-          | some yx => simp [PMF.pure_map]
-          | none =>
-            rw [PMF.map_bind]
-            refine PMF.bind_congr_on_support _ _ _ fun y _ => ?_
-            cases invCache.lookup y <;> simp [PMF.pure_map, PMF.map_comp, Function.comp_def])
-      (forger pk) ([], [], []) false
+      (fun _ _ => rfl) (forger pk) ([], [], []) false
     have hreassoc :
         ProbOracleComp.runWith (memoize fun y => ProbComp.eval (sys.invert sk y))
           ((OracleComp.interpret
@@ -2408,7 +2316,7 @@ private theorem detWorld_le_detPSReal_add_birthday [DecidableEq M] [DecidableEq 
           (fun (cache, signed, invCache) => ((cache, signed), invCache))
           ?_ (forger pk) ([], [], [])
         rintro (m | m) ⟨cache, signed, invCache⟩ <;>
-        · dsimp only [detEagerHandler, lazyH, StateT.run]
+        · dsimp only [detEagerHandler, lazyH, detLazyInvStep, StateT.run]
           cases cache.lookup m with
           | some yx => simp [ProbOracleComp.runWith_pure, PMF.pure_map]
           | none =>
@@ -2930,13 +2838,8 @@ private theorem detOneInv_step [DecidableEq M]
     cases hlu : st.cache.lookup m with
     | some yxk =>
       rcases yxk with ⟨y, xOpt, idxOpt⟩
-      cases xOpt with
-      | some x =>
-        rw [hlu, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
-        obtain ⟨-, rfl⟩ := hstep
-        exact ⟨hnone, fun m' y' x' hm' => List.mem_cons_of_mem _ (hsign m' y' x' hm'), hlt, hyj⟩
-      | none =>
-        rw [hlu, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+      cases xOpt <;>
+      · rw [hlu, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
         obtain ⟨-, rfl⟩ := hstep
         exact ⟨hnone, fun m' y' x' hm' => List.mem_cons_of_mem _ (hsign m' y' x' hm'), hlt, hyj⟩
     | none =>
@@ -3005,23 +2908,9 @@ private theorem detOneTrack_sim_detOneEmbed [DecidableEq M]
         cases hlu : st.cache.lookup m with
         | some yxk =>
           rcases yxk with ⟨y, xOpt, idxOpt⟩
-          cases xOpt with
-          | some x =>
-            cases hyj : st.yAtJ with
-            | some y0 =>
-              simp only [detOneEmbedHandler, hlu, detOneRelate, hyj, PMF.map, PMF.pure_bind,
-                Function.comp_def]
-            | none =>
-              simp only [detOneEmbedHandler, hlu, detOneRelate, hyj, PMF.map, PMF.bind_bind,
-                PMF.pure_bind, Function.comp_def]
-          | none =>
-            cases hyj : st.yAtJ with
-            | some y0 =>
-              simp only [detOneEmbedHandler, hlu, detOneRelate, hyj, PMF.map, PMF.pure_bind,
-                Function.comp_def]
-            | none =>
-              simp only [detOneEmbedHandler, hlu, detOneRelate, hyj, PMF.map, PMF.bind_bind,
-                PMF.pure_bind, Function.comp_def]
+          cases xOpt <;> cases hyj : st.yAtJ <;>
+            simp only [detOneEmbedHandler, hlu, detOneRelate, hyj, PMF.map, PMF.bind_bind,
+              PMF.pure_bind, Function.comp_def]
         | none =>
           cases hyj : st.yAtJ with
           | some y0 =>
@@ -3035,11 +2924,7 @@ private theorem detOneTrack_sim_detOneEmbed [DecidableEq M]
         dsimp only [detOneTrackHandler, detOneEmbedHandler]
         cases hlu : st.cache.lookup m with
         | some yxk =>
-          cases hyj : st.yAtJ with
-          | some y0 =>
-            simp only [detOneEmbedHandler, hlu, detOneRelate, hyj, PMF.map, PMF.pure_bind,
-              Function.comp_def]
-          | none =>
+          cases hyj : st.yAtJ <;>
             simp only [detOneEmbedHandler, hlu, detOneRelate, hyj, PMF.map, PMF.bind_bind,
               PMF.pure_bind, Function.comp_def]
         | none =>
@@ -3255,31 +3140,21 @@ private theorem detSim_le_mul_detPSOneSim [DecidableEq M] [DecidableEq Target]
         ⟨[], [], 0, false⟩).map (fun (out, st) => (out, (st.cache, st.signed, st.hCount))) =
       (ProbOracleComp.runWith (detTrackHandler sys pk 0) (forger pk)
         ⟨[], [], 0, false⟩).map (fun (out, st) => (out, (st.cache, st.signed, st.hCount))) := by
+    let projH : (q : M ⊕ M) →
+        StateT (List (M × (Target × Option Preimage × Option ℕ)) × List M × ℕ) PMF
+          (ROMSignature.ForgerSpec M M (Option Preimage) Target q) :=
+      fun q (cache, signed, hCount) =>
+        (detTrackHandler sys pk 0 q ⟨cache, signed, hCount, false⟩).map
+          fun (a, st') => (a, (st'.cache, st'.signed, st'.hCount))
     have hmap (j : ℕ) :
         (ProbOracleComp.runWith (detTrackHandler sys pk j) (forger pk)
           ⟨[], [], 0, false⟩).map (fun (out, st) => (out, (st.cache, st.signed, st.hCount))) =
-        ProbOracleComp.runWith
-          (fun q ((cache, signed, hCount) :
-              List (M × (Target × Option Preimage × Option ℕ)) × List M × ℕ) =>
-            match q with
-            | .inl m =>
-              match cache.lookup m with
-              | some (_, x, _) => PMF.pure (x, (cache, m :: signed, hCount))
-              | none =>
-                (ProbComp.eval (sys.sampleSimPair pk)).map fun yx =>
-                  (yx.2, ((m, (yx.1, yx.2, none)) :: cache, m :: signed, hCount))
-            | .inr m =>
-              match cache.lookup m with
-              | some (y, _, _) => PMF.pure (y, (cache, signed, hCount))
-              | none =>
-                (ProbComp.eval (sys.sampleSimPair pk)).map fun yx =>
-                  (yx.1, ((m, (yx.1, yx.2, some hCount)) :: cache, signed, hCount + 1)))
-          (forger pk) ([], [], 0) := by
-      refine ProbOracleComp.runWith_map_state _ _
+        ProbOracleComp.runWith projH (forger pk) ([], [], 0) := by
+      refine ProbOracleComp.runWith_map_state _ projH
         (fun (st : DetTrackState M Target Preimage) => (st.cache, st.signed, st.hCount))
         ?_ (forger pk) ⟨[], [], 0, false⟩
       rintro (m | m) st <;>
-      · dsimp only [detTrackHandler]
+      · dsimp only [projH, detTrackHandler]
         cases st.cache.lookup m <;> simp [PMF.pure_map, PMF.map_comp, Function.comp_def]
     rw [hmap jStar.val, hmap 0]
   have htrack_eq (jStar : Fin (q_H + 1)) : trackProj jStar = trackProj 0 := by
@@ -3486,33 +3361,17 @@ private theorem detSim_le_mul_detPSOneSim [DecidableEq M] [DecidableEq Target]
         StateT (List (M × (Target × Option (Option Preimage) × Option ℕ)) × List M × ℕ) PMF
           (ROMSignature.ForgerSpec M M (Option Preimage) Target q) :=
       fun q (cache, signed, hCount) =>
-        match q with
-        | .inl m =>
-          match cache.lookup m with
-          | some (_, some x, _) => PMF.pure (x, (cache, m :: signed, hCount))
-          | some (_, none, _) => PMF.pure (none, (cache, m :: signed, hCount))
-          | none =>
-            (ProbComp.eval (sys.sampleSimPair pk)).map fun yx =>
-              (yx.2, ((m, (yx.1, some yx.2, none)) :: cache, m :: signed, hCount))
-        | .inr m =>
-          match cache.lookup m with
-          | some (y, _, _) => PMF.pure (y, (cache, signed, hCount))
-          | none =>
-            if hCount = jStar.val then
-              μSim.map fun y =>
-                (y, ((m, (y, none, some hCount)) :: cache, signed, hCount + 1))
-            else
-              (ProbComp.eval (sys.sampleSimPair pk)).map fun yx =>
-                (yx.1, ((m, (yx.1, some yx.2, some hCount)) :: cache, signed, hCount + 1))
+        (detOneTrackHandler sys pk jStar.val μSim q ⟨cache, signed, hCount, none⟩).map
+          fun (a, st') => (a, (st'.cache, st'.signed, st'.hCount))
     have hL_mid :
         (ProbOracleComp.runWith (detAbortHandler sys pk jStar.val) (forger pk)
           ⟨[], [], 0, false⟩).map (fun (out, st) => (out, erase st)) =
         ProbOracleComp.runWith midHandler (forger pk) ([], [], 0) := by
-      refine ProbOracleComp.runWith_map_state _ _ erase ?_ (forger pk) ⟨[], [], 0, false⟩
+      refine ProbOracleComp.runWith_map_state _ midHandler erase ?_ (forger pk) ⟨[], [], 0, false⟩
       intro q st
       cases q with
       | inl m =>
-        dsimp only [detAbortHandler, midHandler, erase]
+        dsimp only [detAbortHandler, midHandler, detOneTrackHandler, erase]
         rw [lookup_map_det_erase]
         cases st.cache.lookup m with
         | some yxk =>
@@ -3521,7 +3380,7 @@ private theorem detSim_le_mul_detPSOneSim [DecidableEq M] [DecidableEq Target]
         | none =>
           simp [PMF.map_comp, Function.comp_def]
       | inr m =>
-        dsimp only [detAbortHandler, midHandler, erase]
+        dsimp only [detAbortHandler, midHandler, detOneTrackHandler, erase]
         rw [lookup_map_det_erase]
         cases st.cache.lookup m with
         | some yxk => simp [PMF.pure_map]
@@ -3533,20 +3392,20 @@ private theorem detSim_le_mul_detPSOneSim [DecidableEq M] [DecidableEq Target]
         (ProbOracleComp.runWith (detOneTrackHandler sys pk jStar.val μSim) (forger pk)
           ⟨[], [], 0, none⟩).map (fun (out, st) => (out, (st.cache, st.signed, st.hCount))) =
         ProbOracleComp.runWith midHandler (forger pk) ([], [], 0) := by
-      refine ProbOracleComp.runWith_map_state _ _
+      refine ProbOracleComp.runWith_map_state _ midHandler
         (fun (st : DetOneState M Target Preimage) => (st.cache, st.signed, st.hCount))
         ?_ (forger pk) ⟨[], [], 0, none⟩
       intro q st
       cases q with
       | inl m =>
-        dsimp only [detOneTrackHandler, midHandler]
+        dsimp only [midHandler, detOneTrackHandler]
         cases st.cache.lookup m with
         | some yxk =>
           rcases yxk with ⟨y, xOpt, idxOpt⟩
           cases xOpt <;> simp [PMF.pure_map]
         | none => simp [PMF.map_comp, Function.comp_def]
       | inr m =>
-        dsimp only [detOneTrackHandler, midHandler]
+        dsimp only [midHandler, detOneTrackHandler]
         cases st.cache.lookup m with
         | some yxk => simp [PMF.pure_map]
         | none =>
@@ -4772,12 +4631,8 @@ private theorem rom_worldGame_targetForger_eq
         (acc.map (fun r => r.signedMessage Prod.mk)).contains m := by
     intro m
     simp [hp, List.contains_eq_mem]
-  cases hfn : AnonymousToken.Conservation.findNoteForgery acc with
-  | none =>
-    simp only [ProbOracleComp.runWith_pure, PMF.pure_bind, hcont]
-    exact (PMF.bind_pure_comp _ _).symm
-  | some tok =>
-    simp only [ProbOracleComp.runWith_pure, PMF.pure_bind, hcont]
+  cases AnonymousToken.Conservation.findNoteForgery acc <;>
+  · simp only [ProbOracleComp.runWith_pure, PMF.pure_bind, hcont]
     exact (PMF.bind_pure_comp _ _).symm
 
 /-- **Generic lazy-ROM extracted credit-conservation reduction** at `tag = Prod.mk`, original to
@@ -5155,68 +5010,54 @@ private theorem romBindingExperiment_detScheme_eq
         (OracleComp.sumHandler ProbComp.unifOracle fun y => PMF.pure (invTable y))
         (detBindingProg com sys pk A) := by
     intro invTable
-    rw [interpret_pure_oracle_eq_runWith invTable]
-    dsimp only [detBindingProg]
-    rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_run_interpret]
-    have hdrop := ProbOracleComp.runWith_map_state
-      (fun q (st : (List ((Commitment × ℕ) × Target) ×
-          List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment
-            (Option Preimage))) × Unit) =>
-        (ProbOracleComp.runWith (fun y (_ : Unit) => (PMF.pure (invTable y)).map (·, ()))
-          ((detBindingProgHandler com sys pk q).run st.1) st.2).map fun ((a, b), c) => (a, b, c))
-      (romExtractedIssuerHandler com (detScheme sys) (pk, (sk, invTable)))
-      Prod.fst
-      (fun q ⟨⟨cache, accepted⟩, _⟩ => by
-        cases q with
-        | inr m =>
-          dsimp only [detBindingProgHandler, romExtractedIssuerHandler, StateT.run]
-          simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
-            ProbOracleComp.runWith_pure, eval_lookupOrSampleTarget, PMF.map_bind, PMF.bind_map,
-            PMF.pure_map, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, Function.comp_def]
-          rfl
-        | inl req =>
-          cases req with
-          | issue ir =>
-            dsimp only [detBindingProgHandler, romExtractedIssuerHandler, StateT.run]
-            split_ifs
-            · simp only [detScheme, interp_norm, ProbOracleComp.runWith_bind,
-                ProbOracleComp.runWith_sample, ProbOracleComp.runWith_query,
-                ProbOracleComp.runWith_pure, eval_lookupOrSampleTarget, PMF.map_bind,
-                PMF.bind_map, PMF.pure_bind, PMF.pure_map, PMF.monad_bind_eq_bind,
-                PMF.monad_pure_eq_pure, Function.comp_def]
-              change _ = (((ROMSignature.oracle Target (ir.commitment, 0)).run cache).bind
-                fun a => PMF.pure (invTable a.1, a.2)).bind _
-              simp [PMF.bind_bind, PMF.pure_bind]
-            · simp [ProbOracleComp.runWith_pure, PMF.pure_map]
-          | spend sr =>
-            dsimp only [detBindingProgHandler, romExtractedIssuerHandler, StateT.run]
-            split_ifs
-            · simp only [detScheme, interp_norm, ProbOracleComp.runWith_bind,
-                ProbOracleComp.runWith_sample, eval_lookupOrSampleTarget, PMF.map_bind,
-                PMF.bind_map, PMF.pure_bind, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-                Function.comp_def]
-              change _ = (((ROMSignature.oracle Target
-                  (AnonymousToken.Credit.target com Prod.mk sr.inputNote sr.oldOpening)).run
-                  cache).bind fun a => PMF.pure (sys.check pk a.1 sr.signature, a.2)).bind _
-              rw [PMF.bind_bind]
-              refine PMF.bind_congr_on_support _ _ _ fun ⟨y₁, c₁⟩ _ => ?_
-              rw [PMF.pure_bind]
-              split_ifs
-              · simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
-                  ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
-                  eval_lookupOrSampleTarget, PMF.map_bind, PMF.bind_map,
-                  PMF.pure_bind, PMF.pure_map, Function.comp_def]
-                change _ = (((ROMSignature.oracle Target
-                    (sr.changeCommitment, sr.refund)).run c₁).bind
-                  fun a => PMF.pure (invTable a.1, a.2)).bind _
-                simp [PMF.bind_bind, PMF.pure_bind]
-              · simp [ProbOracleComp.runWith_pure, PMF.pure_map]
-            · simp [ProbOracleComp.runWith_pure, PMF.pure_map])
-      (A pk) (([], []), ())
-    rw [← hdrop, PMF.map_comp, PMF.map_bind, PMF.bind_map, ← PMF.bind_pure_comp]
-    refine PMF.bind_congr_on_support _ _ _ fun ⟨ctx, ⟨cache, accepted⟩, u⟩ _ => ?_
-    cases u
-    simp [ProbOracleComp.runWith_pure, PMF.pure_map]
+    simp only [detBindingProg, OracleComp.interpret_bind, OracleComp.interpret_pure,
+      interpret_pure_run_interpret, ← PMF.bind_pure_comp]
+    congr 2
+    funext q ⟨cache, accepted⟩
+    cases q with
+    | inr m =>
+      dsimp only [detBindingProgHandler, romExtractedIssuerHandler, StateT.run]
+      simp only [ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbOracleComp.run_pure,
+        ProbComp.eval_bind, ProbComp.eval_pure, eval_lookupOrSampleTarget,
+        PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+      rfl
+    | inl req =>
+      cases req with
+      | issue ir =>
+        dsimp only [detBindingProgHandler, romExtractedIssuerHandler, StateT.run]
+        split_ifs
+        · simp only [detScheme, interp_norm, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
+            ProbOracleComp.run_query, ProbOracleComp.run_pure, ProbComp.eval_bind,
+            ProbComp.eval_pure, eval_lookupOrSampleTarget, PMF.pure_bind,
+            PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+          change (((ROMSignature.oracle Target (ir.commitment, 0)).run cache).bind
+            fun a => PMF.pure (invTable a.1, a.2)).bind _ = _
+          simp [PMF.bind_bind, PMF.pure_bind]
+        · simp [ProbOracleComp.run_pure, ProbComp.eval_pure]
+      | spend sr =>
+        dsimp only [detBindingProgHandler, romExtractedIssuerHandler, StateT.run]
+        split_ifs
+        · simp only [detScheme, interp_norm, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
+            ProbComp.eval_bind, eval_lookupOrSampleTarget,
+            PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+          change (((ROMSignature.oracle Target
+              (AnonymousToken.Credit.target com Prod.mk sr.inputNote sr.oldOpening)).run
+              cache).bind fun a => PMF.pure (sys.check pk a.1 sr.signature, a.2)).bind _ =
+            ((ROMSignature.oracle Target
+              (AnonymousToken.Credit.target com Prod.mk sr.inputNote sr.oldOpening)).run
+              cache).bind _
+          rw [PMF.bind_bind]
+          refine PMF.bind_congr_on_support _ _ _ fun ⟨y₁, c₁⟩ _ => ?_
+          rw [PMF.pure_bind]
+          split_ifs
+          · simp only [ProbOracleComp.run_bind, ProbOracleComp.run_sample,
+              ProbOracleComp.run_query, ProbOracleComp.run_pure, ProbComp.eval_bind,
+              ProbComp.eval_pure, eval_lookupOrSampleTarget, PMF.pure_bind]
+            change (((ROMSignature.oracle Target (sr.changeCommitment, sr.refund)).run c₁).bind
+              fun a => PMF.pure (invTable a.1, a.2)).bind _ = _
+            simp [PMF.bind_bind, PMF.pure_bind]
+          · simp [ProbOracleComp.run_pure, ProbComp.eval_pure]
+        · simp [ProbOracleComp.run_pure, ProbComp.eval_pure]
   have hacc_eq :
       ((PMF.pi fun y => ProbComp.eval (sys.invert sk y)).bind fun invTable =>
         (ProbOracleComp.runWith

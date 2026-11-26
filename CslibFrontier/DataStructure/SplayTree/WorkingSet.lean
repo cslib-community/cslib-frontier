@@ -294,21 +294,14 @@ private theorem takeWhile_ne_subset_or (l : List α) {y y' : α} (hy : y ∈ l) 
   induction l with
   | nil => simp at hy
   | cons a l ih =>
-    by_cases hay : a = y
-    · subst a
-      rw [takeWhile_ne_cons_self, takeWhile_ne_cons_of_ne hne, List.toFinset_nil,
-        List.toFinset_cons]
-      exact Or.inl ⟨Finset.empty_subset _, Finset.mem_insert_self _ _⟩
-    · by_cases hay' : a = y'
-      · subst a
-        rw [takeWhile_ne_cons_self, takeWhile_ne_cons_of_ne hne.symm, List.toFinset_nil,
-          List.toFinset_cons]
-        exact Or.inr ⟨Finset.empty_subset _, Finset.mem_insert_self _ _⟩
-      · simp only [takeWhile_ne_cons_of_ne hay, takeWhile_ne_cons_of_ne hay', List.toFinset_cons]
-        rcases ih ((List.mem_cons.mp hy).resolve_left (Ne.symm hay))
-            ((List.mem_cons.mp hy').resolve_left (Ne.symm hay')) with ⟨hsub, hm⟩ | ⟨hsub, hm⟩
-        · exact Or.inl ⟨Finset.insert_subset_insert a hsub, Finset.mem_insert_of_mem hm⟩
-        · exact Or.inr ⟨Finset.insert_subset_insert a hsub, Finset.mem_insert_of_mem hm⟩
+    rcases eq_or_ne a y with rfl | hay
+    · simp [hne]
+    rcases eq_or_ne a y' with rfl | hay'
+    · simp [hne.symm]
+    simp only [takeWhile_ne_cons_of_ne hay, takeWhile_ne_cons_of_ne hay', List.toFinset_cons]
+    exact (ih (List.mem_of_ne_of_mem hay.symm hy) (List.mem_of_ne_of_mem hay'.symm hy')).imp
+      (fun h => ⟨Finset.insert_subset_insert a h.1, Finset.mem_insert_of_mem h.2⟩)
+      (fun h => ⟨Finset.insert_subset_insert a h.1, Finset.mem_insert_of_mem h.2⟩)
 
 private theorem recencyRank_injOn (l : List α) :
     Set.InjOn (recencyRank · l) ↑l.toFinset := by

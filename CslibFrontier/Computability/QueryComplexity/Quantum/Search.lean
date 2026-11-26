@@ -139,11 +139,7 @@ theorem regProb_eq_sum (ψ : State N W) (i : Fin N) :
       univ.map ⟨fun w => (i, w), fun _ _ h => (Prod.mk.inj h).2⟩ := by
     ext ⟨j, w⟩
     simp only [mem_filter, mem_univ, true_and, mem_map]
-    constructor
-    · rintro rfl
-      exact ⟨w, rfl⟩
-    · rintro ⟨w', h⟩
-      exact (Prod.mk.inj h).1.symm
+    exact ⟨fun h => ⟨w, h ▸ rfl⟩, fun ⟨_, h⟩ => (Prod.mk.inj h).1.symm⟩
   rw [regProb, measureProb, h, sum_map]
   rfl
 
@@ -241,8 +237,7 @@ theorem sum_sq_norm_run_sub_le (U : ℕ → State N W →ₗᵢ[ℂ] State N W) 
       refine sum_le_sum fun z _ => ?_
       rw [mul_pow]
       norm_num
-      have := sq_sum_le_card_mul_sum_sq (s := range T) (f := fun s => ‖ctrlProj z (φ s)‖)
-      simpa using this
+      simpa using sq_sum_le_card_mul_sum_sq (s := range T) (f := fun s => ‖ctrlProj z (φ s)‖)
     _ = 4 * (T * ∑ s ∈ range T, ∑ z, ‖ctrlProj z (φ s)‖ ^ 2) := by
       rw [← mul_sum, ← mul_sum, sum_comm]
     _ ≤ 4 * (T * ∑ s ∈ range T, ∑ z, regProb (φ s) z) := by
@@ -317,10 +312,9 @@ theorem card_sub_two_le (U : ℕ → State N W →ₗᵢ[ℂ] State N W) {ψ₀ 
       _ ≤ ∑ z, ‖run U ψ₀ (marked z) T - φ‖ ^ 2 :=
         sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => by positivity
   have hcard : (N : ℝ) - 2 ≤ (univ \ B).card := by
-    rw [card_sdiff_of_subset (subset_univ _), card_univ, Fintype.card_fin]
-    have : (B.card : ℝ) ≤ 2 := by exact_mod_cast hB
-    rw [Nat.cast_sub (card_le_univ B |>.trans_eq (Fintype.card_fin N))]
-    linarith
+    rw [card_sdiff_of_subset (subset_univ _), card_univ, Fintype.card_fin,
+      Nat.cast_sub (card_le_univ B |>.trans_eq (Fintype.card_fin N))]
+    linarith [show (B.card : ℝ) ≤ 2 by exact_mod_cast hB]
   linarith
 
 end Cslib.Quantum

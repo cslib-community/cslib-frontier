@@ -103,12 +103,10 @@ theorem PolyTimePTTReducible.mem_NP {L : Set α} {B : Set β}
       d (a, answers a ws) ≤ d (a, truthTableAnswers (q ⁻¹' B) r a) := by
     refine hmono a _ _ ?_
     rw [htrue a]
-    refine List.forall₂_map_left_iff.2
-      (List.forall₂_map_right_iff.2 (List.forall₂_same.2 fun i _ => ?_))
-    cases hc : confirmed a ws i
-    · exact Bool.false_le _
-    · simp only [confirmed, Bool.and_eq_true, decide_eq_true_eq] at hc
-      simp [(hVspec _).2 ⟨_, hc⟩]
+    refine List.forall₂_map_left_iff.2 (List.forall₂_map_right_iff.2
+      (List.forall₂_same.2 fun i _ => Bool.le_iff_imp.2 fun hc => ?_))
+    simp only [confirmed, Bool.and_eq_true, decide_eq_true_eq] at hc
+    exact decide_eq_true ((hVspec _).2 ⟨_, hc⟩)
   have hcanonical (a : α) : answers a (canonicalWitnesses hVspec r q a) =
       truthTableAnswers (q ⁻¹' B) r a := by
     rw [htrue a]
@@ -130,9 +128,7 @@ theorem PolyTimePTTReducible.mem_NP {L : Set α} {B : Set β}
   refine mem_NP_of_check (p := p) (Decoder.list Decoder.bits) hcheck
     (fun a ws hws => (hL a).2 (le_antisymm (Bool.le_true _) (hws ▸ hbelow a ws)))
     fun a ha => ⟨canonicalWitnesses hVspec r q a, ?_, ?_⟩
-  · change d (a, answers a _) = true
-    rw [hcanonical a]
-    exact (hL a).1 ha
+  · simpa only [check, hcanonical a] using (hL a).1 ha
   · refine (?_ : _ ≤ bound a).trans (hp a)
     simp only [bound, length_encList, canonicalWitnesses, List.map_map, List.length_flatMap,
       List.length_range]
@@ -156,11 +152,9 @@ theorem PolyTimeCTTReducible.mem_NP {L : Set α} {B : Set β}
 /-- **coNP is closed under polynomial-time conjunctive truth-table reductions.** -/
 theorem PolyTimeCTTReducible.mem_coNP {L : Set α} {B : Set β}
     (h : PolyTimeCTTReducible encA encB L B) (hB : B ∈ coNP encB) :
-    L ∈ coNP encA := by
-  have h_dual := polyTimeDTTReducible_iff_polyTimeCTTReducible_compl
-    (encA := encA) (encB := encB) (L := Lᶜ) (B := Bᶜ)
-  rw [compl_compl, compl_compl] at h_dual
-  exact (h_dual.mpr h).mem_NP hB
+    L ∈ coNP encA :=
+  ((polyTimeDTTReducible_iff_polyTimeCTTReducible_compl (L := Lᶜ) (B := Bᶜ)).mpr
+    (by simpa only [compl_compl] using h)).mem_NP hB
 
 /-- **coNP is closed under polynomial-time disjunctive truth-table reductions**, dually to
 `Cslib.Complexity.PolyTimeCTTReducible.mem_NP`. -/

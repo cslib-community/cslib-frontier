@@ -141,12 +141,10 @@ theorem card_andreevBottomIndex (b m : ℕ) :
     simp only [Fintype.card_fin, andreevStairLength, ↓reduceIte, Bool.false_eq_true]
     ring
   have h2 : (∑ S : Finset (Fin b), 2 * (#S * m)) = (2 * ∑ S : Finset (Fin b), #S) * m := by
-    rw [mul_sum, sum_mul]
-    exact sum_congr rfl fun _ _ => by ring
+    simp_rw [← mul_assoc, ← sum_mul, ← mul_sum]
   have h4 : (4 : ℕ) ^ b = (2 * 2) ^ b := rfl
   simp only [Fintype.card_sigma, hS, sum_add_distrib, sum_const, card_univ, Fintype.card_finset,
-    Fintype.card_fin, smul_eq_mul, h4, mul_pow]
-  rw [h2, two_mul_sum_card_finset]
+    Fintype.card_fin, smul_eq_mul, h4, mul_pow, h2, two_mul_sum_card_finset]
   ring
 
 /-- Equivalence between `AndreevBottomIndex b m` and `Fin (2 * 4 ^ b + b * m * 2 ^ b)`. -/
@@ -454,9 +452,8 @@ theorem andreevCircuitEvalInt_eq_andreev (b m : ℕ) (w : BitString (2 ^ b + b *
     andreevCircuitEvalInt b m w = andreev b m w := by
   rw [andreevCircuitEvalInt, Bool.eq_iff_iff, decide_eq_true_eq, ← sub_nonneg,
     ← @Int.cast_nonneg_iff ℝ, sum_andreevTopWeightInt_sub_threshold]
-  push_cast
-  simp_rw [cast_chi_int]
-  rw [sum_andreevTableScore_mul_chi]
+  simp only [Int.cast_neg, Int.cast_sum, Int.cast_mul, cast_chi_int,
+    sum_andreevTableScore_mul_chi]
   have h2pow : (0 : ℝ) < (2 ^ b : ℝ) := by positivity
   cases andreev b m w <;> simp [h2pow, h2pow.le]
 
@@ -485,17 +482,15 @@ theorem interpretation_andreevBottomOp (b m : ℕ) (j : Fin (2 * 4 ^ b + b * m *
     (w : BitString (2 ^ b + b * m)) :
     interpretation (andreevBottomOp b m j) w =
       andreevBottomEvalInt b m ((andreevBottomEquiv b m).symm j) w := by
-  unfold interpretation andreevBottomOp andreevBottomEvalInt
-  dsimp only
-  exact decide_eq_decide.mpr (by rw [← @Int.cast_le ℝ]; push_cast; rfl)
+  dsimp only [interpretation, andreevBottomOp, andreevBottomEvalInt]
+  exact decide_eq_decide.mpr (mod_cast Iff.rfl)
 
 /-- Evaluating `andreevCircuit b m` agrees with `andreevCircuitEvalInt b m`. -/
 theorem eval_andreevCircuit_eq_evalInt (b m : ℕ) (w : BitString (2 ^ b + b * m)) (o : Fin 1) :
     (andreevCircuit b m).eval interpretation w o = andreevCircuitEvalInt b m w := by
   rw [andreevCircuit, eval_depthTwo]
   simp only [id, interpretation_andreevBottomOp]
-  unfold interpretation andreevTopOp andreevCircuitEvalInt
-  dsimp only
+  dsimp only [interpretation, andreevTopOp, andreevCircuitEvalInt]
   rw [← (andreevBottomEquiv b m).sum_comp fun j =>
     (andreevTopWeightInt b m ((andreevBottomEquiv b m).symm j) : ℝ) *
       (andreevBottomEvalInt b m ((andreevBottomEquiv b m).symm j) w).toNat]
@@ -555,8 +550,7 @@ theorem abs_andreevStairWeightInt_le (b m : ℕ) (S : Finset (Fin b)) (τ : Bool
 theorem abs_weight_andreevBottomOp_le (b m : ℕ) (j : Fin (2 * 4 ^ b + b * m * 2 ^ b))
     (i : Fin (2 ^ b + b * m)) :
     |(andreevBottomOp b m j).weight i| ≤ 2 := by
-  unfold andreevBottomOp
-  dsimp only
+  dsimp only [andreevBottomOp]
   exact_mod_cast abs_andreevStairWeightInt_le b m
     ((andreevBottomEquiv b m).symm j).subset ((andreevBottomEquiv b m).symm j).stair i
 
@@ -593,8 +587,7 @@ theorem abs_andreevTopWeightInt_le (b m : ℕ) (idx : AndreevBottomIndex b m) :
 `2 * (2 ^ b + b * m) - 1`. -/
 theorem abs_weight_andreevTopOp_le (b m : ℕ) (j : Fin (2 * 4 ^ b + b * m * 2 ^ b)) :
     |(andreevTopOp b m).weight j| ≤ 2 * (2 ^ b + b * m : ℝ) - 1 := by
-  unfold andreevTopOp
-  dsimp only
+  dsimp only [andreevTopOp]
   exact_mod_cast abs_andreevTopWeightInt_le b m ((andreevBottomEquiv b m).symm j)
 
 /-- Gate by gate, every gate of `andreevCircuit b m` is either a bottom gate, reading only original
@@ -617,8 +610,7 @@ theorem lines_andreevCircuit_bottom_or_top (b m : ℕ) (k : Fin (andreevCircuit 
       ⟨andreevTopWeightInt b m ((andreevBottomEquiv b m).symm a),
         Int.odd_iff.mpr (Int.emod_two_ne_zero.mp (andreevTopWeightInt_emod_two_ne_zero b m _)),
         (abs_andreevTopWeightInt_le b m _).trans_lt ?_, rfl⟩⟩
-    push_cast
-    exact sub_one_lt _
+    exact_mod_cast sub_one_lt (2 * (2 ^ b + b * m : ℤ))
 
 /-- **Exact quadratic depth-two threshold circuit upper bound for Andreev's function**:
 for all `b, m : ℕ`, there is a depth-two weighted threshold circuit with

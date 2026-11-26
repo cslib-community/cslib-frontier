@@ -244,9 +244,7 @@ private theorem exec_passCode {w d domPtr free curRoot fbRoot cutoff signMode B 
       (T_cell := 18 * d + 47) x hz ho hd hdp hdl hfree hfree_pos
       hnd hdom hdom_below ⟨hbm, hcut, hsm, hcr, hfbr⟩ hInv_congr hcell hfit_free hfit_mask
   have he' : ExecWithin w passCode x y (dom.length * (32 * d + 63) + 9) :=
-    he.mono (by
-      have : 14 * d + (18 * d + 47) + 16 = 32 * d + 63 := by omega
-      rw [this])
+    he.mono (Nat.add_le_add_right (Nat.mul_le_mul_left _ (by omega)) 9)
   exact ⟨y, free', S', outFn, he', hysav, hyfree, hlo', hhi', hS', hyrep, hydom, hyframe,
     fun i hi => he'.regs_eq (passCode_preserves i hi)⟩
 
@@ -349,7 +347,6 @@ theorem exec_stagesCode {w d domPtr free initRoot fbBase cutoff signMode B₀ B 
   have hc_abs : c.natAbs ≤ 1 := by dsimp [c]; split_ifs <;> decide
   have hfit_d : Fits w d := hfit_mask.of_le Nat.lt_two_pow_self.le
   let exclHi := free + d + 1
-  have hexcl : exclHi = free + d + 1 := rfl
   let P (k : ℕ) (s : Data numRegs) : Prop :=
     s.regs rZero = 0 ∧ s.regs rOne = 1 ∧ s.regs Reg.dim = d ∧
     s.regs Reg.entryPtr = domPtr ∧ s.regs Reg.entryCount = dom.length ∧
@@ -374,14 +371,11 @@ theorem exec_stagesCode {w d domPtr free initRoot fbBase cutoff signMode B₀ B 
       (natAbs_yatesTransform_le hc_abs ((List.nodup_finRange d).sublist (List.take_sublist _ _))
         hG_le Y).trans hB
     have hf_ro_k : Fits w (free + k) := hfit_free.of_le (by omega)
-    have hf_shl : Fits w (1 <<< k) := by
-      rw [Nat.shiftLeft_eq, one_mul]
-      exact hfit_mask.of_le (Nat.pow_le_pow_right Nat.two_pos hk.le)
+    have hf_shl : Fits w (1 <<< k) :=
+      Nat.one_shiftLeft k ▸ hfit_mask.of_le (Nat.pow_le_pow_right Nat.two_pos hk.le)
     have hf_k1 : Fits w (k + 1) := hfit_d.of_le (by omega)
     have hf_ro_k1 : Fits w (free + (k + 1)) := hfit_free.of_le (by omega)
-    have hpass_le : curFree + (2 * d * dom.length + 2) ≤
-        exclHi + (k + 1) * (2 * d * dom.length + 2) := by
-      rw [Nat.add_one_mul k]; omega
+    have hpass_le := Nat.add_one_mul k (2 * d * dom.length + 2)
     have hpass_fit : Fits w (curFree + 2 + 2 * d * dom.length) := hfit_free.of_le (by
       have := Nat.mul_le_mul_right (2 * d * dom.length + 2) (show k + 1 ≤ d from hk); omega)
     -- The fallback trie of stage `k`: empty when `cutoff = 0`, else stored at `fbBase + k`.
@@ -493,11 +487,10 @@ theorem exec_stagesCode {w d domPtr free initRoot fbBase cutoff signMode B₀ B 
   obtain ⟨y, hloop, hyP, _⟩ := ExecWithin.loop_count P (fun s hs => hs.2.2.1) hbody
     (by simp [hs₀k]) hs₀P
   obtain ⟨_, _, _, _, _, _, _, _, hyro, endFree, hyfr, hlo_ef, hhi_ef, hystages, hyframe⟩ := hyP
-  have htot : ExecWithin w stagesCode x y (d * (dom.length * (32 * d + 63) + 22) + 7) := by
-    refine (hinit_ex.seq hloop).mono ?_
-    rw [hs₀k, Nat.sub_zero]
-    have h22 : dom.length * (32 * d + 63) + 20 + 2 = dom.length * (32 * d + 63) + 22 := by omega
-    rw [h22]; omega
+  have htot : ExecWithin w stagesCode x y (d * (dom.length * (32 * d + 63) + 22) + 7) :=
+    (hinit_ex.seq hloop).mono (by
+      rw [hs₀k, Nat.sub_zero, Nat.add_assoc _ 20 2]
+      omega)
   refine ⟨y, endFree, htot, hyro, hyfr, hlo_ef, hhi_ef,
     fun k hk => let ⟨stFn, hout, heq⟩ := hystages k hk; ⟨stFn, hout.toHoldsTrie, heq⟩,
     hyframe, fun i hi => htot.regs_eq (stagesCode_preserves i hi)⟩

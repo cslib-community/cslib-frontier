@@ -95,12 +95,10 @@ private theorem filter_proc_bool_length_sum {Obj : Type*} {Op Resp : Obj → Typ
     (l : List (OpCall Bool Op Resp)) :
     (l.filter fun c => decide (c.proc = false)).length +
       (l.filter fun c => decide (c.proc = true)).length = l.length := by
-  have h := List.length_eq_length_filter_add (l := l) (fun c => decide (c.proc = false))
   have hnot : (fun c : OpCall Bool Op Resp => !decide (c.proc = false)) =
-      fun c => decide (c.proc = true) := by
-    funext c; cases c.proc <;> rfl
-  rw [hnot] at h
-  exact h.symm
+      fun c => decide (c.proc = true) := funext fun c => by cases c.proc <;> rfl
+  simpa only [hnot] using
+    (List.length_eq_length_filter_add (l := l) (fun c => decide (c.proc = false))).symm
 
 private theorem dekker_write_not_lt_stale_read
     {c0 c1 c2 c3 : OpCall Bool (fun _ : Bool => RegOp Bool) (fun _ : Bool => RegResp Bool)}
@@ -193,24 +191,18 @@ theorem exists_sequentiallyConsistent_not_linearizable :
           simp only [History.procSubhistory_flatMap_toEvents, List.filter, hp₀, hp₁,
             Bool.false_eq_true, decide_false, List.flatMap_nil] at ht
           nomatch ht
-        · have hf_eq : [c₀].flatMap OpCall.toEvents =
-              ([⟨false, (), .write true, .writeAck⟩] :
-                List (OpCall Bool (fun _ : Unit => RegOp Bool)
-                  (fun _ : Unit => RegResp Bool))).flatMap OpCall.toEvents := by
-            have h := (heqS false).symm
-            rw [History.procSubhistory_flatMap_toEvents] at h
-            simp only [List.filter, hp₀, hp₁, decide_true, Bool.true_eq_false, decide_false] at h
-            exact h
-          have ht_eq : [c₁].flatMap OpCall.toEvents =
-              ([⟨true, (), .read, .readRet false⟩] :
-                List (OpCall Bool (fun _ : Unit => RegOp Bool)
-                  (fun _ : Unit => RegResp Bool))).flatMap OpCall.toEvents := by
-            have h := (heqS true).symm
-            rw [History.procSubhistory_flatMap_toEvents] at h
-            simp only [List.filter, hp₀, hp₁, Bool.false_eq_true, decide_false, decide_true] at h
-            exact h
-          obtain rfl := List.singleton_injective (flatMap_toEvents_injective hf_eq)
-          obtain rfl := List.singleton_injective (flatMap_toEvents_injective ht_eq)
+        · obtain rfl : c₀ = ⟨false, (), .write true, .writeAck⟩ :=
+            List.singleton_injective (flatMap_toEvents_injective (by
+              have h := (heqS false).symm
+              rw [History.procSubhistory_flatMap_toEvents] at h
+              simp only [List.filter, hp₀, hp₁, decide_true, Bool.true_eq_false, decide_false] at h
+              exact h))
+          obtain rfl : c₁ = ⟨true, (), .read, .readRet false⟩ :=
+            List.singleton_injective (flatMap_toEvents_injective (by
+              have h := (heqS true).symm
+              rw [History.procSubhistory_flatMap_toEvents] at h
+              simp only [List.filter, hp₁, Bool.false_eq_true, decide_false, decide_true] at h
+              exact h))
           simp only [List.flatMap_cons, List.flatMap_nil, OpCall.toEvents, List.cons_append,
             List.nil_append, SeqSpec.evalMachine, registerStep] at hleg0
           obtain ⟨_, _, _, _, _, _, _, hbad, _⟩ := hleg0

@@ -56,10 +56,8 @@ theorem projectAugmentation_spec (hF : EdgeInstance F) {f : OccurrenceLabeling F
   have hstart : p.start ∉ vs := fun hv => hx <| mem_singleton.mp <|
     defects_inter_internal hb ▸ mem_inter.mpr ⟨hroot, List.mem_toFinset.mpr hv⟩
   by_cases hall : p.edges.all (fun o => !vs.contains o.var) = true
-  · have hno : ∀ o ∈ p.edges, o.var ∉ vs := fun o ho => by
-      simpa using List.all_eq_true.mp hall o ho
-    have hagree : ∀ o : Occurrence F, o.var ∈ vs → p.flip f o = f o := fun o ho => by
-      have hn : o ∉ p.edges := fun hm => hno o hm ho
+  · have hagree : ∀ o : Occurrence F, o.var ∈ vs → p.flip f o = f o := fun o ho => by
+      have hn : o ∉ p.edges := fun hm => by simpa [ho] using List.all_eq_true.mp hall o hm
       simp [Walk.flip, BitString.flipOn_apply, hn]
     have hv : ValidLabeling sem (p.flip f) := by
       simpa only [Walk.take, List.take_length] using hp.1.1.valid_take p.steps.length le_rfl
@@ -70,8 +68,7 @@ theorem projectAugmentation_spec (hF : EdgeInstance F) {f : OccurrenceLabeling F
     have ha := hp.card_defects_flip_add_two hF
     refine ⟨projectZero f vs (p.flip f), by unfold projectAugmentation; exact ite_eq_left hall,
       valid_projectZero hf hv vs hne hagree, ?_⟩
-    dsimp only [projectZero]
-    omega
+    dsimp only [projectZero]; omega
   · have hex : ∃ o ∈ p.edges, o.var ∈ vs := by
       simpa only [List.all_eq_true, Bool.not_eq_true', not_forall, Bool.not_eq_false,
         List.contains_iff_mem, exists_prop] using hall
@@ -121,10 +118,7 @@ theorem isOptimal_of_reference (hF : EdgeInstance F) {f : OccurrenceLabeling F B
     (hb : w.IsBlossom sem f) (hf : ValidLabeling sem f)
     (hM : EdgeInstance.EvenConstraints sem F)
     (hopt : IsOptimalLabeling sem (reference f (internal w))) : IsOptimalLabeling sem f := by
-  refine ⟨hf, ?_⟩
-  intro g hg
-  by_contra hn
-  have hlt : (defects g).card < (defects f).card := Nat.lt_of_not_ge hn
+  refine ⟨hf, fun g hg => not_lt.mp fun hlt => ?_⟩
   obtain ⟨p, _, hp, hx, _⟩ := hF.augmentingWalk_spec hM hf hg hlt w.start
   obtain ⟨comparison, _, hv, hc⟩ := projectAugmentation_spec hF hb hf hp hx
   have ho := hopt.2 comparison hv

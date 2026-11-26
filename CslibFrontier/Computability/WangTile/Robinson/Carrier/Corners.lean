@@ -187,28 +187,14 @@ private theorem depthAt_liftCoordinate
       simp [inFrame, period, scale, frameStartResidue,
         frameEndResidue, modOne]
   | succ bound inductionHypothesis =>
-      change
-        (match depthAt (bound + 1) (liftCoordinate coordinate) with
-        | some depth => some depth
-        | none =>
-            if inFrame (bound + 2) (liftCoordinate coordinate) = true then
-              some (bound + 2)
-            else none) =
-          Option.map (fun depth => depth + 1)
-            (match depthAt bound coordinate with
-            | some depth => some depth
-            | none =>
-                if inFrame (bound + 1) coordinate = true then
-                  some (bound + 1)
-                else none)
+      conv_lhs => rw [depthAt]
+      conv_rhs => rw [depthAt]
       rw [inductionHypothesis]
-      cases previous : depthAt bound coordinate with
+      cases depthAt bound coordinate with
       | some depth => simp
       | none =>
-          simp only [Option.map_none]
-          rw [inFrame_succ_liftCoordinate (bound + 1) positive]
-          by_cases inside : inFrame (bound + 1) coordinate <;>
-            simp [inside]
+          rw [Option.map_none, inFrame_succ_liftCoordinate (bound + 1) positive]
+          cases inFrame (bound + 1) coordinate <;> simp
 
 private theorem onFrameBoundary_eq_false_of_liftCoordinate
     {depth coordinate : ℕ} (depthPositive : 0 < depth)

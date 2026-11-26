@@ -277,11 +277,8 @@ theorem card_intervalHolds (i : Fin q) {x : BlockEdge k q → BlockLetter k Stat
   ext u
   simp only [Finset.mem_filter, Finset.mem_univ, true_and, IntervalHolds, hc, hw, Sum.inl.injEq,
     Sum.inr.injEq]
-  constructor
-  · rintro ⟨c', w', hstep, rfl, hw'⟩
-    obtain rfl : w' = wOut := funext fun h => funext fun d => (hw' h d).symm
-    exact hstep
-  · exact fun hstep => ⟨cOut, wOut, hstep, rfl, fun _ _ => rfl⟩
+  exact ⟨fun ⟨_, w', hstep, rfl, hw'⟩ => (funext₂ fun h d => (hw' h d).symm) ▸ hstep,
+    fun hstep => ⟨cOut, wOut, hstep, rfl, fun _ _ => rfl⟩⟩
 
 open scoped Classical in
 /-- The tensor of an interval vanishes when a letter leaving it has the wrong kind. -/
@@ -423,9 +420,7 @@ theorem blockNetwork_tensor_decodeLetter (σ : ℕ) (u : Fin q ⊕ BlockEdge k q
       · funext h
         unfold windowCells outCellsNum
         refine List.map_congr_left fun c hc => ?_
-        rw [dite_eq_left (hc3 hc)]
-        simp only
-        rw [hxr, contents_decodeLetter, ZMod.val_natCast]
+        simp only [dite_eq_left (hc3 hc), hxr, contents_decodeLetter, ZMod.val_natCast]
     · exact card_intervalHolds_eq_zero machine input b _ i fun ⟨⟨c, hc⟩, hw⟩ => hcond
         ⟨(exists_decodeLetter_eq_inl_iff e b _).mp ⟨c, (hxl i).symm.trans hc⟩, fun h d =>
           (exists_decodeLetter_eq_inr_iff e b _).mp ((hw h d).imp fun _ => (hxr i h d).symm.trans)⟩
@@ -467,21 +462,16 @@ below `letterCount`. -/
 theorem mem_range_letterCode_iff (bits : Fin (letterBits k s b) → Bool) :
     bits ∈ Set.range (letterCode (k := k) e) ↔
       Cslib.BitString.lsbValue (List.ofFn bits) < letterCount k s b := by
-  constructor
-  · rintro ⟨l, hl⟩
-    rw [← (letterCode_eq_iff e b l bits).mp hl]
-    exact (letterEquiv e l).isLt
-  · intro h
-    exact ⟨(letterEquiv e).symm ⟨_, h⟩, (letterCode_eq_iff e b _ bits).mpr (by simp)⟩
+  refine ⟨fun ⟨l, hl⟩ => (letterCode_eq_iff e b l bits).mp hl ▸ (letterEquiv e l).isLt,
+    fun h => ⟨(letterEquiv e).symm ⟨_, h⟩, (letterCode_eq_iff e b _ bits).mpr (by simp)⟩⟩
 
 /-- The letter read from the code `bits` is the decoded letter of their number. -/
 theorem invFun_letterCode {bits : Fin (letterBits k s b) → Bool}
     (h : Cslib.BitString.lsbValue (List.ofFn bits) < letterCount k s b) :
     Function.invFun (letterCode (k := k) e) bits =
       decodeLetter e b (Cslib.BitString.lsbValue (List.ofFn bits)) := by
-  have hmem := (mem_range_letterCode_iff e b bits).mpr h
-  have hinv := Function.invFun_eq hmem
-  rw [letterCode_eq_iff] at hinv
+  have hinv := (letterCode_eq_iff e b _ bits).mp
+    (Function.invFun_eq ((mem_range_letterCode_iff e b bits).mpr h))
   rw [← hinv, decodeLetter_letterEquiv]
 
 end Read

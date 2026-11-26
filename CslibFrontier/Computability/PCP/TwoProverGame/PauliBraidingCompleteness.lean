@@ -66,21 +66,15 @@ private noncomputable def honestPauli (basis : Bool) (x : Fin n → Bool) : Paul
 
 private theorem honestPauli_isHermitian (basis : Bool) (x : Fin n → Bool) :
     (honestPauli basis x).IsHermitian := by
-  cases basis
-  · exact pauliXPow_isHermitian x
-  · exact pauliZPow_isHermitian x
+  cases basis <;> simp [honestPauli, pauliXPow_isHermitian, pauliZPow_isHermitian]
 
 private theorem honestPauli_mul_self (basis : Bool) (x : Fin n → Bool) :
     honestPauli basis x * honestPauli basis x = 1 := by
-  cases basis
-  · exact pauliXPow_mul_self x
-  · exact pauliZPow_mul_self x
+  cases basis <;> simp [honestPauli, pauliXPow_mul_self, pauliZPow_mul_self]
 
 private theorem honestPauli_mul (basis : Bool) (x y : Fin n → Bool) :
     honestPauli basis x * honestPauli basis y = honestPauli basis (x + y) := by
-  cases basis
-  · exact pauliXPow_mul x y
-  · exact pauliZPow_mul x y
+  cases basis <;> simp [honestPauli, pauliXPow_mul, pauliZPow_mul]
 
 private noncomputable def honestBasisMeasurement (basis : Bool) :
     Measurement (Fin n → Bool) (PauliMatrix n) :=
@@ -104,11 +98,9 @@ private theorem transpose_honestPauli (basis : Bool) (a : Fin n → Bool) :
     simp only [pauliXPow_apply]
     refine if_congr ?_ rfl rfl
     constructor <;> intro h <;> rw [h, BitString.add_cancel_right]
-  · change pauliZPow a y x = pauliZPow a x y
-    by_cases h : x = y
-    · subst y
-      rfl
-    · rw [pauliZPow_apply, pauliZPow_apply, ite_eq_right (Ne.symm h), ite_eq_right h]
+  · rcases eq_or_ne x y with rfl | h
+    · rfl
+    · simp [honestPauli, pauliZPow_apply, h, h.symm]
 
 private theorem transpose_honestBasisMeasurement_effect (basis : Bool) (u : Fin n → Bool) :
     ((honestBasisMeasurement basis).effect u)ᵀ = (honestBasisMeasurement basis).effect u := by
@@ -463,11 +455,7 @@ private theorem honest_special_accepts (roles basis : Bool) (p : ↥(oddPairs (F
   let g (u : Fin n → Bool) : BraidingAnswer :=
     .inr ((if y then p.val.2 else p.val.1) ⬝ᵥ u)
   have hq : honestMeasurement q.toBraidingQuestion = (honestBasisMeasurement basis).map f := rfl
-  have hr : honestMeasurement r = (honestBasisMeasurement y).map g := by
-    change ((honestBasisMeasurement y).map
-      ((if y then p.val.2 else p.val.1) ⬝ᵥ ·)).map Sum.inr = _
-    rw [Measurement.map_map]
-    rfl
+  have hr : honestMeasurement r = (honestBasisMeasurement y).map g := Measurement.map_map _ _ _
   have hcheck (u v : Fin n → Bool) (huv : y = basis → u = v) :
       y = basis → q.braidingCheckedBit (q.braidingStrings.1 ⬝ᵥ u, q.braidingStrings.2 ⬝ᵥ u) =
         (if y then p.val.2 else p.val.1) ⬝ᵥ v := by

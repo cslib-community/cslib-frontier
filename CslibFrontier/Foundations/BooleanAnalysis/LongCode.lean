@@ -158,22 +158,10 @@ theorem IsOdd.foldTable_eq {B : (α → Bool) → Bool} (hB : IsOdd B) (x₀ : �
 theorem IsOdd.fourierCoeff_of_even [Fintype α] [DecidableEq α] {B : (α → Bool) → Bool}
     (hB : IsOdd B) {S : Finset α} (hS : Even #S) :
     fourierCoeff (fun f => signVal (B f)) S = 0 := by
-  rw [fourierCoeff]
-  have hchi : chi ℝ S (fun _ : α => true) = 1 := by
-    rw [chi_eq_prod_signVal, prod_const]
-    obtain ⟨m, hm⟩ := hS
-    rw [hm, pow_add, ← mul_pow]
-    norm_num
-  have h1 : (𝔼 f : α → Bool, signVal (B f) * chi ℝ S f) =
-      𝔼 f : α → Bool, signVal (B ((fun _ => true) + f)) * chi ℝ S ((fun _ => true) + f) :=
-    (Fintype.expect_add_left (fun f : α → Bool => signVal (B f) * chi ℝ S f)
-      (fun _ => true)).symm
-  have h2 (f : α → Bool) :
-      signVal (B ((fun _ => true) + f)) * chi ℝ S ((fun _ => true) + f) =
-        -(signVal (B f) * chi ℝ S f) := by
-    rw [add_comm (fun _ => true) f, hB f, signVal_not, chi_add, hchi]
-    ring
-  simp only [h2, expect_neg_distrib] at h1
+  have h := fourierCoeff_comp_add (fun f => signVal (B f)) (fun _ => true) S
+  simp only [hB _, signVal_not, chi_const_true, hS.neg_one_pow, one_mul] at h
+  rw [show (fun f => -signVal (B f)) = fun f => -1 * signVal (B f) from
+    funext fun _ => neg_one_mul _ |>.symm, fourierCoeff_const_mul] at h
   linarith
 
 /-- **An odd function has zero empty Fourier coefficient**: its `±1` values at `f` and

@@ -297,19 +297,13 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
       memoryCost_bind', hs_b, hbj, memoryCost_bind', hs_s]
     change 1 + (_ + (_ + memoryCost (pBranch >>= _) s₀)) ≤ _
     rw [memoryCost_bind', hs_p, hres_p]
-    have htail_mc : memoryCost
-        (Memory.write (ws.bPrice + j₀.val) newPZ.toNat >>= fun _ =>
-          Memory.read (ws.bOwner + j₀.val) >>= fun oldOwner =>
-            Memory.write (ws.bOwner + j₀.val) i₀.val >>= fun _ =>
-              if oldOwner = ws.n then pure (st.free.length - 1)
-              else Memory.write (ws.bStack + (st.free.length - 1)) oldOwner >>=
-                fun _ => pure st.free.length) s₀ ≤ 4 :=
-      memoryCost_write_bind_le fun _ _ =>
-        memoryCost_read_bind_le fun _ _ =>
-          memoryCost_write_bind_le fun _ _ =>
-            memoryCost_ite_le (Nat.zero_le 1)
-              (memoryCost_write_bind_le fun _ _ => Nat.le_refl 0)
-    omega
+    refine (Nat.add_le_add_left (Nat.add_le_add hmc_b
+      (Nat.add_le_add hmc_s (Nat.add_le_add hmc_p (?_ : _ ≤ 4)))) 1).trans (by omega)
+    exact memoryCost_write_bind_le fun _ _ =>
+      memoryCost_read_bind_le fun _ _ =>
+        memoryCost_write_bind_le fun _ _ =>
+          memoryCost_ite_le (Nat.zero_le 1)
+            (memoryCost_write_bind_le fun _ _ => Nat.le_refl 0)
   · -- frontier unchanged
     rw [hrun_state]
     unfold afterBid
@@ -318,60 +312,45 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
     rw [hst'_eq, hrun_res]
   · -- AuctionMem ws C st' s'
     rw [hst'_eq, hrun_state]
-    have hs_mid_c : ∀ i j : Fin ws.n, s_mid.mem (ws.bC + (i.val * ws.n + j.val)) = C (i, j) :=
-      fun i j => by
-        have hlt_ij : i.val * ws.n + j.val < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i, j)
-        dsimp only [s_mid]
-        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-        exact ham.hC i j
-    have hs_mid_owner : ∀ j : Fin ws.n,
-        s_mid.mem (ws.bOwner + j.val) =
-          (Function.update st.owner j₀ (some i₀) j).elim ws.n Fin.val := fun j => by
-      dsimp only [s_mid]
-      by_cases hj : j = j₀
-      · subst hj; simp
-      · have hne : j.val ≠ j₀.val := Fin.val_ne_of_ne hj
-        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-          Function.update_of_ne hj]
-        exact ham.hOwner j
-    have hs_mid_price : ∀ j : Fin ws.n,
-        s_mid.mem (ws.bPrice + j.val) = (Function.update st.price j₀ newPZ j).toNat := fun j => by
-      dsimp only [s_mid]
-      rw [Function.update_of_ne (by omega)]
-      by_cases hj : j = j₀
-      · subst hj; simp
-      · have hne : j.val ≠ j₀.val := Fin.val_ne_of_ne hj
-        rw [Function.update_of_ne (by omega), Function.update_of_ne hj]
-        exact ham.hPrice j
+    have hj₀_lt := j₀.isLt
     have hstack_tail : ∀ k (hk : k < rest.length),
         s₀.mem (ws.bStack + k) = (rest[rest.length - 1 - k]'(by omega)).val := fun k hk => by
       have hidx : rest.length + 1 - 1 - k = (rest.length - 1 - k) + 1 := by omega
       simpa only [hs_free, List.length_cons, hidx, List.getElem_cons_succ] using
         ham.hStack k (by omega)
-    have ownerBeforePrice (j : Fin ws.n) : ws.bOwner + j.val < ws.bPrice :=
-      hbP ▸ Nat.add_lt_add_left j.isLt _
-    have priceBeforeStack (j : Fin ws.n) : ws.bPrice + j.val < ws.bStack :=
-      hbS ▸ Nat.add_lt_add_left j.isLt _
-    have ownerBeforeStack (j : Fin ws.n) : ws.bOwner + j.val < ws.bStack :=
-      (ownerBeforePrice j).trans_le ((Nat.le_add_right _ _).trans (priceBeforeStack j).le)
     have hstack_mid (k : ℕ) : s_mid.mem (ws.bStack + k) = s₀.mem (ws.bStack + k) := by
       dsimp only [s_mid]
-      rw [Function.update_of_ne ((ownerBeforeStack j₀).trans_le (Nat.le_add_right _ _)).ne',
-        Function.update_of_ne ((priceBeforeStack j₀).trans_le (Nat.le_add_right _ _)).ne']
+      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
     have hbeforeStack {address : ℕ} (h : address < ws.bStack) :
         afterBid.mem address = s_mid.mem address := by
       unfold afterBid
       cases st.owner j₀ with
       | none => rfl
-      | some _ => exact Function.update_of_ne (h.trans_le (Nat.le_add_right _ _)).ne _ _
+      | some _ => exact Function.update_of_ne (by omega) _ _
     refine ⟨fun i j => ?_, fun j => ?_, fun j => ?_, fun k hk => ?_⟩
-    · have hlt : ws.bC + (i.val * ws.n + j.val) < ws.bOwner := by
-        rw [hbO]
-        exact Nat.add_lt_add_left (Cslib.Matrix.pairIndex_lt (i, j)) _
-      exact (hbeforeStack (hlt.trans_le ((Nat.le_add_right _ _).trans
-        (ownerBeforeStack j).le))).trans (hs_mid_c i j)
-    · exact (hbeforeStack (ownerBeforeStack j)).trans (hs_mid_owner j)
-    · exact (hbeforeStack (priceBeforeStack j)).trans (hs_mid_price j)
+    · have hlt_ij : i.val * ws.n + j.val < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i, j)
+      rw [hbeforeStack (show ws.bC + (i.val * ws.n + j.val) < ws.bStack by omega)]
+      dsimp only [s_mid]
+      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+      exact ham.hC i j
+    · have hj_lt := j.isLt
+      rw [hbeforeStack (show ws.bOwner + j.val < ws.bStack by omega)]
+      dsimp only [s_mid]
+      rcases eq_or_ne j j₀ with rfl | hj
+      · simp
+      · have hne := Fin.val_ne_of_ne hj
+        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
+          Function.update_of_ne hj]
+        exact ham.hOwner j
+    · have hj_lt := j.isLt
+      rw [hbeforeStack (show ws.bPrice + j.val < ws.bStack by omega)]
+      dsimp only [s_mid]
+      rw [Function.update_of_ne (by omega)]
+      rcases eq_or_ne j j₀ with rfl | hj
+      · simp
+      · have hne := Fin.val_ne_of_ne hj
+        rw [Function.update_of_ne (by omega), Function.update_of_ne hj]
+        exact ham.hPrice j
     · unfold afterBid
       revert hk
       cases ho : st.owner j₀ with

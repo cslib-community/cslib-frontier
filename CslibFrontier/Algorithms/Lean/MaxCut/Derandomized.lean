@@ -266,14 +266,9 @@ private def CutInv (edges : List WeightedEdge) (rem : List ℕ) (s : PartialCut)
     (∀ v ∈ endpoints edges, v ∈ rem ∨ v ∈ s.trueSide ∨ v ∈ s.falseSide)
 
 private theorem cutInv_init (edges : List WeightedEdge) :
-    CutInv edges (distinctVertices edges) PartialCut.empty := by
-  refine ⟨nodup_distinctVertices edges, ?_, ?_, ?_⟩
-  · intro _ hu
-    cases hu
-  · intro _ _
-    exact ⟨List.not_mem_nil, List.not_mem_nil⟩
-  · intro v hv
-    exact Or.inl (mem_distinctVertices.2 hv)
+    CutInv edges (distinctVertices edges) PartialCut.empty :=
+  ⟨nodup_distinctVertices edges, nofun, fun _ _ => ⟨nofun, nofun⟩,
+    fun _ hv => .inl (mem_distinctVertices.2 hv)⟩
 
 private theorem cutInv_branch {edges : List WeightedEdge} (z : ℕ) (rs : List ℕ) (s : PartialCut)
     (b : Bool) (h : CutInv edges (z :: rs) s) :
@@ -282,30 +277,24 @@ private theorem cutInv_branch {edges : List WeightedEdge} (z : ℕ) (rs : List �
   obtain ⟨hz_rs, hnd_rs⟩ := List.nodup_cons.1 hnd
   obtain ⟨hzT, hzF⟩ := hfresh z List.mem_cons_self
   cases b <;> refine ⟨hnd_rs, ?_, ?_, ?_⟩
-  · intro u huT huF
-    exact (List.mem_cons.1 huF).elim (fun h => hzT (h ▸ huT)) (hdisj u huT)
-  · intro w hw
-    obtain ⟨hwT, hwF⟩ := hfresh w (List.mem_cons_of_mem z hw)
-    exact ⟨hwT, fun h => (List.mem_cons.1 h).elim (fun h => hz_rs (h ▸ hw)) hwF⟩
+  · exact fun u huT huF => (List.mem_cons.1 huF).elim (fun e => hzT (e ▸ huT)) (hdisj u huT)
+  · exact fun w hw => ⟨(hfresh w (.tail z hw)).1,
+      fun h => (List.mem_cons.1 h).elim (fun e => hz_rs (e ▸ hw)) (hfresh w (.tail z hw)).2⟩
   · intro v hv
     rcases hcov v hv with hv | hv | hv
-    · rcases List.mem_cons.1 hv with rfl | hv'
-      · exact Or.inr (Or.inr List.mem_cons_self)
-      · exact Or.inl hv'
-    · exact Or.inr (Or.inl hv)
-    · exact Or.inr (Or.inr (List.mem_cons_of_mem z hv))
-  · intro u huT huF
-    exact (List.mem_cons.1 huT).elim (fun h => hzF (h ▸ huF)) (fun huT' => hdisj u huT' huF)
-  · intro w hw
-    obtain ⟨hwT, hwF⟩ := hfresh w (List.mem_cons_of_mem z hw)
-    exact ⟨fun h => (List.mem_cons.1 h).elim (fun h => hz_rs (h ▸ hw)) hwT, hwF⟩
+    · exact (List.mem_cons.1 hv).elim (fun e => .inr (.inr (e ▸ .head _))) .inl
+    · exact .inr (.inl hv)
+    · exact .inr (.inr (.tail z hv))
+  · exact fun u huT huF =>
+      (List.mem_cons.1 huT).elim (fun e => hzF (e ▸ huF)) (fun h => hdisj u h huF)
+  · exact fun w hw =>
+      ⟨fun h => (List.mem_cons.1 h).elim (fun e => hz_rs (e ▸ hw)) (hfresh w (.tail z hw)).1,
+        (hfresh w (.tail z hw)).2⟩
   · intro v hv
     rcases hcov v hv with hv | hv | hv
-    · rcases List.mem_cons.1 hv with rfl | hv'
-      · exact Or.inr (Or.inl List.mem_cons_self)
-      · exact Or.inl hv'
-    · exact Or.inr (Or.inl (List.mem_cons_of_mem z hv))
-    · exact Or.inr (Or.inr hv)
+    · exact (List.mem_cons.1 hv).elim (fun e => .inr (.inl (e ▸ .head _))) .inl
+    · exact .inr (.inl (.tail z hv))
+    · exact .inr (.inr hv)
 
 private theorem cutInv_avg {edges : List WeightedEdge} (z : ℕ) (rs : List ℕ) (s : PartialCut)
     (h : CutInv edges (z :: rs) s) :
@@ -321,12 +310,8 @@ private theorem nonLoopWeight_le_two_mul_of_terminal {edges : List WeightedEdge}
     (hle : scaledUncut edges s ≤ scaledUncut edges PartialCut.empty) :
     nonLoopWeight edges ≤ 2 * cutWeight edges s.toSide := by
   obtain ⟨_, hdisj, _, hcov⟩ := hinv
-  have hcov' : ∀ v ∈ endpoints edges, v ∈ s.trueSide ∨ v ∈ s.falseSide := by
-    intro v hv
-    rcases hcov v hv with hnil | hTF
-    · cases hnil
-    · exact hTF
-  have hsum := scaledUncut_add_two_mul_cutWeight edges hdisj hcov'
+  have hsum := scaledUncut_add_two_mul_cutWeight edges hdisj
+    fun v hv => (hcov v hv).resolve_left List.not_mem_nil
   have htot := totalWeight_eq_loopWeight_add_nonLoopWeight edges
   have hemp := scaledUncut_empty edges
   omega

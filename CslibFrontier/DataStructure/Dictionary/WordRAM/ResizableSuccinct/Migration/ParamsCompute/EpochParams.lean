@@ -185,22 +185,16 @@ theorem realizesBounded_writeEpochParamsGen :
   · exact hpre_r
   · rw [hres_r]
     exact ⟨U, hw, hN, hNU, hU, rfl, by rw [hfr_r]; omega, h225⟩
-  · rw [hres_r]
+  all_goals (
+    rw [hres_r]
     set s1 := (Memory.spec 0).clientState s
       (writeRootHdrSubProg ((srcHdrBase, dstMetaBase), (N, (n_cur, n_init_new))))
     have hdst_lt1 : dstMetaBase < s1.frontier := by rw [hfr_r]; omega
     obtain ⟨_, hst_ls, hres_ls, _⟩ :=
       computeLogScalesProg_exec (s := s1) hw hN hNU hU hdst_lt1 h225
-    rw [hst_ls, hres_ls]
-    exact ⟨U, N, hw, hN, hNU, hU, rfl, rfl, rfl, hdst_lt1, by rw [hfr_r]; omega, hfit_dst⟩
-  · rw [hres_r]
-    set s1 := (Memory.spec 0).clientState s
-      (writeRootHdrSubProg ((srcHdrBase, dstMetaBase), (N, (n_cur, n_init_new))))
-    have hdst_lt1 : dstMetaBase < s1.frontier := by rw [hfr_r]; omega
-    obtain ⟨_, hst_ls, hres_ls, _⟩ :=
-      computeLogScalesProg_exec (s := s1) hw hN hNU hU hdst_lt1 h225
-    rw [hst_ls, hres_ls]
-    obtain ⟨_, hres_hp, hfr_hp, _, _, _⟩ :=
+    rw [hst_ls, hres_ls])
+  · exact ⟨U, N, hw, hN, hNU, hU, rfl, rfl, rfl, hdst_lt1, by rw [hfr_r]; omega, hfit_dst⟩
+  · obtain ⟨_, hres_hp, hfr_hp, _, _, _⟩ :=
       writeHashParamsSubProg_props (s := s1) hw hN hNU hU hdst_lt1 (by rw [hfr_r]; omega) hfit_dst
     rw [hres_hp]
     exact ⟨U, V, hw, hN, hNU, hU, hV, rfl, rfl, rfl, rfl, rfl, rfl,

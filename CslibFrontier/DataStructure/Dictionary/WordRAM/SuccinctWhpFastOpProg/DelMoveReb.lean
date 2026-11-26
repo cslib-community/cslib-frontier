@@ -280,23 +280,10 @@ private theorem delMoveRebInsertIncProg_fastStep {c U V w n_max base rIdx loc_de
   dsimp only
   unfold delMoveRebInsertIncProg
   simp only [cp, pure_bind]
-  have hs'_eq : (Memory.spec 0).clientState s
-      (btreeInsertGenProg ((((cp, base), rIdx), fp_cand_last), loc_del) >>= fun _ =>
-        readHdrProg (base, hdrRebInsCount) >>= fun ins =>
-        writeHdrProg ((base, hdrRebInsCount), ins + 1)) =
-      (Memory.spec 0).clientState s_bi
-        (writeHdrProg ((base, hdrRebInsCount), fs.rebInsCount + 1)) := by
-    rw [clientState_bind, clientState_bind]
-    dsimp only [s_bi, cp] at hst_i hres_i ⊢
-    rw [hst_i, hres_i]
-  rw [hs'_eq]
-  refine ⟨?_, ?_, hbi_step.trans hwh_step⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    dsimp only [s_bi, cp] at hbi_mc hst_i hres_i hmc_i hwh_mc ⊢
-    rw [hst_i, hres_i, hmc_i]; omega
-  · refine validProg_bind hbi_vp ?_
-    dsimp only [s_bi, cp] at hst_i hres_i hvp_i hwh_vp ⊢
-    refine validProg_bind hvp_i ?_; rw [hst_i, hres_i]; exact hwh_vp
+  exact CostBoundedStep.elim
+    (.bind ⟨rfl, rfl, hbi_mc, hbi_vp⟩ <|
+      .bind ⟨hst_i, hres_i, hmc_i.le, hvp_i⟩ ⟨rfl, rfl, hwh_mc.le, hwh_vp⟩)
+    (by omega) (hbi_step.trans hwh_step)
 
 /-- Sub-helper 6.2c (active branch): relocate `loc_last → loc_del` in `rebSlice[b]` once
 `rebAct = 1` and `st_last ∈ {1, 2 + oldEp}` hold. -/

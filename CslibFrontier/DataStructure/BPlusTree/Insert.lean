@@ -628,25 +628,19 @@ private theorem fits_insertRest {rest : List (Branch α β)} {h : ℕ}
   | nil => simp at hr
   | cons e rest ih =>
     obtain ⟨s, c⟩ := e
-    have hcc : Good t h c ∧ (insertOrSplit t k v c).Fits t c := hc _ List.mem_cons_self
-    have hrest : ∀ e ∈ rest, Good t h e.child := fun e he =>
-      (hc e (List.mem_cons_of_mem _ he)).1
-    have ih := fun r (hr : insertRest t k v rest = some r) =>
-      ih (fun e he => hc e (List.mem_cons_of_mem _ he)) hr
+    obtain ⟨hcg, hcf⟩ := hc (s, c) List.mem_cons_self
     rw [insertRest_cons] at hr
-    by_cases hk : s ≤ k
-    · simp only [hk, ↓reduceIte] at hr
-      split at hr
-      · next r' hr' =>
-        cases hr
-        obtain ⟨h₁, h₂, h₃⟩ := ih r' hr'
-        exact ⟨List.forall_mem_cons.2 ⟨hcc.1, h₁⟩, by simpa using h₂, by simpa using h₃⟩
-      · next hr' =>
-        cases hr
-        obtain ⟨hp₁, hp₂, hl₁, hl₂⟩ :=
-          InsertResult.fits_withRest hcc.2 hcc.1.occupied hcc.1.height_eq hrest
-        exact ⟨List.forall_mem_cons.2 ⟨hp₁, hp₂⟩, by simpa using hl₁, by simpa using hl₂⟩
-    · simp [hk] at hr
+    split_ifs at hr with hk
+    split at hr
+    · next r' hr' =>
+      cases hr
+      obtain ⟨h₁, h₂, h₃⟩ := ih (fun e he => hc e (List.mem_cons_of_mem _ he)) hr'
+      exact ⟨List.forall_mem_cons.2 ⟨hcg, h₁⟩, by simpa using h₂, by simpa using h₃⟩
+    · next hr' =>
+      cases hr
+      obtain ⟨hp₁, hp₂, hl₁, hl₂⟩ := InsertResult.fits_withRest hcf hcg.occupied hcg.height_eq
+        fun e he => (hc e (List.mem_cons_of_mem _ he)).1
+      exact ⟨List.forall_mem_cons.2 ⟨hp₁, hp₂⟩, by simpa using hl₁, by simpa using hl₂⟩
 
 /-- Shape invariant of the bottom-up insertion. -/
 private theorem fits_insertOrSplit (ht : 1 ≤ t) (k : α) (v : β) (tr : BPlusTree α β)

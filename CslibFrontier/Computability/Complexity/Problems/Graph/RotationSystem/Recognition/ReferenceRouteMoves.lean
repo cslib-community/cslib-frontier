@@ -136,17 +136,14 @@ theorem exists_reference_move_stub_isolation {I : FixedRotationInput} (hI : Vali
       rw [Metric.mem_closedBall, dist_lineMap_left, Real.norm_eq_abs, abs_of_pos hδ.1]
       have ha := hbound _ (Finset.mem_insert_of_mem
         (Finset.mem_image_of_mem (fun a : Dart G => ρ / (length a + 1)) (Finset.mem_univ a)))
-      have hδbound := hδ.2.trans_lt ha
       have hd := (lt_div_iff₀ (add_pos_of_nonneg_of_pos (dist_nonneg : 0 ≤ length a) one_pos)).mp
-        hδbound
+        (hδ.2.trans_lt ha)
       change δ * length a ≤ ρ
-      exact (mul_le_mul_of_nonneg_left (le_add_of_nonneg_right zero_le_one) hδ.1.le).trans hd.le
+      nlinarith [hδ.1]
     · have hc : c ∈ (ref.route a.1).support := by
         change ref.vertex a.vertex ∈ (ref.route a.1).support
         rw [← ref.endpoint_eq a.1 a.2]
-        cases a.2
-        · exact (ref.route a.1).point_mem_support 0
-        · exact (ref.route a.1).point_mem_support (Fin.last _)
+        cases a.2 <;> exact (ref.route a.1).point_mem_support _
       have hm : m ∈ (ref.route a.1).support :=
         (ref.route a.1).at_mem_support 0 (by constructor <;> norm_num)
       have hs : Convex ℝ (ref.route a.1).support := by
@@ -169,13 +166,9 @@ theorem exists_reference_move_stub_isolation {I : FixedRotationInput} (hI : Vali
         (referenceDrawing_vertices_injective hI (hvertex (e, false)) (hvertex (e, true)) h)
       change (Route.line x y).eval 0 (1 / 2) ≠ _
       rw [Route.eval_line]
-      cases side
-      · intro h
-        have ht := (AffineMap.lineMap_eq_left_iff.mp h).resolve_left hxy
-        norm_num at ht
-      · intro h
-        have ht := (AffineMap.lineMap_eq_right_iff.mp h).resolve_left hxy
-        norm_num at ht
+      cases side <;> intro h
+      · exact absurd ((AffineMap.lineMap_eq_left_iff.mp h).resolve_left hxy) (by norm_num)
+      · exact absurd ((AffineMap.lineMap_eq_right_iff.mp h).resolve_left hxy) (by norm_num)
     intro h
     exact hmid ((AffineMap.lineMap_eq_left_iff.mp h).resolve_right hδ.1.ne').symm
   refine ⟨hstub, ?_, ?_⟩
@@ -199,13 +192,10 @@ theorem exists_reference_move_stub_isolation {I : FixedRotationInput} (hI : Vali
     · exact ((subdivision_endpoint_spec hI e).2 hv.symm).elim
     · rfl
   · rintro a ⟨v, hv, heq⟩
-    change ref.vertex v = port a at heq
     by_cases he : v = a.vertex
     · exact hcenter a (heq.symm.trans (congrArg ref.vertex he))
-    · have hz : port a ∈ Metric.closedBall (ref.vertex v) ρ := by
-        rw [← heq]
-        exact Metric.mem_closedBall_self hρ.le
-      exact Set.disjoint_left.mp (hdisj _ (hvertex a) _ hv (Ne.symm he)) (hport a).1 hz
+    · exact Set.disjoint_left.mp (hdisj _ (hvertex a) _ hv (Ne.symm he)) (hport a).1
+        (heq ▸ Metric.mem_closedBall_self hρ.le)
 
 /-- Realize the entire finite move table as ray-parity differences from the reference
 routes. Frozen routes remain literal. On free routes the initial and terminal segments
@@ -393,15 +383,12 @@ theorem exists_reference_drawing_with_move_rayParity {I : FixedRotationInput} (h
           (openSegment_subset_segment ℝ a b hdopen) (right_mem_segment ..) h)
     · intro v
       let z := point v
-      have hp := Route.rayParity_line_split a m u z hδ
-      have hq := Route.rayParity_line_split m b u z hδ'
-      have hsplit := Route.rayParity_line_split a b u z hhalf
-      change (left.concat p).rayParity u z = _ at hp
-      change (q.concat right).rayParity u z = _ at hq
-      change ((Route.line a m).concat (Route.line m b)).rayParity u z = _ at hsplit
-      rw [Route.rayParity_concat left p rfl] at hp
-      rw [Route.rayParity_concat q right rfl] at hq
-      rw [Route.rayParity_concat _ _ rfl] at hsplit
+      have hp := (Route.rayParity_concat left p rfl u z).symm.trans
+        (Route.rayParity_line_split a m u z hδ)
+      have hq := (Route.rayParity_concat q right rfl u z).symm.trans
+        (Route.rayParity_line_split m b u z hδ')
+      have hsplit := (Route.rayParity_concat _ _ rfl u z).symm.trans
+        (Route.rayParity_line_split a b u z hhalf)
       change r.rayParity u z = (Route.line a b).rayParity u z + _
       rw [← hbit v, Route.rayParity_concat _ _ hright, Route.rayParity_concat _ _ hleft,
         hpar z (hpoint v), Route.rayParity_concat p q rfl, ← hsplit, ← hp, ← hq]

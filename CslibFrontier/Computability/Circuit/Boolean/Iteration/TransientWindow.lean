@@ -50,9 +50,7 @@ private theorem synthesis_prefixThresholds (s : Set (BooleanFunction a))
       Synthesis interpretation (s ∪ Synthesis.stages q t) {fun x => decide ((v x).val < t)} 0).or
       (Synthesis.of_mem (Or.inl (hv i)))).mono Set.Subset.rfl ?_ le_rfl
     rintro _ rfl
-    apply Set.mem_singleton_iff.mpr
-    funext _
-    apply Bool.eq_iff_iff.mpr
+    refine Set.mem_singleton_iff.mpr (funext fun _ => Bool.eq_iff_iff.mpr ?_)
     simp only [Bool.or_eq_true, decide_eq_true_eq, Fin.ext_iff, i]
     lia
   · rintro _ ⟨j, rfl⟩
@@ -151,17 +149,13 @@ private theorem synthesis_splitTests (s : Set (BooleanFunction a)) (v : BitStrin
       · exact Or.inr (Or.inl (Or.inl (Or.inl ⟨D, rfl⟩)))
       · exact Or.inr (Or.inl (Or.inl (Or.inr ⟨D, rfl⟩)))
     refine (htHi.and (hEq.not.or htLo)).congr_iff fun x => ?_
-    cases reverse
-    · simp only [testHi, testLo, eqh, Bool.false_eq_true, ite_false, Bool.and_eq_true,
+    cases reverse <;>
+      simp only [testHi, testLo, eqh, Bool.false_eq_true, ite_false, ite_true, Bool.and_eq_true,
         Bool.or_eq_true, Bool.not_eq_true', decide_eq_false_iff_not, decide_eq_true_eq]
-      rw [le_split k hk (v x) (c j)]
-      change (_ ∧ (¬hi x = C ∨ _)) ↔ (_ ∧ (hi x = C → _))
-      tauto
-    · simp only [testHi, testLo, eqh, ite_true, Bool.and_eq_true, Bool.or_eq_true,
-        Bool.not_eq_true', decide_eq_false_iff_not, decide_eq_true_eq]
-      rw [le_split k hk (c j) (v x)]
-      change (_ ∧ (¬hi x = C ∨ _)) ↔ (_ ∧ (C = hi x → _))
-      tauto
+    · rw [le_split k hk (v x) (c j)]
+      exact and_congr_right fun _ => imp_iff_not_or.symm
+    · rw [le_split k hk (c j) (v x)]
+      exact and_congr_right fun _ => (imp_iff_not_or.trans (or_congr_left (not_congr eq_comm))).symm
   refine ((hlo.union hhi).trans (Synthesis.family (s := src) _ _ row)).mono
     Set.Subset.rfl Set.Subset.rfl ?_
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul]
@@ -215,12 +209,7 @@ private theorem synthesis_firstFlag (s : Set (BooleanFunction a))
       · exact ⟨i, by simp [i], he⟩
     · by_cases h : j.val < t
       · exact Or.inl ⟨j, h, he⟩
-      · right
-        have hij : i = j := by
-          ext
-          dsimp only [i]
-          lia
-        rwa [hij]
+      · exact Or.inr ((Fin.ext (by dsimp only [i]; omega) : i = j) ▸ he)
 
 private def windowFlags (q target : Fin (2 ^ b)) (lo hi floor height : Fin M → Fin (2 ^ b))
     (j : Fin M) : Bool := decide (lo j ≤ q ∧ q ≤ hi j ∧ floor j ≤ target ∧ target ≤ height j)
