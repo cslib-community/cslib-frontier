@@ -2092,7 +2092,7 @@ private theorem consistent_fixedLits_of_allowed {σ : ℕ → Bool} (h : I.Allow
   rintro ⟨j, b⟩ hl
   obtain ⟨hj, hd⟩ := (I.mem_fixedLits).1 hl
   have := h j (Nat.zero_le _) hj
-  simp [hd, vals] at this
+  simp only [hd, vals, List.mem_singleton] at this
   simp [this]
 
 private theorem holds_F_of_finalOk {σ : ℕ → Bool} (h : I.finalOk (I.stOf σ I.n) = true) :
@@ -2241,7 +2241,8 @@ private theorem supportedN_iff (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n �
     constructor
     · intro h i c hc
       have := h i.val (Nat.zero_le _) i.isLt
-      simp [Inst.ofFin, i.isLt, hc, Inst.vals] at this
+      simp only [Inst.ofFin, i.isLt, ↓reduceDIte, Fin.eta, hc, Inst.vals,
+        List.mem_singleton] at this
       simp [this]
     · intro h k _ hk
       cases hc : dom ⟨k, hk⟩ with
@@ -2249,7 +2250,7 @@ private theorem supportedN_iff (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n �
       | some c =>
         have := h _ c hc
         simp only [mem_chosen] at this
-        simp [Inst.ofFin, hk, hc, Inst.vals]
+        simp only [Inst.ofFin, hk, ↓reduceDIte, hc, Inst.vals, List.mem_singleton]
         cases c <;> simp_all
   constructor
   · rintro ⟨σ, hσ, hσj, hfin⟩
