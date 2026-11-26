@@ -91,7 +91,7 @@ theorem khintchine_rademacher_abs_sum (T : ℕ) :
       ∑ σ : Fin T → Bool, |∑ t : Fin T, signVal (σ t)| := by
   rcases eq_or_ne T 0 with rfl | hT
   · simp
-  have hTpos : (0 : ℝ) < (T : ℝ) := Nat.cast_pos.mpr (Nat.pos_of_ne_zero hT)
+  have : 0 < T := Nat.pos_of_ne_zero hT
   have hcard : (Fintype.card (Fin T → Bool) : ℝ) = (2 : ℝ) ^ T := by simp
   set radSum : (Fin T → Bool) → ℝ := fun σ => ∑ t : Fin T, signVal (σ t)
   set S1 : ℝ := ∑ σ : Fin T → Bool, |radSum σ|
@@ -105,9 +105,9 @@ theorem khintchine_rademacher_abs_sum (T : ℕ) :
     exact (div_eq_iff (by positivity)).mp h |>.trans (mul_comm _ _)
   have hS4_le : S4 ≤ (2 : ℝ) ^ T * (3 * (T : ℝ) ^ 2) := by
     have h := expect_sum_mul_signVal_pow_four_le (fun _ : Fin T => (1 : ℝ))
+    have h2pos : (0 : ℝ) < (2 : ℝ) ^ T := by positivity
     simp only [one_mul, one_pow, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, mul_one,
-      Fintype.expect_eq_sum_div_card, hcard,
-      div_le_iff₀ (by positivity : (0 : ℝ) < (2 : ℝ) ^ T)] at h
+      Fintype.expect_eq_sum_div_card, hcard, div_le_iff₀ h2pos] at h
     linarith
   have hS2_pos : 0 < S2 := by rw [hS2_eq]; positivity
   have hcs1 : S2 ^ 2 ≤ S1 * S3 := by
@@ -120,21 +120,11 @@ theorem khintchine_rademacher_abs_sum (T : ℕ) :
           = |radSum σ| * (Real.sqrt |radSum σ| * Real.sqrt |radSum σ|) := by ring
         _ = |radSum σ| * |radSum σ| := by rw [Real.mul_self_sqrt (abs_nonneg _)]
         _ = radSum σ ^ 2 := by rw [← sq, sq_abs]
-    have hR1 : ∑ σ : Fin T → Bool, Real.sqrt |radSum σ| ^ 2 = S1 :=
-      Finset.sum_congr rfl fun σ _ => Real.sq_sqrt (abs_nonneg _)
-    have hR2 : ∑ σ : Fin T → Bool, (|radSum σ| * Real.sqrt |radSum σ|) ^ 2 = S3 :=
-      Finset.sum_congr rfl fun σ _ => by rw [mul_pow, Real.sq_sqrt (abs_nonneg _)]; ring
-    rwa [hL, hR1, hR2] at h
+    simpa only [hL, S1, S3, mul_pow, Real.sq_sqrt (abs_nonneg _), pow_succ _ 2] using h
   have hcs2 : S3 ^ 2 ≤ S2 * S4 := by
-    have h := Finset.sum_mul_sq_le_sq_mul_sq (Finset.univ : Finset (Fin T → Bool))
-      (fun σ => |radSum σ|) (fun σ => radSum σ ^ 2)
-    have hL : ∑ σ : Fin T → Bool, |radSum σ| * radSum σ ^ 2 = S3 :=
-      Finset.sum_congr rfl fun σ _ => by rw [← sq_abs (radSum σ)]; ring
-    have hR1 : ∑ σ : Fin T → Bool, |radSum σ| ^ 2 = S2 :=
-      Finset.sum_congr rfl fun σ _ => sq_abs _
-    have hR2 : ∑ σ : Fin T → Bool, (radSum σ ^ 2) ^ 2 = S4 :=
-      Finset.sum_congr rfl fun σ _ => by ring
-    rwa [hL, hR1, hR2] at h
+    simpa only [S3, S2, S4, pow_succ' _ 2, sq_abs, pow_mul _ 2 2] using
+      Finset.sum_mul_sq_le_sq_mul_sq (Finset.univ : Finset (Fin T → Bool))
+        (fun σ => |radSum σ|) (fun σ => radSum σ ^ 2)
   have hholder : S2 ^ 3 ≤ S1 ^ 2 * S4 := by
     refine le_of_mul_le_mul_left ?_ hS2_pos
     calc S2 * S2 ^ 3 = (S2 ^ 2) ^ 2 := by ring
@@ -255,11 +245,8 @@ theorem exists_oco_regret_ge {K : Set E} {x₀ e : E} {D G : ℝ}
           ∑ t : Fin T,
             (rademacherLinear e G (σ t) (L.eval σ t) - rademacherLinear e G (σ t) (uOf σ)) =
         D * G / 2 * ∑ σ : Fin T → Bool, |radSum σ| := by
-    have hshift : ∑ σ : Fin T → Bool, radSum σ * G * ⟪e, x₀⟫ = 0 := by
-      simp only [mul_assoc, ← Finset.sum_mul, hsum_rad, zero_mul]
-    rw [Finset.sum_congr rfl fun σ _ => Finset.sum_sub_distrib _ _, Finset.sum_sub_distrib,
-      sum_rademacherLinear_eval_eq_zero, zero_sub,
-      Finset.sum_congr rfl fun σ _ => huOf_sum σ, Finset.sum_sub_distrib, hshift, ← Finset.mul_sum]
+    simp only [Finset.sum_sub_distrib, sum_rademacherLinear_eval_eq_zero, huOf_sum,
+      mul_assoc, ← Finset.sum_mul, hsum_rad, zero_mul, zero_sub, ← Finset.mul_sum]
     ring
   have hconst : ∑ _σ : Fin T → Bool, (D * G * Real.sqrt T / (2 * Real.sqrt 3)) ≤
       ∑ σ : Fin T → Bool, ∑ t : Fin T,

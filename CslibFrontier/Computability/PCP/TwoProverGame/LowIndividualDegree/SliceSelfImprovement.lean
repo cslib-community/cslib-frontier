@@ -65,9 +65,8 @@ private theorem completedPaste_effect_lift
   have hseq (x : Fin k ↪ F) (a : Option AmbientPoly) :
       e ((pasteProjectiveSlices x M hM).effect a) = (pasteProjectiveSlices x N hN).effect a := by
     simp only [pasteProjectiveSlices, pasteMeasurement, Measurement.map_effect, map_sum]
-    refine sum_congr rfl fun g _ => ?_
-    simp only [Measurement.sequentialProjective_effect, map_mul, map_star]
-    rw [transcriptProduct_lift e _ _ (fun j a => he (x j) a)]
+    exact sum_congr rfl fun g _ => by simp [Measurement.sequentialProjective_effect, map_star,
+      transcriptProduct_lift e _ _ fun j a => he (x j) a]
   have hpaste (a : Option AmbientPoly) :
       e ((pasteSlices k M hM).effect a) = (pasteSlices k N hN).effect a := by
     let _ : Fintype (Fin k ↪ F) := Fintype.ofFinite _
@@ -211,14 +210,12 @@ theorem exists_paste_of_slice_agreement
     exact OrderHomClass.mono (kroneckerOne (κ := ι)) (hmajor₀ x g)
   have hmass : 1 - κ ≤ (C.state (Measurement.averageSuccessEffect R Option.isSome)).re := by
     rw [Measurement.averageSuccessEffect_eq, AlgState.re_apply_uniformAverage]
-    have hm := expect_le_expect (s := univ) fun x _ =>
-      (show 1 - σ x - ζs x ≤ (C.state (R x).successfulEffect).re from by
-        simpa only [hstate] using hmass₀ x)
-    simp only [expect_sub_distrib, Fintype.expect_const] at hm
+    have hm : 1 - (𝔼 x, σ x) - (𝔼 x, ζs x) ≤ 𝔼 x, (C.state (R x).successfulEffect).re := by
+      simpa only [expect_sub_distrib, Fintype.expect_const, hstate] using
+        expect_le_expect (s := univ) fun x _ => hmass₀ x
     have hsum (x : F) : (∑ a with a.isSome, (R x).effect a) = (R x).successfulEffect := by
       simp [Measurement.successfulEffect, sum_filter, Fintype.sum_option]
-    simp only [hsum, κ]
-    linarith only [hm, hbudget]
+    simp only [hsum, κ]; linarith only [hm, hbudget]
   have hpoint : (𝔼 u : Point F (n + 1), 𝔼 x : F, Measurement.successfulMismatch C.state
       (evaluatePolynomialMeasurement (M x) u) (decodedPoint C.alice (Fin.snoc u x))) ≤ ζ := by
     rw [expect_comm]
@@ -231,8 +228,7 @@ theorem exists_paste_of_slice_agreement
     simpa only [Measurement.successfulCopyDefect, hstate] using hcopy₀ x
   have hgap : (𝔼 x : F, (C.state ((M x).effect none * W x)).re) ≤ ζ := by
     refine (expect_le_expect fun x _ => ?_).trans hbudget
-    rw [(hMW x x none).eq]
-    simpa only [hstate] using hgap₀ x
+    simpa only [(hMW x x none).eq, hstate] using hgap₀ x
   let fallback : Result := ⟨0, by simp⟩
   let H := (completedPaste k (fun x => (P x).toMeasurement) hP₀ fallback).toPOVM
   have hpaste := average_completedPaste_disagreement_le_of_slice_majorants_atDegrees
@@ -248,8 +244,7 @@ theorem exists_paste_of_slice_agreement
   have hcons := TwoProverGame.commutingWinProb_swap_of_symmetric
     (branchGame (F := F) (n + 1) d .consistency) S hM hψ
   change _ ≤ _ at hpaste
-  have hswap : C.swap.swap = C := rfl
-  rw [haxis, hcons, hswap] at hpaste
+  rw [haxis, hcons] at hpaste
   refine ⟨H, ?_⟩
   rw [← Fintype.expect_fin_snoc]
   change (𝔼 u : Point F (n + 1), 𝔼 x : F, (1 - Measurement.agreement C.state

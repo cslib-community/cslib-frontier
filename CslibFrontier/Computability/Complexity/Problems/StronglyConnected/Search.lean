@@ -489,11 +489,9 @@ private theorem branches_step {p cur steps c v next : ℕ} (hc : cur < G.n) (hne
   have hto7 : Branches (P := searchProgram) (w := G.encode)
       (5, [c, G.n, p, cur, steps, v]) (7, [0, G.n, p, cur, steps, v]) := by
     search_head false
-    by_cases h : cur < p % G.n
-    · simp only [h, ↓reduceIte]
-      exact Branches.refl _
-    · simp only [h, ↓reduceIte]
-      search_head false
+    by_cases h : cur < p % G.n <;> simp only [h, ↓reduceIte]
+    · exact Branches.refl _
+    · search_head false
       have hgt : p % G.n < cur := by omega
       simp only [hgt, ↓reduceIte]
       exact Branches.refl _
@@ -549,9 +547,8 @@ private theorem branches_pair (h : G ∈ StronglyConnected) {p : ℕ} (hp : p < 
 /-- **An accepting branch exists** when the digraph is strongly connected. -/
 theorem accepts_of_mem (h : G ∈ StronglyConnected) :
     searchProgram.toNondeterministicQueryMachine.Accepts G.encode := by
-  have hpairs : ∀ p ≤ G.n * G.n, ∃ x y z, Branches (P := searchProgram) (w := G.encode)
+  have hpairs (p : ℕ) : p ≤ G.n * G.n → ∃ x y z, Branches (P := searchProgram) (w := G.encode)
       searchProgram.init (2, [0, G.n, p, x, y, z]) := by
-    intro p
     induction p with
     | zero => exact fun _ => ⟨0, 0, 0, branches_count_n G⟩
     | succ p ih =>
@@ -583,10 +580,9 @@ theorem exists_decidesInLogSpace :
         fun G => c * (Nat.log2 (encDigraph G).length + 1) :=
   searchProgram.exists_decidesInLogSpace (fun G => rank G searchProgram.init) 1
     (fun G => haltsWithin G)
-    (fun G choices r hr => by
-      have := le_length_of_mem_run G choices hr
-      simp only [encDigraph_apply, pow_one]
-      omega)
+    (fun G choices _ hr => by
+      simpa only [encDigraph_apply, pow_one] using
+        Nat.le_succ_of_le (le_length_of_mem_run G choices hr))
     (fun G => (accepts_searchProgram_iff G).symm)
 
 end StronglyConnected

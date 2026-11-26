@@ -48,8 +48,7 @@ theorem restore_code {F : CSP Table ℕ} (f : OccurrenceLabeling F Bool)
     · simp [h, Occurrence.record]
     · simp [show p.record.2.2 = p.var from rfl, h, oldRecord_record f vs p h,
         Occurrence.record_injective.eq_iff]
-  unfold restore
-  rw [Contraction.contract_eq, EdgeAugmenting.labeling_map, EdgeAugmenting.recordAt_index]
+  rw [restore, Contraction.contract_eq, EdgeAugmenting.labeling_map, EdgeAugmenting.recordAt_index]
   simp only [occurrences_eq_map_incidenceList, List.find?_map, Option.map_map, Function.comp_def]
   change (((incidenceList F).find? _).map
     (fun p => ((incidenceList F).map Occurrence.record).idxOf p.record)).getD _ = _
@@ -154,8 +153,7 @@ theorem liftWalk_code {F : CSP Table ℕ} (f : OccurrenceLabeling F Bool) (w : W
   have hhead : (EdgeAugmenting.code w).steps.head? =
       w.steps.head?.map (fun (a, b) => (occurrenceIndex a, occurrenceIndex b)) := by
     simp [EdgeAugmenting.code]
-  unfold liftWalk
-  rw [hhead]
+  rw [liftWalk, hhead]
   cases hw : w.steps with
   | nil => simp [Blossom.liftWalk, hw]
   | cons pair rest =>
@@ -188,8 +186,7 @@ theorem liftComparison_code {F : CSP Table ℕ} (f : OccurrenceLabeling F Bool) 
       (Blossom.liftComparison f w g).map (fun h => (incidenceList F).map h) := by
   simp only [liftComparison, NativeWalk.internal_code, Contraction.connectors_eq,
     Contraction.contract_eq, Contraction.referenceRows_eq, EdgeAugmenting.labeling_map,
-    Contraction.flatten_referenceRows]
-  unfold Blossom.liftComparison
+    Contraction.flatten_referenceRows, Blossom.liftComparison]
   by_cases h : Blossom.touched F (Blossom.internal w) = []
   · simp [h, Blossom.connectors]
   · have hs : (Blossom.connectors F (Blossom.internal w)).headD 0 =
@@ -202,9 +199,7 @@ theorem liftComparison_code {F : CSP Table ℕ} (f : OccurrenceLabeling F Bool) 
         (incidenceList _).map g, Blossom.baseConnector F (Blossom.internal w) h⟩
       (by simp) (by simp)
     simp only [EdgeAugmenting.labeling_map] at hr
-    have hn : (Blossom.connectors F (Blossom.internal w)).isEmpty = false := by
-      simp [Blossom.connectors, h]
-    simp only [hn, Bool.false_eq_true, ↓reduceIte, h, ↓reduceDIte, hs, hr]
+    rw [ite_eq_right (by simp [Blossom.connectors, h]), dite_eq_right h, hs, hr]
     cases EdgeInstance.augmentingWalk Table.sem (Blossom.reference f (Blossom.internal w)) g
         (Blossom.baseConnector F (Blossom.internal w) h) <;>
       simp [liftWalk_code]

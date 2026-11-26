@@ -479,21 +479,18 @@ theorem runStep_sound {σ : ℕ → Bool} :
     split at h <;> cases h
     exact List.forall_mem_cons.2 ⟨polEval_sound hdb ops [] _ (by simp) ‹_› _ (by simp), hdb⟩
   | db, n, .rup c hs, db', n', hdb, h => by
-    simp only [runStep] at h
-    split at h <;> cases h
-    exact List.forall_mem_cons.2 ⟨(holds_normalize σ c).2 (rup_sound hdb ‹_›), hdb⟩
+    obtain ⟨hrup, rfl, rfl⟩ := by simpa [runStep] using h
+    exact List.forall_mem_cons.2 ⟨(holds_normalize σ c).2 (rup_sound hdb hrup), hdb⟩
   | db, n, .rupSearch c, db', n', hdb, h => by
-    simp only [runStep] at h
-    split at h <;> cases h
-    exact List.forall_mem_cons.2 ⟨(holds_normalize σ c).2 (rupSearch_sound hdb ‹_›), hdb⟩
+    obtain ⟨hrup, rfl, rfl⟩ := by simpa [runStep] using h
+    exact List.forall_mem_cons.2 ⟨(holds_normalize σ c).2 (rupSearch_sound hdb hrup), hdb⟩
   | db, n, .pbc c sub q, db', n', hdb, h => by
     obtain ⟨n'', hq, rfl, rfl⟩ := by
       simpa only [runStep, Option.map_eq_some_iff, Prod.mk.injEq] using h
     exact List.forall_mem_cons.2 ⟨(holds_normalize σ c).2 (holds_of_subproofRefutes
       (fun _ _ hext hsub => runSteps_sound _ _ sub _ _ hext hsub) hdb hq), hdb⟩
   | db, n, .del ids, db', n', hdb, h => by
-    simp only [runStep] at h
-    split at h <;> cases h
+    obtain ⟨-, rfl, rfl⟩ := by simpa [runStep] using h
     exact fun e he => hdb e (List.mem_of_mem_filter he)
 
 theorem runSteps_sound {σ : ℕ → Bool} :
@@ -632,25 +629,21 @@ theorem runStep_effect :
     split at h <;> cases h
     exact .pol _
   | db, n, .rup c hs, db', n', h => by
-    simp only [runStep] at h
-    split at h <;> cases h
+    obtain ⟨-, rfl, rfl⟩ := by simpa [runStep] using h
     exact .rup
   | db, n, .rupSearch c, db', n', h => by
-    simp only [runStep] at h
-    split at h <;> cases h
+    obtain ⟨-, rfl, rfl⟩ := by simpa [runStep] using h
     exact .rupSearch
   | db, n, .pbc c sub q, db', n', h => by
     obtain ⟨n'', hq, rfl, rfl⟩ := by
       simpa only [runStep, Option.map_eq_some_iff, Prod.mk.injEq] using h
     unfold subproofRefutes at hq
     split at hq
-    · rename_i db₁ n₁ hsub
-      simp only [Option.ite_none_right_eq_some, Option.some.injEq] at hq
-      exact .pbc (hq.2 ▸ Nat.lt_of_lt_of_le (Nat.lt_succ_self n) (runSteps_le _ _ sub _ _ hsub))
+    · obtain ⟨-, rfl⟩ := by simpa using hq
+      exact .pbc (Nat.lt_of_lt_of_le (Nat.lt_succ_self n) (runSteps_le _ _ sub _ _ ‹_›))
     · cases hq
   | db, n, .del ids, db', n', h => by
-    simp only [runStep] at h
-    split at h <;> cases h
+    obtain ⟨-, rfl, rfl⟩ := by simpa [runStep] using h
     exact .del ids
 
 /-- Steps only advance the numbering. -/

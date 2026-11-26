@@ -95,16 +95,17 @@ private theorem johnson_monomial_gap {n k m : ℕ} (hk : 1 ≤ k) (hkn : k ≤ n
       ((m' : ℝ) * (m' + 1) + 5 / 4) * ((n : ℝ) * k) < ((m' : ℝ) * t₀) ^ 2 := by
     have hmul : (m' : ℝ) * (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k) ≤
         (m' : ℝ) * t₀ := by
-      have := mul_le_mul_of_nonneg_left (Nat.le_ceil _ : _ ≤ (t₀ : ℝ)) hm'R.le; linarith
+      rw [mul_assoc]
+      exact mul_le_mul_of_nonneg_left (Nat.le_ceil _) hm'R.le
     have hsq := pow_le_pow_left₀ (by positivity) hmul 2
     rw [mul_pow, Real.sq_sqrt (by positivity)] at hsq
     have hcoeff : (m' : ℝ) * (m' + 1) + 5 / 4 < ((m' : ℝ) * (1 + 1 / (2 * (m : ℝ)))) ^ 2 := by
-      have hm'_cast : (m' : ℝ) = (m : ℝ) + 1 := by exact_mod_cast rfl
       have hpos : (0 : ℝ) < (6 * m + 1) / (4 * m ^ 2) := by positivity
-      have hdiff : ((m : ℝ) + 1) ^ 2 * (1 + 1 / (2 * m)) ^ 2 -
+      have hdiff : (((m : ℝ) + 1) * (1 + 1 / (2 * m))) ^ 2 -
           (((m : ℝ) + 1) * (m + 1 + 1) + 5 / 4) = (6 * m + 1) / (4 * m ^ 2) := by
         field_simp; ring
-      rw [hm'_cast, mul_pow]; linarith
+      push_cast [m']
+      linarith
     exact (mul_lt_mul_of_pos_right hcoeff (by positivity)).trans_le hsq
   set R_eq := n * (m' * (m' + 1) / 2); set C_mon := #(Sudan.monomials (k - 1) D)
   have h2Req : 2 * (R_eq : ℝ) ≤ (n : ℝ) * ((m' : ℝ) * (m' + 1)) :=
@@ -164,9 +165,8 @@ private theorem johnson_curve_params_gap {n k e m r : ℕ}
     have hid : (1 - Real.sqrt ρ - Real.sqrt ρ / (2 * m)) * n =
         n - (1 + 1 / (2 * m)) * ((n : ℝ) * Real.sqrt ρ) := by field_simp; ring
     rw [hsqnk_eq]; linarith
-  have he_le_n : e ≤ n := by
-    have hpos : (0 : ℝ) < (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k) := by positivity
-    exact_mod_cast (by linarith : (e : ℝ) ≤ n)
+  have he_le_n : e ≤ n :=
+    Nat.cast_le.1 (hmul_he.trans (sub_le_self _ (by positivity)))
   have ht₀_le_sub : t₀ ≤ n - e :=
     Nat.ceil_le.2 (by rw [Nat.cast_sub he_le_n]; linarith)
   have hk_sqrt : (k : ℝ) ≤ Real.sqrt ((n : ℝ) * k) :=
@@ -179,15 +179,13 @@ private theorem johnson_curve_params_gap {n k e m r : ℕ}
     have := Nat.mul_le_mul_left m' ht₀_le_sub; omega
   obtain ⟨hinterp, hdiff_lower⟩ := johnson_monomial_gap hk hkn hm
   have hD_upper : (D : ℝ) ≤ (5 / 2) * (m' : ℝ) * n * Real.sqrt ρ := by
-    have hsq1 : (1 : ℝ) ≤ Real.sqrt ((n : ℝ) * k) :=
-      (by exact_mod_cast hk : (1 : ℝ) ≤ k).trans hk_sqrt
+    have hsq1 : (1 : ℝ) ≤ Real.sqrt ((n : ℝ) * k) := (Nat.one_le_cast.2 hk).trans hk_sqrt
     have hlt := Nat.ceil_lt_add_one (a := (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k))
       (by positivity)
-    have hhalf : 1 + 1 / (2 * (m : ℝ)) ≤ 3 / 2 := by
-      have : 1 / (2 * (m : ℝ)) ≤ 1 / 2 := by gcongr; linarith [(by exact_mod_cast hm : (1 : ℝ) ≤ m)]
-      linarith
+    have hm1 : (1 : ℝ) ≤ m := Nat.one_le_cast.2 hm
+    have hhalf : 1 / (2 * (m : ℝ)) ≤ 1 / 2 := (div_le_iff₀ (by positivity)).2 (by linarith)
     have ht_up : (t₀ : ℝ) ≤ (5 / 2) * Real.sqrt ((n : ℝ) * k) := by
-      linarith [mul_le_mul_of_nonneg_right hhalf (Real.sqrt_nonneg ((n : ℝ) * k))]
+      linarith [mul_le_mul_of_nonneg_right (add_le_add_right hhalf 1) (Real.sqrt_nonneg (n * k))]
     have hD_le : (D : ℝ) ≤ (m' : ℝ) * t₀ := by exact_mod_cast (show D ≤ m' * t₀ by omega)
     have := mul_le_mul_of_nonneg_left ht_up hm'R.le
     rw [hsqnk_eq] at this; linarith
@@ -218,11 +216,8 @@ private theorem johnson_curve_params_gap {n k e m r : ℕ}
     have hdiff_pos : (0 : ℝ) < ((C_mon - R_eq : ℕ) : ℝ) := by linarith
     have hdiv_le : (siegelZDeg n m' (k - 1) D r : ℝ) ≤
         (r : ℝ) * ((R_eq : ℝ) * (maxYDeg (k - 1) D : ℝ)) / ((C_mon - R_eq : ℕ) : ℝ) := by
-      rw [le_div_iff₀ hdiff_pos]
-      have hcast : ((siegelZDeg n m' (k - 1) D r * (C_mon - R_eq) : ℕ) : ℝ) ≤
-          ((R_eq * r * maxYDeg (k - 1) D : ℕ) : ℝ) := by
-        exact_mod_cast Nat.div_mul_le_self (R_eq * r * maxYDeg (k - 1) D) (C_mon - R_eq)
-      push_cast at hcast; linarith
+      rw [le_div_iff₀ hdiff_pos, mul_left_comm (r : ℝ), ← mul_assoc]
+      exact_mod_cast Nat.div_mul_le_self (R_eq * r * maxYDeg (k - 1) D) (C_mon - R_eq)
     have hReq_up : (R_eq : ℝ) ≤ (3 / 4) * (n : ℝ) * (m' : ℝ) ^ 2 := by
       have h2Req := two_mul_cast_mul_div_two_le n m'
       have hm2 : (2 : ℝ) ≤ m' := by exact_mod_cast (show 2 ≤ m' by omega)
@@ -392,11 +387,10 @@ theorem exists_multiplicity_of_eta {n k e : ℕ} {η : ℝ}
           (div_le_div_of_nonneg_right (by linarith) hη.le)
       linarith
     · have h1 : Real.sqrt ρ / (2 * η') = 1 := by
-        dsimp only [η']
-        rw [min_eq_right (le_of_not_ge hle)]; field_simp
-      have hm1 : m = 1 := by simp [m, h1]
+        simp only [η', min_eq_right (le_of_not_ge hle)]; field_simp
       have he0 : (0 : ℝ) ≤ (e : ℝ) / n := by positivity
-      rw [hm1, Nat.cast_one, le_div_iff₀ hη]; linarith
+      simp only [m, h1, Nat.ceil_one, Nat.cast_one, le_div_iff₀ hη]
+      linarith
   refine ⟨m, hm, by linarith, (pow_le_pow_left₀ (by positivity) hm1_le 6).trans_eq ?_⟩
   rw [div_pow]; norm_num
 
