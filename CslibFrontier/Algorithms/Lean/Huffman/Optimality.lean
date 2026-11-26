@@ -117,13 +117,9 @@ theorem IsHuffmanBuild.map {α₁ α₂ β : Type*} [Add β] [LE β]
     IsHuffmanBuild w₂ (F.map (CodeTree.map f)) (T.map f) := by
   induction h with
   | single t => exact .single (t.map f)
-  | @step F F_rest t₁ t₂ T hmin _ ih =>
-    refine .step ⟨?_, ?_⟩ ih
-    · simpa [List.map_cons] using hmin.perm.map (CodeTree.map f)
-    · intro t' ht'
-      rcases List.mem_map.mp ht' with ⟨t, ht, rfl⟩
-      rw [CodeTree.weight_map t₁ hw, CodeTree.weight_map t₂ hw, CodeTree.weight_map t hw]
-      exact hmin.weight_le t ht
+  | step hmin _ ih =>
+    refine .step ⟨hmin.perm.map (CodeTree.map f), List.forall_mem_map.mpr fun t ht => ?_⟩ ih
+    simpa only [CodeTree.weight_map _ hw] using hmin.weight_le t ht
 
 /-! ## Monoid rearrangement and depth-weighted list swaps -/
 
@@ -132,11 +128,8 @@ depth `d₂` to the smaller weight `w₁` does not exceed assigning `d₂` to `w
 theorem rearrangement_nsmul_le {β : Type*} [AddCommMonoid β] [PartialOrder β]
     [IsOrderedAddMonoid β] {d₁ d₂ : ℕ} (hd : d₁ ≤ d₂) {w₁ w₂ : β} (hw : w₁ ≤ w₂) :
     d₂ • w₁ + d₁ • w₂ ≤ d₁ • w₁ + d₂ • w₂ := by
-  rw [← Nat.add_sub_of_le hd, add_nsmul, add_nsmul]
-  have hle := add_le_add (le_refl (d₁ • w₁ + d₁ • w₂)) (nsmul_le_nsmul_right hw (d₂ - d₁))
-  rwa [show (d₁ • w₁ + d₁ • w₂) + (d₂ - d₁) • w₁ = d₁ • w₁ + (d₂ - d₁) • w₁ + d₁ • w₂ by ac_rfl,
-    show (d₁ • w₁ + d₁ • w₂) + (d₂ - d₁) • w₂ = d₁ • w₁ + (d₁ • w₂ + (d₂ - d₁) • w₂) by ac_rfl]
-    at hle
+  rw [← Nat.add_sub_of_le hd, add_nsmul, add_nsmul, add_right_comm, add_assoc]
+  exact add_le_add le_rfl (add_le_add le_rfl (nsmul_le_nsmul_right hw (d₂ - d₁)))
 
 private def zipCost {γ β : Type*} [AddCommMonoid β] (W : γ → β)
     (xs : List γ) (ds : List ℕ) : β :=
@@ -356,9 +349,8 @@ theorem LeftCherryAtDepth.leaves_and_depths {δ : Type*} {T : CodeTree δ} {D : 
   | @left l r d u v C _ ih =>
     rcases ih with ⟨tail_l, ds_l, hl_leaves, hC_leaves, hl_depths, hlen_l⟩
     refine ⟨tail_l ++ r.leaves,
-      ds_l.map (· + 1) ++ (r.leafDepths.map Prod.snd).map (· + 1), ?_, fun z => ?_, ?_, ?_⟩
-    · simp [hl_leaves]
-    · simp [hC_leaves z]
+      ds_l.map (· + 1) ++ (r.leafDepths.map Prod.snd).map (· + 1),
+      congrArg (· ++ r.leaves) hl_leaves, fun z => congrArg (· ++ r.leaves) (hC_leaves z), ?_, ?_⟩
     · simp only [CodeTree.leafDepths, List.map_append, map_snd_map_succ, hl_depths, List.map_cons,
         List.cons_append]
     · simp only [List.length_append, List.length_map, hlen_l, ← CodeTree.map_fst_leafDepths]
@@ -458,14 +450,13 @@ theorem exists_cherry_weightedPathLength_le {γ β : Type*}
     rcases hC.leaves_and_depths with ⟨tail, ds, hS₁_leaves, _, hS₁_depths, htail_len⟩
     have hperm₁ : (x :: y :: F_rest).Perm (u :: v :: tail) :=
       hS₁_leaves ▸ hperm.symm.trans (leaves_rotateDeepestLeft_perm (CodeTree.branch l r)).symm
-    have hD_ds : ∀ d ∈ ds, d ≤ (CodeTree.branch l r).maxDepth := by
-      intro d hd
-      rcases List.mem_map.mp (show d ∈ S₁.leafDepths.map Prod.snd by grind) with ⟨p, hp, rfl⟩
+    have hD_ds (d : ℕ) (hd : d ∈ ds) : d ≤ (CodeTree.branch l r).maxDepth := by
+      rcases List.mem_map.mp (hS₁_depths ▸ List.mem_cons_of_mem _ (List.mem_cons_of_mem _ hd)) with
+        ⟨p, hp, rfl⟩
       exact (CodeTree.snd_le_maxDepth_of_mem_leafDepths hp).trans_eq (maxDepth_rotateDeepestLeft _)
     rcases exists_perm_tail_zipCost_le W hperm₁ hmin htail_len hD_ds with ⟨tail', htail'_perm, hle⟩
-    have hlen_relabel : (x :: y :: tail').length = S₁.leaves.length := by
-      have := hperm₁.length_eq; have := htail'_perm.length_eq
-      rw [hS₁_leaves]; simp only [List.length_cons] at *; omega
+    have hlen_relabel : (x :: y :: tail').length = S₁.leaves.length :=
+      hS₁_leaves ▸ (((htail'_perm.cons y).cons x).trans hperm₁).length_eq
     rcases relabel_append_spec x S₁ (xs := x :: y :: tail') (ys := []) hlen_relabel with
       ⟨_, hS'_leaves, hS'_depths⟩
     rcases hC.relabel_spec x y hlen_relabel with ⟨C', hC', hC'_leaves⟩
@@ -546,10 +537,9 @@ theorem IsHuffmanBuild.weightedPathLength_le {α β : Type*}
     (hbuild : IsHuffmanBuild w (syms.map .leaf) T)
     (T' : CodeTree α) (hT' : T'.leaves.Perm syms) :
     T.weightedPathLength w ≤ T'.weightedPathLength w := by
-  have hS : (T'.map CodeTree.leaf).leaves.Perm (syms.map CodeTree.leaf) := by
-    grind [CodeTree.leaves_map]
-  have hle := hbuild.weightedPathLength_le_join (T'.map CodeTree.leaf) hS
-  rwa [CodeTree.join_map_leaf] at hle
+  simpa only [CodeTree.join_map_leaf] using
+    hbuild.weightedPathLength_le_join (T'.map CodeTree.leaf)
+      (CodeTree.leaves_map CodeTree.leaf T' ▸ hT'.map CodeTree.leaf)
 
 /-- **Optimality of Huffman Coding over Prefix-Free Binary Codes** ([Huffman1952];
 [CoverThomas2006], Section 5.8): under nonnegative symbol weights, a Huffman tree `T` achieves
