@@ -204,16 +204,12 @@ theorem sourceVariable_mem_formula {φ : CNF V} {v : V} (hv : v ∈ φ.vars) :
   apply CNF.mem_vars.mpr
   cases b with
   | true =>
-    refine ⟨φ[i].zipIdx.map (fun (l, j) => positiveLiteral i j l), ?_, true, ?_⟩
-    · exact List.mem_flatMap.mpr ⟨(φ[i], i), hci,
-        List.mem_append.mpr (Or.inl (List.mem_singleton_self _))⟩
-    · exact List.mem_map.mpr ⟨((v, true), j), hlj', rfl⟩
+    exact ⟨_, List.mem_flatMap.mpr ⟨_, hci, List.mem_append_left _ (List.mem_singleton_self _)⟩,
+      true, List.mem_map.mpr ⟨((v, true), j), hlj', rfl⟩⟩
   | false =>
-    refine ⟨[(.inl v, true), (auxiliary i j 0, true), (auxiliary i j 1, true)], ?_,
+    exact ⟨_, List.mem_flatMap.mpr ⟨_, hci, List.mem_append_right _
+      (List.mem_flatMap.mpr ⟨((v, false), j), hlj', List.mem_cons_self⟩)⟩,
       true, List.mem_cons_self⟩
-    apply List.mem_flatMap.mpr
-    refine ⟨(φ[i], i), hci, List.mem_append.mpr (Or.inr ?_)⟩
-    exact List.mem_flatMap.mpr ⟨((v, false), j), hlj', List.mem_cons_self⟩
 
 /-- Satisfying complement blocks with equal source values agree on all of their variables. -/
 theorem complementBlock_assignments_agree (σ τ : Variable V → Bool) (i j : ℕ)
@@ -319,13 +315,9 @@ theorem length_clauseClauses_le (i : ℕ) (c : Clause V) :
 theorem length_formula_le {k : ℕ} {φ : CNF V} (hw : ∀ c ∈ φ, c.length ≤ k) :
     (formula φ).length ≤ (1 + 4 * k) * φ.length := by
   simp only [formula, List.length_flatMap]
-  have h : (φ.zipIdx.map fun (c, i) => (clauseClauses i c).length).sum ≤
-      (φ.zipIdx.map fun _ => 1 + 4 * k).sum := by
-    apply List.sum_le_sum
-    intro a ha
-    exact (length_clauseClauses_le a.2 a.1).trans
+  simpa [Nat.mul_comm] using List.sum_le_sum (g := fun _ => 1 + 4 * k) fun a ha =>
+    (length_clauseClauses_le a.2 a.1).trans
       (Nat.add_le_add_left (Nat.mul_le_mul_left _ (hw _ (List.fst_mem_of_mem_zipIdx ha))) _)
-  simpa [Nat.mul_comm] using h
 
 /-- All literals in a complement block are positive. -/
 theorem positive_complementBlock (i j : ℕ) (l : Literal V) :
@@ -459,17 +451,19 @@ degree at most three at each auxiliary. -/
 theorem count_aux_occurrenceVariables [DecidableEq V] (i j a b k : ℕ) (l : Literal V) :
     (occurrenceVariables i j l).count (auxiliary a b k) ≤
       if a = i ∧ b = j then 3 else 0 := by
-  cases hb : l.2
-  · obtain rfl | hi := eq_or_ne a i
-    · obtain rfl | hj := eq_or_ne b j
-      · rcases k with _ | _ | _ | _ | _ | k <;>
-          simp [occurrenceVariables, positiveLiteral, complementBlock, complementClauses,
-            forceFalseClauses, auxiliary, CNF.vars, hb]
-      · simp [occurrenceVariables, positiveLiteral, complementBlock, complementClauses,
-          forceFalseClauses, auxiliary, CNF.vars, hb, hj, hj.symm]
-    · simp [occurrenceVariables, positiveLiteral, complementBlock, complementClauses,
-        forceFalseClauses, auxiliary, CNF.vars, hb, hi, hi.symm]
-  · simp [occurrenceVariables, positiveLiteral, complementBlock, auxiliary, CNF.vars, hb]
+  rcases l with ⟨v, _ | _⟩
+  · by_cases h : a = i ∧ b = j
+    · rcases h with ⟨rfl, rfl⟩
+      simp only [occurrenceVariables, positiveLiteral, complementBlock, complementClauses,
+        forceFalseClauses, auxiliary, CNF.vars, Bool.false_eq_true, ↓reduceIte, List.flatten_cons,
+        List.flatten_nil, List.cons_append, List.nil_append, List.map_cons, List.map_nil,
+        List.count_cons, List.count_nil, beq_iff_eq, reduceCtorEq, Sum.inr.injEq, Prod.mk.injEq,
+        true_and]
+      split_ifs <;> omega
+    · have h' : ¬ (i = a ∧ j = b) := fun ⟨h1, h2⟩ => h ⟨h1.symm, h2.symm⟩
+      simp [occurrenceVariables, positiveLiteral, complementBlock, complementClauses,
+        forceFalseClauses, auxiliary, CNF.vars, h, h']
+  · simp [occurrenceVariables, positiveLiteral, complementBlock, auxiliary, CNF.vars]
 
 /-- Original variable occurrence counts are unchanged in each compiled clause block. -/
 theorem count_inl_clause [DecidableEq V] (i : ℕ) (c : Clause V) (v : V) :

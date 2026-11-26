@@ -393,11 +393,9 @@ theorem IsAcyclic.length_le_pred {n : ℕ} {W : Type} {F : List (WeightedEdge n 
 theorem IsAcyclic.ne_of_mem {n : ℕ} {W : Type} {F : List (WeightedEdge n W)}
     (hF : IsAcyclic F) {e : WeightedEdge n W} (he : e ∈ F) : e.u ≠ e.v := by
   classical
-  have hcons := (Perm.isAcyclic_iff (List.perm_cons_erase he)).mp hF
-  obtain ⟨hrel, _⟩ := isAcyclicFrom_cons.mp hcons
   intro heq
-  rw [heq, Partition.rel_refl] at hrel
-  cases hrel
+  simpa [heq, Partition.rel_refl] using
+    (isAcyclicFrom_cons.mp ((Perm.isAcyclic_iff (List.perm_cons_erase he)).mp hF)).1
 
 /-- Redundant-edge extraction: if `L` has exactly one redundant merge over `p`, removing that
 redundant edge yields a sub-list `L'` (`L.Perm (f :: L')`) with the same final partition and
@@ -598,26 +596,22 @@ private theorem exists_perm_cons_isSpanningForestFrom_merge {n : ℕ} {W : Type}
   | cons _ hsl =>
     -- `H` avoids this copy of `e`: `l.Sublist es`, so `H.Subperm es`, and `H` has exactly one
     -- redundant merge over `p' = p.merge e.u e.v`.
-    have he_rel : (edgePartitionFrom p H).rel e.u e.v = true := by
-      rw [hpart]
-      exact rel_edgePartitionFrom_of_mem p List.mem_cons_self
+    have he_rel : (edgePartitionFrom p H).rel e.u e.v = true :=
+      hpart ▸ rel_edgePartitionFrom_of_mem p List.mem_cons_self
     have hp'H : edgePartitionFrom p' H = edgePartitionFrom p H := by
       rw [edgePartitionFrom_merge, Partition.merge_of_rel he_rel]
-    have hp'es : edgePartitionFrom p' H = edgePartitionFrom p' es := by
-      rw [hp'H, hpart, edgePartitionFrom_cons]
-    have hm : p'.numComponents + 1 = p.numComponents :=
-      Partition.numComponents_merge_of_not_rel hrel
     have hsucc : (edgePartitionFrom p' H).numComponents + H.length = p'.numComponents + 1 := by
-      rw [hp'H]
+      have hm : p'.numComponents + 1 = p.numComponents :=
+        Partition.numComponents_merge_of_not_rel hrel
       have ha : (edgePartitionFrom p H).numComponents + H.length = p.numComponents := hacyc
-      omega
+      rw [hp'H]; omega
     obtain ⟨f, H', hHperm, hH'part, hH'acyc⟩ :=
       exists_perm_cons_of_numComponents_add_length_eq_succ hsucc
     have hH_sub : H.Subperm es := hHl.subperm.trans hsl.subperm
     have hH'_sub : H'.Subperm es :=
       ((List.sublist_cons_self f H').subperm.trans hHperm.symm.subperm).trans hH_sub
     exact ⟨f, H', hHperm, Or.inr (hH_sub.subset (hHperm.mem_iff.mpr List.mem_cons_self)),
-      hH'_sub, hH'acyc, hH'part.trans hp'es⟩
+      hH'_sub, hH'acyc, (hH'part.trans hp'H).trans hpart⟩
   | cons_cons _ hsl =>
     -- `H` contains this copy of `e`: `H.Perm (e :: l')` with `l'.Sublist es`.
     rename_i l'

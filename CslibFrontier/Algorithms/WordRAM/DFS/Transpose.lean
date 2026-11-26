@@ -139,8 +139,7 @@ private theorem forEachArcInner_spec {N w : ℕ} (adj : Fin N → List (Fin N))
     simp only [List.length_cons] at hk
     have hk_lt : k < (adj u).length := by omega
     have hv_eq : (adj u)[k] = v := by
-      have h0 := hget 0 (by simp)
-      simpa only [Nat.add_zero, List.getElem_cons_zero] using h0
+      simpa only [Nat.add_zero, List.getElem_cons_zero] using hget 0 (Nat.zero_lt_succ _)
     have hmem_e : x.mem (kEdgeAddr wb N + (csrOffset adj u.val + k)) = v.val := by
       rw [← Nat.add_assoc, hcsr.2 u k hk_lt, hv_eq]
     have hj_lt_M : csrOffset adj u.val + k < csrOffset adj N := by
@@ -151,10 +150,8 @@ private theorem forEachArcInner_spec {N w : ℕ} (adj : Fin N → List (Fin N))
     have hf_j1 : Fits w (csrOffset adj u.val + k + 1) :=
       hfit.of_le (by simp only [kTopAddr]; omega)
     have hroom_v : (rev v).length + 1 ≤ bound v := by
-      have hle := length_foldl_rev_le u es (Function.update rev v (u :: rev v)) v
-      have hall := hroom_all v
-      simp only [List.foldl_cons] at hall
-      simpa using hle.trans hall
+      simpa using (length_foldl_rev_le u es (Function.update rev v (u :: rev v)) v).trans
+        (hroom_all v)
     let st_v := (x.set addr (kEdgeAddr wb N + (csrOffset adj u.val + k))).set vReg v.val
     have hp1 : ExecWithin w (ram[ addr ← fwdEdgeReg + jReg; vReg ← *addr ]) x st_v 2 := by
       wram_exec [hfwd, hj, hmem_e]
@@ -177,8 +174,7 @@ private theorem forEachArcInner_spec {N w : ℕ} (adj : Fin N → List (Fin N))
         MemWrite ConstRegs hu_lo hu_hi hfwd_hi hfwd_ne hdisj hconst_regs hstep u es (k + 1)
         (Function.update rev v (u :: rev v)) x₂ (by omega)
         (fun q hq => by
-          have h := hget (q + 1) (by simp; omega)
-          simpa [Nat.add_assoc, Nat.add_comm 1 q] using h)
+          simpa [Nat.add_assoc, Nat.add_comm 1 q] using hget (q + 1) (Nat.succ_lt_succ hq))
         (fun z => by simpa [List.foldl_cons] using hroom_all z)
         hy₁_inv (hcsr.of_unwritten hdisj hy₁_out) ((hx₂_lt cOne (by decide)).trans hc1)
         ((hx₂_lt _ hfwd_hi).trans hfwd)
@@ -237,8 +233,7 @@ private theorem forEachArc_spec {N w : ℕ} (adj : Fin N → List (Fin N))
       huIdx => by
     simp only [List.length_cons] at hidx
     have hu_val : u.val = idx := by
-      have h0 := hus 0 (by simp)
-      rwa [List.getElem_cons_zero, Nat.add_zero] at h0
+      simpa only [List.getElem_cons_zero, Nat.add_zero] using hus 0 (Nat.zero_lt_succ _)
     have hoff_u : x.mem (kOffAddr wb + idx) = csrOffset adj u.val := by
       rw [← hu_val]; exact hcsr.1 u.val (by omega)
     have hoff_u1 : x.mem (kOffAddr wb + idx + 1) = csrOffset adj u.val + (adj u).length := by
@@ -277,8 +272,7 @@ private theorem forEachArc_spec {N w : ℕ} (adj : Fin N → List (Fin N))
         ConstRegs hu_lo hu_hi hu_ne_of hfwd_hi hfwd_ne_of hfwd_ne hdisj hconst_regs hstep
         us (idx + 1) ((adj u).foldl (fun r v => Function.update r v (u :: r v)) rev) x₂ (by omega)
         (fun q hq => by
-          have h := hus (q + 1) (by simp; omega)
-          simpa [Nat.add_assoc, Nat.add_comm 1 q] using h)
+          simpa [Nat.add_assoc, Nat.add_comm 1 q] using hus (q + 1) (Nat.succ_lt_succ hq))
         (fun z => by simpa [List.foldl_cons] using hroom_all z)
         hy₁_inv (hcsr.of_unwritten hdisj hy₁_out) ((hx₂_fr0 cOne (by decide)).trans hc1)
         ((hx₂_fr0 nVerts (by decide)).trans hNv) ((hx₂_fr0 offB (by decide)).trans hoff)

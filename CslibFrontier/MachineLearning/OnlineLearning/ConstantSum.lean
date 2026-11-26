@@ -384,27 +384,23 @@ theorem ciSup_ciInf_eq_ciInf_ciSup (M : I → J → ℝ) :
       obtain ⟨sq, hsq'⟩ : q_bar ∈ Set.range fun s : StdSimplex ℝ J => (s.weights : J → ℝ) := by
         rw [StdSimplex.range_toFun_comp_weights]
         exact ⟨Set.mem_iInter.2 hq0, hq1⟩
+      dsimp only at hsp' hsq'
       have hpair : ∀ (i : I) (j : J),
           ∑ i', p_bar i' * M i' j ≤ ∑ j', q_bar j' * M i j' + C / √(T : ℝ) := fun i j => by
-        have hM_eq (i' : I) (j' : J) : M i' j' = M₀ i' j' * (2 * B) - B := by
-          dsimp only [M₀]
-          field_simp
-          ring
-        have hlhs : ∑ i', p_bar i' * M i' j = (∑ i', p_bar i' * M₀ i' j) * (2 * B) - B := by
-          simp only [hM_eq, mul_sub, ← mul_assoc, sum_sub_distrib, ← sum_mul, hp1, one_mul]
-        have hrhs : ∑ j', q_bar j' * M i j' = (∑ j', q_bar j' * M₀ i j') * (2 * B) - B := by
-          simp only [hM_eq, mul_sub, ← mul_assoc, sum_sub_distrib, ← sum_mul, hq1, one_mul]
-        have hmul := mul_le_mul_of_nonneg_right (hle₀ i j) (mul_nonneg zero_le_two hB.le)
-        have hC_eq : (∑ j', q_bar j' * M₀ i j' +
-            2 * (√(log (Fintype.card I)) + √(log (Fintype.card J))) / √(T : ℝ)) * (2 * B) =
-            (∑ j', q_bar j' * M₀ i j') * (2 * B) + C / √(T : ℝ) := by
-          dsimp only [C]
-          ring
+        have hM_eq (i' : I) (j' : J) : M i' j' = 2 * B * M₀ i' j' - B := by
+          simp only [M₀, mul_div_cancel₀ _ (by positivity : (2 * B : ℝ) ≠ 0), add_sub_cancel_right]
+        have hlhs : ∑ i', p_bar i' * M i' j = 2 * B * (∑ i', p_bar i' * M₀ i' j) - B := by
+          simp only [hM_eq, mul_sub, mul_left_comm _ (2 * B), sum_sub_distrib, ← mul_sum,
+            ← sum_mul, hp1, one_mul]
+        have hrhs : ∑ j', q_bar j' * M i j' = 2 * B * (∑ j', q_bar j' * M₀ i j') - B := by
+          simp only [hM_eq, mul_sub, mul_left_comm _ (2 * B), sum_sub_distrib, ← mul_sum,
+            ← sum_mul, hq1, one_mul]
+        have hmul := mul_le_mul_of_nonneg_left (hle₀ i j) (mul_nonneg zero_le_two hB.le)
+        rw [mul_add (2 * B), ← mul_div_assoc] at hmul
         linarith
       have hsup_inf : (⨆ j : J, ∑ i, sp.weights i * M i j) ≤
           (⨅ i : I, ∑ j, sq.weights j * M i j) + C / √(T : ℝ) := by
-        rw [show (sp.weights : I → ℝ) = p_bar from hsp',
-          show (sq.weights : J → ℝ) = q_bar from hsq', ← sup'_univ_eq_ciSup, ← inf'_univ_eq_ciInf]
+        rw [hsp', hsq', ← sup'_univ_eq_ciSup, ← inf'_univ_eq_ciInf]
         refine Finset.sup'_le _ _ fun j _ => ?_
         linarith [Finset.le_inf' univ_nonempty (fun i => ∑ j', q_bar j' * M i j')
           fun i _ => show ∑ i', p_bar i' * M i' j - C / √(T : ℝ) ≤ ∑ j', q_bar j' * M i j' by
