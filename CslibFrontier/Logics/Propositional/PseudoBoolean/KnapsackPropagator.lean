@@ -1738,7 +1738,8 @@ private theorem remLayer_spec {next : List Node} {r : LayerRec} {A : List St}
       simp only [remLayer, hall, ↓reduceIte]
       refine ⟨db', h', s₁.trans s', ?_, ?_, by simpa [Acc.push] using hv⟩
       · simp only [List.mem_cons, forall_eq_or_imp]
-        refine ⟨⟨by simp, by simp, s' _ _ ((lookup_cons _ _ _ _).trans (ite_eq_left rfl))⟩, fun y hy => ?_⟩
+        refine ⟨⟨by simp, by simp, s' _ _ ((lookup_cons _ _ _ _).trans (ite_eq_left rfl))⟩,
+          fun y hy => ?_⟩
         obtain ⟨h1, h2, h3⟩ := hys y hy
         exact ⟨h1, .inr h2, h3⟩
       · simp only [List.mem_cons]
