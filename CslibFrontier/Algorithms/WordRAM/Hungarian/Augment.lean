@@ -119,9 +119,7 @@ private theorem exec_augCode {w n bC M : ℕ} {c : Fin n × Fin n → ℤ} {W : 
       have hiz' : z.regs idx2 = n := by rw [hiz, hrow, hSM.hrow_none u hfree]
       have hp_sing := hSI.path_eq_singleton (j := j) hfree
       refine ⟨z, he, ⟨hrz, hfz, .inl ⟨hiz', fun k => ?_⟩⟩, ?_⟩
-      · rw [hmz, hcol_upd k, hpath_eq, hp_sing]
-        simp only [hgApplyEdges, List.foldl_append, List.foldl_cons, List.foldl_nil]
-        rfl
+      · simp [hmz, hcol_upd k, hpath_eq, hp_sing, hgApplyEdges, List.foldl_append, u]
       · simp only [rank, hlt, hj_fin, hiz', lt_self_iff_false, dite_true, dite_false, hp_sing,
           List.length_singleton]
         omega
@@ -192,8 +190,7 @@ private theorem exec_rebuildRowMateCode {w n bC M : ℕ} {mate : Vector (Option 
       refine ⟨⟨fun i hi => by wram_simp [hr i hi], fun a ha => ?_,
         fun j hj i hm => ?_, fun i hall => ?_⟩, by wram_simp⟩
       · change Function.update y.mem (bRM + i₀.val) (y.regs idx) a = x.mem a
-        rw [Function.update_of_ne (by omega)]
-        exact hf a ha
+        rw [Function.update_of_ne (by omega), hf a ha]
       · change Function.update y.mem (bRM + i₀.val) (y.regs idx) (bRM + i.val) = j.val
         by_cases hii : i = i₀
         · subst hii
@@ -238,12 +235,9 @@ theorem exec_augmentCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ} {r j₁
   have hb₁ : BaseRegs n bC M y₁ := hb.of_eq fun i hi => hr₁ i (by omega)
   obtain ⟨y₂, he₂, hr₂, hsome₂, hnone₂, hf₂⟩ :=
     exec_rebuildRowMateCode hOB'.matching y₁ hb₁ hcol₁ hfit_a
-  obtain ⟨y₃, he₃, rfl⟩ : ∃ y₃,
-      ExecWithin w (ram[ augmented ← #1 ] : Code .standard 28) y₂ y₃ 1 ∧
-      y₃ = y₂.set augmented 1 := by
-    refine WP.exists_execWithin ?_
+  have he₃ :
+      ExecWithin w (ram[ augmented ← #1 ] : Code .standard 28) y₂ (y₂.set augmented 1) 1 := by
     wram_exec
-    rfl
   have hout : ∀ a, ¬(bC + n * n + 2 * n ≤ a ∧ a < bC + n * n + 3 * n) ∧
       ¬(bC + n * n + 7 * n + 1 ≤ a ∧ a < bC + n * n + 8 * n + 1) → y₂.mem a = x.mem a :=
     fun a ⟨ha1, ha2⟩ => (hf₂ a ha2).trans (hf₁ a ha1)

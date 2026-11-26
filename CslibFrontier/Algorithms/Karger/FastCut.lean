@@ -123,8 +123,7 @@ private theorem fastCutThresholdAux_spec {k fuel t : ℕ} (hk : 4 ≤ k) (ht : t
     ∀ m, t ≤ m → m < r → 2 * m * (m - 1) < k * (k - 1) := by
   induction fuel generalizing t with
   | zero =>
-    have ht_eq : t = k - 1 := by omega
-    subst ht_eq
+    obtain rfl : t = k - 1 := by omega
     refine ⟨le_rfl, le_rfl, ?_, fun _ hge hlt => absurd hlt (not_lt_of_ge hge)⟩
     have hsub2 : k - 1 - 1 = k - 2 := by omega
     simpa only [fastCutThresholdAux, hsub2] using mul_pred_le_two_mul_pred_sub_two hk
@@ -139,8 +138,7 @@ private theorem fastCutThresholdAux_spec {k fuel t : ℕ} (hk : 4 ≤ k) (ht : t
       rcases ih (t := t + 1) (by omega) (by omega) with ⟨h1, h2, h3, h4⟩
       refine ⟨by omega, h2, h3, fun m htm hmr => ?_⟩
       rcases eq_or_lt_of_le htm with rfl | hgt
-      · exact hlt
-      · exact h4 m (by omega) hmr
+      exacts [hlt, h4 m hgt hmr]
     · simp only [hlt, ↓reduceIte]
       exact ⟨le_rfl, ht, Nat.le_of_not_lt hlt, fun _ hge hlt' => absurd hlt' (not_lt_of_ge hge)⟩
 
@@ -286,8 +284,7 @@ theorem fastCutDepth_le_two_mul_log (k : ℕ) :
         _ < (2 ^ (L + 1)) ^ 2 := Nat.pow_lt_pow_left hk4_lt (by decide)
         _ = 2 * 2 ^ (2 * L + 1) := by
             rw [← pow_mul, show (L + 1) * 2 = 2 * L + 1 + 1 by omega, pow_succ']
-    have hlt_exp : fastCutDepth k < 2 * L + 1 :=
-      (Nat.pow_lt_pow_iff_right (by decide : 1 < 2)).mp (by omega)
+    have := (Nat.pow_lt_pow_iff_right (by decide : 1 < 2)).mp (Nat.lt_of_mul_lt_mul_left hlt_pow)
     omega
   · rw [fastCutDepth_of_lt_seven (by omega)]
     exact Nat.zero_le _
@@ -380,9 +377,7 @@ private theorem fastCutNodeQueries_add_linear_le_pot {k : ℕ} (hk : 7 ≤ k) :
       have hlin := two_mul_add_two_le_three_mul_threshold h
       omega
     · have ht_eq : fastCutThreshold k = 6 := by omega
-      have hbase : fastCutNodeQueries (fastCutThreshold k) = 4 := by
-        rw [ht_eq, fastCutNodeQueries_of_lt_seven (by decide)]
-      rw [hbase, ht_eq]
+      rw [ht_eq, fastCutNodeQueries_of_lt_seven (by decide)]
       obtain ⟨c, rfl⟩ : ∃ c, k = c + 7 := ⟨k - 7, by omega⟩
       rw [show c + 7 - 6 = c + 1 by omega, show c + 7 - 2 = c + 5 by omega,
         show c + 7 - 4 = c + 3 by omega, show 6 * (c + 3) ^ 2 = 6 * c ^ 2 + 36 * c + 54 by ring]
