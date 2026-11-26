@@ -88,12 +88,14 @@ and `eord_loaded` (§5.11.3), the solution-logging steps `sol`, `soli` and `solx
 `obji` (§5.8), the objective update `obju new` or `obju diff` with an objective in the OPB syntax,
 an optional constant included, and an optional subproof of `proofgoal #1` and `#2` (§5.9), the
 changes of the preserved set `preserved_add x : C` and `preserved_rm x : C` with an optional
-subproof of `proofgoal #1` and `#2`, closed by `qed [preserved_add];` (`rm`) (§5.10), the check
-`epreserved` (§5.11.4), `core id` (§5.1), `strengthening_to_core on` and `off` (§5.6), and the
-deletions (§5.7.1): `deld` of derived constraints, the unchecked `delc` of core constraints, and the
-checked `delc id : ω` of one core constraint, with an optional subproof. Orders, `dom`, deletion,
-`core`, strengthening-to-core, solution logging, `obji`, `obju` and the preserved-set rules are
-accepted only at top level, as the format requires. Two steps of the augmented format are also
+subproof of `proofgoal #1` and `#2`, closed by `qed [preserved_add];` (`rm`) (§5.10), the checks
+`epreserved` (§5.11.4) and `e C : j`, that the constraint `j` is `C` after normalization up to the
+order of terms (§5.11.1; CaDiCaL writes it after each `pol` derivation, and CakePB requires `j`),
+`core id` (§5.1), `strengthening_to_core on` and `off` (§5.6), and the deletions (§5.7.1):
+`deld` of derived constraints, the unchecked `delc` of core constraints, and the checked
+`delc id : ω` of one core constraint, with an optional subproof. Orders, `dom`, deletion,
+`core`, strengthening-to-core, solution logging, `obji`, `obju`, the preserved-set rules and `e`
+are accepted only at top level, as the format requires. Two steps of the augmented format are also
 accepted: `del id`, read as the untyped deletion `Cslib.Logic.PL.VeriPB.Step.del` (§5.7.2; a
 deletion of a core constraint counts as unchecked), and `rup` without hints, read as
 `Cslib.Logic.PL.VeriPB.Step.rupSearch`. The implication `ia C : j;`, which VeriPB's elaborator
@@ -103,8 +105,9 @@ every `ia` whose constraint `C` is a clause (coefficients and degree `1`), for w
 by `j` is exactly a conflict of `j` under the negation of `C`; for other constraints it may reject
 an implication that CakePB accepts. Everything else (`pol` operations `c`, `m`, `n` and `-`,
 relative constraint numbers, constraint labels `@l` (§5; CakePB rejects them in a proof as well,
-and the elaborator `Cslib.Logic.PL.VeriPB.Elab.checkAugmented` resolves them), `i`, `ia` without a
-constraint number, `del spec`, levels, and the conclusion `UNSAT` without an ID) is rejected.
+and the elaborator `Cslib.Logic.PL.VeriPB.Elab.checkAugmented` resolves them), `i`, `ia` and `e`
+without a constraint number, `e` in a subproof, `del spec`, levels, and the conclusion `UNSAT`
+without an ID) is rejected.
 
 **Output sections.** `Cslib.Logic.PL.VeriPB.Text.checkOPBOutput` takes the output formula of
 `output g FILE;` as a third text, and checks the section with
@@ -1289,6 +1292,10 @@ private def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopS
         (subproofTail k N fuel rest).map fun (sub, rest) =>
           ([.presChange (k == "preserved_add") v c sub], rest)
   | "epreserved" :: ts => (varList N ts).map fun (vs, rest) => ([.epreserved vs], rest)
+  | "e" :: ts =>
+    match geq N ts with
+    | some (c, ":" :: n :: ";" :: rest) => (id? n).map fun j => ([.econstr c j], rest)
+    | _ => none
   | "core" :: "id" :: ts =>
     match ids ts with
     | some (ns, ";" :: rest) => some ([.core ns], rest)
