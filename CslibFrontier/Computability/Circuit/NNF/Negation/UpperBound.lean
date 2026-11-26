@@ -109,9 +109,7 @@ theorem getElem_mem_cyclePairsTail (v₀ : V) :
       (l[j], l[j + 1]) ∈ cyclePairsTail v₀ u l
   | _, [], _, hj => by simp at hj
   | _, [_], _, hj => by simp at hj
-  | u, v :: w :: l, 0, _ => by
-    simp only [cyclePairsTail, List.getElem_cons_zero, List.getElem_cons_succ]
-    cases l <;> simp [cyclePairsTail]
+  | u, v :: w :: l, 0, _ => by cases l <;> simp [cyclePairsTail]
   | u, v :: w :: l, j + 1, hj => by
     simp only [cyclePairsTail, List.getElem_cons_succ, List.mem_cons]
     exact .inr (getElem_mem_cyclePairsTail v₀ v (w :: l) j (by simp at hj ⊢; omega))
@@ -252,10 +250,7 @@ theorem runList_cycleItems (x : V → Bool) (l : List V) (f p s d : Bool) : ∃ 
     cases hx : x v₀ <;> simp [cycleItems, cyclePairs, cycleStep, pairLabel, pairHas, hx]
   | v₀ :: v :: l =>
     obtain ⟨p', hp'⟩ := M.runList_cycleItemsTail α β x v₀ v₀ (v :: l) s d
-    refine ⟨x v₀, p', ?_⟩
-    simp only [cycleItems, cycleRun_cons, cyclePairs] at hp' ⊢
-    convert hp' using 2
-    simp [cycleStep]
+    exact ⟨x v₀, p', by simpa [cycleItems, cycleStep, cyclePairs] using hp'⟩
 
 theorem runList_flatMap_cycleItems (x : V → Bool) :
     ∀ (blocks : List (List V)) (f p s d : Bool), ∃ f' p',
@@ -582,8 +577,8 @@ theorem someButNotAllColors_eq_true_iff (x : V → Bool) :
     M.someButNotAllColors x = true ↔
       (M.HasColor x 0 ∧ ¬M.HasColor x 1) ∨ (M.HasColor x 1 ∧ ¬M.HasColor x 2) ∨
         (M.HasColor x 2 ∧ ¬M.HasColor x 0) := by
-  simp only [someButNotAllColors, decide_eq_true_eq, Fin.exists_fin_succ, Fin.exists_fin_zero]
-  simp only [Fin.succ_zero_eq_one, Fin.succ_one_eq_two]
+  simp only [someButNotAllColors, decide_eq_true_eq, Fin.exists_fin_succ, Fin.exists_fin_zero,
+    Fin.succ_zero_eq_one, Fin.succ_one_eq_two]
   tauto
 
 /-- The chosen alternating cycle cover for the colours `α` and `β`. -/
@@ -636,10 +631,8 @@ theorem isDeterministic_dDNNF : M.dDNNF.IsDeterministic := by
   refine NNF.isDeterministic_disj
     (NNF.isDeterministic_disj (M.isDeterministic_colorDNNF 0 1) (M.isDeterministic_colorDNNF 1 2)
       fun x => ?_) (M.isDeterministic_colorDNNF 2 0) fun x => ?_
-  · rw [toFun_colorDNNF, toFun_colorDNNF]
-    tauto
-  · rw [NNF.toFun_disj, Bool.or_eq_true, toFun_colorDNNF, toFun_colorDNNF, toFun_colorDNNF]
-    tauto
+  · rw [toFun_colorDNNF, toFun_colorDNNF]; tauto
+  · rw [NNF.toFun_disj, Bool.or_eq_true, toFun_colorDNNF, toFun_colorDNNF, toFun_colorDNNF]; tauto
 
 theorem size_dDNNF : M.dDNNF.size ≤ 150 * Fintype.card V + 50 := by
   rw [dDNNF, NNF.size_disj, NNF.size_disj]

@@ -168,8 +168,9 @@ theorem relRank_le_two_rpow_abs_sum (w : Fin d → ℤ)
   set p := ∑ i ∈ wordPos w ∩ S, (w i).natAbs
   set q := ∑ i ∈ wordNeg w ∩ S, (w i).natAbs
   have hcard (X : Finset (Fin d)) :
-      Fintype.card (BlockChoice blk X) = 2 ^ ∑ i ∈ X, (w i).natAbs := by
-    rw [card_blockChoice, Finset.prod_congr rfl fun i _ => hblk i, Finset.prod_pow_eq_pow_sum]
+      (Fintype.card (BlockChoice blk X) : ℝ) = 2 ^ ∑ i ∈ X, (w i).natAbs := by
+    exact_mod_cast (card_blockChoice blk X).trans
+      ((Finset.prod_congr rfl fun i _ => hblk i).trans (Finset.prod_pow_eq_pow_sum X _ 2))
   have hsum : ∑ i ∈ S, (w i : ℝ) = (p : ℝ) - q := by
     have hP : wordPos w ∩ S = S.filter fun i => 0 ≤ w i := by ext i; simp [and_comm]
     have hN : wordNeg w ∩ S = S.filter fun i => ¬ 0 ≤ w i := by ext i; simp [and_comm]
@@ -185,15 +186,11 @@ theorem relRank_le_two_rpow_abs_sum (w : Fin d → ℤ)
   rw [hsum]
   rcases le_total (q : ℝ) p with hpq | hpq
   · refine (relRank_le_sqrt_cols_div_rows blk _ _ f).trans_eq ?_
-    rw [hcard, hcard, Nat.cast_pow, Nat.cast_pow, Nat.cast_two, sqrt_two_pow_div_two_pow,
-      abs_of_nonneg (sub_nonneg.mpr hpq)]
-    dsimp only [p, q]
-    ring_nf
+    rw [hcard, hcard, sqrt_two_pow_div_two_pow, abs_of_nonneg (sub_nonneg.mpr hpq)]
+    exact congrArg (2 ^ ·) (by dsimp [p, q]; ring)
   · refine (relRank_le_sqrt_rows_div_cols blk _ _ f).trans_eq ?_
-    rw [hcard, hcard, Nat.cast_pow, Nat.cast_pow, Nat.cast_two, sqrt_two_pow_div_two_pow,
-      abs_of_nonpos (sub_nonpos.mpr hpq)]
-    dsimp only [p, q]
-    ring_nf
+    rw [hcard, hcard, sqrt_two_pow_div_two_pow, abs_of_nonpos (sub_nonpos.mpr hpq)]
+    exact congrArg (2 ^ ·) (by dsimp [p, q]; ring)
 
 end Word
 
@@ -225,10 +222,10 @@ theorem one_div_le_abs_div_sqrt_two_sub {a b : ℤ} (hab : a ≠ 0 ∨ b ≠ 0) 
     rw [div_pow, Real.sq_sqrt zero_le_two]
   have h1 : (1 : ℝ) ≤ |(a : ℝ) ^ 2 - 2 * (b : ℝ) ^ 2| :=
     mod_cast Int.one_le_abs (sub_ne_zero.mpr (sq_ne_two_mul_sq hab))
+  have hsq : (x - b) * (x + b) = ((a : ℝ) ^ 2 - 2 * (b : ℝ) ^ 2) / 2 := by
+    ring_nf; linarith [hx2]
   have hprod : |x - b| * |x + b| = |(a : ℝ) ^ 2 - 2 * (b : ℝ) ^ 2| / 2 := by
-    rw [← abs_mul, show (x - b) * (x + b) = ((a : ℝ) ^ 2 - 2 * (b : ℝ) ^ 2) / 2 by
-      rw [show (x - b) * (x + b) = x ^ 2 - (b : ℝ) ^ 2 by ring, hx2]; ring,
-      abs_div, abs_two]
+    rw [← abs_mul, hsq, abs_div, abs_two]
   have hx0 : 0 ≤ |x| := abs_nonneg x
   rcases le_or_gt (|x| + 1) |(b : ℝ)| with hb | hb
   · have : 1 ≤ |x - b| := by grind
@@ -269,41 +266,33 @@ private theorem div_le_abs_sum_of_card_le {k : ℕ} {w : Fin d → ℤ}
   have hab' : ((a : ℤ)) ≠ 0 ∨ ((b : ℤ)) ≠ 0 := by grind
   have h17 := one_div_le_abs_div_sqrt_two_sub hab'
   push_cast at h17
-  have hs2 : (4 : ℝ) / 3 ≤ √2 := by
-    nlinarith [Real.sq_sqrt (show (0 : ℝ) ≤ 2 by norm_num), Real.sqrt_nonneg 2]
+  have hs2 : (4 : ℝ) / 3 ≤ √2 := by nlinarith [Real.sq_sqrt zero_le_two, Real.sqrt_nonneg 2]
   have hs2pos : 0 < √2 := by positivity
   have hτ1 : 1 ≤ τ := le_trans (by exact_mod_cast hT.card_pos) hTτ
   have haτ : (a : ℝ) ≤ τ := le_trans (by exact_mod_cast (hab ▸ Nat.le_add_left a b)) hTτ
   have ha0 : (0 : ℝ) ≤ a := Nat.cast_nonneg a
-  have hxa : (a : ℝ) / √2 ≤ 3 / 4 * a := by
-    rw [div_le_iff₀ hs2pos]
-    nlinarith
+  have hxa : (a : ℝ) / √2 ≤ 3 / 4 * a := (div_le_iff₀ hs2pos).mpr (by nlinarith)
   rw [abs_of_nonneg (by positivity : (0 : ℝ) ≤ a / √2)] at h17
   have hden : 4 * ((a : ℝ) / √2) + 2 ≤ 5 * τ := by linarith
   have hk0 : (0 : ℝ) ≤ k := Nat.cast_nonneg k
-  have hA : (k : ℝ) / (5 * τ) ≤ k * |(a : ℝ) / √2 - b| := by
-    calc (k : ℝ) / (5 * τ) ≤ k / (4 * ((a : ℝ) / √2) + 2) := by gcongr
-      _ = k * (1 / (4 * ((a : ℝ) / √2) + 2)) := by ring
-      _ ≤ k * |(a : ℝ) / √2 - b| := mul_le_mul_of_nonneg_left h17 hk0
+  have hA : 2 * ((k : ℝ) / (10 * τ)) ≤ k * |(a : ℝ) / √2 - b| := by
+    calc 2 * ((k : ℝ) / (10 * τ)) = k / (5 * τ) := by ring
+      _ ≤ k / (4 * ((a : ℝ) / √2) + 2) := by gcongr
+      _ ≤ k * |(a : ℝ) / √2 - b| :=
+        div_eq_mul_one_div (k : ℝ) _ ▸ mul_le_mul_of_nonneg_left h17 hk0
   have hF1 : (F : ℝ) ≤ k / √2 := hF ▸ Int.floor_le _
   have hF2 : (k : ℝ) / √2 < F + 1 := hF ▸ Int.lt_floor_add_one _
   have hB : (k : ℝ) * |(a : ℝ) / √2 - b| - a ≤ |a * (F : ℝ) + b * -(k : ℝ)| := by
     have e : (a : ℝ) * F + b * -(k : ℝ) = k * ((a : ℝ) / √2 - b) - a * (k / √2 - F) := by ring
     have h0 : |(a : ℝ) * (k / √2 - F)| ≤ a := by
-      rw [abs_of_nonneg (mul_nonneg ha0 (by linarith))]
-      nlinarith
+      rw [abs_of_nonneg (mul_nonneg ha0 (by linarith))]; nlinarith
     rw [e]
     calc (k : ℝ) * |(a : ℝ) / √2 - b| - a
         ≤ |(k : ℝ) * ((a : ℝ) / √2 - b)| - |(a : ℝ) * (k / √2 - F)| := by
-          rw [abs_mul, abs_of_nonneg hk0]
-          linarith
+          rw [abs_mul, abs_of_nonneg hk0]; linarith
       _ ≤ _ := abs_sub_abs_le_abs_sub _ _
-  have hτk : τ ≤ k / (10 * τ) := by
-    rw [le_div_iff₀ (by positivity)]
-    nlinarith
-  have h52 : (k : ℝ) / (5 * τ) = 2 * (k / (10 * τ)) := by ring
-  rw [add_comm]
-  linarith
+  have hτk : τ ≤ k / (10 * τ) := (le_div_iff₀ (by positivity)).mpr (by nlinarith)
+  rw [add_comm]; linarith
 
 variable [Field K] {blk : σ → Fin d} [Fintype σ]
 
@@ -321,9 +310,8 @@ theorem relRank_le_two_rpow_of_card_le {k : ℕ} {w : Fin d → ℤ}
   · refine (relRank_le_two_rpow_abs_sum w hblk T f).trans
       (Real.rpow_le_rpow_of_exponent_le one_le_two ?_)
     have h1 : (T.card : ℝ) * (k / (20 * τ ^ 2)) ≤ (k / (10 * τ)) / 2 := by
-      rw [div_div, show 10 * τ * 2 = 20 * τ by ring,
-        show (k : ℝ) / (20 * τ) = τ * (k / (20 * τ ^ 2)) by field_simp]
-      exact mul_le_mul_of_nonneg_right hTτ (by positivity)
+      refine (mul_le_mul_of_nonneg_right hTτ (by positivity)).trans_eq ?_
+      field_simp; ring
     linarith [div_le_abs_sum_of_card_le hw hT hTτ hk]
 
 end WordSum
@@ -455,7 +443,8 @@ theorem IsSetMultilinear.relRank_polynomial_le {k : ℕ} {w : Fin d → ℤ}
   induction Δ, hΔ using Nat.le_induction with
   | base =>
     intro F S hF hFΔ
-    rw [show (1 / ((2 : ℝ) ^ 1 - 1)) = 1 by norm_num, Real.rpow_one]
+    have h1 : (1 : ℝ) / (2 ^ 1 - 1) = 1 := by norm_num
+    rw [h1, Real.rpow_one]
     refine relRank_polynomial_le_nodeCount_mul _ _ 1 (fun U => 2 ^ (-(k * (U.card : ℝ) / 20)))
       (fun U => by positivity) (fun U hU f => (hsmall U hU f).trans_eq (by ring_nf)) ?_ hF hFΔ
     intro m G T hT hG hGΔ
@@ -466,9 +455,8 @@ theorem IsSetMultilinear.relRank_polynomial_le {k : ℕ} {w : Fin d → ℤ}
       · exact hsmall _ h _
       · rw [h, relRank_zero]
         positivity
-    · rw [show -(((Finset.univ.biUnion T).card : ℝ) * (k / 20)) =
-          -(k * (Finset.univ.biUnion T).card / 20) by ring]
-      exact le_mul_of_one_le_left (by positivity) (hnode _)
+    · exact (congrArg ((2 : ℝ) ^ ·) (by ring)).trans_le
+        (le_mul_of_one_le_left (by positivity) (hnode _))
   | succ Δ hΔ ih =>
     intro F S hF hFΔ
     refine relRank_polynomial_le_nodeCount_mul _ _ (Δ + 1)

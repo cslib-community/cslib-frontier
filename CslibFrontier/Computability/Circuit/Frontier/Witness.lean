@@ -81,9 +81,8 @@ private theorem exists_injective_range_eq {α : Type*} {s : Set α} {k : ℕ} (h
     rw [Nat.card_coe_set_eq, Nat.card_eq_fintype_card, Fintype.card_fin]
     exact_mod_cast (hfin.cast_ncard_eq.trans hs).symm
   obtain ⟨e⟩ := Finite.card_eq.mp hcard
-  exact ⟨fun i => (e i : α), Subtype.val_injective.comp e.injective, by
-    rw [show (fun i => (e i : α)) = Subtype.val ∘ e from rfl, e.surjective.range_comp,
-      Subtype.range_coe]⟩
+  exact ⟨Subtype.val ∘ e, Subtype.val_injective.comp e.injective,
+    (e.surjective.range_comp _).trans Subtype.range_coe⟩
 
 /-- An input with a given part on `X` and a given part off `X`. -/
 private theorem exists_domRestrict_eq (X : Set ι) (u : X → U) (v : ↥Xᶜ → U) :
@@ -107,12 +106,10 @@ private theorem exists_rectangle_range_subset {X : Set ι} {A : Set (X → U)} {
   obtain ⟨a, ha, rfl⟩ := exists_injective_range_eq hA'
   obtain ⟨b, hb, rfl⟩ := exists_injective_range_eq hB'
   choose z hz using fun i => exists_domRestrict_eq X (a i) (b i)
-  have hza : (fun i => X.domRestrict (z i)) = a := funext fun i => (hz i).1
-  have hzb : (fun j => Xᶜ.domRestrict (z j)) = b := funext fun j => (hz j).2
   refine ⟨z, ?_⟩
-  rw [hza, hzb, ncard_rectangle, ncard_range_of_injective ha, ncard_range_of_injective hb,
+  simp only [hz, ncard_rectangle, ncard_range_of_injective ha, ncard_range_of_injective hb,
     Nat.card_eq_fintype_card, Fintype.card_fin]
-  exact ⟨fun x hx => ⟨hA'A hx.1, hB'B hx.2⟩, rfl⟩
+  exact ⟨fun x hx => ⟨hA'A hx.1, hB'B hx.2⟩, trivial⟩
 
 /-- Every rectangle with finite sides is spanned by inputs, one for each element of each side:
 its sides are the parts on `X` of the inputs `x i` and the parts off `X` of the inputs `y j`. -/
@@ -125,9 +122,7 @@ private theorem exists_eq_rectangle_range [Nonempty U] {X : Set ι} {A : Set (X 
   obtain ⟨b, -, hb⟩ := exists_injective_range_eq hB.cast_ncard_eq.symm
   choose x hx using fun i => exists_domRestrict_eq X (a i) fun _ => Classical.arbitrary U
   choose y hy using fun j => exists_domRestrict_eq X (fun _ => Classical.arbitrary U) (b j)
-  refine ⟨x, y, ?_⟩
-  rw [show (fun i => X.domRestrict (x i)) = a from funext fun i => (hx i).1,
-    show (fun j => Xᶜ.domRestrict (y j)) = b from funext fun j => (hy j).2, ha, hb]
+  exact ⟨x, y, by simp only [hx, hy, ha, hb]⟩
 
 /-! ### Dense rectangle-free sets -/
 
@@ -371,10 +366,9 @@ theorem exists_rectangleBias {K : ℕ} {b : ℝ} (hb : 0 < b)
           rw [← exp_add, exp_lt_one_iff]
           cast_linarith
   by_contra! h
-  have huniv : bad = Finset.univ := eq_univ_of_forall fun f => by simp [bad, h]
-  rw [huniv, card_univ, Fintype.card_fun, Fintype.card_bool] at hcount
-  push_cast at hcount
-  exact lt_irrefl _ hcount
+  rw [Finset.eq_univ_of_forall (s := bad) fun f => by simp [bad, h], card_univ, Fintype.card_fun,
+    Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat] at hcount
+  exact hcount.false
 
 end RectangleBias
 

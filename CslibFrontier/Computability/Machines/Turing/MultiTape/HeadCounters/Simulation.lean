@@ -568,9 +568,8 @@ private lemma run_tape (pos : Fin (input.length + 2)) (out : List Bool) (q : Sta
           (cs' (lo j)) (cs' (hi j))) :
       StepInv c (tm.tr q c.inputSymbol c.workTapeSymbols) (j + 1) cur' cs' := by
     refine ⟨h0', fun i => ?_⟩
-    by_cases hij : i = j
-    · subst hij
-      exact ⟨fun _ => hj, fun h => absurd h (by omega)⟩
+    rcases eq_or_ne i j with rfl | hij
+    · exact ⟨fun _ => hj, fun h => absurd h (by omega)⟩
     · rw [hcur' i hij, hlo i hij, hhi i hij]
       exact ⟨fun h => (hinv i).1 (by omega), fun h => (hinv i).2 (by omega)⟩
   rcases hd : ((tm.tr q c.inputSymbol c.workTapeSymbols).workTapes j).2 with _ | _ | _
@@ -658,12 +657,10 @@ private lemma sim_step {c : Cfg k Bool State input}
         (c.output ++ (tm.tr q c.inputSymbol c.workTapeSymbols).output.toList) := by
     rw [runFrom_one, step_simulator]
     simp only [ctl, moveCounters_zero]
-  refine ⟨1 + n + 1, cs', hinv.1, fun i => ?_, ?_⟩
-  · rw [step_of_state hq]
-    exact ((hinv.2 i).1 i.isLt).2
-  · simp only [hq, Option.map_some]
-    rw [runFrom_add, runFrom_add, hstart, htapes, hfinish, step_of_state hq, ← hcur]
-    rfl
+  refine ⟨1 + n + 1, cs', hinv.1, fun i => step_of_state hq ▸ ((hinv.2 i).1 i.isLt).2, ?_⟩
+  simp only [hq, Option.map_some]
+  rw [runFrom_add, runFrom_add, hstart, htapes, hfinish, step_of_state hq, ← hcur]
+  rfl
 
 /-- Started on `input`, the simulator carries out every run of `tm`. -/
 private lemma sim_runFrom (input : List Bool) (t : ℕ) :
@@ -671,16 +668,13 @@ private lemma sim_runFrom (input : List Bool) (t : ℕ) :
       ((simulator tm).runFrom ((simulator tm).initCfg input) n) := by
   induction t with
   | zero =>
-    refine ⟨1, fun _ => 0, rfl, fun _ => encodes_blank, ?_⟩
-    rw [runFrom_one, simulator, step_init]
-    rfl
+    exact ⟨1, fun _ => 0, rfl, fun _ => encodes_blank,
+      by rw [runFrom_one, simulator, step_init]; rfl⟩
   | succ t ih =>
     obtain ⟨n, hn⟩ := ih
     rw [runFrom_succ]
     cases hs : (tm.runFrom (tm.initCfg input) t).state with
-    | none =>
-      rw [step_of_halt hs]
-      exact ⟨n, hn⟩
+    | none => exact ⟨n, (step_of_halt hs).symm ▸ hn⟩
     | some q =>
       obtain ⟨n', hn'⟩ := sim_step tm hn hs
       exact ⟨n + n', by rwa [runFrom_add]⟩

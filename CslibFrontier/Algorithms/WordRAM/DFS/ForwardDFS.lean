@@ -138,27 +138,19 @@ private theorem forwardDFSLoop_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Li
     · rw [hfold_cons]; dsimp only
       rw [List.length_cons, List.length_append, outDegreeSum_append]
       omega
-    · have hrev : (foldEmpty adj N (r :: rs) vis).finished.reverse =
-          s₁.finished.reverse ++ s₂.finished.reverse := by
-        simp [hfold_cons]
-      simp only [hrev, List.length_append, List.length_reverse] at hq
+    · revert hq
+      simp only [hfold_cons, List.reverse_append, List.length_append, List.length_reverse]
+      intro hq
       by_cases hq1 : q < s₁.finished.length
-      · have hpres : y.mem (kOrdAddr wb N Mc + F₀ + q) = y₁.mem (kOrdAddr wb N Mc + F₀ + q) :=
-          hy_out (kOrdAddr wb N Mc + F₀ + q) (by
-            dsimp only [kVisAddr, kOrdAddr, kStkAddr] at *; omega)
-        rw [hpres, hy₁_ord q (by simpa using hq1)]
-        congr 1
-        simp only [hrev]
-        rw [List.getElem_append_left (by simpa using hq1)]
-      · set q' := q - s₁.finished.length
-        have hq'_lt : q' < s₂.finished.reverse.length := by simp; omega
-        have haddr : kOrdAddr wb N Mc + F₀ + q =
-            kOrdAddr wb N Mc + (F₀ + s₁.finished.length) + q' := by omega
-        rw [haddr, hy_ord q' hq'_lt]
-        congr 1
-        simp only [hrev]
-        rw [List.getElem_append_right (by simp; omega)]
-        simp [q']
+      · have hout : y.mem (kOrdAddr wb N Mc + F₀ + q) = y₁.mem (kOrdAddr wb N Mc + F₀ + q) :=
+          hy_out (kOrdAddr wb N Mc + F₀ + q)
+            (by dsimp only [kVisAddr, kOrdAddr, kStkAddr] at *; omega)
+        rw [hout, hy₁_ord q (by simpa using hq1), List.getElem_append_left (by simpa using hq1)]
+      · have haddr : kOrdAddr wb N Mc + F₀ + q =
+            kOrdAddr wb N Mc + (F₀ + s₁.finished.length) + (q - s₁.finished.length) := by omega
+        have hq' : q - s₁.finished.length < s₂.finished.reverse.length := by simp; omega
+        rw [haddr, hy_ord _ hq', List.getElem_append_right (by simp; omega)]
+        simp
     · rw [hfold_cons] at ha; dsimp only at ha; rw [List.length_append] at ha
       exact (hy_out a (by dsimp only [kVisAddr, kOrdAddr, kStkAddr] at *; omega)).trans
         (hy₁_out a (by dsimp only [kVisAddr, kOrdAddr, kStkAddr] at *; omega))
