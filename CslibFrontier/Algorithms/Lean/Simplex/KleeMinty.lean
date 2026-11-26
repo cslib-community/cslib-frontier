@@ -483,10 +483,9 @@ theorem pivot_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false)
     rcases hcases u with rfl | rfl | ⟨hu, hur, hus⟩
     · simp [dict, hr1, hrs, hpr, cost_succ_self hj hlow j.isLt, div_neg]
     · simp [dict, hs1]
-    · by_cases hbu : Basic N u
-      · simp [dict, hus, hur, hbu, hb1 u hu]
-      · simp [dict, hus, hur, hbu, hb1 u hu, hrb, hpr, cost_succ_of_ne hj hlow j.isLt (hne u hu),
-          div_neg, sub_neg_eq_add]
+    · by_cases hbu : Basic N u <;>
+        simp [dict, hus, hur, hbu, hb1 u hu, hrb, hpr,
+          cost_succ_of_ne hj hlow j.isLt (hne u hu), div_neg, sub_neg_eq_add]
 
 /-! ### Dantzig's rule on the dictionaries -/
 
@@ -539,16 +538,14 @@ theorem dantzigEntering_dict {N : ℕ} (hN : N < 2 ^ n) {j : Fin n} (hj : N.test
     have hpj : pair u ≠ j := fun h => hus (eq_var_not_iff.2 ⟨h, hu⟩)
     have hp := (pair u).isLt
     rcases lt_or_gt_of_ne (fun e => hpj (Fin.ext e)) with h | h
-    · rw [bitSign_of_testBit_true (hlow _ h)]
-      have : (0 : K) < 10 ^ (n - 1 - (pair u : ℕ)) := by positivity
-      have : (0 : K) < 10 ^ (n - 1 - (j : ℕ)) := by positivity
-      linarith
-    · have hle : (10 : K) ^ (n - 1 - (pair u : ℕ)) < 10 ^ (n - 1 - (j : ℕ)) :=
-        pow_lt_pow_right₀ (by norm_num) (by omega)
-      have h0 : (0 : K) ≤ 10 ^ (n - 1 - (pair u : ℕ)) := by positivity
+    · rw [bitSign_of_testBit_true (hlow _ h), mul_neg_one]
+      exact (neg_neg_of_pos (by positivity)).trans (by positivity)
+    · have h0 : (0 : K) ≤ 10 ^ (n - 1 - (pair u : ℕ)) := by positivity
       calc (10 : K) ^ (n - 1 - (pair u : ℕ)) * bitSign N (pair u)
           ≤ 10 ^ (n - 1 - (pair u : ℕ)) * 1 := mul_le_mul_of_nonneg_left (bitSign_le_one _ _) h0
-        _ < 10 ^ (n - 1 - (j : ℕ)) := by rw [mul_one]; exact hle
+        _ < 10 ^ (n - 1 - (j : ℕ)) := by
+          rw [mul_one]
+          exact pow_lt_pow_right₀ (by norm_num) (by omega)
   rw [Dictionary.dantzigEntering_eq_some_iff, mem_dict_basis]
   refine ⟨hsb, by rw [hcs]; positivity, fun u hu => ?_, fun u hu heq => ?_⟩
   · rcases eq_or_ne u (var j (!flipped N j)) with rfl | hus
@@ -581,24 +578,21 @@ theorem blandLeaving_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false) :
     rw [rowCoeff_of_lt hjP] at hneg ⊢
     rw [lt_div_iff₀ (by linarith)]
     obtain ⟨d, hd⟩ : ∃ d, (pair i : ℕ) = j + (d + 1) := ⟨pair i - j - 1, by omega⟩
-    rw [hd, show (j : ℕ) + (d + 1) - j = d + 1 by omega] at hneg ⊢
-    rw [bitSign_of_testBit_false hj, mul_one] at hneg ⊢
+    rw [hd, Nat.add_sub_cancel_left, bitSign_of_testBit_false hj, mul_one] at hneg ⊢
     set X : K := 10 ^ (d + 1) with hX
     have hX10 : (10 : K) ≤ X := le_self_pow₀ (by norm_num) (Nat.succ_ne_zero d)
     have h100 : (100 : K) ^ ((j : ℕ) + (d + 1)) = 100 ^ (j : ℕ) * X * X := by
-      rw [hX, pow_add, show (100 : K) = 10 * 10 by norm_num, mul_pow, mul_pow]
-      ring
+      rw [hX, pow_add, mul_assoc, ← mul_pow]
+      norm_num
     obtain ⟨hPlo, -⟩ := rowConst_bounds (K := K) N ((j : ℕ) + (d + 1))
     obtain ⟨-, hjhi⟩ := rowConst_bounds (K := K) N j
     rw [h100] at hPlo
     have hc : -(-2 * X * bitSign N ((j : ℕ) + (d + 1))) ≤ 2 * X := by
       nlinarith [bitSign_le_one (K := K) N ((j : ℕ) + (d + 1))]
-    have hpos : (0 : K) < 100 ^ (j : ℕ) := by positivity
+    set Y : K := 100 ^ (j : ℕ) * X
+    have hY : 0 < Y := by positivity
     have hrj := (rowConst_pos (K := K) N j).le
-    nlinarith [mul_le_mul_of_nonneg_left hc hrj,
-      mul_le_mul_of_nonneg_right hjhi (by linarith : (0 : K) ≤ 2 * X),
-      mul_pos (mul_pos hpos (by linarith : (0 : K) < X))
-        (by linarith : (0 : K) < 4 * X - 10)]
+    nlinarith
   rw [Dictionary.blandLeaving_eq_some_iff, mem_dict_basis]
   refine ⟨hrb, by rw [hcrs]; norm_num, fun i hi hneg => ?_, fun i hi hneg heq => ?_⟩
   · rcases eq_or_ne i (var j (flipped N j)) with rfl | hir
@@ -643,7 +637,7 @@ theorem dantzigRun_dict {N : ℕ} (hN : N ≤ 2 ^ n - 1) (f : ℕ) :
     rcases hN.lt_or_eq with h | rfl
     · obtain ⟨r, s, hstep, hpiv⟩ := dantzigStep_dict (K := K) h
       simp only [Dictionary.dantzigRun, Dictionary.runWith, hstep, hpiv] at ih ⊢
-      rw [ih (by omega), show N + 1 + f = N + (f + 1) by omega]
+      rw [ih (by omega), Nat.add_assoc, Nat.add_comm 1 f]
     · simp only [Dictionary.dantzigRun, Dictionary.runWith, dantzigStep_dict_top]
       rw [ite_eq_right (by omega)]
 
@@ -680,13 +674,11 @@ theorem eq_of_dict_basis_eq {N M : ℕ} (hN : N < 2 ^ n) (hM : M < 2 ^ n)
     induction d with
     | zero => rw [Nat.sub_zero, Nat.testBit_lt_two_pow hN, Nat.testBit_lt_two_pow hM]
     | succ d ih =>
-      have h2 := ih (by omega)
-      rw [show n - d = n - (d + 1) + 1 by omega] at h2
-      simpa [flipped, h2] using hfl (n - (d + 1)) (by omega)
+      have hsub : n - (d + 1) + 1 = n - d := by omega
+      simpa [flipped, hsub, ih (by omega)] using hfl (n - (d + 1)) (by omega)
   refine Nat.eq_of_testBit_eq fun k => ?_
   rcases lt_or_ge k n with hk | hk
-  · have := hbit (n - k) (by omega)
-    rwa [show n - (n - k) = k by omega] at this
+  · simpa only [Nat.sub_sub_self hk.le] using hbit (n - k) (by omega)
   · rw [Nat.testBit_lt_two_pow (hN.trans_le (Nat.pow_le_pow_right two_pos hk)),
       Nat.testBit_lt_two_pow (hM.trans_le (Nat.pow_le_pow_right two_pos hk))]
 
