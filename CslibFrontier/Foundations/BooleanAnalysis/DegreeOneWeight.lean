@@ -91,9 +91,8 @@ theorem levelWeight_signVal_eq_one_iff_fourierCoeff_eq_zero (k : ℕ) (f : (ι �
     levelWeight k (fun x => signVal (f x)) = 1 ↔
       ∀ S : Finset ι, #S ≠ k → fourierCoeff (fun x => signVal (f x)) S = 0 := by
   set F : (ι → Bool) → ℝ := fun x => signVal (f x)
-  have hsplit : levelWeight k F + ∑ S with #S ≠ k, fourierCoeff F S ^ 2 = 1 := by
-    rw [levelWeight, sum_filter_add_sum_filter_not]
-    exact sum_fourierCoeff_sq_signVal f
+  have hsplit : levelWeight k F + ∑ S with #S ≠ k, fourierCoeff F S ^ 2 = 1 :=
+    (sum_filter_add_sum_filter_not _ _ _).trans (sum_fourierCoeff_sq_signVal f)
   have hrest : levelWeight k F = 1 ↔ ∑ S with #S ≠ k, fourierCoeff F S ^ 2 = 0 := by
     constructor <;> intro h <;> linarith
   rw [hrest, sum_eq_zero_iff_of_nonneg fun _ _ => sq_nonneg _]
@@ -108,10 +107,8 @@ theorem levelWeight_one_signVal_eq_one_iff (f : (ι → Bool) → Bool) :
     levelWeight 1 (fun x => signVal (f x)) = 1 ↔ ∃ (i : ι) (b : Bool), f = fun x => b ^^ x i := by
   refine ⟨exists_eq_xor_of_levelWeight_one_eq_one, ?_⟩
   rintro ⟨i, b, rfl⟩
-  rw [levelWeight_one]
-  simp only [fourierCoeff_signVal_xor, singleton_inj, ite_pow, zero_pow two_ne_zero, sum_ite_eq,
-    mem_univ, ↓reduceIte]
-  exact (sq _).trans (signVal_mul_self b)
+  simpa only [levelWeight_one, fourierCoeff_signVal_xor, singleton_inj, ite_pow,
+    zero_pow two_ne_zero, sum_ite_eq, mem_univ, ↓reduceIte, sq] using signVal_mul_self b
 
 /-! ### Noise stability at degree one -/
 
@@ -121,13 +118,9 @@ stability [O'Donnell, Theorem 2.49][ODonnell2014]. -/
 private theorem sub_noiseStability_signVal_eq_sum (ρ : ℝ) (f : (ι → Bool) → Bool) :
     ρ - noiseStability ρ (fun x => signVal (f x)) =
       ∑ S, (ρ - ρ ^ #S) * fourierCoeff (fun x => signVal (f x)) S ^ 2 := by
-  calc ρ - noiseStability ρ (fun x => signVal (f x))
-      = ρ * ∑ S, fourierCoeff (fun x => signVal (f x)) S ^ 2 -
-          ∑ S, ρ ^ #S * fourierCoeff (fun x => signVal (f x)) S ^ 2 := by
-        rw [sum_fourierCoeff_sq_signVal, mul_one, noiseStability_eq_sum]
-    _ = _ := by
-        rw [mul_sum, ← sum_sub_distrib]
-        simp only [sub_mul]
+  nth_rw 1 [← mul_one ρ]
+  rw [← sum_fourierCoeff_sq_signVal f, noiseStability_eq_sum, mul_sum, ← sum_sub_distrib]
+  simp only [sub_mul]
 
 /-- **Degree-one weight one gives noise stability `ρ`**: a Boolean function read as signs with
 `W^1[F] = 1` has `Stab_ρ[F] = ρ` at every rate `ρ`. With
@@ -154,20 +147,14 @@ private theorem levelWeight_one_eq_one_of_noiseStability_eq {ρ σ : ℝ} {f : (
   set F : (ι → Bool) → ℝ := fun x => signVal (f x)
   have hterm (S : Finset ι) : 0 ≤ σ * ((ρ - ρ ^ #S) * fourierCoeff F S ^ 2) := by
     by_cases hS : #S = 1
-    · rw [hS, pow_one, sub_self, zero_mul, mul_zero]
-    · rcases hpos S hS with h0 | h0
-      · rw [h0, sq, mul_zero, mul_zero, mul_zero]
-      · rw [← mul_assoc]
-        exact mul_nonneg h0.le (sq_nonneg _)
-  have hsum : ∑ S, σ * ((ρ - ρ ^ #S) * fourierCoeff F S ^ 2) = 0 := by
+    · simp [hS]
+    exact (hpos S hS).elim (fun h0 => by simp [h0]) fun h0 =>
+      mul_assoc σ _ _ ▸ mul_nonneg h0.le (sq_nonneg _)
+  have hzero := (sum_eq_zero_iff_of_nonneg fun S _ => hterm S).1 <| by
     rw [← mul_sum, ← sub_noiseStability_signVal_eq_sum, h, sub_self, mul_zero]
-  have hzero := (sum_eq_zero_iff_of_nonneg fun S _ => hterm S).1 hsum
-  refine (levelWeight_signVal_eq_one_iff_fourierCoeff_eq_zero 1 f).2 fun S hS => ?_
-  rcases hpos S hS with h0 | h0
-  · exact h0
-  · have h' := hzero S (mem_univ S)
-    rw [← mul_assoc, mul_eq_zero] at h'
-    exact sq_eq_zero_iff.1 (h'.resolve_left h0.ne')
+  exact (levelWeight_signVal_eq_one_iff_fourierCoeff_eq_zero 1 f).2 fun S hS =>
+    (hpos S hS).elim id fun h0 => sq_eq_zero_iff.1
+      ((mul_eq_zero.1 (mul_assoc σ _ _ ▸ hzero S (mem_univ S))).resolve_left h0.ne')
 
 /-- **Unbiased functions are at most as noise-stable as the dictators**: for `0 ≤ ρ ≤ 1`, an
 unbiased Boolean function read as signs has `Stab_ρ[F] ≤ ρ`
@@ -176,13 +163,11 @@ on the closed interval. -/
 theorem noiseStability_signVal_le_of_expect_eq_zero {ρ : ℝ} (h₀ : 0 ≤ ρ) (h₁ : ρ ≤ 1)
     {f : (ι → Bool) → Bool} (hf : 𝔼 x, signVal (f x) = 0) :
     noiseStability ρ (fun x => signVal (f x)) ≤ ρ := by
-  refine sub_nonneg.1 ?_
-  rw [sub_noiseStability_signVal_eq_sum]
-  refine sum_nonneg fun S _ => ?_
+  refine sub_nonneg.1 ((sub_noiseStability_signVal_eq_sum ρ f).symm ▸ sum_nonneg fun S _ => ?_)
   by_cases hS : S = ∅
-  · rw [hS, fourierCoeff_empty, hf, sq, mul_zero, mul_zero]
-  · exact mul_nonneg (sub_nonneg.2 (pow_le_of_le_one h₀ h₁ (card_ne_zero.2
-      (nonempty_iff_ne_empty.2 hS)))) (sq_nonneg _)
+  · simp [hS, hf]
+  exact mul_nonneg (sub_nonneg.2 (pow_le_of_le_one h₀ h₁
+    (card_ne_zero.2 (nonempty_iff_ne_empty.2 hS)))) (sq_nonneg _)
 
 /-- **The unbiased functions of largest noise stability are the literals**: for `0 < ρ < 1`, an
 unbiased Boolean function read as signs has `Stab_ρ[F] = ρ` exactly when `f x = b ⊕ x_i` for some
@@ -194,44 +179,29 @@ theorem noiseStability_signVal_eq_iff_of_expect_eq_zero {ρ : ℝ} (h₀ : 0 < �
     noiseStability ρ (fun x => signVal (f x)) = ρ ↔
       ∃ (i : ι) (b : Bool), f = fun x => b ^^ x i := by
   rw [← levelWeight_one_signVal_eq_one_iff]
-  refine ⟨fun h => levelWeight_one_eq_one_of_noiseStability_eq (σ := 1) (fun S hS => ?_) h,
+  refine ⟨levelWeight_one_eq_one_of_noiseStability_eq (σ := 1) fun S hS => ?_,
     fun h => noiseStability_signVal_eq_of_levelWeight_one_eq_one h ρ⟩
   by_cases h0 : S = ∅
-  · left
-    rw [h0, fourierCoeff_empty, hf]
-  · right
-    have hS1 : 1 < #S := by
-      have := card_pos.2 (nonempty_iff_ne_empty.2 h0)
-      omega
-    rw [one_mul, sub_pos]
-    exact pow_lt_self_of_lt_one₀ h₀ h₁ hS1
+  · exact .inl (by simp [h0, hf])
+  have := card_pos.2 (nonempty_iff_ne_empty.2 h0)
+  exact .inr (by simpa using pow_lt_self_of_lt_one₀ h₀ h₁ (by omega))
 
 /-- For `-1 ≤ ρ ≤ 0`, `ρ ≤ ρ ^ k` for every `k`. -/
 private theorem le_pow_of_nonpos {ρ : ℝ} (h₁ : -1 ≤ ρ) (h₀ : ρ ≤ 0) (k : ℕ) : ρ ≤ ρ ^ k := by
   rcases Nat.eq_zero_or_pos k with rfl | hk
-  · rw [pow_zero]
-    linarith
-  · have habs : |ρ| ^ k ≤ |ρ| :=
-      pow_le_of_le_one (abs_nonneg _) (abs_le.2 ⟨h₁, by linarith⟩) hk.ne'
-    have hle : -|ρ| ^ k ≤ ρ ^ k := by
-      rw [← abs_pow]
-      exact neg_abs_le _
-    rw [abs_of_nonpos h₀] at habs hle
-    linarith
+  · linarith [pow_zero ρ]
+  have habs := pow_le_of_le_one (abs_nonneg _) (abs_le.2 ⟨h₁, by linarith⟩) hk.ne'
+  have hle : -|ρ| ^ k ≤ ρ ^ k := abs_pow ρ k ▸ neg_abs_le _
+  rw [abs_of_nonpos h₀] at habs hle; linarith
 
 /-- For `-1 < ρ < 0`, `ρ < ρ ^ k` for every `k ≠ 1`. -/
 private theorem lt_pow_of_neg {ρ : ℝ} (h₁ : -1 < ρ) (h₀ : ρ < 0) {k : ℕ} (hk : k ≠ 1) :
     ρ < ρ ^ k := by
   rcases Nat.lt_or_gt_of_ne hk with hk | hk
-  · rw [Nat.lt_one_iff.1 hk, pow_zero]
-    linarith
-  · have habs : |ρ| ^ k < |ρ| :=
-      pow_lt_self_of_lt_one₀ (abs_pos.2 h₀.ne) (abs_lt.2 ⟨h₁, by linarith⟩) hk
-    have hle : -|ρ| ^ k ≤ ρ ^ k := by
-      rw [← abs_pow]
-      exact neg_abs_le _
-    rw [abs_of_neg h₀] at habs hle
-    linarith
+  · rw [Nat.lt_one_iff.1 hk]; linarith [pow_zero ρ]
+  · have habs := pow_lt_self_of_lt_one₀ (abs_pos.2 h₀.ne) (abs_lt.2 ⟨h₁, by linarith⟩) hk
+    have hle : -|ρ| ^ k ≤ ρ ^ k := abs_pow ρ k ▸ neg_abs_le _
+    rw [abs_of_neg h₀] at habs hle; linarith
 
 /-- **Noise stability at a nonpositive rate is at least the rate**: for `-1 ≤ ρ ≤ 0`, a Boolean
 function read as signs has `Stab_ρ[F] ≥ ρ`. The book uses the case `ρ = -1/3`, through
@@ -257,10 +227,8 @@ theorem noiseStability_signVal_eq_iff_of_neg {ρ : ℝ} (h₁ : -1 < ρ) (h₀ :
     noiseStability ρ (fun x => signVal (f x)) = ρ ↔
       ∃ (i : ι) (b : Bool), f = fun x => b ^^ x i := by
   rw [← levelWeight_one_signVal_eq_one_iff]
-  refine ⟨fun h => levelWeight_one_eq_one_of_noiseStability_eq (σ := -1) (fun S hS => ?_) h,
+  exact ⟨levelWeight_one_eq_one_of_noiseStability_eq (σ := -1) fun _ hS =>
+    .inr (by simpa using lt_pow_of_neg h₁ h₀ hS),
     fun h => noiseStability_signVal_eq_of_levelWeight_one_eq_one h ρ⟩
-  right
-  rw [neg_one_mul, neg_pos, sub_neg]
-  exact lt_pow_of_neg h₁ h₀ hS
 
 end Cslib.BitString

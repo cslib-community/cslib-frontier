@@ -95,8 +95,7 @@ theorem gaussInv?_eq_some_inv {n q : ℕ} [Fact (Nat.Prime q)]
   dsimp
   split_ifs with h
   · simp [h]
-  · rw [Matrix.inv_def]
-    simp [h, Ring.inverse_eq_inv A.det]
+  · simp [Matrix.inv_def, h, Ring.inverse_eq_inv A.det]
 
 /-- Extract the top block. -/
 def topBlock {m n q : ℕ}
@@ -183,9 +182,7 @@ variable {n m q : ℕ} [Fact (Nat.Prime q)]
 
 private theorem gaussInv?_eq (A : Matrix (Fin n) (Fin n) (ZMod q)) :
     gaussInv? A = if A.det = 0 then none else some A⁻¹ := by
-  by_cases h : A.det = 0
-  · simp [gaussInv?, h]
-  · simpa [h] using (gaussInv?_eq_some_inv A).mp h
+  if h : A.det = 0 then simp [gaussInv?, h] else simpa [h] using (gaussInv?_eq_some_inv A).mp h
 
 omit [Fact (Nat.Prime q)] in
 private theorem decodeZModVec_encZModVec (v : Fin n → ZMod q) :
@@ -208,12 +205,12 @@ private theorem map_neg_mul_inv (A1 : Matrix (Fin n) (Fin n) (ZMod q)) (hA1 : A1
     PMF.map (fun A2 : Matrix (Fin m) (Fin n) (ZMod q) => -(A2 * A1⁻¹))
       (PMF.uniformOfFintype _) = PMF.uniformOfFintype _ := by
   have hu := isUnit_iff_ne_zero.mpr hA1
-  let e : Matrix (Fin m) (Fin n) (ZMod q) ≃ Matrix (Fin m) (Fin n) (ZMod q) :=
-    { toFun := fun A2 => -(A2 * A1⁻¹)
-      invFun := fun A2' => -(A2' * A1)
-      left_inv := fun A2 => by simp [Matrix.mul_assoc, Matrix.nonsing_inv_mul _ hu]
-      right_inv := fun A2' => by simp [Matrix.mul_assoc, Matrix.mul_nonsing_inv _ hu] }
-  exact PMF.uniformOfFintype_map_equiv e
+  exact PMF.uniformOfFintype_map_equiv
+    ({ toFun := fun A2 => -(A2 * A1⁻¹)
+       invFun := fun A2' => -(A2' * A1)
+       left_inv := fun A2 => by simp [Matrix.mul_assoc, Matrix.nonsing_inv_mul _ hu]
+       right_inv := fun A2' => by simp [Matrix.mul_assoc, Matrix.mul_nonsing_inv _ hu] } :
+      Matrix (Fin m) (Fin n) (ZMod q) ≃ Matrix (Fin m) (Fin n) (ZMod q))
 
 omit [Fact (Nat.Prime q)] in
 private theorem publicMatrix_tail {k : ℕ} (A : Matrix (Fin k) (Fin n) (ZMod q))
@@ -240,10 +237,7 @@ private theorem transformAugmented_publicMatrix (A : Matrix (Fin (n + m)) (Fin n
     rw [Matrix.mulVec_add, Matrix.mulVec_mulVec, Matrix.neg_mul, Matrix.mul_assoc,
       Matrix.nonsing_inv_mul _ hu, Matrix.mul_one, Matrix.neg_mulVec]
     abel
-  simp only [transformAugmented, transform, publicMatrix_tail, publicMatrix_head]
-  funext i
-  simp only [publicMatrix]
-  rw [key]
+  simp only [transformAugmented, transform, publicMatrix_tail, publicMatrix_head, key]
   rfl
 
 private theorem eval_reduceNormalDecision_publicMatrix (adversary : List Bool → ProbComp Bool)
@@ -256,9 +250,8 @@ private theorem eval_reduceNormalDecision_publicMatrix (adversary : List Bool �
   unfold reduceNormalDecision
   rw [decodeMatrix_encMatrix]
   simp only [publicMatrix_tail, gaussInv?_eq]
-  split_ifs with h
-  · simp
-  · simp only [transformAugmented_publicMatrix A s e h]
+  if h : (topBlock A).det = 0 then simp [h]
+  else simp only [h, ↓reduceIte, transformAugmented_publicMatrix A s e h]
 
 private theorem eval_reduceNormalSearch_publicMatrix
     (adversary : List Bool → ProbComp (List Bool))
@@ -310,10 +303,8 @@ private theorem uniformOfFintype_matrix_split :
       ((PMF.uniformOfFintype (Matrix (Fin n) (Fin n) (ZMod q))).bind fun A1 =>
         (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q))).map fun A2 => (A1, A2)).map
         fun p => stackRows p.1 p.2 := by
-  let E : Matrix (Fin n) (Fin n) (ZMod q) × Matrix (Fin m) (Fin n) (ZMod q) ≃
-      Matrix (Fin (n + m)) (Fin n) (ZMod q) := Fin.appendEquiv n m
   rw [PMF.uniformOfFintype_prod]
-  exact (PMF.uniformOfFintype_map_equiv E).symm
+  exact (PMF.uniformOfFintype_map_equiv (Fin.appendEquiv n m)).symm
 
 omit [Fact (Nat.Prime q)] in
 private theorem pi_fin_add {γ : Type*} [Finite γ] (p : PMF γ) :
@@ -322,10 +313,10 @@ private theorem pi_fin_add {γ : Type*} [Finite γ] (p : PMF γ) :
         (PMF.pi fun _ : Fin m => p).map fun e2 => (e1, e2)).map
         fun x => Fin.append x.1 x.2 := by
   ext outcome
-  rw [show (fun x : (Fin n → γ) × (Fin m → γ) => Fin.append x.1 x.2) =
-      Fin.appendEquiv n m from rfl, PMF.map_equiv_apply, PMF.bind_map_prodMk_apply]
-  simp only [PMF.pi_apply, Fin.appendEquiv_symm_apply]
-  exact Fin.prod_univ_add (fun i => p (outcome i))
+  have heq : (fun x : (Fin n → γ) × (Fin m → γ) => Fin.append x.1 x.2) = Fin.appendEquiv n m := rfl
+  rw [heq, PMF.map_equiv_apply, PMF.bind_map_prodMk_apply]
+  simpa only [PMF.pi_apply, Fin.appendEquiv_symm_apply] using
+    Fin.prod_univ_add fun i => p (outcome i)
 
 /-- The common shape of both reductions: drawing a full sample and giving up on a singular top
 block is drawing the top block first, then an error-secret sample when the block is invertible. -/
@@ -348,10 +339,9 @@ private theorem bind_split {β : Type*} (noise : PMF (ZMod q)) (μ : PMF β)
   funext A1
   split_ifs with h
   · simp only [PMF.bind_const]
-  · conv_rhs => rw [PMF.bind_comm (PMF.pi fun _ : Fin n => noise)]
-    conv_rhs => rw [← map_neg_mul_inv (m := m) A1 h]
-    rw [PMF.bind_map]
-    rfl
+  · conv_rhs =>
+      rw [PMF.bind_comm (PMF.pi fun _ : Fin n => noise), ← map_neg_mul_inv (m := m) A1 h]
+    rw [PMF.bind_map]; rfl
 
 omit [Fact (Nat.Prime q)] in
 private theorem toReal_bind_ite_apply_true {α : Type*} (μ : PMF α) (P : α → Prop)
@@ -361,13 +351,10 @@ private theorem toReal_bind_ite_apply_true {α : Type*} (μ : PMF α) (P : α �
   have hsplit : (μ.bind fun a => if P a then PMF.pure false else g) true =
       μ.toOuterMeasure {a | P a}ᶜ * g true := by
     rw [PMF.bind_apply, PMF.toOuterMeasure_apply, ← ENNReal.tsum_mul_right]
-    congr 1
-    funext a
-    by_cases h : P a <;> simp [h]
-  have hcompl := PMF.toOuterMeasure_toReal_add_compl μ {a | P a}
-  rw [hsplit, ENNReal.toReal_mul,
-    show (μ.toOuterMeasure {a | P a}ᶜ).toReal = 1 - (μ.toOuterMeasure {a | P a}).toReal by
-      linarith]
+    exact tsum_congr fun a => by by_cases h : P a <;> simp [h]
+  have hcompl : (μ.toOuterMeasure {a | P a}ᶜ).toReal = 1 - (μ.toOuterMeasure {a | P a}).toReal := by
+    linarith [PMF.toOuterMeasure_toReal_add_compl μ {a | P a}]
+  rw [hsplit, ENNReal.toReal_mul, hcompl]
 
 /-- On real samples, the decision reduction runs the adversary on an error-secret sample exactly
 when the top block is invertible. -/
@@ -421,19 +408,14 @@ private theorem uniformEnsemble_eq_realEnsemble {k : ℕ} :
     uniformEnsemble (fun _ => n) (fun _ => k) (fun _ => q) 0 =
       realEnsemble (fun _ => n) (fun _ => k) (fun _ => q)
         (fun _ => PMF.uniformOfFintype (ZMod q)) 0 := by
-  unfold uniformEnsemble realEnsemble
-  congr 1
-  simp only [publicMatrixLaw, pmf_norm]
-  exact (bind_publicMatrix_uniform _).symm
+  simp only [uniformEnsemble, realEnsemble, publicMatrixLaw, pmf_norm, bind_publicMatrix_uniform]
 
 private theorem uniformEnsemble_eq_realEnsembleErrorSecret {k : ℕ} :
     uniformEnsemble (fun _ => n) (fun _ => k) (fun _ => q) 0 =
       realEnsembleErrorSecret (fun _ => n) (fun _ => k) (fun _ => q)
         (fun _ => PMF.uniformOfFintype (ZMod q)) 0 := by
-  unfold uniformEnsemble realEnsembleErrorSecret
-  congr 1
-  simp only [publicMatrixLawErrorSecret, pmf_norm]
-  exact (bind_publicMatrix_uniform _).symm
+  simp only [uniformEnsemble, realEnsembleErrorSecret, publicMatrixLawErrorSecret, pmf_norm,
+    bind_publicMatrix_uniform]
 
 /-- On real samples with an invertible top block, the search reduction recovers the secret
 whenever the adversary names the error-secret sample's secret. -/
@@ -454,20 +436,18 @@ private theorem le_searchGame_reduceNormalSearch (noise : PMF (ZMod q))
     (fun A' e1 e2 => (ProbComp.eval (adversary (encMatrix _ _ _ (publicMatrix A' e1 e2)))).bind
       fun g => PMF.pure (decide (g = encZModVec n q e1)))]
   simp only [searchGame, pmf_norm]
-  refine PMF.bind_apply_mono_on_support _ _ fun s _ => ?_
-  refine PMF.bind_apply_mono_on_support _ _ fun A _ => ?_
-  refine PMF.bind_apply_mono_on_support _ _ fun e _ => ?_
+  refine PMF.bind_apply_mono_on_support _ _ fun s _ =>
+    PMF.bind_apply_mono_on_support _ _ fun A _ =>
+      PMF.bind_apply_mono_on_support _ _ fun e _ => ?_
   split_ifs with h
   · simp
   · rw [eval_reduceNormalSearch_publicMatrix adversary A s e h, PMF.bind_bind]
     refine PMF.bind_apply_mono_on_support _ _ fun g _ => ?_
     simp only [PMF.pure_bind]
     by_cases hg : g = encZModVec n q (topVec e)
-    · have hs : (topBlock A)⁻¹ *ᵥ (topBlock A *ᵥ s + topVec e - decodeZModVec n q g) = s := by
-        rw [hg, decodeZModVec_encZModVec, add_sub_cancel_right, Matrix.mulVec_mulVec,
-          Matrix.nonsing_inv_mul _ (isUnit_iff_ne_zero.mpr h), Matrix.one_mulVec]
-      simp only [hs, decide_true, PMF.pure_apply]
-      split_ifs <;> simp
+    · rw [hg, decodeZModVec_encZModVec, add_sub_cancel_right, Matrix.mulVec_mulVec,
+        Matrix.nonsing_inv_mul _ (isUnit_iff_ne_zero.mpr h), Matrix.one_mulVec]
+      simp
     · simp [hg]
 
 omit [Fact (Nat.Prime q)] in
@@ -497,34 +477,21 @@ theorem decisionNormalForm {n m q : ℕ} [Fact (Nat.Prime q)]
         (reduceNormalDecision (n := n) (m := m) (q := q) adversary)) +
       ((PMF.uniformOfFintype (Matrix (Fin n) (Fin n) (ZMod q))).toOuterMeasure
         {A | A.det = 0}).toReal := by
+  set G_R := distinguishingGame
+    (realEnsembleErrorSecret (fun _ => n) (fun _ => m) (fun _ => q) (fun _ => noise) 0) adversary
+  set G_U := distinguishingGame (uniformEnsemble (fun _ => n) (fun _ => m) (fun _ => q) 0) adversary
+  set M := PMF.uniformOfFintype (Matrix (Fin n) (Fin n) (ZMod q))
   have hR := toReal_distinguishingGame_reduceNormalDecision (n := n) (m := m) noise adversary
   have hU := toReal_distinguishingGame_reduceNormalDecision (n := n) (m := m)
     (PMF.uniformOfFintype (ZMod q)) adversary
   rw [← uniformEnsemble_eq_realEnsemble, ← uniformEnsemble_eq_realEnsembleErrorSecret] at hU
-  have hδ0 : 0 ≤ ((PMF.uniformOfFintype (Matrix (Fin n) (Fin n) (ZMod q))).toOuterMeasure
-      {A | A.det = 0}).toReal := ENNReal.toReal_nonneg
-  have hδ1 := PMF.toOuterMeasure_toReal_le_one
-    (PMF.uniformOfFintype (Matrix (Fin n) (Fin n) (ZMod q))) {A | A.det = 0}
-  have hR1 := coe_toReal_game_le_one (distinguishingGame
-    (realEnsembleErrorSecret (fun _ => n) (fun _ => m) (fun _ => q) (fun _ => noise) 0) adversary)
-  have hU1 := coe_toReal_game_le_one
-    (distinguishingGame (uniformEnsemble (fun _ => n) (fun _ => m) (fun _ => q) 0) adversary)
-  have hR0 : 0 ≤ (distinguishingGame
-    (realEnsembleErrorSecret (fun _ => n) (fun _ => m) (fun _ => q) (fun _ => noise) 0)
-      adversary true).toReal := ENNReal.toReal_nonneg
-  have hU0 : 0 ≤ (distinguishingGame (uniformEnsemble (fun _ => n) (fun _ => m) (fun _ => q) 0)
-    adversary true).toReal := ENNReal.toReal_nonneg
-  simp only [Game.coe_advantage, Game.coe_succProbability]
-  rw [hR, hU]
-  generalize ((PMF.uniformOfFintype (Matrix (Fin n) (Fin n) (ZMod q))).toOuterMeasure
-    {A | A.det = 0}).toReal = δ at hδ0 hδ1 ⊢
-  generalize (distinguishingGame
-    (realEnsembleErrorSecret (fun _ => n) (fun _ => m) (fun _ => q) (fun _ => noise) 0)
-      adversary true).toReal = r at hR0 hR1 ⊢
-  generalize (distinguishingGame (uniformEnsemble (fun _ => n) (fun _ => m) (fun _ => q) 0)
-    adversary true).toReal = u at hU0 hU1 ⊢
-  have habs : |r - u| ≤ 1 := abs_sub_le_iff.mpr ⟨by linarith, by linarith⟩
-  rw [← mul_sub, abs_mul, abs_of_nonneg (by linarith : (0 : ℝ) ≤ 1 - δ)]
+  simp only [Game.coe_advantage, Game.coe_succProbability, hR, hU]
+  have hδ0 : 0 ≤ (M.toOuterMeasure {A | A.det = 0}).toReal := ENNReal.toReal_nonneg
+  have hδ1 := PMF.toOuterMeasure_toReal_le_one M {A | A.det = 0}
+  have habs : |(G_R true).toReal - (G_U true).toReal| ≤ 1 := abs_sub_le_iff.mpr
+    ⟨by linarith [coe_toReal_game_le_one G_R, @ENNReal.toReal_nonneg (G_U true)],
+     by linarith [coe_toReal_game_le_one G_U, @ENNReal.toReal_nonneg (G_R true)]⟩
+  rw [← mul_sub, abs_mul, abs_of_nonneg (by linarith : (0 : ℝ) ≤ 1 - _)]
   nlinarith [mul_nonneg hδ0 (sub_nonneg.mpr habs)]
 
 /-- **Finite probability step toward normal-form search LWE** ([Peikert2016], §4.2.1, p. 23).

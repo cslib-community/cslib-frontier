@@ -16,6 +16,7 @@ import CslibFrontier.Foundations.Data.Nat.Power
 import CslibFrontier.Probability.KWiseIndependent.DoubleTabulation.Parameters
 import CslibFrontier.Probability.KWiseIndependent.Restriction
 import CslibFrontier.Probability.PMF.UniformBound
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # Pagh–Rodler Cuckoo Graph Dichotomy and Walk Tail Bounds for Highly Independent Hash Pairs
@@ -1621,17 +1622,6 @@ theorem isCuckooHashPair_uniform {U m : ℕ} [NeZero m] (n_max MaxLoop : ℕ)
   have hid := isKWiseIndependentHash_id (X := Fin U) (Y := Fin m) (2 * MaxLoop + 2)
   exact isCuckooHashPair_of_kWiseIndependent n_max MaxLoop hid hid hm hloop_ge hloop_le
 
-/-- Equivalence between a pair of hash functions `(Fin U → Fin m) × (Fin U → Fin m)` and a single
-table-indexed hash oracle `Bool × Fin U → Fin m`. -/
-private def hashPairEquiv (U m : ℕ) :
-    ((Fin U → Fin m) × (Fin U → Fin m)) ≃ (Bool × Fin U → Fin m) where
-  toFun p q := if q.1 then p.2 q.2 else p.1 q.2
-  invFun f := (fun x => f (false, x), fun x => f (true, x))
-  left_inv p := by ext <;> rfl
-  right_inv f := by
-    funext ⟨b, x⟩
-    cases b <;> rfl
-
 /-- **Lazy random-oracle equivalence for the uniform cuckoo hash pair**:
 Sampling `(h₁, h₂)` eagerly from `PMF.uniformOfFintype ((Fin U → Fin m) × (Fin U → Fin m))` and
 interpreting queries `(b, x) : Bool × Fin U` via `if b then h₂ x else h₁ x` has the exact same
@@ -1645,10 +1635,13 @@ theorem uniform_interpret_eq_lazy_hashPair {U m : ℕ} [NeZero m] {α : Type}
         program) =
       ((OracleComp.interpret (RandomOracle.answer (fun _ => PMF.uniformOfFintype (Fin m)))
         program).run (fun _ => none)).map Prod.fst := by
-  refine Eq.trans ?_ (RandomOracle.uniform_interpret_eq_lazy program)
-  rw [← PMF.uniformOfFintype_map_equiv (hashPairEquiv U m), PMF.monad_bind_eq_bind,
-    PMF.monad_bind_eq_bind, PMF.bind_map]
-  rfl
+  rw [← RandomOracle.uniform_interpret_eq_lazy program]
+  relabel_uniform (fun (p : (Fin U → Fin m) × (Fin U → Fin m)) (q : Bool × Fin U) =>
+    if q.1 then p.2 q.2 else p.1 q.2)
+  · rintro ⟨f₁, g₁⟩ ⟨f₂, g₂⟩ h
+    exact Prod.ext (funext fun x => congr_fun h (false, x))
+      (funext fun x => congr_fun h (true, x))
+  · simp [Fintype.card_prod, ← pow_add, two_mul]
 
 /-! ## Section 5: High-probability `k`-wise independence bridge and Double Tabulation -/
 

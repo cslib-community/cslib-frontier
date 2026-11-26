@@ -49,17 +49,10 @@ function. -/
 theorem isAffine_lit_eval {α : Type*} [Add α] {τ : α → ℕ → Bool} (hτ : IsAffine τ)
     (ℓ : Lit) : IsAffine fun u => ℓ.eval (τ u) := by
   intro u v w
-  obtain ⟨_ | t, c⟩ := ℓ
-  · simp only [Lit.eval, Arg.eval_const]
-    generalize ‹Bool› = b
-    revert b c
-    decide
+  rcases ℓ with ⟨b | t, c⟩
+  · cases b <;> cases c <;> rfl
   · simp only [Lit.eval, Arg.eval_node, congrFun (hτ u v w) t, Pi.add_apply]
-    generalize τ u t = a
-    generalize τ v t = b
-    generalize τ w t = e
-    revert a b e c
-    decide
+    cases τ u t <;> cases τ v t <;> cases τ w t <;> cases c <;> rfl
 
 /-- Adding coordinate `Q`, constant `c`, and a sum over `R` of an affine family preserves
 affinity. -/
@@ -67,12 +60,8 @@ theorem isAffine_add_add_sum {α : Type*} [Add α] {τ : α → ℕ → Bool} (h
     (Q : ℕ) (c : Bool) (R : Finset ℕ) : IsAffine fun u => τ u Q + c + ∑ j ∈ R, τ u j := by
   intro u v w
   simp only [fun j => congrFun (hτ u v w) j, Pi.add_apply, Finset.sum_add_distrib]
-  generalize τ u Q = a₁
-  generalize τ v Q = a₂
-  generalize τ w Q = a₃
-  generalize ∑ j ∈ R, τ u j = b₁
-  generalize ∑ j ∈ R, τ v j = b₂
-  generalize ∑ j ∈ R, τ w j = b₃
+  generalize τ u Q = a₁, τ v Q = a₂, τ w Q = a₃,
+    ∑ j ∈ R, τ u j = b₁, ∑ j ∈ R, τ v j = b₂, ∑ j ∈ R, τ w j = b₃
   cases a₁ <;> cases a₂ <;> cases a₃ <;> cases b₁ <;> cases b₂ <;> cases b₃ <;> cases c <;> rfl
 
 namespace State
@@ -104,9 +93,8 @@ theorem Valid.of_liftsTo {S S' : State cfg n} (hS : S.Valid f) (hparams : S'.par
     S'.Valid f :=
   hS.of_phi hparams hpairs hphi hwf fun val hval hlocus => by
     obtain ⟨w, hw, hwval, hout⟩ := hlift val hval hlocus
-    have hwlocus : S.Locus w := hS.locus_congr (fun j hj => (hwval j hj).symm)
-      (by change cfg.locus S.pairs val; rw [← hpairs]; exact hlocus)
-    rw [hout, hS.computes w hw hwlocus, hphi]
+    rw [hout, hS.computes w hw (hS.locus_congr (fun j hj => (hwval j hj).symm)
+      (Eq.mp (congrArg (cfg.locus · val) hpairs) hlocus)), hphi]
     exact congrArg f (hS.phi_congr _ _ hwval)
 
 /-- Validity from an unconditional `SemiCircuit.LiftsTo`. -/
@@ -147,15 +135,14 @@ theorem Valid.of_transport {S S' : State cfg n} (hS : S.Valid f) {σ : (ℕ → 
   wf := hwf
   pair_mem := h.pair_mem
   pairs_disjoint := h.pairs_disjoint
-  phi_congr val val' hv := by
-    rw [h.phi, h.phi]
-    exact hS.phi_congr _ _ (h.congr val val' hv)
+  phi_congr val val' hv :=
+    (h.phi val).trans ((hS.phi_congr _ _ (h.congr val val' hv)).trans (h.phi val').symm)
   phi_affine := h.phi_affine
   phi_injective val val' hv :=
     h.inj val val' (hS.phi_injective _ _ (by rwa [h.phi, h.phi] at hv))
-  computes val hval hlocus := by
-    rw [h.out val hval hlocus, h.phi]
-    exact hS.computes _ (h.consistent val hval) (h.locus val hlocus)
+  computes val hval hlocus :=
+    (h.out val hval hlocus).trans ((hS.computes _ (h.consistent val hval)
+      (h.locus val hlocus)).trans (congrArg f (h.phi val)).symm)
 
 /-- A gate does not read itself. -/
 theorem Valid.not_reads_self {S : State cfg n} (hS : S.Valid f) {J : ℕ} (hJ : J ∈ S.gates) :
@@ -248,13 +235,10 @@ theorem Valid.restrict_of {S : State cfg n} (hS : S.Valid f) {x : ℕ} {ℓ : Li
     exact ⟨Finset.mem_erase.2 ⟨fun he => hprx (Or.inl he), h1⟩,
       Finset.mem_erase.2 ⟨fun he => hprx (Or.inr he), h2⟩, h12⟩
   · by_cases hjx : j = x
-    · subst hjx
-      simp only [Function.update_self]
-      exact hℓeval _ _ hv
-    · simp only [Function.update_of_ne hjx]
-      exact hv j (Finset.mem_erase.2 ⟨hjx, hj⟩)
-  · have := hv j (Finset.mem_of_mem_erase hj)
-    simpa only [Function.update_of_ne (Finset.ne_of_mem_erase hj)] using this
+    · subst hjx; simpa only [Function.update_self] using hℓeval _ _ hv
+    · simpa only [Function.update_of_ne hjx] using hv j (Finset.mem_erase.2 ⟨hjx, hj⟩)
+  · simpa only [Function.update_of_ne (Finset.ne_of_mem_erase hj)] using
+      hv j (Finset.mem_of_mem_erase hj)
 
 /-! ### Pair creation (PC) -/
 
@@ -365,11 +349,8 @@ structure DeleteGateLocusOK (S : State cfg n) (J : ℕ) (ℓ : Lit) : Prop where
 
 /-- Deleting a gate decreases the size of the state by `1`. -/
 theorem deleteGate_size {S : State cfg n} {J : ℕ} {ℓ : Lit} (hJ : J ∈ S.gates) :
-    (S.deleteGate J ℓ).size + 1 = S.size := by
-  have := Finset.card_erase_add_one hJ
-  simp only [SemiCircuit.size] at *
-  change (S.gates.erase J).card + S.eqns.card + 1 = _
-  omega
+    (S.deleteGate J ℓ).size + 1 = S.size :=
+  (Nat.add_right_comm _ _ 1).trans (congrArg (· + S.eqns.card) (Finset.card_erase_add_one hJ))
 
 /-- After deleting gate `J` with replacement `ℓ`, the children of `z` are contained in the
 children of `z` after substituting `J` with `ℓ` with `.inl J` removed. -/
@@ -389,9 +370,9 @@ theorem deleteGate_children_subset {S : State cfg n} {J : ℕ} {ℓ : Lit} (z : 
 theorem deleteGate_children_of_ne {S : State cfg n} (hS : S.Valid f) {J : ℕ} {ℓ : Lit}
     (hJ : J ∈ S.gates) {z : ℕ} (hz : z ∈ S.params) (hzℓ : ¬ ℓ.Reads z) :
     (S.deleteGate J ℓ).children z ⊆ (S.children z).erase (.inl J) := by
-  have hzJ : z ≠ J := fun he => hS.wf.notMem_gates_of_mem_params hz (he ▸ hJ)
-  have := deleteGate_children_subset (S := S) (J := J) (ℓ := ℓ) z
-  rwa [SemiCircuit.children_subst hzJ hzℓ] at this
+  simpa only [SemiCircuit.children_subst
+    (fun he : z = J => hS.wf.notMem_gates_of_mem_params hz (he ▸ hJ)) hzℓ] using
+    deleteGate_children_subset (S := S) (J := J) (ℓ := ℓ) z
 
 /-- Deleting a gate preserves validity on admissible assignments. -/
 theorem Valid.deleteGate {S : State cfg n} (hS : S.Valid f) {J : ℕ} {ℓ : Lit}
@@ -403,10 +384,9 @@ theorem Valid.deleteGate {S : State cfg n} (hS : S.Valid f) {J : ℕ} {ℓ : Lit
   have hw : ∀ i, i ≠ J → w i = val i := fun i hi => Function.update_of_ne hi _ _
   have hwJval : w J = (S.gate J).eval val := Function.update_self _ _ _
   have hℓw : ℓ.eval w = ℓ.eval val := Lit.eval_congr fun i hi => hw i fun he => hℓJ (he ▸ hi)
-  have heqns : S.EqnsHold val := fun e he => by
-    have hev := hval.1 e he
-    change ((S.eqn e).subst J ℓ).Holds val at hev
-    rwa [Equation.subst_of_notMem (hS.wf.notMem_terms_of_mem_gates h.mem he)] at hev
+  have heqns : S.EqnsHold val := fun e he =>
+    (congrArg (Equation.Holds · val)
+      (Equation.subst_of_notMem (hS.wf.notMem_terms_of_mem_gates h.mem he))).mp (hval.1 e he)
   have hJw : (∀ val', S.EqnsHold val' → S.Locus val' →
       (S.gate J).eval val' = ℓ.eval val') → w J = ℓ.eval w := fun hv => by
     rw [hwJval, hv val heqns hlocus, hℓw]
@@ -416,9 +396,8 @@ theorem Valid.deleteGate {S : State cfg n} (hS : S.Valid f) {J : ℕ} {ℓ : Lit
       hS.wf.notMem_terms_of_mem_gates h.mem he (he' ▸ hi)).2 (heqns e he)
   · by_cases hKJ : K = J
     · subst hKJ
-      rw [hwJval]
-      exact Gate.eval_congr fun i hi =>
-        (hw i fun he => hS.wf.not_reads_self h.mem (he ▸ hi)).symm
+      exact hwJval.trans (Gate.eval_congr fun i hi =>
+        (hw i fun he => hS.wf.not_reads_self h.mem (he ▸ hi)).symm)
     · rw [hw K hKJ, hval.2 K (Finset.mem_erase.2 ⟨hKJ, hK⟩)]
       change ((S.gate K).subst J ℓ).eval val = _
       rcases h.value with hv | ⟨hun, -⟩
@@ -460,11 +439,8 @@ to `ℓ`. -/
 
 /-- Deleting an equation decreases the size of the state by `1`. -/
 theorem deleteEqn_size {S : State cfg n} {e v : ℕ} {ℓ : Lit} (h : S.DeleteEqnOK e v ℓ) :
-    (S.deleteEqn e v ℓ).size + 1 = S.size := by
-  have := Finset.card_erase_add_one h.mem
-  simp only [SemiCircuit.size] at *
-  change S.gates.card + (S.eqns.erase e).card + 1 = _
-  omega
+    (S.deleteEqn e v ℓ).size + 1 = S.size :=
+  (Nat.add_assoc _ _ 1).trans (congrArg (S.gates.card + ·) (Finset.card_erase_add_one h.mem))
 
 /-- After deleting equation `e` and auxiliary variable `v` with replacement `ℓ`, the children of
 `z` are contained in the children of `z` after substituting `v` with `ℓ` with `.inr e` removed. -/
@@ -484,9 +460,9 @@ theorem deleteEqn_children_subset {S : State cfg n} {e v : ℕ} {ℓ : Lit} (z :
 theorem deleteEqn_children_of_ne {S : State cfg n} (hS : S.Valid f) {e v : ℕ} {ℓ : Lit}
     (h : S.DeleteEqnOK e v ℓ) {z : ℕ} (hz : z ∈ S.params) (hzℓ : ¬ ℓ.Reads z) :
     (S.deleteEqn e v ℓ).children z ⊆ (S.children z).erase (.inr e) := by
-  have hzv : z ≠ v := fun he => hS.wf.notMem_aux_of_mem_params hz (he ▸ h.aux)
-  have := deleteEqn_children_subset (S := S) (e := e) (v := v) (ℓ := ℓ) z
-  rwa [SemiCircuit.children_subst hzv hzℓ] at this
+  simpa only [SemiCircuit.children_subst
+    (fun he : z = v => hS.wf.notMem_aux_of_mem_params hz (he ▸ h.aux)) hzℓ] using
+    deleteEqn_children_subset (S := S) (e := e) (v := v) (ℓ := ℓ) z
 
 /-- Deleting an equation `v = ℓ` with its auxiliary variable preserves validity. -/
 theorem Valid.deleteEqn {S : State cfg n} (hS : S.Valid f) {e v : ℕ} {ℓ : Lit}
@@ -507,22 +483,16 @@ theorem Valid.deleteEqn {S : State cfg n} (hS : S.Valid f) {e v : ℕ} {ℓ : Li
 
 /-- Dropping an equation decreases the size of the state by `1`. -/
 theorem dropEqn_size {S : State cfg n} {e v : ℕ} (h : S.DropEqnOK e v) :
-    (S.dropEqn e v).size + 1 = S.size := by
-  have := Finset.card_erase_add_one h.mem
-  simp only [SemiCircuit.size] at *
-  change S.gates.card + (S.eqns.erase e).card + 1 = _
-  omega
+    (S.dropEqn e v).size + 1 = S.size :=
+  (Nat.add_assoc _ _ 1).trans (congrArg (S.gates.card + ·) (Finset.card_erase_add_one h.mem))
 
 /-- Dropping equation `e` removes `.inr e` from the children of `z`. -/
 theorem dropEqn_children (S : State cfg n) (e v z : ℕ) :
     (S.dropEqn e v).children z = (S.children z).erase (.inr e) := by
   ext (K | e')
-  · simp only [SemiCircuit.inl_mem_children, Finset.mem_erase, ne_eq, reduceCtorEq,
-      not_false_eq_true, true_and]
-    rfl
-  · simp only [SemiCircuit.inr_mem_children, Finset.mem_erase, ne_eq, Sum.inr.injEq]
-    change (e' ∈ S.eqns.erase e ∧ _) ↔ _
-    rw [Finset.mem_erase]
+  · simp [SemiCircuit.inl_mem_children, dropEqn, SemiCircuit.dropEqn]
+  · simp only [SemiCircuit.inr_mem_children, Finset.mem_erase, ne_eq, Sum.inr.injEq,
+      dropEqn, SemiCircuit.dropEqn]
     tauto
 
 /-- Dropping an equation with an auxiliary variable occurring only there preserves validity. -/
@@ -544,22 +514,16 @@ theorem Valid.dropEqn {S : State cfg n} (hS : S.Valid f) {e v : ℕ} (h : S.Drop
 
 /-- Dropping a trivial equation decreases the size of the state by `1`. -/
 theorem dropTrivialEqn_size {S : State cfg n} {e : ℕ} (he : e ∈ S.eqns) :
-    (S.dropTrivialEqn e).size + 1 = S.size := by
-  have := Finset.card_erase_add_one he
-  simp only [SemiCircuit.size] at *
-  change S.gates.card + (S.eqns.erase e).card + 1 = _
-  omega
+    (S.dropTrivialEqn e).size + 1 = S.size :=
+  (Nat.add_assoc _ _ 1).trans (congrArg (S.gates.card + ·) (Finset.card_erase_add_one he))
 
 /-- Dropping trivial equation `e` removes `.inr e` from the children of `z`. -/
 theorem dropTrivialEqn_children (S : State cfg n) (e z : ℕ) :
     (S.dropTrivialEqn e).children z = (S.children z).erase (.inr e) := by
   ext (K | e')
-  · simp only [SemiCircuit.inl_mem_children, Finset.mem_erase, ne_eq, reduceCtorEq,
-      not_false_eq_true, true_and]
-    rfl
-  · simp only [SemiCircuit.inr_mem_children, Finset.mem_erase, ne_eq, Sum.inr.injEq]
-    change (e' ∈ S.eqns.erase e ∧ _) ↔ _
-    rw [Finset.mem_erase]
+  · simp [SemiCircuit.inl_mem_children, dropTrivialEqn, SemiCircuit.dropTrivialEqn]
+  · simp only [SemiCircuit.inr_mem_children, Finset.mem_erase, ne_eq, Sum.inr.injEq,
+      dropTrivialEqn, SemiCircuit.dropTrivialEqn]
     tauto
 
 /-- Deleting an equation without terms preserves validity. -/
@@ -587,8 +551,7 @@ theorem moveAffine_size {S : State cfg n} {J e : ℕ} (h : S.MoveOK J e) :
     (S.moveAffine J e).size = S.size := by
   have h1 := Finset.card_erase_add_one h.mem
   have h2 := Finset.card_insert_of_notMem h.fresh
-  simp only [SemiCircuit.size] at *
-  change (S.gates.erase J).card + (insert e S.eqns).card = _
+  change (S.gates.erase J).card + (insert e S.eqns).card = S.gates.card + S.eqns.card
   omega
 
 /-- Moving an affine gate into the affine system decreases the number of gates by `1`. -/
@@ -631,15 +594,12 @@ theorem inl_mem_children_rewire (S : State cfg n) (J : ℕ) (g : Gate) (z K : �
       K ∈ S.gates ∧ (if K = J then g.Reads z else (S.gate K).Reads z) := by
   rw [SemiCircuit.inl_mem_children]
   change K ∈ S.gates ∧ (Function.update S.gate J g K).Reads z ↔ _
-  by_cases hKJ : K = J
-  · subst hKJ; rw [Function.update_self, ite_eq_left rfl]
-  · rw [Function.update_of_ne hKJ, ite_eq_right hKJ]
+  by_cases hKJ : K = J <;> simp [hKJ]
 
 /-- Rewiring a gate preserves the equation children of every variable. -/
 theorem inr_mem_children_rewire (S : State cfg n) (J : ℕ) (g : Gate) (z e : ℕ) :
     Sum.inr e ∈ (S.rewire J g).children z ↔ Sum.inr e ∈ S.children z := by
-  simp only [SemiCircuit.inr_mem_children]
-  rfl
+  simp only [SemiCircuit.inr_mem_children]; rfl
 
 /-- Rewiring a gate preserves validity. -/
 theorem Valid.rewire {S : State cfg n} (hS : S.Valid f) {J : ℕ} {g : Gate} (h : S.RewireOK J g) :
@@ -697,11 +657,8 @@ theorem Valid.swap_of {S : State cfg n} (hS : S.Valid f) {x Q : ℕ} {c : Bool} 
   have hσ : ∀ val i, i ≠ x → σ val i = val i := fun val i hi => Function.update_of_ne hi _ _
   have hσx : ∀ val, σ val x = val Q + c + ∑ j ∈ T.erase x, val j := fun val =>
     Function.update_self _ _ _
-  have hσid : ∀ val, S.EqnsHold val → σ val = val := fun val hval => by
-    funext i
-    by_cases hi : i = x
-    · subst hi; rw [hσx, h.affine.solve h.mem_T hval]
-    · exact hσ val i hi
+  have hσid : ∀ val, S.EqnsHold val → σ val = val := fun val hval =>
+    Function.update_eq_self_iff.2 (h.affine.solve h.mem_T hval).symm
   refine hS.of_transport (σ := σ) (hS.wf.swap h.mem h.aux h.affine h.mem_T)
     { pair_mem := fun pr hpr => ?_
       pairs_disjoint := hS.pairs_disjoint
@@ -730,8 +687,7 @@ theorem Valid.swap_of {S : State cfg n} (hS : S.Valid f) {x Q : ℕ} {c : Bool} 
         ((hv i (Finset.mem_of_mem_erase (hTx i hi))).trans
           (hσ val' i (Finset.ne_of_mem_erase hi)))] at h1
       simpa using h1
-    · have := hv j (Finset.mem_of_mem_erase hj)
-      rwa [hσ val j (Finset.ne_of_mem_erase hj), hσ val' j (Finset.ne_of_mem_erase hj)] at this
+    · simpa only [hσ _ j (Finset.ne_of_mem_erase hj)] using hv j (Finset.mem_of_mem_erase hj)
 
 /-- An affine reparameterisation `(AR)` preserves `m`. -/
 theorem Valid.swap_m {S : State cfg n} (hS : S.Valid f) {x Q : ℕ} {c : Bool} {T : Finset ℕ}
@@ -765,29 +721,18 @@ theorem Valid.swap_W_le_of {S : State cfg n} (hS : S.Valid f) {x Q : ℕ} {c : B
           simp only [ite_eq_left, ite_eq_right huQ, wt_of_notMem_params hxn, zero_add, add_zero]
           exact hloss
         · have huS : u ∈ S.params := (Finset.mem_insert.1 hu).resolve_left huQ
-          have huS₁ : u ∈ S₁.params := by
-            rw [swap_params]
-            exact Finset.mem_insert_of_mem (Finset.mem_erase.2 ⟨hux, huS⟩)
+          have huS₁ : u ∈ S₁.params := Finset.mem_insert_of_mem (Finset.mem_erase.2 ⟨hux, huS⟩)
           simp only [ite_eq_right hux, ite_eq_right huQ, add_zero]
+          have hp := paired_congr (x := u) (swap_pairs S x Q c T)
           by_cases hup : S.Paired u
-          · have hup₁ : S₁.Paired u := (paired_congr (swap_pairs S x Q c T)).2 hup
-            rw [wt_of_paired hup₁, wt_of_paired hup]
-          · have hu1 : u ∈ S₁.unpaired := mem_unpaired.2
-              ⟨huS₁, fun hp => hup ((paired_congr (swap_pairs S x Q c T)).1 hp)⟩
+          · rw [wt_of_paired (hp.2 hup), wt_of_paired hup]
+          · have hu1 : u ∈ S₁.unpaired := mem_unpaired.2 ⟨huS₁, mt hp.1 hup⟩
             have hu0 : u ∈ S.unpaired := mem_unpaired.2 ⟨huS, hup⟩
             rw [wt_of_mem hu1, wt_of_mem hu0, SemiCircuit.deg, SemiCircuit.deg, swap_children]
-  have hlossSum : ∑ u ∈ insert Q S.params, (if u = x then lossX else 0) = lossX := by
-    rw [Finset.sum_eq_single_of_mem x (Finset.mem_insert_of_mem h.mem)
-      (fun _ _ hf => ite_eq_right hf), ite_eq_left rfl]
-  have hgainSum : ∑ u ∈ insert Q S.params, (if u = Q then gainQ else 0) = gainQ := by
-    rw [Finset.sum_eq_single_of_mem Q (Finset.mem_insert_self _ _)
-      (fun _ _ hf => ite_eq_right hf), ite_eq_left rfl]
-  have hs1 : S₁.s = S.s := swap_size S x Q c T
-  have hq1 : S₁.q = S.q := rfl
-  dsimp only [S₁] at hW hs1 hq1
-  rw [hlossSum, hgainSum, hs1, hq1] at hW
-  have hcongr_cs := congrArg (cfg.cs * ·) hs1
-  have hcongr_cq := congrArg (cfg.cq * ·) hq1
+  dsimp only [S₁] at hW
+  rw [Finset.sum_ite_eq', ite_eq_left (Finset.mem_insert_of_mem h.mem),
+    Finset.sum_ite_eq', ite_eq_left (Finset.mem_insert_self _ _)] at hW
+  dsimp only [State.s, State.q, swap_size, swap_pairs] at hW ⊢
   omega
 
 end State

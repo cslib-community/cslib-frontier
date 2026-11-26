@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 public import CslibFrontier.Computability.WordRAM.Notation
 public import Mathlib.Data.Nat.Sqrt
 import Mathlib.Tactic.Linarith
@@ -59,60 +60,31 @@ theorem exec {w : ℕ} (x : Data 6) (hfit : Fits w (4 * x.regs arg + 4)) :
       y.regs root = Nat.sqrt (x.regs arg) ∧ y.regs arg = x.regs arg ∧ y.mem = x.mem ∧
       y.regs one = 1 := by
   let n := x.regs arg
-  let I (y : Data 6) : Prop := y.regs arg = n ∧ y.regs one = 1 ∧
-    y.regs bound = n + 1 ∧ y.regs next = y.regs root + 1 ∧
-    y.regs square = y.regs next * y.regs next ∧
+  unfold program
+  wram_exec
+  let I (y : Data 6) : Prop := y.regs arg = n ∧ y.regs one = 1 ∧ y.regs bound = n + 1 ∧
+    y.regs next = y.regs root + 1 ∧ y.regs square = y.regs next * y.regs next ∧
     y.regs root ≤ Nat.sqrt n ∧ y.mem = x.mem
-  have hbody (y : Data 6) (hy : I y) (hc : (Cond.lt square bound).Holds y) :
-      ∃ z, ExecWithin w body y z 3 ∧ I z ∧
-        Nat.sqrt n - z.regs root < Nat.sqrt n - y.regs root := by
-    obtain ⟨ha, ho, hb, hn, hsq, hr, hm⟩ := hy
+  refine WP.of_spec
+    (ExecWithin.loop_invariant (T := 3) I (fun y => Nat.sqrt n - y.regs root) ?_ ?_) ?_
+  · rintro y ⟨ha, ho, hb, hn, hsq, hr, hm⟩ hc
     have hsmall : y.regs next * y.regs next ≤ n := by
-      simp only [Cond.holds_lt, hsq, hb] at hc
-      omega
+      simp only [Cond.holds_lt, hsq, hb] at hc; omega
     have hnext : y.regs next ≤ Nat.sqrt n := Nat.le_sqrt.mpr hsmall
-    have hsl := Nat.sqrt_le n
-    have hsle := Nat.sqrt_le_self n
-    have hstep : Fits w (y.regs next + 1) := hfit.of_le (by dsimp [n] at *; omega)
-    have hsquare : Fits w ((y.regs next + 1) * (y.regs next + 1)) := hfit.of_le (by
-      change (y.regs next + 1) * (y.regs next + 1) ≤ 4 * n + 4
-      have hnn : y.regs next ≤ n := hnext.trans hsle
-      nlinarith)
-    refine ⟨?z, ?run, ?inv, ?decrease⟩
-    case run => ram_eval [body, ho, hstep, hsquare, root, next, square, one, Fin.mk.injEq]
-    case inv =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-      · simpa +decide [Function.update_apply] using ha
-      · simpa +decide [Function.update_apply] using ho
-      · simpa +decide [Function.update_apply] using hb
-      · rfl
-      · rfl
-      · exact hnext
-      · exact hm
-    case decrease =>
-      change Nat.sqrt n - y.regs next < Nat.sqrt n - y.regs root
-      omega
-  let x₀ := ((((x.set root 0).set next 1).set square 1).set one 1).set bound (n + 1)
-  have hx₀ : I x₀ := by simp +decide [I, x₀, n, root, next, square, one, bound, arg]
-  obtain ⟨y, he, hy, hc⟩ := ExecWithin.loop_invariant I
-    (fun y => Nat.sqrt n - y.regs root) hbody hx₀
-  obtain ⟨ha, ho, hb, hn, hsq, hr, hm⟩ := hy
-  have hlarge : n < (y.regs root + 1) * (y.regs root + 1) := by
-    simp only [Cond.holds_lt, hsq, hn, hb] at hc
+    have hnn : y.regs next ≤ x.regs arg := hnext.trans (Nat.sqrt_le_self n)
+    have hsquare : Fits w ((y.regs next + 1) * (y.regs next + 1)) := by
+      fits [show (y.regs next + 1) * (y.regs next + 1) ≤ 4 * x.regs arg + 4 by nlinarith]
+    unfold body
+    wram_exec [ho]
+    dsimp only [I]
+    wram_simp [ha, ho, hb, hnext, hm]
     omega
-  have hout : y.regs root = Nat.sqrt n := by
-    have h := Nat.sqrt_lt.mpr hlarge
-    omega
-  have hbfit : Fits w (x.regs arg + 1) := hfit.of_le (by omega)
-  have hinit : ExecWithin (B := .standard) w
-      (ram[ root ← #0; next ← #1; square ← #1; one ← #1; bound ← arg + one ]) x x₀ 5 := by
-    ram_eval [x₀, n, hbfit, root, next, square, one, bound, arg, Fin.mk.injEq]
-  refine ⟨y, ?_, hout, ha, hm, ho⟩
-  convert hinit.seq he using 1
-  · rfl
-  · simp +decide only [x₀, Data.set_regs, Function.update_apply, root, next, square, one,
-      bound, arg, n, ↓reduceIte, Nat.sub_zero]
-    omega
+  · dsimp only [I, n]; wram_simp [Nat.zero_le]
+  · rintro y ⟨⟨ha, ho, hb, hn, hsq, hr, hm⟩, hc⟩
+    have hlarge : n < (y.regs root + 1) * (y.regs root + 1) := by
+      simp only [Cond.holds_lt, hsq, hn, hb] at hc; omega
+    have hout : y.regs root = Nat.sqrt n := by have := Nat.sqrt_lt.mpr hlarge; omega
+    exact ⟨by wram_simp; dsimp only [n] at *; omega, hout, ha, hm, ho⟩
 
 /-- Run successive squares on any injectively chosen registers. -/
 theorem exec_rename {r w : ℕ} (f : Fin 6 → Fin r) (hf : f.Injective) (x : Data r)

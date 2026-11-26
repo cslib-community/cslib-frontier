@@ -8,7 +8,6 @@ module
 -- upstream: local-only (tests for BinomialRandomGraph.ConnectivityThreshold)
 
 public import CslibFrontier.Foundations.Probability.Combinatorics.BinomialRandomGraph.ConnectivityThreshold
-import Mathlib.Tactic
 
 /-!
 # Worked instances for the binomial random graph connectivity threshold

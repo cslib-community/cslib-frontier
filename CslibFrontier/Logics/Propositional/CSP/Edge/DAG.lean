@@ -239,12 +239,9 @@ This uses the existing finite topological-numbering theorem rather than a separa
 theorem ordered_iff_acyclic {T : DAG F} (h : T.Supported) : T.Ordered ↔
     (∀ c ∈ T.copies, ∀ d ∈ T.copies, c.2 = d.2 → c = d) ∧
       Relation.Acyclic T.orderRelation := by
-  constructor
-  · rintro ⟨ht, rank, hr⟩
-    exact ⟨ht, Relation.acyclic_of_rank hr⟩
-  · rintro ⟨ht, ha⟩
-    obtain ⟨rank, _, hr⟩ := ha.exists_rank T.nodes (fun _ _ => h.orderRelation)
-    exact ⟨ht, rank, hr⟩
+  refine ⟨fun ⟨ht, _, hr⟩ => ⟨ht, Relation.acyclic_of_rank hr⟩, fun ⟨ht, ha⟩ => ?_⟩
+  obtain ⟨rank, _, hr⟩ := ha.exists_rank T.nodes fun _ _ => h.orderRelation
+  exact ⟨ht, rank, hr⟩
 
 /-- Break rank ties on the finite support without changing any required strict comparison.
 The resulting injective natural numbering induces the source's strict total order on supported
@@ -260,21 +257,17 @@ theorem Ordered.exists_injective_numbering {T : DAG F} (h : T.Ordered) :
   let number : S → ℕ := fun x => rank x.val * width + (enum x).val
   have hen : ∀ x, (enum x).val < width := fun x =>
     Nat.lt_trans (enum x).isLt (Nat.lt_succ_self _)
-  have hinj : Function.Injective number := by
-    intro x y he
-    have hm := congrArg (fun n => n % width) he
-    have hmod : ∀ z, number z % width = (enum z).val := by
-      intro z
-      simp [number, Nat.add_mod, Nat.mod_eq_of_lt (hen z)]
-    rw [hmod, hmod] at hm
+  have hinj : Function.Injective number := fun x y he => by
+    have hm := congrArg (· % width) he
+    dsimp only [number] at hm
+    rw [Nat.add_comm _ (enum x).val, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt (hen x),
+      Nat.add_comm _ (enum y).val, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt (hen y)] at hm
     exact enum.injective (Fin.ext hm)
-  refine ⟨⟨number, hinj⟩, ?_⟩
-  intro x y hxy
-  have hlt := hr x.val y.val hxy
-  have hmul := Nat.mul_le_mul_right width (Nat.succ_le_of_lt hlt)
+  refine ⟨⟨number, hinj⟩, fun x y hxy => ?_⟩
+  have hmul := Nat.mul_le_mul_right width (Nat.succ_le_of_lt (hr x.val y.val hxy))
   have hx := hen x
-  change rank x.val * width + (enum x).val < rank y.val * width + (enum y).val
   rw [Nat.succ_mul] at hmul
+  dsimp only [Function.Embedding.coeFn_mk, number]
   omega
 
 end DAG

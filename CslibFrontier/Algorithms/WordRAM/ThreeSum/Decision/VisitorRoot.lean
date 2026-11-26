@@ -63,11 +63,8 @@ theorem oneRoot_preserves {r : ℕ} (solver : Code .standard (r + 7))
   have hskip : (Code.op (B := Basis.standard) (.copy
       (preprocessingRegisters r (slot 0)) (preprocessingRegisters r (slot 0)))).Preserves
         (preprocessingRegisters r i) := by
-    simp only [Code.Preserves, Op.dest, ne_eq, Option.some.injEq]
-    intro he
-    have hv := congrArg Fin.val he
-    simp only [preprocessingRegisters, Fin.val_castAdd] at hv
-    dsimp only [slot] at hv
+    simp only [Code.Preserves, Op.dest, ne_eq, Option.some.injEq,
+      (preprocessing_injective r).eq_iff, Fin.ext_iff, slot]
     omega
   have hprepare : (prepareHost (r := r)).Preserves (preprocessingRegisters r i) := by
     simp only [prepareHost, Code.Preserves, Op.dest, ne_eq, Option.some.injEq]
@@ -79,10 +76,8 @@ theorem oneRoot_preserves {r : ℕ} (solver : Code .standard (r + 7))
     simp only [receive, Code.Preserves, Op.dest, ne_eq, Option.some.injEq]
     exact ⟨controller_ne_preprocessing answer i, controller_ne_preprocessing answer i⟩
   have hrelease : (releasePacked (r := r)).Preserves (preprocessingRegisters r i) := by
-    simp only [releasePacked, Code.Preserves, Op.dest, ne_eq, Option.some.injEq]
-    intro he
-    have hv := congrArg Fin.val he
-    simp only [preprocessingRegisters, Fin.val_castAdd, heap] at hv
+    simp only [releasePacked, Code.Preserves, Op.dest, ne_eq, Option.some.injEq,
+      (preprocessing_injective r).eq_iff, Fin.ext_iff, heap]
     omega
   exact ⟨lift (hinit i hi), lift (hpush i hi), lift (hpop i hi), hskip, hskip, hskip, hskip,
     lift (hlocal i hi), ⟨hprepare, hhost, hreceive⟩, hrelease, lift (hchildren i hi)⟩
@@ -152,11 +147,7 @@ theorem root_exec {r κ n w : ℕ} {a : Arena} (c : Host.Callee r)
   have hsum := envelope_ge_sum a.ceiling a.n a.m a.Λ a.U a.N
   have h2 : Fits (w + 2) 2 := hunsigned.of_le (by omega)
   have hcap : Fits (w + 2) (a.stack + a.capacity) := hunsigned.of_le (by
-    have hb := h.heapBudget
-    have hf := h.floor
-    have ht := ha.2.1
-    have hgap := ha.2.2.1
-    omega)
+    have := h.heapBudget; have := h.floor; have := ha.2.1; have := ha.2.2.1; omega)
   obtain ⟨b, hinit, ⟨hstack, bcontrols, hframe, hbr⟩, hbouter⟩ :=
     Exec.rename_post (preprocessing_injective r)
       (initializeRoot_exec (x.comap (preprocessingRegisters r)) e
@@ -203,10 +194,7 @@ theorem root_exec {r κ n w : ℕ} {a : Arena} (c : Host.Callee r)
         (e.task.output (Nat.primesLE a.m) a.Λ).length * T) := by
     have hc := ExecWithin.seq_assoc.mp (hinit.within.seq he)
     exact hc.mono (by rw [Cursor.credit, work, remaining]; dsimp only [T]; omega)
-  refine ⟨y, hexec, hfinal, ?_, ?_⟩
-  · intro q hq
-    exact (hfinal.protectedMemory q hq).trans (h.protectedMemory q hq).symm
-  · intro i hi
-    exact hexec.regs_eq (oneRoot_preserves c.code i hi)
+  exact ⟨y, hexec, hfinal, fun q hq => (hfinal.protectedMemory q hq).trans
+    (h.protectedMemory q hq).symm, fun i hi => hexec.regs_eq (oneRoot_preserves c.code i hi)⟩
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Decision.Visitor

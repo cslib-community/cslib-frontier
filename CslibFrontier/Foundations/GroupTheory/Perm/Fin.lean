@@ -41,11 +41,7 @@ theorem val_finRotate_symm {n : ℕ} (i : Fin n) :
     ((finRotate n).symm i : ℕ) = if (i : ℕ) = 0 then n - 1 else (i : ℕ) - 1 := by
   obtain ⟨m, rfl⟩ := Nat.exists_eq_succ_of_ne_zero i.pos.ne'
   split_ifs with h
-  · have hi : i = 0 := Fin.ext h
-    subst hi
-    have : (finRotate (m + 1)).symm 0 = Fin.last m := by
-      rw [Equiv.symm_apply_eq, finRotate_last]
-    rw [this, Fin.val_last]
+  · rw [(Fin.ext h : i = 0), (Equiv.symm_apply_eq _).2 finRotate_last.symm]
     rfl
   · exact coe_finRotate_symm_of_ne_zero (Fin.ext_iff.not.2 h)
 
@@ -54,13 +50,10 @@ namespace Equiv.Perm
 /-- All points of `Fin n` lie on the single cycle of `finRotate n`. -/
 theorem sameCycle_finRotate {n : ℕ} (a b : Fin n) : (finRotate n).SameCycle a b := by
   rcases lt_or_ge n 2 with hn | hn
-  · have : Subsingleton (Fin n) := by
-      refine ⟨fun x y ↦ Fin.ext ?_⟩
-      omega
+  · have : Subsingleton (Fin n) := ⟨fun x y => Fin.ext (by omega)⟩
     rw [Subsingleton.elim a b]
-  · have hsupp (x : Fin n) : finRotate n x ≠ x := by
-      rw [← Equiv.Perm.mem_support, support_finRotate_of_le hn]
-      exact Finset.mem_univ x
-    exact (isCycle_finRotate_of_le hn).sameCycle (hsupp a) (hsupp b)
+  · exact (isCycle_finRotate_of_le hn).sameCycle
+      (mem_support.1 (by simp [support_finRotate_of_le hn]))
+      (mem_support.1 (by simp [support_finRotate_of_le hn]))
 
 end Equiv.Perm

@@ -138,10 +138,6 @@ theorem eval_witnessPoly (p : Polynomial ℕ) (n : ℕ) :
     (witnessPoly p).eval n = witnessLen (p.eval n) := by
   simp [witnessPoly, witnessLen, shifts]
 
-private theorem halfRuns_eq (m : ℕ) : halfRuns m = 6 * (m + 7) + 6 := by
-  unfold halfRuns
-  omega
-
 private theorem shifts_pos (m : ℕ) : 0 < shifts m := by
   unfold shifts runs halfRuns
   omega
@@ -150,13 +146,11 @@ private theorem shifts_le_two_pow (m : ℕ) : shifts m ≤ 2 ^ (m + 7) := by
   unfold shifts runs halfRuns
   induction m with
   | zero => decide
-  | succ m ih =>
-    rw [Nat.add_right_comm m 1 7, pow_succ]
-    omega
+  | succ m ih => rw [Nat.add_right_comm m 1 7, pow_succ]; omega
 
 private theorem two_pow_mul_eight_pow_halfRuns_lt (m : ℕ) :
     2 ^ (m + 7) * 8 ^ halfRuns m < 9 ^ halfRuns m := by
-  rw [halfRuns_eq]
+  rw [show halfRuns m = 6 * (m + 7) + 6 by unfold halfRuns; omega]
   exact Cslib.two_pow_mul_eight_pow_lt (m + 7)
 
 private theorem two_pow_m_mul_eight_pow_halfRuns_lt (m : ℕ) :
@@ -210,12 +204,10 @@ theorem exists_shifts_majorityAccepts {m : ℕ} {P : (Fin m → Bool) → Bool}
       majorityAccepts P (r + tests i) := by
   set S : Finset (Seed m) := univ.filter fun ω => majorityAccepts P ω with hSdef
   set N := Fintype.card (Seed m) with hNdef
-  have hS : 9 ^ halfRuns m * #Sᶜ ≤ 8 ^ halfRuns m * N := by
-    refine (nine_pow_mul_card_filter_le hP).trans_eq' (congrArg (9 ^ halfRuns m * ·) ?_)
-    rw [hSdef, compl_filter]
-    exact congrArg Finset.card
-      (Finset.filter_congr fun ω _ => by
-        simp only [majorityAccepts, not_lt, mem_filter, mem_univ, true_and])
+  have hS : 9 ^ halfRuns m * #Sᶜ ≤ 8 ^ halfRuns m * N :=
+    (nine_pow_mul_card_filter_le hP).trans_eq' (congrArg (9 ^ halfRuns m * ·) <| by
+      rw [hSdef, compl_filter]
+      exact congrArg Finset.card (Finset.filter_congr fun _ _ => by simp [majorityAccepts]))
   have hN : N * 8 ^ (halfRuns m * shifts m) < 9 ^ (halfRuns m * shifts m) := by
     rw [hNdef, card_seed_eq, pow_mul, pow_mul]
     change (2 ^ m) ^ shifts m * (8 ^ halfRuns m) ^ shifts m < (9 ^ halfRuns m) ^ shifts m
@@ -230,7 +222,7 @@ theorem exists_shifts_majorityAccepts {m : ℕ} {P : (Fin m → Bool) → Bool}
           _ = N * 8 ^ (halfRuns m * shifts m) * N ^ shifts m := by ring
           _ < 9 ^ (halfRuns m * shifts m) * N ^ shifts m :=
             Nat.mul_lt_mul_of_pos_right hN (pow_pos Fintype.card_pos _))
-  exact ⟨tests, fun r => (htests r).imp fun i hi => (mem_filter.1 hi).2⟩
+  exact ⟨tests, fun r => (htests r).imp fun _ hi => (mem_filter.1 hi).2⟩
 
 /-- **Soundness on amplified seeds.** If at least two thirds of the single-trial seeds satisfy
 `P s = false`, then for every tuple `tests : Fin (shifts m) → Seed m` of shift vectors, some
@@ -241,23 +233,21 @@ theorem exists_seed_not_majorityAccepts {m : ℕ} {P : (Fin m → Bool) → Bool
     (tests : Fin (shifts m) → Seed m) :
     ∃ r : Seed m, ∀ i, ¬ majorityAccepts P (r + tests i) := by
   set G₀ : Finset (Fin m → Bool) := univ.filter fun s => P s = false with hG₀
-  set S : Finset (Seed m) := univ.filter fun ω => majorityAccepts P ω with hSdef
+  set S : Finset (Seed m) := univ.filter fun ω => majorityAccepts P ω
   have hsub : S ⊆
-      univ.filter fun ω : Seed m => (univ.filter fun j => ω j ∈ G₀).card ≤ halfRuns m := by
-    intro ω hω
-    have hω' : halfRuns m < (univ.filter fun j : Fin (runs m) => P (ω j) = true).card :=
-      (mem_filter.1 hω).2
-    refine mem_filter.2 ⟨mem_univ ω, ?_⟩
-    have hpart := Finset.card_filter_add_card_filter_not
-      (s := (univ : Finset (Fin (runs m)))) (fun j => ω j ∈ G₀)
-    rw [Finset.card_univ, Fintype.card_fin] at hpart
-    have hruns : runs m = 2 * halfRuns m := rfl
-    have hnot : (univ.filter fun j : Fin (runs m) => ω j ∉ G₀) =
-        univ.filter fun j : Fin (runs m) => P (ω j) = true := by
-      ext j
-      simp [hG₀]
-    rw [hnot] at hpart
-    omega
+      univ.filter fun ω : Seed m => (univ.filter fun j => ω j ∈ G₀).card ≤ halfRuns m :=
+    fun ω hω => mem_filter.2 ⟨mem_univ ω, by
+      have hω' : halfRuns m < (univ.filter fun j : Fin (runs m) => P (ω j) = true).card :=
+        (mem_filter.1 hω).2
+      have hpart := Finset.card_filter_add_card_filter_not
+        (s := (univ : Finset (Fin (runs m)))) (fun j => ω j ∈ G₀)
+      have hruns : runs m = 2 * halfRuns m := rfl
+      have hnot : (univ.filter fun j : Fin (runs m) => ω j ∉ G₀) =
+          univ.filter fun j : Fin (runs m) => P (ω j) = true := by
+        ext j
+        simp [hG₀]
+      rw [Finset.card_univ, Fintype.card_fin, hnot] at hpart
+      omega⟩
   have hS : 9 ^ halfRuns m * #S ≤ 8 ^ halfRuns m * Fintype.card (Seed m) :=
     (Nat.mul_le_mul_left _ (card_le_card hsub)).trans (nine_pow_mul_card_filter_le hP)
   have hlt : shifts m * #S < Fintype.card (Seed m) := by
@@ -353,19 +343,10 @@ def verifier (enc : α ↪ List Bool) (p : Polynomial ℕ) (V : α × List Bool 
 theorem verifier_polyTime {enc : α ↪ List Bool} {p : Polynomial ℕ} {V : α × List Bool → Bool}
     (hV : ComputableInPolyTime V (encPair enc encBits) encBool) :
     ComputableInPolyTime (verifier enc p V) (encPair enc encBits) encBool := by
-  unfold verifier
-  apply ComputableInPolyTime.anyWithInput (encA := encUnary)
-  · unfold shifts runs halfRuns
-    fun_prop
-  · unfold shiftAccepts
-    apply ComputableInPolyTime.unary_lt'
-    · unfold halfRuns
-      fun_prop
-    · apply ComputableInPolyTime.countPWithInput (encA := encUnary)
-      · unfold runs halfRuns
-        fun_prop
-      · unfold trialSeed shifts runs halfRuns
-        fun_prop
+  unfold verifier shiftAccepts trialSeed shifts runs halfRuns
+  exact ComputableInPolyTime.anyWithInput (encA := encUnary) (by fun_prop)
+    (ComputableInPolyTime.unary_lt' (by fun_prop)
+      (ComputableInPolyTime.countPWithInput (encA := encUnary) (by fun_prop) (by fun_prop)))
 
 /-! ### Correctness of the matrix verifier -/
 
@@ -424,11 +405,8 @@ theorem verifier_append_iff {enc : α ↪ List Bool} {p : Polynomial ℕ}
           (listToSeed (p.eval (enc a).length) r + listToShifts (p.eval (enc a).length) u i) := by
   unfold verifier
   simp only [List.any_eq_true, List.mem_range]
-  constructor
-  · rintro ⟨i, hi, hacc⟩
-    exact ⟨⟨i, hi⟩, (shiftAccepts_append_iff hu ⟨i, hi⟩).1 hacc⟩
-  · rintro ⟨i, hacc⟩
-    exact ⟨i.1, i.2, (shiftAccepts_append_iff hu i).2 hacc⟩
+  exact ⟨fun ⟨i, hi, h⟩ => ⟨⟨i, hi⟩, (shiftAccepts_append_iff hu ⟨i, hi⟩).1 h⟩,
+    fun ⟨i, h⟩ => ⟨i.1, i.2, (shiftAccepts_append_iff hu i).2 h⟩⟩
 
 /-- On an input where at least two thirds of the trial seeds accept, the Sipser–Lautemann
 quantified-word verifier accepts. This only assumes the probability bound at this input;
@@ -459,9 +437,8 @@ theorem not_alternation_verifier_of_rejects {enc : α ↪ List Bool} {p : Polyno
     alternation_true_cons, alternation_false_cons, alternation_nil, List.append_nil]
   rintro ⟨u, hu, hforall⟩
   obtain ⟨ω, hω⟩ := exists_seed_not_majorityAccepts ha (listToShifts _ u)
-  have hacc := hforall (seedToList ω) (length_seedToList ω)
-  rw [verifier_append_iff hu, listToSeed_seedToList] at hacc
-  obtain ⟨i, hi⟩ := hacc
+  obtain ⟨i, hi⟩ := (verifier_append_iff hu).1 (hforall (seedToList ω) (length_seedToList ω))
+  rw [listToSeed_seedToList] at hi
   exact hω i hi
 
 /-- If `V` decides `A` with bounded error using seed polynomial `p`, then `verifier enc p V` is a
@@ -469,13 +446,9 @@ valid `Σ₂` alternating verifier for `A` with quantifier block lengths
 `[witnessPoly p, seedPoly p]`. -/
 theorem isAlternatingVerifier_verifier {enc : α ↪ List Bool} {p : Polynomial ℕ}
     {V : α × List Bool → Bool} {A : Set α} (hA : DecidesWithBoundedError enc p V A) :
-    IsAlternatingVerifier enc true [witnessPoly p, seedPoly p] (verifier enc p V) A := by
-  intro a
-  constructor
-  · exact fun ha => alternation_verifier_of_accepts ((hA a).1 ha)
-  · intro hacc
-    by_contra hna
-    exact not_alternation_verifier_of_rejects ((hA a).2 hna) hacc
+    IsAlternatingVerifier enc true [witnessPoly p, seedPoly p] (verifier enc p V) A :=
+  fun a => ⟨fun ha => alternation_verifier_of_accepts ((hA a).1 ha),
+    fun hacc => by_contra fun hna => not_alternation_verifier_of_rejects ((hA a).2 hna) hacc⟩
 
 end SipserLautemann
 

@@ -12,6 +12,7 @@ public import CslibFrontier.Tactic.PositivityLemma
 public import Mathlib.Algebra.BigOperators.Expect
 public import Mathlib.Analysis.InnerProductSpace.PiL2
 public import Mathlib.Data.Fintype.Prod
+import CslibFrontier.Foundations.Data.Finset.Expect
 import Mathlib.Algebra.Order.BigOperators.Expect
 
 /-!
@@ -504,10 +505,7 @@ theorem spectralExpansion_eq_ciSup :
     fun f hf ↦ ?_
   rcases eq_or_ne f 0 with rfl | hf0
   · simp
-  obtain ⟨v, hv⟩ := Function.ne_iff.1 hf0
-  have hpos : 0 < 𝔼 w, f w ^ 2 :=
-    expect_pos' (fun _ _ ↦ sq_nonneg _) ⟨v, mem_univ v, sq_pos_iff.2 hv⟩
-  rw [← div_le_iff₀ hpos]
+  rw [← div_le_iff₀ (Fintype.expect_sq_pos hf0)]
   exact le_ciSup ⟨G.spectralExpansion, Set.forall_mem_range.2 hle⟩ ⟨f, hf, hf0⟩
 
 /-- The spectral expansion is at most one. -/

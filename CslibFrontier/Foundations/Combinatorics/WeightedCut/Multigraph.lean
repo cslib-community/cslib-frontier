@@ -47,9 +47,7 @@ def weightMatrix (u v : V) : ℕ :=
 /-- The weight matrix of a multigraph is symmetric with zero diagonal. -/
 theorem isMultigraph_weightMatrix : WeightedCut.IsMultigraph (weightMatrix ends) := by
   refine ⟨fun u v => ?_, fun u => by simp [weightMatrix]⟩
-  by_cases h : u = v
-  · rw [h]
-  · simp only [weightMatrix, h, Ne.symm h, ↓reduceIte, Sym2.eq_swap]
+  simp only [weightMatrix, @eq_comm _ u v, Sym2.eq_swap]
 
 variable [Fintype V]
 
@@ -63,11 +61,8 @@ theorem cutWeight_weightMatrix (S : Finset V) :
     ext e
     simp only [mem_edgeCut, mem_biUnion, mem_product, mem_filter, mem_univ, true_and,
       Prod.exists]
-    constructor
-    · rintro ⟨v, hv, w, hw, h⟩
-      exact ⟨v, w, ⟨hv, hw⟩, h⟩
-    · rintro ⟨v, w, ⟨hv, hw⟩, h⟩
-      exact ⟨v, hv, w, hw, h⟩
+    exact ⟨fun ⟨v, hv, w, hw, h⟩ => ⟨v, w, ⟨hv, hw⟩, h⟩,
+      fun ⟨v, w, ⟨hv, hw⟩, h⟩ => ⟨v, hv, w, hw, h⟩⟩
   rw [hcut, card_biUnion, WeightedCut.cutWeight, ← compl_eq_univ_sdiff, sum_product]
   · refine sum_congr rfl fun u hu => sum_congr rfl fun v hv => ?_
     have huv : u ≠ v := fun h => mem_compl.1 hv (h ▸ hu)

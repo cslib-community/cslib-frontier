@@ -150,16 +150,11 @@ theorem width_step {n : ℕ} {F : System} (hF : Width (n + 1) F) : Width n (step
   unfold clear
   split
   · rename_i h
-    have hp : ∃ p, F.find? (fun r => r.coeffs.headD false) = some p := by
-      cases hp : F.find? (fun r => r.coeffs.headD false) with
-      | some p => exact ⟨p, rfl⟩
-      | none =>
-        have hh := List.find?_eq_none.mp hp r hr
-        simp_all
-    obtain ⟨p, hp⟩ := hp
-    simp only [hp, Option.getD_some, List.length_zipWith, List.length_tail]
-    rw [hF r hr, hF p (List.mem_of_find?_eq_some hp)]
-    simp
+    cases hp : F.find? (fun r => r.coeffs.headD false) with
+    | none => exact absurd h (List.find?_eq_none.mp hp r hr)
+    | some p =>
+      simp only [Option.getD_some, List.length_zipWith, List.length_tail,
+        hF r hr, hF p (List.mem_of_find?_eq_some hp), min_self, Nat.add_sub_cancel]
   · simp only [List.length_tail, hF r hr, Nat.add_sub_cancel]
 
 /-- One elimination column preserves existence of a solution. -/
@@ -284,14 +279,11 @@ theorem computableInPolyTime_decide : ComputableInPolyTime decide encInput encBo
     .iterate_of_bounded_growth (by fun_prop) (by fun_prop)
       step_polyTime (growth := 0) (fun F => by simpa using length_step_le F)
   unfold decide
-  have hwidth : ComputableInPolyTime
+  exact (by fun_prop : ComputableInPolyTime
       (fun q : Input => q.rows.all (fun e => Decidable.decide (e.coeffs.length = q.width)))
-      encInput encBool := by
-    fun_prop
-  have hend : ComputableInPolyTime (fun F : System => F.all (fun e => !e.rhs))
-      encSystem encBool := by
-    fun_prop
-  exact hwidth.bool_and' (hend.comp hloop)
+      encInput encBool).bool_and'
+    ((by fun_prop : ComputableInPolyTime (fun F : System => F.all (fun e => !e.rhs))
+      encSystem encBool).comp hloop)
 
 /-- Dense XOR-SAT is in the native Turing-machine class `P`. -/
 theorem satisfiable_mem_P :

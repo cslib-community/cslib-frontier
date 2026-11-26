@@ -58,13 +58,7 @@ theorem linearCombAddHom_surjective [Field F] {d : ι → F} {i₀ : ι} (hd : d
   classical
   intro v
   refine ⟨Pi.single i₀ (v * (d i₀)⁻¹), ?_⟩
-  simp only [linearCombAddHom_apply]
-  rw [Finset.sum_eq_single i₀]
-  · simp [inv_mul_cancel_right₀ hd]
-  · intro j _ hj
-    simp [Pi.single_eq_of_ne hj]
-  · intro h
-    exact (h (Finset.mem_univ i₀)).elim
+  simp [Pi.single_apply, inv_mul_cancel_right₀ hd]
 
 /-- **Uniformity of a random linear combination**: if `d i₀ ≠ 0`, then for a uniformly random vector
 `r : ι → F` over a finite field, `∑ i, r i * d i` is uniformly distributed on `F`. -/

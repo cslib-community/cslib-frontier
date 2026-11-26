@@ -212,10 +212,8 @@ section Branch
 private theorem card_coinOutcome_some_true (k g₀ g₁ : ℕ) :
     Nat.card {i : Fin (2 ^ k) // coinOutcome g₀ g₁ i.val = some true} = min (2 ^ k) g₁ := by
   rw [Nat.card_eq_fintype_card, Fintype.card_subtype, ← Fin.card_filter_val_lt]
-  congr 1
-  ext i
-  rw [Finset.mem_filter, Finset.mem_filter]
-  unfold coinOutcome
+  refine congrArg Finset.card (Finset.ext fun i => ?_)
+  rw [Finset.mem_filter, Finset.mem_filter, coinOutcome]
   split_ifs <;> simp_all
 
 private theorem card_coinOutcome_some_false (k g₀ g₁ : ℕ) :
@@ -230,10 +228,8 @@ private theorem card_coinOutcome_some_false (k g₀ g₁ : ℕ) :
     unfold coinOutcome
     split_ifs <;> simp_all <;> omega
   have hdisj : Disjoint (Finset.univ.filter fun i : Fin (2 ^ k) => i.val < g₁)
-      (Finset.univ.filter fun i : Fin (2 ^ k) => coinOutcome g₀ g₁ i.val = some false) := by
-    rw [Finset.disjoint_filter]
-    intro i _ h
-    simp [coinOutcome, h]
+      (Finset.univ.filter fun i : Fin (2 ^ k) => coinOutcome g₀ g₁ i.val = some false) :=
+    Finset.disjoint_filter.2 fun i _ h => by simp [coinOutcome, h]
   have hcard := Finset.card_union_of_disjoint hdisj
   rw [← hsplit, Fin.card_filter_val_lt, Fin.card_filter_val_lt] at hcard
   omega
@@ -250,18 +246,16 @@ theorem eval_branch_le (k g₀ g₁ : ℕ) (c : Bool) :
     ProbComp.eval (branch k g₀ g₁) (some c) ≤ ((cond c g₁ g₀ : ℕ) : ENNReal) / (2 ^ k : ℕ) := by
   rw [eval_branch_apply]
   gcongr
-  cases c
-  · rw [card_coinOutcome_some_false]; simp only [Bool.cond_false]; omega
-  · rw [card_coinOutcome_some_true]; exact min_le_right _ _
+  cases c <;> simp only [card_coinOutcome_some_false, card_coinOutcome_some_true, Bool.cond_false,
+    Bool.cond_true] <;> omega
 
 /-- When `g₀ + g₁ ≤ 2 ᵏ` the branching coin picks `c` with probability exactly `g_c / 2 ᵏ`. -/
 theorem eval_branch_eq {k g₀ g₁ : ℕ} (h : g₀ + g₁ ≤ 2 ^ k) (c : Bool) :
     ProbComp.eval (branch k g₀ g₁) (some c) = ((cond c g₁ g₀ : ℕ) : ENNReal) / (2 ^ k : ℕ) := by
   rw [eval_branch_apply]
   congr 2
-  cases c
-  · rw [card_coinOutcome_some_false]; simp only [Bool.cond_false]; omega
-  · rw [card_coinOutcome_some_true]; simp only [Bool.cond_true]; omega
+  cases c <;> simp only [card_coinOutcome_some_false, card_coinOutcome_some_true, Bool.cond_false,
+    Bool.cond_true] <;> omega
 
 end Branch
 
@@ -271,10 +265,8 @@ section Choose
 
 private theorem natCast_div_div_le (u D K : ℕ) :
     (((u * K / D : ℕ) : ℝ) / (K : ℝ)) ≤ (u : ℝ) / D := by
-  rcases Nat.eq_zero_or_pos K with hK | hK
-  · subst hK
-    simp only [Nat.cast_zero, div_zero]
-    positivity
+  rcases Nat.eq_zero_or_pos K with rfl | hK
+  · simpa using div_nonneg (Nat.cast_nonneg u) (Nat.cast_nonneg D)
   have hK' : (0 : ℝ) < K := by exact_mod_cast hK
   rw [div_le_iff₀ hK']
   calc ((u * K / D : ℕ) : ℝ) ≤ ((u * K : ℕ) : ℝ) / D := Nat.cast_div_le
@@ -289,30 +281,27 @@ private theorem le_natCast_div_div {u D s x : ℕ} (hD : 0 < D) (hs : D < 2 ^ s)
   have hD' : (0 : ℝ) < D := by exact_mod_cast hD
   have hpos : (0 : ℝ) < ((2 ^ (s + x) : ℕ) : ℝ) := by positivity
   rw [le_div_iff₀ hpos]
-  have hN' : (N : ℝ) = u * 2 ^ s * 2 ^ x := by rw [← hN]; push_cast; ring
-  have hlt : (N : ℝ) < D * ((N / D : ℕ) : ℝ) + D := by
-    have : N < D * (N / D) + D := by omega
-    exact_mod_cast this
-  have hs' : (D : ℝ) + 1 ≤ 2 ^ s := by exact_mod_cast hs
-  have hu' : (1 : ℝ) ≤ u := by exact_mod_cast hu
-  have hx : (0 : ℝ) < 2 ^ x := by positivity
-  have hcast : (((2 ^ (s + x) : ℕ) : ℝ)) = 2 ^ s * 2 ^ x := by push_cast; ring
+  have hlt : (N : ℝ) < D * ((N / D : ℕ) : ℝ) + D :=
+    mod_cast (show N < D * (N / D) + D by omega)
+  have hDu : (D : ℝ) ≤ u * 2 ^ s :=
+    (le_of_lt (by exact_mod_cast hs)).trans
+      (le_mul_of_one_le_left (by positivity) (Nat.one_le_cast.2 hu))
   have key : (1 - (1 / 2 : ℝ) ^ x) * ((u : ℝ) / D) * ((2 ^ (s + x) : ℕ) : ℝ) =
       ((N : ℝ) - u * 2 ^ s) / D := by
-    rw [hcast, hN', one_div_pow]
+    rw [← hN, pow_add, one_div_pow]
+    push_cast
     field_simp
   rw [key, div_le_iff₀ hD']
-  nlinarith
+  linarith only [hlt, mul_comm (D : ℝ) ((N / D : ℕ) : ℝ), hDu]
 
 /-- The choice at a node picks the child `c` with probability at most `weight c / total`. -/
 theorem eval_choose_le (m extra : ℕ) (e e₀ e₁ : ℕ × ℕ) (c : Bool) :
     ProbComp.eval (choose m extra e e₀ e₁) (some c) ≤
       ENNReal.ofReal ((weight m e e₀ e₁ c : ℝ) / total m e e₀ e₁) := by
   refine (eval_branch_le _ _ _ c).trans ?_
-  have hK : (0 : ℝ) < ((2 ^ coinWidth m extra e e₀ e₁ : ℕ) : ℝ) := by positivity
-  rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_div_of_pos hK]
-  refine ENNReal.ofReal_le_ofReal ?_
-  cases c <;> exact natCast_div_div_le _ _ _
+  rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_natCast,
+    ← ENNReal.ofReal_div_of_pos (by positivity)]
+  cases c <;> exact ENNReal.ofReal_le_ofReal (natCast_div_div_le _ _ _)
 
 /-- When the weights fit (`weight false + weight true ≤ total`), the choice at a node picks a child
 `c` of positive weight with probability at least `(1 - 2 ^ (-extra)) weight c / total`. -/
@@ -331,11 +320,9 @@ theorem le_eval_choose {m extra : ℕ} {e e₀ e₁ : ℕ × ℕ}
     rw [← add_mul]
     exact (Nat.div_le_div_right (Nat.mul_le_mul_right _ hfit)).trans
       (Nat.mul_div_cancel_left _ hD).le
-  rw [choose, eval_branch_eq hsum]
-  have hK : (0 : ℝ) < ((2 ^ coinWidth m extra e e₀ e₁ : ℕ) : ℝ) := by positivity
-  rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_div_of_pos hK]
-  refine ENNReal.ofReal_le_ofReal ?_
-  cases c <;> exact le_natCast_div_div hD (Nat.lt_size_self _) hc
+  rw [choose, eval_branch_eq hsum, ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_natCast,
+    ← ENNReal.ofReal_div_of_pos (by positivity)]
+  cases c <;> exact ENNReal.ofReal_le_ofReal (le_natCast_div_div hD (Nat.lt_size_self _) hc)
 
 end Choose
 
@@ -350,30 +337,22 @@ private theorem eval_map_cons_some_cons (μ : PMF (Option (List Bool))) (b c : B
   · subst h
     exact Probability.PMF.map_apply_of_injective μ
       (Option.map_injective (List.cons_injective)) (some v)
-  · have h' : c ≠ b := Ne.symm h
-    rw [PMF.map_apply]
-    refine tsum_eq_zero_iff.2 fun o => ?_
-    cases o <;> simp [h']
+  · rw [PMF.map_apply]
+    exact tsum_eq_zero_iff.2 fun o => by cases o <;> simp [Ne.symm h]
 
 private theorem eval_bind_descend_some_cons (μ : PMF (Option Bool))
     (next : Bool → ProbComp (Option (List Bool))) (c : Bool) (v : List Bool) :
     (μ.bind fun o => ProbComp.eval (descend next o)) (some (c :: v)) =
       μ (some c) * ProbComp.eval (next c) (some v) := by
   rw [PMF.bind_apply, tsum_fintype, Fintype.sum_option, Fintype.sum_bool]
-  simp only [descend, ProbComp.eval_pure, ProbComp.eval_map, PMF.pure_apply, reduceCtorEq,
-    ite_false, mul_zero, zero_add, eval_map_cons_some_cons]
-  cases c <;> simp
+  cases c <;> simp only [descend, ProbComp.eval_pure, ProbComp.eval_map, PMF.pure_apply,
+    reduceCtorEq, eval_map_cons_some_cons, ↓reduceIte, mul_zero, zero_add, add_zero]
 
 private theorem eval_bind_descend_some_nil (μ : PMF (Option Bool))
     (next : Bool → ProbComp (Option (List Bool))) :
     (μ.bind fun o => ProbComp.eval (descend next o)) (some []) = 0 := by
   rw [PMF.bind_apply]
-  refine tsum_eq_zero_iff.2 fun o => ?_
-  cases o with
-  | none => simp [descend]
-  | some c =>
-    rw [descend, ProbComp.eval_map, PMF.map_apply]
-    simp
+  exact tsum_eq_zero_iff.2 fun o => by cases o <;> simp [descend, ProbComp.eval_map]
 
 /-- One level of a walk: estimate both children, run the branching coin, and descend. -/
 theorem eval_walk_succ (R : SelfReducible enc W) (A : α → ℕ → ℕ → ProbComp (ℕ × ℕ))
@@ -398,10 +377,7 @@ theorem eval_walk_eq_zero (R : SelfReducible enc W) (A : α → ℕ → ℕ → 
     (p t m extra : ℕ) :
     ∀ n y, R.len y = n → ∀ e v, v ∉ W y → ProbComp.eval (R.walk A p t m extra n y e) (some v) = 0
   | 0, y, _, e, v, hv => by
-    rw [eval_walk_zero]
-    split_ifs with h
-    · exact absurd (h.1 ▸ h.2) hv
-    · rfl
+    rw [eval_walk_zero, ite_eq_right fun h : v = [] ∧ [] ∈ W y => hv (h.1 ▸ h.2)]
   | n + 1, y, hy, e, v, hv => by
     have hpos : 0 < R.len y := by omega
     rw [eval_walk_succ]
@@ -429,13 +405,11 @@ noncomputable def invEstimate (e : ℕ × ℕ) : ℝ := (e.2 : ℝ) / e.1
 
 /-- The level factor is nonnegative. -/
 theorem levelFactor_nonneg (m : ℕ) : 0 ≤ levelFactor m := by
-  unfold levelFactor
-  positivity
+  exact div_nonneg (Nat.cast_nonneg _) (Nat.cast_nonneg _)
 
 /-- The inverse of an estimate is nonnegative. -/
 theorem invEstimate_nonneg (e : ℕ × ℕ) : 0 ≤ invEstimate e := by
-  unfold invEstimate
-  positivity
+  exact div_nonneg (Nat.cast_nonneg _) (Nat.cast_nonneg _)
 
 private theorem ratio_eq {M' M a b ac bc bc' : ℝ} (hac : ac ≠ 0) (hbc : bc ≠ 0)
     (hbc' : bc' ≠ 0) :
@@ -449,23 +423,16 @@ private theorem ratio_eq {M' M a b ac bc bc' : ℝ} (hac : ac ≠ 0) (hbc : bc �
 private theorem ratio_le {M' M a b ac bc bc' : ℝ} (hM' : 0 ≤ M') (hM : 0 ≤ M) (ha : 0 ≤ a)
     (hb : 0 ≤ b) :
     M' * ac * bc' * b / (M * a * bc * bc') * (bc / ac) ≤ M' / M * (b / a) := by
-  by_cases hac : ac = 0
-  · simp only [hac, mul_zero, zero_mul, zero_div, div_zero]
-    positivity
-  by_cases hbc : bc = 0
-  · simp only [hbc, mul_zero, zero_div]
-    positivity
-  by_cases hbc' : bc' = 0
-  · simp only [hbc', mul_zero, zero_mul, div_zero]
-    positivity
-  exact (ratio_eq hac hbc hbc').le
+  by_cases h : ac = 0 ∨ bc = 0 ∨ bc' = 0
+  · rcases h with rfl | rfl | rfl <;> simp only [mul_zero, zero_mul, zero_div, div_zero]
+    all_goals positivity
+  · push Not at h
+    exact (ratio_eq h.1 h.2.1 h.2.2).le
 
 private theorem total_cast (m : ℕ) (e e₀ e₁ : ℕ × ℕ) (c : Bool) :
     (total m e e₀ e₁ : ℝ) = (m : ℝ) * e.1 * (cond c e₁ e₀).2 * (cond c e₀ e₁).2 := by
-  cases c
-  · simp only [total, Bool.cond_false, Nat.cast_mul]
-  · simp only [total, Bool.cond_true, Nat.cast_mul]
-    ring
+  cases c <;> simp only [total, Bool.cond_false, Bool.cond_true, Nat.cast_mul]
+  ring
 
 /-- Choosing a child and continuing with its inverse estimate loses at most the level factor. -/
 theorem weight_div_total_mul_le (m : ℕ) (e e₀ e₁ : ℕ × ℕ) (c : Bool) :
@@ -496,10 +463,7 @@ theorem eval_walk_le (R : SelfReducible enc W) (A : α → ℕ → ℕ → ProbC
   | 0, y, hy, e, he, v => by
     rw [eval_walk_zero]
     split_ifs with h
-    · have he' := he hy
-      simp only [nodeEstimate, hy, h.2, ↓reduceIte, ProbComp.eval_pure, PMF.support_pure,
-        Set.mem_singleton_iff] at he'
-      subst he'
+    · obtain rfl : e = (1, 1) := by simpa [nodeEstimate, hy, h.2] using he hy
       simp [invEstimate]
     · exact zero_le
   | n + 1, y, hy, e, _, v => by
@@ -508,19 +472,12 @@ theorem eval_walk_le (R : SelfReducible enc W) (A : α → ℕ → ℕ → ProbC
     refine Probability.PMF.bind_apply_le_on_support _ fun e₀ he₀ => ?_
     refine Probability.PMF.bind_apply_le_on_support _ fun e₁ he₁ => ?_
     cases v with
-    | nil =>
-      rw [eval_bind_descend_some_nil]
-      exact zero_le
+    | nil => exact (eval_bind_descend_some_nil _ _).trans_le zero_le
     | cons c w =>
       rw [eval_bind_descend_some_cons]
       have hlen : R.len (R.child y c) = n := by rw [R.len_child y hpos]; omega
-      have hsupp : R.len (R.child y c) = 0 →
-          cond c e₁ e₀ ∈ (ProbComp.eval (R.nodeEstimate A p t (R.child y c))).support := by
-        intro _
-        cases c
-        · exact he₀
-        · exact he₁
-      have hw := eval_walk_le R A p t m extra n _ hlen _ hsupp w
+      have hw := eval_walk_le R A p t m extra n _ hlen (cond c e₁ e₀)
+        (fun _ => by cases c; exacts [he₀, he₁]) w
       calc ProbComp.eval (choose m extra e e₀ e₁) (some c) *
             ProbComp.eval (R.walk A p t m extra n (R.child y c) (cond c e₁ e₀)) (some w)
           ≤ ENNReal.ofReal ((weight m e e₀ e₁ c : ℝ) / total m e e₀ e₁) *
@@ -531,15 +488,9 @@ theorem eval_walk_le (R : SelfReducible enc W) (A : α → ℕ → ℕ → ProbC
             (ENNReal.ofReal_mul (by positivity)).symm
         _ ≤ ENNReal.ofReal (levelFactor m ^ (n + 1) * invEstimate e) := by
             refine ENNReal.ofReal_le_ofReal ?_
-            have h1 := weight_div_total_mul_le m e e₀ e₁ c
-            have h2 : 0 ≤ levelFactor m ^ n := pow_nonneg (levelFactor_nonneg m) n
-            calc (weight m e e₀ e₁ c : ℝ) / total m e e₀ e₁ *
-                  (levelFactor m ^ n * invEstimate (cond c e₁ e₀))
-                = levelFactor m ^ n * ((weight m e e₀ e₁ c : ℝ) / total m e e₀ e₁ *
-                    invEstimate (cond c e₁ e₀)) := by ring
-              _ ≤ levelFactor m ^ n * (levelFactor m * invEstimate e) :=
-                  mul_le_mul_of_nonneg_left h1 h2
-              _ = levelFactor m ^ (n + 1) * invEstimate e := by ring
+            rw [mul_left_comm, pow_succ, mul_assoc]
+            exact mul_le_mul_of_nonneg_left (weight_div_total_mul_le m e e₀ e₁ c)
+              (pow_nonneg (levelFactor_nonneg m) n)
 
 /-- The counter `A` is **accurate** for relative error `1 / p` and confidence `t` when, on every
 instance `y`, its estimate of `|W y|` is within relative error `1 / p` with probability at least
@@ -564,53 +515,33 @@ theorem nodeEstimate_good (R : SelfReducible enc W) {A : α → ℕ → ℕ → 
         {e | R.GoodEstimate p y e}).toReal := by
   by_cases hy : R.len y = 0
   · have hgood : R.GoodEstimate p y (if [] ∈ W y then 1 else 0, 1) := by
-      rcases Finset.subset_singleton_iff.1 (R.subset_singleton_nil hy) with h | h
-      · simp [GoodEstimate, ApproxWithin, h]
-      · simp [GoodEstimate, ApproxWithin, h]
-    have hone : (ProbComp.eval (R.nodeEstimate A p t y)).toOuterMeasure
-        {e | R.GoodEstimate p y e} = 1 := by
-      simp only [nodeEstimate, hy, ↓reduceIte, ProbComp.eval_pure, PMF.toOuterMeasure_pure_apply,
-        Set.mem_ofPred_eq, hgood]
-    rw [hone, ENNReal.toReal_one]
-    have : (0 : ℝ) ≤ (1 / 2) ^ t := by positivity
-    linarith
-  · have hset : {e | R.GoodEstimate p y e} = {out | ApproxWithin (W y).card p out.1 out.2} := by
-      ext e
-      simp only [GoodEstimate, Set.mem_ofPred_eq, hy, IsEmpty.forall_iff, and_true]
-    simp only [nodeEstimate, hy, ↓reduceIte, hset]
-    exact hA y
+      rcases Finset.subset_singleton_iff.1 (R.subset_singleton_nil hy) with h | h <;>
+        simp [GoodEstimate, ApproxWithin, h]
+    simp only [nodeEstimate, hy, ↓reduceIte, ProbComp.eval_pure, PMF.toOuterMeasure_pure_apply,
+      Set.mem_ofPred_eq, hgood, ENNReal.toReal_one]
+    exact sub_le_self _ (by positivity)
+  · simpa only [nodeEstimate, hy, ↓reduceIte, GoodEstimate, IsEmpty.forall_iff, and_true] using
+      hA y
 
 private theorem lower_of_approx {c p num den : ℕ} (h : ApproxWithin c p num den) :
     (c : ℝ) * (1 - 1 / p) * den ≤ num := by
-  obtain ⟨hden, habs⟩ := h
-  have hden' : (0 : ℝ) < den := by exact_mod_cast hden
-  have h1 := (abs_le.1 habs).1
-  have h2 : (c : ℝ) * (1 - 1 / p) ≤ (num : ℝ) / den := by
-    have : (c : ℝ) * (1 - 1 / p) = c - c / p := by ring
-    linarith
-  exact (le_div_iff₀ hden').1 h2
+  rw [← le_div_iff₀ (by exact_mod_cast h.1), mul_sub, mul_one, mul_one_div]
+  linarith only [(abs_le.1 h.2).1]
 
 private theorem upper_of_approx {c p num den : ℕ} (h : ApproxWithin c p num den) :
     (num : ℝ) ≤ (c : ℝ) * (1 + 1 / p) * den := by
-  obtain ⟨hden, habs⟩ := h
-  have hden' : (0 : ℝ) < den := by exact_mod_cast hden
-  have h1 := (abs_le.1 habs).2
-  have h2 : (num : ℝ) / den ≤ (c : ℝ) * (1 + 1 / p) := by
-    have : (c : ℝ) * (1 + 1 / p) = c + c / p := by ring
-    linarith
-  exact (div_le_iff₀ hden').1 h2
+  rw [← div_le_iff₀ (by exact_mod_cast h.1), mul_add, mul_one, mul_one_div]
+  linarith only [(abs_le.1 h.2).2]
 
 private theorem pos_of_approx {c p num den : ℕ} (h : ApproxWithin c p num den) (hc : 1 ≤ c)
     (hp : 2 ≤ p) : 0 < num := by
-  have hl := lower_of_approx h
-  have hden' : (1 : ℝ) ≤ den := by exact_mod_cast h.1
-  have hc' : (1 : ℝ) ≤ c := by exact_mod_cast hc
-  have hp' : (2 : ℝ) ≤ p := by exact_mod_cast hp
-  have hinv : (1 : ℝ) / p ≤ 1 / 2 := one_div_le_one_div_of_le (by norm_num) hp'
-  have h3 : (1 : ℝ) / 2 ≤ c * (1 - 1 / p) := by nlinarith
-  have h4 : (1 : ℝ) / 2 ≤ c * (1 - 1 / p) * den := by nlinarith
-  have : (0 : ℝ) < num := by linarith
-  exact_mod_cast this
+  have hinv : (1 : ℝ) / p ≤ 1 / 2 :=
+    one_div_le_one_div_of_le (by norm_num) (by exact_mod_cast hp)
+  have h3 : (1 : ℝ) / 2 ≤ c * (1 - 1 / p) :=
+    (by linarith only [hinv] : (1 : ℝ) / 2 ≤ 1 - 1 / p).trans
+      (le_mul_of_one_le_left (by linarith only [hinv]) (Nat.one_le_cast.2 hc))
+  have h4 := h3.trans (le_mul_of_one_le_right (by positivity) (Nat.one_le_cast.2 h.1))
+  exact_mod_cast lt_of_lt_of_le (by norm_num : (0 : ℝ) < 1 / 2) (h4.trans (lower_of_approx h))
 
 private theorem fit_of_approx {m p N N₀ N₁ : ℕ} {e e₀ e₁ : ℕ × ℕ} (hm : 1 ≤ m)
     (hp : 2 * m - 1 ≤ p) (hN : N = N₀ + N₁) (he : ApproxWithin N p e.1 e.2)
@@ -621,50 +552,32 @@ private theorem fit_of_approx {m p N N₀ N₁ : ℕ} {e e₀ e₁ : ℕ × ℕ}
   have hu₁ := upper_of_approx he₁
   have hM : ((m - 1 : ℕ) : ℝ) = m - 1 := by rw [Nat.cast_sub hm, Nat.cast_one]
   have hp' : (0 : ℝ) < p := by exact_mod_cast (show 0 < p by omega)
-  have hpm : 2 * (m : ℝ) - 1 ≤ p := by
-    have h' : ((2 * m - 1 : ℕ) : ℝ) ≤ p := by exact_mod_cast hp
-    have h'' : ((2 * m - 1 : ℕ) : ℝ) = 2 * m - 1 := by
-      rw [Nat.cast_sub (by omega)]
-      push_cast
-      ring
-    linarith
-  have hpr : (p : ℝ) * (1 / p) = 1 := by field_simp
-  have hr0 : (0 : ℝ) ≤ 1 / p := by positivity
-  have hkey : ((m : ℝ) - 1) * (1 + 1 / p) ≤ m * (1 - 1 / p) := by nlinarith
-  have hb : (0 : ℝ) ≤ e.2 := by positivity
-  have hb₀ : (0 : ℝ) ≤ e₀.2 := by positivity
-  have hb₁ : (0 : ℝ) ≤ e₁.2 := by positivity
+  have hpm : 2 * (m : ℝ) ≤ p + 1 := by exact_mod_cast (show 2 * m ≤ p + 1 by omega)
+  have hdiv : (2 * (m : ℝ) - 1) / p ≤ 1 := (div_le_one hp').2 (by linarith only [hpm])
+  have hkey : ((m : ℝ) - 1) * (1 + 1 / p) ≤ m * (1 - 1 / p) :=
+    sub_nonneg.1 ((sub_nonneg.2 hdiv).trans_eq (by ring))
   have hN' : (N : ℝ) = N₀ + N₁ := by exact_mod_cast hN
-  have hm1 : (0 : ℝ) ≤ m - 1 := by
-    have : (1 : ℝ) ≤ m := by exact_mod_cast hm
-    linarith
-  have goal : ((m : ℝ) - 1) * e₀.1 * e₁.2 * e.2 + ((m : ℝ) - 1) * e₁.1 * e₀.2 * e.2 ≤
-      (m : ℝ) * e.1 * e₀.2 * e₁.2 := by
-    calc ((m : ℝ) - 1) * e₀.1 * e₁.2 * e.2 + ((m : ℝ) - 1) * e₁.1 * e₀.2 * e.2
-        = ((m : ℝ) - 1) * e.2 * (e₀.1 * e₁.2 + e₁.1 * e₀.2) := by ring
-      _ ≤ ((m : ℝ) - 1) * e.2 *
-            (N₀ * (1 + 1 / p) * e₀.2 * e₁.2 + N₁ * (1 + 1 / p) * e₁.2 * e₀.2) :=
-          mul_le_mul_of_nonneg_left (add_le_add (mul_le_mul_of_nonneg_right hu₀ hb₁)
-            (mul_le_mul_of_nonneg_right hu₁ hb₀)) (mul_nonneg hm1 hb)
-      _ = ((m : ℝ) - 1) * (1 + 1 / p) * (N * e.2 * e₀.2 * e₁.2) := by rw [hN']; ring
-      _ ≤ m * (1 - 1 / p) * (N * e.2 * e₀.2 * e₁.2) :=
-          mul_le_mul_of_nonneg_right hkey (by positivity)
-      _ = m * e₀.2 * e₁.2 * (N * (1 - 1 / p) * e.2) := by ring
-      _ ≤ m * e₀.2 * e₁.2 * e.1 := mul_le_mul_of_nonneg_left hl (by positivity)
-      _ = (m : ℝ) * e.1 * e₀.2 * e₁.2 := by ring
-  have : ((weight m e e₀ e₁ false + weight m e e₀ e₁ true : ℕ) : ℝ) ≤ (total m e e₀ e₁ : ℕ) := by
-    simp only [weight, total, Bool.cond_false, Bool.cond_true, Nat.cast_add, Nat.cast_mul, hM]
-    exact goal
-  exact_mod_cast this
+  have hm1 : (0 : ℝ) ≤ m - 1 := sub_nonneg.2 (Nat.one_le_cast.2 hm)
+  rw [← Nat.cast_le (α := ℝ)]
+  simp only [weight, total, Bool.cond_false, Bool.cond_true, Nat.cast_add, Nat.cast_mul, hM]
+  calc ((m : ℝ) - 1) * e₀.1 * e₁.2 * e.2 + ((m : ℝ) - 1) * e₁.1 * e₀.2 * e.2
+      = ((m : ℝ) - 1) * e.2 * (e₀.1 * e₁.2 + e₁.1 * e₀.2) := by ring
+    _ ≤ ((m : ℝ) - 1) * e.2 *
+          (N₀ * (1 + 1 / p) * e₀.2 * e₁.2 + N₁ * (1 + 1 / p) * e₁.2 * e₀.2) :=
+        by gcongr
+    _ = ((m : ℝ) - 1) * (1 + 1 / p) * (N * e.2 * e₀.2 * e₁.2) := by rw [hN']; ring
+    _ ≤ m * (1 - 1 / p) * (N * e.2 * e₀.2 * e₁.2) := by gcongr
+    _ = m * e₀.2 * e₁.2 * (N * (1 - 1 / p) * e.2) := by ring
+    _ ≤ m * e₀.2 * e₁.2 * e.1 := mul_le_mul_of_nonneg_left hl (by positivity)
+    _ = (m : ℝ) * e.1 * e₀.2 * e₁.2 := by ring
 
 private theorem one_le_weight {m : ℕ} {e e₀ e₁ : ℕ × ℕ} (hm : 2 ≤ m) {c : Bool}
     (ha : 0 < (cond c e₁ e₀).1) (hb' : 0 < (cond c e₀ e₁).2) (hb : 0 < e.2) :
     1 ≤ weight m e e₀ e₁ c :=
   Nat.mul_pos (Nat.mul_pos (Nat.mul_pos (by omega) ha) hb') hb
 
-private theorem one_sub_half_pow_nonneg (t : ℕ) : 0 ≤ 1 - (1 / 2 : ℝ) ^ t := by
-  have : (1 / 2 : ℝ) ^ t ≤ 1 := pow_le_one₀ (by norm_num) (by norm_num)
-  linarith
+private theorem one_sub_half_pow_nonneg (t : ℕ) : 0 ≤ 1 - (1 / 2 : ℝ) ^ t :=
+  sub_nonneg.2 (pow_le_one₀ (by norm_num) (by norm_num))
 
 /-- The per-level success factor `(1 - 2 ^ (-t)) ^ 2 (1 - 2 ^ (-extra))`: both child estimates
 are good, and the branching coin is accurate. -/
@@ -682,29 +595,16 @@ theorem le_eval_walk (R : SelfReducible enc W) {A : α → ℕ → ℕ → ProbC
         ProbComp.eval (R.walk A p t m extra n y e) (some v)
   | 0, y, hy, e, he, v, hv => by
     have hW := R.eq_singleton_nil hy (Finset.card_pos.2 ⟨v, hv⟩)
-    rw [hW, Finset.mem_singleton] at hv
-    subst hv
-    have hnil : [] ∈ W y := by
-      rw [hW]
-      exact Finset.mem_singleton_self _
-    have hexact := he.2 hy
-    rw [hW, Finset.card_singleton, Nat.cast_one, one_mul] at hexact
-    rw [eval_walk_zero]
-    split_ifs with h
-    · rw [pow_zero, pow_zero, one_mul, one_mul]
-      refine ENNReal.ofReal_le_one.2 ?_
-      unfold invEstimate
-      rw [← hexact]
-      exact div_self_le_one _
-    · exact absurd ⟨rfl, hnil⟩ h
+    obtain rfl : v = [] := Finset.mem_singleton.1 (hW ▸ hv)
+    have hexact : (e.1 : ℝ) = e.2 := by simpa [hW] using he.2 hy
+    rw [eval_walk_zero, ite_eq_left ⟨rfl, hW ▸ Finset.mem_singleton_self _⟩, pow_zero, pow_zero,
+      one_mul, one_mul, invEstimate, ← hexact]
+    exact ENNReal.ofReal_le_one.2 (div_self_le_one _)
   | n + 1, y, hy, e, he, v, hv => by
     have hpos : 0 < R.len y := by omega
     have hp2 : 2 ≤ p := by omega
     cases v with
-    | nil =>
-      have h := R.length_eq y [] hv
-      simp only [List.length_nil] at h
-      omega
+    | nil => exact absurd (R.length_eq y [] hv) (by simp [hy])
     | cons c w =>
       have hw : w ∈ W (R.child y c) := (R.cons_mem_iff y hpos c w).1 hv
       have hlen : ∀ b, R.len (R.child y b) = n := fun b => by rw [R.len_child y hpos]; omega
@@ -720,14 +620,8 @@ theorem le_eval_walk (R : SelfReducible enc W) {A : α → ℕ → ℕ → ProbC
               (some (c :: w)) := by
         intro e₀ he₀ e₁ he₁
         rw [eval_bind_descend_some_cons]
-        have gc : R.GoodEstimate p (R.child y c) (cond c e₁ e₀) := by
-          cases c
-          · exact he₀
-          · exact he₁
-        have hbc' : 0 < (cond c e₀ e₁).2 := by
-          cases c
-          · exact he₁.1.1
-          · exact he₀.1.1
+        have gc : R.GoodEstimate p (R.child y c) (cond c e₁ e₀) := by cases c <;> assumption
+        have hbc' : 0 < (cond c e₀ e₁).2 := by cases c; exacts [he₁.1.1, he₀.1.1]
         have hNc : 1 ≤ (W (R.child y c)).card := Finset.card_pos.2 ⟨w, hw⟩
         have hac := pos_of_approx gc.1 hNc hp2
         have hbc := gc.1.1
@@ -778,19 +672,20 @@ section Constants
 
 private theorem precision_aux (ℓ q : ℕ) :
     ((3 * ℓ + 1 : ℕ) : ℝ) * (1 / 2 : ℝ) ^ precision ℓ q ≤ (1 / 2 : ℝ) ^ q / 4 := by
-  have hpow : (1 / 2 : ℝ) ^ precision ℓ q = (1 / 2) ^ q * (1 / 16) * (1 / 2) ^ ℓ := by
+  have hpow : (1 / 2 : ℝ) ^ precision ℓ q = (1 / 2) ^ q / 16 * (1 / 2) ^ ℓ := by
     rw [precision, pow_add, pow_add]
     norm_num
     ring
   have h2 : ((ℓ + 1 : ℕ) : ℝ) ≤ 2 ^ ℓ := by exact_mod_cast Nat.lt_two_pow_self
-  have hx0 : (0 : ℝ) ≤ (1 / 2) ^ ℓ := by positivity
   have hx : (2 : ℝ) ^ ℓ * (1 / 2) ^ ℓ = 1 := by rw [← mul_pow]; norm_num
   have hb : ((3 * ℓ + 1 : ℕ) : ℝ) * (1 / 2) ^ ℓ ≤ 4 := by
-    push_cast at h2 ⊢
-    nlinarith
-  have hq : (0 : ℝ) ≤ (1 / 2) ^ q := by positivity
-  rw [hpow]
-  nlinarith
+    calc ((3 * ℓ + 1 : ℕ) : ℝ) * (1 / 2) ^ ℓ ≤ 4 * 2 ^ ℓ * (1 / 2) ^ ℓ :=
+          mul_le_mul_of_nonneg_right
+            (by push_cast at h2 ⊢; linarith only [h2, (Nat.cast_nonneg ℓ : (0 : ℝ) ≤ ℓ)])
+            (by positivity)
+      _ = 4 := by rw [mul_assoc, hx, mul_one]
+  rw [hpow, mul_left_comm]
+  exact (mul_le_mul_of_nonneg_left hb (by positivity)).trans_eq (by ring)
 
 private theorem stepFactor_precision (ℓ q : ℕ) :
     stepFactor (precision ℓ q) (precision ℓ q) = (1 - (1 / 2 : ℝ) ^ precision ℓ q) ^ 3 := by
@@ -802,39 +697,38 @@ private theorem half_le_stepFactor_pow (ℓ q : ℕ) :
   rw [stepFactor_precision, ← pow_mul]
   have hδ : (0 : ℝ) ≤ (1 / 2) ^ precision ℓ q := by positivity
   have hδ1 : (1 / 2 : ℝ) ^ precision ℓ q ≤ 1 := pow_le_one₀ (by norm_num) (by norm_num)
-  have hbern := one_add_mul_le_pow (a := -(1 / 2 : ℝ) ^ precision ℓ q) (by linarith) (3 * ℓ)
+  have hbern := one_add_mul_le_pow (a := -(1 / 2 : ℝ) ^ precision ℓ q)
+    (by linarith only [hδ1]) (3 * ℓ)
   have haux := precision_aux ℓ q
   have hq : (1 / 2 : ℝ) ^ q ≤ 1 := pow_le_one₀ (by norm_num) (by norm_num)
   push_cast at hbern haux
   rw [← sub_eq_add_neg] at hbern
-  nlinarith
+  linarith only [hbern, haux, hq, hδ, mul_neg (3 * (ℓ : ℝ)) ((1 / 2 : ℝ) ^ precision ℓ q),
+    add_one_mul (3 * (ℓ : ℝ)) ((1 / 2 : ℝ) ^ precision ℓ q)]
 
 private theorem half_le_levelFactor_pow (ℓ : ℕ) : 1 / 2 ≤ levelFactor (damping ℓ) ^ ℓ := by
   have hm : levelFactor (damping ℓ) = 1 + -(1 / ((2 * ℓ + 2 : ℕ) : ℝ)) := by
-    rw [levelFactor, damping, show 2 * ℓ + 2 - 1 = 2 * ℓ + 1 by omega]
+    rw [levelFactor, damping, Nat.add_succ_sub_one]
     push_cast
     field_simp
     ring
   have hpos : (0 : ℝ) < ((2 * ℓ + 2 : ℕ) : ℝ) := by positivity
-  have hle : 1 / ((2 * ℓ + 2 : ℕ) : ℝ) ≤ 1 := by
-    rw [div_le_one hpos]
-    push_cast
-    linarith
-  have hbern := one_add_mul_le_pow (a := -(1 / ((2 * ℓ + 2 : ℕ) : ℝ))) (by linarith) ℓ
+  have hle : 1 / ((2 * ℓ + 2 : ℕ) : ℝ) ≤ 1 :=
+    (div_le_one hpos).2 (mod_cast (show 1 ≤ 2 * ℓ + 2 by omega))
+  have hbern := one_add_mul_le_pow (a := -(1 / ((2 * ℓ + 2 : ℕ) : ℝ))) (by linarith only [hle]) ℓ
   rw [← hm] at hbern
   have hfrac : (ℓ : ℝ) * (1 / ((2 * ℓ + 2 : ℕ) : ℝ)) ≤ 1 / 2 := by
-    rw [mul_one_div, div_le_iff₀ hpos]
-    push_cast
-    linarith
-  linarith
+    rw [mul_one_div, div_le_div_iff₀ hpos two_pos]
+    exact_mod_cast (by omega : ℓ * 2 ≤ 1 * (2 * ℓ + 2))
+  linarith only [hbern, hfrac, mul_neg (ℓ : ℝ) (1 / ((2 * ℓ + 2 : ℕ) : ℝ))]
 
 private theorem final_aux (ℓ q : ℕ) :
     1 - (1 / 2 : ℝ) ^ q ≤ (1 - (1 / 2 : ℝ) ^ precision ℓ q) *
       stepFactor (precision ℓ q) (precision ℓ q) ^ ℓ * (1 - (7 / 8 : ℝ) ^ trials q) := by
   rw [stepFactor_precision, ← pow_mul, ← pow_succ']
-  have hδ : (0 : ℝ) ≤ (1 / 2) ^ precision ℓ q := by positivity
   have hδ1 : (1 / 2 : ℝ) ^ precision ℓ q ≤ 1 := pow_le_one₀ (by norm_num) (by norm_num)
-  have hbern := one_add_mul_le_pow (a := -(1 / 2 : ℝ) ^ precision ℓ q) (by linarith) (3 * ℓ + 1)
+  have hbern := one_add_mul_le_pow (a := -(1 / 2 : ℝ) ^ precision ℓ q)
+    (by linarith only [hδ1]) (3 * ℓ + 1)
   rw [← sub_eq_add_neg] at hbern
   have haux := precision_aux ℓ q
   have hc : (7 / 8 : ℝ) ^ trials q ≤ (1 / 2) ^ q / 4 := by
@@ -842,27 +736,26 @@ private theorem final_aux (ℓ q : ℕ) :
     calc ((7 / 8 : ℝ) ^ 6) ^ (q + 2) ≤ (1 / 2) ^ (q + 2) :=
           pow_le_pow_left₀ (by norm_num) (by norm_num) _
       _ = (1 / 2) ^ q / 4 := by rw [pow_add]; norm_num; ring
-  have hc0 : (0 : ℝ) ≤ (7 / 8) ^ trials q := by positivity
   have hq0 : (0 : ℝ) ≤ (1 / 2) ^ q := by positivity
   have hq1 : (1 / 2 : ℝ) ^ q ≤ 1 := pow_le_one₀ (by norm_num) (by norm_num)
   have hA : 1 - (1 / 2 : ℝ) ^ q / 4 ≤ (1 - (1 / 2) ^ precision ℓ q) ^ (3 * ℓ + 1) := by
     push_cast at hbern haux
-    linarith
-  have hB : 1 - (1 / 2 : ℝ) ^ q / 4 ≤ 1 - (7 / 8) ^ trials q := by linarith
-  calc 1 - (1 / 2 : ℝ) ^ q ≤ (1 - (1 / 2) ^ q / 4) * (1 - (1 / 2) ^ q / 4) := by nlinarith
-    _ ≤ _ := mul_le_mul hA hB (by linarith) (pow_nonneg (by linarith) _)
+    linarith only [hbern, haux, mul_neg (3 * (ℓ : ℝ) + 1) ((1 / 2 : ℝ) ^ precision ℓ q)]
+  have hB : 1 - (1 / 2 : ℝ) ^ q / 4 ≤ 1 - (7 / 8) ^ trials q := by linarith only [hc]
+  calc 1 - (1 / 2 : ℝ) ^ q ≤ (1 - (1 / 2) ^ q / 4) * (1 - (1 / 2) ^ q / 4) := by
+        nlinarith only [hq0]
+    _ ≤ _ := mul_le_mul hA hB (by linarith only [hq1]) (pow_nonneg (by linarith only [hδ1]) _)
 
 private theorem three_quarters_le_card_mul_invEstimate {N p : ℕ} {e : ℕ × ℕ} (hN : 1 ≤ N)
     (hp : 3 ≤ p) (he : ApproxWithin N p e.1 e.2) : 3 / 4 ≤ (N : ℝ) * invEstimate e := by
   have hu := upper_of_approx he
-  have ha : 0 < e.1 := pos_of_approx he hN (by omega)
-  have ha' : (0 : ℝ) < e.1 := by exact_mod_cast ha
+  have ha' : (0 : ℝ) < e.1 := by exact_mod_cast pos_of_approx he hN (by omega)
   have hp' : (3 : ℝ) ≤ p := by exact_mod_cast hp
   have hinv : (1 : ℝ) / p ≤ 1 / 3 := one_div_le_one_div_of_le (by norm_num) hp'
-  have hinv0 : (0 : ℝ) ≤ 1 / p := by positivity
-  have hNb : (0 : ℝ) ≤ N * e.2 := by positivity
+  have hprod := mul_le_mul_of_nonneg_left hinv (show (0 : ℝ) ≤ N * e.2 by positivity)
+  rw [mul_add, mul_one, add_mul, mul_right_comm] at hu
   rw [invEstimate, mul_div_assoc', le_div_iff₀ ha']
-  nlinarith
+  linarith only [hu, hprod]
 
 end Constants
 
@@ -882,9 +775,8 @@ theorem eval_trial_none_add_sum (R : SelfReducible enc W) (A : α → ℕ → �
     ProbComp.eval (R.trial A x q e) none +
       ∑ w ∈ W x, ProbComp.eval (R.trial A x q e) (some w) = 1 := by
   have h := (ProbComp.eval (R.trial A x q e)).tsum_coe
-  rw [Probability.tsum_option_eq,
+  rwa [Probability.tsum_option_eq,
     tsum_eq_sum (s := W x) (fun _ => R.eval_trial_eq_zero A x q e)] at h
-  exact h
 
 private theorem le_eval_trial_toReal (R : SelfReducible enc W)
     {A : α → ℕ → ℕ → ProbComp (ℕ × ℕ)} {x : α} {q : ℕ}
@@ -908,15 +800,11 @@ private theorem one_eighth_le {N ℓ q : ℕ} {e : ℕ × ℕ} (hN : 0 < N)
   have h1 := half_le_stepFactor_pow ℓ q
   have h2 := half_le_levelFactor_pow ℓ
   have h3 := three_quarters_le_card_mul_invEstimate hN (by rw [counterAccuracy]; omega) he
-  have h4 : (N : ℝ) * (stepFactor (precision ℓ q) (precision ℓ q) ^ ℓ *
-      (levelFactor (damping ℓ) ^ ℓ * invEstimate e)) =
-        stepFactor (precision ℓ q) (precision ℓ q) ^ ℓ * levelFactor (damping ℓ) ^ ℓ *
-          (N * invEstimate e) := by ring
-  rw [h4]
-  have h5 : (1 / 2 : ℝ) * (1 / 2) ≤
-      stepFactor (precision ℓ q) (precision ℓ q) ^ ℓ * levelFactor (damping ℓ) ^ ℓ :=
-    mul_le_mul h1 h2 (by norm_num) (by linarith)
-  nlinarith
+  have h5 : (1 / 4 : ℝ) ≤
+      stepFactor (precision ℓ q) (precision ℓ q) ^ ℓ * levelFactor (damping ℓ) ^ ℓ := by
+    nlinarith only [h1, h2]
+  exact (le_trans (by norm_num) (mul_le_mul h5 h3 (by norm_num) (by positivity))).trans_eq
+    (by ring)
 
 /-- **The acceptance probability of a trial.** If the counter is accurate and the root estimate
 `e` is good, then a trial from an instance with at least one witness rejects with probability at
@@ -934,7 +822,8 @@ theorem eval_trial_none_le (R : SelfReducible enc W) {A : α → ℕ → ℕ →
   have htot : (ProbComp.eval (R.trial A x q e) none).toReal +
       ∑ w ∈ W x, (ProbComp.eval (R.trial A x q e) (some w)).toReal = 1 := by
     ennreal_to_real using eval_trial_none_add_sum R A x q e
-  have hle : (ProbComp.eval (R.trial A x q e) none).toReal ≤ 7 / 8 := by linarith
+  have hle : (ProbComp.eval (R.trial A x q e) none).toReal ≤ 7 / 8 := by
+    linarith only [hsl, h8, htot]
   calc ProbComp.eval (R.trial A x q e) none
       ≤ ENNReal.ofReal (7 / 8) := by ennreal_to_real using hle
     _ = 7 / 8 := by
@@ -953,20 +842,17 @@ private theorem retry_bound {P f L U κ' c : ℝ} {N T : ℕ} (hN : 0 < N) (hL :
     κ' * (1 - c) / N ≤ P * ∑ i ∈ Finset.range T, f ^ i := by
   set g := ∑ i ∈ Finset.range T, f ^ i
   have hgeom : g * (1 - f) = 1 - f ^ T := geom_sum_mul_neg f T
-  have hf78 : f ≤ 7 / 8 := by linarith
+  have hf78 : f ≤ 7 / 8 := by linarith only [hfs, h8]
   have hfT : f ^ T ≤ c := hc ▸ pow_le_pow_left₀ hf0 hf78 T
   have hg0 : 0 ≤ g := Finset.sum_nonneg fun i _ => pow_nonneg hf0 i
   have hN' : (0 : ℝ) < N := by exact_mod_cast hN
-  have h1 : 1 - c ≤ N * U * g := by nlinarith
-  have h2 : κ' * (1 - c) ≤ N * (P * g) := by
-    have h3 : κ' * (1 - c) ≤ κ' * (N * U * g) := mul_le_mul_of_nonneg_left h1 hκ'
-    have h4 : N * L * g ≤ N * P * g := by
-      have := mul_le_mul_of_nonneg_left hP hN'.le
-      exact mul_le_mul_of_nonneg_right this hg0
-    rw [hL] at h4
-    nlinarith
-  rw [div_le_iff₀ hN']
-  linarith
+  have h1 : 1 - c ≤ N * U * g := (sub_le_sub_left hfT 1).trans
+    (hgeom.symm.trans_le ((mul_le_mul_of_nonneg_left hfu hg0).trans_eq (by ring)))
+  rw [div_le_iff₀' hN']
+  calc κ' * (1 - c) ≤ κ' * (N * U * g) := mul_le_mul_of_nonneg_left h1 hκ'
+    _ = N * L * g := by rw [hL]; ring
+    _ ≤ N * P * g := mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hP hN'.le) hg0
+    _ = N * (P * g) := mul_assoc _ _ _
 
 /-- **The retry loop at a good root estimate.** With the sampler's parameters, a good root
 estimate `e` makes the retry loop return each witness with probability at least
@@ -989,8 +875,7 @@ theorem le_eval_retry (R : SelfReducible enc W) {A : α → ℕ → ℕ → Prob
   have hU : 0 ≤ levelFactor (damping (R.len x)) ^ R.len x * invEstimate e :=
     mul_nonneg (pow_nonneg (levelFactor_nonneg _) _) (invEstimate_nonneg e)
   have hκ' : 0 ≤ stepFactor (precision (R.len x) q) (precision (R.len x) q) ^ R.len x := by
-    have := half_le_stepFactor_pow (R.len x) q
-    linarith
+    linarith only [half_le_stepFactor_pow (R.len x) q]
   have hUle : ∀ w ∈ W x, (ProbComp.eval (R.trial A x q e) (some w)).toReal ≤
       levelFactor (damping (R.len x)) ^ R.len x * invEstimate e := fun w _ =>
     ENNReal.toReal_le_of_le_ofReal hU (hup w)
@@ -1003,21 +888,16 @@ theorem le_eval_retry (R : SelfReducible enc W) {A : α → ℕ → ℕ → Prob
     (some w)).toReal) _ hUle
   rw [nsmul_eq_mul] at hsl hsu
   have h8 := one_eighth_le (q := q) hN he.1
-  have hfail : (ProbComp.eval (R.trial A x q e)).toOuterMeasure {o | ¬ o.isSome = true} =
-      ProbComp.eval (R.trial A x q e) none := by
-    have : {o : Option (List Bool) | ¬ o.isSome = true} = {none} := by
-      ext o
-      cases o <;> simp
-    rw [this, PMF.toOuterMeasure_apply_singleton]
+  have hnone : {o : Option (List Bool) | ¬ o.isSome = true} = {none} := by ext (_ | _) <;> simp
   rw [ProbComp.eval_map]
   refine le_trans ?_ (Probability.PMF.le_map_apply _ Option.join (some (some v)))
   rw [ProbComp.eval_eq_evalWith, OracleComp.evalWith_retry_some, ← ProbComp.eval_eq_evalWith,
-    hfail]
+    hnone, PMF.toOuterMeasure_apply_singleton]
   simp only [Option.isSome_some, ↓reduceIte]
   rw [ENNReal.ofReal_le_iff_le_toReal (by finiteness)]
   ennreal_to_real
   exact retry_bound hN rfl hκ' (le_eval_trial_toReal R hA he hv) ENNReal.toReal_nonneg
-    (by linarith) (by linarith) h8 rfl
+    (by linarith only [htotr, hsl]) (by linarith only [htotr, hsu]) h8 rfl
 
 /-- Every successful output of the counting-to-sampling algorithm is a witness, even if
 the counter makes an inaccurate estimate. -/
@@ -1027,16 +907,14 @@ theorem sampler_eq_zero_of_notMem (R : SelfReducible enc W) (A : α → ℕ → 
   rw [sampler, ProbComp.eval_bind]
   refine Probability.PMF.bind_apply_of_forall _ fun e => ?_
   rw [ProbComp.eval_map, PMF.map_apply]
-  refine tsum_eq_zero_iff.2 fun o => ?_
-  rcases o with _ | _ | w
-  · simp
-  · simp
-  · by_cases hvw : v = w
-    · subst hvw
-      rw [ProbComp.eval_eq_evalWith, OracleComp.evalWith_retry_some, ← ProbComp.eval_eq_evalWith,
-        eval_trial_eq_zero R A x q e hv]
-      simp
-    · simp [hvw]
+  refine tsum_eq_zero_iff.2 fun
+    | none | some none => by simp
+    | some (some w) => by
+      rcases eq_or_ne v w with rfl | hvw
+      · rw [ProbComp.eval_eq_evalWith, OracleComp.evalWith_retry_some, ← ProbComp.eval_eq_evalWith,
+          eval_trial_eq_zero R A x q e hv]
+        simp
+      · simp [hvw]
 
 /-- **Approximate counting gives almost uniform sampling** (output law). If `A` estimates the
 number of witnesses within relative error `1 / p` with probability at least `1 - 2 ^ (-t)`, for

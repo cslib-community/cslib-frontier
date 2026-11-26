@@ -30,10 +30,8 @@ namespace List
 
 /-- An in-range natural number occurs at its own position in `range`. -/
 theorem idxOf_range_of_lt {i n : ℕ} (hi : i < n) : (List.range n).idxOf i = i := by
-  have h := (List.nodup_range : (List.range n).Nodup).idxOf_getElem i
-    (by simpa only [List.length_range] using hi)
-  rw [List.getElem_range] at h
-  exact h
+  have h := List.nodup_range.idxOf_getElem i (by simpa only [List.length_range] using hi)
+  rwa [List.getElem_range] at h
 
 
 /-- In a duplicate-free list of naturals, at most `u` elements are strictly below `u`. -/
@@ -61,11 +59,8 @@ theorem length_filter_range_eq_one_iff {n : ℕ} {p : ℕ → Bool} :
     refine ⟨a, (hmem a).mp (by simp [ha]), fun j hj => ?_⟩
     simpa [ha] using (hmem j).mpr hj
   · rintro ⟨a, ha, huniq⟩
-    have hperm : ((List.range n).filter p).Perm [a] :=
-      (List.perm_ext_iff_of_nodup (List.nodup_range.filter _) (List.nodup_singleton a)).mpr
-        fun j => by
-          rw [hmem, List.mem_singleton]
-          exact ⟨fun hj => huniq j hj, fun h => h ▸ ha⟩
-    simpa using hperm.length_eq
+    exact ((List.perm_ext_iff_of_nodup (List.nodup_range.filter _) (List.nodup_singleton a)).mpr
+      fun j => (hmem j).trans ((Iff.intro (huniq j) (· ▸ ha)).trans
+        List.mem_singleton.symm)).length_eq
 
 end List

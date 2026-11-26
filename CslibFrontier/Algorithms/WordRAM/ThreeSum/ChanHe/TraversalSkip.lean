@@ -53,31 +53,25 @@ theorem skip_transition {a : Arena} {w : ℕ} {target : List Node}
   have hdec := Math.potential_step (Nat.primesLE a.m) a.Λ e.task (es.map Entry.task)
   rw [hstep] at hdec
   change (Cursor.mk es ns).work + 1 ≤ (Cursor.mk (e :: es) ns).work at hdec
-  refine ⟨y, hbody, ?_, by omega⟩
-  refine ⟨hbody.bounded h.bounded, hcontrols, hbitmap, hstack, h.depth.2,
+  refine ⟨y, hbody, ⟨hbody.bounded h.bounded, hcontrols, hbitmap, hstack, h.depth.2,
     fun d hd => h.valid d (List.mem_cons_of_mem e hd),
     fun d hd => hstored d (List.mem_cons_of_mem e hd),
     fun d hd => h.around d (List.mem_cons_of_mem e hd),
-    fun d hd => hends d (List.mem_cons_of_mem e hd), hfloor, ?_, hcount.trans h.count, ?_, ?_,
-    ?_, ?_, ?_⟩
+    fun d hd => hends d (List.mem_cons_of_mem e hd), hfloor, ?_, hcount.trans h.count, ?_,
+    h.output.of_arena_frame ha (fun i => (h.outputBounds i).1) hframe,
+    fun i => hheap ▸ h.outputBounds i, ?_,
+    fun p hp => (hmem p (Or.inl hp)).trans (h.protectedMemory p hp)⟩, by omega⟩
   · rw [hheap]
-    have hb := h.heapBudget
-    have hd := Nat.mul_le_mul_right (allocationSize a.n a.m a.N) (Nat.le_of_lt
-      (show (Cursor.mk es ns).work < (Cursor.mk (e :: es) ns).work by omega))
+    have := h.heapBudget
+    have := Nat.mul_le_mul_right (allocationSize a.n a.m a.N) (by omega :
+      (Cursor.mk es ns).work ≤ (Cursor.mk (e :: es) ns).work)
     omega
-  · have hb := h.tableBudget
-    change ns.length + (Cursor.mk (e :: es) ns).work ≤ a.outputCapacity at hb
+  · have hb : ns.length + (Cursor.mk (e :: es) ns).work ≤ a.outputCapacity := h.tableBudget
     change ns.length + (Cursor.mk es ns).work ≤ a.outputCapacity
     omega
-  · exact h.output.of_arena_frame ha (fun i => (h.outputBounds i).1) hframe
-  · intro i
-    rw [hheap]
-    exact h.outputBounds i
   · have he := Math.output_step (Nat.primesLE a.m) a.Λ e.task (es.map Entry.task)
     rw [hstep] at he
     simp only [Option.toList_none, List.nil_append] at he
     simpa only [Cursor.pending, Cursor.emitted, List.map_cons, he] using h.exactOutput
-  · intro p hp
-    exact (hmem p (Or.inl hp)).trans (h.protectedMemory p hp)
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Traversal

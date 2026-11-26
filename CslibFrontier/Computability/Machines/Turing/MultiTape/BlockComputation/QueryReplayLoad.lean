@@ -81,23 +81,17 @@ theorem load_inSpace : ComputableInSpace (load (k := k) (Q := Q)) encArgs encCon
     (budget_natMod hinputResidue hb))
   have hcoordinate := budget_natSub hhi hlo
   have hnonnegative := budget_finite (encC := encBool) Bool.not (budget_natLt hhi hlo)
-  have hinRange := budget_natLt hcoordinate (budget_natAdd hN (budget_const 2 (.refl _)))
+  have hinRange := budget_natLt hcoordinate (budget_natAdd hN (budget_const 2))
   have hvalid := budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
     (budget_prod hnonnegative hinRange)
-  have hpos := budget_ite hvalid hcoordinate (budget_const (encB := encNat) 0 (.refl _))
+  have hpos := budget_ite hvalid hcoordinate (budget_const (encB := encNat) 0)
   have hheads := pi_linear (Index := Fin k) fun h =>
     budget_natAdd hb (budget_natMod (budget_comp_linear
       (of_inO (ComputableInO.pi_apply encNat (some h))) hresidues) hb)
   refine (budget_prod hN (budget_prod hb (budget_prod hb (budget_prod hpos
     (budget_prod hcontrol (budget_prod hheads (budget_prod hcells htrack))))))).of_enc_eq ?_
-  intro a
-  rcases a with ⟨N, b, ⟨positive, negative⟩, ⟨control, residues, track, cells⟩⟩
-  simp only [load, inputPos, encConfig, Config.equivProd, encOfEquiv_apply, Equiv.coe_fn_mk,
-    Bool.and_eq_true, Bool.not_eq_true', Bool.decide_iff]
-  by_cases hnonneg : b * negative ≤ b * positive + residues none % b + 1
-  · have hnot : ¬b * positive + residues none % b + 1 < b * negative := by omega
-    simp [hnonneg, hnot]
-  · have hlt : b * positive + residues none % b + 1 < b * negative := by omega
-    simp [hnonneg, hlt]
+  rintro ⟨N, b, ⟨positive, negative⟩, ⟨control, residues, track, cells⟩⟩
+  simp [load, inputPos, encConfig, Config.equivProd, encOfEquiv_apply, Equiv.coe_fn_mk,
+    Bool.and_eq_true]
 
 end Turing.MultiTapePTM.BlockComputation.QueryReplay.Load

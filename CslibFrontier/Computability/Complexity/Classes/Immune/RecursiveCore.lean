@@ -124,31 +124,19 @@ def memReq (e n : ℕ) (w : List Bool) : Bool :=
 
 theorem memReq_iff {e n : ℕ} {w : List Bool} :
     memReq e n w = true ↔ clock e w.length ≤ n ∧ w ∈ requirement e := by
+  simp only [memReq, Bool.and_eq_true, decide_eq_true_eq]
   have hcap : capPow (2 * w.length + 2) e (n + 1) ≤ n ↔ clock e w.length ≤ n := by
-    unfold capPow clock
-    omega
-  constructor
-  · intro h
-    simp only [memReq, Bool.and_eq_true, decide_eq_true_eq] at h
-    obtain ⟨h₁, h₂⟩ := h
-    have heq : capPow (2 * w.length + 2) e (n + 1) = clock e w.length := by
-      unfold capPow clock at *
-      omega
-    rw [heq] at h₂
-    exact ⟨hcap.mp h₁, h₂⟩
-  · rintro ⟨hc, hw⟩
-    have heq : capPow (2 * w.length + 2) e (n + 1) = clock e w.length := by
-      unfold capPow clock at *
-      omega
-    simp only [memReq, Bool.and_eq_true, decide_eq_true_eq, heq]
-    exact ⟨hc, hw⟩
+    simp only [capPow, clock]; omega
+  refine (and_congr_left' hcap).trans (and_congr_right fun hc => ?_)
+  have heq : capPow (2 * w.length + 2) e (n + 1) = clock e w.length := by
+    simp only [capPow, clock] at hc ⊢; omega
+  rw [heq]; rfl
 
 /-- **Every requirement is in `P`**: its clock is a polynomial. -/
 theorem requirement_mem_P (e : ℕ) : requirement e ∈ P encBits := by
   refine ⟨fun w => decide (runIndexed e w (clock e w.length) = ([eBit true], true)), ?_,
     fun w => by simp [requirement]⟩
-  unfold clock
-  fun_prop
+  fun_prop [clock]
 
 /-- **Every problem in `P` is a requirement**, with arbitrarily large indices: machines of
 arbitrarily large index decide it within their clock (`Ladner.exists_index_of_mem_P`). -/
@@ -203,40 +191,34 @@ def core (A : Set (List Bool)) : Set (List Bool) := A ∩ selected d
 private theorem computableInPolyTime_decAt :
     ComputableInPolyTime (fun p : ℕ × ℕ × Bool => decAt d p.1 p.2.1 p.2.2)
       (encPair encUnary (encPair encUnary encBool)) encBool := by
-  unfold decAt
-  fun_prop
+  fun_prop [decAt]
 
 private theorem computableInPolyTime_memReq :
     ComputableInPolyTime (fun p : ℕ × ℕ × List Bool => memReq p.1 p.2.1 p.2.2)
       (encPair encUnary (encPair encUnary encBits)) encBool := by
-  unfold memReq
-  fun_prop
+  fun_prop [memReq]
 
 private theorem computableInPolyTime_coreCount :
     ComputableInPolyTime (coreCount d) encBits encUnary := by
   have h := computableInPolyTime_decAt d
-  unfold coreCount
-  fun_prop
+  fun_prop [coreCount]
 
 private theorem computableInPolyTime_refuted :
     ComputableInPolyTime (fun p : ℕ × ℕ => refuted d p.1 p.2)
       (encPair encUnary encUnary) encBool := by
   have h₁ := computableInPolyTime_decAt d
   have h₂ := computableInPolyTime_memReq
-  unfold refuted
-  fun_prop
+  fun_prop [refuted]
 
 private theorem computableInPolyTime_stageBit :
     ComputableInPolyTime (stageBit d) encBits encBool := by
   have h₁ := computableInPolyTime_coreCount d
   have h₂ := computableInPolyTime_refuted d
   have h₃ := computableInPolyTime_memReq
-  unfold stageBit
-  fun_prop
+  fun_prop [stageBit]
 
 theorem table_succ (n : ℕ) : table d (n + 1) = table d n ++ [selects d n] := by
-  rw [table, List.courseOfValues_succ]
-  rfl
+  rw [table, List.courseOfValues_succ]; rfl
 
 theorem table_eq (n : ℕ) : table d n = (List.range n).map (selects d) :=
   List.courseOfValues_eq (stageBit d) n
@@ -253,8 +235,7 @@ theorem computableInPolyTime_table : ComputableInPolyTime (table d) encUnary enc
 theorem computableInPolyTime_selects : ComputableInPolyTime (selects d) encUnary encBool := by
   have h₁ := computableInPolyTime_stageBit d
   have h₂ := computableInPolyTime_table d
-  unfold selects
-  fun_prop
+  fun_prop [selects]
 
 /-- **The selected words form a problem in `E`**: the decision at each stage is polynomial-time in
 the stage (`Cslib.Complexity.Ladner.setOf_index_mem_E_of_computableInPolyTime`). -/
@@ -316,10 +297,8 @@ private theorem not_subset_of_refuted (hs : ∀ w t b, runBool d w t = some b �
     {e n : ℕ} (h : refuted d e n = true) : ¬ requirement e ⊆ A := by
   intro hsub
   obtain ⟨m, -, hm⟩ := List.any_eq_true.mp h
-  simp only [Bool.and_eq_true] at hm
-  have hmem := (memReq_iff.mp hm.1).2
-  have hfalse := decAt_sound hs hm.2
-  exact (indicator_eq_false_iff.mp hfalse.symm) (hsub hmem)
+  obtain ⟨hm₁, hm₂⟩ := Bool.and_eq_true_iff.mp hm
+  exact indicator_eq_false_iff.mp (decAt_sound hs hm₂).symm (hsub (memReq_iff.mp hm₁).2)
 
 /-- **Refutations are complete**: a requirement not inside `A` is refuted from some stage on. -/
 private theorem exists_refuted (hc : ∀ w, ∃ T, ∀ t, T ≤ t → runBool d w t = some (indicator A w))
@@ -329,10 +308,9 @@ private theorem exists_refuted (hc : ∀ w, ∃ T, ∀ t, T ≤ t → runBool d 
   obtain ⟨T, hT⟩ := decAt_complete hc (index w)
   refine ⟨T + index w + 1 + clock e w.length, fun n hn => List.any_eq_true.mpr
     ⟨index w, List.mem_range.mpr (by omega), ?_⟩⟩
-  have hdec := hT n (by omega)
-  rw [word_index, indicator_eq_false_iff.mpr hwA] at hdec
   rw [Bool.and_eq_true, word_index, memReq_iff]
-  exact ⟨⟨by omega, hwB⟩, hdec⟩
+  refine ⟨⟨by omega, hwB⟩, ?_⟩
+  simpa only [word_index, indicator_eq_false_iff.mpr hwA] using hT n (by omega)
 
 /-- The words counted at any stage are in the core. -/
 private theorem coreCount_le (hs : ∀ w t b, runBool d w t = some b → b = indicator A w)
@@ -352,12 +330,11 @@ private theorem exists_card_le_coreCount
   refine ⟨F.sup fun m => T m + m + 1, fun n hn => ?_⟩
   rw [coreCount_table, ← List.toFinset_card_of_nodup (List.nodup_range.filter _)]
   refine Finset.card_le_card fun m hm => ?_
-  have hle : T m + m + 1 ≤ n := (Finset.le_sup (f := fun m => T m + m + 1) hm).trans hn
+  have hle := (Finset.le_sup (f := fun m => T m + m + 1) hm).trans hn
   obtain ⟨hA, hY⟩ := hF m hm
-  have hdec := hT m n (by omega)
-  rw [indicator_eq_true_iff.mpr hA] at hdec
   rw [List.mem_toFinset, List.mem_filter, Bool.and_eq_true, List.mem_range]
-  exact ⟨by omega, by simpa [selected] using hY, hdec⟩
+  exact ⟨by omega, by simpa [selected] using hY,
+    indicator_eq_true_iff.mpr hA ▸ hT m n (by omega)⟩
 
 /-- **The core is a complexity core of `A` for `P`.** A problem in `P` inside `A` is a requirement
 `e` that is never refuted. If the core is infinite, the count eventually exceeds `e`, so past the
@@ -369,36 +346,29 @@ theorem isComplexityCore_core (hs : ∀ w t b, runBool d w t = some b → b = in
   rintro B hB (hBA | hBA)
   swap
   · exact Set.finite_empty.subset fun w ⟨hwB, hwA, _⟩ => hBA hwB hwA
-  rcases Set.finite_or_infinite (B ∩ core d A) with hfin | hinf
-  · exact hfin
-  exfalso
+  by_contra hinf
+  rw [Set.not_finite] at hinf
   obtain ⟨e, -, rfl⟩ := exists_requirement_eq hB 0
   -- the count eventually exceeds `e`
-  have hcore : {m | word m ∈ core d A}.Infinite := fun hfin' => by
-    refine (hinf.mono Set.inter_subset_right) ((hfin'.image word).subset fun w hw => ?_)
-    exact ⟨index w, by simpa using hw, word_index w⟩
+  have hcore : {m | word m ∈ core d A}.Infinite := fun hfin' =>
+    (hinf.mono Set.inter_subset_right) ((hfin'.image word).subset fun w hw =>
+      ⟨index w, by simpa using hw, word_index w⟩)
   obtain ⟨F, hFsub, hFcard⟩ := hcore.exists_subset_card_eq (e + 1)
   obtain ⟨N, hN⟩ := exists_card_le_coreCount hc F fun m hm => hFsub hm
   -- from some length on, the clock of `e` is below `2 ^ l`
   have hclock : PolynomiallyBounded (clock e) := by unfold clock; fun_prop
-  obtain ⟨L, hL⟩ := Filter.eventually_atTop.mp (PolynomiallyBounded.eventually_lt_two_pow hclock)
+  obtain ⟨L, hL⟩ := Filter.eventually_atTop.mp hclock.eventually_lt_two_pow
   refine hinf (((List.finite_length_lt Bool L).union
     ((Set.finite_lt_nat N).image word)).subset fun w ⟨hwB, hwA, hwY⟩ => ?_)
   by_contra hw
   simp only [Set.mem_union, Set.mem_ofPred_eq, Set.mem_image, not_or, not_lt, not_exists,
     not_and] at hw
-  obtain ⟨hlen, hidx⟩ := hw
-  have hNi : N ≤ index w := by
-    by_contra h
-    exact hidx (index w) (by omega) (word_index w)
-  have he : e < coreCount d (table d (index w)) := by
-    have := hN (index w) hNi
-    omega
+  have hNi : N ≤ index w := not_lt.mp fun h => hw.2 (index w) h (word_index w)
+  have he : e < coreCount d (table d (index w)) := by have := hN (index w) hNi; omega
   rcases (selects_eq_true_iff.mp hwY) e he with href | hmem
   · exact not_subset_of_refuted hs href hBA
-  · have hlt := hL w.length hlen
-    have hidx' := two_pow_length_word_le (index w)
-    rw [word_index] at hidx'
+  · have hlt := hL w.length hw.1
+    have hidx' := word_index w ▸ two_pow_length_word_le (index w)
     rw [word_index, Bool.eq_false_iff, Ne, memReq_iff] at hmem
     exact hmem ⟨by omega, hwB⟩
 
@@ -411,8 +381,8 @@ theorem infinite_core (hs : ∀ w t b, runBool d w t = some b → b = indicator 
     (hA : A ∉ P encBits) : (core d A).Infinite := by
   classical
   intro hfin
-  obtain ⟨S, hS⟩ : ∃ S : Finset ℕ, ∀ m, word m ∈ core d A → m ∈ S :=
-    ⟨((hfin.preimage word_injective.injOn).toFinset), fun m hm => by simpa using hm⟩
+  set S := (hfin.preimage word_injective.injOn).toFinset
+  have hS : ∀ m, word m ∈ core d A → m ∈ S := fun m hm => by simpa [S] using hm
   -- the requirements below `S.card` not inside `A` are all refuted from stage `N` on
   choose! R hR using fun e (h : ¬ requirement e ⊆ A) => exists_refuted hc h
   let N := (Finset.range S.card).sup R
@@ -421,31 +391,24 @@ theorem infinite_core (hs : ∀ w t b, runBool d w t = some b → b = indicator 
     Finset.sup_mem (P encBits) empty_mem_P (fun _ hx _ hy => union_mem_P hx hy) _ _
       fun e _ => requirement_mem_P e
   have hUA : U ⊆ A := Finset.sup_le fun e he => (Finset.mem_filter.mp he).2
-  apply hA
-  have hfin' : (A \ U).Finite := by
-    refine (hfin.union ((Set.finite_lt_nat N).image word)).subset fun w ⟨hwA, hwU⟩ => ?_
-    by_contra hw
-    simp only [core, Set.mem_union, Set.mem_inter_iff, Set.mem_image, Set.mem_ofPred_eq, not_or,
-      not_and, not_exists] at hw
-    obtain ⟨hwY, hidx⟩ := hw
-    have hNi : N ≤ index w := by
-      by_contra h
-      exact hidx (index w) (by omega) (word_index w)
-    have hnY : selects d (index w) = false := by
-      simpa [selected] using hwY hwA
-    rw [← Bool.not_eq_true, selects_eq_true_iff] at hnY
-    obtain ⟨e, he, hne⟩ := not_forall₂.mp hnY
-    obtain ⟨hnref, hmem⟩ := not_or.mp hne
-    have heS : e < S.card := he.trans_le (coreCount_le hs hS _)
-    replace hmem : memReq e (index w) (word (index w)) = true := by simpa using hmem
-    rw [word_index, memReq_iff] at hmem
-    by_cases hsub : requirement e ⊆ A
-    · exact hwU (Finset.le_sup (f := requirement)
-        (Finset.mem_filter.mpr ⟨Finset.mem_range.mpr heS, hsub⟩) hmem.2)
-    · have hRN : R e ≤ N := Finset.le_sup (f := R) (Finset.mem_range.mpr heS)
-      exact hnref (hR e hsub (index w) (hRN.trans hNi))
-  rw [← Set.union_sdiff_cancel hUA]
-  exact union_mem_P hUP hfin'.mem_P
+  have hfin' : (A \ U).Finite :=
+    (hfin.union ((Set.finite_lt_nat N).image word)).subset fun w ⟨hwA, hwU⟩ => by
+      by_contra hw
+      simp only [core, Set.mem_union, Set.mem_inter_iff, Set.mem_image, Set.mem_ofPred_eq, not_or,
+        not_and, not_exists] at hw
+      have hNi : N ≤ index w := not_lt.mp fun h => hw.2 (index w) h (word_index w)
+      have hnY : ¬ selects d (index w) = true := by simpa [selected] using hw.1 hwA
+      rw [selects_eq_true_iff] at hnY
+      obtain ⟨e, he, hne⟩ := not_forall₂.mp hnY
+      obtain ⟨hnref, hmem⟩ := not_or.mp hne
+      have heS : e < S.card := he.trans_le (coreCount_le hs hS _)
+      replace hmem : memReq e (index w) w = true := by simpa [word_index] using hmem
+      by_cases hsub : requirement e ⊆ A
+      · exact hwU (Finset.le_sup (f := requirement)
+          (Finset.mem_filter.mpr ⟨Finset.mem_range.mpr heS, hsub⟩) (memReq_iff.mp hmem).2)
+      · exact hnref (hR e hsub (index w)
+          ((Finset.le_sup (f := R) (Finset.mem_range.mpr heS)).trans hNi))
+  exact hA (Set.union_sdiff_cancel hUA ▸ union_mem_P hUP hfin'.mem_P)
 
 end Correctness
 

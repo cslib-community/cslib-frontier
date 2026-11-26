@@ -110,15 +110,10 @@ theorem shiftCoordinate_publicMatrix {n m q : ℕ} [Fact (Nat.Prime q)]
       (fun i => e i + (g - s j) * r i) := by
   funext i c
   refine Fin.cases ?_ (fun c => ?_) c
-  · have h : ((fun i c => if c = j then A i c + r i else A i c) *ᵥ s) i =
-        (A *ᵥ s) i + r i * s j := by
-      simp only [Matrix.mulVec, dotProduct, ite_mul, add_mul]
-      rw [show (∑ x, if x = j then A i x * s x + r i * s x else A i x * s x) =
-          ∑ x, (A i x * s x + if x = j then r i * s x else 0) from
-        Finset.sum_congr rfl fun x _ => by split_ifs <;> ring]
-      rw [Finset.sum_add_distrib, Finset.sum_ite_eq']
-      simp
-    simp only [shiftCoordinate, publicMatrix, Fin.cons_zero, h]
+  · have hite (x : Fin n) : (if x = j then A i x + r i else A i x) * s x =
+        A i x * s x + if x = j then r i * s x else 0 := by split_ifs <;> ring
+    simp only [shiftCoordinate, publicMatrix, Fin.cons_zero, Matrix.mulVec, dotProduct, hite,
+      Finset.sum_add_distrib, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
     ring
   · simp only [shiftCoordinate, publicMatrix, Fin.cons_succ]
 
@@ -161,10 +156,8 @@ theorem uniform_bind_lweSelfReduceDistinguisher {n m q : ℕ} [Fact (Nat.Prime q
         eval (distinguisher (publicMatrix A s (fun i => e i + (g - s j) * r i)))) := by
   simp_rw [lweSelfReduceDistinguisher, eval_bind, eval_uniform, shiftCoordinate_publicMatrix]
   rw [PMF.bind_comm, PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q)))]
-  congr 1
-  funext r
-  exact PMF.uniformOfFintype_bind_equiv (shiftMatrixEquiv j r)
-    (fun A => eval (distinguisher (publicMatrix A s (fun i => e i + (g - s j) * r i))))
+  exact congrArg _ (funext fun r => PMF.uniformOfFintype_bind_equiv (shiftMatrixEquiv j r)
+    (fun A => eval (distinguisher (publicMatrix A s (fun i => e i + (g - s j) * r i)))))
 
 /-- A correct guess leaves the law of an LWE sample with a uniform `A` unchanged. -/
 theorem lweSelfReduce_real {n m q : ℕ} [Fact (Nat.Prime q)]
@@ -187,10 +180,9 @@ theorem lweSelfReduce_ideal {n m q : ℕ} [Fact (Nat.Prime q)]
       (PMF.uniformOfFintype (Fin m → ZMod q)).bind fun v =>
         eval (distinguisher (publicMatrix A s v))) := by
   rw [uniform_bind_lweSelfReduceDistinguisher]
-  congr 1
-  funext A
-  exact PMF.uniformOfFintype_bind_equiv (shiftErrorEquiv e (g - s j) (sub_ne_zero.mpr hg))
-    (fun v => eval (distinguisher (publicMatrix A s v)))
+  exact congrArg _ (funext fun A => PMF.uniformOfFintype_bind_equiv
+    (shiftErrorEquiv e (g - s j) (sub_ne_zero.mpr hg))
+    (fun v => eval (distinguisher (publicMatrix A s v))))
 
 /-! ### Secret re-randomization and single trials -/
 
@@ -330,19 +322,15 @@ private theorem pi_pure {ι γ : Type} [Fintype ι] [Finite γ] (c : ι → γ) 
   ext x
   simp only [PMF.pi_apply, PMF.pure_apply]
   by_cases h : x = c
-  · subst h
-    simp
+  · simp [h]
   · obtain ⟨i, hi⟩ : ∃ i, x i ≠ c i := by simpa [funext_iff] using h
-    simp only [h, ↓reduceIte]
-    exact Finset.prod_eq_zero (Finset.mem_univ i) (by simp [hi])
+    simpa [h] using Finset.prod_eq_zero (Finset.mem_univ i) (by simp [hi])
 
 /-- The rows of an LWE sample with a fixed secret are independent. -/
 theorem sampleLaw_eq_pi (n m q : ℕ) [Fact (Nat.Prime q)] (noise : PMF (ZMod q))
     (s : Fin n → ZMod q) :
     sampleLaw n m q noise s = PMF.pi fun _ : Fin m => rowLaw n q noise s := by
-  rw [rowLaw, PMF.pi_bind]
-  simp only [PMF.pi_bind (fun _ => noise), pi_pure]
-  rw [PMF.pi_uniformOfFintype]
+  simp only [rowLaw, PMF.pi_bind, pi_pure, PMF.pi_uniformOfFintype]
   rfl
 
 /-- Number of samples used by `reduceSearchToDecision`: `N` blocks of `m` samples for each of
@@ -365,16 +353,9 @@ private theorem pi_map_sampleBlock {n q N m : ℕ} [Fact (Nat.Prime q)]
     (PMF.pi fun _ : Fin (searchSamples n q N m) => μ).map sampleBlock =
       PMF.pi fun _ : Option (Fin n × ZMod q) => PMF.pi fun _ : Fin N =>
         PMF.pi fun _ : Fin m => μ := by
-  let reindex (b : Fin (searchSamples n q N m) → Fin (n + 1) → ZMod q)
-      (k : (Option (Fin n × ZMod q) × Fin N) × Fin m) : Fin (n + 1) → ZMod q :=
-    b (blockRow n q N m k)
-  have h : (PMF.pi fun _ : Fin (searchSamples n q N m) => μ).map sampleBlock =
-      (((PMF.pi fun _ : Fin (searchSamples n q N m) => μ).map reindex).map
-        Function.curry).map Function.curry := by
-    rw [PMF.map_comp, PMF.map_comp]
-    rfl
-  refine h.trans ?_
-  rw [PMF.pi_map_comp_equiv, PMF.pi_map_curry, PMF.pi_map_curry]
+  change (PMF.pi fun _ : Fin (searchSamples n q N m) => μ).map
+      (Function.curry ∘ Function.curry ∘ fun b k => b (blockRow n q N m k)) = _
+  rw [← PMF.map_comp, ← PMF.map_comp, PMF.pi_map_comp_equiv, PMF.pi_map_curry, PMF.pi_map_curry]
 
 /-- With secret `s`, the blocks of a `searchSamples n q N m`-row sample are independent
 `m`-row samples. -/
@@ -400,20 +381,8 @@ theorem sampleLaw_bind_runTrials {n m q N : ℕ} [Fact (Nat.Prime q)] (noise : P
     (sampleLaw n (searchSamples n q N m) q noise s).bind
         (fun P => eval (runTrials (N := N) distinguisher P)) =
       PMF.pi fun o => PMF.pi fun _ : Fin N => estimatorLaw noise distinguisher s o := by
-  have hinner (o : Option (Fin n × ZMod q)) :
-      (PMF.pi fun _ : Fin N => sampleLaw n m q noise s).bind
-          (fun B => PMF.pi fun t => eval (estimatorTrial distinguisher o (B t))) =
-        PMF.pi fun _ : Fin N => estimatorLaw noise distinguisher s o := by
-    have h := PMF.pi_bind (fun _ : Fin N => sampleLaw n m q noise s)
-      (fun _ P => eval (estimatorTrial distinguisher o P))
-    simp only [sampleLaw_bind_estimatorTrial] at h
-    exact h.symm
-  have houter := PMF.pi_bind
-    (fun _ : Option (Fin n × ZMod q) => PMF.pi fun _ : Fin N => sampleLaw n m q noise s)
-    (fun o B => PMF.pi fun t => eval (estimatorTrial distinguisher o (B t)))
-  simp only [hinner] at houter
-  simp only [runTrials, eval_sampleEach]
-  rw [houter, ← sampleLaw_map_sampleBlock, PMF.bind_map]
+  simp only [runTrials, eval_sampleEach, ← sampleLaw_bind_estimatorTrial, PMF.pi_bind,
+    ← sampleLaw_map_sampleBlock, PMF.bind_map]
   rfl
 
 /-! ### Choosing the secret from the counts -/
@@ -434,11 +403,10 @@ theorem abs_sub_le_guessSecret {n q N : ℕ} [Fact (Nat.Prime q)]
     (X : Option (Fin n × ZMod q) → Fin N → Bool) (j : Fin n) (g : ZMod q) :
     |(trueCount (X (some (j, g))) : ℝ) - trueCount (X none)| ≤
       |(trueCount (X (some (j, guessSecret X j))) : ℝ) - trueCount (X none)| := by
-  have h := (Classical.choose_spec (Finset.exists_max_image Finset.univ
+  rw [guessSecret]
+  exact_mod_cast (Classical.choose_spec (Finset.exists_max_image Finset.univ
     (fun g : ZMod q => |(trueCount (X (some (j, g))) : ℤ) - trueCount (X none)|)
     Finset.univ_nonempty)).2 g (Finset.mem_univ g)
-  simp only [guessSecret]
-  exact_mod_cast h
 
 /-- If every count is within `N * |pR - pU| / 4` of its mean, where correct guesses have mean
 `N * pR` and the uniform estimator and wrong guesses have mean `N * pU`, then `guessSecret`
@@ -451,40 +419,29 @@ theorem guessSecret_eq_of_close {n q N : ℕ} [Fact (Nat.Prime q)]
     guessSecret X = s := by
   funext j
   by_contra hne
-  have hc := hsome j (s j)
-  have hw := hsome j (guessSecret X j)
-  simp only [↓reduceIte] at hc
-  simp only [hne, ↓reduceIte] at hw
+  have hc := by simpa only [↓reduceIte] using hsome j (s j)
+  have hw := by simpa only [hne, ↓reduceIte] using hsome j (guessSecret X j)
   have hmax := abs_sub_le_guessSecret X j (s j)
   set cU := (trueCount (X none) : ℝ)
   set cR := (trueCount (X (some (j, s j))) : ℝ)
   set cW := (trueCount (X (some (j, guessSecret X j))) : ℝ)
   have hN : |(N : ℝ) * pR - N * pU| = N * |pR - pU| := by
     rw [← mul_sub, abs_mul, abs_of_nonneg (Nat.cast_nonneg N)]
-  have h1 : |cW - cU| ≤ |cW - N * pU| + |cU - N * pU| := by
-    rw [abs_sub_comm cU]
-    exact abs_sub_le _ _ _
-  have h2 : |(N : ℝ) * pR - N * pU| ≤ |cR - N * pR| + |cR - cU| + |cU - N * pU| := by
-    rw [abs_sub_comm cR (N * pR)]
-    calc |(N : ℝ) * pR - N * pU| ≤ |N * pR - cR| + |cR - N * pU| := abs_sub_le _ _ _
-      _ ≤ |N * pR - cR| + (|cR - cU| + |cU - N * pU|) := by gcongr; exact abs_sub_le _ _ _
-      _ = _ := by ring
-  linarith
+  have h1 := abs_sub_comm (N * pU) cU ▸ abs_sub_le cW (N * pU) cU
+  have h2 := abs_sub_comm (N * pR) cR ▸ abs_sub_le (N * pR) cR (N * pU)
+  linarith [abs_sub_le cR cU (N * pU)]
 
 private theorem pi_trueCount_far_le {N : ℕ} (μ : PMF Bool) {ε : ℝ} (hε : 0 ≤ ε) :
     ((PMF.pi fun _ : Fin N => μ).toOuterMeasure
       {x | ε ≤ |(trueCount x : ℝ) - N * (μ true).toReal|}).toReal ≤
         2 * Real.exp (-2 * ε ^ 2 / N) := by
-  have h := PMF.pi_sum_abs_sub_mean_ge (fun _ : Fin N => μ)
-    (fun _ b => if b then (1 : ℝ) else 0) (bound := 1) zero_le_one
-    (fun _ b _ => by cases b <;> simp) hε
   have hsum (x : Fin N → Bool) : ∑ i, (if x i then (1 : ℝ) else 0) = trueCount x := by
     simp [trueCount, Finset.sum_boole]
   have hmean : ∑ _i : Fin N, ∑ a : Bool, (μ a).toReal * (if a then (1 : ℝ) else 0) =
-      N * (μ true).toReal := by
-    simp
-  simp only [hsum, hmean, Fintype.card_fin, one_pow, mul_one] at h
-  exact h
+      N * (μ true).toReal := by simp
+  simpa only [hsum, hmean, Fintype.card_fin, one_pow, mul_one] using
+    PMF.pi_sum_abs_sub_mean_ge (fun _ : Fin N => μ) (fun _ b => if b then (1 : ℝ) else 0)
+      (bound := 1) zero_le_one (fun _ b _ => by cases b <;> simp) hε
 
 /-- When the trials are drawn from their estimators' laws, `guessSecret` misses the secret with
 probability at most `(n * q + 1) * 2 * exp (-N * |pR - pU| ^ 2 / 8)`. -/
@@ -507,27 +464,22 @@ theorem pi_estimatorLaw_guessSecret_ne_le {n m q : ℕ} [Fact (Nat.Prime q)] (N 
     by_contra hnot
     simp only [Set.mem_iUnion, Finset.mem_univ, exists_const, not_exists, Set.mem_ofPred_eq,
       not_le, E] at hnot
-    apply hX
-    refine guessSecret_eq_of_close X s (pR := pR) (pU := pU) ?_ fun j g => ?_
+    refine hX (guessSecret_eq_of_close X s (pR := pR) (pU := pU) ?_ fun j g => ?_)
     · simpa [p, estimatorLaw] using hnot none
     · by_cases hg : g = s j <;> simpa [p, estimatorLaw, hg] using hnot (some (j, g))
   have hE (o : Option (Fin n × ZMod q)) :
       (μ.toOuterMeasure (E o)).toReal ≤ 2 * Real.exp (-(N * |pR - pU| ^ 2) / 8) := by
-    have hmap : μ.toOuterMeasure (E o) =
-        (PMF.pi fun _ : Fin N => estimatorLaw noise distinguisher s o).toOuterMeasure
-          {x | N * |pR - pU| / 4 ≤ |(trueCount x : ℝ) - N * p o|} := by
-      rw [← PMF.pi_map_eval
-        (fun o => PMF.pi fun _ : Fin N => estimatorLaw noise distinguisher s o) o,
-        PMF.toOuterMeasure_map_apply]
-      rfl
-    rw [hmap]
-    refine (pi_trueCount_far_le _ (by positivity)).trans (le_of_eq ?_)
+    have h := pi_trueCount_far_le (N := N) (estimatorLaw noise distinguisher s o)
+      (ε := N * |pR - pU| / 4) (by positivity)
+    rw [← PMF.pi_map_eval
+      (fun o => PMF.pi fun _ : Fin N => estimatorLaw noise distinguisher s o) o,
+      PMF.toOuterMeasure_map_apply] at h
+    refine h.trans_eq ?_
     congr 2
-    rcases Nat.eq_zero_or_pos N with hN | hN
-    · simp [hN]
+    rcases Nat.eq_zero_or_pos N with rfl | hN
+    · simp
     · have : (N : ℝ) ≠ 0 := by positivity
-      field_simp
-      ring
+      field_simp; ring
   calc (μ.toOuterMeasure {X | guessSecret X ≠ s}).toReal
       ≤ (μ.toOuterMeasure (⋃ o ∈ Finset.univ, E o)).toReal :=
         ENNReal.toReal_mono (PMF.toOuterMeasure_ne_top _ _) (MeasureTheory.measure_mono hsub)
@@ -563,8 +515,7 @@ private theorem searchGame_reduceSearchToDecision {n m q : ℕ} [Fact (Nat.Prime
             PMF.pure (decide (guessSecret X = s)) := by
   simp only [searchGame, reduceSearchToDecision, decodeMatrix_encMatrix, pmf_norm,
     EmbeddingLike.apply_eq_iff_eq]
-  congr 1
-  funext s
+  refine congrArg _ (funext fun s => ?_)
   rw [← sampleLaw_bind_runTrials]
   simp only [sampleLaw, pmf_norm]
 
@@ -582,34 +533,23 @@ theorem searchToDecision {n m q : ℕ} [Fact (Nat.Prime q)] {noise : PMF (ZMod q
       Game.succProbability (searchGame n (searchSamples n q N m) q noise
         (reduceSearchToDecision (n := n) (m := m) (q := q) N adversary)) := by
   set D := fun M : Matrix (Fin m) (Fin (n + 1)) (ZMod q) => adversary (encMatrix m (n + 1) q M)
-  have hR : distinguishingGame
-      (realEnsemble (fun _ => n) (fun _ => m) (fun _ => q) (fun _ => noise) 0) adversary =
-        realLaw noise D := by
-    simp only [distinguishingGame_eq_bind, realEnsemble, realLaw, pmf_norm]
-    rfl
-  have hU : distinguishingGame (uniformEnsemble (fun _ => n) (fun _ => m) (fun _ => q) 0)
-      adversary = uniformLaw D := by
-    simp only [distinguishingGame_eq_bind, uniformEnsemble, uniformLaw, pmf_norm]
-    rfl
-  rw [Game.coe_advantage, Game.coe_succProbability, Game.coe_succProbability, hR, hU,
-    Game.coe_succProbability]
   set B := (n * q + 1) * (2 * Real.exp (-(N * |(realLaw noise D true).toReal -
     (uniformLaw D true).toReal| ^ 2) / 8))
   have hB : 0 ≤ B := by positivity
   set game := searchGame n (searchSamples n q N m) q noise
-    (reduceSearchToDecision (n := n) (m := m) (q := q) N adversary)
+    (reduceSearchToDecision (n := n) (m := m) (q := q) N adversary) with hgame
+  simp only [Game.coe_advantage, Game.coe_succProbability, distinguishingGame_eq_bind,
+    realEnsemble, uniformEnsemble, pmf_norm]
+  change 1 - B ≤ (game true).toReal
   have hfalse : game false ≤ ENNReal.ofReal B := by
-    rw [show game = _ from searchGame_reduceSearchToDecision (m := m) noise adversary N]
+    rw [hgame, searchGame_reduceSearchToDecision (m := m) noise adversary N]
     refine PMF.bind_apply_le_on_support _ fun s _ => ?_
-    have hmap {α : Type} (μ : PMF α) (f : α → Bool) :
-        μ.bind (fun X => PMF.pure (f X)) = μ.map f := rfl
-    rw [hmap, ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
+    change ((PMF.pi fun o => PMF.pi fun _ : Fin N => estimatorLaw noise D s o).map
+      fun X => decide (guessSecret X = s)) false ≤ _
+    rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
       ENNReal.le_ofReal_iff_toReal_le (PMF.toOuterMeasure_ne_top _ _) hB]
-    convert pi_estimatorLaw_guessSecret_ne_le N noise D s using 3
-    ext X
-    simp
-  have h := PMF.toReal_false_eq_one_sub game
-  have h' := ENNReal.toReal_le_of_le_ofReal hB hfalse
-  linarith
+    simpa only [Set.preimage, Set.mem_singleton_iff, decide_eq_false_iff_not] using
+      pi_estimatorLaw_guessSecret_ne_le N noise D s
+  linarith [PMF.toReal_false_eq_one_sub game, ENNReal.toReal_le_of_le_ofReal hB hfalse]
 
 end Cslib.Crypto.PrimeLWE

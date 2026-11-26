@@ -73,15 +73,13 @@ theorem satisfies_repair (pairs : List (α × α)) (fallback : α × α) {R : α
     (hR : pairs.any (fun p => R p.1 p.2) = true) (p : α × α) :
     R (repair pairs fallback R p).1 (repair pairs fallback R p).2 = true := by
   unfold repair
-  split
-  · assumption
+  split_ifs with hp
+  · exact hp
   · cases hfind : pairs.find? (fun q => R q.1 q.2) with
     | none =>
       obtain ⟨q, hq, hRq⟩ := List.any_eq_true.mp hR
-      exact False.elim ((List.find?_eq_none.mp hfind q hq) hRq)
-    | some q =>
-      simpa only [Option.getD_some] using
-        (List.find?_some (p := fun q : α × α => R q.1 q.2) hfind)
+      exact absurd hRq (List.find?_eq_none.mp hfind q hq)
+    | some q => simpa only [Option.getD_some] using List.find?_some hfind
 
 /-- The two incidence projections associated to source edge occurrence `i`. -/
 def block (pairs : List (α × α)) (fallback : α × α) (d : Edge (α → α → Bool))
@@ -118,14 +116,10 @@ theorem noParallelEdges_incidence (pairs : List (α × α)) (fallback : α × α
     {g : Graph (α → α → Bool)} (hg : g.IsLoopless) :
     (incidence pairs fallback g).NoParallelEdges := by
   unfold Graph.NoParallelEdges incidence
-  simp only [List.map_flatMap]
-  refine List.nodup_flatMap.mpr ⟨fun p hp => ?_, ?_⟩
-  · have h := hg p.1 (List.fst_mem_of_mem_zipIdx hp)
-    simp [block, h]
-  · refine List.Pairwise.of_map Prod.snd (fun p q hne => ?_) (by
-      rw [List.zipIdx_map_snd]
-      exact List.nodup_range' (s := 0) (n := g.edges.length))
-    simp [Function.onFun, block, Ne.symm hne]
+  rw [List.map_flatMap, List.nodup_flatMap]
+  exact ⟨fun p hp => by simp [block, hg p.1 (List.fst_mem_of_mem_zipIdx hp)],
+    List.Pairwise.of_map Prod.snd (fun p q hne => by simp [Function.onFun, block, Ne.symm hne])
+      (by simpa only [List.zipIdx_map_snd, List.Nodup] using List.nodup_range')⟩
 
 /-- Send an empty relation to the contradictory instance; otherwise take incidence projections. -/
 def reduce (pairs : List (α × α)) (a b : α) (g : Graph (α → α → Bool)) :
@@ -156,15 +150,13 @@ theorem unsatVal_contradiction (a b : α) (hab : a ≠ b) :
     by_cases ha : a = (τ 0).2 <;> by_cases hb : b = (τ 0).2 <;>
       simp [contradiction, projectionEval, ha, hb] at *
   refine le_antisymm ?_ ((ConstraintGraph.le_unsatVal_iff _).2 fun τ => ?_)
-  · have h := ((contradiction a b).toGraph projectionEval).unsatVal_le
-      (fun _ => ((a, a), a))
+  · have h := ((contradiction a b).toGraph projectionEval).unsatVal_le fun _ => ((a, a), a)
     rw [Graph.unsatFrac_toGraph] at h
-    simpa [contradiction, projectionEval, hab, Ne.symm hab] using h
-  · rw [Graph.unsatFrac_toGraph]
-    have h := hcount τ
-    have hlen : (contradiction a b).edges.length = 2 := rfl
-    rw [hlen]
-    exact (div_le_div_iff_of_pos_right (by norm_num : (0 : ℝ) < 2)).2 (by exact_mod_cast h)
+    simpa [contradiction, projectionEval, hab, hab.symm] using h
+  · have hlen : ((contradiction a b).edges.length : ℝ) = 2 := by simp [contradiction]
+    rw [Graph.unsatFrac_toGraph, hlen]
+    exact (div_le_div_iff_of_pos_right (by norm_num : (0 : ℝ) < 2)).2
+      (Nat.one_le_cast.mpr (hcount τ))
 
 private theorem count_violations_le_incidence (pairs : List (α × α)) (fallback : α × α)
     (g : Graph (α → α → Bool))
@@ -173,12 +165,11 @@ private theorem count_violations_le_incidence (pairs : List (α × α)) (fallbac
     g.edges.countP (fun d => !d.constraint (τ d.src).2 (τ d.dst).2) ≤
       (incidence pairs fallback g).edges.countP
         (fun d => !projectionEval d.constraint (τ d.src) (τ d.dst)) := by
-  have hmap : g.edges.countP (fun d => !d.constraint (τ d.src).2 (τ d.dst).2) =
-      g.edges.zipIdx.countP (fun p => !p.1.constraint (τ p.1.src).2 (τ p.1.dst).2) := by
-    change _ = g.edges.zipIdx.countP
-      ((fun d : Edge (α → α → Bool) => !d.constraint (τ d.src).2 (τ d.dst).2) ∘ Prod.fst)
+  have hcnt : g.edges.countP (fun d => !d.constraint (τ d.src).2 (τ d.dst).2) =
+      g.edges.zipIdx.countP
+        ((fun d : Edge (α → α → Bool) => !d.constraint (τ d.src).2 (τ d.dst).2) ∘ Prod.fst) := by
     rw [← List.countP_map, List.zipIdx_map_fst]
-  rw [hmap, incidence, List.countP_flatMap]
+  rw [hcnt, incidence, List.countP_flatMap]
   refine List.countP_le_sum_map fun ⟨d, i⟩ hdi hbad => ?_
   have hgood := satisfies_repair pairs fallback (hR d (List.fst_mem_of_mem_zipIdx hdi))
     ((τ i).1)
@@ -186,9 +177,7 @@ private theorem count_violations_le_incidence (pairs : List (α × α)) (fallbac
       (repair pairs fallback d.constraint (τ i).1).2 = (τ d.dst).2) := by
     rintro ⟨h₁, h₂⟩
     rw [h₁, h₂] at hgood
-    have hfalse : d.constraint (τ d.src).2 (τ d.dst).2 = false := by
-      simpa using hbad
-    exact Bool.noConfusion (hgood.symm.trans hfalse)
+    simp [hgood] at hbad
   by_cases h₁ : (repair pairs fallback d.constraint (τ i).1).1 = (τ d.src).2 <;>
     by_cases h₂ : (repair pairs fallback d.constraint (τ i).1).2 = (τ d.dst).2 <;>
     simp [block, projectionEval, h₁, h₂] at *
@@ -201,16 +190,14 @@ theorem half_unsatVal_le_incidence (pairs : List (α × α)) (fallback : α × �
     (g.toGraph id).unsatVal / 2 ≤
       ((incidence pairs fallback g).toGraph projectionEval).unsatVal := by
   let : Nonempty α := ⟨fallback.1⟩
-  apply (ConstraintGraph.le_unsatVal_iff _).2
-  intro τ
+  refine (ConstraintGraph.le_unsatVal_iff _).2 fun τ => ?_
   have hval := (g.toGraph id).unsatVal_le (fun v => (τ v).2)
-  rw [Graph.unsatFrac_toGraph] at hval
-  rw [Graph.unsatFrac_toGraph, length_edges_incidence]
-  have hcount := count_violations_le_incidence pairs fallback g hR τ
-  have hcount' : (g.edges.countP (fun d => !d.constraint (τ d.src).2 (τ d.dst).2) : ℝ) ≤
+  have hcount : (g.edges.countP (fun d => !d.constraint (τ d.src).2 (τ d.dst).2) : ℝ) ≤
       ((incidence pairs fallback g).edges.countP
-        (fun d => !projectionEval d.constraint (τ d.src) (τ d.dst)) : ℝ) := by
-    exact_mod_cast hcount
+        (fun d => !projectionEval d.constraint (τ d.src) (τ d.dst)) : ℝ) :=
+    Nat.cast_le.mpr (count_violations_le_incidence pairs fallback g hR τ)
+  simp only [Graph.unsatFrac_toGraph, id_eq] at hval
+  rw [Graph.unsatFrac_toGraph, length_edges_incidence]
   calc (g.toGraph id).unsatVal / 2 ≤
         (g.edges.countP (fun d => !d.constraint (τ d.src).2 (τ d.dst).2) : ℝ) /
           g.edges.length / 2 := div_le_div_of_nonneg_right hval (by norm_num)
@@ -226,20 +213,15 @@ theorem satisfiable_incidence (pairs : List (α × α)) (fallback : α × α)
     ((incidence pairs fallback g).toGraph projectionEval).Satisfiable := by
   obtain ⟨σ, hσ⟩ := hg
   let edge (i : ℕ) := g.edges.getD i ⟨0, 0, fun _ _ => false⟩
-  apply (satisfiable_toGraph_projectionEval_iff _).2
-  refine ⟨fun i => (σ (edge i).src, σ (edge i).dst), σ, ?_⟩
-  intro e he
+  refine (satisfiable_toGraph_projectionEval_iff _).2
+    ⟨fun i => (σ (edge i).src, σ (edge i).dst), σ, fun e he => ?_⟩
   obtain ⟨⟨d, i⟩, hdi, he⟩ := List.mem_flatMap.mp he
   have hget : edge i = d := by
-    unfold edge
-    rw [List.getD_eq_getElem?_getD, List.mk_mem_zipIdx_iff_getElem?.mp hdi]
-    rfl
-  have hd := List.fst_mem_of_mem_zipIdx hdi
-  obtain ⟨j, rfl⟩ := List.get_of_mem hd
-  have hsat : (g.edges.get j).constraint (σ (g.edges.get j).src) (σ (g.edges.get j).dst) = true :=
-    hσ j
+    simp only [edge, List.getD_eq_getElem?_getD, List.mk_mem_zipIdx_iff_getElem?.mp hdi,
+      Option.getD_some]
+  obtain ⟨j, rfl⟩ := List.get_of_mem (List.fst_mem_of_mem_zipIdx hdi)
   have hrepair := repair_eq pairs fallback (R := (g.edges.get j).constraint)
-    (p := (σ (g.edges.get j).src, σ (g.edges.get j).dst)) hsat
+    (p := (σ (g.edges.get j).src, σ (g.edges.get j).dst)) (hσ j)
   simp only [block, List.mem_cons, List.not_mem_nil, or_false] at he
   rcases he with rfl | rfl <;> simp only [hget, hrepair]
 
@@ -254,31 +236,21 @@ theorem half_unsatVal_le_reduce (pairs : List (α × α)) (a b : α) (hab : a �
     exact (div_le_div_iff_of_pos_right (by norm_num : (0 : ℝ) < 2)).2
       (g.toGraph id).unsatVal_le_one
   · rw [reduce, ite_eq_right hnone]
-    apply half_unsatVal_le_incidence
-    intro d hd
-    have hnone' : g.edges.any (fun d => !(pairs.any fun p => d.constraint p.1 p.2)) = false :=
-      Bool.eq_false_iff.mpr hnone
-    have h := (List.any_eq_false.mp hnone') d hd
-    simpa using h
+    exact half_unsatVal_le_incidence pairs (a, a) g fun d hd => by
+      simpa using List.any_eq_false.mp (Bool.eq_false_iff.mpr hnone) d hd
 
 /-- An exhaustive pair list ensures that satisfiable source instances never enter the empty
 relation branch. -/
 theorem satisfiable_reduce (pairs : List (α × α)) (hpairs : ∀ p, p ∈ pairs) (a b : α)
     {g : Graph (α → α → Bool)} (hg : (g.toGraph id).Satisfiable) :
     ((reduce pairs a b g).toGraph projectionEval).Satisfiable := by
-  have hnone : g.edges.any (fun d => !(pairs.any fun p => d.constraint p.1 p.2)) = false := by
-    rw [List.any_eq_false]
-    intro d hd
-    obtain ⟨σ, hσ⟩ := hg
-    obtain ⟨i, rfl⟩ := List.get_of_mem hd
-    have hsat : (g.edges.get i).constraint (σ (g.edges.get i).src) (σ (g.edges.get i).dst) = true :=
-      hσ i
-    simpa using
-      ((List.any_eq_true (l := pairs)
-        (p := fun p => (g.edges.get i).constraint p.1 p.2)).mpr
-        ⟨(σ (g.edges.get i).src, σ (g.edges.get i).dst), hpairs _, hsat⟩)
+  obtain ⟨σ, hσ⟩ := hg
+  have hnone : g.edges.any (fun d => !(pairs.any fun p => d.constraint p.1 p.2)) = false :=
+    List.any_eq_false.mpr fun d hd => by
+      obtain ⟨i, rfl⟩ := List.get_of_mem hd
+      simpa using ⟨σ (g.edges.get i).src, σ (g.edges.get i).dst, hpairs _, hσ i⟩
   rw [reduce, hnone]
-  exact satisfiable_incidence pairs (a, a) hg
+  exact satisfiable_incidence pairs (a, a) ⟨σ, hσ⟩
 
 section Runtime
 
@@ -297,74 +269,36 @@ private theorem isPolyTime_block (pairs : List (α × α)) (fallback : α × α)
   have hproj₂ : ComputableInPolyTime
       (fun R : α → α → Bool => fun p : α × α => (repair pairs fallback R p).2)
       (encPi (encPi encBool)) (encPi encA) := .of_finite _
-  have hleft : ComputableInPolyTime
-      (fun p : Edge (α → α → Bool) × ℕ => p.1)
-      (encPair (Edge.encoding (encPi (encPi encBool))) encUnary)
-      (Edge.encoding (encPi (encPi encBool))) := .fst _ _
-  have hidx : ComputableInPolyTime
-      (fun p : Edge (α → α → Bool) × ℕ => p.2)
-      (encPair (Edge.encoding (encPi (encPi encBool))) encUnary) encUnary := .snd _ _
-  have hb : ComputableInPolyTime
-      (fun p : Edge (α → α → Bool) × ℕ => block pairs fallback p.1 p.2)
-      (encPair (Edge.encoding (encPi (encPi encBool))) encUnary)
-      (encList (Edge.encoding (encPi encA))) := by
-    unfold block
-    exact (Edge.isPolyTime_mk hidx (Edge.isPolyTime_src hleft)
-      (hproj₁.comp (Edge.isPolyTime_constraint hleft))).cons'
-        ((Edge.isPolyTime_mk hidx (Edge.isPolyTime_dst hleft)
-          (hproj₂.comp (Edge.isPolyTime_constraint hleft))).cons' (.const []))
-  exact hb
+  unfold block encConstraintTable
+  exact (Edge.isPolyTime_mk (by fun_prop) (by fun_prop) (hproj₁.comp (by fun_prop))).cons'
+    ((Edge.isPolyTime_mk (by fun_prop) (by fun_prop) (hproj₂.comp (by fun_prop))).cons' (.const []))
 
 omit [DecidableEq α] [Fintype α] in
 private theorem zipIdx_edges_eq (g : Graph (α → α → Bool)) : g.edges.zipIdx =
     (List.range g.edges.length).map fun i =>
       (g.edges.getD i ⟨0, 0, fun _ _ => false⟩, i) := by
-  apply List.ext_getElem (by simp)
-  intro i hi hi'
-  have hi'' : i < g.edges.length := by simpa only [List.length_zipIdx] using hi
-  simp only [List.getElem_zipIdx, List.getElem_map, List.getElem_range,
-    List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi'', Option.getD_some, Nat.zero_add]
+  refine List.ext_getElem (by simp) fun i hi _ => ?_
+  simp only [List.length_zipIdx] at hi
+  simp [List.getD_eq_getElem?_getD, hi]
 
 omit [DecidableEq α] in
 private theorem isPolyTime_incidence (pairs : List (α × α)) (fallback : α × α)
     (encA : α ↪ List Bool) :
     ComputableInPolyTime (incidence pairs fallback)
       (Graph.encoding encConstraintTable) (Graph.encoding (encPi encA)) := by
-  have hb := isPolyTime_block pairs fallback encA
-  have hget : ComputableInPolyTime
-      (fun p : Graph (α → α → Bool) × ℕ =>
-        p.1.edges.getD p.2 ⟨0, 0, fun _ _ => false⟩)
-      (encPair (Graph.encoding (encPi (encPi encBool))) encUnary)
-      (Edge.encoding (encPi (encPi encBool))) :=
-    Graph.isPolyTime_edgeAt (.fst _ _) (.snd _ _) (fun _ _ => false)
-  have hlen : ComputableInPolyTime
-      (fun g : Graph (α → α → Bool) => g.edges.length)
-      (Graph.encoding (encPi (encPi encBool))) encUnary :=
-    (ComputableInPolyTime.length_list (Edge.encoding (encPi (encPi encBool)))).comp
-      (Graph.isPolyTime_edges ComputableInPolyTime.id')
-  have hrange := ComputableInPolyTime.range.comp hlen
-  have hindex : ComputableInPolyTime
-      (fun p : Graph (α → α → Bool) × ℕ => p.2)
-      (encPair (Graph.encoding (encPi (encPi encBool))) encUnary) encUnary := .snd _ _
-  have hcomp := hb.comp (hget.prod hindex)
   have hcall : ComputableInPolyTime
       (fun p : Graph (α → α → Bool) × ℕ =>
         block pairs fallback (p.1.edges.getD p.2 ⟨0, 0, fun _ _ => false⟩) p.2)
       (encPair (Graph.encoding (encPi (encPi encBool))) encUnary)
       (encList (Edge.encoding (encPi encA))) := by
-    simpa only [Function.comp_def] using hcomp
-  have hedges := ComputableInPolyTime.flatMapWithInput
-    (f := fun (g : Graph (α → α → Bool)) i =>
-      block pairs fallback (g.edges.getD i ⟨0, 0, fun _ _ => false⟩) i) hrange hcall
-  have hvertices : ComputableInPolyTime
-      (fun g : Graph (α → α → Bool) => g.vertices + g.edges.length)
-      (Graph.encoding (encPi (encPi encBool))) encUnary :=
-    ComputableInPolyTime.unary_add'
-      (Graph.isPolyTime_vertices (ComputableInPolyTime.id'
-        (encIn := Graph.encoding (encPi (encPi encBool))))) hlen
-  unfold incidence
+    simpa only [Function.comp_def, Graph.edgeAt, encConstraintTable] using
+      (isPolyTime_block pairs fallback encA).comp
+        ((Graph.isPolyTime_edgeAt (.fst _ _) (.snd _ _) (fun _ _ => false)).prod (.snd _ _))
+  unfold incidence encConstraintTable
   simp_rw [zipIdx_edges_eq, List.flatMap_map]
-  exact Graph.isPolyTime_mk hvertices hedges
+  exact Graph.isPolyTime_mk (by fun_prop)
+    (ComputableInPolyTime.flatMapWithInput
+      (list := fun g : Graph (α → α → Bool) => List.range g.edges.length) (by fun_prop) hcall)
 
 omit [DecidableEq α] in
 /-- The incidence reduction is polynomial-time for every fixed finite alphabet and fixed pair
@@ -401,14 +335,11 @@ theorem polyTimeReducible_GapTwoCSP_GapLabelCover {α : Type} [Fintype α] [Deci
   refine ⟨LabelCoverIncidence.reduce pairs a b,
     LabelCoverIncidence.isPolyTime_reduce pairs a b encA, ?_, ?_⟩
   · intro g hg
-    have hs := LabelCoverIncidence.satisfiable_reduce pairs hpairs a b
-      (mem_yes_GapTwoCSP.mp hg)
-    rw [GapLabelCover, PromiseProblem.mem_yes_gapMax,
-      (ConstraintGraph.unsatVal_eq_zero_iff _).mpr hs]
+    rw [GapLabelCover, PromiseProblem.mem_yes_gapMax, (ConstraintGraph.unsatVal_eq_zero_iff _).mpr
+      (LabelCoverIncidence.satisfiable_reduce pairs hpairs a b (mem_yes_GapTwoCSP.mp hg))]
     norm_num
   · intro g hg
-    simp only [GapTwoCSP, PromiseProblem.mem_no_gapMax] at hg
-    simp only [GapLabelCover, PromiseProblem.mem_no_gapMax]
+    simp only [GapTwoCSP, GapLabelCover, PromiseProblem.mem_no_gapMax] at hg ⊢
     have hgap := LabelCoverIncidence.half_unsatVal_le_reduce pairs a b hab g
     constructor <;> linarith [hg.1, hg.2]
 
@@ -435,11 +366,9 @@ theorem GapLabelCover_npHard :
       (Graph.encoding (encPi (encPair encBool (encPi encBool))))
       (GapLabelCover ((Bool × (Fin 6 → Bool)) × (Bool × (Fin 6 → Bool)))
         (Bool × (Fin 6 → Bool)) 1 (1 - 1 / 2 ^ 62)) := by
-  have hred := polyTimeReducible_GapTwoCSP_GapLabelCover dinurPairs mem_dinurPairs
-    (false, fun _ : Fin 6 => false) (true, fun _ : Fin 6 => false) (by decide)
-    (encPair encBool (encPi encBool)) (1 - 1 / 2 ^ 61)
-  have hconst : (1 + (1 - 1 / 2 ^ 61) : ℝ) / 2 = 1 - 1 / 2 ^ 62 := by norm_num
-  rw [hconst] at hred
-  exact GapTwoCSP_npHard.trans hred
+  simpa only [show (1 + (1 - 1 / 2 ^ 61) : ℝ) / 2 = 1 - 1 / 2 ^ 62 by norm_num] using
+    GapTwoCSP_npHard.trans (polyTimeReducible_GapTwoCSP_GapLabelCover dinurPairs mem_dinurPairs
+      (false, fun _ => false) (true, fun _ => false) (by decide)
+      (encPair encBool (encPi encBool)) (1 - 1 / 2 ^ 61))
 
 end Cslib.Complexity

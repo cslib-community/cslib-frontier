@@ -98,12 +98,11 @@ the `p`th Boolean function at the index of `x`. -/
   simp only [decide_eq_true_eq, exists_eq_right']
 
 /-- `columnLibrary k` has size at most `2 ^ (2 ^ k) * 2 ^ k`. -/
+@[circuit_bound]
 theorem size_columnLibrary_le (k : ℕ) :
     (columnLibrary k).size ≤ 2 ^ (2 ^ k) * 2 ^ k := by
-  simp only [circuit_simps, columnLibrary]
-  simpa using Finset.sum_le_sum
-    (s := Finset.univ) (f := fun p => (columnFormula ((BitString.equivFin (2 ^ k)).symm p)).size)
-    (g := fun _ => 2 ^ k) (fun p _ => size_columnFormula_le (pow_pos (by decide) _) _)
+  have := size_columnFormula_le (Nat.two_pow_pos k)
+  circuit_bound [columnLibrary]
 
 /-- The truth-table column at one data assignment, indexed as an address-value bit string. -/
 def column (f : BooleanFunction (k + d)) (y : Fin (2 ^ d)) : Fin (2 ^ (2 ^ k)) :=
@@ -121,14 +120,14 @@ def outputFormula (f : BooleanFunction (k + d)) : Formula signature (2 ^ (2 ^ k)
   Formula.orList (List.ofFn (rowFormula f))
 
 /-- `outputFormula f` has size at most `2 * 2 ^ d`. -/
+@[circuit_bound]
 theorem size_outputFormula_le (f : BooleanFunction (k + d)) :
     (outputFormula f).size ≤ 2 * 2 ^ d := by
   have h := Formula.size_orList_add_one (l := List.ofFn (rowFormula f))
     (by simp [List.ofFn_eq_nil_iff])
-  simp only [circuit_simps, List.map_ofFn, Function.comp_def, rowFormula, List.ofFn_const,
-    List.sum_replicate, List.length_ofFn] at h
+  simp only [circuit_simps, rowFormula] at h
   change (Formula.orList (List.ofFn (rowFormula f))).size ≤ _
-  lia
+  omega
 
 /-- The two minterm tables read disjoint coordinate blocks. -/
 def splitMinterms (k d : ℕ) : Circuit signature (k + d) (2 ^ k + 2 ^ d) :=

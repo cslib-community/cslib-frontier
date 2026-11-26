@@ -155,22 +155,15 @@ theorem value_mono_of_length (b : Bool) (g : List (AMMove × ℕ)) {f f' : List 
   induction g generalizing f f' with
   | nil => exact h [] rfl
   | cons x g ih =>
-    obtain ⟨_ | _, n⟩ := x
-    · rw [value_arthur, value_arthur]
-      gcongr with r
-      exact ih fun t ht => h _ (by
-        simp only [transcriptLength, List.length_append, List.length_ofFn, List.map_cons,
-          List.sum_cons] at ht ⊢; omega)
-    · have hy (y : Fin n → Bool) : (value b g fun t => f (List.ofFn y ++ t)) ≤
-          value b g fun t => f' (List.ofFn y ++ t) :=
-        ih fun t ht => h _ (by
-          simp only [transcriptLength, List.length_append, List.length_ofFn, List.map_cons,
-            List.sum_cons] at ht ⊢; omega)
-      cases b
-      · rw [value_merlin_false, value_merlin_false]
-        exact le_inf' _ _ fun y _ => (inf'_le _ (mem_univ y)).trans (hy y)
-      · rw [value_merlin_true, value_merlin_true]
-        exact sup'_le _ _ fun y _ => (hy y).trans
+    obtain ⟨mv, n⟩ := x
+    have hstep (r : Fin n → Bool) : (value b g fun t => f (List.ofFn r ++ t)) ≤
+        value b g fun t => f' (List.ofFn r ++ t) :=
+      ih fun t ht => h _ (by simp [transcriptLength, ht])
+    cases mv
+    · exact div_le_div_of_nonneg_right (sum_le_sum fun r _ => hstep r) (by positivity)
+    · cases b
+      · exact le_inf' univ_nonempty _ fun y _ => (inf'_le _ (mem_univ y)).trans (hstep y)
+      · exact sup'_le univ_nonempty _ fun y _ => (hstep y).trans
           (le_sup' (fun y => value true g fun t => f' (List.ofFn y ++ t)) (mem_univ y))
 
 theorem value_mono (b : Bool) (g : List (AMMove × ℕ)) {f f' : List Bool → ℚ}
@@ -190,35 +183,24 @@ theorem value_affine (b : Bool) (g : List (AMMove × ℕ)) (f : List Bool → �
   | nil => rfl
   | cons x g ih =>
     obtain ⟨_ | _, n⟩ := x
-    · rw [value_arthur, value_arthur]
-      simp only [ih]
-      rw [sum_add_distrib, ← mul_sum, sum_const, card_univ, Fintype.card_fun, Fintype.card_bool,
-        Fintype.card_fin, nsmul_eq_mul]
-      have : (2 : ℚ) ^ n ≠ 0 := by positivity
+    · simp only [value_arthur, ih, sum_add_distrib, ← mul_sum, sum_const, card_univ,
+        Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, nsmul_eq_mul]
       field_simp
-      push_cast
-      ring
-    · have hm : Monotone fun x : ℚ => c * x + d := fun x y hxy => by
-        dsimp only; nlinarith
+      push_cast; ring
+    · have hm : Monotone fun x : ℚ => c * x + d := fun _ _ hxy =>
+        add_le_add (mul_le_mul_of_nonneg_left hxy hc) le_rfl
       cases b
-      · rw [value_merlin_false, value_merlin_false]
-        simp only [ih]
-        exact (Finset.apply_inf'_eq_inf'_comp _ (fun x : ℚ => c * x + d)
-          fun x y => hm.map_min).symm
-      · rw [value_merlin_true, value_merlin_true]
-        simp only [ih]
-        exact (Finset.apply_sup'_eq_sup'_comp _ (fun x : ℚ => c * x + d)
-          fun x y => hm.map_max).symm
+      · simp only [value_merlin_false, ih]
+        exact (Finset.apply_inf'_eq_inf'_comp _ (fun x : ℚ => c * x + d) fun _ _ => hm.map_min).symm
+      · simp only [value_merlin_true, ih]
+        exact (Finset.apply_sup'_eq_sup'_comp _ (fun x : ℚ => c * x + d) fun _ _ => hm.map_max).symm
 
 theorem value_const (b : Bool) (g : List (AMMove × ℕ)) (d : ℚ) : value b g (fun _ => d) = d := by
   simpa using value_affine b g (fun _ => 0) le_rfl d
 
 theorem value_const_add (b : Bool) (g : List (AMMove × ℕ)) (f : List Bool → ℚ) (d : ℚ) :
     value b g (fun t => d + f t) = d + value b g f := by
-  have := value_affine b g f zero_le_one d
-  simp only [one_mul] at this
-  rw [add_comm d, ← this]
-  simp only [add_comm]
+  simpa only [one_mul, add_comm] using value_affine b g f zero_le_one d
 
 theorem value_nonneg (b : Bool) (g : List (AMMove × ℕ)) {f : List Bool → ℚ} (hf : ∀ t, 0 ≤ f t) :
     0 ≤ value b g f :=
@@ -236,23 +218,20 @@ theorem value_append (b : Bool) (g h : List (AMMove × ℕ)) (f : List Bool → 
   | cons x g ih =>
     obtain ⟨_ | _, n⟩ := x
     · simp only [List.cons_append, value_arthur, ih, List.append_assoc]
-    · cases b
-      · simp only [List.cons_append, value_merlin_false, ih, List.append_assoc]
-      · simp only [List.cons_append, value_merlin_true, ih, List.append_assoc]
+    · cases b <;>
+        simp only [List.cons_append, value_merlin_false, value_merlin_true, ih, List.append_assoc]
 
 private theorem one_sub_inf' {ι : Type} [Fintype ι] [Nonempty ι] (φ : ι → ℚ) :
     1 - univ.inf' univ_nonempty φ = univ.sup' univ_nonempty fun y => 1 - φ y := by
   obtain ⟨i, _, hi⟩ := exists_mem_eq_inf' univ_nonempty φ
-  refine le_antisymm ?_ (sup'_le _ _ fun y _ => ?_)
-  · rw [hi]; exact le_sup' (fun y => 1 - φ y) (mem_univ i)
-  · have := inf'_le φ (mem_univ y); linarith
+  exact le_antisymm (hi ▸ le_sup' (fun y => 1 - φ y) (mem_univ i))
+    (sup'_le _ _ fun y _ => sub_le_sub_left (inf'_le φ (mem_univ y)) 1)
 
 private theorem one_sub_sup' {ι : Type} [Fintype ι] [Nonempty ι] (φ : ι → ℚ) :
     1 - univ.sup' univ_nonempty φ = univ.inf' univ_nonempty fun y => 1 - φ y := by
   obtain ⟨i, _, hi⟩ := exists_mem_eq_sup' univ_nonempty φ
-  refine le_antisymm (le_inf' _ _ fun y _ => ?_) ?_
-  · have := le_sup' φ (mem_univ y); linarith
-  · rw [hi]; exact inf'_le (fun y => 1 - φ y) (mem_univ i)
+  exact le_antisymm (le_inf' _ _ fun y _ => sub_le_sub_left (le_sup' φ (mem_univ y)) 1)
+    (hi ▸ inf'_le (fun y => 1 - φ y) (mem_univ i))
 
 /-- Duality between Merlin maximising and minimising. -/
 theorem value_one_sub (b : Bool) (g : List (AMMove × ℕ)) (f : List Bool → ℚ) :
@@ -261,21 +240,14 @@ theorem value_one_sub (b : Bool) (g : List (AMMove × ℕ)) (f : List Bool → �
   | nil => rfl
   | cons x g ih =>
     obtain ⟨_ | _, n⟩ := x
-    · rw [value_arthur, value_arthur]
-      simp only [ih]
-      rw [sum_sub_distrib, sum_const, card_univ, Fintype.card_fun, Fintype.card_bool,
-        Fintype.card_fin, nsmul_eq_mul]
-      have : (2 : ℚ) ^ n ≠ 0 := by positivity
+    · simp only [value_arthur, ih, sum_sub_distrib, sum_const, card_univ, Fintype.card_fun,
+        Fintype.card_bool, Fintype.card_fin, nsmul_eq_mul]
       field_simp
-      push_cast
-      ring
-    · cases b
-      · rw [value_merlin_false, Bool.not_false, value_merlin_true]
-        simp only [ih, Bool.not_false]
-        exact (one_sub_sup' _).symm
-      · rw [value_merlin_true, Bool.not_true, value_merlin_false]
-        simp only [ih, Bool.not_true]
-        exact (one_sub_inf' _).symm
+      push_cast; ring
+    · cases b <;> simp only [value_merlin_false, value_merlin_true, Bool.not_false,
+        Bool.not_true, ih]
+      · exact (one_sub_sup' _).symm
+      · exact (one_sub_inf' _).symm
 
 theorem value_merge_arthur (b : Bool) (σ τ : List (AMMove × ℕ)) (n₁ n₂ : ℕ)
     (f : List Bool → ℚ) :
@@ -283,7 +255,6 @@ theorem value_merge_arthur (b : Bool) (σ τ : List (AMMove × ℕ)) (n₁ n₂ 
       value b (σ ++ (.arthur, n₁ + n₂) :: τ) f := by
   rw [value_append, value_append]
   congr 1 with s : 1
-  rw [value_arthur, value_arthur]
   simp only [value_arthur]
   have hsum : (∑ r : Fin (n₁ + n₂) → Bool, value b τ fun t => f (s ++ (List.ofFn r ++ t))) =
       ∑ r₁ : Fin n₁ → Bool, ∑ r₂ : Fin n₂ → Bool,
@@ -300,7 +271,6 @@ theorem value_merge_merlin (σ τ : List (AMMove × ℕ)) (n₁ n₂ : ℕ) (f :
       value true (σ ++ (.merlin, n₁ + n₂) :: τ) f := by
   rw [value_append, value_append]
   congr 1 with s : 1
-  rw [value_merlin_true, value_merlin_true]
   simp only [value_merlin_true]
   refine le_antisymm (sup'_le _ _ fun y₁ _ => sup'_le _ _ fun y₂ _ => ?_)
     (sup'_le _ _ fun y _ => ?_)
@@ -318,17 +288,11 @@ theorem value_insert_zero (b : Bool) (σ τ : List (AMMove × ℕ)) (x : AMMove)
     value b (σ ++ (x, 0) :: τ) f = value b (σ ++ τ) f := by
   rw [value_append, value_append]
   congr 1 with s : 1
-  have h0 (y : Fin 0 → Bool) : List.ofFn y = [] := List.ofFn_zero
   cases x
-  · rw [value_arthur]
-    simp
+  · simp [value_arthur]
   · cases b
-    · rw [value_merlin_false]
-      simp only [h0, List.nil_append]
-      exact inf'_const _ _
-    · rw [value_merlin_true]
-      simp only [h0, List.nil_append]
-      exact sup'_const _ _
+    · simpa only [value_merlin_false, List.ofFn_zero, List.nil_append] using inf'_const _ _
+    · simpa only [value_merlin_true, List.ofFn_zero, List.nil_append] using sup'_const _ _
 
 theorem count_eq (g : List (AMMove × ℕ)) (V : List Bool → Bool) :
     (count g V : ℚ) = 2 ^ arthurBits g * value true g (fun t => ((V t).toNat : ℚ)) := by
@@ -336,15 +300,12 @@ theorem count_eq (g : List (AMMove × ℕ)) (V : List Bool → Bool) :
   | nil => simp [count, arthurBits, value_nil]
   | cons x g ih =>
     obtain ⟨_ | _, n⟩ := x
-    · rw [count, arthurBits, value_arthur, Nat.cast_sum]
-      simp only [ih]
-      rw [← mul_sum, pow_add]
+    · simp only [count, arthurBits, value_arthur, Nat.cast_sum, ih, ← mul_sum, pow_add]
       field_simp
-    · rw [count, arthurBits, value_merlin_true, ← sup'_eq_sup univ_nonempty]
-      rw [Finset.apply_sup'_eq_sup'_comp univ_nonempty (Nat.cast : ℕ → ℚ)
-        fun x y => Nat.cast_max x y]
-      rw [Finset.apply_sup'_eq_sup'_comp univ_nonempty (fun x : ℚ => 2 ^ arthurBits g * x)
-        fun x y => mul_max_of_nonneg x y (by positivity)]
+    · rw [count, arthurBits, value_merlin_true, ← sup'_eq_sup univ_nonempty,
+        Finset.apply_sup'_eq_sup'_comp univ_nonempty (Nat.cast : ℕ → ℚ) Nat.cast_max,
+        Finset.apply_sup'_eq_sup'_comp univ_nonempty _
+          fun x y => mul_max_of_nonneg x y (by positivity)]
       exact sup'_congr univ_nonempty rfl fun y _ => ih _
 
 theorem count_nil (V : List Bool → Bool) : count [] V = (V []).toNat := rfl
@@ -359,14 +320,9 @@ theorem count_merlin (n : ℕ) (g : List (AMMove × ℕ)) (V : List Bool → Boo
 
 theorem count_le_two_pow (g : List (AMMove × ℕ)) (V : List Bool → Bool) :
     count g V ≤ 2 ^ arthurBits g := by
-  have h := count_eq g V
   have hv : value true g (fun t => ((V t).toNat : ℚ)) ≤ 1 :=
     value_le_one _ _ fun t => by cases V t <;> norm_num
-  have : (count g V : ℚ) ≤ 2 ^ arthurBits g := by
-    rw [h]
-    have : (0 : ℚ) < 2 ^ arthurBits g := by positivity
-    nlinarith
-  exact_mod_cast this
+  exact_mod_cast (count_eq g V).trans_le (mul_le_of_le_one_right (by positivity) hv)
 
 /-- Evaluate the move lengths of a polynomial game shape at `n`. -/
 def evalShape (G : List (AMMove × Polynomial ℕ)) (n : ℕ) : List (AMMove × ℕ) :=
@@ -428,14 +384,15 @@ theorem isAMGameVerifier_iff_value {enc : α ↪ List Bool} {G : List (AMMove ×
         (fun t => ((V (a, t)).toNat : ℚ))) ∧
       (a ∉ A → 3 * value true (evalShape G (enc a).length)
         (fun t => ((V (a, t)).toNat : ℚ)) ≤ 1) := by
-  refine forall_congr' fun a => and_congr (imp_congr_right fun _ => ?_)
-    (imp_congr_right fun _ => ?_)
-  all_goals
-    rw [← Nat.cast_le (α := ℚ)]
+  refine forall_congr' fun a => ?_
+  have hpos : (0 : ℚ) < 2 ^ arthurBits (evalShape G (enc a).length) := by positivity
+  refine and_congr (imp_congr_right fun _ => ?_) (imp_congr_right fun _ => ?_)
+  · rw [← Nat.cast_le (α := ℚ)]
     push_cast
-    rw [count_eq]
-    have hp : (0 : ℚ) < 2 ^ arthurBits (evalShape G (enc a).length) := by positivity
-    constructor <;> intro h <;> nlinarith
+    rw [count_eq, mul_comm (2 : ℚ), mul_left_comm (3 : ℚ), mul_le_mul_iff_right₀ hpos]
+  · rw [← Nat.cast_le (α := ℚ)]
+    push_cast
+    rw [count_eq, mul_left_comm (3 : ℚ), mul_le_iff_le_one_right hpos]
 
 theorem AMGameClass_insert {enc : α ↪ List Bool} (σ τ : List AMMove) (x : AMMove) :
     AMGameClass enc (σ ++ τ) ⊆ AMGameClass enc (σ ++ x :: τ) := by
@@ -444,44 +401,22 @@ theorem AMGameClass_insert {enc : α ↪ List Bool} (σ τ : List AMMove) (x : A
   refine ⟨Gσ ++ (x, 0) :: Gτ, V, by simp [hσ, hτ], hV, ?_⟩
   rw [isAMGameVerifier_iff_value] at hA ⊢
   intro a
-  have he : evalShape (Gσ ++ (x, 0) :: Gτ) (enc a).length =
-      evalShape Gσ (enc a).length ++ (x, 0) :: evalShape Gτ (enc a).length := by
-    simp [evalShape]
-  have he' : evalShape (Gσ ++ Gτ) (enc a).length =
-      evalShape Gσ (enc a).length ++ evalShape Gτ (enc a).length := by
-    simp [evalShape]
-  rw [he, value_insert_zero, ← he']
-  exact hA a
+  simpa only [evalShape_append, evalShape_cons, Polynomial.eval_zero, value_insert_zero] using hA a
 
 theorem AMGameClass_merge {enc : α ↪ List Bool} (σ τ : List AMMove) (x : AMMove) :
     AMGameClass enc (σ ++ x :: x :: τ) ⊆ AMGameClass enc (σ ++ x :: τ) := by
   rintro A ⟨G, V, hG, hV, hA⟩
   obtain ⟨Gσ, G', rfl, hσ, h'⟩ := List.map_eq_append_iff.1 hG
   obtain ⟨⟨x₁, p₁⟩, G'', rfl, rfl, h''⟩ := List.map_eq_cons_iff.1 h'
-  obtain ⟨⟨x₂, p₂⟩, Gτ, rfl, hx₂, hτ⟩ := List.map_eq_cons_iff.1 h''
-  dsimp only at hx₂
-  subst hx₂
+  obtain ⟨⟨x₂, p₂⟩, Gτ, rfl, rfl, hτ⟩ := List.map_eq_cons_iff.1 h''
   refine ⟨Gσ ++ (x₂, p₁ + p₂) :: Gτ, V, by simp [hσ, hτ], hV, ?_⟩
   rw [isAMGameVerifier_iff_value] at hA ⊢
   intro a
-  have he : evalShape (Gσ ++ (x₂, p₁ + p₂) :: Gτ) (enc a).length =
-      evalShape Gσ (enc a).length ++
-        (x₂, p₁.eval (enc a).length + p₂.eval (enc a).length) :: evalShape Gτ (enc a).length := by
-    simp [evalShape]
-  have he' : evalShape (Gσ ++ (x₂, p₁) :: (x₂, p₂) :: Gτ) (enc a).length =
-      evalShape Gσ (enc a).length ++ (x₂, p₁.eval (enc a).length) ::
-        (x₂, p₂.eval (enc a).length) :: evalShape Gτ (enc a).length := by
-    simp [evalShape]
-  have hv : value true (evalShape (Gσ ++ (x₂, p₁ + p₂) :: Gτ) (enc a).length)
-      (fun t => ((V (a, t)).toNat : ℚ)) =
-      value true (evalShape (Gσ ++ (x₂, p₁) :: (x₂, p₂) :: Gτ) (enc a).length)
-      (fun t => ((V (a, t)).toNat : ℚ)) := by
-    rw [he, he']
-    cases x₂
-    · exact (value_merge_arthur _ _ _ _ _ _).symm
-    · exact (value_merge_merlin _ _ _ _ _).symm
-  rw [hv]
-  exact hA a
+  cases x₂
+  · simpa only [evalShape_append, evalShape_cons, Polynomial.eval_add, value_merge_arthur] using
+      hA a
+  · simpa only [evalShape_append, evalShape_cons, Polynomial.eval_add, value_merge_merlin] using
+      hA a
 
 /-- Game classes grow along sublists of move patterns, inside any fixed prefix. -/
 theorem AMGameClass_mono_sublist_append {enc : α ↪ List Bool} {l₁ l₂ : List AMMove}
@@ -491,8 +426,7 @@ theorem AMGameClass_mono_sublist_append {enc : α ↪ List Bool} {l₁ l₂ : Li
   | slnil => exact le_rfl
   | cons x _ ih => exact (ih σ).trans (AMGameClass_insert σ _ x)
   | cons_cons x _ ih =>
-    have := ih (σ ++ [x])
-    simpa only [List.append_assoc, List.singleton_append] using this
+    simpa only [List.append_assoc, List.singleton_append] using ih (σ ++ [x])
 
 /-- **Padding**: game classes are monotone in the move pattern under `List.Sublist`. -/
 theorem AMGameClass_mono {enc : α ↪ List Bool} {π₁ π₂ : List AMMove} (h : List.Sublist π₁ π₂) :
@@ -509,14 +443,10 @@ private theorem sup_toNat_eq {ι : Type} [Fintype ι] (f : ι → Bool) :
   by_cases h : ∃ i, f i = true
   · obtain ⟨i, hi⟩ := h
     rw [decide_eq_true ⟨i, hi⟩]
-    refine le_antisymm (Finset.sup_le fun j _ => ?_) ?_
-    · cases f j <;> simp
-    · have := Finset.le_sup (f := fun i => (f i).toNat) (mem_univ i)
-      simpa [hi] using this
-  · rw [decide_eq_false h]
-    push Not at h
-    refine le_antisymm (Finset.sup_le fun j _ => ?_) (Nat.zero_le _)
-    simp [h j]
+    exact le_antisymm (Finset.sup_le fun j _ => Bool.toNat_le (f j))
+      (by simpa [hi] using Finset.le_sup (f := fun i => (f i).toNat) (mem_univ i))
+  · simp only [not_exists, Bool.not_eq_true] at h
+    simp [h]
 
 /-- The one-move shape `[(x, p)]` of a polynomial game. -/
 private theorem map_fst_eq_singleton {G : List (AMMove × Polynomial ℕ)} {x : AMMove}
@@ -542,13 +472,8 @@ theorem isAMGameVerifier_arthur_iff {enc : α ↪ List Bool} {p : Polynomial ℕ
     {V : α × List Bool → Bool} {A : Set α} :
     IsAMGameVerifier enc [(.arthur, p)] V A ↔ DecidesWithBoundedError enc p V A := by
   refine forall_congr' fun a => ?_
-  have hc : count (evalShape [(.arthur, p)] (enc a).length) (fun t => V (a, t)) =
-      acceptCount V a (p.eval (enc a).length) := by
-    simp only [evalShape, List.map_cons, List.map_nil, count_arthur, count_nil,
-      List.append_nil, sum_toNat_eq_card, acceptCount]
-  have hb : arthurBits (evalShape [(.arthur, p)] (enc a).length) = p.eval (enc a).length := by
-    simp [evalShape, arthurBits]
-  rw [hc, hb]
+  simp only [evalShape, List.map_cons, List.map_nil, count_arthur, count_nil, List.append_nil,
+    sum_toNat_eq_card, arthurBits, add_zero]
   exact and_congr (imp_congr_right fun _ => boundedErrorAt_true_iff.symm)
     (imp_congr_right fun _ => boundedErrorAt_false_iff.symm)
 
@@ -557,12 +482,8 @@ theorem isAMGameVerifier_merlin_iff {enc : α ↪ List Bool} {q : Polynomial ℕ
     {V : α × List Bool → Bool} {A : Set α} :
     IsAMGameVerifier enc [(.merlin, q)] V A ↔ IsVerifier enc q V A := by
   refine forall_congr' fun a => ?_
-  have hc : count (evalShape [(.merlin, q)] (enc a).length) (fun t => V (a, t)) =
-      (decide (∃ y : Fin (q.eval (enc a).length) → Bool, V (a, List.ofFn y) = true)).toNat := by
-    simp only [evalShape, List.map_cons, List.map_nil, count_merlin, count_nil,
-      List.append_nil, sup_toNat_eq]
-  have hb : arthurBits (evalShape [(.merlin, q)] (enc a).length) = 0 := rfl
-  rw [hc, hb, pow_zero, mul_one]
+  simp only [evalShape, List.map_cons, List.map_nil, count_merlin, count_nil, List.append_nil,
+    sup_toNat_eq, arthurBits, pow_zero, mul_one]
   have hex : (∃ y : Fin (q.eval (enc a).length) → Bool, V (a, List.ofFn y) = true) ↔
       ∃ w : List Bool, w.length = q.eval (enc a).length ∧ V (a, w) = true :=
     ⟨fun ⟨y, hy⟩ => ⟨List.ofFn y, List.length_ofFn, hy⟩,
@@ -580,112 +501,80 @@ theorem isAMGameVerifier_arthur_merlin_iff {enc : α ↪ List Bool} {p q : Polyn
         ∃ y : Fin (q.eval (enc a).length) → Bool, V (a, List.ofFn r ++ List.ofFn y) = true} := by
     simp only [evalShape, List.map_cons, List.map_nil, count_arthur, count_merlin,
       count_nil, List.append_nil, sup_toNat_eq, sum_toNat_eq_card, decide_eq_true_eq]
-  have hb : arthurBits (evalShape [(.arthur, p), (.merlin, q)] (enc a).length) =
-      p.eval (enc a).length := by
-    simp [evalShape, arthurBits]
   have hsum := card_filter_add_card_filter_not (s := (univ : Finset
     (Fin (p.eval (enc a).length) → Bool))) fun r =>
       ∃ y : Fin (q.eval (enc a).length) → Bool, V (a, List.ofFn r ++ List.ofFn y) = true
   simp only [card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, not_exists,
     Bool.not_eq_true] at hsum
-  rw [hc, hb]
-  constructor <;> rintro ⟨h₁, h₂⟩ <;> refine ⟨fun ha => ?_, fun ha => ?_⟩
-  · exact h₁ ha
-  · have := h₂ ha; omega
-  · exact h₁ ha
-  · have := h₂ ha; omega
+  rw [hc]
+  simp only [evalShape, List.map_cons, List.map_nil, arthurBits, add_zero]
+  exact and_congr_right fun _ => imp_congr_right fun _ => by omega
 
 theorem isAMGameVerifier_merlin_arthur_iff {enc : α ↪ List Bool} {q p : Polynomial ℕ}
     {V : α × List Bool → Bool} {A : Set α} :
     IsAMGameVerifier enc [(.merlin, q), (.arthur, p)] V A ↔ IsMerlinArthurVerifier enc q p V A := by
   refine forall_congr' fun a => ?_
-  have hc : count (evalShape [(.merlin, q), (.arthur, p)] (enc a).length)
-      (fun t => V (a, t)) = univ.sup fun y : Fin (q.eval (enc a).length) → Bool =>
-        #{r : Fin (p.eval (enc a).length) → Bool | V (a, List.ofFn y ++ List.ofFn r) = true} := by
-    simp only [evalShape, List.map_cons, List.map_nil, count_arthur, count_merlin,
-      count_nil, List.append_nil, sum_toNat_eq_card]
-  have hb : arthurBits (evalShape [(.merlin, q), (.arthur, p)] (enc a).length) =
-      p.eval (enc a).length := by
-    simp [evalShape, arthurBits]
-  have hsum (y : Fin (q.eval (enc a).length) → Bool) := card_filter_add_card_filter_not
-    (s := (univ : Finset (Fin (p.eval (enc a).length) → Bool))) fun r =>
-      V (a, List.ofFn y ++ List.ofFn r) = true
-  simp only [card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin,
-    Bool.not_eq_true] at hsum
-  rw [hc, hb]
-  dsimp only [BoundedErrorAt]
+  set f : (Fin (q.eval (enc a).length) → Bool) → ℕ := fun y =>
+    #{r : Fin (p.eval (enc a).length) → Bool | V (a, List.ofFn y ++ List.ofFn r) = true}
+  have hsum (y : Fin (q.eval (enc a).length) → Bool) :
+      f y + #{r : Fin (p.eval (enc a).length) → Bool | V (a, List.ofFn y ++ List.ofFn r) = false} =
+        2 ^ p.eval (enc a).length := by
+    simpa only [card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin,
+      Bool.not_eq_true] using card_filter_add_card_filter_not
+      (s := (univ : Finset (Fin (p.eval (enc a).length) → Bool))) fun r =>
+        V (a, List.ofFn y ++ List.ofFn r) = true
+  simp only [evalShape, List.map_cons, List.map_nil, count_arthur, count_merlin, count_nil,
+    List.append_nil, sum_toNat_eq_card, arthurBits, add_zero, BoundedErrorAt]
   refine and_congr (imp_congr_right fun _ => ⟨fun h => ?_, fun ⟨y, hy⟩ => ?_⟩)
     (imp_congr_right fun _ => ⟨fun h y => ?_, fun h => ?_⟩)
-  · obtain ⟨y, -, hy⟩ := exists_mem_eq_sup univ univ_nonempty fun y : Fin (q.eval (enc a).length) →
-      Bool => #{r : Fin (p.eval (enc a).length) → Bool | V (a, List.ofFn y ++ List.ofFn r) = true}
-    exact ⟨y, by rw [← hy]; exact h⟩
-  · exact hy.trans (Nat.mul_le_mul_left 3 (Finset.le_sup (f := fun y : Fin (q.eval
-      (enc a).length) → Bool => #{r : Fin (p.eval (enc a).length) → Bool |
-        V (a, List.ofFn y ++ List.ofFn r) = true}) (mem_univ y)))
-  · have := (Nat.mul_le_mul_left 3 (Finset.le_sup (f := fun y : Fin (q.eval
-      (enc a).length) → Bool => #{r : Fin (p.eval (enc a).length) → Bool |
-        V (a, List.ofFn y ++ List.ofFn r) = true}) (mem_univ y))).trans h
-    have := hsum y
-    omega
-  · obtain ⟨y, -, hy⟩ := exists_mem_eq_sup univ univ_nonempty fun y : Fin (q.eval (enc a).length) →
-      Bool => #{r : Fin (p.eval (enc a).length) → Bool | V (a, List.ofFn y ++ List.ofFn r) = true}
-    rw [hy]
-    have := h y
-    have := hsum y
-    omega
+  · obtain ⟨y, -, hy⟩ := exists_mem_eq_sup univ univ_nonempty f
+    exact ⟨y, by rwa [hy] at h⟩
+  · exact hy.trans (Nat.mul_le_mul_left 3 (Finset.le_sup (f := f) (mem_univ y)))
+  · linarith [hsum y, (Nat.mul_le_mul_left 3 (Finset.le_sup (f := f) (mem_univ y))).trans h]
+  · obtain ⟨y, -, hy⟩ := exists_mem_eq_sup univ univ_nonempty f
+    linarith [hy, h y, hsum y]
 
 /-- **The empty game `[]` is `P`.** -/
 theorem AMGameClass_nil {enc : α ↪ List Bool} : AMGameClass enc [] = P enc := by
   ext A
-  constructor
-  · rintro ⟨G, V, hG, hV, hA⟩
-    rw [List.map_eq_nil_iff.1 hG] at hA
-    exact ⟨fun a => V (a, []), by fun_prop,
-      isAMGameVerifier_nil_iff.1 hA⟩
-  · rintro ⟨f, hf, hA⟩
-    exact ⟨[], fun x => f x.1, rfl, hf.comp (.fst enc encBits), isAMGameVerifier_nil_iff.2 hA⟩
+  refine ⟨fun ⟨G, V, hG, hV, hA⟩ => ?_, fun ⟨f, hf, hA⟩ =>
+    ⟨[], fun x => f x.1, rfl, hf.comp (.fst enc encBits), isAMGameVerifier_nil_iff.2 hA⟩⟩
+  rw [List.map_eq_nil_iff.1 hG] at hA
+  exact ⟨fun a => V (a, []), by fun_prop, isAMGameVerifier_nil_iff.1 hA⟩
 
 /-- **The game `A` is `BPP`.** -/
 theorem AMGameClass_arthur {enc : α ↪ List Bool} : AMGameClass enc [.arthur] = BPP enc := by
   ext A
-  constructor
-  · rintro ⟨G, V, hG, hV, hA⟩
-    obtain ⟨p, rfl⟩ := map_fst_eq_singleton hG
-    exact ⟨p, V, hV, isAMGameVerifier_arthur_iff.1 hA⟩
-  · rintro ⟨p, V, hV, hA⟩
-    exact ⟨[(.arthur, p)], V, rfl, hV, isAMGameVerifier_arthur_iff.2 hA⟩
+  refine ⟨fun ⟨G, V, hG, hV, hA⟩ => ?_, fun ⟨p, V, hV, hA⟩ =>
+    ⟨[(.arthur, p)], V, rfl, hV, isAMGameVerifier_arthur_iff.2 hA⟩⟩
+  obtain ⟨p, rfl⟩ := map_fst_eq_singleton hG
+  exact ⟨p, V, hV, isAMGameVerifier_arthur_iff.1 hA⟩
 
 /-- **The game `M` is `NP`.** -/
 theorem AMGameClass_merlin {enc : α ↪ List Bool} : AMGameClass enc [.merlin] = NP enc := by
   ext A
-  constructor
-  · rintro ⟨G, V, hG, hV, hA⟩
-    obtain ⟨q, rfl⟩ := map_fst_eq_singleton hG
-    exact ⟨q, V, hV, isAMGameVerifier_merlin_iff.1 hA⟩
-  · rintro ⟨q, V, hV, hA⟩
-    exact ⟨[(.merlin, q)], V, rfl, hV, isAMGameVerifier_merlin_iff.2 hA⟩
+  refine ⟨fun ⟨G, V, hG, hV, hA⟩ => ?_, fun ⟨q, V, hV, hA⟩ =>
+    ⟨[(.merlin, q)], V, rfl, hV, isAMGameVerifier_merlin_iff.2 hA⟩⟩
+  obtain ⟨q, rfl⟩ := map_fst_eq_singleton hG
+  exact ⟨q, V, hV, isAMGameVerifier_merlin_iff.1 hA⟩
 
 /-- **The game `A M` is `AM`.** -/
 theorem AMGameClass_arthur_merlin {enc : α ↪ List Bool} :
     AMGameClass enc [.arthur, .merlin] = AM enc := by
   ext A
-  constructor
-  · rintro ⟨G, V, hG, hV, hA⟩
-    obtain ⟨p, q, rfl⟩ := map_fst_eq_pair hG
-    exact ⟨p, q, V, hV, isAMGameVerifier_arthur_merlin_iff.1 hA⟩
-  · rintro ⟨p, q, V, hV, hA⟩
-    exact ⟨[(.arthur, p), (.merlin, q)], V, rfl, hV, isAMGameVerifier_arthur_merlin_iff.2 hA⟩
+  refine ⟨fun ⟨G, V, hG, hV, hA⟩ => ?_, fun ⟨p, q, V, hV, hA⟩ =>
+    ⟨[(.arthur, p), (.merlin, q)], V, rfl, hV, isAMGameVerifier_arthur_merlin_iff.2 hA⟩⟩
+  obtain ⟨p, q, rfl⟩ := map_fst_eq_pair hG
+  exact ⟨p, q, V, hV, isAMGameVerifier_arthur_merlin_iff.1 hA⟩
 
 /-- **The game `M A` is `MA`.** -/
 theorem AMGameClass_merlin_arthur {enc : α ↪ List Bool} :
     AMGameClass enc [.merlin, .arthur] = MA enc := by
   ext A
-  constructor
-  · rintro ⟨G, V, hG, hV, hA⟩
-    obtain ⟨q, p, rfl⟩ := map_fst_eq_pair hG
-    exact ⟨q, p, V, hV, isAMGameVerifier_merlin_arthur_iff.1 hA⟩
-  · rintro ⟨q, p, V, hV, hA⟩
-    exact ⟨[(.merlin, q), (.arthur, p)], V, rfl, hV, isAMGameVerifier_merlin_arthur_iff.2 hA⟩
+  refine ⟨fun ⟨G, V, hG, hV, hA⟩ => ?_, fun ⟨q, p, V, hV, hA⟩ =>
+    ⟨[(.merlin, q), (.arthur, p)], V, rfl, hV, isAMGameVerifier_merlin_arthur_iff.2 hA⟩⟩
+  obtain ⟨q, p, rfl⟩ := map_fst_eq_pair hG
+  exact ⟨q, p, V, hV, isAMGameVerifier_merlin_arthur_iff.1 hA⟩
 
 theorem AMk_zero {enc : α ↪ List Bool} : AMk enc 0 = P enc := AMGameClass_nil
 
@@ -723,27 +612,17 @@ theorem mem_AMGameClass_cons_merlin {enc : α ↪ List Bool} {B : Set (α × Lis
   · have heval : evalShape (G.map fun x => (x.1, x.2.comp L)) (enc a).length =
         evalShape G (L.eval (enc a).length) := by
       simp [evalShape, List.map_map, Function.comp_def, Polynomial.eval_comp]
-    have htake (y : Fin (p.eval (enc a).length) → Bool) (t : List Bool) :
-        (List.ofFn y ++ t).take (p.eval (enc a).length) = List.ofFn y :=
-      List.take_left' List.length_ofFn
-    have hdrop (y : Fin (p.eval (enc a).length) → Bool) (t : List Bool) :
-        (List.ofFn y ++ t).drop (p.eval (enc a).length) = t :=
-      List.drop_left' List.length_ofFn
-    simp only [evalShape_cons, heval, arthurBits, count_merlin, htake, hdrop]
+    simp only [evalShape_cons, heval, arthurBits, count_merlin, List.take_left' List.length_ofFn,
+      List.drop_left' List.length_ofFn]
+    set f : (Fin (p.eval (enc a).length) → Bool) → ℕ := fun y =>
+      count (evalShape G (L.eval (enc a).length)) fun t => VB ((a, List.ofFn y), t)
     refine ⟨fun ⟨w, hw, hwB⟩ => ?_, fun ha => ?_⟩
     · let y := BitString.ofList (p.eval (enc a).length) w
-      have hyB : (a, List.ofFn y) ∈ B := by rwa [BitString.ofFn_ofList hw]
-      have h1 := (hB' (a, List.ofFn y)).1 hyB
-      rw [hL a y] at h1
-      exact h1.trans (Nat.mul_le_mul_left 3 (Finset.le_sup (f := fun y :
-        Fin (p.eval (enc a).length) → Bool => count (evalShape G (L.eval (enc a).length))
-          fun t => VB ((a, List.ofFn y), t)) (mem_univ y)))
-    · obtain ⟨y, -, hy⟩ := exists_mem_eq_sup univ univ_nonempty fun y :
-        Fin (p.eval (enc a).length) → Bool => count (evalShape G (L.eval (enc a).length))
-          fun t => VB ((a, List.ofFn y), t)
+      exact (hL a y ▸ (hB' (a, List.ofFn y)).1 (by rwa [BitString.ofFn_ofList hw])).trans
+        (Nat.mul_le_mul_left 3 (Finset.le_sup (f := f) (mem_univ y)))
+    · obtain ⟨y, -, hy⟩ := exists_mem_eq_sup univ univ_nonempty f
       rw [hy]
-      have hyB : (a, List.ofFn y) ∉ B := fun h => ha ⟨List.ofFn y, List.length_ofFn, h⟩
-      have h2 := (hB' (a, List.ofFn y)).2 hyB
-      rwa [hL a y] at h2
+      simpa only [hL a y] using
+        (hB' (a, List.ofFn y)).2 fun h => ha ⟨List.ofFn y, List.length_ofFn, h⟩
 
 end Cslib.Complexity

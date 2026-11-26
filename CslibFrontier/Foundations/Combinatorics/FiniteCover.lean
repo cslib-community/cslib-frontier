@@ -45,8 +45,7 @@ theorem Nat.two_pow_mul_pred_pow_mul_succ_lt {b : ℕ} (hb : 1 ≤ b) (n : ℕ) 
     2 ^ n * (b - 1) ^ (b * (n + 1)) < b ^ (b * (n + 1)) := by
   have h := Nat.pow_le_pow_left (Nat.two_mul_pred_pow_le hb) (n + 1)
   rw [mul_pow, ← pow_mul, ← pow_mul, pow_succ] at h
-  have hp := Nat.pow_pos (n := b * (n + 1)) hb
-  nlinarith
+  nlinarith [Nat.pow_pos (n := b * (n + 1)) hb]
 
 namespace Cslib
 
@@ -60,16 +59,11 @@ theorem exists_cover_of_density {S W : Type*} [Fintype S] [Nonempty S] [Fintype 
     (density : ∀ w, Fintype.card S ≤ q * Fintype.card {s : S // hit s w}) :
     ∃ tests : Fin (q * (n + 1)) → S, ∀ w, ∃ i, hit (tests i) w := by
   classical
-  apply exists_cover_of_scaled_card_lt
-    hit (q - 1) q (q * (n + 1))
-  · intro w
-    rw [Fintype.card_subtype_compl]
-    have hc : Fintype.card {s : S // hit s w} ≤ Fintype.card S :=
-      Fintype.card_subtype_le _
-    have hd := density w
-    have hsub := Nat.sub_add_cancel hc
-    have hqsub : q - 1 + 1 = q := by omega
-    nlinarith
-  · exact (Nat.mul_le_mul_right _ hw).trans_lt (Nat.two_pow_mul_pred_pow_mul_succ_lt hq n)
+  refine exists_cover_of_scaled_card_lt hit (q - 1) q (q * (n + 1)) (fun w => ?_)
+    ((Nat.mul_le_mul_right _ hw).trans_lt (Nat.two_pow_mul_pred_pow_mul_succ_lt hq n))
+  rw [Fintype.card_subtype_compl]
+  have hsub := Nat.sub_add_cancel (Fintype.card_subtype_le fun s : S => hit s w)
+  have hqsub : q - 1 + 1 = q := Nat.sub_add_cancel hq
+  nlinarith [density w]
 
 end Cslib

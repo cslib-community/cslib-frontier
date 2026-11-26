@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Complexity.FineGrained
+public import CslibFrontier.Computability.Complexity.FineGrained.PowerTime
 import CslibFrontier.Computability.Complexity.FineGrained.Bounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCountedIteration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
@@ -21,7 +21,7 @@ import CslibFrontier.Tactic.EncLen
 /-!
 # Exhaustive-search reductions
 
-Exponential and subexponential time bounds transfer along Turing reductions that branch over
+Exponential, subexponential, and fixed-power time bounds transfer along reductions that branch over
 $2^{\nu(a)}$ polynomial-time subinstances $f(a, r)$ (`r < 2 ^ ν a`), implemented by iterating a
 polynomial-time step with a binary counter (`Turing.MultiTapeTM.ComputableInO.iterate`):
 * `Cslib.Complexity.DecidableInExpTime.of_computableInPolyTime`: a set decided in polynomial time is
@@ -42,6 +42,8 @@ polynomial-time step with a binary counter (`Turing.MultiTapeTM.ComputableInO.it
 * `Cslib.Complexity.DecidableInExpTime.of_exhaustiveSearch`,
   `Cslib.Complexity.DecidableInSubexpTime.of_exhaustiveSearch`: exponential and subexponential time
   transfer along exhaustive-search reductions.
+* `Cslib.Complexity.DecidableInPowerExpTime.of_exhaustiveSearch`: combines the branch exponent
+  power and the query power after parameter blowup.
 
 ## References
 
@@ -64,8 +66,7 @@ theorem DecidableInExpTime.of_computableInPolyTime {μ : α → ℕ} {p : α →
     (hp : ComputableInPolyTime p encA encBool) (hA : ∀ a, a ∈ A ↔ p a = true) :
     DecidableInExpTime A encA μ 0 := by
   obtain ⟨d, _, hp'⟩ := hp.exists_degree
-  refine DecidableInExpTime.of_computableInO hp'.inO hA 1 d fun a => ?_
-  simp
+  exact DecidableInExpTime.of_computableInO hp'.inO hA 1 d fun _ => by simp
 
 namespace ExhaustiveSearch
 
@@ -128,17 +129,14 @@ private theorem exists_computableInO_step {f : α × ℕ → β}
     (encState encA) (encPair encA encNat) by unfold encState; fun_prop)).exists_degree
   obtain ⟨dO, eO, hO⟩ := bool_or.exists_degree
   set D := dN + dB + dR
-  have hN' := (hN.mono (d' := D) (e' := eN) (by omega) le_rfl).inO
-  have hB' := (hB.mono (d' := D) (e' := eB) (by omega) le_rfl).inO
-  have hR' := (hR.mono (d' := D) (e' := eR) (by omega) le_rfl).inO
-  have h := hN'.prod (hO.inO.comp (hB'.prod (hg.comp hR')))
-  have h4 (p : Bool × Bool) : (encPair encBool encBool p).length = 4 := by simp
+  have h := (hN.mono (d' := D) (e' := eN) (by omega) le_rfl).inO.prod
+    (hO.inO.comp ((hB.mono (d' := D) (e' := eB) (by omega) le_rfl).inO.prod
+      (hg.comp (hR.mono (d' := D) (e' := eR) (by omega) le_rfl).inO)))
+  have hlen4 (p : Bool × Bool) : (encPair encBool encBool p).length = 4 := by simp
   refine ⟨D, (h.mono (5 ^ dO + 4) (fun s => ?_) (fun s => ?_)).of_enc_eq fun _ => rfl⟩ <;>
-  · simp only [Function.comp_apply, h4]
-    generalize ((encState encA s).length + 1) ^ D = P
-    generalize t (f s.1) = T
+  · simp only [Function.comp_apply, hlen4]
     have hF : 1 ≤ (4 + 1) ^ dO := Nat.one_le_pow _ _ (by norm_num)
-    generalize (4 + 1) ^ dO = F at hF ⊢
+    generalize ((encState encA s).length + 1) ^ D = P, t (f s.1) = T, (4 + 1) ^ dO = F at hF ⊢
     nlinarith
 
 /-- **Length bounds for the search.** The states visited by the search and the binary round counter
@@ -154,44 +152,34 @@ private theorem exists_search_length_bounds {f : α × ℕ → β} {ν : α → 
       (∀ a, (encNat (rounds ν a)).length ≤ st a) ∧
       (∀ a k, k ≤ rounds ν a → (encB (f (a, k))).length ≤ nd a) := by
   -- `rounds ν a = 2 ^ ν a` has `ν a + 1` binary digits, which bounds every round counter.
-  have hrounds (a : α) : (encNat (rounds ν a)).length = ν a + 1 := by
-    rw [rounds, length_encNat_two_pow]
   have hpair (a : α) {k : ℕ} (hk : k ≤ rounds ν a) :
       (encPair encA encNat (a, k)).length ≤ 2 * (encA a).length + ν a + 2 := by
-    have := length_encNat_mono hk
-    rw [hrounds] at this
+    have : (encNat k).length ≤ ν a + 1 :=
+      (length_encNat_mono hk).trans_eq (length_encNat_two_pow (ν a))
     enc_len
-  have hν' : PolyBounded (fun a => (encA a).length) ν := by
-    simpa only [encUnary_apply, List.length_replicate] using hν.polyBounded_length
   obtain ⟨cf, df, hf_len⟩ := hf.polyBounded_length.exists_le
   refine ⟨fun a => 2 * (2 * (encA a).length + ν a + 2) + 2,
     fun a => cf * (2 * (encA a).length + ν a + 2 + 1) ^ df, by growth_poly, by growth_poly,
-    fun g a k hk => ?_, fun a => by simp only [hrounds]; omega, fun a k hk => ?_⟩
-  · have := hpair a hk
-    rw [iterate_step_init, encState, length_encPair]
-    simp only [encBool_apply, List.length_singleton]
-    omega
-  · refine (hf_len (a, k)).trans (Nat.mul_le_mul_left cf (Nat.pow_le_pow_left ?_ df))
-    have := hpair a hk
-    omega
+    fun g a k hk => ?_, fun a => by simp only [rounds, length_encNat_two_pow]; omega,
+    fun a k hk => (hf_len (a, k)).trans
+      (Nat.mul_le_mul_left cf (Nat.pow_le_pow_left (by have := hpair a hk; omega) df))⟩
+  have := hpair a hk
+  rw [iterate_step_init, encState, length_encPair]
+  simp only [encBool_apply, List.length_singleton]; omega
 
-/-- A bound on the time of the decider for `B`, within time `k * (2 ^ (δ * μB b) * (|b| + 1) ^ e)
-+ k`, on every subinstance `b` of `a` with `μB b ≤ c * μA a + c` and length at most `nd a`. -/
-private noncomputable def leafTime (μA nd : α → ℕ) (c : ℕ) (δ : ℝ) (k e : ℕ) (a : α) : ℕ :=
-  ⌈(k : ℝ) * (2 ^ (δ * ((c * μA a + c : ℕ) : ℝ)) * ((nd a : ℝ) + 1) ^ e) + k⌉₊
+/-- Time bound for a leaf, with a common query exponent and length bound for each search input. -/
+private noncomputable def leafTime (nd : α → ℕ) (queryExponent : α → ℝ) (k e : ℕ)
+    (a : α) : ℕ :=
+  ⌈(k : ℝ) * (2 ^ queryExponent a * ((nd a : ℝ) + 1) ^ e) + k⌉₊
 
-/-- The decider for `B` runs within `leafTime` on every subinstance of `a` that `leafTime`
-accounts for. -/
-private theorem le_leafTime {nd : α → ℕ} {c : ℕ} {δ : ℝ} (hδ : 0 ≤ δ) {k e : ℕ} {t : β → ℕ}
-    {a : α} {b : β} (ht : (t b : ℝ) ≤ k * (2 ^ (δ * μB b) * ((encB b).length + 1) ^ e) + k)
-    (hμ : μB b ≤ c * μA a + c) (hlen : (encB b).length ≤ nd a) :
-    t b ≤ leafTime μA nd c δ k e a := by
-  have h₁ : (2 : ℝ) ^ (δ * μB b) ≤ 2 ^ (δ * ((c * μA a + c : ℕ) : ℝ)) :=
-    Real.rpow_le_rpow_of_exponent_le (by norm_num)
-      (mul_le_mul_of_nonneg_left (by exact_mod_cast hμ) hδ)
-  have h₂ : (((encB b).length : ℝ) + 1) ^ e ≤ ((nd a : ℝ) + 1) ^ e := by gcongr
-  refine Nat.cast_le.mp (ht.trans ((?_ : _ ≤ _).trans (Nat.le_ceil _)))
-  gcongr
+private theorem le_leafTime {nd : α → ℕ} {queryExponent : α → ℝ} {k e : ℕ}
+    {t : β → ℕ} {rate : β → ℝ} {a : α} {b : β}
+    (ht : (t b : ℝ) ≤ k * (2 ^ rate b * ((encB b).length + 1) ^ e) + k)
+    (hRate : rate b ≤ queryExponent a) (hlen : (encB b).length ≤ nd a) :
+    t b ≤ leafTime nd queryExponent k e a := by
+  have h₁ : (2 : ℝ) ^ rate b ≤ 2 ^ queryExponent a :=
+    Real.rpow_le_rpow_of_exponent_le (by norm_num) hRate
+  exact Nat.cast_le.mp (ht.trans ((by gcongr : _ ≤ _).trans (Nat.le_ceil _)))
 
 /-- **Absorbing the overheads.** A running time `A + R * (B + ℓ)`, with polynomial overheads
 `A, B ≤ a * P`, `R ≤ r * X` rounds and leaves within `ℓ ≤ b * Y * P + b'`, is within a constant
@@ -200,25 +188,99 @@ private theorem add_mul_add_le {A B R ℓ X Y P a r b b' : ℝ} (hA : A ≤ a * 
     (hR : R ≤ r * X) (hℓ : ℓ ≤ b * Y * P + b') (hR₀ : 0 ≤ R) (ha : 0 ≤ a) (hb : 0 ≤ b)
     (hb' : 0 ≤ b') (hX : 1 ≤ X) (hY : 1 ≤ Y) (hP : 1 ≤ P) :
     A + R * (B + ℓ) ≤ (a + r * (a + b + b')) * (X * Y * P) := by
-  have hYP : 1 ≤ Y * P := one_le_mul_of_one_le_of_one_le hY hP
   have hP₀ : 0 ≤ P := zero_le_one.trans hP
   -- Each round costs at most `(a + b + b') * (Y * P)`.
   have hBℓ : B + ℓ ≤ (a + b + b') * (Y * P) := by
-    have h₁ : a * P ≤ a * (Y * P) := by
-      gcongr
-      exact le_mul_of_one_le_left hP₀ hY
-    have h₂ : b' ≤ b' * (Y * P) := le_mul_of_one_le_right hb' hYP
+    have := mul_le_mul_of_nonneg_left (le_mul_of_one_le_left hP₀ hY) ha
+    have := le_mul_of_one_le_right hb' (one_le_mul_of_one_le_of_one_le hY hP)
     linarith
-  have h₁ : R * (B + ℓ) ≤ r * X * ((a + b + b') * (Y * P)) :=
-    (mul_le_mul_of_nonneg_left hBℓ hR₀).trans (mul_le_mul_of_nonneg_right hR (by positivity))
-  have h₂ : a * P ≤ a * (X * Y * P) := by
-    gcongr
-    exact le_mul_of_one_le_left hP₀ (one_le_mul_of_one_le_of_one_le hX hY)
+  have := (mul_le_mul_of_nonneg_left hBℓ hR₀).trans (mul_le_mul_of_nonneg_right hR (by positivity))
+  linarith [mul_le_mul_of_nonneg_left
+    (le_mul_of_one_le_left hP₀ (one_le_mul_of_one_le_of_one_le hX hY)) ha]
+
+/-- Certify the search once for arbitrary bounds on the branch and leaf exponents. -/
+private theorem exists_decidableInTimeO {f : α × ℕ → β} {ν : α → ℕ}
+    (hf : ComputableInPolyTime f (encPair encA encNat) encB)
+    (hν : ComputableInPolyTime ν encA encUnary)
+    (hfA : ∀ a, a ∈ A ↔ ∃ r < 2 ^ ν a, f (a, r) ∈ B)
+    {rate : β → ℝ} {branchExponent queryExponent : α → ℝ} {e : ℕ}
+    (hbranch : ∀ a, (ν a : ℝ) ≤ branchExponent a)
+    (hquery : ∀ a r, rate (f (a, r)) ≤ queryExponent a)
+    (hquery₀ : ∀ a, 0 ≤ queryExponent a)
+    (h : DecidableInTimeO B encB
+      fun b => (2 : ℝ) ^ rate b * ((encB b).length + 1) ^ e) :
+    ∃ E : ℕ, DecidableInTimeO A encA
+      fun a => (2 : ℝ) ^ (branchExponent a + queryExponent a) * ((encA a).length + 1) ^ E := by
+  rcases isEmpty_or_nonempty α with hα | hα
+  · exact ⟨0, DecidableInTimeO.of_computableInO (.const false)
+      (fun a => hα.elim a) (fun a => hα.elim a)⟩
+  have := Classical.inhabited_of_nonempty hα
+  -- The machine counts `rounds ν a = 2 ^ ν a` rounds in binary; round `r` queries the decider `g`
+  -- for `B` on `f (a, r)`, and the accumulated answer is read off at the end.
+  obtain ⟨g, t, k, hg, hgB, ht⟩ := h.exists_computableInO
+  obtain ⟨d, hstep⟩ := exists_computableInO_step hf hg
+  obtain ⟨dn, _, hn⟩ := (computableInPolyTime_rounds hν).exists_degree
+  obtain ⟨di, _, hi⟩ := (computableInPolyTime_init (encA := encA)).exists_degree
+  obtain ⟨da, _, ha⟩ := (show ComputableInPolyTime (fun s : State α => s.2)
+    (encState encA) encBool by unfold encState; fun_prop).exists_degree
+  obtain ⟨st, nd, hst, hnd, hstate, hrounds_len, hnd_bound⟩ := exists_search_length_bounds hf hν
+  have hround (a : α) (j : ℕ) (hj : j ≤ rounds ν a) :
+      ((encState encA ((step f g)^[j] (init a))).length + 1) ^ d +
+        t (f ((step f g)^[j] (init a)).1) ≤ (st a + 1) ^ d + leafTime nd queryExponent k e a :=
+    Nat.add_le_add (Nat.pow_le_pow_left (Nat.add_le_add_right (hstate g a j hj) 1) d) (by
+      rw [iterate_step_init]
+      exact le_leafTime (rate := rate) (ht _) (hquery a j) (hnd_bound a j hj))
+  have hsearch := ha.inO.comp
+    (ComputableInO.iterate hn.inO hi.inO hstep hround hround (hstate g))
+  -- Apart from the number of rounds and the leaves, the running time is polynomial.
+  have hpoly : PolyBounded (fun a => (encA a).length) fun a =>
+      ((encA a).length + 1) ^ dn + ((encA a).length + 1) ^ di + (st a + 1) ^ da +
+        ((st a + 1) ^ d + st a + (st a + 1) ^ 2) + (nd a + 1) ^ e := by
+    growth_poly
+  obtain ⟨Cp, E, hCp⟩ := hpoly.exists_le
+  let C : ℕ := ⌈(Cp + 2 * (Cp + k * Cp + (k + 1)) : ℝ)⌉₊
+  refine ⟨E, (DecidableInTimeO.of_computableInO hsearch
+    (fun a => (search_eq_true_iff hfA (fun b => (hgB b).symm) a).symm)
+    (T := fun a => (C : ℝ) *
+      (2 ^ (branchExponent a + queryExponent a) * ((encA a).length + 1) ^ E))
+    fun a => ?_).mono C (fun _ => le_add_of_nonneg_right (Nat.cast_nonneg C))
+      (fun _ => by positivity)⟩
+  -- The polynomial overheads, the number of rounds and the leaves, bounded separately.
+  have hP := hCp a
+  have hbr₁ : (1 : ℝ) ≤ 2 ^ branchExponent a :=
+    Real.one_le_rpow (by norm_num) ((Nat.cast_nonneg _).trans (hbranch a))
+  have hA : (((encA a).length : ℝ) + 1) ^ dn + ((encA a).length + 1) ^ di +
+      ((encState encA ((step f g)^[rounds ν a] (init a))).length + 1) ^ da ≤
+      Cp * ((encA a).length + 1) ^ E := by
+    have := Nat.pow_le_pow_left (Nat.add_le_add_right (hstate g a (rounds ν a) le_rfl) 1) da
+    norm_cast; omega
+  have hB : ((st a : ℝ) + 1) ^ d + st a + ((encNat (rounds ν a)).length + 1) ^ 2 ≤
+      Cp * ((encA a).length + 1) ^ E := by
+    have := Nat.pow_le_pow_left (Nat.add_le_add_right (hrounds_len a) 1) 2
+    norm_cast; omega
+  have hR : (rounds ν a : ℝ) + 1 ≤ 2 * (2 : ℝ) ^ branchExponent a := by
+    have h₁ : (rounds ν a : ℝ) ≤ 2 ^ branchExponent a := by
+      rw [rounds, Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast]
+      exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (hbranch a)
+    linarith
+  have hleaf : (leafTime nd queryExponent k e a : ℝ) ≤
+      k * Cp * 2 ^ queryExponent a * ((encA a).length + 1) ^ E + (k + 1) := by
+    have hnd : ((nd a : ℝ) + 1) ^ e ≤ Cp * ((encA a).length + 1) ^ E := by norm_cast; omega
+    have hceil := Nat.ceil_lt_add_one
+      (by positivity : (0 : ℝ) ≤ k * (2 ^ queryExponent a * ((nd a : ℝ) + 1) ^ e) + k)
+    have hmul : (0 : ℝ) ≤ k * 2 ^ queryExponent a := by positivity
+    unfold leafTime
+    linarith [mul_le_mul_of_nonneg_left hnd hmul]
+  have key := add_mul_add_le hA hB hR hleaf (by positivity) (by positivity) (by positivity)
+    (by positivity) hbr₁ (Real.one_le_rpow (by norm_num) (hquery₀ a))
+    (one_le_pow₀ (le_add_of_nonneg_left (Nat.cast_nonneg _)))
+  rw [Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
+  push_cast
+  refine (?_ : _ ≤ _).trans (mul_le_mul_of_nonneg_right (Nat.le_ceil _) (by positivity))
   linarith
 
 end ExhaustiveSearch
 
-open ExhaustiveSearch in
 /-- **Exponential-time transfer along an exhaustive search.** If
 $f : \alpha \times \mathbb{N} \to \beta$ and $\nu : \alpha \to \mathbb{N}$ are computable in
 polynomial time (with $\nu$ in unary), $a \in A \iff \exists r < 2^{\nu(a)},\, f(a, r) \in B$,
@@ -233,95 +295,67 @@ theorem DecidableInExpTime.of_exhaustiveSearch {f : α × ℕ → β} {ν : α �
     (hνM : ∀ a, ν a ≤ μA a / M + K) {δ : ℝ} (hδ : 0 ≤ δ)
     (h : DecidableInExpTime B encB μB δ) :
     DecidableInExpTime A encA μA (1 / M + c * δ) := by
-  rcases isEmpty_or_nonempty α with hα | hα
-  · exact DecidableInExpTime.of_computableInO (.const false)
-      (fun a => hα.elim a) 1 0 (fun a => hα.elim a)
-  obtain ⟨a₀⟩ := hα
-  have : Inhabited α := ⟨a₀⟩
-  -- The machine counts `rounds ν a = 2 ^ ν a` rounds in binary; round `r` queries the decider `g`
-  -- for `B` on `f (a, r)`, and the accumulated answer is read off at the end.
   obtain ⟨e, h⟩ := h
-  obtain ⟨g, t, k, hg, hgB, ht⟩ := h.exists_computableInO
-  obtain ⟨d, hstep⟩ := exists_computableInO_step hf hg
-  obtain ⟨dn, _, hn⟩ := (computableInPolyTime_rounds hν).exists_degree
-  obtain ⟨di, _, hi⟩ := (computableInPolyTime_init (encA := encA)).exists_degree
-  obtain ⟨da, _, ha⟩ := (show ComputableInPolyTime (fun s : State α => s.2)
-    (encState encA) encBool by unfold encState; fun_prop).exists_degree
-  obtain ⟨st, nd, hst, hnd, hstate, hrounds_len, hnd_bound⟩ := exists_search_length_bounds hf hν
-  have hround (a : α) (j : ℕ) (hj : j ≤ rounds ν a) :
-      ((encState encA ((step f g)^[j] (init a))).length + 1) ^ d +
-        t (f ((step f g)^[j] (init a)).1) ≤ (st a + 1) ^ d + leafTime μA nd c δ k e a := by
-    refine Nat.add_le_add (Nat.pow_le_pow_left (Nat.add_le_add_right (hstate g a j hj) 1) d) ?_
-    rw [iterate_step_init]
-    exact le_leafTime hδ (ht _) (hμ a j) (hnd_bound a j hj)
-  have hsearch := ha.inO.comp
-    (ComputableInO.iterate hn.inO hi.inO hstep hround hround (hstate g))
-  -- Apart from the number of rounds and the leaves, the running time is polynomial.
-  have hpoly : PolyBounded (fun a => (encA a).length) fun a =>
-      ((encA a).length + 1) ^ dn + ((encA a).length + 1) ^ di + (st a + 1) ^ da +
-        ((st a + 1) ^ d + st a + (st a + 1) ^ 2) + (nd a + 1) ^ e := by
-    growth_poly
-  obtain ⟨Cp, E, hCp⟩ := hpoly.exists_le
-  refine DecidableInExpTime.of_computableInO hsearch
-    (fun a => (search_eq_true_iff hfA (fun b => (hgB b).symm) a).symm)
-    ⌈(Cp + (2 ^ K + 1) * (Cp + k * 2 ^ (c * δ) * Cp + (k + 1)) : ℝ)⌉₊ E fun a => ?_
-  -- The polynomial overheads, the number of rounds and the leaves, bounded separately.
-  have hP := hCp a
-  have hA : ((encA a).length + 1) ^ dn + ((encA a).length + 1) ^ di +
-      ((encState encA ((step f g)^[rounds ν a] (init a))).length + 1) ^ da ≤
-      Cp * ((encA a).length + 1) ^ E := by
-    have := Nat.pow_le_pow_left (Nat.add_le_add_right (hstate g a (rounds ν a) le_rfl) 1) da
-    omega
-  have hB : (st a + 1) ^ d + st a + ((encNat (rounds ν a)).length + 1) ^ 2 ≤
-      Cp * ((encA a).length + 1) ^ E := by
-    have := Nat.pow_le_pow_left (Nat.add_le_add_right (hrounds_len a) 1) 2
-    omega
-  have hR : ((rounds ν a + 1 : ℕ) : ℝ) ≤ (2 ^ K + 1) * 2 ^ ((1 / M : ℝ) * μA a) := by
-    have h₁ : rounds ν a ≤ 2 ^ K * 2 ^ (μA a / M) := by
-      rw [rounds, ← pow_add, add_comm K]
-      exact Nat.pow_le_pow_right two_pos (hνM a)
-    have h₂ : ((2 ^ (μA a / M) : ℕ) : ℝ) ≤ 2 ^ ((1 / M : ℝ) * μA a) := by
-      rw [Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast, one_div_mul_eq_div]
-      exact Real.rpow_le_rpow_of_exponent_le (by norm_num) Nat.cast_div_le
-    have h₃ : (1 : ℝ) ≤ ((2 ^ (μA a / M) : ℕ) : ℝ) := by exact_mod_cast Nat.one_le_two_pow
-    have h₄ : (rounds ν a : ℝ) ≤ 2 ^ K * ((2 ^ (μA a / M) : ℕ) : ℝ) := by exact_mod_cast h₁
-    have h₅ := mul_le_mul_of_nonneg_left h₂ (by positivity : (0 : ℝ) ≤ 2 ^ K)
-    rw [Nat.cast_succ]
-    linarith
-  have hleaf : (leafTime μA nd c δ k e a : ℝ) ≤
-      k * 2 ^ (c * δ) * Cp * 2 ^ ((c * δ) * μA a) * ((encA a).length + 1) ^ E + (k + 1) := by
-    have hexp : (2 : ℝ) ^ (δ * ((c * μA a + c : ℕ) : ℝ)) =
-        2 ^ (c * δ) * 2 ^ ((c * δ) * μA a) := by
-      rw [← Real.rpow_add (by norm_num)]
-      congr 1
-      push_cast
-      ring
-    have hnd : ((nd a : ℝ) + 1) ^ e ≤ Cp * ((encA a).length + 1) ^ E := by
-      exact_mod_cast (show (nd a + 1) ^ e ≤ Cp * ((encA a).length + 1) ^ E by omega)
-    have hceil := Nat.ceil_lt_add_one (show (0 : ℝ) ≤
-      k * (2 ^ (δ * ((c * μA a + c : ℕ) : ℝ)) * ((nd a : ℝ) + 1) ^ e) + k by positivity)
-    have := mul_le_mul_of_nonneg_left hnd
-      (by positivity : (0 : ℝ) ≤ k * (2 ^ (c * δ) * 2 ^ ((c * δ) * μA a)))
-    unfold leafTime
-    rw [hexp] at hceil ⊢
-    linarith
-  have hA' := Nat.cast_le (α := ℝ) |>.mpr hA
-  have hB' := Nat.cast_le (α := ℝ) |>.mpr hB
-  push_cast at hA' hB' hR
-  have key := add_mul_add_le hA' hB' hR hleaf (by positivity) (by positivity) (by positivity)
-    (by positivity) (Real.one_le_rpow (by norm_num) (by positivity))
-    (Real.one_le_rpow (by norm_num) (by positivity))
-    (one_le_pow₀ (le_add_of_nonneg_left (Nat.cast_nonneg _)))
-  have hXY : (2 : ℝ) ^ ((1 / M + c * δ) * μA a) =
-      2 ^ ((1 / M : ℝ) * μA a) * 2 ^ ((c * δ) * μA a) := by
-    rw [← Real.rpow_add (by norm_num)]
-    congr 1
-    ring
-  -- `key` is the claimed bound, up to rearranging the running time and rounding the constant up.
-  rw [hXY]
-  push_cast
-  refine (?_ : _ ≤ _).trans (mul_le_mul_of_nonneg_right (Nat.le_ceil _) (by positivity))
-  linarith
+  have hbranch (a : α) : (ν a : ℝ) ≤ (1 / M : ℝ) * μA a + K := by
+    rw [one_div_mul_eq_div]
+    exact (mod_cast hνM a : (ν a : ℝ) ≤ ↑(μA a / M) + K).trans (add_le_add Nat.cast_div_le le_rfl)
+  have hquery (a : α) (r : ℕ) : δ * μB (f (a, r)) ≤ c * δ * μA a + c * δ := by
+    have hbound : (μB (f (a, r)) : ℝ) ≤ c * μA a + c := by exact_mod_cast hμ a r
+    calc
+      δ * μB (f (a, r)) ≤ δ * (c * μA a + c) :=
+        mul_le_mul_of_nonneg_left hbound hδ
+      _ = c * δ * μA a + c * δ := by ring
+  obtain ⟨E, hsearch⟩ := ExhaustiveSearch.exists_decidableInTimeO hf hν hfA hbranch hquery
+    (fun _ => by positivity) h
+  refine ⟨E, hsearch.mono ⌈(2 : ℝ) ^ (K + c * δ)⌉₊ (fun a => ?_) (fun _ => by positivity)⟩
+  have hsum : (1 / M : ℝ) * μA a + K + (c * δ * μA a + c * δ) =
+      (1 / M + c * δ) * μA a + (K + c * δ) := by ring
+  rw [hsum, Real.rpow_add (by norm_num : (0 : ℝ) < 2),
+    mul_comm ((2 : ℝ) ^ ((1 / M + c * δ) * μA a)), mul_assoc]
+  exact (mul_le_mul_of_nonneg_right (Nat.le_ceil _) (by positivity)).trans
+    (le_add_of_nonneg_right (by positivity))
+
+/-- Exhaustive search with a branch exponent of power `q` and query parameter blowup of power
+`b` transfers a power-`p` decider to a power-`max q (b * p)` decider. Query generation and
+computing the number of branch bits take polynomial time. The binary search counters and all
+encoded queries have length polynomial in the encoded input length. -/
+theorem DecidableInPowerExpTime.of_exhaustiveSearch {f : α × ℕ → β} {ν : α → ℕ}
+    (hf : ComputableInPolyTime f (encPair encA encNat) encB)
+    (hν : ComputableInPolyTime ν encA encUnary)
+    (hfA : ∀ a, a ∈ A ↔ ∃ r < 2 ^ ν a, f (a, r) ∈ B) {C K : ℕ} {q b p : ℝ}
+    (hbranch : ∀ a, (ν a : ℝ) ≤ C * (μA a + 1 : ℝ) ^ q)
+    (hsize : ∀ a r, (μB (f (a, r)) + 1 : ℝ) ≤ (K + 1 : ℝ) * (μA a + 1 : ℝ) ^ b)
+    (hp : 0 ≤ p) (h : DecidableInPowerExpTime B encB μB p) :
+    DecidableInPowerExpTime A encA μA (max q (b * p)) := by
+  obtain ⟨D, e, h⟩ := h
+  let R : ℝ := D * (K + 1 : ℝ) ^ p
+  have hquery (a : α) (r : ℕ) : D * (μB (f (a, r)) + 1 : ℝ) ^ p ≤
+      R * (μA a + 1 : ℝ) ^ (b * p) := by
+    have h := Real.rpow_le_rpow (by positivity) (hsize a r) hp
+    rw [Real.mul_rpow (by positivity) (by positivity), ← Real.rpow_mul (by positivity)] at h
+    simpa only [R, mul_assoc] using mul_le_mul_of_nonneg_left h (Nat.cast_nonneg D)
+  have hR : 0 ≤ R := by unfold R; positivity
+  obtain ⟨E, hsearch⟩ := ExhaustiveSearch.exists_decidableInTimeO hf hν hfA hbranch hquery
+    (fun _ => mul_nonneg hR (by positivity)) h
+  refine ⟨C + ⌈R⌉₊, E, hsearch.mono 1 (fun a => ?_) (fun _ => by positivity)⟩
+  have hx : 1 ≤ (μA a + 1 : ℝ) := le_add_of_nonneg_left (Nat.cast_nonneg _)
+  have hq := Real.rpow_le_rpow_of_exponent_le hx (le_max_left q (b * p))
+  have hp' := Real.rpow_le_rpow_of_exponent_le hx (le_max_right q (b * p))
+  have hexponent : C * (μA a + 1 : ℝ) ^ q + R * (μA a + 1 : ℝ) ^ (b * p) ≤
+      ((C + ⌈R⌉₊ : ℕ) : ℝ) * (μA a + 1 : ℝ) ^ max q (b * p) := by
+    push_cast
+    calc
+      _ ≤ (C : ℝ) * (μA a + 1 : ℝ) ^ max q (b * p) +
+          R * (μA a + 1 : ℝ) ^ max q (b * p) :=
+        add_le_add (mul_le_mul_of_nonneg_left hq (Nat.cast_nonneg C))
+          (mul_le_mul_of_nonneg_left hp' hR)
+      _ ≤ _ := by
+        rw [← add_mul]
+        exact mul_le_mul_of_nonneg_right (add_le_add le_rfl (Nat.le_ceil R)) (by positivity)
+  simp only [Nat.cast_one, one_mul]
+  exact (mul_le_mul_of_nonneg_right
+    (Real.rpow_le_rpow_of_exponent_le (by norm_num) hexponent) (by positivity)).trans
+    (le_add_of_nonneg_right zero_le_one)
 
 /-- **Subexponential-time transfer along an exhaustive search with sublinear branch exponent.** If
 $f : \alpha \times \mathbb{N} \to \beta$ and $\nu : \alpha \to \mathbb{N}$ are computable in
@@ -340,16 +374,13 @@ theorem DecidableInSubexpTime.of_exhaustiveSearch {f : α × ℕ → β} {ν : �
   intro ε hε
   obtain ⟨M, hM⟩ := exists_nat_gt (2 / ε)
   have hMpos : (0 : ℝ) < M := lt_trans (by positivity) hM
-  have hM_nat : 0 < M := Nat.cast_pos.mp hMpos
-  obtain ⟨K, hK⟩ := hνM M hM_nat
-  have hMε : 1 / (M : ℝ) < ε / 2 := by
-    rw [div_lt_iff₀ hMpos]
-    rw [div_lt_iff₀ hε] at hM
-    linarith
+  obtain ⟨K, hK⟩ := hνM M (Nat.cast_pos.mp hMpos)
+  have hMε : 1 / (M : ℝ) < ε / 2 :=
+    (one_div_lt hMpos (half_pos hε)).mpr (by simpa only [one_div_div] using hM)
   set δ : ℝ := ε / (2 * (c + 1))
   have hδ : 0 < δ := by positivity
   refine ((h δ hδ).of_exhaustiveSearch hf hν hfA hμ hK hδ.le).mono ?_
-  have hcδ : (c : ℝ) * δ ≤ ε / 2 := by
+  have : (c : ℝ) * δ ≤ ε / 2 := by
     simpa only [δ, div_div] using natCast_mul_div_add_one_le (half_pos hε).le c
   linarith
 

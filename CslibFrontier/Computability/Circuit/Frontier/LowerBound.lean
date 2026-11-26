@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Frontier.Demand
 public import CslibFrontier.Computability.Circuit.Frontier.Reduction
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # The frontier lower bound
@@ -83,9 +84,7 @@ theorem logb_ncard_le_self {n : ℕ} {S : Set (Fin n → U)} (hS : S.Nonempty) :
     Real.logb (Nat.card U) S.ncard ≤ n := by
   have hq : (1 : ℝ) < Nat.card U := by exact_mod_cast Finite.one_lt_card
   have hle : (S.ncard : ℝ) ≤ (Nat.card U : ℝ) ^ n := by
-    have := ncard_le_card S
-    rw [Nat.card_fun, Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin] at this
-    exact_mod_cast this
+    simpa [Nat.card_fun] using (Nat.cast_le (α := ℝ)).2 (ncard_le_card S)
   have hpos : (0 : ℝ) < S.ncard := by exact_mod_cast (ncard_pos (toFinite S)).mpr hS
   calc Real.logb (Nat.card U) S.ncard ≤ Real.logb (Nat.card U) ((Nat.card U : ℝ) ^ n) :=
         Real.logb_le_logb_of_le hq hpos hle
@@ -107,7 +106,7 @@ structure DenseRectangleFree (S : ∀ n, Set (Fin n → U)) (K : ℕ → ℕ) : 
 variable {S : ∀ n, Set (Fin n → U)} {K : ℕ → ℕ}
 
 /-- A dense family of sets has `n - log_|U| |S_n| = o(n)`. -/
-private theorem isLittleO_sub_logb_ncard
+theorem isLittleO_sub_logb_ncard
     (hdense : (fun n => n * Real.log (Nat.card U) - Real.log (S n).ncard) =o[atTop]
       fun n => (n : ℝ)) :
     (fun n : ℕ => (n : ℝ) - Real.logb (Nat.card U) (S n).ncard) =o[atTop] fun n => (n : ℝ) := by
@@ -131,22 +130,19 @@ theorem eventually_card_mul_sq_le_ncard (hSK : DenseRectangleFree S K) :
   filter_upwards [hlog.bound (show 0 < Real.log q / 2 by positivity),
     hSK.eventually_rectangleFree, eventually_ge_atTop 1] with n hn hfreen hn1
   have hn1' : (1 : ℝ) ≤ n := by exact_mod_cast hn1
-  have hK1 : (1 : ℝ) ≤ K n := by exact_mod_cast hfreen.pos
-  have hlogK : 0 ≤ Real.log (K n) := Real.log_nonneg hK1
-  simp only [Real.norm_eq_abs, abs_of_nonneg (by linarith : (0 : ℝ) ≤ n)] at hn
-  have hb := (le_abs_self _).trans hn
+  have hKpos : (0 : ℝ) < K n := Nat.cast_pos.2 hfreen.pos
+  have hlogK : 0 ≤ Real.log (K n) := Real.log_nonneg (Nat.one_le_cast.2 hfreen.pos)
+  simp only [Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg (α := ℝ) n)] at hn
   -- `log |S| ≥ log q + 2 log K + (n / 2) log q > log (q K ^ 2)`.
-  have hSlog : Real.log q + 2 * Real.log (K n) < Real.log (S n).ncard := by nlinarith
-  have hSpos : (0 : ℝ) < (S n).ncard := by
-    by_contra! h0
-    have : ((S n).ncard : ℝ) = 0 := le_antisymm h0 (Nat.cast_nonneg _)
-    rw [this, Real.log_zero] at hSlog
-    nlinarith [Real.log_nonneg (show (1 : ℝ) ≤ q by linarith)]
-  have : Real.log (q * K n ^ 2 : ℝ) ≤ Real.log (S n).ncard := by
-    rw [Real.log_mul (by positivity) (by positivity), Real.log_pow]
-    push_cast
-    linarith
-  exact_mod_cast (Real.log_le_log_iff (by positivity) hSpos).mp this
+  have hSlog : Real.log q + 2 * Real.log (K n) < Real.log (S n).ncard := by
+    nlinarith [le_abs_self (Real.log q + 2 * Real.log (K n) +
+      (n * Real.log q - Real.log (S n).ncard))]
+  have hSpos : (0 : ℝ) < (S n).ncard :=
+    Nat.cast_pos.2 (Nat.pos_of_ne_zero fun h0 => by simp [h0] at hSlog; linarith)
+  have hqK : (0 : ℝ) < q * K n ^ 2 := mul_pos (zero_lt_one.trans hq) (pow_pos hKpos 2)
+  exact_mod_cast (Real.log_le_log_iff hqK hSpos).mp <| by
+    rw [Real.log_mul (zero_lt_one.trans hq).ne' (pow_pos hKpos 2).ne', Real.log_pow]
+    cast_linarith
 
 private theorem eventually_lt_of_frontier_of_bound {A M : ℝ} (hA : 0 < A) (hM : 0 ≤ M) (d : ℝ)
     (hK : (fun n => Real.log (K n)) =o[atTop] fun n => (n : ℝ))
@@ -186,10 +182,8 @@ private theorem eventually_lt_of_frontier_of_bound {A M : ℝ} (hA : 0 < A) (hM 
   refine ⟨η, hη, fun C => ?_⟩
   filter_upwards [H η hη (min_le_left _ _) C e he] with n hn
   intro s v ρ w hs hv hvs hρ hw hsupply
-  have hlogK : 0 ≤ Real.logb q (K n) := by
-    rcases Nat.eq_zero_or_pos (K n) with h | h
-    · simp [h]
-    · exact Real.logb_nonneg hq (by exact_mod_cast h)
+  have hlogK : 0 ≤ Real.logb q (K n) :=
+    div_nonneg (Real.log_natCast_nonneg _) (Real.log_nonneg hq.le)
   have hlog0 : 0 ≤ Real.log (v + 1) := Real.log_nonneg (by linarith)
   have hlogV0 : 0 ≤ Real.logb q (v + 1) := Real.logb_nonneg hq (by linarith)
   have hlogV : (A + η + 1) * Real.logb q (v + 1) ≤ κ * Real.log (v + 1) := by
@@ -197,25 +191,19 @@ private theorem eventually_lt_of_frontier_of_bound {A M : ℝ} (hA : 0 < A) (hM 
       div_le_div_of_nonneg_left hlog0 h2 hL2
     calc (A + η + 1) * Real.logb q (v + 1) ≤ (A + 2) * (Real.log (v + 1) / Real.log 2) :=
           mul_le_mul (by linarith) h1 hlogV0 (by linarith)
-      _ ≤ κ * Real.log (v + 1) := by
-          rw [mul_div_assoc', div_eq_mul_inv, mul_comm, ← mul_assoc]
-          refine mul_le_mul_of_nonneg_right ?_ hlog0
-          simp only [κ]
-          rw [div_eq_inv_mul]
-          linarith
-  have hvκ : v ≤ κ * (n + s + 1) := by
-    have hκM : M ≤ κ := by simp only [κ]; linarith [show 0 ≤ (A + 2) / Real.log 2 by positivity]
-    have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg _
-    nlinarith
-  have hd := le_abs_self d
+      _ ≤ κ * Real.log (v + 1) :=
+          ((mul_div_assoc' (A + 2) _ _).trans (div_mul_eq_mul_div (A + 2) _ _).symm).trans_le
+            (mul_le_mul_of_nonneg_right (le_add_of_nonneg_left hM) hlog0)
+  have hvκ : v ≤ κ * (n + s + 1) :=
+    hvs.trans (mul_le_mul_of_nonneg_right (le_add_of_nonneg_right (by positivity))
+      (by linarith [Nat.cast_nonneg (α := ℝ) n]))
   refine hn s v (w - (A + η) * Real.logb q (v + 1)) hs hv hvκ ?_ ?_
   · simp only [e]
-    nlinarith
+    nlinarith [le_abs_self d]
   · have hρ' : ρ ≤ s - n + e n + Real.logb q (v + 1) := by
       simp only [e]
       linarith [abs_nonneg d]
-    have := mul_le_mul_of_nonneg_left hρ' (by linarith : 0 ≤ A + η)
-    nlinarith
+    nlinarith [mul_le_mul_of_nonneg_left hρ' (by linarith : 0 ≤ A + η)]
 
 /-- **Demand against supply for the frontier method**, with the error terms of the problem and
 a sublinear slack. Let `S_n` be dense sets with `log K_n = o(n)`, let `β(n) = o(n)`, let `d` be a
@@ -248,9 +236,8 @@ theorem eventually_lt_of_frontier {A : ℝ} (hA : 0 < A) (d : ℝ)
       (1 + 1 / A - ε) * n < s := by
   obtain ⟨η, hη, H⟩ := eventually_lt_of_frontier_of_bound (M := 7) hA (by norm_num) d hK hdense
     hβ hε
-  refine ⟨η, hη, fun C => ?_⟩
-  filter_upwards [H C] with n hn s v ρ w hs hv hvs hρ hw hsupply
-  exact hn s v ρ w hs hv (by linarith [Nat.cast_nonneg (α := ℝ) n]) hρ hw hsupply
+  exact ⟨η, hη, fun C => (H C).mono fun n hn s v ρ w hs hv hvs =>
+    hn s v ρ w hs hv (by linarith [Nat.cast_nonneg (α := ℝ) n])⟩
 
 private theorem eventually_lt_of_graph_of_bound {r : ℕ} (hr : 2 ≤ r) {A M : ℝ} (hA : 0 < A)
     (hM : 0 ≤ M) (hlayout : LayoutBound (r + 1) A) (hSK : DenseRectangleFree S K)
@@ -269,25 +256,20 @@ private theorem eventually_lt_of_graph_of_bound {r : ℕ} (hr : 2 ≤ r) {A M : 
     hSK.isLittleO_log hSK.isLittleO_deficit (isLittleO_zero (fun n : ℕ => (n : ℝ)) atTop) hε
   obtain ⟨C, hC⟩ := hlayout η hη
   filter_upwards [H C, hSK.eventually_rectangleFree, eventually_card_mul_sq_le_ncard hSK] with
-    n hn hfreen hbign
-  intro g V E _ _ G hconn hloop hdeg hV hrank hwidth
+    n hn hfreen hbign g V E _ _ G hconn hloop hdeg hV hrank hwidth
   obtain ⟨π, hπ⟩ := hC V E G hconn hloop hdeg
   have hr' : (2 : ℝ) ≤ r := by exact_mod_cast hr
-  have hg : (0 : ℝ) ≤ g := Nat.cast_nonneg g
-  have hSne : (S n).Nonempty := by
-    rw [← ncard_pos (toFinite _)]
-    exact lt_of_lt_of_le (Nat.mul_pos Nat.card_pos (pow_pos hfreen.pos 2)) hbign
+  have hSne : (S n).Nonempty := (ncard_pos (toFinite _)).mp
+    ((Nat.mul_pos Nat.card_pos (pow_pos hfreen.pos 2)).trans_le hbign)
   have hlogS := logb_ncard_le_self hSne
-  have hlogK : 0 ≤ Real.logb q (K n) := by
-    rcases Nat.eq_zero_or_pos (K n) with h | h
-    · simp [h]
-    · exact Real.logb_nonneg hq (by exact_mod_cast h)
+  have hlogK : 0 ≤ Real.logb q (K n) :=
+    div_nonneg (Real.log_natCast_nonneg _) (Real.log_nonneg hq.le)
   have hlogV : 0 ≤ Real.logb q (Nat.card V + 1) :=
     Real.logb_nonneg hq (by linarith [Nat.cast_nonneg (α := ℝ) (Nat.card V)])
-  refine hn ((r - 1) * g) (Nat.card V) G.cycleRank (G.width π) (mul_nonneg (by linarith) hg)
-    (Nat.cast_nonneg _) hV ?_ (by simpa using hwidth π) hπ
-  have h0 : (0 : ℕ → ℝ) n = 0 := rfl
-  linarith
+  refine hn ((r - 1) * g) (Nat.card V) G.cycleRank (G.width π)
+    (mul_nonneg (by linarith) (Nat.cast_nonneg g)) (Nat.cast_nonneg _) hV ?_
+    (by simpa using hwidth π) hπ
+  linarith [show (0 : ℕ → ℝ) n = 0 from rfl]
 
 /-- **Demand against supply for graphs.** Assume the layout hypothesis for maximum degree `r + 1`
 with coefficient `A > 0`, and let `S_n` be dense `K_n`-rectangle-free sets with
@@ -307,15 +289,9 @@ theorem eventually_lt_of_graph {r : ℕ} (hr : 2 ≤ r) {A : ℝ} (hA : 0 < A)
       (∀ π : Layout V, Real.logb (Nat.card U) (S n).ncard ≤
         G.width π + (r + 2) + 3 * Real.logb (Nat.card U) (K n) +
           Real.logb (Nat.card U) (Nat.card V + 1)) →
-      (1 + 1 / A - ε) * n < (r - 1) * g := by
-  filter_upwards [eventually_lt_of_graph_of_bound (M := 7) hr hA (by norm_num) hlayout hSK hε] with
-    n hn g V E _ _ G hconn hloop hdeg hV hrank hwidth
-  refine hn g V E G hconn hloop hdeg ?_ hrank hwidth
-  have hr' : (2 : ℝ) ≤ r := by exact_mod_cast hr
-  have hg : (0 : ℝ) ≤ g := Nat.cast_nonneg g
-  have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg n
-  have hV' : (Nat.card V : ℝ) ≤ 2 * r * g + 3 := by exact_mod_cast hV
-  nlinarith
+      (1 + 1 / A - ε) * n < (r - 1) * g :=
+  (eventually_lt_of_graph_of_bound (M := 7) hr hA (by norm_num) hlayout hSK hε).mono
+    fun _ hn g V E _ _ G hconn hloop hdeg hV => hn g V E G hconn hloop hdeg (by cast_nlinarith)
 
 /-- **The frontier lower bound, charging only multiary gates.** Let `r ≥ 2` and assume the layout
 hypothesis for maximum degree `r + 1` with coefficient `A > 0`. Let `S_n ⊆ U^n` be
@@ -338,20 +314,17 @@ theorem eventually_lt_mul_multiarySize {r : ℕ} (hr : 2 ≤ r) {A : ℝ} (hA : 
     exists_graph_of_decides_multiarySize hr hfan hS hfreen hbign
   refine hn c.multiarySize V E G hc hl hd ?_ hrank hw
   have hV' : (Nat.card V : ℝ) ≤
-      2 * r * (c.multiarySize + q + (c.multiarySize + n) * (q : ℝ) ^ q) + 3 := by
-    exact_mod_cast hV
-  have hr' : (2 : ℝ) ≤ r := by exact_mod_cast hr
-  have hg : (0 : ℝ) ≤ c.multiarySize := Nat.cast_nonneg _
-  have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg n
-  have hg_le : (c.multiarySize : ℝ) ≤ (r - 1) * c.multiarySize := by nlinarith
-  have hqq : (0 : ℝ) ≤ (q : ℝ) ^ q := by positivity
-  have hq0 : (0 : ℝ) ≤ q := by positivity
+      2 * r * (c.multiarySize + q + (c.multiarySize + n) * (q : ℝ) ^ q) + 3 := mod_cast hV
+  have hr' : (2 : ℝ) ≤ r := mod_cast hr
+  have hg_le : (c.multiarySize : ℝ) ≤ (r - 1) * c.multiarySize :=
+    le_mul_of_one_le_left (Nat.cast_nonneg _) (by linarith)
   have hinner : (c.multiarySize : ℝ) + q + (c.multiarySize + n) * (q : ℝ) ^ q ≤
       (1 + q + (q : ℝ) ^ q) * (n + ((r - 1) * c.multiarySize) + 1) := by
-    nlinarith
-  have hmul := mul_le_mul_of_nonneg_left hinner (by positivity : (0 : ℝ) ≤ 2 * r)
-  simp only [M]
-  linarith
+    nlinarith [Nat.cast_nonneg (α := ℝ) n, Nat.cast_nonneg (α := ℝ) c.multiarySize,
+      Nat.cast_nonneg (α := ℝ) q, pow_nonneg (Nat.cast_nonneg (α := ℝ) q) q]
+  dsimp only [M]
+  linarith [mul_le_mul_of_nonneg_left hinner (by positivity : (0 : ℝ) ≤ 2 * r),
+    Nat.cast_nonneg (α := ℝ) n, Nat.cast_nonneg (α := ℝ) c.multiarySize]
 
 /-- **The frontier lower bound.** Let `r ≥ 2` and assume the layout hypothesis for maximum degree
 `r + 1` with coefficient `A > 0`. Let `S_n ⊆ U^n` be `K_n`-rectangle-free sets over a finite
@@ -363,14 +336,10 @@ theorem eventually_lt_mul_innerSize {r : ℕ} (hr : 2 ≤ r) {A : ℝ} (hA : 0 <
     (hlayout : LayoutBound (r + 1) A) (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost r → c.Decides I Acc (S n) →
-        (1 + 1 / A - ε) * n < (r - 1) * c.innerSize := by
-  filter_upwards [eventually_lt_mul_multiarySize.{u, v} hr hA hlayout hSK hε] with n hn
-  intro σ I Acc c hfan hS
-  refine (hn σ I Acc c hfan hS).trans_le ?_
-  have hr' : (0 : ℝ) ≤ (r : ℝ) - 1 := by
-    have : (2 : ℝ) ≤ r := by exact_mod_cast hr
-    linarith
-  exact mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize) hr'
+        (1 + 1 / A - ε) * n < (r - 1) * c.innerSize :=
+  (eventually_lt_mul_multiarySize.{u, v} hr hA hlayout hSK hε).mono fun _ hn σ I Acc c hfan hS =>
+    (hn σ I Acc c hfan hS).trans_le <| mul_le_mul_of_nonneg_left
+      (Nat.cast_le.mpr c.multiarySize_le_innerSize) (by cast_linarith [hr])
 
 /-- **The frontier lower bound for fan-in two, charging only multiary gates.** Assume the layout
 hypothesis for subcubic graphs with coefficient `A > 0`. Under the hypotheses of
@@ -382,8 +351,8 @@ theorem eventually_lt_multiarySize {A : ℝ} (hA : 0 < A) (hlayout : LayoutBound
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost 2 → c.Decides I Acc (S n) →
         (1 + 1 / A - ε) * n < c.multiarySize := by
-  filter_upwards [eventually_lt_mul_multiarySize le_rfl hA hlayout hSK hε] with n hn
-  intro σ I Acc c hfan hS
+  filter_upwards [eventually_lt_mul_multiarySize le_rfl hA hlayout hSK hε] with n hn σ I Acc c
+    hfan hS
   simpa only [Nat.cast_ofNat, show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
     hn σ I Acc c hfan hS
 
@@ -396,8 +365,7 @@ theorem eventually_lt_innerSize {A : ℝ} (hA : 0 < A) (hlayout : LayoutBound 3 
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost 2 → c.Decides I Acc (S n) →
         (1 + 1 / A - ε) * n < c.innerSize := by
-  filter_upwards [eventually_lt_multiarySize.{u, v} hA hlayout hSK hε] with n hn
-  intro σ I Acc c hfan hS
+  filter_upwards [eventually_lt_multiarySize.{u, v} hA hlayout hSK hε] with n hn σ I Acc c hfan hS
   exact (hn σ I Acc c hfan hS).trans_le (Nat.cast_le.mpr c.multiarySize_le_innerSize)
 
 /-- **The worst-case multiary claim with coefficient `L`.** Let `U` be a finite alphabet with at
@@ -416,12 +384,10 @@ def MultiaryLowerBound (L : ℝ) : Prop :=
 
 /-- A multiary circuit lower bound holds for every smaller coefficient. -/
 theorem MultiaryLowerBound.mono {L L' : ℝ} (h : MultiaryLowerBound.{u, v} L) (hL : L' ≤ L) :
-    MultiaryLowerBound.{u, v} L' := by
-  intro U _ _ S K hSK ε hε
-  filter_upwards [h U S K hSK ε hε] with n hn
-  intro σ I Acc c hfan hS
-  exact lt_of_le_of_lt (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n))
-    (hn σ I Acc c hfan hS)
+    MultiaryLowerBound.{u, v} L' :=
+  fun U _ _ S K hSK ε hε => (h U S K hSK ε hε).mono fun n hn σ I Acc c hfan hS =>
+    lt_of_le_of_lt (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n))
+      (hn σ I Acc c hfan hS)
 
 /-- **The worst-case claim with coefficient `L`.** Let `U` be a finite alphabet with at least
 two symbols, and let `S_n ⊆ U^n` be `K_n`-rectangle-free sets with `log K_n = o(n)` and
@@ -439,19 +405,16 @@ def CircuitLowerBound (L : ℝ) : Prop :=
 
 /-- Every multiary lower bound implies the corresponding `innerSize` lower bound. -/
 theorem MultiaryLowerBound.circuitLowerBound {L : ℝ} (h : MultiaryLowerBound.{u, v} L) :
-    CircuitLowerBound.{u, v} L := by
-  intro U _ _ S K hSK ε hε
-  filter_upwards [h U S K hSK ε hε] with n hn σ I Acc c hfan hS
-  exact (hn σ I Acc c hfan hS).trans_le (Nat.cast_le.mpr c.multiarySize_le_innerSize)
+    CircuitLowerBound.{u, v} L :=
+  fun U _ _ S K hSK ε hε => (h U S K hSK ε hε).mono fun _ hn σ I Acc c hfan hS =>
+    (hn σ I Acc c hfan hS).trans_le (Nat.cast_le.mpr c.multiarySize_le_innerSize)
 
 /-- A circuit lower bound holds for every smaller coefficient. -/
 theorem CircuitLowerBound.mono {L L' : ℝ} (h : CircuitLowerBound.{u, v} L) (hL : L' ≤ L) :
-    CircuitLowerBound.{u, v} L' := by
-  intro U _ _ S K hSK ε hε
-  filter_upwards [h U S K hSK ε hε] with n hn
-  intro σ I Acc c hfan hS
-  exact lt_of_le_of_lt (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n))
-    (hn σ I Acc c hfan hS)
+    CircuitLowerBound.{u, v} L' :=
+  fun U _ _ S K hSK ε hε => (h U S K hSK ε hε).mono fun n hn σ I Acc c hfan hS =>
+    lt_of_le_of_lt (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n))
+      (hn σ I Acc c hfan hS)
 
 /-- **The multiary frontier lower bound as a bundled claim.** If subcubic graphs have layouts of
 width `(A + o(1)) β₁ + o(|V|)` (`LayoutBound 3 A`), then circuits of fan-in at most two deciding

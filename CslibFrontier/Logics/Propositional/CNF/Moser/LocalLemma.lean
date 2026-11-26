@@ -29,7 +29,8 @@ for exact `k`-CNF formulas (`CNF.IsExactDistinct`), using independent fair coin 
 * Under the slack symmetric bound `e (d + 1) ≤ (1 - ε) * 2 ^ k`, the parallel Moser–Tardos
   algorithm (`MoserTardos.Parallel`) terminates in `O(log (φ.length / d) / ε)` expected parallel
   rounds for every valid parallel selection rule, including the computable greedy MIS rule
-  `Moser.greedyParallelCNF`.
+  `Moser.greedyParallelCNF`. Almost sure termination at a satisfying assignment needs only the
+  sequential bound `e (d + 1) ≤ 2 ^ k`.
 * Using **lopsided Moser–Tardos** (`MoserTardos.Lopsided`, [MoserTardos2010, Section 6]), we show
   that two violated clause events can only be lopsidependent when they *conflict*
   (`Moser.Conflicts`: one contains a literal and the other its negation). Thus `e (d' + 1) ≤ 2 ^ k`
@@ -59,7 +60,8 @@ for exact `k`-CNF formulas (`CNF.IsExactDistinct`), using independent fair coin 
   `Cslib.Logic.PL.Moser.lintegral_parallelRounds_le_of_exp_mul_le`,
   `Cslib.Logic.PL.Moser.ae_exists_eval_parallelRun_of_exp_mul_le`,
   `Cslib.Logic.PL.Moser.ae_exists_eval_parallelRun_greedy_of_exp_mul_le`: constructive parallel
-  `k`-SAT expected-round bounds and almost sure termination under `e (d + 1) ≤ (1 - ε) * 2 ^ k`.
+  `k`-SAT expected-round bounds under `e (d + 1) ≤ (1 - ε) * 2 ^ k`, and almost sure termination
+  at a satisfying assignment under `e (d + 1) ≤ 2 ^ k`.
 * `Cslib.Logic.PL.Moser.not_lopsidependent_of_not_conflicts`: non-conflicting clauses are not
   lopsidependent.
 * `Cslib.Logic.PL.Moser.lintegral_resamplings_le_of_conflict_exp_mul_le`,
@@ -118,10 +120,8 @@ theorem measureReal_violated {k : ℕ} {φ : CNF (Fin n)} (hφ : φ.IsExactDisti
     (i : Fin φ.length) :
     (Measure.pi (fairCoin (n := n))).real (violated φ i) = 2⁻¹ ^ k := by
   have hi := hφ _ (getElem_mem_fin i)
-  have hfc : fairCoin (n := n) =
-      fun _ => (Cslib.Probability.PMF.uniformOfFintype Bool).toMeasure := rfl
-  rw [hfc, ← MoserTardos.toReal_toOuterMeasure_pi_eq_measureReal _
-      (measurableSet_violated φ i),
+  unfold fairCoin
+  rw [← MoserTardos.toReal_toOuterMeasure_pi_eq_measureReal _ (measurableSet_violated φ i),
     violated, Clause.toOuterMeasure_pi_setOf_eval_eq_false hi.2, hi.1]
   simp
 
@@ -145,15 +145,14 @@ theorem firstViolatedRule_eq_none {φ : CNF (Fin n)}
   rw [CNF.eval_eq_true_iff]
   intro c hc
   obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hc
-  have hfi := List.find?_eq_none.1 h ⟨i, hi⟩ (List.mem_finRange _)
-  simpa using hfi
+  simpa using List.find?_eq_none.1 h ⟨i, hi⟩ (List.mem_finRange _)
 
 theorem firstViolatedRule_notMem_violated {φ : CNF (Fin n)}
     {T : ∀ p : Fin n × ℕ, (fun _ : Fin n => Bool) p.1} {w : List (Fin φ.length)}
     (h : firstViolatedRule φ T w = none) (i : Fin φ.length) :
     MoserTardos.current (clauseVbl φ) T w ∉ violated φ i := by
-  have hev := (CNF.eval_eq_true_iff _ φ).1 (firstViolatedRule_eq_none h) φ[i] (getElem_mem_fin i)
-  simpa [violated] using hev
+  simpa [violated] using
+    (CNF.eval_eq_true_iff _ φ).1 (firstViolatedRule_eq_none h) φ[i] (getElem_mem_fin i)
 
 private theorem exp_mul_inv_pow_le {k d : ℕ} {r : ℝ}
     (hlll : Real.exp 1 * (d + 1) ≤ r * 2 ^ k) :
@@ -177,9 +176,7 @@ private theorem ae_eval_of_ae_notMem_violated (φ : CNF (Fin n))
   filter_upwards [hae] with T ⟨N, hN⟩
   refine ⟨N, (CNF.eval_eq_true_iff _ φ).2 fun c hc => ?_⟩
   obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hc
-  have hvi := hN ⟨i, hi⟩
-  simp only [violated, Set.mem_ofPred_eq, Bool.not_eq_false] at hvi
-  exact hvi
+  simpa [violated] using hN ⟨i, hi⟩
 
 end Setup
 
@@ -271,10 +268,7 @@ instance (c d : Clause (Fin n)) : Decidable (Conflicts c d) :=
   inferInstanceAs (Decidable (∃ l ∈ c, (l.1, !l.2) ∈ d))
 
 theorem conflicts_comm (c d : Clause (Fin n)) : Conflicts c d ↔ Conflicts d c := by
-  constructor <;>
-  · rintro ⟨l, hl, hnl⟩
-    refine ⟨(l.1, !l.2), hnl, ?_⟩
-    simpa using hl
+  constructor <;> exact fun ⟨l, hl, hnl⟩ => ⟨(l.1, !l.2), hnl, by simpa using hl⟩
 
 /-- The number of other clauses in `φ` conflicting with clause `i`. -/
 @[expose] def conflictDegree (φ : CNF (Fin n)) (i : Fin φ.length) : ℕ :=
@@ -285,39 +279,30 @@ theorem conflicts_comm (c d : Clause (Fin n)) : Conflicts c d ↔ Conflicts d c 
 theorem not_lopsidependent_of_not_conflicts (φ : CNF (Fin n)) {i j : Fin φ.length}
     (hc : ¬Conflicts φ[i] φ[j]) :
     ¬MoserTardos.Lopsidependent (clauseVbl φ) (violated φ) i j := by
-  rw [MoserTardos.lopsidependent_iff]
-  rintro ⟨f, g, hfg, hfi, hgj, hhor⟩
-  have haux : ∀ {a b : Fin φ.length} {fa ga : Fin n → Bool},
-      (∀ v, v ∉ clauseVbl φ a ∩ clauseVbl φ b → fa v = ga v) →
-      ¬Conflicts φ[a] φ[b] →
-      fa ∈ violated φ a → ga ∈ violated φ b → ga ∈ violated φ a := by
-    intro a b fa ga hfg' hab hfa hgb
+  have haux {a b : Fin φ.length} {fa ga : Fin n → Bool}
+      (hfg : ∀ v, v ∉ clauseVbl φ a ∩ clauseVbl φ b → fa v = ga v)
+      (hab : ¬Conflicts φ[a] φ[b]) (hfa : fa ∈ violated φ a) (hgb : ga ∈ violated φ b) :
+      ga ∈ violated φ a := by
     by_contra hga
-    simp only [violated, Set.mem_ofPred_eq, Bool.not_eq_false] at hfa hgb hga
-    rw [Clause.eval_eq_true_iff] at hga
+    simp only [violated, Set.mem_ofPred_eq, Bool.not_eq_false, Clause.eval_eq_true_iff] at hga
     obtain ⟨l, hla, hlga⟩ := hga
-    have hlfa : fa l.1 = !l.2 := (Clause.eval_eq_false_iff fa φ[a]).1 hfa l hla
-    have hneq : fa l.1 ≠ ga l.1 := by
-      rw [hlfa, hlga]
-      cases l.2 <;> simp
+    have hlfa := (Clause.eval_eq_false_iff fa φ[a]).1 hfa l hla
     have hinter : l.1 ∈ clauseVbl φ a ∩ clauseVbl φ b := by
       by_contra hni
-      exact hneq (hfg' l.1 hni)
-    have hvb : l.1 ∈ clauseVbl φ b := (mem_inter.1 hinter).2
-    simp only [clauseVbl, List.mem_toFinset, vbl, List.mem_map] at hvb
-    obtain ⟨m, hmb, hml⟩ := hvb
-    have hmg : ga m.1 = !m.2 := (Clause.eval_eq_false_iff ga φ[b]).1 hgb m hmb
-    have hm_eq : m = (l.1, !l.2) := by
-      refine Prod.ext hml ?_
-      have : ga l.1 = l.2 := hlga
-      rw [← hml] at this
-      rw [this] at hmg
+      have := hfg l.1 hni
+      rw [hlfa, hlga] at this
+      cases l.2 <;> simp at this
+    obtain ⟨m, hmb, hml⟩ := List.mem_map.1 (List.mem_toFinset.1 (mem_inter.1 hinter).2)
+    have hmg := (Clause.eval_eq_false_iff ga φ[b]).1 hgb m hmb
+    have hm_eq : m = (l.1, !l.2) := Prod.ext hml <| by
+      rw [← hml] at hlga
+      rw [hlga] at hmg
       cases hm2 : m.2 <;> cases hl2 : l.2 <;> simp [hm2, hl2] at hmg ⊢
     exact hab ⟨l, hla, hm_eq ▸ hmb⟩
-  rcases hhor with hfj | hgi
-  · refine hfj (haux (fun v hv => (hfg v ?_).symm)
-      (fun h => hc ((conflicts_comm _ _).1 h)) hgj hfi)
-    rwa [inter_comm]
+  rw [MoserTardos.lopsidependent_iff]
+  rintro ⟨f, g, hfg, hfi, hgj, hfj | hgi⟩
+  · exact hfj (haux (fun v hv => (hfg v (inter_comm (clauseVbl φ j) (clauseVbl φ i) ▸ hv)).symm)
+      (mt (conflicts_comm _ _).1 hc) hgj hfi)
   · exact hgi (haux hfg hc hfi hgj)
 
 private def conflictNbhd (φ : CNF (Fin n)) (i : Fin φ.length) : Finset (Fin φ.length) :=
@@ -325,10 +310,9 @@ private def conflictNbhd (φ : CNF (Fin n)) (i : Fin φ.length) : Finset (Fin φ
 
 private theorem mem_conflictNbhd (φ : CNF (Fin n)) (i j : Fin φ.length) (hji : j ≠ i)
     (hlop : MoserTardos.Lopsidependent (clauseVbl φ) (violated φ) i j) :
-    j ∈ conflictNbhd φ i := by
-  refine mem_filter.2 ⟨mem_univ _, hji, ?_⟩
-  by_contra hc
-  exact not_lopsidependent_of_not_conflicts φ hc hlop
+    j ∈ conflictNbhd φ i :=
+  mem_filter.2 ⟨mem_univ _, hji,
+    Classical.byContradiction fun hc => not_lopsidependent_of_not_conflicts φ hc hlop⟩
 
 private theorem conflictNbhd_card_le {d : ℕ} {φ : CNF (Fin n)}
     (hdeg : ∀ i : Fin φ.length, conflictDegree φ i ≤ d) (i : Fin φ.length) :
@@ -453,11 +437,12 @@ theorem lintegral_parallelRounds_le_of_exp_mul_le {k d : ℕ} {ε : ℝ} {φ : C
       (degree_card_le hdeg) (fun j => (measureReal_violated hφ j).le) hε
       (exp_mul_inv_pow_le hlll) hrule
 
-/-- Under `e (d + 1) ≤ (1 - ε) * 2 ^ k` with `ε ∈ (0, 1]`, almost surely every admissible parallel
-clause-resampling rule reaches a satisfying assignment of `φ` in finitely many parallel rounds. -/
-theorem ae_exists_eval_parallelRun_of_exp_mul_le {k d : ℕ} {ε : ℝ} {φ : CNF (Fin n)}
+/-- Under `e (d + 1) ≤ 2 ^ k`, the bound of the sequential theorem, almost surely every
+admissible parallel clause-resampling rule reaches a satisfying assignment of `φ` in finitely many
+parallel rounds. -/
+theorem ae_exists_eval_parallelRun_of_exp_mul_le {k d : ℕ} {φ : CNF (Fin n)}
     (hφ : φ.IsExactDistinct k) (hdeg : ∀ i : Fin φ.length, degree φ i ≤ d)
-    (hε : ε ∈ Set.Ioc 0 1) (hlll : Real.exp 1 * (d + 1) ≤ (1 - ε) * 2 ^ k)
+    (hlll : Real.exp 1 * (d + 1) ≤ 2 ^ k)
     {psel : (∀ p : Fin n × ℕ, (fun _ : Fin n => Bool) p.1) → List (Fin φ.length) →
       List (Fin φ.length)}
     (hrule : MoserTardos.IsValidParallelRule (clauseVbl φ) (violated φ) psel) :
@@ -466,18 +451,18 @@ theorem ae_exists_eval_parallelRun_of_exp_mul_le {k d : ℕ} {ε : ℝ} {φ : CN
         (MoserTardos.parallelRun (α := fun _ : Fin n => Bool) psel T N)) = true :=
   ae_eval_of_ae_notMem_violated φ _ (MoserTardos.ae_exists_forall_notMem_parallelRun_symmetric
     (fairCoin (n := n)) (clauseVbl φ) (violated φ) (measurableSet_violated φ)
-    (violated_dependsOn φ) (degree_card_le hdeg) (fun j => (measureReal_violated hφ j).le) hε
-    (exp_mul_inv_pow_le hlll) hrule)
+    (violated_dependsOn φ) (degree_card_le hdeg) (fun j => (measureReal_violated hφ j).le)
+    (exp_mul_inv_pow_le (by simpa using hlll)) hrule)
 
-/-- Under `e (d + 1) ≤ (1 - ε) * 2 ^ k` with `ε ∈ (0, 1]`, almost surely `greedyParallelCNF`
-reaches a satisfying assignment of `φ` in finitely many parallel rounds. -/
-theorem ae_exists_eval_parallelRun_greedy_of_exp_mul_le {k d : ℕ} {ε : ℝ} {φ : CNF (Fin n)}
+/-- Under `e (d + 1) ≤ 2 ^ k`, almost surely `greedyParallelCNF` reaches a satisfying assignment of
+`φ` in finitely many parallel rounds. -/
+theorem ae_exists_eval_parallelRun_greedy_of_exp_mul_le {k d : ℕ} {φ : CNF (Fin n)}
     (hφ : φ.IsExactDistinct k) (hdeg : ∀ i : Fin φ.length, degree φ i ≤ d)
-    (hε : ε ∈ Set.Ioc 0 1) (hlll : Real.exp 1 * (d + 1) ≤ (1 - ε) * 2 ^ k) :
+    (hlll : Real.exp 1 * (d + 1) ≤ 2 ^ k) :
     ∀ᵐ T ∂MoserTardos.table (fairCoin (n := n)),
       ∃ N, φ.eval (MoserTardos.current (clauseVbl φ) T
         (MoserTardos.parallelRun (α := fun _ : Fin n => Bool) (greedyParallelCNF φ) T N)) = true :=
-  ae_exists_eval_parallelRun_of_exp_mul_le hφ hdeg hε hlll (isValidParallelRule_greedyParallelCNF φ)
+  ae_exists_eval_parallelRun_of_exp_mul_le hφ hdeg hlll (isValidParallelRule_greedyParallelCNF φ)
 
 end ParallelMT
 

@@ -90,16 +90,10 @@ theorem weight_testRow_le (γ : Fin P → Fin m × Bool) : weight (testRow γ) �
       ({e : Fin m | testRow γ e = true} : Finset (Fin m)) ⊆
         univ.image fun j : Fin P => (γ j).1 := by
     intro e he
-    rw [mem_filter] at he
     have hne : (∑ j : Fin P, if (γ j).1 = e then (γ j).2 else 0) ≠ 0 := by
-      rw [← testRow, he.2]
-      decide
+      rw [← testRow, (mem_filter.mp he).2]; decide
     obtain ⟨j, -, hj⟩ := exists_ne_zero_of_sum_ne_zero hne
-    have hje : (γ j).1 = e := by
-      by_contra h
-      simp only [h, ↓reduceIte] at hj
-      exact hj rfl
-    exact mem_image.mpr ⟨j, mem_univ j, hje⟩
+    exact mem_image.mpr ⟨j, mem_univ j, of_not_not fun h => hj (by simp [h])⟩
   calc weight (testRow γ)
       = #{e : Fin m | testRow γ e = true} := rfl
     _ ≤ #(univ.image fun j : Fin P => (γ j).1) := card_le_card hsub
@@ -113,23 +107,17 @@ theorem two_mul_card_dotProduct_eq_true {w : Fin P → Bool} {j : Fin P} (hj : w
     2 * #{c : Fin P → Bool | c ⬝ᵥ w = true} = 2 ^ P := by
   simp only [dotProduct_eq_parityOn]
   rw [card_filter_parityOn_eq ⟨j, by simpa using hj⟩, Fintype.card_fin, ← pow_succ']
-  congr 1
-  have := j.pos
-  omega
+  exact congrArg (2 ^ ·) (Nat.sub_add_cancel j.pos)
 
 /-- For fixed indices, the number of coefficient strings whose list rejects `z`. -/
 private theorem two_mul_card_coeff (z : Fin m → Bool) (e : Fin P → Fin m) :
     2 * #{c : Fin P → Bool | c ⬝ᵥ (fun j => z (e j)) = true} =
       if ∃ j, z (e j) = true then 2 ^ P else 0 := by
   split_ifs with h
-  · obtain ⟨j, hj⟩ := h
-    exact two_mul_card_dotProduct_eq_true (w := fun i => z (e i)) hj
+  · exact Exists.elim h fun _ hj => two_mul_card_dotProduct_eq_true (w := fun i => z (e i)) hj
   · simp only [not_exists, Bool.not_eq_true] at h
     have h0 : (fun j => z (e j)) = 0 := funext h
-    rw [h0]
-    simp only [dotProduct_zero]
-    change 2 * #{c : Fin P → Bool | false = true} = 0
-    simp
+    simp [h0, dotProduct_zero]
 
 /-- **The exact number of rejecting lists**: `2 ^ (P - 1) (m ^ P - (m - weight z) ^ P)`, written
 without division. -/
@@ -140,9 +128,7 @@ theorem two_mul_card_testParity_eq_true (z : Fin m → Bool) :
       ∑ e : Fin P → Fin m, #{c : Fin P → Bool | c ⬝ᵥ (fun j => z (e j)) = true} := by
     rw [card_filter, ← (Equiv.arrowProdEquivProdArrow (Fin P) (fun _ => Fin m)
       (fun _ => Bool)).symm.sum_comp, Fintype.sum_prod_type]
-    refine Finset.sum_congr rfl fun e _ => ?_
-    rw [card_filter]
-    rfl
+    exact Finset.sum_congr rfl fun _ _ => (card_filter _ _).symm
   rw [h1, Finset.mul_sum]
   simp only [two_mul_card_coeff, Finset.sum_ite, sum_const_zero, add_zero, sum_const,
     smul_eq_mul]
@@ -152,11 +138,8 @@ theorem two_mul_card_testParity_eq_true (z : Fin m → Bool) :
     (p := fun e => ∃ j, z (e j) = true)
   have h0 : #{e : Fin P → Fin m | ¬ ∃ j, z (e j) = true} = #{i | z i = false} ^ P := by
     rw [← Fintype.card_piFinset_const]
-    congr 1
-    ext e
-    simp [Fintype.mem_piFinset]
-  rw [card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin, h0] at hc
-  omega
+    exact congrArg card (ext fun e => by simp [Fintype.mem_piFinset])
+  rw [card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin, h0] at hc; omega
 
 /-- If `t₀ P ≤ m (P - 1)` with `P ≥ 1`, then `2 t₀ ^ P ≤ m ^ P`, since
 `(1 - 1/P) ^ P ≤ e⁻¹ < 1/2`. -/
@@ -164,47 +147,38 @@ private theorem two_mul_pow_le_pow {m t₀ P : ℕ} (hP : 1 ≤ P) (ht₀ : t₀
     2 * t₀ ^ P ≤ m ^ P := by
   rcases Nat.eq_zero_or_pos m with rfl | hm
   · obtain rfl : t₀ = 0 := by
-      rcases Nat.eq_zero_or_pos t₀ with h | h
-      · exact h
-      · simp only [zero_mul, nonpos_iff_eq_zero, mul_eq_zero] at ht₀; omega
+      simp only [zero_mul, nonpos_iff_eq_zero, mul_eq_zero] at ht₀; omega
     simp [Nat.pos_iff_ne_zero.mp hP]
   have hPr : (1 : ℝ) ≤ P := by exact_mod_cast hP
   have hPpos : (0 : ℝ) < P := by linarith
   have hle : (t₀ : ℝ) ≤ m * (1 - 1 / P) := by
-    have h' : ((t₀ * P : ℕ) : ℝ) ≤ ((m * (P - 1) : ℕ) : ℝ) := by exact_mod_cast ht₀
+    have h' : ((t₀ * P : ℕ) : ℝ) ≤ ((m * (P - 1) : ℕ) : ℝ) := mod_cast ht₀
     push_cast [Nat.cast_sub hP] at h'
-    rw [show (m : ℝ) * (1 - 1 / P) = m * (P - 1) / P by field_simp, le_div_iff₀ hPpos]
-    exact h'
-  have h1 : (t₀ : ℝ) ^ P ≤ (m : ℝ) ^ P * (1 - 1 / P) ^ P := by
-    rw [← mul_pow]
-    exact pow_le_pow_left₀ (by positivity) hle P
+    have hdiv : (m : ℝ) * (1 - 1 / P) = m * (P - 1) / P := by field_simp
+    rwa [hdiv, le_div_iff₀ hPpos]
+  have h1 : (t₀ : ℝ) ^ P ≤ (m : ℝ) ^ P * (1 - 1 / P) ^ P :=
+    mul_pow (m : ℝ) (1 - 1 / P) P ▸ pow_le_pow_left₀ (by positivity) hle P
   have h2 : (m : ℝ) ^ P * (1 - 1 / P) ^ P < (m : ℝ) ^ P * (1 / 2) :=
     mul_lt_mul_of_pos_left ((Real.one_sub_div_pow_le_exp_neg hPr).trans_lt
       Real.exp_neg_one_lt_half) (by positivity)
-  have : (2 : ℝ) * (t₀ : ℝ) ^ P < (m : ℝ) ^ P := by linarith
-  exact_mod_cast this.le
+  exact_mod_cast (by linarith : (2 : ℝ) * (t₀ : ℝ) ^ P ≤ (m : ℝ) ^ P)
 
 /-- **A quarter of the lists reject** a bit string with at least `m / P` ones. -/
 theorem pow_le_four_mul_card_testParity_eq_true (z : Fin m → Bool) (hP : 1 ≤ P)
     (hz : m ≤ P * weight z) :
     (2 * m) ^ P ≤ 4 * #{γ : Fin P → Fin m × Bool | testParity γ z = true} := by
   have hc := two_mul_card_testParity_eq_true (P := P) z
-  have hsplit := card_filter_add_card_filter_not (s := (univ : Finset (Fin m)))
-    (p := fun i => z i = false)
-  rw [card_univ, Fintype.card_fin] at hsplit
-  have hw : #{i | ¬ z i = false} = weight z := by
-    simp only [Bool.not_eq_false]; rfl
-  rw [hw] at hsplit
+  have hsplit : #{i | z i = false} + weight z = m := by
+    simpa only [card_univ, Fintype.card_fin, Bool.not_eq_false, weight] using
+      card_filter_add_card_filter_not (s := (univ : Finset (Fin m))) (p := fun i => z i = false)
   set t₀ := #{i | z i = false}
   have ht₀ : t₀ * P ≤ m * (P - 1) := by
     have h : t₀ * P + m ≤ m * P := by
       calc t₀ * P + m ≤ t₀ * P + P * weight z := by omega
         _ = (t₀ + weight z) * P := by ring
         _ = m * P := by rw [hsplit]
-    have e : m * P = m * (P - 1) + m := by
-      rw [← Nat.mul_succ]
-      congr 1
-      omega
+    have := Nat.mul_succ m (P - 1)
+    rw [Nat.succ_eq_add_one, Nat.sub_add_cancel hP] at this
     omega
   have hkey := two_mul_pow_le_pow hP ht₀
   have hle : t₀ ^ P ≤ m ^ P := Nat.pow_le_pow_left (by omega) P
@@ -230,10 +204,8 @@ theorem four_mul_card_accept_le_of_forall_le {ι : Type*} (S : Finset ι) (z : �
     4 * #{x ∈ S | testParity γ (z x) = false} ≤ 3 * #S := by
   rcases S.eq_empty_or_nonempty with rfl | ⟨x₀, hx₀⟩
   · simp
-  have hm : 0 < m := by
-    by_contra h
-    obtain rfl : m = 0 := by omega
-    exact hz₀ x₀ hx₀ (funext fun i => i.elim0)
+  have hm : 0 < m :=
+    Nat.pos_of_ne_zero fun h => hz₀ x₀ hx₀ (funext fun i => absurd i.isLt (by omega))
   have : Nonempty (Fin m) := ⟨⟨0, hm⟩⟩
   set N := Fintype.card (Fin P → Fin m × Bool) with hN
   have hNpos : 0 < N := Fintype.card_pos
@@ -246,8 +218,7 @@ theorem four_mul_card_accept_le_of_forall_le {ι : Type*} (S : Finset ι) (z : �
     have hrej := pow_le_four_mul_card_testParity_eq_true (z x) hP (hz x hx)
     have hsplit := card_filter_add_card_filter_not
       (s := (univ : Finset (Fin P → Fin m × Bool))) (p := fun γ' => testParity γ' (z x) = true)
-    simp only [Bool.not_eq_true] at hsplit
-    rw [card_univ, ← hN] at hsplit
+    simp only [Bool.not_eq_true, card_univ, ← hN] at hsplit
     rw [← hNval] at hrej
     omega
   -- double counting
@@ -266,9 +237,7 @@ theorem four_mul_card_accept_le_of_forall_le {ι : Type*} (S : Finset ι) (z : �
     have := Finset.card_nsmul_le_sum (univ : Finset (Fin P → Fin m × Bool))
       (fun γ' => #{x ∈ S | testParity γ' (z x) = false}) _ (fun γ' _ => hγ γ')
     rwa [card_univ, smul_eq_mul] at this
-  have : N * (4 * #{x ∈ S | testParity γ (z x) = false}) ≤ N * (3 * #S) := by
-    nlinarith
-  exact Nat.le_of_mul_le_mul_left this hNpos
+  exact Nat.le_of_mul_le_mul_left (by nlinarith) hNpos
 
 /-- **Iteration.** A sequence of naturals that starts at most `2 ^ n`, with `n ≥ 1`, and shrinks
 by a factor of at least `3/4` at each step vanishes after `3 n` steps, since
@@ -330,9 +299,8 @@ theorem numPassing_eq (v : X → Fin m → Bool) (A : List (Fin m → Bool)) :
   congr 2
   ext x
   simp only [mem_filter, mem_univ, true_and, and_iff_right_iff_imp]
-  intro hx h _
-  rw [hx, dotProduct_zero]
-  rfl
+  rintro hx h -
+  rw [hx, dotProduct_zero]; rfl
 
 /-- **Greedy selection of parity tests** [OpenAI2026ETH, Lemma 6.2]. Suppose that after the
 initial rows `A 0`, every accepted point with a nonzero violation vector has at least `m / P`
@@ -348,11 +316,10 @@ theorem numPassing_greedy (v : X → Fin m → Bool) {n : ℕ} (hn : 1 ≤ n)
       numPassing v (A i ++ [testRow (γ i)]) ≤ numPassing v (A i ++ [testRow γ'])) :
     numPassing v (A (3 * n)) = #{x | v x = 0} := by
   set D : ℕ → ℕ := fun i => #{x | PassesTests v (A i) x ∧ v x ≠ 0} with hD
-  have hpre : ∀ i x, PassesTests v (A i) x → PassesTests v (A 0) x := by
-    intro i
+  have hpre (i x) (h : PassesTests v (A i) x) : PassesTests v (A 0) x := by
     induction i with
-    | zero => exact fun _ h => h
-    | succ i ih => intro x h; rw [hA, passesTests_append_singleton] at h; exact ih x h.1
+    | zero => exact h
+    | succ i ih => exact ih ((passesTests_append_singleton ..).mp (hA i ▸ h)).1
   have hstep : ∀ i, 4 * D (i + 1) ≤ 3 * D i := by
     intro i
     set S := ({x | PassesTests v (A i) x ∧ v x ≠ 0} : Finset X)
@@ -364,21 +331,15 @@ theorem numPassing_greedy (v : X → Fin m → Bool) {n : ℕ} (hn : 1 ≤ n)
       simp only [S, mem_filter, mem_univ, true_and, passesTests_append_singleton,
         testRow_dotProduct]
       tauto
-    have hmin : ∀ γ' : Fin P → Fin m × Bool,
+    have hmin (γ' : Fin P → Fin m × Bool) :
         #{x ∈ S | testParity (γ i) (v x) = false} ≤ #{x ∈ S | testParity γ' (v x) = false} := by
-      intro γ'
       have := hγ i γ'
-      rw [numPassing_eq, numPassing_eq, hcount, hcount] at this
-      omega
-    have := four_mul_card_accept_le_of_forall_le S v hP
+      rw [numPassing_eq, numPassing_eq, hcount, hcount] at this; omega
+    simpa only [hD, hA, ← hcount] using four_mul_card_accept_le_of_forall_le S v hP
       (fun x hx => (mem_filter.mp hx).2.2)
       (fun x hx => hinit x (hpre i x (mem_filter.mp hx).2.1) (mem_filter.mp hx).2.2) (γ i) hmin
-    simp only [hD, hA, ← hcount] at this ⊢
-    exact this
-  have h₀ : D 0 ≤ 2 ^ n := (card_le_univ _).trans hX
-  have hfin := eq_zero_of_four_mul_le_three_mul D hn h₀ hstep
   rw [numPassing_eq]
-  simp only [hD] at hfin
-  rw [hfin, add_zero]
+  exact Nat.add_eq_left.mpr
+    (eq_zero_of_four_mul_le_three_mul D hn ((card_le_univ _).trans hX) hstep)
 
 end Cslib.BitString

@@ -50,18 +50,12 @@ private theorem comparisonStepCode_eq (w : ℕ) :
   have hl (i : Fin (w + w)) :
       (lowBits w i).val = if i.val < w then i.val else i.val + 1 := by
     refine Fin.addCases (fun i => ?_) (fun i => ?_) i
-    · simp only [lowBits, Fin.append_left, Fin.val_castAdd, Fin.val_castSucc]
-      simp [i.isLt]
+    · simp [lowBits, i.isLt]
     · simp only [lowBits, Fin.append_right, Fin.val_natAdd, Fin.val_castSucc]
-      rw [ite_eq_right (by omega)]
-      omega
-  have hcode := Circuit.code_wiring_eq_map (σ := signature) (f := lowBits w)
-    (g := fun i => if i < w then i else i + 1) hl
-  rw [leCircuit, ← compCode_code, ← appendCode_code, ← compCode_code, hcode]
-  have ht : (Circuit.wiring signature (topBits w)).code = ([], [w, w + 1 + w]) := by
-    simp [Circuit.code_wiring, topBits]
-  rw [ht]
-  rfl
+      split_ifs <;> omega
+  rw [leCircuit, ← compCode_code, ← appendCode_code, ← compCode_code,
+    Circuit.code_wiring_eq_map (σ := signature) (g := fun i => if i < w then i else i + 1) hl]
+  simp [comparisonStepCode, Circuit.code_wiring, topBits]
 
 private theorem comparisonStepCode_polyTime :
     ComputableInPolyTime

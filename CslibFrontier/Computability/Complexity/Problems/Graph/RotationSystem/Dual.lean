@@ -55,46 +55,37 @@ theorem faceId_spec (d : Dart G) :
     ∃ e : Dart G, e.index = r.faceId d ∧ r.faceNext.SameCycle d e ∧
       r.IsFaceRepresentative e := by
   let i := (r.faceDartIndices d).min' (r.faceDartIndices_nonempty d)
-  have hi : i ∈ r.faceDartIndices d := Finset.min'_mem _ _
-  have hdi := (Finset.mem_filter.mp hi).2
-  refine ⟨(Dart.indexEquiv G).symm i, ?_, hdi, ?_⟩
-  · exact congrArg Fin.val ((Dart.indexEquiv G).apply_symm_apply i)
-  · intro e he
-    have hm : Dart.indexEquiv G e ∈ r.faceDartIndices d :=
-      Finset.mem_filter.mpr ⟨Finset.mem_univ _, by
-        simpa only [Equiv.symm_apply_apply] using hdi.trans he⟩
-    have := Finset.min'_le _ _ hm
-    change i.val ≤ e.index at this
-    simpa only [← show ((Dart.indexEquiv G).symm i).index = i.val from
-      congrArg Fin.val ((Dart.indexEquiv G).apply_symm_apply i)] using this
+  have hdi := (Finset.mem_filter.mp
+    (Finset.min'_mem (r.faceDartIndices d) (r.faceDartIndices_nonempty d))).2
+  have hidx : ((Dart.indexEquiv G).symm i).index = i.val :=
+    congrArg Fin.val ((Dart.indexEquiv G).apply_symm_apply i)
+  refine ⟨(Dart.indexEquiv G).symm i, hidx, hdi, fun e he => ?_⟩
+  have hm : Dart.indexEquiv G e ∈ r.faceDartIndices d :=
+    Finset.mem_filter.mpr ⟨Finset.mem_univ _,
+      by simpa only [Equiv.symm_apply_apply] using hdi.trans he⟩
+  exact hidx.trans_le (show i.val ≤ e.index from Finset.min'_le _ _ hm)
 
 /-- Canonical face names agree exactly on source face orbits. -/
 theorem faceId_eq_iff (d e : Dart G) :
     r.faceId d = r.faceId e ↔ r.faceNext.SameCycle d e := by
   obtain ⟨d', hd', hdd', -⟩ := r.faceId_spec d
   obtain ⟨e', he', hee', -⟩ := r.faceId_spec e
-  constructor
-  · intro h
-    have heq : d' = e' := (Dart.indexEquiv G).injective (Fin.ext (hd'.trans (h.trans he'.symm)))
-    exact hdd'.trans (heq ▸ hee'.symm)
-  · intro h
-    have hs : r.faceDartIndices d = r.faceDartIndices e := by
-      ext i
-      simp only [faceDartIndices, Finset.mem_filter, Finset.mem_univ, true_and]
-      exact ⟨fun hi => h.symm.trans hi, fun hi => h.trans hi⟩
-    simp only [faceId, hs]
+  refine ⟨fun h => hdd'.trans
+    ((Dart.indexEquiv G).injective (Fin.ext (hd'.trans (h.trans he'.symm))) ▸ hee'.symm),
+    fun h => ?_⟩
+  have hs : r.faceDartIndices d = r.faceDartIndices e := by
+    ext i
+    simp only [faceDartIndices, Finset.mem_filter, Finset.mem_univ, true_and]
+    exact ⟨h.symm.trans, h.trans⟩
+  simp only [faceId, hs]
 
 /-- A dart is the canonical representative exactly when its index is its face's name. -/
 theorem faceId_eq_index_iff (d : Dart G) :
     r.faceId d = d.index ↔ r.IsFaceRepresentative d := by
   obtain ⟨e, he, hde, hre⟩ := r.faceId_spec d
-  constructor
-  · intro h
-    have hed : e = d := (Dart.indexEquiv G).injective (Fin.ext (he.trans h))
-    exact hed ▸ hre
-  · intro h
-    have hed := (r.existsUnique_faceRepresentative d).unique ⟨hde, hre⟩ ⟨.rfl, h⟩
-    exact he.symm.trans (congrArg Dart.index hed)
+  exact ⟨fun h => (Dart.indexEquiv G).injective (Fin.ext (he.trans h)) ▸ hre, fun h =>
+    he.symm.trans (congrArg Dart.index
+      ((r.existsUnique_faceRepresentative d).unique ⟨hde, hre⟩ ⟨.rfl, h⟩))⟩
 
 /-- The canonical face name is bounded by the number of darts, even for huge vertex labels. -/
 theorem faceId_lt (d : Dart G) : r.faceId d < 2 * G.edges.length :=
@@ -110,13 +101,9 @@ theorem faceId_eq_iff_faceTable
         (RotationCertificate.faceTable G (RotationCertificate.ofRotation r)) d.index e.index =
         true := by
   rw [r.faceId_eq_iff]
-  have ht (a : Dart G) :
-      (RotationCertificate.faceTable G (RotationCertificate.ofRotation r)).getD a.index 0 =
-        (r.faceNext a).index := by
-    have h := RotationCertificate.getD_faceTable
-      (RotationCertificate.verifyRotation_ofRotation r hG) a
-    rwa [RotationCertificate.decode_ofRotation r hG] at h
-  exact (RotationCertificate.orbitBool_eq_true_iff r.faceNext _ ht d e).symm
+  refine (RotationCertificate.orbitBool_eq_true_iff r.faceNext _ (fun a => ?_) d e).symm
+  simpa only [RotationCertificate.decode_ofRotation r hG] using
+    RotationCertificate.getD_faceTable (RotationCertificate.verifyRotation_ofRotation r hG) a
 
 /-- The listed dual has one vertex per actual face and one edge per source edge occurrence.
 The first/second ends of edge `i` are the faces of darts `(i,false)` and `(i,true)`. -/
@@ -146,25 +133,20 @@ The first/second ends of edge `i` are the faces of darts `(i,false)` and `(i,tru
   rcases d with ⟨i, b⟩
   change (if b then (r.dualGraph.edges.getD i.val (0, 0)).2
     else (r.dualGraph.edges.getD i.val (0, 0)).1) = r.faceId (i, b)
-  have he : r.dualGraph.edges.getD i.val (0, 0) =
-      (r.faceId (i, false), r.faceId (i, true)) := by
-    rw [List.getD_eq_getElem _ _ (by simpa only [dualGraph_length] using i.isLt)]
-    simp [dualGraph]
-  cases b <;> simp only [he, Bool.false_eq_true, ite_false, ite_true]
+  rw [List.getD_eq_getElem _ _ (by simpa only [dualGraph_length] using i.isLt)]
+  cases b <;> simp [dualGraph]
 
 /-- Every dual dart endpoint is declared, with no assumption on source endpoint declarations. -/
 theorem dual_vertex_mem (d : Dart r.dualGraph) : d.vertex ∈ r.dualGraph.vertices := by
   obtain ⟨e, rfl⟩ := r.dualDartEquiv.surjective d
   rw [vertex_dualDartEquiv]
-  apply List.mem_dedup.mpr
-  exact List.mem_map.mpr ⟨Dart.indexEquiv G e, List.mem_finRange _, by simp⟩
+  exact List.mem_dedup.mpr (List.mem_map.mpr ⟨Dart.indexEquiv G e, List.mem_finRange _, by simp⟩)
 
 /-- Each declared dual vertex is incident to a dual dart. Source isolated vertices are omitted. -/
 theorem dualGraph_no_isolates (v : ℕ) (hv : v ∈ r.dualGraph.vertices) :
     ∃ d : Dart r.dualGraph, d.vertex = v := by
   obtain ⟨i, -, hi⟩ := List.mem_map.mp (List.mem_dedup.mp hv)
-  exact ⟨r.dualDartEquiv ((Dart.indexEquiv G).symm i), by
-    rw [vertex_dualDartEquiv]; exact hi⟩
+  exact ⟨r.dualDartEquiv ((Dart.indexEquiv G).symm i), (r.vertex_dualDartEquiv _).trans hi⟩
 
 /-- Every endpoint in the dual's flattened incidence list is declared. -/
 theorem dualGraph_endpoints_declared :
@@ -201,13 +183,11 @@ identification. Its cycles are exactly the dual endpoint fibers. -/
     r.dualRotation.faceNext (r.dualDartEquiv d) =
       r.dualDartEquiv ((r.rotate d.reverse).reverse) := by
   apply r.dualRotation.rotate.injective
-  change r.dualRotation.rotate (r.dualRotation.rotate.symm (r.dualDartEquiv d).reverse) =
-    r.dualRotation.rotate (r.dualDartEquiv ((r.rotate d.reverse).reverse))
-  rw [Equiv.apply_symm_apply]
-  rw [← dualDartEquiv_reverse, dualRotation_rotate]
-  congr 1
-  change d.reverse = r.rotate.symm (r.rotate d.reverse).reverse.reverse
-  simp only [Dart.reverse_reverse, Equiv.symm_apply_apply]
+  change r.dualRotation.rotate (r.dualRotation.rotate.symm (r.dualDartEquiv d).reverse) = _
+  rw [Equiv.apply_symm_apply, ← dualDartEquiv_reverse, dualRotation_rotate]
+  exact congrArg r.dualDartEquiv (by
+    change d.reverse = r.rotate.symm (r.rotate d.reverse).reverse.reverse
+    simp only [Dart.reverse_reverse, Equiv.symm_apply_apply])
 
 /-- Dual faces are precisely source vertex cycles, with reversal giving the orientation
 identification. This includes source degree-one vertices and singleton dual face orbits. -/
@@ -215,16 +195,14 @@ theorem dual_sameFace_iff (d e : Dart G) :
     r.dualRotation.faceNext.SameCycle (r.dualDartEquiv d) (r.dualDartEquiv e) ↔
       d.reverse.vertex = e.reverse.vertex := by
   let a : Dart G ≃ Dart r.dualGraph := (Dart.reversal G).trans r.dualDartEquiv
-  have hs : Function.Semiconj a r.rotate r.dualRotation.faceNext := by
-    intro d
-    change r.dualDartEquiv ((r.rotate d).reverse) =
-      r.dualRotation.faceNext (r.dualDartEquiv d.reverse)
-    rw [dualRotation_faceNext, Dart.reverse_reverse]
-  have h := Equiv.Perm.sameCycle_equiv_iff a r.rotate r.dualRotation.faceNext hs
+  have h := Equiv.Perm.sameCycle_equiv_iff a r.rotate r.dualRotation.faceNext
+    (fun x => by
+      change r.dualDartEquiv (r.rotate x).reverse =
+        r.dualRotation.faceNext (r.dualDartEquiv x.reverse)
+      rw [dualRotation_faceNext, Dart.reverse_reverse])
     d.reverse e.reverse
   change r.dualRotation.faceNext.SameCycle
-    (r.dualDartEquiv d.reverse.reverse) (r.dualDartEquiv e.reverse.reverse) ↔
-      r.rotate.SameCycle d.reverse e.reverse at h
+    (r.dualDartEquiv d.reverse.reverse) (r.dualDartEquiv e.reverse.reverse) ↔ _ at h
   simpa only [Dart.reverse_reverse, r.sameCycle_iff] using h
 
 /-- Nonempty source endpoint fibers; declared isolated vertices are deliberately absent. -/

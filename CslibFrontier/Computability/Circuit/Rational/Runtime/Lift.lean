@@ -426,12 +426,6 @@ private theorem listGetD_intBin {l : α → List ℤ} {i : α → ℕ}
     ComputableInPolyTime (fun x => (l x).getD (i x) d) encIn encIntBin :=
   (listGetD (encA := encIntBin) d).comp (hl.prod hi)
 
-@[local fun_prop]
-private theorem intBin_of_unary {n : α → ℕ}
-    (hn : ComputableInPolyTime n encIn encUnary) :
-    ComputableInPolyTime (fun x => (n x : ℤ)) encIn encIntBin :=
-  intBin_natCast.comp (unary_to_binary.comp hn)
-
 /-- Equality testing of two unary-encoded natural-number functions is computable in polynomial
 time. -/
 @[fun_prop]

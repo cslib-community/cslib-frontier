@@ -48,7 +48,7 @@ theorem pairFalse_inSpace :
     ComputableInSpace (fun x : Tuple => (x, false)) encTuple encStepInT
       fun x => stepBudget (x, false) :=
   (budget_prod (of_inO (ComputableInO.of_eq (f := id) fun _ => rfl))
-    (budget_const (encB := encBool) false (.refl _))).weaken
+    (budget_const (encB := encBool) false)).weaken
     (.of_le fun x => by
       enc_len [stepBudget, encStepInT, List.length_singleton])
 

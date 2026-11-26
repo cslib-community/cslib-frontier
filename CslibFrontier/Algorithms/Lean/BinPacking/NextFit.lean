@@ -60,7 +60,7 @@ private theorem flatten_reverse_nextFitStep (C : ℕ) (acc : List (List ℕ)) (a
     (nextFitStep C acc a).reverse.flatten = acc.reverse.flatten ++ [a] := by
   cases acc with
   | nil => simp [nextFitStep]
-  | cons b bs =>
+  | cons =>
     simp only [nextFitStep]
     split_ifs <;> simp
 
@@ -82,15 +82,11 @@ private theorem sum_le_of_mem_nextFitStep {C : ℕ} {acc : List (List ℕ)} {a :
   | nil => simpa [nextFitStep] using ha
   | cons b bs =>
     simp only [nextFitStep]
-    split_ifs with h
-    · intro c hc
-      rcases List.mem_cons.1 hc with rfl | hc
-      · simpa using h
-      · exact hacc c (List.mem_cons_of_mem _ hc)
-    · intro c hc
-      rcases List.mem_cons.1 hc with rfl | hc
-      · simpa using ha
-      · exact hacc c hc
+    split_ifs with h <;> intro c hc <;> rcases List.mem_cons.1 hc with rfl | hc
+    · simpa using h
+    · exact hacc c (List.mem_cons_of_mem _ hc)
+    · simpa using ha
+    · exact hacc c hc
 
 private theorem isChain_nextFitStep {C : ℕ} {acc : List (List ℕ)} {a : ℕ}
     (hacc : acc.IsChain (fun b b' => C < b.sum + b'.sum)) :
@@ -100,18 +96,12 @@ private theorem isChain_nextFitStep {C : ℕ} {acc : List (List ℕ)} {a : ℕ}
   | cons b bs =>
     simp only [nextFitStep]
     split_ifs with h
-    · cases bs with
-      | nil => simp
-      | cons c cs =>
-        rw [List.isChain_cons_cons] at hacc ⊢
-        refine ⟨?_, hacc.2⟩
+    · rcases bs with _ | ⟨c, cs⟩
+      · simp
+      · rw [List.isChain_cons_cons] at hacc ⊢
         have := hacc.1
-        simp only [List.sum_append, List.sum_cons, List.sum_nil]
-        omega
-    · rw [List.isChain_cons_cons]
-      refine ⟨?_, hacc⟩
-      simp only [List.sum_cons, List.sum_nil]
-      omega
+        exact ⟨by simp at *; omega, hacc.2⟩
+    · exact List.isChain_cons_cons.2 ⟨by simp; omega, hacc⟩
 
 private theorem isChain_foldl_nextFitStep (C : ℕ) :
     ∀ (l : List ℕ) (acc : List (List ℕ)), acc.IsChain (fun b b' => C < b.sum + b'.sum) →
@@ -129,9 +119,8 @@ private theorem sum_le_of_mem_foldl_nextFitStep (C : ℕ) :
 
 /-- Every two consecutive bins of Next Fit are jointly overfull. -/
 theorem isChain_nextFit (C : ℕ) (l : List ℕ) :
-    (nextFit C l).IsChain (fun b b' => C < b.sum + b'.sum) := by
-  have h := List.isChain_reverse.2 (isChain_foldl_nextFitStep C l [] List.isChain_nil)
-  exact h.imp fun _ _ hb => by omega
+    (nextFit C l).IsChain (fun b b' => C < b.sum + b'.sum) :=
+  (List.isChain_reverse.2 (isChain_foldl_nextFitStep C l [] .nil)).imp fun _ _ => by omega
 
 /-- Next Fit returns a packing whenever every item fits into a bin. -/
 theorem isPacking_nextFit {C : ℕ} {l : List ℕ} (hl : ∀ a ∈ l, a ≤ C) :
@@ -142,8 +131,7 @@ theorem isPacking_nextFit {C : ℕ} {l : List ℕ} (hl : ∀ a ∈ l, a ≤ C) :
 /-- **Next Fit's volume bound**: `(C + 1) * ⌊NF / 2⌋ ≤ l.sum`. -/
 theorem add_one_mul_length_nextFit_div_two_le (C : ℕ) (l : List ℕ) :
     (C + 1) * ((nextFit C l).length / 2) ≤ l.sum := by
-  have h := add_one_mul_div_two_le_of_isChain (isChain_nextFit C l)
-  rwa [← List.sum_flatten, flatten_nextFit] at h
+  simpa [← List.sum_flatten] using add_one_mul_div_two_le_of_isChain (isChain_nextFit C l)
 
 /-- **Next Fit is a 2-approximation**: on a nonempty list of items it uses fewer than twice as
 many bins as any packing, that is at most `2 * OPT - 1` bins [Johnson][Johnson1973]. -/
