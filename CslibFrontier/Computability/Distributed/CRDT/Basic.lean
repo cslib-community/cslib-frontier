@@ -210,32 +210,18 @@ theorem mem_le_evalHistory {init : S} {post : UId → S}
 theorem evalHistory_insert [DecidableEq UId] (init : S) (post : UId → S)
     (u : UId) (H : Finset UId) :
     evalHistory init post (insert u H) = post u ⊔ evalHistory init post H := by
-  apply le_antisymm
-  · rw [evalHistory_le_iff]
-    refine ⟨le_trans (init_le_evalHistory init post H) le_sup_right, fun x hx => ?_⟩
-    rcases Finset.mem_insert.mp hx with rfl | hxH
-    · exact le_sup_left
-    · exact le_trans (mem_le_evalHistory hxH) le_sup_right
-  · exact sup_le (mem_le_evalHistory (Finset.mem_insert_self u H))
-      (evalHistory_le_iff.mpr ⟨init_le_evalHistory _ _ _,
-        fun x hx => mem_le_evalHistory (Finset.mem_insert_of_mem hx)⟩)
+  refine eq_of_forall_ge_iff fun b => ?_
+  simp only [evalHistory_le_iff, sup_le_iff, Finset.mem_insert, forall_eq_or_imp]
+  tauto
 
 @[simp]
 theorem evalHistory_union [DecidableEq UId] (init : S) (post : UId → S)
     (H₁ H₂ : Finset UId) :
     evalHistory init post (H₁ ∪ H₂) =
       evalHistory init post H₁ ⊔ evalHistory init post H₂ := by
-  apply le_antisymm
-  · rw [evalHistory_le_iff]
-    refine ⟨le_trans (init_le_evalHistory init post H₁) le_sup_left, fun x hx => ?_⟩
-    rcases Finset.mem_union.mp hx with hx₁ | hx₂
-    · exact le_trans (mem_le_evalHistory hx₁) le_sup_left
-    · exact le_trans (mem_le_evalHistory hx₂) le_sup_right
-  · apply sup_le
-    · exact evalHistory_le_iff.mpr ⟨init_le_evalHistory _ _ _,
-        fun x hx => mem_le_evalHistory (Finset.mem_union_left H₂ hx)⟩
-    · exact evalHistory_le_iff.mpr ⟨init_le_evalHistory _ _ _,
-        fun x hx => mem_le_evalHistory (Finset.mem_union_right H₁ hx)⟩
+  refine eq_of_forall_ge_iff fun b => ?_
+  simp only [evalHistory_le_iff, sup_le_iff, Finset.mem_union, or_imp, forall_and]
+  tauto
 
 theorem evalHistory_congr (init : S) {post₁ post₂ : UId → S}
     {H : Finset UId} (h : ∀ u ∈ H, post₁ u = post₂ u) :
@@ -488,33 +474,19 @@ private theorem gossipInv_step (C : CvRDT S Op Q) {G : Digraph P}
         (Function.update_of_ne
           (fun heq => huid_not (by rw [← heq]; exact hinv.pkt_sub pkt hpkt hu)) _ _).symm
   | send src dst =>
-    refine
-      { hist_sub := hinv.hist_sub
-        pkt_sub := fun pkt hpkt => ?_
-        rep_eq := hinv.rep_eq
-        pkt_eq := fun pkt hpkt => ?_ }
-    · rcases Multiset.mem_cons.mp hpkt with rfl | hmem
-      exacts [hinv.hist_sub src, hinv.pkt_sub pkt hmem]
-    · rcases Multiset.mem_cons.mp hpkt with rfl | hmem
-      exacts [hinv.rep_eq src, hinv.pkt_eq pkt hmem]
+    refine ⟨hinv.hist_sub, fun pkt hpkt => ?_, hinv.rep_eq, fun pkt hpkt => ?_⟩
+    · exact (Multiset.mem_cons.mp hpkt).elim (fun h => h ▸ hinv.hist_sub src) (hinv.pkt_sub pkt)
+    · exact (Multiset.mem_cons.mp hpkt).elim (fun h => h ▸ hinv.rep_eq src) (hinv.pkt_eq pkt)
   | mergeConsume pkt =>
-    exact
-      { hist_sub := (hmerge_local pkt hen).1
-        pkt_sub := fun m hm => hinv.pkt_sub m (Multiset.mem_of_mem_erase hm)
-        rep_eq := (hmerge_local pkt hen).2
-        pkt_eq := fun m hm => hinv.pkt_eq m (Multiset.mem_of_mem_erase hm) }
+    exact ⟨(hmerge_local pkt hen).1,
+      fun m hm => hinv.pkt_sub m (Multiset.mem_of_mem_erase hm),
+      (hmerge_local pkt hen).2,
+      fun m hm => hinv.pkt_eq m (Multiset.mem_of_mem_erase hm)⟩
   | mergeDuplicate pkt =>
-    exact
-      { hist_sub := (hmerge_local pkt hen).1
-        pkt_sub := hinv.pkt_sub
-        rep_eq := (hmerge_local pkt hen).2
-        pkt_eq := hinv.pkt_eq }
+    exact ⟨(hmerge_local pkt hen).1, hinv.pkt_sub, (hmerge_local pkt hen).2, hinv.pkt_eq⟩
   | drop pkt =>
-    exact
-      { hist_sub := hinv.hist_sub
-        pkt_sub := fun m hm => hinv.pkt_sub m (Multiset.mem_of_mem_erase hm)
-        rep_eq := hinv.rep_eq
-        pkt_eq := fun m hm => hinv.pkt_eq m (Multiset.mem_of_mem_erase hm) }
+    exact ⟨hinv.hist_sub, fun m hm => hinv.pkt_sub m (Multiset.mem_of_mem_erase hm),
+      hinv.rep_eq, fun m hm => hinv.pkt_eq m (Multiset.mem_of_mem_erase hm)⟩
 
 private theorem gossipInv_mTr (C : CvRDT S Op Q) {G : Digraph P}
     {s₀ s : GossipState P UId S} {xl : List (GossipAction P UId Op S)}
