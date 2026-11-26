@@ -142,9 +142,7 @@ private theorem forEachArcInner_spec {N w : ℕ} (adj : Fin N → List (Fin N))
       simpa only [Nat.add_zero, List.getElem_cons_zero] using hget 0 (Nat.zero_lt_succ _)
     have hmem_e : x.mem (kEdgeAddr wb N + (csrOffset adj u.val + k)) = v.val := by
       rw [← Nat.add_assoc, hcsr.2 u k hk_lt, hv_eq]
-    have hj_lt_M : csrOffset adj u.val + k < csrOffset adj N := by
-      have h1 := csrOffset_succ adj u.isLt; simp only [Fin.eta] at h1
-      have h2 := csrOffset_mono adj (by omega : u.val + 1 ≤ N); omega
+    have hj_lt_M := csrOffset_add_lt adj u hk_lt
     have hf_eaddr : Fits w (kEdgeAddr wb N + (csrOffset adj u.val + k)) :=
       hfit.of_le (by simp only [kEdgeAddr, kTopAddr]; omega)
     have hf_j1 : Fits w (csrOffset adj u.val + k + 1) :=
