@@ -38,11 +38,15 @@ theorem label_inSpace : ComputableInSpace label encArgs (encList encBool)
     (fun a => (encArgs a).length) := by
   have hlimit := fst encNat (encPair encNat (encPair encNat (encPair encNat encNat)))
   have hrest := snd encNat (encPair encNat (encPair encNat (encPair encNat encNat)))
-  have hword := budget_comp_linear NativeEncode.word_inSpace (budget_prod hlimit hrest.fst')
-  have hdrop := budget_comp_linear (listDrop encBool)
-    (budget_prod hword (budget_natMul hrest.snd'.snd'.snd' hrest.snd'.fst'))
-  exact (budget_comp_linear (listTake encBool)
-    (budget_prod hdrop hrest.snd'.snd'.fst')).of_enc_eq fun ⟨_, _, _, _, _⟩ => rfl
+  have hcounter := hrest.fst'
+  have hstride := hrest.snd'.fst'
+  have hwidth := hrest.snd'.snd'.fst'
+  have hchild := hrest.snd'.snd'.snd'
+  have hword := budget_comp_linear NativeEncode.word_inSpace (budget_prod hlimit hcounter)
+  have hstart := budget_natMul hchild hstride
+  have hdrop := budget_comp_linear (listDrop encBool) (budget_prod hword hstart)
+  have htake := budget_comp_linear (listTake encBool) (budget_prod hdrop hwidth)
+  exact htake.of_enc_eq fun ⟨limit, counter, stride, width, child⟩ => rfl
 
 /-- The extracted label is available as raw bits for canonical block-label checking. -/
 theorem label_bits_inSpace : ComputableInSpace label encArgs encBits
