@@ -115,18 +115,17 @@ def lazyDiagonal (d : ℕ) : Set (List Bool) :=
 suffice for a verifier with constants `c` and `c₂`. -/
 private theorem exists_le_certLen_clock (d c c₂ : ℕ) : ∃ M, ∀ m, M ≤ m →
     c * (m + 1) ^ d + c ≤ certLen d m ∧ c₂ * (2 * m + 1 + certLen d m + 1) ≤ clock d m := by
-  refine ⟨2 * c + 3 * c₂, fun m hm => ⟨?_, ?_⟩⟩
-  · have hX : 1 ≤ (m + 1) ^ d := Nat.one_le_pow _ _ (by omega)
-    have h₁ : c * (m + 1) ^ d + c ≤ (2 * c) * (m + 1) ^ d := by nlinarith only [hX]
-    have h₂ : 2 * c ≤ (m + 1) ^ 2 :=
-      (by omega : 2 * c ≤ m + 1).trans (Nat.le_self_pow two_ne_zero _)
-    exact h₁.trans ((Nat.mul_le_mul_right _ h₂).trans_eq (by simp only [certLen]; ring))
-  · have hX : 1 ≤ (m + 1) ^ d := Nat.one_le_pow _ _ (by omega)
-    set Y := certLen d m
-    have hY : m + 1 ≤ Y :=
-      (Nat.le_self_pow two_ne_zero _).trans
-        ((Nat.le_mul_of_pos_left _ hX).trans_eq (by simp only [Y, certLen]; ring))
-    have h₁ : c₂ * (2 * m + 1 + Y + 1) ≤ (3 * c₂) * Y := by nlinarith only [hY]
+  refine ⟨2 * c + 3 * c₂, fun m hm => ?_⟩
+  have hX : 1 ≤ (m + 1) ^ d := Nat.one_le_pow _ _ (by omega)
+  have hsq : m + 1 ≤ (m + 1) ^ 2 := Nat.le_self_pow two_ne_zero _
+  refine ⟨?_, ?_⟩
+  · have h₁ : c * (m + 1) ^ d + c ≤ 2 * c * (m + 1) ^ d := by nlinarith only [hX]
+    exact h₁.trans ((Nat.mul_le_mul_right _ ((by omega : 2 * c ≤ m + 1).trans hsq)).trans_eq
+      (by simp only [certLen]; ring))
+  · set Y := certLen d m
+    have hY : m + 1 ≤ Y := hsq.trans ((Nat.le_mul_of_pos_left _ hX).trans_eq
+      (by simp only [Y, certLen]; ring))
+    have h₁ : c₂ * (2 * m + 1 + Y + 1) ≤ 3 * c₂ * Y := by nlinarith only [hY]
     exact h₁.trans ((Nat.mul_le_mul_right Y (by omega : 3 * c₂ ≤ m + 1)).trans_eq
       (by simp only [Y, certLen, clock]; ring))
 
@@ -229,9 +228,7 @@ private theorem exists_computableInO_verifier (d : ℕ) :
       rw [← mul_pow]; exact Nat.pow_le_pow_left (by omega) _
     exact cheap_aux G hn (Nat.one_le_pow _ _ (by omega)) hZ
   have hE' := hE.mono_time (T' := cheap d) (4 + 2 * (G + 4) ^ 2) fun p => by
-    obtain ⟨hc, hs, hq⟩ := hfacts p
-    have hu := length_unframe_le p.1
-    have hn : p.1.length ≤ (encPair encBits encBits p).length := by enc_len
+    obtain ⟨hc, hs, _⟩ := hfacts p
     have hz := Nat.le_self_pow two_ne_zero
       ((2 * (unframe p.1).length + 1 + 1) ^ (d + 3) + 1)
     simp only [Function.comp_apply, length_frame]
@@ -272,7 +269,6 @@ theorem lazyDiagonal_mem_NTIME (d : ℕ) :
   clear hℓ hV
   simp only [encBits_apply]
   set n := x.length with hn
-  have hv' : v.length = (n + 2) ^ (d + 2) := hv
   set M := (n + 1) ^ (6 * d + 14)
   have h2 (k : ℕ) : (n + 2) ^ k ≤ 2 ^ k * (n + 1) ^ k :=
     (Nat.pow_le_pow_left (by omega) k).trans_eq (mul_pow 2 (n + 1) k)
@@ -298,7 +294,7 @@ theorem lazyDiagonal_mem_NTIME (d : ℕ) :
   -- the tests
   have hcheap : cheap d (x, v) ≤ A₁ * M := by
     have hN : (encPair encBits encBits (x, v)).length + 1 ≤ 3 * (n + 2) ^ (d + 2) := by
-      simp only [length_encPair, encBits_apply, hv']
+      simp only [length_encPair, encBits_apply, hv, certLen, ← hn, add_assoc, Nat.reduceAdd]
       have : n + 2 ≤ (n + 2) ^ (d + 2) := Nat.le_self_pow (Nat.succ_ne_zero _) _
       omega
     calc cheap d (x, v) = ((encPair encBits encBits (x, v)).length + 1) ^ 2 *
@@ -323,8 +319,8 @@ theorem lazyDiagonal_mem_NTIME (d : ℕ) :
     calc accBound d D (unframe (unframe x), x ++ [false], v) =
           (((unframe (unframe x)).length + 1) ^ D + (n + 1) + (n + 2) ^ (d + 2) + 1) ^ 4 *
             (n + 2) ^ (2 * d + 6) := by
-          simp only [accBound, List.length_append, List.length_singleton, hv', ← hn, add_assoc,
-            Nat.reduceAdd]
+          simp only [accBound, List.length_append, List.length_singleton, hv, certLen, ← hn,
+            add_assoc, Nat.reduceAdd]
       _ ≤ ((CD + 3) * (n + 2) ^ (d + 2)) ^ 4 * (n + 2) ^ (2 * d + 6) := by gcongr
       _ = (CD + 3) ^ 4 * (n + 2) ^ (6 * d + 14) := by ring
       _ ≤ (CD + 3) ^ 4 * (2 ^ (6 * d + 14) * (n + 1) ^ (6 * d + 14)) :=

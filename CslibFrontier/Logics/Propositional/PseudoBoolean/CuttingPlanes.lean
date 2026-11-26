@@ -169,11 +169,8 @@ faithful translation `Cslib.Logic.PL.PBConstr.holds_toIneq_iff`. -/
 theorem PBConstr.exists_refutableInSize_toIneq_iff {F : List PBConstr} :
     (∃ s, CuttingPlanes.RefutableInSize {I | ∃ c ∈ F, c.toIneq = I} s) ↔
       ¬ ∃ σ : ℕ → Bool, ∀ c ∈ F, c.Holds σ := by
-  rw [CuttingPlanes.exists_refutableInSize_iff_not_exists_holds]
-  refine not_congr (exists_congr fun σ => ⟨fun h c hc => ?_, ?_⟩)
-  · exact (holds_toIneq_iff σ c).1 (h _ ⟨c, hc, rfl⟩)
-  · rintro h _ ⟨c, hc, rfl⟩
-    exact (holds_toIneq_iff σ c).2 (h c hc)
+  simp only [CuttingPlanes.exists_refutableInSize_iff_not_exists_holds, Set.mem_ofPred_eq,
+    forall_exists_index, and_imp, forall_apply_eq_imp_iff₂, holds_toIneq_iff]
 
 /-- **Implicational completeness of cutting planes for pseudo-Boolean constraints**: the
 inequality of a constraint `d` is derivable from the inequalities of a list of constraints iff
@@ -183,12 +180,8 @@ translation `Cslib.Logic.PL.PBConstr.holds_toIneq_iff`. -/
 theorem PBConstr.exists_derivableInSize_toIneq_iff {F : List PBConstr} {d : PBConstr} :
     (∃ s, CuttingPlanes.DerivableInSize {I | ∃ c ∈ F, c.toIneq = I} d.toIneq s) ↔
       ∀ σ : ℕ → Bool, (∀ c ∈ F, c.Holds σ) → d.Holds σ := by
-  rw [CuttingPlanes.exists_derivableInSize_iff_forall_holds]
-  refine forall_congr' fun σ => ?_
-  rw [holds_toIneq_iff]
-  refine imp_congr_left ⟨fun h c hc => (holds_toIneq_iff σ c).1 (h _ ⟨c, hc, rfl⟩), ?_⟩
-  rintro h _ ⟨c, hc, rfl⟩
-  exact (holds_toIneq_iff σ c).2 (h c hc)
+  simp only [CuttingPlanes.exists_derivableInSize_iff_forall_holds, Set.mem_ofPred_eq,
+    forall_exists_index, and_imp, forall_apply_eq_imp_iff₂, holds_toIneq_iff]
 
 /-! ### Coefficients and bounds of term lists -/
 
@@ -236,11 +229,9 @@ theorem negSum_add_negSum_negate (ts : List (ℕ × Literal ℕ)) :
   induction ts with
   | nil => simp only [List.map_nil, negSum_nil, add_zero, coeffSum_nil]
   | cons t ts ih =>
-    obtain ⟨a, v, b⟩ := t
-    simp only [List.map_cons, negSum_cons, coeffSum_cons,
-      show Std.Sat.Literal.negate (v, b) = (v, !b) from rfl]
-    cases b <;>
-      simp only [termPos, Bool.not_false, Bool.not_true, Bool.false_eq_true, ↓reduceIte] <;>
+    obtain ⟨a, v, false | true⟩ := t <;>
+      simp only [List.map_cons, negSum_cons, coeffSum_cons, Std.Sat.Literal.negate, termPos,
+        Bool.not_false, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at ih ⊢ <;>
       omega
 
 theorem cf_filter_add (p : ℕ × Literal ℕ → Bool) (ts : List (ℕ × Literal ℕ)) :
@@ -479,11 +470,9 @@ theorem Der.degree_zero (ts : List (ℕ × Literal ℕ)) : Der Γ (⟨ts, 0⟩ :
     simp only [PBConstr.toIneq, List.map_cons, List.sum_cons, add_assoc]
 
 theorem Der.normalize {c : PBConstr} (h : Der Γ c.toIneq) : Der Γ c.normalize.toIneq := by
-  have hcoeff := coeff_toIneq_normalize c
   by_cases hd : c.normalize.degree = 0
-  · rw [show c.normalize = ⟨c.normalize.terms, 0⟩ by rw [← hd]]
-    exact Der.degree_zero _
-  · refine h.lower hcoeff (le_of_eq ?_)
+  · exact (Der.degree_zero c.normalize.terms).of_eq (by rw [← hd])
+  · refine h.lower (coeff_toIneq_normalize c) (le_of_eq ?_)
     rw [toIneq_eq, toIneq_eq]
     simp only [PBConstr.normalize, negSum_fromLinear] at hd ⊢
     simp only [fromLinear] at hd ⊢
@@ -709,11 +698,8 @@ theorem exists_isProof_contra_of_check {F : List PBConstr} {P : Proof} (h : chec
     ∃ s, RefutableInSize {I | ∃ c ∈ F, c.toIneq = I} s := by
   have hF : ∀ e ∈ initDb F, Der {I | ∃ c ∈ F, c.toIneq = I} e.2.toIneq := by
     intro e he
-    obtain ⟨⟨c, i⟩, hci, rfl⟩ := List.mem_map.mp he
-    refine Der.normalize (Der.hyp ⟨c, ?_, rfl⟩)
-    obtain ⟨j, hj, hji⟩ := List.mem_iff_getElem.1 hci
-    rw [List.getElem_zipIdx, Prod.mk.injEq] at hji
-    exact hji.1 ▸ List.getElem_mem (by simpa only [List.length_zipIdx] using hj)
+    obtain ⟨⟨c, _⟩, hci, rfl⟩ := List.mem_map.mp he
+    exact Der.normalize (Der.hyp ⟨c, List.fst_mem_of_mem_zipIdx hci, rfl⟩)
   unfold check at h
   split at h
   · rename_i db n hrun

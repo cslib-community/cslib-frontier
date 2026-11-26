@@ -188,12 +188,9 @@ private theorem greedyPotential_step [Nonempty ι] {ℓ : ℕ → ι → ℝ} {t
   have hΔm_nn : 0 ≤ Δm := sub_nonneg.mpr (minCumLoss_mono_succ fun i => (hℓ i).1)
   have hterm_x : max 0 (1 + minCumLoss ℓ (t + 1) - ∑ s ∈ range (t + 1), ℓ s x) -
       max 0 (1 + minCumLoss ℓ t - ∑ s ∈ range t, ℓ s x) = Δm - ℓ t x := by
-    have h0 : 0 ≤ 1 + minCumLoss ℓ (t + 1) - ∑ s ∈ range (t + 1), ℓ s x := by
-      rw [sum_range_succ, hx_eq]
-      linarith [(hℓ x).2]
-    rw [max_eq_right h0, hx_eq, add_sub_cancel_right, max_eq_right zero_le_one, sum_range_succ,
-      hx_eq]
-    ring
+    rw [sum_range_succ, hx_eq, add_sub_cancel_right, max_eq_right zero_le_one]
+    have h0 : 0 ≤ 1 + minCumLoss ℓ (t + 1) - (minCumLoss ℓ t + ℓ t x) := by linarith [(hℓ x).2]
+    rw [max_eq_right h0]; ring
   have hterm_other (i : ι) : max 0 (1 + minCumLoss ℓ (t + 1) - ∑ s ∈ range (t + 1), ℓ s i) -
       max 0 (1 + minCumLoss ℓ t - ∑ s ∈ range t, ℓ s i) ≤ Δm := by
     rw [sum_range_succ]
@@ -226,10 +223,10 @@ theorem greedy_loss_le [Nonempty ι] {ℓ : ℕ → ι → ℝ} {x : ℕ → ι}
     induction T with
     | zero => simp only [range_zero, sum_empty, zero_add, sub_self, mul_zero, le_rfl]
     | succ T ih =>
-      have ih' := ih (fun t ht => hx t (by omega)) (fun t ht => hℓ t (by omega))
-      have hstep := greedyPotential_step (hx T (by omega)) (hℓ T (by omega))
       rw [sum_range_succ]
-      linarith
+      linarith [ih (fun t ht => hx t (Nat.lt_succ_of_lt ht))
+        (fun t ht => hℓ t (Nat.lt_succ_of_lt ht)),
+        greedyPotential_step (hx T (Nat.lt_succ_self T)) (hℓ T (Nat.lt_succ_self T))]
   rw [greedyPotential_zero, minCumLoss_zero, sub_zero] at htel
   linarith [one_le_greedyPotential ℓ T]
 
@@ -292,11 +289,10 @@ private theorem add_one_le_sum_of_notMem_leaders [Nonempty ι] {ℓ : ℕ → ι
   obtain ⟨j, hj⟩ := exists_sum_eq_minCumLoss ℓ t
   obtain ⟨ni, hni⟩ := sum_nat_of_binary hℓ i
   obtain ⟨nj, hnj⟩ := sum_nat_of_binary hℓ j
-  have hlt : (nj : ℝ) < ni := lt_of_le_of_ne
-    (hnj ▸ hni ▸ hj.trans_le (minCumLoss_le ℓ t i))
-    (hnj ▸ hni ▸ hj ▸ Ne.symm (mt mem_leaders.mpr hi))
+  have hle : nj ≤ ni := Nat.cast_le.mp (hnj ▸ hni ▸ hj.trans_le (minCumLoss_le ℓ t i))
+  have hne : nj ≠ ni := fun h => hi (mem_leaders.mpr (by rw [hni, ← h, ← hnj, hj]))
   rw [← hj, hni, hnj]
-  exact_mod_cast Nat.cast_lt.mp hlt
+  exact_mod_cast Nat.lt_of_le_of_ne hle hne
 
 /-- **Harmonic invariant for Randomized Greedy** [BlumMansour2007AGT, proof of Theorem 4.4, p. 84]:
 on `{0, 1}` loss sequences,
@@ -336,19 +332,18 @@ theorem randGreedy_loss_le_harmonic [Nonempty ι] {ℓ : ℕ → ι → ℝ} {T 
     have hℓ_nn (i : ι) : 0 ≤ ℓ t i := by rcases hℓ_t i with h | h <;> linarith
     by_cases hA : A.Nonempty
     · obtain ⟨i₀, hi₀⟩ := hA
+      obtain ⟨hi₀S, hi₀0⟩ := mem_filter.mp hi₀
       have hm_eq : minCumLoss ℓ (t + 1) = minCumLoss ℓ t := by
         refine le_antisymm ?_ (minCumLoss_mono_succ hℓ_nn)
         calc minCumLoss ℓ (t + 1) ≤ ∑ s ∈ range (t + 1), ℓ s i₀ := minCumLoss_le ℓ (t + 1) i₀
-          _ = minCumLoss ℓ t := by
-            rw [sum_range_succ, mem_leaders.mp (mem_filter.mp hi₀).1, (mem_filter.mp hi₀).2,
-              add_zero]
+          _ = minCumLoss ℓ t := by rw [sum_range_succ, mem_leaders.mp hi₀S, hi₀0, add_zero]
       have hS'_eq : S' = A := by
         ext i
         simp only [S', mem_leaders, hm_eq, A, mem_filter, S, sum_range_succ]
-        refine ⟨fun hi => ?_, fun ⟨hi1, hi2⟩ => by linarith⟩
-        by_cases hmem : i ∈ leaders ℓ t
-        · exact ⟨mem_leaders.mp hmem, by linarith [mem_leaders.mp hmem]⟩
-        · linarith [add_one_le_sum_of_notMem_leaders hℓ_prev hmem, hℓ_nn i]
+        refine ⟨fun hi => ?_, fun ⟨h1, h2⟩ => (congrArg₂ (· + ·) h1 h2).trans (add_zero _)⟩
+        have h1 := le_antisymm ((le_add_of_nonneg_right (hℓ_nn i)).trans_eq hi)
+          (minCumLoss_le ℓ t i)
+        exact ⟨h1, by linarith⟩
       have hharm : ((S.card : ℝ) - A.card) / S.card ≤ (harmonic S.card : ℝ) - harmonic A.card := by
         exact_mod_cast sub_div_le_harmonic_sub (card_filter_le S _)
       rw [hm_eq, hS'_eq]

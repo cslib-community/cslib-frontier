@@ -255,13 +255,10 @@ private theorem measurableSet_triple_all_eq (v : V → F) (i j k : V) :
 /-- `tripleCutValue` along a random hyperplane is integrable under any finite measure. -/
 theorem integrable_tripleCutValue_hyperplaneSide (triples : ι → V × V × V) (c d : ι → ℝ)
     (v : V → F) (μ : Measure F) [IsFiniteMeasure μ] :
-    Integrable (fun r => tripleCutValue triples c d (hyperplaneSide v r)) μ := by
-  unfold tripleCutValue
-  exact integrable_finsetSum _ fun e _ =>
-    (integrable_ite_const μ
-      (measurableSet_triple_ne_eq v (triples e).1 (triples e).2.1 (triples e).2.2) (c e)).add
-      (integrable_ite_const μ
-        (measurableSet_triple_all_eq v (triples e).1 (triples e).2.1 (triples e).2.2) (d e))
+    Integrable (fun r => tripleCutValue triples c d (hyperplaneSide v r)) μ :=
+  integrable_finsetSum _ fun _ _ =>
+    (integrable_ite_const μ (measurableSet_triple_ne_eq v _ _ _) _).add
+      (integrable_ite_const μ (measurableSet_triple_all_eq v _ _ _) _)
 
 variable [FiniteDimensional ℝ F]
 
@@ -353,10 +350,7 @@ private theorem dicutValue_eq_tripleCutValue (ends : ι → V × V) (w : ι → 
     dicutValue ends w (fun x => side (some x) == side none) =
       tripleCutValue (dicutTriple ends) w 0 side := by
   unfold dicutValue tripleCutValue dicutTriple
-  refine Finset.sum_congr rfl fun e _ => ?_
-  rcases Bool.eq_false_or_eq_true (side (some (ends e).1)) with h1 | h1 <;>
-    rcases Bool.eq_false_or_eq_true (side (some (ends e).2)) with h2 | h2 <;>
-    rcases Bool.eq_false_or_eq_true (side none) with h3 | h3 <;> simp [h1, h2, h3]
+  exact Finset.sum_congr rfl fun _ _ => by simp only [Pi.zero_apply]; grind
 
 private theorem dicutSdpValue_eq_tripleSdpValue (ends : ι → V × V) (w : ι → ℝ)
     (v : Option V → F) :
@@ -523,10 +517,8 @@ theorem goemansWilliamsonConstant_mul_sub_le_integral_of_isBalancedDigraph (ends
       Finset.sum_congr rfl fun _ _ => by simp only [dicutHyperplaneSet, hyperplaneSide]; grind
     linarith [two_mul_dicutValue_eq_cutValue_of_isBalancedDigraph hbal (dicutHyperplaneSet v r)]
   simp only [hcut, integral_div]
-  have hsdp := goemansWilliamsonConstant_mul_sdpValue_le_integral ends hw
-    (v := fun x => v (some x)) (fun x => hv (some x))
+  have hsdp := goemansWilliamsonConstant_mul_sdpValue_le_integral ends hw (fun x => hv (some x))
   rw [← two_mul_dicutSdpValue_eq_sdpValue_of_isBalancedDigraph hbal v] at hsdp
-  exact (mul_le_mul_of_nonneg_left (sub_le_iff_le_add.mpr h1)
-    goemansWilliamsonConstant_nonneg).trans (by linarith)
+  linarith [mul_le_mul_of_nonneg_left (sub_le_iff_le_add.mpr h1) goemansWilliamsonConstant_nonneg]
 
 end Cslib.Algorithms.Lean.MaxDicut
