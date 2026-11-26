@@ -14,9 +14,10 @@ import all CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackDP
 /-!
 # A two-equality knapsack propagator with proof logging
 
-The *knapsack constraint with two equalities* over `n` items with integer domains asks for values
-`xⱼ` of the items, `W` of the weight and `P` of the profit, each in its domain, with
-`∑ wⱼ xⱼ = W` and `∑ pⱼ xⱼ = P`. §3.3 (p. 9:11) of [Demirović, McCreesh, McIlree, Nordström,
+The *knapsack constraint with two equalities* over `n` items asks for values `xⱼ` of the items,
+`W` of the weight and `P` of the profit, each in its domain, with `∑ wⱼ xⱼ = W` and
+`∑ pⱼ xⱼ = P`. Here the weights `wⱼ`, the profits `pⱼ` and the values of every domain are
+non-negative integers (`ℕ`). §3.3 (p. 9:11) of [Demirović, McCreesh, McIlree, Nordström,
 Oertel and Sidorov][DemirovicMcCreeshMcIlreeNordstromOertelSidorov2024] attributes this form to
 Fahle and Sellmann, Sellmann, Katriel et al., Malitsky et al. and MiniZinc, and cites Trick for a
 propagator of a single `0`–`1` inequality whose sum is a variable. This file gives a propagator
@@ -36,7 +37,11 @@ at-least-one and an at-most-one constraint), and states each linear equality as 
 between the direct literals, `∑ⱼ ∑_v wⱼ v [xⱼ = v] ≥ ∑_u u [W = u]` and its converse, and
 likewise for the profit. The current domains enter only through the *antecedent* `D`: the
 negations `[x ≠ v]` of the values no longer in them, from which, as in Gocht, McCreesh and
-Nordström's framework, the propagator derives each removal `D ⇒ [x ≠ v]`.
+Nordström's framework, the propagator derives each removal `D ⇒ [x ≠ v]`
+(`Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.remClause`,
+`Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.remSClause`). The formula starts from the full direct
+encoding, every value of every initial domain having its direct literal, so the proof introduces
+no direct literals and needs no multiplication step for them (§3.3, difference 3, p. 9:12).
 
 **The dynamic program.** Layer `i` holds the states `(w, p)` that the first `i` items reach with
 values of their current domains: the weight and the profit so far. States are merged only when
@@ -74,8 +79,9 @@ nothing (difference 5 allows deleting the intermediate constraints at the end).
 
 * `Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst`: an instance, with its domains.
 * `Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.formula`,
-  `Inst.antecedent`: the encoding and the antecedent `D`.
-* `Inst.lay`: the layers.
+  `Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.antecedent`: the encoding and the antecedent `D`.
+* `Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.remClause`,
+  `Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.remSClause`: the removal clauses `D ⇒ [x ≠ v]`.
 * `Cslib.Logic.PL.VeriPB.Knapsack.Trick.Propagation`,
   `Cslib.Logic.PL.VeriPB.Knapsack.Trick.Inst.propagate`: the propagator and its output.
 
@@ -99,7 +105,8 @@ the value is in the current domain. -/
 abbrev Dom := List (ℕ × Bool)
 
 /-- **An instance of the two-equality knapsack constraint**: `n` items of weights `w` and profits
-`p`, the domains of the items, and those of the weight `W` and of the profit `P`. -/
+`p`, the domains of the items, and those of the weight `W` and of the profit `P`. Weights,
+profits and domain values are non-negative integers. -/
 structure Inst where
   /-- The number of items. -/
   n : ℕ
@@ -115,74 +122,76 @@ structure Inst where
   pDom : Dom
 
 /-- The value at position `k` of a domain. -/
-def dval (D : Dom) (k : ℕ) : ℕ := (D.getD k (0, false)).1
+@[expose] def dval (D : Dom) (k : ℕ) : ℕ := (D.getD k (0, false)).1
 
 /-- The value at position `k` of a domain is in the current domain. -/
-def dlive (D : Dom) (k : ℕ) : Bool := (D.getD k (0, false)).2
+@[expose] def dlive (D : Dom) (k : ℕ) : Bool := (D.getD k (0, false)).2
 
 /-- The positions of a domain whose values are in the current domain. -/
-def livePos (D : Dom) : List ℕ := (List.range D.length).filter (dlive D)
+@[expose] def livePos (D : Dom) : List ℕ := (List.range D.length).filter (dlive D)
 
 /-- The terms `D[k] ℓₖ` over the positions `k` of a domain with a nonzero value, `ℓₖ` the literal
 of the variable `base + k` with the polarity `pol`. -/
-def sTerms (D : Dom) (base : ℕ) (pol : Bool) : List (ℕ × Literal ℕ) :=
+@[expose] def sTerms (D : Dom) (base : ℕ) (pol : Bool) : List (ℕ × Literal ℕ) :=
   (List.range D.length).filterMap fun k =>
     if dval D k = 0 then none else some (dval D k, (base + k, pol))
 
 /-- The sum of the values of a domain. -/
-def sTot (D : Dom) : ℕ := ((List.range D.length).map (dval D)).sum
+@[expose] def sTot (D : Dom) : ℕ := ((List.range D.length).map (dval D)).sum
 
 /-- At least one of the variables `base, …, base + m - 1` is true. -/
-def alo (base m : ℕ) : PBConstr := ⟨(List.range m).map fun k => (1, (base + k, true)), 1⟩
+@[expose] def alo (base m : ℕ) : PBConstr := ⟨(List.range m).map fun k => (1, (base + k, true)), 1⟩
 
 /-- At most one of the variables `base, …, base + m - 1` is true. -/
-def amo (base m : ℕ) : PBConstr := ⟨(List.range m).map fun k => (1, (base + k, false)), m - 1⟩
+@[expose] def amo (base m : ℕ) : PBConstr :=
+  ⟨(List.range m).map fun k => (1, (base + k, false)), m - 1⟩
 
 /-- A state: the weight and the profit so far. -/
-abbrev St := ℕ × ℕ
+private abbrev St := ℕ × ℕ
 
 namespace Inst
 
 variable (I : Inst)
 
 /-- The length of the domain of item `j`. -/
-def len (j : ℕ) : ℕ := (I.dom j).length
+@[expose] def len (j : ℕ) : ℕ := (I.dom j).length
 
 /-- The first variable of item `j`. -/
-def off (j : ℕ) : ℕ := ((List.range j).map I.len).sum
+@[expose] def off (j : ℕ) : ℕ := ((List.range j).map I.len).sum
 
 /-- The direct literal of position `k` of item `j`. -/
-def var (j k : ℕ) : ℕ := I.off j + k
+@[expose] def var (j k : ℕ) : ℕ := I.off j + k
 
 /-- The first variable of the weight. -/
-def wBase : ℕ := I.off I.n
+@[expose] def wBase : ℕ := I.off I.n
 
 /-- The first variable of the profit. -/
-def pBase : ℕ := I.wBase + I.wDom.length
+@[expose] def pBase : ℕ := I.wBase + I.wDom.length
 
 /-- The variables of the formula are below `M`; the extension variables start there. -/
-def M : ℕ := I.pBase + I.pDom.length
+@[expose] def M : ℕ := I.pBase + I.pDom.length
 
 /-- The weight `wⱼ v` of the value at position `k` of item `j`. -/
-def cw (j k : ℕ) : ℕ := I.w j * dval (I.dom j) k
+@[expose] def cw (j k : ℕ) : ℕ := I.w j * dval (I.dom j) k
 
 /-- The profit `pⱼ v` of the value at position `k` of item `j`. -/
-def cp (j k : ℕ) : ℕ := I.p j * dval (I.dom j) k
+@[expose] def cp (j k : ℕ) : ℕ := I.p j * dval (I.dom j) k
 
 /-- The coefficients `a j k` of all positions, item after item. -/
-def coefs (a : ℕ → ℕ → ℕ) : List ℕ :=
+@[expose] def coefs (a : ℕ → ℕ → ℕ) : List ℕ :=
   (List.range I.n).flatMap fun j => (List.range (I.len j)).map (a j)
 
 /-- The coefficient of the variable `x`: `a j k` for `x = off j + k`. -/
-def flat (a : ℕ → ℕ → ℕ) (x : ℕ) : ℕ := (I.coefs a).getD x 0
+@[expose] def flat (a : ℕ → ℕ → ℕ) (x : ℕ) : ℕ := (I.coefs a).getD x 0
 
 /-- The terms `a j k ℓ` over the positions of the items `j < i` with `a j k ≠ 0`, `ℓ` the direct
 literal with the polarity `pol`. -/
-def terms (a : ℕ → ℕ → ℕ) (pol : Bool) (i : ℕ) : List (ℕ × Literal ℕ) :=
-  Knapsack.Inst.sumTerms (I.flat a) pol (I.off i)
+@[expose] def terms (a : ℕ → ℕ → ℕ) (pol : Bool) (i : ℕ) : List (ℕ × Literal ℕ) :=
+  (List.range (I.off i)).filterMap fun x =>
+    if I.flat a x = 0 then none else some (I.flat a x, (x, pol))
 
 /-- `∑_{j<i} ∑ₖ a j k`. -/
-def tot (a : ℕ → ℕ → ℕ) (i : ℕ) : ℕ := Knapsack.Inst.tot (I.flat a) (I.off i)
+@[expose] def tot (a : ℕ → ℕ → ℕ) (i : ℕ) : ℕ := ((List.range (I.off i)).map (I.flat a)).sum
 
 /-- The constraint `∑_{j<i} ∑ₖ a j k ℓ ≥ d`. -/
 def dimC (a : ℕ → ℕ → ℕ) (pol : Bool) (i d : ℕ) : PBConstr :=
@@ -191,21 +200,25 @@ def dimC (a : ℕ → ℕ → ℕ) (pol : Bool) (i d : ℕ) : PBConstr :=
 /-! ### The encoding -/
 
 /-- The weight is at least its sum over the items: `∑ wⱼ v [xⱼ = v] + ∑ u [W ≠ u] ≥ ∑ u`. -/
-def linkW₁ : PBConstr := ⟨I.terms I.cw true I.n ++ sTerms I.wDom I.wBase false, sTot I.wDom⟩
+@[expose] def linkW₁ : PBConstr :=
+  ⟨I.terms I.cw true I.n ++ sTerms I.wDom I.wBase false, sTot I.wDom⟩
 
 /-- The weight is at most its sum over the items: `∑ wⱼ v [xⱼ ≠ v] + ∑ u [W = u] ≥ ∑ wⱼ v`. -/
-def linkW₂ : PBConstr := ⟨I.terms I.cw false I.n ++ sTerms I.wDom I.wBase true, I.tot I.cw I.n⟩
+@[expose] def linkW₂ : PBConstr :=
+  ⟨I.terms I.cw false I.n ++ sTerms I.wDom I.wBase true, I.tot I.cw I.n⟩
 
 /-- The profit is at least its sum over the items. -/
-def linkP₁ : PBConstr := ⟨I.terms I.cp true I.n ++ sTerms I.pDom I.pBase false, sTot I.pDom⟩
+@[expose] def linkP₁ : PBConstr :=
+  ⟨I.terms I.cp true I.n ++ sTerms I.pDom I.pBase false, sTot I.pDom⟩
 
 /-- The profit is at most its sum over the items. -/
-def linkP₂ : PBConstr := ⟨I.terms I.cp false I.n ++ sTerms I.pDom I.pBase true, I.tot I.cp I.n⟩
+@[expose] def linkP₂ : PBConstr :=
+  ⟨I.terms I.cp false I.n ++ sTerms I.pDom I.pBase true, I.tot I.cp I.n⟩
 
 /-- **The formula**: the four inequalities of the two equalities, numbered `1`–`4`; the
 exactly-one constraints of `W`, numbered `5` and `6`, and of `P`, `7` and `8`; then those of each
 item `j`, numbered `9 + 2j` and `10 + 2j`. -/
-def formula : List PBConstr :=
+@[expose] def formula : List PBConstr :=
   [I.linkW₁, I.linkW₂, I.linkP₁, I.linkP₂, alo I.wBase I.wDom.length, amo I.wBase I.wDom.length,
     alo I.pBase I.pDom.length, amo I.pBase I.pDom.length] ++
   (List.range I.n).flatMap fun j => [alo (I.off j) (I.len j), amo (I.off j) (I.len j)]
@@ -220,10 +233,10 @@ private def amoId (j : ℕ) : ℕ := 10 + 2 * j
 private def start : ℕ := 9 + 2 * I.n
 
 /-- The variables preserved: the direct literals. -/
-def pres : List ℕ := List.range I.M
+@[expose] def pres : List ℕ := List.range I.M
 
 /-- **The antecedent `D`**: the negations `[x ≠ v]` of the values not in the current domains. -/
-private def antecedent : List (Literal ℕ) :=
+@[expose] def antecedent : List (Literal ℕ) :=
   ((List.range I.n).flatMap fun j =>
     (List.range (I.len j)).filterMap fun k =>
       if dlive (I.dom j) k then none else some (I.var j k, false)) ++
@@ -276,7 +289,7 @@ end Inst
 /-- A node of the decision diagram: its state, the first of its five extension variables (the
 partial states `W↑`, `W↓`, `P↑`, `P↓`, then `S`) and the number before its constraints; the halves
 of the reification of its `d`-th variable are numbered `c + 4d + 1` and `c + 4d + 3`. -/
-structure Node where
+private structure Node where
   /-- The state. -/
   st : St
   /-- The first extension variable. -/
@@ -301,7 +314,7 @@ private def noNode : Node := ⟨(0, 0), 0, 0⟩
 
 /-- A transition out of a node: the position of the value of its item, the target and the number
 of `S ∧ [x = v] ⇒ S'`. -/
-structure Tr where
+private structure Tr where
   /-- The position of the value. -/
   pos : ℕ
   /-- The target. -/
@@ -310,7 +323,7 @@ structure Tr where
   id : ℕ
 
 /-- The transitions out of a node and the number of `S ∧ D ⇒ ⋁ S'`. -/
-structure Out where
+private structure Out where
   /-- The node. -/
   u : Node
   /-- The transitions. -/
@@ -320,7 +333,7 @@ structure Out where
 
 /-- A layer of the diagram: its index, nodes, transitions out (none for the last) and the number
 of its at-least-one constraint. -/
-structure Layer where
+private structure Layer where
   /-- The index. -/
   i : ℕ
   /-- The nodes. -/
@@ -495,9 +508,9 @@ private def sLayer : ProofLog → List Node → ProofLog × List ((ℕ × Bool �
     let q := sLayer r.1 ts
     (q.1, r.2 ++ q.2)
 
-/-- The entry for `x` of a list of pairs. -/
-private def slook (sl : List ((ℕ × Bool × ℕ) × ℕ)) (x : ℕ × Bool × ℕ) : ℕ :=
-  ((sl.find? (·.1 == x)).map (·.2)).getD 0
+/-- The number recorded for `x` in a list of pairs, `0` if none. -/
+private def plook {α : Type} [BEq α] (l : List (α × ℕ)) (x : α) : ℕ :=
+  ((l.find? (·.1 == x)).map (·.2)).getD 0
 
 /-- The refutation of a state under the domains: `D ⇒ ¬S`. -/
 private def deadClause (S : ℕ) : PBConstr := clause (I.negD ++ [(S, false)])
@@ -516,7 +529,7 @@ private def deadFinal (sl : List ((ℕ × Bool × ℕ) × ℕ)) :
     else
       let s := I.deadSum t.st
       let r := deadFinal sl (e.push [.step (.rup (I.deadClause t.S)
-        (.neg :: (I.others s t).map (fun k => .id (slook sl (t.S, s, k))) ++
+        (.neg :: (I.others s t).map (fun k => .id (plook sl (t.S, s, k))) ++
           [.id (sAlo s)]))] 1 0) ts
       (r.1, (t.S, e.next) :: r.2)
 
@@ -529,12 +542,12 @@ private def deadLayer (i : ℕ) (A : List St) (dl : List (ℕ × ℕ)) :
     if (livePos (I.dom i)).any fun k => I.succ i o.u.st k ∈ A then deadLayer i A dl e os
     else
       let r := deadLayer i A dl (e.push [.step (.rup (I.deadClause o.u.S)
-        (.neg :: o.tr.map (fun x => .id (dlook dl x.tgt.S)) ++ [.id o.succ]))] 1 0) os
+        (.neg :: o.tr.map (fun x => .id (plook dl x.tgt.S)) ++ [.id o.succ]))] 1 0) os
       (r.1, (o.u.S, e.next) :: r.2)
 
 /-- What the backward pass records for a layer: the layer, the alive states of the layer after
 it and their refutations. -/
-structure Back where
+private structure Back where
   /-- The layer. -/
   layer : Layer
   /-- The alive states of the next layer. -/
@@ -556,8 +569,10 @@ private def backAll : ProofLog → List St → List (ℕ × ℕ) → List Layer 
 
 /-! ### The removals -/
 
-/-- The removal of the value at position `k` of item `i`: `D ⇒ [xᵢ ≠ v]`. -/
-private def remClause (i k : ℕ) : PBConstr := clause (I.negD ++ [(I.var i k, false)])
+/-- **The removal clause** `D ⇒ [xᵢ ≠ v]` of the value at position `k` of item `i`: the clause
+`⋁_{ℓ ∈ D} ¬ℓ ∨ [xᵢ ≠ v]`. -/
+@[expose] def remClause (i k : ℕ) : PBConstr :=
+  ⟨(I.antecedent.map Std.Sat.Literal.negate ++ [(I.var i k, false)]).map ((1, ·)), 1⟩
 
 /-- The removals of a layer: the values all of whose transitions lead to refuted states, by RUP
 from those refutations, the transitions and the at-least-one constraint. -/
@@ -566,7 +581,7 @@ private def remLayer (r : Layer) (A : List St) (dl : List (ℕ × ℕ)) :
   | e, [] => (e, [])
   | e, k :: ks =>
     if r.outs.all fun o => I.succ r.i o.u.st k ∉ A then
-      let hs := .neg :: r.outs.map (fun o => .id (dlook dl (o.tgtOf k).S)) ++
+      let hs := .neg :: r.outs.map (fun o => .id (plook dl (o.tgtOf k).S)) ++
         r.outs.map (fun o => .id (o.tau k)) ++ [.id r.alo]
       let q := remLayer r A dl (e.push [.step (.rup (I.remClause r.i k) hs)] 1 0) ks
       (q.1, ((r.i, k), e.next) :: q.2)
@@ -580,8 +595,11 @@ private def remAll : ProofLog → List Back → ProofLog × List ((ℕ × ℕ) �
     let q' := remAll q.1 xs
     (q'.1, q.2 ++ q'.2)
 
-/-- The removal of the value at position `k` of the sum `s`: `D ⇒ [s ≠ u]`. -/
-private def remSClause (s : Bool) (k : ℕ) : PBConstr := clause (I.negD ++ [(I.sBase s + k, false)])
+/-- **The removal clause** `D ⇒ [s ≠ u]` of the value at position `k` of the sum `s`, the weight
+`W` for `false` and the profit `P` for `true`. -/
+@[expose] def remSClause (s : Bool) (k : ℕ) : PBConstr :=
+  ⟨(I.antecedent.map Std.Sat.Literal.negate ++
+    [((if s then I.pBase else I.wBase) + k, false)]).map ((1, ·)), 1⟩
 
 /-- The removals of the sum `s`: the values of its current domain that no feasible state of the
 last layer `L` has, by RUP from the clauses `S_t ⇒ [s ≠ u]` of the feasible states, the
@@ -591,15 +609,15 @@ private def remSum (s : Bool) (L : List Node) (sl : List ((ℕ × Bool × ℕ) �
   | e, [] => (e, [])
   | e, k :: ks =>
     if L.all fun t => !(I.feasible t.st && sCoord s t.st == dval (I.sDom s) k) then
-      let hs := .neg :: L.map (fun t => .id (if I.feasible t.st then slook sl (t.S, s, k)
-        else dlook dl t.S)) ++ [.id a]
+      let hs := .neg :: L.map (fun t => .id (if I.feasible t.st then plook sl (t.S, s, k)
+        else plook dl t.S)) ++ [.id a]
       let q := remSum s L sl dl a (e.push [.step (.rup (I.remSClause s k) hs)] 1 0) ks
       (q.1, (k, e.next) :: q.2)
     else remSum s L sl dl a e ks
 
 /-- What the propagator writes: the proof and the removals with their numbers, of the item
 values, then of the values of `W` and of `P`. -/
-structure Emitted where
+private structure Emitted where
   /-- The proof. -/
   acc : ProofLog
   /-- The removed item values `(j, k)`, with their numbers. -/

@@ -8,8 +8,8 @@ module
 -- upstream: local-only (tests)
 
 -- `import all`: the kernel evaluates `stepTop` and `runTop`, the propagator `Inst.propagate` with
--- its private `Inst.emit`, `Inst.forward`, `Inst.backAll`, `Inst.remAll`, …, and the encoding and
--- the Boolean emitter's partial sums, whose bodies are not exposed.
+-- its private `Inst.emit`, `Inst.forward`, `Inst.backAll`, `Inst.remAll`, …, and the Boolean
+-- emitter's partial sums, whose bodies are not exposed.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackDP
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackTrick

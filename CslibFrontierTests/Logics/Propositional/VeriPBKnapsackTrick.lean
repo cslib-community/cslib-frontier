@@ -10,10 +10,12 @@ module
 import CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackTrickProof
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
+import CslibFrontierTests.Logics.Propositional.VeriPBProofText
 -- `#guard` runs the propagator, the checkers and a brute-force search at compile time.
 public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackTrickProof
 public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
+public meta import CslibFrontierTests.Logics.Propositional.VeriPBProofText
 
 /-! The two-equality knapsack propagator
 (`CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackTrick`) for an ordinary client:
@@ -24,7 +26,8 @@ public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
   on boundary instances (no items, an empty domain, values out of every current domain, zero
   weights and profits) and on random instances of up to `3` items;
 * the instances printed as OPB by the library's printer `Cslib.Logic.PL.VeriPB.Text.printOPB`,
-  and the proofs printed as kernel text by a test-only printer, whose output the text front end
+  and the proofs printed as kernel text by the test-only printer
+  `CslibFrontierTests.Logics.Propositional.VeriPBProofText.pbpText`, whose output the text front end
   parses and accepts. VeriPB 3.0.2 and CakePB report `s VERIFIED` on the printed texts of the
   instances `printCases`.
 
@@ -36,6 +39,7 @@ set_option linter.hashCommand false
 namespace CslibFrontierTests.Logics.Propositional.VeriPBKnapsackTrick
 
 open Cslib.Logic.PL Cslib.Logic.PL.VeriPB Cslib.Logic.PL.VeriPB.Knapsack.Trick
+open CslibFrontierTests.Logics.Propositional.VeriPBProofText (pbpText)
 
 /-! ### The theorems for an ordinary client -/
 
@@ -51,6 +55,41 @@ example (I : Inst) {j k : ℕ} (h : (j, k) ∈ I.propagate.removed) : ¬ I.Suppo
 example (I : Inst) {k : ℕ} (h : I.SupportedS false k) : k ∉ I.propagate.removedW :=
   fun hm => (I.mem_removedW_iff.1 hm).2 h
 
+/-- The proof derives the removal clause `D ⇒ [xⱼ ≠ v]` of every removed item value: the checker
+reaches a database holding it. -/
+example (I : Inst) {j k : ℕ} (h : (j, k) ∈ I.propagate.removed) :
+    ∃ s, runTop I.formula none (State.init I.formula none (some I.pres))
+        I.propagate.proof.steps = some s ∧
+      ∃ m, lookup s.db m = some (I.remClause j k).normalize :=
+  have ⟨s, hs, hrem, _⟩ := I.runTop_propagate
+  ⟨s, hs, hrem j k h⟩
+
+/-- The removal clause says `D ⇒ [xⱼ ≠ v]`. -/
+example (I : Inst) {j k : ℕ} (σ : ℕ → Bool) (hD : Consistent σ I.antecedent)
+    (h : (I.remClause j k).Holds σ) : σ (I.var j k) = false :=
+  (I.holds_remClause_iff j k σ).1 h hD
+
+/-- The solutions of the encoding under the antecedent pick values of the current domains. -/
+example (I : Inst) (σ : ℕ → Bool) (hF : ∀ c ∈ I.formula, c.Holds σ)
+    (hD : Consistent σ I.antecedent) : ∃ c, I.Solution c := by
+  obtain ⟨c, kw, kp, hc, hkw, hkp, hw, hp, -⟩ := (I.holds_formula_iff σ).1 ⟨hF, hD⟩
+  exact ⟨c, hc, ⟨kw, hkw, hw⟩, kp, hkp, hp⟩
+
+/-- `SupportedN` and `SupportedS` unfold: a supported value comes with a choice of positions of
+the current domains whose weight and profit are values of the current domains of `W` and `P`. -/
+example (I : Inst) {j k : ℕ} (h : I.SupportedN j k) :
+    j < I.n ∧ ∃ c : ℕ → ℕ, (∀ i < I.n, c i ∈ livePos (I.dom i)) ∧ c j = k ∧
+      (∃ kw ∈ livePos I.wDom, dval I.wDom kw = ((List.range I.n).map fun i => I.cw i (c i)).sum) ∧
+      ∃ kp ∈ livePos I.pDom, dval I.pDom kp = ((List.range I.n).map fun i => I.cp i (c i)).sum := by
+  obtain ⟨hj, c, ⟨hc, hw, hp⟩, hcj⟩ := h
+  exact ⟨hj, c, hc, hcj, hw, hp⟩
+
+example (I : Inst) {k : ℕ} (h : I.SupportedS true k) :
+    k ∈ livePos I.pDom ∧ ∃ c : ℕ → ℕ, I.Solution c ∧
+      dval I.pDom k = ((List.range I.n).map fun i => I.cp i (c i)).sum := by
+  obtain ⟨hk, c, hs, he⟩ := h
+  exact ⟨hk, c, hs, he⟩
+
 /-! ### Evaluated runs -/
 
 /-- A domain from its values and its removed values. -/
@@ -60,6 +99,23 @@ def mkDom (vs : List ℕ) (dead : List ℕ := []) : Dom := vs.map fun v => (v, !
 def mk (items : List (ℕ × ℕ × Dom)) (W P : Dom) : Inst :=
   ⟨items.length, fun j => (items.getD j (0, 0, [])).1, fun j => (items.getD j (0, 0, [])).2.1,
     fun j => (items.getD j (0, 0, [])).2.2, W, P⟩
+
+/-- Two items, `x₀ ∈ {0, 1, 2}` of weight `2` and profit `1` and `x₁ ∈ {0, 1}` of weight `3` and
+profit `2`, with `W ∈ {0, …, 4}` and `P ∈ {2, 3}`. -/
+def ex : Inst := mk [(2, 1, mkDom [0, 1, 2]), (3, 2, mkDom [0, 1])] (mkDom [0, 1, 2, 3, 4])
+  (mkDom [2, 3])
+
+/-- On a concrete choice: `(x₀, x₁) = (2, 0)`, of weight `4` and profit `2`, supports the value
+`2` of `x₀`. -/
+example : ex.SupportedN 0 2 :=
+  ⟨by decide, fun j => if j = 0 then 2 else 0, ⟨by decide, ⟨4, by decide, by decide⟩, 0,
+    by decide, by decide⟩, rfl⟩
+
+/-- On a concrete choice: `(x₀, x₁) = (0, 1)`, of weight `3` and profit `2`, supports the value
+`3` of `W`, at position `3`. -/
+example : ex.SupportedS false 3 :=
+  ⟨by decide, fun j => if j = 0 then 0 else 1, ⟨by decide, ⟨3, by decide, by decide⟩, 0,
+    by decide, by decide⟩, by decide⟩
 
 /-- All choices of positions for domains of the given lengths. -/
 def choices : List ℕ → List (List ℕ)
@@ -144,44 +200,6 @@ def randInst (s : ℕ) : Inst :=
 #guard (List.range 150).all fun s => agrees (randInst (s * 7919 + 3))
 
 /-! ### Kernel text -/
-
-/-- The name of a literal. -/
-def litText (l : Literal ℕ) : String := (if l.2 then "x" else "~x") ++ toString (l.1 + 1)
-
-/-- A constraint `a₁ ℓ₁ … >= d`. -/
-def constrText (c : PBConstr) : String :=
-  String.join (c.terms.map fun t => s!"{t.1} {litText t.2} ") ++ s!">= {c.degree}"
-
-/-- A witness `x -> 0 …`. -/
-def witnessText (ω : Witness) : String :=
-  " ".intercalate (ω.map fun e => s!"x{e.1 + 1} -> " ++ match e.2 with
-    | .zero => "0"
-    | .one => "1"
-    | .lit l => litText l)
-
-/-- The operations of a `pol` step. -/
-def opText : PolOp → String
-  | .id k => toString k
-  | .lit l => litText l
-  | .add => "+"
-  | .mul k => s!"{k} *"
-  | .div k => s!"{k} d"
-  | .sat => "s"
-  | .weaken v => s!"x{v + 1} w"
-
-/-- A top-level step, in the fragment the propagator writes. -/
-def stepText : TopStep → String
-  | .step (.pol ops) => s!"pol {" ".intercalate (ops.map opText)} ;\n"
-  | .step (.rup c hs) =>
-    s!"rup {constrText c} : " ++
-      " ".intercalate (hs.map fun | .neg => "~" | .id k => toString k) ++ " ;\n"
-  | .red c ω (some []) none => s!"red {constrText c} : {witnessText ω} : subproof\nqed ;\n"
-  | _ => "unsupported ;\n"
-
-/-- A proof without a conclusion for a formula of `m` constraints, in the kernel format. -/
-def pbpText (m : ℕ) (P : RedProof) : String :=
-  s!"pseudo-Boolean proof version 3.0\nf {m} ;\n" ++ String.join (P.steps.map stepText) ++
-    "output NONE ;\nconclusion NONE ;\nend pseudo-Boolean proof ;\n"
 
 /-- The formula of an instance as OPB text, by the library's printer. -/
 def opbText (I : Inst) : String := Text.printOPB ⟨I.formula, none, none⟩
