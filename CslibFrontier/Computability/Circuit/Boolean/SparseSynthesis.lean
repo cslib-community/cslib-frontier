@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Circuit.Boolean.Correction
 import CslibFrontier.Computability.Circuit.Boolean.SparseSynthesisConstruction
 import CslibFrontier.Computability.Circuit.Complexity
 import Cslib.Foundations.Data.Nat.Asymptotics
+import CslibFrontier.Foundations.Data.Nat.Div
 import Mathlib.Algebra.Order.Archimedean.Real.Basic
 import Mathlib.Analysis.Asymptotics.Basic
 import Mathlib.Data.Finset.Sort
@@ -184,12 +185,6 @@ private theorem partialBound_le {p h k l J w : ℕ} (hh : h ≤ p) (hk : k ≤ p
   unfold partialBound
   nlinarith only [htable, hhash, hcoll', hcubeG, hG]
 
-/-- `c (v / d) ≤ L v` when `c ≤ L d`. -/
-private theorem mul_div_le_mul {c L d : ℕ} (v : ℕ) (h : c ≤ L * d) : c * (v / d) ≤ L * v :=
-  calc c * (v / d) ≤ L * d * (v / d) := Nat.mul_le_mul_right _ h
-    _ = L * (d * (v / d)) := by ring
-    _ ≤ L * v := Nat.mul_le_mul_left _ (Nat.mul_div_le v d)
-
 /-- The constraints on the parameters, for `q ≥ 32 (P + 1)`, `c = q ^ 2 - 4 q - 6`, `h ≥ 2 q`
 and `q ^ 2 h ≤ p < q ^ 2 (h + 1)`. -/
 private theorem parameters_spec {P q p h c : ℕ} (hq : 32 * (P + 1) ≤ q)
@@ -268,20 +263,18 @@ private theorem two_mul_complexity_le {P q p h c : ℕ} (hq : 32 * (P + 1) ≤ q
   refine ⟨?_, fun u => ?_⟩
   · have hle := (complexity_indicator_le_indicatorBound D hD hkl hKpos (q + 1)).trans
       (indicatorBound_le hhp hk le_rfl (by omega) hK (by omega) (by omega) hat)
-    have hmain := mul_div_le_mul (2 ^ p) hmainK
+    have hmain := Nat.mul_div_le_mul_of_le_mul (2 ^ p) hmainK
     calc 2 * P * complexity interpretation (single fun x => decide (x ∈ D))
-        ≤ 2 * P * ((q + 1) * (2 ^ p / (q - 2)) + 32 * (p + 1) ^ 3 * 2 ^ (p - h)) :=
-          Nat.mul_le_mul_left _ hle
+        ≤ 2 * P * ((q + 1) * (2 ^ p / (q - 2)) + 32 * (p + 1) ^ 3 * 2 ^ (p - h)) := by gcongr
       _ = 2 * P * (q + 1) * (2 ^ p / (q - 2)) + 2 * P * (32 * (p + 1) ^ 3 * 2 ^ (p - h)) := by
           ring
       _ ≤ (2 * P + 1) * 2 ^ p + 2 * P * (32 * (p + 1) ^ 3 * 2 ^ (p - h)) := by gcongr
   · have hhq : h ≤ q * h := Nat.le_mul_of_pos_left h (by omega)
     have hle := (complexityOn_le_partialBound ((q + 1) * h) (p - h) D u hJpos).trans
       (partialBound_le hhp hk le_rfl (by omega) (by omega) hJ hD)
-    have hmain := mul_div_le_mul (2 ^ p) hmainJ
+    have hmain := Nat.mul_div_le_mul_of_le_mul (2 ^ p) hmainJ
     calc 2 * P * p * complexityOn interpretation D (single u)
-        ≤ 2 * P * p * (2 ^ p / (c * h) + 32 * (p + 1) ^ 3 * 2 ^ (p - h)) :=
-          Nat.mul_le_mul_left _ hle
+        ≤ 2 * P * p * (2 ^ p / (c * h) + 32 * (p + 1) ^ 3 * 2 ^ (p - h)) := by gcongr
       _ = 2 * P * p * (2 ^ p / (c * h)) + 2 * P * p * (32 * (p + 1) ^ 3 * 2 ^ (p - h)) := by
           ring
       _ ≤ (2 * P + 1) * 2 ^ p + 2 * P * p * (32 * (p + 1) ^ 3 * 2 ^ (p - h)) := by gcongr
@@ -432,8 +425,7 @@ private theorem eventually_mul_dist_complexity_le (P : ℕ) :
   calc P * Nat.dist (complexity interpretation f) (complexity interpretation g)
       ≤ P * (complexity interpretation (single fun x => decide (x ∈ D)) +
           ∑ i, complexityOn interpretation D
-            (single fun x => f x (select i) ^^ g x (select i)) + 5 * #O) :=
-        Nat.mul_le_mul_left P hdist
+            (single fun x => f x (select i) ^^ g x (select i)) + 5 * #O) := by gcongr
     _ = P * complexity interpretation (single fun x => decide (x ∈ D)) +
           P * ∑ i, complexityOn interpretation D
             (single fun x => f x (select i) ^^ g x (select i)) + P * (5 * #O) := by ring

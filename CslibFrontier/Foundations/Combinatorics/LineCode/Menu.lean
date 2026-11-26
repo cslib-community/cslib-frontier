@@ -87,8 +87,7 @@ private theorem card_state_le {K : Type*} [Fintype K] {b g k ℓ : ℕ}
     linarith
   calc (2 ^ (ℓ * b) * 2 ^ (ℓ * b) + 1) ^ g * (2 ^ (ℓ * b)) ^ k
       ≤ (2 ^ (1 + 2 * (ℓ * b))) ^ g * (2 ^ (ℓ * b)) ^ g :=
-        Nat.mul_le_mul (Nat.pow_le_pow_left hslot g)
-          (Nat.pow_le_pow_right (by positivity) hkg)
+        by gcongr
     _ = 2 ^ (g * (1 + 3 * (ℓ * b))) := by
         rw [← pow_mul, ← pow_mul, ← pow_add]
         congr 1

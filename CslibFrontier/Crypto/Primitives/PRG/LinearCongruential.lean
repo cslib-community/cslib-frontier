@@ -128,26 +128,24 @@ algorithm. It inverts `next` on states when `a` is coprime to `q` (`prev_next`).
 theorem prev_next (P : LinearCongruential) (ha : P.a.Coprime P.q) {s : ℕ} (hs : s < P.q) :
     P.prev (P.next s) = s := by
   have hq : 0 < P.q := by lia
-  have hb : P.b % P.q < P.q := Nat.mod_lt _ hq
   have h₁ : P.next s + P.q - P.b % P.q ≡ P.a * s [MOD P.q] := by
-    have h : P.next s + P.q - P.b % P.q + P.b ≡ P.a * s + P.b [MOD P.q] := by
-      have e : P.next s + P.q - P.b % P.q + P.b = P.next s + P.b / P.q * P.q + P.q := by
-        have := Nat.div_add_mod' P.b P.q
-        lia
-      rw [e]
-      calc P.next s + P.b / P.q * P.q + P.q ≡ P.next s + 0 + 0 [MOD P.q] :=
-            ((Nat.ModEq.refl _).add (Nat.modEq_zero_iff_dvd.mpr (Nat.dvd_mul_left ..))).add
-              (Nat.modEq_zero_iff_dvd.mpr dvd_rfl)
-        _ ≡ P.a * s + P.b [MOD P.q] := by simpa [next] using Nat.mod_modEq _ _
-    exact Nat.ModEq.add_right_cancel' _ h
-  have h₂ : P.prev (P.next s) ≡ s [MOD P.q] := by
-    calc P.prev (P.next s) ≡ BinaryGcd.modInv P.a P.q * (P.next s + P.q - P.b % P.q) [MOD P.q] :=
-          Nat.mod_modEq _ _
-      _ ≡ BinaryGcd.modInv P.a P.q * (P.a * s) [MOD P.q] := h₁.mul_left _
-      _ = P.a * BinaryGcd.modInv P.a P.q * s := by ring
-      _ ≡ 1 * s [MOD P.q] := (BinaryGcd.mul_modInv_modEq_one hq ha).mul_right _
-      _ = s := one_mul s
-  exact Nat.ModEq.eq_of_lt_of_lt h₂ (Nat.mod_lt _ hq) hs
+    refine Nat.ModEq.add_right_cancel' P.b ?_
+    have e : P.next s + P.q - P.b % P.q + P.b = P.next s + P.b / P.q * P.q + P.q := by
+      have := Nat.mod_lt P.b hq
+      have := Nat.div_add_mod' P.b P.q
+      lia
+    rw [e]
+    calc P.next s + P.b / P.q * P.q + P.q ≡ P.next s + 0 + 0 [MOD P.q] :=
+          ((Nat.ModEq.refl _).add (Nat.modEq_zero_iff_dvd.mpr (Nat.dvd_mul_left ..))).add
+            (Nat.modEq_zero_iff_dvd.mpr dvd_rfl)
+      _ ≡ P.a * s + P.b [MOD P.q] := by simpa [next] using Nat.mod_modEq _ _
+  refine Nat.ModEq.eq_of_lt_of_lt ?_ (Nat.mod_lt _ hq) hs
+  calc P.prev (P.next s) ≡ BinaryGcd.modInv P.a P.q * (P.next s + P.q - P.b % P.q) [MOD P.q] :=
+        Nat.mod_modEq _ _
+    _ ≡ BinaryGcd.modInv P.a P.q * (P.a * s) [MOD P.q] := h₁.mul_left _
+    _ = P.a * BinaryGcd.modInv P.a P.q * s := by ring
+    _ ≡ 1 * s [MOD P.q] := (BinaryGcd.mul_modInv_modEq_one hq ha).mul_right _
+    _ = s := one_mul s
 
 /-- The test of [BonehShoup2023], p. 70, on numbers: given `(r, s')`, recover the state `s` before
 `s'` and accept when `s / w = r`. -/
@@ -161,15 +159,12 @@ theorem computableInPolyTime_test {α : Type} {enc : α ↪ List Bool} {P : α �
     (hr : ComputableInPolyTime r enc encNat) (hs' : ComputableInPolyTime s' enc encNat) :
     ComputableInPolyTime (fun x => (P x).test (r x) (s' x)) enc encBool := by
   have hq := encLinearCongruential_q_polyTime hP
-  have ha := encLinearCongruential_a_polyTime hP
-  have hb := encLinearCongruential_b_polyTime hP
-  have hw := encLinearCongruential_w_polyTime hP
-  have hprev : ComputableInPolyTime (fun x => (P x).prev (s' x)) enc encNat :=
-    ComputableInPolyTime.binary_mod'
-      (ComputableInPolyTime.binary_mul' (ComputableInPolyTime.binary_modInv' ha hq)
-        (ComputableInPolyTime.binary_sub' (ComputableInPolyTime.binary_add' hs' hq)
-          (ComputableInPolyTime.binary_mod' hb hq))) hq
-  exact ComputableInPolyTime.decide_eq' (ComputableInPolyTime.binary_div' hprev hw) hr
+  exact ComputableInPolyTime.decide_eq' (ComputableInPolyTime.binary_div'
+    (ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_mul'
+      (ComputableInPolyTime.binary_modInv' (encLinearCongruential_a_polyTime hP) hq)
+      (ComputableInPolyTime.binary_sub' (ComputableInPolyTime.binary_add' hs' hq)
+        (ComputableInPolyTime.binary_mod' (encLinearCongruential_b_polyTime hP) hq))) hq)
+    (encLinearCongruential_w_polyTime hP)) hr
 
 /-- The generator `G_lcg : S_q → R × S_q` of [BonehShoup2023], p. 70:
 `s ↦ (⌊s / w⌋, a * s + b mod q)`, where `R` has the `⌊(q - 1) / w⌋ + 1` elements
@@ -181,8 +176,7 @@ theorem computableInPolyTime_test {α : Type} {enc : α ↪ List Bool} {P : α �
 
 private theorem eq_of_next_eq (P : LinearCongruential) (ha : P.a.Coprime P.q)
     {s t : ℕ} (hs : s < P.q) (ht : t < P.q) (h : P.next s = P.next t) : s = t := by
-  have := congrArg P.prev h
-  simpa [P.prev_next ha hs, P.prev_next ha ht] using this
+  simpa [P.prev_next ha hs, P.prev_next ha ht] using congrArg P.prev h
 
 /-- `G_lcg` is injective when `a` is coprime to `q`. -/
 theorem generator_injective (P : LinearCongruential) (ha : P.a.Coprime P.q) :
@@ -196,9 +190,7 @@ theorem rangeTest_generator (P : LinearCongruential) (ha : P.a.Coprime P.q)
   have hinj : Function.Injective fun s : Fin P.q => (P.generator s).2 := fun s t h =>
     Fin.ext (P.eq_of_next_eq ha s.isLt t.isLt (congrArg Fin.val h))
   obtain ⟨t, ht⟩ := Finite.surjective_of_injective hinj y.2
-  have hprev : P.prev y.2 = t := by
-    rw [← ht]
-    exact P.prev_next ha t.isLt
+  have hprev : P.prev y.2 = t := ht ▸ P.prev_next ha t.isLt
   rw [Generator.rangeTest, test, hprev]
   refine decide_eq_decide.mpr ⟨?_, fun h => ⟨t, Prod.ext (Fin.ext h) ht⟩⟩
   rintro ⟨s, rfl⟩
@@ -215,15 +207,13 @@ uniform. -/
 theorem advantage_generator_test (P : LinearCongruential) [NeZero P.q] (ha : P.a.Coprime P.q) :
     P.generator.advantage (fun y => PMF.pure (P.test y.1 y.2)) =
       1 - 1 / (((P.q - 1) / P.w + 1 : ℕ) : ℝ) := by
-  have h : (fun y : Fin ((P.q - 1) / P.w + 1) × Fin P.q => PMF.pure (P.test y.1 y.2)) =
-      P.generator.rangeAdversary :=
-    funext fun y => congrArg PMF.pure (P.rangeTest_generator ha y).symm
   have hq : (P.q : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (NeZero.ne P.q)
-  rw [h, Generator.advantage_rangeAdversary,
+  have hadv : (fun y => PMF.pure (P.test y.1 y.2)) = P.generator.rangeAdversary :=
+    funext fun y => congrArg PMF.pure (P.rangeTest_generator ha y).symm
+  rw [hadv, Generator.advantage_rangeAdversary,
     Nat.card_range_of_injective (P.generator_injective ha)]
   simp only [Nat.card_eq_fintype_card, Fintype.card_prod, Fintype.card_fin]
-  push_cast
-  field_simp
+  push_cast; field_simp
 
 /-- Under `hshort`, a state is determined by its output and the output of its successor. -/
 theorem eq_of_div_eq_of_next_div_eq (P : LinearCongruential) (hw : 0 < P.w)
@@ -240,19 +230,16 @@ theorem eq_of_div_eq_of_next_div_eq (P : LinearCongruential) (hw : 0 < P.w)
   have hlt' := Nat.mod_lt (P.next t) hw
   have hk := Nat.div_add_mod (P.a * s + P.b) P.q
   have hk' := Nat.div_add_mod (P.a * t + P.b) P.q
-  have hd : (s : ℤ) - t = 0 := by
-    refine hshort _ ((P.next s : ℤ) - P.next t) ?_ ?_ ?_
-    · rw [h₁] at hs
-      rw [abs_lt]
-      lia
-    · rw [h₂] at hn
-      rw [abs_lt]
-      lia
-    · refine ⟨((P.a * s + P.b) / P.q : ℕ) - ((P.a * t + P.b) / P.q : ℕ), ?_⟩
+  rw [h₁] at hs
+  rw [h₂] at hn
+  have hd : (s : ℤ) - t = 0 := hshort _ ((P.next s : ℤ) - P.next t)
+    (abs_lt.mpr (by lia))
+    (abs_lt.mpr (by lia))
+    ⟨((P.a * s + P.b) / P.q : ℕ) - ((P.a * t + P.b) / P.q : ℕ), by
       unfold next
       zify at hk hk'
       push_cast
-      linear_combination hk' - hk
+      linear_combination hk' - hk⟩
   lia
 
 /-- The exhaustive search of [BonehShoup2023], p. 71, for a seed with first outputs `r₁`, `r₂`,
@@ -270,16 +257,15 @@ theorem seedSearch_eq (P : LinearCongruential) (hw : 0 < P.w)
     (hshort : ∀ d d' : ℤ, |d| < P.w → |d'| < P.w → (P.q : ℤ) ∣ P.a * d - d' → d = 0)
     {s : ℕ} (hs : s < P.q) :
     P.seedSearch (s / P.w) (P.next s / P.w) (P.next (P.next s) / P.w) = s := by
+  let Q (e : ℕ) : Prop := s / P.w * P.w + e < P.q ∧
+    P.next (s / P.w * P.w + e) / P.w = P.next s / P.w ∧
+    P.next (P.next (s / P.w * P.w + e)) / P.w = P.next (P.next s) / P.w
   have hdm : s / P.w * P.w + s % P.w = s := Nat.div_add_mod' s P.w
-  have hmod : s % P.w ≤ P.w - 1 := Nat.le_sub_one_of_lt (Nat.mod_lt _ hw)
-  have hspec := Nat.findGreatest_spec (P := fun e => s / P.w * P.w + e < P.q ∧
-      P.next (s / P.w * P.w + e) / P.w = P.next s / P.w ∧
-      P.next (P.next (s / P.w * P.w + e)) / P.w = P.next (P.next s) / P.w) hmod
-      ⟨by rw [hdm]; exact hs, by rw [hdm], by rw [hdm]⟩
+  have hspec := Nat.findGreatest_spec (P := Q) (Nat.le_sub_one_of_lt (Nat.mod_lt _ hw))
+    ⟨by rw [hdm]; exact hs, by rw [hdm], by rw [hdm]⟩
+  have hle := Nat.findGreatest_le (P := Q) (P.w - 1)
+  dsimp only [Q] at hle
   refine P.eq_of_div_eq_of_next_div_eq hw hshort ?_ hspec.2.1
-  have hle := Nat.findGreatest_le (P := fun e => s / P.w * P.w + e < P.q ∧
-      P.next (s / P.w * P.w + e) / P.w = P.next s / P.w ∧
-      P.next (P.next (s / P.w * P.w + e)) / P.w = P.next (P.next s) / P.w) (P.w - 1)
   rw [seedSearch, Nat.add_comm, Nat.add_mul_div_right _ _ hw, Nat.div_eq_of_lt (by lia),
     Nat.zero_add]
 
@@ -294,35 +280,29 @@ theorem computableInPolyTime_seedSearch {α : Type} {enc : α ↪ List Bool}
     ComputableInPolyTime (fun x => (P x).seedSearch (r₁ x) (r₂ x) (r₃ x)) enc encNat := by
   have hfst := ComputableInPolyTime.fst enc encUnary
   have hq := (encLinearCongruential_q_polyTime hP).comp hfst
-  have ha := (encLinearCongruential_a_polyTime hP).comp hfst
-  have hb := (encLinearCongruential_b_polyTime hP).comp hfst
   have hwb := (encLinearCongruential_w_polyTime hP).comp hfst
-  have hnext : ∀ {s : α × ℕ → ℕ}, ComputableInPolyTime s (encPair enc encUnary) encNat →
-      ComputableInPolyTime (fun p => (P p.1).next (s p)) (encPair enc encUnary) encNat := fun hs =>
-    ComputableInPolyTime.binary_mod'
-      (ComputableInPolyTime.binary_add' (ComputableInPolyTime.binary_mul' ha hs) hb) hq
+  have hnext {s : α × ℕ → ℕ} (hs : ComputableInPolyTime s (encPair enc encUnary) encNat) :
+      ComputableInPolyTime (fun p => (P p.1).next (s p)) (encPair enc encUnary) encNat :=
+    ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_add'
+      (ComputableInPolyTime.binary_mul' ((encLinearCongruential_a_polyTime hP).comp hfst) hs)
+      ((encLinearCongruential_b_polyTime hP).comp hfst)) hq
   have hcand : ComputableInPolyTime (fun p : α × ℕ => r₁ p.1 * (P p.1).w + p.2)
       (encPair enc encUnary) encNat :=
     ComputableInPolyTime.binary_add' (ComputableInPolyTime.binary_mul' (h₁.comp hfst) hwb)
       (ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.snd enc encUnary))
-  have hpred : ComputableInPolyTime (fun p : α × ℕ => decide (r₁ p.1 * (P p.1).w + p.2 < (P p.1).q ∧
-      (P p.1).next (r₁ p.1 * (P p.1).w + p.2) / (P p.1).w = r₂ p.1 ∧
-      (P p.1).next ((P p.1).next (r₁ p.1 * (P p.1).w + p.2)) / (P p.1).w = r₃ p.1))
-      (encPair enc encUnary) encBool :=
-    ComputableInPolyTime.decide_and (ComputableInPolyTime.binary_lt' hcand hq)
-      (ComputableInPolyTime.decide_and
-        (ComputableInPolyTime.decide_eq' (ComputableInPolyTime.binary_div' (hnext hcand) hwb)
-          (h₂.comp hfst))
-        (ComputableInPolyTime.decide_eq'
-          (ComputableInPolyTime.binary_div' (hnext (hnext hcand)) hwb) (h₃.comp hfst)))
-  have hfind := ComputableInPolyTime.findGreatest
-    (predicate := fun x e => r₁ x * (P x).w + e < (P x).q ∧
-      (P x).next (r₁ x * (P x).w + e) / (P x).w = r₂ x ∧
-      (P x).next ((P x).next (r₁ x * (P x).w + e)) / (P x).w = r₃ x)
-    (ComputableInPolyTime.unary_sub' hw (ComputableInPolyTime.const 1)) hpred
   exact ComputableInPolyTime.binary_add'
     (ComputableInPolyTime.binary_mul' h₁ (encLinearCongruential_w_polyTime hP))
-    (ComputableInPolyTime.unary_to_binary.comp hfind)
+    (ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.findGreatest
+      (predicate := fun x e => r₁ x * (P x).w + e < (P x).q ∧
+        (P x).next (r₁ x * (P x).w + e) / (P x).w = r₂ x ∧
+        (P x).next ((P x).next (r₁ x * (P x).w + e)) / (P x).w = r₃ x)
+      (ComputableInPolyTime.unary_sub' hw (ComputableInPolyTime.const 1))
+      (ComputableInPolyTime.decide_and (ComputableInPolyTime.binary_lt' hcand hq)
+        (ComputableInPolyTime.decide_and
+          (ComputableInPolyTime.decide_eq' (ComputableInPolyTime.binary_div' (hnext hcand) hwb)
+            (h₂.comp hfst))
+          (ComputableInPolyTime.decide_eq'
+            (ComputableInPolyTime.binary_div' (hnext (hnext hcand)) hwb) (h₃.comp hfst))))))
 
 /-- The parameters of `Math.random` in the Java 8 Development Kit as stated by
 [BonehShoup2023], pp. 70–71: `q = 2 ^ 48`, `a = 0x5DEECE66D`, `b = 0x0B` and `w = 2 ^ 22`. -/
@@ -338,21 +318,17 @@ theorem seedSearch_java8 {s : ℕ} (hs : s < java8.q) :
     java8.seedSearch (s / java8.w) (java8.next s / java8.w)
       (java8.next (java8.next s) / java8.w) = s := by
   refine java8.seedSearch_eq (by decide) (fun d d' hd hd' h => ?_) hs
-  have hd₁ : |d| < 2 ^ 22 := by simpa [java8] using hd
-  have hd₂ : |d'| < 2 ^ 22 := by simpa [java8] using hd'
-  have h' : (2 ^ 48 : ℤ) ∣ 0x5DEECE66D * d - d' := by simpa [java8] using h
-  obtain ⟨t, ht⟩ := h'
-  rw [abs_lt] at hd₁ hd₂
-  have e₁ : 4824621 * d - 7847617 * d' = 0 := by
-    refine Int.eq_zero_of_abs_lt_dvd (m := 2 ^ 48) ⟨7847617 * t - 703 * d, ?_⟩ ?_
-    · linear_combination 7847617 * ht
-    · rw [abs_lt]
-      lia
-  have e₂ : 24667315 * d + 18218081 * d' = 0 := by
-    refine Int.eq_zero_of_abs_lt_dvd (m := 2 ^ 48) ⟨1632 * d - 18218081 * t, ?_⟩ ?_
-    · linear_combination (-18218081) * ht
-    · rw [abs_lt]
-      lia
+  have hd₁ := abs_lt.mp (by simpa [java8] using hd : |d| < 2 ^ 22)
+  have hd₂ := abs_lt.mp (by simpa [java8] using hd' : |d'| < 2 ^ 22)
+  obtain ⟨t, ht⟩ : (2 ^ 48 : ℤ) ∣ 0x5DEECE66D * d - d' := by simpa [java8] using h
+  have e₁ : 4824621 * d - 7847617 * d' = 0 :=
+    Int.eq_zero_of_abs_lt_dvd (m := 2 ^ 48)
+      ⟨7847617 * t - 703 * d, by linear_combination 7847617 * ht⟩
+      (abs_lt.mpr (by lia))
+  have e₂ : 24667315 * d + 18218081 * d' = 0 :=
+    Int.eq_zero_of_abs_lt_dvd (m := 2 ^ 48)
+      ⟨1632 * d - 18218081 * t, by linear_combination (-18218081) * ht⟩
+      (abs_lt.mpr (by lia))
   lia
 
 end LinearCongruential

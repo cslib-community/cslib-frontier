@@ -12,6 +12,7 @@ public import Mathlib.Analysis.Real.Sqrt
 public import Mathlib.Data.Fintype.Powerset
 import CslibFrontier.Foundations.BooleanAnalysis.Bernoulli
 import CslibFrontier.Foundations.BooleanAnalysis.Influence
+import CslibFrontier.Foundations.Data.Finset.Expect
 import CslibFrontier.Foundations.Data.BitString.Weight
 
 /-!
@@ -57,17 +58,14 @@ private theorem expect_hits (s : Finset ι) :
     (𝔼 x : ι → Bool, hits s x) = 1 - (1 / 2 : ℝ) ^ s.card := by
   classical
   have h := BitString.bernoulliAverage_hits (1 / 2 : ℝ) (fun i => decide (i ∈ s))
-  rw [BitString.bernoulliAverage_one_half,
-    show (1 : ℝ) - 1 / 2 = 1 / 2 by norm_num] at h
+  norm_num [BitString.bernoulliAverage_one_half] at h
   simpa [BitString.weight, hits] using h
 
 private theorem expect_deficit (S : κ → Finset ι) :
     (𝔼 x, deficit S x) = (Fintype.card ι : ℝ) / 2 -
       ∑ j, (1 - (1 / 2 : ℝ) ^ (S j).card) := by
-  have hweight := BitString.bernoulliAverage_weight (ι := ι) (1 / 2 : ℝ)
-  rw [BitString.bernoulliAverage_one_half] at hweight
   simp only [deficit, expect_sub_distrib, expect_sum_comm, expect_hits]
-  rw [hweight]
+  rw [← BitString.bernoulliAverage_one_half, BitString.bernoulliAverage_weight]
   ring
 
 omit [Fintype ι] in
@@ -79,12 +77,10 @@ private theorem abs_hits_update_sub_le (s : Finset ι) (i : ι) (x : ι → Bool
   · simp only [hi, ite_true, hits]
     split_ifs <;> norm_num
   · have hsame : (∃ j ∈ s, Function.update x i false j = true) ↔
-        (∃ j ∈ s, Function.update x i true j = true) := by
-      constructor <;> rintro ⟨j, hj, h⟩
-      · have hji : j ≠ i := fun hji => hi (hji ▸ hj)
-        exact ⟨j, hj, by simpa [Function.update_of_ne hji] using h⟩
-      · have hji : j ≠ i := fun hji => hi (hji ▸ hj)
-        exact ⟨j, hj, by simpa [Function.update_of_ne hji] using h⟩
+        (∃ j ∈ s, Function.update x i true j = true) :=
+      exists_congr fun j => and_congr_right fun hj => by
+        have hji : j ≠ i := fun hji => hi (hji ▸ hj)
+        rw [Function.update_of_ne hji, Function.update_of_ne hji]
     simp only [hi, ite_false, hits, hsame, sub_self, abs_zero, le_refl]
 
 private theorem abs_deficit_update_sub_le (S : κ → Finset ι) {D : ℕ}
@@ -93,8 +89,7 @@ private theorem abs_deficit_update_sub_le (S : κ → Finset ι) {D : ℕ}
   classical
   have hw : (BitString.weight (Function.update x i true) : ℝ) =
       BitString.weight (Function.update x i false) + 1 := by
-    have h := BitString.weight_update_true (x := Function.update x i false)
-      (i := i) (by simp)
+    have h := BitString.weight_update_true (x := Function.update x i false) (i := i) (by simp)
     simp only [Function.update_idem] at h
     exact_mod_cast h
   have hsum : |∑ j, (hits (S j) (Function.update x i false) -
@@ -107,18 +102,14 @@ private theorem abs_deficit_update_sub_le (S : κ → Finset ι) {D : ℕ}
       _ = ((univ.filter fun j => i ∈ S j).card : ℝ) := by rw [sum_boole]
       _ ≤ D := by exact_mod_cast hD i
   have heq : deficit S (Function.update x i false) - deficit S (Function.update x i true) =
-      -1 - ∑ j, (hits (S j) (Function.update x i false) -
-        hits (S j) (Function.update x i true)) := by
-    rw [deficit, deficit, sum_sub_distrib, hw]
-    ring
-  rw [heq]
+      -(1 + ∑ j, (hits (S j) (Function.update x i false) -
+        hits (S j) (Function.update x i true))) := by
+    rw [deficit, deficit, sum_sub_distrib, hw]; ring
+  rw [heq, abs_neg]
   calc
-    _ ≤ |-1| + |∑ j, (hits (S j) (Function.update x i false) -
-        hits (S j) (Function.update x i true))| := by
-      simpa only [sub_eq_add_neg, abs_neg] using
-        abs_add_le (-1 : ℝ) (-∑ j, (hits (S j) (Function.update x i false) -
-          hits (S j) (Function.update x i true)))
-    _ ≤ D + 1 := by norm_num only [abs_neg, abs_one]; linarith
+    _ ≤ |(1 : ℝ)| + |∑ j, (hits (S j) (Function.update x i false) -
+        hits (S j) (Function.update x i true))| := abs_add_le _ _
+    _ ≤ D + 1 := by rw [abs_one]; linarith
 
 private theorem variance_deficit_le (S : κ → Finset ι) {D : ℕ}
     (hD : ∀ i, (univ.filter fun j => i ∈ S j).card ≤ D) :
@@ -126,20 +117,17 @@ private theorem variance_deficit_le (S : κ → Finset ι) {D : ℕ}
       Fintype.card ι * (D + 1 : ℝ) ^ 2 / 4 := by
   refine (BitString.expect_sub_expect_sq_le_totalInfluence (deficit S)).trans ?_
   have hi (i : ι) : BitString.influence i (deficit S) ≤ (D + 1 : ℝ) ^ 2 / 4 := by
-    unfold BitString.influence
-    calc
-      _ ≤ 𝔼 x : ι → Bool, (D + 1 : ℝ) ^ 2 / 4 := by
-        refine expect_le_expect fun x _ => ?_
-        have h := abs_deficit_update_sub_le S hD i x
-        have hsq := sq_le_sq₀ (abs_nonneg _) (by positivity : 0 ≤ (D + 1 : ℝ)) |>.mpr h
-        rw [sq_abs] at hsq
-        unfold BitString.derivative
-        nlinarith
-      _ = _ := Fintype.expect_const _
+    rw [BitString.influence, ← Fintype.expect_const (ι := ι → Bool) ((D + 1 : ℝ) ^ 2 / 4)]
+    refine expect_le_expect fun x _ => ?_
+    have h4 : (2 : ℝ) ^ 2 = 4 := by norm_num
+    rw [BitString.derivative, div_pow, h4, ← sq_abs]
+    exact div_le_div_of_nonneg_right
+      ((sq_le_sq₀ (abs_nonneg _) (by positivity)).mpr (abs_deficit_update_sub_le S hD i x))
+      (by norm_num)
   calc
     BitString.totalInfluence (deficit S) ≤ ∑ _i : ι, (D + 1 : ℝ) ^ 2 / 4 :=
       sum_le_sum fun i _ => hi i
-    _ = _ := by simp; ring
+    _ = _ := by simp only [sum_const, card_univ, nsmul_eq_mul]; ring
 
 private theorem mean_le_of_complement_obstruction (f : (ι → Bool) → ℝ) {k V : ℝ}
     (hV : (𝔼 x, (f x - 𝔼 y, f y) ^ 2) ≤ V)
@@ -149,27 +137,17 @@ private theorem mean_le_of_complement_obstruction (f : (ι → Bool) → ℝ) {k
   by_cases hk : μ ≤ k
   · exact hk.trans (le_add_of_nonneg_right (Real.sqrt_nonneg _))
   have hk' : 0 ≤ μ - k := by linarith
-  have heq : (𝔼 x : ι → Bool, (f (fun i => !x i) - μ) ^ 2) =
-      𝔼 x, (f x - μ) ^ 2 := by
-    let e : Equiv.Perm (ι → Bool) := Function.Involutive.toPerm
-      (fun (x : ι → Bool) i => !x i) (fun x => by funext i; simp)
-    exact Fintype.expect_equiv e _ _ fun _ => rfl
-  have hpt (x : ι → Bool) : (μ - k) ^ 2 ≤ (f x - μ) ^ 2 +
-      (f (fun i => !x i) - μ) ^ 2 := by
-    rcases h x with hx | hx
-    · have hh : 0 ≤ μ - f x := by linarith
-      have hs := sq_le_sq₀ hk' hh |>.mpr (by linarith : μ - k ≤ μ - f x)
-      nlinarith [sq_nonneg (f (fun i => !x i) - μ)]
-    · have hh : 0 ≤ μ - f (fun i => !x i) := by linarith
-      have hs := sq_le_sq₀ hk' hh |>.mpr
-        (by linarith : μ - k ≤ μ - f (fun i => !x i))
-      nlinarith [sq_nonneg (f x - μ)]
-  have havg := expect_le_expect (s := univ) (fun x _ => hpt x)
+  have heq : (𝔼 x : ι → Bool, (f (fun i => !x i) - μ) ^ 2) = 𝔼 x, (f x - μ) ^ 2 :=
+    Fintype.expect_comp_not fun x => (f x - μ) ^ 2
+  have hstep {a b : ℝ} (ha : a < k) : (μ - k) ^ 2 ≤ (a - μ) ^ 2 + (b - μ) ^ 2 :=
+    calc (μ - k) ^ 2 ≤ (μ - a) ^ 2 := by gcongr
+      _ = (a - μ) ^ 2 := by ring
+      _ ≤ (a - μ) ^ 2 + (b - μ) ^ 2 := le_add_of_nonneg_right (sq_nonneg _)
+  have havg := expect_le_expect (s := univ) fun x _ =>
+    (h x).elim hstep fun hx => by rw [add_comm]; exact hstep hx
   rw [Fintype.expect_const, expect_add_distrib, heq] at havg
-  have hsq : (μ - k) ^ 2 ≤ 2 * V := by change _ ≤ V at hV; linarith
-  have hroot := Real.le_sqrt_of_sq_le hsq
-  change μ ≤ _
-  linarith
+  have hsq : (μ - k) ^ 2 ≤ 2 * V := by dsimp only [μ] at *; linarith
+  linarith [Real.le_sqrt_of_sq_le hsq]
 
 /-- If every cut of a finite support family has a side whose number of coordinates exceeds the
 number of supports it meets by less than `k`, then the family must be large. Supports have size
@@ -187,12 +165,8 @@ theorem card_le_of_deficit (S : κ → Finset ι) {d D : ℕ} {k : ℝ}
   have hdef (x : ι → Bool) : deficit S x =
       ((univ.filter fun i => x i = true).card : ℝ) -
         (univ.filter fun j => ¬Disjoint (S j) (univ.filter fun i => x i = true)).card := by
-    simp only [deficit, BitString.weight, hits]
-    congr 1
-    rw [← sum_boole]
-    refine sum_congr rfl fun j _ => ?_
-    congr 1
-    simp [Finset.not_disjoint_iff]
+    simp only [deficit, BitString.weight, hits, ← sum_boole, Finset.not_disjoint_iff, mem_filter,
+      mem_univ, true_and]
   have hnot (x : ι → Bool) : (univ.filter fun i => (!x i) = true) =
       (univ.filter fun i => x i = true)ᶜ := by
     ext i
@@ -206,12 +180,9 @@ theorem card_le_of_deficit (S : κ → Finset ι) {d D : ℕ} {k : ℝ}
         sum_le_sum fun j _ => sub_le_sub_left
           (pow_le_pow_of_le_one (by norm_num) (by norm_num) (hd j)) 1
       _ = _ := by simp only [sum_const, card_univ, nsmul_eq_mul]; ring
-  have hroot : Real.sqrt (2 * ((Fintype.card ι : ℝ) * (D + 1 : ℝ) ^ 2 / 4)) =
-      (D + 1 : ℝ) * Real.sqrt (Fintype.card ι / 2) := by
-    rw [show 2 * ((Fintype.card ι : ℝ) * (D + 1 : ℝ) ^ 2 / 4) =
-      (D + 1 : ℝ) ^ 2 * (Fintype.card ι / 2) by ring,
-      Real.sqrt_mul (sq_nonneg _), Real.sqrt_sq (by positivity)]
-  rw [expect_deficit, hroot] at hm
+  have h24 : 2 * ((Fintype.card ι : ℝ) * (D + 1 : ℝ) ^ 2 / 4) =
+      (D + 1 : ℝ) ^ 2 * (Fintype.card ι / 2) := by ring
+  rw [expect_deficit, h24, Real.sqrt_mul (sq_nonneg _), Real.sqrt_sq (by positivity)] at hm
   linarith
 
 /-- If a chain from the empty set to the whole coordinate set adds at most one coordinate
@@ -234,21 +205,16 @@ theorem card_lt_of_deficit_chain (S : κ → Finset ι) (U : ℕ → Finset ι) 
   have hA (t : ℕ) : (A t).card ≤ Fintype.card κ := card_le_univ _
   have hf0 : f 0 = Fintype.card κ := by simp [f, A, hzero]
   have hfm : Fintype.card ι ≤ f m := by
-    have h := hA m
     simp only [f, hlast, card_univ]
-    omega
+    exact Nat.le_sub_of_add_le (Nat.add_le_add_left (hA m) _)
   have hfstep (t : ℕ) (ht : t < m) : f (t + 1) ≤ f t + 1 := by
-    have hAm : (A t).card ≤ (A (t + 1)).card := by
-      apply card_le_card
-      intro j hj
-      refine mem_filter.mpr ⟨mem_univ _, ?_⟩
-      intro hdisj
-      exact (mem_filter.mp hj).2 (hdisj.mono_right (hstep t ht))
-    have hc := hcard t ht
-    have h₀ := hA t
-    have h₁ := hA (t + 1)
-    dsimp only [f]
-    omega
+    have hAm : (A t).card ≤ (A (t + 1)).card :=
+      card_le_card fun j hj =>
+        mem_filter.mpr ⟨mem_univ _, fun hd => (mem_filter.mp hj).2 (hd.mono_right (hstep t ht))⟩
+    have := hcard t ht
+    have := hA t
+    have := hA (t + 1)
+    dsimp only [f]; omega
   by_contra! hN
   have htop : Fintype.card κ + k ≤ f m := by omega
   have hex : ∃ t, Fintype.card κ + k ≤ f t := ⟨m, htop⟩
@@ -256,34 +222,25 @@ theorem card_lt_of_deficit_chain (S : κ → Finset ι) (U : ℕ → Finset ι) 
   have ht : t ≤ m := Nat.find_min' hex htop
   have hft : Fintype.card κ + k ≤ f t := Nat.find_spec hex
   have heq : f t = Fintype.card κ + k := by
-    by_cases ht0 : t = 0
-    · rw [ht0, hf0] at hft ⊢
-      omega
-    · have hprev : ¬Fintype.card κ + k ≤ f (t - 1) :=
-        Nat.find_min hex (by omega : t - 1 < t)
-      have hs := hfstep (t - 1) (by omega)
-      rw [Nat.sub_add_cancel (by omega : 1 ≤ t)] at hs
-      omega
+    cases ht0 : t with
+    | zero => simp only [ht0, hf0] at hft ⊢; omega
+    | succ t' =>
+      have := Nat.find_min hex (by omega : t' < t)
+      have := hfstep t' (by omega)
+      rw [ht0] at hft; omega
   have hleft : (U t).card = (A t).card + k := by
-    have h := hA t
-    dsimp only [f] at heq
-    omega
+    have := hA t
+    dsimp only [f] at heq; omega
   let B := univ.filter fun j => ¬Disjoint (S j) (U t)ᶜ
-  have hinter : A t ∩ B = univ.filter (fun j =>
-      ¬Disjoint (S j) (U t) ∧ ¬Disjoint (S j) (U t)ᶜ) := by
-    ext j
-    simp [A, B]
   have hsum : (A t).card + B.card ≤ Fintype.card κ + W := by
     have hu := card_le_univ (A t ∪ B)
     have hc := card_union_add_card_inter (A t) B
-    have hi := hcross t ht
-    rw [← hinter] at hi
+    have hi : (A t ∩ B).card ≤ W := by
+      simpa only [A, B, ← filter_and] using hcross t ht
     omega
   have hc := card_compl_add_card (U t)
   rcases hcut (U t) with h | h
-  · change (U t).card < (A t).card + k at h
-    omega
-  · change (U t)ᶜ.card < B.card + k at h
-    omega
+  · change (U t).card < (A t).card + k at h; omega
+  · change (U t)ᶜ.card < B.card + k at h; omega
 
 end Cslib.HypergraphCut

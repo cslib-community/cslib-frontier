@@ -59,19 +59,16 @@ theorem normalizedRequest_sharp_noOverflow
         Cpre*∑ i ∈ range m, dyadicFloor δ m i * ε i + Cfinal * εfinal := by
   classical
   obtain ⟨Cf, hCf, hf⟩ := sharp_noOverflow HP ζ hζ hs hmargin
-  refine ⟨Cf, hCf, ?_⟩
-  intro δ hδ hδs
+  refine ⟨Cf, hCf, fun δ hδ hδs => ?_⟩
   obtain ⟨Cp, hCp, hp⟩ := hf δ hδ hδs
-  refine ⟨Cp, hCp, ?_⟩
-  intro k D ident r hr raw prep trueRaw truePrep σ x n Δ m s signals truth
-    hno hd ε hε herr εf hεf herrf y hy
-  have hh := hp s n Δ signals truth m hno hd ε hε herr εf hεf herrf y hy
+  refine ⟨Cp, hCp, fun D ident r hr raw prep trueRaw truePrep σ x n Δ m
+      hno hd ε hε herr εf hεf herrf y hy => ?_⟩
   rw [normalizedRequest_eq_output HP hζ D ident r hr]
   split_ifs
-  · exact hh
+  · exact hp _ n Δ _ _ m hno hd ε hε herr εf hεf herrf y hy
   · simp only [Real.zero_rpow (by norm_num : (4⁻¹ : ℝ) ≠ 0), sub_self, abs_zero]
     exact add_nonneg (mul_nonneg hCp (sum_nonneg fun i hi =>
-      mul_nonneg (dyadicFloor_nonneg hδ.le _ _) (hε i (mem_range.mp hi)))) (mul_nonneg hCf hεf)
+      mul_nonneg (by positivity) (hε i (mem_range.mp hi)))) (mul_nonneg hCf hεf)
 
 
 omit [Fintype V] in
@@ -138,22 +135,19 @@ theorem normalizedRequest_sharp_firstOverflow
         Cpre*∑ i ∈ range j, dyadicFloor δ m i * ε i + Ctail*∑ i ∈ Ico j m, 28^(m - i) * ε i := by
   classical
   obtain ⟨Ct, hCt, ht⟩ := sharp_firstOverflow HP ζ hζ hs hmargin hcapscale
-  refine ⟨Ct, hCt, ?_⟩
-  intro δ hδ hδs
+  refine ⟨Ct, hCt, fun δ hδ hδs => ?_⟩
   obtain ⟨Cp, hCp, hp⟩ := ht δ hδ hδs
-  refine ⟨Cp, hCp, ?_⟩
-  intro k D ident r hr raw prep trueRaw truePrep σ x n Δ m j hj s signals truth
-    hover hd hc hn ε hε herrpre herrtail y hy
-  have hh := hp s n Δ signals truth m j hj hover hd
-    (fun y _ => request_second_bound hζ hsmall D ident r trueRaw truePrep σ x y
-      (request_mean_range D ident r truePrep hc x y))
-    hn ε hε herrpre herrtail y hy
+  refine ⟨Cp, hCp, fun D ident r hr raw prep trueRaw truePrep σ x n Δ m j hj
+      hover hd hc hn ε hε herrpre herrtail y hy => ?_⟩
   rw [normalizedRequest_eq_output HP hζ D ident r hr]
   split_ifs
-  · exact hh
+  · exact hp _ n Δ _ _ m j hj hover hd
+      (fun y _ => request_second_bound hζ hsmall D ident r trueRaw truePrep σ x y
+        (request_mean_range D ident r truePrep hc x y))
+      hn ε hε herrpre herrtail y hy
   · simp only [Real.zero_rpow (by norm_num : (4⁻¹ : ℝ) ≠ 0), sub_self, abs_zero]
     exact add_nonneg (mul_nonneg hCp (sum_nonneg fun i hi =>
-      mul_nonneg (dyadicFloor_nonneg hδ.le _ _) (hε i ((mem_range.mp hi).trans hj))))
+      mul_nonneg (by positivity) (hε i ((mem_range.mp hi).trans hj))))
       (mul_nonneg hCt (sum_nonneg fun i hi => mul_nonneg (by positivity) (hε i (mem_Ico.mp hi).2)))
 
 

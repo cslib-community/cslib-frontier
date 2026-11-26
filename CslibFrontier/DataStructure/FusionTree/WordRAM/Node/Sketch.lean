@@ -75,13 +75,9 @@ theorem exec_compress {w n q : ℕ} {keys : Fin n → ℕ} (p : NodeParameters w
   have hdigit (i : Fin 3) :
       ((u.comap compressBank).comap CompressProgram.embed).regs ⟨7 + i.val, by omega⟩ =
         p.digits i := by
-    fin_cases i <;> first
-      | simpa +decide [u, moved, compressionInputs, Data.comap, CompressProgram.embed,
-          parameter, headerBank, compressBank, bank, NodeParameters.words] using hx.words_eq 1
-      | simpa +decide [u, moved, compressionInputs, Data.comap, CompressProgram.embed,
-          parameter, headerBank, compressBank, bank, NodeParameters.words] using hx.words_eq 2
-      | simpa +decide [u, moved, compressionInputs, Data.comap, CompressProgram.embed,
-          parameter, headerBank, compressBank, bank, NodeParameters.words] using hx.words_eq 3
+    have hi := hx.words_eq ⟨1 + i.val, by omega⟩
+    fin_cases i <;> simpa +decide [u, moved, compressionInputs, Data.comap, CompressProgram.embed,
+      parameter, headerBank, compressBank, bank, NodeParameters.words] using hi
   have hb : Multiword.Bounded (radix w) ((u.comap compressBank).comap CompressProgram.embed)
       (Schoolbook.rightRegs 3 3) := by
     intro i hi
@@ -89,18 +85,8 @@ theorem exec_compress {w n q : ℕ} {keys : Fin n → ℕ} (p : NodeParameters w
     exact (hdigit j).trans_lt (p.digits_lt j)
   have hm : Multiword.value (radix w) ((u.comap compressBank).comap CompressProgram.embed)
       (Schoolbook.rightRegs 3 3) = p.M := by
-    change Nat.ofDigits (radix w)
-      [((u.comap compressBank).comap CompressProgram.embed).regs 7,
-       ((u.comap compressBank).comap CompressProgram.embed).regs 8,
-       ((u.comap compressBank).comap CompressProgram.embed).regs 9] = p.M
-    have hd0 : ((u.comap compressBank).comap CompressProgram.embed).regs 7 = p.digits 0 :=
-      hdigit 0
-    have hd1 : ((u.comap compressBank).comap CompressProgram.embed).regs 8 = p.digits 1 :=
-      hdigit 1
-    have hd2 : ((u.comap compressBank).comap CompressProgram.embed).regs 9 = p.digits 2 :=
-      hdigit 2
-    rw [hd0, hd1, hd2]
-    exact p.digits_value
+    refine (congrArg (Nat.ofDigits (radix w)) ?_).trans p.digits_value
+    exact List.map_ofFn.trans (congrArg List.ofFn (funext hdigit))
   obtain ⟨v, hev, hv, hmem, _⟩ := CompressProgram.exec (L := p.b) hw
     (u.comap compressBank) (huq ▸ hq) hb hm huo (hud ▸ p.D_lt) (p.window hn hnB hlarge)
   obtain ⟨hexec, hframe⟩ := exec_bankCall _ (by decide)
@@ -142,21 +128,10 @@ theorem exec_rank {w n q : ℕ} {keys : Fin n → ℕ} (p : NodeParameters w key
   have hcount := hx.count_eq
   cases strict with
   | false =>
-    have hin :
-        (u.comap rankBank).regs 0 = p.compressed q ∧
-        (u.comap rankBank).regs 1 = p.packedComplement ∧
-        (u.comap rankBank).regs 2 = p.copies ∧
-        (u.comap rankBank).regs 3 = p.guards ∧
-        (u.comap rankBank).regs 4 = p.b ∧
-        (u.comap rankBank).regs 5 = p.middle ∧
-        (u.comap rankBank).regs 6 = p.radix ∧
-        (u.comap rankBank).regs 7 = p.maximum := by
-      exact ⟨hxq, hwords 6, hwords 5, hwords 8, hwords 9,
-        hwords 10, hwords 11, hwords 12⟩
     obtain ⟨he, hout, hm⟩ := RankProgram.exec p.sketches (u.comap rankBank) hn
       (p.count_lt_radix hs hk) (fun i _ => p.sketches_lt i) (p.compressed_lt q)
-      (p.packed_width hnB hlarge) hin.1 hin.2.1 hin.2.2.1 hin.2.2.2.1
-      hin.2.2.2.2.1 hin.2.2.2.2.2.1 hin.2.2.2.2.2.2.1 hin.2.2.2.2.2.2.2
+      (p.packed_width hnB hlarge) hxq (hwords 6) (hwords 5) (hwords 8) (hwords 9)
+      (hwords 10) (hwords 11) (hwords 12)
     obtain ⟨hexec, hframe⟩ := exec_bankCall _ (by decide) hxs he hm
     refine ⟨_, hexec, ?_, hframe⟩
     rw [regs_extend_bank, hout]
@@ -164,21 +139,10 @@ theorem exec_rank {w n q : ℕ} {keys : Fin n → ℕ} (p : NodeParameters w key
       (fun i _ => p.sketches_lt i) (p.compressed_lt q)).symm.trans
         (NodeSemantics.upperRank_eq p hn hs hk q)
   | true =>
-    have hin :
-        (u.comap rankBank).regs 0 = p.compressed q ∧
-        (u.comap rankBank).regs 1 = p.packed ∧
-        (u.comap rankBank).regs 2 = p.copies ∧
-        (u.comap rankBank).regs 3 = p.guards ∧
-        (u.comap rankBank).regs 4 = p.b ∧
-        (u.comap rankBank).regs 5 = p.middle ∧
-        (u.comap rankBank).regs 6 = p.radix ∧
-        (u.comap rankBank).regs 7 = n := by
-      exact ⟨hxq, hwords 7, hwords 5, hwords 8, hwords 9,
-        hwords 10, hwords 11, hcount⟩
     obtain ⟨he, hout, hm⟩ := LowerRankProgram.exec p.sketches (u.comap rankBank) hn
       (p.count_lt_radix hs hk) (fun i _ => p.sketches_lt i) (p.compressed_lt q)
-      (p.packed_width hnB hlarge) hin.1 hin.2.1 hin.2.2.1 hin.2.2.2.1
-      hin.2.2.2.2.1 hin.2.2.2.2.2.1 hin.2.2.2.2.2.2.1 hin.2.2.2.2.2.2.2
+      (p.packed_width hnB hlarge) hxq (hwords 7) (hwords 5) (hwords 8) (hwords 9)
+      (hwords 10) (hwords 11) hcount
     obtain ⟨hexec, hframe⟩ := exec_bankCall _ (by decide) hxs he hm
     refine ⟨_, hexec, ?_, hframe⟩
     rw [regs_extend_bank, hout]

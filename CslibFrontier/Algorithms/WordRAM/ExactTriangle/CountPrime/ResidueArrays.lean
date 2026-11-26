@@ -44,43 +44,32 @@ theorem exec_residueArrays {w n p k scratch a b c : ℕ} (x : Data 128)
       ∀ d, d < scratch ∨ scratch + 3 * (n * n) ≤ d → y.mem d = x.mem d := by
   have h4pos : 0 < 4 ^ k := by positivity
   have h2pos : 0 < 2 ^ k := by positivity
-  have fit (d : ℕ) (hd : d ≤ addressBudget n p k scratch a b c) : Fits (w + 2) d := hw.of_le hd
+  have fit (d : ℕ) (hd : d ≤ scratch + 3 * (n * n)) : Fits (w + 2) d :=
+    hw.of_le (hd.trans (by dsimp [addressBudget]; omega))
   have encoded (s : Data 128) (hs : CounterRegisters n p k scratch a b c s) :
       s.regs Reg.encodedModulus = encode (p : ℤ) := by
-    rw [hs.layout.encodedModulus_eq]
-    simp [encode]
+    simp [hs.layout.encodedModulus_eq, encode]
   obtain ⟨x1, run1, val1, frame1, regs1⟩ := exec_residues Reg.inputAB Reg.residueAB x
     (by decide) (by decide) u hp ready.layout.cells_eq ready.inputAB ready.layout.residueAB_eq
-    (encoded x ready) hmod hu (fit _ (by unfold addressBudget; omega))
-    (fit _ (by unfold addressBudget; omega)) ha hinU
-  have meta1 : CounterRegisters n p k scratch a b c x1 := ready.congr
-    (fun j hj => regs1 j (by unfold MetadataRegister at hj; omega))
+    (encoded x ready) hmod hu (fit _ (by omega)) (fit _ (by omega)) ha hinU
+  have meta1 := ready.congr fun j hj => regs1 j (by dsimp [MetadataRegister] at hj; omega)
   obtain ⟨x2, run2, val2, frame2, regs2⟩ := exec_residues Reg.inputBC Reg.residueBC x1
     (by decide) (by decide) v hp meta1.layout.cells_eq meta1.inputBC meta1.layout.residueBC_eq
-    (encoded x1 meta1) hmod hv (fit _ (by unfold addressBudget; omega))
-    (fit _ (by unfold addressBudget; omega)) (by omega)
-    (by intro i hi; rw [frame1 _ (Or.inl (by omega))]; exact hinV i hi)
-  have meta2 : CounterRegisters n p k scratch a b c x2 := meta1.congr
-    (fun j hj => regs2 j (by unfold MetadataRegister at hj; omega))
+    (encoded x1 meta1) hmod hv (fit _ (by omega)) (fit _ (by omega)) (by omega)
+    fun i hi => (frame1 _ (Or.inl (by omega))).trans (hinV i hi)
+  have meta2 := meta1.congr fun j hj => regs2 j (by dsimp [MetadataRegister] at hj; omega)
   obtain ⟨y, run3, val3, frame3, regs3⟩ := exec_residues Reg.inputAC Reg.residueAC x2
     (by decide) (by decide) z hp meta2.layout.cells_eq meta2.inputAC meta2.layout.residueAC_eq
-    (encoded x2 meta2) hmod hz (fit _ (by unfold addressBudget; omega))
-    (fit _ (by unfold addressBudget; omega)) (by omega)
-    (by
-      intro i hi
-      rw [frame2 _ (Or.inl (by omega)), frame1 _ (Or.inl (by omega))]
-      exact hinZ i hi)
+    (encoded x2 meta2) hmod hz (fit _ (by omega)) (fit _ (by omega)) (by omega)
+    fun i hi => (frame2 _ (Or.inl (by omega))).trans
+      ((frame1 _ (Or.inl (by omega))).trans (hinZ i hi))
   refine ⟨y, (run1.seq (run2.seq run3)).mono (by omega),
-    meta2.congr (fun j hj => regs3 j (by unfold MetadataRegister at hj; omega)), ?_, ?_, val3, ?_⟩
-  · intro i hi
-    rw [frame3 _ (Or.inl (by omega)), frame2 _ (Or.inl (by omega))]
-    exact val1 i hi
-  · intro i hi
-    rw [frame3 _ (Or.inl (by omega))]
-    exact val2 i hi
-  · intro d hd
-    rw [frame3 _ (hd.imp (fun h => by omega) (fun h => by omega)),
-      frame2 _ (hd.imp (fun h => by omega) (fun h => by omega)),
-      frame1 _ (hd.imp id (fun h => by omega))]
+    meta2.congr (fun j hj => regs3 j (by unfold MetadataRegister at hj; omega)),
+    fun i hi => (frame3 _ (Or.inl (by omega))).trans
+      ((frame2 _ (Or.inl (by omega))).trans (val1 i hi)),
+    fun i hi => (frame3 _ (Or.inl (by omega))).trans (val2 i hi), val3, fun d hd => ?_⟩
+  rw [frame3 _ (hd.imp (fun h => by omega) (fun h => by omega)),
+    frame2 _ (hd.imp (fun h => by omega) (fun h => by omega)),
+    frame1 _ (hd.imp id (fun h => by omega))]
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime

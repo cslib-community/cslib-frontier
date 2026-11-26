@@ -56,8 +56,7 @@ open scoped NNReal
 theorem precision_three_ge {n : ℕ} (hn : 8 ≤ n) :
     8 * hashCount n ≤ precision 3 n := by
   have hcount := hashCount_le n
-  have hsquare : 9 ^ 2 ≤ (n + 1) ^ 2 := Nat.pow_le_pow_left (by lia) 2
-  have hcube := Nat.mul_le_mul_right (n + 1) hsquare
+  have hcube := Nat.mul_le_mul_right (n + 1) (Nat.pow_le_pow_left (show 9 ≤ n + 1 by omega) 2)
   simp only [precision, pow_succ, pow_zero, one_mul] at hcube ⊢
   omega
 
@@ -117,20 +116,18 @@ theorem eventually_prediction_entropy_le_withAdvice {f : List Bool → List Bool
         ((ℕ × List Bool) × List Bool) × List Bool)
     (encPair (encPair encAdvisedInput (encPair encUnary encBits))
       encBits) (encPair encAdvisedInput encBits) by fun_prop)
-  have hinverter := isPPTOn_wordInverter (evaluate := advisedEvaluate)
-    (parameter := fun ((n, _), _) => n) (image := fun ((_, _), image) => image) hf hevaluate
-    (by fun_prop) (by fun_prop) c' d' 3
-  have hinversion := hhard.inversion_negligible _ hinverter
   have hloss : Negligible (fun n => 128 * (dyadicSize (16 * hashCount n) : ℝ≥0) ^ 2 *
       Game.succProbability (ProbComp.eval (inversionGame f
         (fun n image => wordInverter f (advisedEvaluate ((n, advice n), image)) c' d' 3 n image)
           n))) := by
     simpa only [Nat.cast_mul, Nat.cast_ofNat, Nat.cast_pow] using
-      hinversion.polynomiallyBounded_mul
+      (hhard.inversion_negligible _ (isPPTOn_wordInverter (evaluate := advisedEvaluate)
+        (parameter := fun ((n, _), _) => n) (image := fun ((_, _), image) => image) hf hevaluate
+        (by fun_prop) (by fun_prop) c' d' 3)).polynomiallyBounded_mul
         (show PolynomiallyBounded (fun n => 128 * dyadicSize (16 * hashCount n) ^ 2) by fun_prop)
-  have hsmall := hloss.eventually_le_inv_polynomial
-    hashCount_polynomiallyBounded (fun n => Nat.pos_of_ne_zero (NeZero.ne (hashCount n)))
-  filter_upwards [hsmall, eventually_ge_atTop 8] with n hsmall hn
+  filter_upwards [hloss.eventually_le_inv_polynomial hashCount_polynomiallyBounded
+    (fun n => Nat.pos_of_ne_zero (NeZero.ne (hashCount n))), eventually_ge_atTop 8]
+    with n hsmall hn
   simp only [NNReal.coe_mul, NNReal.coe_pow, NNReal.coe_ofNat, NNReal.coe_natCast,
     Game.coe_succProbability] at hsmall
   have h := word_prediction_entropy_le f (finiteFunction n) (encodeImage n)
@@ -138,11 +135,10 @@ theorem eventually_prediction_entropy_le_withAdvice {f : List Bool → List Bool
     (fun (m, word) coins => evaluate ((m, advice m), word) coins) c' d'
     (fun m word budget hle => hrealize ((m, advice m), word) budget ((hbudget m word).trans hle))
     3 (precision_three_ge hn)
-  have hsame : Pr[inversionGame f (wordInverter f
+  rw [div_eq_mul_one_div (2 : ℝ), show Pr[inversionGame f (wordInverter f
       (fun (m, word) coins => evaluate ((m, advice m), word) coins) c' d' 3) n] =
       Pr[inversionGame f (fun n image =>
-        wordInverter f (advisedEvaluate ((n, advice n), image)) c' d' 3 n image) n] := rfl
-  rw [div_eq_mul_one_div (2 : ℝ), hsame] at h
+        wordInverter f (advisedEvaluate ((n, advice n), image)) c' d' 3 n image) n] from rfl] at h
   linarith only [h, hsmall]
 
 /-- A function whose inversion is hard with a polynomially bounded advice family, and which has a
@@ -206,9 +202,9 @@ theorem NonuniformOneWay.exists_pseudoentropyPair {f : List Bool → List Bool}
     (hf : NonuniformOneWay f) :
     ∃ pair : SamplablePair, ∀ advice : ℕ → List Bool,
       PolynomiallyBounded (fun n => (advice n).length) →
-        pair.HasGapWithAdvice (fun n => 1 / (2 * ((n : ℝ) + 7))) advice := by
-  obtain ⟨g, length, hg, hlength, _⟩ := hf.exists_fixedOutputLength
-  obtain ⟨pair, hpair⟩ := exists_pseudoentropyPair_of_fixedOutputLength hg.polyTime hlength
-  exact ⟨pair, fun advice hadvice => hpair advice (hg.secure advice hadvice) hadvice⟩
+        pair.HasGapWithAdvice (fun n => 1 / (2 * ((n : ℝ) + 7))) advice :=
+  let ⟨_, _, hg, hlength, _⟩ := hf.exists_fixedOutputLength
+  let ⟨pair, hpair⟩ := exists_pseudoentropyPair_of_fixedOutputLength hg.polyTime hlength
+  ⟨pair, fun advice hadvice => hpair advice (hg.secure advice hadvice) hadvice⟩
 
 end Cslib.Crypto

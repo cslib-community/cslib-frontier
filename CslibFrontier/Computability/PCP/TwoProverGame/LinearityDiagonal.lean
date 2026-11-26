@@ -51,18 +51,14 @@ theorem prob_true_le_diagonal_linearity
   have hpair (y : Y) :
       pairBad = ∑ a, ∑ b, if parity a = true then S.prob x y a b else 0 := by
     simp only [pairBad, Measurement.prob_map, sum_filter]
-    refine sum_congr rfl fun a _ => ?_
-    split_ifs
-    · exact (S.sum_prob_bob x y a).symm
-    · simp
+    exact sum_congr rfl fun a _ => by
+      split_ifs <;> simp only [S.sum_prob_bob x y a, sum_const_zero, Measurement.prob]
   have hpoint :
       ((S.bob zero).map readZero).prob S.state true =
         ∑ a, ∑ b, if readZero b = true then S.prob x zero a b else 0 := by
     rw [Measurement.prob_map, sum_filter, sum_comm]
-    refine sum_congr rfl fun b _ => ?_
-    split_ifs
-    · exact (S.sum_prob_alice x zero b).symm
-    · simp
+    exact sum_congr rfl fun b _ => by
+      split_ifs <;> simp only [S.sum_prob_alice x zero b, sum_const_zero, Measurement.prob]
   have hcoordinates : pairBad ≤ loss point readPoint Prod.fst + loss point readPoint Prod.snd := by
     rw [hpair point]
     simp only [loss, ← sum_add_distrib]

@@ -138,6 +138,14 @@ private def LRATEntry.toPair (e : LRATEntry) : ℕ × Clause ℕ := (e.id, e.cla
 private def freeVars (φ : CNF ℕ) (t : List (Literal ℕ)) : Finset ℕ :=
   φ.vars.toFinset.filter fun v => (v, true) ∉ t ∧ (v, false) ∉ t
 
+private theorem freeVars_cons (l : Literal ℕ) (t : List (Literal ℕ)) :
+    freeVars φ (l :: t) = (freeVars φ t).erase l.1 := by
+  obtain ⟨v, b⟩ := l
+  ext w
+  cases b <;>
+    simp only [freeVars, Finset.mem_filter, Finset.mem_erase, List.mem_cons, Prod.mk.injEq,
+      reduceCtorEq, and_false, and_true, false_or, not_or] <;> tauto
+
 /-- Every clause of the formula is a line of a proof. -/
 private theorem isProof_of_subset : ∀ {ls : List (Clause ℕ)}, (∀ c ∈ ls, c ∈ φ) → φ.IsProof ls
   | [], _ => .nil
@@ -154,18 +162,14 @@ private theorem isProof_resolveOn {ls : List (Clause ℕ)} (h : φ.IsProof ls) {
     (hl₁ : Literal.negate l ∈ d₁) :
     φ.IsProof (resolveOn l d₀ d₁ :: ls) ∧ ∀ m ∈ resolveOn l d₀ d₁,
       (m ∈ d₀ ∧ m ≠ l) ∨ (m ∈ d₁ ∧ m ≠ Literal.negate l) := by
-  obtain ⟨v, b⟩ := l
-  cases b
-  · refine ⟨h.resolvent v h₁ h₀ hl₁ hl₀, fun m hm => ?_⟩
-    rcases Clause.mem_resolvent.1 hm with hm | hm
-    exacts [.inr hm, .inl hm]
+  obtain ⟨v, _ | _⟩ := l
+  · exact ⟨h.resolvent v h₁ h₀ hl₁ hl₀, fun m hm => (Clause.mem_resolvent.1 hm).symm⟩
   · exact ⟨h.resolvent v h₀ h₁ hl₀ hl₁, fun m hm => Clause.mem_resolvent.1 hm⟩
 
 /-- The checker's lookup in the database it sees is the lookup in the translation's. -/
 private theorem find?_map_toPair (db : List LRATEntry) (h : ℕ) :
     (db.map LRATEntry.toPair).find? (·.1 == h) = (db.find? (·.id == h)).map LRATEntry.toPair := by
-  rw [List.find?_map]
-  rfl
+  rw [List.find?_map]; rfl
 
 /-- **The chain of a RUP step.** If unit propagation along the hints succeeds in the checker's
 database, the chain is defined: it extends the proof by at most one line for each hint and at most
@@ -201,28 +205,20 @@ private theorem rupChain_spec {db : List LRATEntry} {ls : List (Clause ℕ)} (hl
     have hopen : ∀ m ∈ e.line, Literal.negate m ∈ t ∨ m = l := fun m hm =>
       (em (m = l)).elim .inr fun hne => .inl (hoth m (hsub m hm) hne)
     obtain ⟨ls₁, d₁, hc₁, hp₁, hd₁, hf₁, hlen₁, hvar₁⟩ := ih (l :: t) hprop
-    have hfree : freeVars φ (l :: t) ⊆ freeVars φ t := by
-      intro v hv
-      simp only [freeVars, Finset.mem_filter, List.mem_cons, not_or] at hv ⊢
-      exact ⟨hv.1, hv.2.1.2, hv.2.2.2⟩
-    have hrun : rupChain db t (h :: hs) =
-        if Literal.negate l ∈ d₁ ∧ l ∉ t then
-          if l ∈ e.line then some (resolveOn l e.line d₁ :: ls₁, resolveOn l e.line d₁)
-          else some ([], e.line)
-        else some (ls₁, d₁) := by
-      simp only [rupChain, hfind, hres, hc₁]
+    rw [freeVars_cons] at hvar₁
+    have hrun := rupChain.eq_2 db t h hs
+    simp only [hfind, hres, hc₁] at hrun
     rw [hrun]
     by_cases hA : Literal.negate l ∈ d₁ ∧ l ∉ t
     · simp only [hA, not_false_eq_true, and_self, ↓reduceIte]
       by_cases hl₀ : l ∈ e.line
       · simp only [hl₀, ↓reduceIte]
         obtain ⟨hp, hmem⟩ := isProof_resolveOn hp₁ (List.mem_append_right _ hd₀) hd₁ hl₀ hA.1
-        refine ⟨_ :: ls₁, _, rfl, hp, List.mem_cons_self, fun m hm => ?_, by simp; omega, ?_⟩
+        refine ⟨_ :: ls₁, _, rfl, hp, List.mem_cons_self, fun m hm => ?_,
+          Nat.succ_le_succ hlen₁, ?_⟩
         · rcases hmem m hm with ⟨hm, hne⟩ | ⟨hm, hne⟩
-          · exact (hopen m hm).resolve_right hne
-          · rcases List.mem_cons.1 (hf₁ m hm) with h | h
-            · exact absurd (negate_eq_iff.1 h) hne
-            · exact h
+          exacts [(hopen m hm).resolve_right hne,
+            (List.mem_cons.1 (hf₁ m hm)).resolve_left fun h => hne (negate_eq_iff.1 h)]
         · -- the variable resolved on is free in `t` but not in `l :: t`
           have hv : l.1 ∈ freeVars φ t := by
             obtain ⟨v, b⟩ := l
@@ -231,24 +227,16 @@ private theorem rupChain_spec {db : List LRATEntry} {ls : List (Clause ℕ)} (hl
             cases b
             · exact ⟨by simpa [Literal.negate] using hlnew, hA.2⟩
             · exact ⟨hA.2, by simpa [Literal.negate] using hlnew⟩
-          have hv' : l.1 ∉ freeVars φ (l :: t) := by
-            obtain ⟨v, b⟩ := l
-            cases b <;> simp [freeVars]
-          have := Finset.card_lt_card (Finset.ssubset_iff_subset_ne.2
-            ⟨hfree, fun h => hv' (h ▸ hv)⟩)
-          simp only [List.length_cons]
-          omega
+          exact Nat.succ_le_of_lt (hvar₁.trans_lt (Finset.card_erase_lt_of_mem hv))
       · simp only [hl₀, ↓reduceIte]
         exact ⟨[], e.line, rfl, hls, hd₀, fun m hm => (hopen m hm).resolve_right
           (fun h => hl₀ (h ▸ hm)), Nat.zero_le _, Nat.zero_le _⟩
     · simp only [hA, ↓reduceIte]
-      refine ⟨ls₁, d₁, rfl, hp₁, hd₁, fun m hm => ?_, by simp; omega,
-        hvar₁.trans (Finset.card_le_card hfree)⟩
+      refine ⟨ls₁, d₁, rfl, hp₁, hd₁, fun m hm => ?_, hlen₁.trans (Nat.le_succ _),
+        hvar₁.trans Finset.card_erase_le⟩
       rcases List.mem_cons.1 (hf₁ m hm) with h | h
       · obtain rfl := negate_eq_iff.1 h
-        by_cases hlt : l ∈ t
-        · simpa using hlt
-        · exact absurd ⟨hm, hlt⟩ hA
+        simpa using Classical.not_not.1 fun hlt => hA ⟨hm, hlt⟩
       · exact h
 
 /-- The translation of an accepted certificate on a database whose clauses stand for lines of a
@@ -266,12 +254,9 @@ private theorem lratToProofAux_spec :
     obtain ⟨ls', d, hc, hp, hd, hf, hlen, hvar⟩ := rupChain_spec hls hdb _ _ h
     obtain rfl : d = [] := List.eq_nil_iff_forall_not_mem.2 fun m hm => by simpa using hf m hm
     refine ⟨ls', by simp [lratToProofAux, hc], hp, hd, ?_, ?_⟩
-    · simp only [lratHintCount]
-      simp at hlen
-      omega
+    · simp only [lratHintCount, Array.length_toList] at hlen ⊢; omega
     · have := hvar.trans (Finset.card_filter_le _ _)
-      simp only [List.length_cons, Nat.succ_mul]
-      omega
+      simp only [List.length_cons, Nat.succ_mul]; omega
   | .addRup id c hints :: rest, db, ls, hls, hdb, h => by
     simp only [checkLRATAux, Bool.and_eq_true] at h
     obtain ⟨ls₁, d, hc, hp₁, hd, hf, hlen₁, hvar₁⟩ := rupChain_spec hls hdb _ _ h.1
@@ -281,35 +266,26 @@ private theorem lratToProofAux_spec :
       rcases List.mem_cons.1 he with rfl | he
       · refine ⟨hd, fun m hm => ?_⟩
         obtain ⟨m', hm', hmm'⟩ := List.mem_map.1 (hf m hm)
-        obtain rfl : m' = m := by simpa using negate_eq_iff.1 hmm'
-        exact hm'
+        have heq : m' = m := by simpa using negate_eq_iff.1 hmm'
+        exact heq ▸ hm'
       · exact ⟨List.mem_append_right _ (hdb e he).1, (hdb e he).2⟩
     obtain ⟨ls₂, hc₂, hp₂, hnil, hlen₂, hvar₂⟩ :=
       lratToProofAux_spec rest _ _ hp₁ hdb' (by simpa [LRATEntry.toPair] using h.2)
-    refine ⟨ls₂ ++ ls₁, ?_, by simpa using hp₂, by simpa using hnil, ?_, ?_⟩
-    · simp [lratToProofAux, hc, hc₂]
-    · simp only [lratHintCount, List.length_append]
-      simp at hlen₁
-      omega
+    refine ⟨ls₂ ++ ls₁, by simp [lratToProofAux, hc, hc₂], by simpa using hp₂,
+      by simpa using hnil, ?_, ?_⟩
+    · simp only [lratHintCount, List.length_append, Array.length_toList] at hlen₁ ⊢; omega
     · have := hvar₁.trans (Finset.card_filter_le _ _)
-      simp only [List.length_append, List.length_cons, Nat.succ_mul]
-      omega
+      simp only [List.length_append, List.length_cons, Nat.succ_mul]; omega
   | .addRat .. :: _, _, _, _, _, h => by simp [checkLRATAux] at h
   | .del ids :: rest, db, ls, hls, hdb, h => by
-    simp only [checkLRATAux] at h
-    have hmap : (db.map LRATEntry.toPair).filter (fun e => !ids.toList.contains e.1) =
-        (db.filter fun e => !ids.toList.contains e.id).map LRATEntry.toPair := by
-      rw [List.filter_map]
-      rfl
-    rw [hmap] at h
+    simp only [checkLRATAux, List.filter_map] at h
     obtain ⟨ls', hc, hp, hnil, hlen, hvar⟩ := lratToProofAux_spec rest
       (db.filter fun e => !ids.toList.contains e.id) ls hls
       (fun e he => hdb e (List.mem_filter.1 he).1)
       h
-    refine ⟨ls', by simpa [lratToProofAux] using hc, hp, hnil, ?_, ?_⟩
-    · simpa [lratHintCount] using hlen
-    · simp only [List.length_cons, Nat.succ_mul]
-      omega
+    exact ⟨ls', by simpa [lratToProofAux] using hc, hp, hnil,
+      by simpa [lratHintCount] using hlen,
+      hvar.trans (Nat.mul_le_mul_right _ (Nat.le_succ _))⟩
 
 /-- **The resolution proof of an accepted LRAT certificate is a refutation**: it is a resolution
 proof from `φ` containing the empty clause, with at most `|φ|` lines plus the smaller of the

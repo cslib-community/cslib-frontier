@@ -66,10 +66,7 @@ private theorem gaussianReal_map_noisy (a : ℝ) {ρ : ℝ} (hρ : |ρ| < 1) :
   rw [show (fun t => a + √(1 - ρ ^ 2) * t) = (fun s => a + s) ∘ fun t => √(1 - ρ ^ 2) * t
       from rfl, ← Measure.map_map (measurable_const_add a) (measurable_const_mul _),
     gaussianReal_map_const_mul, gaussianReal_map_const_add]
-  congr 1
-  · ring
-  · ext
-    simp [Real.sq_sqrt hv, Real.coe_toNNReal _ hv]
+  exact congrArg₂ _ (by ring) (Subtype.ext (by simp [Real.sq_sqrt hv, Real.coe_toNNReal _ hv]))
 
 /-- The law of the noisy point `ρ z + √(1 - ρ²) g` has density
 `∏ i, φ_{ρ zᵢ, 1 - ρ²} (yᵢ) / φ_{0,1} (yᵢ)` with respect to `γⁿ`. -/
@@ -77,23 +74,17 @@ private theorem pi_gaussianReal_map_noisy {ρ : ℝ} (hρ : |ρ| < 1) (z : ι �
     (Measure.pi fun _ : ι => gaussianReal 0 1).map (fun g i => ρ * z i + √(1 - ρ ^ 2) * g i) =
       (Measure.pi fun _ : ι => gaussianReal 0 1).withDensity fun y => ∏ i, ENNReal.ofReal
         (gaussianPDFReal (ρ * z i) (1 - ρ ^ 2).toNNReal (y i) / gaussianPDFReal 0 1 (y i)) := by
-  set v := (1 - ρ ^ 2).toNNReal
-  have hv : v ≠ 0 := by
-    simp only [v, ne_eq, Real.toNNReal_eq_zero, not_le, sub_pos]
-    exact (sq_lt_one_iff_abs_lt_one ρ).2 hρ
-  set k : ι → ℝ → ENNReal :=
-    fun i t => ENNReal.ofReal (gaussianPDFReal (ρ * z i) v t / gaussianPDFReal 0 1 t)
-  have hk (i : ι) : Measurable (k i) := by fun_prop
-  have hmap : (Measure.pi fun _ : ι => gaussianReal 0 1).map
-      (fun g i => ρ * z i + √(1 - ρ ^ 2) * g i) =
-      (Measure.pi fun _ : ι => gaussianReal 0 1).withDensity fun y => ∏ i, k i (y i) := by
-    refine (Measure.pi_map_pi (μ := fun _ : ι => gaussianReal 0 1)
-      (f := fun i t => ρ * z i + √(1 - ρ ^ 2) * t) fun i => by fun_prop).trans ?_
-    rw [← Measure.pi_withDensity hk]
-    congr 1
-    funext i
-    rw [gaussianReal_map_noisy _ hρ, gaussianReal_eq_withDensity_div _ hv]
-  exact hmap
+  have hv : (1 - ρ ^ 2).toNNReal ≠ 0 := by
+    simpa [sub_pos] using (sq_lt_one_iff_abs_lt_one ρ).2 hρ
+  let k (i : ι) (t : ℝ) : ENNReal :=
+    ENNReal.ofReal (gaussianPDFReal (ρ * z i) (1 - ρ ^ 2).toNNReal t / gaussianPDFReal 0 1 t)
+  refine (Measure.pi_map_pi (μ := fun _ : ι => gaussianReal 0 1)
+    (f := fun i t => ρ * z i + √(1 - ρ ^ 2) * t) fun _ => by fun_prop).trans ?_
+  rw [show (fun y : ι → ℝ => ∏ i, k i (y i)) = _ from rfl]
+  rw [← Measure.pi_withDensity (f := k) fun _ => by fun_prop]
+  congr 1
+  funext i
+  rw [gaussianReal_map_noisy _ hρ, gaussianReal_eq_withDensity_div _ hv]
 
 /-- **The noise operator as an integral against the Mehler kernel**: for `|ρ| < 1`, `U_ρ f z` is
 the integral of `f` against the density `∏ i, φ_{ρ zᵢ, 1 - ρ²} (yᵢ) / φ_{0,1} (yᵢ)` of the noisy
@@ -102,19 +93,15 @@ theorem gaussianNoiseOp_eq_integral_prod_div_mul {ρ : ℝ} (hρ : |ρ| < 1) {f 
     (hf : AEStronglyMeasurable f (Measure.pi fun _ : ι => gaussianReal 0 1)) (z : ι → ℝ) :
     gaussianNoiseOp ρ f z = ∫ y, (∏ i, gaussianPDFReal (ρ * z i) (1 - ρ ^ 2).toNNReal (y i) /
       gaussianPDFReal 0 1 (y i)) * f y ∂Measure.pi fun _ : ι => gaussianReal 0 1 := by
-  have hD : Measurable fun y : ι → ℝ => ∏ i, ENNReal.ofReal
-      (gaussianPDFReal (ρ * z i) (1 - ρ ^ 2).toNNReal (y i) / gaussianPDFReal 0 1 (y i)) := by
-    fun_prop
-  have hfm := hf.mono_ac (pi_gaussianReal_map_noisy hρ z ▸ withDensity_absolutelyContinuous _ _)
   have hT : Measurable fun (g : ι → ℝ) (i : ι) => ρ * z i + √(1 - ρ ^ 2) * g i := by fun_prop
-  rw [gaussianNoiseOp, ← integral_map hT.aemeasurable hfm, pi_gaussianReal_map_noisy hρ z,
-    integral_withDensity_eq_integral_toReal_smul hD
-      (ae_of_all _ fun y => ENNReal.prod_lt_top fun i _ => ENNReal.ofReal_lt_top)]
+  rw [gaussianNoiseOp, ← integral_map hT.aemeasurable
+      (hf.mono_ac (pi_gaussianReal_map_noisy hρ z ▸ withDensity_absolutelyContinuous _ _)),
+    pi_gaussianReal_map_noisy hρ z, integral_withDensity_eq_integral_toReal_smul (by fun_prop)
+      (ae_of_all _ fun _ => ENNReal.prod_lt_top fun _ _ => ENNReal.ofReal_lt_top)]
   refine integral_congr_ae (ae_of_all _ fun y => ?_)
   simp only [smul_eq_mul, ENNReal.toReal_prod]
-  congr 1
-  refine Finset.prod_congr rfl fun i _ => ENNReal.toReal_ofReal ?_
-  exact div_nonneg (gaussianPDFReal_nonneg _ _ _) (gaussianPDFReal_nonneg _ _ _)
+  exact congrArg (· * f y) (Finset.prod_congr rfl fun _ _ => ENNReal.toReal_ofReal
+    (div_nonneg (gaussianPDFReal_nonneg _ _ _) (gaussianPDFReal_nonneg _ _ _)))
 
 /-- **For `|ρ| < 1`, `U_ρ f` depends only on the `γⁿ`-class of `f`, at every point**: if
 `f =ᵐ[γⁿ] f'` then `gaussianNoiseOp ρ f = gaussianNoiseOp ρ f'` as functions, because the law of
@@ -125,10 +112,8 @@ theorem gaussianNoiseOp_congr_ae_of_abs_lt_one {ρ : ℝ} (hρ : |ρ| < 1) {f f'
     (h : f =ᵐ[Measure.pi fun _ : ι => gaussianReal 0 1] f') :
     gaussianNoiseOp ρ f = gaussianNoiseOp ρ f' := by
   funext z
-  refine integral_congr_ae
-    (QuasiMeasurePreserving.ae_eq_comp ⟨Measurable.aemeasurable (by fun_prop), ?_⟩ h)
-  rw [pi_gaussianReal_map_noisy hρ z]
-  exact withDensity_absolutelyContinuous _ _
+  exact integral_congr_ae (QuasiMeasurePreserving.ae_eq_comp ⟨Measurable.aemeasurable (by fun_prop),
+    pi_gaussianReal_map_noisy hρ z ▸ withDensity_absolutelyContinuous _ _⟩ h)
 
 /-- The density ratio of one noisy coordinate, expanded: with `v = 1 - ρ²` and `c = ρ² / (2 v)`,
 `φ_{ρ a, v} (t) / φ_{0,1} (t) = v^{-1/2} exp (-c a²) exp ((ρ / v) t a) exp (-c t²)`. -/
@@ -204,19 +189,14 @@ private theorem integrable_exp_mul_norm_noiseDual {ρ : ℝ} (hρ : |ρ| < 1) (h
       (continuous_noiseDual (ι := ι) ρ).norm)).aestronglyMeasurable.mul
       (hcont.aestronglyMeasurable.mul hf.1).norm
   have hexp : C * ‖noiseDual ρ y‖ + ∑ i, -(c * y i ^ 2) ≤ Fintype.card ι * (B ^ 2 / (4 * c)) := by
-    have h1 : C * ‖noiseDual ρ y‖ ≤ B * ∑ i, |y i| := by
-      calc C * ‖noiseDual ρ y‖ ≤ |C| * ‖noiseDual ρ y‖ := by
-            gcongr
-            exact le_abs_self C
+    have h1 : C * ‖noiseDual ρ y‖ ≤ B * ∑ i, |y i| :=
+      calc C * ‖noiseDual ρ y‖
+          ≤ |C| * ‖noiseDual ρ y‖ := mul_le_mul_of_nonneg_right (le_abs_self C) (norm_nonneg _)
         _ ≤ B * ∑ i, |y i| := by
             rw [mul_assoc]
-            gcongr
-            exact norm_noiseDual_le ρ y
+            exact mul_le_mul_of_nonneg_left (norm_noiseDual_le ρ y) (abs_nonneg C)
     have h2 (t : ℝ) : B * |t| + -(c * t ^ 2) ≤ B ^ 2 / (4 * c) := by
-      have hsq : (B - 2 * c * |t|) ^ 2 = B ^ 2 - 4 * c * (B * |t|) + 4 * c ^ 2 * t ^ 2 := by
-        rw [← sq_abs t]
-        ring
-      rw [le_div_iff₀ (by positivity)]
+      rw [le_div_iff₀ (by positivity), ← sq_abs t]
       nlinarith [sq_nonneg (B - 2 * c * |t|)]
     calc C * ‖noiseDual ρ y‖ + ∑ i, -(c * y i ^ 2)
         ≤ ∑ i, (B * |y i| + -(c * y i ^ 2)) := by
@@ -245,10 +225,10 @@ theorem contDiff_gaussianNoiseOp {ρ : ℝ} (hρ : |ρ| < 1) {f : (ι → ℝ) �
   set c := ρ ^ 2 / (2 * (1 - ρ ^ 2))
   set h : (ι → ℝ) → ℝ := fun y =>
     (√(1 - ρ ^ 2))⁻¹ ^ Fintype.card ι * rexp (∑ i, -(c * y i ^ 2)) * f y
-  have hh : AEStronglyMeasurable h (Measure.pi fun _ : ι => gaussianReal 0 1) := by
-    have hcont : Continuous fun y : ι → ℝ =>
-        (√(1 - ρ ^ 2))⁻¹ ^ Fintype.card ι * rexp (∑ i, -(c * y i ^ 2)) := by fun_prop
-    exact hcont.aestronglyMeasurable.mul hf.1
+  have hh : AEStronglyMeasurable h (Measure.pi fun _ : ι => gaussianReal 0 1) :=
+    ((by fun_prop : Continuous fun y : ι → ℝ =>
+      (√(1 - ρ ^ 2))⁻¹ ^ Fintype.card ι * rexp (∑ i, -(c * y i ^ 2))).aestronglyMeasurable).mul
+      hf.1
   have key : gaussianNoiseOp ρ f = fun z => rexp (∑ i, -(c * z i ^ 2)) *
       ∫ y, rexp (noiseDual ρ y z) • h y ∂Measure.pi fun _ : ι => gaussianReal 0 1 := by
     funext z
@@ -258,9 +238,8 @@ theorem contDiff_gaussianNoiseOp {ρ : ℝ} (hρ : |ρ| < 1) {f : (ι → ℝ) �
     rw [prod_gaussianPDFReal_div_eq hρ, smul_eq_mul]
     ring
   rw [key]
-  have hA : ContDiff ℝ ∞ fun z : ι → ℝ => rexp (∑ i, -(c * z i ^ 2)) := by fun_prop
-  exact hA.mul (contDiff_integral_exp_smul
-      (continuous_noiseDual ρ).aestronglyMeasurable hh
+  exact (by fun_prop : ContDiff ℝ ∞ fun z : ι → ℝ => rexp (∑ i, -(c * z i ^ 2))).mul
+    (contDiff_integral_exp_smul (continuous_noiseDual ρ).aestronglyMeasurable hh
       (integrable_exp_mul_norm_noiseDual hρ hρ0 hf))
 
 end ProbabilityTheory

@@ -59,18 +59,10 @@ theorem realizes_prepareRoot : Realizes .exact
     (fun d : Fin 3 → ℕ => DataStructure.link (E := Memory.spec 0)
       ((layout (d 0) (d 1)).methods 0) (prepareRoot (d 2)))
     (.refl _) (WordEncoding.encode (α := Unit)) prepareSafe (fun _ _ => 0) := by
-  conv =>
-    arg 2
-    ext d
-    simp only [DataStructure.link, prepareRoot, rd, wr, Record.read, Record.write,
-      PFunctor.FreeM.liftM_bind, PFunctor.FreeM.liftM_lift, Record.Layout.methods, layout]
   realize
   all_goals
     have hu := h.2.1
-    try simp (disch := omega) only [Record.Layout.lift_read, Record.Layout.lift_write,
-      StateTransitionSpec.clientResult, StateTransitionSpec.clientState,
-      StateTransitionSpec.runClient_lift, Memory.read, Memory.write,
-      Memory.step_read, Memory.step_write, Function.update_of_ne] at *
+    try simp (disch := omega) only [Function.update_of_ne] at *
   all_goals first
     | exact h.1.of_le (by have := h.2.1; omega)
     | exact h.2.2
@@ -103,61 +95,6 @@ theorem prepareSafe_of_scattering {n sz w base md : ℕ} {z : Fin n}
   change mem.mem (base + 6 * n + T.root.val) ≤ mem.mem (base + 9 * n + 3)
   simpa only [view, Record.Layout.abs, Cell.ok, T.root.isLt, ite_true, layout] using hcount
 
-private def scatterReturn (d : Fin 5 → ℕ) : Memory.Prog (ℕ × ℕ) := do
-  let md ← DataStructure.link (E := Memory.spec 0) ((layout (d 0) (d 1)).methods 0)
-    (scatter (d 0 + 1) (d 2) (d 3))
-  pure (d 4, md)
-
-private theorem realizes_scatterReturn : Realizes .exact scatterReturn (.refl _)
-    (WordEncoding.encode (α := ℕ × ℕ))
-    (fun w d mem => scatterSafe w ![d 0, d 1, d 2, d 3] mem) (fun _ _ => 0) := by
-  have hScatter := realizes_scatter.reindex
-    (fun d : Fin 5 → ℕ => ![d 0, d 1, d 2, d 3]) (.refl _) ![0, 1, 2, 3]
-    (by intro d i; fin_cases i <;> rfl)
-  have hRet : Realizes .exact (fun d : (Fin 5 → ℕ) × ℕ => pure (d.1 4, d.2))
-      (appendWords (.refl _) (WordEncoding.encode (α := ℕ)))
-      (WordEncoding.encode (α := ℕ × ℕ)) (fun _ _ _ => True) (fun _ _ => 0) := by
-    realize
-  refine (hScatter.bind₀ hRet).congr (fun _ => rfl) |>.consequence ?_ (fun _ _ => le_rfl)
-  intro w d s _ _ h
-  exact ⟨h, trivial⟩
-
-private def prepareScatter (d : Fin 5 → ℕ) : Memory.Prog (ℕ × ℕ) := do
-  DataStructure.link (E := Memory.spec 0) ((layout (d 0) (d 1)).methods 0) (prepareRoot (d 2))
-  scatterReturn d
-
-private theorem realizes_prepareScatter : Realizes .exact prepareScatter (.refl _)
-    (WordEncoding.encode (α := ℕ × ℕ))
-    (fun w d mem => prepareSafe w ![d 0, d 1, d 2] mem ∧
-      scatterSafe w ![d 0, d 1, d 2, d 3]
-        ((Memory.spec 0).clientState mem (DataStructure.link (E := Memory.spec 0)
-          ((layout (d 0) (d 1)).methods 0) (prepareRoot (d 2))))) (fun _ _ => 0) := by
-  have hPrep := realizes_prepareRoot.reindex
-    (fun d : Fin 5 → ℕ => ![d 0, d 1, d 2]) (.refl _) ![0, 1, 2]
-    (by intro d i; fin_cases i <;> rfl)
-  have hRest := realizes_scatterReturn.reindex
-    (fun d : (Fin 5 → ℕ) × Unit => d.1)
-    (appendWords (.refl _) (WordEncoding.encode (α := Unit))) ![0, 1, 2, 3, 4]
-    (by intro d i; fin_cases i <;> rfl)
-  exact (hPrep.bind₀ hRest).congr (fun _ => rfl)
-
-private def scatterListBody (prep : Bool) (d : Fin 4 → ℕ) : Memory.Prog (ℕ × ℕ) := do
-  let nxt ← Memory.read (d 1 + 4 * d 0 + d 2)
-  if prep then prepareScatter ![d 0, d 1, d 2, d 3, nxt]
-  else scatterReturn ![d 0, d 1, d 2, d 3, nxt]
-
-private theorem scatterListBody_eq (prep : Bool) (d : Fin 4 → ℕ) : scatterListBody prep d =
-    DataStructure.link (E := Memory.spec 0) ((layout (d 0) (d 1)).methods 0)
-      (scatterListStep (d 0 + 1) prep (d 2, d 3)) := by
-  rw [scatterListStep_eq]
-  simp only [scatterListBody, DataStructure.link, PFunctor.FreeM.liftM_bind]
-  congr 1 with nxt : 1
-  cases prep <;> simp only [Bool.false_eq_true, ite_true, ite_false, prepareScatter,
-    scatterReturn, DataStructure.link, PFunctor.FreeM.liftM_bind, PFunctor.FreeM.liftM_pure,
-    Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two, Matrix.cons_val_three,
-    Matrix.head_cons, Matrix.tail_cons]
-  all_goals rfl
-
 /-- The original next-root query precedes optional preparation and scattering. Every inner
 loop domain refers to its actual entry memory; the next root is only retained as a word. -/
 @[expose] def scatterListStepSafe (prep : Bool) (w : ℕ) (d : Fin 4 → ℕ)
@@ -169,37 +106,25 @@ loop domain refers to its actual entry memory; the next root is only retained as
           ((layout (d 0) (d 1)).methods 0) (prepareRoot (d 2))))
     else scatterSafe w ![d 0, d 1, d 2, d 3] mem
 
-private theorem realizes_scatterListBody (prep : Bool) : Realizes .exact (scatterListBody prep)
-    (.refl _) (WordEncoding.encode (α := ℕ × ℕ)) (scatterListStepSafe prep) (fun _ _ => 0) := by
-  have hFalse := realizes_scatterReturn.reindex
-    (fun d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ => ![d.1.1.1.1, d.1.1.1.2, d.1.1.2, d.1.2, d.2])
-    (WordEncoding.encode (α := (((ℕ × ℕ) × ℕ) × ℕ) × ℕ)) ![0, 1, 2, 3, 4]
-    (by intro d i; fin_cases i <;> rfl)
-  have hTrue := realizes_prepareScatter.reindex
-    (fun d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ => ![d.1.1.1.1, d.1.1.1.2, d.1.1.2, d.1.2, d.2])
-    (WordEncoding.encode (α := (((ℕ × ℕ) × ℕ) × ℕ) × ℕ)) ![0, 1, 2, 3, 4]
-    (by intro d i; fin_cases i <;> rfl)
-  cases prep
-  all_goals
-    conv =>
-      arg 2
-      ext d
-      simp only [scatterListBody, Bool.false_eq_true, ite_false, ite_true]
-    realize
-    all_goals simp only [scatterListStepSafe, Bool.false_eq_true, ite_false, ite_true] at h
-    all_goals first
-      | exact h.1.of_le (by have := h.2.1; omega)
-      | exact h.2.2
-      | exact h.2.2.1
-      | exact h.2.2.2
-
 /-- The complete original list-step source for either fixed extraction phase. The emitter may
 be selected for `prep` before runtime capacity/layout/handle/maximum words, as in `extractMin`. -/
 theorem realizes_scatterListStep (prep : Bool) : Realizes .exact
     (fun d : Fin 4 → ℕ => DataStructure.link (E := Memory.spec 0)
       ((layout (d 0) (d 1)).methods 0) (scatterListStep (d 0 + 1) prep (d 2, d 3)))
-    (.refl _) (WordEncoding.encode (α := ℕ × ℕ)) (scatterListStepSafe prep) (fun _ _ => 0) :=
-  (realizes_scatterListBody prep).congr (scatterListBody_eq prep)
+    (.refl _) (WordEncoding.encode (α := ℕ × ℕ)) (scatterListStepSafe prep) (fun _ _ => 0) := by
+  cases prep
+  · realize [realizes_scatter]
+        rewriting [scatterListStep_eq, Bool.false_eq_true, ite_false, pure_bind]
+    all_goals simp only [scatterListStepSafe, Bool.false_eq_true, ite_false] at h
+    all_goals first
+      | exact h.1.of_le (by have := h.2.1; omega)
+      | exact h.2.2
+  · realize [realizes_prepareRoot, realizes_scatter] rewriting [scatterListStep_eq, ite_true]
+    all_goals simp only [scatterListStepSafe, ite_true] at h
+    all_goals first
+      | exact h.1.of_le (by have := h.2.1; omega)
+      | exact h.2.2.1
+      | exact h.2.2.2
 
 private theorem prepareRoot_progress {n sz w md : ℕ} {z : Fin n} {g : Cell → ℕ}
     {T : FHTree n} {slots rest : List (FHTree n)} (hfit : Fits w n)
@@ -304,22 +229,8 @@ theorem realizes_scatterList (prep : Bool) : Realizes .exact
     (fun d : Fin 5 → ℕ => DataStructure.link (E := Memory.spec 0)
       ((layout (d 0) (d 1)).methods 0) (scatterList (d 0 + 1) prep (d 2) (d 3) (d 4)))
     (.refl _) (WordEncoding.encode (α := ℕ)) (scatterListSafe prep) (fun _ _ => 0) := by
-  have hStep := (realizes_scatterListStep prep).reindex
-    (fun d : (ℕ × ℕ) × (ℕ × ℕ) => ![d.1.1, d.1.2, d.2.1, d.2.2])
-    (WordEncoding.encode (α := (ℕ × ℕ) × (ℕ × ℕ))) ![0, 1, 2, 3]
-    (by intro d i; fin_cases i <;> rfl)
-  change Realizes .exact
-    (fun d : (ℕ × ℕ) × (ℕ × ℕ) => DataStructure.link (E := Memory.spec 0)
-      ((layout d.1.1 d.1.2).methods 0) (scatterListStep (d.1.1 + 1) prep d.2))
-    (WordEncoding.encode (α := (ℕ × ℕ) × (ℕ × ℕ)))
-    (WordEncoding.encode (α := ℕ × ℕ))
-    (fun w d mem => scatterListStepSafe prep w ![d.1.1, d.1.2, d.2.1, d.2.2] mem)
-    (fun _ _ => 0) at hStep
-  conv =>
-    arg 2
-    ext d
-    rw [link_scatterList_eq_iterate, iterate_scatterList]
-  realize
+  realize [realizes_scatterListStep prep]
+      rewriting [link_scatterList_eq_iterate, iterate_scatterList]
   exact h.2
 
 private theorem scatterList_iterationSafe {n sz w base : ℕ} {z : Fin n}

@@ -54,14 +54,9 @@ theorem visit_cost_le (x : Data 128) (n m N M : ℕ)
     Modulus.cost ((modulusState x).comap kernel) +
       66 * (recordLayout x M).total + 15 * M + 12 * x.regs groups + 277 ≤
         visitTime n m N := by
-  have hs : x.regs (slot 2) + x.regs (slot 4) + x.regs (slot 6) ≤ 3 * n := by
-    have h₀ := hlen 0
-    have h₁ := hlen 1
-    have h₂ := hlen 2
-    change x.regs (slot 2) ≤ n at h₀
-    change x.regs (slot 4) ≤ n at h₁
-    change x.regs (slot 6) ≤ n at h₂
-    omega
+  have h₀ : x.regs (slot 2) ≤ n := hlen 0
+  have h₁ : x.regs (slot 4) ≤ n := hlen 1
+  have h₂ : x.regs (slot 6) ≤ n := hlen 2
   have hp := Nat.mul_le_mul (Nat.add_le_add_right hm 1)
     (show 34 * (x.regs (slot 2) + x.regs (slot 4) + x.regs (slot 6)) +
         15 * x.regs limit ^ 2 + 102 ≤ 102 * n + 15 * m ^ 2 + 102 by
@@ -75,22 +70,17 @@ theorem visit_cost_le (x : Data 128) (n m N M : ℕ)
       66 * (x.regs (slot 2) + x.regs (slot 4) + x.regs (slot 6)) +
       15 * M + 12 * x.regs groups + 277 ≤ _
   dsimp only [visitTime]
-  rw [Nat.mul_assoc]
-  omega
+  rw [Nat.mul_assoc]; omega
 
 /-- The actual next heap pointer advances by at most the uniform per-node allocation. -/
 theorem allocation_le (x : Data 128) (n m N M : ℕ)
     (hlen : ∀ j, x.regs (arrayLength j) ≤ n) (hN : x.regs groups ≤ N)
     (hM : M ≤ m ^ 2) :
     (recordLayout x M).endpoint ≤ x.regs heap + allocationSize n m N := by
-  have h₀ := hlen 0
-  have h₁ := hlen 1
-  have h₂ := hlen 2
+  have h₀ : x.regs (slot 2) ≤ n := hlen 0
+  have h₁ : x.regs (slot 4) ≤ n := hlen 1
+  have h₂ : x.regs (slot 6) ≤ n := hlen 2
   rw [recordLayout_endpoint]
-  change x.regs (slot 2) ≤ n at h₀
-  change x.regs (slot 4) ≤ n at h₁
-  change x.regs (slot 6) ≤ n at h₂
-  dsimp only [allocationSize]
-  omega
+  dsimp only [allocationSize]; omega
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Traversal

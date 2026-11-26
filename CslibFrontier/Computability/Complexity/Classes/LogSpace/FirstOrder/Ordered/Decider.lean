@@ -152,20 +152,12 @@ theorem mem_L_of_decidingBlock {S : Set EncodedStructure} {C : ℕ → ℕ → �
         (by rw [hlen₁, List.length_replicate]) (h0₁ hwf) hB₁
       refine ⟨(if res then 5 + 6 * v.count + c else 6 + 6 * v.count + c, regs₂),
         (hreach₁.trans hreachGuard).trans hreach₂, ?_, hB₂⟩
-      cases res
-      · rw [ite_eq_right Bool.false_ne_true, hrej]
-        simp [← hres]
-      · rw [ite_eq_left rfl, hacc]
-        simp [← hres]
+      cases res <;> simp [hacc, hrej, ← hres]
     · rw [ite_eq_left (Nat.lt_of_not_ge hn)] at hreachGuard
       refine ⟨(6 + 6 * v.count + c, regs₁), hreach₁.trans hreachGuard, ?_, hB₁⟩
-      have hnS : a ∉ S := fun h => hn (hS a h).2
-      rw [hrej]
-      simp [hnS]
+      simpa [hrej] using fun h => hn (hS a h).2
   · rw [ite_eq_right hwf] at hreach₁
     refine ⟨(6 + 6 * v.count + c, regs₁), hreach₁, ?_, hB₁⟩
-    have hnS : a ∉ S := fun h => hwf (hS a h).1
-    rw [hrej]
-    simp [hnS]
+    simpa [hrej] using fun h => hwf (hS a h).1
 
 end Cslib.Logic.FO.Ordered

@@ -80,21 +80,17 @@ theorem average_polynomialCollision_sandwich_le (φ : AlgState A)
     rw [(L v).nonneg (f v g) |>.isSelfAdjoint.star_eq] at hp
     exact φ.re_apply_nonneg hp
   have htotal (v) : (∑ g, ∑ h, W v g h) ≤ 1 := by
-    let P := T.sandwichBy (L v) (f v)
-    have hp : P.successfulEffect ≤ 1 := by
-      rw [← sub_nonneg, ← P.effect_none_eq_one_sub_successfulEffect]
-      exact P.nonneg none
-    have h := φ.re_apply_le_one hp
-    simpa only [W, ← Complex.re_sum, ← map_sum, ← sum_mul, ← mul_sum, U.sum_effect,
-      one_mul, Measurement.successfulEffect, P, Measurement.sandwichBy_effect_some] using h
+    simpa only [W, ← Complex.re_sum, ← map_sum, ← sum_mul, ← mul_sum, U.sum_effect, one_mul,
+      Measurement.successfulEffect, Measurement.sandwichBy_effect_some] using
+      φ.re_apply_le_one (T.sandwichBy (L v) (f v)).successfulEffect_mem_Icc.2
+  have hk0 : 0 ≤ k := by positivity
   have hfixed (v) : (𝔼 u : Point F m, J u v) ≤ k := by
     simp only [hJ, sum_filter, expect_sum_comm]
     calc
       _ ≤ ∑ g, ∑ h, k * W v g h := by
         refine sum_le_sum fun g _ => sum_le_sum fun h _ => ?_
         by_cases hne : h = g
-        · subst h
-          simpa using mul_nonneg (show 0 ≤ k by unfold k; positivity) (hW v g g)
+        · simpa [hne] using mul_nonneg hk0 (hW v g h)
         · calc
             _ = (𝔼 u : Point F m, if f u h = f u g then (1 : ℝ) else 0) * W v g h := by
               rw [expect_mul]
@@ -103,9 +99,7 @@ theorem average_polynomialCollision_sandwich_le (φ : AlgState A)
             _ ≤ _ := mul_le_mul_of_nonneg_right
               (expect_evaluation_collision_le g h (Ne.symm hne)) (hW v g h)
       _ ≤ _ := by
-        simp only [← mul_sum]
-        simpa only [mul_one] using
-          mul_le_mul_of_nonneg_left (htotal v) (show 0 ≤ k by unfold k; positivity)
+        simpa only [← mul_sum, mul_one] using mul_le_mul_of_nonneg_left (htotal v) hk0
   have havg : (𝔼 u : Point F m, 𝔼 v : Point F m, J u v) ≤ k := by
     rw [expect_comm]
     simpa only [Fintype.expect_const] using

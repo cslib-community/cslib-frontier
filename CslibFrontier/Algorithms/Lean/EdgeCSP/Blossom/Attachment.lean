@@ -55,45 +55,36 @@ theorem attachmentArc_spec (f : OccurrenceLabeling F Bool) (arcs : List (Arc F))
   let as := accessibleArcs f arcs x
   let ins := as.filter Arc.incoming
   have hmem : ∀ a ∈ as, a ∈ arcs ∧ x.1 = a.occurrence.1 ∧
-      ValidLabeling Table.sem (pairFlip f x a.occurrence) := by
-    intro a ha
-    exact ⟨(List.mem_filter.mp ha).1, of_decide_eq_true (List.mem_filter.mp ha).2⟩
+      ValidLabeling Table.sem (pairFlip f x a.occurrence) := fun a ha =>
+    ⟨(List.mem_filter.mp ha).1, of_decide_eq_true (List.mem_filter.mp ha).2⟩
+  have hmem_ins {e : Arc F} (he : e ∈ arcs) (hei : e.incoming = true)
+      (hex : e.occurrence.1 = x.1) (hev : ValidLabeling Table.sem (pairFlip f e.occurrence x)) :
+      e ∈ ins :=
+    List.mem_filter.mpr ⟨List.mem_filter.mpr
+      ⟨he, decide_eq_true ⟨hex.symm, pairFlip_comm f e.occurrence x ▸ hev⟩⟩, hei⟩
   by_cases hi : ins = []
   · let a := as.maxOn Arc.time hne
-    have ham : a ∈ as := List.maxOn_mem
-    obtain ⟨ha, hxa, hv⟩ := hmem a ham
+    obtain ⟨ha, hxa, hv⟩ := hmem a List.maxOn_mem
     refine ⟨a, ?_, ha, hxa, hv, ?_, ?_⟩
-    · simp only [attachmentArc]
-      change (if h : ins = [] then as.maxOn? Arc.time else
-        some (ins.minOn Arc.time h)) = some a
+    · change (if h : ins = [] then as.maxOn? Arc.time else some (ins.minOn Arc.time h)) = some a
       rw [dite_eq_left hi, List.maxOn?_eq_some_maxOn hne]
-    · intro e he hei hex het hev
-      have hm : e ∈ ins := List.mem_filter.mpr ⟨List.mem_filter.mpr
-        ⟨he, by
-          rw [decide_eq_true_eq]
-          exact ⟨hex.symm, (pairFlip_comm f e.occurrence x) ▸ hev⟩⟩, hei⟩
-      simp only [hi, List.not_mem_nil] at hm
+    · intro e he hei hex _ hev
+      simpa [hi] using hmem_ins he hei hex hev
     · intro _ e he hex het hev
-      have hem : e ∈ as := List.mem_filter.mpr ⟨he, by simp [hex, hev]⟩
+      have hem : e ∈ as := List.mem_filter.mpr ⟨he, decide_eq_true ⟨hex, hev⟩⟩
       have hle : e.time ≤ a.time := (List.le_apply_maxOn_iff hne).mpr ⟨e, hem, le_rfl⟩
       omega
   · let a := ins.minOn Arc.time hi
     have ham : a ∈ ins := List.minOn_mem
     obtain ⟨ha, hxa, hv⟩ := hmem a (List.mem_filter.mp ham).1
-    have hai : a.incoming = true := (List.mem_filter.mp ham).2
     refine ⟨a, ?_, ha, hxa, hv, ?_, ?_⟩
-    · simp only [attachmentArc]
-      change (if h : ins = [] then as.maxOn? Arc.time else
-        some (ins.minOn Arc.time h)) = some a
+    · change (if h : ins = [] then as.maxOn? Arc.time else some (ins.minOn Arc.time h)) = some a
       rw [dite_eq_right hi]
     · intro e he hei hex het hev
-      have hem : e ∈ ins := List.mem_filter.mpr ⟨List.mem_filter.mpr
-        ⟨he, by
-          rw [decide_eq_true_eq]
-          exact ⟨hex.symm, (pairFlip_comm f e.occurrence x) ▸ hev⟩⟩, hei⟩
-      have hle : a.time ≤ e.time := (List.apply_minOn_le_iff hi).mpr ⟨e, hem, le_rfl⟩
+      have hle : a.time ≤ e.time :=
+        (List.apply_minOn_le_iff hi).mpr ⟨e, hmem_ins he hei hex hev, le_rfl⟩
       omega
-    · simp [hai]
+    · simp [(List.mem_filter.mp ham).2]
 
 /-- Every successful finite attachment scan permits completion of any cut ending at its
 selected copy. All forbidden exchanges follow from the scan; they are not extra premises. -/
@@ -108,11 +99,8 @@ theorem valid_attachment_cut {f : OccurrenceLabeling F Bool} {arcs : List (Arc F
           ⟨x, a.time, !a.incoming⟩).flip f) := by
   obtain ⟨a, he, ha, hxa, hv, hbefore, hafter⟩ := attachmentArc_spec f arcs x hne
   have hat : a ∈ T.arcs := harcs ▸ List.mem_toFinset.mpr ha
-  refine ⟨a, he, hat, hxa,
-    fun cs hc => h.valid_complete_cut hp hM cs hat hc x hx hxa hv ?_ ?_⟩
-  · intro e he hei hex het
-    exact hbefore e (List.mem_toFinset.mp (harcs ▸ he)) hei hex het
-  · intro hai e he hex het
-    exact hafter hai e (List.mem_toFinset.mp (harcs ▸ he)) hex het
+  exact ⟨a, he, hat, hxa, fun cs hc => h.valid_complete_cut hp hM cs hat hc x hx hxa hv
+    (fun e he => hbefore e (List.mem_toFinset.mp (harcs ▸ he)))
+    (fun hai e he => hafter hai e (List.mem_toFinset.mp (harcs ▸ he)))⟩
 
 end Cslib.Logic.PL.CSP.Blossom

@@ -20,6 +20,8 @@ fixed widths has, in each window of bits, the bits of the corresponding field.
 ## Main results
 
 * `Nat.testBit_add_one_eq_xor`, `Nat.testBit_sub_one_eq_xor`: the bits of `c + 1` and `c - 1`.
+* `Nat.testBit_add_one_eq_ite_forall`, `Nat.testBit_add_one_of_lowest`: lower-bit prefix and
+  lowest-zero forms of `Nat.testBit_add_one_eq_xor`.
 * `Nat.testBit_sub_two_pow`, `Nat.eq_two_pow_of_testBit`: removing a set bit, and the numbers
   with a single set bit.
 * `Nat.testBit_add_four_mul`: the bits of a two-bit tag followed by a payload.
@@ -43,20 +45,12 @@ theorem testBit_sub_one_eq_xor {c : ℕ} (hc : 1 ≤ c) (q : ℕ) :
     omega
   | succ q ih =>
     rw [Nat.testBit_succ, Nat.testBit_succ, Nat.pow_succ', Nat.mod_mul]
-    rcases Nat.even_or_odd c with ⟨d, rfl⟩ | ⟨d, rfl⟩
+    obtain ⟨d, rfl | rfl⟩ : ∃ d, c = 2 * d ∨ c = 2 * d + 1 := ⟨c / 2, by omega⟩
     · have hd : 1 ≤ d := by omega
-      have h₁ : (d + d - 1) / 2 = d - 1 := by omega
-      have h₂ : (d + d) / 2 = d := by omega
-      have h₃ : (d + d) % 2 = 0 := by omega
-      rw [h₁, h₂, ih hd, h₃]
-      congr 2
-      rw [Nat.zero_add, Nat.mul_eq_zero]
+      have h₁ : (2 * d - 1) / 2 = d - 1 := by omega
+      rw [h₁, Nat.mul_div_right _ Nat.zero_lt_two, ih hd]
       simp
-    · have h₁ : (2 * d + 1 - 1) / 2 = d := by omega
-      have h₂ : (2 * d + 1) / 2 = d := by omega
-      have h₃ : (2 * d + 1) % 2 = 1 := by omega
-      rw [h₁, h₂, h₃]
-      simp
+    · simp [Nat.mul_add_div]
 
 /-- Bit `q` of `c + 1`: bit `q` of `c`, flipped when the lower bits of `c` are all one. -/
 theorem testBit_add_one_eq_xor (c q : ℕ) :
@@ -71,17 +65,13 @@ theorem testBit_add_one_eq_xor (c q : ℕ) :
   | succ q ih =>
     rw [Nat.testBit_succ, Nat.testBit_succ, Nat.pow_succ', Nat.mod_mul]
     have hq := Nat.one_le_two_pow (n := q)
-    rcases Nat.even_or_odd c with ⟨d, rfl⟩ | ⟨d, rfl⟩
-    · have h₁ : (d + d + 1) / 2 = d := by omega
-      have h₂ : (d + d) / 2 = d := by omega
-      have h₃ : (d + d) % 2 = 0 := by omega
-      rw [h₁, h₂, h₃]
-      have : ¬ (2 * (d % 2 ^ q) = 2 * 2 ^ q - 1) := by omega
-      simp [this]
+    obtain ⟨d, rfl | rfl⟩ : ∃ d, c = 2 * d ∨ c = 2 * d + 1 := ⟨c / 2, by omega⟩
+    · have hne : ¬ 2 * (d % 2 ^ q) = 2 * 2 ^ q - 1 := by omega
+      simp [Nat.mul_add_div, hne]
     · have h₁ : (2 * d + 1 + 1) / 2 = d + 1 := by omega
       have h₂ : (2 * d + 1) / 2 = d := by omega
-      have h₃ : (2 * d + 1) % 2 = 1 := by omega
-      rw [h₁, h₂, h₃, ih d]
+      rw [h₁, h₂, ih d]
+      simp only [Nat.mul_add_mod_self_left, Nat.mod_succ]
       congr 2
       exact propext ⟨fun h => by omega, fun h => by omega⟩
 
@@ -135,5 +125,37 @@ theorem eq_two_pow_of_testBit {m a : ℕ} (h : ∀ c, m.testBit c = true ↔ c =
       simpa using (h c).2 rfl
     · rw [decide_eq_false (Ne.symm hc)]
       exact Bool.eq_false_iff.2 fun h' => hc ((h c).1 h')
+
+/-- Bit `q` of `c + 1` flips iff all lower bits `i < q` of `c` are `true`. -/
+theorem testBit_add_one_eq_ite_forall (c q : ℕ) :
+    (c + 1).testBit q =
+      if ∀ i < q, c.testBit i = true then !(c.testBit q) else c.testBit q := by
+  have hiff : c % 2 ^ q = 2 ^ q - 1 ↔ ∀ i < q, c.testBit i = true := by
+    constructor
+    · intro hm i hi
+      rw [← Bool.and_true (c.testBit i), Bool.and_comm, ← decide_eq_true hi,
+        ← Nat.testBit_mod_two_pow, hm, Nat.testBit_two_pow_sub_one]
+    · intro hlow
+      refine Nat.eq_of_testBit_eq fun i => ?_
+      rw [Nat.testBit_mod_two_pow, Nat.testBit_two_pow_sub_one]
+      by_cases hi : i < q
+      · simp [hi, hlow i hi]
+      · simp [hi]
+  rw [testBit_add_one_eq_xor]
+  by_cases h : ∀ i < q, c.testBit i = true
+  · rw [ite_eq_left h, decide_eq_true (hiff.mpr h), Bool.xor_true]
+  · rw [ite_eq_right h, decide_eq_false (mt hiff.mp h), Bool.xor_false]
+
+/-- Adding one to `N` complements the bits up to and including its lowest zero bit `j`. -/
+theorem testBit_add_one_of_lowest {N j : ℕ} (hj : N.testBit j = false)
+    (hlow : ∀ l < j, N.testBit l = true) (l : ℕ) :
+    (N + 1).testBit l = if l ≤ j then !N.testBit l else N.testBit l := by
+  have hiff : (∀ i < l, N.testBit i = true) ↔ l ≤ j :=
+    ⟨fun h => Nat.le_of_not_lt fun hlt => by
+      have ht := h j hlt
+      rw [hj] at ht
+      exact Bool.false_ne_true ht,
+     fun h i hi => hlow i (Nat.lt_of_lt_of_le hi h)⟩
+  simp only [testBit_add_one_eq_ite_forall, hiff]
 
 end Nat

@@ -105,10 +105,9 @@ theorem observation_word_extraction {pair : SamplablePair} (saved : pair.SeedRea
         test n result)
       (fun _ => True) := by
   intro test _
-  have h := saved.observation_extraction inverseSlack outputBits key
-    (fun n k values => hash n k (values.map (pair.encode n))) hhash hbudget test trivial
-  apply h.congr
-  intro n
+  refine (saved.observation_extraction inverseSlack outputBits key
+    (fun n k values => hash n k (values.map (pair.encode n))) hhash hbudget test trivial).congr
+    fun n => ?_
   have hpublic : ProbComp.eval (Prod.fst <$> pair.sample n) =
       (ProbComp.eval (Prod.fst <$> pair.latentSample n)).map (pair.encode n) := by
     simp only [pmf_norm, pair.eval_latentSample, pair.eval_sample]
@@ -140,24 +139,23 @@ theorem remainingSeed_extraction {pair : SamplablePair} (saved : pair.SeedRealiz
         (pair.latentSample n) (saved.sampleCount inverseSlack n)
           (key n)).bind (test n)) (fun _ => True) := by
   intro test _
-  have h := extractLabels_indistinguishable
-    (fun n => saved.latentSampleWithSeed n) saved.length inverseSlack outputBits
-    (by simpa only [saved.eval_latentSampleWithSeed] using saved.jointWithSeed_mass_ge)
-    key hash hhash
-    (by
+  refine (extractLabels_indistinguishable (fun n => saved.latentSampleWithSeed n) saved.length
+    inverseSlack outputBits
+    (by simpa only [saved.eval_latentSampleWithSeed] using saved.jointWithSeed_mass_ge) key hash
+    hhash (by
       filter_upwards [hbudget] with n hn
-      simpa only [saved.eval_latentSampleWithSeed, show conditionalEntropy (saved.jointWithSeed n) =
-        saved.length n - entropy ((pair.joint n).map Prod.fst) -
-          conditionalEntropy (pair.joint n) by linarith [saved.entropy_chain_rule n]] using hn)
-    test trivial
-  apply h.congr
-  intro n
+      have hcond : conditionalEntropy (saved.jointWithSeed n) =
+          saved.length n - entropy ((pair.joint n).map Prod.fst) -
+            conditionalEntropy (pair.joint n) := by
+        linarith [saved.entropy_chain_rule n]
+      simpa only [saved.eval_latentSampleWithSeed, hcond] using hn)
+    test trivial).congr fun n => ?_
   have hpublic : ProbComp.eval (Prod.fst <$> saved.latentSampleWithSeed n) =
       ProbComp.eval (pair.latentSample n) := by
     simp only [ProbComp.eval_map, pair.eval_latentSample, saved.eval_latentSampleWithSeed,
       saved.jointWithSeed_map_fst]
-  simp only [extractLabelsIdeal, ProbComp.eval_replicate_congr hpublic
-    (saved.sampleCount inverseSlack n)]
+  simp only [extractLabelsIdeal,
+    ProbComp.eval_replicate_congr hpublic (saved.sampleCount inverseSlack n)]
 
 /-- The remaining-seed transition for the actual word sampler. Every observation and label
 stays public; finite representations are confined to the two-universality hypothesis. -/
@@ -181,30 +179,19 @@ theorem remainingSeed_word_extraction {pair : SamplablePair} (saved : pair.SeedR
         (saved.sampleCount inverseSlack n) (key n)).bind (test n))
       (fun _ => True) := by
   intro test _
-  have h := saved.remainingSeed_extraction inverseSlack outputBits key
+  let observe (n : ℕ) (value : pair.Observation n × Bool) := (pair.encode n value.1, value.2)
+  refine (saved.remainingSeed_extraction inverseSlack outputBits key
     (fun n k values => hash n k (values.map List.ofFn)) hhash hbudget
-      (fun n result => test n
-        (result.1.map (fun value => (pair.encode n value.1, value.2)), result.2)) trivial
-  apply h.congr
-  intro n
-  let observe := fun value : pair.Observation n × Bool => (pair.encode n value.1, value.2)
-  have hsource : ProbComp.eval (saved.sampleWithSeed n) =
-      (ProbComp.eval (saved.latentSampleWithSeed n)).map
-        (fun result => (observe result.1, List.ofFn result.2)) := by
-    simpa only [saved.eval_latentSampleWithSeed] using
-      saved.eval_sampleWithSeed n
+    (fun n result => test n (result.1.map (observe n), result.2)) trivial).congr fun n => ?_
+  have hreal := eval_replicate_extractLabels_map_pair (observe n) List.ofFn
+    (saved.latentSampleWithSeed n) (saved.sampleCount inverseSlack n) (key n) (hash n)
+    (by simpa only [saved.eval_latentSampleWithSeed] using saved.eval_sampleWithSeed n)
   have hpublic : ProbComp.eval (pair.sample n) =
-      (ProbComp.eval (pair.latentSample n)).map observe := by
+      (ProbComp.eval (pair.latentSample n)).map (observe n) := by
     simp only [pair.eval_latentSample, pair.eval_sample, observe]
-  have hreal := eval_replicate_extractLabels_map_pair observe List.ofFn
-    (saved.latentSampleWithSeed n)
-    (saved.sampleCount inverseSlack n) (key n) (hash n) hsource
   have hideal := extractLabelsIdeal_map_observation (Output := BitString (outputBits n))
-    observe (pair.latentSample n)
-    (saved.sampleCount inverseSlack n) (key n) hpublic
-  have hleft := congrArg (fun law => law.bind (test n)) hreal.symm
-  have hright := congrArg (fun law => law.bind (test n)) hideal
-  simpa only [pmf_norm, observe] using
-    congrArg₂ Game.advantage hleft hright
+    (observe n) (pair.latentSample n) (saved.sampleCount inverseSlack n) (key n) hpublic
+  simpa only [pmf_norm, observe] using congrArg₂ Game.advantage
+    (congrArg (·.bind (test n)) hreal.symm) (congrArg (·.bind (test n)) hideal)
 
 end Cslib.Crypto.Pseudoentropy.SamplablePair.SeedRealization

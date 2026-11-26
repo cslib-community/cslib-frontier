@@ -52,38 +52,32 @@ theorem exists_polynomial_overhead (c : NativeCertificate f eb ec)
   let Y : ℕ → ℕ := fun n => aY * (n + 1) ^ dY
   let Q : ℕ → ℕ := fun n => K * (Y n + 1) ^ K
   let F : ℕ → ℕ := fun n => p n + Q n + q (cO * (Q n + 1))
-  have hFp : PolyBounded id F := by growth_poly
-  obtain ⟨KF, hF⟩ := hFp.exists_le_succ_pow
+  obtain ⟨KF, hF⟩ := (by growth_poly : PolyBounded id F).exists_le_succ_pow
   refine ⟨KF, fun a X hX ht hs => ?_⟩
   set n := (ei a).length
   have hQ : K * ((eb (prepare a)).length + 1) ^ K ≤ Q n :=
     Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (Nat.add_le_add_right (hY a) 1) K)
-  have ht' : c.time (prepare a) ≤ Q n * X := ht.trans (Nat.mul_le_mul_right X hQ)
-  have hs' : c.space (prepare a) ≤ Q n := hs.trans hQ
-  have hlen : (ec (f (prepare a))).length ≤ cO * (Q n + 1) :=
-    (hO (prepare a)).trans (Nat.mul_le_mul_left _ (Nat.add_le_add_right hs' 1))
+  have hq_le := hqm ((hO (prepare a)).trans
+    (Nat.mul_le_mul_left _ (Nat.add_le_add_right (hs.trans hQ) 1)))
   have hdt : (ofPolyTime hd).time (f (prepare a)) ≤ q (cO * (Q n + 1)) :=
-    (hqle (f (prepare a))).1.trans (hqm hlen)
+    (hqle (f (prepare a))).1.trans hq_le
   have hds : (ofPolyTime hd).space (f (prepare a)) ≤ q (cO * (Q n + 1)) :=
-    (hqle (f (prepare a))).2.trans (hqm hlen)
-  have hbound : F n ≤ KF * (n + 1) ^ KF := hF _ le_rfl n
+    (hqle (f (prepare a))).2.trans hq_le
   have hpt : (ofPolyTime hp).time a ≤ p n := (hple a).1
   have hps : (ofPolyTime hp).space a ≤ p n := (hple a).2
-  change (ofPolyTime hp).time a + c.time (prepare a) +
-      (ofPolyTime hd).time (f (prepare a)) ≤ _ ∧
-    (ofPolyTime hp).space a + c.space (prepare a) +
-      (ofPolyTime hd).space (f (prepare a)) ≤ _
+  have hbound : F n ≤ KF * (n + 1) ^ KF := hF _ le_rfl n
+  change (ofPolyTime hp).time a + c.time (prepare a) + (ofPolyTime hd).time (f (prepare a)) ≤ _ ∧
+    (ofPolyTime hp).space a + c.space (prepare a) + (ofPolyTime hd).space (f (prepare a)) ≤ _
+  have := hs.trans hQ
   refine ⟨?_, ?_⟩
-  · have hpX : p n ≤ p n * X := Nat.le_mul_of_pos_right _ hX
-    have hqX : q (cO * (Q n + 1)) ≤ q (cO * (Q n + 1)) * X :=
-      Nat.le_mul_of_pos_right _ hX
-    calc (ofPolyTime hp).time a + c.time (prepare a) +
-          (ofPolyTime hd).time (f (prepare a))
+  · have := ht.trans (Nat.mul_le_mul_right X hQ)
+    have := Nat.le_mul_of_pos_right (p n) hX
+    have := Nat.le_mul_of_pos_right (q (cO * (Q n + 1))) hX
+    calc (ofPolyTime hp).time a + c.time (prepare a) + (ofPolyTime hd).time (f (prepare a))
         ≤ p n * X + Q n * X + q (cO * (Q n + 1)) * X := by omega
       _ = F n * X := by simp only [F]; ring
-      _ ≤ KF * (n + 1) ^ KF * X := Nat.mul_le_mul_right _ hbound
-  · calc (ofPolyTime hp).space a + c.space (prepare a) +
-          (ofPolyTime hd).space (f (prepare a))
+      _ ≤ KF * (n + 1) ^ KF * X := Nat.mul_le_mul_right X hbound
+  · calc (ofPolyTime hp).space a + c.space (prepare a) + (ofPolyTime hd).space (f (prepare a))
         ≤ F n := by dsimp only [F]; omega
       _ ≤ KF * (n + 1) ^ KF := hbound
 

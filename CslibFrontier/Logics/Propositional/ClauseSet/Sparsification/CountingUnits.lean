@@ -65,42 +65,27 @@ theorem countingIntro_nonempty {ψ : ClauseSet V} {c : ℕ} {H : Finset (Literal
   rw [← card_pos]
   cases b with
   | false =>
-    have hCH : C = H := by simpa only [countingIntro, mem_singleton] using hC
-    rw [hCH]
-    omega
+    rw [mem_singleton.mp hC]
+    exact hH
   | true =>
     rcases mem_union.mp hC with hC | hC
-    · rw [card_of_mem_petals hC]
+    · have := card_of_mem_petals hC
       omega
-    · obtain ⟨l, -, rfl⟩ := mem_image.mp hC
+    · obtain ⟨_, -, rfl⟩ := mem_image.mp hC
       simp
+
+private theorem empty_notMem_union {ψ : ClauseSet V} {c : ℕ} {H : Finset (Literal V)}
+    (hψ : ∅ ∉ ψ) (hH : 1 ≤ H.card) (hproper : H.card < c) (b : Bool) :
+    ∅ ∉ ψ ∪ countingIntro ψ c H b :=
+  fun h => (mem_union.mp h).elim hψ fun h =>
+    Finset.not_nonempty_empty (countingIntro_nonempty hH hproper h)
 
 /-- A step cannot introduce an empty clause when none was present. -/
 theorem empty_notMem_countingChild {ψ : ClauseSet V} {c : ℕ} {H : Finset (Literal V)}
     (hψ : ∅ ∉ ψ) (hH : 1 ≤ H.card) (hproper : H.card < c) (b : Bool) :
-    ∅ ∉ countingChild ψ c H b := by
-  rw [countingChild_eq_reduce_union]
-  intro h
-  rcases mem_union.mp (reduce_subset _ h) with h | h
-  · exact hψ h
-  · exact Finset.not_nonempty_empty (countingIntro_nonempty hH hproper h)
-
-private theorem mem_reduce_union_unit_iff {ψ X : ClauseSet V}
-    (hψ : ∅ ∉ ψ) (hX : ∀ C ∈ X, C.Nonempty) {C : Finset (Literal V)} (hC : C.card = 1) :
-    C ∈ reduce (ψ ∪ X) ↔ C ∈ ψ ∪ X := by
-  constructor
-  · intro h
-    exact reduce_subset (ψ ∪ X) h
-  · intro hmem
-    rw [mem_reduce]
-    refine ⟨hmem, ?_⟩
-    intro D hD hDC
-    have hDzero : D.card = 0 := by have := card_lt_card hDC; omega
-    have hDEmpty : D = ∅ := card_eq_zero.mp hDzero
-    subst D
-    rcases mem_union.mp hD with hD | hD
-    · exact hψ hD
-    · exact Finset.not_nonempty_empty (hX _ hD)
+    ∅ ∉ countingChild ψ c H b :=
+  countingChild_eq_reduce_union ψ c H b ▸
+    fun h => empty_notMem_union hψ hH hproper b (reduce_subset _ h)
 
 /-- Existing units persist, and every payload unit survives immediate reduction.
 No nontautology assumption is needed for this width-one fact. -/
@@ -108,8 +93,10 @@ theorem mem_countingChild_unit_iff {ψ : ClauseSet V} {c : ℕ} {H : Finset (Lit
     (hψ : ∅ ∉ ψ) (hH : 1 ≤ H.card) (hproper : H.card < c) (b : Bool)
     {C : Finset (Literal V)} (hC : C.card = 1) :
     C ∈ countingChild ψ c H b ↔ C ∈ ψ ∨ C ∈ countingIntro ψ c H b := by
-  rw [countingChild_eq_reduce_union, mem_reduce_union_unit_iff hψ
-    (fun _ h => countingIntro_nonempty hH hproper h) hC, mem_union]
+  rw [countingChild_eq_reduce_union, ← mem_union]
+  refine ⟨fun h => reduce_subset _ h, fun h => mem_reduce.mpr ⟨h, fun D hD hDC => ?_⟩⟩
+  obtain rfl : D = ∅ := card_eq_zero.mp (Nat.lt_one_iff.mp (hC ▸ card_lt_card hDC))
+  exact empty_notMem_union hψ hH hproper b hD
 
 /-- Units after a step are precisely the existing units plus its new unit insertion batch. -/
 theorem units_countingChild {ψ : ClauseSet V} {c : ℕ} {H : Finset (Literal V)}
@@ -118,8 +105,8 @@ theorem units_countingChild {ψ : ClauseSet V} {c : ℕ} {H : Finset (Literal V)
       ψ.filter (fun C => C.card = 1) ∪ countingUnitInsertions ψ c H b := by
   ext C
   by_cases hC : C.card = 1
-  · simp only [mem_filter, hC, and_true, mem_union, countingUnitInsertions, mem_sdiff]
-    rw [mem_countingChild_unit_iff hψ hH hproper b hC]
+  · simp only [mem_filter, hC, and_true, mem_union, countingUnitInsertions, mem_sdiff,
+      mem_countingChild_unit_iff hψ hH hproper b hC]
     tauto
   · simp [hC, countingUnitInsertions]
 
@@ -145,30 +132,17 @@ theorem sum_countingUnitInsertions_add_card_units
     (∑ i ∈ range N, (countingUnitInsertions (ψ i) (c i) (H i) (b i)).card) +
       ((ψ 0).filter fun C => C.card = 1).card =
       ((ψ N).filter fun C => C.card = 1).card := by
-  have hempty : ∀ i, i ≤ N → ∅ ∉ ψ i := by
-    intro i
-    induction i with
-    | zero => exact fun _ => hψ
-    | succ i ih =>
-      intro hi
-      rw [hstep i (by omega)]
-      exact empty_notMem_countingChild (ih (by omega))
-        (hproper i (by omega)).1 (hproper i (by omega)).2 (b i)
-  suffices ∀ n, n ≤ N →
-      (∑ i ∈ range n, (countingUnitInsertions (ψ i) (c i) (H i) (b i)).card) +
+  suffices ∅ ∉ ψ N ∧
+      (∑ i ∈ range N, (countingUnitInsertions (ψ i) (c i) (H i) (b i)).card) +
         ((ψ 0).filter fun C => C.card = 1).card =
-        ((ψ n).filter fun C => C.card = 1).card from this N le_rfl
-  intro n
-  induction n with
-  | zero => simp
-  | succ n ih =>
-    intro hn
-    have hprev := ih (by omega)
-    have hinc := card_units_countingChild (hempty n (by omega))
-      (hproper n (by omega)).1 (hproper n (by omega)).2 (b n)
-    rw [← hstep n (by omega)] at hinc
-    rw [sum_range_succ]
-    omega
+        ((ψ N).filter fun C => C.card = 1).card from this.2
+  induction N with
+  | zero => exact ⟨hψ, by simp⟩
+  | succ N ih =>
+    obtain ⟨he, hsum⟩ := ih (fun i hi => hstep i (by omega)) (fun i hi => hproper i (by omega))
+    obtain ⟨h1, h2⟩ := hproper N (Nat.lt_succ_self N)
+    rw [hstep N (Nat.lt_succ_self N), sum_range_succ, card_units_countingChild he h1 h2]
+    exact ⟨empty_notMem_countingChild he h1 h2 (b N), by omega⟩
 
 /-- The width-one base case of Appendix A.3: actual unit insertion events along a finite path
 have total at most twice the number of declared variables. This charges heart units, petal units

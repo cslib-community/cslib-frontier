@@ -119,14 +119,12 @@ theorem freshBase_gt {v : ℕ} (hv : v ∈ F.vars) : v < freshBase F := by
 theorem connector_not_mem (i : Fin F.length) : connector F i ∉ F.vars := by
   intro hi
   have := freshBase_gt hi
-  simp only [connector] at this
+  unfold connector at this
   omega
 
 /-- Connectors distinguish constraint positions even for identical original constraints. -/
-theorem connector_injective (F : CSP Table ℕ) : Function.Injective (connector F) := by
-  intro i j h
-  apply Fin.ext
-  exact Nat.add_left_cancel h
+theorem connector_injective (F : CSP Table ℕ) : Function.Injective (connector F) :=
+  fun _ _ h => Fin.ext (Nat.add_left_cancel h)
 
 /-- Fresh names lie below one addition of the original constraint count to the scanned name
 bound. The constructor never loops over the interval below this binary bound. -/
@@ -151,16 +149,13 @@ theorem canContract_constraint {f : OccurrenceLabeling F Bool}
 theorem arity_constraint {f : OccurrenceLabeling F Bool}
     (hf : ValidLabeling sem f) (vs : List ℕ) (i : Fin F.length) :
     (constraint f vs i).rel.arity = (constraint f vs i).scope.length := by
-  have hlen : F[i.val].rel.arity = F[i.val].scope.length := by
-    have hs := sem_eq_true.mp (hf i)
-    simpa only [localTuple, List.length_ofFn, Fin.getElem_fin] using
-      (wellFormed_eq_true.mp hs.1 _ hs.2).symm
   unfold constraint
   split
-  · exact hlen
-  · simp only [List.length_append, List.length_map, List.length_singleton]
+  · have hs := sem_eq_true.mp (hf i)
     simpa only [localTuple, List.length_ofFn, Fin.getElem_fin] using
-      arity_contract (canContract_constraint hf vs i)
+      (wellFormed_eq_true.mp hs.1 _ hs.2).symm
+  · simpa only [List.length_append, List.length_map, List.length_singleton, localTuple,
+      List.length_ofFn, Fin.getElem_fin] using arity_contract (canContract_constraint hf vs i)
 
 /-- The number of stored rows of each old constraint never increases. Duplicate rows retain
 multiplicity, as in `Table.contract`. -/
@@ -183,18 +178,14 @@ variable {F : CSP Table ℕ}
 theorem localTuple_labels (G : CSP Table ℕ) (rows : List (List Bool)) (i : Fin G.length)
     (hw : (rows.getD i.val []).length = G[i.val].scope.length) :
     localTuple (labels G rows) i = rows.getD i.val [] := by
-  apply List.ext_getElem
-  · simp only [localTuple, List.length_ofFn, hw]
-  · intro j hj hk
-    simp only [localTuple, labels, List.getElem_ofFn]
-    exact List.getD_eq_getElem _ _ hk
+  refine List.ext_getElem (by simp only [localTuple, List.length_ofFn, hw]) fun j hj hk => ?_
+  simpa only [localTuple, labels, List.getElem_ofFn] using List.getD_eq_getElem _ _ hk
 
 /-- A finite row buffer is valid exactly when all its actual local rows are accepted. -/
 theorem valid_labels (G : CSP Table ℕ) (rows : List (List Bool))
     (hw : ∀ i : Fin G.length, (rows.getD i.val []).length = G[i.val].scope.length)
     (hv : ∀ i : Fin G.length, G[i.val].rel.sem (rows.getD i.val []) = true) :
-    ValidLabeling sem (labels G rows) := by
-  intro i
+    ValidLabeling sem (labels G rows) := fun i => by
   rw [localTuple_labels G rows i (hw i)]
   exact hv i
 
@@ -243,8 +234,8 @@ theorem transportRows_length (f g : OccurrenceLabeling F Bool) (vs : List ℕ)
   by_cases hi : i.val < F.length
   · simpa only [get_contract_old f vs ⟨i.val, hi⟩] using
       transportRow_length f g vs bits central ⟨i.val, hi⟩
-  · have he : i.val = F.length := by have := i.isLt; simp only [length_contract] at this; omega
-    simpa only [he, get_transportRows_central, get_contract_central] using hc
+  · simpa only [Nat.eq_of_lt_succ_of_not_lt (by simpa using i.isLt) hi,
+      get_transportRows_central, get_contract_central] using hc
 
 /-- The finite reference buffer at a retained original constraint. -/
 theorem get_referenceRows_old (f : OccurrenceLabeling F Bool) (vs : List ℕ)
@@ -276,18 +267,14 @@ necessary: exactly-one on zero connectors rejects every row. -/
 theorem valid_reference {f : OccurrenceLabeling F Bool} (hf : ValidLabeling sem f)
     (vs : List ℕ) (hne : touched F vs ≠ []) :
     ValidLabeling sem (reference f vs) := by
-  have hpos : 0 < (connectors F vs).length := by
-    simpa only [length_connectors] using List.length_pos_iff.mpr hne
-  apply valid_labels (contract f vs) (referenceRows f vs)
-    (transportRows_length f f vs (fun _ => false) (by simp [listSingle]))
-  intro i
+  refine valid_labels (contract f vs) (referenceRows f vs)
+    (transportRows_length f f vs (fun _ => false) (by simp [listSingle])) fun i => ?_
   by_cases hi : i.val < F.length
-  · simpa only [get_contract_old f vs ⟨i.val, hi⟩] using
-      referenceRow_valid hf vs ⟨i.val, hi⟩
-  · have he : i.val = F.length := by have := i.isLt; simp only [length_contract] at this; omega
-    simp only [he, get_referenceRows_central f vs, get_contract_central f vs]
-    apply (sem_exactlyOne_eq_true _ _).mpr
-    exact ⟨by simp [listSingle], count_true_listSingle hpos⟩
+  · simpa only [get_contract_old f vs ⟨i.val, hi⟩] using referenceRow_valid hf vs ⟨i.val, hi⟩
+  · simp only [Nat.eq_of_lt_succ_of_not_lt (by simpa using i.isLt) hi,
+      get_referenceRows_central, get_contract_central, sem_exactlyOne_eq_true]
+    exact ⟨by simp [listSingle],
+      count_true_listSingle (by simpa using List.length_pos_iff.mpr hne)⟩
 
 /-- No output relation is empty: the explicit reference witnesses it, rather than an assumed
 model of the original instance. -/
@@ -319,25 +306,22 @@ theorem even_constraint {f : OccurrenceLabeling F Bool} (hf : ValidLabeling sem 
   let P (c : Constraint Table ℕ) : Prop := BitString.IsEvenDeltaMatroid
     {t : Fin c.scope.length → Bool | c.rel.sem (List.ofFn t) = true}
   change P (constraint f vs i)
-  have hl : F[i.val].rel.arity = F[i.val].scope.length := by
-    have hs := sem_eq_true.mp (hf i)
-    simpa only [localTuple, List.length_ofFn, Fin.getElem_fin] using
-      (wellFormed_eq_true.mp hs.1 _ hs.2).symm
-  have hm : BitString.IsEvenDeltaMatroid (booleanRelation arity sem F[i.val].rel) := by
-    apply (even_arity hl).mpr
-    simpa only [Fin.getElem_fin] using hM i
   by_cases hp : (positions vs F[i.val].scope).isEmpty = true
-  · have he : constraint f vs i = F[i.val] := by simp [constraint, hp]
-    rw [he]
+  · rw [show constraint f vs i = F[i.val] by simp [constraint, hp]]
     simpa only [P, Fin.getElem_fin] using hM i
-  · have he : constraint f vs i =
+  · have hm : BitString.IsEvenDeltaMatroid (booleanRelation arity sem F[i.val].rel) := by
+      have hs := sem_eq_true.mp (hf i)
+      exact (even_arity (by
+        simpa only [localTuple, List.length_ofFn, Fin.getElem_fin] using
+          (wellFormed_eq_true.mp hs.1 _ hs.2).symm)).mpr
+        (by simpa only [Fin.getElem_fin] using hM i)
+    have he : constraint f vs i =
         ⟨F[i.val].rel.contract (localTuple f i) (positions vs F[i.val].scope),
           (outsidePositions F[i.val].scope.length (positions vs F[i.val].scope)).map
             (fun j => F[i.val].scope.getD j 0) ++ [connector F i]⟩ := by
       simp [constraint, hp]
     have hout := arity_constraint hf vs i
-    rw [he] at hout
-    rw [he]
+    rw [he] at hout ⊢
     exact (even_arity hout).mp (isEvenDeltaMatroid_contract hm (canContract_constraint hf vs i))
 
 /-- Every actual output relation is a nonempty even delta-matroid, including the central
@@ -352,15 +336,11 @@ theorem even_contract {f : OccurrenceLabeling F Bool} (hf : ValidLabeling sem f)
   by_cases hi : i.val < F.length
   · rw [get_contract_old f vs ⟨i.val, hi⟩]
     exact even_constraint hf hM vs ⟨i.val, hi⟩
-  · have he : i.val = F.length := by have := i.isLt; simp only [length_contract] at this; omega
-    have hget : (contract f vs)[i.val] = ⟨exactlyOne (connectors F vs), connectors F vs⟩ := by
-      simp [contract, he, List.getElem_append_right]
-    have hscope : connectors F vs ≠ [] := by
-      intro hz
-      have := congrArg List.length hz
-      simp only [length_connectors, List.length_nil, List.length_eq_zero_iff] at this
-      exact hne this
-    rw [hget]
-    exact isEvenDeltaMatroid_exactlyOne (connectors F vs) hscope
+  · have hc : (contract f vs)[i.val] = ⟨exactlyOne (connectors F vs), connectors F vs⟩ := by
+      simp [contract, Nat.eq_of_lt_succ_of_not_lt (by simpa using i.isLt) hi,
+        List.getElem_append_right]
+    rw [hc]
+    exact isEvenDeltaMatroid_exactlyOne (connectors F vs)
+      (List.ne_nil_of_length_pos (by simpa using List.length_pos_iff.mpr hne))
 
 end Cslib.Logic.PL.CSP.Blossom

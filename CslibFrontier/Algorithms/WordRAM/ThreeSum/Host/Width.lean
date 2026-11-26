@@ -63,10 +63,9 @@ private theorem margin_fits {κ N w : ℕ} (hw : width κ N ≤ w) :
 private theorem signed_fits {κ N w : ℕ} (hw : width κ N ≤ w) (z : ℤ)
     (hz : |z| ≤ (8 * ChanHe.Parameters.Math.budget N ((N + 2) ^ κ) : ℕ)) :
     GenericRAM.Signed.Fits w z := by
-  have hf := margin_fits hw
   have hwpos := width_pos κ N
   have hpow : (8 * ChanHe.Parameters.Math.budget N ((N + 2) ^ κ) : ℤ) <
-      2 ^ (w - 1) := by exact_mod_cast hf
+      2 ^ (w - 1) := by exact_mod_cast margin_fits hw
   obtain ⟨hlo, hhi⟩ := abs_le.mp hz
   exact ⟨by omega, by omega, by omega⟩
 
@@ -89,13 +88,11 @@ theorem layout_fits {κ N w : ℕ} (hw : width κ N ≤ w) :
 theorem filler_fits {κ N w : ℕ} (hw : width κ N ≤ w) :
     GenericRAM.Signed.Fits w (2 * ((N + 2) ^ κ : ℕ) + 1) ∧
       GenericRAM.Signed.Fits w (-(2 * ((N + 2) ^ κ : ℕ) + 1)) := by
-  have hbound : |(2 * ((N + 2) ^ κ : ℕ) + 1 : ℤ)| ≤
-      (8 * ChanHe.Parameters.Math.budget N ((N + 2) ^ κ) : ℕ) := by
-    rw [abs_of_nonneg (by positivity)]
-    exact_mod_cast (show 2 * (N + 2) ^ κ + 1 ≤
-      8 * ChanHe.Parameters.Math.budget N ((N + 2) ^ κ) from by
-        dsimp [ChanHe.Parameters.Math.budget]
-        omega)
+  have hb : 2 * (N + 2) ^ κ + 1 ≤ 8 * ChanHe.Parameters.Math.budget N ((N + 2) ^ κ) := by
+    dsimp [ChanHe.Parameters.Math.budget]
+    omega
+  have hbound : |(2 * ((N + 2) ^ κ : ℕ) + 1 : ℤ)| ≤ _ :=
+    (abs_of_nonneg (by positivity)).trans_le (Nat.cast_le.mpr hb)
   exact ⟨signed_fits hw _ hbound, signed_fits hw _ (by simpa only [abs_neg] using hbound)⟩
 
 /-- Every signed input index computed in a generated instance fits. -/
@@ -103,21 +100,18 @@ theorem index_fits {κ N w s : ℕ} (hw : width κ N ≤ w) (hs : s < 2 * sideLe
     GenericRAM.Signed.Fits w ((2 * (sideLength N * sideLength N) + s + 1 : ℕ) : ℤ) := by
   apply signed_fits hw
   rw [abs_of_nonneg (by positivity)]
-  have ha := area_le N
-  have ht := Nat.sqrt_le_self N
   dsimp only [sideLength] at hs
-  exact_mod_cast (show 2 * (sideLength N * sideLength N) + s + 1 ≤
-    8 * ChanHe.Parameters.Math.budget N ((N + 2) ^ κ) from by
-      dsimp [ChanHe.Parameters.Math.budget]
-      omega)
+  exact Nat.cast_le.mpr (by
+    have := area_le N
+    have := Nat.sqrt_le_self N
+    dsimp [ChanHe.Parameters.Math.budget]
+    omega)
 
 /-- A polynomial magnitude bound implies the signed source fit premise. -/
 theorem value_fits {κ N w : ℕ} (hw : width κ N ≤ w) {z : ℤ}
     (hz : |z| ≤ ((N + 2) ^ κ : ℕ)) : GenericRAM.Signed.Fits w z := by
-  apply signed_fits hw z
-  have hb : (N + 2) ^ κ ≤ 8 * ChanHe.Parameters.Math.budget N ((N + 2) ^ κ) := by
-    dsimp [ChanHe.Parameters.Math.budget]
-    omega
-  exact hz.trans (by exact_mod_cast hb)
+  refine signed_fits hw z (hz.trans (Nat.cast_le.mpr ?_))
+  dsimp [ChanHe.Parameters.Math.budget]
+  omega
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Host

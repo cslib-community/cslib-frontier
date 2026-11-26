@@ -1,65 +1,115 @@
 /-
-Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Copyright (c) 2026 Samuel Schlesinger, Vincent Liew. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Vincent Liew
 -/
 
 module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity
+import CslibFrontier.Foundations.BooleanAnalysis.Monotone
+import CslibFrontier.Foundations.BooleanAnalysis.Variance
+import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Analysis.Complex.ExponentialBounds
+import Mathlib.Analysis.Convex.Jensen
+import Mathlib.Analysis.Convex.SpecificFunctions.Basic
+import CslibFrontier.Foundations.BooleanAnalysis.StableInfluenceBound
 
 /-!
 # The Kahn–Kalai–Linial theorem and Talagrand's inequality
 
-Read a Boolean function `f` as the function `F = (-1) ^ f` with values `±1`. By the Poincaré
-inequality the influences of `F` on its `n` coordinates average at least `Var[F] / n`; the
-**Kahn–Kalai–Linial theorem** says that some coordinate has influence at least
-`c · Var[F] · log n / n`, for an absolute constant `c > 0` [KahnKalaiLinial1988]. We prove it
-with `c = 1 / 12` (`BitString.exists_expect_sub_expect_sq_mul_log_card_div_le_influence`),
-through an edge-isoperimetric form: if every coordinate has influence at most `δ`, then the total
-influence is at least `1 / 6 · Var[F] · log (1 / δ)`
-(`BitString.expect_sub_expect_sq_mul_log_inv_le_six_mul_totalInfluence`). This is a weaker form
-of the KKL Edge-Isoperimetric Theorem in O'Donnell's exposition, proved by the same use of
-hypercontractivity on the derivatives [O'Donnell, Section 9.6][ODonnell2014]. Here `Var[F]` is
-written `𝔼 x, (F x - 𝔼 y, F y) ^ 2`, the Fourier weight of `F` on the nonempty sets.
+Read a Boolean function `f` as the function `F = (-1) ^ f` with values `±1`, and write
+`Ĩ = I[F] / Var[F]`. By the Poincaré inequality the influences of `F` on its `n` coordinates
+average at least `Var[F] / n`, and `Ĩ ≥ 1`. The **KKL Edge-Isoperimetric Theorem** of
+[O'Donnell][ODonnell2014], Section 9.6, says that a nonconstant `F` has a coordinate of influence
+at least `(9 / Ĩ²) 9^{-Ĩ}` (`BitString.exists_nine_div_sq_mul_one_ninth_rpow_le_influence`). We
+prove it with the book's constants, in the general-variance form asked for in its Exercise 9.29;
+the book's remark `Ĩ ≥ 1` is not a hypothesis. As in the book, splitting on whether
+`Ĩ ≥ log n / 4` turns it into the **Kahn–Kalai–Linial theorem** [KahnKalaiLinial1988]: some
+coordinate has influence at least `Var[F] · log n / (4 n)`
+(`BitString.exists_expect_sub_expect_sq_mul_log_card_div_le_influence`). Here `Var[F]` is written
+`𝔼 x, (F x - 𝔼 y, F y) ^ 2`, the Fourier weight of `F` on the nonempty sets.
 
-The same argument, run separately on each coordinate, proves **Talagrand's inequality**
-`Var[F] ≤ 6 ∑ᵢ Infᵢ[F] / log (1 / Infᵢ[F])`, for functions whose influences are all less than
-one (`BitString.expect_sub_expect_sq_le_six_mul_sum_influence_div_log`) [Talagrand1994]; the form
-`Var[F] ≤ 7 ∑ᵢ Infᵢ[F] / (1 + log (1 / Infᵢ[F]))` holds for every Boolean function
-(`BitString.expect_sub_expect_sq_le_seven_mul_sum_influence_div_one_add_log`).
+For a monotone `f` the influence of `i` is the degree-one coefficient `F̂({i})`
+[O'Donnell][ODonnell2014], Proposition 2.21, and `(9 / Ĩ²) 9^{-Ĩ} ≥ exp(-5 Ĩ)`, so a nonconstant
+monotone function has a coordinate with `F̂({i})² ≥ exp(-10 Ĩ)`: O'Donnell's Exercise 9.33
+(`BitString.exists_exp_neg_le_fourierCoeff_singleton_sq_of_monotone`).
+
+The same use of hypercontractivity, run separately on each coordinate, proves **Talagrand's
+inequality** `Var[F] ≤ 6 ∑ᵢ Infᵢ[F] / log (1 / Infᵢ[F])`, for functions whose influences are all
+less than one (`BitString.expect_sub_expect_sq_le_six_mul_sum_influence_div_log`)
+[Talagrand1994]; the form `Var[F] ≤ 7 ∑ᵢ Infᵢ[F] / (1 + log (1 / Infᵢ[F]))` holds for every
+Boolean function (`BitString.expect_sub_expect_sq_le_seven_mul_sum_influence_div_one_add_log`).
 
 ## Proof
 
-The derivative `Dᵢ F` takes the values `0` and `±1`, so `‖Dᵢ F‖_{4/3} ^ 2 = Infᵢ[F] ^ (3/2)`
-(`BitString.lpNorm_derivative_signVal`), and the `(4/3, 2)`-Hypercontractivity Theorem
-`Stab_{1/3}[Dᵢ F] ≤ ‖Dᵢ F‖_{4/3} ^ 2` bounds the low-degree part of the Fourier weight on the sets
-containing `i` (`BitString.mul_noiseStability_derivative`,
+The derivative `Dᵢ F` takes the values `0` and `±1`, so `‖Dᵢ F‖_{4/3} ^ 2 = Infᵢ[F] ^ (3/2)`,
+and the `(4/3, 2)`-Hypercontractivity Theorem bounds the stable influence
+`Infᵢ^{(1/3)}[F] = Stab_{1/3}[Dᵢ F] ≤ ‖Dᵢ F‖_{4/3} ^ 2`: this is Corollary 9.12 of the book, the
+case `ρ = 1/3` of `Infᵢ^{(ρ)}[F] ≤ Infᵢ[F] ^ (2 / (1 + ρ))`
+(`BitString.stableInfluence_signVal_le_influence_rpow`, Corollary 9.25, in
+`CslibFrontier.Foundations.BooleanAnalysis.StableInfluenceBound`). It bounds the low-degree part of
+the Fourier weight on the sets containing `i` (`BitString.mul_noiseStability_derivative`,
 `BitString.sum_filter_mem_one_third_pow_mul_fourierCoeff_sq_le`):
 
-  `∑_{S ∋ i} 3 ^ (-|S|) F̂(S) ^ 2 = 1/3 · Stab_{1/3}[Dᵢ F] ≤ 1/3 · Infᵢ[F] ^ (3/2)`.
+  `∑_{S ∋ i} 3 ^ (-|S|) F̂(S) ^ 2 = 1/3 · Infᵢ^{(1/3)}[F] ≤ 1/3 · Infᵢ[F] ^ (3/2)`.
 
-The variance is `∑ᵢ ∑_{S ∋ i} F̂(S) ^ 2 / |S|`. For `A > 1` and every `m ≥ 1`,
-`1 / m ≤ log 3 / log A + A 3 ^ (-m)`, according as `3 ^ m ≥ A` or not, so the weight on the sets
-containing `i` is at most `log 3 / log A · Infᵢ[F] + A / 3 · Infᵢ[F] ^ (3/2)`. If
+For the Edge-Isoperimetric Theorem, with `M` the largest influence, this gives the book's chain
+`Var[F] 3^{-Ĩ} ≤ ∑_{S ≠ ∅} 3^{-|S|} F̂(S)² ≤ ∑ᵢ ∑_{S ∋ i} 3^{-|S|} F̂(S)² ≤ ∑ᵢ Infᵢ[F]^{3/2} / 3
+≤ √M I[F] / 3`. Its first step is the hint of Exercise 9.29: Jensen's inequality for the convex
+function `s ↦ 3^{-s}` and the weights `F̂(S)²` on the nonempty sets
+(`BitString.expect_sub_expect_sq_mul_one_third_rpow_le`).
+
+For Talagrand's inequality, the variance is `∑ᵢ ∑_{S ∋ i} F̂(S) ^ 2 / |S|`. For `A > 1` and every
+`m ≥ 1`, `1 / m ≤ log 3 / log A + A 3 ^ (-m)`, according as `3 ^ m ≥ A` or not, so the weight on
+the sets containing `i` is at most `log 3 / log A · Infᵢ[F] + A / 3 · Infᵢ[F] ^ (3/2)`. If
 `Infᵢ[F] ≤ δ < 1`, the choice `A = δ ^ (-1/4)` and the bound `δ ^ (1/4) log (1 / δ) < 4` turn
-this into `6 Infᵢ[F] / log (1 / δ)`.
-Summing over `i` with a common `δ` gives the Kahn–Kalai–Linial bound, and taking `δ = Infᵢ[F]`
-gives Talagrand's inequality.
+this into `6 Infᵢ[F] / log (1 / δ)`; taking `δ = Infᵢ[F]` gives Talagrand's inequality.
 
 ## Main results
 
 * `Cslib.BitString.sum_filter_mem_one_third_pow_mul_fourierCoeff_sq_le`: hypercontractivity
   bounds the low-degree weight on the sets containing a coordinate.
-* `Cslib.BitString.expect_sub_expect_sq_mul_log_inv_le_six_mul_totalInfluence`: the
-  Kahn–Kalai–Linial theorem, in the form "small influences force large total influence".
+* `Cslib.BitString.expect_sub_expect_sq_mul_one_third_rpow_le`: the convexity step.
+* `Cslib.BitString.exists_nine_div_sq_mul_one_ninth_rpow_le_influence`: the KKL
+  Edge-Isoperimetric Theorem.
 * `Cslib.BitString.exists_expect_sub_expect_sq_mul_log_card_div_le_influence`: the
   Kahn–Kalai–Linial theorem.
+* `Cslib.BitString.exists_exp_neg_le_fourierCoeff_singleton_sq_of_monotone`: a nonconstant
+  monotone function has a large degree-one coefficient [O'Donnell][ODonnell2014], Exercise 9.33.
 * `Cslib.BitString.expect_sub_expect_sq_le_six_mul_sum_influence_div_log`,
   `Cslib.BitString.expect_sub_expect_sq_le_seven_mul_sum_influence_div_one_add_log`: Talagrand's
   inequality.
+
+## Usage
+
+For `f : (ι → Bool) → Bool` over a finite coordinate type `ι`, pass a proof `hV` that the
+variance `𝔼 x, (signVal (f x) - 𝔼 y, signVal (f y)) ^ 2` is positive (that is, `f` is
+nonconstant) to `exists_nine_div_sq_mul_one_ninth_rpow_le_influence f hV`; it returns a coordinate
+`i` with `(9 / Ĩ²) 9^{-Ĩ} ≤ influence i (fun x => signVal (f x))`, where `Ĩ` is written out as
+`totalInfluence (fun x => signVal (f x))` divided by the variance. Rewriting the variance and the
+total influence of a concrete function turns the bound into a number. With `[Nonempty ι]`,
+`exists_expect_sub_expect_sq_mul_log_card_div_le_influence f` needs no hypothesis; a lower bound on
+the variance, such as `three_div_four_le_expect_sub_expect_sq_tribes`, makes it explicit. The
+checked clients in
+[CslibFrontierTests/KahnKalaiLinial.lean](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/KahnKalaiLinial.lean)
+compute variances and total influences from Fourier weights, apply the convexity step to
+`χ_{0} + χ_{0,1}` on two bits (`Var = 2`, `I = 3`, giving `2 · 3^{-3/2} ≤ 4 / 9`), apply the
+theorem to a dictator (`Ĩ = 1`, giving influence `1`, the maximum possible), and apply the
+Kahn–Kalai–Linial bound to the nearly balanced Tribes function.
+
+`expect_sub_expect_sq_signVal_pos` in `CslibFrontier.Foundations.BooleanAnalysis.Variance` turns
+a nonconstancy witness `hc : ∃ x y, f x ≠ f y` into the hypothesis `hV`. For a monotone `f`
+(`hf : Monotone f`), `exists_exp_neg_le_fourierCoeff_singleton_sq_of_monotone hf hc` returns a
+coordinate `i` with `exp (-(10 * I / V)) ≤ fourierCoeff (fun x => signVal (f x)) {i} ^ 2`, where
+`I = totalInfluence (fun x => signVal (f x))` and `V` is the variance. Both hypotheses are
+needed: a constant function has `V = 0`, so the bound reads `exp 0 = 1`, while every degree-one
+coefficient is `0`; the parity of two bits is nonconstant and has no nonzero degree-one
+coefficient. The checked client
+[CslibFrontierTests/BooleanAnalysisMonotoneCoefficient.lean](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/BooleanAnalysisMonotoneCoefficient.lean)
+applies it to the conjunction of two bits, with `V = 3 / 4` and `I ≤ 2`, and gets a squared
+degree-one coefficient of at least `exp(-27)`.
 
 ## References
 
@@ -81,21 +131,219 @@ variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 /-! ### Hypercontractivity on the derivatives -/
 
 /-- **Hypercontractivity bounds the low-degree weight on the sets containing a coordinate**: for a
-Boolean function read as signs, `∑_{S ∋ i} 3 ^ (-|S|) F̂(S) ^ 2 ≤ 1/3 · Infᵢ[F] ^ (3/2)`, by the
-`(4/3, 2)`-Hypercontractivity Theorem applied to the derivative in `i`
+Boolean function read as signs, `∑_{S ∋ i} 3 ^ (-|S|) F̂(S) ^ 2 = 1/3 · Infᵢ^{(1/3)}[F]`, which
+is at most `1/3 · Infᵢ[F] ^ (3/2)` by `stableInfluence_signVal_le_influence_rpow` at `ρ = 1/3`
 [O'Donnell, Corollary 9.12][ODonnell2014]. -/
 theorem sum_filter_mem_one_third_pow_mul_fourierCoeff_sq_le (f : (ι → Bool) → Bool) (i : ι) :
     ∑ S with i ∈ S, (1 / 3 : ℝ) ^ #S * fourierCoeff (fun x => signVal (f x)) S ^ 2 ≤
       influence i (fun x => signVal (f x)) * √(influence i fun x => signVal (f x)) / 3 := by
-  set a := influence i fun x => signVal (f x)
-  have ha : 0 ≤ a := influence_nonneg i _
-  have hnorm : lpNorm (4 / 3) (derivative i fun x => signVal (f x)) ^ 2 = a * √a := by
-    rw [lpNorm_derivative_signVal f i (by norm_num), ← Real.rpow_natCast, ← Real.rpow_mul ha,
-      Real.sqrt_eq_rpow, show (4 / 3 : ℝ)⁻¹ * ((2 : ℕ) : ℝ) = 1 + 1 / 2 by norm_num,
-      Real.rpow_add' ha (by norm_num), Real.rpow_one]
-  have h := noiseStability_one_third_le (derivative i fun x => signVal (f x))
+  have h := stableInfluence_signVal_le_influence_rpow (ρ := 1 / 3) (by norm_num) (by norm_num) f i
+  rw [show (2 : ℝ) / (1 + 1 / 3) = 1 + 1 / 2 by norm_num,
+    Real.rpow_add' (influence_nonneg i _) (by norm_num), Real.rpow_one, ← Real.sqrt_eq_rpow,
+    stableInfluence_eq_noiseStability_derivative] at h
   rw [← mul_noiseStability_derivative]
   linarith
+
+/-- Summing a weight over the sets containing each coordinate counts every set `|S|` times. -/
+private theorem sum_sum_filter_mem (g : Finset ι → ℝ) :
+    ∑ i, ∑ S with i ∈ S, g S = ∑ S, (#S : ℝ) * g S := by
+  simp only [sum_filter]
+  rw [sum_comm]
+  refine sum_congr rfl fun S _ => ?_
+  rw [sum_ite_mem, univ_inter, sum_const, nsmul_eq_mul]
+
+/-! ### The Kahn–Kalai–Linial theorem -/
+
+/-- **The convexity step** of [O'Donnell][ODonnell2014], Exercise 9.29: for every real `F` with
+variance `V` and total influence `I`, `V 3^{-I / V} ≤ ∑_{S ≠ ∅} 3^{-|S|} F̂(S)²`, by Jensen's
+inequality for `s ↦ 3^{-s}` and the weights `F̂(S)²`. For `V = 0` the left side is zero. -/
+theorem expect_sub_expect_sq_mul_one_third_rpow_le (F : (ι → Bool) → ℝ) :
+    (𝔼 x, (F x - 𝔼 y, F y) ^ 2) * (1 / 3 : ℝ) ^ (totalInfluence F / 𝔼 x, (F x - 𝔼 y, F y) ^ 2)
+      ≤ ∑ S with S ≠ ∅, (1 / 3 : ℝ) ^ #S * fourierCoeff F S ^ 2 := by
+  set V := 𝔼 x, (F x - 𝔼 y, F y) ^ 2
+  have hV0 : 0 ≤ V := expect_nonneg fun _ _ => sq_nonneg _
+  rcases hV0.eq_or_lt with hV | hV
+  · rw [← hV, zero_mul]
+    positivity
+  have hVsum : ∑ S with S ≠ ∅, fourierCoeff F S ^ 2 = V :=
+    (expect_sub_expect_sq_eq_sum_fourierCoeff_sq F).symm
+  have hIsum : ∑ S with S ≠ ∅, fourierCoeff F S ^ 2 * #S = totalInfluence F := by
+    rw [totalInfluence_eq_sum_card_mul_fourierCoeff_sq, sum_filter]
+    exact sum_congr rfl fun S _ => by split_ifs with h <;> simp_all [mul_comm]
+  -- Jensen's inequality for `s ↦ 3^{-s}` at the points `|S|`, with the weights `F̂(S)²`
+  have hJ := (convexOn_rpow_left (b := 1 / 3) (by norm_num)).map_centerMass_le
+    (t := univ.filter (· ≠ ∅)) (w := fun S => fourierCoeff F S ^ 2) (p := fun S => (#S : ℝ))
+    (fun _ _ => sq_nonneg _) (hVsum ▸ hV) fun _ _ => Set.mem_univ _
+  simp only [centerMass, Function.comp_def, smul_eq_mul, hVsum, hIsum, rpow_natCast] at hJ
+  rw [inv_mul_eq_div, inv_mul_eq_div, le_div_iff₀' hV] at hJ
+  simpa only [mul_comm (fourierCoeff F _ ^ 2)] using hJ
+
+/-- **The KKL Edge-Isoperimetric Theorem** of [O'Donnell][ODonnell2014], Section 9.6, in the
+general-variance form of its Exercise 9.29: for a nonconstant Boolean function `f`, read as signs,
+with `Ĩ = I[f] / Var[f]`, some coordinate has influence at least `(9 / Ĩ²) 9^{-Ĩ}`. -/
+theorem exists_nine_div_sq_mul_one_ninth_rpow_le_influence (f : (ι → Bool) → Bool)
+    (hV : 0 < 𝔼 x, (signVal (f x) - 𝔼 y, signVal (f y)) ^ 2) :
+    ∃ i, 9 / (totalInfluence (fun x => signVal (f x)) /
+          𝔼 x, (signVal (f x) - 𝔼 y, signVal (f y)) ^ 2) ^ 2 *
+        (1 / 9 : ℝ) ^ (totalInfluence (fun x => signVal (f x)) /
+          𝔼 x, (signVal (f x) - 𝔼 y, signVal (f y)) ^ 2) ≤
+      influence i fun x => signVal (f x) := by
+  set F : (ι → Bool) → ℝ := fun x => signVal (f x)
+  set V := 𝔼 x, (F x - 𝔼 y, F y) ^ 2
+  set I := totalInfluence F
+  have hI : 0 < I := hV.trans_le (expect_sub_expect_sq_le_totalInfluence F)
+  -- a nonconstant function has a coordinate, hence a most influential one
+  obtain ⟨i, -, hi⟩ :=
+    exists_max_image univ (fun i => influence i F) (nonempty_of_sum_ne_zero hI.ne')
+  refine ⟨i, ?_⟩
+  set M := influence i F
+  set a := (1 / 3 : ℝ) ^ (I / V)
+  -- the chain `V 3^{-I/V} ≤ ∑_{S ≠ ∅} 3^{-|S|} F̂(S)² ≤ √M I / 3`
+  have hchain : V * a ≤ √M * I / 3 := by
+    refine (expect_sub_expect_sq_mul_one_third_rpow_le F).trans ?_
+    calc ∑ S with S ≠ ∅, (1 / 3 : ℝ) ^ #S * fourierCoeff F S ^ 2
+        ≤ ∑ S, (#S : ℝ) * ((1 / 3 : ℝ) ^ #S * fourierCoeff F S ^ 2) := by
+          rw [sum_filter]
+          refine sum_le_sum fun S _ => ?_
+          split_ifs with h
+          · exact le_mul_of_one_le_left (by positivity)
+              (Nat.one_le_cast.2 (card_pos.2 (nonempty_iff_ne_empty.2 h)))
+          · positivity
+      _ = ∑ j, ∑ S with j ∈ S, (1 / 3 : ℝ) ^ #S * fourierCoeff F S ^ 2 :=
+          (sum_sum_filter_mem _).symm
+      _ ≤ ∑ j, influence j F * √M / 3 := sum_le_sum fun j _ =>
+          (sum_filter_mem_one_third_pow_mul_fourierCoeff_sq_le f j).trans <| by
+            have := influence_nonneg j F
+            gcongr
+            exact hi j (mem_univ j)
+      _ = √M * I / 3 := by rw [← sum_div, ← sum_mul, mul_comm]; rfl
+  have h3 : 3 * V * a / I ≤ √M := by rw [div_le_iff₀ hI]; linarith
+  calc 9 / (I / V) ^ 2 * (1 / 9 : ℝ) ^ (I / V) = (3 * V * a / I) ^ 2 := by
+        rw [show (1 / 9 : ℝ) = 1 / 3 * (1 / 3) by norm_num, mul_rpow (by norm_num) (by norm_num)]
+        field_simp
+        ring
+    _ ≤ √M ^ 2 := pow_le_pow_left₀ (by positivity) h3 2
+    _ = M := sq_sqrt (influence_nonneg i F)
+
+/-- `L³ ≤ 576 exp (L (1 - log 9 / 4))` for `L ≥ 0`: with `L = log n`, this is
+`log³ n ≤ 576 n ^ (1 - log 9 / 4)`. -/
+private theorem pow_three_le_mul_exp {L : ℝ} (hL : 0 ≤ L) :
+    L ^ 3 ≤ 576 * exp (L - L * log 9 / 4) := by
+  -- `c = 1 - log 9 / 4 ≥ 3 / 10`, as `log 9 ≤ 4 log 2`
+  have h9 : log 9 ≤ 4 * log 2 := by
+    rw [← log_rpow (by norm_num)]
+    exact log_le_log (by norm_num) (by norm_num)
+  have h2 := log_two_lt_d9
+  norm_num at h2
+  have hc : 3 / 10 ≤ 1 - log 9 / 4 := by linarith
+  -- `(c L)³ / 3! ≤ exp (c L)`
+  have h := Real.pow_div_factorial_le_exp _ (mul_nonneg (hc.trans' (by norm_num)) hL) 3
+  have hc3 : (3 / 10 : ℝ) ^ 3 * L ^ 3 ≤ (1 - log 9 / 4) ^ 3 * L ^ 3 := by gcongr
+  rw [show L - L * log 9 / 4 = (1 - log 9 / 4) * L by ring]
+  norm_num [Nat.factorial, mul_pow] at h
+  nlinarith [exp_pos ((1 - log 9 / 4) * L)]
+
+/-- **The Kahn–Kalai–Linial theorem** [KahnKalaiLinial1988], derived from the Edge-Isoperimetric
+version as in [O'Donnell][ODonnell2014], Section 9.6: some coordinate has influence at least
+`Var[F] · log n / (4 n)` on a Boolean function read as signs `F` of `n ≥ 1` coordinates. If
+`Ĩ ≥ log n / 4`, the average influence `I[F] / n` is large enough; otherwise the KKL
+Edge-Isoperimetric Theorem gives `MaxInf ≥ 144 / log² n · n^{-log 9 / 4}`, which is larger. -/
+theorem exists_expect_sub_expect_sq_mul_log_card_div_le_influence [Nonempty ι]
+    (f : (ι → Bool) → Bool) :
+    ∃ i, (𝔼 x, (signVal (f x) - 𝔼 y, signVal (f y)) ^ 2) * log (Fintype.card ι) /
+      (4 * Fintype.card ι) ≤ influence i (fun x => signVal (f x)) := by
+  set F : (ι → Bool) → ℝ := fun x => signVal (f x)
+  set V := 𝔼 x, (F x - 𝔼 y, F y) ^ 2
+  set I := totalInfluence F
+  set n : ℝ := (Fintype.card ι : ℝ)
+  set L := log n
+  obtain ⟨i, -, hi⟩ := exists_max_image univ (fun i => influence i F) univ_nonempty
+  refine ⟨i, ?_⟩
+  set M := influence i F
+  have hn0 : 0 < n := Nat.cast_pos.2 Fintype.card_pos
+  have hL : 0 ≤ L := log_nonneg (Nat.one_le_cast.2 Fintype.card_pos)
+  have hV1 : V ≤ 1 := expect_sub_expect_sq_signVal_le_one f
+  have hIM : I ≤ n * M :=
+    (sum_le_sum fun j _ => hi j (mem_univ j)).trans_eq (by rw [sum_const, card_univ, nsmul_eq_mul])
+  rw [div_le_iff₀ (by positivity)]
+  have hV0 : 0 ≤ V := expect_nonneg fun _ _ => sq_nonneg _
+  rcases hV0.eq_or_lt with hV | hV
+  · rw [← hV, zero_mul]
+    exact mul_nonneg (influence_nonneg i F) (by positivity)
+  rcases le_or_gt (V * L) (4 * I) with h | h
+  · -- a large total influence: `V L ≤ 4 I ≤ 4 n M`
+    nlinarith
+  · -- `Ĩ < L / 4`: the edge-isoperimetric bound `M ≥ 144 / L² · n^{-log 9 / 4}`
+    obtain ⟨j, hj⟩ := exists_nine_div_sq_mul_one_ninth_rpow_le_influence f hV
+    have hjM : influence j F ≤ M := hi j (mem_univ j)
+    set T := I / V
+    have hT1 : 1 ≤ T := (one_le_div hV).2 (expect_sub_expect_sq_le_totalInfluence F)
+    have hTL : T ≤ L / 4 := by rw [div_le_iff₀ hV]; linarith
+    have hL0 : 0 < L := by linarith
+    have hpow : exp (-(L * log 9 / 4)) ≤ (1 / 9 : ℝ) ^ T := by
+      rw [rpow_def_of_pos (by norm_num), exp_le_exp, one_div, log_inv]
+      nlinarith [log_pos (by norm_num : (1 : ℝ) < 9)]
+    have hsq : 144 / L ^ 2 ≤ 9 / T ^ 2 := by
+      rw [div_le_div_iff₀ (by positivity) (by positivity)]
+      nlinarith
+    have hM : 144 / L ^ 2 * exp (-(L * log 9 / 4)) ≤ M :=
+      (mul_le_mul hsq hpow (exp_pos _).le (by positivity)).trans (hj.trans hjM)
+    have hkey := pow_three_le_mul_exp hL0.le
+    have hnL : n = exp L := (exp_log hn0).symm
+    have hsplit : exp (L - L * log 9 / 4) = n * exp (-(L * log 9 / 4)) := by
+      rw [hnL, ← exp_add]; ring_nf
+    rw [hsplit] at hkey
+    -- `V L ≤ L = L³ / L² ≤ 576 n 9^{-L/4} / L² ≤ 4 n M`
+    have : L ≤ 4 * n * (144 / L ^ 2 * exp (-(L * log 9 / 4))) := by
+      rw [show 4 * n * (144 / L ^ 2 * exp (-(L * log 9 / 4))) =
+        576 * (n * exp (-(L * log 9 / 4))) / L ^ 2 by ring, le_div_iff₀ (by positivity)]
+      nlinarith
+    nlinarith
+
+/-! ### Monotone functions -/
+
+/-- `exp (-5 t) ≤ (9 / t²) 9^{-t}` for `t > 0`, since `log t ≤ t - 1` and `log 9 < 3`. -/
+private theorem exp_neg_five_mul_le_nine_div_sq_mul {t : ℝ} (ht : 0 < t) :
+    exp (-(5 * t)) ≤ 9 / t ^ 2 * (1 / 9 : ℝ) ^ t := by
+  rw [← le_log_iff_exp_le (by positivity), log_mul (by positivity) (by positivity),
+    log_div (by norm_num) (by positivity), log_pow, log_rpow (by norm_num), one_div, log_inv]
+  have h9 : log 9 < 3 := by
+    have h3 := log_three_lt_d9
+    norm_num at h3
+    rw [show (9 : ℝ) = 3 ^ 2 by norm_num, log_pow]
+    push_cast
+    linarith
+  have h90 : 0 < log 9 := log_pos (by norm_num)
+  have := log_le_sub_one_of_pos ht
+  push_cast
+  nlinarith
+
+/-- **A monotone function has a large degree-one coefficient** [O'Donnell][ODonnell2014],
+Exercise 9.33: a nonconstant monotone Boolean function read as signs `F` has a coordinate `i`
+with `F̂({i})² ≥ exp(-10 I[F] / Var[F])`. The book asks for some `S ≠ ∅` with
+`F̂(S)² ≥ exp(-O(I[F] / Var[F]))`; this takes `S = {i}`, as the book's hint suggests. For monotone
+`f` the influence of `i` is `F̂({i})` (Proposition 2.21), and the KKL Edge-Isoperimetric Theorem
+`exists_nine_div_sq_mul_one_ninth_rpow_le_influence` bounds the largest influence below by
+`(9 / Ĩ²) 9^{-Ĩ} ≥ exp(-5 Ĩ)`. -/
+theorem exists_exp_neg_le_fourierCoeff_singleton_sq_of_monotone {f : (ι → Bool) → Bool}
+    (hf : Monotone f) (hc : ∃ x y, f x ≠ f y) :
+    ∃ i, exp (-(10 * totalInfluence (fun x => signVal (f x)) /
+        𝔼 x, (signVal (f x) - 𝔼 y, signVal (f y)) ^ 2)) ≤
+      fourierCoeff (fun x => signVal (f x)) {i} ^ 2 := by
+  set F : (ι → Bool) → ℝ := fun x => signVal (f x)
+  set V := 𝔼 x, (F x - 𝔼 y, F y) ^ 2
+  set I := totalInfluence F
+  have hV : 0 < V := expect_sub_expect_sq_signVal_pos hc
+  have hT : 0 < I / V := div_pos (hV.trans_le (expect_sub_expect_sq_le_totalInfluence F)) hV
+  obtain ⟨i, hi⟩ := exists_nine_div_sq_mul_one_ninth_rpow_le_influence f hV
+  refine ⟨i, ?_⟩
+  have h : exp (-(10 * I / V)) = exp (-(5 * (I / V))) ^ 2 := by
+    rw [← exp_nat_mul]
+    congr 1
+    push_cast
+    ring
+  rw [← influence_eq_fourierCoeff_singleton_of_monotone hf, h]
+  exact pow_le_pow_left₀ (exp_pos _).le ((exp_neg_five_mul_le_nine_div_sq_mul hT).trans hi) 2
 
 /-! ### The weight on the sets containing a coordinate -/
 
@@ -103,11 +351,8 @@ theorem sum_filter_mem_one_third_pow_mul_fourierCoeff_sq_le (f : (ι → Bool) �
 nonempty set shares its weight equally among its elements. -/
 private theorem sum_sum_filter_mem_fourierCoeff_sq_div_card (f : (ι → Bool) → ℝ) :
     ∑ i, ∑ S with i ∈ S, fourierCoeff f S ^ 2 / #S = 𝔼 x, (f x - 𝔼 y, f y) ^ 2 := by
-  rw [expect_sub_expect_sq_eq_sum_fourierCoeff_sq]
-  simp only [sum_filter]
-  rw [sum_comm]
+  rw [expect_sub_expect_sq_eq_sum_fourierCoeff_sq, sum_sum_filter_mem, sum_filter]
   refine sum_congr rfl fun S _ => ?_
-  rw [sum_ite_mem, univ_inter, sum_const, nsmul_eq_mul]
   split_ifs with hS
   · rw [mul_div_cancel₀ _ (Nat.cast_ne_zero.2 (card_ne_zero.2 (nonempty_iff_ne_empty.2 hS)))]
   · simp [not_not.1 hS]
@@ -123,14 +368,10 @@ theorem sum_filter_mem_fourierCoeff_sq_div_card_le_influence (f : (ι → Bool) 
 `1 < A 3 ^ (-m)`, according as `3 ^ m ≥ A` or not. -/
 theorem one_le_mul_log_three_div_log_or_one_lt_mul_one_third_pow {A : ℝ} (hA : 1 < A) (m : ℕ) :
     1 ≤ m * (log 3 / log A) ∨ 1 < A * (1 / 3) ^ m := by
-  have hlogA : 0 < log A := log_pos hA
   rcases le_or_gt A (3 ^ m) with h | h
   · left
-    have hle : log A ≤ m * log 3 := by
-      rw [← log_pow]
-      exact log_le_log (by linarith) h
-    rw [mul_div_assoc', le_div_iff₀ hlogA, one_mul]
-    exact hle
+    rw [mul_div_assoc', le_div_iff₀ (log_pos hA), one_mul, ← log_pow]
+    exact log_le_log (by linarith) h
   · right
     rw [one_div, inv_pow, ← div_eq_mul_inv, one_lt_div (by positivity)]
     exact h
@@ -138,18 +379,14 @@ theorem one_le_mul_log_three_div_log_or_one_lt_mul_one_third_pow {A : ℝ} (hA :
 /-- For `A > 1` and `m ≥ 1`, `1 / m ≤ log 3 / log A + A 3 ^ (-m)`. -/
 private theorem inv_le_log_div_log_add {A : ℝ} (hA : 1 < A) {m : ℕ} (hm : 1 ≤ m) :
     (m : ℝ)⁻¹ ≤ log 3 / log A + A * (1 / 3) ^ m := by
-  have hm' : (0 : ℝ) < m := Nat.cast_pos.2 hm
   have h3 : 0 ≤ log 3 / log A := div_nonneg (log_pos (by norm_num)).le (log_pos hA).le
-  have hpow : 0 ≤ A * (1 / 3 : ℝ) ^ m := by
-    have : (0 : ℝ) < A := by linarith
-    positivity
+  have hpow : 0 ≤ A * (1 / 3 : ℝ) ^ m := mul_nonneg (by linarith) (by positivity)
   rcases one_le_mul_log_three_div_log_or_one_lt_mul_one_third_pow hA m with h | h
   · have : (m : ℝ)⁻¹ ≤ log 3 / log A := by
-      rw [inv_le_iff_one_le_mul₀ hm', mul_comm]
+      rw [inv_le_iff_one_le_mul₀ (Nat.cast_pos.2 hm), mul_comm]
       exact h
     linarith
-  · have : (m : ℝ)⁻¹ ≤ 1 := inv_le_one_of_one_le₀ (Nat.one_le_cast.2 hm)
-    linarith
+  · linarith [inv_le_one_of_one_le₀ (Nat.one_le_cast.2 hm : (1 : ℝ) ≤ m)]
 
 /-- **The weight on the sets containing a coordinate**: for a Boolean function read as signs and
 every `A > 1`, `∑_{S ∋ i} F̂(S) ^ 2 / |S| ≤ log 3 / log A · Infᵢ[F] + A / 3 · Infᵢ[F] ^ (3/2)`. -/
@@ -174,29 +411,17 @@ private theorem sum_filter_mem_fourierCoeff_sq_div_card_le (f : (ι → Bool) �
           A * ∑ S with i ∈ S, (1 / 3) ^ #S * fourierCoeff F S ^ 2 := by
         rw [sum_add_distrib, ← mul_sum, ← mul_sum, influence_eq_sum_fourierCoeff_sq]
     _ ≤ log 3 / log A * influence i F + A / 3 * (influence i F * √(influence i F)) := by
-        have hA0 : 0 ≤ A := by linarith
-        have := mul_le_mul_of_nonneg_left h hA0
-        rw [mul_div_assoc'] at this
-        linarith [show A * (influence i F * √(influence i F)) / 3 =
-          A / 3 * (influence i F * √(influence i F)) by ring]
+        linarith [mul_le_mul_of_nonneg_left h (by linarith : (0 : ℝ) ≤ A)]
 
 /-- `x ^ (1/4) log (1 / x) < 4` on `0 < x ≤ 1`, written with `√√x`. -/
 private theorem sqrt_sqrt_mul_log_inv_lt {x : ℝ} (hx : 0 < x) (hx' : x ≤ 1) :
     √√x * log x⁻¹ < 4 := by
-  set u := √√x
-  have hu : 0 < u := Real.sqrt_pos.2 (Real.sqrt_pos.2 hx)
-  have hu1 : u ≤ 1 := Real.sqrt_le_one.2 (Real.sqrt_le_one.2 hx')
-  have hlog : log x⁻¹ = -(4 * log u) := by
-    have hx4 : x = u ^ 4 := by
-      rw [show u ^ 4 = (u ^ 2) ^ 2 by ring, Real.sq_sqrt (Real.sqrt_nonneg x),
-        Real.sq_sqrt hx.le]
-    rw [log_inv, hx4, log_pow]
-    push_cast
-    ring
-  have h := abs_log_mul_self_lt u hu hu1
-  have hneg : log u * u ≤ 0 := mul_nonpos_of_nonpos_of_nonneg (log_nonpos hu.le hu1) hu.le
-  rw [abs_of_nonpos hneg] at h
-  rw [hlog]
+  have hu : 0 < √√x := Real.sqrt_pos.2 (Real.sqrt_pos.2 hx)
+  have hu1 : √√x ≤ 1 := Real.sqrt_le_one.2 (Real.sqrt_le_one.2 hx')
+  have h := abs_log_mul_self_lt _ hu hu1
+  rw [abs_of_nonpos (mul_nonpos_of_nonpos_of_nonneg (log_nonpos hu.le hu1) hu.le),
+    Real.log_sqrt (Real.sqrt_nonneg _), Real.log_sqrt hx.le] at h
+  rw [log_inv]
   linarith
 
 /-- **The weight on the sets containing a coordinate of small influence**: if
@@ -222,10 +447,7 @@ private theorem sum_filter_mem_fourierCoeff_sq_div_card_mul_log_le (f : (ι → 
     (Real.sqrt_lt' one_pos).2 (by rw [one_pow]; exact (Real.sqrt_lt' one_pos).2 (by simpa))
   have hu2 : √δ = u ^ 2 := (Real.sq_sqrt (Real.sqrt_nonneg δ)).symm
   have hlogA : log u⁻¹ = log δ⁻¹ / 4 := by
-    have hδ4 : δ = u ^ 4 := by
-      rw [show u ^ 4 = (u ^ 2) ^ 2 by ring, ← hu2, Real.sq_sqrt hδ0.le]
-    rw [log_inv, log_inv, hδ4, log_pow]
-    push_cast
+    rw [log_inv, log_inv, Real.log_sqrt (Real.sqrt_nonneg _), Real.log_sqrt hδ0.le]
     ring
   have hmain := sum_filter_mem_fourierCoeff_sq_div_card_le f i (one_lt_inv_iff₀.2 ⟨hu, hu1⟩)
   have hAa : u⁻¹ / 3 * (a * √a) ≤ u / 3 * a := by
@@ -247,71 +469,6 @@ private theorem sum_filter_mem_fourierCoeff_sq_div_card_mul_log_le (f : (ι → 
         rw [hlogA, add_mul, e]
         ring
     _ ≤ 6 * a := by linarith
-
-/-! ### The Kahn–Kalai–Linial theorem -/
-
-/-- **The Kahn–Kalai–Linial theorem, edge-isoperimetric form**: if every coordinate has influence
-at most `δ` on a Boolean function read as signs `F`, then `Var[F] · log (1 / δ) ≤ 6 I[F]`, that
-is, the total influence is at least `1/6 · Var[F] · log (1 / δ)` [KahnKalaiLinial1988]
-[Talagrand1994]. This is a weaker form of the KKL Edge-Isoperimetric Theorem of
-[O'Donnell, Section 9.6][ODonnell2014]. For `δ ≥ 1` the left side is at most zero. -/
-theorem expect_sub_expect_sq_mul_log_inv_le_six_mul_totalInfluence (f : (ι → Bool) → Bool) {δ : ℝ}
-    (hδ : ∀ i, influence i (fun x => signVal (f x)) ≤ δ) :
-    (𝔼 x, (signVal (f x) - 𝔼 y, signVal (f y)) ^ 2) * log δ⁻¹ ≤
-      6 * totalInfluence (fun x => signVal (f x)) := by
-  rw [← sum_sum_filter_mem_fourierCoeff_sq_div_card, sum_mul, totalInfluence, mul_sum]
-  exact sum_le_sum fun i _ => sum_filter_mem_fourierCoeff_sq_div_card_mul_log_le f i (hδ i)
-
-/-- `log n ≤ 2 √n`. -/
-private theorem log_le_two_mul_sqrt {x : ℝ} (hx : 0 < x) : log x ≤ 2 * √x := by
-  have h := log_le_sub_one_of_pos (Real.sqrt_pos.2 hx)
-  rw [log_sqrt hx.le] at h
-  linarith
-
-/-- **The Kahn–Kalai–Linial theorem**: some coordinate has influence at least
-`Var[F] · log n / (12 n)` on a Boolean function read as signs `F` of `n ≥ 1` coordinates
-[KahnKalaiLinial1988] [O'Donnell, Section 9.6][ODonnell2014]. -/
-theorem exists_expect_sub_expect_sq_mul_log_card_div_le_influence [Nonempty ι]
-    (f : (ι → Bool) → Bool) :
-    ∃ i, (𝔼 x, (signVal (f x) - 𝔼 y, signVal (f y)) ^ 2) * log (Fintype.card ι) /
-      (12 * Fintype.card ι) ≤ influence i (fun x => signVal (f x)) := by
-  set F : (ι → Bool) → ℝ := fun x => signVal (f x)
-  set V := 𝔼 x, (F x - 𝔼 y, F y) ^ 2
-  set n : ℝ := (Fintype.card ι : ℝ)
-  obtain ⟨i, -, hi⟩ := exists_max_image univ (fun i => influence i F) univ_nonempty
-  refine ⟨i, ?_⟩
-  set δ := influence i F
-  have hδ0 : 0 ≤ δ := influence_nonneg i F
-  have hn : 1 ≤ n := Nat.one_le_cast.2 Fintype.card_pos
-  have hn0 : 0 < n := by linarith
-  have hV0 : 0 ≤ V := expect_nonneg fun _ _ => sq_nonneg _
-  have hV1 : V ≤ 1 := expect_sub_expect_sq_signVal_le_one f
-  have hI : totalInfluence F ≤ n * δ :=
-    calc totalInfluence F ≤ ∑ _j : ι, δ := sum_le_sum fun j _ => hi j (mem_univ j)
-      _ = n * δ := by rw [sum_const, card_univ, nsmul_eq_mul]
-  have hlogn : 0 ≤ log n := log_nonneg hn
-  rw [div_le_iff₀ (by positivity)]
-  rcases le_or_gt 1 (δ * √n) with h | h
-  · -- a large influence: `V log n ≤ 2 √n ≤ 2 n δ`
-    have hsq : √n * √n = n := Real.mul_self_sqrt hn0.le
-    calc V * log n ≤ 1 * (2 * √n) := mul_le_mul hV1 (log_le_two_mul_sqrt hn0) hlogn zero_le_one
-      _ ≤ 2 * √n * (δ * √n) := by nlinarith [Real.sqrt_nonneg n]
-      _ = 2 * n * δ := by rw [show 2 * √n * (δ * √n) = 2 * (√n * √n) * δ by ring, hsq]
-      _ ≤ δ * (12 * n) := by nlinarith
-  · -- small influences: `log (1 / δ) ≥ log n / 2`
-    rcases hδ0.lt_or_eq with hδ | hδ
-    · have hlog : log n / 2 ≤ log δ⁻¹ := by
-        rw [← log_sqrt hn0.le]
-        refine log_le_log (Real.sqrt_pos.2 hn0) ?_
-        rw [le_inv_comm₀ (Real.sqrt_pos.2 hn0) hδ, ← one_div, le_div_iff₀ (Real.sqrt_pos.2 hn0)]
-        exact h.le
-      have hkkl :=
-        expect_sub_expect_sq_mul_log_inv_le_six_mul_totalInfluence f fun j => hi j (mem_univ j)
-      nlinarith
-    · -- no influence at all: `V ≤ I ≤ n δ = 0`
-      have := expect_sub_expect_sq_le_totalInfluence F
-      rw [← hδ] at hI ⊢
-      nlinarith
 
 /-! ### Talagrand's inequality -/
 

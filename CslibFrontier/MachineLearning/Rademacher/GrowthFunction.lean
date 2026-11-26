@@ -57,18 +57,16 @@ def signClass (C : ConceptClass α Bool) : Set (α → ℝ) :=
   (fun c x => signVal (c x)) '' C
 
 theorem mem_signClass {C : ConceptClass α Bool} {f : α → ℝ} :
-    f ∈ signClass C ↔ ∃ c ∈ C, (fun x => signVal (c x)) = f := by
-  rw [signClass, Set.mem_image]
+    f ∈ signClass C ↔ ∃ c ∈ C, (fun x => signVal (c x)) = f := Set.mem_image _ _ _
 
 /-- A single concept gives a single sign function. -/
 theorem signClass_singleton (c : α → Bool) :
-    signClass ({c} : ConceptClass α Bool) = {fun x => signVal (c x)} := by
-  rw [signClass, Set.image_singleton]
+    signClass ({c} : ConceptClass α Bool) = {fun x => signVal (c x)} := Set.image_singleton
 
 /-- Functions of `signClass C` take values in `[-1, 1]`. -/
 theorem abs_le_one_of_mem_signClass {C : ConceptClass α Bool} {f : α → ℝ}
     (hf : f ∈ signClass C) (x : α) : |f x| ≤ 1 := by
-  obtain ⟨c, -, rfl⟩ := mem_signClass.1 hf
+  obtain ⟨_, -, rfl⟩ := mem_signClass.1 hf
   exact (abs_signVal _).le
 
 /-- The restriction patterns of `signClass C` to a sample are the sign images of the labelings
@@ -76,16 +74,14 @@ realized by `C`. -/
 private theorem image_signClass_subset (C : ConceptClass α Bool) {m : ℕ} (S : Fin m → α) :
     (fun f : α → ℝ => fun i => f (S i)) '' signClass C ⊆
       (fun v : Fin m → Bool => fun i => signVal (v i)) '' restriction C S := by
-  rintro _ ⟨f, hf, rfl⟩
-  obtain ⟨c, hc, rfl⟩ := mem_signClass.1 hf
-  exact ⟨fun i => c (S i), mem_restriction.2 ⟨c, hc, fun _ => rfl⟩, rfl⟩
+  rintro _ ⟨_, ⟨c, hc, rfl⟩, rfl⟩
+  exact ⟨_, mem_restriction.2 ⟨c, hc, fun _ => rfl⟩, rfl⟩
 
 /-- `log n ≤ log x` for a natural number `n ≤ x`, including `n = 0`, when `x ≥ 1`. -/
 private theorem log_natCast_le_log {n : ℕ} {x : ℝ} (hnx : (n : ℝ) ≤ x) (hx : 1 ≤ x) :
     Real.log n ≤ Real.log x := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
-  · rw [Nat.cast_zero, Real.log_zero]
-    exact Real.log_nonneg hx
+  · simpa using Real.log_nonneg hx
   · exact Real.log_le_log (Nat.cast_pos.2 hn) hnx
 
 /-- **The growth-function bound** [MohriRostamizadehTalwalkar2018, Corollary 3.8]: the empirical
@@ -95,8 +91,7 @@ theorem empiricalRademacherComplexity_signClass_le (C : ConceptClass α Bool) {m
     empiricalRademacherComplexity (signClass C) S ≤
       √(2 * Real.log (growthFunction C m) / m) := by
   rcases (signClass C).eq_empty_or_nonempty with hC | hC
-  · rw [hC, empiricalRademacherComplexity_empty]
-    positivity
+  · rw [hC, empiricalRademacherComplexity_empty]; positivity
   have hfin : ((fun f : α → ℝ => fun i => f (S i)) '' signClass C).Finite :=
     ((Set.toFinite _).image _).subset (image_signClass_subset C S)
   refine (empiricalRademacherComplexity_le_of_finite
@@ -127,9 +122,9 @@ theorem empiricalRademacherComplexity_signClass_le_vc {C : ConceptClass α Bool}
       _ ≤ Real.exp 1 * m := le_mul_of_one_le_left (Nat.cast_nonneg m)
           (by linarith [Real.add_one_le_exp (1 : ℝ)])
   rw [← Real.log_pow]
-  refine Real.sqrt_le_sqrt (div_le_div_of_nonneg_right ?_ (Nat.cast_nonneg m))
-  exact mul_le_mul_of_nonneg_left
-    (log_natCast_le_log (growthFunction_le_exp_one_mul_div_pow hC hdm) hx) zero_le_two
+  exact Real.sqrt_le_sqrt (div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left
+    (log_natCast_le_log (growthFunction_le_exp_one_mul_div_pow hC hdm) hx) zero_le_two)
+    (Nat.cast_nonneg m))
 
 /-- **The polynomial VC bound**: if every finite set shattered by `C` has at most `d` points, the
 empirical Rademacher complexity of `signClass C` on `m` points is at most
@@ -138,13 +133,11 @@ theorem empiricalRademacherComplexity_signClass_le_add_one {C : ConceptClass α 
     (hC : ∀ W : Finset α, SetShatters C ↑W → W.card ≤ d) {m : ℕ} (S : Fin m → α) :
     empiricalRademacherComplexity (signClass C) S ≤ √(2 * (d * Real.log (m + 1)) / m) := by
   refine (empiricalRademacherComplexity_signClass_le C S).trans ?_
-  have hle : (growthFunction C m : ℝ) ≤ ((m : ℝ) + 1) ^ d := by
-    exact_mod_cast growthFunction_le_add_one_pow hC m
-  have hx : (1 : ℝ) ≤ ((m : ℝ) + 1) ^ d :=
-    one_le_pow₀ (by linarith [(Nat.cast_nonneg m : (0 : ℝ) ≤ m)])
   rw [← Real.log_pow]
-  refine Real.sqrt_le_sqrt (div_le_div_of_nonneg_right ?_ (Nat.cast_nonneg m))
-  exact mul_le_mul_of_nonneg_left (log_natCast_le_log hle hx) zero_le_two
+  exact Real.sqrt_le_sqrt (div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left
+    (log_natCast_le_log (by exact_mod_cast growthFunction_le_add_one_pow hC m)
+      (one_le_pow₀ (by linarith [(Nat.cast_nonneg m : (0 : ℝ) ≤ m)]))) zero_le_two)
+    (Nat.cast_nonneg m))
 
 variable [Fintype α]
 

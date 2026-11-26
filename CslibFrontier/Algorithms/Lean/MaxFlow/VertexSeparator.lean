@@ -13,16 +13,16 @@ public import Mathlib.Data.Fintype.Sum
 public import Mathlib.Tactic.DeriveFintype
 import Mathlib.Algebra.BigOperators.Group.Finset.Sigma
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Minimum vertex separators by vertex splitting
 
 Given a simple graph `G` on `Fin n` and three vertex sets `Z`, `A` and `B` (Boolean vectors),
-`Cslib.Algorithms.Lean.MaxFlow.minSeparatorM` computes a set `X` of vertices outside `Z` of
-minimum size such that `Z ∪ X` separates `A` from `B` (`SimpleGraph.IsSeparator`). The vertices of
-`Z` are forbidden in `X`, but walks may not pass through them either: `X` is a minimum separator of
-`A \ Z` from `B \ Z` in `G - Z`.
+`Cslib.Algorithms.Lean.MaxFlow.minSeparator` computes a set `X` of vertices outside `Z` of minimum
+size such that `Z ∪ X` separates `A` from `B` (`SimpleGraph.IsSeparator`). The vertices of `Z` are
+forbidden in `X`, but walks may not pass through them either: `X` is a minimum separator of
+`A \ Z` from `B \ Z` in `G - Z`. For the checked Word-RAM running-time bound (`O(n ^ 5)`
+instructions), see `CslibFrontier.Algorithms.WordRAM.EdmondsKarp`.
 
 ## Construction
 
@@ -35,48 +35,35 @@ capacities (`Cslib.Algorithms.Lean.MaxFlow.vertexSplitCap`)
 * `1` from the in-copy to the out-copy of each vertex outside `Z`;
 * `n + 1` from the out-copy of `u` to the in-copy of `v` for each edge `G.Adj u v`.
 
-This is the standard vertex-splitting construction. The library's Edmonds–Karp solver
-(`Cslib.Algorithms.Lean.MaxFlow.edmondsKarpDenseM`) returns a minimum cut `S` of this network. The
-separator is the set of vertices `v ∉ Z` whose in-copy lies in `S` and whose out-copy does not, and
-`side v` records whether the out-copy of `v` lies in `S`.
-
-*Correctness.* The cut that contains the in-copies of all vertices has capacity at most `n`. So a
-minimum cut is crossed by no arc of capacity `n + 1`. Therefore `side` is constant along the edges
-of `G - (Z ∪ X)`, true on `A \ (Z ∪ X)` and false on `B`, which certifies separation
-(`Cslib.Algorithms.Lean.MaxFlow.minSeparatorM_isSeparator`). Conversely, a separator `Z ∪ Y` gives
-a cut of capacity at most `|Y|`: it contains the vertices reached from `A` avoiding `Z ∪ Y`. The
-crossing unit arcs of a cut bound the separator, so `|X| ≤ |Y|`
-(`Cslib.Algorithms.Lean.MaxFlow.minSeparatorM_length_sep_le`).
-
-## Cost model
-
-`minSeparatorM` runs `edmondsKarpDenseM` on the split network, reindexed to `Fin (2n + 2)`. It
-inherits that solver's cost model: unit-cost `Vector` access, `ℕ` arithmetic and capacity
-evaluation. A capacity of the split network is evaluated in `O(1)`, from the index arithmetic of
-`Cslib.Algorithms.Lean.MaxFlow.SplitNode.equivFin`, one adjacency test and one `Vector` lookup. The
-cut is then read off in `4n + 2` further ticks (`Cslib.Algorithms.Lean.MaxFlow.minSeparatorCost`).
-These are `O(n^5)` steps in total. That is a polynomial bound, not the `O(k(n + m))` of `k`
-augmenting-path rounds.
+This is the standard vertex-splitting construction. Any minimum cut `S` of this network yields a
+minimum separator and side certificate via `Cslib.Algorithms.Lean.MaxFlow.separatorOfCut`: the
+separator is the set of vertices `v ∉ Z` whose in-copy lies in `S` and whose out-copy does not,
+and `side v` records whether the out-copy of `v` lies in `S`. `minSeparator` instantiates
+`separatorOfCut` with the minimum cut computed by `Cslib.Algorithms.Lean.MaxFlow.edmondsKarpDense`.
 
 ## Main definitions
 
 * `Cslib.Algorithms.Lean.MaxFlow.SplitNode`, `Cslib.Algorithms.Lean.MaxFlow.vertexSplitCap`,
   `Cslib.Algorithms.Lean.MaxFlow.vertexSplitNetwork`: the split network.
 * `Cslib.Algorithms.Lean.MaxFlow.SeparatorOutput`: a separator with its side labelling.
-* `Cslib.Algorithms.Lean.MaxFlow.minSeparatorM`: the minimum vertex separator in `TimeM ℕ`.
-* `Cslib.Algorithms.Lean.MaxFlow.minSeparatorCost`: its charged running time.
+* `Cslib.Algorithms.Lean.MaxFlow.separatorOfCut`: extract a separator and side labelling from any
+  cut of the split network.
+* `Cslib.Algorithms.Lean.MaxFlow.minSeparator`: the pure minimum vertex separator via
+  `edmondsKarpDense`.
 
 ## Main results
 
-* `Cslib.Algorithms.Lean.MaxFlow.minSeparatorM_isSeparator`: the output separates.
-* `Cslib.Algorithms.Lean.MaxFlow.minSeparatorM_length_sep_le`: the output is a minimum separator.
-* `Cslib.Algorithms.Lean.MaxFlow.minSeparatorM_nodup_sep`,
-  `Cslib.Algorithms.Lean.MaxFlow.minSeparatorM_vget_eq_false_of_mem_sep`: the output is a list of
+* `Cslib.Algorithms.Lean.MaxFlow.separatorOfCut_isSeparator`, `separatorOfCut_length_sep_le`,
+  `separatorOfCut_length_sep_eq_cutCapacity`: separation, minimality, and cardinality for any
+  minimum cut of `vertexSplitNetwork`.
+* `Cslib.Algorithms.Lean.MaxFlow.minSeparator_isSeparator`: the output separates.
+* `Cslib.Algorithms.Lean.MaxFlow.minSeparator_length_sep_le`: the output is a minimum separator.
+* `Cslib.Algorithms.Lean.MaxFlow.minSeparator_nodup_sep`,
+  `Cslib.Algorithms.Lean.MaxFlow.minSeparator_vget_eq_false_of_mem_sep`: the output is a list of
   distinct vertices outside `Z`.
-* `Cslib.Algorithms.Lean.MaxFlow.minSeparatorM_side_eq_of_adj`,
-  `Cslib.Algorithms.Lean.MaxFlow.minSeparatorM_side_eq_true`,
-  `Cslib.Algorithms.Lean.MaxFlow.minSeparatorM_side_eq_false`: the side labelling certificate.
-* `Cslib.Algorithms.Lean.MaxFlow.time_minSeparatorM_le`: the running time.
+* `Cslib.Algorithms.Lean.MaxFlow.minSeparator_side_eq_of_adj`,
+  `Cslib.Algorithms.Lean.MaxFlow.minSeparator_side_eq_true`,
+  `Cslib.Algorithms.Lean.MaxFlow.minSeparator_side_eq_false`: the side labelling certificate.
 
 ## References
 
@@ -91,7 +78,7 @@ namespace Cslib.Algorithms.Lean.MaxFlow
 
 open SimpleGraph
 
-/-- The nodes of the split network of a graph on `Fin n`. -/
+/-- The nodes of the split network on `Fin n`. -/
 inductive SplitNode (n : ℕ) where
   /-- The source. -/
   | src : SplitNode n
@@ -107,14 +94,14 @@ namespace SplitNode
 
 /-- The index of a split node: the source is `0`, the sink `1`, the in-copies `2, …, n + 1` and
 the out-copies `n + 2, …, 2n + 1`. -/
-def toFin {n : ℕ} : SplitNode n → Fin (n + n + 2)
+@[expose] def toFin {n : ℕ} : SplitNode n → Fin (n + n + 2)
   | src => ⟨0, by omega⟩
   | snk => ⟨1, by omega⟩
   | inV v => ⟨v.1 + 2, by have := v.2; omega⟩
   | outV v => ⟨v.1 + n + 2, by have := v.2; omega⟩
 
 /-- The split node with a given index, inverse to `toFin`. -/
-def ofFin {n : ℕ} (i : Fin (n + n + 2)) : SplitNode n :=
+@[expose] def ofFin {n : ℕ} (i : Fin (n + n + 2)) : SplitNode n :=
   if h0 : i.1 = 0 then src
   else if h1 : i.1 = 1 then snk
   else if h : i.1 < n + 2 then inV ⟨i.1 - 2, by omega⟩
@@ -164,30 +151,25 @@ out-copies of `B` to the sink and from the out-copy of `u` to the in-copy of `v`
   s := .src
   t := .snk
 
-/-- The output of `minSeparatorM`. -/
+/-- The output of `minSeparator`. -/
 structure SeparatorOutput (n : ℕ) where
   /-- The separator, without repetitions. -/
   sep : List (Fin n)
   /-- The side labelling: `true` on the vertices reached from `A` in `G - (Z ∪ sep)`. -/
   side : Vector Bool n
 
-/-- A minimum set `X` of vertices outside `Z` such that `Z ∪ X` separates `A` from `B`, by a
-minimum cut of the split network (Edmonds–Karp on `Fin (2n + 2)`). Reading off `sep` and `side`
-from the cut is charged `4n + 2` ticks: `2n + 2` to tabulate the cut over the split nodes and `2n`
-to scan the vertices. -/
-@[expose] def minSeparatorM (Z A B : Vector Bool n) : TimeM ℕ (SeparatorOutput n) := do
-  let out ← edmondsKarpDenseM ((vertexSplitNetwork G Z A B).reindex (SplitNode.equivFin n))
-  let S := Network.cutOfReindex (SplitNode.equivFin n) out.cut
-  ✓[4 * n + 2] pure
-    { sep := (List.finRange n).filter fun v =>
-        !vget Z v && decide (SplitNode.inV v ∈ S) && !decide (SplitNode.outV v ∈ S)
-      side := Vector.ofFn fun v => decide (SplitNode.outV v ∈ S) }
+/-- Extract a separator and side labelling from a cut `S` of the split network. -/
+@[expose] def separatorOfCut (Z : Vector Bool n) (S : Finset (SplitNode n)) :
+    SeparatorOutput n where
+  sep := (List.finRange n).filter fun v =>
+    !vget Z v && decide (SplitNode.inV v ∈ S) && !decide (SplitNode.outV v ∈ S)
+  side := Vector.ofFn fun v => decide (SplitNode.outV v ∈ S)
 
-/-- The charged running time of `minSeparatorM` on `n` vertices: the `edmondsKarpDenseM` bound on
-`2n + 2` nodes, plus `4n + 2`. -/
-@[expose] def minSeparatorCost (n : ℕ) : ℕ :=
-  ((n + n + 2) * (n + n + 2) * ((n + n + 2) / 2) + 2) *
-      ((n + n + 2) * (n + n + 2) + 5 * (n + n + 2)) + (4 * n + 2)
+/-- A minimum set `X` of vertices outside `Z` such that `Z ∪ X` separates `A` from `B`, by a
+minimum cut of the split network (`edmondsKarpDense` on `Fin (2n + 2)`). -/
+@[expose] def minSeparator (Z A B : Vector Bool n) : SeparatorOutput n :=
+  let out := edmondsKarpDense ((vertexSplitNetwork G Z A B).reindex (SplitNode.equivFin n))
+  separatorOfCut Z (Network.cutOfReindex (SplitNode.equivFin n) out.cut)
 
 /-! ### Correctness -/
 
@@ -195,45 +177,15 @@ section Correctness
 
 variable {G} {Z A B : Vector Bool n}
 
-/-- The minimum cut found by `minSeparatorM`, on split nodes. -/
-private def minCut (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (Z A B : Vector Bool n) :
-    Finset (SplitNode n) :=
-  Network.cutOfReindex (SplitNode.equivFin n)
-    (edmondsKarpDenseM ((vertexSplitNetwork G Z A B).reindex (SplitNode.equivFin n))).ret.cut
+private theorem mem_separatorOfCut_sep_iff {S : Finset (SplitNode n)} {v : Fin n} :
+    v ∈ (separatorOfCut Z S).sep ↔
+      vget Z v = false ∧ SplitNode.inV v ∈ S ∧ SplitNode.outV v ∉ S := by
+  simp only [separatorOfCut, List.mem_filter, List.mem_finRange, true_and, Bool.and_eq_true,
+    Bool.not_eq_true', decide_eq_true_eq, decide_eq_false_iff_not, and_assoc]
 
-private theorem ret_sep : (minSeparatorM G Z A B).ret.sep = (List.finRange n).filter fun v =>
-    !vget Z v && decide (SplitNode.inV v ∈ minCut G Z A B) &&
-      !decide (SplitNode.outV v ∈ minCut G Z A B) := rfl
-
-private theorem vget_ret_side (v : Fin n) :
-    vget (minSeparatorM G Z A B).ret.side v = decide (SplitNode.outV v ∈ minCut G Z A B) := by
-  time_spec minSeparatorM [vget, Vector.getElem_ofFn]
-
-private theorem mem_sep_iff {v : Fin n} : v ∈ (minSeparatorM G Z A B).ret.sep ↔
-    vget Z v = false ∧ SplitNode.inV v ∈ minCut G Z A B ∧ SplitNode.outV v ∉ minCut G Z A B := by
-  rw [ret_sep, List.mem_filter]
-  simp only [List.mem_finRange, true_and, Bool.and_eq_true, Bool.not_eq_true', decide_eq_true_eq,
-    decide_eq_false_iff_not, and_assoc]
-
-private theorem reindex_s_ne_t :
-    ((vertexSplitNetwork G Z A B).reindex (SplitNode.equivFin n)).s ≠
-      ((vertexSplitNetwork G Z A B).reindex (SplitNode.equivFin n)).t :=
-  (SplitNode.equivFin n).injective.ne (by simp [vertexSplitNetwork])
-
-private theorem isMinCut_minCut : (vertexSplitNetwork G Z A B).IsMinCut (minCut G Z A B) := by
-  set e := SplitNode.equivFin n
-  set N := vertexSplitNetwork G Z A B
-  obtain ⟨-, hmin, -⟩ := edmondsKarpDenseM_correct (N := N.reindex e) reindex_s_ne_t
-  refine ⟨Network.isCut_cutOfReindex e hmin.1, fun T hT => ?_⟩
-  have hT' : (N.reindex e).IsCut (T.map e.toEmbedding) := by
-    simp only [Network.IsCut, Network.reindex, Finset.mem_map_equiv, Equiv.symm_apply_apply]
-    exact hT
-  have h := hmin.2 _ hT'
-  rw [← Network.cutCapacity_cutOfReindex, ← Network.cutCapacity_cutOfReindex] at h
-  have hround : Network.cutOfReindex e (T.map e.toEmbedding) = T := by
-    ext x
-    simp [Network.cutOfReindex]
-  rwa [hround] at h
+private theorem vget_separatorOfCut_side {S : Finset (SplitNode n)} (v : Fin n) :
+    vget (separatorOfCut Z S).side v = decide (SplitNode.outV v ∈ S) := by
+  simp [separatorOfCut, vget]
 
 /-- The positive capacities of the split network. -/
 private theorem vertexSplitCap_ne_zero {x y : SplitNode n} (h : vertexSplitCap G Z A B x y ≠ 0) :
@@ -332,106 +284,172 @@ private theorem exists_isCut_cutCapacity_le {Y : Finset (Fin n)}
         split_ifs <;> omega
     _ = Y.card := (Finset.card_eq_sum_ones Y).symm
 
-private theorem cutCapacity_minCut_le {Y : Finset (Fin n)}
+private theorem cutCapacity_le_of_isMinCut {S : Finset (SplitNode n)}
+    (hS : (vertexSplitNetwork G Z A B).IsMinCut S) {Y : Finset (Fin n)}
     (hY : G.IsSeparator {v | vget A v = true} {v | vget B v = true}
       ({v | vget Z v = true} ∪ ↑Y)) :
-    (vertexSplitNetwork G Z A B).cutCapacity (minCut G Z A B) ≤ Y.card := by
+    (vertexSplitNetwork G Z A B).cutCapacity S ≤ Y.card := by
   obtain ⟨T, hT, hcap⟩ := exists_isCut_cutCapacity_le hY
-  exact (isMinCut_minCut.2 T hT).trans hcap
+  exact (hS.2 T hT).trans hcap
 
-private theorem cutCapacity_minCut_le_n :
-    (vertexSplitNetwork G Z A B).cutCapacity (minCut G Z A B) ≤ n := by
-  have h := cutCapacity_minCut_le (G := G) (Z := Z) (A := A) (B := B) (Y := Finset.univ)
+private theorem cutCapacity_le_n_of_isMinCut {S : Finset (SplitNode n)}
+    (hS : (vertexSplitNetwork G Z A B).IsMinCut S) :
+    (vertexSplitNetwork G Z A B).cutCapacity S ≤ n := by
+  have h := cutCapacity_le_of_isMinCut hS (Y := Finset.univ)
     (isSeparator_of_subset_left fun a _ => Or.inr (Finset.mem_coe.mpr (Finset.mem_univ a)))
   rwa [Finset.card_univ, Fintype.card_fin] at h
 
-/-- Arcs of capacity `n + 1` do not leave the minimum cut. -/
-private theorem mem_minCut_of_cap {x y : SplitNode n} (hx : x ∈ minCut G Z A B)
-    (hcap : vertexSplitCap G Z A B x y = n + 1) : y ∈ minCut G Z A B := by
+/-- Arcs of capacity `n + 1` do not leave a minimum cut. -/
+private theorem mem_of_cap_of_isMinCut {S : Finset (SplitNode n)}
+    (hS : (vertexSplitNetwork G Z A B).IsMinCut S) {x y : SplitNode n} (hx : x ∈ S)
+    (hcap : vertexSplitCap G Z A B x y = n + 1) : y ∈ S := by
   by_contra hy
-  have h :=
-    (cap_le_cutCapacity (N := vertexSplitNetwork G Z A B) hx hy).trans cutCapacity_minCut_le_n
+  have h := (cap_le_cutCapacity (N := vertexSplitNetwork G Z A B) hx hy).trans
+    (cutCapacity_le_n_of_isMinCut hS)
   change vertexSplitCap G Z A B x y ≤ n at h
   omega
 
-private theorem src_mem_minCut : SplitNode.src ∈ minCut G Z A B :=
-  (isMinCut_minCut (G := G) (Z := Z) (A := A) (B := B)).1.1
+/-- The separator extracted from any cut has no repetitions. -/
+theorem separatorOfCut_nodup_sep (Z : Vector Bool n) (S : Finset (SplitNode n)) :
+    (separatorOfCut Z S).sep.Nodup :=
+  (List.nodup_finRange n).filter _
 
-private theorem snk_notMem_minCut : SplitNode.snk ∉ minCut G Z A B :=
-  (isMinCut_minCut (G := G) (Z := Z) (A := A) (B := B)).1.2
+/-- The separator extracted from any cut avoids `Z`. -/
+theorem separatorOfCut_vget_eq_false_of_mem_sep {S : Finset (SplitNode n)} {v : Fin n}
+    (hv : v ∈ (separatorOfCut Z S).sep) : vget Z v = false :=
+  (mem_separatorOfCut_sep_iff.mp hv).1
+
+/-- For any minimum cut `S`, the side labelling is constant along edges of `G - (Z ∪ sep)`. -/
+theorem separatorOfCut_side_eq_of_adj {S : Finset (SplitNode n)}
+    (hS : (vertexSplitNetwork G Z A B).IsMinCut S) {u v : Fin n} (huv : G.Adj u v)
+    (hu : vget Z u = false) (hv : vget Z v = false)
+    (hus : u ∉ (separatorOfCut Z S).sep) (hvs : v ∉ (separatorOfCut Z S).sep) :
+    vget (separatorOfCut Z S).side u = vget (separatorOfCut Z S).side v := by
+  have step : ∀ {a b : Fin n}, G.Adj a b → vget Z b = false →
+      b ∉ (separatorOfCut Z S).sep → SplitNode.outV a ∈ S → SplitNode.outV b ∈ S := by
+    intro a b hab hb hbs ha
+    have hin : SplitNode.inV b ∈ S := mem_of_cap_of_isMinCut hS ha (by simp [vertexSplitCap, hab])
+    by_contra hout
+    exact hbs (mem_separatorOfCut_sep_iff.mpr ⟨hb, hin, hout⟩)
+  rw [vget_separatorOfCut_side, vget_separatorOfCut_side]
+  exact decide_eq_decide.mpr ⟨step huv hv hvs, step huv.symm hu hus⟩
+
+/-- For any minimum cut `S`, the side labelling is true on `A \ (Z ∪ sep)`. -/
+theorem separatorOfCut_side_eq_true {S : Finset (SplitNode n)}
+    (hS : (vertexSplitNetwork G Z A B).IsMinCut S) {v : Fin n}
+    (hA : vget A v = true) (hZ : vget Z v = false) (hvs : v ∉ (separatorOfCut Z S).sep) :
+    vget (separatorOfCut Z S).side v = true := by
+  rw [vget_separatorOfCut_side, decide_eq_true_iff]
+  have hin : SplitNode.inV v ∈ S :=
+    mem_of_cap_of_isMinCut hS (x := SplitNode.src) hS.1.1 (by simp [vertexSplitCap, hA])
+  by_contra hout
+  exact hvs (mem_separatorOfCut_sep_iff.mpr ⟨hZ, hin, hout⟩)
+
+/-- For any minimum cut `S`, the side labelling is false on `B`. -/
+theorem separatorOfCut_side_eq_false {S : Finset (SplitNode n)}
+    (hS : (vertexSplitNetwork G Z A B).IsMinCut S) {v : Fin n} (hB : vget B v = true) :
+    vget (separatorOfCut Z S).side v = false := by
+  rw [vget_separatorOfCut_side, decide_eq_false_iff_not]
+  intro hout
+  exact hS.1.2 (mem_of_cap_of_isMinCut hS (y := SplitNode.snk) hout (by simp [vertexSplitCap, hB]))
+
+/-- **Separation for any minimum cut `S`:** `Z ∪ (separatorOfCut Z S).sep` separates `A` from
+`B`. -/
+theorem separatorOfCut_isSeparator {S : Finset (SplitNode n)}
+    (hS : (vertexSplitNetwork G Z A B).IsMinCut S) :
+    G.IsSeparator {v | vget A v = true} {v | vget B v = true}
+      ({v | vget Z v = true} ∪ {v | v ∈ (separatorOfCut Z S).sep}) := by
+  refine isSeparator_of_forall_adj (fun v => vget (separatorOfCut Z S).side v)
+    (fun u v huv hu hv => ?_) (fun a ha ha' => ?_)
+    fun b hb _ => separatorOfCut_side_eq_false hS hb
+  · simp only [Set.mem_union, Set.mem_ofPred_eq, not_or, Bool.not_eq_true] at hu hv
+    exact separatorOfCut_side_eq_of_adj hS huv hu.1 hv.1 hu.2 hv.2
+  · simp only [Set.mem_union, Set.mem_ofPred_eq, not_or, Bool.not_eq_true] at ha'
+    exact separatorOfCut_side_eq_true hS ha ha'.1 ha'.2
+
+/-- **Minimality for any minimum cut `S`:** if `Z ∪ Y` separates `A` from `B`, the extracted
+separator has at most `|Y|` vertices. -/
+theorem separatorOfCut_length_sep_le {S : Finset (SplitNode n)}
+    (hS : (vertexSplitNetwork G Z A B).IsMinCut S) {Y : Finset (Fin n)}
+    (hY : G.IsSeparator {v | vget A v = true} {v | vget B v = true}
+      ({v | vget Z v = true} ∪ ↑Y)) :
+    (separatorOfCut Z S).sep.length ≤ Y.card := by
+  classical
+  rw [← List.toFinset_card_of_nodup (separatorOfCut_nodup_sep Z S)]
+  refine le_trans ?_ (cutCapacity_le_of_isMinCut hS hY)
+  exact card_le_cutCapacity fun v hv => mem_separatorOfCut_sep_iff.mp (List.mem_toFinset.mp hv)
+
+/-- For any minimum cut `S`, the extracted separator size equals the cut capacity. -/
+theorem separatorOfCut_length_sep_eq_cutCapacity {S : Finset (SplitNode n)}
+    (hS : (vertexSplitNetwork G Z A B).IsMinCut S) :
+    (separatorOfCut Z S).sep.length = (vertexSplitNetwork G Z A B).cutCapacity S := by
+  classical
+  apply le_antisymm
+  · rw [← List.toFinset_card_of_nodup (separatorOfCut_nodup_sep Z S)]
+    exact card_le_cutCapacity fun v hv => mem_separatorOfCut_sep_iff.mp (List.mem_toFinset.mp hv)
+  · simpa [List.toFinset_card_of_nodup (separatorOfCut_nodup_sep Z S)] using
+      cutCapacity_le_of_isMinCut hS (Y := (separatorOfCut Z S).sep.toFinset)
+        (by simpa [Set.ext_iff] using separatorOfCut_isSeparator hS)
+
+/-- The minimum cut found by `minSeparator`, on split nodes. -/
+private def minCut (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (Z A B : Vector Bool n) :
+    Finset (SplitNode n) :=
+  Network.cutOfReindex (SplitNode.equivFin n)
+    (edmondsKarpDense ((vertexSplitNetwork G Z A B).reindex (SplitNode.equivFin n))).cut
+
+private theorem reindex_s_ne_t :
+    ((vertexSplitNetwork G Z A B).reindex (SplitNode.equivFin n)).s ≠
+      ((vertexSplitNetwork G Z A B).reindex (SplitNode.equivFin n)).t :=
+  (SplitNode.equivFin n).injective.ne (by simp [vertexSplitNetwork])
+
+private theorem isMinCut_minCut : (vertexSplitNetwork G Z A B).IsMinCut (minCut G Z A B) := by
+  obtain ⟨-, hmin, -⟩ := edmondsKarpDense_correct
+    (N := (vertexSplitNetwork G Z A B).reindex (SplitNode.equivFin n)) reindex_s_ne_t
+  exact Network.isMinCut_cutOfReindex (SplitNode.equivFin n) hmin
 
 variable (G Z A B)
 
 /-- The separator has no repetitions. -/
-theorem minSeparatorM_nodup_sep : (minSeparatorM G Z A B).ret.sep.Nodup :=
-  (List.nodup_finRange n).filter _
+theorem minSeparator_nodup_sep : (minSeparator G Z A B).sep.Nodup :=
+  separatorOfCut_nodup_sep Z (minCut G Z A B)
 
 variable {G Z A B}
 
 /-- The separator avoids `Z`. -/
-theorem minSeparatorM_vget_eq_false_of_mem_sep {v : Fin n}
-    (hv : v ∈ (minSeparatorM G Z A B).ret.sep) : vget Z v = false :=
-  (mem_sep_iff.mp hv).1
+theorem minSeparator_vget_eq_false_of_mem_sep {v : Fin n}
+    (hv : v ∈ (minSeparator G Z A B).sep) : vget Z v = false :=
+  separatorOfCut_vget_eq_false_of_mem_sep hv
 
 /-- The side labelling is constant along the edges of `G - (Z ∪ sep)`. -/
-theorem minSeparatorM_side_eq_of_adj {u v : Fin n} (huv : G.Adj u v) (hu : vget Z u = false)
-    (hv : vget Z v = false) (hus : u ∉ (minSeparatorM G Z A B).ret.sep)
-    (hvs : v ∉ (minSeparatorM G Z A B).ret.sep) :
-    vget (minSeparatorM G Z A B).ret.side u = vget (minSeparatorM G Z A B).ret.side v := by
-  have step : ∀ {a b : Fin n}, G.Adj a b → vget Z b = false →
-      b ∉ (minSeparatorM G Z A B).ret.sep →
-      SplitNode.outV a ∈ minCut G Z A B → SplitNode.outV b ∈ minCut G Z A B := by
-    intro a b hab hb hbs ha
-    have hin : SplitNode.inV b ∈ minCut G Z A B :=
-      mem_minCut_of_cap ha (by simp [vertexSplitCap, hab])
-    by_contra hout
-    exact hbs (mem_sep_iff.mpr ⟨hb, hin, hout⟩)
-  rw [vget_ret_side, vget_ret_side]
-  exact decide_eq_decide.mpr ⟨step huv hv hvs, step huv.symm hu hus⟩
+theorem minSeparator_side_eq_of_adj {u v : Fin n} (huv : G.Adj u v) (hu : vget Z u = false)
+    (hv : vget Z v = false) (hus : u ∉ (minSeparator G Z A B).sep)
+    (hvs : v ∉ (minSeparator G Z A B).sep) :
+    vget (minSeparator G Z A B).side u = vget (minSeparator G Z A B).side v :=
+  separatorOfCut_side_eq_of_adj isMinCut_minCut huv hu hv hus hvs
 
 /-- The side labelling is true on the vertices of `A` outside `Z ∪ sep`. -/
-theorem minSeparatorM_side_eq_true {v : Fin n} (hA : vget A v = true) (hZ : vget Z v = false)
-    (hvs : v ∉ (minSeparatorM G Z A B).ret.sep) :
-    vget (minSeparatorM G Z A B).ret.side v = true := by
-  rw [vget_ret_side, decide_eq_true_iff]
-  have hin : SplitNode.inV v ∈ minCut G Z A B :=
-    mem_minCut_of_cap src_mem_minCut (by simp [vertexSplitCap, hA])
-  by_contra hout
-  exact hvs (mem_sep_iff.mpr ⟨hZ, hin, hout⟩)
+theorem minSeparator_side_eq_true {v : Fin n} (hA : vget A v = true) (hZ : vget Z v = false)
+    (hvs : v ∉ (minSeparator G Z A B).sep) :
+    vget (minSeparator G Z A B).side v = true :=
+  separatorOfCut_side_eq_true isMinCut_minCut hA hZ hvs
 
 /-- The side labelling is false on `B`. -/
-theorem minSeparatorM_side_eq_false {v : Fin n} (hB : vget B v = true) :
-    vget (minSeparatorM G Z A B).ret.side v = false := by
-  rw [vget_ret_side, decide_eq_false_iff_not]
-  intro hout
-  exact snk_notMem_minCut (mem_minCut_of_cap hout (by simp [vertexSplitCap, hB]))
+theorem minSeparator_side_eq_false {v : Fin n} (hB : vget B v = true) :
+    vget (minSeparator G Z A B).side v = false :=
+  separatorOfCut_side_eq_false isMinCut_minCut hB
 
 /-- **Separation.** `Z ∪ sep` separates `A` from `B`. -/
-theorem minSeparatorM_isSeparator :
+theorem minSeparator_isSeparator :
     G.IsSeparator {v | vget A v = true} {v | vget B v = true}
-      ({v | vget Z v = true} ∪ {v | v ∈ (minSeparatorM G Z A B).ret.sep}) := by
-  refine isSeparator_of_forall_adj (fun v => vget (minSeparatorM G Z A B).ret.side v)
-    (fun u v huv hu hv => ?_) (fun a ha ha' => ?_) fun b hb _ => minSeparatorM_side_eq_false hb
-  · simp only [Set.mem_union, Set.mem_ofPred_eq, not_or, Bool.not_eq_true] at hu hv
-    exact minSeparatorM_side_eq_of_adj huv hu.1 hv.1 hu.2 hv.2
-  · simp only [Set.mem_union, Set.mem_ofPred_eq, not_or, Bool.not_eq_true] at ha'
-    exact minSeparatorM_side_eq_true ha ha'.1 ha'.2
+      ({v | vget Z v = true} ∪ {v | v ∈ (minSeparator G Z A B).sep}) :=
+  separatorOfCut_isSeparator isMinCut_minCut
 
 /-- **Minimality.** If `Z ∪ Y` separates `A` from `B`, the separator has at most `|Y|` vertices. -/
-theorem minSeparatorM_length_sep_le {Y : Finset (Fin n)}
+theorem minSeparator_length_sep_le {Y : Finset (Fin n)}
     (hY : G.IsSeparator {v | vget A v = true} {v | vget B v = true}
       ({v | vget Z v = true} ∪ ↑Y)) :
-    (minSeparatorM G Z A B).ret.sep.length ≤ Y.card := by
-  classical
-  rw [← List.toFinset_card_of_nodup (minSeparatorM_nodup_sep G Z A B)]
-  refine le_trans ?_ (cutCapacity_minCut_le hY)
-  exact card_le_cutCapacity fun v hv => mem_sep_iff.mp (List.mem_toFinset.mp hv)
-
-/-- **Running time.** `minSeparatorM` takes at most `minSeparatorCost n` ticks. -/
-theorem time_minSeparatorM_le : (minSeparatorM G Z A B).time ≤ minSeparatorCost n := by
-  have h := edmondsKarpDenseM_time_le ((vertexSplitNetwork G Z A B).reindex (SplitNode.equivFin n))
-  simp only [minSeparatorM, time_simps, minSeparatorCost]
-  exact Nat.add_le_add_right h _
+    (minSeparator G Z A B).sep.length ≤ Y.card :=
+  separatorOfCut_length_sep_le isMinCut_minCut hY
 
 end Correctness
 

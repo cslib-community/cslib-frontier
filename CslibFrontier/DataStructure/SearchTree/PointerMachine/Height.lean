@@ -54,19 +54,13 @@ theorem readHeightsPrefix_runs (zero : M.Op) (z : M.Value)
       (∀ i, i ≠ 1 → i ≠ 2 → t.data i = s.data i) ∧
       (∀ i, i ≠ 2 → t.ptr i = s.ptr i) := by
   have ne : (1 : Fin (regs + 1 + 2)) ≠ 2 := by
-    intro h
-    have hv := congrArg Fin.val h
-    change 1 = 2 % (regs + 1 + 2) at hv
-    rw [Nat.mod_eq_of_lt (show 2 < regs + 1 + 2 by omega)] at hv
-    omega
-  let s1 : State M (layout extra (regs + 1)) := { s.setData 1 z with pc := 1 }
-  let s2 : State M (layout extra (regs + 1)) := { s1.setData 2 z with pc := 2 }
-  let s3 : State M (layout extra (regs + 1)) := { s2.setPtr 2 (root l) with pc := 3 }
-  let s4 : State M (layout extra (regs + 1)) :=
-    { s3.setData 1 (heightValue z field l) with pc := 4 }
-  let s5 : State M (layout extra (regs + 1)) := { s4.setPtr 2 (root r) with pc := 5 }
-  let t : State M (layout extra (regs + 1)) :=
-    { s5.setData 2 (heightValue z field r) with pc := 6 }
+    rw [Ne, Fin.ext_iff, Fin.val_one, Fin.val_two]; omega
+  let s1 := { s.setData 1 z with pc := 1 }
+  let s2 := { s1.setData 2 z with pc := 2 }
+  let s3 := { s2.setPtr 2 (root l) with pc := 3 }
+  let s4 := { s3.setData 1 (heightValue z field l) with pc := 4 }
+  let s5 := { s4.setPtr 2 (root r) with pc := 5 }
+  let t := { s5.setData 2 (heightValue z field r) with pc := 6 }
   have run : Runs (readHeightsPrefix zero field base ++ suffix) s t 6 := by
     refine .head s s1 _ _ ?_ (.head s1 s2 _ _ ?_ (.head s2 s3 _ _ ?_
       (.head s3 s4 _ _ ?_ (.head s4 s5 _ _ ?_ (.single ?_)))))
@@ -74,29 +68,22 @@ theorem readHeightsPrefix_runs (zero : M.Op) (z : M.Value)
     · simp [step, readHeightsPrefix, Instr.effect, Instr.next, s2, s1, zero_spec]
     · simp [step, readHeightsPrefix, Instr.effect, Instr.next, s3, s2, s1,
         State.setData, State.deref, cursor, rep.1, record]
-    · rcases rep with ⟨_, hl, _⟩
-      cases l with
+    · cases l with
       | nil => simp [step, readHeightsPrefix, Instr.effect, Instr.next, s4, s3, s2, s1,
           State.setPtr, State.setData, State.deref, root, heightValue, ne]
-      | node a l r =>
-        simp [step, readHeightsPrefix, Instr.effect, Instr.next, s4, s3, s2, s1,
-          State.setPtr, State.setData, State.deref, root, hl.1, record, heightValue]
+      | node => simp [step, readHeightsPrefix, Instr.effect, Instr.next, s4, s3, s2, s1,
+          State.setPtr, State.setData, State.deref, root, rep.2.1.1, record, heightValue]
     · simp [step, readHeightsPrefix, Instr.effect, Instr.next, s5, s4, s3, s2, s1,
         State.setData, State.setPtr, State.deref, cursor, rep.1, record, scratch]
-    · rcases rep with ⟨_, _, hr⟩
-      cases r with
+    · cases r with
       | nil => simp [step, readHeightsPrefix, Instr.effect, Instr.next, t, s5, s4, s3, s2, s1,
           State.setPtr, State.setData, State.deref, root, heightValue, Ne.symm ne]
-      | node a l r =>
-        simp [step, readHeightsPrefix, Instr.effect, Instr.next, t, s5, s4, s3, s2, s1,
-          State.setPtr, State.setData, State.deref, root, hr.1, record, heightValue]
-  refine ⟨t, run, rfl, rfl, ?_, ?_, ?_, ?_⟩
+      | node => simp [step, readHeightsPrefix, Instr.effect, Instr.next, t, s5, s4, s3, s2, s1,
+          State.setPtr, State.setData, State.deref, root, rep.2.2.1, record, heightValue]
+  refine ⟨t, run, rfl, rfl, ?_, by simp [t, State.setData], fun i h1 h2 => ?_, fun i h2 => ?_⟩
   · simp [t, s5, s4, s3, s2, s1, State.setData, State.setPtr, ne]
-  · simp [t, State.setData]
-  · intro i h1 h2
-    simp [t, s5, s4, s3, s2, s1, State.setData, State.setPtr, h1, h2]
-  · intro i h2
-    simp [t, s5, s4, s3, s2, s1, State.setData, State.setPtr, h2]
+  · simp [t, s5, s4, s3, s2, s1, State.setData, State.setPtr, h1, h2]
+  · simp [t, s5, s4, s3, s2, s1, State.setData, State.setPtr, h2]
 
 
 /-- Recompute the cursor's height. Data registers one/two and pointer register two are scratch.
@@ -129,23 +116,18 @@ theorem recomputeHeight_correct (zero maxSucc : M.Op) (encode : ℕ → M.Value)
   obtain ⟨t, run, tpc, heap, dl, dr, data, ptr⟩ := readHeightsPrefix_runs zero (encode 0)
     zero_spec field 0 (by decide) [.op maxSucc 1 1 2, .storeData field 0 1, .halt]
     x label l r parent rep cursor pc
-  have tc : t.ptr 0 = some label.address := (ptr 0 (by change (0 : Fin 7) ≠ 2; decide)).trans cursor
+  have tc : t.ptr 0 = some label.address := (ptr 0 nofun).trans cursor
   let value := encode (max l.height r.height + 1)
-  let s7 : State M (layout extra (regs + 1)) := { t.setData 1 value with pc := 7 }
-  let y : State M (layout extra (regs + 1)) :=
-    { s7 with pc := 8
-              heap := x.heap.modify label.address
-                (fun n => { n with data := Function.update n.data field value }) }
+  let s7 := { t.setData 1 value with pc := 7 }
+  let y := { s7 with pc := 8, heap := x.heap.modify label.address fun n =>
+    { n with data := Function.update n.data field value } }
   have tail : Runs (recomputeHeight zero maxSucc field) t y 2 := by
     refine .head t s7 _ _ ?_ (.single ?_)
     · simp [step, recomputeHeight, readHeightsPrefix, tpc, Instr.effect, Instr.next,
         s7, dl, dr, left, right, max_spec, value]
     · simp [step, recomputeHeight, readHeightsPrefix, Instr.effect, Instr.next, y, s7,
         State.setData, State.modify, tc, heap]
-  refine ⟨y, ⟨8, run.trans tail, rfl, rfl⟩, rfl, rep.updateData _ _ _, ?_, ?_⟩
-  · intro i h1 h2
-    simpa [y, s7, State.setData, h1] using data i h1 h2
-  · intro i h2
-    exact ptr i h2
+  refine ⟨y, ⟨8, run.trans tail, rfl, rfl⟩, rfl, rep.updateData _ _ _, fun i h1 h2 => ?_, ptr⟩
+  simpa [y, s7, State.setData, h1] using data i h1 h2
 
 end Cslib.DataStructure.SearchTree.PointerMachine

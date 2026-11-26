@@ -38,15 +38,11 @@ namespace Cslib.BitString
   | succ n ih =>
     rw [List.ofFn_succ, List.ofFn_succ]
     intro h
-    by_cases hb : b 0 = false
+    cases hb : b 0
     · rw [hb] at h
       change List.Lex (· < ·) (false :: _) (false :: _) at h
       exact ih (fun i => b i.succ) (List.lex_cons_iff.mp h)
-    · have hle : b 0 ≤ false := List.head_le_of_lt h
-      cases hbit : b 0
-      · exact hb hbit
-      · rw [hbit] at hle
-        exact (by decide : ¬ true ≤ false) hle
+    · exact absurd (hb ▸ List.head_le_of_lt h) (by decide)
 
 /-- Reversing distinct inputs reverses the sorting decision. -/
 theorem lexSwap_reverse {n : ℕ} {a b : Fin n → Bool} (h : a ≠ b) :

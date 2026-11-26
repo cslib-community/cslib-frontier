@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Cycle
 import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.CycleDarts
 import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.NearVertex
+import CslibFrontier.Foundations.Data.Fintype.UpdateInduction
 public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Basic
 public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Dictatorship
 import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Interval
@@ -47,6 +48,8 @@ namespace Cslib.GameTheory.FacilityLocation
 
 open SimpleGraph SimpleGraph.MetricGraph
 
+/-! ### Coalition strategyproofness and agent merging -/
+
 section CoalitionAndMerge
 
 private theorem pair_const {G : Type*} (p : G) : (![p, p] : Fin 2 → G) = fun _ => p := by
@@ -73,7 +76,7 @@ private theorem coalition_sp {ι G : Type*} [Finite ι] [DecidableEq ι] [Metric
     (hf_sp : (Mechanism.deterministic f).IsStrategyProof) (S : Finset ι) (a b : G)
     (x : ι → G) (hx : ∀ i ∈ S, x i = a) :
     dist a (f x) ≤ dist a (f fun i => if i ∈ S then b else x i) := by
-  refine profile_update_induction (P := fun z => dist a (f x) ≤ dist a (f z)) le_rfl ?_
+  refine Function.update_induction (P := fun z => dist a (f x) ≤ dist a (f z)) le_rfl ?_
   intro z _ hz i hzi hne
   have hiS : i ∈ S := by by_contra h; exact hne (by simp [hzi, h])
   have hstep := (Mechanism.isStrategyProof_deterministic_iff f).mp hf_sp z i b
@@ -138,6 +141,8 @@ private theorem restrictTwo_isStrategyProof {ι G : Type*} [Finite ι] [Decidabl
       simp [x', hi, Finset.disjoint_right.mp hAB hi]
 
 end CoalitionAndMerge
+
+/-! ### Local metric-graph and circle geometry helpers -/
 
 section GeometryHelpers
 
@@ -333,7 +338,10 @@ private theorem uniform_step_of_periodic_local {L : ℝ} (hL : 0 < L) (g : ℝ �
     by_contra hte; rw [Finset.not_nonempty_iff_eq_empty] at hte
     have := ht ⟨le_rfl, hL.le⟩; simp [hte] at this
   let δ₀ := t.inf' ht_ne fun s => η s / 2
-  have hδ₀ : 0 < δ₀ := by rw [Finset.lt_inf'_iff]; intro s _; linarith [hη_pos s]
+  have hδ₀ : 0 < δ₀ := by
+    rw [Finset.lt_inf'_iff]
+    intro s _
+    linarith [hη_pos s]
   refine ⟨δ₀, hδ₀, fun u r hr0 hrδ => ?_⟩
   let k : ℤ := ⌊u / L⌋
   let u' := u - k * L
@@ -351,6 +359,8 @@ private theorem uniform_step_of_periodic_local {L : ℝ} (hL : 0 < L) (g : ℝ �
   simpa only [h1, h2] using hg_per u' (u' + r) k hgu'
 
 end GeometryHelpers
+
+/-! ### Two-agent local invariance on a shortest cycle -/
 
 section Fin2CycleDictator
 
@@ -378,9 +388,13 @@ private theorem half_step_third_dart_bound {V : Type*} (W : WeightedGraph V) [Fi
   have hr'0 : 0 < r' := by positivity
   have hr'_le : r' ≤ δ := by dsimp only [r']; linarith
   have hr'_def : r' = 3 / 4 * r_y := rfl
-  let a := rayPt W d_a r_a; let b := rayPt W d_b r_b; let y := rayPt W d r_y
-  let a' := rayPt W d_a r'; let b' := rayPt W d_b r'
-  let y₂ := f ![a, b']; let y' := f ![a', b']
+  let a := rayPt W d_a r_a
+  let b := rayPt W d_b r_b
+  let y := rayPt W d r_y
+  let a' := rayPt W d_a r'
+  let b' := rayPt W d_b r'
+  let y₂ := f ![a, b']
+  let y' := f ![a', b']
   have hhalf (d' : W.graph.Dart) {x : ℝ} (hx : x ≤ 4 * δ) : x ≤ W.weight d'.edge / 2 := by
     linarith [hδ16.trans (hwmin d')]
   have hby : dist b y = r_b + r_y := dist_rayPt_of_edge_ne W (hb_fst.trans hd_fst.symm) hbd
@@ -403,7 +417,9 @@ private theorem half_step_third_dart_bound {V : Type*} (W : WeightedGraph V) [Fi
   rcases eq_vertex_or_edgePoint_of_dist_vertex_lt (v := v) (p := y₂)
       (fun u hu => by linarith [hvmin v u hu.symm]) with
     hv_eq | ⟨d₂, t₂, hd₂_fst, ht20, _, hy2_eq, hvy2_eq⟩
-  · exfalso; rw [hv_eq, _root_.dist_comm, hvb'] at hb'y2; linarith
+  · exfalso
+    rw [hv_eq, _root_.dist_comm, hvb'] at hb'y2
+    linarith
   let r₂ := (t₂ : ℝ) * W.weight d₂.edge
   have hr2_pos : 0 < r₂ := mul_pos ht20 (W.dart_weight_pos d₂)
   have hr2_le : r₂ ≤ 3 * δ := hvy2_eq.symm.trans_le hvy2_le
@@ -588,6 +604,8 @@ private theorem third_dart_contra {V : Type*} (W : WeightedGraph V) [Finite V]
     (g ![rayPt W d₁ (3 / 4 * r_y), rayPt W d₂ (3 / 4 * r_y)]) (rayPt W d₂ (3 / 4 * r_y))
   linarith
 
+/-- Local interval invariance near a cycle vertex `circleMap hs.1 s₀ = vertex v`: reports within
+`δ` of `s₀` stay in the arc `(fun r => circleMap hs.1 (s₀ + r)) '' Set.Icc (-δ) δ`. -/
 private theorem local_invariance_vertex {V : Type*} (W : WeightedGraph V) [Finite V]
     [MeasurableSpace (MetricGraph W)] [OpensMeasurableSpace (MetricGraph W)]
     {v₀ : V} {c : W.graph.Walk v₀ v₀} (hs : IsShortestCycle W c)
@@ -644,19 +662,21 @@ private theorem local_invariance_vertex {V : Type*} (W : WeightedGraph V) [Finit
   have hry_pos : 0 < r_y := mul_pos ht0 (W.dart_weight_pos d)
   have hry_3 : r_y ≤ 3 * δ := hvy_eq.symm.trans_le hvy_3
   have hy_ray : y = rayPt W d r_y := hy_eq.trans (edgePoint_eq_rayPt W d t)
+  have on_cycle (r : ℝ) (hr : |r| ≤ 3 * δ) (hcm : y = circleMap hs.1 (s₀ + r)) :
+      y ∈ (fun r => circleMap hs.1 (s₀ + r)) '' Set.Icc (-δ) δ := by
+    rw [hcm] at hda_y hdb_y ⊢
+    exact mem_image_Icc_of_dist_le_circle W hs hδL hsa hsb hr hda_y hdb_y
   by_cases h1 : d.edge = d₁.edge
   · obtain rfl := dart_eq_of_edge_eq_of_fst_eq h1 (hd_fst.trans hd₁_fst.symm)
-    have hcm : y = circleMap hs.1 (s₀ + (-r_y)) := by
-      rw [show s₀ + (-r_y) = s₀ - r_y by ring, hr1 r_y ⟨hry_pos.le, hry_3⟩, hy_ray]
-    change y ∈ _; rw [hcm]; rw [hcm] at hda_y hdb_y
-    exact mem_image_Icc_of_dist_le_circle W hs hδL hsa hsb
-      (by rw [abs_neg, abs_of_pos hry_pos]; exact hry_3) hda_y hdb_y
+    refine on_cycle (-r_y) ?_ ?_
+    · rw [abs_neg, abs_of_pos hry_pos]
+      exact hry_3
+    · rw [show s₀ + (-r_y) = s₀ - r_y by ring, hr1 r_y ⟨hry_pos.le, hry_3⟩, hy_ray]
   · by_cases h2 : d.edge = d₂.edge
     · obtain rfl := dart_eq_of_edge_eq_of_fst_eq h2 (hd_fst.trans hd₂_fst.symm)
-      have hcm : y = circleMap hs.1 (s₀ + r_y) := hy_ray.trans (hr2 r_y ⟨hry_pos.le, hry_3⟩).symm
-      change y ∈ _; rw [hcm]; rw [hcm] at hda_y hdb_y
-      exact mem_image_Icc_of_dist_le_circle W hs hδL hsa hsb
-        (by rw [abs_of_pos hry_pos]; exact hry_3) hda_y hdb_y
+      refine on_cycle r_y ?_ (hy_ray.trans (hr2 r_y ⟨hry_pos.le, hry_3⟩).symm)
+      rw [abs_of_pos hry_pos]
+      exact hry_3
     · exfalso
       have hfull1' : ∀ r ∈ Set.Icc 0 δ, circleMap hs.1 (s₀ - r) = rayPt W d₁ r :=
         fun r hr => hr1 r ⟨hr.1, by linarith [hr.2]⟩
@@ -684,6 +704,8 @@ private theorem local_invariance_vertex {V : Type*} (W : WeightedGraph V) [Finit
       · rcases abs_cases (sa - sb) with ⟨_, _⟩ | ⟨_, _⟩ <;>
           linarith [abs_of_neg hsa0, abs_of_neg hsb0]
 
+/-- Local interval invariance at an arbitrary cycle parameter `s₀`: reports within some `δ > 0`
+(`δ ≤ walkLength W.weight c / 16`) of `s₀` stay in the same arc around `s₀`. -/
 private theorem local_invariance_circle {V : Type*} (W : WeightedGraph V) [Finite V]
     [MeasurableSpace (MetricGraph W)] [OpensMeasurableSpace (MetricGraph W)]
     {v₀ : V} {c : W.graph.Walk v₀ v₀} (hs : IsShortestCycle W c)
@@ -722,11 +744,20 @@ private theorem local_invariance_circle {V : Type*} (W : WeightedGraph V) [Finit
       linarith [hcm0 ▸ hdy_3, hdeq]
     have hcm_r : circleMap hs.1 (s₀ + r_y) = edgePoint d u := by
       obtain ⟨_, _, _, _, hcm⟩ := hmap r_y (abs_le.mp (habs_ry.trans h3δ))
-      rw [hcm]; congr 1; ext; dsimp only [r_y]; field_simp [hw.ne']; ring
+      rw [hcm]
+      congr 1
+      ext
+      dsimp only [r_y]
+      field_simp [hw.ne']
+      ring
     rw [hu_eq, ← hcm_r] at hda_y hdb_y ⊢
     exact mem_image_Icc_of_dist_le_circle W hs hδL hsa hsb habs_ry hda_y hdb_y
   · exact local_invariance_vertex W hs hf_sp hf_unam hd₁_fst hd₂_fst hd₁₂ hs₀_v hδ₁ hmap
 
+/-! ### Local Moulin characterization and orientation dichotomy -/
+
+/-- Around any cycle parameter `s₀`, the mechanism agrees locally with a two-agent Moulin phantom
+rule `min (max α₀ u) v` for ordered inputs `u ≤ v` in `[s₀ - δ, s₀ + δ]`. -/
 private theorem local_moulin_circle {V : Type*} (W : WeightedGraph V) [Finite V]
     [MeasurableSpace (MetricGraph W)] [OpensMeasurableSpace (MetricGraph W)]
     {v₀ : V} {c : W.graph.Walk v₀ v₀} (hs : IsShortestCycle W c)
@@ -741,45 +772,51 @@ private theorem local_moulin_circle {V : Type*} (W : WeightedGraph V) [Finite V]
   let φ : Set.Icc (0 : ℝ) (2 * δ) → MetricGraph W := fun t => circleMap hs.1 (s₀ - δ + (t : ℝ))
   have hφ : Isometry φ := isometry_iff_dist_eq.mpr fun t₁ t₂ => by
     have hsub : (s₀ - δ + (t₁ : ℝ)) - (s₀ - δ + (t₂ : ℝ)) = (t₁ : ℝ) - t₂ := by ring
-    have h11 := t₁.2.1; have h12 := t₁.2.2; have h21 := t₂.2.1; have h22 := t₂.2.2
-    have hle : |(s₀ - δ + (t₁ : ℝ)) - (s₀ - δ + (t₂ : ℝ))| ≤ walkLength W.weight c / 2 := by
-      rw [hsub]
-      have habs : |(t₁ : ℝ) - t₂| ≤ 2 * δ := abs_sub_le_iff.mpr ⟨by linarith, by linarith⟩
-      linarith [hδL, walkLength_pos_of_not_nil hs.1.not_nil]
-    dsimp only [φ]
-    rw [Subtype.dist_eq, Real.dist_eq, circleMap_dist_eq_of_le hs hle, hsub]
+    have habs : |(t₁ : ℝ) - t₂| ≤ 2 * δ :=
+      abs_sub_le_iff.mpr
+        ⟨by linarith [t₁.2.2, t₂.2.1],
+         by linarith [t₁.2.1, t₂.2.2]⟩
+    rw [Subtype.dist_eq, Real.dist_eq, circleMap_dist_eq_of_le hs
+      (by rw [hsub]; linarith [hδL, walkLength_pos_of_not_nil hs.1.not_nil]), hsub]
   have hrange : ∀ x : Fin 2 → MetricGraph W, (∀ i, x i ∈ Set.range φ) → f x ∈ Set.range φ := by
     intro x hx
     obtain ⟨t0, h0⟩ := hx 0; obtain ⟨t1, h1⟩ := hx 1
     have hx_eq : x = ![circleMap hs.1 (s₀ + ((t0 : ℝ) - δ)),
         circleMap hs.1 (s₀ + ((t1 : ℝ) - δ))] := by
-      ext i; fin_cases i
-      · exact h0.symm.trans (by dsimp only [φ]; congr 1; ring)
-      · exact h1.symm.trans (by dsimp only [φ]; congr 1; ring)
+      ext i
+      fin_cases i
+      · exact h0.symm.trans (congrArg (circleMap hs.1) (by ring))
+      · exact h1.symm.trans (congrArg (circleMap hs.1) (by ring))
     obtain ⟨r, hr, hreq⟩ := hinv ((t0 : ℝ) - δ) ⟨by linarith [t0.2.1], by linarith [t0.2.2]⟩
       ((t1 : ℝ) - δ) ⟨by linarith [t1.2.1], by linarith [t1.2.2]⟩
-    exact ⟨⟨r + δ, by linarith [hr.1], by linarith [hr.2]⟩,
-      by dsimp only [φ]; rw [hx_eq, ← hreq]; congr 1; ring⟩
+    refine ⟨⟨r + δ, ?_, ?_⟩, ?_⟩
+    · linarith [hr.1]
+    · linarith [hr.2]
+    · rw [hx_eq, ← hreq]
+      exact congrArg (circleMap hs.1) (by ring)
   obtain ⟨E, hE⟩ := moulinScheme_of_isometry (by linarith) φ hφ hf_sp hrange
     fun y ⟨t, ht⟩ => ⟨fun _ => y, fun _ => ⟨t, ht⟩, hf_unam y ⟨_, ht⟩⟩
   refine ⟨δ, s₀ - δ + E.alpha {0}, hδ_pos, hδL,
     ⟨by linarith [(E.mem_Icc {0}).1], by linarith [(E.mem_Icc {0}).2]⟩, fun u v hu hv huv => ?_⟩
   let tu : Set.Icc (0 : ℝ) (2 * δ) := ⟨u - (s₀ - δ), by linarith [hu.1], by linarith [hu.2]⟩
   let tv : Set.Icc (0 : ℝ) (2 * δ) := ⟨v - (s₀ - δ), by linarith [hv.1], by linarith [hv.2]⟩
-  have hev := hE ![tu, tv]
   have hcm : (fun i => φ (![tu, tv] i)) = ![circleMap hs.1 u, circleMap hs.1 v] := by
     ext i; fin_cases i
     · change circleMap hs.1 (s₀ - δ + (u - (s₀ - δ))) = circleMap hs.1 u; congr 1; ring
     · change circleMap hs.1 (s₀ - δ + (v - (s₀ - δ))) = circleMap hs.1 v; congr 1; ring
-  rw [hcm] at hev; rw [hev]; dsimp only [φ]; congr 1
   have hm := moulinScheme_finTwo_eq E ![tu, tv]
   dsimp only [Matrix.cons_val_zero, Matrix.cons_val_one] at hm
   rw [max_eq_right (show (tu : ℝ) ≤ tv by dsimp only [tu, tv]; linarith),
     min_eq_right (le_max_right (E.alpha {1}) (tv : ℝ))] at hm
-  rw [hm, add_min, add_max]
-  congr 1; · congr 1; dsimp only [tu]; ring
-  dsimp only [tv]; ring
+  rw [← hcm, hE ![tu, tv]]
+  dsimp only [φ]
+  rw [hm]
+  dsimp only [tu, tv]
+  rw [add_min, add_max, show s₀ - δ + (u - (s₀ - δ)) = u by ring,
+    show s₀ - δ + (v - (s₀ - δ)) = v by ring]
 
+/-- Global orientation dichotomy for small steps: there exists `δ₀ > 0` such that for all `u` and
+`0 ≤ r ≤ δ₀`, `f ![circleMap u, circleMap (u + r)]` uniformly picks either `u` or `u + r`. -/
 private theorem orientation_dichotomy_circle {V : Type*} (W : WeightedGraph V) [Finite V]
     [MeasurableSpace (MetricGraph W)] [OpensMeasurableSpace (MetricGraph W)]
     {v₀ : V} {c : W.graph.Walk v₀ v₀} (hs : IsShortestCycle W c)
@@ -834,11 +871,9 @@ private theorem orientation_dichotomy_circle {V : Type*} (W : WeightedGraph V) [
     · exact Or.inr (Or.inl (hR ⟨by linarith, hgt⟩))
   have hper_r : ∀ s, s ∈ loc gR → s + L ∈ loc gR := fun s ⟨η, hη, hr⟩ =>
     ⟨η, hη, fun u v hu huv hv => by
-      have huL : circleMap hs.1 u = circleMap hs.1 (u - L) := by
-        simpa only [L, sub_add_cancel] using circleMap_periodic hs.1 (u - L)
-      have hvL : circleMap hs.1 v = circleMap hs.1 (v - L) := by
-        simpa only [L, sub_add_cancel] using circleMap_periodic hs.1 (v - L)
-      dsimp only [gR]; rw [huL, hvL]
+      dsimp only [gR]
+      rw [← sub_add_cancel u L, ← sub_add_cancel v L, circleMap_periodic hs.1,
+        circleMap_periodic hs.1]
       exact hr (u - L) (v - L) (by linarith) (sub_le_sub_right huv L) (by linarith)⟩
   rcases disjoint_open_periodic_dichotomy hL (hopen gL) (hopen gR) hdisj hper_r hclass with
     h | h
@@ -848,6 +883,8 @@ private theorem orientation_dichotomy_circle {V : Type*} (W : WeightedGraph V) [
   · obtain ⟨δ₀, hδ₀, hs₀⟩ := uniform_step_of_periodic_local hL gR (fun s _ => h (Set.mem_univ s))
       fun u v m h => by simpa only [gR, L, circleMap_add_int_mul hs.1] using h
     exact ⟨δ₀, hδ₀, Or.inr hs₀⟩
+
+/-! ### Extending local dictatorship to a half-cycle -/
 
 /-- Boundary continuity of cyclic dictatorship: if player `0` dictates for all offsets in
 `[0, R)` along direction `σ = ±1`, then player `0` also dictates at offset `R`. -/
@@ -889,25 +926,23 @@ private theorem eq_of_circle_shift_bounds {V : Type*} (W : WeightedGraph V) [Fin
   have hnegσ : -σ = 1 ∨ -σ = -1 := by rcases hσ with rfl | rfl <;> [right; left] <;> norm_num
   have hσρ : |σ * ρ| ≤ 2 * η := by rw [abs_mul, hσ_abs, one_mul]; exact hρ
   rcases lt_trichotomy (σ * ρ) 0 with hneg | hzero | hpos
-  · have hmul : s + ρ = (s + σ * (R + η')) + (-σ) * (R + η' - σ * ρ) := by
+  · have hmul : s + ρ = (s + σ * (R + η')) + (-σ) * (R + η' - σ * ρ) :=
       calc s + ρ = s + (σ * σ) * ρ := by rw [hσ_sq, one_mul]
         _ = (s + σ * (R + η')) + (-σ) * (R + η' - σ * ρ) := by ring
-    have heq : dist (circleMap hs.1 (s + σ * (R + η'))) y₀ = R + η' - σ * ρ := by
-      rw [hy_cm, hmul]
-      exact dist_circleMap_add_mul_dir hs hnegσ _ _ (by linarith [hη'.1, hη'.2])
-        (by linarith [(abs_le.mp hσρ).1, hη'.2, hη_L])
+    rw [hy_cm, hmul, dist_circleMap_add_mul_dir hs hnegσ _ _
+      (by linarith [hη'.1, hη'.2])
+      (by linarith [(abs_le.mp hσρ).1, hη'.2, hη_L])] at hb
     linarith
   · have hρ0 : ρ = 0 := by
       have h := congrArg (σ * ·) hzero
       rwa [← mul_assoc, hσ_sq, one_mul, mul_zero] at h
     simpa only [hρ0, add_zero] using hy_cm
-  · have hmul : s + ρ = (s + σ * R) + (-σ) * (R - σ * ρ) := by
+  · have hmul : s + ρ = (s + σ * R) + (-σ) * (R - σ * ρ) :=
       calc s + ρ = s + (σ * σ) * ρ := by rw [hσ_sq, one_mul]
         _ = (s + σ * R) + (-σ) * (R - σ * ρ) := by ring
-    have heq : dist (circleMap hs.1 (s + σ * R)) y₀ = R - σ * ρ := by
-      rw [hy_cm, hmul]
-      exact dist_circleMap_add_mul_dir hs hnegσ _ _ (by linarith [(abs_le.mp hσρ).2])
-        (by linarith)
+    rw [hy_cm, hmul, dist_circleMap_add_mul_dir hs hnegσ _ _
+      (by linarith [(abs_le.mp hσρ).2])
+      (by linarith)] at hb₀
     linarith
 
 /-- Near a cycle vertex `circleMap s_v = vertex v`, any interior point `edgePoint d' t'` with
@@ -966,41 +1001,38 @@ private theorem exists_shared_vertex_of_dist_edgePoint_le {V : Type*} (W : Weigh
       0 < (t'' : ℝ) ∧ (t'' : ℝ) < 1 ∧ edgePoint d'' t'' = edgePoint d' t' ∧
       (t₀ : ℝ) * W.weight d₀.edge + (t'' : ℝ) * W.weight d''.edge ≤ η' := by
   rw [dist_edgePoint_edgePoint_of_edge_ne hde, min_le_iff, min_le_iff, min_le_iff] at hd_le
-  have hwd := (W.dart_weight_pos d).le; have hwd' := (W.dart_weight_pos d').le
-  have hmatch {x x' : V} {p q : ℝ} (hp : 0 ≤ p) (hq : 0 ≤ q)
+  have hwd' := (W.dart_weight_pos d').le
+  have hmatch {x x' : V} {p q : ℝ} (_ : 0 ≤ p) (_ : 0 ≤ q)
       (h : p + W.graph.vertexDist W.weight x x' + q ≤ η') : x' = x ∧ p + q ≤ η' := by
     obtain rfl : x = x' := by
-      by_contra hne; have hv := hvmin x x' hne; rw [dist_vertex] at hv; linarith
+      by_contra hne
+      have hv := hvmin x x' hne
+      rw [dist_vertex] at hv; linarith
     rw [vertexDist_self W.weight_nonneg, add_zero] at h; exact ⟨rfl, h⟩
-  have finish (isFst : Bool)
-      (hdis : ((if isFst then t else unitInterval.symm t : unitInterval) : ℝ) *
-      W.weight (if isFst then d else d.symm).edge +
-      W.graph.vertexDist W.weight (if isFst then d else d.symm).fst d'.fst +
-      (t' : ℝ) * W.weight d'.edge ≤ η' ∨
+  obtain ⟨isFst, hdis⟩ : ∃ isFst : Bool,
       ((if isFst then t else unitInterval.symm t : unitInterval) : ℝ) *
-      W.weight (if isFst then d else d.symm).edge +
-      W.graph.vertexDist W.weight (if isFst then d else d.symm).fst d'.snd +
-      (1 - (t' : ℝ)) * W.weight d'.edge ≤ η') :
-      ∃ (d₀ d'' : W.graph.Dart) (t₀ t'' : unitInterval), d₀ = (if isFst then d else d.symm) ∧
-        t₀ = (if isFst then t else unitInterval.symm t) ∧
-        d''.fst = d₀.fst ∧ d''.edge = d'.edge ∧
-        0 < (t'' : ℝ) ∧ (t'' : ℝ) < 1 ∧ edgePoint d'' t'' = edgePoint d' t' ∧
-        (t₀ : ℝ) * W.weight d₀.edge + (t'' : ℝ) * W.weight d''.edge ≤ η' := by
-    let d₀ := if isFst then d else d.symm
-    let t₀ := if isFst then t else unitInterval.symm t
-    have h0 : 0 ≤ (t₀ : ℝ) * W.weight d₀.edge := mul_nonneg t₀.2.1 (W.dart_weight_pos d₀).le
-    rcases hdis with h | h
-    · obtain ⟨hfst, hsum⟩ := hmatch h0 (mul_nonneg ht'0.le hwd') h
-      exact ⟨d₀, d', t₀, t', rfl, rfl, hfst, rfl, ht'0, ht'1, rfl, hsum⟩
-    · obtain ⟨hfst, hsum⟩ := hmatch h0 (mul_nonneg (sub_nonneg.mpr ht'1.le) hwd') h
-      exact ⟨d₀, d'.symm, t₀, unitInterval.symm t', rfl, rfl, hfst, Dart.edge_symm d',
-        sub_pos.mpr ht'1, sub_lt_self 1 ht'0, edgePoint_symm d' t',
-        by simpa only [unitInterval.coe_symm_eq, Dart.edge_symm] using hsum⟩
-  rcases hd_le with h | h
-  · exact ⟨true, finish true h⟩
-  · exact ⟨false, finish false (by
+        W.weight (if isFst then d else d.symm).edge +
+        W.graph.vertexDist W.weight (if isFst then d else d.symm).fst d'.fst +
+        (t' : ℝ) * W.weight d'.edge ≤ η' ∨
+      ((if isFst then t else unitInterval.symm t : unitInterval) : ℝ) *
+        W.weight (if isFst then d else d.symm).edge +
+        W.graph.vertexDist W.weight (if isFst then d else d.symm).fst d'.snd +
+        (1 - (t' : ℝ)) * W.weight d'.edge ≤ η' :=
+    hd_le.elim (fun h => ⟨true, h⟩) fun h => ⟨false, by
       simpa only [Bool.false_eq_true, ↓reduceIte, unitInterval.coe_symm_eq, Dart.edge_symm,
-        show d.symm.fst = d.snd from rfl] using h)⟩
+        show d.symm.fst = d.snd from rfl] using h⟩
+  let d₀ := if isFst then d else d.symm
+  let t₀ := if isFst then t else unitInterval.symm t
+  have h0 : 0 ≤ (t₀ : ℝ) * W.weight d₀.edge := mul_nonneg t₀.2.1 (W.dart_weight_pos d₀).le
+  rcases hdis with h | h
+  · obtain ⟨hfst, hsum⟩ := hmatch h0 (mul_nonneg ht'0.le hwd') h
+    exact ⟨isFst, d₀, d', t₀, t', rfl, rfl, hfst, rfl, ht'0, ht'1, rfl, hsum⟩
+  · obtain ⟨hfst, hsum⟩ := hmatch h0 (mul_nonneg (sub_nonneg.mpr ht'1.le) hwd') h
+    exact ⟨isFst, d₀, d'.symm, t₀, unitInterval.symm t', rfl, rfl, hfst, Dart.edge_symm d',
+      sub_pos.mpr ht'1, sub_lt_self 1 ht'0, edgePoint_symm d' t',
+      by simpa only [unitInterval.coe_symm_eq, Dart.edge_symm] using hsum⟩
+
+/-! ### Extension steps along vertices and edge interiors -/
 
 /-- Core extension step of `extend_dir_half` when `s` sits on a cycle vertex `vertex v`. -/
 private theorem extend_dir_step_vertex {V : Type*} (W : WeightedGraph V) [Finite V]
@@ -1080,7 +1112,10 @@ private theorem extend_dir_interior_off_dart {V : Type*} (W : WeightedGraph V) [
       linarith
   rcases hdir with h_fwd | h_bwd
   · have hb_eq : b = circleMap hs.1 (s_v + σ * (r - off_a)) := by
-      dsimp only [b]; congr 1; rw [h_fwd]; ring
+      dsimp only [b]
+      congr 1
+      rw [h_fwd]
+      ring
     have hfb_v : f ![vertex d₀.fst, b] = vertex d₀.fst := by
       rw [← hs_v_cm, hb_eq]
       rcases le_or_gt (r - off_a) R with hle | hgt
@@ -1203,20 +1238,26 @@ private theorem extend_dir_step_interior {V : Type*} (W : WeightedGraph V) [Fini
         exists_shared_vertex_of_dist_edgePoint_le W (Ne.symm hde)
           (t := ⟨t, ht0.le, ht1.le⟩) (t' := t') ht'0 ht'1 hvmin
           (by linarith [hη'.2]) (ha_ep ▸ hdu)
-      subst hd₀; subst ht₀
-      cases isFst
-      · simp only [Bool.false_eq_true, ↓reduceIte] at hfst hsum ⊢
-        exact extend_dir_interior_off_dart W hs hf_sp hσ hR_le hη_pos hη_R hη_w hη_L hη' hwmin
-          hR_Icc hvert (by simpa only [Dart.edge_symm, hed] using Ne.symm hde) hfst
-          (sub_pos.mpr ht1) (sub_lt_self 1 ht0) ht''0 ht''1 hsnd_cm
-          (ha_ep.trans (edgePoint_symm d ⟨t, ht0.le, ht1.le⟩).symm)
-          (Or.inl (by simp only [unitInterval.coe_symm_eq, Dart.edge_symm]))
-          (hy_orig.trans hd''_eq.symm) (hd''_eq ▸ hdby_ep) (hd''_eq ▸ hdb0y_ep) hsum
-      · simp only [↓reduceIte] at hfst hsum ⊢
-        exact extend_dir_interior_off_dart W hs hf_sp hσ hR_le hη_pos hη_R hη_w hη_L hη' hwmin
-          hR_Icc hvert (hed ▸ Ne.symm hde) hfst ht0 ht1 ht''0 ht''1 hfst_cm ha_ep (Or.inr rfl)
-          (hy_orig.trans hd''_eq.symm) (hd''_eq ▸ hdby_ep) (hd''_eq ▸ hdb0y_ep) hsum
+      obtain ⟨hne₀, ht₀0, ht₀1, s_v, hs_v, ha_ep₀, hs_diff⟩ :
+          d₀.edge ≠ d''.edge ∧ 0 < (t₀ : ℝ) ∧ (t₀ : ℝ) < 1 ∧ ∃ s_v,
+            circleMap hs.1 s_v = vertex d₀.fst ∧ circleMap hs.1 s = edgePoint d₀ t₀ ∧
+            (s_v = s + (t₀ : ℝ) * W.weight d₀.edge ∨ s_v = s - (t₀ : ℝ) * W.weight d₀.edge) := by
+        subst hd₀
+        subst ht₀
+        cases isFst
+        · exact ⟨by simpa only [Bool.false_eq_true, ↓reduceIte, Dart.edge_symm, hed]
+              using Ne.symm hde,
+            sub_pos.mpr ht1, sub_lt_self 1 ht0, _, hsnd_cm,
+            ha_ep.trans (edgePoint_symm d ⟨t, ht0.le, ht1.le⟩).symm,
+            Or.inl (by simp only [Bool.false_eq_true, ↓reduceIte, unitInterval.coe_symm_eq,
+              Dart.edge_symm])⟩
+        · exact ⟨hed ▸ Ne.symm hde, ht0, ht1, _, hfst_cm, ha_ep, Or.inr rfl⟩
+      exact extend_dir_interior_off_dart W hs hf_sp hσ hR_le hη_pos hη_R hη_w hη_L hη' hwmin
+        hR_Icc hvert hne₀ hfst ht₀0 ht₀1 ht''0 ht''1 hs_v ha_ep₀ hs_diff
+        (hy_orig.trans hd''_eq.symm) (hd''_eq ▸ hdby_ep) (hd''_eq ▸ hdb0y_ep) hsum
 
+/-- Supremum extension: if player `0` dictates for all short shifts `0 ≤ r ≤ δ₀` along direction
+`σ = ±1`, then player `0` dictates throughout the open half-cycle `0 ≤ r < L / 2`. -/
 private theorem extend_dir_half {V : Type*} (W : WeightedGraph V) [Finite V]
     [MeasurableSpace (MetricGraph W)] [OpensMeasurableSpace (MetricGraph W)]
     {v₀ : V} {c : W.graph.Walk v₀ v₀} (hs : IsShortestCycle W c)
@@ -1269,12 +1310,16 @@ private theorem extend_dir_half {V : Type*} (W : WeightedGraph V) [Finite V]
         (f ![circleMap hs.1 s, circleMap hs.1 (s + σ * (R + η'))]) ≤ R + η' ∧
       R ≤ dist (circleMap hs.1 (s + σ * R))
         (f ![circleMap hs.1 s, circleMap hs.1 (s + σ * (R + η'))]) := by
-    let a := circleMap hs.1 s; let b := circleMap hs.1 (s + σ * (R + η'))
-    let a₁ := circleMap hs.1 (s + σ * η'); let b₀ := circleMap hs.1 (s + σ * R)
+    let a := circleMap hs.1 s
+    let b := circleMap hs.1 (s + σ * (R + η'))
+    let a₁ := circleMap hs.1 (s + σ * η')
+    let b₀ := circleMap hs.1 (s + σ * R)
     refine ⟨?_, ?_, ?_⟩
     · have hfa1 : f ![a₁, b] = a₁ := by
         have h : (s + σ * η') + σ * R = s + σ * (R + η') := by ring
-        dsimp only [b]; rw [← h]; exact hR_holds (s + σ * η')
+        dsimp only [b]
+        rw [← h]
+        exact hR_holds (s + σ * η')
       have hsp := sp_pair_left hf_sp a b a₁
       rw [hfa1] at hsp
       exact hsp.trans (dist_circleMap_add_mul_dir hs hσ s η' hη'.1 (by linarith [hη'.2])).le
@@ -1305,6 +1350,10 @@ private theorem extend_dir_half {V : Type*} (W : WeightedGraph V) [Finite V]
       · exact hvert s v hs_v (r' - R) hη'⟩
   linarith [le_csSup hS_bdd hmem]
 
+/-! ### Concluding the two-agent cycle dictatorship -/
+
+/-- Combines both half-cycle directions (`σ = ±1`) to conclude that agent `0` dictates on all pairs
+of points along the shortest cycle `c`. -/
 private theorem finTwo_cycleDictator_of_half {V : Type*} (W : WeightedGraph V) [Finite V]
     [MeasurableSpace (MetricGraph W)] [OpensMeasurableSpace (MetricGraph W)]
     {v₀ : V} {c : W.graph.Walk v₀ v₀} (hs : IsShortestCycle W c)
@@ -1376,6 +1425,8 @@ private theorem finTwo_cycleDictator_dir_contra {V : Type*} (W : WeightedGraph V
   rw [show σ * (L / 2 - ε) + σ * (2 * ε) = σ * (L / 2 + ε) by ring] at hd2
   dsimp only [ε] at hd1 hd2; linarith
 
+/-- Two-agent cycle dictatorship: every strategyproof deterministic mechanism that is unanimous on
+a shortest cycle `c` has a dictator `k : Fin 2` on the points of `c`. -/
 private theorem finTwo_cycleDictator {V : Type*} (W : WeightedGraph V) [Finite V]
     [MeasurableSpace (MetricGraph W)] [OpensMeasurableSpace (MetricGraph W)]
     {v₀ : V} {c : W.graph.Walk v₀ v₀} (hs : IsShortestCycle W c)
@@ -1430,6 +1481,8 @@ private theorem finTwo_cycleDictator {V : Type*} (W : WeightedGraph V) [Finite V
 
 end Fin2CycleDictator
 
+/-! ### Decisive coalitions and ultrafilter reduction -/
+
 section CycleDictator
 
 /-- A coalition `S` is **decisive** on the shortest cycle `c` if forcing every member of `S` to `a`
@@ -1452,6 +1505,14 @@ private theorem exists_two_distinct_on_cycle {V : Type*} (W : WeightedGraph V) [
       dist_circleMap_add_mul_dir hs (Or.inl rfl) 0 (L / 4) (by positivity) (by linarith)
   rw [h, _root_.dist_self] at hd; linarith
 
+private theorem exists_ne_on_cycle {V : Type*} (W : WeightedGraph V) [Finite V]
+    {v₀ : V} {c : W.graph.Walk v₀ v₀} (hs : IsShortestCycle W c) (b : MetricGraph W) :
+    ∃ c' ∈ Set.range (circleMap hs.1), c' ≠ b := by
+  obtain ⟨p₀, p₁, hp₀, hp₁, hp₀₁⟩ := exists_two_distinct_on_cycle W hs
+  by_cases he : p₀ = b
+  · exact ⟨p₁, hp₁, he ▸ hp₀₁.symm⟩
+  · exact ⟨p₀, hp₀, he⟩
+
 private theorem isDecisive_or_compl {V : Type*} (W : WeightedGraph V) [Finite V]
     [MeasurableSpace (MetricGraph W)] [OpensMeasurableSpace (MetricGraph W)]
     {v₀ : V} {c : W.graph.Walk v₀ v₀} (hs : IsShortestCycle W c)
@@ -1471,7 +1532,9 @@ private theorem isDecisive_or_compl {V : Type*} (W : WeightedGraph V) [Finite V]
     ext i; dsimp only [sel]; split_ifs <;> rfl
   fin_cases k
   · exact Or.inl fun a ha b hb => by
-      have h := hk a ha b hb; dsimp only at h; rwa [hfun a b] at h
+      have h := hk a ha b hb
+      dsimp only at h
+      rwa [hfun a b] at h
   · refine Or.inr fun a ha b hb => ?_
     have hcm : (fun i => if i ∈ Sᶜ then a else b) = fun i => if i ∈ S then b else a := by
       ext i; by_cases hi : i ∈ S <;> simp [hi]
@@ -1533,11 +1596,7 @@ private theorem isDecisive_inter {V : Type*} (W : WeightedGraph V) [Finite V]
   obtain ⟨k, hk⟩ := finTwo_cycleDictator W hs hg_sp hg_unam
   fin_cases k
   · exfalso
-    obtain ⟨p₀, p₁, hp₀, hp₁, hp₀₁⟩ := exists_two_distinct_on_cycle W hs
-    obtain ⟨c', hc', hne⟩ : ∃ c' ∈ Set.range (circleMap hs.1), c' ≠ b := by
-      by_cases he : p₀ = b
-      · exact ⟨p₁, hp₁, he ▸ hp₀₁.symm⟩
-      · exact ⟨p₀, hp₀, he⟩
+    obtain ⟨c', hc', hne⟩ := exists_ne_on_cycle W hs b
     have hP₂c : IsDecisive hs f P₂ᶜ := isDecisive_mono W hs hf_sp hf_unam
       (fun i hi2 => by simp [P₂, hi2]) h2
     have hfun : (fun i => if i ∈ P₂ then c' else if i ∈ P₃ then b else b) =
@@ -1585,6 +1644,8 @@ private theorem exists_singleton_isDecisive {V : Type*} (W : WeightedGraph V) [F
     Finset.card_lt_card ⟨Finset.inter_subset_left, fun h => by simpa using h hi₀⟩
   linarith [hS₀_min _ hF_in]
 
+/-! ### Lifting dictatorship to finitely many agents -/
+
 /-- Any merged mechanism `y ↦ f (y ∘ m)` that is a dictatorship of `k` must have `k = m i₀`
 whenever `{i₀}` is decisive for `f`. -/
 private theorem dictator_merge_eq {V : Type*} (W : WeightedGraph V) [Finite V]
@@ -1613,6 +1674,8 @@ private theorem dictator_merge_eq {V : Type*} (W : WeightedGraph V) [Finite V]
   rw [hfun, hS p₁ hp₁ p₀ hp₀] at hval
   exact hp₀₁ (by simpa [y, hne] using hval.symm)
 
+/-- Strong induction on `n = Fintype.card ι` lifting the two-agent cycle dictatorship and singleton
+decisive coalition to arbitrary finite agent profiles on the shortest cycle `c`. -/
 private theorem cycleDictator_of_unanimous_aux {V : Type*} (W : WeightedGraph V) [Finite V]
     [MeasurableSpace (MetricGraph W)] [OpensMeasurableSpace (MetricGraph W)]
     {v₀ : V} {c : W.graph.Walk v₀ v₀} (hs : IsShortestCycle W c) :
@@ -1682,11 +1745,7 @@ private theorem cycleDictator_of_unanimous_aux {V : Type*} (W : WeightedGraph V)
         dsimp only [h, Matrix.cons_val_zero, Matrix.cons_val_one] at hval
         rwa [hfun] at hval
       · exfalso
-        obtain ⟨p₀, p₁, hp₀, hp₁, hp₀₁⟩ := exists_two_distinct_on_cycle W hs
-        obtain ⟨b, hb, hab⟩ : ∃ b ∈ C, b ≠ x j₂ := by
-          by_cases he : x j₂ = p₀
-          · exact ⟨p₁, hp₁, he ▸ hp₀₁.symm⟩
-          · exact ⟨p₀, hp₀, Ne.symm he⟩
+        obtain ⟨b, hb, hab⟩ := exists_ne_on_cycle W hs (x j₂)
         have hag := hagree hj₂_ne.symm
           (fun i => if i = i₀ then x j₂ else if i = j₁ then b else x i)
           (fun i => by split_ifs <;> first | exact hx j₂ | exact hb | exact hx i)
@@ -1694,6 +1753,8 @@ private theorem cycleDictator_of_unanimous_aux {V : Type*} (W : WeightedGraph V)
         have hval := hk (x j₂) (hx j₂) b hb
         simp only [Finset.mem_singleton, Matrix.cons_val_zero, Matrix.cons_val_one] at hval
         exact hab (hval.symm.trans (by simpa only [↓reduceIte] using hag))
+
+/-! ### Main theorems -/
 
 /-- **Schummer–Vohra cycle dictatorship** on shortest cycles ([SchummerVohra2002], Theorem 2,
 for shortest cycles): every deterministic strategyproof
@@ -1738,13 +1799,11 @@ theorem exists_dictatorship_of_cycleGraph {V : Type*} (W : WeightedGraph V) [Fin
     (hf_sp : (Mechanism.deterministic f).IsStrategyProof)
     (hf_onto : Function.Surjective f) :
     ∃ i₀ : ι, ∀ x : ι → MetricGraph W, f x = x i₀ := by
-  have hc_W : ((SimpleGraph.cycleGraph.cycle n).map e.symm.toHom).IsCycle :=
-    SimpleGraph.cycleGraph.isCycle_cycle.map e.symm.injective
-  have hna : ¬ W.graph.IsAcyclic := fun h => h _ hc_W
-  obtain ⟨v₀, c, hs⟩ := exists_isShortestCycle (W := W) hna
-  obtain ⟨i₀, hi₀⟩ := exists_cycleDictator_of_isShortestCycle W hs hf_sp hf_onto
-  have hsurj := circleMap_surjective_of_cycleGraph e hs.1
-  exact ⟨i₀, fun x => hi₀ x fun i => hsurj (x i)⟩
+  obtain ⟨_, c, hs, i₀, hi₀⟩ := exists_cycleDictator_of_not_isAcyclic W
+    (fun h => h ((SimpleGraph.cycleGraph.cycle n).map e.symm.toHom)
+      (SimpleGraph.cycleGraph.isCycle_cycle.map e.symm.injective))
+    hf_sp hf_onto
+  exact ⟨i₀, fun x => hi₀ x fun i => circleMap_surjective_of_cycleGraph e hs.1 (x i)⟩
 
 end CycleDictator
 

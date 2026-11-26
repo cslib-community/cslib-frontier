@@ -86,9 +86,7 @@ theorem iterSqrtLog_succ (p n : ℕ) : iterSqrtLog (p + 1) n = Nat.sqrt (iterSqr
   Function.iterate_succ_apply' _ _ _
 
 theorem one_le_iterSqrtLog (p n : ℕ) : 1 ≤ iterSqrtLog p n := by
-  cases p with
-  | zero => exact Nat.succ_pos _
-  | succ p => rw [iterSqrtLog_succ]; exact Nat.succ_pos _
+  cases p <;> simp [iterSqrtLog_zero, iterSqrtLog_succ]
 
 theorem iterSqrtLog_mono (p : ℕ) : Monotone (iterSqrtLog p) := fun _ _ h =>
   (show Monotone fun v : ℕ => Nat.sqrt v + 1 from fun _ _ h => Nat.succ_le_succ
@@ -141,9 +139,7 @@ private theorem computableInPolyTime_iterSqrtLog (p : ℕ) :
     exact .binary_add' (ComputableInPolyTime.unary_to_binary.comp
       ComputableInPolyTime.binary_log_two) (.const 1)
   | succ p ih =>
-    rw [show iterSqrtLog (p + 1) = fun n => Nat.sqrt (iterSqrtLog p n) + 1 from
-      funext (iterSqrtLog_succ p)]
-    exact .binary_add' (.binary_sqrt' ih) (.const 1)
+    exact funext (iterSqrtLog_succ p) ▸ .binary_add' (.binary_sqrt' ih) (.const 1)
 
 /-- The padding chain: `chain p 0 n = n + 1`, and each step multiplies by `iterSqrtLog p`. -/
 private def chain (p : ℕ) : ℕ → ℕ → ℕ
@@ -176,20 +172,15 @@ private theorem eventually_polylog_le_chain {a : ℕ} (ha : 1 ≤ a) (p k : ℕ)
       chain p (2 ^ p * (k + 1)) n ^ a := by
   filter_upwards [eventually_ge_atTop (2 ^ (2 * (a + 1) ^ k))] with n hn
   set L := Nat.log 2 n + 1 with hL
-  have hLM : 2 * (a + 1) ^ k ≤ L := by
-    have := Nat.le_log_of_pow_le (by norm_num : 1 < 2) hn
-    omega
+  have hLM : 2 * (a + 1) ^ k ≤ L := (Nat.le_log_of_pow_le one_lt_two hn).trans (Nat.le_succ _)
   have hn2 : n + 1 ≤ 2 ^ L := Nat.lt_pow_succ_log_self (by norm_num) n
-  have hpowL : (n + 1) ^ a ≤ 2 ^ (a * L) := by
-    rw [pow_mul']
-    exact Nat.pow_le_pow_left hn2 a
+  have hpowL : (n + 1) ^ a ≤ 2 ^ (a * L) := by rw [pow_mul']; exact Nat.pow_le_pow_left hn2 a
   have hlog : Nat.log 2 ((n + 1) ^ a + 1) + 1 ≤ (a + 1) * L := by
     have h2 : 2 ≤ 2 ^ (a * L) := Nat.le_self_pow (Nat.mul_pos (by omega) (by omega)).ne' 2
     have hlt : (n + 1) ^ a + 1 < 2 ^ (a * L + 1) := by rw [pow_succ]; omega
     have h3 : Nat.log 2 ((n + 1) ^ a + 1) < a * L + 1 :=
       Nat.log_lt_of_lt_pow (Nat.succ_ne_zero _) hlt
-    rw [Nat.add_mul, one_mul]
-    omega
+    rw [Nat.add_mul, one_mul]; omega
   have hchain : (n + 1) * L ^ (k + 1) ≤ chain p (2 ^ p * (k + 1)) n :=
     calc (n + 1) * L ^ (k + 1) ≤ (n + 1) * (iterSqrtLog p n ^ 2 ^ p) ^ (k + 1) :=
           Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (le_iterSqrtLog_pow p n) _)
@@ -246,10 +237,8 @@ private theorem eventually_iterSqrtLog_pow_le (p : ℕ) {a : ℕ} {ε : ℝ}
     (tendsto_rpow_atTop (sub_pos.2 hδ)).comp
       (Real.tendsto_log_atTop.comp tendsto_natCast_atTop_atTop)
   filter_upwards [hT.eventually_ge_atTop (K ^ δ), eventually_ge_atTop 3] with n hK hn
-  have hn' : (3 : ℝ) ≤ n := by exact_mod_cast hn
-  have hlog1 : 1 ≤ Real.log n := by
-    have : Real.exp 1 ≤ n := (Real.exp_one_lt_d9.trans (by norm_num)).le.trans hn'
-    simpa using Real.log_le_log (Real.exp_pos 1) this
+  have hlog1 : 1 ≤ Real.log n := Real.log_exp 1 ▸ Real.log_le_log (Real.exp_pos 1)
+    ((Real.exp_one_lt_d9.trans (by norm_num)).le.trans (Nat.cast_le.mpr hn))
   have hlog0 : 0 < Real.log n := by linarith
   have hL : ((Nat.log 2 n : ℕ) : ℝ) + 1 ≤ 3 * Real.log n := by
     have h1 : (Nat.log 2 n : ℝ) * Real.log 2 ≤ Real.log n :=
@@ -257,23 +246,17 @@ private theorem eventually_iterSqrtLog_pow_le (p : ℕ) {a : ℕ} {ε : ℝ}
     have h3 : (Nat.log 2 n : ℝ) * 0.6931471803 ≤ Real.log n :=
       (mul_le_mul_of_nonneg_left Real.log_two_gt_d9.le (Nat.cast_nonneg _)).trans h1
     linarith
-  have hr' : iterSqrtLog p n ^ 2 ^ p ≤ 4 ^ 2 ^ p * (Nat.log 2 n + 1) := iterSqrtLog_pow_le p n
   have hr : (iterSqrtLog p n : ℝ) ^ 2 ^ p ≤ 4 ^ 2 ^ p * ((Nat.log 2 n : ℝ) + 1) := by
-    exact_mod_cast hr'
+    exact_mod_cast iterSqrtLog_pow_le p n
   have hr0 : (0 : ℝ) ≤ iterSqrtLog p n := Nat.cast_nonneg _
-  have hexp : ((2 ^ p : ℕ) : ℝ) * δ = (a : ℝ) := by
-    rw [hδdef]
-    push_cast
-    field_simp
+  have hexp : ((2 ^ p : ℕ) : ℝ) * δ = (a : ℝ) := by rw [hδdef]; push_cast; field_simp
   calc (iterSqrtLog p n : ℝ) ^ a = (iterSqrtLog p n : ℝ) ^ (((2 ^ p : ℕ) : ℝ) * δ) := by
         rw [hexp, Real.rpow_natCast]
     _ = ((iterSqrtLog p n : ℝ) ^ 2 ^ p) ^ δ := by
         rw [Real.rpow_mul hr0, Real.rpow_natCast]
     _ ≤ (K * Real.log n) ^ δ := by
         refine Real.rpow_le_rpow (by positivity) (hr.trans ?_) hδ0
-        have h4 : (0 : ℝ) ≤ 4 ^ 2 ^ p := by positivity
-        calc (4 : ℝ) ^ 2 ^ p * ((Nat.log 2 n : ℝ) + 1) ≤ 4 ^ 2 ^ p * (3 * Real.log n) :=
-              mul_le_mul_of_nonneg_left hL h4
+        calc (4 : ℝ) ^ 2 ^ p * ((Nat.log 2 n : ℝ) + 1) ≤ 4 ^ 2 ^ p * (3 * Real.log n) := by gcongr
           _ = K * Real.log n := by ring
     _ = K ^ δ * Real.log n ^ δ := Real.mul_rpow (by positivity) hlog0.le
     _ ≤ Real.log n ^ (ε - δ) * Real.log n ^ δ :=
@@ -290,16 +273,12 @@ theorem DTIME_pow_ssubset_DTIME_of_pow_mul_log_rpow_le {a : ℕ} (ha : 1 ≤ a) 
   obtain ⟨p, hp⟩ := exists_nat_gt ((a : ℝ) / ε)
   have h2p : (p : ℝ) < 2 ^ p := by exact_mod_cast Nat.lt_two_pow_self
   have hδ : (a : ℝ) / 2 ^ p < ε := by
-    rw [div_lt_iff₀ (by positivity)]
-    rw [div_lt_iff₀ hε] at hp
-    nlinarith
+    rw [div_lt_iff₀ hε] at hp; rw [div_lt_iff₀ (by positivity)]; nlinarith
   have hle : ∀ᶠ n in atTop, (n * iterSqrtLog p n) ^ a ≤ g n := by
     filter_upwards [hg, eventually_iterSqrtLog_pow_le p hδ] with n hg hr
-    have : (((n * iterSqrtLog p n) ^ a : ℕ) : ℝ) ≤ (g n : ℝ) := by
-      push_cast
-      rw [mul_pow]
-      exact (mul_le_mul_of_nonneg_left hr (by positivity)).trans hg
-    exact_mod_cast this
+    suffices (((n * iterSqrtLog p n) ^ a : ℕ) : ℝ) ≤ g n from mod_cast this
+    push_cast [mul_pow]
+    exact (mul_le_mul_of_nonneg_left hr (by positivity)).trans hg
   have hsep := DTIME_pow_ssubset_DTIME_mul_iterSqrtLog_pow ha p
   exact ⟨hsep.1.trans (DTIME_mono_of_eventually_le hle),
     fun h => hsep.2 ((DTIME_mono_of_eventually_le hle).trans h)⟩
@@ -352,10 +331,8 @@ private theorem eventually_polylog_le_expChain {q : ℕ} (hq : 1 ≤ q) (k : ℕ
     generalize q * (L / q) = e at h1 ⊢
     generalize L % q = r at h1 h2
     omega
-  have hlogn : Nat.log 2 (2 ^ n + 1) + 1 ≤ n + 1 := by
-    have hlt : 2 ^ n + 1 < 2 ^ (n + 1) := by rw [pow_succ]; omega
-    have : Nat.log 2 (2 ^ n + 1) < n + 1 := Nat.log_lt_of_lt_pow (by omega) hlt
-    omega
+  have hlogn : Nat.log 2 (2 ^ n + 1) + 1 ≤ n + 1 :=
+    Nat.succ_le_of_lt (Nat.log_lt_of_lt_pow (Nat.succ_ne_zero _) (by rw [pow_succ]; omega))
   have hpow : (n + 1) ^ k ≤ 2 ^ (2 * q * k * (L / q)) := by
     calc (n + 1) ^ k ≤ (2 ^ (L + 1)) ^ k :=
           Nat.pow_le_pow_left (Nat.lt_pow_succ_log_self (by norm_num) _).le k
@@ -383,10 +360,7 @@ theorem DTIME_two_pow_ssubset_DTIME_two_pow_add_log_div {q : ℕ} (hq : 1 ≤ q)
   have hstep (j : ℕ) : DTIME encBits (fun n => 2 ^ expChain q (j + 1) n) ⊆
       DTIME encBits (fun n => 2 ^ expChain q j n) :=
     (DTIME_mono_of_le_mul_add (C := 2) fun n => by
-      change 2 ^ (expChain q j n + Nat.log 2 (expChain q j n + 1) / q + 1) ≤
-        2 * 2 ^ (expChain q j n + Nat.log 2 (expChain q j n + 1) / q) + 2
-      rw [pow_succ]
-      omega).trans
+      rw [Function.comp_apply, expChain, pow_succ]; omega).trans
     (DTIME_comp_subset_of_subset (f₁ := fun n => 2 ^ (n + Nat.log 2 (n + 1) / q))
       (f₂ := fun n => 2 ^ n)
       (fun a b h => Nat.pow_le_pow_right two_pos
@@ -399,10 +373,7 @@ theorem DTIME_two_pow_ssubset_DTIME_two_pow_add_log_div {q : ℕ} (hq : 1 ≤ q)
       DTIME encBits (fun n => 2 ^ n) := by
     induction J with
     | zero =>
-      exact DTIME_mono_of_le_mul_add (C := 2) fun n => by
-        change 2 ^ (n + 1) ≤ 2 * 2 ^ n + 2
-        rw [pow_succ]
-        omega
+      exact DTIME_mono_of_le_mul_add (C := 2) fun n => by rw [expChain, pow_succ]; omega
     | succ J ih => exact (hstep J).trans ih
   obtain ⟨k, hk⟩ := exists_DTIME_ssubset_DTIME_polylog
   have hsep := hk (f := fun n => 2 ^ n) (g := fun n => 2 ^ expChain q (2 * q * k) n)
@@ -420,18 +391,16 @@ private theorem eventually_two_pow_log_div_le {q : ℕ} (hq : 1 ≤ q) {ε : ℝ
   filter_upwards [hT.eventually_ge_atTop ((2 : ℝ) ^ (1 / (q : ℝ))), eventually_ge_atTop 1]
     with n hT hn
   have hn0 : (0 : ℝ) < n := by exact_mod_cast hn
-  obtain ⟨x, hx⟩ : ∃ x : ℝ, x = ((2 ^ (Nat.log 2 (n + 1) / q) : ℕ) : ℝ) := ⟨_, rfl⟩
-  have hx0 : 0 ≤ x := hx ▸ Nat.cast_nonneg _
+  set x : ℝ := ((2 ^ (Nat.log 2 (n + 1) / q) : ℕ) : ℝ)
+  have hx0 : 0 ≤ x := Nat.cast_nonneg _
   have hxq : x ^ q ≤ 2 * n := by
-    have h1 : (2 ^ (Nat.log 2 (n + 1) / q)) ^ q ≤ 2 * n := by
-      rw [← pow_mul]
-      calc 2 ^ (Nat.log 2 (n + 1) / q * q) ≤ 2 ^ Nat.log 2 (n + 1) :=
-            Nat.pow_le_pow_right two_pos (Nat.div_mul_le_self _ _)
-        _ ≤ n + 1 := Nat.pow_log_le_self 2 (Nat.succ_ne_zero n)
-        _ ≤ 2 * n := by omega
-    rw [hx]
-    exact_mod_cast h1
-  rw [← hx]
+    dsimp only [x]
+    exact_mod_cast calc
+      (2 ^ (Nat.log 2 (n + 1) / q)) ^ q ≤ 2 ^ Nat.log 2 (n + 1) := by
+        rw [← pow_mul]
+        exact Nat.pow_le_pow_right two_pos (Nat.div_mul_le_self _ _)
+      _ ≤ n + 1 := Nat.pow_log_le_self 2 (Nat.succ_ne_zero n)
+      _ ≤ 2 * n := by omega
   calc x = (x ^ q) ^ (1 / (q : ℝ)) := by
         rw [← Real.rpow_natCast, ← Real.rpow_mul hx0, mul_one_div_cancel hq0.ne', Real.rpow_one]
     _ ≤ (2 * n) ^ (1 / (q : ℝ)) := Real.rpow_le_rpow (pow_nonneg hx0 _) hxq (by positivity)
@@ -448,20 +417,14 @@ theorem DTIME_two_pow_ssubset_DTIME_of_two_pow_mul_rpow_le {ε : ℝ} (hε : 0 <
     (hg : ∀ᶠ n : ℕ in atTop, (2 : ℝ) ^ n * (n : ℝ) ^ ε ≤ g n) :
     DTIME encBits (fun n => 2 ^ n) ⊂ DTIME encBits g := by
   obtain ⟨q, hq⟩ := exists_nat_gt (1 / ε)
-  have hq1 : 1 ≤ q := by
-    have : (0 : ℝ) < q := (one_div_pos.2 hε).trans hq
-    have : 0 < q := by exact_mod_cast this
-    omega
+  have hq1 : 1 ≤ q := Nat.cast_pos.mp ((one_div_pos.2 hε).trans hq)
   have hqε : 1 / (q : ℝ) < ε := by
-    rw [div_lt_iff₀ (by positivity)]
-    rw [div_lt_iff₀ hε] at hq
-    linarith
+    rw [div_lt_iff₀ hε] at hq; rw [div_lt_iff₀ (by positivity)]; linarith
   have hle : ∀ᶠ n in atTop, 2 ^ (n + Nat.log 2 (n + 1) / q) ≤ g n := by
     filter_upwards [hg, eventually_two_pow_log_div_le hq1 hqε] with n hg hr
-    have : ((2 ^ (n + Nat.log 2 (n + 1) / q) : ℕ) : ℝ) ≤ (g n : ℝ) := by
-      push_cast [pow_add] at hr ⊢
-      exact (mul_le_mul_of_nonneg_left hr (by positivity)).trans hg
-    exact_mod_cast this
+    suffices ((2 ^ (n + Nat.log 2 (n + 1) / q) : ℕ) : ℝ) ≤ g n from mod_cast this
+    push_cast [pow_add] at hr ⊢
+    exact (mul_le_mul_of_nonneg_left hr (by positivity)).trans hg
   have hsep := DTIME_two_pow_ssubset_DTIME_two_pow_add_log_div hq1
   exact ⟨hsep.1.trans (DTIME_mono_of_eventually_le hle),
     fun h => hsep.2 ((DTIME_mono_of_eventually_le hle).trans h)⟩

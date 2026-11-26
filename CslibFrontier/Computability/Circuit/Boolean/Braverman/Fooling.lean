@@ -256,9 +256,7 @@ private theorem error_le {q m : ℕ} (hq : 1 ≤ q) (hm : m ≤ 2 ^ q) (d : ℕ)
     have hM : M ≤ 2 ^ (A + 3 * q + 2) := by
       change m * ((A + 1) * (2 ^ q - 1 + 1) ^ 2 + 3) + 1 ≤ _
       rw [hq1]
-      have hX : 4 ≤ 2 ^ (A + 2 * q) := by
-        calc 4 = 2 ^ 2 := rfl
-          _ ≤ 2 ^ (A + 2 * q) := Nat.pow_le_pow_right (by norm_num) (by omega)
+      have hX : 2 ^ 2 ≤ 2 ^ (A + 2 * q) := Nat.pow_le_pow_right (by norm_num) (by omega)
       have hS : (A + 1) * (2 ^ q) ^ 2 ≤ 2 ^ (A + 2 * q) := by
         rw [pow_add, ← pow_mul, mul_comm q 2]
         exact Nat.mul_le_mul_right _ hA1
@@ -283,10 +281,7 @@ private theorem error_le {q m : ℕ} (hq : 1 ≤ q) (hm : m ≤ 2 ^ q) (d : ℕ)
         = ((2 : ℝ) ^ ε + 1) ^ 2 * M * 2 ^ (q + 1) / 2 ^ level d q * (1 / 2 / 2 ^ q) := by
           field_simp
           ring
-      _ ≤ 1 * (1 / 2 / 2 ^ q) := by
-          gcongr
-          exact (div_le_one hl).2 hR
-      _ = 1 / 2 / 2 ^ q := one_mul _
+      _ ≤ 1 / 2 / 2 ^ q := mul_le_of_le_one_left (by positivity) ((div_le_one hl).2 hR)
   have hsum : (1 : ℝ) / 2 / 2 ^ q + 1 / 2 / 2 ^ q = 1 / 2 ^ q := by ring
   linarith
 

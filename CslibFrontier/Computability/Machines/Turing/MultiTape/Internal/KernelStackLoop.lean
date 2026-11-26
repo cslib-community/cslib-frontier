@@ -267,41 +267,30 @@ private lemma update_tapeWords (c f r p st : List Bool) (j : Fin 6) (x : List Bo
 noncomputable def clearM (j : Fin 6) :=
   (clearWork Bool).extendTapes (tapeEmb (nm (kk := kk) j))
 
+private lemma runs_clear_nm (j : Fin 6) {c f r p st c' f' r' p' st' : List Bool}
+    (hup : Function.update ![[], c, f, r, p, st] j [] = ![[], c', f', r', p', st'])
+    (oc os : ℤ) (out : List Bool) :
+    RunsBetween (clearM (kk := kk) j) (cfgS input c f r p st oc os 0 0 out)
+      (cfgS input c' f' r' p' st' oc os 0 0 out)
+      (3 * ((![[], c, f, r, p, st] j).length + 1))
+      ((![[], c, f, r, p, st] j).length + 1 + (kk + 6)) :=
+  runs_of_spec (e := []) (transformsTapes_clearWork_tapeEmb (Symbol := Bool) (nm j) _) (by simp)
+    (fun _ _ ⟨hws, he⟩ => ⟨by rw [hws, update_tapeWords, hup]; rfl, he⟩) (List.append_nil out).symm
+
 private lemma runs_clearC (c f r p st : List Bool) (oc os : ℤ) (out : List Bool) :
     RunsBetween (clearM (kk := kk) 1) (cfgS input c f r p st oc os 0 0 out)
-      (cfgS input [] f r p st oc os 0 0 out) (3 * (c.length + 1)) (c.length + 1 + (kk + 6)) := by
-  refine runs_of_spec (e := []) (transformsTapes_clearWork_tapeEmb (Symbol := Bool) (nm 1) c)
-    (by simp) (by
-      rintro _ _ ⟨rfl, rfl⟩
-      refine ⟨?_, rfl⟩
-      rw [update_tapeWords]
-      unfold tapeWords
-      congr 1 with i : 1
-      fin_cases i <;> rfl) (List.append_nil out).symm
+      (cfgS input [] f r p st oc os 0 0 out) (3 * (c.length + 1)) (c.length + 1 + (kk + 6)) :=
+  runs_clear_nm 1 (funext fun i => by fin_cases i <;> rfl) oc os out
 
 private lemma runs_clearF (c f r p st : List Bool) (oc os : ℤ) (out : List Bool) :
     RunsBetween (clearM (kk := kk) 2) (cfgS input c f r p st oc os 0 0 out)
-      (cfgS input c [] r p st oc os 0 0 out) (3 * (f.length + 1)) (f.length + 1 + (kk + 6)) := by
-  refine runs_of_spec (e := []) (transformsTapes_clearWork_tapeEmb (Symbol := Bool) (nm 2) f)
-    (by simp) (by
-      rintro _ _ ⟨rfl, rfl⟩
-      refine ⟨?_, rfl⟩
-      rw [update_tapeWords]
-      unfold tapeWords
-      congr 1 with i : 1
-      fin_cases i <;> rfl) (List.append_nil out).symm
+      (cfgS input c [] r p st oc os 0 0 out) (3 * (f.length + 1)) (f.length + 1 + (kk + 6)) :=
+  runs_clear_nm 2 (funext fun i => by fin_cases i <;> rfl) oc os out
 
 private lemma runs_clearR (c f r p st : List Bool) (oc os : ℤ) (out : List Bool) :
     RunsBetween (clearM (kk := kk) 3) (cfgS input c f r p st oc os 0 0 out)
-      (cfgS input c f [] p st oc os 0 0 out) (3 * (r.length + 1)) (r.length + 1 + (kk + 6)) := by
-  refine runs_of_spec (e := []) (transformsTapes_clearWork_tapeEmb (Symbol := Bool) (nm 3) r)
-    (by simp) (by
-      rintro _ _ ⟨rfl, rfl⟩
-      refine ⟨?_, rfl⟩
-      rw [update_tapeWords]
-      unfold tapeWords
-      congr 1 with i : 1
-      fin_cases i <;> rfl) (List.append_nil out).symm
+      (cfgS input c f [] p st oc os 0 0 out) (3 * (r.length + 1)) (r.length + 1 + (kk + 6)) :=
+  runs_clear_nm 3 (funext fun i => by fin_cases i <;> rfl) oc os out
 
 /-- Copying the round word to the blank current-value tape. -/
 noncomputable def copyM := copyWord (copyEmb (kk := kk)) true
@@ -349,6 +338,27 @@ private lemma tapeWords_owEmb_eq_nil {v o : Fin 6} {hv : v.val ≠ 0} {ho : o.va
     · exact absurd rfl hj
     · simp
 
+private lemma runs_words_nm {S : Type*} {tm : MultiTapeTM kk Bool S} {c y : List Bool} {t s' : ℕ}
+    (h : TransformsTapes tm (fun inp ws => inp = c ∧ ws = fun _ => [])
+      (fun _ _ ws' e => ws' = (fun _ => []) ∧ e = y) t s')
+    (o : Fin 6) {f r p st f' r' p' st' : List Bool} (hnil : ![[], c, f, r, p, st] o = [])
+    (hup : Function.update ![[], c, f, r, p, st] o y = ![[], c, f', r', p', st'])
+    (oc os : ℤ) (out : List Bool)
+    (ho : o.val ≠ 0 := by decide) (h1o : (1 : Fin 6).val ≠ o.val := by decide) :
+    RunsBetween (wordsM tm 1 o (by decide) ho h1o)
+      (cfgS input c f r p st oc os 0 0 out) (cfgS input c f' r' p' st' oc os 0 0 out)
+      (t + y.length + 6) (s' + 2 * c.length + 2 * y.length + 3 * kk + 18 + 3) := by
+  have hrun := runs_of_spec (input := input) (e := []) (oc := oc) (os := os)
+    (out := out) (out' := out)
+    (transformsTapes_onWords_embed h true (owEmb (kk := kk) 1 o (by decide) ho h1o))
+    (c := c) (f := f) (r := r) (p := p) (st := st)
+    (c' := c) (f' := f') (r' := r') (p' := p') (st' := st')
+    ⟨by simp, tapeWords_owEmb_eq_nil hnil⟩
+    (fun _ _ ⟨hws, he⟩ => ⟨by rw [hws, owEmb_out, update_tapeWords, hup]; rfl, he⟩)
+    (List.append_nil out).symm
+  have hsub : kk + 6 - (kk + 1 + 2) = 3 := by omega
+  simpa [wordsM, hsub] using hrun
+
 /-- The halting test: from the current value to the halting flag. -/
 private lemma runs_halt {S : Type*} {tm : MultiTapeTM kk Bool S} {c y : List Bool} {t s' : ℕ}
     (h : TransformsTapes tm (fun inp ws => inp = c ∧ ws = fun _ => [])
@@ -356,19 +366,8 @@ private lemma runs_halt {S : Type*} {tm : MultiTapeTM kk Bool S} {c y : List Boo
     (out : List Bool) :
     RunsBetween (wordsM tm 1 2 (by decide) (by decide) (by decide))
       (cfgS input c [] r p st oc os 0 0 out) (cfgS input c y r p st oc os 0 0 out)
-      (t + y.length + 6) (s' + 2 * c.length + 2 * y.length + 3 * kk + 18 + 3) := by
-  have := runs_of_spec (input := input) (e := []) (oc := oc) (os := os) (out := out) (out' := out)
-    (transformsTapes_onWords_embed h true (owEmb (kk := kk) 1 2 (by decide) (by decide)
-      (by decide))) (c := c) (f := []) (r := r) (p := p) (st := st) (c' := c) (f' := y)
-    (r' := r) (p' := p) (st' := st)
-    ⟨by simp, tapeWords_owEmb_eq_nil (by rfl)⟩ (by
-      rintro _ _ ⟨rfl, rfl⟩
-      refine ⟨?_, rfl⟩
-      rw [owEmb_out, update_tapeWords]
-      unfold tapeWords
-      congr 1 with i : 1
-      fin_cases i <;> rfl) (List.append_nil out).symm
-  simpa [wordsM, show kk + 6 - (kk + 1 + 2) = 3 by omega] using this
+      (t + y.length + 6) (s' + 2 * c.length + 2 * y.length + 3 * kk + 18 + 3) :=
+  runs_words_nm h 2 rfl (funext fun i => by fin_cases i <;> rfl) oc os out
 
 /-- A round machine, from the current value to the pushed frames. -/
 private lemma runs_push {S : Type*} {tm : MultiTapeTM kk Bool S} {c y : List Bool} {t s' : ℕ}
@@ -377,19 +376,8 @@ private lemma runs_push {S : Type*} {tm : MultiTapeTM kk Bool S} {c y : List Boo
     (out : List Bool) :
     RunsBetween (wordsM tm 1 4 (by decide) (by decide) (by decide))
       (cfgS input c f r [] st oc os 0 0 out) (cfgS input c f r y st oc os 0 0 out)
-      (t + y.length + 6) (s' + 2 * c.length + 2 * y.length + 3 * kk + 18 + 3) := by
-  have := runs_of_spec (input := input) (e := []) (oc := oc) (os := os) (out := out) (out' := out)
-    (transformsTapes_onWords_embed h true (owEmb (kk := kk) 1 4 (by decide) (by decide)
-      (by decide))) (c := c) (f := f) (r := r) (p := []) (st := st) (c' := c) (f' := f)
-    (r' := r) (p' := y) (st' := st)
-    ⟨by simp, tapeWords_owEmb_eq_nil (by rfl)⟩ (by
-      rintro _ _ ⟨rfl, rfl⟩
-      refine ⟨?_, rfl⟩
-      rw [owEmb_out, update_tapeWords]
-      unfold tapeWords
-      congr 1 with i : 1
-      fin_cases i <;> rfl) (List.append_nil out).symm
-  simpa [wordsM, show kk + 6 - (kk + 1 + 2) = 3 by omega] using this
+      (t + y.length + 6) (s' + 2 * c.length + 2 * y.length + 3 * kk + 18 + 3) :=
+  runs_words_nm h 4 rfl (funext fun i => by fin_cases i <;> rfl) oc os out
 
 /-- A round machine, from the current value to the round word. -/
 private lemma runs_next {S : Type*} {tm : MultiTapeTM kk Bool S} {c y : List Bool} {t s' : ℕ}
@@ -398,19 +386,8 @@ private lemma runs_next {S : Type*} {tm : MultiTapeTM kk Bool S} {c y : List Boo
     (out : List Bool) :
     RunsBetween (wordsM tm 1 3 (by decide) (by decide) (by decide))
       (cfgS input c f [] p st oc os 0 0 out) (cfgS input c f y p st oc os 0 0 out)
-      (t + y.length + 6) (s' + 2 * c.length + 2 * y.length + 3 * kk + 18 + 3) := by
-  have := runs_of_spec (input := input) (e := []) (oc := oc) (os := os) (out := out) (out' := out)
-    (transformsTapes_onWords_embed h true (owEmb (kk := kk) 1 3 (by decide) (by decide)
-      (by decide))) (c := c) (f := f) (r := []) (p := p) (st := st) (c' := c) (f' := f)
-    (r' := y) (p' := p) (st' := st)
-    ⟨by simp, tapeWords_owEmb_eq_nil (by rfl)⟩ (by
-      rintro _ _ ⟨rfl, rfl⟩
-      refine ⟨?_, rfl⟩
-      rw [owEmb_out, update_tapeWords]
-      unfold tapeWords
-      congr 1 with i : 1
-      fin_cases i <;> rfl) (List.append_nil out).symm
-  simpa [wordsM, show kk + 6 - (kk + 1 + 2) = 3 by omega] using this
+      (t + y.length + 6) (s' + 2 * c.length + 2 * y.length + 3 * kk + 18 + 3) :=
+  runs_words_nm h 3 rfl (funext fun i => by fin_cases i <;> rfl) oc os out
 
 /-- The initialization: the machine reads the input and writes its output to the current-value
 tape. -/

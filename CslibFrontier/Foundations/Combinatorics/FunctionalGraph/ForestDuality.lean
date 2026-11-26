@@ -67,11 +67,9 @@ def iter : ℕ → α → Option α
 /-- Iterating `a + c` times is iterating `a` times and then, if defined, `c` more times. -/
 theorem iter_add (a c : ℕ) (u : α) : iter σ (a + c) u = (iter σ a u).bind (iter σ c) := by
   induction c with
-  | zero =>
-    change iter σ a u = (iter σ a u).bind (fun x => some x)
-    cases iter σ a u <;> rfl
+  | zero => cases iter σ a u <;> rfl
   | succ c ih =>
-    change (iter σ (a + c) u).bind σ = (iter σ a u).bind (fun x => (iter σ c x).bind σ)
+    change (iter σ (a + c) u).bind σ = (iter σ a u).bind fun x => (iter σ c x).bind σ
     rw [ih]
     cases iter σ a u <;> rfl
 
@@ -128,16 +126,12 @@ theorem packing_card_le_cover {r : α → ℕ} {S H : Finset α}
     {P : Finset (FPath α)} (hP : Packing σ r S P) (hH : Covers σ r S H) :
     P.card ≤ H.card := by
   classical
-  rcases P.eq_empty_or_nonempty with hPe | ⟨p0, -⟩
-  · simp [hPe]
+  rcases P.eq_empty_or_nonempty with rfl | ⟨p0, -⟩
+  · simp
   have : Nonempty α := ⟨p0.start⟩
-  have hit : ∀ p ∈ P, ∃ v ∈ H, p.Mem (σ := σ) v := fun p hp =>
-    hH p (hP.1 p hp).1 (hP.1 p hp).2
-  choose! g hgH hgM using hit
-  refine Finset.card_le_card_of_injOn g (fun p hp => hgH p hp) ?_
-  intro p hp q hq he
-  by_contra hne
-  exact hP.2 p hp q hq hne (g p) (hgM p hp) (he ▸ hgM q hq)
+  choose! g hgH hgM using fun p (hp : p ∈ P) => hH p (hP.1 p hp).1 (hP.1 p hp).2
+  exact Finset.card_le_card_of_injOn g (fun p hp => hgH p hp) fun p hp q hq he =>
+    by_contra fun hne => hP.2 p hp q hq hne (g p) (hgM p hp) (he ▸ hgM q hq)
 
 /-- `w` lies strictly before `v` along a directed path. -/
 private def Before (w v : α) : Prop :=
@@ -186,52 +180,35 @@ theorem exists_cover_packing [Finite α] (hac : Acyclic σ) (r : α → ℕ) :
     p.End (σ := σ) v}
   by_cases hE : E.Nonempty
   swap
-  · refine ⟨∅, Finset.empty_subset _, ∅, ?_, ⟨by simp, by simp⟩, rfl⟩
-    intro p hreq hin
-    obtain ⟨v, hv, hr⟩ := hreq
-    exact (hE ⟨v, p, ⟨v, hv, hr⟩, hin, hv⟩).elim
+  · exact ⟨∅, Finset.empty_subset _, ∅,
+      fun p ⟨v, hv, hr⟩ hin => (hE ⟨v, p, ⟨v, hv, hr⟩, hin, hv⟩).elim, ⟨by simp, by simp⟩, rfl⟩
   obtain ⟨v, ⟨W, hWreq, hWin, hWv⟩, hmin⟩ := (before_wellFounded σ hac).has_min E hE
-  have hvS : v ∈ S := hWin v ⟨W.len - 1, by have := hWv.1; omega, hWv.2⟩
-  obtain ⟨H', hH'S, P', hcov, hpack, hcard⟩ := ih (S.erase v) (Finset.erase_ssubset hvS)
-  have avoid : ∀ q : FPath α, q.Required (σ := σ) r → q.Within (σ := σ) (S.erase v) →
-      ∀ u, q.Mem (σ := σ) u → ¬ W.Mem (σ := σ) u := by
-    intro q hqreq hqin u hqu hWu
-    obtain ⟨w, hqw, hrw⟩ := hqreq
-    rcases shared_vertex σ hqw hWv hqu hWu with hqv | hbef
-    · exact (Finset.notMem_erase v S) (hqin v hqv)
-    · exact hmin w ⟨q, ⟨w, hqw, hrw⟩, fun x hx => Finset.mem_of_mem_erase (hqin x hx), hqw⟩
-        hbef
   have hWv_mem : W.Mem (σ := σ) v := ⟨W.len - 1, by have := hWv.1; omega, hWv.2⟩
-  have hWP' : W ∉ P' := by
-    intro hW
-    exact (Finset.notMem_erase v S) ((hpack.1 W hW).2 v hWv_mem)
-  have hvH' : v ∉ H' := fun h => Finset.notMem_erase v S (hH'S h)
-  refine ⟨insert v H', ?_, insert W P', ?_, ⟨?_, ?_⟩, ?_⟩
-  · exact Finset.insert_subset hvS (hH'S.trans (Finset.erase_subset v S))
-  · intro q hqreq hqin
-    by_cases hqv : q.Mem (σ := σ) v
+  have hvS : v ∈ S := hWin v hWv_mem
+  obtain ⟨H', hH'S, P', hcov, hpack, hcard⟩ := ih (S.erase v) (Finset.erase_ssubset hvS)
+  have avoid (q : FPath α) (hq : q ∈ P') (u : α) (hqu : q.Mem (σ := σ) u)
+      (hWu : W.Mem (σ := σ) u) : False := by
+    obtain ⟨⟨w, hqw, hrw⟩, hqin⟩ := hpack.1 q hq
+    exact (shared_vertex σ hqw hWv hqu hWu).elim
+      (fun hqv => Finset.notMem_erase v S (hqin v hqv)) fun hbef =>
+        hmin w ⟨q, ⟨w, hqw, hrw⟩, fun x hx => Finset.mem_of_mem_erase (hqin x hx), hqw⟩ hbef
+  refine ⟨insert v H', Finset.insert_subset hvS (hH'S.trans (Finset.erase_subset v S)),
+    insert W P', fun q hqreq hqin => ?_, ⟨fun p hp => ?_, fun p hp q hq hne x hpx hqx => ?_⟩, ?_⟩
+  · by_cases hqv : q.Mem (σ := σ) v
     · exact ⟨v, Finset.mem_insert_self v H', hqv⟩
-    · have hin' : q.Within (σ := σ) (S.erase v) := by
-        intro x hx
-        refine Finset.mem_erase.2 ⟨?_, hqin x hx⟩
-        rintro rfl
-        exact hqv hx
-      obtain ⟨x, hx, hqx⟩ := hcov q hqreq hin'
+    · obtain ⟨x, hx, hqx⟩ := hcov q hqreq fun x hx =>
+        Finset.mem_erase.2 ⟨fun h => hqv (h ▸ hx), hqin x hx⟩
       exact ⟨x, Finset.mem_insert_of_mem hx, hqx⟩
-  · intro p hp
-    rcases Finset.mem_insert.1 hp with rfl | hp
+  · rcases Finset.mem_insert.1 hp with rfl | hp
     · exact ⟨hWreq, hWin⟩
     · exact ⟨(hpack.1 p hp).1, fun x hx => Finset.mem_of_mem_erase ((hpack.1 p hp).2 x hx)⟩
-  · intro p hp q hq hne x hpx hqx
-    have avoid' : ∀ p' ∈ P', ∀ y, p'.Mem (σ := σ) y → ¬ W.Mem (σ := σ) y := fun p' hp' =>
-      avoid p' (hpack.1 p' hp').1 (hpack.1 p' hp').2
-    rcases Finset.mem_insert.1 hp with hpW | hpP <;>
-      rcases Finset.mem_insert.1 hq with hqW | hqP
-    · exact hne (hpW.trans hqW.symm)
-    · exact avoid' q hqP x hqx (hpW ▸ hpx)
-    · exact avoid' p hpP x hpx (hqW ▸ hqx)
+  · rcases Finset.mem_insert.1 hp with rfl | hpP <;> rcases Finset.mem_insert.1 hq with rfl | hqP
+    · exact hne rfl
+    · exact avoid q hqP x hqx hpx
+    · exact avoid p hpP x hpx hqx
     · exact hpack.2 p hpP q hqP hne x hpx hqx
-  · rw [Finset.card_insert_of_notMem hWP', Finset.card_insert_of_notMem hvH', hcard]
+  · rw [Finset.card_insert_of_notMem fun hW => Finset.notMem_erase v S ((hpack.1 W hW).2 v hWv_mem),
+      Finset.card_insert_of_notMem fun h => Finset.notMem_erase v S (hH'S h), hcard]
 
 /-- **Min-max duality for required paths in an in-forest.** There exist a hitting set `H` and a
 disjoint packing `P` of required paths in `S` with equal cardinality, every hitting set is at least
@@ -243,10 +220,7 @@ theorem forest_duality [Finite α] (hac : Acyclic σ) (r : α → ℕ)
       (∀ H' : Finset α, Covers σ r S H' → H.card ≤ H'.card) ∧
       (∀ P' : Finset (FPath α), Packing σ r S P' → P'.card ≤ P.card) := by
   obtain ⟨H, -, P, hcov, hpack, hcard⟩ := exists_cover_packing σ hac r S
-  refine ⟨H, P, hcov, hpack, hcard, fun H' hH' => ?_, fun P' hP' => ?_⟩
-  · rw [← hcard]
-    exact packing_card_le_cover σ hpack hH'
-  · rw [hcard]
-    exact packing_card_le_cover σ hP' hcov
+  exact ⟨H, P, hcov, hpack, hcard, fun _ hH' => hcard ▸ packing_card_le_cover σ hpack hH',
+    fun _ hP' => hcard.symm ▸ packing_card_le_cover σ hP' hcov⟩
 
 end Cslib.FunctionalGraph.ForestDuality

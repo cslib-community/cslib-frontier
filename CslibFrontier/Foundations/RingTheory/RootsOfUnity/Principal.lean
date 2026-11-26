@@ -86,8 +86,7 @@ implication fails: `1` is a principal, non-primitive square root of unity in `ZM
 theorem isPrimitiveRoot (h : IsPrincipalRoot ω n) (hn : (n : R) ≠ 0) : IsPrimitiveRoot ω n := by
   have hpos : 0 < n := Nat.pos_of_ne_zero fun h0 => hn (by rw [h0, Nat.cast_zero])
   refine IsPrimitiveRoot.mk_of_lt ω hpos h.pow_eq_one fun l hl hln h1 => hn ?_
-  have hsum := h.geom_sum_eq_zero l hl hln
-  rwa [h1, one_geom_sum] at hsum
+  simpa only [h1, one_geom_sum] using h.geom_sum_eq_zero l hl hln
 
 /-- Doubling a geometric sum of length `2 ^ k`. -/
 private theorem geom_sum_two_pow_succ (x : R) (k : ℕ) :
@@ -99,16 +98,9 @@ private theorem geom_sum_two_pow_succ (x : R) (k : ℕ) :
 vanishes. -/
 private theorem geom_sum_two_pow_eq_zero {x : R} {j k : ℕ} (hj : j ≤ k) (hx : x ^ 2 ^ j = -1) :
     ∑ i ∈ range (2 ^ (k + 1)), x ^ i = 0 := by
-  induction k with
-  | zero =>
-    obtain rfl : j = 0 := by omega
-    rw [geom_sum_two_pow_succ, hx, add_neg_cancel, zero_mul]
-  | succ k ih =>
-    rw [geom_sum_two_pow_succ]
-    rcases Nat.lt_or_ge j (k + 1) with hjk | hjk
-    · rw [ih (by omega), mul_zero]
-    · obtain rfl : j = k + 1 := by omega
-      rw [hx, add_neg_cancel, zero_mul]
+  induction hj with
+  | refl => rw [geom_sum_two_pow_succ, hx, add_neg_cancel, zero_mul]
+  | step _ ih => rw [geom_sum_two_pow_succ, ih, mul_zero]
 
 /-- An element with `ω ^ (2 ^ k) = -1` is a principal `2 ^ (k + 1)`-th root of unity, in any
 commutative ring. Write `0 < l < 2 ^ (k + 1)` as `2 ^ v * u` with `u` odd; then `v ≤ k` and
@@ -118,11 +110,8 @@ theorem of_pow_two_pow_eq_neg_one {k : ℕ} (h : ω ^ 2 ^ k = -1) :
   pow_eq_one := by rw [pow_succ, pow_mul, h, neg_one_sq]
   geom_sum_eq_zero l hl hlt := by
     obtain ⟨v, u, hu, rfl⟩ := Nat.exists_eq_two_pow_mul_odd (n := l) hl.ne'
-    have hv : v ≤ k := by
-      by_contra hv
-      have : 2 ^ (k + 1) ≤ 2 ^ v * u :=
-        le_trans (Nat.pow_le_pow_right two_pos (by omega)) (Nat.le_mul_of_pos_right _ hu.pos)
-      omega
+    have hv : v ≤ k := not_lt.1 fun hv => hlt.not_ge <|
+      (Nat.pow_le_pow_right two_pos hv).trans (Nat.le_mul_of_pos_right _ hu.pos)
     refine geom_sum_two_pow_eq_zero (j := k - v) (by omega) ?_
     rw [← pow_mul, mul_right_comm, ← pow_add, Nat.add_sub_cancel' hv, pow_mul, h,
       hu.neg_one_pow]

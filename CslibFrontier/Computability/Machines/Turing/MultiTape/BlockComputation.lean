@@ -61,17 +61,13 @@ theorem stepCoins_ofDeterministic (M : MultiTapeTM k Bool State) (coins : List B
   induction coins generalizing c with
   | nil => rfl
   | cons bit coins ih =>
-    rw [MultiTapePTM.stepCoins_cons, ih]
-    have hstep : ((MultiTapePTM.ofDeterministic M).withCoin bit).toTM.step c = M.step c := by
-      cases hs : c.state with
-      | none =>
-        rw [MultiTapeTM.step_of_halt hs, MultiTapeTM.step_of_halt hs]
-      | some state =>
-        rw [MultiTapeTM.step_of_state hs, MultiTapeTM.step_of_state hs,
-          MultiTapeMachine.toTM, MultiTapeTM.tr_ofTr]
-        rfl
-    rw [hstep]
-    exact (M.runFrom_succ_eq_step c coins.length).symm
+    rw [MultiTapePTM.stepCoins_cons, ih, List.length_cons, M.runFrom_succ_eq_step]
+    congr 1
+    cases hs : c.state
+    · rw [MultiTapeTM.step_of_halt hs, MultiTapeTM.step_of_halt hs]
+    · rw [MultiTapeTM.step_of_state hs, MultiTapeTM.step_of_state hs,
+        MultiTapeMachine.toTM, MultiTapeTM.tr_ofTr]
+      rfl
 
 end Turing.MultiTapeTM
 
@@ -145,9 +141,7 @@ omit [NeZero b] in
 theorem value_succ_eq_none {n : ℕ} (h : value machine input b σ n = none) :
     value machine input b σ (n + 1) = none := by
   rw [value]
-  split_ifs with hi
-  · rw [h, gate_none]
-  · rfl
+  split_ifs <;> simp [h, gate_none]
 
 /-- The true run at an interval boundary, with one fixed false coin per step. -/
 @[expose] noncomputable def boundary (n : ℕ) : Cfg k Bool State input :=
@@ -265,13 +259,8 @@ private theorem move_iff (i : Fin q) :
   change ((actualSchedule machine input b (q := q) i head : SignType) : ℤ) =
     (boundary machine input b (q := q) (i + 1)).blockIndex b head -
       (boundary machine input b (q := q) i).blockIndex b head at h
-  constructor
-  · intro hm
-    have heq : (actualSchedule machine input b (q := q) i head : ℤ) = σ i head := by omega
-    exact sign_cast_injective heq
-  · intro hs
-    rw [hs] at h
-    omega
+  exact ⟨fun hm => sign_cast_injective (by dsimp only; omega),
+    fun hs => by rw [hs] at h; omega⟩
 
 private theorem gate_true (i : Fin q) (hσ : Prefix machine input b σ i)
     (providers : Fin k → Fin 3 → Option (View k State b))
@@ -288,110 +277,75 @@ private theorem gate_true (i : Fin q) (hσ : Prefix machine input b σ i)
   rw [← hindex, machine.intervalStep_view_iff b _ (by simp),
     ← boundary_succ machine input b i.isLt, move_iff]
   rw [hindex]
-  change (_ = v.1 ∧ _ = v.2 ∧ _) ↔ _ ∧ v = (_, _)
-  constructor
-  · rintro ⟨hc, hw, hm⟩
-    exact ⟨hm, Prod.ext hc.symm hw.symm⟩
-  · rintro ⟨hm, rfl⟩
-    exact ⟨rfl, rfl, hm⟩
+  refine ⟨fun ⟨hc, hw, hm⟩ => ⟨hm, Prod.ext hc.symm hw.symm⟩, ?_⟩
+  rintro ⟨hm, rfl⟩
+  exact ⟨rfl, rfl, hm⟩
 
 /-- A successful interval value is exactly the true leaving view, and validates every movement
 label in its prefix. In particular, success at the root validates all earlier labels. -/
 theorem value_eq_some_iff {n : ℕ} (hn : n ≤ q) (v : View k State b) :
     value machine input b σ n = some v ↔
       Prefix machine input b σ n ∧ v = trueView machine input b σ n := by
-  induction n using Nat.strong_induction_on generalizing v with
-  | ind n ih =>
-    cases n with
-    | zero => simp [value, Prefix, trueView, eq_comm]
-    | succ n =>
-      have hnq : n < q := by omega
-      let i : Fin q := ⟨n, hnq⟩
-      let providers : Fin k → Fin 3 → Option (View k State b) := fun h d =>
-        match hp : lastBefore (InWindow σ h (portBlock σ i h d)) i with
-        | none => some (initialView machine b)
-        | some j => value machine input b σ (j + 1)
-      rw [value, dite_eq_left hnq]
-      change gate machine input b σ i (value machine input b σ n) providers = some v ↔ _
-      have hprev := ih n (by omega) (by omega)
-      by_cases hσ : Prefix machine input b σ n
-      · have hvn : value machine input b σ n = some (trueView machine input b σ n) :=
-          (hprev _).mpr ⟨hσ, rfl⟩
-        have hp h d j (hj : lastBefore (InWindow σ h (portBlock σ i h d)) i = some j) :
-            providers h d = some (trueView machine input b σ (j + 1)) := by
-          have hji := (lastBefore_eq_some_iff.mp hj).1
-          change (j : ℕ) < n at hji
-          have hvj := ih (j + 1) (by omega) (by omega)
-            (trueView machine input b σ (j + 1))
+  fun_induction value machine input b σ n generalizing v with
+  | case1 => simp [Prefix, trueView, eq_comm] -- index 0: initial view
+  | case3 n hnq => omega -- n + 1, n ≥ q: none
+  | case2 n hnq ihprev ihj => -- n + 1, n < q: gate
+    let i : Fin q := ⟨n, hnq⟩
+    let providers : Fin k → Fin 3 → Option (View k State b) := fun h d =>
+      match hp : lastBefore (InWindow σ h (portBlock σ i h d)) i with
+      | none => some (initialView machine b)
+      | some j => value machine input b σ (j + 1)
+    change gate machine input b σ i (value machine input b σ n) providers = some v ↔ _
+    have hprev := ihprev (by omega)
+    by_cases hσ : Prefix machine input b σ n
+    · have hvn : value machine input b σ n = some (trueView machine input b σ n) :=
+        (hprev _).mpr ⟨hσ, rfl⟩
+      have hp h d j (hj : lastBefore (InWindow σ h (portBlock σ i h d)) i = some j) :
+          providers h d = some (trueView machine input b σ (j + 1)) := by
+        have hji : (j : ℕ) < n := (lastBefore_eq_some_iff.mp hj).1
+        have hvj := ihj h d j hj j.isLt (trueView machine input b σ (j + 1))
+        dsimp only [providers]
+        split
+        next he => cases he.symm.trans hj
+        next j' he =>
+          obtain rfl : j' = j := Option.some.inj (he.symm.trans hj)
+          exact hvj.mpr ⟨fun j' hj' => hσ j' (by omega), rfl⟩
+      have hproviders h d : (providers h d).isSome := by
+        cases hj : lastBefore (InWindow σ h (portBlock σ i h d)) i with
+        | none =>
           dsimp only [providers]
           split
-          next he =>
-            have hc := he.symm.trans hj
-            cases hc
-          next j' he =>
-            have heq : j' = j := Option.some.inj (he.symm.trans hj)
-            subst j'
-            exact hvj.mpr ⟨fun j' hj' => hσ j' (by omega), rfl⟩
-        have hproviders h d : (providers h d).isSome := by
-          cases hj : lastBefore (InWindow σ h (portBlock σ i h d)) i with
-          | none =>
-            dsimp only [providers]
-            split
-            next => rfl
-            next j he =>
-              have hc := hj.symm.trans he
-              cases hc
-          | some j => rw [hp h d j hj]; rfl
-        rw [hvn, gate_true machine input b σ i hσ providers hproviders hp]
-        have hprefix : Prefix machine input b σ (n + 1) ↔
-            actualSchedule machine input b (q := q) i = σ i := by
-          constructor
-          · exact fun h => h i (by simp [i])
-          · intro h j hj
-            rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hj | hj
-            · exact hσ j hj
-            · have heq : j = i := Fin.ext hj
-              simpa only [heq] using h
-        rw [hprefix]
-      · have hvn : value machine input b σ n = none := by
-          cases hv : value machine input b σ n with
-          | none => rfl
-          | some w => exact False.elim (hσ ((hprev w).mp hv).1)
-        rw [hvn, gate_none]
-        constructor
-        · intro h
-          cases h
-        · rintro ⟨hp, -⟩
-          exact False.elim (hσ (fun j hj => hp j (by omega)))
+          next => rfl
+          next j he => cases hj.symm.trans he
+        | some j => rw [hp h d j hj]; rfl
+      rw [hvn, gate_true machine input b σ i hσ providers hproviders hp]
+      have hprefix : Prefix machine input b σ (n + 1) ↔
+          actualSchedule machine input b (q := q) i = σ i :=
+        ⟨fun h => h i (by simp [i]), fun h j hj => by
+          rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hj | hj
+          · exact hσ j hj
+          · exact (Fin.ext hj : j = i) ▸ h⟩
+      rw [hprefix]
+    · have hvn : value machine input b σ n = none := by
+        cases hv : value machine input b σ n with
+        | none => rfl
+        | some w => exact (hσ ((hprev w).mp hv).1).elim
+      rw [hvn, gate_none]
+      exact ⟨fun h => (by cases h), fun ⟨hp, _⟩ => (hσ fun j hj => hp j (by omega)).elim⟩
 
 /-- At the final boundary, every guessed label has been validated. -/
 theorem value_final_eq_some_iff (v : View k State b) :
     value machine input b σ q = some v ↔
       actualSchedule machine input b (q := q) = σ ∧ v = trueView machine input b σ q := by
-  rw [value_eq_some_iff machine input b σ le_rfl]
-  have hprefix : Prefix machine input b σ q ↔ actualSchedule machine input b (q := q) = σ := by
-    constructor
-    · intro h
-      funext j
-      exact h j j.isLt
-    · intro h j _
-      exact congrFun h j
-  rw [hprefix]
+  have hpref : Prefix machine input b σ q ↔ actualSchedule machine input b (q := q) = σ :=
+    ⟨fun h => funext fun j => h j j.isLt, fun h j _ => congrFun h j⟩
+  rw [value_eq_some_iff machine input b σ le_rfl, hpref]
 
 /-- A wrong complete movement guess fails at the final boundary. -/
 theorem value_final_eq_none_iff :
     value machine input b σ q = none ↔ actualSchedule machine input b (q := q) ≠ σ := by
-  constructor
-  · intro hfail heq
-    have hgood := (value_final_eq_some_iff machine input b σ
-      (trueView machine input b σ q)).mpr ⟨heq, rfl⟩
-    rw [hfail] at hgood
-    cases hgood
-  · intro hwrong
-    cases hv : value machine input b σ q with
-    | none => rfl
-    | some v =>
-      exact False.elim (hwrong ((value_final_eq_some_iff machine input b σ v).mp hv).1)
+  rw [Option.eq_none_iff_forall_not_mem]
+  simp [Option.mem_def, value_final_eq_some_iff]
 
 omit [NeZero b] in
 /-- The fixed-coin boundaries of a deterministic embedding are the native machine boundaries. -/

@@ -37,16 +37,8 @@ theorem Emission.prefix_preserved {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
     {x y : Data 128} {published : Bool}
     (h : Emission Q Λ e x y published) (p : ℕ) (hp : p < x.regs heap)
     (hne : p ≠ x.regs outputs + x.regs outputCount) : y.mem p = x.mem p := by
-  cases published with
-  | false =>
-    have hm : y.mem = h.before := by simpa using h.memory
-    rw [hm]
-    exact h.prefixMemory p hp
-  | true =>
-    have hm : y.mem = Function.update h.before (x.regs outputs + x.regs outputCount)
-        (recordLayout x h.M).packed := by simpa using h.memory
-    rw [hm, Function.update_of_ne hne]
-    exact h.prefixMemory p hp
+  have hm := h.memory
+  cases published <;> simp_all [h.prefixMemory p hp]
 
 /-- All persistent caller parameters survive the actual complete visit. -/
 theorem Emission.controls {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
@@ -69,14 +61,10 @@ theorem Emission.loaded {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
   refine ⟨(hs 0).trans hl.1, ?_, ?_⟩
   · intro j
     fin_cases j
-    · exact (hs 1).trans (hl.2.1 0)
-    · exact (hs 3).trans (hl.2.1 1)
-    · exact (hs 5).trans (hl.2.1 2)
+    exacts [(hs 1).trans (hl.2.1 0), (hs 3).trans (hl.2.1 1), (hs 5).trans (hl.2.1 2)]
   · intro j
     fin_cases j
-    · exact (hs 2).trans (hl.2.2 0)
-    · exact (hs 4).trans (hl.2.2 1)
-    · exact (hs 6).trans (hl.2.2 2)
+    exacts [(hs 2).trans (hl.2.2 0), (hs 4).trans (hl.2.2 1), (hs 6).trans (hl.2.2 2)]
 
 /-- Old input columns below the stack or above the output table cannot be overwritten by the
 single native pointer store, and both actual kernels preserve the old prefix. -/
@@ -102,44 +90,38 @@ def Emission.children {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
     e.child 1 ((recordLayout x h.M).heavy 1) (h.lists 1),
     e.child 2 ((recordLayout x h.M).heavy 2) (h.lists 2)]
 
+private theorem Emission.forall_children {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
+    {x y : Data 128} {published : Bool} (h : Emission Q Λ e x y published)
+    {P : Entry → Prop}
+    (hc : ∀ j : Fin 3, P (e.child j ((recordLayout x h.M).heavy j) (h.lists j))) :
+    ∀ d ∈ h.children, P d := by
+  intro d hd
+  simp only [Emission.children, List.mem_cons, List.not_mem_nil, or_false] at hd
+  rcases hd with rfl | rfl | rfl
+  exacts [hc 0, hc 1, hc 2]
+
 /-- Actual heavy-buffer readback represents exactly the existing ordered three-child recursion. -/
 theorem Emission.children_tasks {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
     {x y : Data 128} {published : Bool}
     (h : Emission Q Λ e x y published) :
     h.children.map Entry.task = e.task.children Q Λ (e.fuel - 1) := by
   simp only [Emission.children, List.map_cons, List.map_nil]
-  apply e.task_children Q Λ (recordLayout x h.M).heavy h.lists
-  intro j
-  rw [h.sets j, h.exactModulus]
+  exact e.task_children Q Λ (recordLayout x h.M).heavy h.lists fun j => by
+    rw [h.sets j, h.exactModulus]
 
 /-- Each of the actual three heavy-child arrays retains the existing admissibility promises. -/
 theorem Emission.children_valid {Q : Finset ℕ} {Λ n U : ℕ} {e : Entry}
     {x y : Data 128} {published : Bool}
-    (h : Emission Q Λ e x y published) (hv : e.Valid n U) : ∀ d ∈ h.children, d.Valid n U := by
-  intro d hd
-  have hc (j : Fin 3) :
-      (e.child j ((recordLayout x h.M).heavy j) (h.lists j)).Valid n U := by
-    apply hv.child j _ _ (h.nodup j)
-    rw [h.sets j]
-    exact Cslib.Algorithms.ThreeSum.ChanHe.heavy_subset _ _
-  simp only [Emission.children, List.mem_cons, List.not_mem_nil, or_false] at hd
-  rcases hd with rfl | rfl | rfl
-  · exact hc 0
-  · exact hc 1
-  · exact hc 2
+    (h : Emission Q Λ e x y published) (hv : e.Valid n U) : ∀ d ∈ h.children, d.Valid n U :=
+  h.forall_children fun j =>
+    hv.child j _ _ (h.nodup j) (h.sets j ▸ Cslib.Algorithms.ThreeSum.ChanHe.heavy_subset _ _)
 
 /-- Each child reuses the two surviving original columns and one actual compact heavy buffer. -/
 theorem Emission.children_stored {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
     {x y : Data 128} {published : Bool}
     (h : Emission Q Λ e x y published)
-    (hs : e.Stored y.mem) : ∀ d ∈ h.children, d.Stored y.mem := by
-  intro d hd
-  have hc (j : Fin 3) := hs.child j ((recordLayout x h.M).heavy j) (h.lists j) (h.heavy j)
-  simp only [Emission.children, List.mem_cons, List.not_mem_nil, or_false] at hd
-  rcases hd with rfl | rfl | rfl
-  · exact hc 0
-  · exact hc 1
-  · exact hc 2
+    (hs : e.Stored y.mem) : ∀ d ∈ h.children, d.Stored y.mem :=
+  h.forall_children fun j => hs.child j ((recordLayout x h.M).heavy j) (h.lists j) (h.heavy j)
 
 /-- The actual heap pointer advances past the old frontier. -/
 theorem Emission.heap_mono {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
@@ -158,26 +140,17 @@ theorem Emission.children_ends_packed {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
     dsimp only [recordLayout, NodePacking.Layout.packed]
     omega
   have heavyEnd (j : Fin 3) :
-      (recordLayout x h.M).heavy j + (h.lists j).length ≤ (recordLayout x h.M).packed := by
+      (recordLayout x h.M).heavy j + (h.lists j).length ≤ (recordLayout x h.M).packed :=
     calc (recordLayout x h.M).heavy j + (h.lists j).length
         ≤ (recordLayout x h.M).heavy j + (recordLayout x h.M).n j := by
           apply Nat.add_le_add_left
           simpa only [recordLayout, hl.2.2] using h.length_le j
       _ ≤ (recordLayout x h.M).packed := (recordLayout x h.M).heavy_end_le_packed j
-  have hc (j k : Fin 3) :
-      (e.child j ((recordLayout x h.M).heavy j) (h.lists j)).source k +
-        ((e.child j ((recordLayout x h.M).heavy j) (h.lists j)).data k).length ≤
-          (recordLayout x h.M).packed := by
-    by_cases he : k = j
-    · subst k
-      simpa only [Entry.child, Function.update_self] using heavyEnd j
-    · simpa only [Entry.child, Function.update_of_ne he] using (hend k).trans hpacked
-  intro d hd k
-  simp only [Emission.children, List.mem_cons, List.not_mem_nil, or_false] at hd
-  rcases hd with rfl | rfl | rfl
-  · exact hc 0 k
-  · exact hc 1 k
-  · exact hc 2 k
+  refine h.forall_children fun j k => ?_
+  by_cases he : k = j
+  · subst k
+    simpa only [Entry.child, Function.update_self] using heavyEnd j
+  · simpa only [Entry.child, Function.update_of_ne he] using (hend k).trans hpacked
 
 /-- Every actual child column lies below the advanced native allocation frontier. -/
 theorem Emission.children_ends {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
@@ -196,20 +169,13 @@ theorem Emission.children_around {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
     {x y : Data 128} {published : Bool}
     (h : Emission Q Λ e x y published) {base capacity : ℕ} (hg : e.Around base capacity)
     (hfloor : base + capacity ≤ x.regs heap) :
-    ∀ d ∈ h.children, d.Around base capacity := by
-  have hc (j : Fin 3) :
-      (e.child j ((recordLayout x h.M).heavy j) (h.lists j)).Around base capacity := by
+    ∀ d ∈ h.children, d.Around base capacity :=
+  h.forall_children fun j => by
     apply hg.child
-    have hb := (recordLayout x h.M).base_le_descriptor j
-    change x.regs heap ≤ (recordLayout x h.M).descriptor j at hb
+    have hb : x.regs heap ≤ (recordLayout x h.M).descriptor j :=
+      (recordLayout x h.M).base_le_descriptor j
     dsimp only [NodePacking.Layout.heavy]
     omega
-  intro d hd
-  simp only [Emission.children, List.mem_cons, List.not_mem_nil, or_false] at hd
-  rcases hd with rfl | rfl | rfl
-  · exact hc 0
-  · exact hc 1
-  · exact hc 2
 
 /-- The exact native words prepared for the three pushes are the new semantic child records. -/
 theorem Emission.children_words {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
@@ -276,9 +242,9 @@ theorem Emission.output {Q : Finset ℕ} {Λ : ℕ} {e : Entry} {x y : Data 128}
     have hi : i.val < 4 * x.regs groups := by simpa only [hN] using i.isLt
     have hp := h.packed ⟨i.val, hi⟩
     change y.mem ((recordLayout x h.M).packed + i.val) = _ at hp
-    rw [hm, Function.update_of_ne (show
-      (recordLayout x h.M).packed + i.val ≠ x.regs outputs + x.regs outputCount by
-        rw [ht, hcount]; omega)] at hp
+    have hne : (recordLayout x h.M).packed + i.val ≠ x.regs outputs + x.regs outputCount := by
+      rw [ht, hcount]; omega
+    rw [hm, Function.update_of_ne hne] at hp
     simpa only [Block.read, hU] using hp
   rw [hm, ht, hcount]
   exact hbefore.append hnew (by intro i; have := (hbounds i).1; omega) (by omega)
@@ -292,16 +258,13 @@ theorem Emission.math_step {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
       ((h.children ++ es).map Entry.task, some (e.task.node Q Λ)) := by
   have hempty : ¬e.task.empty := by
     simp only [Math.Task.empty, Entry.task, List.toFinset_eq_empty_iff]
-    intro he
-    rcases he with he | he | he
-    · exact hn 0 (by rw [he]; rfl)
-    · exact hn 1 (by rw [he]; rfl)
-    · exact hn 2 (by rw [he]; rfl)
+    rintro (he | he | he)
+    exacts [hn 0 (he ▸ rfl), hn 1 (he ▸ rfl), hn 2 (he ▸ rfl)]
   rw [List.map_append, h.children_tasks]
   cases he : e.fuel with
   | zero => exact (hf he).elim
   | succ f =>
-    simp only [Math.step, show e.task.fuel = f + 1 from he, hempty, ↓reduceIte,
-      Nat.add_sub_cancel]
+    have hfuel : e.task.fuel = f + 1 := he
+    simp only [Math.step, hfuel, hempty, ↓reduceIte, Nat.add_sub_cancel]
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Traversal

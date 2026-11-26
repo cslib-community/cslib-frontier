@@ -109,12 +109,7 @@ theorem exists_covers_of_card (hh : IsPairwiseIndependentHash h) [Nonempty Y] {S
   have hY : 0 < Fintype.card Y := Fintype.card_pos
   have hq : 0 < q := by
     refine Nat.pos_of_ne_zero fun hq0 => ?_
-    subst hq0
-    rcases p with _ | p
-    · rw [pow_zero] at hp
-      omega
-    · rw [zero_pow (Nat.succ_ne_zero p)] at hp
-      omega
+    rcases p with _ | p <;> simp_all
   have hSne : S.Nonempty := card_pos.1 ((Nat.mul_pos hq hY).trans_le hS)
   obtain ⟨x, hx⟩ := hSne
   have : Nonempty ι := hh.nonempty x (Classical.arbitrary Y)

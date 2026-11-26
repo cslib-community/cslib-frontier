@@ -69,18 +69,15 @@ private theorem qftMatrix_mul_star : qftMatrix N * star (qftMatrix N) = 1 := by
   ext j k
   have hN : (N : ℂ) ≠ 0 := Nat.cast_ne_zero.mpr (NeZero.ne N)
   have h : ∀ l : ZMod N, qftMatrix N j l * star (qftMatrix N) l k =
-      (N : ℂ)⁻¹ * stdAddChar (l * (j - k)) := by
-    intro l
+      (N : ℂ)⁻¹ * stdAddChar (l * (j - k)) := fun l => by
     simp only [star_apply, qftMatrix, of_apply, star_mul', Complex.star_def, Complex.conj_ofReal]
-    rw [← AddChar.map_neg_eq_conj, ← sqrt_inv_mul_sqrt_inv]
-    have : stdAddChar (j * l) * stdAddChar (-(k * l)) = stdAddChar (N := N) (l * (j - k)) := by
-      rw [← AddChar.map_add_eq_mul]; ring_nf
-    rw [← this]; ring
+    rw [mul_mul_mul_comm, sqrt_inv_mul_sqrt_inv, ← AddChar.map_neg_eq_conj,
+      ← AddChar.map_add_eq_mul]
+    congr 2
+    ring
   rw [Matrix.mul_apply, Matrix.one_apply, sum_congr rfl fun l _ => h l, ← mul_sum,
     AddChar.sum_mulShift _ (isPrimitive_stdAddChar N), ZMod.card]
-  by_cases hjk : j = k
-  · simp [hjk, hN]
-  · simp [hjk, sub_eq_zero]
+  by_cases hjk : j = k <;> simp [hjk, hN, sub_eq_zero]
 
 /-- The **quantum Fourier transform** over `ZMod N`: the unitary matrix with entries
 `F_N(j, k) = ω^{jk} / √N`, `ω = e^{2πi/N}` ([Shor][Shor1997], §4, eq. (4.1);
@@ -98,8 +95,7 @@ canonical representatives `j.val, k.val ∈ [0, N)`. -/
 theorem qft_apply_eq_exp (j k : ZMod N) :
     (qft N : Matrix (ZMod N) (ZMod N) ℂ) j k =
       Complex.exp (2 * π * Complex.I * j.val * k.val / N) / Real.sqrt N := by
-  have hjk : j * k = ((j.val * k.val : ℕ) : ZMod N) := by
-    rw [Nat.cast_mul, natCast_zmod_val, natCast_zmod_val]
+  have hjk : j * k = ((j.val * k.val : ℕ) : ZMod N) := by simp
   rw [qft_apply, stdAddChar_apply, hjk, toCircle_natCast]
   push_cast
   rw [mul_comm, div_eq_mul_inv]
@@ -114,12 +110,10 @@ theorem qft_mulVec (v : ZMod N → ℂ) :
   rw [Pi.smul_apply, invDFT_apply, mulVec, dotProduct, smul_smul, smul_sum]
   refine sum_congr rfl fun j _ => ?_
   simp only [qft_apply, smul_eq_mul, mul_comm k j]
-  have hs : (Real.sqrt N : ℂ) * (((Real.sqrt N)⁻¹ : ℝ) : ℂ) = 1 := by
-    rw [← Complex.ofReal_mul, mul_inv_cancel₀
-      (Real.sqrt_pos.mpr (Nat.cast_pos.mpr (Nat.pos_of_ne_zero (NeZero.ne N)))).ne',
-      Complex.ofReal_one]
-  have : (Real.sqrt N : ℂ) * (N : ℂ)⁻¹ = (((Real.sqrt N)⁻¹ : ℝ) : ℂ) := by
-    rw [← sqrt_inv_mul_sqrt_inv, ← mul_assoc, hs, one_mul]
-  rw [this]; ring
+  have : 0 < N := NeZero.pos N
+  have hN : (Real.sqrt N : ℂ) * (N : ℂ)⁻¹ = (((Real.sqrt N)⁻¹ : ℝ) : ℂ) := by
+    rw [← sqrt_inv_mul_sqrt_inv, ← mul_assoc, ← Complex.ofReal_mul,
+      mul_inv_cancel₀ (by positivity), Complex.ofReal_one, one_mul]
+  rw [hN, mul_assoc]
 
 end Cslib.Quantum

@@ -163,34 +163,25 @@ private theorem clockedBounds_aux (cA cD cO C₂ : ℕ) : ∃ K, ∀ {n A D N J 
   have hY2 : (J + 1) ^ 2 ≤ W := by grind
   -- the pieces
   have hU' : 100000 * (P * (n + 1)) ^ 4 * (J + 1) ^ 2 ≤ 100000 * P ^ 5 * W := by
-    have hmono := Nat.mul_le_mul
-      (Nat.pow_le_pow_right hPX1 (show 4 ≤ 5 by omega))
-      (Nat.pow_le_pow_right hY1 (show 2 ≤ 3 by omega))
-    have hscaled := Nat.mul_le_mul_left 100000 hmono
-    simpa only [hW, mul_pow, Nat.mul_assoc] using hscaled
+    simpa only [hW, mul_pow, Nat.mul_assoc] using Nat.mul_le_mul_left 100000
+      (Nat.mul_le_mul (Nat.pow_le_pow_right hPX1 (by decide))
+        (Nat.pow_le_pow_right hY1 (by decide)))
   have hrunZ : runBound D N J ≤ 200 * P ^ 2 * Z := by
     have : 200 * (P * (n + 1)) ^ 2 * (J + 1) = 200 * P ^ 2 * Z := by
       simp only [hZ, mul_pow, Nat.mul_assoc]
     omega
   have hLY : L ≤ C₂ * (J + 1) := (Nat.le_succ L).trans ((Nat.le_self_pow two_ne_zero _).trans hL)
   have hI1 : I + 1 ≤ R * ((n + 1) * (J + 1)) := by
-    have h₁ : 5 * P * (n + 1) ≤ 5 * P * ((n + 1) * (J + 1)) :=
-      Nat.mul_le_mul_left _ (Nat.le_mul_of_pos_right _ hY1)
-    have h₂ : C₂ * (J + 1) ≤ C₂ * ((n + 1) * (J + 1)) :=
-      Nat.mul_le_mul_left _ (Nat.le_mul_of_pos_left _ hX1)
-    have e₁ : R * ((n + 1) * (J + 1)) =
-        5 * P * ((n + 1) * (J + 1)) + C₂ * ((n + 1) * (J + 1)) := by
-      rw [hR]; ring
-    have e₂ : 5 * P * (n + 1) = 5 * (P * (n + 1)) := by ring
-    omega
+    calc I + 1 ≤ 5 * (P * (n + 1)) + C₂ * (J + 1) := by omega
+      _ ≤ 5 * (P * (n + 1)) * (J + 1) + C₂ * ((n + 1) * (J + 1)) :=
+        Nat.add_le_add (Nat.le_mul_of_pos_right _ hY1)
+          (Nat.mul_le_mul_left _ (Nat.le_mul_of_pos_left _ hX1))
+      _ = R * ((n + 1) * (J + 1)) := by rw [hR]; ring
   have hpre : n + A + (n + J) ≤ (cA + 3) * ((n + 1) * (J + 1)) := by
-    have h₁ : (cA + 2) * (n + 1) ≤ (cA + 2) * ((n + 1) * (J + 1)) :=
-      Nat.mul_le_mul_left _ (Nat.le_mul_of_pos_right _ hY1)
-    have h₂ : (J + 1) ≤ (n + 1) * (J + 1) := Nat.le_mul_of_pos_left _ hX1
-    have e₁ : (cA + 3) * ((n + 1) * (J + 1)) =
-        (cA + 2) * ((n + 1) * (J + 1)) + (n + 1) * (J + 1) := by ring
-    have e₂ : (cA + 2) * (n + 1) = cA * (n + 1) + 2 * (n + 1) := by ring
-    omega
+    calc n + A + (n + J) ≤ (cA * (n + 1) + 2 * (n + 1)) + (J + 1) := by omega
+      _ ≤ (cA * (n + 1) + 2 * (n + 1)) * (J + 1) + (n + 1) * (J + 1) :=
+        Nat.add_le_add (Nat.le_mul_of_pos_right _ hY1) (Nat.le_mul_of_pos_left _ hX1)
+      _ = (cA + 3) * ((n + 1) * (J + 1)) := by ring
   have hsum : n + A + (n + J) + (runBound D N J + I) + 1 ≤ Q * Z := by
     have h₁ := Nat.mul_le_mul_left (cA + 3) hXYZ
     have h₂ := Nat.mul_le_mul_left R hXYZ
@@ -252,59 +243,42 @@ theorem computableInO_timeDiagonal {J : ℕ → ℕ} (hJ : TimeConstructible J) 
     ComputableInO (timeDiagonal J) encBits encBool
       (fun x => (x.length + 1) ^ 5 * (J x.length + 1) ^ 3)
       fun x => (x.length + 1) ^ 5 * (J x.length + 1) ^ 3 := by
-  have this : ComputableInO (timeDiagonal J) encBits encBool
-      (fun x => (x.length + 1) ^ 5 * (J x.length + 1) ^ 3) fun x => (x.length + 1) ^ 5 *
-      (J x.length + 1) ^ 3 := by
-    obtain ⟨dd, ed, hdec⟩ := exists_computableInDegree_decodeDesc
-    have hu : ComputableInO unframe encBits encBits (fun x => x.length) fun x => x.length :=
-      ComputableInO.of_linear (.of_unframe fun _ => rfl)
-    have hdesc := hdec.inO.comp hu
-    have hsym := Universal.computableInO_map_eBit
-    have hclock := hJ.computableInO
-    have hU := computableInO_universal.comp (hdesc.prod (hsym.prod hclock))
-    have h := computableInO_shortDesc.ite (computableInO_verdict.comp hU)
-      (ComputableInO.const (encMid := encBool) false)
-    obtain ⟨cD, hcD⟩ := hdesc.length_le
-    obtain ⟨cO, hcO⟩ := hU.length_le
-    obtain ⟨cA, hcA⟩ := PolynomiallyBounded.exists_le_mul_two_pow (p := fun u => (u + 1) ^ dd)
-      (by fun_prop)
-    obtain ⟨C₂, hC₂⟩ := exists_pow_length_encNat_le 2
-    obtain ⟨K, hK⟩ := clockedBounds_aux cA cD cO C₂
-    have hbounds (x : List Bool) (hs : shortDesc x = true) := by
-      have hA : ((unframe x).length + 1) ^ dd ≤ cA * (x.length + 1) :=
-        (hcA _).trans (Nat.mul_le_mul_left _ ((of_decide_eq_true hs).trans (Nat.le_succ _)))
-      have hN := length_encList_map_eBit_le x
-      have hD := hcD x
-      have hE := hcO x
-      dsimp only [Function.comp_apply, encBits_apply] at hD hE
-      exact hK (D := descLen (decodeDesc (unframe x))) hA hD hN (hC₂ _)
-        (by rw [length_encPair, length_encPair]) hE
-    have hW (x : List Bool) : x.length + 1 ≤ (x.length + 1) ^ 5 * (J x.length + 1) ^ 3 :=
-      (Nat.le_self_pow (by norm_num) _).trans (Nat.le_mul_of_pos_right _ (Nat.pow_pos (by omega)))
-    have hW2 (x : List Bool) : (x.length + 1) ^ 2 ≤ (x.length + 1) ^ 5 * (J x.length + 1) ^ 3 :=
-      (Nat.pow_le_pow_right (by omega) (by omega)).trans
-        (Nat.le_mul_of_pos_right _ (Nat.pow_pos (by omega)))
-    refine h.mono (K + 2) (fun x => ?_) fun x => ?_
-    · have e : (K + 2) * ((x.length + 1) ^ 5 * (J x.length + 1) ^ 3 + 1) =
-          K * ((x.length + 1) ^ 5 * (J x.length + 1) ^ 3) +
-            2 * ((x.length + 1) ^ 5 * (J x.length + 1) ^ 3) + K + 2 := by ring
-      have := hW x
-      have := hW2 x
-      dsimp only [Function.comp_apply, encBits_apply]
-      split_ifs with hs
-      · have := (hbounds x hs).1
-        omega
-      · omega
-    · have e : (K + 2) * ((x.length + 1) ^ 5 * (J x.length + 1) ^ 3 + 1) =
-          K * ((x.length + 1) ^ 5 * (J x.length + 1) ^ 3) +
-            2 * ((x.length + 1) ^ 5 * (J x.length + 1) ^ 3) + K + 2 := by ring
-      have := hW x
-      dsimp only [Function.comp_apply, encBits_apply]
-      split_ifs with hs
-      · have := (hbounds x hs).2
-        omega
-      · omega
-  exact this
+  obtain ⟨dd, ed, hdec⟩ := exists_computableInDegree_decodeDesc
+  have hu : ComputableInO unframe encBits encBits (fun x => x.length) fun x => x.length :=
+    ComputableInO.of_linear (.of_unframe fun _ => rfl)
+  have hdesc := hdec.inO.comp hu
+  have hU := computableInO_universal.comp
+    (hdesc.prod (Universal.computableInO_map_eBit.prod hJ.computableInO))
+  have h := computableInO_shortDesc.ite (computableInO_verdict.comp hU)
+    (ComputableInO.const (encMid := encBool) false)
+  obtain ⟨cD, hcD⟩ := hdesc.length_le
+  obtain ⟨cO, hcO⟩ := hU.length_le
+  obtain ⟨cA, hcA⟩ := PolynomiallyBounded.exists_le_mul_two_pow (p := fun u => (u + 1) ^ dd)
+    (by fun_prop)
+  obtain ⟨C₂, hC₂⟩ := exists_pow_length_encNat_le 2
+  obtain ⟨K, hK⟩ := clockedBounds_aux cA cD cO C₂
+  have hbounds (x : List Bool) (hs : shortDesc x = true) := by
+    have hA : ((unframe x).length + 1) ^ dd ≤ cA * (x.length + 1) :=
+      (hcA _).trans (Nat.mul_le_mul_left _ ((of_decide_eq_true hs).trans (Nat.le_succ _)))
+    have hN := length_encList_map_eBit_le x
+    have hD := hcD x
+    have hE := hcO x
+    dsimp only [Function.comp_apply, encBits_apply] at hD hE
+    exact hK (D := descLen (decodeDesc (unframe x))) hA hD hN (hC₂ _)
+      (by rw [length_encPair, length_encPair]) hE
+  have hW (x : List Bool) : x.length + 1 ≤ (x.length + 1) ^ 5 * (J x.length + 1) ^ 3 :=
+    (Nat.le_self_pow (by norm_num) _).trans (Nat.le_mul_of_pos_right _ (Nat.pow_pos (by omega)))
+  have hW2 (x : List Bool) : (x.length + 1) ^ 2 ≤ (x.length + 1) ^ 5 * (J x.length + 1) ^ 3 :=
+    (Nat.pow_le_pow_right (by omega) (by omega)).trans
+      (Nat.le_mul_of_pos_right _ (Nat.pow_pos (by omega)))
+  have e (W : ℕ) : (K + 2) * (W + 1) = K * W + 2 * W + K + 2 := by ring
+  refine h.mono (K + 2) (fun x => ?_) fun x => ?_
+  all_goals
+    have := e ((x.length + 1) ^ 5 * (J x.length + 1) ^ 3)
+    have := hW x
+    have := hW2 x
+    dsimp only [Function.comp_apply, encBits_apply]
+    split_ifs with hs <;> (try have := hbounds x hs) <;> omega
 
 /-- **Diagonalization at arbitrarily large favorable lengths.** The clock need only dominate
 each linear bound infinitely often. A description can be padded to every sufficiently large
@@ -381,15 +355,12 @@ theorem DTIME_ssubset_DTIME_of_clock {f g J : ℕ → ℕ} (hJ : TimeConstructib
     (hfJ : ∀ c, ∀ᶠ n in atTop, c * f n + c ≤ J n)
     (hg : ∀ᶠ n in atTop, (n + 1) ^ 5 * (J n + 1) ^ 3 ≤ g n) :
     DTIME encBits f ⊂ DTIME encBits g := by
-  have hsub : DTIME encBits f ⊆ DTIME encBits g := DTIME_mono_of_eventually_le <| by
-    filter_upwards [hfJ 1, hg] with n h₁ h₂
-    have : J n ≤ (n + 1) ^ 5 * (J n + 1) ^ 3 :=
-      (Nat.le_succ _).trans ((Nat.le_self_pow (by norm_num) _).trans
-        (Nat.le_mul_of_pos_left _ (Nat.pow_pos (by omega))))
-    omega
-  exact (Set.ssubset_iff_of_subset hsub).mpr ⟨_,
-    DTIME_mono_of_eventually_le hg (setOf_timeDiagonal_mem_DTIME hJ),
-    setOf_timeDiagonal_notMem_DTIME hfJ⟩
+  refine DTIME_ssubset_DTIME_of_frequently_clock hJ (fun c => (hfJ c).frequently) ?_ hg
+  filter_upwards [hfJ 1, hg] with n h₁ h₂
+  have : J n ≤ (n + 1) ^ 5 * (J n + 1) ^ 3 :=
+    (Nat.le_succ _).trans ((Nat.le_self_pow (by norm_num) _).trans
+      (Nat.le_mul_of_pos_left _ (Nat.pow_pos (by omega))))
+  omega
 
 /-- **The time hierarchy theorem.** If `f` is time-constructible and `n ≤ f n`, then `DTIME f` is
 strictly contained in every `DTIME g` with `(n + 1) ^ 8 * (f n + 1) ^ 3 ≤ g n` eventually

@@ -126,9 +126,8 @@ def decodeControl (states : ℕ) : Option (Option ℕ) → Option (Option (Fin s
 @[simp] theorem decodeControl_initial (states initial : ℕ) :
     decodeControl states (some ((Fin.ofNat? states initial).map Fin.val)) =
       some (Fin.ofNat? states initial) := by
-  by_cases h : initial < states
-  · simp only [Fin.ofNat?_eq_some_of_lt states initial h, Option.map_some, decodeControl]
-  · simp only [Fin.ofNat?_eq_none_of_not_lt states initial h, Option.map_none, decodeControl]
+  by_cases h : initial < states <;>
+    simp [decodeControl, h, Fin.ofNat?_eq_some_of_lt, Fin.ofNat?_eq_none_of_not_lt]
 
 /-- Read first-order storage as a native configuration of `Desc.toMachine`. The total definition
 uses blanks for missing tapes/channels and clamps an invalid input position; `ICfg.Valid` proves
@@ -217,32 +216,23 @@ def ICfg.receive {r : ℕ} (cfg : ICfg) (operation : Fin r) (next : ℕ)
   cases next with
   | none => rfl
   | some next =>
-    by_cases h : next < states
-    · simp only [nextIControl, h, ↓reduceIte, decodeControl,
-        Fin.ofNat?_eq_some_of_lt states next h, Option.map_some, nextControl]
-    · simp only [nextIControl, h, ↓reduceIte, decodeControl,
-        Fin.ofNat?_eq_none_of_not_lt states next h, Option.map_none, nextControl]
+    by_cases h : next < states <;>
+      simp [nextIControl, decodeControl, nextControl, h,
+        Fin.ofNat?_eq_some_of_lt, Fin.ofNat?_eq_none_of_not_lt]
 
 /-- Local source steps preserve interpreter shape and control ranges. -/
 theorem ICfg.Valid.step {d : Desc} {input : List ℕ} {cfg : ICfg}
     (h : cfg.Valid d input) (ordinary : Turing.MultiTapeTM.Universal.Act)
     (querySymbols : List (Option ℕ)) (answerMoves : List SignType) :
     (cfg.step input d.states ordinary querySymbols answerMoves).Valid d input := by
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · intro state hstate
-    cases hs : ordinary.state with
-    | none => simp [ICfg.step, nextIControl, hs] at hstate
-    | some next =>
-      simp only [ICfg.step, nextIControl, hs] at hstate
-      split at hstate
-      next hlt =>
-        have heq : next = state := Option.some.inj (Option.some.inj hstate)
-        simpa only [← heq] using hlt
-      · contradiction
-  · simp only [ICfg.step]
-    exact moveInput_le h.inputPos ordinary.inputTape
-  · simpa only [ICfg.step, length_applyTapes_eq] using h.workTapes
-  · simpa only [ICfg.step, List.length_mapIdx] using h.channels
+  refine ⟨fun state hstate => ?_, moveInput_le h.inputPos ordinary.inputTape,
+    by simpa only [ICfg.step, length_applyTapes_eq] using h.workTapes,
+    by simpa only [ICfg.step, List.length_mapIdx] using h.channels⟩
+  rcases hs : ordinary.state with _ | next
+  · simp [ICfg.step, nextIControl, hs] at hstate
+  · simp only [ICfg.step, nextIControl, hs] at hstate
+    split_ifs at hstate with hlt
+    exact Option.some.inj (Option.some.inj hstate) ▸ hlt
 
 /-- Local halting preserves the storage shape invariant. -/
 theorem ICfg.Valid.halt {d : Desc} {input : List ℕ} {cfg : ICfg}
@@ -254,14 +244,10 @@ theorem ICfg.Valid.receive {d : Desc} {input : List ℕ} {cfg : ICfg} {r : ℕ}
     (h : cfg.Valid d input) (operation : Fin r)
     {next : ℕ} (hnext : next < d.states) (reply : List ℕ) :
     (cfg.receive operation next reply).Valid d input := by
-  refine ⟨?_, h.inputPos, h.workTapes, ?_⟩
-  · intro state hstate
-    have heq : state = next := by
-      have : next = state := by
-        simpa [ICfg.receive] using Option.some.inj (Option.some.inj hstate)
-      exact this.symm
-    simpa only [heq] using hnext
-  simpa only [ICfg.receive, List.length_modify] using h.channels
+  refine ⟨fun state hstate => ?_, h.inputPos, h.workTapes,
+    by simpa only [ICfg.receive, List.length_modify] using h.channels⟩
+  obtain rfl : next = state := Option.some.inj (Option.some.inj hstate)
+  exact hnext
 
 private theorem getD_applyTapes (tapes : List Turing.MultiTapeTM.Universal.Tape)
     (actions : List TapeAct) (index : ℕ) (hindex : index < tapes.length) :
@@ -277,12 +263,10 @@ private theorem getD_applyTapes (tapes : List Turing.MultiTapeTM.Universal.Tape)
     | succ index =>
       cases actions with
       | nil =>
-        simp only [applyTapes, List.getD_cons_succ, List.getD_nil]
-        simp [blankTape, Turing.MultiTapeTM.Universal.Tape.apply,
+        simp [applyTapes, blankTape, Turing.MultiTapeTM.Universal.Tape.apply,
           Turing.MultiTapeTM.Universal.Tape.move]
       | cons action actions =>
-        simp only [applyTapes, List.getD_cons_succ]
-        exact ih actions index (by simpa using hindex)
+        simpa only [applyTapes, List.getD_cons_succ] using ih actions index (by simpa using hindex)
 
 /-- First-order local execution is exactly native `Config.step`. -/
 theorem ICfg.toConfig_step {d : Desc} {input : List ℕ} {cfg : ICfg}
@@ -395,29 +379,20 @@ theorem ICfg.key_toConfig {d : Desc} {input : List ℕ} {cfg : ICfg}
   unfold ICfg.key Turing.MultiTapePTM.Universal.key
   simp only [Key.mk.injEq, Turing.MultiTapeTM.Universal.Key.mk.injEq, true_and]
   refine ⟨⟨?_, ?_⟩, ?_⟩
-  · have hinput := inputSymbol_val (cfg.toConfig d input).tapes
-    simpa only [ICfg.key, ICfg.inputSymbol, ICfg.toConfig, min_eq_left h.inputPos] using hinput
-  · apply List.ext_getElem
-    · simp only [ICfg.workSymbols, List.length_map, List.length_ofFn]
-      exact h.workTapes
-    · intro index hleft hright
-      have hindex : index < d.tapes := by
-        simpa only [List.length_ofFn] using hright
-      simp only [ICfg.workSymbols, List.getElem_map, List.getElem_ofFn,
-        ICfg.toConfig, Cfg.workTapeSymbols]
-      rw [List.getD_eq_getElem _ _ (by rw [h.workTapes]; exact hindex)]
-      exact Turing.MultiTapeTM.Universal.Tape.read_eq _
-  · apply List.ext_getElem
-    · simp only [ICfg.answerSymbols, List.length_map, List.length_ofFn]
-      exact h.channels
-    · intro index hleft hright
-      have hindex : index < d.operations := by
-        simpa only [List.length_ofFn] using hright
-      simp only [ICfg.answerSymbols, List.getElem_map, List.getElem_ofFn,
-        ICfg.toConfig, Config.answerSymbols,
-        Turing.MultiTapeMachine.Channel.answerSymbol]
-      rw [List.getD_eq_getElem _ _ (by rw [h.channels]; exact hindex)]
-      rfl
+  · simpa only [ICfg.key, ICfg.inputSymbol, ICfg.toConfig, min_eq_left h.inputPos] using
+      inputSymbol_val (cfg.toConfig d input).tapes
+  · refine List.ext_getElem (by simpa [ICfg.workSymbols] using h.workTapes)
+      fun index _ hright => ?_
+    simp only [ICfg.workSymbols, List.getElem_map, List.getElem_ofFn,
+      ICfg.toConfig, Cfg.workTapeSymbols]
+    rw [List.getD_eq_getElem _ _ (by simpa [h.workTapes] using hright)]
+    exact Turing.MultiTapeTM.Universal.Tape.read_eq _
+  · refine List.ext_getElem (by simpa [ICfg.answerSymbols] using h.channels)
+      fun index _ hright => ?_
+    simp only [ICfg.answerSymbols, List.getElem_map, List.getElem_ofFn,
+      ICfg.toConfig, Config.answerSymbols, Turing.MultiTapeMachine.Channel.answerSymbol]
+    rw [List.getD_eq_getElem _ _ (by simpa [h.channels] using hright)]
+    rfl
 
 /-- One decoded source instruction either finishes locally or submits a checked finite-channel
 request. The successor configuration stored in a query has not installed its reply yet. -/

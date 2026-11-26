@@ -29,12 +29,8 @@ theorem swap_adjacent_eq_take_drop {α : Type*} (xs : List α) (j : ℕ) :
       xs.take j ++ [xs[j+1], xs[j]'(by omega)] ++ xs.drop (j+2) else xs := by
   induction j generalizing xs with
   | zero =>
-    cases xs with
-    | nil => simp
-    | cons x xs =>
-      cases xs with
-      | nil => simp [List.swap]
-      | cons y ys => simp [List.swap]
+    match xs with
+    | [] | [_] | _ :: _ :: _ => simp [List.swap]
   | succ j ih =>
     cases xs with
     | nil => simp

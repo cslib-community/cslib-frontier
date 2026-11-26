@@ -54,11 +54,8 @@ theorem card_filter_voleMulCheck_le_two [Fintype F] [DecidableEq F]
         a * delta + b).card ≤ 2 := by
   let p : Polynomial F := C (x * y - z) * X ^ 2 +
     C (voleMulCrossTerm x v_x y v_y v_z - a) * X + C (voleMulConstTerm v_x v_y - b)
-  have hp : p ≠ 0 := by
-    intro h
-    have hd := natDegree_quadratic (b := voleMulCrossTerm x v_x y v_y v_z - a)
-      (c := voleMulConstTerm v_x v_y - b) (sub_ne_zero.mpr hfalse)
-    change p.natDegree = 2 at hd
+  have hp : p ≠ 0 := fun h => by
+    have hd : p.natDegree = 2 := natDegree_quadratic (sub_ne_zero.mpr hfalse)
     simp [h] at hd
   have hsub : (Finset.univ.filter fun delta : F =>
       (x * delta + v_x) * (y * delta + v_y) - (z * delta + v_z) * delta =
@@ -105,10 +102,8 @@ theorem toOuterMeasure_voleMulCheck_bind_le [Fintype F] {S : Type u} (sender : P
   change ((PMF.uniformOfFintype F).map (fun delta => (s, delta))).toOuterMeasure _ ≤ _
   rw [PMF.toOuterMeasure_map_apply]
   by_cases hfalse : x s * y s ≠ z s
-  · refine le_trans (MeasureTheory.measure_mono ?_)
-      (toOuterMeasure_voleMulCheck_le (v_x s) (v_y s) (v_z s) (a s) (b s) hfalse)
-    intro delta hdelta
-    exact hdelta.2
+  · exact (toOuterMeasure_voleMulCheck_le (v_x s) (v_y s) (v_z s) (a s) (b s) hfalse).trans'
+      (MeasureTheory.measure_mono fun _ h => h.2)
   · simp [hfalse]
 
 end Cslib.Crypto.Protocols.VOLE
