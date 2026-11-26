@@ -114,9 +114,8 @@ public theorem exists_nStep_of_step {input : List Symbol} {c c' : Cfg k Symbol S
   have hout' : ((a.apply c).map eS eY).output = out ++ (a.map eS eY).output.toList := by
     simp [hout, Action.apply, Option.toList_map]
   refine ⟨_, ⟨eS q, hstate, _, (mem_descN eS eY ntm).mpr ⟨q, _, _, a, ha, rfl⟩, ?_,
-    congrArg (Prod.mk _) hout'⟩, hshape, ?_⟩
-  · rw [key_toCfg hs out, hsc, Cfg.inputSymbol_map]; rfl
-  · rw [hout', happ, hsc, Action.apply_map]
+    congrArg (Prod.mk _) hout'⟩, hshape, by rw [hout', happ, hsc, Action.apply_map]⟩
+  rw [key_toCfg hs out, hsc, Cfg.inputSymbol_map]; rfl
 
 /-- **A step of the description is a step of the machine**: from a well-shaped configuration of the
 simulation representing a configuration of the machine, a step of the description represents a
@@ -130,8 +129,7 @@ public theorem exists_step_of_nStep {input : List Symbol} {c : Cfg k Symbol Stat
   obtain ⟨q', hq', e, he, hkey, heq⟩ := h
   obtain ⟨p, i, w, a, ha, rfl⟩ := (mem_descN eS eY ntm).mp he
   obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq
-  have hstate : (c.map eS eY).state = some q' := hsc ▸ hq'
-  obtain ⟨q, hq, rfl⟩ := Option.map_eq_some_iff.mp hstate
+  obtain ⟨q, hq, rfl⟩ := Option.map_eq_some_iff.mp ((congrArg Cfg.state hsc).symm.trans hq')
   rw [key_toCfg hs out, hsc, Cfg.inputSymbol_map] at hkey
   cases key_injective eS eY (a₁ := (p, i, w)) (a₂ := (q, c.inputSymbol, c.workTapeSymbols)) hkey
   obtain ⟨happ, hshape⟩ := toCfg_apply hs hq' out (a.map eS eY)
@@ -206,12 +204,11 @@ lemma exists_reflTransGen_fits_aux {input : List Symbol} (π : ntm.RunPath input
   induction π using RelSeries.inductionOn' with
   | singleton c =>
     obtain ⟨hinit, hshape⟩ := toCfg_init (x := input.map eY) (descN_tapes eS eY ntm)
-    simp only [RelSeries.head_singleton] at hπ
-    subst hπ
-    refine ⟨_, .refl, hshape, hinit.trans ?_, ⟨0, inv_init _ _⟩, fun i => ?_⟩
-    · exact descN_q₀ eS eY ntm ▸ (Cfg.map_init eS eY ntm.q₀).symm
-    · rw [getD_workTapes_init]
-      exact ⟨fun _ h => by simp [Tape.blank] at h, fun _ h => by simp [Tape.blank] at h⟩
+    obtain rfl : c = ntm.initCfg input := hπ
+    refine ⟨_, .refl, hshape, hinit.trans (descN_q₀ eS eY ntm ▸ (Cfg.map_init eS eY ntm.q₀).symm),
+      ⟨0, inv_init _ _⟩, fun i => ?_⟩
+    rw [getD_workTapes_init]
+    constructor <;> simp [Tape.blank]
   | snoc π c hc ih =>
     simp only [RelSeries.head_snoc] at hπ
     have hsub : ∀ c' ∈ π, c' ∈ π.snoc c hc := fun c' h => RelSeries.mem_snoc.mpr (.inl h)
@@ -290,11 +287,9 @@ public theorem accepts_iff_reflTransGen_nStep (ntm : MultiTapeNTM k Bool State)
       by simpa [hout] using hreach⟩
   · rintro ⟨s, hs, hreach⟩
     obtain ⟨π, -, hπ⟩ := exists_computationPath_of_reflTransGen eS eBit ntm hreach
-    refine ⟨π, ?_, ?_⟩
-    · simpa [SCfg.toCfg, hs] using (congrArg Cfg.state hπ).symm
-    · have := congrArg Cfg.output hπ
-      simp only [SCfg.toCfg, Cfg.map_output] at this
-      exact List.map_injective_iff.mpr eBit.injective (by simpa using this.symm)
+    refine ⟨π, by simpa [SCfg.toCfg, hs] using (congrArg Cfg.state hπ).symm, ?_⟩
+    exact List.map_injective_iff.mpr eBit.injective
+      (by simpa [SCfg.toCfg] using (congrArg Cfg.output hπ).symm)
 
 /-- **A machine within `S` cells accepts exactly when its description reaches a halted
 configuration with the output `[1]` within the space bound.** -/

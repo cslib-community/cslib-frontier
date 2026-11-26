@@ -252,35 +252,25 @@ theorem dependency_of_mem_children {k : ℕ} {parent child : HierarchyTask k}
     (h : child ∈ parent.children) : Dependency child parent := by
   cases parent with
   | nextMatrix l =>
-    simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
-    rcases h with rfl | rfl
-    · exact .matrixResidual l
-    · exact .matrixWeights l
+    rcases List.mem_pair.mp h with rfl | rfl
+    exacts [.matrixResidual l, .matrixWeights l]
   | basePreparation l i | residualPreparation l i =>
-    simp only [children, List.mem_singleton] at h
-    subst child
-    exact .bin (by constructor)
+    exact (List.mem_singleton.mp h).symm ▸ .bin (by constructor)
   | baseNormalized l i =>
-    simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
-    rcases h with rfl | rfl
-    · exact .bin (.baseRaw l i)
-    · exact .bin (.baseNormalized l i)
+    rcases List.mem_pair.mp h with rfl | rfl
+    exacts [.bin (.baseRaw l i), .bin (.baseNormalized l i)]
   | residual l =>
-    simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
-    rcases h with rfl | rfl <;> exact .bin (.residualRow l _)
+    rcases List.mem_pair.mp h with rfl | rfl <;> exact .bin (.residualRow l _)
   | residualNormalized l i =>
-    simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
-    rcases h with rfl | rfl
-    · exact .bin (.residualRaw l i)
-    · exact .bin (.residualNormalized l i)
+    rcases List.mem_pair.mp h with rfl | rfl
+    exacts [.bin (.residualRaw l i), .bin (.residualNormalized l i)]
   | row l t =>
     cases t with
     | base | previousReward =>
       cases l with
       | zero => simp [children] at h
       | succ l =>
-        simp only [children, List.mem_singleton] at h
-        subst child
+        cases List.mem_singleton.mp h
         first | exact .base l | exact .previousReward l
     | _ =>
       simp only [children] at h
@@ -490,12 +480,9 @@ theorem hierarchyTask_previousReward_succ (l : ℕ) :
     hierarchyTaskValue P e X Y S e₀ Xs Z Zt A (.row (l + 1) .previousReward) =
       fun a => hierarchyTaskValue P e X Y S e₀ Xs Z Zt A
         (.row l (.projectedReward (Fin.last P.k))) (e l a) := by
-  change rewardTransport _ _ (l + 1) *ᵥ e₀ = _
-  rw [rewardTransport_succ_mulVec]
   ext a
-  rw [hierarchyProj_mulVec]
-  simp only [hierarchyTaskValue, CorrectionSampling.value,
-    Fin.val_last, P.correctionIter_last, hierarchyCorrection_eq]
+  simp only [hierarchyTaskValue, CorrectionSampling.value, rewardTransport_succ_mulVec,
+    hierarchyProj_mulVec, Fin.val_last, P.correctionIter_last, hierarchyCorrection_eq]
 
 /-- The matrix output reads exactly its earlier base, final actual correction and copy
 weights. This is the existing residual and copy recipe, including all copy symbols. -/

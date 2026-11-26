@@ -215,10 +215,10 @@ theorem actual_normalized_fourth_moment_capacity
   have ht : vertexNormPow 4 N u X
       (actualClippedTail HP s t Ls Lt D sourceSuffix suffix k m η G ζ
         n (fun _ => HP.K) Δ raw) ≤ (T * (4 * ε)) ^ 4 := by
-    apply htail.trans
-    rw [show (((2 + 256 * ((HP.k : ℝ) + 1) / η) * (ε + ε)) / 63 + (ε + ε) * (7 / 9)) = T * ε by
-      dsimp only [T, M]; ring]
-    exact pow_le_pow_left₀ (mul_nonneg hT hε) (by nlinarith [mul_nonneg hT hε]) 4
+    have hTeq : ((2 + 256 * ((HP.k : ℝ) + 1) / η) * (ε + ε)) / 63 + (ε + ε) * (7 / 9) = T * ε := by
+      dsimp only [T, M]; ring
+    exact htail.trans
+      (hTeq ▸ pow_le_pow_left₀ (mul_nonneg hT hε) (by nlinarith [mul_nonneg hT hε]) 4)
   have hout := hbound N u hNu X Ya m hm n hnscale Δ raw truth hn
     (fun σ x y _ _ => div_nonneg (hG x y) (rate_pos k).le)
     (fun σ x y _ _ => by
@@ -231,18 +231,15 @@ theorem actual_normalized_fourth_moment_capacity
           y).2).trans hsmall
       · simp only [mul_zero, abs_zero]; linarith)
     (fun j _ σ x y _ _ hy => by
-      have hf := dyadicFloor_le_scale_div hη.le m j
+      change G x y / rate k ≤ dyadicFloor η m j / 4 at hy
       have hq := genuineMean_zero HP s t Ls Lt (CopyPadding.identifier D sourceSuffix x) D suffix
-        k G x y (by
-        change G x y / rate k ≤ dyadicFloor η m j / 4 at hy
-        linarith)
+        k G x y (by linarith [dyadicFloor_le_scale_div hη.le m j])
       simp only [truth, genuineTarget, Fin.isValue, one_ne_zero, ↓reduceIte, hq, ite_self,
         mul_zero])
     (4 * ε) T (by positivity) hT hrow (by
       unfold actualClippedTail at ht
       dsimp only [actualClippedTail, meanFirstEvent, truth, genuineTarget, Ya, actualPrefix] at ht ⊢
       simpa only [Fin.isValue, one_ne_zero, ↓reduceIte] using ht)
-  dsimp only at hout
   have hrestrict : rowNormPow 4 N u X Yt (fun σ x y =>
       actualNormalizedCapacity HP ζ η t Lt D suffix k m n Δ raw σ x y ^ (4⁻¹ : ℝ) -
       genuineNormalizedRecipe HP s t Ls Lt D sourceSuffix suffix k G σ x y ^ (4⁻¹ : ℝ)) ≤
@@ -250,13 +247,11 @@ theorem actual_normalized_fourth_moment_capacity
       (iterate {z | Ya σ z} n (fun _ => HP.K)
         (dyadicFloor η m) (Δ σ x) ⟨0, raw σ x⟩ m) ⟨0, truth σ x⟩ y) := by
     rw [←row_mask_subset X Ya Yt hsub]
-    apply row_mono_abs X Ya hNu
-    intro σ x y _ _
+    refine row_mono_abs X Ya hNu _ _ fun σ x y _ _ => ?_
     by_cases hy : Yt σ y
     · rw [ite_eq_left hy, genuine_recipe_identity HP hζ]
       simp only [actualNormalizedCapacity, hy, ↓reduceIte, stateRootError, truth, Yt, Ya, le_refl]
-    · rw [ite_eq_right hy, abs_zero]
-      exact abs_nonneg _
+    · simp only [ite_eq_right hy, abs_zero, abs_nonneg]
   refine hrestrict.trans (hout.trans_eq ?_)
   dsimp only [C]; ring
 end Matrix.HierarchyParams.H4RankEnvironment.NormalizedMoments

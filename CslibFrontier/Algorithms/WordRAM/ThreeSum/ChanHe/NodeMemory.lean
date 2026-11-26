@@ -72,11 +72,9 @@ theorem roundMemory_before (L : Layout) (values : Fin 3 → ℕ → ℤ) (j : Fi
   have ho := L.descriptor_lt_packed j
   apply CountPlace.memory_outside _ _ _ _ _ _ _ _ _ _ _ _ L.N _ hM hN
     (by omega) (by split_ifs <;> omega)
-  · dsimp only [Layout.heavy]; omega
-  · omega
-  · dsimp only [Layout.scratch]; omega
-  · dsimp only [Layout.hist, Layout.scratch]; omega
-  · omega
+  all_goals
+    try dsimp only [Layout.heavy, Layout.scratch, Layout.hist]
+    omega
 
 /-- Every complete call preserves every other packed column, including column zero. -/
 theorem roundMemory_other (L : Layout) (values : Fin 3 → ℕ → ℤ) (j : Fin 3)
@@ -147,7 +145,7 @@ theorem memory_cells (L : Layout) (values : Fin 3 → ℕ → ℤ) (mem : ℕ �
       (u := 4 * i + c) (by omega) (by omega)
   refine ⟨?_, ?_, ?_, ?_⟩
   · change roundMemory L values 2 _ _ = _
-    rw [show L.packed + 4 * i = L.packed + 4 * i + 0 by omega,
+    rw [← Nat.add_zero (L.packed + 4 * i),
       other 2 _ 0 (by decide) (by decide), other 1 _ 0 (by decide) (by decide),
       other 0 _ 0 (by decide) (by decide)]
     simpa [Padding.pattern, e₀] using hp 0 (by decide)
@@ -178,21 +176,13 @@ theorem memory_oneArray (L : Layout) (values : Fin 3 → ℕ → ℤ) (mem : ℕ
     dsimp only [Layout.gap]
     push_cast
     ring
-  by_cases h1 : u % 4 = 1
-  · rw [show L.packed + u = L.packed + 4 * (u / 4) + 1 by omega, h₁]
+  have hu_div : L.packed + u = L.packed + 4 * (u / 4) + u % 4 := by omega
+  have hmod : u % 4 = 0 ∨ u % 4 = 1 ∨ u % 4 = 2 ∨ u % 4 = 3 := by omega
+  rw [hu_div]
+  rcases hmod with h | h | h | h <;>
     simp only [Cslib.Algorithms.ThreeSum.ChanHe.Node.oneArray,
-      Cslib.Algorithms.ThreeSum.oneArray, h1, ↓reduceIte, hgap, node]
-  by_cases h2 : u % 4 = 2
-  · rw [show L.packed + u = L.packed + 4 * (u / 4) + 2 by omega, h₂]
-    simp only [Cslib.Algorithms.ThreeSum.ChanHe.Node.oneArray,
-      Cslib.Algorithms.ThreeSum.oneArray, h2, ↓reduceIte, hgap, node, Nat.reduceEqDiff]
-  by_cases h3 : u % 4 = 3
-  · rw [show L.packed + u = L.packed + 4 * (u / 4) + 3 by omega, h₃]
-    simp only [Cslib.Algorithms.ThreeSum.ChanHe.Node.oneArray,
-      Cslib.Algorithms.ThreeSum.oneArray, h3, ↓reduceIte, hgap, node, Nat.reduceEqDiff]
-  · rw [show L.packed + u = L.packed + 4 * (u / 4) by omega, h₀]
-    simp only [Cslib.Algorithms.ThreeSum.ChanHe.Node.oneArray,
-      Cslib.Algorithms.ThreeSum.oneArray, h1, h2, h3, ↓reduceIte, hgap]
+      Cslib.Algorithms.ThreeSum.oneArray, h, Nat.add_zero, ↓reduceIte, Nat.reduceEqDiff,
+      h₀, h₁, h₂, h₃, hgap, node]
 
 /-- Every count cell and every used heavy cell survives subsequent rounds. -/
 theorem memory_heavy (L : Layout) (values : Fin 3 → ℕ → ℤ) (mem : ℕ → ℕ)

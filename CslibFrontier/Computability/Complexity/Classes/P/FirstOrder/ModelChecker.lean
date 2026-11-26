@@ -211,9 +211,7 @@ private theorem foEval_eq_true_iff {α : Type w} (σ : α → Fin a.1) {k : ℕ}
     simp only [foEval, sum_elim_val, termValue_eq, relBit_eq_true_iff v hinput,
       BoundedFormula.Realize]
   | imp φ ψ ihφ ihψ =>
-    simp only [foEval, Bool.or_eq_true, Bool.not_eq_true', ← Bool.not_eq_true, ihφ, ihψ,
-      BoundedFormula.realize_imp]
-    tauto
+    simp [foEval, ← Bool.not_eq_true, ihφ, ihψ]; tauto
   | all φ ih =>
     simp only [foEval, List.all_eq_true, List.mem_range, BoundedFormula.realize_all]
     exact ⟨fun h x => (ih (Fin.snoc xs x)).mp (fin_snoc_val xs x ▸ h x x.isLt),
@@ -260,13 +258,10 @@ private theorem eval_correct {Γ : List ℕ} {α : Type w}
         tableRelation a.1 k (tableStep table) =
           step (body 0) (relations Γ a.1 tables) σ (tableRelation a.1 k table) := by
       ext xs
-      change (tableStep table).getD (tupleIndex xs) false = true ↔ _
-      rw [show tableStep table = _ from rfl, getD_tableOf, sum_elim_val,
-        ih 0 hbody (table :: tables) (Sum.elim σ xs)]
-      exact iff_of_eq (congrArg
-        (fun ρ : Operator.RelEnv (k :: Γ) (Fin a.1) =>
-          (body 0).Realize interpretation ρ (Sum.elim σ xs))
-        (relations_cons Γ a.1 k table tables))
+      simp only [tableRelation, Set.mem_ofPred_eq, tableStep, getD_tableOf, sum_elim_val,
+        ih 0 hbody (table :: tables) (Sum.elim σ xs), step]
+      exact iff_of_eq <| congrArg ((body 0).Realize interpretation · _)
+        (relations_cons Γ a.1 k table tables)
     have hiter (i : ℕ) :
         tableRelation a.1 k (tableStep^[i] []) =
           (step (body 0) (relations Γ a.1 tables) σ)^[i] ∅ := by
@@ -279,10 +274,11 @@ private theorem eval_correct {Γ : List ℕ} {α : Type w}
       (valuesIndex a.1 (fun j => termValue a.1 (fun x => (σ x : ℕ)) (ts j))) false = true ↔ _
     simp only [termValue_eq, valuesIndex_val]
     change (fun j => (ts j).realize σ) ∈ tableRelation a.1 k (tableStep^[a.1 ^ k] []) ↔ _
-    rw [hiter, show (step (body 0) (relations Γ a.1 tables) σ)^[a.1 ^ k] ∅ =
-      (stepHom (body 0) hpos (relations Γ a.1 tables) σ).lfp by
-        simpa only [Fintype.card_fin] using
-          iterate_card_pow_eq_lfp (body 0) hpos (relations Γ a.1 tables) σ]
+    have hlfp : (step (body 0) (relations Γ a.1 tables) σ)^[a.1 ^ k] ∅ =
+        (stepHom (body 0) hpos (relations Γ a.1 tables) σ).lfp := by
+      simpa only [Fintype.card_fin] using
+        iterate_card_pow_eq_lfp (body 0) hpos (relations Γ a.1 tables) σ
+    rw [hiter, hlfp]
 
 end Correctness
 

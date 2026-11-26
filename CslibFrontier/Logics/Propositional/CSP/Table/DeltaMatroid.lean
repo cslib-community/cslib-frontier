@@ -57,9 +57,8 @@ Repeated names in the supplied scope do not change this local relation claim. -/
 theorem isEvenDeltaMatroid_exactlyOne {V : Type*} (scope : List V) (hne : scope ≠ []) :
     IsEvenDeltaMatroid (booleanRelation arity sem (exactlyOne scope)) := by
   rw [booleanRelation_exactlyOne]
-  have hp : 0 < scope.length := List.length_pos_iff.mpr hne
   change IsEvenDeltaMatroid (oneHotRelation (Fin scope.length))
-  let : Nonempty (Fin scope.length) := ⟨⟨0, hp⟩⟩
+  let : Nonempty (Fin scope.length) := ⟨⟨0, List.length_pos_iff.mpr hne⟩⟩
   exact isEvenDeltaMatroid_oneHotRelation
 
 /-- Zero connectors give the empty relation, excluded by the nonempty delta-matroid convention. -/
@@ -114,12 +113,9 @@ private noncomputable def splitEquiv {width : ℕ} {positions : List ℕ}
 private theorem project_ofFn {width : ℕ} (positions : List ℕ) (x : Fin width → Bool) :
     project (List.ofFn x) (outsidePositions width positions) =
       List.ofFn (fun j => x (outsideCoord positions j)) := by
-  apply List.ext_getElem
-  · simp [project]
-  · intro j hj hk
-    have hj' : j < (outsidePositions width positions).length := by simpa using hk
-    have hb := (outside_mem.mp (List.getElem_mem hj')).1
-    simp [project, outsideCoord, hb]
+  refine List.ext_getElem (by simp [project]) fun j hj hk => ?_
+  have hb := (outside_mem.mp (List.getElem_mem (by simpa using hk))).1
+  simp [project, outsideCoord, hb]
 
 private theorem deviations_eq_count {width : ℕ} {positions : List ℕ}
     (h : validPositions width positions = true) (reference : List Bool) (x : Fin width → Bool) :
@@ -156,8 +152,7 @@ private def outputEquiv (n : ℕ) : Fin n ⊕ Unit ≃ Fin (n + 1) :=
 private theorem ofFn_output (n : ℕ) (x : Fin (n + 1) → Bool) :
     List.ofFn x = List.ofFn (fun j => x (outputEquiv n (.inl j))) ++
       [x (outputEquiv n (.inr ()))] := by
-  rw [List.ofFn_succ_last]
-  rfl
+  exact List.ofFn_succ_last
 
 private theorem mem_comp_starAt_iff {m n : ℕ} (R : Set ((Fin m ⊕ Fin n) → Bool))
     (reference : Fin n → Bool) (x : (Fin m ⊕ Unit) → Bool) :
@@ -207,23 +202,18 @@ theorem isEvenDeltaMatroid_contract {table : Table} {reference : List Bool}
     · rintro ⟨z, hz, hs⟩
       let old : Fin table.arity → Bool :=
         fun i => Sum.elim (fun j => y (F (.inl j))) z (E.symm i)
-      have hsem : table.sem (List.ofFn old) = true := hz
-      have hold := (sem_eq_true.mp hsem).2
+      have hold := (sem_eq_true.mp hz).2
       have ho : project (List.ofFn old) (outsidePositions reference.length positions) =
           List.ofFn (fun j => y (F (.inl j))) := by
         rw [href, project_ofFn]
-        congr 1
-        ext j
-        exact congrArg (Sum.elim (fun j => y (F (.inl j))) z)
-          (E.symm_apply_apply (.inl j))
+        exact congrArg List.ofFn (funext fun j =>
+          congrArg (Sum.elim (fun j => y (F (.inl j))) z) (E.symm_apply_apply (.inl j)))
       have hdv : deviations reference (List.ofFn old) positions =
           (List.ofFn (fun j => z j != r j)).count true := by
         rw [deviations_eq_count hp]
-        congr 2
-        ext j
-        exact congrArg (fun b => b != r j)
-          (congrArg (Sum.elim (fun j => y (F (.inl j))) z)
-            (E.symm_apply_apply (.inr j)))
+        refine congrArg (List.count true) (congrArg List.ofFn (funext fun j => ?_))
+        exact congrArg (· != r j)
+          (congrArg (Sum.elim (fun j => y (F (.inl j))) z) (E.symm_apply_apply (.inr j)))
       refine ⟨List.ofFn old, hold, ?_⟩
       rcases hs with ⟨hs, hconn⟩ | ⟨hs, hconn⟩ <;> [left; right] <;>
         exact ⟨hdv.trans hs, by rw [ho, hrow, hconn]⟩
@@ -248,12 +238,11 @@ theorem isEvenDeltaMatroid_contract {table : Table} {reference : List Bool}
       refine ⟨z, ?_, ?_⟩
       · change table.sem (List.ofFn (fun i =>
           Sum.elim (fun j => y (F (.inl j))) z (E.symm i))) = true
-        have heq : (fun i => Sum.elim (fun j => y (F (.inl j))) z (E.symm i)) = a := by
-          funext i
-          obtain ⟨j, rfl⟩ := E.surjective i
-          rw [E.symm_apply_apply]
-          rcases j with j | j
-          exacts [(hout j).symm, rfl]
+        have heq : (fun i => Sum.elim (fun j => y (F (.inl j))) z (E.symm i)) = a :=
+          funext (E.surjective.forall.mpr fun j => by
+            rw [E.symm_apply_apply]
+            rcases j with j | j
+            exacts [(hout j).symm, rfl])
         rw [heq, ha]
         exact sem_eq_true.mpr ⟨hw, hold⟩
       · rcases hs with ⟨hs, heq⟩ | ⟨hs, heq⟩ <;> rw [hrow] at heq <;> [left; right] <;>
@@ -265,9 +254,9 @@ theorem isEvenDeltaMatroid_contract {table : Table} {reference : List Bool}
       simpa [row, project] using (arity_contract hc).symm
     let y : Fin (contract table reference positions).arity → Bool := fun j => row[j]'(by omega)
     have hy : List.ofFn y = row := List.ext_getElem (by simp [hlen]) fun j _ _ => by simp [y]
-    exact ⟨fun i => y (F i), (Set.ext_iff.mp he y).mpr
-      (show (contract table reference positions).sem (List.ofFn y) = true from
-        hy.symm ▸ sem_contract_reference hc)⟩
+    have hsem_y : (contract table reference positions).sem (List.ofFn y) = true :=
+      hy.symm ▸ sem_contract_reference hc
+    exact ⟨fun i => y (F i), (Set.ext_iff.mp he y).mpr hsem_y⟩
   rw [← he]
   exact ((hR.reindex E.symm).comp (isEvenDeltaMatroid_starAt r) hne).reindex F
 
