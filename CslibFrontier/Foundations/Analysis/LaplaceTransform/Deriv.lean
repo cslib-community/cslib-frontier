@@ -85,21 +85,7 @@ theorem laplace_deriv [CompleteSpace E] {M σ : ℝ} (hf0 : ContinuousWithinAt f
   have hint : IntegrableOn
       (fun t : ℝ => Complex.exp (-s * t) • f' t + (-s * Complex.exp (-s * t)) • f t) (Ioi 0) := by
     exact Integrable.add hL' h2
-  have hlim : Tendsto (fun τ : ℝ => Complex.exp (-s * τ) • f τ) atTop (𝓝 0) := by
-    have h0 : Tendsto (fun t : ℝ => M * Real.exp ((σ - s.re) * t)) atTop (𝓝 0) := by
-      simpa using (Real.tendsto_exp_atBot.comp
-        (tendsto_id.const_mul_atTop_of_neg (sub_neg.2 hs))).const_mul M
-    refine squeeze_zero_norm' ?_ h0
-    filter_upwards [eventually_gt_atTop 0] with t ht
-    rw [norm_smul, Complex.norm_exp]
-    calc Real.exp (-s * t).re * ‖f t‖ ≤ Real.exp (-s * t).re * (M * Real.exp (σ * t)) := by
-          gcongr
-          exact hfM t ht
-      _ = M * Real.exp ((σ - s.re) * t) := by
-          rw [mul_left_comm, ← Real.exp_add]
-          congr 2
-          simp
-          ring
+  have hlim := tendsto_cexp_smul_of_norm_le_exp hfM hs
   have h := integral_Ioi_of_hasDerivAt_of_tendsto hcont hG hint hlim
   rw [integral_add hL' h2] at h
   simp only [mul_smul] at h

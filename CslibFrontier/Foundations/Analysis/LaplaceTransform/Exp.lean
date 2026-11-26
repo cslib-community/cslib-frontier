@@ -102,22 +102,7 @@ private theorem laplace_exp_smul_mul_and
     rw [smul_mul_assoc, mul_smul_comm, mul_sub, sub_mul, (hcomm t).eq, Algebra.commutes]
   have hint : IntegrableOn (fun t => Φ t * (a - algebraMap ℂ 𝔸 s)) (Ioi 0) :=
     (ContinuousLinearMap.mul ℂ 𝔸).flip (a - algebraMap ℂ 𝔸 s) |>.integrable_comp hL
-  have hlim : Tendsto Φ atTop (𝓝 0) := by
-    have h0 : Tendsto (fun t : ℝ => M * Real.exp ((ω - s.re) * t)) atTop (𝓝 0) := by
-      simpa using (Real.tendsto_exp_atBot.comp
-        (tendsto_id.const_mul_atTop_of_neg (sub_neg.2 hs))).const_mul M
-    refine squeeze_zero_norm' ?_ h0
-    filter_upwards [eventually_gt_atTop 0] with t ht
-    rw [norm_smul, Complex.norm_exp]
-    calc Real.exp (-s * t).re * ‖exp ((t : ℂ) • a)‖ ≤
-          Real.exp (-s * t).re * (M * Real.exp (ω * t)) := by
-          gcongr
-          exact hM t ht
-      _ = M * Real.exp ((ω - s.re) * t) := by
-          rw [mul_left_comm, ← Real.exp_add]
-          congr 2
-          simp
-          ring
+  have hlim : Tendsto Φ atTop (𝓝 0) := tendsto_cexp_smul_of_norm_le_exp hM hs
   have hcont : ContinuousWithinAt Φ (Ici 0) 0 :=
     (((hc 0).continuousAt).smul (continuous_exp_ofReal_smul a).continuousAt).continuousWithinAt
   have h := integral_Ioi_of_hasDerivAt_of_tendsto hcont hΦ hint hlim

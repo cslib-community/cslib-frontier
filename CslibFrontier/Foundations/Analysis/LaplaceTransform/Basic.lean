@@ -58,7 +58,8 @@ order here, so it does not apply.
   `ContinuousLinearMap.laplace_comp`, `laplace_apply`.
 * `LaplaceConvergent.of_re_le`: convergence at `s` gives convergence on `re s' ≥ re s`.
 * `laplaceConvergent_of_norm_le_exp`, `laplaceConvergent_of_isBigO_exp`: convergence for
-  exponential order `σ` on `re s > σ`.
+  exponential order `σ` on `re s > σ`; `tendsto_cexp_smul_of_norm_le_exp`: the damped integrand
+  tends to `0`.
 * `hasDerivAt_laplace`, `differentiableOn_laplace`: holomorphy on `re s > σ`, with
   `deriv (laplace f) s = -laplace (t • f) s`.
 * `laplace_cexp_smul`: the frequency-shift rule `laplace (exp (a t) • f) s = laplace f (s - a)`.
@@ -280,6 +281,24 @@ theorem laplaceConvergent_of_isBigO_exp {σ : ℝ} (hf : LocallyIntegrableOn f (
           ring_nf
   exact (hloc.integrableOn_of_isBigO_atTop ho' ⟨Ioi 0, Ioi_mem_atTop 0,
     integrableOn_exp_mul_Ioi (by linarith) 0⟩).mono_set Ioi_subset_Ici_self
+
+/-- **The damped integrand vanishes at infinity.** If `‖f t‖ ≤ M exp (σ t)` for `t > 0` and
+`σ < re s`, then `exp (-s t) • f t → 0` as `t → ∞`. -/
+theorem tendsto_cexp_smul_of_norm_le_exp {M σ : ℝ}
+    (hM : ∀ t ∈ Ioi (0 : ℝ), ‖f t‖ ≤ M * Real.exp (σ * t)) (hs : σ < s.re) :
+    Tendsto (fun t : ℝ => Complex.exp (-s * t) • f t) atTop (𝓝 0) := by
+  have h0 : Tendsto (fun t : ℝ => M * Real.exp ((σ - s.re) * t)) atTop (𝓝 0) := by
+    simpa using (Real.tendsto_exp_atBot.comp
+      (tendsto_id.const_mul_atTop_of_neg (sub_neg.2 hs))).const_mul M
+  refine squeeze_zero_norm' ?_ h0
+  filter_upwards [eventually_gt_atTop 0] with t ht
+  rw [norm_smul, norm_cexp_neg_mul]
+  calc Real.exp (-s.re * t) * ‖f t‖ ≤ Real.exp (-s.re * t) * (M * Real.exp (σ * t)) := by
+        gcongr
+        exact hM t ht
+    _ = M * Real.exp ((σ - s.re) * t) := by
+        rw [mul_left_comm, ← Real.exp_add]
+        ring_nf
 
 /-! ### Holomorphy -/
 
