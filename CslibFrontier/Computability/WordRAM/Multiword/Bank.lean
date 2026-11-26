@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Multiword.Mul
-import CslibFrontier.Tactic.FinIndex
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -38,7 +37,7 @@ are part of the code, so even width two requires no address large enough to name
 namespace Cslib.WordRAM.Multiword.Bank
 
 open Workspace
-open Schoolbook (registers)
+open Schoolbook (registers registers_bounds nodup_registers)
 
 variable {n : ℕ}
 
@@ -56,29 +55,24 @@ theorem length_regs (j : Fin n) : (regs j).length = 18 := by
 /-- Physical register indices in `regs j` lie in `[44 + 18 * j, 44 + 18 * j + 18)`. -/
 theorem mem_regs {j : Fin n} {i : Fin (capacity n + 4)} (hi : i ∈ regs j) :
     44 + 18 * j.val ≤ i.val ∧ i.val < 44 + 18 * j.val + 18 := by
-  obtain ⟨k, rfl⟩ := List.mem_ofFn.mp hi
-  dsimp
+  have := registers_bounds hi
   omega
 
 /-- Every register of `regs j` is a non-scratch digit register (`IsDigit`). -/
-theorem digit_regs (j : Fin n) : ∀ i ∈ regs j, IsDigit i := by
-  intro i hi
+theorem digit_regs (j : Fin n) : ∀ i ∈ regs j, IsDigit i := fun _ hi => by
   have := mem_regs hi
   wram_omega
 
 /-- The register list `regs j` of a bank entry has no duplicates. -/
-theorem nodup_regs (j : Fin n) : (regs j).Nodup := by
-  apply List.nodup_ofFn_ofInjective
-  fin_index
+theorem nodup_regs (j : Fin n) : (regs j).Nodup :=
+  nodup_registers _ _ _
 
 /-- Distinct bank entries occupy disjoint lists of physical registers. -/
-theorem disjoint_regs {j k : Fin n} (hjk : j ≠ k) : List.Disjoint (regs j) (regs k) := by
-  apply List.disjoint_left.mpr
-  intro i hi hj
-  have := mem_regs hi
-  have := mem_regs hj
-  have hne : j.val ≠ k.val := fun h => hjk (Fin.ext h)
-  omega
+theorem disjoint_regs {j k : Fin n} (hjk : j ≠ k) : List.Disjoint (regs j) (regs k) :=
+  List.disjoint_left.mpr fun _ hi hj => by
+    have := mem_regs hi
+    have := mem_regs hj
+    exact absurd (Fin.ext (by omega)) hjk
 
 /-- Bounded half-word digits and the values of all virtual registers. -/
 def Encodes (w : ℕ) (x : Data (capacity n + 4)) (v : Fin n → ℕ) : Prop :=
@@ -94,15 +88,11 @@ theorem encodes_update {w : ℕ} {x y : Data (capacity n + 4)} {v : Fin n → �
   intro j
   by_cases hj : j = d
   · subst j
-    simpa only [Function.update_self] using And.intro hy hz
-  · have he (i : Fin (capacity n + 4)) (hi : i ∈ regs j) : y.regs i = x.regs i := by
-      have hb := mem_regs hi
-      exact hp i (by omega) (fun hd => List.disjoint_left.mp (disjoint_regs hj) hi hd)
+    simpa only [Function.update_self] using ⟨hy, hz⟩
+  · have he (i : Fin (capacity n + 4)) (hi : i ∈ regs j) : y.regs i = x.regs i :=
+      hp i (by have := mem_regs hi; omega) (List.disjoint_left.mp (disjoint_regs hj) hi)
     rw [Function.update_of_ne hj]
-    refine ⟨fun i hi => ?_, ?_⟩
-    · rw [he i hi]
-      exact (hx j).1 i hi
-    · exact (value_congr he).trans (hx j).2
+    exact ⟨fun i hi => he i hi ▸ (hx j).1 i hi, (value_congr he).trans (hx j).2⟩
 
 /-- Every six-word value fits in one bank entry, including odd physical widths. -/
 theorem six_word_capacity {w : ℕ} (hw : 2 ≤ w) : 2 ^ (6 * w) ≤ radix w ^ 18 := by

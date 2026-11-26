@@ -62,31 +62,25 @@ theorem runList_ofDeterministic (machine : MultiTapeTM k Symbol State) (fuel : �
   | succ fuel ih =>
     cases hs : cfg.state with
     | none =>
-      have hhalt : machine.runFrom cfg (fuel + 1) = cfg :=
-        Function.iterate_fixed (MultiTapeTM.step_of_halt hs) _
-      simp [runList_halted _ hs, hhalt]
+      simp [runList_halted _ hs, MultiTapeTM.runFrom,
+        Function.iterate_fixed (MultiTapeTM.step_of_halt hs)]
     | some state =>
       rw [runList_succ _ cfg fuel state hs, actions_ofDeterministic machine cfg state hs]
-      simp only [List.flatMap_singleton, ih, MultiTapeTM.runFrom, Function.iterate_succ_apply]
-      rw [MultiTapeTM.step_of_state hs]
+      simp only [List.flatMap_singleton, ih, MultiTapeTM.runFrom, Function.iterate_succ_apply,
+        MultiTapeTM.step_of_state hs]
 
 /-- Every local view in the singleton lift has exactly one occurrence. -/
 theorem nonblocking_ofDeterministic (machine : MultiTapeTM k Symbol State) :
     (ofDeterministic machine).Nonblocking := by
-  intro state symbol work
-  simp [ofDeterministic]
+  exact fun _ _ _ => by simp [ofDeterministic]
 
 /-- Halting clocks agree exactly, without inserting a choice or delay after early halting. -/
 theorem haltsWithin_ofDeterministic_iff (machine : MultiTapeTM k Symbol State) (fuel : ℕ)
     (cfg : Cfg k Symbol State input) :
     (ofDeterministic machine).HaltsWithin fuel cfg ↔ (machine.runFrom cfg fuel).Halted := by
-  constructor
-  · intro h
-    apply h.halted_of_mem_runList
-    simp [runList_ofDeterministic]
-  · intro h
-    apply haltsWithin_of_halted _ (nonblocking_ofDeterministic machine).actions_ne_nil fuel cfg
-    simpa [runList_ofDeterministic] using h
+  exact ⟨fun h => h.halted_of_mem_runList (by simp [runList_ofDeterministic]), fun h =>
+    haltsWithin_of_halted _ (nonblocking_ofDeterministic machine).actions_ne_nil fuel cfg
+      (by simpa [runList_ofDeterministic] using h)⟩
 
 /-- A halted deterministic computation contributes one branch exactly when its output passes. -/
 theorem branchCount_ofDeterministic (machine : MultiTapeTM k Symbol State)
@@ -94,7 +88,6 @@ theorem branchCount_ofDeterministic (machine : MultiTapeTM k Symbol State)
     (fuel : ℕ) (cfg : Cfg k Symbol State input) (h : (machine.runFrom cfg fuel).Halted) :
     (ofDeterministic machine).branchCount verdict fuel cfg =
       if verdict (machine.runFrom cfg fuel).output then 1 else 0 := by
-  rw [← countP_runList, runList_ofDeterministic]
-  simp [h]
+  simp [← countP_runList, runList_ofDeterministic, h]
 
 end Turing.MultiTapeCTM

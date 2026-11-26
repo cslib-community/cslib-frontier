@@ -84,27 +84,21 @@ variable {α : Type*} [DecidableEq α]
 
 /-- `F₀` is the number of distinct items of the stream. -/
 theorem freqMoment_zero (s : List α) : freqMoment 0 s = s.toFinset.card := by
-  rw [freqMoment, Finset.card_eq_sum_ones]
-  simp only [pow_zero]
+  simp [freqMoment]
 
 /-- Renaming the items of a stream injectively keeps its frequency moments. -/
 theorem freqMoment_map {α' : Type*} [DecidableEq α'] {f : α → α'} (hf : Function.Injective f)
     (k : ℕ) (s : List α) : freqMoment k (s.map f) = freqMoment k s := by
-  unfold freqMoment
-  have hT : (s.map f).toFinset = s.toFinset.image f := by
-    ext b
-    simp only [List.mem_toFinset, List.mem_map, Finset.mem_image]
-  rw [hT, Finset.sum_image fun a _ b _ h => hf h]
+  have hT : (s.map f).toFinset = s.toFinset.image f := Finset.ext fun _ => by simp
+  rw [freqMoment, freqMoment, hT, Finset.sum_image fun _ _ _ _ h => hf h]
   exact Finset.sum_congr rfl fun a _ => by rw [List.count_map_of_injective _ _ hf]
 
 /-- For `k ≠ 0`, `F_k` is the sum of `(count a s) ^ k` over any set of items containing those of
 `s`. -/
 theorem freqMoment_eq_sum_of_subset {k : ℕ} (hk : k ≠ 0) {s : List α} {T : Finset α}
     (hT : s.toFinset ⊆ T) : freqMoment k s = ∑ a ∈ T, s.count a ^ k := by
-  unfold freqMoment
-  refine Finset.sum_subset hT fun a _ ha => ?_
-  rw [List.mem_toFinset, ← List.count_eq_zero] at ha
-  rw [ha, Nat.zero_pow (Nat.pos_of_ne_zero hk)]
+  exact Finset.sum_subset hT fun _ _ ha => by
+    rw [List.count_eq_zero.2 (mt List.mem_toFinset.2 ha), Nat.zero_pow (Nat.pos_of_ne_zero hk)]
 
 /-- Prepending an item `a` to the stream replaces the term `(count a s) ^ k` of `F_k` by
 `(count a s + 1) ^ k`, for `k ≠ 0`. -/
@@ -139,11 +133,10 @@ theorem one_le_maxFreq {s : List α} (hs : s ≠ []) : 1 ≤ maxFreq s := by
     (List.mem_toFinset.2 ha))
 
 theorem two_le_maxFreq_of_not_nodup {s : List α} (hs : ¬s.Nodup) : 2 ≤ maxFreq s := by
-  rw [List.nodup_iff_count_le_one] at hs
-  push Not at hs
+  simp only [List.nodup_iff_count_le_one, not_forall, not_le] at hs
   obtain ⟨a, ha⟩ := hs
-  have hmem : a ∈ s := List.count_pos_iff.1 (by omega)
-  exact ha.trans_le (Finset.le_sup (f := fun a => s.count a) (List.mem_toFinset.2 hmem))
+  exact ha.trans_le (Finset.le_sup (f := s.count)
+    (List.mem_toFinset.2 (List.count_pos_iff.1 (by omega))))
 
 /-- The items of a stream are distinct exactly when no item occurs twice. -/
 theorem maxFreq_le_one_iff {s : List α} : maxFreq s ≤ 1 ↔ s.Nodup :=
@@ -161,10 +154,8 @@ values are listed by the streams `u` and `v`: the inner product of their frequen
 of `u`. -/
 theorem joinSize_eq_sum_of_subset {u v : List α} {T : Finset α} (hT : u.toFinset ⊆ T) :
     joinSize u v = ∑ a ∈ T, u.count a * v.count a := by
-  unfold joinSize
-  refine Finset.sum_subset hT fun a _ ha => ?_
-  rw [List.mem_toFinset, ← List.count_eq_zero] at ha
-  rw [ha, zero_mul]
+  exact Finset.sum_subset hT fun _ _ ha =>
+    mul_eq_zero_of_left (List.count_eq_zero.2 (mt List.mem_toFinset.2 ha)) _
 
 /-- The join size is symmetric: `|F ⋈ G| = |G ⋈ F|`. -/
 theorem joinSize_comm (u v : List α) : joinSize u v = joinSize v u := by
@@ -214,8 +205,7 @@ theorem length_filter_product_eq_joinSize_filterMap (k : β → Option α) (l : 
     | some c =>
       rw [List.map_cons, List.sum_cons, List.count_filterMap, List.filter_map, List.length_map,
         ← List.countP_eq_length_filter]
-      refine congrArg (· + _) (List.countP_congr fun b _ => ?_)
-      simp [h]
+      exact congrArg (· + _) (List.countP_congr fun _ _ => by simp [h])
 
 /-- **Equijoin cardinality.** If the tuples `a` of `u` and `b` of `v` have join keys `k a` and
 `l b`, the pairs `(a, b)` of `u ×ˢ v` with `k a = l b` number `joinSize (u.map k) (v.map l)`. -/

@@ -47,10 +47,8 @@ theorem sampleCenteredBinomial_tail_le {η : ℕ} (hη : 0 < η) {B : ℝ} (hB :
     have h := countTrue_deviation η (uniform Bool) (ε := B / 2) (by positivity)
     have hmean : (eval (uniform Bool) true).toReal = 1 / 2 := by
       norm_num [eval_uniform, PMF.uniformOfFintype_apply]
-    rw [hmean] at h
-    have hexponent : -2 * (B / 2) ^ 2 / (η : ℝ) = -B ^ 2 / (2 * η) := by
-      field_simp
-    simpa only [mul_one_div, hexponent] using h
+    simpa only [hmean, mul_one_div,
+      show -2 * (B / 2) ^ 2 / (η : ℝ) = -B ^ 2 / (2 * η) by field_simp] using h
   have hlaw : eval (sampleCenteredBinomial η) =
       μ.bind (fun a => μ.map (fun b : ℕ => (a : ℤ) - (b : ℤ))) := by
     simp [sampleCenteredBinomial, μ, eval_bind]
@@ -66,19 +64,15 @@ theorem sampleCenteredBinomial_tail_le {η : ℕ} (hη : 0 < η) {B : ℝ} (hB :
       change B ≤ |(((a : ℤ) - b : ℤ) : ℝ)| at hb
       push_cast at hb
       change B / 2 ≤ |(b : ℝ) - η / 2|
-      by_contra hn
-      have hnb := lt_of_not_ge hn
       have htri : |(a : ℝ) - b| ≤ |(a : ℝ) - η / 2| + |(b : ℝ) - η / 2| := by
-        convert abs_sub ((a : ℝ) - η / 2) ((b : ℝ) - η / 2) using 1; congr 1; ring
+        simpa only [sub_sub_sub_cancel_right] using abs_sub ((a : ℝ) - η / 2) ((b : ℝ) - η / 2)
       linarith
-    _ ≤ ENNReal.ofReal C + ENNReal.ofReal C := by
-      apply add_le_add _ le_rfl
-      simpa only [Set.compl_ofPred, not_lt] using hcount
+    _ ≤ ENNReal.ofReal C + ENNReal.ofReal C :=
+      add_le_add (by simpa only [Set.compl_ofPred, not_lt] using hcount) le_rfl
     _ = _ := by
       rw [← ENNReal.ofReal_add hC hC]
-      congr 1
       dsimp only [C]
-      ring
+      exact congrArg ENNReal.ofReal (by ring)
 
 /-- A strict tail excludes atoms exactly at the cutoff and is bounded by the non-strict tail.
 In particular, equality with the support radius must not be treated as a strict tail. -/
@@ -86,10 +80,8 @@ theorem sampleCenteredBinomial_strict_tail_le {η : ℕ} (hη : 0 < η) {B : ℝ
     (eval (sampleCenteredBinomial η)).toOuterMeasure {z | B < |(z : ℝ)|} ≤
       ENNReal.ofReal (4 * Real.exp (-B ^ 2 / (2 * η))) := by
   calc
-    _ ≤ (eval (sampleCenteredBinomial η)).toOuterMeasure {z | B ≤ |(z : ℝ)|} := by
-      apply (eval (sampleCenteredBinomial η)).toOuterMeasure.mono
-      intro z hz
-      exact le_of_lt (show B < |(z : ℝ)| from hz)
+    _ ≤ (eval (sampleCenteredBinomial η)).toOuterMeasure {z | B ≤ |(z : ℝ)|} :=
+      (eval (sampleCenteredBinomial η)).toOuterMeasure.mono fun _ hz => show B ≤ _ from hz.out.le
     _ ≤ _ := sampleCenteredBinomial_tail_le hη hB
 
 end Cslib.ProbComp

@@ -119,9 +119,8 @@ theorem isUseful_AC0Mod_two_rankProperty : IsUseful (AC0Mod 2) (rankProperty sli
     hCs.trans ((hsk m).trans (Nat.mul_le_mul_left c (Nat.pow_le_pow_left hQ k)))
   have : 5 * (m + 1) * Cm.size ≤
       5 * (100 * ((j + 1) ^ (d + 1) + 1) ^ 2 + 1) *
-        (c * (100 * ((j + 1) ^ (d + 1) + 1) ^ 2 + 1) ^ k) :=
-    Nat.mul_le_mul (Nat.mul_le_mul_left 5 hQ) hsize
-  have h2 : 2 ^ j ≤ 2 * 2 ^ j := Nat.le_mul_of_pos_left _ (by norm_num)
+        (c * (100 * ((j + 1) ^ (d + 1) + 1) ^ 2 + 1) ^ k) := by
+    gcongr
   omega
 
 /-- **The rank property is a natural property useful against AC⁰[2]**
@@ -146,6 +145,13 @@ private theorem add_one_sq_le_two_pow_mul_two_pow (d : ℕ) : (d + 1) ^ 2 ≤ 2 
   rw [sq]
   exact Nat.mul_le_mul h h
 
+private theorem hundred_mul_add_one_sq_le {w : ℕ} (hw : 1 ≤ w) :
+    100 * (w + 1) ^ 2 + 1 ≤ 401 * (w * w) := by
+  have h1 : (w + 1) ^ 2 ≤ (2 * w) ^ 2 := by gcongr; omega
+  have h2 : (2 * w) ^ 2 = 4 * (w * w) := by ring
+  have h3 : 1 ≤ w * w := Nat.mul_pos hw hw
+  omega
+
 /-- The length `rankLength d x` beats the size `2 ^ x`: `5 (m + 1) 2 ^ x < 2 · 2 ^ ℓ`. -/
 private theorem five_mul_rankLength_lt (d x : ℕ) :
     5 * (rankLength d x + 1) * 2 ^ x < 2 * 2 ^ (2 ^ rankExponent d x) := by
@@ -153,34 +159,30 @@ private theorem five_mul_rankLength_lt (d x : ℕ) :
   set g := Nat.log 2 x
   have hx : x + 1 ≤ 2 ^ (g + 1) := Nat.lt_pow_succ_log_self (by norm_num) x
   have hg : g + 2 ≤ 2 ^ (g + 1) := Nat.lt_two_pow_self
-  have hD := add_one_sq_le_two_pow_mul_two_pow d
   set P := 2 ^ (g + 1)
   set U := 2 ^ d * 2 ^ d
   have hT : 2 ^ (g + 2 * d + 7) = P * 64 * U := by
     simp only [P, U, ← pow_add]
-    rw [show 64 = 2 ^ 6 by norm_num, ← pow_add, ← pow_add]
-    ring_nf
+    rw [show 64 = 2 ^ 6 by norm_num, ← pow_add, ← pow_add]; ring_nf
   -- the key exponent bound: `10 + 2 d t + x ≤ 2 ^ t` for `t = g + 2 d + 7`
   have hkey : 10 + 2 * d * (g + 2 * d + 7) + x ≤ P * 64 * U := by
     have hP : 1 ≤ P := Nat.one_le_two_pow
     have h1 : d * g ≤ d * P := Nat.mul_le_mul_left d (by omega)
-    have h2 : (d + 1) ^ 2 * P ≤ U * P := Nat.mul_le_mul_right P hD
+    have h2 : (d + 1) ^ 2 * P ≤ U * P :=
+      Nat.mul_le_mul_right P (add_one_sq_le_two_pow_mul_two_pow d)
     have h3 : d * d ≤ d * d * P := Nat.le_mul_of_pos_right _ (by omega)
     have h4 : d ≤ d * P := Nat.le_mul_of_pos_right _ (by omega)
-    nlinarith
+    nlinarith only [hx, hP, h1, h2, h3, h4]
   set w := (2 ^ (g + 2 * d + 7)) ^ d
   rw [hT]
-  have hw : 1 ≤ w := Nat.one_le_pow _ _ (by positivity)
   have hw2 : w * w = 2 ^ (2 * d * (g + 2 * d + 7)) := by
-    simp only [w, ← pow_mul, ← pow_add]
-    ring_nf
-  have hsq : 100 * (w + 1) ^ 2 + 1 ≤ 401 * (w * w) := by nlinarith
+    simp only [w, ← pow_mul, ← pow_add]; ring_nf
   calc 5 * (100 * (w + 1) ^ 2 + 1) * 2 ^ x
-      ≤ 5 * (401 * (w * w)) * 2 ^ x := by gcongr
+      ≤ 5 * (401 * (w * w)) * 2 ^ x := by
+        gcongr; exact hundred_mul_add_one_sq_le (Nat.one_le_pow _ _ (by positivity))
     _ < 2 ^ 11 * 2 ^ (2 * d * (g + 2 * d + 7)) * 2 ^ x := by
-        rw [hw2]
-        have : 0 < 2 ^ (2 * d * (g + 2 * d + 7)) * 2 ^ x := by positivity
-        nlinarith
+        rw [hw2, ← mul_assoc, mul_assoc (5 * 401), mul_assoc (2 ^ 11)]
+        exact Nat.mul_lt_mul_of_pos_right (by norm_num) (by positivity)
     _ = 2 ^ (11 + 2 * d * (g + 2 * d + 7) + x) := by rw [pow_add, pow_add]
     _ ≤ 2 ^ (1 + P * 64 * U) := Nat.pow_le_pow_right (by norm_num) (by omega)
     _ = 2 * 2 ^ (P * 64 * U) := by rw [pow_add, pow_one]
@@ -201,8 +203,7 @@ theorem notMem_rankProperty_rankLength_of_computes {d x : ℕ}
     omega
   have htrade := two_mul_two_pow_le_size_of_mem_rankTest_sliceLevel hℓ hm hf hC hCd
   have hlt := five_mul_rankLength_lt d x
-  have : 5 * (rankLength d x + 1) * C.size ≤ 5 * (rankLength d x + 1) * 2 ^ x :=
-    Nat.mul_le_mul_left _ hCs
+  have : 5 * (rankLength d x + 1) * C.size ≤ 5 * (rankLength d x + 1) * 2 ^ x := by gcongr
   omega
 
 /-- **The input length is polylogarithmic in the size**: for `x ≥ 1`,
@@ -220,7 +221,7 @@ theorem rankLength_add_one_le {d x : ℕ} (hx : 1 ≤ x) :
   have hww : w * w ≤ (x * 2 ^ (2 * d + 7)) ^ (2 * d) := by
     rw [← sq, ← pow_mul, mul_comm d 2]
     exact Nat.pow_le_pow_left hℓ _
-  calc 100 * (w + 1) ^ 2 + 1 ≤ 401 * (w * w) := by nlinarith
+  calc 100 * (w + 1) ^ 2 + 1 ≤ 401 * (w * w) := hundred_mul_add_one_sq_le hw
     _ ≤ 401 * (x * 2 ^ (2 * d + 7)) ^ (2 * d) := Nat.mul_le_mul_left _ hww
     _ = 401 * 2 ^ (2 * d * (2 * d + 7)) * x ^ (2 * d) := by
         rw [mul_pow, ← pow_mul]

@@ -34,40 +34,33 @@ theorem admissionWidth_le_log {n D g p A κ : ℕ} (hn : 1 ≤ n)
   let b := n + 2
   let E := 2 * κ + 512
   have hb : 2 ≤ b := by dsimp only [b]; omega
-  have hb1 : 1 ≤ b := le_trans (by decide : 1 ≤ (2 : ℕ)) hb
-  have hP : PreparationInput.wordBound n D g p A ≤ b ^ E := by
-    exact (PreparationInput.wordBound_le_pow hn hD hg hp hA).trans
+  have hb1 : 1 ≤ b := by omega
+  have hP : PreparationInput.wordBound n D g p A ≤ b ^ E :=
+    (PreparationInput.wordBound_le_pow hn hD hg hp hA).trans
       (Nat.pow_le_pow_right hb1 (by dsimp only [E]; omega))
   have hfour : 2 * (n + n ^ 2 + 3) ≤ b ^ 4 := by
     dsimp only [b]
-    nlinarith only [Nat.zero_le (n ^ 4), Nat.zero_le (n ^ 3), Nat.zero_le (n ^ 2),
-      Nat.zero_le n]
-  have hfour' : 2 * (n + n ^ 2 + 3) ≤ (b ^ 2) ^ 2 := hfour.trans_eq (Nat.pow_mul b 2 2)
+    nlinarith only [Nat.zero_le (n ^ 4), Nat.zero_le (n ^ 3), Nat.zero_le (n ^ 2)]
   have hM : CallableProduct.windowSize n (n ^ 2) ≤ b ^ E := by
     calc
       _ ≤ (2 * (n + n ^ 2 + 3)) ^ 128 := CallableProduct.windowSize_le n (n ^ 2)
-      _ ≤ ((b ^ 2) ^ 2) ^ 128 := Nat.pow_le_pow_left hfour' _
+      _ ≤ ((b ^ 2) ^ 2) ^ 128 := Nat.pow_le_pow_left (hfour.trans_eq (Nat.pow_mul b 2 2)) 128
       _ = (b ^ 2) ^ 256 := (Nat.pow_mul (b ^ 2) 2 128).symm
       _ ≤ (b ^ 2) ^ (κ + 256) := Nat.pow_le_pow_right (Nat.pow_pos hb1)
         (Nat.le_add_left 256 κ)
-      _ = b ^ E := by
-        rw [← Nat.pow_mul]
-        exact congrArg (fun j : ℕ => b ^ j)
-          (by dsimp only [E]; omega : 2 * (κ + 256) = E)
-  have hn2 : n ^ 2 ≤ b ^ E := (Nat.pow_le_pow_left (by dsimp only [b]; omega : n ≤ b) 2).trans
-    (Nat.pow_le_pow_right hb1 (by dsimp only [E]; omega))
-  have hnE : n ≤ b ^ E := (show n ≤ n ^ 2 by nlinarith only [hn]).trans hn2
-  have hprod : n * D ≤ b ^ E := (Nat.mul_le_mul_left n hD).trans
-    (by simpa only [pow_two] using hn2)
+      _ = b ^ E := by rw [← Nat.pow_mul, (by dsimp only [E]; omega : 2 * (κ + 256) = E)]
+  have hn2 : n ^ 2 ≤ b ^ E :=
+    (Nat.pow_le_pow_left (by dsimp only [b]; omega) 2).trans
+      (Nat.pow_le_pow_right hb1 (by dsimp only [E]; omega))
   have hAE : A ≤ b ^ E := hA.trans
     (Nat.pow_le_pow_right hb1 (by dsimp only [E]; omega))
   have hconst : 4096 ≤ b ^ E := (show 4096 ≤ (2 : ℕ) ^ 12 by decide).trans
     ((Nat.pow_le_pow_left hb 12).trans
       (Nat.pow_le_pow_right hb1 (by dsimp only [E]; omega)))
   have hsum : envelope n D g p A ≤ 576 * b ^ E := by
+    have hnE : n ≤ n ^ 2 := Nat.le_self_pow two_ne_zero n
+    have hprod : n * D ≤ n ^ 2 := by simpa only [pow_two] using Nat.mul_le_mul_left n hD
     unfold envelope
-    have hgE := hg.trans hnE
-    have hDE := hD.trans hnE
     omega
   have henvelope : envelope n D g p A ≤ b ^ (2 * κ + 522) := by
     calc
@@ -75,17 +68,12 @@ theorem admissionWidth_le_log {n D g p A κ : ℕ} (hn : 1 ≤ n)
       _ ≤ b ^ 10 * b ^ E := Nat.mul_le_mul_right _
         ((show 576 ≤ (2 : ℕ) ^ 10 by decide).trans (Nat.pow_le_pow_left hb 10))
       _ = b ^ (2 * κ + 522) := by
-        rw [← Nat.pow_add]
-        exact congrArg (fun j : ℕ => b ^ j) (by dsimp only [E]; omega : 10 + E = 2 * κ + 522)
-  have hbase := Nat.le_pow_clog (by decide : 1 < (2 : ℕ)) b
-  have hlogBound := henvelope.trans (Nat.pow_le_pow_left hbase (2 * κ + 522))
-  rw [← Nat.pow_mul] at hlogBound
-  have hlog := Nat.clog_le_of_le_pow hlogBound
-  change Nat.clog 2 (envelope n D g p A) ≤ Nat.clog 2 b * (2 * κ + 522) at hlog
-  have hrecord := RecordProduct.admissionWidth_le_log hn hD hg hp hA
+        rw [← Nat.pow_add, (by dsimp only [E]; omega : 10 + E = 2 * κ + 522)]
   have hlog' : Nat.clog 2 (envelope n D g p A) ≤ (257 * κ + 5906) * Nat.clog 2 b := by
-    nlinarith only [hlog, Nat.zero_le (κ * Nat.clog 2 b)]
-  have hmax := max_le hrecord hlog'
+    rw [Nat.clog_le_iff_le_pow (by decide), mul_comm, Nat.pow_mul]
+    exact henvelope.trans ((Nat.pow_le_pow_left (Nat.le_pow_clog (by decide) b) _).trans
+      (Nat.pow_le_pow_right (Nat.two_pow_pos _) (by omega)))
+  have hmax := max_le (RecordProduct.admissionWidth_le_log hn hD hg hp hA) hlog'
   have hpositive : 1 ≤ Nat.clog 2 b := Nat.clog_pos (by decide) (by omega : 1 < b)
   unfold admissionWidth
   dsimp only [b] at hmax hpositive

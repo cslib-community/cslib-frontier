@@ -21,6 +21,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 import Mathlib.Data.List.GetD
 
@@ -492,8 +493,8 @@ private theorem polyBounded_prod_space {α β γ : Type} {ei : α ↪ List Bool}
 
 private theorem polyBounded_pair_len {α β : Type} {ei : α ↪ List Bool} {eo : β ↪ List Bool}
     {f : α → β} (hf : PolyBounded (fun a => (ei a).length) (fun a => (eo (f a)).length)) :
-    PolyBounded (fun a => (ei a).length) (fun a => (encPair ei eo (a, f a)).length) :=
-  ((((PolyBounded.const 2).mul PolyBounded.self).add hf).add (.const 2)).mono fun a => by enc_len
+    PolyBounded (fun a => (ei a).length) (fun a => (encPair ei eo (a, f a)).length) := by
+  growth_poly
 
 private abbrev toSysInput (k : ℕ) (q : (ℕ × CNF ℕ) × List (List Bool)) :
     ℕ × List (List (List ℕ)) := (q.1.1, compileParitySystemBounded k q.1.2 q.2)
@@ -744,7 +745,7 @@ private theorem polyBounded_initRowsCertificate_space
       (initRowsCertificate hBOf).space := by
   have hc := NativeCertificate.ofPolyTime_isPolynomial (computableInPolyTime_mbPair hBOf)
   have hsum : PolyBounded (fun p : ℕ × ℕ => (encPair encUnary encUnary p).length)
-      (fun p => p.1 + p.2) := PolyBounded.self.mono fun p => by enc_len
+      (fun p => p.1 + p.2) := by growth_poly
   exact hc.2.add (((PolyBounded.of_polynomiallyBounded id
     initialTestsRows_computableInO.choose_spec.choose_spec.2.1).comp hsum).comp
     (computableInPolyTime_mbPair hBOf).polyBounded_length)
@@ -997,9 +998,7 @@ theorem exists_sparseCNFDeclaredCertificate_bounds (k N₀ : ℕ)
       (polyBounded_fastPathFinalCandCert_space k hNOf hBOf cPoly hSpace))
   let poly (L : ℕ) : ℕ :=
     pSp L + pGuard L + pFall L + pMB L + pAsmG L + pGC L + pAsmF L + pCap L + pCandOver L
-  have hpoly : Cslib.PolynomiallyBounded poly :=
-    (((((((hpSp.add hpGuard).add hpFall).add hpMB).add hpAsmG).add hpGC).add hpAsmF).add
-      hpCap).add hpCandOver
+  have hpoly : Cslib.PolynomiallyBounded poly := by growth_poly
   refine ⟨poly, qInit, polySys, hpoly, hqInit, hpolySys,
     fun x => (hSp x).trans (by dsimp only [poly]; omega), fun R hR x => ?_⟩
   have hg := hGuard x
@@ -1030,7 +1029,7 @@ theorem exists_sparseCNFDeclaredCertificate_bounds (k N₀ : ℕ)
       dsimp only [greedyCellTime, gIn, assembleGreedyInput]
       refine hCandT R hR x hfast _ (by
         rw [List.length_append, List.length_singleton, length_greedyParityRowsAt]
-        exact (Nat.add_le_add (Nat.add_le_add hinit_len hi') (le_refl 1)).trans (by omega)) ?_
+        omega) ?_
       intro r hr; rcases List.mem_append.mp hr with hprev | hcand
       · exact (mem_greedyParityRowsAt _ hprev).elim (fun h0 => hinit_rows r h0) fun ⟨hrl, hrw⟩ =>
           ⟨hrl, hrw.trans hP_le⟩
@@ -1042,7 +1041,7 @@ theorem exists_sparseCNFDeclaredCertificate_bounds (k N₀ : ℕ)
       hCandT R hR x hfast finalRows
         (by
           dsimp only [finalRows]; rw [length_greedyParityRows]
-          exact (Nat.add_le_add_right hinit_len _).trans (by omega))
+          omega)
         fun r hr => (mem_greedyParityRowsAt _ hr).elim (fun h0 => hinit_rows r h0)
           fun ⟨hrl, hrw⟩ => ⟨hrl, hrw.trans hP_le⟩
     let K := (3 * NOf x.1 + 1) *
@@ -1142,10 +1141,8 @@ theorem exists_normalizeDeclaredLeafCertificate_bounds
         cLeaf.time x + poly (encPair encP encCNF x).length) := by
   have hNormSpace := polyBounded_normalizeDeclaredLeafCertificate_space hNOf cLeaf hSpace
   have hPairLen : PolyBounded (fun x : P × CNF ℕ => (encPair encP encCNF x).length)
-      (fun x => (encPair encNat encNat (h x, shiftAmount NOf x)).length) :=
-    ((((PolyBounded.const 2).mul (polyBounded_output_of_space cLeaf hSpace)).add
-      (computableInPolyTime_shiftAmount hNOf).polyBounded_length).add (.const 2)).mono fun x => by
-      enc_len
+      (fun x => (encPair encNat encNat (h x, shiftAmount NOf x)).length) := by
+    growth_poly [polyBounded_output_of_space cLeaf hSpace, computableInPolyTime_shiftAmount hNOf]
   have hShT := (NativeCertificate.ofPolyTime_isPolynomial (computableInPolyTime_shiftAmount hNOf)).1
   have hSrT := (NativeCertificate.ofPolyTime_isPolynomial
     ComputableInPolyTime.binary_shiftRight).1.comp hPairLen

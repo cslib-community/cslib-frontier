@@ -80,17 +80,15 @@ private lemma privateLeaf_ne_P0 {η : OutStr L} {ℓ : Fin L} (hℓ : ℓ ∉ in
 private lemma P0LevelsWithin_subset (Q : Finset (Fin L)) (τ : Leaf L) : P0LevelsWithin Q τ ⊆ Q :=
   filter_subset _ _
 
-private lemma P0Levels_eq_P0LevelsWithin (η : OutStr L) (τ : Leaf L) (hτ : Leaf.Contributes τ η) :
-    P0Levels τ = P0LevelsWithin (innerSetO η) τ := by
-  ext ℓ
-  rw [P0LevelsWithin, mem_filter, mem_P0Levels]
-  exact ⟨fun h => ⟨P0Levels_subset hτ (mem_P0Levels.2 h), h⟩, fun h => h.2⟩
-
 /-- Restricted P0 coordinates determine the order of a contributing leaf. -/
 theorem order_eq_sub_card_P0LevelsWithin (m : ℕ) (η : OutStr L) (τ : Leaf L)
     (hτ : Leaf.Contributes τ η) :
     order m τ = (m : ℤ) - ((P0LevelsWithin (innerSetO η) τ).card : ℤ) := by
-  rw [order, P0Levels_eq_P0LevelsWithin η τ hτ]
+  rw [order]
+  congr 3
+  ext ℓ
+  rw [P0LevelsWithin, mem_filter, mem_P0Levels]
+  exact ⟨fun h => ⟨P0Levels_subset hτ (mem_P0Levels.2 h), h⟩, fun h => h.2⟩
 
 private lemma card_P0LevelsWithin_le {m t : ℕ} {η : OutStr L} {τ : Leaf L} (hτ : Leaf.Contributes
   τ η)
@@ -129,29 +127,15 @@ theorem initialLevels_eq (Q V : Finset (Fin L)) :
   rw [lt_min'_iff]
 
 /-- The initial levels lie inside the selected set. -/
-theorem initialLevels_subset (Q V : Finset (Fin L)) : initialLevels Q V ⊆ V := by
-  intro ℓ hℓ
-  by_contra hV
-  exact lt_irrefl ℓ ((mem_filter.1 hℓ).2 ℓ (mem_sdiff.2 ⟨(mem_filter.1 hℓ).1, hV⟩))
-
-private lemma mem_initialLevels_of_le {Q V : Finset (Fin L)} {ℓ ℓ' : Fin L} (hℓ : ℓ ∈
-  initialLevels Q V)
-    (hℓ' : ℓ' ∈ Q) (hle : ℓ' ≤ ℓ) : ℓ' ∈ initialLevels Q V :=
-  mem_filter.2 ⟨hℓ', fun x hx => hle.trans_lt ((mem_filter.1 hℓ).2 x hx)⟩
+theorem initialLevels_subset (Q V : Finset (Fin L)) : initialLevels Q V ⊆ V := fun ℓ hℓ =>
+  by_contra fun hV => lt_irrefl ℓ ((mem_filter.1 hℓ).2 ℓ (mem_sdiff.2 ⟨(mem_filter.1 hℓ).1, hV⟩))
 
 private lemma sdiff_initialLevels_subset_iff {Q V Z : Finset (Fin L)} (hV : V ⊆ Q) :
-    V \ initialLevels Q V ⊆ Z ↔ ∀ ℓ ∈ V \ Z, ∀ ℓ' ∈ Q \ V, ℓ < ℓ' := by
-  constructor
-  · intro h ℓ hℓ ℓ' hℓ'
-    obtain ⟨hℓV, hℓZ⟩ := mem_sdiff.1 hℓ
-    have hℓF : ℓ ∈ initialLevels Q V := by
-      by_contra hF
-      exact hℓZ (h (mem_sdiff.2 ⟨hℓV, hF⟩))
-    exact (mem_filter.1 hℓF).2 ℓ' hℓ'
-  · intro h ℓ hℓ
-    obtain ⟨hℓV, hℓF⟩ := mem_sdiff.1 hℓ
-    by_contra hZ
-    exact hℓF (mem_filter.2 ⟨hV hℓV, h ℓ (mem_sdiff.2 ⟨hℓV, hZ⟩)⟩)
+    V \ initialLevels Q V ⊆ Z ↔ ∀ ℓ ∈ V \ Z, ∀ ℓ' ∈ Q \ V, ℓ < ℓ' :=
+  ⟨fun h _ hℓ ℓ' hℓ' => (mem_filter.1 (by_contra fun hF =>
+    (mem_sdiff.1 hℓ).2 (h (mem_sdiff.2 ⟨(mem_sdiff.1 hℓ).1, hF⟩)))).2 ℓ' hℓ',
+   fun h ℓ hℓ => by_contra fun hZ => (mem_sdiff.1 hℓ).2
+    (mem_filter.2 ⟨hV (mem_sdiff.1 hℓ).1, h ℓ (mem_sdiff.2 ⟨(mem_sdiff.1 hℓ).1, hZ⟩)⟩)⟩
 
 section boxesAt
 
@@ -187,8 +171,7 @@ theorem boxesAt_starLevels (hπ : π ∈ boxesAt η V) : Cube.starLevels π = in
   rcases level_cases (innerSetO η) V ℓ with hℓ | hℓ | hℓ | hℓ
   · exact hℓ
   · simp [boxesAt_P0 hπ hℓ] at h
-  · obtain ⟨i, j, hij⟩ := boxesAt_nine hπ hℓ
-    simp [hij] at h
+  · exact (boxesAt_nine hπ hℓ).elim fun i ⟨j, hij⟩ => by simp [hij] at h
   · simp [boxesAt_outside hπ hℓ] at h
 
 /-- Fixed P0 coordinates occupy the rest of the selected levels. -/
@@ -200,8 +183,7 @@ theorem boxesAt_P0Levels (hπ : π ∈ boxesAt η V) : Cube.P0Levels π = V \ in
   rcases level_cases (innerSetO η) V ℓ with hℓ | hℓ | hℓ | hℓ
   · simp [boxesAt_star hπ hℓ] at h
   · exact hℓ
-  · obtain ⟨i, j, hij⟩ := boxesAt_nine hπ hℓ
-    simp [hij] at h
+  · exact (boxesAt_nine hπ hℓ).elim fun i ⟨j, hij⟩ => by simp [hij] at h
   · rw [boxesAt_outside hπ hℓ] at h
     exact absurd (CubeSymbol.term.inj h) (privateLeaf_ne_P0 hℓ)
 
@@ -209,15 +191,6 @@ theorem boxesAt_P0Levels (hπ : π ∈ boxesAt η V) : Cube.P0Levels π = V \ in
 theorem boxesAt_starLevels_union_P0Levels (hπ : π ∈ boxesAt η V) :
     Cube.starLevels π ∪ Cube.P0Levels π = V := by
   rw [boxesAt_starLevels hπ, boxesAt_P0Levels hπ, union_sdiff_of_subset (initialLevels_subset _ _)]
-
-private lemma boxesAt_ext {π' : Cube L} (hπ : π ∈ boxesAt η V) (hπ' : π' ∈ boxesAt η V)
-    (h : ∀ ℓ ∈ innerSetO η \ V, π ℓ = π' ℓ) : π = π' := by
-  funext ℓ
-  rcases level_cases (innerSetO η) V ℓ with hℓ | hℓ | hℓ | hℓ
-  · rw [boxesAt_star hπ hℓ, boxesAt_star hπ' hℓ]
-  · rw [boxesAt_P0 hπ hℓ, boxesAt_P0 hπ' hℓ]
-  · exact h ℓ hℓ
-  · rw [boxesAt_outside hπ hℓ, boxesAt_outside hπ' hℓ]
 
 private lemma boxesAt_eq_term_of_leaf (hπ : π ∈ boxesAt η V) {τ : Leaf L} (hτ : τ ∈ Cube.leaves π)
     (hℓ : ℓ ∈ innerSetO η \ V) : π ℓ = CubeSymbol.term (τ ℓ) := by
@@ -233,35 +206,28 @@ private def allowed (η : OutStr L) (V : Finset (Fin L)) (ℓ : Fin L) : Finset 
     (ℓ ∈ innerSetO η \ V → ∃ i j, s = CubeSymbol.term (Term.P i j)) ∧
     (ℓ ∉ innerSetO η → s = CubeSymbol.term (privateLeaf η ℓ))
 
-private lemma boxesAt_eq_piFinset (η : OutStr L) (V : Finset (Fin L)) :
-    boxesAt η V = Fintype.piFinset (allowed η V) := by
-  ext π
-  simp [boxesAt, allowed, Fintype.mem_piFinset]
-
 private lemma card_allowed (η : OutStr L) (V : Finset (Fin L)) (hV : V ⊆ innerSetO η)
     (ℓ : Fin L) : (allowed η V ℓ).card = if ℓ ∈ innerSetO η \ V then 9 else 1 := by
   have hnine :
       (univ.filter fun s : CubeSymbol => ∃ i j, s = CubeSymbol.term (Term.P i j)).card = 9 := by
     decide
-  have hinitialLevels := @initialLevels_subset L (innerSetO η) V ℓ
-  have hVQ := @hV ℓ
   unfold allowed
   by_cases hF : ℓ ∈ initialLevels (innerSetO η) V
-  · simp [hF, hinitialLevels hF, hVQ (hinitialLevels hF), filter_eq']
+  · simp [hF, initialLevels_subset _ _ hF, hV (initialLevels_subset _ _ hF), filter_eq']
   by_cases hℓV : ℓ ∈ V
-  · simp [hF, hℓV, hVQ hℓV, filter_eq']
-  by_cases hℓQ : ℓ ∈ innerSetO η
-  · simp [hF, hℓV, hℓQ, hnine]
-  · simp [hF, hℓV, hℓQ, filter_eq']
+  · simp [hF, hℓV, hV hℓV, filter_eq']
+  by_cases hℓQ : ℓ ∈ innerSetO η <;> simp [hF, hℓV, hℓQ, hnine, filter_eq']
 
 /-- There are nine choices at each free inner coordinate and one at every other coordinate. -/
 theorem card_boxesAt (m t : ℕ) (ht : t ≤ m) (η : OutStr L) (hη : (innerSetO η).card = m)
     (V : Finset (Fin L)) (hV : V ∈ boxLevelSets m t η) : (boxesAt η V).card = 9 ^ t := by
   obtain ⟨hVQ, hVc⟩ := mem_powersetCard.1 hV
-  rw [boxesAt_eq_piFinset η V, Fintype.card_piFinset]
-  simp only [card_allowed η V hVQ]
-  rw [prod_ite_mem_const, one_pow, mul_one, card_sdiff_of_subset hVQ, hη, hVc,
-    Nat.sub_sub_self ht]
+  have hpi : boxesAt η V = Fintype.piFinset (allowed η V) := by
+    ext
+    simp [boxesAt, allowed, Fintype.mem_piFinset]
+  rw [hpi, Fintype.card_piFinset]
+  simp only [card_allowed η V hVQ, prod_ite_mem_const, one_pow, mul_one,
+    card_sdiff_of_subset hVQ, hη, hVc, Nat.sub_sub_self ht]
 
 /-- Every member of an eligible output family satisfies the global box conditions. -/
 theorem boxesAt_isBox {m t : ℕ} {η : OutStr L} {V : Finset (Fin L)} (hV : V ∈ boxLevelSets m t η)
@@ -270,10 +236,8 @@ theorem boxesAt_isBox {m t : ℕ} {η : OutStr L} {V : Finset (Fin L)} (hV : V �
   obtain ⟨hVQ, hVc⟩ := mem_powersetCard.1 hV
   rw [IsBox, boxesAt_starLevels hπ, boxesAt_P0Levels hπ, add_comm,
     card_sdiff_add_card_eq_card (initialLevels_subset _ _)]
-  refine ⟨hVc.le, fun ℓ hℓ ℓ' hℓ' => ?_⟩
-  obtain ⟨hℓ'V, hℓ'F⟩ := mem_sdiff.1 hℓ'
-  by_contra hlt
-  exact hℓ'F (mem_initialLevels_of_le hℓ (hVQ hℓ'V) (not_lt.1 hlt))
+  refine ⟨hVc.le, fun ℓ hℓ ℓ' hℓ' => by_contra fun hlt => (mem_sdiff.1 hℓ').2 <| mem_filter.2
+    ⟨hVQ (mem_sdiff.1 hℓ').1, fun x hx => (not_lt.1 hlt).trans_lt ((mem_filter.1 hℓ).2 x hx)⟩⟩
 
 /-- Different indexing sets give disjoint families of cubes. -/
 theorem boxesAt_pairwiseDisjoint (η : OutStr L) (s : Set (Finset (Fin L))) :
@@ -326,43 +290,39 @@ theorem exists_mem_boxesAt_leaf_iff {η : OutStr L} {V : Finset (Fin L)} {τ : L
     (∃ π ∈ boxesAt η V, τ ∈ Cube.leaves π) ↔
       V \ initialLevels (innerSetO η) V ⊆ P0LevelsWithin (innerSetO η) τ ∧ P0LevelsWithin
         (innerSetO η) τ ⊆ V := by
-  constructor
-  · rintro ⟨π, hπ, hτπ⟩
-    refine ⟨fun ℓ hℓ => mem_filter.2 ⟨?_, ?_⟩, fun ℓ hℓ => ?_⟩
-    · by_contra hℓQ
-      exact privateLeaf_ne_P0 hℓQ
-        (CubeSymbol.term.inj ((boxesAt_outside hπ hℓQ).symm.trans (boxesAt_P0 hπ hℓ)))
-    · exact Cube.eq_of_mem_leaves hτπ (boxesAt_P0 hπ hℓ)
-    · by_contra hℓV
-      obtain ⟨hℓQ, hterm⟩ := mem_filter.1 hℓ
-      obtain ⟨i, j, hij⟩ := boxesAt_nine hπ (mem_sdiff.2 ⟨hℓQ, hℓV⟩)
-      simp [Cube.eq_of_mem_leaves hτπ hij] at hterm
-  · exact fun ⟨hVZ, hZV⟩ => ⟨_, starAt_mem_boxesAt hτ hVZ hZV, Cube.mem_leaves_starAt _ τ⟩
+  refine ⟨fun ⟨π, hπ, hτπ⟩ => ⟨fun ℓ hℓ => mem_filter.2 ⟨by_contra fun hℓQ =>
+      privateLeaf_ne_P0 hℓQ (CubeSymbol.term.inj ((boxesAt_outside hπ hℓQ).symm.trans
+        (boxesAt_P0 hπ hℓ))),
+      Cube.eq_of_mem_leaves hτπ (boxesAt_P0 hπ hℓ)⟩, fun ℓ hℓ => by_contra fun hℓV => ?_⟩,
+    fun ⟨hVZ, hZV⟩ => ⟨_, starAt_mem_boxesAt hτ hVZ hZV, Cube.mem_leaves_starAt _ τ⟩⟩
+  obtain ⟨i, j, hij⟩ := boxesAt_nine hπ (mem_sdiff.2 ⟨(mem_filter.1 hℓ).1, hℓV⟩)
+  exact Term.noConfusion ((mem_filter.1 hℓ).2.symm.trans (Cube.eq_of_mem_leaves hτπ hij))
 
 /-- Within a single family, a leaf determines its cube. -/
 theorem boxesAt_leaf_unique {η : OutStr L} {V : Finset (Fin L)} {τ : Leaf L} {π π' : Cube L}
     (hπ : π ∈ boxesAt η V) (hτπ : τ ∈ Cube.leaves π) (hπ' : π' ∈ boxesAt η V) (hτπ' : τ ∈
       Cube.leaves π') :
-    π = π' :=
-  boxesAt_ext hπ hπ' fun _ hℓ =>
-    (boxesAt_eq_term_of_leaf hπ hτπ hℓ).trans (boxesAt_eq_term_of_leaf hπ' hτπ' hℓ).symm
+    π = π' := by
+  funext ℓ
+  rcases level_cases (innerSetO η) V ℓ with hℓ | hℓ | hℓ | hℓ
+  · rw [boxesAt_star hπ hℓ, boxesAt_star hπ' hℓ]
+  · rw [boxesAt_P0 hπ hℓ, boxesAt_P0 hπ' hℓ]
+  · exact (boxesAt_eq_term_of_leaf hπ hτπ hℓ).trans (boxesAt_eq_term_of_leaf hπ' hτπ' hℓ).symm
+  · rw [boxesAt_outside hπ hℓ, boxesAt_outside hπ' hℓ]
 
 /-- The prescribed padding is the unique set satisfying both incidence inclusions. -/
 theorem paddedLevels_unique {L : ℕ} (m t : ℕ) (ht : t ≤ m) (Q Z : Finset (Fin L)) (hQ : Q.card = m)
     (hZ : Z ⊆ Q) (hZc : Z.card ≤ m - t) (V : Finset (Fin L)) :
     (V ⊆ Q ∧ V.card = m - t ∧ V \ initialLevels Q V ⊆ Z ∧ Z ⊆ V) ↔ V = paddedLevels m t Q Z := by
-  constructor
-  · rintro ⟨hVQ, hVc, hVZ, hZV⟩
-    have hrest : (Q \ Z) \ (V \ Z) = Q \ V := sdiff_sdiff_sdiff_cancel_right hZV
-    have hlow := eq_lowest_of_lt (sdiff_subset_sdiff hVQ (le_refl Z))
-      (hrest ▸ (sdiff_initialLevels_subset_iff hVQ).1 hVZ)
+  refine ⟨fun ⟨hVQ, hVc, hVZ, hZV⟩ => ?_, ?_⟩
+  · have hlow := eq_lowest_of_lt (sdiff_subset_sdiff hVQ le_rfl)
+      (sdiff_sdiff_sdiff_cancel_right hZV ▸ (sdiff_initialLevels_subset_iff hVQ).1 hVZ)
     rw [card_sdiff_of_subset hZV, hVc] at hlow
     rw [paddedLevels, ← hlow, union_sdiff_of_subset hZV]
   · rintro rfl
-    have hVQ := paddedLevels_subset m t hZ
-    exact ⟨hVQ, card_paddedLevels ht hQ hZ hZc, (sdiff_initialLevels_subset_iff hVQ).2
-      (paddedLevels_sdiff_lt m t Q Z),
-      subset_union_left⟩
+    exact ⟨paddedLevels_subset m t hZ, card_paddedLevels ht hQ hZ hZc,
+      (sdiff_initialLevels_subset_iff (paddedLevels_subset m t hZ)).2
+        (paddedLevels_sdiff_lt m t Q Z), subset_union_left⟩
 
 /-- The families cover exactly the contributing leaves above the threshold. -/
 theorem contributes_high_iff_mem_box_leaves {L : ℕ} (m t : ℕ) (ht : t ≤ m) (η : OutStr L) (hη :
@@ -419,8 +379,7 @@ theorem sum_contributing_eq_low_add_boxes {G : Type*} [AddCommMonoid G] (m t : �
       (((boxLevelSets m t η).biUnion (boxesAt η) : Finset (Cube L)) : Set (Cube L)).PairwiseDisjoint
         Cube.leaves := by
     intro π hπ π' hπ' hne
-    rw [Function.onFun, disjoint_left]
-    intro τ hτ hτ'
+    refine disjoint_left.2 fun τ hτ hτ' => ?_
     obtain ⟨hc, hord⟩ := (contributes_high_iff_mem_box_leaves m t ht η hη τ).2 ⟨π, hπ, hτ⟩
     exact hne ((existsUnique_box_containing_leaf m t ht η hη τ hc hord).unique ⟨hπ, hτ⟩ ⟨hπ', hτ'⟩)
   have hhigh : ((boxLevelSets m t η).biUnion (boxesAt η)).biUnion Cube.leaves =
@@ -446,18 +405,6 @@ theorem card_low_add_box_leaves (m t : ℕ) (ht : t ≤ m) (η : OutStr L)
   rw [hsplit, sum_biUnion (boxesAt_pairwiseDisjoint η _)]
   simp
 
-private lemma lowLeaves_eq_biUnion (m t : ℕ) (η : OutStr L) (hη : (innerSetO η).card = m) :
-    lowLeaves m t η = (range t).biUnion fun d =>
-      univ.filter fun τ : Leaf L => Leaf.Contributes τ η ∧ order m τ = d := by
-  ext τ
-  simp only [lowLeaves, mem_filter, mem_univ, true_and, mem_biUnion, mem_range]
-  constructor
-  · rintro ⟨hτ, hlt⟩
-    have hnonneg := order_nonneg hη hτ
-    exact ⟨(order m τ).toNat, by omega, hτ, (Int.toNat_of_nonneg hnonneg).symm⟩
-  · rintro ⟨d, hd, hτ, heq⟩
-    exact ⟨hτ, by omega⟩
-
 /-- The exact query counts are given by the existing alpha function. -/
 theorem box_query_counts {L : ℕ} (m t : ℕ) (ht : t ≤ m) (η : OutStr L)
     (hη : (innerSetO η).card = m) :
@@ -467,15 +414,19 @@ theorem box_query_counts {L : ℕ} (m t : ℕ) (ht : t ≤ m) (η : OutStr L)
   have hsum : ∑ V ∈ boxLevelSets m t η, (boxesAt η V).card = alpha m t := by
     rw [sum_congr rfl fun V hV => card_boxesAt m t ht η hη V hV, sum_const, boxLevelSets,
       card_powersetCard, hη, Nat.choose_symm ht, smul_eq_mul, alpha]
-  refine ⟨?_, hsum, ?_⟩
-  · -- "α_d leaves of order d contribute to w"
-    rw [lowLeaves_eq_biUnion m t η hη, card_biUnion]
-    · exact sum_congr rfl fun d _ => card_contributing_of_order η hη d
-    · intro d _ d' _ hne
-      rw [Function.onFun, disjoint_left]
-      intro τ hd hd'
-      exact hne (by exact_mod_cast (mem_filter.1 hd).2.2.symm.trans (mem_filter.1 hd').2.2)
-  · rw [card_biUnion (boxesAt_pairwiseDisjoint η _), hsum]
+  refine ⟨?_, hsum, by rw [card_biUnion (boxesAt_pairwiseDisjoint η _), hsum]⟩
+  -- "α_d leaves of order d contribute to w"
+  have hlow : lowLeaves m t η = (range t).biUnion fun d =>
+      univ.filter fun τ : Leaf L => Leaf.Contributes τ η ∧ order m τ = d := by
+    ext τ
+    simp only [lowLeaves, mem_filter, mem_univ, true_and, mem_biUnion, mem_range]
+    exact ⟨fun ⟨hτ, hlt⟩ => ⟨(order m τ).toNat, by have := order_nonneg hη hτ; omega, hτ,
+        (Int.toNat_of_nonneg (order_nonneg hη hτ)).symm⟩,
+      fun ⟨d, hd, hτ, heq⟩ => ⟨hτ, by omega⟩⟩
+  rw [hlow, card_biUnion]
+  · exact sum_congr rfl fun d _ => card_contributing_of_order η hη d
+  · exact fun d _ d' _ hne => disjoint_left.2 fun _ hd hd' => hne (Int.ofNat_inj.1
+      ((mem_filter.1 hd).2.2.symm.trans (mem_filter.1 hd').2.2))
 
 /-- An output box belongs to the global box set at its actual star count. -/
 theorem mem_boxesWithStars_of_mem_boxesAt {L : ℕ} (m t : ℕ) (η : OutStr L) (V : Finset (Fin L))

@@ -106,21 +106,19 @@ theorem commonRoot_lt {n : ℕ} (hn : 0 < n) (e f w y : ℕ) : commonRoot n e f 
 `e * s = f * t + 1`. -/
 private theorem mul_modInv_eq_mul_div_add_one {e f : ℕ} (hf : 2 ≤ f) (hef : Nat.Coprime e f) :
     e * BinaryGcd.modInv e f = f * ((e * BinaryGcd.modInv e f - 1) / f) + 1 := by
+  have hf1 : 1 < f := by omega
   have hmod : e * BinaryGcd.modInv e f % f = 1 :=
-    Eq.trans (BinaryGcd.mul_modInv_modEq_one (by omega) hef) (Nat.mod_eq_of_lt (by omega))
+    Eq.trans (BinaryGcd.mul_modInv_modEq_one (by omega) hef) (Nat.mod_eq_of_lt hf1)
   have hdiv := Nat.div_add_mod (e * BinaryGcd.modInv e f) f
   generalize e * BinaryGcd.modInv e f = k at hmod hdiv ⊢
   have hk : k - 1 = f * (k / f) := by omega
-  rw [hk, Nat.mul_div_cancel_left _ (by omega)]
-  omega
+  rw [hk, Nat.mul_div_cancel_left _ (by omega)]; omega
 
 /-- When `f ≠ 0`, `w` is coprime to `n` and `w ^ e ≡ y ^ f [MOD n]`, `y` is coprime to `n`. -/
 private theorem coprime_of_pow_modEq_pow {n e f w y : ℕ} (hf : f ≠ 0) (hw : Nat.Coprime w n)
     (h : w ^ e ≡ y ^ f [MOD n]) : Nat.Coprime y n := by
-  have hyf : Nat.Coprime (y ^ f) n := by
-    rw [Nat.Coprime, ← h.gcd_eq]
-    exact Nat.Coprime.pow_left e hw
-  exact (Nat.coprime_pow_left_iff (Nat.pos_of_ne_zero hf) y n).mp hyf
+  rw [← Nat.coprime_pow_left_iff (Nat.pos_of_ne_zero hf), Nat.Coprime, ← h.gcd_eq]
+  exact hw.pow_left e
 
 /-- For `f ≠ 0`, the output of `commonRoot` is `Y ^ s * W ^ t` in `(ZMod n)ˣ` for the units `W`
 and `Y` of `w` and `y` and some `e * s + f * t = 1`. -/
@@ -129,19 +127,15 @@ private theorem natCast_commonRoot {n e f w y : ℕ} (hn : 0 < n) (hf : f ≠ 0)
     ∃ s t : ℤ, (e : ℤ) * s + f * t = 1 ∧ (commonRoot n e f w y : ZMod n) =
       ((ZMod.unitOfCoprime y hy ^ s * ZMod.unitOfCoprime w hw ^ t : (ZMod n)ˣ) : ZMod n) := by
   by_cases hf1 : f = 1
-  · refine ⟨0, 1, by simp [hf1], ?_⟩
-    simp [commonRoot, hf1]
-  · have hf2 : 2 ≤ f := by omega
-    have hbez := mul_modInv_eq_mul_div_add_one hf2 hef
+  · exact ⟨0, 1, by simp [hf1], by simp [commonRoot, hf1]⟩
+  · have hbez := mul_modInv_eq_mul_div_add_one (by omega) hef
     refine ⟨BinaryGcd.modInv e f, -(((e * BinaryGcd.modInv e f - 1) / f : ℕ) : ℤ), ?_, ?_⟩
     · generalize (e * BinaryGcd.modInv e f - 1) / f = t at hbez ⊢
-      have hbez' : (e : ℤ) * BinaryGcd.modInv e f = f * t + 1 := by exact_mod_cast hbez
-      linarith
-    · have hinv : ((ZMod.unitOfCoprime w hw)⁻¹ : (ZMod n)ˣ) = (BinaryGcd.modInv w n : ZMod n) := by
-        apply Units.inv_eq_of_mul_eq_one_right
-        rw [ZMod.coe_unitOfCoprime, ← Nat.cast_mul, ← Nat.cast_one,
-          ZMod.natCast_eq_natCast_iff]
-        exact BinaryGcd.mul_modInv_modEq_one hn hw
+      linarith [show (e : ℤ) * BinaryGcd.modInv e f = f * t + 1 by exact_mod_cast hbez]
+    · have hinv : ((ZMod.unitOfCoprime w hw)⁻¹ : (ZMod n)ˣ) = (BinaryGcd.modInv w n : ZMod n) :=
+        Units.inv_eq_of_mul_eq_one_right (by
+          rw [ZMod.coe_unitOfCoprime, ← Nat.cast_mul, ← Nat.cast_one, ZMod.natCast_eq_natCast_iff]
+          exact BinaryGcd.mul_modInv_modEq_one hn hw)
       simp only [commonRoot, hf, hf1, ↓reduceIte, powMod_of_ne_zero hn.ne', Nat.cast_mul,
         ZMod.natCast_mod, Nat.cast_pow, zpow_neg, zpow_natCast, Units.val_mul,
         Units.val_pow_eq_pow_val, ← inv_pow, hinv, ZMod.coe_unitOfCoprime]
@@ -152,25 +146,20 @@ private theorem commonRoot_pow_modEq {n e f w y : ℕ} (hn : 0 < n) (hef : Nat.C
     commonRoot n e f w y ^ e ≡ y [MOD n] ∧ commonRoot n e f w y ^ f ≡ w [MOD n] := by
   by_cases hf : f = 0
   · subst hf
-    obtain rfl : e = 1 := Nat.coprime_zero_right e |>.mp hef
+    obtain rfl : e = 1 := (Nat.coprime_zero_right e).mp hef
     simp only [commonRoot, ↓reduceIte, pow_one, pow_zero] at h ⊢
     exact ⟨Nat.mod_modEq y n, h.symm⟩
   · have hy := coprime_of_pow_modEq_pow hf hw h
     obtain ⟨s, t, hst, hx⟩ := natCast_commonRoot hn hf hef hw hy
     set W := ZMod.unitOfCoprime w hw
     set Y := ZMod.unitOfCoprime y hy
-    have hWY : W ^ (e : ℤ) = Y ^ (f : ℤ) := by
-      ext
-      simp only [zpow_natCast, Units.val_pow_eq_pow_val, W, Y, ZMod.coe_unitOfCoprime,
-        ← Nat.cast_pow]
-      exact (ZMod.natCast_eq_natCast_iff _ _ _).mpr h
-    have hright := (Commute.all W Y).zpow_mul_zpow_zpow_eq_right hst hWY
-    have hleft := (Commute.all W Y).zpow_mul_zpow_zpow_eq_left hst hWY
-    constructor
-    · rw [← ZMod.natCast_eq_natCast_iff, Nat.cast_pow, hx, ← Units.val_pow_eq_pow_val,
-        ← zpow_natCast, hright, ZMod.coe_unitOfCoprime]
-    · rw [← ZMod.natCast_eq_natCast_iff, Nat.cast_pow, hx, ← Units.val_pow_eq_pow_val,
-        ← zpow_natCast, hleft, ZMod.coe_unitOfCoprime]
+    have hWY : W ^ (e : ℤ) = Y ^ (f : ℤ) := Units.ext (by
+      simpa only [zpow_natCast, Units.val_pow_eq_pow_val, W, Y, ZMod.coe_unitOfCoprime,
+        ← Nat.cast_pow] using (ZMod.natCast_eq_natCast_iff _ _ _).mpr h)
+    constructor <;> rw [← ZMod.natCast_eq_natCast_iff, Nat.cast_pow, hx,
+      ← Units.val_pow_eq_pow_val, ← zpow_natCast]
+    · rw [(Commute.all W Y).zpow_mul_zpow_zpow_eq_right hst hWY, ZMod.coe_unitOfCoprime]
+    · rw [(Commute.all W Y).zpow_mul_zpow_zpow_eq_left hst hWY, ZMod.coe_unitOfCoprime]
 
 /-- **Shamir's trick** ([BonehShoup2023], Theorem 10.6, p. 416). For `0 < n`, coprime `e` and `f`,
 `w` coprime to `n` and `w ^ e ≡ y ^ f [MOD n]`, the output `x = commonRoot n e f w y` satisfies
@@ -197,13 +186,11 @@ theorem commonRoot_coprime {n e f w y : ℕ} (hn : 0 < n) (hef : Nat.Coprime e f
     (hw : Nat.Coprime w n) (hy : Nat.Coprime y n) (h : w ^ e ≡ y ^ f [MOD n]) :
     Nat.Coprime (commonRoot n e f w y) n := by
   by_cases hf : f = 0
-  · have he : e = 1 := Nat.coprime_zero_right e |>.mp (hf ▸ hef)
-    have hx : Nat.Coprime (commonRoot n e f w y ^ e) n :=
-      (commonRoot_pow_modEq_right hn hef hw h).gcd_eq.trans hy
-    exact (Nat.coprime_pow_left_iff (by omega) _ _).mp hx
-  · have hx : Nat.Coprime (commonRoot n e f w y ^ f) n :=
-      (commonRoot_pow_modEq_left hn hef hw h).gcd_eq.trans hw
-    exact (Nat.coprime_pow_left_iff (Nat.pos_of_ne_zero hf) _ _).mp hx
+  · have he : e = 1 := (Nat.coprime_zero_right e).mp (hf ▸ hef)
+    exact (Nat.coprime_pow_left_iff (by omega) _ _).mp
+      ((commonRoot_pow_modEq_right hn hef hw h).gcd_eq.trans hy)
+  · exact (Nat.coprime_pow_left_iff (Nat.pos_of_ne_zero hf) _ _).mp
+      ((commonRoot_pow_modEq_left hn hef hw h).gcd_eq.trans hw)
 
 /-- `commonRoot` is computable in polynomial time whenever `n`, `e`, `f`, `w` and `y` are
 computable in polynomial time as natural numbers on `encNat`. There is no condition on the
@@ -214,18 +201,18 @@ theorem computableInPolyTime_commonRoot {α : Type} {enc : α ↪ List Bool} {n 
     (hy : ComputableInPolyTime y enc encNat) :
     ComputableInPolyTime (fun a => commonRoot (n a) (e a) (f a) (w a) (y a)) enc encNat := by
   have hs := ComputableInPolyTime.binary_modInv' he hf
-  have ht := ComputableInPolyTime.binary_div'
-    (ComputableInPolyTime.binary_sub' (ComputableInPolyTime.binary_mul' he hs)
-      (ComputableInPolyTime.const 1)) hf
-  have hroot := ComputableInPolyTime.binary_mod'
-    (ComputableInPolyTime.binary_mul' (computableInPolyTime_powMod hn hy hs)
-      (computableInPolyTime_powMod hn (ComputableInPolyTime.binary_modInv' hw hn) ht)) hn
   unfold commonRoot
   exact ComputableInPolyTime.ite_decide
     (ComputableInPolyTime.decide_eq' hf (ComputableInPolyTime.const 0))
     (ComputableInPolyTime.binary_mod' hy hn)
     (ComputableInPolyTime.ite_decide
       (ComputableInPolyTime.decide_eq' hf (ComputableInPolyTime.const 1))
-      (ComputableInPolyTime.binary_mod' hw hn) hroot)
+      (ComputableInPolyTime.binary_mod' hw hn)
+      (ComputableInPolyTime.binary_mod'
+        (ComputableInPolyTime.binary_mul' (computableInPolyTime_powMod hn hy hs)
+          (computableInPolyTime_powMod hn (ComputableInPolyTime.binary_modInv' hw hn)
+            (ComputableInPolyTime.binary_div'
+              (ComputableInPolyTime.binary_sub' (ComputableInPolyTime.binary_mul' he hs)
+                (ComputableInPolyTime.const 1)) hf))) hn))
 
 end Cslib.Crypto

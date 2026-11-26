@@ -36,7 +36,7 @@ Karchmer–Wigderson game of parity once `16 (32768 · 194 ^ d (m + 1)) ^ d ≤ 
 * [O. Korten, *Top-Down Lower Bounds for All Depths*][Korten2026]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Communication
 
@@ -53,12 +53,10 @@ private theorem parity_class_nonempty_deficit {n : ℕ} (hn : 0 < n) (b : Bool) 
     simpa only [Fintype.expect_eq_sum_div_card, sum_boole, Fintype.card_fun,
       Fintype.card_bool, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat] using hbal
   have hcard : (X.card : ℝ) = (2 : ℝ) ^ n / 2 := by
-    have he := (div_eq_iff (show (2 : ℝ) ^ n ≠ 0 by positivity)).mp hratio
+    rw [div_eq_iff (by positivity)] at hratio
     linarith
-  have hX : X.Nonempty := by
-    apply card_pos.mp
-    have he : (0 : ℝ) < X.card := by rw [hcard]; positivity
-    exact_mod_cast he
+  have hX : X.Nonempty := card_pos.mp <| by
+    exact_mod_cast (show (0 : ℝ) < X.card by rw [hcard]; positivity)
   refine ⟨hX, (uniformDeficit_le_iff hX).mpr ?_⟩
   simp only [Fintype.card_fin]
   rw [Real.rpow_sub (by norm_num), Real.rpow_natCast, Real.rpow_one, ← hcard]
@@ -81,29 +79,24 @@ theorem parity_isDensityLimit {n : ℕ} {p : ℝ} (hp : 0 ≤ p) (hp' : p ≤ 1)
       split_ifs <;> norm_num
   have hh := bernoulliAverage_mono hp hp' hpoint
   have he : bernoulliAverage p
-      (fun P : Fin n → Bool => if ∃ i, P i = true then (1 : ℝ) else 0) =
-        1 - (1 - p) ^ n := by
+      (fun P : Fin n → Bool => if ∃ i, P i = true then (1 : ℝ) else 0) = 1 - (1 - p) ^ n := by
     convert bernoulliAverage_nonempty (ι := Fin n) p using 1
-    · congr 1 with P : 1
-      split_ifs <;> rfl
+    · congr 1 with P : 1; split_ifs <;> rfl
     · simp
   rw [he] at hh
-  have hg := (show (3 : ℝ) / 4 ≤ 1 - (1 - p) ^ n by linarith).trans hh
   unfold IsDensityLimit
-  convert hg using 1
+  exact (show (3 : ℝ) / 4 ≤ 1 - (1 - p) ^ n by linarith).trans hh
 
 private theorem parity_isDensityLimit_four_div {n : ℕ} (hn : 4 ≤ n) (b : Bool)
     (x : Fin n → Bool) :
     IsDensityLimit (univ.filter fun z : Fin n → Bool => parity n z = b)
       (4 / n) 1 x := by
   have hnpos : (0 : ℝ) < n := by exact_mod_cast (show 0 < n by omega)
-  have hn4 : (4 : ℝ) ≤ n := by exact_mod_cast hn
-  have hp1 : (4 : ℝ) / n ≤ 1 := (div_le_one hnpos).mpr hn4
+  have hp1 : (4 : ℝ) / n ≤ 1 := (div_le_one hnpos).mpr (by exact_mod_cast hn)
   apply parity_isDensityLimit (by positivity) hp1 _ b x
   have ht := Real.one_sub_pow_mul_one_add_mul_le_one hp1 n
-  have hnp : (n : ℝ) * (4 / n) = 4 := by field_simp
-  rw [hnp] at ht
-  nlinarith
+  rw [mul_div_cancel₀ _ hnpos.ne'] at ht
+  linarith
 
 namespace RoundProtocol
 
@@ -115,9 +108,10 @@ private theorem not_solves_parity_classes {n d : ℕ} (P : KWRoundProtocol (Fin 
     ¬ P.Solves DiffersAt ↑(univ.filter fun x => parity n x = false)
       ↑(univ.filter fun y => parity n y = true) := by
   have hC : 1 ≤ 32768 * (194 : ℝ) ^ d * (m + 1) := by
-    have hh : 1 ≤ (194 : ℝ) ^ d := one_le_pow₀ (by norm_num)
-    nlinarith [mul_nonneg (show 0 ≤ (194 : ℝ) ^ d by positivity) hm]
-  have hn16 : (16 : ℝ) ≤ n := by nlinarith [one_le_pow₀ (n := d) hC]
+    have : (1 : ℝ) ≤ 194 ^ d := one_le_pow₀ (by norm_num)
+    calc (1 : ℝ) ≤ 32768 * 1 * 1 := by norm_num
+      _ ≤ 32768 * (194 : ℝ) ^ d * (m + 1) := by gcongr; linarith
+  have hn16 : (16 : ℝ) ≤ n := (le_mul_of_one_le_right (by norm_num) (one_le_pow₀ hC)).trans hsize
   have hn4 : 4 ≤ n := by exact_mod_cast (show (4 : ℝ) ≤ n by linarith)
   have hnpos : (0 : ℝ) < n := by linarith
   have hX := parity_class_nonempty_deficit (show 0 < n by omega) false
@@ -126,9 +120,8 @@ private theorem not_solves_parity_classes {n d : ℕ} (P : KWRoundProtocol (Fin 
     hX.1 hY.1 hX.2 hY.2
     (fun x _ => parity_isDensityLimit_four_div hn4 true x)
     (fun y _ => parity_isDensityLimit_four_div hn4 false y)
-  rw [← mul_div_assoc]
-  apply (div_le_iff₀ hnpos).mpr
-  nlinarith
+  rw [← mul_div_assoc, div_le_iff₀ hnpos]
+  linarith
 
 /-- **Korten's bound for parity, with explicit constants**: no protocol with `d + 1` messages of at
 most `m` bits solves the Karchmer–Wigderson game of parity on `n` bits when
@@ -138,9 +131,8 @@ theorem not_solvesKW_parity {n d : ℕ} (P : KWRoundProtocol (Fin n) M (d + 1))
     (hsize : 16 * (32768 * (194 : ℝ) ^ d * (m + 1)) ^ d ≤ (n : ℝ)) :
     ¬ P.SolvesKW (parity n) := by
   intro hsol
-  apply not_solves_parity_classes P hM hm hsize
-  intro x hx y hy
-  exact hsol x y (mem_filter.mp hx).2 (mem_filter.mp hy).2
+  exact not_solves_parity_classes P hM hm hsize fun x hx y hy =>
+    hsol x y (mem_filter.mp hx).2 (mem_filter.mp hy).2
 
 end RoundProtocol
 
@@ -149,24 +141,24 @@ private theorem finite_budget_of_cost {n d : ℕ} (hd : 0 < d)
     (hcost : m ≤ (n : ℝ) ^ ((d : ℝ)⁻¹) / (32 * (32768 * (194 : ℝ) ^ d))) :
     16 * (32768 * (194 : ℝ) ^ d * (m + 1)) ^ d ≤ (n : ℝ) := by
   let C : ℝ := 32768 * (194 : ℝ) ^ d
-  let r : ℝ := (n : ℝ) ^ ((d : ℝ)⁻¹)
-  have hC : 0 < C := by dsimp [C]; positivity
-  have hlarge' : (32 * C) ^ d ≤ (n : ℝ) := by
-    dsimp [C]
-    exact_mod_cast hlarge
-  have hroot : 32 * C ≤ r := by
-    have hh := Real.rpow_le_rpow (show 0 ≤ (32 * C) ^ d by positivity)
-      hlarge' (show 0 ≤ (d : ℝ)⁻¹ by positivity)
-    rw [Real.pow_rpow_inv_natCast (by positivity) (Nat.ne_of_gt hd)] at hh
-    exact hh
-  have hcost' : m * (32 * C) ≤ r := (le_div_iff₀ (by positivity)).mp hcost
-  -- raise `16 C (m + 1) ≤ n ^ (1 / d)` to the `d`-th power and use `16 ≤ 16 ^ d`
-  have hstep : 16 * (C * (m + 1)) ≤ r := by nlinarith
-  have hpow := pow_le_pow_left₀ (by positivity) hstep d
-  have hrootpow : r ^ d = (n : ℝ) := Real.rpow_inv_natCast_pow (by positivity) (Nat.ne_of_gt hd)
-  rw [hrootpow, mul_pow] at hpow
-  have h16 : (16 : ℝ) ≤ 16 ^ d := le_self_pow₀ (by norm_num) (Nat.ne_of_gt hd)
-  exact le_trans (mul_le_mul_of_nonneg_right h16 (by positivity)) hpow
+  have hstep : 16 * (C * (m + 1)) ≤ (n : ℝ) ^ ((d : ℝ)⁻¹) := by
+    have hroot : 32 * C ≤ (n : ℝ) ^ ((d : ℝ)⁻¹) := by
+      have hh := Real.rpow_le_rpow (by positivity)
+        (by dsimp [C]; exact_mod_cast hlarge : (32 * C) ^ d ≤ (n : ℝ))
+        (by positivity : (0 : ℝ) ≤ (d : ℝ)⁻¹)
+      rwa [Real.pow_rpow_inv_natCast (by positivity) hd.ne'] at hh
+    have hsum : m + 1 ≤ (n : ℝ) ^ ((d : ℝ)⁻¹) / (16 * C) := by
+      have h1 := (one_le_div (by positivity : 0 < 32 * C)).mpr hroot
+      calc m + 1 ≤ (n : ℝ) ^ ((d : ℝ)⁻¹) / (32 * C) + (n : ℝ) ^ ((d : ℝ)⁻¹) / (32 * C) :=
+            add_le_add hcost h1
+        _ = (n : ℝ) ^ ((d : ℝ)⁻¹) / (16 * C) := by ring
+    simpa only [mul_assoc] using (le_div_iff₀' (by positivity : 0 < 16 * C)).mp hsum
+  calc 16 * (C * (m + 1)) ^ d
+      ≤ 16 ^ d * (C * (m + 1)) ^ d := by
+        gcongr; exact le_self_pow₀ (by norm_num) hd.ne'
+    _ = (16 * (C * (m + 1))) ^ d := (mul_pow ..).symm
+    _ ≤ ((n : ℝ) ^ ((d : ℝ)⁻¹)) ^ d := by gcongr
+    _ = n := Real.rpow_inv_natCast_pow (by positivity) hd.ne'
 
 universe u in
 /-- **Korten's communication lower bound for parity** [Korten, Theorem 3][Korten2026]: for every
@@ -183,10 +175,7 @@ theorem not_solvesKW_parity (rounds : ℕ) (hrounds : 2 ≤ rounds) :
   have hε : 0 < ε := by dsimp [ε]; positivity
   refine ⟨ε, hε, (32 * (32768 * 194 ^ d)) ^ d, fun n hn M _ hM P => ?_⟩
   have hm : 0 ≤ ε * (n : ℝ) ^ (((d + 1 - 1 : ℕ) : ℝ)⁻¹) := by positivity
-  have hc : ε * (n : ℝ) ^ (((d + 1 - 1 : ℕ) : ℝ)⁻¹) ≤
-      (n : ℝ) ^ ((d : ℝ)⁻¹) / (32 * (32768 * (194 : ℝ) ^ d)) := by
-    simp only [ε, Nat.add_sub_cancel]
-    exact le_of_eq (by ring)
-  exact P.not_solvesKW_parity hM hm (finite_budget_of_cost hd hn hm hc)
+  exact P.not_solvesKW_parity hM hm <| finite_budget_of_cost hd hn hm <|
+    le_of_eq (by simp only [ε, Nat.succ_sub_one]; ring)
 
 end Cslib.Communication

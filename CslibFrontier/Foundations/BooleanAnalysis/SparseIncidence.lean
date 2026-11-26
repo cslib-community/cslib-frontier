@@ -128,18 +128,15 @@ theorem commonZeroCount_modEq_sumCoeffsBelow_incidenceSum (P : κ → Finset (Fi
     (commonZeroCount univ P : ℤ) ≡
       sumCoeffsBelow ℓ (incidenceSum I (fun i => parityCoeff ℓ (P i)) K) [ZMOD 2 ^ ℓ] := by
   have h52 := sum_sumCoeffsBelow_prod_parityFactor_modEq_commonZeroCount univ P ℓ
-  rw [← sumCoeffsBelow_sum] at h52
   have hexp := sum_prod_eq_incidenceSum I (fun i x => parityFactor ℓ (monomialSum ℤ (P i) x))
-    (fun i x y h => by rw [monomialSum_congr_of_eqOn (hI i) h]) (le_max_right K (∑ i, #(I i)))
+    (fun i _ _ h => congrArg _ (monomialSum_congr_of_eqOn (hI i) h)) (le_max_right K (∑ i, #(I i)))
   simp only [monomialSum_indicator] at hexp
   change _ = incidenceSum I (fun i => parityCoeff ℓ (P i)) _ at hexp
-  have htrunc : sumCoeffsBelow ℓ
-      (incidenceSum I (fun i => parityCoeff ℓ (P i)) (max K (∑ i, #(I i)))) =
-      sumCoeffsBelow ℓ (incidenceSum I (fun i => parityCoeff ℓ (P i)) K) :=
-    sum_congr rfl fun t ht => coeff_incidenceSum_eq_of_le I _
-      (fun i S j hj => coeff_parityCoeff_eq_zero (hk i) hj) hK (le_max_left _ _) (mem_range.mp ht)
-  rw [hexp, htrunc] at h52
-  exact h52.symm
+  have htrunc : sumCoeffsBelow ℓ _ = sumCoeffsBelow ℓ _ :=
+    sum_congr rfl fun t ht => coeff_incidenceSum_eq_of_le I (fun i => parityCoeff ℓ (P i))
+      (fun i _ _ hj => coeff_parityCoeff_eq_zero (hk i) hj) hK (le_max_left K (∑ i, #(I i)))
+      (mem_range.mp ht)
+  simpa only [← sumCoeffsBelow_sum, hexp, htrunc] using h52.symm
 
 /-- **Exact recovery of the count.** For `n < ℓ` variables and integers `q j` congruent modulo
 `2 ^ ℓ` to the coefficients below `V ^ ℓ` of the incidence sum, the sum of the `q j` modulo `2 ^ ℓ`
@@ -153,10 +150,8 @@ theorem emod_sum_eq_commonZeroCount_of_modEq (P : κ → Finset (Finset ι)) {I 
   have hsum : (∑ j ∈ range ℓ, q j) ≡ (commonZeroCount univ P : ℤ) [ZMOD 2 ^ ℓ] :=
     (Int.ModEq.sum fun j hj => hq j (mem_range.mp hj)).trans
       (commonZeroCount_modEq_sumCoeffsBelow_incidenceSum P hI hk hK).symm
-  rw [hsum, Int.emod_eq_of_lt (Nat.cast_nonneg _)]
-  have hle : (commonZeroCount univ P : ℤ) ≤ 2 ^ Fintype.card ι := by
-    exact_mod_cast commonZeroCount_le_two_pow univ P
-  have hlt : (2 : ℤ) ^ Fintype.card ι < 2 ^ ℓ := pow_lt_pow_right₀ (by norm_num) hℓ
-  omega
+  rw [hsum]
+  exact Int.emod_eq_of_lt (Nat.cast_nonneg _) <| mod_cast
+    (commonZeroCount_le_two_pow univ P).trans_lt (Nat.pow_lt_pow_right Nat.one_lt_two hℓ)
 
 end Cslib.BitString

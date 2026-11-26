@@ -217,25 +217,22 @@ noncomputable def restrict (r : V → R) (x : V) : ArithQBF V → R[X]
 `r` with `x` set to `z`. -/
 theorem eval_restrict (x : V) (z : R) :
     (e.restrict r x).eval z = e.eval (Function.update r x z) := by
-  induction e generalizing r with
-  | var v =>
-    by_cases h : v = x
-    · subst h
-      simp only [restrict, ↓reduceIte, eval_X, eval_var, Function.update_self]
-    · simp only [restrict, h, ↓reduceIte, eval_C, eval_var, Function.update_of_ne h]
-  | top => simp only [restrict, eval_one, eval_top]
-  | bot => simp only [restrict, Polynomial.eval_zero, eval_bot]
-  | not e ih => simp only [restrict, eval_sub, eval_one, ih, eval_not]
-  | bin o e₁ e₂ ih₁ ih₂ =>
-    rw [restrict, ← coe_evalRingHom, Connective.map_apply, coe_evalRingHom, ih₁, ih₂, eval_bin]
-  | op o v e ih =>
-    rw [restrict, eval_op, ← coe_evalRingHom]
-    by_cases h : v = x
-    · subst h
-      simp only [↓reduceIte, Operator.map_apply, coe_evalRingHom, eval_X, eval_C,
-        Function.update_self, Function.update_idem]
-    · simp only [h, ↓reduceIte, Operator.map_apply, coe_evalRingHom, eval_C, ih,
-        Function.update_of_ne h, Function.update_comm h]
+  fun_induction restrict r x e with
+  | case1 => simp only [eval_X, eval_var, Function.update_self] -- var x
+  | case2 r v hvx => simp only [eval_C, eval_var, Function.update_of_ne hvx] -- var v, v ≠ x
+  | case3 => simp only [eval_one, eval_top] -- top
+  | case4 => simp only [Polynomial.eval_zero, eval_bot] -- bot
+  | case5 r e ih => simp only [eval_sub, eval_one, ih, eval_not] -- not
+  | case6 r o e₁ e₂ ih₁ ih₂ => -- bin
+    rw [← coe_evalRingHom, Connective.map_apply, coe_evalRingHom, ih₁, ih₂, eval_bin]
+  | case7 => -- op binding x
+    rw [eval_op, ← coe_evalRingHom]
+    simp only [Operator.map_apply, coe_evalRingHom, eval_X, eval_C, Function.update_self,
+      Function.update_idem]
+  | case8 r o v e hvx ih₀ ih₁ => -- op binding v ≠ x
+    rw [eval_op, ← coe_evalRingHom]
+    simp only [Operator.map_apply, coe_evalRingHom, eval_C, ih₀, ih₁, Function.update_of_ne hvx,
+      Function.update_comm hvx]
 
 /-- The factor by which an operator binding another variable can multiply the degree in `x`. -/
 def Operator.degMul : Operator → ℕ
@@ -271,61 +268,43 @@ theorem Operator.natDegree_apply_le (o : Operator) (t : R) {p q : R[X]} {d : ℕ
     (hp : p.natDegree ≤ d) (hq : q.natDegree ≤ d) :
     (o.apply (C t) p q).natDegree ≤ o.degMul * d := by
   cases o
-  · refine (natDegree_one_sub_le _).trans (natDegree_mul_le.trans ?_)
-    have := natDegree_one_sub_le p
+  · have := natDegree_one_sub_le p
     have := natDegree_one_sub_le q
-    simp only [degMul]
-    omega
-  · refine natDegree_mul_le.trans ?_
-    simp only [degMul]
-    omega
-  · refine (natDegree_add_le _ _).trans (max_le ?_ ?_)
-    · refine natDegree_mul_le.trans ?_
-      rw [← C_1, ← C_sub, natDegree_C, degMul, one_mul, zero_add]
-      exact hp
-    · refine natDegree_mul_le.trans ?_
-      rw [natDegree_C, degMul, one_mul, zero_add]
-      exact hq
+    exact (natDegree_one_sub_le _).trans (natDegree_mul_le.trans (by simp only [degMul]; omega))
+  · exact natDegree_mul_le.trans (by simp only [degMul]; omega)
+  · refine (natDegree_add_le _ _).trans (max_le (natDegree_mul_le.trans ?_)
+      (natDegree_mul_le.trans ?_))
+    · rw [← C_1, ← C_sub]
+      simpa only [natDegree_C, degMul, one_mul, zero_add] using hp
+    · simpa only [natDegree_C, degMul, one_mul, zero_add] using hq
 
 /-- Applying an operator at `X` to constant polynomials `C a` and `C b` has degree at most `1`. -/
 theorem Operator.natDegree_apply_X_le (o : Operator) (a b : R) :
     (o.apply X (C a) (C b)).natDegree ≤ 1 := by
   cases o
-  · refine (natDegree_one_sub_le _).trans (natDegree_mul_le.trans ?_)
-    have := natDegree_one_sub_le (C a)
-    have := natDegree_one_sub_le (C b)
-    rw [natDegree_C] at *
-    omega
-  · refine natDegree_mul_le.trans ?_
-    rw [natDegree_C, natDegree_C]
-    omega
-  · refine (natDegree_add_le _ _).trans (max_le ?_ ?_)
-    · refine natDegree_mul_le.trans ?_
-      rw [natDegree_C, add_zero]
-      exact (natDegree_one_sub_le X).trans natDegree_X_le
-    · refine natDegree_mul_le.trans ?_
-      rw [natDegree_C, add_zero]
-      exact natDegree_X_le
+  · have h₁ := (natDegree_one_sub_le (C a)).trans_eq (natDegree_C a)
+    have h₂ := (natDegree_one_sub_le (C b)).trans_eq (natDegree_C b)
+    exact (natDegree_one_sub_le _).trans (natDegree_mul_le.trans (by omega))
+  · exact natDegree_mul_le.trans (by simp only [natDegree_C]; omega)
+  · exact (natDegree_add_le _ _).trans (max_le
+      (natDegree_mul_le.trans (by
+        simpa only [natDegree_C, add_zero] using (natDegree_one_sub_le X).trans natDegree_X_le))
+      (natDegree_mul_le.trans (by simpa only [natDegree_C, add_zero] using natDegree_X_le)))
 
 /-- The restriction of a formula to `x` has degree at most `degBound x`. -/
 theorem natDegree_restrict_le (x : V) : (e.restrict r x).natDegree ≤ e.degBound x := by
-  induction e generalizing r with
-  | var v =>
-    by_cases h : v = x
-    · simp only [restrict, degBound, h, ↓reduceIte]
-      exact natDegree_X_le
-    · simp only [restrict, degBound, h, ↓reduceIte, natDegree_C, le_refl]
-  | top => simp only [restrict, degBound, natDegree_one, le_refl]
-  | bot => simp only [restrict, degBound, natDegree_zero, le_refl]
-  | not e ih => exact (natDegree_one_sub_le _).trans (ih r)
-  | bin o e₁ e₂ ih₁ ih₂ =>
-    exact (Connective.natDegree_apply_le o _ _).trans (Nat.add_le_add (ih₁ r) (ih₂ r))
-  | op o v e ih =>
-    by_cases h : v = x
-    · simp only [restrict, degBound, h, ↓reduceIte]
-      exact Operator.natDegree_apply_X_le o _ _
-    · simp only [restrict, degBound, h, ↓reduceIte]
-      exact Operator.natDegree_apply_le o _ (ih _) (ih _)
+  fun_induction restrict r x e with
+  | case1 => simpa [degBound] using natDegree_X_le -- var x
+  | case2 r v hvx => simp only [degBound, hvx, ↓reduceIte, natDegree_C, le_refl] -- var v, v ≠ x
+  | case3 => simp only [degBound, natDegree_one, le_refl] -- top
+  | case4 => simp only [degBound, natDegree_zero, le_refl] -- bot
+  | case5 r e ih => exact (natDegree_one_sub_le _).trans ih -- not
+  | case6 r o e₁ e₂ ih₁ ih₂ => -- bin
+    exact (Connective.natDegree_apply_le o _ _).trans (Nat.add_le_add ih₁ ih₂)
+  | case7 r o => simpa [degBound] using Operator.natDegree_apply_X_le o _ _ -- op binding x
+  | case8 r o v e hvx ih₀ ih₁ => -- op binding v ≠ x
+    simp only [degBound, hvx, ↓reduceIte]
+    exact Operator.natDegree_apply_le o _ ih₀ ih₁
 
 /-- The sum, over the operators of a formula, of the degree of their body in the variable they
 bind: the number of roots that can fool the verifier in the interactive proof. -/
@@ -360,9 +339,7 @@ def maxRoundDegree : ArithQBF V → ℕ
 /-- The round degrees sum to at most the number of rounds times the largest round degree. -/
 theorem roundDegree_le_ops_mul : e.roundDegree ≤ e.ops * e.maxRoundDegree := by
   induction e with
-  | var v => exact le_refl 0
-  | top => exact le_refl 0
-  | bot => exact le_refl 0
+  | var _ | top | bot => exact le_refl 0
   | not e ih => exact ih
   | bin o e₁ e₂ ih₁ ih₂ =>
     simp only [roundDegree, ops, maxRoundDegree, Nat.add_mul]
@@ -401,8 +378,7 @@ private theorem update_agree {β : Type*} {r r' : V → β} {o : Operator} {v : 
 theorem eval_congr {r r' : V → R} (h : ∀ w ∈ e.vars, r w = r' w) : e.eval r = e.eval r' := by
   induction e generalizing r r' with
   | var v => exact h v (List.mem_singleton_self v)
-  | top => rfl
-  | bot => rfl
+  | top | bot => rfl
   | not e ih => rw [eval_not, eval_not, ih h]
   | bin o e₁ e₂ ih₁ ih₂ =>
     rw [eval_bin, eval_bin, ih₁ fun w hw => h w (List.mem_append_left _ hw),
@@ -415,8 +391,7 @@ theorem restrict_congr {r r' : V → R} (x : V) (h : ∀ w ∈ e.vars, r w = r' 
     e.restrict r x = e.restrict r' x := by
   induction e generalizing r r' with
   | var v => simp only [restrict, h v (List.mem_singleton_self v)]
-  | top => rfl
-  | bot => rfl
+  | top | bot => rfl
   | not e ih => simp only [restrict, ih h]
   | bin o e₁ e₂ ih₁ ih₂ =>
     simp only [restrict, ih₁ fun w hw => h w (List.mem_append_left _ hw),
@@ -448,9 +423,7 @@ private theorem cond_update (σ : V → Bool) (v : V) (b : Bool) :
 private theorem eval_cond (σ : V → Bool) :
     e.eval (fun w => cond (σ w) (1 : R) 0) = cond (e.toQBF.eval σ) 1 0 := by
   induction e generalizing σ with
-  | var v => rfl
-  | top => rfl
-  | bot => rfl
+  | var _ | top | bot => rfl
   | not e ih =>
     rw [eval_not, ih]
     simp only [toQBF, QBF.eval_not]
@@ -471,20 +444,14 @@ private theorem eval_cond (σ : V → Bool) :
         cases e.toQBF.eval (Function.update σ v true) <;> simp
     case lin =>
       simp only [toQBF, Operator.apply]
-      cases hσ : σ v
-      · rw [← hσ, Function.update_eq_self]
-        simp only [hσ, Bool.cond_false, sub_zero, one_mul, zero_mul, add_zero]
-      · rw [← hσ, Function.update_eq_self]
-        simp only [hσ, Bool.cond_true, sub_self, zero_mul, one_mul, zero_add]
+      cases hσ : σ v <;> rw [← hσ, Function.update_eq_self] <;> simp [hσ]
 
 /-- **Faithfulness on `0`-`1` points.** At the point given by a truth assignment, an arithmetic
 formula has value `1` or `0` according to the truth value of the formula without its
 linearizations. -/
 theorem eval_boolean (σ : V → Bool) :
     e.eval (fun w => if σ w then (1 : R) else 0) = if e.toQBF.eval σ then 1 else 0 := by
-  have h := eval_cond (R := R) e σ
-  simp only [Bool.cond_eq_ite] at h
-  exact h
+  simpa only [Bool.cond_eq_ite] using eval_cond (R := R) e σ
 
 /-! ### Linearization -/
 
@@ -524,9 +491,9 @@ private theorem roundDegree_lins_le (xs : List V) {D : ℕ} (h : ∀ x, e.degBou
   induction xs with
   | nil => simp
   | cons y xs ih =>
-    rw [lins_cons, roundDegree, degBound_lins, List.length_cons]
+    rw [lins_cons, roundDegree, degBound_lins, List.length_cons, Nat.add_mul, Nat.one_mul]
     have : (if y ∈ xs then 1 else e.degBound y) ≤ D := by split_ifs <;> simp_all
-    nlinarith
+    omega
 
 omit [DecidableEq V] in
 /-- Linearizing `xs` adds `xs.length` operators to `e.ops`. -/
@@ -587,9 +554,7 @@ omit [DecidableEq V] in
 /-- Dropping linearizations from `φ.arithmetize xs` recovers `φ`. -/
 @[simp] theorem toQBF_arithmetize (xs : List V) (φ : QBF V) : (φ.arithmetize xs).toQBF = φ := by
   induction φ with
-  | var v => rfl
-  | top => rfl
-  | bot => rfl
+  | var _ | top | bot => rfl
   | not φ ih => rw [arithmetize, ArithQBF.toQBF, ih]
   | and φ ψ ihφ ihψ | or φ ψ ihφ ihψ => rw [arithmetize, ArithQBF.toQBF, ihφ, ihψ]
   | ex v φ ih | all v φ ih => rw [arithmetize, toQBF_lins, ArithQBF.toQBF, ih]
@@ -603,10 +568,8 @@ theorem eval_arithmetize (xs : List V) (φ : QBF V) (σ : V → Bool) :
 value. -/
 theorem eval_arithmetize_zero (xs : List V) {φ : QBF V} (hφ : φ.Closed) (σ : V → Bool) :
     (φ.arithmetize xs).eval (0 : V → R) = if φ.eval σ then 1 else 0 := by
-  have h0 : (0 : V → R) = fun v => if (fun _ => false : V → Bool) v then (1 : R) else 0 := by
-    funext v
-    simp
-  rw [h0, eval_arithmetize, eval_eq_of_closed hφ]
+  simpa only [Pi.zero_def, Bool.false_eq_true, ↓reduceIte,
+    eval_eq_of_closed hφ (fun _ => false) σ] using eval_arithmetize (R := R) xs φ (fun _ => false)
 
 /-- A variable that does not occur in `φ` nor in `xs` does not occur in the arithmetization. -/
 theorem degBound_arithmetize_eq_zero {xs : List V} {x : V} (hx : x ∉ xs) {φ : QBF V}
@@ -615,8 +578,7 @@ theorem degBound_arithmetize_eq_zero {xs : List V} {x : V} (hx : x ∉ xs) {φ :
   | var v =>
     have : v ≠ x := fun h => hφ (h ▸ List.mem_singleton_self v)
     simp [arithmetize, degBound, this]
-  | top => rfl
-  | bot => rfl
+  | top | bot => rfl
   | not φ ih => exact ih hφ
   | and φ ψ ihφ ihψ | or φ ψ ihφ ihψ =>
     simp only [vars, List.mem_append, not_or] at hφ
@@ -633,18 +595,11 @@ theorem degBound_arithmetize_le {xs : List V} {φ : QBF V} (hxs : ∀ v ∈ φ.v
   | var v =>
     simp only [arithmetize, degBound, size]
     split_ifs <;> omega
-  | top => simp [arithmetize, degBound]
-  | bot => simp [arithmetize, degBound]
-  | not φ ih =>
-    simp only [arithmetize, degBound, size]
-    have := ih hxs
-    omega
+  | top | bot => simp [arithmetize, degBound]
+  | not φ ih => exact (ih hxs).trans (Nat.le_succ _)
   | and φ ψ ihφ ihψ | or φ ψ ihφ ihψ =>
-    simp only [vars, List.mem_append] at hxs
-    have := ihφ fun v hv => hxs v (Or.inl hv)
-    have := ihψ fun v hv => hxs v (Or.inr hv)
-    simp only [arithmetize, degBound, size]
-    omega
+    simp only [vars, List.mem_append, or_imp, forall_and] at hxs
+    exact (Nat.add_le_add (ihφ hxs.1) (ihψ hxs.2)).trans (Nat.le_succ _)
   | ex v φ ih | all v φ ih =>
     by_cases hx : x ∈ xs
     · simp only [arithmetize, degBound_lins, hx, ↓reduceIte, size]
@@ -668,21 +623,19 @@ private theorem roundDegree_arithmetize_op_le {xs : List V} {φ : QBF V}
     (hxs : ∀ v ∈ φ.vars, v ∈ xs) (o : Operator) (ho : o.degMul ≤ 2) (v : V) :
     (lins xs (.op o v (φ.arithmetize xs))).roundDegree ≤
       (2 * xs.length + 1) * φ.size + (φ.arithmetize xs).roundDegree := by
-  have hdeg := degBound_arithmetize_le hxs
+  have hdeg := degBound_arithmetize_le hxs v
   have hs := one_le_size φ
   refine (roundDegree_lins_le _ xs (degBound_op_arithmetize_le hxs o ho v) (by omega)).trans ?_
-  simp only [ArithQBF.roundDegree]
-  have := hdeg v
-  nlinarith
+  simp only [ArithQBF.roundDegree, Nat.add_mul, Nat.one_mul]
+  rw [show xs.length * (2 * φ.size) = 2 * xs.length * φ.size by ring]
+  omega
 
 /-- **The round degrees are polynomial.** When `xs` contains every variable of `φ`, the sum of
 the round degrees of the arithmetization is at most `(2 * |xs| + 1) * size φ ^ 2`. -/
 theorem roundDegree_arithmetize_le {xs : List V} {φ : QBF V} (hxs : ∀ v ∈ φ.vars, v ∈ xs) :
     (φ.arithmetize xs).roundDegree ≤ (2 * xs.length + 1) * φ.size ^ 2 := by
   induction φ with
-  | var v => simp [arithmetize, ArithQBF.roundDegree]
-  | top => simp [arithmetize, ArithQBF.roundDegree]
-  | bot => simp [arithmetize, ArithQBF.roundDegree]
+  | var _ | top | bot => simp [arithmetize, ArithQBF.roundDegree]
   | not φ ih =>
     simp only [arithmetize, ArithQBF.roundDegree, size]
     exact (ih hxs).trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (Nat.le_succ _) 2))
@@ -693,14 +646,14 @@ theorem roundDegree_arithmetize_le {xs : List V} {φ : QBF V} (hxs : ∀ v ∈ �
     simp only [arithmetize, ArithQBF.roundDegree, size]
     refine (Nat.add_le_add h₁ h₂).trans ?_
     rw [← Nat.mul_add]
-    exact Nat.mul_le_mul_left _ (by nlinarith [Nat.zero_le (φ.size * ψ.size)])
+    exact Nat.mul_le_mul_left _ (by rw [add_sq, add_sq]; omega)
   | ex v φ ih | all v φ ih =>
     simp only [vars, List.mem_cons] at hxs
     have hxs' : ∀ w ∈ φ.vars, w ∈ xs := fun w hw => hxs w (Or.inr hw)
     refine (roundDegree_arithmetize_op_le hxs' _ (by decide) v).trans ?_
     refine (Nat.add_le_add_left (ih hxs') _).trans ?_
     rw [← Nat.mul_add, size]
-    exact Nat.mul_le_mul_left _ (by nlinarith)
+    exact Nat.mul_le_mul_left _ (by rw [add_sq]; omega)
 
 omit [DecidableEq V] in
 /-- Every variable of the arithmetization is a variable of `φ` or of `xs`. -/
@@ -708,8 +661,7 @@ theorem mem_vars_arithmetize {xs : List V} {φ : QBF V} {w : V}
     (h : w ∈ (φ.arithmetize xs).vars) : w ∈ φ.vars ∨ w ∈ xs := by
   induction φ with
   | var v => exact Or.inl h
-  | top => exact absurd h List.not_mem_nil
-  | bot => exact absurd h List.not_mem_nil
+  | top | bot => exact absurd h List.not_mem_nil
   | not φ ih => exact ih h
   | and φ ψ ihφ ihψ | or φ ψ ihφ ihψ =>
     simp only [arithmetize, ArithQBF.vars, List.mem_append] at h
@@ -729,27 +681,23 @@ omit [DecidableEq V] in
 theorem ops_arithmetize_le (xs : List V) (φ : QBF V) :
     (φ.arithmetize xs).ops ≤ (xs.length + 1) * φ.size := by
   induction φ with
-  | var v => exact Nat.zero_le _
-  | top => exact Nat.zero_le _
-  | bot => exact Nat.zero_le _
+  | var _ | top | bot => exact Nat.zero_le _
   | not φ ih =>
     simp only [arithmetize, ArithQBF.ops, size]
     exact ih.trans (Nat.mul_le_mul_left _ (Nat.le_succ _))
   | and φ ψ ihφ ihψ | or φ ψ ihφ ihψ =>
-    simp only [arithmetize, ArithQBF.ops, size]
-    nlinarith
+    simp only [arithmetize, ArithQBF.ops, size, Nat.mul_add, Nat.mul_one]
+    omega
   | ex v φ ih | all v φ ih =>
-    simp only [arithmetize, ArithQBF.ops_lins, ArithQBF.ops, size]
-    nlinarith
+    simp only [arithmetize, ArithQBF.ops_lins, ArithQBF.ops, size, Nat.mul_add, Nat.mul_one]
+    omega
 
 /-- **Every round is of small degree.** When `xs` contains every variable of `φ`, the body of
 every operator of the arithmetization has degree at most `2 * size φ` in its variable. -/
 theorem maxRoundDegree_arithmetize_le {xs : List V} {φ : QBF V} (hxs : ∀ v ∈ φ.vars, v ∈ xs) :
     (φ.arithmetize xs).maxRoundDegree ≤ 2 * φ.size := by
   induction φ with
-  | var v => exact Nat.zero_le _
-  | top => exact Nat.zero_le _
-  | bot => exact Nat.zero_le _
+  | var _ | top | bot => exact Nat.zero_le _
   | not φ ih =>
     simp only [arithmetize, ArithQBF.maxRoundDegree, size]
     have := ih hxs

@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Foundations.NumberTheory.PrimeCollision
 public import CslibFrontier.Foundations.NumberTheory.PrimeWindow
-import Mathlib.Analysis.SpecialFunctions.Pow.Real
 
 /-!
 # Collisions in closed prime windows
@@ -46,10 +45,13 @@ private theorem sqrt_card {c x : ℝ} (hc : 0 < c) (hx : 4 ≤ x)
     rw [← Real.sqrt_eq_rpow] at this
     linarith
   have hp : 0 < Real.log x := Real.log_pos (by linarith)
-  have h := (le_div_iff₀ hp).mpr
-    (show Real.sqrt x / 2 * Real.log x ≤ x by
-      nlinarith [Real.sqrt_nonneg x])
-  nlinarith
+  have h : Real.sqrt x / 2 ≤ x / Real.log x := (le_div_iff₀ hp).mpr <|
+    calc Real.sqrt x / 2 * Real.log x ≤ Real.sqrt x / 2 * (2 * Real.sqrt x) := by gcongr
+      _ = Real.sqrt x ^ 2 := by ring
+      _ = x := hs
+  calc c * Real.sqrt x / 2 = c * (Real.sqrt x / 2) := by ring
+    _ ≤ c * (x / Real.log x) := by gcongr
+    _ ≤ S.card := hS
 
 /-- One positive density constant bounds both closed windows by a square root. -/
 private theorem exists_sqrt_card_closedPrimes :
@@ -60,24 +62,15 @@ private theorem exists_sqrt_card_closedPrimes :
   refine ⟨c, hc, fun L hL => ?_⟩
   have hLr : (6 : ℝ) ≤ L := by exact_mod_cast hL
   constructor
-  · apply sqrt_card hc (by linarith)
-    apply hcount _ (by linarith)
-    intro p hp hlo hhi
-    apply Finset.mem_filter.mpr
-    refine ⟨Finset.mem_Icc.mpr ⟨?_, ?_⟩, hp⟩
-    · have : (3 : ℝ) ≤ p := by linarith
-      exact_mod_cast this
-    · exact_mod_cast hhi.le
+  · refine sqrt_card hc (by linarith) (hcount _ (by linarith) _ fun p hp hlo hhi =>
+      Finset.mem_filter.mpr ⟨Finset.mem_Icc.mpr ⟨by exact_mod_cast (by linarith : (3 : ℝ) ≤ p),
+        by exact_mod_cast hhi.le⟩, hp⟩)
   · have h := sqrt_card hc (show (4 : ℝ) ≤ 2 * L by linarith)
-      (hcount (2 * L) (by linarith) (closedPrimes L (2 * L)) (by
-        intro p hp hlo hhi
-        apply Finset.mem_filter.mpr
-        refine ⟨Finset.mem_Icc.mpr ⟨?_, ?_⟩, hp⟩
-        · exact_mod_cast (show (L : ℝ) ≤ p by linarith)
-        · exact_mod_cast hhi.le))
-    have hs : Real.sqrt (L : ℝ) ≤ Real.sqrt (2 * L) :=
-      Real.sqrt_le_sqrt (by linarith)
-    nlinarith
+      (hcount (2 * L) (by linarith) (closedPrimes L (2 * L)) fun p hp hlo hhi =>
+        Finset.mem_filter.mpr ⟨Finset.mem_Icc.mpr ⟨by exact_mod_cast (by linarith : (L : ℝ) ≤ p),
+          by exact_mod_cast hhi.le⟩, hp⟩)
+    have hs : Real.sqrt (L : ℝ) ≤ Real.sqrt (2 * L) := Real.sqrt_le_sqrt (by linarith)
+    exact (by gcongr : c * Real.sqrt L / 2 ≤ c * Real.sqrt (2 * L) / 2).trans h
 
 /-- Quantified interpretation of Exercise 9.7 for both closed prime windows.
 The same `C` works for every `M`, `L` and fixed pair `a ≠ b`. -/
@@ -97,7 +90,10 @@ theorem exists_closedPrimes_collision_bound {δ : ℝ} (hδ : 0 < δ) :
       exact Nat.le_log_of_pow_le (by norm_num) (by simpa using hM))
   have hC6 : 6 ≤ C := le_max_left _ _
   have hC : 4 / (c ^ 2 * δ ^ 2) ≤ C := le_max_right _ _
-  have hL6 : 6 ≤ L := by exact_mod_cast (show (6 : ℝ) ≤ L by nlinarith)
+  have hL6 : 6 ≤ L := by
+    exact_mod_cast (calc (6 : ℝ) = 6 * 1 ^ 2 := by norm_num
+      _ ≤ C * (Nat.log2 M : ℝ) ^ 2 := by gcongr
+      _ ≤ L := hL)
   have hcards := hcount L hL6
   have hcard : c * Real.sqrt L / 2 ≤ (Q.card : ℝ) := by
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hQ
@@ -108,21 +104,24 @@ theorem exists_closedPrimes_collision_bound {δ : ℝ} (hδ : 0 < δ) :
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hQ
     rcases hQ with rfl | rfl <;> exact fun p hp => (Finset.mem_filter.mp hp).2
   have hscale : 4 * (Nat.log2 M : ℝ) ^ 2 ≤ (L : ℝ) * (c ^ 2 * δ ^ 2) := by
-    have hden : 0 < c ^ 2 * δ ^ 2 := by positivity
-    have := (div_le_iff₀ hden).mp hC
-    nlinarith
-  have hs := Real.sq_sqrt (Nat.cast_nonneg L)
-  have hroot := Real.sqrt_nonneg (L : ℝ)
+    have h4 : 4 ≤ C * (c ^ 2 * δ ^ 2) := (div_le_iff₀ (by positivity)).mp hC
+    calc 4 * (Nat.log2 M : ℝ) ^ 2 ≤ C * (c ^ 2 * δ ^ 2) * (Nat.log2 M : ℝ) ^ 2 := by gcongr
+      _ = C * (Nat.log2 M : ℝ) ^ 2 * (c ^ 2 * δ ^ 2) := by ring
+      _ ≤ (L : ℝ) * (c ^ 2 * δ ^ 2) := by gcongr
   have hlarge : (Nat.log2 M : ℝ) ≤ δ * (Q.card : ℝ) := by
-    have hpos : 0 ≤ c * δ * Real.sqrt L := by positivity
-    have hsq : (2 * (Nat.log2 M : ℝ)) ^ 2 ≤ (c * δ * Real.sqrt L) ^ 2 := by
-      calc
-        _ = 4 * (Nat.log2 M : ℝ) ^ 2 := by ring
+    have hsq : (2 * (Nat.log2 M : ℝ)) ^ 2 ≤ (c * δ * Real.sqrt L) ^ 2 :=
+      calc (2 * (Nat.log2 M : ℝ)) ^ 2 = 4 * (Nat.log2 M : ℝ) ^ 2 := by ring
         _ ≤ (L : ℝ) * (c ^ 2 * δ ^ 2) := hscale
-        _ = (c * δ * Real.sqrt L) ^ 2 := by rw [mul_pow, mul_pow, hs]; ring
-    have : 2 * (Nat.log2 M : ℝ) ≤ c * δ * Real.sqrt L := by nlinarith
-    nlinarith
-  have hcardpos : 0 < (Q.card : ℝ) := by nlinarith
+        _ = (c * δ * Real.sqrt L) ^ 2 := by
+            rw [mul_pow, mul_pow, Real.sq_sqrt (Nat.cast_nonneg L)]; ring
+    have hlin : 2 * (Nat.log2 M : ℝ) ≤ c * δ * Real.sqrt L :=
+      (sq_le_sq₀ (by positivity) (by positivity)).mp hsq
+    calc (Nat.log2 M : ℝ) = (2 * (Nat.log2 M : ℝ)) / 2 := by ring
+      _ ≤ (c * δ * Real.sqrt L) / 2 := by gcongr
+      _ = δ * (c * Real.sqrt L / 2) := by ring
+      _ ≤ δ * (Q.card : ℝ) := by gcongr
+  have hLpos : (0 : ℝ) < L := by exact_mod_cast (by omega : 0 < L)
+  have hcardpos : 0 < (Q.card : ℝ) := lt_of_lt_of_le (by positivity) hcard
   refine ⟨Finset.card_pos.mp (by exact_mod_cast hcardpos), ?_⟩
   intro a b ha hb hne
   apply (div_le_iff₀ hcardpos).mpr

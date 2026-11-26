@@ -89,11 +89,10 @@ private theorem toOuterMeasure_none_le {p : Polynomial ℕ} {V : α × List Bool
     simp only [Option.isSome_iff_ne_none, not_not]
   rw [hnone, ENNReal.div_le_iff (by simp) (by simp), ← ENNReal.div_eq_inv_mul,
     ENNReal.le_div_iff_mul_le (by simp) (by simp)]
-  have : (Finset.univ.filter fun r : Fin n → Bool => ¬(V (a, List.ofFn r)).isSome = true).card * 2
-      ≤ 2 ^ n := by
-    simp only [acceptCount] at hhalf
-    omega
-  exact_mod_cast this
+  simp only [acceptCount] at hhalf
+  exact_mod_cast (by omega :
+    (Finset.univ.filter fun r : Fin n → Bool => ¬(V (a, List.ofFn r)).isSome = true).card * 2
+      ≤ 2 ^ n)
 
 /-- **`ZPP ⊆ ⋃_d ZTIME(n ^ d)`**: repeating a zero-error verifier on fresh random strings until it
 answers decides with zero error in expected polynomial time. -/
@@ -111,13 +110,10 @@ theorem exists_mem_ZTIME_pow_of_mem_ZPP {A : Set α} (hA : A ∈ ZPP enc) :
     if decide (pair.2 = none) then
       (fun v => encode (pair.1, v)) <$> ProbOracleComp.sample (sv pair.1)
     else pure []
+  have hencW : ComputableInPolyTime encode encode encBits := .of_eq fun _ => rfl
   have hencode : ComputableInPolyTime (fun x : (α × Option Bool) × Option Bool =>
       encode (x.1.1, x.2)) (encPair encode (encOption encBool)) encBits :=
-    (ComputableInPolyTime.of_eq (encIn := encode) (encOut := encBits) (f := encode)
-      fun _ => rfl).comp
-      (((ComputableInPolyTime.fst enc (encOption encBool)).comp
-        (ComputableInPolyTime.fst encode (encOption encBool))).prod
-        (ComputableInPolyTime.snd encode (encOption encBool)))
+    hencW.comp (by fun_prop)
   have hbody : IsTidyOraclePPTOn encode encBits body :=
     IsTidyOraclePPTOn.cond (ComputableInPolyTime.decide_eq'
         (ComputableInPolyTime.snd enc (encOption encBool)) (.const none))
@@ -129,8 +125,7 @@ theorem exists_mem_ZTIME_pow_of_mem_ZPP {A : Set α} (hA : A ∈ ZPP enc) :
   obtain ⟨_, kp, Prep, _, prepM, cp, dp, hprepM⟩ :=
     IsTidyOraclePPTOn.of_computableInPolyTime (Operation := Empty) (input := enc)
       (output := encBits) (f := fun a => encode (a, none))
-      ((ComputableInPolyTime.of_eq (encIn := encode) (encOut := encBits) (f := encode)
-        fun _ => rfl).comp ((ComputableInPolyTime.id' (encIn := enc)).prod (.const none)))
+      (hencW.comp ((ComputableInPolyTime.id' (encIn := enc)).prod (.const none)))
   obtain ⟨_, ke, Ext, _, extM, ce, de, hextM⟩ :=
     IsTidyOraclePPTOn.of_computableInPolyTime (Operation := Empty) (input := encode)
       (output := encBits) (f := fun pair => [pair.2.getD false])
@@ -159,19 +154,16 @@ theorem exists_mem_ZTIME_pow_of_mem_ZPP {A : Set α} (hA : A ∈ ZPP enc) :
     set w₀ := encode (a, none)
     set ans := encode (a, some (MultiTapeTM.indicator A a))
     -- the loop
+    have hbodyAt (v : Option Bool) := (hbodyM (a, v)).mono
+      (Nat.mul_le_mul_left cB (Nat.pow_le_pow_left (Nat.add_le_add_right (hlen a v).2 1) dB))
     have hretry : ∀ w ∈ ({w₀} : Set (List Bool)), bodyM.ComputesTidily w (cB * (L a + 1) ^ dB)
         (ProbOracleComp.sample ((fun v => encode (a, v)) <$> sv a)) := by
       rintro w rfl
-      refine ((hbodyM (a, none)).mono (Nat.mul_le_mul_left cB (Nat.pow_le_pow_left
-        (by have := (hlen a none).2; omega) dB))).congr fun _ _ _ => ?_
-      simp [body, encBits, ProbOracleComp.sample_map]
+      exact (hbodyAt none).congr fun _ _ _ => by simp [body, encBits, ProbOracleComp.sample_map]
     have hanswer : ∀ w ∈ ({ans} : Set (List Bool)),
         bodyM.ComputesTidily w (cB * (L a + 1) ^ dB) (pure []) := by
       rintro w rfl
-      refine ((hbodyM (a, some (MultiTapeTM.indicator A a))).mono (Nat.mul_le_mul_left cB
-        (Nat.pow_le_pow_left (by have := (hlen a (some (MultiTapeTM.indicator A a))).2; omega)
-          dB))).congr fun _ _ _ => ?_
-      simp [body, encBits]
+      exact (hbodyAt (some _)).congr fun _ _ _ => by simp [body, encBits]
     have hsupport : ∀ w ∈ ({w₀} : Set (List Bool)),
         ∀ w' ∈ (ProbComp.eval ((fun v => encode (a, v)) <$> sv a)).support,
           w' ∈ ({w₀} : Set (List Bool)) ∨ w' ∈ ({ans} : Set (List Bool)) := by
@@ -183,14 +175,13 @@ theorem exists_mem_ZTIME_pow_of_mem_ZPP {A : Set α} (hA : A ∈ ZPP enc) :
       cases hv : V (a, word) with
       | none => exact Or.inl (by simp [hv, w₀])
       | some b =>
-        refine Or.inr ?_
-        have hb := (hA a).1 (fun i => word.get (i.cast hwlen.symm)) b (by
-          rw [show List.ofFn (fun i => word.get (i.cast hwlen.symm)) = word from
-            List.ext_get (by simp [hwlen]) fun _ _ _ => by simp]
-          exact hv)
-        have : b = MultiTapeTM.indicator A a := by
+        have hfn : List.ofFn (fun i => word.get (i.cast hwlen.symm)) = word :=
+          List.ext_get (by simp [hwlen])
+            fun _ _ _ => by simp
+        have hb := (hA a).1 (fun i => word.get (i.cast hwlen.symm)) b (hfn.symm ▸ hv)
+        have hb_eq : b = MultiTapeTM.indicator A a := by
           by_cases ha : a ∈ A <;> simp_all [MultiTapeTM.indicator]
-        simp [hv, ans, this]
+        exact Or.inr (by simp [hv, ans, hb_eq])
     have hq : ∀ w ∈ ({w₀} : Set (List Bool)),
         (ProbComp.eval ((fun v => encode (a, v)) <$> sv a)).toOuterMeasure {w₀} ≤ 2⁻¹ := by
       rintro w -
@@ -198,10 +189,7 @@ theorem exists_mem_ZTIME_pow_of_mem_ZPP {A : Set α} (hA : A ∈ ZPP enc) :
         Probability.PMF.map_apply_of_injective _ fun v₁ v₂ h => by simpa using encode.injective h]
       exact toOuterMeasure_none_le hA a
     have hloop := tsum_toOuterMeasure_compl_iterateWhile_le true (Set.mem_singleton w₀) hretry
-      hanswer hsupport hq (by
-        rintro w (rfl | rfl)
-        · exact hlen a none
-        · exact hlen a (some _))
+      hanswer hsupport hq (by rintro w (rfl | rfl) <;> exact hlen a _)
     rw [ENNReal.one_sub_inv_two, inv_inv] at hloop
     -- preparing the first word only shifts the clock
     let good₁ : Set (MultiTapeMachine.Config (kB + 1 + 2 + kp + 2) Bool
@@ -218,12 +206,9 @@ theorem exists_mem_ZTIME_pow_of_mem_ZPP {A : Set α} (hA : A ∈ ZPP enc) :
           {final | final.tapes.state = none ∧ final.tapes.output ∈ ({ans} : Set (List Bool))}ᶜ := by
       rw [show tp a + (tp a + 4) + s = tp a + (tp a + 4 + s) by omega]
       refine (toOuterMeasure_compl_comp_le_of_halted prepM IW true (good := good₁)
-        (fun c hc => hc.1)
-        (tp a) s
-        fun r hr => ?_).trans_eq ?_
+        (fun c hc => hc.1) (tp a) s fun r hr => ?_).trans_eq ?_
       · rw [hprep, PMF.mem_support_pure_iff] at hr
-        rw [hr]
-        rfl
+        exact hr ▸ rfl
       · rw [hprep, PMF.pure_bind, PMF.toOuterMeasure_map_apply]
         congr 1
         ext c
@@ -247,10 +232,8 @@ theorem exists_mem_ZTIME_pow_of_mem_ZPP {A : Set α} (hA : A ∈ ZPP enc) :
       have hspec : extM.ComputesTidily r.tapes.output (te a)
           (pure [MultiTapeTM.indicator A a]) := by
         rw [hr.2]
-        refine ((hextM (a, some (MultiTapeTM.indicator A a))).mono (Nat.mul_le_mul_left ce
-          (Nat.pow_le_pow_left (by have := (hlen a (some (MultiTapeTM.indicator A a))).2; omega)
-            de))).congr fun _ _ _ => ?_
-        simp [encBits]
+        exact ((hextM (a, some _)).mono (Nat.mul_le_mul_left ce (Nat.pow_le_pow_left
+          (Nat.add_le_add_right (hlen a _).2 1) de))).congr fun _ _ _ => by simp [encBits]
       rw [eval_runClosedConfigFrom_of_computesTidily_pure hspec, PMF.mem_support_pure_iff] at hfinal
       subst hfinal
       exact ⟨rfl, rfl⟩
@@ -307,9 +290,8 @@ theorem mem_ZPP_iff_exists_mem_ZTIME_pow {A : Set α} :
   ⟨exists_mem_ZTIME_pow_of_mem_ZPP, fun ⟨d, hA⟩ => ZTIME_pow_subset_ZPP d hA⟩
 
 /-- `⋃_d ZTIME(n ^ d) = ZPP`. -/
-theorem iUnion_ZTIME_pow_eq_ZPP : ⋃ d, ZTIME enc (· ^ d) = ZPP enc := by
-  ext A
-  simp only [Set.mem_iUnion, mem_ZPP_iff_exists_mem_ZTIME_pow]
+theorem iUnion_ZTIME_pow_eq_ZPP : ⋃ d, ZTIME enc (· ^ d) = ZPP enc :=
+  Set.ext fun _ => Set.mem_iUnion.trans mem_ZPP_iff_exists_mem_ZTIME_pow.symm
 
 /-- **Arora and Barak, Theorem 7.8**: `ZPP = RP ∩ coRP`, for the draft's `ZPP = ⋃_c ZTIME(n ^ c)`
 of zero-error expected polynomial time [Arora and Barak, Definition 7.7, Theorem 7.8,

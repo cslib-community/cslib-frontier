@@ -212,8 +212,8 @@ message. -/
   let out ← (OracleComp.interpret
     (OracleComp.sumHandler (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
       (signHandler S T depth n)) (adversary n pk)).run []
-  let msig := out.1
-  return (msig.1.length == n) && !out.2.contains msig.1 && verify S depth pk msig.1 msig.2
+  let ⟨⟨msg, sig⟩, queried⟩ := out
+  return (msg.length == n) && !queried.contains msg && verify S depth pk msg sig
 
 /-- The coin adversary: at the PRF's parameter `M`, recover `n` with `inv` and simulate the tree
 game there; outside the range of `N`, output `false`. -/
@@ -741,16 +741,11 @@ private theorem isOraclePPTOn_chain :
       fun _ => rfl
   have hB : ComputableInPolyTime B encIn encUnary :=
     sigBound_funProp cs ds cB dB hK hK
-  let c2 := ComputableInPolyTime.const (encIn := encIn) (encOut := encUnary) 2
   let c1 := ComputableInPolyTime.const (encIn := encIn) (encOut := encUnary) 1
-  have h2K1 := (c2.unary_mul' hK).unary_add' c1
   have hsize : ComputableInPolyTime
       (fun a => 2 * depth a.1.1 + 1 + (2 * (2 * K a + 1 + K a) + 1 +
-        depth a.1.1 * (2 * (2 * K a + 1 + B a) + 1))) encIn encUnary :=
-    (((c2.unary_mul' hd).unary_add' c1).unary_add'
-      (((c2.unary_mul' (h2K1.unary_add' hK)).unary_add' c1).unary_add'
-        (hd.unary_mul' ((c2.unary_mul' (h2K1.unary_add' hB)).unary_add' c1)))).of_enc_eq
-      fun _ => rfl
+        depth a.1.1 * (2 * (2 * K a + 1 + B a) + 1))) encIn encUnary := by
+    fun_prop
   refine IsOraclePPTOn.iterateWith_spec
     ((hd.unary_sub' c1).of_enc_eq fun _ => rfl)
     (((ComputableInPolyTime.const []).prod (ha.snd'.prod (.const []))).of_enc_eq fun _ => rfl)
@@ -808,24 +803,6 @@ private def sigWordBound (ck dk cb db cs ds cB dB : ℕ) (depth : ℕ → ℕ) (
     sigBound cs ds cB dB (3 * savedCoinBudget ck dk cb db n)
       (3 * savedCoinBudget ck dk cb db n)) + 1)) + 1 +
     sigBound cs ds cB dB (3 * savedCoinBudget ck dk cb db n) L)
-
-include hdepth in
-private theorem computableInPolyTime_sigWordBound (ck dk cb db cs ds cB dB : ℕ) :
-    ComputableInPolyTime (fun p : ℕ × ℕ => sigWordBound ck dk cb db cs ds cB dB depth p.1 p.2)
-      (encPair encUnary encUnary) encUnary := by
-  let E := encPair encUnary encUnary
-  have hp := ComputableInPolyTime.id' (encIn := E)
-  have hd := hdepth.comp' hp.fst'
-  have h3K := (ComputableInPolyTime.const 3).unary_mul'
-    ((computableInPolyTime_savedCoinBudget ck dk cb db).comp' hp.fst')
-  have hB1 := sigBound_funProp cs ds cB dB h3K h3K
-  have hB2 := sigBound_funProp cs ds cB dB h3K hp.snd'
-  let c2 := ComputableInPolyTime.const (encIn := E) (encOut := encUnary) 2
-  let c1 := ComputableInPolyTime.const (encIn := E) (encOut := encUnary) 1
-  exact (((c2.unary_mul' hd).unary_add' c1).unary_add'
-    (((c2.unary_mul' (hd.unary_mul'
-      ((c2.unary_mul' (((c2.unary_mul' h3K).unary_add' c1).unary_add' hB1)).unary_add'
-        c1))).unary_add' c1).unary_add' hB2)).of_enc_eq fun _ => rfl
 
 include hkg hkb hsg hsb hdepth in
 private theorem isOraclePPTOn_signO_aux :
@@ -899,16 +876,11 @@ private theorem isOraclePPTOn_simulateTreeGame_aux {adversary : Forger}
     (hsign.preprocess ((hp.fst'.fst'.prod hp.snd'.fst'.snd').of_enc_eq fun _ => rfl)).bind_with
       ((hq.snd'.prod (.cons' hq.fst'.snd'.fst'.snd' hq.fst'.snd'.snd')).of_enc_eq
         fun _ => rfl).isOraclePPTOn
-  have hbound := computableInPolyTime_sigWordBound (depth := depth) hdepth ck dk cb db cs ds cB dB
-  have hr := ComputableInPolyTime.id' (encIn := encPair encCaller encBits)
-  have hlen := hr.snd'.length_bits_comp
   have hresources : ComputableInPolyTime
       (fun pair : (ℕ × (List Bool × List Bool)) × List Bool =>
         sigWordBound ck dk cb db cs ds cB dB depth pair.1.1 pair.2.length + 2 * pair.2.length + 2)
-      (encPair encCaller encBits) encUnary :=
-    ((((hbound.comp' (hr.fst'.fst'.prod hlen)).unary_add'
-      ((ComputableInPolyTime.const 2).unary_mul' hlen)).unary_add' (.const 2))).of_enc_eq
-      fun _ => rfl
+      (encPair encCaller encBits) encUnary := by
+    unfold sigWordBound sigBound; fun_prop
   have hc := ComputableInPolyTime.id' (encIn := encCaller)
   have hrun := hA.run_interpret_preprocess_open (External := Unit)
     (handler := fun c : ℕ × (List Bool × List Bool) => signHandler S T depth c.1)

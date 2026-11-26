@@ -68,18 +68,14 @@ theorem reachesOut_readSymbolCode {P : CounterProgram} {b dst exit S : ℕ}
   refine ReachesOut.lt h₀ hS ?_
   rw [hlen]
   by_cases hq : query.eval regs < w.length
-  · obtain ⟨bit, hb⟩ : ∃ bit, w[query.eval regs]? = some bit :=
-      ⟨w[query.eval regs], List.getElem?_eq_getElem hq⟩
+  · have hb := List.getElem?_eq_getElem (l := w) hq
     rw [ite_eq_left hq, hb]
     refine ReachesOut.read h₁ hS ?_
     simp only [eval_add, eval_mul, eval_const, getElem?_frame_two_mul_add_one hq, hb]
-    cases bit
-    · refine ReachesOut.assign h₃ hS ?_
-      simpa only [eval_const, symbolCode] using ReachesOut.refl _
-    · refine ReachesOut.assign h₂ hS ?_
-      simpa only [eval_const, symbolCode] using ReachesOut.refl _
+    cases w[query.eval regs]
+    · exact ReachesOut.assign h₃ hS (ReachesOut.refl _)
+    · exact ReachesOut.assign h₂ hS (ReachesOut.refl _)
   · rw [ite_eq_right hq, List.getElem?_eq_none (by omega)]
-    refine ReachesOut.assign h₄ hS ?_
-    simpa only [eval_const, symbolCode] using ReachesOut.refl _
+    exact ReachesOut.assign h₄ hS (ReachesOut.refl _)
 
 end Turing.MultiTapeNTM.ConfigurationGraph

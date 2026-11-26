@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.Front
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Product.Transfer
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Actual restoration of the original matrix, coordinate and threshold words
@@ -34,21 +34,14 @@ theorem exec_restoreInput {W L m t N Q : ℕ} (x : Data 160)
       y.mem = Function.update
         (ArrayCopy.copyPrefix x.mem (QueriedProduct.snapshotBase L m N Q) 0
           (QueriedProduct.inputEnd m N Q)) (QueriedProduct.inputEnd m N Q) t := by
-  obtain ⟨u, hu, up, um⟩ := QueriedProduct.exec_restoreInput x hp (old_fits hfit)
+  have hfI : Fits W (QueriedProduct.inputEnd m N Q) :=
+    hfit.of_le (by unfold wordBudget QueriedProduct.wordBudget; omega)
+  refine WP.exists_execWithin ?_
+  unfold restoreInput restoreThreshold
+  wram_call (QueriedProduct.exec_restoreInput x hp (old_fits hfit)) with u ⟨up, um⟩
   have ut : u.regs Reg.threshold = t := by regs_frame
-  let y := (u.set QueriedProduct.Reg.address (QueriedProduct.inputEnd m N Q)).write
-    (QueriedProduct.inputEnd m N Q) t
-  have hy : ExecWithin W restoreThreshold u y 2 := by
-    ram_eval [restoreThreshold, y, up.inputSize, ut, QueriedProduct.Reg.address,
-      QueriedProduct.Reg.inputSize, Reg.threshold, Fin.mk.injEq]
-  refine ⟨y, (hu.seq hy).mono (by omega), up.of_frame ?_, ?_⟩
-  · intro i hi
-    have hnot : QueriedProduct.Reg.address ∉ QueriedProduct.parameterRegisters := by decide
-    have hne : i ≠ QueriedProduct.Reg.address := by
-      intro heq
-      exact hnot (heq ▸ hi)
-    simp only [y, Data.write_regs, Data.set_regs, Function.update_of_ne hne]
-  · change Function.update u.mem _ t = _
-    rw [um]
+  wram_exec * [ut]
+  refine ⟨by regs_frame, ?_⟩
+  wram_simp [um]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct

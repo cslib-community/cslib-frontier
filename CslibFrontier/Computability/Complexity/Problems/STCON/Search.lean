@@ -152,13 +152,9 @@ def Inv (cfg : Config) : Prop :=
 private theorem inv_mk {l c n s t cur steps v : ℕ} :
     Inv I (l, [c, n, s, t, cur, steps, v]) ↔
       c ≤ 1 ∧ Bounded I n s t cur steps v ∧ Phase I l n s t cur steps v := by
-  constructor
-  · rintro ⟨c, n, s, t, cur, steps, v, h, hc⟩
-    simp only [List.cons.injEq, and_true] at h
-    obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
-    exact hc
-  · intro h
-    exact ⟨c, n, s, t, cur, steps, v, rfl, h⟩
+  refine ⟨?_, fun h => ⟨c, n, s, t, cur, steps, v, rfl, h⟩⟩
+  rintro ⟨_, _, _, _, _, _, _, ⟨⟩, hc⟩
+  exact hc
 
 /-- The total budget of the rank. -/
 def budget : ℕ := 2 * I.n + 2 * I.s + 2 * I.t + 4 + (3 * I.n + 12) * (I.n + 1) + 1
@@ -199,8 +195,7 @@ private theorem reach_source : Reach I I.s := ⟨I.s.isLt, .refl⟩
 /-- A step that makes progress, from a configuration within the budget, decreases the rank. -/
 private theorem rank_lt {cfg cfg' : Config} (h : progress I cfg < progress I cfg')
     (hb : progress I cfg < budget I) : rank I cfg' < rank I cfg := by
-  unfold rank
-  omega
+  simp only [rank]; omega
 
 /-- Finish a case of `inv_step`, with additional facts for `simp`. -/
 local macro (name := searchFinish) "search_finish" " [" ts:term,* "]" : tactic => `(tactic| (
@@ -210,49 +205,23 @@ local macro (name := searchFinish) "search_finish" " [" ts:term,* "]" : tactic =
     $[$ts:term],*] <;>
   omega))
 
-/-- A step in the `n` and `s` header-counting phase (`l < 4`) preserves the invariant and decreases
-the rank. -/
-private theorem inv_step_header_n_s {l c n s t cur steps v : ℕ} (hl : l < 4)
-    (hB : Bounded I n s t cur steps v) (hP : Phase I l n s t cur steps v) (b : Bool) :
-    Inv I (withChoice (searchProgram.step I.encode (l, [c, n, s, t, cur, steps, v])) b) ∧
-      rank I (withChoice (searchProgram.step I.encode (l, [c, n, s, t, cur, steps, v])) b) <
-        rank I (l, [c, n, s, t, cur, steps, v]) := by
-  obtain ⟨hn, hs, ht, hcur, hsteps, hv⟩ := hB
-  have hsI := I.s.isLt
-  have hb : b.toNat ≤ 1 := Bool.toNat_le b
-  interval_cases l <;> simp only [Phase] at hP
-  case «0» =>
-    obtain ⟨hnI, rfl, rfl, rfl, rfl, rfl⟩ := hP
-    search_step
-    rw [I.getElem?_encode_n hnI]
-    by_cases h : n < I.n
-    · simp only [h, decide_true]
-      search_finish []
-    · obtain rfl : n = I.n := by omega
-      simp only [h, decide_false]
-      search_finish []
-  case «1» =>
-    obtain ⟨hnI, rfl, rfl, rfl, rfl, rfl⟩ := hP
-    search_step
-    search_finish []
-  case «2» =>
-    obtain ⟨rfl, hsI', rfl, rfl, rfl, rfl⟩ := hP
-    search_step
-    rw [I.getElem?_encode_s hsI']
-    by_cases h : s < I.s
-    · simp only [h, decide_true]
-      search_finish []
-    · obtain rfl : s = I.s := by omega
-      simp only [h, decide_false]
-      search_finish []
-  case «3» =>
-    obtain ⟨rfl, hsI', rfl, rfl, rfl, rfl⟩ := hP
-    search_step
-    search_finish []
+/-- The phase invariant restricts the program label to `0 .. 18`. -/
+private theorem label_le_of_phase {l n s t cur steps v : ℕ}
+    (hP : Phase I l n s t cur steps v) : l ≤ 18 := by
+  match l, hP with
+  | 0, _ | 1, _ | 2, _ | 3, _ | 4, _ | 5, _ | 6, _ | 7, _ | 8, _ | 9, _ | 10, _ | 11, _
+  | 12, _ | 13, _ | 14, _ | 15, _ | 16, _ | 17, _ | 18, _ => omega
+  | _ + 19, hP => exact False.elim hP
 
-/-- A step in the `t` header-counting and loop-entry phase (`4 ≤ l < 7`) preserves the invariant and
+/-- Loop-width arithmetic shared by the rank proofs in the main loop (`7 ≤ l ≤ 16`). -/
+private theorem loop_width_bounds {steps : ℕ} (hsteps : steps ≤ I.n) :
+    (3 * I.n + 12) * steps ≤ (3 * I.n + 12) * I.n ∧
+    (3 * I.n + 12) * (I.n + 1) = (3 * I.n + 12) * I.n + (3 * I.n + 12) :=
+  ⟨Nat.mul_le_mul_left _ hsteps, by ring⟩
+
+/-- A step in the header-counting and loop-entry phase (`l < 7`) preserves the invariant and
 decreases the rank. -/
-private theorem inv_step_header_t {l c n s t cur steps v : ℕ} (hl4 : 4 ≤ l) (hl7 : l < 7)
+private theorem inv_step_header {l c n s t cur steps v : ℕ} (hl : l < 7)
     (hB : Bounded I n s t cur steps v) (hP : Phase I l n s t cur steps v) (b : Bool) :
     Inv I (withChoice (searchProgram.step I.encode (l, [c, n, s, t, cur, steps, v])) b) ∧
       rank I (withChoice (searchProgram.step I.encode (l, [c, n, s, t, cur, steps, v])) b) <
@@ -262,16 +231,29 @@ private theorem inv_step_header_t {l c n s t cur steps v : ℕ} (hl4 : 4 ≤ l) 
   have htI := I.t.isLt
   have hb : b.toNat ≤ 1 := Bool.toNat_le b
   interval_cases l <;> simp only [Phase] at hP
+  case «0» =>
+    obtain ⟨hnI, rfl, rfl, rfl, rfl, rfl⟩ := hP
+    search_step
+    rw [I.getElem?_encode_n hnI]
+    by_cases h : n < I.n <;> simp only [h, decide_true, decide_false] <;> search_finish []
+  case «1» =>
+    obtain ⟨hnI, rfl, rfl, rfl, rfl, rfl⟩ := hP
+    search_step
+    search_finish []
+  case «2» =>
+    obtain ⟨rfl, hsI', rfl, rfl, rfl, rfl⟩ := hP
+    search_step
+    rw [I.getElem?_encode_s hsI']
+    by_cases h : s < I.s <;> simp only [h, decide_true, decide_false] <;> search_finish []
+  case «3» =>
+    obtain ⟨rfl, hsI', rfl, rfl, rfl, rfl⟩ := hP
+    search_step
+    search_finish []
   case «4» =>
     obtain ⟨rfl, rfl, htI', rfl, rfl, rfl⟩ := hP
     search_step
     rw [I.getElem?_encode_t htI']
-    by_cases h : t < I.t
-    · simp only [h, decide_true]
-      search_finish []
-    · obtain rfl : t = I.t := by omega
-      simp only [h, decide_false]
-      search_finish []
+    by_cases h : t < I.t <;> simp only [h, decide_true, decide_false] <;> search_finish []
   case «5» =>
     obtain ⟨rfl, rfl, htI', rfl, rfl, rfl⟩ := hP
     search_step
@@ -279,9 +261,7 @@ private theorem inv_step_header_t {l c n s t cur steps v : ℕ} (hl4 : 4 ≤ l) 
   case «6» =>
     obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩ := hP
     search_step
-    refine ⟨(inv_mk I).2 ⟨hb, by simp only [Bounded]; omega, rfl, rfl, rfl, reach_source I,
-      by omega, by omega⟩, rank_lt _ ?_ ?_⟩ <;>
-      simp only [progress, budget, List.getD_cons_succ, List.getD_cons_zero] <;> omega
+    search_finish [reach_source I]
 
 /-- A step in the target/step-bound check (`7 ≤ l < 11`) preserves the invariant and decreases the
 rank. -/
@@ -293,37 +273,24 @@ private theorem inv_step_check {l c n s t cur steps v : ℕ} (hl7 : 7 ≤ l) (hl
   obtain ⟨hn, hs, ht, hcur, hsteps, hv⟩ := hB
   have htI := I.t.isLt
   have hb : b.toNat ≤ 1 := Bool.toNat_le b
-  have hW2 : (3 * I.n + 12) * steps ≤ (3 * I.n + 12) * I.n := Nat.mul_le_mul_left _ hsteps
-  have hW3 : (3 * I.n + 12) * (I.n + 1) = (3 * I.n + 12) * I.n + (3 * I.n + 12) := by ring
+  obtain ⟨hW2, hW3⟩ := loop_width_bounds I hsteps
   interval_cases l <;> simp only [Phase] at hP
   case «7» =>
     obtain ⟨rfl, rfl, rfl, hR, hst, hvn⟩ := hP
     search_step
-    by_cases h : cur < I.t
-    · simp only [h, ↓reduceIte]
-      search_finish [hR]
-    · simp only [h, ↓reduceIte]
-      search_finish [hR]
+    by_cases h : cur < I.t <;> simp only [h, ↓reduceIte] <;> search_finish [hR]
   case «8» =>
     obtain ⟨rfl, rfl, rfl, ⟨hR, hst, hvn⟩, hle⟩ := hP
     search_step
-    by_cases h : (I.t : ℕ) < cur
-    · simp only [h, ↓reduceIte]
-      search_finish [hR]
-    · have hmem : I ∈ STCON := by
-        obtain ⟨hlt, hr⟩ := hR
-        have hcur_eq : (⟨cur, hlt⟩ : Fin I.n) = I.t := Fin.ext (show cur = I.t by omega)
-        rwa [hcur_eq] at hr
-      simp only [h, ↓reduceIte]
-      search_finish [hmem]
+    by_cases h : (I.t : ℕ) < cur <;> simp only [h, ↓reduceIte]
+    · search_finish [hR]
+    · have hmem : Relation.ReflTransGen I.Adj I.s I.t :=
+        (Fin.ext (show cur = I.t by omega) : (⟨cur, hR.1⟩ : Fin I.n) = I.t) ▸ hR.2
+      search_finish [show I ∈ STCON from hmem]
   case «9» =>
     obtain ⟨rfl, rfl, rfl, hR, hst, hvn⟩ := hP
     search_step
-    by_cases h : steps < I.n
-    · simp only [h, ↓reduceIte]
-      search_finish [hR]
-    · simp only [h, ↓reduceIte]
-      search_finish []
+    by_cases h : steps < I.n <;> simp only [h, ↓reduceIte] <;> search_finish [hR]
   case «10» =>
     obtain ⟨rfl, rfl, rfl, ⟨hR, hst, hvn⟩, hlt⟩ := hP
     search_step
@@ -338,17 +305,12 @@ private theorem inv_step_guess {l c n s t cur steps v : ℕ} (hl11 : 11 ≤ l) (
         rank I (l, [c, n, s, t, cur, steps, v]) := by
   obtain ⟨hn, hs, ht, hcur, hsteps, hv⟩ := hB
   have hb : b.toNat ≤ 1 := Bool.toNat_le b
-  have hW2 : (3 * I.n + 12) * steps ≤ (3 * I.n + 12) * I.n := Nat.mul_le_mul_left _ hsteps
-  have hW3 : (3 * I.n + 12) * (I.n + 1) = (3 * I.n + 12) * I.n + (3 * I.n + 12) := by ring
+  obtain ⟨hW2, hW3⟩ := loop_width_bounds I hsteps
   interval_cases l <;> simp only [Phase] at hP
   case «11» =>
     obtain ⟨rfl, rfl, rfl, ⟨hR, hst, hvn⟩, hlt⟩ := hP
     search_step
-    by_cases h : c < 1
-    · simp only [h, ↓reduceIte]
-      search_finish [hR]
-    · simp only [h, ↓reduceIte]
-      search_finish [hR]
+    by_cases h : c < 1 <;> simp only [h, ↓reduceIte] <;> search_finish [hR]
   case «12» =>
     obtain ⟨rfl, rfl, rfl, ⟨hR, hst, hvn⟩, hlt⟩ := hP
     search_step
@@ -356,11 +318,7 @@ private theorem inv_step_guess {l c n s t cur steps v : ℕ} (hl11 : 11 ≤ l) (
   case «13» =>
     obtain ⟨rfl, rfl, rfl, hR, hlt, hvn⟩ := hP
     search_step
-    by_cases h : v < I.n
-    · simp only [h, ↓reduceIte]
-      search_finish [hR]
-    · simp only [h, ↓reduceIte]
-      search_finish []
+    by_cases h : v < I.n <;> simp only [h, ↓reduceIte] <;> search_finish [hR]
 
 /-- A step in the arc-following phase (`14 ≤ l ≤ 16`) preserves the invariant and decreases the
 rank. -/
@@ -372,8 +330,7 @@ private theorem inv_step_edge {l c n s t cur steps v : ℕ} (hl14 : 14 ≤ l) (h
   obtain ⟨hn, hs, ht, hcur, hsteps, hv⟩ := hB
   have hb : b.toNat ≤ 1 := Bool.toNat_le b
   have hW1 : (3 * I.n + 12) * (steps + 1) = (3 * I.n + 12) * steps + (3 * I.n + 12) := by ring
-  have hW2 : (3 * I.n + 12) * steps ≤ (3 * I.n + 12) * I.n := Nat.mul_le_mul_left _ hsteps
-  have hW3 : (3 * I.n + 12) * (I.n + 1) = (3 * I.n + 12) * I.n + (3 * I.n + 12) := by ring
+  obtain ⟨hW2, hW3⟩ := loop_width_bounds I hsteps
   interval_cases l <;> simp only [Phase] at hP
   case «14» =>
     obtain ⟨rfl, rfl, rfl, ⟨hR, hst, hvn⟩, hlt⟩ := hP
@@ -386,8 +343,7 @@ private theorem inv_step_edge {l c n s t cur steps v : ℕ} (hl14 : 14 ≤ l) (h
   case «15» =>
     obtain ⟨rfl, rfl, rfl, ⟨⟨hc', hr⟩, hst, hvn⟩, hlt, hc'', hv'', hadj⟩ := hP
     search_step
-    have hR' : Reach I v := ⟨hvn, hr.tail hadj⟩
-    search_finish [hR']
+    search_finish [show Reach I v from ⟨hvn, hr.tail hadj⟩]
   case «16» =>
     obtain ⟨rfl, rfl, rfl, ⟨hR, hst, hvn⟩, hlt⟩ := hP
     search_step
@@ -400,20 +356,15 @@ private theorem inv_step (cfg : Config) (hinv : Inv I cfg) (hrun : searchProgram
       rank I (withChoice (searchProgram.step I.encode cfg) b) < rank I cfg := by
   obtain ⟨l, regs⟩ := cfg
   obtain ⟨c, n, s, t, cur, steps, v, rfl, _hc, hB, hP⟩ := hinv
-  by_cases hl4 : l < 4
-  · exact inv_step_header_n_s I hl4 hB hP b
   by_cases hl7 : l < 7
-  · exact inv_step_header_t I (by omega) hl7 hB hP b
+  · exact inv_step_header I hl7 hB hP b
   by_cases hl11 : l < 11
   · exact inv_step_check I (by omega) hl11 hB hP b
   by_cases hl14 : l < 14
   · exact inv_step_guess I (by omega) hl14 hB hP b
   by_cases hl16 : l ≤ 16
   · exact inv_step_edge I (by omega) hl16 hB hP b
-  have hl : l ≤ 18 := by
-    by_contra h
-    rcases l with _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | l
-    all_goals first | omega | exact hP
+  have hl := label_le_of_phase I hP
   interval_cases l <;> simp [CounterProgram.halted, instr, searchProgram, Instr.halts] at hrun
 
 private theorem inv_init : Inv I searchProgram.init := by
@@ -437,10 +388,8 @@ private theorem le_length_of_mem_run (choices : List Bool) {r : ℕ}
     r ≤ I.encode.length := by
   obtain ⟨c, n, s, t, cur, steps, v, h, hc, ⟨hn, hs, ht, hcur, hsteps, hv⟩, -⟩ := inv_run I choices
   have hlen := I.length_encode
-  have := I.s.isLt
-  have := I.t.isLt
-  rw [h] at hr
-  simp only [List.mem_cons, List.not_mem_nil, or_false] at hr
+  have ⟨hsI, htI⟩ := (⟨I.s.isLt, I.t.isLt⟩ : (I.s : ℕ) < I.n ∧ (I.t : ℕ) < I.n)
+  simp only [h, List.mem_cons, List.not_mem_nil, or_false] at hr
   rcases hr with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> omega
 
 /-- **An accepting branch is sound**: the invariant at the accepting label says that `t` is
@@ -451,10 +400,7 @@ theorem mem_of_accepts (h : searchProgram.toNondeterministicQueryMachine.Accepts
   have hi := instr_of_accepts hhalt hacc
   obtain ⟨c, n, s, t, cur, steps, v, -, -, -, hP⟩ := inv_run I choices
   generalize (searchProgram.toNondeterministicQueryMachine.run I.encode choices).1 = l at hi hP
-  have hl : l ≤ 18 := by
-    by_contra h
-    rcases l with _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | l
-    all_goals first | omega | exact hP
+  have hl := label_le_of_phase I hP
   interval_cases l <;> first | exact hP | simp [instr, searchProgram] at hi
 
 /-! ### An accepting branch -/
@@ -515,13 +461,10 @@ private theorem branches_step {cur steps c v next : ℕ} (hc : cur < I.n) (hnext
       (7, [0, I.n, I.s, I.t, next, steps + 1, next]) := by
   have hto9 : Branches (P := searchProgram) (w := I.encode)
       (7, [c, I.n, I.s, I.t, cur, steps, v]) (9, [0, I.n, I.s, I.t, cur, steps, v]) := by
-    by_cases h : cur < I.t
+    search_head false
+    by_cases h : cur < I.t <;> simp only [h, ↓reduceIte]
+    · exact Branches.refl _
     · search_head false
-      simp only [h, ↓reduceIte]
-      exact Branches.refl _
-    · search_head false
-      simp only [h, ↓reduceIte]
-      search_head false
       simp only [show (I.t : ℕ) < cur by omega, ↓reduceIte]
       exact Branches.refl _
   refine hto9.trans ?_
@@ -541,21 +484,16 @@ private theorem branches_step {cur steps c v next : ℕ} (hc : cur < I.n) (hnext
 private theorem branches_walk : ∀ (m cur steps c v : ℕ) (hc : cur < I.n),
     Relation.RelatesInSteps I.Adj ⟨cur, hc⟩ I.t m → steps + m < I.n →
       ∃ regs, Branches (P := searchProgram) (w := I.encode)
-        (7, [c, I.n, I.s, I.t, cur, steps, v]) (17, regs) := by
-  intro m
-  induction m with
-  | zero =>
-    intro cur steps c v hc hpath _
-    have hct : cur = I.t := congrArg Fin.val (Relation.RelatesInSteps.zero hpath)
-    subst hct
+        (7, [c, I.n, I.s, I.t, cur, steps, v]) (17, regs)
+  | 0, cur, steps, c, v, hc, hpath, _ => by
+    obtain rfl : cur = I.t := congrArg Fin.val (Relation.RelatesInSteps.zero hpath)
     exact ⟨_, branches_at_target I steps c v⟩
-  | succ m ih =>
-    intro cur steps c v hc hpath hlt
+  | m + 1, cur, steps, c, v, hc, hpath, hlt => by
     obtain ⟨⟨next, hnext⟩, hadj, hrest⟩ := hpath.succ'
     by_cases hct : cur = I.t
     · subst hct
       exact ⟨_, branches_at_target I steps c v⟩
-    · obtain ⟨regs, hregs⟩ := ih next (steps + 1) 0 next hnext hrest (by omega)
+    · obtain ⟨regs, hregs⟩ := branches_walk m next (steps + 1) 0 next hnext hrest (by omega)
       exact ⟨regs, (branches_step I hc hnext hct (by omega) hadj).trans hregs⟩
 
 /-- **An accepting branch exists** when `t` is reachable from `s`: a shortest path has fewer
@@ -584,12 +522,10 @@ branch halting. -/
 theorem exists_decidesInLogSpace :
     ∃ (k : ℕ) (State : Type) (_ : Finite State) (ntm : Turing.MultiTapeNTM k Bool State) (c : ℕ),
       ntm.DecidesInSpace encSTCON STCON fun I => c * (Nat.log2 (encSTCON I).length + 1) :=
-  searchProgram.exists_decidesInLogSpace (fun I => rank I searchProgram.init) 1
-    (fun I => haltsWithin I)
+  searchProgram.exists_decidesInLogSpace (fun I => rank I searchProgram.init) 1 haltsWithin
     (fun I choices r hr => by
-      have := le_length_of_mem_run I choices hr
-      simp only [encSTCON_apply, pow_one]
-      omega)
+      simpa only [encSTCON_apply, pow_one] using
+        (le_length_of_mem_run I choices hr).trans (Nat.le_succ _))
     (fun I => (accepts_searchProgram_iff I).symm)
 
 

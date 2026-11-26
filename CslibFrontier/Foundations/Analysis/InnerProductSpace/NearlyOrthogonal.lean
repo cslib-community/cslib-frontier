@@ -83,15 +83,11 @@ theorem card_mul_sq_le_of_inner_ge {s : Finset ι} (hs : s.Nonempty) (v : ι →
   have hcs : ⟪T, U⟫ ^ 2 ≤ ‖T‖ ^ 2 * ‖U‖ ^ 2 := by
     rw [← mul_pow]
     exact sq_le_sq' (abs_le.mp (abs_real_inner_le_norm T U)).1 (real_inner_le_norm T U)
-  have hcard : (0 : ℝ) < #s := by exact_mod_cast hs.card_pos
-  have hkey : ((#s : ℝ) * (γ * A)) ^ 2 ≤ A * ((#s : ℝ) * A + ((#s : ℝ) * #s - #s) * (δ * A)) :=
-    (pow_le_pow_left₀ (by positivity) hlow 2).trans
-      (hcs.trans (mul_le_mul hT hUsq (sq_nonneg _) hA.le))
-  have hfactor : ((#s : ℝ) * (γ * A)) ^ 2 = (#s : ℝ) * A ^ 2 * ((#s : ℝ) * γ ^ 2) := by ring
-  have hfactor' : A * ((#s : ℝ) * A + ((#s : ℝ) * #s - #s) * (δ * A)) =
-      (#s : ℝ) * A ^ 2 * (1 + (#s - 1) * δ) := by ring
-  rw [hfactor, hfactor'] at hkey
-  exact le_of_mul_le_mul_left hkey (by positivity)
+  have hcard : (0 : ℝ) < #s := Nat.cast_pos.mpr hs.card_pos
+  have hkey := (pow_le_pow_left₀ (by positivity) hlow 2).trans
+    (hcs.trans (mul_le_mul hT hUsq (sq_nonneg _) hA.le))
+  refine le_of_mul_le_mul_left (a := (#s : ℝ) * A ^ 2) ?_ (by positivity)
+  ring_nf at hkey ⊢; linarith
 
 /-- **Few nearly orthogonal vectors correlate with a fixed vector**: if `v i`, `i ∈ s`, have squared
 norms at most `A > 0` and pairwise inner products at most `δ A` in absolute value, and `T` has
@@ -113,14 +109,12 @@ theorem card_mul_sq_le_of_abs_inner_ge {s : Finset ι} (hs : s.Nonempty) (v : ι
     · simp [ε, h, abs_of_neg (not_le.mp h)]
   refine card_mul_sq_le_of_inner_ge hs (fun i => ε i • v i) T hA hγ hT (fun i hi => ?_)
     (fun i hi j hj hij => ?_) (fun i hi => ?_)
-  · rw [norm_smul, Real.norm_eq_abs, hε_abs, one_mul]
-    exact hv i hi
+  · simpa [norm_smul, hε_abs] using hv i hi
   · rw [real_inner_smul_left, real_inner_smul_right]
     calc ε i * (ε j * ⟪v i, v j⟫) ≤ |ε i * (ε j * ⟪v i, v j⟫)| := le_abs_self _
       _ = |⟪v i, v j⟫| := by rw [abs_mul, abs_mul, hε_abs, hε_abs, one_mul, one_mul]
       _ ≤ δ * A := hδ i hi j hj hij
-  · rw [real_inner_smul_right, hε_mul]
-    exact hTv i hi
+  · simpa [real_inner_smul_right, hε_mul] using hTv i hi
 
 /-- **Few nearly orthogonal vectors correlate with a fixed vector**, list-size form: under the
 hypotheses of `card_mul_sq_le_of_abs_inner_ge` with `δ ≥ 0` (and `s` possibly empty),

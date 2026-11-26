@@ -72,11 +72,8 @@ open Cslib.Complexity
 /-- Every successfully decoded certificate describes a circuit of at most the gate budget. -/
 theorem size_le_of_decodeCertificate_eq_some {r s : ℕ} {w : List Bool}
     {W : Circuit signature r 1} (h : decodeCertificate r s w = some W) : W.size ≤ s := by
-  have hc := Circuit.code_of_ofCode_eq_some h
-  calc W.size = (readCertificate r s w).1.length := by
-        rw [← Circuit.length_code_fst, hc]
-        rfl
-    _ ≤ s := length_readCertificate_le r s w
+  rw [← Circuit.length_code_fst, Circuit.code_of_ofCode_eq_some h]
+  exact length_readCertificate_le r s w
 
 /-- A canonical certificate recovers its circuit, ignoring any trailing bits. -/
 theorem decodeCertificate_certificate_append {r s : ℕ} (W : Circuit signature r 1)
@@ -106,9 +103,8 @@ theorem certificateCircuit_of_decode_eq_some {q r s : ℕ}
 theorem mem_CircuitSAT_certificateCircuit_of_decode_eq_none {q r s : ℕ}
     (D : Circuit signature q (3 * (r + 1))) {w : List Bool}
     (h : decodeCertificate r s w = none) :
-    (⟨q, certificateCircuit D s w⟩ : Σ n, Circuit signature n 1) ∈ CircuitSAT := by
-  refine ⟨fun _ => false, ?_⟩
-  simp [certificateCircuit, h, interpretation]
+    (⟨q, certificateCircuit D s w⟩ : Σ n, Circuit signature n 1) ∈ CircuitSAT :=
+  ⟨fun _ => false, by simp [certificateCircuit, h, interpretation]⟩
 
 /-- Compiling any bit string costs the decoder plus three budgeted witness copies and seventeen
 Boolean gates; malformed certificates cost only one gate. -/
@@ -129,13 +125,8 @@ theorem not_mem_CircuitSAT_certificateCircuit_iff {q r : ℕ}
       ∃ W : Circuit signature r 1, decodeCertificate r s w = some W ∧
         (toCNF D).eval (fun y => W.eval interpretation y 0) = true := by
   cases h : decodeCertificate r s w with
-  | none =>
-    exact iff_of_false
-      (fun hn => hn (mem_CircuitSAT_certificateCircuit_of_decode_eq_none D h))
-      (by simp)
-  | some W =>
-    rw [certificateCircuit_of_decode_eq_some D h, not_mem_CircuitSAT_badClause_iff]
-    simp
+  | none => simp [mem_CircuitSAT_certificateCircuit_of_decode_eq_none D h]
+  | some W => simp [certificateCircuit_of_decode_eq_some D h, not_mem_CircuitSAT_badClause_iff]
 
 /-- Guessing exactly `certLength r s` bits and testing the compiled circuit for unsatisfiability
 finds a witness precisely when the succinct formula has a satisfying circuit of at most `s`
@@ -146,16 +137,11 @@ theorem exists_not_mem_CircuitSAT_certificateCircuit_iff {q r : ℕ}
       (⟨q, certificateCircuit D s w⟩ : Σ n, Circuit signature n 1) ∉ CircuitSAT) ↔
       ∃ W : Circuit signature r 1, W.size ≤ s ∧
         (toCNF D).eval (fun y => W.eval interpretation y 0) = true := by
-  constructor
-  · rintro ⟨w, _, hw⟩
-    obtain ⟨W, hW, hsat⟩ := (not_mem_CircuitSAT_certificateCircuit_iff D s w).1 hw
-    exact ⟨W, size_le_of_decodeCertificate_eq_some hW, hsat⟩
-  · rintro ⟨W, hsize, hsat⟩
-    refine ⟨certificate r s W.code.1 (W.outputs 0).toNat,
-      length_certificate_code W hsize, ?_⟩
-    apply (not_mem_CircuitSAT_certificateCircuit_iff D s _).2
-    refine ⟨W, ?_, hsat⟩
-    simpa using decodeCertificate_certificate_append W hsize []
+  simp only [not_mem_CircuitSAT_certificateCircuit_iff]
+  refine ⟨fun ⟨_, _, W, hW, hsat⟩ => ⟨W, size_le_of_decodeCertificate_eq_some hW, hsat⟩, ?_⟩
+  rintro ⟨W, hs, hsat⟩
+  exact ⟨_, length_certificate_code W hs, W,
+    by simpa using decodeCertificate_certificate_append W hs [], hsat⟩
 
 /-! ### Uniform construction on circuit codes -/
 
@@ -190,10 +176,7 @@ theorem isSome_decodeCertificate_iff (r s : ℕ) (w : List Bool) :
     (decodeCertificate r s w).isSome ↔
       codeCheck signature r (readCertificate r s w).1 = true ∧
         (readCertificate r s w).2 < r + (readCertificate r s w).1.length := by
-  change (Circuit.ofCode r 1 ((readCertificate r s w).1,
-    [(readCertificate r s w).2]) : Option (Circuit signature r 1)).isSome ↔ _
-  rw [Circuit.isSome_ofCode_iff, codeCheck_eq_true_iff]
-  simp
+  simp [decodeCertificate, Circuit.isSome_ofCode_iff, codeCheck_eq_true_iff]
 
 /-- The complete certificate-to-checker compiler on raw data, including the invalid-certificate
 branch. The constant-true output uses the first gate wire, numbered by the input count `q`. -/
@@ -208,24 +191,18 @@ branch. The constant-true output uses the first gate wire, numbered by the input
 theorem certificateCircuitCode_code {q r : ℕ} (D : Circuit signature q (3 * (r + 1)))
     (s : ℕ) (w : List Bool) :
     certificateCircuitCode q r s D.code w = (certificateCircuit D s w).code := by
+  have hiff := isSome_decodeCertificate_iff r s w
   cases h : decodeCertificate r s w with
   | none =>
-    have hcheck : ¬(codeCheck signature r (readCertificate r s w).1 = true ∧
-        (readCertificate r s w).2 < r + (readCertificate r s w).1.length) := by
-      rw [← isSome_decodeCertificate_iff, h]
-      simp
+    have hcheck := mt hiff.mpr (by simp [h])
     simp only [certificateCircuitCode, Bool.and_eq_true, decide_eq_true_eq,
       ite_eq_right hcheck, certificateCircuit, h]
     rfl
   | some W =>
-    have hcheck : codeCheck signature r (readCertificate r s w).1 = true ∧
-        (readCertificate r s w).2 < r + (readCertificate r s w).1.length := by
-      rw [← isSome_decodeCertificate_iff, h]
-      simp
-    have hcode : W.code = ((readCertificate r s w).1, [(readCertificate r s w).2]) :=
-      Circuit.code_of_ofCode_eq_some h
+    have hcheck := hiff.mp (by simp [h])
     simp only [certificateCircuitCode, Bool.and_eq_true, decide_eq_true_eq, ite_eq_left hcheck]
-    rw [← hcode, badClauseCode_code, certificateCircuit_of_decode_eq_some D h]
+    rw [certificateCircuit_of_decode_eq_some D h, ← badClauseCode_code]
+    exact congrArg _ (Circuit.code_of_ofCode_eq_some h).symm
 
 open Turing.MultiTapeTM ComputableInPolyTime
 
@@ -241,21 +218,16 @@ theorem computableInPolyTime_badClauseCode {α : Type} {enc : α ↪ List Bool}
       enc encCode := by
   have hrb := unary_to_binary.comp hr
   have hwidth : ComputableInPolyTime (fun a => 3 * (r a + 1)) enc encNat := by fun_prop
-  have haddress (j : Fin 3) : ComputableInPolyTime
-      (fun a => ([], (List.range (r a)).map fun i => j.val * (r a + 1) + i)) enc encCode := by
-    refine (const []).prod (mapWithInput (range.comp hr) ?_)
-    have hr' := hrb.comp (fst enc encUnary)
-    have hi := unary_to_binary.comp (snd enc encUnary)
-    fun_prop
-  have hsign : ComputableInPolyTime
-      (fun a => ([], List.ofFn fun j : Fin 3 => j.val * (r a + 1) + r a)) enc encCode := by
-    refine (const []).prod (ofFn fun j => ?_)
-    fun_prop
-  exact computableInPolyTime_compCode hq
+  refine computableInPolyTime_compCode hq
     (computableInPolyTime_compCode hwidth (const violationTest.toCircuit.code)
       (computableInPolyTime_appendCode hwidth
         (computableInPolyTime_appendCodes hwidth (ofFn fun j =>
-          computableInPolyTime_compCode hwidth hwitness (haddress j))) hsign)) hdecoder
+          computableInPolyTime_compCode hwidth hwitness ((const []).prod
+            (mapWithInput (range.comp hr) ?_))))
+        ((const []).prod (ofFn fun _ => by fun_prop)))) hdecoder
+  have := hrb.comp (fst enc encUnary)
+  have := unary_to_binary.comp (snd enc encUnary)
+  fun_prop
 
 /-- The raw certificate compiler is polynomial-time in the decoder code, certificate, and the
 unary widths and gate budget, including checking all malformed descriptions. -/
@@ -269,18 +241,14 @@ theorem computableInPolyTime_certificateCircuitCode {α : Type} {enc : α ↪ Li
     ComputableInPolyTime
       (fun a => certificateCircuitCode (q a) (r a) (s a) (decoder a) (w a)) enc encCode := by
   have hread := computableInPolyTime_readCertificate hr hs hw
-  have hgate := hread.fst'
-  have hout := hread.snd'
   have hrb := unary_to_binary.comp hr
-  have hlen := (length_list_binary encGate).comp hgate
-  have hcheck : ComputableInPolyTime (fun a => codeCheck signature (r a)
-      (readCertificate (r a) (s a) (w a)).1 && decide
-        ((readCertificate (r a) (s a) (w a)).2 <
-          r a + (readCertificate (r a) (s a) (w a)).1.length)) enc encBool := by
-    have hc := computableInPolyTime_codeCheck hr hgate
-    fun_prop
-  exact hcheck.ite
-    (computableInPolyTime_badClauseCode hq hr hdecoder (hgate.prod (hout.cons' (const []))))
+  have hlen := (length_list_binary encGate).comp hread.fst'
+  have hc := computableInPolyTime_codeCheck hr hread.fst'
+  exact ComputableInPolyTime.ite (c := fun a => codeCheck signature (r a)
+      (readCertificate (r a) (s a) (w a)).1 && decide ((readCertificate (r a) (s a) (w a)).2 <
+        r a + (readCertificate (r a) (s a) (w a)).1.length)) (by fun_prop)
+    (computableInPolyTime_badClauseCode hq hr hdecoder
+      (hread.fst'.prod (hread.snd'.cons' (const []))))
     ((const [((.const true : Op), [])]).prod (hq.cons' (const [])))
 
 /-- **Uniform native construction of the checker.** Supply polynomial-time computations of the
@@ -297,10 +265,9 @@ theorem computableInPolyTime_certificateCircuit {α : Type} {enc : α ↪ List B
     (hw : ComputableInPolyTime w enc encBits) :
     ComputableInPolyTime
       (fun a => (⟨q a, certificateCircuit (D a) (s a) (w a)⟩ : Σ n, Circuit signature n 1))
-      enc (encCircuit 1) := by
-  have hcode := computableInPolyTime_certificateCircuitCode
-    (unary_to_binary.comp hq) hr hs hD hw
-  exact (hq.prod hcode).of_enc_eq fun a => by
-    rw [encCircuit_apply, certificateCircuitCode_code]
+      enc (encCircuit 1) :=
+  (hq.prod (computableInPolyTime_certificateCircuitCode
+    (unary_to_binary.comp hq) hr hs hD hw)).of_enc_eq fun a => by
+      rw [encCircuit_apply, certificateCircuitCode_code]
 
 end Cslib.Circuits.Boolean.SuccinctVerifier

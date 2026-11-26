@@ -92,11 +92,9 @@ theorem oneModelCount_toPositiveOneInExactThreeSATThree (φ : CNF ℕ)
 theorem oneSatisfiable_toPositiveOneInExactThreeSATThree_iff (φ : CNF ℕ) :
     (toPositiveOneInExactThreeSATThree φ).OneSatisfiable ↔ φ ∈ ThreeSAT := by
   rw [toPositiveOneInExactThreeSATThree,
-    CNF.PositiveExactOneCompile.oneSatisfiable_formula _ (width_toThreeSATThree φ)]
-  have he : (toThreeSATThree φ).Satisfiable ↔ toThreeSATThree φ ∈ ThreeSATThree :=
-    ⟨fun hs => ⟨width_toThreeSATThree φ, count_vars_toThreeSATThree_le φ, hs⟩,
-      fun hs => hs.2.2⟩
-  exact he.trans (mem_ThreeSATThree_toThreeSATThree_iff φ)
+    CNF.PositiveExactOneCompile.oneSatisfiable_formula _ (width_toThreeSATThree φ),
+    ← mem_ThreeSATThree_toThreeSATThree_iff φ]
+  exact ⟨fun hs => ⟨width_toThreeSATThree φ, count_vars_toThreeSATThree_le φ, hs⟩, fun hs => hs.2.2⟩
 
 /-- Explicit constant-factor formula bounds relative to the original valid 3SAT instance. -/
 theorem size_toPositiveOneInExactThreeSATThree (φ : CNF ℕ)
@@ -104,26 +102,24 @@ theorem size_toPositiveOneInExactThreeSATThree (φ : CNF ℕ)
     (toPositiveOneInExactThreeSATThree φ).length ≤ 169 * (φ.length + φ.vars.length) ∧
       (toPositiveOneInExactThreeSATThree φ).vars.length ≤
         507 * (φ.length + φ.vars.length) := by
-  have hc := CNF.PositiveExactOneCompile.length_formula_le (toThreeSATThree φ)
-  have hl := CNF.PositiveExactOneCompile.length_vars_formula_le (toThreeSATThree φ)
-  rw [length_toThreeSATThree φ hw] at hc hl
-  exact ⟨hc, hl⟩
+  simpa only [toPositiveOneInExactThreeSATThree, length_toThreeSATThree φ hw] using
+    And.intro (CNF.PositiveExactOneCompile.length_formula_le (toThreeSATThree φ))
+      (CNF.PositiveExactOneCompile.length_vars_formula_le (toThreeSATThree φ))
 
 /-- The guarded counting functions agree on every input, including invalid syntax. -/
 theorem sharpPositiveOneInExactThreeSATThree_toPositiveOneInExactThreeSATThree (φ : CNF ℕ) :
     SharpPositiveOneInExactThreeSATThree (toPositiveOneInExactThreeSATThree φ) =
       SharpThreeSAT φ := by
-  have hg := (PositiveOneInExactThreeSATThree.syntaxCheck_iff _).mpr
-    ⟨exactClauses_toPositiveOneInExactThreeSATThree φ,
-      positive_toPositiveOneInExactThreeSATThree φ,
-      count_vars_toPositiveOneInExactThreeSATThree_le φ⟩
-  have hs := (ThreeSATThree.syntaxCheck_iff _).mpr
-    ⟨width_toThreeSATThree φ, count_vars_toThreeSATThree_le φ⟩
-  simp only [SharpPositiveOneInExactThreeSATThree, hg, ↓reduceIte]
+  simp only [SharpPositiveOneInExactThreeSATThree,
+    (PositiveOneInExactThreeSATThree.syntaxCheck_iff _).mpr
+      ⟨exactClauses_toPositiveOneInExactThreeSATThree φ,
+        positive_toPositiveOneInExactThreeSATThree φ,
+        count_vars_toPositiveOneInExactThreeSATThree_le φ⟩, ↓reduceIte]
   change (toPositiveOneInExactThreeSATThree φ).oneModelCount = _
   rw [toPositiveOneInExactThreeSATThree,
     CNF.PositiveExactOneCompile.oneModelCount_formula _ (width_toThreeSATThree φ)]
-  simpa only [SharpThreeSATThree, hs, ↓reduceIte, SharpSAT] using
+  simpa only [SharpThreeSATThree, (ThreeSATThree.syntaxCheck_iff _).mpr
+    ⟨width_toThreeSATThree φ, count_vars_toThreeSATThree_le φ⟩, ↓reduceIte, SharpSAT] using
     sharpThreeSATThree_toThreeSATThree φ
 
 /-- The native compiler is a parsimonious counting reduction on all encoded inputs. -/

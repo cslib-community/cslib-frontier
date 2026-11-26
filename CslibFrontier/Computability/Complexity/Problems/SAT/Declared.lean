@@ -129,10 +129,8 @@ end DeclaredCNF
 /-- A `Std.Sat.CNF (Fin n)` maps into `DeclaredSAT` iff it is not `Unsat`. -/
 theorem mem_declaredSAT_ofStdSat_iff {n : ℕ} (f : Std.Sat.CNF (Fin n)) :
     DeclaredCNF.ofStdSat f ∈ DeclaredSAT ↔ ¬f.Unsat := by
-  change (DeclaredCNF.ofStdSat f).WellFormed ∧ (DeclaredCNF.ofStdSat f).formula.Satisfiable ↔
-    ¬f.Unsat
-  rw [and_iff_right (DeclaredCNF.ofStdSat_wellFormed f)]
-  rw [DeclaredCNF.ofStdSat, CNF.relabel_ofStdSat, CNF.satisfiable_relabel Fin.val_injective,
+  rw [DeclaredSAT, Set.mem_ofPred_eq, and_iff_right (DeclaredCNF.ofStdSat_wellFormed f),
+    DeclaredCNF.ofStdSat, CNF.relabel_ofStdSat, CNF.satisfiable_relabel Fin.val_injective,
     CNF.satisfiable_ofStdSat_iff]
 
 /-- Total polynomial-time decoder for `encDeclaredCNF`. -/
@@ -157,22 +155,17 @@ rejects both malformed framed bit words and out-of-range variable labels. -/
 /-- On any encoded `DeclaredCNF`, `declaredCNFCode` reduces directly to `x.wellFormed`. -/
 theorem declaredCNFCode_encDeclaredCNF (x : DeclaredCNF) :
     declaredCNFCode (encDeclaredCNF x) = x.wellFormed := by
-  unfold declaredCNFCode
-  rw [declaredCNFDecoder_decode_enc]
-  simp
+  simp only [declaredCNFCode, declaredCNFDecoder_decode_enc, decide_true, Bool.and_true]
 
 /-- A word satisfies `declaredCNFCode` iff it is the exact encoding of a well-formed
 `DeclaredCNF`. -/
 theorem declaredCNFCode_eq_true_iff (w : List Bool) :
     declaredCNFCode w = true ↔ ∃ x : DeclaredCNF, x.WellFormed ∧ encDeclaredCNF x = w := by
-  unfold declaredCNFCode
-  rw [Bool.and_eq_true, DeclaredCNF.wellFormed_eq_true_iff, decide_eq_true_iff]
-  constructor
-  · rintro ⟨hwf, he⟩
-    exact ⟨declaredCNFDecoder.decode w, hwf, he⟩
-  · rintro ⟨x, hwf, rfl⟩
-    rw [declaredCNFDecoder_decode_enc]
-    exact ⟨hwf, rfl⟩
+  simp only [declaredCNFCode, Bool.and_eq_true, DeclaredCNF.wellFormed_eq_true_iff,
+    decide_eq_true_iff]
+  refine ⟨fun ⟨hwf, he⟩ => ⟨declaredCNFDecoder.decode w, hwf, he⟩, ?_⟩
+  rintro ⟨x, hwf, rfl⟩
+  simp only [declaredCNFDecoder_decode_enc, hwf, true_and]
 
 /-- Rejecting malformed `DeclaredCNF` words is computable in polynomial time. -/
 theorem computableInPolyTime_declaredCNFCode :

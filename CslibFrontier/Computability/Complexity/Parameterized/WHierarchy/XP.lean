@@ -270,17 +270,14 @@ private theorem searchPadded_eq_true_iff {n : ℕ} (c : Circuit Unbounded.signat
         rw [List.filter_map]
         simp [Function.comp_def]
       rw [← hcnt, BitString.count_true_ofFn, hwt]
-    have hpos0_lt : ∀ j ∈ pos0, j < n := by
-      intro j hj
-      obtain ⟨i, -, rfl⟩ := List.mem_map.1 hj
-      exact i.isLt
+    have hpos0_lt : ∀ j ∈ pos0, j < n := fun j hj => by
+      obtain ⟨i, -, rfl⟩ := List.mem_map.1 hj; exact i.isLt
     have hpos0_mem : ∀ i : Fin n, i.val ∈ pos0 ↔ v i = true := by
       intro i
       simp only [pos0, List.mem_map, List.mem_filter, List.mem_finRange, true_and]
       exact ⟨fun ⟨i', hi', heq⟩ => Fin.ext heq ▸ hi', fun hi => ⟨i, hi, rfl⟩⟩
     let words : List (List Bool) := pos0.map (BitString.binaryWord n.size)
-    have hwords_len : ∀ w ∈ words, w.length = n.size := by
-      intro w hw
+    have hwords_len : ∀ w ∈ words, w.length = n.size := fun w hw => by
       obtain ⟨j, hj, rfl⟩ := List.mem_map.1 hw
       exact BitString.length_binaryWord ((hpos0_lt j hj).trans (Nat.lt_size_self n))
     let bs : List Bool := words.flatten
@@ -463,23 +460,14 @@ theorem WeightedCircuitSAT_mem_XP :
     have h2s : 2 ^ a.circuit.1.size ≤ 2 * (L + 1) :=
       (Nat.two_pow_size_le a.circuit.1).trans (by omega)
     have hexp : 2 ^ (D * WeightedCircuitSAT.searchBits a.circuit.1 a.weight) ≤
-        2 ^ (D * a.weight) * (L + 1) ^ (D * a.weight) := by
+        (2 * (L + 1)) ^ (D * a.weight) :=
       calc 2 ^ (D * (min a.circuit.1 a.weight * a.circuit.1.size))
-          = 2 ^ (a.circuit.1.size * (D * min a.circuit.1 a.weight)) := by
-            rw [← Nat.mul_assoc, Nat.mul_comm (D * min a.circuit.1 a.weight) a.circuit.1.size]
-        _ = (2 ^ a.circuit.1.size) ^ (D * min a.circuit.1 a.weight) :=
-            Nat.pow_mul 2 a.circuit.1.size (D * min a.circuit.1 a.weight)
-        _ ≤ (2 * (L + 1)) ^ (D * min a.circuit.1 a.weight) :=
-            Nat.pow_le_pow_left h2s _
-        _ ≤ (2 * (L + 1)) ^ (D * a.weight) :=
-            Nat.pow_le_pow_right (by omega) (Nat.mul_le_mul_left D (Nat.min_le_right _ _))
-        _ = 2 ^ (D * a.weight) * (L + 1) ^ (D * a.weight) :=
-            Nat.mul_pow 2 (L + 1) (D * a.weight)
+          = (2 ^ a.circuit.1.size) ^ (D * min a.circuit.1 a.weight) := by rw [← pow_mul]; ring
+        _ ≤ (2 * (L + 1)) ^ (D * a.weight) := (Nat.pow_le_pow_left h2s _).trans
+            (Nat.pow_le_pow_right (by omega) (Nat.mul_le_mul_left D (Nat.min_le_right _ _)))
     calc C * 2 ^ (D * WeightedCircuitSAT.searchBits a.circuit.1 a.weight) * (L + 1) ^ D
-        ≤ C * (2 ^ (D * a.weight) * (L + 1) ^ (D * a.weight)) * (L + 1) ^ D :=
-          Nat.mul_le_mul_right _ (Nat.mul_le_mul_left C hexp)
-      _ = C * 2 ^ (D * a.weight) * ((L + 1) ^ (D * a.weight) * (L + 1) ^ D) := by ring
-      _ = C * 2 ^ (D * a.weight) * (L + 1) ^ (D * a.weight + D) := by rw [← Nat.pow_add]
+        ≤ C * (2 * (L + 1)) ^ (D * a.weight) * (L + 1) ^ D := by gcongr
+      _ = C * 2 ^ (D * a.weight) * (L + 1) ^ (D * a.weight + D) := by rw [mul_pow, pow_add]; ring
   refine mem_XP_iff_exists_computableInO.mpr
     ⟨_, fun k => C * 2 ^ (D * k), fun k => D * k + D, hO.mono_le hbound hbound, fun ⟨⟨n, c⟩, k⟩ =>
       (WeightedCircuitSAT.searchPadded_eq_true_iff c k).symm⟩

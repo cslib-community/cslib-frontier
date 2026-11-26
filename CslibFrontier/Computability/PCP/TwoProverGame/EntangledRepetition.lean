@@ -101,10 +101,8 @@ private theorem questions_pow_succ (n : ℕ) :
     (G.pow (n + 1)).questions = G.questions.bind fun q₀ =>
       (G.pow n).questions.map fun q => (Fin.cons q₀.1 q.1, Fin.cons q₀.2 q.2) := by
   simp only [pow, Probability.PMF.pi_fin_succ, PMF.map_bind, PMF.map_comp]
-  congr 1 with q₀ : 1
-  congr 1
-  funext q
-  exact Prod.ext (Fin.comp_cons Prod.fst q₀ q) (Fin.comp_cons Prod.snd q₀ q)
+  exact congrArg (fun f => G.questions.bind f) (funext fun q₀ => congrArg (PMF.map · _)
+    (funext fun q => Prod.ext (Fin.comp_cons Prod.fst q₀ q) (Fin.comp_cons Prod.snd q₀ q)))
 
 /-- A strategy winning every coordinate also wins after the verifier ignores the first
 coordinate. Fixing the ignored questions gives a valid strategy for the shorter game. -/
@@ -182,19 +180,14 @@ private theorem quantumValue_le_of_relabel
     have hrounds : (H.questions.bind fun q => (T.answers q.1 q.2).map (q, ·)) =
         (G.questions.bind fun q => (S.answers q.1 q.2).map (q, ·)).map f := by
       rw [hq, PMF.bind_map, PMF.map_bind]
-      congr 1
-      funext q
-      rcases q with ⟨x, y⟩
+      refine congrArg _ (funext fun ⟨x, y⟩ => ?_)
       simp only [Function.comp_def, Equiv.prodCongr_apply, Prod.map_apply, hab, PMF.map_comp]
       rfl
+    have hpreimage : f ⁻¹' {z | H.AcceptsRound z} = {z | G.AcceptsRound z} :=
+      Set.ext fun ⟨⟨x, y⟩, a, b⟩ => ha x y a b
     rw [quantumWinProb, quantumWinProb, answersWinProb_eq, answersWinProb_eq, hrounds,
-      PMF.toOuterMeasure_map_apply]
-    have hpreimage : f ⁻¹' {z | H.AcceptsRound z} = {z | G.AcceptsRound z} := by
-      ext ⟨⟨x, y⟩, a, b⟩
-      exact ha x y a b
-    rw [hpreimage]
-  rw [← hscore]
-  exact H.quantumWinProb_le_quantumValue T
+      PMF.toOuterMeasure_map_apply, hpreimage]
+  exact hscore.symm.le.trans (H.quantumWinProb_le_quantumValue T)
 
 private abbrev singleTupleEquiv (U : Type*) : U ≃ (Fin 1 → U) :=
   (Equiv.funUnique (Fin 1) U).symm
@@ -208,20 +201,16 @@ theorem quantumValue_pow_one : (G.pow 1).quantumValue = G.quantumValue := by
   let eQ := eX.prodCongr eY
   have hq : (G.pow 1).questions = G.questions.map eQ := by
     have h : (Probability.PMF.pi fun _ : Fin 1 => G.questions) =
-        G.questions.map (singleTupleEquiv (X × Y)) := by
-      ext q
-      rw [Probability.PMF.pi_apply, Probability.PMF.map_equiv_apply, Fin.prod_univ_one]
-      rfl
-    rw [pow, h, PMF.map_comp]
-    rfl
+        G.questions.map (singleTupleEquiv (X × Y)) :=
+      PMF.ext fun q => by
+        rw [Probability.PMF.pi_apply, Probability.PMF.map_equiv_apply, Fin.prod_univ_one]; rfl
+    rw [pow, h, PMF.map_comp]; rfl
   refine le_antisymm ?_ (G.quantumValue_le_of_relabel (G.pow 1) eX eY eA eB
     hq (fun x y a b => ⟨fun h => h 0, fun h _ => h⟩))
-  refine (G.pow 1).quantumValue_le_of_relabel G eX.symm eY.symm eA.symm eB.symm ?_ ?_
-  · change G.questions = (G.pow 1).questions.map eQ.symm
-    rw [hq, PMF.map_comp, show (⇑eQ.symm ∘ ⇑eQ) = id from eQ.symm_comp_self, PMF.map_id]
-  · intro x y a b
-    change G.accepts (x 0) (y 0) (a 0) (b 0) ↔ ∀ i, G.accepts (x i) (y i) (a i) (b i)
-    exact ⟨fun h i => by simpa only [Subsingleton.elim i 0] using h, fun h => h 0⟩
+  refine (G.pow 1).quantumValue_le_of_relabel G eX.symm eY.symm eA.symm eB.symm ?_
+    fun x y a b => ⟨fun h i => Subsingleton.elim 0 i ▸ h, fun h => h 0⟩
+  change G.questions = (G.pow 1).questions.map eQ.symm
+  rw [hq, PMF.map_comp, eQ.symm_comp_self, PMF.map_id]
 
 /-- Every nonempty parallel repetition has entangled value at most the original game's value. -/
 theorem quantumValue_pow_le_of_pos {n : ℕ} (hn : 0 < n) :

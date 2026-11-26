@@ -15,7 +15,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeLoops
 import CslibFrontier.Tactic.EncLen
 
@@ -95,18 +94,16 @@ theorem CNF.computableInPolyTime_restrict' {α : Type} {input : α ↪ List Bool
     (hb : ComputableInPolyTime b input encBool)
     (hψ : ComputableInPolyTime ψ input (encCNFOver enc)) :
     ComputableInPolyTime (fun a => (ψ a).restrict (v a) (b a)) input
-      (encCNFOver enc) := by
-  have h := (CNF.computableInPolyTime_restrict enc).comp ((hv.prod hb).prod hψ)
-  exact h
+      (encCNFOver enc) :=
+  (CNF.computableInPolyTime_restrict enc).comp ((hv.prod hb).prod hψ)
 
 omit [DecidableEq V] in
 /-- Johnson's weight of a computed formula with a computed unary bound is polynomial-time. -/
 theorem CNF.computableInPolyTime_johnsonWeight' {α : Type} {input : α ↪ List Bool}
     {L : α → ℕ} {ψ : α → CNF V} (hL : ComputableInPolyTime L input encUnary)
     (hψ : ComputableInPolyTime ψ input (encCNFOver enc)) :
-    ComputableInPolyTime (fun a => (ψ a).johnsonWeight (L a)) input encNat := by
-  have h := (CNF.computableInPolyTime_johnsonWeight enc).comp (hL.prod hψ)
-  exact h
+    ComputableInPolyTime (fun a => (ψ a).johnsonWeight (L a)) input encNat :=
+  (CNF.computableInPolyTime_johnsonWeight enc).comp (hL.prod hψ)
 
 /-- One round of Johnson's algorithm, reading the input formula, the state and the next variable,
 is polynomial-time. -/
@@ -119,16 +116,14 @@ private theorem computableInPolyTime_johnsonRound :
       (encPair (encPair (encList (encList (encPair enc encBool)))
         (encPair (encList (encList (encPair enc encBool))) (encList enc))) enc)
       (encPair (encList (encList (encPair enc encBool))) (encList enc)) := by
+  have hp := fst (encPair (encCNFOver enc) (encPair (encCNFOver enc) (encList enc))) enc
   have hrestrict (b : Bool) := CNF.computableInPolyTime_restrict' enc (snd _ _) (const b)
-    ((fst (encPair (encList (encList (encPair enc encBool)))
-      (encPair (encList (encList (encPair enc encBool))) (encList enc))) enc).snd'.fst')
+    hp.snd'.fst'
   have hweight (b : Bool) := CNF.computableInPolyTime_johnsonWeight' enc
-    (CNF.computableInPolyTime_vars_length (fst _ _).fst') (hrestrict b)
-  have hle := binary_le' (hweight true) (hweight false)
-  have hT := (fst (encPair (encList (encList (encPair enc encBool)))
-    (encPair (encList (encList (encPair enc encBool))) (encList enc))) enc).snd'.snd'
-  have h := ite hle ((hrestrict true).prod (cons' (snd _ _) hT)) ((hrestrict false).prod hT)
-  simpa only [Function.comp_apply, decide_eq_true_eq] using h
+    (CNF.computableInPolyTime_vars_length hp.fst') (hrestrict b)
+  simpa only [Function.comp_apply, decide_eq_true_eq] using
+    ite (binary_le' (hweight true) (hweight false))
+      ((hrestrict true).prod (cons' (snd _ _) hp.snd'.snd')) ((hrestrict false).prod hp.snd'.snd')
 
 /-- Johnson's algorithm as a fold whose step reads the input formula. -/
 private theorem johnson_eq_foldl (φ : CNF V) :
@@ -144,26 +139,21 @@ theorem computableInPolyTime_johnson :
     ComputableInPolyTime (johnson (V := V))
       (encCNFOver enc) (encList enc) := by
   have hlist := CNF.computableInPolyTime_distinctVars enc
-  have hinit := (CNF.computableInPolyTime_eraseDupLits enc).prod
-    (const (encIn := encCNFOver enc) (encOut := encList enc) [])
-  have hfold := foldlWithInput_of_bounded_growth
+  exact (snd _ _).comp <| foldlWithInput_of_bounded_growth
     (encA := enc) (encB := encPair (encCNFOver enc) (encList enc))
     (list := fun φ : CNF V => φ.distinctVars)
     (step := fun (φ : CNF V) (s : CNF V × List V) (v : V) =>
       if (s.1.restrict v true).johnsonWeight φ.vars.length ≤
           (s.1.restrict v false).johnsonWeight φ.vars.length then
         (s.1.restrict v true, v :: s.2) else (s.1.restrict v false, s.2))
-    hinit ⟨hlist, computableInPolyTime_johnsonRound enc, inferInstance, inferInstance⟩
+    ((CNF.computableInPolyTime_eraseDupLits enc).prod
+      (const (encIn := encCNFOver enc) (encOut := encList enc) []))
+    ⟨hlist, computableInPolyTime_johnsonRound enc, inferInstance, inferInstance⟩
     (growth := fun φ => 2 * (encList enc φ.distinctVars).length + 1)
-    ⟨((PolyBounded.const 2).mul hlist.polyBounded_length).add (.const 1),
-      fun φ s v hv => by
-        have := SizedListEncoding.length_elem_le (encA := enc) (encL := encList enc) _ v hv
-        have h1 := CNF.length_encList_restrict_le enc v true s.1
-        have h2 := CNF.length_encList_restrict_le enc v false s.1
-        split
-        · enc_len
-        · enc_len⟩
-  have h := (snd _ _).comp hfold
-  exact h
+    ⟨((PolyBounded.const 2).mul hlist.polyBounded_length).add (.const 1), fun φ s v hv => by
+      have := SizedListEncoding.length_elem_le (encA := enc) (encL := encList enc) _ v hv
+      have := CNF.length_encList_restrict_le enc v true s.1
+      have := CNF.length_encList_restrict_le enc v false s.1
+      split <;> enc_len⟩
 
 end Cslib.Logic.PL

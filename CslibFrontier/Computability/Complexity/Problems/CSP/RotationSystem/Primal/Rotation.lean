@@ -48,16 +48,12 @@ private theorem rotation_side (r : Graph.RotationSystem (incidenceGraph F))
     (d : Graph.Dart (incidenceGraph F)) : (r.rotate d).2 = d.2 := by
   obtain ⟨o, ho⟩ := exists_incidenceDart d
   obtain ⟨p, hp⟩ := exists_incidenceDart (r.rotate d)
-  have hv := r.vertex_rotate d
-  have hvo := vertex_incidenceDart o d.2
-  have hvp := vertex_incidenceDart p (r.rotate d).2
-  rw [ho] at hvo
-  rw [hp] at hvp
-  rw [hvo, hvp] at hv
+  have hv : (incidenceDart p (r.rotate d).2).vertex = (incidenceDart o d.2).vertex := by
+    rw [hp, ho, r.vertex_rotate]
   have hdo := dense_lt o
   have hdp := dense_lt p
-  cases hd : d.2 <;> cases he : (r.rotate d).2 <;> simp only [hd, he, Bool.false_eq_true,
-    ↓reduceIte] at hv ⊢ <;> omega
+  cases hd : d.2 <;> cases he : (r.rotate d).2 <;>
+    simp only [vertex_incidenceDart, hd, he, Bool.false_eq_true, ↓reduceIte] at hv ⊢ <;> omega
 
 /-- The occurrence reached by rotating at its variable endpoint. -/
 private noncomputable def variableStep (r : Graph.RotationSystem (incidenceGraph F))
@@ -70,9 +66,8 @@ private theorem incidenceDart_variableStep (r : Graph.RotationSystem (incidenceG
     incidenceDart (variableStep r o) false = r.rotate (incidenceDart o false) := by
   have h := (incidenceDartEquiv F).apply_symm_apply (r.rotate (incidenceDart o false))
   rw [incidenceDartEquiv_apply] at h
-  have hs := rotation_side r (incidenceDart o false)
-  have hb : ((incidenceDartEquiv F).symm (r.rotate (incidenceDart o false))).2 = false := by
-    exact (congrArg Prod.snd h).trans hs
+  have hb : ((incidenceDartEquiv F).symm (r.rotate (incidenceDart o false))).2 = false :=
+    (congrArg Prod.snd h).trans (rotation_side r (incidenceDart o false))
   simpa only [variableStep, hb] using h
 
 /-- The variable permutation is induced by the actual incidence rotation. Its inverse recovers
@@ -111,18 +106,14 @@ theorem sameCycle_variablePermutation (r : Graph.RotationSystem (incidenceGraph 
     (variablePermutation r).SameCycle o p ↔ o.var = p.var := by
   have hm : Function.Semiconj (fun o => incidenceDart o false) (variablePermutation r)
       r.rotate := fun o => (rotate_incidenceDart_false r o).symm
-  constructor
-  · intro h
-    have hv := (r.sameCycle_iff _ _).mp (h.map_of_semiconj hm)
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · have hv := (r.sameCycle_iff _ _).mp (h.map_of_semiconj hm)
     simp only [vertex_incidenceDart, Bool.false_eq_true, ↓reduceIte] at hv
     exact (List.idxOf_inj (CSP.mem_distinctVars.mpr o.var_mem)).mp hv
-  · intro h
-    have hv : r.rotate.SameCycle (incidenceDart o false) (incidenceDart p false) := by
-      apply (r.sameCycle_iff _ _).mpr
-      simp [h]
-    obtain ⟨n, hn⟩ := hv.exists_nat_pow_eq
-    refine ⟨(n : ℤ), ?_⟩
-    apply incidenceDart_injective false
+  · obtain ⟨n, hn⟩ :=
+      ((r.sameCycle_iff (incidenceDart o false) (incidenceDart p false)).mpr
+        (by simp [h])).exists_nat_pow_eq
+    refine ⟨n, incidenceDart_injective false ?_⟩
     rw [zpow_natCast, ← Equiv.Perm.iterate_eq_pow, hm.iterate_right n,
       Equiv.Perm.iterate_eq_pow, hn]
 
@@ -141,10 +132,9 @@ The second dart is the reverse side of the preceding scope edge. -/
     (polygonBlockEquiv F (o, side)).vertex = F.distinctVars.idxOf o.var := by
   cases side
   · simp [polygonBlockEquiv]
-  · change (polygonDart ((argumentPermutation F).symm o) true).vertex = _
-    rw [vertex_polygonDart]
-    exact congrArg (fun p : F.Occurrence => F.distinctVars.idxOf p.var)
-      ((argumentPermutation F).apply_symm_apply o)
+  · exact (vertex_polygonDart ((argumentPermutation F).symm o) true).trans <|
+      congrArg (fun p : F.Occurrence => F.distinctVars.idxOf p.var)
+        ((argumentPermutation F).apply_symm_apply o)
 
 /-- The actual polygon rotation. At each variable, replace its recovered occurrence cycle
 by the blocks `(p_o,q_(B⁻¹ o))`. The endpoint-fiber law is a theorem of this permutation. -/
@@ -199,8 +189,7 @@ theorem rotate_polygonBlock (r : Graph.RotationSystem (incidenceGraph F))
     (polygonRotation r).faceNext (polygonDart o false) =
       polygonDart (argumentPermutation F o) false := by
   change (polygonRotation r).rotate.symm (polygonDart o true) = _
-  rw [Equiv.symm_apply_eq]
-  rw [rotate_polygonDart_false, Equiv.symm_apply_apply]
+  rw [Equiv.symm_apply_eq, rotate_polygonDart_false, Equiv.symm_apply_apply]
 
 /-- White faces use exactly the permutation `B⁻¹ A⁻¹` on occurrences. -/
 @[simp] theorem faceNext_polygonDart_true (r : Graph.RotationSystem (incidenceGraph F))
@@ -208,7 +197,6 @@ theorem rotate_polygonBlock (r : Graph.RotationSystem (incidenceGraph F))
     (polygonRotation r).faceNext (polygonDart o true) =
       polygonDart ((argumentPermutation F).symm ((variablePermutation r).symm o)) true := by
   change (polygonRotation r).rotate.symm (polygonDart o false) = _
-  rw [Equiv.symm_apply_eq]
-  rw [rotate_polygonDart_true, Equiv.apply_symm_apply, Equiv.apply_symm_apply]
+  rw [Equiv.symm_apply_eq, rotate_polygonDart_true, Equiv.apply_symm_apply, Equiv.apply_symm_apply]
 
 end Cslib.Complexity.CSP

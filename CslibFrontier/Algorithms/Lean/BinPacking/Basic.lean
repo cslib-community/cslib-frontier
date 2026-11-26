@@ -75,16 +75,8 @@ theorem sum_eq (h : IsPacking C l bins) : l.sum = (bins.map List.sum).sum := by
 
 /-- **Volume bound**: the items' total size is at most `C` times the number of bins. -/
 theorem sum_le_mul_length (h : IsPacking C l bins) : l.sum ≤ C * bins.length := by
-  rw [h.sum_eq]
-  have hs := h.sum_le
-  clear h
-  induction bins with
-  | nil => simp
-  | cons b bs ih =>
-    have hb := hs b List.mem_cons_self
-    have hbs := ih fun c hc => hs c (List.mem_cons_of_mem _ hc)
-    simp only [List.map_cons, List.sum_cons, List.length_cons, Nat.mul_succ]
-    omega
+  rw [h.sum_eq, Nat.mul_comm]
+  simpa using List.sum_le_length_nsmul (bins.map List.sum) C (by simpa using h.sum_le)
 
 /-- **Weighted volume bound**: if every list of items of total size at most `C` has total weight
 at most `K` under a weight `f`, then the items of a packing have total weight at most `K` times
@@ -141,8 +133,8 @@ theorem add_one_mul_div_two_le_of_isChain {C : ℕ} :
     have ih := add_one_mul_div_two_le_of_isChain (bins := rest) h.2.tail
     have h1 : C + 1 ≤ b.sum + b'.sum := h.1
     simp only [List.length_cons, List.map_cons, List.sum_cons]
-    have : (rest.length + 1 + 1) / 2 = rest.length / 2 + 1 := by omega
-    rw [this, Nat.mul_succ]
+    have hdiv : (rest.length + 1 + 1) / 2 = rest.length / 2 + 1 := by omega
+    rw [hdiv, Nat.mul_succ]
     omega
 
 /-- A packing of a nonempty list whose consecutive bins are jointly overfull uses fewer than twice
@@ -152,13 +144,12 @@ theorem length_lt_two_mul_of_isChain {C : ℕ} {l : List ℕ} {bins Q : List (Li
     (hQ : IsPacking C l Q) (hl : l ≠ []) : bins.length < 2 * Q.length := by
   have h1 := add_one_mul_div_two_le_of_isChain hchain
   have h2 := hQ.sum_le_mul_length
-  have h3 : l.sum = (bins.map List.sum).sum := by rw [← hperm.sum_eq, List.sum_flatten]
-  have hQ0 : 0 < Q.length := List.length_pos_iff.2 (hQ.ne_nil hl)
-  have h4 : bins.length / 2 < Q.length := by
+  rw [← hperm.sum_eq, List.sum_flatten] at h2
+  have hQ0 := List.length_pos_iff.2 (hQ.ne_nil hl)
+  have : bins.length / 2 < Q.length := by
     by_contra hcon
     have h5 := Nat.mul_le_mul_left (C + 1) (Nat.le_of_not_lt hcon)
-    rw [Nat.succ_mul] at h5
-    omega
+    rw [Nat.succ_mul] at h5; omega
   omega
 
 end Cslib.Algorithms.Lean.BinPacking

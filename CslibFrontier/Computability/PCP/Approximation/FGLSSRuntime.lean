@@ -20,6 +20,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.NatPolynomial
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunProp
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
+import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import Mathlib.Data.List.DropRight
 
 /-!
@@ -39,6 +41,8 @@ query list. Adding one to the encoded input length accounts for the empty word.
 
 * `Cslib.Complexity.PCPVerifier.fglssGraphIso`: the explicit edge list realizes the FGLSS graph.
 * `Cslib.Complexity.PCPVerifier.computableInO_fglssEdgeList`: the native machine certificate.
+* `Cslib.Complexity.PCPVerifier.computableInPolyTime_fglssEdgeList`: polynomial-time construction
+  under logarithmic randomness and a constant query bound.
 -/
 
 public section
@@ -128,10 +132,8 @@ private def viewWords {a : α} (u : V.View a) : List Bool × List Bool :=
 
 private theorem viewWords_injective (a : α) : Function.Injective (V.viewWords (a := a)) := by
   rintro ⟨u, x⟩ ⟨v, y⟩ h
-  have huv : u = v := List.ofFn_injective (congrArg Prod.fst h)
-  subst v
-  have hxy : x = y := List.ofFn_injective (congrArg Prod.snd h)
-  subst y
+  obtain rfl := List.ofFn_injective (congrArg Prod.fst h)
+  obtain rfl := List.ofFn_injective (congrArg Prod.snd h)
   rfl
 
 private theorem mem_viewsFrom_iff (a : α) (word : List Bool × List Bool) :
@@ -148,33 +150,25 @@ private theorem mem_viewsFrom_iff (a : α) (word : List Bool × List Bool) :
   constructor
   · intro hm
     obtain ⟨w, hw, hm⟩ := List.mem_flatMap.mp hm
-    obtain ⟨hm, hk⟩ := List.mem_filter.mp hm
-    obtain ⟨bs, hbs, he⟩ := List.mem_map.mp hm
-    cases he
+    obtain ⟨⟨bs, hbs, he⟩, hk⟩ := (List.mem_filter.mp hm).imp_left List.mem_map.mp
+    rcases Prod.mk.inj he with ⟨rfl, rfl⟩
     have hρ := BitString.mem_enumList.mp hw
     have hb := BitString.mem_enumList.mp hbs
     rw [hwidth hρ] at hb
-    have hr : List.ofFn (fun i : Fin (V.coins a) => ρ[i.val]'(hρ.symm ▸ i.isLt)) = ρ := by
-      apply List.ext_getElem (by simp [hρ])
-      simp
-    let u : V.View a := ⟨fun i => ρ[i.val]'(hρ.symm ▸ i.isLt),
-      fun i => bits[i.val]'(by simpa only [hr, ← hb] using i.isLt)⟩
-    have huv : V.viewWords u = (ρ, bits) := by
-      refine Prod.ext hr (List.ext_getElem (by simp [viewWords, u, hr, hb]) ?_)
-      intros
-      simp [viewWords, u]
-    have hu : V.keep a (V.viewWords u) = true := huv ▸ hk
-    obtain ⟨haccepts, hconsistent⟩ := Bool.and_eq_true_iff.mp hu
+    have hr : List.ofFn (fun i : Fin (V.coins a) => w[i.val]'(hρ.symm ▸ i.isLt)) = w :=
+      List.ext_getElem (by simp [hρ]) (by simp)
+    let u : V.View a := ⟨fun i => w[i.val]'(hρ.symm ▸ i.isLt),
+      fun i => bs[i.val]'(by simpa only [hr, ← hb] using i.isLt)⟩
+    have huv : V.viewWords u = (w, bs) :=
+      Prod.ext hr (List.ext_getElem (by simp [viewWords, u, hr, hb]) (by simp [viewWords, u]))
+    obtain ⟨haccepts, hconsistent⟩ := Bool.and_eq_true_iff.mp (huv ▸ hk : V.keep a (V.viewWords u))
     exact ⟨u, ⟨haccepts, (V.consistent_assigned_iff u u).mp hconsistent⟩, huv⟩
   · rintro ⟨u, hu, h⟩
-    have hr : List.ofFn u.random = ρ := congrArg Prod.fst h
-    have hb : List.ofFn u.answers = bits := congrArg Prod.snd h
-    have hρ : ρ.length = V.coins a := by rw [← hr, List.length_ofFn]
-    refine List.mem_flatMap.mpr ⟨ρ, BitString.mem_enumList.mpr hρ, List.mem_filter.mpr ⟨?_, ?_⟩⟩
-    · refine List.mem_map.mpr ⟨bits, BitString.mem_enumList.mpr ?_, rfl⟩
-      rw [hwidth hρ, ← hb, List.length_ofFn, hr]
-    · rw [← h]
-      exact Bool.and_eq_true_iff.mpr ⟨hu.accepts, (V.consistent_assigned_iff u u).mpr hu.consistent⟩
+    rcases Prod.mk.inj h with ⟨rfl, rfl⟩
+    refine List.mem_flatMap.mpr ⟨_, BitString.mem_enumList.mpr List.length_ofFn,
+      List.mem_filter.mpr ⟨List.mem_map.mpr ⟨_, BitString.mem_enumList.mpr ?_, rfl⟩, ?_⟩⟩
+    · rw [hwidth List.length_ofFn, List.length_ofFn]
+    · exact Bool.and_eq_true_iff.mpr ⟨hu.accepts, (V.consistent_assigned_iff u u).mpr hu.consistent⟩
 
 /-- The edge-list realization has exactly the vertices and edges of the mathematical FGLSS
 graph, up to relabeling. -/
@@ -276,15 +270,7 @@ private theorem polyGraphFrom (hV : V.PolyTime enc) :
     have h := id' (encIn := encPair (encPair enc encUnary) encBits)
     have hw := (length_list encNat).comp (hV.queries.comp (h.fst'.fst'.prod h.snd'))
     have hlog := ComputableInPolyTime.unary_log_two.comp h.fst'.snd'
-    have henum := bitsEnumList_of_polyBounded (unary_min' hw hlog)
-      ((PolyBounded.self.add (.const 1)).mono fun p => by
-        have hn := Nat.pow_log_le_add_one 2 p.1.2
-        have hle := Nat.pow_le_pow_right (by decide : 0 < (2 : ℕ))
-          (min_le_right (V.queries (p.1.1, p.2)).length (Nat.log 2 p.1.2))
-        change 2 ^ min (V.queries (p.1.1, p.2)).length (Nat.log 2 p.1.2) ≤
-          (encPair (encPair enc encUnary) encBits p).length + 1
-        simp only [length_encPair, encUnary_apply, List.length_replicate]
-        omega)
+    have henum := bitsEnumList_of_polyBounded (unary_min' hw hlog) (by growth_poly)
     have hmap := ComputableInPolyTime.mapWith
       (ComputableInPolyTime.id' (encIn := encView)) h.snd' henum
     exact ComputableInPolyTime.filterWith hkeep h.fst'.fst' hmap
@@ -333,5 +319,16 @@ theorem computableInO_fglssEdgeList (hV : V.PolyTime enc) (q : ℕ → ℕ)
   obtain ⟨T, S, hT, hS, h⟩ := nativePostprocess ((hx.prod hrand').prod ha)
     ((hi.add hTr).add hTa) ((hi.add hSr).add hSa) (V.polyGraphFrom hV)
   exact ⟨T, S, hT, hS, h⟩
+
+/-- Under a logarithmic coin bound and a constant query bound on valid random strings, the explicit
+FGLSS edge-list graph is computable in polynomial time. -/
+theorem computableInPolyTime_fglssEdgeList (hV : V.PolyTime enc) {c d : ℕ}
+    (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1))
+    (hq : ∀ a ρ, ρ.length = V.coins a → (V.queries (a, ρ)).length ≤ d) :
+    ComputableInPolyTime V.fglssEdgeList enc encGraph := by
+  let size := fun a => 2 ^ (V.coins a + d) * ((enc a).length + 1)
+  have hsize : PolyBounded (fun a => (enc a).length) size := by growth_poly
+  obtain ⟨T, S, hT, hS, h⟩ := V.computableInO_fglssEdgeList hV (fun _ => d) hq
+  exact h.computableInPolyTime (hT.comp hsize) (hS.comp hsize)
 
 end Cslib.Complexity.PCPVerifier

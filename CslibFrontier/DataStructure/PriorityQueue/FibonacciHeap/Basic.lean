@@ -144,65 +144,47 @@ variable {n : ℕ} (g : Cell → ℕ) (x : ℕ)
 @[simp] theorem view_update_key (v : Fin n) :
     view n (Function.update g (.key v) x) =
       { view n g with key := Function.update (view n g).key v x } := by
-  simp only [view]
-  congr 1 with u : 1
-  simp [Function.update_apply, Fin.val_inj]
+  simp [view, funext_iff, Function.update_apply, Fin.val_inj]
 
 @[simp] theorem view_update_par (v : Fin n) :
     view n (Function.update g (.par v) x) =
       { view n g with par := Function.update (view n g).par v x } := by
-  simp only [view]
-  congr 1 with u : 1
-  simp [Function.update_apply, Fin.val_inj]
+  simp [view, funext_iff, Function.update_apply, Fin.val_inj]
 
 @[simp] theorem view_update_child (v : Fin n) :
     view n (Function.update g (.child v) x) =
       { view n g with child := Function.update (view n g).child v x } := by
-  simp only [view]
-  congr 1 with u : 1
-  simp [Function.update_apply, Fin.val_inj]
+  simp [view, funext_iff, Function.update_apply, Fin.val_inj]
 
 @[simp] theorem view_update_left (v : Fin n) :
     view n (Function.update g (.left v) x) =
       { view n g with left := Function.update (view n g).left v x } := by
-  simp only [view]
-  congr 1 with u : 1
-  simp [Function.update_apply, Fin.val_inj]
+  simp [view, funext_iff, Function.update_apply, Fin.val_inj]
 
 @[simp] theorem view_update_right (v : Fin n) :
     view n (Function.update g (.right v) x) =
       { view n g with right := Function.update (view n g).right v x } := by
-  simp only [view]
-  congr 1 with u : 1
-  simp [Function.update_apply, Fin.val_inj]
+  simp [view, funext_iff, Function.update_apply, Fin.val_inj]
 
 @[simp] theorem view_update_deg (v : Fin n) :
     view n (Function.update g (.deg v) x) =
       { view n g with deg := Function.update (view n g).deg v x } := by
-  simp only [view]
-  congr 1 with u : 1
-  simp [Function.update_apply, Fin.val_inj]
+  simp [view, funext_iff, Function.update_apply, Fin.val_inj]
 
 @[simp] theorem view_update_mark (v : Fin n) :
     view n (Function.update g (.mark v) x) =
       { view n g with mark := Function.update (view n g).mark v x } := by
-  simp only [view]
-  congr 1 with u : 1
-  simp [Function.update_apply, Fin.val_inj]
+  simp [view, funext_iff, Function.update_apply, Fin.val_inj]
 
 @[simp] theorem view_update_inHeap (v : Fin n) :
     view n (Function.update g (.inHeap v) x) =
       { view n g with inHeap := Function.update (view n g).inHeap v x } := by
-  simp only [view]
-  congr 1 with u : 1
-  simp [Function.update_apply, Fin.val_inj]
+  simp [view, funext_iff, Function.update_apply, Fin.val_inj]
 
 @[simp] theorem view_update_cons (d : ℕ) :
     view n (Function.update g (.cons d) x) =
       { view n g with cons := Function.update (view n g).cons d x } := by
-  simp only [view]
-  congr 1 with e : 1
-  simp [Function.update_apply]
+  simp [view, funext_iff, Function.update_apply]
 
 @[simp] theorem view_update_minRoot :
     view n (Function.update g .minRoot x) = { view n g with minRoot := x } := rfl
@@ -247,10 +229,7 @@ theorem absRaw_eq_of_fibRawInv {n K : ℕ} {s : IndexedMinPQ.State n} {st : RawS
 theorem inv_of_fibRawInv {n K : ℕ} {s : IndexedMinPQ.State n} {g : Cell → ℕ}
     (h : FibRawInv n K s (view n g)) : Inv n K g ∧ abs n g = s := by
   have he := absRaw_eq_of_fibRawInv h
-  refine ⟨?_, he⟩
-  unfold Inv abs
-  rw [he]
-  exact h
+  exact ⟨by simpa only [Inv, abs, he] using h, he⟩
 
 /-- Credits per root and per two marks, in record operations. -/
 abbrev credit : ℕ := 24
@@ -296,10 +275,8 @@ theorem RootList.addRoot {n : ℕ} {st st' : RawState n} {T_u : FHTree n} {ts : 
     (hts : ∀ T ∈ ts, ValidRoot st none T) (hrl : RootList st ts)
     (hadd : AddsRoot st T_u.root st') :
     (∀ T ∈ T_u :: ts, ValidRoot st' none T) ∧ RootList st' (T_u :: ts) := by
-  have hvalid : ∀ T ∈ T_u :: ts, ValidRoot st none T := by
-    intro T hT
-    rcases List.mem_cons.mp hT with rfl | hT
-    exacts [hTu, hts T hT]
+  have hvalid : ∀ T ∈ T_u :: ts, ValidRoot st none T :=
+    List.forall_mem_cons.mpr ⟨hTu, hts⟩
   -- A strict descendant is no root, so the frame of `ValidRoot` excludes the changed pointers.
   have hdesc : ∀ T ∈ T_u :: ts, ∀ x ∈ forestNodes T.children, ∀ R ∈ T_u :: ts, x ≠ R.root :=
     fun T hT x hx R hR => descendant_ne_root_of_nodup hnd hT hR hx
@@ -312,16 +289,11 @@ theorem RootList.addRoot {n : ℕ} {st st' : RawState n} {T_u : FHTree n} {ts : 
     exact hdisj _ T_u.root_mem_nodes _
       (mem_forestNodes_iff.mpr ⟨R, hR, hRu ▸ R.root_mem_nodes⟩) rfl
   rcases hadd with ⟨h0, rfl⟩ | ⟨m, r, hm, hr, rfl⟩
-  · have hts0 : ts = [] := by
-      rcases hrl with ⟨h, _⟩ | ⟨_, _, hm', _⟩
-      · exact h
-      · omega
-    subst hts0
+  · obtain rfl : ts = [] := (hrl.resolve_right fun ⟨_, _, hm', _⟩ => by omega).1
     refine ⟨fun T hT => (hvalid T hT).frame_tree (fun _ _ => ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩)
       fun x hx => ?_, Or.inr ⟨T_u.root, [], rfl, IsCircList.singleton _ _ _, by simp,
-        fun T hT => by simp only [List.mem_singleton] at hT; subst hT; exact .refl _⟩⟩
-    have hx := hdesc T hT x hx T_u List.mem_cons_self
-    simp [Function.update_of_ne hx]
+        List.forall_mem_singleton.mpr (.refl _)⟩⟩
+    simp [Function.update_of_ne (hdesc T hT x hx T_u List.mem_cons_self)]
   · obtain ⟨m', rtail, hm', hcirc, hperm, hle⟩ := hrl.resolve_left fun ⟨_, h0⟩ => by omega
     obtain rfl : m' = m := Fin.ext (by omega)
     obtain ⟨r', hr', hr'_mem⟩ := hcirc.right_head
@@ -332,26 +304,19 @@ theorem RootList.addRoot {n : ℕ} {st st' : RawState n} {T_u : FHTree n} {ts : 
     have hcirc' := hcirc.insertAfter hu_mr hr
     refine ⟨fun T hT => (hvalid T hT).frame_tree (fun _ _ => ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩)
       fun x hx => ?_, Or.inr ?_⟩
-    · have hxu := hdesc T hT x hx T_u List.mem_cons_self
-      have hxm := hdesc T hT x hx Rm hRm
-      have hxr := hdesc T hT x hx Rr hRr
-      rw [← hRm_eq] at hxm
-      rw [← hRr_eq] at hxr
-      simp [Function.update_of_ne hxu, Function.update_of_ne hxm, Function.update_of_ne hxr]
+    · simp [Function.update_of_ne (hdesc T hT x hx T_u List.mem_cons_self),
+        Function.update_of_ne (hRm_eq ▸ hdesc T hT x hx Rm hRm),
+        Function.update_of_ne (hRr_eq ▸ hdesc T hT x hx Rr hRr)]
     · have hperm' : (T_u.root :: m' :: rtail).Perm ((T_u :: ts).map FHTree.root) :=
         List.Perm.cons _ hperm
       by_cases hlt : IndexedMinPQ.PrioLT (T_u.root, st.key T_u.root) (m', st.key m')
-      · refine ⟨T_u.root, rtail ++ [m'], by simp [hlt], ?_, ?_, fun T hT => ?_⟩
-        · simpa using hcirc'.rotate_one
-        · exact (List.Perm.cons _ (List.perm_append_singleton _ _)).trans hperm'
-        · rcases List.mem_cons.mp hT with rfl | hT
-          · exact .refl _
-          · exact hlt.le.trans (hle T hT)
-      · refine ⟨m', T_u.root :: rtail, by simp [hlt], hcirc', (List.Perm.swap _ _ _).trans hperm',
-          fun T hT => ?_⟩
-        rcases List.mem_cons.mp hT with rfl | hT
-        · exact IndexedMinPQ.not_prioLT_iff_prioLE.mp hlt
-        · exact hle T hT
+      · exact ⟨T_u.root, rtail ++ [m'], by simp [hlt],
+          by simpa using hcirc'.rotate_one,
+          (List.Perm.cons _ (List.perm_append_singleton _ _)).trans hperm',
+          List.forall_mem_cons.mpr ⟨.refl _, fun T hT => hlt.le.trans (hle T hT)⟩⟩
+      · exact ⟨m', T_u.root :: rtail, by simp [hlt], hcirc',
+          (List.Perm.swap _ _ _).trans hperm',
+          List.forall_mem_cons.mpr ⟨IndexedMinPQ.not_prioLT_iff_prioLE.mp hlt, hle⟩⟩
 
 /-- Adding a root changes only the root list and the number of roots. -/
 theorem AddsRoot.exists_eq {n : ℕ} {st st' : RawState n} {u : Fin n} (h : AddsRoot st u st') :
@@ -380,9 +345,7 @@ theorem FibRawInv.insert {n K : ℕ} {s : IndexedMinPQ.State n} {st st' : RawSta
     FibRawInv n K (Function.update s v (some k)) { st' with sz := st'.sz + 1 } := by
   obtain ⟨ts, hts, hnd, hdom, hin, hkeys, hsz, hnr, hnm, hcons, hrl⟩ := h
   have hv_fn : v ∉ forestNodes ts := fun hm => by simpa [hv] using (hdom v).mp hm
-  have hin_v : st.inHeap v = 0 := by
-    by_contra h0
-    simpa [hv] using (hin v).1.mp h0
+  have hin_v : st.inHeap v = 0 := not_ne_iff.mp fun h0 => by simpa [hv] using (hin v).1.mp h0
   have hnd' : (forestNodes (.node v [] :: ts)).Nodup := by
     simpa [forestNodes, FHTree.nodes] using ⟨hv_fn, hnd⟩
   have hne : ∀ T ∈ ts, ∀ x ∈ T.nodes, x ≠ v := fun T hT x hx hxv =>
@@ -407,25 +370,18 @@ theorem FibRawInv.insert {n K : ℕ} {s : IndexedMinPQ.State n} {st st' : RawSta
     (fun _ _ => ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩) (fun _ _ => ⟨rfl, rfl⟩), hnd', fun x => ?_,
     fun x => ?_, fun x kx hx => ?_, ?_, by simp [newNode, hnr], ?_,
     fun d hd => hcons d hd, hrl'⟩
-  · by_cases hxv : x = v
-    · subst hxv; simp [forestNodes, FHTree.nodes]
-    · simp [forestNodes, FHTree.nodes, hxv, hdom x]
-  · by_cases hxv : x = v
-    · subst hxv; simp [newNode]
+  · rcases eq_or_ne x v with rfl | hxv <;> simp [forestNodes, FHTree.nodes, hdom x, *]
+  · rcases eq_or_ne x v with rfl | hxv
+    · simp [newNode]
     · simpa [newNode, hxv] using hin x
-  · by_cases hxv : x = v
-    · subst hxv
-      simp only [Function.update_self, Option.some.injEq] at hx
-      subst hx
+  · rcases eq_or_ne x v with rfl | hxv
+    · obtain rfl : k = kx := by simpa using hx
       simp [newNode, hk]
-    · rw [Function.update_of_ne hxv] at hx
-      simpa [newNode, hxv] using hkeys x kx hx
+    · simpa [newNode, hxv] using hkeys x kx (by simpa [hxv] using hx)
   · have hvd : v ∉ IndexedMinPQ.dom s := IndexedMinPQ.notMem_dom_iff.mpr hv
     simp [newNode, hsz, Finset.card_insert_of_notMem hvd]
   · refine hnm.trans (markedCount_congr fun x => ?_).symm
-    by_cases hxv : x = v
-    · subst hxv; simp [newNode, hin_v]
-    · simp [newNode, hxv]
+    rcases eq_or_ne x v with rfl | hxv <;> simp [newNode, *]
 
 /-! ## Programs -/
 
@@ -550,12 +506,8 @@ theorem counts_lt_of_absent {K : ℕ} {s : IndexedMinPQ.State n} {st : RawState 
     simpa using (List.nodup_cons.mpr ⟨hv_fn, hnd⟩).length_le_card
   have hts := forestNodes_length_ge ts
   have hdom_lt : (IndexedMinPQ.dom s).card < n := by
-    have hsub : IndexedMinPQ.dom s ⊂ Finset.univ :=
-      Finset.ssubset_iff_subset_ne.mpr ⟨Finset.subset_univ _, fun he => by
-        have := IndexedMinPQ.notMem_dom_iff.mpr hv
-        rw [he] at this
-        exact this (Finset.mem_univ v)⟩
-    simpa using Finset.card_lt_card hsub
+    simpa using Finset.card_lt_card ((Finset.ssubset_univ_iff (s := IndexedMinPQ.dom s)).mpr
+      fun he => IndexedMinPQ.notMem_dom_iff.mpr hv (by simp [he]))
   simp only [List.length_cons] at hlen
   omega
 
@@ -605,13 +557,12 @@ theorem wp_insert {K : ℕ} {g : Cell → ℕ} {v : Fin n} {k : ℕ} (hI : Inv n
   have hsz₂ : g₂ .sz = (view n g).sz := congrArg RawState.sz heq
   simp only [Record.wp_read, Cell.ok, true_and, hsz₂]
   refine ⟨hn.of_le hsz, ?_⟩
-  have hinv := FibRawInv.insert hI hv hk hadd
-  obtain ⟨hI', habs'⟩ := inv_of_fibRawInv (g := Function.update g₂ .sz ((view n g).sz + 1))
-    (by rw [view_update_sz, ← hsz₂]; exact hinv)
+  obtain ⟨hI', habs'⟩ := inv_of_fibRawInv (g := Function.update g₂ .sz ((view n g).sz + 1)) (by
+    rw [view_update_sz, ← hsz₂]
+    exact FibRawInv.insert hI hv hk hadd)
   refine ⟨habs', hI', ?_⟩
-  have hnr₂ : (view n g₂).numRoots = (view n g).numRoots + 1 := by rw [heq]; rfl
-  have hnm₂ : (view n g₂).numMarked = (view n g).numMarked := by rw [heq]; rfl
-  simp only [potential, credit, view_update_sz, hnr₂, hnm₂]
+  simp only [potential, credit, view_update_sz, congrArg RawState.numRoots heq,
+    congrArg RawState.numMarked heq, newNode]
   omega
 
 end Programs

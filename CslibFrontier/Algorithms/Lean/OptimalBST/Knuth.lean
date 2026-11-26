@@ -8,55 +8,51 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.OptimalBST.Yao
-public import CslibFrontier.Algorithms.Lean.TimeM.Loops
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 import Mathlib.Tactic.SplitIfs
 
 /-!
-# Optimal binary search trees in quadratic time
+# Optimal binary search trees and Knuth's window algorithm
 
 The dynamic program for optimal binary search trees fills the table of intervals `(i, i + d]` by
 increasing length `d`. Each entry scans a window `lo, …, hi` of candidate roots `k` and keeps the
-largest one minimizing `T(i, k - 1) + T(k, j)` (`cellM`). The cubic algorithm (`plainBST`) scans
+largest one minimizing `T(i, k - 1) + T(k, j)` (`cell`). The cubic algorithm (`plainBST`) scans
 every root `i + 1, …, j`. Knuth's algorithm (`knuthBST`) scans only
 `root(i, j - 1), …, root(i + 1, j)`, the window allowed by the monotonicity of optimal roots.
 
 Both algorithms return the optimal cost `optCost w 0 n` and the tree `optTree w 0 n` read off the
-largest optimal roots: the cubic one for every weight (`ret_plainBST`), Knuth's one when the weight
-satisfies the quadrangle inequality and is monotone on intervals (`ret_knuthBST`). Without these
-hypotheses Knuth's algorithm can return a suboptimal cost; see the test module
-`CslibFrontierTests.OptimalBST`.
-
-## Cost model
-
-`Cslib.Algorithms.Lean.TimeM` charges one unit per candidate root scanned, so a window
-`lo, …, hi` costs `hi - lo + 1`. Table reads and writes, additions, comparisons of costs, the
-weight `w` and the final tree extraction are free; the table is a function, not a RAM array. This
-counts candidate-root evaluations, the measure of Knuth's analysis; it is not a Word-RAM bound.
-The cubic algorithm scans exactly `n (n + 1) (n + 2) / 6` candidates (`time_plainBST`). Knuth's
-scans at most `2 n²` (`time_knuthBST_le`): along a diagonal the windows telescope, so diagonal `d`
-costs at most `2 n` (`time_diagM_knuth_le`).
+largest optimal roots: the cubic one for every weight (`plainBST_eq`), and Knuth's when the weight
+satisfies the quadrangle inequality and is monotone on intervals (`knuthBST_eq`). Along each
+diagonal `d + 1`, Knuth's windows telescope to at most `2 n` candidate roots
+(`sum_knuth_window_le`). Without the quadrangle and monotonicity hypotheses Knuth's algorithm can
+return a suboptimal cost; see `CslibFrontierTests.OptimalBST`. Checked Word-RAM `O(n³)` and `O(n²)`
+running-time bounds are proved in `CslibFrontier.Algorithms.WordRAM.OptimalBST`.
 
 ## Main definitions
 
+* `Cslib.Algorithms.Lean.OptimalBST.Entry`, `Table`, `Window`: table entries, tables, and
+  candidate-root window rules (`Window.plain`, `Window.knuth`).
+* `Cslib.Algorithms.Lean.OptimalBST.scan`, `cell`, `diag`, `table`, `solve`: pure window scan and
+  diagonal-by-diagonal dynamic programming.
 * `Cslib.Algorithms.Lean.OptimalBST.plainBST`: the cubic dynamic program.
-* `Cslib.Algorithms.Lean.OptimalBST.knuthBST`: Knuth's quadratic algorithm.
-* `Cslib.Algorithms.Lean.OptimalBST.Solution.IsOptimal`: the output is a binary search tree of the
-  returned cost, and no binary search tree is cheaper.
+* `Cslib.Algorithms.Lean.OptimalBST.knuthBST`: Knuth's window dynamic program.
+* `Cslib.Algorithms.Lean.OptimalBST.Solution`, `Solution.IsOptimal`: the output pair and optimality
+  predicate.
 
 ## Main results
 
-* `Cslib.Algorithms.Lean.OptimalBST.ret_plainBST`, `isOptimal_plainBST`: correctness of the cubic
+* `Cslib.Algorithms.Lean.OptimalBST.plainBST_eq`, `isOptimal_plainBST`: correctness of the cubic
   algorithm, for every weight.
-* `Cslib.Algorithms.Lean.OptimalBST.time_plainBST`: it scans exactly `n (n + 1) (n + 2) / 6`
-  candidates.
-* `Cslib.Algorithms.Lean.OptimalBST.ret_knuthBST`, `isOptimal_knuthBST`: correctness of Knuth's
+* `Cslib.Algorithms.Lean.OptimalBST.knuthBST_eq`, `isOptimal_knuthBST`: correctness of Knuth's
   algorithm under the quadrangle inequality and interval monotonicity.
-* `Cslib.Algorithms.Lean.OptimalBST.time_knuthBST_le`: it scans at most `2 n²` candidates.
-* `Cslib.Algorithms.Lean.OptimalBST.knuthBST_knuthWeight`: Knuth's theorem for nonnegative access
-  and failure weights.
+* `Cslib.Algorithms.Lean.OptimalBST.sum_knuth_window_le`: Knuth's telescoping bound (`≤ 2 n`
+  candidate roots per diagonal).
+* `Cslib.Algorithms.Lean.OptimalBST.optCost_congr`, `optCost_le_nsmul`: subinterval congruence and
+  linear bound `(j - i) • M` on `optCost w i j` from a uniform bound `M` on interval weights.
+* `Cslib.Algorithms.Lean.OptimalBST.knuthBST_knuthWeight`: Knuth's optimality theorem for
+  nonnegative access and failure weights.
 
 ## References
 
@@ -69,7 +65,7 @@ costs at most `2 n` (`time_diagM_knuth_le`).
 
 namespace Cslib.Algorithms.Lean.OptimalBST
 
-open Finset TimeM
+open Finset
 
 variable {β : Type*}
 
@@ -132,16 +128,17 @@ variable [LinearOrder β]
 def bestStep (c : ℕ → β) (best : Entry β) (k : ℕ) : Entry β :=
   if c k ≤ best.cost then ⟨c k, k⟩ else best
 
-/-- Scan the candidates `lo, …, hi` for a largest minimizer of `c`, charging one unit per
-candidate. -/
-def scanM (c : ℕ → β) (lo hi : ℕ) : TimeM ℕ (Entry β) := do
-  ✓ (List.range' (lo + 1) (hi - lo)).foldlM (fun e k => do ✓ return bestStep c e k) ⟨c lo, lo⟩
+/-- Scan the candidates `lo, …, hi` for a largest minimizer of `c`. -/
+def scan (c : ℕ → β) (lo hi : ℕ) : Entry β :=
+  (List.range' (lo + 1) (hi - lo)).foldl (bestStep c) ⟨c lo, lo⟩
 
-private def ScanInv (c : ℕ → β) (lo hi : ℕ) (e : Entry β) : Prop :=
+/-- Invariant satisfied by `scan c lo hi` when `lo ≤ hi`: the returned entry is the largest
+minimizer of `c` on `[lo, hi]`. -/
+def ScanInv (c : ℕ → β) (lo hi : ℕ) (e : Entry β) : Prop :=
   lo ≤ e.root ∧ e.root ≤ hi ∧ e.cost = c e.root ∧ (∀ k, lo ≤ k → k ≤ hi → e.cost ≤ c k) ∧
     ∀ k, e.root < k → k ≤ hi → e.cost < c k
 
-private theorem scanInv_foldl (c : ℕ → β) (lo : ℕ) : ∀ m,
+theorem scanInv_foldl (c : ℕ → β) (lo : ℕ) : ∀ m,
     ScanInv c lo (lo + m) ((List.range' (lo + 1) m).foldl (bestStep c) ⟨c lo, lo⟩)
   | 0 => by
     refine ⟨le_rfl, le_rfl, rfl, fun k h₁ h₂ => ?_, fun k h₁ h₂ => ?_⟩
@@ -149,34 +146,24 @@ private theorem scanInv_foldl (c : ℕ → β) (lo : ℕ) : ∀ m,
       exact le_rfl
     · exact absurd h₂ (by simp only [List.range'_zero, List.foldl_nil] at h₁; omega)
   | m + 1 => by
-    rw [List.range'_concat, List.foldl_append, List.foldl_cons, List.foldl_nil]
+    rw [List.range'_concat, List.foldl_append, List.foldl_cons, List.foldl_nil, one_mul,
+      Nat.add_right_comm]
     obtain ⟨h₁, h₂, h₃, h₄, h₅⟩ := scanInv_foldl c lo m
     generalize (List.range' (lo + 1) m).foldl (bestStep c) ⟨c lo, lo⟩ = e at *
     unfold bestStep
     split_ifs with h
-    · refine ⟨by dsimp only; omega, by dsimp only; omega, rfl, fun k hk₁ hk₂ => ?_,
-        fun k hk₁ hk₂ => ?_⟩
-      · rcases (show k ≤ lo + m ∨ k = lo + 1 + 1 * m by omega) with hk | rfl
-        · exact h.trans (h₄ k hk₁ hk)
-        · exact le_rfl
-      · exact absurd hk₂ (by dsimp only at hk₁; omega)
-    · have h' := not_le.1 h
-      refine ⟨h₁, by omega, h₃, fun k hk₁ hk₂ => ?_, fun k hk₁ hk₂ => ?_⟩
-      · rcases (show k ≤ lo + m ∨ k = lo + 1 + 1 * m by omega) with hk | rfl
-        · exact h₄ k hk₁ hk
-        · exact h'.le
-      · rcases (show k ≤ lo + m ∨ k = lo + 1 + 1 * m by omega) with hk | rfl
-        · exact h₅ k hk₁ hk
-        · exact h'
+    · refine ⟨(Nat.le_add_right lo m).trans (Nat.le_succ _), le_rfl, rfl,
+        fun k hk₁ hk₂ => (Nat.of_le_succ hk₂).elim (fun hk => h.trans (h₄ k hk₁ hk))
+          fun hk => hk ▸ le_rfl,
+        fun k hk₁ hk₂ => absurd hk₂ (not_le_of_gt hk₁)⟩
+    · refine ⟨h₁, Nat.le_succ_of_le h₂, h₃,
+        fun k hk₁ hk₂ => (Nat.of_le_succ hk₂).elim (h₄ k hk₁) fun hk => hk ▸ le_of_not_ge h,
+        fun k hk₁ hk₂ => (Nat.of_le_succ hk₂).elim (h₅ k hk₁) fun hk => hk ▸ lt_of_not_ge h⟩
 
-theorem ret_scanM (c : ℕ → β) (lo hi : ℕ) :
-    (scanM c lo hi).ret = (List.range' (lo + 1) (hi - lo)).foldl (bestStep c) ⟨c lo, lo⟩ := by
-  time_spec scanM
-
-/-- Scanning `lo, …, hi` costs `hi - lo + 1`. -/
-@[time_simps]
-theorem time_scanM (c : ℕ → β) (lo hi : ℕ) : (scanM c lo hi).time = hi - lo + 1 := by
-  time_spec scanM [List.length_range']
+theorem scanInv_scan (c : ℕ → β) {lo hi : ℕ} (h : lo ≤ hi) :
+    ScanInv c lo hi (scan c lo hi) := by
+  have hinv := scanInv_foldl c lo (hi - lo)
+  rwa [Nat.add_sub_of_le h] at hinv
 
 end Scan
 
@@ -190,33 +177,30 @@ variable [AddCommMonoid β] [LinearOrder β]
 def Table.candidate (T : Table β) (i j k : ℕ) : β := (T i (k - 1)).cost + (T k j).cost
 
 /-- The entry for the keys `i + 1, …, j`, scanning the candidate roots `lo, …, hi`. -/
-def cellM (w : ℕ → ℕ → β) (T : Table β) (i j lo hi : ℕ) : TimeM ℕ (Entry β) := do
-  let e ← scanM (T.candidate i j) lo hi
-  return ⟨w i j + e.cost, e.root⟩
+def cell (w : ℕ → ℕ → β) (T : Table β) (i j lo hi : ℕ) : Entry β :=
+  let e := scan (T.candidate i j) lo hi
+  ⟨w i j + e.cost, e.root⟩
 
 /-- Fill the diagonal of intervals `(i, i + d]` with `i + d ≤ n`, reading only `T`. -/
-def diagM (w : ℕ → ℕ → β) (W : Window β) (n d : ℕ) (T : Table β) : TimeM ℕ (Table β) :=
-  (List.range (n + 1 - d)).foldlM (fun U i => do
-    let e ← cellM w T i (i + d) (W.lo T i (i + d)) (W.hi T i (i + d))
-    return setCell d U i e) T
+def diag (w : ℕ → ℕ → β) (W : Window β) (n d : ℕ) (T : Table β) : Table β :=
+  (List.range (n + 1 - d)).foldl
+    (fun U i => setCell d U i (cell w T i (i + d) (W.lo T i (i + d)) (W.hi T i (i + d)))) T
 
 /-- The table after filling the diagonals `1, …, d`. -/
-def tableM (w : ℕ → ℕ → β) (W : Window β) (n : ℕ) : ℕ → TimeM ℕ (Table β)
-  | 0 => pure fun _ _ => ⟨0, 0⟩
-  | d + 1 => do
-    let T ← tableM w W n d
-    diagM w W n (d + 1) T
+def table (w : ℕ → ℕ → β) (W : Window β) (n : ℕ) : ℕ → Table β
+  | 0 => fun _ _ => ⟨0, 0⟩
+  | d + 1 => diag w W n (d + 1) (table w W n d)
 
 /-- Fill the table for the keys `1, …, n` and read off the cost and the tree. -/
-def solveM (w : ℕ → ℕ → β) (W : Window β) (n : ℕ) : TimeM ℕ (Solution β) := do
-  let T ← tableM w W n n
-  return ⟨(T 0 n).cost, buildTree (fun i j => (T i j).root) n 0 n⟩
+def solve (w : ℕ → ℕ → β) (W : Window β) (n : ℕ) : Solution β :=
+  let T := table w W n n
+  ⟨(T 0 n).cost, buildTree (fun i j => (T i j).root) n 0 n⟩
 
 /-- The cubic dynamic program for optimal binary search trees. -/
-def plainBST (w : ℕ → ℕ → β) (n : ℕ) : TimeM ℕ (Solution β) := solveM w .plain n
+def plainBST (w : ℕ → ℕ → β) (n : ℕ) : Solution β := solve w .plain n
 
-/-- Knuth's quadratic algorithm for optimal binary search trees. -/
-def knuthBST (w : ℕ → ℕ → β) (n : ℕ) : TimeM ℕ (Solution β) := solveM w .knuth n
+/-- Knuth's window dynamic program for optimal binary search trees. -/
+def knuthBST (w : ℕ → ℕ → β) (n : ℕ) : Solution β := solve w .knuth n
 
 /-! ### Correctness -/
 
@@ -232,145 +216,86 @@ def Window.Valid (W : Window β) (w : ℕ → ℕ → β) (n : ℕ) : Prop :=
     i < W.lo T i (i + d + 1) ∧ W.lo T i (i + d + 1) ≤ optRoot w i (i + d + 1) ∧
       optRoot w i (i + d + 1) ≤ W.hi T i (i + d + 1) ∧ W.hi T i (i + d + 1) ≤ i + d + 1
 
-@[time_simps]
-theorem time_cellM (w : ℕ → ℕ → β) (T : Table β) (i j lo hi : ℕ) :
-    (cellM w T i j lo hi).time = hi - lo + 1 := by
-  time_spec cellM
-
-/-- A scan over a window containing the largest optimal root computes the correct entry. -/
-theorem ret_cellM {w : ℕ → ℕ → β} {n d : ℕ} {T : Table β} (hT : Agrees w n d T) {i lo hi : ℕ}
-    (hj : i + d + 1 ≤ n) (h₁ : i < lo) (h₂ : lo ≤ optRoot w i (i + d + 1))
-    (h₃ : optRoot w i (i + d + 1) ≤ hi) (h₄ : hi ≤ i + d + 1) :
-    (cellM w T i (i + d + 1) lo hi).ret = ⟨optCost w i (i + d + 1), optRoot w i (i + d + 1)⟩ := by
-  have hc : ∀ k, i < k → k ≤ i + d + 1 →
+/-- Any entry satisfying `ScanInv (T.candidate i (i + d + 1)) lo hi` over a window containing
+`optRoot w i (i + d + 1)` recovers both `optCost` and `optRoot`. -/
+theorem entry_eq_opt_of_scanInv {w : ℕ → ℕ → β} {n d : ℕ} {T : Table β} (hT : Agrees w n d T)
+    {i lo hi : ℕ} (hj : i + d + 1 ≤ n) (h₁ : i < lo) (h₂ : lo ≤ optRoot w i (i + d + 1))
+    (h₃ : optRoot w i (i + d + 1) ≤ hi) (h₄ : hi ≤ i + d + 1)
+    {e : Entry β} (he : ScanInv (T.candidate i (i + d + 1)) lo hi e) :
+    (⟨w i (i + d + 1) + e.cost, e.root⟩ : Entry β) =
+      ⟨optCost w i (i + d + 1), optRoot w i (i + d + 1)⟩ := by
+  have hc (k : ℕ) (hk₁ : i < k) (hk₂ : k ≤ i + d + 1) :
       T.candidate i (i + d + 1) k = splitCost w i (i + d + 1) k := by
-    intro k hk₁ hk₂
     rw [Table.candidate, splitCost, hT i (k - 1) (by omega) (by omega),
       hT k (i + d + 1) hj (by omega)]
-  obtain ⟨e₁, e₂, e₃, e₄, e₅⟩ := scanInv_foldl (T.candidate i (i + d + 1)) lo (hi - lo)
-  rw [show lo + (hi - lo) = hi by omega] at e₂ e₄ e₅
-  simp only [cellM, ret_bind, ret_pure, ret_scanM]
-  generalize (List.range' (lo + 1) (hi - lo)).foldl (bestStep (T.candidate i (i + d + 1)))
-    ⟨T.candidate i (i + d + 1) lo, lo⟩ = e at *
-  have hopt := optRoot_mem w (show i < i + d + 1 by omega)
-  rw [mem_Ioc] at hopt
-  -- `e.root` is a minimizer over the whole interval
+  obtain ⟨e₁, e₂, e₃, e₄, e₅⟩ := he
+  have hopt := mem_Ioc.1 (optRoot_mem w (show i < i + d + 1 by omega))
+  have her : e.root ∈ Ioc i (i + d + 1) := mem_Ioc.2 ⟨h₁.trans_le e₁, e₂.trans h₄⟩
+  have hecost : e.cost = splitCost w i (i + d + 1) e.root :=
+    e₃.trans (hc _ (h₁.trans_le e₁) (e₂.trans h₄))
   have hmin : ∀ k ∈ Ioc i (i + d + 1),
-      splitCost w i (i + d + 1) e.root ≤ splitCost w i (i + d + 1) k := by
-    intro k hk
-    calc splitCost w i (i + d + 1) e.root = e.cost := by rw [e₃, hc _ (by omega) (by omega)]
+      splitCost w i (i + d + 1) e.root ≤ splitCost w i (i + d + 1) k := fun k hk =>
+    calc splitCost w i (i + d + 1) e.root = e.cost := hecost.symm
       _ ≤ T.candidate i (i + d + 1) (optRoot w i (i + d + 1)) := e₄ _ h₂ h₃
       _ = splitCost w i (i + d + 1) (optRoot w i (i + d + 1)) := hc _ hopt.1 hopt.2
       _ ≤ splitCost w i (i + d + 1) k := splitCost_optRoot_le w hk
-  have hle := le_optRoot w (mem_Ioc.2 ⟨by omega, by omega⟩) hmin
-  have heq : e.root = optRoot w i (i + d + 1) := by
-    refine le_antisymm hle (not_lt.1 fun hlt => ?_)
-    have := e₅ _ hlt h₃
-    rw [e₃, hc _ (by omega) (by omega), hc _ hopt.1 hopt.2] at this
-    exact absurd (splitCost_optRoot_le w (mem_Ioc.2 ⟨by omega, by omega⟩)) (not_le.2 this)
+  have heq : e.root = optRoot w i (i + d + 1) := le_antisymm (le_optRoot w her hmin)
+    (not_lt.1 fun hlt => (hc _ hopt.1 hopt.2 ▸ hecost ▸ e₅ _ hlt h₃).not_ge
+      (splitCost_optRoot_le w her))
   ext
-  · rw [optCost_eq_optRoot w (by omega), ← heq, e₃, hc _ (by omega) (by omega)]
+  · rw [optCost_eq_optRoot w (by omega), ← heq, hecost]
   · exact heq
 
-theorem ret_diagM (w : ℕ → ℕ → β) (W : Window β) (n d : ℕ) (T : Table β) :
-    (diagM w W n d T).ret = (List.range (n + 1 - d)).foldl (fun U i => setCell d U i
-      (cellM w T i (i + d) (W.lo T i (i + d)) (W.hi T i (i + d))).ret) T := by
-  time_spec diagM
+/-- A scan over a window containing the largest optimal root computes the correct entry. -/
+theorem cell_eq_opt {w : ℕ → ℕ → β} {n d : ℕ} {T : Table β} (hT : Agrees w n d T) {i lo hi : ℕ}
+    (hj : i + d + 1 ≤ n) (h₁ : i < lo) (h₂ : lo ≤ optRoot w i (i + d + 1))
+    (h₃ : optRoot w i (i + d + 1) ≤ hi) (h₄ : hi ≤ i + d + 1) :
+    cell w T i (i + d + 1) lo hi = ⟨optCost w i (i + d + 1), optRoot w i (i + d + 1)⟩ :=
+  entry_eq_opt_of_scanInv hT hj h₁ h₂ h₃ h₄ (scanInv_scan _ (h₂.trans h₃))
 
-/-- Filling diagonal `d` costs the sum of its window lengths. -/
-theorem time_diagM (w : ℕ → ℕ → β) (W : Window β) (n d : ℕ) (T : Table β) :
-    (diagM w W n d T).time =
-      ∑ i ∈ range (n + 1 - d), (W.hi T i (i + d) - W.lo T i (i + d) + 1) := by
-  time_spec diagM
-
-theorem agrees_diagM {w : ℕ → ℕ → β} {W : Window β} {n d : ℕ} (hW : W.Valid w n) {T : Table β}
-    (hT : Agrees w n d T) : Agrees w n (d + 1) (diagM w W n (d + 1) T).ret := by
+theorem agrees_diag {w : ℕ → ℕ → β} {W : Window β} {n d : ℕ} (hW : W.Valid w n) {T : Table β}
+    (hT : Agrees w n d T) : Agrees w n (d + 1) (diag w W n (d + 1) T) := by
   intro a b hb hab
-  rw [ret_diagM, foldl_setCell]
+  rw [diag, foldl_setCell]
   split_ifs with h
   · obtain ⟨ha, rfl⟩ := h
     rw [List.mem_range] at ha
     obtain ⟨h₁, h₂, h₃, h₄⟩ := hW d T a hT (by omega)
-    exact ret_cellM hT (by omega) h₁ h₂ h₃ h₄
+    exact cell_eq_opt hT (by omega) h₁ h₂ h₃ h₄
   · exact hT a b hb (not_lt.1 fun hc => h ⟨List.mem_range.2 (by omega), by omega⟩)
 
-theorem agrees_tableM {w : ℕ → ℕ → β} {W : Window β} {n : ℕ} (hW : W.Valid w n) :
-    ∀ d, Agrees w n d (tableM w W n d).ret
+theorem agrees_table {w : ℕ → ℕ → β} {W : Window β} {n : ℕ} (hW : W.Valid w n) :
+    ∀ d, Agrees w n d (table w W n d)
   | 0 => fun a b _ hab => by
     rw [optCost_of_le w (by omega), optRoot_of_le w (by omega)]
     rfl
-  | d + 1 => by
-    rw [tableM, ret_bind]
-    exact agrees_diagM hW (agrees_tableM hW d)
+  | d + 1 => agrees_diag hW (agrees_table hW d)
 
 theorem Window.valid_plain (w : ℕ → ℕ → β) (n : ℕ) : (Window.plain : Window β).Valid w n := by
   intro d T i _ _
   have := mem_Ioc.1 (optRoot_mem w (show i < i + d + 1 by omega))
   exact ⟨Nat.lt_succ_self i, by simp only [Window.plain]; omega, this.2, le_rfl⟩
 
-theorem ret_solveM {w : ℕ → ℕ → β} {W : Window β} {n : ℕ} (hW : W.Valid w n) :
-    (solveM w W n).ret = ⟨optCost w 0 n, optTree w 0 n⟩ := by
-  have hT := agrees_tableM hW n
-  simp only [solveM, time_simps]
-  generalize (tableM w W n n).ret = T at hT
+theorem solve_eq {w : ℕ → ℕ → β} {W : Window β} {n : ℕ} (hW : W.Valid w n) :
+    solve w W n = ⟨optCost w 0 n, optTree w 0 n⟩ := by
+  have hT := agrees_table hW n
+  simp only [solve]
+  generalize table w W n n = T at hT
   have hR : ∀ a b, 0 ≤ a → a < b → b ≤ n → (T a b).root = optRoot w a b := fun a b _ _ hb => by
     rw [hT a b hb (by omega)]
   rw [hT 0 n le_rfl (by omega), optTree, Nat.sub_zero,
     buildTree_congr (R' := optRoot w) hR fun a b _ hab hb => hR a b (Nat.zero_le a) hab hb ▸
       optRoot_mem w hab]
 
-theorem time_solveM (w : ℕ → ℕ → β) (W : Window β) (n : ℕ) :
-    (solveM w W n).time = (tableM w W n n).time := by
-  time_spec solveM
-
 /-- **Correctness of the cubic dynamic program**, for every weight: it returns the optimal cost and
 the tree read off the largest optimal roots. -/
-theorem ret_plainBST (w : ℕ → ℕ → β) (n : ℕ) :
-    (plainBST w n).ret = ⟨optCost w 0 n, optTree w 0 n⟩ :=
-  ret_solveM (Window.valid_plain w n)
-
-/-! ### The cost of the cubic algorithm -/
-
-private theorem sum_range_add_one_mul_two (m : ℕ) :
-    (∑ e ∈ range m, (e + 1)) * 2 = m * (m + 1) := by
-  induction m with
-  | zero => rfl
-  | succ m ih => rw [sum_range_succ, add_mul, ih]; ring
-
-private theorem six_mul_sum (n : ℕ) :
-    6 * ∑ e ∈ range n, (n - e) * (e + 1) = n * (n + 1) * (n + 2) := by
-  induction n with
-  | zero => rfl
-  | succ n ih =>
-    have h₁ : ∑ e ∈ range (n + 1), (n + 1 - e) * (e + 1) =
-        ∑ e ∈ range (n + 1), ((n - e) * (e + 1) + (e + 1)) :=
-      sum_congr rfl fun e he => by
-        rw [mem_range] at he
-        rw [show n + 1 - e = (n - e) + 1 by omega, add_mul, one_mul]
-    rw [h₁, sum_add_distrib, sum_range_succ (fun e => (n - e) * (e + 1)), Nat.sub_self, zero_mul,
-      add_zero]
-    have h₂ := sum_range_add_one_mul_two (n + 1)
-    nlinarith [ih, h₂]
-
-theorem time_tableM_plain (w : ℕ → ℕ → β) (n : ℕ) :
-    ∀ d, (tableM w .plain n d).time = ∑ e ∈ range d, (n - e) * (e + 1)
-  | 0 => rfl
-  | d + 1 => by
-    rw [tableM, time_bind, time_tableM_plain w n d, time_diagM, sum_range_succ]
-    congr 1
-    rw [← smul_eq_mul, ← card_range (n - d), ← sum_const]
-    refine sum_congr (by congr 1; omega) fun i _ => ?_
-    simp only [Window.plain]
-    omega
-
-/-- **The cubic dynamic program scans exactly `n (n + 1) (n + 2) / 6` candidate roots.** -/
-theorem time_plainBST (w : ℕ → ℕ → β) (n : ℕ) :
-    6 * (plainBST w n).time = n * (n + 1) * (n + 2) := by
-  rw [plainBST, time_solveM, time_tableM_plain, six_mul_sum]
+theorem plainBST_eq (w : ℕ → ℕ → β) (n : ℕ) :
+    plainBST w n = ⟨optCost w 0 n, optTree w 0 n⟩ :=
+  solve_eq (Window.valid_plain w n)
 
 end Algorithm
 
-/-! ### Knuth's algorithm -/
+/-! ### Knuth's window validity and telescoping bound -/
 
 section Knuth
 
@@ -380,30 +305,23 @@ variable [AddCommMonoid β] [LinearOrder β] [IsOrderedCancelAddMonoid β]
 theorem Window.valid_knuth {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w)
     (hmono : MonotoneOnIntervals w) (n : ℕ) : (Window.knuth : Window β).Valid w n := by
   intro d T i hT hj
-  have hopt := mem_Ioc.1 (optRoot_mem w (show i < i + d + 1 by omega))
   rcases d with _ | e
-  · have h : optRoot w i (i + 0 + 1) = i + 0 + 1 := by omega
-    simp only [Window.knuth, add_zero, lt_irrefl, ↓reduceIte]
-    simp only [add_zero] at h
+  · have hopt := mem_Ioc.1 (optRoot_mem w (Nat.lt_add_one i))
+    simp only [Window.knuth, add_zero, lt_irrefl, ↓reduceIte] at hopt ⊢
     omega
-  · have hmon := optRoot_mono hqi hmono (show i + 1 < i + (e + 1) + 1 by omega)
-    rw [show i + (e + 1) + 1 - 1 = i + e + 1 by omega] at hmon
-    have hlo : (T i (i + (e + 1))).root = optRoot w i (i + e + 1) := by
-      rw [hT i (i + (e + 1)) (by omega) (by omega)]
-      rfl
-    have hhi : (T (i + 1) (i + (e + 1) + 1)).root = optRoot w (i + 1) (i + (e + 1) + 1) := by
-      rw [hT (i + 1) (i + (e + 1) + 1) hj (by omega)]
-    have h₁ := mem_Ioc.1 (optRoot_mem w (show i < i + e + 1 by omega))
-    have h₂ := mem_Ioc.1 (optRoot_mem w (show i + 1 < i + (e + 1) + 1 by omega))
-    simp only [Window.knuth, show i + 1 < i + (e + 1) + 1 by omega, ↓reduceIte,
-      show i + (e + 1) + 1 - 1 = i + (e + 1) by omega, hlo, hhi]
-    omega
+  · have hij : i + 1 < i + (e + 1) + 1 := by omega
+    have hmon := optRoot_mono hqi hmono hij
+    have h₁ := mem_Ioc.1 (optRoot_mem w (show i < i + (e + 1) by omega))
+    have h₂ := mem_Ioc.1 (optRoot_mem w hij)
+    simp only [Window.knuth, hij, ↓reduceIte, Nat.add_sub_cancel] at hmon ⊢
+    rw [hT i (i + (e + 1)) (by omega) (by omega), hT (i + 1) (i + (e + 1) + 1) hj (by omega)]
+    exact ⟨h₁.1, hmon.1, hmon.2, h₂.2⟩
 
 /-- **Correctness of Knuth's algorithm** when the weight satisfies the quadrangle inequality and
 is monotone on intervals. -/
-theorem ret_knuthBST {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w) (hmono : MonotoneOnIntervals w)
-    (n : ℕ) : (knuthBST w n).ret = ⟨optCost w 0 n, optTree w 0 n⟩ :=
-  ret_solveM (Window.valid_knuth hqi hmono n)
+theorem knuthBST_eq {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w) (hmono : MonotoneOnIntervals w)
+    (n : ℕ) : knuthBST w n = ⟨optCost w 0 n, optTree w 0 n⟩ :=
+  solve_eq (Window.valid_knuth hqi hmono n)
 
 private theorem sum_telescope (a : ℕ → ℕ) : ∀ m, (∀ i < m, a i ≤ a (i + 1)) →
     (∑ i ∈ range m, (a (i + 1) - a i + 1)) + a 0 = a m + m
@@ -414,82 +332,86 @@ private theorem sum_telescope (a : ℕ → ℕ) : ∀ m, (∀ i < m, a i ≤ a (
     rw [sum_range_succ]
     omega
 
-/-- **Knuth's telescoping bound**: under the hypotheses of `ret_knuthBST`, filling one diagonal
-scans at most `2 n` candidate roots. -/
-theorem time_diagM_knuth_le {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w)
+/-- **Knuth's telescoping bound**: under the quadrangle inequality and interval monotonicity, the
+lengths of Knuth's candidate-root windows along diagonal `d + 1` sum to at most `2 n`. -/
+theorem sum_knuth_window_le {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w)
     (hmono : MonotoneOnIntervals w) {n d : ℕ} {T : Table β} (hT : Agrees w n d T) :
-    (diagM w .knuth n (d + 1) T).time ≤ 2 * n := by
-  rw [time_diagM]
+    ∑ i ∈ range (n + 1 - (d + 1)),
+      ((Window.knuth : Window β).hi T i (i + (d + 1)) -
+        (Window.knuth : Window β).lo T i (i + (d + 1)) + 1) ≤ 2 * n := by
   rcases d with _ | e
-  · calc ∑ i ∈ range (n + 1 - (0 + 1)),
-          ((Window.knuth : Window β).hi T i (i + (0 + 1)) -
-            (Window.knuth : Window β).lo T i (i + (0 + 1)) + 1)
-        = ∑ _i ∈ range (n + 1 - (0 + 1)), 1 :=
-          sum_congr rfl fun i _ => by simp only [Window.knuth, zero_add, lt_irrefl, ↓reduceIte,
-            Nat.sub_self]
-      _ ≤ 2 * n := by rw [sum_const, card_range, smul_eq_mul, mul_one]; omega
-  · obtain ⟨m, hm⟩ : ∃ m, m = n + 1 - (e + 1 + 1) := ⟨_, rfl⟩
-    rw [← hm]
+  · simp only [Window.knuth, zero_add, lt_irrefl, ↓reduceIte, Nat.sub_self,
+      sum_const, card_range, Nat.nsmul_eq_mul, mul_one]
+    omega
+  · set m := n + 1 - (e + 1 + 1) with hm
     let a : ℕ → ℕ := fun i => optRoot w i (i + e + 1)
+    have hsub (i : ℕ) : (i + 1) + e + 1 - 1 = i + e + 1 := by omega
     have hterm : ∀ i ∈ range m, (Window.knuth : Window β).hi T i (i + (e + 1 + 1)) -
         (Window.knuth : Window β).lo T i (i + (e + 1 + 1)) + 1 = a (i + 1) - a i + 1 := by
       intro i hi
       rw [mem_range] at hi
-      have hlo : (T i (i + (e + 1 + 1) - 1)).root = a i := by
-        rw [show i + (e + 1 + 1) - 1 = i + (e + 1) by omega, hT i (i + (e + 1)) (by omega)
-          (by omega)]
-        simp only [a]
-        congr 1
-      have hhi : (T (i + 1) (i + (e + 1 + 1))).root = a (i + 1) := by
-        rw [hT (i + 1) (i + (e + 1 + 1)) (by omega) (by omega)]
-        simp only [a]
-        congr 1
-        omega
-      simp only [Window.knuth, show i + 1 < i + (e + 1 + 1) by omega, ↓reduceIte, hlo, hhi]
+      have heq : i + (e + 1 + 1) = (i + 1) + e + 1 := by omega
+      have hij : i + 1 < (i + 1) + e + 1 := by omega
+      simp only [Window.knuth, heq, hij, ↓reduceIte, hsub]
+      rw [hT i (i + e + 1) (by omega) (by omega),
+        hT (i + 1) ((i + 1) + e + 1) (by omega) (by omega)]
     rw [sum_congr rfl hterm]
-    have ha : ∀ i < m, a i ≤ a (i + 1) := by
-      intro i hi
-      have hmon := optRoot_mono hqi hmono (show i + 1 < i + e + 2 by omega)
-      rw [show i + e + 2 - 1 = i + e + 1 by omega] at hmon
-      calc a i = optRoot w i (i + e + 1) := rfl
-        _ ≤ optRoot w i (i + e + 2) := hmon.1
-        _ ≤ optRoot w (i + 1) (i + e + 2) := hmon.2
-        _ = a (i + 1) := by simp only [a]; congr 1; omega
+    have ha : ∀ i < m, a i ≤ a (i + 1) := fun i _ => by
+      have hmon := optRoot_mono hqi hmono (show i + 1 < (i + 1) + e + 1 by omega)
+      exact (hsub i ▸ hmon.1).trans hmon.2
     have htel := sum_telescope a m ha
-    have h₀ := mem_Ioc.1 (optRoot_mem w (show 0 < 0 + e + 1 by omega))
-    rcases Nat.eq_zero_or_pos m with rfl | hm₀
-    · rw [sum_range_zero]
+    rcases eq_or_ne m 0 with hm0 | _
+    · simp only [hm0, sum_range_zero, Nat.zero_le]
+    · have h₀ := mem_Ioc.1 (optRoot_mem w (show 0 < 0 + e + 1 by omega))
+      have hm' := mem_Ioc.1 (optRoot_mem w (show m < m + e + 1 by omega))
+      dsimp only [a] at htel ⊢
       omega
-    · have hm' := mem_Ioc.1 (optRoot_mem w (show m < m + e + 1 by omega))
-      change (∑ i ∈ range m, (a (i + 1) - a i + 1)) + optRoot w 0 (0 + e + 1) =
-        optRoot w m (m + e + 1) + m at htel
-      omega
-
-/-- The first `d` diagonals of Knuth's algorithm scan at most `2 n d` candidate roots. -/
-theorem time_tableM_knuth_le {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w)
-    (hmono : MonotoneOnIntervals w) (n : ℕ) : ∀ d, (tableM w .knuth n d).time ≤ 2 * n * d
-  | 0 => by rw [tableM, time_pure]; exact Nat.zero_le _
-  | d + 1 => by
-    rw [tableM, time_bind]
-    have h₁ := time_tableM_knuth_le hqi hmono n d
-    have h₂ := time_diagM_knuth_le hqi hmono (agrees_tableM (Window.valid_knuth hqi hmono n) d)
-    rw [mul_add, mul_one]
-    exact add_le_add h₁ h₂
-
-/-- **Knuth's speedup**: under the quadrangle inequality and interval monotonicity of the weight,
-Knuth's algorithm scans at most `2 n²` candidate roots. -/
-theorem time_knuthBST_le {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w)
-    (hmono : MonotoneOnIntervals w) (n : ℕ) : (knuthBST w n).time ≤ 2 * n ^ 2 := by
-  rw [knuthBST, time_solveM, sq, ← mul_assoc]
-  exact time_tableM_knuth_le hqi hmono n n
 
 end Knuth
 
-/-! ### Optimality of the output -/
+/-! ### Cost bounds and optimality of the output -/
 
 section Optimal
 
-variable [AddCommMonoid β] [LinearOrder β] [IsOrderedAddMonoid β]
+variable [AddCommMonoid β] [LinearOrder β]
+
+/-- `optCost w i j` depends on `w` only through nonempty subintervals `(a, b]` inside `(i, j]`. -/
+theorem optCost_congr {w₁ w₂ : ℕ → ℕ → β} {i j : ℕ}
+    (h : ∀ a b, i ≤ a → a < b → b ≤ j → w₁ a b = w₂ a b) :
+    optCost w₁ i j = optCost w₂ i j := by
+  unfold optCost
+  generalize j - i = f
+  induction f generalizing i j with
+  | zero => rfl
+  | succ f ih =>
+    simp only [optCostAux]
+    split_ifs with hlt
+    · refine congrArg₂ _ (h i j le_rfl hlt le_rfl) (inf'_congr _ rfl fun k hk => ?_)
+      rw [mem_Ioc] at hk
+      rw [ih fun x y h₁ h₂ h₃ => h x y h₁ h₂ (by omega),
+        ih fun x y h₁ h₂ h₃ => h x y (by omega) h₂ h₃]
+    · rfl
+
+section OrderedBound
+
+variable [IsOrderedAddMonoid β]
+
+/-- If every nonempty subinterval `(a, b]` with `i ≤ a < b ≤ j` has weight at most `M`, then
+`optCost w i j ≤ (j - i) • M` (attained, up to bound, by the right-spine tree). -/
+theorem optCost_le_nsmul {w : ℕ → ℕ → β} {M : β} {i j : ℕ}
+    (hw : ∀ a b, i ≤ a → a < b → b ≤ j → w a b ≤ M) :
+    optCost w i j ≤ (j - i) • M := by
+  generalize hd : j - i = d
+  induction d generalizing i j with
+  | zero => rw [optCost_of_le w (by omega), zero_nsmul]
+  | succ d ih =>
+    have hij : i < j := by omega
+    have hle := optCost_le w (k := i + 1) (mem_Ioc.2 ⟨Nat.lt_succ_self i, hij⟩)
+    rw [splitCost, Nat.add_sub_cancel, optCost_of_le w le_rfl, zero_add] at hle
+    have hih := ih (i := i + 1) (j := j) (fun a b h₁ h₂ h₃ => hw a b (by omega) h₂ h₃) (by omega)
+    calc optCost w i j ≤ w i j + optCost w (i + 1) j := hle
+      _ ≤ M + d • M := add_le_add (hw i j le_rfl hij le_rfl) hih
+      _ = (d + 1) • M := (succ_nsmul' M d).symm
 
 /-- A solution for the keys `1, …, n` is optimal for the weight `w` if its tree is a binary search
 tree on these keys of the returned cost, and no binary search tree on them is cheaper. -/
@@ -502,9 +424,11 @@ theorem isOptimal_optTree (w : ℕ → ℕ → β) (n : ℕ) :
     fun _ ht => optCost_le_treeCost w ht⟩
 
 /-- The cubic dynamic program returns an optimal binary search tree, for every weight. -/
-theorem isOptimal_plainBST (w : ℕ → ℕ → β) (n : ℕ) : (plainBST w n).ret.IsOptimal w n := by
-  rw [ret_plainBST]
+theorem isOptimal_plainBST (w : ℕ → ℕ → β) (n : ℕ) : (plainBST w n).IsOptimal w n := by
+  rw [plainBST_eq]
   exact isOptimal_optTree w n
+
+end OrderedBound
 
 end Optimal
 
@@ -515,17 +439,15 @@ variable [AddCommMonoid β] [LinearOrder β] [IsOrderedCancelAddMonoid β]
 /-- Knuth's algorithm returns an optimal binary search tree when the weight satisfies the
 quadrangle inequality and is monotone on intervals. -/
 theorem isOptimal_knuthBST {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w)
-    (hmono : MonotoneOnIntervals w) (n : ℕ) : (knuthBST w n).ret.IsOptimal w n := by
-  rw [ret_knuthBST hqi hmono]
+    (hmono : MonotoneOnIntervals w) (n : ℕ) : (knuthBST w n).IsOptimal w n := by
+  rw [knuthBST_eq hqi hmono]
   exact isOptimal_optTree w n
 
-/-- **Knuth's theorem** for nonnegative access weights `p` and failure weights `q`: the quadratic
-algorithm returns an optimal binary search tree after scanning at most `2 n²` candidate roots. -/
+/-- **Knuth's theorem** for nonnegative access weights `p` and failure weights `q`: the window
+algorithm returns an optimal binary search tree. -/
 theorem knuthBST_knuthWeight {p q : ℕ → β} (hp : ∀ k, 0 ≤ p k) (hq : ∀ g, 0 ≤ q g) (n : ℕ) :
-    (knuthBST (knuthWeight p q) n).ret.IsOptimal (knuthWeight p q) n ∧
-      (knuthBST (knuthWeight p q) n).time ≤ 2 * n ^ 2 :=
-  ⟨isOptimal_knuthBST (quadrangleIneq_knuthWeight p q) (monotoneOnIntervals_knuthWeight hp hq) n,
-    time_knuthBST_le (quadrangleIneq_knuthWeight p q) (monotoneOnIntervals_knuthWeight hp hq) n⟩
+    (knuthBST (knuthWeight p q) n).IsOptimal (knuthWeight p q) n :=
+  isOptimal_knuthBST (quadrangleIneq_knuthWeight p q) (monotoneOnIntervals_knuthWeight hp hq) n
 
 end OptimalKnuth
 

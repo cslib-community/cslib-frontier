@@ -63,9 +63,8 @@ theorem factorialResidue_cast {p : ℕ} [Fact p.Prime] (j : ℕ) :
   rw [factorialResidue, primeFieldProduct_spec, Nat.factorial_eq_prod_range_add_one,
     Nat.cast_prod]
   simp only [Nat.cast_ite, Nat.cast_one]
-  have h := BitString.sum_binaryValue_lt (M := Additive (ZMod p)) (Nat.lt_size_self j).le
-    (fun i => Additive.ofMul ((i + 1 : ℕ) : ZMod p))
-  exact congrArg Additive.toMul h
+  exact congrArg Additive.toMul (BitString.sum_binaryValue_lt (M := Additive (ZMod p))
+    (Nat.lt_size_self j).le fun i => Additive.ofMul ((i + 1 : ℕ) : ZMod p))
 
 /-- Factorials below the prime are invertible, including zero factorial. -/
 theorem factorialResidue_ne_zero {p : ℕ} [Fact p.Prime] {j : ℕ} (hj : j < p) :
@@ -114,13 +113,10 @@ theorem descFactorialResidue_cast {p i k : ℕ} [Fact p.Prime] (hi : i < p) :
   · have hlt := (Nat.sub_le i k).trans_lt hi
     rw [descFactorialResidue, ite_eq_left hk, ZMod.natCast_mod, Nat.cast_mul,
       factorialResidue_cast, factorialResidue_inverse hlt]
-    have hfac : ((i - k).factorial : ZMod p) ≠ 0 := by
-      rw [← factorialResidue_cast]
-      exact factorialResidue_ne_zero hlt
-    have heq := congrArg (fun n : ℕ => (n : ZMod p)) (Nat.factorial_mul_descFactorial hk)
-    simp only [Nat.cast_mul] at heq
-    rw [← heq]
-    field_simp
+    have hfac : ((i - k).factorial : ZMod p) ≠ 0 :=
+      factorialResidue_cast (p := p) (i - k) ▸ factorialResidue_ne_zero hlt
+    rw [mul_inv_eq_iff_eq_mul₀ hfac, mul_comm, ← Nat.cast_mul]
+    exact congrArg Nat.cast (Nat.factorial_mul_descFactorial hk).symm
   · simp only [descFactorialResidue, ite_eq_right hk,
       Nat.descFactorial_of_lt (Nat.lt_of_not_ge hk), Nat.cast_zero]
 

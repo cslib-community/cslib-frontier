@@ -28,8 +28,7 @@ namespace Cslib.Algorithms.MatrixMultiplication.Schonhage
 private theorem mul_add_lt_mul {a b c d : ℕ} (ha : a < b) (hc : c < d) :
     a * d + c < b * d := by
   have h := Nat.mul_le_mul_right d (Nat.succ_le_of_lt ha)
-  rw [Nat.succ_mul] at h
-  omega
+  rw [Nat.succ_mul] at h; omega
 
 /-- The entire band dimension is bounded by the flat tensor input dimension. -/
 theorem bandSize_le_seven_pow (L m : ℕ) : bandSize L m ≤ 7 ^ L := by
@@ -47,23 +46,19 @@ theorem band_position_bounds {L m N β q o : ℕ} (hβ : β < numBands L m N)
       β * K0 L m + q < N + 7 ^ L ∧
       (β * K0 L m + q) * N0 L m < N + 7 ^ L ∧
       (β * K0 L m + q) * N0 L m + o < N + 7 ^ L := by
-  have hb : β * K0 L m + q < numBands L m N * K0 L m := mul_add_lt_mul hβ hq
-  have hr : (β * K0 L m + q) * N0 L m + o < numBands L m N * K0 L m * N0 L m :=
-    mul_add_lt_mul hb ho
+  have hr : (β * K0 L m + q) * N0 L m + o < numBands L m N * bandSize L m := by
+    rw [bandSize, ← Nat.mul_assoc]
+    exact mul_add_lt_mul (mul_add_lt_mul hβ hq) ho
   have hpad : numBands L m N * bandSize L m ≤ N + bandSize L m - 1 :=
     Nat.div_mul_le_self _ _
   have hsize := bandSize_le_seven_pow L m
   have hblock : β * K0 L m + q ≤ (β * K0 L m + q) * N0 L m :=
     Nat.le_mul_of_pos_right _ (N0_pos L m)
-  have heq : numBands L m N * K0 L m * N0 L m = numBands L m N * bandSize L m := by
-    rw [bandSize, Nat.mul_assoc]
-  rw [heq] at hr
   omega
 
 /-- Nonempty matrices need at least one shared band. -/
 theorem numBands_pos {L m N : ℕ} (hm : m ≤ L) (hN : 0 < N) : 0 < numBands L m N := by
   have hb : 0 < bandSize L m := Nat.mul_pos (K0_pos hm) (N0_pos L m)
-  change 0 < (N + bandSize L m - 1) / bandSize L m
   exact Nat.div_pos (by omega) hb
 
 /-- A full band's original matrix entries fit within one encoding-sized block. This bound
@@ -96,7 +91,6 @@ theorem preparation_shape_le {L m N : ℕ} (hm : m ≤ L) (hN : 0 < N) :
   have hpos : 1 ≤ 10 ^ L := Nat.one_le_pow L 10 (by decide)
   have hbands : 10 ^ L ≤ numBands L m N * 10 ^ L :=
     Nat.le_mul_of_pos_left _ (numBands_pos hm hN)
-  rw [Nat.mul_assoc]
-  omega
+  rw [Nat.mul_assoc]; omega
 
 end Cslib.Algorithms.MatrixMultiplication.Schonhage

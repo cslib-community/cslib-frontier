@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenRoundCallback.Resource
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.SourceRoundLoop.Retained
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LinearSpaceArith
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.Nat.BinarySize
 
 /-!
@@ -109,19 +110,18 @@ theorem justesenRetainedSourceRound_parts_inSpace {k : ℕ} {State : Type} [Fint
   let start := justesenRoundCallbackStart r.context.adjacency
   obtain ⟨hq, hn, hh, hf⟩ := justesenRoundCallback_parts_inSpace ntm c
   have hsnd := snd encJustesenSourceContext (SourceRound.encMachineState _ C)
-  have hadj := encJustesenSourceContext_adjacency_budget
-    (fst encJustesenSourceContext SourceRound.encState)
   have hentry := budget_comp_linear justesenRoundCallbackStart_inSpace
-    (budget_prod hadj (snd encJustesenSourceContext SourceRound.encState))
-  have hquery := budget_comp_linear
-    (SourceRound.machine_query_inSpace C ctx N start justesenRoundCallbackReply hq) hsnd
-  have hnext := SourceRoundLoop.retainedRound_next_inSpace JustesenSourceContext.size
-    JustesenSourceContext.sourceID N (fun k => justesenRoundCallbackStart k.adjacency)
-    justesenRoundCallbackReply r encJustesenSourceContext C hentry hf hh hn
-  have hhalt := budget_comp_linear
-    (SourceRound.machine_halted_inSpace C ctx N start justesenRoundCallbackReply) hsnd
-  have hreply := budget_comp_linear (SourceRound.answer_inSpace C) hsnd
-  exact ⟨hquery, hnext, hhalt, hreply⟩
+    (budget_prod (encJustesenSourceContext_adjacency_budget
+      (fst encJustesenSourceContext SourceRound.encState))
+      (snd encJustesenSourceContext SourceRound.encState))
+  exact ⟨(budget_comp_linear
+      (SourceRound.machine_query_inSpace C ctx N start justesenRoundCallbackReply hq) hsnd : _),
+    (SourceRoundLoop.retainedRound_next_inSpace JustesenSourceContext.size
+      JustesenSourceContext.sourceID N (fun k => justesenRoundCallbackStart k.adjacency)
+      justesenRoundCallbackReply r encJustesenSourceContext C hentry hf hh hn : _),
+    (budget_comp_linear
+      (SourceRound.machine_halted_inSpace C ctx N start justesenRoundCallbackReply) hsnd : _),
+    (budget_comp_linear (SourceRound.answer_inSpace C) hsnd : _)⟩
 
 private theorem justesenRetainedSourceRound_firstHalting_iff_scalar
     {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ)
@@ -136,18 +136,11 @@ private theorem justesenRetainedSourceRound_firstHalting_iff_scalar
       scalar.FirstHalting w bits scalar.init ∧
         SourceRound.answer (scalar.run w bits) = some update := by
   intro M ctx scalar
-  let N := justesenRoundCallback ntm c
-  let start := fun ctx : JustesenSourceContext => justesenRoundCallbackStart ctx.adjacency
-  change (SourceRoundLoop.retainedRound _ _ N start justesenRoundCallbackReply r).FirstHalting
-      w bits (SourceRoundLoop.retainedRoundEntry JustesenSourceContext.size
-        JustesenSourceContext.sourceID r) ∧ _ ↔ _
-  rw [SourceRoundLoop.retainedRound_firstHalting]
-  have hrun := SourceRoundLoop.retainedRound_run JustesenSourceContext.size
-    JustesenSourceContext.sourceID N start justesenRoundCallbackReply r w bits
-  change _ ∧ justesenRetainedSourceRoundReply
-    ((SourceRoundLoop.retainedRound _ _ N start justesenRoundCallbackReply r).run w bits) =
-      some update ↔ _
-  rw [hrun]
+  change (SourceRoundLoop.retainedRound _ _ _ _ _ r).FirstHalting w bits
+      (SourceRoundLoop.retainedRoundEntry _ _ r) ∧
+    justesenRetainedSourceRoundReply
+      ((SourceRoundLoop.retainedRound _ _ _ _ _ r).run w bits) = some update ↔ _
+  rw [SourceRoundLoop.retainedRound_firstHalting, SourceRoundLoop.retainedRound_run]
   rfl
 
 /-- The retained round consumes exactly the selectors of the corresponding scalar replay. -/
@@ -161,8 +154,8 @@ theorem justesenRetainedSourceRound_firstHalting_iff_replayScan
     M.FirstHalting w bits M.init ∧ justesenRetainedSourceRoundReply (M.run w bits) = some update ↔
       SourceRound.replayScan ctx (justesenRoundCallback ntm c)
         (justesenRoundCallbackStart r.context.adjacency) justesenRoundCallbackReply w bits =
-          some (update, []) := by
-  exact (justesenRetainedSourceRound_firstHalting_iff_scalar ntm c r w bits update).trans
+          some (update, []) :=
+  (justesenRetainedSourceRound_firstHalting_iff_scalar ntm c r w bits update).trans
     (SourceRound.firstHalting_iff_replayScan _ _ _ _ w bits update)
 
 private theorem initializedRoundContext {k : ℕ} {State : Type} [Fintype State]
@@ -209,10 +202,8 @@ theorem configurationJustesenRetainedSourceRound_correct
   refine SourceRound.replayScan_correct ctx source edge (justesenRoundCallback ntm c)
     (justesenRoundCallbackStart adj) justesenRoundCallbackReply w rfl hpass ?_ ?_ hscan
   · intro u v call hit rest hcall
-    have h := configurationJustesenRoundCallback_readReply_correct ntm c w seed source radius
-      (.edge u.val v.val) ⟨u.isLt, v.isLt⟩ call hit rest hcall
-    change hit = configurationJustesenSubdivisionAdjacent ntm c w seed u v at h
-    rw [h]
+    rw [(configurationJustesenRoundCallback_readReply_correct ntm c w seed source radius
+      (.edge u.val v.val) ⟨u.isLt, v.isLt⟩ call hit rest hcall : hit = _)]
   · intro v call hit rest hcall
     exact (configurationJustesenRoundCallback_readReply_correct ntm c w seed source radius
       (.member v.val) v.isLt call hit rest hcall).trans mem_round.symm
@@ -247,10 +238,10 @@ theorem configurationJustesenRetainedSourceRound_existsUnique_firstHalting
   have hunique := SourceRound.subsingleton_successful_firstHalting ctx N start
     justesenRoundCallbackReply w (fun req hv _ hl _ hr => (hreq req hv).unique hl hr)
   obtain ⟨bits, update, hfirst, hanswer⟩ := SourceRound.exists_successful_firstHalting ctx N start
-    justesenRoundCallbackReply w (fun req hv => by
-      obtain ⟨choices, ⟨hfirst, hsome⟩, _⟩ := hreq req hv
-      obtain ⟨hit, hhit⟩ := Option.isSome_iff_exists.mp hsome
-      exact ⟨choices, hit, hfirst, hhit⟩)
+    justesenRoundCallbackReply w fun req hv =>
+      let ⟨choices, ⟨hf, hsome⟩, _⟩ := hreq req hv
+      let ⟨hit, hhit⟩ := Option.isSome_iff_exists.mp hsome
+      ⟨choices, hit, hf, hhit⟩
   have hctx : SourceRoundLoop.roundContext JustesenSourceContext.size
       JustesenSourceContext.sourceID r = ctx :=
     initializedRoundContext ntm c w seed.val source.val target.val fuel radius _
@@ -259,15 +250,13 @@ theorem configurationJustesenRetainedSourceRound_existsUnique_firstHalting
         justesenRetainedSourceRoundReply (M.run w selectors) = some result ↔
       scalar.FirstHalting w selectors scalar.init ∧
         SourceRound.answer (scalar.run w selectors) = some result := by
-    have h := justesenRetainedSourceRound_firstHalting_iff_scalar ntm c r w selectors result
-    dsimp only at h
-    rw [hctx] at h
-    exact h
-  refine ⟨bits, ⟨update, (htransfer bits update).mpr ⟨hfirst, hanswer⟩⟩, ?_⟩
-  rintro other ⟨result, hresult⟩
+    simpa only [hctx] using
+      justesenRetainedSourceRound_firstHalting_iff_scalar ntm c r w selectors result
+  refine ⟨bits, ⟨update, (htransfer bits update).mpr ⟨hfirst, hanswer⟩⟩,
+    fun other ⟨result, hresult⟩ => ?_⟩
   obtain ⟨hfirst', hanswer'⟩ := (htransfer other result).mp hresult
-  exact hunique ⟨hfirst', Option.isSome_iff_exists.mpr ⟨result, hanswer'⟩⟩
-    ⟨hfirst, Option.isSome_iff_exists.mpr ⟨update, hanswer⟩⟩
+  exact hunique ⟨hfirst', Option.isSome_iff_exists.mpr ⟨_, hanswer'⟩⟩
+    ⟨hfirst, Option.isSome_iff_exists.mpr ⟨_, hanswer⟩⟩
 
 open Cslib.Code.JustesenFamily
 
@@ -294,10 +283,8 @@ noncomputable def configurationJustesenRetainedSourceRoundClock
 theorem configurationJustesenRetainedSourceRoundClock_polyBounded
     (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
     PolyBounded List.length (configurationJustesenRetainedSourceRoundClock ntm c) := by
-  have hn := configurationSubdivisionVertexCount_polyBounded ntm c
-  have ht := configurationJustesenRoundCallbackClock_polyBounded ntm c
-  exact (((hn.add (.const 1)).mul (((PolyBounded.const 2).mul hn).add (.const 1))).mul
-    (ht.add (.const 2))).add (ht.add (.const 1))
+  growth_poly [configurationSubdivisionVertexCount_polyBounded ntm c,
+    configurationJustesenRoundCallbackClock_polyBounded ntm c]
 
 /-- For an initialized subdivision, every admissible round entry shares a selector clock and
 an encoded-state envelope. The latter charges the retained context and the scalar round at
@@ -337,20 +324,19 @@ theorem configurationJustesenRetainedSourceRound_bounds
         ∀ bits, (encJustesenRoundCallbackState (N.replay w bits entry)).length ≤ D := by
     simp only [SourceRoundLoop.roundContext, hr.1, hsize] at hv ⊢
     exact hcallback w seed source r.radius r.tally hrad hcount hsum req hv
-  have hhalt := SourceRoundLoop.retainedRound_haltsWithin JustesenSourceContext.size
-    JustesenSourceContext.sourceID N start justesenRoundCallbackReply r w clock
-    (fun req hv => (hcall req hv).1)
   refine ⟨?_, fun bits => ?_⟩
   · simpa only [M, justesenRetainedSourceRound, N, start, clock, n,
-      configurationJustesenRetainedSourceRoundClock, hr.1, hsize] using hhalt
-  · have hlen := SourceRoundLoop.retainedRound_length_run_le JustesenSourceContext.size
+      configurationJustesenRetainedSourceRoundClock, hr.1, hsize] using
+      SourceRoundLoop.retainedRound_haltsWithin JustesenSourceContext.size
+        JustesenSourceContext.sourceID N start justesenRoundCallbackReply r w clock
+        fun req hv => (hcall req hv).1
+  · refine (SourceRoundLoop.retainedRound_length_run_le JustesenSourceContext.size
       JustesenSourceContext.sourceID N start justesenRoundCallbackReply r encJustesenSourceContext
-      encJustesenRoundCallbackState w bits D (fun req hv => (hcall req hv).2)
-    refine hlen.trans ?_
-    have hscalar := SourceRoundLoop.roundStateBound_le JustesenSourceContext.size
-      JustesenSourceContext.sourceID context limit r hr D
+      encJustesenRoundCallbackState w bits D (fun req hv => (hcall req hv).2)).trans ?_
     simpa only [SourceRoundLoop.retainedRoundStateBound, hr.1, hsize] using
-      Nat.add_le_add_left hscalar (2 * (encJustesenSourceContext context).length + 1)
+      Nat.add_le_add_left (SourceRoundLoop.roundStateBound_le JustesenSourceContext.size
+        JustesenSourceContext.sourceID context limit r hr D)
+        (2 * (encJustesenSourceContext context).length + 1)
 
 /-- The round and register envelopes are logarithmic in the input length, with a separate
 charge for the suspended callback's encoded state. -/
@@ -378,15 +364,13 @@ theorem configurationJustesenRetainedSourceRound_envelopes_le_log
   have hn : width ≤ B * b := hB w
   have hs : (encNat source.val).length ≤ width := length_encNat_mono source.isLt.le
   have hk : (encNat limit).length ≤ width := length_encNat_mono hl
-  obtain ⟨hcount, hsum⟩ := length_encTally_fields_le_of_caps
-    (tally := ⟨1 + limit * n, n * limit * limit⟩) hl le_rfl le_rfl
-  change (encNat (1 + limit * n)).length ≤ 2 * width + 2 at hcount
-  change (encNat (n * limit * limit)).length ≤ 3 * width at hsum
+  obtain ⟨hcount, hsum⟩ : (encNat (1 + limit * n)).length ≤ 2 * width + 2 ∧
+      (encNat (n * limit * limit)).length ≤ 3 * width :=
+    length_encTally_fields_le_of_caps (tally := ⟨_, _⟩) hl le_rfl le_rfl
   have hone : (encNat 1).length = 1 := rfl
   have hreg : SourceRoundLoop.registerStateBound encJustesenSourceContext context n limit ≤
       2 * (encJustesenSourceContext context).length + 11 * width + 8 := by
-    rw [SourceRoundLoop.registerStateBound]
-    omega
+    rw [SourceRoundLoop.registerStateBound]; omega
   let round : SourceRound.Context := ⟨n, source.val, limit, ⟨1 + limit * n, n * limit * limit⟩⟩
   have hround : (SourceRound.encContext round).length ≤ 13 * width + 8 := by
     simp only [round, SourceRound.encContext_apply, SourceRound.encContextFields,
@@ -407,33 +391,21 @@ theorem configurationJustesenRetainedSourceRound_envelopes_le_log
     dsimp only [width, total] at hk hsum ⊢
     omega
   have hV : (encNat V).length ≤ 5 * width + 3 := by
-    rcases le_total count total with h | h
-    · simpa only [V, max_eq_right h] using htotalWidth
-    · dsimp only [V]
-      rw [max_eq_left h]
-      omega
-  have hlogN : Nat.log2 n ≤ width := by
-    change Nat.log2 n ≤ (encNat n).length
-    rw [length_encNat_eq_size]
-    exact Nat.log2_le_size n
+    dsimp only [V]
+    rcases max_choice count total with h | h <;> rw [h] <;> omega
+  have hlogN : Nat.log2 n ≤ width := (Nat.log2_le_size n).trans_eq (length_encNat_eq_size n).symm
   have hlogV : Nat.log2 (V * V) ≤ 10 * width + 6 := by
-    have hlog := Nat.log2_le_size (V * V)
-    rw [← length_encNat_eq_size] at hlog
-    have hmul := length_encNat_mul_le V V
-    omega
-  have hscalar (D : ℕ) : SourceRound.roundStateBound round D ≤ 432 * width + 368 + D := by
-    change 2 * (6 * (SourceRound.encContext round).length + 18 * (Nat.log2 n + 1) +
-      12 * (Nat.log2 (V * V) + 1) + 33) + D + 2 ≤ _
+    have := (Nat.log2_le_size (V * V)).trans_eq (length_encNat_eq_size _).symm
+    have := length_encNat_mul_le V V
     omega
   have hb : 1 ≤ b := Nat.succ_le_succ (Nat.zero_le _)
   have hbudget : budget = 2 * (A * b) + 432 * (B * b) + 369 * b := by
     simp only [budget, b, Nat.add_mul, Nat.mul_assoc]
-  refine ⟨hreg.trans ?_, fun D => ?_⟩
-  · omega
-  · have hstate := hscalar D
-    change 2 * (encJustesenSourceContext context).length + 1 +
-      SourceRound.roundStateBound round D ≤ budget + D
-    omega
+  refine ⟨by omega, fun D => ?_⟩
+  change 2 * (encJustesenSourceContext context).length + 1 +
+    (2 * (6 * (SourceRound.encContext round).length + 18 * (Nat.log2 n + 1) +
+      12 * (Nat.log2 (V * V) + 1) + 33) + D + 2) ≤ _
+  omega
 
 /-- A full-fuel source scan retains its context, exact totals and transcript uniqueness
 through the current radius. A round may start only while fuel remains. -/
@@ -448,10 +420,8 @@ through the current radius. A round may start only while fuel remains. -/
 theorem justesenSourceRoundExact_start {n : ℕ} (context : JustesenSourceContext)
     (edge : Fin n → Fin n → Prop) (source : Fin n) :
     JustesenSourceRoundExact context edge source (SourceRoundLoop.start context n) := by
-  refine ⟨rfl, Nat.add_zero _, Nat.zero_lt_of_lt source.isLt, (expected_zero edge source).symm, ?_⟩
-  intro j hj
-  have hz : j = 0 := Nat.eq_zero_of_le_zero hj
-  exact hz.symm ▸ existsUnique_passes_zero edge source
+  exact ⟨rfl, Nat.add_zero _, Nat.zero_lt_of_lt source.isLt, (expected_zero edge source).symm,
+    fun j hj => (Nat.eq_zero_of_le_zero hj).symm ▸ existsUnique_passes_zero edge source⟩
 
 /-- When the round returns a larger untied set, the next round is exact and still has fuel.
 A change in count can occur only before the last radius of the full-fuel scan. -/
@@ -471,28 +441,17 @@ theorem configurationJustesenRetainedSourceRound_exact_advance
           update.bad = false → update.tally.count ≠ r.tally.count →
           JustesenSourceRoundExact context edge source (r.advance update.tally) := by
   intro I n seed source target context edge r hexact M bits update hfirst hreply hgoodUpdate hgrew
-  obtain ⟨hcontext, hfuel, hpos, htally, hgood⟩ := hexact
   rcases r with ⟨actual, fuel, radius, tally⟩
-  change actual = context at hcontext
-  change fuel + radius = n at hfuel
-  change 0 < fuel at hpos
-  change tally = expected edge source radius at htally
-  change ∀ j ≤ radius, ∃! transcript, Passes edge source j transcript at hgood
-  subst actual
-  subst tally
+  obtain ⟨rfl, hfuel, hpos, rfl, hgood⟩ :
+      actual = context ∧ fuel + radius = n ∧ 0 < fuel ∧ tally = expected edge source radius ∧
+        ∀ j ≤ radius, ∃! transcript, Passes edge source j transcript := hexact
   obtain ⟨hnext, hpass⟩ := configurationJustesenRetainedSourceRound_correct ntm c w
     seed source target fuel radius (hgood radius le_rfl) bits update hfirst hreply
-  rw [hnext] at hgrew
-  have hradius : radius + 1 < n := radius_succ_lt_of_expected_count_ne hgrew
-  refine ⟨rfl, ?_, ?_, hnext, ?_⟩
-  · change fuel - 1 + (radius + 1) = n
-    omega
-  · change 0 < fuel - 1
-    omega
-  · intro j hj
-    change j ≤ radius + 1 at hj
-    rcases Nat.eq_or_lt_of_le hj with rfl | hj
-    · exact hpass.mp hgoodUpdate
-    · exact hgood j (Nat.lt_succ_iff.mp hj)
+  have hradius : radius + 1 < n := radius_succ_lt_of_expected_count_ne (hnext ▸ hgrew)
+  refine ⟨rfl, by dsimp only [SourceRoundLoop.Registers.advance]; omega,
+    by dsimp only [SourceRoundLoop.Registers.advance]; omega, hnext, fun j hj => ?_⟩
+  rcases Nat.eq_or_lt_of_le (hj : j ≤ radius + 1) with rfl | hj
+  · exact hpass.mp hgoodUpdate
+  · exact hgood j (Nat.lt_succ_iff.mp hj)
 
 end Cslib.Complexity.STCON

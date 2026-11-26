@@ -121,19 +121,16 @@ theorem measureReal_correlatedGaussian_setOf_le_and_le {ρ : ℝ} (hρ : |ρ| < 
   have hs := sqrt_one_sub_sq_pos hρ
   have hS : MeasurableSet {p : ℝ × ℝ | p.1 ≤ t ∧ p.2 ≤ t'} :=
     (measurableSet_Iic.preimage measurable_fst).inter (measurableSet_Iic.preimage measurable_snd)
-  have hinner : ∀ x, gaussianReal 0 1 (Prod.mk x ⁻¹'
+  have hinner (x : ℝ) : gaussianReal 0 1 (Prod.mk x ⁻¹'
       ((fun g : ℝ × ℝ => (g.1, ρ * g.1 + √(1 - ρ ^ 2) * g.2)) ⁻¹' {p | p.1 ≤ t ∧ p.2 ≤ t'})) =
       (Iic t).indicator (fun x => ENNReal.ofReal (Φ ((t' - ρ * x) / √(1 - ρ ^ 2)))) x := by
-    intro x
     by_cases hx : x ≤ t
     · rw [indicator_of_mem (mem_Iic.2 hx), ofReal_cdf]
-      congr 1
-      ext y
+      refine congrArg _ (Set.ext fun y => ?_)
       simp only [mem_preimage, mem_ofPred_eq, hx, true_and, mem_Iic, le_div_iff₀ hs]
-      constructor <;> intro h <;> linarith
+      exact ⟨fun h => by linarith, fun h => by linarith⟩
     · rw [indicator_of_notMem (by simpa using hx), ← measure_empty (μ := gaussianReal 0 1)]
-      congr 1
-      ext y
+      refine congrArg _ (Set.ext fun y => ?_)
       simp only [mem_preimage, mem_ofPred_eq, hx, false_and, mem_empty_iff_false]
   rw [measureReal_def, correlatedGaussian_def, Measure.map_apply (by fun_prop) hS,
     Measure.prod_apply (hS.preimage (by fun_prop))]
@@ -188,11 +185,10 @@ theorem hasDerivAt_gaussianQuadrant_left {ρ : ℝ} (hρ : |ρ| < 1) {α β : �
       (Φ ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2))) α := by
   have h := (hasDerivAt_measureReal_correlatedGaussian_setOf_le_and_le_left hρ (gaussianQuantile α)
     (gaussianQuantile β)).comp α (hasDerivAt_gaussianQuantile hα)
-  have hφ := (gaussianPDFReal_pos 0 1 (gaussianQuantile α) one_ne_zero).ne'
-  rw [mul_right_comm, mul_inv_cancel₀ hφ, one_mul] at h
+  rw [mul_right_comm, mul_inv_cancel₀ (gaussianPDFReal_pos 0 1 _ one_ne_zero).ne', one_mul] at h
   refine h.congr_of_eventuallyEq ?_
-  filter_upwards [Ioo_mem_nhds hα.1 hα.2] with α' hα'
-  exact gaussianQuadrant_eq_measureReal_quantile ρ hα' hβ
+  filter_upwards [Ioo_mem_nhds hα.1 hα.2] with α' hα' using
+    gaussianQuadrant_eq_measureReal_quantile ρ hα' hβ
 
 /-- **The derivative of `Λ_ρ` in `β`** [O'Donnell, Exercise 11.19 (d)][ODonnell2014]: for
 `|ρ| < 1` and `α, β ∈ (0, 1)`, `∂Λ_ρ(α, β) / ∂β = Φ((t - ρt') / √(1 - ρ²))`, where `t = Φ⁻¹ α`
@@ -239,11 +235,9 @@ theorem hasDerivAt_gaussianQuadrant_left_left {ρ : ℝ} (hρ : |ρ| < 1) {α β
       (-(ρ / √(1 - ρ ^ 2)) * (φ (gaussianQuantile α))⁻¹ *
         φ ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2))) α := by
   have h := hasDerivAt_cdf_affine_gaussianQuantile hα (-ρ) (gaussianQuantile β) √(1 - ρ ^ 2)
-  have he : ∀ x, -ρ * x + gaussianQuantile β = gaussianQuantile β - ρ * x := fun _ => by ring
-  simp only [he] at h
+  simp only [neg_mul, ← sub_eq_neg_add] at h
   refine (h.congr_deriv (by ring)).congr_of_eventuallyEq ?_
-  filter_upwards [Ioo_mem_nhds hα.1 hα.2] with α' hα'
-  exact deriv_gaussianQuadrant_left hρ hα' hβ
+  filter_upwards [Ioo_mem_nhds hα.1 hα.2] with α' hα' using deriv_gaussianQuadrant_left hρ hα' hβ
 
 /-- **The mixed second derivative of `Λ_ρ`** [O'Donnell, Exercise 11.28 (b)][ODonnell2014]: for
 `|ρ| < 1` and `α, β ∈ (0, 1)`,
@@ -254,14 +248,10 @@ theorem hasDerivAt_gaussianQuadrant_left_right {ρ : ℝ} (hρ : |ρ| < 1) {α �
     HasDerivAt (fun β => deriv (fun α => gaussianQuadrant ρ α β) α)
       ((√(1 - ρ ^ 2))⁻¹ * (φ (gaussianQuantile β))⁻¹ *
         φ ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2))) β := by
-  have h := hasDerivAt_cdf_affine_gaussianQuantile hβ 1 (-(ρ * gaussianQuantile α))
-    √(1 - ρ ^ 2)
-  have he : ∀ x, 1 * x + -(ρ * gaussianQuantile α) = x - ρ * gaussianQuantile α :=
-    fun _ => by ring
-  simp only [he] at h
+  have h := hasDerivAt_cdf_affine_gaussianQuantile hβ 1 (-(ρ * gaussianQuantile α)) √(1 - ρ ^ 2)
+  simp only [one_mul, ← sub_eq_add_neg] at h
   refine (h.congr_deriv (by ring)).congr_of_eventuallyEq ?_
-  filter_upwards [Ioo_mem_nhds hβ.1 hβ.2] with β' hβ'
-  exact deriv_gaussianQuadrant_left hρ hα hβ'
+  filter_upwards [Ioo_mem_nhds hβ.1 hβ.2] with β' hβ' using deriv_gaussianQuadrant_left hρ hα hβ'
 
 /-- **The second derivative of `Λ_ρ` in `β`** [O'Donnell, Exercise 11.28 (a)][ODonnell2014]: for
 `|ρ| < 1` and `α, β ∈ (0, 1)`,
@@ -285,12 +275,8 @@ theorem hasDerivAt_gaussianQuadrant_right_left {ρ : ℝ} (hρ : |ρ| < 1) {α �
     HasDerivAt (fun α => deriv (fun β => gaussianQuadrant ρ α β) β)
       ((√(1 - ρ ^ 2))⁻¹ * (φ (gaussianQuantile α))⁻¹ *
         φ ((gaussianQuantile α - ρ * gaussianQuantile β) / √(1 - ρ ^ 2))) α := by
-  have h : (fun α => deriv (fun β => gaussianQuadrant ρ α β) β) =
-      fun α => deriv (fun β => gaussianQuadrant ρ β α) β := by
-    funext α
-    simp_rw [gaussianQuadrant_comm hρ.le α]
-  rw [h]
-  exact hasDerivAt_gaussianQuadrant_left_right hρ hβ hα
+  refine (hasDerivAt_gaussianQuadrant_left_right hρ hβ hα).congr_of_eventuallyEq
+    (Eventually.of_forall fun α' => by simp_rw [gaussianQuadrant_comm hρ.le α'])
 
 /-- **Symmetry of the bivariate Gaussian density**: for `|ρ| < 1` and `s = √(1 - ρ²)`,
 `φ(t) φ((t' - ρt) / s) = φ(t') φ((t - ρt') / s)`; both are `s` times the density of a
@@ -299,12 +285,10 @@ theorem hasDerivAt_gaussianQuadrant_right_left {ρ : ℝ} (hρ : |ρ| < 1) {α �
 theorem gaussianPDFReal_mul_gaussianPDFReal_comm {ρ : ℝ} (hρ : |ρ| < 1) (t t' : ℝ) :
     φ t * φ ((t' - ρ * t) / √(1 - ρ ^ 2)) = φ t' * φ ((t - ρ * t') / √(1 - ρ ^ 2)) := by
   have hs := (sqrt_one_sub_sq_pos hρ).ne'
-  have hs2 : √(1 - ρ ^ 2) ^ 2 = 1 - ρ ^ 2 :=
-    sq_sqrt (sub_pos.2 ((sq_lt_one_iff_abs_lt_one ρ).2 hρ)).le
   simp only [gaussianPDFReal_def, mul_mul_mul_comm _ (rexp _), ← Real.exp_add]
   congr 2
   field_simp
-  rw [hs2]
+  rw [sq_sqrt (sub_pos.2 ((sq_lt_one_iff_abs_lt_one ρ).2 hρ)).le]
   ring
 
 /-! ### Joint differentiability and smoothness -/
@@ -485,20 +469,15 @@ theorem negSemidef_rhoHessian_gaussianQuadrant {ρ : ℝ} (hρ0 : 0 < ρ) (hρ1 
   -- The two off-diagonal entries agree by the symmetry of the bivariate density.
   have hsymm : (rhoHessian ρ (gaussianQuadrant ρ) α β) 0 1 =
       (rhoHessian ρ (gaussianQuadrant ρ) α β) 1 0 := by
-    have hA := (gaussianPDFReal_pos 0 1 (gaussianQuantile α) one_ne_zero).ne'
-    have hB := (gaussianPDFReal_pos 0 1 (gaussianQuantile β) one_ne_zero).ne'
-    have hid := gaussianPDFReal_mul_gaussianPDFReal_comm hρ (gaussianQuantile α)
-      (gaussianQuantile β)
     rw [rhoHessian_gaussianQuadrant hρ hα hβ]
     simp only [Matrix.of_apply, Matrix.cons_val', Matrix.cons_val_zero, Matrix.cons_val_one,
-      Matrix.empty_val', Matrix.cons_val_fin_one]
-    have hAB : (φ (gaussianQuantile α))⁻¹ *
-        φ ((gaussianQuantile α - ρ * gaussianQuantile β) / √(1 - ρ ^ 2)) =
-        (φ (gaussianQuantile β))⁻¹ *
-          φ ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2)) := by
-      rw [inv_mul_eq_div, inv_mul_eq_div, div_eq_div_iff hA hB]
-      linear_combination -hid
-    simp only [mul_assoc, hAB]
+      Matrix.empty_val', Matrix.cons_val_fin_one, mul_assoc]
+    congr 2
+    rw [inv_mul_eq_div, inv_mul_eq_div,
+      div_eq_div_iff (gaussianPDFReal_pos 0 1 _ one_ne_zero).ne'
+        (gaussianPDFReal_pos 0 1 _ one_ne_zero).ne']
+    linear_combination
+      -gaussianPDFReal_mul_gaussianPDFReal_comm hρ (gaussianQuantile α) (gaussianQuantile β)
   set M := rhoHessian ρ (gaussianQuadrant ρ) α β
   have hM : -M = !![-M 0 0, -M 0 1; -M 0 1, -M 1 1] := by
     ext i j
@@ -515,8 +494,7 @@ quadratic form of `H_ρ Λ_ρ(α, β)` is nonpositive: `v ⬝ᵥ (H_ρ Λ_ρ(α,
 theorem dotProduct_mulVec_rhoHessian_gaussianQuadrant_nonpos {ρ : ℝ} (hρ0 : 0 < ρ)
     (hρ1 : ρ < 1) {α β : ℝ} (hα : α ∈ Ioo 0 1) (hβ : β ∈ Ioo 0 1) (v : Fin 2 → ℝ) :
     v ⬝ᵥ (rhoHessian ρ (gaussianQuadrant ρ) α β *ᵥ v) ≤ 0 := by
-  have h := (negSemidef_rhoHessian_gaussianQuadrant hρ0 hρ1 hα hβ).dotProduct_mulVec_nonneg v
-  rw [star_trivial, Matrix.neg_mulVec, dotProduct_neg, neg_nonneg] at h
-  exact h
+  simpa only [star_trivial, Matrix.neg_mulVec, dotProduct_neg, neg_nonneg] using
+    (negSemidef_rhoHessian_gaussianQuadrant hρ0 hρ1 hα hβ).dotProduct_mulVec_nonneg v
 
 end ProbabilityTheory

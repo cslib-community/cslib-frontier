@@ -102,14 +102,10 @@ theorem minimal_period_circuit (c : Circuit signature n n) (L : ℕ)
     · have htrue := (hc x).mpr hy
       simp only [htrue, ite_true]
       have hperiod := cycleLength_eq_minimalPeriod_of_mem_periodicPts f hy
-      have hbound : cycleLength f x < 2 ^ (n + 1) := by
-        have hle := cycleLength_le_two_pow f x
-        have hpow : 2 ^ (n + 1) = 2 * 2 ^ n := by rw [pow_succ']
-        omega
-      have hbound3 : cycleLength f x < 2 ^ (n + 3) := by
-        have hle := cycleLength_le_two_pow f x
-        have hpow : 2 ^ (n + 3) = 8 * 2 ^ n := by rw [pow_add]; ring
-        omega
+      have hbound : cycleLength f x < 2 ^ (n + 1) :=
+        (cycleLength_le_two_pow f x).trans_lt (Nat.pow_lt_pow_right Nat.one_lt_two n.lt_succ_self)
+      have hbound3 : cycleLength f x < 2 ^ (n + 3) :=
+        hbound.trans_le (Nat.pow_le_pow_right two_pos (by omega))
       dsimp only [ell]
       simp only [hl x, canonicalLabel, labelLength_labelBits, BitVec.toNat_setWidth,
         BitVec.toNat_ofNat]
@@ -152,13 +148,7 @@ theorem visitScheduleCount_spec (v : BitString (visitScheduleWidth n)) (T : ℕ)
   split_ifs with hflag
   · simp only [hflag, true_and]
     exact arithmeticProgressionCount_spec _ _ _
-  · have he : {t : ℕ | t ≤ T ∧
-          v (Fin.castAdd (n + 1) (0 : Fin (1 + (n + 1)))) = true ∧
-          ∃ k, t = (visitScheduleFirst v).toNat + k * (visitSchedulePeriod v).toNat} = ∅ := by
-      ext t
-      simp only [Set.mem_ofPred_eq, hflag, Bool.false_eq_true, false_and, and_false,
-        Set.mem_empty_iff_false]
-    rw [he, Set.ncard_empty]
+  · simp only [hflag, Bool.false_eq_true, false_and, and_false, Set.ofPred_false, Set.ncard_empty]
 
 /-- **Visit-schedule circuit at spacing `L`.** The returned record describes every visit time, with
 period zero encoding a singleton visit to a transient target. -/
@@ -202,7 +192,7 @@ theorem visit_schedule_circuit (c : Circuit signature n n) (L : ℕ)
     lia
 
 /-- **Square-root visit-schedule circuit.** Optimizing `L` gives a circuit of size at most
-`15000000 * optimizedBudget n c.size (2 ^ n)` whose output record characterizes all visit times and
+`10000000 * optimizedBudget n c.size (2 ^ n)` whose output record characterizes all visit times and
 determines the exact visit count up to any deadline `T`. -/
 theorem visit_schedule_optimized (c : Circuit signature n n) :
     ∃ out : Circuit signature (n + n) (visitScheduleWidth n),
@@ -211,14 +201,12 @@ theorem visit_schedule_optimized (c : Circuit signature n n) :
       (∀ z T, Set.ncard {t : ℕ | t ≤ T ∧
         (c.eval interpretation)^[t] (inputLeft z) = inputRight z} =
           visitScheduleCount (out.eval interpretation z) T) ∧
-      (out.size : ℝ) ≤ 15000000 * optimizedBudget n c.size (2 ^ n) := by
+      (out.size : ℝ) ≤ 10000000 * optimizedBudget n c.size (2 ^ n) := by
   obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, ho, hs⟩ := visit_schedule_circuit c L hL hLN
   refine ⟨out, ho, fun z T => ?_, ?_⟩
   · rw [← visitScheduleCount_spec]
-    congr 1
-    ext t
-    exact and_congr_right (fun _ => ho z t)
+    exact congrArg Set.ncard (Set.ext fun t => and_congr_right fun _ => ho z t)
   · have hs' : (out.size : ℝ) ≤
       5000000 * (powerBudget n c.size (2 ^ n) L : ℝ) := by exact_mod_cast hs
     linarith

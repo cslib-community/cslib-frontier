@@ -210,14 +210,11 @@ theorem computableInPolyTime_generator :
 theorem computableInPolyTime_add :
     ComputableInPolyTime add (encPair encDesc (encPair encBits encBits)) encBits := by
   change ComputableInPolyTime (fun p => add p) _ _
-  have hp := ComputableInPolyTime.id'
-    (encIn := encPair encDesc (encPair encBits encBits))
-  have hd := computableInPolyTime_val.comp hp.fst'
-  have hx := ComputableInPolyTime.bitsToNat.comp hp.snd'.fst'
-  have hy := ComputableInPolyTime.bitsToNat.comp hp.snd'.snd'
+  have := computableInPolyTime_val
   simpa only [add, Desc.modulus, rawModulus, encNat_apply, Function.comp_def] using
-    (ComputableInPolyTime.binary_mod'
-      (ComputableInPolyTime.binary_mul' hx hy) hd.fst').encoding_comp
+    (ComputableInPolyTime.binary_mod' (input := encPair encDesc (encPair encBits encBits))
+      (left := fun p => ofBits p.2.1 * ofBits p.2.2) (right := fun p => p.1.1.1)
+      (by fun_prop) (by fun_prop)).encoding_comp
 
 /-- Exponentiation modulo `p` is computable in polynomial time, by square-and-multiply. -/
 theorem computableInPolyTime_smul :

@@ -391,8 +391,8 @@ scoped macro_rules
         Cslib.WordRAM.Cond.holds_eq, Cslib.WordRAM.Cond.holds_lt,
         Cslib.WordRAM.Data.set_regs, Cslib.WordRAM.Data.set_mem,
         Cslib.WordRAM.Data.write_regs, Cslib.WordRAM.Data.write_mem, Function.update_self,
-        Function.update_apply, bind, Option.map_some, Option.bind_some, Option.map_none,
-        Option.bind_none])
+        Function.update_apply, Fin.mk.injEq, bind, Option.map_some, Option.bind_some,
+        Option.map_none, Option.bind_none])
 
 ram_eval_simp_set_for ram_eval_simps
   [Cslib.WordRAM.Op.eval_bin, Cslib.WordRAM.Op.eval_width,

@@ -77,8 +77,7 @@ theorem toOuterMeasure_bad_le_two_budgets {ι σ β : Type} {spec : ι → Type}
             add_le_add (add_le_add hb le_rfl) le_rfl
         _ = b s + ((k₁ + cost₁ q : ℕ) : ℝ≥0∞) * δ +
               (((k₂ - cost₂ q) + cost₂ q : ℕ) : ℝ≥0∞) * δ' := by
-            simp only [Nat.cast_add]
-            ring
+            simp only [Nat.cast_add]; ring
         _ = b s + ((k₁ + cost₁ q : ℕ) : ℝ≥0∞) * δ + (k₂ : ℝ≥0∞) * δ' := by
             rw [Nat.sub_add_cancel hle₂]
     simp only [run_interpret_bind, run_interpret_query, Probability.PMF.monad_bind_eq_bind]
@@ -93,27 +92,20 @@ theorem toOuterMeasure_bad_le_two_budgets {ι σ β : Type} {spec : ι → Type}
               (mul_le_mul_of_nonneg_left
                 (hbudget budget₂ δ₂₁ δ₂₂ y.2 (hgrow₂ q s hs y hmem hy)) zero_le)
       _ ≤ ((cost₁ q : ℝ≥0∞) * B₁ + (cost₂ q : ℝ≥0∞) * B₂) + K := by
-          refine add_le_add ((hstep q s hs).trans ?_) le_rfl
-          refine add_le_add ?_ ?_
+          refine add_le_add ((hstep q s hs).trans (add_le_add ?_ ?_)) le_rfl
           · gcongr
-            simp only [B₁]
             exact le_self_add.trans le_self_add
           · gcongr
-            simp only [B₂]
             exact le_self_add.trans le_self_add
       _ = ((k₁ + cost₁ q : ℕ) : ℝ≥0∞) * B₁ + (k₂ : ℝ≥0∞) * B₂ := by
           simp only [K]
-          have hsub :
-              (cost₂ q : ℝ≥0∞) * B₂ + ((k₂ - cost₂ q : ℕ) : ℝ≥0∞) * B₂ = (k₂ : ℝ≥0∞) * B₂ := by
-            rw [← add_mul, ← Nat.cast_add, Nat.add_sub_cancel' hle₂]
-          have hadd :
-              (cost₁ q : ℝ≥0∞) * B₁ + (k₁ : ℝ≥0∞) * B₁ = ((k₁ + cost₁ q : ℕ) : ℝ≥0∞) * B₁ := by
-            rw [← add_mul, add_comm (cost₁ q : ℝ≥0∞), ← Nat.cast_add]
-          rw [show (cost₁ q : ℝ≥0∞) * B₁ + (cost₂ q : ℝ≥0∞) * B₂ +
+          have hring : (cost₁ q : ℝ≥0∞) * B₁ + (cost₂ q : ℝ≥0∞) * B₂ +
                 ((k₁ : ℝ≥0∞) * B₁ + ((k₂ - cost₂ q : ℕ) : ℝ≥0∞) * B₂) =
               ((cost₁ q : ℝ≥0∞) * B₁ + (k₁ : ℝ≥0∞) * B₁) +
-                ((cost₂ q : ℝ≥0∞) * B₂ + ((k₂ - cost₂ q : ℕ) : ℝ≥0∞) * B₂) by ring,
-            hadd, hsub]
+                ((cost₂ q : ℝ≥0∞) * B₂ + ((k₂ - cost₂ q : ℕ) : ℝ≥0∞) * B₂) := by
+            ring
+          rw [hring, ← add_mul, add_comm (cost₁ q : ℝ≥0∞), ← Nat.cast_add, ← add_mul,
+            ← Nat.cast_add, Nat.add_sub_cancel' hle₂]
 
 /-- **Two-channel accumulated bad-state probability**: let each call `q` from a good state `¬bad s`
 turn bad with probability at most `cost₁ q * budget s + cost₂ q * ε`, and raise `budget` by at most

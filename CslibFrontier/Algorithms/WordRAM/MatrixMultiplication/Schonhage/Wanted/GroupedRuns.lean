@@ -71,21 +71,15 @@ theorem runs_grouped {W L m N : ℕ} (hm : m ≤ L) (qs : List (Fin N × Fin N))
   obtain ⟨hi, y, n, hn, hr, he, hb, hv, ho, ht, hf⟩ := runs_wide hm qs hW
   obtain ⟨hperm, hinj, hcover⟩ := originals_permutation qs y.mem (fun i => (hv i).2)
   refine ⟨hi, y, n, (Nat.succ_le_succ hn).trans (timeBound_add_one_le L m N qs.length),
-    hr, he, hb, hv, ?_, ?_, ?_, hperm, hinj, hcover, ht, hf⟩
-  · intro T hT
-    exact code_span_eq_wantedStrings hm qs y.mem T hT (fun i => (hv i).1) ho
-  · intro j hj
-    obtain ⟨i, hi⟩ :=
+    hr, he, hb, hv,
+    fun T hT => code_span_eq_wantedStrings hm qs y.mem T hT (fun i => (hv i).1) ho,
+    fun j hj => ?_, fun t ht => ?_, hperm, hinj, hcover, ht, hf⟩
+  · obtain ⟨i, hi⟩ :=
       (CountingSort.position_bijective (tileKey L m N ∘ inputPairs qs) qs.length).surjective
         ⟨j, hj⟩
-    have hp := congrArg (fun k : Fin qs.length => k.val) hi
-    change CountingSort.position (tileKey L m N ∘ inputPairs qs) qs.length i.val = j at hp
-    have hvj := (hv i).1
-    rw [hp] at hvj
-    rw [hvj]
+    rw [← Fin.mk.inj hi, (hv i).1]
     exact (PrunedQuery.queryIndex _).isLt
-  · intro t ht
-    rw [ho t ht.le, ho (t + 1) (Nat.succ_le_of_lt ht)]
+  · rw [ho t ht.le, ho (t + 1) (Nat.succ_le_of_lt ht)]
     exact ⟨Nat.count_mono_left (fun _ _ hk => Nat.lt_succ_of_lt hk), Nat.count_le _⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted

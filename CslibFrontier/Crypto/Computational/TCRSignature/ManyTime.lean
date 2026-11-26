@@ -24,6 +24,7 @@ import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Computability.Probabilistic.UniformNat
 import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Languages.Probabilistic.Iteration.Add
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Probability.PMF
@@ -831,15 +832,13 @@ private theorem iterate_finiteStep_pairSigningOracle {k : ℕ} {Control : Type}
     cases hs : acc.1.tapes.state with
     | none =>
       simp only [finiteStep, queryOf, hs, OracleComp.interpret_pure, StateT.run_pure,
-        Probability.PMF.monad_pure_eq_pure, ProbComp.eval_bind, ProbComp.eval_pure,
-        ProbComp.eval_uniform, BitString.eval_sampleList, PMF.map_bind, PMF.pure_map,
-        List.foldl_append, List.foldl_cons, List.foldl_nil, haccEq]
+        ProbComp.eval_uniform, BitString.eval_sampleList, List.foldl_append, List.foldl_cons,
+        List.foldl_nil, haccEq, pmf_norm]
       simp only [replayPairStep, hs, PMF.bind_const]
     | some state =>
-      simp only [finiteStep, queryOf, hs, bind_map_left, OracleComp.interpret_bind,
-        StateT.run_bind, ProbOracleComp.run_interpret_sample, ProbComp.eval_bind,
-        ProbComp.eval_uniform, BitString.eval_sampleList, Probability.PMF.monad_bind_eq_bind,
-        PMF.bind_map, PMF.map_bind, Function.comp_def]
+      simp only [finiteStep, queryOf, hs, bind_map_left, OracleComp.interpret_bind, StateT.run_bind,
+        ProbOracleComp.run_interpret_sample, ProbComp.eval_uniform, BitString.eval_sampleList,
+        pmf_norm]
       congr 1; funext bit
       cases htr : machine.tr state acc.1.tapes.inputSymbol acc.1.tapes.workTapeSymbols
           acc.1.answerSymbols bit with
@@ -851,19 +850,9 @@ private theorem iterate_finiteStep_pairSigningOracle {k : ℕ} {Control : Type}
       | query ch next =>
         cases ch
         simp only [OracleComp.interpret_bind, OracleComp.interpret_pure, StateT.run_bind,
-          StateT.run_pure, ProbOracleComp.interpret_query, Probability.PMF.monad_bind_eq_bind,
-          Probability.PMF.monad_pure_eq_pure, ProbComp.eval_bind, ProbComp.eval_pure,
-          PMF.map_bind, PMF.pure_map, List.foldl_append, List.foldl_cons, List.foldl_nil, haccEq]
-        simp only [StateT.run, pairSigningOracle, replayPairStep, hs, htr,
-          PMF.monad_bind_eq_bind, _root_.PMF.map, Function.comp_def, PMF.bind_bind, PMF.pure_bind]
-
-private theorem iterate_add_prob {State : Type} (a b : ℕ) (step : State → ProbComp State)
-    (initial : State) :
-    OracleComp.iterate (a + b) step initial =
-      OracleComp.iterate a step initial >>= OracleComp.iterate b step := by
-  induction b with
-  | zero => simp [OracleComp.iterate]
-  | succ b ih => rw [Nat.add_succ, OracleComp.iterate_succ, ih, bind_assoc]; rfl
+          StateT.run_pure, ProbOracleComp.interpret_query, List.foldl_append, List.foldl_cons,
+          List.foldl_nil, haccEq, pmf_norm]
+        simp only [StateT.run, pairSigningOracle, replayPairStep, hs, htr, _root_.PMF.map, pmf_norm]
 
 private theorem mem_support_iterate_sampleStep_props {k : ℕ} {Control : Type}
     (S : SignatureScheme) (H : KeyedHashFamily)
@@ -1045,7 +1034,7 @@ private theorem succProbability_winTcrAt_le_trial {k : ℕ} {Control : Type}
                 fun midTrace =>
                   ProbComp.eval (OracleComp.iterate (B - 1 - slot) stepFn midTrace) := by
       conv_lhs => rw [show B = slot + 1 + (B - 1 - slot) by omega,
-        iterate_add_prob, OracleComp.iterate_succ]
+        OracleComp.iterate_add, OracleComp.iterate_succ]
       simp only [ProbComp.eval_bind, PMF.bind_bind]
       congr 1; funext preTrace
       simp only [stepFn, sampleStep, ProbComp.eval_bind, ProbComp.eval_uniform,

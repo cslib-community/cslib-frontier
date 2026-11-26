@@ -126,8 +126,7 @@ theorem eval_literalsRailCircuit (x : BitString n) :
 /-- `literalsRailCircuit n` uses `0` conjunction gates. -/
 @[simp] theorem cost_literalsRailCircuit :
     (literalsRailCircuit n).program.cost andCost = 0 := by
-  simp only [circuit_simps, literalsRailCircuit, Formula.cost_toCircuit]
-  simp [const]
+  simp only [circuit_simps, literalsRailCircuit, const, andCost, add_zero]
 
 end Cslib.Circuits.Monotone
 
@@ -185,16 +184,13 @@ theorem pairCoverComplexity_le_binaryCost {f : BooleanFunction n}
     (admissible : Semifilter ↥({x | f x = true}ᶜ) → Prop := fun _ => True) :
     pairCoverComplexity {x | f x = true} (fun i => {x | AltFormula.literals x i = true})
       admissible ≤ (c.program.cost Boolean.binaryCost : ℕ) := by
-  let d := (Monotone.dualRail c).comp (Monotone.literalsRailCircuit n)
-  have hd : d.ComputesFrom Monotone.interpretation (fun x (_ : Fin 1) => f x)
-      AltFormula.literals := fun x => by
-    funext o
-    rw [Circuit.eval_comp, Monotone.eval_literalsRailCircuit, Monotone.eval_dualRail, hc x,
-      single_apply]
   refine (pairCoverComplexity_le_ecomplexityFrom_bool AltFormula.literals
     (fun x (_ : Fin 1) => f x) 0 admissible).trans
-    ((ecomplexityFrom_le_of_computesFrom d hd).trans ?_)
-  simp only [d, Circuit.cost_program_comp, Monotone.cost_literalsRailCircuit, zero_add,
+    ((ecomplexityFrom_le_of_computesFrom
+      ((Monotone.dualRail c).comp (Monotone.literalsRailCircuit n)) fun x => funext fun _ => by
+        rw [Circuit.eval_comp, Monotone.eval_literalsRailCircuit, Monotone.eval_dualRail,
+          hc x, single_apply]).trans ?_)
+  simp only [Circuit.cost_program_comp, Monotone.cost_literalsRailCircuit, zero_add,
     Monotone.cost_dualRail, le_refl]
 
 open Boolean in
@@ -247,16 +243,12 @@ theorem pairCoverComplexity_complexity_bounds (f : BooleanFunction n) :
       t ≤ complexity Boolean.interpretation (single f) ∧
       complexity Boolean.interpretation (single f) ≤ 4 * (t + 1) ^ 2 * (2 * n + t + 1) + n := by
   have hlow := pairCoverComplexity_le_complexity f
-  have htop : pairCoverComplexity {x | f x = true}
-      (fun i => {x | AltFormula.literals x i = true}) ≠ ⊤ :=
-    ne_top_of_le_ne_top (ENat.natCast_ne_top _) hlow
   have : Nonempty (PairCover {x | f x = true} (fun i => {x | AltFormula.literals x i = true})) :=
-    ENat.iInf_natCast_ne_top.mp htop
+    ENat.iInf_natCast_ne_top.mp (ne_top_of_le_ne_top (ENat.natCast_ne_top _) hlow)
   obtain ⟨p, hp⟩ := ENat.exists_eq_iInf (fun c : PairCover {x | f x = true}
     (fun i => {x | AltFormula.literals x i = true}) => (c.pairs.length : ℕ∞))
-  refine ⟨p.pairs.length, hp.symm, ?_, ?_⟩
-  · exact_mod_cast hp.trans_le hlow
-  · obtain ⟨d, hd, hdsize⟩ := p.exists_computes_size_le
-    exact (complexity_le_of_computes d hd).trans hdsize
+  obtain ⟨d, hd, hdsize⟩ := p.exists_computes_size_le
+  exact ⟨p.pairs.length, hp.symm, by exact_mod_cast hp.trans_le hlow,
+    (complexity_le_of_computes d hd).trans hdsize⟩
 
 end Cslib.Circuits.Fusion

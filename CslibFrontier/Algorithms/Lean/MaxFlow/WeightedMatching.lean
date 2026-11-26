@@ -153,15 +153,13 @@ variable [Fintype L] [Fintype R]
 theorem IsPerfectMatching.potential_le_cost [AddCommMonoid α] [PartialOrder α]
     [IsOrderedAddMonoid α] (hM : IsPerfectMatching G M) (hf : IsFeasiblePotential G c y z) :
     ∑ u, y u + ∑ v, z v ≤ matchingCost c M := by
-  have h := hM.1.sum_matched_potential_le_cost hf
-  rwa [hM.2.1, hM.2.2] at h
+  simpa only [hM.2.1, hM.2.2] using hM.1.sum_matched_potential_le_cost hf
 
 /-- **Complementary slackness** for perfect matchings. -/
 theorem IsPerfectMatching.potential_eq_cost_iff [AddCommMonoid α] [PartialOrder α]
     [IsOrderedCancelAddMonoid α] (hM : IsPerfectMatching G M) (hf : IsFeasiblePotential G c y z) :
     ∑ u, y u + ∑ v, z v = matchingCost c M ↔ ∀ e ∈ M, y e.1 + z e.2 = c e := by
-  have h := hM.1.sum_matched_potential_eq_cost_iff hf
-  rwa [hM.2.1, hM.2.2] at h
+  simpa only [hM.2.1, hM.2.2] using hM.1.sum_matched_potential_eq_cost_iff hf
 
 /-- A perfect matching all of whose edges are tight for feasible potentials has minimum cost, and
 its cost equals the total potential. -/
@@ -184,12 +182,7 @@ variable {V α : Type*} [DecidableEq V] [Fintype V]
 
 theorem mem_permMatching {σ : Equiv.Perm V} {e : V × V} : e ∈ permMatching σ ↔ σ e.1 = e.2 := by
   obtain ⟨u, v⟩ := e
-  simp only [permMatching, mem_image, mem_univ, true_and, Prod.mk.injEq]
-  constructor
-  · rintro ⟨a, rfl, rfl⟩
-    rfl
-  · rintro h
-    exact ⟨u, rfl, h⟩
+  simp [permMatching]
 
 theorem isPerfectMatching_permMatching (σ : Equiv.Perm V) :
     IsPerfectMatching (fun _ => true) (permMatching σ) := by
@@ -202,9 +195,7 @@ theorem isPerfectMatching_permMatching (σ : Equiv.Perm V) :
 
 theorem matchingCost_permMatching [AddCommMonoid α] (c : V × V → α) (σ : Equiv.Perm V) :
     matchingCost c (permMatching σ) = ∑ u, c (u, σ u) := by
-  rw [matchingCost, permMatching, sum_image]
-  intro a _ b _ h
-  exact (Prod.mk.inj h).1
+  rw [matchingCost, permMatching, sum_image fun _ _ _ _ h => (Prod.mk.inj h).1]
 
 /-- Every perfect matching of `V × V` is the matching of a permutation. -/
 theorem exists_eq_permMatching {G : V × V → Bool} {M : Finset (V × V)}
@@ -214,15 +205,10 @@ theorem exists_eq_permMatching {G : V × V → Bool} {M : Finset (V × V)}
   have hinj : Function.Injective f := fun a b h =>
     hM.1.2.2 a b (f a) (hf a) (h ▸ hf b)
   let σ : Equiv.Perm V := Equiv.ofBijective f (Finite.injective_iff_bijective.mp hinj)
-  refine ⟨σ, ext fun e => ?_⟩
-  obtain ⟨u, v⟩ := e
+  refine ⟨σ, ext fun ⟨u, v⟩ => ?_⟩
   rw [mem_permMatching]
-  change (u, v) ∈ M ↔ f u = v
-  constructor
-  · intro h
-    exact hM.1.2.1 u (f u) v (hf u) h
-  · rintro rfl
-    exact hf u
+  dsimp only [σ, Equiv.ofBijective_apply]
+  exact ⟨fun h => hM.1.2.1 u (f u) v (hf u) h, fun h => h ▸ hf u⟩
 
 end Permutation
 

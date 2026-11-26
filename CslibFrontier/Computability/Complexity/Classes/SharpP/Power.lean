@@ -58,10 +58,7 @@ theorem polyTime_powerVerifier {r k : α → ℕ} {V : α × List Bool → Bool}
 /-- The number of accepted row tuples is the power of the number of accepted rows. -/
 theorem acceptCount_powerVerifier (r k : α → ℕ) (V : α × List Bool → Bool) (a : α) :
     acceptCount (powerVerifier r k V) a (r a * k a) = acceptCount V a (k a) ^ r a := by
-  rw [show acceptCount V a (k a) ^ r a =
-    ∏ _ : Fin (r a), acceptCount V a (k a) by simp]
-  simp only [acceptCount]
-  rw [← Fintype.card_piFinset]
+  simp only [← Fin.prod_const, acceptCount, ← Fintype.card_piFinset]
   exact card_equiv BitString.blocksEquiv fun x => by
     simp [powerVerifier, BitString.listRows_eq_ofFn, Fintype.mem_piFinset]
 
@@ -70,12 +67,8 @@ theorem pow_mem_polyTime {f : α → ℕ} {r : α → ℕ} (hf : f ∈ SharpP en
     (hr : ComputableInPolyTime r enc encUnary) :
     (fun a => f a ^ r a) ∈ SharpP enc := by
   obtain ⟨p, V, hV, hf⟩ := mem_SharpP.mp hf
-  let k : α → ℕ := fun a => p.eval (enc a).length
-  have hk : ComputableInPolyTime k enc encUnary := by dsimp [k]; fun_prop
-  convert mem_SharpP_of_polyTime_length (polyTime_powerVerifier hr hk hV)
-    ((ComputableInPolyTime.unary_mul.comp (hr.prod hk))) using 1
-  ext a
-  change f a ^ r a = acceptCount (powerVerifier r k V) a (r a * k a)
-  rw [acceptCount_powerVerifier, hf]
+  have hk : ComputableInPolyTime (fun a => p.eval (enc a).length) enc encUnary := by fun_prop
+  simpa only [acceptCount_powerVerifier, ← hf] using
+    mem_SharpP_of_polyTime_length (polyTime_powerVerifier hr hk hV) (hr.unary_mul' hk)
 
 end Cslib.Complexity.SharpP

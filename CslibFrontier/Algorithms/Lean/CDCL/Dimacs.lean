@@ -39,6 +39,12 @@ variable `10⁶` gets one literal, not one for each smaller name.
   formula.
 * `Cslib.Algorithms.Lean.CDCL.checkLRAT_of_answerFor_cert`: the certificate given is accepted by
   the LRAT checker (`Cslib.Logic.PL.CNF.checkLRAT`).
+* `Cslib.Algorithms.Lean.CDCL.answerDIMACS_toDIMACS`: on the text `φ.toDIMACS` that
+  `Cslib.Logic.PL.CNF.toDIMACS` prints, the answer is that for `φ`, so
+  `Cslib.Algorithms.Lean.CDCL.satisfiable_of_answerDIMACS_toDIMACS` and
+  `Cslib.Algorithms.Lean.CDCL.checkLRAT_of_answerDIMACS_toDIMACS` conclude about `φ` itself. For a
+  formula built in Lean and printed, the DIMACS parser is then outside the trusted base; for a file
+  from elsewhere, the parser is still trusted to read it as intended.
 
 The text itself (`modelLines` and the `s` lines) is output formatting, with no theorem about it.
 -/
@@ -75,9 +81,7 @@ private theorem pairwise_eraseRepsLoop {a : ℕ} {as acc : List ℕ}
     (hacc : (a :: acc).Pairwise (· > ·)) (has : (a :: as).Pairwise (· ≤ ·)) :
     (List.eraseRepsBy.loop (· == ·) a as acc).Pairwise (· < ·) := by
   induction as generalizing a acc with
-  | nil =>
-    rw [List.eraseRepsBy.loop, List.pairwise_reverse]
-    exact hacc
+  | nil => rwa [List.eraseRepsBy.loop, List.pairwise_reverse]
   | cons a' as ih =>
     unfold List.eraseRepsBy.loop
     obtain ⟨hle, has'⟩ := List.pairwise_cons.1 has
@@ -91,15 +95,13 @@ private theorem pairwise_eraseRepsLoop {a : ℕ} {as acc : List ℕ}
       refine ih (List.pairwise_cons.2 ⟨fun b hb => ?_, hacc⟩) has'
       rcases List.mem_cons.1 hb with rfl | hb
       · exact hlt
-      · exact lt_trans ((List.pairwise_cons.1 hacc).1 b hb) hlt
+      · exact ((List.pairwise_cons.1 hacc).1 b hb).trans hlt
 
 /-- Erasing repeats keeps the elements. -/
 private theorem mem_eraseReps {x : ℕ} {l : List ℕ} : x ∈ l.eraseReps ↔ x ∈ l := by
   cases l with
   | nil => rfl
-  | cons a as =>
-    rw [List.eraseReps, List.eraseRepsBy, mem_eraseRepsLoop, List.mem_cons]
-    simp only [List.not_mem_nil, false_or]
+  | cons a as => simp [List.eraseReps, List.eraseRepsBy, mem_eraseRepsLoop]
 
 /-- Erasing repeats from a sorted list leaves an increasing one. -/
 private theorem pairwise_eraseReps {l : List ℕ} (h : l.Pairwise (· ≤ ·)) :
@@ -159,8 +161,7 @@ theorem satisfiable_of_answerFor_code {o : Options} {φ : CNF ℕ} (h : (answerF
     φ.Satisfiable := by
   unfold answerFor at h
   split at h
-  · rename_i σ st hs
-    exact ⟨σ, solveCompactWith_sat (congrArg Prod.fst hs)⟩
+  · exact ⟨_, solveCompactWith_sat (congrArg Prod.fst ‹_›)⟩
   · simp at h
 
 /-- **The certificate given is accepted by the LRAT checker.** -/
@@ -170,13 +171,33 @@ theorem checkLRAT_of_answerFor_cert {o : Options} {φ : CNF ℕ}
   unfold answerFor at h
   split at h
   · cases h
-  · rename_i cert' st hs
-    cases h
-    exact solveCompactWith_unsat (congrArg Prod.fst hs)
+  · cases h
+    exact solveCompactWith_unsat (congrArg Prod.fst ‹_›)
 
 /-- **The answer for a DIMACS formula**, read by `Cslib.Logic.PL.CNF.ofDIMACS`; an error if the
 text is not a DIMACS formula. -/
 def answerDIMACS (o : Options) (text : String) : Except String DimacsAnswer :=
   return answerFor o (← CNF.ofDIMACS text)
+
+/-- **The answer for a printed formula is the answer for the formula**: reading
+`Cslib.Logic.PL.CNF.toDIMACS` gives the formula back (`Cslib.Logic.PL.CNF.ofDIMACS_toDIMACS`). -/
+theorem answerDIMACS_toDIMACS (o : Options) (φ : CNF ℕ) :
+    answerDIMACS o φ.toDIMACS = .ok (answerFor o φ) := by
+  simp [answerDIMACS, CNF.ofDIMACS_toDIMACS, bind, Except.bind, pure, Except.pure]
+
+/-- **Exit code `10` on the printed formula only for a satisfiable formula**, end to end: the
+hypothesis is about the text `φ.toDIMACS`, the conclusion about `φ`. -/
+theorem satisfiable_of_answerDIMACS_toDIMACS {o : Options} {φ : CNF ℕ} {a : DimacsAnswer}
+    (h : answerDIMACS o φ.toDIMACS = .ok a) (hc : a.code = 10) : φ.Satisfiable := by
+  rw [answerDIMACS_toDIMACS, Except.ok.injEq] at h
+  exact satisfiable_of_answerFor_code (h ▸ hc)
+
+/-- **A certificate given for the printed formula is accepted for the formula**, end to end, so
+the formula is unsatisfiable (`Cslib.Logic.PL.CNF.not_satisfiable_of_checkLRAT`). -/
+theorem checkLRAT_of_answerDIMACS_toDIMACS {o : Options} {φ : CNF ℕ} {a : DimacsAnswer}
+    {cert : Array Std.Tactic.BVDecide.LRAT.IntAction} (h : answerDIMACS o φ.toDIMACS = .ok a)
+    (hc : a.cert = some cert) : φ.checkLRAT cert = true := by
+  rw [answerDIMACS_toDIMACS, Except.ok.injEq] at h
+  exact checkLRAT_of_answerFor_cert (h ▸ hc)
 
 end Cslib.Algorithms.Lean.CDCL

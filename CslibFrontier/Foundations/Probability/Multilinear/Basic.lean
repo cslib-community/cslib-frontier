@@ -118,12 +118,9 @@ theorem multilinearEval_eq_add_mul (c : Finset ι → ℝ) (i : ι) (z : ι → 
       multilinearEval (multilinearExpectCoeff c i) z +
         z i * multilinearEval (multilinearDerivCoeff c i) z := by
   rw [multilinearEval, sum_eq_sum_ite_notMem_add i, multilinearEval, multilinearEval, mul_sum]
-  congr 1 <;> refine sum_congr rfl fun S _ => ?_ <;>
-    simp only [multilinearExpectCoeff, multilinearDerivCoeff] <;> split_ifs with h
-  · simp
-  · rfl
-  · simp
-  · rw [prod_insert h]; ring
+  congr 1 <;> refine sum_congr rfl fun S _ => ?_
+  · by_cases h : i ∈ S <;> simp [multilinearExpectCoeff, h]
+  · by_cases h : i ∈ S <;> simp [multilinearDerivCoeff, h, prod_insert, mul_left_comm]
 
 /-- A polynomial without monomials containing `i` does not depend on `z i`. -/
 theorem multilinearEval_update_of_forall_mem {c : Finset ι → ℝ} {i : ι}
@@ -131,10 +128,9 @@ theorem multilinearEval_update_of_forall_mem {c : Finset ι → ℝ} {i : ι}
     multilinearEval c (Function.update z i x) = multilinearEval c z := by
   refine sum_congr rfl fun S _ => ?_
   by_cases h : i ∈ S
-  · rw [hc S h, zero_mul, zero_mul]
-  · congr 1
-    refine prod_congr rfl fun j hj => ?_
-    rw [Function.update_of_ne (by rintro rfl; exact h hj)]
+  · simp [hc S h]
+  · exact congrArg (c S * ·) (prod_congr rfl fun j hj => by
+      rw [Function.update_of_ne (ne_of_mem_of_not_mem hj h)])
 
 /-- Setting coordinate `i` to `x`: `F(update z i x) = E_i F(z) + x · D_i F(z)`. -/
 theorem multilinearEval_update (c : Finset ι → ℝ) (i : ι) (z : ι → ℝ) (x : ℝ) :
@@ -169,33 +165,31 @@ theorem multilinearInfluence_nonneg (c : Finset ι → ℝ) (i : ι) : 0 ≤ mul
 theorem sum_multilinearInfluence (c : Finset ι → ℝ) :
     ∑ i, multilinearInfluence c i = ∑ S, (#S : ℝ) * c S ^ 2 := by
   simp only [multilinearInfluence, sum_filter]
-  rw [sum_comm]
-  refine sum_congr rfl fun S _ => ?_
-  rw [Fintype.sum_ite_mem, sum_const, nsmul_eq_mul]
+  exact sum_comm.trans <| sum_congr rfl fun _ _ => by
+    rw [Fintype.sum_ite_mem, sum_const, nsmul_eq_mul]
 
 omit [Fintype ι] in
 /-- If `F` has degree at most `k`, so does `E_i F`. -/
 theorem multilinearExpectCoeff_eq_zero_of_card_lt {c : Finset ι → ℝ} {k : ℕ}
     (hc : ∀ S, k < #S → c S = 0) (i : ι) (S : Finset ι) (hS : k < #S) :
     multilinearExpectCoeff c i S = 0 := by
-  unfold multilinearExpectCoeff; split_ifs; exacts [rfl, hc S hS]
+  simp [multilinearExpectCoeff, hc S hS]
 
 omit [Fintype ι] in
 /-- If `F` has degree at most `k + 1`, then `D_i F` has degree at most `k`. -/
 theorem multilinearDerivCoeff_eq_zero_of_card_lt {c : Finset ι → ℝ} {k : ℕ}
     (hc : ∀ S, k + 1 < #S → c S = 0) (i : ι) (S : Finset ι) (hS : k < #S) :
     multilinearDerivCoeff c i S = 0 := by
-  unfold multilinearDerivCoeff; split_ifs with h
+  rw [multilinearDerivCoeff]
+  split_ifs with h
   · rfl
   · exact hc _ (by rw [card_insert_of_notMem h]; omega)
 
 omit [Fintype ι] in
 /-- If `F` is constant, then `D_i F = 0`. -/
 theorem multilinearDerivCoeff_eq_zero_of_degree_zero {c : Finset ι → ℝ}
-    (hc : ∀ S, 0 < #S → c S = 0) (i : ι) : multilinearDerivCoeff c i = 0 := funext fun S => by
-  unfold multilinearDerivCoeff; split_ifs
-  · rfl
-  · exact hc _ (card_pos.2 (insert_nonempty i S))
+    (hc : ∀ S, 0 < #S → c S = 0) (i : ι) : multilinearDerivCoeff c i = 0 :=
+  funext fun S => by simp [multilinearDerivCoeff, hc _ (card_pos.2 (insert_nonempty i S))]
 
 omit [DecidableEq ι] in
 @[simp] theorem multilinearEval_zero (z : ι → ℝ) : multilinearEval (0 : Finset ι → ℝ) z = 0 := by
@@ -214,12 +208,10 @@ theorem memLp_multilinearEval (μ : ι → Measure ℝ) [∀ i, IsProbabilityMea
     (hp : p ≠ 0) (hμ : ∀ i, MemLp id p (μ i)) (c : Finset ι → ℝ) :
     MemLp (multilinearEval c) p (Measure.pi μ) := by
   refine memLp_finsetSum (μ := Measure.pi μ) (p := p)
-    (f := fun S z => c S * ∏ i ∈ S, z i) _ fun S _ => ?_
-  refine MemLp.const_mul ?_ (c S)
-  refine (integrable_norm_rpow_iff (by fun_prop) (by exact_mod_cast hp) (by simp)).1 ?_
-  have h := Integrable.finset_prod_pi (μ := μ) S (f := fun _ t => |t| ^ p)
-    fun i _ => by simpa using (hμ i).integrable_norm_pow hp
-  refine h.congr (ae_of_all _ fun x => ?_)
+    (f := fun S z => c S * ∏ i ∈ S, z i) _ fun S _ => MemLp.const_mul ?_ (c S)
+  refine (integrable_norm_rpow_iff (by fun_prop) (by exact_mod_cast hp) (by simp)).1 <|
+    (Integrable.finset_prod_pi (μ := μ) S (f := fun _ t => |t| ^ p)
+      fun i _ => by simpa using (hμ i).integrable_norm_pow hp).congr (ae_of_all _ fun _ => ?_)
   simp only [Real.norm_eq_abs, abs_prod, ENNReal.toReal_natCast, Real.rpow_natCast, prod_pow]
 
 omit [DecidableEq ι] in
@@ -229,9 +221,8 @@ theorem integrable_abs_multilinearEval_pow (μ : ι → Measure ℝ) [∀ i, IsP
     Integrable (fun z => |multilinearEval c z| ^ j) (Measure.pi μ) := by
   rcases Nat.eq_zero_or_pos j with rfl | hj0
   · simp
-  have h := ((memLp_multilinearEval μ (p := 4) (by norm_num) (by exact_mod_cast hμ) c).mono_exponent
-    (p := (j : ℝ≥0∞)) (by exact_mod_cast hj)).integrable_norm_pow hj0.ne'
-  simpa using h
+  simpa using ((memLp_multilinearEval μ (p := 4) (by norm_num) (by exact_mod_cast hμ)
+    c).mono_exponent (p := (j : ℝ≥0∞)) (by exact_mod_cast hj)).integrable_norm_pow hj0.ne'
 
 omit [DecidableEq ι] in
 /-- If every variable is in `L⁴`, then `F(z) ^ j` is integrable for `j ≤ 4`. -/
@@ -257,7 +248,7 @@ omit [Fintype ι] in
 theorem multilinearExpectCoeff_eq_zero_of_not_subset {c : Finset ι → ℝ} {i : ι} {T : Finset ι}
     (hc : ∀ S, ¬ S ⊆ insert i T → c S = 0) (S : Finset ι) (hS : ¬ S ⊆ T) :
     multilinearExpectCoeff c i S = 0 := by
-  unfold multilinearExpectCoeff
+  rw [multilinearExpectCoeff]
   split_ifs with h
   · rfl
   · exact hc S (by rwa [subset_insert_iff_of_notMem h])
@@ -267,7 +258,7 @@ omit [Fintype ι] in
 theorem multilinearDerivCoeff_eq_zero_of_not_subset {c : Finset ι → ℝ} {i : ι} {T : Finset ι}
     (hc : ∀ S, ¬ S ⊆ insert i T → c S = 0) (S : Finset ι) (hS : ¬ S ⊆ T) :
     multilinearDerivCoeff c i S = 0 := by
-  unfold multilinearDerivCoeff
+  rw [multilinearDerivCoeff]
   split_ifs with h
   · rfl
   · exact hc _ (by rwa [insert_subset_insert_iff h])
@@ -282,15 +273,14 @@ variable {m : Measure ℝ} [IsProbabilityMeasure m]
 private theorem integral_add_mul_pow {n : ℕ} (hm : MemLp id n m) (e d : ℝ) :
     ∫ z, (e + z * d) ^ n ∂m =
       ∑ j ∈ range (n + 1), (n.choose j : ℝ) * e ^ (n - j) * d ^ j * ∫ z, z ^ j ∂m := by
-  have hint (j : ℕ) (hj : j ∈ range (n + 1)) :
-      Integrable (fun z => (z * d) ^ j * e ^ (n - j) * (n.choose j : ℝ)) m := by
-    refine ((integrable_pow_of_memLp hm (j := j) (Nat.lt_succ_iff.1 (mem_range.1 hj))).mul_const
-      (d ^ j * e ^ (n - j) * (n.choose j : ℝ))).congr (ae_of_all _ fun z => ?_)
-    simp only [mul_pow]; ring
   simp_rw [add_comm e, add_pow]
-  rw [integral_finsetSum _ hint]
+  rw [integral_finsetSum _ fun j hj => ((integrable_pow_of_memLp hm
+    (Nat.lt_succ_iff.1 (mem_range.1 hj))).mul_const
+      (d ^ j * e ^ (n - j) * (n.choose j : ℝ))).congr
+    (ae_of_all _ fun _ => by simp only [mul_pow]; ring)]
   refine sum_congr rfl fun j _ => ?_
-  rw [← integral_const_mul]; congr 1 with z : 1; simp only [mul_pow]; ring
+  rw [← integral_const_mul]
+  exact integral_congr_ae (ae_of_all _ fun _ => by simp only [mul_pow]; ring)
 
 /-- `E[(e + z d)⁴] = e⁴ + 6 E[z²] e² d² + E[z⁴] d⁴` for `z` with `E[z] = E[z³] = 0`. -/
 theorem integral_add_mul_pow_four (hm : MemLp id 4 m) (h1 : ∫ z, z ∂m = 0)
@@ -300,8 +290,7 @@ theorem integral_add_mul_pow_four (hm : MemLp id 4 m) (h1 : ∫ z, z ∂m = 0)
   rw [integral_add_mul_pow (by exact_mod_cast hm) e d]
   simp only [sum_range_succ, sum_range_zero, pow_one, h1, h3, pow_zero, integral_const,
     probReal_univ, smul_eq_mul, Nat.choose]
-  push_cast
-  ring
+  push_cast; ring
 
 /-- `E[(e + z d)²] = e² + E[z²] d²` for `z` with mean `0`. -/
 theorem integral_add_mul_sq (hm : MemLp id 2 m) (h1 : ∫ z, z ∂m = 0) (e d : ℝ) :
@@ -309,8 +298,7 @@ theorem integral_add_mul_sq (hm : MemLp id 2 m) (h1 : ∫ z, z ∂m = 0) (e d : 
   rw [integral_add_mul_pow (by exact_mod_cast hm) e d]
   simp only [sum_range_succ, sum_range_zero, pow_one, h1, pow_zero, integral_const,
     probReal_univ, smul_eq_mul, Nat.choose]
-  push_cast
-  ring
+  push_cast; ring
 
 end Moments
 

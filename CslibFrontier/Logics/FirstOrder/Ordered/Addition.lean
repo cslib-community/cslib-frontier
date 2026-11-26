@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.FirstOrder.Ordered.Basic
 import CslibFrontier.Foundations.Data.BitString.Propagation
+import CslibFrontier.Tactic.FirstOrder.Simp
 import Mathlib.Data.Nat.Basic
 
 /-!
@@ -83,15 +84,9 @@ private theorem realize_carryFormula (x y i : (language L).Term α) (v : α → 
       ∃ j : Fin n, j < i.realize v ∧ (x.realize v).val.testBit j.val = true ∧
         (y.realize v).val.testBit j.val = true ∧ ∀ k : Fin n, j < k → k < i.realize v →
           (x.realize v).val.testBit k.val = true ∨ (y.realize v).val.testBit k.val = true := by
-  simp only [carryFormula, Formula.realize_iExs, Formula.realize_inf, Formula.realize_not,
-    realize_le, realize_bit, Term.realize_var, Term.realize_relabel, Function.comp_def,
-    Sum.elim_inl, Sum.elim_inr, Formula.realize_iAlls, Formula.realize_imp, Formula.realize_sup,
-    not_le, and_imp, and_assoc]
-  constructor
-  · rintro ⟨j, hj, hx, hy, h⟩
-    exact ⟨j (), hj, hx, hy, fun k => h (fun _ => k)⟩
-  · rintro ⟨j, hj, hx, hy, h⟩
-    exact ⟨fun _ => j, hj, hx, hy, fun k => h (k ())⟩
+  fo_simp [carryFormula, not_le, and_imp, and_assoc]
+  exact ⟨fun ⟨j, hj, hx, hy, h⟩ => ⟨j (), hj, hx, hy, fun k => h fun _ => k⟩,
+    fun ⟨j, hj, hx, hy, h⟩ => ⟨fun _ => j, hj, hx, hy, fun k => h (k ())⟩⟩
 
 private def word {n : ℕ} (a : Fin n) : BitVec n :=
   BitVec.ofNatLT a.val (lt_trans a.isLt Nat.lt_two_pow_self)
@@ -101,13 +96,10 @@ private theorem realize_carryFormula_word (x y i : (language L).Term α) (v : α
       BitVec.carry (i.realize v).val (word (x.realize v)) (word (y.realize v)) false = true := by
   rw [realize_carryFormula, carry_eq_true_iff]
   simp only [word, BitVec.getLsbD_ofNatLT]
-  constructor
-  · rintro ⟨j, hj, hx, hy, h⟩
-    exact ⟨j.val, hj, hx, hy, fun k hk hki =>
-      h ⟨k, lt_trans hki (i.realize v).isLt⟩ hk hki⟩
-  · rintro ⟨j, hj, hx, hy, h⟩
-    exact ⟨⟨j, lt_trans hj (i.realize v).isLt⟩, hj, hx, hy, fun k hk hki =>
-      h k.val hk hki⟩
+  exact ⟨fun ⟨j, hj, hx, hy, h⟩ =>
+      ⟨j.val, hj, hx, hy, fun k hk hki => h ⟨k, hki.trans (i.realize v).isLt⟩ hk hki⟩,
+    fun ⟨j, hj, hx, hy, h⟩ =>
+      ⟨⟨j, hj.trans (i.realize v).isLt⟩, hj, hx, hy, fun k => h k.val⟩⟩
 
 /-- Exact addition, expressed by comparing the result bits with input bits and generated carries.
 The formula is independent of the universe size and uses only native order, BIT and quantifiers. -/
@@ -128,36 +120,28 @@ private theorem word_getLsbD {n : ℕ} (a : Fin n) (i : ℕ) :
 
 private theorem realize_addition_word (v : Fin 3 → Fin n) :
     (addition L).Realize v ↔ word (v 2) = word (v 0) + word (v 1) := by
-  rw [addition, Formula.realize_iAlls, BitVec.eq_of_getLsbD_eq_iff]
-  simp only [Formula.realize_iff, realize_bit, realize_carryFormula_word,
-    Term.realize_var, Sum.elim_inl, Sum.elim_inr, iff_iff_eq_xor]
-  constructor
-  · intro h i hi
-    rw [BitVec.getLsbD_add hi, word_getLsbD, word_getLsbD, word_getLsbD]
-    exact h (fun _ => ⟨i, hi⟩)
-  · intro h i
-    have hh := h (i ()).val (i ()).isLt
-    rw [BitVec.getLsbD_add (i ()).isLt, word_getLsbD, word_getLsbD, word_getLsbD] at hh
-    exact hh
+  fo_simp [addition, realize_carryFormula_word, iff_iff_eq_xor, BitVec.eq_of_getLsbD_eq_iff]
+  refine ⟨fun h i hi => ?_, fun h i => ?_⟩
+  · simpa only [BitVec.getLsbD_add hi, word_getLsbD] using h fun _ => ⟨i, hi⟩
+  · simpa only [BitVec.getLsbD_add (i ()).isLt, word_getLsbD] using h (i ()).val (i ()).isLt
 
 /-- The formula defines ordinary natural-number addition, including out-of-range rejection. -/
+@[simp, fo_realize]
 theorem realize_addition (v : Fin 3 → Fin n) :
     (addition L).Realize v ↔ (v 0).val + (v 1).val = (v 2).val := by
   rw [realize_addition_word]
   have hbound : (word (v 0)).toNat + (word (v 1)).toNat < 2 ^ n := by
     have := Nat.mul_le_pow (by decide : 2 ≠ 1) n
-    have := (v 0).isLt
-    have := (v 1).isLt
+    have h0 := (v 0).isLt
+    have h1 := (v 1).isLt
     simp only [word, BitVec.toNat_ofNatLT]
     lia
-  constructor
-  · intro h
-    have hh := congrArg BitVec.toNat h
-    rw [BitVec.toNat_add_of_lt hbound] at hh
-    exact hh.symm
-  · intro h
-    apply BitVec.eq_of_toNat_eq
-    rw [BitVec.toNat_add_of_lt hbound]
+  refine ⟨fun h => ?_, fun h => BitVec.eq_of_toNat_eq ?_⟩
+  · have h' := congrArg BitVec.toNat h
+    rw [BitVec.toNat_add_of_lt hbound] at h'
+    simpa only [word, BitVec.toNat_ofNatLT] using h'.symm
+  · rw [BitVec.toNat_add_of_lt hbound]
+    simp only [word, BitVec.toNat_ofNatLT]
     exact h.symm
 
 /-- No element of the universe can represent an out-of-range sum. -/

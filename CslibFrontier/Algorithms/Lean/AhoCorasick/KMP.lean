@@ -51,25 +51,20 @@ theorem failure_singleton_take {p : List α} {q : ℕ} (hq : 0 < q) (hqp : q ≤
     failure [p] (p.take q) = p.take (borderLen p q) := by
   have hlen : (p.take q).length = q := List.length_take_of_le hqp
   have hne : p.take q ≠ [] := fun h => by rw [h, List.length_nil] at hlen; omega
-  have hpos : 0 < (p.take q).length := by omega
-  have hb : IsProperBorderLen (p.take q) (borderLen p q) := isProperBorderLen_maxBorderLen hpos
-  have hbq : borderLen p q < q := by have := hb.1; omega
-  have htake : (p.take q).take (borderLen p q) = p.take (borderLen p q) := by
-    rw [List.take_take, Nat.min_eq_left (Nat.le_of_lt hbq)]
-  have hblen : (p.take (borderLen p q)).length = borderLen p q :=
-    List.length_take_of_le (by omega)
-  have hsuf : p.take (borderLen p q) <:+ p.take q := by rw [← htake]; exact hb.2
-  refine ((eq_failure_iff hne).mpr ⟨hsuf, by omega, isNode_take List.mem_cons_self _,
-    fun x hx hlt hxn => ?_⟩).symm
+  have hb : IsProperBorderLen (p.take q) (borderLen p q) :=
+    isProperBorderLen_maxBorderLen (by omega)
+  have hbq : borderLen p q < q := hb.1.trans_eq hlen
+  have hsuf : p.take (borderLen p q) <:+ p.take q := by
+    simpa only [List.take_take, Nat.min_eq_left hbq.le] using hb.2
+  refine ((eq_failure_iff hne).mpr ⟨hsuf, (List.length_take_of_le (by omega)).trans_lt hb.1,
+    isNode_take List.mem_cons_self _, fun x hx hlt hxn => ?_⟩).symm
   rcases hxn with rfl | ⟨r, hr, hxr⟩
   · exact Nat.zero_le _
   · rw [List.mem_singleton.mp hr] at hxr
-    have hxq : x <+: p.take q := List.prefix_take_iff.mpr ⟨hxr, by omega⟩
-    have hxt : (p.take q).take x.length = x := (List.prefix_iff_eq_take.mp hxq).symm
-    have hle := le_maxBorderLen_of_isProperBorderLen (w := p.take q) (k := x.length)
-      ⟨hlt, by rw [hxt]; exact hx⟩
-    rw [hblen]
-    exact hle
+    have hxt : (p.take q).take x.length = x :=
+      (List.prefix_iff_eq_take.mp (List.prefix_take_iff.mpr ⟨hxr, by omega⟩)).symm
+    rw [List.length_take_of_le (by omega)]
+    exact le_maxBorderLen_of_isProperBorderLen ⟨hlt, hxt.symm ▸ hx⟩
 
 /-- For one nonempty keyword, its occurrences ending at `s + p.length` are its KMP matches at
 shift `s`. -/
@@ -99,15 +94,12 @@ theorem search_singleton {p : List α} (hp : p ≠ []) (t : List α) :
   rw [search_eq]
   let R : ℕ × List α → ℕ × List α → Prop := fun x y => x.1 < y.1
   have : Std.Irrefl R := ⟨fun x => Nat.lt_irrefl x.1⟩
-  have hkey : ∀ x ∈ occurrences [p] t, x.2 = p := fun x hx => by
-    obtain ⟨i, y⟩ := x
-    exact List.mem_singleton.mp (mem_occurrences_iff.mp hx).2.2.1
   have h1 : (occurrences [p] t).Pairwise R :=
-    (pairwise_occurrences [p] t).imp_of_mem fun {x y} hx hy h => by
-      rcases h with h | ⟨-, h⟩
-      · exact h
-      · rw [hkey x hx, hkey y hy] at h
-        exact absurd h (Nat.lt_irrefl _)
+    (pairwise_occurrences [p] t).imp_of_mem fun {x y} hx hy h =>
+      h.resolve_right fun ⟨_, hlt⟩ => by
+        rw [List.mem_singleton.mp (mem_occurrences_iff.mp hx).2.2.1,
+          List.mem_singleton.mp (mem_occurrences_iff.mp hy).2.2.1] at hlt
+        exact Nat.lt_irrefl _ hlt
   have h2 : ((kmpMatchesList p t).map fun s => (s + p.length, p)).Pairwise R :=
     List.pairwise_map.mpr ((pairwise_lt_kmpMatchesList p t).imp fun h => Nat.add_lt_add_right h _)
   refine h1.eq_of_mem_iff h2 fun ⟨i, y⟩ => ⟨fun h => ?_, fun h => ?_⟩

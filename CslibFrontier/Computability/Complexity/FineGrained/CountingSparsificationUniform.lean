@@ -123,13 +123,6 @@ theorem computableInPolyTime_roundsWith {BOf : P → ℕ}
     (hB : ComputableInPolyTime BOf encP encNat) :
     ComputableInPolyTime (fun x : P × CNF ℕ => rounds (BOf x.1) x.2)
       (encPair encP encCNF) encNat := by
-  have hm : ComputableInPolyTime (fun x : P × CNF ℕ => x.2.distinctVars.length)
-      (encPair encP encCNF) encUnary := by fun_prop
-  have hb := hB.comp (ComputableInPolyTime.fst encP encCNF)
-  have hcap := ComputableInPolyTime.binary_min_unary'
-    (show ComputableInPolyTime (fun x : P × CNF ℕ => x.2.distinctVars.length + 1)
-      (encPair encP encCNF) encUnary by fun_prop) hb
-  have hdiv := ComputableInPolyTime.unary_div.comp (hm.prod hcap)
   have hpow := ComputableInPolyTime.binary_two_pow.comp
     (show ComputableInPolyTime
       (fun x : P × CNF ℕ => x.2.distinctVars.length /
@@ -187,8 +180,6 @@ theorem exists_computableInO_normalizeDeclaredLeaf {NOf : P → ℕ}
     ∃ d, ComputableInO (normalizeDeclaredLeaf NOf h) (encPair encP encCNF) encNat
       (fun x => t x + ((encPair encP encCNF x).length + (encNat (h x)).length + 1) ^ d)
       (fun x => s x + ((encPair encP encCNF x).length + (encNat (h x)).length + 1) ^ d) := by
-  have hNu : ComputableInPolyTime (fun x : (P × CNF ℕ) × ℕ => NOf x.1.1)
-      (encPair (encPair encP encCNF) encNat) encUnary := by fun_prop
   have hpost : ComputableInPolyTime
       (fun x : (P × CNF ℕ) × ℕ => x.2 >>> (NOf x.1.1 - x.1.2.distinctVars.length))
       (encPair (encPair encP encCNF) encNat) encNat := by
@@ -219,11 +210,9 @@ theorem exists_computableInO_normalizeDeclaredLeaf {NOf : P → ℕ}
     have := Nat.zero_le (2 ^ d * v x)
     dsimp only [W] at hL hp
     nlinarith
-  refine ⟨d + 1, (hc.mono (2 ^ d + 1)
+  exact ⟨d + 1, (hc.mono (2 ^ d + 1)
     (fun x => (hbound t x).trans (Nat.mul_le_mul_left _ (by omega)))
-    (fun x => (hbound s x).trans (Nat.mul_le_mul_left _ (by omega)))).of_enc_eq ?_⟩
-  intro x
-  rfl
+    (fun x => (hbound s x).trans (Nat.mul_le_mul_left _ (by omega)))).of_enc_eq fun _ => rfl⟩
 
 private def stepCost (encP : P ↪ List Bool) (MOf : P → ℕ) (K d : ℕ)
     (g v : P × CNF ℕ → ℕ) (x : P × State) : ℕ :=
@@ -342,12 +331,9 @@ private theorem declared_resources_of_step
           isSparse (countingThreshold (MOf x.1)) K (st.2.1.headD []) = true →
         v (x.1, st.2.1.headD []) ≤ V x)
       (x : P × CNF ℕ) (hx : validDeclaredInput k (NOf x.1) x.2 = true) :
-      maxCost v x ≤ A x + V x := by
-    apply Finset.sup_le
-    intro i hi
-    have hi' := Finset.mem_Iic.mp hi
-    exact prefix_stepCost_le (hM x.1) hK (hM2 x.1) hkK (hTB x.1) g v x.2 i d (V x)
-      (hg x hx i hi') (hv x hx i hi')
+      maxCost v x ≤ A x + V x :=
+    Finset.sup_le fun i hi => prefix_stepCost_le (hM x.1) hK (hM2 x.1) hkK (hTB x.1) g v x.2 i d
+      (V x) (hg x hx i (Finset.mem_Iic.mp hi)) (hv x hx i (Finset.mem_Iic.mp hi))
   obtain ⟨dn, hn⟩ := polyTime_inO (computableInPolyTime_roundsWith hB)
   obtain ⟨di, hi⟩ := polyTime_inO (computableInPolyTime_init_uniform (encP := encP) k)
   have hloop := ComputableInO.iterate hn hi hstep
@@ -426,9 +412,7 @@ private theorem declared_resources_of_step
   split_ifs
   · change encNat (searchWith MOf BOf K k g x.1 x.2 <<< (NOf x.1 - x.2.distinctVars.length)) =
       encNat ((run x (q x)).2.2.2 <<< (NOf (run x (q x)).1 - (run x (q x)).2.1))
-    rw [hret]
-    have hpar : (run x (q x)).1 = x.1 := iterate_stepWith_fst _ _ _ _ _
-    rw [hpar]
+    rw [hret, iterate_stepWith_fst]
     rfl
   · rfl
 

@@ -122,58 +122,41 @@ theorem gateActivityFrom_zero (p : Program signature n g) :
   simp only [gateActivityFrom, gateActivity, hammingDist_eq_weight_add, add_zero]
 
 /-- Total gate activity never exceeds the number of gates. -/
-theorem gateActivity_le (p : Program signature n g) : gateActivity p ≤ g := by
-  apply (gateActivity_le_iff p).mpr
-  intro x
-  exact weight_le_length (p.eval interpretation x)
+theorem gateActivity_le (p : Program signature n g) : gateActivity p ≤ g :=
+  (gateActivity_le_iff p).mpr fun x => weight_le_length (p.eval interpretation x)
 
 /-- Restricting to the input-reading gates cannot increase activity. -/
 theorem inputActivity_le_gateActivity (p : Program signature n g) :
-    inputActivity p ≤ gateActivity p := by
-  apply (inputActivity_le_iff p).mpr
-  intro x
-  exact (weight_comp_le (p.eval interpretation x)
-    (f := fun i : inputGates p => i.val) Subtype.val_injective).trans
+    inputActivity p ≤ gateActivity p :=
+  (inputActivity_le_iff p).mpr fun x =>
+    (weight_comp_le (p.eval interpretation x)
+      (f := fun i : inputGates p => i.val) Subtype.val_injective).trans
       ((gateActivity_le_iff p).mp le_rfl x)
 
 /-- Input-reading activity never exceeds the number of input-reading gates. -/
 theorem inputActivity_le_card (p : Program signature n g) :
-    inputActivity p ≤ (inputGates p).card := by
-  apply (inputActivity_le_iff p).mpr
-  intro x
-  simpa only [Fintype.card_coe] using weight_le (transcript p x)
+    inputActivity p ≤ (inputGates p).card :=
+  (inputActivity_le_iff p).mpr fun x => by
+    simpa only [Fintype.card_coe] using weight_le (transcript p x)
 
-/-- Every realized transcript lies in the Hamming ball specified by any uniform activity bound.
-The bound also permits a radius larger than the number of input-reading gates. -/
-theorem card_attainableTranscripts_le_sum_choose_of_le (p : Program signature n g) {e : ℕ}
-    (he : inputActivity p ≤ e) :
-    (attainableTranscripts p).card ≤
-      ∑ j ∈ range (e + 1), (inputGates p).card.choose j := by
+/-- Shared Hamming-ball bound: if `transcript p` factors through `x ↦ f x + v` and `f x` stays
+within Hamming distance `e` of `v`, then `attainableTranscripts p` has at most `∑_{j ≤ e} C(|ι|, j)`
+elements. -/
+private theorem card_attainableTranscripts_le_of_hammingDist {ι : Type*} [Fintype ι]
+    (p : Program signature n g) (f : BitString n → ι → Bool) (v : ι → Bool)
+    (π : (ι → Bool) → inputGates p → Bool) (hπ : ∀ x, π (f x + v) = transcript p x)
+    {e : ℕ} (he : ∀ x, hammingDist (f x) v ≤ e) :
+    (attainableTranscripts p).card ≤ ∑ j ∈ range (e + 1), (Fintype.card ι).choose j := by
   classical
-  simpa only [attainableTranscripts, Fintype.card_coe] using
-    card_image_le_sum_choose univ (transcript p)
-    (fun x _ => (inputActivity_le_iff p).mp he x)
-
-/-- Attainable patterns are bounded by the exact binomial sum at worst-case activity. -/
-theorem card_attainableTranscripts_le_sum_choose (p : Program signature n g) :
-    (attainableTranscripts p).card ≤
-      ∑ j ∈ range (inputActivity p + 1), (inputGates p).card.choose j :=
-  card_attainableTranscripts_le_sum_choose_of_le p le_rfl
-
-/-- Projecting full gate valuations cannot create additional restricted transcripts, so total
-gate activity gives a Hamming-ball bound using the total number of gates. -/
-theorem card_attainableTranscripts_le_sum_choose_gateActivity (p : Program signature n g) :
-    (attainableTranscripts p).card ≤ ∑ j ∈ range (gateActivity p + 1), g.choose j := by
-  classical
-  calc
-    _ = ((univ.image (p.eval interpretation)).image
-        fun z => fun i : inputGates p => z i).card := by
-      simp only [attainableTranscripts, image_image]
-      rfl
-    _ ≤ (univ.image (p.eval interpretation)).card := card_image_le
-    _ ≤ _ := by
-      simpa only [Fintype.card_fin] using card_image_le_sum_choose univ
-        (p.eval interpretation) (fun x _ => (gateActivity_le_iff p).mp le_rfl x)
+  have hshift : attainableTranscripts p = (univ.image fun x => f x + v).image π := by
+    rw [attainableTranscripts, image_image]
+    exact image_congr fun x _ => (hπ x).symm
+  calc (attainableTranscripts p).card
+      = ((univ.image fun x => f x + v).image π).card := congrArg card hshift
+    _ ≤ (univ.image fun x => f x + v).card := card_image_le
+    _ ≤ ∑ j ∈ range (e + 1), (Fintype.card ι).choose j :=
+        card_image_le_sum_choose univ (fun x => f x + v) fun x _ => by
+          rw [← hammingDist_eq_weight_add]; exact he x
 
 /-- Every realized transcript lies in the Hamming ball of radius `e` around any fixed baseline `v`
 whenever `inputActivityFrom p v ≤ e`. -/
@@ -182,23 +165,26 @@ theorem card_attainableTranscripts_le_sum_choose_of_inputActivityFrom_le
     (he : inputActivityFrom p v ≤ e) :
     (attainableTranscripts p).card ≤
       ∑ j ∈ range (e + 1), (inputGates p).card.choose j := by
-  classical
-  have hshift : attainableTranscripts p =
-      (univ.image fun x => transcript p x + v).image (· + v) := by
-    rw [attainableTranscripts, image_image]
-    refine image_congr fun x _ => funext fun i => ?_
-    change transcript p x i = (transcript p x i + v i) + v i
-    cases transcript p x i <;> cases v i <;> rfl
-  calc
-    (attainableTranscripts p).card
-      = ((univ.image fun x => transcript p x + v).image (· + v)).card :=
-        congrArg card hshift
-    _ ≤ (univ.image fun x => transcript p x + v).card := card_image_le
-    _ ≤ ∑ j ∈ range (e + 1), (inputGates p).card.choose j := by
-      simpa only [Fintype.card_coe] using card_image_le_sum_choose univ
-        (fun x => transcript p x + v) fun x _ => by
-          rw [← hammingDist_eq_weight_add]
-          exact (inputActivityFrom_le_iff p v).mp he x
+  simpa only [Fintype.card_coe] using
+    card_attainableTranscripts_le_of_hammingDist p (transcript p) v (· + v)
+      (fun x => funext fun i => by
+        simp only [Pi.add_apply]; cases transcript p x i <;> cases v i <;> rfl)
+      ((inputActivityFrom_le_iff p v).mp he)
+
+/-- Every realized transcript lies in the Hamming ball specified by any uniform activity bound.
+The bound also permits a radius larger than the number of input-reading gates. -/
+theorem card_attainableTranscripts_le_sum_choose_of_le (p : Program signature n g) {e : ℕ}
+    (he : inputActivity p ≤ e) :
+    (attainableTranscripts p).card ≤
+      ∑ j ∈ range (e + 1), (inputGates p).card.choose j :=
+  card_attainableTranscripts_le_sum_choose_of_inputActivityFrom_le p 0
+    (by simpa only [inputActivityFrom_zero] using he)
+
+/-- Attainable patterns are bounded by the exact binomial sum at worst-case activity. -/
+theorem card_attainableTranscripts_le_sum_choose (p : Program signature n g) :
+    (attainableTranscripts p).card ≤
+      ∑ j ∈ range (inputActivity p + 1), (inputGates p).card.choose j :=
+  card_attainableTranscripts_le_sum_choose_of_le p le_rfl
 
 /-- Attainable patterns are bounded by the exact binomial sum at the worst-case distance from any
 fixed baseline on input-reading gates. -/
@@ -214,24 +200,19 @@ theorem card_attainableTranscripts_le_sum_choose_gateActivityFrom
     (p : Program signature n g) (v : Fin g → Bool) :
     (attainableTranscripts p).card ≤
       ∑ j ∈ range (gateActivityFrom p v + 1), g.choose j := by
-  classical
-  have hshift : attainableTranscripts p =
-      (univ.image fun x => p.eval interpretation x + v).image
-        fun z (i : inputGates p) => z i + v i := by
-    rw [attainableTranscripts, image_image]
-    refine image_congr fun x _ => funext fun i => ?_
-    change p.eval interpretation x i.val = (p.eval interpretation x i.val + v i.val) + v i.val
-    cases p.eval interpretation x i.val <;> cases v i.val <;> rfl
-  calc
-    (attainableTranscripts p).card
-      = ((univ.image fun x => p.eval interpretation x + v).image
-          fun z (i : inputGates p) => z i + v i).card :=
-        congrArg card hshift
-    _ ≤ (univ.image fun x => p.eval interpretation x + v).card := card_image_le
-    _ ≤ ∑ j ∈ range (gateActivityFrom p v + 1), g.choose j := by
-      simpa only [Fintype.card_fin] using card_image_le_sum_choose univ
-        (fun x => p.eval interpretation x + v) fun x _ => by
-          rw [← hammingDist_eq_weight_add]
-          exact (gateActivityFrom_le_iff p v).mp le_rfl x
+  simpa only [Fintype.card_fin] using
+    card_attainableTranscripts_le_of_hammingDist p (p.eval interpretation) v
+      (fun z (i : inputGates p) => z i + v i)
+      (fun x => funext fun i => by
+        change (p.eval interpretation x i.val + v i.val) + v i.val = p.eval interpretation x i.val
+        cases p.eval interpretation x i.val <;> cases v i.val <;> rfl)
+      ((gateActivityFrom_le_iff p v).mp le_rfl)
+
+/-- Projecting full gate valuations cannot create additional restricted transcripts, so total
+gate activity gives a Hamming-ball bound using the total number of gates. -/
+theorem card_attainableTranscripts_le_sum_choose_gateActivity (p : Program signature n g) :
+    (attainableTranscripts p).card ≤ ∑ j ∈ range (gateActivity p + 1), g.choose j := by
+  simpa only [gateActivityFrom_zero] using
+    card_attainableTranscripts_le_sum_choose_gateActivityFrom p 0
 
 end Cslib.Circuits.Boolean.WeightedThreshold

@@ -36,16 +36,12 @@ PRF advantage of any adaptive adversary `A` against `hashThenPRF H F` by the PRF
 (`Cslib.Probability.IsUniversalHash`) and `A` makes at most `Q` queries on every path,
 `Cslib.Crypto.PRF.advantage_hashThenPRF_le` bounds that second term by `Q.choose 2 * ε`.
 
-These bounds are steps toward [BonehShoup2023], Theorem 7.7, not the cited result. This module
-stays at the finite query-bound level without running-time certificates:
-`hashReduction` and `idealQueries` carry query-count / output-length certificates
-(`Cslib.Crypto.PRF.isQueryBounded_hashReduction`,
-`Cslib.Crypto.PRF.length_le_of_mem_support_idealQueries`), not `IsPPT` or `IsOraclePPT`
-certificates, and `IsUniversalHash` is an `ε`-bounded UHF for one fixed instance (the `ε`-UHF of
-Definition 7.2) rather than a computational UHF. No asymptotic negligible-advantage theorem is
-proved here: these are concrete, finite-type bounds, `hashReduction` has no efficiency witness
-yet, and the asymptotic Theorem 7.7 with that witness is owned by
-[#5790](https://github.com/cslib-community/cslib-frontier/issues/5790).
+These finite-type bounds give query-count and output-length guarantees through
+`Cslib.Crypto.PRF.isQueryBounded_hashReduction` and
+`Cslib.Crypto.PRF.length_le_of_mem_support_idealQueries`. `IsUniversalHash` supplies a collision
+bound at one instance. The computational form of Theorem 7.7, with strict PPT certificates and
+negligible advantage, is `Cslib.Crypto.PRF.hashThenPRFWord_indistinguishable` in
+`CslibFrontier/Crypto/Computational/PseudorandomFunction/HashThenPRF.lean`.
 
 Conversely, `Cslib.Crypto.PRF.toOuterMeasure_collision_le_advantage_collisionDistinguisher`
 formalizes the observation of Section 7.3 (p. 263) that two distinct messages colliding with
@@ -133,14 +129,10 @@ theorem length_le_of_mem_support_idealQueries [DecidableEq M] [Fintype Z] [Nonem
     (hms : ms ∈ (ProbComp.eval (idealQueries A)).support) : ms.length ≤ Q := by
   rw [idealQueries, ProbComp.eval_map, PMF.mem_support_map_iff] at hms
   rcases hms with ⟨⟨r, cache⟩, hmem, rfl⟩
-  rw [ProbOracleComp.eval_runState] at hmem
-  have hmem' : (r, cache) ∈ (ProbOracleComp.runWith
-      (memoize fun _ : M => PMF.uniformOfFintype Z) A []).support := by
-    simpa only [ProbComp.eval_memoize, ProbComp.eval_uniform] using hmem
-  have hbounds := (RandomOracle.memoize_cache_bounds_prob
-    (fun _ : M => PMF.uniformOfFintype Z) A (fun _ => 0) Q 0 hQ
-    (ProbOracleComp.QueriesSatisfy.of_forall (fun _ => le_rfl) A) [] cache r hmem').1
-  simpa only [List.length_map, List.length_nil, Nat.zero_add] using hbounds
+  simp only [ProbOracleComp.eval_runState, ProbComp.eval_memoize, ProbComp.eval_uniform] at hmem
+  simpa only [List.length_map, List.length_nil, Nat.zero_add] using
+    (RandomOracle.memoize_cache_bounds_prob (fun _ : M => PMF.uniformOfFintype Z) A (fun _ => 0) Q 0
+      hQ (ProbOracleComp.QueriesSatisfy.of_forall (fun _ => le_rfl) A) [] cache r hmem).1
 
 /-- Law of `idealQueries A` in terms of `ProbOracleComp.runWith (memoize _)`. -/
 private theorem eval_idealQueries [DecidableEq M] [Fintype Z] [Nonempty Z] (A : Adversary M Z) :
@@ -192,11 +184,7 @@ private theorem eval_multiQueryExperiment_idealQueries_true [Fintype K₁] [None
   rw [PMF.bind_comm, PMF.bind_apply]
   refine tsum_congr fun k => congrArg (PMF.uniformOfFintype K₁ k * ·) ?_
   rw [Probability.PMF.bind_pure_decide_apply_true]
-  refine congrArg
-    (fun s => (ProbOracleComp.runWith (memoize fun _ : M => PMF.uniformOfFintype Z) A
-      []).toOuterMeasure s)
-    (Set.ext fun x => ?_)
-  exact (RandomOracle.hasImageCollision_iff (H k) x.2).symm
+  exact congrArg _ (Set.ext fun x => (RandomOracle.hasImageCollision_iff (H k) x.2).symm)
 
 /-- Equation (7.22) ([BonehShoup2023], Version 0.6, Section 7.3, p. 264), Games 1 and 2: against
 a uniform function, hashing the queries first changes the adversary's output only when two
@@ -209,14 +197,9 @@ theorem advantage_idealExperiment_hashReduction_le [Fintype K₁] [Nonempty K₁
       ProbComp.eval (UHF.multiQueryExperiment H (idealQueries A)) true := by
   rw [Game.advantage_comm, ← Game.closeTo_iff_coe_advantage_le,
     eval_idealExperiment_eq_runWith_memoize, eval_idealExperiment_hashReduction,
-    eval_multiQueryExperiment_idealQueries_true]
-  have hconst : (ProbOracleComp.runWith
-      (memoize fun _ : M => PMF.uniformOfFintype Z) A []).map Prod.fst =
-      (PMF.uniformOfFintype K₁).bind fun _ =>
-        (ProbOracleComp.runWith
-          (memoize fun _ : M => PMF.uniformOfFintype Z) A []).map Prod.fst :=
-    (PMF.bind_const _ _).symm
-  rw [hconst]
+    eval_multiQueryExperiment_idealQueries_true,
+    ← PMF.bind_const (PMF.uniformOfFintype K₁) ((ProbOracleComp.runWith
+      (memoize fun _ : M => PMF.uniformOfFintype Z) A []).map Prod.fst)]
   exact Probability.CloseTo.bind_right_tsum (PMF.uniformOfFintype K₁) fun k _ =>
     RandomOracle.closeTo_runWith_memoize_simulate_query (H k) (PMF.uniformOfFintype Z) A
 
@@ -224,32 +207,24 @@ theorem advantage_idealExperiment_hashReduction_le [Fintype K₁] [Nonempty K₁
 (Version 0.6, Section 7.3, pp. 262–263), not the cited result: for every `H`, `F`, and adversary
 `A`, the distinguishing advantage against `hashThenPRF H F` is bounded by the advantage of
 `hashReduction H A` against `F` plus the probability that `idealQueries A` wins the multi-query
-UHF game against `H`. In the book `B_F` and `B'_H` are elementary wrappers around `A`, and the
-theorem concludes that the composition is a secure PRF; nothing here certifies `hashReduction` as
-efficient, and the asymptotic theorem is open (#5790). -/
+UHF game against `H`. This finite result counts oracle queries. The computational form is
+`Cslib.Crypto.PRF.hashThenPRFWord_indistinguishable`. -/
 theorem advantage_hashThenPRF_le_add_multiQuery [Fintype K₁] [Nonempty K₁] [Fintype K₂]
     [Nonempty K₂] [Fintype M] [DecidableEq M] [Fintype Y] [DecidableEq Y] [Fintype Z]
     [Nonempty Z] (H : K₁ → M → Y) (F : K₂ → Y → Z) (A : Adversary M Z) :
     (advantage (hashThenPRF H F) A : ℝ≥0∞) ≤
       advantage F (hashReduction H A) +
         ProbComp.eval (UHF.multiQueryExperiment H (idealQueries A)) true := by
-  have htri : advantage (hashThenPRF H F) A ≤
-      advantage F (hashReduction H A) +
-        Game.advantage (ProbComp.eval (idealExperiment (hashReduction H A)))
-          (ProbComp.eval (idealExperiment A)) := by
-    rw [advantage, eval_realExperiment_hashThenPRF]
-    exact Game.advantage_triangle _ (ProbComp.eval (idealExperiment (hashReduction H A))) _
-  refine (ENNReal.coe_le_coe.mpr htri).trans ?_
-  rw [ENNReal.coe_add]
-  exact add_le_add le_rfl (advantage_idealExperiment_hashReduction_le H A)
+  refine (ENNReal.coe_le_coe.mpr ?_).trans
+    (ENNReal.coe_add _ _ ▸ add_le_add le_rfl (advantage_idealExperiment_hashReduction_le H A))
+  rw [advantage, eval_realExperiment_hashThenPRF]
+  exact Game.advantage_triangle _ (ProbComp.eval (idealExperiment (hashReduction H A))) _
 
 /-- Concrete bound for finite types and an `ε`-bounded UHF, a step toward [BonehShoup2023],
 Theorem 7.7 (Version 0.6, Section 7.3, p. 262), not the cited result: for an adversary making at
 most `Q` queries, `advantage (hashThenPRF H F) A ≤ advantage F (hashReduction H A) + C(Q, 2) · ε`.
-Theorem 7.7 assumes only a computational UHF, uses efficient wrappers and concludes that the
-composition is a secure PRF; here the hash is `ε`-bounded for one fixed instance, with any `ε`
-(Definition 7.2 calls it statistical only when `ε` is negligible), `hashReduction` has no
-efficiency certificate, and the asymptotic theorem is open (#5790). -/
+This finite result assumes an `ε` collision bound at one instance and counts oracle queries.
+The computational form is `Cslib.Crypto.PRF.hashThenPRFWord_indistinguishable`. -/
 theorem advantage_hashThenPRF_le [Fintype K₁] [Nonempty K₁] [Fintype K₂] [Nonempty K₂]
     [Fintype M] [DecidableEq M] [Fintype Y] [DecidableEq Y] [Fintype Z] [Nonempty Z]
     {H : K₁ → M → Y} {ε : ℝ≥0∞} (hH : IsUniversalHash (PMF.uniformOfFintype K₁) H ε)
@@ -306,15 +281,10 @@ theorem toOuterMeasure_collision_le_advantage_collisionDistinguisher [Fintype K�
   have hideal :
       ProbComp.eval (idealExperiment (collisionDistinguisher (Z := Z) m₀ m₁)) true =
         (Fintype.card Z : ℝ≥0∞)⁻¹ := by
-    rw [eval_idealExperiment_collisionDistinguisher]
-    let e : Bool ↪ M :=
-      ⟨fun b => bif b then m₀ else m₁,
-        fun a b hab => by
-          cases a <;> cases b <;> first | rfl | exact absurd hab hm | exact absurd hab hm.symm⟩
-    have hmap : ((PMF.uniformOfFintype (M → Z)).bind fun f =>
-        PMF.pure (decide (f m₀ = f m₁))) =
-        ((PMF.uniformOfFintype (Bool → Z)).bind fun g =>
-          PMF.pure (decide (g true = g false))) := by
+    let e : Bool ↪ M := ⟨fun b => bif b then m₀ else m₁, fun a b hab => by
+      cases a <;> cases b <;> first | rfl | exact absurd hab hm | exact absurd hab hm.symm⟩
+    have hmap : ((PMF.uniformOfFintype (M → Z)).bind fun f => PMF.pure (decide (f m₀ = f m₁))) =
+        (PMF.uniformOfFintype (Bool → Z)).bind fun g => PMF.pure (decide (g true = g false)) := by
       rw [← Probability.PMF.uniformOfFintype_pi_map_comp_embedding e, PMF.bind_map]
       rfl
     have hpair : ((PMF.uniformOfFintype (Bool → Z)).bind fun g =>
@@ -323,7 +293,8 @@ theorem toOuterMeasure_collision_le_advantage_collisionDistinguisher [Fintype K�
       rw [← Probability.PMF.uniformOfFintype_map_equiv
         ((Equiv.boolArrowEquivProd Z).trans (Equiv.prodComm Z Z)), PMF.bind_map]
       rfl
-    rw [hmap, hpair, ← Probability.PMF.uniformOfFintype_prod, PMF.bind_bind]
+    rw [eval_idealExperiment_collisionDistinguisher, hmap, hpair,
+      ← Probability.PMF.uniformOfFintype_prod, PMF.bind_bind]
     refine Probability.PMF.bind_apply_of_forall _ fun z₀ => ?_
     simpa only [PMF.bind_map, Function.comp_def] using
       Probability.PMF.uniformOfFintype_bind_decide_eq_apply_true z₀
@@ -337,7 +308,7 @@ theorem toOuterMeasure_collision_le_advantage_collisionDistinguisher [Fintype K�
     (game2 := ProbComp.eval (idealExperiment (collisionDistinguisher (Z := Z) m₀ m₁)))).mpr
     le_rfl {true}
   simp only [PMF.toOuterMeasure_apply_singleton] at hclose
-  rw [add_comm] at hclose
-  exact hreal.trans (hclose.trans (by rw [hideal]))
+  rw [hideal, add_comm] at hclose
+  exact hreal.trans hclose
 
 end Cslib.Crypto.PRF
