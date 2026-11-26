@@ -112,12 +112,8 @@ theorem IsValidParallelRule.eq_nil_iff [DecidableEq V] {vbl : ι → Finset V}
   constructor
   · intro hnil i hi
     obtain ⟨j, hj, -⟩ := h.max T w i hi
-    rw [hnil] at hj
-    simp at hj
-  · intro hnone
-    by_contra hne
-    obtain ⟨i, hi⟩ := List.exists_mem_of_ne_nil _ hne
-    exact hnone i (h.mem T w i hi)
+    simp [hnil] at hj
+  · exact fun hnone => List.eq_nil_iff_forall_not_mem.2 fun i hi => hnone i (h.mem T w i hi)
 
 /-- The cumulative resampling log (latest step first) after `n` rounds of the parallel algorithm
 using selection rule `psel` on table `T`. -/
@@ -564,13 +560,9 @@ theorem parallel_witness_depth [DecidableEq V] [DecidableEq ι] [Fintype ι]
     rw [shapes_eq_shapesRel]
     exact mem_shapesRel (Adj vbl) k hroot hdepth.1
   have hprop : Proper vbl S := proper_witness vbl i _
-  have hlog_sub : IsLog vbl A T ((i :: suff) ++ parallelRun psel T k) := by
-    refine isLog_append_of_pairwise vbl A hA T
-      (isLog_parallelRun vbl A hA hrule T k) (fun x hx => ?_) hpw.2.1
-    refine hrule.mem T (parallelRun psel T k) x ?_
-    rw [hsplit]
-    exact List.mem_append_right _ hx
-  have hchk : Check vbl A S T := check_witness vbl A hA i _ T (by simpa using hlog_sub)
+  have hchk : Check vbl A S T := check_witness vbl A hA i _ T <| by
+    simpa using isLog_append_of_pairwise vbl A hA T (isLog_parallelRun vbl A hA hrule T k)
+      (fun x hx => hrule.mem T _ x (hsplit ▸ List.mem_append_right _ hx)) hpw.2.1
   obtain ⟨p, hp, hpk, -⟩ := hdepth.2
   have hlevels : ∀ t, ∀ q ∈ S, q.2 = t → ∀ d ≤ t, ∃ q ∈ S, q.2 = d := by
     intro t
@@ -603,15 +595,11 @@ private def parallelEvent [DecidableEq V] [DecidableEq ι] [Fintype ι] (vbl : �
 private theorem measurableSet_parallelEvent [DecidableEq V] [DecidableEq ι] [Fintype ι]
     (vbl : ι → Finset V) (A : ι → Set (∀ v, α v)) (hAm : ∀ i, MeasurableSet (A i)) (k : ℕ) :
     MeasurableSet (parallelEvent vbl A k) := by
-  have heq : parallelEvent vbl A k =
-      ⋃ i : ι, ⋃ S ∈ shapes vbl i k, ⋃ (_ : Proper vbl S), ⋃ (_ : k + 1 ≤ #S),
-        {T | Check vbl A S T} := by
-    ext T
-    simp only [parallelEvent, Set.mem_ofPred_eq, Set.mem_iUnion, exists_prop]
-  rw [heq]
-  refine MeasurableSet.iUnion fun i => MeasurableSet.biUnion (shapes vbl i k).countable_toSet
-    fun S _ => MeasurableSet.iUnion fun _ => MeasurableSet.iUnion fun _ => ?_
-  exact measurableSet_check vbl A hAm S
+  convert MeasurableSet.iUnion fun i => MeasurableSet.biUnion (shapes vbl i k).countable_toSet
+    fun S _ => MeasurableSet.iUnion fun (_ : Proper vbl S) =>
+      MeasurableSet.iUnion fun (_ : k + 1 ≤ #S) => measurableSet_check vbl A hAm S using 1
+  ext T
+  simp only [parallelEvent, Set.mem_ofPred_eq, Set.mem_iUnion, exists_prop]; tauto
 
 omit [∀ v, MeasurableSpace (α v)] in
 private theorem mem_parallelEvent_of_psel_ne_nil [DecidableEq V] [DecidableEq ι] [Fintype ι]
@@ -890,11 +878,9 @@ theorem ae_exists_parallelRun_eq_nil_of_bound [DecidableEq V] [Finite ι]
     (hrule : IsValidParallelRule vbl A psel) :
     ∀ᵐ T ∂table μ, ∃ n : ℕ, psel T (parallelRun psel T n) = [] := by
   filter_upwards [ae_exists_forall_isLog_length_le_of_bound μ vbl A hAm hc] with T ⟨N, hN⟩
-  by_contra hne
-  push Not at hne
-  have hle := hN _ (isLog_parallelRun vbl A hA hrule T (N + 1))
-  have hge := le_length_parallelRun_of_forall hne (N + 1)
-  omega
+  by_contra! hne
+  exact Nat.not_succ_le_self N ((le_length_parallelRun_of_forall hne (N + 1)).trans
+    (hN _ (isLog_parallelRun vbl A hA hrule T (N + 1))))
 
 /-- Under the local-lemma hypothesis `Pr[A i] ≤ x i * ∏ j ∈ Γ i, (1 - x j)` of Theorem 1.2,
 without the slack `1 - ε` that Theorem 1.3 needs for its round bound, almost surely every

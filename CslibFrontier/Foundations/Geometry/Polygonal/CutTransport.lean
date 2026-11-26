@@ -190,8 +190,7 @@ private theorem sourceSamples_adjacent (p : Route) (S : Finset ℝ) (c : ℂ →
       have hji : j.val = i.val + 1 := by
         have hi' := congrArg Fin.val hi
         have hj' := congrArg Fin.val hj
-        simp [L] at hi' hj'
-        omega
+        simp [L] at hi' hj'; omega
       have hnodes : j.castSucc = i.succ := Fin.ext hji
       rw [sourceBlock_last] at hx
       rw [sourceBlock_head] at hy
@@ -205,8 +204,7 @@ private theorem sourceSamples_adjacent (p : Route) (S : Finset ℝ) (c : ℂ →
           hnodes]
       · rw [hend]
         dsimp [sourcePosition, Route.position]
-        push_cast [hji]
-        ring
+        push_cast [hji]; ring
   · rcases List.mem_cons.mp hxy with heq | hempty
     · have hlast : L.getLast hL = Fin.last p.bends :=
         Fin.ext (by simp [List.getLast_eq_getElem, L, Route.segments])
@@ -406,8 +404,7 @@ private theorem parameterRoute_real (p : Route) (S : Finset ℝ) (c : ℂ →ᵃ
 private theorem parameterRoute_open (p : Route) (S : Finset ℝ) (c : ℂ →ᵃ[ℝ] ℝ) (F : ℂ → ℂ) :
     (parameterRoute p S c F).start ≠ (parameterRoute p S c F).finish := by
   rw [(parameterRoute_ends p S c F).1, (parameterRoute_ends p S c F).2]
-  have hn : (0 : ℝ) < p.segments := by exact_mod_cast Nat.zero_lt_succ p.bends
-  exact_mod_cast ne_of_lt hn
+  exact_mod_cast (Nat.zero_lt_succ p.bends).ne
 
 private theorem mapAtCuts_atEnd (p : Route) (S : Finset ℝ) (c : ℂ →ᵃ[ℝ] ℝ) (F : ℂ → ℂ)
     (i : Fin (mapAtCuts p S c F).segments) {t : ℝ} (ht : t ∈ Set.Icc 0 1) (b : Bool) :
@@ -535,8 +532,7 @@ private theorem sourceSamples_piece (p : Route) (S : Finset ℝ)
       rw [hge]
       simp only [f, sourceBlock, List.getElem_map, List.getElem_dropLast]
     · have hkLast : k + 1 = (f j).length := by
-        simp only [f, sourceBlock, List.length_map, List.length_dropLast] at hnext ⊢
-        omega
+        simp only [f, sourceBlock, List.length_map, List.length_dropLast] at hnext ⊢; omega
       have hfinish : C[k + 1] = 1 := by
         have hlen := cuts_length_bounds S c (p.point j.castSucc) (p.point j.succ)
         have hkLast' : k + 1 = C.length - 1 := by simpa only
@@ -548,15 +544,14 @@ private theorem sourceSamples_piece (p : Route) (S : Finset ℝ)
           List.flatMap_singleton, List.length_append, hget]
       by_cases hjnext : j.val + 1 < p.segments
       · let j' : Fin p.segments := ⟨j.val + 1, hjnext⟩
-        have hj' : j'.val < L.length := by change j.val+1 < L.length; omega
+        have hj' : j'.val < L.length := by dsimp [j']; omega
         have hhead : L[j'.val] = j' := by simp [L, j']
         have hz : 0 < (f L[j'.val]).length := by
           rw [hhead]
           exact (sourceBlock_length p S c j').1
         have hflat := List.flatMap_prefix_add_lt L f hj' hz
         have hq1 : prefLen + k + 1 = ((L.take j'.val).flatMap f).length + 0 := by
-          simp only [j', hpref, add_zero]
-          omega
+          simp only [j', hpref, add_zero]; omega
         have hqlem : (sourceSamples p S c)[prefLen+k+1] =
             (f j')[0]'(by rw [← hhead]; exact hz) := by
           have helem' : (sourceSamples p S c)[((L.take j'.val).flatMap f).length+0] =
@@ -571,11 +566,9 @@ private theorem sourceSamples_piece (p : Route) (S : Finset ℝ)
         rw [hzero, hfinish]
         simp only [Route.eval, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one]
         congr 1
-      · have hjlast : j = Fin.last p.bends := Fin.ext (by
+      · have hjlast : j = Fin.last p.bends := Fin.ext <| by
           have := j.isLt
-          simp only [Route.segments] at this hjnext
-          simp only [Fin.val_last]
-          omega)
+          simp only [Route.segments, Fin.val_last] at this hjnext ⊢; omega
         rw [show j.val + 1 = L.length by rw [hjlast, Fin.val_last, hLlen],
           List.take_length] at hpref
         have hqlem : (sourceSamples p S c)[prefLen + k + 1] = (Fin.last p.bends, 1) :=
@@ -595,20 +588,14 @@ private theorem mapAtCuts_contains (p : Route)
   have hstep : C[k] < C[k + 1] := (segmentCuts_sorted S _ _).strictMono_get
     (show (⟨k, by omega⟩ : Fin C.length) < ⟨k + 1, hk⟩ from Nat.lt_succ_self k)
   let u := (t - C[k]) / (C[k + 1] - C[k])
-  have hu : u ∈ Set.Icc (0 : ℝ) 1 := by
-    constructor
-    · exact div_nonneg (sub_nonneg.mpr hlo) (sub_pos.mpr hstep).le
-    · rw [div_le_iff₀ (sub_pos.mpr hstep)]
-      linarith
+  have hu : u ∈ Set.Icc (0 : ℝ) 1 := ⟨div_nonneg (sub_nonneg.mpr hlo) (sub_pos.mpr hstep).le,
+    (div_le_iff₀ (sub_pos.mpr hstep)).mpr (by linarith)⟩
   have huval : AffineMap.lineMap C[k] C[k + 1] u = t := by
     rw [AffineMap.lineMap_apply_ring']
     dsimp [u]
-    field_simp [sub_ne_zero.mpr (ne_of_gt hstep)]
-    ring
+    field_simp [sub_ne_zero.mpr (ne_of_gt hstep)]; ring
   obtain ⟨q, hq, hfirst, hlast⟩ := sourceSamples_piece p S c j hk
-  have hq' : q < (mapAtCuts p S c F).segments := by
-    rw [mapAtCuts_segments]
-    omega
+  have hq' : q < (mapAtCuts p S c F).segments := by rw [mapAtCuts_segments]; omega
   have heval := (mapAtCuts_adjacent p S c F ⟨q, hq'⟩).1 u
   rw [hfirst, hlast] at heval
   have he : (mapAtCuts p S c F).eval ⟨q, hq'⟩ u = F (p.eval j t) := by

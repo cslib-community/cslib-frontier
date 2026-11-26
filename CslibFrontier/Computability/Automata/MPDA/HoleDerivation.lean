@@ -332,32 +332,28 @@ private theorem pendingAt_append_wellNested {q x : ℕ} (hv : WellNested v) (hw 
 theorem HoleBoundary.append_wellNested (h : HoleBoundary K w C) (hv : WellNested v) :
     HoleBoundary K (w ++ v) C ∧
       ∀ x, w.length ≤ x → x < (w ++ v).length → Snapshot K (w ++ v) x C := by
-  obtain ⟨h₁, h₂, h₃, h₄, h₅⟩ := h
-  have hb : HoleBoundary K w C := ⟨h₁, h₂, h₃, h₄, h₅⟩
+  obtain ⟨h₁, h₂, h₃, h₄, h₅⟩ := id h
   rcases eq_or_ne v [] with rfl | hvne
   · simp only [List.append_nil]
-    exact ⟨hb, fun x hx hx' => by omega⟩
+    exact ⟨h, fun x hx hx' => by omega⟩
   have hvlen : 0 < v.length := List.length_pos_iff.mpr hvne
   -- The chains stay pending through `v`.
   have hpend : ∀ c ∈ C, ∀ e ∈ c.pushes, ∀ x, w.length ≤ x → x < (w ++ v).length →
       PendingAt (w ++ v) e.1 x := by
     intro c hc e he x hx₁ hx₂
-    have hw : w ≠ [] := List.ne_nil_of_length_pos (by have := hb.lt_length hc he; omega)
+    have hw : w ≠ [] := List.ne_nil_of_length_pos (by have := h.lt_length hc he; omega)
     exact pendingAt_append_wellNested hv hw (h₂ c hc e he).2 hx₁ hx₂
-  have hpos := fun c hc e he => hb.lt_length (c := c) hc (e := e) he
+  have hpos := fun c hc e he => h.lt_length (c := c) hc (e := e) he
   have hpush : ∀ c ∈ C, ∀ e ∈ c.pushes, ∃ a, (w ++ v)[e.1]? = some (a, .push c.stack e.2) :=
     fun c hc e he => by
       obtain ⟨⟨a, ha⟩, -⟩ := h₂ c hc e he
       exact ⟨a, by rw [List.getElem?_append_left (hpos c hc e he), ha]⟩
   have hchain : ∀ c ∈ C, Chained (w ++ v) c.pushes := fun c hc =>
     chained_append (h₃ c hc) (hpos c hc)
-  have hv' : (w ++ v).extract w.length (w ++ v).length = v := by
-    simp
   -- Pending pushes before `v` are pushes of the chains.
   have hold : ∀ q x, q < w.length → w.length ≤ x + 1 → PendingAt (w ++ v) q x →
-      ∃ c ∈ C, ∃ e ∈ c.pushes, e.1 = q := by
-    intro q x hq hx hp
-    exact h₄ q ((pendingAt_append_iff (by omega)).mp (hp.anti (by omega) (by omega)))
+      ∃ c ∈ C, ∃ e ∈ c.pushes, e.1 = q := fun q x hq hx hp =>
+    h₄ q ((pendingAt_append_iff (by omega)).mp (hp.anti (by omega) (by omega)))
   refine ⟨⟨h₁, fun c hc e he => ⟨hpush c hc e he, hpend c hc e he _ (by simp; omega)
     (by simp; omega)⟩, hchain, fun q hq => ?_, h₅⟩, fun x hx₁ hx₂ => ⟨h₁,
     fun c hc e he => ⟨hpush c hc e he, hpend c hc e he x hx₁ hx₂⟩, hchain, fun q hq => ?_⟩⟩
@@ -367,13 +363,13 @@ theorem HoleBoundary.append_wellNested (h : HoleBoundary K w C) (hv : WellNested
       exfalso
       obtain ⟨-, -, i, ⟨a, γ, hqa⟩, -⟩ := id hq
       obtain ⟨m, hm, hmb, -⟩ := exists_matches_of_wellNested (q := q) (i := i) (a := w.length)
-        (b := (w ++ v).length) (by rw [hv']; exact hv) le_rfl (by omega)
+        (b := (w ++ v).length) (by simpa using hv) le_rfl (by omega)
         (by have := hq.1; have := hq.2.1; omega) ⟨a, γ, hqa⟩
       exact not_pendingAt_of_matches hm (by omega) hq
   · by_cases hqw : q < w.length
     · exact .inl (hold q x hqw (by omega) hq)
     · exact .inr ⟨w.length, (w ++ v).length, by omega, by have := hq.1; omega, le_rfl,
-        by rw [hv']; exact hv⟩
+        by simpa using hv⟩
 
 /-- A push on stack `i` at the last position joins the newest chain. -/
 theorem HoleBoundary.append_push {i : Fin n} {ps : List (ℕ × Γ)} {a : α} {γ : Γ}
@@ -594,16 +590,11 @@ theorem HoleBoundary.append_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {
 theorem HoleBoundary.close {pre post : List (HoleChain n Γ)} {i : Fin n}
     (h : HoleBoundary K w (pre ++ ⟨i, []⟩ :: post)) : HoleBoundary K w (pre ++ post) := by
   obtain ⟨h₁, h₂, h₃, h₄, h₅⟩ := h
-  have hsub : ∀ c ∈ pre ++ post, c ∈ pre ++ ⟨i, []⟩ :: post := fun c hc => by
-    rcases List.mem_append.mp hc with hc | hc <;> simp [hc]
-  refine ⟨by simp at h₁ ⊢; omega, fun c hc => h₂ c (hsub c hc), fun c hc => h₃ c (hsub c hc),
-    fun q hq => ?_, h₅.sublist ((List.sublist_cons_self _ post).append_left pre)⟩
+  have hsub := (List.sublist_cons_self ⟨i, []⟩ post).append_left pre
+  refine ⟨by simp at h₁ ⊢; omega, fun c hc => h₂ c (hsub.subset hc),
+    fun c hc => h₃ c (hsub.subset hc), fun q hq => ?_, h₅.sublist hsub⟩
   obtain ⟨c, hc, e, he, rfl⟩ := h₄ q hq
-  rcases List.mem_append.mp hc with hc | hc
-  · exact ⟨c, by simp [hc], e, he, rfl⟩
-  · rcases List.mem_cons.mp hc with rfl | hc
-    · simp at he
-    · exact ⟨c, by simp [hc], e, he, rfl⟩
+  exact ⟨c, by grind, e, he, rfl⟩
 
 /-- A hole block opens a new chain. -/
 theorem HoleBlock.boundary {i : Fin n} {L : ℕ} {v : List (α × Op n Γ)} {ps : List (ℕ × Γ)}
@@ -660,9 +651,7 @@ theorem HoleDerivation.invariant {K : ℕ} {C : List (HoleChain n Γ)} {w : List
     (h : HoleDerivation K C w) :
     HoleBoundary K w C ∧ ∀ x < w.length, ∃ Cx, Snapshot K w x Cx := by
   induction h with
-  | nil =>
-    refine ⟨⟨by simp, by simp, by simp, fun q hq => ?_, by simp⟩, by simp⟩
-    exact absurd hq.2.1 (by simp)
+  | nil => simp [HoleBoundary, PendingAt]
   | @wellNested C w v _ hv ih =>
     obtain ⟨hB, hS⟩ := ih
     obtain ⟨hB', hS'⟩ := hB.append_wellNested hv
