@@ -213,13 +213,11 @@ private theorem mem_of_propagate {ρ ρ' : List (Literal ℕ)} {c : PBConstr}
     (h : propagate ρ c = some ρ') {l : Literal ℕ} (hl : l ∈ ρ') :
     l ∈ ρ ∨ l ∈ c.terms.map (·.2) := by
   unfold propagate at h
-  split at h
-  · cases h
-  · cases h
-    rcases List.mem_append.1 hl with hl | hl
-    · obtain ⟨t, ht, rfl⟩ := List.mem_map.1 hl
-      exact .inr (List.mem_map_of_mem (List.mem_of_mem_filter ht))
-    · exact .inl hl
+  split at h <;> cases h
+  rcases List.mem_append.1 hl with hl | hl
+  · obtain ⟨t, ht, rfl⟩ := List.mem_map.1 hl
+    exact .inr (List.mem_map_of_mem (List.mem_of_mem_filter ht))
+  · exact .inl hl
 
 /-- **The kernel hints propagate as their LRAT hints do**, from an LRAT trail `t` that contains
 the kernel trail and the negated clause `t₀`; the negation `neg` of the clause never conflicts on
@@ -253,26 +251,20 @@ private theorem propagateHints_lratHints {J : List Ent} (hJ : (J.map Ent.num).No
     have hmono := Clause.residual_mono (c := d) hρ
     -- the LRAT step decides; the kernel step is used only to continue
     rcases hr : d.residual t with _ | l | _
-    · simp only [lratHints, hl, hr]
-      simp [CNF.propagateHints, CNF.propagateWith, hl, hr]
+    · simp [lratHints, CNF.propagateHints, CNF.propagateWith, hl, hr]
     · obtain ⟨-, hlt, -⟩ := Clause.residual_eq_unit_iff.1 hr
       have hcont : CNF.propagateHints (lratPart J) (l :: t)
           (lratHints (lratPart J) (l :: t) hs) = true := by
         unfold Clause.unitStep at h
         rcases hρr : d.residual ρ with _ | l' | _ <;> simp only [hρr] at h
         · simp [hmono.1 hρr] at hr
-        · have hl' : l' = l := by
-            rcases hmono.2 l' hρr with h' | h' <;> rw [hr] at h'
-            · cases h'
-            · exact (Clause.Residual.unit.inj h').symm
-          subst hl'
+        · obtain rfl : l' = l := (Clause.Residual.unit.inj (hr.symm.trans
+            ((hmono.2 l' hρr).resolve_left (by simp [hr])))).symm
           refine propagateHints_lratHints hJ hA hneg hs (l' :: t) _ (ht.cons hlt)
             (fun m hm => List.mem_cons_of_mem _ (h₀ m hm)) (fun m hm => ?_) h
           split at hm
           · exact List.mem_cons_of_mem _ (hρ m hm)
-          · rcases List.mem_cons.1 hm with rfl | hm
-            · exact List.mem_cons_self
-            · exact List.mem_cons_of_mem _ (hρ m hm)
+          · exact List.mem_cons.2 ((List.mem_cons.1 hm).imp_right (hρ m))
         · exact propagateHints_lratHints hJ hA hneg hs (l :: t) ρ (ht.cons hlt)
             (fun m hm => List.mem_cons_of_mem _ (h₀ m hm))
             (fun m hm => List.mem_cons_of_mem _ (hρ m hm)) h
@@ -319,14 +311,11 @@ private theorem consistent_clauseOf (c : PBConstr) :
   obtain ⟨y, hy, rfl⟩ := hx
   obtain ⟨z, hz, hzy⟩ := hnx
   simp only [negate_negate] at hzy
-  have hvar : termVar z = termVar y := by
-    obtain ⟨a, v, b⟩ := y
-    obtain ⟨a', v', b'⟩ := z
-    simp only [Std.Sat.Literal.negate, Prod.mk.injEq] at hzy
-    simp [hzy.1]
-  obtain rfl := List.inj_on_of_nodup_map (nodup_termVar_normalize c) hz hy hvar
-  obtain ⟨a, v, b⟩ := z
-  cases b <;> simp [Std.Sat.Literal.negate] at hzy
+  obtain ⟨a, v, b⟩ := y
+  obtain ⟨a', v', b'⟩ := z
+  simp only [Std.Sat.Literal.negate, Prod.mk.injEq] at hzy
+  have heq := List.inj_on_of_nodup_map (nodup_termVar_normalize c) hz hy (by simp [hzy.1])
+  cases b <;> simp_all
 
 private theorem lratPart_filter (J : List Ent) (p : ℕ → Bool) :
     lratPart (J.filter fun e => p e.num) = (lratPart J).filter fun e => p e.1 := by
@@ -353,9 +342,8 @@ private theorem checkLRAT_aux (q : ℕ) : ∀ (ss : List Step) (J : List Ent) (n
     have hnone : propagate [] e.constr = none := by
       have : slack [] e.constr < 0 := by
         have := of_decide_eq_true hcon
-        unfold IsContradiction at this
-        simp only [slack, falsified, List.contains_nil, Bool.not_false, List.filter_true]
-        omega
+        simp only [IsContradiction] at this
+        simp only [slack, falsified, List.contains_nil, Bool.not_false, List.filter_true]; omega
       simp [propagate, this]
     rw [hnone] at hagree
     cases hc : e.clause with
@@ -370,8 +358,7 @@ private theorem checkLRAT_aux (q : ℕ) : ∀ (ss : List Step) (J : List Ent) (n
     simp only [List.all_cons, Bool.and_eq_true, Step.isClausal, decide_eq_true_eq] at hcl
     obtain ⟨hdeg, hcl⟩ := hcl
     simp only [runSteps, runStep] at hrun
-    by_cases hr : rup (pbPart J) c hs = true
-    swap
+    cases hr : rup (pbPart J) c hs
     · simp [hr] at hrun
     simp only [hr, ↓reduceIte] at hrun
     by_cases h1 : c.normalize.degree = 1
@@ -394,8 +381,7 @@ private theorem checkLRAT_aux (q : ℕ) : ∀ (ss : List Step) (J : List Ent) (n
   | .del ids :: ss, J, n, D, m, hid, hA, hcl, hrun, hq => by
     simp only [List.all_cons, Bool.and_eq_true, Step.isClausal, true_and] at hcl
     simp only [runSteps, runStep] at hrun
-    by_cases hc : (decide ids.Nodup && ids.all fun i => (lookup (pbPart J) i).isSome) = true
-    swap
+    cases hc : (decide ids.Nodup && ids.all fun i => (lookup (pbPart J) i).isSome)
     · simp [hc] at hrun
     simp only [hc, ↓reduceIte] at hrun
     have hp : pbPart (J.filter fun e => !ids.contains e.num) =
@@ -458,12 +444,10 @@ private theorem toLRATAux_size (q : ℕ) : ∀ (L : List (ℕ × Clause ℕ)) (n
         Step.hintCount]
       omega
     · have ih := toLRATAux_size q L (n + 1) ss
-      simp only [List.length_cons, hintCount, Step.hintCount]
-      omega
+      simp only [List.length_cons, hintCount, Step.hintCount]; omega
   | L, n, .del ids :: ss => by
     have ih := toLRATAux_size q (L.filter fun e => !ids.contains e.1) n ss
-    simp only [toLRATAux, List.length_cons, CNF.lratHintCount, hintCount, Step.hintCount]
-    omega
+    simp only [toLRATAux, List.length_cons, CNF.lratHintCount, hintCount, Step.hintCount]; omega
   | _, _, .pol _ :: _ => by simp [toLRATAux, CNF.lratHintCount]
   | _, _, .rupSearch _ :: _ => by simp [toLRATAux, CNF.lratHintCount]
   | _, _, .pbc .. :: _ => by simp [toLRATAux, CNF.lratHintCount]

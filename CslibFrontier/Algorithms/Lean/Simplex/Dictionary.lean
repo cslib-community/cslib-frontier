@@ -250,11 +250,9 @@ private theorem pivot_elim_row {r s : ι} (hr : r ∈ D.basis) (hs : s ∉ D.bas
     rw [Finset.sum_div, Finset.mul_sum, ← Finset.sum_sub_distrib]
     refine Finset.sum_congr rfl fun j hj => ?_
     have hjr : j ≠ r := fun h => (Finset.mem_compl.1 (Finset.mem_of_mem_erase hj)) (h ▸ hr)
-    rw [ite_eq_right hjr]
-    ring
+    rw [ite_eq_right hjr]; ring
   rw [hsum]
-  field_simp
-  ring
+  field_simp; ring
 
 private theorem eq_div_of_isSolution {r s : ι} (hr : r ∈ D.basis) (hs : s ∉ D.basis)
     (ha : D.coeff r s ≠ 0) {x : ι → K} (hx : D.IsSolution x) :
@@ -303,8 +301,7 @@ theorem isSolution_pivot_iff {r s : ι} (hr : r ∈ D.basis) (hs : s ∉ D.basis
     by_cases hir : i = r
     · subst hir
       rw [hold, hxs]
-      field_simp
-      ring
+      field_simp; ring
     · simpa only [hold, hxs, ← hnew_i i hi hir] using h i (D.mem_pivot_basis.2 (.inr ⟨hi, hir⟩))
   · intro h i hi
     have hxs : x s = (x r - D.rhs r - R r) / D.coeff r s := D.eq_div_of_isSolution hr hs ha h
@@ -384,8 +381,7 @@ theorem basicSolution_pivot [Finite ι] {r s : ι} (hr : r ∈ D.basis) (hs : s 
       D.ray_of_notMem hj hjs, mul_zero, add_zero]
   · simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, D.basicSolution_of_mem hr,
       D.ray_of_mem hr hs, ratio]
-    field_simp
-    ring
+    field_simp; ring
 
 omit [Fintype ι] in
 /-- The pivot on `r` and `s` changes the objective value of the basic solution by
@@ -439,9 +435,7 @@ theorem feasible_pivot [Finite ι] (hD : D.Feasible) {r s : ι} (hr : r ∈ D.ba
   by_cases hi : i ∈ D.basis
   · rw [D.basicSolution_of_mem hi, D.ray_of_mem hi hs]
     rcases lt_or_ge (D.coeff i s) 0 with hneg | hnonneg
-    · have h := hmin i hi hneg
-      simp only [ratio] at h ⊢
-      rw [le_div_iff₀ (neg_pos.2 hneg)] at h
+    · have h := (le_div_iff₀ (neg_pos.2 hneg)).1 (hmin i hi hneg)
       linarith
     · exact add_nonneg (hD i hi) (mul_nonneg hθ hnonneg)
   · rw [D.basicSolution_of_notMem hi, D.ray_of_notMem hi his, mul_zero, add_zero]
@@ -495,8 +489,7 @@ theorem not_bddAbove_value (hD : D.Feasible) {s : ι} (hs : s ∉ D.basis)
 omit [IsStrictOrderedRing K] in
 theorem feasibleSet_eq {D' : Dictionary ι K} (h : D.Equivalent D') :
     D.feasibleSet = D'.feasibleSet := by
-  ext x
-  exact and_congr_left' (h.isSolution_iff x)
+  exact Set.ext fun x => and_congr_left' (h.isSolution_iff x)
 
 omit [IsStrictOrderedRing K] in
 /-- Equivalent dictionaries describe the same linear program. -/

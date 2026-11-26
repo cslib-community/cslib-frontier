@@ -251,16 +251,13 @@ private def offCoeff (τ : V → Bool) (I : Ineq V) (v : V) : ℤ :=
 
 private theorem offCoeff_lt (I : Ineq V) {v : V} (hv : v ∈ S) :
     offCoeff τ I v < guardLiftBound S τ I := by
-  have h1 : (I.coeff v).natAbs ≤ ∑ v ∈ S, (I.coeff v).natAbs :=
-    Finset.single_le_sum_of_canonicallyOrdered (f := fun v => (I.coeff v).natAbs) hv
-  have h2 : offCoeff τ I v ≤ ((I.coeff v).natAbs : ℤ) := by
+  have h1 : ((I.coeff v).natAbs : ℤ) ≤ (∑ v ∈ S, (I.coeff v).natAbs : ℕ) :=
+    Nat.cast_le.2 (Finset.single_le_sum_of_canonicallyOrdered (f := fun v => (I.coeff v).natAbs) hv)
+  have h2 : offCoeff τ I v ≤ (I.coeff v).natAbs := by
     rw [Int.natCast_natAbs]; unfold offCoeff; split_ifs
     exacts [neg_le_abs _, le_abs_self _]
-  have h3 : ((I.coeff v).natAbs : ℤ) ≤ ((∑ v ∈ S, (I.coeff v).natAbs : ℕ) : ℤ) := by
-    exact_mod_cast h1
-  have h4 : (0 : ℤ) ≤ ((I.restrict S τ).degree : ℤ) := Int.natCast_nonneg _
   simp only [guardLiftBound, Nat.cast_add, Nat.cast_one]
-  linarith
+  linarith [Int.natCast_nonneg (I.restrict S τ).degree]
 
 /-- **The identity behind the lifting after Lemma 2**: adding `(K - sᵥ) ℓ̄ᵥ ≥ 0` to `I` for every
 `v ∈ S` gives `I↾ρ + K • guard`. -/
@@ -343,13 +340,10 @@ theorem holds_restrict_iff {σ : V → Bool} (h : ∀ v ∈ S, σ v = τ v) (I :
       by_cases hw : w ∈ S
       · simp only [hw, ↓reduceIte, offCoeff]; cases τ w <;> simp
       · simp [hw]
-    · have hpt : ∀ v ∈ S, offCoeff τ I v * -(τ v).toInt = I.coeff v * (τ v).toInt := by
-        intro v _
-        unfold offCoeff
-        rcases Bool.eq_false_or_eq_true (τ v) with ht | ht <;> simp [ht]
+    · have hpt : ∀ v ∈ S, offCoeff τ I v * -(τ v).toInt = I.coeff v * (τ v).toInt := fun v _ => by
+        cases hτ : τ v <;> simp [offCoeff, hτ]
       simp only [bound_add, bound_sum, bound_zsmul, bound_offLit, bound_restrict, smul_eq_mul]
-      rw [Finset.sum_congr rfl hpt]
-      ring
+      rw [Finset.sum_congr rfl hpt]; ring
   have hl : ∀ v ∈ S, (offCoeff τ I v • offLit τ v).lhs σ =
       (offCoeff τ I v • offLit τ v).bound := by
     intro v hv
@@ -359,8 +353,7 @@ theorem holds_restrict_iff {σ : V → Bool} (h : ∀ v ∈ S, σ v = τ v) (I :
       smul_eq_mul]
     congr 1; omega
   conv_rhs => rw [hsplit]
-  unfold Holds
-  rw [lhs_add, bound_add, lhs_sum, bound_sum, Finset.sum_congr rfl hl]
+  simp only [Holds, lhs_add, bound_add, lhs_sum, bound_sum, Finset.sum_congr rfl hl]
   constructor <;> intro h <;> linarith
 
 /-- At an assignment agreeing with `τ` on `S`, the line `D↾ρ + K • guard` holds exactly when `D`
@@ -368,8 +361,7 @@ does, for every `K`. -/
 private theorem holds_restrict_add_guard_of_eq {σ : V → Bool} (h : ∀ v ∈ S, σ v = τ v)
     (I : Ineq V) (K : ℕ) : (I.restrict S τ + K • guard S τ).Holds σ ↔ I.Holds σ := by
   rw [← holds_restrict_iff h I]
-  unfold Holds
-  rw [lhs_add, bound_add, lhs_nsmul, bound_nsmul, lhs_guard σ h, nsmul_eq_mul]
+  simp only [Holds, lhs_add, bound_add, lhs_nsmul, bound_nsmul, lhs_guard σ h, nsmul_eq_mul]
   constructor <;> intro h <;> linarith
 
 /-- **The lifted line means the implication**: for a reification coefficient `K` at least the
@@ -477,15 +469,12 @@ theorem IsProof.lift {ls : List (Ineq V)} (h : IsProof (Ineq.restrict S τ '' Γ
   induction h with
   | nil => exact ⟨[], .nil, by simp, by simp⟩
   | @hyp ls I h hI ih =>
-    obtain ⟨ls', hp, hlen, hall⟩ := ih
     obtain ⟨C, hC, rfl⟩ := hI
-    exact lift_axiom (hp.hyp hC) hlen hall (restrict_restrict C)
+    exact ih.elim fun _ ⟨hp, hlen, hall⟩ => lift_axiom (hp.hyp hC) hlen hall (restrict_restrict C)
   | @nonneg ls h v ih =>
-    obtain ⟨ls', hp, hlen, hall⟩ := ih
-    exact lift_axiom (hp.nonneg v) hlen hall rfl
+    exact ih.elim fun _ ⟨hp, hlen, hall⟩ => lift_axiom (hp.nonneg v) hlen hall rfl
   | @leOne ls h v ih =>
-    obtain ⟨ls', hp, hlen, hall⟩ := ih
-    exact lift_axiom (hp.leOne v) hlen hall rfl
+    exact ih.elim fun _ ⟨hp, hlen, hall⟩ => lift_axiom (hp.leOne v) hlen hall rfl
   | @add ls I J h hI hJ ih =>
     obtain ⟨ls', hp, hlen, hall⟩ := ih
     obtain ⟨KI, hdI, hKI⟩ := hall I hI
@@ -510,12 +499,11 @@ theorem IsProof.lift {ls : List (Ineq V)} (h : IsProof (Ineq.restrict S τ '' Γ
   | @div ls I h c hc hdvd hI ih =>
     obtain ⟨ls', hp, hlen, hall⟩ := ih
     obtain ⟨K, hd, hK⟩ := hall I hI
+    have hcK : K + 1 ≤ c * (K + 1) := Nat.le_mul_of_pos_left _ hc
     obtain ⟨ext, hp', hmem, hlen'⟩ := hp.addOffLits (S := S) (τ := τ) hK
-      (fun _ => c * (K + 1) - K)
-      (fun _ _ => by have : K + 1 ≤ c * (K + 1) := Nat.le_mul_of_pos_left _ hc; omega)
+      (fun _ => c * (K + 1) - K) (fun _ _ => by omega)
     have heq : I.restrict S τ + K • guard S τ + ∑ v ∈ S, (c * (K + 1) - K) • offLit τ v =
         I.restrict S τ + (c * (K + 1)) • guard S τ := by
-      have : K + 1 ≤ c * (K + 1) := Nat.le_mul_of_pos_left _ hc
       rw [← Finset.smul_sum, ← Ineq.guard, add_assoc, ← add_nsmul, Nat.add_sub_of_le (by omega)]
     rw [heq] at hmem
     have hdvdr : ∀ v, (c : ℤ) ∣ (I.restrict S τ).coeff v := fun v => by

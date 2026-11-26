@@ -92,8 +92,7 @@ def Meets (C : Finset (Literal (Fin N))) (T : Finset (Fin N)) : Prop :=
 clause satisfies. -/
 private theorem mem_solutions_of_agree {ψ : ClauseSet (Fin N)} {w : BitString N}
     (h : ∀ C ∈ ψ, ∃ z ∈ ψ.solutions, ∀ l ∈ C, z l.1 = w l.1) : w ∈ ψ.solutions := by
-  rw [mem_solutions]
-  intro C hC
+  refine mem_solutions.mpr fun C hC => ?_
   obtain ⟨z, hz, hagree⟩ := h C hC
   obtain ⟨l, hl, htrue⟩ := mem_solutions.mp hz C hC
   exact ⟨l, hl, (hagree l hl).symm.trans htrue⟩
@@ -162,10 +161,8 @@ theorem card_compl_isolatedDirections_le {ψ : ClauseSet (Fin N)} {Δ D : ℕ}
     simp [hNI, isolatedDirections]
   let Ind : Finset (Finset (Fin N)) := NI.powerset.filter fun M =>
     ∀ u ∈ M, ∀ w ∈ M, u ≠ w → w ∉ ψ.neighbors u
-  have hInd : (∅ : Finset (Fin N)) ∈ Ind := by simp [Ind]
-  obtain ⟨M, hM, hmax⟩ := Ind.exists_max_image card ⟨∅, hInd⟩
-  simp only [Ind, mem_filter, mem_powerset] at hM
-  obtain ⟨hMNI, hMind⟩ := hM
+  obtain ⟨M, hM, hmax⟩ := Ind.exists_max_image card ⟨∅, by simp [Ind]⟩
+  obtain ⟨hMNI, hMind⟩ := by simpa only [Ind, mem_filter, mem_powerset] using hM
   have hmove : ∀ i ∈ M, flipOn {i} x ∈ ψ.solutions := fun i hi => (hmemNI i).mp (hMNI hi)
   -- the independent set is small
   have hMcard : M.card ≤ D - 1 := by
@@ -187,8 +184,7 @@ theorem card_compl_isolatedDirections_le {ψ : ClauseSet (Fin N)} {Δ D : ℕ}
           · exact hnone u huM
           · exact hMind u huM w hwM hne⟩
       have := hmax _ hins
-      rw [card_insert_of_notMem hiM] at this
-      omega
+      rw [card_insert_of_notMem hiM] at this; omega
   calc NI.card ≤ (M ∪ M.biUnion ψ.neighbors).card := card_le_card hcover
     _ ≤ M.card + (M.biUnion ψ.neighbors).card := card_union_le _ _
     _ ≤ M.card + ∑ m ∈ M, (ψ.neighbors m).card := by gcongr; exact card_biUnion_le
@@ -261,10 +257,9 @@ theorem card_solutions_le_of_neighbors {ψ : ClauseSet (Fin N)} {k Δ D : ℕ} (
       _ ≤ 2 ^ N := sum_two_rpow_card_isolatedDirections_div_le hk1 hk
   have hpos : (0 : ℝ) < (2 : ℝ) ^ (((N : ℝ) - m) / k) := by positivity
   rw [← le_div_iff₀ hpos, ← Real.rpow_natCast, ← Real.rpow_sub (by norm_num)] at hlower
-  refine hlower.trans (le_of_eq ?_)
+  refine hlower.trans_eq ?_
   congr 1
-  field_simp
-  ring
+  field_simp; ring
 
 /-- **Formulas without large subcubes of solutions have few solutions**: for every width `k ≥ 1`
 and every `ε > 0` there is a constant `C` such that every clause set of width `k` over `N`
@@ -287,8 +282,8 @@ theorem card_solutions_le_of_not_containsSubcube (k : ℕ) (hk : 1 ≤ k) {ε : 
       (card_neighbors_le hwidth u).trans (Nat.mul_le_mul_right _ (hocc u))
     have hfree' : ¬ ContainsSubcube (ψ.solutions : Set (BitString N)) D :=
       fun h => hfree (h.mono (by exact_mod_cast hsol))
-    refine (card_solutions_le_of_neighbors hk hwidth hdeg hfree').trans ?_
-    refine Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_
+    refine (card_solutions_le_of_neighbors hk hwidth hdeg hfree').trans
+      (Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_)
     simp only [E, div_mul_eq_mul_div]
     gcongr
     exact_mod_cast (mul_comm (D - 1) _).trans_le (Nat.mul_le_mul_left _ (Nat.sub_le D 1))
@@ -301,8 +296,7 @@ theorem card_solutions_le_of_not_containsSubcube (k : ℕ) (hk : 1 ≤ k) {ε : 
     _ = 2 ^ ((1 - 1 / (k : ℝ) + ε) * N + ((c * (k - 1) + 1 : ℕ) : ℝ) / k * D) := by
         rw [← Real.rpow_add (by norm_num)]
         congr 1
-        simp only [E]
-        ring
+        simp only [E]; ring
 
 end ClauseSet
 
@@ -317,9 +311,8 @@ theorem CNF.card_filter_eval_le_of_not_containsSubcube (k : ℕ) (hk : 1 ≤ k) 
       (#{x : BitString N | φ.eval x = true} : ℝ) ≤ 2 ^ ((1 - 1 / (k : ℝ) + ε) * N + C * D) := by
   obtain ⟨C, hC, h⟩ := ClauseSet.card_solutions_le_of_not_containsSubcube k hk hε
   refine ⟨C, hC, fun N φ D hφ hfree => ?_⟩
-  have hsol : φ.toClauseSet.solutions = ({x | φ.eval x = true} : Finset (BitString N)) := by
-    ext x
-    simp [CNF.sat_toClauseSet_iff]
+  have hsol : φ.toClauseSet.solutions = ({x | φ.eval x = true} : Finset (BitString N)) :=
+    Finset.ext fun _ => by simp [CNF.sat_toClauseSet_iff]
   rw [← hsol]
   refine h N φ.toClauseSet D (fun C hC => ?_) ?_
   · obtain ⟨c, hc, hle⟩ := CNF.exists_card_le_of_mem_toClauseSet hC

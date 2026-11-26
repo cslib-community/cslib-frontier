@@ -84,9 +84,7 @@ variable {n : ℕ}
 
 @[ext]
 theorem ext {I J : Instance n} (h : ∀ i, I.pref i = J.pref i) : I = J := by
-  cases I
-  cases J
-  simpa using funext h
+  exact congrArg Instance.mk (funext h)
 
 variable (I : Instance n)
 
@@ -99,8 +97,7 @@ variable {I}
 
 @[simp] theorem updatePrefs_empty (π : Fin n → Equiv.Perm (Fin n)) :
     I.updatePrefs ∅ π = I := by
-  ext j
-  simp [updatePrefs]
+  exact ext fun _ => by simp [updatePrefs]
 
 theorem updatePrefs_singleton (i : Fin n) (π : Fin n → Equiv.Perm (Fin n)) :
     I.updatePrefs {i} π = I.updatePref i (π i) := by
@@ -123,17 +120,14 @@ theorem updatePrefs_insert {S : Finset (Fin n)} {i : Fin n} (hi : i ∉ S)
 
 theorem updatePrefs_rank_of_notMem {S : Finset (Fin n)} {j : Fin n} (hj : j ∉ S)
     (π : Fin n → Equiv.Perm (Fin n)) : (I.updatePrefs S π).rank j = I.rank j := by
-  funext h
-  rw [rank, rank, updatePrefs_pref_of_notMem hj]
+  exact funext fun _ => by simp [rank, updatePrefs_pref_of_notMem hj]
 
 @[simp] theorem updatePref_self (i : Fin n) : I.updatePref i (I.pref i) = I := by
-  ext j
-  simp [updatePref]
+  exact ext fun _ => by simp [updatePref]
 
 @[simp] theorem updatePref_idem (i : Fin n) (π₁ π₂ : Equiv.Perm (Fin n)) :
     (I.updatePref i π₁).updatePref i π₂ = I.updatePref i π₂ := by
-  ext j
-  simp [updatePref]
+  exact ext fun _ => by simp [updatePref]
 
 @[simp] theorem updatePref_pref_self (i : Fin n) (π : Equiv.Perm (Fin n)) :
     (I.updatePref i π).pref i = π := by
@@ -314,8 +308,7 @@ private theorem topTwoPerm_apply_zero (a b : Fin n) :
   · have hz01 : z₀ ≠ ⟨1, by have := Fin.val_ne_of_ne h; omega⟩ :=
       fun heq => by simpa [z₀] using congrArg Fin.val heq
     have hz0k : z₀ ≠ σ₀.symm b := fun heq => h (by simpa [σ₀] using congrArg σ₀ heq)
-    rw [Equiv.trans_apply, Equiv.swap_apply_of_ne_of_ne hz01 hz0k]
-    exact Equiv.swap_apply_left z₀ a
+    rw [Equiv.trans_apply, Equiv.swap_apply_of_ne_of_ne hz01 hz0k, Equiv.swap_apply_left]
 
 private theorem topTwoPerm_symm_fst_val (a b : Fin n) :
     ((topTwoPerm a b).symm a).val = 0 := by

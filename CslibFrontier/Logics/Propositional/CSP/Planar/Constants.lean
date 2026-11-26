@@ -98,18 +98,14 @@ theorem disequality_or_pin_of_missing_constant {R : Set (Fin m → Bool)}
   obtain rfl | rfl : n = 0 ∨ n = 1 := by omega
   · have ha' : (fun _ : Fin 1 => !b) ∈ S :=
       (eq_or_eq_not (fun _ => b) a).resolve_left (fun h => hz (h ▸ ha)) ▸ ha
-    have heq : S = pin (!b) := by
-      ext x
-      rcases eq_or_eq_not (fun _ => b) x with rfl | rfl <;> simp [pin, hz, ha']
-    exact .inr ⟨heq ▸ c⟩
+    exact .inr ⟨(show S = pin (!b) from Set.ext fun x => by
+      rcases eq_or_eq_not (fun _ => b) x with rfl | rfl <;> simp [pin, hz, ha']) ▸ c⟩
   · have hlast : (fun _ : Fin 2 => !b) ∉ S := fun h => hmin 1 _ ⟨.equalDrop c⟩ (by omega)
       ⟨⟨_, mem_adjacent h false (by simp)⟩, constant_not_mem_adjacent b hz⟩
     have rows (x : Fin 2 → Bool) : x = (fun _ => b) ∨ x = spike b 0 ∨
         x = spike b 1 ∨ x = fun _ => !b := by cases b <;> revert x <;> decide
-    have heq : S = disequality := by
-      ext x
-      rcases rows x with rfl | rfl | rfl | rfl <;> simp [disequality, hz, hlast, hu, spike]
-    exact .inl ⟨heq ▸ c⟩
+    exact .inl ⟨(show S = disequality from Set.ext fun x => by
+      rcases rows x with rfl | rfl | rfl | rfl <;> simp [disequality, hz, hlast, hu, spike]) ▸ c⟩
 
 private theorem binary_minor_of_failure {R : Set (Fin m → Bool)}
     (hR : Available arity sem R) (pins : ∀ b, Available arity sem (pin b))
@@ -133,9 +129,7 @@ private theorem binary_minor_of_failure {R : Set (Fin m → Bool)}
     have hc : IsPolymorphism f (cofactor S j (z 0 j)) := by
       by_contra hh
       exact hmin n _ ⟨.cofactor c j _ (Classical.choice (pins _))⟩ (by omega) hh
-    refine hout (mem_of_cofactor_closure (hid _) hc z hz fun q => ?_)
-    fin_cases q
-    exacts [rfl, heq.symm]
+    exact hout (mem_of_cofactor_closure (hid _) hc z hz (Fin.forall_fin_two.2 ⟨rfl, heq.symm⟩))
   obtain ⟨a, ha, hout⟩ : ∃ a : Fin 2 → Fin (n + 1) → Bool,
       (∀ q, a q ∈ S) ∧ (fun i => f (fun q => a q i)) ∉ S := by
     simpa only [IsPolymorphism, not_forall, exists_prop] using hb
@@ -220,10 +214,8 @@ theorem pins_of_disequality {R : Set (Fin m → Bool)}
     have hh := hf (fun _ => Fin.tail x) (fun _ => mem_adjacent hx d (hd' _ _).1)
     change Fin.cons (!(x 1) ^^ d) (Fin.tail (fun i => !(x i))) ∈ S at hh
     rwa [← (hd' (x 0) (x 1)).2, Fin.cons_self_tail (fun i => !(x i))] at hh
-  have heq : S = pin (x 0) := by
-    ext y
-    rcases eq_or_eq_not x y with rfl | rfl <;> simp [pin, hx, hnot]
-  have hp : Construction arity sem (pin (x 0)) := heq ▸ c
+  have hp : Construction arity sem (pin (x 0)) := (show S = pin (x 0) from Set.ext fun y => by
+    rcases eq_or_eq_not x y with rfl | rfl <;> simp [pin, hx, hnot]) ▸ c
   have htwist : twist (pin (x 0)) (Pi.single 0 true) = pin (!(x 0)) := by
     ext y
     change (y 0 + true) = x 0 ↔ y 0 = !(x 0)
@@ -240,11 +232,9 @@ theorem disequality_of_not_hasSchaeferPolymorphism
   rw [HasSchaeferPolymorphism, hasPolymorphism_const_iff, hasPolymorphism_const_iff] at h
   simp only [HasPolymorphism, not_or, not_forall] at h
   obtain ⟨⟨r₀, hr₀, hz⟩, ⟨s₀, hs₀, ho⟩, ⟨r, hr⟩, ⟨s, hs⟩, -⟩ := h
-  rcases disequality_or_pin_of_missing_constant ⟨.atom r₀⟩ false hr₀ hz with hd | h1
-  · exact hd
-  rcases disequality_or_pin_of_missing_constant ⟨.atom s₀⟩ true hs₀ ho with hd | h0
-  · exact hd
-  exact disequality_of_pins ⟨.atom r⟩ ⟨.atom s⟩ (fun b => by cases b; exacts [h0, h1]) hr hs
+  exact (disequality_or_pin_of_missing_constant ⟨.atom r₀⟩ false hr₀ hz).elim id fun h1 =>
+    (disequality_or_pin_of_missing_constant ⟨.atom s₀⟩ true hs₀ ho).elim id fun h0 =>
+    disequality_of_pins ⟨.atom r⟩ ⟨.atom s⟩ (Bool.rec h0 h1) hr hs
 
 /-- Lemma 3's nonselfdual endpoint, with no adjoined-constant premise: disequality and both
 unary pins have finite ordered constructions from the original language. Complement, constant,
