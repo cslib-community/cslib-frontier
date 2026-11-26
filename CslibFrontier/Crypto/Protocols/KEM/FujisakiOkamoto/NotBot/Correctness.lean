@@ -362,21 +362,20 @@ private theorem eval_coupledHashH_init (S : Scheme PK SK M R CT K) (pk : PK) (sk
         { gCache := [(m, r)] }) =
       ProbComp.eval ((simHashHq S.sampleKey (S.pke.encDet pk m r)).run
         ({ gCache := [(m, r)] } : SimState M R CT K)) := by
-  let t (r' : R) := S.pke.encDet pk m r' = S.pke.encDet pk m r ∧
-    S.pke.dec sk (S.pke.encDet pk m r) = some m
-  have hlk : ({ gCache := [(m, r)] } : SimState M R CT K).gCache.lookup m = some r := by simp
-  change ProbComp.eval (S.testHashH m (S.pke.encDet pk m r) t { gCache := [(m, r)] }) = _
-  simpa [t, hr, StateT.run] using eval_testHashH_of_lookup S m (S.pke.encDet pk m r) t hlk
+  simpa [coupledHashH, testHashH, StateT.run, hr] using
+    eval_testHashH_of_lookup S m (S.pke.encDet pk m r)
+      (fun r' => S.pke.encDet pk m r' = S.pke.encDet pk m r ∧
+        S.pke.dec sk (S.pke.encDet pk m r) = some m)
+      (st := { gCache := [(m, r)] }) (r := r) (by simp)
 
 private theorem eval_simHashH_init (S : Scheme PK SK M R CT K) (pk : PK) (m : M) (r : R) :
     ProbComp.eval ((S.simHashH pk (false, m, S.pke.encDet pk m r)).run
         { gCache := [(m, r)] }) =
       ProbComp.eval ((simHashHq S.sampleKey (S.pke.encDet pk m r)).run
         ({ gCache := [(m, r)] } : SimState M R CT K)) := by
-  let t (r' : R) := S.pke.encDet pk m r' = S.pke.encDet pk m r
-  have hlk : ({ gCache := [(m, r)] } : SimState M R CT K).gCache.lookup m = some r := by simp
-  change ProbComp.eval (S.testHashH m (S.pke.encDet pk m r) t { gCache := [(m, r)] }) = _
-  simpa [t, StateT.run] using eval_testHashH_of_lookup S m (S.pke.encDet pk m r) t hlk
+  simpa [simHashH, testHashH, StateT.run] using eval_testHashH_of_lookup S m (S.pke.encDet pk m r)
+    (fun r' => S.pke.encDet pk m r' = S.pke.encDet pk m r) (st := { gCache := [(m, r)] })
+    (r := r) (by simp)
 
 /-- **Filtered correctness hop**: for an adversary making at most `qG` queries to `G` and `qH`
 queries to `H` against a `δ`-correct PKE, when the decapsulation filters `d₁` and `d₂` agree on
@@ -435,19 +434,16 @@ theorem advantage_coupledFilterGame_simFilterGame_le [Fintype M] [Nonempty M]
         by_cases h : S.pke.dec sk (S.pke.encDet pk mStar r) = some mStar <;> simp [h, Set.indicator]
     · push_cast; ring
   by_cases hr : S.pke.dec sk (S.pke.encDet pk mStar rStar) = some mStar
-  · rw [ite_eq_left_of_eq_true _ _ (eq_true hr), zero_add,
-      eval_coupledHashH_init S pk sk mStar rStar hr,
-      eval_simHashH_init]
+  · rw [ite_eq_left hr, zero_add, eval_coupledHashH_init S pk sk mStar rStar hr, eval_simHashH_init]
     refine (CloseTo.bind_right_tsum _ (err := fun _ => ((qG + qH : ℕ) : ℝ≥0∞) * p)
       fun x hx => ?_).mono (le_of_eq (hconst _ _))
-    have hgood : GoodCache S.pke pk sk x.2 := fun e he => by
-      rw [simHashHq_gCache_eq _ _ _ _ hx, List.mem_singleton] at he
-      exact he ▸ hr
+    have hgood : GoodCache S.pke pk sk x.2 := fun e he =>
+      (List.mem_singleton.mp (simHashHq_gCache_eq _ _ _ _ hx ▸ he)) ▸ hr
     refine (CloseTo.bind_right_tsum _ (err := fun _ => ((qG + qH : ℕ) : ℝ≥0∞) * p)
       fun kRand _ => ?_).mono (le_of_eq (hconst _ _))
     exact closeTo_run_coupledFilterHandler_simFilterHandler S pk sk _ (d₁ pk sk) (d₂ pk)
       (hd pk sk) _ (hq.ghCost _) hgood _
-  · rw [ite_eq_right_of_eq_false _ _ (eq_false hr)]
+  · rw [ite_eq_right hr]
     exact fun e => (Probability.PMF.toOuterMeasure_le_one _ e).trans
       (le_self_add.trans le_add_self)
 

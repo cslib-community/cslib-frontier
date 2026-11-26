@@ -148,7 +148,7 @@ root of unity. -/
 theorem isPrimitiveRoot_pow_two_pow {ω : F} {d i : ℕ} (hω : IsPrimitiveRoot ω (2 ^ d))
     (hi : i ≤ d) :
     IsPrimitiveRoot (ω ^ (2 ^ i)) (2 ^ (d - i)) := by
-  simpa only [Nat.pow_div hi (by omega : 0 < 2)] using
+  simpa only [Nat.pow_div hi two_pos] using
     hω.pow_of_dvd (pow_ne_zero i (by omega)) (Nat.pow_dvd_pow 2 hi)
 
 /-- Fiberwise primitive `a`-th root of unity `ω ^ N` from a primitive `(a * N)`-th root `ω`. -/
@@ -161,9 +161,8 @@ private theorem isPrimitiveRoot_fiber {ω : F} {a N : ℕ} (hN : 0 < N)
 private theorem cosetPoint_fiberIdx_pow_eq (g ω : F) {a N : ℕ} (hN : 0 < N)
     (hω : IsPrimitiveRoot ω (a * N)) (j : Fin N) (t : Fin a) :
     (cosetPoint g ω (a * N) (fiberIdx j t)) ^ a = cosetPoint (g ^ a) (ω ^ a) N j := by
-  rw [cosetPoint_pow_eq g ω hN hω (fiberIdx j t)]
-  congr 1
-  exact Fin.ext (by simp [fiberIdx, Nat.mod_eq_of_lt j.isLt])
+  simpa only [fiberIdx, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt j.isLt, Fin.eta] using
+    cosetPoint_pow_eq g ω hN hω (fiberIdx j t)
 
 /-- Each level `i ≤ d` of the FRI coset hierarchy has distinct evaluation points. -/
 theorem cosetEval_injective {g ω : F} {d i : ℕ} (hg : g ≠ 0) (hω : IsPrimitiveRoot ω (2 ^ d))
@@ -391,24 +390,21 @@ theorem foldComp_eval {g ω : F} {a N : ℕ} (hg : g ≠ 0) (ha : (a : F) ≠ 0)
     refine Finset.sum_congr rfl fun u _ => ?_
     rw [cosetPoint_fiberIdx_pow_eq g ω hN hω j t, cosetPoint_fiberIdx g ω ha_pos j t]
     simp only [cosetPoint, mul_pow, ← pow_mul, mul_assoc, mul_comm t.val u.val]
-  have hsum :
-      (∑ t : Fin a,
-        ((ω ^ N)⁻¹) ^ (r.val * t.val) * p.eval (cosetPoint g ω (a * N) (fiberIdx j t))) =
-        (a : F) * (g * ω ^ j.val) ^ r.val *
-          (polyComp a p r).eval (cosetPoint (g ^ a) (ω ^ a) N j) := by
+  rw [foldComp, foldFiberComp]
+  conv_lhs =>
+    arg 2
     simp only [hterm, Finset.mul_sum]
     rw [Finset.sum_comm]
-    have hmul (u : Fin a) : (∑ t : Fin a, ((ω ^ N)⁻¹) ^ (r.val * t.val) *
-        ((g * ω ^ j.val) ^ u.val * (ω ^ N) ^ (u.val * t.val) *
-          (polyComp a p u).eval (cosetPoint (g ^ a) (ω ^ a) N j))) =
-        (if u = r then (a : F) else 0) * ((g * ω ^ j.val) ^ u.val *
-          (polyComp a p u).eval (cosetPoint (g ^ a) (ω ^ a) N j)) := by
-      rw [← sum_primitiveRoot_mul_inv (isPrimitiveRoot_fiber hN hω) u r, Finset.sum_mul]
-      exact Finset.sum_congr rfl fun _ _ => by ring
-    simp_rw [hmul]
-    simp [mul_assoc]
-  rw [foldComp, foldFiberComp, hsum, ← mul_assoc,
-    inv_mul_cancel₀ (mul_ne_zero ha (pow_ne_zero r.val hx0)), one_mul]
+  have hmul (u : Fin a) : (∑ t : Fin a, ((ω ^ N)⁻¹) ^ (r.val * t.val) *
+      ((g * ω ^ j.val) ^ u.val * (ω ^ N) ^ (u.val * t.val) *
+        (polyComp a p u).eval (cosetPoint (g ^ a) (ω ^ a) N j))) =
+      (if u = r then (a : F) else 0) * ((g * ω ^ j.val) ^ u.val *
+        (polyComp a p u).eval (cosetPoint (g ^ a) (ω ^ a) N j)) := by
+    rw [← sum_primitiveRoot_mul_inv (isPrimitiveRoot_fiber hN hω) u r, Finset.sum_mul]
+    exact Finset.sum_congr rfl fun _ _ => by ring
+  simp_rw [hmul]
+  simp only [ite_mul, zero_mul, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte,
+    ← mul_assoc, inv_mul_cancel₀ (mul_ne_zero ha (pow_ne_zero r.val hx0)), one_mul]
 
 /-- `foldWord` commutes with polynomial evaluation: folding the evaluations of `p` yields the
 evaluations of `foldPoly a p z` on the powered coset. -/
@@ -637,12 +633,11 @@ theorem exists_mem_reedSolomon_weighted_agree_lift_two {g ω : F} {N k : ℕ} [D
   obtain ⟨c, hc_mem, -, hsum⟩ :=
     exists_mem_reedSolomon_weighted_agree_lift hg (by simpa using h2) hN hω f ![v₀, v₁]
       (Fin.forall_fin_two.mpr ⟨hv₀, hv₁⟩) W
-  refine ⟨c, hc_mem, ?_⟩
-  simp only [Fin.forall_fin_two, Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_fin_one,
-    pushWeight, Fin.sum_univ_two, fiberIdx, Fin.val_zero, Fin.val_one, zero_mul, add_zero,
-    one_mul] at hsum
-  simp only [fold2Even_eq_foldComp (g := g) (ω := ω) f, fold2Odd_eq_foldComp hN hω f]
-  exact hsum
+  exact ⟨c, hc_mem, by
+    simpa only [Fin.forall_fin_two, Matrix.cons_val_zero, Matrix.cons_val_one,
+      Matrix.cons_val_fin_one, pushWeight, Fin.sum_univ_two, fiberIdx, Fin.val_zero, Fin.val_one,
+      zero_mul, add_zero, one_mul, Fin.zero_eta, Fin.mk_one,
+      fold2Even_eq_foldComp (g := g) (ω := ω) f, fold2Odd_eq_foldComp hN hω f] using hsum⟩
 
 end TwoToOneFolding
 

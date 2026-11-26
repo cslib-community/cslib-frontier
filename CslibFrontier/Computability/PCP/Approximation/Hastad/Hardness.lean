@@ -185,8 +185,8 @@ theorem computableInPolyTime_toGapLin :
 
 private theorem eval_paritySem_eq_holds (c : Constraint Bool ℕ) (σ : ℕ → Bool) :
     Constraint.eval CSP.paritySem σ c = decide (AffineEquation.Holds ⟨c.scope, c.rel⟩ σ) := by
-  have hsum : (c.scope.map σ).foldl Bool.xor false = (c.scope.map σ).sum := by
-    rw [List.sum_eq_foldl]; rfl
+  have hsum : (c.scope.map σ).foldl Bool.xor false = (c.scope.map σ).sum :=
+    (List.sum_eq_foldl (xs := c.scope.map σ)).symm
   by_cases h : (c.scope.map σ).sum = c.rel <;>
     simp [Constraint.eval, CSP.paritySem, AffineEquation.Holds, hsum, h]
 
@@ -262,9 +262,9 @@ theorem GapExactThreeLin_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
   have hm2 : 2 ≤ m := by omega
   have hm0 : (0 : ℝ) < m := by positivity
   have hinv_le : 1 / (m : ℝ) ≤ δ / 2 := by
-    have hm_ge : 2 / δ ≤ (m : ℝ) := (Nat.le_ceil _).trans (by exact_mod_cast Nat.le_add_right _ 3)
-    rw [div_le_iff₀ hm0, div_mul_eq_mul_div, le_div_iff₀ two_pos]
-    rw [div_le_iff₀ hδ] at hm_ge; linarith
+    have hm_ge : 2 ≤ m * δ :=
+      (div_le_iff₀ hδ).1 ((Nat.le_ceil _).trans (Nat.cast_le.2 (Nat.le_add_right _ 3)))
+    rw [div_le_iff₀ hm0, div_mul_eq_mul_div, le_div_iff₀ two_pos]; linarith
   have hinv_lt_half : 1 / (m : ℝ) < 1 / 2 :=
     one_div_lt_one_div_of_lt two_pos (by exact_mod_cast (by omega : 2 < m))
   -- Step 2: obtain the Label Cover soundness threshold `η ∈ (0, 1)` for `ε' = ε / 8`.
@@ -278,8 +278,8 @@ theorem GapExactThreeLin_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
   let baseDrop : ℝ := 1 - 1 / (m : ℝ)
   have hbaseDrop1 : baseDrop < 1 := sub_lt_self 1 (by positivity)
   obtain ⟨n₁, hn₁⟩ := exists_pow_lt_of_lt_one hη0 (by norm_num : baseLC < 1)
-  obtain ⟨n₂, hn₂⟩ := exists_pow_lt_of_lt_one (lt_min (by linarith) (by linarith) :
-    0 < wMax) hbaseDrop1
+  obtain ⟨n₂, hn₂⟩ :=
+    exists_pow_lt_of_lt_one (lt_min (half_pos hδ) (div_pos hε zero_lt_four)) hbaseDrop1
   let n : ℕ := max n₁ n₂ + 1
   let k : ℕ := 21 * n
   -- Instantiate the `k`-round Label Cover hardness at soundness `η`.
@@ -327,8 +327,7 @@ theorem GapExactThreeLin_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
         CSP.unsatVal_le CSP.paritySem (reduce T g) σ]
   · rw [mem_no_GapExactThreeLin h]
     refine ⟨scopes_reduce hT g, ?_⟩
-    have hedge : g.edges ≠ [] := by
-      intro hnil
+    have hedge : g.edges ≠ [] := fun hnil => by
       rw [GapLabelCover, PromiseProblem.mem_no_gapMax] at hg
       have hsat : (g.toGraph projectionEval).Satisfiable :=
         ⟨fun _ => ((fun _ => ((false, fun _ => false), (false, fun _ => false))), y₀),
@@ -445,12 +444,11 @@ theorem P_eq_NP_of_maxExactThreeLin_approx {A : CSP Bool ℕ → List ℕ} {ρ :
       ((CSP.computableInPolyTime_toCNFBounded_parity encNat).prod hA))
   have hc {F : CSP Bool ℕ} (hF : ∀ e ∈ F, e.scope.length = 3 ∧ e.scope.Nodup) :=
     CSP.countUnsat_toCNFBounded CSP.paritySem (fun e he => (hF e he).1.le)
-  have hmem : GapExactThreeLin (1 - δ) (1 / 2 + ε) ∈ PromiseP (encCSP encBool encNat) :=
-    gapMax_restrict_mem_PromiseP_of_approx (by linarith) hgap (by linarith) hsρc
+  exact (GapExactThreeLin_npHard hδ hε hgap).P_eq_NP_of_mem_PromiseP
+    (gapMax_restrict_mem_PromiseP_of_approx (by linarith) hgap (by linarith) hsρc
       (length_list_binary _) hu (fun F hF => hc hF _ ▸ CSP.unsatVal_le CSP.paritySem F _)
       (fun _ _ hpos => List.length_pos_of_ne_nil fun h0 => hpos.ne' (by simp [h0]))
-      (fun F hF => hc hF _ ▸ happrox F hF)
-  exact (GapExactThreeLin_npHard hδ hε hgap).P_eq_NP_of_mem_PromiseP hmem enc
+      (fun F hF => hc hF _ ▸ happrox F hF)) enc
 
 /-- **Håstad's Theorem 6.1: MAX-E3SAT has no polynomial-time `(7 / 8 + ε)`-approximation
 algorithm (factor `8 / 7 - ε`) unless `P = NP`** `[Hastad2001]` (author PDF p. 38 / JACM p. 831).
@@ -467,15 +465,11 @@ theorem P_eq_NP_of_maxExactThreeSAT_approx {A : CNF ℕ → List ℕ} {ρ : ℝ}
     {β : Type} (enc : β ↪ List Bool) : P enc = NP enc := by
   obtain ⟨δ, ε, hδ, hε, hgap, hsρc⟩ :=
     exists_gap_params_of_gt (by norm_num : (0 : ℝ) ≤ 7 / 8) (by norm_num) hρ
-  have hu : ComputableInPolyTime
-      (fun φ : CNF ℕ => φ.countUnsat fun v => decide (v ∈ A φ)) encCNF encNat :=
-    unary_to_binary.comp ((computableInPolyTime_countUnsat_mem encNat).comp (id'.prod hA))
-  have hmem : GapMaxExactThreeSAT (1 - δ) (7 / 8 + ε) ∈ PromiseP encCNF :=
-    gapMax_restrict_mem_PromiseP_of_approx (by linarith) hgap (by linarith) hsρc
-      (length_list_binary _) hu
+  exact (GapMaxExactThreeSAT_npHard hδ hε hgap).P_eq_NP_of_mem_PromiseP
+    (gapMax_restrict_mem_PromiseP_of_approx (by linarith) hgap (by linarith) hsρc
+      (length_list_binary _)
+      (unary_to_binary.comp ((computableInPolyTime_countUnsat_mem encNat).comp (id'.prod hA)))
       (fun φ _ => CNF.unsatVal_le φ _)
-      (fun _ _ hpos => CNF.length_pos_of_unsatVal_pos hpos)
-      happrox
-  exact (GapMaxExactThreeSAT_npHard hδ hε hgap).P_eq_NP_of_mem_PromiseP hmem enc
+      (fun _ _ hpos => CNF.length_pos_of_unsatVal_pos hpos) happrox) enc
 
 end Cslib.Complexity

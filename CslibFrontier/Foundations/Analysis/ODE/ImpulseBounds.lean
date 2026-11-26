@@ -130,12 +130,10 @@ private theorem dotProduct_self_nonneg' (y : n → ℝ) [Fintype n] : 0 ≤ y �
 private theorem integrableOn_Ioc_mulVec_dotProduct
     (hx : ∀ t ∈ Ici (0 : ℝ), HasDerivWithinAt x (A *ᵥ x t) (Ici 0) t) (T : ℝ) :
     IntegrableOn (fun t => C *ᵥ x t ⬝ᵥ C *ᵥ x t) (Ioc 0 T) := by
-  have hc : ContinuousOn (fun t => C *ᵥ x t ⬝ᵥ C *ᵥ x t) (Icc 0 T) := by
-    have hxc : ContinuousOn x (Icc 0 T) := fun t ht =>
-      ((hx t ht.1).continuousWithinAt).mono Icc_subset_Ici_self
-    simpa only [Function.comp_def, dotProduct_transpose_mul_mulVec] using
-      (continuous_dotProduct_mulVec (Cᵀ * C)).comp_continuousOn hxc
-  exact (hc.integrableOn_Icc).mono_set Ioc_subset_Icc_self
+  refine (ContinuousOn.integrableOn_Icc ?_).mono_set Ioc_subset_Icc_self
+  simpa only [Function.comp_def, dotProduct_transpose_mul_mulVec] using
+    (continuous_dotProduct_mulVec (Cᵀ * C)).comp_continuousOn fun t (ht : t ∈ Icc 0 T) =>
+      (hx t ht.1).continuousWithinAt.mono Icc_subset_Ici_self
 
 /-- Bounded partial integrals of a nonnegative density give integrability on `(0, ∞)`. -/
 private theorem integrableOn_Ioi_of_bounded {g : ℝ → ℝ} (hg : ∀ t, 0 ≤ g t)
@@ -200,8 +198,7 @@ variable {n : Type*} [Fintype n] {A P : Matrix n n ℝ} {x : ℝ → n → ℝ}
 private theorem dotProduct_mulVec_le_of_posSemidef_sub {M N : Matrix n n ℝ}
     (h : (M - N).PosSemidef) (y : n → ℝ) : y ⬝ᵥ N *ᵥ y ≤ y ⬝ᵥ M *ᵥ y := by
   have := h.dotProduct_mulVec_nonneg y
-  simp only [star_trivial, sub_mulVec, dotProduct_sub] at this
-  linarith
+  simp only [star_trivial, sub_mulVec, dotProduct_sub] at this; linarith
 
 /-- **Certified decay rate.** If `Aᵀ P + P A + 2 α P ⪯ 0`, every solution of `x' = A *ᵥ x` on
 `[0, ∞)` satisfies `V (x t) ≤ exp (-2 α t) V (x 0)` for `V y = y ⬝ᵥ P *ᵥ y` and `t ≥ 0`. -/
@@ -226,12 +223,11 @@ theorem dotProduct_self_le_exp_neg_mul [DecidableEq n]
   have hl := dotProduct_mulVec_le_of_posSemidef_sub hlow (x t)
   have hu := dotProduct_mulVec_le_of_posSemidef_sub hup (x 0)
   simp only [smul_mulVec, one_mulVec, dotProduct_smul, smul_eq_mul] at hl hu
-  have hd := dotProduct_mulVec_le_exp_neg_mul hx hP ht
-  have he := Real.exp_pos (-(2 * α) * t)
   rw [mul_assoc, div_mul_eq_mul_div, le_div_iff₀' hm]
   calc m * (x t ⬝ᵥ x t) ≤ x t ⬝ᵥ P *ᵥ x t := hl
-    _ ≤ Real.exp (-(2 * α) * t) * (x 0 ⬝ᵥ P *ᵥ x 0) := hd
-    _ ≤ Real.exp (-(2 * α) * t) * (M * (x 0 ⬝ᵥ x 0)) := mul_le_mul_of_nonneg_left hu he.le
+    _ ≤ Real.exp (-(2 * α) * t) * (x 0 ⬝ᵥ P *ᵥ x 0) := dotProduct_mulVec_le_exp_neg_mul hx hP ht
+    _ ≤ Real.exp (-(2 * α) * t) * (M * (x 0 ⬝ᵥ x 0)) :=
+      mul_le_mul_of_nonneg_left hu (Real.exp_pos _).le
     _ = M * (Real.exp (-(2 * α) * t) * (x 0 ⬝ᵥ x 0)) := by ring
 
 /-- **Certified output decay from an initial state.** If `Aᵀ P + P A + 2 α P ⪯ 0`,
@@ -247,11 +243,10 @@ theorem mulVec_dotProduct_le_exp_neg_mul [DecidableEq n] {p : Type*} [Fintype p]
   have hu := dotProduct_mulVec_le_of_posSemidef_sub hup (x 0)
   rw [dotProduct_transpose_mul_mulVec, smul_mulVec, dotProduct_smul, smul_eq_mul] at hc
   simp only [smul_mulVec, one_mulVec, dotProduct_smul, smul_eq_mul] at hu
-  have hd := dotProduct_mulVec_le_exp_neg_mul hx hP ht
-  have he := (Real.exp_pos (-(2 * α) * t)).le
   calc C *ᵥ x t ⬝ᵥ C *ᵥ x t ≤ γ * (x t ⬝ᵥ P *ᵥ x t) := hc
     _ ≤ γ * (Real.exp (-(2 * α) * t) * (M * (x 0 ⬝ᵥ x 0))) :=
-      mul_le_mul_of_nonneg_left (hd.trans (mul_le_mul_of_nonneg_left hu he)) hγ
+      mul_le_mul_of_nonneg_left ((dotProduct_mulVec_le_exp_neg_mul hx hP ht).trans
+        (mul_le_mul_of_nonneg_left hu (Real.exp_pos _).le)) hγ
     _ = _ := by ring
 
 /-- Every `exp (t • A) *ᵥ y` solves `x' = A *ᵥ x` on `[0, ∞)`. -/
@@ -305,8 +300,7 @@ theorem dotProduct_mulVec_eq_integral [DecidableEq n] {W : Matrix n n ℝ} {p : 
         C *ᵥ (exp (t • A) *ᵥ (y - z)) ⬝ᵥ C *ᵥ (exp (t • A) *ᵥ (y - z))) / 4 := by
     funext t
     simp only [mulVec_add, mulVec_sub, add_dotProduct, dotProduct_add, sub_dotProduct,
-      dotProduct_sub]
-    rw [dotProduct_comm (C *ᵥ (exp (t • A) *ᵥ z))]
+      dotProduct_sub, dotProduct_comm (C *ᵥ (exp (t • A) *ᵥ z))]
     ring
   have h₁ := gramian_key hR hA (y + z)
   have h₂ := gramian_key hR hA (y - z)
@@ -398,8 +392,7 @@ theorem integrableOn_Ioi_and_integral_mulVec_eq (hR : S.Aᵀ * W + W * S.A + S.C
     IntegrableOn (fun t => S.responseKernel t *ᵥ v ⬝ᵥ S.responseKernel t *ᵥ v) (Ioi 0) ∧
       ∫ t in Ioi 0, S.responseKernel t *ᵥ v ⬝ᵥ S.responseKernel t *ᵥ v =
         S.B *ᵥ v ⬝ᵥ W *ᵥ (S.B *ᵥ v) := by
-  simp only [responseKernel_mulVec_eq']
-  exact gramian_key hR hA (S.B *ᵥ v)
+  simpa only [responseKernel_mulVec_eq'] using gramian_key hR hA (S.B *ᵥ v)
 
 /-- **Exact impulse-response energy.** If `Aᵀ W + W A + Cᵀ C = 0` and `ẋ = A x` is exponentially
 stable, then `‖h t‖_F² = ∑ i, ∑ j, h t i j ^ 2` is integrable on `(0, ∞)` and
@@ -458,8 +451,7 @@ private theorem responseKernel_mulVec_sq_le_aux {α γ : ℝ}
   simp only [zero_smul, NormedSpace.exp_zero, one_mulVec] at hd
   have hc := dotProduct_mulVec_le_of_posSemidef_sub hC (exp (t • S.A) *ᵥ (S.B *ᵥ v))
   rw [dotProduct_transpose_mul_mulVec, smul_mulVec, dotProduct_smul, smul_eq_mul] at hc
-  rw [responseKernel_mulVec_eq', mul_assoc]
-  exact hc.trans (mul_le_mul_of_nonneg_left hd hγ)
+  simpa only [responseKernel_mulVec_eq', mul_assoc] using hc.trans (mul_le_mul_of_nonneg_left hd hγ)
 
 /-- **Certified impulse-response envelope.** If `Aᵀ P + P A + 2 α P ⪯ 0`, `Cᵀ C ⪯ γ P` with
 `γ ≥ 0`, and `Bᵀ P B ⪯ β 1`, then `‖h t v‖₂² ≤ γ β exp (-2 α t) ‖v‖₂²` for every input direction

@@ -150,8 +150,7 @@ theorem toCfg_step_ofCfg (hd : 0 < d)
     | gate f =>
       obtain rfl : tag = 2 := by simpa only [ReplyCorrect, hread] using hreply
       have hp1 : p - 1 ≠ 0 := by have := (Fact.out : p.Prime).two_le; omega
-      dsimp only [ofCfg, ofMode]
-      simp only [step, hvalid, ↓reduceIte, stepCore, Nat.reduceEqDiff, hp1]
+      simp only [ofCfg, ofMode, step, hvalid, ↓reduceIte, stepCore, Nat.reduceEqDiff, hp1]
       rw [toCfg_beginRound hd (units p) 0 c t (ofRegs S) (length_ofRegs S) st
         (unitAt_units (by omega)), toRegs_ofRegs]
       cases hus : units p with
@@ -175,16 +174,16 @@ theorem toCfg_step_ofCfg (hd : 0 < d)
             (Ary.reg fr.target child)).trans ?_
           rw [ZMod.natCast_self_sub_one, toRegs_scale_inverse S fr.target fr.child fr.round hr]
         · by_cases hi : fr.round + 1 < p - 1
-          · rw [Ary.Iter.step_ret_undo_round hd e E (units p) read S fr st hu hj]
-            · simp only [step, hvalid, ↓reduceIte, stepCore, ofFrame, hu, hj, hi, ↓reduceIte]
-              rw [toCfg_beginRound hd (units p) (fr.round + 1) fr.coeff fr.target _
-                (by simp [State.bank]) st (unitAt_units hi),
-                toRegs_scale_inverse S fr.target fr.child fr.round hr]
-            · simpa only [units, List.length_map, List.length_range] using hi
-          · rw [Ary.Iter.step_ret_undo_last hd e E (units p) read S fr st hu hj]
-            · simp only [step, hvalid, ↓reduceIte, stepCore, ofFrame, hu, hj, hi, ↓reduceIte]
-              rw [toCfg_ret, toRegs_scale_inverse S fr.target fr.child fr.round hr]
-            · simpa only [units, List.length_map, List.length_range] using hi
+          · rw [Ary.Iter.step_ret_undo_round hd e E (units p) read S fr st hu hj
+              (by simpa only [units, List.length_map, List.length_range] using hi)]
+            simp only [step, hvalid, ↓reduceIte, stepCore, ofFrame, hu, hj, hi, ↓reduceIte]
+            rw [toCfg_beginRound hd (units p) (fr.round + 1) fr.coeff fr.target _
+              (by simp [State.bank]) st (unitAt_units hi),
+              toRegs_scale_inverse S fr.target fr.child fr.round hr]
+          · rw [Ary.Iter.step_ret_undo_last hd e E (units p) read S fr st hu hj
+              (by simpa only [units, List.length_map, List.length_range] using hi)]
+            simp only [step, hvalid, ↓reduceIte, stepCore, ofFrame, hu, hj, hi, ↓reduceIte]
+            rw [toCfg_ret, toRegs_scale_inverse S fr.target fr.child fr.round hr]
       · have huf : fr.undo = false := Bool.eq_false_iff.mpr hu
         by_cases hj : fr.child.val + 1 < d
         · let child : Fin d := ⟨fr.child.val + 1, hj⟩
@@ -206,8 +205,8 @@ theorem toCfg_step_ofCfg (hd : 0 < d)
           rw [reg_eq fr.target ⟨0, hd⟩]
           refine (toCfg_call hd _ ({ fr with child := ⟨0, hd⟩, undo := true } :: st) _
             (Ary.reg fr.target ⟨0, hd⟩)).trans ?_
-          rw [ZMod.natCast_self_sub_one, toRegs_subBank_expected E read S st fr.coeff
-            fr.target vals hv]
+          rw [ZMod.natCast_self_sub_one,
+            toRegs_subBank_expected E read S st fr.coeff fr.target vals hv]
 
 /-- Canonical padded cells retain exactly one modulus offset. -/
 @[expose] def CanonicalBank (p d r : ℕ) (bank : List ℕ) : Prop :=
@@ -240,19 +239,13 @@ private theorem canonicalBank_valid {bank : List ℕ} (hbank : CanonicalBank p d
 
 private theorem ofRegs_toRegs (bank : List ℕ) (hbank : CanonicalBank p d r bank) :
     ofRegs (toRegs p d r bank) = bank := by
-  apply List.ext_getElem
-  · simpa only [length_ofRegs] using hbank.1.symm
-  · intro k hk hk'
-    let z : Fin ((d + 1) * r) := ⟨k, by simpa only [length_ofRegs] using hk⟩
-    have hindex : index r (finProdFinEquiv.symm z).1 (finProdFinEquiv.symm z).2 = k :=
-      congrArg Fin.val (finProdFinEquiv.apply_symm_apply z)
-    have hcell := hbank.2 bank[k] (List.getElem_mem hk')
-    simp only [ofRegs, List.getElem_ofFn, toRegs]
-    change p + ((bank.getD (index r (finProdFinEquiv.symm z).1
-      (finProdFinEquiv.symm z).2) 0 : ZMod p)).val = bank[k]
-    rw [hindex]
-    simp only [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hk', Option.getD_some]
-    exact canonical_cell bank[k] hcell.1 hcell.2
+  refine List.ext_getElem (by simpa only [length_ofRegs] using hbank.1.symm) fun k hk hk' => ?_
+  have hindex (z : Fin ((d + 1) * r)) :
+      index r (finProdFinEquiv.symm z).1 (finProdFinEquiv.symm z).2 = z.val :=
+    congrArg Fin.val (finProdFinEquiv.apply_symm_apply z)
+  have hcell := hbank.2 bank[k] (List.getElem_mem hk')
+  simpa only [ofRegs, List.getElem_ofFn, toRegs, hindex, List.getD_eq_getElem?_getD,
+    List.getElem?_eq_getElem hk', Option.getD_some] using canonical_cell bank[k] hcell.1 hcell.2
 
 omit [Fact p.Prime] in
 private theorem ofFrame_toFrame (hd : 0 < d) (fr : Frame)
@@ -333,8 +326,7 @@ theorem canonical_step (hd : 0 < d) (reply : Reply) (q : State)
     (hq : Canonical p d r q) : Canonical p d r (step p d r reply q) := by
   rcases q with ⟨bank, stack, mode⟩
   rcases hq with ⟨hbank, hstack, hmode⟩
-  have hvalid := canonicalBank_valid hbank
-  simp only [step, hvalid, ↓reduceIte]
+  simp only [step, canonicalBank_valid hbank, ↓reduceIte]
   rcases mode with _ | ⟨c, t⟩
   · cases stack with
     | nil => exact ⟨hbank, hstack, hmode⟩

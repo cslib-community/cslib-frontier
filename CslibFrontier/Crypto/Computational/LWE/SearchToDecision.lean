@@ -381,19 +381,8 @@ theorem sampleLaw_bind_runTrials {n m q N : ℕ} [Fact (Nat.Prime q)] (noise : P
     (sampleLaw n (searchSamples n q N m) q noise s).bind
         (fun P => eval (runTrials (N := N) distinguisher P)) =
       PMF.pi fun o => PMF.pi fun _ : Fin N => estimatorLaw noise distinguisher s o := by
-  have hinner (o : Option (Fin n × ZMod q)) :
-      (PMF.pi fun _ : Fin N => sampleLaw n m q noise s).bind
-          (fun B => PMF.pi fun t => eval (estimatorTrial distinguisher o (B t))) =
-        PMF.pi fun _ : Fin N => estimatorLaw noise distinguisher s o := by
-    simpa only [sampleLaw_bind_estimatorTrial] using
-      (PMF.pi_bind (fun _ : Fin N => sampleLaw n m q noise s)
-        (fun _ P => eval (estimatorTrial distinguisher o P))).symm
-  have houter := PMF.pi_bind
-    (fun _ : Option (Fin n × ZMod q) => PMF.pi fun _ : Fin N => sampleLaw n m q noise s)
-    (fun o B => PMF.pi fun t => eval (estimatorTrial distinguisher o (B t)))
-  simp only [hinner] at houter
-  simp only [runTrials, eval_sampleEach]
-  rw [houter, ← sampleLaw_map_sampleBlock, PMF.bind_map]
+  simp only [runTrials, eval_sampleEach, ← sampleLaw_bind_estimatorTrial, PMF.pi_bind,
+    ← sampleLaw_map_sampleBlock, PMF.bind_map]
   rfl
 
 /-! ### Choosing the secret from the counts -/

@@ -485,9 +485,7 @@ private theorem evalWith_ddhOTSteps (g : G) (q : ℕ) [Module (ZMod q) G]
     (st : (i : Fin 2) → OTIn G i × DDHOTCoinsWith C₀ C₁ i) :
     (ddhOTProtocolWith g q sample₀ sample₁ proj₀ proj₁).steps.evalWith noOracleWorld st =
       PMF.pure (ddhOTReceivedWith g proj₀ proj₁ st) := by
-  dsimp only [ddhOTProtocolWith]
-  simp only [Steps.evalWith_message, Steps.evalWith_done, PMF.pure_map]
-  rfl
+  simp only [ddhOTProtocolWith, Steps.evalWith_message, Steps.evalWith_done, PMF.pure_map]; rfl
 
 /-- Independent coin sampling draws the sender's and receiver's coins. -/
 private theorem eval_pi_ddhOTSampleCoins (g : G) (q : ℕ) [Module (ZMod q) G]
@@ -642,21 +640,13 @@ theorem idealJoint_ddhOT_sender_with (g : G) (q : ℕ) [NeZero q] [Module (ZMod 
       let b ← PMF.uniformOfFintype (ZMod q)
       return (singletonView (ddhOTSenderViewWith (C₁ := C₁) (x 0) raw₀
         (ddhOTReceiverMsg g (x 1) b ((proj₀ raw₀).exponent • g))), otOutputs x)) := by
-  simp only [pmf_norm]
+  simp only [pmf_norm, ddhOTSenderSimWithCoinsOf]
   refine congrArg (PMF.bind _) (funext fun raw₀ => ?_)
-  let σ : Bool := x 1
-  change (PMF.uniformOfFintype (ZMod q)).bind (fun b =>
-      PMF.pure (singletonView (ddhOTSenderViewWith (C₁ := C₁) (x 0) raw₀
-        (b • g, (proj₀ raw₀).exponent • g - b • g)), otOutputs x)) =
-    (PMF.uniformOfFintype (ZMod q)).bind (fun b =>
-      PMF.pure (singletonView (ddhOTSenderViewWith (C₁ := C₁) (x 0) raw₀
-        (ddhOTReceiverMsg g σ b ((proj₀ raw₀).exponent • g))), otOutputs x))
-  cases σ
-  · rfl
+  cases hσ : x 1
+  · simp only [ddhOTReceiverMsg, Bool.false_eq_true, ↓reduceIte]; rfl
   · conv_lhs => rw [← PMF.uniformOfFintype_map_sub_left (proj₀ raw₀).exponent, PMF.bind_map]
     refine congrArg (PMF.bind _) (funext fun b => ?_)
-    simp only [Function.comp_apply, ddhOTReceiverMsg, ↓reduceIte,
-      sub_smul, sub_sub_cancel]
+    simp only [Function.comp_apply, ddhOTReceiverMsg, ↓reduceIte, sub_smul, sub_sub_cancel]; rfl
 
 /-- Real joint distribution for a corrupted sender (`{0}`). -/
 theorem realJoint_ddhOT_sender (g : G) (q : ℕ) [NeZero q] [Module (ZMod q) G]

@@ -423,9 +423,10 @@ theorem querySet_mask [DecidableEq P] (H : Finset P) (z : P → Γ) (plan : Nona
   ext j
   simp only [mem_querySet_iff, Finset.mem_sdiff, mask]
   refine ⟨fun ⟨k, hk⟩ => ?_, fun ⟨⟨k, hqk⟩, hj⟩ => ⟨k, by simp [hqk, hj]⟩⟩
-  rcases hqk : plan.queries k with _ | j'
-  · simp [hqk] at hk
-  · simp only [hqk] at hk
+  cases hqk : plan.queries k with
+  | none => simp [hqk] at hk
+  | some j' =>
+    simp only [hqk] at hk
     split_ifs at hk with hj'
     exact ⟨⟨k, Option.some.inj hk ▸ hqk⟩, Option.some.inj hk ▸ hj'⟩
 
@@ -611,9 +612,7 @@ private theorem eval_stripQueries {α : Type} (prog : ProbOracleComp (fun _ : P 
     (hq : prog.IsQueryBounded 0) (y : P → Γ) :
     ProbComp.eval (stripQueries prog hq) = decodeLaw prog y := by
   induction prog with
-  | pure a =>
-    change ProbComp.eval (pure a) = decodeLaw (pure a) y
-    rw [ProbComp.eval_pure, decodeLaw_pure]
+  | pure a => simp [stripQueries, decodeLaw_pure]
   | liftBind q' cont ih =>
     cases q' with
     | inl k =>
@@ -649,10 +648,8 @@ private theorem toReal_eval_attenuate [Fintype Γ] [Nonempty Γ] [DecidableEq Γ
   have hterm (gs : Fin k → Γ) :
       (((PMF.uniformOfFintype Bool).map fun u => if ∀ t, gs t = γ₀ then b else u) b').toReal =
         if gs = g₀ then (if b = b' then (1 : ℝ) else 0) else 1 / 2 := by
-    by_cases hgs : gs = g₀
-    · subst hgs
-      simp only [show ∀ t : Fin k, g₀ t = γ₀ from fun _ => rfl, ↓reduceIte]
-      by_cases hbb : b = b' <;> simp [hbb, eq_comm]
+    rcases eq_or_ne gs g₀ with rfl | hgs
+    · by_cases hbb : b = b' <;> simp [g₀, hbb, eq_comm]
     · have hnot : ¬ ∀ t : Fin k, gs t = γ₀ := fun h => hgs (funext h)
       cases b' <;> simp [hnot, hgs]
   simp_rw [hterm]
@@ -712,8 +709,6 @@ theorem toReal_decodeLaw_nonadaptivize [Fintype Γ] [Nonempty Γ] [DecidableEq �
       1 / 2 + ((decodeLaw prog y b).toReal - 1 / 2) / (Fintype.card Γ : ℝ) ^ (q - 1) := by
   induction prog generalizing q with
   | pure b₀ =>
-    have hpure : decodeLaw (PFunctor.FreeM.pure b₀ : ProbOracleComp (fun _ : P => Γ) Bool) y =
-        PMF.pure b₀ := decodeLaw_pure y b₀
     rcases q with _ | _ | q
     · simp [nonadaptivize, decodeLaw_nonadaptivePlan, nonadaptivizePlan, stripQueries,
         NonadaptivePlan.eval]
@@ -721,7 +716,7 @@ theorem toReal_decodeLaw_nonadaptivize [Fintype Γ] [Nonempty Γ] [DecidableEq �
         NonadaptivePlan.eval]
     · simp only [nonadaptivize, decodeLaw_nonadaptivePlan, nonadaptivizePlan, ProbComp.eval_bind,
         ProbComp.eval_pure, PMF.map_bind, PMF.pure_map, NonadaptivePlan.eval, PMF.bind_pure,
-        hpure, Nat.add_sub_cancel]
+        Nat.add_sub_cancel]
       rw [toReal_eval_attenuate]
       cases b₀ <;> cases b <;> simp
   | liftBind q' cont ih =>
@@ -804,10 +799,8 @@ theorem toReal_decodeLaw_nonadaptivize [Fintype Γ] [Nonempty Γ] [DecidableEq �
               simp only [ProbComp.eval_pure, PMF.pure_map, NonadaptivePlan.eval, Fin.cons_zero,
                 Option.map_some, ↓reduceIte]
               rfl
-            · simp only [hgy,
-                show some (y j) ≠ some guess from fun h => hgy (Option.some.inj h).symm,
-                ProbComp.eval_pure, PMF.pure_map, NonadaptivePlan.eval, Fin.cons_zero,
-                Option.map_some, ↓reduceIte, PMF.bind_const]
+            · simp only [hgy, ProbComp.eval_pure, PMF.pure_map, NonadaptivePlan.eval, Fin.cons_zero,
+                Option.map_some, Option.some.injEq, Ne.symm hgy, ↓reduceIte, PMF.bind_const]
           simp_rw [hstep]
           by_cases hgy : guess = y j <;> simp [hgy]
         rw [hlaw, hinr_prog, Probability.PMF.toReal_uniformOfFintype_bind_apply,

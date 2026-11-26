@@ -286,9 +286,7 @@ theorem length_entries_step_le {k : M.Config} {p : Program M r} {s t : FiniteSta
 theorem default_run {k : M.Config} {p : Program M r} {n : ℕ} {s t : FiniteState M r}
     (h : run k p n s = some (.inl t)) : t.default = s.default := by
   induction n generalizing s with
-  | zero =>
-    obtain ⟨⟨rfl⟩⟩ := h
-    rfl
+  | zero => exact congrArg FiniteState.default (Sum.inl.inj (Option.some.inj h)).symm
   | succ n ih =>
     obtain ⟨u, hs, hr⟩ := finiteState_run_succ_inl h
     exact (ih hr).trans (default_step hs)
@@ -318,9 +316,7 @@ theorem runs_of_run_eq_inl {k : M.Config} {p : Program M r} {n : ℕ} {s t : Fin
     exact .refl _
   | succ n ih =>
     obtain ⟨u, hs, hr⟩ := finiteState_run_succ_inl h
-    have hnext : GenericRAM.Next k p s.denote u.denote := by
-      rw [GenericRAM.Next, ← denote_step, hs, denoteResult]
-    exact (ih hr).head _ _ _ _ hnext
+    exact (ih hr).head _ _ _ _ (by rw [GenericRAM.Next, ← denote_step, hs, denoteResult])
 
 /-- Every `n`-step `GenericRAM.Runs` trace from `s.denote` lifts to a continuing finite state. -/
 theorem exists_run_eq_inl_of_runs {k : M.Config} {p : Program M r} {n : ℕ}
@@ -386,8 +382,7 @@ theorem executes_of_run_eq_inr {k : M.Config} {p : Program M r} {n : ℕ}
       obtain ⟨m, hmn, hex⟩ := ih h
       exact ⟨m + 1, Nat.add_le_add_right hmn 1,
         hex.head (by rw [GenericRAM.Next, ← denote_step, hs, denoteResult])⟩
-    · simp only [hs, Option.some.injEq, Sum.inr.injEq] at h
-      subst h
+    · obtain rfl : w = v := by simpa [hs] using h
       exact ⟨1, Nat.succ_le_succ (Nat.zero_le _),
         .halt (by rw [← denote_step, hs, denoteResult])⟩
 

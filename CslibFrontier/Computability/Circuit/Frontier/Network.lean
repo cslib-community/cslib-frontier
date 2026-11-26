@@ -224,7 +224,7 @@ vertex. -/
 private theorem revealedBy_succ_diff {t : ℕ} (ht : t < Nat.card V) :
     N.revealedBy π (t + 1) \ N.revealedBy π t = N.readAt (π.symm ⟨t, ht⟩) := by
   ext i
-  simp only [revealedBy, show t + 1 ≤ Nat.card V by omega, ht.le, ite_true, mem_sdiff, readIn,
+  simp only [revealedBy, Nat.succ_le_of_lt ht, ht.le, ite_true, mem_sdiff, readIn,
     readAt, mem_ofPred_eq, Layout.mem_initial]
   refine ⟨fun ⟨⟨u, hu, hiu⟩, hi'⟩ => ?_, fun hi => ⟨⟨_, by simp, hi⟩, fun ⟨u, hu, hiu⟩ => ?_⟩⟩
   · have hut : (π u : ℕ) = t := of_not_not fun hne => hi' ⟨u, by omega, hiu⟩
@@ -308,10 +308,8 @@ private theorem newly_branchingProgram_card :
 private theorem isAcceptingPath_frontierValues {x : ι → U} {α : E → U} (hα : N.Satisfies x α) :
     (N.branchingProgram π).IsAcceptingPath x fun t => N.frontierValues π t α where
   start := funext fun _ => N.frontierValues_of_notMem π (by simp)
-  accept := funext fun _ => N.frontierValues_of_notMem π <| by
-    rw [Multigraph.frontier_of_card_le _ _ (show Nat.card V ≤ (N.branchingProgram π).length from
-      Nat.le_succ _)]
-    exact notMem_empty _
+  accept := funext fun _ => N.frontierValues_of_notMem π <|
+    Multigraph.frontier_of_card_le _ _ (Nat.le_succ _) ▸ notMem_empty _
   edge _ _ := (N.branchingProgram_edge_iff π).mpr ⟨α, x, rfl, rfl, rfl, fun _ => hα _⟩
 
 /-- **Gluing.** An accepting path of the branching program lists the frontier values of a
@@ -335,8 +333,7 @@ theorem exists_satisfies_of_isAcceptingPath {x : ι → U} {γ : ℕ → E → O
   let lo (e : E) : ℕ := min (π (N.src e) : ℕ) (π (N.tgt e))
   let hi (e : E) : ℕ := max (π (N.src e) : ℕ) (π (N.tgt e))
   have hmem (e : E) (t : ℕ) : e ∈ N.frontier π t ↔ lo e < t ∧ t ≤ hi e := by
-    simp only [Multigraph.mem_frontier, lo, hi]
-    omega
+    simp only [Multigraph.mem_frontier, lo, hi]; omega
   have hhiV (e : E) : hi e < Nat.card V := max_lt (π _).isLt (π _).isLt
   -- While an edge is on the frontier, the path carries the value given to it by the step that
   -- processes its earlier end.
@@ -408,9 +405,8 @@ theorem ncard_edges_le [Finite ι] [Finite U] [Finite E] {t : ℕ} (ht : t < Nat
       simp only [g, frontierValues] <;> split_ifs <;> rfl
   calc ((N.branchingProgram π).edges t).ncard
       ≤ (range g).ncard := ncard_le_ncard hsub (toFinite _)
-    _ ≤ Nat.card ((C → U) × ((N.branchingProgram π).newly t → U)) := by
-        rw [← image_univ]
-        exact (ncard_image_le (toFinite _)).trans (ncard_univ _).le
+    _ ≤ Nat.card ((C → U) × ((N.branchingProgram π).newly t → U)) :=
+        image_univ ▸ (ncard_image_le (toFinite _)).trans (ncard_univ _).le
     _ = Nat.card U ^ (C.ncard + (N.readAt (π.symm ⟨t, ht⟩)).ncard) := by
         rw [Nat.card_prod, Nat.card_fun, Nat.card_fun, Nat.card_coe_set_eq,
           Nat.card_coe_set_eq, N.newly_branchingProgram π ht, pow_add]
@@ -434,9 +430,8 @@ theorem ncard_edges_last_le [Finite ι] [Finite U] :
       ≤ (range fun a : (N.branchingProgram π).newly (Nat.card V) → U =>
           ((fun _ => none : E → Option U), a, (fun _ => none : E → Option U))).ncard :=
         ncard_le_ncard hsub (toFinite _)
-    _ ≤ Nat.card ((N.branchingProgram π).newly (Nat.card V) → U) := by
-        rw [← image_univ]
-        exact (ncard_image_le (toFinite _)).trans (ncard_univ _).le
+    _ ≤ Nat.card ((N.branchingProgram π).newly (Nat.card V) → U) :=
+        image_univ ▸ (ncard_image_le (toFinite _)).trans (ncard_univ _).le
     _ = Nat.card U ^ N.readᶜ.ncard := by
         rw [Nat.card_fun, Nat.card_coe_set_eq, N.newly_branchingProgram_card π]
 
@@ -459,9 +454,8 @@ theorem ncard_image_path_le [Finite U] [Finite E] (π : Layout V) {t : ℕ}
     simp only [φ, hα t (by omega), frontierValues, Set.domRestrict_apply]
     split_ifs <;> rfl
   calc _ ≤ (range φ).ncard := ncard_le_ncard hsub (toFinite _)
-    _ ≤ Nat.card (F → U) := by
-        rw [← image_univ]
-        exact (ncard_image_le (toFinite _)).trans (ncard_univ _).le
+    _ ≤ Nat.card (F → U) :=
+        image_univ ▸ (ncard_image_le (toFinite _)).trans (ncard_univ _).le
     _ = Nat.card U ^ F.ncard := by rw [Nat.card_fun, Nat.card_coe_set_eq]
 
 /-- **The size of the program.** If a layout has width at most `w`, and every vertex has degree

@@ -233,8 +233,7 @@ private theorem card_filter_not_cnf_div_card_le_of_length_le_one {n s t : ℕ}
     rw [← hu2]; ring
   -- `g ≤ 1` and `g ^ 2 ≤ u / n`
   have hu' : (u : ℝ) ≤ n := by exact_mod_cast hun
-  have hg1 : g ≤ 1 := by
-    rw [div_le_one (by positivity)]; linarith
+  have hg1 : g ≤ 1 := (div_le_one (by positivity)).2 (by linarith)
   have hg2 : g ^ 2 ≤ (u : ℝ) / n := by
     rw [div_pow, div_le_div_iff₀ (by positivity) hn]
     nlinarith [sq_nonneg ((n : ℝ) - u)]
@@ -280,9 +279,8 @@ private theorem card_filter_not_cnf_div_card_le_of_ne_one {n k s t : ℕ} (hk : 
     by_contra hlt
     obtain ⟨tr, htr, hd⟩ := complexity_le_iff.1 (le_refl (complexity fun x =>
       DNF.eval (ρ.fill x) F))
-    refine hbad ⟨tr.toCNF, fun c hc => (length_le_depth_of_mem_toCNF hc).trans (by omega),
-      fun x => ?_⟩
-    exact (eval_toCNF tr x).trans ((htr x).trans ((hFe _).trans (hF₀ _)))
+    exact hbad ⟨tr.toCNF, fun c hc => (length_le_depth_of_mem_toCNF hc).trans (by omega),
+      fun x => (eval_toCNF tr x).trans ((htr x).trans ((hFe _).trans (hF₀ _)))⟩
   rcases lt_or_ge u s with hus | hsu
   · -- fewer than `s` free variables: the restricted function is always shallow
     have hB : B = ∅ := eq_empty_of_forall_notMem fun ρ hρ => by
@@ -298,12 +296,12 @@ private theorem card_filter_not_cnf_div_card_le_of_ne_one {n k s t : ℕ} (hk : 
     have hch := Nat.choose_sub_mul_pow_le hsu hun
     rw [PartialAssignment.card_withFree, Fintype.card_fin]
     have h2 : 2 ^ (n - (u - s)) = 2 ^ (n - u) * 2 ^ s := by rw [← pow_add]; congr 1; omega
+    have h8 : (8 : ℕ) ^ s = 2 ^ s * 4 ^ s := by rw [← mul_pow]; norm_num
     calc #B * (n - u + 1) ^ s
         ≤ #(PartialAssignment.withFree (Fin n) (u - s)) * (4 * k) ^ s * (n - u + 1) ^ s :=
           Nat.mul_le_mul_right _ ((card_le_card hsub).trans hsw)
       _ = n.choose (u - s) * (n - u + 1) ^ s * (2 ^ (n - u) * (8 * k) ^ s) := by
-          rw [PartialAssignment.card_withFree, Fintype.card_fin, h2, mul_pow, mul_pow,
-            show (8 : ℕ) ^ s = 2 ^ s * 4 ^ s by rw [← mul_pow]; norm_num]
+          rw [PartialAssignment.card_withFree, Fintype.card_fin, h2, mul_pow, mul_pow, h8]
           ring
       _ ≤ n.choose u * u ^ s * (2 ^ (n - u) * (8 * k) ^ s) := Nat.mul_le_mul_right _ hch
       _ = n.choose u * 2 ^ (n - u) * (8 * k * u) ^ s := by rw [mul_pow]; ring
@@ -330,20 +328,13 @@ private theorem card_filter_not_cnf_div_card_le_of_ne_one {n k s t : ℕ} (hk : 
     rcases Nat.eq_zero_or_pos k with hk0 | hk2
     · simp [r, hk0]
     have hk2 : (2 : ℝ) ≤ k := by exact_mod_cast (show 2 ≤ k by omega)
-    have hk8 : (256 : ℝ) ≤ (k : ℝ) ^ 8 :=
-      (by norm_num : (256 : ℝ) = 2 ^ 8).trans_le (pow_le_pow_left₀ (by norm_num) hk2 8)
-    have hu' : (u : ℝ) * 1024 ≤ u * k ^ 10 := mul_le_mul_of_nonneg_left
-      ((by norm_num : (1024 : ℝ) = 2 ^ 10).trans_le (pow_le_pow_left₀ (by norm_num) hk2 10))
-      (by positivity)
-    have hcast : ((n - u : ℕ) : ℝ) = n - u := by push_cast [Nat.cast_sub hun]; ring
+    have hk8 : (256 : ℝ) ≤ (k : ℝ) ^ 8 := by linarith [pow_le_pow_left₀ zero_le_two hk2 8]
+    have hu' : (u : ℝ) * 1024 ≤ u * k ^ 10 := by nlinarith [pow_le_pow_left₀ zero_le_two hk2 10]
     -- `t' + 1 ≥ n / 2`, so `64 n u ≤ 256 (t' + 1) ^ 2 ≤ k ^ 8 (t' + 1) ^ 2`
-    have ht' : (n : ℝ) ≤ 2 * ((n - u : ℕ) + 1) := by rw [hcast]; nlinarith
+    have ht' : (n : ℝ) ≤ 2 * ((n - u : ℕ) + 1) := by rw [Nat.cast_sub hun]; nlinarith
     have hun' : (u : ℝ) ≤ n := by exact_mod_cast hun
     rw [div_pow, div_le_div_iff₀ (by positivity) hnpos]
-    have hkey : 64 * (n : ℝ) * u ≤ (k : ℝ) ^ 8 * (((n - u : ℕ) : ℝ) + 1) ^ 2 := by
-      have hq : (0 : ℝ) ≤ ((n - u : ℕ) : ℝ) + 1 := by positivity
-      nlinarith [mul_le_mul ht' ht' (by positivity) (by positivity)]
-    have hku : (0 : ℝ) ≤ (k : ℝ) ^ 2 * u := by positivity
+    have hkey : 64 * (n : ℝ) * u ≤ (k : ℝ) ^ 8 * (((n - u : ℕ) : ℝ) + 1) ^ 2 := by nlinarith
     calc (8 * k * u : ℝ) ^ 2 * n = (k ^ 2 * u) * (64 * n * u) := by ring
       _ ≤ (k ^ 2 * u) * ((k : ℝ) ^ 8 * (((n - u : ℕ) : ℝ) + 1) ^ 2) := by gcongr
       _ = u * k ^ 10 * (((n - u : ℕ) : ℝ) + 1) ^ 2 := by ring

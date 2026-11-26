@@ -128,8 +128,8 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
         (93500 * migFactor + 10000) * n := by
   intro N_new peakF
   obtain ⟨hw, hU, hV⟩ := rootHeaderValid_bounds hy_set_b hhdr_set
-  have hNU_old : N_old ≤ U := by rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
-  have hn_old : n ≤ N_old := by rcases hev with ⟨rfl, _⟩ | ⟨_, hnN, _, _⟩ <;> omega
+  have ⟨hNU_old, hn_old⟩ : N_old ≤ U ∧ n ≤ N_old := by
+    rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, _⟩ <;> omega
   have hnU : n ≤ U := hn_old.trans hNU_old
   obtain ⟨hN_new_pos, hn_new, hN_new_2n, hNU_new⟩ := targetCap_bounds_of_pos hn hnU
   set newMeta := base + offCompItems U w N_old
@@ -143,9 +143,7 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
     dsimp only [migratePeakWords, arenaB, arenaW, newMeta, offNew, N_new, iwOld, iwNew]; ring
   have hfit_ar : Fits w (arenaB + arenaW) := hpeak_raw ▸ hfit_peak
   have hfit_nm : Fits w (newMeta + offNew) := hfit_ar.of_le (Nat.le_add_right _ _)
-  have hnm_le_peak : newMeta + offNew ≤ peakF :=
-    (Nat.le_add_right (newMeta + offNew) _ : newMeta + offNew ≤ arenaB + arenaW).trans_eq
-      hpeak_raw.symm
+  have hnm_le_peak : newMeta + offNew ≤ peakF := (Nat.le_add_right _ _).trans hpeak_raw.symm.le
   obtain ⟨z₁, z₂, hex_c1, hex_im, hc_im, hfr_im, hz₂b, hz₂f_eq, hz₂_fr_reg, hz₂_mem_eq,
       hrep_new_im, _, hpot_im, h_empty_im, hkeep_set_2, hz₂_not_im⟩ :=
     exec_postResample_initMeta mNewMeta (by simp)
@@ -169,49 +167,48 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
       mkCompParams U V w N_old), (base, oldItemDst)),
     ((mkHashParams w (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3,
       mkCompParams U V w N_new), (newMeta, arenaB))), 0), n)
+  have hreg3 {r : Fin rResize} (h160 : r.val < 160)
+      (hnot : r ∉ ([mFr, mTmpA, mZero, mCur, mIdx, mK, mOne, mRes] : List (Fin rResize)) := by
+        simp) : z₃.regs r = y_set.regs r :=
+    hkeep_set_to_3 r h160 hnot
   have hin_sa : z₃.regs ∘ srcStreamAll = WordEncoding.encode d_sa := by
     refine (regs_pairSrc
       (regs_pairSrc
         (regs_pairSrc
           (regs_pairSrc
             (regs_pairSrc (regs_hp_eq fun i => ?_) (regs_cp_eq fun i => ?_))
-            (regs_pairSrc (regs_reg1_eq mBase ?_) (regs_reg1_eq mOldItemDst ?_)))
+            (regs_pairSrc (regs_reg1_eq mBase ((hreg3 (mReg_lt_160 _)).trans hr_base))
+              (regs_reg1_eq mOldItemDst ((hreg3 (mReg_lt_160 _)).trans hr_oid))))
           (regs_pairSrc
             (regs_pairSrc (regs_hp_eq fun i => ?_) (regs_cp_eq fun i => ?_))
-            (regs_pairSrc (regs_reg1_eq mNewMeta ?_) (regs_reg1_eq mArena ?_))))
+            (regs_pairSrc (regs_reg1_eq mNewMeta ((hreg3 (mReg_lt_160 _)).trans hr_nm))
+              (regs_reg1_eq mArena ((hreg3 (mReg_lt_160 _)).trans hr_ar)))))
         (regs_reg1_eq mZero (by simp [z₃, RData.set])))
-      (regs_reg1_eq mCnt ?_)).eq
+      (regs_reg1_eq mCnt ((hreg3 (mReg_lt_160 _)).trans hr_cnt))).eq
     · exact (hk3 _ (by simp only [val_mOldHp]; omega)).trans (hr_ohp i)
     · exact (hk3 _ (by simp only [val_mOldCp]; omega)).trans (hr_ocp i)
-    · exact (hkeep_set_to_3 _ (mReg_lt_160 _) (by simp)).trans hr_base
-    · exact (hkeep_set_to_3 _ (mReg_lt_160 _) (by simp)).trans hr_oid
     · exact (hk3 _ (by simp only [val_mNewHp]; omega)).trans (hr_nhp i)
     · exact (hk3 _ (by simp only [val_mNewCp]; omega)).trans (hr_ncp i)
-    · exact (hkeep_set_to_3 _ (mReg_lt_160 _) (by simp)).trans hr_nm
-    · exact (hkeep_set_to_3 _ (mReg_lt_160 _) (by simp)).trans hr_ar
-    · exact (hkeep_set_to_3 _ (mReg_lt_160 _) (by simp)).trans hr_cnt
   have heh_val : epochHdrWords = 225 := rfl
   obtain ⟨s_fix_old, hinv_old, htot_old, hcpl_old_set⟩ := hcpl_old
   have hsp_le_old : 225 + ReducedKWise.space w (qBits U N_old) (hashB N_old)
       (totalMicroBits N_old) 3 ≤ offCompItems U w N_old := by
     unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM
     dsimp only [epochHdrWords, epochHashSpace, epochQBits, epochHashB, qBits, hashB]; omega
+  have hz₂_below {a : ℕ} (ha : a < base + offCompItems U w N_old + 225) : z₂.mem a = y_set.mem a :=
+    hz₂_not_im a (fun h => absurd ha (not_lt.mpr h.1))
+  have hsw_old : ReducedKWise.seedWords (qBits U N_old) (hashB N_old) (totalMicroBits N_old) 3 ≤
+      ReducedKWise.space w (qBits U N_old) (hashB N_old) (totalMicroBits N_old) 3 :=
+    Nat.le_add_right _ _
   have hrep_old_z₂ : ReducedKWise.Rep (base + epochHdrWords) w (qBits U N_old) (hashB N_old)
       (totalMicroBits N_old) 3 θ_old z₂.mem :=
-    ⟨ReducedKWise.tableRep_congr hrep_old.1
-      (fun a _ h2 => (hz₂_not_im a (fun h => by
-        dsimp only [newMeta] at h; linarith only [h.1, h2, hsp_le_old, heh_val])).symm),
-     ReducedKWise.seedRep_congr (w := w) hrep_old.2
-      (fun a _ h2 =>
-        have hsw_old :
-            ReducedKWise.seedWords (qBits U N_old) (hashB N_old) (totalMicroBits N_old) 3 ≤
-              ReducedKWise.space w (qBits U N_old) (hashB N_old) (totalMicroBits N_old) 3 :=
-          Nat.le_add_right _ _
-        (hz₂_not_im a (fun h => by
-          dsimp only [newMeta] at h; linarith only [h.1, h2, hsw_old, hsp_le_old, heh_val])).symm)⟩
+    ⟨ReducedKWise.tableRep_congr hrep_old.1 (fun _ _ h2 =>
+       (hz₂_below (by linarith only [h2, hsp_le_old, heh_val])).symm),
+     ReducedKWise.seedRep_congr (w := w) hrep_old.2 (fun _ _ h2 =>
+       (hz₂_below (by linarith only [h2, hsw_old, hsp_le_old, heh_val])).symm)⟩
   obtain ⟨hcpl_old_z₂, hgm_old_z₂⟩ := fixedCoupled_of_shift (s₀ := ⟨y_set.mem, y_set.frontier⟩)
     (s₁ := ⟨z₂.mem, peakF⟩) (dstItemBase := oldItemDst) hw hcpl_old_set htot_old
-    (fun a ha => hz₂_not_im a (fun h => by dsimp only [newMeta] at h; linarith only [ha.2, h.1]))
+    (fun _ ha => hz₂_below (Nat.lt_of_lt_of_le ha.2 (Nat.le_add_right _ _)))
     (fun j _ => hz₂_not_im (oldItemDst + j) (fun h => by
       dsimp only [oldItemDst, arenaB] at h; linarith only [h.2]))
   have henv_sa : StreamRebuildEnv U V w N_old N_new n base newMeta arenaB θ_old θ_new s_abs
@@ -263,15 +260,10 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
       ((hz₄_set (mReg_lt_160 _)).trans hr_iwn) ((hz₄_set (mReg_lt_160 _)).trans hr_pf)
       hhdr_z₄ hpar_z₄ (hz₄_mem_eq ▸ hrep_sa)
       (hcpl_sa.imp fun _ ⟨hi', hc'⟩ => ⟨hi', hs_z₄_eq ▸ hc'⟩)
-  have habi_set_4 : abiPreserved y_set z₄ :=
-    ⟨hz₄_set (mReg_lt_160 _), hz₄_set (mReg_lt_160 _),
-      hz₄_set (mReg_lt_160 _), hz₄_set (mReg_lt_160 _)⟩
-  have hf1 := one_le_migFactor
-  have hc_im_mul : migFactor * (memoryCost
-      (initNewEpochMetaProg ((mkHashParams w (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3,
-        mkCompParams U V w N_new), newMeta)) ⟨y_rs.mem, peakF⟩ + 1) ≤
-      migFactor * (512 * n + 476) :=
-    Nat.mul_le_mul_left migFactor (by linarith only [hc_im, hN_new_2n])
+  have habi_set_4 : abiPreserved y_set z₄ := by
+    refine ⟨?_, ?_, ?_, ?_⟩ <;> exact hz₄_set (mReg_lt_160 _)
+  have hc_im_mul := Nat.mul_le_mul_left migFactor
+    ((Nat.add_le_add_right hc_im 1).trans (by linarith only [hN_new_2n] : _ ≤ 512 * n + 476))
   have hpot_le : inEpochPotential U w N_new base z ≤
       (98 * migFactor) * slotPotential N_new (compGmAt newMeta U w N_new z₄.mem) := by
     rw [inEpochPotential, hgm_z]
@@ -284,11 +276,10 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
       hex_back
   refine ⟨z, _, hex_clean, hzb, hzf, hsplit_z,
     abiPreserved_trans habi_set (abiPreserved_trans habi_set_4 habi_4z),
-    fun addr haddr => ?_, by nlinarith only [hsa_pot, hc_back, hn, hf1]⟩
+    fun addr haddr => ?_, by nlinarith only [hsa_pot, hc_back, hn, one_le_migFactor]⟩
   exact (hbelow_4z addr haddr).trans <| (congrFun hz₄_mem_eq addr).trans <|
     (hlo_sa addr (by linarith only [haddr])).trans <|
-    (hz₂_not_im addr (fun h => by dsimp only [newMeta] at h; linarith only [haddr, h.1])).trans <|
-    hbelow_set addr haddr
+    (hz₂_below (by linarith only [haddr])).trans <| hbelow_set addr haddr
 
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

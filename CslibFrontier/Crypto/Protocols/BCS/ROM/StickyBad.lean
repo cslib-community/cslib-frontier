@@ -80,8 +80,7 @@ theorem length_bcsForbiddenDigests_le (r : ℕ) {Stmt Chal : Type}
     simpa only [Nat.mul_comm] using List.length_flatMap_le (l := st.2)
       (f := fun ((_, rts, _), _) => rts.take r) (k := r)
       fun ⟨⟨_, rts, _⟩, _⟩ _ => List.length_take_le r rts
-  unfold bcsForbiddenDigests
-  rw [List.length_append, List.length_append, List.length_append,
+  rw [bcsForbiddenDigests, List.length_append, List.length_append, List.length_append,
     List.length_map, List.length_map, List.length_map]
   omega
 
@@ -153,8 +152,7 @@ private theorem bad_fs_step_cases {r d : ℕ} {Stmt Sym Chal : Type} {S : Set St
         let π₀ := bcsExtractTable decSym defaultSym tr_MT d ((rts₀[rts₀.length - 1]?).getD [])
         doomed x₀ pref₀ ∧ ¬ goodStep x₀ pref₀ π₀ c) ∨
         c ∈ fsOutOfOrderTargets (rts₀.length - 1) tr_FS) := by
-  unfold BCSChainDoomed at hbad
-  push Not at hbad
+  simp only [BCSChainDoomed, not_forall] at hbad
   obtain ⟨x, hx, rts, chals, hr, ⟨hlen, hsteps⟩, hnot_doomed⟩ := hbad
   have ⟨i₀, hi₀, heq₀⟩ : ∃ (i₀ : ℕ) (hi₀ : i₀ < rts.length),
       ((x, rts.take (i₀ + 1), chals.take i₀), chals[i₀]'(hlen ▸ hi₀)) =
@@ -164,8 +162,7 @@ private theorem bad_fs_step_cases {r d : ℕ} {Stmt Sym Chal : Type} {S : Set St
       (List.mem_cons.mp (hsteps i hi)).resolve_left (hall_old i hi)⟩
   simp only [Prod.mk.injEq] at heq₀
   obtain ⟨⟨rfl, hrts₀_eq, hprev₀_eq⟩, hc_eq⟩ := heq₀
-  have hrts₀_len : rts₀.length = i₀ + 1 := by
-    rw [← hrts₀_eq, List.length_take_of_le hi₀]
+  have hrts₀_len : rts₀.length = i₀ + 1 := hrts₀_eq ▸ List.length_take_of_le hi₀
   have hi₀_eq : rts₀.length - 1 = i₀ := by omega
   have hmem_of_ne (j : ℕ) (hj : j < rts.length) (hne : j ≠ i₀) :
       ((x, rts.take (j + 1), chals.take j), chals[j]'(hlen ▸ hj)) ∈ tr_FS :=
@@ -177,8 +174,10 @@ private theorem bad_fs_step_cases {r d : ℕ} {Stmt Sym Chal : Type} {S : Set St
   by_cases hmore : i₀ + 1 < rts.length
   · right
     refine hi₀_eq ▸ List.mem_filterMap.mpr ⟨_, hmem_of_ne (i₀ + 1) hmore (by omega), ?_⟩
-    simp [List.getElem?_eq_getElem (by rw [List.length_take_of_le (by omega)]; omega :
-      i₀ < (chals.take (i₀ + 1)).length), hc_eq]
+    have hi₀_lt : i₀ < (chals.take (i₀ + 1)).length := by
+      rw [List.length_take_of_le (by omega)]
+      omega
+    simp [List.getElem?_eq_getElem hi₀_lt, hc_eq]
   · left
     subst hprev₀_eq hc_eq
     have hlast : i₀ + 1 = rts.length := by omega
@@ -196,9 +195,8 @@ private theorem bad_fs_step_cases {r d : ℕ} {Stmt Sym Chal : Type} {S : Set St
     have hrts_split : rts = rts.take i₀ ++ [rts[i₀]] := by simp [hlast]
     have hchals_split : chals = chals.take i₀ ++ [chals[i₀]'(hlen ▸ hi₀)] := by
       simp [hlast.trans hlen]
-    have hlen_p : (rts.take i₀).length = (chals.take i₀).length := by simp [← hlast, ← hlen]
     rw [hrts_split, hchals_split,
-      bcsExtractTranscript_append_singleton decSym defaultSym d tr_MT hlen_p]
+      bcsExtractTranscript_append_singleton decSym defaultSym d tr_MT hparent.1]
     exact hstep x hx _ _ _ hparent_doomed hgood_c
 
 /-- **Single-step Fiat–Shamir bad-event bound**: from a state `(tr_MT, tr_FS)` satisfying
@@ -240,10 +238,10 @@ theorem toOuterMeasure_memoize_not_bcsChainDoomed_step {r d : ℕ} {Stmt Sym Cha
       · by_cases hd₀ : doomed x₀ pref₀
         · exact ((PMF.uniformOfFintype Chal).toOuterMeasure.mono (s₁ := E₁)
             fun _ hc => hc.2).trans (hescape x₀ hx₀ pref₀ π₀ hd₀)
-        · simp [show E₁ = ∅ from Set.eq_empty_iff_forall_notMem.mpr fun _ h => hd₀ h.1]
-      · refine (PMF.toOuterMeasure_uniformOfFintype_mem_list_le _).trans ?_
-        gcongr
-        exact length_fsOutOfOrderTargets_le _ tr_FS
+        · have hE₁ : E₁ = ∅ := Set.eq_empty_iff_forall_notMem.mpr fun _ h => hd₀ h.1
+          simp [hE₁]
+      · exact (PMF.toOuterMeasure_uniformOfFintype_mem_list_le _).trans
+          (mul_le_mul_left (Nat.cast_le.mpr (length_fsOutOfOrderTargets_le _ tr_FS)) _)
     · exact le_of_eq_of_le (MeasureTheory.measure_mono_null
         (fun _ h => hx₀ (bad_fs_step_cases hstep hdoomed h).1) MeasureTheory.measure_empty) zero_le
 
@@ -348,9 +346,9 @@ private theorem toOuterMeasure_bcsStickyMemoize_step [BEq Stmt] [BEq Chal]
         (ε_rbr + (p.1.2.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / Fintype.card Chal)) := by
   classical
   rcases p with ⟨⟨tr_MT, tr_FS⟩, badFlag⟩
-  have ⟨hflag, hst⟩ : badFlag ≠ true ∧ BCSGoodState r d S doomed decSym defaultSym (tr_MT, tr_FS) :=
-    by simpa [BCSStickyBad] using hp
-  obtain rfl : badFlag = false := Bool.eq_false_iff.mpr hflag
+  obtain ⟨rfl, hst⟩ :
+      badFlag = false ∧ BCSGoodState r d S doomed decSym defaultSym (tr_MT, tr_FS) := by
+    simpa [BCSStickyBad] using hp
   cases q with
   | inl msg =>
     simp only [bcsMTCost, bcsFSCost, Nat.cast_one, Nat.cast_zero, one_mul, zero_mul, add_zero,
@@ -365,14 +363,12 @@ private theorem toOuterMeasure_bcsStickyMemoize_step [BEq Stmt] [BEq Chal]
       rw [PMF.toOuterMeasure_map_apply]
       refine ((BitString.uniformList σ).toOuterMeasure.mono
           (s₂ := {ans | ans ∈ bcsForbiddenDigests r (tr_MT, tr_FS)}) fun ans hbad => by
-        rcases hbad with hflag | hng
-        · rcases of_decide_eq_true ((Bool.false_or _).symm.trans hflag) with
+        rcases hbad.elim (of_decide_eq_true ∘ (Bool.false_or _).symm.trans) Or.inl with
             hng | ⟨_, _, hcons, hmem⟩
-          · exact mem_bcsForbiddenDigests_of_not_bcsGoodState_cons hst hng
-          · exact (Prod.mk.inj (List.cons.inj hcons).1).2 ▸ hmem
-        · exact mem_bcsForbiddenDigests_of_not_bcsGoodState_cons hst hng).trans
+        · exact mem_bcsForbiddenDigests_of_not_bcsGoodState_cons hst hng
+        · exact (Prod.mk.inj (List.cons.inj hcons).1).2 ▸ hmem).trans
         ((toOuterMeasure_uniformList_mem_list_le σ (bcsForbiddenDigests r (tr_MT, tr_FS))).trans
-          (by gcongr; exact length_bcsForbiddenDigests_le r (tr_MT, tr_FS)))
+          (mul_le_mul_left (Nat.cast_le.mpr (length_bcsForbiddenDigests_le r (tr_MT, tr_FS))) _))
   | inr fsq =>
     simp only [bcsMTCost, bcsFSCost, Nat.cast_zero, Nat.cast_one, zero_mul, one_mul, zero_add,
       bcsStickyMemoize_inr, PMF.toOuterMeasure_map_apply]
@@ -380,12 +376,10 @@ private theorem toOuterMeasure_bcsStickyMemoize_step [BEq Stmt] [BEq Chal]
         fsq tr_FS).toOuterMeasure.mono
           (s₂ := {x | ¬ BCSChainDoomed r d S doomed decSym defaultSym tr_MT x.2})
           fun x hbad hfs => by
-        rcases hbad with hflag | hng
-        · rcases of_decide_eq_true ((Bool.false_or _).symm.trans hflag) with
+        rcases hbad.elim (of_decide_eq_true ∘ (Bool.false_or _).symm.trans) Or.inl with
             hng | ⟨_, _, heq, -⟩
-          · exact hng ⟨hst.1, hfs⟩
-          · exact absurd (congrArg List.length heq) (by simp)
-        · exact hng ⟨hst.1, hfs⟩).trans
+        · exact hng ⟨hst.1, hfs⟩
+        · exact absurd (congrArg List.length heq) (by simp)).trans
       (toOuterMeasure_memoize_not_bcsChainDoomed_step hstep hescape decSym defaultSym tr_MT fsq
         hst.2)
 

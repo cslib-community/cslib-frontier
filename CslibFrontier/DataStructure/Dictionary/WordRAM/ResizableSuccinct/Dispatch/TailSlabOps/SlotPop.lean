@@ -174,19 +174,18 @@ theorem compPopBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b : ℕ}
         fun idx hidx => ?_,
         fun idx hidx => ?_⟩
       · rw [htot1] at hidx ⊢
-        have hlt0 : idx < gm₀ 0 := by omega
-        rw [compQuotAt_of_lt s₁.mem hidx hlt0, congrFun hfr1.quot_eq idx, hq_f1]
+        rw [compQuotAt_of_lt s₁.mem hidx (Nat.lt_of_lt_of_le hidx (Nat.sub_le _ _)),
+          congrFun hfr1.quot_eq idx, hq_f1]
         simpa only [epochTotalSlots, physByBase, hb0, ↓reduceIte] using
-          hcpl.quot_eq idx (by simpa only [epochTotalSlots, hb0, ↓reduceIte] using hlt0)
+          hcpl.quot_eq idx (by simpa only [epochTotalSlots, hb0, ↓reduceIte] using
+              Nat.lt_of_lt_of_le hidx (Nat.sub_le _ _))
       · rw [htot1] at hidx ⊢
-        have hlt0 : idx < gm₀ 0 := by omega
-        rw [compValAt_of_lt s₁.mem hidx hlt0, congrFun hfr1.val_eq idx, hv_f1]
+        rw [compValAt_of_lt s₁.mem hidx (Nat.lt_of_lt_of_le hidx (Nat.sub_le _ _)),
+          congrFun hfr1.val_eq idx, hv_f1]
         simpa only [epochTotalSlots, physByBase, hb0, ↓reduceIte] using
-          hcpl.val_eq idx (by simpa only [epochTotalSlots, hb0, ↓reduceIte] using hlt0)
-    · have hcost : memoryCost (compPopBackSlotGenProg d) s = 6 := by
-        dsimp only [d, compPopBackSlotGenProg, compPopBackSingleGenProg]; simp [hb0]
-      simp only [hcost, slotPotential, hb0, ↓reduceIte]
-      omega
+          hcpl.val_eq idx (by simpa only [epochTotalSlots, hb0, ↓reduceIte] using
+              Nat.lt_of_lt_of_le hidx (Nat.sub_le _ _))
+    · simp [d, compPopBackSlotGenProg, compPopBackSingleGenProg, hb0, slotPotential]
   · have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
     have hK_pos : 0 < slabSize N := slabSize_pos N
     have hr_pos : 1 ≤ gm₀ (gmRIdx b) := pos_gmRIdx_of_pos_bCount hb_pos hslot hb hbc
@@ -271,8 +270,7 @@ theorem compPopBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b : ℕ}
             (popBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).1 ∧
           compGmAt metaBase U w N s'.mem (gmRIdx b) =
             (popBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).2 := by
-        unfold popBackCounts
-        rw [hr1_eq, ite_eq_left ⟨rfl, hq_pos⟩, hs'_eq, hcpl2.gm_eq]
+        rw [popBackCounts, hr1_eq, ite_eq_left ⟨rfl, hq_pos⟩, hs'_eq, hcpl2.gm_eq]
         exact ⟨hqb_f2.trans (congrArg (· - 1) hqb1_f), hrb_f2⟩
       have hother_all : ∀ b' < numBuckets N, b' ≠ b →
           compGmAt metaBase U w N s'.mem (gmQIdx b') = gm₀ (gmQIdx b') ∧
@@ -282,7 +280,6 @@ theorem compPopBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b : ℕ}
         exact ⟨hpres1.2.2.2.2.1 b' hb', hpres1.2.2.2.1 b' hb' hne⟩
       have hpot := slotPotential_popBack_le hb_pos hb hr_pos hr2_lt hupd hother_all
       rw [popBackWork, hr1_eq, ite_eq_left ⟨rfl, hq_pos⟩] at hpot
-      have h58_le : 58 * slabSize N ≤ 98 * slabSize N := Nat.mul_le_mul_right _ (by decide)
       exact ⟨hs'_eq ▸ hfr1.trans hfr2, hs'_eq ▸ hs_fix'_eq ▸ hcpl2, by omega⟩
     · have hndem1 : ¬ (gm₀ (gmRIdx b) = 1 ∧ 0 < gm₀ (gmQIdx b)) :=
         fun ⟨h1, h2⟩ => hdem ⟨by omega, h2⟩
@@ -390,8 +387,7 @@ private theorem compDemoteSlabPre_of_removeTail {metaBase itemBase U V w N m_cap
       exact hslot.multi_r_bounds hb_pos b' hb'
     · rw [← hcpl1.gm_eq, hgm1_eq, hpres1.1, hpres1.2.1]; omega
   have hm_cap1 : totalSlots N (compGmAt metaBase U w N s₁.mem) ≤ m_cap := by
-    unfold totalSlots at hm_cap ⊢; rw [ite_eq_right hb0] at hm_cap ⊢
-    rw [hgm1_eq, hpres1.1, hpres1.2.1]; omega
+    simp only [totalSlots, ite_eq_right hb0, hgm1_eq, hpres1.1, hpres1.2.1] at hm_cap ⊢; omega
   exact ⟨U, V, N, m_cap, s_fix₁, rfl, henv.of_mem_eq (by rw [hfr1.frontier_eq]),
     hb_pos, hpre_dem, hcpl1, hm_cap1⟩
 
@@ -503,9 +499,9 @@ theorem validProg_compPopBackSlotGen {w : ℕ} {d : (CompParams × (ℕ × ℕ))
     have henv1 := henv.of_mem_eq (s' := s₁) (by rw [hfr1.frontier_eq])
     have hq_lt := gmQIdx_lt hb_pos hb
     have hr_lt := gmRIdx_lt hb_pos hb
-    have hq_eq : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
-    have hr_eq : gmQIdx b + 1 = gmRIdx b := rfl
-    rw [hq_eq, hr_eq]
+    have hqr : 4 + (b + b + b) + 1 = gmRIdx b ∧ 4 + (b + b + b) = gmQIdx b := by
+      simp only [gmRIdx, gmQIdx]; omega
+    rw [hqr.1, hqr.2]
     refine validProg_bind (validProg_readCompGMGen ⟨henv1.compMetaEnv, hr_lt⟩) ?_
     rw [clientState_readCompGMGenProg, clientResult_readCompGMGenProg hr_lt]
     refine validProg_bind (validProg_readCompGMGen ⟨henv1.compMetaEnv, hq_lt⟩) ?_
