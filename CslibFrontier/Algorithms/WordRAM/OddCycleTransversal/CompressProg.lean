@@ -177,16 +177,13 @@ private theorem unpackGuessProg_realizes :
 
 theorem preservesAt_unpackGuessProg {a : ℕ} {d : ℕ × ℕ} (ha : a < guessBase d.1) :
     PreservesAt a (unpackGuessProg d) := by
-  unfold unpackGuessProg
-  refine preservesAt_bind (preservesAt_fillRange (Or.inl ha)) fun _ => ?_
-  refine preservesAt_bind (preservesAt_iterate (fun j => ?_) _ _) fun _ => preservesAt_pure _ _
-  unfold unpackStep
-  refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-  refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-  refine preservesAt_ite _ ?_ (preservesAt_pure _ _)
-  exact preservesAt_bind
-    (preservesAt_write _ (by dsimp only [guessBase] at ha ⊢; omega))
-    fun _ => preservesAt_pure _ _
+  refine preservesAt_bind (preservesAt_fillRange (Or.inl ha)) fun _ =>
+    preservesAt_bind (preservesAt_iterate (fun _ => ?_) _ _) fun _ => preservesAt_pure _ _
+  exact preservesAt_bind (preservesAt_read _ _) fun _ =>
+    preservesAt_bind (preservesAt_read _ _) fun _ =>
+    preservesAt_ite _ (preservesAt_bind
+      (preservesAt_write _ (by dsimp only [guessBase] at ha ⊢; omega))
+      fun _ => preservesAt_pure _ _) (preservesAt_pure _ _)
 
 /-- Number of vertices in `properInnerStep` arguments `(((n, m), u), du), (j, ok)`. -/
 abbrev ProperInnerArgs.n (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) : ℕ := d.1.1.1.1
@@ -462,27 +459,21 @@ theorem preservesAt_buildTerminalsProg {a : ℕ} {d : (ℕ × ℕ) × ℕ}
     PreservesAt a (buildTerminalsProg d) := by
   have ha_flip : a < flipBase (GraphStepArgs.n d) := by
     dsimp only [keepBase, flipBase, GraphStepArgs.n] at ha ⊢; omega
-  unfold buildTerminalsProg
-  refine preservesAt_bind (preservesAt_fillRange (Or.inl ha)) fun _ => ?_
-  refine preservesAt_bind (preservesAt_fillRange (Or.inl ha_flip)) fun _ => ?_
-  refine preservesAt_bind (preservesAt_iterate (fun v => ?_) _ _) fun _ => preservesAt_pure _ _
-  unfold termOuterStep
-  refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-  refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-  refine preservesAt_ite _ ?_ (preservesAt_pure _ _)
-  refine preservesAt_bind (preservesAt_iterate (fun j => ?_) _ _) fun _ => preservesAt_pure _ _
-  unfold termInnerStep
-  refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-  refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-  refine preservesAt_ite _ ?_ (preservesAt_pure _ _)
-  refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-  refine preservesAt_ite _ ?_ (preservesAt_pure _ _)
-  refine preservesAt_ite _ ?_ ?_ <;>
-    exact preservesAt_bind
-      (preservesAt_write _
-        (by dsimp only [keepBase, flipBase, TermInnerArgs.n, TermOuterArgs.n,
-          GraphStepArgs.n] at ha ⊢; omega))
-      fun _ => preservesAt_pure _ _
+  refine preservesAt_bind (preservesAt_fillRange (Or.inl ha)) fun _ =>
+    preservesAt_bind (preservesAt_fillRange (Or.inl ha_flip)) fun _ =>
+    preservesAt_bind (preservesAt_iterate (fun _ => ?_) _ _) fun _ => preservesAt_pure _ _
+  refine preservesAt_bind (preservesAt_read _ _) fun _ =>
+    preservesAt_bind (preservesAt_read _ _) fun _ =>
+    preservesAt_ite _ (preservesAt_bind (preservesAt_iterate (fun _ => ?_) _ _) fun _ =>
+      preservesAt_pure _ _) (preservesAt_pure _ _)
+  refine preservesAt_bind (preservesAt_read _ _) fun _ =>
+    preservesAt_bind (preservesAt_read _ _) fun _ =>
+    preservesAt_ite _ (preservesAt_bind (preservesAt_read _ _) fun _ =>
+      preservesAt_ite _ (preservesAt_ite _ ?_ ?_) (preservesAt_pure _ _)) (preservesAt_pure _ _)
+  all_goals
+    refine preservesAt_bind (preservesAt_write _ ?_) fun _ => preservesAt_pure _ _
+    dsimp only [keepBase, flipBase, TermInnerArgs.n, TermOuterArgs.n, GraphStepArgs.n] at ha ⊢
+    omega
 
 /-- Increment the deleted-vertex counter when `digitBase n + j = 0`. -/
 @[expose] def countDelStep (d : ℕ × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
@@ -871,9 +862,8 @@ private theorem compressProg_realizes :
         base3At t₁.mem (digitBase d.1.1.1) d.2 = base3At t.mem (digitBase d.1.1.1) d.2 := by
       dsimp only [t₁]
       split_ifs
-      · refine base3At_congr fun i hi => preservesAt_leafProg (Or.inr ?_) t
-        dsimp only [wBase, digitBase, guessBase, CompressCfg.n]
-        omega
+      · exact base3At_congr fun i hi => preservesAt_leafProg
+          (Or.inr (by dsimp only [wBase, digitBase, guessBase, CompressCfg.n]; omega)) t
       · rfl
     simp only [hstep.1, hstep.2, hg, ↓reduceIte]
     obtain ⟨hdone_le, hodom_eq⟩ := incOdomProg_base3At d.1.1.1 d.2 t₁
