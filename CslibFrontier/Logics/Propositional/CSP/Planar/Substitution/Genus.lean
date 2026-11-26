@@ -130,11 +130,10 @@ private theorem replacementColors_incidenceDart
       (Pg i (incidenceDart
         (bodyOccurrence (gadgets F[i.val].rel).body (List.ofFn Sum.inl) o) side) ^^ K i) := by
   dsimp only [replacementColors]
-  rw [← incidenceDartEquiv_apply (replacementOccurrence gadgets B F i o, side),
-    Equiv.symm_apply_apply]
   have ho := (replacementOccurrenceEquiv gadgets B F).symm_apply_apply ⟨i, o⟩
   rw [replacementOccurrenceEquiv_apply] at ho
-  rw [ho]
+  rw [← incidenceDartEquiv_apply (replacementOccurrence gadgets B F i o, side),
+    Equiv.symm_apply_apply, ho]
   rfl
 
 private theorem replacementColors_xor_reverse
@@ -221,12 +220,9 @@ private theorem isChain_shifted_boundaryColors
         [(exit ^^ K i, exit ^^ K i)]) := by
   rw [map_shiftBlock_replacementColors gadgets B F Pg K i _ fun j hj =>
     ((mem_boundaryBlock_iff _ _ v j).mp hj).imp fun _ h => h.1]
-  have h := List.isChain_map_of_isChain
-    (S := fun p q : Bool × Bool => p.2 = q.1)
-    (fun p : Bool × Bool => (p.1 ^^ K i, p.2 ^^ K i))
-    (fun _ _ he => congrArg (fun b => b ^^ K i) he) hc
-  simpa only [List.map_cons, List.map_append, List.map_map, List.map_nil,
-    Function.comp_def] using h
+  have h := List.isChain_map_of_isChain (S := fun p q : Bool × Bool => p.2 = q.1)
+    (fun p : Bool × Bool => (p.1 ^^ K i, p.2 ^^ K i)) (fun _ _ => congrArg (· ^^ K i)) hc
+  simpa only [List.map_cons, List.map_append, List.map_map, List.map_nil, Function.comp_def] using h
 
 private theorem isChain_incidenceBlock_colors
     (hF : WellFormed srcArity F) (Ps : Dart (incidenceGraph F) → Bool)
@@ -256,12 +252,9 @@ private theorem isChain_incidenceBlock_colors
   have h := isChain_shifted_boundaryColors gadgets witnesses B F Pg K o.1 (Sum.inl a) _ _
     (isChain_freeBoundaryBlock_colors (gadgets F[o.1.val].rel) (witnesses F[o.1.val].rel) a
       (Pg o.1) (hg o.1))
-  change List.IsChain _
-    ((Pg o.1 (incidenceDart (gadgetProbeOccurrence _ a) true) ^^ K o.1,
-        Pg o.1 (incidenceDart (gadgetProbeOccurrence _ a) true) ^^ K o.1) :: _ ++
-      [(Pg o.1 (incidenceDart (gadgetProbeOccurrence _ a) false) ^^ K o.1,
-        Pg o.1 (incidenceDart (gadgetProbeOccurrence _ a) false) ^^ K o.1)]) at h
-  rw [hKvar, hKcenter, ho] at h
+  have hrev : (incidenceDart (gadgetProbeOccurrence (gadgets F[o.1.val].rel) a) false).reverse =
+      incidenceDart (gadgetProbeOccurrence (gadgets F[o.1.val].rel) a) true := rfl
+  rw [hrev, hKvar, hKcenter, ho] at h
   change List.IsChain _ (_ :: ((incidenceBlock _ _ F
     (2 * incidenceEdgeIndex o)).map _) ++ _)
   rw [incidenceBlock_occurrence]

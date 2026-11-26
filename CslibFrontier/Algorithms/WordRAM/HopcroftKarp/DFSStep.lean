@@ -84,9 +84,7 @@ private theorem hkDfsLevel_acc {m r : ℕ} (G : Fin m × Fin r → Bool)
         dsimp only
         split
         · rw [hnext w₀ (vset vis v true) acc₀]
-          cases h2 : (next w₀ (vset vis v true) []).2 with
-          | none => exact ih (next w₀ (vset vis v true) []).1
-          | some q => simp
+          cases (next w₀ (vset vis v true) []).2 <;> simp [ih]
         · exact ih vis
     · exact ih vis
 
@@ -397,13 +395,12 @@ private theorem exec_copyAugCode {w bOff k : ℕ} {inst : SparseInstance}
       (∀ a, ¬(bOff + inst.m + 1 + inst.numEdges + 2 * inst.r + 6 * inst.m + 6 ≤ a ∧
           a < bOff + inst.m + 1 + inst.numEdges + 4 * inst.r + 6 * inst.m + 6) →
         y.mem a = x.mem a) := by
-  have hs₀ : ∃ s₀, ExecWithin w
+  obtain ⟨s₀, he₀, rfl⟩ : ∃ s₀, ExecWithin w
       (ram[ limit ← rk + one; idx ← #0 ] : Code .standard 34) x s₀ 2 ∧
       s₀ = (x.set limit (k + 1)).set idx 0 := by
     refine WP.exists_execWithin ?_
     wram_exec [hrk, hb.hone]
     rfl
-  obtain ⟨s₀, he₀, rfl⟩ := hs₀
   let P (t : ℕ) (y : Data 34) : Prop :=
     t ≤ k + 1 ∧
       (∀ i : Fin 34, i.val < 26 → y.regs i = x.regs i) ∧
@@ -808,25 +805,18 @@ theorem exec_dfsStep_accept {w bOff k : ℕ} {inst : SparseInstance}
     refine WP.of_execWithin he_cp ?_
     have hz_mid : y_cp.regs zero = 0 := (hr_cp zero (by decide)).trans hb_mid.hzero
     wram_exec [hz_mid]
+    subst hx_mid
     refine ⟨fun i hi => ?_, by wram_simp, by wram_simp [hal_cp], ?_, haug_cp, fun a ha => ?_⟩
-    · wram_simp
-      exact (hr_cp i (by omega)).trans (by subst hx_mid; wram_simp)
-    · exact hfr.hvisM.vset_true v
-        (by
-          wram_simp
-          rw [hf_cp _ (by omega)]
-          subst hx_mid
-          wram_simp)
-        fun v₀ hne => by
-          have := v₀.isLt
-          have hne_val : v₀.val ≠ v.val := fun h => hne (Fin.ext h)
-          wram_simp
-          rw [hf_cp _ (by omega)]
-          subst hx_mid
-          wram_simp
-    · wram_simp
-      rw [hf_cp a (by omega)]
-      subst hx_mid
+    · have hrcp := hr_cp i (by omega)
+      wram_simp [hrcp]
+    · refine hfr.hvisM.vset_true v ?_ fun v₀ hne => ?_
+      · rw [Data.set_mem, hf_cp _ (by omega)]
+        wram_simp
+      · have := v₀.isLt
+        have hne_val : v₀.val ≠ v.val := fun h => hne (Fin.ext h)
+        rw [Data.set_mem, hf_cp _ (by omega)]
+        wram_simp
+    · rw [Data.set_mem, hf_cp a (by omega)]
       wram_simp
   obtain ⟨z, he_step, hr_z, hact_z, hal_z, hvis_z, haug_z, hf_z⟩ := hstep
   have hc_exit : ¬(Cond.eq active one).Holds z := by

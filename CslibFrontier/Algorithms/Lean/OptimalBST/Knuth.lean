@@ -107,8 +107,7 @@ theorem foldl_setCell (d : ℕ) (F : ℕ → Entry β) : ∀ (l : List ℕ) (U :
     l.foldl (fun U i => setCell d U i (F i)) U a b = if a ∈ l ∧ b = a + d then F a else U a b
   | [], U, a, b => by simp only [List.foldl_nil, List.not_mem_nil, false_and, ↓reduceIte]
   | x :: l, U, a, b => by
-    rw [List.foldl_cons, foldl_setCell d F l, setCell]
-    simp only [List.mem_cons]
+    simp only [List.foldl_cons, foldl_setCell d F l, setCell, List.mem_cons]
     split_ifs <;> grind
 
 /-- The output of an optimal-BST algorithm: a cost and a tree. -/
@@ -140,11 +139,8 @@ def ScanInv (c : ℕ → β) (lo hi : ℕ) (e : Entry β) : Prop :=
 
 theorem scanInv_foldl (c : ℕ → β) (lo : ℕ) : ∀ m,
     ScanInv c lo (lo + m) ((List.range' (lo + 1) m).foldl (bestStep c) ⟨c lo, lo⟩)
-  | 0 => by
-    refine ⟨le_rfl, le_rfl, rfl, fun k h₁ h₂ => ?_, fun k h₁ h₂ => ?_⟩
-    · obtain rfl : k = lo := by omega
-      exact le_rfl
-    · exact absurd h₂ (by simp only [List.range'_zero, List.foldl_nil] at h₁; omega)
+  | 0 => ⟨le_rfl, le_rfl, rfl, fun _ h₁ h₂ => (congrArg c (le_antisymm h₁ h₂)).le,
+      fun _ h₁ h₂ => absurd h₂ h₁.not_ge⟩
   | m + 1 => by
     rw [List.range'_concat, List.foldl_append, List.foldl_cons, List.foldl_nil, one_mul,
       Nat.add_right_comm]
@@ -267,8 +263,7 @@ theorem agrees_diag {w : ℕ → ℕ → β} {W : Window β} {n d : ℕ} (hW : W
 theorem agrees_table {w : ℕ → ℕ → β} {W : Window β} {n : ℕ} (hW : W.Valid w n) :
     ∀ d, Agrees w n d (table w W n d)
   | 0 => fun a b _ hab => by
-    rw [optCost_of_le w (by omega), optRoot_of_le w (by omega)]
-    rfl
+    rw [table, optCost_of_le w (by omega), optRoot_of_le w (by omega)]
   | d + 1 => agrees_diag hW (agrees_table hW d)
 
 theorem Window.valid_plain (w : ℕ → ℕ → β) (n : ℕ) : (Window.plain : Window β).Valid w n := by
@@ -279,13 +274,10 @@ theorem Window.valid_plain (w : ℕ → ℕ → β) (n : ℕ) : (Window.plain : 
 theorem solve_eq {w : ℕ → ℕ → β} {W : Window β} {n : ℕ} (hW : W.Valid w n) :
     solve w W n = ⟨optCost w 0 n, optTree w 0 n⟩ := by
   have hT := agrees_table hW n
-  simp only [solve]
-  generalize table w W n n = T at hT
-  have hR : ∀ a b, 0 ≤ a → a < b → b ≤ n → (T a b).root = optRoot w a b := fun a b _ _ hb => by
-    rw [hT a b hb (by omega)]
-  rw [hT 0 n le_rfl (by omega), optTree, Nat.sub_zero,
-    buildTree_congr (R' := optRoot w) hR fun a b _ hab hb => hR a b (Nat.zero_le a) hab hb ▸
-      optRoot_mem w hab]
+  have hR : ∀ a b, 0 ≤ a → a < b → b ≤ n → (table w W n n a b).root = optRoot w a b :=
+    fun a b _ _ hb => congrArg Entry.root (hT a b hb ((Nat.sub_le b a).trans hb))
+  rw [solve, hT 0 n le_rfl le_rfl, optTree, Nat.sub_zero,
+    buildTree_congr hR fun a b ha hab hb => hR a b ha hab hb ▸ optRoot_mem w hab]
 
 /-- **Correctness of the cubic dynamic program**, for every weight: it returns the optimal cost and
 the tree read off the largest optimal roots. -/
@@ -343,12 +335,12 @@ theorem sum_knuth_window_le {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w)
   · simp only [Window.knuth, zero_add, lt_irrefl, ↓reduceIte, Nat.sub_self,
       sum_const, card_range, Nat.nsmul_eq_mul, mul_one]
     omega
-  · set m := n + 1 - (e + 1 + 1) with hm
+  · set m := n + 1 - (e + 1 + 1)
     let a : ℕ → ℕ := fun i => optRoot w i (i + e + 1)
     have hsub (i : ℕ) : (i + 1) + e + 1 - 1 = i + e + 1 := by omega
-    have hterm : ∀ i ∈ range m, (Window.knuth : Window β).hi T i (i + (e + 1 + 1)) -
-        (Window.knuth : Window β).lo T i (i + (e + 1 + 1)) + 1 = a (i + 1) - a i + 1 := by
-      intro i hi
+    have hterm (i : ℕ) (hi : i ∈ range m) :
+        (Window.knuth : Window β).hi T i (i + (e + 1 + 1)) -
+          (Window.knuth : Window β).lo T i (i + (e + 1 + 1)) + 1 = a (i + 1) - a i + 1 := by
       rw [mem_range] at hi
       have heq : i + (e + 1 + 1) = (i + 1) + e + 1 := by omega
       have hij : i + 1 < (i + 1) + e + 1 := by omega

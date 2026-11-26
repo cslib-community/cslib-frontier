@@ -295,14 +295,12 @@ variable {Rel V D : Type*}
 @[simp]
 theorem evalScore_toWeighted (sem : Rel → List D → Bool) (F : MaxCSPInstance Rel V) (σ : V → D) :
     F.toWeighted.evalScore sem σ = F.evalCount sem σ := by
-  rcases F with ⟨n, cs⟩
-  induction cs with
+  simp only [toWeighted, WeightedMaxCSP.evalScore, evalCount, List.map_map, Function.comp_def,
+    WeightedConstraint.evalWeight]
+  induction F.constraints with
   | nil => rfl
   | cons c cs ih =>
-    simp only [toWeighted, WeightedMaxCSP.evalScore, List.map_cons, List.sum_cons,
-      WeightedConstraint.evalWeight, evalCount, List.countP_cons, Constraint.eval] at ih ⊢
-    rw [ih]
-    by_cases h : sem c.rel (c.scope.map σ) = true <;> simp only [h, ↓reduceIte] <;> omega
+    cases h : sem c.rel (c.scope.map σ) <;> simp [Constraint.eval, h, ih, Nat.add_comm]
 
 @[simp]
 theorem score_toWeighted [Inhabited D] (sem : Rel → List D → Bool) (F : MaxCSPInstance Rel ℕ)
@@ -337,12 +335,10 @@ theorem score_toRealWeighted [Inhabited D] (sem : Rel → List D → Bool) (F : 
 theorem optimum_toRealWeighted [Fintype D] [Inhabited D] (sem : Rel → List D → Bool)
     (F : MaxCSPInstance Rel ℕ) :
     F.toRealWeighted.optimum sem = (F.optimum sem : ℝ) := by
-  apply le_antisymm
-  · exact WeightedMaxCSP.optimum_le_of_forall fun x : Fin F.numVars → D =>
-      (F.score_toRealWeighted sem x).le.trans (Nat.cast_le.mpr (F.score_le_optimum sem x))
-  · obtain ⟨x, hx⟩ := F.exists_score_eq_optimum sem
-    rw [← hx, ← F.score_toRealWeighted]
-    exact F.toRealWeighted.score_le_optimum sem x
+  refine le_antisymm (WeightedMaxCSP.optimum_le_of_forall fun x =>
+    (F.score_toRealWeighted sem x).le.trans (Nat.cast_le.mpr (F.score_le_optimum sem x))) ?_
+  obtain ⟨x, hx⟩ := F.exists_score_eq_optimum sem
+  exact hx ▸ F.score_toRealWeighted sem x ▸ F.toRealWeighted.score_le_optimum sem x
 
 end MaxCSPInstance
 
@@ -438,26 +434,24 @@ theorem countP_eval_constraintToCNF_add_one {Rel V : Type*} (sem : Rel → List 
     (c.toCNF sem).countP (Clause.eval σ) + 1 =
       (c.toCNF sem).length + cond (Constraint.eval sem σ c) 1 0 := by
   set forb := (enumList c.scope.length).filter fun w => !sem c.rel w
-  have hnodup : forb.Nodup := (nodup_enumList c.scope.length).filter _
   have hcount : (c.toCNF sem).countP (Clause.eval σ) =
       forb.countP (fun w => !(w == c.scope.map σ)) := by
     simp only [Constraint.toCNF, List.countP_map, Function.comp_def, forb]
-    refine List.countP_congr fun w hw => ?_
-    rw [Constraint.eval_forbidClause c.scope
-      (length_of_mem_enumList (List.mem_of_mem_filter hw)) σ, Bool.beq_comm]
+    exact List.countP_congr fun w hw => by
+      rw [Constraint.eval_forbidClause c.scope
+        (length_of_mem_enumList (List.mem_of_mem_filter hw)) σ, Bool.beq_comm]
   have hsplit := List.length_eq_countP_add_countP (· == c.scope.map σ) (l := forb)
   rw [← List.count_eq_countP] at hsplit
   have hmem : c.scope.map σ ∈ forb ↔ Constraint.eval sem σ c = false := by
     simp only [forb, List.mem_filter, mem_enumList, List.length_map, true_and, Constraint.eval,
       Bool.not_eq_true']
-  rw [hcount, show (c.toCNF sem).length = forb.length from List.length_map _]
+  have hlen : (c.toCNF sem).length = forb.length := List.length_map _
+  rw [hcount, hlen]
   cases hev : Constraint.eval sem σ c
-  · rw [List.count_eq_one_of_mem hnodup (hmem.mpr hev)] at hsplit
-    simp only [Bool.cond_false, Bool.not_eq_true, Bool.decide_eq_false] at hsplit ⊢
-    omega
+  · rw [List.count_eq_one_of_mem ((nodup_enumList _).filter _) (hmem.mpr hev)] at hsplit
+    simp only [Bool.cond_false, Bool.not_eq_true, Bool.decide_eq_false] at hsplit ⊢; omega
   · rw [List.count_eq_zero_of_not_mem (by simp [hmem, hev])] at hsplit
-    simp only [Bool.cond_true, Bool.not_eq_true, Bool.decide_eq_false] at hsplit ⊢
-    omega
+    simp only [Bool.cond_true, Bool.not_eq_true, Bool.decide_eq_false] at hsplit ⊢; omega
 
 /-- **Exact affine score identity for `CSP.toCNF`.** On every assignment `σ : V → Bool`, the
 number of satisfied clauses in `(F.toCNF sem)` plus `F.length` equals `(F.toCNF sem).length` plus
@@ -645,9 +639,8 @@ theorem optimum_toClampedBoolean {q : ℕ} (hq : 0 < q) [Inhabited (Fin q)]
     {F : WeightedMaxCSP Rel ℕ W} (hvars : ∀ v ∈ F.vars, v < F.numVars) :
     (F.toClampedBoolean q).optimum (MaxCSP.clampedSem q hq sem) = F.optimum sem := by
   apply le_antisymm
-  · refine WeightedMaxCSP.optimum_le_of_forall fun x => ?_
-    rw [F.score_toClampedBoolean hq sem hvars x]
-    exact F.score_le_optimum sem _
+  · exact WeightedMaxCSP.optimum_le_of_forall fun x =>
+      (F.score_toClampedBoolean hq sem hvars x).le.trans (F.score_le_optimum sem _)
   · refine WeightedMaxCSP.optimum_le_of_forall fun y => ?_
     have hy := MaxCSP.decodeFinAssign_encodeFinAssign q hq F.numVars y
     calc F.score sem y

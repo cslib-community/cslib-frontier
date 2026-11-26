@@ -86,8 +86,7 @@ private theorem map_rotate_one_cyclicPermutations (w : List α) :
     w.cyclicPermutations.map (·.rotate 1) = w.cyclicPermutations.rotate 1 := by
   rcases eq_or_ne w [] with rfl | hw
   · simp
-  · apply List.ext_getElem (by simp)
-    intro n h₁ h₂
+  · refine List.ext_getElem (by simp) fun n h₁ h₂ => ?_
     simp only [List.getElem_map, List.getElem_cyclicPermutations, List.getElem_rotate,
       List.rotate_rotate, List.length_cyclicPermutations_of_ne_nil w hw]
     rw [← List.rotate_mod w (n + 1)]
@@ -228,9 +227,8 @@ theorem filter_head_map_rotate_one (w : List α) (c : α) :
       have hlen : u'.length = v'.length := by
         simpa using (length_of_mem_bwtMatrix hu.1).trans (length_of_mem_bwtMatrix hv.1).symm
       simp only [List.rotate_cons_succ, List.rotate_zero]
-      rcases ((List.cons_le_cons_iff'.mp huv).resolve_left (lt_irrefl _)).2.lt_or_eq with h | rfl
-      · exact (List.append_lt_append_of_lt_of_length_eq h hlen _ _).le
-      · exact le_rfl
+      exact ((List.cons_le_cons_iff'.mp huv).resolve_left (lt_irrefl _)).2.lt_or_eq.elim
+        (fun h => (List.append_lt_append_of_lt_of_length_eq h hlen _ _).le) (· ▸ le_rfl)
   · exact (pairwise_bwtMatrix w).filter _
   · simpa [List.filter_map, Function.comp_def, getLast?_rotate_one] using
       (map_rotate_one_bwtMatrix_perm w).filter (·.getLast? = some c)
@@ -315,9 +313,10 @@ private theorem exists_lfMap (w : List α) {r : ℕ} (hr : r < (bwtMatrix w).len
     simp only [lfMap, hLr, hless, hcount]
   have hpos := List.getElem?_filter_countP_take (fun u => decide (u.getLast? = some c)) hr
     (by simpa using hc)
-  rw [← filter_head_map_rotate_one, List.getElem?_map,
-    show (bwtMatrix w).filter (·.head? = some c) = M.filter (fun u => headKey u = c) from rfl,
-    List.Pairwise.filter_key_eq headKey (c : WithBot α) ((pairwise_bwtMatrix w).imp headKey_mono),
+  rw [← filter_head_map_rotate_one, List.getElem?_map] at hpos
+  change ((M.filter fun u => headKey u = c)[(M.take r).countP (·.getLast? = some c)]?).map
+      (·.rotate 1) = some M[r] at hpos
+  rw [List.Pairwise.filter_key_eq headKey (c : WithBot α) ((pairwise_bwtMatrix w).imp headKey_mono),
     List.getElem?_take, List.getElem?_drop] at hpos
   split_ifs at hpos with hk
   · obtain ⟨_, hv, hvr⟩ := Option.map_eq_some_iff.mp hpos
@@ -355,10 +354,8 @@ theorem count_take_bwtFirst_lfMap (w : List α) {r : ℕ} {c : α}
     (hc : (bwtLast w)[r]? = some c) :
     ((bwtFirst w).take (lfMap (bwtLast w) r)).count c = ((bwtLast w).take r).count c := by
   have hperm := (bwtFirst_perm w).trans (bwtLast_perm w).symm
-  rw [lfMap, hc]
-  dsimp only
-  rw [← hperm.countP_eq, List.Pairwise.count_take_countP_lt_add c _ (pairwise_bwtFirst w),
-    hperm.count_eq]
+  simp only [lfMap, hc, ← hperm.countP_eq,
+    List.Pairwise.count_take_countP_lt_add c _ (pairwise_bwtFirst w), hperm.count_eq]
   exact Nat.min_eq_left ((List.take_sublist _ _).count_le c)
 
 /-- The LF-mapping is one-to-one on the rows ([BurrowsWheeler1994], Section 2, step D2). -/
@@ -368,21 +365,18 @@ theorem lfMap_bwtLast_injOn (w : List α) {r r' : ℕ} (hr : r < (bwtMatrix w).l
   rcases eq_or_ne w [] with rfl | hw
   · simp only [bwtMatrix_nil, List.length_singleton] at hr hr'
     omega
-  have hlen : (bwtLast w).length = (bwtMatrix w).length := by
-    rw [length_bwtLast, length_bwtMatrix hw]
   -- the key step: an earlier occurrence index has a strictly smaller rank
   have key {a b : ℕ} (hab : a < b) (hb : b < (bwtMatrix w).length)
       (hab' : lfMap (bwtLast w) a = lfMap (bwtLast w) b) : False := by
-    have ha : a < (bwtLast w).length := by omega
+    have ha : a < (bwtLast w).length := by rw [length_bwtLast, ← length_bwtMatrix hw]; omega
     have hc : (bwtLast w)[a]? = some (bwtLast w)[a] := List.getElem?_eq_getElem ha
     have hcb : (bwtLast w)[b]? = some (bwtLast w)[a] := by
       rw [← getElem?_bwtFirst_lfMap, ← hab', getElem?_bwtFirst_lfMap, hc]
-    have e1 := hab' ▸ count_take_bwtFirst_lfMap w hc
-    rw [count_take_bwtFirst_lfMap w hcb] at e1
+    have e1 := (count_take_bwtFirst_lfMap w hcb).symm.trans (hab' ▸ count_take_bwtFirst_lfMap w hc)
     have hmono :=
       ((List.take_prefix_take_left (l := bwtLast w) hab).sublist).count_le (bwtLast w)[a]
-    rw [List.take_add_one, List.count_append, hc] at hmono
-    simp at hmono
+    simp only [List.take_add_one, List.count_append, hc, Option.toList_some,
+      List.count_singleton_self] at hmono
     omega
   rcases lt_trichotomy r r' with hlt | rfl | hgt
   exacts [(key hlt hr' h).elim, rfl, (key hgt hr h.symm).elim]
@@ -404,10 +398,10 @@ theorem bwtLast_lfMap_step (w : List α) {k r : ℕ} (hk : k < w.length)
     (bwtLast w)[r]? = some w[k] ∧
       (bwtMatrix w)[lfMap (bwtLast w) r]'(lfMap_bwtLast_lt w hr) = w.rotate k := by
   refine ⟨?_, List.rotate_injective 1 ?_⟩
-  · rw [getElem?_bwtLast, List.getElem?_eq_getElem hr, Option.bind_some, hrow,
-      List.getLast?_eq_getElem?, List.length_rotate, List.getElem?_rotate (by omega),
-      show w.length - 1 + (k + 1) = k + w.length by omega, Nat.add_mod_right,
-      Nat.mod_eq_of_lt hk, List.getElem?_eq_getElem hk]
+  · have hidx : w.length - 1 + (k + 1) = k + w.length := by omega
+    rw [getElem?_bwtLast, List.getElem?_eq_getElem hr, Option.bind_some, hrow,
+      List.getLast?_eq_getElem?, List.length_rotate, List.getElem?_rotate (by omega), hidx,
+      Nat.add_mod_right, Nat.mod_eq_of_lt hk, List.getElem?_eq_getElem hk]
   · change ((bwtMatrix w)[lfMap (bwtLast w) r]'(lfMap_bwtLast_lt w hr)).rotate 1 =
       (w.rotate k).rotate 1
     rw [rotate_one_getElem_bwtMatrix_lfMap w hr, hrow, List.rotate_rotate]
@@ -422,10 +416,10 @@ theorem getElem?_bwtMatrix_iterate_lfMap (w : List α) :
   | i + 1, hi => by
     obtain ⟨hr, hrow⟩ :=
       List.getElem?_eq_some_iff.mp (getElem?_bwtMatrix_iterate_lfMap w i (by omega))
-    rw [show w.length - i = w.length - 1 - i + 1 by omega] at hrow
+    have hsub : w.length - i = w.length - (i + 1) + 1 := by omega
+    rw [hsub] at hrow
     rw [Function.iterate_succ_apply', List.getElem?_eq_getElem (lfMap_bwtLast_lt w hr),
-      (bwtLast_lfMap_step w (by omega) hr hrow).2,
-      show w.length - 1 - i = w.length - (i + 1) by omega]
+      (bwtLast_lfMap_step w (by omega) hr hrow).2]
 
 /-- **Decoding formula** ([BurrowsWheeler1994], Section 2, step D3): `w[n - 1 - i]` is the
 last-column symbol of the row reached by `i` LF steps from `bwtIndex w`. -/
@@ -433,7 +427,8 @@ theorem getElem?_bwtLast_iterate_lfMap (w : List α) {i : ℕ} (hi : i < w.lengt
     (bwtLast w)[(lfMap (bwtLast w))^[i] (bwtIndex w)]? = w[w.length - 1 - i]? := by
   obtain ⟨hr, hrow⟩ :=
     List.getElem?_eq_some_iff.mp (getElem?_bwtMatrix_iterate_lfMap w i hi.le)
-  rw [show w.length - i = w.length - 1 - i + 1 by omega] at hrow
+  have hsub : w.length - i = w.length - 1 - i + 1 := by omega
+  rw [hsub] at hrow
   rw [(bwtLast_lfMap_step w (by omega) hr hrow).1, List.getElem?_eq_getElem (by omega)]
 
 /-! ## Inversion -/
@@ -446,7 +441,7 @@ theorem lfDecode_bwtLast (w : List α) :
   | 0, _, _, _, _ => by simp [lfDecode]
   | k + 1, hk, r, hr, hrow => by
     obtain ⟨hL, hrow'⟩ := bwtLast_lfMap_step w (by omega) hr hrow
-    simp only [lfDecode, hL, ← List.drop_eq_getElem_cons (by omega : k < w.length)]
+    simp only [lfDecode, hL, ← List.drop_eq_getElem_cons (Nat.lt_of_succ_le hk)]
     exact lfDecode_bwtLast w k (by omega) _ (lfMap_bwtLast_lt w hr) hrow'
 
 /-- **Invertibility** ([BurrowsWheeler1994], Section 2, Algorithm D): the LF-mapping decoder

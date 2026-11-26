@@ -544,15 +544,13 @@ private theorem gInv_step (hsym : ∀ X, f Xᶜ = f X) (hsub : IsSubmodular f) {
     split_ifs with h
     · rw [hz, h.1, ← hY]
     · exact hz
-  have hgenU : ∀ z, z ≠ s → z ≠ t → (z ∈ U ↔ q z ∈ U) := by
-    intro z hzs hzt
+  have hgenU (z : V) (hzs : z ≠ s) (hzt : z ≠ t) : z ∈ U ↔ q z ∈ U := by
     rw [qz z hzs hzt]
     split_ifs with h
     · exact iff_of_true ((U1 z h.1).mpr h.2) U0.left_mem
     · by_cases hpz : p z = t
-      · have hzX : z ∉ X := fun hzX => h ⟨hpz, hzX⟩
-        rw [hpz]
-        exact iff_of_false (fun hzU => hzX ((U1 z hpz).mp hzU)) U0.right_notMem
+      · rw [hpz]
+        exact iff_of_false (fun hzU => h ⟨hpz, (U1 z hpz).mp hzU⟩) U0.right_notMem
       · exact U3 z hzt hpz
   -- Facts shared by both cases.
   have hmem : ∀ z, q z ∈ insert s P := fun z => by
@@ -563,23 +561,20 @@ private theorem gInv_step (hsym : ∀ X, f Xᶜ = f X) (hsub : IsSubmodular f) {
     · have hpt : p t = t := htr ▸ I.parent_root
       rw [htr, qt, hpt, ite_eq_right hX.right_notMem]
     · rw [qz r (Ne.symm hsr) htr, ite_eq_right fun h => htr (I.parent_root ▸ h.1), I.parent_root]
-  have hcut_other : ∀ i ∈ P, i ≠ r → i ≠ s → i ≠ t → IsMinCutBetween f i (q i) (S i) := by
-    intro i hiP hir his hit
+  have hcut_other (i : V) (hiP : i ∈ P) (hir : i ≠ r) (his : i ≠ s) (hit : i ≠ t) :
+      IsMinCutBetween f i (q i) (S i) := by
     rw [qz i his hit]
     split_ifs with h
     · -- `i` is re-hung below `s`.
-      have hc := I.cut i hiP hir
-      rw [h.1] at hc
+      have hc : IsMinCutBetween f i t (S i) := h.1 ▸ I.cut i hiP hir
       exact isMinCutBetween_rehang hsym hc U0 ((hsS i hiP hir).not.mpr hc.right_notMem)
         ((U1 i h.1).mpr h.2)
     · exact I.cut i hiP hir
-  have hconn_other : ∀ z, z ≠ s → z ≠ t → TAdj q s t →
+  have hconn_other (z : V) (hzs : z ≠ s) (hzt : z ≠ t) (hst' : TAdj q s t) :
       Relation.ReflTransGen (TAdj q) z (p z) := by
-    intro z hzs hzt hst'
     have hqz := qz z hzs hzt
     split_ifs at hqz with h
-    · rw [h.1]
-      exact (Relation.ReflTransGen.single (show TAdj q z s from Or.inl hqz)).tail hst'
+    · exact h.1.symm ▸ (Relation.ReflTransGen.single (show TAdj q z s from Or.inl hqz)).tail hst'
     · exact Relation.ReflTransGen.single (Or.inl hqz)
   have hfUX : f U = f X :=
     le_antisymm (U0.le hX.left_mem hX.right_notMem) (hX.le U0.left_mem U0.right_notMem)
@@ -642,8 +637,7 @@ private theorem gInv_step (hsym : ∀ X, f Xᶜ = f X) (hsub : IsSubmodular f) {
       ⟨Finset.mem_insert_of_mem I.root_mem, hqr, hmem, ?_, ?_, ?_, ?_⟩, ?_⟩
     · rintro i hi hir
       rcases Finset.mem_insert.mp hi with rfl | hiP
-      · rw [qs', Function.update_self]
-        exact U0
+      · simpa only [qs', Function.update_self] using U0
       rw [Function.update_of_ne (hne_s hiP)]
       rcases eq_or_ne i t with rfl | hit
       · exact qt' ▸ I.cut t hiP hir
@@ -737,8 +731,7 @@ private theorem gInv_isGomoryHuTree (hsym : ∀ X, f Xᶜ = f X) {r : V} {p : V 
   classical
   have hne : ∀ x, x ≠ r → p x ≠ x := fun x hx h =>
     (I.cut x (Finset.mem_univ x) hx).ne h.symm
-  have hreach : ∀ x, (parentGraph p).Reachable x r := by
-    intro x
+  have hreach (x : V) : (parentGraph p).Reachable x r := by
     rw [SimpleGraph.reachable_iff_reflTransGen]
     refine Relation.reflTransGen_closed (fun a b hab => ?_) _ _ (I.conn x)
     rcases eq_or_ne a b with rfl | heq
@@ -770,13 +763,11 @@ private theorem gInv_isGomoryHuTree (hsym : ∀ X, f Xᶜ = f X) {r : V} {p : V 
       exact absurd ((I.lam i (Finset.mem_univ i) hi (p i) (hne i hi)).mpr (h1 ▸ hc.left_mem))
         hc.right_notMem
   have htree : (parentGraph p).IsTree := by
-    rw [SimpleGraph.isTree_iff_connected_and_card]
-    refine ⟨hconn, ?_⟩
-    rw [Nat.card_eq_fintype_card, ← SimpleGraph.edgeFinset_card, hedge,
-      Finset.card_image_of_injOn hinj, Finset.card_erase_of_mem (Finset.mem_univ r),
-      Finset.card_univ, Nat.card_eq_fintype_card]
+    rw [SimpleGraph.isTree_iff_connected_and_card, Nat.card_eq_fintype_card,
+      ← SimpleGraph.edgeFinset_card, hedge, Finset.card_image_of_injOn hinj,
+      Finset.card_erase_of_mem (Finset.mem_univ r), Finset.card_univ, Nat.card_eq_fintype_card]
     have := Fintype.card_pos_iff.mpr ⟨r⟩
-    omega
+    exact ⟨hconn, by omega⟩
   refine ⟨⟨htree, fun u v huv => ?_⟩, fun u hur => ?_⟩
   · rcases (parentGraph_adj.mp huv).2 with rfl | rfl
     · have hur : u ≠ r := fun hur => (parentGraph_adj.mp huv).1 (by rw [hur, I.parent_root])
