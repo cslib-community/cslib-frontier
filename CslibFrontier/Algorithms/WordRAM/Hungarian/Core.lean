@@ -140,10 +140,8 @@ private theorem exec_phaseCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
     have hrj1₃ : y₃.regs rj1 = j₁.val := (hr₃ rj1 (by decide)).trans hrj1₂
     have hSM₃ : StepMem bC (hgDual s (vget s.minv j₁)) bestRow y₃.mem := hmem₃ ▸ hSM₂
     have hout₃ : ∀ a, ¬(bC + n * n ≤ a ∧ a < bC + n * n + 8 * n + 1 ∧ a ≠ bC + n * n + 7 * n) →
-        y₃.mem a = x.mem a := by
-      intro a ha
-      rw [hmem₃, hf₂ a (by omega), hmem₁]
-      exact hf a ha
+        y₃.mem a = x.mem a := fun a ha =>
+      (congrFun hmem₃ a).trans ((hf₂ a (by omega)).trans ((congrFun hmem₁ a).trans (hf a ha)))
     cases hm : vget s.mate j₁ with
     | none =>
       have hri0_n : y₃.regs ri0 = n := by simpa [hm, encodeOptFin] using hri0₃
@@ -159,15 +157,13 @@ private theorem exec_phaseCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
       have hsend : { (hgDual s (vget s.minv j₁)) with
           mate := hgApplyEdges (hgDual s (vget s.minv j₁)).mate
             (vget (hgDual s (vget s.minv j₁)).path j₁) } = s_end := by
-        rw [← hloop_eq]
-        simp [hgLoop, harg, hm]
+        simp [← hloop_eq, hgLoop, harg, hm]
       refine ⟨y₄, (he₁.seq (he₂.seq (he₃.seq hbr))).mono (by omega),
         ⟨fun i hi => ?_, fun a ha => (hf₄ a (by omega)).trans (hout₃ a ha),
           .inl ⟨haug₄, ?_, ?_, ?_⟩⟩, ?_⟩
       · rw [hr₄ i hi, hr₃ i (by omega), hr₂ i (by omega), hr₁ i (by omega), hr i hi]
       · simpa only [← hsend] using hOB'
-      · rw [← hsend]
-        simpa only [hgDual_mate, hs_mate] using hL'
+      · simpa only [← hsend, hgDual_mate, hs_mate] using hL'
       · simpa only [← hsend] using hOM₄
       · simp only [rank, haug0, haug₄, one_ne_zero, ↓reduceIte, hused_card_eq hSM]
         omega
@@ -303,39 +299,32 @@ theorem core_exec {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
       rfl
     have hs_succ : sAt (y.regs rr + 1) =
         hgPhase c (sAt (y.regs rr)).y (sAt (y.regs rr)).z (sAt (y.regs rr)).mate r := by
-      simp only [sAt, List.take_succ_finRange hlt, hgRows_append_singleton]
-      rfl
+      simp only [sAt, List.take_succ_finRange hlt, hgRows_append_singleton, r]
     refine ⟨_, (he_p.seq he_inc).mono (by omega), ⟨fun i hi => ?_, ?_, ?_, ?_, ?_⟩, by wram_simp⟩
     · wram_simp [hr_p i (by omega), hr i hi]
     · rwa [hs_succ]
     · rw [hs_succ, hL_p, hL_k, List.take_succ_finRange hlt]
-      dsimp only [r]
-      ext u
-      simp
+      exact Finset.ext fun u => by simp [r]
     · change OuterMem bC _ _ _ y_p.mem
       rwa [hs_succ]
     · exact fun a ha => (hf_p a ha).trans (hf_k a ha)
-  have hL0 : matchedLeft (mateMatching (Vector.replicate n (none : Option (Fin n)))) = ∅ := by
-    ext u
-    simp [mem_matchedLeft, mem_mateMatching, vget_replicate]
+  have hL0 : matchedLeft (mateMatching (Vector.replicate n (none : Option (Fin n)))) = ∅ :=
+    Finset.ext fun u => by simp [mem_matchedLeft, mem_mateMatching, vget_replicate]
   obtain ⟨y₃, hl₃, hr₃, hOB_n, hL_n, hOM_n, hf₃⟩ := exec_forLoop P
     (fun y hy => (hy.1 rn (by decide)).trans hb.hrn) hbody (x := y₁)
     ⟨fun i hi => by wram_simp [hr₁ i (by omega)],
       hgOuterBound_start hc_bounds, hL0, hOM₁, hf₁⟩
   have hb₃ : BaseRegs n bC M y₃ := hb.of_eq hr₃
-  have hstep₄ : ∃ y₄,
+  obtain ⟨y₄, he₄, rfl⟩ : ∃ y₄,
       ExecWithin w (ram[ *outBase ← rn ] : Code .standard 28) y₃ y₄ 1 ∧
       y₄ = y₃.write (bC + n * n + 7 * n) n := by
     refine WP.exists_execWithin ?_
     wram_exec [hb₃.houtBase, hb₃.hrn]
     rfl
-  obtain ⟨y₄, he₄, rfl⟩ := hstep₄
   have hs_n : sAt n = hgRows c (List.finRange n) s₀ := by
-    simp [sAt, List.take_of_length_le (show (List.finRange n).length ≤ n by simp)]
-  have hL_univ : matchedLeft (mateMatching (hgRows c (List.finRange n) s₀).mate) = Finset.univ := by
-    rw [← hs_n, hL_n, List.take_of_length_le (show (List.finRange n).length ≤ n by simp)]
-    ext u
-    simp
+    simp [sAt, List.take_of_length_le List.length_finRange.le]
+  have hL_univ : matchedLeft (mateMatching (hgRows c (List.finRange n) s₀).mate) = Finset.univ :=
+    Finset.ext fun u => by simp [← hs_n, hL_n, List.take_of_length_le List.length_finRange.le]
   have hm_eq : out.matching = mateMatching (hgRows c (List.finRange n) s₀).mate := by
     ext ⟨u, v⟩
     simp [out, hungarian, s₀, mem_foldl_hkMatchingStep, mem_mateMatching]
