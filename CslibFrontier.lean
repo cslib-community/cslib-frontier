@@ -2988,6 +2988,7 @@ public import CslibFrontier.Computability.WordRAM.Multiword.BankOps
 public import CslibFrontier.Computability.Complexity.Classes.IP.Games
 public import CslibFrontier.Crypto.Computational.Homomorphic.Evaluation.PolyTime
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CountPrime.Product
+public import CslibFrontier.Computability.Complexity.FineGrained.Schaefer
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimePiPrimitives
 public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness
 public import CslibFrontier.Computability.Complexity.Classes.AverageCase.SharpP
