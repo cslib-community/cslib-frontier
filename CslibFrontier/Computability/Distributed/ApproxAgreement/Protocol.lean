@@ -896,8 +896,7 @@ theorem not_solvesUnitAsyncApproxAgreement [Fintype P] [IsStrictOrderedRing K]
   have hdisj : ∀ k₁ k₂ : Fin 3, k₁ ≠ k₂ → Disjoint (grp k₁) (grp k₂) := fun k₁ k₂ hne =>
     Finset.disjoint_filter.mpr fun _ _ h₁ h₂ => hne (h₁.symm.trans h₂)
   have hcov : ∀ p : P, p ∈ grp 0 ∨ p ∈ grp 1 ∨ p ∈ grp 2 := fun p => by
-    simp only [grp, Finset.mem_filter, Finset.mem_univ, true_and]
-    exact (show ∀ k : Fin 3, k = 0 ∨ k = 1 ∨ k = 2 by decide) (g p)
+    match h : g p with | 0 | 1 | 2 => simp [grp, h]
   exact πK.not_solvesUnitAsyncApproxAgreement_of_partition hε (grp 0) (grp 1) (grp 2)
     (hdisj 0 1 (by decide)) (hdisj 0 2 (by decide)) (hdisj 1 2 (by decide))
     hcov (hcard 0) (hcard 1) (hcard 2)
@@ -1031,10 +1030,8 @@ omit [DecidableEq P] in
 private lemma localProposal_isSome {t : ℕ} {x_p : K} {st : AsyncApproxState P K} (r : ℕ) :
     (localProposal t x_p st r).isSome ↔ r ≤ st.round := by
   cases r with
-  | zero => simp only [localProposal, Option.isSome_some, Nat.zero_le]
-  | succ u =>
-    dsimp only [localProposal]
-    split_ifs with hu <;> simp [hu]
+  | zero => simp [localProposal]
+  | succ u => by_cases hu : u + 1 ≤ st.round <;> simp [localProposal, hu]
 
 omit [DecidableEq P] in
 private lemma localProposal_congr {t : ℕ} {x_p : K} {st₁ st₂ : AsyncApproxState P K} {r : ℕ}
@@ -1073,20 +1070,19 @@ private lemma asyncApproxStep_of_fresh {t R : ℕ} {st : AsyncApproxState P K} {
     (hfresh : st.round ≤ body.round ∧ body.round < R ∧ (st.heard body.round src).isNone) :
     asyncApproxStep t R st src body =
       asyncApproxAdvance t R (R - st.round) (recordHeard st body.round src body.val) := by
-  simp only [asyncApproxStep, show R ≠ 0 by omega, hfresh, and_self, ↓reduceIte]
-  rfl
+  have hR0 : R ≠ 0 := by omega
+  simp only [asyncApproxStep, hR0, hfresh, and_self, ↓reduceIte]; rfl
 
 private lemma wellFormedLocal_recordHeard {t R : ℕ} {x_p : K} {st : AsyncApproxState P K}
     (hwf : WellFormedLocal t R x_p st) {m_round : ℕ} (hm : st.round ≤ m_round)
     (src : P) (val : K) :
     WellFormedLocal t R x_p (recordHeard st m_round src val) := by
   have hheard_past : ∀ u < st.round, (recordHeard st m_round src val).heard u = st.heard u :=
-    fun u hu => funext fun j => by simp [recordHeard_heard, show u ≠ m_round by omega]
+    fun u hu => funext fun j => by simp [recordHeard_heard, (hu.trans_le hm).ne]
   refine ⟨hwf.round_le, ?_, fun u hu => ?_⟩
   · exact (localProposal_congr (st₁ := st) (st₂ := recordHeard st m_round src val) le_rfl le_rfl
       hheard_past).trans hwf.prop_round
-  · simp only [roundSenders, hheard_past u hu]
-    exact hwf.past_senders u hu
+  · simpa only [roundSenders, hheard_past u hu] using hwf.past_senders u hu
 
 omit [DecidableEq P] in
 private lemma advance_spec {t R : ℕ} :
@@ -1114,18 +1110,11 @@ private lemma advance_spec {t R : ℕ} :
   | fuel + 1, st, x_p, hwf, hfuel => by
     dsimp only
     by_cases hcond : st.round < R ∧ Fintype.card P - t ≤ (roundSenders st st.round).card
-    · set est' := multisetMidTrim t (roundValues st st.round)
+    · simp only [asyncApproxAdvance, hcond, and_self, ↓reduceIte]
+      set est' := multisetMidTrim t (roundValues st st.round)
       set r' := st.round + 1
       set st' : AsyncApproxState P K := { st with round := r', est := est' }
       have hst'_r : st'.round = st.round + 1 := rfl
-      have hadv : asyncApproxAdvance t R (fuel + 1) st =
-          ⟨(asyncApproxAdvance t R fuel st').nextState,
-            (if r' < R then broadcastAll P ⟨r', est'⟩ else 0) +
-              (asyncApproxAdvance t R fuel st').outgoing,
-            (asyncApproxAdvance t R fuel st').delivered⟩ := by
-        simp only [asyncApproxAdvance, hcond, and_self, ↓reduceIte, est', r', st']
-      rw [hadv]
-      dsimp only
       have hwf' : WellFormedLocal t R x_p st' := by
         refine ⟨by omega, ?_, fun u hu => ?_⟩
         · dsimp only [localProposal, st', r', est']

@@ -166,12 +166,10 @@ private lemma simAfterRead_init {B : Finset P} {s₁ : State P S M V} {b₀ : P}
     · simpa only [doInvoke, Function.update_of_ne hpb] using congrArg ProcState.state (hproc₁ p hp)
   · simp only [doInvoke, start, hb₀_st, Multiset.count_add]
     exact Nat.add_le_add_right (hmsg₁ e heB) _
-  · simp only [doInvoke, Function.update_of_ne hpb, hproc₁ p hp]
-    exact ⟨rfl, rfl⟩
+  · simp [doInvoke, start, Function.update_of_ne hpb, hproc₁ p hp]
   · rcases matchCompletion_read_cases (π.onInvoke b₀ (π.init b₀) .read).resp with hnone | ⟨r, hsp⟩
     · exact Or.inl (by simp [doInvoke, start, hb₀_st, invokePending, hnone])
-    · right
-      refine ⟨r, 0, s₁.step, ?_, ?_, ?_, ?_⟩ <;>
+    · refine Or.inr ⟨r, 0, s₁.step, ?_, ?_, ?_, ?_⟩ <;>
         simp [doInvoke, start, hb₀_st, hsp, invokePending, matchCompletion]
 
 omit [Fintype P] in
@@ -373,22 +371,15 @@ private lemma exists_two_partition {P : Type*} [Fintype P] {t : ℕ}
   let e : P ≃ Fin n := Fintype.equivFin P
   let grp : Fin 2 → Finset P := fun k => Finset.univ.filter fun p => (e p : ℕ) % 2 = k.val
   have hdisj : Disjoint (grp 0) (grp 1) := by finset_card
-  have hcard : ∀ k : Fin 2, (grp k).card ≤ t := by
-    intro k
+  have hcard : ∀ k : Fin 2, (grp k).card ≤ t := fun k => by
     calc (grp k).card
-        ≤ (Finset.range t).card := by
-          apply Finset.card_le_card_of_injOn (fun p => (e p : ℕ) / 2)
-          · intro p _
-            have hlt : (e p : ℕ) < n := (e p).isLt
-            simp only [Finset.coe_range, Set.mem_Iio]; omega
-          · intro p hp q hq hdiv
-            simp only [grp, Finset.coe_filter, Finset.mem_univ, true_and,
-              Set.mem_ofPred_eq] at hp hq
-            refine e.injective (Fin.ext ?_)
-            have hmod : (e p : ℕ) % 2 = (e q : ℕ) % 2 := hp.trans hq.symm
-            dsimp only at hdiv
-            omega
+        ≤ (Finset.range t).card := Finset.card_le_card_of_injOn (fun p => (e p : ℕ) / 2)
+            (fun p _ => Finset.mem_coe.2 (Finset.mem_range.2
+              (Nat.div_lt_of_lt_mul ((e p).isLt.trans_le hle)))) ?_
       _ = t := Finset.card_range t
+    rintro p hp q hq (hdiv : (e p : ℕ) / 2 = (e q : ℕ) / 2)
+    simp only [grp, Finset.coe_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq] at hp hq
+    exact e.injective (Fin.ext (by omega))
   refine ⟨grp 0, grp 1, hdisj, ?_, hcard 0, hcard 1, ?_, ?_⟩
   · intro p
     simp only [grp, Finset.mem_filter, Finset.mem_univ, true_and]

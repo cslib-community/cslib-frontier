@@ -545,22 +545,14 @@ private theorem filterInv_of_unchanged_rooms {n : ℕ} {s : FilterState n} {p : 
     filter_update_eq (·.atOrAboveRoom r) s.phase p ph' (hat r)
   have hab_eq : ∀ r, aboveRoomSet s₁ r = aboveRoomSet s r := fun r =>
     filter_update_eq (·.aboveRoom r) s.phase p ph' (hab r)
-  refine ⟨hloc', ?_, ?_, ?_⟩
-  · intro r cleared hw
-    rw [hat_eq r]
-    dsimp only [s₁] at hw
+  refine ⟨hloc', fun r cleared hw => ?_, fun r hv q hne => ?_, fun r hne => ?_⟩
+  · rw [hat_eq r]
     by_cases hvp : s.victim r = p
-    · rw [hvp, Function.update_self] at hw
-      exact hnw r cleared hw hvp
-    · rw [Function.update_of_ne hvp] at hw
-      exact hinv.cleared_disjoint r cleared hw
-  · intro r hv q hne
-    rw [hab_eq r] at hv
-    rw [hat_eq r]
-    exact hinv.victim_unique_above r hv q hne
-  · intro r hne
-    rw [hat_eq r] at hne ⊢
-    exact hinv.victim_mem r hne
+    · exact hnw r cleared (by simpa only [s₁, hvp, Function.update_self] using hw) hvp
+    · exact hinv.cleared_disjoint r cleared
+        (by simpa only [s₁, Function.update_of_ne hvp] using hw)
+  · exact hat_eq r ▸ hinv.victim_unique_above r (hab_eq r ▸ hv) q hne
+  · exact hat_eq r ▸ hinv.victim_mem r (hat_eq r ▸ hne)
 
 /-- Clearing step shared by `checkLevel`: after `p` in room `r` with victim `p` reads a lower level
 of `target`, every process in `insert target cl` is still outside `atRoomSet s r`. -/
@@ -606,11 +598,8 @@ private theorem filterInv_of_passRoom {n : ℕ} {s : FilterState n} {p : Fin n}
           simpa only [aboveRoomSet, Finset.mem_filter, Finset.mem_univ, true_and, s₁,
             Function.update_of_ne hvp] using hv
         exact hinv.victim_unique_above r hv_old q hne
-    · rw [hab_ne r hrr] at hv
-      exact hinv.victim_unique_above r hv q hne
-  · intro r hne
-    rw [hat_all r] at hne ⊢
-    exact hinv.victim_mem r hne
+    · exact hinv.victim_unique_above r (hab_ne r hrr ▸ hv) q hne
+  · exact fun r hne => hat_all r ▸ hinv.victim_mem r (hat_all r ▸ hne)
 
 private theorem filterInv_step {n : ℕ} {s s' : FilterState n} {μ : FilterAction n}
     (hinv : FilterInv s) (htr : filterStep? s μ = some s') : FilterInv s' := by
@@ -687,17 +676,15 @@ private theorem filterInv_step {n : ℕ} {s s' : FilterState n} {μ : FilterActi
       rw [hab_all r] at hv
       rcases eq_or_ne r r₀ with rfl | hrr
       · simp [s₁, aboveRoomSet, hph, FilterPhase.aboveRoom] at hv
-      · dsimp only [s₁] at hv ⊢
+      · rw [hat_ne r hrr]
+        dsimp only [s₁] at hv ⊢
         rw [Function.update_of_ne hrr] at hv ⊢
-        rw [hat_ne r hrr]
         exact hinv.victim_unique_above r hv
     · intro r hne
       rcases eq_or_ne r r₀ with rfl | hrr
       · simp [hat_eq_r₀, s₁]
-      · dsimp only [s₁]
-        rw [Function.update_of_ne hrr]
-        rw [hat_ne r hrr] at hne ⊢
-        exact hinv.victim_mem r hne
+      · rw [hat_ne r hrr] at hne ⊢
+        simpa only [s₁, Function.update_of_ne hrr] using hinv.victim_mem r hne
   | passVic p r₀ cleared₀ hph hvne =>
     exact filterInv_of_passRoom hinv hph hloc' fun hvp => absurd hvp hvne
   | spinVic | spinLv => exact hinv
@@ -728,10 +715,8 @@ private theorem filterInv_step {n : ℕ} {s s' : FilterState n} {μ : FilterActi
       intro q hq hmem
       exact hinv.cleared_disjoint r cleared hw q hq (Finset.mem_of_mem_erase hmem)
     · intro r hv q hne hmem
-      rw [hab_erase r] at hv
-      rw [hat_erase r] at hmem
-      exact hinv.victim_unique_above r (Finset.mem_of_mem_erase hv) q hne
-        (Finset.mem_of_mem_erase hmem)
+      exact hinv.victim_unique_above r (Finset.mem_of_mem_erase (hab_erase r ▸ hv)) q hne
+        (Finset.mem_of_mem_erase (hat_erase r ▸ hmem))
     · intro r ⟨q, hq⟩
       rw [hat_erase r] at hq ⊢
       obtain ⟨hqp, hq_at⟩ := Finset.mem_erase.mp hq
@@ -1540,14 +1525,13 @@ theorem not_deadlockFreeMutex_of_single_register
     simpa only [MutexConfig.inCS, execRegStep_other hp_ne.symm, c₂] using hc₁_cs₁
   let a₂ := soloIter π p₀ (j + 1) c_enter₀
   have hcover : a₂.mem = c₂.mem ∧ a₂.localState p₀ = c₂.localState p₀ := by
-    rw [show a₂ = π.execRegStep c₀ p₀ from soloIter_succ_right π p₀ j c_enter₀]
+    have ha₂ : a₂ = π.execRegStep c₀ p₀ := soloIter_succ_right π p₀ j c_enter₀
+    rw [ha₂]
     dsimp only [c₂, MutexProtocol.execRegStep]
     rw [hc₁_p₀]
     cases hstep₀ : π.step p₀ (c₀.localState p₀) with
     | localStep _ | read _ _ => simp [hstep₀, RegStep.isWrite] at hj_write
-    | write r val next₀ =>
-      refine ⟨funext fun r' => by simp [Subsingleton.elim r' r], ?_⟩
-      simp
+    | write r val _ => exact ⟨funext fun r' => by simp [Subsingleton.elim r' r], by simp⟩
   -- Replay `p₀`'s remaining `k₀ - (j + 1)` solo steps into `.cs` while `p₁` stays in `.cs`!
   let rem := k₀ - (j + 1)
   have hrem_add : (j + 1) + rem = k₀ := Nat.add_sub_of_le (Nat.succ_le_of_lt hj_lt)

@@ -808,13 +808,11 @@ private theorem computableInPolyTime_branchClamped :
   have hq : PolyT branchTruncQ encBranchEvalInput encUnary := by
     refine (binary_min_unary' hnum hdiv).of_enc_eq fun inp => congrArg encUnary ?_
     dsimp only [Function.comp_apply, branchTruncQ]
-    rw [show inp.numVars + inp.numVars = 2 * inp.numVars by omega]
+    rw [← Nat.two_mul]
     exact (Nat.min_eq_right (Nat.div_le_self _ _)).symm
   exact ⟨hn', hk', heqs, hQu, hRu, hru, hA₀u, hDcap, hq,
     computableInPolyTime_withNeutralScopesListWithInput
-      (bi_mapWithId (computableInPolyTime_equationVars.comp
-        (snd encBranchEvalInput (encList (encList encNat))))
-        heqs) hn'⟩
+      (bi_mapWithId (computableInPolyTime_equationVars.comp (snd _ _)) heqs) hn'⟩
 
 private def prepScheduleParams (inp : BranchEvalInput) : BalancedSchedules.ScheduleParams :=
   let aug := branchAugScopes inp
@@ -1065,9 +1063,9 @@ private theorem exists_boundedIncidenceBranch_cert :
     (branchr_u inp ^ branchQ_u inp + 1) + (branchQ_u inp + 1) * designNodeFactor (mkDesignPair inp)
   let P12 (inp : BranchEvalInput) : ℕ := P_stg1 inp + P_stg2 (mkDesignPair inp) + c12.space inp
   have hP12_pb : PolyBounded (fun inp => (encBranchEvalInput inp).length) P12 := by
-    have hsp1 : HasPolySpace cStg1 := hPstg1_pb
-    have h2sp : HasPolySpace c12 := hasPolySpace_comp (hPstg2_pb : HasPolySpace cStg2) hsp1
-    growth_poly [hPstg2_pb.comp (polyBounded_length_of_hasPolySpace hsp1), h2sp]
+    have h2sp : HasPolySpace c12 :=
+      hasPolySpace_comp (hPstg2_pb : HasPolySpace cStg2) (hPstg1_pb : HasPolySpace cStg1)
+    growth_poly [hPstg2_pb.comp (polyBounded_length_of_hasPolySpace (c := cStg1) hPstg1_pb), h2sp]
   have hcomp12 : ComputableInO (fun inp => evalDesignStage (mkDesignPair inp)) encBranchEvalInput
       encNat (fun inp => K inp * P12 inp) P12 :=
     c12.computes.mono_le (fun inp => by
@@ -1090,8 +1088,8 @@ private theorem exists_boundedIncidenceBranch_cert :
     · cases validDesignShape _ _ _ _ <;> rfl
   refine ⟨⟨_, P, hguard.of_enc_eq fun inp => congrArg encNat (congrFun heval_eq inp).symm⟩,
     hP_pb, P, hP_pb, fun inp => le_of_eq ?_⟩
-  have hmk1 : (mkDesignPair inp).1 = inp := rfl
-  simp only [designNodeFactor, branchCMeas, hmk1, Nat.mul_assoc, Nat.succ_eq_add_one]
+  simp only [designNodeFactor, branchCMeas, mkDesignPair, mkDesignFromScheds, Nat.mul_assoc,
+    Nat.succ_eq_add_one]
 
 end LoopCertificates
 
@@ -1115,8 +1113,7 @@ public theorem polyBounded_boundedIncidenceBranchCertificate_space :
 
 private theorem listMax_range_le {n bound : ℕ} {f : ℕ → ℕ} (h : ∀ i < n, f i ≤ bound) :
     (0 :: (List.range n).map f).max (List.cons_ne_nil _ _) ≤ bound := by
-  refine (List.max_le_iff _).mpr ?_
-  simp only [List.mem_cons, List.mem_map, List.mem_range, forall_eq_or_imp]
+  simp only [List.max_le_iff, List.mem_cons, List.mem_map, List.mem_range, forall_eq_or_imp]
   exact ⟨Nat.zero_le _, by rintro _ ⟨i, hi, rfl⟩; exact h i hi⟩
 
 /-- **Proposition 5.3 subexponential branch runtime bound**: for every degree bound `k_deg`,
@@ -1153,7 +1150,7 @@ public theorem exists_boundedIncidenceBranchCertificate_time_bound
     have hRu_eq : branchR_u inp = R := Nat.min_eq_right hRn
     have hru_eq : branchr_u inp = r := Nat.min_eq_right hrn
     have hDcap_eq : branchD_cap inp = r ^ (2 * Q) := by
-      simp only [branchD_cap, hru_eq, hQu_eq]
+      rw [branchD_cap, hru_eq, hQu_eq]
       exact Nat.min_eq_right haux
     have hq_eq : branchTruncQ inp =
         (sysMaxDegree sys' * (R - 1)) * (sys'.length + 2 * n') / max 1 Q := by
@@ -1171,7 +1168,6 @@ public theorem exists_boundedIncidenceBranchCertificate_time_bound
     · exact listMax_range_le fun t ht => listMax_range_le fun g hg =>
         (Nat.min_le_right _ _).trans (href.2.2.1 ⟨t, ht⟩ ⟨g, hg⟩).2.1
     · have ht := htime inp
-      dsimp only [boundedIncidenceBranchCertificate]
       rw [hQu_eq, hru_eq, hDcap_eq, hq_eq] at ht
       exact ht.trans (Nat.mul_le_mul_left _ (hCp (n', sys')))
 

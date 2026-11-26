@@ -76,8 +76,7 @@ theorem slicePastingError_le (m : ℝ) (k : ℕ) (q ε δ γ r σ θ : ℝ)
   have hγs : γ ≤ s := (le_max_left _ _).trans (le_max_right _ _)
   have hrs : r ≤ s := (le_max_right _ _).trans (le_max_right _ _)
   have hs_pow : s = t ^ 128 := by
-    dsimp only [t]
-    rw [← Real.rpow_natCast _ 128, ← Real.rpow_mul hs.1]
+    rw [← Real.rpow_natCast t 128, ← Real.rpow_mul hs.1]
     norm_num
   have hpow (a b : ℕ) (h : a ≤ b) : t ^ b ≤ t ^ a :=
     pow_le_pow_of_le_one ht₀ ht₁ h
@@ -229,15 +228,12 @@ theorem mul_expect_inductionLossTerm_le {X : Type*} [Fintype X] [Nonempty X]
       M * inductionLossTerm ε δ γ r := by
   have hδ' : m * (𝔼 x, f x) ≤ M * δ :=
     (mul_le_mul_of_nonneg_left h₂ hm.le).trans (mul_le_mul_of_nonneg_right hmM hδ)
-  have he' := Fintype.mul_expect_rpow_le_of_mul_expect_le he hm hmM hε
-    (p := 1 / 128) (by norm_num) (by norm_num) h₁
-  have hf' := Fintype.mul_expect_rpow_le_of_mul_expect_le hf hm hmM hδ
-    (p := 1 / 128) (by norm_num) (by norm_num) hδ'
-  have hg' := Fintype.mul_expect_rpow_le_of_mul_expect_le hg hm hmM hγ
-    (p := 1 / 128) (by norm_num) (by norm_num) h₃
-  have hr' := mul_le_mul_of_nonneg_right hmM (Real.rpow_nonneg hr (1 / 128 : ℝ))
+  have hlp {u : X → ℝ} {c : ℝ} (hu : ∀ x, 0 ≤ u x) (hc : 0 ≤ c) (h : m * (𝔼 x, u x) ≤ M * c) :=
+    Fintype.mul_expect_rpow_le_of_mul_expect_le hu hm hmM hc (p := 1 / 128) (by norm_num)
+      (by norm_num) h
   simp only [inductionLossTerm, expect_add_distrib, Fintype.expect_const]
-  linarith only [he', hf', hg', hr']
+  linarith only [hlp he hε h₁, hlp hf hδ hδ', hlp hg hγ h₃,
+    mul_le_mul_of_nonneg_right hmM (Real.rpow_nonneg hr (1 / 128 : ℝ))]
 
 /-- One recurrence step with the pasting threshold chosen for the ambient dimension. -/
 theorem slicePastingError_le_dimensionInductionError {m q ε δ γ r σ : ℝ} {k : ℕ}
@@ -280,9 +276,8 @@ theorem slicePastingError_le_dimensionInductionError {m q ε δ γ r σ : ℝ} {
       slicePastingError_le M k q ε δ γ r σ θ hM hk hq hrq hε hδ hγ hr hθ
     _ ≤ (m ^ 2 / (1 - θ) + 1) * (b + E) := by
       rw [hsampling]
-      have hh := div_le_div_of_nonneg_right hσ' hθ'.le
-      rw [mul_div_right_comm] at hh
-      linarith only [hh]
+      linarith only [div_le_div_of_nonneg_right hσ' hθ'.le,
+        mul_div_right_comm (m ^ 2) (b + E) (1 - θ)]
     _ ≤ _ := mul_le_mul_of_nonneg_right hscale (add_nonneg hb (Real.exp_pos _).le)
 
 /-- Increasing the sample count by at most a factor of 400 increases the

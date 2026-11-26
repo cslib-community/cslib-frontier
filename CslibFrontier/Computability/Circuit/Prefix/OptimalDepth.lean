@@ -99,7 +99,7 @@ theorem width_le_one_add_maxCircuitWidthUpper_two {N : ℕ} (hN : 1 ≤ N)
   set D := c.depth
   rw [← hTD, eq_one_add_sum_sub hT0 fun d hd => (hseg d hd).1]
   unfold maxCircuitWidthUpper
-  rw [show D - 1 + 1 = D by omega]
+  rw [Nat.sub_add_cancel hD]
   refine Nat.add_le_add_left (Finset.sum_le_sum fun d hd => ?_) 1
   rw [Finset.mem_range] at hd
   obtain ⟨hTd_lt, I, t, hI_d, _, _, hbud, hfan_t, hd_t, _, hout_at, _, hw_le⟩ := hseg d hd
@@ -131,9 +131,8 @@ theorem width_le_one_add_maxCircuitWidthUpper_two {N : ℕ} (hN : 1 ≤ N)
         GenPrefixTree.child_depth_lt 0
       have hc0_ub := (child 0).outCount_le_two_pow (hch_fan 0) (hch_out 0)
       exact hw_le.trans (hc0_ub.trans (Nat.pow_le_pow_right (by omega) (by omega)))
-  by_cases hmin : d ≤ D - 1 - d
-  · rw [Nat.min_eq_left hmin]; exact hd_bound
-  · rw [Nat.min_eq_right (by omega)]; exact hh_bound
+  rcases min_choice d (D - 1 - d) with h | h <;> rw [h]
+  exacts [hd_bound, hh_bound]
 
 /-- Every optimal fanout-2 prefix circuit on `N ≥ 1` inputs satisfies
 `N ≤ maxCircuitWidthUpper 2 c.depth` ([Sergeev2025PrefixDepth], p. 3, Eq. (3)). -/
@@ -149,7 +148,7 @@ theorem width_le_maxCircuitWidthUpper_two {N : ℕ} (hN : 1 ≤ N)
   · refine (width_le_one_add_maxCircuitWidthUpper_two hN hopt hfan (by omega)).trans ?_
     set D := c.depth
     unfold maxCircuitWidthUpper
-    rw [show D - 1 + 1 = D by omega, Finset.sum_range_succ, Nat.sub_self,
+    rw [Nat.sub_add_cancel (Nat.pos_of_ne_zero hD0), Finset.sum_range_succ, Nat.sub_self,
       maxConsistentWidth_zero_right (by omega), Nat.add_comm 1]
     refine Nat.add_le_add_right (Finset.sum_le_sum fun d hd => ?_) 1
     rw [maxConsistentWidth_two, maxConsistentWidth_two]
@@ -190,10 +189,8 @@ private theorem alphaRoot_pow_le_maxCircuitWidthUpper {k : ℕ} (hk : 2 ≤ k) :
     have hα_pos : 0 < α := zero_lt_one.trans hα1
     have hαk_pos : 0 < α ^ k := pow_pos hα_pos k
     by_cases hD : D < k
-    · have hpow_le : α ^ D ≤ α ^ k := pow_le_pow_right₀ hα1.le hD.le
-      have hlhs_le : (α ^ k)⁻¹ * α ^ D ≤ 1 := by
-        have := mul_le_mul_of_nonneg_left hpow_le (inv_nonneg.mpr hαk_pos.le)
-        rwa [inv_mul_cancel₀ hαk_pos.ne'] at this
+    · have hlhs_le : (α ^ k)⁻¹ * α ^ D ≤ 1 :=
+        (inv_mul_le_iff₀ hαk_pos).mpr (by simpa only [mul_one] using pow_le_pow_right₀ hα1.le hD.le)
       have hw1 : 1 ≤ maxCircuitWidthUpper k D := by
         rw [maxCircuitWidthUpper]
         conv_lhs => rw [← maxConsistentWidth_zero_left hk (h := D - 0)]
@@ -350,10 +347,9 @@ theorem optimalPrefixDepth_two_le_iff {N D : ℕ} (hN : 1 ≤ N) (hD : 1 ≤ D) 
     by_cases hN1 : N = 1
     · omega
     · obtain ⟨c, hopt, hfan, hd_eq⟩ := exists_optimalPrefixCircuit_depth_eq (k := 2) le_rfl hN
-      have hcD_pos : 1 ≤ c.depth := by
-        by_contra h0
+      have hcD_pos : 1 ≤ c.depth := Nat.pos_of_ne_zero fun h0 => by
         have hw := width_le_maxCircuitWidthUpper_two hN hopt hfan
-        rw [(by omega : c.depth = 0), maxCircuitWidthUpper_zero le_rfl] at hw
+        rw [h0, maxCircuitWidthUpper_zero le_rfl] at hw
         omega
       have hw := width_le_one_add_maxCircuitWidthUpper_two hN hopt hfan hcD_pos
       refine hw.trans (Nat.add_le_add_left ?_ 1)
@@ -408,10 +404,7 @@ theorem abs_optimalPrefixDepth_sub_logb_le {k : ℕ} (hk : 2 ≤ k) :
       have hnot_prev : 1 + maxCircuitWidthUpper k (D - 2) < N := by
         by_contra hge
         obtain ⟨c, hopt, hfan, hd_le⟩ := exists_optimalPrefixCircuit_of_le_maxCircuitWidthUpper hk
-          (by omega : 1 ≤ D - 1) hN
-          (by
-            rw [show D - 1 - 1 = D - 2 by omega]
-            omega)
+          (by omega : 1 ≤ D - 1) hN (Nat.sub_sub D 1 1 ▸ not_lt.mp hge)
         have : D ≤ c.depth := Nat.sInf_le (s := {D' : ℕ | ∃ c : PrefixCircuit N,
           IsOptimalPrefixCircuit c ∧ FanoutAtMost c k ∧ c.depth = D'}) ⟨c, hopt, hfan, rfl⟩
         omega
@@ -420,12 +413,9 @@ theorem abs_optimalPrefixDepth_sub_logb_le {k : ℕ} (hk : 2 ≤ k) :
       have hpow_lt : (α ^ k)⁻¹ * α ^ (D - 2) < (N : ℝ) :=
         (alphaRoot_pow_le_maxCircuitWidthUpper hk (D - 2)).trans_lt hw_lt
       have hαD_eq : α ^ D = α ^ (k + 2) * ((α ^ k)⁻¹ * α ^ (D - 2)) := by
-        have h1 : α ^ (k + 2) * ((α ^ k)⁻¹ * α ^ (D - 2)) =
-            (α ^ k * (α ^ k)⁻¹) * (α ^ 2 * α ^ (D - 2)) := by
-          rw [pow_add α k 2]
-          ring
-        rw [h1, mul_inv_cancel₀ (pow_pos hα_pos k).ne', one_mul, ← pow_add,
-          show 2 + (D - 2) = D by omega]
+        have hd2 : 2 + (D - 2) = D := by omega
+        rw [pow_add α k 2, mul_mul_mul_comm, mul_inv_cancel₀ (pow_pos hα_pos k).ne', one_mul,
+          ← pow_add, hd2]
       have hαD_le : α ^ D ≤ α ^ (k + 2) * (N : ℝ) :=
         hαD_eq ▸ mul_le_mul_of_nonneg_left hpow_lt.le (pow_pos hα_pos (k + 2)).le
       have hlog_le := Real.logb_le_logb_of_le hα1 (pow_pos hα_pos D) hαD_le

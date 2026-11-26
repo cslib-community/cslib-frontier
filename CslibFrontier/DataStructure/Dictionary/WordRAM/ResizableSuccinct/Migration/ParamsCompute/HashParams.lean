@@ -111,14 +111,10 @@ private theorem writeHashParamsLoProg_spec {w U N dstMetaBase : ℕ} {s : Memory
   have heq0 : epochHashSpace U w N = hp 0 := (hpSpace_mk ..).symm
   have heq1 : 1 + reducedHalfLimbs t * 6 = hp 1 := by
     change _ = hpSeedWords hp
-    rw [hpSeedWords_mk]
-    dsimp only [ReducedKWise.seedWords, reducedLimbCount]
-    ring
+    rw [hpSeedWords_mk, ReducedKWise.seedWords, reducedLimbCount]; ring
   have heq2 : reducedHalfLimbs t * 6 = hp 2 := by
     change _ = hpBotWords hp
-    rw [hpBotWords_mk]
-    dsimp only [reducedLimbCount]
-    ring
+    rw [hpBotWords_mk, reducedLimbCount]; ring
   have heq3 : (1 <<< (epochQBits U N - 1)) - 1 = hp 3 := by
     simpa only [Nat.shiftLeft_eq, one_mul] using (hpMaskM_mk ..).symm
   have heq4 : (epochQBits U N - 1) >>> 1 = hp 4 := by
@@ -327,9 +323,7 @@ private theorem writeHashParamsHiProg_spec {w U N dstMetaBase : ℕ} {s : Memory
       | (rw [hframe1 _ (by omega)]; first | exact m00 | exact m01 | exact m02 | exact m03)
   · intro a ha
     rw [hs'_eq, hframe1 a (by omega), hframe0 a (by omega)]
-  · rw [hprog_eq, Realization.memoryCost_bind']
-    change memoryCost (writeBlock4Prog _) s + memoryCost (writeBlock3Prog _) s1 = 7
-    rw [hc0, hc1]
+  · rw [hprog_eq, Realization.memoryCost_bind', hc0, hc1]
 
 private theorem realizesBounded_writeHashParamsHi :
     RealizesBounded .exact writeHashParamsHiProg
@@ -415,9 +409,6 @@ theorem writeHashParamsSubProg_props {w U N hdrBase dstMetaBase : ℕ} {s : Memo
   set s1 := (Memory.spec 0).clientState s (writeHashParamsLoProg d_lo)
   obtain ⟨_, hv_hi, hfr_hi, hmem_hi, hframe_hi, hc_hi⟩ :=
     writeHashParamsHiProg_spec (s := s1) hw hN hNU hU (hfr_lo.symm ▸ h27) hfit_dst
-  set d_hi := ((dstMetaBase + 8, reducedChunkBits t),
-    (reducedHalfLimbs t, (reducedPackShift t w, Nat.log 2 N)))
-  set s2 := (Memory.spec 0).clientState s1 (writeHashParamsHiProg d_hi)
   dsimp only [d, writeHashParamsSubProg, offHashParams, offCompParams]
   rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
     Realization.memoryCost_bind', hst_core, hres_core]
@@ -434,10 +425,7 @@ theorem writeHashParamsSubProg_props {w U N hdrBase dstMetaBase : ℕ} {s : Memo
     · have hhi := hmem_hi (j - 12) (by omega)
       rw [show dstMetaBase + 20 + (j - 12) = dstMetaBase + 8 + j by omega] at hhi
       exact hhi.trans (congrArg _ (Fin.ext (by dsimp only; omega)))
-  · change memoryCost (computeHashCoreProg _) s +
-      (memoryCost (writeHashParamsLoProg d_lo) s +
-        (memoryCost (writeHashParamsHiProg d_hi) s1 + 0)) ≤ _
-    omega
+  · rw [hc_lo, hc_hi]; omega
 
 /-- `writeHashParamsSubProg` compiles via `RealizesBounded .exact`. -/
 theorem realizesBounded_writeHashParamsSub :

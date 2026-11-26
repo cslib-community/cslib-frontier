@@ -436,17 +436,13 @@ theorem length_insert (h : l.IsSortedAssoc) :
     obtain ⟨a₁, a₂⟩ := a
     rw [List.isSortedAssoc_cons_iff] at h
     rw [insert_cons]
-    dsimp only
     by_cases h₁ : k < a₁
-    · rw [ite_eq_left h₁]
-      have hnone : List.lookup k ((a₁, a₂) :: l) = none :=
-        List.lookup_eq_none_of_forall_ne fun p hp =>
-          (List.mem_cons.1 hp).elim (fun hp => hp ▸ h₁.ne') fun hp => (h₁.trans (h.1 p hp)).ne'
-      simp [hnone]
+    · rw [ite_eq_left h₁, List.lookup_eq_none_of_forall_ne fun p hp =>
+        (List.mem_cons.1 hp).elim (fun hp => hp ▸ h₁.ne') fun hp => (h₁.trans (h.1 p hp)).ne']
+      rfl
     · rw [ite_eq_right h₁]
-      by_cases h₂ : k = a₁
-      · subst h₂
-        simp
+      rcases Decidable.eq_or_ne k a₁ with rfl | h₂
+      · simp
       · simp only [h₂, ↓reduceIte, List.length_cons, ih h.2, List.lookup_cons_of_ne h₂]
         split_ifs <;> rfl
 
@@ -472,14 +468,11 @@ theorem insert_append_of_forall_gt (h : ∀ p ∈ l₂, k < p.1) :
     insert k v (l₁ ++ l₂) = insert k v l₁ ++ l₂ := by
   induction l₁ with
   | nil =>
-    cases l₂ with
-    | nil => rfl
-    | cons b l₂ =>
-      obtain ⟨b₁, b₂⟩ := b
-      simp only [List.nil_append, insert_nil, insert_cons, h _ List.mem_cons_self, ↓reduceIte,
+    rcases l₂ with _ | ⟨⟨b₁, b₂⟩, l₂⟩
+    · rfl
+    · simp only [List.nil_append, insert_nil, insert_cons, h _ List.mem_cons_self, ↓reduceIte,
         List.cons_append]
   | cons a l₁ ih =>
-    obtain ⟨a₁, a₂⟩ := a
     simp only [List.cons_append, insert_cons]
     split_ifs <;> simp only [List.cons_append, ih]
 

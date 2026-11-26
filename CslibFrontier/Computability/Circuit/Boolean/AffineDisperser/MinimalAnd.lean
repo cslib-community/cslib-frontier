@@ -67,16 +67,14 @@ variable {n : ℕ} {f : BooleanFunction n}
 would not determine it. -/
 private theorem Valid.exists_eqn_of_aux {S : State n} (hS : S.Valid f) {v : ℕ} (hv : v ∈ S.aux) :
     ∃ e ∈ S.eqns, v ∈ (S.eqn e).terms := by
-  by_contra hne
-  push Not at hne
+  by_contra! hne
   obtain ⟨val, -, heq⟩ := hS.wf.solvable 0
   have hvp : v ∉ S.params := fun hp => hS.wf.notMem_aux_of_mem_params hp hv
   have heq' : S.EqnsHold (Function.update val v (!val v)) := fun e he =>
     (Equation.holds_congr fun i hi =>
-      Function.update_of_ne (show i ≠ v from fun h => hne e he (h ▸ hi)) _ _).2 (heq e he)
-  have := hS.wf.unique val _ (fun j hj => (Function.update_of_ne
-    (show j ≠ v from fun h => hvp (h ▸ hj)) _ _).symm) heq heq' v hv
-  rw [Function.update_self] at this
+      Function.update_of_ne (fun h : i = v => hne e he (h ▸ hi)) _ _).2 (heq e he)
+  have := hS.wf.unique val _
+    (fun j hj => (Function.update_of_ne (fun h : j = v => hvp (h ▸ hj)) _ _).symm) heq heq' v hv
   cases h : val v <;> simp [h] at this
 
 /-- The affine reparameterisation of an unpaired parameter `x` of degree at least two and an
@@ -111,16 +109,12 @@ private theorem Valid.preparation_swap {S : State n} (hS : S.Valid f) {x Q : ℕ
       · subst huQ
         rw [ite_eq_left rfl, wt_of_notMem_params hQp]
         have := S₁.wt_le_bound u
-        rw [config_weightBound] at this
-        omega
+        rw [config_weightBound] at this; omega
       · rw [ite_eq_right huQ]
         by_cases hu₁ : u ∈ S₁.unpaired
-        · have hus : u ∈ S.unpaired := by
-            obtain ⟨hup, hun⟩ := mem_unpaired.1 hu₁
-            simp only [S₁, swap_params, Finset.mem_insert, Finset.mem_erase] at hup
-            exact mem_unpaired.2 ⟨(hup.resolve_left huQ).2, hun⟩
-          rw [wt_of_mem hu₁, wt_of_mem hus]
-          rfl
+        · obtain ⟨hup, hun⟩ := mem_unpaired.1 hu₁
+          simp only [S₁, swap_params, Finset.mem_insert, Finset.mem_erase] at hup
+          rw [wt_of_mem hu₁, wt_of_mem (mem_unpaired.2 ⟨(hup.resolve_left huQ).2, hun⟩)]; rfl
         · rw [wt_of_notMem hu₁]; omega
   have hW := W_add_le hN hN' _ _ hpt
   rw [Finset.sum_ite_eq_of_mem' _ _ _ (Finset.mem_insert_of_mem hxp),
@@ -490,13 +484,11 @@ theorem Valid.exists_minimalAnd {S : State n} {d : ℕ} (hS : S.Valid f)
     refine Valid.false_of_fix hS hf ha hy β ∅ (Finset.empty_subset _) (Finset.notMem_empty _)
       (γ ^^ S.out.neg) fun val hval hfix => ?_
     rw [Finset.sum_empty, add_zero] at hfix
-    unfold Lit.eval
     unfold Lit.Reads at hout
-    rw [hout, Arg.eval_node, hval.2 G hG, Gate.eval_of_args hl hr, hform, hfix]
+    simp only [Lit.eval, hout, Arg.eval_node, hval.2 G hG, Gate.eval_of_args hl hr, hform, hfix]
     cases val t₁ <;> cases α <;> cases β <;> cases γ <;> cases S.out.neg <;> rfl
   have hhas : ∃ K ∈ S.gates, (S.gate K).Reads G := by
-    by_contra hno
-    push Not at hno
+    by_contra! hno
     exact hN.no_deletion (Or.inr (Or.inr (Or.inl ⟨G, hG, hno, hGout⟩)))
   by_cases hle : S.deg t₂ ≤ S.deg t₁
   · exact ⟨t₁, t₂, hG, hand, Or.inl ⟨hl, hr⟩, hxu, hyu, ht12, hydeg, hle, hch, hGout, hhas⟩

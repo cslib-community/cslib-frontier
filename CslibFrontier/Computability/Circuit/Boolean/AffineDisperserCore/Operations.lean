@@ -351,10 +351,8 @@ structure DeleteGateLocusOK (S : State cfg n) (J : ℕ) (ℓ : Lit) : Prop where
 
 /-- Deleting a gate decreases the size of the state by `1`. -/
 theorem deleteGate_size {S : State cfg n} {J : ℕ} {ℓ : Lit} (hJ : J ∈ S.gates) :
-    (S.deleteGate J ℓ).size + 1 = S.size := by
-  have h := Finset.card_erase_add_one hJ
-  change (S.gates.erase J).card + S.eqns.card + 1 = S.gates.card + S.eqns.card
-  omega
+    (S.deleteGate J ℓ).size + 1 = S.size :=
+  (Nat.add_right_comm _ _ 1).trans (congrArg (· + S.eqns.card) (Finset.card_erase_add_one hJ))
 
 /-- After deleting gate `J` with replacement `ℓ`, the children of `z` are contained in the
 children of `z` after substituting `J` with `ℓ` with `.inl J` removed. -/
@@ -445,10 +443,8 @@ to `ℓ`. -/
 
 /-- Deleting an equation decreases the size of the state by `1`. -/
 theorem deleteEqn_size {S : State cfg n} {e v : ℕ} {ℓ : Lit} (h : S.DeleteEqnOK e v ℓ) :
-    (S.deleteEqn e v ℓ).size + 1 = S.size := by
-  have h1 := Finset.card_erase_add_one h.mem
-  change S.gates.card + (S.eqns.erase e).card + 1 = S.gates.card + S.eqns.card
-  omega
+    (S.deleteEqn e v ℓ).size + 1 = S.size :=
+  (Nat.add_assoc _ _ 1).trans (congrArg (S.gates.card + ·) (Finset.card_erase_add_one h.mem))
 
 /-- After deleting equation `e` and auxiliary variable `v` with replacement `ℓ`, the children of
 `z` are contained in the children of `z` after substituting `v` with `ℓ` with `.inr e` removed. -/
@@ -491,10 +487,8 @@ theorem Valid.deleteEqn {S : State cfg n} (hS : S.Valid f) {e v : ℕ} {ℓ : Li
 
 /-- Dropping an equation decreases the size of the state by `1`. -/
 theorem dropEqn_size {S : State cfg n} {e v : ℕ} (h : S.DropEqnOK e v) :
-    (S.dropEqn e v).size + 1 = S.size := by
-  have := Finset.card_erase_add_one h.mem
-  change S.gates.card + (S.eqns.erase e).card + 1 = S.gates.card + S.eqns.card
-  omega
+    (S.dropEqn e v).size + 1 = S.size :=
+  (Nat.add_assoc _ _ 1).trans (congrArg (S.gates.card + ·) (Finset.card_erase_add_one h.mem))
 
 /-- Dropping equation `e` removes `.inr e` from the children of `z`. -/
 theorem dropEqn_children (S : State cfg n) (e v z : ℕ) :
@@ -524,10 +518,8 @@ theorem Valid.dropEqn {S : State cfg n} (hS : S.Valid f) {e v : ℕ} (h : S.Drop
 
 /-- Dropping a trivial equation decreases the size of the state by `1`. -/
 theorem dropTrivialEqn_size {S : State cfg n} {e : ℕ} (he : e ∈ S.eqns) :
-    (S.dropTrivialEqn e).size + 1 = S.size := by
-  have := Finset.card_erase_add_one he
-  change S.gates.card + (S.eqns.erase e).card + 1 = S.gates.card + S.eqns.card
-  omega
+    (S.dropTrivialEqn e).size + 1 = S.size :=
+  (Nat.add_assoc _ _ 1).trans (congrArg (S.gates.card + ·) (Finset.card_erase_add_one he))
 
 /-- Dropping trivial equation `e` removes `.inr e` from the children of `z`. -/
 theorem dropTrivialEqn_children (S : State cfg n) (e z : ℕ) :
@@ -735,15 +727,12 @@ theorem Valid.swap_W_le_of {S : State cfg n} (hS : S.Valid f) {x Q : ℕ} {c : B
           simp only [ite_eq_left, ite_eq_right huQ, wt_of_notMem_params hxn, zero_add, add_zero]
           exact hloss
         · have huS : u ∈ S.params := (Finset.mem_insert.1 hu).resolve_left huQ
-          have huS₁ : u ∈ S₁.params := by
-            rw [swap_params]
-            exact Finset.mem_insert_of_mem (Finset.mem_erase.2 ⟨hux, huS⟩)
+          have huS₁ : u ∈ S₁.params := Finset.mem_insert_of_mem (Finset.mem_erase.2 ⟨hux, huS⟩)
           simp only [ite_eq_right hux, ite_eq_right huQ, add_zero]
+          have hp := paired_congr (x := u) (swap_pairs S x Q c T)
           by_cases hup : S.Paired u
-          · have hup₁ : S₁.Paired u := (paired_congr (swap_pairs S x Q c T)).2 hup
-            rw [wt_of_paired hup₁, wt_of_paired hup]
-          · have hu1 : u ∈ S₁.unpaired := mem_unpaired.2
-              ⟨huS₁, fun hp => hup ((paired_congr (swap_pairs S x Q c T)).1 hp)⟩
+          · rw [wt_of_paired (hp.2 hup), wt_of_paired hup]
+          · have hu1 : u ∈ S₁.unpaired := mem_unpaired.2 ⟨huS₁, mt hp.1 hup⟩
             have hu0 : u ∈ S.unpaired := mem_unpaired.2 ⟨huS, hup⟩
             rw [wt_of_mem hu1, wt_of_mem hu0, SemiCircuit.deg, SemiCircuit.deg, swap_children]
   dsimp only [S₁] at hW

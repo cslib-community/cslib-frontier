@@ -128,9 +128,7 @@ theorem exists_eq_add_majority_mul {m : ℕ} (f : BitString (2 * m + 1) → R) :
   by_cases hx : weight x ≤ m
   · simp [Bool.eq_false_iff.2 ((majority_eq_true_iff (n := 2 * m + 1) (x := x)).not.2 (by omega)),
       hqf x hx]
-  · have hnot : weight (fun i => !x i) ≤ m := by
-      rw [weight_not, Fintype.card_fin]
-      omega
+  · have hnot : weight (fun i => !x i) ≤ m := by rw [weight_not, Fintype.card_fin]; omega
     simp only [(majority_eq_true_iff (n := 2 * m + 1) (x := x)).2 (by omega), bitVal_true, one_mul,
       hrf _ hnot, Bool.not_not]
     ring
@@ -291,8 +289,7 @@ private theorem atomSpan_eq_top : atomSpan m (m + 1) = ⊤ := by
     Submodule.span_le.2 fun ⦃_⦄ ⟨A, hA, hAx⟩ => hAx ▸ Submodule.subset_span
       ⟨(A, true), ⟨hA, by simp [atomWeight]⟩,
         (majVal_mul_atom (A, false)).symm.trans (congrArg (majVal * ·) (atom_false A))⟩
-  rw [show f = q + majVal * r from funext hf]
-  exact add_mem (hlow hq) (hmaj hr)
+  exact funext hf ▸ add_mem (hlow hq) (hmaj hr)
 
 /-- Multiplying an atom by a variable of its block raises its weight by at most one. -/
 private theorem bitVal_mul_atom_mem {c : Finset (Fin (2 * m + 1)) × Bool} (hc : #c.1 ≤ m)
@@ -332,8 +329,7 @@ private theorem gen_update_true (a : Fin k → Finset (Fin (2 * m + 1)) × Bool)
     (x : BitString (k * (2 * m + 1))) :
     gen (Function.update a i ((a i).1, true)) x = majVal (block x i) * gen a x := by
   conv_rhs => rw [← Function.update_eq_self i a, gen_update]
-  rw [gen_update, ← mul_assoc, ← majVal_mul_atom]
-  rfl
+  rw [gen_update, ← mul_assoc, ← majVal_mul_atom]; rfl
 
 private theorem genSpan_mono {r s : ℕ} (h : r ≤ s) : genSpan k m r ≤ genSpan k m s :=
   Submodule.span_mono (Set.image_mono fun _ ha => ⟨ha.1, ha.2.trans h⟩)
@@ -399,11 +395,10 @@ private theorem mul_mem_genSpan {d r : ℕ} {P f : BitString (k * (2 * m + 1)) �
 /-- The products span all functions. -/
 private theorem mem_genSpan (f : BitString (k * (2 * m + 1)) → ZMod 2) :
     f ∈ genSpan k m (k * (2 * m + 1)) := by
-  have h1 : (1 : BitString (k * (2 * m + 1)) → ZMod 2) ∈ genSpan k m 0 := by
-    refine Submodule.subset_span ⟨fun _ => (∅, false), ⟨fun _ => by simp, by
-      simp [genWeight, atomWeight]⟩, ?_⟩
-    funext x
-    simp [gen, atom_false]
+  have h1 : (1 : BitString (k * (2 * m + 1)) → ZMod 2) ∈ genSpan k m 0 :=
+    Submodule.subset_span ⟨fun _ => (∅, false),
+      ⟨fun _ => Nat.zero_le _, by simp [genWeight, atomWeight]⟩,
+      funext fun _ => by simp [gen, atom_false]⟩
   simpa using mul_mem_genSpan (mem_lowDegree_self f) h1
 
 /-- Parity in `ZMod 2` is the sum of the bits. -/
@@ -463,9 +458,7 @@ private theorem mul_gen_update_false_add_sum_erase_eq
       gen a x := by
   intro a'
   have ha_eq : Function.update a' i ((a' i).1, true) = a := by
-    dsimp only [a']
-    rw [Function.update_self, Function.update_idem,
-      show ((a i).1, true) = a i from Prod.ext rfl hb.symm, Function.update_eq_self]
+    simp [a', ← hb]
   rw [← ha_eq]
   simp only [Pi.add_apply, Pi.mul_apply, Finset.sum_apply, gen_update_true]
   rw [← sum_mul, ← add_mul, hx, ← add_sum_erase univ (fun j => majVal (block x j))
@@ -631,17 +624,15 @@ private theorem card_filter_card_le_le_choose (m d : ℕ) :
 /-- The middle binomial coefficient of an odd number `ℓ` is at most `2 ^ ℓ / √ℓ`. -/
 private theorem choose_mul_sqrt_le (m : ℕ) :
     ((2 * m + 1).choose m : ℝ) * √((2 * m + 1 : ℕ) : ℝ) ≤ 2 ^ (2 * m + 1) := by
-  have h := choose_half_sq_mul_le (2 * m + 1)
-  rw [show (2 * m + 1) / 2 = m by omega] at h
+  have hdiv : (2 * m + 1) / 2 = m := by omega
   have h' : ((2 * m + 1).choose m : ℝ) ^ 2 * (2 * m + 1 : ℕ) ≤ (2 ^ (2 * m + 1)) ^ 2 := by
     exact_mod_cast calc
       (2 * m + 1).choose m ^ 2 * (2 * m + 1)
         ≤ (2 * m + 1).choose m ^ 2 * (2 * m + 1 + 1) := Nat.mul_le_mul_left _ (Nat.le_succ _)
-      _ ≤ 4 ^ (2 * m + 1) := h
+      _ ≤ 4 ^ (2 * m + 1) := by simpa only [hdiv] using choose_half_sq_mul_le (2 * m + 1)
       _ = (2 ^ (2 * m + 1)) ^ 2 := by rw [← pow_mul, pow_mul']; norm_num
-  rw [← Real.sqrt_sq (by positivity : (0 : ℝ) ≤ 2 ^ (2 * m + 1)),
-    ← Real.sqrt_sq (by positivity : (0 : ℝ) ≤ (2 * m + 1).choose m),
-    ← Real.sqrt_mul (by positivity)]
+  have h2_nn : (0 : ℝ) ≤ 2 ^ (2 * m + 1) := by positivity
+  rw [← Real.sqrt_sq h2_nn, ← Real.sqrt_sq (Nat.cast_nonneg _), ← Real.sqrt_mul (sq_nonneg _)]
   exact Real.sqrt_le_sqrt h'
 
 /-- **Exponential correlation bound for polynomials**: for odd `ℓ`, the correlation of the

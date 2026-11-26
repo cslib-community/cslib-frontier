@@ -215,8 +215,7 @@ private theorem fiber_bound (hH : 3 ≤ H) (k : Fin H) (g : (Fin H → ZMod P) �
     refine expect_congr rfl fun c _ ↦ ?_
     by_cases hc : c = 0
     · simp [hG, nz, hc]
-    · simp only [hG, show nz c = 1 by simp [nz, hc], one_mul]
-      rw [hfib hc g]
+    · simp only [hG, nz, hc, ↓reduceIte, one_mul, hfib hc g]
       exact hfib hc fun F ↦ (g F - 𝔼 F', g (update F' k c)) ^ 2
   -- The coordinate `k` of `w` is not seen.
   have hk : 𝔼 q, (G q - 𝔼 a, G (q.1, update q.2 k a)) ^ 2 = 0 := by
@@ -236,11 +235,11 @@ private theorem fiber_bound (hH : 3 ≤ H) (k : Fin H) (g : (Fin H → ZMod P) �
     conv_rhs => rw [expect_comm]
     refine expect_le_expect fun c _ ↦ ?_
     by_cases hc : c = 0
-    · simp only [hG, hM₁, show nz c = 0 by simp [nz, hc], zero_mul, sub_self, ne_eq,
-        OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, expect_const_zero]
+    · simp only [hG, hM₁, nz, hc, ↓reduceIte, zero_mul, sub_self, zero_pow two_ne_zero,
+        expect_const_zero]
       exact expect_nonneg fun _ _ ↦ sq_nonneg _
-    · simp only [hG, hM₁, show nz c = 1 by simp [nz, hc], one_mul, hM]
-      exact (hfib hc fun F ↦ (g (elementaryMove a b F) - g F) ^ 2).le
+    · simp only [hG, hM₁, nz, hc, ↓reduceIte, one_mul, hM,
+        hfib hc fun F ↦ (g (elementaryMove a b F) - g F) ^ 2, le_rfl]
   -- The four moves of the pair `(i, σ i)`, for `i ≠ k`.
   have hi (i : Fin H) (hik : i ≠ k) :
       𝔼 q, (G q - 𝔼 a, G (q.1, update q.2 i a)) ^ 2 ≤ 2048 * dir g := by
@@ -255,11 +254,8 @@ private theorem fiber_bound (hH : 3 ≤ H) (k : Fin H) (g : (Fin H → ZMod P) �
         𝔼 q, (G (pairShearTranslationMove (Equiv.refl _) (Equiv.refl _) i j m q) - G q) ^ 2 ≤
           dir g :=
       hterm hab _ (fun q ↦ by fin_cases m <;> rfl) hM
-    have e0 := hmv 0 (a := i) (b := j) hji fun c w ↦ update_smul_shear hik hjk c w
-    have e1 := hmv 1 (a := j) (b := i) hji.symm fun c w ↦ update_smul_shear hjk hik c w
-    have e2 := hmv 2 (a := i) (b := k) hik.symm fun c w ↦ update_smul_translate hik c w
-    have e3 := hmv 3 (a := j) (b := k) hjk.symm fun c w ↦ update_smul_translate hjk c w
-    linarith
+    linarith [hmv 0 hji (update_smul_shear hik hjk), hmv 1 hji.symm (update_smul_shear hjk hik),
+      hmv 2 hik.symm (update_smul_translate hik), hmv 3 hjk.symm (update_smul_translate hjk)]
   -- Efron–Stein, with the coordinate `k` free and the others paired.
   rw [← hL]
   refine (Fintype.expect_sq_sub_expect_le_sum_expect_sq_sub_update G).trans ?_
@@ -365,9 +361,7 @@ theorem exists_expect_sq_sub_le_elementaryMove (hH : 3 ≤ H) (g : (Fin H → ZM
       rw [← expect_comp_eval k fun c ↦ nz c * (fib g k c - ybar) ^ 2, mul_expect, mul_expect,
         ← expect_add_distrib]
       refine expect_le_expect fun F _ ↦ ?_
-      have := nz_nonneg (F k)
-      nlinarith [sq_nonneg (g F - 2 * fib g k (F k) + ybar),
-        mul_nonneg this (sq_nonneg (g F - 2 * fib g k (F k) + ybar))]
+      nlinarith [mul_nonneg (nz_nonneg (F k)) (sq_nonneg (g F - 2 * fib g k (F k) + ybar))]
     by_cases hk : k = k₀
     · subst hk
       linarith [expect_nz_nz_sq_le h01.symm g, (expect_nz_sq_sub_le (k := k₁) (l := k₀) g).2,

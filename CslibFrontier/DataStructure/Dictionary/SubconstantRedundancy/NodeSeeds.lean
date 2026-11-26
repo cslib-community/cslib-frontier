@@ -414,9 +414,8 @@ theorem dens_routerRound_outside_bounds_le (hcr : P.ConcentrationReady) {ℓ : �
       routerRound] at hseed
     refine mem_filter.mpr ⟨mem_univ _, ?_⟩
     by_contra! hno
-    refine hseed (hwin_imp _ fun b => ?_)
-    have hb := abs_lt.mp (hno b)
-    exact ⟨by linarith only [hb.1], by linarith only [hb.2]⟩
+    exact hseed (hwin_imp _ fun b => ⟨by linarith only [(abs_lt.mp (hno b)).1],
+      by linarith only [(abs_lt.mp (hno b)).2]⟩)
 
 /-! ## Section 2: Grouped per-node hash seeds `g_u` and unified `3 / n_ℓ ^ 2` bound -/
 
@@ -514,9 +513,7 @@ instance instInhabitedNodeSeed : ∀ ℓ, Inhabited (P.NodeSeed ℓ)
 theorem card_nodeSeed (ℓ : ℕ) :
     Fintype.card (P.NodeSeed ℓ) = 2 ^ P.nodeHashSeedBits ℓ := by
   cases ℓ with
-  | zero =>
-    rw [← Fintype.card_congr P.nodeSeedZeroEquiv, P.card_routerSeed 0]
-    rfl
+  | zero => exact (Fintype.card_congr P.nodeSeedZeroEquiv).symm.trans (P.card_routerSeed 0)
   | succ j =>
     dsimp only [nodeHashSeedBits]
     rw [ite_eq_right (Nat.succ_ne_zero j)]
@@ -581,10 +578,9 @@ theorem dens_not_isGoodNodeSeed_le (hcr : P.ConcentrationReady) {ℓ : ℕ} (h�
   cases ℓ with
   | zero =>
     rw [← Fintype.dens_filter_comp_equiv P.nodeSeedZeroEquiv]
-    refine (NNRat.cast_le.mpr (dens_le_dens fun θ hθ => ?_)).trans
+    exact (NNRat.cast_le.mpr (dens_le_dens fun θ hθ => by simpa [IsGoodNodeSeed] using hθ)).trans
       ((P.dens_routerRound_outside_bounds_le hcr (by have := P.two_le_depth; omega) S hlo
         hhi).trans (hle 1 (by norm_num)))
-    simpa [IsGoodNodeSeed] using hθ
   | succ j =>
     let S0 : Finset (Fin (2 ^ P.idBits (j + 1)) × Fin (P.idCompRightUniv (j + 1))) := S
     have hid_le := FeistelPerm.dens_not_injOn_idCompressorHead_le_two_div_sq S0 hhi
@@ -608,9 +604,8 @@ theorem dens_not_isGoodNodeSeed_le (hcr : P.ConcentrationReady) {ℓ : ℕ} (h�
       simp only [mem_filter, Finset.mem_univ, true_and, IsGoodNodeSeed] at hr ⊢
       exact fun hall => hr ⟨hinj, hall⟩
     · rw [← Fintype.dens_filter_comp_equiv (P.nodeSeedLeafEquiv hlt)]
-      refine (NNRat.cast_le.mpr (dens_le_dens fun θ hθ => ?_)).trans
-        (hid_le.trans (hle 2 (by norm_num)))
-      simpa [IsGoodNodeSeed] using hθ
+      exact (NNRat.cast_le.mpr (dens_le_dens fun θ hθ =>
+        by simpa [IsGoodNodeSeed] using hθ)).trans (hid_le.trans (hle 2 (by norm_num)))
 
 open scoped Classical in
 /-- Under `P.ConcentrationReady`, at least `(1 - 3 / n_ℓ ^ 2) ≥ 11 / 12` of all seeds in

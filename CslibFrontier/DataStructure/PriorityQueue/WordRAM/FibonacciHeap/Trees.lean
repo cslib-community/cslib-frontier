@@ -92,17 +92,14 @@ def markedSet {n : ℕ} (st : RawState n) : Finset (Fin n) :=
 def markedCount {n : ℕ} (st : RawState n) : ℕ :=
   (markedSet st).card
 
-theorem markedCount_le_n {n : ℕ} (st : RawState n) : markedCount st ≤ n := by
-  unfold markedCount markedSet
-  exact (Finset.card_le_univ _).trans (by simp only [Fintype.card_fin, le_rfl])
+theorem markedCount_le_n {n : ℕ} (st : RawState n) : markedCount st ≤ n :=
+  (Finset.card_le_univ _).trans_eq (Fintype.card_fin n)
 
 theorem markedCount_congr {n : ℕ} {st st' : RawState n}
     (h : ∀ u : Fin n, (st'.inHeap u ≠ 0 ∧ st'.mark u ≠ 0) ↔ (st.inHeap u ≠ 0 ∧ st.mark u ≠ 0)) :
-    markedCount st' = markedCount st := by
-  unfold markedCount markedSet
-  congr 1
-  ext u
-  simp only [Finset.mem_filter, Finset.mem_univ, true_and, h u]
+    markedCount st' = markedCount st :=
+  congrArg Finset.card (Finset.ext fun u => by
+    simp only [markedSet, Finset.mem_filter, Finset.mem_univ, true_and, h u])
 
 theorem markedCount_clear_one {n : ℕ} {st st' : RawState n} {u : Fin n}
     (hin : st.inHeap u ≠ 0) (hm : st.mark u ≠ 0)
@@ -110,31 +107,25 @@ theorem markedCount_clear_one {n : ℕ} {st st' : RawState n} {u : Fin n}
     (hother : ∀ x : Fin n, x ≠ u →
       ((st'.inHeap x ≠ 0 ∧ st'.mark x ≠ 0) ↔ (st.inHeap x ≠ 0 ∧ st.mark x ≠ 0))) :
     markedCount st' + 1 = markedCount st := by
-  have hmem : u ∈ markedSet st := by
-    simp only [markedSet, Finset.mem_filter, Finset.mem_univ, true_and]
-    exact ⟨hin, hm⟩
   have heq : markedSet st' = (markedSet st).erase u := Finset.ext fun x => by
     simp only [markedSet, Finset.mem_erase, Finset.mem_filter, Finset.mem_univ, true_and]
     exact ⟨fun hx => ⟨fun e => hx.2 (e ▸ hu), (hother x fun e => hx.2 (e ▸ hu)).mp hx⟩,
       fun ⟨hne, hx⟩ => (hother x hne).mpr hx⟩
-  unfold markedCount
-  rw [heq, Finset.card_erase_add_one hmem]
+  exact (congrArg (·.card + 1) heq).trans
+    (Finset.card_erase_add_one (Finset.mem_filter.2 ⟨Finset.mem_univ u, hin, hm⟩))
 
 theorem markedCount_set_one {n : ℕ} {st st' : RawState n} {u : Fin n}
     (hin : st'.inHeap u ≠ 0) (hm0 : st.mark u = 0) (hm1 : st'.mark u ≠ 0)
     (hother : ∀ x : Fin n, x ≠ u →
       ((st'.inHeap x ≠ 0 ∧ st'.mark x ≠ 0) ↔ (st.inHeap x ≠ 0 ∧ st.mark x ≠ 0))) :
     markedCount st' = markedCount st + 1 := by
-  have hnotmem : u ∉ markedSet st := by
-    simp only [markedSet, Finset.mem_filter, Finset.mem_univ, hm0, ne_eq,
-      not_true_eq_false, and_false, not_false_eq_true]
+  have hnotmem : u ∉ markedSet st := fun h => (Finset.mem_filter.1 h).2.2 hm0
   have heq : markedSet st' = insert u (markedSet st) := Finset.ext fun x => by
     simp only [markedSet, Finset.mem_insert, Finset.mem_filter, Finset.mem_univ, true_and]
     rcases eq_or_ne x u with rfl | hxu
     · exact iff_of_true ⟨hin, hm1⟩ (Or.inl rfl)
     · exact (hother x hxu).trans (or_iff_right hxu).symm
-  unfold markedCount
-  rw [heq, Finset.card_insert_of_notMem hnotmem]
+  exact (congrArg Finset.card heq).trans (Finset.card_insert_of_notMem hnotmem)
 
 /-! ## Forward pointer chains for consolidation traversal -/
 
@@ -217,18 +208,14 @@ end
 def FHTree.size {n : ℕ} (T : FHTree n) : ℕ :=
   T.nodes.length
 
-theorem FHTree.nodes_eq {n : ℕ} (T : FHTree n) : T.nodes = T.root :: forestNodes T.children := by
-  cases T
-  rfl
+theorem FHTree.nodes_eq {n : ℕ} (T : FHTree n) : T.nodes = T.root :: forestNodes T.children :=
+  match T with | .node _ _ => rfl
 
-theorem FHTree.root_mem_nodes {n : ℕ} (T : FHTree n) : T.root ∈ T.nodes := by
-  cases T
-  exact List.mem_cons_self
+theorem FHTree.root_mem_nodes {n : ℕ} (T : FHTree n) : T.root ∈ T.nodes :=
+  match T with | .node _ _ => List.mem_cons_self
 
-theorem FHTree.size_pos {n : ℕ} (T : FHTree n) : 1 ≤ T.size := by
-  cases T
-  simp only [FHTree.size, FHTree.nodes, List.length_cons]
-  omega
+theorem FHTree.size_pos {n : ℕ} (T : FHTree n) : 1 ≤ T.size :=
+  match T with | .node _ _ => Nat.succ_pos _
 
 theorem forestNodes_append {n : ℕ} (ts₁ ts₂ : List (FHTree n)) :
     forestNodes (ts₁ ++ ts₂) = forestNodes ts₁ ++ forestNodes ts₂ := by
@@ -402,7 +389,7 @@ theorem deg_add_one_le_fib (d : ℕ) : d + 1 ≤ Nat.fib (d + 2) := by
     rcases m with _ | m
     · decide
     · rw [Nat.add_right_comm m 1 2] at ih
-      rw [show m + 1 + 1 + 2 = (m + 2) + 2 from rfl, Nat.fib_add_two]
+      rw [Nat.fib_add_two (n := m + 2)]
       have hpos : 0 < Nat.fib (m + 2) := Nat.fib_pos.mpr (by omega)
       omega
 

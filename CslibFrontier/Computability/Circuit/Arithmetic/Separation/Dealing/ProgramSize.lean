@@ -259,27 +259,21 @@ theorem size_dealProgram_le (hmX : mm ≤ X) (hc : c ≤ X) {nl nub bT bub : Lis
   have a5 : X ≤ X * Lc := Nat.le_mul_of_pos_right X hLc
   have hb (d : Bool) : (ofBits (letterCode cb (bt d))).size ≤ 5 * X := by
     have := size_ofBits (letterCode cb (bt d))
-    rw [letterCode, List.length_ofFn] at this
-    rw [letterCode]
-    omega
+    simp only [letterCode, List.length_ofFn] at this ⊢; omega
   have := hb false
   have := hb true
   have := H.size_ofBits_le hnl
   have := H.size_ofBits_le hnub
   have hn := size_listT_le_mul (a := 5) hX hLc
     (l := ((List.finRange K).map fun κ => C.name (.part κ)).map ofBits)
-    (by simpa using (Nat.le_add_right K 1).trans H.blocks) fun t ht => by
-      simp only [List.map_map, List.mem_map, List.mem_finRange, true_and] at ht
-      obtain ⟨κ, rfl⟩ := ht
-      exact H.size_ofBits_le (H.name _)
+    (by simpa using (Nat.le_add_right K 1).trans H.blocks)
+    (by simpa using fun κ => H.size_ofBits_le (H.name (.part κ)))
   have hs := size_listT_dealSteps_le H tab i e hU0 hU1
   have hs' := size_listT_contentSteps_le H
   have ht := size_listT_le_mul (a := 700) hX (a3.trans' (a2.trans' (a1.trans' hLc)))
     (l := ((List.finRange mm).map (C.pieceTm tab tg bT bub hD hmm gp)).map Tm.tree)
-    (by simpa using hmX) fun t ht => by
-      simp only [List.map_map, List.mem_map, List.mem_finRange, true_and] at ht
-      obtain ⟨g, rfl⟩ := ht
-      exact size_pieceTm tab H hbT hbub hmm hgp g
+    (by simpa using hmX)
+    (by simpa using size_pieceTm tab H hbT hbub hmm hgp)
   have hP : X * (X * (X * (X * Lc))) ≤ (X * Lc) ^ 4 := by
     calc X * (X * (X * (X * Lc))) = X ^ 4 * Lc := by ring
       _ ≤ X ^ 4 * Lc ^ 4 := Nat.mul_le_mul_left _ (Nat.le_self_pow (by norm_num) Lc)
@@ -289,8 +283,7 @@ theorem size_dealProgram_le (hmX : mm ≤ X) (hc : c ≤ X) {nl nub bT bub : Lis
     ((List.finRange K).map fun κ => C.name (.part κ)) nl nub (C.dealSteps tab qn i e hU0 hU1)
     C.contentSteps ((List.finRange mm).map (C.pieceTm tab tg bT bub hD hmm gp))
   rw [Codes.dealProgram]
-  have e : (dealBaseSize + 3000) * (X * Lc) ^ 4 = dealBaseSize * (X * Lc) ^ 4 +
-    3000 * (X * Lc) ^ 4 := by ring
+  have e := Nat.add_mul dealBaseSize 3000 ((X * Lc) ^ 4)
   have := Nat.le_mul_of_pos_right dealBaseSize h1
   omega
 
