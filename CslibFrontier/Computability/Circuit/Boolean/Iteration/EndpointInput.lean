@@ -132,23 +132,20 @@ private theorem exists_shiftedQuery (c q : Circuit signature n n) (hL : 0 < L) (
     (hpref.trans ((Synthesis.const false).trans (hr.trans hc))).exists_circuit_outputs
   refine ⟨out, fun x t ht0 hinj => ?_, by lia⟩
   let y := Fin.append x (BitString.equivBitVec.symm t)
-  have hx : start y = x := funext fun j => by simp [start, y]
-  have htime : time y = t := by simp only [time, y, Fin.append_right, Equiv.apply_symm_apply]
   have hraw : raw y = Fin.append ((c.eval interpretation)^[delay x] x)
       (fun j : Fin n => (BitVec.ofNat n (delay x)).getLsbD j.val) :=
-    (congrArg (scan.eval interpretation) hx).trans (hp x)
+    (congrArg (scan.eval interpretation) (funext fun j => by simp [start, y])).trans (hp x)
   have hmark : mark y = (c.eval interpretation)^[delay x] x := funext fun j => by
     simp only [mark, hraw, Fin.append_left]
-  have hoff : offset y = BitVec.ofNat n (delay x) := by
-    simp only [offset, hraw, Fin.append_right, BitString.equivBitVec_getLsbD]
   have hdLt := (hd x).1
   have hsub : (remTime y).toNat = t.toNat - delay x := by
     have htw : (t.setWidth (n + m)).toNat = t.toNat := BitVec.toNat_setWidth_of_le (by lia)
     have hdw' : ((BitVec.ofNat n (delay x)).setWidth (n + m)).toNat = delay x := by
       rw [BitVec.toNat_setWidth_of_le (by lia), BitVec.toNat_ofNat,
         Nat.mod_eq_of_lt (hdLt.trans_le hLN)]
-    dsimp only [remTime]
-    rw [htime, hoff, BitVec.toNat_sub_of_le (by rw [BitVec.le_def, htw, hdw']; omega), htw, hdw']
+    simp only [remTime, time, offset, y, hraw, Fin.append_right, Equiv.apply_symm_apply,
+      BitString.equivBitVec_getLsbD]
+    rw [BitVec.toNat_sub_of_le (by rw [BitVec.le_def, htw, hdw']; omega), htw, hdw']
   rw [ho y]
   dsimp only [arg]
   rw [hmark, hq _ ((hd x).2 hinj), hsub, ← Function.iterate_add_apply,
@@ -195,8 +192,7 @@ private theorem exists_markedPower {w : ℕ} (c q : Circuit signature n n)
   obtain ⟨cycle, hcycle, hcycleSize⟩ := exists_checkpointCyclePower c H w L hL hLN
   obtain ⟨out, hval, hs⟩ := exists_branch tree cycle 0 Fin.succ
   refine ⟨out, fun h hh u => ?_, ?_⟩
-  · rw [hval]
-    simp only [hflag h hh, Equiv.apply_symm_apply]
+  · simp only [hval _, hflag h hh, Equiv.apply_symm_apply]
     by_cases hu : u.toNat < transientDepth (c.eval interpretation) h
     · simpa only [hu, decide_true, ite_true, Equiv.apply_symm_apply, Fin.tail_def] using
         (htree h hh (BitString.equivBitVec.symm u) (by simpa using hu))
@@ -236,8 +232,7 @@ theorem input_time_endpoint_tradeoff (c : Circuit signature n n) (m L : ℕ)
     rw [hout y]
     dsimp only
     by_cases ready : LiveShortReady f (2 * L) x t.toNat
-    · rw [ite_eq_left (hs.1.mpr ready)]
-      exact hs.2 ready
+    · exact (ite_eq_left (hs.1.mpr ready)).trans (hs.2 ready)
     · rw [ite_eq_right (fun he => ready (hs.1.mp he))]
       simpa only [inputTimeIterate, t, x, bits, Equiv.symm_apply_apply,
         Fin.append_castAdd_natAdd] using

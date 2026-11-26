@@ -80,10 +80,7 @@ theorem runClosedConfigFromCoins_map (M : MultiTapePTM k Symbol S)
     N.runClosedConfigFromCoins coins (f c) = f (M.runClosedConfigFromCoins coins c) := by
   induction coins generalizing c with
   | nil => rfl
-  | cons bit coins ih =>
-    change N.runClosedConfigFromCoins coins ((N.withCoin bit).step (f c)) =
-      f (M.runClosedConfigFromCoins coins ((M.withCoin bit).step c))
-    rw [h, ih]
+  | cons bit coins ih => simpa only [runClosedConfigFromCoins, List.foldl_cons, h] using ih _
 
 /-- **One-step simulation.** A map of configurations that commutes with each coin's step maps the
 closed configuration distribution. -/
@@ -353,12 +350,9 @@ private theorem step_cont_check (second : MultiTapePTM k₂ Bool S₂) (bit : Bo
       { tapes := if F 0 = some true then ctrl W P F none pos (out ++ [true])
           else ctrl W P F (some true) (moveInputPos pos (-1)) out } := by
   rw [Config.eq_iff_tapes_eq]
-  have hflag : (ctrl (S₂ := S₂) W P F (some false) pos out).workTapeSymbols (flagTape k₁ k₂) =
-      F 0 := by
-    simp [ctrl, Cfg.workTapeSymbols]
   change (checkAction ((ctrl (S₂ := S₂) W P F (some false) pos out).workTapeSymbols
     (flagTape k₁ k₂))).apply _ = _
-  rw [hflag, checkAction]
+  simp only [ctrl, Cfg.workTapeSymbols, layout_flagTape, checkAction]
   split_ifs <;> tm_step [ctrl]
 
 private theorem step_cont_rewind (second : MultiTapePTM k₂ Bool S₂) (bit : Bool)

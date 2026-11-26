@@ -339,10 +339,8 @@ theorem endOfPotentialLineRel_of_violation {x : List Bool}
   obtain ⟨hlen, h⟩ := h
   refine ⟨hlen, ?_⟩
   cases hout : hasPotentialOut n P S V a x
-  · rcases eq_or_ne x (zeroVertex (n a)) with rfl | hx
-    · simp
-    · cases hin : hasPotentialIn n P S V a x <;>
-        simp_all [potentialPred_of_false, potentialSucc_of_false]
+  · by_cases hx : x = zeroVertex (n a) <;> cases hin : hasPotentialIn n P S V a x <;>
+      simp_all [potentialPred_of_false, potentialSucc_of_false]
   · obtain ⟨hPS, -, -, hV⟩ := hasPotentialOut_eq_true_iff.mp hout
     rw [potentialSucc_of_true hout,
       potentialPred_of_true (hasPotentialIn_of_hasPotentialOut hout)] at h
@@ -806,9 +804,7 @@ private def soplCost (B : α → ℕ) (n : α → ℕ) (P S : α × List Bool �
 
 private theorem length_soplNeighbor (hS : ∀ u, u.length = n a → (S (a, u)).length = n a)
     (hu : u.length = n a) : (soplNeighbor n P S V (a, u)).length = n a := by
-  unfold soplNeighbor
-  split_ifs
-  exacts [length_potentialSucc hS hu, length_zeroVertex _]
+  by_cases h : onPotentialLine n P S V (a, u) <;> simp [soplNeighbor, h, length_potentialSucc hS hu]
 
 /-- Local optima of the simulating local-search family are sinks of the potential line. -/
 private theorem sinkOfPotentialLineRel_of_localOptRel {B : α → ℕ}

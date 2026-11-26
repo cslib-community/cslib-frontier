@@ -104,8 +104,7 @@ private theorem search_eq_true_iff {f : α × ℕ → β} {ν : α → ℕ} {g :
 open ComputableInPolyTime in
 private theorem computableInPolyTime_init :
     ComputableInPolyTime init encA (encState encA) := by
-  unfold init encState
-  fun_prop
+  fun_prop [init, encState]
 
 open ComputableInPolyTime in
 private theorem computableInPolyTime_rounds {ν : α → ℕ}
@@ -259,9 +258,8 @@ private theorem exists_decidableInTimeO {f : α × ℕ → β} {ν : α → ℕ}
     have := Nat.pow_le_pow_left (Nat.add_le_add_right (hrounds_len a) 1) 2
     norm_cast; omega
   have hR : (rounds ν a : ℝ) + 1 ≤ 2 * (2 : ℝ) ^ branchExponent a := by
-    have h₁ : (rounds ν a : ℝ) ≤ 2 ^ branchExponent a := by
-      rw [rounds, Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast]
-      exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (hbranch a)
+    have h₁ := Real.rpow_le_rpow_of_exponent_le (by norm_num : (1 : ℝ) ≤ 2) (hbranch a)
+    rw [rounds, Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast]
     linarith
   have hleaf : (leafTime nd queryExponent k e a : ℝ) ≤
       k * Cp * 2 ^ queryExponent a * ((encA a).length + 1) ^ E + (k + 1) := by
@@ -299,12 +297,9 @@ theorem DecidableInExpTime.of_exhaustiveSearch {f : α × ℕ → β} {ν : α �
   have hbranch (a : α) : (ν a : ℝ) ≤ (1 / M : ℝ) * μA a + K := by
     rw [one_div_mul_eq_div]
     exact (mod_cast hνM a : (ν a : ℝ) ≤ ↑(μA a / M) + K).trans (add_le_add Nat.cast_div_le le_rfl)
-  have hquery (a : α) (r : ℕ) : δ * μB (f (a, r)) ≤ c * δ * μA a + c * δ := by
-    have hbound : (μB (f (a, r)) : ℝ) ≤ c * μA a + c := by exact_mod_cast hμ a r
-    calc
-      δ * μB (f (a, r)) ≤ δ * (c * μA a + c) :=
-        mul_le_mul_of_nonneg_left hbound hδ
-      _ = c * δ * μA a + c * δ := by ring
+  have hquery (a : α) (r : ℕ) : δ * μB (f (a, r)) ≤ c * δ * μA a + c * δ := calc
+    δ * μB (f (a, r)) ≤ δ * (c * μA a + c) := mul_le_mul_of_nonneg_left (mod_cast hμ a r) hδ
+    _ = c * δ * μA a + c * δ := by ring
   obtain ⟨E, hsearch⟩ := ExhaustiveSearch.exists_decidableInTimeO hf hν hfA hbranch hquery
     (fun _ => by positivity) h
   refine ⟨E, hsearch.mono ⌈(2 : ℝ) ^ (K + c * δ)⌉₊ (fun a => ?_) (fun _ => by positivity)⟩

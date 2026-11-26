@@ -168,8 +168,8 @@ private theorem exists_perm_comp_eq [Finite ι] (σ τ : Fin k ↪ ι) :
   refine ⟨π, fun i => ?_⟩
   have hL : (Equiv.sumCompl (· ∈ s)).symm (σ i) = Sum.inl (eσ i) :=
     (Equiv.symm_apply_eq _).mpr rfl
-  change Equiv.sumCompl (· ∈ t) ((eIn.sumCongr eOut) ((Equiv.sumCompl (· ∈ s)).symm (σ i))) = τ i
-  simp only [hL, Equiv.sumCongr_apply, Sum.map_inl, eIn, Equiv.trans_apply, Equiv.symm_apply_apply]
+  simp only [π, Equiv.trans_apply, hL, Equiv.sumCongr_apply, Sum.map_inl, eIn,
+    Equiv.symm_apply_apply]
   rfl
 
 /-- **Northwest corner rule** ([LahaiePennockSaberiVohra2007], §28.3.1, p. 704): every assortative
@@ -449,12 +449,11 @@ private theorem priceFromBase_sub_succ (μ : Fin k → ℝ) (v : ι → ℝ) (σ
   have hIci : Finset.Ici (⟨i, by omega⟩ : Fin k) =
       insert ⟨i, by omega⟩ (Finset.Ici ⟨i + 1, hi⟩) := by
     ext r
-    simp only [Finset.mem_Ici, Finset.mem_insert, Fin.le_def, Fin.ext_iff]
-    omega
-  have hnotmem : (⟨i, by omega⟩ : Fin k) ∉ Finset.Ici ⟨i + 1, hi⟩ := by
-    simp [Fin.le_def]
+    simp only [Finset.mem_Ici, Finset.mem_insert, Fin.le_def, Fin.ext_iff]; omega
   unfold priceFromBase
-  rw [hIci, Finset.sum_insert hnotmem, add_sub_cancel_right]
+  rw [hIci, Finset.sum_insert
+      (mt Finset.mem_Ici.mp (not_le_of_gt (Fin.lt_def.mpr (Nat.lt_succ_self i)))),
+    add_sub_cancel_right]
   simp only [nextSlotValue, hi, ↓reduceDIte]
 
 private theorem priceFromBase_last (μ : Fin k → ℝ) (v : ι → ℝ) (σ : Fin k ↪ ι) (base : ℝ)
@@ -462,10 +461,9 @@ private theorem priceFromBase_last (μ : Fin k → ℝ) (v : ι → ℝ) (σ : F
     priceFromBase μ v σ base ⟨k - 1, by omega⟩ = μ ⟨k - 1, by omega⟩ * base := by
   have hIci : Finset.Ici (⟨k - 1, by omega⟩ : Fin k) = {⟨k - 1, by omega⟩} := by
     ext r
-    simp only [Finset.mem_Ici, Finset.mem_singleton, Fin.le_def, Fin.ext_iff]
-    omega
-  have hnot : ¬(k - 1 + 1 < k) := by omega
-  simp only [priceFromBase, hIci, Finset.sum_singleton, nextSlotValue, hnot, ↓reduceDIte, sub_zero]
+    simp only [Finset.mem_Ici, Finset.mem_singleton, Fin.le_def, Fin.ext_iff]; omega
+  simp only [priceFromBase, hIci, Finset.sum_singleton, nextSlotValue,
+    Nat.not_lt.mpr (Nat.le_add_of_sub_le le_rfl), ↓reduceDIte, sub_zero]
 
 private theorem isLocallyEnvyFree_priceFromBase {μ : Fin k → ℝ} {v : ι → ℝ} {σ : Fin k ↪ ι}
     {base : ℝ} (hσ : IsAssortative v σ) (hμ : Antitone μ) (hμ_nonneg : ∀ i, 0 ≤ μ i)
@@ -577,23 +575,21 @@ theorem isOptimal_iff_exists_isLocallyEnvyFree [Finite ι] {μ : Fin k → ℝ}
     IsOptimal μ v σ ↔ ∃ p : Fin k → ℝ, IsLocallyEnvyFree μ v σ p := by
   have := Fintype.ofFinite ι
   classical
-  constructor
-  · intro hopt
-    have hσ := hopt.isAssortative hμ hμ_pos
-    let base : ℝ :=
-      if h : (Finset.univ \ Finset.univ.map σ).Nonempty then
-        (Finset.univ \ Finset.univ.map σ).sup' h v
-      else if hk : 0 < k then v (σ ⟨k - 1, by omega⟩) else 0
-    refine ⟨priceFromBase μ v σ base, isLocallyEnvyFree_priceFromBase hσ hμ.antitone
-      (fun i => (hμ_pos i).le) (fun hk => ?_) (fun j hj => ?_)⟩
-    · dsimp only [base]
-      split_ifs with hne
-      exacts [Finset.sup'_le hne v fun j hj =>
-        hσ.unassigned_le _ j ((mem_unassigned_iff σ j).mp hj), le_rfl]
-    · have hmem := (mem_unassigned_iff σ j).mpr hj
-      have hne : (Finset.univ \ Finset.univ.map σ).Nonempty := ⟨j, hmem⟩
-      simpa only [base, hne, ↓reduceDIte] using Finset.le_sup' v hmem
-  · exact fun ⟨_, hlef⟩ =>
-      (hlef.isAssortative hμ hμ_pos).isOptimal hμ.antitone fun i => (hμ_pos i).le
+  refine ⟨fun hopt => ?_, fun ⟨_, hlef⟩ =>
+    (hlef.isAssortative hμ hμ_pos).isOptimal hμ.antitone fun i => (hμ_pos i).le⟩
+  have hσ := hopt.isAssortative hμ hμ_pos
+  let base : ℝ :=
+    if h : (Finset.univ \ Finset.univ.map σ).Nonempty then
+      (Finset.univ \ Finset.univ.map σ).sup' h v
+    else if hk : 0 < k then v (σ ⟨k - 1, by omega⟩) else 0
+  refine ⟨priceFromBase μ v σ base, isLocallyEnvyFree_priceFromBase hσ hμ.antitone
+    (fun i => (hμ_pos i).le) (fun hk => ?_) (fun j hj => ?_)⟩
+  · dsimp only [base]
+    split_ifs with hne
+    exacts [Finset.sup'_le hne v fun j hj =>
+      hσ.unassigned_le _ j ((mem_unassigned_iff σ j).mp hj), le_rfl]
+  · have hmem := (mem_unassigned_iff σ j).mpr hj
+    have hne : (Finset.univ \ Finset.univ.map σ).Nonempty := ⟨j, hmem⟩
+    simpa only [base, hne, ↓reduceDIte] using Finset.le_sup' v hmem
 
 end Cslib.GameTheory.SponsoredSearch

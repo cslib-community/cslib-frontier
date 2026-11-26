@@ -253,15 +253,10 @@ theorem IsHurwitz.tendsto_exp_smul {A : Matrix n n ℝ} (hA : A.IsHurwitz) :
       refine tendsto_finsetSum _ fun j _ => ?_
       set w := (Ac - μ • 1) ^ j *ᵥ v
       have hp : Tendsto (fun t : ℝ => t ^ j * Real.exp (μ.re * t)) atTop (𝓝 0) := by
-        have h := (Real.tendsto_pow_mul_exp_neg_atTop_nhds_zero j).comp
-          (tendsto_id.const_mul_atTop hc)
-        have h' := h.const_mul ((-μ.re)⁻¹ ^ j)
-        rw [mul_zero] at h'
-        refine h'.congr fun t => ?_
-        simp only [Function.comp_apply, id, neg_mul, neg_neg]
-        have e : (-μ.re)⁻¹ * (-(μ.re * t)) = t := by
-          rw [neg_mul_eq_neg_mul, ← mul_assoc, inv_mul_cancel₀ hc.ne', one_mul]
-        rw [← mul_assoc, ← mul_pow, e]
+        simpa only [mul_zero] using (((Real.tendsto_pow_mul_exp_neg_atTop_nhds_zero j).comp
+          (tendsto_id.const_mul_atTop hc)).const_mul ((-μ.re)⁻¹ ^ j)).congr fun t => by
+          dsimp only [Function.comp_apply, id]
+          rw [← mul_assoc, ← mul_pow, inv_mul_cancel_left₀ hc.ne', neg_mul, neg_neg]
       refine squeeze_zero_norm' (eventually_atTop.2 ⟨0, fun t ht => le_of_eq ?_⟩)
         (by simpa using hp.mul_const (‖w‖ / j.factorial))
       rw [norm_smul, norm_smul, Complex.norm_exp, norm_div, norm_pow, Complex.norm_real,
@@ -311,12 +306,10 @@ theorem re_le_of_forall_norm_le {A : Matrix n n ℝ} {M α : ℝ}
       ∀ t ≥ 0, ‖x t‖ ≤ M * Real.exp (-(α * t)) * ‖x 0‖)
     {μ : ℂ} (hμ : μ ∈ spectrum ℂ (A.map (algebraMap ℝ ℂ))) : μ.re ≤ -α := by
   set Ac := A.map (algebraMap ℝ ℂ)
-  obtain ⟨v, hv0, hv⟩ : ∃ v ≠ 0, (Ac - μ • 1) *ᵥ v = 0 := by
-    rw [spectrum.mem_iff, Algebra.algebraMap_eq_smul_one, isUnit_iff_isUnit_det, isUnit_iff_ne_zero,
-      not_not, ← exists_mulVec_eq_zero_iff] at hμ
-    obtain ⟨v, hv0, hv⟩ := hμ
-    refine ⟨v, hv0, ?_⟩
-    rw [← neg_sub, neg_mulVec, hv, neg_zero]
+  rw [spectrum.mem_iff, Algebra.algebraMap_eq_smul_one, isUnit_iff_isUnit_det, isUnit_iff_ne_zero,
+    not_not, ← exists_mulVec_eq_zero_iff] at hμ
+  obtain ⟨v, hv0, hv⟩ := hμ
+  have hv' : (Ac - μ • 1) *ᵥ v = 0 := by rw [← neg_sub, neg_mulVec, hv, neg_zero]
   have hflow : ∀ t : ℝ, (exp (t • A)).map (algebraMap ℝ ℂ) *ᵥ v = Complex.exp (t * μ) • v := by
     intro t
     rw [map_algebraMap_exp_smul,
@@ -442,12 +435,10 @@ theorem IsHurwitz.existsUnique_lyapunov_eq {A : Matrix n n ℝ} (hA : A.IsHurwit
 solves the same equation. -/
 theorem IsHurwitz.isHermitian_of_lyapunov_eq {A P Q : Matrix n n ℝ} (hA : A.IsHurwitz)
     (hQ : Q.IsHermitian) (hP : Aᵀ * P + P * A = -Q) : P.IsHermitian := by
-  have hQ' : Qᵀ = Q := by rw [← conjTranspose_eq_transpose_of_trivial]; exact hQ
+  have hQ' : Qᵀ = Q := (conjTranspose_eq_transpose_of_trivial (A := Q)).symm.trans hQ
   have hPt : Aᵀ * Pᵀ + Pᵀ * A = -Q := by
-    have h := congrArg transpose hP
-    rw [transpose_add, transpose_mul, transpose_mul, transpose_transpose, transpose_neg, hQ',
-      add_comm] at h
-    exact h
+    simpa only [transpose_add, transpose_mul, transpose_transpose, transpose_neg, hQ', add_comm]
+      using congrArg transpose hP
   rw [IsHermitian, conjTranspose_eq_transpose_of_trivial]
   exact (hA.existsUnique_lyapunov_eq Q).unique hPt hP
 
@@ -463,11 +454,8 @@ theorem IsHurwitz.posDef_of_lyapunov_eq {A P Q : Matrix n n ℝ} (hA : A.IsHurwi
   have hnonneg : ∀ y : n → ℝ, 0 ≤ y ⬝ᵥ P *ᵥ y := fun y => by
     have hle : ∀ t : ℝ, t ≥ 0 → (exp (t • A) *ᵥ y) ⬝ᵥ P *ᵥ (exp (t • A) *ᵥ y) ≤ y ⬝ᵥ P *ᵥ y :=
       fun t ht => by
-        have h := dotProduct_mulVec_le_exp_mul (P := P) (hasDerivWithinAt_exp_smul_mulVec A y)
-          (K := 0) (fun z => by
-            rw [hP, zero_mul, neg_mulVec, dotProduct_neg, neg_nonpos]
-            exact hQy z) ht
-        simpa using h
+        simpa using dotProduct_mulVec_le_exp_mul (P := P) (hasDerivWithinAt_exp_smul_mulVec A y)
+          (K := 0) (fun z => by simpa [hP, neg_mulVec] using hQy z) ht
     have hlim : Tendsto (fun t : ℝ => (exp (t • A) *ᵥ y) ⬝ᵥ P *ᵥ (exp (t • A) *ᵥ y)) atTop
         (𝓝 0) := by
       have hc : Continuous fun z : n → ℝ => z ⬝ᵥ P *ᵥ z :=

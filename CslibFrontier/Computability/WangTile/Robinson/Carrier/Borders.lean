@@ -296,12 +296,11 @@ theorem inFrame_succ_iff_ceilDivFour (depth coordinate : ℕ) :
     unfold ceilDivFour; rw [periodEq] at residueLt; omega
   apply Bool.eq_iff_iff.mpr
   rw [inFrame_eq_true_iff, inFrame_eq_true_iff, Nat.mod_eq_of_lt residueLt]
-  by_cases coarseLt : ceilDivFour residue < period depth
+  rcases lt_or_eq_of_le coarseLe with coarseLt | coarseEq
   · rw [Nat.mod_eq_of_lt coarseLt]
     unfold ceilDivFour
     omega
-  · have coarseEq : ceilDivFour residue = period depth := by omega
-    have := scale_pos depth
+  · have := scale_pos depth
     have := period_eq_four_mul_scale depth
     rw [coarseEq, Nat.mod_self]
     simp only [frameStartResidue, frameEndResidue] at endEq ⊢
@@ -337,24 +336,17 @@ private theorem boundary_succ_iff
   have periodEq := period_succ depth
   have coarseLe : ceilDivFour residue ≤ period depth := by
     unfold ceilDivFour; rw [periodEq] at residueLt; omega
-  by_cases coarseLt : ceilDivFour residue < period depth
+  have hpos := side.boundaryResidue_pos depth
+  rcases lt_or_eq_of_le coarseLe with coarseLt | coarseEq
   · rw [Nat.mod_eq_of_lt coarseLt]
-    cases side with
-    | opening =>
-      have : 0 < frameStartResidue depth := by simp [frameStartResidue]
-      simp only [FrameSide.boundaryResidue, FrameSide.fineResidue, frameStartResidue_succ]
-      unfold ceilDivFour; omega
-    | closing =>
-      simp only [FrameSide.boundaryResidue, FrameSide.fineResidue, frameEndResidue_succ]
-      unfold ceilDivFour; omega
-  · have coarseEq : ceilDivFour residue = period depth := by omega
-    have := side.boundaryResidue_pos depth
-    have := side.boundaryResidue_lt_period depth
+    cases side <;>
+      simp only [FrameSide.boundaryResidue, FrameSide.fineResidue, frameStartResidue_succ,
+        frameEndResidue_succ, ceilDivFour] at hpos ⊢ <;> omega
+  · have := side.boundaryResidue_lt_period depth
     have := side.ceilDivFour_boundaryResidue_succ depth
     rw [coarseEq, Nat.mod_self]
-    constructor
-    · intro h; rw [h] at coarseEq; omega
-    · rintro ⟨h, _⟩; omega
+    refine ⟨fun h => ?_, fun ⟨h, _⟩ => by omega⟩
+    rw [h] at coarseEq; omega
 
 /-- An opening boundary survives refinement exactly at fine residue one. -/
 theorem openingBoundary_succ_iff (depth coordinate : ℕ) :
@@ -384,18 +376,13 @@ private theorem frameBorder_succ (depth coordinate transverse : ℕ) :
     have := scale_pos depth
     simp only [frameStartResidue, frameEndResidue]
     omega
-  by_cases inside : inFrame (depth + 1) transverse <;>
-    simp only [inside, ite_true]
-  · by_cases opening :
-        ceilDivFour coordinate % period depth = frameStartResidue depth
-    · by_cases fineOpening : coordinate % 4 = 1 <;>
-        simp [liftBorder, opening, fineOpening, boundaryDistinct]
-    · by_cases closing :
-          ceilDivFour coordinate % period depth = frameEndResidue depth
-      · by_cases fineClosing : coordinate % 4 = 0 <;>
-          simp [liftBorder, closing, fineClosing, boundaryDistinct.symm]
-      · simp [liftBorder, opening, closing]
+  cases inFrame (depth + 1) transverse
   · rfl
+  · by_cases opening : ceilDivFour coordinate % period depth = frameStartResidue depth
+    · simp [liftBorder, opening, boundaryDistinct]
+    · by_cases closing : ceilDivFour coordinate % period depth = frameEndResidue depth
+      · simp [liftBorder, closing, boundaryDistinct.symm]
+      · simp [liftBorder, opening, closing]
 
 /- A deeper frame boundary projects to residue zero or one at every shallower
 scale.  Shallower frame boundaries lie strictly beyond those residues, so no
@@ -470,9 +457,9 @@ theorem frameBorder_eq_some_true_iff (depth coordinate transverse : ℕ) :
       inFrame depth transverse = true ∧
         coordinate % period depth = frameStartResidue depth := by
   unfold frameBorder
-  by_cases inside : inFrame depth transverse <;>
-    by_cases opening : coordinate % period depth = frameStartResidue depth <;>
-    simp [inside, opening]
+  cases inFrame depth transverse
+  · simp
+  · by_cases opening : coordinate % period depth = frameStartResidue depth <;> simp [opening]
 
 /-- A decreasing-facing border is exactly a closing with transverse coordinate inside its frame. -/
 theorem frameBorder_eq_some_false_iff (depth coordinate transverse : ℕ) :

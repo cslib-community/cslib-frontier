@@ -292,9 +292,7 @@ theorem uniqueAboveOn_eq_some_iff {P V : Type*} [DecidableEq V] {dom : Finset P}
       w ∈ (dom.image f).filter (fun w => k ≤ (dom.filter fun p => f p = w).card) ↔
         k ≤ (dom.filter fun p => f p = w).card := by
     simp only [Finset.mem_filter, Finset.mem_image, and_iff_right_iff_imp]
-    intro hw
-    obtain ⟨p, hp⟩ := Finset.card_pos.1 (lt_of_lt_of_le hk hw)
-    exact ⟨p, (Finset.mem_filter.1 hp).1, (Finset.mem_filter.1 hp).2⟩
+    exact fun hw => (Finset.card_pos.1 (lt_of_lt_of_le hk hw)).imp fun _ => Finset.mem_filter.1
   dsimp only [uniqueAboveOn]
   split_ifs with hcard
   · simp only [Option.some.injEq]
@@ -303,8 +301,7 @@ theorem uniqueAboveOn_eq_some_iff {P V : Type*} [DecidableEq V] {dom : Finset P}
     have hchoose : Finset.choose (fun _ => True) _ hp = x :=
       Finset.mem_singleton.1 (hx ▸ (Finset.choose_spec (fun _ => True) _ hp).1)
     rw [hchoose]
-    have hx_mem : k ≤ (dom.filter fun p => f p = x).card :=
-      (hmem x).1 (by rw [hx]; exact Finset.mem_singleton_self x)
+    have hx_mem := (hmem x).1 (hx ▸ Finset.mem_singleton_self x)
     exact ⟨fun h => h ▸ ⟨hx_mem, fun w hw => Finset.mem_singleton.1 (hx ▸ (hmem w).2 hw)⟩,
       fun ⟨_, huniq⟩ => huniq x hx_mem⟩
   · simp only [false_iff, not_and]
@@ -428,8 +425,7 @@ theorem phaseKing_persists {t : ℕ} (kings : Fin (t + 1) ↪ P) {F : Finset P} 
   have hover : uniqueAboveOn univ (Fintype.card P - t) m = some v := by
     rw [uniqueAboveOn_eq_some_iff_of_lt_two_mul (by finset_card)]
     have hsub : univ \ F ⊆ univ.filter (fun j => m j = v) := fun j hj => by
-      obtain ⟨hu, hjF⟩ := Finset.mem_sdiff.1 hj
-      exact Finset.mem_filter.2 ⟨hu, by simp only [m, hjF, ↓reduceIte, huniv j hjF]⟩
+      simp [m, (Finset.mem_sdiff.1 hj).2, huniv j (Finset.mem_sdiff.1 hj).2]
     finset_card
   rw [hover, Option.getD_some]
 
@@ -827,8 +823,7 @@ theorem turpinCoan_solvesByzantineAgreement {t R₀ : ℕ} (default : V)
       have hC : t + 1 ≤ ((univ \ F).filter fun q =>
           ((turpinCoan t default πBool).state F adv x 1 q).perplexed = false).card := by
         finset_card
-      obtain ⟨c₀, hc₀mem⟩ : ∃ c₀, c₀ ∈ (univ \ F).filter fun q =>
-          ((turpinCoan t default πBool).state F adv x 1 q).perplexed = false := by finset_card
+      obtain ⟨c₀, hc₀mem⟩ := Finset.card_pos.1 ((Nat.succ_pos t).trans_le hC)
       rw [Finset.mem_filter, Finset.mem_sdiff] at hc₀mem
       rw [turpinCoan_candidate_eq hF hC hc₀mem.1.2 hc₀mem.2 i,
         turpinCoan_candidate_eq hF hC hc₀mem.1.2 hc₀mem.2 j]

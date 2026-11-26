@@ -244,8 +244,7 @@ private theorem rowPath_spec {i : ℕ} (hi : i < N) :
     rowPath slots M dir pick i ≠ [] := by
   have hm := rowLength_sub_one slots i
   have hpos := rowLength_pos (slots := slots) i
-  have hdiam : ∀ e ∈ diamondArcs slots i, e ∈ arcs N slots D := fun e he =>
-    arc_of_mem_diamondArcs hi he
+  have hdiam (e) : e ∈ diamondArcs slots i → e ∈ arcs N slots D := arc_of_mem_diamondArcs hi
   unfold rowPath
   split_ifs with hd
   · refine ⟨List.isChain_flatMap_range (fun a _ => step_ne_nil a)
@@ -400,8 +399,7 @@ theorem mem_DirHamPath_iff (hD : WellFormed N slots M D) :
       Satisfiable M D := by
   refine ⟨satisfiable_of_mem_DirHamPath hD, fun ⟨dir, hdir⟩ => ?_⟩
   choose! pick hpick using hdir
-  exact ⟨_, isDirHamPath_hamPath (dir := dir) hD fun j hj =>
-    ⟨(hpick j hj).1, (hpick j hj).2.1, (hpick j hj).2.2⟩⟩
+  exact ⟨_, isDirHamPath_hamPath (dir := dir) hD hpick⟩
 
 /-- **Hamiltonian cycles of closed diamond graphs.** A well-formed closed diamond graph has a
 Hamiltonian cycle exactly when its rows can be given directions so that every clause has a detour
@@ -433,23 +431,20 @@ attribute [fun_prop] encDetour_clause_polyTime encDetour_row_polyTime encDetour_
 @[fun_prop]
 theorem computableInPolyTime_topNode :
     ComputableInPolyTime (fun i => topNode i) encUnary encNat :=
-  unary_to_binary.comp
-    (show ComputableInPolyTime (fun i => Nat.pair 0 i) _ _ by fun_prop)
+  unary_to_binary.comp (by fun_prop [topNode])
 
 /-- The row nodes are computable in polynomial time from unary indices. -/
 @[fun_prop]
 theorem computableInPolyTime_rowNode :
     ComputableInPolyTime (fun p : ℕ × ℕ => rowNode p.1 p.2) (encPair encUnary encUnary)
       encNat :=
-  unary_to_binary.comp (show ComputableInPolyTime
-    (fun p : ℕ × ℕ => Nat.pair 1 (Nat.pair p.1 p.2)) _ _ by fun_prop)
+  unary_to_binary.comp (by fun_prop [rowNode])
 
 /-- The clause nodes are computable in polynomial time from unary indices. -/
 @[fun_prop]
 theorem computableInPolyTime_clauseNode :
     ComputableInPolyTime (fun j => clauseNode j) encUnary encNat :=
-  unary_to_binary.comp
-    (show ComputableInPolyTime (fun j => Nat.pair 2 j) _ _ by fun_prop)
+  unary_to_binary.comp (by fun_prop [clauseNode])
 
 /-- A diamond graph is computable in polynomial time from a layout computable in polynomial time,
 with the numbers of diamonds, slots and clauses in unary. -/

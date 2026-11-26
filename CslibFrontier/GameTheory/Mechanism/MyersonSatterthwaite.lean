@@ -277,8 +277,7 @@ private theorem integral_intervalIntegral_left_eq {μ : Measure ℝ} [IsFiniteMe
     filter_upwards [hμ] with v hv
     have hfun : (fun t => G (v, t)) = (Iic v).indicator g :=
       funext fun t => by simp [G, S, indicator_apply]
-    have hset : Iic v ∩ Ioc a b = Ioc a v :=
-      Set.ext fun _ => ⟨fun ⟨h1, h2, _⟩ => ⟨h2, h1⟩, fun ⟨h1, h2⟩ => ⟨h2, h1, h2.trans hv.2⟩⟩
+    have hset : Iic v ∩ Ioc a b = Ioc a v := Set.ext fun _ => by grind [hv.2]
     rw [hfun, integral_indicator measurableSet_Iic, Measure.restrict_restrict measurableSet_Iic,
       hset, intervalIntegral.integral_of_le hv.1]
   have hR : ∀ t, ∫ v, G (v, t) ∂μ = μ.real (Ici t) * g t := fun t => by
@@ -303,13 +302,10 @@ private theorem integral_intervalIntegral_right_eq {μ : Measure ℝ} [IsFiniteM
     filter_upwards [hμ] with v hv
     have hfun : (fun t => G (v, t)) = (Ici v).indicator g :=
       funext fun t => by simp [G, S, indicator_apply]
-    rw [hfun, integral_indicator measurableSet_Ici, Measure.restrict_restrict measurableSet_Ici,
+    have hset : Ici v ∩ Icc a b = Icc v b := Set.ext fun _ => by grind [hv.1]
+    rw [hfun, integral_indicator measurableSet_Ici, Measure.restrict_congr_set Ioc_ae_eq_Icc,
+      Measure.restrict_restrict measurableSet_Ici, hset, integral_Icc_eq_integral_Ioc,
       intervalIntegral.integral_of_le hv.2]
-    rcases eq_or_lt_of_le hv.1 with rfl | hav
-    · rw [inter_eq_right.2 fun t (ht : t ∈ Ioc a b) => ht.1.le]
-    · have hset : Ici v ∩ Ioc a b = Icc v b :=
-        Set.ext fun _ => ⟨fun ⟨h1, _, h3⟩ => ⟨h1, h3⟩, fun ⟨h1, h2⟩ => ⟨h1, hav.trans_le h1, h2⟩⟩
-      rw [hset, integral_Icc_eq_integral_Ioc]
   have hR : ∀ t, ∫ v, G (v, t) ∂μ = μ.real (Iic t) * g t := fun t => by
     have hfun : (fun v => G (v, t)) = (Iic t).indicator (fun _ => g t) :=
       funext fun v => by simp [G, S, indicator_apply]
@@ -346,16 +342,12 @@ private theorem integral_gains_from_trade {μ_b μ_s : Measure ℝ}
     filter_upwards [hbox] with p ⟨hp1, hp2⟩
     by_cases hle : p.2 ≤ p.1
     · rw [ite_eq_left hle]
-      have hfun : (fun t => G (p, t)) = (Icc p.2 p.1).indicator 1 := by
-        ext t
-        simp only [hG, S, indicator_apply, mem_ofPred_eq, mem_Icc, Pi.one_apply]
-      have hdiff : Icc p.2 p.1 \ (Icc p.2 p.1 ∩ Ioc L U) ⊆ {L} := fun t ⟨ht1, ht2⟩ => by
-        rcases eq_or_lt_of_le ((min_le_right a_b a_s).trans (hp2.1.trans ht1.1)) with hEq | hLt
-        · exact hEq.symm
-        · exact absurd ⟨ht1, hLt, ht1.2.trans (hp1.2.trans (le_max_left b_b b_s))⟩ ht2
-      rw [hfun, integral_indicator_one measurableSet_Icc, measureReal_def,
-        Measure.restrict_apply measurableSet_Icc, measure_eq_measure_of_null_sdiff
-          inter_subset_left (measure_mono_null hdiff Real.volume_singleton),
+      have hfun : (fun t => G (p, t)) = (Icc p.2 p.1).indicator 1 :=
+        funext fun t => by simp only [hG, S, indicator_apply, mem_ofPred_eq, mem_Icc, Pi.one_apply]
+      have hsub : Icc p.2 p.1 ⊆ Icc L U := Icc_subset_Icc
+        ((min_le_right a_b a_s).trans hp2.1) (hp1.2.trans (le_max_left b_b b_s))
+      rw [hfun, Measure.restrict_congr_set Ioc_ae_eq_Icc, integral_indicator_one measurableSet_Icc,
+        measureReal_def, Measure.restrict_apply measurableSet_Icc, inter_eq_left.2 hsub,
         Real.volume_Icc, ENNReal.toReal_ofReal (sub_nonneg.2 hle)]
     · rw [ite_eq_right hle]
       exact integral_eq_zero_of_ae (Filter.Eventually.of_forall fun t =>
@@ -542,20 +534,16 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
       ((Measure.quasiMeasurePreserving_snd (μ := μ_b) (ν := μ_s)).ae hs_supp)
     have h1eq : ∫ p : ℝ × ℝ, (if p.2 ≤ p.1 then p.1 else 0) ∂(μ_b.prod μ_s) =
         ∫ v_b, v_b * μ_s.real (Iic v_b) ∂μ_b := by
-      rw [integral_prod _ h1int]
-      refine integral_congr_ae (Filter.Eventually.of_forall fun v_b => ?_)
-      dsimp only
-      have h : (fun v_s => if v_s ≤ v_b then v_b else 0) = (Iic v_b).indicator (fun _ => v_b) :=
-        funext fun _ => by simp [indicator_apply]
-      rw [h, integral_indicator measurableSet_Iic, setIntegral_const, smul_eq_mul, mul_comm]
+      have hind (v_b : ℝ) : (fun v_s => if v_s ≤ v_b then v_b else 0) =
+          (Iic v_b).indicator (fun _ => v_b) := funext fun _ => by simp [indicator_apply]
+      simp only [integral_prod _ h1int, hind, integral_indicator measurableSet_Iic,
+        setIntegral_const, smul_eq_mul, mul_comm]
     have h2eq : ∫ p : ℝ × ℝ, (if p.2 ≤ p.1 then p.2 else 0) ∂(μ_b.prod μ_s) =
         ∫ v_s, v_s * μ_b.real (Ici v_s) ∂μ_s := by
-      rw [integral_prod_symm _ h2int]
-      refine integral_congr_ae (Filter.Eventually.of_forall fun v_s => ?_)
-      dsimp only
-      have h : (fun v_b => if v_s ≤ v_b then v_s else 0) = (Ici v_s).indicator (fun _ => v_s) :=
-        funext fun _ => by simp [indicator_apply]
-      rw [h, integral_indicator measurableSet_Ici, setIntegral_const, smul_eq_mul, mul_comm]
+      have hind (v_s : ℝ) : (fun v_b => if v_s ≤ v_b then v_s else 0) =
+          (Ici v_s).indicator (fun _ => v_s) := funext fun _ => by simp [indicator_apply]
+      simp only [integral_prod_symm _ h2int, hind, integral_indicator measurableSet_Ici,
+        setIntegral_const, smul_eq_mul, mul_comm]
     rw [← h1eq, ← h2eq, ← integral_sub h1int h2int]
     have hsub : (fun p : ℝ × ℝ => (if p.2 ≤ p.1 then p.1 else 0) -
         (if p.2 ≤ p.1 then p.2 else 0)) = fun p => if p.2 ≤ p.1 then p.1 - p.2 else 0 :=
@@ -680,17 +668,13 @@ private theorem unif_isProb : IsProbabilityMeasure (volume.restrict (Icc (0 : �
 
 private theorem unif_real_Iic {t : ℝ} (ht : t ∈ Icc (0 : ℝ) 1) :
     (volume.restrict (Icc (0 : ℝ) 1)).real (Iic t) = t := by
-  have hset : Iic t ∩ Icc (0 : ℝ) 1 = Icc 0 t := by
-    ext x; simp only [mem_inter_iff, mem_Iic, mem_Icc]
-    exact ⟨fun ⟨h1, h2, _⟩ => ⟨h2, h1⟩, fun ⟨h1, h2⟩ => ⟨h2, h1, h2.trans ht.2⟩⟩
+  have hset : Iic t ∩ Icc (0 : ℝ) 1 = Icc 0 t := Set.ext fun _ => by grind [ht.2]
   rw [measureReal_def, Measure.restrict_apply measurableSet_Iic, hset, Real.volume_Icc, sub_zero,
     ENNReal.toReal_ofReal ht.1]
 
 private theorem unif_real_Ici {t : ℝ} (ht : t ∈ Icc (0 : ℝ) 1) :
     (volume.restrict (Icc (0 : ℝ) 1)).real (Ici t) = 1 - t := by
-  have hset : Ici t ∩ Icc (0 : ℝ) 1 = Icc t 1 := by
-    ext x; simp only [mem_inter_iff, mem_Ici, mem_Icc]
-    exact ⟨fun ⟨h1, _, h3⟩ => ⟨h1, h3⟩, fun ⟨h1, h2⟩ => ⟨h1, ht.1.trans h1, h2⟩⟩
+  have hset : Ici t ∩ Icc (0 : ℝ) 1 = Icc t 1 := Set.ext fun _ => by grind [ht.1]
   rw [measureReal_def, Measure.restrict_apply measurableSet_Ici, hset, Real.volume_Icc,
     ENNReal.toReal_ofReal (sub_nonneg.2 ht.2)]
 

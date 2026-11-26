@@ -329,12 +329,10 @@ private theorem stronglyMeasurable_maxCost (x : ι → G) : StronglyMeasurable (
 theorem HasFiniteCost.integrable_maxCost {μ : ProbabilityMeasure G} (h : HasFiniteCost μ)
     (x : ι → G) : Integrable (maxCost x) (μ : Measure G) := by
   let a := μ.nonempty.some
-  have hbound : Integrable (fun y => maxCost x a + dist a y) (μ : Measure G) :=
-    (integrable_const _).add (h a)
-  refine hbound.mono' (stronglyMeasurable_maxCost x).aestronglyMeasurable
-    (Filter.Eventually.of_forall fun y => ?_)
-  rw [Real.norm_eq_abs, abs_of_nonneg (maxCost_nonneg x y)]
-  simpa only [dist_comm y a] using maxCost_le_maxCost_add_dist x y a
+  refine ((integrable_const (maxCost x a)).add (h a)).mono'
+    (stronglyMeasurable_maxCost x).aestronglyMeasurable (Filter.Eventually.of_forall fun y => ?_)
+  rw [Real.norm_eq_abs, abs_of_nonneg (maxCost_nonneg x y), Pi.add_apply, dist_comm]
+  exact maxCost_le_maxCost_add_dist x y a
 
 /-- On a nonempty space under `HasFiniteCost μ`, `optMaxCost x ≤ expectedMaxCost μ x`. -/
 theorem optMaxCost_le_expectedMaxCost [Nonempty G] {μ : ProbabilityMeasure G}
@@ -591,17 +589,15 @@ theorem maxCost_real_eq (x : ι → ℝ) (y : ℝ) :
     maxCost x y = |y - center x| + (rightmost x - leftmost x) / 2 := by
   obtain ⟨il, hil⟩ := exists_eq_leftmost x
   obtain ⟨ir, hir⟩ := exists_eq_rightmost x
-  have hcen_def : center x = (leftmost x + rightmost x) / 2 := rfl
-  refine le_antisymm (maxCost_le_iff.mpr fun i => ?_) ?_
+  rw [center]
+  refine le_antisymm (maxCost_le_iff.mpr fun i => ?_) (le_sub_iff_add_le.mp (abs_le.mpr ?_))
   · rw [Real.dist_eq, abs_le]
-    exact ⟨by linarith [leftmost_le x i, le_abs_self (y - center x)],
-      by linarith [le_rightmost x i, neg_le_abs (y - center x)]⟩
+    exact ⟨by linarith [leftmost_le x i, le_abs_self (y - (leftmost x + rightmost x) / 2)],
+      by linarith [le_rightmost x i, neg_le_abs (y - (leftmost x + rightmost x) / 2)]⟩
   · have hdl := Real.dist_eq (x il) y ▸ dist_le_maxCost x y il
     have hdr := Real.dist_eq (x ir) y ▸ dist_le_maxCost x y ir
-    have habs : |y - center x| ≤ maxCost x y - (rightmost x - leftmost x) / 2 :=
-      abs_le.mpr ⟨by linarith [hir, le_abs_self (x ir - y)],
-        by linarith [hil, neg_le_abs (x il - y)]⟩
-    linarith
+    exact ⟨by linarith [le_abs_self (x ir - y)],
+      by linarith [neg_le_abs (x il - y)]⟩
 
 /-- The midpoint `center x` minimizes `maxCost x` on `ℝ`
 ([ProcacciaTennenholtz2013] §3.2, p. 18:8). -/
@@ -643,9 +639,8 @@ private lemma leftmost_rightmost_update_first [DecidableEq ι] {i₁ i₂ : ι} 
       rightmost (Function.update (fun j => if j = i₁ then a₀ else if j = i₂ then b else m) i₁ a) =
         b := by
   have heq : Function.update (fun j => if j = i₁ then a₀ else if j = i₂ then b else m) i₁ a =
-      fun j => if j = i₁ then a else if j = i₂ then b else m := by
-    funext j
-    by_cases h : j = i₁ <;> simp [h]
+      fun j => if j = i₁ then a else if j = i₂ then b else m :=
+    funext fun j => by by_cases h : j = i₁ <;> simp [h]
   exact heq ▸ leftmost_rightmost_two_plus_mid h12 ham hmb
 
 private lemma leftmost_rightmost_update_second [DecidableEq ι] {i₁ i₂ : ι} (h12 : i₁ ≠ i₂)
@@ -654,9 +649,8 @@ private lemma leftmost_rightmost_update_second [DecidableEq ι] {i₁ i₂ : ι}
       rightmost (Function.update (fun j => if j = i₁ then a else if j = i₂ then b₀ else m) i₂ b) =
         b := by
   have heq : Function.update (fun j => if j = i₁ then a else if j = i₂ then b₀ else m) i₂ b =
-      fun j => if j = i₁ then a else if j = i₂ then b else m := by
-    funext j
-    by_cases h : j = i₂ <;> simp [h, h12.symm]
+      fun j => if j = i₁ then a else if j = i₂ then b else m :=
+    funext fun j => by by_cases h : j = i₂ <;> simp [h, h12.symm]
   exact heq ▸ leftmost_rightmost_two_plus_mid h12 ham hmb
 
 /-- For `2 ≤ Fintype.card ι`, the midpoint mechanism `centerMechanism` is not strategyproof
@@ -686,11 +680,9 @@ theorem maxCost_le_two_mul_optMaxCost_of_mem_Icc {x : ι → ℝ} {y : ℝ}
     (hy : y ∈ Set.Icc (leftmost x) (rightmost x)) :
     maxCost x y ≤ 2 * optMaxCost x := by
   rw [maxCost_real_eq, optMaxCost_real_eq, center]
-  have habs : |y - (leftmost x + rightmost x) / 2| ≤ (rightmost x - leftmost x) / 2 :=
-    abs_le.mpr
-      ⟨by linarith [hy.1],
-       by linarith [hy.2]⟩
-  linarith
+  exact le_sub_iff_add_le.mp (abs_le.mpr
+    ⟨by linarith [hy.1],
+     by linarith [hy.2]⟩)
 
 /-- Every fixed `k`-th order-statistic mechanism on `ℝ` is `2`-approximate for maximum cost. -/
 theorem orderStatisticMechanism_hasMaxCostApproxRatio_two (k : ℕ) :

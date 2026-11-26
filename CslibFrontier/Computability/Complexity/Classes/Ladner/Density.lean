@@ -123,13 +123,11 @@ private theorem checkShorter_eq_true_iff {C : Type} {test : C × List Bool → B
     {c : C} {n : ℕ} :
     checkShorter test (c, n) = true ↔ ∀ x : List Bool, x.length < n → test (c, x) = true := by
   simp only [checkShorter, List.all_eq_true, Cslib.BitString.mem_enumList]
-  constructor
-  · intro h x hx
-    have hlt : n - 1 - x.length < n := by omega
-    simpa only [unpad_pad, decide_eq_true hlt, ↓reduceIte] using
+  refine ⟨fun h x hx => ?_, fun h u hu => ?_⟩
+  · simpa only [unpad_pad, decide_eq_true ((Nat.sub_le _ _).trans_lt
+      (Nat.sub_lt (Nat.zero_lt_of_lt hx) Nat.one_pos)), ↓reduceIte] using
       h (pad x (n - 1 - x.length)) (by rw [length_pad]; omega)
-  · intro h u hu
-    split_ifs with hlt
+  · split_ifs with hlt
     · have hlen := congrArg List.length (pad_unpad (hu ▸ of_decide_eq_true hlt))
       rw [length_pad, hu] at hlen
       exact h (unpad u).1 (by omega)
@@ -228,17 +226,17 @@ private theorem recursivelyPresentable_coneOf {W : Set (List Bool) → Set (List
       Ladner.checkShorter_eq_true_iff.mpr fun x _ => hall x, ↓reduceIte, Set.ext_iff.mp hLi w]
   · rintro ⟨m, rfl⟩
     dsimp only
-    set i := m.unpair.1
-    set j := m.unpair.2
     by_cases hall : ∀ x : List Bool, eqTest (m.unpair, x) = true
-    · have heq : {a | present (m, a) = true} = {u | g (i, u) = true} := Set.ext fun w => by
-        simp only [Set.mem_ofPred_eq, present,
-          Ladner.checkShorter_eq_true_iff.mpr fun x _ => hall x, ↓reduceIte, i]
+    · have heq : {a | present (m, a) = true} = {u | g (m.unpair.1, u) = true} := Set.ext fun w =>
+        by simp only [Set.mem_ofPred_eq, present,
+          Ladner.checkShorter_eq_true_iff.mpr fun x _ => hall x, ↓reduceIte]
       rw [heq]
-      refine ⟨⟨fun w => transducerIndexed (i, w), computableInPolyTime_transducerIndexed i,
-        fun w => (hB' _).symm⟩, ⟨fun w => transducerIndexed (j, w),
-        computableInPolyTime_transducerIndexed j, fun x => ?_⟩⟩
-      rw [hB' x, of_decide_eq_true (hall x), ← hwval (fun u => g (i, u)), Set.mem_ofPred_eq]
+      refine ⟨⟨fun w => transducerIndexed (m.unpair.1, w),
+        computableInPolyTime_transducerIndexed m.unpair.1, fun w => (hB' _).symm⟩,
+        ⟨fun w => transducerIndexed (m.unpair.2, w),
+        computableInPolyTime_transducerIndexed m.unpair.2, fun x => ?_⟩⟩
+      rw [hB' x, of_decide_eq_true (hall x), ← hwval (fun u => g (m.unpair.1, u)),
+        Set.mem_ofPred_eq]
     · obtain ⟨x₀, hx₀⟩ := not_forall.mp hall
       refine hclosed hBmem ((List.finite_length_lt Bool (x₀.length + 1)).subset fun w hw => ?_)
       by_contra hlen
@@ -348,12 +346,9 @@ private theorem exists_mem_P_markedUnion_ite_between {A B : Set (List Bool)}
   let wval : (List Bool → Bool) → List Bool → Bool := fun g w =>
     if w.isEmpty then false else if w.headD false then g w.tail else fa w.tail
   have hwval (g : List Bool → Bool) :
-      {u | wval g u = true} = markedUnion A {u | g u = true} := by
-    ext (_ | ⟨b, u⟩)
-    · simp only [Set.mem_ofPred_eq, wval, List.isEmpty_nil, ↓reduceIte, Bool.false_eq_true,
-        false_iff]
-      rintro ⟨x, ⟨h, -⟩ | ⟨h, -⟩⟩ <;> cases h
-    · cases b <;> simp [cons_mem_markedUnion, wval, hA' u]
+      {u | wval g u = true} = markedUnion A {u | g u = true} := Set.ext fun
+    | [] => ⟨Bool.noConfusion, by rintro ⟨_, ⟨h, -⟩ | ⟨h, -⟩⟩ <;> cases h⟩
+    | b :: u => by cases b <;> simp [cons_mem_markedUnion, wval, hA' u]
   have hwcomp {G : ℕ × List Bool → Bool}
       (hG : IsComputable G (encPair encUnary encBits) encBool) :
       IsComputable (fun p : ℕ × List Bool => wval (fun u => G (p.1, u)) p.2)

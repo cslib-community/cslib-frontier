@@ -77,9 +77,8 @@ private theorem child_edge_left {a m b st s' : ℕ} {hmul : Bool}
     (hnhit : ¬ (hmul = true ∧ s' = m)) :
     a ≤ s' ∧ s' < m ∧
       (if hmul = true then st < s' ∧ (st, s') ∈ IL.intervals.erase (a, m) else s' = st) := by
-  by_cases hm : hmul = true
-  · simp only [hm, ↓reduceIte] at hed ⊢
-    have hne_m : s' ≠ m := fun heq => hnhit ⟨hm, heq⟩
+  split_ifs at hed ⊢ with hm
+  · have hne_m : s' ≠ m := fun heq => hnhit ⟨hm, heq⟩
     have hmem_L : (st, s') ∈ IL.intervals :=
       (Finset.mem_union.mp hed.2).resolve_right fun hR => by
         have := IR.mem_intervals_bounds hR
@@ -87,8 +86,7 @@ private theorem child_edge_left {a m b st s' : ℕ} {hmul : Bool}
     have hbds := IL.mem_intervals_bounds hmem_L
     exact ⟨by omega, by omega, hed.1,
       Finset.mem_erase.mpr ⟨fun heq => hne_m (Prod.mk.inj heq).2, hmem_L⟩⟩
-  · simp only [hm, Bool.false_eq_true, ↓reduceIte] at hed ⊢
-    exact ⟨by omega, by omega, hed⟩
+  · exact ⟨by omega, by omega, hed⟩
 
 private theorem GenPrefixTree.valid_left_of_mulCount_zero {a m b : ℕ}
     (IL : IntervalTree a m) (IR : IntervalTree m b) :
@@ -278,15 +276,12 @@ theorem GenPrefixTree.outCount_le_W {k : ℕ} (hk : 3 ≤ k) :
       · exact absurd (GenPrefixTree.child_depth_lt (st := st) (hasOut := hasOut)
           (isMul := isMul) (child := child) 0) (by omega)
     | succ h' =>
-      by_cases hr0 : r = 0
-      · subst hr0
-        rcases t with ⟨st, _ | _, _ | r', isMul, child⟩
+      rcases r with _ | _ | r_m2
+      · rcases t with ⟨st, _ | _, _ | r', isMul, child⟩
         · simp only [GenPrefixTree.outCount, Bool.false_eq_true, ↓reduceIte, Finset.univ_eq_empty,
             Finset.sum_empty, Nat.add_zero, Nat.cast_zero, W, le_rfl]
         all_goals simp [GenPrefixTree.rootBudget] at hbud
-      by_cases hr1 : r = 1
-      · subst hr1
-        change _ ≤ V k d h'
+      · change _ ≤ V k d h'
         rw [← W_eq_V (by omega : 2 ≤ k)]
         rcases t with ⟨st, hasOut, r_ch, isMul, child⟩
         dsimp only [GenPrefixTree.rootBudget, GenPrefixTree.state] at hbud hst
@@ -321,53 +316,52 @@ theorem GenPrefixTree.outCount_le_W {k : ℕ} (hk : 3 ≤ k) :
         · simp only [hm0, Bool.false_eq_true, ↓reduceIte, hst] at hed0
           exact ih (d + h') (by omega) d h' rfl k a b I (child 0) le_rfl hd_le hc0_d
             hed0 (hch_max 0) hc0_bud (hch_fan 0) (hch_val 0) hc0_oa hc0_mc
-      have hr2 : 2 ≤ r := by omega
-      cases I with
-      | leaf a =>
-        exact (Nat.cast_le_one.mpr (t.outCount_eq_outAt_of_valid_empty
-          (by simpa only [IntervalTree.intervals, Finset.erase_singleton] using hval) ▸
-          hout_at t.state)).trans (W_one_le (k := k) (by omega : 1 ≤ r) d (h' + 1))
-      | @node a m b IL IR =>
-        have hIL := IL.lt
-        simp only [IntervalTree.depth] at hd_le
-        obtain ⟨d', rfl⟩ : ∃ d', d = d' + 1 := ⟨d - 1, by omega⟩
-        have hdL : IL.depth ≤ d' := by omega
-        have hdR : IR.depth ≤ d' := by omega
-        rw [IntervalTree.erase_root_eq_union] at hval
-        by_cases hmc0 : t.mulCount m = 0
-        · obtain ⟨hmax_L, hval_L⟩ :=
-            t.valid_left_of_mulCount_zero IL IR hst.symm.le (hst ▸ hIL) hval hmc0
-          exact (ih (d' + (h' + 1)) (by omega) d' (h' + 1) rfl r a m IL t hrk
-            hdL hh_le hst hmax_L hbud hfan hval_L hout_at hmul_cnt).trans
-            (W_mono_left k r d' (h' + 1))
-        obtain ⟨Q₁, Q₂, hsplit, hQ1_st, hQ1_d, hQ1_fan, hQ1_max, hQ1_val, hQ1_oa, hQ1_mc,
-          hQ2_st, hQ2_fan, hQ2_max, hQ2_val, hQ2_oa, hQ2_mc, hcnt_eq⟩ :=
-          t.extract_mul_subtree IL IR hst.symm.le (hst ▸ hIL) hmax hfan hval
-            ((hmul_cnt m).antisymm (Nat.pos_of_ne_zero hmc0))
-        have hQ2_bud : Q₂.rootBudget ≤ k :=
-          match Q₂, hQ2_fan with | .node _ _ _ _ _, h => h.1
-        rw [hcnt_eq, Nat.cast_add]
-        rcases hsplit with ⟨hQ1_bud, hQ2_d⟩ | ⟨hQ1_bud, hQ2_d⟩
-        · have hb1 := ih (d' + (h' + 1)) (by omega) d' (h' + 1) rfl (r - 1) a m IL Q₁
-            (by omega) hdL (hQ1_d.trans hh_le) (hQ1_st.trans hst) hQ1_max (by omega)
-            hQ1_fan hQ1_val (fun s => (hQ1_oa s).trans (hout_at s))
-            (fun x => (hQ1_mc x).trans (hmul_cnt x))
-          have hb2 := ih (d' + h') (by omega) d' h' rfl k m b IR Q₂ le_rfl hdR
-            (by omega) hQ2_st hQ2_max hQ2_bud hQ2_fan hQ2_val
-            (fun s => (hQ2_oa s).trans (hout_at s))
-            (fun x => (hQ2_mc x).trans (hmul_cnt x))
-          rw [W_eq_V (by lia)] at hb2
-          exact (add_le_add hb1 hb2).trans_eq (W_split_depth_one hr2)
-        · obtain ⟨h'', rfl⟩ : ∃ h'', h' = h'' + 1 := ⟨h' - 1, by omega⟩
-          have hb1 := ih (d' + (h'' + 2)) (by omega) d' (h'' + 2) rfl r a m IL Q₁ hrk
-            hdL (hQ1_d.trans hh_le) (hQ1_st.trans hst) hQ1_max (hQ1_bud.trans hbud)
-            hQ1_fan hQ1_val (fun s => (hQ1_oa s).trans (hout_at s))
-            (fun x => (hQ1_mc x).trans (hmul_cnt x))
-          have hb2 := ih (d' + h'') (by omega) d' h'' rfl k m b IR Q₂ le_rfl hdR
-            (by omega) hQ2_st hQ2_max hQ2_bud hQ2_fan hQ2_val
-            (fun s => (hQ2_oa s).trans (hout_at s))
-            (fun x => (hQ2_mc x).trans (hmul_cnt x))
-          rw [W_eq_V (by lia)] at hb2
-          exact (add_le_add hb1 hb2).trans (W_split_depth_two hk hr2 hrk)
+      · have hr2 : 2 ≤ r_m2 + 2 := Nat.le_add_left 2 r_m2
+        cases I with
+        | leaf a =>
+          exact (Nat.cast_le_one.mpr (t.outCount_eq_outAt_of_valid_empty
+            (by simpa only [IntervalTree.intervals, Finset.erase_singleton] using hval) ▸
+            hout_at t.state)).trans (W_one_le (k := k) (by omega) d (h' + 1))
+        | @node a m b IL IR =>
+          have hIL := IL.lt
+          simp only [IntervalTree.depth] at hd_le
+          obtain ⟨d', rfl⟩ : ∃ d', d = d' + 1 := ⟨d - 1, by omega⟩
+          obtain ⟨hdL, hdR⟩ : IL.depth ≤ d' ∧ IR.depth ≤ d' := ⟨by omega, by omega⟩
+          rw [IntervalTree.erase_root_eq_union] at hval
+          by_cases hmc0 : t.mulCount m = 0
+          · obtain ⟨hmax_L, hval_L⟩ :=
+              t.valid_left_of_mulCount_zero IL IR hst.symm.le (hst ▸ hIL) hval hmc0
+            exact (ih (d' + (h' + 1)) (by omega) d' (h' + 1) rfl (r_m2 + 2) a m IL t hrk
+              hdL hh_le hst hmax_L hbud hfan hval_L hout_at hmul_cnt).trans
+              (W_mono_left k (r_m2 + 2) d' (h' + 1))
+          obtain ⟨Q₁, Q₂, hsplit, hQ1_st, hQ1_d, hQ1_fan, hQ1_max, hQ1_val, hQ1_oa, hQ1_mc,
+            hQ2_st, hQ2_fan, hQ2_max, hQ2_val, hQ2_oa, hQ2_mc, hcnt_eq⟩ :=
+            t.extract_mul_subtree IL IR hst.symm.le (hst ▸ hIL) hmax hfan hval
+              ((hmul_cnt m).antisymm (Nat.pos_of_ne_zero hmc0))
+          have hQ2_bud : Q₂.rootBudget ≤ k :=
+            match Q₂, hQ2_fan with | .node _ _ _ _ _, h => h.1
+          rw [hcnt_eq, Nat.cast_add]
+          rcases hsplit with ⟨hQ1_bud, hQ2_d⟩ | ⟨hQ1_bud, hQ2_d⟩
+          · have hb1 := ih (d' + (h' + 1)) (by omega) d' (h' + 1) rfl (r_m2 + 1) a m IL Q₁
+              (by omega) hdL (hQ1_d.trans hh_le) (hQ1_st.trans hst) hQ1_max (by omega)
+              hQ1_fan hQ1_val (fun s => (hQ1_oa s).trans (hout_at s))
+              (fun x => (hQ1_mc x).trans (hmul_cnt x))
+            have hb2 := ih (d' + h') (by omega) d' h' rfl k m b IR Q₂ le_rfl hdR
+              (by omega) hQ2_st hQ2_max hQ2_bud hQ2_fan hQ2_val
+              (fun s => (hQ2_oa s).trans (hout_at s))
+              (fun x => (hQ2_mc x).trans (hmul_cnt x))
+            rw [W_eq_V (by lia)] at hb2
+            exact (add_le_add hb1 hb2).trans_eq (W_split_depth_one hr2)
+          · obtain ⟨h'', rfl⟩ : ∃ h'', h' = h'' + 1 := ⟨h' - 1, by omega⟩
+            have hb1 := ih (d' + (h'' + 2)) (by omega) d' (h'' + 2) rfl (r_m2 + 2) a m IL Q₁ hrk
+              hdL (hQ1_d.trans hh_le) (hQ1_st.trans hst) hQ1_max (hQ1_bud.trans hbud)
+              hQ1_fan hQ1_val (fun s => (hQ1_oa s).trans (hout_at s))
+              (fun x => (hQ1_mc x).trans (hmul_cnt x))
+            have hb2 := ih (d' + h'') (by omega) d' h'' rfl k m b IR Q₂ le_rfl hdR
+              (by omega) hQ2_st hQ2_max hQ2_bud hQ2_fan hQ2_val
+              (fun s => (hQ2_oa s).trans (hout_at s))
+              (fun x => (hQ2_mc x).trans (hmul_cnt x))
+            rw [W_eq_V (by lia)] at hb2
+            exact (add_le_add hb1 hb2).trans (W_split_depth_two hk hr2 hrk)
 
 end Cslib.Circuits.Prefix

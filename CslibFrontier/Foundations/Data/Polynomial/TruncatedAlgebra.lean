@@ -149,8 +149,7 @@ theorem coeff_one (i : ℕ) : coeff i (1 : Truncated R r) = if i = 0 ∧ 0 < r t
 
 theorem coeff_C (a : R) (i : ℕ) :
     coeff i (mk r (C a)) = if i = 0 ∧ 0 < r then a else 0 := by
-  rw [coeff_mk, Polynomial.coeff_C]
-  by_cases hi0 : i = 0 <;> simp [hi0]
+  by_cases hi0 : i = 0 <;> simp [Polynomial.coeff_C, hi0]
 
 @[simp]
 theorem coeff_algebraMap (a : R) (i : ℕ) :
@@ -159,27 +158,23 @@ theorem coeff_algebraMap (a : R) (i : ℕ) :
 
 @[simp]
 theorem coeff_var (i : ℕ) : coeff i (var R r) = if i = 1 ∧ 1 < r then 1 else 0 := by
-  rw [var, coeff_mk, Polynomial.coeff_X]
-  by_cases hi : i = 1 <;> by_cases hir : i < r <;> simp_all [eq_comm]
+  by_cases hi : i = 1 <;> simp [var, Polynomial.coeff_X, hi, eq_comm]
 
 @[simp]
 theorem coeff_var_pow (k i : ℕ) :
     coeff i ((var R r) ^ k) = if i = k ∧ k < r then 1 else 0 := by
-  rw [var, ← map_pow, coeff_mk, Polynomial.coeff_X_pow]
-  by_cases hik : i = k <;> by_cases hir : i < r <;> simp_all
+  by_cases hik : i = k <;> simp [var, ← map_pow, Polynomial.coeff_X_pow, hik]
 
 @[simp]
 theorem coeff_add (i : ℕ) (x y : Truncated R r) :
     coeff i (x + y) = coeff i x + coeff i y :=
   induction_on x fun p => induction_on y fun q => by
-    rw [← map_add, coeff_mk, coeff_mk, coeff_mk, Polynomial.coeff_add]
-    split_ifs <;> simp
+    by_cases hi : i < r <;> simp [← map_add, hi]
 
 @[simp]
 theorem coeff_neg (i : ℕ) (x : Truncated R r) : coeff i (-x) = -coeff i x :=
   induction_on x fun p => by
-    rw [← map_neg, coeff_mk, coeff_mk, Polynomial.coeff_neg]
-    split_ifs <;> simp
+    by_cases hi : i < r <;> simp [← map_neg, hi]
 
 @[simp]
 theorem coeff_sub (i : ℕ) (x y : Truncated R r) :
@@ -190,8 +185,7 @@ theorem coeff_sub (i : ℕ) (x y : Truncated R r) :
 theorem coeff_smul (i : ℕ) (a : R) (x : Truncated R r) :
     coeff i (a • x) = a * coeff i x :=
   induction_on x fun p => by
-    rw [← map_smul, coeff_mk, coeff_mk, AddMonoidAlgebra.coeff_smul_apply, smul_eq_mul]
-    split_ifs <;> simp
+    by_cases hi : i < r <;> simp [← map_smul, hi]
 
 theorem coeff_smul_algebra {S : Type*} [CommRing S] [Algebra R S] (i : ℕ) (a : R)
     (x : Truncated S r) : coeff i (a • x) = algebraMap R S a * coeff i x := by
@@ -247,11 +241,7 @@ theorem toPoly_def (x : Truncated R r) :
 @[simp]
 theorem coeff_toPoly (x : Truncated R r) (i : ℕ) : (toPoly x).coeff i = coeff i x := by
   rw [toPoly, ← Polynomial.lcoeff_apply, map_sum]
-  simp only [Polynomial.lcoeff_apply, Polynomial.coeff_C_mul_X_pow, Finset.sum_ite_eq,
-    Finset.mem_range]
-  split_ifs with hi
-  · rfl
-  · exact (coeff_eq_zero_of_le (not_lt.mp hi) x).symm
+  simpa [Polynomial.coeff_C_mul_X_pow] using fun hi => (coeff_eq_zero_of_le hi x).symm
 
 @[simp]
 theorem mk_toPoly (x : Truncated R r) : mk r (toPoly x) = x := by
@@ -590,8 +580,7 @@ theorem map_var {S : Type*} [CommRing S] (φ : R →+* S) (r : ℕ) :
 theorem coeff_map {S : Type*} [CommRing S] (φ : R →+* S) (r i : ℕ) (x : Truncated R r) :
     coeff i (map φ r x) = φ (coeff i x) :=
   induction_on x fun _ => by
-    simp only [map_mk, coeff_mk, Polynomial.coeff_map]
-    split_ifs <;> simp
+    by_cases hi : i < r <;> simp [hi]
 
 private noncomputable def toAdjoinRootAlgHom (R : Type*) [CommRing R] (r : ℕ) :
     Truncated R r →ₐ[R] AdjoinRoot ((X : R[X]) ^ r) :=

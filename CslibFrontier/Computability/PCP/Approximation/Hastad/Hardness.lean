@@ -273,13 +273,10 @@ theorem GapExactThreeLin_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
       (by linarith) (by positivity) hinv_lt_half
   -- Step 3: choose `k = 21 * n` large enough for both Label Cover soundness `≤ η` and
   -- degenerate-equation share `(1 - 1 / m) ^ |β| < min (δ / 2) (ε / 4)`.
-  let wMax : ℝ := min (δ / 2) (ε / 4)
   let baseLC : ℝ := 1 - 1 / (6000 * 2 ^ 186)
-  let baseDrop : ℝ := 1 - 1 / (m : ℝ)
-  have hbaseDrop1 : baseDrop < 1 := sub_lt_self 1 (by positivity)
   obtain ⟨n₁, hn₁⟩ := exists_pow_lt_of_lt_one hη0 (by norm_num : baseLC < 1)
-  obtain ⟨n₂, hn₂⟩ :=
-    exists_pow_lt_of_lt_one (lt_min (half_pos hδ) (div_pos hε zero_lt_four)) hbaseDrop1
+  obtain ⟨n₂, hn₂⟩ := exists_pow_lt_of_lt_one (lt_min (half_pos hδ) (div_pos hε zero_lt_four))
+    (sub_lt_self 1 (by positivity : 0 < 1 / (m : ℝ)))
   let n : ℕ := max n₁ n₂ + 1
   let k : ℕ := 21 * n
   -- Instantiate the `k`-round Label Cover hardness at soundness `η`.
@@ -303,11 +300,9 @@ theorem GapExactThreeLin_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
     have := Nat.pow_le_pow_left (by norm_num : 2 ≤ 128 * 128) k
     have : n₂ ≤ n := (le_max_right n₁ n₂).trans (Nat.le_succ _)
     dsimp only [k] at *; omega
-  set w : ℝ := (1 - 1 / (m : ℝ)) ^ Fintype.card β with hw_def
-  have hw_lt : w < wMax :=
-    (pow_le_pow_of_le_one (by dsimp only [baseDrop]; linarith) hbaseDrop1.le hcard_ge).trans_lt hn₂
-  have hw_lt_δ : w < δ / 2 := hw_lt.trans_le (min_le_left _ _)
-  have hw_lt_ε : w < ε / 4 := hw_lt.trans_le (min_le_right _ _)
+  set w : ℝ := (1 - 1 / (m : ℝ)) ^ Fintype.card β
+  obtain ⟨hw_lt_δ, hw_lt_ε⟩ := lt_min_iff.mp <|
+    (pow_le_pow_of_le_one (by linarith) (sub_le_self 1 (by positivity)) hcard_ge).trans_lt hn₂
   -- Step 4: reduce `GapLabelCover β γ 1 η` to `GapExactThreeLin (1 - δ) (1 / 2 + ε)`.
   let y₀ : γ := fun _ => (false, fun _ => false)
   let T : Tables β γ m := Tables.ofFintype m y₀
@@ -396,9 +391,8 @@ private theorem gapMax_restrict_mem_PromiseP_of_approx {α : Type} {enc : α ↪
   set b := q.den
   have hb : (0 : ℝ) < b := by exact_mod_cast q.den_pos
   have hab : (q : ℝ) = a / b := by
-    have hnum : (a : ℤ) = q.num :=
-      Int.toNat_of_nonneg (Rat.num_nonneg.2 (by exact_mod_cast (hs0.trans_lt hsq).le))
-    rw [Rat.cast_def, ← hnum, Int.cast_natCast]
+    have hq0 : 0 ≤ q := by exact_mod_cast (hs0.trans_lt hsq).le
+    rw [Rat.cast_def, ← Int.toNat_of_nonneg (Rat.num_nonneg.2 hq0), Int.cast_natCast]
   have hiff (x : α) :
       a * len x + b * u x ≤ b * len x ↔ (q : ℝ) * len x ≤ (len x : ℝ) - u x := by
     rw [hab, div_mul_eq_mul_div, div_le_iff₀ hb, ← @Nat.cast_le ℝ]

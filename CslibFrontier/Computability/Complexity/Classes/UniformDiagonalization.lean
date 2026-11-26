@@ -203,8 +203,7 @@ theorem witness_sound (hS : Spec dA dF A F) {n k : ℕ} (h : witness dA dF (tabl
   obtain ⟨j, hj, hd⟩ := List.any_eq_true.mp h
   rw [length_table, List.mem_range] at hj
   obtain ⟨c, hc₁, hc₂⟩ := disagree_iff.mp hd
-  have hlen : (word j).length < n := (length_word_lt j).trans_le hj
-  rw [approxA, getD_table _ _ hlen] at hc₁
+  rw [approxA, getD_table _ _ ((length_word_lt j).trans_le hj)] at hc₁
   have h₁ := hS.soundA _ _ _ _ hc₁
   have h₂ := hS.soundF _ _ _ _ _ hc₂
   exact ⟨word j, by cases c <;> simp_all [D]⟩
@@ -424,12 +423,8 @@ theorem polyTimeReducible_markedUnion {A B C : Set (List Bool)}
   refine ⟨fun w => if w.isEmpty then c₀ else if w.headD false then fB w.tail else fA w.tail,
     by fun_prop, fun w => ?_⟩
   cases w with
-  | nil =>
-    simp only [List.isEmpty_nil, ↓reduceIte, hc₀, iff_false]
-    rintro ⟨x, ⟨h, -⟩ | ⟨h, -⟩⟩ <;> cases h
-  | cons b u =>
-    rw [cons_mem_markedUnion]
-    cases b <;> simp [hA u, hB u]
+  | nil => simp [markedUnion, hc₀]
+  | cons b u => cases b <;> simp [cons_mem_markedUnion, hA u, hB u]
 
 /-- The marked union of two decidable sets of words is decidable. -/
 theorem isDecidable_markedUnion {A B : Set (List Bool)}
@@ -446,12 +441,8 @@ theorem isDecidable_markedUnion {A B : Set (List Bool)}
         (hhead.isComputable.ite (hfB.comp htail.isComputable) (hfA.comp htail.isComputable)),
       fun w => ?_⟩
   cases w with
-  | nil =>
-    simp only [List.isEmpty_nil, ↓reduceIte, Bool.false_eq_true, iff_false]
-    rintro ⟨x, ⟨h, -⟩ | ⟨h, -⟩⟩ <;> cases h
-  | cons b u =>
-    rw [cons_mem_markedUnion]
-    cases b <;> simp [hA' u, hB' u]
+  | nil => simp [markedUnion]
+  | cons b u => cases b <;> simp [cons_mem_markedUnion, hA' u, hB' u]
 
 /-- The marked union of two problems in `NP` on bit words belongs to `NP`. -/
 theorem markedUnion_mem_NP {A B : Set (List Bool)}
@@ -469,13 +460,8 @@ theorem markedUnion_mem_NP {A B : Set (List Bool)}
   convert union_mem_NP (hside false hA) (hside true hB) using 1
   ext w
   cases w with
-  | nil =>
-    simp only [Set.mem_union, Set.mem_ofPred_eq, List.isEmpty_nil, Bool.true_eq_false, false_and,
-      or_self, iff_false]
-    rintro ⟨x, ⟨h, -⟩ | ⟨h, -⟩⟩ <;> cases h
-  | cons b u =>
-    rw [cons_mem_markedUnion]
-    cases b <;> simp
+  | nil => simp [markedUnion]
+  | cons b u => cases b <;> simp [cons_mem_markedUnion]
 
 /-- **The mixed set reduces to the marked union** when `G ∈ P`. -/
 theorem polyTimeReducible_ite_markedUnion {G A₁ A₂ : Set (List Bool)} (hG : G ∈ P encBits) :

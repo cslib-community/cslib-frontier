@@ -141,13 +141,12 @@ private theorem stage1RedGenProg_spec {U w w₀ R c_tab d b_char M_out hBase F :
     (Memory.spec 0).clientResult s prog = (multiplyShiftReduced U w₀ R θ.1 u).val ∧
     memoryCost prog s = 1 ∧
     ValidProg w F s prog := by
-  have hrkey_eq : oddMulModWord w₀ (s.mem hBase) u.val >>> (w₀ - R) =
-      (multiplyShiftReduced U w₀ R θ.1 u).val :=
-    hrep.1.symm ▸ oddMulModWord_shiftRight_eq_multiplyShiftReduced hw₀ θ.1 u
   unfold stage1RedGenProg
   simp only [pure_bind, hpMaskM_mk, hpMaskHalf_mk, hpHalfM_mk, hpMaskRem_mk, hpMaskTop_mk,
     hpTwoHalfM_mk, hpShiftR_mk]
-  exact ⟨rfl, hrkey_eq, rfl, validProg_bind (validProg_read hh_lt) (validProg_pure _)⟩
+  exact ⟨rfl, (congrArg (oddMulModWord w₀ · u.val >>> (w₀ - R)) hrep.1).trans
+    (oddMulModWord_shiftRight_eq_multiplyShiftReduced hw₀ θ.1 u), rfl,
+    validProg_bind (validProg_read hh_lt) (validProg_pure _)⟩
 
 /-- Precondition for `evalHashGenProg` (`d = (hp, ((hBase, salt), u_val))`), without `s.frontier`.
 -/
@@ -176,9 +175,8 @@ private theorem realizes_evalHashGen :
       (WordEncoding.encode (α := ℕ))
       EvalHashPre
       (fun _ _ => 0) := by
-  have hpre : EvalHashPre = BitPackedDoubleTabulation.EvalGenPre :=
-    funext fun _ => funext fun ⟨_, ⟨_, _⟩, _⟩ => funext fun _ => rfl
-  simpa only [funext evalHashGenProg_eq_evalGenProg, hpre] using
+  exact funext evalHashGenProg_eq_evalGenProg ▸
+    (funext₃ fun _ ⟨_, ⟨_, _⟩, _⟩ _ => rfl : EvalHashPre = BitPackedDoubleTabulation.EvalGenPre) ▸
     BitPackedDoubleTabulation.realizes_evalGen
 
 private theorem validWhpProg_innerLoop {w w₀ R c_tab d b_char M_out hBase F j : ℕ}
@@ -314,17 +312,16 @@ private theorem evalHashGenProg_spec {U w w₀ R c_tab d b_char M_out s_max hBas
     memoryCost prog s = 1 + 2 * d * (c_tab + 2) ∧
     ValidProg w F s prog := by
   dsimp only
-  have hsp_pos := BitPackedDoubleTabulation.space_pos w c_tab d b_char M_out
-  have hs1 := stage1RedGenProg_spec (R := R) hw₀ (by omega : hBase < F) hrep u
-  have hol_vp := validWhpProg_outerLoop henv hw (salt.isLt.trans_le hs_max) hseg
-    (rKey := (Memory.spec 0).clientResult s
-      (stage1RedGenProg (mkHashParams w w₀ R c_tab d b_char M_out, (hBase, u.val))))
-    d 0 0 s (Nat.zero_add _).le
+  have hh_lt : hBase < F :=
+    (Nat.lt_add_of_pos_right (BitPackedDoubleTabulation.space_pos ..)).trans_le hseg
+  obtain ⟨hs1_st, -, -, hs1_vp⟩ := stage1RedGenProg_spec (R := R) hw₀ hh_lt hrep u
   have hvp : ValidProg w F s
       (evalHashGenProg (mkHashParams w w₀ R c_tab d b_char M_out, ((hBase, salt.val), u.val))) := by
     unfold evalHashGenProg
     simp only [pure_bind, hpD_mk]
-    exact validProg_bind hs1.2.2.2 (hs1.1.symm ▸ validProg_bind hol_vp (validProg_pure _))
+    refine validProg_bind hs1_vp (hs1_st.symm ▸ validProg_bind ?_ (validProg_pure _))
+    exact validWhpProg_outerLoop henv hw (salt.isLt.trans_le hs_max) hseg d 0 0 s
+      (Nat.zero_add _).le
   rw [evalHashGenProg_eq_evalGenProg] at hvp ⊢
   obtain ⟨hres, hst⟩ := BitPackedDoubleTabulation.evalProg_spec (R := R) hw₀ hs_max hrep salt u
   exact ⟨hst, hres, BitPackedDoubleTabulation.memoryCost_evalProg .., hvp⟩
@@ -545,16 +542,14 @@ theorem feistelSplitRtProg_spec {c U V w n_max base u_val : ℕ} {θ : SeedWhp c
   have hq_eq : q = keyQuotient (bWhp n_max) u_val := Nat.shiftRight_eq_div_pow u_val (bWhp n_max)
   dsimp only
   unfold feistelSplitRtProg
-  have hrt_eq : hrBBits (mkHashRt c U w n_max base) = bWhp n_max ∧
-      hrMaskBkt (mkHashRt c U w n_max base) = numBucketsWhp n_max - 1 := ⟨rfl, rfl⟩
-  simp only [pure_bind, hrt_eq.1, hrt_eq.2]
+  have hbb : hrBBits (mkHashRt c U w n_max base) = bWhp n_max := rfl
+  simp only [pure_bind, hbb]
   refine ⟨by rw [clientState_bind, hst]; rfl, ?_, ?_,
     validProg_bind hvp (hst ▸ validProg_pure _)⟩
   · rw [clientResult_bind, hst, hres, StateTransitionSpec.clientResult_pure]
-    apply Prod.ext
-    · unfold feistelBucket keyLow numBucketsWhp
-      rw [← hq_eq, Nat.and_two_pow_sub_one_eq_mod, Nat.and_two_pow_sub_one_eq_mod]
-    · exact hq_eq
+    refine Prod.ext ?_ hq_eq
+    dsimp only [mkHashRt, hrBBits, hrMaskBkt, feistelBucket, keyLow, numBucketsWhp]
+    rw [← hq_eq, Nat.and_two_pow_sub_one_eq_mod, Nat.and_two_pow_sub_one_eq_mod]
   · simpa only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, memoryCost_pure,
       Nat.add_zero] using hmc
 
@@ -633,13 +628,11 @@ private theorem feistelReconstructRtProg_spec {c U V w n_max base b q : ℕ} {θ
   obtain ⟨hst, hres, hmc, hvp⟩ := bktHashRtProg_spec (q := q) henv hseed (s := s)
   dsimp only
   unfold feistelReconstructRtProg
-  have hrt_eq : hrMaskBkt (mkHashRt c U w n_max base) = numBucketsWhp n_max - 1 ∧
-      hrBBits (mkHashRt c U w n_max base) = bWhp n_max := ⟨rfl, rfl⟩
-  simp only [pure_bind, hrt_eq.1, hrt_eq.2]
+  simp only [pure_bind]
   refine ⟨by rw [clientState_bind, hst]; rfl, ?_, ?_,
     validProg_bind hvp (hst ▸ validProg_pure _)⟩
   · rw [clientResult_bind, hst, hres, StateTransitionSpec.clientResult_pure]
-    unfold feistelReconstruct numBucketsWhp
+    dsimp only [mkHashRt, hrMaskBkt, hrBBits, feistelReconstruct, numBucketsWhp]
     rw [Nat.shiftLeft_eq, Nat.and_two_pow_sub_one_eq_mod, Nat.and_two_pow_sub_one_eq_mod]
   · simpa only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, memoryCost_pure,
       Nat.add_zero] using hmc

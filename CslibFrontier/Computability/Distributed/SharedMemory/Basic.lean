@@ -574,8 +574,7 @@ private theorem univalent_initConfig_const {π : Protocol P objs S Bool}
 theorem exists_bivalent_init [Fintype P] (π : Protocol P objs S Bool)
     (hcons : π.SolvesWaitFreeConsensus) (hcard : 2 ≤ Fintype.card P) :
     ∃ inp : P → Bool, π.IsBivalent (π.initConfig inp) := by
-  by_contra hnone
-  push Not at hnone
+  by_contra! hnone
   let n := Fintype.card P
   let e : P ≃ Fin n := Fintype.equivFin P
   have hn_pos : 0 < n := by omega
@@ -587,16 +586,14 @@ theorem exists_bivalent_init [Fintype P] (π : Protocol P objs S Bool)
   have huN : π.IsUnivalent (π.initConfig (inpK n)) true := by
     convert univalent_initConfig_const hcons p₀ true with p
     simp only [inpK, (e p).isLt, decide_true]
-  have huniv : ∀ k, π.IsUnivalent (π.initConfig (inpK k)) false ∨
+  have huniv (k : ℕ) : π.IsUnivalent (π.initConfig (inpK k)) false ∨
       π.IsUnivalent (π.initConfig (inpK k)) true := by
-    intro k
     obtain ⟨b, hb⟩ := π.exists_canDecide p₀ (hcons.waitFree (inpK k))
     cases b
     exacts [Or.inl ⟨hb, fun ht => hnone _ ⟨hb, ht⟩⟩, Or.inr ⟨hb, fun hf => hnone _ ⟨hf, hb⟩⟩]
   have hex_switch : ∃ k < n, π.IsUnivalent (π.initConfig (inpK k)) false ∧
       π.IsUnivalent (π.initConfig (inpK (k + 1))) true := by
-    by_contra hno_sw
-    push Not at hno_sw
+    by_contra! hno_sw
     have hall (k : ℕ) : k ≤ n → π.IsUnivalent (π.initConfig (inpK k)) false :=
       Nat.rec (fun _ => hu0) (fun k ih hk =>
         (huniv (k + 1)).resolve_right (hno_sw k hk (ih (by omega)))) k
@@ -625,17 +622,15 @@ theorem exists_critical_config (π : Protocol P objs S Bool)
       p ≠ q ∧
       π.IsUnivalent (π.step p cstar) false ∧
       π.IsUnivalent (π.step q cstar) true := by
-  have hex_crit : ∀ {c₀}, Acc π.StepRel c₀ → π.IsBivalent c₀ →
+  have hex_crit {c₀} (ha : Acc π.StepRel c₀) (hbiv₀ : π.IsBivalent c₀) :
       ∃ cstar, π.lts.CanReach c₀ cstar ∧ π.IsCritical cstar := by
-    intro c₀ ha hbiv₀
     induction ha with
     | intro c₀ _ ih =>
       by_cases hex : ∃ p, c₀.Active p ∧ π.IsBivalent (π.step p c₀)
       · obtain ⟨p, hact, hbiv'⟩ := hex
         obtain ⟨cstar, ⟨ps, hmtr⟩, hcrit⟩ := ih (π.step p c₀) ⟨p, hact, rfl⟩ hbiv'
         exact ⟨cstar, ⟨p :: ps, .stepL ⟨hact, rfl⟩ hmtr⟩, hcrit⟩
-      · push Not at hex
-        exact ⟨c₀, LTS.CanReach.refl _ _, hbiv₀, hex⟩
+      · exact ⟨c₀, LTS.CanReach.refl _ _, hbiv₀, fun p hp hb => hex ⟨p, hp, hb⟩⟩
   obtain ⟨cstar, hreach, hcrit⟩ := hex_crit (hr.acc hcons.waitFree) hbiv
   have hr_star : π.Reachable inp cstar := hr.trans hreach
   have hall_act : ∀ r, cstar.Active r := hcrit.1.active_all hcons hr_star

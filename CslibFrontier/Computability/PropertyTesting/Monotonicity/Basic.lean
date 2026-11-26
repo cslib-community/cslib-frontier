@@ -114,10 +114,7 @@ theorem monotone_iff_forall_update_le [Finite ι] [DecidableEq ι] {β : Type*} 
   rw [monotone_iff_forall_covBy]
   intro a b hab
   obtain ⟨i, c, hc, rfl⟩ := Pi.covBy_iff_exists_right_eq.1 hab
-  obtain ⟨ha, rfl⟩ : a i = false ∧ c = true := by
-    have hlt := hc.lt
-    revert hlt
-    cases a i <;> cases c <;> decide
+  obtain ⟨ha, rfl⟩ := Bool.lt_iff.1 hc.lt
   simpa [(update_eq_self_iff (f := a) (a := i)).2 ha.symm] using h a i
 
 variable [DecidableEq ι]
@@ -244,10 +241,7 @@ theorem violatedEdges_sortAlong_self (f : (ι → Bool) → Bool) (i : ι) :
     violatedEdges (sortAlong i f) i = ∅ := by
   refine eq_empty_iff_forall_notMem.2 fun x hx => ?_
   obtain ⟨hxi, h1, h2⟩ := mem_violatedEdges.1 hx
-  have hx' : update x i false = x := update_eq_self_iff.2 hxi.symm
-  rw [← hx', sortAlong_update_false, Bool.and_eq_true] at h1
-  rw [← hx', update_idem, sortAlong_update_true, h1.1, Bool.true_or] at h2
-  exact Bool.noConfusion h2
+  simp_all [sortAlong]
 
 /-- **The Key Claim** [Roughgarden, §8.3.1][Roughgarden2015CC]: sorting along any direction `i`
 does not increase the number of violated edges in any direction `j`. -/
@@ -376,9 +370,7 @@ theorem le_relDistMonotone_iff {f : (ι → Bool) → Bool} {ε : ℝ} :
     ε ≤ relDistMonotone f ↔
       ∀ g : (ι → Bool) → Bool, Monotone g → ε ≤ hammingDist f g / 2 ^ Fintype.card ι := by
   refine ⟨fun h g hg => h.trans ?_, fun h => ?_⟩
-  · rw [relDistMonotone]
-    gcongr
-    exact_mod_cast distMonotone_le hg
+  · exact div_le_div_of_nonneg_right (Nat.cast_le.2 (distMonotone_le hg)) (by positivity)
   · obtain ⟨g, hg, hfg⟩ := exists_monotone_hammingDist_eq_distMonotone f
     simpa [relDistMonotone, hfg] using h g hg
 

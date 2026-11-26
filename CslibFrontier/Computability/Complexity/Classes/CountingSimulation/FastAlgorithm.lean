@@ -114,10 +114,8 @@ private theorem exists_pow_ten_le (C : ℕ) : ∃ L₀, ∀ L, L₀ ≤ L → (C
   refine ⟨L₀, fun L hL => ?_⟩
   have h := (div_lt_div_iff₀ (by positivity) (by positivity)).1 (hL₀ L hL)
   have hL10 : (0 : ℝ) ≤ (L : ℝ) ^ 10 := by positivity
-  exact_mod_cast (show ((C * L) ^ 10 : ℕ) ≤ ((2 ^ (9 * L) : ℕ) : ℝ) by
-    push_cast
-    rw [mul_pow, pow_mul]
-    nlinarith)
+  have hL : ((C * L) ^ 10 : ℝ) ≤ (2 ^ (9 * L) : ℝ) := by rw [mul_pow, pow_mul]; nlinarith
+  exact_mod_cast hL
 
 /-- **Admissible networks failing the guard are small.** For every `C` there is `s₀` such that a
 network admissible at size `s` with constant `C` that fails `fastGuard` has `s ≤ s₀`. -/
@@ -426,27 +424,10 @@ theorem fastCertificate_le
       K₂ * 2 ^ (C * s₀) * B ^ K₂ :=
     hdS.trans (le_of_le_of_eq (Nat.le_mul_of_pos_right _ (Nat.one_le_two_pow (n := C * s₀)))
       (by ring))
-  have hrest : ((scheme tableEntry mk).run fuel root (ExplicitTensorNetwork.capPrecision q)).elim
-        (ExplicitTensorNetwork.directContractionBinaryCertificate.time q) (fun v =>
-          (NativeCertificate.ofPolyTime tag_polyTime).time (q, v) +
-            if decide (v.1 = 0) = true then
-              (NativeCertificate.ofPolyTime decode_polyTime).time (q, v)
-            else (NativeCertificate.ofPolyTime
-                (ComputableInPolyTime.fst FastContraction.encInput encValue)).time (q, v) +
-              ExplicitTensorNetwork.directContractionBinaryCertificate.time q) +
-      ((scheme tableEntry mk).run fuel root (ExplicitTensorNetwork.capPrecision q)).elim
-        (ExplicitTensorNetwork.directContractionBinaryCertificate.space q) (fun v =>
-          (NativeCertificate.ofPolyTime tag_polyTime).space (q, v) +
-            if decide (v.1 = 0) = true then
-              (NativeCertificate.ofPolyTime decode_polyTime).space (q, v)
-            else (NativeCertificate.ofPolyTime
-                (ComputableInPolyTime.fst FastContraction.encInput encValue)).space (q, v) +
-              ExplicitTensorNetwork.directContractionBinaryCertificate.space q) ≤
-      2 * (c₂ * (Ka + 2) ^ d₂) * B ^ ((Ka + 1) * d₂) + 2 * (K₂ * 2 ^ (C * s₀)) * B ^ K₂ := by
-    rw [Nat.mul_assoc 2, Nat.mul_assoc 2]
-    exact outputStep_le (fun _ => Scheme.value_of_run_eq_some he)
-      (fun v hv => le_of_le_encPair (h₂ (q, v)) hB (hvalue v hv) (by omega))
-      (fun h => Scheme.run_eq_some he (hN h)) hdir hdirS
+  have hrest := outputStep_le (fun _ => Scheme.value_of_run_eq_some he)
+    (fun v hv => le_of_le_encPair (Ka := Ka) (h₂ (q, v)) hB (hvalue v hv) (by omega))
+    (fun h => Scheme.run_eq_some he (hN h)) hdir hdirS
+  rw [← Nat.mul_assoc 2 (c₂ * _), ← Nat.mul_assoc 2 (K₂ * _)] at hrest
   simp only [fastCertificate_time, fastCertificate_space, runCertificate]
   exact (hK (n := (FastContraction.encInput q).length)
     (pre := 2 * (NativeCertificate.ofPolyTime ExplicitTensorNetwork.capPrecision_polyTime).time q)

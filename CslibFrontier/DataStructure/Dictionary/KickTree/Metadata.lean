@@ -362,8 +362,7 @@ theorem delimiters_length_eq_totalBits (A : MiniArray α K) (sizeOf : α → ℕ
 
 private lemma filter_id_replicate_false_concat_true (s : ℕ) :
     ((List.replicate s false).concat true).filter id = [true] := by
-  rw [List.concat_eq_append, List.filter_append, List.filter_replicate_of_neg (by decide)]
-  rfl
+  simp [List.concat_eq_append]
 
 /-- Delimiter count: the total number of delimiter 1-bits across all `K` items is exactly `K`. -/
 theorem delimiters_count_delimiters (A : MiniArray α K) (sizeOf : α → ℕ) :
@@ -465,8 +464,7 @@ private lemma insert?_cons (b : Bool) {val : α} {t t' : PrefixTrie α} {bs : Li
 through `.branch l r`. -/
 theorem query_pruneBranch (l r : PrefixTrie α) (k : List Bool) :
     query (pruneBranch l r) k = query (.branch l r) k := by
-  cases l <;> cases r <;> try rfl
-  rcases k with _ | ⟨⟨⟩, _⟩ <;> rfl
+  cases l <;> cases r <;> rcases k with _ | ⟨⟨⟩, _⟩ <;> rfl
 
 /-- Delete a prefix from the prefix trie, removing the target leaf and contracting
 empty branches back to `.empty`. -/
@@ -710,9 +708,7 @@ theorem freeSlot_preserves_valid {h : ℕ} (t : FreeSlotTree B h) (idx : ℕ) (h
 theorem isFree_lt : ∀ {h : ℕ} (t : FreeSlotTree B h) (i : ℕ),
     isFree t i = true → i < B ^ (h + 1)
   | 0, .leaf freeBits, i, hfree => by
-    simp only [isFree] at hfree
-    split_ifs at hfree with hlt
-    simpa using hlt
+    by_cases hlt : i < B <;> simp [isFree, hlt] at hfree ⊢
   | h + 1, .node _ _ children, i, hfree => by
     simp only [isFree] at hfree
     split_ifs at hfree with hstride hc
@@ -727,12 +723,7 @@ private theorem isFree_node_mul_add {h : ℕ} (summary : Fin B → Bool)
     rw [Nat.add_comm, Nat.add_mul_div_right _ _ (by omega), Nat.div_eq_of_lt hoff, Nat.zero_add]
   have hmod : (c.val * B ^ (h + 1) + off) % B ^ (h + 1) = off := by
     rw [Nat.add_comm, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hoff]
-  simp only [isFree]
-  split_ifs with h0 hc'
-  · omega
-  · have hc_eq : (⟨_, hc'⟩ : Fin B) = c := Fin.ext hdiv
-    rw [hc_eq, hmod]
-  · exact (hc' (hdiv.symm ▸ c.isLt)).elim
+  simp [isFree, c.pos.ne', hdiv, hmod, c.isLt]
 
 /-- Full-tree soundness of free-slot lookup: any slot index returned by `findFree?`
 is genuinely free. -/

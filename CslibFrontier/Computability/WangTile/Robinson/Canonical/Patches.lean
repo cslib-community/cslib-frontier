@@ -186,13 +186,11 @@ theorem supertile_validShadeRectangle (level : Nat) (root : Node) :
     ShadeValidOn
       (supertileIndexGrid level root) (supertileShadeGrid level root)
       (2 * 4 ^ level) (2 * 4 ^ level) := by
-  constructor
-  · intro x y hx hy
-    simpa [supertileIndexGrid, supertileShadeGrid, quadrantAt, Nat.mod_mod] using
+  refine ⟨fun x y hx hy => ?_, fun x y hx hy => ?_, fun x y hx hy => ?_⟩
+  · simpa [supertileIndexGrid, supertileShadeGrid, quadrantAt, Nat.mod_mod] using
       (supertileNodeGrid level root (x / 2) (y / 2)).block_allowed
         ⟨x % 2, Nat.mod_lt _ (by decide)⟩ ⟨y % 2, Nat.mod_lt _ (by decide)⟩
-  · intro x y hx hy
-    refine adjacent_pairs (fun a b : ShadeState => a.east = b.west)
+  · refine adjacent_pairs (fun a b : ShadeState => a.east = b.west)
       (fun i r => (supertileNodeGrid level root i (y / 2)).block.at r (y % 2))
       (n := 4 ^ level) ?_ ?_ hx
     · intro i _
@@ -204,8 +202,7 @@ theorem supertile_validShadeRectangle (level : Nat) (root : Node) :
       simp only [ShadeBlock.hMatches, ShadeBlock.at, Bool.and_eq_true, decide_eq_true_eq,
         one_ne_zero, ↓reduceIte] at blockMatch
       rcases Nat.mod_two_eq_zero_or_one y with hy | hy <;> simp [ShadeBlock.at, hy, blockMatch]
-  · intro x y hx hy
-    refine adjacent_pairs (fun a b : ShadeState => a.north = b.south)
+  · refine adjacent_pairs (fun a b : ShadeState => a.north = b.south)
       (fun i r => (supertileNodeGrid level root (x / 2) i).block.at (x % 2) r)
       (n := 4 ^ level) ?_ ?_ hy
     · intro i _
@@ -254,9 +251,8 @@ theorem nextInterior_eq_of_no_opposite_before
   induction distance : border - position generalizing position with
   | zero =>
       obtain rfl : position = border := by omega
-      obtain ⟨fuel, fuelEq⟩ :=
-        Nat.exists_eq_succ_of_ne_zero (Nat.sub_ne_zero_of_lt borderBeforeEnd)
-      simp [fuelEq, nextInterior, selected]
+      obtain ⟨fuel, hfuel⟩ : ∃ f, length - position = f + 1 := ⟨length - position - 1, by omega⟩
+      simp [hfuel, nextInterior, selected]
   | succ distance ih =>
       have fuelEq : length - position = length - (position + 1) + 1 := by omega
       rw [fuelEq]

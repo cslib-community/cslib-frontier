@@ -320,14 +320,11 @@ private theorem historyAfter_congr_of_gt {σ₁ σ₁' σ₂ σ₂' : PDStrategy
     (h₁ : ∀ h', n < h'.length → σ₁' h' = σ₁ h')
     (h₂ : ∀ h', n < h'.length → σ₂' h' = σ₂ h') :
     ∀ t (h : PDHistory), n < h.length →
-      historyAfter σ₁' σ₂' h t = historyAfter σ₁ σ₂ h t := by
-  intro t
-  induction t with
-  | zero => intro _ _; rfl
-  | succ t ih =>
-    intro h hn
+      historyAfter σ₁' σ₂' h t = historyAfter σ₁ σ₂ h t
+  | 0, _, _ => rfl
+  | t + 1, h, hn => by
     simp only [historyAfter, h₁ h hn, h₂ h hn]
-    exact ih _ (by simp [List.length_append]; omega)
+    exact historyAfter_congr_of_gt h₁ h₂ t _ (by simp [List.length_append]; omega)
 
 private theorem roundAt_congr_of_gt {σ₁ σ₁' σ₂ σ₂' : PDStrategy} {n : ℕ}
     (h₁ : ∀ h', n < h'.length → σ₁' h' = σ₁ h')
@@ -462,15 +459,13 @@ for `0 ≤ δ < 1`, `(grim, grim)` is a subgame-perfect Nash equilibrium if and 
 theorem isSPNE_grim_iff {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) :
     IsSPNE δ grim grim ↔ 1 / 2 ≤ δ := by
   rw [isSPNE_iff_noOneShotDev hδ₀ hδ₁]
-  constructor
-  · intro h
-    have hosd := h.1 [] .defect
+  refine ⟨fun h => ?_, fun hδ => ?_⟩
+  · have hosd := h.1 [] .defect
     rw [contPayoff₁_grim hδ₀ hδ₁, contPayoff₁_grim hδ₀ hδ₁] at hosd
     simp only [grim, allCooperated, List.nil_append, List.all_nil, List.all_cons, reduceCtorEq,
       false_and, decide_false, Bool.and_true, Bool.false_eq_true, ↓reduceIte, pdPayoff] at hosd
     linarith
-  · intro hδ
-    refine noOneShotDev_of_swapStrategy swapStrategy_grim swapStrategy_grim fun h a => ?_
+  · refine noOneShotDev_of_swapStrategy swapStrategy_grim swapStrategy_grim fun h a => ?_
     rw [contPayoff₁_grim hδ₀ hδ₁ h, contPayoff₁_grim hδ₀ hδ₁, allCooperated_snoc]
     cases hc : allCooperated h <;> cases a <;>
       simp only [grim, hc, Bool.false_and, Bool.true_and, and_self, and_false, false_and,
@@ -564,8 +559,7 @@ private theorem contPayoff₁_titForTat_some {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ
       rw [roundAt_titForTat_of_getLast (List.getLast?_concat ..) t,
         roundAt_titForTat_of_getLast hl t])
   rw [h2, hper] at h1
-  have h1δ : 1 + δ ≠ 0 := by linarith
-  field_simp [h1δ]
+  field_simp
   nlinarith
 
 private theorem swapStrategy_titForTat₁ : swapStrategy titForTat₁ = titForTat₂ := by
@@ -785,14 +779,12 @@ theorem pyd_incentive_iff {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) :
           (1 - δ) * pdPayoff (pydAction s partner) (pydAction partner s) +
             δ * pydContValue δ (pydNextStanding s partner (pydAction s partner) false)) ↔
       1 / 2 ≤ δ := by
-  constructor
-  · intro h
-    have hdev := h .goodVeteran (by simp) .goodVeteran .defect true
+  refine ⟨fun h => ?_, fun hδ s hs partner a w => ?_⟩
+  · have hdev := h .goodVeteran (by simp) .goodVeteran .defect true
     simp only [pydAction, pydNextStanding, ↓reduceIte, Bool.false_eq_true, ne_eq, reduceCtorEq,
       not_false_eq_true, and_self, pydContValue, pdPayoff] at hdev
     nlinarith
-  · intro hδ s hs partner a w
-    rcases hs with rfl | rfl <;>
+  · rcases hs with rfl | rfl <;>
       cases partner <;> cases a <;> cases w <;>
       simp only [pydAction, pydNextStanding, pydContValue, pdPayoff, ↓reduceIte,
         Bool.false_eq_true, ne_eq, reduceCtorEq, not_false_eq_true, and_self, and_false] <;>

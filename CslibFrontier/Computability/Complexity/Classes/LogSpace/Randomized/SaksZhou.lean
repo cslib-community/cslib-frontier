@@ -95,10 +95,7 @@ private theorem exists_smul_configMatrix_mul_card_eq {V : Finset (FiniteCfg k Bo
   have hpow : Fintype.card (BitString (2 * m)) = 2 * 2 ^ (2 * m - 1) := by
     rw [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, ← pow_succ',
       Nat.sub_add_cancel (by omega)]
-  have hentry : machine.configMatrix ℝ V x y = (cnt : ℝ) := by
-    simp only [configMatrix, Matrix.coinStepMatrix, cnt, Nat.cast_sum, Nat.cast_ite, Nat.cast_one,
-      Nat.cast_zero]
-  rw [Matrix.smul_apply, smul_eq_mul, hentry, hpow]
+  simp only [Matrix.smul_apply, smul_eq_mul, configMatrix, Matrix.coinStepMatrix, cnt, hpow]
   push_cast; ring
 
 open scoped Classical in
@@ -140,11 +137,9 @@ theorem dens_saksZhouAcceptEst_far_le {input : List Bool} {V : Finset (FiniteCfg
       s * (ε + V.card ^ 2 * (2 ^ d * ε + (2 ^ d)⁻¹)) := by
   classical
   let P : Matrix V V ℝ := (2 : ℝ)⁻¹ • machine.configMatrix ℝ V
-  have h0 : ∀ x y, 0 ≤ P x y := smul_configMatrix_nonneg machine V
-  have h1 : ∀ x, ∑ y, P x y ≤ 1 := fun x => (sum_smul_configMatrix_eq_one machine hV x).le
-  have hM : ∀ x y, ∃ c : ℕ, P x y * Fintype.card (BitString (2 * m)) = c :=
-    exists_smul_configMatrix_mul_card_eq machine hm
-  have hsz := dens_snapIter_bitNisanPow_far_le d m s s hs hdm h0 h1 hM hε
+  have hsz := dens_snapIter_bitNisanPow_far_le d m s s hs hdm
+    (smul_configMatrix_nonneg machine V) (fun x => (sum_smul_configMatrix_eq_one machine hV x).le)
+    (exists_smul_configMatrix_mul_card_eq machine hm) hε
     (by simpa only [Fintype.card_coe] using herr)
   have hacc : (machine.acceptCoins input (2 ^ (s * s)) : ℝ) / 2 ^ (2 ^ (s * s)) =
       (P ^ 2 ^ (s * s) *ᵥ FiniteCfg.acceptVec ℝ V) ⟨_, hinit⟩ :=
@@ -336,8 +331,6 @@ theorem exists_saksZhouSeeds_of_mem_BPL (h : A ∈ BPL enc) :
     dsimp only [polyClock, R]
     rw [Nat.mul_comm clk, pow_add, pow_one, mul_comm _ 2, pow_mul]
     exact Nat.mul_le_mul_left 2 (Nat.pow_le_pow_left hm_lt clk)
-  have hm1 : 1 ≤ m := by omega
-  have hdm : d ≤ 2 * m := by omega
   have hL : M.toNTM.RunsInTime (enc a) (2 ^ (s * s)) :=
     ((MultiTapeNTM.runsInTime_of_runsInSpace hs ht).mono hpoly).mono
       (hT.trans (Nat.pow_le_pow_right (by decide) (Nat.lt_succ_sqrt R).le))
@@ -350,7 +343,9 @@ theorem exists_saksZhouSeeds_of_mem_BPL (h : A ∈ BPL enc) :
     obtain ⟨herr_nisan, herr_bad⟩ :=
       saksZhou_badSeed_density_le R d m s V.card (Nat.succ_pos _ : 1 ≤ R) rfl rfl rfl hVcard
     have hfar := M.dens_saksZhouAcceptEst_far_le hV hinit (Nat.succ_pos _ : 1 ≤ s)
-      hm1 hdm (by positivity) herr_nisan
+      (Nat.succ_pos _)
+      ((Nat.le_mul_of_pos_left d (by decide : 0 < 5)).trans (Nat.le_mul_of_pos_left m two_pos))
+      (by positivity) herr_nisan
     refine (NNRat.cast_le.2 (Finset.dens_le_dens fun p hp => ?_)).trans (hfar.trans herr_bad)
     simp only [bad, Finset.mem_filter, Finset.mem_univ, true_and] at hp ⊢
     exact herr_step.trans_lt hp

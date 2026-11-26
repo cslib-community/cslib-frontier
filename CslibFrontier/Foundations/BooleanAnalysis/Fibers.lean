@@ -415,11 +415,9 @@ theorem expect_resample_subset_le (X : Finset (ι → Bool)) {f : (ι → Bool) 
     (hf : ∀ x, 0 ≤ f x) (P : ι → Bool) :
     (𝔼 x ∈ X, 𝔼 y, f (resample P x y)) ≤ (∑ z, f z) / (X.card : ℝ) := by
   rw [expect_eq_sum_div_card]
-  have hs : (∑ x ∈ X, 𝔼 y, f (resample P x y)) ≤ ∑ x, 𝔼 y, f (resample P x y) :=
-    sum_le_sum_of_subset_of_nonneg (subset_univ X)
-      (fun x _ _ => expect_nonneg (fun y _ => hf _))
-  rw [← Fintype.card_mul_expect, expect_resample, Fintype.card_mul_expect] at hs
-  exact div_le_div_of_nonneg_right hs (by positivity)
+  refine div_le_div_of_nonneg_right ?_ (Nat.cast_nonneg _)
+  rw [← Fintype.card_mul_expect, ← expect_resample f P, Fintype.card_mul_expect]
+  exact sum_le_sum_of_subset_of_nonneg (subset_univ X) fun _ _ _ => expect_nonneg fun _ _ => hf _
 
 /-- The density of the fiber of `X` over the coordinates of `x` outside `s` is the projection of
 the indicator of `X` to the coordinates outside `s`. -/
@@ -457,10 +455,8 @@ theorem expect_log_card_fiber {α β : Type*} [Fintype β] [Nonempty β] [Decida
   have hN : (0 : ℝ) < X.card := by exact_mod_cast card_pos.mpr hX
   have h := Real.sum_mul_log_div_card_le univ (x := m) (fun _ _ => Nat.cast_nonneg _)
   rw [card_univ, hsum, Real.log_div hN.ne' (Nat.cast_ne_zero.mpr Fintype.card_ne_zero)] at h
-  have he : (∑ x ∈ X, Real.log (X.filter (fun y => g y = g x)).card) =
-      ∑ b, m b * Real.log (m b) := by
-    simp [← sum_fiberwise' X g (fun b => Real.log (m b)), m]
-  rw [expect_eq_sum_div_card, he, le_div_iff₀ hN]
+  rw [expect_eq_sum_div_card, ← sum_fiberwise' X g (fun b => Real.log (m b)), le_div_iff₀ hN]
+  simp only [sum_const, nsmul_eq_mul, m] at h ⊢
   nlinarith
 
 /-- Korten's entropy lemma (Lemma 4): conditioning on the unselected bits
@@ -471,9 +467,8 @@ theorem expect_uniformDeficit_coordinateFiber {ι : Type*} [Fintype ι] [Decidab
   have h := expect_log_card_fiber X hX (fun x (i : {i // s i ≠ true}) => x i)
   have hl : 0 < Real.log 2 := Real.log_pos (by norm_num)
   have hc : (Fintype.card {i // s i = true} : ℝ) + Fintype.card {i // s i ≠ true} =
-      Fintype.card ι := by
-    rw [← Nat.cast_add, Fintype.card_subtype_compl,
-      Nat.add_sub_of_le (Fintype.card_subtype_le _)]
+      Fintype.card ι := mod_cast Fintype.card_subtype_compl (fun i : ι => s i = true) ▸
+        Nat.add_sub_of_le (Fintype.card_subtype_le _)
   have hd := div_le_div_of_nonneg_right h hl.le
   simp only [Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat,
     Real.log_pow, sub_div, mul_div_cancel_right₀ _ hl.ne'] at hd

@@ -117,8 +117,8 @@ theorem majorityPrefers_iff_card_lt_two_mul {P : Profile V A} {a b : A} (hab : a
 
 theorem majorityPrefers_of_forall [Nonempty V] {P : Profile V A} {a b : A}
     (h : ∀ i, (P i).Prefers a b) : MajorityPrefers P a b := by
-  simp only [MajorityPrefers, support_eq_card_of_forall h, support_eq_zero_of_forall h]
-  exact Fintype.card_pos
+  simpa [MajorityPrefers, support_eq_zero_of_forall h, support_eq_card_of_forall h] using
+    Fintype.card_pos
 
 /-- Alternative `a` is a **Condorcet winner** of `P` if a strict majority of voters prefers `a` to
 every other alternative. -/
@@ -419,12 +419,10 @@ theorem not_isCondorcetConsistent_plurality [Finite A] [Nonempty A] (hV : 3 ≤ 
   have : Nonempty V := Fintype.card_pos_iff.1 (by omega)
   let m := t.top
   -- Pick two distinct alternatives `w, y` distinct from `m`.
-  obtain ⟨w, y, hwm, hym, hwy⟩ : ∃ w y : A, w ≠ m ∧ y ≠ m ∧ w ≠ y := by
-    by_cases ha : a₀ = m
-    · exact ha ▸ ⟨b₀, c₀, hab₀.symm, hac₀.symm, hbc₀⟩
-    · by_cases hb : b₀ = m
-      · exact hb ▸ ⟨a₀, c₀, hab₀, hbc₀.symm, hac₀⟩
-      · exact ⟨a₀, b₀, ha, hb, hab₀⟩
+  obtain ⟨w, y, hwm, hym, hwy⟩ : ∃ w y : A, w ≠ m ∧ y ≠ m ∧ w ≠ y :=
+    if ha : a₀ = m then ⟨b₀, c₀, ha ▸ hab₀.symm, ha ▸ hac₀.symm, hbc₀⟩
+    else if hb : b₀ = m then ⟨a₀, c₀, hb ▸ hab₀, hb ▸ hbc₀.symm, hac₀⟩
+    else ⟨a₀, b₀, ha, hb, hab₀⟩
   let e := Fintype.equivFin V
   let n := Fintype.card V
   let k := (n - 1) / 2
@@ -466,14 +464,12 @@ theorem not_isCondorcetConsistent_plurality [Finite A] [Nonempty A] (hV : 3 ≤ 
   have htop_m : (pluralityRanking P t).IsTop m := fun x hxm => by
     rw [pluralityRanking_prefers, hcnt m, hcnt x]
     simp only [↓reduceIte, hym.symm, hwm.symm, add_zero]
-    by_cases hxy : x = y
-    · simp only [hxy, hym, hwy.symm, ↓reduceIte]
-      exact .inr ⟨by omega, t.isTop_top y hym⟩
-    by_cases hxw : x = w
-    · simp only [hxw, hwm, hwy, ↓reduceIte, zero_add]
-      exact (lt_or_eq_of_le (by omega)).imp_right fun h => ⟨h.symm, t.isTop_top w hwm⟩
-    · simp only [hxm, hxy, hxw, ↓reduceIte]
-      exact .inl (by omega)
+    rcases eq_or_ne x y with rfl | hxy
+    · simpa [hym, hwy.symm] using t.isTop_top x hym
+    rcases eq_or_ne x w with rfl | hxw
+    · simpa [hwm, hwy] using
+        (lt_or_eq_of_le (by omega)).imp_right fun h => ⟨h.symm, t.isTop_top x hwm⟩
+    · simp [hxm, hxy, hxw]; omega
   exact fun hcc => hwm ((hcc P w hcw).symm.trans (plurality_eq_of_isTop t htop_m))
 
 end SocialChoiceFunction

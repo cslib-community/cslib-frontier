@@ -149,8 +149,7 @@ private theorem isLog_swap {A : ι → Set (∀ v, α v)}
   | [], v, h => isLog_swap_cons vbl hA hab h
   | c :: u, v, h => by
     rw [List.cons_append, isLog_cons] at h ⊢
-    rw [← current_append_swap vbl T u v a b]
-    exact ⟨h.1, isLog_swap hA hab u v h.2⟩
+    exact ⟨current_append_swap vbl T u v a b ▸ h.1, isLog_swap hA hab u v h.2⟩
 
 private noncomputable def canonList (S : Finset (ι × ℕ)) : List ι :=
   (S.toList.mergeSort (fun a b => decide (a.2 ≤ b.2))).map Prod.fst
@@ -181,9 +180,7 @@ private theorem traceSteps_length (S₀ : Finset (ι × ℕ)) (w : List ι) :
     (traceSteps R S₀ w).length = w.length := by
   induction w generalizing S₀ with
   | nil => simp [traceSteps]
-  | cons j w ih =>
-    simp only [traceSteps]
-    split_ifs <;> simp [ih]
+  | cons j w ih => by_cases h0 : levelRel R j S₀ = 0 <;> simp [traceSteps, h0, ih]
 
 private theorem traceSteps_append (S₀ : Finset (ι × ℕ)) (u v : List ι) :
     traceSteps R S₀ (u ++ v) = traceSteps R S₀ u ++ traceSteps R (foldPush R S₀ u) v := by
@@ -324,9 +321,8 @@ private theorem phase1_elim_none {A : ι → Set (∀ v, α v)}
   · match h : (traceSteps R {(i, 0)} w).allSome with
     | none => exact (hnone (List.allSome_eq_none_iff.mp h)).elim
     | some L =>
-      refine ⟨w, hlog, rfl, L, ?_⟩
-      rw [← List.forall₂_eq_eq_eq, List.forall₂_map_right_iff]
-      exact List.allSome_eq_some_iff_forall₂.mp h
+      exact ⟨w, hlog, rfl, L,
+        by simpa [← List.forall₂_eq_eq_eq] using List.allSome_eq_some_iff_forall₂.mp h⟩
 termination_by w.length
 
 private theorem phase2_sort_perm {A : ι → Set (∀ v, α v)}
@@ -495,9 +491,8 @@ theorem table_isLog_eq_prod (A : ι → Set (∀ v, α v)) (hAm : ∀ i, Measura
   | [] => by simp [isLog_nil]
   | j :: w => by
     have heq : {T : ∀ p : V × ℕ, α p.1 | IsLog vbl A T (j :: w)} =
-        (fun T v => T (v, uses vbl w v)) ⁻¹' A j ∩ {T | IsLog vbl A T w} := by
-      ext T
-      simp [isLog_cons, funext (current_apply vbl T w)]
+        (fun T v => T (v, uses vbl w v)) ⁻¹' A j ∩ {T | IsLog vbl A T w} :=
+      Set.ext fun T => by simp [isLog_cons, funext (current_apply vbl T w)]
     have hd1 : DependsOn
         (· ∈ (fun (T : ∀ p : V × ℕ, α p.1) v => T (v, uses vbl w v)) ⁻¹' A j)
         (((vbl j).image fun v => (v, uses vbl w v)) : Set (V × ℕ)) := fun T T' h =>
@@ -508,9 +503,8 @@ theorem table_isLog_eq_prod (A : ι → Set (∀ v, α v)) (hAm : ∀ i, Measura
       (measurable_read (fun v => uses vbl w v) (hAm j)) (measurableSet_isLog vbl A hAm w)
       hd1 (isLog_dependsOn vbl A hA w) (disjoint_stepCoords vbl j w)
     rw [heq, table_def, hind.measure_inter_eq_mul, ← table_def, List.map_cons, List.prod_cons,
-      table_isLog_eq_prod A hAm hA w]
-    congr 1
-    rw [← Measure.map_apply (measurable_read _) (hAm j), table_map_read]
+      table_isLog_eq_prod A hAm hA w, ← Measure.map_apply (measurable_read _) (hAm j),
+      table_map_read]
 
 private theorem table_canonList_eq_prod (A : ι → Set (∀ v, α v)) (hAm : ∀ i, MeasurableSet (A i))
     (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V)) (S : Finset (ι × ℕ)) :

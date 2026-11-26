@@ -487,13 +487,8 @@ private theorem computeHashTargetProg_epoch {w U N hdrBase dstMetaBase : ℕ} {s
   have hq_le : quotientBits U N ≤ w := (le_max_left _ 1).trans hw0_le
   obtain ⟨hv_tg, hst_tg, hres_tg, hc_tg⟩ :=
     computeHashTargetProg_exec (s := s) hq_le hlogN_lt hhdr h225
-  have h3b_eq : (Nat.log 2 N + 1) * 3 = 3 * epochHashB N := by
-    simp only [epochHashB, totalMicroBits_eq_log]; ring
-  have hB_eq : max (min (epochQBits U N) (3 * epochHashB N)) (max (Nat.log 2 N) 1) =
-      reducedTargetBits (epochQBits U N) (epochHashB N) (totalMicroBits N) := by
-    simp only [reducedTargetBits, totalMicroBits_eq_log]
-  change _ = (epochQBits U N, (min (epochQBits U N) ((Nat.log 2 N + 1) * 3), _)) at hres_tg
-  rw [h3b_eq, hB_eq] at hres_tg
+  simp only [t, epochHashB, reducedTrinomialStep, reducedTargetBits, totalMicroBits_eq_log,
+    mul_comm _ 3] at hres_tg ⊢
   exact ⟨⟨hq_le, hlogN_lt, hhdr, h225⟩, hv_tg, hst_tg, hres_tg, hc_tg⟩
 
 /-- Functional specification and `≤ 7 * N + 20` cost bound for `computeHashCoreProg`. -/
@@ -519,9 +514,7 @@ theorem computeHashCoreProg_exec {w U N hdrBase dstMetaBase : ℕ} {s : Memory.S
   have hlog_le_N : Nat.log 2 N ≤ N := Nat.log_le_self 2 N
   have ht_le_N3 : t ≤ 3 * N + 3 :=
     (Cslib.DataStructure.HashFamily.WordRAM.KWise.trinomialStepAux_le _).trans (by omega)
-  dsimp only [t] at hc_sh
-  change 2 * reducedChunkBits (reducedTrinomialStep (epochQBits U N) (epochHashB N)
-    (totalMicroBits N)) ≤ N + 8 at h2c_le
+  dsimp only [t] at hc_sh h2c_le ht_le_N3
   dsimp only [d, computeHashCoreProg]
   rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
     Realization.memoryCost_bind', hst_tg, hres_tg]
@@ -547,10 +540,9 @@ theorem realizesBounded_computeHashCore :
     obtain ⟨hpre_tg, _, hst_tg, hres_tg, _⟩ :=
       computeHashTargetProg_epoch (s := s) hw hN hNU hU hhdr hfit_dst)
   · exact hpre_tg
-  · have h225 : Fits w 225 := fits_const_of_offCompItems hfit_dst le_rfl
-    obtain ⟨_, _, _, _, hc_lt, _, _, _, _, _, _⟩ :=
+  · obtain ⟨_, _, _, _, hc_lt, _, _, _, _, _, _⟩ :=
       computeHashCore_arith hw hN hNU hU hfit_dst
     rw [hst_tg, hres_tg]; dsimp only
-    exact ⟨hw, rfl, hhdr, hc_lt, h225⟩
+    exact ⟨hw, rfl, hhdr, hc_lt, fits_const_of_offCompItems hfit_dst le_rfl⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct.ParamsComputeAux

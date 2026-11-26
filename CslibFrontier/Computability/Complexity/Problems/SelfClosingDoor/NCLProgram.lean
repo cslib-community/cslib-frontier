@@ -371,12 +371,11 @@ private theorem raw_sound {x : Input} (hx : x.graph.Valid)
     (ht : x.target.length = x.graph.edgeCount)
     (hinitial : x.graph.graph.Legal (x.graph.config x.initial))
     (h : (raw x).Accepts) : Origin x x.target := by
-  obtain ⟨t, hrun, htarget⟩ := h
-  refine good_accept ?_ htarget
-  clear htarget
-  induction hrun with
-  | refl => exact ⟨rfl, Or.inl ⟨rfl, .refl⟩⟩
-  | tail _ hm ih => exact step_good hx hlen (ht.trans hlen.symm) hinitial ih hm
+  have hg {t} (hrun : (raw x).Reachable (raw x).initialState t) : Good x t := by
+    induction hrun with
+    | refl => exact ⟨rfl, Or.inl ⟨rfl, .refl⟩⟩
+    | tail _ hm ih => exact step_good hx hlen (ht.trans hlen.symm) hinitial ih hm
+  exact h.elim fun _ ⟨hrun, htarget⟩ => good_accept (hg hrun) htarget
 
 private theorem branch_mem {x : Input} {v k p : ℕ}
     (hv : v < x.graph.vertices.length) (hk : k < 8) (hp : p < 3)
@@ -423,13 +422,11 @@ private theorem run_checks {x : Input} (hx : x.graph.Valid)
     (hs : s.length = x.initial.length) (hlegal : x.graph.graph.Legal (x.graph.config s)) :
     (raw x).Reachable ⟨check 0, s⟩ ⟨check x.graph.vertices.length, s⟩ := by
   have hall := List.all_eq_true.1 ((x.graph.checkLegal_eq_true_iff hx.1 s).2 hlegal)
-  suffices ∀ v ≤ x.graph.vertices.length, (raw x).Reachable ⟨check 0, s⟩ ⟨check v, s⟩ from
-    this _ le_rfl
-  intro v hv
-  induction v with
-  | zero => exact .refl
-  | succ v ih =>
-    exact (ih (by omega)).trans (run_vertex hx hlen hs (by omega) (hall _ (vertex_mem (by omega))))
+  have hrun : ∀ v ≤ x.graph.vertices.length, (raw x).Reachable ⟨check 0, s⟩ ⟨check v, s⟩ :=
+    Nat.rec (fun _ => .refl) fun v ih hv =>
+      (ih (Nat.le_of_succ_le hv)).trans
+        (run_vertex hx hlen hs (Nat.lt_of_succ_le hv) (hall _ (vertex_mem (Nat.lt_of_succ_le hv))))
+  exact hrun _ le_rfl
 
 private theorem run_source_step {x : Input} (hx : x.graph.Valid)
     (hlen : x.initial.length = x.graph.edgeCount) {s t : List Bool}
@@ -450,16 +447,13 @@ private theorem run_source_step {x : Input} (hx : x.graph.Valid)
 private theorem run_target {x : Input} (ht : x.target.length = x.initial.length) :
     (raw x).Reachable ⟨0, x.target⟩ ⟨1, x.target⟩ := by
   have hrun : ∀ i ≤ x.target.length,
-      (raw x).Reachable ⟨target x 0, x.target⟩ ⟨target x i, x.target⟩ := by
-    intro i hi
-    induction i with
-    | zero => exact .refl
-    | succ i ih =>
-      have hib : i < x.target.length := by omega
-      refine (ih (by omega)).tail (test_step ?_ ht hib rfl)
-      simp only [raw, List.mem_append]
-      exact Or.inr <| List.mem_map.2 ⟨(x.target.getD i false, i),
-        List.mem_zipIdx_iff_getElem?.2 (by simp [hib]), rfl⟩
+      (raw x).Reachable ⟨target x 0, x.target⟩ ⟨target x i, x.target⟩ :=
+    Nat.rec (fun _ => .refl) fun i ih hi =>
+      (ih (Nat.le_of_succ_le hi)).tail (test_step (by
+        simp only [raw, List.mem_append]
+        exact Or.inr <| List.mem_map.2 ⟨(x.target.getD i false, i),
+          List.mem_zipIdx_iff_getElem?.2 (by simp [Nat.lt_of_succ_le hi]), rfl⟩)
+        ht (Nat.lt_of_succ_le hi) rfl)
   exact ((Relation.ReflTransGen.single
     (jump_step (by simp [raw]) ht)).trans (hrun _ le_rfl)).tail (jump_step (by simp [raw]) ht)
 

@@ -68,9 +68,9 @@ private theorem doneUpdate_inj_of_trace {P Data : Type*} [Fintype P] [DecidableE
     have inv := hinv t (Nat.le_of_succ_le ht)
     have ih_t := ih (Nat.le_of_succ_le ht)
     intro id₁ id₂ h₁ h₂ w hst₁ hst₂
-    have transfer : ∀ opId st, (τ.stateAt (t + 1)).history =
-        completeHistoryAt (τ.stateAt t).history opId st → .doneUpdate w ≠ st → id₁ = id₂ := by
-      intro opId st hhist hne_st
+    have transfer (opId st)
+        (hhist : (τ.stateAt (t + 1)).history = completeHistoryAt (τ.stateAt t).history opId st)
+        (hne_st : .doneUpdate w ≠ st) : id₁ = id₂ := by
       rw [List.getElem_of_eq hhist h₁] at hst₁
       rw [List.getElem_of_eq hhist h₂] at hst₂
       obtain ⟨hk₁, heq₁⟩ := getElem_completeHistoryAt_of_status_ne hne_st (hhist ▸ h₁) hst₁
@@ -84,29 +84,27 @@ private theorem doneUpdate_inj_of_trace {P Data : Type*} [Fintype P] [DecidableE
         rw [hs₁, inv.stepCount_eq]
       by_cases hwt : w = t
       · subst w
-        have eq_opId : ∀ {k} (hk : k < (τ.stateAt (t + 1)).history.length),
-            ((τ.stateAt (t + 1)).history[k]'hk).status = .doneUpdate t → k = opId := by
-          intro k hk hst
+        have eq_opId {k} (hk : k < (τ.stateAt (t + 1)).history.length)
+            (hst : ((τ.stateAt (t + 1)).history[k]'hk).status = .doneUpdate t) : k = opId := by
           by_contra hne
           have hk' := hhist ▸ hk
           rw [List.getElem_of_eq hhist hk, getElem_completeHistoryAt_ne hne hk'] at hst
           obtain ⟨_, -, -, hlt_w, -⟩ := inv.hist_doneUpdate k _ t hst
-          omega
+          exact Nat.lt_irrefl _ hlt_w
         exact (eq_opId h₁ hst₁).trans (eq_opId h₂ hst₂).symm
       · exact transfer _ _ hhist fun h => hwt (SnapshotOpStatus.doneUpdate.inj h)
     · exact ih_t id₁ id₂ (hhist ▸ h₁) (hhist ▸ h₂) w
         (by rwa [List.getElem_of_eq hhist h₁] at hst₁)
         (by rwa [List.getElem_of_eq hhist h₂] at hst₂)
-    · have lt_old : ∀ {k} (hk : k < (τ.stateAt (t + 1)).history.length),
-          ((τ.stateAt (t + 1)).history[k]'hk).status = .doneUpdate w →
+    · have lt_old {k} (hk : k < (τ.stateAt (t + 1)).history.length)
+          (hst : ((τ.stateAt (t + 1)).history[k]'hk).status = .doneUpdate w) :
           ∃ hk₀ : k < (τ.stateAt t).history.length,
             ((τ.stateAt t).history[k]'hk₀).status = .doneUpdate w := by
-        intro k hk hst
         rw [List.getElem_of_eq hhist hk, List.getElem_append] at hst
         split_ifs at hst with hk₀
         · exact ⟨hk₀, hst⟩
-        · obtain rfl : k = (τ.stateAt t).history.length := by simp [hhist] at hk; omega
-          simp only [Nat.sub_self, List.getElem_singleton, hpend, reduceCtorEq] at hst
+        · have hk_eq : k = (τ.stateAt t).history.length := by simp [hhist] at hk; omega
+          simp [hk_eq, hpend] at hst
       obtain ⟨hk₁, hs₁'⟩ := lt_old h₁ hst₁
       obtain ⟨hk₂, hs₂'⟩ := lt_old h₂ hst₂
       exact ih_t id₁ id₂ hk₁ hk₂ w hs₁' hs₂'
@@ -175,13 +173,9 @@ theorem mem_linScansAt_iff (τ : SnapshotTrace ord dInit) (t id : ℕ) :
         ((τ.stateAt τ.events.length).history[id]'hId).status = .doneScan r sn ∧
         τ.linScanPoint ((τ.stateAt τ.events.length).history[id]'hId).invStep r sn = t := by
   simp only [linScansAt, List.mem_filter, List.mem_range]
-  refine ⟨?_, fun ⟨hId, r, sn, hst, hsp⟩ =>
+  refine ⟨fun ⟨hId, hpred⟩ => ?_, fun ⟨hId, r, sn, hst, hsp⟩ =>
     ⟨hId, by simp only [List.getElem?_eq_getElem hId, hst, hsp, decide_true]⟩⟩
-  rintro ⟨hId, hpred⟩
-  simp only [List.getElem?_eq_getElem hId] at hpred
-  cases hst : ((τ.stateAt τ.events.length).history[id]'hId).status with
-  | pending | doneUpdate _ => simp only [hst, Bool.false_eq_true] at hpred
-  | doneScan r sn => exact ⟨hId, r, sn, hst, by simpa only [hst, decide_eq_true_eq] using hpred⟩
+  cases hst : ((τ.stateAt τ.events.length).history[id]'hId).status <;> simp_all
 
 /-- Membership characterization for `linUpdatesAt`. -/
 theorem mem_linUpdatesAt_iff (τ : SnapshotTrace ord dInit) (t id : ℕ) :
@@ -189,13 +183,9 @@ theorem mem_linUpdatesAt_iff (τ : SnapshotTrace ord dInit) (t id : ℕ) :
       ∃ hId : id < (τ.stateAt τ.events.length).history.length,
         ((τ.stateAt τ.events.length).history[id]'hId).status = .doneUpdate t := by
   simp only [linUpdatesAt, List.mem_filter, List.mem_range]
-  refine ⟨?_, fun ⟨hId, hst⟩ =>
+  refine ⟨fun ⟨hId, hpred⟩ => ?_, fun ⟨hId, hst⟩ =>
     ⟨hId, by simp only [List.getElem?_eq_getElem hId, hst, decide_true]⟩⟩
-  rintro ⟨hId, hpred⟩
-  simp only [List.getElem?_eq_getElem hId] at hpred
-  cases hst : ((τ.stateAt τ.events.length).history[id]'hId).status with
-  | pending | doneScan _ _ => simp only [hst, Bool.false_eq_true] at hpred
-  | doneUpdate w => exact ⟨hId, (by simpa only [hst, decide_eq_true_eq] using hpred) ▸ hst⟩
+  cases hst : ((τ.stateAt τ.events.length).history[id]'hId).status <;> simp_all
 
 private theorem disjoint_linScansAt_linUpdatesAt (τ : SnapshotTrace ord dInit) {t₁ t₂ x : ℕ}
     (h₁ : x ∈ τ.linScansAt t₁) (h₂ : x ∈ τ.linUpdatesAt t₂) : False := by
@@ -316,7 +306,7 @@ theorem linPrefix_valid (τ : SnapshotTrace ord dInit)
     List.eq_nil_iff_forall_not_mem.mpr fun x hx => by
       obtain ⟨hx_lt, hstat⟩ := (τ.mem_linUpdatesAt_iff τ.events.length x).mp hx
       obtain ⟨_, -, -, hw_lt, -⟩ := inv.hist_doneUpdate x hx_lt τ.events.length hstat
-      omega
+      exact Nat.lt_irrefl _ hw_lt
   intro k hk
   induction k with
   | zero => simp [linPrefix, seqSnapshotValid, seqSnapshotMemAfter, stateAt_zero]; rfl

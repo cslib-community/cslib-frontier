@@ -196,21 +196,19 @@ theorem realizes_checkEpochTickOkGen :
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
     have hh := fastMemHdrs hrep
-    have h2w := henv.two_le_w
     have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
     have hq_lt := (large_bounds_lt_n_max hth).2.2.2.2.2.2.1
-    obtain ⟨hck_st, hck_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrEpochClock)
-      (by dsimp [hdrEpochClock]; omega) (s := s)
-    obtain ⟨hst_st, hst_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage)
-      (by dsimp [hdrRebStage]; omega) (s := s)
+    have hhdr (off) (hoff : base + off < base + largeSpaceWhp c U V w n_max) :=
+      readHdrProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max) (base := base)
+        (hdrOff := off) hoff (s := s)
+    obtain ⟨hck_st, hck_res, _, _⟩ := hhdr hdrEpochClock (by dsimp [hdrEpochClock]; omega)
+    obtain ⟨hst_st, hst_res, _, _⟩ := hhdr hdrRebStage (by dsimp [hdrRebStage]; omega)
     obtain ⟨hro_st, hro_res, _, _⟩ := readOldEpProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max) (by dsimp [hdrCurEp]; omega) hce_or
       hh.curEp (s := s)
     simp only [hck_st, hck_res, hst_st, hst_res, hro_st, hro_res, hh.epochClock, hh.rebStage] at *
     first
-    | exact h2w
+    | exact henv.two_le_w
     | exact henv.2.1
     | exact henv.fits_const (by decide)
     | exact henv.fits_hdr_addr (by dsimp [hdrEpochClock, hdrRebStage, hdrCurEp]; omega)
@@ -262,16 +260,14 @@ theorem checkEpochTickOkGenProg_spec {c U V w n_max base : ℕ}
   unfold checkEpochTickOkGenProg
   simp only [pure_bind, wp_large_qEpoch hth]
   unfold epochTickWillSucceed
+  refine step hck_st hck_res (by omega) hck_vp (c₁ := 1) (c₂ := 4) (by omega) ?_
   by_cases hlt : fs.epochClock + 1 < qEpochWhp n_max
-  · rw [decide_eq_true (Or.inl hlt)]
-    refine step hck_st hck_res (by omega) hck_vp (c₁ := 1) (c₂ := 0) (by omega) ?_
-    rw [ite_eq_left hlt]
-    exact hpure 0 1
+  · rw [decide_eq_true (Or.inl hlt), ite_eq_left hlt]
+    exact hpure 4 1
   · obtain ⟨hst_st, hst_res, hst_mc, hst_vp⟩ := readHdrProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage)
       (by dsimp [hdrRebStage]; omega) (s := s)
     rw [hh.rebStage] at hst_res
-    refine step hck_st hck_res (by omega) hck_vp (c₁ := 1) (c₂ := 4) (by omega) ?_
     rw [ite_eq_right hlt]
     refine step hst_st hst_res (by omega) hst_vp (c₁ := 1) (c₂ := 3) (by omega) ?_
     by_cases hs5 : fs.rebStage = 5

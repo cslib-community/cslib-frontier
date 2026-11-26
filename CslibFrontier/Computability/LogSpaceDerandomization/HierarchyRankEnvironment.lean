@@ -280,8 +280,7 @@ theorem density (role : Fin J) (L : ℕ) (hL : L ≤ P) (a : ZMod P) :
   classical
   rw [dens_filter_pi_eval role (fun A : FrameChannel P 4 1 => frameRetains P 4 L A a),
     dens_eval_mem_retentionBox (P := P) (H := 4) (r := 1) (by decide) hL a]
-  push_cast
-  rfl
+  push_cast; rfl
 
 /-- Concrete mixed rank / usage pair law from frame conditioning, not unrestricted
 seed independence. Usage may have any other positive side; only rank's admissible
@@ -294,15 +293,14 @@ theorem mixed_pair_density (role : Fin J) (H : Horizon P) {k : ℕ}
   classical
   rw [dens_filter_pi_eval role (fun A : FrameChannel P 4 1 =>
     frameRetains P 4 (side P k) A w ∧ frameRetains P 4 Lt A y), density role Lt hLt]
-  have hp := dens_eval_mem_and_eval_mem_le (P := P) (H := 4) (r := 1)
-    (by decide) (side_le P k) hLt hwy
-  have hq := one_div_two_le_frameDensity (P := P) (H := 4) (r := 1) (by decide)
-  have hh := side_div_pow_four_le H hk
-  apply hp.trans
+  refine (dens_eval_mem_and_eval_mem_le (P := P) (H := 4) (r := 1)
+    (by decide) (side_le P k) hLt hwy).trans ?_
   rw [div_le_iff₀ (by positivity)]
-  have hπ : 0 ≤ ((Lt: ℝ) / P) ^ 4 := by positivity
-  have h32 : 0 ≤ 32 * rate k * ((Lt: ℝ) / P) ^ 4 := by positivity
-  nlinarith [mul_le_mul_of_nonneg_right hh hπ, mul_le_mul_of_nonneg_left hq h32]
+  have h32 : 0 ≤ 32 * rate k * ((Lt : ℝ) / P) ^ 4 := by positivity
+  nlinarith [mul_le_mul_of_nonneg_right (side_div_pow_four_le H hk)
+      (pow_nonneg (div_nonneg (Nat.cast_nonneg Lt) (Nat.cast_nonneg P)) 4),
+    mul_le_mul_of_nonneg_left (one_div_two_le_frameDensity (P := P) (H := 4) (r := 1) (by decide))
+      h32]
 
 /-- The mixed rank/usage density bound as a count bound, with injective copy padding. -/
 theorem mixed_pair_count (role : Fin J) (H : Horizon P) {k : ℕ}
@@ -336,9 +334,7 @@ theorem copy_retains (D : ℕ) (ch : Channel P J) (σ : Environment P J)
         ((((radixCopyEquiv n m l).symm (toLex (x, j))).val : ℕ): ZMod P) := by
   subst D
   change frameRetains P 4 _ _ _ ↔ frameRetains P 4 _ _ _
-  dsimp only [CorrectionRowTask.Channel.throughCopy]
-  push_cast
-  rw [CopyPadding.identifier_radixCopy]
+  simp [CorrectionRowTask.Channel.throughCopy, CopyPadding.identifier_radixCopy]
 
 /-- A fixed independent role product, reused unchanged at every stage. -/
 structure RoleProfile (J : ℕ) where

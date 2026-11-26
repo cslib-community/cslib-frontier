@@ -141,11 +141,10 @@ theorem IsApproxMixedNash.expectedCost_le_update {ε : ℝ} {p : ∀ i, S i → 
         sum_le_sum fun b _ => mul_le_mul_of_nonneg_left (h.2 i b) (hq.nonneg b)
     _ = (∑ b, q b * G.deviationCost p i b) + ε := by
         simp only [mul_add, sum_add_distrib, ← sum_mul, hq.sum_eq_one, one_mul]
-    _ = (∑ b, update p i q i b * G.deviationCost (update p i q) i b) + ε := by
-        congr 1
-        refine sum_congr rfl fun b _ => ?_
-        rw [update_self, G.deviationCost_update_self p
-          (by rw [hq.sum_eq_one, (h.1 i).sum_eq_one]) b]
+    _ = (∑ b, update p i q i b * G.deviationCost (update p i q) i b) + ε :=
+        congrArg (· + ε) <| sum_congr rfl fun b _ => by
+          rw [update_self,
+            G.deviationCost_update_self p (hq.sum_eq_one.trans (h.1 i).sum_eq_one.symm) b]
 
 end ApproxMixedNash
 
@@ -456,11 +455,10 @@ private theorem exists_empirical_tuple {α β : Type*} [Fintype α] [Fintype β]
   obtain ⟨ω, hω_good, hω_supp⟩ := (toOuterMeasure_toReal_pos_iff μ _).1 hcompl_pos
   refine ⟨ω, fun t => (mem_support_mixedToPMF_iff hp (ω t)).1
     ((mem_support_pi_iff _ ω).1 hω_supp t), fun i => ?_⟩
-  have hni : |(∑ t : Fin k, g i (ω t)) - ∑ _t : Fin k, ∑ b : β, (q b).toReal * g i b| <
-      (k : ℝ) * δ := not_le.1 fun hi => hω_good (Set.mem_iUnion.2 ⟨i, hi⟩)
-  have hlt : |(∑ t : Fin k, g i (ω t)) - (k : ℝ) * (p ⬝ᵥ g i)| < (k : ℝ) * δ := by
-    simpa only [q, mixedToPMF_toReal hp, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul,
-      dotProduct] using hni
+  have hlt : |(∑ t : Fin k, g i (ω t)) - (k : ℝ) * (p ⬝ᵥ g i)| < (k : ℝ) * δ :=
+    not_le.1 fun hi => hω_good <| Set.mem_iUnion.2 ⟨i, by
+      simpa only [bad, Set.mem_ofPred_eq, q, mixedToPMF_toReal hp, sum_const, card_univ,
+        Fintype.card_fin, nsmul_eq_mul, dotProduct] using hi⟩
   have heq : (∑ t : Fin k, g i (ω t)) / k - (p ⬝ᵥ g i) =
       ((∑ t : Fin k, g i (ω t)) - (k : ℝ) * (p ⬝ᵥ g i)) / k := by field_simp
   rw [heq, abs_div, abs_of_pos hk_pos, div_le_iff₀ hk_pos]
@@ -533,14 +531,11 @@ theorem exists_uniformMultiset_isApproxNash_of_lt [DecidableEq M] [DecidableEq N
   have hm₂_card : m₂.card = k := by simp [m₂]
   have hm₁_ne : m₁ ≠ 0 := Multiset.card_pos.1 (hm₁_card ▸ hk_pos)
   have hm₂_ne : m₂ ≠ 0 := Multiset.card_pos.1 (hm₂_card ▸ hk_pos)
-  have hA_hat : ∀ i : M, |(G.A *ᵥ uniformMultiset m₂) i - (G.A *ᵥ yStar) i| ≤ ε / 2 := fun i => by
-    change |G.A i ⬝ᵥ uniformMultiset m₂ - G.A i ⬝ᵥ yStar| ≤ ε / 2
-    rw [dotProduct_comm, uniformMultiset_dotProduct_of_map_univ ω₂, dotProduct_comm]
-    exact hω₂_approx i
-  have hB_hat : ∀ j : N, |(uniformMultiset m₁ ᵥ* G.B) j - (xStar ᵥ* G.B) j| ≤ ε / 2 := fun j => by
-    change |uniformMultiset m₁ ⬝ᵥ (fun i => G.B i j) - _| ≤ ε / 2
-    rw [uniformMultiset_dotProduct_of_map_univ ω₁]
-    exact hω₁_approx j
+  have hA_hat (i : M) : |(G.A *ᵥ uniformMultiset m₂) i - (G.A *ᵥ yStar) i| ≤ ε / 2 := by
+    simpa only [mulVec, m₂, dotProduct_comm (G.A i), uniformMultiset_dotProduct_of_map_univ] using
+      hω₂_approx i
+  have hB_hat (j : N) : |(uniformMultiset m₁ ᵥ* G.B) j - (xStar ᵥ* G.B) j| ≤ ε / 2 := by
+    simpa only [vecMul, m₁, uniformMultiset_dotProduct_of_map_univ] using hω₁_approx j
   refine ⟨m₁, m₂, hm₁_card, hm₂_card, isApproxNash_iff_pure.2
     ⟨⟨isMixedStrategy_uniformMultiset hm₁_ne, fun i => ?_⟩,
       ⟨isMixedStrategy_uniformMultiset hm₂_ne, fun j => ?_⟩⟩⟩

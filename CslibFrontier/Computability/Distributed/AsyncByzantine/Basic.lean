@@ -452,18 +452,15 @@ private lemma drainPhase_spec (F : Finset P) (s : State P S M V) :
     (∀ e ∈ s.msgs, e.dest ∉ F → .deliver e ∈ res.1) := by
   dsimp only [drainPhase]
   set pending := s.msgs.filter (fun e => e.dest ∉ F)
-  by_cases h0 : pending = 0
-  · simp only [h0, ↓reduceIte, List.length_singleton, zero_lt_one, true_and]
-    exact ⟨LTS.MTr.single (π.lts F) rfl, fun _ ha => List.mem_singleton.mp ha ▸ trivial,
+  split_ifs with h0
+  · exact ⟨LTS.MTr.single (π.lts F) rfl, Nat.one_pos,
+      fun _ ha => List.mem_singleton.mp ha ▸ trivial,
       fun e he hdest => (Multiset.filter_eq_nil.mp h0 e he hdest).elim⟩
-  · simp only [h0, ↓reduceIte]
-    obtain ⟨hmtr, hmap⟩ := π.drainList_spec s pending.toList
-      (by rw [Multiset.coe_toList]; exact Multiset.filter_le _ _)
+  · obtain ⟨hmtr, hmap⟩ := π.drainList_spec s pending.toList
+      (Multiset.coe_toList _ ▸ Multiset.filter_le _ _)
       (fun e he => (Multiset.mem_filter.mp (Multiset.mem_toList.mp he)).2)
     rw [hmap] at hmtr ⊢
-    exact ⟨hmtr,
-      by simpa only [List.length_map, List.length_pos_iff_ne_nil, ne_eq,
-        Multiset.toList_eq_nil] using h0,
+    exact ⟨hmtr, by simp [Multiset.card_pos.mpr h0],
       fun _ ha => (List.mem_map.mp ha).choose_spec.2 ▸ trivial,
       fun e he hed => List.mem_map.mpr
         ⟨e, Multiset.mem_toList.mpr (Multiset.mem_filter.mpr ⟨he, hed⟩), rfl⟩⟩
@@ -517,17 +514,11 @@ theorem Reachable.exists_admissibleRun [Fintype P] {π : Protocol P S M V dealer
   have hss' (n : ℕ) : ss (xl.length + n) = ss' n := by rw [← hdrop, get_drop]
   refine ⟨ss, xl ++ω xs', xl.length, ⟨hstart, hω, ?_⟩, hat, fun j hle => ?_⟩
   · intro e hdest k he
-    by_cases hkl : k ≤ xl.length
-    · by_cases hdel : .deliver e ∈ (xl ++ω xs').extract k xl.length
-      · obtain ⟨i, hi, hget⟩ := List.getElem_of_mem hdel
-        have hi' : i < xl.length - k := by simpa [ωSequence.length_extract] using hi
-        exact ⟨k + i, Nat.le_add_right k i, by rw [← (xl ++ω xs').get_extract hi', hget]⟩
-      · obtain ⟨j, _, hj⟩ := hfair e hdest 0
-          (hss' 0 ▸ π.mTr_notDelivered_mem (hω.extract_mTr hkl) he hdel)
-        exact ⟨xl.length + j, by omega, by simpa [get_append_right] using hj⟩
-    · obtain ⟨j, hkj, hj⟩ := hfair e hdest (k - xl.length)
-        (by rwa [← hss', Nat.add_sub_cancel' (by omega)])
-      exact ⟨xl.length + j, by omega, by simpa [get_append_right] using hj⟩
+    by_contra! hnot
+    have hmem : e ∈ (ss' (k - xl.length)).msgs := hss' (k - xl.length) ▸
+      π.omega_notDelivered_mem hω he hnot (xl.length + (k - xl.length)) (by omega)
+    obtain ⟨j, _, hj⟩ := hfair e hdest (k - xl.length) hmem
+    exact hnot (xl.length + j) (by omega) (by simpa [get_append_right] using hj)
   · obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hle
     simpa [get_append_right] using hhon d
 

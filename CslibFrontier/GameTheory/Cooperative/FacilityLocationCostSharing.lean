@@ -347,8 +347,7 @@ private theorem flCostShareScheme_cost_le_three_mul_sum (I : FacilityLocationIns
       (fun i => I.openTime_nonneg i T) (fun _ _ => dist_comm _ _) (fun _ => dist_self _)
     have hdom (i : F) : ∃ i' ∈ F', t i' ≤ t i ∧ dF i' i ≤ 2 * t i :=
       hdom_univ i (Finset.mem_univ i)
-    obtain ⟨i₀', hi₀', _, _⟩ := hdom ‹Nonempty F›.some
-    have hF' : F'.Nonempty := ⟨i₀', hi₀'⟩
+    have hF' : F'.Nonempty := (hdom ‹Nonempty F›.some).elim fun i₀' h => ⟨i₀', h.1⟩
     let ball : F → Finset A := fun i => T.filter fun j => I.connCost i j ≤ t i
     have hdisj : Set.PairwiseDisjoint (F' : Set F) ball := by
       intro a ha b hb hab
@@ -375,10 +374,7 @@ private theorem flCostShareScheme_cost_le_three_mul_sum (I : FacilityLocationIns
         have htri2 := dist_triangle (Sum.inl j : A ⊕ F) (Sum.inr i₁) (Sum.inr i₂)
         rw [dist_comm (Sum.inl j : A ⊕ F) (Sum.inr i₁), ← hdist_eq i₁ j,
           dist_comm (Sum.inr i₁ : A ⊕ F) (Sum.inr i₂)] at htri2
-        have hle : t i₂ ≤ t i := by linarith
-        have hfar := hind i hiF i₂ hi₂F (Ne.symm heq)
-        rw [max_eq_left hle] at hfar
-        linarith
+        linarith [hind i hiF i₂ hi₂F (Ne.symm heq), le_max_left (t i) (t i₂)]
     -- For each `i ∈ F'`, `openCost i + ∑ j ∈ ball i, connCost i j ≤ 3 * ∑ j ∈ ball i, share T j`.
     have hfac_bound : ∀ i ∈ F',
         I.openCost i + ∑ j ∈ ball i, I.connCost i j ≤
@@ -399,9 +395,8 @@ private theorem flCostShareScheme_cost_le_three_mul_sum (I : FacilityLocationIns
       intro j hjT
       obtain ⟨i₁, hti₁, hdi₁⟩ := I.exists_le_share hjT
       obtain ⟨i', hi'F, _, hd_i'i₁⟩ := hdom i₁
-      have htri : I.connCost i' j ≤ dF i' i₁ + I.connCost i₁ j := by
-        simpa only [hdist_eq, dF] using
-          dist_triangle (Sum.inr i' : A ⊕ F) (Sum.inr i₁) (Sum.inl j)
+      have htri : I.connCost i' j ≤ dF i' i₁ + I.connCost i₁ j :=
+        hdist_eq i' j ▸ hdist_eq i₁ j ▸ dist_triangle _ _ _
       exact (Finset.inf'_le (fun i => I.connCost i j) hi'F).trans (by linarith)
     let U : Finset A := F'.biUnion ball
     have hUT : U ⊆ T := Finset.biUnion_subset.2 fun _ _ => Finset.filter_subset _ T

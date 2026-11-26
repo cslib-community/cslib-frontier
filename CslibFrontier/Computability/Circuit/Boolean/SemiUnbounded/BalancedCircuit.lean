@@ -746,13 +746,12 @@ private lemma eval_orP_orQ_complete :
     · exact eval_orQ_mono (by omega) hk (ihQ Ctx hle)
     · obtain ⟨a, b, a', b', Ctop, Cbot, htopLt, hbotLe, hmid⟩ :=
         realCtx_split_at (K := Ctx.size - growthBound k) Ctx (by omega) (Nat.sub_le _ _)
-      have hkpos := growthBound_pos k
       have htopLe : Ctop.size ≤ growthBound k := by simp only [growthBound] at hsz; omega
-      have hEvalTop : (C start accept stay pushPop R).Eval (.orQ ⟨3 * k + 2, by omega⟩ u v a b) :=
-        eval_orQ_mono (by omega) (by omega) (ihQ Ctop htopLe)
       have hEvalBot : (C start accept stay pushPop R).Eval (.orQ ⟨3 * k + 1, by omega⟩ a' b' x y) :=
         eval_orQ_mono (by omega) (by omega) (ihQ Cbot (by omega))
-      refine (eval_orQ_succ_iff hk u v x y).mpr (.inl ⟨a, b, hEvalTop, ?_⟩)
+      refine (eval_orQ_succ_iff hk u v x y).mpr (.inl
+        ⟨a, b, eval_orQ_mono (r₂ := 3 * k + 2) (Nat.le_add_right _ 2) (by omega) (ihQ Ctop htopLe),
+          ?_⟩)
       rcases hmid with hp | ⟨rfl, L, hL⟩ | ⟨rfl, Rtree, hR⟩
       · exact (eval_orQ_succ_iff (r := 3 * k + 1) (by omega) a b x y).mpr (.inl ⟨a', b',
           eval_orQ_mono (r₁ := 0) (Nat.zero_le _) (by omega)
@@ -768,12 +767,11 @@ theorem balancedCircuit_eval_output_complete {sz : ℕ} (hR : roundsForSize sz �
     {v : V} (hacc : accept v) (T : RealTree stay pushPop start v) (hsz : T.size ≤ sz) :
     (balancedCircuit start accept stay pushPop R).Eval .output := by
   have h3k : 3 * (2 * (Nat.log2 sz + 1)) ≤ R := by rw [roundsForSize] at hR; omega
-  have hev3k := (eval_orP_orQ_complete (start := start) (accept := accept) (stay := stay)
-    (pushPop := pushPop) (R := R) (2 * (Nat.log2 sz + 1)) (by omega)).1 T
-    (hsz.trans (le_growthBound_roundsForSize sz))
   rw [(balancedCircuit start accept stay pushPop R).eval_or rfl]
   exact ⟨.andAccept v, hacc, ((balancedCircuit start accept stay pushPop R).eval_andUnary rfl).mpr
-    (eval_orP_mono h3k (Nat.lt_succ_self R) hev3k)⟩
+    (eval_orP_mono h3k (Nat.lt_succ_self R)
+      ((eval_orP_orQ_complete (2 * (Nat.log2 sz + 1)) (Nat.lt_succ_of_le h3k)).1 T
+        (hsz.trans (le_growthBound_roundsForSize sz))))⟩
 
 end Eval
 
@@ -905,10 +903,8 @@ theorem balancedCircuitFin_inNormalForm {S : ℕ} (start : Fin S) (accept : Fin 
 theorem balancedCircuitFin_andLevel_le {S : ℕ} (start : Fin S) (accept : Fin S → Prop)
     (stay : Fin S → Fin S → Prop) (pushPop : Fin S → Fin S → Fin S → Fin S → Prop) (R : ℕ)
     (g : Fin (balancedGateCount S R)) :
-    (balancedCircuitFin start accept stay pushPop R).andLevel g ≤ R + 2 := by
-  simpa only [balancedCircuitFin, LayeredSemiUnboundedCircuit.andLevel,
-    LayeredSemiUnboundedCircuit.reindex] using
-    balancedCircuit_andLevel_le start accept stay pushPop R ((balancedGateEquivFin S R).symm g)
+    (balancedCircuitFin start accept stay pushPop R).andLevel g ≤ R + 2 :=
+  balancedCircuit_andLevel_le start accept stay pushPop R ((balancedGateEquivFin S R).symm g)
 
 theorem balancedCircuitFin_eval_output_sound {S : ℕ} {start : Fin S} {accept : Fin S → Prop}
     {stay : Fin S → Fin S → Prop} {pushPop : Fin S → Fin S → Fin S → Fin S → Prop} {R : ℕ}

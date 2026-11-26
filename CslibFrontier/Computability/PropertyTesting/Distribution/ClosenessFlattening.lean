@@ -357,23 +357,15 @@ theorem exists_isClosenessTester_closenessFlatteningTester [Nonempty α] {ε : �
             ring
         _ ≤ M := le_max_right _ _
     · rw [ht_def.trans h]
-      set u := n ^ (1 / 3 : ℝ)
-      set v := ε ^ (2 / 3 : ℝ)
-      have hu : 0 < u := by positivity
-      have hv : 0 < v := by positivity
-      have hu2 : n ^ (2 / 3 : ℝ) = u ^ 2 := by
-        rw [← Real.rpow_natCast, ← Real.rpow_mul hn.le]; norm_num
-      have hu3 : n = u ^ 3 := by
-        rw [← Real.rpow_natCast, ← Real.rpow_mul hn.le]; norm_num
-      have hv2 : ε ^ (4 / 3 : ℝ) = v ^ 2 := by
-        rw [← Real.rpow_natCast, ← Real.rpow_mul hε.le]; norm_num
-      have hv3 : v ^ 3 = ε ^ 2 := by
-        rw [← Real.rpow_natCast, ← Real.rpow_mul hε.le]; norm_num
-      have haa : a = (u / v) ^ 2 := by rw [ha_def, hu2, hv2, div_pow]
+      have ha3 : a ^ 3 * ε ^ 4 = n ^ 2 := by
+        rw [ha_def, div_pow, ← Real.rpow_natCast, ← Real.rpow_natCast, ← Real.rpow_mul hn.le,
+          ← Real.rpow_mul hε.le]
+        norm_num
+        exact div_mul_cancel₀ _ (by positivity)
       calc n / (ε ^ 2 * Real.sqrt a) = a := by
-            rw [haa, Real.sqrt_sq (by positivity), ← hv3]
-            nth_rewrite 1 [hu3]
-            field_simp
+            rw [div_eq_iff (by positivity), ← sq_eq_sq₀ hn.le (by positivity), mul_pow, mul_pow,
+              Real.sq_sqrt ha.le]
+            linear_combination -ha3
         _ ≤ M := le_max_left _ _
   refine ⟨⌈t⌉₊, ⌈2592 * n / (5 * ε ^ 2 * Real.sqrt t)⌉₊ + 1, ?_,
     isClosenessTester_closenessFlatteningTester_ceil ht (min_le_left _ _) hε⟩
