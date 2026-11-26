@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.Propositional.CNF.LRAT
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.RupComplete
 import CslibFrontier.Algorithms.Lean.DPLL
 import CslibFrontier.Logics.Propositional.CNF.Tautology
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Fast
@@ -119,10 +120,6 @@ theorem Clause.residual_congr_left {c c' : Clause ℕ} (h : ∀ l, l ∈ c ↔ l
 
 namespace VeriPB
 
-/-- A trail is *consistent* when it holds no literal together with its negation. -/
-def TrailConsistent (ρ : List (Literal ℕ)) : Prop :=
-  ∀ l ∈ ρ, Std.Sat.Literal.negate l ∉ ρ
-
 mutual
 
 /-- The number of hints of a step: those of a `rup` step, and those of the steps of a `pbc`
@@ -138,19 +135,6 @@ def hintCount : List Step → ℕ
   | s :: ss => s.hintCount + VeriPB.hintCount ss
 
 end
-
-/-- A literal whose negation is not on a consistent trail extends it consistently. -/
-theorem TrailConsistent.cons {t : List (Literal ℕ)} (ht : TrailConsistent t) {l : Literal ℕ}
-    (hl : Std.Sat.Literal.negate l ∉ t) : TrailConsistent (l :: t) := by
-  intro m hm hnm
-  simp only [List.mem_cons] at hm hnm
-  rcases hm with rfl | hm
-  · rcases hnm with h | h
-    · exact absurd h (by cases m; simp [Std.Sat.Literal.negate])
-    · exact hl h
-  · rcases hnm with h | h
-    · exact hl (h ▸ by simpa using hm)
-    · exact ht m hm h
 
 /-- **A constraint of degree `0` propagates nothing**: it never conflicts, and a term it could
 force has a coefficient within the slack. -/

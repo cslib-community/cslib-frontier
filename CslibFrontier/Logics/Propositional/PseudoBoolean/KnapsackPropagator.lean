@@ -8,8 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Knapsack
-public import CslibFrontier.Logics.Propositional.PseudoBoolean.Reification
-public import CslibFrontier.Logics.Propositional.PseudoBoolean.RupComplete
+import CslibFrontier.Logics.Propositional.PseudoBoolean.Fast
+import CslibFrontier.Logics.Propositional.PseudoBoolean.RupComplete
 -- `import all`: the acceptance proof unfolds `stepTop`, `runTop` and the reification steps.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Reification
@@ -59,7 +59,10 @@ The proof has no conclusion; it runs with the item variables as the preserved se
 derived constraint over the items holds at every solution of the formula.
 
 **Soundness and completeness.** The checker accepts the proof on every instance
-(`Cslib.Logic.PL.VeriPB.Knapsack.checkRed_propagate`). This is proved, not checked when the proof
+(`Cslib.Logic.PL.VeriPB.Knapsack.checkRed_propagate`), and the database it reaches holds the
+removal clause `D ⇒ xⱼ ≠ b` (`Cslib.Logic.PL.VeriPB.Knapsack.remClause`,
+`Cslib.Logic.PL.VeriPB.Knapsack.holds_remClause_iff`) of every removed value
+(`Cslib.Logic.PL.VeriPB.Knapsack.runTop_propagate`). This is proved, not checked when the proof
 runs: each `rup` step is shown accepted by the completeness of unit propagation on constraints over
 distinct variables (`CslibFrontier.Logics.Propositional.PseudoBoolean.RupComplete`), from the
 meaning of the constraints its hints name, and each addition by the slacks of the reification
@@ -68,14 +71,18 @@ halves. The propagator removes exactly the unsupported values
 checker's soundness makes its derived clause `D ⇒ xⱼ ≠ b` hold at every solution, and an
 unsupported value is removed because the dynamic program is exact.
 
-**Departures from the paper.** §3.3 treats Trick's constraint, linear equalities whose sums are
-integer variables, with states `S^i_{w,p}` reifying exact sums by four variables (equations
-(24)–(26)) and direct variables for non-Boolean domains. Here the items are `0`–`1` variables
-with domains of fixed literals, the sums are bounded by constants, and each state reifies
-one-sided sums by two variables, as in §3.1: a weight of at least `w` and a profit left out of at
-least `q`. Every condition under which a state is refuted is monotone in both, so the one-sided
-states suffice, and the states are still exact. The bounds of sum variables are not propagated.
-The proof deletes nothing.
+**Departures from the paper.** §3.3 (p. 9:11) cites Trick's propagator for a single `0`–`1`
+linear inequality whose sum is an integer variable, and the work of Fahle and Sellmann, Sellmann,
+Katriel et al. and Malitsky et al., and MiniZinc's definition, for two linear equalities summing to
+two integer variables over items that need not be `0`–`1`. Its proof has states `S^i_{w,p}`
+reifying exact sums by four variables (equations (24)–(26)), direct variables for non-Boolean
+domains, and propagation on the sum variables. Here the items are `0`–`1` variables with domains
+of fixed literals, the sums are bounded by constants, and each state reifies one-sided sums by two
+variables, as in §3.1: a weight of at least `w` and a profit left out of at least `q`. Every
+condition under which a state is refuted is monotone in both, so the one-sided states suffice,
+and the states are still exact. The proof deletes nothing. The integer-domain constraint with sum
+variables and the exact states of equations (24)–(26) is tracked in #7222 and formalized in
+#8789.
 
 ## Main definitions
 
@@ -84,10 +91,14 @@ The proof deletes nothing.
 * `Cslib.Logic.PL.VeriPB.Knapsack.Supported`: a value supported under the domains.
 * `Cslib.Logic.PL.VeriPB.Knapsack.Propagation`, `Cslib.Logic.PL.VeriPB.Knapsack.propagate`: the
   propagator and its output.
+* `Cslib.Logic.PL.VeriPB.Knapsack.remClause`: the removal clause `D ⇒ xⱼ ≠ b`.
 
 ## Main results
 
 * `Cslib.Logic.PL.VeriPB.Knapsack.holds_profitBound_iff`: the profit constraint is correct.
+* `Cslib.Logic.PL.VeriPB.Knapsack.runTop_propagate`: the propagator's proof runs and derives the
+  removal clause of every removed value, whose meaning is
+  `Cslib.Logic.PL.VeriPB.Knapsack.holds_remClause_iff`.
 * `Cslib.Logic.PL.VeriPB.Knapsack.checkRed_propagate`: the checker accepts every proof of the
   propagator.
 * `Cslib.Logic.PL.VeriPB.Knapsack.mem_removed_iff`: the propagator removes exactly the unsupported
@@ -579,12 +590,6 @@ private theorem lhs_map_negate (σ : ℕ → Bool) (ts : List (ℕ × Literal �
     have := termVal_add_negate σ a l
     omega
 
-private theorem vars_negate_sub {c : PBConstr} {x : ℕ} (h : x ∈ c.negate.vars) : x ∈ c.vars := by
-  refine mem_vars_of_mem_vars_normalize ?_
-  simp only [PBConstr.vars, negate, List.map_map, List.mem_map] at h ⊢
-  obtain ⟨t, ht, rfl⟩ := h
-  exact ⟨t, ht, by obtain ⟨a, v, b⟩ := t; rfl⟩
-
 private theorem nodup_impl_single {l : Literal ℕ} {c : PBConstr} (hz : l.1 ∉ c.vars)
     (hd : (c.terms.map termVar).Nodup) : ((impl [l] c).terms.map termVar).Nodup := by
   simp only [impl, List.map_cons, List.map_nil, List.singleton_append, List.nodup_cons]
@@ -608,7 +613,7 @@ private theorem slack_bwd {z : ℕ} {c : PBConstr} (hz : z ∉ c.vars)
     (lhs σ (impl [(z, false)] c.negate).normalize.terms : ℤ) -
         (impl [(z, false)] c.negate).normalize.degree =
       (if σ z = true then (c.negate.degree : ℤ) else 0) - ((lhs σ c.terms : ℤ) - c.degree) - 1 := by
-  have hz' : z ∉ c.negate.vars := fun h => hz (vars_negate_sub h)
+  have hz' : z ∉ c.negate.vars := not_mem_vars_negate hz
   rw [slack_normalize (nodup_impl_single hz' (nodup_vars_negate c))]
   obtain ⟨τ, hτ⟩ := hsat
   have hle : c.normalize.degree ≤ coeffSum c.normalize.terms :=
@@ -640,9 +645,9 @@ private theorem trans_dim {a : ℕ → ℕ} {pol b : Bool} {i d zu zt : ℕ} (hz
     omega
   · rfl
 
-/-- **The refutation of a last-layer state by addition** (equations (14)–(15) of the paper): the
-forward half of `Z ⇔ ∑_{j<n} aⱼ ℓⱼ ≥ d` plus a constraint `∑ aⱼ ¬ℓⱼ ≥ B` of the formula gives
-`Z ⇒ d + B ≤ ∑ aⱼ`. -/
+/-- **The refutation of a last-layer state by addition**, as in equations (14)–(15) of the
+paper: the forward half of `Z ⇔ ∑_{j<n} aⱼ ℓⱼ ≥ d` plus a constraint `∑ aⱼ ¬ℓⱼ ≥ B` of the
+formula gives `Z ⇒ d + B ≤ ∑ aⱼ`. -/
 private theorem final_dim {a : ℕ → ℕ} {pol : Bool} {m d z : ℕ} (hz : m ≤ z) {G : PBConstr}
     (hG : (G.terms.map termVar).Nodup) (hGl : ∀ σ, lhs σ G.terms = part σ a (!pol) m)
     {σ : ℕ → Bool} (hA : ((impl [(z, true)] (dimC a pol m d)).normalize.add G.normalize).Holds σ)
@@ -698,18 +703,6 @@ private theorem push_steps (e : Acc) (ss : List TopStep) (dn dv : ℕ) :
     (e.push ss dn dv).steps.reverse = e.steps.reverse ++ ss := by
   simp [Acc.push]
 
-private theorem lookup_cons_self (db : List (ℕ × PBConstr)) (m : ℕ) (c : PBConstr) :
-    lookup ((m, c) :: db) m = some c := by
-  simp [lookup]
-
-private theorem lookup_cons_ne {db : List (ℕ × PBConstr)} {m k : ℕ} {c : PBConstr} (h : m ≠ k) :
-    lookup ((m, c) :: db) k = lookup db k := by
-  simp [lookup, h]
-
-private theorem lookup_cons_eq {db : List (ℕ × PBConstr)} {m k : ℕ} {c : PBConstr} (h : m = k) :
-    lookup ((m, c) :: db) k = some c := by
-  subst h; simp [lookup]
-
 private theorem mem_of_lookup {db : List (ℕ × PBConstr)} {k : ℕ} {c : PBConstr}
     (h : lookup db k = some c) : (k, c) ∈ db := by
   simp only [lookup, Option.map_eq_some_iff] at h
@@ -747,16 +740,18 @@ private theorem run_init : I.Run ⟨[], 3, I.n⟩ (initDb I.F) := by
     List.mem_cons, List.not_mem_nil, or_false] at hx
   rcases hx with rfl | rfl <;> simp
 
-/-- **A `pol` step runs.** -/
-private theorem Run.pol {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) {ops : List PolOp}
-    {c : PBConstr} (hp : polEval db ops [] = some [c]) (hv : ∀ v ∈ c.vars, v < e.var) :
-    I.Run (e.push [.step (.pol ops)] 1 0) ((e.next, c) :: db) ∧ Sub db ((e.next, c) :: db) := by
+/-- **A step that is not a deletion runs** when it adds the constraint `c` at the next number. -/
+private theorem Run.step {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) {st : Step}
+    (hst : ∀ ids, st ≠ .del ids) {c : PBConstr}
+    (hr : runStep db e.next st = some ((e.next, c) :: db, e.next + 1))
+    (hv : ∀ v ∈ c.vars, v < e.var) :
+    I.Run (e.push [.step st] 1 0) ((e.next, c) :: db) ∧ Sub db ((e.next, c) :: db) := by
   have hs := sub_cons h.2.1 c
   refine ⟨⟨?_, ?_, ?_, by simpa [Acc.push] using h.2.2.2.1, hs _ _ h.2.2.2.2.1,
     hs _ _ h.2.2.2.2.2⟩, hs⟩
   · rw [push_steps, runTop_append, h.1, Option.bind_some, runTop_cons,
-      stepTop_step_of_ne_del _ _ _ (by intro ids h; cases h)]
-    simp [state, runStep, hp, runTop_nil, Acc.push]
+      stepTop_step_of_ne_del _ _ _ hst]
+    simp [state, hr, runTop_nil, Acc.push]
   · intro x hx
     simp only [List.mem_cons] at hx
     rcases hx with rfl | hx
@@ -768,27 +763,19 @@ private theorem Run.pol {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db)
     · simpa [Acc.push] using hv _ hv'
     · simpa [Acc.push] using h.2.2.1 x hx v hv'
 
+/-- **A `pol` step runs.** -/
+private theorem Run.pol {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) {ops : List PolOp}
+    {c : PBConstr} (hp : polEval db ops [] = some [c]) (hv : ∀ v ∈ c.vars, v < e.var) :
+    I.Run (e.push [.step (.pol ops)] 1 0) ((e.next, c) :: db) ∧ Sub db ((e.next, c) :: db) :=
+  Run.step I h (by intro ids h; cases h) (by simp [runStep, hp]) hv
+
 /-- **A `rup` step runs** when the checker accepts it. -/
 private theorem Run.rup {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e db) {c : PBConstr}
     {hs : List Hint} (hr : rup db c hs = true) (hv : ∀ v ∈ c.vars, v < e.var) :
     I.Run (e.push [.step (.rup c hs)] 1 0) ((e.next, c.normalize) :: db) ∧
-      Sub db ((e.next, c.normalize) :: db) := by
-  have hsub := sub_cons h.2.1 c.normalize
-  refine ⟨⟨?_, ?_, ?_, by simpa [Acc.push] using h.2.2.2.1, hsub _ _ h.2.2.2.2.1,
-    hsub _ _ h.2.2.2.2.2⟩, hsub⟩
-  · rw [push_steps, runTop_append, h.1, Option.bind_some, runTop_cons,
-      stepTop_step_of_ne_del _ _ _ (by intro ids h; cases h)]
-    simp [state, runStep, hr, runTop_nil, Acc.push]
-  · intro x hx
-    simp only [List.mem_cons] at hx
-    rcases hx with rfl | hx
-    · simp [Acc.push]
-    · have := h.2.1 x hx; simp [Acc.push]; omega
-  · intro x hx v hv'
-    simp only [List.mem_cons] at hx
-    rcases hx with rfl | hx
-    · simpa [Acc.push] using hv _ (mem_vars_of_mem_vars_normalize hv')
-    · simpa [Acc.push] using h.2.2.1 x hx v hv'
+      Sub db ((e.next, c.normalize) :: db) :=
+  Run.step I h (by intro ids h; cases h) (by simp [runStep, hr])
+    fun v hv' => hv _ (mem_vars_of_mem_vars_normalize hv')
 
 private theorem vars_impl {l : Literal ℕ} {c : PBConstr} {x : ℕ} (h : x ∈ (impl [l] c).vars) :
     x = l.1 ∨ x ∈ c.vars := by
@@ -846,7 +833,7 @@ private theorem Run.reify {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run e d
     rcases hx with rfl | rfl | hx
     · rcases vars_impl (mem_vars_of_mem_vars_normalize hv') with h' | h'
       · simp at h'; omega
-      · have := hv _ (vars_negate_sub h'); omega
+      · have := hv _ (by_contra fun hx => not_mem_vars_negate hx h'); omega
     · rcases vars_impl (mem_vars_of_mem_vars_normalize hv') with h' | h'
       · simp at h'; omega
       · have := hv _ h'; omega
@@ -942,7 +929,7 @@ private theorem mkLayer_spec {i : ℕ} (hi : i ≤ I.n) : ∀ (sts : List St) (e
         refine ⟨hl, hn, by dsimp only; omega, by dsimp only; omega, by dsimp only; omega,
           by dsimp only; omega, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
         · refine hs _ _ ?_
-          simp (disch := omega) only [Acc.push, lookup_cons_ne, lookup_cons_eq]
+          simp (disch := omega) only [Acc.push, lookup_cons, ite_eq_right, ↓reduceIte]
       · exact hok u hu
     · simp only [mkLayer]; exact le_trans (by simp [Acc.push]) hv
 
@@ -1045,21 +1032,21 @@ private theorem trSteps_spec {i : ℕ} (hi : i < I.n) {e : Acc} {db : List (ℕ 
   set cP' := (impl [(u.P, true)] (I.cP i u.st)).normalize.add
     (impl [(t.P, false)] (I.cP (i + 1) t.st).negate).normalize with hcP
   have hlookA : lookup ((e.next + 1, cP') :: (e.next, cA) :: db) e.next = some cA := by
-    simp (disch := omega) only [lookup_cons_ne, lookup_cons_eq]
+    simp (disch := omega) only [lookup_cons, ite_eq_right, ↓reduceIte]
   have hlookP : lookup ((e.next + 1, cP') :: (e.next, cA) :: db) (e.next + 1) = some cP' :=
-    lookup_cons_self _ _ _
+    ((lookup_cons _ _ _ _).trans (ite_eq_left rfl))
   have hr : rup ((e.next + 1, cP') :: (e.next, cA) :: db)
       (trClause i u b t) [.neg, .id u.sf, .id e.next, .id (e.next + 1), .id t.sb] = true := by
     refine rup_clause ?_
     simp only [List.map_cons, List.map_nil, Std.Sat.Literal.negate, Bool.not_not,
       Bool.not_false, Bool.not_true, List.append_nil]
     refine RupOk.id_imp (L := [(u.W, true), (u.P, true)]) (s₂ _ _ (s₁ _ _ hu.sf))
-      (nodup_vars_normalize _) ?_ ?_
+      (nodup_termVar_normalize _) ?_ ?_
     · intro σ hσ hc
       rw [holds_normalize, holds_impl] at hc
       have := (holds_cS σ _ _).1 (hc (by simp [lit_of hσ (v := u.S) (b := true) (by simp)]))
       simp [Consistent, this]
-    refine RupOk.id_imp (L := [(t.W, true)]) hlookA (nodup_vars_normalize _) ?_ ?_
+    refine RupOk.id_imp (L := [(t.W, true)]) hlookA (nodup_termVar_normalize _) ?_ ?_
     · intro σ hσ hc
       have := trans_dim (a := I.w) (pol := true) (b := b) (i := i) (d := u.st.1) (zu := u.W)
         (zt := t.W) (by have := hu.nW; omega) (by have := ht.nW; omega)
@@ -1067,7 +1054,7 @@ private theorem trSteps_spec {i : ℕ} (hi : i < I.n) {e : Acc} {db : List (ℕ 
         (by rw [hcA] at hc; simp only [cW, hst, succSt] at hc; exact hc)
         (lit_of hσ (by simp)) (lit_of hσ (by simp))
       simp [Consistent, this]
-    refine RupOk.id_imp (L := [(t.P, true)]) hlookP (nodup_vars_normalize _) ?_ ?_
+    refine RupOk.id_imp (L := [(t.P, true)]) hlookP (nodup_termVar_normalize _) ?_ ?_
     · intro σ hσ hc
       have := trans_dim (a := I.p) (pol := false) (b := b) (i := i) (d := u.st.2) (zu := u.P)
         (zt := t.P) (by have := hu.nP; omega) (by have := ht.nP; omega)
@@ -1075,7 +1062,7 @@ private theorem trSteps_spec {i : ℕ} (hi : i < I.n) {e : Acc} {db : List (ℕ 
         (by rw [hcP] at hc; simp only [cP, hst, succSt] at hc; exact hc)
         (lit_of hσ (by simp)) (lit_of hσ (by simp))
       simp [Consistent, this]
-    refine RupOk.id_conflict (s₂ _ _ (s₁ _ _ ht.sb)) (nodup_vars_normalize _) ?_
+    refine RupOk.id_conflict (s₂ _ _ (s₁ _ _ ht.sb)) (nodup_termVar_normalize _) ?_
     intro σ hσ hc
     rw [holds_normalize, holds_impl_neg_negate] at hc
     have h1 := hc ((holds_cS σ _ _).2 ⟨lit_of hσ (by simp), lit_of hσ (by simp)⟩)
@@ -1091,7 +1078,7 @@ private theorem trSteps_spec {i : ℕ} (hi : i < I.n) {e : Acc} {db : List (ℕ 
     · exact ht.S)
   refine ⟨_, ?_, s₁.trans (s₂.trans s₃), ?_⟩
   · rw [push_push, push_push] at h₃; simpa [trSteps] using h₃
-  · simpa [Acc.push] using lookup_cons_self _ _ _
+  · simp [Acc.push, lookup_cons]
 
 private theorem findNode_spec {L : List Node} {st : St} (h : st ∈ L.map (·.st)) :
     findNode L st ∈ L ∧ (findNode L st).st = st := by
@@ -1172,14 +1159,14 @@ private theorem transOut_spec {i : ℕ} (hi : i < I.n) {L' : List Node} {e : Acc
       simp only [fixNeg, hd, Option.map_none, Option.toList_none, List.nil_append,
         List.cons_append, List.map_cons, List.map_nil, Std.Sat.Literal.negate, Bool.not_false,
         Bool.not_true, List.append_nil]
-      refine RupOk.id_imp (L := [(i, true)]) h₀.2.2 (nodup_vars_normalize _) ?_ ?_
+      refine RupOk.id_imp (L := [(i, true)]) h₀.2.2 (nodup_termVar_normalize _) ?_ ?_
       · intro σ hσ hc
         have := holds_trClause.1 hc (lit_of hσ (by simp))
         have h2 := lit_of hσ (v := x₀.2.1.S) (b := false) (by simp)
         cases hx : σ i
         · simp [this hx] at h2
         · simp [Consistent, hx]
-      refine RupOk.id_conflict h₁'.2.2 (nodup_vars_normalize _) ?_
+      refine RupOk.id_conflict h₁'.2.2 (nodup_termVar_normalize _) ?_
       intro σ hσ hc
       have := holds_trClause.1 hc (lit_of hσ (by simp))
         (lit_of hσ (by simp))
@@ -1196,7 +1183,7 @@ private theorem transOut_spec {i : ℕ} (hi : i < I.n) {L' : List Node} {e : Acc
       simp only [fixNeg, hd, Option.map_some, Option.toList_some, List.cons_append,
         List.map_cons, List.map_nil, Std.Sat.Literal.negate, Bool.not_not,
         Bool.not_false, List.append_nil]
-      refine RupOk.id_conflict h₀.2.2 (nodup_vars_normalize _) ?_
+      refine RupOk.id_conflict h₀.2.2 (nodup_termVar_normalize _) ?_
       intro σ hσ hc
       have := holds_trClause.1 hc (lit_of hσ (by simp))
         (lit_of hσ (by simp))
@@ -1218,7 +1205,7 @@ private theorem transOut_spec {i : ℕ} (hi : i < I.n) {L' : List Node} {e : Acc
     hvo⟩
   · obtain ⟨h1, h2, h3⟩ := hall x hx
     exact ⟨h1, h2, s₂ _ _ h3⟩
-  · exact lookup_cons_self _ _ _
+  · exact (lookup_cons _ _ _ _).trans (ite_eq_left rfl)
 
 private theorem trans_spec {i : ℕ} (hi : i < I.n) {L' : List Node} :
     ∀ (L : List Node) (e : Acc) (db : List (ℕ × PBConstr)), I.Run e db →
@@ -1247,6 +1234,21 @@ private theorem negate_aloClause (L : List Node) :
     (I.negD ++ L.map fun u => (u.S, true)).map Std.Sat.Literal.negate ++ [] =
       I.fixedLits ++ L.map fun u => (u.S, false) := by
   simp [List.map_append, negate_negD, List.map_map, Function.comp_def, Std.Sat.Literal.negate]
+
+/-- **The at-least-one constraint of a layer conflicts** with the fixed literals and the falsity
+of every node of the layer. -/
+private theorem rupOk_alo {db : List (ℕ × PBConstr)} {neg : PBConstr} {k : ℕ} {hs : List Hint}
+    {L : List Node} {K : List (Literal ℕ)} (halo : lookup db k = some (I.aloClause L).normalize)
+    (hD : ∀ l ∈ I.fixedLits, l ∈ K) (hL : ∀ u ∈ L, (u.S, false) ∈ K) :
+    RupOk db neg (.id k :: hs) K :=
+  RupOk.id_conflict halo (nodup_termVar_normalize _) fun σ hσ hc => by
+    rw [holds_normalize, aloClause, holds_clause] at hc
+    obtain ⟨l, hl, hev⟩ := hc
+    rcases List.mem_append.1 hl with hl | hl
+    · have := I.eval_negD (fun m hm => hσ m (hD m hm)) l hl
+      simp [this] at hev
+    · obtain ⟨u, hu, rfl⟩ := List.mem_map.1 hl
+      simp [lit_of hσ (hL u hu)] at hev
 
 /-- Under the fixed literals and the falsity of every node of `L'`, the clause `S_u ∧ D ⇒ ⋁ S_t`
 of a node whose targets are in `L'` makes `S_u` false. -/
@@ -1283,23 +1285,16 @@ private theorem rup_alo {i : ℕ} (hi : i < I.n) {db : List (ℕ × PBConstr)} {
   · rw [List.map_map] at this; exact this
   · intro x hx
     obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hx
-    refine ⟨_, (houts o ho).succ, nodup_vars_normalize _, fun σ hσ hc => ?_⟩
+    refine ⟨_, (houts o ho).succ, nodup_termVar_normalize _, fun σ hσ hc => ?_⟩
     have := I.succ_false hi (fun l hl => List.mem_append_left _ hl)
       (fun x hx => List.mem_append_right _ (List.mem_map.2 ⟨_, ((houts o ho).tr x hx).1, rfl⟩))
       hσ hc
     simp [this]
-  · refine RupOk.id_conflict halo (nodup_vars_normalize _) fun σ hσ hc => ?_
-    rw [holds_normalize, aloClause, holds_clause] at hc
-    obtain ⟨l, hl, hev⟩ := hc
-    rcases List.mem_append.1 hl with hl | hl
-    · have := I.eval_negD (fun m hm => hσ m (by simp [hm])) l hl
-      simp [this] at hev
-    · obtain ⟨u, hu, rfl⟩ := List.mem_map.1 hl
-      rw [← hmap] at hu
-      obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hu
-      have := lit_of hσ (v := o.u.S) (b := false)
-        (by simp only [List.map_map, List.mem_append, List.mem_map]; exact .inl ⟨o, ho, rfl⟩)
-      simp [this] at hev
+  · refine I.rupOk_alo halo (fun m hm => by simp [hm]) fun u hu => ?_
+    rw [← hmap] at hu
+    obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hu
+    simp only [List.map_map, List.mem_append, List.mem_map]
+    exact .inl ⟨o, ho, rfl⟩
 
 /-- **The facts about a layer** `i` of the forward pass. -/
 private structure LayOk (i : ℕ) (db : List (ℕ × PBConstr)) (V : ℕ) (r : LayerRec) : Prop where
@@ -1374,7 +1369,7 @@ private theorem fwd_spec : ∀ (k i : ℕ) (e : Acc) (L : List Node) (alo : ℕ)
     obtain ⟨db', h', s', rest⟩ := fwd_spec k (i + 1) _ r₁.2 r₂.1.next (⟨i, L, r₂.2, alo⟩ :: recs)
       _ (by omega) h₃
       ⟨rfl, hlay₁, fun u hu => (hok₁ u hu).mono I (s₂.trans s₃) hV,
-        lookup_cons_self _ _ _⟩
+        ((lookup_cons _ _ _ _).trans (ite_eq_left rfl))⟩
       ⟨rfl, ⟨rfl, hLl, fun u hu => (hL.nodes u hu).mono I hs (le_trans hv₁ hV), hs _ _ hL.alo⟩,
         hmap₂, fun o ho => (hok₂ o ho).mono I s₃ (by rw [hv₂]; exact hV),
         hc.mono I hs (le_trans hv₁ hV)⟩
@@ -1459,13 +1454,13 @@ private theorem deadFinal_spec : ∀ (ts : List Node) (e : Acc) (db : List (ℕ 
         split_ifs with hC
         · refine ⟨_, polEval_add ht.pf h.2.2.2.2.2, fun v hv => (vars_add hv).elim
             (I.vars_of_lookup h ht.pf v) (I.vars_of_lookup h h.2.2.2.2.2 v),
-            nodup_vars_normalize _, fun σ _ hP hA => ?_⟩
+            nodup_termVar_normalize _, fun σ _ hP hA => ?_⟩
           have := final_dim (a := I.p) (pol := false) (m := I.n) (d := t.st.2) (z := t.P)
             ht.nP (G := I.profC) (nodup_range _ _ _) (fun σ => lhs_range σ _ _ _) hA hP
           exact hf' ⟨hC, by simpa [profC] using this⟩
         · refine ⟨_, polEval_add ht.wf h.2.2.2.2.1, fun v hv => (vars_add hv).elim
             (I.vars_of_lookup h ht.wf v) (I.vars_of_lookup h h.2.2.2.2.1 v),
-            nodup_vars_normalize _, fun σ hW _ hA => ?_⟩
+            nodup_termVar_normalize _, fun σ hW _ hA => ?_⟩
           have := final_dim (a := I.w) (pol := true) (m := I.n) (d := t.st.1) (z := t.W)
             ht.nW (G := I.capC) (nodup_range _ _ _) (fun σ => lhs_range σ _ _ _) hA hW
           simp only [capC] at this
@@ -1476,11 +1471,11 @@ private theorem deadFinal_spec : ∀ (ts : List Node) (e : Acc) (db : List (ℕ 
         refine rup_clause ?_
         rw [negate_deadClause]
         refine RupOk.id_imp (L := [(t.W, true), (t.P, true)]) (s₁ _ _ ht.sf)
-          (nodup_vars_normalize _) (fun σ hσ hc => ?_) ?_
+          (nodup_termVar_normalize _) (fun σ hσ hc => ?_) ?_
         · rw [holds_normalize, holds_impl] at hc
           have := (holds_cS σ _ _).1 (hc (by simp [lit_of hσ (v := t.S) (b := true) (by simp)]))
           simp [Consistent, this]
-        exact RupOk.id_conflict (lookup_cons_self _ _ _) hnd fun σ hσ hc =>
+        exact RupOk.id_conflict ((lookup_cons _ _ _ _).trans (ite_eq_left rfl)) hnd fun σ hσ hc =>
           hsem σ (lit_of hσ (by simp)) (lit_of hσ (by simp)) hc
       obtain ⟨h₂, s₂⟩ := Run.rup I h₁ hr (fun v hv => by
         obtain ⟨l, hl, rfl⟩ := vars_clause hv
@@ -1496,7 +1491,7 @@ private theorem deadFinal_spec : ∀ (ts : List Node) (e : Acc) (db : List (ℕ 
       · simp only [deadFinal, hfF, Bool.false_eq_true, ↓reduceIte, DeadOk, List.mem_cons,
           forall_eq_or_imp]
         refine ⟨s' _ _ ?_, hd'⟩
-        simpa [Acc.push] using lookup_cons_self _ _ _
+        simp [Acc.push, lookup_cons]
       · intro u hu hu'
         simp only [deadFinal, hfF, Bool.false_eq_true, ↓reduceIte, List.mem_cons]
         rcases List.mem_cons.1 hu with rfl | hu
@@ -1550,10 +1545,10 @@ private theorem deadLayer_spec {i : ℕ} (hi : i < I.n) {A : List St} {dl : List
         · rw [List.map_map] at this; exact this
         · intro y hy
           obtain ⟨x, hx, rfl⟩ := List.mem_map.1 hy
-          refine ⟨_, hdl _ (hdead x hx), nodup_vars_normalize _, fun σ hσ hc => ?_⟩
+          refine ⟨_, hdl _ (hdead x hx), nodup_termVar_normalize _, fun σ hσ hc => ?_⟩
           have := I.holds_deadClause (I.consistent_fixed hσ) hc
           simp [this]
-        · refine RupOk.id_conflict ho.succ (nodup_vars_normalize _) fun σ hσ hc => ?_
+        · refine RupOk.id_conflict ho.succ (nodup_termVar_normalize _) fun σ hσ hc => ?_
           have := I.succ_false hi (o := o)
             (K := (o.tr.map fun x => (Hint.id (dlook dl x.2.1.S), (x.2.1.S, false))).map (·.2) ++
               (I.fixedLits ++ [(o.u.S, true)])) (fun l hl => by simp [hl])
@@ -1572,7 +1567,7 @@ private theorem deadLayer_spec {i : ℕ} (hi : i < I.n) {A : List St} {dl : List
       refine ⟨db', by simpa [deadLayer, hany'] using h', s₁.trans s', ?_, ?_, ?_⟩
       · simp only [deadLayer, hany', Bool.false_eq_true, ↓reduceIte, DeadOk, List.mem_cons,
           forall_eq_or_imp]
-        exact ⟨s' _ _ (lookup_cons_self _ _ _), hd'⟩
+        exact ⟨s' _ _ ((lookup_cons _ _ _ _).trans (ite_eq_left rfl)), hd'⟩
       · intro u hu hu'
         simp only [deadLayer, hany', Bool.false_eq_true, ↓reduceIte, List.mem_cons]
         rcases List.mem_cons.1 hu with rfl | hu
@@ -1688,7 +1683,7 @@ private theorem rup_rem {db : List (ℕ × PBConstr)} {V : ℕ} {next : List Nod
   · rw [List.map_map] at h1; exact h1
   · intro y hy
     obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hy
-    refine ⟨_, hdead o ho, nodup_vars_normalize _, fun σ hσ hc => ?_⟩
+    refine ⟨_, hdead o ho, nodup_termVar_normalize _, fun σ hσ hc => ?_⟩
     have := I.holds_deadClause (I.consistent_fixed hσ) hc
     simp [this]
   have h2 := RupOk.imps (db := db) (neg := (I.remClause r.i b).negate)
@@ -1700,7 +1695,7 @@ private theorem rup_rem {db : List (ℕ × PBConstr)} {V : ℕ} {next : List Nod
     obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hy
     obtain ⟨z, hz, hzb, ht, hτ⟩ := htr o ho
     obtain ⟨-, -, hzl⟩ := (hx.out o ho).tr z hz
-    refine ⟨_, by rw [hτ]; exact hzl, nodup_vars_normalize _, fun σ hσ hc => ?_⟩
+    refine ⟨_, by rw [hτ]; exact hzl, nodup_termVar_normalize _, fun σ hσ hc => ?_⟩
     rw [hzb] at hc
     have h3 := lit_of hσ (v := (o.tgt b).S) (b := false)
       (by simp only [List.mem_append, List.mem_map]; left; exact ⟨_, ⟨o, ho, rfl⟩, rfl⟩)
@@ -1709,18 +1704,12 @@ private theorem rup_rem {db : List (ℕ × PBConstr)} {V : ℕ} {next : List Nod
     cases hu : σ o.u.S
     · simp [hu]
     · simp [holds_trClause.1 hc hu h4] at h3
-  · refine RupOk.id_conflict hx.lay.alo (nodup_vars_normalize _) fun σ hσ hc => ?_
-    rw [holds_normalize, aloClause, holds_clause] at hc
-    obtain ⟨l, hl, hev⟩ := hc
-    rcases List.mem_append.1 hl with hl | hl
-    · have := I.eval_negD (fun m hm => hσ m (by simp [hm])) l hl
-      simp [this] at hev
-    · obtain ⟨u, hu, rfl⟩ := List.mem_map.1 hl
-      rw [← hx.outs] at hu
-      obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hu
-      have := lit_of hσ (v := o.u.S) (b := false)
-        (by simp only [List.mem_append, List.mem_map]; left; exact ⟨_, ⟨o, ho, rfl⟩, rfl⟩)
-      simp [this] at hev
+  · refine I.rupOk_alo hx.lay.alo (fun m hm => by simp [hm]) fun u hu => ?_
+    rw [← hx.outs] at hu
+    obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hu
+    simp only [List.mem_append, List.mem_map]
+    left
+    exact ⟨_, ⟨o, ho, rfl⟩, rfl⟩
 
 private theorem remLayer_spec {next : List Node} {r : LayerRec} {A : List St}
     {dl : List (ℕ × ℕ)} : ∀ (bs : List Bool) (e : Acc) (db : List (ℕ × PBConstr)),
@@ -1749,7 +1738,7 @@ private theorem remLayer_spec {next : List Node} {r : LayerRec} {A : List St}
       simp only [remLayer, hall, ↓reduceIte]
       refine ⟨db', h', s₁.trans s', ?_, ?_, by simpa [Acc.push] using hv⟩
       · simp only [List.mem_cons, forall_eq_or_imp]
-        refine ⟨⟨by simp, by simp, s' _ _ (lookup_cons_self _ _ _)⟩, fun y hy => ?_⟩
+        refine ⟨⟨by simp, by simp, s' _ _ ((lookup_cons _ _ _ _).trans (ite_eq_left rfl))⟩, fun y hy => ?_⟩
         obtain ⟨h1, h2, h3⟩ := hys y hy
         exact ⟨h1, .inr h2, h3⟩
       · simp only [List.mem_cons]
@@ -1825,17 +1814,17 @@ private theorem emit_spec : ∃ db, I.Run I.emit.1 db ∧
     refine rup_clause ?_
     rw [negate_aloClause]
     simp only [List.headD_cons, List.map_cons, List.map_nil]
-    refine RupOk.id_imp (L := [(u₀.W, true)]) hn₀.wb (nodup_vars_normalize _) ?_ ?_
+    refine RupOk.id_imp (L := [(u₀.W, true)]) hn₀.wb (nodup_termVar_normalize _) ?_ ?_
     · intro σ _ hc
       rw [holds_normalize, holds_impl_neg_negate] at hc
       simp [Consistent, hc (by rw [cW, holds_dimC, hst₀]; exact Nat.zero_le _)]
-    refine RupOk.id_imp (L := [(u₀.P, true)]) hn₀.pb (nodup_vars_normalize _) ?_ ?_
+    refine RupOk.id_imp (L := [(u₀.P, true)]) hn₀.pb (nodup_termVar_normalize _) ?_ ?_
     · intro σ _ hc
       rw [holds_normalize, holds_impl_neg_negate] at hc
       have : (I.cP 0 u₀.st).Holds σ := by
         rw [cP, holds_dimC, hst₀]; exact Nat.zero_le _
       simp [Consistent, hc this]
-    refine RupOk.id_conflict hn₀.sb (nodup_vars_normalize _) fun σ hσ hc => ?_
+    refine RupOk.id_conflict hn₀.sb (nodup_termVar_normalize _) fun σ hσ hc => ?_
     rw [holds_normalize, holds_impl_neg_negate] at hc
     have h1 := hc ((holds_cS σ _ _).2 ⟨lit_of hσ (by simp), lit_of hσ (by simp)⟩)
     have h2 := lit_of hσ (v := u₀.S) (b := false) (by simp)
@@ -1848,7 +1837,7 @@ private theorem emit_spec : ∃ db, I.Run I.emit.1 db ∧
   -- The forward pass.
   obtain ⟨db₂, h₂, s₂, rn, rs, hf, hrn, hc, hidx⟩ := I.fwd_spec I.n 0 _ r₀.2 r₀.1.next [] _
     (by omega) h₁ ⟨rfl, hmap₀, fun u hu => (hok₀ u hu).mono I s₁ (by simp [Acc.push]),
-      lookup_cons_self _ _ _⟩ trivial rfl
+      ((lookup_cons _ _ _ _).trans (ite_eq_left rfl))⟩ trivial rfl
   set f := I.fwd I.n 0 (r₀.1.push [.step (.rup (I.aloClause r₀.2) [.neg,
     .id (r₀.2.headD noNode).wb, .id (r₀.2.headD noNode).pb, .id (r₀.2.headD noNode).sb])] 1 0)
     r₀.2 r₀.1.next [] with hfdef
@@ -1887,10 +1876,15 @@ private theorem emit_spec : ∃ db, I.Run I.emit.1 db ∧
     exact hall _ (hxj ▸ hst))
   exact ⟨k, hxj ▸ hk⟩
 
-/-- **The checker accepts the propagator's proof**, on every instance. -/
-private theorem checkRed_run : checkRed I.F none I.run.proof (some I.pres) = true := by
-  obtain ⟨db, h, -⟩ := I.emit_spec
-  simp [checkRed, run, h.1, checkConclusion]
+/-- **The propagator's proof runs and derives every removal clause.** -/
+private theorem runTop_run : ∃ s, runTop I.F none (State.init I.F none (some I.pres))
+    I.run.proof.steps = some s ∧
+      ∀ j b, (j, b) ∈ I.run.removed → ∃ k, lookup s.db k = some (I.remClause j b).normalize := by
+  obtain ⟨db, h, hys, -⟩ := I.emit_spec
+  refine ⟨I.state db I.emit.1.next, h.1, fun j b hm => ?_⟩
+  simp only [run, List.mem_map, Prod.mk.injEq] at hm
+  obtain ⟨y, hy, rfl, rfl⟩ := hm
+  exact ⟨y.2.2, (hys y hy).2.2⟩
 
 /-- A constraint of the database over item variables holds at every solution of the formula: the
 witnesses of `red` change only extension variables, which the preserved set excludes. -/
@@ -2142,12 +2136,12 @@ end Inst
 variable {n : ℕ}
 
 /-- **The profit constraint** `∑ pᵢ xᵢ ≥ P`, with item `i` the variable `i`. -/
-def profitBound (p : Fin n → ℕ) (P : ℕ) : PBConstr :=
+@[expose] def profitBound (p : Fin n → ℕ) (P : ℕ) : PBConstr :=
   ⟨(List.finRange n).map fun i => (p i, (i.val, true)), P⟩
 
 /-- **The knapsack constraint** `∑ wᵢ xᵢ ≤ C ∧ ∑ pᵢ xᵢ ≥ P`: the capacity constraint of the
 certified knapsack and the profit constraint. -/
-def propFormula (w p : Fin n → ℕ) (C P : ℕ) : List PBConstr :=
+@[expose] def propFormula (w p : Fin n → ℕ) (C P : ℕ) : List PBConstr :=
   [capacity w C, profitBound p P]
 
 /-- The ℕ-indexed instance of a knapsack constraint with domains, items outside `Fin n` absent. -/
@@ -2165,8 +2159,8 @@ def propagate (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n → Option Bool) : 
 /-- The value `b` of item `j` is **supported** by the knapsack constraint under the domains:
 some set of items that agrees with the domains, contains `j` exactly when `b`, weighs at most `C`
 and earns at least `P`. -/
-def Supported (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n → Option Bool) (j : Fin n) (b : Bool) :
-    Prop :=
+@[expose] def Supported (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n → Option Bool) (j : Fin n)
+    (b : Bool) : Prop :=
   ∃ S : Finset (Fin n), (∀ i c, dom i = some c → (i ∈ S ↔ c = true)) ∧ (j ∈ S ↔ b = true) ∧
     ∑ i ∈ S, w i ≤ C ∧ P ≤ ∑ i ∈ S, p i
 
@@ -2195,13 +2189,65 @@ private theorem F_ofFin (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n → Optio
     h3]
   rfl
 
+/-- **The removal clause** `D ⇒ xⱼ ≠ b` of the value `b` of item `j`, `D` the literals that the
+domains `dom` fix: the clause `⋁_{dom i = some c} xᵢ ≠ c ∨ xⱼ ≠ b`. -/
+@[expose] def remClause (dom : Fin n → Option Bool) (j : Fin n) (b : Bool) : PBConstr :=
+  ⟨(((List.finRange n).filterMap fun i => (dom i).map fun c => (i.val, !c)) ++
+    [(j.val, !b)]).map ((1, ·)), 1⟩
+
+/-- **The removal clause holds exactly when** an assignment agreeing with the domains does not
+give item `j` the value `b`. -/
+theorem holds_remClause_iff (dom : Fin n → Option Bool) (j : Fin n) (b : Bool) (σ : ℕ → Bool) :
+    (remClause dom j b).Holds σ ↔ ((∀ i c, dom i = some c → σ i = c) → σ j ≠ b) := by
+  rw [show remClause dom j b = clause _ from rfl, Inst.holds_clause]
+  simp only [List.mem_append, List.mem_filterMap, List.mem_finRange, true_and,
+    Option.map_eq_some_iff, List.mem_singleton, Literal.eval_eq_true_iff]
+  constructor
+  · rintro ⟨l, hl | rfl, hev⟩ hd hj
+    · obtain ⟨i, c, hc, rfl⟩ := hl
+      simp [hd i c hc] at hev
+    · simp [hj] at hev
+  · intro h
+    by_contra hne
+    push Not at hne
+    refine h (fun i c hc => ?_) ?_
+    · have := hne (i.val, !c) (.inl ⟨i, c, hc, rfl⟩)
+      simpa using this
+    · simpa using hne (j.val, !b) (.inr rfl)
+
+private theorem remClause_ofFin (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n → Option Bool)
+    (j : Fin n) (b : Bool) : (Inst.ofFin w p C P dom).remClause j.val b = remClause dom j b := by
+  have key : ((List.range n).filterMap fun k =>
+      (if h : k < n then dom ⟨k, h⟩ else none).map fun c => (k, c)).map Std.Sat.Literal.negate =
+      (List.finRange n).filterMap fun i => (dom i).map fun c => (i.val, !c) := by
+    rw [← List.map_coe_finRange_eq_range, List.filterMap_map, List.map_filterMap]
+    refine List.filterMap_congr fun i _ => ?_
+    rcases h : dom i with _ | c <;> simp [i.isLt, h, Std.Sat.Literal.negate]
+  simp only [Inst.remClause, Inst.negD, Inst.fixedLits, Inst.ofFin, remClause, clause, key]
+
+/-- **The propagator's proof runs, and derives the removal clause** `D ⇒ xⱼ ≠ b` of every removed
+value `b` of item `j`: the checker, run on the knapsack constraint with the item variables
+preserved, reaches a database holding the normalized removal clause. -/
+theorem runTop_propagate (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n → Option Bool) :
+    ∃ s, runTop (propFormula w p C P) none
+        (State.init (propFormula w p C P) none (some (List.range n)))
+        (propagate w p C P dom).proof.steps = some s ∧
+      ∀ j b, (j.val, b) ∈ (propagate w p C P dom).removed →
+        ∃ k, lookup s.db k = some (remClause dom j b).normalize := by
+  obtain ⟨s, hs, hrem⟩ := (Inst.ofFin w p C P dom).runTop_run
+  rw [F_ofFin] at hs
+  refine ⟨s, hs, fun j b hm => ?_⟩
+  rw [← remClause_ofFin w p C P]
+  exact hrem j.val b hm
+
 /-- **The checker accepts the propagator's proof**, for every knapsack constraint and every
 domains, the item variables preserved. -/
 theorem checkRed_propagate (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n → Option Bool) :
     checkRed (propFormula w p C P) none (propagate w p C P dom).proof (some (List.range n)) =
       true := by
-  have := (Inst.ofFin w p C P dom).checkRed_run
-  rwa [F_ofFin] at this
+  obtain ⟨s, hs, -⟩ := runTop_propagate w p C P dom
+  rw [checkRed, hs]
+  rfl
 
 private theorem part_eq_sum (σ : ℕ → Bool) (a : Fin n → ℕ) :
     Inst.part σ (fun j => if h : j < n then a ⟨j, h⟩ else 0) true n = ∑ i ∈ chosen n σ, a i := by
