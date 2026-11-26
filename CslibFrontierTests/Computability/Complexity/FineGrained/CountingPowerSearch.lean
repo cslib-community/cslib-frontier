@@ -53,13 +53,20 @@ private noncomputable def expAllowance (A n : ℕ) : ℕ :=
   (Finset.range (n + 1)).sup fun m => ⌈(2 : ℝ) ^ ((A : ℝ) * interpolationScale m)⌉₊
 
 /-- A native width-two counter with a padded, superpolynomial workspace allowance yields exact
-counts on the empty CNF with zero or three declared variables and rejects invalid support. -/
+counts on the empty CNF with zero or three declared variables and satisfies the time envelope
+when rejecting an out-of-range variable. -/
 theorem powerBudget_counts_with_superpolynomial_allowance :
-    ∃ (Q count T S : Unit × ℕ × CNF ℕ → ℕ),
+    ∃ (Q count T S : Unit × ℕ × CNF ℕ → ℕ) (c e r : ℕ),
       ¬ PolyBounded (fun x => (encPair encUnit (encPair encUnary encCNF) x).length) Q ∧
       ComputableInO count (encPair encUnit (encPair encUnary encCNF)) encNat T S ∧
       count ((), 0, []) = 1 ∧ count ((), 3, []) = 8 ∧
-      count ((), 0, [[(0, true)]]) = 0 := by
+      let declared : ℕ := 0
+      let d : ℕ := 2
+      let invalid : Unit × ℕ × CNF ℕ := ((), declared, [[(0, true)]])
+      let L := (encPair encUnit (encPair encUnary encCNF) invalid).length
+      count invalid = 0 ∧
+      (T invalid : ℝ) ≤ 6 * 2 ^ (3 * (declared + 1 : ℝ) ^ (1 - (d : ℝ)⁻¹)) *
+        (c * ((L : ℝ) + 1) ^ e + r) := by
   obtain ⟨g, A, e, b, hg, hcounter⟩ := CountingNativeEndpoint.exists_modelCounter 2
   have hproj : ComputableInPolyTime
       (Prod.snd : (Unit × ℕ) × CNF ℕ → CNF ℕ) encLeaf encCNF :=
@@ -73,7 +80,7 @@ theorem powerBudget_counts_with_superpolynomial_allowance :
   have hresult := exists_computableInO_searchDeclared_powerBudget encUnit (k := 2) (d := 2)
     (by decide) (by decide) (R := R) (Q := Q) (hcounter.comp ha.inO)
     (fun _ ψ hw _ _ _ => hg ψ hw)
-  obtain ⟨count, T, S, _, _, hc, _, hspec, _⟩ := hresult (by
+  obtain ⟨count, T, S, c, e, hc, _, hspec, hT⟩ := hresult (by
     intro x ψ _ _ hsub _ hlen
     have hlen' : (encLeaf ((x.1, x.2.1), ψ)).length ≤ leafSize x := by
       rw [leafSize, length_encPair]
@@ -89,17 +96,19 @@ theorem powerBudget_counts_with_superpolynomial_allowance :
         (Nat.mul_le_mul htime (Nat.pow_le_pow_left (Nat.succ_le_succ hlen) e))
     · exact Nat.add_le_add (Nat.pow_le_pow_left (Nat.succ_le_succ hlen') a)
         (Nat.pow_le_pow_left (Nat.succ_le_succ hlen) b))
-  refine ⟨Q, count, T, S, hQ, hc, ?_⟩
+  let invalid : Input := ((), 0, [[(0, true)]])
+  refine ⟨Q, count, T, S, c, e, R invalid, hQ, hc, ?_⟩
   have hempty (n : ℕ) : count ((), n, []) = 2 ^ n := by
     have hvalid : CNF.validDeclaredInput 2 n [] = true :=
       CNF.validDeclaredInput_eq_true_iff.mpr ⟨by simp, by simp [CNF.vars]⟩
     simpa only [hvalid, ↓reduceIte, CNF.modelCountOn_nil, Finset.card_range] using hspec ((), n, [])
   have hinvalid : CNF.validDeclaredInput 2 0 [[(0, true)]] ≠ true := by decide
-  refine ⟨hempty 0, hempty 3, ?_⟩
-  have hvalue := hspec ((), 0, [[(0, true)]])
-  change count ((), 0, [[(0, true)]]) =
-    (if CNF.validDeclaredInput 2 0 [[(0, true)]] then
-      CNF.modelCountOn [[(0, true)]] (Finset.range 0) else 0) at hvalue
-  rwa [ite_eq_right hinvalid] at hvalue
+  refine ⟨hempty 0, hempty 3, ?_, ?_⟩
+  · have hvalue := hspec invalid
+    change count invalid =
+      (if CNF.validDeclaredInput 2 0 [[(0, true)]] then
+        CNF.modelCountOn [[(0, true)]] (Finset.range 0) else 0) at hvalue
+    rwa [ite_eq_right hinvalid] at hvalue
+  · exact hT ((), 0, [[(0, true)]])
 
 end CslibFrontierTests.CountingPowerSearch

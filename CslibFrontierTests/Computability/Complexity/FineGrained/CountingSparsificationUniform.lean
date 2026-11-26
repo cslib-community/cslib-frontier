@@ -187,11 +187,15 @@ example : ∃ d c e, ComputableInO
       (fun x : Bool × ℕ × CNF ℕ =>
         searchDeclaredWith Prod.snd varyingM varyingB 2 2 occurringProbe (x.1, x.2.1) x.2.2)
       (encPair encBool (encPair encUnary encCNF)) encNat
-      (fun x => c * ((encPair encBool (encPair encUnary encCNF) x).length + 1) ^ e +
-        (rounds (varyingB (x.1, x.2.1)) x.2.2 + 1) *
-          (c * ((encPair encBool (encPair encUnary encCNF) x).length + 1) ^ e +
-            2 ^ x.2.1 *
-              (2 * (encContext (x.1, x.2.1)).length + 2 + nodeBound 2 4 x.2.2) ^ d))
+      (fun x =>
+        let (context, declared, formula) := x
+        c * ((encPair encBool (encPair encUnary encCNF) x).length + 1) ^ e +
+          if CNF.validDeclaredInput 2 declared formula then
+            (rounds (varyingB (context, declared)) formula + 1) *
+              (c * ((encPair encBool (encPair encUnary encCNF) x).length + 1) ^ e +
+                2 ^ declared *
+                  (2 * (encContext (context, declared)).length + 2 + nodeBound 2 4 formula) ^ d)
+          else 0)
       (fun x => c * ((encPair encBool (encPair encUnary encCNF) x).length + 1) ^ e +
         (2 * (encContext (x.1, x.2.1)).length + 2 + nodeBound 2 4 x.2.2) ^ d) ∧
     PolyBounded

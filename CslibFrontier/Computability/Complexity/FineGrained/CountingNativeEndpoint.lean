@@ -19,7 +19,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.PolyTime.CNF.BranchedSparseCNFCounter
-import CslibFrontier.Computability.PolyTime.CNF.DeclaredInput
 import CslibFrontier.Computability.Complexity.FineGrained.SparseCountingScale
 public import CslibFrontier.Computability.Complexity.FineGrained.CountingEndpoint
 import CslibFrontier.Computability.Complexity.FineGrained.CountingSparsification
@@ -66,13 +65,12 @@ of [OpenAI2026ETH]. It does not assert the sharper Appendix D runtime from Theor
   Appendices A–B, through the imported counting and leaf interfaces.
 -/
 
-/-! ## Parameters, original input charges, and selected guard -/
+/-! ## Parameters and original input charges -/
 
 namespace Cslib.Complexity.CountingNativeEndpointPrep
 
 open Cslib.Logic.PL Cslib.Logic.PL.CNF.Sparsification
-open Cslib.Logic.PL.CNF (validDeclaredInput validDeclaredInput_eq_true_iff
-  computableInPolyTime_validDeclaredInput)
+open Cslib.Logic.PL.CNF (validDeclaredInput validDeclaredInput_eq_true_iff)
 open Cslib.Logic.PL.ClauseSet.Sparsification Turing.MultiTapeTM
 open CountingSparsify SubexponentialSAT SubexponentialSAT.ReplacementParams
 open SubexponentialSAT.SparseCountingScale Filter
@@ -170,57 +168,6 @@ private theorem numVars_le_of_valid {k : ℕ} {x : Input}
     (hx : validDeclaredInput k x.1 x.2 = true) : x.2.numVars ≤ x.1 := by
   have hsub := (validDeclaredInput_eq_true_iff.mp hx).2
   simpa only [CNF.numVars, Finset.card_range] using Finset.card_le_card hsub
-
-/-- Polynomial workspace in the full Unit context remains polynomial in the original external
-encoding. Guarding the false branch adds only the external input-length charge. -/
-private theorem polyBounded_selectedSpace (k d : ℕ) {S : FullInput → ℕ}
-    (hS : PolyBounded (fun x => (encFullInput x).length) S) :
-    PolyBounded inputSize (fun x => (inputSize x + 1) ^ d +
-      if validDeclaredInput k x.1 x.2 then S (prepare x) else inputSize x) := by
-  have hprepared : PolyBounded inputSize (fun x => S (prepare x)) :=
-    hS.comp computableInPolyTime_prepare.polyBounded_length
-  have hbranch : PolyBounded inputSize
-      (fun x => if validDeclaredInput k x.1 x.2 then S (prepare x) else inputSize x) :=
-    (hprepared.add PolyBounded.self).mono fun x => by split_ifs <;> omega
-  exact ((PolyBounded.self.add (.const 1)).pow d).add hbranch
-
-/-- Reapply the already-present input guard to retain the cost of only the selected branch.
-This avoids charging an invalid-support input for its unbounded occurring-support clock. -/
-private theorem exists_computableInO_selectedSearch (k : ℕ)
-    (g : Context × CNF ℕ → ℕ) {T S : FullInput → ℕ}
-    (hsearch : ComputableInO
-      (fun x : FullInput => searchDeclaredWith Prod.snd (thresholdBase k) divisor (width k) k g
-        (x.1, x.2.1) x.2.2) encFullInput encNat T S) :
-    ∃ d, ComputableInO
-      (fun x : Input => searchDeclaredWith Prod.snd (thresholdBase k) divisor (width k) k g
-        ((), x.1) x.2) encInput encNat
-      (fun x => (inputSize x + 1) ^ d +
-        if validDeclaredInput k x.1 x.2 then T (prepare x) else inputSize x)
-      (fun x => (inputSize x + 1) ^ d +
-        if validDeclaredInput k x.1 x.2 then S (prepare x) else inputSize x) := by
-  obtain ⟨dp, _, hp⟩ := computableInPolyTime_prepare.exists_degree
-  obtain ⟨dv, _, hv⟩ :=
-    (computableInPolyTime_validDeclaredInput k ComputableInPolyTime.id').exists_degree
-  have hcore := hsearch.comp hp.inO
-  have hguard := hv.inO.ite hcore
-    (ComputableInO.const (encIn := encInput) 0)
-  have hsum (x : Input) : (inputSize x + 1) ^ dv + (inputSize x + 1) ^ dp ≤
-      2 * (inputSize x + 1) ^ (dv + dp) := by
-    have hv' := Nat.pow_le_pow_right (by omega : 1 ≤ inputSize x + 1) (Nat.le_add_right dv dp)
-    have hp' := Nat.pow_le_pow_right (by omega : 1 ≤ inputSize x + 1) (Nat.le_add_left dp dv)
-    omega
-  refine ⟨dv + dp, (hguard.mono 2 (fun x => ?_) (fun x => ?_)).of_enc_eq ?_⟩
-  · change (inputSize x + 1) ^ dv +
-      (if validDeclaredInput k x.1 x.2 then (inputSize x + 1) ^ dp + T (prepare x)
-       else inputSize x) ≤ _
-    split_ifs <;> have := hsum x <;> omega
-  · change (inputSize x + 1) ^ dv +
-      (if validDeclaredInput k x.1 x.2 then (inputSize x + 1) ^ dp + S (prepare x)
-       else inputSize x) ≤ _
-    split_ifs <;> have := hsum x <;> omega
-  · intro x
-    by_cases hx : validDeclaredInput k x.1 x.2 = true <;>
-      simp [Function.comp_apply, prepare, searchDeclaredWith, hx]
 
 end Cslib.Complexity.CountingNativeEndpointPrep
 
@@ -460,32 +407,30 @@ private theorem prefix_leaf_bounds (k : ℕ) (g : LeafInput → ℕ) (x : FullIn
     have := hb.2.2.2.2
     omega
 
-/-- The polynomial part of the selected search cost and the ceiled leaf envelope combine with
+/-- The polynomial part of the declared search cost and the ceiled leaf envelope combine with
 one fixed all-input round estimate. Small declared sizes are already absorbed in that estimate. -/
-private theorem selected_time_envelope (k d c e Cₜ dₜ Aₜ : ℕ) :
+private theorem declared_time_envelope (k d c e Cₜ dₜ Aₜ : ℕ) :
     let U (x : FullInput) := Cₜ * (leafSize k x + 1) ^ dₜ
     let R (x : FullInput) := ⌈(U x : ℝ) * (2 : ℝ) ^ ((Aₜ : ℝ) * interpolationScale x.2.1)⌉₊
     let W (x : FullInput) := c * ((encFullInput x).length + 1) ^ e
     ∃ C E : ℕ, ∀ x : Input,
-      (((inputSize x + 1) ^ d + if validDeclaredInput k x.1 x.2 then
-        W (prepare x) + (rounds (divisor ((), x.1)) x.2 + 1) *
-          (W (prepare x) + R (prepare x)) else inputSize x : ℕ) : ℝ) ≤
+      (((inputSize x + 1) ^ d + (W (prepare x) + if validDeclaredInput k x.1 x.2 then
+        (rounds (divisor ((), x.1)) x.2 + 1) * (W (prepare x) + R (prepare x)) else 0) : ℕ) : ℝ) ≤
         C * ((2 : ℝ) ^ (((Aₜ + 16 : ℕ) : ℝ) * interpolationScale x.1) *
           ((inputSize x : ℝ) + 1) ^ E) + C := by
   dsimp only
   let U (x : FullInput) := Cₜ * (leafSize k x + 1) ^ dₜ
   let R (x : FullInput) := ⌈(U x : ℝ) * (2 : ℝ) ^ ((Aₜ : ℝ) * interpolationScale x.2.1)⌉₊
   let W (x : FullInput) := c * ((encFullInput x).length + 1) ^ e
-  let P (x : Input) := (inputSize x + 1) ^ d + W (prepare x) + U (prepare x) + 1 + inputSize x
+  let P (x : Input) := (inputSize x + 1) ^ d + W (prepare x) + U (prepare x) + 1
   have hW : PolyBounded (fun x : FullInput => (encFullInput x).length) W :=
     (PolyBounded.const c).mul ((PolyBounded.self.add (.const 1)).pow e)
   have hU : PolyBounded (fun x : FullInput => (encFullInput x).length) U :=
     (PolyBounded.const Cₜ).mul (((polyBounded_leafSize k).add (.const 1)).pow dₜ)
   have hP : PolyBounded inputSize P :=
-    (((((PolyBounded.self.add (.const 1)).pow d).add
+    ((((PolyBounded.self.add (.const 1)).pow d).add
       (hW.comp computableInPolyTime_prepare.polyBounded_length)).add
-      (hU.comp computableInPolyTime_prepare.polyBounded_length)).add (.const 1)).add
-        PolyBounded.self
+      (hU.comp computableInPolyTime_prepare.polyBounded_length)).add (.const 1)
   obtain ⟨Cₚ, E, hP⟩ := hP.exists_le
   obtain ⟨Cq, _, hq⟩ := exists_clamped_rounds_le_interpolationScale
   refine ⟨(Cq + 1) * Cₚ, E, fun x => ?_⟩
@@ -517,13 +462,13 @@ private theorem selected_time_envelope (k d c e Cₜ dₜ Aₜ : ℕ) :
     dsimp only [p]
     push_cast
     nlinarith [show (0 : ℝ) ≤ (Cq + 1) * Cₚ by positivity]
+  have hpol : (((inputSize x + 1) ^ d + W (prepare x) : ℕ) : ℝ) ≤ p := by
+    apply le_trans _ hPr
+    exact_mod_cast (show (inputSize x + 1) ^ d + W (prepare x) ≤ P x by dsimp [P]; omega)
   by_cases hx : validDeclaredInput k x.1 x.2 = true
   · have hround : ((rounds (divisor ((), x.1)) x.2 + 1 : ℕ) : ℝ) ≤ Cq * Y := by
       simpa only [rounds, CNF.length_distinctVars, divisor, leafSearchDivisor, Y] using
         hq x.1 x.2.numVars (numVars_le_of_valid hx)
-    have hpol : (((inputSize x + 1) ^ d + W (prepare x) : ℕ) : ℝ) ≤ p := by
-      apply le_trans _ hPr
-      exact_mod_cast (show (inputSize x + 1) ^ d + W (prepare x) ≤ P x by dsimp [P]; omega)
     have hinside : ((W (prepare x) + R (prepare x) : ℕ) : ℝ) ≤ p * X := by
       have hWU : ((W (prepare x) + U (prepare x) + 1 : ℕ) : ℝ) ≤ p := by
         apply le_trans _ hPr
@@ -532,22 +477,19 @@ private theorem selected_time_envelope (k d c e Cₜ dₜ Aₜ : ℕ) :
       push_cast at hscale ⊢
       nlinarith [mul_le_mul_of_nonneg_left hX (Nat.cast_nonneg (W (prepare x)))]
     have hprod := mul_le_mul hround hinside (by positivity) (by positivity)
-    have hwhole := add_le_add hpol hprod
-    change (((inputSize x + 1) ^ d + if validDeclaredInput k x.1 x.2 then
-      W (prepare x) + (rounds (divisor ((), x.1)) x.2 + 1) *
-        (W (prepare x) + R (prepare x)) else inputSize x : ℕ) : ℝ) ≤ _
-    simp only [hx, ↓reduceIte, Nat.cast_add, Nat.cast_mul]
-    push_cast at hwhole htarget ⊢
-    apply le_trans _ htarget
-    nlinarith
-  · change (((inputSize x + 1) ^ d + if validDeclaredInput k x.1 x.2 then
-      W (prepare x) + (rounds (divisor ((), x.1)) x.2 + 1) *
-        (W (prepare x) + R (prepare x)) else inputSize x : ℕ) : ℝ) ≤ _
-    simp only [hx, Bool.false_eq_true, ↓reduceIte]
-    have hf : (((inputSize x + 1) ^ d + inputSize x : ℕ) : ℝ) ≤ p := by
-      apply le_trans _ hPr
-      exact_mod_cast (show (inputSize x + 1) ^ d + inputSize x ≤ P x by dsimp [P]; omega)
-    apply hf.trans (hPXY.trans (le_trans ?_ htarget))
+    rw [ite_eq_left hx]
+    let q := rounds (divisor ((), x.1)) x.2 + 1
+    let overhead := (inputSize x + 1) ^ d + W (prepare x)
+    let leafCost := W (prepare x) + R (prepare x)
+    change (((inputSize x + 1) ^ d + (W (prepare x) + q * leafCost) : ℕ) : ℝ) ≤ _
+    rw [← Nat.add_assoc, Nat.cast_add overhead (q * leafCost), Nat.cast_mul q leafCost]
+    calc
+      _ ≤ p + (Cq : ℝ) * Y * (p * X) := add_le_add hpol hprod
+      _ ≤ p * (X * Y) + (Cq : ℝ) * Y * (p * X) := add_le_add hPXY le_rfl
+      _ = (Cq + 1 : ℝ) * p * (X * Y) := by ring
+      _ ≤ _ := htarget
+  · rw [ite_eq_right hx, Nat.add_zero]
+    apply hpol.trans (hPXY.trans (le_trans ?_ htarget))
     calc
       p * (X * Y) ≤ ((Cq : ℝ) + 1) * (p * (X * Y)) :=
         le_mul_of_one_le_left (by positivity) (le_add_of_nonneg_left (Nat.cast_nonneg Cq))
@@ -605,15 +547,19 @@ private theorem exists_declared_contract_of_leaf (k : ℕ) (g : LeafInput → �
         (fun ψ => g ((x.1, x.2.1), ψ)))^[i] (init k x.2.2)).2.1.headD [])).trans
         (Nat.mul_le_mul_left Cₛ
         (Nat.pow_le_pow_left (Nat.add_le_add_right hlen 1) dₛ)))
-  obtain ⟨d, hselected⟩ := exists_computableInO_selectedSearch k g hsearch
-  obtain ⟨a, b, hab⟩ := (polyBounded_selectedSpace k d (hS hQ)).exists_le
-  obtain ⟨C, E, hT⟩ := selected_time_envelope k d c e Cₜ dₜ Aₜ
-  refine ⟨_, _, _, Aₜ + 16, C, E, a, b, hselected, ?_, hT, hab⟩
-  intro x
-  exact searchDeclaredWith_eq_ite_modelCountOn
-    ((by decide : 1 ≤ 2).trans (two_le_thresholdBase k ((), x.1)))
-    ((by decide : 1 ≤ 2).trans (two_le_width k)) (two_le_thresholdBase k ((), x.1))
-    (le_width k) (treeBound k ((), x.1)) (fun ψ hw _ hsub => hcorrect _ ψ hw hsub) x.2
+  obtain ⟨d, _, hp⟩ := computableInPolyTime_prepare.exists_degree
+  have hcomposed := hsearch.comp hp.inO
+  obtain ⟨a, b, hab⟩ := (((PolyBounded.self.add (.const 1)).pow d).add
+    ((hS hQ).comp computableInPolyTime_prepare.polyBounded_length)).exists_le
+  obtain ⟨C, E, hT⟩ := declared_time_envelope k d c e Cₜ dₜ Aₜ
+  refine ⟨_, _, _, Aₜ + 16, C, E, a, b, hcomposed, ?_, ?_, hab⟩
+  · intro x
+    exact searchDeclaredWith_eq_ite_modelCountOn
+      ((by decide : 1 ≤ 2).trans (two_le_thresholdBase k ((), x.1)))
+      ((by decide : 1 ≤ 2).trans (two_le_width k)) (two_le_thresholdBase k ((), x.1))
+      (le_width k) (treeBound k ((), x.1)) (fun ψ hw _ hsub => hcorrect _ ψ hw hsub) x.2
+  · rintro ⟨declared, formula⟩
+    exact hT (declared, formula)
 
 /-- The accepted full declared-count telescope, conditional privately only on the remaining
 concrete branch evaluator obligations. No leaf, prefix, clock or final-guard premise remains. -/

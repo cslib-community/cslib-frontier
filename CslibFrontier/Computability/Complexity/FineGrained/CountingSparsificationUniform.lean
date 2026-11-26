@@ -282,19 +282,19 @@ private theorem declared_resources_of_step
       (fun x : P × CNF ℕ => searchDeclaredWith NOf MOf BOf K k g x.1 x.2)
       (encPair encP encCNF) encNat
       (fun x => c * ((encPair encP encCNF x).length + 1) ^ e +
-        (rounds (BOf x.1) x.2 + 1) * (c * ((encPair encP encCNF x).length + 1) ^ e + R x))
+        if validDeclaredInput k (NOf x.1) x.2 then
+          (rounds (BOf x.1) x.2 + 1) * (c * ((encPair encP encCNF x).length + 1) ^ e + R x)
+        else 0)
       (fun x => c * ((encPair encP encCNF x).length + 1) ^ e + Q x) := by
   classical
   by_cases hp : Nonempty P
   swap
   · have hz : ComputableInO (fun _ : P × CNF ℕ => 0) (encPair encP encCNF) encNat
-        (fun x => (rounds (BOf x.1) x.2 + 1) * R x) Q :=
+        (fun _ => 0) (fun _ => 0) :=
       (ComputableInO.const (encIn := encPair encP encCNF) 0).mono_le
         (fun x => (hp ⟨x.1⟩).elim) (fun x => (hp ⟨x.1⟩).elim)
-    refine ⟨0, 0, ?_⟩
-    simpa only [Nat.zero_mul, Nat.zero_add] using
-      (hz.of_enc_eq (g := fun x => searchDeclaredWith NOf MOf BOf K k g x.1 x.2)
-        fun x => (hp ⟨x.1⟩).elim)
+    exact ⟨0, 0, (hz.mono_le (fun _ => Nat.zero_le _) (fun _ => Nat.zero_le _)).of_enc_eq
+      fun x => (hp ⟨x.1⟩).elim⟩
   let : Inhabited P := Classical.inhabited_of_nonempty hp
   let L (x : P × CNF ℕ) := (encPair encP encCNF x).length
   let q (x : P × CNF ℕ) := rounds (BOf x.1) x.2
@@ -358,7 +358,7 @@ private theorem declared_resources_of_step
   have htime (x : P × CNF ℕ) :
       (L x + 1) ^ dc +
         (if validDeclaredInput k (NOf x.1) x.2 then Tloop x + F x else L x) ≤
-      W x + (q x + 1) * (W x + R x) := by
+      W x + (if validDeclaredInput k (NOf x.1) x.2 then (q x + 1) * (W x + R x) else 0) := by
     split_ifs with hx
     · have ht' := hcost t R ht x hx
       have hout : (L x + 1) ^ dc + I x + F x ≤ W x := by dsimp [W]; omega
@@ -369,8 +369,8 @@ private theorem declared_resources_of_step
         _ = ((L x + 1) ^ dc + I x + F x) +
             (q x + 1) * (maxCost t x + B x + (clock x + 1) ^ 2) := by dsimp [Tloop]; ring
         _ ≤ _ := Nat.add_le_add hout (Nat.mul_le_mul_left _ hin)
-    · have : (L x + 1) ^ dc + L x ≤ W x := by dsimp [W]; omega
-      exact this.trans (Nat.le_add_right _ _)
+    · dsimp only [W]
+      omega
   have hspace (x : P × CNF ℕ) :
       (L x + 1) ^ dc +
         (if validDeclaredInput k (NOf x.1) x.2 then Sloop x + F x else L x) ≤ W x + Q x := by
@@ -383,8 +383,12 @@ private theorem declared_resources_of_step
   obtain ⟨c, e, hce⟩ := hW.exists_le
   refine ⟨c, e, ?_⟩
   have hcert := hwhole.mono_le
-    (fun x => (htime x).trans (Nat.add_le_add (hce x)
-      (Nat.mul_le_mul_left _ (Nat.add_le_add_right (hce x) (R x)))))
+    (T' := fun x => c * (L x + 1) ^ e +
+      if validDeclaredInput k (NOf x.1) x.2 then (q x + 1) * (c * (L x + 1) ^ e + R x) else 0)
+    (fun x => (htime x).trans (Nat.add_le_add (hce x) (by
+      split_ifs
+      · exact Nat.mul_le_mul_left _ (Nat.add_le_add_right (hce x) (R x))
+      · exact le_rfl)))
     (fun x => (hspace x).trans (Nat.add_le_add_right (hce x) (Q x)))
   refine hcert.of_enc_eq fun x => ?_
   have hret : (run x (q x)).2.1 = x.2.distinctVars.length := by
@@ -431,17 +435,23 @@ private theorem declared_resources_input {C : Type} {encC : C ↪ List Bool}
       (fun x : (C × ℕ) × CNF ℕ => searchDeclaredWith Prod.snd MOf BOf K k g x.1 x.2)
       (encPair (encPair encC encUnary) encCNF) encNat
       (fun x => c * ((encPair (encPair encC encUnary) encCNF x).length + 1) ^ e +
-        (rounds (BOf x.1) x.2 + 1) *
-          (c * ((encPair (encPair encC encUnary) encCNF x).length + 1) ^ e + R x))
+        if validDeclaredInput k (Prod.snd x.1) x.2 then
+          (rounds (BOf x.1) x.2 + 1) *
+            (c * ((encPair (encPair encC encUnary) encCNF x).length + 1) ^ e + R x)
+        else 0)
       (fun x => c * ((encPair (encPair encC encUnary) encCNF x).length + 1) ^ e + Q x)) :
     ∃ a d, ComputableInO
       (fun x : C × ℕ × CNF ℕ =>
         searchDeclaredWith Prod.snd MOf BOf K k g (x.1, x.2.1) x.2.2)
       (encPair encC (encPair encUnary encCNF)) encNat
-      (fun x => a * ((encPair encC (encPair encUnary encCNF) x).length + 1) ^ d +
-        (rounds (BOf (x.1, x.2.1)) x.2.2 + 1) *
-          (a * ((encPair encC (encPair encUnary encCNF) x).length + 1) ^ d +
-            R ((x.1, x.2.1), x.2.2)))
+      (fun x =>
+        let (context, declared, formula) := x
+        a * ((encPair encC (encPair encUnary encCNF) x).length + 1) ^ d +
+          if validDeclaredInput k declared formula then
+            (rounds (BOf (context, declared)) formula + 1) *
+              (a * ((encPair encC (encPair encUnary encCNF) x).length + 1) ^ d +
+                R ((context, declared), formula))
+          else 0)
       (fun x => a * ((encPair encC (encPair encUnary encCNF) x).length + 1) ^ d +
         Q ((x.1, x.2.1), x.2.2)) := by
   let rearrange (x : C × ℕ × CNF ℕ) := ((x.1, x.2.1), x.2.2)
@@ -466,13 +476,20 @@ private theorem declared_resources_input {C : Type} {encC : C ↪ List Bool}
     nlinarith [Nat.mul_le_mul_left c hL']
   refine ⟨1 + c * 2 ^ e, da + e, ?_⟩
   refine ((hcore.comp ha).mono_le (fun x => ?_) (fun x => ?_)).of_enc_eq fun _ => rfl
-  · have hinside : c * (L' x + 1) ^ e ≤ (1 + c * 2 ^ e) * (L x + 1) ^ (da + e) :=
-      (Nat.le_add_left _ _).trans (hpoly x)
-    have hsum := Nat.add_le_add (hpoly x)
-      (Nat.mul_le_mul_left (rounds (BOf (x.1, x.2.1)) x.2.2 + 1)
-        (Nat.add_le_add_right hinside (R (rearrange x))))
-    dsimp only [Function.comp_apply, rearrange, L, L'] at hsum ⊢
-    omega
+  · obtain ⟨context, declared, formula⟩ := x
+    let x : C × ℕ × CNF ℕ := (context, declared, formula)
+    let W := (1 + c * 2 ^ e) * (L x + 1) ^ (da + e)
+    let q := rounds (BOf (context, declared)) formula
+    let valid := validDeclaredInput k declared formula
+    change (L x + 1) ^ da + (c * (L' x + 1) ^ e +
+      (if valid then (q + 1) * (c * (L' x + 1) ^ e + R (rearrange x)) else 0)) ≤
+      W + (if valid then (q + 1) * (W + R (rearrange x)) else 0)
+    rw [← Nat.add_assoc]
+    refine Nat.add_le_add (hpoly x) ?_
+    split_ifs
+    · have hinside : c * (L' x + 1) ^ e ≤ W := (Nat.le_add_left _ _).trans (hpoly x)
+      exact Nat.mul_le_mul_left _ (Nat.add_le_add_right hinside _)
+    · exact le_rfl
   · have hsum := Nat.add_le_add_right (hpoly x) (Q (rearrange x))
     dsimp only [Function.comp_apply, rearrange, L, L'] at hsum ⊢
     omega
@@ -483,12 +500,13 @@ The threshold-comparison and leaf certificates precede every input `(context, N,
 input, and the leaf promises concern every active prefix `i ≤ rounds`, including the terminal
 prefix. The original occurring-support state and cap are unchanged.
 
-The time bound contains the round count times a per-step allowance. The workspace bound contains
-the independent leaf-workspace allowance and a polynomial for initialization, retained context,
-all prefix states, binary clock, leaf output and final declared-variable scaling. It has
-no factor of the number of rounds or the leaf time, and is polynomial if the leaf-workspace
-allowance is polynomial. Any prior preparation of a larger context must be composed separately
-and charged against its own original external input. -/
+The time bound charges a polynomial in the encoded input and, on valid inputs, the round
+count times a per-step allowance. The workspace bound contains the independent leaf-workspace
+allowance and a polynomial for initialization, retained context, all prefix states, binary clock,
+leaf output and final declared-variable scaling. It has no factor of the number of rounds or
+the leaf time, and is polynomial if the leaf-workspace allowance is polynomial. Any prior
+preparation of a larger context must be composed separately and charged against its own
+original external input. -/
 theorem exists_computableInO_searchDeclaredWith {C : Type} {encC : C ↪ List Bool}
     {MOf BOf D : C × ℕ → ℕ} {K k : ℕ}
     (hB : ComputableInPolyTime BOf (encPair encC encUnary) encNat)
@@ -524,9 +542,13 @@ theorem exists_computableInO_searchDeclaredWith {C : Type} {encC : C ↪ List Bo
       (fun x : C × ℕ × CNF ℕ =>
         searchDeclaredWith Prod.snd MOf BOf K k g (x.1, x.2.1) x.2.2)
       (encPair encC (encPair encUnary encCNF)) encNat
-      (fun x => c * ((encPair encC (encPair encUnary encCNF) x).length + 1) ^ e +
-        (rounds (BOf (x.1, x.2.1)) x.2.2 + 1) *
-          (c * ((encPair encC (encPair encUnary encCNF) x).length + 1) ^ e + R x))
+      (fun x =>
+        let (context, declared, formula) := x
+        c * ((encPair encC (encPair encUnary encCNF) x).length + 1) ^ e +
+          if validDeclaredInput k declared formula then
+            (rounds (BOf (context, declared)) formula + 1) *
+              (c * ((encPair encC (encPair encUnary encCNF) x).length + 1) ^ e + R x)
+          else 0)
       (fun x => c * ((encPair encC (encPair encUnary encCNF) x).length + 1) ^ e + Q x) ∧
       (PolyBounded (fun x => (encPair encC (encPair encUnary encCNF) x).length) Q →
         PolyBounded (fun x => (encPair encC (encPair encUnary encCNF) x).length)
