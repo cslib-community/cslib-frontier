@@ -154,13 +154,6 @@ theorem values_rename (π : ℕ → ℕ) (I : Instance) (P : List ℕ) :
   refine exists_congr fun σ => and_congr ?_ Iff.rfl
   simp [rename, holds_renameConstr]
 
-private theorem linVal_congr {σ σ' : ℕ → Bool} {L : List (ℕ × ℤ)}
-    (h : ∀ e ∈ L, σ e.1 = σ' e.1) : linVal σ L = linVal σ' L := by
-  induction L with
-  | nil => rfl
-  | cons e L ih =>
-    simp only [linVal_cons, h e List.mem_cons_self, ih fun e he => h e (List.mem_cons_of_mem _ he)]
-
 /-- The solutions, their values and their projections depend only on the variables of the
 instance and of `P`. -/
 private theorem values_congr {I : Instance} {P : List ℕ} {σ σ' : ℕ → Bool}

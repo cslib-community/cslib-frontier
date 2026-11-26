@@ -12,11 +12,12 @@ import CslibFrontier.Logics.Propositional.PseudoBoolean.Completeness
 
 /-! Checked clients of the completeness of the VeriPB kernel checker, each a proof of the shape
 that the completeness constructions build, accepted by `decide +kernel`: a refutation of the
-unsatisfiable cardinality constraints `x1 + x2 + x3 ≥ 2` and `¬x1 + ¬x2 + ¬x3 ≥ 2`; the optimum of
-a two-variable knapsack, by `soli` of the full assignment of an optimal solution and a cutting
-planes refutation; and a complete enumeration of the three solutions of `x1 + x2 ≥ 1`, by one
-`solx` per projection and a refutation. The soundness theorems turn each into its claim, and the
-completeness theorems state that such a proof exists for every instance. -/
+unsatisfiable cardinality constraints `x1 + x2 + x3 ≥ 2` and `¬x1 + ¬x2 + ¬x3 ≥ 2`, as `UNSAT`
+and as `BOUNDS INF`; the optimum of a two-variable knapsack, by `soli` of the full assignment of an
+optimal solution and a cutting planes refutation; and a complete enumeration of the three
+solutions of `x1 + x2 ≥ 1`, by one `solx` per projection and a refutation. The soundness theorems
+turn each into its claim, and the completeness theorems state that such a proof exists for every
+instance. -/
 
 set_option linter.privateModule false
 
@@ -41,7 +42,7 @@ theorem cardProof_ok : check card cardProof = true ∧ cardProof.steps.all Step.
 example : checkRed card none ⟨cardProof.steps.map .step, .unsat 3⟩ = true := by decide +kernel
 
 example : ¬ ∃ σ, ∀ c ∈ card, c.Holds σ :=
-  not_satisfiable_iff_exists_check.2.2 ⟨_, cardProof_ok⟩
+  not_satisfiable_iff_exists_check.2 ⟨_, cardProof_ok.1⟩
 
 /-! ### `BOUNDS` -/
 
@@ -73,6 +74,14 @@ theorem knapProof_ok : checkRed knap (some knapObj) knapProof = true := by decid
 /-- The optimum is `-4`. -/
 example : IsLeast (knapObj.eval '' {σ | ∀ c ∈ knap, c.Holds σ}) (-4) :=
   isLeast_iff_exists_checkRed_bounds.2 ⟨_, 5, rfl, knapProof_ok⟩
+
+/-- The `pol` refutation of `card` also proves `BOUNDS INF : 3 INF`, for any objective. -/
+theorem cardBoundsInf_ok :
+    checkRed card (some knapObj) ⟨cardProof.steps.map .step, .bounds none 3 none none⟩ = true := by
+  decide +kernel
+
+example : ¬ ∃ σ, ∀ c ∈ card, c.Holds σ :=
+  not_satisfiable_iff_exists_checkRed_boundsInf.2 ⟨_, 3, rfl, cardBoundsInf_ok⟩
 
 /-- Without the improving constraint the database is satisfiable, so `BOUNDS INF` is rejected. -/
 example : checkRed knap (some knapObj) ⟨[], .bounds none 1 none none⟩ = false := by decide +kernel

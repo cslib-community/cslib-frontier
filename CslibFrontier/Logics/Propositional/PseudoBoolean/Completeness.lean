@@ -9,7 +9,9 @@ module
 
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.CompileCuttingPlanes
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
--- `import all`: the constructions run `soli` and `solx` steps, which unfold `stepTop`.
+-- `import all`: the constructions run `soli` and `solx` steps, unfolding the unexposed `stepTop`
+-- and `State.log` and the private `State.addCore`, `State.improve` and `lowerTo`, and read the
+-- input database back through the private `holds_of_allHold_initDb`.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 import CslibFrontier.Logics.Propositional.CuttingPlanes.Completeness
 import Mathlib.Data.Set.Finite.List
@@ -31,29 +33,36 @@ next number, is refuted by `pol` steps without saturation
 constraints (`Cslib.Logic.PL.CuttingPlanes.exists_refutableInSize_of_not_exists_holds`), and the
 refutation compiles into one `pol` step per line
 (`Cslib.Logic.PL.VeriPB.exists_runSteps_of_isProof`). Run from any state of `checkRed`, these steps
-change only the database and the next number (`Cslib.Logic.PL.VeriPB.runTop_map_pol`). Every
-construction below ends with such a refutation.
+change only the database and the next number
+(`Cslib.Logic.PL.VeriPB.runTop_map_step_of_ne_del`). Every construction below ends with such a
+refutation.
 
 **Logged solutions.** The kernel format does not propagate a logged solution: its literals must
 satisfy every constraint of the database on their own (`Cslib.Logic.PL.VeriPB.solves`). The
 constructions log `Cslib.Logic.PL.VeriPB.solutionOf vs σ`, the full assignment of a solution `σ` to
 a list `vs` of variables that contains the variables of the formula, and also those of the
 objective for `soli` and those of the preserved set for `solx`. Normalization introduces no
-variable (`Cslib.Logic.PL.PBConstr.termVar_mem_of_mem_normalize`), so these literals decide every
+variable (`Cslib.Logic.PL.PBConstr.mem_vars_of_mem_vars_normalize`), so these literals decide every
 constraint of the database (`Cslib.Logic.PL.VeriPB.solves_solutionOf`).
 
 **The conclusions.**
 * `UNSAT`: an unsatisfiable formula has a checked proof made of `pol` steps
-  (`Cslib.Logic.PL.VeriPB.not_satisfiable_iff_exists_check`), also under `checkRed` with any
-  objective and preserved set (`Cslib.Logic.PL.VeriPB.not_satisfiable_iff_exists_checkRed_unsat`).
+  (`Cslib.Logic.PL.VeriPB.exists_check_of_not_satisfiable`), also under `checkRed` with any
+  objective and preserved set (`Cslib.Logic.PL.VeriPB.exists_checkRed_unsat_of_not_satisfiable`).
+  So a formula is unsatisfiable iff the checker accepts some proof of `UNSAT`
+  (`Cslib.Logic.PL.VeriPB.not_satisfiable_iff_exists_check`,
+  `Cslib.Logic.PL.VeriPB.not_satisfiable_iff_exists_checkRed_unsat`).
 * `SAT : ρ`: the empty proof with the full assignment of a solution
-  (`Cslib.Logic.PL.VeriPB.checkRed_sat_solutionOf`).
+  (`Cslib.Logic.PL.VeriPB.checkRed_sat_solutionOf`). So a formula is satisfiable iff the checker
+  accepts some proof of `SAT` (`Cslib.Logic.PL.VeriPB.satisfiable_iff_exists_checkRed_sat`).
 * `BOUNDS v : q v`: for an optimal solution `σ` of value `v`, `soli` logs `σ`, adding the
   improving constraint `f ≤ v - 1`, and the database, which now has no solution, is refuted
   (`Cslib.Logic.PL.VeriPB.exists_checkRed_bounds_of_isOptimal`). So `v` is the optimum iff the
   checker accepts some `BOUNDS v : q v`
   (`Cslib.Logic.PL.VeriPB.isLeast_iff_exists_checkRed_bounds`).
-  An unsatisfiable formula gets `BOUNDS INF : q INF`
+  An unsatisfiable formula gets `BOUNDS INF : q INF` made of `pol` steps
+  (`Cslib.Logic.PL.VeriPB.exists_checkRed_boundsInf_of_not_satisfiable`), so a formula is
+  unsatisfiable iff the checker accepts some `BOUNDS INF : q INF`
   (`Cslib.Logic.PL.VeriPB.not_satisfiable_iff_exists_checkRed_boundsInf`).
 * `ENUMERATION_COMPLETE n : q`: `solx` logs one solution per projection to the preserved set,
   each adding its solution-excluding constraint, and the database, which then has no solution, is
@@ -72,13 +81,18 @@ every pseudo-Boolean formula and every objective and preserved set.
 
 ## Main results
 
-* `Cslib.Logic.PL.VeriPB.not_satisfiable_iff_exists_check`,
+* `Cslib.Logic.PL.VeriPB.exists_check_of_not_satisfiable`,
+  `Cslib.Logic.PL.VeriPB.not_satisfiable_iff_exists_check`,
+  `Cslib.Logic.PL.VeriPB.exists_checkRed_unsat_of_not_satisfiable`,
   `Cslib.Logic.PL.VeriPB.not_satisfiable_iff_exists_checkRed_unsat`: `UNSAT` completeness.
-* `Cslib.Logic.PL.VeriPB.satisfiable_iff_exists_checkRed_sat`: `SAT` completeness.
+* `Cslib.Logic.PL.VeriPB.checkRed_sat_solutionOf`,
+  `Cslib.Logic.PL.VeriPB.satisfiable_iff_exists_checkRed_sat`: `SAT` completeness.
 * `Cslib.Logic.PL.VeriPB.exists_checkRed_bounds_of_isOptimal`,
   `Cslib.Logic.PL.VeriPB.isLeast_iff_exists_checkRed_bounds`,
+  `Cslib.Logic.PL.VeriPB.exists_checkRed_boundsInf_of_not_satisfiable`,
   `Cslib.Logic.PL.VeriPB.not_satisfiable_iff_exists_checkRed_boundsInf`: `BOUNDS` completeness.
-* `Cslib.Logic.PL.VeriPB.encard_eq_iff_exists_checkRed_enumComplete`: `ENUMERATION_COMPLETE`
+* `Cslib.Logic.PL.VeriPB.exists_checkRed_enumComplete_of_sols`,
+  `Cslib.Logic.PL.VeriPB.encard_eq_iff_exists_checkRed_enumComplete`: `ENUMERATION_COMPLETE`
   completeness.
 -/
 
@@ -87,49 +101,6 @@ public section
 namespace Cslib.Logic.PL
 
 open PBConstr CuttingPlanes
-
-/-! ### Normalization introduces no variable -/
-
-namespace PBConstr
-
-private theorem fst_mem_of_mem_insertCoeff {v : ℕ} {a : ℤ} {L : List (ℕ × ℤ)} {e : ℕ × ℤ}
-    (he : e ∈ insertCoeff v a L) : e.1 = v ∨ e.1 ∈ L.map Prod.fst := by
-  induction L with
-  | nil => simp_all [insertCoeff]
-  | cons p L ih =>
-    obtain ⟨u, b⟩ := p
-    simp only [insertCoeff] at he
-    split_ifs at he with h
-    · rcases List.mem_cons.1 he with rfl | he
-      · exact .inl h
-      · exact .inr (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
-    · rcases List.mem_cons.1 he with rfl | he
-      · exact .inr (List.mem_cons_self ..)
-      · rcases ih he with h' | h'
-        · exact .inl h'
-        · exact .inr (List.mem_cons_of_mem _ h')
-
-private theorem fst_mem_of_mem_toLinear {ts : List (ℕ × Literal ℕ)} {e : ℕ × ℤ}
-    (he : e ∈ toLinear ts) : e.1 ∈ ts.map termVar := by
-  induction ts generalizing e with
-  | nil => simp [toLinear] at he
-  | cons t ts ih =>
-    rcases fst_mem_of_mem_insertCoeff he with h | h
-    · exact h ▸ List.mem_cons_self ..
-    · obtain ⟨e', he', hee⟩ := List.mem_map.1 h
-      exact hee ▸ List.mem_cons_of_mem _ (ih he')
-
-/-- **Normalization introduces no variable.** -/
-theorem termVar_mem_of_mem_normalize {c : PBConstr} {t : ℕ × Literal ℕ}
-    (ht : t ∈ c.normalize.terms) : termVar t ∈ c.terms.map termVar := by
-  simp only [normalize, fromLinear, List.mem_filterMap] at ht
-  obtain ⟨e, he, het⟩ := ht
-  have hv : termVar t = e.1 := by
-    unfold entryTerm at het
-    split_ifs at het <;> cases het <;> rfl
-  exact hv ▸ fst_mem_of_mem_toLinear he
-
-end PBConstr
 
 namespace VeriPB
 
@@ -168,7 +139,7 @@ theorem runTop_append (F : List PBConstr) (obj : Option Objective) (s : State)
 
 /-- Implicational steps other than deletions change only the database and the next number of a
 state of `checkRed`. -/
-theorem runTop_map_pol (F : List PBConstr) (obj : Option Objective) (s : State)
+theorem runTop_map_step_of_ne_del (F : List PBConstr) (obj : Option Objective) (s : State)
     (ss : List Step) (hss : ∀ st ∈ ss, ∀ ids, st ≠ .del ids) :
     runTop F obj s (ss.map .step) =
       (runSteps s.db s.next ss).map fun r => { s with db := r.1, next := r.2 } := by
@@ -190,7 +161,7 @@ theorem exists_runTop_contra (F : List PBConstr) (obj : Option Objective) (s : S
         ∃ q, namesContra db' q := by
   obtain ⟨ann, db', n', hrun, hq⟩ := exists_runSteps_contra hid h
   refine ⟨ann.map (CPLine.toStep s.next), by simp [CPLine.isCP_toStep], db', n', ?_, hq⟩
-  rw [runTop_map_pol, hrun]
+  rw [runTop_map_step_of_ne_del, hrun]
   · rfl
   · intro st hst ids
     obtain ⟨l, -, rfl⟩ := List.mem_map.1 hst
@@ -206,14 +177,11 @@ theorem exists_check_of_not_satisfiable {F : List PBConstr}
     (h : ¬ ∃ σ, ∀ c ∈ F, c.Holds σ) : ∃ P : Proof, check F P = true ∧ P.steps.all Step.IsCP :=
   exists_check_iff_exists_refutableInSize.2 (exists_refutableInSize_toIneq_iff.2 h)
 
-/-- **A formula is unsatisfiable iff the checker accepts a proof of `UNSAT`, iff it accepts one
-made of cutting planes steps.** -/
+/-- **A formula is unsatisfiable iff the checker accepts a proof of `UNSAT`.** -/
 theorem not_satisfiable_iff_exists_check {F : List PBConstr} :
-    ((¬ ∃ σ, ∀ c ∈ F, c.Holds σ) ↔ ∃ P : Proof, check F P = true) ∧
-      ((¬ ∃ σ, ∀ c ∈ F, c.Holds σ) ↔ ∃ P : Proof, check F P = true ∧ P.steps.all Step.IsCP) :=
-  ⟨⟨fun h => (exists_check_of_not_satisfiable h).imp fun _ h => h.1,
-    fun ⟨_, hP⟩ ⟨σ, hσ⟩ => not_satisfiable_of_check hP σ hσ⟩,
-   ⟨exists_check_of_not_satisfiable, fun ⟨_, hP, _⟩ ⟨σ, hσ⟩ => not_satisfiable_of_check hP σ hσ⟩⟩
+    (¬ ∃ σ, ∀ c ∈ F, c.Holds σ) ↔ ∃ P : Proof, check F P = true :=
+  ⟨fun h => (exists_check_of_not_satisfiable h).imp fun _ h => h.1,
+    fun ⟨_, hP⟩ ⟨σ, hσ⟩ => not_satisfiable_of_check hP σ hσ⟩
 
 /-- **`UNSAT` completeness under `checkRed`**: for every objective and preserved set, an
 unsatisfiable formula has an accepted proof of `UNSAT` made of cutting planes steps. -/
@@ -228,18 +196,13 @@ theorem exists_checkRed_unsat_of_not_satisfiable {F : List PBConstr} (obj : Opti
   rw [hrun]
   simp [checkConclusion, State.init, hq]
 
-/-- **A formula is unsatisfiable iff `checkRed` accepts a proof of `UNSAT`, iff it accepts one
-made of cutting planes steps**, for every objective and preserved set. -/
+/-- **A formula is unsatisfiable iff `checkRed` accepts a proof of `UNSAT`**, for every objective
+and preserved set. -/
 theorem not_satisfiable_iff_exists_checkRed_unsat {F : List PBConstr} {obj : Option Objective}
     {pres : Option (List ℕ)} :
-    ((¬ ∃ σ, ∀ c ∈ F, c.Holds σ) ↔
-      ∃ (P : RedProof) (q : ℕ), P.conclusion = .unsat q ∧ checkRed F obj P pres = true) ∧
-    ((¬ ∃ σ, ∀ c ∈ F, c.Holds σ) ↔
-      ∃ (ss : List Step) (q : ℕ), ss.all Step.IsCP ∧
-        checkRed F obj ⟨ss.map .step, .unsat q⟩ pres = true) := by
-  refine ⟨⟨fun h => ?_, fun ⟨P, q, hc, hP⟩ ⟨σ, hσ⟩ => not_satisfiable_of_checkRed hP hc σ hσ⟩,
-    ⟨exists_checkRed_unsat_of_not_satisfiable obj pres,
-      fun ⟨_, q, _, hP⟩ ⟨σ, hσ⟩ => not_satisfiable_of_checkRed hP rfl σ hσ⟩⟩
+    (¬ ∃ σ, ∀ c ∈ F, c.Holds σ) ↔
+      ∃ (P : RedProof) (q : ℕ), P.conclusion = .unsat q ∧ checkRed F obj P pres = true := by
+  refine ⟨fun h => ?_, fun ⟨P, q, hc, hP⟩ ⟨σ, hσ⟩ => not_satisfiable_of_checkRed hP hc σ hσ⟩
   obtain ⟨ss, q, -, hP⟩ := exists_checkRed_unsat_of_not_satisfiable obj pres h
   exact ⟨_, q, rfl, hP⟩
 
@@ -280,19 +243,9 @@ theorem assignsAll_solutionOf {vs P : List ℕ} {σ : ℕ → Bool} (hP : ∀ x 
   rw [contains_solutionOf (hP x hx), contains_solutionOf (hP x hx)]
   cases h : σ x <;> simp [Literal.eval, h]
 
-private theorem coeffSum_filter_eq_lhs {ρ : List (Literal ℕ)} {σ : ℕ → Bool}
-    {ts : List (ℕ × Literal ℕ)} (h : ∀ t ∈ ts, ρ.contains t.2 = Literal.eval σ t.2) :
-    coeffSum (ts.filter fun t => ρ.contains t.2) = lhs σ ts := by
-  induction ts with
-  | nil => rfl
-  | cons t ts ih =>
-    rw [lhs_cons, ← ih fun t' ht' => h t' (List.mem_cons_of_mem _ ht'), List.filter_cons,
-      h t (List.mem_cons_self ..), termVal]
-    cases Literal.eval σ t.2 <;> simp
-
 /-- **The full assignment of a solution solves the constraints** whose variables it assigns. -/
 theorem solves_solutionOf {vs : List ℕ} {σ : ℕ → Bool} {cs : List PBConstr}
-    (h : ∀ c ∈ cs, c.Holds σ ∧ ∀ t ∈ c.terms, termVar t ∈ vs) :
+    (h : ∀ c ∈ cs, c.Holds σ ∧ c.vars ⊆ vs) :
     solves (solutionOf vs σ) cs = true := by
   simp only [solves, Bool.and_eq_true, List.all_eq_true, Bool.not_eq_true',
     decide_eq_true_eq]
@@ -302,20 +255,19 @@ theorem solves_solutionOf {vs : List ℕ} {σ : ℕ → Bool} {cs : List PBConst
     obtain ⟨v, b⟩ := l
     simp_all [Std.Sat.Literal.negate]
   · obtain ⟨hc, hvs⟩ := h c hc
-    rw [coeffSum_filter_eq_lhs fun t ht => contains_solutionOf (by
+    rw [List.filter_congr fun t ht => contains_solutionOf (by
       obtain ⟨a, v, b⟩ := t
-      exact hvs _ ht)]
+      exact hvs (List.mem_map_of_mem ht)), ← lhs_eq_coeffSum_filter]
     exact hc
 
 /-- The full assignment of a solution of `F` solves the input database. -/
 theorem solves_initDb {vs : List ℕ} {σ : ℕ → Bool} {F : List PBConstr}
-    (hvs : ∀ c ∈ F, ∀ t ∈ c.terms, termVar t ∈ vs) (hσ : ∀ c ∈ F, c.Holds σ) :
+    (hvs : ∀ c ∈ F, c.vars ⊆ vs) (hσ : ∀ c ∈ F, c.Holds σ) :
     solves (solutionOf vs σ) (F.map normalize) = true := by
   refine solves_solutionOf fun c hc => ?_
   obtain ⟨c, hc', rfl⟩ := List.mem_map.1 hc
-  refine ⟨(holds_normalize σ c).2 (hσ c hc'), fun t ht => ?_⟩
-  obtain ⟨t', ht', he⟩ := List.mem_map.1 (termVar_mem_of_mem_normalize ht)
-  exact he ▸ hvs c hc' t' ht'
+  exact ⟨(holds_normalize σ c).2 (hσ c hc'), fun _ hx =>
+    hvs c hc' (mem_vars_of_mem_vars_normalize hx)⟩
 
 private theorem map_snd_initDb (F : List PBConstr) : (initDb F).map (·.2) = F.map normalize := by
   simp only [initDb, List.map_map]
@@ -328,43 +280,22 @@ private theorem map_snd_initDb (F : List PBConstr) : (initDb F).map (·.2) = F.m
 of a solution to a list of variables containing those of the formula, is accepted. -/
 theorem checkRed_sat_solutionOf {F : List PBConstr} {vs : List ℕ} {σ : ℕ → Bool}
     (obj : Option Objective) (pres : Option (List ℕ))
-    (hvs : ∀ c ∈ F, ∀ t ∈ c.terms, termVar t ∈ vs) (hσ : ∀ c ∈ F, c.Holds σ) :
+    (hvs : ∀ c ∈ F, c.vars ⊆ vs) (hσ : ∀ c ∈ F, c.Holds σ) :
     checkRed F obj ⟨[], .sat (some (solutionOf vs σ))⟩ pres = true := by
   simp only [checkRed, runTop_nil, checkConclusion]
   exact solves_initDb hvs hσ
 
-/-- The variables of the terms of the constraints `F`. -/
-@[expose]
-def termVars (F : List PBConstr) : List ℕ := F.flatMap fun c => c.terms.map termVar
-
-theorem termVar_mem_termVars {F : List PBConstr} {c : PBConstr} (hc : c ∈ F) {t : ℕ × Literal ℕ}
-    (ht : t ∈ c.terms) : termVar t ∈ termVars F :=
-  List.mem_flatMap.2 ⟨c, hc, List.mem_map_of_mem ht⟩
-
-/-- **A formula is satisfiable iff the checker accepts a proof of `SAT`, iff it accepts the empty
-proof of `SAT : ρ` for some `ρ`**, for every objective and preserved set. -/
+/-- **A formula is satisfiable iff the checker accepts a proof of `SAT`**, for every objective and
+preserved set. -/
 theorem satisfiable_iff_exists_checkRed_sat {F : List PBConstr} {obj : Option Objective}
     {pres : Option (List ℕ)} :
-    ((∃ σ, ∀ c ∈ F, c.Holds σ) ↔ ∃ (P : RedProof) (asg : Option (List (Literal ℕ))),
-      P.conclusion = .sat asg ∧ checkRed F obj P pres = true) ∧
-    ((∃ σ, ∀ c ∈ F, c.Holds σ) ↔ ∃ ρ, checkRed F obj ⟨[], .sat (some ρ)⟩ pres = true) := by
-  have hsat : (∃ σ, ∀ c ∈ F, c.Holds σ) → ∃ ρ, checkRed F obj ⟨[], .sat (some ρ)⟩ pres = true :=
-    fun ⟨σ, hσ⟩ => ⟨_, checkRed_sat_solutionOf obj pres (fun _ hc _ ht =>
-      termVar_mem_termVars hc ht) hσ⟩
-  refine ⟨⟨fun h => ?_, fun ⟨P, asg, hc, hP⟩ => exists_satisfies_of_checkRed hP hc⟩,
-    ⟨hsat, fun ⟨ρ, hP⟩ => exists_satisfies_of_checkRed hP rfl⟩⟩
-  obtain ⟨ρ, hP⟩ := hsat h
-  exact ⟨_, _, rfl, hP⟩
+    (∃ σ, ∀ c ∈ F, c.Holds σ) ↔ ∃ (P : RedProof) (asg : Option (List (Literal ℕ))),
+      P.conclusion = .sat asg ∧ checkRed F obj P pres = true :=
+  ⟨fun ⟨_, hσ⟩ => ⟨_, _, rfl, checkRed_sat_solutionOf (vs := F.flatMap PBConstr.vars) obj pres
+      (fun c hc _ hx => List.mem_flatMap.2 ⟨c, hc, hx⟩) hσ⟩,
+    fun ⟨_, _, hc, hP⟩ => exists_satisfies_of_checkRed hP hc⟩
 
 /-! ### `BOUNDS` -/
-
-private theorem linVal_congr {σ τ : ℕ → Bool} {L : List (ℕ × ℤ)} (h : ∀ e ∈ L, σ e.1 = τ e.1) :
-    linVal σ L = linVal τ L := by
-  induction L with
-  | nil => rfl
-  | cons e L ih =>
-    rw [linVal_cons, linVal_cons, h e (List.mem_cons_self ..),
-      ih fun e' he' => h e' (List.mem_cons_of_mem _ he')]
 
 /-- The objective at the full assignment of `σ` to its variables is its value at `σ`. -/
 theorem eval_assignOf_solutionOf {vs : List ℕ} {σ : ℕ → Bool} {f : Objective}
@@ -377,7 +308,7 @@ theorem eval_assignOf_solutionOf {vs : List ℕ} {σ : ℕ → Bool} {f : Object
 assignment of `σ` to `vs` by `soli`, adding the improving constraint `f ≤ v - 1`, and then refutes
 the database by cutting planes steps is accepted with conclusion `BOUNDS v : q v`. -/
 theorem exists_checkRed_bounds_of_isOptimal {F : List PBConstr} {f : Objective} {σ : ℕ → Bool}
-    {vs : List ℕ} (pres : Option (List ℕ)) (hvs : ∀ c ∈ F, ∀ t ∈ c.terms, termVar t ∈ vs)
+    {vs : List ℕ} (pres : Option (List ℕ)) (hvs : ∀ c ∈ F, c.vars ⊆ vs)
     (hf : ∀ e ∈ f.lin, e.1 ∈ vs) (hσ : ∀ c ∈ F, c.Holds σ)
     (hopt : ∀ τ, (∀ c ∈ F, c.Holds τ) → f.eval σ ≤ f.eval τ) :
     ∃ (ss : List Step) (q : ℕ), ss.all Step.IsCP ∧
@@ -420,8 +351,8 @@ theorem isLeast_iff_exists_checkRed_bounds {F : List PBConstr} {f : Objective} {
   constructor
   · rintro ⟨⟨σ, hσ, rfl⟩, hlb⟩
     obtain ⟨ss, q, -, hP⟩ := exists_checkRed_bounds_of_isOptimal pres
-      (vs := termVars F ++ f.lin.map (·.1))
-      (fun _ hc _ ht => List.mem_append_left _ (termVar_mem_termVars hc ht))
+      (vs := F.flatMap PBConstr.vars ++ f.lin.map (·.1))
+      (fun c hc _ hx => List.mem_append_left _ (List.mem_flatMap.2 ⟨c, hc, hx⟩))
       (fun e he => List.mem_append_right _ (List.mem_map_of_mem he)) hσ
       fun τ hτ => hlb ⟨τ, hτ, rfl⟩
     exact ⟨_, q, rfl, hP⟩
@@ -432,15 +363,12 @@ theorem isLeast_iff_exists_checkRed_bounds {F : List PBConstr} {f : Objective} {
     · rintro _ ⟨τ, hτ, rfl⟩
       exact le_eval_of_checkRed hP hc τ hτ
 
-/-- **A formula is unsatisfiable iff the checker accepts a proof of `BOUNDS INF : q INF`**, for
-every objective and preserved set; the proof can be made of cutting planes steps. -/
-theorem not_satisfiable_iff_exists_checkRed_boundsInf {F : List PBConstr} {f : Objective}
-    {pres : Option (List ℕ)} :
-    (¬ ∃ σ, ∀ c ∈ F, c.Holds σ) ↔
-      ∃ (ss : List Step) (q : ℕ), ss.all Step.IsCP ∧
-        checkRed F (some f) ⟨ss.map .step, .bounds none q none none⟩ pres = true := by
-  refine ⟨fun h => ?_, fun ⟨_, q, _, hP⟩ ⟨σ, hσ⟩ =>
-    not_satisfiable_of_checkRed_bounds hP rfl σ hσ⟩
+/-- **`BOUNDS INF` completeness**: for every objective and preserved set, an unsatisfiable formula
+has an accepted proof of `BOUNDS INF : q INF` made of cutting planes steps. -/
+theorem exists_checkRed_boundsInf_of_not_satisfiable {F : List PBConstr} (f : Objective)
+    (pres : Option (List ℕ)) (h : ¬ ∃ σ, ∀ c ∈ F, c.Holds σ) :
+    ∃ (ss : List Step) (q : ℕ), ss.all Step.IsCP ∧
+      checkRed F (some f) ⟨ss.map .step, .bounds none q none none⟩ pres = true := by
   obtain ⟨ss, hcp, db', n', hrun, q, hq⟩ := exists_runTop_contra F (some f)
     (State.init F (some f) pres) (idOk_initDb F) fun ⟨σ, hσ⟩ =>
       h ⟨σ, holds_of_allHold_initDb hσ⟩
@@ -448,6 +376,18 @@ theorem not_satisfiable_iff_exists_checkRed_boundsInf {F : List PBConstr} {f : O
   unfold checkRed
   rw [hrun]
   simp [checkConclusion, State.init, boundsOk, hq]
+
+/-- **A formula is unsatisfiable iff the checker accepts a proof of `BOUNDS INF : q INF`**, for
+every objective and preserved set. -/
+theorem not_satisfiable_iff_exists_checkRed_boundsInf {F : List PBConstr} {f : Objective}
+    {pres : Option (List ℕ)} :
+    (¬ ∃ σ, ∀ c ∈ F, c.Holds σ) ↔
+      ∃ (P : RedProof) (q : ℕ), P.conclusion = .bounds none q none none ∧
+        checkRed F (some f) P pres = true := by
+  refine ⟨fun h => ?_, fun ⟨_, _, hc, hP⟩ ⟨σ, hσ⟩ =>
+    not_satisfiable_of_checkRed_bounds hP hc σ hσ⟩
+  obtain ⟨ss, q, -, hP⟩ := exists_checkRed_boundsInf_of_not_satisfiable f pres h
+  exact ⟨_, q, rfl, hP⟩
 
 /-! ### `ENUMERATION_COMPLETE` -/
 
@@ -460,7 +400,7 @@ private structure SolxReady (Pres vs : List ℕ) (s : State) : Prop where
   chk : s.chk = true
   presChanged : s.presChanged = false
   idOk : IdOk s.db s.next
-  vars : ∀ e ∈ s.db, ∀ t ∈ e.2.terms, termVar t ∈ vs
+  vars : ∀ e ∈ s.db, e.2.vars ⊆ vs
 
 /-- Logging solutions with distinct projections by `solx`, from a state where they solve the
 database, adds one projection each and excludes their projections from the solutions of the
@@ -491,12 +431,12 @@ private theorem exists_runTop_solx {F : List PBConstr} {Pres vs : List ℕ}
     have hs₁ : SolxReady Pres vs s₁ :=
       { pres := hs.pres, obj := hs.obj, chk := hs.chk, presChanged := hs.presChanged,
         idOk := hs.idOk.cons le_rfl _
-        vars := fun e he t ht => by
+        vars := fun e he x hx => by
           rcases List.mem_cons.1 he with rfl | he
-          · simp only [exclusion, List.mem_map] at ht
-            obtain ⟨x, hx, rfl⟩ := ht
+          · simp only [exclusion, PBConstr.vars, List.map_map, List.mem_map] at hx
+            obtain ⟨x, hx, rfl⟩ := hx
             exact hP x (List.mem_dedup.1 hx)
-          · exact hs.vars e he t ht }
+          · exact hs.vars e he hx }
     rw [List.map_cons, List.nodup_cons] at hnd
     obtain ⟨s', hrun, hs', hlen, hall⟩ := exists_runTop_solx hP σs s₁ hs₁ (fun σ' hσ' => by
       refine List.forall_mem_cons.2 ⟨(hexcl σ').2 fun h => hnd.1 ?_, hσs σ'
@@ -534,7 +474,7 @@ to `vs` by `solx`, each adding its solution-excluding constraint, and then refut
 cutting planes steps is accepted with conclusion `ENUMERATION_COMPLETE n : q`, for the number `n`
 of solutions logged. -/
 theorem exists_checkRed_enumComplete_of_sols {F : List PBConstr} {Pres vs : List ℕ}
-    {σs : List (ℕ → Bool)} (hvs : ∀ c ∈ F, ∀ t ∈ c.terms, termVar t ∈ vs)
+    {σs : List (ℕ → Bool)} (hvs : ∀ c ∈ F, c.vars ⊆ vs)
     (hP : ∀ x ∈ Pres, x ∈ vs) (hσs : ∀ σ ∈ σs, ∀ c ∈ F, c.Holds σ)
     (hnd : (σs.map (proj Pres)).Nodup) (hall : ∀ l ∈ projections F Pres, l ∈ σs.map (proj Pres)) :
     ∃ (ss : List Step) (q : ℕ), ss.all Step.IsCP ∧
@@ -543,12 +483,11 @@ theorem exists_checkRed_enumComplete_of_sols {F : List PBConstr} {Pres vs : List
   set s₀ := State.init F none (some Pres)
   have hs₀ : SolxReady Pres vs s₀ :=
     { pres := rfl, obj := rfl, chk := rfl, presChanged := rfl, idOk := idOk_initDb F
-      vars := fun e he t ht => by
+      vars := fun e he x hx => by
         obtain ⟨c, hc, hce⟩ := List.mem_map.1
           (by rw [← map_snd_initDb]; exact List.mem_map_of_mem he : e.2 ∈ F.map normalize)
-        rw [← hce] at ht
-        obtain ⟨t', ht', he⟩ := List.mem_map.1 (termVar_mem_of_mem_normalize ht)
-        exact he ▸ hvs c hc t' ht' }
+        rw [← hce] at hx
+        exact hvs c hc (mem_vars_of_mem_vars_normalize hx) }
   obtain ⟨s', hrun, hs', hlen, hexcl⟩ := exists_runTop_solx (F := F) hP σs s₀ hs₀
     (fun σ hσ => allHold_initDb (hσs σ hσ)) hnd
   obtain ⟨ss, hcp, db', n', hrun', q, hq⟩ := exists_runTop_contra F none s' hs'.idOk
@@ -580,8 +519,9 @@ theorem encard_eq_iff_exists_checkRed_enumComplete {F : List PBConstr} {Pres : L
     rw [List.length_map, Finset.length_toList] at this
     rw [this]
     exact_mod_cast (hfin.encard_eq_coe_toFinset_card).symm.trans h
-  obtain ⟨ss, q, -, hP⟩ := exists_checkRed_enumComplete_of_sols (vs := termVars F ++ Pres)
-    (fun _ hc _ ht => List.mem_append_left _ (termVar_mem_termVars hc ht))
+  obtain ⟨ss, q, -, hP⟩ := exists_checkRed_enumComplete_of_sols
+    (vs := F.flatMap PBConstr.vars ++ Pres)
+    (fun c hc _ hx => List.mem_append_left _ (List.mem_flatMap.2 ⟨c, hc, hx⟩))
     (fun x hx => List.mem_append_right _ hx) hsol (hσs ▸ Finset.nodup_toList _)
     fun l hl => hσs ▸ Finset.mem_toList.2 (hfin.mem_toFinset.2 hl)
   exact ⟨_, q, by rw [hlen], hP⟩
