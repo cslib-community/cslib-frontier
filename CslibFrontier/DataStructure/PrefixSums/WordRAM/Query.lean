@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.PrefixSums.WordRAM.Update
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Fixed Word-RAM prefix queries
@@ -67,26 +68,14 @@ private theorem queryBody_exec (hx : Entry b n i δ x) (hi : i ≤ n) (hn : 0 < 
     (hl : i ≠ n → n / 2 ≤ i → Fits w (a + x.mem (b + 1))) :
     ExecWithin w queryBody x (queryNext x b n i a) 11 := by
   obtain ⟨hz, ho, ht, hp, hn', hi', hd⟩ := hx
-  have hf : Fits w (n / 2) := ha.of_le (by omega)
-  have hb : Fits w (b + 1) := ha.of_le (by omega)
-  have hb' : Fits w (b + n / 2) := ha.of_le (by omega)
-  have hb'' : Fits w (b + n / 2 + n / 2) := ha.of_le (by omega)
-  have hi'' : Fits w (i - n / 2) := ha.of_le (by omega)
-  by_cases he : i = n
-  · ram_eval [queryBody, queryNext, hp, hn', hi', hxans, he, hv]
-  · by_cases hc : i < n / 2
-    · ram_eval [queryBody, queryNext, hp, hn', hi', hxans, he, ho, ht, hc, hf, hb]
-    · have hs := hl he (by omega)
-      ram_eval [queryBody, queryNext, hp, hn', hi', hxans, he, ho, ht, hc, hf, hb, hb',
-        hb'', hi'', hs]
+  refine WP.execWithin ?_
+  unfold queryBody queryNext
+  wram_exec [hp, hn', hi', hxans, ho, ht, hv] <;> simp only [*, ↓reduceIte]
 
 /-- One prefix-query iteration leaves RAM memory unchanged. -/
 @[simp]
 theorem queryNext_mem : (queryNext x b n i a).mem = x.mem := by
-  simp only [queryNext]
-  split
-  · rfl
-  · split <;> rfl
+  simp only [queryNext]; split_ifs <;> rfl
 
 private theorem queryNext_entry (hx : Entry b n i δ x) (he : i ≠ n) :
     Entry (if i < n / 2 then b + 1 else b + n / 2 + n / 2) (n / 2)
@@ -99,11 +88,9 @@ private theorem queryLoop_full (hx : Entry b n n δ x) (hn : 0 < n)
     (hxans : x.regs ans = a) (ha : Fits w (b + 2 * n)) (hv : Fits w (a + x.mem b)) :
     ∃ y, ExecWithin w queryLoop x y 15 ∧ y.regs ans = a + x.mem b ∧ y.mem = x.mem := by
   have he := queryBody_exec hx le_rfl hn hxans ha hv (fun h => (h rfl).elim)
-  refine ⟨_, he.loop_once (cond := .lt zero idx) ?_ ?_, ?_,
-    queryNext_mem⟩
+  refine ⟨_, he.loop_once (cond := .lt zero idx) ?_ ?_, ?_, queryNext_mem⟩
   · simp only [Cond.holds_lt, hx.zero_eq, hx.idx_eq, hn]
-  · simp +decide [queryNext]
-  · simp +decide [queryNext]
+  all_goals simp +decide [queryNext]
 
 /-- A query adds precisely the first `i` leaf values to its initial accumulator, using at
 most `13 (h + 1) + 2` instructions. The whole memory is unchanged. Bounds include the loop
@@ -113,59 +100,51 @@ theorem queryLoop_spec (t : Tree h) (hx : Entry b (2 ^ h) i δ x) (hi : i ≤ 2 
     (hv : Fits w (a + t.total)) :
     ∃ y, ExecWithin w queryLoop x y (13 * (h + 1) + 2) ∧
       y.regs ans = a + t.prefixSum i ∧ y.mem = x.mem := by
-  induction h generalizing b i x a with
-  | zero =>
-    by_cases hi0 : i = 0
-    · refine ⟨x, (ExecWithin.loop_exit ?_).mono (by omega), ?_, rfl⟩
-      · simp only [Cond.holds_lt, hx.zero_eq, hx.idx_eq, hi0, lt_self_iff_false, not_false_eq_true]
-      · simpa [hi0] using hxans
-    · have hie : i = 1 := by simp only [pow_zero] at hi; omega
-      subst i
-      obtain ⟨y, he, hans, hm⟩ := queryLoop_full hx (by decide) hxans ha
+  induction t generalizing b i x a with
+  | leaf v =>
+    rcases (show i = 0 ∨ i = 1 by simp only [pow_zero] at hi; omega) with rfl | rfl
+    · exact ⟨x, (ExecWithin.loop_exit
+        (by simp [Cond.holds_lt, hx.zero_eq, hx.idx_eq])).mono (by omega),
+        by simpa using hxans, rfl⟩
+    · obtain ⟨y, he, hans, hm⟩ := queryLoop_full hx (by decide) hxans ha
         (by simpa [hr.root] using hv)
-      exact ⟨y, he, by simpa [hr.root, ← Tree.prefixSum_length t] using hans, hm⟩
-  | succ h ih =>
+      exact ⟨y, he, by simpa [hr.root, ← Tree.prefixSum_length (.leaf v)] using hans, hm⟩
+  | @node h l r ihl ihr =>
     by_cases hi0 : i = 0
-    · refine ⟨x, (ExecWithin.loop_exit ?_).mono (by omega), ?_, rfl⟩
-      · simp only [Cond.holds_lt, hx.zero_eq, hx.idx_eq, hi0, lt_self_iff_false, not_false_eq_true]
-      · simpa [hi0] using hxans
+    · exact ⟨x, (ExecWithin.loop_exit
+        (by simp [Cond.holds_lt, hx.zero_eq, hx.idx_eq, hi0])).mono (by omega),
+        by simpa [hi0] using hxans, rfl⟩
     by_cases hie : i = 2 ^ (h + 1)
     · subst i
       obtain ⟨y, he, hans, hm⟩ := queryLoop_full hx (Nat.two_pow_pos _) hxans ha
         (by simpa [hr.root] using hv)
       exact ⟨y, he.mono (by omega), by simpa [hr.root] using hans, hm⟩
-    cases t with
-    | node l r =>
-      have hp := Nat.two_pow_pos h
-      have hhalf : 2 ^ (h + 1) / 2 = 2 ^ h := by simp [pow_succ]
-      have hsize : 2 ^ (h + 1) = 2 * 2 ^ h := by simp [pow_succ, Nat.mul_comm]
-      have hs : Fits w (a + x.mem (b + 1)) := by
-        rw [hr.2.1.root]
-        exact hv.of_le (by simp only [Tree.total]; omega)
-      let y := queryNext x b (2 ^ (h + 1)) i a
-      have he := queryBody_exec hx hi (Nat.two_pow_pos _) hxans ha
-        (by simpa [hr.root] using hv) (fun _ _ => hs)
-      have hy := queryNext_entry (a := a) hx hie
-      have hcond : (Cond.lt zero idx).Holds x := by
-        simp only [Cond.holds_lt, hx.zero_eq, hx.idx_eq]
-        omega
-      by_cases hleft : i < 2 ^ h
-      · have hy' : Entry (b + 1) (2 ^ h) i δ y := by simpa [hhalf, hleft] using hy
-        have hyans : y.regs ans = a := by simp +decide [y, queryNext, hie, hhalf, hleft, hxans]
-        obtain ⟨z, hz, hans, hm⟩ := ih l hy' hleft.le hyans
-          (by simpa [y] using hr.2.1) (ha.of_le (by rw [hsize]; omega))
-          (hv.of_le (by simp only [Tree.total]; omega))
-        refine ⟨z, (he.loop_iter hcond hz).mono (by omega), ?_, hm.trans queryNext_mem⟩
-        simpa [Tree.prefixSum, hleft] using hans
-      · have hy' : Entry (b + 2 * 2 ^ h) (2 ^ h) (i - 2 ^ h) δ y := by
-          simpa [hhalf, hleft, Nat.mul_two, Nat.two_mul, Nat.add_assoc] using hy
-        have hyans : y.regs ans = a + l.total := by
-          simp +decide [y, queryNext, hie, hhalf, hleft, hr.2.1.root]
-        obtain ⟨z, hz, hans, hm⟩ := ih r hy' (by rw [hsize] at hi; omega) hyans
-          (by simpa [y] using hr.2.2) (ha.of_le (by rw [hsize]; omega))
-          (by simpa [Tree.total, Nat.add_assoc] using hv)
-        refine ⟨z, (he.loop_iter hcond hz).mono (by omega), ?_, hm.trans queryNext_mem⟩
-        simpa [Tree.prefixSum, hleft, Nat.add_assoc] using hans
+    have hsize : 2 ^ (h + 1) = 2 * 2 ^ h := by simp [pow_succ, Nat.mul_comm]
+    have hhalf : 2 ^ (h + 1) / 2 = 2 ^ h := by omega
+    have hs : Fits w (a + x.mem (b + 1)) := by
+      rw [hr.2.1.root]; simp only [Tree.total] at hv; fits
+    let y := queryNext x b (2 ^ (h + 1)) i a
+    have he := queryBody_exec hx hi (Nat.two_pow_pos _) hxans ha
+      (by simpa [hr.root] using hv) (fun _ _ => hs)
+    have hy := queryNext_entry (a := a) hx hie
+    have hcond : (Cond.lt zero idx).Holds x := by
+      simp only [Cond.holds_lt, hx.zero_eq, hx.idx_eq]; omega
+    by_cases hleft : i < 2 ^ h
+    · have hy' : Entry (b + 1) (2 ^ h) i δ y := by simpa [hhalf, hleft] using hy
+      have hyans : y.regs ans = a := by simp +decide [y, queryNext, hie, hhalf, hleft, hxans]
+      obtain ⟨z, hz, hans, hm⟩ := ihl hy' hleft.le hyans
+        (by simpa [y] using hr.2.1) (by fits [hsize]) (by simp only [Tree.total] at hv; fits)
+      exact ⟨z, (he.loop_iter hcond hz).mono (by omega),
+        by simpa [Tree.prefixSum, hleft] using hans, hm.trans queryNext_mem⟩
+    · have hy' : Entry (b + 2 * 2 ^ h) (2 ^ h) (i - 2 ^ h) δ y := by
+        simpa [hhalf, hleft, Nat.mul_two, Nat.two_mul, Nat.add_assoc] using hy
+      have hyans : y.regs ans = a + l.total := by
+        simp +decide [y, queryNext, hie, hhalf, hleft, hr.2.1.root]
+      obtain ⟨z, hz, hans, hm⟩ := ihr hy' (by omega) hyans
+        (by simpa [y] using hr.2.2) (by fits [hsize])
+        (by simpa [Tree.total, Nat.add_assoc] using hv)
+      exact ⟨z, (he.loop_iter hcond hz).mono (by omega),
+        by simpa [Tree.prefixSum, hleft, Nat.add_assoc] using hans, hm.trans queryNext_mem⟩
 
 end Cslib.DataStructure.PrefixSums.WordRAM
 

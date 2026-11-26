@@ -67,18 +67,14 @@ theorem Occupied.mul_pow_le_size (ho : Occupied t tr) (hb : Balanced tr) :
   induction tr with
   | leaf entries => simpa using ho.le_width
   | node first rest ih₁ ih₂ =>
-    have hc : ∀ e : Branch α β, e ∈ rest → (t - 1) * t ^ (first.height - 1) ≤ e.child.size :=
-      fun e he => hb.height_of_mem_rest he ▸ ih₂ e he (ho.of_mem_rest he) (hb.of_mem_rest he)
-    refine le_trans ?_ (le_size_node (ih₁ ho.first hb.first) hc)
+    refine le_trans ?_ (le_size_node (ih₁ ho.first hb.first) fun e he =>
+      hb.height_of_mem_rest he ▸ ih₂ e he (ho.of_mem_rest he) (hb.of_mem_rest he))
     obtain ⟨m, hm⟩ : ∃ m, first.height = m + 1 :=
       ⟨first.height - 1, by have := height_pos (tr := first); omega⟩
-    have hl : t ≤ rest.length + 1 := by
-      have := ho.le_width
-      rw [width_node] at this
-      omega
     rw [hb.height_node, hm, Nat.add_sub_cancel, Nat.add_sub_cancel, Nat.pow_succ]
     calc (t - 1) * (t ^ m * t) = t * ((t - 1) * t ^ m) := by ring
-      _ ≤ (rest.length + 1) * ((t - 1) * t ^ m) := Nat.mul_le_mul_right _ hl
+      _ ≤ (rest.length + 1) * ((t - 1) * t ^ m) :=
+        Nat.mul_le_mul_right _ (by simpa only [width_node, Nat.sub_le_iff_le_add] using ho.le_width)
 
 /-- At a minimum degree of at least `2`, a balanced tree of height `h ≥ 2` whose root has a
 separator and whose children are occupied holds at least `t ^ (h - 1)` entries: the bound depends
@@ -91,12 +87,10 @@ theorem Balanced.pow_le_size (hb : Balanced tr) (ht : 2 ≤ t)
   | leaf entries => simp at h2
   | node first rest =>
     have hw : 1 ≤ rest.length := hw nofun
-    have hf := (ho first List.mem_cons_self).mul_pow_le_size hb.first
-    have hc : ∀ e : Branch α β, e ∈ rest → (t - 1) * t ^ (first.height - 1) ≤ e.child.size :=
+    refine le_trans ?_ (le_size_node ((ho first List.mem_cons_self).mul_pow_le_size hb.first)
       fun e he => hb.height_of_mem_rest he ▸
         (ho _ (List.mem_cons_of_mem _ (List.mem_map_of_mem he))).mul_pow_le_size
-          (hb.of_mem_rest he)
-    refine le_trans ?_ (le_size_node hf hc)
+          (hb.of_mem_rest he))
     obtain ⟨m, hm⟩ : ∃ m, first.height = m + 1 :=
       ⟨first.height - 1, by have := height_pos (tr := first); omega⟩
     rw [hb.height_node, hm, Nat.add_sub_cancel, Nat.add_sub_cancel, Nat.pow_succ]

@@ -51,27 +51,20 @@ theorem schwartz_zippel_totalDegree_fintype {R σ : Type*} [CommRing R] [IsDomai
       p.totalDegree / #S := by
   set e := equivFin σ
   have hp' : rename e p ≠ 0 := fun h => hp (rename_injective _ e.injective (by rw [h, map_zero]))
-  have hsz := schwartz_zippel_totalDegree hp' S
   have hdeg : (rename e p).totalDegree = p.totalDegree := totalDegree_renameEquiv e p
+  have hsz := schwartz_zippel_totalDegree hp' S
   rw [hdeg] at hsz
   convert hsz using 3
-  refine card_bij' (fun f _ => f ∘ e.symm) (fun g _ => g ∘ e) ?_ ?_ ?_ ?_
+  refine card_bij' (fun f _ => f ∘ e.symm) (fun g _ => g ∘ e) ?_ ?_
+    (fun f _ => funext fun i => by simp) (fun g _ => funext fun i => by simp)
   · intro f hf
     simp only [mem_filter, mem_piFinset] at hf ⊢
-    refine ⟨fun i => hf.1 _, ?_⟩
+    refine ⟨fun _ => hf.1 _, ?_⟩
     rw [eval_rename, Function.comp_assoc, e.symm_comp_self, Function.comp_id]
     exact hf.2
   · intro g hg
-    simp only [mem_filter, mem_piFinset] at hg ⊢
-    refine ⟨fun i => hg.1 _, ?_⟩
-    rw [eval_rename] at hg
-    exact hg.2
-  · intro f _
-    funext i
-    simp
-  · intro g _
-    funext i
-    simp
+    simp only [mem_filter, mem_piFinset, eval_rename] at hg ⊢
+    exact ⟨fun _ => hg.1 _, hg.2⟩
 
 /-- The **Schwartz–Zippel lemma** over a finite integral domain with `q` elements, in counting
 form: a nonzero polynomial in `n` variables of total degree at most `d` has at most `d * q ^ n / q`
@@ -82,8 +75,7 @@ theorem card_filter_eval_eq_zero_mul_card_le {R : Type*} [CommRing R] [IsDomain 
   have hq : (0 : ℚ≥0) < card R := by exact_mod_cast Fintype.card_pos
   have hsz := schwartz_zippel_totalDegree hp (univ : Finset R)
   rw [piFinset_univ, card_univ, div_le_div_iff₀ (pow_pos hq n) hq] at hsz
-  have : (#{x | eval x p = 0} * card R : ℚ≥0) ≤ d * card R ^ n := hsz.trans (by gcongr)
-  exact_mod_cast this
+  exact_mod_cast hsz.trans (by gcongr : (p.totalDegree : ℚ≥0) * card R ^ n ≤ d * card R ^ n)
 
 /-- Two distinct polynomials of individual degree at most `d` in `n` variables
 can agree on at most a fraction `n * d / |R|` of the evaluation points. -/
@@ -91,10 +83,9 @@ theorem card_filter_eval_eq_mul_card_le {R : Type*} [CommRing R] [IsDomain R] [F
     [DecidableEq R] {n d : ℕ} {p q : MvPolynomial (Fin n) R} (hne : p ≠ q)
     (hp : ∀ i, p.degreeOf i ≤ d) (hq : ∀ i, q.degreeOf i ≤ d) :
     #{x | eval x p = eval x q} * card R ≤ (n * d) * card R ^ n := by
-  have hdeg : (p - q).totalDegree ≤ n * d := by
-    refine (totalDegree_le_card_mul_of_degreeOf_le fun i =>
-      (degreeOf_sub_le i _ _).trans (max_le (hp i) (hq i))).trans_eq ?_
-    rw [Fintype.card_fin]
+  have hdeg : (p - q).totalDegree ≤ n * d :=
+    (totalDegree_le_card_mul_of_degreeOf_le fun i =>
+      (degreeOf_sub_le i _ _).trans (max_le (hp i) (hq i))).trans_eq (by rw [Fintype.card_fin])
   simpa only [map_sub, sub_eq_zero] using
     card_filter_eval_eq_zero_mul_card_le (sub_ne_zero.mpr hne) hdeg
 

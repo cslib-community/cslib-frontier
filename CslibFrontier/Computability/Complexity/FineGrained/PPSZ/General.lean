@@ -164,8 +164,7 @@ theorem cost_le (hp : 0 ≤ p)
       _ = p := by rw [← sum_mul, sum_assignProb hτ, one_mul]
   · by_cases hx : τ x = none
     · rw [cost_of_not_frozen hfr hx]
-    · rw [cost_of_ne_none hx]
-      exact hp
+    · rwa [cost_of_ne_none hx]
 
 /-! ### The cost decrease -/
 
@@ -188,42 +187,37 @@ theorem sum_cost_update_add_le_of_frozen {τ : Fin n → Option Bool} {σ : Fin 
   have hA : ∑ l ∈ satLits φ τ, cost φ w p (update τ l.1 (some l.2)) x =
       ∑ α, ∑ y ∈ (free τ).erase x, assignProb φ (update τ y (some (α y))) α *
         guessProb φ w (insert y (free τ)ᶜ) α x := by
-    have hl : ∀ l ∈ satLits φ τ, cost φ w p (update τ l.1 (some l.2)) x =
-        if l.1 = x then 0 else ∑ α, assignProb φ (update τ l.1 (some l.2)) α *
-          guessProb φ w (insert l.1 (free τ)ᶜ) α x := by
-      intro l hl
-      have hy := (mem_satLits.1 hl).1
-      split_ifs with hlx
-      · exact cost_of_ne_none (by rw [hlx, update_self]; exact Option.some_ne_none _)
-      · rw [cost_of_frozen (hfr.update (Ne.symm hlx) hy l.2), free_update,
-          compl_erase]
-    rw [sum_congr rfl hl, sum_subset (s₂ := free τ ×ˢ (univ : Finset Bool))
-      (fun l hl => mem_product.2 ⟨mem_free.2 (mem_satLits.1 hl).1, mem_univ _⟩)
-      fun l hl hl' => ?_]
-    · rw [sum_product]
-      have hy : ∀ y ∈ free τ, ∑ b : Bool, (if y = x then 0 else
-          ∑ α, assignProb φ (update τ y (some b)) α *
-            guessProb φ w (insert y (free τ)ᶜ) α x) =
-          ∑ α, if y = x then 0 else assignProb φ (update τ y (some (α y))) α *
+    calc ∑ l ∈ satLits φ τ, cost φ w p (update τ l.1 (some l.2)) x
+        = ∑ l ∈ satLits φ τ, if l.1 = x then 0 else
+            ∑ α, assignProb φ (update τ l.1 (some l.2)) α *
+              guessProb φ w (insert l.1 (free τ)ᶜ) α x :=
+          sum_congr rfl fun l hl => by
+            split_ifs with hlx
+            · exact cost_of_ne_none (by rw [hlx, update_self]; exact Option.some_ne_none _)
+            · rw [cost_of_frozen (hfr.update (Ne.symm hlx) (mem_satLits.1 hl).1 l.2),
+                free_update, compl_erase]
+      _ = ∑ l ∈ free τ ×ˢ (univ : Finset Bool), if l.1 = x then 0 else
+            ∑ α, assignProb φ (update τ l.1 (some l.2)) α *
+              guessProb φ w (insert l.1 (free τ)ᶜ) α x :=
+          sum_subset (fun l hl => mem_product.2 ⟨mem_free.2 (mem_satLits.1 hl).1, mem_univ _⟩)
+            fun l hl hl' => by
+              split_ifs
+              · rfl
+              · exact sum_eq_zero fun α _ => by
+                  rw [assignProb_eq_zero fun h => hl' (mem_satLits.2 (satLit_iff_update.2
+                    ⟨mem_free.1 (mem_product.1 hl).1, α, h⟩)), zero_mul]
+      _ = ∑ y ∈ (free τ).erase x, ∑ α, assignProb φ (update τ y (some (α y))) α *
             guessProb φ w (insert y (free τ)ᶜ) α x := by
-        intro y hyW
-        by_cases hyx : y = x
-        · simp only [ite_eq_left hyx, sum_const_zero]
-        · simp only [ite_eq_right hyx]
-          rw [sum_comm]
-          refine sum_congr rfl fun α _ => ?_
-          refine sum_eq_single (α y) (fun b _ hb => ?_) fun h => absurd (mem_univ _) h
+          rw [sum_product, ← add_sum_erase _ _ hxW]
+          simp only [↓reduceIte, sum_const_zero, zero_add]
+          refine sum_congr rfl fun y hy => ?_
+          rw [sum_congr rfl fun b _ => ite_eq_right (ne_of_mem_erase hy), sum_comm]
+          refine sum_congr rfl fun α _ => sum_eq_single (α y) (fun b _ hb => ?_)
+            fun h => absurd (mem_univ _) h
           rw [assignProb_eq_zero fun h =>
-            hb ((isSatExtension_update_iff (mem_free.1 hyW)).1 h).2.symm, zero_mul]
-      rw [sum_congr rfl hy, sum_comm]
-      refine sum_congr rfl fun α _ => ?_
-      rw [← add_sum_erase _ _ hxW, ite_eq_left rfl, zero_add]
-      exact sum_congr rfl fun y hy => ite_eq_right (ne_of_mem_erase hy)
-    · split_ifs
-      · rfl
-      · refine sum_eq_zero fun α _ => ?_
-        rw [assignProb_eq_zero fun h => hl' (mem_satLits.2 (satLit_iff_update.2
-          ⟨mem_free.1 (mem_product.1 hl).1, α, h⟩)), zero_mul]
+            hb ((isSatExtension_update_iff (mem_free.1 (mem_of_mem_erase hy))).1 h).2.symm,
+            zero_mul]
+      _ = _ := sum_comm
   -- The inequality for each output `α`.
   have hB : ∀ α, ∑ y ∈ (free τ).erase x, assignProb φ (update τ y (some (α y))) α *
         guessProb φ w (insert y (free τ)ᶜ) α x +
@@ -232,44 +226,38 @@ theorem sum_cost_update_add_le_of_frozen {τ : Fin n → Option Bool} {σ : Fin 
     intro α
     by_cases hα : IsSatExtension φ τ α
     swap
-    · have h0 : ∀ y ∈ (free τ).erase x, assignProb φ (update τ y (some (α y))) α = 0 :=
-        fun y hy => assignProb_eq_zero fun h =>
-          hα ((isSatExtension_update_iff (mem_free.1 (mem_of_mem_erase hy))).1 h).1
-      rw [assignProb_eq_zero hα, sum_eq_zero fun y hy => by rw [h0 y hy, zero_mul]]
+    · rw [assignProb_eq_zero hα, sum_eq_zero fun y hy => by
+          rw [assignProb_eq_zero fun h =>
+            hα ((isSatExtension_update_iff (mem_free.1 (mem_of_mem_erase hy))).1 h).1, zero_mul]]
       simp only [zero_mul, mul_zero, zero_add, le_refl]
     have h13 := card_satLits_mul_assignProb φ τ α
     rw [← add_sum_erase _ _ hxW] at h13
     have h11 := sum_guessProb_sub (φ := φ) (w := w) (σ := α) hxT
     rw [compl_compl, restrict_compl_free hα.1] at h11
     have hf : (if WImplied φ w τ x (α x) then (0 : ℝ) else 1) = (guessBit φ w τ x : ℝ) := by
-      unfold guessBit
-      by_cases hI : WImplied φ w τ x (α x) <;> simp [hI, implied_eq_none_iff hα.2 hα.1]
+      by_cases hI : WImplied φ w τ x (α x) <;> simp [guessBit, hI, implied_eq_none_iff hα.2 hα.1]
     rw [hf] at h11
-    have hu : 0 ≤ guessProb φ w (free τ)ᶜ α x := guessProb_nonneg
-    have e2 : ∑ y ∈ (free τ).erase x, assignProb φ τ α *
-          (guessProb φ w (free τ)ᶜ α x - guessProb φ w (insert y (free τ)ᶜ) α x) ≤
-        ∑ y ∈ (free τ).erase x, assignProb φ (update τ y (some (α y))) α *
-          (guessProb φ w (free τ)ᶜ α x - guessProb φ w (insert y (free τ)ᶜ) α x) :=
-      sum_le_sum fun y _ => mul_le_mul_of_nonneg_right (assignProb_le_assignProb_update φ τ α y)
-        (sub_nonneg.2 (guessProb_le_of_subset (subset_insert y _)))
-    rw [← mul_sum, h11, mul_sub] at e2
-    have e4 : ∑ y ∈ (free τ).erase x, assignProb φ (update τ y (some (α y))) α *
-          (guessProb φ w (free τ)ᶜ α x - guessProb φ w (insert y (free τ)ᶜ) α x) =
+    have e2 : assignProb φ τ α * (guessBit φ w τ x : ℝ) -
+          assignProb φ τ α * guessProb φ w (free τ)ᶜ α x ≤
         (∑ y ∈ (free τ).erase x, assignProb φ (update τ y (some (α y))) α) *
             guessProb φ w (free τ)ᶜ α x -
           ∑ y ∈ (free τ).erase x, assignProb φ (update τ y (some (α y))) α *
             guessProb φ w (insert y (free τ)ᶜ) α x := by
-      rw [sum_mul, ← sum_sub_distrib]
-      exact sum_congr rfl fun y _ => mul_sub _ _ _
-    have e5 : assignProb φ τ α * guessProb φ w (free τ)ᶜ α x ≤
-        assignProb φ (update τ x (some (α x))) α * guessProb φ w (free τ)ᶜ α x :=
-      mul_le_mul_of_nonneg_right (assignProb_le_assignProb_update φ τ α x) hu
+      calc _ = ∑ y ∈ (free τ).erase x, assignProb φ τ α *
+              (guessProb φ w (free τ)ᶜ α x - guessProb φ w (insert y (free τ)ᶜ) α x) := by
+            rw [← mul_sub, ← h11, mul_sum]
+        _ ≤ ∑ y ∈ (free τ).erase x, assignProb φ (update τ y (some (α y))) α *
+              (guessProb φ w (free τ)ᶜ α x - guessProb φ w (insert y (free τ)ᶜ) α x) :=
+            sum_le_sum fun y _ => mul_le_mul_of_nonneg_right
+              (assignProb_le_assignProb_update φ τ α y)
+              (sub_nonneg.2 (guessProb_le_of_subset (subset_insert y _)))
+        _ = _ := by simp only [mul_sub, sum_sub_distrib, sum_mul]
     have e1 : ((satLits φ τ).card : ℝ) * (assignProb φ τ α * guessProb φ w (free τ)ᶜ α x) =
         assignProb φ (update τ x (some (α x))) α * guessProb φ w (free τ)ᶜ α x +
           (∑ y ∈ (free τ).erase x, assignProb φ (update τ y (some (α y))) α) *
-            guessProb φ w (free τ)ᶜ α x := by
-      rw [← mul_assoc, h13, add_mul]
-    linarith
+            guessProb φ w (free τ)ᶜ α x := by rw [← mul_assoc, h13, add_mul]
+    linarith [mul_le_mul_of_nonneg_right (assignProb_le_assignProb_update φ τ α x)
+      (guessProb_nonneg (φ := φ) (w := w) (T := (free τ)ᶜ) (σ := α) (x := x))]
   calc ∑ l ∈ satLits φ τ, cost φ w p (update τ l.1 (some l.2)) x + (guessBit φ w τ x : ℝ)
       = ∑ α, (∑ y ∈ (free τ).erase x, assignProb φ (update τ y (some (α y))) α *
           guessProb φ w (insert y (free τ)ᶜ) α x +
@@ -294,39 +282,27 @@ theorem sum_guessBit_add_totalCost_le (hp : 0 ≤ p)
       (satLits φ τ).card * totalCost φ w p τ +
         (2 - 2 * p) * ((satLits φ τ).card - (free τ).card) := by
   obtain ⟨σ, hσ⟩ := hτ
-  have hx : ∀ x, (#((satLits φ τ).filter (·.1 = x)) : ℝ) * guessBit φ w τ x +
+  have hx (x : Fin n) : (#((satLits φ τ).filter (·.1 = x)) : ℝ) * guessBit φ w τ x +
       ∑ l ∈ satLits φ τ, cost φ w p (update τ l.1 (some l.2)) x ≤
       (satLits φ τ).card * cost φ w p τ x +
         (2 - 2 * p) * (#((satLits φ τ).filter (·.1 = x)) - if τ x = none then 1 else 0) := by
-    intro x
     by_cases hxn : τ x = none
     · by_cases hfr : Frozen φ τ x
       · have hfib : (satLits φ τ).filter (·.1 = x) = {(x, σ x)} := by
           ext ⟨y, b⟩
           simp only [mem_filter, mem_satLits, mem_singleton, Prod.mk.injEq]
-          constructor
-          · rintro ⟨hl, rfl⟩
-            exact ⟨rfl, (satLit_iff_of_frozen hσ hfr).1 hl⟩
-          · rintro ⟨rfl, rfl⟩
-            exact ⟨⟨hxn, σ, hσ, rfl⟩, rfl⟩
+          exact ⟨fun ⟨hl, hy⟩ => ⟨hy, (satLit_iff_of_frozen hσ hfr).1 (hy ▸ hl)⟩,
+            fun ⟨hy, hb⟩ => ⟨hy.symm ▸ ⟨hxn, σ, hσ, hb.symm⟩, hy⟩⟩
         rw [hfib, card_singleton, ite_eq_left hxn, Nat.cast_one, one_mul, sub_self, mul_zero,
           add_zero, add_comm]
         exact sum_cost_update_add_le_of_frozen hσ hfr
       · obtain ⟨σ₁, σ₂, h₁, h₂, h12⟩ := exists_ne_of_not_frozen hxn hfr
-        have hall : ∀ b, SatLit φ τ x b := fun b => by
-          by_cases hb : σ₁ x = b
-          · exact ⟨hxn, σ₁, h₁, hb⟩
-          · exact ⟨hxn, σ₂, h₂,
-              (by decide : ∀ a c d : Bool, a ≠ c → a ≠ d → c = d) _ _ _ h12 hb⟩
+        have hall (b : Bool) : SatLit φ τ x b :=
+          if hb : σ₁ x = b then ⟨hxn, σ₁, h₁, hb⟩ else ⟨hxn, σ₂, h₂, by cases b <;> simp_all⟩
         have hfib : (satLits φ τ).filter (·.1 = x) = {(x, true), (x, false)} := by
           ext ⟨y, b⟩
-          simp only [mem_filter, mem_satLits, mem_insert, mem_singleton, Prod.mk.injEq]
-          constructor
-          · rintro ⟨-, rfl⟩
-            cases b <;> simp
-          · rintro (⟨rfl, rfl⟩ | ⟨rfl, rfl⟩) <;> exact ⟨hall _, rfl⟩
-        have hcard : #((satLits φ τ).filter (·.1 = x)) = 2 := by
-          rw [hfib, card_pair (by simp)]
+          cases b <;> simp +contextual [mem_satLits, hall]
+        have hcard : #((satLits φ τ).filter (·.1 = x)) = 2 := hfib ▸ card_pair (by simp)
         have hgb : guessBit φ w τ x = 1 :=
           ite_eq_left ((implied_eq_none_iff h₁.2 h₁.1).2 fun hI => h12 (hI.eq h₂.2 h₂.1).symm)
         have hsum : ∑ l ∈ satLits φ τ, cost φ w p (update τ l.1 (some l.2)) x ≤
@@ -337,24 +313,19 @@ theorem sum_guessBit_add_totalCost_le (hp : 0 ≤ p)
                 · rw [cost_of_ne_none (by rw [hlx, update_self]; exact Option.some_ne_none _)]
                 · exact cost_le hp herr (mem_satLits.1 hl).update_isSatExtension x
             _ = ((satLits φ τ).card - 2) * p := by
-                rw [sum_ite, sum_const_zero, zero_add, sum_const, nsmul_eq_mul]
-                have h := card_filter_add_card_filter_not (s := satLits φ τ)
-                  fun l : Fin n × Bool => l.1 = x
-                rw [hcard] at h
-                rw [← h]
+                rw [sum_ite, sum_const_zero, zero_add, sum_const, nsmul_eq_mul,
+                  ← card_filter_add_card_filter_not (s := satLits φ τ)
+                    (fun l : Fin n × Bool => l.1 = x), hcard]
                 push_cast
                 ring
         rw [hcard, hgb, ite_eq_left hxn, cost_of_not_frozen hfr hxn]
         push_cast
         linarith
     · have hfib : (satLits φ τ).filter (·.1 = x) = ∅ :=
-        filter_eq_empty_iff.2 fun l hl hlx => hxn (by rw [← hlx]; exact (mem_satLits.1 hl).1)
+        filter_eq_empty_iff.2 fun l hl hlx => hxn (hlx ▸ (mem_satLits.1 hl).1)
       have h0 : ∀ l ∈ satLits φ τ, cost φ w p (update τ l.1 (some l.2)) x = 0 := fun l hl =>
-        cost_of_ne_none (by
-          rw [update_of_ne fun h => hxn (by rw [h]; exact (mem_satLits.1 hl).1)]
-          exact hxn)
-      rw [hfib, card_empty, sum_eq_zero h0, ite_eq_right hxn, cost_of_ne_none hxn]
-      simp
+        cost_of_ne_none (by rwa [update_of_ne fun h : x = l.1 => hxn (h ▸ (mem_satLits.1 hl).1)])
+      simp [hfib, sum_eq_zero h0, hxn, cost_of_ne_none hxn]
   have hL : ∑ l ∈ satLits φ τ,
       ((guessBit φ w τ l.1 : ℝ) + totalCost φ w p (update τ l.1 (some l.2))) =
       ∑ x, ((#((satLits φ τ).filter (·.1 = x)) : ℝ) * guessBit φ w τ x +
@@ -365,14 +336,11 @@ theorem sum_guessBit_add_totalCost_le (hp : 0 ≤ p)
           = ∑ x, ∑ l ∈ satLits φ τ with l.1 = x, (guessBit φ w τ x : ℝ) :=
             (sum_fiberwise' (satLits φ τ) Prod.fst fun x => (guessBit φ w τ x : ℝ)).symm
         _ = _ := sum_congr rfl fun x _ => by rw [sum_const, nsmul_eq_mul]
-    · unfold totalCost
-      exact sum_comm
+    · exact sum_comm
   have h1 : ∑ x, (#((satLits φ τ).filter (·.1 = x)) : ℝ) = (satLits φ τ).card := by
     exact_mod_cast (card_eq_sum_card_fiberwise (f := Prod.fst) (t := univ)
       fun _ _ => mem_univ _).symm
-  have h2 : ∑ x, (if τ x = none then (1 : ℝ) else 0) = (free τ).card := by
-    rw [sum_boole]
-    rfl
+  have h2 : ∑ x, (if τ x = none then (1 : ℝ) else 0) = (free τ).card := by simp [free]
   calc _ = _ := hL
     _ ≤ ∑ x, (((satLits φ τ).card : ℝ) * cost φ w p τ x +
           (2 - 2 * p) * (#((satLits φ τ).filter (·.1 = x)) - if τ x = none then 1 else 0)) :=
@@ -400,21 +368,15 @@ theorem guessCount_add_unforcedCount (α : Fin n → Bool) (π : Equiv.Perm (Fin
   rw [← card_union_of_disjoint (disjoint_filter.2 fun j _ h1 h2 => absurd h2.1 (not_lt.2 h1.1))]
   congr 1
   ext j
-  have hj := j.isLt
   simp only [mem_filter, mem_univ, true_and, mem_union]
-  constructor
-  · rintro (⟨-, h⟩ | ⟨-, h⟩) <;> exact ⟨hj, h⟩
-  · rintro ⟨-, h⟩
-    by_cases hij : i ≤ (j : ℕ)
-    · exact Or.inl ⟨hij, h⟩
-    · exact Or.inr ⟨not_le.1 hij, h⟩
+  exact ⟨fun h => h.elim (fun h => ⟨j.isLt, h.2⟩) (fun h => ⟨j.isLt, h.2⟩),
+    fun ⟨_, h⟩ => (le_or_gt i j).imp (⟨·, h⟩) (⟨·, h⟩)⟩
 
 /-- From position `0`, the guesses are the unforced variables. -/
 private theorem guessCount_zero (α : Fin n → Bool) (π : Equiv.Perm (Fin n)) :
     guessCount φ w α π 0 = unforcedCount φ w α π n := by
-  have h := guessCount_add_unforcedCount (φ := φ) (w := w) α π 0
-  rwa [show unforcedCount φ w α π 0 = 0 by simp [unforcedCount, PPZ.unforcedCountWith],
-    add_zero] at h
+  simpa [unforcedCount, PPZ.unforcedCountWith] using
+    guessCount_add_unforcedCount (φ := φ) (w := w) α π 0
 
 /-- No guesses remain after position `n`. -/
 private theorem guessCount_self (α : Fin n → Bool) (π : Equiv.Perm (Fin n)) :
@@ -456,18 +418,13 @@ theorem succSum_eq {π₀ : Equiv.Perm (Fin n)} {i : ℕ} (hi : i < n) {τ : Fin
     (hτ : free τ = (prefixSet π₀ i)ᶜ) :
     succSum φ w π₀ i τ = ∑ y ∈ free τ, (1 / 2 : ℝ) ^ guessBit φ w τ y *
       ∑ b : Bool, succSum φ w (Equiv.swap (π₀ ⟨i, hi⟩) y * π₀) (i + 1) (update τ y (some b)) := by
-  have hnot : ∀ y ∈ free τ, y ∉ prefixSet π₀ i := fun y hy => by
-    rw [hτ] at hy
-    exact mem_compl.1 hy
-  have hfib : ∀ y ∈ free τ, (univ.filter (EqOnPrefix · π₀ i)).filter (fun π => π ⟨i, hi⟩ = y) =
-      univ.filter (EqOnPrefix · (Equiv.swap (π₀ ⟨i, hi⟩) y * π₀) (i + 1)) := by
-    intro y hy
-    ext π
-    simp only [mem_filter, mem_univ, true_and]
-    exact (eqOnPrefix_swap_iff hi (hnot y hy)).symm
-  have hmaps : ∀ π ∈ univ.filter (EqOnPrefix · π₀ i), π ⟨i, hi⟩ ∈ free τ := fun π hπ => by
-    rw [hτ]
-    exact mem_compl.2 ((mem_filter.1 hπ).2.apply_notMem_prefixSet hi)
+  have hnot : ∀ y ∈ free τ, y ∉ prefixSet π₀ i := fun _ hy => mem_compl.1 (hτ ▸ hy)
+  have hfib (y) (hy : y ∈ free τ) :
+      (univ.filter (EqOnPrefix · π₀ i)).filter (fun π => π ⟨i, hi⟩ = y) =
+        univ.filter (EqOnPrefix · (Equiv.swap (π₀ ⟨i, hi⟩) y * π₀) (i + 1)) :=
+    Finset.ext fun _ => by simp [(eqOnPrefix_swap_iff hi (hnot y hy)).symm]
+  have hmaps : ∀ π ∈ univ.filter (EqOnPrefix · π₀ i), π ⟨i, hi⟩ ∈ free τ := fun _ hπ =>
+    hτ.symm ▸ mem_compl.2 ((mem_filter.1 hπ).2.apply_notMem_prefixSet hi)
   have hinner : ∀ α ∈ univ.filter (IsSatExtension φ τ),
       ∑ π ∈ univ.filter (EqOnPrefix · π₀ i), (1 / 2 : ℝ) ^ guessCount φ w α π i =
       ∑ y ∈ free τ, (1 / 2 : ℝ) ^ guessBit φ w τ y *
@@ -479,20 +436,16 @@ theorem succSum_eq {π₀ : Equiv.Perm (Fin n)} {i : ℕ} (hi : i < n) {τ : Fin
     rw [hfib y hy, mul_sum]
     refine sum_congr rfl fun π hπ => ?_
     have hag := (eqOnPrefix_swap_iff hi (hnot y hy)).1 (mem_filter.1 hπ).2
-    have hc : (free τ)ᶜ = prefixSet π₀ i := by rw [hτ, compl_compl]
-    rw [guessCount_eq hi, pow_add, mul_comm, hag.1.prefixSet_eq, ← hc,
-      restrict_compl_free (mem_filter.1 hα).2.1, hag.2]
+    rw [guessCount_eq hi, pow_add, mul_comm, hag.1.prefixSet_eq, ← compl_compl (prefixSet π₀ i),
+      ← hτ, restrict_compl_free (mem_filter.1 hα).2.1, hag.2]
     rfl
   unfold succSum
   rw [sum_congr rfl hinner, sum_comm]
   refine sum_congr rfl fun y hy => ?_
-  rw [← mul_sum]
-  congr 1
-  rw [← sum_fiberwise (univ.filter (IsSatExtension φ τ)) (fun α => α y)]
-  refine sum_congr rfl fun b _ => ?_
+  rw [← mul_sum, ← sum_fiberwise (univ.filter (IsSatExtension φ τ)) (fun α => α y)]
+  refine congrArg (_ * ·) (sum_congr rfl fun b _ => sum_congr ?_ fun _ _ => rfl)
   rw [filter_filter]
-  congr 1
-  exact filter_congr fun α _ => (isSatExtension_update_iff (mem_free.1 hy)).symm
+  exact filter_congr fun _ _ => (isSatExtension_update_iff (mem_free.1 hy)).symm
 
 /-- **The success sum at the start** is `n!` times the probability that one round of PPSZ outputs
 a satisfying assignment. -/
@@ -540,29 +493,22 @@ private theorem two_sub_two_mul_mul_le_mul_logb (hp : 1 - 1 / (2 * Real.log 2) �
     (hm : 0 < m) (hms : m ≤ s) : (2 - 2 * p) * (s - m) ≤ s * Real.logb 2 (s / m) := by
   have hl : 0 < Real.log 2 := Real.log_pos one_lt_two
   have hs : 0 < s := hm.trans_le hms
-  have h1 := Real.one_sub_inv_le_log_of_pos (div_pos hs hm)
   have h2 : s - m ≤ s * Real.log (s / m) := by
-    have := mul_le_mul_of_nonneg_left h1 hs.le
+    have := mul_le_mul_of_nonneg_left (Real.one_sub_inv_le_log_of_pos (div_pos hs hm)) hs.le
     rwa [inv_div, mul_sub, mul_one, mul_div_cancel₀ m hs.ne'] at this
-  have h3 : 2 - 2 * p ≤ 1 / Real.log 2 := by
-    have : 2 * (1 / (2 * Real.log 2)) = 1 / Real.log 2 := by field_simp
-    linarith
+  have htwo : 2 * (1 / (2 * Real.log 2)) = 1 / Real.log 2 := by field_simp
+  have h3 : 2 - 2 * p ≤ 1 / Real.log 2 := by linarith
   calc (2 - 2 * p) * (s - m) ≤ 1 / Real.log 2 * (s - m) :=
         mul_le_mul_of_nonneg_right h3 (sub_nonneg.2 hms)
     _ ≤ 1 / Real.log 2 * (s * Real.log (s / m)) :=
         mul_le_mul_of_nonneg_left h2 (by positivity)
-    _ = s * Real.logb 2 (s / m) := by
-        rw [Real.logb]
-        ring
+    _ = s * Real.logb 2 (s / m) := by rw [Real.logb]; ring
 
 /-- Every `p ≥ 1 - 1 / (2 ln 2)` is nonnegative. -/
 private theorem nonneg_of_one_sub_one_div_two_mul_log_two_le
     (hp : 1 - 1 / (2 * Real.log 2) ≤ p) : 0 ≤ p := by
-  have hl := Real.one_sub_inv_le_log_of_pos two_pos
-  have : 1 / (2 * Real.log 2) ≤ 1 := by
-    rw [div_le_one (by positivity)]
-    linarith
-  linarith
+  have : 1 ≤ 2 * Real.log 2 := by linarith [Real.one_sub_inv_le_log_of_pos two_pos]
+  linarith [(div_le_one (by positivity)).2 this]
 
 /-- **Hertli's Theorem 15 for the unmodified algorithm** [Hertli, Theorem 15 (p. 7)][Hertli2011]
 (original adaptation): if every frozen variable of every restriction of `φ` is guessed with
@@ -584,15 +530,10 @@ theorem factorial_mul_le_succSum (hp : 1 - 1 / (2 * Real.log 2) ≤ p)
   intro m
   induction m with
   | zero =>
-    intro i π₀ τ hi hτ hsat
-    obtain ⟨σ, hσ⟩ := hsat
-    have hin : i = n := by omega
-    rw [hin] at hτ ⊢
-    have hall : ∀ x, τ x ≠ none := fun x hx => by
-      have := mem_free.2 hx
-      rw [hτ, prefixSet_self, compl_univ] at this
-      exact notMem_empty x this
-    have hc : totalCost φ w p τ = 0 := sum_eq_zero fun x _ => cost_of_ne_none (hall x)
+    intro i π₀ τ hi hτ ⟨σ, hσ⟩
+    cases (by omega : n = i)
+    have hc : totalCost φ w p τ = 0 := sum_eq_zero fun x _ => cost_of_ne_none fun hx => by
+      simpa [hτ, prefixSet_self] using mem_free.2 hx
     rw [hc, neg_zero, Real.rpow_zero, Nat.factorial_zero, Nat.cast_one, one_mul]
     unfold succSum
     calc (1 : ℝ) = (1 / 2 : ℝ) ^ guessCount φ w σ π₀ n := by rw [guessCount_self, pow_zero]
@@ -643,13 +584,12 @@ theorem factorial_mul_le_succSum (hp : 1 - 1 / (2 * Real.log 2) ≤ p)
             rw [sum_product]
             exact sum_congr rfl fun y _ => by rw [mul_sum]
     -- The cost decrease and the leftover inequality.
-    have hcost := sum_guessBit_add_totalCost_le hp0 herr hsat
-    have hlog := two_sub_two_mul_mul_le_mul_logb hp hM hMs
     have hA : (∑ l ∈ satLits φ τ, ((guessBit φ w τ l.1 : ℝ) +
         totalCost φ w p (update τ l.1 (some l.2)))) / (satLits φ τ).card ≤
         totalCost φ w p τ + Real.logb 2 ((satLits φ τ).card / (free τ).card) := by
       rw [div_le_iff₀ hs]
-      linarith
+      linarith [sum_guessBit_add_totalCost_le hp0 herr hsat,
+        two_sub_two_mul_mul_le_mul_logb hp hM hMs]
     have hamgm := card_mul_two_rpow_neg_le_sum (satLits φ τ) hS fun l =>
       (guessBit φ w τ l.1 : ℝ) + totalCost φ w p (update τ l.1 (some l.2))
     calc ((m + 1).factorial : ℝ) * (2 : ℝ) ^ (-totalCost φ w p τ)
@@ -717,10 +657,8 @@ theorem round_success_ge_of_guess_le (hp : 1 - 1 / (2 * Real.log 2) ≤ p)
   have hp0 := nonneg_of_one_sub_one_div_two_mul_log_two_le hp
   obtain ⟨σ, hσ⟩ := hsat
   have hsat : ∃ σ, IsSatExtension φ (fun _ => none) σ := ⟨σ, fun _ _ h => (by cases h), hσ⟩
-  have hτ : free (fun _ : Fin n => (none : Option Bool)) = (prefixSet 1 0)ᶜ := by
-    rw [prefixSet_zero, compl_empty]
-    ext x
-    simp
+  have hτ : free (fun _ : Fin n => (none : Option Bool)) = (prefixSet 1 0)ᶜ :=
+    Finset.ext fun _ => by simp [prefixSet_zero]
   have h15 := factorial_mul_le_succSum hp herr n 0 1 _ (zero_add n) hτ hsat
   rw [succSum_zero] at h15
   have hcost : totalCost φ w p (fun _ => none) ≤ p * n := by

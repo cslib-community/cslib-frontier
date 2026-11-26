@@ -72,24 +72,18 @@ private theorem tail_val (n w : ℕ) (hw : 0 < w) (i : Fin (n * w)) :
 
 private theorem productInputsCode_eq (n w : ℕ) (hw : 0 < w) :
     productInputsCode n w = (Circuit.wiring signature (productInputs n w hw)).code := by
-  apply Prod.ext
-  · rfl
-  change _ = List.ofFn (fun i => (productInputs n w hw i).val)
+  refine Prod.ext rfl ?_
+  change List.range (n * w) ++ _ = List.ofFn (fun i => (productInputs n w hw i).val)
   rw [List.ofFn_add]
-  have hl : (fun i : Fin (n * w) =>
-      (productInputs n w hw (Fin.castAdd (n * w) i)).val) = (fun i => i.val) := by
-    funext i
-    simp only [productInputs, Fin.append_left, Fin.val_castAdd]
-  have hr : (fun i : Fin (n * w) =>
-      (productInputs n w hw (Fin.natAdd (n * w) i)).val) =
-      (fun i => n * w + (w - 1) * ((n + 1) * w) + (w + i.val)) := by
-    funext i
-    simp only [productInputs, Fin.append_right]
-    exact tail_val n w hw i
   change _ ++ _ = List.ofFn (fun i : Fin (n * w) =>
       (productInputs n w hw (Fin.castAdd (n * w) i)).val) ++ _
-  rw [hl, hr]
-  congr 1 <;> apply List.ext_getElem (by simp) <;> intro i hi hi' <;> simp
+  congr 1
+  · refine List.ext_getElem (by simp) fun i _ _ => ?_
+    simp [productInputs]
+  · refine List.ext_getElem (by simp) fun i _ hi' => ?_
+    simp only [List.getElem_map, List.getElem_range, List.getElem_ofFn, productInputs,
+      Fin.append_right]
+    exact (tail_val n w hw ⟨i, by simpa using hi'⟩).symm
 
 private def decoderCode (w : ℕ) : Code :=
   if w = 0 then ([(.const false, [])], [w])
@@ -140,15 +134,12 @@ def code (n w : ℕ) : Code :=
 
 /-- The native constructor returns every gate and designated output of the actual circuit. -/
 theorem code_eq_code (n w : ℕ) : code n w = (circuit n w).code := by
-  by_cases hw : 0 < w
-  · change (if w = 0 then _ else _) = _
-    rw [ite_eq_right (by omega : w ≠ 0), decoderCode_eq,
-      rowCode_eq n w hw, productInputsCode_eq n w hw,
-      compCode_code, appendCode_code, compCode_code, compCode_code]
-    rw [circuit, dite_eq_left hw]
-    rfl
-  · have hz : w = 0 := by omega
-    subst w
+  rcases eq_or_ne w 0 with rfl | hw
+  · rfl
+  · have hw' : 0 < w := Nat.pos_of_ne_zero hw
+    change (if w = 0 then _ else _) = _
+    rw [ite_eq_right hw, decoderCode_eq, rowCode_eq n w hw', productInputsCode_eq n w hw',
+      compCode_code, appendCode_code, compCode_code, compCode_code, circuit, dite_eq_left hw']
     rfl
 
 private theorem native_rowCode :
@@ -181,13 +172,10 @@ private theorem native_decoderCode :
   have ht : ComputableInPolyTime (fun w : ℕ =>
       formulaCode w ((Formula.input (n := 2) 0).xor (.input 1)) ![w - 1, w - 2])
       encUnary encCode := by
-    apply computableInPolyTime_formulaCode _ hw
-    intro i
+    refine computableInPolyTime_formulaCode _ hw fun i => ?_
     fin_cases i
-    · change ComputableInPolyTime (fun w : ℕ => w - 1) _ encNat
-      fun_prop
-    · change ComputableInPolyTime (fun w : ℕ => w - 2) _ encNat
-      fun_prop
+    · exact (by fun_prop : ComputableInPolyTime (fun w : ℕ => w - 1) encUnary encNat)
+    · exact (by fun_prop : ComputableInPolyTime (fun w : ℕ => w - 2) encUnary encNat)
   unfold decoderCode
   fun_prop
 

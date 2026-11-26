@@ -25,8 +25,8 @@ every `δ > 0`, with probability at least `1 - δ` every probability measure `Q`
 
 where `kl(q ‖ p)` is the binary relative entropy `Cslib.Probability.binaryKL q p`. The bound is
 implicit in the true risk; inverting `kl` in its second argument bounds `𝔼_Q L_D`, and the
-bound is tighter than McAllester's (`Cslib.MachineLearning.PACBayes.Basic`) when the empirical
-risk is small.
+bound is tighter than McAllester's (`CslibFrontier.MachineLearning.PACBayes.Basic`) when the
+empirical risk is small.
 
 The proof follows [Seeger2002, Appendix A] and [Maurer2004, Section 3]: the change-of-measure
 inequality applied to
@@ -82,10 +82,8 @@ private theorem ae_empiricalRisk_eq_zero {i : ι} (hℓ : Measurable (ℓ i))
   rw [trueRisk_def] at h
   have h0 : ∀ᵐ z ∂D, ℓ i z = 0 :=
     (integral_eq_zero_iff_of_nonneg (fun z => (hℓ01 z).1) hint).1 h
-  have hS : ∀ᵐ S ∂Measure.pi (fun _ : Fin m => D), ∀ j, ℓ i (S j) = 0 :=
-    ae_all_iff.2 fun j => (Measure.tendsto_eval_ae_ae (μ := fun _ : Fin m => D) (i := j)).eventually
-      (p := fun z => ℓ i z = 0) h0
-  filter_upwards [hS] with S hS
+  filter_upwards [ae_all_iff.2 fun j =>
+    (Measure.tendsto_eval_ae_ae (μ := fun _ : Fin m => D) (i := j)).eventually h0] with S hS
   simp [empiricalRisk_eq_sum_div, hS]
 
 /-- A hypothesis with true risk `1` has empirical risk `1` on almost every nonempty sample. -/
@@ -94,21 +92,17 @@ private theorem ae_empiricalRisk_eq_one {i : ι} (hℓ : Measurable (ℓ i))
     ∀ᵐ S ∂Measure.pi (fun _ : Fin m => D), empiricalRisk ℓ S i = 1 := by
   have hint : Integrable (ℓ i) D := Integrable.of_mem_Icc 0 1 hℓ.aemeasurable (ae_of_all _ hℓ01)
   rw [trueRisk_def] at h
-  have h1 : ∀ᵐ z ∂D, 1 - ℓ i z = 0 :=
-    (integral_eq_zero_iff_of_nonneg (fun z => sub_nonneg.2 (hℓ01 z).2)
-      ((integrable_const 1).sub hint)).1 (by
-        rw [integral_sub (integrable_const 1) hint, h]
-        simp)
-  have hS : ∀ᵐ S ∂Measure.pi (fun _ : Fin m => D), ∀ j, ℓ i (S j) = 1 :=
-    ae_all_iff.2 fun j => ((Measure.tendsto_eval_ae_ae (μ := fun _ : Fin m => D)
-      (i := j)).eventually (p := fun z => 1 - ℓ i z = 0) h1).mono fun S (hS : 1 - ℓ i (S j) = 0) =>
-        by linarith
-  filter_upwards [hS] with S hS
+  have h1 : ∀ᵐ z ∂D, ℓ i z = 1 :=
+    ((integral_eq_zero_iff_of_nonneg (fun z => sub_nonneg.2 (hℓ01 z).2)
+      ((integrable_const 1).sub hint)).1
+      (by simp [integral_sub (integrable_const 1) hint, h])).mono fun _ h => (sub_eq_zero.1 h).symm
+  filter_upwards [ae_all_iff.2 fun j =>
+    (Measure.tendsto_eval_ae_ae (μ := fun _ : Fin m => D) (i := j)).eventually h1] with S hS
   simp [empiricalRisk_eq_sum_div, hS, hm.ne']
 
 /-- On almost every nonempty sample, every hypothesis whose true risk is `0` or `1` has the same
 empirical risk. -/
-private theorem ae_forall_empiricalRisk_eq [Countable ι] (hℓ : ∀ i, Measurable (ℓ i))
+theorem ae_forall_empiricalRisk_eq [Countable ι] (hℓ : ∀ i, Measurable (ℓ i))
     (hℓ01 : ∀ i z, ℓ i z ∈ Set.Icc (0 : ℝ) 1) {m : ℕ} (hm : 0 < m) :
     ∀ᵐ S ∂Measure.pi (fun _ : Fin m => D), ∀ i,
       (trueRisk ℓ D i = 0 → empiricalRisk ℓ S i = 0) ∧
@@ -152,10 +146,9 @@ theorem measure_pi_exists_binaryKL_integral_risk_gt (hℓ : ∀ i, Measurable (�
   have hmR : (0 : ℝ) < m := Nat.cast_pos.2 hm
   set F : (Fin m → Z) → ι → ℝ≥0∞ := fun S i =>
     ENNReal.ofReal (Real.exp (m * binaryKL (empiricalRisk ℓ S i) (trueRisk ℓ D i)))
-  have hF (i : ι) : Measurable fun S => F S i := by
-    have := measurable_empiricalRisk (ℓ := ℓ) m (hℓ i)
-    have hc := (continuous_binaryKL_left (trueRisk ℓ D i)).measurable
-    exact (measurable_const.mul (hc.comp this)).exp.ennreal_ofReal
+  have hF (i : ι) : Measurable fun S => F S i :=
+    (measurable_const.mul ((continuous_binaryKL_left _).measurable.comp
+      (measurable_empiricalRisk m (hℓ i)))).exp.ennreal_ofReal
   have hmarkov := measure_ofReal_div_le_lintegral_le (Measure.pi fun _ : Fin m => D) P hF
     (fun i => lintegral_exp_mul_binaryKL_risk_le (hℓ i) (hℓ01 i) m) (by positivity) hδ
   refine le_trans (measure_mono_ae ?_) hmarkov
@@ -185,10 +178,9 @@ theorem measure_pi_exists_binaryKL_integral_risk_gt (hℓ : ∀ i, Measurable (�
   have hj := binaryKL_integral_le_integral (μ := Q) (fun i => empiricalRisk_mem_Icc ℓ S (hℓ01 i))
     (fun i => trueRisk_mem_Icc ℓ D (hℓ01 i)) (fun i => (hS i).1) (fun i => (hS i).2)
     (measurable_of_countable _).aemeasurable (measurable_of_countable _).aemeasurable hklQ
-  have hfint : ∫ i, f i ∂Q = m * ∫ i, binaryKL (empiricalRisk ℓ S i) (trueRisk ℓ D i) ∂Q :=
-    integral_const_mul _ _
   rw [div_lt_iff₀ hmR] at hlt
-  nlinarith
+  rw [integral_const_mul] at hcm
+  linarith [mul_le_mul_of_nonneg_left hj hmR.le]
 
 /-- **The Occam form of the PAC-Bayes-kl bound**: taking point-mass posteriors, with probability at
 least `1 - δ` every index `i` with `P {i} > 0` satisfies

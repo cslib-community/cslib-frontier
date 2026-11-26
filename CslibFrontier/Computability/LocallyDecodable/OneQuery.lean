@@ -92,10 +92,7 @@ private theorem two_mul_abs_sum_mul_decodeLaw_le_aux (Y : M → P → Γ) (φ : 
     set S : P → ℝ := fun j => ∑ σ, |∑ m, if Y m j = σ then φ m else 0|
     cases q' with
     | inl k =>
-      have hcont' (r : Fin (k + 1)) : ProbOracleComp.IsQueryBounded (cont r) n := by
-        have h := hcont r
-        simp only [Sum.elim_inl, Nat.sub_zero] at h
-        exact h
+      have hcont' (r : Fin (k + 1)) : ProbOracleComp.IsQueryBounded (cont r) n := hcont r
       set u : Fin (k + 1) → ℝ := fun r => (ProbComp.unifOracle k r).toReal
       have hlaw (m : M) : (decodeLaw (OracleComp.query (.inl k) >>= cont) (Y m) a).toReal =
           ∑ r, u r * (decodeLaw (cont r) (Y m) a).toReal := by
@@ -112,11 +109,8 @@ private theorem two_mul_abs_sum_mul_decodeLaw_le_aux (Y : M → P → Γ) (φ : 
       have hu (r : Fin (k + 1)) : 0 ≤ u r := ENNReal.toReal_nonneg
       calc 2 * |∑ m, φ m * ∑ r, u r * (decodeLaw (cont r) (Y m) a).toReal|
           = 2 * |∑ r, u r * ∑ m, φ m * (decodeLaw (cont r) (Y m) a).toReal| := by
-            simp only [mul_sum]
+            simp only [mul_sum, mul_left_comm (φ _)]
             rw [sum_comm]
-            congr 2
-            refine sum_congr rfl fun r _ => sum_congr rfl fun m _ => ?_
-            ring
         _ ≤ ∑ r, u r * (2 * |∑ m, φ m * (decodeLaw (cont r) (Y m) a).toReal|) := by
             refine (mul_le_mul_of_nonneg_left (abs_sum_le_sum_abs _ _) zero_le_two).trans ?_
             rw [mul_sum]
@@ -132,9 +126,8 @@ private theorem two_mul_abs_sum_mul_decodeLaw_le_aux (Y : M → P → Γ) (φ : 
             refine sum_congr rfl fun j _ => sum_congr rfl fun r _ => ?_
             ring
     | inr j0 =>
-      have h0 (σ : Γ) : ProbOracleComp.IsQueryBounded (cont σ) 0 := by
-        have h := (hcont σ).mono (m := 0) (by simp only [Sum.elim_inr] at hle ⊢; omega)
-        exact h
+      have h0 (σ : Γ) : ProbOracleComp.IsQueryBounded (cont σ) 0 :=
+        (hcont σ).mono (by simp only [Sum.elim_inr] at hle ⊢; omega)
       set p : Γ → ℝ := fun σ => (decodeLaw (cont σ) z a).toReal
       have hlaw (m : M) : (decodeLaw (OracleComp.query (.inr j0) >>= cont) (Y m) a).toReal =
           p (Y m j0) := by
@@ -151,8 +144,7 @@ private theorem two_mul_abs_sum_mul_decodeLaw_le_aux (Y : M → P → Γ) (φ : 
       have hT : ∑ σ, T σ = 0 := by
         simp only [T]
         rw [sum_comm]
-        simp only [Fintype.sum_ite_eq]
-        exact hφ
+        simpa only [Fintype.sum_ite_eq] using hφ
       have hpT : ∑ σ, p σ * T σ = ∑ m, φ m * p (Y m j0) := by
         simp only [T, mul_sum, mul_ite, mul_zero]
         rw [sum_comm]
@@ -223,11 +215,7 @@ theorem IsSmoothDecoder.four_mul_card_mul_sq_le [DecidableEq P] [Nonempty Γ]
       have hc := hA.correct x i
       have hsum := toReal_decodeLaw_add_not (C x) (A i) true
       simp only [Bool.not_true] at hsum
-      cases hx : x i
-      · simp only [φ, hx, signVal_false] at hc ⊢
-        linarith
-      · simp only [φ, hx, signVal_true] at hc ⊢
-        linarith
+      cases hx : x i <;> simp only [φ, hx, signVal_false, signVal_true] at hc ⊢ <;> linarith
     have hlow : 2 ^ Fintype.card ι * ε ≤
         ∑ x, φ x * (decodeLaw (A i) (C x) true).toReal := by
       refine le_trans ?_ (sum_le_sum fun x _ => hcorr x)
@@ -264,7 +252,6 @@ theorem IsSmoothDecoder.four_mul_card_mul_sq_le [DecidableEq P] [Nonempty Γ]
     nlinarith
   -- Sum over the message indices.
   set X : ℝ := ∑ j, ∑ σ, ∑ i, F j σ i
-  have hX0 : 0 ≤ X := sum_nonneg fun j _ => sum_nonneg fun σ _ => sum_nonneg fun i _ => hF j σ i
   have hsum : 2 * K * ε ≤ c / n * X := by
     have h := sum_le_sum fun i (_ : i ∈ univ) => hindex i
     rw [sum_const, card_univ, nsmul_eq_mul, ← mul_sum] at h
@@ -289,36 +276,23 @@ theorem IsSmoothDecoder.four_mul_card_mul_sq_le [DecidableEq P] [Nonempty Γ]
       _ = n ^ 2 * B := by
           rw [sum_const, card_univ, nsmul_eq_mul]
           ring
+  -- Square the bound, using `0 ≤ 2 K ε ≤ c / n * X` and `(X / n) ^ 2 ≤ B`, and divide by `K`.
   have hK : 0 ≤ K := Nat.cast_nonneg _
-  have hKε : 0 ≤ K * ε := mul_nonneg hK hε
-  have hn0 : 0 ≤ n := Nat.cast_nonneg _
-  rcases hn0.eq_or_lt with hn | hn
-  · -- No positions: the decoder learns nothing, so `ε = 0` or there is no message bit.
-    rw [← hn, div_zero, zero_mul] at hsum
-    have : K * ε = 0 := by linarith
-    have h2 : K * ε ^ 2 = 0 := by rw [sq, ← mul_assoc, this, zero_mul]
-    nlinarith [sq_nonneg c]
-  · rcases le_or_gt c 0 with hc | hc
-    · have : c / n * X ≤ 0 := mul_nonpos_of_nonpos_of_nonneg (div_nonpos_of_nonpos_of_nonneg hc
-        hn.le) hX0
-      have : K * ε = 0 := by linarith
-      have h2 : K * ε ^ 2 = 0 := by rw [sq, ← mul_assoc, this, zero_mul]
-      nlinarith [sq_nonneg c]
-    · -- Square the bound and divide by `K`.
-      have hsq : (2 * K * ε) ^ 2 ≤ c ^ 2 * B := by
-        have h1 : (2 * K * ε) ^ 2 ≤ (c / n * X) ^ 2 := by gcongr
-        have h2 : (c / n * X) ^ 2 = c ^ 2 / n ^ 2 * X ^ 2 := by ring
-        have h3 : c ^ 2 / n ^ 2 * X ^ 2 ≤ c ^ 2 / n ^ 2 * (n ^ 2 * B) := by gcongr
-        have h4 : c ^ 2 / n ^ 2 * (n ^ 2 * B) = c ^ 2 * B := by
-          field_simp [hn.ne']
-        linarith
-      rcases hK.eq_or_lt with hK0 | hKpos
-      · rw [← hK0]
-        nlinarith [sq_nonneg c]
-      · have : K * (4 * K * ε ^ 2) ≤ K * (c ^ 2 * (Fintype.card Γ - 1)) := by
-          simp only [B] at hsq
-          nlinarith
-        exact le_of_mul_le_mul_left this hKpos
+  have hsq : (2 * K * ε) ^ 2 ≤ c ^ 2 * B := by
+    have hn0 : 0 ≤ n := Nat.cast_nonneg _
+    have hXn : (X / n) ^ 2 ≤ B := by
+      rcases hn0.eq_or_lt with hn | hn
+      · rw [← hn, div_zero, sq, zero_mul]; exact hB
+      · rw [div_pow, div_le_iff₀ (by positivity)]; linarith
+    calc (2 * K * ε) ^ 2 ≤ (c / n * X) ^ 2 := pow_le_pow_left₀ (by positivity) hsum 2
+      _ = c ^ 2 * (X / n) ^ 2 := by ring
+      _ ≤ c ^ 2 * B := by gcongr
+  rcases hK.eq_or_lt with hK0 | hKpos
+  · rw [← hK0]; nlinarith [sq_nonneg c]
+  · refine le_of_mul_le_mul_left ?_ hKpos
+    calc K * (4 * K * ε ^ 2) = (2 * K * ε) ^ 2 := by ring
+      _ ≤ c ^ 2 * B := hsq
+      _ = K * (c ^ 2 * (Fintype.card Γ - 1)) := by simp only [B]; ring
 
 /-- **One-query locally decodable codes are short.** Original result: an explicit one-query bound
 proved by a degree-one Fourier argument. A `(1, δ, ε)` locally decodable code with `0 < δ` and

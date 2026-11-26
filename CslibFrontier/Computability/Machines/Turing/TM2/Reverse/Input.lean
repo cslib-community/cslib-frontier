@@ -123,29 +123,21 @@ theorem moveLeft (h : z.Represents input pos) :
     z.moveLeft.Represents input (moveInputPos pos .neg) := by
   have hm := val_moveInputPos_eq pos .neg
   simp only [SignType.cast] at hm
-  rcases z with ⟨l, r, b⟩
-  cases b with
-  | true =>
-    refine ⟨h.contents, h.left_nil, ?_⟩
-    have hp : pos.val = 0 := h.pos_eq
-    change (moveInputPos pos .neg).val = 0
-    omega
-  | false =>
-    cases l with
+  have hp := h.pos_eq
+  rcases z with ⟨l, r, _ | _⟩
+  · cases l with
     | nil =>
-      refine ⟨h.contents, ?_, ?_⟩
-      · simp [Input.moveLeft]
-      · have hp : pos.val = 1 := h.pos_eq
-        change (moveInputPos pos .neg).val = 0
-        omega
+      refine ⟨h.contents, fun _ => rfl, ?_⟩
+      dsimp [Input.moveLeft] at hm hp ⊢
+      omega
     | cons a l =>
-      refine ⟨?_, ?_, ?_⟩
+      refine ⟨?_, nofun, ?_⟩
       · simpa [Input.moveLeft, List.reverse_cons, List.append_assoc] using h.contents
-      · simp [Input.moveLeft]
-      · have hp : pos.val = (a :: l).length + 1 := h.pos_eq
-        simp only [List.length_cons] at hp
-        change (moveInputPos pos .neg).val = l.length + 1
+      · dsimp [Input.moveLeft] at hm hp ⊢
         omega
+  · refine ⟨h.contents, h.left_nil, ?_⟩
+    dsimp [Input.moveLeft] at hm hp ⊢
+    omega
 
 /-- Moving right preserves the representation, with clamping at the right boundary. -/
 theorem moveRight (h : z.Represents input pos) :
@@ -153,42 +145,29 @@ theorem moveRight (h : z.Represents input pos) :
   have hm := val_moveInputPos_eq pos .pos
   simp only [SignType.cast] at hm
   have hlen := h.length_eq
-  rcases z with ⟨l, r, b⟩
-  change l.length + r.length = input.length at hlen
-  cases b with
-  | true =>
-    have hl : l = [] := h.left_nil rfl
-    subst l
-    refine ⟨h.contents, ?_, ?_⟩
-    · simp [Input.moveRight]
-    · have hp : pos.val = 0 := h.pos_eq
-      change (moveInputPos pos .pos).val = 1
-      omega
-  | false =>
-    cases r with
+  have hp := h.pos_eq
+  rcases z with ⟨l, r, _ | _⟩
+  · cases r with
     | nil =>
       refine ⟨h.contents, h.left_nil, ?_⟩
-      have hp : pos.val = l.length + 1 := h.pos_eq
-      simp only [List.length_nil, Nat.add_zero] at hlen
-      change (moveInputPos pos .pos).val = l.length + 1
+      dsimp [Input.moveRight] at hm hp hlen ⊢
       omega
     | cons a r =>
-      refine ⟨?_, ?_, ?_⟩
+      refine ⟨?_, nofun, ?_⟩
       · simpa [Input.moveRight, List.reverse_cons, List.append_assoc] using h.contents
-      · simp [Input.moveRight]
-      · have hp : pos.val = l.length + 1 := h.pos_eq
-        simp only [List.length_cons] at hlen
-        change (moveInputPos pos .pos).val = l.length + 1 + 1
+      · dsimp [Input.moveRight] at hm hp hlen ⊢
         omega
+  · obtain rfl := h.left_nil rfl
+    refine ⟨h.contents, nofun, ?_⟩
+    dsimp [Input.moveRight] at hm hp hlen ⊢
+    omega
 
 /-- Each zipper move simulates the corresponding native bounded head move. -/
 theorem move (h : z.Represents input pos) (d : SignType) :
     (z.move d).Represents input (moveInputPos pos d) := by
   cases d with
   | neg => exact h.moveLeft
-  | zero =>
-    change z.Represents input (moveInputPos pos 0)
-    rwa [moveInputPos_zero]
+  | zero => exact (moveInputPos_zero pos).symm ▸ h
   | pos => exact h.moveRight
 
 end Represents

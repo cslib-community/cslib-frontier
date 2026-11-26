@@ -221,25 +221,18 @@ theorem map_restKernel_eq_bind (S : RepeatedStrategy) (j : Free) (q : PairQ) :
     have hq : Prod.snd ∘ Function.update u j (Sum.inl none, q) =
         Function.update (Prod.snd ∘ u) j q := by
       funext i
-      by_cases hi : i = j
-      · subst i
-        simp only [Function.comp_apply, Function.update_self]
-      · simp only [Function.comp_apply, Function.update_of_ne hi]
+      by_cases hi : i = j <;> simp [hi, Function.update_of_ne]
     have hcombine :
         (Revealed.mk checked (Prod.fst ∘ Function.update u j (Sum.inl none, q))).combine
           (Prod.snd ∘ Function.update u j (Sum.inl none, q)) =
         (Revealed.mk checked (Prod.fst ∘ u)).combine (Function.update (Prod.snd ∘ u) j q) := by
       rw [hq]
-      unfold Revealed.combine
       rfl
     simp only [completeTranscript, PMF.map_comp, Function.comp_def, restTranscript,
-      Shared.ofRevealed.eq_1, restQuestions, finish, omitMessage]
-    simp only [Function.comp_def] at hcombine
+      Shared.ofRevealed.eq_1, restQuestions, finish, omitMessage] at hcombine ⊢
     rw [hcombine]
-    congr 1
-    funext v
-    congr 2
-    funext i
+    congr 1 with v : 1
+    congr 2 with i : 1
     simp only [Function.update_of_ne i.property]
   calc
     _ = (pi fun _ : C => (G.anchored α).questions).bind (fun checked =>
@@ -293,10 +286,8 @@ private theorem conditionalSnd_filter_forget {U V R : Type*} (prior : PMF U)
   rw [hF]
   have hp : (prior.map forget) (forget x) ≠ 0 := by
     obtain ⟨⟨y, r⟩, hyr, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-    have hJr : (y, r) ∈ J.support := by
-      rw [PMF.support_filter] at hyr
-      exact hyr.2
-    have hmass := (PMF.mem_support_iff _ _).mp hJr
+    rw [PMF.support_filter] at hyr
+    have hmass := (PMF.mem_support_iff _ _).mp hyr.2
     dsimp only [J] at hmass
     rw [bind_map_prodMk_apply] at hmass
     exact ne_of_gt ((pos_iff_ne_zero.mpr (left_ne_zero_of_mul hmass)).trans_le
@@ -311,15 +302,12 @@ private theorem conditionalSnd_filter_forget {U V R : Type*} (prior : PMF U)
   rw [PMF.filter_apply, PMF.filter_apply, ← PMF.toOuterMeasure_apply,
     ← PMF.toOuterMeasure_apply, hmass]
   by_cases hr : r ∈ E
-  · have hr₀ : (x, r) ∈ S₀ := hr
-    have hr₁ : (forget x, r) ∈ S₁ := hr
-    rw [Set.indicator_of_mem hr₀, Set.indicator_of_mem hr₁]
+  · rw [Set.indicator_of_mem (show (x, r) ∈ S₀ from hr),
+      Set.indicator_of_mem (show (forget x, r) ∈ S₁ from hr)]
     dsimp only [J, J']
     rw [bind_map_prodMk_apply, bind_map_prodMk_apply]
     ac_rfl
-  · have hr₀ : (x, r) ∉ S₀ := hr
-    have hr₁ : (forget x, r) ∉ S₁ := hr
-    rw [Set.indicator_of_notMem hr₀, Set.indicator_of_notMem hr₁, zero_mul, mul_zero, mul_zero]
+  · simp [S₀, S₁, Set.indicator_of_notMem, hr]
 
 /-- After conditioning on the checked wins, the remaining transcript given the selected pair
 and its noisy message has the same law as when given the pair alone. -/

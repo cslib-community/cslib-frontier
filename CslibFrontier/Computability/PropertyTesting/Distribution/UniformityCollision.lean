@@ -131,71 +131,27 @@ private theorem sum_cube_sub_sq_le [Nonempty α] (p : PMF α) :
           refine sum_le_sum fun a _ => ?_
           have h1 : |d a| ≤ Real.sqrt D := Real.abs_le_sqrt (by
             rw [hD]; exact single_le_sum (fun b _ => sq_nonneg (d b)) (mem_univ a))
-          calc d a ^ 3 = d a * d a ^ 2 := by ring
-            _ ≤ Real.sqrt D * d a ^ 2 :=
-              mul_le_mul_of_nonneg_right ((le_abs_self _).trans h1) (sq_nonneg _)
+          linarith only
+            [mul_le_mul_of_nonneg_right ((le_abs_self (d a)).trans h1) (sq_nonneg (d a))]
       _ = Real.sqrt D * D := by rw [← mul_sum, hD]
   rw [hs, ht, add_sub_cancel_left]
-  calc n⁻¹ * n⁻¹ + 3 * n⁻¹ * D + ∑ a, d a ^ 3 - (n⁻¹ + D) ^ 2
-      = D * n⁻¹ + ∑ a, d a ^ 3 - D ^ 2 := by ring
-    _ ≤ D * n⁻¹ + Real.sqrt D * D := by linarith only [hcube, sq_nonneg D]
+  linarith only [hcube, sq_nonneg D]
 
 /-- Far-case arithmetic, with `q = √n`, `w = √(n D)` and `K = k - 1`. -/
 private theorem far_arith {q w K ε : ℝ} (hq : 1 ≤ q) (hε : 0 < ε) (hε1 : ε ≤ 1) (hw : 2 * ε ≤ w)
     (hw2 : 4 * ε ^ 2 ≤ w ^ 2) (hK : 40 * q ≤ K * ε ^ 2) (hK0 : 0 < K) :
     24 * q ^ 2 * (1 + w ^ 2) + 48 * K * (w ^ 2 + q * w ^ 3) ≤ K ^ 2 * w ^ 4 := by
   have hw0 : 0 < w := by linarith only [hε, hw]
-  have hKw2 : 160 * q ≤ K * w ^ 2 := by
-    calc 160 * q = 4 * (40 * q) := by ring
-      _ ≤ 4 * (K * ε ^ 2) := mul_le_mul_of_nonneg_left hK (by norm_num)
-      _ = K * (4 * ε ^ 2) := by ring
-      _ ≤ K * w ^ 2 := mul_le_mul_of_nonneg_left hw2 hK0.le
+  have hKw2 : 160 * q ≤ K * w ^ 2 := by linarith only [hK, mul_le_mul_of_nonneg_left hw2 hK0.le]
   have hKw : 80 * q ≤ K * w := by
-    have hεsq : ε ^ 2 ≤ ε := by
-      rw [sq]
-      exact mul_le_of_le_one_right hε.le hε1
-    calc 80 * q = 2 * (40 * q) := by ring
-      _ ≤ 2 * (K * ε ^ 2) := mul_le_mul_of_nonneg_left hK zero_le_two
-      _ ≤ 2 * (K * ε) :=
-        mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left hεsq hK0.le) zero_le_two
-      _ = K * (2 * ε) := by ring
-      _ ≤ K * w := mul_le_mul_of_nonneg_left hw hK0.le
-  set Z := K * w ^ 2 with hZ
-  have hZ0 : 0 < Z := mul_pos hK0 (sq_pos_of_pos hw0)
-  have hq0 : 0 < q := zero_lt_one.trans_le hq
-  have t1 : 25600 * q ^ 2 ≤ Z ^ 2 := by
-    calc 25600 * q ^ 2 = (160 * q) ^ 2 := by ring
-      _ ≤ Z ^ 2 := pow_le_pow_left₀ (mul_nonneg (by norm_num) hq0.le) hKw2 2
-  have t2 : 6400 * q ^ 2 * w ^ 2 ≤ Z ^ 2 := by
-    have h1 : (80 * q) ^ 2 ≤ (K * w) ^ 2 :=
-      pow_le_pow_left₀ (mul_nonneg (by norm_num) hq0.le) hKw 2
-    calc 6400 * q ^ 2 * w ^ 2 = (80 * q) ^ 2 * w ^ 2 := by ring
-      _ ≤ (K * w) ^ 2 * w ^ 2 := mul_le_mul_of_nonneg_right h1 (sq_nonneg w)
-      _ = Z ^ 2 := by rw [hZ]; ring
-  have t3 : 160 * (K * w ^ 2) ≤ Z ^ 2 := by
-    have h160 : 160 ≤ Z := (le_mul_of_one_le_right (by norm_num) hq).trans hKw2
-    rw [← hZ, sq]
-    exact mul_le_mul_of_nonneg_right h160 hZ0.le
-  have t4 : 80 * (K * (q * w ^ 3)) ≤ Z ^ 2 := by
-    have h1 : (80 * q) * (w * Z) ≤ (K * w) * (w * Z) :=
-      mul_le_mul_of_nonneg_right hKw (mul_pos hw0 hZ0).le
-    calc 80 * (K * (q * w ^ 3)) = (80 * q) * (w * Z) := by rw [hZ]; ring
-      _ ≤ (K * w) * (w * Z) := h1
-      _ = Z ^ 2 := by rw [hZ]; ring
-  have h3200 : 3200 * (24 * q ^ 2 * (1 + w ^ 2) + 48 * K * (w ^ 2 + q * w ^ 3)) ≤ 3200 * Z ^ 2 := by
-    calc 3200 * (24 * q ^ 2 * (1 + w ^ 2) + 48 * K * (w ^ 2 + q * w ^ 3))
-        = 3 * (25600 * q ^ 2) + 12 * (6400 * q ^ 2 * w ^ 2) +
-            960 * (160 * (K * w ^ 2)) + 1920 * (80 * (K * (q * w ^ 3))) := by ring
-      _ ≤ 3 * Z ^ 2 + 12 * Z ^ 2 + 960 * Z ^ 2 + 1920 * Z ^ 2 :=
-          add_le_add (add_le_add (add_le_add
-            (mul_le_mul_of_nonneg_left t1 (by norm_num))
-            (mul_le_mul_of_nonneg_left t2 (by norm_num)))
-            (mul_le_mul_of_nonneg_left t3 (by norm_num)))
-            (mul_le_mul_of_nonneg_left t4 (by norm_num))
-      _ = 2895 * Z ^ 2 := by ring
-      _ ≤ 3200 * Z ^ 2 := mul_le_mul_of_nonneg_right (by norm_num) (sq_nonneg Z)
-  rw [show K ^ 2 * w ^ 4 = Z ^ 2 by rw [hZ]; ring]
-  exact le_of_mul_le_mul_left h3200 (by norm_num)
+    linarith only [hK, mul_le_mul_of_nonneg_left (pow_le_of_le_one hε.le hε1 two_ne_zero) hK0.le,
+      mul_le_mul_of_nonneg_left hw hK0.le]
+  have hZ0 : 0 < K * w ^ 2 := mul_pos hK0 (pow_pos hw0 2)
+  have h160 : 160 ≤ K * w ^ 2 := by linarith only [hKw2, hq]
+  linarith only [sq_nonneg (K * w ^ 2), pow_le_pow_left₀ (by linarith only [hq]) hKw2 2,
+    mul_le_mul_of_nonneg_right h160 hZ0.le,
+    mul_le_mul_of_nonneg_right (pow_le_pow_left₀ (by linarith only [hq]) hKw 2) (sq_nonneg w),
+    mul_le_mul_of_nonneg_right hKw (mul_pos hw0 hZ0).le]
 
 /-- The far-case Chebyshev condition, with `q = √n`, `r = √D` and `K = k - 1`. -/
 private theorem far_variance_le {q r K ε : ℝ} (hq : 1 ≤ q) (hε : 0 < ε) (hε1 : ε ≤ 1)
@@ -222,15 +178,10 @@ private theorem far_variance_le {q r K ε : ℝ} (hq : 1 ≤ q) (hε : 0 < ε) (
   have h1 : 2 * N * (K - 1) * (w ^ 2 + q * w ^ 3) ≤ 2 * N * K * (w ^ 2 + q * w ^ 3) :=
     mul_le_mul_of_nonneg_right
       (mul_le_mul_of_nonneg_left (sub_le_self K zero_le_one) (mul_nonneg zero_le_two hN0.le)) hX
-  have h2 : w ^ 2 / 2 ≤ w ^ 2 - 2 * ε ^ 2 := by
-    rw [div_le_iff₀ two_pos]
-    linarith only [hw2]
+  have h2 : w ^ 2 / 2 ≤ w ^ 2 - 2 * ε ^ 2 := by linarith only [hw2]
   have h3 : (w ^ 2 / 2) ^ 2 ≤ (w ^ 2 - 2 * ε ^ 2) ^ 2 :=
     pow_le_pow_left₀ (div_nonneg (sq_nonneg w) zero_le_two) h2 2
-  have h4 : K ^ 2 ≤ 2 * N := by
-    rw [hN, mul_div_cancel₀ _ two_ne_zero]
-    calc K ^ 2 ≤ K ^ 2 + K := le_add_of_nonneg_right hK0.le
-      _ = (K + 1) * K := by ring
+  have h4 : K ^ 2 ≤ 2 * N := by rw [hN]; linarith only [hK0]
   calc 3 * (N * q ^ 2 * (1 + w ^ 2) + 2 * N * (K - 1) * (w ^ 2 + q * w ^ 3))
       ≤ 3 * (N * q ^ 2 * (1 + w ^ 2) + 2 * N * K * (w ^ 2 + q * w ^ 3)) :=
         mul_le_mul_of_nonneg_left (add_le_add_right h1 _) zero_le_three
@@ -257,30 +208,21 @@ theorem isTester_collisionTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
   set K : ℝ := (k : ℝ) - 1 with hK
   have hK0 : 0 < K :=
     pos_of_mul_pos_left (lt_of_lt_of_le (by linarith only [hq1] : 0 < 40 * q) hk) (sq_nonneg ε)
-  have hk2 : 2 ≤ k := by
-    have : (1 : ℝ) < k := by rw [hK] at hK0; linarith only [hK0]
-    exact_mod_cast this
-  have hK1 : 1 ≤ K := by
-    have : (2 : ℝ) ≤ k := by exact_mod_cast hk2
-    rw [hK]; linarith only [this]
+  have hk2 : 2 ≤ k := by exact_mod_cast (show (1 : ℝ) < k by linarith only [hK0, hK])
+  have hK1 : 1 ≤ K := by linarith only [(Nat.ofNat_le_cast (α := ℝ)).mpr hk2, hK]
   have hkK : (k : ℝ) = K + 1 := by rw [hK]; ring
   set N : ℝ := (k.choose 2 : ℝ) with hN
   have hNK : N = (K + 1) * K / 2 := by rw [hN, Nat.cast_choose_two, hkK]; ring
   have hN0 : 0 < N := by rw [hNK]; positivity
   have hM : (k : ℝ) * (k - 1) * (k - 2) = (K + 1) * K * (K - 1) := by rw [hkK]; ring
-  have hM0 : 0 ≤ (K + 1) * K * (K - 1) := by
-    have : 0 ≤ K - 1 := by linarith only [hK1]
-    positivity
+  have hM0 : 0 ≤ (K + 1) * K * (K - 1) := mul_nonneg (by positivity) (by linarith only [hK1])
   have h1600 : 1600 * n ≤ (K * ε ^ 2) ^ 2 := by
     calc 1600 * n = (40 * q) ^ 2 := by rw [← hqn]; ring
       _ ≤ (K * ε ^ 2) ^ 2 := pow_le_pow_left₀ (by linarith only [hq1]) hk 2
   have hτ : collisionThreshold (Fintype.card α) k ε = N * (1 + 2 * ε ^ 2) / n := rfl
   constructor
-  · intro p hp
-    rw [Set.mem_singleton_iff] at hp
-    subst hp
-    have hcp : collisionProbability (uniformOfFintype α) = n⁻¹ := by
-      rw [hn]; exact collisionProbability_uniform
+  · rintro _ rfl
+    have hcp : collisionProbability (uniformOfFintype α) = n⁻¹ := hn ▸ collisionProbability_uniform
     have hcube : ∑ a, ((uniformOfFintype α) a).toReal ^ 3 = n⁻¹ ^ 2 := by
       simp only [uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
         sum_const, card_univ, nsmul_eq_mul, ← hn]
@@ -295,35 +237,21 @@ theorem isTester_collisionTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
       (2 * N * ε ^ 2 / n) (by positivity) ?_ (sum_iid_mul_collisionCount_sub_sq _ k).le ?_
     · intro x hx
       simp only [Bool.not_eq_true', decide_eq_false_iff_not, not_le] at hx
-      rw [hτ] at hx
-      rw [← hN, hcp, le_abs]
-      left
       have heq : 2 * N * ε ^ 2 / n = N * (1 + 2 * ε ^ 2) / n - N * n⁻¹ := by field_simp; ring
-      linarith only [hx, heq]
+      rw [← hN, hcp]
+      exact le_abs.mpr (.inl (by linarith only [hx, heq, hτ]))
     · rw [← hN, hcp, hcube, sub_self, mul_zero, add_zero]
-      have hle : 3 * (N * (n⁻¹ - n⁻¹ ^ 2)) ≤ 3 * N / n := by
-        have hsq : 0 ≤ N * n⁻¹ ^ 2 := mul_nonneg hN0.le (sq_nonneg _)
-        rw [mul_sub, div_eq_mul_inv]
-        linarith only [hsq]
-      refine hle.trans ?_
-      rw [div_pow, mul_pow, mul_pow, div_le_div_iff₀ hn0 (by positivity)]
+      refine (by linarith only [mul_sub N n⁻¹ (n⁻¹ ^ 2), mul_nonneg hN0.le (sq_nonneg n⁻¹)] :
+        _ ≤ 3 * N * n⁻¹).trans ?_
+      rw [← div_eq_mul_inv, div_pow, mul_pow, mul_pow, div_le_div_iff₀ hn0 (by positivity)]
+      have hKN : K ^ 2 ≤ 4 * N := by rw [hNK]; linarith only [hK0, sq_nonneg K]
       have h4 : 3 * n ≤ 4 * N * ε ^ 4 := by
-        have hKN : K ^ 2 ≤ 4 * N := by
-          rw [hNK]
-          calc K ^ 2 ≤ 2 * K ^ 2 + 2 * K := by linarith only [hK0, sq_nonneg K]
-            _ = 4 * ((K + 1) * K / 2) := by ring
-        calc 3 * n ≤ 1600 * n := by linarith only [hn0]
-          _ ≤ (K * ε ^ 2) ^ 2 := h1600
-          _ = K ^ 2 * ε ^ 4 := by ring
-          _ ≤ 4 * N * ε ^ 4 := mul_le_mul_of_nonneg_right hKN (pow_nonneg hε.le 4)
-      calc 3 * N * n ^ 2 = N * n * (3 * n) := by ring
-        _ ≤ N * n * (4 * N * ε ^ 4) := mul_le_mul_of_nonneg_left h4 (mul_pos hN0 hn0).le
-        _ = 2 ^ 2 * N ^ 2 * (ε ^ 2) ^ 2 * n := by ring
+        linarith only [hn0, h1600, mul_le_mul_of_nonneg_right hKN (pow_nonneg hε.le 4)]
+      linarith only [mul_le_mul_of_nonneg_left h4 (mul_pos hN0 hn0).le]
   · intro p hp
     have hfar : ε ≤ dist p (uniformOfFintype α) := hp _ rfl
     have hε1 : ε ≤ 1 := hfar.trans (dist_le_one _ _)
-    have hsq := dist_uniform_sq_le p
-    rw [← hn] at hsq
+    have hsq := hn.symm ▸ dist_uniform_sq_le p
     set s := collisionProbability p with hs
     set D := s - n⁻¹ with hD
     have hnD : 4 * ε ^ 2 ≤ n * D := by
@@ -344,18 +272,14 @@ theorem isTester_collisionTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
     refine mass_le_one_third _
       (fun x => decide ((collisionCount x : ℝ) ≤ collisionThreshold (Fintype.card α) k ε)) _
       (N * (D - 2 * ε ^ 2 / n)) ?_ ?_ (sum_iid_mul_collisionCount_sub_sq _ k).le ?_
-    · have hlt : 2 * ε ^ 2 / n < D := by
-        rw [div_lt_iff₀ hn0, mul_comm]
-        linarith only [hnD, sq_pos_of_pos hε]
-      exact mul_pos hN0 (sub_pos.mpr hlt)
+    · refine mul_pos hN0 (sub_pos.mpr ?_)
+      rw [div_lt_iff₀ hn0, mul_comm]
+      linarith only [hnD, sq_pos_of_pos hε]
     · intro x hx
-      simp only [decide_eq_true_eq] at hx
       have hτ' : collisionThreshold (Fintype.card α) k ε = N * s - N * (D - 2 * ε ^ 2 / n) := by
         rw [hτ, hD]; field_simp; ring
-      rw [hτ'] at hx
-      rw [← hN, ← hs, le_abs]
-      right
-      linarith only [hx]
+      rw [← hN, ← hs]
+      exact le_abs.mpr (.inr (by linarith only [of_decide_eq_true hx, hτ']))
     · have hcube := sum_cube_sub_sq_le p
       rw [← hn, ← hs, ← hD, ← hr] at hcube
       rw [← hN, ← hs, hM]

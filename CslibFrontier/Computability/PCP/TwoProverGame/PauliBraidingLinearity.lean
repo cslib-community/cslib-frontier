@@ -99,9 +99,8 @@ theorem rejection_pauliBraidingLinearityStrategy_le
     (Probability.PMF.uniformOfFintype Bool)
     (fun b => law.map (PauliBraidingSeed.linearity b)) S.answers basis
   rw [← game.answersWinProb_pullbackSeed law (PauliBraidingSeed.linearity basis) S.answers,
-    Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv] at h
-  have hmass : (↑(Fintype.card Bool) : ℝ≥0∞).toReal = 2 := by norm_num
-  rw [hmass] at h
+    Probability.PMF.uniformOfFintype_apply, Fintype.card_bool, Nat.cast_ofNat, ENNReal.toReal_inv,
+    ENNReal.toReal_ofNat] at h
   have hdecode := winProb_fixedBasis_le G special decode S basis
   change (2 : ℝ)⁻¹ * (1 - (game.pullbackSeed law (.linearity basis)).commutingWinProb S) ≤
     1 - (pauliBraidingBranchGame n G special decode 0).commutingWinProb S at h
@@ -127,9 +126,7 @@ theorem one_sub_le_expect_re_apply_mul_mul_of_pauliBraidingLinearity
         (T.alice (a + b)).observable)).re := by
   intro R T
   have hscore : 1 - 2 * ε ≤ (symmetricLinearityGame n).commutingWinProb R := by
-    have h := rejection_pauliBraidingLinearityStrategy_le G special decode S basis
-    change 1 - (symmetricLinearityGame n).commutingWinProb R ≤ _ at h
-    linarith
+    linarith [rejection_pauliBraidingLinearityStrategy_le G special decode S basis]
   have h := R.one_sub_le_expect_re_apply_mul_mul_of_symmetricLinearityGame
     (fun q => (hA basis q).map _) (fun q => (hB basis q).map _) hscore roles
   dsimp only at h
@@ -160,13 +157,8 @@ theorem observable_asymmetricLinearity_eq_pointMeasurement
   refine expect_congr rfl fun d _ => ?_
   let read (r : Bool × Bool) := (cond (lexSwap c d) Prod.swap id r).1
   have hread : read ∘ Sum.elim id (fun _ : A => (false, false)) =
-      Sum.elim read (fun _ => false) := by
-    funext a
-    cases a with
-    | inl r => rfl
-    | inr a =>
-      change (cond (lexSwap c d) Prod.swap id (false, false)).1 = false
-      cases lexSwap c d <;> rfl
+      Sum.elim read (fun _ => false) := funext fun a => by
+    cases a <;> cases h : lexSwap c d <;> simp [read, h]
   change (Measurement.map read ((cond roles R R.swap).alice _)).observable =
     (Measurement.map (Sum.elim read (fun _ => false)) _).observable
   cases roles <;>
@@ -208,8 +200,7 @@ theorem expect_norm_asymmetricLinearity_sub_basis_sq_le
       point c d - pauliBraidingBasisObservable M basis c d =
         if basis then (if d = c then diff c else 0) else 0 := by
     cases basis
-    · change point c d - point c d = 0
-      exact sub_self _
+    · exact sub_self (point c d)
     · by_cases h : d = c
       · subst d
         change point c c -
@@ -245,8 +236,8 @@ theorem expect_norm_asymmetricLinearity_sub_basis_sq_le
     calc
       _ ≤ 𝔼 c, (4 * ((size : ℝ)⁻¹) ^ 2) * bad c := by
         refine expect_le_expect fun c _ => ?_
-        have h := (tie c).norm_observable_map_sub_sq_le S.state first second
-        change S.state.norm (diff c) ^ 2 ≤ 4 * bad c at h
+        have h : S.state.norm (diff c) ^ 2 ≤ 4 * bad c :=
+          (tie c).norm_observable_map_sub_sq_le S.state first second
         simpa only [mul_assoc, mul_left_comm (((size : ℝ)⁻¹) ^ 2) 4] using
           mul_le_mul_of_nonneg_left h (sq_nonneg ((size : ℝ)⁻¹))
       _ = (4 / size) * ((𝔼 c, bad c) / size) := by

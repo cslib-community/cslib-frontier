@@ -159,14 +159,11 @@ theorem shiftReject_apply_none (hv : ∀ z ∈ S, z - v ∈ B) :
     rw [tsum_eq_sum (s := S) fun z hz => by simp [hz], Finset.sum_ite_mem, Finset.inter_self,
       Finset.sum_const, nsmul_eq_mul, div_eq_mul_inv]
   have htotal := (shiftReject B S hB v).tsum_coe
-  rw [tsum_eq_add_tsum_ite none, ← (Option.some_injective α).tsum_eq] at htotal
-  · simp only [reduceCtorEq, ite_false, hsome] at htotal
-    exact ENNReal.eq_sub_of_add_eq
-      (ENNReal.div_ne_top (ENNReal.natCast_ne_top _) (by simpa using hB.ne_empty)) htotal
-  · intro o ho
-    cases o with
-    | none => simp at ho
-    | some z => exact ⟨z, rfl⟩
+  rw [tsum_eq_add_tsum_ite none, ← (Option.some_injective α).tsum_eq
+    fun | none, ho => by simp at ho | some z, _ => ⟨z, rfl⟩] at htotal
+  simp only [reduceCtorEq, ite_false, hsome] at htotal
+  exact ENNReal.eq_sub_of_add_eq
+    (ENNReal.div_ne_top (ENNReal.natCast_ne_top _) (by simpa using hB.ne_empty)) htotal
 
 /-- **Rejection sampling lemma** (exact form). Given acceptance, the output is uniform on `S`:
 the probability of `some z` is the acceptance probability `|S| / |B|` times the uniform
@@ -195,29 +192,24 @@ theorem shiftReject_eq_sampleWithRatio (hv : ∀ z ∈ S, z - v ∈ B) (hS : S.N
   classical
   have : NeZero B.card := ⟨(Finset.card_pos.mpr hB).ne'⟩
   let coin := (PMF.uniformOfFintype (Fin B.card)).map fun i => decide (i.val < S.card)
-  have hcard : S.card ≤ B.card := Finset.card_le_card_of_injOn (fun z => z - v)
-    hv (fun _ _ _ _ h => sub_left_inj.mp h)
+  have hcard : S.card ≤ B.card :=
+    Finset.card_le_card_of_injOn (· - v) hv fun _ _ _ _ => sub_left_inj.mp
   have htrue : coin true = (S.card : ℝ≥0∞) / B.card :=
     (uniformFin_decide_lt B.card S.card).trans (by rw [min_eq_right hcard])
-  have hfalse : coin false = 1 - (S.card : ℝ≥0∞) / B.card := by
-    rw [← htrue]
-    exact ENNReal.eq_sub_of_add_eq (PMF.apply_ne_top _ _) (by
-      rw [add_comm]; exact PMF.apply_true_add_apply_false _)
-  ext o
-  change _ = (coin.bind fun b => if b then _ else _) o
-  rw [PMF.bind_apply, tsum_fintype, Fintype.sum_bool, htrue, hfalse]
-  cases o with
-  | none => simp [shiftReject_apply_none hv, PMF.map_apply]
-  | some z =>
-    simp [shiftReject_apply_some_eq_mul hv hS, map_apply_of_injective _ (Option.some_injective _)]
+  have hfalse : coin false = 1 - (S.card : ℝ≥0∞) / B.card :=
+    htrue ▸ ENNReal.eq_sub_of_add_eq (PMF.apply_ne_top _ _)
+      ((add_comm _ _).trans (PMF.apply_true_add_apply_false _))
+  ext (_ | z) <;> change _ = (coin.bind fun b => if b then _ else _) _ <;>
+    rw [PMF.bind_apply, tsum_fintype, Fintype.sum_bool, htrue, hfalse]
+  · simp [shiftReject_apply_none hv, PMF.map_apply]
+  · simp [shiftReject_apply_some_eq_mul hv hS, map_apply_of_injective _ (Option.some_injective _)]
 
 /-- The output law of rejection sampling is the same for all admissible shifts. -/
 theorem shiftReject_eq {v' : α} (hv : ∀ z ∈ S, z - v ∈ B) (hv' : ∀ z ∈ S, z - v' ∈ B) :
     shiftReject B S hB v = shiftReject B S hB v' := by
-  ext o
-  cases o with
-  | none => rw [shiftReject_apply_none hv, shiftReject_apply_none hv']
-  | some z => rw [shiftReject_apply_some hv, shiftReject_apply_some hv']
+  ext (_ | z)
+  · rw [shiftReject_apply_none hv, shiftReject_apply_none hv']
+  · rw [shiftReject_apply_some hv, shiftReject_apply_some hv']
 
 end Shift
 

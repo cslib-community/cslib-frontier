@@ -70,13 +70,6 @@ theorem exists_nonneg_mulVec_eq_forall_mulVec_eq_zero {A : Matrix m n K} {b : m 
     ∃ y, 0 ≤ y ∧ A *ᵥ y = b ∧ (∀ j, x j = 0 → y j = 0) ∧
       ∀ w : n → K, (∀ j, y j = 0 → w j = 0) → A *ᵥ w = 0 → w = 0 := by
   classical
-  suffices h : ∀ k (x : n → K), #{j | x j ≠ 0} = k → 0 ≤ x → A *ᵥ x = b →
-      ∃ y, 0 ≤ y ∧ A *ᵥ y = b ∧ (∀ j, x j = 0 → y j = 0) ∧
-        ∀ w : n → K, (∀ j, y j = 0 → w j = 0) → A *ᵥ w = 0 → w = 0 from h _ x rfl hx hAx
-  intro k
-  induction k using Nat.strong_induction_on with
-  | _ k ih =>
-  intro x hk hx hAx
   by_cases hmin : ∀ w : n → K, (∀ j, x j = 0 → w j = 0) → A *ᵥ w = 0 → w = 0
   · exact ⟨x, hx, hAx, fun _ h => h, hmin⟩
   push Not at hmin
@@ -85,8 +78,8 @@ theorem exists_nonneg_mulVec_eq_forall_mulVec_eq_zero {A : Matrix m n K} {b : m 
   obtain ⟨w, hws, hwA, j₀, hwj₀⟩ : ∃ w : n → K, (∀ j, x j = 0 → w j = 0) ∧ A *ᵥ w = 0 ∧
       ∃ j₀, 0 < w j₀ := by
     rcases lt_or_gt_of_ne hj₀ with h | h
-    · refine ⟨-w₀, fun j hj => by simp [hw₀s j hj], by simp [mulVec_neg, hw₀A], j₀, ?_⟩
-      simpa using h
+    · exact ⟨-w₀, fun j hj => neg_eq_zero.2 (hw₀s j hj),
+        by simp [mulVec_neg, hw₀A], j₀, neg_pos.2 h⟩
     · exact ⟨w₀, hw₀s, hw₀A, j₀, h⟩
   have hs : ({j | 0 < w j} : Finset n).Nonempty := ⟨j₀, by simp [hwj₀]⟩
   obtain ⟨j₁, hj₁s, hj₁⟩ := Finset.exists_min_image _ (fun j => x j / w j) hs
@@ -99,37 +92,25 @@ theorem exists_nonneg_mulVec_eq_forall_mulVec_eq_zero {A : Matrix m n K} {b : m 
     simp only [x', Pi.sub_apply, Pi.smul_apply, smul_eq_mul, Pi.zero_apply, sub_nonneg]
     rcases le_or_gt (w j) 0 with h | h
     · exact (mul_nonpos_of_nonneg_of_nonpos ht h).trans (hx j)
-    · have := hj₁ j (by simp [h])
-      rwa [le_div_iff₀ h] at this
-  have hAx' : A *ᵥ x' = b := by
-    simp [x', mulVec_sub, mulVec_smul, hwA, hAx]
-  have hsub : ∀ j, x j = 0 → x' j = 0 := fun j hj => by
-    simp [x', hj, hws j hj]
-  have hx'j₁ : x' j₁ = 0 := by
-    simp only [x', Pi.sub_apply, Pi.smul_apply, smul_eq_mul, t]
-    rw [div_mul_cancel₀ _ hwj₁.ne', sub_self]
+    · exact (le_div_iff₀ h).1 (hj₁ j (by simp [h]))
+  have hAx' : A *ᵥ x' = b := by simp [x', mulVec_sub, mulVec_smul, hwA, hAx]
+  have hsub (j) (hj : x j = 0) : x' j = 0 := by simp [x', hj, hws j hj]
+  have hx'j₁ : x' j₁ = 0 := by simp [x', t, div_mul_cancel₀ _ hwj₁.ne']
   have hxj₁ : x j₁ ≠ 0 := fun h => hwj₁.ne' (hws j₁ h)
-  have hlt : #{j | x' j ≠ 0} < k := by
-    rw [← hk]
-    apply Finset.card_lt_card
-    refine ⟨fun j => ?_, fun h => ?_⟩
-    · simp only [mem_filter, mem_univ, true_and]
-      exact mt (hsub j)
-    · have := h (show j₁ ∈ ({j | x j ≠ 0} : Finset n) by simp [hxj₁])
-      simp [hx'j₁] at this
-  obtain ⟨y, hy, hAy, hxy, hymin⟩ := ih _ hlt x' rfl hx' hAx'
+  have hlt : #{j | x' j ≠ 0} < #{j | x j ≠ 0} := Finset.card_lt_card ⟨fun j => by
+    simpa using mt (hsub j), fun h => by
+      simpa [hx'j₁] using h (show j₁ ∈ ({j | x j ≠ 0} : Finset n) by simp [hxj₁])⟩
+  obtain ⟨y, hy, hAy, hxy, hymin⟩ := exists_nonneg_mulVec_eq_forall_mulVec_eq_zero hx' hAx'
   exact ⟨y, hy, hAy, fun j hj => hxy j (hsub j hj), hymin⟩
+termination_by #{j | x j ≠ 0}
 
 /-- A sum of `card m` products of entries bounded by `B` is bounded by `card m * B ^ 2`. -/
 private theorem abs_sum_mul_le {u v : m → ℤ} {B : ℕ} (hu : ∀ i, |u i| ≤ B) (hv : ∀ i, |v i| ≤ B) :
     |∑ i, u i * v i| ≤ (Fintype.card m * B ^ 2 : ℕ) := by
   calc |∑ i, u i * v i| ≤ ∑ i, |u i * v i| := Finset.abs_sum_le_sum_abs _ _
-    _ ≤ ∑ _i : m, ((B : ℤ) * B) := by
-        refine Finset.sum_le_sum fun i _ => ?_
-        rw [abs_mul]
-        exact mul_le_mul (hu i) (hv i) (abs_nonneg _) (Nat.cast_nonneg _)
-    _ = (Fintype.card m * B ^ 2 : ℕ) := by
-        simp [Finset.sum_const, Finset.card_univ, sq]
+    _ ≤ ∑ _i : m, ((B : ℤ) * B) := Finset.sum_le_sum fun i _ =>
+        (abs_mul _ _).trans_le (mul_le_mul (hu i) (hv i) (abs_nonneg _) (Nat.cast_nonneg _))
+    _ = (Fintype.card m * B ^ 2 : ℕ) := by simp [sq]
 
 /-- `|det M| ≤ (card n)! * C ^ card n` for an integer matrix with entries of absolute value at
 most `C` (`Matrix.det_le` with the usual absolute value). -/
@@ -164,8 +145,7 @@ private theorem exists_gram_system [DecidableEq n] {A : Matrix m n ℤ} {b : m �
   -- Off the support `G` acts as the identity; on it, as `Aᵀ A` on vectors supported there.
   have hG0 : ∀ (v : n → K) j, y j = 0 → (GK *ᵥ v) j = v j := by
     intro v j hj
-    simp only [mulVec, dotProduct, hGK_apply]
-    simp [hj]
+    simp [mulVec, dotProduct, hGK_apply, hj]
   have hG1 : ∀ v : n → K, (∀ k, y k = 0 → v k = 0) → ∀ j, y j ≠ 0 →
       (GK *ᵥ v) j = ((AKᵀ * AK) *ᵥ v) j := by
     intro v hv j hj
@@ -177,8 +157,7 @@ private theorem exists_gram_system [DecidableEq n] {A : Matrix m n ℤ} {b : m �
   have hGy : GK *ᵥ y = fun j => (c j : K) := by
     funext j
     by_cases hj : y j = 0
-    · rw [hG0 y j hj]
-      simp [c, hj]
+    · simp [hG0 y j hj, c, hj]
     · rw [hG1 y (fun _ h => h) j hj, ← mulVec_mulVec, hAy]
       simp [c, hj, mulVec, dotProduct, AK]
   -- `G` is nonsingular: a kernel vector `v` is supported in that of `y` and `‖A v‖² = 0`.
@@ -192,29 +171,22 @@ private theorem exists_gram_system [DecidableEq n] {A : Matrix m n ℤ} {b : m �
       rw [← dotProduct_self_eq_zero]
       conv_lhs => rw [dotProduct_mulVec, ← mulVec_transpose]
       refine Finset.sum_eq_zero fun j _ => ?_
-      by_cases hj : y j = 0
-      · simp [hv0 j hj]
-      · simp [hv1 j hj]
+      by_cases hj : y j = 0 <;> simp [hv0, hv1, hj]
     exact hymin v hv0 hAv
   have hdet : G.det ≠ 0 := fun h => by
-    have hGK0 : GK.det = 0 := by
-      have hcast : ((G.det : ℤ) : K) = GK.det := (Int.castRingHom K).map_det G
-      rw [← hcast, h, Int.cast_zero]
-    obtain ⟨v, hv, hGv⟩ := exists_mulVec_eq_zero_iff.2 hGK0
+    have hcast : ((G.det : ℤ) : K) = GK.det := (Int.castRingHom K).map_det G
+    obtain ⟨v, hv, hGv⟩ := exists_mulVec_eq_zero_iff.2 (by rw [← hcast, h, Int.cast_zero])
     exact hv (hinj v hGv)
   refine ⟨G, c, hGy, hdet, fun j => ?_, fun j k => ?_⟩
   · simp only [c]
     split_ifs
     · exact (abs_sum_mul_le (fun k => hA k j) hb).trans (by push_cast; linarith)
-    · rw [abs_zero]
-      positivity
+    · exact abs_zero.trans_le (Nat.cast_nonneg _)
   · simp only [G, of_apply]
     split_ifs
     · exact (abs_sum_mul_le (fun i => hA i j) (fun i => hA i k)).trans (by push_cast; linarith)
-    · rw [abs_one]
-      exact_mod_cast Nat.le_add_left 1 _
-    · rw [abs_zero]
-      positivity
+    · exact abs_one.trans_le (by exact_mod_cast Nat.le_add_left 1 _)
+    · exact abs_zero.trans_le (Nat.cast_nonneg _)
 
 omit [Fintype m] in
 /-- **Cramer's rule over an extension.** If the integer system `G *ᵥ y = c` holds after casting
@@ -226,15 +198,14 @@ private theorem intCast_cramer_eq_det_smul {R : Type*} [CommRing R] [DecidableEq
     (fun j => (cramer G c j : R)) = (G.det : R) • y := by
   have h := (Int.castRingHom R).map_mulVec (adjugate G) c
   simp only [eq_intCast, Int.coe_castRingHom] at h
+  have hadj : (adjugate G).map (Int.cast : ℤ → R) = adjugate (G.map Int.cast) :=
+    (Int.castRingHom R).map_adjugate G
+  have hdet : ((G.det : ℤ) : R) = (G.map (Int.cast : ℤ → R)).det := (Int.castRingHom R).map_det G
   calc (fun j => (cramer G c j : R))
       = (adjugate G).map (Int.cast : ℤ → R) *ᵥ fun j => (c j : R) := by
         rw [cramer_eq_adjugate_mulVec]
         exact funext h
     _ = (G.det : R) • y := by
-        have hadj : (adjugate G).map (Int.cast : ℤ → R) = adjugate (G.map Int.cast) :=
-          (Int.castRingHom R).map_adjugate G
-        have hdet : ((G.det : ℤ) : R) = (G.map (Int.cast : ℤ → R)).det :=
-          (Int.castRingHom R).map_det G
         rw [← hGy, mulVec_mulVec, hadj, adjugate_mul, smul_mulVec, one_mulVec, hdet]
 
 /-- **Small basic solutions.** If an integer system `A *ᵥ x = b` with entries of absolute value at
@@ -257,11 +228,7 @@ theorem exists_int_nonneg_mulVec_eq {A : Matrix m n ℤ} {b : m → ℤ} {B : �
   have hdbound : |G.det| ≤ N := abs_det_le hG
   have hpbound : ∀ j, |cramer G c j| ≤ N := fun j => by
     rw [cramer_apply]
-    refine abs_det_le fun k l => ?_
-    rw [updateCol_apply]
-    split_ifs
-    · exact hc k
-    · exact hG k l
+    exact abs_det_le fun k l => by rw [updateCol_apply]; split_ifs; exacts [hc k, hG k l]
   -- Normalize the sign: `d = |det G|` and `p = ±cramer G c` still satisfy `p = d • y` in `K`.
   obtain ⟨d, p, hd, hpy, hdN, hpN⟩ : ∃ (d : ℤ) (p : n → ℤ), 0 < d ∧
       (fun j => (p j : K)) = (d : K) • y ∧ d ≤ N ∧ ∀ j, |p j| ≤ N := by
@@ -273,18 +240,12 @@ theorem exists_int_nonneg_mulVec_eq {A : Matrix m n ℤ} {b : m → ℤ} {B : �
       rfl
     · exact ⟨G.det, cramer G c, hpos, hp, (le_abs_self _).trans hdbound, hpbound⟩
   refine ⟨d, p, hd, fun j => ?_, ?_, hdN, fun j => (le_abs_self _).trans (hpN j)⟩
-  · have h : (0 : K) ≤ p j := by
-      rw [congrFun hpy j]
-      exact mul_nonneg (by exact_mod_cast hd.le) (hy j)
-    exact_mod_cast h
+  · exact_mod_cast (show (0 : K) ≤ p j by
+      rw [congrFun hpy j]; exact mul_nonneg (by exact_mod_cast hd.le) (hy j))
   · funext i
     apply Int.cast_injective (α := K)
-    have h1 := (Int.castRingHom K).map_mulVec A p i
-    simp only [eq_intCast] at h1
-    rw [h1]
-    change (A.map (Int.cast : ℤ → K) *ᵥ fun j => (p j : K)) i = _
-    rw [hpy, mulVec_smul, hAy]
-    simp
+    simpa [eq_intCast, Function.comp_def, hpy, mulVec_smul, hAy] using
+      (Int.castRingHom K).map_mulVec A p i
 
 /-- **Small solutions of integer inequality systems.** If `A *ᵥ x ≤ b`, with integer entries of
 absolute value at most `B`, has a solution over some linearly ordered field, then it has a
@@ -304,14 +265,12 @@ theorem exists_int_mulVec_le {A : Matrix m n ℤ} {b : m → ℤ} {B : ℕ}
   have hA' := abs_nonnegForm_le hA
   have hb' : ∀ i, |b i| ≤ (B + 1 : ℕ) := fun i => (hb i).trans (by simp)
   obtain ⟨z, hz, hAz⟩ := nonnegForm_solution hAx
-  have hAz' : A'.map (Int.cast : ℤ → K) *ᵥ z = fun i => (b i : K) := by
-    rw [show A'.map (Int.cast : ℤ → K) = nonnegForm AK from
-      nonnegForm_map A (Int.castRingHom K)]
-    exact hAz
+  have hAz' : A'.map (Int.cast : ℤ → K) *ᵥ z = fun i => (b i : K) :=
+    (congrArg (· *ᵥ z) (nonnegForm_map A (Int.castRingHom K))).trans hAz
   obtain ⟨d, p', hd, hp', hAp', hdN, hpN⟩ := exists_int_nonneg_mulVec_eq hA' hb' hz hAz'
   have hcard : Fintype.card (n ⊕ n ⊕ m) = 2 * Fintype.card n + Fintype.card m := by
     simp only [Fintype.card_sum]
-    ring
+    omega
   rw [hcard] at hdN hpN
   refine ⟨d, fun j => p' (Sum.inl j) - p' (Sum.inr (Sum.inl j)), hd, fun i => ?_, hdN, fun j => ?_⟩
   · rw [nonnegForm_mulVec] at hAp'
@@ -319,13 +278,9 @@ theorem exists_int_mulVec_le {A : Matrix m n ℤ} {b : m → ℤ} {B : ℕ}
     have hslack := hp' (Sum.inr (Sum.inr i))
     simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Pi.zero_apply] at h hslack ⊢
     linarith
-  · have h1 := hp' (Sum.inl j)
-    have h2 := hp' (Sum.inr (Sum.inl j))
-    have h3 := hpN (Sum.inl j)
-    have h4 := hpN (Sum.inr (Sum.inl j))
-    simp only [Pi.zero_apply] at h1 h2
+  · have h1 : 0 ≤ p' (Sum.inl j) ∧ 0 ≤ p' (Sum.inr (Sum.inl j)) := ⟨hp' _, hp' _⟩
     rw [abs_sub_le_iff]
-    constructor <;> linarith
+    constructor <;> linarith [hpN (Sum.inl j), hpN (Sum.inr (Sum.inl j))]
 
 /-- **Small Farkas certificates.** If `A *ᵥ x ≤ b`, with integer entries of absolute value at most
 `B`, has no solution over a linearly ordered field, then an integer vector `y ≥ 0` with
@@ -343,53 +298,35 @@ theorem exists_int_farkas_certificate {A : Matrix m n ℤ} {b : m → ℤ} {B : 
   let M : Matrix (n ⊕ Unit) m ℤ := of fun r i => Sum.elim (fun j => A i j) (fun _ => b i) r
   let e : n ⊕ Unit → ℤ := Sum.elim 0 fun _ => -1
   have hM : ∀ r i, |M r i| ≤ (B + 1 : ℕ) := by
-    intro r i
-    rcases r with j | u
-    · exact (hA i j).trans (by push_cast; linarith)
-    · exact (hb i).trans (by push_cast; linarith)
+    rintro (j | u) i
+    exacts [(hA i j).trans (by push_cast; linarith), (hb i).trans (by push_cast; linarith)]
   have he : ∀ r, |e r| ≤ (B + 1 : ℕ) := by
-    intro r
-    rcases r with j | u
-    · simp only [e, Sum.elim_inl, Pi.zero_apply, abs_zero]
-      positivity
+    rintro (j | u)
+    · exact abs_zero.trans_le (Nat.cast_nonneg _)
     · simp [e]
   set s : K := y ⬝ᵥ (fun i => (b i : K)) with hs
   have hy' : 0 ≤ (-s⁻¹) • y := smul_nonneg (neg_nonneg.2 (inv_nonpos.2 hyb.le)) hy
   have hMy : M.map (Int.cast : ℤ → K) *ᵥ ((-s⁻¹) • y) = fun r => (e r : K) := by
+    rw [mulVec_smul]
     funext r
-    rcases r with j | u
-    · have h1 := congrFun hyA j
-      simp only [vecMul, dotProduct, map_apply, Pi.zero_apply] at h1
-      simp only [mulVec, dotProduct, map_apply, M, e, of_apply, Sum.elim_inl, Pi.smul_apply,
-        smul_eq_mul, Pi.zero_apply, Int.cast_zero]
-      calc ∑ i, (A i j : K) * (-s⁻¹ * y i) = -s⁻¹ * ∑ i, y i * (A i j : K) := by
-            rw [Finset.mul_sum]
-            exact Finset.sum_congr rfl fun i _ => by ring
-        _ = 0 := by rw [h1, mul_zero]
-    · simp only [mulVec, dotProduct, map_apply, M, e, of_apply, Sum.elim_inr, Pi.smul_apply,
-        smul_eq_mul, Int.cast_neg, Int.cast_one]
-      calc ∑ i, (b i : K) * (-s⁻¹ * y i) = -s⁻¹ * s := by
-            rw [hs, dotProduct, Finset.mul_sum]
-            exact Finset.sum_congr rfl fun i _ => by ring
-        _ = -1 := by rw [neg_mul, inv_mul_cancel₀ hyb.ne]
+    rcases r with j | _
+    · simpa only [M, e, mulVec, vecMul, map_apply, of_apply, Sum.elim_inl, Pi.smul_apply,
+        smul_eq_mul, Pi.zero_apply, Int.cast_zero, mul_eq_zero, dotProduct_comm _ y] using
+        Or.inr (congrFun hyA j)
+    · simp only [M, e, mulVec, map_apply, of_apply, Sum.elim_inr, Pi.smul_apply, smul_eq_mul,
+        Int.cast_neg, Int.cast_one, dotProduct_comm _ y]
+      rw [neg_mul, inv_mul_cancel₀ hyb.ne]
   obtain ⟨d, q, hd, hq, hMq, -, hqN⟩ := exists_int_nonneg_mulVec_eq hM he hy' hMy
-  have hcard : Fintype.card (n ⊕ Unit) = Fintype.card n + 1 := by simp
-  rw [hcard] at hqN
+  rw [Fintype.card_sum, Fintype.card_unit] at hqN
   refine ⟨q, hq, ?_, ?_, hqN⟩
-  · funext j
-    have h1 := congrFun hMq (Sum.inl j)
-    simp only [mulVec, dotProduct, M, e, of_apply, Sum.elim_inl, Pi.smul_apply, smul_eq_mul,
-      Pi.zero_apply, mul_zero] at h1
-    simp only [vecMul, dotProduct, Pi.zero_apply]
-    rw [← h1]
-    exact Finset.sum_congr rfl fun i _ => mul_comm _ _
+  · rw [← mulVec_transpose]
+    funext j
+    simpa only [M, e, mulVec, of_apply, Sum.elim_inl, transpose_apply, Pi.smul_apply, smul_eq_mul,
+      Pi.zero_apply, mul_zero] using congrFun hMq (Sum.inl j)
   · have h1 := congrFun hMq (Sum.inr ())
-    simp only [mulVec, dotProduct, M, e, of_apply, Sum.elim_inr, Pi.smul_apply, smul_eq_mul,
-      mul_neg, mul_one] at h1
-    have h2 : ∑ i, q i * b i = -d := by
-      rw [← h1]
-      exact Finset.sum_congr rfl fun i _ => mul_comm _ _
-    simp only [dotProduct]
+    simp only [M, e, mulVec, of_apply, Sum.elim_inr, Pi.smul_apply, smul_eq_mul, mul_neg,
+      mul_one] at h1
+    rw [dotProduct_comm, h1]
     linarith
 
 end Matrix

@@ -83,9 +83,7 @@ theorem rejection_pauliBraidingDiagonalGame_le
   have hdiag := fixedBasis.weighted_rejection_pullback_uniform_le
     (SymmetricLinearitySeed.diagonal n roles) answer
   let size : ℝ := Fintype.card (Fin n → Bool)
-  have hsize : size ≠ 0 := by
-    dsimp [size]
-    exact_mod_cast Fintype.card_ne_zero
+  have hsize : size ≠ 0 := Nat.cast_ne_zero.2 Fintype.card_ne_zero
   have hcard :
       (Fintype.card (Fin 3 × (Fin n → Bool) × (Fin n → Bool)) : ℝ) /
         Fintype.card (SymmetricLinearitySeed n) = (2 * size)⁻¹ := by
@@ -127,7 +125,6 @@ theorem expect_le_of_pauliBraidingDiagonal_checks {𝒜 : Type*} [Fintype A] [Ri
     have h := expect_le_expect (s := (univ : Finset (Fin n → Bool))) fun a _ =>
       expect_le_expect (s := (univ : Finset (Fin n → Bool))) fun dummy _ => hlocal a dummy
     refine h.trans_eq ?_
-    rw [Fintype.expect_prod_type]
     simp_rw [Fintype.expect_prod_type]
     rw [Finset.expect_comm univ univ (fun k a => 𝔼 d, lose (k, a, d)), Finset.mul_expect]
     refine expect_congr rfl fun a _ => ?_
@@ -225,13 +222,7 @@ theorem prob_bad_le_of_pauliBraidingDiagonal_checks {𝒜 : Type*} [Fintype A] [
   simp only [← sum_add_distrib]
   refine sum_le_sum fun p _ => sum_le_sum fun q _ => ?_
   have hn := logical.prob_nonneg question pointQuestion p q
-  by_cases hp : bad p = true
-  · have h := hchecks p q hp
-    by_cases hk : accepted k p q <;> by_cases hl : accepted l p q <;>
-      simp only [hp, hk, hl, ite_true, ite_false] at *
-    all_goals first | contradiction | linarith
-  · simp only [hp]
-    positivity
+  split_ifs with hp hk hl <;> first | linarith | exact absurd ⟨hk, hl⟩ (hchecks p q hp)
 
 open Quantum in
 /-- If the two bits of the duplicated pair answer differ, at least one of the two

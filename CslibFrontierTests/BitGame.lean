@@ -75,8 +75,8 @@ theorem lastBit_inSpace :
     ComputableInSpace.budget_headD false hu
   have hP : ComputableInSpace even (encPair encNat encBits) encBool S :=
     ComputableInSpace.budget_natEq
-      (ComputableInSpace.budget_natMod hlen (ComputableInSpace.budget_const 2 (.refl _)))
-      (ComputableInSpace.budget_const 0 (.refl _))
+      (ComputableInSpace.budget_natMod hlen (ComputableInSpace.budget_const 2))
+      (ComputableInSpace.budget_const 0)
   refine (ComputableInSpace.bitGame_value hL hV hP (m := fun n => n)
     (Q := fun n => 3 * (2 * (encNat n).length + 1 + n))
     (fun n u hu => by simp [leaf, hu]) fun n u hu => ?_).weaken

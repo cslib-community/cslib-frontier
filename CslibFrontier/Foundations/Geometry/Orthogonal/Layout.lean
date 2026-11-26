@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Geometry.Orthogonal.Simple
 import Aesop
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
@@ -97,24 +98,19 @@ theorem column_injective {u v : ℕ} {s t : Fin 3} (h : column u s = column v t)
   have hs := s.isLt
   have ht := t.isLt
   simp only [column] at h
-  have huv : u = v := by omega
-  subst v
-  exact ⟨rfl, Fin.ext (by omega)⟩
+  exact ⟨by omega, Fin.ext (by omega)⟩
 
 /-- All points of the local fan stay in its vertex's small diagonal box. -/
 theorem fan_bounds {v : ℕ} {s : Fin 3} {p : ℝ × ℝ} (hp : p ∈ fan v s) :
     8 * (v : ℝ) + 2 ≤ p.1 ∧ p.1 ≤ 8 * (v : ℝ) + 6 ∧
     8 * (v : ℝ) + 4 ≤ p.2 ∧ p.2 ≤ 8 * (v : ℝ) + 6 := by
   have hb := mem_segment_bounds hp
-  have hs : (s : ℕ) ≤ 2 := by omega
-  have hs' : (s : ℝ) ≤ 2 := by exact_mod_cast hs
+  have hs' : (s : ℝ) ≤ 2 := by exact_mod_cast (by omega : (s : ℕ) ≤ 2)
   have hs0 : (0 : ℝ) ≤ s := by positivity
   simp only [center, elbow, column, Set.mem_uIcc] at hb
   push_cast at hb
-  split_ifs at hb <;> rcases hb with ⟨hx, hy⟩ <;>
-    rcases hx with hx | hx <;> rcases hy with hy | hy <;> constructor <;> try linarith
-  all_goals constructor <;> try linarith
-  all_goals constructor <;> linarith
+  split_ifs at hb <;> rcases hb with ⟨hx | hx, hy | hy⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_⟩ <;> linarith
 
 /-- Distinct vertex boxes have disjoint local fans. -/
 theorem fan_disjoint {u v : ℕ} (huv : u ≠ v) (s t : Fin 3) :
@@ -123,23 +119,17 @@ theorem fan_disjoint {u v : ℕ} (huv : u ≠ v) (s t : Fin 3) :
   intro p hp hq
   have hp' := fan_bounds hp
   have hq' := fan_bounds hq
-  rcases lt_or_gt_of_ne huv with h | h
-  · have h' : (u : ℝ) + 1 ≤ v := by exact_mod_cast h
-    linarith
-  · have h' : (v : ℝ) + 1 ≤ u := by exact_mod_cast h
-    linarith
+  rcases lt_or_gt_of_ne huv with h | h <;> cast_linarith
 
 /-- Membership in a stem fixes its column and its closed vertical interval. -/
 theorem mem_stem {n e v : ℕ} {s : Fin 3} {p : ℝ × ℝ} :
     p ∈ stem n e v s ↔ p.1 = (column v s : ℝ) ∧
-      p.2 ∈ Set.uIcc ((elbow v s).2 : ℝ) (track n e : ℝ) := by
-  exact mem_vertical
+      p.2 ∈ Set.uIcc ((elbow v s).2 : ℝ) (track n e : ℝ) := mem_vertical
 
 /-- Membership in a bridge fixes its row and its closed horizontal interval. -/
 theorem mem_bridge {n e u v : ℕ} {s t : Fin 3} {p : ℝ × ℝ} :
     p ∈ bridge n e u v s t ↔ p.2 = (track n e : ℝ) ∧
-      p.1 ∈ Set.uIcc (column u s : ℝ) (column v t : ℝ) := by
-  exact mem_horizontal
+      p.1 ∈ Set.uIcc (column u s : ℝ) (column v t : ℝ) := mem_horizontal
 
 /-- The three local fans, in left/up/right order, have these explicit real supports. -/
 theorem mem_fan {v : ℕ} {s : Fin 3} {p : ℝ × ℝ} :
@@ -160,10 +150,7 @@ theorem mem_fan {v : ℕ} {s : Fin 3} {p : ℝ × ℝ} :
   all_goals
     constructor
     · rintro ⟨h, h' | h'⟩ <;> exact ⟨h, by constructor <;> linarith⟩
-    · rintro ⟨h, h'⟩
-      first
-      | exact ⟨h, Or.inl h'⟩
-      | exact ⟨h, Or.inr h'⟩
+    · exact fun ⟨h, h'⟩ => ⟨h, by tauto⟩
 
 /-- Every edge row lies strictly above every vertex box. -/
 theorem elbow_below_track {n e v : ℕ} (hv : v < n) (s : Fin 3) :
@@ -203,8 +190,7 @@ theorem route_orthogonal {n e u v : ℕ} (hu : u < n) (hv : v < n) (huv : u ≠ 
   rcases ha with rfl | rfl | rfl | rfl | rfl
   · exact hus
   · exact ⟨Or.inl rfl, fun h => (ne_of_lt hut) (congrArg Prod.snd h)⟩
-  · refine ⟨Or.inr rfl, fun h => huv ?_⟩
-    exact (column_injective (congrArg Prod.fst h)).1
+  · exact ⟨Or.inr rfl, fun h => huv (column_injective (congrArg Prod.fst h)).1⟩
   · exact ⟨Or.inl rfl, fun h => (ne_of_gt hvt') (congrArg Prod.snd h)⟩
   · exact ⟨hvt.1.imp Eq.symm Eq.symm, hvt.2.symm⟩
 
@@ -261,11 +247,7 @@ theorem fan_stem_port_eq {n e u v : ℕ} (hv : v < n) {s t : Fin 3} {p : ℝ × 
     by_contra h
     simp only [column] at hcol
     push_cast at hcol
-    rcases lt_or_gt_of_ne h with h | h
-    · have h' : (u : ℝ) + 1 ≤ v := by exact_mod_cast h
-      linarith
-    · have h' : (v : ℝ) + 1 ≤ u := by exact_mod_cast h
-      linarith
+    rcases lt_or_gt_of_ne h with h | h <;> cast_linarith
   subst v
   refine ⟨rfl, ?_⟩
   have hhigh : ((elbow u t).2 : ℝ) < track n e := by
@@ -279,13 +261,9 @@ theorem fan_stem_port_eq {n e u v : ℕ} (hv : v < n) {s t : Fin 3} {p : ℝ × 
 
 /-- Different port columns give disjoint stems, independently of their edge heights. -/
 theorem stem_disjoint {n e f u v : ℕ} {s t : Fin 3} (h : (u, s) ≠ (v, t)) :
-    Disjoint (stem n e u s) (stem n f v t) := by
-  rw [Set.disjoint_left]
-  intro p hp hq
-  have hx := (mem_stem.1 hp).1.symm.trans (mem_stem.1 hq).1
-  have hcol : column u s = column v t := by exact_mod_cast hx
-  obtain ⟨rfl, rfl⟩ := column_injective hcol
-  exact h rfl
+    Disjoint (stem n e u s) (stem n f v t) :=
+  Set.disjoint_left.2 fun _ hp hq => h <| Prod.ext_iff.2 <| column_injective <| by
+    exact_mod_cast (mem_stem.1 hp).1.symm.trans (mem_stem.1 hq).1
 
 /-- A local fan lies strictly below every upper bridge. -/
 theorem fan_bridge_disjoint {n e u v w : ℕ} (hw : w < n) (s t q : Fin 3) :
@@ -294,29 +272,23 @@ theorem fan_bridge_disjoint {n e u v w : ℕ} (hw : w < n) (s t q : Fin 3) :
   intro p hp hq
   have hb := fan_bounds hp
   have hy := (mem_bridge.1 hq).1
-  have hw' : (w : ℝ) + 1 ≤ n := by exact_mod_cast hw
   have he : (0 : ℝ) ≤ e := by positivity
   simp only [track] at hy
-  push_cast at hy
-  linarith
+  cast_linarith [hw]
 
 /-- Distinct edge tracks give disjoint upper bridges. -/
 theorem bridge_disjoint {n e f u v a b : ℕ} (hef : e ≠ f) (s t q r : Fin 3) :
     Disjoint (bridge n e u v s t) (bridge n f a b q r) := by
-  rw [Set.disjoint_left]
-  intro p hp hq
-  have hy := (mem_bridge.1 hp).1.symm.trans (mem_bridge.1 hq).1
-  have htrack : track n e = track n f := by exact_mod_cast hy
+  refine Set.disjoint_left.2 fun p hp hq => hef ?_
+  have htrack : track n e = track n f := by
+    exact_mod_cast (mem_bridge.1 hp).1.symm.trans (mem_bridge.1 hq).1
   simp only [track] at htrack
-  exact hef (by omega)
+  omega
 
 /-- Fans and stems at distinct ports are disjoint, even within one vertex box. -/
 theorem fan_stem_disjoint {n e u v : ℕ} (hv : v < n) {s t : Fin 3}
-    (h : (u, s) ≠ (v, t)) : Disjoint (fan u s) (stem n e v t) := by
-  rw [Set.disjoint_left]
-  intro p hp hq
-  obtain ⟨huv, hst⟩ := fan_stem_port_eq hv hp hq
-  exact h (Prod.ext huv hst)
+    (h : (u, s) ≠ (v, t)) : Disjoint (fan u s) (stem n e v t) :=
+  Set.disjoint_left.2 fun _ hp hq => h (Prod.ext_iff.2 (fan_stem_port_eq hv hp hq))
 
 /-- The two consecutive parts of one port meet only at their common elbow. -/
 theorem fan_stem_endpointContacts {n e v : ℕ} (hv : v < n) (s : Fin 3) :
@@ -377,32 +349,8 @@ theorem route_simple {n e u v : ℕ} (hu : u < n) (hv : v < n) (huv : u ≠ v)
   simp only [route, List.consecutivePairs, List.tail_cons, List.zip_cons_cons, List.zip_nil_right,
     List.mem_cons, List.not_mem_nil, or_false] at hf hg
   rcases hf with rfl | rfl | rfl | rfl | rfl <;>
-    rcases hg with rfl | rfl | rfl | rfl | rfl
-  · exact False.elim (hne rfl)
-  · exact h01
-  · exact h02
-  · exact h03
-  · exact h04
-  · exact h01.symm
-  · exact False.elim (hne rfl)
-  · exact h12
-  · exact h13
-  · exact h14
-  · exact h02.symm
-  · exact h12.symm
-  · exact False.elim (hne rfl)
-  · exact h23
-  · exact h24
-  · exact h03.symm
-  · exact h13.symm
-  · exact h23.symm
-  · exact False.elim (hne rfl)
-  · exact h34
-  · exact h04.symm
-  · exact h14.symm
-  · exact h24.symm
-  · exact h34.symm
-  · exact False.elim (hne rfl)
+    rcases hg with rfl | rfl | rfl | rfl | rfl <;>
+    first | exact (hne rfl).elim | assumption | exact EndpointContacts.symm ‹_›
 
 /-- Every contact of an upper bridge with another edge's distinct port stem is a genuine
 transverse crossing, strictly inside both segments. In particular it is never at a bend. -/
@@ -413,14 +361,10 @@ theorem bridge_stem_transverse {n e f u v w : ℕ} (hw : w < n) (hef : e ≠ f)
       (elbow w q) (column w q, track n f) p := by
   have hb := mem_bridge.1 hp
   have hs := mem_stem.1 hq
-  have hcu : column w q ≠ column u s := by
-    intro h
-    obtain ⟨rfl, rfl⟩ := column_injective h
-    exact hu rfl
-  have hcv : column w q ≠ column v t := by
-    intro h
-    obtain ⟨rfl, rfl⟩ := column_injective h
-    exact hv rfl
+  have hcol : ∀ {x i}, (w, q) ≠ (x, i) → column w q ≠ column x i := fun h hc =>
+    h (Prod.ext_iff.2 (column_injective hc))
+  have hcu := hcol hu
+  have hcv := hcol hv
   have hx : min (column u s) (column v t) < column w q ∧
       column w q < max (column u s) (column v t) := by
     have hmem := hb.2
@@ -434,16 +378,10 @@ theorem bridge_stem_transverse {n e f u v w : ℕ} (hw : w < n) (hef : e ≠ f)
     rw [Set.uIcc_of_le (show ((elbow w q).2 : ℝ) ≤ track n f by exact_mod_cast hfhigh.le),
       hb.1] at hmem
     have hupper : track n e ≤ track n f := by exact_mod_cast hmem.2
-    have hne : track n e ≠ track n f := by
-      simp only [track]
-      intro h
-      exact hef (by omega)
+    have hne : track n e ≠ track n f := by simp only [track]; omega
     exact ⟨hlow, lt_of_le_of_ne hupper hne⟩
-  refine Or.inl ⟨rfl, rfl, Prod.ext hs.1 hb.1, hx.1, hx.2, ?_, ?_⟩
-  · change min (elbow w q).2 (track n f) < track n e
-    omega
-  · change track n e < max (elbow w q).2 (track n f)
-    omega
+  exact Or.inl ⟨rfl, rfl, Prod.ext hs.1 hb.1, hx.1, hx.2,
+    (min_eq_left hfhigh.le).trans_lt hy.1, hy.2.trans_eq (max_eq_right hfhigh.le).symm⟩
 
 /-- A bridge/stem transverse crossing has its exact integer column/row coordinates. -/
 theorem bridge_stem_crossing_point {n e f u v w : ℕ} {s t q : Fin 3} {p : ℝ × ℝ}
@@ -483,39 +421,38 @@ theorem route_contact {n e f u v a b : ℕ}
       (elbow v t) (column v t, track n e) p := by
   rw [support_route] at hp hq
   simp only [Set.mem_union] at hp hq
+  have hfs : ∀ {x y k : ℕ} {i j : Fin 3}, y < n → (x, i) ≠ (y, j) → p ∈ fan x i →
+      p ∈ stem n k y j → False := fun hy hne hp hq =>
+    hne (Prod.ext_iff.2 (fan_stem_port_eq hy hp hq))
   rcases hp with (((hp | hp) | hp) | hp) | hp <;>
     rcases hq with (((hq | hq) | hq) | hq) | hq
   · exact Or.inl ⟨u, Or.inl rfl, Or.inl (fan_pair_contact huaq hp hq).1,
        (fan_pair_contact huaq hp hq).2⟩
-  · exact False.elim (huaq (Prod.ext (fan_stem_port_eq ha hp hq).1 (fan_stem_port_eq ha hp hq).2))
-  · exact False.elim (Set.disjoint_left.1 (fan_bridge_disjoint hu _ _ _) hp hq)
-  · exact False.elim (hubr (Prod.ext (fan_stem_port_eq hb hp hq).1 (fan_stem_port_eq hb hp hq).2))
+  · exact (hfs ha huaq hp hq).elim
+  · exact (Set.disjoint_left.1 (fan_bridge_disjoint hu _ _ _) hp hq).elim
+  · exact (hfs hb hubr hp hq).elim
   · exact Or.inl ⟨u, Or.inl rfl, Or.inr (fan_pair_contact hubr hp hq).1,
        (fan_pair_contact hubr hp hq).2⟩
-  · exact False.elim (huaq.symm
-      (Prod.ext (fan_stem_port_eq hu hq hp).1 (fan_stem_port_eq hu hq hp).2))
-  · exact False.elim (Set.disjoint_left.1 (stem_disjoint huaq) hp hq)
+  · exact (hfs hu huaq.symm hq hp).elim
+  · exact (Set.disjoint_left.1 (stem_disjoint huaq) hp hq).elim
   · exact Or.inr (Or.inr (Or.inr (Or.inl (bridge_stem_transverse hu hef.symm huaq hubr hq hp))))
-  · exact False.elim (Set.disjoint_left.1 (stem_disjoint hubr) hp hq)
-  · exact False.elim (hubr.symm
-      (Prod.ext (fan_stem_port_eq hu hq hp).1 (fan_stem_port_eq hu hq hp).2))
-  · exact False.elim (Set.disjoint_left.1 (fan_bridge_disjoint ha _ _ _) hq hp)
+  · exact (Set.disjoint_left.1 (stem_disjoint hubr) hp hq).elim
+  · exact (hfs hu hubr.symm hq hp).elim
+  · exact (Set.disjoint_left.1 (fan_bridge_disjoint ha _ _ _) hq hp).elim
   · exact Or.inr (Or.inl (bridge_stem_transverse ha hef huaq.symm hvaq.symm hp hq))
-  · exact False.elim (Set.disjoint_left.1 (bridge_disjoint hef _ _ _ _) hp hq)
+  · exact (Set.disjoint_left.1 (bridge_disjoint hef _ _ _ _) hp hq).elim
   · exact Or.inr (Or.inr (Or.inl (bridge_stem_transverse hb hef hubr.symm hvbr.symm hp hq)))
-  · exact False.elim (Set.disjoint_left.1 (fan_bridge_disjoint hb _ _ _) hq hp)
-  · exact False.elim (hvaq.symm
-      (Prod.ext (fan_stem_port_eq hv hq hp).1 (fan_stem_port_eq hv hq hp).2))
-  · exact False.elim (Set.disjoint_left.1 (stem_disjoint hvaq) hp hq)
+  · exact (Set.disjoint_left.1 (fan_bridge_disjoint hb _ _ _) hq hp).elim
+  · exact (hfs hv hvaq.symm hq hp).elim
+  · exact (Set.disjoint_left.1 (stem_disjoint hvaq) hp hq).elim
   · exact Or.inr (Or.inr (Or.inr (Or.inr (bridge_stem_transverse hv hef.symm hvaq hvbr hq hp))))
-  · exact False.elim (Set.disjoint_left.1 (stem_disjoint hvbr) hp hq)
-  · exact False.elim (hvbr.symm
-      (Prod.ext (fan_stem_port_eq hv hq hp).1 (fan_stem_port_eq hv hq hp).2))
+  · exact (Set.disjoint_left.1 (stem_disjoint hvbr) hp hq).elim
+  · exact (hfs hv hvbr.symm hq hp).elim
   · exact Or.inl ⟨v, Or.inr rfl, Or.inl (fan_pair_contact hvaq hp hq).1,
        (fan_pair_contact hvaq hp hq).2⟩
-  · exact False.elim (hvaq (Prod.ext (fan_stem_port_eq ha hp hq).1 (fan_stem_port_eq ha hp hq).2))
-  · exact False.elim (Set.disjoint_left.1 (fan_bridge_disjoint hv _ _ _) hp hq)
-  · exact False.elim (hvbr (Prod.ext (fan_stem_port_eq hb hp hq).1 (fan_stem_port_eq hb hp hq).2))
+  · exact (hfs ha hvaq hp hq).elim
+  · exact (Set.disjoint_left.1 (fan_bridge_disjoint hv _ _ _) hp hq).elim
+  · exact (hfs hb hvbr hp hq).elim
   · exact Or.inl ⟨v, Or.inr rfl, Or.inr (fan_pair_contact hvbr hp hq).1,
        (fan_pair_contact hvbr hp hq).2⟩
 

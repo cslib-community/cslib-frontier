@@ -67,15 +67,12 @@ private theorem cycleLabelVisits_flag (f : BitVec n → BitVec n) (hf : Function
     (x y : BitVec n) :
     cycleLabelVisits (wordCycleLabel f x) (wordCycleLabel f y)
       (Fin.castAdd (n + 1) (0 : Fin (1 + (n + 1)))) = true ↔ ∃ t, f^[t] x = y := by
-  have hrep :
-      ((fun i : Fin n => (canonicalCycle f x).getLsbD i.val) =
-        fun i : Fin n => (canonicalCycle f y).getLsbD i.val) ↔
-        canonicalCycle f x = canonicalCycle f y :=
-    BitString.equivBitVec.symm.apply_eq_iff_eq
-  simp only [cycleLabelVisits, wordCycleLabel, Fin.append_left, labelRepresentative_labelBits, hrep]
-  change decide (canonicalCycle f x = canonicalCycle f y) = true ↔ _
-  rw [decide_eq_true_eq]
-  exact (exists_iterate_eq_iff_canonicalCycle_eq f x y (hf.mem_periodicPts y)).symm
+  change decide (labelRepresentative (wordCycleLabel f x) =
+      labelRepresentative (wordCycleLabel f y)) = true ↔ _
+  rw [decide_eq_true_eq, wordCycleLabel, wordCycleLabel, labelRepresentative_labelBits,
+    labelRepresentative_labelBits]
+  exact BitString.equivBitVec.symm.apply_eq_iff_eq.trans
+    (exists_iterate_eq_iff_canonicalCycle_eq f x y (hf.mem_periodicPts y)).symm
 
 private theorem cycleLabelDistance_toNat (f : BitVec n → BitVec n) (hf : Function.Injective f)
     (x y : BitVec n) (hc : canonicalCycle f x = canonicalCycle f y) :
@@ -132,13 +129,10 @@ theorem cycleLabelVisits_spec (f : BitVec n → BitVec n) (hf : Function.Injecti
       (cycleLabelVisits (wordCycleLabel f x) (wordCycleLabel f y)) t := by
   unfold visitScheduleContains
   rw [cycleLabelVisits_flag f hf, cycleLabelVisits_period f hf]
-  constructor
-  · intro ht
-    have hr : ∃ t, f^[t] x = y := ⟨t, ht⟩
-    have hd := cycleLabelVisits_first f hf x y hr
-    exact ⟨hr, (visit_schedule_of_first f x y _ hd.1 hd.2.1 t).mp ht⟩
-  · rintro ⟨hr, ht⟩
-    have hd := cycleLabelVisits_first f hf x y hr
+  refine ⟨fun ht => ?_, fun ⟨hr, ht⟩ => ?_⟩
+  · have hd := cycleLabelVisits_first f hf x y ⟨t, ht⟩
+    exact ⟨⟨t, ht⟩, (visit_schedule_of_first f x y _ hd.1 hd.2.1 t).mp ht⟩
+  · have hd := cycleLabelVisits_first f hf x y hr
     exact (visit_schedule_of_first f x y _ hd.1 hd.2.1 t).mpr ht
 
 /-- Querying two already computed labels uses only linear arithmetic and wiring. -/
@@ -200,14 +194,11 @@ theorem cycle_label_visit_circuit (f : BitVec n → BitVec n)
       out.size ≤ 2 * labels.size + 200 * (n + 3) := by
   let x := fun z : BitString (n + n) => wordCycleLabel f (BitString.equivBitVec (inputLeft z))
   let y := fun z : BitString (n + n) => wordCycleLabel f (BitString.equivBitVec (inputRight z))
-  have hle : labels.eval Boolean.interpretation =
-      fun x => wordCycleLabel f (BitString.equivBitVec x) :=
-    funext hl
   have hx : Synthesis Boolean.interpretation (inputs (n + n)) (wires x) labels.size := by
-    simpa only [hle, wires] using Synthesis.circuit (I := Boolean.interpretation)
+    simpa only [funext hl, wires] using Synthesis.circuit (I := Boolean.interpretation)
       (s := inputs (n + n)) labels (fun i z => inputLeft z i) (fun _ => ⟨_, rfl⟩)
   have hy : Synthesis Boolean.interpretation (inputs (n + n)) (wires y) labels.size := by
-    simpa only [hle, wires] using Synthesis.circuit (I := Boolean.interpretation)
+    simpa only [funext hl, wires] using Synthesis.circuit (I := Boolean.interpretation)
       (s := inputs (n + n)) labels (fun i z => inputRight z i) (fun _ => ⟨_, rfl⟩)
   have hnav := synthesis_cycleLabelVisits (inputs (n + n) ∪ (wires x ∪ wires y)) x y
     (fun _ h => Or.inr (Or.inl h)) (fun _ h => Or.inr (Or.inr h))
@@ -248,9 +239,7 @@ theorem sparse_counter_visit_schedule (f : Equiv.Perm (BitVec n)) :
     exact cycleLabelVisits_spec f f.injective _ _ t
   refine ⟨out, hspec, fun z T => ?_, hs⟩
   rw [← visitScheduleCount_spec]
-  congr 1
-  ext t
-  exact and_congr_right (fun _ => hspec z t)
+  exact congrArg Set.ncard (Set.ext fun t => and_congr_right fun _ => hspec z t)
 
 /-- The existence flag and first hitting time have the same sparse circuit bound. -/
 theorem sparse_counter_hitting_time (f : Equiv.Perm (BitVec n)) :
@@ -272,22 +261,17 @@ theorem sparse_counter_hitting_time (f : Equiv.Perm (BitVec n)) :
     full.eval Boolean.interpretation z (Fin.castAdd (n + 1) i)
   have hfull := Synthesis.circuit (I := Boolean.interpretation)
     (s := inputs (n + n)) full (fun i z => z i) (fun i => ⟨i, rfl⟩)
-  have hout : wires output ⊆ wires (full.eval Boolean.interpretation) := by
-    rintro _ ⟨i, rfl⟩
-    exact ⟨Fin.castAdd (n + 1) i, rfl⟩
+  have hout : wires output ⊆ wires (full.eval Boolean.interpretation) :=
+    fun _ ⟨i, h⟩ => ⟨Fin.castAdd (n + 1) i, h⟩
   obtain ⟨out, ho, hsize⟩ := (hfull.mono Set.Subset.rfl hout le_rfl).exists_circuit_outputs
   have hnav (z : BitString (n + n)) : out.eval Boolean.interpretation z =
       fun i => cycleLabelVisits (wordCycleLabel f (BitString.equivBitVec (inputLeft z)))
         (wordCycleLabel f (BitString.equivBitVec (inputRight z))) (Fin.castAdd (n + 1) i) := by
-    rw [ho z]
-    dsimp only [output]
-    rw [hf z]
-  refine ⟨out, fun z => ?_, fun z hz => ?_, hsize.trans hs⟩
-  · rw [hnav z]
-    exact cycleLabelVisits_flag f f.injective _ _
-  · rw [hnav z] at hz ⊢
-    exact cycleLabelVisits_first f f.injective _ _
-      ((cycleLabelVisits_flag f f.injective _ _).mp hz)
+    simp only [ho z, output, hf z]
+  refine ⟨out, fun z => hnav z ▸ cycleLabelVisits_flag f f.injective _ _, fun z hz => ?_,
+    hsize.trans hs⟩
+  rw [hnav z] at hz ⊢
+  exact cycleLabelVisits_first f f.injective _ _ ((cycleLabelVisits_flag f f.injective _ _).mp hz)
 
 /-- Pair queries need the forward coordinate map twice, but no inverse circuit. -/
 theorem sparse_coordinate_visit_schedule (f g e : Equiv.Perm (BitVec n))
@@ -307,9 +291,7 @@ theorem sparse_coordinate_visit_schedule (f g e : Equiv.Perm (BitVec n))
   have hr := disagreement_semiconj_card (f : BitVec n → BitVec n) g e (· + 1) hcycle
   let conjugate := e.permCongrHom f
   obtain ⟨middle, hm, _, hs⟩ := sparse_counter_visit_schedule conjugate
-  change middle.size ≤ 1200 * (n + 3) *
-    ((disagreement (e ∘ f ∘ e.symm) (fun x => x + 1)).card + 1) at hs
-  rw [hr] at hs
+  have hs' : middle.size ≤ 1200 * (n + 3) * ((disagreement f g).card + 1) := hr ▸ hs
   let x := fun z : BitString (n + n) => encode.eval Boolean.interpretation (inputLeft z)
   let y := fun z : BitString (n + n) => encode.eval Boolean.interpretation (inputRight z)
   have hx := Synthesis.circuit (I := Boolean.interpretation) (s := inputs (n + n))
@@ -325,34 +307,23 @@ theorem sparse_coordinate_visit_schedule (f g e : Equiv.Perm (BitVec n))
   have hquery := Synthesis.circuit (I := Boolean.interpretation) (s := src)
     middle (fun i z => args z i) hargs
   obtain ⟨out, ho, hsize⟩ := ((hx.union hy).trans hquery).exists_circuit_outputs
-  have hconj : Function.Semiconj (e : BitVec n → BitVec n) f conjugate := by
-    intro x
+  have hconj : Function.Semiconj (e : BitVec n → BitVec n) f conjugate := fun x => by
     simp only [conjugate, Equiv.permCongrHom_coe, Equiv.permCongr_apply, Equiv.symm_apply_apply]
   have hex (z : BitString (n + n)) :
       BitString.equivBitVec (inputLeft (args z)) = e (BitString.equivBitVec (inputLeft z)) := by
     change BitString.equivBitVec (fun i => Fin.append (x z) (y z) (Fin.castAdd n i)) = _
-    simp only [Fin.append_left, x]
-    change BitString.equivBitVec (encode.eval Boolean.interpretation (inputLeft z)) = _
-    rw [he (inputLeft z), BitString.equivBitVec_getLsbD]
+    simp only [Fin.append_left, x, he (inputLeft z), BitString.equivBitVec_getLsbD]
   have hey (z : BitString (n + n)) :
       BitString.equivBitVec (inputRight (args z)) = e (BitString.equivBitVec (inputRight z)) := by
     change BitString.equivBitVec (fun i => Fin.append (x z) (y z) (Fin.natAdd n i)) = _
-    simp only [Fin.append_right, y]
-    change BitString.equivBitVec (encode.eval Boolean.interpretation (inputRight z)) = _
-    rw [he (inputRight z), BitString.equivBitVec_getLsbD]
+    simp only [Fin.append_right, y, he (inputRight z), BitString.equivBitVec_getLsbD]
   have hspec (z : BitString (n + n)) (t : ℕ) :
       (f : BitVec n → BitVec n)^[t] (BitString.equivBitVec (inputLeft z)) =
           BitString.equivBitVec (inputRight z) ↔
         visitScheduleContains (out.eval Boolean.interpretation z) t := by
-    rw [ho z]
-    change _ ↔ visitScheduleContains (middle.eval Boolean.interpretation (args z)) t
-    rw [← hm (args z) t, hex z, hey z]
-    rw [← hconj.iterate_right t]
-    exact e.injective.eq_iff.symm
+    simp only [ho z, ← hm (args z) t, hex, hey, ← (hconj.iterate_right t).eq, e.injective.eq_iff]
   refine ⟨out, hspec, fun z T => ?_, by lia⟩
   rw [← visitScheduleCount_spec]
-  congr 1
-  ext t
-  exact and_congr_right (fun _ => hspec z t)
+  exact congrArg Set.ncard (Set.ext fun t => and_congr_right fun _ => hspec z t)
 
 end Cslib.Circuits.Boolean.Iteration

@@ -88,9 +88,7 @@ theorem EfficientSpecialHVZK.comap {R' : ∀ i, X' i → Y' i → Prop}
     refine Simulator.IsPPT.of_word (enc := enc'.withStatement encY)
       (program := fun p => program (p.1, gw (p.1, p.2.1), p.2.2))
       (hprogram.preprocess hprep) fun i y c => ?_
-    change _ = ProbComp.eval (program (i, gw (i, encY i y), enc'.challenge i c))
-    rw [hg i y]
-    exact hword i (g i y) c
+    simpa only [Encoding.withStatement, hg] using hword i (g i y) c
 
 /-- Efficient special soundness is inherited for the relation "`w` is a witness of `g y`" when
 the statement map is polynomial time on encodings: the derived extractor computes `g` and runs the
@@ -106,9 +104,7 @@ theorem EfficientSpecialSoundness.comap {R' : ∀ i, W i → Y' i → Prop}
   polyTime := by
     obtain ⟨e, he, hreal⟩ := h.polyTime
     refine ⟨fun p => e (p.1, gw (p.1, p.2.1), p.2.2), by fun_prop, fun i y t c z c' z' => ?_⟩
-    change e (i, gw (i, encY i y), _) = _
-    rw [hg i y]
-    exact hreal i (g i y) t c z c' z'
+    simpa only [Encoding.withStatement, hg] using hreal i (g i y) t c z c' z'
 
 /-- Post-process an efficient extractor by a witness map that is polynomial time on encodings. -/
 theorem EfficientSpecialSoundness.mapWitness
@@ -126,9 +122,7 @@ theorem EfficientSpecialSoundness.mapWitness
   polyTime := by
     obtain ⟨e, he, hreal⟩ := h.polyTime
     refine ⟨fun p => kw (p.1, e p, p.2.1), by fun_prop, fun i y t c z c' z' => ?_⟩
-    change kw (i, e _, enc.statement i y) = _
-    rw [hreal i y t c z c' z']
-    exact hkreal i _ y
+    simpa only [← hreal i y t c z c' z'] using hkreal i (extract i y t c z c' z') y
 
 /-- Efficient verification is inherited when the statement map is polynomial time on encodings:
 the derived verifier computes `g` and runs the verifier of `P'`. -/
@@ -138,9 +132,7 @@ theorem EfficientVerifier.comap (h : EfficientVerifier P' enc') (f : ∀ i, X i 
     EfficientVerifier (fun i => (P' i).comap (f i) (g i)) (enc'.withStatement encY) := by
   obtain ⟨v, hv, hreal⟩ := h
   refine ⟨fun p => v (p.1, gw (p.1, p.2.1), p.2.2), by fun_prop, fun i y t c z => ?_⟩
-  change v (i, gw (i, encY i y), _) = _
-  rw [hg i y]
-  exact hreal i (g i y) t c z
+  simpa only [Encoding.withStatement, SigmaProtocol.comap, hg] using hreal i (g i y) t c z
 
 end Efficient
 

@@ -159,26 +159,23 @@ private theorem log_length_select_le [DecidableEq α] (r : α × α → Bool) {l
     (hl : ∀ a ∈ l, (enc a).length ≤ n) : Nat.log 2 (select r l).length ≤ n := by
   have hnodup : ((select r l).map enc).Nodup :=
     (List.nodup_eraseDupsBy_eq _).map enc.injective
-  have hsub : ((select r l).map enc).toFinset ⊆ BitString.shortWords n := by
-    intro w hw
-    obtain ⟨a, ha, rfl⟩ := List.mem_map.1 (List.mem_toFinset.1 hw)
-    exact BitString.mem_shortWords.2 (hl a (mem_select.1 ha).1)
   have hlt : (select r l).length < 2 ^ (n + 1) := by
-    have := (card_le_card hsub).trans_lt (BitString.card_shortWords_lt n)
+    have := (card_le_card (t := BitString.shortWords n) fun w hw => by
+      obtain ⟨a, ha, rfl⟩ := List.mem_map.1 (List.mem_toFinset.1 hw)
+      exact BitString.mem_shortWords.2 (hl a (mem_select (r := r).1 ha).1)).trans_lt
+      (BitString.card_shortWords_lt n)
     rwa [List.toFinset_card_of_nodup hnodup, List.length_map] at this
   rcases Nat.eq_zero_or_pos (select r l).length with h0 | hpos
-  · rw [h0, Nat.log_zero_right]
-    exact Nat.zero_le _
+  · simp [h0]
   · exact Nat.lt_succ_iff.1 (Nat.log_lt_of_lt_pow hpos.ne' hlt)
 
 /-- Selecting related entries without repeats is computable in polynomial time. -/
 private theorem select_computableInPolyTime [DecidableEq α] {r : α × α → Bool}
     (hr : ComputableInPolyTime r (encPair enc enc) encBool) :
-    ComputableInPolyTime (select r) (encList enc) (encList enc) := by
-  have hfilter : ComputableInPolyTime (fun l : List α => l.filter fun a => l.all fun b => r (a, b))
-      (encList enc) (encList enc) :=
-    filterWithInput id' (allWithInput (fst _ _) (hr.comp ((fst _ _).snd'.prod (snd _ _))))
-  exact eraseDupsByWithInput hfilter (decide_eq' ((fst _ _).snd') (snd _ _))
+    ComputableInPolyTime (select r) (encList enc) (encList enc) :=
+  eraseDupsByWithInput
+    (filterWithInput id' (allWithInput (fst _ _) (hr.comp ((fst _ _).snd'.prod (snd _ _)))))
+    (decide_eq' ((fst _ _).snd') (snd _ _))
 
 /-! ### From a cross-composition and a compression to an OR-compression -/
 
@@ -202,9 +199,9 @@ private theorem exists_orCompression_of_orCrossComposition {r : α × α → Boo
   obtain ⟨ch, dh, hch⟩ := polynomiallyBounded_iff_le.mp hh
   -- the selected entries form a nonempty list of related instances, on which `C` is bounded
   have hsel_ne {l : List α} (hl : l ≠ []) (hrel : ∀ a ∈ l, ∀ b ∈ l, r (a, b) = true) :
-      select r l ≠ [] := by
-    obtain ⟨a, ha⟩ := List.exists_mem_of_ne_nil l hl
-    exact List.ne_nil_of_mem ((mem_select_of_pairwise hrel).2 ha)
+      select r l ≠ [] :=
+    let ⟨a, ha⟩ := List.exists_mem_of_ne_nil l hl
+    List.ne_nil_of_mem ((mem_select_of_pairwise hrel).2 ha)
   have hpar {n : ℕ} {l : List α} (hne : select r l ≠ []) (hl : ∀ a ∈ l, (enc a).length ≤ n) :
       κ (C (select r l)) ≤ cg * (2 * n + 1) ^ dg := by
     refine (hC.parameter_le n _ hne (select_pairwise l)
@@ -220,18 +217,16 @@ private theorem exists_orCompression_of_orCrossComposition {r : α × α → Boo
         fun l => κ (C []) + cg * (2 * (encList enc l).length + 1) ^ dg := by growth_poly
     refine hbound.mono fun l => ?_
     by_cases hne : select r l = []
-    · simp only [hne]
-      exact Nat.le_add_right _ _
+    · simpa only [hne] using Nat.le_add_right _ _
     · exact (hpar hne fun a ha =>
         SizedListEncoding.length_elem_le (encL := encList enc) l a ha).trans
         (Nat.le_add_left _ _)
   · rw [hK.mem_iff, hC.mem_iff _ (hsel_ne hl hrel) (select_pairwise l)]
     simp only [mem_select_of_pairwise hrel]
-  · have hne : l ≠ [] := List.ne_nil_of_length_pos (by rw [hlen]; exact Nat.succ_pos _)
-    refine Nat.lt_succ_of_le ((hK.length_le _).trans ((hch _).trans ?_))
-    exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by
-      have := hpar (hsel_ne hne hrel) hl
-      omega) _)
+  · refine Nat.lt_succ_of_le ((hK.length_le _).trans ((hch _).trans
+      (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left ?_ _))))
+    have := hpar (hsel_ne (List.ne_nil_of_length_pos (hlen ▸ Nat.succ_pos _)) hrel) hl
+    omega
 
 /-! ### The theorem of Bodlaender, Jansen and Kratsch -/
 
@@ -244,10 +239,9 @@ theorem IsORCrossComposition.compl_mem_NPPoly (D : Decoder enc) {r : α × α �
     (hr : IsPolyEquivalence enc r) {C : List α → β} {g : ℕ → ℕ} (hg : PolynomiallyBounded g)
     (hC : IsORCrossComposition enc r A encQ κ Q C g) {encB : γ ↪ List Bool} {B : Set γ}
     {K : β → γ} {h : ℕ → ℕ} (hh : PolynomiallyBounded h)
-    (hK : IsCompression encQ κ Q encB B K h) : Aᶜ ∈ NPPoly enc := by
-  obtain ⟨f, t, hf, hOR, ht, hshort⟩ :=
-    exists_orCompression_of_orCrossComposition hr hg hC hh hK
-  exact compl_mem_NPPoly_of_orCompression D hr hf hOR ht
+    (hK : IsCompression encQ κ Q encB B K h) : Aᶜ ∈ NPPoly enc :=
+  let ⟨_, _, hf, hOR, ht, hshort⟩ := exists_orCompression_of_orCrossComposition hr hg hC hh hK
+  compl_mem_NPPoly_of_orCompression D hr hf hOR ht
     fun n l hlen hl hrel => hshort n l hlen (fun a ha => (hl a ha).le) hrel
 
 /-- **Cross-composition and polynomial compression put the complement in `NP/poly`**: if `A`
@@ -267,12 +261,11 @@ OR-cross-composes into a parameterized problem with a polynomial compression, th
 Yap's theorem, see `Cslib.Complexity.PH_eq_SigmaP_three_of_orCrossComposes`. -/
 theorem coNP_subset_NPPoly_of_orCrossComposes (hA : NPHard enc A)
     (hAQ : ORCrossComposes enc A encQ κ Q) (hQ : HasPolyCompression encQ κ Q) {δ : Type}
-    (encC : δ ↪ List Bool) : coNP encC ⊆ NPPoly encC := by
-  obtain ⟨r, C, g, hr, hg, hC⟩ := hAQ
-  obtain ⟨B, K, h, hh, hK⟩ := hQ
-  obtain ⟨f, t, hf, hOR, ht, hshort⟩ :=
-    exists_orCompression_of_orCrossComposition hr hg hC hh hK
-  exact coNP_subset_NPPoly_of_orCompression hA hr hf hOR ht hshort encC
+    (encC : δ ↪ List Bool) : coNP encC ⊆ NPPoly encC :=
+  let ⟨_, _, _, hr, hg, hC⟩ := hAQ
+  let ⟨_, _, _, hh, hK⟩ := hQ
+  let ⟨_, _, hf, hOR, ht, hshort⟩ := exists_orCompression_of_orCrossComposition hr hg hC hh hK
+  coNP_subset_NPPoly_of_orCompression hA hr hf hOR ht hshort encC
 
 /-- **Bodlaender–Jansen–Kratsch**, the `NP ⊆ coNP/poly` conclusion of
 [BodlaenderJansenKratsch2014, Corollary 2]: if an `NP`-hard problem OR-cross-composes into a

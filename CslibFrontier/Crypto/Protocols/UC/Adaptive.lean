@@ -61,8 +61,10 @@ in `Execution`, `Emulation`, `DummyAdversary`, and `Composition` are unchanged.
 * `Cslib.Crypto.Protocols.UC.Environment.PolyBounded.toAdaptive`,
   `AdaptiveEmulatesWithin.{mono, refl, trans, emulates}`, `AdaptiveEmulates.{refl, trans}`.
 * `Cslib.Crypto.Protocols.UC.IdealFunctionality.toStatic_toAdaptive`: functionality round-trip.
-* `Cslib.Crypto.Protocols.UC.adaptiveExec_static_eq_adaptive_of_noCorrupt`,
-  `adaptiveExec_static_ofStatic`, `adaptiveExec_adaptive_ofStatic`: static special case.
+* `Cslib.Crypto.Protocols.UC.runFrom_adaptiveExecMachine_intertwine`,
+  `adaptiveExec_static_eq_adaptive_of_noCorrupt`,
+  `adaptiveExec_static_ofStatic`, `adaptiveExec_adaptive_ofStatic`: network congruence and static
+  special case.
 
 ## References
 
@@ -579,8 +581,7 @@ theorem IdealFunctionality.toStatic_toAdaptive {BackQ BackR : Type}
       (F.toAdaptive reveal onCorrupt).applyInitialCorruptions κ C <$> F.init κ ∅ = F.init κ C) :
     (F.toAdaptive reveal onCorrupt).toStatic = F.toProtocol := by
   funext κ C
-  simp only [AdaptiveProtocol.toStatic, IdealFunctionality.toAdaptive,
-    IdealFunctionality.toProtocol]
+  rw [AdaptiveProtocol.toStatic, IdealFunctionality.toProtocol]
   congr 1
   exact hinit κ C
 
@@ -592,14 +593,12 @@ theorem IdealFunctionality.toStatic_toAdaptive_of_initIndep {BackQ BackR : Type}
     (hinit : ∀ κ C, F.init κ C = F.init κ ∅) :
     (F.toAdaptive reveal).toStatic = F.toProtocol := by
   refine F.toStatic_toAdaptive reveal (fun _ _ s => s) fun κ C => ?_
-  have hid : (F.toAdaptive reveal).applyInitialCorruptions κ C = id := by
-    funext s
-    simp only [AdaptiveProtocol.applyInitialCorruptions, IdealFunctionality.toAdaptive, ite_self]
-    clear hinit
-    induction List.finRange n generalizing s with
-    | nil => rfl
-    | cons _ _ ih => exact ih s
-  rw [hid]; exact (id_map _).trans (hinit κ C).symm
+  have hid : (F.toAdaptive reveal).applyInitialCorruptions κ C = id :=
+    funext fun (s : F.State) => by
+      simp only [AdaptiveProtocol.applyInitialCorruptions, IdealFunctionality.toAdaptive, ite_self]
+      induction List.finRange n generalizing s <;> simp [*]
+  rw [hid]
+  exact (id_map _).trans (hinit κ C).symm
 
 /-- Project an `AdaptiveNetR` reply back to `RoutedNetR` (ignoring `.corrupt`, which static
 adversaries never send). -/
@@ -635,10 +634,8 @@ private theorem isQueryBounded_liftStaticNetProgram {α : Type}
     {m : ℕ} (h : program.IsQueryBounded m) :
     (liftStaticNetProgram (View := View) program).IsQueryBounded m := by
   refine OracleComp.IsCostBounded.interpret (fun q => ?_) h
-  rcases q with k | (⟨i, x⟩ | nq)
-  · exact OracleComp.IsCostBounded.query _
-  · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
-  · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
+  rcases q with _ | (_ | _) <;>
+    first | exact .query _ | exact (OracleComp.isCostBounded_map_iff ..).mpr (.query _)
 
 /-- Lifting a static adversary preserves its call budget. -/
 theorem Adversary.PolyBounded.ofStatic
@@ -675,8 +672,7 @@ private theorem noNewCorrupt_liftStaticNetProgram (C₀ : Finset (Fin n)) {α : 
       rw [liftStaticNetProgram, OracleComp.interpret_bind, OracleComp.interpret_query] <;>
       refine .bind ?_ ih
     · exact .query trivial
-    · simp only [sumHandler, OracleComp.queriesSatisfy_map_iff]; exact .query trivial
-    · simp only [sumHandler, OracleComp.queriesSatisfy_map_iff]; exact .query trivial
+    all_goals exact (OracleComp.queriesSatisfy_map_iff ..).mpr (.query trivial)
 
 /-- A static adversary lifted via `AdaptiveAdversary.ofStatic` never queries `.corrupt`. -/
 theorem AdaptiveAdversary.noNewCorrupt_ofStatic
@@ -761,12 +757,7 @@ private theorem runFrom_adaptiveRouter_liftAdaptiveNet_static_eq_adaptive {α β
   let Inv : AdaptiveNetQ n In NetQ → Prop := fun q => match q with
     | .corrupt i => i ∈ C₀ | _ => True
   have hno' : OracleComp.QueriesSatisfy (Sum.elim (fun _ => True) Inv) netProg :=
-    hno.mono fun q hq => by
-      rcases q with k | (⟨i, x⟩ | i | nq)
-      · trivial
-      · trivial
-      · exact hq
-      · trivial
+    hno.mono fun q hq => by rcases q with k | (⟨i, x⟩ | i | nq) <;> exact hq
   refine Machine.runFrom_interpret_intertwine
     (adaptiveRouter .static P κ C₀) (adaptiveRouter .adaptive P κ C₀)
     (fun q => ProbOracleComp.query (spec := adaptiveProtocolSpec n In Out NetQ NetR View) (.inr q))
@@ -790,44 +781,56 @@ private theorem runFrom_adaptiveRouter_liftAdaptiveNet_static_eq_adaptive {α β
     erw [bind_assoc, bind_assoc]
     exact bind_congr fun ⟨r, _⟩ => by erw [pure_bind]; exact hcont (.net r) _ _ ⟨rfl, hrs₁⟩
 
-private theorem runFrom_adaptiveExecMachine_static_eq_adaptive {α : Type}
+/-- Network-congruence intertwining for `adaptiveExecMachine`: two `(mode, A)` pairs whose
+router-lifted adversary activations intertwine under `RA` (preserving
+`rs.corrupted = A₁.initial κ`) produce equal `adaptiveExecMachine` outputs. -/
+theorem runFrom_adaptiveExecMachine_intertwine {α : Type} (mode₁ mode₂ : CorruptionMode)
     (P : AdaptiveProtocol n In Out NetQ NetR View)
-    (A : AdaptiveAdversary n In Out NetQ NetR View AdvQ AdvR)
-    (hno : A.NoNewCorrupt) (κ : ℕ)
+    (A₁ A₂ : AdaptiveAdversary n In Out NetQ NetR View AdvQ AdvR) (κ : ℕ)
+    (RA : (A₁.machine κ).State → (A₂.machine κ).State → Prop)
+    (hnet : ∀ (a : AdvQ) (sA₁ : (A₁.machine κ).State) (sA₂ : (A₂.machine κ).State)
+      (rs : AdaptiveRouterState (P.machine κ).State View n)
+      (k₁ : (AdvR × (A₁.machine κ).State) × AdaptiveRouterState (P.machine κ).State View n →
+        ProbOracleComp OracleSpec.empty α)
+      (k₂ : (AdvR × (A₂.machine κ).State) × AdaptiveRouterState (P.machine κ).State View n →
+        ProbOracleComp OracleSpec.empty α),
+      RA sA₁ sA₂ → rs.corrupted = A₁.initial κ →
+      (∀ r sA₁' sA₂' rs', RA sA₁' sA₂' → rs'.corrupted = A₁.initial κ →
+        k₁ ((r, sA₁'), rs') = k₂ ((r, sA₂'), rs')) →
+      ((adaptiveRouter mode₁ P κ (A₁.initial κ)).runFrom
+          (liftAdaptiveNet (((A₁.machine κ).handle a).run sA₁)) rs >>= k₁) =
+        ((adaptiveRouter mode₂ P κ (A₂.initial κ)).runFrom
+          (liftAdaptiveNet (((A₂.machine κ).handle a).run sA₂)) rs >>= k₂))
     (program : ProbOracleComp (adaptiveExecSpec n In Out AdvQ AdvR) α)
-    (sA : (A.machine κ).State) (rs : AdaptiveRouterState (P.machine κ).State View n)
-    (hrs : rs.corrupted = A.initial κ) :
-    (adaptiveExecMachine .static P A κ).runFrom program (sA, rs) =
-      (adaptiveExecMachine .adaptive P A κ).runFrom program (sA, rs) := by
-  suffices h :
-      ((adaptiveExecMachine .static P A κ).runFrom program (sA, rs) >>= pure) =
-        ((adaptiveExecMachine .adaptive P A κ).runFrom program (sA, rs) >>= pure) by
-    simpa only [bind_pure] using h
-  refine Machine.runFrom_intertwine
-    (adaptiveExecMachine .static P A κ) (adaptiveExecMachine .adaptive P A κ)
-    (fun _ => True) (fun x₁ x₂ => x₁ = x₂ ∧ x₁.2.corrupted = A.initial κ)
-    program (OracleComp.QueriesSatisfy.of_forall (fun q => by cases q <;> trivial) _)
-    (sA, rs) (sA, rs) ⟨rfl, hrs⟩ pure pure
-    (fun _ _ _ hR => hR.1 ▸ rfl)
-    fun q ⟨sA₁, rs₁⟩ _ k₁ k₂ _ ⟨hEq, hrs₁⟩ hcont => ?_
-  cases hEq; rcases q with (⟨i, x⟩ | _) | a
-  · erw [adaptiveExecMachine_handle_inl_party]
-    by_cases hi : i ∈ rs₁.corrupted
-    · simp only [hi, ↓reduceIte]; erw [pure_bind]; exact hcont none _ _ ⟨rfl, hrs₁⟩
-    · simp only [hi, ↓reduceIte]; erw [bind_assoc, bind_assoc]
-      exact bind_congr fun ⟨out, _⟩ => by erw [pure_bind]; exact hcont out _ _ ⟨rfl, hrs₁⟩
-  · erw [adaptiveExecMachine_handle_inl_status, pure_bind]
-    exact hcont rs₁.corrupted _ _ ⟨rfl, hrs₁⟩
-  · change (fun (p : (AdvR × (A.machine κ).State) × _) => (p.1.1, (p.1.2, p.2))) <$>
-        (adaptiveRouter .static P κ (A.initial κ)).runFrom
-          (liftAdaptiveNet (((A.machine κ).handle a).run sA₁)) rs₁ >>= k₁ =
-      (fun (p : (AdvR × (A.machine κ).State) × _) => (p.1.1, (p.1.2, p.2))) <$>
-        (adaptiveRouter .adaptive P κ (A.initial κ)).runFrom
-          (liftAdaptiveNet (((A.machine κ).handle a).run sA₁)) rs₁ >>= k₂
+    (sA₁ : (A₁.machine κ).State) (sA₂ : (A₂.machine κ).State) (hsA : RA sA₁ sA₂)
+    (rs : AdaptiveRouterState (P.machine κ).State View n) (hrs : rs.corrupted = A₁.initial κ) :
+    Prod.fst <$> (adaptiveExecMachine mode₁ P A₁ κ).runFrom program (sA₁, rs) =
+      Prod.fst <$> (adaptiveExecMachine mode₂ P A₂ κ).runFrom program (sA₂, rs) := by
+  rw [map_eq_pure_bind, map_eq_pure_bind]
+  refine Machine.runFrom_intertwine (adaptiveExecMachine mode₁ P A₁ κ)
+    (adaptiveExecMachine mode₂ P A₂ κ) (fun _ => True)
+    (fun x₁ x₂ => RA x₁.1 x₂.1 ∧ x₁.2 = x₂.2 ∧ x₁.2.corrupted = A₁.initial κ) program
+    (OracleComp.QueriesSatisfy.of_forall (fun q => by cases q <;> trivial) _)
+    (sA₁, rs) (sA₂, rs) ⟨hsA, rfl, hrs⟩ (fun x => pure x.1) (fun x => pure x.1)
+    (fun _ _ _ _ => rfl) fun q ⟨sA₁', rs₁⟩ ⟨sA₂', rs₂⟩ k₁ k₂ _ ⟨hA, hrsEq, hrs₁⟩ hcont => ?_
+  dsimp only at hrsEq; subst hrsEq; rcases q with (⟨i, x⟩ | _) | a
+  · erw [adaptiveExecMachine_handle_inl_party, adaptiveExecMachine_handle_inl_party]
+    by_cases hi : i ∈ rs₁.corrupted <;> simp only [hi, ↓reduceIte]
+    · erw [pure_bind, pure_bind]; exact hcont none _ _ ⟨hA, rfl, hrs₁⟩
+    · erw [bind_assoc, bind_assoc]; refine bind_congr fun ⟨out, _⟩ => ?_
+      erw [pure_bind, pure_bind]; exact hcont out _ _ ⟨hA, rfl, hrs₁⟩
+  · erw [adaptiveExecMachine_handle_inl_status, adaptiveExecMachine_handle_inl_status,
+      pure_bind, pure_bind]
+    exact hcont rs₁.corrupted _ _ ⟨hA, rfl, hrs₁⟩
+  · change (fun (p : (AdvR × (A₁.machine κ).State) × _) => (p.1.1, (p.1.2, p.2))) <$>
+        (adaptiveRouter mode₁ P κ (A₁.initial κ)).runFrom
+          (liftAdaptiveNet (((A₁.machine κ).handle a).run sA₁')) rs₁ >>= k₁ =
+      (fun (p : (AdvR × (A₂.machine κ).State) × _) => (p.1.1, (p.1.2, p.2))) <$>
+        (adaptiveRouter mode₂ P κ (A₂.initial κ)).runFrom
+          (liftAdaptiveNet (((A₂.machine κ).handle a).run sA₂')) rs₁ >>= k₂
     erw [bind_map_left, bind_map_left]
-    exact runFrom_adaptiveRouter_liftAdaptiveNet_static_eq_adaptive P κ (A.initial κ)
-      (((A.machine κ).handle a).run sA₁) (hno κ a sA₁) rs₁ hrs₁ _ _ fun res rs' hrs' =>
-      hcont res.1 (res.2, rs') (res.2, rs') ⟨rfl, hrs'⟩
+    exact hnet a sA₁' sA₂' rs₁ _ _ hA hrs₁ fun r sA₁'' sA₂'' rs' hA' hrs' =>
+      hcont r (sA₁'', rs') (sA₂'', rs') ⟨hA', rfl, hrs'⟩
 
 /-- If `A` satisfies `NoNewCorrupt` (it sends `.corrupt i` only for parties already in
 `A.initial κ`), then `.static` and `.adaptive` modes produce the exact same execution. -/
@@ -840,9 +843,14 @@ theorem adaptiveExec_static_eq_adaptive_of_noCorrupt
   simp only [adaptiveExec, Machine.run, Machine.link]
   refine congrArg Machine.closeProgram ?_
   erw [sample_adaptiveExecMachine_init, sample_adaptiveExecMachine_init]
-  refine bind_congr fun s₀ => bind_congr fun sA => ?_
-  exact congrArg (Prod.fst <$> ·)
-    (runFrom_adaptiveExecMachine_static_eq_adaptive P A hno κ (Z κ z) sA _ rfl)
+  refine bind_congr fun s₀ => bind_congr fun sA =>
+    runFrom_adaptiveExecMachine_intertwine .static .adaptive P A A κ Eq
+      (fun a sA₁ _ rs _ _ hA hrs hcont => by
+        subst hA
+        exact runFrom_adaptiveRouter_liftAdaptiveNet_static_eq_adaptive P κ (A.initial κ)
+          (((A.machine κ).handle a).run sA₁) (hno κ a sA₁) rs hrs _ _ fun res rs' hrs' =>
+          hcont res.1 res.2 res.2 rs' rfl hrs')
+      (Z κ z) sA sA rfl _ rfl
 
 private theorem runFrom_adaptiveRouter_liftStaticNetProgram {α β : Type}
     (P : AdaptiveProtocol n In Out NetQ NetR View) (κ : ℕ) (C₀ : Finset (Fin n))
@@ -866,17 +874,6 @@ private theorem runFrom_adaptiveRouter_liftStaticNetProgram {α β : Type}
     | .inr nq => AdaptiveNetR.toRoutedNetR <$>
         ProbOracleComp.query (spec := adaptiveProtocolSpec n In Out NetQ NetR View)
           (.inr (.net nq))
-  have hleft :
-      (fun k => OracleComp.interpret
-        (sumHandler (fun k => OracleComp.query
-          (spec := probOracleSpec (adaptiveProtocolSpec n In Out NetQ NetR View)) (.inl k))
-          fun q => ProbOracleComp.query (.inr q))
-        (OracleComp.query
-          (spec := probOracleSpec (netSpec (AdaptiveNetQ n In NetQ) (AdaptiveNetR Out NetR View)))
-          (.inl k))) =
-      fun k => OracleComp.query
-        (spec := probOracleSpec (adaptiveProtocolSpec n In Out NetQ NetR View)) (.inl k) := by
-    funext k; rfl
   have hcomp :
       (fun q : RoutedNetQ n In NetQ => OracleComp.interpret
         (sumHandler (fun k => OracleComp.query (.inl k)) fun q => ProbOracleComp.query (.inr q))
@@ -885,7 +882,7 @@ private theorem runFrom_adaptiveRouter_liftStaticNetProgram {α β : Type}
           | .inr nq => AdaptiveNetR.toRoutedNetR <$> ProbOracleComp.query (.net nq))) = qLift :=
     funext fun q => by rcases q with ⟨i, x⟩ | nq <;>
       exact (OracleComp.interpret_map _ _ _).trans (congrArg _ (OracleComp.interpret_query _ _))
-  rw [hleft, hcomp]
+  rw [hcomp]
   refine Machine.runFrom_interpret_intertwine (adaptiveRouter .static P κ C₀)
     (corruptRouter C₀ (P.toStatic κ C₀)) qLift
     (fun (q : RoutedNetQ n In NetQ) => ProbOracleComp.query
@@ -896,23 +893,19 @@ private theorem runFrom_adaptiveRouter_liftStaticNetProgram {α β : Type}
     (fun a rs' sP hR => hR.2 ▸ hfg a rs' hR.1)
     fun q rs' sP k₁ k₂ _ ⟨hrs', hsP⟩ hcont => by
       rcases hsP with rfl; erw [Machine.runFrom_query]
-      rcases q with ⟨i, x⟩ | nq
-      · erw [Machine.runFrom_map, Machine.runFrom_query, bind_map_left]
-        dsimp only [adaptiveRouter, corruptRouter, AdaptiveProtocol.toStatic]
-        conv_lhs => dsimp only [StateT.run]
-        by_cases hi : i ∈ C₀
-        · have hi' : i ∈ rs'.corrupted := hrs' ▸ hi
-          simp only [hi, hi', ↓reduceIte]
+      rcases q with ⟨i, x⟩ | nq <;>
+        erw [Machine.runFrom_map, Machine.runFrom_query, bind_map_left] <;>
+        dsimp only [adaptiveRouter, corruptRouter, AdaptiveProtocol.toStatic] <;>
+        (conv_lhs => dsimp only [StateT.run])
+      · by_cases hi : i ∈ C₀
+        · simp only [hi, hrs' ▸ hi, ↓reduceIte]
           erw [StateT.run_map, bind_assoc, bind_map_left]
-          exact bind_congr fun p => by erw [pure_bind]; exact hcont (.inl p.1) _ _ ⟨hrs', rfl⟩
-        · have hi' : i ∉ rs'.corrupted := hrs' ▸ hi
-          simp only [hi, hi', ↓reduceIte]
-          erw [StateT.run_pure, pure_bind, pure_bind]; exact hcont (.inl none) _ _ ⟨hrs', rfl⟩
-      · erw [Machine.runFrom_map, Machine.runFrom_query, bind_map_left]
-        dsimp only [adaptiveRouter, corruptRouter, AdaptiveProtocol.toStatic]
-        conv_lhs => dsimp only [StateT.run]
-        erw [StateT.run_map, bind_assoc, bind_map_left]
-        exact bind_congr fun p => by erw [pure_bind]; exact hcont (.inr p.1) _ _ ⟨hrs', rfl⟩
+          exact bind_congr fun p => (pure_bind _ _).trans (hcont (.inl p.1) _ _ ⟨hrs', rfl⟩)
+        · simp only [hi, hrs' ▸ hi, ↓reduceIte]
+          erw [StateT.run_pure, pure_bind, pure_bind]
+          exact hcont (.inl none) _ _ ⟨hrs', rfl⟩
+      · erw [StateT.run_map, bind_assoc, bind_map_left]
+        exact bind_congr fun p => (pure_bind _ _).trans (hcont (.inr p.1) _ _ ⟨hrs', rfl⟩)
 
 private theorem runFrom_adaptiveExecMachine_ofStatic {α β : Type}
     (P : AdaptiveProtocol n In Out NetQ NetR View)
@@ -929,11 +922,9 @@ private theorem runFrom_adaptiveExecMachine_ofStatic {α β : Type}
         (liftPartyQuery program) (sA, rs) >>= f) =
       ((execMachine P.toStatic A κ (C κ)).runFrom program (sA, rs.inner) >>= g) := by
   rw [liftPartyQuery]
-  have hid :
-      (sumHandler
-        (fun k => OracleComp.query (spec := probOracleSpec (execSpec n In Out AdvQ AdvR)) (.inl k))
-        (fun q => ProbOracleComp.query (spec := execSpec n In Out AdvQ AdvR) q)) =
-      OracleComp.query :=
+  have hid : sumHandler
+      (fun k => OracleComp.query (spec := probOracleSpec (execSpec n In Out AdvQ AdvR)) (.inl k))
+      (fun q => ProbOracleComp.query (spec := execSpec n In Out AdvQ AdvR) q) = OracleComp.query :=
     funext fun q => by cases q <;> rfl
   conv_rhs => rw [← OracleComp.interpret_query_eq_self program, ← hid]
   refine Machine.runFrom_interpret_intertwine
@@ -956,14 +947,14 @@ private theorem runFrom_adaptiveExecMachine_ofStatic {α β : Type}
         erw [Machine.runFrom_bind, Machine.runFrom_query, bind_map_left, bind_assoc]
         simp only [corruptRouter, AdaptiveProtocol.toStatic]
         by_cases hi : i ∈ C κ
-        · have hi' : i ∈ rs₁.corrupted := hrs₁ ▸ hi
-          simp only [hi, hi', ↓reduceIte, StateT.run_pure]
+        · simp only [hi, hrs₁ ▸ hi, ↓reduceIte, StateT.run_pure]
           erw [pure_bind, pure_bind, Machine.runFrom_pure, pure_bind]
           exact hcont none _ _ ⟨rfl, hrs₁, rfl⟩
-        · have hi' : i ∉ rs₁.corrupted := hrs₁ ▸ hi
-          simp only [hi, hi', ↓reduceIte]; erw [bind_assoc]
+        · simp only [hi, hrs₁ ▸ hi, ↓reduceIte]
+          erw [bind_assoc]
           exact bind_congr fun p => by
-            erw [Machine.runFrom_pure, pure_bind, pure_bind]; exact hcont p.1 _ _ ⟨rfl, hrs₁, rfl⟩
+            erw [Machine.runFrom_pure, pure_bind, pure_bind]
+            exact hcont p.1 _ _ ⟨rfl, hrs₁, rfl⟩
       · erw [Machine.runFrom_query, Machine.runFrom_query]
         change (fun (p : (AdvR × (A κ (C κ)).State) × _) => (p.1.1, (p.1.2, p.2))) <$>
             (adaptiveRouter .static P κ (C κ)).runFrom

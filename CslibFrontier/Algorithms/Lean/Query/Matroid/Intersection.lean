@@ -162,12 +162,11 @@ theorem countQueries_exchTablesM [DecidableEq α] (oracle : {ι : Type} → Inde
     (V : List α) (I : Finset α) :
     (exchTablesM ask₁ ask₂ V I).countQueries oracle =
       2 * (V.filter (· ∉ I)).length * (1 + (V.filter (· ∈ I)).length) := by
-  have hq₁ : ∀ S, (ask₁ (α := α) S).countQueries oracle = 1 := fun _ => rfl
-  have hq₂ : ∀ S, (ask₂ (α := α) S).countQueries oracle = 1 := fun _ => rfl
+  have hq₁ (S : Finset α) : (ask₁ S).countQueries oracle = 1 := rfl
+  have hq₂ (S : Finset α) : (ask₂ S).countQueries oracle = 1 := rfl
   simp only [exchTablesM, FreeM.countQueries_bind, FreeM.countQueries_pure,
-    FreeM.countQueries_filterM_of_eq_one oracle (fun _ => hq₁ _),
-    FreeM.countQueries_filterM_of_eq_one oracle (fun _ => hq₂ _),
-    length_exchPairs]
+    FreeM.countQueries_filterM_of_eq_one oracle fun _ => hq₁ _,
+    FreeM.countQueries_filterM_of_eq_one oracle fun _ => hq₂ _, length_exchPairs]
   ring
 
 /-- **Exact cost of a phase**: on duplicate-free candidates `V` with `n` elements, a phase from
@@ -181,14 +180,10 @@ theorem countQueries_exchTablesM_of_nodup [DecidableEq α]
     rw [← List.toFinset_card_of_nodup (hV.filter _), List.toFinset_filter]
     congr 1
     ext x
-    simp only [Finset.mem_filter, List.mem_toFinset, decide_eq_true_eq]
-    exact ⟨fun h => h.2, fun h => ⟨List.mem_toFinset.mp (hIV h), h⟩⟩
-  have hsplit := List.length_eq_length_filter_add (l := V) (fun x => decide (x ∈ I))
+    simpa using fun h => List.mem_toFinset.mp (hIV h)
+  have hsplit := List.length_eq_length_filter_add (l := V) fun x => decide (x ∈ I)
   have hout : (V.filter (· ∉ I)).length = V.length - I.card := by
-    have : (V.filter (· ∉ I)) = V.filter (fun x => !decide (x ∈ I)) := by
-      congr 1
-    rw [this]
-    omega
+    rw [show V.filter (· ∉ I) = V.filter fun x => !decide (x ∈ I) by congr 1]; omega
   rw [countQueries_exchTablesM, hin, hout]
 
 private theorem countQueries_maxCommonIndepLoopM_le [DecidableEq α]
@@ -242,31 +237,31 @@ private theorem countQueries_maxCommonIndepLoopM_eq [DecidableEq α] {M₁ M₂ 
           (((maxCommonIndepLoopM ask₁ ask₂ V fuel I).eval oracle).1.card + 1),
           2 * (V.length - r) * (1 + r) := by
   intro fuel
+  have heval (fuel' I') : (maxCommonIndepLoopM ask₁ ask₂ V fuel' I').eval oracle =
+      maxCommonIndepLoop (fun S => oracle (.inl (.indep S))) (fun S => oracle (.inr (.indep S)))
+        V fuel' I' := Id.pure_injective <| by
+    simpa using (FreeM.isMonadHom_pure_eval oracle).map_maxCommonIndepLoopM ask₁ ask₂ V fuel' I'
   induction fuel with
-  | zero => intro I _ _ h; omega
+  | zero =>
+    intro _ _ _ h
+    omega
   | succ fuel ih =>
     intro I hIV hI hfuel
-    have hphase := countQueries_exchTablesM_of_nodup oracle hV hIV
-    have heval : ∀ fuel' I', (maxCommonIndepLoopM ask₁ ask₂ V fuel' I').eval oracle =
-        maxCommonIndepLoop (fun S => oracle (.inl (.indep S))) (fun S => oracle (.inr (.indep S)))
-          V fuel' I' := fun fuel' I' => Id.pure_injective <| by
-      simpa using (FreeM.isMonadHom_pure_eval oracle).map_maxCommonIndepLoopM ask₁ ask₂ V fuel' I'
     simp only [heval] at ih ⊢
     simp only [maxCommonIndepLoopM, maxCommonIndepLoop, FreeM.countQueries_bind, eval_exchTablesM,
-      hphase]
+      countQueries_exchTablesM_of_nodup oracle hV hIV]
     rcases hs : exchSearch V
       (exchTables (fun S => oracle (.inl (.indep S))) (fun S => oracle (.inr (.indep S))) V I)
       with p | R
     · dsimp only
       obtain ⟨hI'V, hI', hcard⟩ := augment_of_exchSearch_eq_inl h₁ h₂ hIV hs
-      have hle := Finset.card_le_card hI'V
+      have := Finset.card_le_card hI'V
       obtain ⟨hmono, hcount⟩ := ih _ hI'V hI' (by omega)
-      refine ⟨by omega, ?_⟩
-      rw [hcount, hcard, Finset.sum_eq_sum_Ico_succ_bot (a := I.card) (by omega)]
+      exact ⟨by omega,
+        by rw [hcount, hcard, Finset.sum_eq_sum_Ico_succ_bot (a := I.card) (by omega)]⟩
     · dsimp only
-      simp only [FreeM.countQueries_pure, add_zero]
-      refine ⟨le_rfl, ?_⟩
-      rw [Nat.Ico_succ_singleton, Finset.sum_singleton]
+      simp only [FreeM.countQueries_pure, add_zero, Nat.Ico_succ_singleton, Finset.sum_singleton]
+      exact ⟨le_rfl, trivial⟩
 
 /-- **Exact output-sensitive query count**: if the oracles implement `M₁` and `M₂` and `es` has
 `n` distinct elements, `matroidIntersection es` makes exactly `∑_{r=0}^{ν} 2(n - r)(1 + r)`
@@ -281,10 +276,7 @@ theorem countQueries_matroidIntersection [DecidableEq α] {M₁ M₂ : Matroid �
   have h := (countQueries_maxCommonIndepLoopM_eq h₁ h₂ (List.nodup_eraseDups es)
     (es.eraseDups.length + 1) ∅ (Finset.empty_subset _) (isCommonIndep_empty M₁ M₂)
     (by rw [List.length_eraseDups, List.toFinset_eraseDups]; omega)).2
-  rw [Finset.card_empty, ← Finset.range_eq_Ico] at h
-  simp only [matroidIntersection, maxCommonIndepM]
-  rw [List.length_eraseDups] at h ⊢
-  exact h
+  simpa [matroidIntersection, maxCommonIndepM, List.length_eraseDups] using h
 
 /-- **Output-sensitive query bound**: if the oracles implement `M₁` and `M₂` and `es` has `n`
 distinct elements, `matroidIntersection es` makes at most `2n(ν + 1)²` independence queries, where

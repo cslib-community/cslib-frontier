@@ -50,26 +50,22 @@ theorem length_encCompiled_compile_le {n m : ℕ} (c : Circuit signature n m) :
   let bits := Nat.log2 width + 1
   change (encCompiled (compile n c.code)).length ≤
     4 * c.depth * (2 * width * (6 * bits + 21) + 1) + m * (2 * bits + 1) + 1
-  have hwidth : ∀ layer ∈ (compile n c.code).1, layer.length ≤ width := by
-    intro layer hlayer
-    have h := length_of_mem_schedule n c.code.1 (wireDepthsCode n c.code.1)
-      (depthCode n c.code) hlayer
-    rw [show c.code.1.length = c.size from c.program.length_code] at h
-    exact h.le
-  have hschedule := (wellFormed_compile c).length_encList_le
-    (width := width) (by dsimp only [width]; omega) hwidth
-  rw [length_compile] at hschedule
-  change (encList (encList encNode) (compile n c.code).1).length ≤
-    2 * c.depth * (2 * width * (6 * bits + 21) + 1) at hschedule
-  have houtputs : (encList encNat (compile n c.code).2).length ≤ m * (2 * bits + 1) := by
-    have h := Turing.MultiTapeTM.length_encList_le encNat (compile n c.code).2
-      (b := bits) (fun i hi => ?_)
-    · simpa only [compile_outputs, Circuit.code, List.length_ofFn] using h
-    obtain ⟨j, rfl⟩ := List.mem_ofFn.1 hi
-    apply length_encNat_le_log2
-    have hwire := (c.outputs j).toNat_lt
+  have hwidth : ∀ layer ∈ (compile n c.code).1, layer.length ≤ width := fun layer hlayer => by
+    have hc : c.code.1.length = c.size := c.program.length_code
     dsimp only [width]
-    omega
+    simpa only [hc] using (length_of_mem_schedule n c.code.1
+      (wireDepthsCode n c.code.1) (depthCode n c.code) hlayer).le
+  have hschedule : (encList (encList encNode) (compile n c.code).1).length ≤
+      2 * c.depth * (2 * width * (6 * bits + 21) + 1) := by
+    simpa only [length_compile] using
+      (wellFormed_compile c).length_encList_le (width := width)
+        (by dsimp only [width]; omega) hwidth
+  have houtputs : (encList encNat (compile n c.code).2).length ≤ m * (2 * bits + 1) := by
+    simpa only [compile_outputs, Circuit.code, List.length_ofFn] using
+      Turing.MultiTapeTM.length_encList_le encNat (compile n c.code).2 (b := bits) fun i hi => by
+        obtain ⟨j, rfl⟩ := List.mem_ofFn.1 hi
+        have := (c.outputs j).toNat_lt
+        exact length_encNat_le_log2 (by dsimp only [width]; omega)
   rw [length_encPair]
   calc
     _ ≤ 2 * (2 * c.depth * (2 * width * (6 * bits + 21) + 1)) + 1 +

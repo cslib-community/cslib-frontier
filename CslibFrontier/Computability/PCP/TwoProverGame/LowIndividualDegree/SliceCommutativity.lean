@@ -95,11 +95,8 @@ private theorem abs_sum_matching_drop_le (φ : AlgState A)
     rw [star_sub, star_mul, (P.nonneg _).isSelfAdjoint.star_eq,
       P.successfulEffect_mem_Icc.1.isSelfAdjoint.star_eq, (B.nonneg _).isSelfAdjoint.star_eq,
       sub_mul, hp, mul_assoc, hp.successfulEffect_mul_some, ← (hPB _ _).eq]
-  have he (a : F) : star (P.effect (some a) - P.successfulEffect * B.effect a) *
-      (P.effect (some a) * J) = (P.effect (some a) - P.effect (some a) * B.effect a) * J := by
-    rw [← mul_assoc, hsa]
-  simp only [he, sub_mul, map_sub, Complex.sub_re, sum_sub_distrib] at h
-  simp only [J, mul_sum, map_sum, Complex.re_sum] at h
+  simp only [← mul_assoc, hsa, sub_mul, map_sub, Complex.sub_re, sum_sub_distrib, J, mul_sum,
+    map_sum, Complex.re_sum] at h
   rw [abs_sub_comm]
   simpa only [mul_assoc, (hNB _ _).symm.left_comm] using h
 
@@ -113,11 +110,9 @@ private theorem abs_sum_right_drop_le (φ : AlgState A)
     (fun b => N.effect (some b) - N.successfulEffect * C.effect b)
     (Measurement.sum_norm_some_effect_mul_sq_le_one φ N hn _
       P.successfulEffect_mem_Icc)
-  have hnG (b : F) : N.effect (some b) * N.successfulEffect = N.effect (some b) := by
-    have hc : Commute N.successfulEffect (N.effect (some b)) :=
-      Commute.sum_left _ _ _ fun a _ => hn.commute_effect (some a) (some b)
-    rw [← hc.eq]
-    exact hn.successfulEffect_mul_some N b
+  have hnG (b : F) : N.effect (some b) * N.successfulEffect = N.effect (some b) :=
+    (Commute.sum_left _ _ _ fun a _ => hn.commute_effect (some a) (some b)).symm.eq.trans
+      (hn.successfulEffect_mul_some N b)
   have he (b : F) : star (N.effect (some b) * P.successfulEffect) *
       (N.effect (some b) - N.successfulEffect * C.effect b) =
       P.successfulEffect * N.effect (some b) -
@@ -198,12 +193,9 @@ private theorem mean_successfulPairDefect_eq {X : Type*} [Fintype X]
     ring
   let mean (f : X → X → F → F → ℝ) := 𝔼 u, 𝔼 v, ∑ a : F, ∑ b : F, f u v a b
   have hswap (f : X → X → F → F → ℝ) :
-      mean (fun u v a b => f v u b a) = mean f := by
-    unfold mean
-    rw [expect_comm univ univ]
-    congr with u
-    congr with v
-    exact sum_comm
+      mean (fun u v a b => f v u b a) = mean f :=
+    (expect_comm univ univ _).trans
+      (expect_congr rfl fun _ _ => expect_congr rfl fun _ _ => sum_comm)
   change mean (fun u v a b => φ.norm (p u a * p v b - p v b * p u a) ^ 2) = _
   simp only [hterm, mean, sum_add_distrib, sum_sub_distrib, expect_add_distrib,
     expect_sub_distrib]
@@ -251,13 +243,11 @@ theorem evaluatedSlice_successfulPairDefect_le_atDegrees
       (Option.map fun g => eval (Fin.init u) g.val)
       (Option.map fun g => eval (Fin.init v) g.val) a b
   have hξ : (𝔼 w, Measurement.successfulCopyDefect S.state (P w) (R w)) ≤ ξ := by
-    refine (expect_le_expect (g := fun w : Point F (m + 1) =>
-      Measurement.successfulCopyDefect S.state (M (w (Fin.last m))) (N (w (Fin.last m))))
-      (fun w _ => ?_)).trans ?_
-    · exact Measurement.successfulCopyDefect_map_le S.state (M _) (N _) (hM _) (hN _)
-        (fun a b => hMN _ _ (some a) (some b)) (fun g => eval (Fin.init w) g.val)
-    · rw [← Fintype.expect_fin_snoc]
-      simpa only [Fin.snoc_last, Fintype.expect_const] using hcopy
+    refine (expect_le_expect fun w _ => Measurement.successfulCopyDefect_map_le S.state (M _)
+      (N _) (hM _) (hN _) (fun a b => hMN _ _ (some a) (some b))
+      (fun g => eval (Fin.init w) g.val)).trans ?_
+    rw [← Fintype.expect_fin_snoc]
+    simpa only [Fin.snoc_last, Fintype.expect_const] using hcopy
   let Q (u : Point F (m + 1)) := decodedPoint S.alice u
   let p (u : Point F (m + 1)) (a : F) := (P u).effect (some a)
   let b (u : Point F (m + 1)) (a : F) := (Q u).effect a
@@ -302,16 +292,19 @@ theorem evaluatedSlice_successfulPairDefect_le_atDegrees
       score f - score g = 𝔼 z : Point F (m + 1) × Point F (m + 1),
         ∑ a : F, ∑ c : F, ((S.state (f z.1 z.2 a c)).re - (S.state (g z.1 z.2 a c)).re) := by
     simp only [score, Fintype.expect_prod_type, sum_sub_distrib, expect_sub_distrib]
-  -- Replace each slice effect by its gated point effect, charging the omitted failure terms.
-  have h01 : |s0 - s1| ≤ √(2 * η) := by
-    change |score _ - score _| ≤ _
+  -- Replacing one slice effect by its gated point effect costs `√(2 η)`.
+  have hrep (f g : Point F (m + 1) → Point F (m + 1) → F → F → A)
+      (w : Point F (m + 1) × Point F (m + 1) → Point F (m + 1))
+      (hw : (𝔼 z, defect (w z)) = 𝔼 u, defect u)
+      (h : ∀ z, |∑ a : F, ∑ c : F, (S.state (f z.1 z.2 a c)).re -
+        ∑ a : F, ∑ c : F, (S.state (g z.1 z.2 a c)).re| ≤ √(defect (w z))) :
+      |score f - score g| ≤ √(2 * η) := by
     rw [hscore]
-    refine abs_mean_le_sqrt (X := Point F (m + 1) × Point F (m + 1))
-      _ (fun z => defect z.2) (fun z => hdefect₀ z.2) ?_ (by
-        simpa only [Fintype.expect_comp_snd] using hdefect)
-    intro z
-    simpa only [sum_sub_distrib] using abs_sum_sandwich_replace_le
-      S.state (P z.1) (P z.2) (hP z.1) (fun c => G z.2 * b z.2 c)
+    exact abs_mean_le_sqrt _ _ (fun z => hdefect₀ (w z))
+      (fun z => by simpa only [sum_sub_distrib] using h z) (hw ▸ hdefect)
+  -- Replace each slice effect by its gated point effect, charging the omitted failure terms.
+  have h01 : |s0 - s1| ≤ √(2 * η) := hrep _ _ Prod.snd (Fintype.expect_comp_snd defect)
+    fun z => abs_sum_sandwich_replace_le S.state (P z.1) (P z.2) (hP z.1) (fun c => G z.2 * b z.2 c)
   have h12 : |s1 - s2| ≤ √ζ := by
     let loss (u v : Point F (m + 1)) :=
       ∑ a : F, ∑ c : F, (S.state (p u a * p v c * p u a * (P v).effect none * b v c)).re
@@ -332,32 +325,21 @@ theorem evaluatedSlice_successfulPairDefect_le_atDegrees
               (fun v => Q (Fin.snoc v x)) (Z x) (hZ x) (hbound x)
               (fun a v c => hMP x (Fin.snoc v x) a c) (fun a v c => hPQ u (Fin.snoc v x) a c)
               (fun a => hMZ x x a) (hPZ u x)) hfail
-    refine (abs_expect_le _ _).trans ?_
-    simpa only [Fintype.expect_const] using
-      expect_le_expect (s := univ) (g := fun _ : Point F (m + 1) => √ζ) fun u _ => hfixed u
-  have h23 : |s2 - s3| ≤ √(2 * η) := by
-    change |score _ - score _| ≤ _
-    rw [hscore]
-    refine abs_mean_le_sqrt (X := Point F (m + 1) × Point F (m + 1))
-      _ (fun z => defect z.1) (fun z => hdefect₀ z.1) ?_ (by
-        simpa only [Fintype.expect_comp_fst] using hdefect)
-    intro z
-    simpa only [sum_sub_distrib] using abs_sum_matching_replace_le
+    exact (abs_expect_le _ _).trans
+      ((expect_le_expect fun u _ => hfixed u).trans_eq (Fintype.expect_const _))
+  have h23 : |s2 - s3| ≤ √(2 * η) := hrep _ _ Prod.fst (Fintype.expect_comp_fst defect)
+    fun z => abs_sum_matching_replace_le
       S.state (P z.1) (P z.2) (hP z.1) (Q z.1) (Q z.2) (hPQ z.1 z.2) (hPQ z.2 z.2)
   have h34 : |s3 - s4| ≤ √δ := by
-    change |score _ - score _| ≤ _
     rw [hscore]
-    let pointDefect (z : Point F (m + 1) × Point F (m + 1)) :=
-      Measurement.pairCommutatorDefect S.state (Q z.1) (Q z.2)
-    refine abs_mean_le_sqrt _ pointDefect
-      (fun z => sum_nonneg fun _ _ => sum_nonneg fun _ _ => sq_nonneg _) ?_ ?_
-    · intro z
-      simp only [sum_sub_distrib]
-      rw [abs_sub_comm]
-      exact Measurement.abs_sum_mul_pointOrder_sub_le S.state (P z.1) (P z.2)
-        (hP z.1) (hP z.2) (Q z.1) (Q z.2) (G z.1) (P z.1).successfulEffect_mem_Icc
-    · simpa only [pointDefect, Fintype.expect_prod_type] using
-        decodedPoint_pairCommutatorDefect_le_atDegrees S hPoint hLine degree D
+    refine abs_mean_le_sqrt _ (fun z => Measurement.pairCommutatorDefect S.state (Q z.1) (Q z.2))
+      (fun z => sum_nonneg fun _ _ => sum_nonneg fun _ _ => sq_nonneg _)
+      (fun z => by
+        simpa only [sum_sub_distrib] using (abs_sub_comm _ _).trans_le
+          (Measurement.abs_sum_mul_pointOrder_sub_le S.state (P z.1) (P z.2)
+            (hP z.1) (hP z.2) (Q z.1) (Q z.2) (G z.1) (P z.1).successfulEffect_mem_Icc)) ?_
+    simpa only [Fintype.expect_prod_type] using
+      decodedPoint_pairCommutatorDefect_le_atDegrees S hPoint hLine degree D
   have h45 : |s4 - s5| ≤ √δ + √ζ := by
     rw [abs_sub_comm]
     change |score _ - score _| ≤ _
@@ -370,24 +352,11 @@ theorem evaluatedSlice_successfulPairDefect_le_atDegrees
     simp only [← Complex.sub_re, ← map_sub, he]
     exact abs_average_evaluated_failure_pointProduct_le_atDegrees
       S hPoint hLine degree D M hM Z hZ hbound hMP hMZ hfail
-  have h56 : |s5 - s6| ≤ √(2 * η) := by
-    change |score _ - score _| ≤ _
-    rw [hscore]
-    refine abs_mean_le_sqrt (X := Point F (m + 1) × Point F (m + 1))
-      _ (fun z => defect z.1) (fun z => hdefect₀ z.1) ?_ (by
-        simpa only [Fintype.expect_comp_fst] using hdefect)
-    intro z
-    simpa only [sum_sub_distrib] using abs_sum_matching_drop_le S.state (P z.1) (P z.2)
+  have h56 : |s5 - s6| ≤ √(2 * η) := hrep _ _ Prod.fst (Fintype.expect_comp_fst defect)
+    fun z => abs_sum_matching_drop_le S.state (P z.1) (P z.2)
       (hP z.1) (Q z.1) (Q z.2) (hPQ z.1 z.1) (hPQ z.2 z.1) (hPQ z.2 z.2)
-  have h67 : |s6 - s7| ≤ √(2 * η) := by
-    change |score _ - score _| ≤ _
-    rw [hscore]
-    refine abs_mean_le_sqrt (X := Point F (m + 1) × Point F (m + 1))
-      _ (fun z => defect z.2) (fun z => hdefect₀ z.2) ?_ (by
-        simpa only [Fintype.expect_comp_snd] using hdefect)
-    intro z
-    simpa only [sum_sub_distrib] using
-      abs_sum_right_drop_le S.state (P z.1) (P z.2) (hP z.2) (Q z.2)
+  have h67 : |s6 - s7| ≤ √(2 * η) := hrep _ _ Prod.snd (Fintype.expect_comp_snd defect)
+    fun z => abs_sum_right_drop_le S.state (P z.1) (P z.2) (hP z.2) (Q z.2)
   -- Insert the commuting copy to move the final evaluated effect to the front.
   have h78 : |s7 - s8| ≤ 2 * √ξ := by
     change |score _ - score _| ≤ _

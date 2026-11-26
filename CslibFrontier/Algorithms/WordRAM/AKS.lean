@@ -133,6 +133,28 @@ abbrev clA : Fin 36 := 25
 /-- The answer of step 5. -/
 abbrev clOk : Fin 36 := 27
 
+@[local wram_simps] private theorem low_regs :
+    low (by norm_num) PerfectPower.n = ppN ∧
+    low (by norm_num) PerfectPower.flag = ppFlag ∧
+    low (by norm_num) NatClog.arg = logArg ∧
+    low (by norm_num) NatClog.result = logRes ∧
+    low (by norm_num) OrderSearch.n = osN ∧
+    low (by norm_num) OrderSearch.L = osL ∧
+    low (by norm_num) OrderSearch.r = osR ∧
+    low (by norm_num) GcdTotient.n = gtN ∧
+    low (by norm_num) GcdTotient.r = gtR ∧
+    low (by norm_num) GcdTotient.ok = gtOk ∧
+    low (by norm_num) GcdTotient.phi = gtPhi ∧
+    low (by norm_num) NatSqrt.arg = sqArg ∧
+    low (by norm_num) NatSqrt.root = sqRoot ∧
+    low (by norm_num) CongruenceLoop.R = clR ∧
+    low (by norm_num) CongruenceLoop.B = clB ∧
+    low (by norm_num) CongruenceLoop.T = clT ∧
+    low (by norm_num) CongruenceLoop.rr = clRr ∧
+    low (by norm_num) CongruenceLoop.nn = clNn ∧
+    low (by norm_num) CongruenceLoop.A = clA ∧
+    low (by norm_num) CongruenceLoop.ok = clOk := by decide
+
 /-! ### The program -/
 
 /-- Step 1, the perfect-power test. -/
@@ -214,8 +236,6 @@ private theorem sq_le_two_pow (s : ℕ) : s ^ 2 ≤ 2 ^ (s + 1) := by
   | succ k ih =>
     have hk : k < 2 ^ k := Nat.lt_two_pow_self
     have h1 : (k + 1) ^ 2 = k ^ 2 + 2 * k + 1 := by ring
-    have h2 : 2 ^ (k + 1 + 1) = 2 ^ k * 4 := by ring
-    have h3 : 2 ^ (k + 1) = 2 ^ k * 2 := by ring
     omega
 
 /-- Numbers up to `64 s¹⁰` fit the width `8 (s + 1)`, for `s ≥ 2`. -/
@@ -238,19 +258,9 @@ private theorem fits_exp {w s v : ℕ} (hw : 8 * (s + 1) ≤ w) (hv : v < 2 ^ (2
 /-- For `N < 2^s` with `s ≥ 2`, `N² + 2 N + 2` fits the width `8 (s + 1)`. -/
 private theorem fits_sq {w s N : ℕ} (hs : 2 ≤ s) (hw : 8 * (s + 1) ≤ w) (hN : N < 2 ^ s) :
     Fits w (N * N + 2 * N + 2) := by
-  refine fits_exp hw ?_
-  have : (N + 1) * (N + 1) ≤ 2 ^ s * 2 ^ s := Nat.mul_le_mul hN hN
   have h2 : 2 ^ (2 * s + 1) = 2 ^ s * 2 ^ s * 2 := by ring
   have h4 : 2 ≤ 2 ^ s := Nat.le_self_pow (by omega) 2
-  rw [h2]
-  nlinarith
-
-/-- A register above the subroutine bank `[0, k)` is outside `low hk`. -/
-private theorem low_ne {k : ℕ} (hk : k ≤ 29) {j : Fin 36} (hj : 29 ≤ j.val) (i : Fin k) :
-    low hk i ≠ j := fun h => by
-  have := congrArg Fin.val h
-  dsimp [low] at this
-  omega
+  exact fits_exp hw (by nlinarith [Nat.mul_le_mul hN hN])
 
 /-! ### Correctness -/
 
@@ -280,7 +290,7 @@ private theorem congruenceSteps_exec {w s : ℕ} (x : Data 36) {N R L : ℕ} (hn
   have hΦL : Φ * L ≤ 4 * s ^ 7 := by
     calc Φ * L ≤ (4 * s ^ 5) * s ^ 2 := Nat.mul_le_mul (hΦR.trans hRs) hLs
       _ = 4 * s ^ 7 := by ring
-  set A := Nat.sqrt (Φ * L)
+  set A := Nat.sqrt (Φ * L) with hAdef
   have hA : A ≤ 2 * s ^ 4 := by
     calc A ≤ Nat.sqrt ((2 * s ^ 4) ^ 2) := Nat.sqrt_le_sqrt (by
           calc Φ * L ≤ 4 * s ^ 7 := hΦL
@@ -290,39 +300,26 @@ private theorem congruenceSteps_exec {w s : ℕ} (x : Data 36) {N R L : ℕ} (hn
   have h4 : s ^ 4 ≤ s ^ 10 := Nat.pow_le_pow_right (by omega) (by norm_num)
   unfold sqrt congruences
   wram_exec [hr, hn, hRN, hph, hl, fits_poly hs hw (by omega : Φ * L ≤ 64 * s ^ 10)]
-  refine WP.name fun x₁ hx₁ => ?_
-  have hx₁a : x₁.regs sqArg = Φ * L := by subst hx₁; wram_simp
-  wram_call (NatSqrt.exec (x₁.comap (low (k := 6) (by norm_num)))
-    (by change Fits w (4 * x₁.regs sqArg + 4); rw [hx₁a]; exact fits_poly hs hw (by omega)))
-    renamed (low_injective _) with y₂ ⟨⟨hroot, -, -, -⟩, hout₂⟩
-  have hroot' : y₂.regs sqRoot = A := by
-    change y₂.regs sqRoot = Nat.sqrt (x₁.regs sqArg) at hroot
-    rwa [hx₁a] at hroot
-  have hy₂n : y₂.regs nv = N :=
-    (hout₂ nv (low_ne _ (by decide))).trans (by subst hx₁; wram_simp [hn])
-  have hy₂r : y₂.regs rv = R :=
-    (hout₂ rv (low_ne _ (by decide))).trans (by subst hx₁; wram_simp [hr])
-  wram_exec [hroot', hy₂r, hy₂n, fits_poly hs hw (by omega : R + R ≤ 64 * s ^ 10)]
-  refine WP.name fun x₃ hx₃ => ?_
-  wram_call (CongruenceLoop.exec (x₃.comap (low (k := 29) le_rfl))
-    (a := 0) (b := R) (t := R + R) (r := R) (n := N) (A₀ := A)
-    (by change x₃.regs clR = 0; subst hx₃; wram_simp)
-    (by change x₃.regs clB = R; subst hx₃; wram_simp)
-    (by change x₃.regs clT = R + R; subst hx₃; wram_simp)
-    (by change x₃.regs clRr = R; subst hx₃; wram_simp)
-    (by change x₃.regs clNn = N; subst hx₃; wram_simp)
-    (by change x₃.regs clA = A; subst hx₃; wram_simp)
-    (by omega) (by omega) (by omega) (by omega) (by omega)
-    (fits_poly hs hw (by omega)) (fits_poly hs hw (by omega)) (fits_poly hs hw (by omega))
-    (fits_poly hs hw (by omega)) ((fits_sq hs hw hNs).of_le (by omega))
-    (fits_poly hs hw (by omega)))
-    renamed (low_injective _) with y₄ ⟨⟨hok, hokiff, -⟩, _⟩
-  change y₄.regs clOk ≤ 1 at hok
-  change y₄.regs clOk = 1 ↔ _ at hokiff
+  wram_call (NatSqrt.exec (w := w)) renamed (low_injective _)
+    [fits_poly hs hw (by omega : 4 * (Φ * L) + 4 ≤ 64 * s ^ 10)]
+    with y₂ ⟨⟨hroot, -, -, -⟩, hout₂⟩
+  wram_simp [← hAdef] at hroot
+  have hy₂n : y₂.regs nv = N := by regs_frame
+  have hy₂r : y₂.regs rv = R := by regs_frame
+  wram_exec [hroot, hy₂r, hy₂n, fits_poly hs hw (by omega : R + R ≤ 64 * s ^ 10)]
+  wram_call (CongruenceLoop.exec (w := w) (a := 0) (b := R) (t := R + R) (r := R) (n := N)
+      (A₀ := A))
+    renamed (low_injective _) [fits_poly hs hw (by omega : 0 + R ≤ 64 * s ^ 10),
+      fits_poly hs hw (by omega : R + R ≤ 64 * s ^ 10),
+      fits_poly hs hw (by omega : R + R + R ≤ 64 * s ^ 10),
+      fits_poly hs hw (by omega : 2 * R ≤ 64 * s ^ 10),
+      (fits_sq hs hw hNs).of_le (by omega : N * N + N ≤ N * N + 2 * N + 2),
+      fits_poly hs hw (by omega : A + 1 ≤ 64 * s ^ 10)]
+    with y₄ ⟨⟨hok, hokiff, -⟩, _⟩
+  wram_simp at hok hokiff
   wram_exec
-  wram_simp [hok, hokiff]
+  wram_simp [← hAdef, hok, hokiff]
   refine ⟨?_, Or.inr, fun h => h.resolve_left (by omega)⟩
-  rw [show low (k := 6) (by norm_num) NatSqrt.arg = sqArg from rfl, hx₁a]
   have hmul : PolyPow.mulTime R ≤ PolyPow.mulTime (4 * s ^ 5) := by
     unfold PolyPow.mulTime; gcongr
   have hin : Nat.size N * (2 * PolyPow.mulTime R + 6) + 4 + 26 * R + 57 + 6 ≤
@@ -336,10 +333,8 @@ private theorem congruenceSteps_exec {w s : ℕ} (x : Data 36) {N R L : ℕ} (hn
   omega
 
 /-- `n ≥ 2` has at least two bits. -/
-private theorem two_le_size {N : ℕ} (hN : 2 ≤ N) : 2 ≤ Nat.size N := by
-  by_contra h
-  have := Nat.size_le.mp (by omega : Nat.size N ≤ 1)
-  omega
+private theorem two_le_size {N : ℕ} (hN : 2 ≤ N) : 2 ≤ Nat.size N :=
+  Nat.lt_size.mpr (by rwa [pow_one])
 
 /-- **Steps 2 to 5.** For `n ≥ 2` that is not a perfect power, at a word size of at least
 `8 (size n + 1)`, the answer is `1` exactly when `n` is prime. -/
@@ -356,31 +351,13 @@ private theorem searchSteps_exec {w s : ℕ} (x : Data 36) {N : ℕ} (hn : x.reg
   obtain ⟨c, hcdef⟩ : ∃ c, Nat.clog 2 N = c := ⟨_, rfl⟩
   have hc : c ≤ s := hcdef ▸ Nat.clog_le_of_le_pow hNs.le
   have hcc : c * c ≤ s ^ 2 := by rw [sq]; exact Nat.mul_le_mul hc hc
-  have h1s : s ≤ s ^ 2 := by nlinarith
+  have h1s : s ≤ s ^ 2 := Nat.le_self_pow two_ne_zero s
   have h2s : s ^ 2 ≤ s ^ 10 := Nat.pow_le_pow_right (by omega) (by norm_num)
   have h5s : s ^ 5 ≤ s ^ 10 := Nat.pow_le_pow_right (by omega) (by norm_num)
   have hF2 : Fits w 2 := fits_poly hs hw (by omega)
   have hFN : Fits w N := fits_exp hw (hNs.trans (Nat.pow_lt_pow_right (by norm_num) (by omega)))
   have hFN1 : Fits w (N + 1) :=
     fits_exp hw (lt_of_le_of_lt hNs (Nat.pow_lt_pow_right (by norm_num) (by omega)))
-  unfold searchSteps clog orderSearch gcdTotient
-  wram_exec [hn]
-  refine WP.name fun x₁ hx₁ => ?_
-  have hx₁a : x₁.regs logArg = N := by subst hx₁; wram_simp
-  wram_call (NatClog.exec (x₁.comap (low (k := 4) (by norm_num))) hF2
-    (by change Fits w (x₁.regs logArg + 1); exact hx₁a ▸ hFN1)
-    (by change Fits w (Nat.clog 2 (x₁.regs logArg) + 1); rw [hx₁a, hcdef]
-        exact fits_poly hs hw (by omega)))
-    renamed (low_injective _) with y₂ ⟨⟨hres, -, -, -⟩, hout₂⟩
-  have hres' : y₂.regs logRes = c := by
-    change y₂.regs logRes = Nat.clog 2 (x₁.regs logArg) at hres
-    rwa [hx₁a, hcdef] at hres
-  have hy₂n : y₂.regs nv = N :=
-    (hout₂ nv (low_ne _ (by decide))).trans (by subst hx₁; wram_simp [hn])
-  have hy₂1 : y₂.regs one = 1 :=
-    (hout₂ one (low_ne _ (by decide))).trans (by subst hx₁; wram_simp [h1])
-  wram_exec [hres', hy₂n, fits_poly hs hw (by omega : c * c ≤ 64 * s ^ 10)]
-  refine WP.name fun x₃ hx₃ => ?_
   obtain ⟨r₀, hr₀2, hr₀s, hr₀ord⟩ := exists_lt_orderOf hN
   rw [hcdef] at hr₀s hr₀ord
   have hr₀s' : r₀ ≤ 4 * s ^ 5 := hr₀s.trans (Nat.mul_le_mul_left 4 (Nat.pow_le_pow_left hc 5))
@@ -389,40 +366,27 @@ private theorem searchSteps_exec {w s : ℕ} (x : Data 36) {N : ℕ} (hn : x.reg
     calc r₀ * r₀ ≤ (4 * s ^ 5) * (4 * s ^ 5) := Nat.mul_le_mul hr₀s' hr₀s'
       _ = 16 * s ^ 10 := by ring
       _ ≤ 64 * s ^ 10 := by omega)
-  wram_call (OrderSearch.exec (x₃.comap (low (k := 13) (by norm_num))) (N := N) (L₀ := c * c)
-    (r₀ := r₀) (by change x₃.regs osN = N; subst hx₃; wram_simp)
-    (by change x₃.regs osL = c * c; subst hx₃; wram_simp)
-    hr₀2 hgood hFN hFr₀ (fits_poly hs hw (by omega)))
-    renamed (low_injective _) with y₄ ⟨⟨hR2, hRr₀, hRgood, -, -⟩, hout₄⟩
+  unfold searchSteps clog orderSearch gcdTotient
+  wram_exec [hn]
+  wram_call (NatClog.exec (w := w)) renamed (low_injective _)
+    [hcdef, hF2, hFN1, fits_poly hs hw (by omega : c + 1 ≤ 64 * s ^ 10)]
+    with y₂ ⟨⟨hres, -, -, -⟩, hout₂⟩
+  wram_simp [hcdef] at hres
+  have hy₂n : y₂.regs nv = N := by regs_frame
+  wram_exec [hres, hy₂n, fits_poly hs hw (by omega : c * c ≤ 64 * s ^ 10)]
+  wram_call (OrderSearch.exec (w := w) (N := N) (L₀ := c * c) (r₀ := r₀)) renamed (low_injective _)
+    [hr₀2, hgood, hFN, hFr₀, fits_poly hs hw (by omega : c * c + 1 ≤ 64 * s ^ 10)]
+    with y₄ ⟨⟨hR2, hRr₀, hRgood, -, -⟩, hout₄⟩
   obtain ⟨R, hRdef⟩ : ∃ R, y₄.regs osR = R := ⟨_, rfl⟩
-  change 2 ≤ y₄.regs osR at hR2
-  change y₄.regs osR ≤ r₀ at hRr₀
-  change OrderSearch.Good N (c * c) (y₄.regs osR) at hRgood
-  rw [hRdef] at hR2 hRr₀ hRgood
+  wram_simp [hRdef] at hR2 hRr₀ hRgood
   have hRs : R ≤ 4 * s ^ 5 := hRr₀.trans hr₀s'
-  have hy₄n : y₄.regs nv = N :=
-    (hout₄ nv (low_ne _ (by decide))).trans (by subst hx₃; wram_simp [hy₂n])
-  have hy₄l : y₄.regs lv = c * c :=
-    (hout₄ lv (low_ne _ (by decide))).trans (by subst hx₃; wram_simp)
-  have hy₄1 : y₄.regs one = 1 :=
-    (hout₄ one (low_ne _ (by decide))).trans (by subst hx₃; wram_simp [hy₂1])
+  have hy₄n : y₄.regs nv = N := by regs_frame
   wram_exec [hRdef, hy₄n]
-  refine WP.name fun x₅ hx₅ => ?_
-  wram_call (GcdTotient.exec (x₅.comap (low (k := 11) (by norm_num))) (N := N) (R := R)
-    (by change x₅.regs gtN = N; subst hx₅; wram_simp)
-    (by change x₅.regs gtR = R; subst hx₅; wram_simp)
-    hR2 hFN (fits_poly hs hw (by omega)))
-    renamed (low_injective _) with y₆ ⟨⟨hok, hokiff, hphi, -, -⟩, hout₆⟩
-  change y₆.regs gtOk = 1 ↔ _ at hokiff
-  change y₆.regs gtPhi = Nat.totient R at hphi
-  have hy₆n : y₆.regs nv = N :=
-    (hout₆ nv (low_ne _ (by decide))).trans (by subst hx₅; wram_simp [hy₄n])
-  have hy₆r : y₆.regs rv = R :=
-    (hout₆ rv (low_ne _ (by decide))).trans (by subst hx₅; wram_simp)
-  have hy₆l : y₆.regs lv = c * c :=
-    (hout₆ lv (low_ne _ (by decide))).trans (by subst hx₅; wram_simp [hy₄l])
-  have hy₆1 : y₆.regs one = 1 :=
-    (hout₆ one (low_ne _ (by decide))).trans (by subst hx₅; wram_simp [hy₄1])
+  wram_call (GcdTotient.exec (w := w) (N := N) (R := R)) renamed (low_injective _)
+    [hR2, hFN, fits_poly hs hw (by omega : R + 1 ≤ 64 * s ^ 10)]
+    with y₆ ⟨⟨hok, hokiff, hphi, -, -⟩, hout₆⟩
+  wram_simp at hok hokiff hphi
+  have hy₆1 : y₆.regs one = 1 := by regs_frame
   have hord : Nat.clog 2 N ^ 2 < orderOf (N : ZMod R) := by
     rw [hcdef, sq]; exact (lt_orderOf_iff hR2).mpr hRgood
   have hprime := prime_iff_passesUpTo_numTestsNat hN hord
@@ -432,27 +396,22 @@ private theorem searchSteps_exec {w s : ℕ} (x : Data 36) {N : ℕ} (hn : x.reg
     unfold GcdTotient.time; gcongr
   by_cases h3 : y₆.regs gtOk = 1
   · wram_exec [h3, hy₆1, hphi]
-    refine WP.name fun x₇ hx₇ => ?_
-    wram_call (congruenceSteps_exec (w := w) x₇ (N := N) (R := R) (L := c * c)
-      (by subst hx₇; wram_simp [hy₆n]) (by subst hx₇; wram_simp [hy₆r])
-      (by subst hx₇; wram_simp [hy₆l]) (by subst hx₇; wram_simp) hsN hs hw hR2 hRs hcc)
-      with z ⟨hz1, hziff⟩
-    refine ⟨?_, hz1, ?_⟩
-    · rw [show low (k := 4) (by norm_num) NatClog.arg = logArg from rfl, hx₁a, hcdef]; omega
-    · rw [hziff, hprime, PassesUpTo, numTestsNat, hcdef, sq]
-      exact ⟨fun h => ⟨hpp, hokiff.mp h3, h⟩, fun h => h.2.2⟩
+    wram_call (congruenceSteps_exec (w := w) (s := s) _ (N := N) (R := R) (L := c * c))
+      [hsN, hs, hw, hR2, hRs, hcc] with z ⟨hz1, hziff⟩
+    wram_simp [hcdef]
+    refine ⟨by omega, hz1, ?_⟩
+    rw [hziff, hprime, PassesUpTo, numTestsNat, hcdef, sq]
+    exact ⟨fun h => ⟨hpp, hokiff.mp h3, h⟩, fun h => h.2.2⟩
   · wram_exec [h3, hy₆1]
-    wram_simp
-    refine ⟨?_, nofun, fun hp => h3 (hokiff.mpr (passesUpTo_of_prime hp R 0).2.1)⟩
-    rw [show low (k := 4) (by norm_num) NatClog.arg = logArg from rfl, hx₁a, hcdef]; omega
+    wram_simp [hcdef]
+    exact ⟨nofun, fun hp => h3 (hokiff.mpr (passesUpTo_of_prime hp R 0).2.1)⟩
 
 /-- **The AKS algorithm is correct.** At a word size of at least `8 (size n + 1)`, the program
 leaves `1` in `ans` if `n` is prime and `0` otherwise, within `time (size n)` instructions. -/
 theorem answers {w : ℕ} (N : ℕ) (hw : 8 * (Nat.size N + 1) ≤ w) :
     program.Answers ans w [N] N.Prime (time (Nat.size N)) := by
-  obtain ⟨s, hsN⟩ : ∃ s, Nat.size N = s := ⟨_, rfl⟩
-  rw [hsN] at hw ⊢
-  have hNs : N < 2 ^ s := hsN ▸ Nat.lt_size_self N
+  set s := Nat.size N with hsN
+  have hNs : N < 2 ^ s := Nat.lt_size_self N
   have h8 : 2 ^ 8 ≤ 2 ^ w := Nat.pow_le_pow_right (by norm_num) (by omega)
   have hF1 : Fits w 1 := fits_iff.mpr (by omega)
   have hF2 : Fits w 2 := fits_iff.mpr (by omega)
@@ -463,39 +422,26 @@ theorem answers {w : ℕ} (N : ℕ) (hw : 8 * (Nat.size N + 1) ≤ w) :
     wram_simp
     exact ⟨by unfold time; omega, nofun, fun hp => absurd hp.two_le (by omega)⟩
   have hN2 : 2 ≤ N := by omega
-  have hs : 2 ≤ s := hsN ▸ two_le_size hN2
+  have hs : 2 ≤ s := two_le_size hN2
   wram_exec [hmem, hF1, hF2, hN]
-  refine WP.name fun x₂ hx₂ => ?_
-  have hx₂n : x₂.regs ppN = N := by subst hx₂; wram_simp
-  wram_call (PerfectPower.exec (x₂.comap (low (k := 14) (by norm_num)))
-    (by change 2 ≤ x₂.regs ppN; exact hx₂n ▸ hN2)
-    (by change Fits w (x₂.regs ppN * x₂.regs ppN + 2 * x₂.regs ppN + 2)
-        exact hx₂n ▸ fits_sq hs hw hNs))
-    renamed (low_injective _) with y₃ ⟨⟨hflag, -, -⟩, hout₃⟩
-  have hpp_eq : IsPerfectPower (x₂.regs (low (k := 14) (by norm_num) PerfectPower.n)) ↔
-      IsPerfectPower N := by
-    rw [show low (k := 14) (by norm_num) PerfectPower.n = ppN from rfl, hx₂n]
-  have hy₃n : y₃.regs nv = N :=
-    (hout₃ nv (low_ne _ (by decide))).trans (by subst hx₂; wram_simp)
-  have hy₃1 : y₃.regs one = 1 :=
-    (hout₃ one (low_ne _ (by decide))).trans (by subst hx₂; wram_simp)
+  wram_call (PerfectPower.exec (w := w)) renamed (low_injective _)
+    [hN2, fits_sq hs hw hNs]
+    with y₃ ⟨⟨hflag, -, -⟩, hout₃⟩
+  wram_simp at hflag
+  have hy₃n : y₃.regs nv = N := by regs_frame
+  have hy₃1 : y₃.regs one = 1 := by regs_frame
   have hPP : PerfectPower.time N ≤ (s + 1) * (s * (6 * s + 13) + 6 * s + 22) + 4 * s + 11 := by
     have hlog : Nat.log 2 N ≤ s := (Nat.log_lt_of_lt_pow (by omega) hNs).le
     have hclog : Nat.clog 2 (N + 1) ≤ s := Nat.clog_le_of_le_pow hNs
     unfold PerfectPower.time; gcongr
   by_cases hpp : IsPerfectPower N
-  · have hflag1 : y₃.regs ppFlag = 1 := hflag.trans (ite_eq_left (hpp_eq.mpr hpp))
-    wram_exec [hflag1, hy₃1]
+  · wram_exec [hflag.trans (ite_eq_left hpp), hy₃1]
     wram_simp
-    refine ⟨?_, nofun, fun hp => not_isPerfectPower_of_prime hp hpp⟩
-    rw [show low (k := 14) (by norm_num) PerfectPower.n = ppN from rfl, hx₂n]
-    unfold time; omega
-  · have hflag0 : y₃.regs ppFlag = 0 := hflag.trans (ite_eq_right (mt hpp_eq.mp hpp))
-    wram_exec [hflag0, hy₃1]
-    wram_call (searchSteps_exec y₃ hy₃n hy₃1 hN2 hpp hsN hw) with z ⟨hz1, hziff⟩
-    refine ⟨?_, hz1, hziff⟩
-    rw [show low (k := 14) (by norm_num) PerfectPower.n = ppN from rfl, hx₂n]
-    unfold time; omega
+    exact ⟨by unfold time; omega, nofun, fun hp => not_isPerfectPower_of_prime hp hpp⟩
+  · wram_exec [hflag.trans (ite_eq_right hpp), hy₃1]
+    wram_call (searchSteps_exec y₃ hy₃n hy₃1 hN2 hpp hsN.symm hw) with z ⟨hz1, hziff⟩
+    wram_simp
+    exact ⟨by unfold time; omega, hz1, hziff⟩
 
 /-- **The AKS algorithm decides the primes.** Its compiled program, given `n` as one word at a word
 size of at least `8 (size n + 1)`, answers whether `n` is prime within `time (size n) + 1`

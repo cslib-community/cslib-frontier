@@ -94,12 +94,10 @@ theorem lazyNext_spec (c a : Fin k → α) (r : α) (ha : ∃ j, a j = r) :
     (∃ i, lazyNext c a r i = r) ∧
       (lazyNext c a r = c ∨ ∃ j, a j = r ∧ lazyNext c a r = Function.update c j r) := by
   classical
-  unfold lazyNext
   by_cases hc : ∃ i, c i = r
-  · simp only [hc, ↓reduceIte, true_or, and_true]
-  · simp only [hc, ↓reduceIte, ha, ↓reduceDIte]
-    refine ⟨⟨Classical.choose ha, Function.update_self _ _ _⟩, Or.inr ⟨_, Classical.choose_spec ha,
-      rfl⟩⟩
+  · simp only [lazyNext, hc, ↓reduceIte, true_or, and_true]
+  · simp only [lazyNext, hc, ha, ↓reduceIte, ↓reduceDIte]
+    exact ⟨⟨_, Function.update_self ..⟩, Or.inr ⟨_, Classical.choose_spec ha, rfl⟩⟩
 
 /-- One lazy step costs no more than following the simulated strategy, measured with the
 distance between the two configurations as a potential. -/
@@ -110,9 +108,8 @@ theorem moveCost_lazyNext_add_le (c a a' : Fin k → α) (r : α) (ha : ∃ j, a
   rcases (lazyNext_spec c a' r ha).2 with h | ⟨j, hj, h⟩
   · rw [h, moveCost_self]
     omega
-  · rw [h]
-    classical
-    have := moveCost_update_add_le M c a' j r hj
+  · have := moveCost_update_add_le M c a' j r hj
+    rw [h]
     omega
 
 /-- Lazy normalization of an online strategy: simulate `A` and move at most one server per
@@ -146,9 +143,8 @@ private theorem costFrom_lazify_le (A : DetStrategy (problem M k)) (m : A.Mem) (
 theorem cost_lazify_le (A : DetStrategy (problem M k)) (s₀ : Fin k → α) (reqs : List α) :
     (lazify M A).cost s₀ reqs ≤ A.cost s₀ reqs := by
   rw [(lazify M A).cost_eq_costFrom trivial, A.cost_eq_costFrom trivial]
-  have h := costFrom_lazify_le M A (A.init s₀) (A.valid_init trivial).1 s₀ reqs
-  rw [(A.valid_init (P := problem M k) trivial).2, moveCost_self, Nat.add_zero] at h
-  exact h
+  simpa [lazify, (A.valid_init (P := problem M k) trivial).2, moveCost_self] using
+    costFrom_lazify_le M A (A.init s₀) (A.valid_init trivial).1 s₀ reqs
 
 /-! ### Offline shadow schedules -/
 
@@ -182,18 +178,14 @@ private theorem moveCost_relocate {s : Fin k → α} (hs : Function.Injective s)
     (hq : ∃ i, s i = q) : moveCost M s (relocate s q r) = M.dist q r := by
   obtain ⟨i, rfl⟩ := hq
   unfold moveCost relocate
-  rw [Fintype.sum_eq_single i]
-  · simp only [↓reduceIte]
-  · intro j hj
-    have : s j ≠ s i := fun h => hj (hs h)
-    simp only [this, ↓reduceIte, M.dist_self]
+  refine (Fintype.sum_eq_single i fun j hj => ?_).trans (by simp only [↓reduceIte])
+  rw [ite_eq_right fun h => hj (hs h), M.dist_self]
 
 private theorem relocate_injective {s : Fin k → α} (hs : Function.Injective s) {q r : α}
     (hr : ∀ i, s i ≠ r) : Function.Injective (relocate s q r) := by
   intro i j hij
   unfold relocate at hij
-  by_cases hi : s i = q <;> by_cases hj : s j = q <;>
-    simp only [hi, hj, ↓reduceIte] at hij
+  split_ifs at hij with hi hj hj
   · exact hs (hi.trans hj.symm)
   · exact absurd hij.symm (hr j)
   · exact absurd hij (hr i)
@@ -205,14 +197,12 @@ private theorem mem_range_relocate_iff {s : Fin k → α} {q r x : α} (hq : ∃
   unfold relocate
   constructor
   · rintro ⟨i, hi⟩
-    by_cases h : s i = q
-    · simp only [h, ↓reduceIte] at hi
-      exact Or.inl hi.symm
-    · simp only [h, ↓reduceIte] at hi
-      exact Or.inr ⟨hi ▸ h, i, hi⟩
+    split_ifs at hi with h
+    · exact Or.inl hi.symm
+    · exact Or.inr ⟨hi ▸ h, i, hi⟩
   · rintro (rfl | ⟨hxq, i, rfl⟩)
-    · exact ⟨i₀, by simp only [hi₀, ↓reduceIte]⟩
-    · exact ⟨i, by simp only [hxq, ↓reduceIte]⟩
+    · exact ⟨i₀, ite_eq_left hi₀⟩
+    · exact ⟨i, ite_eq_right hxq⟩
 
 /-- If `s` covers exactly `S \ {h}` with distinct servers, and the previous request `q` lies in
 `S \ {h}`, then the shadow schedule is valid on requests from `S` and costs `holeCost h q rs`. -/
@@ -233,17 +223,9 @@ theorem shadowStates_spec (S : Finset α) {rs : List α} (hrs : ∀ r ∈ rs, r 
       have hcov : ¬ ∃ i, s i = r := fun hc => ((hrange r).1 hc).2 rfl
       have hnot : ∀ i, s i ≠ r := fun i hi => hcov ⟨i, hi⟩
       have hinj := relocate_injective hs (q := q) hnot
-      have hrange' : ∀ x, (∃ i, relocate s q r i = x) ↔ x ∈ S ∧ x ≠ q := by
-        intro x
+      have hrange' : ∀ x, (∃ i, relocate s q r i = x) ↔ x ∈ S ∧ x ≠ q := fun x => by
         rw [mem_range_relocate_iff hq, hrange x]
-        constructor
-        · rintro (rfl | ⟨hxq, hxS, _⟩)
-          · exact ⟨hrS, Ne.symm hqh⟩
-          · exact ⟨hxS, hxq⟩
-        · rintro ⟨hxS, hxq⟩
-          by_cases hxr : x = r
-          · exact Or.inl hxr
-          · exact Or.inr ⟨hxq, hxS, hxr⟩
+        grind
       obtain ⟨hv, hc⟩ := ih hrs' hinj hrange' hrS (Ne.symm hqh)
       simp only [shadowStates, hcov, ↓reduceIte, holeCost]
       refine ⟨⟨(mem_range_relocate_iff hq).2 (Or.inl rfl), hv⟩, ?_⟩
@@ -268,39 +250,25 @@ theorem sum_holeCost (S : Finset α) {rs : List α} (hrs : ∀ r ∈ rs, r ∈ S
     simp only [holeCost, pathLen]
     by_cases hrq : r = q
     · subst hrq
-      have hsum : ∀ h ∈ S.erase r, (if r = h then M.dist r r + holeCost M r r rs
-          else holeCost M h r rs) = holeCost M h r rs := fun h hh => by
-        have hne : r ≠ h := fun hrh => (Finset.ne_of_mem_erase hh) hrh.symm
-        simp only [hne, ↓reduceIte]
-      rw [Finset.sum_congr rfl hsum, ih', M.dist_self r, Nat.zero_add]
+      rw [Finset.sum_congr rfl fun _ hh => ite_eq_right (Finset.ne_of_mem_erase hh).symm,
+        ih', M.dist_self r, Nat.zero_add]
     · have hr : r ∈ S.erase q := Finset.mem_erase.2 ⟨hrq, hrS⟩
       have hq : q ∈ S.erase r := Finset.mem_erase.2 ⟨Ne.symm hrq, hqS⟩
       rw [← Finset.add_sum_erase _ _ hr, ite_eq_left rfl, ← ih',
         ← Finset.add_sum_erase _ _ hq, Finset.erase_right_comm, Nat.add_assoc]
       congr 2
-      refine Finset.sum_congr rfl fun h hh => ?_
-      have hne : r ≠ h := fun hrh =>
-        (Finset.ne_of_mem_erase (Finset.mem_of_mem_erase hh)) hrh.symm
-      simp only [hne, ↓reduceIte]
+      exact Finset.sum_congr rfl fun _ hh =>
+        ite_eq_right (Finset.ne_of_mem_erase (Finset.mem_of_mem_erase hh)).symm
 
 private theorem card_insert_image {s₀ : Fin k → α} (hs₀ : Function.Injective s₀) {z : α}
     (hz : ∀ i, s₀ i ≠ z) : (insert z (Finset.univ.image s₀)).card = k + 1 := by
-  have hzim : z ∉ Finset.univ.image s₀ := fun h => by
-    obtain ⟨i, _, hi⟩ := Finset.mem_image.1 h
-    exact hz i hi
-  rw [Finset.card_insert_of_notMem hzim, Finset.card_image_of_injective _ hs₀,
+  rw [Finset.card_insert_of_notMem (by simpa using hz), Finset.card_image_of_injective _ hs₀,
     Finset.card_univ, Fintype.card_fin]
 
 private theorem range_iff_insert_image {s₀ : Fin k → α} {z : α} (hz : ∀ i, s₀ i ≠ z) (x : α) :
     (∃ i, s₀ i = x) ↔ x ∈ insert z (Finset.univ.image s₀) ∧ x ≠ z := by
-  constructor
-  · rintro ⟨i, rfl⟩
-    exact ⟨Finset.mem_insert_of_mem (Finset.mem_image_of_mem _ (Finset.mem_univ i)), hz i⟩
-  · rintro ⟨hxS, hxz⟩
-    rcases Finset.mem_insert.1 hxS with h | h
-    · exact absurd h hxz
-    · obtain ⟨i, _, hi⟩ := Finset.mem_image.1 h
-      exact ⟨i, hi⟩
+  simp only [Finset.mem_insert, Finset.mem_image, Finset.mem_univ, true_and]
+  grind
 
 /-- Averaging over the `k` shadow schedules: if the first request is the extra point `z` and all
 later requests lie in the `(k + 1)`-point set, some valid offline schedule costs at most a `1 / k`
@@ -318,16 +286,10 @@ theorem exists_shadow_le {s₀ : Fin k → α} (hs₀ : Function.Injective s₀)
     ((range_iff_insert_image hz (s₀ i)).1 ⟨i, rfl⟩).1 (hz i)
   have hsum : ∑ i, holeCost M z (s₀ i) (z :: rest) =
       (∑ i, M.dist (s₀ i) z) + pathLen M z rest := by
-    have hh : ∀ i, holeCost M z (s₀ i) (z :: rest) =
-        M.dist (s₀ i) z + holeCost M (s₀ i) z rest :=
-      fun i => by simp only [holeCost, ↓reduceIte]
-    simp only [hh, Finset.sum_add_distrib]
+    simp only [holeCost, ↓reduceIte, Finset.sum_add_distrib]
     congr 1
-    have herase : S.erase z = Finset.univ.image s₀ := by
-      refine Finset.erase_insert fun h => ?_
-      obtain ⟨i, _, hi⟩ := Finset.mem_image.1 h
-      exact hz i hi
-    rw [← sum_holeCost M S hrest hzS, herase, Finset.sum_image fun i _ j _ h => hs₀ h]
+    rw [← sum_holeCost M S hrest hzS, Finset.erase_insert (by simpa using hz),
+      Finset.sum_image fun _ _ _ _ h => hs₀ h]
   obtain ⟨i, _, hi⟩ := Finset.exists_min_image Finset.univ
     (fun i => holeCost M z (s₀ i) (z :: rest)) ⟨⟨0, hk⟩, Finset.mem_univ _⟩
   refine ⟨shadowStates s₀ (s₀ i) (z :: rest), (hspec i).1, ?_⟩
@@ -386,39 +348,30 @@ private theorem lazy_uncovered_step {S : Finset α} (hS : S.card = k + 1) (x₀ 
       r ≠ uncovered S x₀ c' := by
   intro r c'
   obtain ⟨hrS, hrc⟩ := uncovered_spec hS x₀ c
-  rcases (lazyNext_spec c a r ha).2 with h | ⟨j, _, h⟩
-  · exact absurd ((lazyNext_spec c a r ha).1) (by rw [h]; exact fun ⟨i, hi⟩ => hrc i hi)
-  · have hc' : c' = Function.update c j r := h
+  rcases (lazyNext_spec c a r ha).2 with h | ⟨j, _, hc'⟩
+  · exact (lazyNext_spec c a r ha).1.elim fun i hi =>
+      False.elim (hrc i ((congrFun h i).symm.trans hi))
+  · change c' = Function.update c j r at hc'
     have hinj : Function.Injective c' := by
-      rw [hc']
       intro i₁ i₂ hi
-      by_cases h₁ : i₁ = j <;> by_cases h₂ : i₂ = j
-      · rw [h₁, h₂]
-      · rw [h₁, Function.update_self, Function.update_of_ne h₂] at hi
-        exact absurd hi.symm (hrc i₂)
-      · rw [h₂, Function.update_self, Function.update_of_ne h₁] at hi
-        exact absurd hi (hrc i₁)
-      · rw [Function.update_of_ne h₁, Function.update_of_ne h₂] at hi
-        exact hc hi
-    have hc'S : ∀ i, c' i ∈ S := by
-      intro i
-      rw [hc']
-      by_cases hi : i = j
-      · rw [hi, Function.update_self]; exact hrS
-      · rw [Function.update_of_ne hi]; exact hcS i
+      simp only [hc', Function.update_apply] at hi
+      split_ifs at hi with h₁ h₂ h₂
+      · exact h₁.trans h₂.symm
+      · exact absurd hi.symm (hrc i₂)
+      · exact absurd hi (hrc i₁)
+      · exact hc hi
+    have hc'S : ∀ i, c' i ∈ S := fun i => by
+      rw [hc', Function.update_apply]
+      split_ifs
+      exacts [hrS, hcS i]
     obtain ⟨hr'S, hr'c⟩ := uncovered_spec hS x₀ c'
     have hcj : uncovered S x₀ c' = c j := by
       refine uncovered_unique hS hinj hc'S hr'S (hcS j) hr'c fun i hi => ?_
-      rw [hc'] at hi
-      by_cases hij : i = j
-      · rw [hij, Function.update_self] at hi
-        exact hrc j hi.symm
-      · rw [Function.update_of_ne hij] at hi
-        exact hij (hc hi)
-    refine ⟨hinj, hc'S, ?_, ?_⟩
-    · rw [hcj, hc', moveCost_update, M.dist_comm]
-    · rw [hcj]
-      exact fun h => hrc j h.symm
+      rw [hc', Function.update_apply] at hi
+      split_ifs at hi with hij
+      exacts [hrc j hi.symm, hij (hc hi)]
+    refine ⟨hinj, hc'S, ?_, hcj ▸ fun h => hrc j h.symm⟩
+    rw [hcj, hc', moveCost_update, M.dist_comm]
 
 /-- Against the uncovered-point adversary, the lazy simulation pays the request path length, and
 at least `1` per request. -/
@@ -484,40 +437,28 @@ theorem exists_ratio_violation {s₀ : Fin k → α} (hs₀ : Function.Injective
   have hmem : ∀ r ∈ reqs, r ∈ S := fun r hr =>
     (lazify M A).mem_adaptiveRequests (Q := (· ∈ S))
       (fun {_} _ => (uncovered_spec hS z _).1) trivial hr
-  have hhead : reqs = z :: reqs.tail := by
-    change uncovered S z s₀ :: _ = _
-    rw [hu]
-    rfl
+  have hhead : reqs = z :: reqs.tail := congrArg (· :: reqs.tail) hu
   obtain ⟨off, hv, hoff⟩ := exists_shadow_le M hs₀ hz hk (rest := reqs.tail)
     fun r hr => hmem r (List.mem_of_mem_tail hr)
   rw [← hhead] at hv hoff
   obtain ⟨h1, h2⟩ := lazy_costFrom_ge M hS z A (n + 1) (A.init s₀) s₀
     (A.valid_init trivial).1 hs₀ hs₀S
-  have hL : (lazify M A).cost s₀ reqs =
-      (lazify M A).costFrom (A.init s₀, s₀) reqs := (lazify M A).cost_eq_costFrom trivial reqs
   rw [hu] at h1
-  change pathLen M z reqs.tail ≤ (lazify M A).costFrom (A.init s₀, s₀) reqs at h1
-  change n + 1 ≤ (lazify M A).costFrom (A.init s₀, s₀) reqs at h2
-  have hA := cost_lazify_le M A s₀ reqs
-  rw [hL] at hA
+  have hA := ((lazify M A).cost_eq_costFrom trivial reqs).symm.trans_le (cost_lazify_le M A s₀ reqs)
   refine ⟨reqs, off, hv, ?_⟩
   set O := (problem M k).scheduleCost s₀ reqs off
   set C := A.cost s₀ reqs
-  have hpath : pathLen M z reqs.tail ≤ C := by omega
-  have hn : n + 1 ≤ C := by omega
-  have hO : k * O ≤ I + C := by omega
+  have hn : n + 1 ≤ C := h2.trans hA
+  have hO : k * O ≤ I + C := hoff.trans (Nat.add_le_add_left (h1.trans hA) I)
   have hqO : k * q * O ≤ q * I + q * C := by
-    calc k * q * O = q * (k * O) := by rw [Nat.mul_comm k q, Nat.mul_assoc]
-      _ ≤ q * (I + C) := Nat.mul_le_mul_left q hO
-      _ = q * I + q * C := Nat.mul_add q I C
+    rw [Nat.mul_comm k q, Nat.mul_assoc, ← Nat.mul_add]
+    exact Nat.mul_le_mul_left q hO
   have hpO : (p + 1) * O ≤ k * q * O := Nat.mul_le_mul_right O hpq
   by_contra hcon
-  have hcon' : q * C ≤ p * O + b := by omega
   rw [Nat.add_one_mul] at hpO
   have hOb : O ≤ b + q * I := by omega
-  have : p * O ≤ p * (b + q * I) := Nat.mul_le_mul_left p hOb
-  have hq : 0 < q := Nat.pos_of_ne_zero fun h => by rw [h, Nat.mul_zero] at hpq; omega
-  have hqC : C ≤ q * C := Nat.le_mul_of_pos_left C hq
+  have := Nat.mul_le_mul_left p hOb
+  have := Nat.le_mul_of_pos_left C (Nat.pos_of_ne_zero (by rintro rfl; omega) : 0 < q)
   omega
 
 /-- **Manasse–McGeoch–Sleator lower bound.** From `k` distinct initial positions avoiding some
@@ -526,9 +467,8 @@ theorem not_isCompetitiveFrom_of_lt {s₀ : Fin k → α} (hs₀ : Function.Inje
     (hz : ∀ i, s₀ i ≠ z) (A : DetStrategy (problem M k)) {c : Nat} (hc : c < k) (b : Nat) :
     ¬ A.IsCompetitiveFrom s₀ c b := by
   intro h
-  obtain ⟨reqs, offStates, hv, hlt⟩ :=
-    exists_ratio_violation M hs₀ hz A (p := c) (q := 1) (by omega) b
-  have := h reqs offStates hv
+  obtain ⟨reqs, off, hv, hlt⟩ := exists_ratio_violation M hs₀ hz A (p := c) (q := 1) (by omega) b
+  have := h reqs off hv
   omega
 
 /-- On any metric with `k + 1` distinct points, no deterministic online `k`-server strategy is

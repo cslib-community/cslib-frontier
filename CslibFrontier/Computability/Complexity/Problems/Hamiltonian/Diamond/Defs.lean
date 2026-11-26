@@ -152,8 +152,7 @@ def Satisfiable (M : ℕ) (D : List Detour) : Prop :=
   (rowNode_ne_clauseNode i a j).symm
 
 theorem rowLength_sub_one (slots : ℕ → ℕ) (i : ℕ) : rowLength slots i - 1 = 3 * slots i + 2 := by
-  simp only [rowLength]
-  omega
+  simp only [rowLength]; omega
 
 variable {N : ℕ} {slots : ℕ → ℕ} {M : ℕ} {D : List Detour}
 
@@ -161,16 +160,7 @@ theorem mem_vertices {v : ℕ} :
     v ∈ vertices N slots M ↔ (∃ i ≤ N, v = topNode i) ∨
       (∃ i < N, ∃ a < rowLength slots i, v = rowNode i a) ∨ (∃ j < M, v = clauseNode j) := by
   simp only [vertices, List.mem_append, List.mem_map, List.mem_range, List.mem_flatMap,
-    Nat.lt_succ_iff]
-  constructor
-  · rintro ((⟨i, hi, rfl⟩ | ⟨i, hi, a, ha, rfl⟩) | ⟨j, hj, rfl⟩)
-    · exact Or.inl ⟨i, hi, rfl⟩
-    · exact Or.inr (Or.inl ⟨i, hi, a, ha, rfl⟩)
-    · exact Or.inr (Or.inr ⟨j, hj, rfl⟩)
-  · rintro (⟨i, hi, rfl⟩ | ⟨i, hi, a, ha, rfl⟩ | ⟨j, hj, rfl⟩)
-    · exact Or.inl (Or.inl ⟨i, hi, rfl⟩)
-    · exact Or.inl (Or.inr ⟨i, hi, a, ha, rfl⟩)
-    · exact Or.inr ⟨j, hj, rfl⟩
+    Nat.lt_succ_iff, or_assoc, eq_comm (b := v)]
 
 theorem mem_arcs {u v : ℕ} :
     (u, v) ∈ arcs N slots D ↔
@@ -185,27 +175,19 @@ theorem mem_arcs {u v : ℕ} :
         (d.leftToRight = false ∧ ((u = rowNode d.row (3 * d.slot + 3) ∧ v = clauseNode d.clause) ∨
           (u = clauseNode d.clause ∧ v = rowNode d.row (3 * d.slot + 2))))) := by
   simp only [arcs, List.mem_append, List.mem_flatMap, List.mem_range]
-  refine or_congr ?_ (exists_congr fun d => and_congr_right fun _ => ?_)
-  · refine exists_congr fun i => and_congr_right fun _ => ?_
-    simp only [diamondArcs, List.mem_append, List.mem_cons, List.mem_flatMap, List.mem_range,
+  refine or_congr (exists_congr fun i => and_congr_right fun _ => ?_)
+    (exists_congr fun d => and_congr_right fun _ => ?_)
+  · simp only [diamondArcs, List.mem_append, List.mem_cons, List.mem_flatMap, List.mem_range,
       Prod.mk.injEq, List.not_mem_nil, or_false]
     constructor
-    · rintro ((h | h | h | h) | ⟨a, ha, h | h⟩)
-      · exact Or.inl ⟨h.1, Or.inl h.2⟩
-      · exact Or.inl ⟨h.1, Or.inr h.2⟩
-      · exact Or.inr (Or.inl ⟨Or.inl h.1, h.2⟩)
-      · exact Or.inr (Or.inl ⟨Or.inr h.1, h.2⟩)
-      · exact Or.inr (Or.inr ⟨a, ha, Or.inl h⟩)
-      · exact Or.inr (Or.inr ⟨a, ha, Or.inr h⟩)
-    · rintro (⟨h₁, h₂ | h₂⟩ | ⟨h₁ | h₁, h₂⟩ | ⟨a, ha, h | h⟩)
-      · exact Or.inl (Or.inl ⟨h₁, h₂⟩)
-      · exact Or.inl (Or.inr (Or.inl ⟨h₁, h₂⟩))
-      · exact Or.inl (Or.inr (Or.inr (Or.inl ⟨h₁, h₂⟩)))
-      · exact Or.inl (Or.inr (Or.inr (Or.inr ⟨h₁, h₂⟩)))
-      · exact Or.inr ⟨a, ha, Or.inl h⟩
-      · exact Or.inr ⟨a, ha, Or.inr h⟩
+    · rintro ((h | h | h | h) | h)
+      exacts [.inl ⟨h.1, .inl h.2⟩, .inl ⟨h.1, .inr h.2⟩, .inr (.inl ⟨.inl h.1, h.2⟩),
+        .inr (.inl ⟨.inr h.1, h.2⟩), .inr (.inr h)]
+    · rintro (⟨h₁, h₂ | h₂⟩ | ⟨h₁ | h₁, h₂⟩ | h)
+      exacts [.inl (.inl ⟨h₁, h₂⟩), .inl (.inr (.inl ⟨h₁, h₂⟩)),
+        .inl (.inr (.inr (.inl ⟨h₁, h₂⟩))), .inl (.inr (.inr (.inr ⟨h₁, h₂⟩))), .inr h]
   · unfold detourArcs
-    cases hb : d.leftToRight <;> simp
+    cases d.leftToRight <;> simp
 
 /-- The number of vertices of a diamond graph, counted as listed. -/
 theorem length_vertices (N : ℕ) (slots : ℕ → ℕ) (M : ℕ) :
@@ -219,12 +201,12 @@ theorem length_vertices (N : ℕ) (slots : ℕ → ℕ) (M : ℕ) :
 /-- The number of arcs of a diamond graph, counted as listed. -/
 theorem length_arcs (N : ℕ) (slots : ℕ → ℕ) (D : List Detour) :
     (arcs N slots D).length = 8 * N + 6 * ((List.range N).map slots).sum + 2 * D.length := by
-  have h₁ : ∀ i, (diamondArcs slots i).length = 6 * slots i + 8 := fun i => by
+  have h₁ (i : ℕ) : (diamondArcs slots i).length = 6 * slots i + 8 := by
     simp only [diamondArcs, List.length_append, List.length_cons, List.length_nil,
       List.length_flatMap, List.map_const', List.length_range, List.sum_replicate, smul_eq_mul,
       rowLength_sub_one]
     ring
-  have h₂ : ∀ d, (detourArcs d).length = 2 := fun d => by
+  have h₂ (d : Detour) : (detourArcs d).length = 2 := by
     unfold detourArcs
     split_ifs <;> rfl
   simp only [arcs, List.length_append, List.length_flatMap, h₁, h₂]

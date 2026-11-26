@@ -173,7 +173,7 @@ private theorem run_honest_verify (e : ArithQBF V) (r : V → F) (s : Unit) :
     rw [verify, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query]
     have hlist : (coeffsBelow (e.restrict r v) (e.degBound v + 1)).take (e.degBound v + 1) =
         coeffsBelow (e.restrict r v) (e.degBound v + 1) :=
-      List.take_of_length_le (by rw [length_coeffsBelow])
+      List.take_of_length_le (length_coeffsBelow _ _).le
     have hval (z : F) : evalCoeffList z (coeffsBelow (e.restrict r v) (e.degBound v + 1)) =
         e.eval (Function.update r v z) := by
       rw [← eval_ofCoeffList,
@@ -181,8 +181,7 @@ private theorem run_honest_verify (e : ArithQBF V) (r : V → F) (s : Unit) :
         ArithQBF.eval_restrict]
     simp only [honest, honestReply, PMF.pure_bind, hlist, hval, ArithQBF.eval_op, ↓reduceIte]
     rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, PMF.bind_map]
-    simp only [Function.comp_def, ih]
-    exact PMF.bind_const _ _
+    simp only [Function.comp_def, ih, PMF.bind_const]
 
 /-- **Perfect completeness**: the honest prover is accepted on every true claim with
 probability `1`. -/
@@ -214,8 +213,7 @@ theorem acceptProbWith_query_ite_le (q : Q) (check : spec q → Prop) [Decidable
   refine Probability.PMF.tsum_mul_le_of_forall_le _ fun x => ?_
   split_ifs with hcheck
   · exact hnext x.1 hcheck x.2
-  · rw [ProbOracleComp.acceptProbWith_pure]
-    exact zero_le
+  · simp [ProbOracleComp.acceptProbWith_pure]
 
 /-- **The round at a binary connective**: running `second` only after `first` accepted accepts
 with probability at most `B₁ + B₂` if `first` accepts with probability at most `B₁` or `second`
@@ -230,8 +228,7 @@ theorem acceptProbWith_bind_ite_le_add {first second : ProbOracleComp spec Bool}
   · rw [ProbOracleComp.acceptProbWith_bind]
     refine (Probability.PMF.tsum_mul_le_of_forall_le _ fun x => ?_).trans le_add_self
     cases x.1
-    · simp only [Bool.false_eq_true, ↓reduceIte, ProbOracleComp.acceptProbWith_pure]
-      exact zero_le
+    · simp [ProbOracleComp.acceptProbWith_pure]
     · exact h₂ x.2
 
 omit [DecidableEq F] in
@@ -247,16 +244,14 @@ theorem acceptProbWith_sample_le [IsDomain F] {ε : ℝ≥0∞}
     acceptProbWith oracle (ProbOracleComp.sample sampler >>= next) s ≤ d * ε + B := by
   classical
   rw [ProbOracleComp.acceptProbWith_sample_bind]
-  have hne' : p - g ≠ 0 := sub_ne_zero.2 hne
   have hcard : ((p - g).roots.toFinset.card : ℝ≥0∞) ≤ d := by
     exact_mod_cast (Multiset.toFinset_card_le _).trans
       ((card_roots' _).trans ((natDegree_sub_le _ _).trans (max_le hp hg)))
   refine (Probability.PMF.tsum_mul_le_card_mul_add _ hsampler (p - g).roots.toFinset
     fun z => ?_).trans (by gcongr)
   by_cases hz : p.eval z = g.eval z
-  · have : z ∈ (p - g).roots.toFinset := by
-      rw [Multiset.mem_toFinset, mem_roots hne', IsRoot, eval_sub, hz, sub_self]
-    simp only [this, ↓reduceIte]
+  · rw [ite_eq_left (Multiset.mem_toFinset.2 ((mem_roots (sub_ne_zero.2 hne)).2
+      (by rw [IsRoot, eval_sub, hz, sub_self])))]
     exact (ProbOracleComp.acceptProbWith_le_one _ _ _).trans le_self_add
   · exact (hnext z hz).trans le_add_self
 
@@ -270,15 +265,9 @@ theorem acceptProb_verify_le [IsDomain F] {ε : ℝ≥0∞}
     (hc : e.eval r ≠ c) (s : S) :
     acceptProbWith respond (verify sampler e r c) s ≤ e.roundDegree * ε := by
   induction e generalizing r c s with
-  | var v =>
-    rw [verify, decide_eq_false (show r v ≠ c from hc), ProbOracleComp.acceptProbWith_pure]
-    exact zero_le
-  | top =>
-    rw [verify, decide_eq_false (show c ≠ 1 from Ne.symm hc), ProbOracleComp.acceptProbWith_pure]
-    exact zero_le
-  | bot =>
-    rw [verify, decide_eq_false (show c ≠ 0 from Ne.symm hc), ProbOracleComp.acceptProbWith_pure]
-    exact zero_le
+  | var v => simp [verify, show r v ≠ c from hc, ProbOracleComp.acceptProbWith_pure]
+  | top => simp [verify, show c ≠ 1 from Ne.symm hc, ProbOracleComp.acceptProbWith_pure]
+  | bot => simp [verify, show c ≠ 0 from Ne.symm hc, ProbOracleComp.acceptProbWith_pure]
   | not e ih =>
     rw [verify, ArithQBF.roundDegree]
     exact ih (fun h => hc (by rw [ArithQBF.eval_not, h, sub_sub_cancel])) s
@@ -293,14 +282,13 @@ theorem acceptProb_verify_le [IsDomain F] {ε : ℝ≥0∞}
     rw [verify, ArithQBF.roundDegree, Nat.cast_add, add_mul]
     refine acceptProbWith_query_ite_le respond _ _ (fun l hcheck s => ?_) s
     set L := l.take (e.degBound v + 1)
-    have hL (z : F) : evalCoeffList z L = (ofCoeffList L).eval z := (eval_ofCoeffList z _).symm
-    have hg (z : F) := e.eval_restrict r v z
     refine acceptProbWith_sample_le sampler respond hsampler (p := ofCoeffList L)
-      (g := e.restrict r v) (fun h => hc ?_) ((natDegree_ofCoeffList_le L).trans (by
-        rw [List.length_take]; omega)) (e.natDegree_restrict_le r v) fun z hz => ?_
-    · rw [ArithQBF.eval_op, ← hg, ← hg, ← h, ← hL, ← hL, hcheck]
-    · rw [hL]
-      exact ih (fun h => hz (by rw [hg, h])) s
+      (g := e.restrict r v) (fun h => hc ?_)
+      ((natDegree_ofCoeffList_le L).trans (by rw [List.length_take]; omega))
+      (e.natDegree_restrict_le r v) fun z hz => ?_
+    · simpa only [ArithQBF.eval_op, ← eval_ofCoeffList, h, e.eval_restrict] using hcheck
+    · rw [← eval_ofCoeffList]
+      exact ih (fun h => hz (by rw [e.eval_restrict, h])) s
 
 /-- **Soundness for uniform samples**: with ring elements drawn uniformly from a finite integral
 domain, every prover is accepted on a false claim with probability at most
@@ -324,8 +312,7 @@ theorem acceptProb_honest_arithmetize (xs : List V) {φ : QBF V} (hφ : φ.Close
     acceptProbWith honest (verify sampler (φ.arithmetize xs) 0 1) () = 1 := by
   have h := QBF.eval_arithmetize_zero (R := F) xs hφ (fun _ => false)
   simp only [htrue, ↓reduceIte] at h
-  have hacc := acceptProb_honest_verify sampler (φ.arithmetize xs) 0
-  rwa [h] at hacc
+  simpa only [← h] using acceptProb_honest_verify sampler (φ.arithmetize xs) 0
 
 /-- **Soundness for quantified Boolean formulas**: on a false closed formula whose variables are
 all in `xs`, every prover is accepted on the claim that the arithmetization has value `1` at the
@@ -361,10 +348,9 @@ theorem acceptProb_le_of_notMem_TQBF [IsDomain F] [Fintype F] {φ : QBF ℕ} (h�
   simp only [hfalse, Bool.false_eq_true, ↓reduceIte] at h
   refine (acceptProb_verify_uniform_le respond _ (by rw [h]; exact zero_ne_one) s).trans ?_
   gcongr
-  have hrd := QBF.roundDegree_arithmetize_le (xs := φ.vars) (φ := φ) fun _ hv => hv
-  have hlen := QBF.length_vars_le_size φ
-  have hs := QBF.one_le_size φ
-  refine hrd.trans ?_
+  have := QBF.length_vars_le_size φ
+  have := QBF.one_le_size φ
+  refine (QBF.roundDegree_arithmetize_le fun _ hv => hv).trans ?_
   calc (2 * φ.vars.length + 1) * φ.size ^ 2 ≤ (3 * φ.size) * φ.size ^ 2 :=
         Nat.mul_le_mul_right _ (by omega)
     _ = 3 * φ.size ^ 3 := by ring

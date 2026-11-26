@@ -163,22 +163,20 @@ members of `S` below `y` is at most summing `g` over the ranks below the rank of
 private theorem sum_rank_le (S : Finset V) (y : V) {g : ℕ → ℝ} (hg : ∀ j, 0 ≤ g j) :
     ∑ z ∈ S.filter (· < y), g #(S.filter (· < z)) ≤
       ∑ j ∈ range #(S.filter (· < y)), g j := by
-  have hlt : ∀ {a b : V}, a ∈ S → a < b → #(S.filter (· < a)) < #(S.filter (· < b)) :=
-    fun {a b} ha hab => Finset.card_lt_card <| Finset.ssubset_iff_of_subset
+  have hlt {a b : V} (ha : a ∈ S) (hab : a < b) : #(S.filter (· < a)) < #(S.filter (· < b)) :=
+    Finset.card_lt_card <| Finset.ssubset_iff_of_subset
       (fun w hw => by simp only [mem_filter] at hw ⊢; exact ⟨hw.1, hw.2.trans hab⟩)
       |>.mpr ⟨a, by simp [ha, hab], by simp⟩
-  have hinj : Set.InjOn (fun z => #(S.filter (· < z))) (S.filter (· < y) : Set V) := by
-    intro a ha b hb hab
-    simp only [coe_filter, Set.mem_ofPred_eq] at ha hb
-    by_contra hne
-    rcases lt_or_gt_of_ne hne with h | h
-    · exact (hlt ha.1 h).ne hab
-    · exact (hlt hb.1 h).ne hab.symm
+  have hinj : Set.InjOn (fun z => #(S.filter (· < z))) (S.filter (· < y) : Set V) :=
+    fun a ha b hb hab => by
+      by_contra hne
+      exact (lt_or_gt_of_ne hne).elim
+        (fun h => (hlt (mem_filter.mp ha).1 h).ne hab)
+        (fun h => (hlt (mem_filter.mp hb).1 h).ne hab.symm)
   rw [← Finset.sum_image (f := g) hinj]
   refine Finset.sum_le_sum_of_subset_of_nonneg (fun j hj => ?_) fun j _ _ => hg j
   obtain ⟨z, hz, rfl⟩ := Finset.mem_image.mp hj
-  simp only [mem_filter] at hz
-  exact Finset.mem_range.mpr (hlt hz.1 hz.2)
+  exact Finset.mem_range.mpr (hlt (mem_filter.mp hz).1 (mem_filter.mp hz).2)
 
 variable (hC : C.IsStrictUpperTriangular) (hC0 : ∀ x y, 0 ≤ C x y) (hCf : ∀ x y, C x y ≤ f)
   (hC1 : C *ᵥ 1 ≤ 1) (hφ0 : ∀ y t, 0 ≤ φ y t) (hφθ : ∀ y t, φ y t ≤ max (t - θ * f) 0)
@@ -242,8 +240,7 @@ include hφθ in
 /-- A positive cutoff leaves at least `θ f` behind. -/
 private theorem le_sub_cutoff_of_pos (y : V) {t : ℝ} (h : 0 < φ y t) : θ * f ≤ t - φ y t := by
   have h1 := hφθ y t
-  have h2 : 0 < t - θ * f := by grind
-  rw [max_eq_left h2.le] at h1
+  rw [max_eq_left (by grind : 0 ≤ t - θ * f)] at h1
   linarith
 
 include hC in
@@ -267,25 +264,22 @@ private theorem card_support_mul_le (hθf : 0 ≤ θ * f) :
   set E := cutoffCorrectionFix φ C
   have hE0 : ∀ i j, 0 ≤ E i j := cutoffCorrectionIter_nonneg hφ0 _
   have hEfix : ∀ y, E x y = φ y ((C + E * C) x y) := fix_apply hC x
-  have hres : ∀ y, (C - E + E * C) x y = (C + E * C) x y - E x y := fun y => by
-    simp only [Matrix.add_apply, Matrix.sub_apply]; ring
-  have hres0 : ∀ y, 0 ≤ (C - E + E * C) x y := fun y => by
+  have hres (y : V) : (C - E + E * C) x y = (C + E * C) x y - E x y := by
+    simp only [Matrix.add_apply, Matrix.sub_apply]
+    ring
+  have hres0 (y : V) : 0 ≤ (C - E + E * C) x y := by
     rw [hres, hEfix y, sub_nonneg]
     exact cutoff_le_self hφθ hθf y (correctionInput_nonneg hC0 hE0 x y)
-  have hrow : ∑ y, (C - E + E * C) x y ≤ 1 := by
-    simpa [mulVec, dotProduct] using (correction_mulVec_one_le hE0 hC1 x).trans (hC1 x)
   calc (#(support (φ := φ) (C := C) x) : ℝ) * (θ * f)
       = ∑ y ∈ support (φ := φ) (C := C) x, θ * f := by rw [sum_const, nsmul_eq_mul]
-    _ ≤ ∑ y ∈ support (φ := φ) (C := C) x, (C - E + E * C) x y := by
-        refine Finset.sum_le_sum fun y hy => ?_
-        have hpos : 0 < φ y ((C + E * C) x y) := by
-          rw [← hEfix y]
-          exact lt_of_le_of_ne (hE0 x y) (Ne.symm (by simpa using hy))
-        rw [hres, hEfix y]
-        exact le_sub_cutoff_of_pos hφθ y hpos
+    _ ≤ ∑ y ∈ support (φ := φ) (C := C) x, (C - E + E * C) x y :=
+        Finset.sum_le_sum fun y hy => by
+          rw [hres, hEfix y]
+          exact le_sub_cutoff_of_pos hφθ y
+            (hEfix y ▸ lt_of_le_of_ne (hE0 x y) (Ne.symm (by simpa using hy)))
     _ ≤ ∑ y, (C - E + E * C) x y :=
         Finset.sum_le_sum_of_subset_of_nonneg (subset_univ _) fun y _ _ => hres0 y
-    _ ≤ 1 := hrow
+    _ ≤ 1 := by simpa [mulVec, dotProduct] using (correction_mulVec_one_le hE0 hC1 x).trans (hC1 x)
 
 /-- A sum `∑ z, F x z * C z y` only sees the members of `support x` below `y`, when `F` vanishes
 outside the support. -/
@@ -308,16 +302,14 @@ private theorem fix_le_pow (hf : 0 ≤ f) (hθf : 0 ≤ θ * f) (y : V) :
   induction y using WellFoundedLT.induction with
   | ind y ih =>
     set S := support (φ := φ) (C := C) x
-    have hEfix : E x y = φ y ((C + E * C) x y) := fix_apply hC x y
-    have hsum : ∑ z, E x z * C z y = ∑ z ∈ S.filter (· < y), E x z * C z y :=
-      sum_mul_eq_sum_support x hC (fun _ h => h) y
     calc E x y ≤ (C + E * C) x y := by
-          rw [hEfix]; exact cutoff_le_self hφθ hθf y (correctionInput_nonneg hC0 hE0 x y)
+          rw [show E x y = φ y ((C + E * C) x y) from fix_apply hC x y]
+          exact cutoff_le_self hφθ hθf y (correctionInput_nonneg hC0 hE0 x y)
       _ = C x y + ∑ z ∈ S.filter (· < y), E x z * C z y := by
-          rw [Matrix.add_apply, Matrix.mul_apply, hsum]
-      _ ≤ f + ∑ z ∈ S.filter (· < y), f * (1 + f) ^ #(S.filter (· < z)) * f := by
-          refine add_le_add (hCf x y) (Finset.sum_le_sum fun z hz => ?_)
-          exact mul_le_mul (ih z (mem_filter.mp hz).2) (hCf z y) (hC0 z y) (by positivity)
+          rw [Matrix.add_apply, Matrix.mul_apply, sum_mul_eq_sum_support x hC (fun _ h => h) y]
+      _ ≤ f + ∑ z ∈ S.filter (· < y), f * (1 + f) ^ #(S.filter (· < z)) * f :=
+          add_le_add (hCf x y) (Finset.sum_le_sum fun z hz =>
+            mul_le_mul (ih z (mem_filter.mp hz).2) (hCf z y) (hC0 z y) (by positivity))
       _ = f + f * f * ∑ z ∈ S.filter (· < y), (1 + f) ^ #(S.filter (· < z)) := by
           rw [Finset.mul_sum]; congr 1; exact Finset.sum_congr rfl fun z _ => by ring
       _ ≤ f + f * f * ∑ j ∈ range #(S.filter (· < y)), (1 + f) ^ j := by
@@ -336,8 +328,7 @@ private theorem fix_sub_iter_le_choose (hf : 0 ≤ f) (hθf : 0 ≤ θ * f) (hL 
         (#((support (φ := φ) (C := C) x).filter (· < y))).choose k := by
   set E := cutoffCorrectionFix φ C
   set S := support (φ := φ) (C := C) x
-  have hE0 : ∀ i j, 0 ≤ E i j := cutoffCorrectionIter_nonneg hφ0 _
-  have hM : ∀ y, E x y ≤ f * (1 + f) ^ #S := fun y =>
+  have hM (y : V) : E x y ≤ f * (1 + f) ^ #S :=
     (fix_le_pow hC hC0 hCf hφ0 hφθ x hf hθf y).trans <| mul_le_mul_of_nonneg_left
       (pow_le_pow_right₀ (by linarith) (card_le_card (filter_subset _ _))) hf
   induction k generalizing y with
@@ -346,31 +337,29 @@ private theorem fix_sub_iter_le_choose (hf : 0 ≤ f) (hθf : 0 ≤ θ * f) (hL 
   | succ k ih =>
     set F := cutoffCorrectionIter φ C k
     have hFE : ∀ z, F x z ≤ E x z := cutoffCorrectionIter_le_fix hC hC0 hφ0 hφm k x
-    have hEfix : E x y = φ y ((C + E * C) x y) := fix_apply hC x y
     have hsum : ∑ z, (E - F) x z * C z y = ∑ z ∈ S.filter (· < y), (E - F) x z * C z y :=
-      sum_mul_eq_sum_support x hC (fun z hz => by
-        change E x z = 0 at hz
+      sum_mul_eq_sum_support x hC (fun z (hz : E x z = 0) => by
         rw [Matrix.sub_apply, hz, sub_eq_zero]
         exact le_antisymm (cutoffCorrectionIter_nonneg (C := C) hφ0 k x z) (hz ▸ hFE z)) y
     have hdiff : (C + E * C) x y - (C + F * C) x y = ∑ z, (E - F) x z * C z y := by
       simp only [Matrix.add_apply, Matrix.mul_apply, Matrix.sub_apply, sub_mul,
         Finset.sum_sub_distrib]
       ring
-    have hle : (C + F * C) x y ≤ (C + E * C) x y := by
-      rw [← sub_nonneg, hdiff]
-      exact Finset.sum_nonneg fun z _ =>
+    have hle : (C + F * C) x y ≤ (C + E * C) x y :=
+      sub_nonneg.mp <| hdiff ▸ Finset.sum_nonneg fun z _ =>
         mul_nonneg (by rw [Matrix.sub_apply, sub_nonneg]; exact hFE z) (hC0 z y)
     calc E x y - cutoffCorrectionIter φ C (k + 1) x y
         = φ y ((C + E * C) x y) - φ y ((C + F * C) x y) := by
-          rw [hEfix, cutoffCorrectionIter_succ]; rfl
+          rw [show E x y = φ y ((C + E * C) x y) from fix_apply hC x y, cutoffCorrectionIter_succ]
+          rfl
       _ ≤ L * ∑ z ∈ S.filter (· < y), (E - F) x z * C z y := by
           rw [← hsum, ← hdiff]
           exact hφL y _ _ hle
       _ ≤ L * ∑ z ∈ S.filter (· < y),
-            f * (1 + f) ^ #S * (L * f) ^ k * (#(S.filter (· < z))).choose k * f := by
-          refine mul_le_mul_of_nonneg_left (Finset.sum_le_sum fun z _ => ?_) hL
-          rw [Matrix.sub_apply]
-          exact mul_le_mul (ih z) (hCf z y) (hC0 z y) (by positivity)
+            f * (1 + f) ^ #S * (L * f) ^ k * (#(S.filter (· < z))).choose k * f :=
+          mul_le_mul_of_nonneg_left (Finset.sum_le_sum fun z _ => by
+            rw [Matrix.sub_apply]
+            exact mul_le_mul (ih z) (hCf z y) (hC0 z y) (by positivity)) hL
       _ = f * (1 + f) ^ #S * (L * f) ^ (k + 1) *
             ∑ z ∈ S.filter (· < y), ((#(S.filter (· < z))).choose k : ℝ) := by
           rw [Finset.mul_sum, Finset.mul_sum]
@@ -385,10 +374,10 @@ private theorem fix_sub_iter_le_choose (hf : 0 ≤ f) (hθf : 0 ≤ θ * f) (hL 
           rcases hn : #(S.filter (· < y)) with _ | n
           · simp
           · rw [← Nat.sum_Icc_choose, Nat.cast_sum]
-            refine (Finset.sum_subset (fun j hj => ?_) fun j hj hjn => ?_).symm
-            · simp only [mem_Icc, mem_range] at hj ⊢; omega
-            · simp only [mem_Icc, mem_range, not_and_or, not_le] at hj hjn
-              rw [Nat.choose_eq_zero_of_lt (by omega), Nat.cast_zero]
+            refine (Finset.sum_subset (fun _ hj => by simp only [mem_Icc, mem_range] at hj ⊢; omega)
+              fun j hj hjn => ?_).symm
+            simp only [mem_Icc, mem_range, not_and_or, not_le] at hj hjn
+            simp [Nat.choose_eq_zero_of_lt (by omega : j < k)]
 
 end Row
 
@@ -412,18 +401,17 @@ theorem cutoffCorrectionFix_sub_iter_le (hf : 0 < f) (hθ : 0 < θ) (hL : 0 ≤ 
           gcongr; linarith [Real.add_one_le_exp f]
       _ = Real.exp (m * f) := by rw [← Real.exp_nat_mul]
       _ ≤ Real.exp (1 / θ) := Real.exp_le_exp.mpr hm
-  have hchoose : ((#(S.filter (· < y))).choose k : ℝ) ≤ (m : ℝ) ^ k / k.factorial :=
-    (Nat.choose_le_pow_div k _).trans (by gcongr)
-  have hLf : (L * f) ^ k * ((m : ℝ) ^ k / k.factorial) ≤ (L / θ) ^ k / k.factorial := by
+  have hLf : (L * f) ^ k * ((#(S.filter (· < y))).choose k : ℝ) ≤ (L / θ) ^ k / k.factorial := by
+    have hchoose : ((#(S.filter (· < y))).choose k : ℝ) ≤ (m : ℝ) ^ k / k.factorial :=
+      (Nat.choose_le_pow_div k _).trans (by gcongr)
+    refine (mul_le_mul_of_nonneg_left hchoose (by positivity)).trans ?_
     rw [← mul_div_assoc, ← mul_pow]
     gcongr
     calc L * f * m = L * (m * f) := by ring
       _ ≤ L * (1 / θ) := by gcongr
       _ = L / θ := by ring
   calc f * (1 + f) ^ m * (L * f) ^ k * ((#(S.filter (· < y))).choose k : ℝ)
-      ≤ f * Real.exp (1 / θ) * ((L * f) ^ k * ((m : ℝ) ^ k / k.factorial)) := by
-        rw [mul_assoc (f * (1 + f) ^ m)]
-        gcongr
+      = f * (1 + f) ^ m * ((L * f) ^ k * ((#(S.filter (· < y))).choose k : ℝ)) := by ring
     _ ≤ f * Real.exp (1 / θ) * ((L / θ) ^ k / k.factorial) := by gcongr
     _ = f * Real.exp (1 / θ) * (L / θ) ^ k / k.factorial := by ring
 
@@ -435,15 +423,16 @@ theorem cutoffCorrection_residual_nonneg (hθf : 0 ≤ θ * f) (k : ℕ) (x y : 
   cases k with
   | zero => simpa [cutoffCorrectionIter] using hC0 x y
   | succ k =>
-    have hF0 := cutoffCorrectionIter_nonneg (C := C) hφ0 k
-    have hstep : cutoffCorrectionIter φ C (k + 1) x y =
-        φ y ((C + cutoffCorrectionIter φ C k * C) x y) := by
-      rw [cutoffCorrectionIter_succ]; rfl
-    have hcut := cutoff_le_self hφθ hθf y (correctionInput_nonneg hC0 hF0 x y)
+    have hcut := cutoff_le_self hφθ hθf y
+      (correctionInput_nonneg hC0 (cutoffCorrectionIter_nonneg (C := C) hφ0 k) x y)
     have hgrow : (cutoffCorrectionIter φ C k * C) x y ≤
         (cutoffCorrectionIter φ C (k + 1) * C) x y :=
       Finset.sum_le_sum fun z _ => mul_le_mul_of_nonneg_right
         (cutoffCorrectionIter_le_succ hC0 hφ0 hφm k x z) (hC0 z y)
+    have hstep : cutoffCorrectionIter φ C (k + 1) x y =
+        φ y ((C + cutoffCorrectionIter φ C k * C) x y) := by
+      rw [cutoffCorrectionIter_succ]
+      rfl
     rw [← hstep, Matrix.add_apply] at hcut
     rw [Matrix.add_apply, Matrix.sub_apply]
     linarith

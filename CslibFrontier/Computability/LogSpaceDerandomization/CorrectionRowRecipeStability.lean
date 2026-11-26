@@ -40,17 +40,15 @@ theorem auxScore_stability {I : ℝ → ℝ → ℝ} {L : ℝ} (hL : 0 ≤ L)
     (A B : Matrix V V ℝ) (T : Finset V) (x y : V) :
     |auxScore I K f A T x y - auxScore I K f B T x y| ≤
       L * (|A x y - B x y| + kthLargest 1 T (fun w => |A x w - B x w|)) / f := by
-  have hq := abs_kthLargest_div_sub_div_le hK hf T (A x) (B x)
   have hi := hI (A x y / f) (kthLargest K T (fun w => A x w / f))
     (B x y / f) (kthLargest K T (fun w => B x w / f))
   rw [← sub_div, abs_div, abs_of_pos hf] at hi
   calc
     _ ≤ L * (|A x y - B x y| / f +
-        |kthLargest K T (fun w => A x w / f) -
-          kthLargest K T (fun w => B x w / f)|) := hi
-    _ ≤ L * (|A x y - B x y| / f +
-        kthLargest 1 T (fun w => |A x w - B x w|) / f) :=
-      mul_le_mul_of_nonneg_left (add_le_add le_rfl hq) hL
+        |kthLargest K T (fun w => A x w / f) - kthLargest K T (fun w => B x w / f)|) := hi
+    _ ≤ L * (|A x y - B x y| / f + kthLargest 1 T (fun w => |A x w - B x w|) / f) :=
+      mul_le_mul_of_nonneg_left
+        (add_le_add le_rfl (abs_kthLargest_div_sub_div_le hK hf T (A x) (B x))) hL
     _ = _ := by ring
 
 /-- Incoming ranks see the column error and every source row's terminal-rank error.
@@ -66,13 +64,10 @@ theorem incomingGate_stability {I : ℝ → ℝ → ℝ} {τ : ℝ → ℝ} {LI 
     (hr : ∀ x ∈ S, kthLargest 1 T (fun w => |A x w - B x w|) ≤ Er) :
     |incomingGate I τ K Kc f A S T y - incomingGate I τ K Kc f B S T y| ≤
       Lτ * (LI * (Ec + Er) / f) := by
-  apply (hτ _ _).trans
-  apply mul_le_mul_of_nonneg_left _ hLτ
-  apply abs_kthLargest_sub_kthLargest_le hKc (by positivity)
-  intro x hx
-  exact (auxScore_stability hLI hI hK hf A B T x y).trans
-    (div_le_div_of_nonneg_right
-      (mul_le_mul_of_nonneg_left (add_le_add (hc x hx) (hr x hx)) hLI) hf.le)
+  refine (hτ _ _).trans (mul_le_mul_of_nonneg_left
+    (abs_kthLargest_sub_kthLargest_le hKc (by positivity) fun x hx => ?_) hLτ)
+  exact (auxScore_stability hLI hI hK hf A B T x y).trans (div_le_div_of_nonneg_right
+    (mul_le_mul_of_nonneg_left (add_le_add (hc x hx) (hr x hx)) hLI) hf.le)
 
 /-- Actual correction preparation, with a changing completed raw child. The incoming
 term keeps the full source/terminal rectangle; the local term uses the selected row. -/
@@ -93,9 +88,6 @@ theorem correctionPrep_stability {I : ℝ → ℝ → ℝ} {τ h ρ : ℝ → �
       correctionPrep I τ K Kc f B h ρ S T x y| ≤
       (Lh * |A x y - B x y| + Lρ * kthLargest 1 T (fun w => |A x w - B x w|)) / f +
         Lτ * (LI * (Ec + Er) / f) := by
-  have hd := DenseRowRecipe.atomPrep_stability hh hρ hlh hlρ hLρ hK hf A B T x y
-  have hi := incomingGate_stability hLI hLτ hI hτ hK hKc hf A B S T y hEc hEr hc hr
-  have hb0 : 0 ≤ atomPrep h ρ K f B T x y := mul_nonneg (hh _).1 (hρ _).1
   have hb1 : atomPrep h ρ K f B T x y ≤ 1 :=
     (mul_le_mul_of_nonneg_right (hh _).2 (hρ _).1).trans (by simpa using (hρ _).2)
   change |atomPrep h ρ K f A T x y * incomingGate I τ K Kc f A S T y -
@@ -103,16 +95,18 @@ theorem correctionPrep_stability {I : ℝ → ℝ → ℝ} {τ h ρ : ℝ → �
   calc
     _ = |(atomPrep h ρ K f A T x y - atomPrep h ρ K f B T x y) *
         incomingGate I τ K Kc f A S T y + atomPrep h ρ K f B T x y *
-        (incomingGate I τ K Kc f A S T y - incomingGate I τ K Kc f B S T y)| := by
-      congr 1; ring
+        (incomingGate I τ K Kc f A S T y - incomingGate I τ K Kc f B S T y)| :=
+      congrArg abs (by ring)
     _ ≤ |atomPrep h ρ K f A T x y - atomPrep h ρ K f B T x y| +
         |incomingGate I τ K Kc f A S T y - incomingGate I τ K Kc f B S T y| := by
-      apply (abs_add_le _ _).trans
-      rw [abs_mul, abs_mul, abs_of_nonneg (show 0 ≤ incomingGate I τ K Kc f A S T y from
-        (hτrange _).1), abs_of_nonneg hb0]
+      refine (abs_add_le _ _).trans ?_
+      rw [abs_mul, abs_mul,
+        abs_of_nonneg (show 0 ≤ incomingGate I τ K Kc f A S T y from (hτrange _).1),
+        abs_of_nonneg (show 0 ≤ atomPrep h ρ K f B T x y from mul_nonneg (hh _).1 (hρ _).1)]
       exact add_le_add (mul_le_of_le_one_right (abs_nonneg _) (hτrange _).2)
         (mul_le_of_le_one_left (abs_nonneg _) hb1)
-    _ ≤ _ := add_le_add hd hi
+    _ ≤ _ := add_le_add (DenseRowRecipe.atomPrep_stability hh hρ hlh hlρ hLρ hK hf A B T x y)
+      (incomingGate_stability hLI hLτ hI hτ hK hKc hf A B S T y hEc hEr hc hr)
 
 namespace CorrectionRowRecipe
 

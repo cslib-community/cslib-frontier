@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.DyadicParameters.Program
+import CslibFrontier.Computability.WordRAM.Record
 import CslibFrontier.Computability.WordRAM.RegisterFrame
 
 /-!
@@ -39,10 +40,7 @@ private def Ready (n : ℕ) (x : Data 16) : Prop := x.regs Reg.side = n ∧
 private theorem offset7_injective {r : ℕ} {f : Fin r → Fin 16}
     (hf : ∀ i, (f i).val = i.val + 7) : Function.Injective f := by
   intro i j h
-  apply Fin.ext
-  have hv := congrArg Fin.val h
-  rw [hf, hf] at hv
-  omega
+  exact Fin.ext (Nat.add_right_cancel ((hf i).symm.trans ((congrArg Fin.val h).trans (hf j))))
 
 private theorem offset7_preserves {r : ℕ} (c : Code .standard r) (f : Fin r → Fin 16)
     (hf : ∀ i, (f i).val = i.val + 7) (i : Fin 16) (hi : i.val < 7 ∨ 7 + r ≤ i.val) :
@@ -68,6 +66,9 @@ private theorem Ready.after_power {w n : ℕ} {x y : Data 16} {t : ℕ}
   hx.of_frame fun i hi => he.regs_eq (power_preserves i (by
     rcases hi with rfl | rfl | rfl | rfl | rfl <;> decide))
 
+private theorem finish_preserves : ∀ i : Fin 16,
+    i ≠ Reg.window → i ≠ Reg.fast → finish.Preserves i := by decide
+
 private theorem exec_finish {w n : ℕ} (x : Data 16)
     (hb : x.regs Reg.blocks = ParameterChoice.blocks n)
     (hv : x.regs Reg.workValue = ParameterChoice.window n)
@@ -75,33 +76,13 @@ private theorem exec_finish {w n : ℕ} (x : Data 16)
     ∃ y, ExecWithin w finish x y 5 ∧ y.regs Reg.window = ParameterChoice.window n ∧
       y.regs Reg.fast = (if 0 < ParameterChoice.blocks n then 1 else 0) ∧ y.mem = x.mem ∧
       ∀ i, i ≠ Reg.window → i ≠ Reg.fast → y.regs i = x.regs i := by
-  let y := (x.set Reg.window (ParameterChoice.window n)).set Reg.fast
-    (if 0 < ParameterChoice.blocks n then 1 else 0)
-  have h0 : Fits w 0 := hf.of_le (Nat.zero_le _)
-  have h1 : Fits w 1 := hf.of_le (by unfold wordBudget; omega)
-  let start := (x.set Reg.window (ParameterChoice.window n)).set Reg.fast 0
-  have pre : ExecWithin (B := .standard) w
-      (ram[ Reg.window ← Reg.workValue; Reg.fast ← #0 ]) x start 2 := by
-    ram_eval [start, hv, h0, Reg.window, Reg.workValue, Reg.fast, Fin.mk.injEq]
-  have he : ExecWithin w finish x y 5 := by
-    by_cases hp : 0 < ParameterChoice.blocks n
-    · have hc : ExecWithin (B := .standard) w (ram[ Reg.fast ← #1 ]) start y 1 := by
-        ram_eval [y, start, hp, h1, Data.set, Function.update_idem,
-          Reg.window, Reg.fast, Fin.mk.injEq]
-      have cond : (Cond.lt Reg.fast Reg.blocks).Holds start := by
-        simpa +decide [start, hb, Reg.window, Reg.fast, Reg.blocks] using hp
-      exact (pre.seq (ExecWithin.branch_pos cond hc)).mono (by omega)
-    · have hc : ExecWithin (B := .standard) w (ram[ Reg.fast ← Reg.fast ]) start y 1 := by
-        ram_eval [y, start, hp, Data.set, Function.update_idem,
-          Reg.window, Reg.fast, Fin.mk.injEq]
-      have cond : ¬(Cond.lt Reg.fast Reg.blocks).Holds start := by
-        simpa +decide [start, hb, Reg.window, Reg.fast, Reg.blocks] using hp
-      exact pre.seq (ExecWithin.branch_neg cond hc)
-  refine ⟨y, he, ?_, ?_, rfl, ?_⟩
-  · simp +decide [y, Reg.window, Reg.fast]
-  · simp only [y, Data.set_regs, Function.update_self]
-  · intro i hw hf
-    simp only [y, Data.set_regs, Function.update_of_ne hf, Function.update_of_ne hw]
+  dsimp only [wordBudget] at hf
+  refine WP.exists_execWithin_preserves (P := fun i => i ≠ Reg.window ∧ i ≠ Reg.fast)
+    (fun i hi => finish_preserves i hi.1 hi.2) ?_
+  unfold finish
+  wram_exec [hb, hv]
+  all_goals exact fun hpres =>
+    ⟨by wram_simp, by wram_simp [hc], rfl, fun i hw hfast => hpres i ⟨hw, hfast⟩⟩
 
 /-- Computed dyadic parameters, original dimension and unchanged memory. -/
 @[expose] def Post (n : ℕ) (x y : Data 16) : Prop :=
@@ -126,82 +107,62 @@ theorem exec {w n : ℕ} (x : Data 16) (hn : x.regs Reg.side = n)
   have hg := (ParameterChoice.powers_le n).1
   have hD := (ParameterChoice.powers_le n).2
   have hlog := Nat.log_le_self 2 n
-  have h2394 : Fits w 2394 := hfit.of_le (by unfold wordBudget; omega)
-  have h63 : Fits w 63 := hfit.of_le (by unfold wordBudget; omega)
-  have h21 : Fits w 21 := hfit.of_le (by unfold wordBudget; omega)
-  have h4 : Fits w 4 := hfit.of_le (by unfold wordBudget; omega)
-  have hblocks : Fits w (ParameterChoice.blocks n) := hfit.of_le (by unfold wordBudget; omega)
-  have hlevel : Fits w (ParameterChoice.level n) := hfit.of_le (by unfold wordBudget; omega)
-  have hlength : Fits w (ParameterChoice.tensorDepth n) :=
-    hfit.of_le (by unfold wordBudget; omega)
-  have ht2Fit : Fits w (ParameterChoice.blocks n + ParameterChoice.blocks n) :=
-    hfit.of_le (by unfold wordBudget; omega)
-  have ht2Fit' : Fits w (Nat.log 2 n / 2394 + Nat.log 2 n / 2394) := ht2Fit
-  have htFit : Fits w (Nat.log 2 n / 2394) := hblocks
-  have hmFit : Fits w (63 * (Nat.log 2 n / 2394)) := hlevel
-  have hLFit : Fits w (21 * (63 * (Nat.log 2 n / 2394))) := hlength
-  have hpg : Fits w (4 ^ (2 * ParameterChoice.blocks n) + 2 * ParameterChoice.blocks n +
-    2) := hfit.of_le (by
-    change ParameterChoice.groups n + 2 * ParameterChoice.blocks n + 2 ≤ _
-    unfold wordBudget
-    omega)
+  have hfit' : Fits w (2394 + 32 * (n + 1)) := hfit
+  have hblocks_eq : Nat.log 2 n / 2394 = ParameterChoice.blocks n := rfl
+  have hlevel_eq : 63 * ParameterChoice.blocks n = ParameterChoice.level n := rfl
+  have hdepth_eq : 21 * ParameterChoice.level n = ParameterChoice.tensorDepth n := rfl
+  have hpg : Fits w (4 ^ (2 * ParameterChoice.blocks n) + 2 * ParameterChoice.blocks n + 2) :=
+    hfit'.of_le (by change ParameterChoice.groups n + 2 * ParameterChoice.blocks n + 2 ≤ _; omega)
   have hpD : Fits w (4 ^ ParameterChoice.level n + ParameterChoice.level n + 2) :=
-    hfit.of_le (by
-    change ParameterChoice.window n + ParameterChoice.level n + 2 ≤ _
-    unfold wordBudget
-    omega)
+    hfit'.of_le (by change ParameterChoice.window n + ParameterChoice.level n + 2 ≤ _; omega)
   have log_inj : Function.Injective logRegisters := offset7_injective (fun _ => rfl)
   have pow_inj : Function.Injective powerRegisters := offset7_injective (fun _ => rfl)
   let a := x.set Reg.workValue n
   have copy : ExecWithin (B := .standard) w (ram[ Reg.workValue ← Reg.side ]) x a 1 := by
     simpa only [hn] using ExecWithin.copy (w := w) (x := x) (d := Reg.workValue) (s := Reg.side)
-  obtain ⟨b, hb, blog, bmem, _, _⟩ := NatLog.exec_rename logRegisters log_inj a
-    (hfit.of_le (by unfold wordBudget; omega))
-    (hfit.of_le (by change n ≤ _; unfold wordBudget; omega))
-    (hfit.of_le (by change Nat.log 2 n + 1 ≤ _; unfold wordBudget; omega))
+  obtain ⟨b, hb, blog, bmem, _, _⟩ := NatLog.exec_rename (w := w) logRegisters log_inj a
+    (by fits) (by change Fits w n; fits) (by change Fits w (Nat.log 2 n + 1); fits)
   have bside : b.regs Reg.side = n :=
     (hb.regs_eq (offset7_preserves NatLog.program logRegisters (fun _ => rfl) Reg.side
       (by decide))).trans hn
   have blog' : b.regs Reg.workCount = Nat.log 2 n := blog
-  let c := ((((((((b.set Reg.divisor 2394).set Reg.blocks (ParameterChoice.blocks n)).set
-    (13 : Fin 16) 63).set Reg.level (ParameterChoice.level n)).set (14 : Fin 16) 21).set
-    Reg.tensorDepth (ParameterChoice.tensorDepth n)).set Reg.four 4).set Reg.workBase 4).set
-    Reg.workExponent (2 * ParameterChoice.blocks n)
-  have prep : ExecWithin w prepare b c 9 := by
-    ram_eval [prepare, c, blog', ParameterChoice.blocks, ParameterChoice.level,
-      ParameterChoice.tensorDepth,
-      h2394, h63, h21, h4, htFit, hmFit, hLFit, ht2Fit, ht2Fit', two_mul, Reg.divisor, Reg.blocks,
-      Reg.level, Reg.tensorDepth, Reg.four, Reg.workBase,
-      Reg.workExponent, Reg.workCount, Fin.mk.injEq]
-  have cReady : Ready n c := ⟨bside, rfl, rfl, rfl, rfl⟩
+  obtain ⟨c, prep, cReady, cBase, cExp, cmem⟩ :
+      ∃ c, ExecWithin w prepare b c 9 ∧ Ready n c ∧
+        c.regs (powerRegisters Power.base) = 4 ∧
+        c.regs (powerRegisters Power.exponent) = 2 * ParameterChoice.blocks n ∧
+        c.mem = b.mem := by
+    refine WP.exists_execWithin ?_
+    unfold prepare Ready
+    wram_exec [blog', hblocks_eq, hlevel_eq, hdepth_eq]
+    wram_simp [bside]
+    omega
   obtain ⟨d, hd, dg, _, _, dmem, _, _, _⟩ := Power.exec_rename powerRegisters pow_inj
-    4 (2 * ParameterChoice.blocks n) (by decide) c (by rfl) (by rfl) hpg
+    4 (2 * ParameterChoice.blocks n) (by decide) c cBase cExp hpg
   have dReady := cReady.after_power hd
   have dg' : d.regs Reg.workValue = ParameterChoice.groups n := dg
-  let e := ((d.set Reg.groups (ParameterChoice.groups n)).set Reg.workBase 4).set
-    Reg.workExponent (ParameterChoice.level n)
-  have next : ExecWithin w nextPower d e 3 := by
-    ram_eval [nextPower, e, dg', dReady.2.2.1, dReady.2.2.2.2,
-      Reg.groups, Reg.workValue, Reg.workBase, Reg.workExponent, Reg.level, Reg.four,
-      Fin.mk.injEq]
-  have eReady : Ready n e := dReady.of_frame fun i hi => by
-    rcases hi with rfl | rfl | rfl | rfl | rfl <;> rfl
+  obtain ⟨e, next, eReady, eBase, eExp, eg, emem⟩ :
+      ∃ e, ExecWithin w nextPower d e 3 ∧ Ready n e ∧
+        e.regs (powerRegisters Power.base) = 4 ∧
+        e.regs (powerRegisters Power.exponent) = ParameterChoice.level n ∧
+        e.regs Reg.groups = ParameterChoice.groups n ∧
+        e.mem = d.mem := by
+    refine WP.exists_execWithin ?_
+    unfold nextPower Ready
+    wram_exec [dg', dReady.2.2.1, dReady.2.2.2.2]
+    wram_simp [dReady.1, dReady.2.1, dReady.2.2.1, dReady.2.2.2.1, dReady.2.2.2.2]
   obtain ⟨f, hf, fD, _, _, fmem, _, _, _⟩ := Power.exec_rename powerRegisters pow_inj
-    4 (ParameterChoice.level n) (by decide) e (by rfl) (by rfl) hpD
+    4 (ParameterChoice.level n) (by decide) e eBase eExp hpD
   have fReady := eReady.after_power hf
   have fg : f.regs Reg.groups = ParameterChoice.groups n :=
-    (hf.regs_eq (power_preserves Reg.groups (by decide))).trans (by rfl)
+    (hf.regs_eq (power_preserves Reg.groups (by decide))).trans eg
   obtain ⟨y, hy, yD, yflag, ymem, yr⟩ := exec_finish f fReady.2.1 fD hfit
-  have yReady : Ready n y := fReady.of_frame fun i hi =>
-    yr i (by rcases hi with rfl | rfl | rfl | rfl | rfl <;> decide)
-      (by rcases hi with rfl | rfl | rfl | rfl | rfl <;> decide)
+  have yReady : Ready n y := fReady.of_frame fun i hi => by
+    rcases hi with rfl | rfl | rfl | rfl | rfl <;> exact yr _ (by decide) (by decide)
   have full := copy.seq (hb.seq (prep.seq (hd.seq (next.seq (hf.seq hy)))))
   refine ⟨y, full.mono ?_, yReady.1, yReady.2.1, yReady.2.2.1, yD,
     (yr Reg.groups (by decide) (by decide)).trans fg, yReady.2.2.2.1, yflag,
-    ymem.trans (fmem.trans (dmem.trans bmem))⟩
-  change 1 + (4 * Nat.log 2 n + 5 + (9 + (4 * (2 * ParameterChoice.blocks n) + 5 +
-    (3 + (4 * ParameterChoice.level n + 5 + 5))))) ≤ timeBound n
-  unfold timeBound
+    ymem.trans (fmem.trans (emem.trans (dmem.trans (cmem.trans bmem))))⟩
+  rw [show a.regs (logRegisters NatLog.arg) = n from rfl, timeBound]
   omega
 
 /-- Actual execution is logarithmic, even using conservative bounds for both power calls. -/

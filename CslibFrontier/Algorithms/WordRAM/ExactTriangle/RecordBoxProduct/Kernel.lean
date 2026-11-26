@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordBoxProduct.Program
 
 /-!
@@ -62,48 +63,21 @@ theorem exec_invoke {W b m t N s r q : ℕ}
           Signed.encode ((X * Y) (qs.get i).1 (qs.get i).2)) ∧
       (∀ a, a < b ∨ b + CallableProduct.windowSize N qs.length ≤ a → y.mem a = x.mem a) ∧
       ∀ i : Fin 320, i.val < 128 → i ≠ Reg.result → y.regs i = x.regs i := by
-  let z := x.set (pointerBank PointerBoxProduct.Reg.base) b |>.set
-    (pointerBank PointerBoxProduct.Reg.left) s |>.set
-    (pointerBank PointerBoxProduct.Reg.right) r |>.set
-    (pointerBank PointerBoxProduct.Reg.queries) q
-  have hz : ExecWithin (B := .standard) W
-      (ram[
-        ⟪Code.op (.copy (pointerBank PointerBoxProduct.Reg.base) Reg.base)⟫;
-        ⟪Code.op (.copy (pointerBank PointerBoxProduct.Reg.left) Reg.left)⟫;
-        ⟪Code.op (.copy (pointerBank PointerBoxProduct.Reg.right) Reg.right)⟫;
-        ⟪Code.op (.copy (pointerBank PointerBoxProduct.Reg.queries) Reg.queries)⟫ ]) x z 4 := by
-    ram_eval [z, hb, hs, hr, hq, pointerBank, PointerBoxProduct.Reg.base,
-      PointerBoxProduct.callableBank, CallableProduct.Reg.base, PointerBoxProduct.Reg.left,
-      PointerBoxProduct.Reg.right, PointerBoxProduct.Reg.queries,
-      Reg.base, Reg.left, Reg.right, Reg.queries, Fin.mk.injEq]
-  obtain ⟨c, hc, ⟨cr, cv, _, cf, _, _, _⟩, hframe⟩ := ExecWithin.rename_post pointerBank_injective
-    (PointerBoxProduct.exec X Y qs (z.comap pointerBank)
-      (by simp +decide [z, pointerBank, PointerBoxProduct.Reg.base,
-        PointerBoxProduct.callableBank, CallableProduct.Reg.base, PointerBoxProduct.Reg.left,
-        PointerBoxProduct.Reg.right, PointerBoxProduct.Reg.queries])
-      (by simp +decide [z, pointerBank, PointerBoxProduct.Reg.left,
-        PointerBoxProduct.Reg.right, PointerBoxProduct.Reg.queries])
-      (by simp +decide [z, pointerBank, PointerBoxProduct.Reg.right,
-        PointerBoxProduct.Reg.queries]) (by simp [z])
-      hheader hthreshold hsb hrb hqb hleft hright hqueries hX hY ht hN hfit)
+  refine WP.exists_execWithin ?_
+  unfold invoke
+  wram_exec [hb, hs, hr, hq]
+  wram_call (PointerBoxProduct.exec X Y qs _
+    rfl rfl rfl rfl
+    hheader hthreshold hsb hrb hqb hleft hright hqueries hX hY ht hN hfit)
+    renamed pointerBank_injective with c ⟨⟨cr, cv, -, cf, -, -, -⟩, hframe⟩
   change c.regs (pointerBank (PointerBoxProduct.callableBank CallableProduct.Reg.result)) = _ at cr
-  let y := c.set Reg.result (b + QueriedProduct.outputBase (21 * m) m N qs.length)
-  have hy : ExecWithin (B := .standard) W (.op (.copy Reg.result
-      (pointerBank (PointerBoxProduct.callableBank CallableProduct.Reg.result)))) c y 1 := by
-    simpa only [y, cr] using (ExecWithin.copy (w := W) (x := c) (d := Reg.result)
-      (s := pointerBank (PointerBoxProduct.callableBank CallableProduct.Reg.result)))
-  refine ⟨y, (hz.seq (hc.seq hy)).mono (by omega), by simp [y], cv, cf, ?_⟩
-  intro i hi hne
-  have hbank (j) : pointerBank j ≠ i := by
-    intro hj
+  wram_exec [cr]
+  wram_simp
+  refine ⟨cv, cf, fun i hi hne => ?_⟩
+  have hbank (j) : pointerBank j ≠ i := fun hj => by
     have hv := congrArg Fin.val hj
     change 128 + j.val = i.val at hv
     omega
-  rw [Data.set_regs, Function.update_of_ne hne, hframe i hbank]
-  simp only [z, Data.set_regs,
-    Function.update_of_ne (hbank PointerBoxProduct.Reg.queries).symm,
-    Function.update_of_ne (hbank PointerBoxProduct.Reg.right).symm,
-    Function.update_of_ne (hbank PointerBoxProduct.Reg.left).symm,
-    Function.update_of_ne (hbank PointerBoxProduct.Reg.base).symm]
+  wram_simp [hne, hframe i hbank]
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordBoxProduct

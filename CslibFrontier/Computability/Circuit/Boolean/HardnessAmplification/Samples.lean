@@ -65,15 +65,15 @@ theorem dist_iid_map_uniformOfFintype_le {f : BooleanFunction n} {S : ℕ} {ε :
   have hconst (b : Bool) : (#{x : BitString n | b = f x} : ℝ) / 2 ^ n ≤ 1 / 2 + ε :=
     hf (fun _ => b)
       ((Synthesis.of_forall_eq_const (s := inputs n) b fun _ => rfl).complexity_le.trans hS)
-  have hsplit :
-      (#{x : BitString n | true = f x} : ℝ) + #{x : BitString n | false = f x} = 2 ^ n := by
-    have h := card_filter_add_card_filter_not (s := (univ : Finset (BitString n)))
-      fun x => true = f x
+  have hsplit : (#{x : BitString n | true = f x} : ℝ) / 2 ^ n +
+      (#{x : BitString n | false = f x} : ℝ) / 2 ^ n = 1 := by
     have e : (univ.filter fun x : BitString n => ¬ true = f x) =
-        univ.filter fun x => false = f x := by
-      ext x; cases f x <;> simp
-    rw [e, card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] at h
-    exact_mod_cast h
+        univ.filter fun x => false = f x :=
+      filter_congr fun x _ => by cases f x <;> decide
+    have h : (#{x : BitString n | true = f x} : ℝ) + #{x : BitString n | false = f x} = 2 ^ n := by
+      simpa [e, BitString] using congrArg (Nat.cast (R := ℝ))
+        (card_filter_add_card_filter_not (s := (univ : Finset (BitString n))) (true = f ·))
+    rw [← add_div, h, div_self (by positivity)]
   have hp : ((uniformOfFintype (BitString n)).map f true).toReal =
       (#{x : BitString n | true = f x} : ℝ) / 2 ^ n := by
     rw [toReal_uniformOfFintype_map_apply_true, dens, Fintype.card_fun, Fintype.card_bool,
@@ -81,15 +81,10 @@ theorem dist_iid_map_uniformOfFintype_le {f : BooleanFunction n} {S : ℕ} {ε :
     simp only [eq_comm (b := true), Nat.cast_pow, Nat.cast_ofNat, NNRat.cast_div,
       NNRat.cast_natCast, NNRat.cast_pow, NNRat.cast_ofNat]
   have h1 : dist ((uniformOfFintype (BitString n)).map f) (uniformOfFintype Bool) ≤ ε := by
-    have h2 : (0 : ℝ) < 2 ^ n := by positivity
-    have ht := hconst true
-    have hf' := hconst false
-    rw [div_le_iff₀ h2] at ht hf'
     have hu : ((uniformOfFintype Bool) true).toReal = 1 / 2 := by simp [uniformOfFintype_apply]
     rw [dist_bool, hp, hu, abs_le]
-    constructor
-    · rw [le_sub_iff_add_le, le_div_iff₀ h2]; linarith
-    · rw [sub_le_iff_le_add, div_le_iff₀ h2]; linarith
+    exact ⟨by linarith [hconst false],
+      by linarith [hconst true]⟩
   calc _ ≤ m * dist ((uniformOfFintype (BitString n)).map f) (uniformOfFintype Bool) :=
         dist_iid_le _ _ m
     _ ≤ m * ε := by gcongr

@@ -97,10 +97,6 @@ namespace Program
 private def coeff (p : Program (affineSignature K) n g) (w : Wire n g) (j : Fin n) : K :=
   p.trace (affineInterpretation K) (Pi.single j 1) w - p.trace (affineInterpretation K) 0 w
 
-private theorem coeff_input (p : Program (affineSignature K) n g) (i j : Fin n) :
-    p.coeff (.input i) j = (Pi.single j 1 : Fin n → K) i := by
-  simp only [coeff, Program.trace_input, Pi.zero_apply, sub_zero]
-
 private theorem coeff_gate (p : Program (affineSignature K) n g) (k : Fin g) (j : Fin n) :
     p.coeff (.gate k) j = ∑ a, (p.lines k).op.2.1 a * p.coeff ((p.lines k).wires a) j := by
   simp only [coeff, Program.trace_gate, affineInterpretation]
@@ -118,30 +114,21 @@ private theorem exists_coeff_decomp (p : Program (affineSignature K) n g)
     ∃ (β : Wire n g → K) (S : Finset (Fin n)), S.card ≤ 2 ^ ψ w ∧
       ∀ j ∉ S, p.coeff w j = ∑ u ∈ T, β u * p.coeff u j := by
   classical
-  -- a wire in `T` is its own decomposition
-  have hT : ∀ w ∈ T, ∃ (β : Wire n g → K) (S : Finset (Fin n)), S.card = 0 ∧
-      ∀ j ∉ S, p.coeff w j = ∑ u ∈ T, β u * p.coeff u j := fun w hw =>
-    ⟨Pi.single w 1, ∅, rfl, fun j _ => by
-      rw [Finset.sum_eq_single_of_mem w hw (fun u _ hu => by simp [hu])]
-      simp⟩
   induction w using p.wire_induction with
   | input i =>
     refine ⟨0, {i}, (Finset.card_singleton i).trans_le Nat.one_le_two_pow, fun j hj => ?_⟩
-    have hij : i ≠ j := fun h => hj (Finset.mem_singleton.2 h.symm)
-    simp [coeff_input, hij]
+    simp [coeff, Ne.symm (Finset.mem_singleton.not.1 hj)]
   | gate k ih =>
     -- every argument decomposes with at most `2 ^ ψ (.gate k) / 2` exceptional inputs
-    have harg : ∀ a, ∃ (β : Wire n g → K) (S : Finset (Fin n)), S.card ≤ 2 ^ ψ (.gate k) / 2 ∧
+    have harg (a) : ∃ (β : Wire n g → K) (S : Finset (Fin n)), S.card ≤ 2 ^ ψ (.gate k) / 2 ∧
         ∀ j ∉ S, p.coeff ((p.lines k).wires a) j = ∑ u ∈ T, β u * p.coeff u j := by
-      intro a
       by_cases ha : (p.lines k).wires a ∈ T
-      · obtain ⟨β, S, hS, h⟩ := hT _ ha
-        exact ⟨β, S, hS ▸ Nat.zero_le _, h⟩
+      · -- a wire in `T` is its own decomposition
+        refine ⟨Pi.single ((p.lines k).wires a) 1, ∅, Nat.zero_le _, fun j _ => ?_⟩
+        rw [Finset.sum_eq_single_of_mem _ ha fun u _ hu => by simp [hu], Pi.single_eq_same, one_mul]
       · obtain ⟨β, S, hS, h⟩ := ih a
-        refine ⟨β, S, hS.trans ?_, h⟩
-        obtain ⟨d, hd⟩ := Nat.exists_eq_add_of_lt (hψ k a ha)
-        rw [hd, pow_succ, Nat.mul_div_cancel _ two_pos]
-        exact Nat.pow_le_pow_right two_pos (Nat.le_add_right _ _)
+        exact ⟨β, S, hS.trans ((Nat.le_div_iff_mul_le two_pos).2
+          (pow_succ 2 _ ▸ Nat.pow_le_pow_right two_pos (hψ k a ha))), h⟩
     choose β S hS h using harg
     refine ⟨fun u => ∑ a, (p.lines k).op.2.1 a * β a u, Finset.univ.biUnion S, ?_,
       fun j hj => ?_⟩
@@ -227,10 +214,8 @@ theorem Computes.rigidity_le {c : Circuit (affineSignature K) n m}
     obtain rfl : t = 0 := by omega
     refine (A.rigidity_antitone (Nat.zero_le _)).trans
       (rigidity_le_of_cut hc hfan ∅ c.program.wireDepths
-        (fun k a _ => c.program.wireDepths_lines_lt k a) fun o => ?_)
-    have := hout o
-    simp only [pow_zero, Nat.sub_self] at this ⊢
-    omega
+        (fun k a _ => c.program.wireDepths_lines_lt k a)
+        fun o => by have := hout o; omega)
   -- the wires read by gates of depth below `2 ^ D`, as (tail, head) pairs
   let E : Finset (Wire n c.size × Wire n c.size) :=
     (Finset.univ.biUnion fun k : Fin c.size =>
@@ -250,18 +235,14 @@ theorem Computes.rigidity_le {c : Circuit (affineSignature K) n m}
     Finset.mem_filter.2 ⟨Finset.mem_biUnion.2 ⟨k, Finset.mem_univ _,
       Finset.mem_image.2 ⟨a, Finset.mem_univ _, rfl⟩⟩, hk⟩
   -- the depths, capped below `2 ^ D`, grade these wires
-  have hgrade : IsGrading E (2 ^ D) fun w => min (c.program.wireDepths w) (2 ^ D - 1) := by
-    refine ⟨fun w => ?_, fun e he => ?_⟩
-    · have := Nat.two_pow_pos D
-      change min (c.program.wireDepths w) (2 ^ D - 1) < 2 ^ D
-      omega
-    obtain ⟨he, hlt⟩ := Finset.mem_filter.1 he
-    obtain ⟨k, -, he⟩ := Finset.mem_biUnion.1 he
-    obtain ⟨a, -, rfl⟩ := Finset.mem_image.1 he
-    have h1 := c.program.wireDepths_lines_lt k a
-    have h2 : c.program.wireDepths (Wire.gate k) = c.program.depths k := rfl
-    dsimp only at hlt ⊢
-    omega
+  have hgrade : IsGrading E (2 ^ D) fun w => min (c.program.wireDepths w) (2 ^ D - 1) :=
+    ⟨fun _ => (min_le_right _ _).trans_lt (Nat.sub_lt (Nat.two_pow_pos D) one_pos), fun e he => by
+      obtain ⟨he, hlt⟩ := Finset.mem_filter.1 he
+      obtain ⟨k, -, he⟩ := Finset.mem_biUnion.1 he
+      obtain ⟨a, -, rfl⟩ := Finset.mem_image.1 he
+      have := c.program.wireDepths_lines_lt k a
+      have h2 : c.program.wireDepths (.gate k) = c.program.depths k := rfl
+      dsimp only at hlt ⊢; omega⟩
   -- Valiant's depth reduction
   obtain ⟨F, -, hFcard, g', hg'⟩ := hgrade.exists_sdiff htD
   let T : Finset (Wire n c.size) := F.image Prod.fst
@@ -287,18 +268,14 @@ theorem Computes.rigidity_le {c : Circuit (affineSignature K) n m}
         ha (Finset.mem_image.2 ⟨_, h, rfl⟩)
       have := hg'.2 _ (Finset.mem_sdiff.2 ⟨hmem k a hk, hnot⟩)
       dsimp only [ψ]
-      rw [ite_eq_left (h1.trans hk), ite_eq_left (h2 ▸ hk)]
-      exact this
+      rwa [ite_eq_left (h1.trans hk), ite_eq_left (h2 ▸ hk)]
     · -- a deep gate is above every label
       dsimp only [ψ]
       rw [ite_eq_right (by omega : ¬c.program.wireDepths (Wire.gate k) < 2 ^ D)]
-      split_ifs with h
-      · have := hg'lt ((c.program.lines k).wires a)
-        omega
-      · omega
-  · have h := hout o
-    dsimp only [ψ]
-    rw [ite_eq_left h]
+      have := hg'lt ((c.program.lines k).wires a)
+      split_ifs <;> omega
+  · dsimp only [ψ]
+    rw [ite_eq_left (hout o)]
     exact (hg'.1 _).le
 
 /-- **Valiant's rigidity criterion, asymptotic form** ([Valiant1977]; [Lokam2009], Theorem 2.1).
@@ -345,17 +322,13 @@ theorem Computes.mul_log_log_lt_size {C k e : ℕ} (hC : 0 < C) (hk : 0 < k) (he
     exact (Nat.lt_of_mul_lt_mul_left h2).le
   have hbound := hc.rigidity_le hfan hdepthD htD
   -- the rigidity at rank `2 * t * c.size / D` is below the hypothesis, so that rank exceeds `n / e`
-  have hrank : n / e < 2 * t * c.size / D := by
-    by_contra hle
-    have h1 := (A.rigidity_antitone (not_lt.1 hle)).trans hbound
-    have h2 := Nat.mul_le_mul_left n (Nat.pow_le_pow_right two_pos hpow)
-    omega
+  have hrank : n / e < 2 * t * c.size / D := lt_of_not_ge fun hle =>
+    hrig.not_ge (((A.rigidity_antitone hle).trans hbound).trans
+      (Nat.mul_le_mul_left n (Nat.pow_le_pow_right two_pos hpow)))
   have hDpos : 0 < D := Nat.succ_pos _
   have h1 : (n / e + 1) * D ≤ 2 * t * c.size :=
     (Nat.le_div_iff_mul_le hDpos).1 (Nat.succ_le_of_lt hrank)
-  have h2 : n < (n / e + 1) * e := by
-    rw [Nat.add_mul, one_mul]
-    exact Nat.lt_div_mul_add he
+  have h2 : n < (n / e + 1) * e := (Nat.lt_div_mul_add he).trans_eq (Nat.succ_mul _ _).symm
   have h3 : n * D < 2 * e * t * c.size :=
     calc n * D < (n / e + 1) * e * D := Nat.mul_lt_mul_of_pos_right h2 hDpos
       _ = (n / e + 1) * D * e := by ring

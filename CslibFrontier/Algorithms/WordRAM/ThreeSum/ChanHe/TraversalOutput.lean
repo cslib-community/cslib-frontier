@@ -94,23 +94,18 @@ theorem StoredNodes.append {U N table p : ℕ} {ν : Node} {ns : List (ℕ × No
   refine ⟨?_, ?_⟩
   · simpa only [List.map_append, List.map_singleton, List.length_map] using
       h.pointers.append_one p
-  · intro i
-    by_cases hi : i.val < ns.length
-    · rw [List.getElem_append_left hi]
-      apply (h.cells ⟨i.val, hi⟩).update_of_not_owns
-      intro ha
-      have hb := hold ⟨i.val, hi⟩
-      exact (not_le_of_gt hb) ha.1
-    · have hil := i.isLt
-      simp only [List.length_append, List.length_singleton] at hil
-      have he : i.val = ns.length := by omega
-      have hg : (ns ++ [(p, ν)])[ns.length] = (p, ν) := by simp
+  · rintro ⟨i, hi⟩
+    by_cases hlt : i < ns.length
+    · rw [List.getElem_append_left hlt]
+      exact (h.cells ⟨i, hlt⟩).update_of_not_owns (fun ha => (hold ⟨i, hlt⟩).not_ge ha.1) p
+    · obtain rfl : i = ns.length :=
+        le_antisymm (Nat.le_of_lt_succ (by simpa using hi)) (not_lt.mp hlt)
       intro u
       change Function.update mem (table + ns.length) p
-          ((ns ++ [(p, ν)])[i.val].1 + u.val) =
-        Signed.encode ((ns ++ [(p, ν)])[i.val].2.oneArray U u.val)
-      simp only [he, hg]
-      rw [Function.update_of_ne (show p + u.val ≠ table + ns.length by omega)]
+          ((ns ++ [(p, ν)])[ns.length].1 + u.val) =
+        Signed.encode ((ns ++ [(p, ν)])[ns.length].2.oneArray U u.val)
+      simp only [List.getElem_append_right le_rfl, Nat.sub_self, List.getElem_singleton]
+      rw [Function.update_of_ne (by omega)]
       exact hnew u
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Traversal

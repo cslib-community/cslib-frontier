@@ -73,15 +73,13 @@ theorem decodeCertificate_append_replicate (machine : MultiTapeCTM k Symbol Stat
       some (choices, final) := by
   induction choices generalizing cfg with
   | nil =>
-    simp only [runBranch_nil, Option.some.injEq] at hrun
-    subst cfg
+    obtain rfl := Option.some.inj hrun.symm
     simp [machine.decodeCertificate_of_halted hhalt]
   | cons index rest ih =>
     obtain ⟨next, hstep, hrest⟩ := Option.bind_eq_some_iff.mp hrun
     cases hs : cfg.state with
     | none => simp [machine.step?_of_halted hs] at hstep
-    | some state =>
-      simp [decodeCertificate, hs, hstep, ih hrest]
+    | some _ => simp [decodeCertificate, hs, hstep, ih hrest]
 
 /-- Successful decoding gives a genuine first-halting branch, with uniquely forced padding. -/
 theorem decodeCertificate_sound (machine : MultiTapeCTM k Symbol State)
@@ -91,13 +89,10 @@ theorem decodeCertificate_sound (machine : MultiTapeCTM k Symbol State)
       word = choices ++ List.replicate (word.length - choices.length) 0 := by
   induction word generalizing cfg choices with
   | nil =>
-    cases hs : cfg.state with
-    | none =>
-      simp only [decodeCertificate, hs, List.length_nil, List.replicate_zero, ↓reduceIte,
-        Option.some.injEq, Prod.mk.injEq] at h
-      rcases h with ⟨rfl, rfl⟩
-      simp [hs, Cfg.Halted]
-    | some state => simp [decodeCertificate, hs] at h
+    cases hs : cfg.state <;> simp only [decodeCertificate, hs, List.length_nil,
+      List.replicate_zero, ↓reduceIte, Option.some.injEq, Prod.mk.injEq, reduceCtorEq] at h
+    rcases h with ⟨rfl, rfl⟩
+    exact ⟨rfl, hs, rfl⟩
   | cons index word ih =>
     cases hs : cfg.state with
     | none =>
@@ -122,12 +117,9 @@ theorem decodeCertificate_eq_some_iff (machine : MultiTapeCTM k Symbol State)
     (cfg final : Cfg k Symbol State input) (word choices : List ℕ) :
     machine.decodeCertificate cfg word = some (choices, final) ↔
       machine.runBranch cfg choices = some final ∧ final.Halted ∧
-        word = choices ++ List.replicate (word.length - choices.length) 0 := by
-  constructor
-  · exact machine.decodeCertificate_sound
-  · rintro ⟨hrun, hhalt, hword⟩
-    rw [hword]
-    exact machine.decodeCertificate_append_replicate hrun hhalt _
+        word = choices ++ List.replicate (word.length - choices.length) 0 :=
+  ⟨machine.decodeCertificate_sound,
+    fun ⟨hr, hh, hw⟩ => hw ▸ machine.decodeCertificate_append_replicate hr hh _⟩
 
 /-- Pad a terminal occurrence trace to a fixed clock. Padding is not an actual machine step. -/
 def padCertificate (fuel : ℕ) (choices : List ℕ) : List ℕ :=
@@ -137,19 +129,12 @@ def padCertificate (fuel : ℕ) (choices : List ℕ) : List ℕ :=
 theorem padCertificate_injOn (machine : MultiTapeCTM k Symbol State)
     (cfg : Cfg k Symbol State input) (fuel : ℕ) :
     Set.InjOn (padCertificate fuel) (machine.branches fuel cfg) := by
-  intro left hleft right hright heq
-  obtain ⟨_, finalLeft, hrunLeft, hhaltLeft⟩ :=
-    (machine.mem_branches_iff cfg fuel left).mp hleft
-  obtain ⟨_, finalRight, hrunRight, hhaltRight⟩ :=
-    (machine.mem_branches_iff cfg fuel right).mp hright
-  have hleft := machine.decodeCertificate_append_replicate hrunLeft hhaltLeft
-    (fuel - left.length)
-  have hright := machine.decodeCertificate_append_replicate hrunRight hhaltRight
-    (fuel - right.length)
-  change machine.decodeCertificate cfg (padCertificate fuel left) = _ at hleft
-  change machine.decodeCertificate cfg (padCertificate fuel right) = _ at hright
-  rw [heq] at hleft
-  exact congrArg Prod.fst (Option.some.inj (hleft.symm.trans hright))
+  intro l hl r hr heq
+  obtain ⟨_, _, hrl, hhl⟩ := (machine.mem_branches_iff cfg fuel l).mp hl
+  obtain ⟨_, _, hrr, hhr⟩ := (machine.mem_branches_iff cfg fuel r).mp hr
+  have dl := machine.decodeCertificate_append_replicate hrl hhl (fuel - l.length)
+  have dr := machine.decodeCertificate_append_replicate hrr hhr (fuel - r.length)
+  exact congrArg Prod.fst (Option.some.inj ((dl.symm.trans (congrArg _ heq)).trans dr))
 
 /-- The finite set of canonical fixed-length certificates. Its membership theorem identifies it
 with the independently defined decoder's successful inputs. -/
@@ -182,13 +167,10 @@ inputs. No extra copies are introduced by terminal padding or by distinct equal-
 theorem padCertificate_bijOn (machine : MultiTapeCTM k Symbol State)
     (cfg : Cfg k Symbol State input) (fuel : ℕ) :
     Set.BijOn (padCertificate fuel) (machine.branches fuel cfg)
-      {word | word.length = fuel ∧ (machine.decodeCertificate cfg word).isSome} := by
-  refine ⟨?_, machine.padCertificate_injOn cfg fuel, ?_⟩
-  · intro choices hchoices
-    exact (machine.mem_certificates_iff cfg fuel _).mp
-      (Finset.mem_image.mpr ⟨choices, hchoices, rfl⟩)
-  · intro word hword
-    exact Finset.mem_image.mp ((machine.mem_certificates_iff cfg fuel word).mpr hword)
+      {word | word.length = fuel ∧ (machine.decodeCertificate cfg word).isSome} :=
+  ⟨fun _ hc => (machine.mem_certificates_iff cfg fuel _).mp (Finset.mem_image_of_mem _ hc),
+    machine.padCertificate_injOn cfg fuel,
+    fun _ hw => Finset.mem_image.mp ((machine.mem_certificates_iff cfg fuel _).mpr hw)⟩
 
 /-- Canonical certificates and terminal branches have exactly the same cardinality. -/
 theorem card_certificates (machine : MultiTapeCTM k Symbol State)
@@ -218,16 +200,13 @@ rejecting counts. This is a combinatorial result, with no efficient binary check
 theorem certificateCount_eq_branchCount (machine : MultiTapeCTM k Symbol State)
     (verdict : List Symbol → Bool) (fuel : ℕ) (cfg : Cfg k Symbol State input) :
     machine.certificateCount verdict fuel cfg = machine.branchCount verdict fuel cfg := by
-  unfold certificateCount certificates
+  unfold certificateCount certificates branchCount
   rw [Finset.filter_image, Finset.card_image_of_injOn
     ((machine.padCertificate_injOn cfg fuel).mono (Finset.filter_subset _ _))]
-  unfold branchCount
-  congr 1
-  apply Finset.filter_congr
-  intro choices hchoices
-  obtain ⟨_, final, hrun, hhalt⟩ := (machine.mem_branches_iff cfg fuel choices).mp hchoices
-  simp [certificateAccepts, padCertificate,
-    machine.decodeCertificate_append_replicate hrun hhalt, hrun]
+  refine congrArg Finset.card <| Finset.filter_congr fun c hc => ?_
+  obtain ⟨_, _, hrun, hhalt⟩ := (machine.mem_branches_iff cfg fuel c).mp hc
+  simp [certificateAccepts, padCertificate, machine.decodeCertificate_append_replicate hrun hhalt,
+    hrun]
 
 /-- The two valid-certificate classifiers recover the accepting and rejecting machine counts
 separately; invalid certificates contribute to neither side. -/

@@ -290,9 +290,7 @@ theorem leavesRest_cons : leavesRest ((k, c) :: rest) = c.leaves ++ leavesRest r
     leavesRest rest = rest.flatMap fun e => e.child.leaves := by
   induction rest with
   | nil => rfl
-  | cons e rest ih =>
-    obtain ⟨k, c⟩ := e
-    simp [leavesRest_cons, ih]
+  | cons e _ ih => exact e.casesOn fun _ _ => by simp [leavesRest_cons, ih]
 
 /-- The entries of a leaf. -/
 @[simp] theorem toList_leaf : (leaf entries : BPlusTree α β).toList = entries := by
@@ -326,9 +324,7 @@ theorem heightRest_cons :
 theorem heightRest_le_iff {n : ℕ} : heightRest rest ≤ n ↔ ∀ e ∈ rest, e.child.height + 1 ≤ n := by
   induction rest with
   | nil => simp [heightRest_nil]
-  | cons e rest ih =>
-    obtain ⟨k, c⟩ := e
-    simp [heightRest_cons, ih]
+  | cons e _ ih => exact e.casesOn fun _ _ => by simp [heightRest_cons, ih]
 
 /-- Mapping a leaf maps the values of its entries. -/
 @[simp] theorem map_leaf (f : β → γ) :
@@ -343,9 +339,7 @@ theorem heightRest_le_iff {n : ℕ} : heightRest rest ≤ n ↔ ∀ e ∈ rest, 
     mapRest f rest = rest.map fun e : Branch α β => (e.1, e.child.map f) := by
   induction rest with
   | nil => rfl
-  | cons e rest ih =>
-    obtain ⟨k, c⟩ := e
-    simp [mapRest, ih]
+  | cons e _ ih => exact e.casesOn fun _ _ => by simp [mapRest, ih]
 
 /-- A leaf has no children. -/
 @[simp] theorem children_leaf : (leaf entries : BPlusTree α β).children = [] := rfl
@@ -457,31 +451,36 @@ theorem height_eq_one_iff : tr.height = 1 ↔ ∃ entries, tr = .leaf entries :=
   | leaf entries => simp
   | node first rest ih₁ ih₂ =>
     have h : heightRest (mapRest f rest) = heightRest rest := by
-      refine le_antisymm (heightRest_le_iff.2 ?_) (heightRest_le_iff.2 ?_)
-      · intro e he
-        rw [mapRest_eq_map, List.mem_map] at he
-        obtain ⟨e', he', rfl⟩ := he
-        simpa [ih₂ e' he'] using heightRest_le_iff.1 le_rfl e' he'
-      · intro e he
-        have := heightRest_le_iff.1 (le_refl (heightRest (mapRest f rest))) (e.1, e.child.map f)
-          (by rw [mapRest_eq_map]; exact List.mem_map_of_mem he)
-        simpa [ih₂ e he] using this
+      induction rest with
+      | nil => rfl
+      | cons e _ ih =>
+        rcases e with ⟨k, c⟩
+        rw [mapRest, heightRest_cons, heightRest_cons, ih₂ (k, c) List.mem_cons_self,
+          ih fun e' he' => ih₂ e' (List.mem_cons_of_mem _ he')]
     rw [map_node, height_node, height_node, ih₁, h]
+
+private theorem mem_children_cases {P : Prop} {c : BPlusTree α β} (hc : c ∈ tr.children)
+    (hfirst : ∀ fst rest, tr = .node fst rest → c = fst → P)
+    (hrest : ∀ fst rest (e : Branch α β), tr = .node fst rest → e ∈ rest → c = e.child → P) :
+    P := by
+  cases tr with
+  | leaf entries => nomatch hc
+  | node fst rest =>
+    rcases List.mem_cons.1 hc with rfl | hc
+    · exact hfirst c rest rfl rfl
+    · obtain ⟨e, he, rfl⟩ := List.mem_map.1 hc
+      exact hrest fst rest e rfl he rfl
 
 /-- The entries of a child form a sublist of those of the tree. -/
 theorem toList_sublist_of_mem_children {c : BPlusTree α β} (hc : c ∈ tr.children) :
     c.toList.Sublist tr.toList := by
-  cases tr with
-  | leaf entries => simp at hc
-  | node first rest =>
-    rw [toList_node]
-    simp only [children_node, List.mem_cons, List.mem_map] at hc
-    rcases hc with rfl | ⟨e, he, rfl⟩
-    · exact List.sublist_append_left _ _
-    · rw [List.flatMap_def]
-      exact (List.sublist_flatten_of_mem
-        (List.mem_map_of_mem (f := fun e : Branch α β => e.child.toList) he)).trans
-          (List.sublist_append_right _ _)
+  refine mem_children_cases hc (fun _ _ htr hc => ?_) fun _ _ _ htr he hc => ?_
+  · rw [htr, hc, toList_node]
+    exact List.sublist_append_left _ _
+  · rw [htr, hc, toList_node, List.flatMap_def]
+    exact (List.sublist_flatten_of_mem
+      (List.mem_map_of_mem (f := fun e : Branch α β => e.child.toList) he)).trans
+        (List.sublist_append_right _ _)
 
 /-- A child among the branches is lower than its node. -/
 theorem height_succ_le_of_mem_rest {first : BPlusTree α β} {rest : List (Branch α β)}
@@ -497,14 +496,9 @@ theorem height_first_succ_le {first : BPlusTree α β} {rest : List (Branch α �
 
 /-- A child is lower than its tree. -/
 theorem height_succ_le_of_mem_children {c : BPlusTree α β} (hc : c ∈ tr.children) :
-    c.height + 1 ≤ tr.height := by
-  cases tr with
-  | leaf entries => simp at hc
-  | node first rest =>
-    simp only [children_node, List.mem_cons, List.mem_map] at hc
-    rcases hc with rfl | ⟨e, he, rfl⟩
-    · exact height_first_succ_le
-    · exact height_succ_le_of_mem_rest he
+    c.height + 1 ≤ tr.height :=
+  mem_children_cases hc (fun _ _ htr hc => htr ▸ hc ▸ height_first_succ_le)
+    fun _ _ _ htr he hc => htr ▸ hc ▸ height_succ_le_of_mem_rest he
 
 /-! ### Inversion -/
 
@@ -514,9 +508,8 @@ variable {fst : BPlusTree α β} {rest : List (Branch α β)} {entries : List (�
 
 /-- The children among the branches of a balanced node have the height of the first child. -/
 theorem Balanced.height_of_mem_rest (h : Balanced (.node fst rest)) {e : Branch α β}
-    (he : e ∈ rest) : e.child.height = fst.height := by
-  cases h with
-  | node _ _ h₃ => exact h₃ e he
+    (he : e ∈ rest) : e.child.height = fst.height :=
+  match h with | .node _ _ h₃ => h₃ e he
 
 /-- A balanced node is one higher than its first child. -/
 theorem Balanced.height_node (h : Balanced (.node fst rest)) :
@@ -525,72 +518,51 @@ theorem Balanced.height_node (h : Balanced (.node fst rest)) :
   exact max_eq_left (heightRest_le_iff.2 fun e he => by rw [h.height_of_mem_rest he])
 
 /-- The first child of a balanced node is balanced. -/
-theorem Balanced.first (h : Balanced (.node fst rest)) : Balanced fst := by
-  cases h with
-  | node h₁ _ _ => exact h₁
+theorem Balanced.first (h : Balanced (.node fst rest)) : Balanced fst :=
+  match h with | .node h₁ _ _ => h₁
 
 /-- The children among the branches of a balanced node are balanced. -/
 theorem Balanced.of_mem_rest (h : Balanced (.node fst rest)) {e : Branch α β}
-    (he : e ∈ rest) : Balanced e.child := by
-  cases h with
-  | node _ h₂ _ => exact h₂ e he
+    (he : e ∈ rest) : Balanced e.child :=
+  match h with | .node _ h₂ _ => h₂ e he
 
 /-- A child of a balanced tree is exactly one lower. -/
 theorem Balanced.height_of_mem_children {c : BPlusTree α β} (h : Balanced tr)
     (hc : c ∈ tr.children) : c.height + 1 = tr.height := by
-  cases tr with
-  | leaf entries => simp at hc
-  | node first rest =>
-    rw [h.height_node]
-    simp only [children_node, List.mem_cons, List.mem_map] at hc
-    rcases hc with rfl | ⟨e, he, rfl⟩
-    · rfl
-    · rw [h.height_of_mem_rest he]
+  refine mem_children_cases hc (fun _ _ htr hce => ?_) fun _ _ _ htr he hce => ?_
+  · subst htr hce
+    exact h.height_node.symm
+  · subst htr hce
+    rw [h.height_node, h.height_of_mem_rest he]
 
 /-- A child of a balanced tree is balanced. -/
 theorem Balanced.of_mem_children {c : BPlusTree α β} (h : Balanced tr) (hc : c ∈ tr.children) :
-    Balanced c := by
-  cases tr with
-  | leaf entries => simp at hc
-  | node first rest =>
-    simp only [children_node, List.mem_cons, List.mem_map] at hc
-    rcases hc with rfl | ⟨e, he, rfl⟩
-    · exact h.first
-    · exact h.of_mem_rest he
+    Balanced c :=
+  mem_children_cases hc (fun _ _ htr hc => hc ▸ (htr ▸ h).first)
+    fun _ _ _ htr he hc => hc ▸ (htr ▸ h).of_mem_rest he
 
 /-- An occupied tree has at most `2 * t - 1` entries or separators at its root. -/
-theorem Occupied.width_le {c : BPlusTree α β} (h : Occupied t c) : c.width ≤ 2 * t - 1 := by
-  cases h with
-  | leaf _ h₂ => exact h₂
-  | node _ h₂ _ _ => exact h₂
+theorem Occupied.width_le {c : BPlusTree α β} (h : Occupied t c) : c.width ≤ 2 * t - 1 :=
+  match h with | .leaf _ h₂ | .node _ h₂ _ _ => h₂
 
 /-- An occupied tree has at least `t - 1` entries or separators at its root. -/
-theorem Occupied.le_width {c : BPlusTree α β} (h : Occupied t c) : t - 1 ≤ c.width := by
-  cases h with
-  | leaf h₁ _ => exact h₁
-  | node h₁ _ _ _ => exact h₁
+theorem Occupied.le_width {c : BPlusTree α β} (h : Occupied t c) : t - 1 ≤ c.width :=
+  match h with | .leaf h₁ _ | .node h₁ _ _ _ => h₁
 
 /-- The first child of an occupied node is occupied. -/
-theorem Occupied.first (h : Occupied t (.node fst rest)) : Occupied t fst := by
-  cases h with
-  | node _ _ h₃ _ => exact h₃
+theorem Occupied.first (h : Occupied t (.node fst rest)) : Occupied t fst :=
+  match h with | .node _ _ h₃ _ => h₃
 
 /-- The children among the branches of an occupied node are occupied. -/
 theorem Occupied.of_mem_rest (h : Occupied t (.node fst rest)) {e : Branch α β}
-    (he : e ∈ rest) : Occupied t e.child := by
-  cases h with
-  | node _ _ _ h₄ => exact h₄ e he
+    (he : e ∈ rest) : Occupied t e.child :=
+  match h with | .node _ _ _ h₄ => h₄ e he
 
 /-- A child of an occupied tree is occupied. -/
 theorem Occupied.of_mem_children {c : BPlusTree α β} (h : Occupied t tr)
-    (hc : c ∈ tr.children) : Occupied t c := by
-  cases tr with
-  | leaf entries => simp at hc
-  | node first rest =>
-    simp only [children_node, List.mem_cons, List.mem_map] at hc
-    rcases hc with rfl | ⟨e, he, rfl⟩
-    · exact h.first
-    · exact h.of_mem_rest he
+    (hc : c ∈ tr.children) : Occupied t c :=
+  mem_children_cases hc (fun _ _ htr hc => hc ▸ (htr ▸ h).first)
+    fun _ _ _ htr he hc => hc ▸ (htr ▸ h).of_mem_rest he
 
 end Inversion
 
@@ -599,33 +571,28 @@ section LinearOrder
 variable [LinearOrder α] {t : ℕ} {c fst : BPlusTree α β} {rest : List (Branch α β)}
 
 /-- The first child of a separated node is separated. -/
-theorem Separated.first (h : Separated (.node fst rest)) : Separated fst := by
-  cases h with
-  | node h₁ _ _ _ _ => exact h₁
+theorem Separated.first (h : Separated (.node fst rest)) : Separated fst :=
+  match h with | .node h₁ _ _ _ _ => h₁
 
 /-- The children among the branches of a separated node are separated. -/
 theorem Separated.of_mem_rest (h : Separated (.node fst rest)) {e : Branch α β}
-    (he : e ∈ rest) : Separated e.child := by
-  cases h with
-  | node _ h₂ _ _ _ => exact h₂ e he
+    (he : e ∈ rest) : Separated e.child :=
+  match h with | .node _ h₂ _ _ _ => h₂ e he
 
 /-- A separator is at most every key of the child it introduces. -/
 theorem Separated.le_of_mem (h : Separated (.node fst rest)) {e : Branch α β} (he : e ∈ rest)
-    {p : α × β} (hp : p ∈ e.child.toList) : e.1 ≤ p.1 := by
-  cases h with
-  | node _ _ h₃ _ _ => exact h₃ e he p hp
+    {p : α × β} (hp : p ∈ e.child.toList) : e.1 ≤ p.1 :=
+  match h with | .node _ _ h₃ _ _ => h₃ e he p hp
 
 /-- The keys of each child among the branches are below every later separator. -/
 theorem Separated.pairwise (h : Separated (.node fst rest)) :
-    rest.Pairwise fun a b => ∀ p ∈ a.child.toList, p.1 < b.1 := by
-  cases h with
-  | node _ _ _ h₄ _ => exact h₄
+    rest.Pairwise fun a b => ∀ p ∈ a.child.toList, p.1 < b.1 :=
+  match h with | .node _ _ _ h₄ _ => h₄
 
 /-- The keys of the first child are below every separator. -/
 theorem Separated.lt_of_mem_first (h : Separated (.node fst rest)) {e : Branch α β}
-    (he : e ∈ rest) {p : α × β} (hp : p ∈ fst.toList) : p.1 < e.1 := by
-  cases h with
-  | node _ _ _ _ h₅ => exact h₅ e he p hp
+    (he : e ∈ rest) {p : α × β} (hp : p ∈ fst.toList) : p.1 < e.1 :=
+  match h with | .node _ _ _ _ h₅ => h₅ e he p hp
 
 /-- The separator convention between two positions of a node: the keys of the child at an
 earlier position are below the separator at a later one. -/
@@ -634,14 +601,9 @@ theorem Separated.lt_of_lt (h : Separated (.node fst rest)) {i j : Fin rest.leng
   List.pairwise_iff_getElem.1 h.pairwise i j i.isLt j.isLt hij p hp
 
 /-- A child of a separated tree is separated. -/
-theorem Separated.of_mem_children (h : Separated tr) (hc : c ∈ tr.children) : Separated c := by
-  cases tr with
-  | leaf entries => simp at hc
-  | node first rest =>
-    simp only [children_node, List.mem_cons, List.mem_map] at hc
-    rcases hc with rfl | ⟨e, he, rfl⟩
-    · exact h.first
-    · exact h.of_mem_rest he
+theorem Separated.of_mem_children (h : Separated tr) (hc : c ∈ tr.children) : Separated c :=
+  mem_children_cases hc (fun _ _ htr hc => hc ▸ (htr ▸ h).first)
+    fun _ _ _ htr he hc => hc ▸ (htr ▸ h).of_mem_rest he
 
 /-- Every child of a well-formed tree has sorted entries. -/
 theorem IsWF.sorted_of_mem_children (h : IsWF t tr) (hc : c ∈ tr.children) :
@@ -679,18 +641,14 @@ variable {rest : List (Branch α β)} {t n : ℕ}
     occupiedRest t rest = rest.all fun e => occupied t e.child := by
   induction rest with
   | nil => rfl
-  | cons e rest ih =>
-    obtain ⟨k, c⟩ := e
-    simp [occupiedRest, ih]
+  | cons e _ ih => exact e.casesOn fun _ _ => by simp [occupiedRest, ih]
 
 /-- `balancedRest n` checks that every child among the branches is balanced and of height `n`. -/
 @[simp] theorem balancedRest_eq_all :
     balancedRest n rest = rest.all fun e => balanced e.child && e.child.height == n := by
   induction rest with
   | nil => rfl
-  | cons e rest ih =>
-    obtain ⟨k, c⟩ := e
-    simp [balancedRest, ih, Bool.and_assoc]
+  | cons e _ ih => exact e.casesOn fun _ _ => by simp [balancedRest, ih, Bool.and_assoc]
 
 /-- `occupied` decides `Occupied`. -/
 @[simp] theorem occupied_iff : occupied t tr = true ↔ Occupied t tr := by
@@ -701,11 +659,9 @@ variable {rest : List (Branch α β)} {t n : ℕ}
   | node first rest ih₁ ih₂ =>
     rw [occupied, occupiedRest_eq_all]
     simp only [Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true, ih₁]
-    constructor
-    · rintro ⟨⟨⟨h₁, h₂⟩, h₃⟩, h₄⟩
-      exact .node h₁ h₂ h₃ fun e he => (ih₂ e he).1 (h₄ e he)
-    · intro h
-      exact ⟨⟨⟨h.le_width, h.width_le⟩, h.first⟩, fun e he => (ih₂ e he).2 (h.of_mem_rest he)⟩
+    exact ⟨fun ⟨⟨⟨h₁, h₂⟩, h₃⟩, h₄⟩ => .node h₁ h₂ h₃ fun e he => (ih₂ e he).1 (h₄ e he),
+      fun h => ⟨⟨⟨h.le_width, h.width_le⟩, h.first⟩,
+        fun e he => (ih₂ e he).2 (h.of_mem_rest he)⟩⟩
 
 /-- `balanced` decides `Balanced`. -/
 @[simp] theorem balanced_iff : balanced tr = true ↔ Balanced tr := by
@@ -714,11 +670,9 @@ variable {rest : List (Branch α β)} {t n : ℕ}
   | node first rest ih₁ ih₂ =>
     rw [balanced, balancedRest_eq_all]
     simp only [Bool.and_eq_true, beq_iff_eq, List.all_eq_true, ih₁]
-    constructor
-    · rintro ⟨h₁, h₂⟩
-      exact .node h₁ (fun e he => (ih₂ e he).1 (h₂ e he).1) fun e he => (h₂ e he).2
-    · intro h
-      exact ⟨h.first, fun e he => ⟨(ih₂ e he).2 (h.of_mem_rest he), h.height_of_mem_rest he⟩⟩
+    exact ⟨fun ⟨h₁, h₂⟩ => .node h₁ (fun e he => (ih₂ e he).1 (h₂ e he).1)
+        fun e he => (h₂ e he).2,
+      fun h => ⟨h.first, fun e he => ⟨(ih₂ e he).2 (h.of_mem_rest he), h.height_of_mem_rest he⟩⟩⟩
 
 variable [LinearOrder α]
 
@@ -736,9 +690,7 @@ theorem belowLater_iff :
     separatedRest rest = rest.all fun e => separated e.child := by
   induction rest with
   | nil => rfl
-  | cons e rest ih =>
-    obtain ⟨k, c⟩ := e
-    simp [separatedRest, ih]
+  | cons e _ ih => exact e.casesOn fun _ _ => by simp [separatedRest, ih]
 
 /-- `separated` decides `Separated`. -/
 @[simp] theorem separated_iff : separated tr = true ↔ Separated tr := by
@@ -747,28 +699,25 @@ theorem belowLater_iff :
   | node first rest ih₁ ih₂ =>
     rw [separated, separatedRest_eq_all]
     simp only [Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq, ih₁, belowLater_iff]
-    constructor
-    · rintro ⟨⟨⟨⟨h₁, h₂⟩, h₃⟩, h₄⟩, h₅⟩
-      exact .node h₁ (fun e he => (ih₂ e he).1 (h₂ e he)) h₃ h₄ h₅
-    · intro h
-      exact ⟨⟨⟨⟨h.first, fun e he => (ih₂ e he).2 (h.of_mem_rest he)⟩,
-        fun e he p hp => h.le_of_mem he hp⟩, h.pairwise⟩, fun e he p hp => h.lt_of_mem_first he hp⟩
+    exact ⟨fun ⟨⟨⟨⟨h₁, h₂⟩, h₃⟩, h₄⟩, h₅⟩ =>
+        .node h₁ (fun e he => (ih₂ e he).1 (h₂ e he)) h₃ h₄ h₅,
+      fun h => ⟨⟨⟨⟨h.first, fun e he => (ih₂ e he).2 (h.of_mem_rest he)⟩,
+        fun e he p hp => h.le_of_mem he hp⟩, h.pairwise⟩,
+        fun e he p hp => h.lt_of_mem_first he hp⟩⟩
 
 /-- `isWF` decides `IsWF`. -/
 @[simp] theorem isWF_iff : isWF t tr = true ↔ IsWF t tr := by
   simp only [isWF, Bool.and_eq_true, Bool.or_eq_true, decide_eq_true_eq, List.all_eq_true,
     occupied_iff, balanced_iff, separated_iff]
-  constructor
-  · rintro ⟨⟨⟨⟨⟨⟨h₁, h₂⟩, h₃⟩, h₄⟩, h₅⟩, h₆⟩, h₇⟩
-    refine ⟨h₁, h₂, fun hne => ?_, h₄, h₅, h₆, h₇⟩
-    cases tr with
+  refine ⟨fun ⟨⟨⟨⟨⟨⟨h₁, h₂⟩, h₃⟩, h₄⟩, h₅⟩, h₆⟩, h₇⟩ =>
+    ⟨h₁, h₂, fun hne => ?_, h₄, h₅, h₆, h₇⟩, fun h =>
+    ⟨⟨⟨⟨⟨⟨h.two_le, h.width_le⟩, ?_⟩, h.occupied_of_mem_children⟩, h.balanced⟩, h.separated⟩,
+      h.sorted⟩⟩
+  · cases tr with
     | leaf entries => exact absurd rfl (hne entries)
     | node => simpa using h₃
-  · intro h
-    refine ⟨⟨⟨⟨⟨⟨h.two_le, h.width_le⟩, ?_⟩, h.occupied_of_mem_children⟩, h.balanced⟩,
-      h.separated⟩, h.sorted⟩
-    cases tr with
-    | leaf entries => simp
+  · cases tr with
+    | leaf => simp
     | node => exact Or.inr (h.width_pos nofun)
 
 end Decidability

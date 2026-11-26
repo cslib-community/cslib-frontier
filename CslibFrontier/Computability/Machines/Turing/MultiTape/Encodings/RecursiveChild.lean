@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Recursive
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeOptionPrimitives
+import CslibFrontier.Tactic.OptionMatch
 
 /-!
 # Extracting children from flat constructor streams
@@ -49,16 +50,14 @@ private theorem forestAt?_flatten {arity : τ → ℕ} (children : List (List τ
   | nil => simp at hindex
   | cons child children ih =>
     have hchild := hchildren child (List.mem_cons_self ..)
-    have hrest : ∀ tree ∈ children, Forest arity 1 tree :=
-      fun tree htree => hchildren tree (List.mem_cons_of_mem _ htree)
     cases index with
     | zero =>
-      simp only [List.flatten_cons, List.append_assoc, forestAt?,
-        splitTree_append hchild, Option.map_some, List.getElem_cons_zero]
+      simp only [List.flatten_cons, List.append_assoc, forestAt?, splitTree_append hchild,
+        Option.map_some, List.getElem_cons_zero]
     | succ index =>
-      have hi : index < children.length := by simpa using hindex
       simpa only [List.flatten_cons, List.append_assoc, forestAt?, splitTree_append hchild,
-        Option.bind_some, List.getElem_cons_succ] using ih hrest index hi
+        Option.bind_some, List.getElem_cons_succ] using
+        ih (fun _ h => hchildren _ (List.mem_cons_of_mem _ h)) index (by simpa using hindex)
 
 /-- In a valid sequence of child streams, extraction preserves the selected child exactly,
 independently of any following suffix. -/
@@ -79,26 +78,15 @@ private theorem forestAt?_polyTime {encToken : τ ↪ List Bool} {arity : τ →
   have hsplit := splitTree_polyTime harity hmax
   induction index with
   | zero =>
-    have hfront : ComputableInPolyTime (fun p : List τ × (List τ × List τ) => some p.2.1)
-        (encPair encTokens (encPair encTokens encTokens)) (encOption encTokens) :=
-      (optionSome encTokens).comp ((fst encTokens encTokens).comp
-        (snd encTokens (encPair encTokens encTokens)))
-    apply (optionElimWithInput (encC := encOption encTokens)
-      (body := fun (_ : List τ) parts => some parts.1) hsplit
-      (const (none : Option (List τ))) hfront).of_enc_eq
-    intro tokens
-    cases h : splitTree arity tokens <;> simp [forestAt?, h, encTokens]
+    exact hsplit.optionMapWithInput
+      ((fst encTokens encTokens).comp (snd encTokens (encPair encTokens encTokens)))
   | succ index ih =>
-    have hrest : ComputableInPolyTime
-        (fun p : List τ × (List τ × List τ) => forestAt? arity index p.2.2)
-        (encPair encTokens (encPair encTokens encTokens)) (encOption encTokens) :=
-      ih.comp ((snd encTokens encTokens).comp
-        (snd encTokens (encPair encTokens encTokens)))
-    apply (optionElimWithInput (encC := encOption encTokens)
-      (body := fun (_ : List τ) parts => forestAt? arity index parts.2) hsplit
-      (const (none : Option (List τ))) hrest).of_enc_eq
-    intro tokens
-    cases h : splitTree arity tokens <;> simp [forestAt?, h, encTokens]
+    change ComputableInPolyTime
+      (fun tokens => (splitTree arity tokens).bind fun parts => forestAt? arity index parts.2)
+      (encList encToken) (encOption (encList encToken))
+    option_match_to_elim
+    exact optionElimWithInput (encC := encOption encTokens) hsplit (const none)
+      (ih.comp ((snd encTokens encTokens).comp (snd encTokens (encPair encTokens encTokens))))
 
 /-- For any fixed recursive-field index, subtree extraction has a native polynomial-time
 certificate. Token arities need a native certificate and a fixed bound; token decoding is not

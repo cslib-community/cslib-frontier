@@ -72,13 +72,12 @@ private theorem card_filter_le_of_acceptedRow {k r h : ℕ} {I : Type} [Fintype 
         ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hij⟩, hjS⟩)
   have hU : U.card ≤ r * sideSensitivity F true := by
     simpa [U] using Finset.card_biUnion_le_card_mul Finset.univ
-      (fun c => childChanges F (Fin.last h) x i c) (sideSensitivity F true)
-      (fun c _ => by
+      (fun c => childChanges F (Fin.last h) x i c) (sideSensitivity F true) fun c _ => by
         rw [childChanges_card]
-        exact sensitivityAt_le_sideSensitivity F true _ _ (htarget c))
+        exact sensitivityAt_le_sideSensitivity F true _ _ (htarget c)
   have hV : V.card ≤ o * s := by
     simpa only [V, ho i] using Finset.card_biUnion_le_card_mul (Finset.univ.filter (T.Adj i)) S s
-      (fun j hj => hS j (Finset.mem_filter.mp hj).2)
+      fun j hj => hS j (Finset.mem_filter.mp hj).2
   calc (Finset.univ.filter P).card ≤ (U ∪ V).card := Finset.card_le_card hsub
     _ ≤ U.card + V.card := Finset.card_union_le _ _
     _ ≤ o * s + r * sideSensitivity F true := by omega
@@ -100,16 +99,11 @@ theorem recursive_sensitivity_one_at {k r h : ℕ} {I : Type} [Fintype I]
   refine card_filter_le_of_acceptedRow T F o _ ho x i hcond.1
     (fun j => childChanges F (gateIndex q) x j (label i j)) (fun j hij => by
       rw [childChanges_card]
-      exact sensitivityAt_le_sideSensitivity F false _ _ (hcond.2 j hij)) _ ?_
-  intro j c a hchange
-  have hf : recursiveFamily T label F q (BitString.flipOn {((j, c), a)} x) = false := by grind
-  have hif := (recursiveFamily_eq_false_iff T label F q _).mp hf i
-  have hic : rowClause T label F q (BitString.flipOn {((j, c), a)} x) i ≠
-      rowClause T label F q x i := by
-    simp [hi, hif]
-  rcases rowClause_flip_change T label F q x i j c a hic with ht | ⟨hij, rfl, hg⟩
-  · exact Or.inl ht
-  · exact Or.inr ⟨hij, by simpa [childChanges] using hg⟩
+      exact sensitivityAt_le_sideSensitivity F false _ _ (hcond.2 j hij)) _ fun j c a hchange => ?_
+  have hif := (recursiveFamily_eq_false_iff T label F q
+    (BitString.flipOn {((j, c), a)} x)).mp (by grind) i
+  exact (rowClause_flip_change T label F q x i j c a (by simp [hi, hif])).imp id
+    fun ⟨hij, rfl, hg⟩ => ⟨hij, by simpa [childChanges] using hg⟩
 
 open scoped Classical in
 /-- If every vertex of `T` has outdegree `o`, then the side profile of the next-level family at
@@ -144,22 +138,14 @@ theorem recursive_joint_one_at {k r h : ℕ} {I : Type} [Fintype I]
     (fun j => childJointChanges F (gateIndex q') (gateIndex q) x j (label i j)) (fun j hij => by
       rw [childJointChanges_card]
       exact jointSensitivityAt_le_jointSensitivity F false _ _ _
-        (gateIndex_strictAnti hqq) (hcond'.2 j hij) (hcond.2 j hij)) _ ?_
-  intro j c a hchange
-  have hf : recursiveFamily T label F q (BitString.flipOn {((j, c), a)} x) = false := by grind
-  have hf' : recursiveFamily T label F q' (BitString.flipOn {((j, c), a)} x) = false := by grind
-  have hif := (recursiveFamily_eq_false_iff T label F q _).mp hf i
-  have hif' := (recursiveFamily_eq_false_iff T label F q' _).mp hf' i
-  have hic : rowClause T label F q (BitString.flipOn {((j, c), a)} x) i ≠
-      rowClause T label F q x i := by
-    simp [hi, hif]
-  have hic' : rowClause T label F q' (BitString.flipOn {((j, c), a)} x) i ≠
-      rowClause T label F q' x i := by
-    simp [hi', hif']
-  rcases rowClause_joint_flip_change T label F q q' x i j c a hic hic' with
-    ht | ⟨hij, rfl, hg, hg'⟩
-  · exact Or.inl ht
-  · exact Or.inr ⟨hij, by simpa [childJointChanges] using And.intro hg' hg⟩
+        (gateIndex_strictAnti hqq) (hcond'.2 j hij) (hcond.2 j hij)) _ fun j c a hchange => ?_
+  have hif := (recursiveFamily_eq_false_iff T label F q
+    (BitString.flipOn {((j, c), a)} x)).mp (by grind) i
+  have hif' := (recursiveFamily_eq_false_iff T label F q'
+    (BitString.flipOn {((j, c), a)} x)).mp (by grind) i
+  exact (rowClause_joint_flip_change T label F q q' x i j c a
+    (by simp [hi, hif]) (by simp [hi', hif'])).imp id
+    fun ⟨hij, rfl, hg, hg'⟩ => ⟨hij, by simpa [childJointChanges] using ⟨hg', hg⟩⟩
 
 open scoped Classical in
 /-- If `F` is nested and every vertex of `T` has outdegree `o`, then the joint profile of the

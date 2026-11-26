@@ -129,9 +129,9 @@ theorem power2Round_low_mem_Ioc (hd : 0 < d) (r : ZMod q) :
   have : NeZero (2 ^ d) := ⟨by positivity⟩
   have h := ZMod.valMinAbs_mem_Ioc (((r.val : ℤ) : ZMod (2 ^ d)))
   have hpow : (2 : ℕ) ^ d = 2 * 2 ^ (d - 1) := by
-    conv_lhs => rw [← Nat.succ_pred_eq_of_pos hd]
-    rw [pow_succ]
-    rw [Nat.pred_eq_sub_one, Nat.mul_comm]
+    cases d with
+    | zero => omega
+    | succ d => simp [pow_succ']
   change power2Rem q d r * 2 ∈ Set.Ioc (-((2 ^ d : ℕ) : ℤ)) ((2 ^ d : ℕ) : ℤ) at h
   change power2Rem q d r ∈ Set.Ioc (-(2 ^ (d - 1) : ℤ)) (2 ^ (d - 1) : ℤ)
   simp only [Set.mem_Ioc] at h ⊢
@@ -271,28 +271,15 @@ theorem highBits_lt (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1) (hq : 1 < q) 
   · rw [highBits, decompose_of_wrap h]
     -- `q - 1 = m · 2 γ₂ ≥ 1` forces `m ≥ 1`.
     have hq' : (1 : ℤ) < q := by exact_mod_cast hq
-    rcases Nat.eq_zero_or_pos m with hm0 | hm0
-    · rw [hm0] at hqm
-      push_cast at hqm
-      linarith
-    · change (0 : ℤ) < m
-      exact_mod_cast hm0
+    push_cast at hqm
+    nlinarith
   · rw [highBits, decompose_of_not_wrap h]
     obtain ⟨k, hk⟩ := dvd_sub_centeredRem (γ₂ := γ₂) r
     rw [hk, Int.mul_ediv_cancel_left _ (by positivity)]
     push_cast at hk hqm
     -- `r⁺ - r₀ = 2 γ₂ k ≤ q - 2 + γ₂ < q - 1 + 2 γ₂`, so `k ≤ m`, and `k ≠ m` off the wrap case.
-    have hk_le : k ≤ m := by
-      by_contra hlt
-      have hlt : (m : ℤ) + 1 ≤ k := by omega
-      have : (2 * γ₂ : ℤ) * (m + 1) ≤ 2 * γ₂ * k := by
-        apply mul_le_mul_of_nonneg_left (by omega) (by positivity)
-      nlinarith
-    have hk_ne : k ≠ m := by
-      intro hkm
-      apply h
-      rw [hk, hkm, hqm]
-      ring
+    have hk_lt : k < (m : ℤ) + 1 := by nlinarith
+    have hk_ne : k ≠ m := fun hkm => h (by rw [hk, hkm, hqm]; ring)
     omega
 
 /-- The centered remainder of `r` is the unique `c ∈ (-γ₂, γ₂]` congruent to `r⁺` modulo
@@ -302,8 +289,7 @@ private theorem centeredRem_eq (hγ : 0 < γ₂) {r : ZMod q} {c : ℤ} (hc₁ :
   have : NeZero (2 * γ₂) := ⟨by omega⟩
   rw [centeredRem, ZMod.valMinAbs_spec]
   refine ⟨(ZMod.intCast_eq_intCast_iff_dvd_sub _ _ _).mpr ?_, ?_⟩
-  · obtain ⟨t, ht⟩ := hdc
-    exact ⟨-t, by linarith⟩
+  · exact hdc.elim fun t ht => ⟨-t, by linarith⟩
   · simp only [Set.mem_Ioc]
     push_cast
     constructor <;> linarith
@@ -315,10 +301,7 @@ theorem decompose_intCast_mul_add (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1)
     decompose q γ₂ ((a * (2 * γ₂ : ℕ) + b : ℤ) : ZMod q) = (a, b) := by
   set m : ℕ := (q - 1) / (2 * γ₂) with hm
   have hqm : (q : ℤ) = m * (2 * γ₂) + 1 := by
-    have := natCast_eq_bucketCount_mul_add_one (q := q) (γ₂ := γ₂) hdvd
-    rw [← hm] at this
-    push_cast at this
-    exact this
+    exact_mod_cast natCast_eq_bucketCount_mul_add_one (q := q) (γ₂ := γ₂) hdvd
   have hcast : ((2 * γ₂ : ℕ) : ℤ) = 2 * (γ₂ : ℤ) := by push_cast; ring
   have hγ' : (1 : ℤ) ≤ γ₂ := by exact_mod_cast hγ
   have hm1 : (1 : ℤ) ≤ m := by omega
@@ -330,8 +313,7 @@ theorem decompose_intCast_mul_add (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1)
   by_cases hx : 0 ≤ a * (2 * γ₂) + b
   · -- No reduction modulo `q` happens, and this is not the wrap-around case.
     have hxq : a * (2 * γ₂) + b < q := by
-      have : a * (2 * γ₂) ≤ (m - 1) * (2 * γ₂) :=
-        mul_le_mul_of_nonneg_right (by omega) (by positivity)
+      have : a * (2 * γ₂) ≤ (m - 1) * (2 * γ₂) := by gcongr; omega
       linarith
     have hv : (r.val : ℤ) = a * (2 * γ₂) + b := by
       rw [hval, Int.emod_eq_of_lt hx hxq]
@@ -381,8 +363,8 @@ theorem lowBits_intCast_mul_add (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1) [
 theorem highBits_intCast_mul (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1) [NeZero q] {a : ℤ}
     (ha₀ : 0 ≤ a) (ha : a < ((q - 1) / (2 * γ₂) : ℕ)) :
     highBits q γ₂ ((a * (2 * γ₂ : ℕ) : ℤ) : ZMod q) = a := by
-  have := highBits_intCast_mul_add (b := 0) hγ hdvd ha₀ ha (by omega) (by omega)
-  rwa [add_zero] at this
+  simpa only [add_zero] using
+    highBits_intCast_mul_add (b := 0) hγ hdvd ha₀ ha (by omega) (by omega)
 
 /-- Adding a short perturbation to a value with small low bits: the decomposition of `r + s` is
 `(HighBits r, LowBits r + s)`, where `s` is read through its centered representative. -/
@@ -394,11 +376,10 @@ theorem decompose_add_of_abs_lowBits_lt (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ 
   have hsum : r + s =
       ((highBits q γ₂ r * (2 * γ₂ : ℕ) + (lowBits q γ₂ r + s.valMinAbs) : ℤ) : ZMod q) := by
     rw [← add_assoc, Int.cast_add, intCast_highBits_mul_add_lowBits, ZMod.coe_valMinAbs]
-  rw [abs_lt] at hr
-  rw [abs_le] at hs
   rw [hsum]
   exact decompose_intCast_mul_add hγ hdvd (highBits_nonneg hγ r) (highBits_lt hγ hdvd hq r)
-    (by linarith [hr.1, hs.1]) (by linarith [hr.2, hs.2])
+    (by linarith [(abs_lt.mp hr).1, (abs_le.mp hs).1])
+    (by linarith [(abs_lt.mp hr).2, (abs_le.mp hs).2])
 
 /-- **High bits are stable under short perturbations.** If `|s| ≤ β` and
 `|LowBits r| < γ₂ - β`, then `HighBits (r + s) = HighBits r`. -/

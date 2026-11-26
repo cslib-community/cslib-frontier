@@ -11,7 +11,6 @@ public import CslibFrontier.Computability.BlumComplexity.Fuel
 public import Mathlib.Order.Lattice.Nat
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Computability.Halting
-import Mathlib.Tactic.Linarith
 
 /-!
 # Radó's busy beaver functions for partial recursive codes
@@ -142,10 +141,6 @@ noncomputable def bbOutput (n : ℕ) : ℕ :=
 for the evaluator `Code.evaln`; the fuel is not the step count of a machine. -/
 noncomputable def bbFuel (n : ℕ) : ℕ :=
   sSup {k | ∃ c : Code, encode c ≤ n ∧ k ∈ evalnFuel c 0}
-
-private theorem bbOutput_eq : bbOutput = bbOf fun c => c.eval 0 := rfl
-
-private theorem bbFuel_eq : bbFuel = bbOf fun c => evalnFuel c 0 := rfl
 
 private theorem dom_eval_zero : (Code.zero.eval 0).Dom := by
   simp [Code.eval, pure, PFun.pure]
@@ -326,8 +321,11 @@ private theorem encode_comp_succ_le (c : Code) :
   simp only [Code.encodeCode_eq, Code.encodeCode]
   have : Nat.pair 1 c.encodeCode ≤ c.encodeCode ^ 2 + 2 := by
     unfold Nat.pair
-    split_ifs <;> nlinarith
-  linarith
+    split_ifs
+    · rw [sq]; omega
+    · rcases Nat.le_one_iff_eq_zero_or_eq_one.mp (by omega : c.encodeCode ≤ 1) with h | h <;>
+        simp [h]
+  omega
 
 /-- The fuel version outgrows the output version, up to the size overhead `4 * n ^ 2 + 14` of
 composing a code with `succ`. -/

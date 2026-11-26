@@ -107,15 +107,10 @@ def pattern : List IPMove → List AMMove
 
 theorem map_fst_shape (B Z : ℕ) (g : List (IPMove × ℕ)) :
     (shape B Z g).map Prod.fst = pattern (g.map Prod.fst) := by
-  induction g with
-  | nil => rfl
-  | cons x g ih =>
-    obtain ⟨_ | _, n⟩ := x <;> simp [shape, pattern, ih]
+  fun_induction shape B Z g <;> simp [pattern, *]
 
 theorem pattern_append (π σ : List IPMove) : pattern (π ++ σ) = pattern π ++ pattern σ := by
-  induction π with
-  | nil => rfl
-  | cons x π ih => cases x <;> simp [pattern, ih]
+  fun_induction pattern π <;> simp [pattern, *]
 
 /-- The polynomial public-coin shape emulating a polynomial private-coin shape. -/
 noncomputable def shapePoly (B Z : Polynomial ℕ) : List (IPMove × Polynomial ℕ) →
@@ -126,22 +121,15 @@ noncomputable def shapePoly (B Z : Polynomial ℕ) : List (IPMove × Polynomial 
 
 theorem evalShape_shapePoly (B Z : Polynomial ℕ) (G : List (IPMove × Polynomial ℕ)) (n : ℕ) :
     AMGame.evalShape (shapePoly B Z G) n = shape (B.eval n) (Z.eval n) (evalShape G n) := by
-  induction G with
-  | nil => rfl
-  | cons x G ih =>
-    obtain ⟨_ | _, p⟩ := x
-    · change _ = shape _ _ ((.verifier, p.eval n) :: evalShape G n)
-      simp only [shapePoly, AMGame.evalShape_cons, ih, shape, Polynomial.eval_add,
-        Polynomial.eval_mul]
-    · change _ = shape _ _ ((.prover, p.eval n) :: evalShape G n)
-      simp only [shapePoly, AMGame.evalShape_cons, ih, shape]
+  fun_induction shapePoly B Z G with
+  | case1 => rfl -- []
+  | _ => -- verifier or prover move
+    simp only [AMGame.evalShape_cons, evalShape, List.map_cons, shape, Polynomial.eval_add,
+      Polynomial.eval_mul, *]
 
 theorem map_fst_shapePoly (B Z : Polynomial ℕ) (G : List (IPMove × Polynomial ℕ)) :
     (shapePoly B Z G).map Prod.fst = pattern (G.map Prod.fst) := by
-  induction G with
-  | nil => rfl
-  | cons x G ih =>
-    obtain ⟨_ | _, n⟩ := x <;> simp [shapePoly, pattern, ih]
+  fun_induction shapePoly B Z G <;> simp [pattern, *]
 
 /-- The public-coin verifier emulating the count of the payoff `V` on the shape `g`, with current
 claim `κ` and transcript prefix `p`, on Arthur's and Merlin's messages `w`. At a verifier move of
@@ -200,17 +188,10 @@ theorem check_verifier_ofFn (B Z K : ℕ) (V : List Bool → Bool) (n : ℕ) (g 
       (hashZero B (n + Z) (List.ofFn r) (List.ofFn m ++ List.ofFn z) &&
         (!((List.ofFn z).take (Z + κ - ((List.ofFn c).count true + K))).any fun b => b) &&
         check B Z K V g ((List.ofFn c).count true) (p ++ List.ofFn m) t) := by
-  have h1 : (List.ofFn c ++ (List.ofFn m ++ List.ofFn z) ++ t).take B = List.ofFn c := by
-    rw [List.append_assoc]; exact List.take_left' List.length_ofFn
-  have h2 : (List.ofFn c ++ (List.ofFn m ++ List.ofFn z) ++ t).drop B =
-      List.ofFn m ++ List.ofFn z ++ t := by
-    rw [List.append_assoc]; exact List.drop_left' List.length_ofFn
-  have h3 : (List.ofFn m ++ List.ofFn z ++ t).take (n + Z) = List.ofFn m ++ List.ofFn z :=
-    List.take_left' (by simp)
-  have h4 : (List.ofFn m ++ List.ofFn z ++ t).drop (n + Z) = t :=
-    List.drop_left' (by simp)
-  simp only [check, List.take_left' List.length_ofFn, List.drop_left' List.length_ofFn, h1, h2,
-    h3, h4]
+  have hlen : (List.ofFn m ++ List.ofFn z).length = n + Z := by simp
+  rw [List.append_assoc (List.ofFn c)]
+  simp only [check, List.take_left' List.length_ofFn, List.drop_left' List.length_ofFn,
+    List.take_left' hlen, List.drop_left' hlen]
 
 /-- Values of `a && F t` for a constant `a`. -/
 private theorem value_and_left (h : List (AMMove × ℕ)) (a : Bool) (F : List Bool → Bool) :
@@ -230,13 +211,10 @@ private theorem value_verifier_inner (B Z K : ℕ) (V : List Bool → Bool) (n :
           Bool).toNat : ℚ) *
         AMGame.value true (shape B Z g) fun t =>
           ((check B Z K V g ((List.ofFn c).count true) (p ++ List.ofFn m) t).toNat : ℚ) := by
-  simp only [List.ofFn_fin_append]
   have hx : hashZero B (n + Z) (List.ofFn r) (List.ofFn m ++ List.ofFn z) =
       decide (affineHash (affineSeedEquiv B (n + Z) r) (Fin.append m z) = 0) := by
-    rw [← List.ofFn_fin_append]
-    exact Bool.eq_iff_iff.2 ((hashZero_ofFn r _).trans decide_eq_true_iff.symm)
-  simp only [check_verifier_ofFn, hx]
-  rw [value_and_left]
+    rw [← List.ofFn_fin_append, Bool.eq_iff_iff, hashZero_ofFn, decide_eq_true_iff]
+  simp only [List.ofFn_fin_append, check_verifier_ofFn, hx, value_and_left]
   congr 1
 
 private theorem exists_eq_append (B n Z : ℕ) (y : Fin (B + (n + Z)) → Bool) :
@@ -282,14 +260,9 @@ theorem value_le (B Z K μ : ℕ) (hBK : B ≤ K) (hμ : 0 < μ) (V : List Bool 
   induction g generalizing κ p with
   | nil =>
     rw [shape, AMGame.value_nil, check_nil, verifierMoves_nil, countFrom_nil]
-    by_cases h : κ = 0 ∧ V p = true
-    · obtain ⟨rfl, hV⟩ := h
-      simp [hV]
-    · have : (decide (κ = 0) && V p) = false := by
-        simpa [Bool.and_eq_true, decide_eq_true_eq] using h
-      rw [this]
-      simp only [Bool.toNat_false, Nat.cast_zero]
-      positivity
+    cases hb : decide (κ = 0) && V p
+    · positivity
+    · simp_all
   | cons x g ih =>
     obtain ⟨_ | _, n⟩ := x
     · -- verifier move
@@ -301,16 +274,7 @@ theorem value_le (B Z K μ : ℕ) (hBK : B ≤ K) (hμ : 0 < μ) (V : List Bool 
         {m | μ * 2 ^ b * N < 2 ^ κ * countFrom g V (p ++ List.ofFn m)}
       have hT (b : ℕ) : μ * 2 ^ b * #(T b) ≤ 2 ^ κ := by
         rcases Nat.eq_zero_or_pos N with h0 | hpos
-        · have hTe : T b = ∅ := by
-            refine filter_eq_empty_iff.2 fun m _ hm => ?_
-            have hle : countFrom g V (p ++ List.ofFn m) ≤ N :=
-              single_le_sum (f := fun m : Fin n → Bool => countFrom g V (p ++ List.ofFn m))
-                (fun _ _ => Nat.zero_le _) (mem_univ m)
-            rw [h0] at hm hle
-            rw [Nat.le_zero.1 hle] at hm
-            simp at hm
-          rw [hTe, card_empty, mul_zero]
-          exact Nat.zero_le _
+        · simp [T, h0, sum_eq_zero_iff.1 h0]
         · have hsum : μ * 2 ^ b * #(T b) * N ≤ 2 ^ κ * N := by
             calc μ * 2 ^ b * #(T b) * N = ∑ _m ∈ T b, μ * 2 ^ b * N := by
                   rw [sum_const, smul_eq_mul]; ring
@@ -349,10 +313,8 @@ theorem value_le (B Z K μ : ℕ) (hBK : B ≤ K) (hμ : 0 < μ) (V : List Bool 
             _ = μ * 2 ^ b * #(T b) * 2 ^ (K - κ) := by rw [pow_add]; ring
             _ ≤ 2 ^ κ * 2 ^ (K - κ) := Nat.mul_le_mul_right _ (hT b)
             _ = 2 ^ K := by rw [← pow_add]; congr 1; omega
-        calc μ * #(bad b) * 2 ^ B = μ * (#(bad b) * 2 ^ B) := by ring
-          _ ≤ μ * (#(S b) * 2 ^ (B * (n + Z) + B)) := Nat.mul_le_mul_left _ h1
-          _ = μ * #(S b) * 2 ^ (B * (n + Z) + B) := by ring
-          _ ≤ 2 ^ K * 2 ^ (B * (n + Z) + B) := Nat.mul_le_mul_right _ h2
+        exact (mul_assoc _ _ _).trans_le ((Nat.mul_le_mul_left μ h1).trans
+          ((mul_assoc _ _ _).symm.trans_le (Nat.mul_le_mul_right _ h2)))
       -- pointwise bound on Merlin's best answer
       have hpt (r : Fin (B * (n + Z) + B) → Bool) :
           (univ.sup' univ_nonempty fun y : Fin (B + (n + Z)) → Bool =>
@@ -377,29 +339,26 @@ theorem value_le (B Z K μ : ℕ) (hBK : B ≤ K) (hμ : 0 < μ) (V : List Bool 
           · have hr : r ∈ bad ((List.ofFn c).count true) :=
               mem_filter.2 ⟨mem_univ _, mem_image.2 ⟨_, hmemS _ m z hm hloc.2, hloc.1⟩⟩
             have h1 : (1 : ℚ) ≤ ∑ b ∈ range (B + 1), if r ∈ bad b then (1 : ℚ) else 0 := by
-              have := single_le_sum (f := fun b => if r ∈ bad b then (1 : ℚ) else 0)
+              simpa only [hr, ite_true] using single_le_sum
+                (f := fun b => if r ∈ bad b then (1 : ℚ) else 0)
                 (fun _ _ => by split_ifs <;> norm_num) (mem_range.2 (Nat.lt_succ_of_le hbB))
-              simpa only [hr, ite_true] using this
             have hv : AMGame.value true (shape B Z g) (fun t => ((check B Z K V g
                 ((List.ofFn c).count true) (p ++ List.ofFn m) t).toNat : ℚ)) ≤ 1 :=
               AMGame.value_le_one _ _ fun t => by
                 cases check B Z K V g ((List.ofFn c).count true) (p ++ List.ofFn m) t <;> norm_num
             linarith
           · have hle : 2 ^ κ * countFrom g V (p ++ List.ofFn m) ≤
-                μ * 2 ^ ((List.ofFn c).count true) * N := by
-              by_contra hcon
-              exact hm (mem_filter.2 ⟨mem_univ _, not_le.1 hcon⟩)
+                μ * 2 ^ ((List.ofFn c).count true) * N :=
+              not_lt.1 fun hcon => hm (mem_filter.2 ⟨mem_univ _, hcon⟩)
             refine (ih _ (hbB.trans hBK) _).trans ?_
             have hle' : (μ : ℚ) ^ verifierMoves g * countFrom g V (p ++ List.ofFn m) /
                 2 ^ ((List.ofFn c).count true) ≤ μ ^ (verifierMoves g + 1) * N / 2 ^ κ := by
-              rw [div_le_div_iff₀ (by positivity) (by positivity)]
+              rw [div_le_div_iff₀ (by positivity) (by positivity), pow_succ]
               have hq : (2 : ℚ) ^ κ * countFrom g V (p ++ List.ofFn m) ≤
                   μ * 2 ^ ((List.ofFn c).count true) * N := by
                 exact_mod_cast hle
-              calc (μ : ℚ) ^ verifierMoves g * countFrom g V (p ++ List.ofFn m) * 2 ^ κ
-                  = μ ^ verifierMoves g * (2 ^ κ * countFrom g V (p ++ List.ofFn m)) := by ring
-                _ ≤ μ ^ verifierMoves g * (μ * 2 ^ ((List.ofFn c).count true) * N) := by gcongr
-                _ = μ ^ (verifierMoves g + 1) * N * 2 ^ ((List.ofFn c).count true) := by ring
+              linarith [mul_le_mul_of_nonneg_left hq
+                (pow_nonneg (Nat.cast_nonneg (α := ℚ) μ) (verifierMoves g))]
             linarith
         · rw [decide_eq_false hloc, Bool.toNat_false, Nat.cast_zero, zero_mul]
           linarith
@@ -411,9 +370,7 @@ theorem value_le (B Z K μ : ℕ) (hBK : B ≤ K) (hμ : 0 < μ) (V : List Bool 
       have hb' : ∀ b ∈ range (B + 1), (∑ r : Fin (B * (n + Z) + B) → Bool,
           if r ∈ bad b then (1 : ℚ) else 0) ≤ 2 ^ K * 2 ^ (B * (n + Z) + B) / (μ * 2 ^ B) := by
         intro b _
-        have hfilt : (univ.filter fun r => r ∈ bad b) = bad b := by
-          ext r; simp only [mem_filter, mem_univ, true_and]
-        rw [sum_boole, hfilt, le_div_iff₀ (by positivity)]
+        rw [sum_boole, filter_mem_eq_inter, univ_inter, le_div_iff₀ (by positivity)]
         have := hbad b
         calc (#(bad b) : ℚ) * (μ * 2 ^ B) = ((μ * #(bad b) * 2 ^ B : ℕ) : ℚ) := by
               push_cast; ring
@@ -421,16 +378,9 @@ theorem value_le (B Z K μ : ℕ) (hBK : B ≤ K) (hμ : 0 < μ) (V : List Bool 
           _ = _ := by push_cast; ring
       have hsum := sum_le_sum hb'
       rw [sum_const, card_range, nsmul_eq_mul] at hsum
-      have hμq : (0 : ℚ) < μ := by exact_mod_cast hμ
       push_cast at hsum ⊢
-      have key : ((B : ℚ) + 1) * (2 ^ K * 2 ^ (B * (n + Z) + B) / (μ * 2 ^ B)) +
-          (2 : ℚ) ^ (B * (n + Z) + B) * (verifierMoves g * ((B + 1) * 2 ^ K / (μ * 2 ^ B)) +
-            μ ^ (verifierMoves g + 1) * N / 2 ^ κ) =
-          ((verifierMoves g + 1) * ((B + 1) * 2 ^ K / (μ * 2 ^ B)) +
-            μ ^ (verifierMoves g + 1) * N / 2 ^ κ) * 2 ^ (B * (n + Z) + B) := by
-        field_simp
-        ring
-      linarith
+      refine (add_le_add hsum le_rfl).trans_eq ?_
+      ring
     · -- prover move
       rw [shape, AMGame.value_merlin_true, verifierMoves_prover, countFrom_prover]
       refine sup'_le _ _ fun y _ => ?_
@@ -450,8 +400,7 @@ private theorem count_ofFn_lt (B β : ℕ) (hβ : β ≤ B) :
     simp only [List.getElem_ofFn, List.getElem_append, List.length_replicate,
       List.getElem_replicate]
     split_ifs with h3 <;> simp [h3]
-  rw [h, List.count_append, List.count_replicate_self, List.count_replicate]
-  simp
+  simp [h, List.count_replicate]
 
 /-- A number below `2 ^ (B + 1)` is at most the sum of the powers of two below it. -/
 private theorem le_sum_two_pow (B x : ℕ) (hx : x < 2 ^ (B + 1)) :
@@ -485,21 +434,13 @@ theorem one_sub_le_value (B Z K : ℕ) (hBK : B ≤ K) (hZ : B + K ≤ Z) (V : L
   | nil =>
     rw [countFrom_nil] at hN
     have hV : V p = true := by grind
-    have hκ0 : κ = 0 := by
-      rw [hV] at hN
-      rcases Nat.eq_zero_or_pos κ with h | h
-      · exact h
-      · have : 2 ^ 1 ≤ 2 ^ κ := Nat.pow_le_pow_right (by norm_num) h
-        simp at hN
-        omega
-    rw [shape, AMGame.value_nil, check_nil, verifierMoves_nil, hκ0, hV]
-    simp
+    have hκ0 : κ = 0 := by_contra fun h => (Nat.one_lt_two_pow h).not_ge (by simpa [hV] using hN)
+    simp [shape, AMGame.value_nil, check_nil, verifierMoves_nil, hκ0, hV]
   | cons x g ih =>
     obtain ⟨_ | _, n⟩ := x
     · -- verifier move
       have hP : (0 : ℚ) < 2 ^ (B * (n + Z) + B) := by positivity
-      have hg' : verifierBits g ≤ B := by
-        rw [verifierBits_verifier] at hg; omega
+      have hg' : verifierBits g ≤ B := le_trans (Nat.le_add_left _ _) hg
       rw [countFrom_verifier] at hN
       -- the messages that leave at least `2 ^ β` accepting continuations
       let U (β : ℕ) : Finset (Fin n → Bool) :=
@@ -520,13 +461,9 @@ theorem one_sub_le_value (B Z K : ℕ) (hBK : B ≤ K) (hZ : B + K ≤ Z) (V : L
               rw [← sum_filter, sum_const, smul_eq_mul, mul_comm]
       -- pigeonhole: some `β` carries a `1 / (B + 1)` share
       obtain ⟨β, hβ, hβU⟩ : ∃ β ∈ range (B + 1), 2 ^ κ ≤ (B + 1) * (2 ^ β * #(U β)) := by
-        by_contra hcon
-        push Not at hcon
-        have h1 : (B + 1) * ∑ β ∈ range (B + 1), 2 ^ β * #(U β) <
-            ∑ _β ∈ range (B + 1), 2 ^ κ := by
-          rw [mul_sum]
-          exact sum_lt_sum_of_nonempty nonempty_range_add_one hcon
-        rw [sum_const, card_range, smul_eq_mul] at h1
+        by_contra! hcon
+        have h1 := sum_lt_sum_of_nonempty nonempty_range_add_one hcon
+        rw [← mul_sum, sum_const, card_range, smul_eq_mul] at h1
         have h2 := Nat.mul_le_mul_left (B + 1) hsumU
         omega
       have hβB : β ≤ B := Nat.lt_succ_iff.1 (mem_range.1 hβ)
@@ -536,19 +473,13 @@ theorem one_sub_le_value (B Z K : ℕ) (hBK : B ≤ K) (hZ : B + K ≤ Z) (V : L
           (!((List.ofFn z).take (Z + κ - (β + K))).any fun b => b) = true)).map
             (Fin.appendEquiv n Z).toEmbedding
       have hS : 2 ^ K ≤ (B + 1) * #S := by
-        rw [card_map, card_product, card_padding]
         have he : Z - (Z + κ - (β + K)) = β + K - κ := by omega
-        rw [he]
+        rw [card_map, card_product, card_padding, he]
         calc 2 ^ K = 2 ^ κ * 2 ^ (K - κ) := by rw [← pow_add]; congr 1; omega
           _ ≤ (B + 1) * (2 ^ β * #(U β)) * 2 ^ (K - κ) := Nat.mul_le_mul_right _ hβU
           _ = (B + 1) * (#(U β) * 2 ^ (β + (K - κ))) := by rw [pow_add]; ring
           _ = (B + 1) * (#(U β) * 2 ^ (β + K - κ)) := by congr 3; omega
-      have hSne : S.Nonempty := by
-        rw [← card_pos]
-        rcases Nat.eq_zero_or_pos #S with h | h
-        · rw [h, mul_zero] at hS
-          exact absurd hS (Nat.two_pow_pos K).not_ge
-        · exact h
+      have hSne : S.Nonempty := card_pos.1 (Nat.pos_of_ne_zero fun h => by simp [h] at hS)
       -- the seeds that miss the good answers
       have hh := (isPairwiseIndependentHash_affineHash B (n + Z)).comp_seedEquiv
         (affineSeedEquiv B (n + Z))
@@ -558,11 +489,9 @@ theorem one_sub_le_value (B Z K : ℕ) (hBK : B ≤ K) (hZ : B + K ≤ Z) (V : L
         have h1 : #miss * #S ≤ 2 ^ B * 2 ^ (B * (n + Z) + B) := by
           simpa only [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] using
             hh.card_filter_notMem_image_mul_le hSne 0
-        have h2 : #miss * 2 ^ K ≤ (B + 1) * 2 ^ B * 2 ^ (B * (n + Z) + B) := by
-          calc #miss * 2 ^ K ≤ #miss * ((B + 1) * #S) := Nat.mul_le_mul_left _ hS
-            _ = (B + 1) * (#miss * #S) := by ring
-            _ ≤ (B + 1) * (2 ^ B * 2 ^ (B * (n + Z) + B)) := Nat.mul_le_mul_left _ h1
-            _ = (B + 1) * 2 ^ B * 2 ^ (B * (n + Z) + B) := by ring
+        have h2 : #miss * 2 ^ K ≤ (B + 1) * 2 ^ B * 2 ^ (B * (n + Z) + B) :=
+          (Nat.mul_le_mul_left _ hS).trans ((mul_left_comm _ _ _).trans_le
+            ((Nat.mul_le_mul_left (B + 1) h1).trans_eq (mul_assoc _ _ _).symm))
         rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity)]
         exact_mod_cast h2
       -- pointwise bound on Merlin's best answer
@@ -582,41 +511,30 @@ theorem one_sub_le_value (B Z K : ℕ) (hBK : B ≤ K) (hZ : B + K ≤ Z) (V : L
               (List.ofFn r ++ (List.ofFn y ++ t))).toNat : ℚ)) (mem_univ _)))
           linarith
         · rw [sub_zero]
-          have h0 : 0 ∈ S.image (affineHash (affineSeedEquiv B (n + Z) r)) := by
-            by_contra h
-            exact hr (mem_filter.2 ⟨mem_univ _, h⟩)
+          have h0 : 0 ∈ S.image (affineHash (affineSeedEquiv B (n + Z) r)) :=
+            by_contra fun h => hr (mem_filter.2 ⟨mem_univ _, h⟩)
           obtain ⟨x, hxS, hx0⟩ := mem_image.1 h0
           obtain ⟨⟨m, z⟩, hmz, rfl⟩ := mem_map.1 hxS
           obtain ⟨hm, hz⟩ := mem_product.1 hmz
-          have hm' := (mem_filter.1 hm).2
-          have hz' := (mem_filter.1 hz).2
           let c : Fin B → Bool := fun i => decide (i.val < β)
-          have hc : (List.ofFn c).count true = β := count_ofFn_lt B β hβB
           refine le_trans ?_ (le_sup' _ (mem_univ (Fin.append c (Fin.append m z))))
-          rw [value_verifier_inner, hc]
-          have hloc : affineHash (affineSeedEquiv B (n + Z) r) (Fin.append m z) = 0 ∧
-              (!((List.ofFn z).take (Z + κ - (β + K))).any fun b => b) = true := ⟨hx0, hz'⟩
-          rw [decide_eq_true hloc, Bool.toNat_true, Nat.cast_one, one_mul]
-          exact ih hg' β hβB _ hm'
+          rw [value_verifier_inner, count_ofFn_lt B β hβB,
+            decide_eq_true ⟨hx0, (mem_filter.1 hz).2⟩, Bool.toNat_true, Nat.cast_one, one_mul]
+          exact ih hg' β hβB _ (mem_filter.1 hm).2
       -- average over Arthur's seeds
       rw [value_verifier, verifierMoves_verifier, le_div_iff₀ hP]
       refine le_trans ?_ (sum_le_sum fun r _ => hpt r)
       rw [sum_sub_distrib, sum_const, card_univ, Fintype.card_fun, Fintype.card_bool,
-        Fintype.card_fin, nsmul_eq_mul, sum_boole]
-      have hfilt : (univ.filter fun r : Fin (B * (n + Z) + B) → Bool => r ∈ miss) = miss := by
-        ext r; simp only [mem_filter, mem_univ, true_and]
-      rw [hfilt]
+        Fintype.card_fin, nsmul_eq_mul, sum_boole, filter_mem_eq_inter, univ_inter]
       push_cast
       nlinarith
     · -- prover move
       rw [countFrom_prover] at hN
       obtain ⟨y, -, hy⟩ := exists_mem_eq_sup univ univ_nonempty
         fun y : Fin n → Bool => countFrom g V (p ++ List.ofFn y)
-      rw [hy] at hN
       rw [shape, AMGame.value_merlin_true, verifierMoves_prover]
       refine le_trans ?_ (le_sup' _ (mem_univ y))
-      simp only [check_prover_ofFn]
-      exact ih (by rwa [verifierBits_prover] at hg) κ hκ _ hN
+      simpa only [check_prover_ofFn] using ih (by rwa [verifierBits_prover] at hg) κ hκ _ (hy ▸ hN)
 
 /-! ### Polynomial time -/
 
@@ -635,9 +553,8 @@ theorem computableInPolyTime_check {γ : Type} {encIn : γ ↪ List Bool}
       (w x)) encIn encBool := by
   induction G generalizing κ p w with
   | nil =>
-    have h := ComputableInPolyTime.bool_and' (ComputableInPolyTime.decide_eq' hκ
-      (ComputableInPolyTime.const 0)) (hV hp)
-    exact h.of_enc_eq fun x => rfl
+    exact (ComputableInPolyTime.bool_and' (ComputableInPolyTime.decide_eq' hκ
+      (ComputableInPolyTime.const 0)) (hV hp)).of_enc_eq fun _ => rfl
   | cons y G ih =>
     obtain ⟨_ | _, q⟩ := y
     · have hn : ComputableInPolyTime (fun x => q.eval (len x)) encIn encUnary :=

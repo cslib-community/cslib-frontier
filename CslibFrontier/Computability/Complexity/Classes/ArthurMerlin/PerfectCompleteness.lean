@@ -115,45 +115,26 @@ theorem mem_MAZero : A ∈ MAZero enc ↔ ∃ (q p : Polynomial ℕ) (V : α × 
 `q + p`. -/
 theorem IsMerlinArthurZeroVerifier.isVerifier {q p : Polynomial ℕ} {V : α × List Bool → Bool}
     (h : IsMerlinArthurZeroVerifier enc q p V A) : IsVerifier enc (q + p) V A := fun a => by
-  constructor
-  · intro ha
-    obtain ⟨y, hy⟩ := (h a).1 ha
-    have hpos : 0 < 2 ^ p.eval (enc a).length := by positivity
-    obtain ⟨r, hr⟩ := card_pos.1 (by omega : 0 < (univ.filter
-      fun r : Fin (p.eval (enc a).length) → Bool => V (a, List.ofFn y ++ List.ofFn r) = true).card)
+  refine ⟨fun ha => ?_, fun ⟨w, hw, hVw⟩ => by_contra fun ha => ?_⟩
+  · obtain ⟨y, hy⟩ := (h a).1 ha
+    obtain ⟨r, hr⟩ := card_pos.1 (Nat.pos_of_mul_pos_left ((Nat.two_pow_pos _).trans_le hy))
     exact ⟨List.ofFn y ++ List.ofFn r, by simp [Polynomial.eval_add], (mem_filter.1 hr).2⟩
-  · rintro ⟨w, hw, hVw⟩
-    by_contra ha
-    have htake : (w.take (q.eval (enc a).length)).length = q.eval (enc a).length := by
-      rw [List.length_take]
-      simp [Polynomial.eval_add] at hw
-      omega
-    have hdrop : (w.drop (q.eval (enc a).length)).length = p.eval (enc a).length := by
-      rw [List.length_drop]
-      simp [Polynomial.eval_add] at hw
-      omega
+  · rw [Polynomial.eval_add] at hw
     have hfalse := (h a).2 ha (BitString.ofList _ (w.take (q.eval (enc a).length)))
       (BitString.ofList _ (w.drop (q.eval (enc a).length)))
-    rw [BitString.ofFn_ofList htake, BitString.ofFn_ofList hdrop, List.take_append_drop] at hfalse
+    rw [BitString.ofFn_ofList (by simp; omega),
+      BitString.ofFn_ofList (by simp; omega), List.take_append_drop] at hfalse
     simp [hfalse] at hVw
 
 /-- A deterministic `NP` verifier is a Merlin–Arthur verifier with completeness `1 / 2` and
 perfect soundness that flips no coins. -/
 theorem IsVerifier.isMerlinArthurZeroVerifier {q : Polynomial ℕ} {V : α × List Bool → Bool}
     (h : IsVerifier enc q V A) : IsMerlinArthurZeroVerifier enc q 0 V A := fun a => by
-  constructor
-  · intro ha
-    obtain ⟨w, hw, hVw⟩ := (h a).1 ha
-    refine ⟨BitString.ofList _ w, ?_⟩
-    rw [filter_true_of_mem fun r _ => by
-      rw [BitString.ofFn_ofList hw,
-        List.eq_nil_of_length_eq_zero (by simp : (List.ofFn r).length = 0),
-        List.append_nil, hVw]]
-    simp
-  · intro ha y r
-    rw [List.eq_nil_of_length_eq_zero (by simp : (List.ofFn r).length = 0), List.append_nil]
-    by_contra hVy
-    exact ha ((h a).2 ⟨List.ofFn y, List.length_ofFn, Bool.eq_true_of_not_eq_false hVy⟩)
+  refine ⟨fun ha => ?_, fun ha y r => ?_⟩
+  · obtain ⟨w, hw, hVw⟩ := (h a).1 ha
+    exact ⟨BitString.ofList _ w, by simp [BitString.ofFn_ofList hw, hVw]⟩
+  · rw [List.eq_nil_of_length_eq_zero (by simp : (List.ofFn r).length = 0), List.append_nil]
+    exact Bool.eq_false_iff.2 fun hVy => ha ((h a).2 ⟨List.ofFn y, List.length_ofFn, hVy⟩)
 
 /-- **`MAZero ⊆ NP`**: absorb the verifier's coins into Merlin's certificate. -/
 theorem MAZero_subset_NP : MAZero enc ⊆ NP enc :=
@@ -227,10 +208,9 @@ private theorem two_mul_two_pow_le_three_mul_card_two_trials_of_forall {r m : �
     2 * 2 ^ (2 * r * m) ≤
       3 * #{x : BitString (2 * r * m) | r < #{i : Fin (2 * r) | P (BitString.block x i)}} := by
   subst hr
-  have hall (x : BitString (2 * 1 * m)) : 1 < #{i : Fin (2 * 1) | P (BitString.block x i)} := by
+  rw [filter_true_of_mem fun x _ => by
     rw [filter_true_of_mem fun i _ => hP (BitString.block x i)]
-    decide
-  rw [filter_true_of_mem fun x _ => hall x, card_univ, BitString.card]
+    decide, card_univ, BitString.card]
   omega
 
 /-- If at most half of the single-trial strings `s : BitString m` satisfy `P`, then at most a
@@ -245,27 +225,18 @@ private theorem two_mul_two_pow_le_three_mul_card_two_trials_not_of_two_mul_le {
   refine BitString.two_mul_two_pow_le_of_four_mul_card_filter_not_le
     (fun x : BitString (2 * 1 * m) => ¬ 1 < #{i : Fin (2 * 1) | P (BitString.block x i)}) ?_
   simp only [not_not]
-  have hsub : (univ.filter fun x : BitString (2 * 1 * m) =>
-      1 < #{i : Fin (2 * 1) | P (BitString.block x i)}) ⊆
-      univ.filter fun x : BitString (2 * 1 * m) =>
-        ∀ i : Fin (2 * 1), P (BitString.block x i) := fun x hx => by
-    have hx' : 1 < #{i : Fin (2 * 1) | P (BitString.block x i)} := (mem_filter.1 hx).2
-    have hle : #{i : Fin (2 * 1) | P (BitString.block x i)} ≤ 2 :=
-      (card_le_univ _).trans_eq (by simp)
-    have heq : #{i : Fin (2 * 1) | P (BitString.block x i)} = #(univ : Finset (Fin (2 * 1))) := by
-      simp only [card_univ, Fintype.card_fin]
-      omega
-    have hall := filter_eq_self.1 (eq_of_subset_of_card_le (filter_subset _ _) heq.ge)
-    exact mem_filter.2 ⟨mem_univ _, fun i => hall i (mem_univ i)⟩
-  exact (Nat.mul_le_mul_left (2 ^ (2 * 1)) (card_le_card hsub)).trans
+  refine (Nat.mul_le_mul_left (2 ^ (2 * 1)) (card_le_card fun x hx => ?_)).trans
     (BitString.two_pow_mul_card_filter_forall_block_le P hP)
+  have hx' := (mem_filter.1 hx).2
+  exact mem_filter.2 ⟨mem_univ _, fun i => filter_eq_self.1 (eq_of_subset_of_card_le
+    (filter_subset (fun j => P (BitString.block x j)) univ)
+    (by simp only [card_univ, Fintype.card_fin]; omega)) i (mem_univ i)⟩
 
 /-- Repeating a perfectly complete Merlin–Arthur verifier twice (`r = 1`) reduces its soundness
 error from `1 / 2` to `1 / 4 ≤ 1 / 3`. -/
 theorem IsMerlinArthurOneVerifier.merlinArthurRepeat_one {q p : Polynomial ℕ}
     {V : α × List Bool → Bool} (h : IsMerlinArthurOneVerifier enc q p V A) :
-    IsMerlinArthurVerifier enc q (2 * 1 * p) (merlinArthurRepeat enc q 1 p V) A := by
-  intro a
+    IsMerlinArthurVerifier enc q (2 * 1 * p) (merlinArthurRepeat enc q 1 p V) A := fun a => by
   have hlen : (2 * 1 * p).eval (enc a).length =
       2 * (1 : Polynomial ℕ).eval (enc a).length * p.eval (enc a).length := by
     simp only [Polynomial.eval_mul, Polynomial.eval_ofNat]
@@ -277,21 +248,16 @@ theorem IsMerlinArthurOneVerifier.merlinArthurRepeat_one {q p : Polynomial ℕ}
             V (a, List.ofFn y ++ List.ofFn (BitString.block x i)) = true}) := by
     rw [merlinArthurRepeat, List.take_left' List.length_ofFn, List.drop_left' List.length_ofFn,
       repeatMajority_ofFn]
-  constructor
-  · intro ha
-    obtain ⟨y, hy⟩ := (h a).1 ha
+  refine ⟨fun ha => ?_, fun ha y => ?_⟩
+  · obtain ⟨y, hy⟩ := (h a).1 ha
     refine ⟨y, ?_⟩
-    unfold BoundedErrorAt
-    rw [hlen]
+    rw [BoundedErrorAt, hlen]
     simpa only [hrep y, decide_eq_true_iff] using
-      two_mul_two_pow_le_three_mul_card_two_trials_of_forall Polynomial.eval_one
-        (fun r => V (a, List.ofFn y ++ List.ofFn r) = true) hy
-  · intro ha y
-    unfold BoundedErrorAt
-    rw [hlen]
+      two_mul_two_pow_le_three_mul_card_two_trials_of_forall Polynomial.eval_one _ hy
+  · rw [BoundedErrorAt, hlen]
     simpa only [hrep y, decide_eq_false_iff_not] using
-      two_mul_two_pow_le_three_mul_card_two_trials_not_of_two_mul_le Polynomial.eval_one
-        (fun r => V (a, List.ofFn y ++ List.ofFn r) = true) ((h a).2 ha y)
+      two_mul_two_pow_le_three_mul_card_two_trials_not_of_two_mul_le Polynomial.eval_one _
+        ((h a).2 ha y)
 
 /-- **`MAOne ⊆ MA`**. -/
 theorem MAOne_subset_MA : MAOne enc ⊆ MA enc :=
@@ -312,25 +278,20 @@ theorem IsArthurMerlinOneVerifier.arthurMerlinRepeat_one_perfect {p q : Polynomi
       3 * #{x : Fin ((2 * 1 * p).eval (enc a).length) → Bool |
         ∀ y : Fin ((2 * 1 * q).eval (enc a).length) → Bool,
           arthurMerlinRepeat enc 1 p q V (a, List.ofFn x ++ List.ofFn y) = false}) := by
-  have hlenP : (2 * 1 * p).eval (enc a).length =
-      2 * (1 : Polynomial ℕ).eval (enc a).length * p.eval (enc a).length := by
-    simp only [Polynomial.eval_mul, Polynomial.eval_ofNat]
-  have hlenQ : (2 * 1 * q).eval (enc a).length =
-      2 * (1 : Polynomial ℕ).eval (enc a).length * q.eval (enc a).length := by
+  have hlen (r : Polynomial ℕ) : (2 * 1 * r).eval (enc a).length =
+      2 * (1 : Polynomial ℕ).eval (enc a).length * r.eval (enc a).length := by
     simp only [Polynomial.eval_mul, Polynomial.eval_ofNat]
   have hex := exists_arthurMerlinRepeat_ofFn_append_ofFn_iff (enc := enc) (r := 1) (p := p) (q := q)
     (V := V) a
-  rw [hlenP, hlenQ]
-  constructor
-  · intro ha x
-    rw [hex, filter_true_of_mem fun i _ => (h a).1 ha (BitString.block x i)]
-    simp
-  · intro ha
-    refine (two_mul_two_pow_le_three_mul_card_two_trials_not_of_two_mul_le Polynomial.eval_one
+  rw [hlen p, hlen q]
+  refine ⟨fun ha x => by
+      rw [hex, filter_true_of_mem fun i _ => (h a).1 ha (BitString.block x i)]
+      simp,
+    fun ha => (two_mul_two_pow_le_three_mul_card_two_trials_not_of_two_mul_le Polynomial.eval_one
       (fun r : BitString (p.eval (enc a).length) =>
         ∃ z : Fin (q.eval (enc a).length) → Bool, V (a, List.ofFn r ++ List.ofFn z) = true)
-      ((h a).2 ha)).trans_eq (congrArg (3 * ·) (congrArg card (filter_congr fun x _ => ?_)))
-    simp only [← Bool.not_eq_true, ← not_exists, hex]
+      ((h a).2 ha)).trans_eq (congrArg (3 * ·) (congrArg card (filter_congr fun _ _ => by
+        simp only [← Bool.not_eq_true, ← not_exists, hex])))⟩
 
 /-- Repeating a perfectly complete Arthur–Merlin verifier twice in parallel (`r = 1`) reduces its
 soundness error from `1 / 2` to `1 / 4 ≤ 1 / 3`. -/
@@ -363,40 +324,31 @@ theorem isMerlinArthurOneVerifier_sigmaTwoVerifier {e q k p : Polynomial ℕ}
     (hcover : ∀ n, p.eval n < e.eval n * k.eval n)
     (hshifts : ∀ n, 2 * k.eval n ≤ 2 ^ e.eval n) :
     IsMerlinArthurOneVerifier enc (q + k * p) p (sigmaTwoVerifier enc q k p W) A := by
-  have hshifts_lt (n : ℕ) : k.eval n < 2 ^ e.eval n := by
-    have hpos : 0 < 2 ^ e.eval n := by positivity
+  have halt := isAlternatingVerifier_sigmaTwoVerifier h hcover fun n => by
+    have : 0 < 2 ^ e.eval n := by positivity
     have := hshifts n
     omega
-  have halt := isAlternatingVerifier_sigmaTwoVerifier h hcover hshifts_lt
-  intro a
-  constructor
-  · intro ha
-    obtain ⟨w, hw, hall⟩ := (halt a).1 ha
+  refine fun a => ⟨fun ha => ?_, fun ha w => ?_⟩
+  · obtain ⟨w, hw, hall⟩ := (halt a).1 ha
     simp only [List.map_cons, List.map_nil, alternation_false_cons,
       alternation_nil, List.append_nil] at hw hall
-    refine ⟨BitString.ofList _ w, fun r => ?_⟩
-    rw [BitString.ofFn_ofList hw]
-    exact hall (List.ofFn r) List.length_ofFn
-  · intro ha w
-    have hw : (List.ofFn w).length =
+    exact ⟨BitString.ofList _ w, fun r => by
+      simpa only [BitString.ofFn_ofList hw] using hall (List.ofFn r) List.length_ofFn⟩
+  · have hw : (List.ofFn w).length =
         q.eval (enc a).length + k.eval (enc a).length * p.eval (enc a).length := by
       simp [Polynomial.eval_add, Polynomial.eval_mul]
     set y : BitString (q.eval (enc a).length) :=
-      BitString.ofList (q.eval (enc a).length) ((List.ofFn w).take (q.eval (enc a).length))
+      BitString.ofList _ ((List.ofFn w).take (q.eval (enc a).length))
     set u : Fin (k.eval (enc a).length) → BitString (p.eval (enc a).length) :=
-      BitString.block (BitString.ofList (k.eval (enc a).length * p.eval (enc a).length)
-        ((List.ofFn w).drop (q.eval (enc a).length)))
+      BitString.block (BitString.ofList _ ((List.ofFn w).drop (q.eval (enc a).length)))
     have hy : List.ofFn y = (List.ofFn w).take (q.eval (enc a).length) :=
       BitString.ofFn_ofList (by simp)
     set S : Finset (BitString (p.eval (enc a).length)) :=
       univ.filter fun z => W (a, List.ofFn y ++ List.ofFn z) = true
-    have hsub : (univ.filter fun r : BitString (p.eval (enc a).length) =>
-        sigmaTwoVerifier enc q k p W (a, List.ofFn w ++ List.ofFn r) = true) ⊆
-        univ.filter fun r => ∃ i, r + u i ∈ S := fun r hr => by
-      obtain ⟨i, hi⟩ := (sigmaTwoVerifier_append_ofFn hw r).1 (mem_filter.1 hr).2
-      exact mem_filter.2 ⟨mem_univ _, i, mem_filter.2 ⟨mem_univ _, by rwa [hy]⟩⟩
-    exact (Nat.mul_le_mul_left 2 (card_le_card hsub)).trans
+    refine (Nat.mul_le_mul_left 2 (card_le_card fun r hr => ?_)).trans
       (BitString.two_mul_card_filter_exists_add_mem_le S ((h a).2 ha y) (hshifts _) u)
+    obtain ⟨i, hi⟩ := (sigmaTwoVerifier_append_ofFn hw r).1 (mem_filter.1 hr).2
+    exact mem_filter.2 ⟨mem_univ _, i, mem_filter.2 ⟨mem_univ _, by rwa [hy]⟩⟩
 
 /-- **Perfect completeness for `AM` via Lautemann's shifts**
 ([Goldreich, Exercise 9.8(2)][Goldreich2007DraftR5]; Fürer, Goldreich, Mansour, Sipser and Zachos):
@@ -410,35 +362,29 @@ theorem isArthurMerlinOneVerifier_piTwoVerifier {e k p q : Polynomial ℕ}
     (hshifts : ∀ n, k.eval n < 2 ^ e.eval n) :
     IsArthurMerlinOneVerifier enc (k * p) (p + k * q) (piTwoVerifier enc k p q W) A := by
   have halt := isAlternatingVerifier_piTwoVerifier h hcover hshifts
-  intro a
-  constructor
-  · intro ha u
-    have hall := (halt a).1 ha
+  refine fun a => ⟨fun ha u => ?_, fun ha => ?_⟩
+  · have hall := (halt a).1 ha
     simp only [List.map_cons, List.map_nil, alternation_true_cons, alternation_false_cons,
       alternation_nil, List.append_nil] at hall
     obtain ⟨v, hv, hacc⟩ := hall (List.ofFn u) (by simp [Polynomial.eval_mul])
     exact ⟨BitString.ofList _ v, by rwa [BitString.ofFn_ofList hv]⟩
-  · intro ha
-    set K := k.eval (enc a).length
+  · set K := k.eval (enc a).length
     set m := p.eval (enc a).length
-    set l := q.eval (enc a).length
-    have hlen : (k * p).eval (enc a).length = K * m := Polynomial.eval_mul
-    set S : Finset (BitString m) :=
-      univ.filter fun z : BitString m => ∃ y : BitString l, W (a, List.ofFn z ++ List.ofFn y) = true
-    have hbound := BitString.two_mul_card_filter_exists_forall_add_mem_le S ((h a).2 ha) (hcover _)
+    set S : Finset (BitString m) := univ.filter fun z =>
+      ∃ y : BitString (q.eval (enc a).length), W (a, List.ofFn z ++ List.ofFn y) = true
     have hbij : #{u : BitString (K * m) | ∃ r : BitString m, ∀ i, r + BitString.block u i ∈ S} =
         #{u : Fin K → BitString m | ∃ r : BitString m, ∀ i, r + u i ∈ S} :=
       card_nbij' BitString.blocksEquiv BitString.blocksEquiv.symm
-        (fun u hu => by simpa using hu) (fun u hu => by simpa using hu)
+        (fun _ hu => by simpa using hu) (fun _ hu => by simpa using hu)
         (fun _ _ => by simp) (fun _ _ => by simp)
-    rw [← hbij] at hbound
-    rw [hlen]
-    refine (Nat.mul_le_mul_left 2 (card_le_card fun u hu => ?_)).trans hbound
+    rw [show (k * p).eval (enc a).length = K * m from Polynomial.eval_mul]
+    refine (Nat.mul_le_mul_left 2 (card_le_card fun u hu => ?_)).trans
+      (hbij.symm ▸ BitString.two_mul_card_filter_exists_forall_add_mem_le S ((h a).2 ha) (hcover _))
     obtain ⟨v, hv⟩ := (mem_filter.1 hu).2
     have hall := (piTwoVerifier_append List.length_ofFn (List.ofFn v)).1 hv
-    refine mem_filter.2 ⟨mem_univ _, BitString.ofList m (List.ofFn v), fun i => ?_⟩
     rw [BitString.ofList_ofFn] at hall
-    exact mem_filter.2 ⟨mem_univ _, _, hall i⟩
+    exact mem_filter.2 ⟨mem_univ _, BitString.ofList m (List.ofFn v),
+      fun i => mem_filter.2 ⟨mem_univ _, _, hall i⟩⟩
 
 /-- Twice `12 p(n) + 1` is at most `2 ^ (12 p(n) + 1)`. -/
 private theorem two_mul_eval_le_two_pow (p : Polynomial ℕ) (n : ℕ) :
@@ -492,8 +438,7 @@ theorem AM_eq_AMOne : AM enc = AMOne enc :=
   Set.Subset.antisymm AM_subset_AMOne AMOne_subset_AM
 
 /-- **`MAOne ⊆ AMOne`**. -/
-theorem MAOne_subset_AMOne : MAOne enc ⊆ AMOne enc := by
-  rw [← MA_eq_MAOne, ← AM_eq_AMOne]
-  exact MA_subset_AM
+theorem MAOne_subset_AMOne : MAOne enc ⊆ AMOne enc :=
+  MA_eq_MAOne.symm ▸ AM_eq_AMOne.symm ▸ MA_subset_AM
 
 end Cslib.Complexity

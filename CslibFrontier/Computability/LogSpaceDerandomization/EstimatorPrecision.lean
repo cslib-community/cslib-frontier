@@ -68,8 +68,7 @@ namespace Cslib.LogSpaceEstimation
 theorem precision_eq_inv_rates (K A : ℝ) (M i : ℕ) (a u : ℝ) :
     precision K A M i a u = M / K - Real.logb 2 (1 / a) / 2 -
       Real.logb 2 (1 / u) / 2 - A * i := by
-  simp only [precision, one_div, Real.logb_inv]
-  ring
+  simp only [precision, one_div, Real.logb_inv]; ring
 
 /-- Dyadic rates give the affine formula without logarithms. The offsets can be real, so this
 also covers exact powers of two outside the discrete hierarchy. -/
@@ -93,28 +92,22 @@ theorem precision_child_sub (K A : ℝ) (M m i i' : ℕ) {a a' u u' : ℝ}
 theorem precision_mono_budget {K A a u : ℝ} (hK : 0 < K) (i : ℕ) :
     Monotone fun M => precision K A M i a u := by
   intro M m hMm
-  have hdiv := div_le_div_of_nonneg_right (show (M : ℝ) ≤ m by exact_mod_cast hMm) hK.le
   unfold precision
-  linarith
+  linarith [div_le_div_of_nonneg_right (Nat.cast_le.2 hMm) hK.le]
 
 /-- Budget-zero tasks at rates in `(0, 1]` are inactive. -/
 theorem precision_zero_nonpos {K A a u : ℝ} (hA : 0 ≤ A) (ha : 0 < a) (ha1 : a ≤ 1)
     (hu : 0 < u) (hu1 : u ≤ 1) (i : ℕ) : precision K A 0 i a u ≤ 0 := by
-  have hla := Real.logb_nonpos (by norm_num : (1 : ℝ) < 2) ha.le ha1
-  have hlu := Real.logb_nonpos (by norm_num : (1 : ℝ) < 2) hu.le hu1
-  have hi : 0 ≤ A * (i : ℝ) := mul_nonneg hA (Nat.cast_nonneg _)
   simp only [precision, Nat.cast_zero, zero_div, zero_add]
-  linarith
+  linarith [Real.logb_nonpos (by norm_num : (1 : ℝ) < 2) ha.le ha1,
+    Real.logb_nonpos (by norm_num : (1 : ℝ) < 2) hu.le hu1, mul_nonneg hA (Nat.cast_nonneg i)]
 
 /-- The geometric margin from the half-logarithmic precision weight at moment exponent `s`. -/
 @[expose] noncomputable def scaleMargin (s : ℝ) : ℝ := 1 / 2 - 1 / s
 
 theorem scaleMargin_pos {s : ℝ} (hs : 2 < s) : 0 < scaleMargin s := by
-  have hs0 : 0 < s := by linarith
   unfold scaleMargin
-  apply sub_pos.mpr
-  apply (div_lt_iff₀ hs0).2
-  linarith
+  exact sub_pos.mpr ((div_lt_iff₀ (by linarith)).2 (by linarith))
 
 @[simp]
 theorem scaleMargin_four : scaleMargin 4 = 1 / 4 := by norm_num [scaleMargin]
@@ -135,22 +128,17 @@ theorem binNormCost_mul_accuracy {s : ℝ} (hs : s ≠ 0) (h : ℝ) :
     binNormCost s h * (2 : ℝ) ^ (-h / 2) = (2 : ℝ) ^ (-scaleMargin s * |h|) := by
   rw [binNormCost, ← Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
   congr 1
+  unfold scaleMargin
   split_ifs with hh
-  · rw [abs_of_nonneg hh]
-    unfold scaleMargin
-    ring
+  · rw [abs_of_nonneg hh]; ring
   · rw [abs_of_neg (lt_of_not_ge hh)]
-    unfold scaleMargin
-    field_simp
-    ring
+    field_simp; ring
 
 /-- The half-logarithmic source precision weight cancels more than the source-release cost. -/
 theorem source_cost_mul_accuracy {s r : ℝ} (hr : 0 < r) :
     r ^ (1 / s) * r ^ (-(1 / 2 : ℝ)) = r ^ (-scaleMargin s) := by
   rw [← Real.rpow_add hr]
-  congr 1
-  unfold scaleMargin
-  ring
+  exact congrArg _ (by simp only [scaleMargin]; ring)
 
 /-- Resetting the source to a broader rate costs at most one after its precision gain, for every
 moment exponent strictly above two. -/
@@ -174,23 +162,15 @@ theorem child_cost_mul_accuracy {s K A a a' u u' : ℝ} (hs : s ≠ 0)
   have he : -precision K A m i' a' u' =
       -Real.logb 2 (a' / a) / 2 + (-Real.logb 2 (u' / u) / 2 +
         (-precision K A M i a u + ((M : ℝ) - m) / K - A * ((i : ℝ) - i'))) := by
-    simp only [neg_div] at hp ⊢
-    linarith
-  rw [he, Real.rpow_add (by norm_num : (0 : ℝ) < 2),
-    Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
-  have hg : (2 : ℝ) ^ (Real.logb 2 (u' / u) / s) *
-      (2 : ℝ) ^ (-Real.logb 2 (u' / u) / 2) =
+    simp only [neg_div] at hp ⊢; linarith
+  have hg : (2 : ℝ) ^ (Real.logb 2 (u' / u) / s) * (2 : ℝ) ^ (-Real.logb 2 (u' / u) / 2) =
       (2 : ℝ) ^ (-scaleMargin s * Real.logb 2 (u' / u)) := by
-    rw [← Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
-    congr 1
-    unfold scaleMargin
-    ring
-  calc
-    _ = (binNormCost s (Real.logb 2 (a' / a)) * (2 : ℝ) ^ (-Real.logb 2 (a' / a) / 2)) *
-        ((2 : ℝ) ^ (Real.logb 2 (u' / u) / s) *
-          (2 : ℝ) ^ (-Real.logb 2 (u' / u) / 2)) *
-        (2 : ℝ) ^ (-precision K A M i a u + ((M : ℝ) - m) / K -
-          A * ((i : ℝ) - i')) := by ring
+    rw [← Real.rpow_add (by norm_num)]
+    exact congrArg _ (by simp only [scaleMargin]; ring)
+  rw [he, Real.rpow_add (by norm_num), Real.rpow_add (by norm_num)]
+  calc _ = (binNormCost s (Real.logb 2 (a' / a)) * (2 : ℝ) ^ (-Real.logb 2 (a' / a) / 2)) *
+        ((2 : ℝ) ^ (Real.logb 2 (u' / u) / s) * (2 : ℝ) ^ (-Real.logb 2 (u' / u) / 2)) *
+        (2 : ℝ) ^ (-precision K A M i a u + ((M : ℝ) - m) / K - A * ((i : ℝ) - i')) := by ring
     _ = _ := by rw [binNormCost_mul_accuracy hs, hg]; ring
 
 /-- A dependency rank decrease pays one rank unit. Broadening the source costs no additional
@@ -202,25 +182,17 @@ theorem child_cost_mul_accuracy_le {s K A a a' u u' : ℝ} (hs : 2 < s) (hA : 0 
         (2 : ℝ) ^ (-precision K A m i' a' u') ≤
       (2 : ℝ) ^ (-precision K A M i a u - A + ((M : ℝ) - m) / K) *
         (2 : ℝ) ^ (-scaleMargin s * |Real.logb 2 (a' / a)|) := by
-  have hs0 : 0 < s := by linarith
   have hi' : (i' : ℝ) + 1 ≤ i := by exact_mod_cast hi
-  have hAi : A ≤ A * ((i : ℝ) - i') := by nlinarith
   have hlog : 0 ≤ Real.logb 2 (u' / u) :=
     Real.logb_nonneg (by norm_num) ((le_div_iff₀ hu).2 (by simpa using huu'))
-  have hsource : (2 : ℝ) ^ (-scaleMargin s * Real.logb 2 (u' / u)) ≤ 1 :=
-    Real.rpow_le_one_of_one_le_of_nonpos (by norm_num)
-      (mul_nonpos_of_nonpos_of_nonneg (neg_nonpos.mpr (scaleMargin_pos hs).le) hlog)
-  have hrank : (2 : ℝ) ^ (-precision K A M i a u + ((M : ℝ) - m) / K -
-      A * ((i : ℝ) - i')) ≤
-      (2 : ℝ) ^ (-precision K A M i a u - A + ((M : ℝ) - m) / K) :=
-    Real.rpow_le_rpow_of_exponent_le (by norm_num) (by linarith)
-  rw [child_cost_mul_accuracy hs0.ne' M m i i' ha ha' hu (hu.trans_le huu')]
-  calc
-    _ ≤ (2 : ℝ) ^ (-precision K A M i a u + ((M : ℝ) - m) / K -
-          A * ((i : ℝ) - i')) *
-        (2 : ℝ) ^ (-scaleMargin s * |Real.logb 2 (a' / a)|) := by
-      exact mul_le_of_le_one_right (by positivity) hsource
-    _ ≤ _ := mul_le_mul_of_nonneg_right hrank (by positivity)
+  rw [child_cost_mul_accuracy (by linarith) M m i i' ha ha' hu (hu.trans_le huu')]
+  calc _ ≤ (2 : ℝ) ^ (-precision K A M i a u + ((M : ℝ) - m) / K - A * ((i : ℝ) - i')) *
+        (2 : ℝ) ^ (-scaleMargin s * |Real.logb 2 (a' / a)|) :=
+      mul_le_of_le_one_right (by positivity)
+        (Real.rpow_le_one_of_one_le_of_nonpos (by norm_num)
+          (mul_nonpos_of_nonpos_of_nonneg (neg_nonpos.mpr (scaleMargin_pos hs).le) hlog))
+    _ ≤ _ := mul_le_mul_of_nonneg_right
+        (Real.rpow_le_rpow_of_exponent_le (by norm_num) (by nlinarith)) (by positivity)
 
 /-- A child rate only needs to dominate a fixed multiple of the bin rate. The resulting constant
 is exactly `2 ^ (-log₂ c / 2)`; the geometric decay is still measured at the actual bin offset.
@@ -237,20 +209,19 @@ theorem child_cost_mul_accuracy_le_of_rate_le {s K A a a' b c u u' : ℝ}
   have hlog := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2)
     (mul_pos hc hb) hba'
   rw [Real.logb_mul hc.ne' hb.ne'] at hlog
-  have hp : -precision K A m i' a' u' ≤
-      -precision K A m i' b u' + (-Real.logb 2 c / 2) := by
+  have hacc : (2 : ℝ) ^ (-precision K A m i' a' u') ≤
+      (2 : ℝ) ^ (-precision K A m i' b u') * (2 : ℝ) ^ (-Real.logb 2 c / 2) := by
+    rw [← Real.rpow_add (by norm_num)]
+    refine Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_
     unfold precision
     linarith
-  have hacc := Real.rpow_le_rpow_of_exponent_le (by norm_num : (1 : ℝ) ≤ 2) hp
-  rw [Real.rpow_add (by norm_num : (0 : ℝ) < 2)] at hacc
-  have hparent := child_cost_mul_accuracy_le (K := K) hs hA M m i i' hi ha hb hu huu'
-  calc
-    _ ≤ binNormCost s (Real.logb 2 (b / a)) * (2 : ℝ) ^ (Real.logb 2 (u' / u) / s) *
+  calc _ ≤ binNormCost s (Real.logb 2 (b / a)) * (2 : ℝ) ^ (Real.logb 2 (u' / u) / s) *
         ((2 : ℝ) ^ (-precision K A m i' b u') * (2 : ℝ) ^ (-Real.logb 2 c / 2)) :=
       mul_le_mul_of_nonneg_left hacc (mul_nonneg (binNormCost_pos _ _).le (by positivity))
     _ = (2 : ℝ) ^ (-Real.logb 2 c / 2) *
         (binNormCost s (Real.logb 2 (b / a)) * (2 : ℝ) ^ (Real.logb 2 (u' / u) / s) *
           (2 : ℝ) ^ (-precision K A m i' b u')) := by ring
-    _ ≤ _ := mul_le_mul_of_nonneg_left hparent (by positivity)
+    _ ≤ _ := mul_le_mul_of_nonneg_left
+        (child_cost_mul_accuracy_le hs hA M m i i' hi ha hb hu huu') (by positivity)
 
 end Cslib.LogSpaceEstimation

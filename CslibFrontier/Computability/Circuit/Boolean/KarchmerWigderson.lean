@@ -137,18 +137,15 @@ theorem depth_kwProtocol_le [NeZero n] (F : Formula signature n) (onAlice : Bool
     cases op with
     | const c => simp [kwProtocol]
     | not => exact (ih 0 _).trans ((hle 0).trans (by simp))
-    | and =>
+    | and | or =>
       have h₀ := (ih 0 onAlice).trans (hle 0)
       have h₁ := (ih 1 onAlice).trans (hle 1)
       cases onAlice <;> simp only [kwProtocol, Bool.cond_false, Bool.cond_true,
-        Protocol.depth_alice, Protocol.depth_bob, depthWith_gate, binaryCost_and] <;>
-        exact Nat.add_le_add_right (max_le h₀ h₁) 1
-    | or =>
-      have h₀ := (ih 0 onAlice).trans (hle 0)
-      have h₁ := (ih 1 onAlice).trans (hle 1)
-      cases onAlice <;> simp only [kwProtocol, Bool.cond_false, Bool.cond_true,
-        Protocol.depth_alice, Protocol.depth_bob, depthWith_gate, binaryCost_or] <;>
-        exact Nat.add_le_add_right (max_le h₁ h₀) 1
+        Protocol.depth_alice, Protocol.depth_bob, depthWith_gate, binaryCost_and,
+        binaryCost_or] <;>
+        first
+        | exact Nat.add_le_add_right (max_le h₀ h₁) 1
+        | exact Nat.add_le_add_right (max_le h₁ h₀) 1
 
 end Formula
 
@@ -208,18 +205,14 @@ private theorem eval_kwFormula (p : KWProtocol (Fin n))
     have h₁ := ih₁ (A := {x ∈ A | send x = true}) (B := B) fun x hx y hy => by
       simpa [hx.2] using hp x hx.1 y hy
     refine ⟨fun x hx => ?_, fun y hy => by simp [kwFormula, h₀.2 y hy, h₁.2 y hy]⟩
-    cases h : send x
-    · simp [kwFormula, h₀.1 x ⟨hx, h⟩]
-    · simp [kwFormula, h₁.1 x ⟨hx, h⟩]
+    cases h : send x <;> simp [kwFormula, h₀.1 x, h₁.1 x, hx, h]
   | bob send p₀ p₁ ih₀ ih₁ =>
     have h₀ := ih₀ (A := A) (B := {y ∈ B | send y = false}) fun x hx y hy => by
       simpa [hy.2] using hp x hx y hy.1
     have h₁ := ih₁ (A := A) (B := {y ∈ B | send y = true}) fun x hx y hy => by
       simpa [hy.2] using hp x hx y hy.1
     refine ⟨fun x hx => by simp [kwFormula, h₀.1 x hx, h₁.1 x hx], fun y hy => ?_⟩
-    cases h : send y
-    · simp [kwFormula, h₀.2 y ⟨hy, h⟩]
-    · simp [kwFormula, h₁.2 y ⟨hy, h⟩]
+    cases h : send y <;> simp [kwFormula, h₀.2 y, h₁.2 y, hy, h]
 
 /-- The formula of a protocol has as many AND and OR gates on a path as the protocol sends
 bits. -/
@@ -273,8 +266,7 @@ theorem exists_formula_of_solves {f : BooleanFunction n} {p : KWProtocol (Fin n)
   refine ⟨p.kwFormula {x | f x = true} {y | f y = false}, fun x => ?_,
     p.depthWith_kwFormula_le _ _⟩
   cases h : f x
-  · exact Protocol.eval_kwFormula_of_mem_right hp h
-  · exact Protocol.eval_kwFormula_of_mem_left hp h
+  exacts [Protocol.eval_kwFormula_of_mem_right hp h, Protocol.eval_kwFormula_of_mem_left hp h]
 
 /-- **The Karchmer–Wigderson theorem.** The least depth of a De Morgan formula for a function of at
 least one bit, with negations free, is the communication complexity of its Karchmer–Wigderson

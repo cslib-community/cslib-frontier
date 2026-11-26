@@ -107,7 +107,7 @@ private theorem evalTerminalBase_inner (p : ℕ) (ls : List Bool) (hl : ls.lengt
     (e : (terminalBase p ms).Inner) :
     (evalTerminalBase p ls hl ms sat h).orient (.inr e) =
       (evalTerminalBase p ls hl ms true (by simp)).orient (.inr e) := by
-  rcases e with ((e | e) | (e | e)) | (e | e)
+  rcases e with ((e | _) | (e | _)) | (e | _)
   · exact e.elim
   · rfl
   · exact e.elim
@@ -122,14 +122,14 @@ private theorem evalTerminalBase_sat (p : ℕ) (ls : List Bool) (hl : ls.length 
   funext e
   rcases e with i | e
   · by_cases hi : i.val = 0
-    · have hi' : i = ⟨0, by simp⟩ := Fin.ext hi
-      rw [← hi', reverse_self, Realization.orient_top, Realization.orient_top]
+    · rw [← show i = ⟨0, by simp⟩ from Fin.ext hi, reverse_self, Realization.orient_top,
+        Realization.orient_top]
       simp [hi]
-    · rw [reverse_of_ne _ (fun he => hi (congrArg (fun e => e.elim Fin.val (fun _ => 0)) he))]
-      rw [Realization.orient_top, Realization.orient_top]
-      cases hn : i.val with
-      | zero => exact (hi hn).elim
-      | succ n => simp
+    · rw [reverse_of_ne _ (fun he => hi (congrArg (fun e => e.elim Fin.val fun _ => 0) he)),
+        Realization.orient_top, Realization.orient_top]
+      rcases hn : i.val with _ | _
+      · exact (hi hn).elim
+      · simp
   · rw [reverse_of_ne _ (by simp)]
     exact evalTerminalBase_inner p ls hl ms false (fun _ => h) e
 
@@ -173,13 +173,11 @@ theorem prepare (p : ℕ) (ls : List Bool) (hl : ls.length = 2 * p) (ms : List (
     InnerReach Gate.interp (terminalBase p ms) (idle p ls hl ms)
       (evalTerminalBase p ls hl ms true (by simp)).orient := by
   refine innerReach_of_le Gate.interp_forward _ (legal_idle p ls hl ms)
-    (evalTerminalBase p ls hl ms true (by simp)).legal (fun e => ?_) ?_
-  · cases e with
-    | inl i => exact le_rfl
-    | inr e => exact Bool.false_le _
-  · rintro e (⟨i, rfl⟩ | ⟨j, rfl⟩)
-    · rfl
-    · exact Fin.elim0 j
+    (evalTerminalBase p ls hl ms true (by simp)).legal
+    (Sum.rec (fun _ => le_rfl) fun _ => Bool.false_le _) ?_
+  rintro e (⟨_, rfl⟩ | ⟨j, rfl⟩)
+  · rfl
+  · exact Fin.elim0 j
 
 /-- A true matrix reverses the terminal's sat wire. All moves fix try and every literal input;
 the whole path can be reversed for the next call. -/
@@ -187,17 +185,13 @@ theorem reachable_sat (p : ℕ) (ls : List Bool) (hl : ls.length = 2 * p)
     (ms : List (List Bool)) (h : ms.all (hits · ls) = true) :
     ((terminalBase p ms).graph Gate.interp).ReachableOn
       (AllowsTop 0) (idle p ls hl ms)
-      (evalTerminalBase p ls hl ms false (fun _ => h)).orient := by
-  have hp : ((terminalBase p ms).graph Gate.interp).ReachableOn
-      (AllowsTop 0) (idle p ls hl ms)
-      (evalTerminalBase p ls hl ms true (by simp)).orient := by
-    refine Relation.ReflTransGen.mono (fun _ _ hs => ?_) _ _ (prepare p ls hl ms)
-    obtain ⟨hs, ht, e, he, hend⟩ := hs
-    exact ⟨hs, ht, e, fun i _ hi => he (Or.inl ⟨i, hi⟩), hend⟩
-  exact hp.tail ⟨(evalTerminalBase p ls hl ms true (by simp)).legal,
-    (evalTerminalBase p ls hl ms false (fun _ => h)).legal, .inl ⟨0, by simp⟩,
-    (allowsTop_inl _ _).2 rfl,
-    evalTerminalBase_sat p ls hl ms h⟩
+      (evalTerminalBase p ls hl ms false (fun _ => h)).orient :=
+  (Relation.ReflTransGen.mono
+    (fun _ _ ⟨hs, ht, e, he, hend⟩ => ⟨hs, ht, e, fun i _ hi => he (Or.inl ⟨i, hi⟩), hend⟩) _ _
+    (prepare p ls hl ms)).tail
+    ⟨(evalTerminalBase p ls hl ms true (by simp)).legal,
+      (evalTerminalBase p ls hl ms false (fun _ => h)).legal, .inl ⟨0, by simp⟩,
+      (allowsTop_inl _ _).2 rfl, evalTerminalBase_sat p ls hl ms h⟩
 
 /-- With trying and all literals fixed, terminal success is equivalent to matrix truth. -/
 theorem reachable_sat_iff (p : ℕ) (ls : List Bool) (hl : ls.length = 2 * p)

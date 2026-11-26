@@ -140,22 +140,15 @@ theorem minEntropy_le_logb_card [Fintype α] (p : PMF α) :
 theorem minEntropy_uniformOfFinset (s : Finset α) (hs : s.Nonempty) :
     minEntropy (uniformOfFinset s hs) = Real.logb 2 s.card := by
   classical
-  have hcard : (0 : ℝ) < s.card := by exact_mod_cast hs.card_pos
-  have hmass : (2 : ℝ) ^ (-Real.logb 2 s.card) = (s.card : ℝ)⁻¹ := by
-    rw [Real.rpow_neg (by norm_num), Real.rpow_logb (by norm_num) (by norm_num) hcard]
   obtain ⟨a, ha⟩ := id hs
   apply le_antisymm
-  · have hsupport : a ∈ (uniformOfFinset s hs).support :=
-      (mem_support_uniformOfFinset_iff hs a).mpr ha
-    refine (minEntropy_le_surprisal _ hsupport).trans_eq ?_
+  · refine (minEntropy_le_surprisal _ ((mem_support_uniformOfFinset_iff hs a).mpr ha)).trans_eq ?_
     rw [surprisal, uniformOfFinset_apply, ite_eq_left ha, ENNReal.toReal_inv,
       ENNReal.toReal_natCast, Real.logb_inv, neg_neg]
-  · rw [le_minEntropy_iff, hmass]
+  · rw [le_minEntropy_iff, Real.rpow_neg (by norm_num),
+      Real.rpow_logb (by norm_num) (by norm_num) (by exact_mod_cast hs.card_pos)]
     intro b
-    by_cases hb : b ∈ s
-    · rw [uniformOfFinset_apply, ite_eq_left hb, ENNReal.toReal_inv, ENNReal.toReal_natCast]
-    · rw [uniformOfFinset_apply, ite_eq_right hb, ENNReal.toReal_zero]
-      positivity
+    by_cases hb : b ∈ s <;> simp [uniformOfFinset_apply, hb]
 
 /-- The uniform distribution on a finite type has min-entropy the logarithm of its size. -/
 @[simp] theorem minEntropy_uniformOfFintype [Fintype α] [Nonempty α] :
@@ -196,10 +189,8 @@ def IsSource [Fintype α] (p : PMF α) (k : ℝ) (ε : ℝ≥0) : Prop :=
 /-- A `(k, 0)`-source is exactly a distribution of min-entropy at least `k`. -/
 @[simp] theorem isSource_zero_iff [Fintype α] (p : PMF α) {k : ℝ} :
     IsSource p k 0 ↔ k ≤ minEntropy p := by
-  constructor
-  · rintro ⟨q, hq, hclose⟩
-    rwa [(statisticallyClose_zero_iff p q).mp hclose]
-  · exact fun h => ⟨p, h, StatisticallyClose.refl p⟩
+  exact ⟨fun ⟨q, hq, hclose⟩ => (statisticallyClose_zero_iff p q).mp hclose ▸ hq,
+    fun h => ⟨p, h, StatisticallyClose.refl p⟩⟩
 
 /-- A distribution of min-entropy at least `k` is a `(k, ε)`-source for every `ε`. -/
 theorem isSource_of_le_minEntropy [Fintype α] {p : PMF α} {k : ℝ} (h : k ≤ minEntropy p)

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Combinatorics.Expander.Mixing
+import CslibFrontier.Foundations.Data.Finset.Expect
 import CslibFrontier.Foundations.Data.Finset.Quantile
 import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Algebra.QuadraticDiscriminant
@@ -107,11 +108,6 @@ theory: `λ₂(G)` is used through `expect_mul_walk_le_secondEigenvalue_mul` and
 noncomputable def secondEigenvalue : ℝ :=
   ⨆ f : {f : V → ℝ // 𝔼 v, f v = 0 ∧ f ≠ 0}, (𝔼 v, f.1 v * G.walk f.1 v) / 𝔼 v, f.1 v ^ 2
 
-/-- A nonzero function has a positive second moment. -/
-private theorem expect_sq_pos {f : V → ℝ} (hf : f ≠ 0) : 0 < 𝔼 v, f v ^ 2 := by
-  obtain ⟨v, hv⟩ := Function.ne_iff.1 hf
-  exact expect_pos' (fun _ _ ↦ sq_nonneg _) ⟨v, mem_univ v, sq_pos_iff.2 hv⟩
-
 /-- With at least two vertices, some nonzero function has expectation zero. -/
 private theorem exists_expect_eq_zero_ne_zero [Nontrivial V] :
     ∃ f : V → ℝ, 𝔼 v, f v = 0 ∧ f ≠ 0 := by
@@ -138,7 +134,7 @@ theorem expect_mul_walk_le_secondEigenvalue_mul {f : V → ℝ} (hf : 𝔼 v, f 
     𝔼 v, f v * G.walk f v ≤ G.secondEigenvalue * 𝔼 v, f v ^ 2 := by
   rcases eq_or_ne f 0 with rfl | hf0
   · simp
-  rw [← div_le_iff₀ (expect_sq_pos hf0)]
+  rw [← div_le_iff₀ (Fintype.expect_sq_pos hf0)]
   exact le_ciSup G.bddAbove_range_div ⟨f, hf, hf0⟩
 
 /-- On at least two vertices, `λ₂(G) ≤ μ` exactly when `𝔼 v, f v * G.walk f v ≤ μ 𝔼 f²` for every
@@ -150,7 +146,7 @@ theorem secondEigenvalue_le_iff [Nontrivial V] {μ : ℝ} :
     (mul_le_mul_of_nonneg_right h (expect_nonneg fun _ _ ↦ sq_nonneg _)), fun h ↦ ?_⟩
   obtain ⟨f₀, hf₀⟩ := exists_expect_eq_zero_ne_zero (V := V)
   have : Nonempty {f : V → ℝ // 𝔼 v, f v = 0 ∧ f ≠ 0} := ⟨⟨f₀, hf₀⟩⟩
-  exact ciSup_le fun f ↦ (div_le_iff₀ (expect_sq_pos f.2.2)).2 (h f.1 f.2.1)
+  exact ciSup_le fun f ↦ (div_le_iff₀ (Fintype.expect_sq_pos f.2.2)).2 (h f.1 f.2.1)
 
 /-- On at most one vertex, `λ₂(G) = 0` by convention. -/
 theorem secondEigenvalue_eq_zero_of_subsingleton [Subsingleton V] : G.secondEigenvalue = 0 := by
@@ -173,7 +169,7 @@ theorem neg_spectralExpansion_le_secondEigenvalue : -G.spectralExpansion ≤ G.s
     exact G.spectralExpansion_nonneg
   obtain ⟨f, hf, hf0⟩ := exists_expect_eq_zero_ne_zero (V := V)
   refine le_trans ?_ (le_ciSup G.bddAbove_range_div ⟨f, hf, hf0⟩)
-  rw [le_div_iff₀ (expect_sq_pos hf0), neg_mul]
+  rw [le_div_iff₀ (Fintype.expect_sq_pos hf0), neg_mul]
   exact neg_le_of_abs_le (G.abs_expect_mul_walk_le hf)
 
 /-- The second eigenvalue is at most the spectral expansion in absolute value. -/
@@ -233,7 +229,7 @@ theorem spectralExpansion_eq_secondEigenvalue_of_nonneg
     · rw [G.secondEigenvalue_eq_zero_of_subsingleton]
     obtain ⟨f, hf, hf0⟩ := exists_expect_eq_zero_ne_zero (V := V)
     exact nonneg_of_mul_nonneg_left ((h f).trans (G.expect_mul_walk_le_secondEigenvalue_mul hf))
-      (expect_sq_pos hf0)
+      (Fintype.expect_sq_pos hf0)
   refine (spectralExpansion_le_iff hlam).2 fun f hf ↦ ?_
   have hW : 𝔼 v, f v * G.walk (G.walk f) v = 𝔼 v, G.walk f v ^ 2 := by
     rw [G.expect_mul_walk_comm]

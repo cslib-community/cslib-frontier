@@ -215,12 +215,7 @@ theorem vadj_brackets_iff (n kk : ℕ) (gates : List (Unbounded.Op × List ℕ))
   simp only [vadj, Bool.false_eq_true, ↓reduceIte, Bool.not_false, Bool.true_and,
     Bool.or_eq_true, Bool.and_eq_true, bne_iff_ne, ne_eq]
   rw [consistent_comm Q P]
-  constructor
-  · rintro (⟨h₁, h₂⟩ | ⟨h₁, h₂⟩)
-    · exact ⟨h₁, h₂⟩
-    · exact ⟨fun h => h₁ h.symm, h₂⟩
-  · rintro ⟨h₁, h₂⟩
-    exact Or.inl ⟨h₁, h₂⟩
+  exact ⟨fun h => h.elim id fun ⟨h₁, h₂⟩ => ⟨fun h => h₁ h.symm, h₂⟩, Or.inl⟩
 
 /-! ### Refutation -/
 
@@ -242,8 +237,7 @@ theorem refutes_eq_false {n kk : ℕ} {gates : List (Unbounded.Op × List ℕ)}
   rw [refutes, List.any_eq_false]
   intro e he hbad
   have happ := approx_kleeneEval hx (length_eq_arity_of_isCodeFrom h) e.1
-  rw [beq_iff_eq] at hbad
-  rw [hbad] at happ
+  rw [beq_iff_eq.1 hbad] at happ
   have := happ _ rfl
   rw [hchecks e he] at this
   cases e.2 <;> simp at this
@@ -253,8 +247,7 @@ theorem forall₂_knowList {n kk : ℕ} {P : List (ℕ × ℕ)} {x : List Bool} 
     (h : ∀ s < n, ∀ b, know kk P s = some b → b = x.getD s false) :
     List.Forall₂ Approx (knowList n kk P) x := by
   rw [List.forall₂_iff_get]
-  refine ⟨by simp [knowList, hx], fun i h₁ h₂ => ?_⟩
-  intro b hb
+  refine ⟨by simp [knowList, hx], fun i h₁ h₂ b hb => ?_⟩
   simp only [knowList, List.get_eq_getElem, List.getElem_map, List.getElem_range] at hb
   have hi : i < n := by simpa [knowList] using h₁
   rw [h i hi b hb, List.get_eq_getElem, List.getD_eq_getElem _ _ (by omega)]
@@ -298,9 +291,7 @@ private theorem weight_selected {n kk : ℕ} {u : ℕ → ℕ} (hu : StrictMonoO
       exact ⟨j, hj, hji⟩
     · rintro ⟨j, hj, rfl⟩
       exact ⟨⟨u j, hun j hj⟩, ⟨j, hj, rfl⟩, rfl⟩
-  have hinj : Set.InjOn u ↑(Finset.range kk) := by
-    rw [Finset.coe_range]
-    exact hu.injOn
+  have hinj : Set.InjOn u ↑(Finset.range kk) := Finset.coe_range kk ▸ hu.injOn
   rw [BitString.weight, ← Finset.card_map Fin.valEmbedding, himg,
     Finset.card_image_of_injOn hinj, Finset.card_range]
 
@@ -339,9 +330,7 @@ private theorem getD_ofFn_selected {n kk : ℕ} (u : ℕ → ℕ) {s : ℕ} (hs 
 
 /-- The indices of the bracket `C.map (j, u j)` are `C`. -/
 private theorem map_fst_map_pair (u : ℕ → ℕ) (C : List ℕ) :
-    (C.map fun j => (j, u j)).map Prod.fst = C := by
-  simp only [List.map_map]
-  exact List.map_id C
+    (C.map fun j => (j, u j)).map Prod.fst = C := List.map_map.trans (List.map_id C)
 
 /-- The correct brackets `C.map (j, u j)` of two different lists of indices below `kk` are
 adjacent when `u` increases. -/
@@ -449,9 +438,8 @@ private theorem clique_shape {d n kk : ℕ} {gates : List (Unbounded.Op × List 
     (∃ cl, (⟨true, cl, []⟩ : Vertex) ∈ T ∧ cl ∈ certs d n gates o) ∧
       ∀ C ∈ indexLists d kk, ∃ P, (⟨false, [], P⟩ : Vertex) ∈ T ∧ P.map Prod.fst = C := by
   classical
-  have hinj : Set.InjOn label T := fun v hv w hw hvw => by
-    by_contra hne
-    exact label_ne_of_adj (hTadj v hv w hw hne) hvw
+  have hinj : Set.InjOn label T := fun v hv w hw hvw =>
+    of_not_not fun hne => label_ne_of_adj (hTadj v hv w hw hne) hvw
   have hsub : T.image label ⊆ insert none ((indexLists d kk).toFinset.image some) := by
     intro l hl
     obtain ⟨v, hv, rfl⟩ := Finset.mem_image.1 hl
@@ -460,9 +448,8 @@ private theorem clique_shape {d n kk : ℕ} {gates : List (Unbounded.Op × List 
     · obtain ⟨hlen, hlt⟩ := mem_brackets.1 hP
       simp only [label, h1, Bool.false_eq_true, ↓reduceIte, Finset.mem_insert, reduceCtorEq,
         Finset.mem_image, List.mem_toFinset, Option.some.injEq, exists_eq_right, false_or]
-      exact mem_indexLists.2 ⟨by simpa using hlen, fun j hj => by
-        obtain ⟨p, hp, rfl⟩ := List.mem_map.1 hj
-        exact (hlt p hp).1⟩
+      exact mem_indexLists.2 ⟨by simpa using hlen, fun j hj =>
+        let ⟨p, hp, h⟩ := List.mem_map.1 hj; h ▸ (hlt p hp).1⟩
   have himg : T.image label = insert none ((indexLists d kk).toFinset.image some) := by
     refine Finset.eq_of_subset_of_card_le hsub ?_
     rw [Finset.card_image_of_injOn hinj, hTcard, Finset.card_insert_of_notMem (by simp),
@@ -523,8 +510,7 @@ private theorem checks_of_not_refutes {d n kk : ℕ} (c : Circuit Unbounded.sign
     intro j hj
     obtain ⟨p, hp, rfl⟩ := List.mem_map.1 (hPC ▸ Finset.mem_toList.2 hj :
       j ∈ P.map Prod.fst)
-    rw [← (hPu p hp).2]
-    exact hp
+    rwa [← (hPu p hp).2]
   have hdet := hSdet (List.ofFn (selected n kk u)) (knowList n kk P) List.length_ofFn
       (length_knowList n kk P) fun s hs => by
     rw [getD_knowList P (hSlt s hs), getD_ofFn_selected u (hSlt s hs)]

@@ -131,24 +131,21 @@ configuration `C` is reachable from `C.erase x`. -/
 theorem PathAvailable.exists_mTr_place {n x : ℕ} {C : Finset ℕ} (hx : x ∈ C) (hcard : C.card ≤ n)
     (havail : PathAvailable C (n - C.card) x) :
     ∃ ms, (reversiblePebbleGame pathDigraph n).MTr (C.erase x) ms C := by
-  set f := n - C.card with hf
+  set f := n - C.card
   have hce := Finset.card_erase_of_mem hx
   have hpos := Finset.card_pos.2 ⟨x, hx⟩
   have hn : n = (C.erase x).card + f + 1 := by omega
   rw [hn]
   have hx' : x ∉ C.erase x := Finset.notMem_erase x C
   -- Any witness lies in `C.erase x`.
-  have havail' : x + 1 ≤ 2 ^ f ∨ ∃ y ∈ C.erase x, y < x ∧ x ≤ y + 2 ^ f := by
-    rcases havail with h | ⟨y, hy, hyx, hxy⟩
-    · exact .inl h
-    · exact .inr ⟨y, Finset.mem_erase.2 ⟨by omega, hy⟩, hyx, hxy⟩
+  have havail' : x + 1 ≤ 2 ^ f ∨ ∃ y ∈ C.erase x, y < x ∧ x ≤ y + 2 ^ f :=
+    havail.imp_right fun ⟨y, hy, hyx, hxy⟩ => ⟨y, Finset.mem_erase.2 ⟨hyx.ne, hy⟩, hyx, hxy⟩
   suffices ∃ ms, (reversiblePebbleGame pathDigraph ((C.erase x).card + f + 1)).MTr (C.erase x)
       ms (insert x (C.erase x)) by rwa [Finset.insert_erase hx] at this
   set D := C.erase x
   by_cases hlow : (D.filter (· < x)).Nonempty
-  · set y := (D.filter (· < x)).max' hlow with hy
-    have hyD : y ∈ D := (Finset.mem_filter.1 (Finset.max'_mem _ hlow)).1
-    have hyx : y < x := (Finset.mem_filter.1 (Finset.max'_mem _ hlow)).2
+  · set y := (D.filter (· < x)).max' hlow
+    obtain ⟨hyD, hyx⟩ := Finset.mem_filter.1 (Finset.max'_mem _ hlow)
     have hle : ∀ z ∈ D, z < x → z ≤ y := fun z hz hzx =>
       Finset.le_max' _ z (Finset.mem_filter.2 ⟨hz, hzx⟩)
     refine exists_mTr_insert_pathDigraph f (a := y + 1) (by omega) ?_ (fun z hz => ?_)
@@ -160,8 +157,7 @@ theorem PathAvailable.exists_mTr_place {n x : ℕ} {C : Finset ℕ} (hx : x ∈ 
       · exact .inl (by have := hle z hz hzx; omega)
       · exact .inr (by have : z ≠ x := fun h => hx' (h ▸ hz); omega)
     · rw [pathDigraph_adj] at hu
-      rw [show u = y by omega]
-      exact hyD
+      exact Nat.add_right_cancel hu ▸ hyD
   · have hnone : ∀ z ∈ D, ¬ z < x := fun z hz hzx => hlow ⟨z, Finset.mem_filter.2 ⟨hz, hzx⟩⟩
     refine exists_mTr_insert_pathDigraph f (a := 0) (Nat.zero_le x) ?_ (fun z hz => ?_)
       (fun u hu => absurd hu pathDigraph_source)
@@ -198,14 +194,10 @@ private theorem exists_eq (h : IsPathRemovalNumbering n C σ) (hne : C.Nonempty)
   have hcard : (Finset.Ico (n - C.card) n).card ≤ (C.image σ).card := by
     rw [Finset.card_image_of_injOn h.injOn, Nat.card_Ico]
     omega
-  have heq := Finset.eq_of_subset_of_card_le hsub hcard
-  have hmem : n - C.card ∈ Finset.Ico (n - C.card) n := by
-    have := h.card_le
-    have := Finset.card_pos.2 hne
-    exact Finset.mem_Ico.2 ⟨le_rfl, by omega⟩
-  rw [← heq] at hmem
-  obtain ⟨x, hx, hσx⟩ := Finset.mem_image.1 hmem
-  exact ⟨x, hx, hσx⟩
+  rw [← Finset.mem_image, Finset.eq_of_subset_of_card_le hsub hcard]
+  have := h.card_le
+  have := Finset.card_pos.2 hne
+  exact Finset.mem_Ico.2 ⟨le_rfl, by omega⟩
 
 /-- The pebble with the least number is available. -/
 theorem pathAvailable (h : IsPathRemovalNumbering n C σ) {x : ℕ} (hx : x ∈ C)
@@ -220,22 +212,20 @@ theorem erase (h : IsPathRemovalNumbering n C σ) {x : ℕ} (hx : x ∈ C)
   have hcard := Finset.card_erase_of_mem hx
   have hpos := Finset.card_pos.2 ⟨x, hx⟩
   have hle := h.card_le
-  refine ⟨h.injOn.mono (Finset.coe_subset.2 (Finset.erase_subset x C)), fun z hz => ?_,
-    fun z hz => h.lt z (Finset.mem_of_mem_erase hz), fun z hz => ?_⟩
-  · have hzC := Finset.mem_of_mem_erase hz
-    have hzx := Finset.ne_of_mem_erase hz
-    have h1 := h.le z hzC
-    have h2 : σ z ≠ σ x := fun e => hzx (h.injOn hzC hx e)
+  have hgt {z : ℕ} (hz : z ∈ C.erase x) : σ x < σ z := by
+    have hzC := Finset.mem_of_mem_erase hz
+    have := h.le z hzC
+    have : σ z ≠ σ x := fun e => Finset.ne_of_mem_erase hz (h.injOn hzC hx e)
     omega
-  · have hzC := Finset.mem_of_mem_erase hz
-    have hzx := Finset.ne_of_mem_erase hz
-    have h2 : σ z ≠ σ x := fun e => hzx (h.injOn hzC hx e)
-    rcases h.near z hzC with h' | ⟨y, hy, hyz, hσ, hzy⟩
-    · exact .inl h'
-    · refine .inr ⟨y, Finset.mem_erase.2 ⟨fun e => ?_, hy⟩, hyz, hσ, hzy⟩
-      subst e
-      have := h.le z hzC
-      omega
+  refine ⟨h.injOn.mono (Finset.coe_subset.2 (Finset.erase_subset x C)),
+    fun z hz => by have := hgt hz; omega,
+    fun z hz => h.lt z (Finset.mem_of_mem_erase hz), fun z hz => ?_⟩
+  rcases h.near z (Finset.mem_of_mem_erase hz) with h' | ⟨y, hy, hyz, hσ, hzy⟩
+  · exact .inl h'
+  · refine .inr ⟨y, Finset.mem_erase.2 ⟨?_, hy⟩, hyz, hσ, hzy⟩
+    rintro rfl
+    have := hgt hz
+    omega
 
 /-- Adding an available pebble with the least number gives a removal numbering. -/
 private theorem update {x : ℕ} (h : IsPathRemovalNumbering n (C.erase x) σ) (hx : x ∈ C)
@@ -247,43 +237,28 @@ private theorem update {x : ℕ} (h : IsPathRemovalNumbering n (C.erase x) σ) (
     have := h.le z (Finset.mem_erase.2 ⟨hzx, hz⟩)
     omega
   refine ⟨fun z hz w hw e => ?_, fun z hz => ?_, fun z hz => ?_, fun z hz => ?_⟩
-  · simp only [Finset.mem_coe] at hz hw
-    by_cases hzx : z = x
-    · by_cases hwx : w = x
-      · rw [hzx, hwx]
-      · rw [hzx, Function.update_self, Function.update_of_ne hwx] at e
-        have := hold w hw hwx
-        omega
-    · by_cases hwx : w = x
-      · rw [hwx, Function.update_self, Function.update_of_ne hzx] at e
-        have := hold z hz hzx
-        omega
-      · rw [Function.update_of_ne hzx, Function.update_of_ne hwx] at e
-        exact h.injOn (Finset.mem_erase.2 ⟨hzx, hz⟩) (Finset.mem_erase.2 ⟨hwx, hw⟩) e
-  · by_cases hzx : z = x
-    · rw [hzx, Function.update_self]
-    · rw [Function.update_of_ne hzx]
-      exact (hold z hz hzx).le
-  · by_cases hzx : z = x
-    · rw [hzx, Function.update_self]
+  · simp only [Finset.mem_coe, Function.update_apply] at hz hw e
+    split_ifs at e with hzx hwx hwx
+    · rw [hzx, hwx]
+    · have := hold w hw hwx
       omega
-    · rw [Function.update_of_ne hzx]
-      exact h.lt z (Finset.mem_erase.2 ⟨hzx, hz⟩)
+    · have := hold z hz hzx
+      omega
+    · exact h.injOn (Finset.mem_erase.2 ⟨hzx, hz⟩) (Finset.mem_erase.2 ⟨hwx, hw⟩) e
+  · by_cases hzx : z = x
+    · simp [hzx]
+    · simpa [hzx] using (hold z hz hzx).le
+  · by_cases hzx : z = x
+    · simp only [hzx, Function.update_self]; omega
+    · simpa [hzx] using h.lt z (Finset.mem_erase.2 ⟨hzx, hz⟩)
   · by_cases hzx : z = x
     · subst hzx
       rw [Function.update_self]
-      rcases havail with h' | ⟨y, hy, hyz, hzy⟩
-      · exact .inl h'
-      · have hyx : y ≠ z := fun e => by omega
-        refine .inr ⟨y, hy, hyz, ?_, hzy⟩
-        rw [Function.update_of_ne hyx]
-        exact hold y hy hyx
+      exact havail.imp_right fun ⟨y, hy, hyz, hzy⟩ =>
+        ⟨y, hy, hyz, by simpa [hyz.ne] using hold y hy hyz.ne, hzy⟩
     · rw [Function.update_of_ne hzx]
-      rcases h.near z (Finset.mem_erase.2 ⟨hzx, hz⟩) with h' | ⟨y, hy, hyz, hσ, hzy⟩
-      · exact .inl h'
-      · refine .inr ⟨y, Finset.mem_of_mem_erase hy, hyz, ?_, hzy⟩
-        rw [Function.update_of_ne (Finset.ne_of_mem_erase hy)]
-        exact hσ
+      exact (h.near z (Finset.mem_erase.2 ⟨hzx, hz⟩)).imp_right fun ⟨y, hy, hyz, hσ, hzy⟩ =>
+        ⟨y, Finset.mem_of_mem_erase hy, hyz, by simpa [Finset.ne_of_mem_erase hy] using hσ, hzy⟩
 
 /-- Following the witnesses to the left from a pebble `y` numbered below `j`, either the path
 start or a pebble numbered at least `j` is close: the distances along the chain add up to at most
@@ -334,23 +309,16 @@ theorem erase_of_pathAvailable (h : IsPathRemovalNumbering n C σ) {x : ℕ} (hx
   · simp only [Finset.mem_coe] at hz hw
     have hzg := hne z hz
     have hwg := hne w hw
-    have hz' := Finset.mem_of_mem_erase hz
-    have hw' := Finset.mem_of_mem_erase hw
-    refine h.injOn hz' hw' ?_
-    by_cases h1 : σ z < g <;> by_cases h2 : σ w < g
-    · rw [hσ'lt z h1, hσ'lt w h2] at e; omega
-    · rw [hσ'lt z h1, hσ'ge w h2] at e; omega
-    · rw [hσ'ge z h1, hσ'lt w h2] at e; omega
-    · rw [hσ'ge z h1, hσ'ge w h2] at e; omega
+    refine h.injOn (Finset.mem_of_mem_erase hz) (Finset.mem_of_mem_erase hw) ?_
+    simp only [hσ'] at e
+    split_ifs at e <;> omega
   · have := h.le z (Finset.mem_of_mem_erase hz)
     have := hne z hz
-    by_cases h1 : σ z < g
-    · rw [hσ'lt z h1]; omega
-    · rw [hσ'ge z h1]; omega
+    simp only [hσ']
+    split_ifs <;> omega
   · have := h.lt z (Finset.mem_of_mem_erase hz)
-    by_cases h1 : σ z < g
-    · rw [hσ'lt z h1]; omega
-    · rw [hσ'ge z h1]; omega
+    simp only [hσ']
+    split_ifs <;> omega
   · have hzC := Finset.mem_of_mem_erase hz
     have hzx := Finset.ne_of_mem_erase hz
     have hzg := hne z hz
@@ -382,12 +350,9 @@ theorem erase_of_pathAvailable (h : IsPathRemovalNumbering n C σ) {x : ℕ} (hx
       · exact .inr ⟨y, Finset.mem_erase.2 ⟨hyx, hy⟩, hyz, hup y hy hyx hσ, by omega⟩
     · -- Pebbles numbered above `x` keep their numbers and their witnesses.
       rw [hσ'ge z h1]
-      rcases h.near z hzC with h' | ⟨y, hy, hyz, hσ, hzy⟩
-      · exact .inl h'
-      · have hyx : y ≠ x := fun e => by subst e; omega
-        refine .inr ⟨y, Finset.mem_erase.2 ⟨hyx, hy⟩, hyz, ?_, hzy⟩
-        rw [hσ'ge y (by omega)]
-        exact hσ
+      exact (h.near z hzC).imp_right fun ⟨y, hy, hyz, hσ, hzy⟩ =>
+        ⟨y, Finset.mem_erase.2 ⟨ne_of_apply_ne σ (by omega), hy⟩, hyz,
+          (hσ'ge y (by omega)).symm ▸ hσ, hzy⟩
 
 end IsPathRemovalNumbering
 
@@ -454,9 +419,7 @@ theorem PathWeaklySolvable.pathStronglySolvable {n : ℕ} {C : Finset ℕ}
     | tail _ hstep ih =>
       obtain ⟨x, hx, havail, rfl⟩ := hstep
       exact ih.erase hx havail
-  rcases hD.2.cases_head with he | ⟨E, hE, -⟩
-  · exact .inl he
-  · exact .inr ⟨E, hE⟩
+  exact hD.2.cases_head.imp_right fun ⟨E, hE, _⟩ => ⟨E, hE⟩
 
 /-- A strongly solvable configuration is weakly solvable. -/
 theorem PathStronglySolvable.pathWeaklySolvable {n : ℕ} {C : Finset ℕ}
@@ -567,8 +530,7 @@ theorem pathGreedySolvable_iff {n : ℕ} :
       (pathGreedySolvable n k C = true ↔ PathWeaklySolvable n C)
   | 0, C, hk, hn => by
     rw [Finset.card_eq_zero.1 (Nat.le_zero.1 hk)]
-    simp only [pathGreedySolvable, decide_true, true_iff]
-    exact pathWeaklySolvable_empty n
+    simpa only [pathGreedySolvable, decide_true, true_iff] using pathWeaklySolvable_empty n
   | k + 1, C, hk, hn => by
     unfold pathGreedySolvable
     split_ifs with hC

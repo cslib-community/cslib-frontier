@@ -88,11 +88,9 @@ theorem le_countP_of_rel_eval_groupMedian (r : α → α → Prop) [DecidableRel
   have hperm := mergeSort_perm oracle (x :: xs)
   have hsorted := mergeSort_sorted r oracle horacle (x :: xs)
   rw [eval_mergeSort] at hperm hsorted
-  have hk : xs.length / 2 < ((x :: xs).mergeSort fun a b => oracle (.le a b)).length := by
-    rw [hperm.length_eq, List.length_cons]
-    omega
   have hlen : ((x :: xs).mergeSort fun a b => oracle (.le a b)).length = xs.length + 1 := by
     rw [hperm.length_eq, List.length_cons]
+  have hk : xs.length / 2 < ((x :: xs).mergeSort fun a b => oracle (.le a b)).length := by omega
   rw [eval_groupMedian, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hk, Option.getD_some]
   constructor
   · intro hp
@@ -107,20 +105,18 @@ theorem le_countP_of_rel_eval_groupMedian (r : α → α → Prop) [DecidableRel
 /-- The medians list of a list of `n` elements has `⌈n / 5⌉` entries, for every oracle. -/
 @[simp] theorem length_eval_medians (oracle : {ι : Type} → LEQuery α ι → ι) (xs : List α) :
     ((medians xs).eval oracle).length = (xs.length + 4) / 5 := by
-  induction xs using medians.induct with
-  | case1 => simp [medians]
+  fun_induction medians xs with
+  | case1 => simp -- []
   | case2 x xs ih =>
-    rw [medians]
     simp only [FreeM.eval_bind, FreeM.eval_pure, List.length_cons, ih, List.length_drop]
     omega
 
 /-- Every group median is an element of the input, for every oracle. -/
 theorem mem_of_mem_eval_medians (oracle : {ι : Type} → LEQuery α ι → ι) {xs : List α} {m : α}
     (hm : m ∈ (medians xs).eval oracle) : m ∈ xs := by
-  induction xs using medians.induct with
-  | case1 => simp [medians] at hm
+  fun_induction medians xs with
+  | case1 => simp at hm -- []
   | case2 x xs ih =>
-    rw [medians] at hm
     simp only [FreeM.eval_bind, FreeM.eval_pure, List.mem_cons] at hm
     rcases hm with rfl | hm
     · exact (List.cons_sublist_cons.mpr (List.take_sublist 4 xs)).subset
@@ -135,10 +131,9 @@ private theorem three_mul_countP_eval_medians_le (oracle : {ι : Type} → LEQue
       (xs.length + 2) / 2 ≤ (x :: xs).countP (fun y => P y))
     (xs : List α) :
     3 * ((medians xs).eval oracle).countP (fun y => P y) ≤ xs.countP (fun y => P y) + 2 := by
-  induction xs using medians.induct with
-  | case1 => simp [medians]
+  fun_induction medians xs with
+  | case1 => simp -- []
   | case2 x xs ih =>
-    rw [medians]
     simp only [FreeM.eval_bind, FreeM.eval_pure]
     have hsplit : (x :: xs).countP (fun y => P y) =
         (x :: xs.take 4).countP (fun y => P y) + (xs.drop 4).countP (fun y => P y) := by
@@ -146,26 +141,18 @@ private theorem three_mul_countP_eval_medians_le (oracle : {ι : Type} → LEQue
       rw [← List.cons_append, List.countP_append]
     rw [List.countP_cons (l := (medians (xs.drop 4)).eval oracle), hsplit]
     have hg := hgroup x (xs.take 4)
-    by_cases h4 : 4 ≤ xs.length
-    · have hlen : (xs.take 4).length = 4 := by simp [h4]
-      rw [hlen] at hg
-      by_cases hP : P ((groupMedian x (xs.take 4)).eval oracle)
-      · have := hg hP
-        simp only [hP, decide_true, ↓reduceIte]
-        omega
-      · simp only [hP, decide_false, Bool.false_eq_true, ↓reduceIte]
-        omega
-    · have hdrop : xs.drop 4 = [] := List.drop_eq_nil_of_le (by omega)
-      have hms : ((medians (xs.drop 4)).eval oracle) = [] := by
-        rw [hdrop, medians]
-        rfl
-      rw [hms]
-      by_cases hP : P ((groupMedian x (xs.take 4)).eval oracle)
-      · have := hg hP
-        simp only [hP, decide_true, ↓reduceIte, List.countP_nil]
-        omega
-      · simp only [hP, decide_false, Bool.false_eq_true, ↓reduceIte, List.countP_nil]
-        omega
+    rw [List.length_take] at hg
+    -- the last group may be partial, but then no medians follow it
+    have hms : 4 ≤ xs.length ∨ ((medians (xs.drop 4)).eval oracle).countP (fun y => P y) = 0 := by
+      refine or_iff_not_imp_left.2 fun h4 => ?_
+      rw [List.drop_eq_nil_of_le (by omega), medians]
+      rfl
+    by_cases hP : P ((groupMedian x (xs.take 4)).eval oracle)
+    · have := hg hP
+      simp only [hP, decide_true, ↓reduceIte]
+      omega
+    · simp only [hP, decide_false, Bool.false_eq_true, ↓reduceIte]
+      omega
 
 /-- Each group median at or above `p` contributes three elements of its group at or above `p`:
 `3 * #{medians ≥ p} ≤ #{xs ≥ p} + 2`. -/
@@ -191,10 +178,9 @@ theorem three_mul_countP_eval_medians_rel_le' (r : α → α → Prop) [Decidabl
       (xs.filter (fun x => oracle (.le x p) && !oracle (.le p x)),
         xs.filter (fun x => oracle (.le x p) && oracle (.le p x)),
         xs.filter (fun x => !oracle (.le x p))) := by
-  induction xs with
-  | nil => simp [partition3]
-  | cons x xs ih =>
-    rw [partition3]
+  fun_induction partition3 p xs with
+  | case1 => simp -- []
+  | case2 x xs ih =>
     simp only [FreeM.eval_bind, ih]
     by_cases h1 : oracle (.le x p) <;> by_cases h2 : oracle (.le p x) <;>
       simp [h1, h2]
@@ -209,14 +195,11 @@ theorem eval_partition3_of_total (r : α → α → Prop) [DecidableRel r] [Std.
         xs.filter (fun x => ¬ r x p)) := by
   rw [eval_partition3]
   simp only [horacle, Prod.mk.injEq]
-  refine ⟨List.filter_congr fun x _ => ?_, List.filter_congr fun x _ => ?_,
-    List.filter_congr fun x _ => ?_⟩
-  · by_cases h2 : r p x
-    · simp [h2]
-    · have h1 : r x p := (Std.Total.total x p).resolve_right h2
-      simp [h1, h2]
-  · simp
-  · simp
+  refine ⟨List.filter_congr fun x _ => ?_, List.filter_congr fun x _ => by simp,
+    List.filter_congr fun x _ => by simp⟩
+  by_cases h2 : r p x
+  · simp [h2]
+  · simp [h2, (Std.Total.total x p).resolve_right h2]
 
 /-! ## The median-of-medians counting bound -/
 
@@ -303,12 +286,10 @@ private theorem select_correct (r : α → α → Prop) [DecidableRel r] [Std.To
     rw [eval_mergeSort] at hperm hsorted
     refine ⟨fun hk => ?_, fun hk => ?_⟩
     · have hk' : k < (xs.mergeSort fun a b => oracle (.le a b)).length := by
-        rw [hperm.length_eq]
-        exact hk
+        rwa [hperm.length_eq]
       exact ⟨_, List.getElem?_eq_getElem hk',
         List.isOrderStatistic_getElem_of_perm hperm hsorted hk'⟩
-    · rw [List.getElem?_eq_none_iff, hperm.length_eq]
-      exact hk
+    · rwa [List.getElem?_eq_none_iff, hperm.length_eq]
   -- The pivot is an order statistic of the medians, by induction.
   have hMlen : ((medians xs).eval oracle).length = (xs.length + 4) / 5 :=
     length_eval_medians oracle xs
@@ -334,12 +315,9 @@ private theorem select_correct (r : α → α → Prop) [DecidableRel r] [Std.To
     rw [← List.countP_eq_length_filter,
       List.length_eq_countP_add_countP (fun x => decide (r x p))]
     simp only [Bool.decide_eq_true, decide_not]
-  have hLlt : (xs.filter (fun x => ¬ r p x)).length < xs.length := by
-    simp only [selectSideBound, selectCutoff] at hL hsmall
-    omega
-  have hGlt : (xs.filter (fun x => ¬ r x p)).length < xs.length := by
-    simp only [selectSideBound, selectCutoff] at hG hsmall
-    omega
+  simp only [selectSideBound, selectCutoff] at hL hG hsmall
+  have hLlt : (xs.filter (fun x => ¬ r p x)).length < xs.length := by omega
+  have hGlt : (xs.filter (fun x => ¬ r x p)).length < xs.length := by omega
   set L := xs.filter (fun x => ¬ r p x) with hLdef
   set E := xs.filter (fun x => r x p ∧ r p x) with hEdef
   set G := xs.filter (fun x => ¬ r x p) with hGdef
@@ -351,11 +329,8 @@ private theorem select_correct (r : α → α → Prop) [DecidableRel r] [Std.To
     have hpy : ¬ r p y := of_decide_eq_true (List.mem_filter.mp hyos.mem).2
     exact _root_.trans ((Std.Total.total y p).resolve_right hpy) hpx
   · -- Rank `k` is held by the pivot's equivalence class.
-    refine ⟨fun _ => ⟨p, rfl, ?_⟩, fun hk => by omega⟩
-    exact {
-      mem := mem_of_mem_eval_medians oracle hpos.mem
-      countP_lt_le := by omega
-      lt_countP_le := by omega }
+    exact ⟨fun _ => ⟨p, rfl, mem_of_mem_eval_medians oracle hpos.mem, by omega, by omega⟩,
+      fun hk => by omega⟩
   · -- Rank `k` lies strictly above the pivot.
     obtain ⟨h1, h2⟩ := ih _ hGlt (k - L.length - E.length) G rfl
     refine ⟨fun hk => ?_, fun hk => h2 (by omega)⟩
@@ -365,9 +340,8 @@ private theorem select_correct (r : α → α → Prop) [DecidableRel r] [Std.To
       hyos.of_filter_add fun x _ hx => by
         have hyp : ¬ r y p := of_decide_eq_true (List.mem_filter.mp hyos.mem).2
         exact _root_.trans (not_not.mp hx) ((Std.Total.total y p).resolve_left hyp)
-    have hc : xs.countP (fun x => ¬ ¬ r x p) = xs.countP (fun x => r x p) :=
-      List.countP_congr fun x _ => by simp
-    rwa [hc, show k - L.length - E.length + xs.countP (fun x => r x p) = k by omega] at h
+    simp only [decide_not, Bool.not_not] at h
+    rwa [show k - L.length - E.length + xs.countP (fun x => r x p) = k by omega] at h
 
 /-- **Correctness of selection.** Against an oracle implementing a total preorder `r`,
 `select k xs` returns an element of rank `k` of `xs` whenever `k < xs.length`. -/
@@ -392,8 +366,7 @@ theorem eval_select_eq_getElem?_mergeSort {β : Type} [LinearOrder β]
   by_cases hk : k < xs.length
   · obtain ⟨y, hy, hyos⟩ := select_isOrderStatistic (· ≤ ·) oracle horacle hk
     rw [hy, List.isOrderStatistic_iff_mergeSort.mp hyos]
-  · rw [eval_select_eq_none (· ≤ ·) oracle horacle (Nat.le_of_not_lt hk), eq_comm,
-      List.getElem?_eq_none_iff, List.length_mergeSort]
-    exact Nat.le_of_not_lt hk
+  · simp [eval_select_eq_none (· ≤ ·) oracle horacle (Nat.le_of_not_lt hk),
+      Nat.le_of_not_lt hk]
 
 end Cslib.Query

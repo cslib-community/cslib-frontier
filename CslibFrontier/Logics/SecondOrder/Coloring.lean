@@ -11,6 +11,7 @@ public import CslibFrontier.Logics.FirstOrder.Problems.Coloring
 public import CslibFrontier.Logics.SecondOrder.Existential
 public import Mathlib.Combinatorics.SimpleGraph.Bipartite
 public import Mathlib.ModelTheory.Graph
+import CslibFrontier.Tactic.FirstOrder.Simp
 
 /-!
 # Colorability is existential second-order definable
@@ -105,8 +106,8 @@ cover the vertices and no edge has both ends in the same `R c`. -/
 private theorem realize_colorableMatrix (R : Fin n → Set (Fin 1 → M)) :
     (letI := varLanguage.structure (arity := fun _ : Fin n => 1) R; M ⊨ colorableMatrix n) ↔
       (∀ x, ∃ c, ![x] ∈ R c) ∧ ∀ x y, RelMap adj ![x, y] → ∀ c, ![x] ∈ R c → ![y] ∉ R c := by
-  simp [colorableMatrix, FirstOrder.Language.Sentence.Realize, Formula.Realize, relMap_edge,
-    relMap_color, Fin.snoc]
+  let _ := varLanguage.structure (arity := fun _ : Fin n => 1) R
+  fo_simp [colorableMatrix, relMap_edge, relMap_color, not_and]
 
 /-- A directed graph satisfies the colorability sentence exactly when it has a coloring with `n`
 colors in which the two ends of every edge have different colors. -/

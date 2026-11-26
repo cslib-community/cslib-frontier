@@ -117,12 +117,11 @@ theorem run_interpret_routeWordProgram (digestEncoding : Digest ↪ List Bool)
         program s := by
   have hlift
       (p : OracleComp (ForgerSpec (List Bool) (List Bool) (List Bool) Digest) (List Bool)) :
-      liftOracleForger p = OracleComp.liftRight p := by
-    unfold liftOracleForger OracleComp.liftRight ProbOracleComp.query
-    exact (OracleComp.substitute_eq_interpret _ p).symm
+      liftOracleForger p = OracleComp.liftRight p :=
+    (OracleComp.substitute_eq_interpret _ p).symm
   simp only [routeWordProgram, hlift, runWith_norm]
-  apply congrArg (fun oracle => ProbOracleComp.runWith oracle program s)
-  funext request state
+  refine congrArg (ProbOracleComp.runWith · program s) ?_
+  funext _ state
   exact OracleComp.runWith_eq_run_interpret handler _ state
 
 /-- Native replay and typed routing commute as programs, before choosing any oracle world. -/
@@ -273,20 +272,14 @@ theorem succProbability_wordEufCmaGame_le_wordSufCmaGame {SK : Type}
   refine PMF.bind_apply_mono_on_support _ true fun keys _ => ?_
   rw [eval_world_worldRealize, eval_world_worldRealize]
   simp only [PMF.monad_bind_eq_bind]
-  refine PMF.bind_apply_mono_on_support _ true fun ⟨⟨msig, pairs⟩, cache⟩ _ => ?_
-  refine PMF.bind_apply_mono_on_support _ true fun verified _ => ?_
-  by_cases hmsg : (pairs.map Prod.fst).contains msig.1 = true
-  · have hmem : msig.1 ∈ pairs.map Prod.fst := List.contains_iff_mem.mp hmsg
-    simp [hmem]
-  · have hnotmem : msig.1 ∉ pairs.map Prod.fst := fun hmem =>
-      hmsg (List.contains_iff_mem.mpr hmem)
-    have hnotPair : msig ∉ pairs := by
-      have hfreshMessage : freshMessage msig.1 msig.2 pairs = true := by
-        simp only [freshMessage, decide_eq_true_eq]
-        exact hnotmem
-      have hfreshPair := freshPair_of_freshMessage hfreshMessage
-      simpa only [freshPair, decide_eq_true_eq] using hfreshPair
-    simp [hnotmem, hnotPair]
+  refine PMF.bind_apply_mono_on_support _ true fun ⟨⟨msig, pairs⟩, _⟩ _ =>
+    PMF.bind_apply_mono_on_support _ true fun verified _ => ?_
+  by_cases hmem : msig.1 ∈ pairs.map Prod.fst
+  · simp [hmem]
+  · have hnotPair : msig ∉ pairs := by
+      simpa only [freshPair, decide_eq_true_eq] using
+        freshPair_of_freshMessage (by simpa [freshMessage] using hmem)
+    simp [hmem, hnotPair]
 
 /-- Native ROM SUF-CMA security implies native ROM EUF-CMA security for the same scheme family. -/
 theorem SUFCMA.eufCma {Digest : ℕ → Type} [∀ n, Fintype (Digest n)]
@@ -330,24 +323,14 @@ including the security parameter, public key, and arbitrary saved tape. -/
     savedWordReplay machine (fun op word => ProbOracleComp.query (op, word)) c d keyC keyD
       (p.1, p.2.1, p.2.2)
   simp only [savedWordReplay]
-  apply IsOraclePPTOn.ite
-  · fun_prop
-  · apply IsOraclePPTOn.map _ (Decoder.bits.pair Decoder.bits).computableInPolyTime
-    apply machine.isOraclePPTOn_runCoins.preprocess
-      (prepare := fun p : ℕ × List Bool × List Bool =>
+  refine IsOraclePPTOn.ite (by fun_prop)
+    (IsOraclePPTOn.map ?_ (Decoder.bits.pair Decoder.bits).computableInPolyTime) (by fun_prop)
+  refine machine.isOraclePPTOn_runCoins.preprocess
+    (prepare := fun p : ℕ × List Bool × List Bool =>
       (p.2.2.take (c * ((encPair encUnary encBits (p.1, p.2.1)).length + 1) ^ d),
-        encPair encUnary encBits (p.1, p.2.1)))
-    have hin : ComputableInPolyTime
-        (fun p : ℕ × List Bool × List Bool => encPair encUnary encBits (p.1, p.2.1))
-        (encPair encUnary (encPair encBits encBits)) encBits := by
-      apply ComputableInPolyTime.encoding_comp
-      fun_prop
-    have hcut : ComputableInPolyTime
-        (fun p : ℕ × List Bool × List Bool =>
-          c * ((encPair encUnary encBits (p.1, p.2.1)).length + 1) ^ d)
-        (encPair encUnary (encPair encBits encBits)) encUnary := by fun_prop
-    exact (ComputableInPolyTime.bitsTakeWithInput (by fun_prop) hcut).prod hin
-  · fun_prop
+        encPair encUnary encBits (p.1, p.2.1))) ?_
+  exact (ComputableInPolyTime.bitsTakeWithInput (by fun_prop) (by fun_prop)).prod
+    (ComputableInPolyTime.encoding_comp (by fun_prop))
 
 /-- The raw calls of a native word forger: a channel bit and a request word, answered by a word. -/
 abbrev RawWordSpec : OracleSpec (Bool × List Bool) := fun _ => List Bool
@@ -361,11 +344,10 @@ theorem savedWordReplay_eq_interpret {k : ℕ} {Control Query : Type} {spec : Or
       interpret (fun request => query request.1 request.2)
         (savedWordReplay machine (fun op word => OracleComp.query (spec := RawWordSpec) (op, word))
           c d keyC keyD input) := by
-  obtain ⟨n, pk, tape⟩ := input
+  rcases input with ⟨n, pk, tape⟩
   simp only [savedWordReplay]
   split
-  · rw [interpret_map, interpret_runCoins]
-    simp only [interpret_query]
+  · simp [interpret_map, interpret_runCoins]
   · rfl
 
 /-- A guarded replay whose channel calls each make at most one call makes at most
@@ -378,15 +360,11 @@ theorem isQueryBounded_savedWordReplay {k : ℕ} {Control Query : Type} {spec : 
     IsQueryBounded (savedWordReplay machine query c d keyC keyD (n, pk, coins))
       (savedCoinBudget c d keyC keyD n) := by
   dsimp only [savedWordReplay]
-  split
-  · rename_i hpk
-    apply (isCostBounded_map_iff _ _ _).mpr
-    have h := machine.isCostBounded_runCoins query 1 hquery
-      (coins.take (c * ((encPair encUnary encBits (n, pk)).length + 1) ^ d))
-      (encPair encUnary encBits (n, pk))
-    apply h.mono
-    simp only [List.length_take, Nat.mul_one]
-    exact (Nat.min_le_left _ _).trans (clock_le_savedCoinBudget c d keyC keyD n hpk)
+  split_ifs with hpk
+  · refine (isCostBounded_map_iff _ _ _).mpr
+      ((machine.isCostBounded_runCoins query 1 hquery _ _).mono ?_)
+    simpa only [List.length_take, Nat.mul_one] using
+      (Nat.min_le_left _ _).trans (clock_le_savedCoinBudget c d keyC keyD n hpk)
   · exact .pure _ _
 
 /-- Use the existing total pair decoder after native replay. Oversized keys make no calls; all
@@ -413,10 +391,8 @@ theorem routeWordProgram_savedWordReplay {k : ℕ} {Control : Type}
   split
   · change interpret _ ((Decoder.bits.pair Decoder.bits).decode <$> _) = _
     rw [interpret_map]
-    change (Decoder.bits.pair Decoder.bits).decode <$>
-      routeWordProgram digestEncoding (machine.runCoins _ _ _) = _
-    rw [routeWordProgram_runCoins]
-    simp only [liftOracleForger, interpret_map]
+    change _ <$> routeWordProgram digestEncoding (machine.runCoins _ _ _) = _
+    simp only [routeWordProgram_runCoins, liftOracleForger, interpret_map]
   · simp only [routeWordProgram, liftOracleForger, interpret_pure]
 
 /-- Signing and hashing each cost at most one external call in the word routing. -/
@@ -488,16 +464,14 @@ theorem exists_savedCoinForger
                 keys.1 coins)) s) := by
   obtain ⟨k, Control, hfinite, machine, c, d, _, _, hrun⟩ :=
     hprogram.exists_savedCoins_of_length_le keyC keyD
-  let := hfinite
   refine ⟨k, Control, hfinite, machine, c, d,
-    isOraclePPTOn_savedWordReplay machine c d keyC keyD, ?_⟩
-  intro n keys hkeys Digest digestEncoding Store handler s
+    isOraclePPTOn_savedWordReplay machine c d keyC keyD,
+    fun n keys hkeys Digest digestEncoding Store handler s => ?_⟩
   have hpk := hgen n keys hkeys
-  have h := run_interpret_decode_mixture digestEncoding (program n keys.1) _ _
-    (hrun n keys.1 hpk) Store handler s
   simpa only [savedCoinForger, savedWordReplay, savedCoinBudget, ite_eq_left hpk,
-    routeWordProgram_runCoins,
-    liftOracleForger, interpret_map] using h
+    routeWordProgram_runCoins, liftOracleForger, interpret_map] using
+    run_interpret_decode_mixture digestEncoding (program n keys.1) _ _
+      (hrun n keys.1 hpk) Store handler s
 
 /-- The native private-random word forger and its explicit-coin adapter give exactly the same
 EUF-CMA game: `wordEufCmaGame` of the forger is `eufCmaGame` of the adapter. Signing, hash queries,
@@ -526,20 +500,17 @@ theorem exists_eufCmaGame_savedCoinForger
           eufCmaGame scheme (savedCoinForger machine digestEncoding c d keyC keyD n) := by
   obtain ⟨k, Control, hfinite, machine, c, d, hefficient, hrun⟩ :=
     exists_savedCoinForger hgen hprogram
-  refine ⟨k, Control, hfinite, machine, c, d, hefficient, ?_⟩
-  intro n Digest _ _ digestEncoding scheme hgen'
-  refine ⟨callBounded_savedCoinForger machine digestEncoding c d keyC keyD n, ?_⟩
+  refine ⟨k, Control, hfinite, machine, c, d, hefficient,
+    fun n Digest _ _ digestEncoding scheme hgen' =>
+      ⟨callBounded_savedCoinForger machine digestEncoding c d keyC keyD n, ?_⟩⟩
   rw [eufCmaGame_eq_worldGame]
   unfold wordEufCmaGame worldGame
-  apply PMF.bind_congr_on_support
-  intro keys hkeys
+  refine PMF.bind_congr_on_support _ _ _ fun keys hkeys => ?_
   rw [hgen'] at hkeys
-  have hcontains (pairs : List (List Bool × List Bool)) (msg : List Bool) :
+  simpa only [PMF.monad_bind_eq_bind, show ∀ (pairs : List (List Bool × List Bool))
+      (msg : List Bool),
       @List.contains (List Bool) instBEqOfDecidableEq (pairs.map Prod.fst) msg =
-        (pairs.map Prod.fst).contains msg := by
-    apply Bool.eq_iff_iff.mpr
-    simp
-  simpa only [PMF.monad_bind_eq_bind, hcontains] using
+        (pairs.map Prod.fst).contains msg from fun _ _ => Bool.eq_iff_iff.mpr (by simp)] using
     eval_worldRealize_eq_bind scheme keys.1 keys.2 _ _ _
       (hrun n keys hkeys Digest digestEncoding)
       (fun verified ⟨msg, _⟩ pairs => verified && !(pairs.map Prod.fst).contains msg)
@@ -572,22 +543,17 @@ theorem exists_sufCmaGame_savedCoinForger
           sufCmaGame scheme (savedCoinForger machine digestEncoding c d keyC keyD n) := by
   obtain ⟨k, Control, hfinite, machine, c, d, hefficient, hrun⟩ :=
     exists_savedCoinForger hgen hprogram
-  refine ⟨k, Control, hfinite, machine, c, d, hefficient, ?_⟩
-  intro n Digest _ _ digestEncoding scheme hgen'
-  refine ⟨callBounded_savedCoinForger machine digestEncoding c d keyC keyD n, ?_⟩
+  refine ⟨k, Control, hfinite, machine, c, d, hefficient,
+    fun n Digest _ _ digestEncoding scheme hgen' =>
+      ⟨callBounded_savedCoinForger machine digestEncoding c d keyC keyD n, ?_⟩⟩
   unfold wordSufCmaGame sufCmaGame worldGame
-  apply PMF.bind_congr_on_support
-  intro keys hkeys
+  refine PMF.bind_congr_on_support _ _ _ fun keys hkeys => ?_
   rw [hgen'] at hkeys
-  have hcontains (pairs : List (List Bool × List Bool))
-      (msig : List Bool × List Bool) :
+  simpa only [PMF.monad_bind_eq_bind, show ∀ (pairs : List (List Bool × List Bool))
+      (msig : List Bool × List Bool),
       @List.contains (List Bool × List Bool)
-          (@instBEqProd (List Bool) (List Bool)
-            instBEqOfDecidableEq instBEqOfDecidableEq) pairs msig =
-        pairs.contains msig := by
-    apply Bool.eq_iff_iff.mpr
-    simp
-  simpa only [PMF.monad_bind_eq_bind, hcontains] using
+        (@instBEqProd (List Bool) (List Bool) instBEqOfDecidableEq instBEqOfDecidableEq)
+        pairs msig = pairs.contains msig from fun _ _ => Bool.eq_iff_iff.mpr (by simp)] using
     eval_worldRealize_eq_bind scheme keys.1 keys.2 _ _ _
       (hrun n keys hkeys Digest digestEncoding)
       (fun verified msig pairs => verified && !pairs.contains msig)

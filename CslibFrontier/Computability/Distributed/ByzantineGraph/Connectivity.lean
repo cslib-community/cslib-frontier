@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Distributed.Byzantine.RecursiveOralMes
 public import CslibFrontier.Computability.Distributed.ByzantineGraph.Basic
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Connectivity.VertexConnectivity
 import CslibFrontier.Algorithms.Lean.MaxFlow.Menger
+import CslibFrontier.Tactic.FinsetCard
 
 /-!
 # Vertex-separator impossibility and synchronous Boolean consensus on graphs
@@ -153,21 +154,14 @@ private theorem not_solvesByzantineAgreement_of_bipartition_cut {t R : ℕ}
   let cover := π.coverState Prod.fst Prod.snd nbr
   let adv : (P → Bool) → ℕ → ∀ j i : P, G.Adj j i → M :=
     fun σ r j i hji => π.send r j (cover r (nbr (i, σ i) j)) i hji
-  have key : ∀ (F : Finset P) (σ : P → Bool),
-      (∀ i ∉ F, ∀ j ∉ F, G.Adj j i → (σ i ^^ cross i j) = σ j) →
-      ∀ i ∉ F, π.decision F (adv σ) σ R i = π.output i (cover R (i, σ i)) := by
-    intro F σ hσ i hi
-    unfold decision
-    rw [π.state_eq_coverState Prod.fst Prod.snd nbr F (adv σ) σ (fun i => (i, σ i))
-      (fun _ _ => rfl) (fun _ _ => rfl)
-      (fun i hi j hj hji => by
-        simp only [nbr, Prod.mk.injEq, true_and]
-        exact hσ i hi j hj hji)
-      (fun _ _ _ _ _ _ => rfl) R i hi]
-  have hcross_not_C₂ : ∀ i ∉ C₂, ∀ j ∉ C₂, cross i j = false := by
-    intro i hi j hj
-    simp only [cross, decide_eq_false hi, decide_eq_false hj, Bool.and_false, Bool.false_and,
-      Bool.or_self]
+  have key (F : Finset P) (σ : P → Bool)
+      (hσ : ∀ i ∉ F, ∀ j ∉ F, G.Adj j i → (σ i ^^ cross i j) = σ j) (i : P) (hi : i ∉ F) :
+      π.decision F (adv σ) σ R i = π.output i (cover R (i, σ i)) :=
+    congrArg (π.output i) (π.state_eq_coverState Prod.fst Prod.snd nbr F (adv σ) σ
+      (fun i => (i, σ i)) (fun _ _ => rfl) (fun _ _ => rfl)
+      (fun i hi j hj hji => Prod.ext rfl (hσ i hi j hj hji)) (fun _ _ _ _ _ _ => rfl) R i hi)
+  have hcross_not_C₂ (i : P) (hi : i ∉ C₂) (j : P) (hj : j ∉ C₂) : cross i j = false := by
+    simp [cross, hi, hj]
   -- Run 1 (`F = C₂`, all inputs `false`): `(u, false)` decides `false`.
   have h₀ := h.validity C₂ hC₂ (adv fun _ => false) (fun _ => false) false (fun _ _ => rfl) u huC₂
   rw [key C₂ _ (fun i hi j hj _ => by rw [hcross_not_C₂ i hi j hj]; rfl) u huC₂] at h₀
@@ -179,16 +173,11 @@ private theorem not_solvesByzantineAgreement_of_bipartition_cut {t R : ℕ}
   have hcompat : ∀ i ∉ C₁, ∀ j ∉ C₁, G.Adj j i → (inB i ^^ cross i j) = inB j := by
     intro i hi j hj hji
     cases hbi : inB i <;> cases hbj : inB j
-    · simp only [cross, hbi, hbj, Bool.false_and, Bool.and_false, Bool.or_self, Bool.false_xor]
-    · have hiC₂ : i ∈ C₂ := (hcut j i hji hbj hbi).resolve_left hi
-      simp only [cross, hbi, hbj, decide_eq_true hiC₂, Bool.false_and, Bool.and_true,
-        Bool.false_or, Bool.false_xor]
-    · have hjC₂ : j ∈ C₂ := (hcut i j hji.symm hbi hbj).resolve_left hj
-      simp only [cross, hbi, hbj, decide_eq_true hjC₂, Bool.true_and, Bool.true_or]
-      rfl
-    · have hiC₂ : i ∉ C₂ := fun hmem => by rw [hBC₂ i hmem] at hbi; cases hbi
-      have hjC₂ : j ∉ C₂ := fun hmem => by rw [hBC₂ j hmem] at hbj; cases hbj
-      rw [hcross_not_C₂ i hiC₂ j hjC₂]
+    · simp [cross, hbi, hbj]
+    · simp [cross, hbi, hbj, (hcut j i hji hbj hbi).resolve_left hi]
+    · simp [cross, hbi, hbj, (hcut i j hji.symm hbi hbj).resolve_left hj]
+    · rw [hcross_not_C₂ i (fun h => Bool.noConfusion (hbi.symm.trans (hBC₂ i h))) j
+        (fun h => Bool.noConfusion (hbj.symm.trans (hBC₂ j h)))]
       rfl
   have h₂ := h.agreement C₁ hC₁ (adv inB) inB u huC₁ v hvC₁
   rw [key C₁ inB hcompat u huC₁, key C₁ inB hcompat v hvC₁, huB, hvB, h₀, h₁] at h₂
@@ -200,12 +189,7 @@ private theorem exists_split_card_le {C : Finset P} {t : ℕ} (hcard : C.card �
   · exact ⟨C, ∅, Finset.Subset.refl C, Finset.empty_subset _, Finset.subset_union_left, ht,
       Nat.zero_le t⟩
   · obtain ⟨C₁, hC₁sub, hC₁card⟩ := Finset.exists_subset_card_eq (Nat.le_of_not_le ht)
-    refine ⟨C₁, C \ C₁, hC₁sub, Finset.sdiff_subset, fun x hx => ?_, hC₁card.le, ?_⟩
-    · by_cases hx₁ : x ∈ C₁
-      · exact Finset.mem_union_left _ hx₁
-      · exact Finset.mem_union_right _ (Finset.mem_sdiff.mpr ⟨hx, hx₁⟩)
-    · rw [Finset.card_sdiff_of_subset hC₁sub]
-      omega
+    exact ⟨C₁, C \ C₁, hC₁sub, Finset.sdiff_subset, by finset_card, hC₁card.le, by finset_card⟩
 
 /-- **Vertex-separator impossibility bound for synchronous Boolean consensus**
 ([Fischer, Lynch and Merritt][FischerLynchMerritt1985], Theorem 1, §3, p. 61; connectivity proof in
@@ -249,12 +233,9 @@ theorem not_solvesByzantineAgreement_of_vertexCut [Fintype P] {t R : ℕ} {A B C
   have hsep : G.IsVertexSeparator u v C :=
     SimpleGraph.isVertexSeparator_of_forall_adj hu (Finset.disjoint_right.mp hAB hv)
       (Finset.disjoint_left.mp hAC hu) (Finset.disjoint_left.mp hBC hv) fun x hx y hxy hyA => by
-        have hyuniv : y ∈ A ∪ B ∪ C := huniv.symm ▸ Finset.mem_univ y
-        rcases Finset.mem_union.mp hyuniv with hyAB | hyC
-        · rcases Finset.mem_union.mp hyAB with hyA' | hyB
-          · exact absurd hyA' hyA
-          · exact absurd hxy (hab x hx y hyB)
-        · exact hyC
+        have hy : y ∈ A ∪ B ∪ C := huniv.symm ▸ Finset.mem_univ y
+        simp only [Finset.mem_union] at hy
+        exact hy.resolve_left fun h => h.elim hyA fun hyB => hab x hx y hyB hxy
   exact π.not_solvesByzantineAgreement_of_isVertexSeparator hsep hcard
 
 /-- Global `(2t + 1)`-vertex-connectivity necessity for synchronous fixed-round Boolean consensus
@@ -269,12 +250,8 @@ theorem not_solvesByzantineAgreement_of_not_isVertexConnected [Fintype P] {t R :
   rw [SimpleGraph.isVertexConnected_iff_forall_isVertexSeparator,
     ENat.card_eq_coe_fintype_card] at hconn
   by_cases hgt : 2 * t + 1 < Fintype.card P
-  · have hsep_ex : ∃ u v : P, u ≠ v ∧ ∃ T : Finset P, G.IsVertexSeparator u v T ∧
-        T.card < 2 * t + 1 := by
-      by_contra hall
-      push Not at hall
-      exact hconn ⟨by exact_mod_cast hgt, fun u v huv T hT => hall u v huv T hT⟩
-    obtain ⟨u, v, -, C, hsep, hlt⟩ := hsep_ex
+  · push Not at hconn
+    obtain ⟨u, v, -, C, hsep, hlt⟩ := hconn (by exact_mod_cast hgt)
     exact π.not_solvesByzantineAgreement_of_isVertexSeparator hsep (by omega)
   · exact π.not_solvesByzantineAgreement h2 (by omega)
 
@@ -426,58 +403,49 @@ private theorem purifiedOM_omTree_epoch_offset (v : ℕ) (i : P) :
   | 0, _ => rfl
   | s + 1, hs => by
     have hs' : s < epochLen P := by omega
-    have hmod : (v * epochLen P + s) % epochLen P = s := epoch_add_mod hs'
-    have hstep : (v * epochLen P + s) % epochLen P + 1 ≠ epochLen P := by omega
-    rw [show v * epochLen P + (s + 1) = (v * epochLen P + s) + 1 by omega,
-      purifiedOM_state_succ_omTree, ite_eq_right hstep]
+    rw [← Nat.add_assoc, purifiedOM_state_succ_omTree,
+      ite_eq_right (by rw [epoch_add_mod hs']; omega)]
     exact purifiedOM_omTree_epoch_offset v i hs'
 
 private def curBuf (v s : ℕ) (i : P) : List P → List P → Bool :=
   if s = 0 then fun _ => ((purifiedOM t routes).state F adv x (v * epochLen P) i).omTree
   else ((purifiedOM t routes).state F adv x (v * epochLen P + s) i).buf
 
+private theorem curBuf_succ {v s : ℕ} (i : P) :
+    curBuf routes F adv x v (s + 1) i =
+      ((purifiedOM t routes).state F adv x ((v * epochLen P + s) + 1) i).buf := by
+  unfold curBuf
+  rw [ite_eq_right (Nat.succ_ne_zero s), ← Nat.add_assoc]
+
+/-- The buffer `purifiedOM` reads at step `s < epochLen P` of epoch `v` is `curBuf v s`. -/
+private theorem cur_eq_curBuf {v s : ℕ} (hs : s < epochLen P) (i : P) :
+    (if (v * epochLen P + s) % epochLen P = 0 then
+        fun _ => ((purifiedOM t routes).state F adv x (v * epochLen P + s) i).omTree
+      else ((purifiedOM t routes).state F adv x (v * epochLen P + s) i).buf) =
+      curBuf routes F adv x v s i := by
+  unfold curBuf
+  rw [epoch_add_mod hs]
+  by_cases hs0 : s = 0 <;> simp only [hs0, ↓reduceIte, add_zero]
+
 private theorem curBuf_succ_nil {v s : ℕ} (hs : s < epochLen P) (i : P) :
     curBuf routes F adv x v (s + 1) i [] = curBuf routes F adv x v s i [] := by
-  have hmod : (v * epochLen P + s) % epochLen P = s := epoch_add_mod hs
-  unfold curBuf
-  rw [ite_eq_right (Nat.succ_ne_zero s),
-    show v * epochLen P + (s + 1) = (v * epochLen P + s) + 1 by omega,
-    purifiedOM_state_succ_buf_nil, hmod]
-  by_cases hs0 : s = 0
-  · subst hs0
-    simp only [↓reduceIte, add_zero]
-  · simp only [hs0, ↓reduceIte]
+  rw [curBuf_succ, purifiedOM_state_succ_buf_nil, cur_eq_curBuf routes F adv x hs]
 
 private theorem curBuf_succ_cons_ne {v s : ℕ} (hs : s < epochLen P) (i j : P) {w : List P}
     (hw : w.length ≠ s) (τ : List P) :
     curBuf routes F adv x v (s + 1) i (j :: w) τ =
       curBuf routes F adv x v s i (j :: w) τ := by
-  have hmod : (v * epochLen P + s) % epochLen P = s := epoch_add_mod hs
-  unfold curBuf
-  rw [ite_eq_right (Nat.succ_ne_zero s),
-    show v * epochLen P + (s + 1) = (v * epochLen P + s) + 1 by omega,
-    purifiedOM_state_succ_buf_cons]
+  rw [curBuf_succ, purifiedOM_state_succ_buf_cons]
   dsimp only
-  rw [hmod, ite_eq_right hw]
-  by_cases hs0 : s = 0
-  · subst hs0
-    simp only [↓reduceIte, add_zero]
-  · simp only [hs0, ↓reduceIte]
+  rw [cur_eq_curBuf routes F adv x hs i, epoch_add_mod hs, ite_eq_right hw]
 
 private theorem curBuf_succ_cons_eq {v s : ℕ} (hs : s < epochLen P) (i : P) {j : P}
     (hji : G.Adj j i) (hj : j ∉ F) {w : List P} (hw : w.length = s) (τ : List P) :
     curBuf routes F adv x v (s + 1) i (j :: w) τ = curBuf routes F adv x v s j w τ := by
-  have hmod : (v * epochLen P + s) % epochLen P = s := epoch_add_mod hs
-  unfold curBuf
-  rw [ite_eq_right (Nat.succ_ne_zero s),
-    show v * epochLen P + (s + 1) = (v * epochLen P + s) + 1 by omega,
-    purifiedOM_state_succ_buf_cons]
+  rw [curBuf_succ, purifiedOM_state_succ_buf_cons]
   dsimp only
-  rw [hmod, ite_eq_left hw, dite_eq_left_of_eq_true (eq_true hji), ite_eq_right hj]
-  by_cases hs0 : s = 0
-  · subst hs0
-    simp only [↓reduceIte, add_zero]
-  · simp only [hs0, ↓reduceIte]
+  rw [cur_eq_curBuf routes F adv x hs j, epoch_add_mod hs, ite_eq_left hw,
+    dite_eq_left_of_eq_true (eq_true hji), ite_eq_right hj]
 
 private theorem curBuf_freeze (v : ℕ) (i : P) (w : List P) :
     ∀ {s d : ℕ}, w.length ≤ s → s + d ≤ epochLen P →
@@ -501,21 +469,16 @@ private theorem curBuf_walk (v : ℕ) :
         ((purifiedOM t routes).state F adv x (v * epochLen P) u).omTree
   | _, _, .nil, _, _ => rfl
   | i, u, @SimpleGraph.Walk.cons _ _ _ j _ hij W', hlen, hsupp => by
-    have hlen' : W'.length < epochLen P := by
-      simp only [SimpleGraph.Walk.length_cons] at hlen
-      omega
-    have hjF : j ∉ F := hsupp j (List.mem_cons_of_mem _ W'.start_mem_support)
-    have hsupp' : ∀ z ∈ W'.support, z ∉ F := fun z hz => hsupp z (List.mem_cons_of_mem _ hz)
+    have hlen' : W'.length < epochLen P := Nat.lt_of_succ_le hlen
     have htail : (SimpleGraph.Walk.cons hij W').support.tail = j :: W'.support.tail := by
       cases W' <;> rfl
     have htail_len : W'.support.tail.length = W'.length := by
-      have := SimpleGraph.Walk.length_support W'
-      rw [List.length_tail]
-      omega
+      simp [SimpleGraph.Walk.length_support]
     funext τ
     rw [htail, SimpleGraph.Walk.length_cons,
-      curBuf_succ_cons_eq routes F adv x hlen' i hij.symm hjF htail_len τ,
-      curBuf_walk v W' (by omega) hsupp']
+      curBuf_succ_cons_eq routes F adv x hlen' i hij.symm
+        (hsupp j (List.mem_cons_of_mem _ W'.start_mem_support)) htail_len τ,
+      curBuf_walk v W' hlen'.le fun z hz => hsupp z (List.mem_cons_of_mem _ hz)]
 
 private theorem curBuf_epochLen_walk (v : ℕ) {i u : P} {W : G.Walk i u} (hW : W.IsPath)
     (hsupp : ∀ z ∈ W.support, z ∉ F) :
@@ -523,9 +486,7 @@ private theorem curBuf_epochLen_walk (v : ℕ) {i u : P} {W : G.Walk i u} (hW : 
       ((purifiedOM t routes).state F adv x (v * epochLen P) u).omTree := by
   have hlen := walk_length_le_epochLen hW
   have htail_le : W.support.tail.length ≤ W.length := by
-    have := SimpleGraph.Walk.length_support W
-    rw [List.length_tail]
-    omega
+    rw [List.length_tail, SimpleGraph.Walk.length_support, Nat.add_sub_cancel]
   have hfr := curBuf_freeze routes F adv x v i W.support.tail htail_le
     (show W.length + (epochLen P - W.length) ≤ epochLen P by omega)
   rw [Nat.add_sub_of_le hlen] at hfr
@@ -538,27 +499,16 @@ private theorem purifiedOM_omTree_epoch_succ (hF : F.card ≤ t) (v : ℕ) {i u 
   have hL := epochLen_pos P
   have hpred_lt : epochLen P - 1 < epochLen P := by omega
   have hr_eq : (v + 1) * epochLen P = (v * epochLen P + (epochLen P - 1)) + 1 := by
-    rw [Nat.add_mul, one_mul]
-    omega
+    rw [Nat.add_mul, one_mul]; omega
   have hmod := epoch_add_mod (v := v) hpred_lt
   have hdiv := epoch_add_div (v := v) hpred_lt
   have hbuf : curBuf routes F adv x v (epochLen P) i =
       ((purifiedOM t routes).state F adv x ((v + 1) * epochLen P) i).buf := by
-    unfold curBuf
-    rw [ite_eq_right (by omega), Nat.add_mul, one_mul]
-  have hnext :
-      ((purifiedOM t routes).state F adv x ((v + 1) * epochLen P) i).omTree (u :: τ) =
-        if hu_eq : u = i then
-          ((purifiedOM t routes).state F adv x (v * epochLen P + (epochLen P - 1)) i).omTree τ
-        else
-          strictMajorityOn Finset.univ fun m =>
-            ((purifiedOM t routes).state F adv x ((v + 1) * epochLen P) i).buf
-              (routes.path i u (Ne.symm hu_eq) m).support.tail τ := by
-    conv_lhs => rw [hr_eq]
-    rw [purifiedOM_state_succ_omTree, hmod, hdiv, ite_eq_left (by omega)]
-    dsimp only
-    rw [ite_eq_left hτ, ← hr_eq]
-  rw [hnext]
+    rw [curBuf, ite_eq_right (by omega), Nat.add_mul, one_mul]
+  conv_lhs => rw [hr_eq]
+  rw [purifiedOM_state_succ_omTree, hmod, hdiv, ite_eq_left (by omega)]
+  dsimp only
+  rw [ite_eq_left hτ, ← hr_eq]
   split_ifs with hu_eq
   · subst hu_eq
     rw [purifiedOM_omTree_epoch_offset routes F adv x v u hpred_lt]
@@ -569,54 +519,35 @@ private theorem purifiedOM_omTree_epoch_succ (hF : F.card ≤ t) (v : ℕ) {i u 
     have hbad_le : bad.card ≤ F.card := by
       let pick : Fin (2 * t + 1) → P := fun m =>
         if hm : ∃ z ∈ (W m).support, z ∈ F then Classical.choose hm else u
-      refine Finset.card_le_card_of_injOn pick (fun m hm => ?_) fun m₁ hm₁ m₂ hm₂ heq => ?_
-      · simp only [bad, Finset.mem_coe, Finset.mem_filter, Finset.mem_univ, true_and] at hm
-        simp only [pick, dite_eq_left_of_eq_true (eq_true hm), Finset.mem_coe]
-        exact (Classical.choose_spec hm).2
-      · by_contra hne
-        simp only [bad, Finset.mem_coe, Finset.mem_filter, Finset.mem_univ, true_and] at hm₁ hm₂
-        simp only [pick, dite_eq_left_of_eq_true (eq_true hm₁),
-          dite_eq_left_of_eq_true (eq_true hm₂)] at heq
-        have hspec₁ := Classical.choose_spec hm₁
-        have hspec₂ := Classical.choose_spec hm₂
-        rcases routes.internallyDisjoint i u (Ne.symm hu_eq) hne _ hspec₁.1
-            (heq ▸ hspec₂.1) with h_end | h_end
-        · exact hi (h_end ▸ hspec₁.2)
-        · exact hu (h_end ▸ hspec₁.2)
-    refine strictMajorityOn_eq_of_forall_notMem (F := bad) (fun m _ hm => ?_) ?_
-    · have hsupp : ∀ z ∈ (W m).support, z ∉ F := by
-        intro z hz hzF
-        exact hm (Finset.mem_filter.mpr ⟨Finset.mem_univ m, z, hz, hzF⟩)
-      rw [curBuf_epochLen_walk routes F adv x v (routes.isPath i u (Ne.symm hu_eq) m) hsupp]
-    · rw [Finset.card_univ, Fintype.card_fin]
-      omega
+      have hpick : ∀ m ∈ bad, pick m ∈ (W m).support ∧ pick m ∈ F := fun m hm => by
+        simp only [bad, Finset.mem_filter, Finset.mem_univ, true_and] at hm
+        simp only [pick, dite_eq_left_of_eq_true (eq_true hm)]
+        exact Classical.choose_spec hm
+      refine Finset.card_le_card_of_injOn pick (fun m hm => (hpick m hm).2)
+        fun m₁ hm₁ m₂ hm₂ heq => Classical.byContradiction fun hne => ?_
+      have h₁ := hpick m₁ hm₁
+      rcases routes.internallyDisjoint i u (Ne.symm hu_eq) hne _ h₁.1
+          (heq ▸ (hpick m₂ hm₂).1) with h_end | h_end
+      exacts [hi (h_end ▸ h₁.2), hu (h_end ▸ h₁.2)]
+    refine strictMajorityOn_eq_of_forall_notMem (F := bad) (fun m _ hm => ?_)
+      (by rw [Finset.card_univ, Fintype.card_fin]; omega)
+    exact congrFun (curBuf_epochLen_walk routes F adv x v (routes.isPath i u (Ne.symm hu_eq) m)
+      fun z hz hzF => hm (Finset.mem_filter.mpr ⟨Finset.mem_univ m, z, hz, hzF⟩)) τ
 
 private theorem purifiedOM_omTree_freeze (i : P) (σ : List P) :
     ∀ d, ((purifiedOM t routes).state F adv x (σ.length * epochLen P + d) i).omTree σ =
       ((purifiedOM t routes).state F adv x (σ.length * epochLen P) i).omTree σ
   | 0 => rfl
   | d + 1 => by
-    rw [show σ.length * epochLen P + (d + 1) = (σ.length * epochLen P + d) + 1 by omega]
-    match σ with
-    | [] =>
-      rw [purifiedOM_omTree_nil, purifiedOM_omTree_nil]
-    | u :: τ =>
-      have hdiv : ((u :: τ).length * epochLen P + d) / epochLen P =
-          (u :: τ).length + d / epochLen P := by
-        rw [Nat.add_comm, Nat.add_mul_div_right _ _ (epochLen_pos P), Nat.add_comm]
+    rw [← Nat.add_assoc]
+    cases σ with
+    | nil => rw [purifiedOM_omTree_nil, purifiedOM_omTree_nil]
+    | cons u τ =>
       have hne : τ.length ≠ ((u :: τ).length * epochLen P + d) / epochLen P := by
-        rw [hdiv]
-        exact Nat.ne_of_lt (lt_of_lt_of_le (Nat.lt_succ_self τ.length) (Nat.le_add_right _ _))
-      have hstep :
-          ((purifiedOM t routes).state F adv x (((u :: τ).length * epochLen P + d) + 1) i).omTree
-            (u :: τ) =
-          ((purifiedOM t routes).state F adv x ((u :: τ).length * epochLen P + d) i).omTree
-            (u :: τ) := by
-        rw [purifiedOM_state_succ_omTree]
-        split_ifs with hlast
-        · exact ite_eq_right hne
-        · rfl
-      exact hstep.trans (purifiedOM_omTree_freeze i (u :: τ) d)
+        rw [Nat.add_comm, Nat.add_mul_div_right _ _ (epochLen_pos P), List.length_cons]
+        exact Nat.ne_of_lt (Nat.lt_of_lt_of_le (Nat.lt_succ_self _) (Nat.le_add_left _ _))
+      rw [purifiedOM_state_succ_omTree]
+      split_ifs <;> simp only [hne, ↓reduceIte, purifiedOM_omTree_freeze i (u :: τ) d]
 
 private def frozenTree (i : P) (σ : List P) : Bool :=
   ((purifiedOM t routes).state F adv x (σ.length * epochLen P) i).omTree σ
@@ -632,11 +563,8 @@ private theorem omResolve_purifiedOM_eq_frozenTree {R : ℕ}
     Byzantine.omResolve i ((purifiedOM t routes).state F adv x R i).omTree t [c] =
       Byzantine.omResolve i (frozenTree routes F adv x i) t [c] := by
   refine Byzantine.omResolve_congr i t [c] fun τ hτ => ?_
-  have hle : τ.length * epochLen P ≤ R := by
-    have hτ' : τ.length ≤ t + 1 := by
-      simp only [List.length_singleton] at hτ
-      omega
-    exact (Nat.mul_le_mul_right (epochLen P) hτ').trans hR
+  have hle : τ.length * epochLen P ≤ R :=
+    (Nat.mul_le_mul_right _ (by simp only [List.length_singleton] at hτ; omega)).trans hR
   obtain ⟨d, hd⟩ := Nat.exists_eq_add_of_le hle
   rw [hd, purifiedOM_omTree_freeze]
   rfl
@@ -655,21 +583,13 @@ theorem solvesByzantineAgreement_purifiedOM {P : Type*} [Fintype P] [DecidableEq
     (hn : 3 * t < Fintype.card P) {R : ℕ} (hR : (t + 1) * epochLen P ≤ R) :
     (purifiedOM t routes).SolvesByzantineAgreement t R where
   agreement F hF adv x i hi j hj := by
-    dsimp only [GraphProtocol.decision]
-    change (strictMajorityOn Finset.univ fun c =>
-        Byzantine.omResolve i ((purifiedOM t routes).state F adv x R i).omTree t [c]) =
-      strictMajorityOn Finset.univ fun c =>
-        Byzantine.omResolve j ((purifiedOM t routes).state F adv x R j).omTree t [c]
-    congr 1 with c : 1
+    refine congrArg (strictMajorityOn Finset.univ) (funext fun c => ?_)
     rw [omResolve_purifiedOM_eq_frozenTree routes F adv x hR i c,
       omResolve_purifiedOM_eq_frozenTree routes F adv x hR j c]
     exact Byzantine.omResolve_eq_omResolve
       (fun _ hp _ hq τ => frozenTree_cons routes F adv x hF hp hq τ) t c [] List.not_mem_nil
       (by simpa using hF) (by simpa using hn) i hi j hj
   validity F hF adv x v hv i hi := by
-    dsimp only [GraphProtocol.decision]
-    change (strictMajorityOn Finset.univ fun c =>
-        Byzantine.omResolve i ((purifiedOM t routes).state F adv x R i).omTree t [c]) = v
     refine strictMajorityOn_eq_of_forall_notMem (F := F) (fun c _ hc => ?_) ?_
     · rw [omResolve_purifiedOM_eq_frozenTree routes F adv x hR i c,
         Byzantine.omResolve_eq_of_notMem
@@ -692,18 +612,16 @@ theorem isVertexConnected_iff_card_gt_and_nonempty_disjointPaths {P : Type*} [Fi
     G.IsVertexConnected k ↔ k < Fintype.card P ∧ Nonempty (DisjointPaths G k) := by
   constructor
   · intro hconn
-    have hiff :=
+    obtain ⟨hcard, hpaths⟩ :=
       Cslib.Algorithms.Lean.MaxFlow.isVertexConnected_iff_forall_exists_injective_internallyDisjoint
-        G k
-    obtain ⟨hcard, hpaths⟩ := hiff.mp hconn
+        G k |>.mp hconn
     rw [ENat.card_eq_coe_fintype_card] at hcard
     choose W _ hW hdisj using fun (u v : P) (huv : u ≠ v) => hpaths huv
     exact ⟨by exact_mod_cast hcard, ⟨⟨W, hW, hdisj⟩⟩⟩
   · rintro ⟨hcard, ⟨routes⟩⟩
     refine SimpleGraph.isVertexConnected_of_forall_exists_internallyDisjoint ?_ fun u v huv =>
       ⟨routes.path u v huv, routes.isPath u v huv, routes.internallyDisjoint u v huv⟩
-    rw [ENat.card_eq_coe_fintype_card]
-    exact_mod_cast hcard
+    simpa [ENat.card_eq_coe_fintype_card] using hcard
 
 private theorem card_le_one_or_of_solvesByzantineAgreement {P S M : Type*} [Fintype P]
     [DecidableEq P] {G : SimpleGraph P} {t R : ℕ} {π : GraphProtocol G S M}
@@ -738,10 +656,8 @@ private theorem uliftProtocol_state.{u, s₀, m₀, v, w} {P : Type u} [Decidabl
     congr 1
     · exact uliftProtocol_state π F adv x r i
     · funext j hji
-      by_cases hj : j ∈ F
-      · simp only [hj, ↓reduceIte]
-      · simp only [hj, ↓reduceIte]
-        exact congrArg (fun s => π.send r j s i hji) (uliftProtocol_state π F adv x r j)
+      by_cases hj : j ∈ F <;> simp only [hj, ↓reduceIte]
+      exact congrArg (fun s => π.send r j s i hji) (uliftProtocol_state π F adv x r j)
 
 private theorem solvesByzantineAgreement_ulift.{u, s₀, m₀, v, w} {P : Type u} [DecidableEq P]
     {G : SimpleGraph P} {S : Type s₀} {M : Type m₀} {π : GraphProtocol G S M} {t R : ℕ}

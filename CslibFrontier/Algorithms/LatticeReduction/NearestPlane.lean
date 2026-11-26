@@ -75,14 +75,13 @@ private noncomputable def gramSchmidtProj (b : Fin n → E) (z : E) : E :=
 
 private theorem inner_gramSchmidt_gramSchmidtProj (b : Fin n → E) (z : E) (i : Fin n) :
     inner ℝ (gramSchmidt ℝ b i) (gramSchmidtProj b z) = inner ℝ (gramSchmidt ℝ b i) z := by
-  rw [gramSchmidtProj, inner_sum, Finset.sum_eq_single i]
+  rw [gramSchmidtProj, inner_sum, Finset.sum_eq_single_of_mem i (Finset.mem_univ i)]
   · rw [inner_smul_right, real_inner_self_eq_norm_sq]
     rcases eq_or_ne (gramSchmidt ℝ b i) 0 with h | h
     · simp [h]
     · field_simp [norm_ne_zero_iff.2 h]
   · intro j _ hji
     rw [inner_smul_right, gramSchmidt_orthogonal ℝ b hji.symm, mul_zero]
-  · intro h; exact absurd (Finset.mem_univ i) h
 
 private theorem inner_gramSchmidtProj_gramSchmidt (b : Fin n → E) (z : E) (i : Fin n) :
     inner ℝ (gramSchmidtProj b z) (gramSchmidt ℝ b i) = inner ℝ z (gramSchmidt ℝ b i) := by
@@ -113,21 +112,18 @@ private theorem norm_sq_eq_norm_sq_sub_add_sum (b : Fin n → E) (z : E) :
 /-- The projection fixes the integer span of `b`. -/
 private theorem gramSchmidtProj_eq_self {b : Fin n → E} {w : E}
     (hw : w ∈ Submodule.span ℤ (Set.range b)) : gramSchmidtProj b w = w := by
-  have hw' : w ∈ Submodule.span ℝ (Set.range (gramSchmidt ℝ b)) := by
-    rw [span_gramSchmidt ℝ b]
-    exact Submodule.span_le_restrictScalars ℤ ℝ _ hw
-  obtain ⟨a, rfl⟩ := (Submodule.mem_span_range_iff_exists_fun ℝ).1 hw'
+  obtain ⟨a, rfl⟩ := (Submodule.mem_span_range_iff_exists_fun ℝ).1
+    (span_gramSchmidt ℝ b ▸ Submodule.span_le_restrictScalars ℤ ℝ _ hw)
   rw [gramSchmidtProj]
   refine Finset.sum_congr rfl fun j _ => ?_
   rcases eq_or_ne (gramSchmidt ℝ b j) 0 with h | h
   · simp [h]
   congr 1
-  rw [inner_sum, Finset.sum_eq_single j]
+  rw [inner_sum, Finset.sum_eq_single_of_mem j (Finset.mem_univ j)]
   · rw [inner_smul_right, real_inner_self_eq_norm_sq]
     field_simp [norm_ne_zero_iff.2 h]
   · intro i _ hij
     rw [inner_smul_right, gramSchmidt_orthogonal ℝ b hij.symm, mul_zero]
-  · intro h; exact absurd (Finset.mem_univ j) h
 
 /-- Lattice translations do not change the residual `z - Pz`. -/
 private theorem sub_gramSchmidtProj_add {b : Fin n → E} (z : E) {w : E}
@@ -161,18 +157,13 @@ theorem IsNearestPlane.norm_sq_le {δ : ℝ} {b : Fin (n + 1) → E} (hb : IsRed
   have hα1 : 1 ≤ α := by rw [hα, le_div_iff₀ (by linarith)]; linarith
   have hα0 : 0 ≤ α := by linarith
   have hS1 : 1 ≤ S := by
-    rw [hS, Finset.sum_range_succ']
-    simp only [pow_zero]
-    have : 0 ≤ ∑ i ∈ Finset.range n, α ^ (i + 1) :=
-      Finset.sum_nonneg fun i _ => pow_nonneg hα0 _
-    linarith
+    rw [hS, ← pow_zero α]
+    exact Finset.single_le_sum (fun i _ => pow_nonneg hα0 i) (by simp)
   have hSfin : ∑ j : Fin (n + 1), α ^ (n - (j : ℕ)) = S := by
     rw [Fin.sum_univ_eq_sum_range (fun j => α ^ (n - j)) (n + 1), hS,
       ← Finset.sum_range_reflect]
-    refine Finset.sum_congr rfl fun j hj => ?_
-    rw [Finset.mem_range] at hj
-    congr 1
-    omega
+    exact Finset.sum_congr rfl fun j hj =>
+      congrArg (α ^ ·) (by have := Finset.mem_range.1 hj; omega)
   set g := gramSchmidt ℝ b with hg
   let T : E → Fin (n + 1) → ℝ := fun z j => inner ℝ (g j) z ^ 2 / ‖g j‖ ^ 2
   have hT0 : ∀ z j, 0 ≤ T z j := fun z j => div_nonneg (sq_nonneg _) (sq_nonneg _)
@@ -183,76 +174,50 @@ theorem IsNearestPlane.norm_sq_le {δ : ℝ} {b : Fin (n + 1) → E} (hb : IsRed
   have hdd' : d' = d + (y - v) := by rw [hd, hd']; abel
   have hres : d' - gramSchmidtProj b d' = d - gramSchmidtProj b d := by
     rw [hdd']; exact sub_gramSchmidtProj_add d hyv
-  have hpyd := norm_sq_eq_norm_sq_sub_add_sum b d
-  have hpyd' := norm_sq_eq_norm_sq_sub_add_sum b d'
-  rw [hres] at hpyd'
-  set R := ‖d - gramSchmidtProj b d‖ ^ 2 with hR
-  have hR0 : 0 ≤ R := sq_nonneg _
   -- it suffices to compare the sums
   suffices hsum : ∑ j, T d j ≤ S * ∑ j, T d' j by
-    have h1 : ‖d‖ ^ 2 = R + ∑ j, T d j := hpyd
-    have h2 : ‖d'‖ ^ 2 = R + ∑ j, T d' j := hpyd'
-    rw [h1, h2]
-    nlinarith
+    rw [norm_sq_eq_norm_sq_sub_add_sum b d, norm_sq_eq_norm_sq_sub_add_sum b d', hres]
+    nlinarith [sq_nonneg ‖d - gramSchmidtProj b d‖]
   obtain ⟨e, he⟩ := (Submodule.mem_span_range_iff_exists_fun ℤ).1 hyv
-  by_cases hz' : ∃ i, e i ≠ 0
-  swap
-  · have hz : ∀ i, e i = 0 := fun i => by_contra fun h => hz' ⟨i, h⟩
-    have : y - v = 0 := by rw [← he]; simp [hz]
-    have hdd : d' = d := by rw [hdd', this, add_zero]
-    rw [hdd]
-    have : 0 ≤ ∑ j, T d j := Finset.sum_nonneg fun j _ => hT0 d j
-    nlinarith
-  have hne : (Finset.univ.filter fun i => e i ≠ 0).Nonempty := by
-    obtain ⟨i, hi⟩ := hz'
-    exact ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ i, hi⟩⟩
+  rcases (Finset.univ.filter fun i => e i ≠ 0).eq_empty_or_nonempty with hz | hne
+  · have hz i : e i = 0 := by simpa using Finset.filter_eq_empty_iff.1 hz (Finset.mem_univ i)
+    simp only [hdd', ← he, hz, zero_smul, Finset.sum_const_zero, add_zero]
+    nlinarith [Finset.sum_nonneg fun j (_ : j ∈ Finset.univ) => hT0 d j]
   set k := (Finset.univ.filter fun i => e i ≠ 0).max' hne with hk
   have hek : e k ≠ 0 := (Finset.mem_filter.1 (Finset.max'_mem _ hne)).2
-  have habove : ∀ i, k < i → e i = 0 := by
-    intro i hi
-    by_contra h
-    exact absurd (Finset.le_max' _ i (Finset.mem_filter.2 ⟨Finset.mem_univ i, h⟩)) (not_le.2 hi)
+  have habove : ∀ i, k < i → e i = 0 := fun i hi => by_contra fun h =>
+    hi.not_ge (Finset.le_max' _ i (Finset.mem_filter.2 ⟨Finset.mem_univ i, h⟩))
   -- inner products of `d'` in terms of those of `d`
-  have hinner : ∀ j, k ≤ j → inner ℝ (g j) d' = inner ℝ (g j) d + e j * ‖g j‖ ^ 2 := by
-    intro j hj
+  have hinner : ∀ j, k ≤ j → inner ℝ (g j) d' = inner ℝ (g j) d + e j * ‖g j‖ ^ 2 := fun j hj => by
     rw [hdd', inner_add_right, ← he, hg,
       inner_gramSchmidt_sum_zsmul b e fun i hi => habove i (lt_of_le_of_lt hj hi)]
     rfl
-  have hTabove : ∀ j, k < j → T d' j = T d j := by
-    intro j hj
-    simp only [T]
-    rw [hinner j hj.le, habove j hj, Int.cast_zero, zero_mul, add_zero]
+  have hTabove : ∀ j, k < j → T d' j = T d j := fun j hj => by
+    simp [T, hinner j hj.le, habove j hj]
   -- the coordinate `k` of `d'` is at least `1/2` in absolute value
   have hTk : ‖g k‖ ^ 2 / 4 ≤ T d' k := by
     simp only [T]
     rcases eq_or_ne (g k) 0 with h0 | h0
     · simp [h0]
     have hN : 0 < ‖g k‖ ^ 2 := by positivity
-    have hu := hy.abs_inner_le k
-    rw [← hg, ← hd] at hu
+    have hu : |inner ℝ (g k) d| ≤ ‖g k‖ ^ 2 / 2 := hy.abs_inner_le k
     have hek1 : (1 : ℝ) ≤ |(e k : ℝ)| := by exact_mod_cast Int.one_le_abs hek
     have hlow : ‖g k‖ ^ 2 / 2 ≤ |inner ℝ (g k) d'| := by
-      rw [hinner k le_rfl]
-      have h1 : ‖g k‖ ^ 2 ≤ |(e k : ℝ) * ‖g k‖ ^ 2| := by
-        rw [abs_mul, abs_of_pos hN]; nlinarith
       have h2 := abs_sub_abs_le_abs_sub ((e k : ℝ) * ‖g k‖ ^ 2) (-inner ℝ (g k) d)
-      rw [abs_neg, sub_neg_eq_add, add_comm] at h2
-      linarith
+      rw [abs_neg, sub_neg_eq_add, add_comm, abs_mul, abs_of_pos hN, ← hinner k le_rfl] at h2
+      nlinarith
     rw [le_div_iff₀ hN, ← sq_abs (inner ℝ (g k) d')]
     nlinarith [abs_nonneg (inner ℝ (g k) d')]
   -- the coordinates of `d` are at most `1/2` in absolute value
-  have hTle : ∀ j, T d j ≤ ‖g j‖ ^ 2 / 4 := by
-    intro j
+  have hTle : ∀ j, T d j ≤ ‖g j‖ ^ 2 / 4 := fun j => by
     simp only [T]
     rcases eq_or_ne (g j) 0 with h0 | h0
     · simp [h0]
     have hN : 0 < ‖g j‖ ^ 2 := by positivity
-    have hu := hy.abs_inner_le j
-    rw [← hg, ← hd] at hu
+    have hu : |inner ℝ (g j) d| ≤ ‖g j‖ ^ 2 / 2 := hy.abs_inner_le j
     rw [div_le_iff₀ hN, ← sq_abs (inner ℝ (g j) d)]
     nlinarith [abs_nonneg (inner ℝ (g j) d)]
-  have hTbelow : ∀ j, j ≤ k → T d j ≤ α ^ (n - (j : ℕ)) * T d' k := by
-    intro j hj
+  have hTbelow : ∀ j, j ≤ k → T d j ≤ α ^ (n - (j : ℕ)) * T d' k := fun j hj => by
     have hjk : (j : ℕ) + ((k : ℕ) - j) < n + 1 := by have := k.isLt; omega
     have hchain := hb.norm_sq_gramSchmidt_chain hδ j ((k : ℕ) - j) hjk
     have hidx : (⟨(j : ℕ) + ((k : ℕ) - j), hjk⟩ : Fin (n + 1)) = k := by
@@ -261,33 +226,26 @@ theorem IsNearestPlane.norm_sq_le {δ : ℝ} {b : Fin (n + 1) → E} (hb : IsRed
     have hpow : α ^ ((k : ℕ) - j) ≤ α ^ (n - (j : ℕ)) :=
       pow_le_pow_right₀ hα1 (by have := k.isLt; omega)
     calc T d j ≤ ‖g j‖ ^ 2 / 4 := hTle j
-      _ ≤ α ^ ((k : ℕ) - j) * ‖g k‖ ^ 2 / 4 := by linarith
-      _ ≤ α ^ (n - (j : ℕ)) * ‖g k‖ ^ 2 / 4 := by
-          gcongr
-      _ = α ^ (n - (j : ℕ)) * (‖g k‖ ^ 2 / 4) := by ring
+      _ ≤ α ^ (n - (j : ℕ)) * (‖g k‖ ^ 2 / 4) := by
+          linarith [mul_le_mul_of_nonneg_right hpow (sq_nonneg ‖g k‖)]
       _ ≤ α ^ (n - (j : ℕ)) * T d' k := by gcongr
   -- sum the termwise bounds
   let V : Fin (n + 1) → ℝ := fun j => if k < j then T d' j else 0
-  have hterm : ∀ j, T d j ≤ α ^ (n - (j : ℕ)) * T d' k + V j := by
-    intro j
+  have hterm : ∀ j, T d j ≤ α ^ (n - (j : ℕ)) * T d' k + V j := fun j => by
     by_cases hj : k < j
-    · simp only [V, hj, ↓reduceIte]
-      rw [hTabove j hj]
-      have := mul_nonneg (pow_nonneg hα0 (n - (j : ℕ))) (hT0 d' k)
-      linarith
+    · simp only [V, hj, ↓reduceIte, hTabove j hj]
+      linarith [mul_nonneg (pow_nonneg hα0 (n - (j : ℕ))) (hT0 d' k)]
     · simp only [V, hj, ↓reduceIte, add_zero]
       exact hTbelow j (not_lt.1 hj)
   have hV0 : 0 ≤ ∑ j, V j :=
     Finset.sum_nonneg fun j _ => by simp only [V]; split_ifs <;> simp [hT0]
   have hVle : T d' k + ∑ j, V j ≤ ∑ j, T d' j := by
-    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ k)]
-    have hVk : V k = 0 := by simp only [V, lt_irrefl, ↓reduceIte]
-    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ k), hVk, zero_add]
-    gcongr with j hj
-    simp only [V]
+    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ k), ← Finset.add_sum_erase _ _
+      (Finset.mem_univ k)]
+    simp only [V, lt_irrefl, ↓reduceIte, zero_add]
+    gcongr with j
     split_ifs
-    · exact le_rfl
-    · exact hT0 d' j
+    exacts [le_rfl, hT0 d' j]
   calc ∑ j, T d j ≤ ∑ j : Fin (n + 1), (α ^ (n - (j : ℕ)) * T d' k + V j) :=
         Finset.sum_le_sum fun j _ => hterm j
     _ = S * T d' k + ∑ j, V j := by
@@ -304,10 +262,8 @@ theorem IsNearestPlane.norm_sq_le_two_pow_mul {b : Fin n → E} (hb : IsReduced 
     ‖x - y‖ ^ 2 ≤ 2 ^ n * ‖x - v‖ ^ 2 := by
   cases n with
   | zero =>
-    have hspan : ∀ w ∈ Submodule.span ℤ (Set.range b), w = 0 := by
-      intro w hw
-      rw [Set.range_eq_empty, Submodule.span_empty, Submodule.mem_bot] at hw
-      exact hw
+    have hspan : ∀ w ∈ Submodule.span ℤ (Set.range b), w = 0 := fun w hw => by
+      rwa [Set.range_eq_empty, Submodule.span_empty, Submodule.mem_bot] at hw
     rw [hspan y hy.mem_span, hspan v hv, pow_zero, one_mul]
   | succ n =>
     have h := hy.norm_sq_le hb (by norm_num) (by norm_num) hv
@@ -325,11 +281,9 @@ theorem IsNearestPlane.norm_le_sqrt_two_pow_mul {b : Fin n → E} (hb : IsReduce
     {x y : E} (hy : IsNearestPlane b x y) {v : E}
     (hv : v ∈ Submodule.span ℤ (Set.range b)) :
     ‖x - y‖ ≤ Real.sqrt 2 ^ n * ‖x - v‖ := by
-  have hsq := hy.norm_sq_le_two_pow_mul hb hv
-  have hrhs : (Real.sqrt 2 ^ n * ‖x - v‖) ^ 2 = 2 ^ n * ‖x - v‖ ^ 2 := by
-    rw [mul_pow, ← pow_mul, mul_comm n 2, pow_mul, Real.sq_sqrt (by norm_num)]
-  rw [← hrhs] at hsq
-  exact (pow_le_pow_iff_left₀ (norm_nonneg _)
-    (mul_nonneg (pow_nonneg (Real.sqrt_nonneg _) _) (norm_nonneg _)) two_ne_zero).1 hsq
+  refine le_of_pow_le_pow_left₀ two_ne_zero
+    (mul_nonneg (pow_nonneg (Real.sqrt_nonneg _) _) (norm_nonneg _)) ?_
+  rw [mul_pow, ← pow_mul, mul_comm n 2, pow_mul, Real.sq_sqrt (by norm_num)]
+  exact hy.norm_sq_le_two_pow_mul hb hv
 
 end Cslib.Algorithms.LatticeReduction

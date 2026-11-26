@@ -12,7 +12,6 @@ public import CslibFrontier.Logics.Propositional.CNF.ExactOne.ModelCount
 import Mathlib.Algebra.Order.BigOperators.Group.List
 import Mathlib.Algebra.Order.Ring.Nat
 import Mathlib.Data.List.Sigma
-import Mathlib.Tactic.IntervalCases
 import Mathlib.Algebra.BigOperators.Ring.List
 
 /-!
@@ -110,11 +109,8 @@ theorem evalOne_complementBlock_extend (φ : CNF V) (σ : V → Bool) {i j : ℕ
   unfold complementBlock
   split
   · rfl
-  · rw [evalOne_complementClauses_iff]
-    have hy := extend_auxiliary_zero φ σ hc hl
-    have hconst := extend_auxiliary_constants φ σ i j
-    simp only [extend] at *
-    exact ⟨by rw [hy, Bool.not_not], hconst⟩
+  · rw [evalOne_complementClauses_iff, extend_auxiliary_zero φ σ hc hl]
+    exact ⟨by simp [extend], extend_auxiliary_constants φ σ i j⟩
 
 /-- If every complement block holds, the inherited positive clause has the original
 exact-one value under the assignment read from source variables. -/
@@ -125,15 +121,10 @@ theorem evalOne_inheritedClause (τ : Variable V → Bool) (i : ℕ) (c : Clause
   have heval (a : Literal V × ℕ) (ha : a ∈ c.zipIdx) :
       Literal.eval τ (positiveLiteral i a.2 a.1) =
         Literal.eval (fun v => τ (.inl v)) a.1 := by
-    rcases a with ⟨⟨v, b⟩, j⟩
-    cases b with
-    | true => simp [positiveLiteral, Literal.eval]
-    | false =>
-      have hh := (evalOne_complementClauses_iff τ (.inl v) (auxiliary i j 0)
-        (auxiliary i j 1) (auxiliary i j 2) (auxiliary i j 3) (auxiliary i j 4)).mp
-          (hcomp ((v, false), j) ha)
-      have hy := congrArg Bool.not hh.1
-      simpa [positiveLiteral, Literal.eval] using hy.symm
+    rcases a with ⟨⟨v, false | true⟩, j⟩
+    · have hh := (evalOne_complementClauses_iff _ _ _ _ _ _ _).mp (hcomp _ ha)
+      simpa [positiveLiteral, Literal.eval] using (congrArg Bool.not hh.1).symm
+    · simp [positiveLiteral, Literal.eval]
   unfold Clause.evalOne
   congr 1
   rw [List.countP_map]
@@ -143,9 +134,8 @@ theorem evalOne_inheritedClause (τ : Variable V → Bool) (i : ℕ) (c : Clause
         change Literal.eval τ (positiveLiteral i a.2 a.1) = true ↔ _
         rw [heval a ha])
     _ = c.countP (Literal.eval (fun v => τ (.inl v))) := by
-      have h := congrArg (List.countP (Literal.eval (fun v => τ (.inl v))))
-        (by simp only [List.zipIdx_map_fst] : c.zipIdx.map Prod.fst = c)
-      simpa only [List.countP_map, Function.comp_def] using h
+      simpa only [List.countP_map, Function.comp_def] using
+        congrArg (List.countP (Literal.eval (fun v => τ (.inl v)))) (List.zipIdx_map_fst 0 c)
 
 /-- A compiled clause is exactly the source clause together with its complement constraints. -/
 theorem evalOne_clauseClauses_iff (τ : Variable V → Bool) (i : ℕ) (c : Clause V) :
@@ -154,11 +144,7 @@ theorem evalOne_clauseClauses_iff (τ : Variable V → Bool) (i : ℕ) (c : Clau
         ∀ a ∈ c.zipIdx, CNF.evalOne τ (complementBlock i a.2 a.1) = true := by
   simp only [clauseClauses, CNF.evalOne_append, Bool.and_eq_true,
     CNF.evalOne_cons, CNF.evalOne_nil, Bool.and_true, CNF.evalOne_flatMap_eq_true_iff]
-  constructor
-  · rintro ⟨hmain, hcomp⟩
-    exact ⟨(evalOne_inheritedClause τ i c hcomp) ▸ hmain, hcomp⟩
-  · rintro ⟨hmain, hcomp⟩
-    exact ⟨(evalOne_inheritedClause τ i c hcomp).symm ▸ hmain, hcomp⟩
+  exact and_congr_left fun hcomp => by rw [evalOne_inheritedClause τ i c hcomp]
 
 /-- A satisfying positive output assignment restricts to a satisfying source assignment. -/
 theorem evalOne_of_formula (φ : CNF V) (τ : Variable V → Bool)
@@ -167,38 +153,28 @@ theorem evalOne_of_formula (φ : CNF V) (τ : Variable V → Bool)
   rw [CNF.evalOne_eq_true_iff]
   intro c hc
   obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hc
-  have hzip : (φ[i], i) ∈ φ.zipIdx :=
-    List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_getElem hi)
   have hh := (CNF.evalOne_flatMap_eq_true_iff τ φ.zipIdx
-    (fun (c, i) => clauseClauses i c)).mp hτ (φ[i], i) hzip
+    (fun (c, i) => clauseClauses i c)).mp hτ (φ[i], i)
+    (List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_getElem hi))
   exact (evalOne_clauseClauses_iff τ i φ[i]).mp hh |>.1
 
 /-- Canonical extension preserves the exact-one value of the whole source formula. -/
 theorem evalOne_formula_extend (φ : CNF V) (σ : V → Bool) :
     CNF.evalOne (extend φ σ) (formula φ) = CNF.evalOne σ φ := by
   rw [Bool.eq_iff_iff]
-  constructor
-  · exact evalOne_of_formula φ (extend φ σ)
-  · intro hσ
-    rw [formula, CNF.evalOne_flatMap_eq_true_iff]
-    intro a ha
-    rcases a with ⟨c, i⟩
-    rw [evalOne_clauseClauses_iff]
-    refine ⟨(CNF.evalOne_eq_true_iff σ φ).mp hσ c
-      (List.fst_mem_of_mem_zipIdx ha), ?_⟩
-    intro a ha'
-    rcases a with ⟨l, j⟩
-    exact evalOne_complementBlock_extend φ σ
-      (List.mem_zipIdx_iff_getElem?.mp ha) (List.mem_zipIdx_iff_getElem?.mp ha')
+  refine ⟨evalOne_of_formula φ (extend φ σ), fun hσ => ?_⟩
+  rw [formula, CNF.evalOne_flatMap_eq_true_iff]
+  rintro ⟨c, i⟩ ha
+  rw [evalOne_clauseClauses_iff]
+  exact ⟨(CNF.evalOne_eq_true_iff σ φ).mp hσ c (List.fst_mem_of_mem_zipIdx ha),
+    fun ⟨l, j⟩ ha' => evalOne_complementBlock_extend φ σ
+      (List.mem_zipIdx_iff_getElem?.mp ha) (List.mem_zipIdx_iff_getElem?.mp ha')⟩
 
 /-- The positive output is exact-one satisfiable exactly when the source is. -/
 theorem oneSatisfiable_formula_iff (φ : CNF V) :
     (formula φ).OneSatisfiable ↔ φ.OneSatisfiable := by
-  constructor
-  · rintro ⟨τ, hτ⟩
-    exact ⟨fun v => τ (.inl v), evalOne_of_formula φ τ hτ⟩
-  · rintro ⟨σ, hσ⟩
-    exact ⟨extend φ σ, (evalOne_formula_extend φ σ).trans hσ⟩
+  exact ⟨fun ⟨τ, hτ⟩ => ⟨fun v => τ (.inl v), evalOne_of_formula φ τ hτ⟩,
+    fun ⟨σ, hσ⟩ => ⟨extend φ σ, (evalOne_formula_extend φ σ).trans hσ⟩⟩
 
 /-- Every negative-occurrence complement block is satisfied by a satisfying output assignment. -/
 theorem evalOne_complementBlock_of_formula (φ : CNF V) (τ : Variable V → Bool)
@@ -215,25 +191,16 @@ theorem evalOne_complementBlock_of_formula (φ : CNF V) (τ : Variable V → Boo
 theorem sourceVariable_mem_formula {φ : CNF V} {v : V} (hv : v ∈ φ.vars) :
     Sum.inl v ∈ (formula φ).vars := by
   obtain ⟨c, hc, b, hl⟩ := CNF.mem_vars.mp hv
-  obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hc
-  obtain ⟨j, hj, hlj⟩ := List.mem_iff_getElem.mp hl
-  have hci : (φ[i], i) ∈ φ.zipIdx :=
-    List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_getElem hi)
-  have hlj' : ((v, b), j) ∈ φ[i].zipIdx :=
-    List.mem_zipIdx_iff_getElem?.mpr (by rw [List.getElem?_eq_getElem hj, hlj])
-  apply CNF.mem_vars.mpr
+  obtain ⟨⟨c, i⟩, hci, rfl⟩ := List.mem_map.mp ((List.zipIdx_map_fst 0 φ).symm ▸ hc)
+  obtain ⟨⟨_, j⟩, hlj, rfl⟩ := List.mem_map.mp ((List.zipIdx_map_fst 0 c).symm ▸ hl)
   cases b with
   | true =>
-    refine ⟨φ[i].zipIdx.map (fun (l, j) => positiveLiteral i j l), ?_, true, ?_⟩
-    · exact List.mem_flatMap.mpr ⟨(φ[i], i), hci,
-        List.mem_append.mpr (Or.inl (List.mem_singleton_self _))⟩
-    · exact List.mem_map.mpr ⟨((v, true), j), hlj', rfl⟩
+    exact CNF.mem_vars.mpr ⟨_, List.mem_flatMap.mpr ⟨_, hci, List.mem_cons_self⟩,
+      true, List.mem_map.mpr ⟨((v, true), j), hlj, rfl⟩⟩
   | false =>
-    refine ⟨[(.inl v, true), (auxiliary i j 0, true), (auxiliary i j 1, true)], ?_,
+    exact CNF.mem_vars.mpr ⟨_, List.mem_flatMap.mpr ⟨_, hci, List.mem_cons_of_mem _
+      (List.mem_flatMap.mpr ⟨((v, false), j), hlj, List.mem_cons_self⟩)⟩,
       true, List.mem_cons_self⟩
-    apply List.mem_flatMap.mpr
-    refine ⟨(φ[i], i), hci, List.mem_append.mpr (Or.inr ?_)⟩
-    exact List.mem_flatMap.mpr ⟨((v, false), j), hlj', List.mem_cons_self⟩
 
 /-- Satisfying complement blocks with equal source values agree on all of their variables. -/
 theorem complementBlock_assignments_agree (σ τ : Variable V → Bool) (i j : ℕ)
@@ -248,62 +215,42 @@ theorem complementBlock_assignments_agree (σ τ : Variable V → Bool) (i j : �
     have hs := (evalOne_complementClauses_iff σ _ _ _ _ _ _).mp hσ
     have ht := (evalOne_complementClauses_iff τ _ _ _ _ _ _).mp hτ
     have hy : σ (auxiliary i j 0) = τ (auxiliary i j 0) := by
-      have he := hs.1.symm.trans (hsource.trans ht.1)
-      have he' := congrArg Bool.not he
-      simpa using he'
+      simpa using congrArg Bool.not (hs.1.symm.trans (hsource.trans ht.1))
     intro v hv
     simp only [complementBlock, Bool.false_eq_true, ↓reduceIte, complementClauses,
       forceFalseClauses, CNF.vars, List.flatten_cons, List.flatten_nil, List.cons_append,
       List.nil_append, List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil,
       or_false] at hv
-    rcases hv with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
-    all_goals first
-      | exact hsource
-      | exact hy
-      | exact hs.2.1.trans ht.2.1.symm
-      | exact hs.2.2.1.trans ht.2.2.1.symm
-      | exact hs.2.2.2.1.trans ht.2.2.2.1.symm
-      | exact hs.2.2.2.2.trans ht.2.2.2.2.symm
+    rcases hv with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+      simp [hsource, hy, hs.2, ht.2]
 
 /-- Satisfying output assignments agree exactly when their source restrictions agree. -/
 theorem assignments_agree_iff {φ : CNF V} {σ τ : Variable V → Bool}
     (hσ : CNF.evalOne σ (formula φ) = true) (hτ : CNF.evalOne τ (formula φ) = true) :
     (∀ v ∈ (formula φ).vars, σ v = τ v) ↔
       ∀ v ∈ φ.vars, σ (.inl v) = τ (.inl v) := by
-  constructor
-  · intro h v hv
-    exact h (.inl v) (sourceVariable_mem_formula hv)
-  · intro h v hv
-    obtain ⟨c, hc, b, hl⟩ := CNF.mem_vars.mp hv
-    obtain ⟨⟨a, i⟩, ha, hc⟩ := List.mem_flatMap.mp hc
-    have hσblock := (CNF.evalOne_flatMap_eq_true_iff σ φ.zipIdx
-      (fun (c, i) => clauseClauses i c)).mp hσ (a, i) ha
-    have hτblock := (CNF.evalOne_flatMap_eq_true_iff τ φ.zipIdx
-      (fun (c, i) => clauseClauses i c)).mp hτ (a, i) ha
-    have hcompσ := (evalOne_clauseClauses_iff σ i a).mp hσblock |>.2
-    have hcompτ := (evalOne_clauseClauses_iff τ i a).mp hτblock |>.2
-    have hsource (l : Literal V) (j : ℕ) (hl : (l, j) ∈ a.zipIdx) :
-        σ (.inl l.1) = τ (.inl l.1) := by
-      apply h l.1
-      exact CNF.mem_vars.mpr ⟨a, List.fst_mem_of_mem_zipIdx ha, l.2,
-        List.fst_mem_of_mem_zipIdx hl⟩
-    rcases List.mem_append.mp hc with hc | hc
-    · obtain rfl := List.mem_singleton.mp hc
-      obtain ⟨⟨l, j⟩, hlj, he⟩ := List.mem_map.mp hl
-      have hv : v = (positiveLiteral i j l).1 := (congrArg Prod.fst he).symm
-      rw [hv]
-      rcases l with ⟨w, b⟩
-      cases b with
-      | true => exact hsource (w, true) j hlj
-      | false =>
-        exact complementBlock_assignments_agree σ τ i j (w, false)
-          (hcompσ ((w, false), j) hlj) (hcompτ ((w, false), j) hlj)
-          (hsource (w, false) j hlj) (auxiliary i j 0) (by
-            simp [complementBlock, complementClauses, forceFalseClauses, CNF.vars])
-    · obtain ⟨⟨l, j⟩, hlj, hc⟩ := List.mem_flatMap.mp hc
-      exact complementBlock_assignments_agree σ τ i j l
-        (hcompσ (l, j) hlj) (hcompτ (l, j) hlj) (hsource l j hlj) v
-        (CNF.mem_vars.mpr ⟨c, hc, b, hl⟩)
+  refine ⟨fun h v hv => h (.inl v) (sourceVariable_mem_formula hv), fun h v hv => ?_⟩
+  obtain ⟨c, hc, b, hl⟩ := CNF.mem_vars.mp hv
+  obtain ⟨⟨a, i⟩, ha, hc⟩ := List.mem_flatMap.mp hc
+  have hsource (l : Literal V) (j : ℕ) (hlj : (l, j) ∈ a.zipIdx) :
+      σ (.inl l.1) = τ (.inl l.1) :=
+    h l.1 (CNF.mem_vars.mpr ⟨a, List.fst_mem_of_mem_zipIdx ha, l.2,
+      List.fst_mem_of_mem_zipIdx hlj⟩)
+  have hagree (l : Literal V) (j : ℕ) (hlj : (l, j) ∈ a.zipIdx) :
+      ∀ u ∈ (complementBlock i j l).vars, σ u = τ u :=
+    complementBlock_assignments_agree σ τ i j l
+      (evalOne_complementBlock_of_formula φ σ hσ (List.mem_zipIdx_iff_getElem?.mp ha)
+        (List.mem_zipIdx_iff_getElem?.mp hlj))
+      (evalOne_complementBlock_of_formula φ τ hτ (List.mem_zipIdx_iff_getElem?.mp ha)
+        (List.mem_zipIdx_iff_getElem?.mp hlj))
+      (hsource l j hlj)
+  rcases List.mem_cons.mp hc with rfl | hc
+  · obtain ⟨⟨⟨w, false | true⟩, j⟩, hlj, ⟨rfl, -⟩⟩ := List.mem_map.mp hl
+    · exact hagree (w, false) j hlj _
+        (by simp [complementBlock, complementClauses, forceFalseClauses, CNF.vars])
+    · exact hsource (w, true) j hlj
+  · obtain ⟨⟨l, j⟩, hlj, hc⟩ := List.mem_flatMap.mp hc
+    exact hagree l j hlj v (CNF.mem_vars.mpr ⟨c, hc, b, hl⟩)
 
 /-- Polarity elimination preserves the number of satisfying assignments on occurring variables. -/
 theorem oneModelCount_formula [DecidableEq V] (φ : CNF V) :
@@ -318,22 +265,10 @@ theorem oneModelCount_formula [DecidableEq V] (φ : CNF V) :
   have houtput := CNF.oneModelCount_eq_card_filter
     (φ := formula φ) (fun τ (v : φ.vars.toFinset) => τ (.inl v)) P
     (fun σ τ hσ hτ => by
-      rw [funext_iff]
-      constructor
-      · intro hh
-        apply (assignments_agree_iff hσ hτ).mpr
-        intro v hv
-        exact hh ⟨v, List.mem_toFinset.mpr hv⟩
-      · intro hh v
-        exact (assignments_agree_iff hσ hτ).mp hh v (List.mem_toFinset.mp v.property))
-    (fun a => by
-      constructor
-      · rintro ⟨σ, hσ, ha⟩
-        refine ⟨extend φ σ, (evalOne_formula_extend φ σ).trans hσ, ?_⟩
-        funext v
-        exact ha v
-      · rintro ⟨τ, hτ, ha⟩
-        exact ⟨fun v => τ (.inl v), evalOne_of_formula φ τ hτ, fun v => congrFun ha v⟩)
+      simp only [funext_iff, Subtype.forall, List.mem_toFinset, assignments_agree_iff hσ hτ])
+    (fun a =>
+      ⟨fun ⟨σ, hσ, ha⟩ => ⟨extend φ σ, (evalOne_formula_extend φ σ).trans hσ, funext ha⟩,
+       fun ⟨τ, hτ, ha⟩ => ⟨fun v => τ (.inl v), evalOne_of_formula φ τ hτ, congrFun ha⟩⟩)
   exact houtput.trans hsource.symm
 
 /-- A positive literal introduces no complement clauses. -/
@@ -364,13 +299,9 @@ theorem length_clauseClauses_le (i : ℕ) (c : Clause V) :
 theorem length_formula_le {k : ℕ} {φ : CNF V} (hw : ∀ c ∈ φ, c.length ≤ k) :
     (formula φ).length ≤ (1 + 4 * k) * φ.length := by
   simp only [formula, List.length_flatMap]
-  have h : (φ.zipIdx.map fun (c, i) => (clauseClauses i c).length).sum ≤
-      (φ.zipIdx.map fun _ => 1 + 4 * k).sum := by
-    apply List.sum_le_sum
-    intro a ha
-    exact (length_clauseClauses_le a.2 a.1).trans
+  simpa [Nat.mul_comm] using List.sum_le_sum (g := fun _ => 1 + 4 * k) fun a ha =>
+    (length_clauseClauses_le a.2 a.1).trans
       (Nat.add_le_add_left (Nat.mul_le_mul_left _ (hw _ (List.fst_mem_of_mem_zipIdx ha))) _)
-  simpa [Nat.mul_comm] using h
 
 /-- All literals in a complement block are positive. -/
 theorem positive_complementBlock (i j : ℕ) (l : Literal V) :
@@ -385,41 +316,37 @@ theorem positive_formula (φ : CNF V) :
     ∀ c ∈ formula φ, ∀ l ∈ c, l.2 = true := by
   intro c hc l hl
   obtain ⟨⟨a, i⟩, _, hc⟩ := List.mem_flatMap.mp hc
-  rcases List.mem_append.mp hc with hc | hc
-  · obtain rfl := List.mem_singleton.mp hc
-    obtain ⟨⟨b, j⟩, _, rfl⟩ := List.mem_map.mp hl
+  rcases List.mem_cons.mp hc with rfl | hc
+  · obtain ⟨⟨b, j⟩, _, rfl⟩ := List.mem_map.mp hl
     rfl
   · obtain ⟨⟨b, j⟩, _, hc⟩ := List.mem_flatMap.mp hc
     exact positive_complementBlock i j b c hc l hl
+
+private theorem width_complementBlock (i j : ℕ) (l : Literal V) :
+    ∀ c ∈ complementBlock i j l, c.length = 3 := by
+  unfold complementBlock
+  split
+  · simp
+  · exact width_complementClauses _ _ _ _ _ _
 
 /-- The inherited clause retains its width and every complement clause has width three. -/
 theorem width_clauseClauses {k : ℕ} (hk : 3 ≤ k) (i : ℕ) (c : Clause V)
     (hc : c.length ≤ k) : ∀ a ∈ clauseClauses i c, a.length ≤ k := by
   intro a ha
-  rcases List.mem_append.mp ha with ha | ha
-  · obtain rfl := List.mem_singleton.mp ha
-    simpa [Nat.mul_comm] using hc
+  rcases List.mem_cons.mp ha with rfl | ha
+  · simpa using hc
   · obtain ⟨⟨l, j⟩, _, ha⟩ := List.mem_flatMap.mp ha
-    change a ∈ complementBlock i j l at ha
-    unfold complementBlock at ha
-    split at ha
-    · simp at ha
-    · exact (width_complementClauses _ _ _ _ _ _ a ha).le.trans hk
+    exact (width_complementBlock i j l a ha).le.trans hk
 
 /-- Exact-three input clauses yield exact-three positive clauses. -/
 theorem exactWidth_formula {φ : CNF V} (hw : ∀ c ∈ φ, c.length = 3) :
     ∀ c ∈ formula φ, c.length = 3 := by
   intro c hc
   obtain ⟨⟨a, i⟩, ha, hc⟩ := List.mem_flatMap.mp hc
-  rcases List.mem_append.mp hc with hc | hc
-  · obtain rfl := List.mem_singleton.mp hc
-    simpa [Nat.mul_comm] using hw a (List.fst_mem_of_mem_zipIdx ha)
+  rcases List.mem_cons.mp hc with rfl | hc
+  · simpa using hw a (List.fst_mem_of_mem_zipIdx ha)
   · obtain ⟨⟨l, j⟩, _, hc⟩ := List.mem_flatMap.mp hc
-    change c ∈ complementBlock i j l at hc
-    unfold complementBlock at hc
-    split at hc
-    · simp at hc
-    · exact width_complementClauses _ _ _ _ _ _ _ hc
+    exact width_complementBlock i j l c hc
 
 /-- Variable occurrences contributed by one transformed source literal, including its private
 complement gadget when needed. -/
@@ -429,19 +356,11 @@ def occurrenceVariables (i j : ℕ) (l : Literal V) : List (Variable V) :=
 /-- Distinct source variables remain distinct in the inherited positive clause. -/
 theorem nodup_inheritedClause (i : ℕ) (c : Clause V) (hc : (c.map Prod.fst).Nodup) :
     ((c.zipIdx.map fun (l, j) => positiveLiteral i j l).map Prod.fst).Nodup := by
-  have hvars : (c.zipIdx.map fun a => a.1.1).Nodup := by
-    have he := congrArg (List.map Prod.fst) (List.zipIdx_map_fst 0 c)
-    simp only [List.map_map, Function.comp_def] at he
-    rw [he]
-    exact hc
-  have hidx := List.nodup_zipIdx_map_snd c
-  change List.Pairwise _ _ at hvars hidx ⊢
-  rw [List.map_map, List.pairwise_map]
-  have hboth := (List.pairwise_map.mp hvars).and (List.pairwise_map.mp hidx)
-  apply hboth.imp
-  intro a b hab
-  rcases a with ⟨⟨v, p⟩, j⟩
-  rcases b with ⟨⟨w, q⟩, k⟩
+  rw [← List.zipIdx_map_fst 0 c, List.map_map] at hc
+  rw [List.Nodup, List.map_map, List.pairwise_map]
+  refine ((List.pairwise_map.mp hc).and
+    (List.pairwise_map.mp (List.nodup_zipIdx_map_snd c))).imp ?_
+  rintro ⟨⟨v, p⟩, j⟩ ⟨⟨w, q⟩, k⟩ hab
   cases p <;> cases q <;> simp_all [positiveLiteral, auxiliary]
 
 /-- Every complement clause has three distinct variables, regardless of its source literal. -/
@@ -457,9 +376,8 @@ theorem nodup_formula {φ : CNF V} (hn : ∀ c ∈ φ, (c.map Prod.fst).Nodup) :
     ∀ c ∈ formula φ, (c.map Prod.fst).Nodup := by
   intro c hc
   obtain ⟨⟨a, i⟩, ha, hc⟩ := List.mem_flatMap.mp hc
-  rcases List.mem_append.mp hc with hc | hc
-  · obtain rfl := List.mem_singleton.mp hc
-    exact nodup_inheritedClause i a (hn a (List.fst_mem_of_mem_zipIdx ha))
+  rcases List.mem_cons.mp hc with rfl | hc
+  · exact nodup_inheritedClause i a (hn a (List.fst_mem_of_mem_zipIdx ha))
   · obtain ⟨⟨l, j⟩, _, hc⟩ := List.mem_flatMap.mp hc
     exact nodup_complementBlock i j l c hc
 
@@ -513,74 +431,58 @@ degree at most three at each auxiliary. -/
 theorem count_aux_occurrenceVariables [DecidableEq V] (i j a b k : ℕ) (l : Literal V) :
     (occurrenceVariables i j l).count (auxiliary a b k) ≤
       if a = i ∧ b = j then 3 else 0 := by
-  by_cases hi : a = i
-  · subst a
-    by_cases hj : b = j
-    · subst b
-      by_cases hk : k < 5
-      · interval_cases k <;> cases hb : l.2 <;>
-          simp [occurrenceVariables, positiveLiteral, complementBlock, complementClauses,
-            forceFalseClauses, auxiliary, CNF.vars, hb]
-      · have h0 : 0 ≠ k := by omega
-        have h1 : 1 ≠ k := by omega
-        have h2 : 2 ≠ k := by omega
-        have h3 : 3 ≠ k := by omega
-        have h4 : 4 ≠ k := by omega
-        cases hb : l.2 <;>
-          simp [occurrenceVariables, positiveLiteral, complementBlock,
-            complementClauses, forceFalseClauses, auxiliary, CNF.vars, hb,
-            h0, h1, h2, h3, h4]
-    · cases hb : l.2 <;>
-        simp [occurrenceVariables, positiveLiteral, complementBlock, complementClauses,
-          forceFalseClauses, auxiliary, CNF.vars, hb, hj, Ne.symm hj]
-  · cases hb : l.2 <;>
+  rcases l with ⟨v, _ | _⟩
+  · by_cases h : a = i ∧ b = j
+    · rcases h with ⟨rfl, rfl⟩
+      simp only [occurrenceVariables, positiveLiteral, complementBlock, complementClauses,
+        forceFalseClauses, auxiliary, CNF.vars, Bool.false_eq_true, ↓reduceIte, List.flatten_cons,
+        List.flatten_nil, List.cons_append, List.nil_append, List.map_cons, List.map_nil,
+        List.count_cons, List.count_nil, beq_iff_eq, reduceCtorEq, Sum.inr.injEq, Prod.mk.injEq,
+        true_and]
+      split_ifs <;> omega
+    · have h' : ¬ (i = a ∧ j = b) := fun ⟨h1, h2⟩ => h ⟨h1.symm, h2.symm⟩
       simp [occurrenceVariables, positiveLiteral, complementBlock, complementClauses,
-        forceFalseClauses, auxiliary, CNF.vars, hb, hi, Ne.symm hi]
+        forceFalseClauses, auxiliary, CNF.vars, h, h']
+  · simp [occurrenceVariables, positiveLiteral, complementBlock, auxiliary, CNF.vars]
 
 /-- Original variable occurrence counts are unchanged in each compiled clause block. -/
 theorem count_inl_clause [DecidableEq V] (i : ℕ) (c : Clause V) (v : V) :
     (clauseClauses i c).vars.count (Sum.inl v) = (CNF.vars [c]).count v := by
   rw [count_vars_clauseClauses]
   simp only [count_inl_occurrenceVariables]
-  have h : (c.zipIdx.flatMap fun a => [a.1.1]).count v =
-      (c.zipIdx.map fun a => [a.1.1].count v).sum := by
-    rw [List.count_flatMap]
+  have h : (c.zipIdx.map fun a => [a.1.1].count v).sum = (c.zipIdx.map fun a => a.1.1).count v := by
+    rw [← List.flatMap_singleton' (c.zipIdx.map fun a => a.1.1), List.count_flatMap, List.map_map]
     rfl
-  rw [← h]
-  have he : c.zipIdx.flatMap (fun a => [a.1.1]) = c.zipIdx.map (fun a => a.1.1) := by
-    induction c.zipIdx with
-    | nil => rfl
-    | cons a as ih => simp [ih]
-  rw [he]
+  rw [h]
   simp only [CNF.vars, List.flatten_cons, List.flatten_nil, List.append_nil]
   simpa only [List.map_map, Function.comp_def] using
     congrArg (fun ls : List (Literal V) => (ls.map Prod.fst).count v)
       (List.zipIdx_map_fst 0 c)
+
+private theorem sum_map_zipIdx_ite_le {α : Type*} (l : List α) (i k : ℕ) :
+    (l.zipIdx.map fun x => if i = x.2 then k else 0).sum ≤ k := by
+  have he : (l.zipIdx.map fun x => if i = x.2 then k else 0).sum =
+      (l.zipIdx.map Prod.snd).count i * k := by
+    calc
+      _ = ((l.zipIdx.map Prod.snd).map fun b => if i = b then k else 0).sum := by
+        rw [List.map_map]; rfl
+      _ = _ := by
+        rw [List.sum_map_eq_nsmul_single i _ (fun _ h _ => by simp [Ne.symm h])]
+        simp
+  rw [he]
+  have hcount := List.nodup_iff_count_le_one.mp (List.nodup_zipIdx_map_snd l) i
+  exact (Nat.mul_le_mul_right k hcount).trans (Nat.one_mul k).le
 
 /-- An auxiliary contributes at most three occurrences in a clause block, and no occurrences
 outside its own source clause index. -/
 theorem count_aux_clause [DecidableEq V] (i a j k : ℕ) (c : Clause V) :
     (clauseClauses i c).vars.count (auxiliary a j k) ≤ if a = i then 3 else 0 := by
   rw [count_vars_clauseClauses]
-  calc
-    _ ≤ (c.zipIdx.map fun l => if a = i ∧ j = l.2 then 3 else 0).sum :=
-      List.sum_le_sum fun l _ => count_aux_occurrenceVariables i l.2 a j k l.1
-    _ ≤ if a = i then 3 else 0 := by
-      by_cases hi : a = i
-      · simp only [hi, true_and, ite_true]
-        have he : (c.zipIdx.map fun l => if j = l.2 then 3 else 0).sum =
-            (c.zipIdx.map Prod.snd).count j * 3 := by
-          calc
-            _ = ((c.zipIdx.map Prod.snd).map fun b => if j = b then 3 else 0).sum := by
-              rw [List.map_map]
-              rfl
-            _ = _ := by
-              rw [List.sum_map_eq_nsmul_single j _ (fun _ h _ => by simp [Ne.symm h])]
-              simp
-        rw [he]
-        have hcount := List.nodup_iff_count_le_one.mp (List.nodup_zipIdx_map_snd c) j
-        omega
-      · simp [hi]
+  refine (List.sum_le_sum fun l _ => count_aux_occurrenceVariables i l.2 a j k l.1).trans ?_
+  by_cases hi : a = i
+  · simp only [hi, true_and, ite_true]
+    exact sum_map_zipIdx_ite_le c j 3
+  · simp [hi]
 
 /-- Taking variable occurrences commutes with concatenating clause replacements. -/
 theorem vars_formula (φ : CNF V) :
@@ -592,11 +494,7 @@ theorem vars_formula (φ : CNF V) :
 theorem count_inl_formula [DecidableEq V] (φ : CNF V) (v : V) :
     (formula φ).vars.count (Sum.inl v) = φ.vars.count v := by
   rw [vars_formula, List.count_flatMap]
-  have hlocal (c : Clause V × ℕ) :
-      (clauseClauses c.2 c.1).vars.count (Sum.inl v) = (CNF.vars [c.1]).count v :=
-    count_inl_clause c.2 c.1 v
-  simp only [Function.comp_def]
-  rw [List.map_congr_left (fun c _ => hlocal c)]
+  simp only [Function.comp_def, count_inl_clause]
   simp only [CNF.vars, List.flatten_cons, List.flatten_nil, List.append_nil,
     List.map_flatten, List.count_flatten, List.map_map, Function.comp_def]
   simpa only [List.map_map, Function.comp_def] using
@@ -607,20 +505,8 @@ theorem count_inl_formula [DecidableEq V] (φ : CNF V) (v : V) :
 theorem count_aux_formula [DecidableEq V] (φ : CNF V) (i j k : ℕ) :
     (formula φ).vars.count (auxiliary i j k) ≤ 3 := by
   rw [vars_formula, List.count_flatMap]
-  calc
-    _ ≤ (φ.zipIdx.map fun c => if i = c.2 then 3 else 0).sum :=
-      List.sum_le_sum fun c _ => count_aux_clause _ _ _ _ _
-    _ = (φ.zipIdx.map Prod.snd).count i * 3 := by
-      calc
-        _ = ((φ.zipIdx.map Prod.snd).map fun b => if i = b then 3 else 0).sum := by
-          rw [List.map_map]
-          rfl
-        _ = _ := by
-          rw [List.sum_map_eq_nsmul_single i _ (fun _ h _ => by simp [Ne.symm h])]
-          simp
-    _ ≤ 3 := by
-      have hcount := List.nodup_iff_count_le_one.mp (List.nodup_zipIdx_map_snd φ) i
-      omega
+  exact (List.sum_le_sum fun c _ => count_aux_clause _ _ _ _ _).trans
+    (sum_map_zipIdx_ite_le φ i 3)
 
 /-- The positive compiler preserves the three-occurrence restriction. -/
 theorem count_vars_formula_le [DecidableEq V] (φ : CNF V)

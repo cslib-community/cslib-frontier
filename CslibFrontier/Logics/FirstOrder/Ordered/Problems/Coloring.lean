@@ -326,11 +326,8 @@ private def mkVertex {n : ℕ} [Fact (2 ≤ n)] (t : ColorTag) (c x : Fin n) :
 private theorem pair_arg1_pay {n : ℕ} (u v : Fin (4 + 2) → Fin n) :
     (fun i : Fin 2 =>
       (![u, v] (![((1 : Fin 2), cPay0), (1, cPay1)] i).1)
-        (![((1 : Fin 2), cPay0), (1, cPay1)] i).2) = ![v cPay0, v cPay1] := by
-  funext i
-  cases i using Fin.cases with
-  | zero => rfl
-  | succ i' => have hi : i' = 0 := Subsingleton.elim _ _; subst hi; rfl
+        (![((1 : Fin 2), cPay0), (1, cPay1)] i).2) = ![v cPay0, v cPay1] :=
+  funext (Fin.cases rfl fun i => Subsingleton.elim i 0 ▸ rfl)
 
 private theorem simpleGraph_tupleStructure (M : Structure FO.cnf) :
     letI := satToColoringInterpretation.tupleStructure M
@@ -497,14 +494,28 @@ private theorem colorable_of_satisfiable (M : Structure FO.cnf) (hM : FO.cnf.Sat
     have heq : Classical.choose hex = t :=
       colorCode_injective (matchBinaryTag_unique (Classical.choose_spec hex) hm)
     rw [heq]
-  have hsameCell {u v : Fin (4 + 2) → Fin M.size}
+  have hsameCell (t₁ t₂ : ColorTag) {u v : Fin (4 + 2) → Fin M.size}
+      (h : ∀ c x, tagCol t₁ c x ≠ tagCol t₂ c x)
       (hp : (ProjectionFormula.guardAnd guardSameCell (.const true) :
         ProjectionFormula qfNumericLanguage FO.cnf _).toFormula.Realize
           (fun q : Fin 2 × Fin (4 + 2) => (![u, v] q.1) q.2)) :
-      u cPay0 = v cPay0 ∧ u cPay1 = v cPay1 := by
-    simpa only [ProjectionFormula.realize_guardAnd, guardSameCell, Formula.realize_inf,
+      tagCol t₁ (u cPay0) (u cPay1) ≠ tagCol t₂ (v cPay0) (v cPay1) := by
+    simp only [ProjectionFormula.realize_guardAnd, guardSameCell, Formula.realize_inf,
       QFNumeric.realize_varEq, Matrix.cons_val_zero, Matrix.cons_val_one,
-      Matrix.cons_val_fin_one, ProjectionFormula.realize_const_true, and_true] using hp
+      Matrix.cons_val_fin_one] at hp
+    rw [hp.1.1, hp.1.2]
+    exact h _ _
+  have horigBoth (t₁ t₂ : ColorTag) {u v : Fin (4 + 2) → Fin M.size}
+      (hne : tagCol t₁ 0 0 ≠ tagCol t₂ 0 0)
+      (hp : (ProjectionFormula.guardAnd guardOriginBoth (.const true) :
+        ProjectionFormula qfNumericLanguage FO.cnf _).toFormula.Realize
+          (fun q : Fin 2 × Fin (4 + 2) => (![u, v] q.1) q.2)) :
+      tagCol t₁ (u cPay0) (u cPay1) ≠ tagCol t₂ (v cPay0) (v cPay1) := by
+    simp only [ProjectionFormula.realize_guardAnd, guardOriginBoth, guardOrigin0,
+      Formula.realize_inf, QFNumeric.realize_isZero, Matrix.cons_val_zero, Matrix.cons_val_one,
+      Matrix.cons_val_fin_one] at hp
+    rcases hp with ⟨⟨⟨hu0, hu1⟩, hv0, hv1⟩, -⟩
+    simpa only [hu0, hu1, hv0, hv1] using hne
   -- The palette vertex `pB` (color `2`) differs from every Boolean-colored gate vertex.
   have hpB {u v : Fin (4 + 2) → Fin M.size} {z : Fin 3}
       (hp : (ProjectionFormula.guardAnd guardOrigin0 (.const true) :
@@ -521,16 +532,8 @@ private theorem colorable_of_satisfiable (M : Structure FO.cnf) (hM : FO.cnf.Sat
     rw [hcol_tag hm₁, hcol_tag hm₂]
     cases t₁ <;> cases t₂ <;> simp only [upperColorEdge, Option.some.injEq] at h12
     all_goals cases h12
-    · simp only [ProjectionFormula.realize_guardAnd, guardOriginBoth, guardOrigin0,
-        Formula.realize_inf, QFNumeric.realize_isZero, Matrix.cons_val_zero, Matrix.cons_val_one,
-        Matrix.cons_val_fin_one] at hp
-      rcases hp with ⟨⟨⟨hu0, hu1⟩, hv0, hv1⟩, -⟩
-      simp [tagCol, hu0, hu1, hv0, hv1]
-    · simp only [ProjectionFormula.realize_guardAnd, guardOriginBoth, guardOrigin0,
-        Formula.realize_inf, QFNumeric.realize_isZero, Matrix.cons_val_zero, Matrix.cons_val_one,
-        Matrix.cons_val_fin_one] at hp
-      rcases hp with ⟨⟨⟨hu0, hu1⟩, hv0, hv1⟩, -⟩
-      simp [tagCol, hu0, hu1, hv0, hv1]
+    · exact horigBoth .pT .pF (by simp [tagCol]) hp
+    · exact horigBoth .pT .pB (by simp [tagCol]) hp
     · simp only [ProjectionFormula.realize_guardAnd, guardOrigin0, Formula.realize_inf,
         QFNumeric.realize_isZero, ProjectionFormula.realize_negLit, pair_arg1_pay,
         Matrix.cons_val_zero] at hp
@@ -541,11 +544,7 @@ private theorem colorable_of_satisfiable (M : Structure FO.cnf) (hM : FO.cnf.Sat
         Matrix.cons_val_zero] at hp
       rcases hp with ⟨⟨hu0, hu1⟩, hnneg⟩
       simp [tagCol, act, litNeg, hnneg]
-    · simp only [ProjectionFormula.realize_guardAnd, guardOriginBoth, guardOrigin0,
-        Formula.realize_inf, QFNumeric.realize_isZero, Matrix.cons_val_zero, Matrix.cons_val_one,
-        Matrix.cons_val_fin_one] at hp
-      rcases hp with ⟨⟨⟨hu0, hu1⟩, hv0, hv1⟩, -⟩
-      simp [tagCol, hu0, hu1, hv0, hv1]
+    · exact horigBoth .pF .pB (by simp [tagCol]) hp
     · simp only [ProjectionFormula.realize_guardAnd, guardOriginToVar, guardOrigin0,
         Formula.realize_inf, QFNumeric.realize_isZero, Matrix.cons_val_zero, Matrix.cons_val_one,
         Matrix.cons_val_fin_one] at hp
@@ -602,19 +601,11 @@ private theorem colorable_of_satisfiable (M : Structure FO.cnf) (hM : FO.cnf.Sat
       by_cases hAv : A (v cPay1)
       · simp [hAv]
       · simp only [hAv, ↓reduceIte, not_false_eq_true, and_true]; split_ifs <;> decide
-    · obtain ⟨hc, hx⟩ := hsameCell hp
-      rw [hc, hx]
-      exact (hgate _ _ _).1
-    · obtain ⟨hc, hx⟩ := hsameCell hp
-      rw [hc, hx]
-      exact (hgate _ _ _).1
-    · obtain ⟨hc, hx⟩ := hsameCell hp
-      rw [hc, hx]
-      exact (hgate _ _ _).2.1
+    · exact hsameCell .actPos .posG1 (fun c x => (hgate _ _ _).1) hp
+    · exact hsameCell .actNeg .negG1 (fun c x => (hgate _ _ _).1) hp
+    · exact hsameCell .posG0 .posG1 (fun c x => (hgate _ _ _).2.1) hp
     · exact hgateOut (fun _ => False) litPos hp
-    · obtain ⟨hc, hx⟩ := hsameCell hp
-      rw [hc, hx]
-      exact (hgate _ _ _).2.2.2.1
+    · exact hsameCell .posG1 .posOut (fun c x => (hgate _ _ _).2.2.2.1) hp
     · simp only [ProjectionFormula.realize_guardAnd, guardBridgeLink, Formula.realize_inf,
         QFNumeric.realize_varEq, QFNumeric.realize_isMax, QFNumeric.realize_isZero,
         Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_fin_one] at hp
@@ -629,13 +620,9 @@ private theorem colorable_of_satisfiable (M : Structure FO.cnf) (hM : FO.cnf.Sat
         (hact_ne2 (litNeg (v cPay0)) (v cPay1))
       rw [hin0] at hv
       simpa [tagCol, hc, hin0] using hv
-    · obtain ⟨hc, hx⟩ := hsameCell hp
-      rw [hc, hx]
-      exact (hgate _ _ _).2.1
+    · exact hsameCell .negG0 .negG1 (fun c x => (hgate _ _ _).2.1) hp
     · exact hgateOut (fun c => ∃ y, litPos c y) litNeg hp
-    · obtain ⟨hc, hx⟩ := hsameCell hp
-      rw [hc, hx]
-      exact (hgate _ _ _).2.2.2.1
+    · exact hsameCell .negG1 .negOut (fun c x => (hgate _ _ _).2.2.2.1) hp
   refine ⟨col, fun u v hadj => ?_⟩
   rw [satToColoringInterpretation,
     FullTupleInterpretation.relMap_tupleStructure_ofQFProjection, satToColoringFormula,
@@ -688,38 +675,24 @@ private theorem satisfiable_of_colorable (M : Structure FO.cnf)
       (ht : upperColorEdge .pB t = some (.guardAnd guardOrigin0 (.const true)))
       (c x : Fin M.size) : col (mkVertex t c x) = tCol ∨ col (mkVertex t c x) = fCol :=
     color_or_of_ne htf htb hfb (hedge ht 0 0 c x (by simp [guardOrigin0, mkVertex])).symm
+  have hlit_sound {t : ColorTag} {r : FO.cnf.Relations 2} {c x : Fin M.size}
+      (he : upperColorEdge .pT t =
+        some (.guardAnd guardOrigin0 (.negLit r ![(1, cPay0), (1, cPay1)])))
+      (ht : col (mkVertex t c x) = tCol) : RelMap (M := M) r ![c, x] := by
+    by_contra hnr
+    refine hedge he 0 0 c x ?_ ht.symm
+    rw [ProjectionFormula.realize_guardAnd, ProjectionFormula.realize_negLit, pair_arg1_pay]
+    exact ⟨by simp [guardOrigin0, mkVertex], by simpa [mkVertex] using hnr⟩
   have hactPos_sound (c x : Fin M.size) (ht : col (mkVertex .actPos c x) = tCol) :
-      RelMap (M := M) FO.cnf.pos ![c, x] ∧ A x := by
-    constructor
-    · by_contra hnpos
-      have hne := hedge (t₁ := .pT) (t₂ := .actPos) rfl 0 0 c x (by
-        rw [ProjectionFormula.realize_guardAnd]
-        constructor
-        · simp [guardOrigin0, mkVertex]
-        · rw [ProjectionFormula.realize_negLit, pair_arg1_pay]
-          simpa [mkVertex] using hnpos)
-      exact hne ht.symm
-    · by_contra hnA
-      have hvt := hvPos_t_of_not_A x hnA
-      have hne := hedge (t₁ := .vPos) (t₂ := .actPos) rfl 0 x c x
-        (by simp [guardVarToAct, mkVertex])
-      exact hne (hvt.trans ht.symm)
+      RelMap (M := M) FO.cnf.pos ![c, x] ∧ A x :=
+    ⟨hlit_sound rfl ht, Classical.byContradiction fun hnA =>
+      hedge (t₁ := .vPos) (t₂ := .actPos) rfl 0 x c x (by simp [guardVarToAct, mkVertex])
+        ((hvPos_t_of_not_A x hnA).trans ht.symm)⟩
   have hactNeg_sound (c x : Fin M.size) (ht : col (mkVertex .actNeg c x) = tCol) :
-      RelMap (M := M) FO.cnf.neg ![c, x] ∧ ¬ A x := by
-    constructor
-    · by_contra hnneg
-      have hne := hedge (t₁ := .pT) (t₂ := .actNeg) rfl 0 0 c x (by
-        rw [ProjectionFormula.realize_guardAnd]
-        constructor
-        · simp [guardOrigin0, mkVertex]
-        · rw [ProjectionFormula.realize_negLit, pair_arg1_pay]
-          simpa [mkVertex] using hnneg)
-      exact hne ht.symm
-    · intro hAx
-      have hvt := hvNeg_t_of_A x hAx
-      have hne := hedge (t₁ := .vNeg) (t₂ := .actNeg) rfl 0 x c x
-        (by simp [guardVarToAct, mkVertex])
-      exact hne (hvt.trans ht.symm)
+      RelMap (M := M) FO.cnf.neg ![c, x] ∧ ¬ A x :=
+    ⟨hlit_sound rfl ht, fun hAx =>
+      hedge (t₁ := .vNeg) (t₂ := .actNeg) rfl 0 x c x (by simp [guardVarToAct, mkVertex])
+        ((hvNeg_t_of_A x hAx).trans ht.symm)⟩
   -- If the output of an OR-gate chain of clause `c` is true at some position, then its carried-in
   -- color `inCol` is true or one of its active-literal gates is true.
   have hchain {act g0 g1 out : ColorTag}

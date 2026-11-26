@@ -138,10 +138,8 @@ private theorem schedule_bounds {M b : ℕ} (hb : 1 ≤ b)
       36 * M ≤ 2 ^ (b / 4) ∧ 2 ^ 27 * M ^ 3 * b ^ 6 ≤ 2 ^ (b / 4) := by
   have hb6 : b ≤ b ^ 6 := Nat.le_self_pow (by norm_num) b
   have hP1 : 128 ≤ 2 ^ 27 * M ^ 3 + 4608 * M + 128 := Nat.le_add_left _ _
-  have hP2 : 4608 * M ≤ 2 ^ 27 * M ^ 3 + 4608 * M + 128 :=
-    (Nat.le_add_left _ _).trans (Nat.le_add_right _ _)
-  have hP3 : 2 ^ 27 * M ^ 3 ≤ 2 ^ 27 * M ^ 3 + 4608 * M + 128 :=
-    (Nat.le_add_right _ _).trans (Nat.le_add_right _ _)
+  have hP2 : 4608 * M ≤ 2 ^ 27 * M ^ 3 + 4608 * M + 128 := by omega
+  have hP3 : 2 ^ 27 * M ^ 3 ≤ 2 ^ 27 * M ^ 3 + 4608 * M + 128 := by omega
   have hB : 128 * b ≤ 2 ^ (b / 4) := (Nat.mul_le_mul hP1 hb6).trans hev
   have hD : 4608 * M * b ≤ 2 ^ (b / 4) := (Nat.mul_le_mul hP2 hb6).trans hev
   have hF : 2 ^ 27 * M ^ 3 * b ^ 6 ≤ 2 ^ (b / 4) := (Nat.mul_le_mul_right _ hP3).trans hev
@@ -182,8 +180,7 @@ private theorem two_pow_masks_ge (σ b : ℕ) :
 private theorem masks_size {w σ K : ℕ} (hK : 2 * w * 4 ^ σ + 1 ≤ 2 ^ K) :
     (w : ℝ) ≤ 2 * (1 / ((2 ^ σ : ℕ) : ℝ) / 2) ^ 2 * ((2 ^ K - 1 : ℕ) : ℝ) := by
   have hcast : (2 * w * 4 ^ σ : ℝ) ≤ ((2 ^ K - 1 : ℕ) : ℝ) := by
-    have : 2 * w * 4 ^ σ ≤ 2 ^ K - 1 := by omega
-    exact_mod_cast this
+    exact_mod_cast Nat.le_sub_one_of_lt hK
   have hpos : (0 : ℝ) < 2 ^ σ := by positivity
   have h4 : (2 : ℝ) * (1 / ((2 ^ σ : ℕ) : ℝ) / 2) ^ 2 * (2 * w * 4 ^ σ) = w := by
     rw [show (4 : ℝ) ^ σ = (2 ^ σ) ^ 2 by rw [← pow_mul, mul_comm σ 2, pow_mul]; norm_num]
@@ -292,31 +289,21 @@ private theorem errors_le {M b σ : ℕ} (hM : 1 ≤ M) (hb : 1 ≤ b)
         _ = q := by rw [hq, ← pow_add]; congr 1; omega
     have h3 : 1 ≤ 18 * M * 2 ^ (4 * b - b / 4) := Nat.one_le_iff_ne_zero.2 (by positivity)
     linarith
-  have hq1 : (1 : ℝ) < q := by
-    have : 2 ≤ q :=
-      calc 2 = 2 ^ 1 := by norm_num
-        _ ≤ 2 ^ (4 * b) := Nat.pow_le_pow_right (by norm_num) (by omega)
-    exact_mod_cast this
+  have hq1 : (1 : ℝ) < q := by exact_mod_cast Nat.one_lt_two_pow (by omega : 4 * b ≠ 0)
   have hdpos : (0 : ℝ) < 18 * ((d : ℝ) + 1) := by positivity
-  have e1 : 1 / (q : ℝ) ^ M ≤ 1 / (18 * ((d : ℝ) + 1)) := by
-    apply one_div_le_one_div_of_le hdpos
-    exact_mod_cast hT1
+  have e1 : 1 / (q : ℝ) ^ M ≤ 1 / (18 * ((d : ℝ) + 1)) :=
+    one_div_le_one_div_of_le hdpos (by exact_mod_cast hT1)
   have e2 : (2 : ℝ) ^ (K + 4) / ((q : ℝ) * (1 / ((2 ^ σ : ℕ) : ℝ))) ≤
       1 / (18 * ((d : ℝ) + 1)) := by
     rw [mul_one_div, div_div_eq_mul_div, div_le_div_iff₀ (by linarith) hdpos, one_mul]
     have : ((18 * (d + 1) * 2 ^ (K + 4) * 2 ^ σ : ℕ) : ℝ) ≤ q := by exact_mod_cast hT2
-    push_cast at this ⊢
-    linarith
+    push_cast at this ⊢; linarith
   have e3 : (D : ℝ) / ((q : ℝ) - 1) ≤ 1 / (18 * ((d : ℝ) + 1)) := by
     rw [div_le_div_iff₀ (by linarith) hdpos, one_mul]
     have : ((18 * (d + 1) * D + 1 : ℕ) : ℝ) ≤ q := by exact_mod_cast hT3
-    push_cast at this
-    linarith
-  have hsum : 1 / (q : ℝ) ^ M + 2 ^ (K + 4) / ((q : ℝ) * (1 / ((2 ^ σ : ℕ) : ℝ))) +
-      (D : ℝ) / ((q : ℝ) - 1) ≤ 3 * (1 / (18 * ((d : ℝ) + 1))) := by
-    linarith
+    push_cast at this; linarith
   have hne : (d : ℝ) + 1 ≠ 0 := by positivity
-  calc _ ≤ 6 * ((d : ℝ) + 1) * (3 * (1 / (18 * ((d : ℝ) + 1)))) := by gcongr
+  calc _ ≤ 6 * ((d : ℝ) + 1) * (3 * (1 / (18 * ((d : ℝ) + 1)))) := by gcongr; linarith
     _ = 1 := by field_simp; ring
 
 /-- The final size bound: for the circuit size `s = 2 ^ σ + 2` after fixing the ignored bits,
@@ -381,11 +368,7 @@ theorem isAverageCaseHard_encodedSlice_of {L : Language Bool} {M N σ : ℕ} (hM
   intro g hg
   by_contra hcon
   push Not at hcon
-  have hslice : encodedSlice L M N = fun y => hardnessEncode (BinaryField.equivBits hw0).toEquiv
-      (BinaryField.embed hw0 (by omega)) (L.slice (M * b))
-      (fun i => y (Fin.castLE (encodedLength_le M N) i)) := by
-    rw [encodedSlice, dite_eq_right hb0]
-  rw [hslice, lt_div_iff₀ (by positivity)] at hcon
+  rw [encodedSlice, dite_eq_right hb0, lt_div_iff₀ (by positivity)] at hcon
   obtain ⟨C, hC, hCagree⟩ := exists_complexity_le_of_agree_prefix (encodedLength_le M N) _ g hcon
   -- the reconstruction
   have hrec := complexity_le_pow_of_agree_hardnessEncode (BinaryField.equivBits hw0).toEquiv
@@ -415,12 +398,10 @@ theorem eventually_isAverageCaseHard_encodedSlice {L : Language Bool} {γ : ℝ}
   set M := blockFactor γ with hM_def
   have hM : 1 ≤ M := Nat.le_add_left 1 _
   have hγM : 40 ≤ γ * M := by
-    have h := Nat.le_ceil (40 / γ)
-    have : (M : ℝ) = ⌈40 / γ⌉₊ + 1 := by rw [hM_def, blockFactor]; push_cast; rfl
-    rw [this]
-    have h' : 40 / γ ≤ (⌈40 / γ⌉₊ : ℝ) + 1 := by linarith
-    rw [div_le_iff₀ hγ] at h'
-    linarith
+    have h : 40 / γ ≤ M := by
+      simpa only [hM_def, blockFactor, Nat.cast_add, Nat.cast_one] using
+        (Nat.le_ceil (40 / γ)).trans (le_add_of_nonneg_right zero_le_one)
+    rwa [div_le_iff₀ hγ, mul_comm] at h
   -- the block length tends to infinity
   have hblock : Tendsto (blockLength M) atTop atTop :=
     Nat.tendsto_div_const_atTop (by positivity)
@@ -430,17 +411,15 @@ theorem eventually_isAverageCaseHard_encodedSlice {L : Language Bool} {γ : ℝ}
   have hhard : ∀ᶠ b : ℕ in atTop,
       2 ^ (40 * b) ≤ complexity interpretation (single (L.slice (M * b))) := by
     filter_upwards [hMb.eventually hard] with b hb
-    have h1 : (2 : ℝ) ^ ((40 * b : ℕ) : ℝ) ≤ (2 : ℝ) ^ (γ * ((M * b : ℕ) : ℝ)) := by
-      apply Real.rpow_le_rpow_of_exponent_le (by norm_num)
-      push_cast
-      nlinarith
+    have h1 : (2 : ℝ) ^ ((40 * b : ℕ) : ℝ) ≤ (2 : ℝ) ^ (γ * ((M * b : ℕ) : ℝ)) :=
+      Real.rpow_le_rpow_of_exponent_le (by norm_num)
+        (by push_cast; nlinarith)
     rw [Real.rpow_natCast] at h1
     exact_mod_cast h1.trans hb
   have hev := Nat.eventually_mul_pow_le_pow_div (2 ^ 27 * M ^ 3 + 4608 * M + 128) 6 4
     one_lt_two (by positivity)
   filter_upwards [hblock.eventually (hhard.and (hev.and (eventually_ge_atTop 1)))] with N hN
-  obtain ⟨hNhard, hNev, hNb⟩ := hN
-  refine isAverageCaseHard_encodedSlice_of hM hNb hNev ?_ hNhard
+  refine isAverageCaseHard_encodedSlice_of hM hN.2.2 hN.2.1 ?_ hN.1
   -- `50 ⌊N / c⌋ ≤ b + 1`
   have h1 := Nat.div_mul_le_self N (hardnessDivisor γ)
   have h2 := Nat.lt_div_mul_add (a := N) (b := 4 * (M + 1)) (by positivity)
