@@ -453,10 +453,8 @@ theorem feistelNetwork_replicate_id (hneg : ∀ a : G, -a = a) (r : ℕ) (p : G 
   rw [feistelNetwork_replicate_mod (feistelNetwork_replicate_three_id hneg) r]
   have hmod : r % 3 = 0 ∨ r % 3 = 1 ∨ r % 3 = 2 := by omega
   rcases p with ⟨l, r'⟩
-  rcases hmod with h0 | h1 | h2'
-  · rw [h0]; rfl
-  · rw [h1]; rfl
-  · rw [h2']; simp [List.replicate, feistelRound, add_self_cancel_left_of_neg_eq_self hneg]
+  rcases hmod with h | h | h <;>
+    simp [h, List.replicate, feistelRound, add_self_cancel_left_of_neg_eq_self hneg]
 
 end Periodicity
 
@@ -625,7 +623,6 @@ theorem idealPermGame_feistel1CPAAttack_true_le [Nonempty G] (l₀ r₀ : G) :
     (fun w => ![(r₀, w)])
     fun π hπ => ⟨(π (l₀, r₀)).2, Finset.mem_univ _,
       Fin.forall_fin_one.mpr (Prod.ext hπ rfl)⟩).trans_eq ?_
-  have hN : (Fintype.card G : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
   simp [Finset.card_univ, Fintype.card_prod]
 
 /-- `feistel1CPAAttack l₀ r₀` distinguishes any 1-round Feistel network `feistelRoundEquiv f` from
@@ -732,8 +729,6 @@ theorem eval_feistel3_repeated_feistel3RepeatedKeyCPAAttack
       (feistel3RepeatedKeyCPAAttack x) = PMF.pure true := by
   have happ := Equiv.congr_fun
     (prodComm_trans_feistelNetwork_reverse_trans_prodComm hneg [f, f, f]) (feistel3 f f f (x, x))
-  change (feistel3 f f f (feistel3 f f f (x, x)).swap).swap =
-    (feistel3 f f f).symm (feistel3 f f f (x, x)) at happ
   have h : feistel3 f f f ((feistel3 f f f (x, x)).2, (feistel3 f f f (x, x)).1) = (x, x) :=
     Prod.swap_injective (happ.trans (Equiv.symm_apply_apply (feistel3 f f f) (x, x)))
   simp [feistel3RepeatedKeyCPAAttack, h]

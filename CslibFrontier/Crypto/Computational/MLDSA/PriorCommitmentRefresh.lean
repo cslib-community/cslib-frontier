@@ -43,10 +43,7 @@ private theorem suffixKey_addr (s : Level) (A : PublicMatrix s) (m : BitString 5
     suffixKey s (maskCommitmentAddress s A m y) = maskCommitmentAddress s A 0 y := by
   unfold suffixKey maskCommitmentAddress
   rw [BitString.ofFn_ofList (commitmentInput_length s _ List.length_ofFn)]
-  unfold commitmentInput
-  have drop (l : List Bool) : (List.ofFn m ++ l).drop 512 = l := by
-    simpa only [List.length_ofFn] using List.drop_left (l₁ := List.ofFn m) (l₂ := l)
-  simp only [drop]
+  simp only [commitmentInput, List.drop_left' List.length_ofFn]
 
 private def replaceSuffix (s : Level) (A : PublicMatrix s) (y : Mask s)
     (D E : Register s) (i : Word s) : Digest s :=
@@ -266,9 +263,8 @@ private theorem refresh_after_prefix {C : QuantumSigningForger} {α : Type}
   have bound (write) :
       |prob (expanded false write) - prob (expanded true write)| ≤
         4 * qH * √δ + (815 * qS + K) * δ := by
-    refine abs_common_bind U _ _ fun B => ?_
-    refine abs_common_bind U _ _ fun E => ?_
-    refine abs_common_bind V _ _ fun v => (PMF.abs_bind_sub_le_meanAbsDiffAt μ true _ _).trans ?_
+    refine abs_common_bind U _ _ fun B => abs_common_bind U _ _ fun E =>
+      abs_common_bind V _ _ fun v => (PMF.abs_bind_sub_le_meanAbsDiffAt μ true _ _).trans ?_
     exact before_gap s H B E A keys prog probe (fun y x l t m =>
       let T := replaceSuffix s A y B E
       let final := if write && m.isReady then
@@ -395,11 +391,10 @@ private def nativePreparation {C : QuantumSigningForger} (s : Level) (G : Xofs) 
 private theorem eval_probe {C : QuantumSigningForger} (s : Level) (H : Xofs) (D : Register s)
     (A sk j) (x : Boundary C) (rows) :
     OracleComp.evalPure D (probeTrials s H A sk j x rows) =
-      nativePreparation s (H.withDigestRegister s D) A sk j x rows := by
-  apply eval_probePrefix
-  intro m
-  simpa only [rowAttempt, Nat.zero_add] using
-    eval_terminalDigestQueries H s D sk A m (maskFromRow s (rows.headD 0)) j 0
+      nativePreparation s (H.withDigestRegister s D) A sk j x rows :=
+  eval_probePrefix s H sk.tr D _ _ (fun m => by
+    simpa only [rowAttempt, Nat.zero_add] using
+      eval_terminalDigestQueries H s D sk A m (maskFromRow s (rows.headD 0)) j 0) x
 
 -- Everything after the cut, including all remaining retries, sees the table selected at the
 -- distinguished attempt. The FIPS error and successful signing log are handled before resuming.

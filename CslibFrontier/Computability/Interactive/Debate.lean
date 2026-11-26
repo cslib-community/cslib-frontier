@@ -313,10 +313,8 @@ private theorem ev_query (law : List Bool → PMF Bool) (bits : List Bool) :
 /-- The law of the honest coin on a nonzero grid is uniform. -/
 private theorem ev_uniformCoin {N : ℕ} [NeZero N] (law : List Bool → PMF Bool) :
     ev law (uniformCoin N) = PMF.uniformOfFintype (ZMod N) := by
-  rw [ev]
-  simp only [uniformCoin, NeZero.ne N, ↓reduceDIte]
-  rw [OracleComp.evalWith_eq_interpret, ProbOracleComp.interpret_sample,
-    ← OracleComp.evalWith_eq_interpret]
+  rw [ev, uniformCoin, dite_eq_right (NeZero.ne N), OracleComp.evalWith_eq_interpret,
+    ProbOracleComp.interpret_sample, ← OracleComp.evalWith_eq_interpret]
   exact ProbComp.eval_uniform (ZMod N)
 
 /-! ### Sample counts -/
@@ -439,13 +437,10 @@ private theorem sampleCount_pos {e f : ℝ} (he : 0 < e) (hf0 : 0 < f) (hf : f <
 
 private theorem two_mul_exp_sampleCount_le {e f : ℝ} (he : 0 < e) (hf0 : 0 < f) :
     2 * Real.exp (-2 * sampleCount e f * e ^ 2) ≤ f := by
-  have hpos : 0 < 2 * e ^ 2 := by positivity
-  have hceil : -Real.log (f / 2) / (2 * e ^ 2) ≤ sampleCount e f := Nat.le_ceil _
-  rw [div_le_iff₀ hpos] at hceil
-  have hexp : Real.exp (-2 * sampleCount e f * e ^ 2) ≤ f / 2 := by
-    rw [← Real.exp_log (show (0 : ℝ) < f / 2 by positivity)]
-    exact Real.exp_le_exp.2 (by nlinarith)
-  linarith
+  have hceil : -Real.log (f / 2) ≤ sampleCount e f * (2 * e ^ 2) :=
+    (div_le_iff₀ (by positivity)).1 (Nat.le_ceil _)
+  rw [← le_div_iff₀' two_pos, ← Real.exp_log (half_pos hf0)]
+  exact Real.exp_le_exp.2 (by linarith)
 
 /-- With `sampleCount e f` samples the sample mean is off by `e` or more with probability at
 most `f`. -/
@@ -563,15 +558,15 @@ private theorem ev_verdict (law : List Bool → PMF Bool) (P : Params) (bits : L
     ev law (verdict P bits claim) =
       (countLaw (law bits) P.verifierSamples).map fun count : Fin (P.verifierSamples + 1) =>
         decide (|(claim.val : ℝ) / P.grid - (count.val : ℝ) / P.verifierSamples| <
-          P.verifierTolerance) := by
-  exact (ev_bind _ _ _).trans (by rw [ev_countTrue]; rfl)
+          P.verifierTolerance) :=
+  (ev_bind _ _ _).trans (by rw [ev_countTrue]; rfl)
 
 /-- The law of the honest proposer's claim. -/
 private theorem ev_honestProposer_claim (law : List Bool → PMF Bool) (P : Params)
     (history : History P.grid) (state : (honestProposer P).State) :
     ev law (((honestProposer P).claim history).run state) =
-      (countLaw (law history.bits) P.grid).map fun count => (count, state) := by
-  exact (ev_bind _ _ _).trans (by rw [ev_countTrue]; rfl)
+      (countLaw (law history.bits) P.grid).map fun count => (count, state) :=
+  (ev_bind _ _ _).trans (by rw [ev_countTrue]; rfl)
 
 /-- The law of the honest challenger's decision to abort. -/
 private noncomputable def abortLaw (P : Params) (ν : PMF Bool) (claim : Fin (P.grid + 1)) :
@@ -1152,10 +1147,8 @@ theorem soundness_of_lipschitzAt_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ)
       show ((T : ℝ) + 1) * -(1 / (100 * ((T : ℝ) + 1))) = -(1 / 100) by field_simp,
       ← sub_eq_add_neg, ← sub_eq_add_neg] at h
     linarith
-  have hU' : (37 / 60 : ℝ) ≤ (rejectValue law (5 / (100 * (K : ℝ))) (T + 1) []).toReal := by
-    linarith
-  rw [← ENNReal.toReal_le_toReal (PMF.apply_ne_top _ _)
-    (ENNReal.div_ne_top (by simp) (by simp))]
-  nlinarith [hbern, hU', show ((2 / 5 : ℝ≥0∞)).toReal = 2 / 5 by simp]
+  rw [← ENNReal.toReal_le_toReal (PMF.apply_ne_top _ _) (by finiteness), ENNReal.toReal_div,
+    ENNReal.toReal_ofNat, ENNReal.toReal_ofNat]
+  nlinarith [hbern]
 
 end Cslib.Interactive.Debate

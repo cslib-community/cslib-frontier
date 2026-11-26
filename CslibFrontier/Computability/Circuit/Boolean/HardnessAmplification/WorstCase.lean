@@ -201,17 +201,15 @@ theorem exists_glPredictor_agree (enc : F ≃ BitString w) (h : BitString b ↪ 
   refine ⟨masks, guess, ?_⟩
   have hcount : #{x | glPredictor enc C masks guess x = p x} =
       #{x | Crypto.GoldreichLevin.candidate (pred x) masks guess = target x} := by
+    have hpred (x) : (fun r => C (Fin.append x r)) = pred x := rfl
     refine card_nbij' (BitString.pointBits enc) (BitString.pointEquiv enc).symm
       (fun x hx => ?_) (fun x hx => ?_)
       (fun x _ => BitString.pointEquiv_symm_pointBits enc x)
       (fun x _ => BitString.pointBits_pointEquiv_symm enc x)
     · simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hx ⊢
-      simp only [target, BitString.pointEquiv_symm_pointBits, ← hx, glPredictor,
-        Equiv.apply_symm_apply]
-      rfl
+      simp [target, BitString.pointEquiv_symm_pointBits, ← hx, glPredictor, hpred]
     · simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hx ⊢
-      simp only [glPredictor, BitString.pointBits_pointEquiv_symm,
-        show (fun r => C (Fin.append x r)) = pred x from rfl, hx, target, Equiv.symm_apply_apply]
+      simp [glPredictor, BitString.pointBits_pointEquiv_symm, hpred, hx, target]
   rw [hcount]
   have : (#good : ℝ) ≤ 2 ^ (K + 1) *
       #{x | Crypto.GoldreichLevin.candidate (pred x) masks guess = target x} := by
@@ -407,9 +405,7 @@ theorem complexity_le_of_agree_hardnessEncode (enc : F ≃ BitString w) (h : Bit
           ring
       _ ≤ Q / 6 := mul_le_of_le_one_right (by positivity) herr
   -- the interpolation nodes
-  have hdq' : d + 2 ≤ Fintype.card F := by
-    have := Fintype.one_lt_card (α := F)
-    omega
+  have hdq' : d + 2 ≤ Fintype.card F := by omega
   let ν : Fin (d + 1) ↪ F := nonzeroNodes hdq'
   have hν : ∀ i, ν i ≠ 0 := nonzeroNodes_ne_zero hdq'
   -- the self-correction stage
@@ -436,12 +432,10 @@ theorem complexity_le_of_agree_hardnessEncode (enc : F ≃ BitString w) (h : Bit
   have hemb : Synthesis interpretation (inputs (m * b))
       (Set.range fun ij : Fin m × Fin w => bitsOf enc (gp ij.1) ij.2)
       (m * w * (2 ^ b * (2 * b + 2) + 1)) := by
-    have := Synthesis.family (I := interpretation) (s := inputs (m * b))
-      (fun ij : Fin m × Fin w => bitsOf enc (gp ij.1) ij.2) (fun _ => 2 ^ b * (2 * b + 2) + 1)
-      (fun ij => Synthesis.selected (fun l => finProdFinEquiv (ij.1, l))
-        (fun y => enc (h y) ij.2))
     simpa only [Finset.sum_const, card_univ, Fintype.card_prod, Fintype.card_fin, smul_eq_mul,
-      mul_assoc] using this
+      mul_assoc] using Synthesis.family (I := interpretation) (s := inputs (m * b))
+      (fun ij : Fin m × Fin w => bitsOf enc (gp ij.1) ij.2) (fun _ => 2 ^ b * (2 * b + 2) + 1)
+      fun ij => Synthesis.selected (fun l => finProdFinEquiv (ij.1, l)) fun y => enc (h y) ij.2
   set T₁ := Set.range fun ij : Fin m × Fin w => bitsOf enc (gp ij.1) ij.2
   have hUs := hU (m * b) (inputs (m * b) ∪ T₁) gp fun i j =>
     Set.mem_union_right _ ⟨(i, j), rfl⟩
@@ -452,18 +446,15 @@ theorem complexity_le_of_agree_hardnessEncode (enc : F ≃ BitString w) (h : Bit
       (2 ^ w * (2 * w + 2) + 1) := by
     obtain ⟨c, hc, hsize⟩ := (Synthesis.selected (n := w) id
       (fun y => decide (enc.symm y = 1))).exists_circuit
-    have hcirc := Synthesis.circuit (I := interpretation) (s := (inputs (m * b) ∪ T₁) ∪ T₂) c
-      (fun j => bitsOf enc (fun v => U fun i => gp i v) j) (fun j => Or.inr ⟨j, rfl⟩)
-    refine hcirc.mono Set.Subset.rfl (Set.singleton_subset_iff.2 ⟨0, funext fun x => ?_⟩)
-      hsize
-    refine (congrFun (hc _) 0).trans ?_
+    refine (Synthesis.circuit c (fun j => bitsOf enc (fun v => U fun i => gp i v) j)
+      fun j => Or.inr ⟨j, rfl⟩).mono Set.Subset.rfl
+      (Set.singleton_subset_iff.2 ⟨0, funext fun x => (congrFun (hc _) 0).trans ?_⟩) hsize
     have hUx : U (fun i => gp i x) = p (fun i => gp i x) :=
       hV _ (mem_image.2 ⟨x, mem_univ _, rfl⟩)
     simp only [single_apply, Function.comp_id, bitsOf, Equiv.symm_apply_apply,
       hUx, p, gp, truthTableExtension_block]
     cases f x <;> simp
-  have htotal := hemb.trans (hUs.trans hout)
-  refine le_trans htotal.complexity_le ?_
+  refine (hemb.trans (hUs.trans hout)).complexity_le.trans ?_
   simp only [reconstructionCost, ← hd_def, ← hq_def]
   omega
 
@@ -612,8 +603,7 @@ theorem complexity_le_pow_of_agree_hardnessEncode (enc : F ≃ BitString w)
       2 ^ 11 * 3 ^ L * m * w ^ 2 * Fintype.card F ^ 9 * 4 ^ K * (s + 1) := by
   refine (complexity_le_of_agree_hardnessEncode enc h f hC hε hagree hK hsize hd hn hmargin herr
     hL).trans ?_
-  have hqw : Fintype.card F = 2 ^ w := by
-    rw [Fintype.card_congr enc, BitString.card]
+  have hqw : Fintype.card F = 2 ^ w := (Fintype.card_congr enc).trans BitString.card
   have hq2 : 2 ≤ Fintype.card F := Fintype.one_lt_card
   have hε1 : ε ≤ 1 / 2 := le_half_of_agree hagree
   obtain ⟨-, hDq, hdq⟩ := reconstruction_ranges hq2 hε hε1 hn hmargin herr

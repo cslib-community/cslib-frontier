@@ -711,30 +711,28 @@ private theorem exists_sim_stride {N : ℕ} {α : Type*} (e : ι ≃ Fin N)
         | succ k ihk =>
           have hne : stride * t + k + 1 ≠ 0 := by omega
           have hmod : (stride * t + k + 1) % stride ≠ 0 := by
-            rw [show stride * t + k + 1 = stride * t + (k + 1) by omega, Nat.mul_add_mod,
-              Nat.mod_eq_of_lt hk]
+            rw [add_assoc, Nat.mul_add_mod, Nat.mod_eq_of_lt hk]
             omega
           have hVmid : Vsim (stride * t + k + 1) = Vmid := by
             simp only [Vsim, hne, ite_false, eq_true hmod, ite_true]
           rw [← add_assoc, run, hVmid, ihk (by omega), Function.iterate_succ_apply']
       have hq : stride * (t + 1) = (stride * t + (stride - 1)) + 1 := by
         rw [Nat.mul_succ]; omega
-      have hne : stride * (t + 1) ≠ 0 := Nat.ne_of_gt (Nat.mul_pos hstride (Nat.succ_pos t))
-      have hmod : ¬ (stride * (t + 1)) % stride ≠ 0 := by simp [Nat.mul_mod_right]
-      have hdiv : stride * (t + 1) / stride - 1 = t := by
-        rw [Nat.mul_div_right _ hstride]; omega
       have hVend : Vsim (stride * (t + 1)) =
           if t + 1 < T then
             pre.comp ((liftValueIso e (U (t + 1))).comp (liftBoolV Gpost).toLinearIsometry)
           else (liftValueIso e (U T)).comp (liftBoolV Gpost).toLinearIsometry := by
-        dsimp only [Vsim]
-        simp only [hne, ite_false, hmod, hdiv]
+        have hdiv : stride * (t + 1) / stride - 1 = t := by
+          rw [Nat.mul_div_right _ hstride]; omega
+        simp only [Vsim, Nat.ne_of_gt (Nat.mul_pos hstride (Nat.succ_pos t)), ite_false,
+          Nat.mul_mod_right, ne_eq, not_true_eq_false, hdiv]
         split_ifs <;> first | rfl | omega
       rw [hq, run, hiter (stride - 1) (by omega), ← hq, hVend]
       split_ifs with hlt <;> simp only [pre, A0, LinearIsometry.coe_comp, Function.comp_apply,
         LinearIsometryEquiv.coe_toLinearIsometry]
       · rw [hstep, liftValueIso_embedState, ← runValue]
-      · rw [show T = t + 1 by omega, hstep, liftValueIso_embedState, ← runValue]
+      · obtain rfl : T = t + 1 := by omega
+        rw [hstep, liftValueIso_embedState, ← runValue]
   simpa only [lt_irrefl, ite_false, measureProb_embedState] using
     congrArg (measureProb · (S.map (embedOutcome e))) (hrun T le_rfl)
 
@@ -1078,13 +1076,10 @@ theorem exists_sim_index_to_value {ι V W α : Type*} [Fintype ι] [Fintype V] [
       rw [runValue, ih ht'.le]
       simp only [ht', ite_true, hvo]
       by_cases hlt : t + 1 < T
-      · simp only [hlt, ite_true, U', liftFalse_embedFalse]; rfl
+      · simp only [hlt, ite_true, U', liftFalse_embedFalse, runValue]
       · obtain rfl : t + 1 = T := by omega
-        simp only [lt_irrefl, ite_false, ite_true, U', LinearIsometry.coe_comp,
-          Function.comp_apply, LinearIsometryEquiv.coe_toLinearIsometry, liftFalse_embedFalse]
-        rfl
-  have hU_succ : U' (T + 1) = LinearIsometry.id := by
-    simp only [U', show ¬ (T + 1 < T) by omega, show ¬ (T + 1 = T) by omega, ite_false]
+        simp [U', liftFalse_embedFalse, runValue]
+  have hU_succ : U' (T + 1) = LinearIsometry.id := by simp [U', Nat.not_lt.mpr (Nat.le_succ T)]
   rw [runValue, hU_succ, hlt_run T le_rfl]
   simp only [lt_irrefl, ite_false, LinearIsometry.id_apply]
   set ψT := runValue step U ψ₀ X T

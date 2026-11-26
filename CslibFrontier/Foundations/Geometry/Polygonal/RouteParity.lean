@@ -460,20 +460,16 @@ private theorem parityTriangle_bits (c z : ℂ) {r : ℝ} (hr : 0 < r) :
   let b : ℂ := ⟨c.re + r, c.im⟩
   let d : ℂ := ⟨c.re - r, c.im + r⟩
   have hab : horizontalIntercept a b z.im = c.re + r + 2 * (z.im - c.im) := by
-    change c.re - r + (z.im - (c.im - r)) / (c.im - (c.im - r)) *
-      (c.re + r - (c.re - r)) = _
-    rw [show c.im - (c.im - r) = r by ring]
+    simp only [horizontalIntercept, a, b, sub_sub_cancel]
     field_simp [hr.ne']
     ring
   have hbd : horizontalIntercept b d z.im = c.re + r - 2 * (z.im - c.im) := by
-    change c.re + r + (z.im - c.im) / (c.im + r - c.im) * (c.re - r - (c.re + r)) = _
-    rw [show c.im + r - c.im = r by ring]
+    simp only [horizontalIntercept, b, d, add_sub_cancel_left]
     field_simp [hr.ne']
     ring
   have hda : horizontalIntercept d a z.im = c.re - r := by simp [horizontalIntercept, d, a]
   have ha : a.im ≤ b.im := by dsimp only [a, b]; linarith
   have hb : b.im ≤ d.im := by dsimp only [b, d]; linarith
-  unfold Route.rayParity Cslib.Polygonal.rayParity
   change (∑ i : Fin 3, if RayCrosses (1 * (parityTriangle c r).point i.castSucc)
     (1 * (parityTriangle c r).point i.succ) (1 * z) then (true : Bool) else 0) = _
   simp only [Fin.sum_univ_three, one_mul]
@@ -698,9 +694,7 @@ theorem exists_concat_add_rayParity {U : Set ℂ} (hU : IsOpen U)
     exact hz.elim (fun hp => Or.inl (Or.inl hp)) Or.inr
   · rw [support_concat _ _ hq, support_concat p e he, support_concat p q hjoin]
     rintro z ((hp | hl) | hq')
-    · exact Or.inl (Or.inl hp)
-    · exact Or.inr (hsupport hl)
-    · exact Or.inl (Or.inr hq')
+    exacts [Or.inl (Or.inl hp), Or.inr (hsupport hl), Or.inl (Or.inr hq')]
   · intro z hz
     rw [rayParity_concat _ _ hq, rayParity_concat p e he, rayParity_concat p q hjoin,
       hparity z hz]

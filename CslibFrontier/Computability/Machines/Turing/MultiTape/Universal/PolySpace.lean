@@ -252,24 +252,19 @@ theorem exists_budgetedUniversal_le_two_pow {t : ℕ}
       ∀ k < t₀, (eCfg (step d x ((budgetStep d x b)^[k] (init d, [])).1).1).length ≤ b := by
     intro k hk
     by_contra hnot
-    have hfix : budgetStep d x b ((budgetStep d x b)^[k] (init d, [])) =
-        (budgetStep d x b)^[k] (init d, []) := by
-      simp only [budgetStep, hnot, ↓reduceIte]
-    have hstay : (budgetStep d x b)^[t₀] (init d, []) =
-        (budgetStep d x b)^[k] (init d, []) := by
-      rw [← Nat.sub_add_cancel hk.le, Function.iterate_add_apply,
-        Function.iterate_fixed hfix (t₀ - k)]
-    exact Nat.find_min hex hk (hstay ▸ ht₀)
+    have hfix : Function.IsFixedPt (budgetStep d x b) ((budgetStep d x b)^[k] (init d, [])) := by
+      simp only [Function.IsFixedPt, budgetStep, hnot, ↓reduceIte]
+    rw [← Nat.sub_add_cancel hk.le, Function.iterate_add_apply, hfix.iterate (t₀ - k)] at ht₀
+    exact Nat.find_min hex hk ht₀
   have hfst : ∀ k ≤ t₀, ((budgetStep d x b)^[k] (init d, [])).1 = run d x k := by
     intro k hk
     induction k with
     | zero => rfl
     | succ k ih =>
-      have hk_lt : k < t₀ := Nat.lt_of_succ_le hk
-      have hle := hstep k hk_lt
+      have hle := hstep k (Nat.lt_of_succ_le hk)
       rw [Function.iterate_succ_apply', budgetStep]
       split_ifs
-      rw [ih hk_lt.le, run_succ]
+      rw [ih (Nat.le_of_succ_le hk), run_succ]
   have hb : ∀ k < t₀, (eCfg (run d x (k + 1))).length ≤ b := fun k hk => by
     simpa only [hfst k hk.le, ← run_succ] using hstep k hk
   exact ⟨t₀,
@@ -693,9 +688,7 @@ private lemma length_eSpaceLoopState_iterate_le (i : Desc × List ℕ × ℕ × 
   have htapes : d.tapes ≤ N := (tapes_le d).trans hd
   have hcfg : (eCfg (run d x j)).length ≤ 12 * N ^ 2 + 41 * N + 6 := by
     rcases hsp with rfl | hsp'
-    · have hinit := length_eCfg_init_le d
-      change (eCfg (init d)).length ≤ _
-      nlinarith
+    · exact (length_eCfg_init_le d).trans (by nlinarith)
     · have hsp_le := length_eCfg_le_space d x j
       have hmul : (2 * descLen d + 5) * simSpace d x j ≤ (2 * N + 5) * N :=
         Nat.mul_le_mul (by omega) (hsp'.trans hs)

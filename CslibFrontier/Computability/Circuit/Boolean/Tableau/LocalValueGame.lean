@@ -219,10 +219,8 @@ private theorem exists_size_add_numGates_le :
   have hn : n < 2 ^ Nat.size n := Nat.lt_size_self n
   have hpow : 2 ^ (Nat.size n + 2 * Nat.size T + (Nat.size C + 1)) =
       2 * (2 ^ Nat.size n * (2 ^ Nat.size C * (2 ^ Nat.size T) ^ 2)) := by
-    rw [← pow_mul, mul_comm (Nat.size T) 2, ← pow_add, ← pow_add, ← pow_succ']
-    ring_nf
-  rw [hpow]
-  nlinarith
+    rw [← pow_mul, mul_comm (Nat.size T) 2, ← pow_add, ← pow_add, ← pow_succ']; ring_nf
+  rw [hpow]; nlinarith
 
 /-- **Positions of logarithmic length.** On an input `x` of length `n`, every position of the
 circuit-value game reachable from a claim about a wire of the tableau of `T` steps has length at
@@ -281,8 +279,7 @@ noncomputable def localPosition : LocalClaim × Option Bool → List Bool
 private theorem toLocal_next (c : Claim) (b : Bool) :
     (Claim.next tm c b).toLocal = c.toLocal.next tm b := by
   rw [Claim.next_eq]
-  simp only [Claim.toLocal, LocalClaim.next, LocalClaim.gate, Claim.gate_eq]
-  rfl
+  simp only [Claim.toLocal, LocalClaim.next, LocalClaim.gate, Claim.gate_eq]; rfl
 
 private theorem headD_drop (x : List Bool) (i : ℕ) : (x.drop i).headD false = x[i]?.getD false := by
   rw [List.headD_eq_head?_getD, List.head?_drop]
@@ -373,9 +370,7 @@ theorem localPosition_inSpace :
     (g := fun p : LocalClaim × Option Bool =>
       playerOf ((p.1.gate tm).1, p.1.value) :: false :: false :: encLocalClaim p.1)
     (encD := encBits) fun p => by simp).weaken (.add (.refl _) (.refl _))
-  exact (budget_ite hsome hres hcons).of_enc_eq fun p => by
-    obtain ⟨lc, r⟩ := p
-    simp only [localPosition]
+  exact (budget_ite hsome hres hcons).of_enc_eq fun ⟨_, _⟩ => by simp only [localPosition]
 
 end Round
 
@@ -623,9 +618,8 @@ theorem localUniversal_inSpace {lc₀ : LocalClaim} :
     ComputableInSpace (localMachine tm lc₀).universal encLocalState encBool
       fun s => (encLocalState s).length := by
   have hlc := fst encLocalClaim (encOption encBool)
-  have hop := fst' (gate_budget (tm := tm) hlc)
-  have hv := encLocalClaim_value_budget hlc
-  exact budget_finite (fun q : Op × Bool => playerOf q) (budget_prod hop hv)
+  exact budget_finite (fun q : Op × Bool => playerOf q)
+    (budget_prod (fst' (gate_budget (tm := tm) hlc)) (encLocalClaim_value_budget hlc))
 
 /-- The step of the local machine, from a state, a read and a move, within linear space in the
 encoded state, read and move. The read and move are encoded as in

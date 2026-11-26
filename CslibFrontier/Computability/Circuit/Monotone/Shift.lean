@@ -167,8 +167,7 @@ position `(i + k) mod n`. -/
 theorem cyclicShiftPerm_injective {n : ℕ} : Function.Injective (cyclicShiftPerm (n := n)) := by
   intro k₁ k₂ h
   let : NeZero n := ⟨k₁.pos.ne'⟩
-  have h0 : (0 : Fin n) + k₁ = (0 : Fin n) + k₂ := congrArg (fun e => e.symm 0) h
-  simpa using h0
+  simpa [cyclicShiftPerm] using congrArg (fun e => e.symm 0) h
 
 /-- A monotone circuit `c` computes the monotone cyclic shift operator `S_{q, A}` for control
 code `α : Fin n → Fin m → Bool` when `c` evaluates `(X, α k)` to `cyclicShiftVec X k` for all
@@ -427,10 +426,9 @@ private theorem eval_barrelStage (n q L i : ℕ) (hi : i < L)
     obtain ⟨⟨j, b⟩, rfl⟩ := finProdFinEquiv.surjective u
     simp only [barrelMuxSelect, Function.comp_apply, Matrix.cons_val_zero, Matrix.cons_val_one,
       Matrix.cons_val, Equiv.symm_apply_apply, Fin.append_right, Fin.append_left, hpos, hneg]
+    let : NeZero n := ⟨j.pos.ne'⟩
     rw [jShift_eq_sub_ofNat]
-    cases bit
-    · simp [shiftByNat_zero]
-    · simp [shiftByNat]
+    cases bit <;> simp [shiftByNat]
   · simp [barrelStage]
 
 private def barrelStages (n q L : ℕ) :
@@ -459,13 +457,12 @@ private theorem eval_barrelStages (n q L s : ℕ)
     simp [barrelStages, Nat.mod_one, shiftByNat_zero]
   | t + 1, ht => by
     have hlt : t < L := Nat.lt_of_succ_le ht
-    rw [barrelStages, Circuit.eval_comp, eval_barrelStages n q L s X R hpos hneg t hlt.le,
-      eval_barrelStage n q L t hlt _ R (s.testBit t) (hpos t hlt) (hneg t hlt),
-      shiftByNat_add]
     have hmod : s % 2 ^ (t + 1) = s % 2 ^ t + if s.testBit t then 2 ^ t else 0 := by
       rw [Nat.mod_pow_succ, Nat.testBit_eq_decide_div_mod_eq]
       rcases Nat.mod_two_eq_zero_or_one (s / 2 ^ t) with h | h <;> simp [h]
-    rw [hmod]
+    rw [barrelStages, Circuit.eval_comp, eval_barrelStages n q L s X R hpos hneg t hlt.le,
+      eval_barrelStage n q L t hlt _ R (s.testBit t) (hpos t hlt) (hneg t hlt),
+      shiftByNat_add, hmod]
 
 private def barrelShiftCircuit (n q L : ℕ) :
     Circuit signature (n * q + 2 * L) (n * q) :=
@@ -678,12 +675,12 @@ def dualRailShiftCircuit (n q b : ℕ) (hb : Nat.clog 2 n ≤ b) :
 theorem computesMonotoneShift_dualRailShiftCircuit (n q b : ℕ) (hb : Nat.clog 2 n ≤ b) :
     ComputesMonotoneShift (dualRailShiftCircuit n q b hb) (dualRailShiftCode n b) := by
   intro X k
-  set L := Nat.clog 2 n
+  have hnb (i : ℕ) : ¬ b + i < b := by omega
   simp only [dualRailShiftCircuit, Circuit.eval_comp, Circuit.eval_parallel,
     Fin.append_comp_castAdd, Fin.append_comp_natAdd, Circuit.eval_wiring, Function.comp_id]
   exact eval_barrelShiftCircuit n q X k _
     (fun i hi => by simp [dualRailShiftCode, hi, hi.trans_le hb])
-    (fun i hi => by simp [dualRailShiftCode, show ¬ b + i < b by omega])
+    (fun i _ => by simp [dualRailShiftCode, hnb])
 
 /-- `dualRailShiftCircuit n q b hb` uses **exact** binary monotone gate cost
 `3 * q * n * Nat.clog 2 n`. -/
@@ -821,13 +818,10 @@ private theorem exists_projection_path {D m G : ℕ} (p : Program signature (D +
         exact False.elim (Bool.false_ne_true (h0.symm.trans h1))
     subst hv_eq
     refine ⟨∅, by simp [inputsWithin], by simp, (fun _ hj => nomatch hj), fun _ _ => rfl⟩
-  · have hmono_arg : ∀ a, Monotone fun X : Fin D → Bool =>
-        p.trace interpretation (Fin.append X Y) ((p.lines g).wires a) := by
-      intro a X₁ X₂ hle
-      refine trace_mono p (fun idx => ?_) _
-      refine Fin.addCases (fun r => ?_) (fun _ => ?_) idx
-      · simp only [Fin.append_left]; exact hle r
-      · simp only [Fin.append_right]; exact le_rfl
+  · have hmono_arg (a) : Monotone fun X : Fin D → Bool =>
+        p.trace interpretation (Fin.append X Y) ((p.lines g).wires a) := fun _ _ hle =>
+      trace_mono p (Fin.addCases (fun r => by simpa using hle r)
+        fun _ => by simp) _
     obtain ⟨a, hcost, ha⟩ := exists_arg_eq_proj_of_interpretation_eq_proj (p.lines g).op
       (fun a X => p.trace interpretation (Fin.append X Y) ((p.lines g).wires a)) u hmono_arg
       fun X => (p.trace_gate interpretation (Fin.append X Y) g).symm.trans (hg X)

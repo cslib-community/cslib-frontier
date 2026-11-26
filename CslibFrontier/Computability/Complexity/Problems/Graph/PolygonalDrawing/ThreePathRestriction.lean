@@ -182,8 +182,8 @@ theorem HasRegularContacts.opposite_three_path_orders {G : Graph} {D : Polygonal
       exact hdl.symm
   have even (a b : Fin 3) (hab : a ≠ b) (i : Fin (length a + 1)) (j : Fin (length b + 1)) :
       (A.route (arm a i).1).intersectionParity (A.route (arm b j).1) = false := by
-    simpa only [show ∀ d : Dart H, A.route d.1 = D.route (lift d).1 from fun _ => rfl,
-      liftArm] using heven a b hab i j
+    change (D.route (lift (arm a i)).1).intersectionParity (D.route (lift (arm b j)).1) = false
+    simpa only [liftArm] using heven a b hab i j
   have compare := hA.inverse_rotate_iff_not_inverse_rotate_of_three_paths
     (fun e => hsimple (edges e)) hS hH arm start finish (fun _ => rfl) (fun _ => rfl)
     step index.symm.injective even
@@ -206,16 +206,11 @@ theorem HasRegularContacts.opposite_three_path_orders {G : Graph} {D : Polygonal
       fin_cases i <;> simp [h, a, b, c]
     have hlab : (lift a).vertex = (lift b).vertex := by simpa only [liftVertex] using hab
     have hlbc : (lift b).vertex = (lift c).vertex := by simpa only [liftVertex] using hbc
-    have small := hS.clockwise a b c hab hbc nab nbc nac
     have large := hR.clockwise (lift a) (lift b) (lift c) hlab hlbc
       (lift.injective.ne nab) (lift.injective.ne nbc) (lift.injective.ne nac)
     exact (inverse_rotate_eq_iff_interval s hab (hab.trans hbc) nab nac nbc hall).trans
-      (small.symm.trans large)
-  have out := (interval start).symm.trans (compare.trans (interval finish).not)
-  change lift (arm 1 0) ∈ r.rotationInterval (lift (arm 0 0)) (lift (arm 2 0)) ↔
-    lift (arm 1 (Fin.last (length 1))).reverse ∉
-      r.rotationInterval (lift (arm 0 (Fin.last (length 0))).reverse)
-        (lift (arm 2 (Fin.last (length 2))).reverse) at out
-  simpa only [liftReverse, liftArm] using out
+      ((hS.clockwise a b c hab hbc nab nbc nac).symm.trans large)
+  simp only [← liftArm, ← liftReverse]
+  exact (interval start).symm.trans (compare.trans (interval finish).not)
 
 end Cslib.Complexity.Graph.PolygonalDrawing

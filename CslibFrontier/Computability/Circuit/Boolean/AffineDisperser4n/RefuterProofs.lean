@@ -259,24 +259,13 @@ private theorem findD4_eq_some {S : State n} {x e : ℕ} (h : findD4 S = some (x
   cases hg'
   exact ⟨hx', hout, he', hch⟩
 
-private theorem findD4_eq_none {S : State n} (h : findD4 S = none) :
-    ∀ x ∈ S.unpaired, ¬ S.out.Reads x → ∀ e ∈ S.eqns, S.children x ≠ {.inr e} :=
-  fun x hx hout e he hch => by
-    have := findSome?_sort_eq_none h x hx
-    have hout' : ¬ S.out.arg = .node x := hout
-    simp only [hout', ite_false] at this
-    have := findSome?_sort_eq_none this e he
-    simp [hch] at this
-
 private theorem findMovable_eq_some {S : State n} {J : ℕ} (h : findMovable S = some J) :
     J ∈ S.gates ∧ IsAffineOp (S.gate J).op ∧ ∀ i, (S.gate J).Reads i → i ∉ S.gates := by
   obtain ⟨hJ, hd⟩ := find?_sort_eq_some h
   simp only [Bool.and_eq_true, decide_eq_true_eq, Bool.not_eq_true'] at hd
   obtain ⟨⟨haff, hl⟩, hr⟩ := hd
   refine ⟨hJ, haff, fun i hi hig => ?_⟩
-  rcases hi with hi | hi
-  · rw [hi] at hl; simp [isGate, hig] at hl
-  · rw [hi] at hr; simp [isGate, hig] at hr
+  rcases hi with hi | hi <;> simp [hi, isGate, hig] at hl hr
 
 private theorem findMovable_eq_none {S : State n} (h : findMovable S = none) :
     ∀ J ∈ S.gates, IsAffineOp (S.gate J).op → isGate S (S.gate J).left = true ∨
@@ -320,8 +309,7 @@ private theorem findAndOnPair_eq_none {S : State n} (h : findAndOnPair S = none)
     (hr : (S.gate G).right = .node w) (hpw : p ≠ w) (hp : p ∈ S.params) (hw : w ∈ S.params) :
     ¬ S.Paired p ∧ ¬ S.Paired w := by
   have := findSome?_sort_eq_none h G hG
-  simp only [hna, not_false_eq_true, ite_true, hl, hr] at this
-  simp only [hpw, hp, hw, ne_eq, not_false_eq_true, and_self, ite_true] at this
+  simp only [hna, not_false_eq_true, ite_true, hl, hr, hpw, hp, hw, ne_eq, and_self] at this
   split_ifs at this with h1 h2
   exact ⟨h1, h2⟩
 
@@ -619,9 +607,7 @@ private theorem refuterStep_swapAuxIn {S : State n} (hS : S.Valid f) (hD1 : find
     rw [hl, hr] at hpos
     by_cases hua : u ∈ S.aux
     · exact ⟨u, v, huv, Or.inl hl, Or.inr hr, hua, by simp [auxArgs, hl, hr, hua]⟩
-    · have hva : v ∈ S.aux := by
-        by_contra hva
-        simp [auxArg, hua, hva] at hpos
+    · have hva : v ∈ S.aux := by_contra fun hva => by simp [auxArg, hua, hva] at hpos
       exact ⟨v, u, huv.symm, Or.inr hr, Or.inl hl, hva, by simp [auxArgs, hl, hr, hua, hva]⟩
   have haff := findAffineRep_spec hS.wf ha
   simp only [applyStep, hargs]
@@ -660,20 +646,15 @@ private theorem refuterStep_pairCreation {S : State n} (hS : S.Valid f) {u : ℕ
     rw [hl, hr] at haux
     constructor <;> intro hm <;> simp [auxArg, hm] at haux
   have hpar : ∀ t, (S.gate G).Reads t → t ∉ S.aux → t ∈ S.params := fun t ht hta => by
-    have hlive := hS.wf.reads_live G hG t ht
-    simp only [SemiCircuit.live, Finset.mem_union] at hlive
-    rcases hlive with (hp | ha) | hg
-    · exact hp
-    · exact absurd ha hta
+    rcases Finset.mem_union.1 (hS.wf.reads_live G hG t ht) with hp | hg
+    · exact (Finset.mem_union.1 hp).resolve_right hta
     · exact absurd hg (hmin t ht)
   have ht₁ := hpar t₁ (Or.inl hl) hnotaux.1
   have ht₂ := hpar t₂ (Or.inr hr) hnotaux.2
   have hna : ¬ IsAffineOp (S.gate G).op := fun haff => by
     rcases findMovable_eq_none hMov G hG haff with h | h
-    · rw [hl] at h
-      simp [isGate, hmin t₁ (Or.inl hl)] at h
-    · rw [hr] at h
-      simp [isGate, hmin t₂ (Or.inr hr)] at h
+    · simp [hl, isGate, hmin t₁ (Or.inl hl)] at h
+    · simp [hr, isGate, hmin t₂ (Or.inr hr)] at h
   obtain ⟨hu₁, hu₂⟩ := findAndOnPair_eq_none hAOP hG hna hl hr htne ht₁ ht₂
   obtain ⟨K', hf, hK', hK'r⟩ := exists_find_reader_gate (G := G) hS hG hout hD2 huG
   simp only [applyStep, hl, hr, hf]

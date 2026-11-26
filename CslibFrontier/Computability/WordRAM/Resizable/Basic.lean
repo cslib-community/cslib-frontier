@@ -257,20 +257,17 @@ theorem evalResizable_of_boundedAccess {w L : ℕ} {o : Op B r} {x : RData r} {y
 theorem RData.Bounded.evalResizable {w : ℕ} {o : Op B r} {x y : RData r}
     (hx : x.Bounded w) (he : Resizable.evalResizable w o x = some y) : y.Bounded w := by
   cases o with
-  | const d v =>
-    obtain ⟨hf, rfl⟩ := put_eq_some_iff.mp he; exact hx.set hf
+  | const d v => exact (put_eq_some_iff.mp he).2 ▸ hx.set (put_eq_some_iff.mp he).1
   | copy d s => cases he; exact hx.set (hx.regs_fits s)
   | alu f d args =>
     obtain ⟨_, _, hput⟩ := Option.bind_eq_some_iff.mp he
-    obtain ⟨hf, rfl⟩ := put_eq_some_iff.mp hput; exact hx.set hf
+    exact (put_eq_some_iff.mp hput).2 ▸ hx.set (put_eq_some_iff.mp hput).1
   | load d a =>
-    rw [Resizable.evalResizable] at he
-    split_ifs at he with hlt
-    exact Option.some.inj he ▸ hx.set (hx.mem_fits _)
+    obtain ⟨_, h⟩ := Option.ite_none_right_eq_some.mp he
+    exact Option.some.inj h ▸ hx.set (hx.mem_fits _)
   | store a s =>
-    rw [Resizable.evalResizable] at he
-    split_ifs at he with hlt
-    exact Option.some.inj he ▸ hx.write hlt (hx.regs_fits s)
+    obtain ⟨hlt, h⟩ := Option.ite_none_right_eq_some.mp he
+    exact Option.some.inj h ▸ hx.write hlt (hx.regs_fits s)
 
 /-- Basis simulation transports `evalResizable`. -/
 theorem evalResizable_mapSimulates (φ : B.Simulates B') {w : ℕ} {o : Op B r} {x y : RData r}
@@ -781,11 +778,9 @@ private theorem growLoop_exec {w L_peak T : ℕ} {body : RCode .exact r} {regs :
     (fun i z => z.regs = growLoopRegs regs result cur idx zero one f i ∧
       z.frontier = f + (i + 1) ∧ Q i z.mem) (regs count - 1) T
     (fun i hi z ⟨hr, _, _⟩ => by
-      change z.regs idx < z.regs count
-      rw [hr, hidx_val, hcnt]; omega)
+      simp only [Cond.Holds, RData.toData_regs, hr, hidx_val, hcnt]; omega)
     (fun z ⟨hr, hfr, _⟩ => ⟨by omega, by
-      change ¬z.regs idx < z.regs count
-      rw [hr, hidx_val, hcnt]; omega⟩)
+      simp only [Cond.Holds, RData.toData_regs, hr, hidx_val, hcnt]; omega⟩)
     (fun i hi z ⟨hr, hfr, hm⟩ => by cases z; subst hr hfr; exact hstep i hi _ hm)
     ⟨rfl, rfl, hm₀⟩).mono le_rfl fun _ ⟨hr, hfr, hm⟩ => ⟨hr, by omega, hm⟩
 

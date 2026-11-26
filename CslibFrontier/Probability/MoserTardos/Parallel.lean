@@ -109,11 +109,10 @@ theorem IsValidParallelRule.eq_nil_iff [DecidableEq V] {vbl : ι → Finset V}
     {A : ι → Set (∀ v, α v)} {psel : (∀ p : V × ℕ, α p.1) → List ι → List ι}
     (h : IsValidParallelRule vbl A psel) (T : ∀ p : V × ℕ, α p.1) (w : List ι) :
     psel T w = [] ↔ ∀ i, current vbl T w ∉ A i := by
-  constructor
-  · intro hnil i hi
-    obtain ⟨j, hj, -⟩ := h.max T w i hi
-    simp [hnil] at hj
-  · exact fun hnone => List.eq_nil_iff_forall_not_mem.2 fun i hi => hnone i (h.mem T w i hi)
+  refine ⟨fun hnil i hi => ?_,
+    fun hnone => List.eq_nil_iff_forall_not_mem.2 fun i hi => hnone i (h.mem T w i hi)⟩
+  obtain ⟨j, hj, -⟩ := h.max T w i hi
+  simp [hnil] at hj
 
 /-- The cumulative resampling log (latest step first) after `n` rounds of the parallel algorithm
 using selection rule `psel` on table `T`. -/
@@ -125,12 +124,12 @@ using selection rule `psel` on table `T`. -/
 @[simp]
 theorem parallelRun_zero (psel : (∀ p : V × ℕ, α p.1) → List ι → List ι)
     (T : ∀ p : V × ℕ, α p.1) :
-    parallelRun psel T 0 = [] := by
+    parallelRun psel T 0 = [] :=
   rfl
 
 theorem parallelRun_succ (psel : (∀ p : V × ℕ, α p.1) → List ι → List ι)
     (T : ∀ p : V × ℕ, α p.1) (n : ℕ) :
-    parallelRun psel T (n + 1) = psel T (parallelRun psel T n) ++ parallelRun psel T n := by
+    parallelRun psel T (n + 1) = psel T (parallelRun psel T n) ++ parallelRun psel T n :=
   rfl
 
 /-- Once a round returns `[]`, all subsequent logs remain unchanged. -/
@@ -242,9 +241,7 @@ theorem parallelRounds_eq_tsum (psel : (∀ p : V × ℕ, α p.1) → List ι �
   · push Not at hterm
     simp only [ne_eq, hterm, not_false_eq_true, ↓reduceIte,
       ENNReal.tsum_const_eq_top_of_ne_zero one_ne_zero]
-    by_contra hfin
-    obtain ⟨n, hn⟩ := exists_eq_nil_of_parallelRounds_ne_top psel hfin
-    exact hterm n hn
+    exact not_ne_iff.mp fun hfin => (exists_eq_nil_of_parallelRounds_ne_top psel hfin).elim hterm
 
 /-- A run whose rounds are never empty resamples at least one event per round. -/
 private theorem le_length_parallelRun_of_forall
@@ -556,10 +553,9 @@ theorem parallel_witness_depth [DecidableEq V] [DecidableEq ι] [Fintype ι]
     simpa using isLog_append_of_pairwise vbl A hA T (isLog_parallelRun vbl A hA hrule T k)
       (fun x hx => hrule.mem T _ x (hsplit ▸ List.mem_append_right _ hx)) hpw.2.1
   obtain ⟨p, hp, hpk, -⟩ := hdepth.2
-  have hlevels : ∀ t, ∀ q ∈ S, q.2 = t → ∀ d ≤ t, ∃ q ∈ S, q.2 = d := by
-    intro t
+  have hlevels (t : ℕ) : ∀ q ∈ S, q.2 = t → ∀ d ≤ t, ∃ q ∈ S, q.2 = d := by
     induction t with
-    | zero => exact fun q hqS hqt d hd => ⟨q, hqS, by omega⟩
+    | zero => exact fun q hqS _ _ _ => ⟨q, hqS, by omega⟩
     | succ t iht =>
       intro q hqS hqt d hdt
       rcases Nat.eq_or_lt_of_le hdt with rfl | hlt
@@ -1047,9 +1043,7 @@ theorem lintegral_parallelRounds_le_pmfPi [Fintype V] [∀ v, Finite (α v)]
     ∫⁻ T, parallelRounds psel T ∂table (fun v => (p v).toMeasure) ≤
       ENNReal.ofReal ((max 0 (Real.log (∑ i : ι, x i / (1 - x i))) + 1) / ε) :=
   lintegral_parallelRounds_le (fun v => (p v).toMeasure) vbl A hAm hA Γ hΓ hx hε
-    (fun i => by
-      simpa only [toReal_toOuterMeasure_pi_eq_measureReal p (hAm i)] using hAx i)
-    hrule
+    (fun i => toReal_toOuterMeasure_pi_eq_measureReal p (hAm i) ▸ hAx i) hrule
 
 omit [DecidableEq ι] [Fintype ι] in
 /-- `PMF.pi` bridge for almost-sure parallel Moser–Tardos termination and avoidance under the
@@ -1068,9 +1062,7 @@ theorem ae_exists_forall_notMem_parallelRun_pmfPi [Fintype V] [Finite ι]
     ∀ᵐ T ∂table (fun v => (p v).toMeasure),
       ∃ n : ℕ, ∀ i, current vbl T (parallelRun psel T n) ∉ A i :=
   ae_exists_forall_notMem_parallelRun (fun v => (p v).toMeasure) vbl A hAm hA Γ hΓ hx
-    (fun i => by
-      simpa only [toReal_toOuterMeasure_pi_eq_measureReal p (hAm i)] using hAx i)
-    hrule
+    (fun i => toReal_toOuterMeasure_pi_eq_measureReal p (hAm i) ▸ hAx i) hrule
 
 /-- `PMF.pi` bridge for symmetric parallel Moser–Tardos expected rounds (all `d : ℕ`). -/
 theorem lintegral_parallelRounds_le_pmfPi_symmetric [Fintype V] [∀ v, Finite (α v)]
@@ -1085,9 +1077,7 @@ theorem lintegral_parallelRounds_le_pmfPi_symmetric [Fintype V] [∀ v, Finite (
     ∫⁻ T, parallelRounds psel T ∂table (fun v => (p v).toMeasure) ≤
       ENNReal.ofReal ((max 0 (Real.log (Fintype.card ι : ℝ)) + 1) / ε) :=
   lintegral_parallelRounds_le_symmetric (fun v => (p v).toMeasure) vbl A hAm hA hd
-    (fun i => by
-      simpa only [toReal_toOuterMeasure_pi_eq_measureReal p (hAm i)] using hq i)
-    hε hlll hrule
+    (fun i => toReal_toOuterMeasure_pi_eq_measureReal p (hAm i) ▸ hq i) hε hlll hrule
 
 end SymmetricAndPMF
 

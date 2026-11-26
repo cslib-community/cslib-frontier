@@ -399,9 +399,8 @@ private theorem step_push {S : State α} {w : ℕ} (hw : w < S.table.length) (hn
   comp := rfl
   wpot w' := by
     have h := Finset.sum_erase_add _ w' (mem_unvisited hw hnone)
-    simp only [State.wpot, unvisited_push hw f]
-    simp only [push, List.map_cons, List.sum_cons]
-    omega
+    rw [State.wpot, unvisited_push hw f]
+    simp only [State.wpot, push, List.map_cons, List.sum_cons]; omega
 
 end Basic
 
@@ -676,10 +675,8 @@ private theorem potential_scan (labels : List α) (g : Graph (α → α)) {S : S
   have h := foldl_visit_step labels (adj g u)
     (S := { S with stack := rest, comp := u :: S.comp }) (adj_bounds hlen u)
   refine lt_of_le_of_lt h.potential_le ?_
-  have hu : ({ S with stack := rest, comp := u :: S.comp } : State α).unvisited = S.unvisited :=
-    rfl
-  simp only [State.potential, hst, List.length_cons, hu]
-  omega
+  change S.unvisited.card + rest.length < S.unvisited.card + S.stack.length
+  rw [hst, List.length_cons]; omega
 
 private theorem iterate_scan_stack (labels : List α) (g : Graph (α → α)) {S : State α}
     (hlen : S.table.length = slots g) (k : ℕ) :
@@ -759,9 +756,9 @@ private theorem inv_scan {labels : List α} (hlabels : ∀ a, a ∈ labels) {g :
       cases hS : S.get v with
       | none =>
         -- newly visited during this scan: it is on the stack
-        refine Or.inl (by_contra fun hns => ?_)
-        have : (S1.get v).isSome := ((hstep.done v).1 ⟨hv, hns⟩).1
-        simp [show S1.get v = S.get v from rfl, hS] at this
+        exact Or.inl (by_contra fun hns => by
+          have : (S.get v).isSome := ((hstep.done v).1 ⟨hv, hns⟩).1
+          simp [hS] at this)
       | some f =>
         rcases h.fresh v (by simp [hS]) h0 with hv' | hv'
         · rw [hst] at hv'
@@ -771,12 +768,9 @@ private theorem inv_scan {labels : List α} (hlabels : ∀ a, a ∈ labels) {g :
             exact Or.inl (by_contra fun hnin =>
               ((hstep.done v).1 ⟨by rw [hstep.get v f hS]; rfl, hnin⟩).2 hv')
         · right; rw [hstep.comp]; simp [S1, hv']
-    · have hdone : ∀ w, (adj g u |>.foldl (visit labels) S1).Done w → w = u ∨ S.Done w := by
-        intro w hw
-        have hw1 := (hstep.done w).1 hw
-        refine or_iff_not_imp_left.2 fun hwu => ⟨hw1.1, ?_⟩
-        rw [hst, List.mem_cons, not_or]
-        exact ⟨hwu, hw1.2⟩
+    · have hdone : ∀ w, (adj g u |>.foldl (visit labels) S1).Done w → w = u ∨ S.Done w :=
+        fun w hw => or_iff_not_imp_left.2 fun hwu =>
+          ⟨((hstep.done w).1 hw).1, by simp [S1, hst, hwu, ((hstep.done w).1 hw).2]⟩
       have hsettled_adj := foldl_visit_settled labels (adj g u) hb
         (fun e he => (mem_adj.1 he).2) hu
       intro e he hd
@@ -915,10 +909,8 @@ private theorem good_settle [Inhabited α] {labels : List α} (hlabels : ∀ a, 
   set c := (labels.find? S.cand).getD default with hc
   have hcand : S.cand c = true := by
     cases hf : labels.find? S.cand with
-    | none =>
-      rw [List.find?_eq_none] at hf
-      exact absurd h.sem.cand (by simpa using hf _ (hlabels _))
-    | some b => simp only [hc, hf, Option.getD_some]; exact List.find?_some hf
+    | none => exact absurd h.sem.cand (by simpa using List.find?_eq_none.1 hf _ (hlabels _))
+    | some b => simpa [hc, hf] using List.find?_some hf
   -- every stored table outside the component is an old constant
   have hold : ∀ v f, S.get v = some f → v ∉ S.comp → ∀ a, f a = f c := by
     intro v f hv hvc a
@@ -943,10 +935,9 @@ private theorem good_settle [Inhabited α] {labels : List α} (hlabels : ∀ a, 
   · rw [settle_length]; exact h.length
   · intro v f hv a
     cases hS : S.get v with
-    | none => rw [settle_get_none labels hS] at hv; cases hv
+    | none => simp [settle_get_none labels hS] at hv
     | some f' =>
-      rw [hval v f' hS] at hv
-      cases hv
+      obtain ⟨rfl⟩ := (hval v f' hS).symm.trans hv
       exact (hτ' v f' hS).symm
   · intro e he
     rw [settle_isSome, settle_isSome]
@@ -1061,12 +1052,11 @@ theorem check_labelling [Inhabited α] {labels : List α} (hlabels : ∀ a, a �
     simpa [check] using (check_eq_true_iff g σ).2 hσ
   obtain ⟨τ, hτ, hsrc⟩ := foldl_step_good (labels := labels) hlabels hinj g.edges
     (fun _ h => h) (good_init hσ')
-  rw [show List.foldl (step labels g) (init g) g.edges = run labels g from rfl] at hτ hsrc
   rw [check, List.all_eq_true]
   intro e he
   obtain ⟨f, hf⟩ := Option.isSome_iff_exists.1 (hsrc e he)
   obtain ⟨k, hk⟩ := Option.isSome_iff_exists.1 ((hτ.closed e he) ▸ hsrc e he)
-  simp only [labelling, hf, hk, Option.elim_some, decide_eq_true_eq,
+  simp only [labelling, run, hf, hk, Option.elim_some, decide_eq_true_eq,
     hτ.const _ _ hf, hτ.const _ _ hk, hτ.sat e he]
 
 /-- **Completeness**: if `labels` contains every label, every edge carries an injective table and

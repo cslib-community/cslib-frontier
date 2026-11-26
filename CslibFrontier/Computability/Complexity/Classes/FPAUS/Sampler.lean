@@ -300,10 +300,9 @@ theorem eval_choose_le (m extra : ℕ) (e e₀ e₁ : ℕ × ℕ) (c : Bool) :
     ProbComp.eval (choose m extra e e₀ e₁) (some c) ≤
       ENNReal.ofReal ((weight m e e₀ e₁ c : ℝ) / total m e e₀ e₁) := by
   refine (eval_branch_le _ _ _ c).trans ?_
-  have hK : (0 : ℝ) < ((2 ^ coinWidth m extra e e₀ e₁ : ℕ) : ℝ) := by positivity
-  rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_div_of_pos hK]
-  refine ENNReal.ofReal_le_ofReal ?_
-  cases c <;> exact natCast_div_div_le _ _ _
+  rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_natCast,
+    ← ENNReal.ofReal_div_of_pos (by positivity)]
+  cases c <;> exact ENNReal.ofReal_le_ofReal (natCast_div_div_le _ _ _)
 
 /-- When the weights fit (`weight false + weight true ≤ total`), the choice at a node picks a child
 `c` of positive weight with probability at least `(1 - 2 ^ (-extra)) weight c / total`. -/
@@ -322,11 +321,9 @@ theorem le_eval_choose {m extra : ℕ} {e e₀ e₁ : ℕ × ℕ}
     rw [← add_mul]
     exact (Nat.div_le_div_right (Nat.mul_le_mul_right _ hfit)).trans
       (Nat.mul_div_cancel_left _ hD).le
-  rw [choose, eval_branch_eq hsum]
-  have hK : (0 : ℝ) < ((2 ^ coinWidth m extra e e₀ e₁ : ℕ) : ℝ) := by positivity
-  rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_div_of_pos hK]
-  refine ENNReal.ofReal_le_ofReal ?_
-  cases c <;> exact le_natCast_div_div hD (Nat.lt_size_self _) hc
+  rw [choose, eval_branch_eq hsum, ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_natCast,
+    ← ENNReal.ofReal_div_of_pos (by positivity)]
+  cases c <;> exact ENNReal.ofReal_le_ofReal (le_natCast_div_div hD (Nat.lt_size_self _) hc)
 
 end Choose
 
@@ -812,15 +809,11 @@ private theorem one_eighth_le {N ℓ q : ℕ} {e : ℕ × ℕ} (hN : 0 < N)
   have h1 := half_le_stepFactor_pow ℓ q
   have h2 := half_le_levelFactor_pow ℓ
   have h3 := three_quarters_le_card_mul_invEstimate hN (by rw [counterAccuracy]; omega) he
-  have h4 : (N : ℝ) * (stepFactor (precision ℓ q) (precision ℓ q) ^ ℓ *
-      (levelFactor (damping ℓ) ^ ℓ * invEstimate e)) =
-        stepFactor (precision ℓ q) (precision ℓ q) ^ ℓ * levelFactor (damping ℓ) ^ ℓ *
-          (N * invEstimate e) := by ring
-  rw [h4]
-  have h5 : (1 / 2 : ℝ) * (1 / 2) ≤
-      stepFactor (precision ℓ q) (precision ℓ q) ^ ℓ * levelFactor (damping ℓ) ^ ℓ :=
-    mul_le_mul h1 h2 (by norm_num) (by linarith only [h1])
-  exact le_trans (by norm_num) (mul_le_mul h5 h3 (by norm_num) (by positivity))
+  have h5 : (1 / 4 : ℝ) ≤
+      stepFactor (precision ℓ q) (precision ℓ q) ^ ℓ * levelFactor (damping ℓ) ^ ℓ := by
+    nlinarith only [h1, h2]
+  exact (le_trans (by norm_num) (mul_le_mul h5 h3 (by norm_num) (by positivity))).trans_eq
+    (by ring)
 
 /-- **The acceptance probability of a trial.** If the counter is accurate and the root estimate
 `e` is good, then a trial from an instance with at least one witness rejects with probability at

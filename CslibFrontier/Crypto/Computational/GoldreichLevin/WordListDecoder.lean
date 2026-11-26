@@ -221,8 +221,7 @@ theorem nodup_dedupWords (words : List (List Bool)) : (dedupWords words).Nodup :
 @[simp]
 theorem toFinset_dedupWords (words : List (List Bool)) :
     (dedupWords words).toFinset = words.toFinset := by
-  ext w
-  simp
+  simp [Finset.ext_iff]
 
 /-- The length of `dedupWords words` equals `words.toFinset.card`. -/
 theorem length_dedupWords_eq_card_toFinset (words : List (List Bool)) :
@@ -272,10 +271,7 @@ theorem toFinset_wordListDecode (predictor : List Bool → Bool) (dimension prec
       (candidates (fun query => predictor (List.ofFn query))
         (block (ofList (listMaskCount dimension precision * dimension) masks))).image
           List.ofFn := by
-  unfold wordListDecode
-  rw [toFinset_dedupWords, listRows_eq_ofFn, wordCandidates_eq_map]
-  ext w
-  simp
+  simp [wordListDecode, listRows_eq_ofFn, wordCandidates_eq_map, Finset.ext_iff]
 
 /-- For `x : BitString n`, `List.ofFn x` belongs to `wordListDecode predictor n precision masks` if
 and only if `x` belongs to `candidates`. -/
@@ -401,9 +397,7 @@ theorem wordEmpiricalHits_eq_empiricalHits {n m : ℕ} (predictor : List Bool �
     List.ofFn_eq_map (f := fun j => List.ofFn (samples j)), List.filter_map, List.length_map,
     ← List.toFinset_card_of_nodup ((List.nodup_finRange m).filter _), List.toFinset_filter,
     empiricalHits]
-  congr 1
-  ext j
-  simp [listDot_ofFn]
+  exact congrArg Finset.card (Finset.ext fun j => by simp [listDot_ofFn])
 
 /-- Filter and deduplicate a candidate word list by empirical agreement threshold `num / den` on
 `sampleRows`. -/
@@ -485,12 +479,9 @@ theorem toFinset_wordListDecodePruned (predictor : List Bool → Bool) (dimensio
   unfold wordListDecodePruned wordPruneCandidates
   rw [toFinset_dedupWords, List.toFinset_filter, toFinset_wordListDecode, listRows_eq_ofFn]
   ext w
-  simp only [Finset.mem_filter, Finset.mem_image, List.length_ofFn, mem_prunedCandidates]
-  constructor
-  · rintro ⟨⟨x, hx, rfl⟩, hpass⟩
-    exact ⟨x, ⟨hx, by simpa [wordEmpiricalHits_eq_empiricalHits] using hpass⟩, rfl⟩
-  · rintro ⟨x, ⟨hx, hpass⟩, rfl⟩
-    exact ⟨⟨x, hx, rfl⟩, by simpa [wordEmpiricalHits_eq_empiricalHits] using hpass⟩
+  simp only [Finset.mem_filter, Finset.mem_image, List.length_ofFn, mem_prunedCandidates,
+    ← wordEmpiricalHits_eq_empiricalHits]
+  grind
 
 /-- For `x : BitString n`, `List.ofFn x` belongs to `wordListDecodePruned` if and only if `x`
 belongs to `prunedCandidates`. -/
@@ -716,9 +707,7 @@ theorem wordEmpiricalHits_congr {predictor₁ predictor₂ : List Bool → Bool}
     (hagree : ∀ q ∈ sampleRows, predictor₁ q = predictor₂ q) :
     wordEmpiricalHits predictor₁ sampleRows candidate =
       wordEmpiricalHits predictor₂ sampleRows candidate := by
-  unfold wordEmpiricalHits
-  refine List.countP_congr fun row hrow => ?_
-  rw [hagree row hrow]
+  exact List.countP_congr fun row hrow => by rw [hagree row hrow]
 
 /-- `wordListDecodePruned` depends on `predictor` only at queries in `listDecodePrunedQueries`. -/
 theorem wordListDecodePruned_congr {predictor₁ predictor₂ : List Bool → Bool}

@@ -168,14 +168,12 @@ theorem mem_crashed_iff_notMem_correct (F : FailurePattern P) (p : P) :
   rw [mem_correct_iff_notMem_crashed, Classical.not_not]
 
 @[simp]
-theorem crashed_const (S : Finset P) : (const S).Crashed = (S : Set P) := by
-  ext p
-  simp only [mem_crashed_iff, const_apply, exists_const, mem_coe]
+theorem crashed_const (S : Finset P) : (const S).Crashed = (S : Set P) :=
+  Set.ext fun _ => by simp
 
 @[simp]
-theorem correct_const (S : Finset P) : (const S).Correct = (S : Set P)ᶜ := by
-  ext p
-  simp only [mem_correct_iff, const_apply, forall_const, Set.mem_compl_iff, mem_coe]
+theorem correct_const (S : Finset P) : (const S).Correct = (S : Set P)ᶜ :=
+  Set.ext fun _ => by simp
 
 /-- Interface characterization of `FailurePattern` on a finite process set `P` (capturing the
 stabilization remark in [Chandra and Toueg, §2.3, p. 233][ChandraToueg1996]): there is a tick `t₀`
@@ -199,11 +197,8 @@ theorem card_correct_ge_of_card_le [Fintype P] (F : FailurePattern P) {bound : �
     ∃ C : Finset P, (C : Set P) = F.Correct ∧ Fintype.card P - bound ≤ C.card := by
   classical
   obtain ⟨t₀, ht₀⟩ := F.exists_stabilize
-  refine ⟨Finset.univ \ F t₀, ?_, ?_⟩
-  · ext p
-    simp only [mem_coe, Finset.mem_sdiff, Finset.mem_univ, true_and, (ht₀ t₀ le_rfl).2]
-  · rw [Finset.card_univ_sdiff]
-    exact Nat.sub_le_sub_left (hF t₀) _
+  exact ⟨Finset.univ \ F t₀, Set.ext fun p => by simp [(ht₀ t₀ le_rfl).2],
+    Finset.card_univ_sdiff (F t₀) ▸ Nat.sub_le_sub_left (hF t₀) _⟩
 
 theorem correct_nonempty_of_card_lt [Fintype P] (F : FailurePattern P) {bound : ℕ}
     (hF : ∀ t, (F t).card ≤ bound) (hlt : bound < Fintype.card P) :
@@ -571,8 +566,7 @@ theorem exists_isEventuallyPerfect_not_isWeakAccuracy {P : Type*} [Finite P] [No
   let F : FailurePattern P := FailurePattern.const ∅
   let H : DetectorHistory P := fun _ t => if t = 0 then Finset.univ else ∅
   obtain ⟨p₀⟩ := ‹Nonempty P›
-  have hcorr : F.Correct.Nonempty := ⟨p₀, by simp [F]⟩
-  exact ⟨F, H, hcorr,
+  exact ⟨F, H, ⟨p₀, by simp [F]⟩,
     ⟨⟨0, fun p hp => by simp [F] at hp⟩,
      ⟨1, fun t' ht' _ _ _ _ => by simp [H, Nat.ne_of_gt ht']⟩⟩,
     fun ⟨p, _, hns⟩ => by simpa [H] using hns 0 p (by simp [F])⟩
@@ -694,11 +688,10 @@ theorem IsEventuallyLeader.toDetectorHistory_isEventuallyStrong {P : Type*}
     IsEventuallyStrong F L.toDetectorHistory := by
   obtain ⟨t, qStar, hqStar, htrust⟩ := hL
   refine ⟨⟨t, fun p hp q hq t' ht' => ?_⟩, ⟨t, qStar, hqStar, fun t' ht' q hq => ?_⟩⟩
-  · have hpne : p ≠ qStar := fun heq =>
-      F.mem_correct_iff_notMem_crashed qStar |>.mp hqStar (heq ▸ hp)
-    simp only [LeaderHistory.toDetectorHistory, htrust q hq t' ht', mem_erase, ne_eq, hpne,
-      not_false_eq_true, mem_univ, and_self]
-  · simp only [LeaderHistory.toDetectorHistory, htrust q hq t' ht', mem_erase, ne_eq, not_true,
-      false_and, not_false_eq_true]
+  · simp only [LeaderHistory.toDetectorHistory, htrust q hq t' ht', mem_erase, ne_eq, mem_univ,
+      and_true]
+    rintro rfl
+    exact F.mem_correct_iff_notMem_crashed p |>.mp hqStar hp
+  · simp [LeaderHistory.toDetectorHistory, htrust q hq t' ht']
 
 end Cslib.Distributed.FailureDetectors
