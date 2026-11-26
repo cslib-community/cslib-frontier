@@ -427,8 +427,7 @@ private theorem mended_ofLeaf {entries : List (α × β)} (hlo : t - 1 ≤ entri
     exact ⟨.leaf, rfl, .leaf hlo hle⟩
   · obtain ⟨l, s, r, heq, hl, hr⟩ :=
       InsertResult.exists_good_split_ofLeaf (t := t) (entries := entries) (by omega) hhi
-    rw [heq]
-    exact ⟨hl, hr⟩
+    exact heq ▸ ⟨hl, hr⟩
 
 /-- A node of `t - 1` to `2 * t - 1 + t + 1` separators over good children, split when it
 overflows, is good. -/
@@ -441,8 +440,7 @@ private theorem mended_ofNode {first : BPlusTree α β} {rest : List (Branch α 
     exact good_node hf hr hlo hle
   · obtain ⟨l, s, r, heq, hl, hr'⟩ :=
       InsertResult.exists_good_split_ofNode hf hr (by omega) (by omega)
-    rw [heq]
-    exact ⟨hl, hr'⟩
+    exact heq ▸ ⟨hl, hr'⟩
 
 /-- Placing a repaired result among good branches keeps them good, adding at most one. -/
 private theorem mended_withRest {x : InsertResult α β} {h : ℕ} (hx : Mended t h x)
@@ -836,10 +834,9 @@ private theorem linked_eraseRest (ht : 2 ≤ t) {h : ℕ} {rest : List (Branch �
               (hne hp) (hne' uce)
           obtain ⟨l₁, l₂, l₃⟩ := linked_withRest_of_sep (c := eraseSubtree t k c) (rest := [])
             hsep trivial (by simp) (by simp)
-          refine ⟨l₁, l₂, l₃, fun x hx => ?_⟩
-          have hx := mem_toList_of_mem_withRest_fst hx
-          rw [toList_mergeSplit] at hx
-          exact (List.mem_append.1 hx).imp id fun hx => List.mem_append_left _ (subc.subset hx)
+          refine ⟨l₁, l₂, l₃, fun x hx =>
+            (List.mem_append.1 (toList_mergeSplit _ _ _ ▸ mem_toList_of_mem_withRest_fst hx)).imp
+              id fun hx => List.mem_append_left _ (subc.subset hx)⟩
         · exact ⟨⟨h₁, fun p hp' => h₂ p (subc.subset hp'), trivial⟩, hps, by simpa using sce,
             fun x hx => Or.inl hx⟩
       · -- the search moves on
@@ -865,10 +862,9 @@ private theorem linked_eraseRest (ht : 2 ≤ t) {h : ℕ} {rest : List (Branch �
           · exact (lt_of_lt_of_le (h₁ p (hsub.subset hp')) (h₂ q hq)).trans (h₃.1 q hq)
           · exact h₃.1 p hp'
         obtain ⟨l₁, l₂, l₃⟩ := linked_withRest_of_sep hsep h₃ hrs hb
-        refine ⟨l₁, l₂, l₃, fun x hx => ?_⟩
-        have hx := mem_toList_of_mem_withRest_fst hx
-        rw [toList_mergeSplit] at hx
-        exact (List.mem_append.1 hx).imp (hsub.subset ·) (List.mem_append_left _ ·)
+        refine ⟨l₁, l₂, l₃, fun x hx =>
+          (List.mem_append.1 (toList_mergeSplit _ _ _ ▸ mem_toList_of_mem_withRest_fst hx)).imp
+            (hsub.subset ·) (List.mem_append_left _ ·)⟩
       · exact ⟨⟨fun p hp' => h₁ p (hsub.subset hp'), h₂, h₃⟩, hpes,
           List.forall_mem_cons.2 ⟨sc, hrs⟩, fun x hx => Or.inl (hsub.subset hx)⟩
 
@@ -932,18 +928,14 @@ theorem IsWF.erase (h : IsWF t tr) (k : α) : IsWF t (erase t k tr) := by
   obtain ⟨hb, -, hco, hk₁, -⟩ :=
     eraseFits_eraseSubtree ht k tr h.balanced h.occupied_of_mem_children h.width_pos h.sorted
   have hp := separated_eraseSubtree k tr h.searchInvariant h.balanced h.width_pos
-  have hs : (BPlusTree.erase t k tr).toList.IsSortedAssoc := by
-    rw [toList_erase h]
-    exact SortedAssoc.isSortedAssoc_erase h.sorted
+  have hs : (BPlusTree.erase t k tr).toList.IsSortedAssoc :=
+    toList_erase h k ▸ SortedAssoc.isSortedAssoc_erase h.sorted
   rw [erase_eq_collapse] at hs ⊢
   generalize eraseSubtree t k tr = c at *
-  rcases c with es | ⟨f, _ | ⟨e, r⟩⟩
-  · simp only [collapse] at hs ⊢
-    exact ⟨ht, hk₁.trans hw, fun hne => absurd rfl (hne es), by simp, .leaf, .leaf, hs⟩
-  · simp only [collapse] at hs ⊢
-    exact (hco f (by simp)).isWF ht (hb.of_mem_children (c := f) (by simp)) hp.first hs
-  · simp only [collapse] at hs ⊢
-    exact ⟨ht, hk₁.trans hw, fun _ => by simp, hco, hb, hp, hs⟩
+  rcases c with es | ⟨f, _ | ⟨e, r⟩⟩ <;> simp only [collapse] at hs ⊢
+  · exact ⟨ht, hk₁.trans hw, fun hne => absurd rfl (hne es), by simp, .leaf, .leaf, hs⟩
+  · exact (hco f List.mem_cons_self).isWF ht (hb.of_mem_children List.mem_cons_self) hp.first hs
+  · exact ⟨ht, hk₁.trans hw, fun _ => by simp, hco, hb, hp, hs⟩
 
 /-- On a well-formed tree, erasure either keeps the height or lowers it by one. -/
 theorem height_erase (h : IsWF t tr) (k : α) :

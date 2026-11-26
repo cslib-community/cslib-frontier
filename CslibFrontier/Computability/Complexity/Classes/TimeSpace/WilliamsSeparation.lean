@@ -294,11 +294,9 @@ private theorem eventually_rpow_sub_mul_log2_le_sq {s : ℕ → ℕ} (hn : ∀�
     · simpa only [Real.rpow_one] using Real.rpow_le_rpow_of_exponent_le hsR1 hα1
     · exact Real.rpow_le_rpow_of_exponent_le hsR1 (le_max_right 1 (2 - ε))
   have hm_le_sq : m ≤ s n ^ 2 := by
-    have h1 : (m : ℝ) ≤ ((s n ^ 2 : ℕ) : ℝ) := by
-      refine hm_le_rpow.trans ?_
-      rw [Nat.cast_pow, ← Real.rpow_natCast (s n : ℝ) 2]
-      exact Real.rpow_le_rpow_of_exponent_le hsR1 hα2.le
-    exact_mod_cast h1
+    suffices (m : ℝ) ≤ ((s n ^ 2 : ℕ) : ℝ) from mod_cast this
+    rw [Nat.cast_pow, ← Real.rpow_natCast (s n : ℝ) 2]
+    exact hm_le_rpow.trans (Real.rpow_le_rpow_of_exponent_le hsR1 hα2.le)
   have hlogR : ((Nat.log2 m : ℝ) + 1) ≤ 2 * ((Nat.log 2 (s n) : ℝ) + 2) := by
     have hlog_sq := log2_le_two_mul_log2_add_one (by omega) hm_le_sq
     simp only [Nat.log2_eq_log_two] at hlog_sq ⊢
@@ -359,11 +357,9 @@ private theorem eventually_sq_div_log2_sq_mul_log2_le_sq {s : ℕ → ℕ}
     have hr := hten.eventually
       (Nat.eventually_mul_log_add_pow_le_rpow (b := 2) one_lt_two 0 1 2 one_pos one_pos)
     filter_upwards [hr] with n h'
+    simp only [add_zero, one_mul, Real.rpow_one] at h'
     rw [Nat.log2_eq_log_two]
-    have hR : ((Nat.log 2 (s n) + 1 : ℕ) : ℝ) ^ 2 ≤ (s n : ℝ) := by
-      simpa only [add_zero, one_mul, Nat.cast_add, Nat.cast_one, Nat.cast_ofNat,
-        Real.rpow_one] using h'
-    exact_mod_cast hR
+    exact_mod_cast h'
   intro c
   filter_upwards [hn, hlog2 (8 * c + 8), hsq_vs_log, hten.eventually_ge_atTop (4 * c + 4)]
     with n hns hL hL2 hsmin
@@ -379,12 +375,11 @@ private theorem eventually_sq_div_log2_sq_mul_log2_le_sq {s : ℕ → ℕ}
     have hpow := log2_le_two_mul_log2_add_one (by omega) ht_le_sq
     dsimp only [L]
     omega
-  have ht_mul_L : t * L ≤ s n ^ 2 / L := by
-    dsimp only [t]
-    rw [sq L, ← Nat.div_div_eq_div_mul]
-    exact Nat.div_mul_le_self _ L
-  have ht_log : t * (Nat.log2 t + 1) ≤ 2 * (s n ^ 2 / L) :=
-    (Nat.mul_le_mul_left _ hlogt).trans (by linarith)
+  have ht_log : t * (Nat.log2 t + 1) ≤ 2 * (s n ^ 2 / L) := by
+    have ht_mul_L : t * L ≤ s n ^ 2 / L := by
+      rw [show t = s n ^ 2 / L ^ 2 from rfl, sq L, ← Nat.div_div_eq_div_mul]
+      exact Nat.div_mul_le_self _ L
+    linarith [Nat.mul_le_mul_left t hlogt]
   have hc_mul : (c + 1) * (2 * (s n ^ 2 / L)) ≤ s n ^ 2 := by
     linarith [Nat.mul_le_mul_right (s n ^ 2 / L) (show 2 * (c + 1) ≤ L by omega),
       Nat.mul_div_le (s n ^ 2) L]
@@ -423,12 +418,10 @@ theorem DTIME_pow_ssubset_DSPACE_pow {a b : ℕ} (hb : 1 ≤ b) (hab : a < 2 * b
     (Eventually.of_forall fun n => (Nat.le_succ n).trans (Nat.le_self_pow (by omega) _)) hε
   rw [hEq] at hsep
   refine (DTIME_mono_of_eventually_le ?_).trans_ssubset hsep
-  filter_upwards [eventually_ge_atTop 2] with n hn2
-  have hb0 : (b : ℝ) ≠ 0 := by positivity
+  filter_upwards [eventually_ge_atTop 2] with n _
   have hexp : (a : ℝ) ≤ (b : ℝ) * (2 - 1 / (b : ℝ)) := by
-    have : (b : ℝ) * (2 - 1 / (b : ℝ)) = 2 * b - 1 := by field_simp [hb0]
-    have ha1 : (a : ℝ) + 1 ≤ 2 * (b : ℝ) := by exact_mod_cast hab
-    linarith
+    rw [mul_sub, mul_div_cancel₀ _ (by positivity : (b : ℝ) ≠ 0)]
+    linarith [show (a : ℝ) + 1 ≤ 2 * (b : ℝ) from mod_cast hab]
   have hn1 : (1 : ℝ) ≤ (n + 1 : ℕ) := by exact_mod_cast (by omega : 1 ≤ n + 1)
   have hreal : ((n ^ a : ℕ) : ℝ) ≤ ((n + 1 : ℕ) : ℝ) ^ ((b : ℝ) * (2 - 1 / (b : ℝ))) := by
     calc ((n ^ a : ℕ) : ℝ) = (n : ℝ) ^ (a : ℝ) := by rw [Nat.cast_pow, ← Real.rpow_natCast]
@@ -437,11 +430,9 @@ theorem DTIME_pow_ssubset_DSPACE_pow {a b : ℕ} (hb : 1 ≤ b) (hab : a < 2 * b
               (Nat.cast_nonneg a)
       _ ≤ ((n + 1 : ℕ) : ℝ) ^ ((b : ℝ) * (2 - 1 / (b : ℝ))) :=
             Real.rpow_le_rpow_of_exponent_le hn1 hexp
-  have hreal' : ((n ^ a : ℕ) : ℝ) ≤ (((n + 1) ^ b : ℕ) : ℝ) ^ (2 - 1 / (b : ℝ)) := by
-    refine hreal.trans_eq ?_
-    push_cast
-    rw [← Real.rpow_natCast ((n : ℝ) + 1) b, ← Real.rpow_mul (by positivity)]
-  exact Nat.le_floor hreal'
+  refine Nat.le_floor (hreal.trans_eq ?_)
+  push_cast
+  rw [← Real.rpow_natCast ((n : ℝ) + 1) b, ← Real.rpow_mul (by positivity)]
 
 /-- **Polynomial containment failure**: deterministic space `n ^ b` (`b ≥ 1`) is not contained in
 deterministic time `n ^ a` when `a < 2 * b`. -/

@@ -263,9 +263,8 @@ private lemma linearIndependent : LinearIndependent (F K) b.vector := by
   classical
   rw [linearIndependent_iff']
   intro s c hc j hj
-  have hh := congrArg (b.coordinate j) hc
-  simpa only [map_sum, map_smul, b.pairing, smul_eq_mul, mul_ite,
-    mul_one, mul_zero, Finset.sum_ite_eq, hj, ite_true, map_zero] using hh
+  simpa only [map_sum, map_smul, b.pairing, smul_eq_mul, mul_ite, mul_one, mul_zero,
+    Finset.sum_ite_eq, hj, ite_true, map_zero] using congrArg (b.coordinate j) hc
 
 /-- Every vector of an `IntegralFrame U` belongs to `U`. -/
 lemma vector_mem (j : Fin b.length) : b.vector j ∈ U :=
@@ -329,12 +328,9 @@ lemma reducedSet_eq_span {ι : Type*} {U : Submodule (F K) (ι → F K)}
   ext y
   constructor
   · rintro ⟨x, hxU, hxI, rfl⟩
-    have he := congrArg reduce (b.sum_coordinates x hxU)
-    rw [reduce_sum] at he
-    simp_rw [reduce_smul (b.integral_coordinates x hxI _) (b.vector_integral _)] at he
-    rw [← he]
-    exact Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _
-      (Submodule.subset_span ⟨j, rfl⟩)
+    rw [← b.sum_coordinates x hxU, reduce_sum]
+    simp_rw [reduce_smul (b.integral_coordinates x hxI _) (b.vector_integral _)]
+    exact Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _ (Submodule.subset_span ⟨j, rfl⟩)
   · intro hy
     obtain ⟨c, rfl⟩ := (Submodule.mem_span_range_iff_exists_fun K).mp hy
     refine ⟨∑ j, (HahnSeries.C (c j) : F K) • b.vector j, ?_, ?_, ?_⟩
@@ -559,14 +555,10 @@ private lemma liftMap_integral (P : (ι → K) →ₗ[K] (κ → K)) {x : ι →
 omit [Fintype κ] [DecidableEq κ] in
 private lemma reduction_liftMap (P : (ι → K) →ₗ[K] κ → K) (x : ι → F K) :
     reduce (liftMap P x) = P (reduce x) := by
-  have hc (a : K) (z : F K) : reduction (HahnSeries.C a * z) = a * reduction z := by
-    rw [HahnSeries.C_mul_eq_smul]; rfl
+  -- constant multiplication commutes with reduction
   funext j
   conv_rhs => rw [← Matrix.toLin'_toMatrix' P]
-  change reduction (∑ i, HahnSeries.C (LinearMap.toMatrix' P j i) * x i) = _
-  simp only [reduction, HahnSeries.coeff_sum] -- constant multiplication commutes with reduction
-  change (∑ i, reduction (HahnSeries.C (LinearMap.toMatrix' P j i) * x i)) = _
-  simp only [hc]
+  simp only [reduce, liftMap_apply, reduction, HahnSeries.coeff_sum, HahnSeries.C_mul_eq_smul]
   rfl
 
 /-- Extend a linear equivalence to Laurent-series vectors. -/

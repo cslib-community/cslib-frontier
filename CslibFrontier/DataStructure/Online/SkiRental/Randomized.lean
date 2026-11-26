@@ -334,11 +334,8 @@ theorem expectedCost_randomRentThenBuy (B : ℕ) [NeZero B] (reqs : List Unit) :
     RandStrategy.expectedCost (randomRentThenBuy B) false reqs =
       ENNReal.ofReal (randomizedRatio B) * (min reqs.length B : ℕ) := by
   have hB : 1 ≤ B := NeZero.pos B
-  have hcost : ∀ t : Fin B, ((rentThenBuy B t).cost false reqs : ℝ≥0∞) =
-      ((if reqs.length ≤ (t : ℕ) then reqs.length else t + B : ℕ) : ℝ≥0∞) := fun t => by
-    rw [cost_rentThenBuy]
   rw [randomRentThenBuy, RandStrategy.expectedCost_map]
-  simp only [rentDays_apply, hcost]
+  simp only [rentDays_apply, cost_rentThenBuy]
   rw [tsum_natCast_div_mul, Fin.sum_univ_eq_sum_range
     (fun t => buyWeight B t * (if reqs.length ≤ t then reqs.length else t + B)) B]
   have hsum : ∑ t ∈ range B, buyWeight B t * (if reqs.length ≤ t then reqs.length else t + B) =
@@ -411,11 +408,9 @@ private theorem sum_adv_eq (m : ℕ) (g : ℕ → ℕ) :
 theorem sum_advWeight (B : ℕ) [NeZero B] : ∑ o, advWeight B o = B ^ (B - 1) := by
   obtain ⟨m, rfl⟩ : ∃ m, B = m + 1 := ⟨B - 1, by have := NeZero.pos B; omega⟩
   have h := sum_adv_eq m (fun _ => 1)
-  simp only [mul_one] at h
   have h2 := sum_adv_aux m m le_rfl
-  rw [Nat.sub_self, pow_zero, mul_one] at h2
-  rw [h, Nat.add_sub_cancel]
-  omega
+  simp only [mul_one, Nat.sub_self, pow_zero] at h h2
+  rw [h, Nat.add_sub_cancel]; omega
 
 /-- Weighted offline optimum under the adversary: `∑ advWeight * min days B = B^B - (B-1)^B`. -/
 theorem sum_advWeight_mul_min (B : ℕ) [NeZero B] :
@@ -515,14 +510,10 @@ theorem not_isCompetitive_of_lt {B : ℕ} (μ : RandStrategy (problem B)) {c : �
     (hc : c < ENNReal.ofReal (randomizedRatio B)) : ¬ RandStrategy.IsCompetitive μ c 0 := by
   intro h
   obtain ⟨reqs, states, hv, hpos, hle⟩ := exists_randomized_witness B μ
-  have h1 := h false rfl reqs states hv
-  rw [add_zero] at h1
+  have h1 := (h false rfl reqs states hv).trans_eq (add_zero _)
   have hne : ((problem B).scheduleCost false reqs states : ℝ≥0∞) ≠ 0 := by
     exact_mod_cast (Nat.one_le_iff_ne_zero.mp hpos)
-  have hlt : c * ((problem B).scheduleCost false reqs states : ℝ≥0∞) <
-      ENNReal.ofReal (randomizedRatio B) * (problem B).scheduleCost false reqs states := by
-    rw [mul_comm c, mul_comm (ENNReal.ofReal _)]
-    exact ENNReal.mul_lt_mul_right hne (ENNReal.natCast_ne_top _) hc
-  exact absurd (hle.trans h1) (not_le.mpr hlt)
+  refine absurd (hle.trans h1) (not_le.mpr ?_)
+  simpa only [mul_comm] using ENNReal.mul_lt_mul_right hne (ENNReal.natCast_ne_top _) hc
 
 end Cslib.DataStructure.Online.SkiRental

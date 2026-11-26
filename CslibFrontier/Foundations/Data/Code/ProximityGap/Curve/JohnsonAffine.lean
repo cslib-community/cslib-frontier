@@ -222,17 +222,15 @@ theorem exists_weighted_correlatedAgreement_affine_johnson
     ∃ D' : Finset ι, B_W ≤ ∑ i ∈ D', W i ∧
       ∃ v₀ ∈ reedSolomon α k, ∃ v : Fin ℓ → (ι → F), (∀ j, v j ∈ reedSolomon α k) ∧
         ∀ i ∈ D', u₀ i = v₀ i ∧ ∀ j, u j i = v j i := by
-  have hB_lt_q :
-      ProximityGap.johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 W_tot < Fintype.card F :=
-    lt_card_field_of_density_threshold hT
   have hL_lt_q : 2 ≤ ℓ → ProximityGap.maxYDeg (k - 1) D < Fintype.card F := fun _ =>
-    (maxYDeg_le_johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 W_tot).trans_lt hB_lt_q
+    (maxYDeg_le_johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 W_tot).trans_lt
+      (lt_card_field_of_density_threshold hT)
   obtain ⟨D', _, hD'_ge, v₀, hv₀, v, hvRS, hagree⟩ :=
     exists_weighted_correlatedAgreement_affine_of_line
       (C := reedSolomon α k) (W := W) (B_W := B_W)
       (B_line := ProximityGap.johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 W_tot)
       (L := ProximityGap.maxYDeg (k - 1) D)
-      (fun w => card_reedSolomon_list_le_maxYDeg hα hk hm hM hW_le hinterp hroot w)
+      (card_reedSolomon_list_le_maxYDeg hα hk hm hM hW_le hinterp hroot)
       (fun {B'} hB' a b S hS hcl => by
         have ht_le : (B_W + M - 1) / M ≤ (B' + M - 1) / M :=
           Nat.div_le_div_right (by omega)
@@ -404,11 +402,8 @@ theorem exists_weighted_correlatedAgreement_affine_johnson_of_multiplicity
     ∃ D' : Finset ι, B_W ≤ ∑ i ∈ D', W i ∧
       ∃ v₀ ∈ reedSolomon α k, ∃ v : Fin ℓ → (ι → F), (∀ j, v j ∈ reedSolomon α k) ∧
         ∀ i ∈ D', u₀ i = v₀ i ∧ ∀ j, u j i = v j i := by
-  have hpos : 0 < 1800 * (M : ℝ) * ((m + 1 : ℝ) ^ 6) * ((Fintype.card ι : ℝ) ^ 2) /
-      (((k : ℝ) / Fintype.card ι) * Fintype.card F) := by
-    have : 1 ≤ Fintype.card ι := hk.trans hkn
-    have : 0 < Fintype.card F := Fintype.card_pos; positivity
-  obtain ⟨z₀, hz₀⟩ := nonempty_of_pos_lt_density hpos hT
+  have : Nonempty ι := Fintype.card_pos_iff.1 (hk.trans hkn)
+  obtain ⟨z₀, hz₀⟩ := nonempty_of_pos_lt_density (by positivity) hT
   have hBW_le : B_W ≤ M * Fintype.card ι :=
     let ⟨_, _, hge⟩ := hclose z₀ hz₀; hge.trans (sum_le_mul_card_of_le hW _)
   have ht_le : (B_W + M - 1) / M ≤ Fintype.card ι :=
@@ -480,13 +475,11 @@ theorem exists_ratWeighted_correlatedAgreement_affine_johnson_of_multiplicity
     ∃ D' : Finset ι, θ ≤ ∑ i ∈ D', μ i ∧
       ∃ v₀ ∈ reedSolomon α k, ∃ v : Fin ℓ → (ι → F), (∀ j, v j ∈ reedSolomon α k) ∧
         ∀ i ∈ D', u₀ i = v₀ i ∧ ∀ j, u j i = v j i := by
-  have hB : 0 < (1800 * (M : ℝ) * ((m + 1 : ℝ) ^ 6) * ((Fintype.card ι : ℝ) ^ 2) /
-      (((k : ℝ) / Fintype.card ι) * Fintype.card F)) := by
-    have : 0 < Fintype.card ι := hk.trans hkn
-    have : 0 < Fintype.card F := Fintype.card_pos; positivity
-  exact ratWeighted_to_nat_affine_ca hk hkn hM hμ_le hμ_den hθ (nonempty_of_pos_lt_density hB hT)
-    hclose fun hW_le hB' hclW => exists_weighted_correlatedAgreement_affine_johnson_of_multiplicity
-      hα hk hkn hm hM hW_le hB' u₀ u T hT hclW
+  have : Nonempty ι := Fintype.card_pos_iff.1 (hk.trans hkn)
+  exact ratWeighted_to_nat_affine_ca hk hkn hM hμ_le hμ_den hθ
+    (nonempty_of_pos_lt_density (by positivity) hT) hclose fun hW_le hB' hclW =>
+      exists_weighted_correlatedAgreement_affine_johnson_of_multiplicity
+        hα hk hkn hm hM hW_le hB' u₀ u T hT hclW
 
 /-- **Original explicit-constant `ℚ`-weighted correlated-agreement variant on affine spaces up to
 `1 - √ρ - η`** (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 1.6 on printed

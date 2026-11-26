@@ -239,7 +239,7 @@ private theorem hgArgmin_foldl (s : HgState n) (l : List (Fin n)) :
     intro S b h
     rw [List.foldl_cons, show S ++ x :: l = (S ++ [x]) ++ l by simp]
     apply ih
-    unfold HgArgminOK at h ⊢
+    unfold HgArgminOK at h
     unfold hgArgminStep
     by_cases hx : vget s.used x = true
     · rw [ite_eq_left hx]
@@ -254,30 +254,25 @@ private theorem hgArgmin_foldl (s : HgState n) (l : List (Fin n)) :
         · exact absurd ((List.mem_singleton.mp hj ▸ hju).symm.trans hx) Bool.noConfusion
     · rw [ite_eq_right hx]
       have hx' : vget s.used x = false := Bool.eq_false_iff.mpr hx
-      cases b with
-      | none =>
+      have hsome (m : Fin n) (hm : vget s.used m = false)
+          (hS : ∀ j ∈ S, vget s.used j = false → vget s.minv m ≤ vget s.minv j)
+          (hmx : vget s.minv m ≤ vget s.minv x) : HgArgminOK s (S ++ [x]) (some m) := by
         refine ⟨(fun hb => nomatch hb), fun k hk => ?_⟩
         cases hk
-        refine ⟨hx', fun j hj hju => ?_⟩
+        refine ⟨hm, fun j hj hju => ?_⟩
         rcases List.mem_append.mp hj with hj | hj
-        · exact absurd (hju.symm.trans (h.1 rfl j hj)) Bool.noConfusion
-        · rw [List.mem_singleton.mp hj]
+        · exact hS j hj hju
+        · exact List.mem_singleton.mp hj ▸ hmx
+      cases b with
+      | none =>
+        exact hsome x hx' (fun j hj hju =>
+          absurd (hju.symm.trans (h.1 rfl j hj)) Bool.noConfusion) le_rfl
       | some k₀ =>
         obtain ⟨hk1, hk2⟩ := h.2 k₀ rfl
         dsimp only
         split_ifs with hlt
-        · refine ⟨(fun hb => nomatch hb), fun k hk => ?_⟩
-          cases hk
-          refine ⟨hx', fun j hj hju => ?_⟩
-          rcases List.mem_append.mp hj with hj | hj
-          · exact hlt.le.trans (hk2 j hj hju)
-          · rw [List.mem_singleton.mp hj]
-        · refine ⟨(fun hb => nomatch hb), fun k hk => ?_⟩
-          cases hk
-          refine ⟨hk1, fun j hj hju => ?_⟩
-          rcases List.mem_append.mp hj with hj | hj
-          · exact hk2 j hj hju
-          · exact List.mem_singleton.mp hj ▸ not_lt.mp hlt
+        · exact hsome x hx' (fun j hj hju => hlt.le.trans (hk2 j hj hju)) le_rfl
+        · exact hsome k₀ hk1 hk2 (not_lt.mp hlt)
 
 theorem hgArgmin_none {s : HgState n} (h : hgArgmin s = none) :
     ∀ j, vget s.used j = true :=
@@ -469,19 +464,12 @@ theorem hgInv_dual {r : Fin n} {s : HgState n}
     fun i j hi hj => ?_, fun j => ?_⟩
   · rw [hgRed_dual]
     have := h.feas i j
-    by_cases hi : vget s.tree i = true <;> by_cases hj : vget s.used j = true
-    · rw [ite_eq_left hi, ite_eq_left hj]; omega
-    · rw [ite_eq_left hi, ite_eq_right hj]
-      have h1 := h.minv_le i j hi (Bool.eq_false_iff.mpr hj)
-      have h2 := hmin j (Bool.eq_false_iff.mpr hj)
-      omega
-    · rw [ite_eq_right hi, ite_eq_left hj]; omega
-    · rw [ite_eq_right hi, ite_eq_right hj]; omega
-  · rw [hgRed_dual, h.tight i j hm]
-    have hiff := h.tree_iff_used hm
-    by_cases hj : vget s.used j = true
-    · rw [ite_eq_left (hiff.mpr hj), ite_eq_left hj]; omega
-    · rw [ite_eq_right (fun hi => hj (hiff.mp hi)), ite_eq_right hj]; omega
+    split_ifs with hi hj <;> try omega
+    have h1 := h.minv_le i j hi (Bool.eq_false_iff.mpr hj)
+    have h2 := hmin j (Bool.eq_false_iff.mpr hj)
+    omega
+  · rw [hgRed_dual, h.tight i j hm, if_congr (h.tree_iff_used hm) rfl rfl]
+    split_ifs <;> omega
   · rw [hgDual_minv, hgRed_dual, ite_eq_left hi, hj, ite_eq_right Bool.false_ne_true,
       ite_eq_right Bool.false_ne_true]
     have := h.minv_le i j hi hj
@@ -698,9 +686,7 @@ theorem usedCount_vset {used : Vector Bool n} {j₁ : Fin n}
     (a := j₁) (by simp [hj₁])]
   congr 1
   ext j
-  rcases eq_or_ne j j₁ with rfl | hj
-  · simp
-  · simp [hj, vget_vset_ne _ _ hj.symm]
+  simp [vget_vset_true]
 
 theorem usedCount_all {used : Vector Bool n} (h : ∀ j, vget used j = true) :
     usedCount used = n := by
@@ -748,8 +734,7 @@ private theorem hgLoop_spec {r : Fin n} :
     simp only [hgLoop]
     cases ha : hgArgmin s with
     | none =>
-      have hall := hgArgmin_none ha
-      have h1 := usedCount_all hall
+      have h1 := usedCount_all (hgArgmin_none ha)
       have h2 := usedCount_le h.matching h.used_mate
       have h3 := card_lt_of_root_free h.matching h.root_free
       omega
@@ -763,14 +748,9 @@ private theorem hgLoop_spec {r : Fin n} :
       | none =>
         exact hgAugment hD hj₁ hz hm
       | some i₀ =>
-        have hE := hgInv_extend (s := hgDual s (vget s.minv j₁)) hD hj₁ hz hm
-        have hcnt : usedCount (hgExtend c (hgDual s (vget s.minv j₁)) j₁ i₀).used =
-            usedCount s.used + 1 := by
-          rw [hgExtend_used, hgDual_used]
-          exact usedCount_vset hj₁
-        exact ih _ hE (by
-          rw [hcnt, hgExtend_mate, hgDual_mate]
-          omega)
+        refine ih _ (hgInv_extend (s := hgDual s (vget s.minv j₁)) hD hj₁ hz hm) ?_
+        rw [hgExtend_used, hgDual_used, usedCount_vset hj₁, hgExtend_mate, hgDual_mate]
+        omega
 
 theorem hgInv_init {y z : Vector ℤ n} {mate : Vector (Option (Fin n)) n} {r : Fin n}
     (h : HgOuter c y z mate) (hr : r ∉ matchedLeft (mateMatching mate)) :
@@ -789,18 +769,11 @@ theorem hgInv_init {y z : Vector ℤ n} {mate : Vector (Option (Fin n)) n} {r : 
     subst hi
     rw [hgInit_minv]
   · rw [hgInit_path]
-    refine ⟨List.cons_ne_nil _ _, fun e he => ?_, fun e he => ?_, List.isChain_singleton _,
-      by simp, by simp, fun e he => ?_, fun e he => ?_⟩
-    · simp only [List.head?_cons, Option.mem_def, Option.some.injEq] at he
-      subst he
-      simp [hgInit_used, hgInit_minv]
-    · simp only [List.getLast?_singleton, Option.mem_def, Option.some.injEq] at he
-      subst he
-      rfl
-    · simp at he
-    · simp only [List.mem_singleton] at he
-      subst he
-      simp [hgInit_tree]
+    refine ⟨List.cons_ne_nil _ _, ?_, ?_, List.isChain_singleton _, by simp, by simp,
+      by simp, ?_⟩
+    · simp [hgInit_used, hgInit_minv]
+    · simp
+    · simp [hgInit_tree]
 
 private theorem hgPhase_spec {y z : Vector ℤ n} {mate : Vector (Option (Fin n)) n} {r : Fin n}
     (h : HgOuter c y z mate) (hr : r ∉ matchedLeft (mateMatching mate)) :
@@ -1167,11 +1140,8 @@ private theorem hgRowMin_add_const (c : Fin n × Fin n → ℤ) (S : ℤ) (u : F
     | nil => intro a; rfl
     | cons x l ih =>
       intro a
-      have hmin : min (a + S) (c (u, x) + S) = min a (c (u, x)) + S := by
-        simp only [min_def]
-        split_ifs <;> omega
-      simp only [List.foldl_cons, hmin]
-      exact ih (min a (c (u, x)))
+      have hm : min (a + S) (c (u, x) + S) = min a (c (u, x)) + S := by omega
+      simpa only [List.foldl_cons, hm] using ih (min a (c (u, x)))
   exact aux (List.finRange n) (c (u, u))
 
 private theorem hgRed_add_const (c : Fin n × Fin n → ℤ) (S : ℤ) (y z : Vector ℤ n) (u v : Fin n) :
@@ -1188,9 +1158,8 @@ private theorem hgDual_shiftHgState (S : ℤ) (s : HgState n) (δ : ℤ) :
   congr 1
   ext i hi
   simp only [vget, Vector.getElem_ofFn, Vector.getElem_map]
-  by_cases ht : s.tree[i] = true
-  · simp [ht]; omega
-  · simp [ht]
+  by_cases ht : s.tree[i] = true <;> simp only [ht, Bool.false_eq_true, ↓reduceIte]
+  omega
 
 private theorem hgExtend_shiftHgState (c : Fin n × Fin n → ℤ) (S : ℤ) (s : HgState n)
     (j₁ i₀ : Fin n) :
@@ -1216,16 +1185,15 @@ private theorem hgLoop_add_const (c : Fin n × Fin n → ℤ) (S : ℤ) :
     | none => rfl
     | some j₁ =>
       dsimp only
-      have hminv : vget (shiftHgState S s).minv j₁ = vget s.minv j₁ := rfl
-      rw [hminv, hgDual_shiftHgState]
-      have hmate : vget (shiftHgState S (hgDual s (vget s.minv j₁))).mate j₁ =
-          vget s.mate j₁ := rfl
-      rw [hmate, hgDual_mate]
+      rw [hgDual_shiftHgState]
+      change (match vget (hgDual s (vget s.minv j₁)).mate j₁ with
+        | none => _ | some i₀ => _) = _
+      rw [hgDual_mate]
       cases vget s.mate j₁ with
       | none => rfl
       | some i₀ =>
         dsimp only
-        rw [hgExtend_shiftHgState, ih]
+        rw [hgExtend_shiftHgState, ih]; rfl
 
 private theorem hgRows_add_const (c : Fin n × Fin n → ℤ) (S : ℤ) :
     ∀ (rows : List (Fin n)) (s : HgState n),
@@ -1256,13 +1224,9 @@ theorem hungarian_add_const (c : Fin n × Fin n → ℤ) (S : ℤ) :
       shiftHgState S (hgRows c (List.finRange n)
         (hgStartState (Vector.ofFn (hgRowMin c))
           (Vector.replicate n 0) (Vector.replicate n none))) := by
-    have hstart : hgStartState (Vector.ofFn (hgRowMin fun e => c e + S))
-        (Vector.replicate n 0) (Vector.replicate n none) =
-        shiftHgState S (hgStartState (Vector.ofFn (hgRowMin c))
-          (Vector.replicate n 0) (Vector.replicate n none)) := by
-      simp [hgStartState, shiftHgState, hy]
-    rw [hstart]
-    exact hgRows_add_const c S (List.finRange n) _
+    rw [hy]
+    exact hgRows_add_const c S (List.finRange n)
+      (hgStartState (Vector.ofFn (hgRowMin c)) (Vector.replicate n 0) (Vector.replicate n none))
   refine ⟨?_, fun u => ?_, fun v => ?_⟩
   · simp only [hungarian, hrows, shiftHgState]
   · simp only [hungarian, hrows, shiftHgState, vget, Vector.getElem_map]

@@ -272,9 +272,7 @@ theorem NTIME_subset_iUnion_DTIME_of_agree_padded {t T : ℕ → ℕ}
   set X := n + T n + 1
   have hX : 1 ≤ X := by omega
   have hL : 2 * n + 1 + t n ≤ (c' + 2) * X := by
-    have := ht a
-    simp only [X]
-    nlinarith
+    dsimp only [X]; nlinarith [show t n ≤ c' * (T n + 1) from ht a]
   have h₁ : (2 * n + 1 + t n) ^ d ≤ (c' + 2) ^ d * X ^ (d + 1) := by
     calc (2 * n + 1 + t n) ^ d ≤ ((c' + 2) * X) ^ d := Nat.pow_le_pow_left hL d
       _ = (c' + 2) ^ d * X ^ d := Nat.mul_pow _ _ _
@@ -412,8 +410,7 @@ theorem preimage_mem_NTIME_of_mem_NP {B : Set (List Bool)} {g : α → List Bool
         final.tapes.state = none := by
     intro final hfinal
     rw [MultiTapePTM.eval_runClosedConfigFrom_ofDeterministic, PMF.mem_support_pure_iff] at hfinal
-    subst hfinal
-    exact congrArg (·.state) (htm_run a)
+    exact hfinal ▸ congrArg (·.state) (htm_run a)
   have hout₁ (a : α) :
       ProbComp.eval (M_pad.runClosed (t₁ a) (enc a)) = PMF.pure (g a) := by
     rw [MultiTapePTM.eval_runClosed_ofDeterministic, htm_run a]
@@ -510,9 +507,7 @@ theorem preimage_append_two_pow_mem_NEXP {B : Set (List Bool)} (hB : B ∈ NP en
   rw [pow_mul]
   refine Nat.pow_le_pow_left ?_ D
   have := padTime_add_one_le (d := 0) (le_refl n) (le_refl n)
-  rw [pow_zero, zero_add] at this
-  simp only [T₀]
-  omega
+  simp only [pow_zero, zero_add, T₀] at this ⊢; omega
 
 /-- Pulling back `B ∈ P (encPair encBits encBits)` along
 `(a, y) ↦ (frame (enc a) ++ List.replicate (2 ^ f (enc a).length) true, y)`, where `f` is

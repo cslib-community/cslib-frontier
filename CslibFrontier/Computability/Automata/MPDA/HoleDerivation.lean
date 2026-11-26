@@ -56,13 +56,10 @@ theorem pendingAt_append_iff (hx : x < w.length) : PendingAt (w ++ v) p x ↔ Pe
   unfold PendingAt
   have hext : (w ++ v).extract (p + 1) (x + 1) = w.extract (p + 1) (x + 1) :=
     List.extract_append_right _ _ (by omega)
-  constructor
-  · rintro ⟨hpx, -, i, ⟨a, γ, hp⟩, hk⟩
-    refine ⟨hpx, hx, i, ⟨a, γ, ?_⟩, fun k => hext ▸ hk k⟩
-    rwa [List.getElem?_append_left (by omega)] at hp
-  · rintro ⟨hpx, -, i, ⟨a, γ, hp⟩, hk⟩
-    refine ⟨hpx, by simp; omega, i, ⟨a, γ, ?_⟩, fun k => hext.symm ▸ hk k⟩
-    rwa [List.getElem?_append_left (by omega)]
+  refine ⟨fun ⟨hpx, _, i, ⟨a, γ, hp⟩, hk⟩ => ⟨hpx, hx, i,
+      ⟨a, γ, (List.getElem?_append_left (by omega)).symm.trans hp⟩, fun k => hext ▸ hk k⟩,
+    fun ⟨hpx, _, i, ⟨a, γ, hp⟩, hk⟩ => ⟨hpx, hx.trans_le (by simp), i,
+      ⟨a, γ, (List.getElem?_append_left (by omega)).trans hp⟩, fun k => hext.symm ▸ hk k⟩⟩
 
 /-- A push pending at a position is pending at every earlier position from the push on. -/
 theorem PendingAt.anti (h : PendingAt w p x) (hpy : p ≤ y) (hyx : y ≤ x) : PendingAt w p y := by
@@ -204,9 +201,7 @@ theorem Snapshot.openHoles_le (h : Snapshot K w x C) : openHoles w x ≤ C.lengt
     obtain ⟨c, hc, e, he, rfl⟩ := hin q hq
     have hlt : f e.1 < C.length :=
       List.findIdx_lt_length_of_exists ⟨c, hc, List.any_eq_true.mpr ⟨e, he, by simp⟩⟩
-    have := List.findIdx_getElem (w := hlt)
-    simp only [List.any_eq_true, beq_iff_eq] at this
-    exact ⟨hlt, this⟩
+    exact ⟨hlt, by simpa only [List.any_eq_true, beq_iff_eq] using List.findIdx_getElem (w := hlt)⟩
   -- Two counted pushes in the same chain are equal.
   have hinj : Set.InjOn f S := by
     intro q hq q' hq' hqq'
@@ -232,16 +227,14 @@ theorem Snapshot.openHoles_le (h : Snapshot K w x C) : openHoles w x ≤ C.lengt
     have hghole : HolePush w g.1 := by
       refine ⟨⟨c.stack, hgpush⟩, fun ⟨m, hm, hmwn⟩ => hnot' ?_⟩
       have hmx : x < m := lt_of_not_ge fun hmx => not_pendingAt_of_matches hm hmx hgx
-      obtain ⟨-, -, -, hwm⟩ := exists_matches_of_wellNested hmwn
-        (by have := hm.lt_length; omega) (by omega) (by have := hq'x.1; omega) ⟨a', e'.2, hea'⟩
-      exact hwm
+      exact (exists_matches_of_wellNested hmwn hm.lt_length hge'.le
+        ((hq'x.1.trans_lt hmx).trans (lt_add_one m)) ⟨a', e'.2, hea'⟩).elim fun _ h => h.2.2
     exact hfirst ⟨g.1, hge', ⟨hghole, hgx⟩, ⟨⟨⟨c.stack, ⟨a', e'.2, hea'⟩⟩, hnot'⟩, hq'x⟩,
       ⟨c.stack, hgpush, a', e'.2, hea'⟩, hwn⟩
   calc openHoles w x = S.ncard := rfl
     _ ≤ ((Finset.range C.length : Finset ℕ) : Set ℕ).ncard :=
-        Set.ncard_le_ncard_of_injOn f (fun q hq => by
-          obtain ⟨hlt, -⟩ := hf q hq
-          simpa using hlt) hinj (Finset.finite_toSet _)
+        Set.ncard_le_ncard_of_injOn f (fun q hq => by simpa using (hf q hq).1) hinj
+          (Finset.finite_toSet _)
     _ = C.length := by rw [Set.ncard_coe_finset, Finset.card_range]
 
 end Counting
@@ -576,11 +569,9 @@ theorem HoleBoundary.append_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {
     · rcases List.mem_cons.mp hc with rfl | hc
       · exact (h₃ c₀ hc₀).tail
       · exact h₃ c (by simp [hc])
-  · have hqw : q < w.length := by
-      by_contra hqw
-      obtain ⟨hqx, -, j, ⟨a, δ, hqa⟩, -⟩ := hq
-      rw [hlen] at hqx
-      obtain rfl : q = w.length := by omega
+  · have hqw : q < w.length := not_le.mp fun hqw => by
+      obtain ⟨hqx, -, _, ⟨_, _, hqa⟩, -⟩ := hq
+      obtain rfl : q = w.length := by simp [w'] at hqx; omega
       simp [w'] at hqa
     obtain ⟨c, hc, e, he, rfl⟩ := h₄ q ((pendingAt_append_iff (by omega)).mp
       (hq.anti (y := w.length - 1) (by omega) (by rw [hlen]; omega)))
@@ -681,8 +672,7 @@ theorem HoleDerivation.invariant {K : ℕ} {C : List (HoleChain n Γ)} {w : List
       exact ⟨Cx, hCx.append hx₁⟩
     · exact ⟨_, hS' x (by omega) hx⟩
   | hole _ hC hb ih =>
-    obtain ⟨hB, hS⟩ := ih
-    obtain ⟨hB', hS', -⟩ := hb.boundary rfl hC hB hS
+    obtain ⟨hB', hS', -⟩ := hb.boundary rfl hC ih.1 ih.2
     exact ⟨hB', hS'⟩
   | @pop pre post w ps i p γ b _ hpost ih =>
     obtain ⟨hB, hS⟩ := ih
@@ -691,9 +681,7 @@ theorem HoleDerivation.invariant {K : ℕ} {C : List (HoleChain n Γ)} {w : List
     by_cases hx₁ : x < w.length
     · obtain ⟨Cx, hCx⟩ := hS x hx₁
       exact ⟨Cx, hCx.append hx₁⟩
-    · have hidx : (w ++ [(b, Op.pop i γ)]).length - 1 = x := by
-        simp at hx hx₁ ⊢
-        omega
+    · have hidx : (w ++ [(b, Op.pop i γ)]).length - 1 = x := by simp at hx hx₁ ⊢; omega
       exact ⟨_, hidx ▸ hB'.snapshot⟩
   | close _ ih => exact ⟨ih.1.close, ih.2⟩
 

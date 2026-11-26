@@ -407,14 +407,10 @@ private theorem frameBorder_succ (depth coordinate transverse : ℕ) :
   rw [frameBorder, frameBorder,
     ← inFrame_succ_iff_ceilDivFour depth transverse]
   simp only [openingBoundary_succ_iff, closingBoundary_succ_iff]
-  have boundaryDistinct :
-      frameStartResidue depth ≠ frameEndResidue depth := by
-    have scalePositive : 0 < scale depth := scale_pos depth
+  have boundaryDistinct : frameStartResidue depth ≠ frameEndResidue depth := by
+    have := scale_pos depth
     simp only [frameStartResidue, frameEndResidue]
     omega
-  have boundaryDistinctSymm :
-      frameEndResidue depth ≠ frameStartResidue depth :=
-    Ne.symm boundaryDistinct
   by_cases inside : inFrame (depth + 1) transverse <;>
     simp only [inside, ite_true]
   · by_cases opening :
@@ -424,7 +420,7 @@ private theorem frameBorder_succ (depth coordinate transverse : ℕ) :
     · by_cases closing :
           ceilDivFour coordinate % period depth = frameEndResidue depth
       · by_cases fineClosing : coordinate % 4 = 0 <;>
-          simp [liftBorder, closing, fineClosing, boundaryDistinctSymm]
+          simp [liftBorder, closing, fineClosing, boundaryDistinct.symm]
       · simp [liftBorder, opening, closing]
   · rfl
 
@@ -796,12 +792,9 @@ private theorem arithmeticState_admissible (level x y : ℕ)
   | succ level ih =>
     have hx' : x / 4 < 4 ^ level := by rw [pow_succ] at hx; omega
     have hy' : y / 4 < 4 ^ level := by rw [pow_succ] at hy; omega
-    have refined := BorderState.refine_admissible (ih _ _ hx' hy')
-      ⟨x % 4, Nat.mod_lt _ (by decide)⟩ ⟨y % 4, Nat.mod_lt _ (by decide)⟩
-    rw [← arithmeticState_succ] at refined
-    have xeq : 4 * (x / 4) + x % 4 = x := by omega
-    have yeq : 4 * (y / 4) + y % 4 = y := by omega
-    simpa only [xeq, yeq] using refined
+    simpa only [← arithmeticState_succ, Nat.div_add_mod] using
+      BorderState.refine_admissible (ih _ _ hx' hy')
+        ⟨x % 4, Nat.mod_lt _ (by decide)⟩ ⟨y % 4, Nat.mod_lt _ (by decide)⟩
 
 /-- The three certified ways index zero occurs in a canonical child block. -/
 theorem supertileIndexGrid_zero_cases
@@ -822,13 +815,11 @@ theorem supertileIndexGrid_zero_cases
   let j : Fin 4 := ⟨y % 4, Nat.mod_lt _ (by decide)⟩
   have eqn : (arithmeticState level (x / 4) (y / 4)).refine i j =
       arithmeticState (level + 1) x y := by
-    rw [← arithmeticState_succ]
-    congr 1 <;> dsimp only [i, j] <;> omega
-  have childZero : ((arithmeticState level (x / 4) (y / 4)).refine i j).node.parent = 0 :=
-    eqn ▸ indexZero
+    simp only [← arithmeticState_succ, i, j, Nat.div_add_mod]
   simpa only [arithmeticState, supertileIndexGrid, Fin.ext_iff, i, j, Fin.val_zero, Fin.val_one,
     Fin.val_two] using
-    BorderState.corner_transition (arithmeticState_admissible level _ _ hx' hy') i j childZero
+    BorderState.corner_transition (arithmeticState_admissible level _ _ hx' hy') i j
+      (eqn ▸ indexZero)
 
 private theorem interiors_seed_eq_selectedBorder
     (level x y : ℕ) (hx : x < side level) (hy : y < side level) :
@@ -839,9 +830,7 @@ private theorem interiors_seed_eq_selectedBorder
   have observation := BorderState.observations
     (arithmeticState_admissible level _ _ hx' hy')
     ⟨x % 2, Nat.mod_lt _ (by decide)⟩ ⟨y % 2, Nat.mod_lt _ (by decide)⟩
-  have xeq : 2 * (x / 2) + x % 2 = x := by omega
-  have yeq : 2 * (y / 2) + y % 2 = y := by omega
-  simpa only [arithmeticState, Fin.val_castSucc, xeq, yeq, rowInterior, columnInterior] using
+  simpa only [arithmeticState, Fin.val_castSucc, Nat.div_add_mod, rowInterior, columnInterior] using
     And.intro observation.1.symm observation.2.symm
 
 /-- Actual selected vertical borders of the seed patch are precisely the arithmetic borders. -/

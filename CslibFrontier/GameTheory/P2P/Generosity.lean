@@ -97,17 +97,14 @@ theorem uniformTail_le_one {θ_m : ℝ} (hθ : 0 < θ_m) (t : ℝ) : uniformTail
 theorem uniformTail_antitone {θ_m : ℝ} (hθ : 0 < θ_m) : Antitone (uniformTail θ_m) := by
   intro t₁ t₂ hle
   by_cases h1 : t₁ ≤ 0
-  · have htail1 : uniformTail θ_m t₁ = 1 := by simp [uniformTail, h1]
-    rw [htail1]
+  · rw [uniformTail_of_le_zero h1]
     exact uniformTail_le_one hθ t₂
   · have ht1_pos : 0 < t₁ := lt_of_not_ge h1
     have h2 : ¬ t₂ ≤ 0 := not_le.mpr (lt_of_lt_of_le ht1_pos hle)
     by_cases h2θ : t₂ ≤ θ_m
-    · have h1θ : t₁ ≤ θ_m := hle.trans h2θ
-      simp only [uniformTail, h1, h2, h1θ, h2θ, ↓reduceIte]
+    · simp only [uniformTail, h1, h2, hle.trans h2θ, h2θ, ↓reduceIte]
       linarith [div_le_div_of_nonneg_right hle hθ.le]
-    · have htail2 : uniformTail θ_m t₂ = 0 := by simp [uniformTail, h2, h2θ]
-      rw [htail2]
+    · simp only [uniformTail, h2, h2θ, ↓reduceIte]
       exact uniformTail_nonneg hθ t₁
 
 theorem uniformTail_of_pos_le {θ_m t : ℝ} (ht0 : 0 < t) (htθ : t ≤ θ_m) :
@@ -194,31 +191,28 @@ theorem uniformEquilibrium_iff {θ_m x : ℝ} (hθ : 0 < θ_m) :
     have hinv_pos : 0 < 1 / x := one_div_pos.mpr hx0
     have hle_θm : 1 / x ≤ θ_m := by
       by_contra hgt
-      have h0 : uniformTail θ_m (1 / x) = 0 := uniformTail_of_gt hinv_pos (lt_of_not_ge hgt)
-      linarith
-    have htail : uniformTail θ_m (1 / x) = 1 - (1 / x) / θ_m :=
-      uniformTail_of_pos_le hinv_pos hle_θm
-    rw [htail] at hxeq
+      linarith [uniformTail_of_gt hinv_pos (lt_of_not_ge hgt)]
+    rw [uniformTail_of_pos_le hinv_pos hle_θm] at hxeq
     have hquad : θ_m * x ^ 2 - θ_m * x + 1 = 0 := by
       field_simp [hx0.ne', hθ.ne'] at hxeq
       linarith
     have h4 : 4 ≤ θ_m := by nlinarith [mul_nonneg hθ.le (sq_nonneg (x - 1 / 2))]
     have hdisc : 0 ≤ θ_m ^ 2 - 4 * θ_m * 1 := by
-      rw [hdisc_eq]; exact mul_nonneg hθ.le (sub_nonneg.mpr h4)
-    refine ⟨h4, ?_⟩
-    simpa only [unifLowRoot, unifHighRoot, hdisc_eq] using (quad_sol_iff hθ hdisc).mp hquad
+      rw [hdisc_eq]
+      exact mul_nonneg hθ.le (sub_nonneg.mpr h4)
+    exact ⟨h4, by simpa only [unifLowRoot, unifHighRoot, hdisc_eq] using
+      (quad_sol_iff hθ hdisc).mp hquad⟩
   · rintro ⟨hθ4, hroot⟩
     obtain ⟨hlow_pos, hlow_le, hhigh_lt⟩ := unifRoot_props hθ4
     have hdisc : 0 ≤ θ_m ^ 2 - 4 * θ_m * 1 := by
-      rw [hdisc_eq]; exact mul_nonneg hθ.le (sub_nonneg.mpr hθ4)
+      rw [hdisc_eq]
+      exact mul_nonneg hθ.le (sub_nonneg.mpr hθ4)
     obtain ⟨hx_pos, hx_le⟩ : 0 < x ∧ x ≤ 1 := by
       rcases hroot with rfl | rfl <;> constructor <;> linarith
-    have hquad : θ_m * x ^ 2 - θ_m * x + 1 = 0 := by
-      refine (quad_sol_iff hθ hdisc).mpr ?_
-      rcases hroot with rfl | rfl
-      · exact Or.inl (by unfold unifLowRoot; rw [← hdisc_eq])
-      · exact Or.inr (by unfold unifHighRoot; rw [← hdisc_eq])
-    exact uniformEquilibrium_of_quad hθ hx_pos hx_le hquad
+    refine uniformEquilibrium_of_quad hθ hx_pos hx_le ((quad_sol_iff hθ hdisc).mpr ?_)
+    rcases hroot with rfl | rfl
+    · exact Or.inl (by unfold unifLowRoot; rw [← hdisc_eq])
+    · exact Or.inr (by unfold unifHighRoot; rw [← hdisc_eq])
 
 /-- Critical point at `θ_m = 4`: the two equilibrium roots coalesce at `1 / 2`, and strictly below
 `θ_m = 4` positive generosity collapses completely (NRTV Claim 23.1). -/
@@ -239,7 +233,6 @@ theorem uniform_stability {θ_m : ℝ} (hθ4 : 4 ≤ θ_m) {x : ℝ} (hx₀ : 0 
     (unifLowRoot θ_m < x → x < unifHighRoot θ_m → x < uniformTail θ_m (1 / x)) ∧
       ((x < unifLowRoot θ_m ∨ unifHighRoot θ_m < x) → uniformTail θ_m (1 / x) < x) := by
   have hθ : 0 < θ_m := by linarith
-  have hdisc_eq : θ_m * (θ_m - 4) = θ_m ^ 2 - 4 * θ_m * 1 := by ring
   set d := Real.sqrt (θ_m * (θ_m - 4))
   have hd : d ^ 2 = θ_m * (θ_m - 4) := Real.sq_sqrt (mul_nonneg hθ.le (sub_nonneg.mpr hθ4))
   have hfac : θ_m * x ^ 2 - θ_m * x + 1 =
@@ -489,8 +482,7 @@ theorem exists_mixtureEquilibrium_iff {θ_m φ : ℝ} (hθ : 0 < θ_m) (hφ₀ :
       rw [div_le_iff₀ h1φ_sub]
       have hx₀ : 0 < x := heq.1
       have hy1 : 1 ≤ θ_m * x := by
-        have := (div_le_iff₀ hx₀).mp hle_θm
-        linarith
+        rwa [div_le_iff₀ hx₀] at hle_θm
       have hdisc : 0 ≤ ((1 + φ) / 2 * θ_m) ^ 2 - 4 * θ_m * φ :=
         (mixture_disc_nonneg_iff hθ hφ₀).mp hthr
       have hquad : θ_m * x ^ 2 - ((1 + φ) / 2 * θ_m) * x + φ = 0 :=
@@ -614,9 +606,7 @@ nonnegative support (`∀ t ≤ 0, tail t = 1`), any benefit `α > 0`, and any p
 theorem fullCooperation_penalty_threshold {tail : ℝ → ℝ} (htail : ∀ t ≤ 0, tail t = 1)
     {α p : ℝ} (hα : 0 < α) (hp : 1 / α ≤ p) :
     penaltyThreshold α 1 p ≤ 0 ∧ penaltyEquilibrium tail α p 1 := by
-  have h1α : 1 ≤ α * p := by
-    have h := (div_le_iff₀ hα).mp hp
-    linarith
+  have h1α : 1 ≤ α * p := by rwa [div_le_iff₀ hα, mul_comm] at hp
   have hthr : penaltyThreshold α 1 p ≤ 0 := by
     simp only [penaltyThreshold, requestLoad, sub_self, zero_mul, sub_zero, div_one, mul_one]
     linarith

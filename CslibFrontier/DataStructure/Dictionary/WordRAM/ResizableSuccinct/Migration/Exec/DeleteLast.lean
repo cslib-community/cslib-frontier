@@ -118,8 +118,7 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
       (∀ a, ¬(base + 63 ≤ a ∧ a < base + 225) → y.mem a = x.mem a) := by
   intro u₀
   obtain ⟨hw, hU, hV⟩ := rootHeaderValid_bounds hx hsplit.root_hdr
-  have h1N : 1 ≤ N := by rcases hev with ⟨h0, _⟩ | ⟨_, h1N, _, _⟩ <;> omega
-  have hNU : N ≤ U := by rcases hev with ⟨h0, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
+  obtain ⟨_, h1N, _, hNU⟩ := hev.resolve_left (by simp)
   set off := offCompItems U w N
   set iw := compactedItemWords U V w N 1
   have hce : compactedEpochWords U V w N 1 = off + iw := by
@@ -304,8 +303,7 @@ private theorem deleteLastHitTailCode_exec {U V w N n_init base : ℕ} {x y : RD
       (∀ addr < base, z.mem addr = x.mem addr) := by
   obtain ⟨hw, hU, hV⟩ := rootHeaderValid_bounds hyb
     (rootHeaderValid_congr hhdr fun a ha => hy_mem a (fun h => by linarith only [ha.2, h.1]))
-  have hN4 : N ≤ 4 := by rcases hev with ⟨h0, _⟩ | ⟨_, _, hN4, _⟩ <;> omega
-  have hNU : N ≤ U := by rcases hev with ⟨h0, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
+  obtain ⟨_, _, hN4, hNU⟩ := hev.resolve_left (by simp)
   set off := offCompItems U w N
   set iw := compactedItemWords U V w N 1
   have hce : compactedEpochWords U V w N 1 = off + iw := by
@@ -338,7 +336,6 @@ private theorem deleteLastHitTailCode_exec {U V w N n_init base : ℕ} {x y : RD
   set y₄ := (y₃.set mCur (base + 7)).write (base + 7) 0
   set y₅ := y₄.set mCur 8
   have hex_c8 := RDemonicExec.const (B := .exact) (d := mCur) (v := 8) (x := y₄) hyf.le hfit8
-  set y₆ := y₅.set mCur (base + 8)
   have hy₄_base : y₄.regs mBase = base := by
     simp [y₄, y₃, y₂, y₁, RData.set, RData.write, hy_base]
   have hy₄_fr : y₄.regs mFr = x.frontier := by
@@ -436,7 +433,7 @@ theorem deleteLastOneCode_demonicExec {U V w N n_init base : ℕ}
         inEpochPotential U w N base z = inEpochPotential U w N base x ∧
         steps ≤ deleteLastOneCharge) := by
   obtain ⟨hw, _, _⟩ := rootHeaderValid_bounds hx hsplit.root_hdr
-  have hNU : N ≤ U := by rcases hev with ⟨h0, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
+  obtain ⟨_, _, _, hNU⟩ := hev.resolve_left (by simp)
   obtain ⟨s_fix, hinv, htot, hcpl⟩ := hsplit.coupled
   obtain ⟨hrec_val, _, hrec_surj⟩ := reconstructKeyAt_spec hsplit.vals_lt hNU hinv hcpl htot
   obtain ⟨hu₀_lt, hs₀, _⟩ := hrec_val 0 zero_lt_one
@@ -446,25 +443,24 @@ theorem deleteLastOneCode_demonicExec {U V w N n_init base : ℕ}
   have hf1 := one_le_migFactor
   by_cases hsome : (s_abs u).isSome
   · obtain ⟨d, hd, hd_eq⟩ := hrec_surj u hsome
-    have hd0 : d = 0 := Nat.lt_one_iff.mp hd
-    subst hd0
+    obtain rfl : d = 0 := Nat.lt_one_iff.mp hd
     change u₀ = u.val at hd_eq
     have hc_eq : (Cond.eq mU0 mArgU).Holds y.toData := by
       change y.regs mU0 = y.regs mArgU
-      rw [hy_u0, hy_argu, hu_reg]; exact hd_eq
+      rw [hy_u0, hy_argu, hu_reg]
+      exact hd_eq
     obtain ⟨z, steps_h, hex_h, hc_h, hrep_z, hz_base, hbelow_z⟩ :=
       deleteLastHitTailCode_exec hev hfr hsplit.root_hdr hyb hyf hy_fr_reg hy_base hy_mem
     have hs_empty : Function.update s_abs u none = Dictionary.empty U := by
       funext k
       by_cases hku : k = u
-      · subst hku; simp [Dictionary.empty]
+      · simp [hku, Dictionary.empty]
       · rw [Function.update_of_ne hku]
         cases hk_eq : s_abs k with
         | none => rfl
         | some val =>
-          obtain ⟨d', hd', hd'_eq⟩ := hrec_surj k (by rw [hk_eq]; simp)
-          have hd'0 : d' = 0 := Nat.lt_one_iff.mp hd'
-          subst hd'0
+          obtain ⟨d', hd', hd'_eq⟩ := hrec_surj k (by simp [hk_eq])
+          obtain rfl : d' = 0 := Nat.lt_one_iff.mp hd'
           exact absurd (Fin.ext (hd'_eq.symm.trans hd_eq)) hku
     refine ⟨z, _, hex_r.seq_eq (RDemonicExec.branch_pos hc_eq hex_h),
       hrep_z.bounded, hz_base, hbelow_z, ?_⟩
@@ -473,31 +469,23 @@ theorem deleteLastOneCode_demonicExec {U V w N n_init base : ℕ}
     unfold deleteLastOneCharge
     linarith only [hc_r, hc_h, hf1]
   · have hne_u : u₀ ≠ u.val := fun heq => by
-      have hu_eq : u = ⟨u₀, hu₀_lt⟩ := Fin.ext heq.symm
-      rw [hu_eq, hs₀] at hsome
+      rw [show u = ⟨u₀, hu₀_lt⟩ from Fin.ext heq.symm, hs₀] at hsome
       exact hsome rfl
     have hnc_eq : ¬(Cond.eq mU0 mArgU).Holds y.toData := by
       change y.regs mU0 ≠ y.regs mArgU
-      rw [hy_u0, hy_argu, hu_reg]; exact hne_u
+      rw [hy_u0, hy_argu, hu_reg]
+      exact hne_u
     have hex_nop := RDemonicExec.copy (B := .exact) (w := w) (L_peak := x.frontier)
       (d := mZero) (s := mZero) (x := y) hyf.le
     set z := y.set mZero (y.regs mZero)
     have hzb : z.Bounded w := hyb.set (hyb.regs_fits mZero)
-    have hzf : z.frontier = x.frontier := hyf
-    have hzm : z.mem = y.mem := rfl
-    have hs_same : Function.update s_abs u none = s_abs := by
-      funext k
-      by_cases hku : k = u
-      · subst hku; simp only [Function.update_self]
-        cases hk_eq : s_abs k with
-        | none => rfl
-        | some _ => exact absurd (by rw [hk_eq]; simp) hsome
-      · exact Function.update_of_ne hku _ _
+    have hs_same : Function.update s_abs u none = s_abs :=
+      Function.update_eq_self_iff.mpr (Option.not_isSome_iff_eq_none.mp hsome).symm
     have hout_scr : ∀ a, (a < base + offScratch ∨ base + epochHdrWords ≤ a) → z.mem a = x.mem a :=
       fun a ha => hy_mem a (by unfold offScratch epochHdrWords at ha; omega)
     have hsplit_z : CompactedSplitRep base (base + offCompItems U w N) U V w N 1 n_init θ s_abs
         ⟨z.mem, z.frontier⟩ :=
-      compactedSplitRep_of_scratch_mod hw hsplit hzf hout_scr
+      compactedSplitRep_of_scratch_mod hw hsplit hyf hout_scr
     have hpot_eq : inEpochPotential U w N base z = inEpochPotential U w N base x := by
       unfold inEpochPotential
       rw [compGmAt_eq_of_scratch_mod hw hout_scr]
@@ -505,7 +493,7 @@ theorem deleteLastOneCode_demonicExec {U V w N n_init base : ℕ}
       hzb, by simp [z, RData.set, hy_base],
       fun addr haddr => hy_mem addr (fun h => by linarith only [haddr, h.1]), ?_⟩
     rw [ite_eq_right hsome]
-    refine ⟨hs_same, hzf.trans hfr, hsplit_z, hpot_eq, ?_⟩
+    refine ⟨hs_same, hyf.trans hfr, hsplit_z, hpot_eq, ?_⟩
     unfold deleteLastOneCharge
     linarith only [hc_r, hf1]
 

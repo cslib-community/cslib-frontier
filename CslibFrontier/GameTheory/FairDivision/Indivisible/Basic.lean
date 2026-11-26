@@ -153,13 +153,10 @@ theorem isComplete_ofAssignment (f : Fin m → Fin n) : (ofAssignment f).IsCompl
       (allAssignments n m).map fun f => Fin.cons i f
 
 theorem mem_allAssignments {n : ℕ} : ∀ {m : ℕ} (f : Fin m → Fin n), f ∈ allAssignments n m
-  | 0, f => by
-    have hf : f = Fin.elim0 := Subsingleton.elim f Fin.elim0
-    simp [allAssignments, hf]
-  | m + 1, f => by
-    rw [allAssignments, List.mem_flatMap]
-    refine ⟨f 0, List.mem_finRange (f 0), List.mem_map.2 ⟨Fin.tail f, mem_allAssignments _, ?_⟩⟩
-    exact Fin.cons_self_tail f
+  | 0, f => Subsingleton.elim f Fin.elim0 ▸ by simp [allAssignments]
+  | m + 1, f => List.mem_flatMap.2
+      ⟨f 0, List.mem_finRange (f 0), List.mem_map.2 ⟨Fin.tail f, mem_allAssignments _,
+        Fin.cons_self_tail f⟩⟩
 
 /-- Exhaustive computable list of all complete allocations of `m` goods among `n` agents. -/
 @[expose] def completeAllocationList (n m : ℕ) : List (BundleAllocation n m) :=
@@ -219,10 +216,9 @@ theorem giveGood_bundle_of_ne (A : BundleAllocation n m) {i j : Fin n} (g : Fin 
     (A.giveGood i g hg).allocatedGoods = insert g A.allocatedGoods := by
   ext x
   simp only [mem_allocatedGoods, Finset.mem_insert, giveGood]
-  refine ⟨?_, ?_⟩
-  · rintro ⟨j, hj⟩
-    split_ifs at hj with hji
-    · exact (Finset.mem_insert.1 hj).imp_right fun hx => ⟨i, hx⟩
+  refine ⟨fun ⟨j, hj⟩ => ?_, ?_⟩
+  · split_ifs at hj with hji
+    · exact (Finset.mem_insert.1 hj).imp_right (⟨i, ·⟩)
     · exact Or.inr ⟨j, hj⟩
   · rintro (rfl | ⟨j, hj⟩)
     · exact ⟨i, by simp⟩
@@ -311,9 +307,8 @@ theorem transferGood_bundle_other (A : BundleAllocation n m) {j i k : Fin n} (g 
 theorem isComplete_transferGood {A : BundleAllocation n m} (j i : Fin n) (g : Fin m)
     (hg : g ∈ A.bundle j) (hA : A.IsComplete) :
     (A.transferGood j i g hg).IsComplete := fun x => by
-  by_cases hxg : x = g
-  · subst hxg
-    exact ⟨i, by simp⟩
+  rcases eq_or_ne x g with rfl | hxg
+  · exact ⟨i, by simp⟩
   · obtain ⟨k, hkx⟩ := hA x
     refine ⟨k, ?_⟩
     dsimp only [transferGood]
@@ -701,11 +696,9 @@ theorem isEF1_roundRobin (hn : 0 < n) : W.toMonotoneValuation.IsEF1 (W.roundRobi
       have hsdiff : (W.roundRobin hn).bundle j \ {W.rrPick hn t₀} = T'.image (W.rrPick hn) := by
         ext x
         simp only [T', roundRobin, Finset.mem_sdiff, Finset.mem_singleton, Finset.mem_image]
-        refine ⟨?_, ?_⟩
-        · rintro ⟨⟨t, ht, rfl⟩, hne⟩
-          exact ⟨t, ⟨ht, fun h => hne (congrArg _ h)⟩, rfl⟩
-        · rintro ⟨t, ⟨ht, hne⟩, rfl⟩
-          exact ⟨⟨t, ht, rfl⟩, fun h => hne (W.rrPick_injective hn h)⟩
+        exact ⟨fun ⟨⟨t, ht, hx⟩, hne⟩ => ⟨t, ⟨ht, fun h => hne (hx ▸ congrArg _ h)⟩, hx⟩,
+          fun ⟨t, ⟨ht, hne⟩, hx⟩ =>
+            ⟨⟨t, ht, hx⟩, fun h => hne (W.rrPick_injective hn (hx.trans h))⟩⟩
       have hsum_img : W.bundleVal i (T'.image (W.rrPick hn)) =
           ∑ t ∈ T', W.weight i (W.rrPick hn t) :=
         Finset.sum_image fun _ _ _ _ h => W.rrPick_injective hn h
@@ -728,10 +721,8 @@ theorem isEF1_roundRobin (hn : 0 < n) : W.toMonotoneValuation.IsEF1 (W.roundRobi
           _ = n * (t.val / n) := by rw [← Nat.mul_add_one, Nat.sub_add_cancel (hq_pos t ht)]
       exact hlt_step.le.trans (Nat.mul_div_le t.val n)
     · left
-      have hEmpty : rrTurns n m j = ∅ := Finset.filter_eq_empty_iff.mpr fun t _ hmod => by
-        have := Nat.mod_le t.val n
-        have := t.isLt
-        omega
+      have hEmpty : rrTurns n m j = ∅ := Finset.filter_eq_empty_iff.mpr fun t _ hmod =>
+        hjm (hmod ▸ (Nat.mod_le t.val n).trans_lt t.isLt)
       simp only [roundRobin, hEmpty, Finset.image_empty, W.bundleVal_empty]
       exact W.bundleVal_nonneg i _
 

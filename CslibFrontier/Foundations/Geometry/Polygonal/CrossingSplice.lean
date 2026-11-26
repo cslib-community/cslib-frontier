@@ -271,18 +271,16 @@ private theorem exists_route_support_between (p : Route) (i j : Fin p.segments) 
     simp only [contribution, he, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one]
   have hgerm_start (hi : i = 0) (hs₀ : s = 0) :
       ∃ c : ℝ, 0 < c ∧ q.germ false = c • p.germ false := by
-    have hi' := interval_first hij e
     obtain ⟨_, hlt, _, he⟩ := hspec 0
-    simp only [hi', ↓reduceIte] at hlt he
-    apply exists_pos_smul_germ_of_end_eval q p false hlt hs₀
-    simpa only [endSegment, Bool.false_eq_true, ↓reduceIte, hi] using he
+    simp only [interval_first hij e, ↓reduceIte] at hlt he
+    exact exists_pos_smul_germ_of_end_eval q p false hlt hs₀
+      (by simpa only [endSegment, Bool.false_eq_true, ↓reduceIte, hi] using he)
   have hgerm_finish (hj : j = Fin.last p.bends) (ht₁ : t = 1) :
       ∃ c : ℝ, 0 < c ∧ q.germ true = c • p.germ true := by
-    have hj' := interval_last hij e
     obtain ⟨_, hlt, _, he⟩ := hspec (Fin.last q.bends)
-    simp only [hj', ↓reduceIte] at hlt he
-    apply exists_pos_smul_germ_of_end_eval q p true hlt ht₁
-    simpa only [endSegment, ↓reduceIte, hj] using he
+    simp only [interval_last hij e, ↓reduceIte] at hlt he
+    exact exists_pos_smul_germ_of_end_eval q p true hlt ht₁
+      (by simpa only [endSegment, ↓reduceIte, hj] using he)
   refine ⟨q, hstart, hfinish, ?_, hparity, hgerm_start, hgerm_finish, e, hspec, hpositions⟩
   · ext w
     rw [q.mem_support_iff]
@@ -455,18 +453,12 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
   let L := line a c
   let R := line b d
   have hjoinL : A.finish = L.start := hA₁
-  have hjoinM : (A.concat L).finish = M.reverse.start := by
-    change (A.concat L).endpoint true = M.reverse.endpoint false
-    rw [endpoint_concat A L hjoinL, endpoint_reverse]
-    exact hM₁.symm
-  have hjoinR : ((A.concat L).concat M.reverse).finish = R.start := by
-    change ((A.concat L).concat M.reverse).endpoint true = R.start
-    rw [endpoint_concat (A.concat L) M.reverse hjoinM, endpoint_reverse]
-    exact hM₀
-  have hjoinS : (((A.concat L).concat M.reverse).concat R).finish = S.start := by
-    change (((A.concat L).concat M.reverse).concat R).endpoint true = S.start
-    rw [endpoint_concat _ R hjoinR]
-    exact hS₀.symm
+  have hjoinM : (A.concat L).finish = M.reverse.start :=
+    (endpoint_concat A L hjoinL true).trans (hM₁.symm.trans (endpoint_reverse M false).symm)
+  have hjoinR : ((A.concat L).concat M.reverse).finish = R.start :=
+    (endpoint_concat (A.concat L) M.reverse hjoinM true).trans ((endpoint_reverse M true).trans hM₀)
+  have hjoinS : (((A.concat L).concat M.reverse).concat R).finish = S.start :=
+    (endpoint_concat _ R hjoinR true).trans hS₀.symm
   let q := (((A.concat L).concat M.reverse).concat R).concat S
   have hstart : q.start = p.start := by
     change ((((A.concat L).concat M.reverse).concat R).concat S).endpoint false = _
@@ -475,11 +467,10 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
       ↓reduceIte]
     simpa only [endpoint, Bool.false_eq_true, ↓reduceIte, eval, AffineMap.lineMap_apply_zero,
       Fin.castSucc_zero, start] using hA₀
-  have hfinish : q.finish = p.finish := by
-    change ((((A.concat L).concat M.reverse).concat R).concat S).endpoint true = _
-    rw [endpoint_concat _ S hjoinS]
-    simpa only [endpoint, ↓reduceIte, eval, jlast, AffineMap.lineMap_apply_one, Fin.succ_last,
-      finish] using hS₁
+  have hfinish : q.finish = p.finish :=
+    (endpoint_concat _ S hjoinS true).trans <| by
+      simpa only [endpoint, ↓reduceIte, eval, jlast, AffineMap.lineMap_apply_one, Fin.succ_last,
+        finish] using hS₁
   let E := A.support ∪ M.support ∪ S.support
   let N := segment ℝ a c ∪ segment ℝ b d
   have hcenter : z ∉ N := by
@@ -575,14 +566,10 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
     obtain ⟨v, hv, hv₀, he, _⟩ := interval_open_eval hAt k hu
     have hbefore (hi : (eA k).val = i) : v < li := by simpa only [hi, ↓reduceIte] using hv.2
     have hp : inPrefix (eA k).val v := ⟨(eA k).property, hbefore⟩
-    refine ⟨v, hv₀, ?_, he, ?_⟩
-    · simp only [indexAt, dite_eq_left hp,
-        show (⟨(eA k).val, hp.1⟩ : Set.Icc 0 i) = eA k from rfl, eA.symm_apply_apply]
-    rw [he]
-    apply hretained _ _ (Set.Ioo_subset_Icc_self hv₀)
-    · exact fun hi => Or.inl (hbefore hi)
-    · intro hj
-      exact (hij.not_ge (hj ▸ (eA k).property.2)).elim
+    refine ⟨v, hv₀, ?_, he, he.symm ▸ hretained _ _ (Set.Ioo_subset_Icc_self hv₀)
+      (fun hi => Or.inl (hbefore hi)) fun hj => (hij.not_ge (hj ▸ (eA k).property.2)).elim⟩
+    simp only [indexAt, dite_eq_left hp,
+      show (⟨(eA k).val, hp.1⟩ : Set.Icc 0 i) = eA k from rfl, eA.symm_apply_apply]
   have hMtrace (k : Fin M.reverse.segments) {u : ℝ} (hu : u ∈ Set.Ioo 0 1) :
       ∃ v ∈ Set.Ioo 0 1, indexAt (eM k.rev).val v = (A.concat L).segments + k.val ∧
         M.reverse.eval k u = p.eval (eM k.rev).val v ∧ M.reverse.eval k u ∉ B := by
@@ -619,15 +606,11 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
       rintro ⟨⟨_, hle⟩, hb⟩
       have hj := le_antisymm hle (eS k).property.1
       exact (hj₀.trans (hafter hj)).not_gt (hb hj)
-    refine ⟨v, hv₀, ?_, he, ?_⟩
-    · simp only [indexAt, dite_eq_right hp, dite_eq_right hm, dite_eq_left (eS k).property,
-        show (⟨(eS k).val, (eS k).property⟩ : Set.Icc j jlast) = eS k from rfl,
-        eS.symm_apply_apply]
-    rw [he]
-    apply hretained _ _ (Set.Ioo_subset_Icc_self hv₀)
-    · intro hi
-      exact (hij.not_ge (hi ▸ (eS k).property.1)).elim
-    · exact fun hj => Or.inr (hafter hj)
+    refine ⟨v, hv₀, ?_, he, he.symm ▸ hretained _ _ (Set.Ioo_subset_Icc_self hv₀)
+      (fun hi => (hij.not_ge (hi ▸ (eS k).property.1)).elim) fun hj => Or.inr (hafter hj)⟩
+    simp only [indexAt, dite_eq_right hp, dite_eq_right hm, dite_eq_left (eS k).property,
+      show (⟨(eS k).val, (eS k).property⟩ : Set.Icc j jlast) = eS k from rfl,
+      eS.symm_apply_apply]
   have hparts (k : Fin q.segments) :
       (∃ l : Fin A.segments, k.val = l.val ∧ ∀ u, q.eval k u = A.eval l u) ∨
       (k.val = A.segments ∧ ∀ u, q.eval k u = AffineMap.lineMap a c u) ∨
@@ -928,12 +911,8 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
     · have hxy := AffineMap.lineMap_injective ℝ (hport_ne hui' huj' hb)
         (hx₁.symm.trans (he.trans hy₁))
       rw [hx₂, hy₂, hxy]
-  have hExteriorVisit (k : Fin q.segments) {u : ℝ} (hu : u ∈ Set.Icc 0 1)
-      (hw : q.eval k u ∉ B) :
-      ∃ (a : Fin p.segments) (v : ℝ), v ∈ Set.Icc 0 1 ∧ p.eval a v = q.eval k u ∧
-        (u ∈ Set.Ioo 0 1 ↔ v ∈ Set.Ioo 0 1) := by
-    obtain ⟨a, v, hv, he, hi, _⟩ := hExterior k hu hw
-    exact ⟨a, v, hv, he, hi⟩
+  have hExteriorVisit (k : Fin q.segments) {u : ℝ} (hu : u ∈ Set.Icc 0 1) (hw : q.eval k u ∉ B) :=
+    (hExterior k hu hw).imp fun _ => Exists.imp fun _ h => And.intro h.1 (And.intro h.2.1 h.2.2.1)
   have hPoints (hp : Function.Injective p.point) : Function.Injective q.point := by
     intro a b he
     obtain ⟨k, s, hs, hsb, hqa, hsa⟩ := exists_parameter_at_point q a
@@ -992,12 +971,10 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
     exact ⟨fun hw => ⟨hE (hw.1.resolve_right (fun hn => hw.2 (hNew hn))), hw.2⟩,
       fun hw => ⟨Or.inl (cover hw), hw.2⟩⟩
   · intro r hr
-    have hL : Disjoint L.support r.support := hr.mono_left (by
-      rw [support_line]
-      exact fun _ hw => hNew (Or.inl hw))
-    have hR : Disjoint R.support r.support := hr.mono_left (by
-      rw [support_line]
-      exact fun _ hw => hNew (Or.inr hw))
+    have hL : Disjoint L.support r.support :=
+      hr.mono_left (by simpa only [L, support_line] using Set.subset_union_left.trans hNew)
+    have hR : Disjoint R.support r.support :=
+      hr.mono_left (by simpa only [R, support_line] using Set.subset_union_right.trans hNew)
     have hcuti := hr.mono_left ((convex_closedBall z ρ).segment_subset
       (Metric.sphere_subset_closedBall ha) (Metric.sphere_subset_closedBall hb))
     have hcutj := hr.mono_left ((convex_closedBall z ρ).segment_subset

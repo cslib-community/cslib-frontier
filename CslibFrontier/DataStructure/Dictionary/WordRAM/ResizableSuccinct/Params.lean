@@ -257,9 +257,9 @@ theorem compQuotAt_writeCompQuot_of_ne {itemBase U V w N n d d' q : ℕ} (hw : 0
   split_ifs with hd'
   · refine readBitSlice_writeBitSlice_of_disjoint (bOffQ_lt hw) (bOffQ_lt hw) ?_ mem q
     rw [wOffQ_mul_add_bOffQ, wOffQ_mul_add_bOffQ]
-    simpa only [Nat.add_zero] using pair_bitRange_disjoint (q := quotientBits U N) (v := valBits V)
-      (d₁ := d) (d₂ := d') (o₁ := 0) (k₁ := quotientBits U N) (o₂ := 0) (k₂ := quotientBits U N)
-      (by omega) (by omega) (fun h => absurd h.symm hne)
+    have h0 : 0 + quotientBits U N ≤ quotientBits U N + valBits V :=
+      Nat.zero_add _ ▸ Nat.le_add_right _ _
+    simpa only [Nat.add_zero] using pair_bitRange_disjoint h0 h0 fun h => absurd h.symm hne
   · rfl
 
 theorem compValAt_writeCompQuot {itemBase U V w N n d d' q : ℕ} (hw : 0 < w) (mem : ℕ → ℕ) :
@@ -269,9 +269,9 @@ theorem compValAt_writeCompQuot {itemBase U V w N n d d' q : ℕ} (hw : 0 < w) (
   split_ifs with hd'
   · refine readBitSlice_writeBitSlice_of_disjoint (bOffQ_lt hw) (bOffV_lt hw) ?_ mem q
     rw [wOffQ_mul_add_bOffQ, wOffV_mul_add_bOffV]
-    simpa only [Nat.add_zero] using pair_bitRange_disjoint (q := quotientBits U N) (v := valBits V)
-      (d₁ := d) (d₂ := d') (o₁ := 0) (k₁ := quotientBits U N) (o₂ := quotientBits U N)
-      (k₂ := valBits V) (by omega) (by omega) (fun _ => Or.inl (by omega))
+    have h0 : 0 + quotientBits U N ≤ quotientBits U N + valBits V :=
+      Nat.zero_add _ ▸ Nat.le_add_right _ _
+    simpa only [Nat.add_zero] using pair_bitRange_disjoint h0 le_rfl fun _ => Or.inl (by omega)
   · rfl
 
 theorem compValAt_writeCompVal_self {itemBase U V w N n d v : ℕ} (mem : ℕ → ℕ)
@@ -288,9 +288,7 @@ theorem compValAt_writeCompVal_of_ne {itemBase U V w N n d d' v : ℕ} (hw : 0 <
   split_ifs with hd'
   · refine readBitSlice_writeBitSlice_of_disjoint (bOffV_lt hw) (bOffV_lt hw) ?_ mem v
     rw [wOffV_mul_add_bOffV, wOffV_mul_add_bOffV]
-    exact pair_bitRange_disjoint (q := quotientBits U N) (v := valBits V)
-      (d₁ := d) (d₂ := d') (o₁ := quotientBits U N) (k₁ := valBits V) (o₂ := quotientBits U N)
-      (k₂ := valBits V) (by omega) (by omega) (fun h => absurd h.symm hne)
+    exact pair_bitRange_disjoint le_rfl le_rfl fun h => absurd h.symm hne
   · rfl
 
 theorem compQuotAt_writeCompVal {itemBase U V w N n d d' v : ℕ} (hw : 0 < w) (mem : ℕ → ℕ) :
@@ -300,9 +298,9 @@ theorem compQuotAt_writeCompVal {itemBase U V w N n d d' v : ℕ} (hw : 0 < w) (
   split_ifs with hd'
   · refine readBitSlice_writeBitSlice_of_disjoint (bOffV_lt hw) (bOffQ_lt hw) ?_ mem v
     rw [wOffV_mul_add_bOffV, wOffQ_mul_add_bOffQ]
-    simpa only [Nat.add_zero] using pair_bitRange_disjoint (q := quotientBits U N) (v := valBits V)
-      (d₁ := d) (d₂ := d') (o₁ := quotientBits U N) (k₁ := valBits V) (o₂ := 0)
-      (k₂ := quotientBits U N) (by omega) (by omega) (fun _ => Or.inr (by omega))
+    have h0 : 0 + quotientBits U N ≤ quotientBits U N + valBits V :=
+      Nat.zero_add _ ▸ Nat.le_add_right _ _
+    simpa only [Nat.add_zero] using pair_bitRange_disjoint le_rfl h0 fun _ => Or.inr (by omega)
   · rfl
 
 theorem writeCompQuot_outside {itemBase U V w N n d q addr : ℕ} (hw : 0 < w) (hd : d < n)
@@ -463,14 +461,11 @@ theorem succinctWords_mul_w_le_bits (C C₀ U V w n : ℕ) :
     w * Dynamic.succinctWords C C₀ U V w n ≤
       Dynamic.optBits U V n + C * n * Dynamic.logLogFactor n + (C₀ + 1) * w := by
   unfold Dynamic.succinctWords
-  rcases Nat.eq_zero_or_pos w with rfl | hw
-  · simp
-  · set B := Dynamic.optBits U V n + C * n * Dynamic.logLogFactor n
-    have hmul : w * ((B + w - 1) / w) ≤ B + w - 1 := Nat.mul_div_le (B + w - 1) w
-    calc w * ((B + w - 1) / w + C₀)
-        = w * ((B + w - 1) / w) + C₀ * w := by ring
-      _ ≤ (B + w - 1) + C₀ * w := Nat.add_le_add_right hmul _
-      _ ≤ B + (C₀ + 1) * w := by rw [Nat.succ_mul]; omega
+  set B := Dynamic.optBits U V n + C * n * Dynamic.logLogFactor n
+  calc w * ((B + w - 1) / w + C₀)
+      = w * ((B + w - 1) / w) + C₀ * w := by ring
+    _ ≤ (B + w - 1) + C₀ * w := Nat.add_le_add_right (Nat.mul_div_le _ _) _
+    _ ≤ B + (C₀ + 1) * w := by rw [Nat.succ_mul]; omega
 
 /-! ## Section 3: Pure Metadata Extractors and Runtime `CompParams` -/
 

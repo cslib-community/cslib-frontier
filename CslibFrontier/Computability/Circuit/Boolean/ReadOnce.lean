@@ -727,20 +727,17 @@ private theorem openedFrontier_tight (p : Program signature n g) (op : Op)
   have hcost_gate : (p.gate ⟨op, wires⟩).cost binaryCost = p.cost binaryCost + binaryCost op :=
     Program.cost_gate p ⟨op, wires⟩ binaryCost
   have hopened_le : (openedFrontier frontier wires).card ≤ frontier.card + binaryCost op := by
-    by_cases hlast : Wire.gate (Fin.last g) ∈ frontier
-    · have herase := Finset.card_erase_of_mem hlast
-      have hpos : 1 ≤ frontier.card := Finset.one_le_card.mpr ⟨_, hlast⟩
-      rw [show openedFrontier frontier wires =
-        priorFrontier frontier ∪ Finset.univ.image wires by simp [openedFrontier, hlast]]
+    rw [openedFrontier]
+    split_ifs with hlast
+    · have := Finset.card_erase_add_one hlast
       omega
-    · rw [show openedFrontier frontier wires = priorFrontier frontier by
-        simp [openedFrontier, hlast], hprior_card, Finset.erase_eq_of_notMem hlast]
+    · rw [hprior_card, Finset.erase_eq_of_notMem hlast]
       omega
   refine ⟨by omega, by omega, fun hlast => ?_⟩
-  have hpos : 1 ≤ frontier.card := Finset.one_le_card.mpr ⟨_, hlast⟩
-  have herase := Finset.card_erase_of_mem hlast
-  rw [← show openedFrontier frontier wires =
-    priorFrontier frontier ∪ Finset.univ.image wires by simp [openedFrontier, hlast]] at hunion
+  have := Finset.card_erase_add_one hlast
+  have hdef : openedFrontier frontier wires =
+      priorFrontier frontier ∪ Finset.univ.image wires := ite_eq_left hlast
+  rw [← hdef] at hunion
   exact ⟨Finset.disjoint_iff_inter_eq_empty.mpr (Finset.card_eq_zero.mp (by omega)),
     by omega, by omega⟩
 
@@ -771,16 +768,15 @@ private theorem sum_lastCases_leafSize (hn : 0 < n) (p : Program signature n g) 
   · obtain ⟨hdisj, hcard_li, harity_eq⟩ := hlast_tight hlast
     have hlast_leaf :
         (F (.gate (.last g))).leafSize = ∑ w ∈ Finset.univ.image wires, (F' w).leafSize := by
-      rw [show F (.gate (.last g)) = lastFormula from wire_lastCases_last lastFormula F']
-      exact leafSize_lineLitFormula hn F' op wires harity_eq hcard_li
+      simpa only [F, wire_lastCases_last] using
+        leafSize_lineLitFormula hn F' op wires harity_eq hcard_li
     have hdef : openedFrontier frontier wires =
-        priorFrontier frontier ∪ Finset.univ.image wires := by simp [openedFrontier, hlast]
+        priorFrontier frontier ∪ Finset.univ.image wires := ite_eq_left hlast
     rw [← Finset.sum_erase_add _ _ hlast, hsum_prior, hlast_leaf,
       ← Finset.sum_union hdisj, ← hdef, hF'_sum, hopened_eq, hcost_gate]
     omega
   · rw [Finset.erase_eq_of_notMem hlast] at hsum_prior
-    have hdef : openedFrontier frontier wires = priorFrontier frontier := by
-      simp [openedFrontier, hlast]
+    have hdef : openedFrontier frontier wires = priorFrontier frontier := ite_eq_right hlast
     rw [hsum_prior, ← hdef, hF'_sum, hopened_eq, hcost_gate]
     omega
 
@@ -863,8 +859,7 @@ theorem Circuit.exists_posFormula_of_cost_binaryCost_le (hn : 0 < n) (c : Circui
     exact ⟨y₀, y₁, hdiff, fun h => by simpa [hy₀, hy₁] using congrFun h 0⟩
   have hsupp_eq : c.inputSupport = Finset.univ :=
     Finset.eq_univ_iff_forall.mpr fun i => (hess i).mem_support (c.dependsOn_eval interpretation)
-  have hsupp : n ≤ c.inputSupport.card := by
-    rw [hsupp_eq, Finset.card_univ, Fintype.card_fin]
+  have hsupp : n ≤ c.inputSupport.card := by simp [hsupp_eq]
   obtain ⟨T, hT_eval, hT_leaf⟩ := c.exists_litFormula_of_cost_binaryCost_le hn hsupp hcost
   have hpos_univ : T.posSupport = Finset.univ := by
     refine Finset.eq_univ_iff_forall.mpr fun i => ?_
@@ -873,20 +868,17 @@ theorem Circuit.exists_posFormula_of_cost_binaryCost_le (hn : 0 < n) (c : Circui
     have hle := T.eval_le_of_not_mem_posSupport hi hdiff hy₀ hy₁
     rw [hT_eval y₀, hT_eval y₁, hc₀, hc₁] at hle
     exact absurd hle (by decide)
-  have hcard_pos : T.posSupport.card = n := by
-    rw [hpos_univ, Finset.card_univ, Fintype.card_fin]
+  have hcard_pos : T.posSupport.card = n := by simp [hpos_univ]
   have hcount_eq : T.posLeafCount = T.leafSize := by
     have := T.card_posSupport_le_posLeafCount
     have := T.posLeafCount_le_leafSize
     omega
   let F := T.toPosFormula
-  have hF_leaf : F.leafSize = n := by
-    rw [LitFormula.leafSize_toPosFormula, hT_leaf]
+  have hF_leaf : F.leafSize = n := (LitFormula.leafSize_toPosFormula T).trans hT_leaf
   have hF_supp : F.leafSupport = Finset.univ :=
     Finset.Subset.antisymm (Finset.subset_univ _) (hpos_univ ▸ T.posSupport_subset_leafSupport)
   have hF_ro : F.IsReadOnce := by
-    rw [PosFormula.isReadOnce_iff_card_leafSupport_eq_leafSize, hF_supp, Finset.card_univ,
-      Fintype.card_fin, hF_leaf]
+    simp [PosFormula.isReadOnce_iff_card_leafSupport_eq_leafSize, hF_supp, hF_leaf]
   have hF_size : F.size = n - 1 := by
     have := F.size_add_one
     omega

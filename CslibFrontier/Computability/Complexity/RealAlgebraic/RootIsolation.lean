@@ -1144,26 +1144,15 @@ private theorem clog4_eq_size_pred_div2 (X : ℕ) :
   rcases X with _ | _ | m
   · simp
   · simp
-  · have hm1 : 1 ≤ m + 1 := by omega
-    have hsize_pos : 1 ≤ (m + 1).size := Nat.size_pos.mpr hm1
-    set k := ((m + 1).size + 1) / 2
-    have h4pow : ∀ j, 4 ^ j = 2 ^ (2 * j) := fun j => by
+  · rw [Nat.add_sub_cancel]
+    have h4 (j : ℕ) : 4 ^ j = 2 ^ (2 * j) := by
       rw [show (4 : ℕ) = 2 ^ 2 from rfl, ← pow_mul]
-    have hle : Nat.clog 4 (m + 1 + 1) ≤ k := by
-      refine Nat.clog_le_of_le_pow ?_
-      rw [h4pow]
-      have hlt : m + 1 < 2 ^ (m + 1).size := Nat.lt_size_self (m + 1)
-      have h2k : (m + 1).size ≤ 2 * k := by omega
-      exact (Nat.succ_le_of_lt hlt).trans (Nat.pow_le_pow_right zero_lt_two h2k)
-    have hge : k ≤ Nat.clog 4 (m + 1 + 1) := by
-      by_contra hlt
-      have hclog_le : 2 * Nat.clog 4 (m + 1 + 1) < (m + 1).size := by omega
-      have hpow_clog := Nat.le_pow_clog (by decide : 1 < 4) (m + 1 + 1)
-      rw [h4pow] at hpow_clog
-      have hm_lt : m + 1 < 2 ^ (2 * Nat.clog 4 (m + 1 + 1)) := by omega
-      have := Nat.size_le.mpr hm_lt
+    refine le_antisymm (Nat.clog_le_of_le_pow ?_) ?_
+    · rw [h4]
+      exact (Nat.lt_size_self (m + 1)).trans_le (Nat.pow_le_pow_right zero_lt_two (by omega))
+    · have := Nat.size_le.mpr (Nat.lt_of_lt_of_le (Nat.lt_succ_self (m + 1))
+        (h4 _ ▸ Nat.le_pow_clog (by decide) (m + 1 + 1)))
       omega
-    exact le_antisymm hle hge
 
 /-- `Cslib.RealRoot.mignotteBisectionDepth` is computable in polynomial time from `encRatPoly` to
 `encUnary`. -/
@@ -1471,16 +1460,14 @@ private theorem stepFrontier_flatMap_eval (t : List ℚ) (seq : List (List ℚ))
       items.flatMap (evalFrontierItem t seq depthBound (fuel + 1)) := by
   rw [stepFrontier, List.flatMap_assoc]
   refine List.flatMap_congr fun it hit => ?_
-  by_cases hd : it.isDone = true
-  · simp [stepFrontierItem, evalFrontierItem, hd]
-  · have hdf : it.isDone = false := Bool.eq_false_iff.mpr hd
-    have h2 : 2 ≤ it.vu - it.vv := hact it hit hdf
-    have h0 : ¬(it.vu - it.vv = 0) := by omega
-    have h1 : ¬(it.vu - it.vv = 1) := by omega
-    simp only [stepFrontierItem, evalFrontierItem, hdf, Bool.false_eq_true, ↓reduceIte,
+  cases hd : it.isDone
+  · have h2 := hact it hit hd
+    have h01 : it.vu - it.vv ≠ 0 ∧ it.vu - it.vv ≠ 1 := by omega
+    simp only [stepFrontierItem, evalFrontierItem, hd, Bool.false_eq_true, ↓reduceIte,
       List.flatMap_append, classifyNode_flatMap_eval]
     conv_rhs => rw [isolateIoc]
-    simp only [h0, h1, ↓reduceIte]
+    simp only [h01.1, h01.2, ↓reduceIte]
+  · simp [stepFrontierItem, evalFrontierItem, hd]
 
 private theorem finishFrontier_eq_flatMap_eval_zero (t : List ℚ) (seq : List (List ℚ))
     (depthBound : ℕ) (items : List FrontierItem)
@@ -1490,18 +1477,13 @@ private theorem finishFrontier_eq_flatMap_eval_zero (t : List ℚ) (seq : List (
   | nil => rfl
   | cons it rest ih =>
     have ih' := ih fun x hx => hact x (List.mem_cons_of_mem it hx)
-    by_cases hd : it.isDone = true
-    · simp only [finishFrontier, List.filter_cons_of_pos hd, List.map_cons, List.flatMap_cons,
-        evalFrontierItem, hd, ↓reduceIte, List.singleton_append]
-      exact congrArg (_ :: ·) ih'
-    · have hdf : it.isDone = false := Bool.eq_false_iff.mpr hd
-      have h2 := hact it List.mem_cons_self hdf
-      have h0 : ¬(it.vu - it.vv = 0) := by omega
-      have h1 : ¬(it.vu - it.vv = 1) := by omega
-      simp only [finishFrontier, List.filter_cons_of_neg hd, List.flatMap_cons,
-        evalFrontierItem, hdf, Bool.false_eq_true, ↓reduceIte, isolateIoc, h0, h1,
-        List.nil_append]
-      exact ih'
+    cases hd : it.isDone
+    · have h2 := hact it List.mem_cons_self hd
+      have h01 : it.vu - it.vv ≠ 0 ∧ it.vu - it.vv ≠ 1 := by omega
+      simpa only [finishFrontier, List.filter_cons, List.flatMap_cons, evalFrontierItem, hd,
+        Bool.false_eq_true, ↓reduceIte, isolateIoc, h01.1, h01.2, List.nil_append] using ih'
+    · simpa only [finishFrontier, List.filter_cons_of_pos hd, List.map_cons, List.flatMap_cons,
+        evalFrontierItem, hd, ↓reduceIte, List.singleton_append] using congrArg (_ :: ·) ih'
 
 private theorem signVariations_le_length {α : Type*} [Zero α] [LinearOrder α] (l : List α) :
     l.signVariations ≤ l.length := by
@@ -1865,19 +1847,13 @@ theorem isolateRoots_computableInPolyTime :
         exact Nat.zero_le _
       · simp only [he, Bool.false_eq_true, ↓reduceIte] at hk ⊢
         obtain ⟨hlen_k, hinv_k, _, _⟩ := stepFrontier_iterate_invariant cs k hk
-        change (encList encFrontierItem
-          ((stepFrontier (CoeffList.trim cs) (sturmSeqList cs) (mignotteBisectionDepth cs))^[k]
-            (classifyNode (CoeffList.trim cs) (sturmSeqList cs) (mignotteBisectionDepth cs)
-              (-(cauchyBoundNat cs : ℚ)) (cauchyBoundNat cs : ℚ)
-              (sturmVariationsList (sturmSeqList cs) (-(cauchyBoundNat cs : ℚ)))
-              (sturmVariationsList (sturmSeqList cs) (cauchyBoundNat cs : ℚ))))).length ≤
-          8891 * ((encRatPoly cs).length + 1) ^ 7
         set items_k := (stepFrontier (CoeffList.trim cs) (sturmSeqList cs)
           (mignotteBisectionDepth cs))^[k]
           (classifyNode (CoeffList.trim cs) (sturmSeqList cs) (mignotteBisectionDepth cs)
             (-(cauchyBoundNat cs : ℚ)) (cauchyBoundNat cs : ℚ)
             (sturmVariationsList (sturmSeqList cs) (-(cauchyBoundNat cs : ℚ)))
             (sturmVariationsList (sturmSeqList cs) (cauchyBoundNat cs : ℚ)))
+        change (encList encFrontierItem items_k).length ≤ 8891 * N ^ 7
         have hcs_len : cs.length ≤ L := SizedListEncoding.length_le (encA := encRat) cs
         have hB_cs : HasCoeffBitBound L cs := hasCoeffBitBound_length_encRatPoly cs
         have hNN3 : N ≤ N ^ 3 := Nat.le_self_pow (by norm_num) N

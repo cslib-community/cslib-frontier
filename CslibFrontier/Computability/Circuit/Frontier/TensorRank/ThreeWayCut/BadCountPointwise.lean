@@ -70,16 +70,10 @@ private theorem integrable_badCount {Q : Multigraph W F} (hdeg : Q.MaxDegreeLE 3
     refine Finset.measurable_sum _ fun e _ => ?_
     have hm_in : MeasurableSet
         {ω : W → BlockSample | inOpenSector (blockColor Q q R ω B) (edgeVec2 Q q R ω e)} := by
-      have hsplit : {ω : W → BlockSample |
-          inOpenSector (blockColor Q q R ω B) (edgeVec2 Q q R ω e)} =
-          ⋃ c : Fin 3, {ω | blockColor Q q R ω B = c} ∩
-            {ω | inOpenSector c (edgeVec2 Q q R ω e)} := by
-        ext ω
-        simp only [mem_ofPred_eq, mem_iUnion, mem_inter_iff]
-        exact ⟨fun h => ⟨_, rfl, h⟩, fun ⟨_, hc, h⟩ => hc ▸ h⟩
-      rw [hsplit]
-      exact MeasurableSet.iUnion fun c => (measurableSet_blockColor_eq Q q R B c).inter
-        (measurableSet_inOpenSector_edgeVec2 Q q R e c)
+      convert MeasurableSet.iUnion fun c => (measurableSet_blockColor_eq Q q R B c).inter
+        (measurableSet_inOpenSector_edgeVec2 Q q R e c) using 1
+      ext ω
+      simp only [mem_ofPred_eq, mem_iUnion, mem_inter_iff, exists_eq_left']
     exact Measurable.ite hm_in.compl measurable_const measurable_const
   refine Integrable.of_bound hm_bad.aestronglyMeasurable 3
     (Filter.Eventually.of_forall fun ω => ?_)
@@ -286,13 +280,13 @@ private theorem sum_cutAny_le_sum_badCount [Fintype F] {Q : Multigraph W F}
     rw [Finset.card_filter]
     refine Finset.sum_le_sum fun e _ => ?_
     by_cases hcut : ω ∈ cutAnyEvent Q q R e
-    · simp only [hcut, ↓reduceIte]
-      by_cases hs : inOpenSector (blockColor Q q R ω (Q.src e)) (edgeVec2 Q q R ω e)
+    · by_cases hs : inOpenSector (blockColor Q q R ω (Q.src e)) (edgeVec2 Q q R ω e)
       · have ht : ¬inOpenSector (blockColor Q q R ω (Q.tgt e)) (edgeVec2 Q q R ω e) :=
           fun ht => hcut (inOpenSector_unique hs ht)
-        simp [hs, ht]
-      · simp [hs]
-    · simp only [hcut, ↓reduceIte]; omega
+        simp [hcut, hs, ht]
+      · simp [hcut, hs]
+    · simp only [hcut, ↓reduceIte]
+      omega
   refine h1.trans ?_
   have hbad_sum : (∑ B : W, badCount Q q R ω B) =
       ∑ B : W, ∑ e : F,

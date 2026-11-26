@@ -86,12 +86,10 @@ open Classical in
 theorem support_add_support (P : Profile V A) {a b : A} (hab : a ≠ b) :
     support P a b + support P b a = Fintype.card V := by
   classical
-  unfold support
   have hfilter : (Finset.univ.filter fun i => (P i).Prefers b a) =
-      Finset.univ.filter fun i => ¬ (P i).Prefers a b := by
-    ext i
-    simp [((P i).not_prefers_iff hab).symm]
-  rw [hfilter, Finset.card_filter_add_card_filter_not, Finset.card_univ]
+      Finset.univ.filter fun i => ¬ (P i).Prefers a b :=
+    Finset.filter_congr fun i _ => ((P i).not_prefers_iff hab).symm
+  rw [support, support, hfilter, Finset.card_filter_add_card_filter_not, Finset.card_univ]
 
 theorem support_eq_card_of_forall {P : Profile V A} {a b : A}
     (h : ∀ i, (P i).Prefers a b) : support P a b = Fintype.card V := by
@@ -327,11 +325,9 @@ theorem sum_pluralityCount [Fintype A] [Nonempty A] (P : Profile V A) :
     ∑ a, pluralityCount P a = Fintype.card V := by
   classical
   have hcongr (a : A) :
-      pluralityCount P a = (Finset.univ.filter fun i : V => (P i).top = a).card := by
-    unfold pluralityCount
-    congr 1
-    ext i
-    simp [(P i).isTop_iff_eq_top, eq_comm]
+      pluralityCount P a = (Finset.univ.filter fun i : V => (P i).top = a).card :=
+    congrArg Finset.card
+      (Finset.filter_congr fun i _ => by simp [(P i).isTop_iff_eq_top, eq_comm])
   rw [Finset.sum_congr rfl fun a _ => hcongr a]
   exact (Finset.card_eq_sum_card_fiberwise (f := fun i : V => (P i).top)
     (s := Finset.univ) (t := Finset.univ) fun _ _ => Finset.mem_univ _).symm.trans
@@ -412,9 +408,8 @@ theorem not_isDictator_plurality [Finite A] [Nontrivial A] (t : Ranking A)
     rw [pluralityCount, hset, Finset.card_erase_of_mem (Finset.mem_univ i), Finset.card_univ]
   have hPm : plurality t P = m := plurality_eq_of_isTop t fun x hxm => by
     rw [pluralityRanking_prefers, hcnt_m]
-    by_cases hxa : x = a
-    · subst hxa
-      rw [hcnt_a]
+    rcases eq_or_ne x a with rfl | hxa
+    · rw [hcnt_a]
       by_cases hgt : 1 < Fintype.card V - 1
       · exact .inl hgt
       · exact .inr ⟨by omega, t.isTop_top x hxm⟩
@@ -423,8 +418,7 @@ theorem not_isDictator_plurality [Finite A] [Nontrivial A] (t : Ranking A)
           by_cases hj : j = i <;> simp only [P, hj, ↓reduceIte] at hjx
           · exact hxa (hjx.unique (t.isTop_toTop a))
           · exact hxm (hjx.unique (t.isTop_toTop m))
-      rw [hcnt0]
-      exact .inl (by omega)
+      exact .inl (hcnt0 ▸ by omega)
   have hdict := (isDictator_iff_of_surjective (surjective_plurality t)).1 hi P a (hPm ▸ ham)
   rw [hPm, show P i = t.toTop a by simp [P]] at hdict
   exact (t.toTop a).asymm (t.isTop_toTop a m ham.symm) hdict
@@ -502,12 +496,10 @@ theorem not_isCondorcetConsistent_plurality [Finite A] [Nonempty A] (hV : 3 ≤ 
     rw [pluralityRanking_prefers, hcnt m, hcnt x]
     simp only [↓reduceIte, hym.symm, hwm.symm, add_zero]
     by_cases hxy : x = y
-    · rw [hxy]
-      simp only [hym, hwy.symm, ↓reduceIte]
+    · simp only [hxy, hym, hwy.symm, ↓reduceIte]
       exact .inr ⟨by omega, t.isTop_top y hym⟩
     by_cases hxw : x = w
-    · rw [hxw]
-      simp only [hwm, hwy, ↓reduceIte]
+    · simp only [hxw, hwm, hwy, ↓reduceIte]
       by_cases hlt : n - (k + k) < k
       · exact .inl (by omega)
       · exact .inr ⟨by omega, t.isTop_top w hwm⟩
@@ -577,10 +569,8 @@ theorem not_isDictator_borda [Nontrivial A] (hV : 2 ≤ Fintype.card V) (i : V) 
   let P : Profile V A := fun j => if j = i then r else r.reverse
   have hcard_top : ∀ {s : Ranking A} {z : A}, s.IsTop z →
       (Finset.univ.filter fun x => s.Prefers z x).card = Fintype.card A - 1 := fun {s z} hz => by
-    have hset : (Finset.univ.filter fun x => s.Prefers z x) = Finset.univ.erase z := by
-      ext x
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_erase, ne_eq, and_true]
-      exact ⟨fun h => (s.ne_of_prefers h).symm, hz x⟩
+    have hset : (Finset.univ.filter fun x => s.Prefers z x) = Finset.univ.erase z :=
+      Finset.ext fun x => by simp [Iff.intro (fun h => (s.ne_of_prefers h).symm) (hz x)]
     rw [hset, Finset.card_erase_of_mem (Finset.mem_univ z), Finset.card_univ]
   have hcard_bot : ∀ {s : Ranking A} {z : A}, s.IsBottom z →
       (Finset.univ.filter fun x => s.Prefers z x).card = 0 := fun {s z} hz =>
@@ -601,11 +591,11 @@ theorem not_isDictator_borda [Nontrivial A] (hV : 2 ≤ Fintype.card V) (i : V) 
       by_cases hj : j = i <;> simp only [P, hj, ↓reduceIte]
       · exact hcard_bot hbot_b
       · exact hcard_top fun x hxb => r.reverse_prefers.2 (hbot_b x hxb)
-    have hset : (Finset.univ.filter fun j : V => ¬ j = i) = Finset.univ.erase i :=
-      Finset.ext fun _ => by simp
-    rw [bordaScore, Finset.sum_congr rfl fun j _ => hcongr j, Finset.sum_ite,
-      Finset.sum_const_zero, zero_add, hset, Finset.sum_const_nat fun _ _ => rfl,
-      Finset.card_erase_of_mem (Finset.mem_univ i), Finset.card_univ]
+    rw [bordaScore, ← Finset.add_sum_erase _ _ (Finset.mem_univ i), hcongr i, ite_eq_left rfl,
+      zero_add,
+      Finset.sum_congr rfl fun j hj => (hcongr j).trans (ite_eq_right (Finset.ne_of_mem_erase hj)),
+      Finset.sum_const_nat fun _ _ => rfl, Finset.card_erase_of_mem (Finset.mem_univ i),
+      Finset.card_univ]
   have hdict : (borda P).Prefers a b := hi P a b (by simp [P, htop_a b hab.symm])
   rw [borda_prefers, hscore_a, hscore_b] at hdict
   have := Nat.mul_le_mul_right (Fintype.card A - 1) (show 1 ≤ Fintype.card V - 1 by omega)

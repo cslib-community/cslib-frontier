@@ -51,8 +51,6 @@ private theorem clientState_trinomStepProg (x : ℕ × (ℕ × ℕ)) (s : Memory
   rcases x with ⟨hdrAddr, ⟨rem, acc⟩⟩
   dsimp only [trinomStepProg]
   rw [StateTransitionSpec.clientState_bind]
-  have hs0 : (Memory.spec 0).clientState s (Memory.read hdrAddr) = s := rfl
-  rw [hs0]
   split_ifs <;> rfl
 
 private theorem validHistory_trinomStepProg {w hdrAddr rem acc : ℕ} {s : Memory.State}
@@ -297,9 +295,8 @@ theorem computeHashCore_arith {w U N dstMetaBase : ℕ}
   have h225 : Fits w 225 := fits_const_of_offCompItems hfit_dst le_rfl
   have hw8 : 8 ≤ w := eight_le_of_fits_225 h225
   have hw0_le : epochQBits U N ≤ w := qBits_le_of_le_pow hw hU.le
-  have hb'_eq : totalMicroBits N = Nat.log 2 N := totalMicroBits_eq_log N
   have hlogN_lt : Nat.log 2 N < w := Nat.log_lt_of_lt_pow (by omega) (hU.of_le hNU)
-  have hb'_le : totalMicroBits N ≤ w := by rw [hb'_eq]; omega
+  have hb'_le : totalMicroBits N ≤ w := (totalMicroBits_eq_log N).symm ▸ hlogN_lt.le
   have hfit_hash := fits_hash_of_fits_offCompItems hfit_dst
   have hc_le : 2 * c ≤ w := two_mul_reducedChunkBits_le hw0_le hb'_le (by omega)
   have hc_lt : 2 * c < w := ReducedKWise.two_mul_reducedChunkBits_lt_of_fits_space hc_le hfit_hash
@@ -527,13 +524,11 @@ private theorem computeHashTargetProg_epoch {w U N hdrBase dstMetaBase : ℕ} {s
     computeHashTargetProg_exec (s := s) hq_le hlogN_lt hhdr h225
   have h3b_eq : (Nat.log 2 N + 1) * 3 = 3 * epochHashB N := by
     dsimp only [epochHashB]; rw [totalMicroBits_eq_log]; ring
-  have hw0_def : max (quotientBits U N) 1 = epochQBits U N := rfl
   have hB_eq : max (min (epochQBits U N) (3 * epochHashB N)) (max (Nat.log 2 N) 1) =
       reducedTargetBits (epochQBits U N) (epochHashB N) (totalMicroBits N) := by
     dsimp only [reducedTargetBits]; rw [totalMicroBits_eq_log]
-  have ht_def : trinomialStepAux
-      (reducedTargetBits (epochQBits U N) (epochHashB N) (totalMicroBits N)) = t := rfl
-  rw [hw0_def, h3b_eq, hB_eq, ht_def] at hres_tg
+  change _ = (epochQBits U N, (min (epochQBits U N) ((Nat.log 2 N + 1) * 3), _)) at hres_tg
+  rw [h3b_eq, hB_eq] at hres_tg
   exact ⟨⟨hq_le, hlogN_lt, hhdr, h225⟩, hv_tg, hst_tg, hres_tg, hc_tg⟩
 
 /-- Functional specification and `≤ 7 * N + 20` cost bound for `computeHashCoreProg`. -/
@@ -560,6 +555,9 @@ theorem computeHashCoreProg_exec {w U N hdrBase dstMetaBase : ℕ} {s : Memory.S
   have ht_le_N3 : t ≤ 3 * N + 3 :=
     (Cslib.DataStructure.HashFamily.WordRAM.KWise.trinomialStepAux_le _).trans
       (hB_le.trans (by omega))
+  dsimp only [t] at hc_sh
+  change 2 * reducedChunkBits (reducedTrinomialStep (epochQBits U N) (epochHashB N)
+    (totalMicroBits N)) ≤ N + 8 at h2c_le
   dsimp only [d, computeHashCoreProg]
   rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
     Realization.memoryCost_bind', hst_tg, hres_tg]
@@ -567,9 +565,6 @@ theorem computeHashCoreProg_exec {w U N hdrBase dstMetaBase : ℕ} {s : Memory.S
   rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
     Realization.memoryCost_bind', hst_sh, hres_sh, StateTransitionSpec.clientState_pure,
     prog_clientResult_pure, memoryCost_pure]
-  dsimp only [t] at hc_sh
-  change 2 * reducedChunkBits (reducedTrinomialStep (epochQBits U N) (epochHashB N)
-    (totalMicroBits N)) ≤ N + 8 at h2c_le
   exact ⟨⟨hv_tg, hv_sh, trivial⟩, rfl, rfl, by omega⟩
 
 /-- `computeHashCoreProg` compiles via `RealizesBounded .exact`. -/

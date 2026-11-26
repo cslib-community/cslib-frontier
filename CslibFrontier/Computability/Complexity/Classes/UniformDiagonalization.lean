@@ -220,12 +220,8 @@ theorem witness_complete (hS : Spec dA dF A F) {k : ℕ} {w : List Bool}
   obtain ⟨T₂, hT₂⟩ := hS.completeF (side k) (k / 2) w
   refine ⟨max (index w + 1) (max T₁ T₂), fun n hn hk => ?_⟩
   refine List.any_eq_true.mpr ⟨index w, ?_, ?_⟩
-  · rw [length_table, List.mem_range]
-    omega
-  · have hlen : w.length < n := by
-      have := length_word_lt (index w)
-      rw [word_index] at this
-      omega
+  · rw [length_table, List.mem_range]; omega
+  · have hlen : w.length < n := (word_index w ▸ length_word_lt (index w)).trans_le (by omega)
     obtain ⟨c₁, hc₁⟩ := hT₁ n (by omega)
     obtain ⟨c₂, hc₂⟩ := hT₂ n (by omega)
     have h₁ := hS.soundA _ _ _ _ hc₁
@@ -366,24 +362,19 @@ theorem exists_mem_P_forall_ite_ne {A₁ A₂ : Set (List Bool)} (hA₁ : IsDeci
   let A : Bool → Set (List Bool) := fun b => if b then A₁ else A₂
   let Fp : Bool → ℕ × List Bool → Bool := fun b => if b then F₁ else F₂
   let F : Bool → ℕ → Set (List Bool) := fun b i => {w | Fp b (i, w) = true}
-  choose f hf hA' using fun b => (show IsDecidable (A b) encBits by
-    cases b
-    · exact hA₂
-    · exact hA₁).exists_isComputable
+  choose f hf hA' using fun b =>
+    (Bool.rec (motive := fun b => IsDecidable (A b) encBits) hA₂ hA₁ b).exists_isComputable
   choose dA sa ca using fun b => (hf b).exists_runBool
-  choose dF se ce using fun b => (show IsComputable (Fp b) (encPair encUnary encBits) encBool by
-    cases b
-    · exact hF₂
-    · exact hF₁).exists_runBool
+  choose dF se ce using fun b =>
+    (Bool.rec (motive := fun b => IsComputable (Fp b) (encPair encUnary encBits) encBool)
+      hF₂ hF₁ b).exists_runBool
   have hS : Spec dA dF A F :=
     { soundA := fun b w t c h => sa b w t c h ▸ (hA' b w).symm
       completeA := fun b w => (ca b w).imp fun _ hT t ht => ⟨_, hT t ht⟩
       soundF := fun b i w t c h => se b (i, w) t c h ▸ Iff.rfl
       completeF := fun b i w => (ce b (i, w)).imp fun _ hT t ht => ⟨_, hT t ht⟩ }
-  have hinf : ∀ b i, (A b ∆ F b i).Infinite := fun b i => by
-    cases b
-    · exact h₂ i
-    · exact h₁ i
+  have hinf (b : Bool) : ∀ i, (A b ∆ F b i).Infinite :=
+    Bool.rec (motive := fun b => ∀ i, (A b ∆ F b i).Infinite) h₂ h₁ b
   have hD : Set.ite {w : List Bool | side (stage dA dF w.length) = true} A₁ A₂ = D dA dF A := by
     ext w
     simp only [Set.ite, D, Set.mem_union, Set.mem_inter_iff, Set.mem_sdiff, Set.mem_ofPred_eq]

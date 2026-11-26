@@ -225,8 +225,7 @@ variable {T : ℕ}
 theorem gateCode_wire {n T t : ℕ} {l : Loc k State} {c : ℕ} (hl : l.ColOK T c) :
     gateCode tm n T (wire n T t l c - n) = gateAt tm n T t c l := by
   obtain ⟨hdiv, hmod⟩ := div_mod_wire (n := n) (t := t) hl
-  have h2 : ¬ wire n T t l c - n < 2 := by rw [wire_sub]; omega
-  rw [gateCode, ite_eq_right h2]
+  rw [gateCode, ite_eq_right (by rw [wire_sub]; omega)]
   simp only [hdiv, hmod, posOf_offset hl]
 
 /-! ### Well-formedness -/
@@ -267,8 +266,7 @@ private theorem resolve_cur_lt {l' : Loc k State} {cs : ColSel} {g : Guard}
     (Ref.node false l' cs g).resolve n T t c < wire n T t l c := by
   simp only [Ref.resolve, wire, Bool.false_eq_true, ↓reduceIte]
   split_ifs with hg
-  · have := h hg
-    omega
+  · exact Nat.add_lt_add_left (h hg) _
   · omega
 
 end Earlier
@@ -314,8 +312,7 @@ private theorem resolve_lt_of_gfStart_le {n T t c : ℕ} (ht : 1 ≤ t) (hc : c 
     | same => exact hc
     | prev => simp only [ColSel.apply]; omega
     | next =>
-      have := hr rfl
-      subst this
+      cases hr rfl
       simpa only [ColSel.apply, Guard.test, decide_eq_true_eq] using hg
     | last => simp [ColSel.apply, numCols]
 
@@ -420,8 +417,7 @@ private theorem resolve_table_lt {n T t c : ℕ} (ht : 1 ≤ t) {l : Loc k State
         · split_ifs
           · refine resolve_cur_lt fun _ => ?_
             simp only [Loc.offset, GlobLoc.idx, Fin.val_last]
-            have := Nat.mul_le_mul_right (k + 1) j.isLt
-            rw [Nat.succ_mul] at this
+            have := (Nat.succ_mul (j : ℕ) (k + 1)).symm.trans_le (Nat.mul_le_mul_right _ j.isLt)
             omega
           · exact resolve_fls_lt
   · simp only [Loc.ColOK] at hl; subst hl
@@ -496,18 +492,16 @@ omit [DecidableEq State] in
 theorem outWire_lt (n T : ℕ) : outWire k State n T < n + numGates k State T := by
   have := Loc.offset_lt (k := k) (State := State) (T := T)
     (l := .gf (.out (.one true)) true 7) (c := 0) rfl
-  simp only [outWire, wire, numGates]
-  rw [Nat.succ_mul]
+  simp only [outWire, wire, numGates, Nat.succ_mul]
   omega
 
 /-- The raw gate list `gates tm n T` and output wire `outWire k State n T` form a valid circuit
 code. -/
 theorem isSome_ofCode (n T : ℕ) :
     (Circuit.ofCode n 1 (gates tm n T, [outWire k State n T]) :
-      Option (Circuit signature n 1)).isSome := by
-  rw [Circuit.isSome_ofCode_iff]
-  refine ⟨isCodeFrom_gates tm n T, rfl, ?_⟩
-  simpa [gates] using outWire_lt (k := k) (State := State) n T
+      Option (Circuit signature n 1)).isSome :=
+  Circuit.isSome_ofCode_iff.mpr
+    ⟨isCodeFrom_gates tm n T, rfl, by simpa [gates] using outWire_lt (k := k) (State := State) n T⟩
 
 /-- **The tableau circuit** of `tm` for `T` steps on inputs of length `n`. -/
 noncomputable def circuit (n T : ℕ) : Circuit signature n 1 :=

@@ -83,24 +83,18 @@ theorem eqnsHold_iff (val : ℕ → Bool) : (C.moveAffine J e).EqnsHold val ↔
     C.EqnsHold val ∧ (affEqn (C.gate J) J).Holds val := by
   constructor
   · intro hv
-    refine ⟨fun e' he' => ?_, ?_⟩
-    · rw [← h.eqn_of_mem he']; exact hv e' (Finset.mem_insert_of_mem he')
-    · have := hv e (Finset.mem_insert_self _ _)
-      change (Function.update C.eqn e _ e).Holds val at this
-      rwa [Function.update_self] at this
+    refine ⟨fun e' he' => h.eqn_of_mem he' ▸ hv e' (Finset.mem_insert_of_mem he'), ?_⟩
+    simpa only [moveAffine, Function.update_self] using hv e (Finset.mem_insert_self _ _)
   · rintro ⟨hv, hJv⟩ e' he'
     rcases Finset.mem_insert.1 he' with rfl | he'
-    · change (Function.update C.eqn e' _ e').Holds val
-      rwa [Function.update_self]
-    · rw [h.eqn_of_mem he']; exact hv e' he'
+    · simpa only [moveAffine, Function.update_self] using hJv
+    · simpa only [h.eqn_of_mem he'] using hv e' he'
 
 private theorem live_eq : (C.moveAffine J e).live = C.live := by
   ext i
-  simp only [live, Finset.mem_union]
-  change (i ∈ C.params ∨ i ∈ insert J C.aux) ∨ i ∈ C.gates.erase J ↔ _
-  simp only [Finset.mem_insert, Finset.mem_erase]
-  by_cases hiJ : i = J
-  · subst hiJ; simp [h.mem]
+  simp only [live, moveAffine, Finset.mem_union, Finset.mem_insert, Finset.mem_erase]
+  rcases eq_or_ne i J with rfl | hiJ
+  · simp [h.mem]
   · simp [hiJ]
 
 end MoveOK

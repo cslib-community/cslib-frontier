@@ -26,8 +26,9 @@ accepts on that database (`Cslib.Logic.PL.VeriPB.exists_runSteps_of_isProof`). A
   coefficient, VeriPB's division, which rounds the coefficients and the degree up, is the exact
   division of cutting planes.
 
-The line at position `p` of the proof takes the number `n + p`, where `n` is the next number of the
-database, so the compilation works for any database, including one reached after other steps.
+The line at position `p` of the proof, counted from its first line, takes the number `n + p`,
+where `n` is the next number of the database, so the compilation works for any database, including
+one reached after other steps.
 
 **The correspondence.** The constraint `c` that a compiled line leaves represents the line's
 inequality `I` (`Cslib.Logic.PL.PBConstr.Represents`): `c.toIneq` has the coefficients of `I`
@@ -51,7 +52,7 @@ operations without saturation. With `Cslib.Logic.PL.VeriPB.exists_isProof_contra
 most `s` steps and `3 s` operations. The converse, `exists_isProof_contra_of_check`, bounds no
 size. Its translation of a single rounding-up division, or of a normalization whose degree is
 clamped at `0`, adds a literal axiom for every term of the constraint, and it rederives every line
-that a later step reuses.
+that a later step reuses. A size bound in that direction is tracked in issue #8631 (milestone 3).
 
 ## Main definitions
 
@@ -76,8 +77,6 @@ public section
 namespace Cslib.Logic.PL
 
 open Ineq PBConstr CuttingPlanes
-
-noncomputable section
 
 namespace PBConstr
 
@@ -113,7 +112,7 @@ theorem Dominates.represents_add {c d : PBConstr} {I J : Ineq ℕ} (hc : c.Domin
 
 theorem Dominates.represents_mul {c : PBConstr} {I : Ineq ℕ} (hc : c.Dominates I) (k : ℕ) :
     (c.mul k).Represents (k • I) := by
-  refine Dominates.represents_normalize ⟨?_, ?_⟩ <;> rw [VeriPB.toIneq_map_mul]
+  refine Dominates.represents_normalize ⟨?_, ?_⟩ <;> rw [toIneq_map_mul]
   · rw [coeff_nsmul, coeff_nsmul, hc.1]
   · rw [bound_nsmul, bound_nsmul, nsmul_eq_mul, nsmul_eq_mul]
     exact mul_le_mul_of_nonneg_left hc.2 (Int.natCast_nonneg k)
@@ -124,29 +123,6 @@ theorem toIneq_litAxiom (l : Literal ℕ) : (litAxiom l).toIneq = l.toIneq := by
 
 theorem represents_litAxiom (l : Literal ℕ) : (litAxiom l).Represents l.toIneq :=
   ⟨toIneq_litAxiom l ▸ dominates_toIneq _, by simp [litAxiom]⟩
-
-/-! ### Coefficients of terms on distinct variables -/
-
-theorem cf_apply_of_notMem {ts : List (ℕ × Literal ℕ)} {v : ℕ} (h : v ∉ ts.map termVar) :
-    cf ts v = 0 := by
-  induction ts with
-  | nil => rfl
-  | cons t ts ih =>
-    simp only [List.map_cons, List.mem_cons, not_or] at h
-    simp [cf_cons, Ne.symm h.1, ih h.2]
-
-/-- On distinct variables, the coefficient of a term's variable is the term's signed
-coefficient. -/
-theorem cf_apply_of_nodup {ts : List (ℕ × Literal ℕ)} (h : (ts.map termVar).Nodup)
-    {t : ℕ × Literal ℕ} (ht : t ∈ ts) : cf ts (termVar t) = termCoeff t := by
-  induction ts with
-  | nil => cases ht
-  | cons t' ts ih =>
-    rw [List.map_cons, List.nodup_cons] at h
-    rcases List.mem_cons.1 ht with rfl | ht
-    · simp [cf_cons, cf_apply_of_notMem h.1]
-    · have hne : termVar t' ≠ termVar t := fun he => h.1 (by rw [he]; exact List.mem_map_of_mem ht)
-      simp [cf_cons, hne, ih h.2 ht]
 
 private theorem dvd_of_dvd_termCoeff {k : ℕ} {t : ℕ × Literal ℕ} (h : (k : ℤ) ∣ termCoeff t) :
     k ∣ t.1 := by
@@ -308,21 +284,31 @@ theorem IdOk.lookup_eq {db : List (ℕ × PBConstr)} {n : ℕ} (hid : IdOk db n)
 
 /-! ### Compiling proofs -/
 
-/-- The state after compiling the lines `ls` of a proof, numbered from `n`: the steps of the lines
-`ann` run from the database `db`, add the constraints `E` numbered `n, …, n + #ls - 1`, and the
-line at position `p` is represented by the constraint numbered `n + p`. -/
+/-- The state after compiling the lines `ls` of a proof, listed last first and numbered from `n`:
+the steps of the lines `ann` run from the database `db`, add the constraints `E` numbered
+`n, …, n + #ls - 1`, and the line at position `p` from the first, `ls.reverse[p]`, is represented
+by the constraint numbered `n + p`. -/
 private def Compiled (db : List (ℕ × PBConstr)) (n : ℕ) (ls : List (Ineq ℕ)) : Prop :=
   ∃ (ann : List CPLine) (E : List (ℕ × PBConstr)), ann.length = ls.length ∧
     runSteps db n (ann.map (CPLine.toStep n)) = some (E ++ db, n + ls.length) ∧
     E.map (·.1) = (List.range' n ls.length).reverse ∧
-    ∀ I ∈ ls, ∃ p < ls.length, ∃ c, lookup (E ++ db) (n + p) = some c ∧ c.Represents I
+    ∀ p I, ls.reverse[p]? = some I → ∃ c, lookup (E ++ db) (n + p) = some c ∧ c.Represents I
+
+/-- A line of a compiled proof is represented by the constraint of its position. -/
+private theorem exists_lookup_of_mem {db E : List (ℕ × PBConstr)} {n : ℕ} {ls : List (Ineq ℕ)}
+    (hls : ∀ p I, ls.reverse[p]? = some I →
+      ∃ c, lookup (E ++ db) (n + p) = some c ∧ c.Represents I)
+    {I : Ineq ℕ} (hI : I ∈ ls) : ∃ p c, lookup (E ++ db) (n + p) = some c ∧ c.Represents I :=
+  let ⟨p, hp⟩ := List.mem_iff_getElem?.1 (List.mem_reverse.2 hI)
+  ⟨p, hls p I hp⟩
 
 /-- One more line: its compiled step leaves a constraint representing it. -/
 private theorem Compiled.cons {db : List (ℕ × PBConstr)} {n : ℕ} {ls : List (Ineq ℕ)}
     {I : Ineq ℕ} (ann : List CPLine) (E : List (ℕ × PBConstr)) (hlen : ann.length = ls.length)
     (hrun : runSteps db n (ann.map (CPLine.toStep n)) = some (E ++ db, n + ls.length))
     (hE : E.map (·.1) = (List.range' n ls.length).reverse)
-    (hls : ∀ I ∈ ls, ∃ p < ls.length, ∃ c, lookup (E ++ db) (n + p) = some c ∧ c.Represents I)
+    (hls : ∀ p I, ls.reverse[p]? = some I →
+      ∃ c, lookup (E ++ db) (n + p) = some c ∧ c.Represents I)
     (l : CPLine) (ops : List PolOp) (hl : l.toStep n = .pol ops) (c : PBConstr)
     (hpol : polEval (E ++ db) ops [] = some [c]) (hc : c.Represents I) :
     Compiled db n (I :: ls) := by
@@ -330,26 +316,35 @@ private theorem Compiled.cons {db : List (ℕ × PBConstr)} {n : ℕ} {ls : List
   · rw [List.map_append, runSteps_append, hrun]
     simp [runSteps, hl, runStep, hpol, Nat.add_assoc]
   · simp [hE, List.range'_concat]
-  · intro J hJ
-    rcases List.mem_cons.1 hJ with rfl | hJ
-    · exact ⟨ls.length, by simp, c, by simp [lookup_cons], hc⟩
-    · obtain ⟨p, hp, c', hc', hJ⟩ := hls J hJ
-      refine ⟨p, by simp; omega, c', ?_, hJ⟩
-      simp [lookup_cons, show ls.length ≠ p by omega, hc']
+  · intro p J hJ
+    rw [List.reverse_cons] at hJ
+    rcases lt_trichotomy p ls.length with hp | rfl | hp
+    · rw [List.getElem?_append_left (by simpa using hp)] at hJ
+      obtain ⟨c', hc', hJ⟩ := hls p J hJ
+      exact ⟨c', by simp [lookup_cons, show ls.length ≠ p by omega, hc'], hJ⟩
+    · rw [List.getElem?_append_right (by simp)] at hJ
+      simp only [List.length_reverse, Nat.sub_self, List.getElem?_cons_zero,
+        Option.some.injEq] at hJ
+      subst hJ
+      exact ⟨c, by simp [lookup_cons], hc⟩
+    · rw [List.getElem?_eq_none (by simp; omega)] at hJ
+      cases hJ
 
 /-- **Cutting planes proofs compile into `pol` steps.** Let `db` be a database whose numbers are
 below `n`, and `Γ` a set of inequalities each dominated by a constraint of `db`
 (`Cslib.Logic.PL.PBConstr.Dominates`). A cutting planes proof `ls` from `Γ` compiles into one `pol`
 step per line (`Cslib.Logic.PL.VeriPB.CPLine.toStep`). Run from `db` and `n`, the steps add one
 constraint per line, numbered `n, n + 1, …`, and the line at position `p`, counted from the first
-line, is represented by the constraint numbered `n + p` (`Cslib.Logic.PL.PBConstr.Represents`). -/
+line, is represented by the constraint numbered `n + p` (`Cslib.Logic.PL.PBConstr.Represents`).
+As `ls` lists the lines last first, that line is `ls.reverse[p]`. -/
 theorem exists_runSteps_of_isProof {Γ : Set (Ineq ℕ)} {db : List (ℕ × PBConstr)} {n : ℕ}
     (hn : ∀ e ∈ db, e.1 < n) (hΓ : ∀ I ∈ Γ, ∃ i c, lookup db i = some c ∧ c.Dominates I)
     {ls : List (Ineq ℕ)} (h : IsProof Γ ls) :
     ∃ (ann : List CPLine) (E : List (ℕ × PBConstr)), ann.length = ls.length ∧
       runSteps db n (ann.map (CPLine.toStep n)) = some (E ++ db, n + ls.length) ∧
       E.map (·.1) = (List.range' n ls.length).reverse ∧
-      ∀ I ∈ ls, ∃ p < ls.length, ∃ c, lookup (E ++ db) (n + p) = some c ∧ c.Represents I := by
+      ∀ p I, ls.reverse[p]? = some I →
+        ∃ c, lookup (E ++ db) (n + p) = some c ∧ c.Represents I := by
   change Compiled db n ls
   induction h with
   | nil => exact ⟨[], [], rfl, by simp [runSteps], rfl, by simp⟩
@@ -376,19 +371,19 @@ theorem exists_runSteps_of_isProof {Γ : Set (Ineq ℕ)} {db : List (ℕ × PBCo
       (represents_litAxiom (v, false))
   | @add ls I J _ hI hJ ih =>
     obtain ⟨ann, E, hlen, hrun, hE, hls⟩ := ih
-    obtain ⟨p, -, c, hc, hcI⟩ := hls I hI
-    obtain ⟨q, -, d, hd, hdJ⟩ := hls J hJ
+    obtain ⟨p, c, hc, hcI⟩ := exists_lookup_of_mem hls hI
+    obtain ⟨q, d, hd, hdJ⟩ := exists_lookup_of_mem hls hJ
     exact Compiled.cons ann E hlen hrun hE hls (.add p q) _ rfl _
       (by simp only [polEval, hc, hd, Option.bind_some]) (hcI.1.represents_add hdJ.1)
   | @smul ls I _ k hk hI ih =>
     obtain ⟨ann, E, hlen, hrun, hE, hls⟩ := ih
-    obtain ⟨p, -, c, hc, hcI⟩ := hls I hI
+    obtain ⟨p, c, hc, hcI⟩ := exists_lookup_of_mem hls hI
     obtain ⟨k, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hk.ne'
     exact Compiled.cons ann E hlen hrun hE hls (.smul (k + 1) p) _ rfl _
       (by simp only [polEval, hc, Option.bind_some]) (hcI.1.represents_mul (k + 1))
   | @div ls I _ k hk hdvd hI ih =>
     obtain ⟨ann, E, hlen, hrun, hE, hls⟩ := ih
-    obtain ⟨p, -, c, hc, hcI⟩ := hls I hI
+    obtain ⟨p, c, hc, hcI⟩ := exists_lookup_of_mem hls hI
     obtain ⟨k', rfl⟩ := Nat.exists_eq_succ_of_ne_zero hk.ne'
     exact Compiled.cons ann E hlen hrun hE hls (.div (k' + 1) p) _ rfl _
       (by simp only [polEval, hc, Option.bind_some]) (hcI.1.represents_div hk hdvd)
@@ -412,7 +407,7 @@ theorem exists_check_of_refutableInSize {F : List PBConstr} {s : ℕ}
     exact ⟨j + 1, c'.normalize,
       hid.lookup_eq (List.mem_map_of_mem (f := fun e => (e.2 + 1, e.1.normalize)) hj),
       (dominates_toIneq c').normalize⟩) hls
-  obtain ⟨p, -, c, hc, hcI⟩ := hrep _ hcontra
+  obtain ⟨p, c, hc, hcI⟩ := exists_lookup_of_mem hrep hcontra
   refine ⟨⟨ann.map (CPLine.toStep (F.length + 1)), F.length + 1 + p⟩, ?_,
     by simpa [hann] using hlen, by simp [CPLine.isCP_toStep], ann, rfl⟩
   simp only [check, hrun, namesContra, hc, Option.any_some, decide_eq_true_eq]
@@ -433,7 +428,8 @@ constraints `F` have a checked proof of `UNSAT` made of `pol` steps without satu
 deletions iff the inequalities of `F` have a cutting planes refutation. A refutation with `s` lines
 gives a proof with at most `s` steps (`Cslib.Logic.PL.VeriPB.exists_check_of_refutableInSize`).
 The converse direction, `Cslib.Logic.PL.VeriPB.exists_isProof_contra_of_check`, bounds no size,
-so this equivalence states no size relation in that direction. -/
+so this equivalence states no size relation in that direction; that bound is tracked in issue
+#8631 (milestone 3). -/
 theorem exists_check_iff_exists_refutableInSize {F : List PBConstr} :
     (∃ P : Proof, check F P = true ∧ P.steps.all Step.IsCP) ↔
       ∃ s, RefutableInSize {I | ∃ c ∈ F, c.toIneq = I} s :=
@@ -450,7 +446,5 @@ theorem exists_check_cnf_iff_exists_refutableInSize {φ : CNF ℕ} :
   rw [exists_check_iff_exists_refutableInSize, CNF.toIneqs_eq_toPB]
 
 end VeriPB
-
-end
 
 end Cslib.Logic.PL

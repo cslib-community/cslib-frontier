@@ -110,8 +110,7 @@ theorem pairCommutatorDefect_eq_zero (φ : AlgState A) (E : Measurement β A)
 
 @[simp] theorem copyDefect_self (φ : AlgState A) (M : Measurement α A) :
     copyDefect φ M M = 0 := by
-  unfold copyDefect
-  simp [AlgState.norm_zero]
+  simp [copyDefect, AlgState.norm_zero]
 
 private theorem transcriptCommutatorDefect_succ_le {k : ℕ} (φ : AlgState A)
     (E : Measurement β A) (hE : E.IsProjective) (M : Fin (k + 1) → Measurement α A)
@@ -203,13 +202,11 @@ theorem sqrt_transcriptCommutatorDefect_le {k : ℕ} (φ : AlgState A)
   | zero =>
     simp [transcriptCommutatorDefect, AlgState.norm_zero]
   | succ k ih =>
-    have h := transcriptCommutatorDefect_succ_le φ E hE M hM (R 0) (hR 0)
-      (hER 0) (fun j => hMR j 0)
-    have ht := ih (fun j => M j.succ) (fun j => R j.succ)
-      (fun j => hM j.succ) (fun j => hR j.succ) (fun j => hER j.succ)
-      (fun i j => hMR i.succ j.succ)
     rw [Fin.sum_univ_succ]
-    linarith
+    linarith [transcriptCommutatorDefect_succ_le φ E hE M hM (R 0) (hR 0)
+        (hER 0) (fun j => hMR j 0),
+      ih (fun j => M j.succ) (fun j => R j.succ) (fun j => hM j.succ) (fun j => hR j.succ)
+        (fun j => hER j.succ) (fun i j => hMR i.succ j.succ)]
 
 /-- Sum-of-squares form of the transcript commutator bound. -/
 theorem transcriptCommutatorDefect_le {k : ℕ} (φ : AlgState A)
@@ -233,11 +230,10 @@ theorem transcriptCommutatorDefect_le {k : ℕ} (φ : AlgState A)
   have hpair : 0 ≤ pairCommutatorDefect φ E (M j) :=
     sum_nonneg fun _ _ => sum_nonneg fun _ _ => sq_nonneg _
   have hcopy : 0 ≤ copyDefect φ (M j) (R j) := sum_nonneg fun _ _ => sq_nonneg _
-  have hsq : f j ^ 2 + (√(pairCommutatorDefect φ E (M j)) - 2 * √(copyDefect φ (M j) (R j))) ^ 2 =
-      2 * pairCommutatorDefect φ E (M j) + 8 * copyDefect φ (M j) (R j) := by
-    dsimp only [f]
-    linear_combination 2 * Real.sq_sqrt hpair + 8 * Real.sq_sqrt hcopy
-  linarith [sq_nonneg (√(pairCommutatorDefect φ E (M j)) - 2 * √(copyDefect φ (M j) (R j)))]
+  dsimp only [f]
+  refine sub_nonneg.mp ((sq_nonneg
+    (√(pairCommutatorDefect φ E (M j)) - 2 * √(copyDefect φ (M j) (R j)))).trans_eq ?_)
+  linear_combination 2 * Real.sq_sqrt hpair + 8 * Real.sq_sqrt hcopy
 
 /-- For uniform independent questions, the average defect at a coordinate is at most
 the square of its prefix length times a combination of the pairwise and copy bounds. -/
@@ -295,11 +291,9 @@ theorem sum_prefixDisturbance_le_of_pairwise {Q : Type*} [Fintype Q] [Nonempty Q
       simpa only [Function.comp_def, Real.sqrt_mul (sq_nonneg (i.val : ℝ)), Real.sqrt_sq hi] using
         Real.sqrt_le_sqrt (h i)
     _ = _ := by
-      have hk : (∑ i : Fin k, i.val) * 2 = k * (k - 1) := by
-        rw [Fin.sum_univ_eq_sum_range (fun j : ℕ => j) k, sum_range_id_mul_two]
-      have hk' := congrArg (fun n : ℕ => (n : ℝ)) hk
-      push_cast at hk'
-      rw [← hk', sum_mul, sum_mul]
+      have hk : (∑ i : Fin k, (i.val : ℝ)) * 2 = k * ((k - 1 : ℕ) : ℝ) := by
+        exact_mod_cast (Fin.sum_univ_eq_sum_range (fun j : ℕ => j) k).symm ▸ sum_range_id_mul_two k
+      rw [← hk, sum_mul, sum_mul]
       exact sum_congr rfl fun _ _ => by ring
 
 end Cslib.Quantum.Measurement

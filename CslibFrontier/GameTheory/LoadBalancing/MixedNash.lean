@@ -135,14 +135,12 @@ theorem deviationCost_toCostGame (G : LoadBalancingGame ι M) {p : ι → M → 
       simp only [toUnrelated, Function.update_of_ne (ne_of_mem_erase hk)]
   simp_rw [hcost, mul_add, sum_add_distrib, ← sum_mul, sum_productWeight hp, one_mul, mul_sum]
   rw [sum_comm]
-  have hrest :
-      ∑ k ∈ univ.erase i, ∑ A : ι → M,
-        productWeight p A * (if A k = j then G.weight k / G.speed j else 0) =
-      ∑ k ∈ univ.erase i, p k j * (G.weight k / G.speed j) :=
-    sum_congr rfl fun k _ => by
-      rw [sum_productWeight_mul_apply (fun r _ => hp r) (fun m => if m = j then _ else 0)]
-      simp
-  rw [hrest, expectedLoad, ← add_sum_erase _ _ (mem_univ i)]
+  have hrest (k : ι) : ∑ A : ι → M,
+      productWeight p A * (if A k = j then G.weight k / G.speed j else 0) =
+      p k j * (G.weight k / G.speed j) := by
+    rw [sum_productWeight_mul_apply (fun r _ => hp r) (fun m => if m = j then _ else 0)]
+    simp
+  simp_rw [hrest, expectedLoad, ← add_sum_erase _ _ (mem_univ i)]
   ring
 
 /-- **Mixed Nash characterization** ([Vocking2007]): a profile `p` is a mixed
@@ -191,30 +189,27 @@ theorem eq_of_isTotallyMixedNash (G : LoadBalancingGame ι M) (hw : ∀ i, 0 < G
   rcases isEmpty_or_nonempty M with hM | _
   · funext i j
     exact hM.elim j
-  have hp1 : ∀ i, ∑ j, p i j = 1 := fun i => (hp.1.1 i).sum_eq_one
-  have hq1 : ∀ i, ∑ j, q i j = 1 := fun i => (hq.1.1 i).sum_eq_one
   have hS_pos : 0 < ∑ j : M, G.speed j :=
     sum_pos (fun j _ => G.speed_pos j) univ_nonempty
+  have heq_j {r : ι → M → ℝ} (hr : G.toCostGame.IsTotallyMixedNash r) (i : ι) (j : M) :
+      G.speed j * G.toCostGame.expectedCost r i =
+        G.speed j * G.expectedLoad r j + (1 - r i j) * G.weight i := by
+    have hdev := hr.1.deviationCost_eq_of_pos i (hr.2 i j)
+    rw [G.deviationCost_toCostGame (fun k => (hr.1.1 k).sum_eq_one) i j] at hdev
+    have hs := (G.speed_pos j).ne'
+    rw [← hdev, mul_add]
+    congr 1
+    field_simp
   -- For any totally mixed NE `r`, player `i`'s common cost `C_i` is uniquely determined by `G`.
   have hcost_eq : ∀ r : ι → M → ℝ, G.toCostGame.IsTotallyMixedNash r → ∀ i,
       (∑ j : M, G.speed j) * G.toCostGame.expectedCost r i =
         (∑ k, G.weight k) + ((Fintype.card M : ℝ) - 1) * G.weight i := by
     intro r hr i
     have hr1 : ∀ k, ∑ m, r k m = 1 := fun k => (hr.1.1 k).sum_eq_one
-    have heq_j : ∀ j : M,
-        G.speed j * G.toCostGame.expectedCost r i =
-          G.speed j * G.expectedLoad r j + (1 - r i j) * G.weight i := by
-      intro j
-      have hdev := hr.1.deviationCost_eq_of_pos i (hr.2 i j)
-      rw [G.deviationCost_toCostGame hr1 i j] at hdev
-      have hs := (G.speed_pos j).ne'
-      rw [← hdev, mul_add]
-      congr 1
-      field_simp
     calc (∑ j : M, G.speed j) * G.toCostGame.expectedCost r i
         = ∑ j : M, G.speed j * G.toCostGame.expectedCost r i := sum_mul _ _ _
       _ = ∑ j : M, (G.speed j * G.expectedLoad r j + (1 - r i j) * G.weight i) :=
-          sum_congr rfl fun j _ => heq_j j
+          sum_congr rfl fun j _ => heq_j hr i j
       _ = (∑ j : M, G.speed j * G.expectedLoad r j) +
             ∑ j : M, (1 - r i j) * G.weight i := sum_add_distrib
       _ = (∑ k, G.weight k) + ((Fintype.card M : ℝ) - 1) * G.weight i := by
@@ -224,18 +219,8 @@ theorem eq_of_isTotallyMixedNash (G : LoadBalancingGame ι M) (hw : ∀ i, 0 < G
     mul_left_cancel₀ hS_pos.ne' ((hcost_eq p hp i).trans (hcost_eq q hq i).symm)
   -- Express `p i j - q i j` in terms of `expectedLoad p j - expectedLoad q j`.
   have hdiff : ∀ i j,
-      (p i j - q i j) * G.weight i = G.speed j * (G.expectedLoad p j - G.expectedLoad q j) := by
-    intro i j
-    have hpj := hp.1.deviationCost_eq_of_pos i (hp.2 i j)
-    have hqj := hq.1.deviationCost_eq_of_pos i (hq.2 i j)
-    rw [G.deviationCost_toCostGame hp1 i j] at hpj
-    rw [G.deviationCost_toCostGame hq1 i j] at hqj
-    have hs := (G.speed_pos j).ne'
-    have h2 := congrArg (G.speed j * ·) (show G.expectedLoad p j + (1 - p i j) *
-        (G.weight i / G.speed j) = G.expectedLoad q j + (1 - q i j) * (G.weight i / G.speed j) by
-      linarith [hCi i])
-    field_simp at h2
-    linarith
+      (p i j - q i j) * G.weight i = G.speed j * (G.expectedLoad p j - G.expectedLoad q j) :=
+    fun i j => by linarith [heq_j hp i j, heq_j hq i j, congrArg (G.speed j * ·) (hCi i)]
   -- Sum over `i` to force `expectedLoad p j = expectedLoad q j` since `|ι| ≠ 1`.
   have hload_eq : ∀ j, G.expectedLoad p j = G.expectedLoad q j := by
     intro j
@@ -428,18 +413,13 @@ theorem IsIdentical.expectedMakespan_le_three_halves_mul_optMakespan
               ((if A i = heaviest A then (0 : ℝ) else 1) * (W - 2 * G.weight i)) :=
             sum_le_sum fun A _ => mul_le_mul_of_nonneg_left (hpt A) (productWeight_nonneg hp0 A)
         _ = (∑ A : ι → Fin 2, productWeight p A * if A i = heaviest A then (0 : ℝ) else 1) *
-              (W - 2 * G.weight i) := by
-            rw [sum_mul]
-            exact sum_congr rfl fun A _ => by ring
+              (W - 2 * G.weight i) := by simp only [sum_mul, mul_assoc]
         _ = (1 - q i) * (W - 2 * G.weight i) := by
             congr 1
-            have hcomp : ∀ A : ι → Fin 2,
-                productWeight p A * (if A i = heaviest A then (0 : ℝ) else 1) =
-                  productWeight p A -
-                    productWeight p A * (if A i = heaviest A then (1 : ℝ) else 0) := fun A => by
-              split_ifs <;> ring
-            simp_rw [hcomp, sum_sub_distrib, sum_productWeight hp1]
-            rfl
+            refine (sum_congr (g := fun A => productWeight p A -
+                productWeight p A * if A i = heaviest A then 1 else 0) rfl fun A _ => ?_).trans
+              (by rw [sum_sub_distrib, sum_productWeight hp1])
+            split_ifs <;> ring
     nlinarith [hId.weight_le_optMakespan i, hq_le1 i]
 
 /-- **Tightness witness for Koutsoupias–Papadimitriou `3 / 2`** ([KoutsoupiasPapadimitriou1999]):

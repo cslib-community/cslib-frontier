@@ -645,10 +645,6 @@ theorem toExtensiveTree_isMixedNash_iff {ι : Type u} [Fintype ι] [DecidableEq 
         (fun i sE => μ i (PureStrategy.ofExtensive T sE)) ↔
       T.toCostGame.IsMixedNash μ := by
   let e := fun i => PureStrategy.toExtensiveEquiv T i
-  have hsum : ∀ i (g : PureStrategy i T → ℝ),
-      ∑ sE : Cslib.GameTheory.Extensive.PureStrategy (fun j => T.InfoSet j) (fun _ h => h.Act) i,
-        g ((e i).symm sE) = ∑ s : PureStrategy i T, g s :=
-    fun i g => (e i).symm.sum_comp g
   have hprof : ∀ (q : ∀ i, PureStrategy i T → ℝ)
       (f : (∀ i, PureStrategy i T) → ℝ),
       (∑ sE : ∀ i,
@@ -686,25 +682,18 @@ theorem toExtensiveTree_isMixedNash_iff {ι : Type u} [Fintype ι] [DecidableEq 
           (funext (Function.apply_update (fun j => (e j).symm) sE' i sE))
     simp_rw [hupd]
     exact hprof q fun s => -T.expectedPayoff (Function.update s i ((e i).symm sE)) i
-  have hpush : (fun i sE => μ i (PureStrategy.ofExtensive T sE)) =
-      fun i sE => μ i ((e i).symm sE) := rfl
-  rw [hpush]
+  change T.toExtensiveTree.toCostGame.IsMixedNash (fun i sE => μ i ((e i).symm sE)) ↔ _
   constructor
   · rintro ⟨hmix, hopt⟩
     refine ⟨fun i => isMixedStrategy_iff.2 ⟨fun s => ?_, ?_⟩, fun i a => ?_⟩
     · simpa [e, (e i).left_inv s] using (hmix i).nonneg (e i s)
-    · rw [← hsum i (μ i)]
-      exact (hmix i).sum_eq_one
-    · have h := hopt i ((e i) a)
-      rw [hevalMixed, hdevCost] at h
-      simpa [e] using h
+    · exact ((e i).symm.sum_comp (μ i)).symm.trans (hmix i).sum_eq_one
+    · simpa only [hevalMixed, hdevCost, Equiv.symm_apply_apply] using hopt i (e i a)
   · rintro ⟨hmix, hopt⟩
     refine ⟨fun i => isMixedStrategy_iff.2 ⟨fun sE => (hmix i).nonneg ((e i).symm sE), ?_⟩,
       fun i sE => ?_⟩
-    · rw [hsum i (μ i)]
-      exact (hmix i).sum_eq_one
-    · rw [hevalMixed, hdevCost]
-      exact hopt i ((e i).symm sE)
+    · exact ((e i).symm.sum_comp (μ i)).trans (hmix i).sum_eq_one
+    · simpa only [hevalMixed, hdevCost] using hopt i ((e i).symm sE)
 
 /-- **Kuhn's theorem for embedded perfect-information games**: every mixed strategy `μ` of player
 `i` in `T.toExtensiveTree` is realization-equivalent to an explicit behavioral strategy. -/

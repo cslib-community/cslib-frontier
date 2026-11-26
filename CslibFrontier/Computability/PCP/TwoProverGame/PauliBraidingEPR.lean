@@ -70,12 +70,8 @@ private theorem squared_disagreement_after_local_isometries
         (φ (oneKronecker (DBᴴ * DB))).re) := by
   intro T D DA DB φ
   let C := kroneckerOne (κ := K) A - oneKronecker (ι := I) B
-  have ha : DA ⊗ₖ W = (V * A) ⊗ₖ W - (A' * V) ⊗ₖ W := by
-    ext ⟨p, p'⟩ ⟨q, q'⟩
-    simp only [DA, kronecker_apply, Matrix.sub_apply, sub_mul]
-  have hb : V ⊗ₖ DB = V ⊗ₖ (W * B) - V ⊗ₖ (B' * W) := by
-    ext ⟨p, p'⟩ ⟨q, q'⟩
-    simp only [DB, kronecker_apply, Matrix.sub_apply, mul_sub]
+  have ha : DA ⊗ₖ W = (V * A) ⊗ₖ W - (A' * V) ⊗ₖ W := Matrix.ext fun ⟨_, _⟩ ⟨_, _⟩ => sub_mul ..
+  have hb : V ⊗ₖ DB = V ⊗ₖ (W * B) - V ⊗ₖ (B' * W) := Matrix.ext fun ⟨_, _⟩ ⟨_, _⟩ => mul_sub ..
   have hD : D = T * C + V ⊗ₖ DB - DA ⊗ₖ W := by
     simp only [D, T, C, Matrix.sub_mul, Matrix.mul_sub, ha, hb, kroneckerOne_apply,
       oneKronecker_apply, ← mul_kronecker_mul, Matrix.mul_one, Matrix.one_mul]
@@ -456,8 +452,7 @@ theorem exists_pauliBraidingExtraction
         Matrix.mul_assoc, show (ancillaEmbed (ι := I) a₀) = e₁ from rfl,
         he₁, Matrix.mul_one, Matrix.one_mul]
     have hcompress (x : Fin n → Bool) : G * A x * F = F * A₀ x := by
-      change G * (𝔼 d, pauliBraidingBasisObservable T.toCommuting.alice b x d) * F =
-        F * (𝔼 d, pauliBraidingBasisObservable S.toCommuting.alice b x d)
+      dsimp only [A, A₀]
       have hT := map_average_basisObservable kroneckerOne.toLinearMap
         (fun q => (T.alice q).toMeasurement) T.toCommuting.alice (fun _ _ => rfl) b x
       have hS := map_average_basisObservable kroneckerOne.toLinearMap
@@ -467,7 +462,6 @@ theorem exists_pauliBraidingExtraction
       simp only [G, F, QuantumStrategy.dilateEmbed, kroneckerOne_apply, ← mul_kronecker_mul,
         Matrix.one_mul, Matrix.mul_one]
       congr 1
-      change (e₁ * e₁ᴴ) * _ * e₁ = e₁ * _
       rw [Matrix.mul_assoc e₁ e₁ᴴ, Matrix.mul_assoc e₁]
       exact congrArg (e₁ * ·) (compress_average_basisObservable S.alice a₀ b x)
     have hc : (𝔼 x, φ.norm (M x - O x) ^ 2) ≤ η := hcross b
@@ -481,8 +475,7 @@ theorem exists_pauliBraidingExtraction
           D * M x - kroneckerOne (C x) * D =
             (V * (P b).charObs x - C x * V) ⊗ₖ W := by
         simp only [D, M, kroneckerOne_apply, ← mul_kronecker_mul, Matrix.mul_one, Matrix.one_mul]
-        ext ⟨i, j⟩ ⟨i', j'⟩
-        simp only [Matrix.sub_apply, kronecker_apply, sub_mul]
+        exact Matrix.ext fun ⟨_, _⟩ ⟨_, _⟩ => (sub_mul ..).symm
       simp only [hg, conjTranspose_kronecker, ← mul_kronecker_mul,
         hW.isometry, ← kroneckerOne_apply]
       obtain rfl := Bool.eq_false_iff.2 hb
@@ -513,8 +506,7 @@ theorem exists_pauliBraidingExtraction
         Matrix.mul_assoc, show (ancillaEmbed (ι := K) a₀) = e₂ from rfl,
         he₂, Matrix.mul_one, Matrix.one_mul]
     have hcompress (x : Fin n → Bool) : G * A x * F = F * A₀ x := by
-      change G * (𝔼 d, pauliBraidingBasisObservable T.toCommuting.bob b x d) * F =
-        F * (𝔼 d, pauliBraidingBasisObservable S.toCommuting.bob b x d)
+      dsimp only [A, A₀]
       have hT := map_average_basisObservable oneKronecker.toLinearMap
         (fun q => (T.bob q).toMeasurement) T.toCommuting.bob (fun _ _ => rfl) b x
       have hS := map_average_basisObservable oneKronecker.toLinearMap
@@ -524,13 +516,10 @@ theorem exists_pauliBraidingExtraction
       simp only [G, F, QuantumStrategy.dilateEmbed, oneKronecker_apply, ← mul_kronecker_mul,
         Matrix.one_mul, Matrix.mul_one]
       congr 1
-      change (e₂ * e₂ᴴ) * _ * e₂ = e₂ * _
       rw [Matrix.mul_assoc e₂ e₂ᴴ, Matrix.mul_assoc e₂]
       exact congrArg (e₂ * ·) (compress_average_basisObservable S.bob a₀ b x)
     have hc : (𝔼 x, φ.norm (M x - O x) ^ 2) ≤ η := by
-      simp_rw [show ∀ x, φ.norm (M x - O x) = φ.norm (O x - M x) from
-        fun x => φ.norm_sub_comm _ _]
-      exact hcross b
+      simpa only [φ.norm_sub_comm (M _) (O _)] using hcross b
     have he (hb : b) (x : Fin n → Bool) : D * M x = oneKronecker (C x) * D := by
       subst hb
       simp only [D, M, C, Bool.cond_true, oneKronecker_apply, ← mul_kronecker_mul,
@@ -541,8 +530,7 @@ theorem exists_pauliBraidingExtraction
           D * M x - oneKronecker (C x) * D =
             V ⊗ₖ (W * (Q b).charObs x - C x * W) := by
         simp only [D, M, oneKronecker_apply, ← mul_kronecker_mul, Matrix.mul_one, Matrix.one_mul]
-        ext ⟨i, j⟩ ⟨i', j'⟩
-        simp only [Matrix.sub_apply, kronecker_apply, mul_sub]
+        exact Matrix.ext fun ⟨_, _⟩ ⟨_, _⟩ => (mul_sub ..).symm
       simp only [hg, conjTranspose_kronecker, ← mul_kronecker_mul,
         hV.isometry, ← oneKronecker_apply]
       obtain rfl := Bool.eq_false_iff.2 hb

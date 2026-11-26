@@ -100,17 +100,13 @@ private theorem buf_oldEp_ite_locState {α : Type*} {fs : FastState}
      else if s = 3 then Function.update buf 1 b3
      else buf) fs.oldEp = buf fs.oldEp := by
   rcases hce_or with hce | hce
-  · have ho : fs.oldEp = 1 := by
-      unfold FastState.oldEp
-      omega
+  · have ho : fs.oldEp = 1 := by simp [FastState.oldEp, hce]
     rw [ho]
     split_ifs with h2 h3
     · exact Function.update_of_ne (by decide) _ _
     · exact absurd h3 (h1 ho)
     · rfl
-  · have ho : fs.oldEp = 0 := by
-      unfold FastState.oldEp
-      omega
+  · have ho : fs.oldEp = 0 := by simp [FastState.oldEp, hce]
     rw [ho]
     split_ifs with h2 h3
     · exact absurd h2 (h0 ho)
@@ -283,15 +279,11 @@ theorem checkEpochTickOkGenProg_spec {c U V w n_max base : ℕ}
       (hvp : ValidProg w (base + largeSpaceWhp c U V w n_max) s p)
       (hn : c₁ + c₂ ≤ n) {k : α → Memory.Prog ℕ} (hk : Spec c₂ (k v) r) :
       Spec n (p >>= k) r := by
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · rw [clientState_bind, hst, hres, hk.1]
-    · rw [clientResult_bind, hst, hres, hk.2.1]
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hst, hres]
-      exact (Nat.add_le_add hmc hk.2.2.1).trans hn
-    · refine validProg_bind hvp ?_
-      rw [hst, hres]
-      exact hk.2.2.2
+    refine ⟨by rw [clientState_bind, hst, hres, hk.1],
+      by rw [clientResult_bind, hst, hres, hk.2.1], ?_,
+      validProg_bind hvp (by simpa only [hst, hres] using hk.2.2.2)⟩
+    simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres]
+    exact (Nat.add_le_add hmc hk.2.2.1).trans hn
   dsimp only
   change Spec 5 _ _
   unfold checkEpochTickOkGenProg

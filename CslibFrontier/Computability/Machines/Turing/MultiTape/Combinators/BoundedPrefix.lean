@@ -97,8 +97,7 @@ private lemma copyCappedCore_runFrom_walk
         (by rw [List.length_append]; omega)]
       simp [List.getElem_append_right]
     have hwork0 : (tapeOfList (List.replicate N true) (m : ℤ)) = some true := by
-      rw [tapeOfList_ofNat, List.getElem?_eq_getElem (by simp [hltN])]
-      simp
+      simp [tapeOfList_ofNat, hltN]
     have htr : copyCappedCore.tr () cur.inputSymbol cur.workTapeSymbols =
         ⟨1, ![(none, 1), (some (some raw[m]), 1)], none, some ()⟩ := by
       rw [copyCappedCore, tr_ofTr, hinp, show cur.workTapeSymbols 0 = some true from hwork0]
@@ -246,9 +245,8 @@ private lemma transformsWordsAt_appendPrefixTM (u₀ raw : List Bool) (N : ℕ) 
       ((cfg₂.mapState (Option.map (Sum.inr : Unit → Unit ⊕ Unit))).withState
         (some rewindBothTM.q₀))
       ((u₀.length + min N raw.length + 2) + (min N raw.length + 2)) =
-      cfg₄.mapState (Option.map .inr) := by
-    rw [hmap₃₄]
-    exact runFrom_seq hrun₃ rfl hrun₄ rfl
+      cfg₄.mapState (Option.map .inr) :=
+    hmap₃₄ ▸ runFrom_seq hrun₃ rfl hrun₄ rfl
   have hstart : wordsCfgAt (u₀ ++ raw) p₀
       (some appendPrefixTM.q₀) ![List.replicate N true, u₀] out =
       (cfg₀.mapState (handOver copyCappedCore.q₀)).mapState (handOver rewindBothTM.q₀) :=
@@ -306,9 +304,7 @@ private lemma onWords_onSlice {k K : ℕ} {Symbol State : Type*}
   refine ((h.onWords mark).extendTapes e).imp ?_ ?_ le_rfl le_rfl
   · rintro _ _ rfl
     funext j
-    by_cases hj : j = Fin.natAdd (k + 1) 0
-    · subst hj; simp [hin]
-    · simp [hj, hclean j hj]
+    by_cases hj : j = Fin.natAdd (k + 1) 0 <;> simp [hj, hin, hclean j]
   · rintro _ _ v' em rfl ⟨⟨hv, rfl⟩, hx⟩
     refine ⟨funext fun l => ?_, rfl⟩
     by_cases hl : l ∈ Set.range e
@@ -341,18 +337,13 @@ private lemma inputFromWord_onSlice {k K : ℕ} {Symbol State : Type*}
   refine ((h.inputFromWord mark).extendTapes e).imp ?_ ?_ le_rfl le_rfl
   · rintro _ _ rfl
     refine ⟨trivial, funext fun j => ?_⟩
-    by_cases hj : j = Fin.natAdd k 0
-    · subst hj; simp [hin]
-    · simp [hj, hclean j hj]
+    by_cases hj : j = Fin.natAdd k 0 <;> simp [hj, hin, hclean j]
   · rintro _ _ v' em rfl ⟨⟨hv, rfl⟩, hx⟩
     refine ⟨funext fun l => ?_, rfl⟩
     by_cases hl : l ∈ Set.range e
     · obtain ⟨j, rfl⟩ := hl
       have hvj := congrFun hv j
-      by_cases hj : j = Fin.natAdd k 0
-      · subst hj
-        simpa [hin] using hvj
-      · simpa [hj, hclean j hj] using hvj
+      by_cases hj : j = Fin.natAdd k 0 <;> simpa [hj, hin, hclean j] using hvj
     · exact hx l hl
 
 private lemma embed_wordsCfgAt {k k' : ℕ} {Symbol State : Type*} {input : List Symbol}
@@ -595,18 +586,14 @@ theorem computableInTimeAndSpace_boundedPrefix
     let p₂ : ℕ := p₁ + min N raw.length
     have hspec1 : TransformsWordsAt m1 inp 1 p₁ ws₀ ws₁ []
         (2 * (frame u).length + 4) ((frame u).length + 2 + (K - 1)) := by
-      let onePos : Fin (inp.length + 2) := ⟨1, by simp⟩
-      have honeNe : onePos.val ≠ 0 := by simp [onePos]
-      have hr := transformsTapesAt_appendRead frameStopReader tV inp onePos honeNe []
-      have hread : frameStopReader.read frameStopReader.q₀ (inp.drop (onePos.val - 1)) =
+      have hr := transformsTapesAt_appendRead frameStopReader tV inp ⟨1, by simp⟩ (by simp) []
+      have hread : frameStopReader.read frameStopReader.q₀ (inp.drop (1 - 1)) =
           (frame u, (frame u).length) := by
-        change frameStopReader.read false (inp.drop (1 - 1)) = (frame u, (frame u).length)
-        rw [Nat.sub_self, List.drop_zero, hinp]
-        exact read_frameStopReader u raw
+        simpa [frameStopReader, hinp] using read_frameStopReader u raw
       have hwords := hr.wordsAt (p := 1) (p' := 1 + (frameStopReader.read frameStopReader.q₀
-          (inp.drop (onePos.val - 1))).2) (ws := ws₀)
+          (inp.drop (1 - 1))).2) (ws := ws₀)
         (ws' := Function.update ws₀ tV ([] ++ (frameStopReader.read frameStopReader.q₀
-          (inp.drop (onePos.val - 1))).1))
+          (inp.drop (1 - 1))).1))
         (e := []) (fun q hq => ⟨rfl, hq, by simp [ws₀]⟩)
         (fun q q' v e hq hQ => by rcases hQ with ⟨hp', rfl, rfl⟩; exact ⟨hp', rfl, rfl⟩)
       have hwords' := hwords.congr rfl (by rw [hread]) rfl (by rw [hread]) rfl
@@ -716,7 +703,6 @@ theorem computableInTimeAndSpace_boundedPrefix
       omega
     obtain ⟨p', ws', _, hrun, ⟨_, _, _, rfl⟩, hspace⟩ :=
       (hcomp.mono ht_le hs_le) inp 1 ws₀ [] ⟨rfl, rfl, rfl⟩
-    rw [List.nil_append] at hrun
     obtain ⟨rp, hrpHead, hrpLast, hrpLen, hrpSpace⟩ := (exists_runPath_iff_runFrom rfl).mpr
       ⟨by simpa [M, wordsCfgAt, Cfg.init_eq_wordsCfg, ws₀] using hrun,
        by simpa [M, wordsCfgAt, Cfg.init_eq_wordsCfg, ws₀] using hspace⟩

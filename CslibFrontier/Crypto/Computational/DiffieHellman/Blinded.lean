@@ -145,14 +145,8 @@ theorem BlindedCDHAnswer.solve_eq_iff (out : BlindedCDHAnswer q G) (g : G) (μ �
         (out.exponent ^ 2 * μ * ν) • g := by
     rw [blindedDH]
     module
-  rw [h, BlindedCDHAnswer.solve]
-  constructor
-  · intro h'
-    rw [← h']
-    abel
-  · intro h'
-    rw [h']
-    abel
+  rw [← sub_eq_zero, ← sub_eq_zero (a := out.value), BlindedCDHAnswer.solve, h]
+  exact iff_of_eq (congrArg (· = 0) (by abel))
 
 /-- The algebra of [BonehShoup2023], Lemma 21.8: for prime `q`, from the two blinded values at
 distinct exponents the reduction's output is the Diffie–Hellman element of `β • g` and `x • g`.
@@ -324,12 +318,8 @@ loses. -/
 theorem blindedCDHPairAdvantage_le_cdhAdvantage [Fact q.Prime]
     (A : G → G → G → ProbComp (BlindedCDHPairAnswer q G)) :
     blindedCDHPairAdvantage q g A ≤ cdhAdvantage q g (blindedCDHPairToCDH q g A) := by
-  refine Game.succProbability_mono ?_
-  refine (eval_blindedCDHPairExperiment_true_le q g A).trans_eq ?_
-  refine congrFun (congrArg DFunLike.coe ?_) true
-  refine ((eval_cdhExperiment_bind q g ($ᵗ ZMod q) fun μ =>
-    blindedCDHPairToCDHWith q g A μ).trans ?_).symm
-  rw [ProbComp.eval_uniform]
+  refine Game.succProbability_mono ((eval_blindedCDHPairExperiment_true_le q g A).trans_eq ?_)
+  rw [eval_cdhExperiment_bind, ProbComp.eval_uniform]
 
 end Experiments
 

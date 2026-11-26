@@ -206,11 +206,9 @@ theorem positiveStem_regular {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
   refine ⟨(isOrthogonal_translate_iff _ _).2
     (collaredProfile_incidence_orthogonal _ h hs he),
     (isSimple_translate_iff _ _).2 (collaredProfile_incidence_isSimple _ h hs he), ?_, ?_⟩
-  · unfold positiveStem translate
-    rw [List.head?_map, hept.2.2.1, Option.map_some]
+  · rw [positiveStem, translate, List.head?_map, hept.2.2.1]
     exact congrArg some (add_comm _ _)
-  · unfold positiveStem translate
-    rw [List.getLast?_map, hept.2.2.2, Option.map_some]
+  · rw [positiveStem, translate, List.getLast?_map, hept.2.2.2]
     exact congrArg some (add_comm _ _)
 
 /-- A local source-placeholder lookup identifies its unique terminal slot, including the
@@ -380,11 +378,8 @@ theorem collaredProfile_other_terminal_not_mem_support (p : ClauseProfile)
       f.variableIndex) ∉ support e.route := by
   obtain ⟨a, ha, rfl⟩ := List.mem_map.mp he
   obtain ⟨b, hb, rfl⟩ := List.mem_map.mp hf
-  have hv : b.2.1 ≠ a.2.1 := by
-    intro hv
-    have hab := profile_prefix_terminal_unique p b hb ht a ha hv
-    subst a
-    exact hne rfl
+  have hv : b.2.1 ≠ a.2.1 := fun hv =>
+    hne (profile_prefix_terminal_unique p b hb ht a ha hv ▸ rfl)
   exact collaredProfile_variable_not_mem_support p h hs (List.mem_map_of_mem ha)
     ⟨b.2.1, profile_prefix_terminal_lt p _ ht⟩ hv
 
@@ -400,15 +395,13 @@ theorem positiveStem_other_terminal_not_mem_support {φ : CNF ℕ}
     realPoint (positiveBoxOrigin φ d i +
       (clauseGeometry φ d i c).variablePosition f.variableIndex) ∉
       support (positiveStem φ d i e) := by
-  have hn := collaredProfile_other_terminal_not_mem_support _ h (clausePorts_spec hd hi).1
-    he hf hne ht
   intro hz
   rw [positiveStem, support_translate] at hz
   obtain ⟨x, hx, hxp⟩ := hz
-  have hx' : x = realPoint ((clauseGeometry φ d i c).variablePosition f.variableIndex) := by
-    apply add_right_cancel (b := realPoint (positiveBoxOrigin φ d i))
-    simpa only [realPoint_add, add_comm (realPoint (positiveBoxOrigin φ d i))] using hxp
-  exact hn (hx' ▸ hx)
+  obtain rfl : x = realPoint ((clauseGeometry φ d i c).variablePosition f.variableIndex) := by
+    simpa [realPoint_add, add_comm (realPoint (positiveBoxOrigin φ d i))] using hxp
+  exact collaredProfile_other_terminal_not_mem_support _ h (clausePorts_spec hd hi).1
+    he hf hne ht hx
 
 /-- Inside one clause box, an inherited exterior is disjoint from every other local prefix.
 The shared clause center has already been cut away. -/

@@ -150,15 +150,10 @@ theorem supertileShadeGrid_sparse (level : ℕ) (root : Node) (x y : ℕ) :
       supertileShadeGrid level root x y := by
   have coords (z : ℕ) : sparseCoordinate z / 2 = 4 * (z / 2) ∧
       sparseCoordinate z % 2 = z % 2 := by dsimp only [sparseCoordinate]; omega
-  obtain ⟨hxd, hxm⟩ := coords x
-  obtain ⟨hyd, hym⟩ := coords y
-  have position : childPosition (4 * (x / 2)) (4 * (y / 2)) = 0 := by
-    apply Fin.ext
-    simp [childPosition, blockPosition]
-  have hx4 : 4 * (x / 2) / 4 = x / 2 := by omega
-  have hy4 : 4 * (y / 2) / 4 = y / 2 := by omega
-  simp only [supertileShadeGrid, hxd, hyd, hxm, hym, supertileNodeGrid,
-    position, Node.child_zero_block, hx4, hy4]
+  have position : childPosition (4 * (x / 2)) (4 * (y / 2)) = 0 :=
+    Fin.ext (by simp [childPosition, blockPosition])
+  simp only [supertileShadeGrid, (coords x).1, (coords y).1, (coords x).2, (coords y).2,
+    supertileNodeGrid, position, Node.child_zero_block, Nat.mul_div_right _ (by decide : 0 < 4)]
 
 /-- Each eight-by-eight quarter block is the first supertile of its coarser node. -/
 theorem supertileShadeGrid_block (level : ℕ) (root : Node)
@@ -212,32 +207,26 @@ theorem supertile_validShadeRectangle (level : Nat) (root : Node) :
       (n := 4 ^ level) ?_ ?_ hx
     · intro i _
       have internal := (supertileNodeGrid level root i (y / 2)).block_internal
-      rcases Nat.mod_two_eq_zero_or_one y with hyzero | hyone
-      · simpa [ShadeBlock.at, hyzero] using internal.1
-      · simpa [ShadeBlock.at, hyone] using internal.2.1
+      rcases Nat.mod_two_eq_zero_or_one y with hy | hy <;> simp [ShadeBlock.at, hy, internal]
     · intro i hi
       have blockMatch := ((supertileNodeGrid_compatible level root).hmatch
         i (y / 2) hi (by omega)).2
-      simp only [ShadeBlock.hMatches, Bool.and_eq_true, decide_eq_true_eq] at blockMatch
-      rcases Nat.mod_two_eq_zero_or_one y with hyzero | hyone
-      · simpa [ShadeBlock.at, hyzero] using blockMatch.1
-      · simpa [ShadeBlock.at, hyone] using blockMatch.2
+      simp only [ShadeBlock.hMatches, ShadeBlock.at, Bool.and_eq_true, decide_eq_true_eq,
+        one_ne_zero, ↓reduceIte] at blockMatch
+      rcases Nat.mod_two_eq_zero_or_one y with hy | hy <;> simp [ShadeBlock.at, hy, blockMatch]
   · intro x y hx hy
     refine adjacent_pairs (fun a b : ShadeState => a.north = b.south)
       (fun i r => (supertileNodeGrid level root (x / 2) i).block.at (x % 2) r)
       (n := 4 ^ level) ?_ ?_ hy
     · intro i _
       have internal := (supertileNodeGrid level root (x / 2) i).block_internal
-      rcases Nat.mod_two_eq_zero_or_one x with hxzero | hxone
-      · simpa [ShadeBlock.at, hxzero] using internal.2.2.1
-      · simpa [ShadeBlock.at, hxone] using internal.2.2.2
+      rcases Nat.mod_two_eq_zero_or_one x with hx | hx <;> simp [ShadeBlock.at, hx, internal]
     · intro i hi
       have blockMatch := ((supertileNodeGrid_compatible level root).vmatch
         (x / 2) i (by omega) hi).2
-      simp only [ShadeBlock.vMatches, Bool.and_eq_true, decide_eq_true_eq] at blockMatch
-      rcases Nat.mod_two_eq_zero_or_one x with hxzero | hxone
-      · simpa [ShadeBlock.at, hxzero] using blockMatch.1
-      · simpa [ShadeBlock.at, hxone] using blockMatch.2
+      simp only [ShadeBlock.vMatches, ShadeBlock.at, Bool.and_eq_true, decide_eq_true_eq,
+        one_ne_zero, ↓reduceIte] at blockMatch
+      rcases Nat.mod_two_eq_zero_or_one x with hx | hx <;> simp [ShadeBlock.at, hx, blockMatch]
 
 /-- Orientation of the last selected border strictly before an edge. -/
 @[expose] def previousInterior (interior : ℕ → Option Bool) : ℕ → Option Bool
@@ -327,12 +316,8 @@ theorem intervalEdge_eq_none_iff (interior : ℕ → Option Bool) (length positi
       nextInterior interior position (length - position) = some false ∧
         previousInterior interior position ≠ some false := by
   unfold intervalEdge
-  cases hnext : nextInterior interior position (length - position) with
-  | none => simp
-  | some next =>
-      cases next <;> cases hprevious : previousInterior interior position with
-      | none => simp
-      | some previous => cases previous <;> simp
+  rcases nextInterior interior position (length - position) with _ | _ | _ <;>
+    rcases previousInterior interior position with _ | _ | _ <;> simp
 
 /-- Every edge between consecutive opening and closing borders is clear. -/
 theorem intervalEdge_eq_none_of_between_borders

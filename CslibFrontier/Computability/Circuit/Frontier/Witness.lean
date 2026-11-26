@@ -158,9 +158,7 @@ private theorem two_pow_le_two_mul_card_filter [DecidableEq ι] :
     have hsplit := card_filter_add_card_filter_not (s := (univ : Finset (ι → Bool)))
       fun x => f x = true
     simp only [card_univ, Bool.not_eq_true] at hsplit
-    have hneg : #{x | (!f x) = true} = #{x | f x = false} := by
-      simp only [Bool.not_eq_true']
-    simp only [coe_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq, hneg]
+    simp only [coe_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq, Bool.not_eq_true']
     omega
   have hsplit := card_filter_add_card_filter_not (s := (univ : Finset ((ι → Bool) → Bool)))
     fun f => t ≤ #{x | f x = true}
@@ -233,13 +231,9 @@ theorem exists_rectangleFree_two_pow_le_ncard :
     generalize 2 ^ (n + 4) = Q at hcount h16
     nlinarith
   obtain ⟨f, hf, hfbad⟩ := exists_mem_notMem_of_card_lt_card hlt
-  refine ⟨{x | f x = true}, ?_, ?_⟩
-  · simpa [bad] using hfbad
-  · have : ({x | f x = true} : Set (ι → Bool)) = ↑({x | f x = true} : Finset (ι → Bool)) := by
-      ext
-      simp
-    rw [this, ncard_coe_finset]
-    exact (mem_filter.mp hf).2
+  refine ⟨{x | f x = true}, by simpa [bad] using hfbad, ?_⟩
+  rw [ncard_eq_toFinset_card']
+  simpa using (mem_filter.mp hf).2
 
 end RectangleFree
 
@@ -424,10 +418,7 @@ theorem isLittleO_deficit_of_two_pow_le_ncard {S : ∀ n, Set (Fin n → Bool)}
   have hpos : (0 : ℝ) < 2 ^ (n - 1) := by positivity
   have hlow : (2 : ℝ) ^ (n - 1) ≤ (S n).ncard := by exact_mod_cast hdense n
   have hup : ((S n).ncard : ℝ) ≤ 2 ^ n := by
-    have := ncard_le_card (S n)
-    simp only [Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_bool,
-      Fintype.card_fin] at this
-    exact_mod_cast this
+    simpa using (Nat.cast_le (α := ℝ)).mpr (ncard_le_card (S n))
   have hlog_low : ((n : ℝ) - 1) * Real.log 2 ≤ Real.log (S n).ncard := by
     calc ((n : ℝ) - 1) * Real.log 2 ≤ ((n - 1 : ℕ) : ℝ) * Real.log 2 := by
           gcongr

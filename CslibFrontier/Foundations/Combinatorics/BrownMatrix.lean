@@ -323,31 +323,20 @@ theorem isRectangleFreeMatrix_brownMatrix (hp : p % 4 = 3) :
     have ht1 : (1 : ZMod p) ≠ t := fun h => hr₁₂ (by simp [ht, ← h])
     refine no_three_collinear_on_unit_sphere hp hr₁ one_ne_zero ht0 ht1
       (hdist ha₀ hb₀) ?_ ?_
-    · have h1 : a₀ - b₀ + (1 : ZMod p) • r₁ = a₁ - b₀ := by
-        simp only [r₁, one_smul]
-        abel
-      exact h1 ▸ hdist ha₁ hb₀
+    · rw [one_smul, add_comm (a₀ - b₀), sub_add_sub_cancel]
+      exact hdist ha₁ hb₀
     · rw [show a₀ - b₀ + t • r₁ = a₂ - b₀ by rw [← ht]; simp only [r₂]; abel]
       exact hdist ha₂ hb₀
   · set n := cross3 r₁ r₂
-    have hd11 : dot3 r₁ c₁ = 0 :=
-      dot3_eq_zero_of_four_unit_dists hp (hdist ha₀ hb₀) (hdist ha₀ hb₁)
-        (hdist ha₁ hb₀) (hdist ha₁ hb₁)
-    have hd21 : dot3 r₂ c₁ = 0 :=
-      dot3_eq_zero_of_four_unit_dists hp (hdist ha₀ hb₀) (hdist ha₀ hb₁)
-        (hdist ha₂ hb₀) (hdist ha₂ hb₁)
-    have hd12 : dot3 r₁ c₂ = 0 :=
-      dot3_eq_zero_of_four_unit_dists hp (hdist ha₀ hb₀) (hdist ha₀ hb₂)
-        (hdist ha₁ hb₀) (hdist ha₁ hb₂)
-    have hd22 : dot3 r₂ c₂ = 0 :=
-      dot3_eq_zero_of_four_unit_dists hp (hdist ha₀ hb₀) (hdist ha₀ hb₂)
-        (hdist ha₂ hb₀) (hdist ha₂ hb₂)
-    have hnc₁ : cross3 n c₁ = 0 := by
-      rw [cross3_cross3, hd11, hd21, zero_smul, zero_smul, sub_zero]
-    have hnc₂ : cross3 n c₂ = 0 := by
-      rw [cross3_cross3, hd12, hd22, zero_smul, zero_smul, sub_zero]
-    obtain ⟨s₁, hs₁⟩ := collinear_of_cross3_eq_zero hcross hnc₁
-    obtain ⟨s₂, hs₂⟩ := collinear_of_cross3_eq_zero hcross hnc₂
+    have hnc {b : Fin 3 → ZMod p} (hb : b ∈ ({b₀, b₁, b₂} : Finset _)) :
+        cross3 n (b - b₀) = 0 := by
+      rw [cross3_cross3,
+        dot3_eq_zero_of_four_unit_dists hp (hdist ha₀ hb₀) (hdist ha₀ hb)
+          (hdist ha₁ hb₀) (hdist ha₁ hb),
+        dot3_eq_zero_of_four_unit_dists hp (hdist ha₀ hb₀) (hdist ha₀ hb)
+          (hdist ha₂ hb₀) (hdist ha₂ hb), zero_smul, zero_smul, sub_zero]
+    obtain ⟨s₁, hs₁⟩ := collinear_of_cross3_eq_zero (w := c₁) hcross (hnc hb₁)
+    obtain ⟨s₂, hs₂⟩ := collinear_of_cross3_eq_zero (w := c₂) hcross (hnc hb₂)
     have hs₁0 : s₁ ≠ 0 := fun h => hc₁ (by simp [hs₁, h])
     have hs₂0 : s₂ ≠ 0 := fun h => hc₂ (by simp [hs₂, h])
     have hs₁₂ : s₁ ≠ s₂ := fun h => hc₁₂ (by rw [hs₁, hs₂, h])

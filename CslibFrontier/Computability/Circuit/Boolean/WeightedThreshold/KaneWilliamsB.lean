@@ -722,24 +722,19 @@ private theorem countTerm_le (hp : 1 ≤ p) (hℓp : ℓ ≤ 2 ^ p) {M : ℕ} (h
           ((2 ^ (16 * p + 1) * 2 ^ (4 * p)) ^ Q * (2 ^ (16 * p + 1)) ^ (Q + 16 * p + 1)) := by
           gcongr
       _ = 2 ^ ((36 * p + 2) * Q + 272 * p ^ 2 + 48 * p + 1) := by ring
-  have hnat' : (ℓ : ℝ) ^ (16 * p) * 2 ^ (16 * p) *
-      ((((2 ^ (16 * p) + 1) * M) ^ Q * (2 ^ (16 * p) + 1) ^ (Q + 16 * p + 1) : ℕ) : ℝ) ≤
-      2 ^ ((36 * p + 2) * Q + 272 * p ^ 2 + 48 * p + 1) := by
-    exact_mod_cast hnat
   have hden : (1 / 2 : ℝ) ^ (6 * p + 1) ≤ ((1 / 2 : ℝ) ^ (3 * p)) ^ 2 - (1 / 2) ^ (7 * p) := by
     have h7 : (1 / 2 : ℝ) ^ (7 * p) ≤ (1 / 2) ^ (6 * p + 1) :=
       pow_le_pow_of_le_one (by norm_num) (by norm_num) (by omega)
     have h6 : ((1 / 2 : ℝ) ^ (3 * p)) ^ 2 = 2 * (1 / 2) ^ (6 * p + 1) := by
       rw [← pow_mul, pow_succ]; ring_nf
     linarith
-  have hpos : (0 : ℝ) < (1 / 2) ^ (6 * p + 1) := by positivity
   calc (ℓ : ℝ) ^ (16 * p) * 2 ^ (16 * p) *
         ((((2 ^ (16 * p) + 1) * M) ^ Q * (2 ^ (16 * p) + 1) ^ (Q + 16 * p + 1) : ℕ) : ℝ) /
           ((((1 / 2 : ℝ) ^ (3 * p)) ^ 2 - (1 / 2) ^ (7 * p)) * 2 ^ n)
       ≤ 2 ^ ((36 * p + 2) * Q + 272 * p ^ 2 + 48 * p + 1) /
-          ((1 / 2 : ℝ) ^ (6 * p + 1) * 2 ^ n) := by
-        refine div_le_div₀ (by positivity) hnat' (by positivity) ?_
-        exact mul_le_mul_of_nonneg_right hden (by positivity)
+          ((1 / 2 : ℝ) ^ (6 * p + 1) * 2 ^ n) :=
+        div_le_div₀ (by positivity) (by exact_mod_cast hnat) (by positivity)
+          (mul_le_mul_of_nonneg_right hden (by positivity))
     _ = 2 ^ ((36 * p + 2) * Q + 272 * p ^ 2 + 54 * p + 2) / 2 ^ n := by
         rw [one_div_pow, div_mul_eq_mul_div, one_mul, div_div_eq_mul_div, ← pow_add]
         congr 2
@@ -1125,9 +1120,9 @@ theorem card_eval_eq_kaneWilliamsB_le_balanced_size (hp : 1 ≤ p) (hnℓ : n = 
       (1 / 2 + (1 / 2) ^ (3 * p) + 2432 * p ^ 2 * c.size * Real.sqrt (2 * n) /
         (n * (n - (272 * p ^ 2 + 57 * p + 3)))) := by
   have h2n : ((n + 16 * p * ℓ : ℕ) : ℝ) = 2 * n := by rw [← hnℓ]; push_cast; ring
-  have hK : (16 * (p : ℝ)) ≠ 0 := by positivity
   refine balanced_corr_bound hp hnℓ hn (by omega) (K := 16 * p) (A := ℓ)
-    (X := c.size * Real.sqrt (2 * n)) (by exact_mod_cast hnℓ) hK (by ring) fun hℓ hℓp => ?_
+    (X := c.size * Real.sqrt (2 * n)) (by exact_mod_cast hnℓ) (by positivity) (by ring)
+    fun hℓ hℓp => ?_
   have h := card_eval_eq_kaneWilliamsB_le_of_le_two_pow_size hp hn hℓ hℓp hnR hr c hd o
   rw [h2n] at h
   simpa only [mul_assoc] using h
@@ -1146,9 +1141,8 @@ theorem card_eval_eq_kaneWilliamsB_le_balanced_wireCount (hp : 1 ≤ p) (hnℓ :
       (1 / 2 + (1 / 2) ^ (3 * p) + 9728 * p ^ 2 * Real.sqrt p * c.wireCount /
         (n * Real.sqrt n * (n - (272 * p ^ 2 + 57 * p + 3)))) := by
   have hp0 : (0 : ℝ) < p := Nat.cast_pos.mpr hp
-  have hK : 64 * (p : ℝ) * Real.sqrt p ≠ 0 := by positivity
   refine balanced_corr_bound hp hnℓ hn (by omega) (K := 64 * p * Real.sqrt p)
-    (A := ℓ * Real.sqrt ℓ) (X := c.wireCount) (mul_sqrt_balanced hnℓ) hK (by ring)
+    (A := ℓ * Real.sqrt ℓ) (X := c.wireCount) (mul_sqrt_balanced hnℓ) (by positivity) (by ring)
     fun hℓ hℓp => ?_
   exact card_eval_eq_kaneWilliamsB_le_of_le_two_pow_wireCount hp hn hℓ hℓp hnR hr c hd o
 

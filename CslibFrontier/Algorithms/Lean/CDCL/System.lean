@@ -391,25 +391,20 @@ exactly when the literal is on the trail. -/
 theorem Trail.partialAssignment_eq_some_iff {M : Trail} (hM : (Trail.vars M).Nodup)
     (l : Literal ℕ) : Trail.partialAssignment M l.1 = some l.2 ↔ l ∈ Trail.lits M := by
   obtain ⟨v, b⟩ := l
-  unfold Trail.partialAssignment
   cases b
-  · have : (v, false) ∈ Trail.lits M → (v, true) ∉ Trail.lits M := fun h =>
-      Trail.negate_not_mem hM h
+  · have := fun h : (v, false) ∈ Trail.lits M => Trail.negate_not_mem hM h
     by_cases ht : (v, true) ∈ Trail.lits M <;> by_cases hf : (v, false) ∈ Trail.lits M <;>
-      simp_all
-  · by_cases ht : (v, true) ∈ Trail.lits M <;> by_cases hf : (v, false) ∈ Trail.lits M <;>
-      simp_all
+      simp_all [Trail.partialAssignment, Std.Sat.Literal.negate]
+  · by_cases ht : (v, true) ∈ Trail.lits M <;> simp [Trail.partialAssignment, ht]
 
 /-- A trail that falsifies no clause of `F` and assigns every variable of `F` has a literal of
 every clause of `F`. -/
 theorem Trail.exists_mem_lits {M : Trail} {F : CNF ℕ} (hnoconf : ∀ c ∈ F, ¬ Trail.Falsifies M c)
     (htotal : ∀ x ∈ F.vars, x ∈ Trail.vars M) : ∀ c ∈ F, ∃ l ∈ c, l ∈ Trail.lits M := by
   intro c hc
-  have : ∃ l ∈ c, l.negate ∉ Trail.lits M := by
-    by_contra hne
-    push Not at hne
+  obtain ⟨l, hl, hopen⟩ : ∃ l ∈ c, l.negate ∉ Trail.lits M := by
+    by_contra! hne
     exact hnoconf c hc hne
-  obtain ⟨l, hl, hopen⟩ := this
   -- `l` is assigned, and not falsely, so the trail contains it
   obtain ⟨e, hmem, hl'⟩ := List.mem_map.1 (htotal l.1 (CNF.mem_vars.2 ⟨c, hc, l.2, hl⟩))
   have helits : e.lit ∈ Trail.lits M := List.mem_map.2 ⟨e, hmem, rfl⟩
@@ -520,11 +515,9 @@ theorem RunInv.exists_basicStep {φ : CNF ℕ} {V : List ℕ} {M : Trail} {F : C
     · exact ⟨_, hfail⟩
     · exact ⟨_, hbj⟩
   · push Not at hconf
-    have : ∃ x ∈ F.vars, x ∉ Trail.vars M := by
-      by_contra hne
-      push Not at hne
+    obtain ⟨x, hx, hxM⟩ : ∃ x ∈ F.vars, x ∉ Trail.vars M := by
+      by_contra! hne
       exact hfinal ⟨hconf, hne⟩
-    obtain ⟨x, hx, hxM⟩ := this
     exact ⟨_, BasicStep.decide (l := (x, true)) hxM hx⟩
 
 /-- A state that satisfies the invariant and is final for Basic DPLL is `fail` exactly when `φ` is
@@ -665,11 +658,7 @@ theorem BasicStep.rank_lt {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : 
     have hlt : Trail.measure n (N ++ ⟨d, true⟩ :: M₀) <
         Trail.measure n M₀ + (n + 1) ^ (n - Trail.level M₀) := by
       nlinarith
-    have heq : Trail.measure n (⟨l, false⟩ :: M₀) =
-        Trail.measure n M₀ + (n + 1) ^ (n - Trail.level M₀) := by
-      simp [Trail.measure]
-    simp only [rank]
-    rw [← hn]
+    simp only [rank, ← hn, Trail.measure, Bool.false_eq_true, ite_false, Nat.add_zero]
     omega
 
 /-- **Termination of Basic DPLL** [NieuwenhuisOliverasTinelli2006, Theorem 2.10]: there is no

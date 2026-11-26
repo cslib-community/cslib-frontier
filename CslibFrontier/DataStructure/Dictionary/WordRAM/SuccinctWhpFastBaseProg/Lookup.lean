@@ -530,10 +530,8 @@ private theorem realizes_probeOldBufCandGen :
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
     have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
-    have hlog_w := henv.log_lt_w
-    have hbm_ge := bMinWhp_le_log hth
-    have hbmin := le_bMinWhp c
-    have hw2 : 2 ≤ w := by omega
+    have hw2 : 2 ≤ w :=
+      (by decide : 2 ≤ _).trans ((le_bMinWhp c).trans ((bMinWhp_le_log hth).trans henv.log_lt_w.le))
     obtain ⟨hst_st, hst_res, _, _⟩ := readHdrProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage) (s := s)
       (by dsimp only [hdrRebStage]; omega)
@@ -541,8 +539,7 @@ private theorem realizes_probeOldBufCandGen :
     obtain ⟨hro_st, hro_res, _, _⟩ := readOldEpProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max)
       (by dsimp [hdrCurEp]; omega) hce_or hrep.2.2.2.1 (s := s)
-    simp only [hst_st, hst_res] at *
-    simp only [hro_st, hro_res] at *
+    simp only [hst_st, hst_res, hro_st, hro_res] at *
     first
     | exact henv.fits_const (by decide)
     | exact henv.fits_hdr_addr (by decide)
@@ -624,8 +621,7 @@ theorem realizes_fastFindLocBqGen :
     have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
     have hth := henv.2.2.2.1
     have hb : b < numBucketsWhp n_max := by
-      rw [mkWhpParams_fst, wp_large_M hth] at hb_wp; exact hb_wp
-    have hm2 : s.mem (base + hdrCurEp) = fs.curEp := hrep.2.2.2.1
+      rwa [mkWhpParams_fst, wp_large_M hth] at hb_wp
     obtain ⟨hmh_st, hmh_res, _, _⟩ := mkHashRtGenProg_spec (c := c) (U := U) (V := V)
       (w := w) (n_max := n_max) (base := base) hth s
     obtain ⟨hrk_st, _, _, _⟩ :=
@@ -649,12 +645,8 @@ theorem realizes_fastFindLocBqGen :
     have hc2_st := (probeOldBufCandGenProg_spec henv hrep hv.curEp_or hbo_fn
       hb hcnt_le hbp_v (q_val := q_val) (rKey := rk_res) (s := s)).state
     dsimp only [rk_res] at hc1_st hc2_st
-    simp only [mkWhpParams_fst] at *
-    simp only [hmh_st, hmh_res] at *
-    simp only [hrk_st] at *
-    simp only [hce_st, hce_res, hm2] at *
-    simp only [hc1_st] at *
-    simp only [hc2_st] at *
+    simp only [mkWhpParams_fst, hmh_st, hmh_res, hrk_st, hce_st, hce_res, hrep.2.2.2.1] at *
+    simp only [hc1_st, hc2_st] at *
     first
     | exact henv.fits_const (by decide)
     | exact henv.fits_hdr_addr (by decide)
@@ -773,7 +765,8 @@ theorem realizes_fastQueryGen :
       fastFindLocBqGenProg_spec henv hseed hrep hv u (s := s)
     dsimp only [u] at hfl_st hfl_res
     simp only [mkWhpParams_fst] at *
-    simp only [hmh_st, hmh_res, hfs_st, hfs_res, hfl_st, wp_large_M hth, wp_large_nMax hth] at *
+    simp only [hmh_st, hmh_res, hfs_st, hfs_res, hfl_st, hfl_res,
+      wp_large_M hth, wp_large_nMax hth] at *
     first
     | exact henv.fits_const (by decide)
     | exact ⟨c, U, V, w, n_max, θ, henv, rfl, hseed⟩
@@ -782,18 +775,11 @@ theorem realizes_fastQueryGen :
     | exact ⟨c, U, V, w, n_max, henv, rfl⟩
     | (have hspec := hv.fastFindLoc_spec u
        cases hfind : fastFindLoc c U n_max θ fs u with
-       | none =>
-         have hhit : ((Memory.spec 0).clientResult s
-           (fastFindLocBqGenProg (((mkWhpParams c U V w n_max, base),
-             (feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u_val,
-              keyQuotient (bWhp n_max) u_val)), u_val))).1 = 1 := by assumption
-         rw [hfind] at hfl_res; rw [hfl_res] at hhit; cases hhit
+       | none => simp [u, hfind] at *
        | some loc =>
-         rw [hfind] at hfl_res hspec
-         rw [hfl_res]
-         have hloc_b : loc < fs.bktCount
-             (feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u_val) := hspec.1
-         have hloc : loc < totalLocalCoordsWhp n_max := hloc_b.trans_le (hv.bktCount_le _ hb)
+         rw [hfind] at hspec
+         simp only [u, hfind] at *
+         have hloc : loc < totalLocalCoordsWhp n_max := hspec.1.trans_le (hv.bktCount_le _ hb)
          have hbp : capFrontWhp n_max ≤ loc →
              fs.backPtr (feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u_val)
                (loc - capFrontWhp n_max) < poolSizeWhp n_max :=

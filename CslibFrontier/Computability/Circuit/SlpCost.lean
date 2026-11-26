@@ -270,11 +270,9 @@ lemma rel (hD : 1 < D) {p q : ℕ} {h1 h2 : Inp → ℕ} (r : ℕ → ℕ → Pr
     (c2 : Cost D A q h2) :
     CostP D A (p + q + 1) fun x => r (h1 x) (h2 x) := by
   classical
-  have := Cost.op (fun a b => if r a b then 1 else 0) c1 c2 (fun x => by split_ifs <;> omega)
-  refine this.congr fun x => ?_
-  by_cases h : r (h1 x) (h2 x)
-  · rw [Set.indicator_of_mem (s := {x | r (h1 x) (h2 x)}) h, Pi.one_apply, ite_eq_left h]
-  · rw [Set.indicator_of_notMem (s := {x | r (h1 x) (h2 x)}) h, ite_eq_right h]
+  refine (Cost.op (fun a b => if r a b then 1 else 0) c1 c2
+    (fun _ => by split_ifs <;> omega)).congr fun x => ?_
+  by_cases h : r (h1 x) (h2 x) <;> simp [Set.indicator, h]
 
 /-- A property of a value. -/
 lemma rel1 (hD : 1 < D) {p : ℕ} {h : Inp → ℕ} (r : ℕ → Prop) (c1 : Cost D A p h) :
@@ -282,12 +280,10 @@ lemma rel1 (hD : 1 < D) {p : ℕ} {h : Inp → ℕ} (r : ℕ → Prop) (c1 : Cos
   rel hD (fun a _ => r a) c1 (Cost.const 0 (by omega))
 
 lemma true' (hD : 1 < D) : CostP D A 1 fun _ => True := by
-  refine (Cost.const 1 hD).congr fun x => ?_
-  rw [Set.indicator_of_mem (s := {_x : Inp | True}) (a := x) trivial, Pi.one_apply]
+  exact (Cost.const 1 hD).congr fun _ => by simp
 
 lemma false' (hD : 1 < D) : CostP D A 1 fun _ => False := by
-  refine (Cost.const 0 (by omega)).congr fun x => ?_
-  rw [Set.indicator_of_notMem (s := {_x : Inp | False}) (a := x) (fun h => h)]
+  exact (Cost.const 0 (Nat.zero_lt_of_lt hD)).congr fun _ => by simp
 
 /-- A constant property. -/
 lemma const (hD : 1 < D) (P : Prop) : CostP D A 1 fun _ => P := by
@@ -341,25 +337,14 @@ lemma Cost.ite {c p q : ℕ} {P : Inp → Prop} [DecidablePred P] {h1 h2 : Inp �
     (c0 : CostP D A c P) (c1 : Cost D A p h1) (c2 : Cost D A q h2) (b1 : ∀ x, h1 x < D)
         (b2 : ∀ x, h2 x < D) :
     Cost D A (2 * c + p + q + 3) fun x => if P x then h1 x else h2 x := by
-  have a1 := Cost.op (fun a b => a * b) c0 c1 (fun x => by
-    have : ({x | P x}.indicator 1 : Inp → ℕ) x ≤ 1 := Set.indicator_le_self _ _ x
-    have := b1 x
-    nlinarith)
-  have a2 := Cost.op (fun a b => (1 - a) * b) c0 c2 (fun x => by
-    have : ({x | P x}.indicator 1 : Inp → ℕ) x ≤ 1 := Set.indicator_le_self _ _ x
-    have := b2 x
-    have : 1 - ({x | P x}.indicator 1 : Inp → ℕ) x ≤ 1 := by omega
-    nlinarith)
-  have a3 := Cost.op (fun a b => a + b) a1 a2 (fun x => by
-    have := b1 x
-    have := b2 x
-    by_cases h : P x
-    · simp only [Set.indicator_of_mem (s := {x | P x}) h, Pi.one_apply]; omega
-    · simp only [Set.indicator_of_notMem (s := {x | P x}) h]; omega)
-  refine (a3.congr fun x => ?_).mono (by ring_nf; omega)
-  by_cases h : P x
-  · simp only [Set.indicator_of_mem (s := {x | P x}) h, Pi.one_apply, ite_eq_left h]; omega
-  · simp only [Set.indicator_of_notMem (s := {x | P x}) h, ite_eq_right h]; omega
+  have a1 := Cost.op (· * ·) c0 c1 fun x => by
+    by_cases h : P x <;> simp [Set.indicator, h, b1 x, Nat.zero_lt_of_lt (b1 x)]
+  have a2 := Cost.op (fun a b => (1 - a) * b) c0 c2 fun x => by
+    by_cases h : P x <;> simp [Set.indicator, h, b2 x, Nat.zero_lt_of_lt (b2 x)]
+  have a3 := Cost.op (· + ·) a1 a2 fun x => by
+    by_cases h : P x <;> simp [Set.indicator, h, b1 x, b2 x]
+  refine (a3.congr fun x => ?_).mono (by omega)
+  by_cases h : P x <;> simp [Set.indicator, h]
 
 
 end Cslib.Circuits

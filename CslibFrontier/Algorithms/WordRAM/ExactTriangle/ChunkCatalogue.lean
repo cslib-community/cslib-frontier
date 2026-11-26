@@ -150,14 +150,12 @@ theorem before_add_lt (C : ℕ → ℕ) (cap : ℕ) {rho p k : ℕ}
 theorem before_index (C : ℕ → ℕ) (cap p i : ℕ) (hi : i < before C cap p) :
     ∃! idx : (rho : Fin p) × Fin (C rho.val ⌈/⌉ cap),
       i = before C cap idx.1.val + idx.2.val := by
-  have hsum : (∑ rho : Fin p, C rho.val ⌈/⌉ cap) = before C cap p := by
-    rw [Fin.sum_univ_eq_sum_range (fun rho => C rho ⌈/⌉ cap)]; rfl
   have hval (idx : (rho : Fin p) × Fin (C rho.val ⌈/⌉ cap)) :
       (finSigmaFinEquiv idx).val = before C cap idx.1.val + idx.2.val := by
-    rw [finSigmaFinEquiv_apply]
-    change (∑ r : Fin idx.1.val, C r.val ⌈/⌉ cap) + idx.2.val = _
-    rw [Fin.sum_univ_eq_sum_range (fun rho => C rho ⌈/⌉ cap)]; rfl
-  let j : Fin (∑ rho : Fin p, C rho.val ⌈/⌉ cap) := ⟨i, hsum ▸ hi⟩
+    simpa only [finSigmaFinEquiv_apply, Fin.val_castLE, before, add_left_inj] using
+      Fin.sum_univ_eq_sum_range (fun rho => C rho ⌈/⌉ cap) idx.1.val
+  let j : Fin (∑ rho : Fin p, C rho.val ⌈/⌉ cap) :=
+    ⟨i, (Fin.sum_univ_eq_sum_range (fun rho => C rho ⌈/⌉ cap) p).symm ▸ hi⟩
   refine ⟨finSigmaFinEquiv.symm j,
     (congrArg Fin.val (finSigmaFinEquiv.apply_symm_apply j)).symm.trans (hval _), fun k hk => ?_⟩
   apply finSigmaFinEquiv.injective (Fin.ext ?_)
@@ -272,11 +270,10 @@ theorem exec {w : ℕ} (x : Data 32) (C : ℕ → ℕ)
       ∃ z, ExecWithin w body y z (17 * N + 18) ∧ I z ∧
         p - z.regs cursor < p - y.regs cursor := by
     obtain ⟨hyr, hyo, hyt, hys, hyi, hyw, hyh, hycells, hyframe⟩ := hy
-    have hyr' (i : Fin 32) (hi : 14 ≤ i.val ∧ i.val < 20) := hyr i hi.1 hi.2
-    have hyc : y.regs counts = c := hyr' counts (by decide)
-    have hyb : y.regs queries = b := hyr' queries (by decide)
-    have hyQ : y.regs capacity = Q := hyr' capacity (by decide)
-    have hyp : y.regs modulus = p := hyr' modulus (by decide)
+    have hyc : y.regs counts = c := hyr counts (by decide) (by decide)
+    have hyb : y.regs queries = b := hyr queries (by decide) (by decide)
+    have hyQ : y.regs capacity = Q := hyr capacity (by decide) (by decide)
+    have hyp : y.regs modulus = p := hyr modulus (by decide) (by decide)
     have hlt : y.regs cursor < p := by simpa only [Cond.holds_lt, hyp] using hc
     have hnext : P (y.regs cursor + 1) = P (y.regs cursor) + C (y.regs cursor) ⌈/⌉ Q :=
       before_succ C Q (y.regs cursor)
@@ -315,13 +312,10 @@ theorem exec {w : ℕ} (x : Data 32) (C : ℕ → ℕ)
       omega
     · intro r hr k hk
       rw [hzi] at hr
-      by_cases hr' : r = y.regs cursor
-      · subst r
-        have h := hzcells k hk
-        rw [hyh, hyb, hys] at h
-        simpa only [Nat.mul_add, Nat.add_assoc, Nat.mul_left_comm, Nat.mul_assoc] using h
-      · have hrlt : r < y.regs cursor := by omega
-        have hbnd : P r + C r ⌈/⌉ Q ≤ P (y.regs cursor) :=
+      rcases eq_or_lt_of_le (Nat.lt_succ_iff.mp hr) with rfl | hrlt
+      · simpa only [hyh, hyb, hys, Nat.mul_add, Nat.add_assoc, Nat.mul_left_comm,
+          Nat.mul_assoc] using hzcells k hk
+      · have hbnd : P r + C r ⌈/⌉ Q ≤ P (y.regs cursor) :=
           (before_succ C Q r).symm.trans_le (before_mono C Q hrlt)
         rw [hzframe _ (by rw [hyh]; omega), hzframe _ (by rw [hyh]; omega),
           hzframe _ (by rw [hyh]; omega)]

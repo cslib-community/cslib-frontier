@@ -144,13 +144,11 @@ private theorem spread_update {k : Nat} (t : Fin k → Int) (a : Fin k) (y : Int
   have hdiff : spread t' - spread t = ∑ i, ∑ j, g i j := by
     simp only [spread, g, Finset.sum_sub_distrib]
   have haa : g a a = 0 := by simp only [g, sub_self, abs_zero]
-  have hsplit : ∑ i, ∑ j, g i j = 2 * ∑ j, g a j := by
+  have hsplit : ∑ i, ∑ j, g i j = 2 * ∑ j, (|y - t' j| - |t a - t j|) := by
     rw [← Finset.add_sum_erase _ _ (Finset.mem_univ a),
       Finset.sum_congr rfl fun i hi => hrow i (Finset.ne_of_mem_erase hi), Finset.sum_erase _ haa]
-    ring
-  have hga : ∀ j, g a j = |y - t' j| - |t a - t j| := fun j => by
     simp only [g, t', Function.update_self]
-  rw [Finset.sum_congr rfl fun j _ => hga j] at hsplit
+    ring
   linarith
 
 /-- Moving server `a` to `r` changes the spread by `2 * n * δ` when the distance from every other
@@ -487,13 +485,9 @@ theorem doubleCoverage_cost_le {n : Nat} (s₀ s_off : Fin (n + 1) → Int) (req
       (n + 1) * (problem NatMetric.line (n + 1)).scheduleCost s_off reqs offStates +
         ((n + 1) * matchCost NatMetric.line s₀ s_off + pairSum NatMetric.line s₀ / 2) := by
   have h := doubleCoverage_costFrom_le s₀ s_off reqs offStates hv
-  have hc : (doubleCoverage n).cost s₀ reqs = (doubleCoverage n).costFrom s₀ reqs :=
-    (doubleCoverage n).cost_eq_costFrom trivial reqs
-  rw [hc]
+  rw [(doubleCoverage n).cost_eq_costFrom trivial reqs]
+  change (doubleCoverage n).costFrom s₀ reqs ≤ _
   rw [Nat.mul_assoc 2 (n + 1), Nat.mul_assoc 2 (n + 1)] at h
-  generalize (n + 1) * (problem NatMetric.line (n + 1)).scheduleCost s_off reqs offStates = X
-    at h ⊢
-  generalize (n + 1) * matchCost NatMetric.line s₀ s_off = Y at h ⊢
   omega
 
 /-- **Chrobak–Karloff–Payne–Vishwanathan.** Double Coverage with `k = n + 1` servers on the line

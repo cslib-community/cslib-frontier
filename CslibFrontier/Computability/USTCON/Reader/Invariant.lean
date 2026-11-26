@@ -313,14 +313,10 @@ private theorem size_le_of_le_pow {x T : ℕ} (h : x ≤ numLabels ^ T) : Nat.si
     _ < 2 ^ (65 * T + 1) := Nat.pow_lt_pow_right (by norm_num) (by omega)
 
 /-- There are ten control states. -/
-private theorem card_ctl : Nat.card Ctl = 10 := by
-  rw [Nat.card_eq_fintype_card]
-  rfl
+private theorem card_ctl : Nat.card Ctl = 10 := Nat.card_eq_fintype_card
 
 /-- There are seven program counters. -/
-private theorem card_pc : Nat.card ReingoldPc = 7 := by
-  rw [Nat.card_eq_fintype_card]
-  rfl
+private theorem card_pc : Nat.card ReingoldPc = 7 := Nat.card_eq_fintype_card
 
 /-- There are `257 ^ 8` labels. -/
 private theorem natCard_label : Nat.card Label = 257 ^ 8 := by
@@ -343,12 +339,8 @@ private theorem length_encState_le_of_bounds {q : State} (hb : Bounds I q) :
   have hT : lenOf I = 4168 * a + 136240 := by simp only [lenOf, walkLength, depth]; ring
   have hle {x : ℕ} (hx : x ≤ I.n) : (encNat x).length ≤ a :=
     length_encNat_eq_size x ▸ Nat.size_le_size hx
-  have h₁ := hle hb.cnt
-  have h₂ := hle hb.n
-  have h₃ := hle hb.s
-  have h₄ := hle hb.t
-  have h₅ := hle hb.v₁.le
-  have h₆ := hle hb.v₂.le
+  have h_fields : _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ :=
+    ⟨hle hb.cnt, hle hb.n, hle hb.s, hle hb.t, hle hb.v₁.le, hle hb.v₂.le⟩
   have h₇ : (encNat q.depth).length ≤ 16 * a + 524 :=
     (length_encNat_le_self _).trans (hD ▸ hb.depth)
   have h₈ : (encNat q.len).length ≤ 4168 * a + 136240 :=

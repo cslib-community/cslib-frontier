@@ -437,9 +437,8 @@ private lemma drainList_spec {F : Finset P} (s : State P S M V) (es : List (Enve
   | nil =>
     exact ⟨LTS.MTr.refl, rfl⟩
   | cons e es ih =>
-    have hcons : e ::ₘ Multiset.ofList es ≤ s.msgs := by simpa using hle
     have hes : Multiset.ofList es ≤ s.msgs.erase e := by
-      simpa using Multiset.erase_le_erase e hcons
+      simpa using Multiset.erase_le_erase e hle
     obtain ⟨hmtr, hmap⟩ := ih (π.recvHonest e s) (hes.trans (Multiset.le_add_right _ _))
       (fun x hx => hdest x (List.mem_cons_of_mem e hx))
     exact ⟨.stepL ⟨Multiset.mem_of_le hle (by simp), hdest e List.mem_cons_self, rfl⟩ hmtr,
@@ -487,9 +486,8 @@ theorem exists_fair_omegaExecution (F : Finset P) (s₀ : State P S M V) :
       ∀ k, (xs k).IsHonest := by
   let ts : ωSequence (State P S M V) := ωSequence.mk fun k => (π.drainSeq F s₀ k).2
   let xls : ωSequence (List (Action P M)) := (ωSequence.mk fun k => (π.drainSeq F s₀ k).1).tail
-  have hseg : ∀ k, (π.lts F).MTr (ts k) (xls k) (ts (k + 1)) ∧ 0 < (xls k).length ∧
+  have hseg (k : ℕ) : (π.lts F).MTr (ts k) (xls k) (ts (k + 1)) ∧ 0 < (xls k).length ∧
       (∀ a ∈ xls k, a.IsHonest) ∧ (∀ e ∈ (ts k).msgs, e.dest ∉ F → .deliver e ∈ xls k) := by
-    intro k
     simpa [ts, xls, drainSeq] using π.drainPhase_spec F (π.drainSeq F s₀ k).2
   have hpos : ∀ k, 0 < (xls k).length := fun k => (hseg k).2.1
   have : Inhabited (Action P M) := ⟨.stutter⟩
@@ -710,34 +708,27 @@ private lemma directInv_tr {P V : Type*} [Fintype P] [DecidableEq P] [DecidableE
   cases a with
   | deliver e =>
     obtain ⟨hmem, hdest, rfl⟩ := htr
-    refine ⟨?_, ?_⟩
-    · intro e' he'
-      simp only [Protocol.recvHonest, Protocol.recvCore, directProtocol, Multiset.map_zero,
-        add_zero] at he'
-      exact hmsgs e' (Multiset.mem_of_mem_erase he')
-    · intro i hi v hv
-      simp only [State.ProcDecided, Protocol.recvHonest, Protocol.recvCore, Protocol.updateProc]
-        at hv
-      split_ifs at hv with hid hnone
-      · simp only [directProtocol] at hv
-        split_ifs at hv
-        cases hv; exact (hmsgs e hmem).2
-      · subst hid; exact hproc e.dest hdest v hv
-      · exact hproc i hi v hv
+    refine ⟨fun e' he' => hmsgs e' (Multiset.mem_of_mem_erase
+      (by simpa [Protocol.recvHonest, Protocol.recvCore, directProtocol] using he')),
+      fun i hi v hv => ?_⟩
+    simp only [State.ProcDecided, Protocol.recvHonest, Protocol.recvCore, Protocol.updateProc] at hv
+    split_ifs at hv with hid hnone
+    · simp only [directProtocol] at hv
+      split_ifs at hv
+      cases hv; exact (hmsgs e hmem).2
+    · subst hid; exact hproc e.dest hdest v hv
+    · exact hproc i hi v hv
   | byzRecv src dest body =>
     obtain ⟨hsrcF, hdest, rfl⟩ := htr
     have hne : src ≠ dealer := fun h => hd (h ▸ hsrcF)
-    refine ⟨?_, ?_⟩
-    · intro e' he'
-      simp only [Protocol.recvByz, Protocol.recvCore, directProtocol, Multiset.map_zero,
-        add_zero] at he'
-      exact hmsgs e' he'
-    · intro i hi v hv
-      simp only [State.ProcDecided, Protocol.recvByz, Protocol.recvCore, Protocol.updateProc] at hv
-      split_ifs at hv with hid hnone
-      · simp [directProtocol, hne] at hv
-      · subst hid; exact hproc i hdest v hv
-      · exact hproc i hi v hv
+    refine ⟨fun e' he' => hmsgs e'
+      (by simpa [Protocol.recvByz, Protocol.recvCore, directProtocol] using he'),
+      fun i hi v hv => ?_⟩
+    simp only [State.ProcDecided, Protocol.recvByz, Protocol.recvCore, Protocol.updateProc] at hv
+    split_ifs at hv with hid hnone
+    · simp [directProtocol, hne] at hv
+    · subst hid; exact hproc i hdest v hv
+    · exact hproc i hi v hv
   | stutter => obtain rfl := htr; exact ⟨hmsgs, hproc⟩
 
 private lemma direct_noSpurious {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]

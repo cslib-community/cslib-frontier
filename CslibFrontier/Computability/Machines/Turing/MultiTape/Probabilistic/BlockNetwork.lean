@@ -165,61 +165,35 @@ theorem firstAfter_eq_some_iff {p : Fin q → Prop} [DecidablePred p] {i i' : Fi
     firstAfter p i = some i' ↔ i < i' ∧ p i' ∧ ∀ j, i < j → j < i' → ¬ p j := by
   unfold firstAfter
   split_ifs with h
-  · rw [Option.some_inj]
-    constructor
+  · obtain ⟨hmem1, hmem2⟩ := (Finset.mem_filter.mp (Finset.min'_mem _ h)).2
+    refine Option.some_inj.trans ⟨?_, fun ⟨hlt, hp, hmin⟩ => ?_⟩
     · rintro rfl
-      have hmem := Finset.mem_filter.mp (Finset.min'_mem _ h)
-      refine ⟨hmem.2.1, hmem.2.2, fun j hj hjlt hpj => ?_⟩
-      exact absurd (Finset.min'_le _ j (by simp [hj, hpj])) (not_le.mpr hjlt)
-    · rintro ⟨hlt, hp, hmin⟩
-      refine le_antisymm (Finset.min'_le _ _ (by simp [hlt, hp])) ?_
-      have hmem := Finset.mem_filter.mp (Finset.min'_mem _ h)
-      by_contra hcon
-      exact hmin _ hmem.2.1 (not_le.mp hcon) hmem.2.2
-  · simp only [false_iff]
-    rintro ⟨hlt, hp, -⟩
-    exact h ⟨i', by simp [hlt, hp]⟩
+      exact ⟨hmem1, hmem2, fun j hj hjlt hpj =>
+        hjlt.not_ge (Finset.min'_le _ j (by simp [hj, hpj]))⟩
+    · exact le_antisymm (Finset.min'_le _ _ (by simp [hlt, hp]))
+        (not_lt.mp fun hcon => hmin _ hmem1 hcon hmem2)
+  · exact iff_of_false (by simp) fun ⟨hlt, hp, _⟩ => h ⟨i', by simp [hlt, hp]⟩
 
 theorem lastBefore_eq_some_iff {p : Fin q → Prop} [DecidablePred p] {i i' : Fin q} :
     lastBefore p i = some i' ↔ i' < i ∧ p i' ∧ ∀ j, i' < j → j < i → ¬ p j := by
   unfold lastBefore
   split_ifs with h
-  · rw [Option.some_inj]
-    constructor
+  · obtain ⟨hmem1, hmem2⟩ := (Finset.mem_filter.mp (Finset.max'_mem _ h)).2
+    refine Option.some_inj.trans ⟨?_, fun ⟨hlt, hp, hmax⟩ => ?_⟩
     · rintro rfl
-      have hmem := Finset.mem_filter.mp (Finset.max'_mem _ h)
-      refine ⟨hmem.2.1, hmem.2.2, fun j hj hjlt hpj => ?_⟩
-      exact absurd (Finset.le_max' _ j (by simp [hjlt, hpj])) (not_le.mpr hj)
-    · rintro ⟨hlt, hp, hmax⟩
-      refine le_antisymm ?_ (Finset.le_max' _ _ (by simp [hlt, hp]))
-      have hmem := Finset.mem_filter.mp (Finset.max'_mem _ h)
-      by_contra hcon
-      exact hmax _ (not_le.mp hcon) hmem.2.1 hmem.2.2
-  · simp only [false_iff]
-    rintro ⟨hlt, hp, -⟩
-    exact h ⟨i', by simp [hlt, hp]⟩
+      exact ⟨hmem1, hmem2, fun j hj hjlt hpj =>
+        hj.not_ge (Finset.le_max' _ j (by simp [hjlt, hpj]))⟩
+    · exact le_antisymm (not_lt.mp fun hcon => hmax _ hcon hmem1 hmem2)
+        (Finset.le_max' _ _ (by simp [hlt, hp]))
+  · exact iff_of_false (by simp) fun ⟨hlt, hp, _⟩ => h ⟨i', by simp [hlt, hp]⟩
 
 theorem lastBefore_eq_none_iff {p : Fin q → Prop} [DecidablePred p] {i : Fin q} :
     lastBefore p i = none ↔ ∀ j, j < i → ¬ p j := by
-  unfold lastBefore
-  split_ifs with h
-  · simp only [false_iff, not_forall, not_not]
-    obtain ⟨j, hj⟩ := h
-    exact ⟨j, (Finset.mem_filter.mp hj).2.1, (Finset.mem_filter.mp hj).2.2⟩
-  · simp only [true_iff]
-    intro j hj hp
-    exact h ⟨j, by simp [hj, hp]⟩
+  simp [lastBefore]
 
 theorem firstAfter_eq_none_iff {p : Fin q → Prop} [DecidablePred p] {i : Fin q} :
     firstAfter p i = none ↔ ∀ j, i < j → ¬ p j := by
-  unfold firstAfter
-  split_ifs with h
-  · simp only [false_iff, not_forall, not_not]
-    obtain ⟨j, hj⟩ := h
-    exact ⟨j, (Finset.mem_filter.mp hj).2.1, (Finset.mem_filter.mp hj).2.2⟩
-  · simp only [true_iff]
-    intro j hj hp
-    exact h ⟨j, by simp [hj, hp]⟩
+  simp [firstAfter]
 
 /-- Consecutive appearances: the last appearance before `i` has `i` as its next appearance. -/
 theorem firstAfter_of_lastBefore {p : Fin q → Prop} [DecidablePred p] {i i' : Fin q}
@@ -322,10 +296,7 @@ private theorem edgeTarget_inl_pred {i : Fin q} (hi : i.val ≠ 0) :
     edgeTarget σ (.inl ⟨i - 1, by omega⟩) = .inl i := by
   simp only [edgeTarget]
   rw [dite_eq_left (by omega)]
-  congr 1
-  ext
-  simp only
-  omega
+  exact congrArg Sum.inl (Fin.ext (by simp only; omega))
 
 /-- Interval `i` reads the block edges of the previous appearances of its window blocks. -/
 private theorem edgeTarget_inWindow {i i' : Fin q} {h : Fin k} {d : Fin 3}
@@ -527,23 +498,15 @@ private theorem intervalHolds_iff (y : Fin (q * b) → Bool)
   have hsched : machine.schedule b q (List.ofFn y) (Cfg.init machine.initial input) i = σ i ↔
       ∀ head, (trueRun machine input b y (i + 1)).blockIndex b head =
         (trueRun machine input b y i).blockIndex b head + σ i head := by
-    rw [funext_iff]
-    refine forall_congr' fun head => ?_
+    refine funext_iff.trans (forall_congr' fun head => ?_)
     have := machine.coe_schedule (Nat.pos_of_neZero b) q (List.ofFn y)
       (Cfg.init machine.initial input) i head
     simp only [Cfg.blockIndex, trueRun]
-    constructor
-    · intro h
-      rw [← h]
-      omega
-    · intro h
-      exact signType_cast_inj (by omega)
+    exact ⟨fun h => by simp only [← h]; omega,
+      fun h => signType_cast_inj (by omega)⟩
   simp only [trueLetters, ← hindex, hsched]
-  constructor
-  · rintro ⟨cOut, wOut, ⟨rfl, rfl, hmove⟩, hc, hw⟩
-    exact ⟨hmove, hc, hw⟩
-  · rintro ⟨hmove, hc, hw⟩
-    exact ⟨_, _, ⟨rfl, rfl, hmove⟩, hc, hw⟩
+  exact ⟨fun ⟨_, _, ⟨rfl, rfl, hm⟩, hc, hw⟩ => ⟨hm, hc, hw⟩,
+    fun ⟨hm, hc, hw⟩ => ⟨_, _, ⟨rfl, rfl, hm⟩, hc, hw⟩⟩
 
 /-- Satisfying the conditions of all intervals forces agreement with the true run. -/
 private theorem agreesBefore_of_forall (y : Fin (q * b) → Bool)

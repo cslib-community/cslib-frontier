@@ -268,12 +268,8 @@ theorem IsSmoothMechanism.welfare_ge {X : Set (ι → ℝ)}
           w * (lam * socialWelfare v x - μ * ∑ i, M.payment (fun j => (b j : ℝ)) i)) =
         lam * socialWelfare v x -
           μ * σ.weights.sum (fun b w => w * ∑ i, M.payment (fun j => (b j : ℝ)) i) := by
-      simp only [Finsupp.sum]
-      rw [sum_congr rfl fun b _ => show
-          σ.weights b * (lam * socialWelfare v x - μ * ∑ i, M.payment (fun j => (b j : ℝ)) i) =
-            lam * socialWelfare v x * σ.weights b -
-              μ * (σ.weights b * ∑ i, M.payment (fun j => (b j : ℝ)) i) by ring,
-        sum_sub_distrib, ← mul_sum, ← mul_sum, htot, mul_one]
+      simp only [Finsupp.sum, mul_sub, mul_left_comm _ μ, sum_sub_distrib, ← sum_mul, ← mul_sum,
+        htot, one_mul]
     have hcomm : ∀ g : (ι → ℝ≥0) → ι → ℝ,
         σ.weights.sum (fun b w => w * ∑ i, g b i) = ∑ i, σ.weights.sum fun b w => w * g b i :=
       fun _ => by
@@ -496,10 +492,7 @@ end Mechanism
 
 private theorem vickrey_allocation_nonneg {ι : Type*} [LinearOrder ι] (b : ι → ℝ) (i : ι) :
     0 ≤ Vickrey.allocation b i := by
-  rcases Vickrey.allocation_binary b i with h0 | h1
-  · rw [h0]
-  · rw [h1]
-    exact zero_le_one
+  rcases Vickrey.allocation_binary b i with h | h <;> simp [h]
 
 /-! ### First-price auction: `(1 - 1 / e, 1)`-smoothness and unconditional PoA -/
 
@@ -544,11 +537,7 @@ omit [Fintype ι] in
 theorem utility_nonneg_of_le (b : ι → ℝ) (i : ι) {v z : ℝ} (hzv : z ≤ v) :
     0 ≤ FirstPrice.mechanism.utility i v (update b i z) := by
   simp only [Mechanism.utility, FirstPrice.mechanism, update_self]
-  rcases Vickrey.allocation_binary (update b i z) i with h0 | h1
-  · rw [h0]
-    norm_num
-  · rw [h1]
-    linarith
+  rcases Vickrey.allocation_binary (update b i z) i with h | h <;> simp [h, hzv]
 
 theorem utility_eq_sub_of_highestOtherBid_lt (b : ι → ℝ) (i : ι) (v : ℝ) {z : ℝ}
     (hlt : Vickrey.highestOtherBid b i < z) :
@@ -802,10 +791,7 @@ omit [LinearOrder ι] in
 private theorem socialWelfare_nonneg_of_singleItemFeasible {v x : ι → ℝ} (hv : 0 ≤ v)
     (hx : x ∈ Vickrey.singleItemFeasible (ι := ι)) : 0 ≤ socialWelfare v x := by
   refine sum_nonneg fun i _ => mul_nonneg (hv i) ?_
-  rcases hx.1 i with h0 | h1
-  · rw [h0]
-  · rw [h1]
-    exact zero_le_one
+  rcases hx.1 i with h | h <;> simp [h]
 
 /-- **Unconditional `1 - 1 / e` robust price of anarchy of the first-price auction**
 ([SyrgkanisTardos2013]): for every nonnegative valuation profile `v`, every feasible single-item
@@ -956,10 +942,7 @@ theorem welfare_ge_half_of_noOverbidding {v : ι → ℝ} (hv : 0 ≤ v) {x : ι
       simp only [Finsupp.sum, ← Vickrey.mechanism.sum_utility_add_sum_payment v, mul_add,
         sum_add_distrib, mul_sum]
       rw [sum_comm]
-    rw [← add_sum_erase _ _ (Finset.mem_univ i₀)] at hwel_eq
-    have hrest : 0 ≤ ∑ j ∈ univ.erase i₀, σ.weights.sum fun b w =>
-        w * Vickrey.mechanism.utility j (v j) (fun k => (b k : ℝ)) :=
-      sum_nonneg fun j _ => hir j
+    have hi₀_le := single_le_sum (fun j _ => hir j) (Finset.mem_univ i₀)
     have hpay0 : 0 ≤ σ.weights.sum fun b w =>
         w * ∑ j, Vickrey.mechanism.payment (fun k => (b k : ℝ)) j := by
       simp only [Finsupp.sum]
@@ -1048,10 +1031,7 @@ theorem integral_welfare_ge_half_of_isBayesNash_noOverbidding
       rw [integral_sub (integrable_const _) hwel_int, integral_const, probReal_univ, one_smul,
         Vickrey.mechanism.integral_utility_update_eq (halloc_dev i₀ (v i₀) (hv i₀).1)
           (hpay_dev i₀ (v i₀) (hv i₀).1) (v i₀)] at hint_w
-      have hi₀_le : Vickrey.mechanism.interimSliceUtil ν β i₀ (v i₀) ≤
-          ∑ i, Vickrey.mechanism.interimSliceUtil ν β i (v i) := by
-        rw [← add_sum_erase _ _ (Finset.mem_univ i₀)]
-        linarith [sum_nonneg fun j (_ : j ∈ univ.erase i₀) => hslice_nonneg j (hv j)]
+      have hi₀_le := single_le_sum (fun j _ => hslice_nonneg j (hv j)) (Finset.mem_univ i₀)
       linarith [(hβ i₀ (v i₀) (hv i₀)).2 (v i₀) (hv i₀).1, hslice_eq i₀ (hv i₀)]
   have hmain := integral_mono_ae (hx_int.sub (integrable_const W_eq))
     (integrable_finsetSum _ fun i _ =>

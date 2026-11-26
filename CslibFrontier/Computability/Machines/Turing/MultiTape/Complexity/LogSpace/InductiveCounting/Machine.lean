@@ -228,18 +228,15 @@ theorem step_overflowed {B : ℕ} {c : Cslib.InductiveCounting.State}
     (ho : overflowed c = true) (choice : Bool) :
     (queryMachine ntm).step input ⟨input.length, B, false, some c⟩ choice =
       ⟨input.length, 4 * B, false, some (install ntm (4 * B))⟩ := by
-  have hp : c.phase = .done := by
-    simp only [overflowed, Bool.and_eq_true, beq_iff_eq] at ho
-    exact ho.1.1.1
-  simp [NondeterministicQueryMachine.step, queryMachine, runtimeHalted, runtimeNext, hp, ho]
+  simp only [overflowed, Bool.and_eq_true, beq_iff_eq] at ho
+  simp [NondeterministicQueryMachine.step, queryMachine, runtimeHalted, runtimeNext, overflowed, ho]
 
 /-- Acceptance on an unchecked radix checks it. -/
 theorem step_switch {B : ℕ} {c : Cslib.InductiveCounting.State} (hp : c.phase = .accept)
     (choice : Bool) :
     (queryMachine ntm).step input ⟨input.length, B, false, some c⟩ choice =
       ⟨input.length, B, true, some (install ntm B)⟩ := by
-  have ho : overflowed c = false := by simp [overflowed, hp]
-  simp [NondeterministicQueryMachine.step, queryMachine, runtimeHalted, runtimeNext, hp, ho]
+  simp [NondeterministicQueryMachine.step, queryMachine, runtimeHalted, runtimeNext, overflowed, hp]
 
 /-- On a checked radix, the machine's replays are exactly the controller's replays. -/
 theorem replay_checked {B : ℕ} (c : Cslib.InductiveCounting.State) (choices : List Bool) :
@@ -275,9 +272,7 @@ theorem replay_unchecked_of_done {B : ℕ} (c : Cslib.InductiveCounting.State)
   | nil => rfl
   | cons choice choices ih =>
     have hna : c.phase ≠ .accept := fun hp => by
-      have hh : Cslib.InductiveCounting.halted c = true := by
-        simp [Cslib.InductiveCounting.halted, hp]
-      rw [halted_ctlReplay ntm input hh, hp] at hd
+      rw [halted_ctlReplay ntm input (by simp [Cslib.InductiveCounting.halted, hp]), hp] at hd
       exact absurd hd.1 (by decide)
     have hno : overflowed c = false := by
       by_contra hc
@@ -338,18 +333,16 @@ theorem run_bootstrap (choices : List Bool) (hlen : choices.length = input.lengt
     (queryMachine ntm).run input choices =
       ⟨input.length, startRadix State input.length, false,
         some (install ntm (startRadix State input.length))⟩ := by
-  have ht : (choices.take input.length).length = input.length := by
-    simp only [List.length_take, hlen, Nat.min_eq_left (Nat.le_succ input.length)]
-  have hd : (choices.drop input.length).length = 1 := by simp [hlen]
-  obtain ⟨choice, hd⟩ := List.length_eq_one_iff.mp hd
-  unfold NondeterministicQueryMachine.run
-  conv_lhs => rw [← List.take_append_drop input.length choices]
-  rw [NondeterministicQueryMachine.replay_append]
-  change (queryMachine ntm).replay input (choices.drop input.length)
-    ((queryMachine ntm).replay input (choices.take input.length) ⟨0, 0, false, none⟩) = _
-  rw [replay_scan ntm input _ (by omega), ht, Nat.zero_add, hd,
-    NondeterministicQueryMachine.replay_cons, NondeterministicQueryMachine.replay_nil]
-  exact step_scan_end ntm input choice
+  cases choices using List.reverseRecOn with
+  | nil => simp at hlen
+  | append_singleton bs choice =>
+    simp only [List.length_append, List.length_singleton, Nat.add_right_cancel_iff] at hlen
+    rw [NondeterministicQueryMachine.run_append]
+    change (queryMachine ntm).replay input [choice]
+      ((queryMachine ntm).replay input bs ⟨0, 0, false, none⟩) = _
+    rw [replay_scan ntm input bs (by omega), Nat.zero_add, hlen,
+      NondeterministicQueryMachine.replay_cons, NondeterministicQueryMachine.replay_nil]
+    exact step_scan_end ntm input choice
 
 /-! ### The semantic invariant -/
 
@@ -515,7 +508,7 @@ private theorem exists_accepting_from_round (hJ : ∃ j, Closed ntm (roundRadix 
       (startID_lt (ntm := ntm) hB) (vertexBound_lt_two_pow_vertexWidth k B).le
     set t := Cslib.InductiveCounting.replay (vertexBound (k := k) B) (vertexWidth k B)
       (startID ntm B) (graphEdge ntm B input) (graphOverflow ntm B input)
-      (Cslib.InductiveCounting.initial (vertexBound (k := k) B) (startID ntm B)) bs with ht
+      (Cslib.InductiveCounting.initial (vertexBound (k := k) B) (startID ntm B)) bs
     have hinv : Cslib.InductiveCounting.Invariant (vertexBound (k := k) B) (graphEdge ntm B input)
         (graphOverflow ntm B input) (startID ntm B) t :=
       Cslib.InductiveCounting.invariant_replay (startID_lt hB)

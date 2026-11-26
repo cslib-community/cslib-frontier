@@ -180,39 +180,30 @@ private theorem split3 {x y z w : Letter Γ Λ} {L R : List Γ} {p s : List (Let
 
 private theorem peel_right_sym {R : List Γ} {s : List (Letter Γ Λ)} {c : Γ}
     (h : sym c :: s = R.map sym ++ [rb]) : ∃ R', R = c :: R' ∧ s = R'.map sym ++ [rb] := by
-  rcases R with _ | ⟨c', R'⟩
-  · simp at h
-  · simp only [List.map_cons, List.cons_append, List.cons.injEq, Letter.sym.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
-    exact ⟨R', rfl, rfl⟩
+  rcases R with _ | ⟨c', R'⟩ <;> cases h
+  exact ⟨R', rfl, rfl⟩
 
 private theorem peel_right_rb {R : List Γ} {s : List (Letter Γ Λ)}
     (h : (rb : Letter Γ Λ) :: s = R.map sym ++ [rb]) : R = [] ∧ s = [] := by
-  rcases R with _ | ⟨c', R'⟩
-  · simp only [List.map_nil, List.nil_append, List.cons.injEq] at h
-    exact ⟨rfl, h.2⟩
-  · simp at h
+  rcases R with _ | ⟨c', R'⟩ <;> cases h
+  exact ⟨rfl, rfl⟩
 
 private theorem peel_left_sym {L : List Γ} {p : List (Letter Γ Λ)} {c : Γ}
     (h : p ++ [sym c] = lb :: L.reverse.map sym) :
     ∃ L', L = c :: L' ∧ p = lb :: L'.reverse.map sym := by
   rcases L with _ | ⟨c', L'⟩
-  · obtain ⟨-, h₂⟩ := List.append_inj' (s₂ := []) (t₂ := [lb]) h rfl
-    simp at h₂
+  · exact nomatch (List.append_inj' (s₂ := []) (t₂ := [lb]) h rfl).2
   · rw [List.reverse_cons, List.map_append, List.map_singleton, ← List.cons_append] at h
-    obtain ⟨h₁, h₂⟩ := List.append_inj' h rfl
-    simp only [List.cons.injEq, Letter.sym.injEq, and_true] at h₂
-    subst h₂
-    exact ⟨L', rfl, h₁⟩
+    obtain ⟨rfl, h₂⟩ := List.append_inj' h rfl
+    cases h₂
+    exact ⟨L', rfl, rfl⟩
 
 private theorem peel_left_lb {L : List Γ} {p : List (Letter Γ Λ)}
     (h : p ++ [lb] = lb :: L.reverse.map sym) : L = [] ∧ p = [] := by
   rcases L with _ | ⟨c', L'⟩
-  · obtain ⟨h₁, -⟩ := List.append_inj' (s₂ := []) (t₂ := [lb]) h rfl
-    exact ⟨rfl, h₁⟩
+  · exact ⟨rfl, (List.append_inj' (s₂ := []) (t₂ := [lb]) h rfl).1⟩
   · rw [List.reverse_cons, List.map_append, List.map_singleton, ← List.cons_append] at h
-    obtain ⟨-, h₂⟩ := List.append_inj' h rfl
-    simp at h₂
+    exact nomatch (List.append_inj' h rfl).2
 
 private theorem rb_notMem_word {x : Letter Γ Λ} (hx : x ≠ rb) (L R : List Γ) :
     rb ∉ lb :: L.reverse.map sym ++ x :: R.map sym := by
@@ -384,14 +375,9 @@ private theorem reflTransGen_of_reaches {M : TM0.Machine Γ Λ} {c c' : TM0.Cfg 
   induction h using ReflTransGen.head_induction_on with
   | refl =>
     rintro q a L R rfl
-    have hM : M q a = none := by
-      rcases hM : M q a with _ | ⟨q', s⟩
-      · rfl
-      · change (M q a).map _ = none at hc'
-        rw [hM] at hc'
-        cases hc'
     refine ReflTransGen.head ⟨lb :: L.reverse.map sym, ⟨[cell q a], [halt]⟩, R.map sym ++ [rb],
-      Rule.stop hM, by simp [word], by simp [word]⟩ (halt_reflTransGen L R)
+      Rule.stop (Option.map_eq_none_iff.mp hc'), by simp [word], by simp [word]⟩
+      (halt_reflTransGen L R)
   | @head c₀ c₁ hstep _ ih =>
     rintro q a L R rfl
     rcases hM : M q a with _ | ⟨q', _ | b⟩

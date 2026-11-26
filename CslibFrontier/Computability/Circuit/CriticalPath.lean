@@ -165,13 +165,8 @@ theorem Circuit.outDeg_eq_one_iff (C : Circuit σ n m) {v : Wire n C.size} :
 theorem Circuit.sum_outDeg (C : Circuit σ n m) :
     (∑ v : Wire n C.size, C.outDeg v) = ∑ k : Fin C.size, σ.Arity (C.program.lines k).op := by
   simp_rw [C.outDeg_eq_card_filter]
-  have hcard : (∑ v : Wire n C.size,
-      (Finset.univ.filter fun s : C.Slot => C.slotWire s = v).card) =
-      (Finset.univ : Finset C.Slot).card := by
-    simpa using (Finset.card_eq_sum_card_fiberwise
-      (f := C.slotWire) (s := Finset.univ) (t := Finset.univ)
-      (fun s _ => Finset.mem_univ (C.slotWire s))).symm
-  rw [hcard, Finset.card_univ, Fintype.card_sigma]
+  rw [← Finset.card_eq_sum_card_fiberwise (fun s _ => Finset.mem_univ (C.slotWire s)),
+    Finset.card_univ, Fintype.card_sigma]
   simp
 
 /-- Under fan-in bound `r`, the sum of wire out-degrees is at most `r * C.size`. -/
@@ -578,9 +573,7 @@ theorem Circuit.two_mul_sub_two_mul_le_size (C : Circuit σ n m)
   have hlowCompl : C.size ≤ ∑ v ∈ Eᶜ, (C.outDeg v + bonus v) := by
     simpa [hcardCompl] using Finset.card_nsmul_le_sum Eᶜ _ 1 fun v _ => hge1 v
   have hsumBonus : (∑ v : Wire n C.size, bonus v) ≤ 2 * m := by
-    have hfilter : (∑ v : Wire n C.size, bonus v) = 2 * C.outputsFinset.card := by
-      simp [bonus, Nat.mul_comm]
-    exact hfilter.trans_le (Nat.mul_le_mul_left 2 C.card_outputsFinset_le)
+    simpa [bonus, Nat.mul_comm] using Nat.mul_le_mul_left 2 C.card_outputsFinset_le
   have htotalLow : 2 * n + C.size ≤ ∑ v : Wire n C.size, (C.outDeg v + bonus v) := by
     rw [← Finset.sum_add_sum_compl E]
     exact Nat.add_le_add hlowE hlowCompl
@@ -616,10 +609,8 @@ theorem Circuit.outDeg_output_eq_zero_of_noDeadGates (C : Circuit σ n 1) (hnoDe
     (C.program.lt_of_lines_wires_eq_gate s.1 s.2 kMax hs).not_ge (Finset.le_max' S s.1
       (Finset.mem_filter.mpr ⟨Finset.mem_univ _, Relation.TransGen.tail hkMaxMem ⟨s, hs, rfl⟩⟩))
   obtain ⟨j, hj⟩ := C.mem_outputsFinset.mp (hnoDead kMax hkMaxOut0)
-  obtain rfl := Subsingleton.elim j 0
-  have hlt := hrank _ _ hkMaxMem
-  rw [hj] at hlt
-  exact Nat.lt_irrefl _ hlt
+  rw [Subsingleton.elim j 0] at hj
+  exact Nat.lt_irrefl _ (hj ▸ hrank _ _ hkMaxMem)
 
 /-- An input wire lies on the critical path from input `y` only if it is `y` itself: every later
 wire of the path is a gate. -/
@@ -778,12 +769,10 @@ theorem Circuit.exists_bottleneck_of_not_disjoint_criticalPath {U : Type u} [Dec
     induction w using C.program.wire_induction with
     | input z =>
       intro hzPx hzPy p q _
-      have hzx : z ≠ x := by
-        rintro rfl
-        exact hzPx (List.mem_take_iff_getElem.mpr ⟨0, by omega, C.criticalPath_zero_getElem z⟩)
-      have hzy : z ≠ y := by
-        rintro rfl
-        exact hzPy (List.mem_take_iff_getElem.mpr ⟨0, by omega, C.criticalPath_zero_getElem z⟩)
+      have hzx : z ≠ x := fun h =>
+        hzPx (h ▸ List.mem_take_iff_getElem.mpr ⟨0, by omega, C.criticalPath_zero_getElem x⟩)
+      have hzy : z ≠ y := fun h =>
+        hzPy (h ▸ List.mem_take_iff_getElem.mpr ⟨0, by omega, C.criticalPath_zero_getElem y⟩)
       simp only [T, Program.trace_input, hassign p z hzx hzy, hassign q z hzx hzy]
     | gate k ih =>
       intro hkx hky p q hpq

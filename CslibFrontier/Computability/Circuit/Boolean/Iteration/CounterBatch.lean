@@ -222,18 +222,14 @@ theorem batched_counter_power (T r : ℕ) (hr : r ≤ 2 ^ (k + k)) :
     ModulusCounter.rightWord (counterBlock x member)
   let rem := fun (member : Fin r) (x : BitString (r * (k + k))) =>
     BitString.equivBitVec (lookupOr (residueKeys k) (residueValues k T) (queries x member))
-  have ha (member : Fin r) : wordWires (a member) ⊆ s1 := by
-    rintro _ ⟨i, rfl⟩
-    refine .inl ⟨finProdFinEquiv (member, Fin.castAdd k i), funext fun x => ?_⟩
-    simp [a, ModulusCounter.leftWord, counterBlock]
-  have hb (member : Fin r) : wordWires (b member) ⊆ s1 := by
-    rintro _ ⟨i, rfl⟩
-    refine .inl ⟨finProdFinEquiv (member, Fin.natAdd k i), funext fun x => ?_⟩
-    simp [b, ModulusCounter.rightWord, counterBlock]
-  have hrem (member : Fin r) : wordWires (rem member) ⊆ s1 := by
-    rintro _ ⟨i, rfl⟩
-    right
-    exact Set.mem_iUnion.mpr ⟨member, i, by funext x; simp [rem]⟩
+  have ha (member : Fin r) : wordWires (a member) ⊆ s1 := fun _ ⟨i, h⟩ =>
+    h ▸ .inl ⟨finProdFinEquiv (member, Fin.castAdd k i),
+      funext fun x => by simp [a, ModulusCounter.leftWord, counterBlock]⟩
+  have hb (member : Fin r) : wordWires (b member) ⊆ s1 := fun _ ⟨i, h⟩ =>
+    h ▸ .inl ⟨finProdFinEquiv (member, Fin.natAdd k i),
+      funext fun x => by simp [b, ModulusCounter.rightWord, counterBlock]⟩
+  have hrem (member : Fin r) : wordWires (rem member) ⊆ s1 := fun _ ⟨i, h⟩ =>
+    h ▸ .inr (Set.mem_iUnion.mpr ⟨member, i, funext fun x => by simp [rem]⟩)
   have hadd (member : Fin r) := synthesis_addResidue s1 (a member) (b member) (rem member)
     (ha member) (hb member) (hrem member)
   have hfam := Synthesis.iUnion (fun member => wordWires fun x =>
@@ -325,11 +321,10 @@ theorem counterBatch_size_ge_of_ne_id (T : ℕ) (hT : ModulusCounter.power (k :=
   let e : BitVec k := BitVec.twoPow k j.val
   have he (i : Fin k) : e[i.val] = decide (i = j) := by
     simp [e, Fin.val_inj, eq_comm]
-  have hge : g (ModulusCounter.pack 0 e) = true := by
-    change ModulusCounter.power T (ModulusCounter.pack 0 e) (Fin.natAdd k j) = true
-    rw [counterStep_iterate_joinState_zero]
-    simp only [ModulusCounter.pack, Fin.append_right, BitString.equivBitVec_symm_apply, he,
-      decide_true]
+  have hge : g (ModulusCounter.pack 0 e) = true :=
+    (congrFun (counterStep_iterate_joinState_zero T e) (Fin.natAdd k j)).trans
+      (by simp only [ModulusCounter.pack, Fin.append_right, BitString.equivBitVec_symm_apply, he,
+        decide_true])
   have hgz : g (fun _ => false) = false := by
     change ModulusCounter.power T (fun _ => false) (Fin.natAdd k j) = false
     rw [← joinState_zero_zero, counterStep_iterate_joinState_zero, joinState_zero_zero]

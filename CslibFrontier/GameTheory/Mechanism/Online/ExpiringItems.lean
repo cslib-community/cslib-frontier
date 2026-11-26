@@ -108,7 +108,6 @@ theorem welfare_le_optWelfare {cap : Fin T → ℕ} {θ : ι → AgentType (Fin 
 theorem exists_optWelfare (cap : Fin T → ℕ) (θ : ι → AgentType (Fin T)) :
     ∃ f : ι → Option (Fin T), IsExpiringAllocation cap θ f ∧ welfare θ f = optWelfare cap θ := by
   classical
-  unfold optWelfare
   obtain ⟨f, hfmem, hmax⟩ := Finset.exists_mem_eq_sup'
     (s := Finset.univ.filter (IsExpiringAllocation cap θ))
     ⟨fun _ => none, Finset.mem_filter.mpr
@@ -228,17 +227,10 @@ private theorem card_topK_le (θ : ι → AgentType (Fin T)) (k : ℕ) (A : Fins
 private theorem beats_of_mem_topK_of_not_mem {θ : ι → AgentType (Fin T)} {k : ℕ} {A : Finset ι}
     {g i : ι} (hg : g ∈ topK θ k A) (hi : i ∈ A) (hni : i ∉ topK θ k A) :
     Beats θ g i := by
-  have hga : g ∈ A := topK_subset θ k A hg
-  have hne : g ≠ i := fun h => hni (h ▸ hg)
   have hrg : rankIn θ A g < k := (Finset.mem_filter.mp hg).2
-  have hri : k ≤ rankIn θ A i := by
-    have : ¬ rankIn θ A i < k := fun h => hni (Finset.mem_filter.mpr ⟨hi, h⟩)
-    omega
-  rcases beats_trichotomy θ hne with h | h
-  · exact h
-  · exfalso
-    have := rankIn_lt_of_beats hi h
-    omega
+  have hri : k ≤ rankIn θ A i := not_lt.1 fun h => hni (Finset.mem_filter.mpr ⟨hi, h⟩)
+  exact (beats_trichotomy θ fun h : g = i => hni (h ▸ hg)).resolve_right fun h =>
+    not_lt_of_ge (hri.trans_lt (rankIn_lt_of_beats hi h)).le hrg
 
 /-- Auxiliary lemma for `topK` invariance when an agent `i` is not among the top `k` winners. -/
 private theorem topK_eq_erase_of_not_mem {θ : ι → AgentType (Fin T)} {k : ℕ} {A : Finset ι}
@@ -434,15 +426,13 @@ theorem greedyPolicy_alloc_eq_some_iff_priority (cap : Fin T → ℕ)
 /-- Greedy `Auction 2` is capacity-feasible for expiring items. -/
 theorem greedyPolicy_isExpiringFeasible (cap : Fin T → ℕ) :
     (greedyPolicy (ι := ι) cap).IsExpiringFeasible cap := by
-  intro θ
-  refine ⟨fun i t h => (greedyPolicy cap).alloc_in_window θ i t h, fun t => ?_⟩
-  have hsub :
-      Finset.univ.filter (fun i => (greedyPolicy cap).alloc θ i = some t) =
-        greedyWinnersAt cap θ t := by
-    ext i
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, greedyPolicy_alloc_eq_some_iff]
-  rw [hsub]
-  exact card_topK_le _ _ _
+  refine fun θ => ⟨(greedyPolicy cap).alloc_in_window θ, fun t => ?_⟩
+  suffices Finset.univ.filter (fun i => (greedyPolicy cap).alloc θ i = some t) =
+      greedyWinnersAt cap θ t by
+    rw [this]
+    exact card_topK_le _ _ _
+  ext i
+  simp [greedyPolicy_alloc_eq_some_iff]
 
 private theorem greedyWinnersAt_eq_of_agree {ι : Type*} [Fintype ι] [LinearOrder ι] {T : ℕ}
     (cap : Fin T → ℕ) {θ θ' : ι → AgentType (Fin T)} (t : Fin T)
@@ -480,17 +470,15 @@ theorem greedyPolicy_isCausal (cap : Fin T → ℕ) : (greedyPolicy (ι := ι) c
   | zero => intro _ _ _; rfl
   | succ k ih =>
     intro θ θ' hagree
+    have hprev : greedyAllocatedBefore cap θ k = greedyAllocatedBefore cap θ' k :=
+      ih θ θ' fun j hj => hagree j (hj.imp Nat.lt_succ_of_lt Nat.lt_succ_of_lt)
     by_cases hk : k < T
-    · have hprev : greedyAllocatedBefore cap θ k = greedyAllocatedBefore cap θ' k :=
-        ih θ θ' fun j hj => hagree j (hj.imp Nat.lt_succ_of_lt Nat.lt_succ_of_lt)
-      have hagree_k : ∀ j, (θ j).arrival ≤ ⟨k, hk⟩ ∨ (θ' j).arrival ≤ ⟨k, hk⟩ → θ j = θ' j :=
-        fun j hj => hagree j (hj.imp Nat.lt_succ_of_le Nat.lt_succ_of_le)
-      change greedyAllocatedBefore cap θ ((⟨k, hk⟩ : Fin T).val + 1) =
+    · change greedyAllocatedBefore cap θ ((⟨k, hk⟩ : Fin T).val + 1) =
         greedyAllocatedBefore cap θ' ((⟨k, hk⟩ : Fin T).val + 1)
       rw [greedyAllocatedBefore_succ_eq, greedyAllocatedBefore_succ_eq, hprev,
-        greedyWinnersAt_eq_of_agree cap ⟨k, hk⟩ hprev hagree_k]
-    · simp only [greedyAllocatedBefore, hk, ↓reduceDIte]
-      exact ih θ θ' fun j hj => hagree j (hj.imp Nat.lt_succ_of_lt Nat.lt_succ_of_lt)
+        greedyWinnersAt_eq_of_agree cap ⟨k, hk⟩ hprev
+          fun j hj => hagree j (hj.imp Nat.lt_succ_of_le Nat.lt_succ_of_le)]
+    · simp only [greedyAllocatedBefore, hk, ↓reduceDIte, hprev]
 
 /-- Greedy `Auction 2` is online-monotone for arbitrary period capacities `cap : Fin T → ℕ`
 ([Parkes2007], §16.3.2, Theorem 16.17, monotonicity step, locator not verified against primary PDF).
@@ -974,13 +962,10 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
     else ⟨j.val - m, by omega⟩
   have hperiod_pos : ∀ j : Fin (2 * m + 1), j ≠ 0 → 0 < (periodOf j).val := by
     intro j hj
-    have hj0 : 0 < j.val := Nat.pos_of_ne_zero (fun h => hj (Fin.ext h))
+    have hj0 : 0 < j.val := Nat.pos_of_ne_zero fun h => hj (Fin.ext h)
     have hjlt : j.val < 2 * m + 1 := j.isLt
     simp only [periodOf]
-    split_ifs with h1
-    · exact hj0
-    · dsimp only
-      omega
+    split_ifs <;> dsimp only <;> omega
   let mainAgent : Fin m → Fin (2 * m + 1) := fun k => ⟨k.val + 1, by omega⟩
   let blockerAgent : Fin m → Fin (2 * m + 1) := fun k => ⟨m + k.val + 1, by omega⟩
   have hblocker_period : ∀ k : Fin m, periodOf (blockerAgent k) = ⟨k.val + 1, by omega⟩ := by
@@ -1124,16 +1109,11 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
         | succ r ih =>
           intro hr_le
           obtain ⟨θr, hθr0, hθri, hθr_rest, hθr_no⟩ := ih (Nat.le_of_succ_le hr_le)
-          have hr_lt_m : r < m := by
-            have : r + 1 ≤ k.val + 1 := hr_le
-            omega
+          have hr_lt_m : r < m := Nat.lt_of_succ_le (hr_le.trans k.isLt)
           set br : Fin (2 * m + 1) := blockerAgent ⟨r, hr_lt_m⟩
-          have hbr_ne0 : br ≠ 0 := by
-            intro h; have := congrArg Fin.val h; simp [br, blockerAgent] at this
-          have hbr_nei : br ≠ i := by
-            intro h; have := congrArg Fin.val h
-            simp only [br, blockerAgent, i, mainAgent] at this
-            omega
+          have hbr_ne0 : br ≠ 0 := Fin.ne_of_val_ne (by simp [br, blockerAgent])
+          have hbr_nei : br ≠ i :=
+            Fin.ne_of_val_ne (by simp [br, blockerAgent, i, mainAgent]; omega)
           have hbr_per : periodOf br = ⟨r + 1, by omega⟩ := hblocker_period ⟨r, hr_lt_m⟩
           set Sval : ℝ := ∑ x : Fin (2 * m + 1), (θr x).value
           have hSval_nonneg : 0 ≤ Sval := Finset.sum_nonneg fun x _ => (θr x).value_nonneg

@@ -355,28 +355,25 @@ theorem WellFormedPadded.withSentCount
     ({ st with sentCount := sc } : P.TreeState).WellFormedPadded scheme d storeLvl := by
   let st' : P.TreeState := { st with sentCount := sc }
   have hsd : st'.seeds = st.seeds := st.seeds_withSentCount sc
-  have hdom : ∀ (ℓ : ℕ) (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ)),
-      st'.nodeDom ℓ h1 hℓ u = st.nodeDom ℓ h1 hℓ u := fun ℓ h1 hℓ u => by
-    by_cases ho : ℓ = 1
-    · subst ho; rw [nodeDom_one, nodeDom_one]
-    · by_cases hlt : ℓ < P.depth
-      · rw [nodeDom_inner st' h1 (by omega) hlt hℓ, nodeDom_inner st h1 (by omega) hlt hℓ]
-      · have hd : ℓ = P.depth := by omega
-        subst hd; rw [nodeDom_depth, nodeDom_depth]
-  have hq : ∀ (ℓ : ℕ) (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ)) k,
-      st'.nodeQuery scheme ℓ h1 hℓ u k = st.nodeQuery scheme ℓ h1 hℓ u k := fun ℓ h1 hℓ u k => by
-    by_cases ho : ℓ = 1
-    · subst ho; rw [nodeQuery_one, nodeQuery_one]
-    · by_cases hlt : ℓ < P.depth
-      · rw [nodeQuery_inner _ st' h1 (by omega) hlt hℓ, nodeQuery_inner _ st h1 (by omega) hlt hℓ]
-      · have hd : ℓ = P.depth := by omega
-        subst hd; rw [nodeQuery_depth, nodeQuery_depth]
-  have hw : ∀ (ℓ : ℕ) (h2 : 2 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ)),
-      st'.nodeWait ℓ h2 hℓ u = st.nodeWait ℓ h2 hℓ u := fun ℓ h2 hℓ u => by
-    by_cases hlt : ℓ < P.depth
+  have hdom (ℓ : ℕ) (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ)) :
+      st'.nodeDom ℓ h1 hℓ u = st.nodeDom ℓ h1 hℓ u := by
+    obtain rfl | h2 : ℓ = 1 ∨ 2 ≤ ℓ := by omega
+    · rw [nodeDom_one, nodeDom_one]
+    · obtain hlt | rfl : ℓ < P.depth ∨ ℓ = P.depth := by omega
+      · rw [nodeDom_inner st' h1 h2 hlt hℓ, nodeDom_inner st h1 h2 hlt hℓ]
+      · rw [nodeDom_depth, nodeDom_depth]
+  have hq (ℓ : ℕ) (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ)) (k : _) :
+      st'.nodeQuery scheme ℓ h1 hℓ u k = st.nodeQuery scheme ℓ h1 hℓ u k := by
+    obtain rfl | h2 : ℓ = 1 ∨ 2 ≤ ℓ := by omega
+    · rw [nodeQuery_one, nodeQuery_one]
+    · obtain hlt | rfl : ℓ < P.depth ∨ ℓ = P.depth := by omega
+      · rw [nodeQuery_inner _ st' h1 h2 hlt hℓ, nodeQuery_inner _ st h1 h2 hlt hℓ]
+      · rw [nodeQuery_depth, nodeQuery_depth]
+  have hw (ℓ : ℕ) (h2 : 2 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ)) :
+      st'.nodeWait ℓ h2 hℓ u = st.nodeWait ℓ h2 hℓ u := by
+    obtain hlt | rfl : ℓ < P.depth ∨ ℓ = P.depth := by omega
     · rw [nodeWait_inner st' h2 hlt hℓ, nodeWait_inner st h2 hlt hℓ]
-    · have hd : ℓ = P.depth := by omega
-      subst hd; rw [nodeWait_depth, nodeWait_depth]
+    · rw [nodeWait_depth, nodeWait_depth]
   refine
     { goodSeeds := hsd ▸ hwf.goodSeeds
       storeLvl_bounds := hwf.storeLvl_bounds
@@ -471,11 +468,8 @@ private theorem MatchesExternal.sentinelKey_mem_paddedDom_iff {P : TreeSchedule}
     {d : P.PaddedDict} {sc : ℕ} {dict : Dictionary.State P.univ}
     (hm : P.MatchesExternal d sc dict) (i : Fin P.cap) :
     P.sentinelKey i ∈ P.paddedDom d ↔ i.val < sc := by
-  have hs_ge : P.univ ≤ (P.sentinelKey i).val := by dsimp only [sentinelKey]; omega
-  rw [P.mem_paddedDom_iff, hm.sentinel_eq (P.sentinelKey i) hs_ge]
-  by_cases hlt : i.val < sc
-  · rw [ite_eq_left (by dsimp only [sentinelKey]; omega)]; simp [hlt]
-  · rw [ite_eq_right (by dsimp only [sentinelKey]; omega)]; simp [hlt]
+  rw [P.mem_paddedDom_iff, hm.sentinel_eq _ (by dsimp only [sentinelKey]; omega)]
+  by_cases hlt : i.val < sc <;> simp [sentinelKey, hlt]
 
 private theorem card_erase_bounds_of_eq_cap {P : TreeSchedule} {S : Finset (Fin P.paddedUniv)}
     {z : Fin P.paddedUniv} (hz : z ∈ S) (hcard : #S = P.cap) :
@@ -671,9 +665,7 @@ theorem query_insert (hcr : P.ConcentrationReady)
     (u' : Fin P.univ) :
     (st.insert hcr scheme u v).query scheme u' =
       Function.update (st.query scheme) u (some v.val) u' := by
-  rw [query_eq_apply (st.wellFormed_insert hcr hwf u v hcap) u']
-  have hq : st.query scheme = dict := funext (query_eq_apply hwf)
-  rw [hq]
+  rw [query_eq_apply (st.wellFormed_insert hcr hwf u v hcap) u', funext (query_eq_apply hwf)]
 
 /-- Delete external key `u : Fin P.univ`, maintaining sentinel padding in `{cap - 1, cap}`
 (`Section 5.3` & `Algorithm 3`). On valid (`WellFormed`) states, deleting an absent key is a
@@ -752,9 +744,7 @@ theorem query_delete (hcr : P.ConcentrationReady)
     (u u' : Fin P.univ) :
     (st.delete hcr scheme u).query scheme u' =
       Function.update (st.query scheme) u none u' := by
-  rw [query_eq_apply (st.wellFormed_delete hcr hwf u) u']
-  have hq : st.query scheme = dict := funext (query_eq_apply hwf)
-  rw [hq]
+  rw [query_eq_apply (st.wellFormed_delete hcr hwf u) u', funext (query_eq_apply hwf)]
 
 end TreeState
 

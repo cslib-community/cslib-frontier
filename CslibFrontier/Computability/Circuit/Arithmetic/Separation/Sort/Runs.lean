@@ -70,8 +70,7 @@ theorem IsRuns.of_fib {P : Series F (Z × Γ)} {X : Type*} {em : X → Z → Lis
     {wt : X → F} (h : IsRuns P em wt) {v : Z → List Γ} (R : Finset X)
     (hR : ∀ x, x ∈ R ↔ em x = v) : hat P v = ∑ x ∈ R, wt x := by
   obtain ⟨R', h1, h2⟩ := h v
-  have heq : R' = R := by ext x; rw [h1, hR]
-  rw [h2, heq]
+  rwa [Finset.ext fun x => (h1 x).trans (hR x).symm] at h2
 
 theorem IsRuns.mul {f g : Series F (Z × Γ)} {X Y : Type*}
     {em : X → Z → List Γ} {wt : X → F} {em' : Y → Z → List Γ} {wt' : Y → F}
@@ -164,10 +163,9 @@ theorem IsRuns.kstar {f : Series F (Z × Γ)} {X : Type*} {em : X → Z → List
       simp only [B, Finset.mem_biUnion, Finset.mem_product]
       constructor
       · rintro ⟨p, hp, h1, h2⟩
-        rw [hf1] at h1
-        rw [(hRs p hp).1] at h2
         funext z
-        rw [← (mem_anti.1 (Finset.mem_filter.1 hp).1) z, h1, congrFun h2 z]
+        rw [← (mem_anti.1 (Finset.mem_filter.1 hp).1) z, (hf1 _ _).1 h1,
+          congrFun (((hRs p hp).1 _).1 h2) z]
       · intro h
         have hp : (em x, fun z => l.flatMap fun x => em x z) ∈ A :=
           Finset.mem_filter.2 ⟨mem_anti.2 (congrFun h), hne x⟩
@@ -281,12 +279,9 @@ theorem add {n m : ℕ} {X Y : Type*} {em : X → Z → List Γ} {wt : X → F}
   refine ⟨P + Q, g1.add g3, fun v => ?_⟩
   obtain ⟨R, h1, h2⟩ := g2 v
   obtain ⟨R', h3, h4⟩ := g4 v
-  refine ⟨R.disjSum R', ?_, ?_⟩
-  · rintro (x | x)
-    · simp [h1]
-    · simp [h3]
-  · rw [hat_add, h2, h4, Finset.sum_disjSum]
-    simp
+  refine ⟨R.disjSum R', by rintro (x | x) <;> simp [h1, h3], ?_⟩
+  rw [hat_add, h2, h4, Finset.sum_disjSum]
+  simp
 
 theorem kstar {n : ℕ} {X : Type*} {em : X → Z → List Γ} {wt : X → F}
     (hf : Runs n em wt) (hne : ∀ x, ∃ z, em x z ≠ []) :
@@ -327,23 +322,20 @@ theorem pi {k : ℕ} {n : Fin k → ℕ} {X : Fin k → Type*}
       (fun x => ∏ i, wt i (x i)) := by
   induction k with
   | zero =>
-    refine Runs.mono (n := 1) ((one (F := F) (Z := Z) (Γ := Γ)).congr
+    exact Runs.mono (n := 1) ((one (F := F) (Z := Z) (Γ := Γ)).congr
       ⟨fun _ => (), fun _ i => i.elim0, fun _ => Subsingleton.elim _ _, fun _ => rfl⟩
-      ?_ ?_) (by omega)
-    · intro _ _
-      simp
-    · intro _
-      simp
+      (fun _ _ => by simp)
+      (fun _ => by simp))
+      (by omega)
   | succ k ih =>
     have h1 := (h 0).mul
       (ih (n := fun i => n i.succ) (X := fun i => X i.succ)
         (em := fun i => em i.succ) (wt := fun i => wt i.succ) fun i => h i.succ)
-    refine (h1.congr (Fin.consEquiv X).symm ?_ ?_).mono ?_
-    · intro y z
-      simp [Fin.consEquiv, List.ofFn_succ, Fin.tail]
-    · intro y
-      simp [Fin.consEquiv, Fin.prod_univ_succ, Fin.tail]
-    · rw [Fin.sum_univ_succ]; omega
+    refine (h1.congr (Fin.consEquiv X).symm
+      (fun y z => by simp [Fin.consEquiv, List.ofFn_succ, Fin.tail])
+      fun y => by simp [Fin.consEquiv, Fin.prod_univ_succ, Fin.tail]).mono ?_
+    rw [Fin.sum_univ_succ]
+    omega
 
 end Runs
 

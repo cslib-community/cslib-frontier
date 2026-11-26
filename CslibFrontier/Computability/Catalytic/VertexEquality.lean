@@ -406,9 +406,7 @@ private theorem run_twoStageSqDistProc (B n : ℕ) (c₂ : ZMod (2 ^ innerAccBit
           ((stageOneSqDistProc B n 1).run x y T₁).2.val)
         T₂) := by
   have hinv : (stageOneSqDistProc B n (-1)).run x y ((stageOneSqDistProc B n 1).run x y T₁) =
-      T₁ := by
-    rw [stageOneSqDistProc, stageOneSqDistProc, run_sqDistProc, run_sqDistProc]
-    exact addSqDist_neg_addSqDist 1 () _ _ T₁
+      T₁ := addSqDist_neg_addSqDist 1 () _ _ T₁
   rw [twoStageSqDistProc, ExcursionProc.run_liftAlternating _ _ _ _ rfl hinv, run_sqDistProc]
 
 private theorem run_twoStageSqDistProc_neg (B n x y : ℕ)
@@ -443,10 +441,7 @@ theorem run_vertexEqProc_chunk (B n x y : ℕ) (cat : VertexCatState B n) (s₀ 
       (cat, s₀ + if natChunkVec (outerChunkBits B) (outerDigits B n) x =
           natChunkVec (outerChunkBits B) (outerDigits B n) y then 1 else 0) := by
   obtain ⟨T₁, T₂, W⟩ := cat
-  have hsymm : (vertexStateEquiv B n).symm ((T₁, T₂, W), s₀) = ((T₁, T₂), (W, s₀)) := by
-    simp only [vertexStateEquiv, Equiv.symm_trans_apply, Equiv.prodCongr_symm,
-      Equiv.refl_symm, Equiv.prodCongr_apply, Equiv.prodAssoc_symm_apply, Equiv.refl_apply,
-      Prod.map_apply, Equiv.symm_symm, Equiv.prodAssoc_apply]
+  have hsymm : (vertexStateEquiv B n).symm ((T₁, T₂, W), s₀) = ((T₁, T₂), (W, s₀)) := rfl
   rw [vertexEqProc, ExcursionProc.run_mapState, hsymm,
     ExcursionProc.run_liftAlternating _ _ _ _ rfl (run_twoStageSqDistProc_neg B n x y (T₁, T₂)),
     run_keyTestProc]

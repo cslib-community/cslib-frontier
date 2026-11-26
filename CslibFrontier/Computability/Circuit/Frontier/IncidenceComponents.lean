@@ -180,22 +180,13 @@ theorem two_mul_card_lt_of_disjoint {ι κ : Type*} [Fintype ι] [DecidableEq ι
       { toEquiv := e
         map_rel_iff' := by
           rintro (i | j) (i' | j')
-          · change (graph S).toSimpleGraph.Adj (.inl i.val) (.inl i'.val) ↔
-              (graph S').toSimpleGraph.Adj (.inl i) (.inl i')
-            simp only [not_adj_inl_inl]
-          · change (graph S).toSimpleGraph.Adj (.inl i.val) (.inr j'.val) ↔
-              (graph S').toSimpleGraph.Adj (.inl i) (.inr j')
-            rw [adj_inl_inr S i.val j'.val, adj_inl_inr S' i j']
-            exact mem_subtype.symm
-          · change (graph S).toSimpleGraph.Adj (.inr j.val) (.inl i'.val) ↔
-              (graph S').toSimpleGraph.Adj (.inr j) (.inl i')
-            rw [SimpleGraph.adj_comm (G := (graph S).toSimpleGraph),
-              SimpleGraph.adj_comm (G := (graph S').toSimpleGraph)]
-            rw [adj_inl_inr S i'.val j.val, adj_inl_inr S' i' j]
-            exact mem_subtype.symm
-          · change (graph S).toSimpleGraph.Adj (.inr j.val) (.inr j'.val) ↔
-              (graph S').toSimpleGraph.Adj (.inr j) (.inr j')
-            simp only [not_adj_inr_inr] }
+          · exact iff_of_false (not_adj_inl_inl _ _ _) (not_adj_inl_inl _ _ _)
+          · exact (adj_inl_inr S i.val j'.val).trans
+              (mem_subtype.symm.trans (adj_inl_inr S' i j').symm)
+          · exact (SimpleGraph.adj_comm (G := (graph S).toSimpleGraph) _ _).trans
+              ((adj_inl_inr S i'.val j.val).trans (mem_subtype.symm.trans
+                ((adj_inl_inr S' i' j).symm.trans (SimpleGraph.adj_comm _ _ _))))
+          · exact iff_of_false (not_adj_inr_inr _ _ _) (not_adj_inr_inr _ _ _) }
     exact iso.connected_iff.mpr c.connected_toSimpleGraph
   have hcut (U : Finset I) :
       U.card < (univ.filter fun j => ¬ Disjoint (S' j) U).card + k ∨

@@ -306,13 +306,11 @@ private theorem eval_hashThenPRFWordIdealRun (outLen : ℕ → ℕ)
         (validWordProgram (valid n) (A n aux)) [] := by
   rw [hashThenPRFWordIdealRun, ProbOracleComp.eval_runState, validWordProgram,
     ProbOracleComp.runWith_simulate]
-  apply congrArg (fun oracle => ProbOracleComp.runWith oracle (A n aux) [])
-  funext req cache
-  by_cases h : valid n req.2 = true
-  · simp only [cachedRandomFunctionOracle, cachedSamplerOracle, ite_eq_left h,
-      ProbOracleComp.runWith_query, ProbComp.eval_memoize, BitString.eval_sampleList]
-  · simp only [cachedRandomFunctionOracle, cachedSamplerOracle, ite_eq_right h,
-      ProbOracleComp.runWith_pure, ProbComp.eval_pure]
+  refine congrArg (fun oracle => ProbOracleComp.runWith oracle (A n aux) [])
+    (funext fun req => funext fun cache => ?_)
+  by_cases h : valid n req.2 = true <;>
+    simp [cachedRandomFunctionOracle, cachedSamplerOracle, h, ProbOracleComp.runWith_query,
+      ProbComp.eval_memoize, BitString.eval_sampleList, ProbOracleComp.runWith_pure]
 
 private theorem map_fst_runWith_answer_uniformList_eq_eager (inLen outLen : ℕ)
     (program : ProbOracleComp (fun _ : BitString inLen => List Bool) Bool) :
@@ -349,20 +347,16 @@ private theorem eval_prfIdealGame_hashThenPRFWordReduction (keyLen inLen outLen 
     ProbOracleComp.run_sample, ProbOracleComp.run_simulate, ProbComp.eval_bind,
     ProbComp.eval_uniform, hsample, PMF.bind_map, Function.comp_def]
   rw [PMF.bind_comm]
-  apply congrArg (fun f => (PMF.uniformOfFintype (BitString (keyLen n))).bind f)
-  funext key
+  refine congrArg (PMF.bind _) (funext fun key => ?_)
   rw [map_fst_runWith_answer_uniformList_eq_eager]
-  apply congrArg ((PMF.uniformOfFintype (BitString (inLen n) → BitString (outLen n))).bind)
-  funext table
+  refine congrArg (PMF.bind _) (funext fun table => ?_)
   simp only [validWordProgram, ProbOracleComp.run_simulate]
-  apply congrArg (fun oracle => ProbComp.eval ((A n []).run oracle))
-  funext req
+  refine congrArg (fun oracle => ProbComp.eval ((A n []).run oracle)) (funext fun req => ?_)
   by_cases hv : valid n req.2 = true
   · have hwidth := hH n (List.ofFn key) req.2 List.length_ofFn hv
-    simp only [hashThenPRFWordHandler, ite_eq_left hv, ProbOracleComp.run_map,
-      ProbOracleComp.run_query, randomFunctionOracle, hwidth, ite_true, map_pure,
-      List.take_of_length_le List.length_ofFn.le]
-  · simp only [hashThenPRFWordHandler, ite_eq_right hv, ProbOracleComp.run_pure]
+    simp [hashThenPRFWordHandler, hv, ProbOracleComp.run_map, ProbOracleComp.run_query,
+      randomFunctionOracle, hwidth, List.take_of_length_le List.length_ofFn.le]
+  · simp [hashThenPRFWordHandler, hv, ProbOracleComp.run_pure]
 
 /-- Interpret the word hash's fixed-width keys and digests for the computational UHF games.
 The public setup supplies the key and digest widths. -/

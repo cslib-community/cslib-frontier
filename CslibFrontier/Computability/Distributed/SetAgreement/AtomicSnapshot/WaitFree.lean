@@ -166,15 +166,11 @@ private theorem card_moved_lt_of_restart {P Data : Type*} [Fintype P] [Decidable
       #(st.moved ∪ univ.filter fun k => (st.collectAVal k).seq ≠ (st.collectBVal k).seq) := by
   push Not at hdirty
   obtain ⟨k₀, hk₀_ne⟩ := hdirty
-  have hk₀_not_moved : k₀ ∉ st.moved := by
-    have hnone := List.find?_eq_none.mp hfind k₀ (ord.complete k₀)
-    simp only [decide_eq_true_eq, not_and] at hnone; exact hnone hk₀_ne
+  have hk₀_not_moved : k₀ ∉ st.moved := fun hm =>
+    List.find?_eq_none.mp hfind k₀ (ord.complete k₀) (decide_eq_true ⟨hk₀_ne, hm⟩)
   have hsub : insert k₀ st.moved ⊆
-      st.moved ∪ univ.filter fun k => (st.collectAVal k).seq ≠ (st.collectBVal k).seq := by
-    intro x hx
-    rcases mem_insert.mp hx with rfl | hx
-    · exact mem_union_right _ (mem_filter.mpr ⟨mem_univ x, hk₀_ne⟩)
-    · exact mem_union_left _ hx
+      st.moved ∪ univ.filter fun k => (st.collectAVal k).seq ≠ (st.collectBVal k).seq :=
+    insert_subset (mem_union_right _ (mem_filter.mpr ⟨mem_univ k₀, hk₀_ne⟩)) subset_union_left
   calc #st.moved < #(insert k₀ st.moved) := by rw [card_insert_of_notMem hk₀_not_moved]; omega
     _ ≤ _ := card_le_card hsub
 
@@ -236,8 +232,7 @@ theorem remainingSteps_lt_of_step {P Data : Type*} [Fintype P] [DecidableEq P] (
             set changed := univ.filter fun k => (st.collectAVal k).seq ≠ (st.collectBVal k).seq
             have hcard_lt : #st.moved < #(st.moved ∪ changed) :=
               card_moved_lt_of_restart ord st hclean hfind
-            have hcard_ub : #(st.moved ∪ changed) ≤ ord.elems.length := by
-              rw [ord.length_eq_card]; exact card_le_univ _
+            have hcard_ub := ord.length_eq_card.symm ▸ card_le_univ (st.moved ∪ changed)
             have hrem_lt : ord.elems.length - #(st.moved ∪ changed) + 1 ≤
                 ord.elems.length - #st.moved := by omega
             have hmul₁ := Nat.mul_le_mul_right (2 * ord.elems.length + 2) hrem_lt

@@ -210,10 +210,7 @@ theorem foldl_max_le_prefixMaxSum {n : ℕ} (tblList : Fin (n + 1) → List ℕ)
 theorem prefixMaxSum_succ {n : ℕ} (tblList : Fin (n + 1) → List ℕ) {k : ℕ} (hk : k + 1 ≤ n) :
     prefixMaxSum tblList (k + 1) =
       prefixMaxSum tblList k + (tblList ⟨k + 1, by omega⟩).foldl max 0 := by
-  unfold prefixMaxSum
-  rw [Finset.sum_range_succ]
-  unfold nodeMax
-  rw [dite_eq_left (by omega)]
+  simp only [prefixMaxSum, Finset.sum_range_succ, nodeMax, dite_eq_left (by omega : k + 1 < n + 1)]
 
 /-- Telescoping step: folding node `k + 1`'s table into strictly earlier parent `p < k + 1`
 increases the remaining prefix sum `0 .. k` by at most `B` relative to `0 .. k + 1`. -/
@@ -225,30 +222,18 @@ theorem prefixMaxSum_update_le {n : ℕ} (tblList : Fin (n + 1) → List ℕ)
     prefixMaxSum (Function.update tblList p newP) k ≤ prefixMaxSum tblList (k + 1) + B := by
   have hp_mem : p.val ∈ Finset.range (k + 1) := Finset.mem_range.2 hp_lt
   have hsum_succ := prefixMaxSum_succ tblList hk
-  have herase_old : nodeMax tblList p.val +
-      ∑ i ∈ (Finset.range (k + 1)).erase p.val, nodeMax tblList i =
-      prefixMaxSum tblList k := Finset.add_sum_erase _ _ hp_mem
-  have herase_new : prefixMaxSum (Function.update tblList p newP) k =
-      nodeMax (Function.update tblList p newP) p.val +
-      ∑ i ∈ (Finset.range (k + 1)).erase p.val,
-        nodeMax (Function.update tblList p newP) i :=
-    (Finset.add_sum_erase _ _ hp_mem).symm
-  have hrest_eq : ∑ i ∈ (Finset.range (k + 1)).erase p.val,
+  have herase : _ = prefixMaxSum tblList k := Finset.add_sum_erase _ (nodeMax tblList) hp_mem
+  have hrest : ∑ i ∈ (Finset.range (k + 1)).erase p.val,
       nodeMax (Function.update tblList p newP) i =
-      ∑ i ∈ (Finset.range (k + 1)).erase p.val, nodeMax tblList i := by
-    refine Finset.sum_congr rfl fun i hi => ?_
-    have hine : i ≠ p.val := (Finset.mem_erase.1 hi).1
-    unfold nodeMax
-    split_ifs with hlt
-    · rw [Function.update_of_ne (fun h => hine (congrArg Fin.val h))]
-    · rfl
-  have hp_new : nodeMax (Function.update tblList p newP) p.val = newP.foldl max 0 := by
-    unfold nodeMax
-    rw [dite_eq_left p.isLt, Fin.eta, Function.update_self]
-  have hp_old : nodeMax tblList p.val = (tblList p).foldl max 0 := by
-    unfold nodeMax
-    rw [dite_eq_left p.isLt, Fin.eta]
-  rw [herase_new, hrest_eq, hp_new, hsum_succ, ← herase_old, hp_old]
+      ∑ i ∈ (Finset.range (k + 1)).erase p.val, nodeMax tblList i :=
+    Finset.sum_congr rfl fun i hi => by
+      unfold nodeMax
+      split_ifs with hlt
+      · rw [Function.update_of_ne (Fin.ne_of_val_ne (Finset.mem_erase.1 hi).1)]
+      · rfl
+  rw [nodeMax, dite_eq_left p.isLt, Fin.eta] at herase
+  rw [prefixMaxSum, ← Finset.add_sum_erase _ _ hp_mem, hrest, nodeMax, dite_eq_left p.isLt,
+    Fin.eta, Function.update_self, hsum_succ, ← herase]
   omega
 
 /-! ### Node descriptor initialization (`initNodesProg`) -/
@@ -651,19 +636,14 @@ theorem initNodesProg_realizes :
     have hpow_res : (Memory.spec 0).clientResult t (powProg ⟨2, t.mem st.curRaw⟩) =
         2 ^ t.mem st.curRaw := powProg_result _ t
     simp only [List.length_cons, List.length_append] at hrem_end
-    have hfit_bp : Fits w (st.curRaw + 1) := hfit_peak.of_le (by omega)
-    have hfit_mul4 : Fits w (4 * st.curIdx) := hfit_peak.of_le (by omega)
-    have hfit_d0 : Fits w (descBase + 4 * st.curIdx) := hfit_peak.of_le (by omega)
-    have hfit_d1 : Fits w (descBase + 4 * st.curIdx + 1) := hfit_peak.of_le (by omega)
-    have hfit_d2 : Fits w (descBase + 4 * st.curIdx + 2) := hfit_peak.of_le (by omega)
-    have hfit_d3 : Fits w (descBase + 4 * st.curIdx + 3) := hfit_peak.of_le (by omega)
-    have hfit_next_raw : Fits w (st.curRaw + 1 + t.mem st.curRaw) :=
-      hfit_peak.of_le (by omega)
-    have hfit_next_idx : Fits w (st.curIdx + 1) := hfit_peak.of_le (by omega)
     obtain ⟨hst_ev, hres_ev⟩ := initNodeStep_eval descBase st t
     refine ⟨?_, Nat.le_of_succ_le hj_le, ?_, ?_, ?_, ?_, ?_⟩
     · dsimp only [initNodeStep]
-      repeat (first | exact hpow_safe | assumption | refine And.intro ?_ ?_)
+      repeat (first
+        | exact hpow_safe
+        | assumption
+        | refine And.intro ?_ ?_
+        | exact hfit_peak.of_le (by omega))
     · rw [hres_ev]; change (st.curIdx + 1) + j = d.count; omega
     · rw [hst_ev]; change descBase + 4 * d.count ≤ t.frontier + _; omega
     · rw [hst_ev, hres_ev]; exact hfr_next

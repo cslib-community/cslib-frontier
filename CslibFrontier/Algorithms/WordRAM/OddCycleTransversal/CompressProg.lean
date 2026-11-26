@@ -811,14 +811,13 @@ theorem incOdomProg_base3At (n L : ℕ) (s : Memory.State) :
       dsimp only [incOdomStep, LoopAccArgs.idx, LoopAccArgs.acc]
       have hdj : t.mem (digitBase n + jc.1) = s.mem (digitBase n + jc.1) := habove jc.1 le_rfl
       by_cases hc : jc.2 = 1
-      · by_cases hlt : t.mem (digitBase n + jc.1) < 2
+      · have hpre (v : ℕ) : base3At (Function.update t.mem (digitBase n + jc.1) v)
+            (digitBase n) jc.1 = base3At t.mem (digitBase n) jc.1 :=
+          base3At_congr fun _ _ => Function.update_of_ne (by omega) _ _
+        by_cases hlt : t.mem (digitBase n + jc.1) < 2
         · rw [clientResult_bind_read, clientState_bind_read, ite_eq_left hc, ite_eq_left hlt,
             clientResult_bind_write, clientState_bind_write, clientResult_pure, clientState_pure]
           dsimp only
-          have hpre : base3At (Function.update t.mem (digitBase n + jc.1)
-              (t.mem (digitBase n + jc.1) + 1)) (digitBase n) jc.1 =
-              base3At t.mem (digitBase n) jc.1 :=
-            base3At_congr fun i hi => Function.update_of_ne (by omega) _ _
           refine ⟨by omega, by omega,
             fun i hi => (Function.update_of_ne (by omega) _ _).trans (habove i (by omega)), ?_⟩
           simp only [base3At, hpre, Function.update_self, zero_mul, add_zero]
@@ -832,9 +831,6 @@ theorem incOdomProg_base3At (n L : ℕ) (s : Memory.State) :
         · rw [clientResult_bind_read, clientState_bind_read, ite_eq_left hc, ite_eq_right hlt,
             clientResult_bind_write, clientState_bind_write, clientResult_pure, clientState_pure]
           dsimp only
-          have hpre : base3At (Function.update t.mem (digitBase n + jc.1) 0)
-              (digitBase n) jc.1 = base3At t.mem (digitBase n) jc.1 :=
-            base3At_congr fun i hi => Function.update_of_ne (by omega) _ _
           refine ⟨by omega, by omega,
             fun i hi => (Function.update_of_ne (by omega) _ _).trans (habove i (by omega)), ?_⟩
           simp only [base3At, hpre, Function.update_self, Nat.zero_min, zero_mul, add_zero,
@@ -896,13 +892,12 @@ private theorem compressProg_realizes :
           (Memory.spec 0).clientState t₁ (incOdomProg (d.1.1.1, d.2)) := by
       unfold guessStep
       dsimp only [GuessStepArgs.n, GuessStepArgs.L, GuessStepArgs.found, t₁]
-      by_cases h0 : st.2 = 0
-      · rw [clientResult_bind_read, clientState_bind_read, ite_eq_left h0, ite_eq_left h0,
-          clientResult_bind, clientState_bind, clientResult_bind, clientResult_pure,
+      rw [clientResult_bind_read, clientState_bind_read]
+      split_ifs
+      · rw [clientResult_bind, clientState_bind, clientResult_bind, clientResult_pure,
           clientState_bind, clientState_pure]
         exact ⟨rfl, rfl⟩
-      · rw [clientResult_bind_read, clientState_bind_read, ite_eq_right h0, ite_eq_right h0,
-          clientResult_bind, clientState_bind, clientState_pure, clientResult_bind,
+      · rw [clientResult_bind, clientState_bind, clientState_pure, clientResult_bind,
           clientResult_pure, clientState_bind, clientState_pure]
         exact ⟨rfl, rfl⟩
     have hpres :

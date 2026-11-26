@@ -133,11 +133,9 @@ theorem isClassical_outputCopyCodes {W z base : ℕ} {outputs : List ℕ} (hzb :
 theorem isClassical_samplerClassicalCodes (n : ℕ)
     (code : List (Op × List ℕ) × List ℕ) :
     IsClassical (samplerWidth n code) (samplerClassicalCodes n code) := by
-  unfold samplerClassicalCodes
-  refine IsClassical.append.mpr ⟨isClassical_codes le_rfl (by
-    unfold samplerWidth samplerOutputStart samplerZero
-    omega), ?_⟩
-  exact isClassical_outputCopyCodes (by unfold samplerOutputStart; omega) (by rfl)
+  exact IsClassical.append.mpr ⟨isClassical_codes le_rfl
+    (by dsimp only [samplerWidth, samplerOutputStart, samplerZero]; omega),
+    isClassical_outputCopyCodes (by dsimp only [samplerOutputStart]; omega) le_rfl⟩
 
 /-- Every gate emitted by the reversible sampler is valid for its declared register width. -/
 theorem wellFormed_samplerCodes (n : ℕ) (code : List (Op × List ℕ) × List ℕ) :
@@ -164,7 +162,6 @@ theorem readBit_classicalRun_outputCopyCodes {W z base : ℕ} {outputs : List �
     (hj : j < outputs.length) :
     readBit (classicalRun (outputCopyCodes z base outputs) X) (base + j) =
       readBit X (outQubit z (outputs.getD j 0)) := by
-  have hclass := isClassical_outputCopyCodes (W := W) hzb hW
   have hlt : ∀ g ∈ outputCopyCodes z base outputs, g.2.1 < W := fun g hg => by
     obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hg
     have := (List.mem_zipIdx hp).2.1
@@ -278,20 +275,15 @@ theorem samplerDist_eq_outputDist {n m : ℕ} (C : Circuits.Circuit signature n 
       measureProb (U (ket (X r))) {a | samplerReadout C a = y} =
         if C.eval interpretation r = y then 1 else 0 := by
     rw [hbasis, measureProb_ket]
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-    rw [show samplerReadout C
-        (classicalRun (samplerClassicalCodes n C.code) (X r)) = C.eval interpretation r by
-      simpa only [X, W] using samplerReadout_classicalRun C r]
+    simpa only [Finset.mem_filter, Finset.mem_univ, true_and, X, W] using
+      congrArg (fun v => if v = y then (1 : ℝ) else 0) (samplerReadout_classicalRun C r)
   have hprob (y : BitString m) :
       measureProb (Circuit.run (Circuit.ofCodes W (samplerCodes n C.code)) X₀)
           {a | samplerReadout C a = y} =
         (Finset.dens {r : BitString n | C.eval interpretation r = y} : ℝ) := by
-    rw [hstate]
-    have key := measureProb_map_sum_orthonormal U hv (fun _ : BitString n => s ^ n)
+    rw [hstate, measureProb_map_sum_orthonormal U hv (fun _ : BitString n => s ^ n)
       {a | samplerReadout C a = y} (fun r => C.eval interpretation r = y)
-      (fun r h => by rw [hyr y r, ite_eq_left h])
-      (fun r h => by rw [hyr y r, ite_eq_right h])
-    rw [key]
+      (fun r h => by rw [hyr y r, ite_eq_left h]) (fun r h => by rw [hyr y r, ite_eq_right h])]
     have hs : ‖s ^ n‖ ^ 2 = 1 / 2 ^ n := by
       rw [norm_pow, ← pow_mul, mul_comm, pow_mul, Complex.norm_real, Real.norm_eq_abs,
         sq_abs, inv_pow, Real.sq_sqrt (by norm_num), one_div, inv_pow]
@@ -351,10 +343,10 @@ theorem computableInPolyTime_samplerCodes {n : γ → ℕ}
   have hzero : ComputableInPolyTime (fun a => samplerZero (n a) (code a)) enc encUnary := by
     unfold samplerZero
     fun_prop
-  have hstart := computableInPolyTime_samplerOutputStart hn hcode
   have hcompile := computableInPolyTime_codes hn hzero
     (gates := fun a => (code a).1) (by fun_prop)
-  have hcopy := computableInPolyTime_outputCopyCodes hzero hstart
+  have hcopy := computableInPolyTime_outputCopyCodes hzero
+    (computableInPolyTime_samplerOutputStart hn hcode)
     (outputs := fun a => (code a).2) (by fun_prop)
   have hhad := computableInPolyTime_hadamardCodes (o := fun _ => 0) (p := n)
     (by fun_prop) hn

@@ -238,6 +238,10 @@ private theorem invLoops_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x : Dat
         have : Fits w (invBase g + bk) := fits_top hw (by wram_omega)
         have : Fits w (k + 1) := fits_top hw (by wram_omega)
         have hzE : z.regs rEdgeIdx = 4 + j * (L + 2) := hzR.edgeIdx.trans heptr
+        have hinv_ne (b : ℕ) (hb : b < L) (hbb : b ≠ bk) : invAt (k + 1) b hb = invAt k b hb := by
+          have hne : g.edges[j].constraint ⟨k, hk⟩ ≠ ⟨b, hb⟩ := fun h =>
+            hbb (congrArg Fin.val h).symm
+          simp [invAt, htake_succ, hne]
         cases hfind : ((List.finRange L).take k).find?
             (fun a => decide (g.edges[j].constraint a = ⟨bk, hbk⟩)) with
         | none =>
@@ -248,15 +252,10 @@ private theorem invLoops_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x : Dat
           · simp only [Data.write_mem, Data.set_mem]
             intro b hb
             by_cases hbb : b = bk
-            · subst hbb; rw [Function.update_self]
-              have hfin_eq : g.edges[j].constraint ⟨k, hk⟩ = ⟨bk, hb⟩ := Fin.ext rfl
-              simp only [invAt, htake_succ, List.find?_append, hfind, Option.none_or,
-                List.find?_cons, hfin_eq, decide_true, Option.elim_some]
-            · rw [Function.update_of_ne (by omega : invBase g + b ≠ invBase g + bk), hzInv b hb]
-              have hne_fin : g.edges[j].constraint ⟨k, hk⟩ ≠ ⟨b, hb⟩ :=
-                fun heq => hbb (congrArg Fin.val heq).symm
-              simp only [invAt, htake_succ, List.find?_append, List.find?_cons, hne_fin,
-                decide_false, List.find?_nil, Option.or_none]
+            · subst hbb
+              have hfin : g.edges[j].constraint ⟨k, hk⟩ = ⟨bk, hb⟩ := Fin.ext rfl
+              simp [Function.update_self, invAt, htake_succ, hfind, hfin]
+            · rw [Function.update_of_ne (by omega), hzInv b hb, hinv_ne b hb hbb]
           · simp only [Data.write_mem, Data.set_mem]
             intro addr haddr
             rw [Function.update_of_ne (by omega : addr ≠ invBase g + bk)]
@@ -272,11 +271,9 @@ private theorem invLoops_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x : Dat
             by_cases hbb : b = bk
             · subst hbb
               simp only [invAt, htake_succ, List.find?_append, hfind, Option.some_or]
-            · have hne_fin : g.edges[j].constraint ⟨k, hk⟩ ≠ ⟨b, hb⟩ :=
-                fun heq => hbb (congrArg Fin.val heq).symm
-              simp only [invAt, htake_succ, List.find?_append, List.find?_cons, hne_fin,
-                decide_false, List.find?_nil, Option.or_none]
-          · simp only [Data.set_mem]; exact hzFr)
+            · exact (hinv_ne b hb hbb).symm
+          · simp only [Data.set_mem]
+            exact hzFr)
       (by rw [hlab3]; exact Nat.zero_le _)
       (by rw [hlab3]; refine ⟨hc3, hr3, fun b hb => ?_, fun addr haddr => ?_⟩
           · rw [hm3, hinit_inv b hb]
@@ -474,16 +471,14 @@ theorem extendCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fi
     | some h =>
       obtain ⟨hvis_d, _⟩ := hS.vis_some e.dst hd_lt h hgd
       have hc_inner : ¬ (Cond.eq rTmp2 rZero).Holds x1 := by
-        simp only [Cond.holds_eq, ht2_1, ← he_def, hvis_d, hc1.zero, Nat.one_ne_zero,
-          not_false_eq_true]
+        simp [Cond.holds_eq, ht2_1, ← he_def, hvis_d, hc1.zero]
       exact retSame (by simp only [extend, hgs, hgd])
         ((hx1.seq (ExecWithin.branch_pos hc_outer (ExecWithin.branch_neg hc_inner hnop))).mono
           (by omega))
   | none =>
     have hvis_s : x.mem (visBase g + e.src) = 0 := hS.vis_none e.src hs_lt hgs
     have hc_outer : ¬ (Cond.eq rTmp1 rOne).Holds x1 := by
-      simp only [Cond.holds_eq, ht1_1, ← he_def, hvis_s, hc1.one, Nat.zero_ne_one,
-        not_false_eq_true]
+      simp [Cond.holds_eq, ht1_1, ← he_def, hvis_s, hc1.one]
     cases hgd : S.get e.dst with
     | some h =>
       obtain ⟨hvis_d, htab_d⟩ := hS.vis_some e.dst hd_lt h hgd
@@ -541,8 +536,7 @@ theorem extendCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fi
     | none =>
       have hvis_d : x.mem (visBase g + e.dst) = 0 := hS.vis_none e.dst hd_lt hgd
       have hc_inner : ¬ (Cond.eq rTmp2 rOne).Holds x1 := by
-        simp only [Cond.holds_eq, ht2_1, ← he_def, hvis_d, hc1.one, Nat.zero_ne_one,
-          not_false_eq_true]
+        simp [Cond.holds_eq, ht2_1, ← he_def, hvis_d, hc1.one]
       exact retSame (by simp only [extend, hgs, hgd])
         ((hx1.seq (ExecWithin.branch_neg hc_outer (ExecWithin.branch_neg hc_inner hnop))).mono
           (by omega))

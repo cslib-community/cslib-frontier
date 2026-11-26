@@ -329,14 +329,10 @@ theorem detRows_cramerColZeroRows_eq_mul_eval_zero {nodes : List ℤ} {J : ℕ} 
     simp only [p, AddMonoidAlgebra.coeff_smul_apply, smul_eq_mul,
       Polynomial.coeff_eq_zero_of_natDegree_lt (hdeg.trans_le hm), mul_zero]
   have hp_c0 : p.coeff (finProdFinEquiv c0) = (Ω : ℚ) * (H_zero : ℚ) := by
-    have hc0_val : (finProdFinEquiv c0 : ℕ) = 0 := by simp [c0]
-    rw [hc0_val, AddMonoidAlgebra.coeff_smul_apply, smul_eq_mul,
-      Polynomial.coeff_zero_eq_eval_zero, hH0]
+    simp [p, c0, Polynomial.coeff_zero_eq_eval_zero, hH0]
   have hjet_eq : Polynomial.taylorJet (fun i => (t i : ℚ)) J p =
-      fun r => (rowEntry jets r.1 r.2 : ℚ) := by
-    funext ⟨i, j⟩
-    simp only [p, map_smul, Polynomial.taylorJet_apply, t]
-    exact (hjets i j).symm
+      fun r => (rowEntry jets r.1 r.2 : ℚ) :=
+    funext fun ⟨i, j⟩ => by simpa [p, Polynomial.taylorJet_apply, t] using (hjets i j).symm
   have hcramer := Polynomial.det_hermiteMatrix_mul_coeff t hp_deg c0
   rw [hp_c0, hjet_eq] at hcramer
   have hmap_update :
@@ -536,11 +532,9 @@ open Turing MultiTapeTM
 
 private theorem nat_choose_eq_ite (m j : ℕ) :
     m.choose j = if j ≤ m then m.factorial / (j.factorial * (m - j).factorial) else 0 := by
-  by_cases h : j ≤ m
-  · rw [ite_eq_left h]
-    exact Nat.choose_eq_factorial_div_factorial h
-  · rw [ite_eq_right h]
-    exact Nat.choose_eq_zero_of_lt (Nat.lt_of_not_ge h)
+  split_ifs with h
+  · exact Nat.choose_eq_factorial_div_factorial h
+  · exact Nat.choose_eq_zero_of_lt (not_le.mp h)
 
 @[local fun_prop]
 private theorem computableInPolyTime_choose_intBin {α : Type} {encIn : α ↪ List Bool}

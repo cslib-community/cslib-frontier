@@ -176,12 +176,10 @@ theorem beats_iff_rank_lt {b : ι → ℝ} {i j : ι} : Beats b i j ↔ rank b i
   · exact h
   · exact absurd (rank_lt_of_beats h) (not_lt.2 hlt.le)
 
-theorem rank_injective (b : ι → ℝ) : Function.Injective (rank b) := by
-  intro i j heq
-  by_contra hij
-  rcases beats_trichotomous hij with h | h
-  · exact (heq ▸ rank_lt_of_beats h).false
-  · exact (heq ▸ rank_lt_of_beats h).false
+theorem rank_injective (b : ι → ℝ) : Function.Injective (rank b) := fun _ _ heq =>
+  by_contra fun hij => (beats_trichotomous hij).elim
+    (fun h => (heq ▸ rank_lt_of_beats h).false)
+    (fun h => (heq ▸ rank_lt_of_beats h).false)
 
 theorem image_rank_eq_range (b : ι → ℝ) :
     Finset.univ.image (rank b) = Finset.range (Fintype.card ι) := by
@@ -191,11 +189,8 @@ theorem image_rank_eq_range (b : ι → ℝ) :
   · rw [Finset.card_range, Finset.card_image_of_injective _ (rank_injective b), Finset.card_univ]
 
 theorem exists_rank_eq {b : ι → ℝ} {r : ℕ} (hr : r < Fintype.card ι) : ∃ i, rank b i = r := by
-  have hmem : r ∈ Finset.univ.image (rank b) := by
-    rw [image_rank_eq_range]
-    exact Finset.mem_range.2 hr
-  obtain ⟨i, -, hi⟩ := Finset.mem_image.1 hmem
-  exact ⟨i, hi⟩
+  simpa only [Finset.mem_image, Finset.mem_univ, true_and] using
+    ((image_rank_eq_range b).symm ▸ Finset.mem_range.2 hr : r ∈ Finset.univ.image (rank b))
 
 /-- Bidder `i` wins one of the `k` identical items iff `rank b i < k`. -/
 @[expose] def Wins (k : ℕ) (b : ι → ℝ) (i : ι) : Prop :=
@@ -230,17 +225,11 @@ theorem allocation_one : allocation (ι := ι) 1 = Vickrey.allocation := by
 
 theorem allocation_eq_one_iff {k : ℕ} {b : ι → ℝ} {i : ι} :
     allocation k b i = 1 ↔ Wins k b i := by
-  unfold allocation
-  split_ifs with h
-  · exact iff_of_true rfl h
-  · exact iff_of_false zero_ne_one h
+  simp [allocation]
 
 theorem allocation_eq_zero_iff {k : ℕ} {b : ι → ℝ} {i : ι} :
     allocation k b i = 0 ↔ ¬ Wins k b i := by
-  unfold allocation
-  split_ifs with h
-  · exact iff_of_false one_ne_zero (not_not_intro h)
-  · exact iff_of_true rfl h
+  simp [allocation]
 
 theorem allocation_binary (k : ℕ) (b : ι → ℝ) (i : ι) :
     allocation k b i = 0 ∨ allocation k b i = 1 := by

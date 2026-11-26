@@ -177,23 +177,14 @@ theorem runStatelessOracle_bind_le {T α : Type} (μ : PMF T)
             runStatelessOracle (o τ) (OracleComp.query (Sum.inl m) >>= k) (next τ)) =
           (PMF.uniformOfFintype (Fin (m + 1))).bind
             (fun x => μ.bind fun τ => runStatelessOracle (o τ) (k x) (next τ)) := by
-        rw [show (fun τ =>
-            runStatelessOracle (o τ) (OracleComp.query (Sum.inl m) >>= k) (next τ)) = _ from
-          funext fun τ => runStatelessOracle_query_inl (o τ) m k (next τ)]
+        simp_rw [fun τ => runStatelessOracle_query_inl (o τ) m k (next τ)]
         exact PMF.bind_comm μ (PMF.uniformOfFintype (Fin (m + 1))) _
       rw [hinl o₁, hinl (fun _ => o₂)]
       exact ⟨PMF.bind_apply_le_add_const_on_support _ _ fun x _ => (ih x).1,
         PMF.bind_apply_le_add_const_on_support _ _ fun x _ => (ih x).2⟩
     · simp only [Sum.elim_inr]
-      have hinr₁ :
-          (fun τ => runStatelessOracle (o₁ τ) (OracleComp.query (Sum.inr req) >>= k) (next τ)) =
-            fun τ => runStatelessOracle (o₁ τ) (k (o₁ τ req.2)) (next τ) :=
-        funext fun τ => runStatelessOracle_query_inr (o₁ τ) req k (next τ)
-      have hinr₂ :
-          (fun τ => runStatelessOracle o₂ (OracleComp.query (Sum.inr req) >>= k) (next τ)) =
-            fun τ => runStatelessOracle o₂ (k (o₂ req.2)) (next τ) :=
-        funext fun τ => runStatelessOracle_query_inr o₂ req k (next τ)
-      rw [hinr₁, hinr₂]
+      simp_rw [fun τ => runStatelessOracle_query_inr (o₁ τ) req k (next τ),
+        fun τ => runStatelessOracle_query_inr o₂ req k (next τ)]
       have hstep (f g : T → Game)
           (hfg : ∀ τ, isBad τ req.2 = false → f τ = g τ) :
           (μ.bind f) b ≤ (μ.bind g) b + δ := by

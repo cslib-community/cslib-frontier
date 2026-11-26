@@ -77,24 +77,21 @@ private theorem foldl_coeffBitBound_ge (cs : List ℚ) (init : ℕ) :
 /-- Every coefficient list `cs` satisfies `HasCoeffBitBound (coeffBitBound cs) cs`. -/
 theorem hasCoeffBitBound_coeffBitBound (cs : List ℚ) :
     HasCoeffBitBound (coeffBitBound cs) cs := by
-  have haux : ∀ (qs : List ℚ) (init : ℕ), ∀ q ∈ qs,
-      let M := qs.foldl (fun acc r => max acc (max (Int.natAbs r.num).size r.den.size)) init
-      Int.natAbs q.num ≤ 2 ^ M ∧ q.den ≤ 2 ^ M := by
-    intro qs
-    induction qs with
-    | nil => simp
-    | cons a as ih =>
-      intro init q hq
-      simp only [List.foldl_cons]
-      rcases List.mem_cons.mp hq with rfl | hmem
-      · have hle := (le_max_right init (max (Int.natAbs q.num).size q.den.size)).trans
-          (foldl_coeffBitBound_ge as _)
-        exact ⟨(Nat.lt_size_self _).le.trans
-            (Nat.pow_le_pow_right zero_lt_two ((le_max_left _ _).trans hle)),
-          (Nat.lt_size_self _).le.trans
-            (Nat.pow_le_pow_right zero_lt_two ((le_max_right _ _).trans hle))⟩
-      · exact ih _ q hmem
-  exact haux cs 0
+  suffices ∀ (init : ℕ), ∀ q ∈ cs,
+      let M := cs.foldl (fun acc r => max acc (max (Int.natAbs r.num).size r.den.size)) init
+      Int.natAbs q.num ≤ 2 ^ M ∧ q.den ≤ 2 ^ M from this 0
+  induction cs with
+  | nil => simp
+  | cons a as ih =>
+    rintro init q hq
+    rcases List.mem_cons.mp hq with rfl | hmem
+    · have hle := (le_max_right init (max (Int.natAbs q.num).size q.den.size)).trans
+        (foldl_coeffBitBound_ge as _)
+      have hpow {n : ℕ} (h : n.size ≤ max (Int.natAbs q.num).size q.den.size) :
+          n ≤ 2 ^ (q :: as).foldl (fun acc r => max acc (max r.num.natAbs.size r.den.size)) init :=
+        (Nat.lt_size_self n).le.trans (Nat.pow_le_pow_right zero_lt_two (h.trans hle))
+      exact ⟨hpow (le_max_left _ _), hpow (le_max_right _ _)⟩
+    · exact ih _ q hmem
 
 /-- `HasCoeffBitBound B` is preserved by `CoeffList.trim`. -/
 theorem HasCoeffBitBound.trim {B : ℕ} {cs : List ℚ} (hB : HasCoeffBitBound B cs) :
@@ -155,9 +152,7 @@ theorem cauchyBoundNat_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : HasCoeffBi
         _ ≤ (2 : ℚ) ^ B * (2 : ℚ) ^ B :=
               mul_le_mul_of_nonneg_right hm_le (by positivity)
         _ = (2 : ℚ) ^ (2 * B) := by rw [two_mul, pow_add]
-    have hb_le : b ≤ ((2 ^ (2 * B) + 1 : ℕ) : ℚ) := by
-      dsimp only [b]
-      push_cast; linarith
+    have hb_le : b ≤ ((2 ^ (2 * B) + 1 : ℕ) : ℚ) := by push_cast; linarith
     have hfloor_le : ((Int.natAbs b.num / b.den : ℕ) : ℚ) ≤ b := by
       have hnum_eq : (Int.natAbs b.num : ℚ) / b.den = b :=
         calc (Int.natAbs b.num : ℚ) / b.den
@@ -230,11 +225,11 @@ theorem sqNormList_clearDenoms_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : Ha
         ≤ 2 ^ B * 2 ^ (cs.length * B) :=
           Nat.mul_le_mul (htB q hq).1 ((Nat.div_le_self _ _).trans hD_le)
       _ = 2 ^ ((cs.length + 1) * B) := by rw [Nat.add_one_mul, add_comm, pow_add]
+  have h4 : (2 ^ ((cs.length + 1) * B)) ^ 2 = 4 ^ ((cs.length + 1) * B) := by
+    rw [← pow_mul, mul_comm _ 2, pow_mul]; rfl
   have hsq : sqNormList ns ≤ t.length * 4 ^ ((cs.length + 1) * B) := by
-    have h1 := foldl_sqNorm_le_of_bound ns (2 ^ ((cs.length + 1) * B)) 0 hns_bound
-    have h4 : (2 ^ ((cs.length + 1) * B)) ^ 2 = 4 ^ ((cs.length + 1) * B) := by
-      rw [← pow_mul, mul_comm _ 2, pow_mul]; rfl
-    simpa only [sqNormList, zero_add, h4, ns, clearDenomsList, List.length_map] using h1
+    simpa only [sqNormList, zero_add, h4, ns, clearDenomsList, List.length_map] using
+      foldl_sqNorm_le_of_bound ns (2 ^ ((cs.length + 1) * B)) 0 hns_bound
   exact hsq.trans (Nat.mul_le_mul_right _ ht_len)
 
 /-- Logarithmic bound on `sqNormList (clearDenomsList (CoeffList.trim cs)).2`
@@ -328,10 +323,9 @@ theorem DyadicBounded.natAbs_num_le {b e : ℕ} {q : ℚ} (hq : DyadicBounded b 
     Int.natAbs q.num ≤ b * 2 ^ e := by
   have hden := hq.den_le
   obtain ⟨z, hq_eq, hz⟩ := hq
-  have hcrossQ : (q.num : ℚ) * (2 : ℚ) ^ e = (z : ℚ) * (q.den : ℚ) :=
-    (div_eq_div_iff (Nat.cast_ne_zero.mpr q.den_nz) (by positivity)).mp
+  have hcrossZ : q.num * (2 : ℤ) ^ e = z * (q.den : ℤ) := by
+    exact_mod_cast (div_eq_div_iff (Nat.cast_ne_zero.mpr q.den_nz) (by positivity)).mp
       ((Rat.num_div_den q).trans hq_eq)
-  have hcrossZ : q.num * (2 : ℤ) ^ e = z * (q.den : ℤ) := by exact_mod_cast hcrossQ
   have hcrossN : Int.natAbs q.num * 2 ^ e = Int.natAbs z * q.den := by
     simpa [Int.natAbs_mul, Int.natAbs_pow] using congrArg Int.natAbs hcrossZ
   exact Nat.le_of_mul_le_mul_right (hcrossN ▸ Nat.mul_le_mul hz hden)

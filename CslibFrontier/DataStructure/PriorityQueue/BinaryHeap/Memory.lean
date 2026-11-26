@@ -447,12 +447,7 @@ termination_by S + 1 - k
 /-- A rearrangement represents the same queue. -/
 theorem Rearranges.abs_eq {s s' : Memory.State} (h : Rearranges L s s') : abs L s' = abs L s := by
   funext ⟨v, hv⟩
-  have hk := h.outside (L.base + v) (.inl (by omega))
-  have hp := h.pos_eq_zero v hv
-  simp only [abs, stateOfMem, hk]
-  by_cases h0 : s.mem (L.base + 2 * n + 1 + v) = 0
-  · simp [h0, hp.mpr h0]
-  · simp [h0, mt hp.mp h0]
+  simp only [abs, stateOfMem, h.outside (L.base + v) (.inl (by omega)), h.pos_eq_zero v hv]
 
 /-- A memory that keeps the key and the presence of every handle but `v` represents the queue
 updated at `v`. -/
@@ -466,10 +461,7 @@ theorem abs_eq_update {s s' : Memory.State} {v : Fin n} {x : Option ℕ}
     rw [Function.update_self, hv]
   · rw [Function.update_of_ne huv]
     obtain ⟨hk, hp⟩ := hother u huv
-    simp only [abs, stateOfMem, hk]
-    by_cases h0 : s.mem (L.base + 2 * n + 1 + u) = 0
-    · simp [h0, hp.mpr h0]
-    · simp [h0, mt hp.mp h0]
+    simp only [abs, stateOfMem, hk, hp]
 
 /-! ## The operations -/
 
@@ -720,16 +712,14 @@ theorem methods_run (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s)
 /-- An operation changes no cell outside the layout. -/
 theorem methods_frame (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s)
     (o : IndexedMinPQ.Op n) (hv : IndexedMinPQ.valid K (abs L s) o) :
-    ∀ a ∉ L.footprint, ((Memory.spec w).clientState s (ops L o)).mem a = s.mem a := by
-  obtain ⟨-, -, -, -, -, h⟩ := methods_run hL hs o hv
-  exact h
+    ∀ a ∉ L.footprint, ((Memory.spec w).clientState s (ops L o)).mem a = s.mem a :=
+  (methods_run hL hs o hv).2.2.2.2.2
 
 /-- An operation leaves the frontier where it was. -/
 theorem methods_frontier (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s)
     (o : IndexedMinPQ.Op n) (hv : IndexedMinPQ.valid K (abs L s) o) :
-    ((Memory.spec w).clientState s (ops L o)).frontier = s.frontier := by
-  obtain ⟨-, -, -, -, h, -⟩ := methods_run hL hs o hv
-  exact h
+    ((Memory.spec w).clientState s (ops L o)).frontier = s.frontier :=
+  (methods_run hL hs o hv).2.2.2.2.1
 
 /-! ## The refinement and its frame -/
 

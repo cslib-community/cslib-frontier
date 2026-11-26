@@ -121,10 +121,8 @@ theorem inner_eq_sum_inner_querySlice (ψ φ : ValueState ι V W) :
 /-- Parseval identity across query indices: `∑_i ‖querySlice i ψ‖² = ‖ψ‖²`. -/
 theorem sum_sq_norm_querySlice (ψ : ValueState ι V W) :
     ∑ i : ι, ‖querySlice i ψ‖ ^ 2 = ‖ψ‖ ^ 2 := by
-  rw [EuclideanSpace.norm_sq_eq, Fintype.sum_prod_type]
-  refine sum_congr rfl fun i _ => ?_
-  rw [EuclideanSpace.norm_sq_eq]
-  exact sum_congr rfl fun ⟨v, w⟩ _ => rfl
+  simp only [EuclideanSpace.norm_sq_eq, Fintype.sum_prod_type]
+  rfl
 
 /-- On each query index `i`, `valueOracle step x` acts as a linear isometry on `querySlice i`. -/
 @[simp] theorem norm_querySlice_valueOracle
@@ -168,15 +166,12 @@ theorem norm_inner_valueOracle_valueOracle_ge [DecidableEq α]
       2 * ∑ i with x i ≠ y i, ‖querySlice i ψ‖ * ‖querySlice i φ‖ := by
     rw [hdiff, mul_sum]
     refine (norm_sum_le _ _).trans (sum_le_sum fun i _ => ?_)
-    have h₂ : ‖inner ℂ (querySlice i (valueOracle step x ψ))
-        (querySlice i (valueOracle step y φ))‖ ≤
-        ‖querySlice i ψ‖ * ‖querySlice i φ‖ := by
-      simpa only [norm_querySlice_valueOracle] using
-        norm_inner_le_norm (querySlice i (valueOracle step x ψ))
-          (querySlice i (valueOracle step y φ))
-    have htri := norm_sub_le (inner ℂ (querySlice i ψ) (querySlice i φ))
-      (inner ℂ (querySlice i (valueOracle step x ψ)) (querySlice i (valueOracle step y φ)))
-    linarith [norm_inner_le_norm (𝕜 := ℂ) (querySlice i ψ) (querySlice i φ)]
+    have h₁ := norm_inner_le_norm (𝕜 := ℂ) (querySlice i ψ) (querySlice i φ)
+    have h₂ := norm_inner_le_norm (𝕜 := ℂ) (querySlice i (valueOracle step x ψ))
+      (querySlice i (valueOracle step y φ))
+    rw [norm_querySlice_valueOracle, norm_querySlice_valueOracle] at h₂
+    linarith [norm_sub_le (inner ℂ (querySlice i ψ) (querySlice i φ))
+      (inner ℂ (querySlice i (valueOracle step x ψ)) (querySlice i (valueOracle step y φ)))]
   linarith [norm_sub_norm_le (inner ℂ ψ φ)
     (inner ℂ (valueOracle step x ψ) (valueOracle step y φ))]
 
@@ -202,10 +197,7 @@ theorem valueWeightedProgress_zero
     {ψ₀ : ValueState ι V W} (hψ₀ : ‖ψ₀‖ = 1)
     (R : Finset ((ι → α) × (ι → α))) (γ : (ι → α) × (ι → α) → ℝ) :
     valueWeightedProgress step U ψ₀ R γ 0 = ∑ p ∈ R, γ p := by
-  have h : ‖inner ℂ (U 0 ψ₀) (U 0 ψ₀)‖ = 1 := by
-    rw [LinearIsometry.inner_map_map, inner_self_eq_norm_sq_to_K, hψ₀]
-    simp
-  simp only [valueWeightedProgress, runValue, h, mul_one]
+  simp [valueWeightedProgress, runValue, inner_self_eq_norm_sq_to_K, hψ₀]
 
 private theorem sum_endpoint_querySlice_sq_le [DecidableEq α]
     (step : α → (EuclideanSpace ℂ V ≃ₗᵢ[ℂ] EuclideanSpace ℂ V))

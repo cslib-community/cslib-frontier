@@ -258,12 +258,12 @@ private theorem rebalance_step (zero maxSucc : M.Op) (heavy le : M.Test)
     Runs (rebalanceAncestors zero maxSucc heavy le field) s { t with pc := 0 } (2 + time) := by
   let body := ancestorStep (regs := regs) zero maxSucc heavy le field
   let mid := { s.setPtr 5 none with pc := 1 }
-  have bodyRun := run.inBlock [.null 5, .ifPtrEq 0 5 (2 + body.length)] [.halt] 0
-  have bodyRun' : Runs (rebalanceAncestors zero maxSucc heavy le field)
+  have bodyRun : Runs (rebalanceAncestors zero maxSucc heavy le field)
       { s.setPtr 5 none with pc := 2 } { t with pc := 0 } time := by
-    simpa [rebalanceAncestors, body] using bodyRun
+    simpa [rebalanceAncestors, body] using
+      run.inBlock [.null 5, .ifPtrEq 0 5 (2 + body.length)] [.halt] 0
   rw [show 2 + time = time + 1 + 1 by omega]
-  refine .head s mid _ _ ?_ (.head mid _ _ _ ?_ bodyRun')
+  refine .head s mid _ _ ?_ (.head mid _ _ _ ?_ bodyRun)
   · simp [step, rebalanceAncestors, pc, Instr.effect, Instr.next, mid]
   · simp [step, rebalanceAncestors, mid, Instr.effect, Instr.next, State.setPtr, cursor]
 
@@ -435,23 +435,17 @@ theorem InsertResult.before [LinearOrder M.Value]
     (data : ∀ i, i ≠ 1 → i ≠ 2 → x.data i = s.data i)
     (safe : ∀ f, f ≠ field → f ≠ 0 → source f ≠ 1 ∧ source f ≠ 2) :
     InsertResult encode field source s t before after original := by
-  have h01 : (0 : Fin ((regs + 1) + 2)) ≠ 1 := by simp
-  have h02 : (0 : Fin ((regs + 1) + 2)) ≠ 2 := by
-    simp [Fin.ext_iff, Nat.mod_eq_of_lt (by omega : 2 < (regs + 1) + 2)]
-  have query := data 0 h01 h02
-  refine ⟨h.rep, ?_, h.distinct, h.root, ?_, ?_, fun i h1 h2 => (h.data i h1 h2).trans
-    (data i h1 h2), ?_, ?_⟩
-  · simpa only [query] using h.matched
-  · simpa only [heap] using h.space
-  · simpa only [heap] using h.footprint
-  · intro z f hz hf
-    simpa only [heap] using h.payload z f (by simpa only [heap] using hz) hf
-  · intro grows f hf
-    have fresh := h.freshPayload (by simpa only [heap] using grows) f hf
-    by_cases key : f = 0
-    · simpa only [heap, key, ↓reduceIte, query] using fresh
-    · simpa only [heap, key, ↓reduceIte, data (source f) (safe f hf key).1 (safe f hf key).2]
-        using fresh
+  obtain ⟨rep, matched, distinct, root, space, footprint, hdata, payload, freshPayload⟩ := h
+  have query : x.data 0 = s.data 0 := data 0 (by simp)
+    (by simp [Fin.ext_iff, Nat.mod_eq_of_lt (by omega : 2 < (regs + 1) + 2)])
+  rw [query] at matched
+  rw [heap] at space footprint payload freshPayload
+  refine ⟨rep, matched, distinct, root, space, footprint,
+    fun i h1 h2 => (hdata i h1 h2).trans (data i h1 h2), payload, fun grows f hf => ?_⟩
+  rw [freshPayload grows f hf]
+  split_ifs with key
+  · rw [query]
+  · rw [data (source f) (safe f hf key).1 (safe f hf key).2]
 
 private theorem missing_correct [LinearOrder M.Value]
     (zero maxSucc : M.Op) (lt heavy le : M.Test) (encode : ℕ → M.Value)
@@ -548,12 +542,11 @@ private theorem nullBranch_missing (missing : List (Instr M (layout extra (regs 
       missing.map (Instr.relocate 3 (3 + missing.length)) ++ [.halt]) s
       { t with pc := 3 + missing.length } (time + 3) := by
   let mid := { s.setPtr 5 none with pc := 1 }
-  have placed := exec.inBlock [.null 5, .ifPtrEq 0 5 3, .halt] [.halt] (3 + missing.length)
-  have placed' : Runs ([.null 5, .ifPtrEq 0 5 3, .halt] ++
+  have placed : Runs ([.null 5, .ifPtrEq 0 5 3, .halt] ++
       missing.map (Instr.relocate 3 (3 + missing.length)) ++ [.halt])
       { s.setPtr 5 none with pc := 3 } { t with pc := 3 + missing.length } time := by
-    simpa using placed
-  refine ⟨time + 2, .head s mid _ _ ?_ (.head mid _ _ _ ?_ placed'), ?_, by omega⟩
+    simpa using exec.inBlock [.null 5, .ifPtrEq 0 5 3, .halt] [.halt] (3 + missing.length)
+  refine ⟨time + 2, .head s mid _ _ ?_ (.head mid _ _ _ ?_ placed), ?_, by omega⟩
   · simp [step, pc, Instr.effect, Instr.next, mid]
   · simp [step, mid, Instr.effect, Instr.next, State.setPtr, cursor]
   · rw [Nat.add_comm 3 missing.length]
@@ -604,58 +597,58 @@ theorem insert_correct [LinearOrder M.Value]
   have visits : SearchTree.searchVisits (s.data 0) (keys tree) ≤ original.cachedHeight := by
     rw [matched.keys]; exact searchVisits_le_cachedHeight valid.heightConsistent _
   have searchTime : ta ≤ 7 * original.cachedHeight + 4 := by omega
-  have endpoint : ∃ t result time,
+  suffices ∃ t result time,
       Executes (insert zero maxSucc lt heavy le field source) s t time ∧
       time ≤ 141 * original.cachedHeight + extra + 31 ∧
-      InsertResult encode field source s t tree result original := by
-    cases focus with
-    | nil =>
-      let cleared := { a.setPtr 5 none with pc := 0 }
-      have complete : Represents cleared.heap none (plug cs .nil) := by
-        rw [show cleared.heap = s.heap from ra.heap, ← ra.reconstruction]; exact rep
-      have separated : AddressesDistinct (plug cs .nil) := ra.reconstruction ▸ distinct
-      have m : Matches encode field (plug cs .nil) original := ra.reconstruction ▸ matched
-      have path : SearchPath (cleared.data 0) cs := by
-        simpa only [cleared, State.setPtr, query] using ra.path
-      have parent : cleared.ptr 2 = contextParent cs := by
-        simpa [cleared, State.setPtr] using ra.parent
-      have rootCleared : cleared.ptr 1 = root (plug cs .nil) := by
-        simpa [cleared, State.setPtr, ra.reconstruction] using rootA
-      obtain ⟨b, result, tb, eb, bb, rb⟩ := missing_correct zero maxSucc lt heavy le encode
-        zero_spec max_spec compare heavy_spec le_spec field notKey source safe
-        cleared cs original m valid path complete separated parent rootCleared rfl
-      have run := ea.sequence (afterSeek_missing zero maxSucc lt heavy le field source
-        { a with pc := 0 } rfl ra.cursor b tb eb)
-      let t := { b with pc := (seek (regs := regs + 1) (extra := extra) lt).length +
-        (insertAfterSeek zero maxSucc lt heavy le field source).length }
-      have before : InsertResult encode field source s b tree result original := by
-        rw [ra.reconstruction]; exact rb.before ra.heap (fun i h1 _ => ra.data i h1) safe
-      have depth := height_add_context_length_le cs (.nil : BinaryTree (Label M extra))
-      rw [← ra.reconstruction, matched.shape_height,
-        ← cachedHeight_eq_height valid.heightConsistent] at depth
-      refine ⟨t, result, ta + (tb + 3) + 1, run, by omega, before.withPc _⟩
-    | node label left right =>
-      have nonempty : a.ptr 0 ≠ none := by simp [ra.cursor, root]
-      have present : AVLTree.contains (s.data 0) original = true := by
-        rw [contains_eq_searchTree, ← matched.keys, ← ra.found]
-        simp [ra.cursor, root]
-      have unchanged := insert_eq_self valid ((contains_eq_true valid.ordered _).mp present)
-      have run := ea.sequence
-        (afterSeek_found zero maxSucc lt heavy le field source { a with pc := 0 } rfl nonempty)
-      let t := { a.setPtr 5 none with pc := (seek (regs := regs + 1) (extra := extra) lt).length +
-        (insertAfterSeek zero maxSucc lt heavy le field source).length }
-      refine ⟨t, tree, ta + 3 + 1, run, by omega, ?_, ?_, distinct, ?_, ?_,
-        ⟨Finset.Subset.refl _, Finset.subset_insert _ _⟩, fun i h1 _ => ra.data i h1, ?_, ?_⟩
-      · simpa only [t, State.setPtr, ra.heap] using rep
-      · simpa only [unchanged] using matched
-      · simpa [t, State.setPtr] using rootA
-      · simp [t, State.setPtr, ra.heap]
-      · intro z f _ _; simp only [t, State.setPtr, ra.heap]
-      · intro grows
-        simp only [t, State.setPtr, ra.heap] at grows; omega
-  obtain ⟨t, result, time, exec, bound, outcome⟩ := endpoint
-  refine ⟨t, result, time, exec, bound, ?_, outcome⟩
-  have logarithmic := valid.cachedHeight_le_two_mul_log
-  omega
+      InsertResult encode field source s t tree result original by
+    obtain ⟨t, result, time, exec, bound, outcome⟩ := this
+    have := valid.cachedHeight_le_two_mul_log
+    exact ⟨t, result, time, exec, bound, by omega, outcome⟩
+  cases focus with
+  | nil =>
+    let cleared := { a.setPtr 5 none with pc := 0 }
+    have complete : Represents cleared.heap none (plug cs .nil) := by
+      rw [show cleared.heap = s.heap from ra.heap, ← ra.reconstruction]; exact rep
+    have separated : AddressesDistinct (plug cs .nil) := ra.reconstruction ▸ distinct
+    have m : Matches encode field (plug cs .nil) original := ra.reconstruction ▸ matched
+    have path : SearchPath (cleared.data 0) cs := by
+      simpa only [cleared, State.setPtr, query] using ra.path
+    have parent : cleared.ptr 2 = contextParent cs := by
+      simpa [cleared, State.setPtr] using ra.parent
+    have rootCleared : cleared.ptr 1 = root (plug cs .nil) := by
+      simpa [cleared, State.setPtr, ra.reconstruction] using rootA
+    obtain ⟨b, result, tb, eb, bb, rb⟩ := missing_correct zero maxSucc lt heavy le encode
+      zero_spec max_spec compare heavy_spec le_spec field notKey source safe
+      cleared cs original m valid path complete separated parent rootCleared rfl
+    have run := ea.sequence (afterSeek_missing zero maxSucc lt heavy le field source
+      { a with pc := 0 } rfl ra.cursor b tb eb)
+    let t := { b with pc := (seek (regs := regs + 1) (extra := extra) lt).length +
+      (insertAfterSeek zero maxSucc lt heavy le field source).length }
+    have before : InsertResult encode field source s b tree result original := by
+      rw [ra.reconstruction]; exact rb.before ra.heap (fun i h1 _ => ra.data i h1) safe
+    have depth := height_add_context_length_le cs (.nil : BinaryTree (Label M extra))
+    rw [← ra.reconstruction, matched.shape_height,
+      ← cachedHeight_eq_height valid.heightConsistent] at depth
+    exact ⟨t, result, ta + (tb + 3) + 1, run, by omega, before.withPc _⟩
+  | node label left right =>
+    have nonempty : a.ptr 0 ≠ none := by simp [ra.cursor, root]
+    have present : AVLTree.contains (s.data 0) original = true := by
+      rw [contains_eq_searchTree, ← matched.keys, ← ra.found]
+      simp [ra.cursor, root]
+    have unchanged := insert_eq_self valid ((contains_eq_true valid.ordered _).mp present)
+    have run := ea.sequence
+      (afterSeek_found zero maxSucc lt heavy le field source { a with pc := 0 } rfl nonempty)
+    let t := { a.setPtr 5 none with pc := (seek (regs := regs + 1) (extra := extra) lt).length +
+      (insertAfterSeek zero maxSucc lt heavy le field source).length }
+    have ht_heap : t.heap = s.heap := ra.heap
+    exact ⟨t, tree, ta + 3 + 1, run, by omega,
+      by simpa only [ht_heap] using rep,
+      by simpa only [unchanged] using matched,
+      distinct,
+      by simpa [t, State.setPtr] using rootA,
+      by simp [ht_heap],
+      ⟨Finset.Subset.refl _, Finset.subset_insert _ _⟩, fun i h1 _ => ra.data i h1,
+      fun _ _ _ _ => congrArg (Option.map _) (congrArg (·[_]?) ht_heap),
+      fun grows => by rw [ht_heap] at grows; omega⟩
 
 end Cslib.DataStructure.AVLTree.PointerMachine

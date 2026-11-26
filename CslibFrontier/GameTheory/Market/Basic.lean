@@ -267,20 +267,17 @@ theorem price_pos_of_mem_demandSet_linearUtility {v p : G → ℝ} {m : ℝ} {b 
     0 < p g := by
   classical
   refine lt_of_le_of_ne (hp g) fun hpg => ?_
-  have hpg0 : p g = 0 := hpg.symm
   let b' : G → ℝ := Function.update b g (b g + 1)
   have hb'_nn : ∀ g', 0 ≤ b' g' :=
     le_update_iff.2 ⟨by linarith [hb.1.1 g], fun j _ => hb.1.1 j⟩
   have hb'_exp : expenditure p b' = expenditure p b := by
     rw [← sub_eq_zero]
-    simp only [b', expenditure, ← Finset.sum_sub_distrib, ← mul_sub, sum_mul_update_sub, hpg0,
+    simp only [b', expenditure, ← Finset.sum_sub_distrib, ← mul_sub, sum_mul_update_sub, hpg.symm,
       zero_mul]
-  have hub : linearUtility v b < linearUtility v b' := by
-    have hdiff : linearUtility v b' - linearUtility v b = v g := by
-      simp only [b', linearUtility, ← Finset.sum_sub_distrib, ← mul_sub, sum_mul_update_sub]
-      ring
-    linarith
-  exact not_le_of_gt hub (hb.2 b' ⟨hb'_nn, by linarith [hb.1.2]⟩)
+  have hdiff : linearUtility v b' - linearUtility v b = v g := by
+    simp only [b', linearUtility, ← Finset.sum_sub_distrib, ← mul_sub, sum_mul_update_sub]
+    ring
+  exact not_le_of_gt (by linarith) (hb.2 b' ⟨hb'_nn, hb'_exp.symm ▸ hb.1.2⟩)
 
 private theorem sum_mul_update_two_sub [DecidableEq G] (w b : G → ℝ) {g g' : G} (hgg' : g' ≠ g)
     (val : ℝ) :
@@ -315,22 +312,20 @@ theorem mem_demandSet_linearUtility_iff {v p : G → ℝ} {m : ℝ} {b : G → �
   · intro hb
     refine ⟨hb.1.1, hlns.expenditure_eq_of_mem_demandSet hb, ?_⟩
     intro g hbg g'
-    by_cases hgg' : g' = g
-    · subst hgg'
-      exact le_rfl
-    · have hpg : 0 < p g := hp g
-      have hpg' : 0 < p g' := hp g'
-      let b' : G → ℝ := Function.update (Function.update b g 0) g' (b g' + p g * b g / p g')
+    obtain rfl | hgg' := eq_or_ne g' g
+    · exact le_rfl
+    · let b' : G → ℝ := Function.update (Function.update b g 0) g' (b g' + p g * b g / p g')
       have hb'_nn : ∀ k, 0 ≤ b' k := by
         intro k
         simp only [b', Function.update_apply]
         split_ifs
-        exacts [add_nonneg (hb.1.1 _) (by positivity), le_rfl, hb.1.1 k]
+        exacts [add_nonneg (hb.1.1 _) (div_nonneg (mul_nonneg (hp g).le hbg.le) (hp g').le),
+          le_rfl, hb.1.1 k]
       have hb'_exp : expenditure p b' = expenditure p b := by
         rw [← sub_eq_zero]
         simp only [expenditure, ← Finset.sum_sub_distrib, ← mul_sub]
         rw [sum_mul_update_two_sub p b hgg' (p g * b g / p g')]
-        field_simp [hpg'.ne']
+        field_simp [(hp g').ne']
         ring
       have hutil_diff : linearUtility v b' - linearUtility v b =
           v g' * (p g * b g / p g') - v g * b g := by
@@ -338,8 +333,8 @@ theorem mem_demandSet_linearUtility_iff {v p : G → ℝ} {m : ℝ} {b : G → �
         exact sum_mul_update_two_sub v b hgg' (p g * b g / p g')
       have hle_mul : v g' * (p g * b g / p g') ≤ v g * b g := by
         linarith [hb.2 b' ⟨hb'_nn, by linarith [hb.1.2]⟩]
-      rw [mul_div_assoc', div_le_iff₀ hpg'] at hle_mul
-      rw [div_le_div_iff₀ hpg' hpg]
+      rw [mul_div_assoc', div_le_iff₀ (hp g')] at hle_mul
+      rw [div_le_div_iff₀ (hp g') (hp g)]
       exact le_of_mul_le_mul_right (by linarith) hbg
   · rintro ⟨hb_nn, hb_exp, hmax⟩
     refine ⟨⟨hb_nn, hb_exp.le⟩, fun b' hb' => ?_⟩
@@ -842,17 +837,14 @@ theorem isEquilibrium_iff_toExchangeMarket {x : I → G → ℝ} {p : G → ℝ}
   constructor
   · intro heq
     have hval := heq.expenditure_supply_eq_totalBudget hlns
-    refine ⟨hval, heq.1, fun i => ?_, fun g => ?_, fun g => ?_⟩
-    · exact hd hval i ▸ heq.2.1 i
+    refine ⟨hval, heq.1, fun i => hd hval i ▸ heq.2.1 i, fun g => ?_, fun g => ?_⟩
     · simp only [ExchangeMarket.excessDemand, hsup g]
       linarith [heq.2.2.1 g]
     · simp only [ExchangeMarket.excessDemand, hsup g]
       linarith [heq.2.2.2 g]
   · rintro ⟨hval, heq⟩
     refine ⟨heq.1, fun i => hd hval i ▸ heq.2.1 i, fun g => ?_, fun g => ?_⟩
-    · have hle := heq.2.2.1 g
-      simp only [ExchangeMarket.excessDemand, hsup g] at hle
-      linarith
+    · simpa only [ExchangeMarket.excessDemand, hsup g, sub_nonpos] using heq.2.2.1 g
     · have hz := heq.2.2.2 g
       simp only [ExchangeMarket.excessDemand, hsup g] at hz
       linarith

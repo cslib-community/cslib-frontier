@@ -140,8 +140,7 @@ theorem exists_one_sub_le_abs_fourierCoeff_singleton {f : (ι → Bool) → Bool
   set V := 𝔼 x, (ℓ x ^ 2 - 𝔼 y, ℓ y ^ 2) ^ 2 with hV
   have hVeq : V = 2 * (A ^ 2 - ∑ i, a i ^ 4) := expect_sum_mul_signVal_sq_sub_expect_sq a
   have hVle : V ≤ 6400 * δ' := by
-    by_contra hVgt
-    push Not at hVgt
+    by_contra! hVgt
     have hVpos : 0 < V := lt_of_le_of_lt (by positivity) hVgt
     have hℓdeg : (fun x => ℓ x ^ 2) ∈ lowDegree ℝ ι 2 :=
       pow_mem_lowDegree (sum_mul_signVal_mem_lowDegree_one a) 2
@@ -208,27 +207,23 @@ theorem exists_hammingDist_xor_div_le_of_le_levelWeight_one [Nonempty ι]
     ∃ (i : ι) (b : Bool),
       (hammingDist f (fun x => b ^^ x i) : ℝ) / 2 ^ Fintype.card ι ≤ 1601 * δ := by
   classical
-  by_cases hδ : δ ≤ 1 / 1600
+  rcases le_or_gt δ (1 / 1600) with hδ | hδ
   · obtain ⟨i, hi⟩ := exists_one_sub_le_abs_fourierCoeff_singleton hδ hW
     set a := fourierCoeff (fun x => signVal (f x)) {i}
     refine ⟨i, decide (a < 0), ?_⟩
     -- the correlation of `f` with `x ↦ b ⊕ x_i` is `signVal b * a = |a|`
     have hcorr := expect_signVal_mul_signVal f (fun x => decide (a < 0) ^^ x i)
     have hcorr' : 𝔼 x, signVal (f x) * signVal (decide (a < 0) ^^ x i) = |a| := by
-      have : 𝔼 x, signVal (f x) * signVal (decide (a < 0) ^^ x i) =
+      have hmul : 𝔼 x, signVal (f x) * signVal (decide (a < 0) ^^ x i) =
           signVal (decide (a < 0)) * a := by
         rw [show a = 𝔼 x, signVal (f x) * chi ℝ {i} x from rfl, mul_expect]
-        refine expect_congr rfl fun x _ => ?_
-        rw [signVal_xor, chi_singleton]
-        ring
-      rw [this]
+        exact expect_congr rfl fun _ _ => by rw [signVal_xor, chi_singleton]; ring
       by_cases ha : a < 0
-      · rw [decide_eq_true ha, signVal_true, abs_of_neg ha]; ring
-      · rw [decide_eq_false ha, signVal_false, abs_of_nonneg (not_lt.mp ha), one_mul]
+      · rw [hmul, decide_eq_true ha, signVal_true, abs_of_neg ha]; ring
+      · rw [hmul, decide_eq_false ha, signVal_false, abs_of_nonneg (not_lt.mp ha), one_mul]
     rw [hcorr', mul_div_assoc] at hcorr
     linarith only [hi, hcorr]
   · -- for `δ > 1 / 1600` the bound exceeds one and holds for any `i` and `b`
-    push Not at hδ
     refine ⟨Classical.arbitrary ι, false, ?_⟩
     have h1 : (hammingDist f (fun x => false ^^ x (Classical.arbitrary ι)) : ℝ) ≤
         2 ^ Fintype.card ι := by

@@ -459,8 +459,7 @@ theorem indepBagProg_spec {w m : ℕ} (args : IndepBagArgs) {adjL xs : List ℕ}
       split
       · rw [memoryCost_bind', hst_na, memoryCost_pure, Nat.add_zero]
         omega
-      · rw [pure_bind, memoryCost_pure]
-        omega
+      · simp [memoryCost_pure]
     have hiter_eq :
         iterate indepBagStep env (u :: rest).length ⟨cur, (u :: rest).length, curM, ok⟩ =
         (indepBagStep (env, ⟨cur, (u :: rest).length, curM, ok⟩) >>=
@@ -471,10 +470,7 @@ theorem indepBagProg_spec {w m : ℕ} (args : IndepBagArgs) {adjL xs : List ℕ}
       dsimp only [ok', naPure, indepInst]
       rcases hok with rfl | rfl
       · simp
-      · by_cases hbit : curM % 2 = 1 <;>
-          by_cases hna : noAdjInst adj u rest (curM / 2) = true <;>
-          by_cases hind : indepInst adj rest (curM / 2) = true <;>
-          simp [hbit, hna, hind]
+      · by_cases hbit : curM % 2 = 1 <;> simp [hbit, and_comm]
     · rw [memoryCost_bind', hst_step, hres_step]
       simp only [List.length_cons]
       calc memoryCost (indepBagStep (env, ⟨cur, (u :: rest).length, curM, ok⟩)) s +
@@ -530,14 +526,10 @@ theorem indepBagProg_realizes :
     dsimp only at hr_na
     refine ⟨?_, Nat.le_of_succ_le hj_le, ?_, ?_, ?_, ?_, ?_⟩
     · repeat (first | split | exact hnoAdj_safe | assumption | refine And.intro ?_ ?_)
-    · rw [hres_ev, hrem_eq]
-      rfl
-    · rw [hres_ev]
-      dsimp only
+    · simp only [hres_ev, hrem_eq, Nat.add_sub_cancel]
+    · simp only [hres_ev]
       omega
-    · rw [hres_ev]
-      dsimp only
-      rw [hr_na]
+    · simp only [hres_ev, hr_na]
       split_ifs <;> omega
     · rwa [hst_ev]
     · rwa [hst_ev, hres_ev]

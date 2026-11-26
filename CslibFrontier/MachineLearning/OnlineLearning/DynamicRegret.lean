@@ -163,14 +163,9 @@ theorem ogd_dynamic_sum_inner_le (hP : IsPythagoreanProjection K proj) (hx₀ : 
           (D ^ 2 - ‖x (T + 1) - u (T + 1)‖ ^ 2) / η (T + 1) :=
         div_le_div_of_nonneg_left (sub_nonneg.mpr (hd (T + 1) (T + 1))) (hη (T + 1))
           (hanti (Nat.le_succ T))
-      have hsplit : (D ^ 2 - ‖x (T + 1) - u T‖ ^ 2) / η T =
-          (D ^ 2 - ‖x (T + 1) - u (T + 1)‖ ^ 2) / η T +
-            (‖x (T + 1) - u (T + 1)‖ ^ 2 - ‖x (T + 1) - u T‖ ^ 2) / η T := by ring
-      have htele : (D ^ 2 - ‖x (T + 1) - u (T + 1)‖ ^ 2) / η (T + 1) +
-          (‖x (T + 1) - u (T + 1)‖ ^ 2 - ‖x (T + 1 + 1) - u (T + 1)‖ ^ 2) / η (T + 1) =
-          (D ^ 2 - ‖x (T + 1 + 1) - u (T + 1)‖ ^ 2) / η (T + 1) := by ring
       rw [sum_range_succ, sum_range_succ (fun t => ‖u (t + 1) - u t‖ / η t),
         sum_range_succ (fun t => η t * ‖grad t (x t)‖ ^ 2)]
+      simp only [sub_div] at ih h hshift_div hmono ⊢
       linarith
   have hk := key T
   have hnn : 0 ≤ ‖x (T + 1) - u T‖ ^ 2 / η T := div_nonneg (sq_nonneg _) (hη T).le
@@ -191,10 +186,9 @@ theorem ogd_dynamic_sum_inner_le_pathLength (hP : IsPythagoreanProjection K proj
     simp only [pathLength, Nat.add_sub_cancel, sum_div]
     exact sum_le_sum fun t ht =>
       div_le_div_of_nonneg_left (norm_nonneg _) (hη T) (hanti (mem_range.mp ht).le)
-  have hmul := mul_le_mul_of_nonneg_left hdrift hD0
-  have heq1 : (D ^ 2 / 2 + D * pathLength u (T + 1)) / η T =
-      D ^ 2 / (2 * η T) + D * (pathLength u (T + 1) / η T) := by ring
-  linarith
+  linarith [mul_le_mul_of_nonneg_left hdrift hD0,
+    show (D ^ 2 / 2 + D * pathLength u (T + 1)) / η T =
+      D ^ 2 / (2 * η T) + D * (pathLength u (T + 1) / η T) by ring]
 
 /-- Dynamic linearized regret for `ogd` with a constant step size `c > 0`, keeping the exact
 initial distance `‖x₀ - u 0‖ ^ 2 / (2 * c)` plus the comparator drift term

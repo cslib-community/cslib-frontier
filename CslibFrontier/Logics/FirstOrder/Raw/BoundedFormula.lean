@@ -301,17 +301,9 @@ theorem fromRaw_toRaw : ∀ {n} (φ : L.BoundedFormula α n), fromRaw n φ.toRaw
     congr 2
     funext i
     obtain ⟨v, hv⟩ := term_eq_var (ts i)
-    have key : ∀ (y : ℕ) (h : (varOfRaw (α := α) n y).isSome), y = rawVar v →
-        Term.var (L := L) ((varOfRaw n y).get h) = ts i := by
-      rintro y h rfl
-      rw [hv, Option.get_of_eq_some h (varOfRaw_rawVar v)]
-    exact key _ _ (by simp [hv])
-  | _, imp φ ψ => by
-    rw [toRaw_imp, fromRaw, fromRaw_toRaw φ, fromRaw_toRaw ψ]
-    rfl
-  | n, all φ => by
-    rw [toRaw_all, fromRaw, ite_eq_left rfl, fromRaw_toRaw φ]
-    rfl
+    rw [Option.get_of_eq_some _ (a := v) (by simp [hv]), hv]
+  | _, imp φ ψ => by simp [fromRaw, fromRaw_toRaw φ, fromRaw_toRaw ψ]
+  | n, all φ => by simp [fromRaw, fromRaw_toRaw φ]
 
 /-- `toRaw` inverts `fromRaw n` wherever `fromRaw n` is defined. -/
 theorem toRaw_of_fromRaw :
@@ -405,9 +397,7 @@ theorem encode_eq_encode_toRaw (φ : L.BoundedFormula α n) : encode φ = encode
 /-- A function into bounded formulas is primitive recursive iff its raw formulas are. -/
 theorem primrec_iff_primrec_toRaw {β : Type*} [Primcodable β] {f : β → L.BoundedFormula α n} :
     Primrec f ↔ Primrec fun b => (f b).toRaw :=
-  Primrec.encode_iff.symm.trans <| by
-    simp only [encode_eq_encode_toRaw]
-    exact Primrec.encode_iff
+  Primrec.encode_iff.symm.trans (by simpa only [encode_eq_encode_toRaw] using Primrec.encode_iff)
 
 /-- The translation `toRaw` is primitive recursive under `RawCoding`. -/
 theorem primrec_toRaw : Primrec (toRaw : L.BoundedFormula α n → RawFormula) :=

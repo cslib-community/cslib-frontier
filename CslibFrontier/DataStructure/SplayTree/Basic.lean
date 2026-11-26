@@ -239,19 +239,11 @@ theorem tree_splayUp_ne_nil (x : α) (l r : BinaryTree α) (ctx : List (Frame α
 
 @[simp] theorem focusMin_eq_none_iff (t : BinaryTree α) (ctx : List (Frame α)) :
     focusMin t ctx = none ↔ t = .nil := by
-  cases t with
-  | nil => simp [focusMin]
-  | node a l r =>
-    simp only [focusMin, reduceCtorEq, iff_false]
-    cases focusMin l (.left a r :: ctx) <;> simp
+  cases t <;> simp [focusMin]
 
 @[simp] theorem focusMax_eq_none_iff (t : BinaryTree α) (ctx : List (Frame α)) :
     focusMax t ctx = none ↔ t = .nil := by
-  cases t with
-  | nil => simp [focusMax]
-  | node a l r =>
-    simp only [focusMax, reduceCtorEq, iff_false]
-    cases focusMax r (.right l a :: ctx) <;> simp
+  cases t <;> simp [focusMax]
 
 /-- One step of `focusMin`: it either finds the focus in the left child, or the left child is empty
 and the focus is the node itself. -/
@@ -427,9 +419,7 @@ theorem elements_plug_congr {t₁ t₂ : BinaryTree α} (ctx : List (Frame α))
   induction ctx generalizing t₁ t₂ with
   | nil => exact he
   | cons f ctx ih =>
-    cases f with
-    | left p r => exact ih (by simp [elements, he])
-    | right l p => exact ih (by simp [elements, he])
+    cases f <;> exact ih (by simp [elements, he])
 
 theorem ordered_of_ordered_plug {t : BinaryTree α} {ctx : List (Frame α)}
     (h : Ordered (plug t ctx)) : Ordered t := by
@@ -556,11 +546,7 @@ Figure 6). -/
   | nil => simp [focusSearch]
   | node a l r =>
     simp only [focusSearch, reduceCtorEq, iff_false]
-    split
-    · cases focusSearch x l (.left a r :: ctx) <;> simp
-    · split
-      · cases focusSearch x r (.right l a :: ctx) <;> simp
-      · simp
+    split_ifs <;> simp
 
 /-- One step of `focusSearch`: it descends into the child on `x`'s side, falling back to the node
 itself when that child is empty, or stops at a node whose key is `x`. -/
@@ -1045,11 +1031,10 @@ theorem ordered_insert {t : BinaryTree α} (ht : Ordered t) (x : α) :
   | nil => rfl
   | node a l r =>
     obtain ⟨r', l', R', hs⟩ := exists_splay_eq_node (t := .node a l r) (by simp) x
-    simp only [insert, hs]
-    split_ifs with hxr hrx
-    · rfl
-    · rfl
-    · simp [le_antisymm (le_of_not_gt hrx) (le_of_not_gt hxr)]
+    rcases lt_trichotomy x r' with hxr | rfl | hrx
+    · simp [insert, hs, hxr]
+    · simp [insert, hs]
+    · simp [insert, hs, hrx, hrx.not_gt]
 
 theorem elements_erase {t : BinaryTree α} (ht : Ordered t) (x : α) :
     elements (erase x t).tree = (elements t).erase x := by

@@ -137,22 +137,16 @@ theorem johnsonRadius_nonneg {q δ : ℝ} (hq : 1 < q) (hδ : 0 ≤ δ) :
     (sub_nonneg.2 (Real.sqrt_le_one.2 (by linarith)))
 
 theorem johnsonRadius_le_one_sub_inv {q δ : ℝ} (hq : 1 < q) :
-    johnsonRadius q δ ≤ 1 - 1 / q := by
-  have hθ : 0 ≤ 1 - 1 / q := sub_nonneg.2 ((div_le_one (zero_lt_one.trans hq)).2 hq.le)
-  have h1 : 1 - Real.sqrt (1 - q * δ / (q - 1)) ≤ 1 := by
-    linarith [Real.sqrt_nonneg (1 - q * δ / (q - 1))]
-  rw [johnsonRadius]
-  simpa only [mul_one] using mul_le_mul_of_nonneg_left h1 hθ
+    johnsonRadius q δ ≤ 1 - 1 / q :=
+  mul_le_of_le_one_right (sub_nonneg.2 ((div_le_one (zero_lt_one.trans hq)).2 hq.le))
+    (sub_le_self 1 (Real.sqrt_nonneg _))
 
 theorem johnsonRadius_mono_right {q δ₁ δ₂ : ℝ} (hq : 1 < q) (hδ : δ₁ ≤ δ₂) :
     johnsonRadius q δ₁ ≤ johnsonRadius q δ₂ := by
   have hθ : 0 ≤ 1 - 1 / q := sub_nonneg.2 ((div_le_one (zero_lt_one.trans hq)).2 hq.le)
   have hq0 : 0 ≤ q := (zero_lt_one.trans hq).le
   have hq1 : 0 < q - 1 := sub_pos.2 hq
-  have hrad : 1 - q * δ₂ / (q - 1) ≤ 1 - q * δ₁ / (q - 1) := by
-    have : q * δ₁ / (q - 1) ≤ q * δ₂ / (q - 1) := by gcongr
-    linarith
-  exact mul_le_mul_of_nonneg_left (sub_le_sub_left (Real.sqrt_le_sqrt hrad) 1) hθ
+  exact mul_le_mul_of_nonneg_left (sub_le_sub_left (Real.sqrt_le_sqrt (by gcongr)) 1) hθ
 
 /-- For `0 ≤ δ ≤ 1 - 1 / q₁`, the `q`-ary Johnson radius `J_q(δ)` is antitone in `q ≥ q₁`. -/
 theorem johnsonRadius_antitone {q₁ q₂ δ : ℝ} (hq₁ : 1 < q₁) (hq : q₁ ≤ q₂)
@@ -317,9 +311,8 @@ private theorem isListDecodable_of_neg [Nonempty ι] {C : Set (ι → α)} {ρ :
 private theorem subsingleton_of_card_lt_of_le_minDist {C : Set (ι → α)} {d : ℕ}
     (hd : (d : ℕ∞) ≤ minDist C) (hnd : Fintype.card ι < d) : C.Subsingleton := by
   by_contra hnontriv
-  have hle : (d : ℕ∞) ≤ Fintype.card ι :=
-    hd.trans (minDist_le_card (Set.not_subsingleton_iff.1 hnontriv))
-  exact absurd (Nat.cast_le.1 hle) (not_le_of_gt hnd)
+  exact hnd.not_ge
+    (Nat.cast_le.1 (hd.trans (minDist_le_card (Set.not_subsingleton_iff.1 hnontriv))))
 
 private theorem isListDecodable_of_subsingleton {C : Set (ι → α)} {ρ : ℝ} {L : ℕ}
     (hC : C.Subsingleton) (hL : 1 ≤ L) : IsListDecodable C ρ L := fun w =>
@@ -419,9 +412,7 @@ theorem isListDecodable_of_le_johnsonRadiusLimit [Nonempty ι] {C : Set (ι → 
   set n : ℕ := Fintype.card ι
   have hnR : (0 : ℝ) < n := Nat.cast_pos.2 Fintype.card_pos
   set δ : ℝ := (d : ℝ) / n
-  have hJL : johnsonRadiusLimit δ ≤ 1 := by
-    rw [johnsonRadiusLimit]
-    linarith [Real.sqrt_nonneg (1 - δ)]
+  have hJL : johnsonRadiusLimit δ ≤ 1 := sub_le_self 1 (Real.sqrt_nonneg _)
   rcases lt_or_ge n d with hnd | hdn
   · refine isListDecodable_of_subsingleton (subsingleton_of_card_lt_of_le_minDist hd hnd)
       (Nat.floor_pos.2 ?_)

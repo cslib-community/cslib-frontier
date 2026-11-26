@@ -152,9 +152,7 @@ private theorem eq_ttcRounds_of_forall_rank_le {J : Instance n} {S : Finset (Fin
     (hle : ∀ i ∈ S, i ∈ R → I.rank i (J.ttc i) ≤ I.rank i (I.ttcRounds k R i)) :
     ∀ x ∈ R, J.ttc x = I.ttcRounds k R x := by
   induction k generalizing R with
-  | zero =>
-    intro x hx
-    simp_all
+  | zero => simp_all
   | succ k ih =>
     intro x hx
     set C := I.cycleAgents R
@@ -270,9 +268,7 @@ theorem IsGroupStrategyProof.isNonBossy {M : HousingMechanism n}
     (h : M.IsGroupStrategyProof) : M.IsNonBossy := by
   intro I i π heq
   by_contra hne
-  obtain ⟨j, hj_ne⟩ : ∃ j, M (I.updatePref i π) j ≠ M I j := by
-    by_contra! hall
-    exact hne (Equiv.ext hall)
+  obtain ⟨j, hj_ne⟩ := not_forall.1 (mt Equiv.ext hne)
   have hji : j ≠ i := fun h0 => hj_ne (h0 ▸ heq)
   rcases lt_or_gt_of_ne fun hr => hj_ne (I.rank_injective j hr) with hlt | hgt
   · have hupd : I.updatePrefs {i, j} (fun k => if k = i then π else I.pref k) =
@@ -328,9 +324,7 @@ private theorem topTwoPerm_apply_zero (a b : Fin n) :
 
 private theorem topTwoPerm_symm_fst_val (a b : Fin n) :
     ((topTwoPerm a b).symm a).val = 0 := by
-  have := congrArg (topTwoPerm a b).symm (topTwoPerm_apply_zero a b)
-  rw [Equiv.symm_apply_apply] at this
-  exact congrArg Fin.val this.symm
+  simpa using congrArg (fun x => ((topTwoPerm a b).symm x).val) (topTwoPerm_apply_zero a b).symm
 
 private theorem eq_or_eq_of_topTwoPerm_symm_le {a b x : Fin n}
     (hle : (topTwoPerm a b).symm x ≤ (topTwoPerm a b).symm b) :

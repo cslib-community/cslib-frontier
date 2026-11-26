@@ -244,15 +244,11 @@ theorem gameTree_value_eq {cap : ℕ} (hcap : Fintype.card R ≤ cap) (n : ℕ)
   | succ n ih =>
     rw [GameTree.value, ← min_eq_right (hle (n + 1) (decodeHistory hs)), value]
     congr 2
-    simp only [ih, decodeHistory_cons]
-    have hsup (m : List Bool) : ((range (codeCount L)).sup fun j =>
-        value F L n (decodeHistory hs ++ [(m, decodeWord (increment^[j] (firstCode L)))])) =
-        (BitString.shortWords L).sup fun y => value F L n (decodeHistory hs ++ [(m, y)]) := by
-      rw [← image_decodeWord_iterate_firstCode, Finset.sup_image]
-      rfl
-    simp only [hsup]
     rw [← image_decodeWord_iterate_firstCode,
       Finset.sum_image injOn_decodeWord_iterate_firstCode]
+    refine Finset.sum_congr rfl fun _ _ => ?_
+    simp only [ih, decodeHistory_cons, Finset.sup_image]
+    rfl
 
 end GameTree
 
@@ -410,8 +406,7 @@ private theorem computableInPolyTime_pushStep :
       (encPair (encEvalState enc) encNat) (encEvalState enc) := by
   have hfuel' : ComputableInPolyTime (fun p : EvalState α × ℕ => fuel p.1.1)
       (encPair (encEvalState enc) encNat) encUnary := hfuel.comp (by fun_prop)
-  unfold pushStep
-  fun_prop
+  fun_prop [pushStep]
 
 /-- **The leaf value within polynomial space**: the count of accepting coins, capped. -/
 private theorem computableInPolySpace_leaf [Finite Control] :
@@ -422,9 +417,7 @@ private theorem computableInPolySpace_leaf [Finite Control] :
   have hdec := computableInPolyTime_decodeHistory
   have harg : ComputableInPolyTime (fun s : EvalState α =>
       (s.1, decodeHistory (GameTree.history s.2.1))) (encEvalState enc)
-      (encPair enc encHistory) := by
-    unfold GameTree.history
-    fun_prop
+      (encPair enc encHistory) := by fun_prop [GameTree.history]
   have hcap : ComputableInPolyTime (fun s : EvalState α => 2 ^ fuel s.1)
       (encEvalState enc) encNat := binary_two_pow.comp (hfuel.comp (fst _ _))
   have hmin : ComputableInPolyTime (fun p : ℕ × ℕ => min p.1 p.2) (encPair encNat encNat)

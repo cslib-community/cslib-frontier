@@ -240,11 +240,8 @@ private theorem raw_exec
   obtain ⟨z, hez, hbz, hmz, hfz, hlz, hflag, hvalue, hkey⟩ :=
     Program.wrap_body L x o ha (N := N) ⟨N, le_rfl, he⟩ hby
   have hzstate : memoryState (Backend.frontier Program.family) z =
-      memoryState (Backend.frontier Program.family) y := by
-    apply Memory.State.ext
-    · exact hmz
-    · change z.regs (Backend.frontier Program.family) = y.regs (Backend.frontier Program.family)
-      rwa [← Program.code_frontier]
+      memoryState (Backend.frontier Program.family) y :=
+    Memory.State.ext hmz (Program.code_frontier ▸ hfz)
   have hrZ : Representation.Rep base hn hK s' z := hrY.congr
     (fun c _ => congrFun hmz c) (le_of_eq (congrArg Memory.State.frontier hzstate).symm) hlz hbz
   obtain ⟨hdecode, hnative⟩ : Program.code.decode (K_max := K) o z.regs =
@@ -260,9 +257,7 @@ private theorem raw_exec
   refine ⟨z, s', a, steps, hez, hstep, hdecode.trans (congrArg some hanswer), hrZ, ?_,
     by omega, ?_, hnative.trans (congrArg some hanswer)⟩
   · intro c hc
-    have hc' : c ∉ L.footprint := by
-      change c ∉ (Memory.compactLayout n base).footprint
-      rwa [Memory.compactLayout_footprint]
+    have hc' : c ∉ L.footprint := Memory.compactLayout_footprint n base ▸ hc
     exact (congrFun hmz c).trans (hmodY c (by
       simpa only [Memory.Framed.region_eq_footprint (Memory.framed hL) rfl,
         Memory.framed_footprint] using hc'))

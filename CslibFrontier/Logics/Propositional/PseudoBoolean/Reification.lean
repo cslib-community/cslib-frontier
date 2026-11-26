@@ -343,9 +343,6 @@ private theorem termCoeff_of_mem_fromLinear {L : List (ℕ × ℤ)} (h : (keys L
 
 /-! ### Normalization -/
 
-theorem cf_normalize (c : PBConstr) : cf c.normalize.terms = cf c.terms := by
-  rw [PBConstr.normalize, cf_fromLinear, cf_eq_lin]
-
 theorem mem_vars_of_mem_vars_normalize {c : PBConstr} {x : ℕ} (h : x ∈ c.normalize.vars) :
     x ∈ c.vars := by
   obtain ⟨t, ht, rfl⟩ := List.mem_map.1 h
@@ -402,11 +399,6 @@ theorem normalize_degree_of_degree_zero (ts : List (ℕ × Literal ℕ)) :
   simp only [normalize, fromLinear]; omega
 
 /-! ### Linear forms of implications and substitutions -/
-
-private theorem cf_apply_of_not_mem {ts : List (ℕ × Literal ℕ)} {z : ℕ}
-    (h : z ∉ ts.map termVar) : cf ts z = 0 := by
-  rw [cf_eq_lin]
-  exact sing_apply_of_not_mem fun hm => h (keys_toLinear_subset hm)
 
 private theorem negMass_append_single (L : List (ℕ × ℤ)) (v : ℕ) (a : ℤ) :
     negMass (L ++ [(v, a)]) = negMass L + (-a).toNat := by
@@ -510,7 +502,7 @@ private theorem weakImplies_reify {z : ℕ} {c : PBConstr} (hz : z ∉ c.vars)
   set γ := cf c.terms with hγ
   set nm := negMass (toLinear c.terms) with hnm
   set pm := VeriPB.posMass (toLinear c.terms) with hpm
-  have hγz : γ z = 0 := cf_apply_of_not_mem hz
+  have hγz : γ z = 0 := cf_apply_of_notMem hz
   -- `N`, the normal form of `c`.
   have hNd := degree_normalize c
   have hNc := coeffSum_normalize c
@@ -734,12 +726,12 @@ private theorem bnd_add (c d : PBConstr) :
   simp only [bnd, negSum_append]; push_cast; ring_nf
 
 private theorem cf_mul' (k : ℕ) (c : PBConstr) : cf (c.mul k).terms = (k : ℤ) • cf c.terms := by
-  rw [mul, cf_normalize, VeriPB.cf_map_mul]
+  rw [mul, cf_normalize, cf_map_mul]
 
 private theorem bnd_mul (k : ℕ) (c : PBConstr) :
     bnd (c.mul k) = max (k * bnd c) (-(nP ((k : ℤ) • cf c.terms) : ℤ)) := by
-  rw [mul, bnd_normalize, VeriPB.cf_map_mul]
-  simp only [bnd, VeriPB.negSum_map_mul]; push_cast; ring_nf
+  rw [mul, bnd_normalize, cf_map_mul]
+  simp only [bnd, negSum_map_mul]; push_cast; ring_nf
 
 /-- The negated-guard term of `⋀ R ⇒ c` on the literal `l`, as a coefficient. -/
 private theorem termCoeff_guard (a : ℕ) (l : Literal ℕ) :
@@ -760,7 +752,7 @@ private theorem bnd_impl_single (l : Literal ℕ) (c : PBConstr) :
 
 private theorem nP_impl_single {l : Literal ℕ} {c : PBConstr} (h : l.1 ∉ c.vars) :
     nP (cf (impl [l] c).terms) = nP (cf c.terms) + (if l.2 then c.degree else 0) := by
-  rw [cf_impl_single, nP_add_single _ (cf_apply_of_not_mem h)]
+  rw [cf_impl_single, nP_add_single _ (cf_apply_of_notMem h)]
   cases l.2 <;> simp
 
 /-- The linear form of the normal form of `C`, from its coefficients and the bound `β`. -/
@@ -791,7 +783,7 @@ private theorem toIneq_add_mul_of {z u : ℕ} {a : ℤ} {c d : PBConstr} (hz : z
     ((impl [(z, true)] c).normalize.add (d.normalize.mul c.degree)).toIneq =
       ⟨cf c.terms + Finsupp.single u (c.degree * a),
         max (bnd c) (-(nP (cf c.terms) : ℤ)) - c.degree * (-a).toNat⟩ := by
-  have hγu := cf_apply_of_not_mem hu
+  have hγu := cf_apply_of_notMem hu
   have hsum : cf (impl [(z, true)] c).terms + (c.degree : ℤ) • cf d.terms =
       cf c.terms + Finsupp.single u (c.degree * a) := by
     rw [cf_impl_single, hδ, smul_add, Finsupp.smul_single, Finsupp.smul_single]

@@ -109,16 +109,12 @@ theorem special_correction_available {A a f u : ℝ} (M c i L : ℕ) (h : ℤ)
   have hiR : (1 : ℝ) ≤ i := by exact_mod_cast hi
   have hAi : 1 + (L : ℝ) ≤ A * i := hA.trans (le_mul_of_one_le_right (zero_le_one.trans hA1) hiR)
   have hM : (16 * c : ℝ) * (1 + (L : ℝ)) < M := by
-    have hdiv : 1 + (L : ℝ) < (M : ℝ) / (16 * c) := by grind [precision]
-    have hcR : (0 : ℝ) < c := by exact_mod_cast hc
-    simpa only [mul_comm] using
-      (lt_div_iff₀ (show (0 : ℝ) < 16 * c by positivity)).mp hdiv
-  have hcut : ((scaleCutoff c h : ℕ) : ℝ) < M := by
+    simpa only [mul_comm] using (lt_div_iff₀ (show (0 : ℝ) < 16 * c by positivity)).mp
+      (show 1 + (L : ℝ) < (M : ℝ) / (16 * c) by grind [precision])
+  exact_mod_cast (show ((scaleCutoff c h : ℕ) : ℝ) < M by
     simp only [scaleCutoff, Nat.cast_mul, Nat.cast_add, Nat.cast_one]
     have : (c : ℝ) * (1 + (h.natAbs : ℝ)) ≤ c * (1 + (L : ℝ)) := by gcongr
-    have hcR : (0 : ℝ) ≤ c := Nat.cast_nonneg c
-    nlinarith
-  exact_mod_cast hcut
+    nlinarith [Nat.cast_nonneg (α := ℝ) c])
 
 end Cslib.LogSpaceEstimation
 

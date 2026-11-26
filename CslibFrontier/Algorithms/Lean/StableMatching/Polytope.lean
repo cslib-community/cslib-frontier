@@ -137,10 +137,8 @@ theorem convex_stablePolytope : Convex ℝ I.stablePolytope := by
       ← Finset.mul_sum, hx_col r, hy_col r, mul_one, hab], fun p r => ?_⟩
   simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, propBetterMass, recvBetterMass,
     Finset.sum_add_distrib, ← Finset.mul_sum]
-  have h1 := mul_le_mul_of_nonneg_left (hx_stab p r) ha
-  have h2 := mul_le_mul_of_nonneg_left (hy_stab p r) hb
-  simp only [propBetterMass, recvBetterMass] at h1 h2
-  linarith
+  dsimp only [propBetterMass, recvBetterMass] at hx_stab hy_stab
+  linarith [mul_le_mul_of_nonneg_left (hx_stab p r) ha, mul_le_mul_of_nonneg_left (hy_stab p r) hb]
 
 /-! ### Incidence matrices of stable matchings -/
 
@@ -425,11 +423,7 @@ theorem stablePolytope_eq_convexHull :
               x p r') ≤ ∑ r' : Fin n, x p r' :=
             Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _) fun r' _ _ => hx_nn p r'
           _ = 1 := hx_row p
-    have hB_card_ge : 2 ≤ B.card := by
-      have hsub : ({0, 1} : Finset ℝ) ⊆ B := fun y hy => by
-        simp only [Finset.mem_insert, Finset.mem_singleton] at hy
-        rcases hy with rfl | rfl <;> assumption
-      exact (by norm_num : ({0, 1} : Finset ℝ).card = 2) ▸ Finset.card_le_card hsub
+    have hB_card_ge : 2 ≤ B.card := Finset.one_lt_card_iff.2 ⟨0, 1, h0B, h1B, zero_ne_one⟩
     let m : ℕ := B.card - 1
     have hB_card : B.card = m + 1 := by omega
     let e : Fin (m + 1) ↪o ℝ := B.orderEmbOfFin hB_card
@@ -487,10 +481,9 @@ theorem stablePolytope_eq_convexHull :
       let pStar : Fin n := (μ k).symm r
       have hr_le : I.recvBetterMass x r p + x p r ≤ I.recvBetterMass x r pStar :=
         strictLower_add_le (fun p' => hx_nn p' r) hr_pref
-      have hr_pStar := hf_recv k pStar
-      have hpStar_f : f k pStar = r := (μ k).apply_symm_apply r
-      rw [hpStar_f] at hr_pStar
-      linarith [(hf k p).1, hr_pStar.1, hx_stab p r, hx_nn p r]
+      have hr_pStar : I.recvBetterMass x r pStar < 1 - mid k :=
+        (μ k).apply_symm_apply r ▸ (hf_recv k pStar).1
+      linarith [(hf k p).1, hr_pStar, hx_stab p r, hx_nn p r]
     have hμ_iff (k : Fin m) (p r : Fin n) :
         μ k p = r ↔ (I.propBetterMass x p r < mid k ∧ mid k < I.propBetterMass x p r + x p r) := by
       change f k p = r ↔ _
@@ -515,22 +508,15 @@ theorem stablePolytope_eq_convexHull :
       have hia_le_ib : ia ≤ ib := e.le_iff_le.1 (by linarith [hx_nn p r, hia, hib])
       have hterm (k : Fin m) : w k * matchingMatrix (μ k) p r =
           if ia.val ≤ k.val ∧ k.val < ib.val then e k.succ - e k.castSucc else 0 := by
+        have hiff : (e ia < mid k ∧ mid k < e ib) ↔ (ia.val ≤ k.val ∧ k.val < ib.val) :=
+          ⟨fun ⟨h1, h2⟩ => ⟨Nat.lt_succ_iff.1 (e.lt_iff_lt.1 (h1.trans (hmid_lt k))),
+            e.lt_iff_lt.1 ((hmid_gt k).trans h2)⟩,
+           fun ⟨h1, h2⟩ => ⟨(e.monotone h1).trans_lt (hmid_gt k),
+            (hmid_lt k).trans_le (e.monotone (Nat.succ_le_of_lt h2))⟩⟩
         rw [matchingMatrix]
         simp only [hμ_iff k p r]
         rw [← hib, ← hia]
-        by_cases hidx : ia.val ≤ k.val ∧ k.val < ib.val
-        · have hint : e ia < mid k ∧ mid k < e ib :=
-            ⟨lt_of_le_of_lt (e.monotone hidx.1) (hmid_gt k),
-             lt_of_lt_of_le (hmid_lt k) (e.monotone (Nat.succ_le_of_lt hidx.2))⟩
-          simp [hidx, hint, w]
-        · have hnot_int : ¬ (e ia < mid k ∧ mid k < e ib) := fun ⟨h1, h2⟩ => hidx ⟨
-            by by_contra h
-               have := e.monotone (show k.succ ≤ ia from Nat.succ_le_of_lt (lt_of_not_ge h))
-               linarith [hmid_lt k],
-            by by_contra h
-               have := e.monotone (show ib ≤ k.castSucc from le_of_not_gt h)
-               linarith [hmid_gt k]⟩
-          simp [hidx, hnot_int]
+        simp [hiff, w]
       simp_rw [hterm]
       rw [sum_fin_sub_telescope e ia ib hia_le_ib, hia, hib]; ring
     rw [← hx_decomp]

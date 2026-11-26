@@ -122,16 +122,9 @@ private theorem prop_identity_blocks (K : ℕ) (x : R) (sa : Word μ) (sd : Word
       exact ⟨0, by ring⟩
     · rw [ite_eq_right h1, sub_zero]
       exact ((hdvd _ h1).mul_right _).mul_left _
-  · simp only [facA, facB, blU, of_apply, Sum.elim_inl, Sum.elim_inr, fromBlocks_apply₂₁]
-    have e : ∀ r : Fin K, meixnerB (x ^ 2) r (sd.row i) *
-        (x ^ (2 * (r : ℕ) + 1) * if (r : ℕ) = sc.col j then 1 else 0) =
-        if sc.col j = (r : ℕ) then
-          (fun r => meixnerB (x ^ 2) r (sd.row i) * x ^ (2 * r + 1)) r else 0 := fun r => by
-      by_cases h : (r : ℕ) = sc.col j
-      · simp [h]
-      · simp [h, Ne.symm h]
-    rw [Finset.sum_congr rfl fun r _ => e r,
-      sum_ite_val K (sc.col j) (fun r => meixnerB (x ^ 2) r (sd.row i) * x ^ (2 * r + 1))]
+  · simp only [facA, facB, blU, of_apply, Sum.elim_inl, Sum.elim_inr, fromBlocks_apply₂₁, mul_ite,
+      mul_one, mul_zero, @eq_comm ℕ _ (sc.col j)]
+    rw [sum_ite_val K (sc.col j) (fun r => meixnerB (x ^ 2) r (sd.row i) * x ^ (2 * r + 1))]
     by_cases h1 : sc.col j < K
     · rw [ite_eq_left h1]
       exact ⟨0, by ring⟩
@@ -313,16 +306,12 @@ private theorem prop_identity_one (μ ν : ℕ) : ∃ ε : ℤˣ,
   have hind : (if sa = sc.swap ∧ sb = sd.swap then (1 : ℤ) else 0) =
       ((if sa.row = sc.col then 1 else 0) * (if sd.row = sb.col then 1 else 0)) *
       ((if sa.col = sc.row then 1 else 0) * (if sd.col = sb.row then 1 else 0)) := by
-    have : (sa = sc.swap ∧ sb = sd.swap) ↔
-        ((sa.row = sc.col ∧ sd.row = sb.col) ∧ (sa.col = sc.row ∧ sd.col = sb.row)) := by
-      rw [Word.ext_iff, Word.ext_iff]
-      simp only [Word.row_swap, Word.col_swap]
-      exact ⟨fun ⟨⟨a, b⟩, c, d⟩ => ⟨⟨a, d.symm⟩, b, c.symm⟩,
-        fun ⟨⟨a, d⟩, b, c⟩ => ⟨⟨a, b⟩, c.symm, d.symm⟩⟩
-    simp only [this]
-    by_cases a : sa.row = sc.col <;> by_cases b : sd.row = sb.col <;> by_cases c : sa.col =
-        sc.row <;>
-      by_cases d : sd.col = sb.row <;> simp [a, b, c, d]
+    have hmul (p q : Prop) [Decidable p] [Decidable q] :
+        (if p ∧ q then (1 : ℤ) else 0) = (if p then 1 else 0) * (if q then 1 else 0) := by
+      by_cases hp : p <;> by_cases hq : q <;> simp [hp, hq]
+    simp only [Word.ext_iff, Word.row_swap, Word.col_swap, @eq_comm _ sb.row, @eq_comm _ sb.col,
+      hmul]
+    ring
   rw [psi, hind]
   push_cast
   linear_combination (-(matM (1 : ℤ) sa sb sc sd).det) * hs - ((Equiv.Perm.sign e : ℤˣ) : ℤ) * h1
@@ -509,14 +498,9 @@ private theorem prop_identity_coefficients (μ ν N : ℕ) :
     · have := prop_identity_blocks (N + 1) (X : ℤ[X]) sa.swap sd.swap sc.swap sb.swap j i
       simp only [matM, fromBlocks_apply₂₁]
       rw [← dvd_neg] at this
+      rw [Matrix.neg_mul, Matrix.neg_mul, ← Matrix.diagonal_transpose, ← Matrix.transpose_mul,
+        ← Matrix.transpose_mul, ← Matrix.mul_assoc]
       convert this using 1
-      have e : ∀ (A : Matrix (Fin μ ⊕ Fin ν) (Fin (N + 1)) ℤ[X]) (l : Fin (N + 1) → ℤ[X])
-          (B : Matrix (Fin (N + 1)) (Fin μ ⊕ Fin ν) ℤ[X]),
-          -Bᵀ * diagonal l * Aᵀ = -(A * diagonal l * B)ᵀ := by
-        intro A l B
-        rw [Matrix.transpose_mul, Matrix.transpose_mul, Matrix.diagonal_transpose, Matrix.neg_mul,
-          Matrix.neg_mul, Matrix.mul_assoc]
-      rw [e]
       simp only [Matrix.neg_apply, Matrix.transpose_apply]
       ring
     · simp [matM]

@@ -218,12 +218,9 @@ theorem slotsSetup_spec {L w : ℕ} (g : Graph (Fin L → Fin L))
       (fun y hy => hy.2.2.2.2.2.2.1)
       (fun y hy hlt => by
         obtain ⟨h0, h1, h2, hL, hSt, hN, hE, hEB, hmem⟩ := hy
-        set k := y.regs rOuterIdx
-        have hk_reg : y.regs rOuterIdx = k := rfl
-        have hsrc_mem : y.mem (4 + k * (L + 2)) = g.edges[k].src := by
-          rw [hmem]; exact hinp.edge_src k hlt
-        have hdst_mem : y.mem (4 + k * (L + 2) + 1) = g.edges[k].dst := by
-          rw [hmem]; exact hinp.edge_dst k hlt
+        set k := y.regs rOuterIdx with hk_reg
+        have hsrc_mem : y.mem (4 + k * (L + 2)) = g.edges[k].src := hmem ▸ hinp.edge_src k hlt
+        have hdst_mem : y.mem (4 + k * (L + 2) + 1) = g.edges[k].dst := hmem ▸ hinp.edge_dst k hlt
         have hs_lt : g.edges[k].src < slots g := src_lt_slots (List.getElem_mem hlt)
         have hd_lt : g.edges[k].dst < slots g := dst_lt_slots (List.getElem_mem hlt)
         have hed := edge_end_le_wordBound hlt
@@ -234,7 +231,7 @@ theorem slotsSetup_spec {L w : ℕ} (g : Graph (Fin L → Fin L))
         have : Fits w (g.edges[k].dst + 1) := hw.of_le (by omega)
         have : Fits w (k + 1) := hw.of_le (by omega)
         unfold slotsBody
-        wram_exec [h0, h1, h2, hL, hSt, hN, hE, hEB, hk_reg, hsrc_mem, hdst_mem]
+        wram_exec [h0, h1, h2, hL, hSt, hN, hE, hEB, hk_reg.symm, hsrc_mem, hdst_mem]
         all_goals
           refine ⟨⟨by wram_simp [h0], by wram_simp [h1], by wram_simp [h2], by wram_simp [hL],
             by wram_simp [hSt], ?_, by wram_simp [hE], by wram_simp [hEB],
@@ -246,15 +243,15 @@ theorem slotsSetup_spec {L w : ℕ} (g : Graph (Fin L → Fin L))
       (by rw [hzIdx0]; exact ⟨hz0, hz1, hz2, hzL, hzSt, hzN0, hzE, hzEB, hx1m⟩)
   rw [hzIdx0, Nat.sub_zero] at hx2
   have hzN_eq : x2.regs rN = slots g := by
-    rw [hzN']; simp only [slotsPrefix, List.take_length, slots]
-  have hx2_mem0 : x2.mem 0 = 3 + g.edges.length * (L + 2) := by rw [hx2m]; exact hinp.mem0
+    simpa only [slotsPrefix, List.take_length, slots] using hzN'
   obtain ⟨x3, hx3, ha0, ha1, ha2, haL, haSt, haN, haE, haEB, haHB, haNB, haVB, haTB, hx3m⟩ :=
-    layoutSetupA_spec (w := w) g x2 hz0' hz1' hz2' hzL' hzSt' hzN_eq hzE' hzEB' hx2_mem0 hw
+    layoutSetupA_spec (w := w) g x2 hz0' hz1' hz2' hzL' hzSt' hzN_eq hzE' hzEB'
+      (hx2m ▸ hinp.mem0) hw
   obtain ⟨x4, hx4, hc4, hnf4, hidx4, hx4m⟩ :=
     layoutSetupB_spec (w := w) g x3 ha0 ha1 ha2 haL haSt haN haE haEB haHB haNB haVB haTB hw
   have hmem4 : x4.mem = (Data.init (encode g) : Data 34).mem := hx4m.trans (hx3m.trans hx2m)
   exact ⟨x4, (hx1.seq (hx2.seq (hx3.seq hx4))).mono (by omega), hc4, hmem4 ▸ hinp, hnf4, hidx4,
-    fun a ha => by rw [hmem4]; exact hzero_above a ha⟩
+    fun a ha => (congrFun hmem4 a).trans (hzero_above a ha)⟩
 
 private theorem prepend_adjChain {L : ℕ} {g : Graph (Fin L → Fin L)} {mem : ℕ → ℕ}
     {top u j : ℕ} {bs : List (List (Edge (Fin L → Fin L)))}
@@ -275,8 +272,8 @@ private theorem prepend_adjChain {L : ℕ} {g : Graph (Fin L → Fin L)} {mem : 
       Function.update_of_ne (by omega : a ≠ top)]
   by_cases hvu : v = u
   · subst hvu
-    rw [List.getD_set_self (hlen ▸ hu)]
     have hhd : mem' (headBase g + v) = top := Function.update_self _ _ _
+    rw [List.getD_set_self (hlen ▸ hu), hhd]
     have hp0 : mem' top = j := by
       simp only [mem', Function.update_of_ne (by simp only [nodeBase] at htop_lo; omega :
           top ≠ headBase g + v),
@@ -284,7 +281,6 @@ private theorem prepend_adjChain {L : ℕ} {g : Graph (Fin L → Fin L)} {mem : 
     have hp1 : mem' (top + 1) = mem (headBase g + v) := by
       simp only [mem', Function.update_of_ne (by simp only [nodeBase] at htop_lo; omega :
           top + 1 ≠ headBase g + v), Function.update_self]
-    rw [hhd]
     refine .cons hj htop_lo (le_refl _) hp0 ?_
     rw [hp1]
     exact (hbs v hv).frame (by omega) hfr
@@ -371,9 +367,8 @@ theorem bucketsLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) {x : Data 34}
     refine ⟨hc, hinp, by omega, by omega, fun u hu => ?_, fun a ha =>
       hzero a (by simp only [visBase, nodeBase] at ha; omega)⟩
     have hnil : (bsAt 0).getD u [] = [] := by
-      change (buckets (slots g) (g.edges.drop (g.edges.length - 0))).getD u [] = []
-      rw [Nat.sub_zero, List.drop_length]
-      exact List.getD_replicate _ hu
+      simpa only [bsAt, Nat.sub_zero, List.drop_length, buckets, List.foldr_nil] using
+        List.getD_replicate (n := slots g) [] hu
     rw [hnil, hzero (headBase g + u) (Nat.le_add_right _ _)]
     exact .nil
   obtain ⟨y, hy, ⟨hyC, hyInp, hyLo, hyHi, hyAdj, hyZero⟩, _⟩ :=
@@ -382,9 +377,8 @@ theorem bucketsLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) {x : Data 34}
       (fun y hy => hy.1.regE)
       (fun y hy hlt => by
         obtain ⟨hyC, hyInp, hyLo, hyHi, hyAdj, hyZero⟩ := hy
-        set k := y.regs rOuterIdx
-        have hk_reg : y.regs rOuterIdx = k := rfl
-        set j := g.edges.length - 1 - k
+        set k := y.regs rOuterIdx with hk_reg
+        set j := g.edges.length - 1 - k with hj_def
         have hj : j < g.edges.length := by omega
         have hdrop : g.edges.drop (g.edges.length - (k + 1)) =
             g.edges[j] :: g.edges.drop (g.edges.length - k) := by
@@ -404,16 +398,17 @@ theorem bucketsLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) {x : Data 34}
         have : Fits w (4 + j * (L + 2)) := hw.of_le (by omega)
         have : Fits w (4 + j * (L + 2) + 1) := hw.of_le (by omega)
         have : Fits w (k + 1) := hw.of_le (by omega)
-        have hsub : g.edges.length - 1 - k = j := rfl
         obtain ⟨y1, hy1, hy1C, hy1J, hy1Src, hy1Dst, hy1NF, hy1Idx, hy1m⟩ :
             ∃ y1, ExecWithin w bucketsHead y y1 7 ∧
               ConstRegs g y1 ∧ y1.regs rEdgeIdx = j ∧ y1.regs rSrc = g.edges[j].src ∧
               y1.regs rDst = g.edges[j].dst ∧ y1.regs rNodeFree = y.regs rNodeFree ∧
               y1.regs rOuterIdx = k ∧ y1.mem = y.mem := by
           unfold bucketsHead
-          wram_exec [hyC.one, hyC.stride, hyC.regE, hyC.edgeB, hk_reg, hsub, hsrc_mem, hdst_mem]
+          wram_exec [hyC.one, hyC.stride, hyC.regE, hyC.edgeB, hk_reg.symm, hj_def.symm,
+            hsrc_mem, hdst_mem]
           exact ⟨by wram_simp [hyC], by wram_simp, by wram_simp, by wram_simp, by wram_simp,
-            by wram_simp [hk_reg], by wram_simp⟩
+            by wram_simp [hk_reg.symm],
+            by wram_simp⟩
         obtain ⟨z1, hz1, hz1C, hz1Inp, hz1NF, hz1Idx, hz1J, hz1Src, hz1Dst, hz1Adj, hz1Zero⟩ :=
           prependToSlot_spec (w := w) g rSrc y1 (bsAt k) g.edges[j].src j (Or.inl rfl)
             hy1C (hy1m ▸ hyInp) hy1Src hy1J hlen_k hs_lt hj

@@ -213,14 +213,8 @@ theorem reconstructKeyAt_spec {metaBase itemBase U V w N n : ℕ} {θ : QuotHash
         valAt 0 U V wg N (hashSpace U wg N) s_fix.mem
           (slotOf N (gmAt 0 U V wg N (hashSpace U wg N) s_fix.mem) b j) := by
     intro d hd b j hphys
-    have hq0 : compQuotAt itemBase U V w N n s.mem d =
-        quotAt 0 U wg N (hashSpace U wg N) s_fix.mem (physOfDense N gm dt d) :=
-      hn ▸ hcpl.quot_eq d hd
-    have hv0 : compValAt itemBase U V w N n s.mem d =
-        valAt 0 U V wg N (hashSpace U wg N) s_fix.mem (physOfDense N gm dt d) :=
-      hn ▸ hcpl.val_eq d hd
-    rw [hphys, ← hgm_eq] at hq0 hv0
-    exact ⟨hq0, hv0⟩
+    rw [← hn, hgm_eq, ← hphys]
+    exact ⟨hcpl.quot_eq d hd, hcpl.val_eq d hd⟩
   have howner : ∀ d < n,
       let b := ownerBucketOfDense N gm dt d
       let j := logicalIdxOfDense N gm dt d

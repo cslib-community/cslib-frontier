@@ -400,46 +400,36 @@ theorem isGSPEquilibrium_minEnvyFreeBid [Fintype ι] [DecidableEq ι] {μ : Fin 
             rw [← hs_eq]
             by_cases hne : (Finset.univ \ Finset.univ.map σ).Nonempty
             · obtain ⟨jstar, hjmem, hjval⟩ := Finset.exists_mem_eq_sup' hne v
-              have hjrange : jstar ∉ Set.range σ := by
-                simp only [Finset.mem_sdiff, Finset.mem_univ, Finset.mem_map, true_and,
-                  not_exists] at hjmem
-                rintro ⟨r, rfl⟩
-                exact hjmem r rfl
+              have hj_not_map : jstar ∉ Finset.univ.map σ := (Finset.mem_sdiff.mp hjmem).2
+              have hjrange : jstar ∉ Set.range σ :=
+                fun ⟨r, hr⟩ => hj_not_map (hr ▸ Finset.mem_map_of_mem σ (Finset.mem_univ r))
               have hmax_eq : maxUnassignedValue v σ = v jstar := by
                 simp only [maxUnassignedValue, hne, ↓reduceDIte, hjval]
               let T : Finset ι := insert jstar ((Finset.univ.map σ).erase (σ t))
               have hjt_ne : jstar ≠ σ t := fun h => hjrange ⟨t, h.symm⟩
-              have hjnot : jstar ∉ (Finset.univ.map σ).erase (σ t) := by
-                intro h
-                obtain ⟨r, -, hr⟩ := Finset.mem_map.mp (Finset.mem_of_mem_erase h)
-                exact hjrange ⟨r, hr⟩
+              have hjnot : jstar ∉ (Finset.univ.map σ).erase (σ t) :=
+                mt Finset.mem_of_mem_erase hj_not_map
               have htmem : σ t ∈ Finset.univ.map σ :=
-                Finset.mem_map.mpr ⟨t, Finset.mem_univ _, rfl⟩
+                Finset.mem_map_of_mem σ (Finset.mem_univ t)
               have hTcard : s.val + 1 ≤ T.card := by
                 rw [Finset.card_insert_of_notMem hjnot, Finset.card_erase_of_mem htmem,
                   Finset.card_map, Finset.card_fin]
                 omega
-              have hxT : x ∉ T := by
-                rw [← htx]
-                simp only [T, Finset.mem_insert, not_or]
-                exact ⟨hjt_ne.symm, Finset.notMem_erase _ _⟩
+              have hxT : x ∉ T :=
+                htx ▸ mt Finset.mem_insert.mp (not_or.mpr ⟨hjt_ne.symm, Finset.notMem_erase _ _⟩)
               have hTbid : ∀ y ∈ T, maxUnassignedValue v σ ≤ b' y := by
                 intro y hy
                 rw [hmax_eq]
+                dsimp only [b']
                 rcases Finset.mem_insert.mp hy with rfl | hy'
-                · have hup : b' y = b y := Function.update_of_ne (htx ▸ hjt_ne) z b
-                  rw [hup]
-                  exact le_of_eq (minEnvyFreeBid_of_not_mem_range μ v σ hjrange).symm
-                · have hne_t : y ≠ σ t := Finset.ne_of_mem_erase hy'
-                  obtain ⟨r, -, rfl⟩ := Finset.mem_map.mp (Finset.mem_of_mem_erase hy')
-                  have hup : b' (σ r) = b (σ r) := Function.update_of_ne (htx ▸ hne_t) z b
-                  rw [hup]
+                · rw [Function.update_of_ne (htx ▸ hjt_ne)]
+                  exact (minEnvyFreeBid_of_not_mem_range μ v σ hjrange).ge
+                · obtain ⟨r, -, rfl⟩ := Finset.mem_map.mp (Finset.mem_of_mem_erase hy')
+                  rw [Function.update_of_ne (htx ▸ Finset.ne_of_mem_erase hy')]
                   calc v jstar = b jstar := (minEnvyFreeBid_of_not_mem_range μ v σ hjrange).symm
                     _ ≤ b (σ r) := hb_out.unassigned_le r jstar hjrange
               exact le_gspPerClickPrice_of_card_le hσ' hsx hxT hTcard hTbid
-            · have hzero : maxUnassignedValue v σ = 0 := by
-                simp only [maxUnassignedValue, hne, ↓reduceDIte]
-              rw [hzero]
+            · simp only [maxUnassignedValue, hne, ↓reduceDIte]
               exact gspPerClickPrice_nonneg hb'_nonneg σ' s
         have hμs_pos : 0 < μ s := hμ_pos s
         have hmul : p s ≤ μ s * gspPerClickPrice b' σ' s := by
@@ -456,11 +446,9 @@ theorem isGSPEquilibrium_minEnvyFreeBid [Fintype ι] [DecidableEq ι] {μ : Fin 
     rw [gspUtility_of_not_mem_range μ v b' σ' hx']
     by_cases hx : x ∈ Set.range σ
     · obtain ⟨t, rfl⟩ := hx
-      rw [gspUtility_apply_slot, gspPerClickPrice_minEnvyFreeBid hμ_pos t]
-      have hne : μ t ≠ 0 := ne_of_gt (hμ_pos t)
-      have hir := hlef.utility_nonneg hμ hμ_pos t
-      have heq : μ t * (v (σ t) - p t / μ t) = μ t * v (σ t) - p t := by field_simp
-      linarith
+      rw [gspUtility_apply_slot, gspPerClickPrice_minEnvyFreeBid hμ_pos t, mul_sub,
+        mul_div_cancel₀ _ (hμ_pos t).ne']
+      exact hlef.utility_nonneg hμ hμ_pos t
     · rw [gspUtility_of_not_mem_range μ v b σ hx]
 
 /-- **Theorem 28.2** ([LahaiePennockSaberiVohra2007], §28.3.2, pp. 706–707): under strictly

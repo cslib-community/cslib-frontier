@@ -98,27 +98,19 @@ theorem crownShift_ne_self {n : ℕ} (hn : 2 ≤ n) (p : Fin n) : crownShift hn 
   intro heq
   have hval : (p.val + 1) % n = p.val := congrArg Fin.val heq
   by_cases hlt : p.val + 1 < n
-  · rw [Nat.mod_eq_of_lt hlt] at hval
-    omega
-  · have hp : p.val + 1 = n := by omega
-    rw [hp, Nat.mod_self] at hval
-    omega
+  · rw [Nat.mod_eq_of_lt hlt] at hval; omega
+  · rw [Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)] at hval; omega
 
 /-- `crownShift hn` is injective on `Fin n`. -/
 theorem crownShift_injective {n : ℕ} (hn : 2 ≤ n) : Function.Injective (crownShift hn) := by
   intro p₁ p₂ heq
+  have hm (p : Fin n) : (p.val + 1) % n = if p.val + 1 < n then p.val + 1 else 0 := by
+    split_ifs with h
+    · exact Nat.mod_eq_of_lt h
+    · rw [Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)]; omega
   have hval : (p₁.val + 1) % n = (p₂.val + 1) % n := congrArg Fin.val heq
-  ext
-  by_cases h₁ : p₁.val + 1 < n <;> by_cases h₂ : p₂.val + 1 < n
-  · rw [Nat.mod_eq_of_lt h₁, Nat.mod_eq_of_lt h₂] at hval
-    omega
-  · have hp₂ : p₂.val + 1 = n := by omega
-    rw [Nat.mod_eq_of_lt h₁, hp₂, Nat.mod_self] at hval
-    omega
-  · have hp₁ : p₁.val + 1 = n := by omega
-    rw [hp₁, Nat.mod_self, Nat.mod_eq_of_lt h₂] at hval
-    omega
-  · omega
+  rw [hm p₁, hm p₂] at hval
+  split_ifs at hval <;> exact Fin.ext (by omega)
 
 /-- Step `i` (`0 ≤ i < 2 * n + 2 * (n * n)`) of the 4-block crown execution `crownFin` on `Fin n`:
 * `[0, n)`: Phase-1 initial internal step `a_p` on each `p`,

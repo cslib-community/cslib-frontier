@@ -79,6 +79,44 @@ example : ((ofLists 2 2 J).map ((↑) : ℚ → ℝ)).PosSemidef :=
 /-- The zero pivot is rejected as a definiteness witness. -/
 example : certJ.checkPosDef 2 J = false := by decide +kernel
 
+/-! ### Completeness
+
+Here `⪰ 0` and `≻ 0` are proved without a certificate, and a witness is obtained from
+`LDLCert.exists_checkPosSemidef_iff` and `LDLCert.exists_checkPosDef_iff`. -/
+
+/-- A singular matrix with a zero first pivot, the branch of the elimination where the first
+column must vanish. -/
+def Z : List (List ℚ) := [[0, 0], [0, 1]]
+
+theorem Z_posSemidef : ((ofLists 2 2 Z).map ((↑) : ℚ → ℝ)).PosSemidef := by
+  convert posSemidef_fin_two (a := 0) (b := 0) (c := 1) le_rfl zero_le_one (by norm_num) using 1
+  ext i j
+  fin_cases i <;> fin_cases j <;> norm_num [Z]
+
+example : ∃ c : LDLCert, c.checkPosSemidef 2 Z = true :=
+  LDLCert.exists_checkPosSemidef_iff.2 ⟨by decide +kernel, Z_posSemidef⟩
+
+/-- `J` is singular, so no witness proves it positive definite. -/
+example : ¬ ∃ c : LDLCert, c.checkPosDef 2 J = true := by
+  rw [LDLCert.exists_checkPosDef_iff]
+  rintro ⟨-, h⟩
+  have := h.dotProduct_mulVec_pos (x := ![1, -1]) fun h0 => by simpa using congrFun h0 0
+  simp [J, dotProduct, mulVec, Fin.sum_univ_two, ofLists_apply, ofList_apply] at this
+
+/-- The identity, positive definite without a certificate. -/
+example : ∃ c : LDLCert, c.checkPosDef 2 [[1, 0], [0, 1]] = true := by
+  refine LDLCert.exists_checkPosDef_iff.2 ⟨by decide +kernel, ?_⟩
+  convert PosDef.one (n := Fin 2) (R := ℝ) using 1
+  ext i j
+  fin_cases i <;> fin_cases j <;> norm_num
+
+/-- A well-shaped matrix is required: these rows denote `Z` padded with zeros, but no witness is
+accepted for them. -/
+example : ¬ ∃ c : LDLCert, c.checkPosSemidef 2 [[0], [0, 1]] = true := by
+  rw [LDLCert.exists_checkPosSemidef_iff]
+  rintro ⟨h, -⟩
+  exact absurd h (by decide +kernel)
+
 /-! ### An indefinite matrix -/
 
 def K : List (List ℚ) := [[1, 2], [2, 1]]

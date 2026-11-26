@@ -426,16 +426,10 @@ private theorem hybrid_opt_pos_of_infiniteSlope {M : SSVCGMechanism ι} (hC : 0 
         · subst hjk; rw [hyk]; linarith
         · rw [hy_other j hjk hji]; exact hx.1.1 j
     · have hsum_y : ∑ j, y j = ∑ j, x j := by
-        rw [← Finset.add_sum_erase _ y (Finset.mem_univ i),
-          ← Finset.add_sum_erase _ x (Finset.mem_univ i)]
         have hk_mem : k ∈ Finset.univ.erase i := Finset.mem_erase.mpr ⟨hki, Finset.mem_univ k⟩
-        rw [← Finset.add_sum_erase _ y hk_mem, ← Finset.add_sum_erase _ x hk_mem]
-        have hrest : ∑ j ∈ (Finset.univ.erase i).erase k, y j =
-            ∑ j ∈ (Finset.univ.erase i).erase k, x j :=
-          Finset.sum_congr rfl fun j hj =>
-            hy_other j (Finset.ne_of_mem_erase hj)
-              (Finset.ne_of_mem_erase (Finset.mem_of_mem_erase hj))
-        rw [hrest, hyi, hyk, hxi0]
+        rw [Finset.sum_update_of_mem (Finset.mem_univ i), Finset.sdiff_singleton_eq_erase,
+          Finset.sum_update_of_mem hk_mem, Finset.sdiff_singleton_eq_erase,
+          ← Finset.add_sum_erase _ x (Finset.mem_univ i), ← Finset.add_sum_erase _ x hk_mem, hxi0]
         ring
       linarith [hx.1.2]
   have hle := hx.2 y hy_feas
@@ -472,15 +466,31 @@ theorem isSocialOptimum_of_isNashEquilibrium_of_infiniteSlope {M : SSVCGMechanis
   · exact ⟨hd_rep.1, fun x _ => by simp [KellyGame.welfare]⟩
   have : Nonempty ι := not_isEmpty_iff.mp hEmpty
   by_cases hcard : 2 ≤ Fintype.card ι
-  · have hhybrid_opt : ∀ i, (M.hybridGame U θ i).IsSocialOptimum d := by
+  · have hswap_deriv : ∀ {i k : ι} {z : ι → ℝ},
+        (M.hybridGame U θ i).IsSocialOptimum z → k ≠ i → 0 < z i →
+        derivWithin (M.surrogate (θ k)) (Ici 0) (z k) ≤ deriv (U i) (z i) ∧
+          (0 < z k → deriv (U i) (z i) = derivWithin (M.surrogate (θ k)) (Ici 0) (z k)) := by
+      intro i k z hz hki hzi
+      have hdi : HasDerivWithinAt ((M.hybridGame U θ i).utility i) (deriv (U i) (z i))
+          (Icc 0 M.capacity) (z i) := by
+        simpa only [hybridGame, Function.update_self] using
+          ((hU i).hasDerivAt hzi).hasDerivWithinAt
+      have hdk : HasDerivWithinAt ((M.hybridGame U θ i).utility k)
+          (derivWithin (M.surrogate (θ k)) (Ici 0) (z k)) (Icc 0 M.capacity) (z k) := by
+        simp only [hybridGame, Function.update_of_ne hki]
+        exact ((hfam.admissible (θ k) (hθ k)).hasDerivWithinAt (hz.1.1 k)).mono
+          Icc_subset_Ici_self
+      exact ⟨hz.swap_deriv_le (Ne.symm hki) hzi hdi hdk, fun hzk => le_antisymm
+        (hz.swap_deriv_le hki hzk hdk hdi) (hz.swap_deriv_le (Ne.symm hki) hzi hdi hdk)⟩
+    have hhybrid_opt : ∀ i, (M.hybridGame U θ i).IsSocialOptimum d := by
       intro i
-      have hcont_h : ∀ j, ContinuousOn ((M.hybridGame U θ i).utility j) (Icc 0 M.capacity) := by
-        intro j
-        unfold hybridGame; dsimp only
-        by_cases hji : j = i
-        · subst hji; rw [Function.update_self]; exact (hU j).continuousOn.mono Icc_subset_Ici_self
-        · rw [Function.update_of_ne hji]
-          exact (hfam.admissible (θ j) (hθ j)).continuousOn.mono Icc_subset_Ici_self
+      have hcont_h : ∀ j, ContinuousOn ((M.hybridGame U θ i).utility j) (Icc 0 M.capacity) :=
+        fun j => by
+          rcases eq_or_ne j i with rfl | hji
+          · simpa only [hybridGame, Function.update_self] using
+              (hU j).continuousOn.mono Icc_subset_Ici_self
+          · simpa only [hybridGame, Function.update_of_ne hji] using
+              (hfam.admissible (θ j) (hθ j)).continuousOn.mono Icc_subset_Ici_self
       obtain ⟨xStar, hxStar⟩ := KellyGame.exists_isSocialOptimum hC.le hcont_h
       have hx_pos : 0 < xStar i := hybrid_opt_pos_of_infiniteSlope hC hfam hθ (hU i) hxStar
       have hx_sum : ∑ j, xStar j = M.capacity :=
@@ -489,54 +499,27 @@ theorem isSocialOptimum_of_isNashEquilibrium_of_infiniteSlope {M : SSVCGMechanis
       obtain ⟨t, ht_pos, ht_deriv⟩ := hfam.surjective_derivWithin _ hγ (xStar i) hx_pos.le
       set θ' := Function.update θ i t
       have hθ' : ∀ j, 0 < θ' j := update_pos hθ ht_pos
-      have hdi_deriv : HasDerivWithinAt ((M.hybridGame U θ i).utility i) (deriv (U i) (xStar i))
-          (Icc 0 M.capacity) (xStar i) := by
-        simpa only [hybridGame, Function.update_self] using
-          ((hU i).hasDerivAt hx_pos).hasDerivWithinAt
-      have hdj_deriv : ∀ {j}, j ≠ i →
-          HasDerivWithinAt ((M.hybridGame U θ i).utility j)
-            (derivWithin (M.surrogate (θ j)) (Ici 0) (xStar j))
-            (Icc 0 M.capacity) (xStar j) := fun {j} hji => by
-        simp only [hybridGame, Function.update_of_ne hji]
-        exact ((hfam.admissible (θ j) (hθ j)).hasDerivWithinAt (hxStar.1.1 j)).mono
-          Icc_subset_Ici_self
       have hrep_opt : (M.reportedGame θ').IsSocialOptimum xStar := by
         rw [KellyGame.isSocialOptimum_iff_kkt hC fun j => hfam.admissible (θ' j) (hθ' j)]
         refine ⟨hxStar.1, hx_sum, deriv (U i) (xStar i), hγ, fun j => ?_, fun j hj => ?_⟩
-        · by_cases hji : j = i
-          · subst hji; simp only [reportedGame, θ', Function.update_self, ht_deriv]; exact le_rfl
+        · rcases eq_or_ne j i with rfl | hji
+          · simp only [reportedGame, θ', Function.update_self, ht_deriv, le_rfl]
           · simp only [reportedGame, θ', Function.update_of_ne hji]
-            exact hxStar.swap_deriv_le (Ne.symm hji) hx_pos hdi_deriv (hdj_deriv hji)
-        · by_cases hji : j = i
-          · subst hji; simp only [reportedGame, θ', Function.update_self, ht_deriv]
+            exact (hswap_deriv hxStar hji hx_pos).1
+        · rcases eq_or_ne j i with rfl | hji
+          · simp only [reportedGame, θ', Function.update_self, ht_deriv]
           · simp only [reportedGame, θ', Function.update_of_ne hji]
-            exact le_antisymm
-              (hxStar.swap_deriv_le (Ne.symm hji) hx_pos hdi_deriv (hdj_deriv hji))
-              (hxStar.swap_deriv_le hji hj (hdj_deriv hji) hdi_deriv)
+            exact ((hswap_deriv hxStar hji hx_pos).2 hj).symm
       exact hybridGame_isSocialOptimum_of_reported_update hC.le hfam hθ hne ht_pos hθ' hxStar
         hrep_opt
     have hd_pos : ∀ i, 0 < d i :=
       fun i => hybrid_opt_pos_of_infiniteSlope hC hfam hθ (hU i) (hhybrid_opt i)
     obtain ⟨hd_feas, hd_sum, μ, hμ, _, hrep_eq⟩ :=
       (KellyGame.isSocialOptimum_iff_kkt hC fun i => hfam.admissible (θ i) (hθ i)).mp hd_rep
-    have htrue_eq : ∀ i, deriv (U i) (d i) = μ := by
-      intro i
+    have htrue_eq : ∀ i, deriv (U i) (d i) = μ := fun i => by
       obtain ⟨k, hki⟩ := Fintype.exists_ne_of_one_lt_card (by omega) i
-      have hdi_deriv : HasDerivWithinAt ((M.hybridGame U θ i).utility i) (deriv (U i) (d i))
-          (Icc 0 M.capacity) (d i) := by
-        simpa only [hybridGame, Function.update_self] using
-          ((hU i).hasDerivAt (hd_pos i)).hasDerivWithinAt
-      have hdk_deriv : HasDerivWithinAt ((M.hybridGame U θ i).utility k)
-          (derivWithin (M.surrogate (θ k)) (Ici 0) (d k)) (Icc 0 M.capacity) (d k) := by
-        simp only [hybridGame, Function.update_of_ne hki]
-        exact ((hfam.admissible (θ k) (hθ k)).hasDerivWithinAt (hd_pos k).le).mono
-          Icc_subset_Ici_self
-      have heq_ik : deriv (U i) (d i) = derivWithin (M.surrogate (θ k)) (Ici 0) (d k) :=
-        le_antisymm
-          ((hhybrid_opt i).swap_deriv_le hki (hd_pos k) hdk_deriv hdi_deriv)
-          ((hhybrid_opt i).swap_deriv_le (Ne.symm hki) (hd_pos i) hdi_deriv hdk_deriv)
-      rw [heq_ik]
-      exact hrep_eq k (hd_pos k)
+      exact ((hswap_deriv (hhybrid_opt i) hki (hd_pos i)).2 (hd_pos k)).trans
+        (hrep_eq k (hd_pos k))
     refine ⟨hd_feas, fun x hx => ?_⟩
     have htan : ∑ i, U i (x i) ≤ ∑ i, (U i (d i) + deriv (U i) (d i) * (x i - d i)) :=
       Finset.sum_le_sum fun i _ => (hU i).le_add_deriv (hd_pos i) (hx.1 i)

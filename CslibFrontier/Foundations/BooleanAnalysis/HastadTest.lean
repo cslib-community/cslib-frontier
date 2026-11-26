@@ -180,10 +180,8 @@ private theorem expect_signVal_mul_chi_const (S : Finset ι) :
   simp only [chi_eq_prod_signVal, prod_const, ← pow_succ', Fintype.expect_bool, signVal_false,
     signVal_true, one_pow]
   rcases Nat.even_or_odd #S with h | h
-  · rw [h.add_one.neg_one_pow, ite_eq_right (Nat.not_odd_iff_even.2 h)]
-    norm_num
-  · rw [h.add_one.neg_one_pow, ite_eq_left h]
-    norm_num
+  · simp [h.add_one.neg_one_pow, Nat.not_odd_iff_even.2 h]
+  · simp [h.add_one.neg_one_pow, h]
 
 /-- **The acceptance probability of Håstad's test on real functions**
 [O'Donnell, (7.4) and Exercise 7.22][ODonnell2014]: on a real function `g` the test accepts with
@@ -235,17 +233,13 @@ coefficients are `-1/2`, and the test accepts with probability `3/8`. -/
 theorem oddBlrAcceptance_le_of_fourierCoeff_le {f : (ι → Bool) → Bool} {M : ℝ} (hM0 : 0 ≤ M)
     (hM : ∀ S : Finset ι, Odd #S → fourierCoeff (fun x => signVal (f x)) S ≤ M) :
     oddBlrAcceptance f ≤ 1 / 2 + 1 / 2 * M := by
-  set F : (ι → Bool) → ℝ := fun x => signVal (f x)
-  have hsum :
-      ∑ S with Odd #S, fourierCoeff F S ^ 3 ≤ M * ∑ S with Odd #S, fourierCoeff F S ^ 2 := by
+  have hsum : ∑ S with Odd #S, fourierCoeff (fun x => signVal (f x)) S ^ 3 ≤
+      M * ∑ S with Odd #S, fourierCoeff (fun x => signVal (f x)) S ^ 2 := by
     rw [mul_sum]
-    refine sum_le_sum fun S hS => ?_
-    rw [pow_succ, mul_comm M]
-    exact mul_le_mul_of_nonneg_left (hM S (mem_filter.1 hS).2) (sq_nonneg _)
-  have hW := mul_le_of_le_one_right hM0
-    (sum_fourierCoeff_sq_signVal_le_one f {S | Odd #S})
+    exact sum_le_sum fun S hS => by
+      nlinarith [hM S (mem_filter.1 hS).2, sq_nonneg (fourierCoeff (fun x => signVal (f x)) S)]
   rw [oddBlrAcceptance_eq_sum]
-  linarith
+  linarith [mul_le_of_le_one_right hM0 (sum_fourierCoeff_sq_signVal_le_one f {S | Odd #S})]
 
 /-- **Håstad's test on parities**: a parity on `S` is accepted with probability
 `1/2 + 1/2 (1 - δ) ^ |S|` if `|S|` is odd, and `1/2` if `|S|` is even. -/

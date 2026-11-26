@@ -683,13 +683,11 @@ theorem toExecRProgramDist (h : ExecRCodeDist w c x μ T L_peak) (out : Fin r) :
       Cslib.Probability.PMF.tsum_mul_le_of_support μ fun y _ => iSup_le fun adv => le_of_eq ?_
     rw [expectedStepsFromAdv_running, stepRandResizable_halt (s := ⟨0 + c.size, y⟩) hhalt,
       ProbComp.expect_pure, expectedStepsFromAdv_halted, add_zero]
-  · have h1 : (1 : ℝ≥0∞) ≤ haltedReach w (c.program out) (y.regs out) y (0 + c.size) y :=
-      le_iInf fun adv' => le_iSup_of_le 1 <| by
+  · have hμ : μ y ≤ μ y * haltedReach w (c.program out) (y.regs out) y (0 + c.size) y :=
+      le_mul_of_one_le_right' <| le_iInf fun _ => le_iSup_of_le 1 <| by
         rw [evalRandDemonic, runRandResizable_succ,
           stepRandResizable_halt (s := ⟨0 + c.size, y⟩) hhalt, pure_bind,
           runRandResizable_zero, ProbComp.eval_pure, PMF.pure_apply_self]
-    have hμ : μ y ≤ μ y * haltedReach w (c.program out) (y.regs out) y (0 + c.size) y := by
-      simpa using mul_le_mul_right h1 (μ y)
     exact (hμ.trans (le_tsum (f := fun z => μ z *
         haltedReach w (c.program out) (y.regs out) y (0 + c.size) z) y)).trans
       ((h.le_haltedReach_assemble (v := y.regs out) (d := y) hp).trans (iInf_le _ adv))
@@ -802,17 +800,11 @@ theorem rand_seq_det {w L : ℕ} {dst src : Fin r} {a : ℕ} {c₂ : Code B r} {
     rwa [hs] at h0
   let m₂ : Data r → ProbComp (Data r × ℕ) := fun d =>
     if h : d.regs dst < a + 1 then pure (f ⟨d.regs dst, h⟩, n) else pure (d, 0)
-  have hseq := ExecRandBounded.seq hr (m₂ := m₂) fun z hz => by
-    supp_cases hz with ⟨k, rfl⟩
-    simp only [m₂, Data.set_regs, Function.update_self, k.isLt, ↓reduceDIte]
-    exact of_execBoundedExact (h₂ k)
-  have heq : (do let z₁ ← do let k ← ProbComp.unifFin a; pure (x.set dst k.val, 1)
-                 let z₂ ← m₂ z₁.1; pure (z₂.1, z₁.2 + z₂.2)) =
-      (do let k ← ProbComp.unifFin a; pure (f k, 1 + n)) := by
-    simp only [pure_bind]
-    refine congrArg (ProbComp.unifFin a >>= ·) (funext fun k => ?_)
-    simp only [m₂, Data.set_regs, Function.update_self, k.isLt, ↓reduceDIte, pure_bind]
-  exact heq ▸ hseq
+  simpa only [m₂, bind_assoc, pure_bind, Data.set_regs, Function.update_self, Fin.is_lt,
+    ↓reduceDIte] using ExecRandBounded.seq hr (m₂ := m₂) fun z hz => by
+      supp_cases hz with ⟨k, rfl⟩
+      simp only [m₂, Data.set_regs, Function.update_self, k.isLt, ↓reduceDIte]
+      exact of_execBoundedExact (h₂ k)
 
 private theorem boundedAccess_rename_iff {r' L : ℕ} {f : Fin r → Fin r'} (o : Op B r)
     (x : Data r') : (o.rename f).BoundedAccess L x ↔ o.BoundedAccess L (x.comap f) := by
@@ -858,15 +850,8 @@ theorem rename {r' w L : ℕ} {f : Fin r → Fin r'} (hf : f.Injective)
       ExecRandBounded.op ((boundedAccess_rename_iff o x).mpr hb) ho'
   | @rand dst src _ hfit =>
     subst hx
-    have heq : ((fun z : Data r × ℕ => (z.1.extend f x, z.2)) <$> (do
-        let k ← ProbComp.unifFin (x.regs (f src))
-        pure ((x.comap f).set dst k.val, 1))) = (do
-        let k ← ProbComp.unifFin (x.regs (f src))
-        pure (x.set (f dst) k.val, 1)) := by
-      rw [← bind_pure_comp, bind_assoc]
-      refine congrArg (ProbComp.unifFin (x.regs (f src)) >>= ·) (funext fun k => ?_)
-      simp only [pure_bind, Data.extend_set hf, Data.extend_comap hf]
-    simpa only [Code.rename, Data.comap_regs, heq] using ExecRandBounded.rand (x := x) hfit
+    simpa only [Code.rename, Data.comap_regs, ← bind_pure_comp, bind_assoc, pure_bind,
+      Data.extend_set hf, Data.extend_comap hf] using ExecRandBounded.rand (x := x) hfit
   | @seq c₁ c₂ _ m₁ m₂ _ h₂ ih₁ ih₂ =>
     subst hx
     obtain ⟨_, hcont, heq⟩ := rename_bind_step (extra := 0) hf x h₂ fun z₁ hz₁ {_} h => ih₂ z₁ hz₁ h

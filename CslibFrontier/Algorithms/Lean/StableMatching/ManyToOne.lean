@@ -295,25 +295,6 @@ private theorem clone_recvRank_seat_some (h : Fin n) (j : Fin (I.quota h)) (r : 
   simp only [IncompleteInstance.recvRank_some, cloneInstance, seat_symm_fst, seat_symm_snd_val,
     j.isLt, ↓reduceIte, hospRank]
 
-private theorem idxOf_append_of_notMem {α : Type*} [DecidableEq α] {l₁ l₂ : List α} {a : α}
-    (ha₁ : a ∉ l₁) : (l₁ ++ l₂).idxOf a = l₁.length + l₂.idxOf a := by
-  induction l₁ with
-  | nil => simp
-  | cons b l₁ ih =>
-    rw [List.cons_append, List.idxOf_cons_ne _ (fun h : b = a => ha₁ (h ▸ List.mem_cons_self)),
-      ih (fun h => ha₁ (List.mem_cons_of_mem b h)), List.length_cons]
-    omega
-
-private theorem idxOf_append_of_mem {α : Type*} [DecidableEq α] {l₁ l₂ : List α} {a : α}
-    (ha₁ : a ∈ l₁) : (l₁ ++ l₂).idxOf a = l₁.idxOf a := by
-  induction l₁ with
-  | nil => nomatch ha₁
-  | cons b l₁ ih =>
-    by_cases hba : b = a
-    · subst hba; simp
-    · rw [List.cons_append, List.idxOf_cons_ne _ hba, List.idxOf_cons_ne _ hba,
-        ih ((List.mem_cons.1 ha₁).resolve_left (Ne.symm hba))]
-
 private theorem idxOf_flatMap_seat {L : List (Fin n)} {h : Fin n} (hh : h ∈ L)
     (j : Fin (I.quota h)) :
     (L.flatMap I.seats).idxOf (I.seat h j) =
@@ -335,8 +316,8 @@ private theorem idxOf_flatMap_seat {L : List (Fin n)} {h : Fin n} (hh : h ∈ L)
       _ = L.take i ++ L[i] :: L.drop (i + 1) := by rw [List.drop_eq_getElem_cons hi_lt]
       _ = L.take i ++ h :: L.drop (i + 1) := by rw [List.getElem_idxOf hi_lt]
   conv_lhs => rw [hsplit]
-  rw [List.flatMap_append, List.flatMap_cons, idxOf_append_of_notMem hnot_mem,
-    idxOf_append_of_mem (I.mem_seats_iff.2 ⟨j, rfl⟩), I.idxOf_seats h j]
+  rw [List.flatMap_append, List.flatMap_cons, List.idxOf_append, ite_eq_right hnot_mem,
+    List.idxOf_append, ite_eq_left (I.mem_seats_iff.2 ⟨j, rfl⟩), I.idxOf_seats h j, Nat.add_comm]
 
 private theorem length_take_flatMap_add_quota_le (L : List (Fin n)) {i₁ i₂ : ℕ}
     (hlt : i₁ < i₂) (hi₁ : i₁ < L.length) :

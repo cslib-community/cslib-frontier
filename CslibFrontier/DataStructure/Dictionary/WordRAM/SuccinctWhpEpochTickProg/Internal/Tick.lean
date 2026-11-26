@@ -116,11 +116,10 @@ private theorem tickStageAllPure_clk_and_stage5 (c U n_max : ℕ) (θ : SeedWhp 
           have hp := rebScanSteps_preserved θ b 16 fs
           unfold epochTickStage2PostScan epochTickStage2AfterSwap epochTickStage2Swap
           dsimp only
-          split_ifs
-          · exact ⟨hp.curEp, hp.epochClock, by rw [hp.rebStage]; omega⟩
-          · exact ⟨hp.curEp, hp.epochClock, le_rfl⟩
-          · exact ⟨hp.curEp, hp.epochClock, by rw [hp.rebStage]; omega⟩
-          · exact ⟨hp.curEp, hp.epochClock, by rw [hp.rebStage]; omega⟩
+          split_ifs <;> refine ⟨hp.curEp, hp.epochClock, ?_⟩
+          all_goals try exact le_rfl
+          all_goals rw [hp.rebStage]
+          all_goals omega
         · rw [ite_eq_right h2]; exact ⟨rfl, rfl, by omega⟩
       · rw [ite_eq_right h1]; exact ⟨rfl, rfl, le_rfl⟩
     exact ⟨hclk.1, hclk.2.1, by omega⟩
@@ -156,12 +155,9 @@ theorem epochTick_isSome_iff {c U n_max : ℕ} (θ : SeedWhp c U n_max) {fs : Fa
   dsimp only [epochTickRollover, epochTickWillSucceed]
   rw [hclk]
   by_cases hlt : fs.epochClock + 1 < qEpochWhp n_max
-  · rw [ite_eq_right (Nat.not_le.mpr hlt), decide_eq_true (Or.inl hlt)]; rfl
-  · rw [ite_eq_left (Nat.le_of_not_lt hlt)]
-    by_cases hs5 : (epochTickStage c U n_max θ fs).rebStage = 5
-    · rw [ite_eq_left hs5, decide_eq_true (Or.inr (hs5_iff.mp hs5))]; rfl
-    · rw [ite_eq_right hs5, decide_eq_false (fun h => h.elim hlt (fun h' => hs5 (hs5_iff.mpr h')))]
-      rfl
+  · simp [Nat.not_le.mpr hlt, hlt]
+  · by_cases hs5 : (epochTickStage c U n_max θ fs).rebStage = 5 <;>
+      simp [Nat.le_of_not_lt hlt, hlt, hs5, ← hs5_iff]
 
 /-- Dispatch Stages `0 .. 5` of `epochTick` (`d = (wp, base)`). -/
 @[irreducible] private def epochTickStageAllGenProg :
@@ -222,8 +218,7 @@ private theorem realizes_epochTickStageAllGen :
       (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage)
       (by dsimp [hdrRebStage]; omega) (s := s)
     rw [hh.rebStage] at hst_res
-    simp only [hcp_eq] at *
-    simp only [hst_st, hst_res] at *
+    simp only [hcp_eq, hst_st, hst_res] at *
     first
     | exact henv.fits_const (by decide)
     | exact henv.fits_hdr_addr (by dsimp [hdrRebStage]; omega)
@@ -504,7 +499,6 @@ theorem epochTickGenProg_fastStep {c U V w n_max base : ℕ}
   obtain ⟨fs', hro_eq, hro_mc, hro_vp, hro_step⟩ :=
     epochTickRolloverGenProg_fastStep (fs1 := fs1) henv (hce1 ▸ hcore.curEp_or)
       (hclk_eq ▸ hcore.epochClock_lt) hroll_ok hsa_step.2.1 hsa_step.2.2.1 (s := s1)
-  dsimp only
   unfold epochTick epochTickGenProg
   dsimp only
   rw [show (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max from hwp1]

@@ -96,8 +96,7 @@ theorem exists_eq_pow_of_pow_mul_pow_eq {p q i j i' j' : ℕ} (hp : p.Prime) (hq
   · obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_lt hlt
     rw [pow_add, pow_add, mul_assoc, mul_assoc] at h
     have h' := Nat.eq_of_mul_eq_mul_left (pow_pos (Nat.pos_of_ne_zero hq) i) h
-    have hdvd : q ∣ p ^ j := ⟨q ^ d * p ^ j', by rw [h']; ring⟩
-    obtain ⟨s, -, hs⟩ := (Nat.dvd_prime_pow hp).mp hdvd
+    obtain ⟨s, -, hs⟩ := (Nat.dvd_prime_pow hp).mp ⟨q ^ d * p ^ j', by rw [h']; ring⟩
     exact ⟨s, hs⟩
   · have hj : p ^ j = p ^ j' :=
       Nat.eq_of_mul_eq_mul_left (pow_pos (Nat.pos_of_ne_zero hq) i) h
@@ -147,13 +146,11 @@ theorem card_image_aeval_linProd [NeZero r] {ζ : K} (hζ : IsPrimitiveRoot ζ r
   classical
   rw [card_image_of_injective _ ?inj, card_univ, Sym.card_sym_eq_choose, Fintype.card_fin,
     show B + 1 + B - 1 = 2 * B by omega, Nat.centralBinom_eq_two_mul_choose]
-  intro s s' hss'
-  simp only at hss'
+  rintro s s' (hss' : aeval ζ (linProd p s) = aeval ζ (linProd p s'))
   by_contra hne
-  have hdiff : linProd p s - linProd p s' ≠ 0 := sub_ne_zero.mpr fun h => hne
-    (linProd_injective hB h)
   have hF : (linProd p s - linProd p s').map (algebraMap (ZMod p) K) ≠ 0 :=
-    (Polynomial.map_ne_zero_iff (algebraMap (ZMod p) K).injective).mpr hdiff
+    (Polynomial.map_ne_zero_iff (algebraMap (ZMod p) K).injective).mpr
+      (sub_ne_zero.mpr fun h => hne (linProd_injective hB h))
   have hζr : ζ ^ r = 1 := hζ.pow_eq_one
   -- The `|S|` distinct powers `ζ^m` are roots of `F`.
   have hsub : (S.image fun x => ζ ^ x.val).val ⊆
@@ -213,8 +210,7 @@ theorem prime_of_passes {n r : ℕ} (hn : 2 ≤ n)
   -- Logarithms.
   have hlog2 : 2 ≤ Real.logb 2 n := by
     rw [Real.le_logb_iff_rpow_le one_lt_two (by positivity)]
-    norm_num
-    exact_mod_cast hn4
+    exact (by norm_num : (2 : ℝ) ^ (2 : ℝ) = 4).trans_le (mod_cast hn4)
   have hord_pos : 0 < orderOf (n : ZMod r) := Nat.cast_pos.1 ((sq_nonneg _).trans_lt hr)
   have hcop : n.Coprime r := coprime_of_orderOf_pos hord_pos
   have hr2 : 2 ≤ r := by
@@ -270,11 +266,9 @@ theorem prime_of_passes {n r : ℕ} (hn : 2 ≤ n)
     Nat.floor_mono (mul_le_mul_of_nonneg_right
       (Real.sqrt_le_sqrt (by exact_mod_cast ht_tot)) (by linarith))
   have hBp : B < p := by omega
-  have hB3 : 3 ≤ B := by
-    apply Nat.le_floor
+  have hB3 : 3 ≤ B := Nat.le_floor <| by
     have : (2 : ℝ) < Real.sqrt t := by linarith
-    push_cast
-    nlinarith
+    push_cast; nlinarith
   -- A primitive `r`-th root of unity in characteristic `p`.
   have : NeZero ((r : ℕ) : ZMod p) := ⟨by
     rw [Ne, ZMod.natCast_eq_zero_iff]; exact Nat.not_dvd_of_pos_of_lt (by omega) hrp⟩
@@ -332,11 +326,9 @@ theorem prime_of_passes {n r : ℕ} (hn : 2 ≤ n)
         Real.rpow_le_rpow_of_exponent_le hn1 (Real.nat_sqrt_le_real_sqrt)
       _ = (2 : ℝ) ^ (Real.logb 2 n * Real.sqrt t) := by
         rw [Real.rpow_mul zero_le_two, Real.rpow_logb two_pos (by norm_num) (by linarith)]
-      _ < (2 : ℝ) ^ ((B + 1 : ℕ) : ℝ) := by
-        apply Real.rpow_lt_rpow_of_exponent_lt one_lt_two
-        push_cast
-        rw [mul_comm]
-        exact Nat.lt_floor_add_one _
+      _ < (2 : ℝ) ^ ((B + 1 : ℕ) : ℝ) :=
+        Real.rpow_lt_rpow_of_exponent_lt one_lt_two <| (mul_comm _ _).trans_lt
+          (by simpa using Nat.lt_floor_add_one (Real.sqrt t * Real.logb 2 n))
       _ = 2 ^ (B + 1) := Real.rpow_natCast _ _
   have hnat : n ^ k < 2 ^ (B + 1) := by exact_mod_cast hreal
   have := two_pow_succ_le_centralBinom hB3

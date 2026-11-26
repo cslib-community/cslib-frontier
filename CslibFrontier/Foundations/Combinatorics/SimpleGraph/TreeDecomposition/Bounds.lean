@@ -119,9 +119,7 @@ noncomputable def IsTree.treeDecomposition [DecidableEq V] (hG : G.IsTree) (r : 
 
 theorem IsTree.width_treeDecomposition_le [Fintype V] [DecidableEq V] (hG : G.IsTree) (r : V) :
     (hG.treeDecomposition r).width ≤ 1 :=
-  (hG.treeDecomposition r).width_le_iff.2 fun _ => by
-    unfold IsTree.treeDecomposition
-    exact Finset.card_insert_le _ _
+  (hG.treeDecomposition r).width_le_iff.2 fun _ => Finset.card_insert_le _ _
 
 /-- A finite tree has treewidth at most `1`. -/
 theorem IsTree.treewidth_le_one [Finite V] (hG : G.IsTree) : G.treewidth ≤ 1 := by
@@ -165,14 +163,10 @@ private theorem cycleGraph_adj_iff_val {n : ℕ} {u v : Fin (n + 3)} :
         (v.val = 0 ∧ u.val = n + 2) := by
   have key (a b : Fin (n + 3)) :
       (a - b).val = 1 ↔ a.val = b.val + 1 ∨ (a.val = 0 ∧ b.val = n + 2) := by
-    rw [Fin.val_sub]
-    have ha := a.isLt
-    have hb := b.isLt
-    rcases le_or_gt b.val a.val with hab | hab
-    · rw [show n + 3 - b.val + a.val = (a.val - b.val) + (n + 3) by omega,
-        Nat.add_mod_right, Nat.mod_eq_of_lt (by omega)]
+    rcases le_or_gt b a with hab | hab
+    · rw [Fin.sub_val_of_le hab]
       omega
-    · rw [Nat.mod_eq_of_lt (by omega)]
+    · rw [Fin.val_sub, Nat.mod_eq_of_lt (by omega : n + 3 - b.val + a.val < n + 3)]
       omega
   rw [cycleGraph_adj', key, key]
   omega

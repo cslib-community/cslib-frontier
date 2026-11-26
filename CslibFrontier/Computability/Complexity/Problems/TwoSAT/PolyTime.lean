@@ -143,10 +143,7 @@ theorem mem_stepReach (φ : CNF V) (s : Clause V) (ℓ' : Literal V) :
 /-- Every pass produces a sublist of `lits φ`. -/
 theorem reachFrom_sublist (φ : CNF V) (ℓ₀ : Literal V) (n : ℕ) :
     reachFrom φ ℓ₀ n <+ lits φ := by
-  cases n with
-  | zero => exact List.filter_sublist
-  | succ n =>
-    rw [reachFrom, Function.iterate_succ_apply']
+  cases n <;> simp only [reachFrom, Function.iterate_zero_apply, Function.iterate_succ_apply'] <;>
     exact List.filter_sublist
 
 theorem reachFrom_subset_succ (φ : CNF V) (ℓ₀ : Literal V) (n : ℕ) :
@@ -277,14 +274,9 @@ private theorem extendGoodSet {φ : CNF V} {s : Clause V} (hg : GoodSet φ s)
   · intro m hm hmn
     rcases (hmem_s' m).mp hm with hms | hrm <;> rcases (hmem_s' m.negate).mp hmn with hmns | hrmn
     · exact hg.consistent m hms hmns
-    · have hrev := CNF.reach_negate hrmn
-      rw [negate_negate] at hrev
-      exact hnneg_s (hg.reach_mem hms hrev)
-    · have hrev := CNF.reach_negate hrm
-      exact hnneg_s (hg.reach_mem hmns hrev)
-    · have hrev := CNF.reach_negate hrmn
-      rw [negate_negate] at hrev
-      exact hnreach (hrm.trans hrev)
+    · exact hnneg_s (hg.reach_mem hms (negate_negate m ▸ CNF.reach_negate hrmn))
+    · exact hnneg_s (hg.reach_mem hmns (CNF.reach_negate hrm))
+    · exact hnreach (hrm.trans (negate_negate m ▸ CNF.reach_negate hrmn))
   · intro m hm m' himp
     refine (hmem_s' m').mpr ?_
     rcases (hmem_s' m).mp hm with hms | hrm
@@ -303,24 +295,15 @@ private theorem chooseStep_good {φ : CNF V}
     exact ⟨hg, fun _ h => h, hdec⟩
   · simp only [Bool.or_eq_true, List.contains_iff_mem, not_or] at hdec
     obtain ⟨hnt, hnf⟩ := hdec
+    have hmem_tf : (reach φ (v, true)).contains (v, false) = true ↔
+        Relation.ReflTransGen φ.Implies (v, true) (v, false) :=
+      List.contains_iff_mem.trans (mem_reach_iff hv (v, false))
     cases htf : (reach φ (v, true)).contains (v, false)
-    · have hnreach : ¬ Relation.ReflTransGen φ.Implies (v, true) (v, false) := by
-        intro h₁
-        have hm := List.contains_iff_mem.mpr
-          ((mem_reach_iff (φ := φ) (ℓ₀ := (v, true)) hv (v, false)).mpr h₁)
-        exact Bool.false_ne_true (htf.symm.trans hm)
-      obtain ⟨hg', hsub', hmem'⟩ := extendGoodSet (ℓ := (v, true)) hg hv
-        (by simpa [Std.Sat.Literal.negate] using hnf)
-        (by simpa [Std.Sat.Literal.negate] using hnreach)
+    · obtain ⟨hg', hsub', hmem'⟩ :=
+        extendGoodSet (ℓ := (v, true)) hg hv hnf (mt hmem_tf.mpr (Bool.eq_false_iff.mp htf))
       exact ⟨hg', hsub', .inl hmem'⟩
-    · have h₁ : Relation.ReflTransGen φ.Implies (v, true) (v, false) :=
-        (mem_reach_iff (φ := φ) (ℓ₀ := (v, true)) hv (v, false)).mp
-          (List.contains_iff_mem.mp htf)
-      have hnreach : ¬ Relation.ReflTransGen φ.Implies (v, false) (v, true) :=
-        fun h₂ => hnocyc v ⟨h₁, h₂⟩
-      obtain ⟨hg', hsub', hmem'⟩ := extendGoodSet (ℓ := (v, false)) hg hv
-        (by simpa [Std.Sat.Literal.negate] using hnt)
-        (by simpa [Std.Sat.Literal.negate] using hnreach)
+    · obtain ⟨hg', hsub', hmem'⟩ :=
+        extendGoodSet (ℓ := (v, false)) hg hv hnt fun h₂ => hnocyc v ⟨hmem_tf.mp htf, h₂⟩
       exact ⟨hg', hsub', .inr hmem'⟩
 
 private theorem foldl_chooseStep_good {φ : CNF V}

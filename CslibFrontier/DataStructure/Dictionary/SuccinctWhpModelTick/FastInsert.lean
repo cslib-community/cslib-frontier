@@ -78,11 +78,9 @@ theorem ValidFastState.fastInsert_spec {c U V n_max : ℕ} (hnU : n_max ≤ U)
         active_item := fun b' hb' l' hl' => by
           obtain ⟨h1', h2', h3', h4'⟩ := hv.active_item b' hb' l' hl'
           refine ⟨h1', h2', h3', ?_⟩
-          rw [show fs_ov.physSlot n_max b' l' = fs.physSlot n_max b' l' from rfl]
-          dsimp only [fs_ov]
+          change (Function.update fs.valArr p v) (fs.physSlot n_max b' l') < V
           by_cases hp : fs.physSlot n_max b' l' = p
-          · rw [hp, Function.update_self]
-            exact hv_lt
+          · rwa [hp, Function.update_self]
           · rwa [Function.update_of_ne hp]
         dict_map := fun u' => by
           rw [show fs_ov.physSlot n_max = fs.physSlot n_max from rfl]
@@ -107,12 +105,11 @@ theorem ValidFastState.fastInsert_spec {c U V n_max : ℕ} (hnU : n_max ≤ U)
                 fs.quotArr (fs.physSlot n_max b' l') = q' → fs.physSlot n_max b' l' ≠ p := by
               intro l' hl' hql heq
               obtain ⟨hbb, hll⟩ := hphys_inj b' hb' l' hl' b hb loc hloc_lt heq
-              have hqq : q' = q_val := by
-                rw [← hql, hbb, hll, hq_loc]
               have huv : u'.val = u.val := by
                 rw [← feistelReconstruct_feistelBucket (bWhp n_max) h1 u'.val,
                   ← feistelReconstruct_feistelBucket (bWhp n_max) h1 u.val]
-                exact congrArg₂ (feistelReconstruct (bWhp n_max) h1) hbb hqq
+                exact congrArg₂ (feistelReconstruct (bWhp n_max) h1) hbb
+                  (show q' = q_val by rw [← hql, hbb, hll, hq_loc])
               exact hu' (Fin.ext huv)
             exact exists_congr fun l' => and_congr_right fun hl' => and_congr_right fun hql => by
               rw [Function.update_of_ne (hne_p_of l' hl' hql)] }
@@ -161,16 +158,11 @@ theorem ValidFastState.fastInsert_spec {c U V n_max : ℕ} (hnU : n_max ≤ U)
     have hbase : FastInsertFreshBase c U V n_max θ fs dict u v hasFpCollision :=
       fastInsertFresh_base hnU hv hv_lt hno_q hX_lt htop_pos hcur_lk_none hold_lk_none
         hasFpCollision
-    have hsplit :
-        CoreFastInv c U V n_max θ fsIns (Function.update dict u (some v)) ∧
-        (∀ b' < numBucketsWhp n_max, b' ≠ b → OvermarsBucketInv c U n_max θ fsIns b') ∧
-        PreOvermarsBucketInv c U n_max θ fsIns b ∧
-        ValidEpochStage c U n_max θ fsIns ∧
-        fsIns.epochClock = fs.epochClock := by
-      by_cases hfp_coll : hasFpCollision = true
-      · exact fastInsertFresh_collision_spec hv hbase hg3 hfp_coll
-      · exact fastInsertFresh_live_spec hv hX_lt hbase rfl hfp_coll
-    obtain ⟨hc_ins, hom_other, hom_b, hst_ins, hclk_ins⟩ := hsplit
+    obtain ⟨hc_ins, hom_other, hom_b, hst_ins, hclk_ins⟩ :=
+      if hfp_coll : hasFpCollision = true then
+        fastInsertFresh_collision_spec hv hbase hg3 hfp_coll
+      else
+        fastInsertFresh_live_spec hv hX_lt hbase rfl hfp_coll
     obtain ⟨hc', hom', hst', _, _, hclk', _, _⟩ :=
       overmarsStep_spec hc_ins hb hom_other hom_b
     exact ⟨hc', hom', hst' hst_ins, hclk'.trans hclk_ins⟩

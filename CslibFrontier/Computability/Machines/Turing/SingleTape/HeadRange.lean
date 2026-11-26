@@ -75,12 +75,8 @@ variable [Inhabited Q]
 theorem step_native (M : TM0.Machine Γ Q) (c : Cfg Γ Q) :
     (step M c).map Cfg.native = TM0.step M c.native := by
   rcases c with ⟨⟨q, T⟩, p⟩
-  cases h : M q T.head with
-  | none => simp only [step, TM0.step, h, Option.map_none]
-  | some result =>
-    rcases result with ⟨q', d | a⟩
-    · cases d <;> simp only [step, TM0.step, h, Option.map_some]
-    · simp only [step, TM0.step, h, Option.map_some]
+  rcases h : M q T.head with _ | ⟨q', ⟨_ | _⟩ | a⟩ <;>
+    simp only [step, TM0.step, h, Option.map_none, Option.map_some]
 
 /-- A bounded coordinate path is a path of the original single-tape machine. -/
 theorem ReachesWithin.native {M : TM0.Machine Γ Q} {lo hi : ℤ} {c d : Cfg Γ Q}
@@ -120,9 +116,7 @@ theorem liftCfg_mk {S : Set Q} (q : S) (T : Tape Γ) (p : ℤ) :
 
 theorem liftCfg_injective {S : Set Q} : Function.Injective (liftCfg (Γ := Γ) (S := S)) := by
   rintro ⟨⟨q, T⟩, p⟩ ⟨⟨q', T'⟩, p'⟩ h
-  simp only [liftCfg_mk, Cfg.mk.injEq, TM0.Cfg.mk.injEq, Subtype.val_inj] at h
-  obtain ⟨⟨rfl, rfl⟩, rfl⟩ := h
-  rfl
+  simpa only [liftCfg_mk, Cfg.mk.injEq, TM0.Cfg.mk.injEq, Subtype.val_inj] using h
 
 section
 
@@ -133,15 +127,9 @@ theorem step_liftCfg (M : TM0.Machine Γ Q) {S : Set Q} (hS : TM0.Supports M S)
     [Inhabited S] (c : Cfg Γ S) :
     (step (TM0.restrict M hS) c).map liftCfg = step M (liftCfg c) := by
   rcases c with ⟨⟨q, T⟩, p⟩
-  cases hM : M q.val T.head with
-  | none => simp only [step, TM0.restrict, liftCfg, TM0.liftCfg, hM, Option.pmap_none,
-      Option.map_none]
-  | some result =>
-    rcases result with ⟨q', d | a⟩
-    · cases d <;> simp only [step, TM0.restrict, liftCfg, TM0.liftCfg, hM,
-        Option.pmap_some, Option.map_some]
-    · simp only [step, TM0.restrict, liftCfg, TM0.liftCfg, hM, Option.pmap_some,
-        Option.map_some]
+  rcases hM : M q.val T.head with _ | ⟨q', ⟨_ | _⟩ | a⟩ <;>
+    simp only [step, TM0.restrict, liftCfg, TM0.liftCfg, hM, Option.pmap_none, Option.pmap_some,
+      Option.map_none, Option.map_some]
 
 /-- A bounded native path lifts to the machine restricted to any supporting finite control set. -/
 theorem ReachesWithin.restrict {M : TM0.Machine Γ Q} {S : Set Q}
@@ -512,25 +500,17 @@ private theorem stmt_within {R : ℤ} (q : TM2.Stmt Γ Λ σ) (v : σ)
     simp only [stackDepth] at hR
     have := Nat.le_max_left (stackDepth q) (stackDepth r)
     have := Nat.le_max_right (stackDepth q) (stackDepth r)
-    cases hf : f v with
-    | false =>
-      obtain ⟨L', hL', hc⟩ := ihr v S L B hL hB (by omega)
-      refine ⟨L', ?_, ?_⟩
-      · simpa only [TM2.stepAux, hf, Bool.cond_false] using hL'
-      · simp only [TM2.stepAux, hf, Bool.cond_false]
-        exact HeadPosition.transGen_of_step_eq
-          (b := ⟨⟨(some (trNormal r), v), Tape.mk' ∅ (addBottom L)⟩, 0⟩)
-          (by simp only [HeadPosition.step, trNormal, TM1to0.tr, TM1to0.trAux, hf,
-            Bool.cond_false]) rfl hc
-    | true =>
-      obtain ⟨L', hL', hc⟩ := ihq v S L B hL hB (by omega)
-      refine ⟨L', ?_, ?_⟩
-      · simpa only [TM2.stepAux, hf, Bool.cond_true] using hL'
-      · simp only [TM2.stepAux, hf, Bool.cond_true]
-        exact HeadPosition.transGen_of_step_eq
-          (b := ⟨⟨(some (trNormal q), v), Tape.mk' ∅ (addBottom L)⟩, 0⟩)
-          (by simp only [HeadPosition.step, trNormal, TM1to0.tr, TM1to0.trAux, hf,
-            Bool.cond_true]) rfl hc
+    cases hf : f v <;> simp only [TM2.stepAux, hf, Bool.cond_false, Bool.cond_true]
+    · obtain ⟨L', hL', hc⟩ := ihr v S L B hL hB (by omega)
+      exact ⟨L', hL', HeadPosition.transGen_of_step_eq
+        (b := ⟨⟨(some (trNormal r), v), Tape.mk' ∅ (addBottom L)⟩, 0⟩)
+        (by simp only [HeadPosition.step, trNormal, TM1to0.tr, TM1to0.trAux, hf,
+          Bool.cond_false]) rfl hc⟩
+    · obtain ⟨L', hL', hc⟩ := ihq v S L B hL hB (by omega)
+      exact ⟨L', hL', HeadPosition.transGen_of_step_eq
+        (b := ⟨⟨(some (trNormal q), v), Tape.mk' ∅ (addBottom L)⟩, 0⟩)
+        (by simp only [HeadPosition.step, trNormal, TM1to0.tr, TM1to0.trAux, hf,
+          Bool.cond_true]) rfl hc⟩
   | goto _ | halt =>
     refine ⟨L, hL, Relation.TransGen.single ?_⟩
     refine ⟨?_, by change -1 ≤ (0 : ℤ); omega, by change (0 : ℤ) ≤ R; omega,

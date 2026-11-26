@@ -40,18 +40,14 @@ private theorem card_monomials_zero (D : ℕ) : #(Sudan.monomials 0 D) = (D + 1)
     tauto
   rw [heq, card_product, card_range, sq]
 
-private theorem maxYDeg_zero_le (D : ℕ) : maxYDeg 0 D ≤ D := by
-  refine Finset.sup_le fun ab hab => ?_
-  exact (Sudan.mem_monomials.1 hab).2.1
+private theorem maxYDeg_zero_le (D : ℕ) : maxYDeg 0 D ≤ D :=
+  Finset.sup_le fun _ hab => (Sudan.mem_monomials.1 hab).2.1
 
 private theorem mul_maxYDeg_le (d D : ℕ) : d * maxYDeg d D ≤ D := by
   rcases Nat.eq_zero_or_pos d with rfl | hd
   · simp
-  · have hle : maxYDeg d D ≤ D / d := by
-      refine Finset.sup_le fun ab hab => ?_
-      obtain ⟨_, _, hwd⟩ := Sudan.mem_monomials.1 hab
-      exact (Nat.le_div_iff_mul_le hd).2 (by linarith)
-    exact (Nat.mul_le_mul_left d hle).trans (Nat.mul_div_le D d)
+  · refine (Nat.mul_le_mul_left d (Finset.sup_le fun ab hab => ?_)).trans (Nat.mul_div_le D d)
+    exact (Nat.le_div_iff_mul_le hd).2 (by linarith [(Sudan.mem_monomials.1 hab).2.2])
 
 private theorem two_mul_cast_mul_div_two_le (n a : ℕ) :
     2 * ((n * (a * (a + 1) / 2) : ℕ) : ℝ) ≤ (n : ℝ) * ((a : ℝ) * (a + 1)) := by
@@ -170,10 +166,8 @@ private theorem johnson_curve_params_gap {n k e m r : ℕ}
     rw [hsqnk_eq]
     linarith [show (1 - Real.sqrt ρ - Real.sqrt ρ / (2 * m)) * n =
       n - (1 + 1 / (2 * m)) * (n * Real.sqrt ρ) by field_simp; ring]
-  have he_le_n : e ≤ n := by
-    have hlt : (e : ℝ) < n := by
-      linarith [show (0 : ℝ) < (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k) by positivity]
-    exact_mod_cast hlt.le
+  have he_le_n : e ≤ n := (Nat.cast_le (α := ℝ)).1 (by
+    linarith [show (0 : ℝ) < (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k) by positivity])
   have ht₀_le_sub : t₀ ≤ n - e :=
     Nat.ceil_le.2 (by rw [Nat.cast_sub he_le_n]; linarith)
   have hk_sqrt : (k : ℝ) ≤ Real.sqrt ((n : ℝ) * k) :=
@@ -205,11 +199,9 @@ private theorem johnson_curve_params_gap {n k e m r : ℕ}
       have hρ1 : (n : ℝ) * Real.sqrt ρ = 1 / Real.sqrt ρ := by
         rw [eq_div_iff hsqρ_pos.ne', mul_assoc, ← sq, hsqρ_sq]
         dsimp only [ρ]; push_cast; field_simp
-      have : (0 : ℝ) ≤ (m' : ℝ) / Real.sqrt ρ := by positivity
-      have heq : (5 / 2) * (m' : ℝ) * n * Real.sqrt ρ = (5 / 2) * ((m' : ℝ) / Real.sqrt ρ) := by
-        rw [mul_assoc ((5 / 2) * (m' : ℝ)), hρ1]; ring
-      have heq2 : 5 * (m' : ℝ) / Real.sqrt ρ = 5 * ((m' : ℝ) / Real.sqrt ρ) := by ring
-      linarith
+      refine (hle.trans hD_upper).trans ?_
+      rw [mul_assoc ((5 / 2) * (m' : ℝ)), hρ1, ← div_eq_mul_one_div]
+      exact div_le_div_of_nonneg_right (by linarith) hsqρ_pos.le
     · have hmulR : ((k - 1 : ℕ) : ℝ) * (maxYDeg (k - 1) D : ℝ) ≤ D := by
         exact_mod_cast mul_maxYDeg_le (k - 1) D
       have hk_half : (k : ℝ) / 2 ≤ ((k - 1 : ℕ) : ℝ) := by

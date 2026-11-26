@@ -106,11 +106,9 @@ private theorem friTargetWord_apply_eq_smooth (params : FRIParams F)
     change fold2Fiber _ _ _ _ = fold2Fiber _ _ _ _
     have h0 : j.val = s.val % 2 ^ (params.d - (k + 1)) := (Nat.mod_eq_of_lt j.isLt).symm
     congr 1
-    · exact congrArg (prefOracle pref k) (Fin.ext (by
-        simp [reindexDouble, fiberIdx, friSmoothFoldedFin, hdom, h0]))
-    · exact congrArg (prefOracle pref k) (Fin.ext (by
-        simp [reindexDouble, fiberIdx, friSmoothFoldedFin, hdom, h0]))
-    · simp [FRIParams.eval, cosetEval, cosetPoint, friRoundPosFin, h0]
+    iterate 2 exact congrArg (prefOracle pref k) (Fin.ext (by
+      simp [reindexDouble, fiberIdx, friSmoothFoldedFin, hdom, h0]))
+    simp [FRIParams.eval, cosetEval, cosetPoint, friRoundPosFin, h0]
 
 private theorem pushWeight_toSmooth_eq_add (params : FRIParams F) {k : ℕ} (hkm : k < params.m)
     (f : Fin (2 ^ (params.d - k)) → ℕ)
@@ -527,9 +525,7 @@ theorem friOracleFilterWeight_le [DecidableEq F] (params : FRIParams F)
     friOracleFilterWeight params stmt pref i hi π j ≤
       friPreWeight params stmt pref i hi j := by
   unfold friOracleFilterWeight
-  split_ifs
-  · exact le_rfl
-  · exact Nat.zero_le _
+  split_ifs <;> simp
 
 /-- Pointwise bound on pre-filter weights: `friPreWeight ... i j ≤ 2 ^ i`. -/
 theorem friPreWeight_le [DecidableEq F] (params : FRIParams F) (stmt : OracleTable params.d F)
@@ -608,25 +604,19 @@ theorem friTranscriptSingleAccepts_append_iff (params : FRIParams F)
     (c : FRIChal F params.d params.q) (s : Fin (2 ^ params.d)) :
     friTranscriptSingleAccepts params stmt (pref ++ [(πFinal, c)]) s ↔
       friFinalPasses params stmt pref πFinal s := by
-  have hm_eq : prefOracle (pref ++ [(πFinal, c)]) params.m = πFinal :=
-    hlen ▸ prefOracle_append_self pref πFinal c
-  have h0 : prefOracle (pref ++ [(πFinal, c)]) 0 =
-      if params.m = 0 then πFinal else prefOracle pref 0 := by
-    split_ifs with hm
-    · exact hm ▸ hm_eq
-    · exact prefOracle_append_left pref [(πFinal, c)] (by omega)
-  have hnext (k : Fin params.m) :
-      prefOracle (pref ++ [(πFinal, c)]) (k.val + 1) =
-        if k.val + 1 = params.m then πFinal else prefOracle pref (k.val + 1) := by
+  have horacle {j : ℕ} (hj : j ≤ params.m) :
+      prefOracle (pref ++ [(πFinal, c)]) j =
+        if j = params.m then πFinal else prefOracle pref j := by
     split_ifs with hlast
-    · rwa [hlast]
+    · exact hlast ▸ hlen ▸ prefOracle_append_self pref πFinal c
     · exact prefOracle_append_left pref [(πFinal, c)] (by omega)
   simp only [friTranscriptSingleAccepts, friPrefixPasses, friFinalPasses,
-    hm_eq, h0, apply_ite (fun f : OracleTable params.d F => f s), and_assoc]
+    horacle le_rfl, ↓reduceIte, horacle (Nat.zero_le _), @eq_comm _ 0 params.m,
+    apply_ite (fun f : OracleTable params.d F => f s), and_assoc]
   refine and_congr_right fun _ => and_congr_left fun _ => forall_congr' fun k => ?_
   have hk_lt : k.val < pref.length := by omega
   simp only [k.isLt, true_implies, prefOracle_append_left pref [(πFinal, c)] hk_lt,
-    prefFoldScalar_append_left pref [(πFinal, c)] hk_lt, hnext k]
+    prefFoldScalar_append_left pref [(πFinal, c)] hk_lt, horacle k.isLt]
 
 /-- On a `List.ofFn` transcript, `friTranscriptSingleAccepts` coincides with `friSingleAccepts`. -/
 theorem friTranscriptSingleAccepts_ofFn_iff (params : FRIParams F)
@@ -656,18 +646,10 @@ theorem card_filter_friPrefixPasses_eq [DecidableEq F] (params : FRIParams F)
     (Finset.univ.filter fun s : Fin (2 ^ params.d) =>
       s.val % 2 ^ (params.d - i) = j.val ∧ friPrefixPasses params stmt pref i s).card =
     friOracleFilterWeight params stmt pref i hi (prefOracle pref i) j := by
-  rw [friOracleFilterWeight_apply_eq_smooth]
-  have hfilt :
-      (Finset.univ.filter fun s : Fin (2 ^ params.d) =>
-        s.val % 2 ^ (params.d - i) = j.val ∧ friPrefixPasses params stmt pref i s) =
-      Finset.univ.filter fun s : Fin (2 ^ params.d) =>
-        s.val % params.toSmooth.domainSize i = (toSmoothDomEquiv params hi j).val ∧
-          friSmoothPrefixPasses params.toSmooth stmt pref i s := by
-    ext s
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, params.toSmooth_domainSize hi,
-      toSmoothDomEquiv_val, friPrefixPasses_iff_smooth]
-  rw [hfilt]
-  exact card_filter_friSmoothPrefixPasses_eq params.toSmooth stmt pref i hi _
+  rw [friOracleFilterWeight_apply_eq_smooth, ← card_filter_friSmoothPrefixPasses_eq]
+  refine congrArg Finset.card (Finset.ext fun s => ?_)
+  simp only [Finset.mem_filter, Finset.mem_univ, true_and, params.toSmooth_domainSize hi,
+    toSmoothDomEquiv_val, friPrefixPasses_iff_smooth]
 
 /-- **Binary final query-acceptance counting bound** (corollary of
 `card_filter_friSmoothFinalPasses_le`). -/

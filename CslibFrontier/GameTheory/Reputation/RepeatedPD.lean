@@ -456,14 +456,10 @@ private theorem swapStrategy_grim : swapStrategy grim = grim := by
 theorem contPayoff₁_grim {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) (h : PDHistory) :
     contPayoff₁ δ grim grim h = if allCooperated h then 1 else 0 := by
   cases hc : allCooperated h
-  · have hround : ∀ t, roundAt grim grim h t = ⟨.defect, .defect⟩ := fun t => by
-      simp only [roundAt, grim, historyAfter_grim_of_not_allCooperated hc t, Bool.false_eq_true,
-        ↓reduceIte]
-    simp only [contPayoff₁, hround, pdPayoff, discountedPayoff_const hδ₀ hδ₁, Bool.false_eq_true,
-      ↓reduceIte]
-  · have hround : ∀ t, roundAt grim grim h t = ⟨.cooperate, .cooperate⟩ := fun t => by
-      simp only [roundAt, grim, historyAfter_grim_of_allCooperated hc t, ↓reduceIte]
-    simp only [contPayoff₁, hround, pdPayoff, discountedPayoff_const hδ₀ hδ₁, ↓reduceIte]
+  · simp [contPayoff₁, roundAt, grim, historyAfter_grim_of_not_allCooperated hc, pdPayoff,
+      discountedPayoff_const hδ₀ hδ₁]
+  · simp [contPayoff₁, roundAt, grim, historyAfter_grim_of_allCooperated hc, pdPayoff,
+      discountedPayoff_const hδ₀ hδ₁]
 
 theorem contPayoff₂_grim {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) (h : PDHistory) :
     contPayoff₂ δ grim grim h = if allCooperated h then 1 else 0 := by
@@ -506,15 +502,11 @@ private theorem roundAt_naiveGrim_both_defected {h : PDHistory}
     (h₂ : h.all (fun r => decide (r.act₂ = .cooperate)) = false) (t : ℕ) :
     roundAt naiveGrim₁ naiveGrim₂ h t = ⟨.defect, .defect⟩ := by
   induction t generalizing h with
-  | zero =>
-    rw [roundAt_zero]
-    simp only [naiveGrim₁, naiveGrim₂, h₁, h₂, Bool.false_eq_true, ↓reduceIte]
+  | zero => simp [roundAt_zero, naiveGrim₁, naiveGrim₂, h₁, h₂]
   | succ t ih =>
-    apply ih
-    · simp only [List.all_append, Bool.and_eq_false_imp]
-      exact fun ha => absurd ha (by simp [h₁])
-    · simp only [List.all_append, Bool.and_eq_false_imp]
-      exact fun ha => absurd ha (by simp [h₂])
+    exact ih
+      (by simp [List.all_append, h₁])
+      (by simp [List.all_append, h₂])
 
 /-- **Exercise 27.3** ([FriedmanResnickSami2007, p. 696]): defining Grim as "cooperate unless the
 *other* player has defected" fails subgame perfection for *every* `0 ≤ δ < 1`, because after the
@@ -610,19 +602,16 @@ private theorem contPayoff₂_titForTat_some {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ
     {r : PDRound} (hl : h.getLast? = some r) :
     contPayoff₂ δ titForTat₁ titForTat₂ h =
       (pdPayoff r.act₁ r.act₂ + δ * pdPayoff r.act₂ r.act₁) / (1 + δ) := by
-  have hl_swap : (h.map PDRound.swap).getLast? = some r.swap := by
-    simp [List.getLast?_map, hl]
   rw [contPayoff₂_eq_contPayoff₁_swap, swapStrategy_titForTat₂, swapStrategy_titForTat₁,
-    contPayoff₁_titForTat_some hδ₀ hδ₁ hl_swap]
+    contPayoff₁_titForTat_some hδ₀ hδ₁ (r := r.swap) (by simp [List.getLast?_map, hl])]
   rfl
 
 private theorem contPayoff₁_titForTat_nil {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) :
     contPayoff₁ δ titForTat₁ titForTat₂ [] = 1 := by
-  rw [contPayoff₁_bellman hδ₀ hδ₁, titForTat₁, titForTat₂]
-  simp only [List.getLast?_nil]
-  rw [contPayoff₁_titForTat_some hδ₀ hδ₁ (List.getLast?_concat ..)]
+  rw [contPayoff₁_bellman hδ₀ hδ₁,
+    contPayoff₁_titForTat_some hδ₀ hδ₁ (List.getLast?_concat ..)]
   have hpos : 0 < 1 + δ := by linarith
-  norm_num [pdPayoff]
+  simp only [titForTat₁, titForTat₂, List.getLast?_nil, pdPayoff]
   field_simp [hpos.ne']
   ring
 

@@ -120,12 +120,9 @@ private theorem exists_runFrom_round (hd : 0 < d)
     ⟨G, ⟨i, ⟨0, hd⟩, true, c, t⟩ :: st, .call (-1) (reg t ⟨0, hd⟩)⟩
   have hlast : d - 1 < d := by omega
   have hlastEq : d - 1 + 1 = d := by omega
-  have hupdate : Reaches next (beginRound hd us i c t S st) undoStart := by
-    have hret := hforward (d - 1) hlast
-    rw [hlastEq] at hret
-    apply hret.trans
-    apply Reaches.single
-    simp [next, step, show ¬(d - 1 + 1 < d) by omega, updateAt, hgate, undoStart, G]
+  have hupdate : Reaches next (beginRound hd us i c t S st) undoStart :=
+    (hlastEq ▸ hforward (d - 1) hlast).trans <| Reaches.single <| by
+      simp [next, step, show ¬(d - 1 + 1 < d) by omega, updateAt, hgate, undoStart, G]
   have hbackward : ∀ j (hj : j < d), Reaches next undoStart
       ⟨p ⟨j, hj⟩ (-1) (reg t ⟨j, hj⟩) (B j),
         ⟨i, ⟨j, hj⟩, true, c, t⟩ :: st, .ret⟩ := by
@@ -147,9 +144,8 @@ private theorem exists_runFrom_round (hd : 0 < d)
       exact (ih hj').trans (Reaches.single hnext) |>.trans
         (hp ⟨i, ⟨j + 1, hj⟩, true, c, t⟩ (-1) (reg t ⟨j + 1, hj⟩) (B (j + 1)))
   have hBdone : B d = gateRoundWith E p f c t u S := by
-    have htake : (List.finRange d).take d = List.finRange d :=
-      List.take_of_length_le (by simp)
-    simp only [B, G, F, gateRoundWith, htake]
+    dsimp only [B, G, F, gateRoundWith]
+    rw [List.take_of_length_le (by simp)]
   have hscaleLast :
       scale (reg t ⟨d - 1, hlast⟩) ((u⁻¹ : Kˣ) : K)
         (p ⟨d - 1, hlast⟩ (-1) (reg t ⟨d - 1, hlast⟩) (B (d - 1))) = B d := by
@@ -160,8 +156,7 @@ private theorem exists_runFrom_round (hd : 0 < d)
       if i + 1 < us.length then beginRound hd us (i + 1) c t (B d) st
       else ⟨B d, st, .ret⟩ := by
     simp [next, step, show ¬(d - 1 + 1 < d) by omega, ← hscaleLast, u]
-  have hrun := hupdate.trans (hbackward (d - 1) hlast) |>.trans (Reaches.single hexit)
-  rwa [hBdone] at hrun
+  exact hBdone ▸ (hupdate.trans (hbackward (d - 1) hlast) |>.trans (Reaches.single hexit))
 
 
 private theorem unitAt_getElem (us : List Kˣ) (i : ℕ) (hi : i < us.length) :
@@ -196,11 +191,8 @@ private theorem exists_runFrom_gate (hd : 0 < d)
       induction j with
       | zero =>
         intro _
-        refine ⟨1, ?_⟩
-        have hlen : 0 < us.length := by simp [hus]
-        simp only [hlen, ↓reduceIte, List.take_zero, List.foldl_nil, runFrom_one]
-        rw [hus]
-        exact step_call_gate_cons hd e E u tail read S st c t f hgate
+        exact ⟨1, by simpa [hus, runFrom_one] using
+          step_call_gate_cons hd e E u tail read S st c t f hgate⟩
       | succ j ih =>
         intro hj
         have hjlt : j < us.length := by omega
@@ -211,8 +203,7 @@ private theorem exists_runFrom_gate (hd : 0 < d)
         refine ⟨N + M, ?_⟩
         rw [runFrom_add, hN, hM, foldl_take_succ us F S hjlt, unitAt_getElem us j hjlt]
     obtain ⟨N, hN⟩ := hprefix us.length le_rfl
-    refine ⟨N, ?_⟩
-    simpa only [Nat.lt_irrefl, ↓reduceIte, List.take_length, F, hus] using hN
+    exact ⟨N, by simpa only [Nat.lt_irrefl, ↓reduceIte, List.take_length, F, hus] using hN⟩
 
 /-- A call on any subtree implemented by the supplied lookup runs the existing recursive
 procedure and returns to the same continuation stack, from arbitrary global register contents. -/
@@ -235,15 +226,10 @@ theorem exists_runFrom_call (hd : 0 < d)
   | node f ch ih =>
     have hgate : read (path st) = .gate f := by
       simpa only [List.append_nil, Tree.nodeAt_node_nil] using hread []
-    have hp (fr : Frame K d) (c' : K) (t' : Fin (d + 1)) (S' : Ary.State K d r) :
-        ∃ N, runFrom hd e E us read ⟨S', fr :: st, .call c' t'⟩ N =
-          ⟨procWith e E us (ch fr.child) c' t' S', fr :: st, .ret⟩ := by
-      apply ih fr.child (fr :: st) _ S' c' t'
-      intro P
-      rw [path_cons, List.append_assoc, List.singleton_append]
-      exact hread (fr.child :: P)
-    exact exists_runFrom_gate hd e E us read (fun j => procWith e E us (ch j))
-      f st hgate hp S c t
+    refine exists_runFrom_gate hd e E us read (fun j => procWith e E us (ch j)) f st hgate
+      (fun fr c' t' S' => ih fr.child (fr :: st) (fun P => ?_) S' c' t') S c t
+    rw [path_cons, List.append_assoc, List.singleton_append]
+    exact hread (fr.child :: P)
 
 /-- The complete root call terminates with exactly the recursive procedure's registers. -/
 theorem exists_runFrom_root (hd : 0 < d)

@@ -564,18 +564,12 @@ theorem findMin_eq_none_iff {n_max : ℕ} {s : State n_max} :
     findMin s = none ↔ dom s = ∅ := by
   unfold findMin
   rcases hfm : IndexedMinPQ.findMin (toIndexed s) with _ | ⟨h, u⟩
-  · simp only [true_iff]
-    rw [← dom_toIndexed, ← IndexedMinPQ.findMin_eq_none_iff]
-    exact hfm
+  · simpa [← dom_toIndexed, ← IndexedMinPQ.findMin_eq_none_iff] using hfm
   · have hmem : toIndexed s h = some u := (IndexedMinPQ.findMin_eq_some_iff.mp hfm).1
     simp only [toIndexed_apply, Option.map_eq_some_iff] at hmem
     obtain ⟨⟨_, v⟩, hsh, rfl⟩ := hmem
-    dsimp only
-    rw [hsh]
-    simp only [reduceCtorEq, false_iff]
-    intro hemp
-    have : h ∉ dom s := hemp ▸ Finset.notMem_empty h
-    exact this (mem_dom_iff.mpr ⟨_, v, hsh⟩)
+    simp only [hsh, reduceCtorEq, false_iff]
+    exact fun hemp => Finset.notMem_empty h (hemp ▸ mem_dom_iff.mpr ⟨_, v, hsh⟩)
 
 theorem findMin_eq_some_of_indexed {n_max : ℕ} {s : State n_max} {h : Fin n_max} {u : ℕ}
     (hfm : IndexedMinPQ.findMin (toIndexed s) = some (h, u)) :
@@ -716,6 +710,20 @@ def stepAlloc {n_max : ℕ} (s : AllocState n_max) (o : Op n_max) :
     | some (u, v, h) =>
       (⟨Function.update s.entries h none, h :: s.freeList, s.fresh⟩, some (u, v, h))
 
+private theorem free_update_of_notMem {n_max : ℕ} {entries : State n_max}
+    {l : List (Fin n_max)} {fresh : ℕ} {h : Fin n_max} (v_opt : Option (ℕ × ℕ))
+    (hn : h ∉ l) (hfree : ∀ x ∈ l, x.val < fresh ∧ entries x = none) :
+    ∀ x ∈ l, x.val < fresh ∧ Function.update entries h v_opt x = none := fun x hx =>
+  ⟨(hfree x hx).1,
+    (Function.update_of_ne (fun (e : x = h) => hn (e ▸ hx)) _ _).trans (hfree x hx).2⟩
+
+private theorem bump_update_of_lt {n_max : ℕ} {entries : State n_max} {fresh : ℕ}
+    {h : Fin n_max} (v_opt : Option (ℕ × ℕ)) (hh : h.val < fresh)
+    (hbump : ∀ x : Fin n_max, fresh ≤ x.val → entries x = none) :
+    ∀ x : Fin n_max, fresh ≤ x.val → Function.update entries h v_opt x = none := fun x hx =>
+  (Function.update_of_ne (fun (e : x = h) => Nat.not_le_of_gt hh (e ▸ hx)) _ _).trans
+    (hbump x hx)
+
 /-- On any well-formed `AllocState` with `size s.entries < n_max`, `allocHandle s` succeeds,
 returns an unused handle `h` (`s.entries h = none`), and preserves `AllocState.WellFormed` after
 storing `some (u, v)` at `h`. -/
@@ -730,35 +738,25 @@ theorem allocHandle_spec {n_max : ℕ} {s : AllocState n_max}
   · have hfr_lt : s.fresh < n_max := by grind
     let hfin : Fin n_max := ⟨s.fresh, hfr_lt⟩
     have hh_none : s.entries hfin = none := hbump hfin le_rfl
-    refine ⟨hfin, [], s.fresh + 1, ?_, hh_none, ?_⟩
-    · simp only [allocHandle, hfl, hfr_lt, ↓reduceDIte, hfin]
-    · dsimp only [AllocState.WellFormed]
-      refine ⟨by omega, List.nodup_nil, fun _ hm => absurd hm List.not_mem_nil, ?_, ?_⟩
-      · intro x hx
-        have hxh : x ≠ hfin := fun e => by subst e; change s.fresh + 1 ≤ s.fresh at hx; omega
-        rw [Function.update_of_ne hxh]
-        exact hbump x (by omega)
-      · rw [size_update_some_of_none hh_none, List.length_nil, Nat.add_zero]
-        rw [hfl, List.length_nil, Nat.add_zero] at hsum
-        omega
+    refine ⟨hfin, [], s.fresh + 1, by simp only [allocHandle, hfl, hfr_lt, ↓reduceDIte, hfin],
+      hh_none, ?_⟩
+    dsimp only [AllocState.WellFormed]
+    refine ⟨by omega, List.nodup_nil, fun _ hm => absurd hm List.not_mem_nil,
+      bump_update_of_lt _ (Nat.lt_succ_self _) (fun x hx => hbump x (Nat.le_of_succ_le hx)), ?_⟩
+    rw [size_update_some_of_none hh_none, List.length_nil, Nat.add_zero]
+    rw [hfl, List.length_nil, Nat.add_zero] at hsum
+    omega
   · have hh_mem : h ∈ s.freeList := hfl ▸ List.mem_cons_self
     obtain ⟨hh_lt, hh_none⟩ := hfree h hh_mem
     obtain ⟨hh_not_tl, htl_nd⟩ := List.nodup_cons.mp (hfl ▸ hnd)
-    refine ⟨h, tl, s.fresh, ?_, hh_none, ?_⟩
-    · simp only [allocHandle, hfl]
-    · dsimp only [AllocState.WellFormed]
-      refine ⟨hfr_le, htl_nd, ?_, ?_, ?_⟩
-      · intro x hx
-        have hxh : x ≠ h := fun e => hh_not_tl (e ▸ hx)
-        have hx_mem : x ∈ s.freeList := hfl ▸ List.mem_cons_of_mem h hx
-        exact ⟨(hfree x hx_mem).1, by rw [Function.update_of_ne hxh]; exact (hfree x hx_mem).2⟩
-      · intro x hx
-        have hxh : x ≠ h := fun e => by subst e; omega
-        rw [Function.update_of_ne hxh]
-        exact hbump x hx
-      · rw [size_update_some_of_none hh_none]
-        rw [hfl, List.length_cons] at hsum
-        omega
+    refine ⟨h, tl, s.fresh, by simp only [allocHandle, hfl], hh_none, ?_⟩
+    dsimp only [AllocState.WellFormed]
+    refine ⟨hfr_le, htl_nd,
+      free_update_of_notMem _ hh_not_tl (fun x hx => hfree x (hfl ▸ List.mem_cons_of_mem h hx)),
+      bump_update_of_lt _ hh_lt hbump, ?_⟩
+    rw [size_update_some_of_none hh_none]
+    rw [hfl, List.length_cons] at hsum
+    omega
 
 /-- Every valid operation on a well-formed `AllocState` stepped by `stepAlloc`:
 1. satisfies the relational transition
@@ -769,10 +767,7 @@ theorem stepAlloc_refines_spec {n_max U V : ℕ} {s : AllocState n_max} (hwf : s
     (minPQSpec n_max U V).step s.entries o (stepAlloc s o).1.entries (stepAlloc s o).2 ∧
       (stepAlloc s o).1.WellFormed := by
   cases o with
-  | isEmpty =>
-    exact ⟨⟨rfl, rfl⟩, hwf⟩
-  | get h =>
-    exact ⟨⟨rfl, rfl⟩, hwf⟩
+  | isEmpty | get _ => exact ⟨⟨rfl, rfl⟩, hwf⟩
   | insert u v =>
     obtain ⟨h, freeList', fresh', halloc, hh_none, hwf'⟩ := allocHandle_spec hwf hv.1 u v
     simp only [stepAlloc, halloc]
@@ -780,45 +775,34 @@ theorem stepAlloc_refines_spec {n_max U V : ℕ} {s : AllocState n_max} (hwf : s
   | decreaseKey h u' =>
     obtain ⟨u, v, hsh, _⟩ := hv
     obtain ⟨hfr_le, hnd, hfree, hbump, hsum⟩ := hwf
+    have hh_not_free : h ∉ s.freeList := fun hm => nomatch hsh.symm.trans (hfree h hm).2
+    have hh_lt : h.val < s.fresh :=
+      Nat.lt_of_not_ge fun hge => nomatch hsh.symm.trans (hbump h hge)
     simp only [stepAlloc, hsh]
     dsimp only [AllocState.WellFormed]
-    refine ⟨⟨u, v, hsh, rfl, rfl⟩, hfr_le, hnd, ?_, ?_, ?_⟩
-    · intro x hx
-      have hxh : x ≠ h := by rintro rfl; simp [(hfree x hx).2] at hsh
-      exact ⟨(hfree x hx).1, by rw [Function.update_of_ne hxh]; exact (hfree x hx).2⟩
-    · intro x hx
-      have hxh : x ≠ h := by rintro rfl; simp [hbump x hx] at hsh
-      rw [Function.update_of_ne hxh]
-      exact hbump x hx
-    · rw [size_update_some_of_some hsh]
-      exact hsum
+    exact ⟨⟨u, v, hsh, rfl, rfl⟩, hfr_le, hnd, free_update_of_notMem _ hh_not_free hfree,
+      bump_update_of_lt _ hh_lt hbump, by simpa only [size_update_some_of_some hsh] using hsum⟩
   | extractMin =>
     obtain ⟨hfr_le, hnd, hfree, hbump, hsum⟩ := hwf
     rcases hfm : IndexedMinPQ.findMin (toIndexed s.entries) with _ | ⟨h, u⟩
     · have hemp : dom s.entries = ∅ := by simpa using hfm
-      have hfm' : findMin s.entries = none := findMin_eq_none_iff.mpr hemp
-      simp only [stepAlloc, hfm']
+      simp only [stepAlloc, findMin_eq_none_iff.mpr hemp]
       exact ⟨Or.inl ⟨hemp, rfl, rfl⟩, hfr_le, hnd, hfree, hbump, hsum⟩
     · obtain ⟨v, hsh, hfm', hmin⟩ := findMin_eq_some_of_indexed hfm
       simp only [stepAlloc, hfm']
-      have hh_not_free : h ∉ s.freeList := fun hm => by simp [(hfree h hm).2] at hsh
-      have hh_lt : h.val < s.fresh := by grind
+      have hh_not_free : h ∉ s.freeList := fun hm => nomatch hsh.symm.trans (hfree h hm).2
+      have hh_lt : h.val < s.fresh :=
+        Nat.lt_of_not_ge fun hge => nomatch hsh.symm.trans (hbump h hge)
       have hsz_pos : 1 ≤ size s.entries :=
         Finset.card_pos.mpr ⟨h, mem_dom_iff.mpr ⟨u, v, hsh⟩⟩
       dsimp only [AllocState.WellFormed]
       refine ⟨Or.inr ⟨h, u, v, hmin, rfl, rfl⟩,
-        hfr_le, List.nodup_cons.mpr ⟨hh_not_free, hnd⟩, ?_, ?_, ?_⟩
-      · intro x hx
-        rcases List.mem_cons.mp hx with rfl | hx_tl
-        · exact ⟨hh_lt, Function.update_self _ _ _⟩
-        · have hxh : x ≠ h := fun e => hh_not_free (e ▸ hx_tl)
-          exact ⟨(hfree x hx_tl).1, by rw [Function.update_of_ne hxh]; exact (hfree x hx_tl).2⟩
-      · intro x hx
-        have hxh : x ≠ h := fun e => by subst e; omega
-        rw [Function.update_of_ne hxh]
-        exact hbump x hx
-      · rw [size_update_none_of_some hsh, List.length_cons]
-        omega
+        hfr_le, List.nodup_cons.mpr ⟨hh_not_free, hnd⟩,
+        List.forall_mem_cons.mpr ⟨⟨hh_lt, Function.update_self _ _ _⟩,
+          free_update_of_notMem _ hh_not_free hfree⟩,
+        bump_update_of_lt _ hh_lt hbump, ?_⟩
+      rw [size_update_none_of_some hsh, List.length_cons]
+      omega
 
 end MinPQ
 

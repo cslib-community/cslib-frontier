@@ -83,22 +83,20 @@ theorem SharpSH_iff_SharpKSAT {k : ℕ} (hk : 3 ≤ k) :
   constructor
   · intro h p hp hp₁ hsolver
     apply h p hp hp₁
-    have hcomp : SharpKSAT k ∘ toSharpThreeSAT = SharpSAT := by
-      funext φ
-      have hw : ∀ c ∈ toSharpThreeSAT φ, c.length ≤ k :=
-        fun _ hc => (length_le_three_of_mem_toSharpThreeSAT hc).trans hk
-      exact (SharpKSAT_of_width hw).trans (modelCount_toSharpThreeSAT φ)
+    have hcomp : SharpKSAT k ∘ toSharpThreeSAT = SharpSAT := funext fun φ =>
+      (SharpKSAT_of_width fun _ hc =>
+        (length_le_three_of_mem_toSharpThreeSAT hc).trans hk).trans
+        (modelCount_toSharpThreeSAT φ)
     have hsize (φ : CNF ℕ) :
         (((toSharpThreeSAT φ).numVars + (toSharpThreeSAT φ).length : ℕ) + 1 : ℝ) ≤
           (11 + 1 : ℝ) * ((φ.numVars + φ.length + φ.vars.length : ℕ) + 1 : ℝ) ^ (1 : ℝ) := by
       rw [Real.rpow_one]
       have h := toSharpThreeSAT_size_le φ
-      exact_mod_cast (show (toSharpThreeSAT φ).numVars + (toSharpThreeSAT φ).length + 1 ≤
-        (11 + 1) * (φ.numVars + φ.length + φ.vars.length + 1) by omega)
+      exact_mod_cast (by omega : (toSharpThreeSAT φ).numVars + (toSharpThreeSAT φ).length + 1 ≤
+        (11 + 1) * (φ.numVars + φ.length + φ.vars.length + 1))
     simpa only [hcomp, one_mul] using hsolver.comp_polyTime computableInPolyTime_toSharpThreeSAT
       (K := 11) hsize zero_le_one hp.le
-  · intro h p hp hp₁
-    rintro ⟨C, e, hsolver⟩
+  · rintro h p hp hp₁ ⟨C, e, hsolver⟩
     apply h p hp hp₁
     let D : ℕ := ⌈(C : ℝ) * (k + 1 : ℝ) ^ p⌉₊
     have hscale (φ : CNF ℕ) (hφ : (φ.all fun c => decide (c.length ≤ k)) = true) :
@@ -134,15 +132,12 @@ theorem SharpSH_iff_SharpKSAT {k : ℕ} (hk : 3 ≤ k) :
 [MITHardnessGroup2026SH, v2, §2, p. 5]. Testing the binary model count for positivity preserves
 the exponent power because the count has polynomially bounded bit length. -/
 theorem SH.sharpSH (h : SH) : SharpSH := by
-  intro p hp hp₁ hcount
-  obtain ⟨C, e, hcount⟩ := hcount
+  rintro p hp hp₁ ⟨C, e, hcount⟩
   obtain ⟨d, hdec⟩ := DecidableInTimeO.of_computableInTimeO_polyBounded
     (fun _ => by positivity) hcount polyBounded_length_encNat_SharpSAT
     ComputableInPolyTime.binary_pos
-  have hset : {φ : CNF ℕ | decide (0 < SharpSAT φ) = true} = SAT := by
-    ext φ
-    simp only [Set.mem_ofPred_eq, decide_eq_true_eq, SharpSAT.mem_SAT_iff]
-  rw [hset] at hdec
+  rw [(Set.ext fun _ => by simp [SharpSAT.mem_SAT_iff] :
+    {φ | decide (0 < SharpSAT φ) = true} = SAT)] at hdec
   exact h p hp hp₁ ⟨C, d, hdec⟩
 
 end Cslib.Complexity
