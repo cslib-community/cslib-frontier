@@ -152,23 +152,18 @@ public lemma inTr_run_symbol (n : ℕ) (v : List Bool) :
   induction n with
   | zero => simp [Translator.run, tok]
   | succ n ih =>
-    rw [List.replicate_succ, frame_cons, doubled_cons, doubled_cons]
-    simp only [List.cons_append, Translator.run, inTr_step_marker_true, inTr_step_bit_true,
-      inTr_step_digitMarker, inTr_step_digit, ih, tok, List.replicate_succ]
-    simp
+    simp [List.replicate_succ, frame_cons, Translator.run, ih, tok]
 
 /-- The events of an input made of a framed word, a framed list of symbols `x` and anything else
 are the events of the symbols of `x`. -/
 public theorem inTr_events_frame (w : List Bool) (x : List ℕ) (v : List Bool) :
     inTr.events (frame w ++ (frame (encList encUnary x) ++ v)) = (x.map tok).flatten := by
-  have hx : ∀ v, inTr.run .marker (doubled (encList encUnary x) ++ v) =
+  have hx (v : List Bool) : inTr.run .marker (doubled (encList encUnary x) ++ v) =
       ((inTr.run .marker v).1, (x.map tok).flatten ++ (inTr.run .marker v).2) := by
-    intro v
     induction x with
     | nil => simp
     | cons n x ih =>
-      rw [encList_cons, doubled_append, List.append_assoc, encUnary_apply, inTr_run_symbol, ih]
-      simp
+      simp [encList_cons, List.append_assoc, encUnary_apply, inTr_run_symbol, ih]
   rw [Translator.events, show inTr.q₀ = .descMarker from rfl, inTr_run_frame, frame_eq_doubled,
     List.append_assoc, hx, List.singleton_append]
   simp [Translator.run, inTr_run_steps]
@@ -216,14 +211,13 @@ lemma scan_all (x : List ℕ) (k cur : ℕ) (hk : 1 ≤ k) :
     simp only [List.map_cons, List.flatten_cons, List.foldl_append, scan_tok]
     rcases Nat.lt_or_ge 1 (k - 1) with h | h
     · rw [ih _ _ (by omega)]
-      simp only [show k ≠ 1 by omega, ↓reduceIte, List.length_cons]
-      rw [show k - 1 - 1 = k - 2 by omega, show k - 1 = (k - 2) + 1 by omega, List.drop_succ_cons]
-      congr 1
-      omega
+      have hk1 : k ≠ 1 := by omega
+      have hk2 : k - 1 = (k - 2) + 1 := by omega
+      simp only [hk1, ↓reduceIte, List.length_cons, hk2, List.drop_succ_cons]
+      exact Prod.ext (by omega) rfl
     · rcases Nat.eq_or_lt_of_le h with h | h
       · obtain rfl : k = 2 := by omega
-        rw [ih _ _ le_rfl]
-        simp
+        simp [ih _ _ le_rfl]
       · obtain rfl : k = 1 := by omega
         simp [scan_zero]
 
@@ -388,13 +382,11 @@ public lemma foldNext_inO : ComputableInO foldNext (encPair eSt encBool) eSt
     cases b <;> simp [foldNext, scan]
   all_goals
     have hk : (encNat p.1.2.2.1).length ≤ (encPair eSt encBool p).length := by
-      simp only [length_encPair]
-      omega
+      simp only [length_encPair]; omega
     have h1 : (encNat 1).length = 1 := rfl
     have h2 : (encPair encNat encNat (p.1.2.2.1, 1)).length ≤
         2 * (encPair eSt encBool p).length + 2 := by
-      simp only [length_encPair, h1]
-      omega
+      simp only [length_encPair, h1]; omega
     dsimp only [Function.comp_apply]
     try simp only [h1]
     split_ifs <;> nlinarith
@@ -411,20 +403,16 @@ lemma wTime_le (s : St) : wTime (s.1, symAt s) ≤ 9 * ((eSt s).length + 1) ^ 3 
   have hc := length_ctx_le s
   have ht := length_le_length_encList eTape s.1.2.workTapes
   have hd := length_le_length_encList (encPair eKey eAct) s.1.1.table
-  have hl : s.1.2.workTapes.length + s.1.1.table.length + 1 ≤ (eSt s).length + 1 := by
+  have hlen : s.1.2.workTapes.length + s.1.1.table.length + 1 ≤ (eSt s).length + 1 ∧
+      (eDesc s.1.1).length ≤ (eSt s).length ∧
+      (encNat s.1.2.inputPos).length ≤ (eSt s).length := by
     simp only [length_encPair, eCfg_apply, eDesc_apply] at ht hd ⊢
-    omega
-  have hdesc : (eDesc s.1.1).length ≤ (eSt s).length := by
-    simp only [length_encPair]
-    omega
-  have hpos : (encNat s.1.2.inputPos).length ≤ (eSt s).length := by
-    simp only [length_encPair, eCfg_apply]
     omega
   have hproduct : (s.1.2.workTapes.length + s.1.1.table.length + 1) *
       ((eDesc s.1.1).length + 1) * ((eWCtx (s.1, symAt s)).length + 1) ≤
         ((eSt s).length + 1) * ((eSt s).length + 1) * ((eSt s).length + 2) :=
-    Nat.mul_le_mul (Nat.mul_le_mul hl (by omega)) (by omega)
-  have hdigits := Nat.pow_le_pow_left (Nat.succ_le_succ hpos) 2
+    Nat.mul_le_mul (Nat.mul_le_mul hlen.1 (Nat.succ_le_succ hlen.2.1)) (Nat.succ_le_succ hc)
+  have hdigits := Nat.pow_le_pow_left (Nat.succ_le_succ hlen.2.2) 2
   unfold wTime
   dsimp only [WCtx.desc, WCtx.cfg] at hproduct hdigits ⊢
   nlinarith [Nat.le_self_pow (show 2 ≠ 0 by decide) ((eSt s).length + 1)]

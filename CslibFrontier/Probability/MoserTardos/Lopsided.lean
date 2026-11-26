@@ -71,10 +71,9 @@ theorem lopsidependent_iff [DecidableEq V] (vbl : ι → Finset V) (A : ι → S
 
 theorem lopsidependent_comm [DecidableEq V] (vbl : ι → Finset V) (A : ι → Set (∀ v, α v))
     {i j : ι} : Lopsidependent vbl A i j ↔ Lopsidependent vbl A j i := by
-  constructor <;>
-  · rintro ⟨f, g, hfg, hfi, hgj, hne⟩
-    refine ⟨g, f, fun v hv => (hfg v ?_).symm, hgj, hfi, hne.symm⟩
-    rwa [inter_comm]
+  suffices ∀ {a b}, Lopsidependent vbl A a b → Lopsidependent vbl A b a from ⟨this, this⟩
+  rintro a b ⟨f, g, hfg, hfi, hgj, hne⟩
+  exact ⟨g, f, fun v hv => (hfg v (inter_comm (vbl b) (vbl a) ▸ hv)).symm, hgj, hfi, hne.symm⟩
 
 theorem not_lopsidependent_of_disjoint [DecidableEq V] (vbl : ι → Finset V)
     (A : ι → Set (∀ v, α v)) {i j : ι} (hd : Disjoint (vbl i) (vbl j)) :
@@ -98,8 +97,7 @@ theorem lopsidedAdj_refl [DecidableEq V] (vbl : ι → Finset V) (A : ι → Set
 
 theorem lopsidedAdj_comm [DecidableEq V] (vbl : ι → Finset V) (A : ι → Set (∀ v, α v))
     {i j : ι} : lopsidedAdj vbl A i j ↔ lopsidedAdj vbl A j i := by
-  unfold lopsidedAdj
-  rw [eq_comm, lopsidependent_comm]
+  simp only [lopsidedAdj, eq_comm, lopsidependent_comm]
 
 end Lopsidependent
 
@@ -110,16 +108,12 @@ variable {V ι : Type*} [DecidableEq V] {α : V → Type*} (vbl : ι → Finset 
 private theorem uses_cons_swap (u v : List ι) (a b : ι) (x : V) :
     uses vbl (u ++ a :: b :: v) x = uses vbl (u ++ b :: a :: v) x := by
   induction u with
-  | nil =>
-    rw [List.nil_append, List.nil_append, uses_cons, uses_cons, uses_cons, uses_cons]
-    omega
-  | cons c u ih =>
-    rw [List.cons_append, List.cons_append, uses_cons, uses_cons, ih]
+  | nil => simp only [List.nil_append, uses_cons]; omega
+  | cons c u ih => simp only [List.cons_append, uses_cons, ih]
 
 private theorem current_append_swap (T : ∀ p : V × ℕ, α p.1) (u v : List ι) (a b : ι) :
-    current vbl T (u ++ a :: b :: v) = current vbl T (u ++ b :: a :: v) := by
-  funext x
-  rw [current_apply, current_apply, uses_cons_swap]
+    current vbl T (u ++ a :: b :: v) = current vbl T (u ++ b :: a :: v) :=
+  funext fun x => by rw [current_apply, current_apply, uses_cons_swap]
 
 private theorem isLog_swap_cons {A : ι → Set (∀ v, α v)}
     (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V)) {T : ∀ p : V × ℕ, α p.1}
@@ -239,9 +233,7 @@ private theorem traceSteps_map_some_eq (hRr : ∀ i, R i i) :
         foldPush R S₀ w = S₀ ∪ L.toFinset
   | S₀, [], [], _ => by simp [foldPush]
   | S₀, [], p :: L, h => by simp [traceSteps] at h
-  | S₀, j :: w, [], h => by
-    simp only [traceSteps] at h
-    split_ifs at h <;> simp at h
+  | S₀, j :: w, [], h => by cases h0 : levelRel R j S₀ <;> simp [traceSteps, h0] at h
   | S₀, j :: w, p :: L, h => by
     simp only [traceSteps] at h
     split_ifs at h with h0
@@ -250,16 +242,11 @@ private theorem traceSteps_map_some_eq (hRr : ∀ i, R i i) :
       obtain rfl := Option.some.inj hp
       obtain ⟨hwm, hnodup, hnot, hfold⟩ :=
         traceSteps_map_some_eq hRr (insert (j, levelRel R j S₀) S₀) w L hw
-      have hnot0 : (j, levelRel R j S₀) ∉ S₀ := levelRel_notMem hRr j S₀
       refine ⟨by simp [hwm], List.nodup_cons.2 ⟨fun hm => hnot _ hm (mem_insert_self _ _), hnodup⟩,
-        fun q hq => ?_, ?_⟩
-      · rcases List.mem_cons.1 hq with rfl | hq
-        · exact hnot0
-        · exact fun hm => hnot q hq (mem_insert_of_mem hm)
-      · rw [foldPush, List.foldl_cons, pushRel_of_ne_zero h0, ← foldPush, hfold,
-          List.toFinset_cons]
-        ext q
-        simp [or_left_comm]
+        List.forall_mem_cons.2 ⟨levelRel_notMem hRr j S₀,
+          fun q hq hm => hnot q hq (mem_insert_of_mem hm)⟩, ?_⟩
+      rw [foldPush, List.foldl_cons, pushRel_of_ne_zero h0, ← foldPush, hfold, List.toFinset_cons]
+      exact Finset.ext fun q => by simp [or_left_comm]
 
 -- Decompose the log at its first skipped step.
 private theorem traceSteps_split_none :
@@ -311,9 +298,8 @@ private theorem erase_first_skipped {A : ι → Set (∀ v, α v)}
     have hswap : IsLog vbl A T (i :: (u ++ b :: a :: v)) :=
       isLog_swap vbl hA hnlop (i :: u) v (by
         simpa only [List.cons_append, List.append_assoc, List.nil_append] using hlog)
-    have hu' : none ∉ traceSteps R {(i, 0)} u := fun h => hu (by
-      rw [traceSteps_append]
-      exact List.mem_append_left _ h)
+    have hu' : none ∉ traceSteps R {(i, 0)} u :=
+      fun h => hu (traceSteps_append R {(i, 0)} u [a] ▸ List.mem_append_left _ h)
     rw [levelRel_insert_of_not_rel hnab] at hb'
     obtain ⟨w', hlen, hlog', hw'⟩ := ih (a :: v) hu' hb' hswap
     refine ⟨w', by simpa only [List.length_append, List.length_cons, List.length_nil,
@@ -372,11 +358,10 @@ private theorem phase2_sort_perm {A : ι → Set (∀ v, α v)}
       · simp at htr'
       · obtain ⟨hp, ht⟩ := List.cons.inj htr'
         rw [Option.some.inj hp] at ht
-        have hlog_sub : IsLog vbl A T ((pref ++ [p]).map Prod.fst ++ tail.map Prod.fst) := by
-          simpa only [List.map_append, List.map_cons, List.map_nil, List.nil_append,
-            List.append_assoc, List.singleton_append] using hlog'
-        have ih := phase2_sort_perm hA c' (pref ++ [p]) (insert p S₀') tail hlog_sub ht
-          hperm'.cons_inv (List.pairwise_cons.1 hpair).2 (List.nodup_cons.1 hnod).2
+        have ih := phase2_sort_perm hA c' (pref ++ [p]) (insert p S₀') tail
+          (by simpa only [List.map_append, List.map_cons, List.map_nil, List.nil_append,
+            List.append_assoc, List.singleton_append] using hlog')
+          ht hperm'.cons_inv (List.pairwise_cons.1 hpair).2 (List.nodup_cons.1 hnod).2
         simpa only [List.map_append, List.map_cons, List.map_nil, List.append_assoc,
           List.singleton_append] using ih
     | append_singleton front q ih =>
@@ -484,8 +469,7 @@ private theorem lt_uses_of_mem_stepCoords :
 omit [Fintype V] [∀ v, MeasurableSpace (α v)] [∀ v, IsProbabilityMeasure (μ v)] in
 private theorem disjoint_stepCoords (j : ι) (w : List ι) :
     Disjoint ((vbl j).image fun v => (v, uses vbl w v)) (stepCoords vbl w) := by
-  rw [Finset.disjoint_left]
-  intro p hp hq
+  refine Finset.disjoint_left.2 fun p hp hq => ?_
   obtain ⟨v, -, rfl⟩ := mem_image.1 hp
   exact lt_irrefl _ (lt_uses_of_mem_stepCoords vbl hq)
 

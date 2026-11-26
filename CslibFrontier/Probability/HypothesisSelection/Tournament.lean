@@ -194,13 +194,10 @@ theorem scheffeSelect_dist_lt_of_forall {p : _root_.PMF α} (s : Finset ι) (hs 
   let bound := (s ×ˢ s).sup' (hs.product hs) error
   have hbound (j k : ι) (hj : j ∈ s) (hk : k ∈ s) : error (j, k) ≤ bound :=
     Finset.le_sup' error (Finset.mem_product.mpr ⟨hj, hk⟩)
-  have hbound_lt : bound < γ := by
-    refine (Finset.sup'_lt_iff (hs.product hs)).mpr ?_
-    rintro ⟨j, k⟩ hjk
-    obtain ⟨hj, hk⟩ := Finset.mem_product.mp hjk
+  have hbound_lt : bound < γ := (Finset.sup'_lt_iff (hs.product hs)).mpr fun ⟨j, k⟩ hjk => by
     rcases eq_or_ne j k with rfl | hne
     · simpa [error, scheffeSet_self, empiricalMass] using hγ
-    · exact hgood j hj k hk hne
+    · exact hgood j (Finset.mem_product.mp hjk).1 k (Finset.mem_product.mp hjk).2 hne
   have hbound_nn : 0 ≤ bound := (abs_nonneg _).trans (hbound i₀ i₀ hi₀ hi₀)
   exact (scheffeSelect_dist_le_of_forall s hs models hbound_nn hi₀
     (fun j hj k hk _ => hbound j k hj hk)).trans_lt (by linarith)
@@ -466,12 +463,10 @@ private theorem toOuterMeasure_birge_bad_union_le [Finite α] [DecidableEq ι] {
       (fun x => leCamBirgeTest (models j) (models i₀) x = true)
       fun hsep => leCamBirgeTest_true_le_of_radius hr hp hsep n
     linarith
-  have hcard : ((s.erase i₀).card : ℝ) = (s.card - 1 : ℝ) := by
-    rw [Finset.card_erase_of_mem hi₀, Nat.cast_sub (Finset.Nonempty.card_pos ⟨i₀, hi₀⟩),
-      Nat.cast_one]
   refine (toOuterMeasure_toReal_biUnion_finset_le (iid p n) (s.erase i₀) fun j =>
     E₁ j ∪ E₂ j).trans ((Finset.sum_le_card_nsmul _ _ _ fun j _ => hterm j).trans_eq ?_)
-  rw [nsmul_eq_mul, hcard]
+  rw [nsmul_eq_mul, Finset.card_erase_of_mem hi₀, Nat.cast_sub (Finset.Nonempty.card_pos ⟨i₀, hi₀⟩),
+    Nat.cast_one]
   ring
 
 private theorem toOuterMeasure_le_birge_bad_union [Finite α] {p : _root_.PMF α} (s : Finset ι)

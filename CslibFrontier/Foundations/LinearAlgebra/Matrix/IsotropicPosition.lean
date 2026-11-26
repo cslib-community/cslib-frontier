@@ -290,11 +290,9 @@ theorem exists_isotropic_weights {X : Type*} [Fintype X] {d : ℕ} (U : Matrix X
       ∀ x, p x * (U x ⬝ᵥ ((∑ z, p z • vecMulVec (U z) (U z))⁻¹ *ᵥ U x)) ≤
         d / Fintype.card X + ε := by
   classical
-  have hspan : ∀ w : Fin d → ℝ, (∀ x ∈ (univ : Finset X), U x ⬝ᵥ w = 0) → w = 0 := by
-    intro w hw
-    obtain ⟨e⟩ := Function.Embedding.nonempty_of_card_le (α := Fin d) (β := X)
-      (by simpa using hd)
-    exact eq_zero_of_mulVec_eq_zero (hU e) (funext fun i => hw (e i) (mem_univ _))
+  have hspan (w : Fin d → ℝ) (hw : ∀ x ∈ (univ : Finset X), U x ⬝ᵥ w = 0) : w = 0 :=
+    let ⟨e⟩ := Function.Embedding.nonempty_of_card_le (α := Fin d) (β := X) (by simpa using hd)
+    eq_zero_of_mulVec_eq_zero (hU e) (funext fun i => hw (e i) (mem_univ _))
   set A : (X → ℝ) → Matrix (Fin d) (Fin d) ℝ :=
     fun t => ∑ x, Real.exp (t x) • vecMulVec (U x) (U x) with hA
   have hApd : ∀ t, (A t).PosDef := fun t =>
@@ -327,11 +325,9 @@ theorem exists_isotropic_weights {X : Type*} [Fintype X] {d : ℕ} (U : Matrix X
   have hsum' : ∑ z, t' z = ∑ z, t z - δ :=
     (sum_apply_update_eq_add_sub (fun _ s => s) t x (t x - δ)).trans (by ring)
   have hφ' : φ t' = φ t + Real.log (1 + (Real.exp (-δ) - 1) * q) + r * δ := by
-    simp only [hφ]
-    rw [hdet', Real.log_mul (hApd t).det_pos.ne' hy.ne', hsum']
+    simp only [hφ, hdet', Real.log_mul (hApd t).det_pos.ne' hy.ne', hsum']
     ring
-  have hLt' : (⨅ t, φ t) ≤ φ t' := ciInf_le hbdd t'
-  exact le_add_of_neg_sq_lt_log hq0 hr0 hε hy (by linarith)
+  exact le_add_of_neg_sq_lt_log hq0 hr0 hε hy (by linarith [ciInf_le hbdd t'])
 
 /-- **General position is generic.** For any `U : Matrix X (Fin d) ℝ` there is a matrix `W` such
 that for all sufficiently small `ε ≠ 0` every `d × d` submatrix of `U + ε • W` is invertible.
@@ -357,8 +353,7 @@ theorem eventually_det_submatrix_add_smul_ne_zero {X : Type*} [Finite X] {d : �
       Polynomial.coeff_det_X_add_C_card (W.submatrix e id) (U.submatrix e id)
   have heval : ∀ ε : ℝ, P.eval ε = ((U + ε • W).submatrix e id).det := fun ε => by
     rw [← Polynomial.coe_evalRingHom, RingHom.map_det]
-    congr 1
-    ext i j
+    refine congrArg det (ext fun i j => ?_)
     simp only [Polynomial.coe_evalRingHom, RingHom.mapMatrix_apply, map_apply, Matrix.add_apply,
       Matrix.smul_apply, smul_eq_mul, submatrix_apply, id, Polynomial.eval_add,
       Polynomial.eval_mul, Polynomial.eval_X, Polynomial.eval_C]

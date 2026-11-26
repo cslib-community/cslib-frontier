@@ -141,15 +141,12 @@ private theorem canonical (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) :
       refine ⟨Real.arccos ((x - y * z) / (sy * sz)), Real.arccos_nonneg _, Real.arccos_le_pi _,
         fun h => absurd h h0, ?_⟩
       rw [Real.cos_arccos hratio.1 hratio.2, mul_div_cancel₀ _ h0]
-  refine ⟨ψ, hψ0, hψπ, hπ, ?_⟩
-  have h01 : ⟪v 0, v 1⟫ = x := rfl
-  have h02 : ⟪v 0, v 2⟫ = y := rfl
-  have h12 : ⟪v 1, v 2⟫ = z := rfl
-  intro i j
+  refine ⟨ψ, hψ0, hψπ, hπ, fun i j => ?_⟩
+  dsimp only [x, y, z] at hsy2 hsz2 hcosψ h10 h20 h21
   fin_cases i <;> fin_cases j <;>
     simp only [canGram, Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk, Fin.isValue,
       Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two, Matrix.head_cons,
-      Matrix.tail_cons, hvv, h01, h02, h12, h10, h20, h21] <;> linarith only [hsy2, hsz2, hcosψ]
+      Matrix.tail_cons, hvv, h10, h20, h21] <;> linarith only [hsy2, hsz2, hcosψ]
 
 local notation "eqP" h => planarProb (2 * π / 3) (2 * π / 3) h
 
@@ -216,13 +213,11 @@ private def Pot (v : Fin 3 → E) : ℝ :=
 private theorem norm_canT {I J si sj ψ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 = 1 - J ^ 2)
     (i : Fin 3) :
     ‖canT I J si sj ψ i‖ = 1 := by
-  have h := inner_canT I J si sj ψ i i
-  rw [real_inner_self_eq_norm_sq] at h
-  have h1 : ‖canT I J si sj ψ i‖ ^ 2 = 1 := by
-    rw [h]; fin_cases i <;> simp only [canGram, Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk,
-      Fin.isValue, Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two,
-      Matrix.head_cons, Matrix.tail_cons] <;> linarith only [hP, hR]
-  exact (pow_eq_one_iff_of_nonneg (norm_nonneg _) two_ne_zero).mp h1
+  refine (pow_eq_one_iff_of_nonneg (norm_nonneg _) two_ne_zero).mp ?_
+  rw [← real_inner_self_eq_norm_sq, inner_canT]
+  fin_cases i <;> simp only [canGram, Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk,
+    Fin.isValue, Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two,
+    Matrix.head_cons, Matrix.tail_cons] <;> linarith only [hP, hR]
 
 /-- **The move.** Lower the largest correlation `⟨v₀,v₁⟩` to `⟨v₀,v₂⟩ + ⟨v₁,v₂⟩ - 1`. -/
 private theorem move (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (hh : 0 < h)
@@ -328,12 +323,10 @@ private theorem allEqual (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ}
 
 omit [FiniteDimensional ℝ E] [MeasurableSpace E] [BorelSpace E] in
 private theorem Pot_nonneg (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) : 0 ≤ Pot v := by
-  have h1 : ⟪v 0, v 1⟫ ≤ 1 := real_inner_le_one_of_norm_eq_one (hv 0) (hv 1)
-  have h2 : ⟪v 0, v 2⟫ ≤ 1 := real_inner_le_one_of_norm_eq_one (hv 0) (hv 2)
-  have h3 : ⟪v 1, v 2⟫ ≤ 1 := real_inner_le_one_of_norm_eq_one (hv 1) (hv 2)
   unfold Pot
-  have hm := le_max_left ⟪v 0, v 1⟫ (max ⟪v 0, v 2⟫ ⟪v 1, v 2⟫)
-  linarith only [h2, h3, hm]
+  linarith only [real_inner_le_one_of_norm_eq_one (hv 0) (hv 2),
+    real_inner_le_one_of_norm_eq_one (hv 1) (hv 2),
+    le_max_left ⟪v 0, v 1⟫ (max ⟪v 0, v 2⟫ ⟪v 1, v 2⟫)]
 
 omit [NormedAddCommGroup E] [InnerProductSpace ℝ E] [FiniteDimensional ℝ E] [MeasurableSpace E]
   [BorelSpace E] in
@@ -381,12 +374,9 @@ private theorem core_step (w : Fin 3 → E) (hw : ∀ i, ‖w i‖ = 1) {h : ℝ
   have hww : ∀ i, ⟪w i, w i⟫ = 1 := fun i => by rw [real_inner_self_eq_norm_sq, hw i]; norm_num
   -- `y, z ∈ (-1, 1)`
   have hnot_all : ¬ (⟪w 0, w 1⟫ = 1 ∧ ⟪w 0, w 2⟫ = 1) := fun ⟨h1, h2⟩ => by
-    have h3 : ⟪w 1, w 2⟫ = 1 := by
-      rw [eq_of_inner_eq_one (hw 0) (hw 1) h1, eq_of_inner_eq_one (hw 0) (hw 2) h2]
-      exact hww 0
-    unfold Pot at hPpos
-    rw [h1, h2, h3] at hPpos
-    norm_num at hPpos
+    have h3 : ⟪w 1, w 2⟫ = 1 :=
+      eq_of_inner_eq_one (hw 0) (hw 1) h1 ▸ eq_of_inner_eq_one (hw 0) (hw 2) h2 ▸ hww 0
+    norm_num [Pot, h1, h2, h3] at hPpos
   have hnot_all' : ¬ (⟪w 0, w 1⟫ = 1 ∧ ⟪w 1, w 2⟫ = 1) := fun ⟨h1, h3⟩ =>
     hnot_all ⟨h1, eq_of_inner_eq_one (hw 0) (hw 1) h1 ▸ h3⟩
   have hlt1 (i : Fin 3) (hxi : ⟪w i, w 2⟫ ≤ ⟪w 0, w 1⟫)
@@ -499,12 +489,9 @@ private theorem eqMin_E3 (v : Fin 3 → E3) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ
 /-- **EQ in any space.** -/
 theorem eqMin (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (hh : 0 < h) : (eqP h) ≤ Fv v h := by
   obtain ⟨ψ, -, -, -, hg⟩ := canonical v hv
-  have hy := unit_inner_sq (hv 0) (hv 2)
-  have hz := unit_inner_sq (hv 1) (hv 2)
-  have hP : Real.sqrt (1 - ⟪v 0, v 2⟫ ^ 2) ^ 2 = 1 - ⟪v 0, v 2⟫ ^ 2 := Real.sq_sqrt (by linarith)
-  have hR : Real.sqrt (1 - ⟪v 1, v 2⟫ ^ 2) ^ 2 = 1 - ⟪v 1, v 2⟫ ^ 2 := Real.sq_sqrt (by linarith)
-  rw [Fv_gram v (canT ⟪v 0, v 2⟫ ⟪v 1, v 2⟫ (Real.sqrt (1 - ⟪v 0, v 2⟫ ^ 2))
-    (Real.sqrt (1 - ⟪v 1, v 2⟫ ^ 2)) ψ) (fun i j => by rw [inner_canT]; exact hg i j) h]
+  have hP := Real.sq_sqrt (sub_nonneg.mpr (unit_inner_sq (hv 0) (hv 2)))
+  have hR := Real.sq_sqrt (sub_nonneg.mpr (unit_inner_sq (hv 1) (hv 2)))
+  rw [Fv_gram v _ (fun i j => (hg i j).trans (inner_canT ..).symm) h]
   exact eqMin_E3 _ (fun i => norm_canT hP hR i) hh
 
 end Cslib.Circuits.Frontier.Switched

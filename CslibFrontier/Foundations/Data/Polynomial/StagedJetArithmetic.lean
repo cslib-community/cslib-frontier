@@ -297,8 +297,7 @@ theorem conv_const (A : JetTable J ℓ R) (c : R) : conv A (const c) = smul c A 
 
 theorem one_conv (A : JetTable J ℓ R) : conv one A = A := by
   rw [one, const_conv]
-  ext j u
-  simp only [smul_apply, one_smul]
+  exact ext fun _ _ => one_smul _ _
 
 theorem conv_one (A : JetTable J ℓ R) : conv A one = A := by
   rw [conv_comm, one_conv]
@@ -411,9 +410,8 @@ theorem const_pow (c : R) (n : ℕ) : (const c : JetTable J ℓ R) ^ n = const (
   ((constRingHom J ℓ R).map_pow c n).symm
 
 theorem zsmul_eq_const_mul (c : ℤ) (A : JetTable J ℓ R) : c • A = const (c : R) * A := by
-  rw [const_mul]
   ext j u
-  simp only [coe_zsmul, smul_apply, smul_eq_mul, zsmul_eq_mul]
+  simp only [coe_zsmul, const_mul, smul_apply, smul_eq_mul, zsmul_eq_mul]
 
 /-- Apply a ring homomorphism `f : R →+* S` entrywise to a `(J × ℓ)` jet table. -/
 def mapRingHom {S : Type*} [CommRing S] (f : R →+* S) :
@@ -801,10 +799,8 @@ theorem cast_clearedUnivariateJet (Δ : ℤ) (D : ℕ) (a : ℕ → ℤ)
   rw [clearedUnivariateJet, map_sum, smul_sum]
   refine sum_congr rfl fun u hu => ?_
   have huD : u ≤ D := Nat.lt_succ_iff.mp (mem_range.mp hu)
-  rw [map_zsmul, map_pow, ← hL]
-  have hpow : (Δ • L_rat) ^ u = (Δ ^ u) • L_rat ^ u := by
-    rw [zsmul_eq_const_mul, mul_pow, const_pow, ← Int.cast_pow, ← zsmul_eq_const_mul]
-  rw [hpow, smul_smul, smul_smul]
+  rw [map_zsmul, map_pow, ← hL, zsmul_eq_const_mul Δ L_rat, mul_pow, const_pow, ← Int.cast_pow,
+    ← zsmul_eq_const_mul (Δ ^ u), smul_smul, smul_smul]
   congr 1
   rw [mul_assoc, ← pow_add, Nat.sub_add_cancel huD, mul_comm]
 
@@ -1110,9 +1106,8 @@ theorem hermiteCramerNumerator_eq_mul {Q J : ℕ} (nodes : Fin Q → ℤ) (hQ : 
   let c₀ : Fin Q × Fin J := (⟨0, hQ⟩, ⟨0, hJ⟩)
   have hc₀ : (finProdFinEquiv c₀ : ℕ) = 0 := rfl
   have hcol : (Int.cast : ℤ → ℚ) ∘ (fun r : Fin Q × Fin J => J_int r.1 r.2) =
-      (Ω : ℚ) • Polynomial.taylorJet (fun i => (nodes i : ℚ)) J H := by
-    funext r
-    simp only [Function.comp_apply, Pi.smul_apply, smul_eq_mul, Polynomial.taylorJet_apply, hjet]
+      (Ω : ℚ) • Polynomial.taylorJet (fun i => (nodes i : ℚ)) J H :=
+    funext fun r => by simp [Polynomial.taylorJet_apply, hjet]
   apply Int.cast_injective (α := ℚ)
   rw [hermiteCramerNumerator, Int.cast_det, Matrix.map_updateCol, hcol, Matrix.det_updateCol_smul,
     ← Polynomial.det_hermiteMatrix_mul_coeff nodes hp c₀, hc₀, Polynomial.coeff_zero_eq_eval_zero,
@@ -1186,12 +1181,8 @@ theorem sum_hermiteCramerNumerator_emod_two_pow_eq {Q J ℓ : ℕ} {nodes : Fin 
     (hZ0 : 0 ≤ Z) (hZlt : Z < (2 : ℤ) ^ ℓ) :
     (∑ s : Fin ℓ, hermiteCramerNumerator nodes hQ hJ (fun i j => T_int i j s) /
         (Ω * (Polynomial.hermiteMatrix nodes J).det)) % ((2 : ℤ) ^ ℓ) = Z := by
-  have hsum : (∑ s : Fin ℓ, hermiteCramerNumerator nodes hQ hJ (fun i j => T_int i j s) /
-      (Ω * (Polynomial.hermiteMatrix nodes J).det)) = ∑ s : Fin ℓ, H_zero s :=
-    sum_congr rfl fun s _ =>
-      hermiteCramerNumerator_ediv_eq hnodes hQ hJ hΩ (H_zero s) (fun i j => T_int i j s)
-        (hdeg s) (hzero s) (fun i j => hjet i j s)
-  rw [hsum, hmod]
+  rw [sum_congr rfl fun s _ => hermiteCramerNumerator_ediv_eq hnodes hQ hJ hΩ (H_zero s)
+    (fun i j => T_int i j s) (hdeg s) (hzero s) (fun i j => hjet i j s), hmod]
   exact Int.emod_eq_of_lt hZ0 hZlt
 
 end HermiteCramer

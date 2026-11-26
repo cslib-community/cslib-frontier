@@ -127,8 +127,7 @@ theorem map_comp_apply_le_of_injective {α β Query : Type*} {μ : PMF α}
   by_cases hq : ∃ b, emb b = q
   · obtain ⟨b, rfl⟩ := hq
     have hpre : emb ⁻¹' {emb b} = {b} := Set.ext fun _ => hemb.eq_iff
-    rw [hpre, PMF.toOuterMeasure_apply_singleton]
-    exact hμ b
+    simpa only [hpre, PMF.toOuterMeasure_apply_singleton] using hμ b
   · rw [show emb ⁻¹' {q} = ∅ from Set.eq_empty_iff_forall_notMem.mpr fun b hb => hq ⟨b, hb⟩]
     simp
 
@@ -429,8 +428,7 @@ private theorem step_bad_flaggedLazyProgramHandler_le [BEq Query] [LawfulBEq Que
       {x | FlagBad x.2} ≤
       (Sum.elim (fun _ : Req => 1) (fun _ : Query => 0) q * st.1.1.length : ℕ) * δ := by
   obtain ⟨⟨cache, log⟩, b⟩ := st
-  have hb := Bool.eq_false_iff.mpr hst
-  subst hb
+  obtain rfl := Bool.eq_false_iff.mpr hst
   simp only [flaggedLazyProgramHandler, withBadFlag_false]
   cases q with
   | inl req =>
@@ -439,21 +437,18 @@ private theorem step_bad_flaggedLazyProgramHandler_le [BEq Query] [LawfulBEq Que
     · let inner (ts : Coins req) := (memoize (fun _ => dist) (point req ts) cache).map fun res =>
         ((finish req ts res.1 log).1, ((res.2, (finish req ts res.1 log).2),
           (cache.lookup (point req ts)).isSome))
+      let hit : Set (Coins req) := {ts | (cache.lookup (point req ts)).isSome}
       change ((samplePre req).bind inner).toOuterMeasure {x | FlagBad x.2} ≤ _
       rw [PMF.toOuterMeasure_bind_apply]
       calc ∑' ts, (samplePre req) ts * (inner ts).toOuterMeasure {x | FlagBad x.2}
-          ≤ ∑' ts, (samplePre req) ts *
-              {ts : Coins req | (cache.lookup (point req ts)).isSome}.indicator 1 ts := by
+          ≤ ∑' ts, (samplePre req) ts * hit.indicator 1 ts := by
             refine tsum_le_tsum fun ts => mul_le_mul_of_nonneg_left ?_ zero_le
             by_cases hts : (cache.lookup (point req ts)).isSome = true
-            · rw [Set.indicator_of_mem
-                (show ts ∈ {ts : Coins req | (cache.lookup (point req ts)).isSome} from hts),
-                Pi.one_apply]
+            · rw [Set.indicator_of_mem (s := hit) hts, Pi.one_apply]
               exact PMF.toOuterMeasure_le_one _ _
-            · rw [Set.indicator_of_notMem (show ts ∉ {ts : Coins req |
-                (cache.lookup (point req ts)).isSome} from hts)]
+            · rw [Set.indicator_of_notMem (s := hit) hts]
               simp [inner, PMF.toOuterMeasure_map_apply, FlagBad, hts]
-        _ = (samplePre req).toOuterMeasure {ts | (cache.lookup (point req ts)).isSome} :=
+        _ = (samplePre req).toOuterMeasure hit :=
             (PMF.toOuterMeasure_eq_tsum_mul_indicator _ _).symm
         _ ≤ cache.length * δ := toOuterMeasure_lookup_isSome_le_aux (hminEnt req h) cache
     · simp [PMF.toOuterMeasure_map_apply, FlagBad]
@@ -747,14 +742,13 @@ private theorem nodup_fst_step_memoize {Query Digest : Type} [BEq Query] [Lawful
     (hc : (c.map Prod.fst).Nodup) (ans : Digest) (c' : List (Query × Digest))
     (hstep : (ans, c') ∈ (memoize distribution key c).support) :
     (c'.map Prod.fst).Nodup := by
-  rcases (mem_support_memoize_iff _ _ _ _).mp hstep with ⟨-, hnext⟩ | ⟨hlookup, -, hnext⟩
-  · dsimp only at hnext; rwa [hnext]
-  · dsimp only at hnext
-    rw [hnext, List.map_cons, List.nodup_cons]
-    refine ⟨fun hkey => ?_, hc⟩
+  rcases (mem_support_memoize_iff _ _ _ (ans, c')).mp hstep with ⟨-, hnext⟩ | ⟨hlookup, -, hnext⟩
+  · obtain rfl : c' = c := hnext
+    exact hc
+  · obtain rfl : c' = (key, ans) :: c := hnext
+    refine List.nodup_cons.mpr ⟨fun hkey => ?_, hc⟩
     obtain ⟨e, he, heq⟩ := List.mem_map.mp hkey
-    have hs := List.lookup_isSome_iff.mpr ⟨e, he, beq_iff_eq.mpr heq.symm⟩
-    simp [hlookup] at hs
+    exact absurd (List.lookup_isSome_iff.mpr ⟨e, he, beq_iff_eq.mpr heq.symm⟩) (by simp [hlookup])
 
 /-- `memoize` preserves key distinctness `(cache.map Prod.fst).Nodup` across every adaptive
 execution, because cache hits reuse existing entries without prepending a duplicate key. -/
@@ -797,10 +791,8 @@ private theorem step_not_nodup_snd_memoize_le {Query Digest : Type} [BEq Query]
       PMF.toOuterMeasure_map_apply]
     have hsub : (fun y => (y, (key, y) :: cache)) ⁻¹' {x | ¬(x.2.map Prod.snd).Nodup} ⊆
         {y | ∃ e' ∈ cache.map Prod.swap, e'.1 = id y} := fun y hy => by
-      change ¬(((key, y) :: cache).map Prod.snd).Nodup at hy
-      rw [List.map_cons, List.nodup_cons] at hy
-      have hmem : y ∈ cache.map Prod.snd := Classical.not_not.mp fun hnot => hy ⟨hnot, hnodup⟩
-      obtain ⟨e, he, rfl⟩ := List.mem_map.mp hmem
+      obtain ⟨e, he, rfl⟩ := List.mem_map.mp
+        (Classical.not_not.mp fun hnot => hy (List.nodup_cons.mpr ⟨hnot, hnodup⟩))
       exact ⟨e.swap, List.mem_map_of_mem he, rfl⟩
     refine (MeasureTheory.measure_mono hsub).trans ?_
     simpa only [List.length_map] using toOuterMeasure_exists_mem_fst_eq_le (f := id)
@@ -888,7 +880,7 @@ theorem toOuterMeasure_hasOutputCollision_memoize_uniform_le {Query Digest α : 
       []).toOuterMeasure {x | HasOutputCollision x.2} ≤
       (q.choose 2 : ℝ≥0∞) / Fintype.card Digest := by
   rw [toOuterMeasure_hasOutputCollision_eq_not_nodup_snd _ fun _ _ hmem =>
-    nodup_fst_of_mem_support_run_memoize _ program (by simp) hmem]
+    nodup_fst_of_mem_support_run_memoize _ program (cache := []) List.nodup_nil hmem]
   exact toOuterMeasure_collision_memoize_uniform_le hq
 
 /-- **Random-oracle birthday bound (`ProbOracleComp.runWith`, distinct-key `HasOutputCollision`
@@ -904,8 +896,8 @@ theorem toOuterMeasure_hasOutputCollision_runWith_memoize_uniform_le {Query Dige
       (q.choose 2 : ℝ≥0∞) / Fintype.card Digest := by
   rw [toOuterMeasure_hasOutputCollision_eq_not_nodup_snd _ fun res cache' hmem =>
     ProbOracleComp.runWith_invariant (memoize (fun _ => PMF.uniformOfFintype Digest))
-      (fun c => (c.map Prod.fst).Nodup) (nodup_fst_step_memoize _) program [] (by simp) res cache'
-      hmem]
+      (fun c => (c.map Prod.fst).Nodup) (nodup_fst_step_memoize _) program [] List.nodup_nil res
+      cache' hmem]
   exact toOuterMeasure_collision_runWith_memoize_uniform_le hq
 
 end Birthday

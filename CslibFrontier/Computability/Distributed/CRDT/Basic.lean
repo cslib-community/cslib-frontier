@@ -225,12 +225,8 @@ theorem evalHistory_union [DecidableEq UId] (init : S) (post : UId → S)
 
 theorem evalHistory_congr (init : S) {post₁ post₂ : UId → S}
     {H : Finset UId} (h : ∀ u ∈ H, post₁ u = post₂ u) :
-    evalHistory init post₁ H = evalHistory init post₂ H := by
-  apply le_antisymm
-  · rw [evalHistory_le_iff]
-    exact ⟨init_le_evalHistory _ _ _, fun u hu => (h u hu) ▸ mem_le_evalHistory hu⟩
-  · rw [evalHistory_le_iff]
-    exact ⟨init_le_evalHistory _ _ _, fun u hu => (h u hu).symm ▸ mem_le_evalHistory hu⟩
+    evalHistory init post₁ H = evalHistory init post₂ H :=
+  Finset.fold_congr h
 
 theorem foldl_sup_eq_evalHistory (init : S) (post : UId → S)
     (l : List UId) (H : Finset UId) (hmem : ∀ u, u ∈ l ↔ u ∈ H) :
@@ -401,17 +397,15 @@ theorem CvRDT.gossipLTS_mTr_iff (C : CvRDT S Op Q) (G : Digraph P)
     (C.gossipLTS G).MTr s₀ xl s ↔ C.gossipValidTrace G s₀ xl ∧ s = C.gossipRun s₀ xl := by
   induction xl generalizing s₀ with
   | nil =>
-    refine ⟨fun h => ?_, fun ⟨_, h⟩ => h ▸ LTS.MTr.refl⟩
-    cases h
+    refine ⟨?_, fun ⟨_, h⟩ => h ▸ .refl⟩
+    rintro ⟨⟩
     exact ⟨trivial, rfl⟩
   | cons act xl ih =>
-    refine ⟨fun h => ?_, fun ⟨⟨hen, hv⟩, h⟩ =>
-      LTS.MTr.stepL ⟨hen, rfl⟩ ((ih (C.gossipStep s₀ act)).mpr ⟨hv, h⟩)⟩
+    refine ⟨fun h => ?_, fun ⟨⟨hen, hv⟩, h⟩ => .stepL ⟨hen, rfl⟩ ((ih _).mpr ⟨hv, h⟩)⟩
     cases h with
     | stepL htr hmtr =>
-      rcases htr with ⟨hen, rfl⟩
-      obtain ⟨hv, hs⟩ := (ih (C.gossipStep s₀ act)).mp hmtr
-      exact ⟨⟨hen, hv⟩, hs⟩
+      have ⟨hv, hs⟩ := htr.2 ▸ (ih _).mp hmtr
+      exact ⟨⟨htr.1, hv⟩, hs⟩
 
 private structure GossipInv (C : CvRDT S Op Q) (s : GossipState P UId S) : Prop where
   hist_sub : ∀ p, s.history p ⊆ s.generated
@@ -853,19 +847,15 @@ theorem CmRDT.bss_strong_convergence (C : CmRDT S Op Eff Q) {F : Set P}
     {p q : P} (hsame : ∀ pkt, pkt ∈ (s.proc p).delivered ↔ pkt ∈ (s.proc q).delivered) :
     C.bssReplicaState s p = C.bssReplicaState s q ∧
       C.query (C.bssReplicaState s p) = C.query (C.bssReplicaState s q) := by
-  have hfin_eq : (s.proc p).delivered.toFinset = (s.proc q).delivered.toFinset := by
-    ext pkt
-    simp [hsame pkt]
-  have hp_lin := (bss_delivered_isCausalLinearization hmtr p).2
-  have hq_lin := (bss_delivered_isCausalLinearization hmtr q).2
-  rw [← hfin_eq] at hq_lin
+  have hfin_eq : (s.proc p).delivered.toFinset = (s.proc q).delivered.toFinset :=
+    Finset.ext fun pkt => by simp [hsame pkt]
   have hcomm_sub : ConcurrentCommute C.effect (CausalPrec xl) Packet.payload
-      ((s.proc p).delivered.toFinset : Set (Packet P Eff)) := by
-    intro b₁ hb₁ b₂ hb₂ hne hn₁₂ hn₂₁ st
-    exact hcomm b₁ (bss_integrity hmtr p (List.mem_toFinset.mp hb₁))
-      b₂ (bss_integrity hmtr p (List.mem_toFinset.mp hb₂)) hne hn₁₂ hn₂₁ st
+      ((s.proc p).delivered.toFinset : Set (Packet P Eff)) :=
+    fun b₁ hb₁ b₂ hb₂ => hcomm b₁ (bss_integrity hmtr p (List.mem_toFinset.mp hb₁))
+      b₂ (bss_integrity hmtr p (List.mem_toFinset.mp hb₂))
   have hstate_eq : C.bssReplicaState s p = C.bssReplicaState s q :=
-    C.causalLinearization_eq hcomm_sub hp_lin hq_lin
+    C.causalLinearization_eq hcomm_sub (bss_delivered_isCausalLinearization hmtr p).2
+      (hfin_eq ▸ (bss_delivered_isCausalLinearization hmtr q).2)
   exact ⟨hstate_eq, congrArg C.query hstate_eq⟩
 
 /-- Causal-broadcast to `CmRDT` quiescent eventual-convergence bridge step (toward #7502,
@@ -1117,14 +1107,9 @@ private theorem deliverableIter_mono_pool {Ev : Type*} [DecidableEq Ev] (deps : 
     {M₁ M₂ : Finset Ev} (hM : M₁ ⊆ M₂) :
     ∀ n, deliverableIter deps M₁ n ⊆ deliverableIter deps M₂ n
   | 0 => Finset.Subset.refl _
-  | n + 1 => by
-    have ih := deliverableIter_mono_pool deps hM n
-    apply Finset.union_subset
-    · exact Finset.Subset.trans ih Finset.subset_union_left
-    · intro e he
-      obtain ⟨heM₁, hdeps⟩ := Finset.mem_filter.mp he
-      exact Finset.mem_union_right _
-        (Finset.mem_filter.mpr ⟨hM heM₁, Finset.Subset.trans hdeps ih⟩)
+  | n + 1 => Finset.union_subset_union (deliverableIter_mono_pool deps hM n) fun _ he =>
+    Finset.mem_filter.mpr ⟨hM (Finset.mem_filter.mp he).1,
+      (Finset.mem_filter.mp he).2.trans (deliverableIter_mono_pool deps hM n)⟩
 
 theorem deliverableEvents_subset {Ev : Type*} [DecidableEq Ev] (deps : Ev → Finset Ev)
     (M : Finset Ev) : deliverableEvents deps M ⊆ M :=

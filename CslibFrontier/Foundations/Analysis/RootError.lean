@@ -91,9 +91,8 @@ lemma abs_sub_le_four_mul_root_lipschitz {f : ℝ → ℝ} {L : NNReal}
     |f a - f b| ≤ (4 * L) * |a - b| := by
   have h := abs_sub_le_mul_abs_rpow_inv_sub (s := 4) (by decide)
     (hf a).1 (hf b).1 (hf a).2 (hf b).2
-  norm_num only [Nat.cast_ofNat, Real.one_rpow, mul_one] at h
-  exact h.trans (by simpa only [Real.dist_eq, one_div, mul_assoc] using
-    mul_le_mul_of_nonneg_left (hL.dist_le_mul a b) (by norm_num : (0 : ℝ) ≤ 4))
+  simpa only [Nat.cast_ofNat, Real.one_rpow, mul_one, Real.dist_eq, one_div, mul_assoc] using
+    h.trans (mul_le_mul_of_nonneg_left (hL.dist_le_mul a b) (by norm_num))
 
 /-- The **homogeneous loss** `L(H, H') = |H - H'|^s / (H + H')^{s-1}` of the OpenAI preprint
 [OpenAI2026LogSpace, (7.6)]. On nonnegative arguments with `s ≥ 1` it agrees with the preprint's
@@ -136,13 +135,11 @@ private theorem pow_sub_pow_bounds {a b : ℝ} (hb : 0 ≤ b) (hba : b ≤ a) (h
   have ha : 0 ≤ a := hb.trans hba
   have hk : b ^ k ≤ a ^ k := pow_le_pow_left₀ hb hba k
   simp only [Nat.add_sub_cancel]
-  constructor
-  · simp only [pow_succ]
-    nlinarith [mul_le_mul_of_nonneg_right hk hb]
-  · have h := abs_pow_sub_pow_le a b (k + 1)
-    rw [abs_of_nonneg (sub_nonneg.2 (pow_le_pow_left₀ hb hba _)), abs_of_nonneg (sub_nonneg.2 hba),
-      abs_of_nonneg ha, abs_of_nonneg hb, max_eq_left hba, Nat.add_sub_cancel] at h
-    exact h.trans (le_of_eq (by ring))
+  refine ⟨by simp only [pow_succ]; nlinarith [mul_le_mul_of_nonneg_right hk hb], ?_⟩
+  have h := abs_pow_sub_pow_le a b (k + 1)
+  rw [abs_of_nonneg (sub_nonneg.2 (pow_le_pow_left₀ hb hba _)), abs_of_nonneg (sub_nonneg.2 hba),
+    abs_of_nonneg ha, abs_of_nonneg hb, max_eq_left hba, Nat.add_sub_cancel] at h
+  linarith
 
 /-- Comparability in terms of the roots, with `b ≤ a`. -/
 private theorem homogeneousLoss_pow_pow_bounds {a b : ℝ} (hb : 0 ≤ b) (hba : b ≤ a)
@@ -180,15 +177,14 @@ private theorem homogeneousLoss_bounds (hs : s ≠ 0) (hH : 0 ≤ H) (hH' : 0 �
     exact this hH' hH (le_of_not_ge hle)
   have hb : 0 ≤ H' ^ (s⁻¹ : ℝ) := Real.rpow_nonneg hH' _
   have hba : H' ^ (s⁻¹ : ℝ) ≤ H ^ (s⁻¹ : ℝ) := Real.rpow_le_rpow hH' hle (by positivity)
-  have h := homogeneousLoss_pow_pow_bounds hb hba hs
-  rw [Real.rpow_inv_natCast_pow hH hs, Real.rpow_inv_natCast_pow hH' hs] at h
-  rwa [abs_of_nonneg (sub_nonneg.2 hba)]
+  simpa only [Real.rpow_inv_natCast_pow hH hs, Real.rpow_inv_natCast_pow hH' hs,
+    abs_of_nonneg (sub_nonneg.2 hba)] using homogeneousLoss_pow_pow_bounds hb hba hs
 
 /-- The homogeneous loss bounds the root error from above [OpenAI2026LogSpace, Lemma 7.2]. -/
 theorem rpow_inv_sub_pow_le_homogeneousLoss (hs : s ≠ 0) (hH : 0 ≤ H) (hH' : 0 ≤ H') :
     |H ^ (s⁻¹ : ℝ) - H' ^ (s⁻¹ : ℝ)| ^ s ≤ 2 ^ (s - 1) * homogeneousLoss s H H' := by
-  have h := (homogeneousLoss_bounds hs hH hH').1
-  rwa [div_le_iff₀ (by positivity), mul_comm] at h
+  exact ((div_le_iff₀ (by positivity)).mp (homogeneousLoss_bounds hs hH hH').1).trans_eq
+    (mul_comm _ _)
 
 /-- The root error bounds the homogeneous loss from above [OpenAI2026LogSpace, Lemma 7.2]. -/
 theorem homogeneousLoss_le_rpow_inv_sub_pow (hs : s ≠ 0) (hH : 0 ≤ H) (hH' : 0 ≤ H') :
@@ -219,15 +215,13 @@ theorem homogeneousLoss_sum_le {ι : Type*} (t : Finset ι) (hs : s ≠ 0) {w F 
   have hA : 0 ≤ A := sum_nonneg fun i hi => mul_nonneg (hw i hi) (hS i hi)
   rcases hA.eq_or_lt with hA0 | hApos
   · -- Every weighted pair vanishes, so the left side is `L(0, 0) = 0`.
-    have hzero : ∀ i ∈ t, w i * S i = 0 :=
+    have hzero :=
       (sum_eq_zero_iff_of_nonneg fun i hi => mul_nonneg (hw i hi) (hS i hi)).1 hA0.symm
     have hD0 : ∑ i ∈ t, w i * D i = 0 := sum_eq_zero fun i hi => le_antisymm
       ((mul_le_mul_of_nonneg_left (hD i hi) (hw i hi)).trans_eq (hzero i hi))
       (mul_nonneg (hw i hi) (abs_nonneg _))
-    have hl : |∑ i ∈ t, w i * F i - ∑ i ∈ t, w i * F' i| = 0 :=
-      le_antisymm (hD0 ▸ hdiff) (abs_nonneg _)
-    rw [homogeneousLoss, hl, zero_pow hs, zero_div]
-    exact hrhs
+    simpa only [homogeneousLoss, le_antisymm (hD0 ▸ hdiff) (abs_nonneg _), zero_pow hs,
+      zero_div] using hrhs
   -- Jensen's inequality for `x ↦ x^s` with weights `w i S i / A` at the points `D i / S i`.
   set lam : ι → ℝ := fun i => w i * S i / A
   set x : ι → ℝ := fun i => D i / S i
@@ -239,8 +233,8 @@ theorem homogeneousLoss_sum_le {ι : Type*} (t : Finset ι) (hs : s ≠ 0) {w F 
     rw [sum_div]
     refine sum_congr rfl fun i hi => ?_
     rcases (hS i hi).eq_or_lt with h0 | hpos
-    · have : D i = 0 := le_antisymm (h0 ▸ hD i hi) (abs_nonneg _)
-      simp only [lam, x, this, ← h0]; simp
+    · have hD0 : D i = 0 := le_antisymm (h0.symm ▸ hD i hi) (abs_nonneg _)
+      simp [lam, x, hD0, ← h0]
     · simp only [lam, x]; field_simp
   obtain ⟨k, rfl⟩ := Nat.exists_eq_add_one_of_ne_zero hs
   have hmeanpow : ∑ i ∈ t, lam i * x i ^ (k + 1) =
@@ -248,8 +242,7 @@ theorem homogeneousLoss_sum_le {ι : Type*} (t : Finset ι) (hs : s ≠ 0) {w F 
     rw [sum_div]
     refine sum_congr rfl fun i hi => ?_
     rcases (hS i hi).eq_or_lt with h0 | hpos
-    · have hD0 : |F i - F' i| = 0 := le_antisymm (h0 ▸ hD i hi) (abs_nonneg _)
-      simp [lam, x, homogeneousLoss, D, hD0]
+    · simp [lam, x, homogeneousLoss, D, le_antisymm (h0.symm ▸ hD i hi) (abs_nonneg _)]
     · simp only [lam, x, homogeneousLoss, Nat.add_sub_cancel, D, S] at *
       rw [div_pow, pow_succ (F i + F' i) k]
       field_simp
@@ -279,8 +272,7 @@ theorem mul_min_pow_le_homogeneousLoss (hs : s ≠ 0) {C₀ G a : ℝ} (hC₀ : 
       _ ≤ |H - H'| ^ (k + 1) / (a + G) ^ k := by
           rw [div_pow, ← mul_div_assoc, div_le_div_iff₀ (by positivity) (by positivity),
             pow_succ (a + G) k]
-          have hX : 0 ≤ |H - H'| ^ (k + 1) * (a + G) ^ k := by positivity
-          nlinarith [mul_le_mul_of_nonneg_left (show a ≤ a + G by linarith) hX]
+          nlinarith [show 0 ≤ |H - H'| ^ (k + 1) * (a + G) ^ k by positivity, hG]
       _ = (3 * C₀ + 3) ^ k * (|H - H'| ^ (k + 1) / ((3 * C₀ + 3) * (a + G)) ^ k) := by
           rw [mul_pow]; field_simp
       _ ≤ (3 * C₀ + 3) ^ k * (|H - H'| ^ (k + 1) / (H + H') ^ k) := by gcongr

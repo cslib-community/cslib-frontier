@@ -549,10 +549,8 @@ private theorem stripId_spec {N g : ℕ} (p : Program prefixSignature N g) (w : 
     exact ⟨hw, by simp only [Wire.rank_gate]; omega, hop⟩
   · have heq : stripId p (.gate k) = .gate k := by
       conv_lhs => unfold stripId
-      split
-      · rename_i w' hw'
-        cases hline.symm.trans hw'
-      · rfl
+      split <;> rename_i w' hw' <;> cases hline.symm.trans hw'
+      rfl
     rw [heq]
     exact ⟨rfl, le_rfl, fun j hj => by cases hj; rw [hline]⟩
 
@@ -592,13 +590,10 @@ private theorem leftSpine_subset_ancMul {N g : ℕ} (p : Program prefixSignature
     (fun k wires hline ih0 j hj => ?_)
     (fun k wires hline ih0 _ j hj => ?_) w
   · rw [leftSpine_gate_id p k wires hline] at hj
-    rw [ancMul_gate_id p k wires hline]
-    exact ih0 j hj
+    simpa only [ancMul_gate_id p k wires hline] using ih0 j hj
   · rw [leftSpine_gate_mul p k wires hline, List.mem_append, List.mem_singleton] at hj
     rw [ancMul_gate_mul p k wires hline, Finset.mem_insert, Finset.mem_union]
-    rcases hj with hj0 | rfl
-    · exact Or.inr (Or.inl (ih0 j hj0))
-    · exact Or.inl rfl
+    exact hj.elim (Or.inr ∘ Or.inl ∘ ih0 j) Or.inl
 
 private theorem leftSpine_length_le_wireDepths {N g : ℕ} (p : Program prefixSignature N g)
     (w : Wire N g) : (leftSpine p w).length ≤ p.wireDepths w := by
@@ -623,8 +618,7 @@ private theorem zero_mem_ancMul_iff_mem_leftSpine {N g : ℕ} (p : Program prefi
     (fun k wires hline ih0 _ len _ hw j hj => ?_) w
   · rw [ancMul_gate_id p k wires hline] at hj
     rw [leftSpine_gate_id p k wires hline]
-    rw [programWord_gate_id p k wires hline] at hw
-    exact ih0 len hlen hw j hj
+    exact ih0 len hlen (programWord_gate_id p k wires hline ▸ hw) j hj
   · rw [programWord_gate_mul p k wires hline] at hw
     obtain ⟨hm1, hm2, hw0, hw1⟩ := range_split_of_append
       (programWord_ne_nil p (wires 0)) (programWord_ne_nil p (wires 1)) hw
@@ -634,9 +628,8 @@ private theorem zero_mem_ancMul_iff_mem_leftSpine {N g : ℕ} (p : Program prefi
     · refine ⟨fun _ => Or.inr rfl, fun _ => ?_⟩
       rw [programWord_gate_mul p j wires hline, hw, List.mem_range'_1]
       omega
-    · have ih0j := ih0 _ (by omega) hw0 j hj0
-      have hne : j ≠ k := by rintro rfl; exact notMem_ancMul_wires p hline 0 hj0
-      simp only [ih0j, hne, or_false]
+    · have hjne : j ≠ k := fun h => notMem_ancMul_wires p hline 0 (h ▸ hj0)
+      simp only [ih0 _ (by omega) hw0 j hj0, hjne, or_false]
     · obtain ⟨hsub1, _⟩ := ancMul_range_and_card p (wires 1) _ _ (by omega) hw1
       obtain ⟨p₁, q₁, hp₁, hpq₁, _, hjw1⟩ := hsub1 j hj1
       have hnot0 : 0 ∉ programWord p (.gate j) := by
@@ -683,8 +676,7 @@ private theorem universal_mul_sets {N : ℕ} (hN : 1 ≤ N) {c : PrefixCircuit N
     rw [houtWord ⟨r.val + 1, by omega⟩] at hword
     cases hs : stripId c.program (c.outputs ⟨r.val + 1, by omega⟩) with
     | input i =>
-      rw [hs, programWord_input] at hword
-      have := congrArg List.length hword
+      have := congrArg List.length (programWord_input c.program i ▸ hs ▸ hword)
       simp only [List.length_singleton, List.length_range'] at this
       omega
     | gate g =>

@@ -182,11 +182,7 @@ theorem Occurs.accepts {x : ι → U} {v : N} (h : P.Occurs x v) : x ∈ P.accep
 
 /-- Any node occurring for `x` witnesses that `x` is accepted by the DAG. -/
 theorem Occurs.mem_accepted_self {x : ι → U} {v : N} (h : P.Occurs x v) : x ∈ P.accepted := by
-  induction h with
-  | root hx => exact hx
-  | union _ _ _ _ ih => exact ih
-  | left _ _ ih => exact ih
-  | right _ _ ih => exact ih
+  induction h <;> assumption
 
 /-- **Certificate substitution.** If a node occurs for `x`, then it also occurs for any input that
 the node accepts and that agrees with `x` outside the scope of the node. -/
@@ -347,9 +343,8 @@ theorem exists_mem_stops (hK : 1 < K) (hS : K ≤ P.accepted.ncard) {x : ι → 
     ⟨_, P.root, rfl, .root hx, hroot⟩
   obtain ⟨v, hv, hxv, hlarge⟩ := Nat.find_spec hex
   have hsmall {u : N} (hu : P.rank u < P.rank v) (hxu : P.Occurs x u) :
-      (P.values u).ncard < K := by
-    by_contra! h
-    exact Nat.find_min hex (hv ▸ hu) ⟨u, rfl, hxu, h⟩
+      (P.values u).ncard < K :=
+    not_le.mp fun h => Nat.find_min hex (hv ▸ hu) ⟨u, rfl, hxu, h⟩
   refine ⟨v, hxv, hlarge, ?_⟩
   cases hg : P.gate v with
   | leaf =>
@@ -394,9 +389,8 @@ private theorem ncard_stops_product_le (hfin : P.accepted.Finite) {v l r : N}
         · intro x _ y _ h
           simp only [Prod.mk.injEq, domRestrict_eq_domRestrict_iff] at h
           refine domRestrict_prodMk_injective (P.scope v) (Prod.ext ?_ ?_)
-          · refine domRestrict_eq_domRestrict_iff.mpr fun i hi => ?_
-            rw [P.scope_product v l r hg] at hi
-            exact hi.elim (fun hil => h.1 hil) fun hir => h.2.1 hir
+          · exact domRestrict_eq_domRestrict_iff.mpr fun i hi =>
+              (P.scope_product v l r hg ▸ hi).elim (fun hil => h.1 hil) fun hir => h.2.1 hir
           · exact domRestrict_eq_domRestrict_iff.mpr h.2.2
     _ ≤ (K - 1) ^ 2 * (P.contexts v).ncard := by
         rw [ncard_prod, ncard_prod, sq, mul_assoc]

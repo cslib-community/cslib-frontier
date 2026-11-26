@@ -415,8 +415,6 @@ private lemma ofSnap_step_initiate [DecidableEq P] [DecidableRel sys.graph.Adj]
     CutTr sys (ofSnap S₁) (.cross p) (ofSnap (sys.stepSnap S₁ (.initiateSnapshot p))) := by
   have hen' : (S₁.proc p).snapState = none := hen
   let S₂ := sys.stepSnap S₁ (.initiateSnapshot p)
-  have hproj := sys.snapTr_project (S₁ := S₁) (a := .initiateSnapshot p) ⟨hen, rfl⟩
-  simp only [SnapEvent.toAppEvent] at hproj
   have hboth : ∀ u v, preInFlight S₂ u v = preInFlight S₁ u v ∧
       postInFlight S₂ u v = postInFlight S₁ u v := by
     intro u v
@@ -425,7 +423,7 @@ private lemma ofSnap_step_initiate [DecidableEq P] [DecidableRel sys.graph.Adj]
         (by simp [S₂, stepSnap, applyInitiate])
     · exact pre_post_congr (by simp [S₂, stepSnap, applyInitiate, hu])
         (by simp [S₂, stepSnap, applyInitiate, hu])
-  refine ⟨hen', hproj, ?_, funext fun u => funext fun v => (hboth u v).1,
+  refine ⟨hen', sys.snapTr_project ⟨hen, rfl⟩, ?_, funext fun u => funext fun v => (hboth u v).1,
     funext fun u => funext fun v => (hboth u v).2, ?_⟩
   · funext r
     by_cases hr : r = p <;> simp [ofSnap, stepSnap, applyInitiate, project, hr]
@@ -442,11 +440,8 @@ private lemma ofSnap_step_recvMarker_none [DecidableEq P] [DecidableRel sys.grap
     CutTr sys (ofSnap S₁) (.cross dest)
       (ofSnap (sys.stepSnap S₁ (.recvMarker src dest))) := by
   obtain ⟨_, hsrc_some, t_sd, ht_sd, hnotm_tail⟩ := sys.enabledSnap_recvMarker_spec hinv hen
-  have hsrc_ne_dest : src ≠ dest := by
-    intro h; subst h; rw [hdest] at hsrc_some; simp at hsrc_some
+  have hsrc_ne_dest : src ≠ dest := fun h => by simp [h, hdest] at hsrc_some
   let S₂ := sys.stepSnap S₁ (.recvMarker src dest)
-  have hproj := sys.snapTr_project (S₁ := S₁) (a := .recvMarker src dest) ⟨hen, rfl⟩
-  simp only [SnapEvent.toAppEvent] at hproj
   have hboth : ∀ u v, preInFlight S₂ u v = preInFlight S₁ u v ∧
       postInFlight S₂ u v = postInFlight S₁ u v := by
     intro u v
@@ -462,7 +457,7 @@ private lemma ofSnap_step_recvMarker_none [DecidableEq P] [DecidableRel sys.grap
           ht_sd (by simp [S₂, stepSnap, applyRecvMarker, hdest, hud, ht_sd]) hnotm_tail
       · exact pre_post_congr (by simp [S₂, stepSnap, applyRecvMarker, hdest, hud])
           (by simp [S₂, stepSnap, applyRecvMarker, hdest, hud, hsd])
-  refine ⟨hdest, hproj, ?_, funext fun u => funext fun v => (hboth u v).1,
+  refine ⟨hdest, sys.snapTr_project ⟨hen, rfl⟩, ?_, funext fun u => funext fun v => (hboth u v).1,
     funext fun u => funext fun v => (hboth u v).2, ?_⟩
   · funext r
     by_cases hr : r = dest <;> simp [ofSnap, stepSnap, applyRecvMarker, hdest, project, hr]
@@ -481,8 +476,6 @@ private lemma ofSnap_step_recvMarker_some [DecidableEq P] [DecidableRel sys.grap
   let S₂ := sys.stepSnap S₁ (.recvMarker src dest)
   have hsnap_unch : ∀ x, (S₂.proc x).snapState = (S₁.proc x).snapState := fun x => by
     by_cases hx : x = dest <;> simp_all [S₂, stepSnap, applyRecvMarker]
-  have hproj := sys.snapTr_project (S₁ := S₁) (a := .recvMarker src dest) ⟨hen, rfl⟩
-  simp only [SnapEvent.toAppEvent] at hproj
   have hboth : ∀ u v, preInFlight S₂ u v = preInFlight S₁ u v ∧
       postInFlight S₂ u v = postInFlight S₁ u v := by
     intro u v
@@ -492,9 +485,9 @@ private lemma ofSnap_step_recvMarker_some [DecidableEq P] [DecidableRel sys.grap
         ht_sd (by simp [S₂, stepSnap, applyRecvMarker, hdest, ht_sd]) hnotm_tail
     · exact pre_post_congr (hsnap_unch u)
         (by simp [S₂, stepSnap, applyRecvMarker, hdest, hsd])
-  apply CutState.ext hproj (funext hsnap_unch)
+  refine CutState.ext (sys.snapTr_project ⟨hen, rfl⟩) (funext hsnap_unch)
     (funext fun u => funext fun v => (hboth u v).1)
-    (funext fun u => funext fun v => (hboth u v).2)
+    (funext fun u => funext fun v => (hboth u v).2) ?_
   funext u v
   rcases eq_or_ne v dest with rfl | hv
   · by_cases hu : u = src <;>
@@ -551,9 +544,7 @@ private lemma applyApp_proj_snap [DecidableEq P]
     sys.lts.Tr (project S₁) e (project (S₁.applyApp e)) ∧
     (ofSnap (S₁.applyApp e)).snapProc = (ofSnap S₁).snapProc := by
   classical
-  have htr_proj := sys.snapTr_project (S₁ := S₁) (a := .app e) ⟨hen, rfl⟩
-  simp only [SnapEvent.toAppEvent] at htr_proj
-  exact ⟨htr_proj, funext fun r => applyApp_snapState S₁ e r⟩
+  exact ⟨sys.snapTr_project (a := .app e) ⟨hen, rfl⟩, funext (applyApp_snapState S₁ e)⟩
 
 private lemma ofSnap_step_app_pre [DecidableEq P] [DecidableRel sys.graph.Adj]
     {S₁ : SnapGlobalState P S M} {e : Event P S M} (hinv : sys.SnapInv S₁)
@@ -831,11 +822,10 @@ private lemma push_cross_past_pre [DecidableEq P] {C₀ C₁ C₂ : CutState P S
     cases hmtr
     exact ⟨C₀, .refl, htr⟩
   | cons e es ih =>
-    cases hmtr with
-    | stepL hpre hrest =>
-      obtain ⟨Cm, hpre', hcross'⟩ := sys.swap_cross_pre htr hpre
-      obtain ⟨C₁', hmtr', hcross_end⟩ := ih hcross' hrest
-      exact ⟨C₁', .stepL hpre' hmtr', hcross_end⟩
+    obtain _ | ⟨hpre, hrest⟩ := hmtr
+    obtain ⟨Cm, hpre', hcross'⟩ := sys.swap_cross_pre htr hpre
+    obtain ⟨C₁', hmtr', hcross_end⟩ := ih hcross' hrest
+    exact ⟨C₁', .stepL hpre' hmtr', hcross_end⟩
 
 private lemma push_post_past_pre [DecidableEq P] {C₀ C₁ C₂ : CutState P S M}
     {e : Event P S M} {es : List (Event P S M)} (hv₀ : C₀.Valid)
@@ -846,12 +836,10 @@ private lemma push_post_past_pre [DecidableEq P] {C₀ C₁ C₂ : CutState P S 
     cases hmtr
     exact ⟨C₀, .refl, htr⟩
   | cons e₂ es ih =>
-    cases hmtr with
-    | stepL hpre hrest =>
-      obtain ⟨Cm, hpre', hpost'⟩ := sys.swap_post_pre hv₀ htr hpre
-      have hvm : Cm.Valid := sys.cutTr_preserves_valid hv₀ hpre'
-      obtain ⟨C₁', hmtr', hpost_end⟩ := ih hvm hpost' hrest
-      exact ⟨C₁', .stepL hpre' hmtr', hpost_end⟩
+    obtain _ | ⟨hpre, hrest⟩ := hmtr
+    obtain ⟨Cm, hpre', hpost'⟩ := sys.swap_post_pre hv₀ htr hpre
+    obtain ⟨C₁', hmtr', hpost_end⟩ := ih (sys.cutTr_preserves_valid hv₀ hpre') hpost' hrest
+    exact ⟨C₁', .stepL hpre' hmtr', hpost_end⟩
 
 private lemma push_post_past_cross [DecidableEq P] {C₀ C₁ C₂ : CutState P S M}
     {e : Event P S M} {ps : List P}
@@ -862,11 +850,10 @@ private lemma push_post_past_cross [DecidableEq P] {C₀ C₁ C₂ : CutState P 
     cases hmtr
     exact ⟨C₀, .refl, htr⟩
   | cons q ps ih =>
-    cases hmtr with
-    | stepL hcross hrest =>
-      obtain ⟨Cm, hcross', hpost'⟩ := sys.swap_post_cross htr hcross
-      obtain ⟨C₁', hmtr', hpost_end⟩ := ih hpost' hrest
-      exact ⟨C₁', .stepL hcross' hmtr', hpost_end⟩
+    obtain _ | ⟨hcross, hrest⟩ := hmtr
+    obtain ⟨Cm, hcross', hpost'⟩ := sys.swap_post_cross htr hcross
+    obtain ⟨C₁', hmtr', hpost_end⟩ := ih hpost' hrest
+    exact ⟨C₁', .stepL hcross' hmtr', hpost_end⟩
 
 private lemma snapMTr_ordered_cutMTr [DecidableEq P] [DecidableRel sys.graph.Adj]
     {S_init S_end : SnapGlobalState P S M} {xl : List (SnapEvent P S M)}
@@ -887,18 +874,18 @@ private lemma snapMTr_ordered_cutMTr [DecidableEq P] [DecidableRel sys.graph.Adj
     | stutter =>
       exact ⟨ps, C₁, C₂, hpre_m, hcross_m, hpost_m, hperm⟩
     | initiateSnapshot p =>
-      have hstep := sys.ofSnap_step_initiate hinv hen
-      obtain ⟨C₁', hpre_m', hcross_step⟩ := sys.push_cross_past_pre hstep hpre_m
+      obtain ⟨C₁', hpre_m', hcross_step⟩ :=
+        sys.push_cross_past_pre (sys.ofSnap_step_initiate hinv hen) hpre_m
       exact ⟨p :: ps, C₁', C₂, hpre_m', .stepL hcross_step hcross_m, hpost_m, hperm⟩
     | recvMarker src dest =>
       cases hdest : (S₀.proc dest).snapState with
       | none =>
-        have hstep := sys.ofSnap_step_recvMarker_none hinv hen hdest
-        obtain ⟨C₁', hpre_m', hcross_step⟩ := sys.push_cross_past_pre hstep hpre_m
+        obtain ⟨C₁', hpre_m', hcross_step⟩ :=
+          sys.push_cross_past_pre (sys.ofSnap_step_recvMarker_none hinv hen hdest) hpre_m
         exact ⟨dest :: ps, C₁', C₂, hpre_m', .stepL hcross_step hcross_m, hpost_m, hperm⟩
       | some s_d =>
-        have heq := sys.ofSnap_step_recvMarker_some hinv hen hdest
-        exact ⟨ps, C₁, C₂, heq ▸ hpre_m, hcross_m, hpost_m, hperm⟩
+        exact ⟨ps, C₁, C₂, sys.ofSnap_step_recvMarker_some hinv hen hdest ▸ hpre_m, hcross_m,
+          hpost_m, hperm⟩
     | app e =>
       cases hact : (S₀.proc e.actor).snapState with
       | none =>
@@ -1128,12 +1115,10 @@ private theorem snapState_isSome_omega [DecidableEq P] [DecidableRel sys.graph.A
     (hs : ((ss k).proc p).snapState.isSome = true) :
     ((ss j).proc p).snapState.isSome = true := by
   obtain ⟨s_p, hs_p⟩ := Option.isSome_iff_exists.mp hs
-  obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hkj
-  suffices ((ss (k + d)).proc p).snapState = some s_p by simp [this]
-  induction d with
-  | zero => simpa using hs_p
-  | succ d ih =>
-    exact sys.snapState_stable_tr (hexec (k + d)) (ih (Nat.le_add_right k d))
+  suffices ((ss j).proc p).snapState = some s_p by simp [this]
+  induction hkj with
+  | refl => exact hs_p
+  | step _ ih => exact sys.snapState_stable_tr (hexec _) ih
 
 /-- Once process `p` has recorded (`snapState.isSome`) and finalized incoming recorder
 `chanRec q = .done saved`, every subsequent transition of `sys.snapLts` preserves `.done saved`. -/
@@ -1171,16 +1156,12 @@ private theorem chanRec_isDone_omega [DecidableEq P] [DecidableRel sys.graph.Adj
     (hd : (((ss k).proc p).chanRec q).isDone = true) :
     (((ss j).proc p).chanRec q).isDone = true := by
   obtain ⟨saved, hsaved⟩ : ∃ saved, ((ss k).proc p).chanRec q = .done saved := by
-    cases h : ((ss k).proc p).chanRec q with
-    | recording _ => rw [h] at hd; simp [ChannelRec.isDone] at hd
-    | done sv => exact ⟨sv, rfl⟩
-  obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hkj
-  suffices ((ss (k + d)).proc p).chanRec q = .done saved by simp [this, ChannelRec.isDone]
-  induction d with
-  | zero => simpa using hsaved
-  | succ d ih =>
-    have hs_d := sys.snapState_isSome_omega hexec (Nat.le_add_right k d) hs
-    exact sys.chanRec_done_stable_tr (hexec (k + d)) hs_d (ih (Nat.le_add_right k d))
+    cases h : ((ss k).proc p).chanRec q <;> simp_all [ChannelRec.isDone]
+  suffices ((ss j).proc p).chanRec q = .done saved by simp [this, ChannelRec.isDone]
+  induction hkj with
+  | refl => exact hsaved
+  | step hle ih =>
+    exact sys.chanRec_done_stable_tr (hexec _) (sys.snapState_isSome_omega hexec hle hs) ih
 
 /-! #### FIFO progress of `.marker` along a single edge -/
 
@@ -1351,16 +1332,11 @@ theorem snapshot_liveness [Finite P] [DecidableEq P] [DecidableRel sys.graph.Adj
     {p₀ : P} {k₀ : ℕ} (hinit : ((ss k₀).proc p₀).snapState.isSome = true) :
     ∃ K, k₀ ≤ K ∧ ∀ k, K ≤ k → IsSnapshotComplete (ss k) := by
   cases nonempty_fintype P
-  have hproc_ev : ∀ p : P, ∃ k, k₀ ≤ k ∧ ((ss k).proc p).snapState.isSome = true :=
-    fun p => sys.path_propagation hpre₀ hexec hfair (hsc p₀ p) hinit
-  choose f_proc hf_proc using hproc_ev
+  choose f_proc hf_proc using fun p => sys.path_propagation hpre₀ hexec hfair (hsc p₀ p) hinit
   let K₁ := max k₀ (Finset.univ.sup f_proc)
-  have hk₀_K₁ : k₀ ≤ K₁ := le_max_left _ _
-  have hK₁_all : ∀ p : P, ((ss K₁).proc p).snapState.isSome = true := by
-    intro p
-    have hle : f_proc p ≤ K₁ :=
-      (Finset.le_sup (f := f_proc) (Finset.mem_univ p)).trans (le_max_right _ _)
-    exact sys.snapState_isSome_omega hexec hle (hf_proc p).2
+  have hK₁_all (p : P) : ((ss K₁).proc p).snapState.isSome = true :=
+    sys.snapState_isSome_omega hexec
+      ((Finset.le_sup (f := f_proc) (Finset.mem_univ p)).trans (le_max_right _ _)) (hf_proc p).2
   have hinv_K₁ : sys.SnapInv (ss K₁) :=
     sys.snapInv_mTr hpre₀ (hexec.extract_mTr (Nat.zero_le K₁))
   have hedge_ev : ∀ qp : P × P,
@@ -1373,16 +1349,14 @@ theorem snapshot_liveness [Finite P] [DecidableEq P] [DecidableRel sys.graph.Adj
       exact ⟨K₁, le_rfl, by simp [hdone, ChannelRec.isDone]⟩
   choose f_edge hf_edge using hedge_ev
   let K := max K₁ ((Finset.univ : Finset (P × P)).sup f_edge)
-  have hK₁_K : K₁ ≤ K := le_max_left _ _
-  refine ⟨K, hk₀_K₁.trans hK₁_K, fun k hKk => ⟨?_, ?_⟩⟩
-  · intro p
-    exact sys.snapState_isSome_omega hexec (hK₁_K.trans hKk) (hK₁_all p)
-  · intro q p
-    have hfj_le : f_edge (q, p) ≤ K :=
-      (Finset.le_sup (f := f_edge) (Finset.mem_univ (q, p))).trans (le_max_right _ _)
-    have hs_fj : ((ss (f_edge (q, p))).proc p).snapState.isSome = true :=
-      sys.snapState_isSome_omega hexec (hf_edge (q, p)).1 (hK₁_all p)
-    exact sys.chanRec_isDone_omega hexec (hfj_le.trans hKk) hs_fj (hf_edge (q, p)).2
+  refine ⟨K, (le_max_left _ _).trans (le_max_left _ _), fun k hKk =>
+    ⟨fun p => sys.snapState_isSome_omega hexec ((le_max_left _ _).trans hKk) (hK₁_all p),
+     fun q p => ?_⟩⟩
+  have hfj_le : f_edge (q, p) ≤ K :=
+    (Finset.le_sup (f := f_edge) (Finset.mem_univ (q, p))).trans (le_max_right _ _)
+  have hs_fj : ((ss (f_edge (q, p))).proc p).snapState.isSome = true :=
+    sys.snapState_isSome_omega hexec (hf_edge (q, p)).1 (hK₁_all p)
+  exact sys.chanRec_isDone_omega hexec (hfj_le.trans hKk) hs_fj (hf_edge (q, p)).2
 
 /-- Specialization of `snapshot_liveness` to the complete directed network `sys.graph = ⊤`. -/
 theorem snapshot_liveness_complete [Finite P] [DecidableEq P] [DecidableRel sys.graph.Adj]
@@ -1575,8 +1549,7 @@ theorem System.InputEnabled.exists_fair_snapOmegaExecution
       exact List.append_ne_nil_of_left_ne_nil hne extra
     obtain ⟨a, ha_mem, ha_del⟩ := (hseg k).2.2.2 src dest hne_cum
     obtain ⟨i, hi, heq⟩ := List.getElem_of_mem ha_mem
-    have hget : xls.flatten (xls.cumLen k + i) = a := by
-      rw [flatten_get_add xls hi hpos, heq]
-    exact hnot (xls.cumLen k + i) (hk_le.trans (Nat.le_add_right _ _)) (hget ▸ ha_del)
+    exact hnot (xls.cumLen k + i) (hk_le.trans (Nat.le_add_right _ _))
+      (by rwa [flatten_get_add xls hi hpos, heq])
 
 end Cslib.Distributed.ChandyLamport

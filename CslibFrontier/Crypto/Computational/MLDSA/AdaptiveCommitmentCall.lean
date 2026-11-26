@@ -311,13 +311,8 @@ private theorem all_windows (C : QuantumSigningForger) (s : Level) (H : Xofs)
 
 private theorem maskList_eq_row (s : Level) :
     maskList s 814 = (PMF.uniformOfFintype (Row s)).map (fun r => List.ofFn (rowMasks s r)) := by
-  have lists (n : ℕ) (schedule : Row s → Fin n → Mask s)
-      (law : (PMF.uniformOfFintype (Row s)).map schedule =
-        PMF.iid (signingMaskLaw s.params (by cases s <;> decide)) n) :
-      maskList s n = (PMF.uniformOfFintype (Row s)).map (fun r => List.ofFn (schedule r)) := by
-    rw [maskList, ← law, PMF.map_comp]
-    rfl
-  exact lists 814 (rowMasks s) (iid_maskFromRow s)
+  have h : (PMF.uniformOfFintype (Row s)).map (rowMasks s) = _ := iid_maskFromRow s
+  rw [maskList, ← h, PMF.map_comp, Function.comp_def]
 
 private theorem all_reads_sign (C : QuantumSigningForger) (s : Level) (H : Xofs)
     (keys : KeyPair) (sk : PrivateKey s) (A : PublicMatrix s)

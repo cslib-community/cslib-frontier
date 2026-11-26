@@ -157,9 +157,8 @@ theorem map_fst_links (sites : List Point) (r : Route) :
     rw [getElem_wire sites r i (by omega), getElem_wire sites r (i + 1) (by omega)]
     simp only [List.getElem_dropLast]
     have hn : r.getD (i + 1) r[i] = r[i + 1] := List.getD_eq_getElem _ _ (by omega)
-    have hp : r.getD (i + 1 - 1) r[i + 1] = r[i] := by
-      rw [Nat.add_sub_cancel, List.getD_eq_getElem _ _ (by omega)]
-    simp only [hn, hp]
+    have hp : r.getD i r[i + 1] = r[i] := List.getD_eq_getElem _ _ (by omega)
+    simp only [Nat.add_sub_cancel, hn, hp]
     rfl
 
 /-- The source value is read at one fixed port of its ordinary source cell. -/
@@ -184,16 +183,11 @@ theorem wire_first_value {φ : CNF ℕ} {σ : Variable → Bool}
   have hwpos : 0 < (wire (crossingSites φ) (occurrencePath φ o)).length := by
     rw [length_wire]; omega
   have hhead : (wire (crossingSites φ) (occurrencePath φ o)).headD fallback =
-      (wire (crossingSites φ) (occurrencePath φ o))[0] := by
-    generalize wire (crossingSites φ) (occurrencePath φ o) = xs at hwpos ⊢
-    cases xs with
-    | nil => cases hwpos
-    | cons _ _ => rfl
-  have hp : (occurrencePath φ o).head? = some (Layout.center (φ.distinctVars.idxOf o.lit.1)) :=
-    (PlanarCompile.occurrencePath_endpoints ho).1
+      (wire (crossingSites φ) (occurrencePath φ o))[0] :=
+    match wire (crossingSites φ) (occurrencePath φ o), hwpos with | _ :: _, _ => rfl
+  have hp : (occurrencePath φ o).head? = _ := (PlanarCompile.occurrencePath_endpoints ho).1
   rw [List.head?_eq_getElem?, List.getElem?_eq_getElem (by omega)] at hp
-  have hp' : (occurrencePath φ o)[0] = Layout.center (φ.distinctVars.idxOf o.lit.1) :=
-    Option.some.inj hp
+  have hp' := Option.some.inj hp
   have hret : Layout.center (φ.distinctVars.idxOf o.lit.1) ∈ (occurrencePath φ o).dropLast := by
     rw [← hp', ← List.getElem_dropLast (by simp only [List.length_dropLast]; omega)]
     exact List.getElem_mem _

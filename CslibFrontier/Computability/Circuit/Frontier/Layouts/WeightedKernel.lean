@@ -294,7 +294,6 @@ theorem weightedKernelRow_eq_zero_of_lt {R : ℕ} {v z : V} (h : R < H.edist v z
   rw [weightedKernelRow_apply]
   induction R generalizing v with
   | zero =>
-    simp only [Nat.cast_zero] at h
     rw [bestWalkWeight, ite_eq_right fun hvz => by simp [hvz] at h]
   | succ r ih =>
     rw [bestWalkWeight_succ]
@@ -504,11 +503,9 @@ private theorem edgeWeight_sq_mul_sum_strictStepSet_le (hθ0 : 0 ≤ θ) (hθ1 :
           ((SimpleGraph.mem_neighborFinset H b c).mp (Finset.mem_of_mem_erase hc)))
     have hcard_nb : (nb.card : ℝ) ≤ (deg b : ℝ) - 1 := by
       have h1 := Finset.card_erase_add_one ((SimpleGraph.mem_neighborFinset H b a).mpr hab.symm)
-      have h2 : (H.neighborFinset b).card ≤ deg b := by
-        rw [SimpleGraph.neighborFinset, ← ncard_eq_toFinset_card']
-        exact hsimple b
+      rw [SimpleGraph.neighborFinset, ← ncard_eq_toFinset_card'] at h1
       rw [le_sub_iff_add_le]
-      exact_mod_cast h1.trans_le h2
+      exact_mod_cast h1.trans_le (hsimple b)
     have hdb : (3 : ℝ) ≤ deg b := by exact_mod_cast hlo b
     have hda : (3 : ℝ) ≤ deg a := by exact_mod_cast hlo a
     have hsb_pos : 0 < √((deg b : ℝ) - 1) := sqrt_pos.mpr (by linarith)
@@ -554,10 +551,8 @@ private theorem sum_sq_strict_root_le {d : ℕ} (hθ0 : 0 ≤ θ) (hθ1 : θ < 1
     calc (2 : ℝ) = √2 * √2 := (mul_self_sqrt (by norm_num)).symm
       _ ≤ √((deg u : ℝ) - 1) * √2 := mul_le_mul_of_nonneg_right hsu hs2.le
   have hcard_u : ((H.neighborFinset u).card : ℝ) ≤ d := by
-    have h1 : (H.neighborFinset u).card ≤ deg u := by
-      rw [SimpleGraph.neighborFinset, ← ncard_eq_toFinset_card']
-      exact hsimple u
-    exact_mod_cast h1.trans (hhi u)
+    rw [SimpleGraph.neighborFinset, ← ncard_eq_toFinset_card']
+    exact_mod_cast (hsimple u).trans (hhi u)
   calc (∑ z, if bestWalkWeight H deg θ r u z < bestWalkWeight H deg θ (r + 1) u z
           then bestWalkWeight H deg θ (r + 1) u z ^ 2 else 0)
       = ∑ z ∈ rootSet, bestWalkWeight H deg θ (r + 1) u z ^ 2 :=
@@ -861,10 +856,9 @@ theorem layoutBound_of_weightedKernel {d : ℕ} (hd : 3 ≤ d) {A : ℝ} (hA : 0
     rw [← Nat.card_eq_fintype_card, ← Nat.card_eq_fintype_card, sub_le_iff_le_add']
     exact_mod_cast (by omega : Nat.card Q.external ≤ Nat.card Q.blocks + G.cycleRank)
   have ⟨hE3, hV3⟩ := hQ.card_external_and_blocks_le_three_mul_cycleRank hd hG two
-  have hE3' : (Fintype.card Q.external : ℝ) ≤ 3 * G.cycleRank := by
-    rwa [← Nat.card_eq_fintype_card]
+  rw [Nat.card_eq_fintype_card] at hE3
   have hξ6 : 6 * ξ = η := by simp only [ξ]; ring
-  nlinarith [mul_le_mul_of_nonneg_left hdiff_le hA, mul_le_mul_of_nonneg_left hE3' hξ.le,
+  nlinarith [mul_le_mul_of_nonneg_left hdiff_le hA, mul_le_mul_of_nonneg_left hE3 hξ.le,
     mul_le_mul_of_nonneg_right hV3 hξ.le]
 
 /-! ### Closed-form rational and trigonometric helpers for `d = 4, 5, 6` -/
@@ -1036,25 +1030,21 @@ theorem one_add_inv_fiveCoefficient :
 theorem fiveCircuitCoefficient_ge_3929 :
     (3929 / 1000 : ℝ) ≤ 1 + 3 * π / (5 * arccos (4 / 5)) := by
   have ha : 0 < arccos (4 / 5) := arccos_pos.mpr (by norm_num)
-  have hdiv : (2929 / 1000 : ℝ) ≤ 3 * π / (5 * arccos (4 / 5)) := by
-    rw [le_div_iff₀ (by positivity)]
-    linarith [pi_gt_d6, arccos_four_fifths_le]
-  linarith
+  rw [← sub_le_iff_le_add', le_div_iff₀ (by positivity)]
+  linarith [pi_gt_d6, arccos_four_fifths_le]
 
 private theorem le_arccos_sqrt_five_div_three : (7297 / 10000 : ℝ) ≤ arccos (√5 / 3) := by
   have hs5 : √5 < 3 * (931710513 / 1250000000 : ℝ) :=
     (sqrt_lt' (by norm_num)).mpr (by norm_num)
   refine le_arccos_of_cosQuarLower (by norm_num) (by norm_num) (by norm_num) ?_
-  have hnum : (931710513 / 1250000000 : ℝ) ≤ cosQuarLower (7297 / 10000) := by
-    dsimp only [cosQuarLower]; norm_num
+  dsimp only [cosQuarLower]
   linarith
 
 private theorem arccos_sqrt_five_div_three_le : arccos (√5 / 3) ≤ 72973 / 100000 := by
   have hs5 : 3 * (3726777277 / 5000000000 : ℝ) < √5 :=
     (lt_sqrt (by norm_num)).mpr (by norm_num)
   refine arccos_le_of_cosOctUpper (by norm_num) (by norm_num) ?_
-  have hnum : cosOctUpper (72973 / 100000) ≤ 3726777277 / 5000000000 := by
-    dsimp only [cosOctUpper]; norm_num
+  dsimp only [cosOctUpper]
   linarith
 
 private theorem arccos_pairCorrelation_five_six_le :
@@ -1078,27 +1068,23 @@ private theorem arccos_pairCorrelation_three_six_le :
 
 /-- `sixCoefficient` is strictly positive. -/
 theorem sixCoefficient_pos : 0 < sixCoefficient := by
-  have hs5 : √5 < 3 := (sqrt_lt' (by norm_num)).mpr (by norm_num)
+  have ha : 0 < arccos (√5 / 3) := by linarith [le_arccos_sqrt_five_div_three]
   unfold sixCoefficient
-  exact div_pos (mul_pos (by norm_num) (arccos_pos.mpr (by linarith))) pi_pos
+  exact div_pos (mul_pos (by norm_num) ha) pi_pos
 
 /-- Closed-form circuit lower-bound coefficient `1 + 1 / sixCoefficient`. -/
 theorem one_add_inv_sixCoefficient :
     1 + 1 / sixCoefficient = 1 + 2 * π / (3 * arccos (√5 / 3)) := by
-  have hs5 : √5 < 3 := (sqrt_lt' (by norm_num)).mpr (by norm_num)
-  have ha : 0 < arccos (√5 / 3) := arccos_pos.mpr (by linarith)
+  have ha : 0 < arccos (√5 / 3) := by linarith [le_arccos_sqrt_five_div_three]
   unfold sixCoefficient
   field_simp
 
 /-- Rational lower bound `387 / 100 ≤ 1 + 2 π / (3 arccos (√5 / 3)) ≈ 3.870105`. -/
 theorem sixCircuitCoefficient_ge_387 :
     (387 / 100 : ℝ) ≤ 1 + 2 * π / (3 * arccos (√5 / 3)) := by
-  have hs5 : √5 < 3 := (sqrt_lt' (by norm_num)).mpr (by norm_num)
-  have ha : 0 < arccos (√5 / 3) := arccos_pos.mpr (by linarith)
-  have hdiv : (287 / 100 : ℝ) ≤ 2 * π / (3 * arccos (√5 / 3)) := by
-    rw [le_div_iff₀ (by positivity)]
-    linarith [pi_gt_d6, arccos_sqrt_five_div_three_le]
-  linarith
+  have ha : 0 < arccos (√5 / 3) := by linarith [le_arccos_sqrt_five_div_three]
+  rw [← sub_le_iff_le_add', le_div_iff₀ (by positivity)]
+  linarith [pi_gt_d6, arccos_sqrt_five_div_three_le]
 
 end WeightedKernel
 

@@ -96,10 +96,8 @@ private theorem drop_runLength (keys : List ℕ) :
   simpa only [runLength, List.drop_left] using he.symm
 
 private theorem step_empty (keys : List ℕ) (I : State Rel) (h : I.ports = []) :
-    step keys I = I := by
-  apply closeFirstMetadataRun_eq_self
-  right
-  simp only [pending,h,List.length_nil,Nat.sub_zero,List.drop_length]
+    step keys I = I :=
+  closeFirstMetadataRun_eq_self I _ (.inr (by simp [pending, h]))
 
 private theorem pending_step (keys : List ℕ) (I : State Rel)
     (h : I.ports.length ≤ keys.length) :
@@ -117,9 +115,8 @@ private theorem pending_step (keys : List ℕ) (I : State Rel)
 private theorem collapse_of_pending_eq {keys : List ℕ} {I : State Rel} {a : ℕ} {ks : List ℕ}
     (he : pending keys I = a :: ks) :
     collapse keys I = fun z =>
-      if z ∈ I.ports.take (runLength (a :: ks)) then I.ports.headD 0 else z := by
-  funext z
-  simp only [collapse, he]
+      if z ∈ I.ports.take (runLength (a :: ks)) then I.ports.headD 0 else z :=
+  funext fun _ => by simp only [collapse, he]
 
 private theorem stage_fields (keys : List ℕ) (I : State Rel)
     (hl : keys.length = I.ports.length) (s : ℕ) :
@@ -406,12 +403,10 @@ private theorem split_count (keys : List ℕ) :
   | cons_cons a b ks _ih ihTail =>
     by_cases hab : a=b
     · subst b
-      have h1 := split_first_run (a::a::ks) (by simp)
-      have h2 := split_first_run (a::ks) (by simp)
-      have he : ((a::a::ks).drop (runLength (a::a::ks)))=
-          ((a::ks).drop (runLength (a::ks))) := by
-        simp [runLength]
-      rw [h1,List.length_cons,he,← List.length_cons,← h2,ihTail]
+      have he : ((a::a::ks).drop (runLength (a::a::ks))) =
+          ((a::ks).drop (runLength (a::ks))) := by simp [runLength]
+      rw [split_first_run (a::a::ks) (List.cons_ne_nil _ _), List.length_cons, he,
+        ← List.length_cons, ← split_first_run (a::ks) (List.cons_ne_nil _ _), ihTail]
       simp
     · rw [split_first_run (a::b::ks) (by simp)]
       have hr : runLength (a::b::ks)=1 := by simp [runLength,hab,eq_comm]
@@ -642,8 +637,7 @@ private theorem forward_fuel (keys : List ℕ) (fuel : ℕ) (I : State Rel)
       have hc := selected_values_constant I (pending keys I) σ hl hn he
       obtain ⟨ν,hν,hνeq,hword⟩ := forward_closeFirstMetadataRun sem I a ks ha σ hs
         (by simpa only [hkeys,runLength,List.headD_cons] using hc)
-      have hνfun : ν=σ := funext hνeq
-      subst ν
+      obtain rfl : σ = ν := (funext hνeq).symm
       have hbody : (step keys I).body.eval sem σ=true := by simpa only [step,hkeys] using hν
       have htail := (first_run_agreement _ _ (by simpa only [List.length_map] using hl)).mp he |>.2
       have hw : (step keys I).ports.map σ=(I.ports.drop (runLength (pending keys I))).map σ := by

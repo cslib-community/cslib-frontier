@@ -475,10 +475,9 @@ private theorem play_rfindFrom : ∀ (r i : ℕ) (rs : List ℕ),
     change _ = rfindDone ((rfindStep p x k)^[r] (Sum.elim _ _ (play p (((x, i), k), rs))))
     rw [play_apply]
     rcases OracleComp.play (p (x, i) k).run rs with q | ⟨_ | _ | _, rs'⟩
-    · exact (congrArg rfindDone (rfindStep_iterate_inl p x k _ r)).symm
-    · exact (congrArg rfindDone (rfindStep_iterate_inl p x k _ r)).symm
-    · exact play_rfindFrom r (i + 1) rs'
-    · exact (congrArg rfindDone (rfindStep_iterate_inl p x k _ r)).symm
+    all_goals first
+      | exact play_rfindFrom r (i + 1) rs'
+      | exact (congrArg rfindDone (rfindStep_iterate_inl p x k _ r)).symm
 
 end Rfind
 
@@ -669,10 +668,9 @@ private theorem stable_toClocked_and_eval (g : ℕ →. ℕ) :
     obtain ⟨hf, ef⟩ := stable_toClocked_and_eval g cf n
     obtain ⟨hg, eg⟩ := stable_toClocked_and_eval g cg n
     refine ⟨hf.bind fun _ => hg.bind fun _ => .pure _, ?_⟩
-    simp only [toClocked]
-    rw [ClockedComp.eval_bind g hf fun _ => hg.bind fun _ => .pure _]
-    simp only [ClockedComp.eval_bind g hg fun _ => .pure _, ClockedComp.eval_pure g, ef, eg, eval]
-    simp only [seq_eq_bind_map, map_eq_pure_bind, bind_assoc, pure_bind]
+    rw [toClocked, ClockedComp.eval_bind g hf fun _ => hg.bind fun _ => .pure _]
+    simp only [ClockedComp.eval_bind g hg fun _ => .pure _, ClockedComp.eval_pure g, ef, eg, eval,
+      seq_eq_bind_map, map_eq_pure_bind, bind_assoc, pure_bind]
     rfl
   | comp cf cg, n => by
     obtain ⟨hg, eg⟩ := stable_toClocked_and_eval g cg n
@@ -769,12 +767,9 @@ clocked programs querying `g` whose dialogue is computable. -/
 theorem recursiveIn_iff_exists_clockedComp {g : ℕ →. ℕ} {F : ℕ →. ℕ} :
     Nat.RecursiveIn {g} F ↔ ∃ P : ℕ → ClockedComp natOracleSpec ℕ,
       Computable (ClockedComp.dialogue P) ∧ ∀ n, ClockedComp.eval g (P n) = F n := by
-  constructor
-  · intro h
-    obtain ⟨c, rfl⟩ := exists_code.1 h
-    exact ⟨c.toClocked, computable_dialogue_toClocked c, eval_toClocked g c⟩
-  · rintro ⟨P, hP, hF⟩
-    exact (ClockedComp.recursiveIn_eval hP _).of_eq hF
+  refine ⟨fun h => ?_, fun ⟨P, hP, hF⟩ => (ClockedComp.recursiveIn_eval hP _).of_eq hF⟩
+  obtain ⟨c, rfl⟩ := exists_code.1 h
+  exact ⟨c.toClocked, computable_dialogue_toClocked c, eval_toClocked g c⟩
 
 end Dialogue
 
