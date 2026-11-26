@@ -88,21 +88,15 @@ theorem prefixesUpTo_spec {d : ℕ} (k : ℕ) :
         union_singleton]
       constructor
       · rintro (hS | ⟨T, ⟨hT, hTk⟩, rfl⟩)
-        · obtain ⟨hsub, hcard⟩ := (hprev_mem S).mp hS
-          exact ⟨hsub.trans (subset_insert c _), hcard⟩
-        · obtain ⟨hsub, _⟩ := (hprev_mem T).mp hT
-          rw [card_insert_of_notMem (hc_not_in_prev T hT)]
-          exact ⟨insert_subset_insert c hsub, by omega⟩
+        · exact ⟨((hprev_mem S).mp hS).1.trans (subset_insert c _), ((hprev_mem S).mp hS).2⟩
+        · rw [card_insert_of_notMem (hc_not_in_prev T hT)]
+          exact ⟨insert_subset_insert c ((hprev_mem T).mp hT).1, by omega⟩
       · rintro ⟨hsub, hcard⟩
         by_cases hcS : c ∈ S
-        · right
-          refine ⟨S.erase c, ⟨(hprev_mem _).mpr ⟨fun x hx => ?_, card_erase_le.trans hcard⟩, ?_⟩,
-            insert_erase hcS⟩
-          · exact (Finset.mem_insert.mp (hsub (mem_of_mem_erase hx))).resolve_left
-              (ne_of_mem_erase hx)
-          · rw [card_erase_of_mem hcS]
-            have := Finset.card_pos.mpr ⟨c, hcS⟩
-            omega
+        · refine .inr ⟨S.erase c, ⟨(hprev_mem _).mpr ⟨fun x hx =>
+              (Finset.mem_insert.mp (hsub (mem_of_mem_erase hx))).resolve_left
+                (ne_of_mem_erase hx), card_erase_le.trans hcard⟩,
+            (card_erase_lt_of_mem hcS).trans_le hcard⟩, insert_erase hcS⟩
         · left
           exact (hprev_mem S).mpr
             ⟨fun x hx => (Finset.mem_insert.mp (hsub hx)).resolve_left fun h => hcS (h ▸ hx), hcard⟩
@@ -460,9 +454,7 @@ theorem exec_extractCoords {w d coordsPtr : ℕ} (C : Finset (Fin d)) (x : Data 
   obtain ⟨y, hloop, hyP, _⟩ := ExecWithin.loop_count P (fun s hs => hs.2.2.1) hbody
     (by simp [x₀]) hx₀
   obtain ⟨_, _, _, _, hycl, _, hymem, hyframe⟩ := hyP
-  have hcur_d : curAt d = cList := by
-    dsimp only [curAt, cList]
-    rw [List.take_of_length_le (by simp)]
+  have hcur_d : curAt d = cList := congrArg (List.filter _) (List.take_of_length_le (by simp))
   rw [hcur_d] at hycl hymem hyframe
   have hcList_le : cList.length ≤ d := by
     calc cList.length ≤ (List.finRange d).length := List.length_filter_le _ _

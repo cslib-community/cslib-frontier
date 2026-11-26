@@ -290,17 +290,13 @@ theorem exists_mem_boxesAt_leaf_iff {η : OutStr L} {V : Finset (Fin L)} {τ : L
     (∃ π ∈ boxesAt η V, τ ∈ Cube.leaves π) ↔
       V \ initialLevels (innerSetO η) V ⊆ P0LevelsWithin (innerSetO η) τ ∧ P0LevelsWithin
         (innerSetO η) τ ⊆ V := by
-  constructor
-  · rintro ⟨π, hπ, hτπ⟩
-    refine ⟨fun ℓ hℓ => mem_filter.2 ⟨?_, ?_⟩, fun ℓ hℓ => ?_⟩
-    · exact by_contra fun hℓQ => privateLeaf_ne_P0 hℓQ
-        (CubeSymbol.term.inj ((boxesAt_outside hπ hℓQ).symm.trans (boxesAt_P0 hπ hℓ)))
-    · exact Cube.eq_of_mem_leaves hτπ (boxesAt_P0 hπ hℓ)
-    · by_contra hℓV
-      obtain ⟨hℓQ, hterm⟩ := mem_filter.1 hℓ
-      obtain ⟨i, j, hij⟩ := boxesAt_nine hπ (mem_sdiff.2 ⟨hℓQ, hℓV⟩)
-      simp [Cube.eq_of_mem_leaves hτπ hij] at hterm
-  · exact fun ⟨hVZ, hZV⟩ => ⟨_, starAt_mem_boxesAt hτ hVZ hZV, Cube.mem_leaves_starAt _ τ⟩
+  refine ⟨fun ⟨π, hπ, hτπ⟩ => ⟨fun ℓ hℓ => mem_filter.2 ⟨by_contra fun hℓQ =>
+      privateLeaf_ne_P0 hℓQ (CubeSymbol.term.inj ((boxesAt_outside hπ hℓQ).symm.trans
+        (boxesAt_P0 hπ hℓ))),
+      Cube.eq_of_mem_leaves hτπ (boxesAt_P0 hπ hℓ)⟩, fun ℓ hℓ => by_contra fun hℓV => ?_⟩,
+    fun ⟨hVZ, hZV⟩ => ⟨_, starAt_mem_boxesAt hτ hVZ hZV, Cube.mem_leaves_starAt _ τ⟩⟩
+  obtain ⟨i, j, hij⟩ := boxesAt_nine hπ (mem_sdiff.2 ⟨(mem_filter.1 hℓ).1, hℓV⟩)
+  exact Term.noConfusion ((mem_filter.1 hℓ).2.symm.trans (Cube.eq_of_mem_leaves hτπ hij))
 
 /-- Within a single family, a leaf determines its cube. -/
 theorem boxesAt_leaf_unique {η : OutStr L} {V : Finset (Fin L)} {τ : Leaf L} {π π' : Cube L}
@@ -318,18 +314,15 @@ theorem boxesAt_leaf_unique {η : OutStr L} {V : Finset (Fin L)} {τ : Leaf L} {
 theorem paddedLevels_unique {L : ℕ} (m t : ℕ) (ht : t ≤ m) (Q Z : Finset (Fin L)) (hQ : Q.card = m)
     (hZ : Z ⊆ Q) (hZc : Z.card ≤ m - t) (V : Finset (Fin L)) :
     (V ⊆ Q ∧ V.card = m - t ∧ V \ initialLevels Q V ⊆ Z ∧ Z ⊆ V) ↔ V = paddedLevels m t Q Z := by
-  constructor
-  · rintro ⟨hVQ, hVc, hVZ, hZV⟩
-    have hrest : (Q \ Z) \ (V \ Z) = Q \ V := sdiff_sdiff_sdiff_cancel_right hZV
-    have hlow := eq_lowest_of_lt (sdiff_subset_sdiff hVQ (le_refl Z))
-      (hrest ▸ (sdiff_initialLevels_subset_iff hVQ).1 hVZ)
+  refine ⟨fun ⟨hVQ, hVc, hVZ, hZV⟩ => ?_, ?_⟩
+  · have hlow := eq_lowest_of_lt (sdiff_subset_sdiff hVQ le_rfl)
+      (sdiff_sdiff_sdiff_cancel_right hZV ▸ (sdiff_initialLevels_subset_iff hVQ).1 hVZ)
     rw [card_sdiff_of_subset hZV, hVc] at hlow
     rw [paddedLevels, ← hlow, union_sdiff_of_subset hZV]
   · rintro rfl
-    have hVQ := paddedLevels_subset m t hZ
-    exact ⟨hVQ, card_paddedLevels ht hQ hZ hZc, (sdiff_initialLevels_subset_iff hVQ).2
-      (paddedLevels_sdiff_lt m t Q Z),
-      subset_union_left⟩
+    exact ⟨paddedLevels_subset m t hZ, card_paddedLevels ht hQ hZ hZc,
+      (sdiff_initialLevels_subset_iff (paddedLevels_subset m t hZ)).2
+        (paddedLevels_sdiff_lt m t Q Z), subset_union_left⟩
 
 /-- The families cover exactly the contributing leaves above the threshold. -/
 theorem contributes_high_iff_mem_box_leaves {L : ℕ} (m t : ℕ) (ht : t ≤ m) (η : OutStr L) (hη :

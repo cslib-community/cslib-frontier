@@ -381,9 +381,8 @@ private theorem relaxEdge_runs (T : Finset (Fin n)) (dm : Dictionary.State n)
           (IndexedMinPQ.dom (syncQ T dm)).card := by
         rw [← syncQ_update hvT, IndexedMinPQ.dom_decreaseKey]
         exact IndexedMinPQ.mem_dom_iff.mpr ⟨dv, by simp [syncQ, hvT, hdm]⟩
-      have hmin : relaxOpt (du + c) (some dv) = some (du + c) := congrArg some (min_eq_left hlt.le)
       rw [syncQ_update hvT] at hrun
-      rw [hmin]
+      rw [relaxOpt, min_eq_left hlt.le]
       refine Runs.of_runClient rate hrun ?_ ?_
       · simp [StateTransitionSpec.validHistory_cons, AdjacencyList.valid, Dictionary.valid,
           IndexedMinPQ.valid, hi, hvc, hdm, hV, hK, syncQ, hvT, hlt.le]
@@ -395,9 +394,7 @@ private theorem relaxEdge_runs (T : Finset (Fin n)) (dm : Dictionary.State n)
         simp only [relaxEdge, runClient_edge_bind, AdjacencyList.step_edge _ _ hi, hvc,
           runClient_getDist_bind, hdm, hlt, ite_false]
         rfl
-      have hmin : Function.update dm v (relaxOpt (du + c) (some dv)) = dm := by
-        rw [relaxOpt, min_eq_right (Nat.le_of_not_lt hlt), ← hdm, Function.update_eq_self]
-      rw [hmin]
+      rw [relaxOpt, min_eq_right (Nat.le_of_not_lt hlt), ← hdm, Function.update_eq_self]
       refine Runs.of_runClient rate hrun ?_ ?_
       · simp [StateTransitionSpec.validHistory_cons, AdjacencyList.valid, hi]
       · simp only [weight_cons rate, weight_nil rate, kind, edgeRate]
@@ -608,11 +605,11 @@ private theorem Good.visit {G : ListInstance} {T : Finset (Fin G.n)} {dm : Dicti
   -- Keys stay at most `n` times the largest weight.
   have hcard : T.card + 1 ≤ G.n := by
     simpa [Finset.card_insert_of_notMem huT] using Finset.card_le_univ (insert u T)
+  have hbound0 : (du : ℕ∞) ≤ ↑(T.card * G.toInstance.maxWeight) := by
+    rw [Nat.cast_mul, ← hDu]
+    exact hgood.inv.bound u hfin
   have hduW : du ≤ T.card * G.maxWeight :=
-    (by exact_mod_cast (hDu ▸ hgood.inv.bound u hfin :
-      (du : ℕ∞) ≤ ((T.card * G.toInstance.maxWeight : ℕ) : ℕ∞)) :
-      du ≤ T.card * G.toInstance.maxWeight).trans
-      (Nat.mul_le_mul_left _ G.toInstance_maxWeight_le)
+    (Nat.cast_le.mp hbound0).trans (Nat.mul_le_mul_left _ G.toInstance_maxWeight_le)
   have hbound : ∀ v c, (v, c) ∈ G.adj u → du + c ≤ K ∧ du + c < V := by
     intro v c hvc
     have hc : c ≤ G.maxWeight := G.le_maxWeight hvc
@@ -691,14 +688,11 @@ private theorem loop_runs (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
       · have hsum : (∑ v ∈ Tᶜ, (G.adj v).length) * edgeRate rate pU pQ =
             (G.adj u).length * edgeRate rate pU pQ +
               (∑ v ∈ (insert u T)ᶜ, (G.adj v).length) * edgeRate rate pU pQ := by
-          rw [← add_mul, Finset.compl_insert]
-          rw [Finset.add_sum_erase Tᶜ (fun v => (G.adj v).length) (Finset.mem_compl.mpr huT)]
-        have hpot : pot (K := K) (V := V) pU pQ (syncQ T dm, dm, G.adj) =
-            pot (K := K) (V := V) pU pQ (syncQ (insert u T) dm, dm, G.adj) + pQ := by
-          simp only [pot, ← hcard, Nat.mul_succ]
-          omega
+          rw [← add_mul, Finset.compl_insert,
+            Finset.add_sum_erase Tᶜ (fun v => (G.adj v).length) (Finset.mem_compl.mpr huT)]
         simp only [IndexedMinPQ.step, hf, kind]
-        rw [hsync, hsum, hpot, add_one_mul]
+        rw [hsync, hsum, add_one_mul]
+        simp only [pot, ← hcard, Nat.mul_succ]
         omega
 
 /-- **The whole run.** From the initial state, Dijkstra's algorithm leaves an empty queue and the

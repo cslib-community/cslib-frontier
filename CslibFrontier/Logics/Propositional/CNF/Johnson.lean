@@ -147,18 +147,15 @@ theorem CNF.countUnsat_restrict {σ : V → Bool} {v : V} {b : Bool} (hσ : σ v
   | nil => rfl
   | cons c ψ ih =>
     rw [CNF.restrict_cons]
-    split
-    · rename_i h
-      have hc : c.eval σ = true :=
-        (Clause.eval_eq_true_iff σ c).2 ⟨_, h, by simp [hσ]⟩
-      rw [ih]
-      exact (List.countP_cons_of_neg (by simp [hc])).symm
+    split_ifs with h
+    · rw [ih]
+      exact (List.countP_cons_of_neg
+        (by simp [(Clause.eval_eq_true_iff σ c).2 ⟨_, h, by simp [hσ]⟩])).symm
     · have hc : Clause.eval σ (c.filter (· ≠ (v, !b))) = c.eval σ := by
         rw [Bool.eq_iff_iff, Clause.eval_eq_true_iff, Clause.eval_eq_true_iff]
         simp only [List.mem_filter, decide_eq_true_eq]
-        refine ⟨fun ⟨l, ⟨hl, _⟩, hle⟩ => ⟨l, hl, hle⟩, fun ⟨l, hl, hle⟩ => ⟨l, ⟨hl, ?_⟩, hle⟩⟩
-        rintro rfl
-        simp [hσ] at hle
+        exact ⟨fun ⟨l, ⟨hl, _⟩, hle⟩ => ⟨l, hl, hle⟩,
+          fun ⟨l, hl, hle⟩ => ⟨l, ⟨hl, fun heq => by simp [heq, hσ] at hle⟩, hle⟩⟩
       simp only [CNF.countUnsat, List.countP_cons, hc] at ih ⊢
       rw [ih]
 
@@ -286,15 +283,13 @@ theorem two_pow_mul_countUnsat_johnsonAssignment_le (φ : CNF V) :
     · have hrσ : σ r = b := by
         rw [hσ r hr]
         cases b
-        · simpa [johnsonBranch] using fun h => hT r h List.mem_cons_self
+        · exact decide_eq_false (fun h => hT r h List.mem_cons_self)
         · simp [johnsonBranch]
-      have hσ' : ∀ v, v ∉ r :: rs → σ v = decide (v ∈ T) := by
-        intro v hv
-        rw [List.mem_cons, not_or] at hv
-        rw [hσ v hv.2]
-        cases b <;> simp [johnsonBranch, hv.1]
       rw [johnsonBranch, CNF.countUnsat_restrict hrσ]
-      exact hcount σ hσ'
+      refine hcount σ fun v hv => ?_
+      rw [List.mem_cons, not_or] at hv
+      rw [hσ v hv.2]
+      cases b <;> simp [johnsonBranch, hv.1]
   have havg : ∀ r rs s, Inv (r :: rs) s →
       (johnsonBranch r true s).1.johnsonWeight L + (johnsonBranch r false s).1.johnsonWeight L ≤
         s.1.johnsonWeight L + s.1.johnsonWeight L :=

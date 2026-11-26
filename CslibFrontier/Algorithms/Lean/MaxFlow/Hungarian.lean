@@ -237,21 +237,17 @@ private theorem hgArgmin_foldl (s : HgState n) (l : List (Fin n)) :
   | nil => intro S b h; simpa using h
   | cons x l ih =>
     intro S b h
-    rw [List.foldl_cons, show S ++ x :: l = (S ++ [x]) ++ l by simp]
+    rw [List.foldl_cons, ← List.singleton_append, ← List.append_assoc]
     apply ih
     unfold HgArgminOK at h
     unfold hgArgminStep
     by_cases hx : vget s.used x = true
     · rw [ite_eq_left hx]
-      refine ⟨fun hb j hj => ?_, fun k hk => ?_⟩
-      · rcases List.mem_append.mp hj with hj | hj
-        · exact h.1 hb j hj
-        · exact List.mem_singleton.mp hj ▸ hx
-      · obtain ⟨hk1, hk2⟩ := h.2 k hk
-        refine ⟨hk1, fun j hj hju => ?_⟩
-        rcases List.mem_append.mp hj with hj | hj
-        · exact hk2 j hj hju
-        · exact absurd ((List.mem_singleton.mp hj ▸ hju).symm.trans hx) Bool.noConfusion
+      refine ⟨fun hb j hj => (List.mem_append.mp hj).elim (h.1 hb j)
+          (fun hj => List.mem_singleton.mp hj ▸ hx), fun k hk => ?_⟩
+      obtain ⟨hk1, hk2⟩ := h.2 k hk
+      refine ⟨hk1, fun j hj hju => (List.mem_append.mp hj).elim (hk2 j · hju) fun hj => ?_⟩
+      exact (Bool.false_ne_true ((List.mem_singleton.mp hj ▸ hju).symm.trans hx)).elim
     · rw [ite_eq_right hx]
       have hx' : vget s.used x = false := Bool.eq_false_iff.mpr hx
       have hsome (m : Fin n) (hm : vget s.used m = false)
@@ -259,10 +255,8 @@ private theorem hgArgmin_foldl (s : HgState n) (l : List (Fin n)) :
           (hmx : vget s.minv m ≤ vget s.minv x) : HgArgminOK s (S ++ [x]) (some m) := by
         refine ⟨(fun hb => nomatch hb), fun k hk => ?_⟩
         cases hk
-        refine ⟨hm, fun j hj hju => ?_⟩
-        rcases List.mem_append.mp hj with hj | hj
-        · exact hS j hj hju
-        · exact List.mem_singleton.mp hj ▸ hmx
+        exact ⟨hm, fun j hj hju => (List.mem_append.mp hj).elim (hS j · hju)
+          fun hj => List.mem_singleton.mp hj ▸ hmx⟩
       cases b with
       | none =>
         exact hsome x hx' (fun j hj hju =>
@@ -607,19 +601,14 @@ theorem hgInv_extend {r : Fin n} {s : HgState n}
       obtain ⟨b, l, hql⟩ := List.exists_cons_of_ne_nil hp₁.ne_nil
       refine ⟨List.cons_ne_nil _ _, fun e he => ?_, fun e he => ?_, ?_, ?_, ?_,
         fun e he => htight e he, fun e he => ?_⟩
-      · obtain rfl : (i₀, j) = e := by
-          simpa only [List.head?_cons, Option.mem_def, Option.some.injEq] using he
-        refine ⟨rfl, ?_⟩
+      · cases he
         rw [hgRelax_minv]
         dsimp only
         rw [hc.1, ite_eq_right Bool.false_ne_true, ite_eq_right Bool.false_ne_true]
-        exact (min_eq_right hc.2.le).symm
-      · rw [hql, List.getLast?_cons_cons, ← hql] at he
-        exact hp₁.last e he
+        exact ⟨rfl, (min_eq_right hc.2.le).symm⟩
+      · exact hp₁.last e (by rwa [hql, List.getLast?_cons_cons, ← hql] at he)
       · rw [hql]
-        refine List.IsChain.cons_cons ?_ (hql ▸ hp₁.chain)
-        rw [(hp₁.head b (by simp [hql])).1]
-        exact hm
+        exact List.IsChain.cons_cons ((hp₁.head b (by simp [hql])).1.symm ▸ hm) (hql ▸ hp₁.chain)
       · rw [List.map_cons, List.nodup_cons]
         refine ⟨fun hmem => ?_, hp₁.nodup_fst⟩
         obtain ⟨e, he, rfl⟩ := List.mem_map.mp hmem
@@ -1210,10 +1199,9 @@ theorem hungarian_add_const (c : Fin n × Fin n → ℤ) (S : ℤ) :
     rw [hy]
     exact hgRows_add_const c S (List.finRange n)
       (hgStartState (Vector.ofFn (hgRowMin c)) (Vector.replicate n 0) (Vector.replicate n none))
-  refine ⟨?_, fun u => ?_, fun v => ?_⟩
-  · simp only [hungarian, hrows, shiftHgState]
-  · simp only [hungarian, hrows, shiftHgState, vget, Vector.getElem_map]
-  · simp only [hungarian, hrows, shiftHgState]
+  exact ⟨by simp only [hungarian, hrows, shiftHgState],
+    fun u => by simp only [hungarian, hrows, shiftHgState, vget, Vector.getElem_map],
+    fun v => by simp only [hungarian, hrows, shiftHgState]⟩
 
 /-- **Egerváry's theorem** for the integral assignment problem: there is a perfect matching of the
 complete bipartite graph on `Fin n × Fin n` and integral feasible potentials whose total equals

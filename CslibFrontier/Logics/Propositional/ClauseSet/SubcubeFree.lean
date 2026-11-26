@@ -123,15 +123,12 @@ theorem flipOn_biUnion_mem_solutions_of_separated {ι : Type*} {ψ : ClauseSet (
   refine mem_solutions_of_agree fun C hC => ?_
   by_cases hmeet : ∃ j ∈ J, Meets C (T j)
   · obtain ⟨j, hj, hjmeet⟩ := hmeet
-    refine ⟨flipOn (T j) x, hmove j (hJ hj), fun l hl => flipOn_apply_eq_of_iff ?_⟩
-    refine ⟨fun h => mem_biUnion.mpr ⟨j, hj, h⟩, fun h => ?_⟩
+    refine ⟨flipOn (T j) x, hmove j (hJ hj), fun l hl => flipOn_apply_eq_of_iff
+      ⟨fun h => mem_biUnion.mpr ⟨j, hj, h⟩, fun h => by_contra fun hlj => ?_⟩⟩
     obtain ⟨j', hj', hlj'⟩ := mem_biUnion.mp h
-    by_contra hlj
     exact hsep C hC j (hJ hj) j' (hJ hj') (fun hjj => hlj (hjj ▸ hlj')) hjmeet ⟨l, hl, hlj'⟩
-  · push Not at hmeet
-    refine ⟨x, hx, fun l hl => (flipOn_apply_of_notMem fun h => ?_).symm⟩
-    obtain ⟨j, hj, hlj⟩ := mem_biUnion.mp h
-    exact hmeet j hj ⟨l, hl, hlj⟩
+  · exact ⟨x, hx, fun l hl => (flipOn_apply_of_notMem fun h =>
+      (mem_biUnion.mp h).elim fun j ⟨hj, hlj⟩ => hmeet ⟨j, hj, l, hl, hlj⟩).symm⟩
 
 /-- Pairwise non-adjacent single-bit moves span a subcube of solutions. -/
 private theorem flipOn_mem_solutions_of_independent {ψ : ClauseSet (Fin N)} {x : BitString N}
@@ -177,21 +174,18 @@ theorem card_compl_isolatedDirections_le {ψ : ClauseSet (Fin N)} {Δ D : ℕ}
     exact hfree ⟨x, J, hJcard, fun T hT =>
       flipOn_mem_solutions_of_independent hx hmove hMind (hT.trans hJM)⟩
   -- every non-isolated direction is in its closed neighbourhood
-  have hcover : NI ⊆ M ∪ M.biUnion ψ.neighbors := by
-    intro i hi
+  have hcover : NI ⊆ M ∪ M.biUnion ψ.neighbors := fun i hi => by
     by_cases hiM : i ∈ M
     · exact mem_union_left _ hiM
-    · refine mem_union_right _ (mem_biUnion.mpr ?_)
-      by_contra! hnone
-      have hins : insert i M ∈ Ind := by
-        simp only [Ind, mem_filter, mem_powerset]
-        refine ⟨insert_subset hi hMNI, fun u hu w hw hne => ?_⟩
-        rw [mem_insert] at hu hw
-        rcases hu with rfl | huM <;> rcases hw with rfl | hwM
-        · exact absurd rfl hne
-        · exact fun h => hnone w hwM (mem_neighbors_comm.mp h)
-        · exact hnone u huM
-        · exact hMind u huM w hwM hne
+    · refine mem_union_right _ (mem_biUnion.mpr (by_contra fun hnone => ?_))
+      push Not at hnone
+      have hins : insert i M ∈ Ind := mem_filter.mpr ⟨mem_powerset.mpr (insert_subset hi hMNI),
+        fun u hu w hw hne => by
+          rcases mem_insert.mp hu with rfl | huM <;> rcases mem_insert.mp hw with rfl | hwM
+          · exact absurd rfl hne
+          · exact mt mem_neighbors_comm.mp (hnone w hwM)
+          · exact hnone u huM
+          · exact hMind u huM w hwM hne⟩
       have := hmax _ hins
       rw [card_insert_of_notMem hiM] at this
       omega
