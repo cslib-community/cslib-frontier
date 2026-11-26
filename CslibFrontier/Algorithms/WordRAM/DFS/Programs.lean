@@ -304,13 +304,11 @@ private theorem revCopyLoop_spec {N w : ℕ} (O P : ℕ) (hOP : O + N ≤ P)
       wram_exec [hc1, hNv, hO, hP, hi, hm]
       refine ⟨fun q hq => ?_, fun q hq => ?_, fun a ha => ?_, by wram_simp, fun r hr => ?_⟩
       · mem_upd
-        rw [Function.update_of_ne (by omega)]
-        exact hord q hq
+        exact (Function.update_of_ne (by omega) _ _).trans (hord q hq)
       · mem_upd
-        by_cases hqk : q = k
-        · rw [hqk, show P + 1 + k = P + k + 1 by omega, Function.update_self]
-        · rw [Function.update_of_ne (by omega)]
-          exact hcp q (by omega)
+        rcases eq_or_ne q k with rfl | hqk
+        · rw [show P + 1 + q = P + q + 1 by omega, Function.update_self]
+        · exact (Function.update_of_ne (by omega) _ _).trans (hcp q (by omega))
       · mem_upd
         exact Function.update_of_ne (by omega) _ _
       · wram_simp
@@ -423,15 +421,10 @@ theorem topoCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound) :
       (by wram_simp [x₂, hs₁_fr, hs_ord]) (by wram_simp [x₂]) (by wram_simp [x₂])
   have hy_out : y.regs outReg = P := (hy_fr outReg (by decide)).trans (by wram_simp [x₂])
   refine ⟨y, (hs_ex.seq ((hs₁_ex.seq (hs₂_ex.seq hy_ex)).branch_neg hncond)).mono (by omega),
-    ?_, ?_⟩
-  · rw [hy_out, outputList_eq_iff]
-    refine ⟨?_, fun i => ?_⟩
-    · rw [hy_low P le_rfl, hlen]
-      simp [x₂]
-    · change y.mem (P + 1 + i.val) = (topoWords G)[i.val]
-      rw [hy_cp i.val (hlen ▸ i.isLt), List.getD_eq_getElem _ 0 i.isLt]
-  · rw [hy_out, hlen]
-    exact hP_fit.of_le (by omega)
+    ?_, hlen ▸ hy_out ▸ hP_fit.of_le (by omega)⟩
+  rw [hy_out, outputList_eq_iff]
+  exact ⟨by simp [hy_low P le_rfl, hlen, x₂],
+    fun i => (hy_cp i.val (hlen ▸ i.isLt)).trans (List.getD_eq_getElem _ 0 i.isLt)⟩
 
 /-- **Linear-time Kosaraju strongly connected components on the word RAM.** From the CSR input
 `G.encodeCSR`, `sccCode` leaves `sccWords G` (each vertex's topological component index in
@@ -469,16 +462,16 @@ theorem sccCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound) :
   have hlen : (sccWords G).length = G.n := by
     rw [sccWords, List.length_map, List.length_finRange]
   have hy_out : y.regs outReg = P := by wram_simp [y]
-  refine ⟨y, (hs_ex.seq ((hs₁_ex.seq hs₂_ex).branch_neg hncond)).mono (by omega), ?_, ?_⟩
-  · rw [hy_out, outputList_eq_iff]
-    refine ⟨by simp [y, hlen], fun i => ?_⟩
-    change y.mem (P + 1 + i.val) = (sccWords G)[i.val]
-    have hi : i.val < G.n := hlen ▸ i.isLt
-    simp only [y]; mem_upd
-    rw [Function.update_of_ne (by omega), ← hC,
-      show C + i.val = C + (⟨i.val, hi⟩ : Fin G.n).val from rfl, hs₁_comp ⟨i.val, hi⟩]
-    simp [sccWords]
-  · rw [hy_out, hlen]; exact hP_fit.of_le (by omega)
+  refine ⟨y, (hs_ex.seq ((hs₁_ex.seq hs₂_ex).branch_neg hncond)).mono (by omega),
+    ?_, hlen ▸ hy_out ▸ hP_fit.of_le (by omega)⟩
+  rw [hy_out, outputList_eq_iff]
+  refine ⟨by simp [y, hlen], fun i => ?_⟩
+  change y.mem (P + 1 + i.val) = (sccWords G)[i.val]
+  have hi : i.val < G.n := hlen ▸ i.isLt
+  simp only [y]
+  mem_upd
+  rw [Function.update_of_ne (by omega), ← hC, hs₁_comp ⟨i.val, hi⟩]
+  simp [sccWords]
 
 /-- `topoProgram` computes `topoWords` in `O(n + m)` instructions
 (`Program.ComputesListInTime`). -/
