@@ -612,12 +612,10 @@ private theorem exec_innerBitStep {w : ℕ} (I : Instance) (hw : I.FitsWidth w)
     -- The candidate is a table entry for a set of at most `n - 1` cities, plus one edge.
     have hcand_le : cand I mask t s.mem ⟨k, hk⟩ ≤ (I.n + 1) * I.maxEntry := by
       have hcard : (maskSet I.n (mask - 2 ^ k)).card + 1 ≤ I.n := by
-        rw [maskSet_sub_two_pow (i := ⟨k, hk⟩) hbit,
-          Finset.card_erase_of_mem (mem_maskSet.2 hbit)]
-        have := Finset.card_le_univ (maskSet I.n mask)
-        have := Finset.card_pos.2 ⟨⟨k, hk⟩, mem_maskSet.2 hbit⟩
-        simp only [Fintype.card_fin] at *
-        omega
+        simpa only [maskSet_sub_two_pow (i := ⟨k, hk⟩) hbit, Fintype.card_fin,
+          Nat.add_one_le_iff] using
+          (Finset.card_lt_iff_ne_univ ((maskSet I.n mask).erase ⟨k, hk⟩)).2 fun h =>
+            Finset.notMem_erase (⟨k, hk⟩ : Fin I.n) _ (h ▸ Finset.mem_univ _)
       have h1 := (isLeast_walkCosts_le I (htab (mask - 2 ^ k)
         (by have := Nat.two_pow_pos k; omega) (Fin.succ ⟨k, hk⟩))).trans
           (Nat.mul_le_mul_right _ hcard)
@@ -705,16 +703,12 @@ private theorem exec_targetStep {w : ℕ} (I : Instance) (hw : I.FitsWidth w)
   have hbest_least : IsLeast (walkCosts I.dist (maskSet I.n mask) tFin) (u1.regs rBest) := by
     refine isLeast_walkCosts_of_forall
       (f := fun j => st.mem (dp0 + (mask - 2 ^ j.val) * (I.n + 1) + (j.val + 1)))
-      (fun j hj => ?_) (fun j hj => ?_) ?_
-    · have hj_bit := mem_maskSet.1 hj
-      rw [← maskSet_sub_two_pow hj_bit]
-      have hlt_sub : mask - 2 ^ j.val < mask := by
-        have := Nat.ge_two_pow_of_testBit hj_bit
-        have := Nat.two_pow_pos j.val
-        omega
-      exact hst_tab (mask - 2 ^ j.val) hlt_sub j.succ
-    · exact hinv_u1.le j hj
-    · exact hinv_u1.eq ⟨i₀, mem_maskSet.2 hi₀⟩
+      (fun j hj => ?_) hinv_u1.le (hinv_u1.eq ⟨i₀, mem_maskSet.2 hi₀⟩)
+    have hj_bit := mem_maskSet.1 hj
+    have hge := Nat.ge_two_pow_of_testBit hj_bit
+    have hpos := Nat.two_pow_pos j.val
+    rw [← maskSet_sub_two_pow hj_bit]
+    exact hst_tab (mask - 2 ^ j.val) (by omega) j.succ
   obtain ⟨u2, he_u2, hmu2, hfix_u2, hm_u2, hmb_u2, ht_u2⟩ :
       ∃ u2, ExecWithin w targetStore u1 u2 3 ∧
         u2.mem = Function.update st.mem (dp0 + mask * (I.n + 1) + tIdx) (u1.regs rBest) ∧
@@ -844,18 +838,12 @@ private theorem exec_heldKarpCode {w : ℕ} (I : Instance) (hw : I.FitsWidth w) 
   refine ⟨z, (he_setup.seq (he_mask.seq he_fin)).mono ?_, hz_best⟩
   rcases Nat.eq_zero_or_pos I.n with hn0 | hn_pos
   · simp [hn0]
-  · obtain ⟨k, hk⟩ : ∃ k, I.n = k + 1 := ⟨I.n - 1, by omega⟩
-    have hp : 2 ≤ 2 ^ I.n := by rw [hk, pow_succ]; have := Nat.one_le_two_pow (n := k); omega
-    obtain ⟨m, hm⟩ : ∃ m, 2 ^ I.n = m + 2 := ⟨2 ^ I.n - 2, by omega⟩
-    rw [hm, hk]
-    have hpoly :
-        (15 * (k + 1) + 30 +
-          ((m + 2 - 1) * ((k + 1 + 1) * (22 * (k + 1) + 13) + 5 + 2) + 2 + 2)) +
-          (58 * m * k ^ 2 + 81 * m * k + 3 * m + 138 * k ^ 2 + 226 * k + 114) =
-        80 * ((k + 1) ^ 2 * (m + 2) + 1) := by
-      rw [show m + 2 - 1 = m + 1 by omega]
+  · have h1 := Nat.mul_le_mul_left (2 ^ I.n - 1)
+      (show (I.n + 1) * (22 * I.n + 13) + 5 + 2 ≤ 77 * I.n ^ 2 by nlinarith only [hn_pos])
+    have h2 : (2 ^ I.n - 1) * (77 * I.n ^ 2) + 77 * I.n ^ 2 = 77 * (I.n ^ 2 * 2 ^ I.n) := by
+      rw [← Nat.add_one_mul, Nat.sub_add_cancel Nat.one_le_two_pow]
       ring
-    have hrem : 1 ≤ 58 * m * k ^ 2 + 81 * m * k + 3 * m + 138 * k ^ 2 + 226 * k + 114 := by omega
+    have h3 : 15 * I.n + 34 ≤ 77 * I.n ^ 2 := by nlinarith only [hn_pos]
     exact Nat.le_sub_one_of_lt (by omega)
 
 /-! ## Public running-time theorems -/
