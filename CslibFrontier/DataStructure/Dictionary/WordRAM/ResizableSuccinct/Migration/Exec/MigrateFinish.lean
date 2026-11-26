@@ -140,8 +140,7 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
   set arenaB := newMeta + offNew
   set oldItemDst := arenaB + (arenaW - iwOld)
   have hpeak_raw : base + migratePeakWords U V w N_old n = arenaB + arenaW := by
-    dsimp only [migratePeakWords, arenaB, arenaW, newMeta, offNew, N_new, iwOld, iwNew]
-    ring
+    dsimp only [migratePeakWords, arenaB, arenaW, newMeta, offNew, N_new, iwOld, iwNew]; ring
   have hfit_ar : Fits w (arenaB + arenaW) := hpeak_raw ▸ hfit_peak
   have hfit_nm : Fits w (newMeta + offNew) := hfit_ar.of_le (Nat.le_add_right _ _)
   have hnm_le_peak : newMeta + offNew ≤ peakF :=
@@ -196,8 +195,7 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
   have hsp_le_old : 225 + ReducedKWise.space w (qBits U N_old) (hashB N_old)
       (totalMicroBits N_old) 3 ≤ offCompItems U w N_old := by
     unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM
-    dsimp only [epochHdrWords, epochHashSpace, epochQBits, epochHashB, qBits, hashB]
-    omega
+    dsimp only [epochHdrWords, epochHashSpace, epochQBits, epochHashB, qBits, hashB]; omega
   have hrep_old_z₂ : ReducedKWise.Rep (base + epochHdrWords) w (qBits U N_old) (hashB N_old)
       (totalMicroBits N_old) 3 θ_old z₂.mem :=
     ⟨ReducedKWise.tableRep_congr hrep_old.1
@@ -227,10 +225,8 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
   obtain ⟨hpre_sa, hvp_sa, hc_sa, hfr_sa, hrep_sa, _, hcpl_sa, hlo_sa, hmid_sa⟩ :=
     streamAllItemsProg_spec henv_sa
   have hv_sa : (Memory.spec w).ValidHistory (memoryState mFr z₃.toData)
-      ((Memory.spec w).clientHistory (memoryState mFr z₃.toData) (streamAllItemsProg d_sa)) := by
-    have hwf₃ : Memory.WellFormed w (memoryState mFr z₃.toData) := wellFormed_memoryState hz₃b.1
-    rw [hms₃] at hwf₃ ⊢
-    exact hvp_sa ⟨hwf₃, Nat.zero_le _⟩
+      ((Memory.spec w).clientHistory (memoryState mFr z₃.toData) (streamAllItemsProg d_sa)) :=
+    hms₃ ▸ hvp_sa ⟨hms₃ ▸ wellFormed_memoryState hz₃b.1, Nat.zero_le _⟩
   obtain ⟨z₄, hex_sa, hz₄b, hz₄f, hm_sa, _, hframe_reg_sa⟩ :=
     execWitness wStreamAll factor_wStreamAll_le mFr srcStreamAll tmpStreamAll
       tmpStreamAll_inj srcStreamAll_ne_tmp tmpStreamAll_ne_mFr srcStreamAll_ne_mFr
@@ -257,8 +253,7 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
     rootHeaderValid_congr hhdr_set fun a ha => hlow_z₄ a ⟨ha.1, by linarith only [ha.2]⟩
   have hpar_z₄ : EpochParamsStored U V w N_new newMeta z₄.mem :=
     epochParamsStored_congr hpar_set hlow_z₄
-  have hs_z₄_eq : ({ mem := z₄.mem, frontier := peakF } : Memory.State) =
-      (Memory.spec 0).clientState ⟨z₂.mem, peakF⟩ (streamAllItemsProg d_sa) :=
+  have hs_z₄_eq : ({ mem := z₄.mem, frontier := peakF } : Memory.State) = _ :=
     Memory.State.ext hz₄_mem_eq hfr_sa.symm
   obtain ⟨z, steps_back, hex_back, hc_back, hzb, hzf, hsplit_z, hgm_z, habi_4z, hbelow_4z⟩ :=
     migrateCompactBackCode_exec hw hn hev hNU_new hN_new_2n hcard hvals hfit_peak hpeak_raw
@@ -284,8 +279,7 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
   have hsa_pot : migFactor * (memoryCost (streamAllItemsProg d_sa) ⟨z₂.mem, peakF⟩ + 1) +
       inEpochPotential U w N_new base z ≤ (90540 * migFactor) * n + migFactor := by
     linarith only [hz₄_mem_eq ▸ Nat.mul_le_mul_left migFactor hc_sa, hpot_le]
-  have hex_clean : RDemonicExec w peakF migrateFinishCleanCode
-      (((((y_rs.set mCur 0).set mIdx 0).set mK 0).set mOne 0).set mRes 0) _ (· = z) :=
+  have hex_clean :=
     (hex_c1.seq_eq ((hex_im.mono hc_im_mul fun _ h => h).seq_eq (hex_z3.seq_eq hex_sa))).seq_eq
       hex_back
   refine ⟨z, _, hex_clean, hzb, hzf, hsplit_z,

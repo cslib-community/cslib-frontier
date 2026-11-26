@@ -107,10 +107,9 @@ if `n ≤ t n` for all sufficiently large `n`, `DTIME enc t` lies in
 `DSPACE enc (fun n => Nat.sqrt (t n * (Nat.log2 (t n) + 1)))`. -/
 theorem DTIME_subset_DSPACE_sqrt_of_eventually_le {α : Type*} (enc : α ↪ List Bool) {t : ℕ → ℕ}
     (ht : ∀ᶠ n in atTop, n ≤ t n) :
-    DTIME enc t ⊆ DSPACE enc (fun n => Nat.sqrt (t n * (Nat.log2 (t n) + 1))) := by
-  refine (DTIME_subset_DSPACE_sqrt_max enc t).trans (DSPACE_mono_of_eventually_le ?_)
-  filter_upwards [ht] with n hn
-  simp only [max_eq_right hn, le_rfl]
+    DTIME enc t ⊆ DSPACE enc (fun n => Nat.sqrt (t n * (Nat.log2 (t n) + 1))) :=
+  (DTIME_subset_DSPACE_sqrt_max enc t).trans
+    (DSPACE_mono_of_eventually_le (ht.mono fun _ hn => by simp only [max_eq_right hn, le_rfl]))
 
 /-! ### Arithmetic and shift helpers -/
 
@@ -175,10 +174,9 @@ theorem DTIME_ssubset_DSPACE_of_sqrt {t s : ℕ → ℕ} (hs : SpaceConstructibl
       c * Nat.sqrt (max n (t n) * (Nat.log2 (max n (t n)) + 1)) + c ≤ s n) :
     DTIME encBits t ⊂ DSPACE encBits s := by
   obtain ⟨c₀, hs', hlog', hEq⟩ := exists_shift_of_eventually_log2_le hs hlog
-  have hsub := DSPACE_ssubset_DSPACE hs' hlog' fun c =>
-    (hdom c).mono fun _ h => h.trans (Nat.le_add_right _ _)
-  rw [hEq] at hsub
-  exact (DTIME_subset_DSPACE_sqrt_max encBits t).trans_ssubset hsub
+  exact (DTIME_subset_DSPACE_sqrt_max encBits t).trans_ssubset (lt_of_lt_of_eq
+    (DSPACE_ssubset_DSPACE hs' hlog' fun c =>
+      (hdom c).mono fun _ h => h.trans (Nat.le_add_right _ _)) hEq)
 
 /-- **Containment failure form of the general separation**: `DSPACE encBits s` is not contained in
 `DTIME encBits t`. -/
@@ -237,9 +235,8 @@ theorem DTIME_ssubset_DSPACE_of_isLittleO {t s : ℕ → ℕ} (hs : SpaceConstru
       (fun n => ((s n ^ 2 : ℕ) : ℝ))) :
     DTIME encBits t ⊂ DSPACE encBits s := by
   refine DTIME_ssubset_DSPACE_of_mul_log2_le_sq hs hlog fun c => ?_
-  have hten : Tendsto s atTop atTop := tendsto_of_eventually_log2_le hlog
-  have ho_nat := Asymptotics.isLittleO_iff_nat_mul_le.mp ho (2 * c)
-  filter_upwards [ho_nat, hten.eventually_ge_atTop (2 * c + 1)] with n hn hsc
+  filter_upwards [Asymptotics.isLittleO_iff_nat_mul_le.mp ho (2 * c),
+    (tendsto_of_eventually_log2_le hlog).eventually_ge_atTop (2 * c + 1)] with n hn hsc
   simp only [Real.norm_natCast] at hn
   set m := max n (t n) * (Nat.log2 (max n (t n)) + 1)
   have h1 : 2 * c * m ≤ s n ^ 2 := mod_cast hn
@@ -405,23 +402,22 @@ theorem DTIME_pow_ssubset_DSPACE_pow {a b : ℕ} (hb : 1 ≤ b) (hab : a < 2 * b
   have hEq : DSPACE encBits (fun n => (n + 1) ^ b) = DSPACE encBits (· ^ b) :=
     Set.Subset.antisymm (DSPACE_mono_of_le_mul_add (Nat.add_one_pow_le_two_pow_mul_add b))
       (DSPACE_mono fun n => Nat.pow_le_pow_left (Nat.le_succ n) b)
-  have hε : (0 : ℝ) < 1 / (b : ℝ) := by positivity
-  have hsep := DTIME_rpow_sub_ssubset_DSPACE (spaceConstructible_succ_pow b)
-    (Eventually.of_forall fun n => (Nat.le_succ n).trans (Nat.le_self_pow (by omega) _)) hε
-  rw [hEq] at hsep
-  refine (DTIME_mono_of_eventually_le ?_).trans_ssubset hsep
+  refine (DTIME_mono_of_eventually_le ?_).trans_ssubset (lt_of_lt_of_eq
+    (DTIME_rpow_sub_ssubset_DSPACE (spaceConstructible_succ_pow b)
+      (Eventually.of_forall fun n => (Nat.le_succ n).trans (Nat.le_self_pow (by omega) _))
+      (one_div_pos.mpr (Nat.cast_pos.mpr hb))) hEq)
   filter_upwards [eventually_ge_atTop 2] with n _
+  have hab' : (a : ℝ) + 1 ≤ 2 * (b : ℝ) := mod_cast hab
   have hexp : (a : ℝ) ≤ (b : ℝ) * (2 - 1 / (b : ℝ)) := by
     rw [mul_sub, mul_div_cancel₀ _ (by positivity : (b : ℝ) ≠ 0)]
-    linarith [show (a : ℝ) + 1 ≤ 2 * (b : ℝ) from mod_cast hab]
-  have hn1 : (1 : ℝ) ≤ (n + 1 : ℕ) := by exact_mod_cast (by omega : 1 ≤ n + 1)
+    linarith [hab']
   have hreal : ((n ^ a : ℕ) : ℝ) ≤ ((n + 1 : ℕ) : ℝ) ^ ((b : ℝ) * (2 - 1 / (b : ℝ))) := by
     calc ((n ^ a : ℕ) : ℝ) = (n : ℝ) ^ (a : ℝ) := by rw [Nat.cast_pow, ← Real.rpow_natCast]
       _ ≤ ((n + 1 : ℕ) : ℝ) ^ (a : ℝ) :=
             Real.rpow_le_rpow (Nat.cast_nonneg n) (by exact_mod_cast Nat.le_succ n)
               (Nat.cast_nonneg a)
       _ ≤ ((n + 1 : ℕ) : ℝ) ^ ((b : ℝ) * (2 - 1 / (b : ℝ))) :=
-            Real.rpow_le_rpow_of_exponent_le hn1 hexp
+            Real.rpow_le_rpow_of_exponent_le (by exact_mod_cast Nat.le_add_left 1 n) hexp
   refine Nat.le_floor (hreal.trans_eq ?_)
   push_cast
   rw [← Real.rpow_natCast ((n : ℝ) + 1) b, ← Real.rpow_mul (by positivity)]

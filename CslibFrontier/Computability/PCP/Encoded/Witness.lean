@@ -177,13 +177,11 @@ theorem satisfies_ofCompactCNFLabels {φ : CNF ℕ} {w : List Bool}
         ConstraintGraph.cnfLabelling ψ.compact τc u := by
     rw [ofCompactCNFLabels, List.getD_eq_getElem?_getD, List.getElem?_map,
       List.getElem?_range hu, Option.map_some, Option.getD_some]
-    dsimp only
-    rw [show φ.to3CNF = ψ from rfl, show φ.to3CNFAssignment (SAT.assignment φ w) = τ from rfl]
     rcases u with x | j
     · simp only [Graph.cnfVertexNumber, Nat.mul_mod_right, ↓reduceIte,
         Nat.mul_div_right _ (by decide : 0 < 2), ConstraintGraph.cnfLabelling]
       rfl
-    · have hj : j.val < ψ.length := by simpa only [CNF.length_compact] using j.isLt
+    · have hj : j.val < φ.to3CNF.length := by simpa only [CNF.length_compact] using j.isLt
       have hneg : ¬ (2 * j.val + 1) % 2 = 0 := by omega
       have hdiv : (2 * j.val + 1) / 2 = j.val := by omega
       simp only [Graph.cnfVertexNumber, hdiv, hneg, ↓reduceIte, List.getD_eq_getElem?_getD,
@@ -197,9 +195,8 @@ theorem satisfies_ofCompactCNFLabels {φ : CNF ℕ} {w : List Bool}
       | some lit =>
         have hmemVar : lit.1 ∈ ψ.vars := List.mem_map.mpr
           ⟨lit, List.mem_flatten.mpr ⟨ψ[j.val], List.getElem_mem hj, List.mem_of_getElem? hq⟩, rfl⟩
-        simp only [Option.map_some, Option.elim_some, Prod.map_fst]
-        rw [@List.getElem?_idxOf _ instBEqOfDecidableEq _ _ _ hmemVar]
-        rfl
+        simp only [Option.map_some, Option.elim_some, Prod.map_fst,
+          @List.getElem?_idxOf _ instBEqOfDecidableEq _ _ _ hmemVar]
   have hedge := Graph.wellFormed_ofCompactCNF ψ _ (List.getElem_mem e.isLt)
   change ((Graph.ofCompactCNF ψ).toGraph id).Satisfies
     (fun v => (ofCompactCNFLabels φ w).getD v (fun _ => false)) e
@@ -674,12 +671,10 @@ theorem satisfies_amplifyLabels (fallback : Constraint)
     ((g.amplify id fallback rotate T q).toGraph id).Satisfies
       (fun v => (amplifyLabels fallback rotate T q g labels).getD v defaultSelectedAlphabet)
       e := by
-  have hwfPow := g.wellFormed_powerPreprocess id fallback family rotate hrotate T q
-    (FinEnum.toList _)
-  have hsatPow := satisfies_powerPreprocessLabels g id fallback family rotate hrotate T q
-    (FinEnum.toList _) FinEnum.nodup_toList FinEnum.mem_toList defaultSelectedAlphabet hsat
-    (fun _ => defaultSelectedAlphabet)
-  exact satisfies_composeSelectedLabels (fun _ => defaultSelectedAlphabet) hwfPow hsatPow e
+  exact satisfies_composeSelectedLabels (fun _ => defaultSelectedAlphabet)
+    (g.wellFormed_powerPreprocess id fallback family rotate hrotate T q (FinEnum.toList _))
+    (satisfies_powerPreprocessLabels g id fallback family rotate hrotate T q (FinEnum.toList _)
+      FinEnum.nodup_toList FinEnum.mem_toList defaultSelectedAlphabet hsat _) e
 
 /-- Joint graph-and-label step for `amplifyIter`. -/
 def amplifyIterStep (fallback : Constraint) (rotate : ℕ × (ℕ × D) → ℕ × D)

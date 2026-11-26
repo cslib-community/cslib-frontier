@@ -325,13 +325,11 @@ theorem lipschitz (F : IsFan K w x m z D T n d) (hT : 0 < T) (hn : 0 < n) (b : B
   have h5 : |((clamp (n ^ 2) P.1 : ℕ) : ℝ) - (clamp (n ^ 2) (P + h).1 : ℕ)| ≤ |(h.1 : ℝ)| := by
     simpa [Prod.fst_add, abs_neg] using abs_clamp_sub_le (n ^ 2) P.1 (P + h).1
   have h8 : |((clamp (n ^ 2 * T) (P.1 + P.2 + n) : ℕ) : ℝ) -
-      (clamp (n ^ 2 * T) ((P + h).1 + (P + h).2 + n) : ℕ)| ≤ |(h.1 : ℝ)| + |(h.2 : ℝ)| :=
-    (abs_clamp_sub_le _ _ _).trans (by
-      rw [Prod.fst_add, Prod.snd_add]
-      push_cast
-      rw [show ((P.1 : ℝ) + P.2 + n) - (P.1 + h.1 + (P.2 + h.2) + n) = -((h.1 : ℝ) + h.2) by ring,
-        abs_neg]
-      exact abs_add_le _ _)
+      (clamp (n ^ 2 * T) ((P + h).1 + (P + h).2 + n) : ℕ)| ≤ |(h.1 : ℝ)| + |(h.2 : ℝ)| := by
+    have heq : ((P.1 + P.2 + n : ℤ) : ℝ) - (((P + h).1 + (P + h).2 + n : ℤ) : ℝ) =
+        -((h.1 : ℝ) + h.2) := by push_cast [Prod.fst_add, Prod.snd_add]; ring
+    refine (abs_clamp_sub_le _ _ _).trans ?_
+    simpa only [heq, abs_neg] using abs_add_le (h.1 : ℝ) h.2
   have h9 : (n : ℝ) ^ 2 * d (fanPt T n (b, P)) mid ≤ |(h.1 : ℝ)| * D := by
     refine (F.G_i_le hn b _ _ _ (clamp_le _ _) (clamp_le _ _) (clamp_le _ _)).trans ?_
     have : 0 ≤ ((clamp (n ^ 2 * T) (P.1 + P.2 + n) : ℕ) : ℝ) / (n ^ 2 * T) := by positivity
@@ -388,10 +386,8 @@ theorem step_iii (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i k : �
     (clamp (n ^ 2 * T) (i + (k + 1) + n)) (clamp_le _ _) (clamp_le _ _)
   rw [clamp_window h0 (by linarith), clamp_window (by linarith) (by linarith)] at h6
   rw [fanDist, fanLen, fanPt_mk, fanPt_mk]
-  refine h6.trans_eq ?_
-  push_cast
-  rw [show (i : ℝ) + k + n - (i + (k + 1) + n) = -1 by ring, abs_neg, abs_one]
-  ring
+  have hd : (i : ℝ) + k + n - (i + ((k + 1 : ℤ) : ℝ) + n) = -1 := by push_cast; ring
+  exact h6.trans_eq (by rw [hd, abs_neg, abs_one]; ring)
 
 theorem fanLen_zero (F : IsFan K w x m z D T n d) (b : Bool) : fanLen d z n b 0 =
     w z (x b) := by
@@ -595,25 +591,22 @@ theorem thm_cn_i (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T
   have h2 := le_mean_tele (F := fun n b i k => fanP d x T n b (i, k)) hX h1 (by
     filter_upwards [eventually_large hT 0] with n hn k hk
     rcases hn with ⟨e, hn1, -, hn2, -⟩
-    have g1 : w (x true) (x false) ≤ fanP d x T n true (((max n 1 : ℕ) : ℤ) ^ 2, k)
-        + fanP d x T n false (((max n 1 : ℕ) : ℤ) ^ 2, k) := (hd n).fanPot_last (k : ℤ)
+    have g1 : 2 * D ≤ fanP d x T n true ((n ^ 2 : ℕ), k) + fanP d x T n false ((n ^ 2 : ℕ), k) := by
+      simpa only [fanP, e, hxx, Nat.cast_pow] using (hd n).fanPot_last (k : ℤ)
     have k2 : (k : ℤ) + max n 1 ≤ (max n 1 : ℕ) ^ 2 * T := by
       rw [e]
       exact_mod_cast (by omega : k + n ≤ n ^ 2 * T)
-    have g0 (b : Bool) : fanP d x T n b (0, k) ≤ ((k : ℝ) + n) / (n ^ 2 * T) * w z (x b) :=
-      ((hd n).fanPot_zero b (k : ℤ) (by positivity) k2).trans_eq
-        (by simp only [e, Int.cast_natCast])
-    rw [e, hxx] at g1
-    rw [Fintype.sum_bool]
-    push_cast at g1 ⊢
-    have hk' : (k : ℝ) ≤ n := by exact_mod_cast hk.le
+    have g0 (b : Bool) : fanP d x T n b (0, k) ≤ ((k : ℝ) + n) / (n ^ 2 * T) * w z (x b) := by
+      simpa only [fanP, e, Int.cast_natCast] using (hd n).fanPot_zero b (k : ℤ) (by positivity) k2
     have g4 : ((k : ℝ) + n) / (n ^ 2 * T) ≤ 2 / T * (1 / n) := by
       rw [div_mul_div_comm, div_le_div_iff₀ (by positivity) (by positivity)]
+      have hk' : (k : ℝ) ≤ n := by exact_mod_cast hk.le
       nlinarith [mul_nonneg hT'.le (Nat.cast_nonneg (α := ℝ) n)]
+    have hlin : 2 * (w z (x true) + w z (x false)) / T * (1 / (n : ℝ)) =
+        2 / T * (1 / n) * w z (x true) + 2 / T * (1 / n) * w z (x false) := by ring
+    rw [Fintype.sum_bool]
     linarith [g0 true, g0 false, mul_le_mul_of_nonneg_right g4 (fan_w_nonneg hd z (x true)),
-      mul_le_mul_of_nonneg_right g4 (fan_w_nonneg hd z (x false)),
-      show 2 * (w z (x true) + w z (x false)) / T * (1 / (n : ℝ)) =
-        2 / T * (1 / n) * w z (x true) + 2 / T * (1 / n) * w z (x false) by ring])
+      mul_le_mul_of_nonneg_right g4 (fan_w_nonneg hd z (x false))])
   refine le_meanNorm _ _ fun S _ => ?_
   obtain ⟨h3, h4⟩ := mean_steps (F := fun n b i k => fanP d x T n b (i, k)) hX S
   have h5 :

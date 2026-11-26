@@ -348,9 +348,7 @@ theorem adaptiveRun_eq_run {P : Type*} [Fintype P] (t : ℕ)
     ∀ r, adaptiveRun t strat coins inp r =
       run t (fun k => strat k (adaptiveRun t strat coins inp k)) coins inp r
   | 0 => rfl
-  | r + 1 => by
-    simp only [adaptiveRun, run]
-    rw [← adaptiveRun_eq_run t strat coins inp r]
+  | r + 1 => congrArg (phaseStep t _ (coins r)) (adaptiveRun_eq_run t strat coins inp r)
 
 /-- Every process currently carries the same binary estimate. -/
 @[expose] def IsUnanimous {P : Type*} (st : P → ProcState) : Prop :=
@@ -426,9 +424,8 @@ theorem phaseStep_lock_in {P : Type*} [Fintype P] {t : ℕ} {sched : PhaseSchedu
     fun j₁ j₂ _ _ h₁ h₂ => stage1Proposal_unique st (sched.q1 j₁) (sched.q1 j₂) h₁ h₂
   have hcnt : t + 1 ≤ proposalCount prop (sched.q2 p) b :=
     (stage2Update_decided_eq_some_iff_of_none huniq hnone b).mp hdec
-  have hQ : Fintype.card P - t ≤ (sched.q2 q).card := hv.card_q2 q
   obtain ⟨j, hj⟩ : ∃ j, j ∈ ((sched.q2 p).filter fun j => prop j = some b) ∩ sched.q2 q := by
-    finset_card [proposalCount]
+    finset_card [proposalCount, hv.card_q2 q]
   rw [Finset.mem_inter, Finset.mem_filter] at hj
   exact stage2Update_est_of_unique huniq ⟨j, hj.2, hj.1.2⟩
 
@@ -449,9 +446,8 @@ private lemma run_decided_stable_add {P : Type*} [Fintype P] {t : ℕ} {sched : 
 theorem run_decided_stable {P : Type*} [Fintype P] {t : ℕ} {sched : ℕ → PhaseSchedule P}
     {coins : ℕ → P → Bool} {inp : P → Bool} {r₁ r₂ : ℕ} (hr : r₁ ≤ r₂) {p : P} {b : Bool}
     (hd : (run t sched coins inp r₁ p).decided = some b) :
-    (run t sched coins inp r₂ p).decided = some b := by
-  obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hr
-  exact run_decided_stable_add hd d
+    (run t sched coins inp r₂ p).decided = some b :=
+  match r₂, Nat.exists_eq_add_of_le hr with | _, ⟨d, rfl⟩ => run_decided_stable_add hd d
 
 /-- Lock invariant: whenever any process has decided `b`, every process carries estimate `b`.
 Preserved across all valid phases once `2 * t < |P|`. -/
@@ -738,13 +734,11 @@ theorem exists_nonterminating_of_fixed_coin (fallback : Fin 3 → Bool) :
       sched.Valid 1 ∧
         ∀ (r : ℕ) (p : Fin 3),
           (run 1 (fun _ => sched) (fun _ => fallback) inp r p).decided = none := by
-  refine ⟨fin3SplitInput (fallback 0), fin3SplitSchedule, valid_fin3SplitSchedule, ?_⟩
-  have hfix (r : ℕ) :
-      run 1 (fun _ => fin3SplitSchedule) (fun _ => fallback) (fin3SplitInput (fallback 0)) r =
-        initState (fin3SplitInput (fallback 0)) := by
-    induction r with
-    | zero => rfl
-    | succ r ih => simpa only [run, ih] using phaseStep_fin3SplitSchedule_fixed fallback
-  exact fun r p => by rw [hfix r]; rfl
+  refine ⟨fin3SplitInput (fallback 0), fin3SplitSchedule, valid_fin3SplitSchedule, fun r p => ?_⟩
+  have hfix : run 1 (fun _ => fin3SplitSchedule) (fun _ => fallback)
+      (fin3SplitInput (fallback 0)) r = initState (fin3SplitInput (fallback 0)) :=
+    Nat.rec rfl (fun _ ih => by
+      simpa only [run, ih] using phaseStep_fin3SplitSchedule_fixed fallback) r
+  exact congrArg (fun st => (st p).decided) hfix
 
 end Cslib.Distributed.BenOr

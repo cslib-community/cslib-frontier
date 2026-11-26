@@ -231,15 +231,7 @@ private theorem computableInO_midpointMoveCount {s : ℕ → ℕ} (hs : TimeCons
       (encPair encNat encNat) encNat)).comp
     (ComputableInO.of_eq (f := fun a : α => enc a) (encMid := encBits) fun _ => rfl)
   exact (fun hb => h.mono (8 * K ^ 2 + 20 * K + 14) hb hb) fun a => by
-    set m := (enc a).length + s (enc a).length + 1
-    have hm2 : m ≤ m ^ 2 := Nat.le_self_pow two_ne_zero m
-    have hKm : K * m ≤ K * m ^ 2 := Nat.mul_le_mul_left K hm2
-    have e : 2 * ((2 * (K * m) + 2 + 1) * (2 * (K * m) + 2)) =
-        8 * K ^ 2 * m ^ 2 + 20 * (K * m) + 12 := by ring
-    have e2 : (8 * K ^ 2 + 20 * K + 14) * (m ^ 2 + 1) =
-        8 * K ^ 2 * m ^ 2 + 20 * (K * m ^ 2) + 14 * m ^ 2 + (8 * K ^ 2 + 20 * K + 14) := by
-      ring
-    omega
+    nlinarith [Nat.le_self_pow two_ne_zero ((enc a).length + s (enc a).length + 1)]
 
 /-- The reduction of `NSPACE s ⊆ ATIME ((n + s n) ^ 2)` to the leaf test: the alternating machine
 plays Savitch's midpoint game on the views of a machine deciding the problem

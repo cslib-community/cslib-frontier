@@ -95,12 +95,11 @@ private theorem sketch_lt_query_of_prefix {n w cut q : ℕ} {keys : Fin n → �
     hne (((highestDiff_lt_iff_shiftRight_eq (hbound i) (hbound j)
       (Nat.ne_of_lt (hsorted hij))).mp h).trans hprefix)
   obtain ⟨h₀, h₁⟩ := highestDiff_bits_of_lt (hbound i) (hbound j) (hsorted hij)
-  apply projectBits_lt (relevantBits w keys).sortedLT_sort.pairwise
+  exact projectBits_lt (relevantBits w keys).sortedLT_sort.pairwise
     ((Finset.mem_sort _).mpr (highestDiff_mem_relevantBits_of_lt hsorted hbound hij)) h₀
-  · exact (Nat.testBit_eq_of_shiftRight_eq hprefix hp).symm.trans h₁
-  · intro b hb
-    exact (testBit_eq_of_highestDiff_lt (hbound i) (hbound j) hb).trans
-      (Nat.testBit_eq_of_shiftRight_eq hprefix (by omega))
+    ((Nat.testBit_eq_of_shiftRight_eq hprefix hp).symm.trans h₁) fun b hb =>
+      (testBit_eq_of_highestDiff_lt (hbound i) (hbound j) hb).trans
+        (Nat.testBit_eq_of_shiftRight_eq hprefix (by omega))
 
 /-- A query sharing the smaller stored key's prefix lies strictly below every sketch of a
 larger stored key outside that prefix block. -/
@@ -130,8 +129,8 @@ def lowerRank {n : ℕ} (values : Fin n → ℕ) (q : ℕ) : ℕ :=
   (Finset.univ.filter fun i => values i < q).card
 
 /-- An inclusive rank is a cut between zero and the number of stored values. -/
-theorem upperRank_le {n : ℕ} (values : Fin n → ℕ) (q : ℕ) : upperRank values q ≤ n := by
-  exact (Finset.card_filter_le _ _).trans_eq (Finset.card_fin n)
+theorem upperRank_le {n : ℕ} (values : Fin n → ℕ) (q : ℕ) : upperRank values q ≤ n :=
+  (Finset.card_filter_le _ _).trans_eq (Finset.card_fin n)
 
 /-- In a sorted sequence, inclusive rank exactly characterizes the indices below its cut. -/
 theorem lt_upperRank_iff {n q : ℕ} {values : Fin n → ℕ} (hsorted : StrictMono values)
@@ -174,8 +173,7 @@ theorem exists_sketchNeighbor_prefix {n w q cut : ℕ} {keys : Fin n → ℕ}
   · let j : Fin n := ⟨t, by omega⟩
     refine ⟨j, Or.inr rfl, ?_⟩
     by_contra hj
-    have hlt : sq < values j := lt_of_not_ge (fun h =>
-      (Nat.lt_irrefl t) ((lt_upperRank_iff hmono j).mpr h))
+    have hlt : sq < values j := lt_of_not_ge (mt (lt_upperRank_iff hmono j).mpr (Nat.lt_irrefl t))
     exact (not_lt_of_ge hlt.le) (sketch_lt_query_of_prefix hsorted hbound
       (lt_of_le_of_ne (Nat.le_of_not_lt hit) fun heq => hj (heq.symm ▸ hi)) hi hj)
 
@@ -418,9 +416,8 @@ theorem bestSketchNeighbor_eq_none_iff {n w q : ℕ} {keys : Fin n → ℕ} :
 /-- An exact stored hit is the predecessor of the inclusive sketch cut. -/
 theorem isSketchNeighbor_of_eq {n w q : ℕ} {keys : Fin n → ℕ}
     (hsorted : StrictMono keys) (hbound : ∀ i, keys i < 2 ^ w) (i : Fin n)
-    (hi : keys i = q) : IsSketchNeighbor w keys q i := by
-  apply Or.inl
-  rw [← hi, upperRank_apply (strictMono_sketch hsorted hbound)]
+    (hi : keys i = q) : IsSketchNeighbor w keys q i :=
+  Or.inl (hi ▸ (upperRank_apply (strictMono_sketch hsorted hbound) i).symm)
 
 /-- If the selected candidate is not an exact hit, then no stored key is an exact hit.
 Only the two neighboring candidates are inspected by the selection function. -/
@@ -439,9 +436,8 @@ private theorem bestSketchNeighbor_highestDiff_le {n w q : ℕ} {keys : Fin n �
     (hj : bestSketchNeighbor w keys q = some j) (i : Fin n)
     (hi : IsSketchNeighbor w keys q i) :
     highestDiff w (keys j) q ≤ highestDiff w (keys i) q := by
-  have hscore := (bestSketchNeighbor_spec hj).2 i hi
   simpa only [divergenceScore, ite_eq_right (hmiss j), ite_eq_right (hmiss i),
-    Nat.add_le_add_iff_right] using hscore
+    Nat.add_le_add_iff_right] using (bestSketchNeighbor_spec hj).2 i hi
 
 /-- Arbitrary-query correction using two sketch neighbors. Exact hits return the initial
 inclusive sketch rank directly. Otherwise a second sketch rank uses the appropriate boundary.

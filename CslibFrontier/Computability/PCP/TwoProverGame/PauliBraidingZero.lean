@@ -198,8 +198,7 @@ theorem weighted_prob_true_second_pauliBraidingZero_tie_le {𝒜 : Type*} [Finty
         linarith only [hnn a dummy 0, hnn a dummy 1, hnn a dummy 2]
   simp only [Fintype.expect_const, Fintype.expect_ite_eq', NNRat.smul_def, NNRat.cast_inv,
     NNRat.cast_natCast] at h
-  convert h using 1
-  ring
+  simpa only [sq, ← div_div, ← inv_mul_eq_div, mul_inv_rev, mul_assoc] using h
 
 open BitString Finset Quantum in
 /-- Both bases of the consistency decoder at zero are controlled by linearity rejection,
@@ -251,12 +250,8 @@ theorem expect_prob_true_pauliBraidingConsistencyZero_le {𝒜 : Type*} [Fintype
       rw [heq, ite_eq_left rfl]
       exact le_add_of_nonneg_left (Measurement.prob_nonneg _ _ _)
   have haverage := expect_le_expect (s := (univ : Finset (Fin n → Bool))) fun d _ => hcompare d
-  rw [expect_add_distrib] at haverage
-  have hsingle : (𝔼 d : Fin n → Bool, if d = 0 then secondBit else 0) =
-      secondBit / Fintype.card (Fin n → Bool) := by
-    simp only [Fintype.expect_ite_eq', NNRat.smul_def, NNRat.cast_inv, NNRat.cast_natCast]
-    ring
-  rw [hsingle] at haverage
+  rw [expect_add_distrib, Fintype.expect_ite_eq'] at haverage
+  simp only [NNRat.smul_def, NNRat.cast_inv, NNRat.cast_natCast, inv_mul_eq_div] at haverage
   have hlinear := expect_prob_true_pauliBraidingZero_le G special decode roles basis S
   have htie := weighted_prob_true_second_pauliBraidingZero_tie_le G special decode (!roles) basis S
   have hsecond : secondBit / (Fintype.card (Fin n → Bool) : ℝ) ^ 2 ≤
@@ -330,7 +325,6 @@ theorem expect_norm_pauliBraidingBasisObservable_sub_sq_le
   have hscaled := div_le_div_of_nonneg_right htri (show 0 ≤ size by positivity)
   rw [add_div, mul_div_assoc, mul_div_assoc] at hscaled
   have havg := expect_norm_pauliBraidingBasisObservable_sub_sq_le_add_zero G special decode basis S
-  dsimp only at havg
   change _ ≤ _ + S.state.norm (aZero - bZero) ^ 2 / size at havg
   linarith only [ha, hb, hscaled, havg]
 

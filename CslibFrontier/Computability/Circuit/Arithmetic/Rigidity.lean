@@ -140,12 +140,9 @@ private theorem exists_coeff_decomp (p : Program (affineSignature K) n g)
           Nat.mul_le_mul_right _ (Program.fanInAtMost_iff.1 hfan k)
         _ ≤ 2 ^ ψ (.gate k) := Nat.mul_div_le _ _
     · simp only [Finset.mem_biUnion, Finset.mem_univ, true_and, not_exists] at hj
-      rw [coeff_gate]
-      simp only [Finset.sum_mul]
+      simp only [coeff_gate, Finset.sum_mul, mul_assoc]
       rw [Finset.sum_comm]
-      refine Finset.sum_congr rfl fun a _ => ?_
-      rw [h a j (hj a), Finset.mul_sum]
-      exact Finset.sum_congr rfl fun u _ => (mul_assoc _ _ _).symm
+      exact Finset.sum_congr rfl fun a _ => by rw [h a j (hj a), Finset.mul_sum]
 
 end Program
 
@@ -174,13 +171,10 @@ private theorem rigidity_le_of_cut {c : Circuit (affineSignature K) n m}
   classical
   choose β S hS h using fun o => Program.exists_coeff_decomp c.program hfan T ψ hψ (c.outputs o)
   let B : Matrix (Fin m) (Fin n) K := of fun o j => ∑ u ∈ T, β o u * c.program.coeff u j
-  have hrank : B.rank ≤ T.card := by
-    have hB : B = (of fun o (u : T) => β o u) * (of fun (u : T) j => c.program.coeff u j) := by
-      ext o j
-      simp only [B, of_apply]
-      exact (Finset.sum_coe_sort T fun u => β o u * c.program.coeff u j).symm
-    rw [hB]
-    exact (rank_mul_le_right _ _).trans ((rank_le_card_height _).trans_eq (Fintype.card_coe T))
+  have hB : B = (of fun o (u : T) => β o u) * (of fun (u : T) j => c.program.coeff u j) :=
+    Matrix.ext fun o j => (Finset.sum_coe_sort T _).symm
+  have hrank : B.rank ≤ T.card :=
+    hB ▸ (rank_mul_le_right _ _).trans ((rank_le_card_height _).trans_eq (Fintype.card_coe T))
   refine (rigidity_le hrank).trans ?_
   rw [diffCount_eq_sum]
   calc ∑ o, (Finset.univ.filter fun j => A o j ≠ B o j).card ≤ ∑ o, (S o).card := by
@@ -271,12 +265,9 @@ theorem Computes.rigidity_le {c : Circuit (affineSignature K) n m}
       rwa [ite_eq_left (h1.trans hk), ite_eq_left (h2 ▸ hk)]
     · -- a deep gate is above every label
       dsimp only [ψ]
-      rw [ite_eq_right (by omega : ¬c.program.wireDepths (Wire.gate k) < 2 ^ D)]
       have := hg'lt ((c.program.lines k).wires a)
       split_ifs <;> omega
-  · dsimp only [ψ]
-    rw [ite_eq_left (hout o)]
-    exact (hg'.1 _).le
+  · simpa only [ψ, ite_eq_left (hout o)] using (hg'.1 _).le
 
 /-- **Valiant's rigidity criterion, asymptotic form** ([Valiant1977]; [Lokam2009], Theorem 2.1).
 Let `ℓ = Nat.log 2 n` and fix constants `C, k, e > 0`. If changing at most `n * 2 ^ (ℓ / k)`
@@ -348,8 +339,7 @@ theorem Computes.rigidity_le_of_isPolynomial [Infinite K] {σ : Signature}
     {D t : ℕ} (hdepth : c.depth < 2 ^ D) (htD : t ≤ D) :
     A.rigidity (2 * t * c.size / D) ≤ m * 2 ^ (2 ^ (D - t)) := by
   obtain ⟨c', hsize, -, hfan', hdepth', hc'⟩ := hc.exists_affine hI
-  rw [← hsize]
-  exact hc'.rigidity_le ((hfan' 2).2 hfan) (hdepth' ▸ hdepth) htD
+  exact hsize ▸ hc'.rigidity_le ((hfan' 2).2 hfan) (hdepth' ▸ hdepth) htD
 
 end Circuit
 

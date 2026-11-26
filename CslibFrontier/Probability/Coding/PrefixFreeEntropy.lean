@@ -88,8 +88,7 @@ theorem entropy_le_expected_length_of_isPrefixFree {α : Type*} [Fintype α]
   let q : PMF α := PMF.ofFintype f hf_sum
   have hq_toReal (a : α) (ha : a ∈ p.support) :
       (q a).toReal = (2⁻¹ : ℝ) ^ (enc a).length / Z := by
-    change (f a).toReal = _
-    simp only [f, ite_eq_left ((hs_mem a).mpr ha)]
+    simp only [q, PMF.ofFintype_apply, f, ite_eq_left ((hs_mem a).mpr ha)]
     exact ENNReal.toReal_ofReal (by positivity)
   have hmass_ge (a : α) (ha : a ∈ p.support) :
       (2 : ℝ) ^ (-((enc a).length : ℝ)) ≤ (q a).toReal := by
@@ -127,9 +126,7 @@ theorem conditionalEntropy_le_expected_length_of_isPrefixFree {Obs α : Type*}
           refine Finset.sum_congr rfl fun a _ => ?_
           rw [← mul_assoc, ← ENNReal.toReal_mul, marginal_mul_conditionalSnd]
   · have hm0 : (joint.map Prod.fst) obs = 0 := (PMF.apply_eq_zero_iff _ _).mpr hobs
-    have hj0 : ∀ a, joint (obs, a) = 0 := fun a =>
-      le_antisymm (hm0 ▸ apply_le_map_fst joint obs a) bot_le
-    simp [hm0, hj0]
+    simp [hm0, fun a => le_antisymm (hm0 ▸ apply_le_map_fst joint obs a) bot_le]
 
 /-- **Communication transcript compression bound**: if a message `msg ω` sent over an outcome space
 `p : PMF Ω` is prefix-free on each observation fiber `{ω ∈ p.support | obs ω = o}` and uniquely
@@ -269,12 +266,10 @@ theorem logb_prob_add_logb_le_conditionalEntropy_of_fiber_le {Ω ObsT TgtT : Typ
   have hr_le (o : ObsT) : (r o).toReal ≤ pW⁻¹ * (q o).toReal := by
     simpa only [r, J, _root_.PMF.map_comp, Function.comp_def] using
       toReal_map_conditionalSnd_event_le μ W hW0 obs o
-  have hsupp : r.support ⊆ q.support := fun o ho => by
-    have hro : 0 < (r o).toReal := ENNReal.toReal_pos ((_root_.PMF.mem_support_iff _ _).mp ho)
-      (PMF.apply_ne_top r o)
-    have hqo : 0 < (q o).toReal :=
-      pos_of_mul_pos_right (hro.trans_le (hr_le o)) (inv_nonneg.mpr hpW_pos.le)
-    exact (_root_.PMF.mem_support_iff _ _).mpr fun h0 => by simp [h0] at hqo
+  have hsupp : r.support ⊆ q.support := fun o ho =>
+    (_root_.PMF.mem_support_iff _ _).mpr fun h0 =>
+      (ENNReal.toReal_pos ((_root_.PMF.mem_support_iff _ _).mp ho)
+        (PMF.apply_ne_top r o)).not_ge (by simpa [h0] using hr_le o)
   have hterm (o : ObsT) :
       (r o).toReal * (Real.logb 2 pW + Real.logb 2 M) -
         (r o).toReal * PMF.surprisal r o + (r o).toReal * PMF.surprisal q o ≤
@@ -301,10 +296,9 @@ theorem logb_prob_add_logb_le_conditionalEntropy_of_fiber_le {Ω ObsT TgtT : Typ
           _ = (q o).toReal := by field_simp
       have hlog : Real.logb 2 (pW * (r o).toReal * M / (q o).toReal) =
           Real.logb 2 pW + Real.logb 2 M - PMF.surprisal r o + PMF.surprisal q o := by
-        rw [Real.logb_div (by positivity) hqo.ne', Real.logb_mul (by positivity) hM.ne',
-          Real.logb_mul hpW_pos.ne' hro.ne']
-        dsimp only [PMF.surprisal]
-        ring
+        rw [Real.logb_div (mul_pos (mul_pos hpW_pos hro) hM).ne' hqo.ne',
+          Real.logb_mul (mul_pos hpW_pos hro).ne' hM.ne', Real.logb_mul hpW_pos.ne' hro.ne']
+        dsimp only [PMF.surprisal]; ring
       linarith [mul_le_mul_of_nonneg_left (hlog ▸ hmin) hro.le]
     · simp [(_root_.PMF.apply_eq_zero_iff r o).mpr ho]
   have hsum := Finset.sum_le_sum (s := Finset.univ) fun (o : ObsT) _ => hterm o

@@ -279,8 +279,7 @@ private theorem src_indexWords {n v : ℕ} {L : Memory.Layout n} {x : Data regis
     (fun i => by
       rw [indexWords, appendWords_castAdd]
       exact src_layoutWords hl t (f ∘ Fin.castAdd 1) (fun i => hf (i.castAdd 1)) i)
-    (fun i => by
-      rcases Subsingleton.elim i 0 with rfl
+    (fun i => Subsingleton.elim i 0 ▸ by
       rw [indexWords, appendWords_natAdd]
       exact (congrArg x.regs (method_src_eq_argument t _ 4 (hf _))).trans hv)
 
@@ -295,8 +294,7 @@ private theorem src_updateWords {n v k : ℕ} {L : Memory.Layout n} {x : Data re
     (fun j => by
       rw [updateWords, appendWords_castAdd]
       exact src_indexWords hl hv t (f ∘ Fin.castAdd 1) (fun j => hf (j.castAdd 1)) j)
-    (fun i => by
-      rcases Subsingleton.elim i 0 with rfl
+    (fun i => Subsingleton.elim i 0 ▸ by
       rw [updateWords, appendWords_natAdd]
       exact (congrArg x.regs (method_src_eq_argument t _ 5 (hf _))).trans hk)
 
@@ -330,8 +328,7 @@ private noncomputable def finish {n : ℕ} (o : IndexedMinPQ.Op n)
 private theorem staged_zero_cond (x : Data registers) (i : Fin 4) (hi : i ≠ 3) :
     (.eq (bank i) (bank 3) : Cond registers).Holds (x.set (bank 3) 0) ↔
       x.regs (bank i) = 0 := by
-  have hn := bank_injective.ne hi
-  simp [Cond.Holds, Data.set_regs, hn]
+  simp [Cond.Holds, Data.set_regs, bank_injective.ne hi]
 
 /-- Only the ABI wrapper is charged here: the actual zero staging, existing conditional rules,
 and lookup key copy. The supplied body execution is not replaced or hand-stepped. -/
@@ -380,10 +377,8 @@ theorem stage_zero {w : ℕ} (x : Data registers) (hx : x.Bounded w) :
 /-- Every selected method's live input words survive the actual zero staging. -/
 theorem stage_zero_input (i : Fin 5) (x : Data registers) :
     (x.set (bank 3) 0).regs ∘ Backend.src family (.inl i) =
-      x.regs ∘ Backend.src family (.inl i) := by
-  funext j
-  change Function.update x.regs (bank 3) 0 (Backend.src family (.inl i) j) = _
-  exact Function.update_of_ne (Backend.src_ne_tmp family (.inl i) (.inr 1) j _) _ _
+      x.regs ∘ Backend.src family (.inl i) :=
+  funext fun j => Function.update_of_ne (Backend.src_ne_tmp family (.inl i) (.inr 1) j _) _ _
 
 /-- Lift a selected body's actual native execution through the paid raw ABI dispatcher. Only
 lookup copies the body key from its OptionNat slot into the established PQ output-key slot. -/
@@ -405,8 +400,7 @@ theorem wrap_body {w n K : ℕ} (L : Memory.Layout n) (x : Data registers)
     | exact (Exec.copy (B := Basis.exact) (d := bank 2) (s := bank 1)).bounded hy
   · intro i
     cases o <;> try rfl
-    change (y.set (bank 2) (y.regs (bank 1))).regs (argument (i.castAdd 2)) = _
-    simp only [Data.set_regs, Function.update_of_ne (bank_ne_argument 2 (i.castAdd 2)).symm]
+    exact Function.update_of_ne (bank_ne_argument 2 (i.castAdd 2)).symm _ _
 
 private theorem reserve_layout :
     Function.Injective reserveScratch ∧
@@ -444,10 +438,9 @@ theorem span_exec {w n base : ℕ} (x : Data registers) (hx : x.Bounded w)
   obtain ⟨y, hy, hb, hm, hf, ho, hframe⟩ := Initialize.reserve_exec
     (Backend.frontier family) (fun _ => argument 0) reserveScratch reserve_layout.1
     reserve_layout.2.1 reserve_layout.2.2 (fun _ => argument_ne_frontier 0) x hx hin
-    (by rw [hfront]; exact hfit)
-  refine ⟨y, hy, hb, hm, ho.trans hfront, by rw [hfront] at hf; exact hf, ?_⟩
-  exact (hframe (argument 0) (argument_ne_frontier 0)
-    (fun j => (reserve_layout.2.1 0 j).symm)).trans hn
+    (hfront ▸ hfit)
+  exact ⟨y, hy, hb, hm, ho.trans hfront, hfront ▸ hf,
+    (hframe (argument 0) (argument_ne_frontier 0) fun j => (reserve_layout.2.1 0 j).symm).trans hn⟩
 
 private theorem metadataScratch_injective : Function.Injective metadataScratch := by
   intro i j he

@@ -177,10 +177,8 @@ private theorem initStoreConstCode_exec {w L_peak base off val : ℕ} {x : RData
     (by simp [RData.set]) hoff_fit hlt
   let y := ((x.set mRes val).set mCur (base + off)).write (base + off) val
   have hy_base : y.regs mBase = base := by
-    simp only [y, RData.write, RData.set_regs,
-      Function.update_of_ne (show mBase ≠ mCur from mReg_ne (by decide)),
-      Function.update_of_ne (show mBase ≠ mRes from mReg_ne (by decide))]
-    exact hbase
+    dsimp only [y, RData.write]
+    rwa [RData.set_regs, Function.update_of_ne (mReg_ne (by decide))]
   exact ⟨y, (hs1.seq_eq hs2).mono (by decide) (fun _ h => h), hyb, rfl, hy_base,
     by simp [y, RData.write], fun a ha => by simp [y, RData.write, Function.update_of_ne ha]⟩
 
@@ -217,12 +215,10 @@ theorem initCode_demonicExec {U V w base : ℕ} {x₀ : RData rResize}
   have hfit8_const : Fits w 8 := hfit₈.of_le (Nat.le_add_left 8 base)
   have hfit1 : Fits w 1 := hfit8_const.of_le (by decide)
   have hfit_w : Fits w w := Nat.lt_two_pow_self
-  have hkb_le : keyBits U ≤ w := (Nat.clog_le_iff_le_pow (by decide)).mpr hU.le
-  have hvb_le : valBits V ≤ w := (Nat.clog_le_iff_le_pow (by decide)).mpr hV
-  have hfit_kb : Fits w (keyBits U) := hfit_w.of_le hkb_le
-  have hfit_vb : Fits w (valBits V) := hfit_w.of_le hvb_le
-  have hfit_U1 : Fits w (U - 1) := hU.of_le (Nat.sub_le U 1)
-  have hfit_V1 : Fits w (V - 1) := lt_of_lt_of_le (Nat.sub_lt hV_pos Nat.one_pos) hV
+  have hfit_kb : Fits w (keyBits U) :=
+    hfit_w.of_le ((Nat.clog_le_iff_le_pow one_lt_two).mpr hU.le)
+  have hfit_vb : Fits w (valBits V) :=
+    hfit_w.of_le ((Nat.clog_le_iff_le_pow one_lt_two).mpr hV)
   have hL₀ : x₀.frontier ≤ base + 8 := by rw [hfr₀]; exact Nat.le_add_right base 8
   -- Step 1: `mK := 8` (1 step)
   let x₁ := x₀.set mK 8
@@ -241,10 +237,9 @@ theorem initCode_demonicExec {U V w base : ℕ} {x₀ : RData rResize}
       (by rw [hx₁_k]) (fun _ h => h)
   have hx₂_fr : x₂.frontier = base + 8 := by simp [x₂, growZeroPost, hx₁_fr, hx₁_k]
   have hx₂_res : x₂.regs mRes = base := by
-    simp only [x₂, growZeroPost, hx₁_k, hx₁_fr, show (8 : ℕ) ≠ 0 by decide, ↓reduceIte]
-    rw [Function.update_of_ne (show mRes ≠ mCur from mReg_ne (by decide)),
-      Function.update_of_ne (show mRes ≠ mIdx from mReg_ne (by decide)),
-      Function.update_self]
+    simp only [x₂, growZeroPost, hx₁_k, hx₁_fr, Nat.succ_ne_zero, ↓reduceIte]
+    rw [Function.update_of_ne (mReg_ne (by decide)),
+      Function.update_of_ne (mReg_ne (by decide)), Function.update_self]
   have hx₂b : x₂.Bounded w :=
     growZeroPost_bounded hx₁b hfit1 (by rwa [hx₁_fr, hx₁_k])
   -- Step 3: `mBase := mRes` (1 step)
@@ -265,9 +260,10 @@ theorem initCode_demonicExec {U V w base : ℕ} {x₀ : RData rResize}
       (hfit8_const.of_le hoff.le) hval (by omega)
     exact ⟨y, hs, hyb, hyfr.trans hfr, hybase, hym, hyne⟩
   obtain ⟨x₄, hs_0, hx₄b, hx₄_fr, hx₄_base, hm₄_0, hm₄_ne⟩ :=
-    storeStep 0 (U - 1) hx₃b hx₂_fr hx₃_base (by decide) hfit_U1
+    storeStep 0 (U - 1) hx₃b hx₂_fr hx₃_base (by decide) (hU.of_le (Nat.sub_le U 1))
   obtain ⟨x₅, hs_1, hx₅b, hx₅_fr, hx₅_base, hm₅_1, hm₅_ne⟩ :=
-    storeStep 1 (V - 1) hx₄b hx₄_fr hx₄_base (by decide) hfit_V1
+    storeStep 1 (V - 1) hx₄b hx₄_fr hx₄_base (by decide)
+      (lt_of_lt_of_le (Nat.sub_lt hV_pos Nat.one_pos) hV)
   obtain ⟨x₆, hs_2, hx₆b, hx₆_fr, hx₆_base, hm₆_2, hm₆_ne⟩ :=
     storeStep 2 w hx₅b hx₅_fr hx₅_base (by decide) hfit_w
   obtain ⟨x₇, hs_3, hx₇b, hx₇_fr, hx₇_base, hm₇_3, hm₇_ne⟩ :=
@@ -290,15 +286,14 @@ theorem initCode_demonicExec {U V w base : ℕ} {x₀ : RData rResize}
       hx₃_mem]
   have hne_add (a b : ℕ) (hab : decide (a ≠ b) = true := by decide) : base + a ≠ base + b :=
     fun h => of_decide_eq_true hab (Nat.add_left_cancel h)
-  have hb0 : y_fin.mem base = y_fin.mem (base + 0) := congrArg y_fin.mem (Nat.add_zero base).symm
   have hhdr : RootHeaderValid U V w 0 0 0 base y_fin.mem := by
-    refine ⟨hU, hU_pos, hV_pos, ?_, ?_, ?_, ?_, hmy_4,
+    refine ⟨hU, hU_pos, hV_pos, ?_, ?_,
+      by rw [hmy_ne _ (hne_add 2 4), hm₇_ne _ (hne_add 2 3), hm₆_2],
+      by rw [hmy_ne _ (hne_add 3 4), hm₇_3], hmy_4,
       hzero_ge5 5 (by decide), hzero_ge5 6 (by decide), hzero_ge5 7 (by decide)⟩
-    · rw [hb0, hmy_ne _ (hne_add 0 4), hm₇_ne _ (hne_add 0 3), hm₆_ne _ (hne_add 0 2),
-        hm₅_ne _ (hne_add 0 1), hm₄_0]
+    · rw [← Nat.add_zero base, hmy_ne _ (hne_add 0 4), hm₇_ne _ (hne_add 0 3),
+        hm₆_ne _ (hne_add 0 2), hm₅_ne _ (hne_add 0 1), hm₄_0]
     · rw [hmy_ne _ (hne_add 1 4), hm₇_ne _ (hne_add 1 3), hm₆_ne _ (hne_add 1 2), hm₅_1]
-    · rw [hmy_ne _ (hne_add 2 4), hm₇_ne _ (hne_add 2 3), hm₆_2]
-    · rw [hmy_ne _ (hne_add 3 4), hm₇_3]
   have hrep_empty : EpochRep U V w base (EpochState.empty U) (LatentSeed.empty U) y_fin :=
     ⟨LatentSeed.empty_cap U, by
       simpa only [EpochState.empty, Dictionary.dom_empty, Finset.card_empty] using
@@ -646,8 +641,8 @@ theorem seq_expected_amortized {U V w base : ℕ} {x₀ : RData rResize}
     simpa only [C, obliviousImpl, epochSpaceBound_nil] using hfit₀
   obtain ⟨ν₀, ν_final, T_ops, he_init, hcaller₀, hex, hfin, hcontract, hcost⟩ :=
     C.seq_expected ops hx₀ hfr₀ (fun j => Fin.elim0 j) hfit₀' hv_seq hob_fit
-  have hsp0 : C.spaceBound [] = 8 := epochSpaceBound_nil U V w
-  rw [hsp0] at he_init
+  dsimp only [C, obliviousImpl] at he_init
+  rw [epochSpaceBound_nil] at he_init
   have htr_eq : ∀ t ∈ ν_final.support,
       t.transcript = ((Dynamic.spec U V U).run (Dictionary.empty U) ops).2 := by
     rw [(Dynamic.spec U V U).toObliviousSequenceSpec_contract_iff_of_hasStepFn

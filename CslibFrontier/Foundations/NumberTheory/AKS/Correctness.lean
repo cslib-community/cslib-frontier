@@ -141,7 +141,7 @@ theorem card_image_aeval_linProd [NeZero r] {ζ : K} (hζ : IsPrimitiveRoot ζ r
     (univ.image fun s : Sym (Fin (B + 1)) B => aeval ζ (linProd p s)).card = B.centralBinom := by
   classical
   rw [card_image_of_injective _ ?inj, card_univ, Sym.card_sym_eq_choose, Fintype.card_fin,
-    show B + 1 + B - 1 = 2 * B by omega, Nat.centralBinom_eq_two_mul_choose]
+    Nat.add_right_comm, Nat.add_sub_cancel, ← two_mul, Nat.centralBinom_eq_two_mul_choose]
   rintro s s' (hss' : aeval ζ (linProd p s) = aeval ζ (linProd p s'))
   by_contra hne
   have hF : (linProd p s - linProd p s').map (algebraMap (ZMod p) K) ≠ 0 :=
@@ -182,8 +182,7 @@ theorem card_image_aeval_linProd_le {ζ : K} (hζ : IsPrimitiveRoot ζ r) {m₁ 
     rw [mem_roots hQ, IsRoot, eval_sub, eval_pow, eval_X, eval_pow, eval_X, sub_eq_zero,
       h₁ s ζ hζr, h₂ s ζ hζr,
       pow_eq_pow_of_modEq ((ZMod.natCast_eq_natCast_iff m₁ m₂ r).mp hmod) hζr]
-  refine (card_le_degree_of_subset_roots hsub).trans ((natDegree_sub_le _ _).trans ?_)
-  simp only [natDegree_X_pow, le_refl]
+  simpa using (card_le_degree_of_subset_roots hsub).trans (natDegree_sub_le _ _)
 
 end Bounds
 
@@ -252,16 +251,12 @@ theorem prime_of_passes {n r : ℕ} (hn : 2 ≤ n)
     (Real.lt_sqrt (by linarith)).mpr (hr.trans_le (mod_cast hord_t))
   set B := ⌊Real.sqrt t * Real.logb 2 n⌋₊
   have hBreal : (B : ℝ) ≤ Real.sqrt t * Real.logb 2 n := Nat.floor_le (by positivity)
-  have hBt : B < t := by
-    exact_mod_cast hBreal.trans_lt <| (mul_lt_mul_of_pos_left hlogt (Real.sqrt_pos.2 ht0)).trans_eq
-      (Real.mul_self_sqrt ht0.le)
-  have hBℓ : B ≤ numTests n r :=
-    Nat.floor_mono (mul_le_mul_of_nonneg_right
-      (Real.sqrt_le_sqrt (by exact_mod_cast ht_tot)) (by linarith))
+  have hBt : B < t := mod_cast hBreal.trans_lt <|
+    (mul_lt_mul_of_pos_left hlogt (Real.sqrt_pos.2 ht0)).trans_eq (Real.mul_self_sqrt ht0.le)
+  have hBℓ : B ≤ numTests n r := Nat.floor_mono <|
+    mul_le_mul_of_nonneg_right (Real.sqrt_le_sqrt (mod_cast ht_tot)) (by linarith)
   have hBp : B < p := by omega
-  have hB3 : 3 ≤ B := Nat.le_floor <| by
-    have : (2 : ℝ) < Real.sqrt t := by linarith
-    push_cast; nlinarith
+  have hB3 : 3 ≤ B := Nat.le_floor (by push_cast; nlinarith)
   -- A primitive `r`-th root of unity in characteristic `p`.
   have : NeZero ((r : ℕ) : ZMod p) := ⟨by
     rw [Ne, ZMod.natCast_eq_zero_iff]; exact Nat.not_dvd_of_pos_of_lt (by omega) hrp⟩

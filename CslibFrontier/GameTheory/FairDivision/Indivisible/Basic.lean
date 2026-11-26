@@ -295,14 +295,12 @@ theorem giveGood_bundle_of_ne (A : BundleAllocation n m) {i j : Fin n} (g : Fin 
 theorem transferGood_bundle_source (A : BundleAllocation n m) {j i : Fin n} (g : Fin m)
     (hg : g ∈ A.bundle j) (hji : j ≠ i) :
     (A.transferGood j i g hg).bundle j = A.bundle j \ {g} := by
-  dsimp only [transferGood]
-  rw [ite_eq_right hji, ite_eq_left rfl]
+  simp only [transferGood, ite_eq_right hji, ↓reduceIte]
 
 theorem transferGood_bundle_other (A : BundleAllocation n m) {j i k : Fin n} (g : Fin m)
     (hg : g ∈ A.bundle j) (hki : k ≠ i) (hkj : k ≠ j) :
     (A.transferGood j i g hg).bundle k = A.bundle k := by
-  dsimp only [transferGood]
-  rw [ite_eq_right hki, ite_eq_right hkj]
+  simp only [transferGood, ite_eq_right hki, ite_eq_right hkj]
 
 theorem isComplete_transferGood {A : BundleAllocation n m} (j i : Fin n) (g : Fin m)
     (hg : g ∈ A.bundle j) (hA : A.IsComplete) :
@@ -422,9 +420,8 @@ theorem maxMarginal_nonneg (i : Fin n) : 0 ≤ V.maxMarginal i :=
 
 omit [IsOrderedAddMonoid R] in
 theorem sub_le_maxMarginal (i : Fin n) (S : Finset (Fin m)) (g : Fin m) :
-    V.val i (insert g S) - V.val i S ≤ V.maxMarginal i := by
-  refine Finset.le_max' _ _ (Finset.mem_insert_of_mem ?_)
-  exact Finset.mem_image.2 ⟨(S, g), Finset.mem_univ _, rfl⟩
+    V.val i (insert g S) - V.val i S ≤ V.maxMarginal i :=
+  Finset.le_max' _ _ (Finset.mem_insert_of_mem (Finset.mem_image.2 ⟨(S, g), by simp⟩))
 
 /-- Every `EF1` allocation satisfies the maximum-marginal-envy bound of
 [LiptonMarkakisMosselSaberi2004]: agent `i`'s envy toward any agent `j` is at most
@@ -665,9 +662,8 @@ theorem isEF1_roundRobin (hn : 0 < n) : W.toMonotoneValuation.IsEF1 (W.roundRobi
       have hdiv := hq_inj t₁ ht₁ t₂ ht₂ (Nat.eq_of_mul_eq_mul_left hn (Nat.add_right_cancel hEq))
       exact Fin.ext (by
         rw [← Nat.div_add_mod t₁.val n, ← Nat.div_add_mod t₂.val n, hdiv, hmod t₁ ht₁, hmod t₂ ht₂])
-    refine W.sum_rrTurns_le_of_injOn hn hmem hinj fun t ht => ?_
-    simp only [φ, dite_eq_left (hlt t ht), Fin.le_iff_val_le_val]
-    exact hle t ht
+    exact W.sum_rrTurns_le_of_injOn hn hmem hinj fun t ht => by
+      simpa only [φ, dite_eq_left (hlt t ht), Fin.le_iff_val_le_val] using hle t ht
   by_cases hij : i.val ≤ j.val
   · left
     rw [W.bundleVal_roundRobin hn i j, W.bundleVal_roundRobin hn i i]
@@ -688,10 +684,8 @@ theorem isEF1_roundRobin (hn : 0 < n) : W.toMonotoneValuation.IsEF1 (W.roundRobi
         exact ⟨fun ⟨⟨t, ht, hx⟩, hne⟩ => ⟨t, ⟨ht, fun h => hne (hx ▸ congrArg _ h)⟩, hx⟩,
           fun ⟨t, ⟨ht, hne⟩, hx⟩ =>
             ⟨⟨t, ht, hx⟩, fun h => hne (W.rrPick_injective hn (hx.trans h))⟩⟩
-      have hsum_img : W.bundleVal i (T'.image (W.rrPick hn)) =
-          ∑ t ∈ T', W.weight i (W.rrPick hn t) :=
-        Finset.sum_image fun _ _ _ _ h => W.rrPick_injective hn h
-      rw [hsdiff, W.bundleVal_roundRobin hn i i, hsum_img]
+      rw [hsdiff, W.bundleVal_roundRobin hn i i, bundleVal,
+        Finset.sum_image fun _ _ _ _ h => W.rrPick_injective hn h]
       have hq_pos : ∀ t ∈ T', 1 ≤ t.val / n := fun t ht => by
         obtain ⟨ht_turn, ht_ne⟩ := Finset.mem_sdiff.1 ht
         have hmod : t.val % n = j.val := (Finset.mem_filter.1 ht_turn).2
@@ -699,10 +693,8 @@ theorem isEF1_roundRobin (hn : 0 < n) : W.toMonotoneValuation.IsEF1 (W.roundRobi
         exact Nat.div_pos (not_lt.1 fun hlt => hne_val ((Nat.mod_eq_of_lt hlt).symm.trans hmod)) hn
       refine hmap T' (fun t => t.val / n - 1)
         (fun t ht => (Finset.mem_filter.1 (Finset.mem_sdiff.1 ht).1).2)
-        (fun t₁ ht₁ t₂ ht₂ h => by
-          have := hq_pos t₁ ht₁
-          have := hq_pos t₂ ht₂
-          omega)
+        (fun t₁ ht₁ t₂ ht₂ h => (Nat.sub_add_cancel (hq_pos t₁ ht₁)).symm.trans
+          ((congrArg (· + 1) h).trans (Nat.sub_add_cancel (hq_pos t₂ ht₂))))
         fun t ht => ?_
       have hlt_step : n * (t.val / n - 1) + i.val < n * (t.val / n) := by
         calc n * (t.val / n - 1) + i.val

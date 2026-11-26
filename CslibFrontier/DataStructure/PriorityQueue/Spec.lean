@@ -439,8 +439,7 @@ theorem mem_dom {n_max : ℕ} {s : State n_max} {h : Fin n_max} :
 
 theorem mem_dom_iff {n_max : ℕ} {s : State n_max} {h : Fin n_max} :
     h ∈ dom s ↔ ∃ u v, s h = some (u, v) := by
-  rw [mem_dom, Option.isSome_iff_exists]
-  exact ⟨fun ⟨⟨u, v⟩, H⟩ => ⟨u, v, H⟩, fun ⟨u, v, H⟩ => ⟨(u, v), H⟩⟩
+  simp [Option.isSome_iff_exists, Prod.exists]
 
 theorem notMem_dom_iff {n_max : ℕ} {s : State n_max} {h : Fin n_max} :
     h ∉ dom s ↔ s h = none := by
@@ -449,8 +448,7 @@ theorem notMem_dom_iff {n_max : ℕ} {s : State n_max} {h : Fin n_max} :
 @[simp]
 theorem dom_empty (n_max : ℕ) : dom (empty n_max) = ∅ := by
   ext h
-  simp only [mem_dom, empty_apply, Option.isSome_none, Bool.false_eq_true,
-    Finset.notMem_empty]
+  simp
 
 @[simp]
 theorem size_empty (n_max : ℕ) : size (empty n_max) = 0 := by
@@ -568,12 +566,9 @@ theorem findMin_eq_some_of_indexed {n_max : ℕ} {s : State n_max} {h : Fin n_ma
     (hfm : IndexedMinPQ.findMin (toIndexed s) = some (h, u)) :
     ∃ v, s h = some (u, v) ∧ findMin s = some (u, v, h) ∧ isMinEntry s h u v := by
   obtain ⟨hmem, hle⟩ := IndexedMinPQ.findMin_eq_some_iff.mp hfm
-  simp only [toIndexed_apply, Option.map_eq_some_iff] at hmem
-  obtain ⟨⟨u₀, v⟩, hsh, rfl⟩ := hmem
-  refine ⟨v, hsh, ?_, hsh, ?_⟩
-  · simp only [findMin, hfm, hsh]
-  · intro h' u' v' hsh'
-    rcases hle h' u' (by simp [hsh']) with hlt | ⟨rfl, _⟩ <;> omega
+  obtain ⟨⟨_, v⟩, hsh, rfl⟩ := Option.map_eq_some_iff.mp hmem
+  refine ⟨v, hsh, by simp [findMin, hfm, hsh], hsh, fun h' u' v' hsh' => ?_⟩
+  rcases hle h' u' (by simp [hsh']) with hlt | ⟨rfl, _⟩ <;> omega
 
 theorem exists_isMinEntry_of_dom_ne_empty {n_max : ℕ} {s : State n_max} (hne : dom s ≠ ∅) :
     ∃ h u v, isMinEntry s h u v := by
@@ -740,10 +735,8 @@ theorem allocHandle_spec {n_max : ℕ} {s : AllocState n_max}
     refine ⟨h, tl, s.fresh, by simp only [allocHandle, hfl], hh_none, hfr_le, htl_nd,
       free_update_of_notMem _ hh_not_tl (fun x hx => hfree x (hfl ▸ List.mem_cons_of_mem h hx)),
       bump_update_of_lt _ hh_lt hbump, ?_⟩
-    dsimp only
-    rw [size_update_some_of_none hh_none]
-    rw [hfl, List.length_cons] at hsum
-    omega
+    simp only [size_update_some_of_none hh_none]
+    rw [hfl, List.length_cons] at hsum; omega
 
 /-- Every valid operation on a well-formed `AllocState` stepped by `stepAlloc`:
 1. satisfies the relational transition
@@ -784,9 +777,7 @@ theorem stepAlloc_refines_spec {n_max U V : ℕ} {s : AllocState n_max} (hwf : s
         List.forall_mem_cons.mpr ⟨⟨hh_lt, Function.update_self _ _ _⟩,
           free_update_of_notMem _ hh_not_free hfree⟩,
         bump_update_of_lt _ hh_lt hbump, ?_⟩
-      dsimp only
-      rw [size_update_none_of_some hsh, List.length_cons]
-      omega
+      simp only [size_update_none_of_some hsh, List.length_cons]; omega
 
 end MinPQ
 

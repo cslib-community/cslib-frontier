@@ -291,7 +291,6 @@ theorem rate_submodule_ge [Fintype L] [Finite R] [Fintype D] [CommRing α] [Fint
     ext x
     simp [φ, LinearMap.mem_ker, funext_iff, Submodule.mkQ_apply,
       Submodule.Quotient.mk_eq_zero, mem_submodule]
-  have hcard := AddSubgroup.card_ker_mul_card_range φ.toAddMonoidHom
   have hker_card : Nat.card φ.toAddMonoidHom.ker = Nat.card (submodule B CL CR) := hker ▸ rfl
   have _ : Finite ((D → α) ⧸ CL) := Finite.of_surjective _ CL.mkQ_surjective
   have _ : Finite ((D → α) ⧸ CR) := Finite.of_surjective _ CR.mkQ_surjective
@@ -315,7 +314,8 @@ theorem rate_submodule_ge [Fintype L] [Finite R] [Fintype D] [CommRing α] [Fint
     have hmul : (Fintype.card α ^ Fintype.card D) ^ Fintype.card L ≤
         Nat.card (submodule B CL CR) *
           (Nat.card ((D → α) ⧸ CL) * Nat.card ((D → α) ⧸ CR)) ^ Fintype.card L := by
-      rw [← pow_mul, mul_comm (Fintype.card D), ← hdom, ← hcard, hker_card, mul_pow]
+      rw [← pow_mul, mul_comm (Fintype.card D), ← hdom,
+        ← AddSubgroup.card_ker_mul_card_range φ.toAddMonoidHom, hker_card, mul_pow]
       exact Nat.mul_le_mul_left _ hrange_le
     refine Nat.le_of_mul_le_mul_right (c := (Fintype.card α ^ Fintype.card D) ^ Fintype.card L)
       ?_ (by positivity)
@@ -336,12 +336,9 @@ theorem rate_submodule_ge [Fintype L] [Finite R] [Fintype D] [CommRing α] [Fint
   rw [Real.logb_pow, Real.logb_mul hCL_pos.ne' hCR_pos.ne',
     Real.logb_mul hSub_pos.ne' (by positivity), Real.logb_pow,
     Real.logb_self_pow (zero_lt_one.trans hα) hα.ne'] at hlog
-  have hL0 : (0 : ℝ) < Fintype.card L := by exact_mod_cast hL
-  have hD0 : (0 : ℝ) < Fintype.card D := by exact_mod_cast hD
   simp only [Code.rate, SetLike.coe_sort_coe, Fintype.card_prod, Nat.cast_mul]
-  refine le_of_mul_le_mul_right ?_ (mul_pos hL0 hD0)
-  field_simp
-  linarith
+  refine le_of_mul_le_mul_right ?_ (mul_pos (Nat.cast_pos.2 hL) (Nat.cast_pos.2 hD))
+  field_simp; linarith
 
 /-- Parity-check rate lower bound for bipartite Tanner codes: if `HL` has `|ιL|` checks and `HR`
 has `|ιR|` checks over a finite nontrivial commutative ring `α`, then the Tanner code has rate at
@@ -388,10 +385,8 @@ private theorem core_tanner_bound {k lam d N W u v : ℝ} (hk : 0 ≤ k) (hlam :
       _ = d * (k ^ 2 * (u * v)) / N + (k * lam * d) * (k * √(u * v)) := by ring
       _ ≤ d * W ^ 2 / N + (k * lam * d) * W := by gcongr
       _ = (d * W / N + k * lam * d) * W := by ring
-  have hk1 : k ^ 2 ≤ d * W / N + k * lam * d := le_of_mul_le_mul_right hkW hW
-  have hkN := mul_le_mul_of_nonneg_right hk1 hN.le
-  rw [add_mul, div_mul_cancel₀ _ hN.ne'] at hkN
-  linarith
+  have hkN := mul_le_mul_of_nonneg_right (le_of_mul_le_mul_right hkW hW) hN.le
+  rw [add_mul, div_mul_cancel₀ _ hN.ne'] at hkN; linarith
 
 private theorem hammingDist_le_card_interedges [Fintype L] [Fintype R] [Fintype D]
     [DecidableEq R] [DecidableEq α] (B : BipartiteRotationMap L R D) (x y : L × D → α) :
@@ -444,13 +439,10 @@ theorem sqrt_mul_sub_card_le_of_hammingDist [Fintype L] [Fintype R] [Fintype D]
     obtain ⟨⟨u, i⟩, hne⟩ := Function.ne_iff.1 hxy
     exact ⟨u, mem_filter.2 ⟨mem_univ u, fun h => hne (congrFun h i)⟩⟩
   have hN : (0 : ℝ) < Fintype.card L := Nat.cast_pos.2 (Fintype.card_pos_iff.2 ⟨u₀⟩)
-  have hWE : (hammingDist x y : ℝ) ≤ #(B.interedges U W) :=
-    Nat.cast_le.2 (hammingDist_le_card_interedges B x y)
-  have hmix := B.card_interedges_le_of_nontrivialSingularValue_le hlam U W
   have hup : (hammingDist x y : ℝ) ≤
-      Fintype.card D * (#U * #W) / Fintype.card L + lam * Fintype.card D * √((#U : ℝ) * #W) := by
-    rw [mul_assoc (Fintype.card D : ℝ)] at hmix
-    linarith
+      Fintype.card D * (#U * #W) / Fintype.card L + lam * Fintype.card D * √((#U : ℝ) * #W) :=
+    (Nat.cast_le.2 (hammingDist_le_card_interedges B x y)).trans
+      ((B.card_interedges_le_of_nontrivialSingularValue_le hlam U W).trans_eq (by ring))
   have hk2 : √(kL * kR) ^ 2 * ((#U : ℝ) * #W) ≤ (hammingDist x y : ℝ) ^ 2 := by
     rw [Real.sq_sqrt (mul_nonneg hkL hkR)]
     calc

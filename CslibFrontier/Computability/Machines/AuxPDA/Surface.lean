@@ -335,9 +335,7 @@ theorem Realizable.exists_sameHeightRun {M : AuxPDA k Bool StackSym State}
       p.length = d ∧ SameHeightRun p := by
   induction h generalizing c₁ with
   | refl s =>
-    refine ⟨RelSeries.singleton _ c₁, rfl, hc₁, rfl, rfl, rfl, fun _ => ?_⟩
-    rw [RelSeries.head_singleton]
-    exact le_rfl
+    exact ⟨RelSeries.singleton _ c₁, rfl, hc₁, rfl, rfl, rfl, fun _ => le_rfl⟩
   | stay hstay =>
     subst hc₁
     rcases hstay with ⟨hhalt, rfl⟩ | ⟨q, act, hq, htr, hstay, rfl⟩
@@ -578,10 +576,10 @@ theorem realizable_iff_exists_sameHeightRun {M : AuxPDA k Bool StackSym State}
     M.Realizable input s₁ s₂ d ↔
       ∃ p : M.RunPath input, p.head = c₁ ∧ p.last.surface = s₂ ∧ p.length = d ∧
         SameHeightRun p := by
-  refine ⟨fun h => ?_, fun ⟨p, hhead, hsurf, hlen, hsame⟩ => ?_⟩
-  · obtain ⟨p, hhead, hsurf, -, hlen, hsame⟩ := h.exists_sameHeightRun hc₁
-    exact ⟨p, hhead, hsurf, hlen, hsame⟩
-  · simpa only [hhead, hc₁, hsurf] using (sameHeightRun_stack_and_realizable d p hlen hsame).2
+  refine ⟨fun h => ?_, fun ⟨p, hhead, hsurf, hlen, hsame⟩ => by
+    simpa only [hhead, hc₁, hsurf] using (sameHeightRun_stack_and_realizable d p hlen hsame).2⟩
+  obtain ⟨p, hhead, hsurf, -, hlen, hsame⟩ := h.exists_sameHeightRun hc₁
+  exact ⟨p, hhead, hsurf, hlen, hsame⟩
 
 /-- **Surface-pair realizability decomposition** (Ruzzo / Venkateswaran): for `d ≥ 2`, a surface
 pair `(s₁, s₂)` is realizable in `d` steps iff it either splits as a matched push-pop pair
@@ -629,12 +627,10 @@ theorem accepts_iff_exists_realizable_of_emptyStackHalt {M : AuxPDA k Bool Stack
         M.Realizable input (M.initSurface input) s_acc d := by
   constructor
   · rintro ⟨p, hhalt, hout⟩
-    have hstack : p.last.stack = [] := hempty p hhalt
-    refine ⟨p.last.surface, p.length,
-      (Cfg.isAccepting_surface_iff p.last).mpr ⟨hhalt, hout⟩,
-      by simp [Cfg.surface, hstack],
+    refine ⟨p.last.surface, p.length, (Cfg.isAccepting_surface_iff p.last).mpr ⟨hhalt, hout⟩,
+      by simp [Cfg.surface, hempty p hhalt],
       (realizable_iff_exists_sameHeightRun rfl).mpr ⟨p.toRunPath, p.head_eq, rfl, rfl,
-        by simp [hstack, p.head_eq],
+        by simp [hempty p hhalt, p.head_eq],
         fun _ => by simp [p.head_eq]⟩⟩
   · rintro ⟨s_acc, d, hacc, -, hreal⟩
     obtain ⟨p, hhead, hsurf, -, -⟩ := (realizable_iff_exists_sameHeightRun rfl).mp hreal
@@ -741,13 +737,11 @@ theorem withEmptyStackHalt_halted_stack_nil {Symbol : Type*} {input : List Symbo
   | singleton c => exact fun h0 h => h0 h
   | snoc q c hc ih =>
     intro h0 hlast
-    have hih := ih (by simpa using h0)
     rcases withEmptyStackHalt_step_cases hc with
-      ⟨hq, rfl⟩ | ⟨-, -, -, -, -, hcase⟩ | ⟨-, -, -, q', hq'⟩
-    · simpa using hih hq
-    · rcases hcase with ⟨-, -, hcStack⟩ | ⟨_, _, -, hstate, -⟩
-      · simpa using hcStack
-      · simp [Cfg.Halted, Turing.Cfg.Halted, hstate] at hlast
+      ⟨hq, rfl⟩ | ⟨-, -, -, -, -, ⟨-, -, hcStack⟩ | ⟨_, _, -, hstate, -⟩⟩ | ⟨-, -, -, q', hq'⟩
+    · simpa using ih (by simpa using h0) hq
+    · simpa using hcStack
+    · simp [Cfg.Halted, Turing.Cfg.Halted, hstate] at hlast
     · simp [Cfg.Halted, Turing.Cfg.Halted, hq'] at hlast
 
 private theorem withEmptyStackHalt_drain_from {Symbol : Type*} {input : List Symbol}
@@ -979,10 +973,8 @@ theorem encard_surfaceCfg_fitsIn_le [Fintype StackSym] [Fintype State]
   calc {sc : SurfaceCfg k StackSym State input | sc.storage.FitsIn w}.encard
       = (f '' {sc | sc.storage.FitsIn w}).encard := (hinj.injOn.encard_image).symm
     _ ≤ ((Set.univ : Set (Fin (input.length + 2) × Option StackSym × OutputSummary)) ×ˢ
-          {x : Turing.Storage Bool State k | x.FitsIn w}).encard := by
-        apply Set.encard_le_encard
-        rintro _ ⟨sc, hsc, rfl⟩
-        exact ⟨Set.mem_univ _, hsc⟩
+          {x : Turing.Storage Bool State k | x.FitsIn w}).encard :=
+        Set.encard_le_encard fun _ ⟨_, hsc, h⟩ => h ▸ ⟨Set.mem_univ _, hsc⟩
     _ = (Set.univ : Set (Fin (input.length + 2) × Option StackSym × OutputSummary)).encard *
           {x : Turing.Storage Bool State k | x.FitsIn w}.encard := Set.encard_prod
     _ ≤ ((input.length + 2) * (Fintype.card StackSym + 1) * 3 : ℕ) *

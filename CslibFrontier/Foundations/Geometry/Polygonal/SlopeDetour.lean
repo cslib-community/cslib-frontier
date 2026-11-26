@@ -139,28 +139,25 @@ private theorem member_first {r s d x : ℝ} {keep : Bool} (hr : 0 < r)
   cases keep
   · refine ⟨(x + r) / r, ⟨div_pos (by linarith [hx.1]) hr,
       (div_lt_one hr).mpr (by linarith [hx.2])⟩, ?_⟩
-    rw [show member r s d false = slopeDetour r s d from rfl, eval_slopeDetour]
-    simp only [Fin.val_zero, ↓reduceIte, AffineMap.lineMap_apply_module,
+    change (slopeDetour r s d).eval 0 _ = _
+    simp only [eval_slopeDetour, Fin.val_zero, ↓reduceIte, AffineMap.lineMap_apply_module,
       Complex.ext_iff, Complex.add_re, Complex.add_im, Complex.smul_re, Complex.smul_im,
       smul_eq_mul]
     constructor <;> field_simp [hr.ne'] <;> ring
   · refine ⟨(x + r) / (2 * r), ⟨div_pos (by linarith [hx.1]) (mul_pos two_pos hr),
       (div_lt_one (mul_pos two_pos hr)).mpr (by linarith [hx.2])⟩, ?_⟩
-    rw [show member r s d true = line ⟨-r, -r * s⟩ ⟨r, r * s⟩ from rfl, eval_line]
-    simp only [hkeep rfl, zero_mul, add_zero, AffineMap.lineMap_apply_module, Complex.ext_iff,
-      Complex.add_re, Complex.add_im, Complex.smul_re, Complex.smul_im, smul_eq_mul]
+    change (line ⟨-r, -r * s⟩ ⟨r, r * s⟩).eval 0 _ = _
+    simp only [eval_line, hkeep rfl, zero_mul, add_zero, AffineMap.lineMap_apply_module,
+      Complex.ext_iff, Complex.add_re, Complex.add_im, Complex.smul_re, Complex.smul_im,
+      smul_eq_mul]
     constructor <;> field_simp [hr.ne'] <;> ring
 
 private theorem member_first_vector (r s d : ℝ) (keep : Bool)
     (hkeep : keep = true → d = 0) :
     (member r s d keep).germ false =
       (if keep then (2 : ℝ) else 1) • (⟨r, r * s + d⟩ : ℂ) := by
-  cases keep
-  · simp only [member, Bool.false_eq_true, ↓reduceIte, slopeDetour, germ_append,
-      germ_line, one_smul]
-    apply Complex.ext <;> simp [add_comm]
-  · simp only [member, ↓reduceIte, germ_line, hkeep rfl, add_zero]
-    apply Complex.ext <;> simp [Complex.real_smul, two_mul]
+  cases keep <;> apply Complex.ext <;>
+    simp [member, slopeDetour, germ_append, germ_line, hkeep, Complex.real_smul, two_mul, add_comm]
 
 private theorem contact_abscissa {r s t d e q x y : ℝ} (hr : 0 < r) (hst : s ≠ t)
     (hq : 0 < q) (hd : d - e = (s - t) * q) (hx : x ∈ Set.Icc (-r) r)
@@ -322,13 +319,10 @@ theorem exists_slopeDetour_separation {ι : Type*} [Finite ι]
   let B := M ^ 2 + c * M
   let Q := 4 * M + 1
   have hM : 0 ≤ M := Finset.sum_nonneg fun _ _ => abs_nonneg _
-  have hc : 0 < c := by dsimp [c]; linarith
-  have hB : 0 ≤ B := add_nonneg (sq_nonneg M) (mul_nonneg hc.le hM)
-  have hQ : 0 < Q := by dsimp [Q]; linarith
-  have hbound : 0 < min (ε / (B + 1)) (r / (2 * (Q + 1))) := by positivity
-  obtain ⟨μ, hμ, hμlt⟩ := exists_between hbound
+  obtain ⟨μ, hμ, hμlt⟩ := exists_between
+    (by positivity : 0 < min (ε / (B + 1)) (r / (2 * (Q + 1))))
   obtain ⟨hμε, hμr⟩ := lt_min_iff.mp hμlt
-  replace hμε : μ * (B + 1) < ε := (lt_div_iff₀ (by linarith)).mp hμε
+  replace hμε : μ * (B + 1) < ε := (lt_div_iff₀ (by positivity)).mp hμε
   replace hμr : μ * (2 * (Q + 1)) < r := (lt_div_iff₀ (by positivity)).mp hμr
   let d := fun i => height a c μ (s i)
   let keep := fun i => decide (fixedIndex = some i)

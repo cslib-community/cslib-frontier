@@ -57,10 +57,7 @@ theorem HasRegularContacts.opposite_orders_of_induced_reachable {G : Graph}
       Function.Injective site ∧ ∀ i, site i ∈ S k := by
     rcases hpath k with hDirect | ⟨ha', hb', hr⟩
     · refine ⟨0, fun _ => a k, Fin.elim0, rfl, hDirect.symm,
-        fun i => Fin.eq_zero i ▸ ha k,
-        fun i => by
-          have hi : i = Fin.last 0 := Fin.eq_zero i
-          simpa only [hi, Fin.lastCases_last, ← hDirect] using hb k,
+        fun i => Fin.eq_zero i ▸ ha k, fun i => Fin.eq_zero i ▸ hDirect ▸ hb k,
         fun i j _ => (Fin.eq_zero i).trans (Fin.eq_zero j).symm,
         fun i => i.elim0, fun i => i.elim0⟩
     · have hab : a k ≠ b k := fun h => huv ((ha k).symm.trans
@@ -83,9 +80,8 @@ theorem HasRegularContacts.opposite_orders_of_induced_reachable {G : Graph}
     · rw [hd, start]
       exact Fin.cases (Or.inl rfl) (fun j => Or.inr (Or.inr (siteMem k j))) i
     · rw [hd, finish]
-      refine Fin.lastCases ?_ (fun j => ?_) i
-      · simp [Fin.lastCases_last]
-      · simp [Fin.lastCases_castSucc, siteMem k j]
+      exact Fin.lastCases (by simp [Fin.lastCases_last])
+        (fun j => by simp [Fin.lastCases_castSucc, siteMem k j]) i
   have sharedFirst {k l : Fin 3} (hkl : k ≠ l) (i : Fin (length k + 1))
       (j : Fin (length l + 1)) (he : (path k i).1 = (path l j).1) : i = 0 := by
     cases i using Fin.cases with
@@ -272,11 +268,10 @@ theorem HasRegularContacts.mergeSort_eq_reverse_of_separating_components {G : Gr
   change order fromB = (order fromA).reverse
   refine ((hperm fromB).trans revPerm.symm).eq_of_pairwise ?_ (sorted fromB) revSorted
   intro i j hi hj hij hji
-  have hi' := (hperm fromB).mem_iff.mp hi
-  have hj' := revPerm.mem_iff.mp hj
-  have hEq := le_antisymm ((reverseLE hi' hj').mpr hji) ((reverseLE hj' hi').mpr hij)
-  exact haInj (congrArg Prod.fst
-    ((r.rotationDistance_eq_iff_eq _ _ _ ((ha o).trans (ha i).symm)
-      ((ha o).trans (ha j).symm)).mp hEq))
+  have hEq := le_antisymm
+    ((reverseLE ((hperm fromB).mem_iff.mp hi) (revPerm.mem_iff.mp hj)).mpr hji)
+    ((reverseLE (revPerm.mem_iff.mp hj) ((hperm fromB).mem_iff.mp hi)).mpr hij)
+  exact haInj (congrArg Prod.fst ((r.rotationDistance_eq_iff_eq _ _ _
+    ((ha o).trans (ha i).symm) ((ha o).trans (ha j).symm)).mp hEq))
 
 end Cslib.Complexity.Graph.PolygonalDrawing

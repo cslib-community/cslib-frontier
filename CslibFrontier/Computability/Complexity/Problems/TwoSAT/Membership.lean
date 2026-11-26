@@ -292,10 +292,8 @@ theorem ab_accept {Q : Config → Prop} {st : St} (hB : st.Bounded (bnd φ)) (b 
 theorem ab_step_reject {Q : Config → Prop} {l : ℕ} {st : St} (hB : st.Bounded (bnd φ))
     (hh : decider.halted (l, st.regs 0) = false) (b : Bool)
     (hstep : ∀ b : Bool, decider.step (encCNF φ) (l, st.regs b.toNat) = (103, st.regs b.toNat)) :
-    decider.AllBranches (encCNF φ) (bnd φ) (Post φ) Q (l, st.regs b.toNat) := by
-  refine .step hh (mem_regs_le hB b) fun b' => ?_
-  rw [hstep, withChoice_regs]
-  exact ab_reject hB b'
+    decider.AllBranches (encCNF φ) (bnd φ) (Post φ) Q (l, st.regs b.toNat) :=
+  .step hh (mem_regs_le hB b) fun b' => by simpa [hstep] using ab_reject hB b'
 
 /-! ### Code placement -/
 
@@ -997,11 +995,9 @@ found. -/
 theorem ab_loop : ∀ (n : ℕ) (st : St), measure φ st = n → LoopInv φ st → ∀ b : Bool,
     decider.AllBranches (encCNF φ) (bnd φ) (Post φ) (fun _ => False) (35, st.regs b.toNat) := by
   intro n
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-  intro st hn hinv b
-  exact (ab_head hinv b).bind fun s ⟨st', b', hs, hinv', hm⟩ =>
-    hs ▸ ih _ (hn ▸ hm) st' rfl hinv' b'
+  induction n using Nat.strong_induction_on with | _ n ih =>
+  rintro st rfl hinv b
+  exact (ab_head hinv b).bind fun _ ⟨st', b', hs, hinv', hm⟩ => hs ▸ ih _ hm st' rfl hinv' b'
 
 /-! ### Every branch from the start -/
 
@@ -1288,9 +1284,7 @@ theorem length_flatten_le_length_encCNF (φ : CNF ℕ) : φ.flatten.length ≤ (
     have hc : c.length ≤ (c.flatMap fun l => literalBits l.1 l.2).length := by
       induction c with
       | nil => simp
-      | cons l c ihc =>
-        simp only [List.flatMap_cons, List.length_append, List.length_cons, length_literalBits]
-        omega
+      | cons l c ihc => simp [length_literalBits]; omega
     simp only [List.flatten_cons, List.flatMap_cons, List.length_append, length_clauseBits]; omega
 
 /-- A path of the implication graph has a version with at most as many arcs as the encoding of

@@ -112,15 +112,12 @@ private theorem norm_querySlice_sq_eq_sum_fiberSlice (i : ι) (ψ : ValueState �
 /-- Decomposition of the inner product on `ValueState ι V W` across query indices `i : ι`. -/
 theorem inner_eq_sum_inner_querySlice (ψ φ : ValueState ι V W) :
     inner ℂ ψ φ = ∑ i : ι, inner ℂ (querySlice i ψ) (querySlice i φ) := by
-  simp only [PiLp.inner_apply]
-  rw [Fintype.sum_prod_type]
-  refine sum_congr rfl fun i _ => sum_congr rfl fun ⟨v, w⟩ _ => rfl
+  simp only [PiLp.inner_apply, querySlice_apply, Fintype.sum_prod_type]
 
 /-- Parseval identity across query indices: `∑_i ‖querySlice i ψ‖² = ‖ψ‖²`. -/
 theorem sum_sq_norm_querySlice (ψ : ValueState ι V W) :
     ∑ i : ι, ‖querySlice i ψ‖ ^ 2 = ‖ψ‖ ^ 2 := by
-  simp only [EuclideanSpace.norm_sq_eq, Fintype.sum_prod_type]
-  rfl
+  simp only [EuclideanSpace.norm_sq_eq, querySlice_apply, Fintype.sum_prod_type]
 
 /-- On each query index `i`, `valueOracle step x` acts as a linear isometry on `querySlice i`. -/
 @[simp] theorem norm_querySlice_valueOracle
@@ -270,14 +267,11 @@ theorem valueWeightedProgress_zero_sub_le [DecidableEq α]
       have hi' := (mem_filter.1 hi).2
       exact two_mul_mul_le_of_sq_le_mul (norm_nonneg _) (norm_nonneg _)
         (ha p hp i hi') (hb p hp i hi') (hγsq p hp i hi')
-    have hX := sum_endpoint_querySlice_sq_le step U hψ₀ R Prod.fst a α_b hα t
-    have hY := sum_endpoint_querySlice_sq_le step U hψ₀ R Prod.snd b β_b hβ t
-    linarith
+    linarith [sum_endpoint_querySlice_sq_le step U hψ₀ R Prod.fst a α_b hα t,
+      sum_endpoint_querySlice_sq_le step U hψ₀ R Prod.snd b β_b hβ t]
   induction T with
   | zero => simp
-  | succ t ih =>
-    push_cast
-    linarith [hstep t]
+  | succ t ih => push_cast; linarith [hstep t]
 
 /-- **Weighted quantum adversary inequality for value-query algorithms**: if after `T` value queries
 the states on every pair in `R` have overlap at most `δ`, and nonnegative step weights `a, b`

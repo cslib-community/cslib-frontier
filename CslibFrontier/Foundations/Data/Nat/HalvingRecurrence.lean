@@ -72,16 +72,13 @@ theorem add_mul_two_pow_le_mul_pow_of_halving {T : ℕ → ℕ} {a c α β : ℕ
         _ ≤ a * (α * a ^ k) := by gcongr
         _ = α * (a ^ k * a) := by ring
     · set S := α * a ^ k - β * 2 ^ k with hS
-      have hchild : ∀ m ≤ (n + 1) / 2, T m ≤ S := by
-        intro m hm
-        have := ih m (by rw [pow_succ] at hn; omega)
-        omega
-      have h1 := step n h S hchild
-      have h2 : c * n ≤ c * (2 ^ k * 2) := by rw [pow_succ] at hn; gcongr
+      rw [pow_succ] at hn
+      have hchild (m : ℕ) (hm : m ≤ (n + 1) / 2) : T m ≤ S :=
+        Nat.le_sub_of_add_le (ih m (by omega))
+      have h1 := (step n h S hchild).trans (Nat.add_le_add_left (Nat.mul_le_mul_left c hn) _)
       have h3 : (2 * c + 2 * β) * 2 ^ k ≤ (a * β) * 2 ^ k := by gcongr
-      have h4 : S + β * 2 ^ k = α * a ^ k := by
-        have := ih 0 (Nat.zero_le _)
-        omega
+      have h4 : S + β * 2 ^ k = α * a ^ k :=
+        Nat.sub_add_cancel ((Nat.le_add_left _ _).trans (ih 0 (Nat.zero_le _)))
       calc T n + β * (2 ^ k * 2) ≤ a * S + c * (2 ^ k * 2) + β * (2 ^ k * 2) := by omega
         _ = a * S + (2 * c + 2 * β) * 2 ^ k := by ring
         _ ≤ a * S + (a * β) * 2 ^ k := by gcongr
@@ -108,11 +105,9 @@ theorem pow_mul_le_of_step {C : ℕ → ℕ} (hstep : ∀ k, 2 * C (k + 1) ≤ C
     ∀ r : ℕ, 2 ^ r * C r ≤ C 0
   | 0 => by simp
   | r + 1 => by
-      have ih := pow_mul_le_of_step hstep r
-      have hr := hstep r
       calc 2 ^ (r + 1) * C (r + 1)
           = 2 ^ r * (2 * C (r + 1)) := by ring
-        _ ≤ 2 ^ r * C r := Nat.mul_le_mul_left _ hr
-        _ ≤ C 0 := ih
+        _ ≤ 2 ^ r * C r := Nat.mul_le_mul_left _ (hstep r)
+        _ ≤ C 0 := pow_mul_le_of_step hstep r
 
 end Nat

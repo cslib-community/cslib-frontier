@@ -213,16 +213,13 @@ private theorem exists_computableInO_brute (k : ℕ) : ∃ K, ComputableInO
   -- the bounds
   refine ⟨3 * K₀ + 4, (h.mono (C + 3) (fun q => ?_) fun q => ?_).of_enc_eq fun _ => rfl⟩
   all_goals
-    have e₁ : (encPair encQ encUnary (q, 2 ^ ((k + 1) * (q.2.length + 1)))).length =
-        2 * (encQ q).length + 1 + 2 ^ ((k + 1) * (q.2.length + 1)) := by
-      rw [length_encPair, encUnary_apply, List.length_replicate]
     have e₂ : (4 : ℕ) ^ ((k + 1) * (q.2.length + 1)) =
         2 ^ ((k + 1) * (q.2.length + 1)) * 2 ^ ((k + 1) * (q.2.length + 1)) :=
       Nat.mul_pow 2 2 _
     have hc : 1 ≤ 2 ^ ((k + 1) * (q.2.length + 1)) := Nat.one_le_two_pow
     have h := LazyDiagonal.brute_bound_aux C K₀ (encQ q).length _ hc
     have := Nat.le_mul_of_pos_left (2 ^ ((k + 1) * (q.2.length + 1))) hc
-    simp only [e₁, e₂, certLen] at h ⊢
+    simp only [length_encPair, encUnary_apply, List.length_replicate, e₂, certLen] at h ⊢
     omega
 
 /-- The cost of the tests of the verifier: quadratic in the encoded input, times the square of a
@@ -245,8 +242,7 @@ private theorem horizon_le (k C : ℕ) (x : List Bool) :
   have h₁ : 2 ^ (2 * (unframe x).length + 1) ≤ 2 * 4 ^ ((k + 2) * (x.length + 1)) := by
     rw [h4, pow_succ, mul_comm]
     exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right Nat.one_lt_two.le
-      ((by omega : 2 * (unframe x).length ≤ 2 * (x.length + 1)).trans
-        (Nat.mul_le_mul_left 2 (Nat.le_mul_of_pos_left _ (Nat.succ_pos _)))))
+      (((Nat.le_add_right _ 2).trans (Nat.le_mul_of_pos_left _ (Nat.succ_pos _))).trans hk))
   have h₂ : 4 ^ ((k + 2) * (2 * (unframe x).length + 1 + 1)) ≤
       (4 ^ ((k + 2) * (x.length + 1))) ^ 2 := by
     simpa only [← pow_mul, mul_comm _ 2] using Nat.pow_le_pow_right (by norm_num) hk

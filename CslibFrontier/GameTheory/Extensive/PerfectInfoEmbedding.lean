@@ -592,10 +592,8 @@ theorem toExtensiveTree_evalPure_ofExtensive {ι : Type u} [DecidableEq ι] (T :
       (fun _ h => h.Act) i) :
     T.toExtensiveTree.evalPure sE =
       T.expectedPayoff (fun i => PureStrategy.ofExtensive T (sE i)) := by
-  have heq : sE = fun i => (PureStrategy.ofExtensive T (sE i)).toExtensive :=
-    funext fun i => ((PureStrategy.toExtensiveEquiv T i).apply_symm_apply (sE i)).symm
-  conv_lhs => rw [heq]
-  exact toExtensiveTree_evalPure T (fun i => PureStrategy.ofExtensive T (sE i))
+  simpa only [PureStrategy.toExtensive_ofExtensive_eq] using
+    toExtensiveTree_evalPure T (fun i => PureStrategy.ofExtensive T (sE i))
 
 /-- Equivalence of pure Nash equilibria between `T.toCostGame` and `(T.toExtensiveTree).toCostGame`.
 -/
@@ -607,15 +605,13 @@ theorem toExtensiveTree_isPureNash_iff {ι : Type u} [DecidableEq ι] (T : Perfe
       Function.update (fun j => (s j).toExtensive) i σ'.toExtensive =
         fun j => (Function.update s i σ' j).toExtensive :=
     (funext (Function.apply_update (fun _ => PureStrategy.toExtensive) s i σ')).symm
-  constructor
-  · intro h i σ'
+  refine ⟨fun h i σ' => by
     simpa [ExtensiveTree.toCostGame_cost, PerfectInfoTree.toCostGame_cost, hupd,
-      toExtensiveTree_evalPure] using h i σ'.toExtensive
-  · intro h i sE'
-    rw [← (PureStrategy.toExtensiveEquiv T i).apply_symm_apply sE']
-    simpa only [ExtensiveTree.toCostGame_cost, PerfectInfoTree.toCostGame_cost,
-      PureStrategy.toExtensiveEquiv_apply, PureStrategy.toExtensiveEquiv_symm_apply,
-      hupd, toExtensiveTree_evalPure] using h i (PureStrategy.ofExtensive T sE')
+      toExtensiveTree_evalPure] using h i σ'.toExtensive, fun h i sE' => ?_⟩
+  rw [← (PureStrategy.toExtensiveEquiv T i).apply_symm_apply sE']
+  simpa only [ExtensiveTree.toCostGame_cost, PerfectInfoTree.toCostGame_cost,
+    PureStrategy.toExtensiveEquiv_apply, PureStrategy.toExtensiveEquiv_symm_apply,
+    hupd, toExtensiveTree_evalPure] using h i (PureStrategy.ofExtensive T sE')
 
 /-- Backward induction constructs a pure Nash equilibrium of the embedded game
 `(T.toExtensiveTree).toCostGame`. -/
@@ -659,8 +655,7 @@ theorem toExtensiveTree_isMixedNash_iff {ι : Type u} [Fintype ι] [DecidableEq 
   refine and_congr (forall_congr' fun i => ?_) (forall_congr' fun i => ?_)
   · simp only [isMixedStrategy_iff, μ', (e i).symm.sum_comp (μ i)]
     exact and_congr ((e i).symm.forall_congr_right (q := fun b => 0 ≤ μ i b)) Iff.rfl
-  · simp only [hevalMixed, hdevCost]
-    exact (e i).symm.forall_congr_right
+  · simpa only [hevalMixed, hdevCost] using (e i).symm.forall_congr_right
       (q := fun a => T.toCostGame.expectedCost μ i ≤ T.toCostGame.deviationCost μ i a)
 
 /-- **Kuhn's theorem for embedded perfect-information games**: every mixed strategy `μ` of player

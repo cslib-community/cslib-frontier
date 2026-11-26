@@ -99,9 +99,8 @@ private theorem gateSweep_denom_pos {r : ℕ} (hr : 1 ≤ r) (k₀ : ℕ) :
   linarith [quadFormGateSweep_denom_ge r k₀, (by exact_mod_cast hr : (1 : ℝ) ≤ r)]
 
 theorem gateSweepCoefficient_pos {r : ℕ} (hr : 1 ≤ r) (k₀ : ℕ) :
-    0 < gateSweepCoefficient r k₀ := by
-  unfold gateSweepCoefficient
-  exact div_pos (by positivity) (gateSweep_denom_pos hr k₀)
+    0 < gateSweepCoefficient r k₀ :=
+  div_pos (by positivity) (gateSweep_denom_pos hr k₀)
 
 /-- Explicit `Ω(log r)` choice of `k₀` for `gateSweepCoefficient`: for every `r ≥ 2`, some `k₀ : ℕ`
 satisfies `log₂ r - log₂ log₂ r - 1 ≤ (r - 1) · gateSweepCoefficient r k₀`. -/
@@ -112,8 +111,7 @@ theorem exists_log_sub_log_log_le_mul_gateSweepCoefficient {r : ℕ} (hr : 2 ≤
   rcases lt_or_ge r 4 with hsmall | hr4
   · refine ⟨1, ?_⟩
     obtain rfl | rfl : r = 2 ∨ r = 3 := by omega
-    · rw [show ((2 : ℕ) : ℝ) = (2 : ℝ) ^ (1 : ℕ) by norm_num, Real.logb_two_pow, Nat.cast_one,
-        Real.logb_one]
+    · rw [Nat.cast_ofNat, Real.logb_self_eq_one one_lt_two, Real.logb_one]
       norm_num [gateSweepCoefficient]
     · have hlog3_ge : 1 ≤ Real.logb 2 (3 : ℝ) := by
         rw [← Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2)]
@@ -128,8 +126,7 @@ theorem exists_log_sub_log_log_le_mul_gateSweepCoefficient {r : ℕ} (hr : 2 ≤
   · obtain ⟨k₀, _, hk₀_pow, hlog⟩ := exists_mul_two_pow_le_and_logb_sub_logb_le hr4
     refine ⟨k₀, ?_⟩
     have hk₀_alg : (k₀ : ℝ) ≤ (r - 1 : ℝ) * gateSweepCoefficient r k₀ := by
-      unfold gateSweepCoefficient
-      rw [mul_div_assoc', le_div_iff₀ (gateSweep_denom_pos (by omega) k₀)]
+      rw [gateSweepCoefficient, mul_div_assoc', le_div_iff₀ (gateSweep_denom_pos (by omega) k₀)]
       have hk₀_pow_r : (k₀ : ℝ) * (2 : ℝ) ^ k₀ ≤ r := by exact_mod_cast hk₀_pow
       have hr4_r : (4 : ℝ) ≤ r := by exact_mod_cast hr4
       nlinarith [sq_nonneg (k₀ : ℝ), Nat.cast_nonneg (α := ℝ) k₀]
@@ -337,10 +334,7 @@ theorem agreement_le_of_signalWidth {S : Set (Fin n → U)} {K r : ℕ} {b : ℝ
   have hdeg_eq : w + 2 * (r + 1) + r = w + 3 * r + 2 := by omega
   have h₁ := bound Acc
   have h₂ := bound Accᶜ
-  rw [Compiler.accepted_steinerNetwork_single, hread, hdeg_eq] at h₁
-  rw [show (Compiler.steinerNetwork c I (fun _ => Accᶜ) π).accepted =
-      {x | c.eval I x 0 ∈ Acc}ᶜ from Compiler.accepted_steinerNetwork_single, hread,
-    hdeg_eq] at h₂
+  rw [Compiler.accepted_steinerNetwork_single, hread, hdeg_eq] at h₁ h₂
   have h := agreement_le h₁ h₂
   have hres :
       (K - 1) ^ 2 * (V * q ^ (w + 3 * r + 2) +
@@ -354,7 +348,8 @@ theorem agreement_le_of_signalWidth {S : Set (Fin n → U)} {K r : ℕ} {b : ℝ
           · exact Nat.le_mul_of_pos_right _ hK_pos
           · exact hu.le.trans (Nat.le_mul_of_pos_right _ hq1)
       _ = K ^ 3 * (V + 1) * q ^ (w + 3 * r + 2) := by ring
-  rw [show (Nat.card (Fin n → U) : ℝ) = (q : ℝ) ^ n by simp [q, Nat.card_fun]] at h
+  have hcard : (Nat.card (Fin n → U) : ℝ) = (q : ℝ) ^ n := by simp [q, Nat.card_fun]
+  rw [hcard] at h
   refine h.trans ?_
   rw [← two_mul, mul_div_mul_left _ _ two_ne_zero]
   linarith [div_le_div_of_nonneg_right ((Nat.cast_le (α := ℝ)).mpr hres)
@@ -811,11 +806,9 @@ theorem exists_eventually_agreement_le_gateSweep {r : ℕ} (hr : 2 ≤ r) (k₀ 
         (c : Circuit σ n 1), c.FanInAtMost r →
           (c.innerSize : ℝ) ≤ (gateSweepCoefficient r k₀ - ε) * n →
           agreement (S n) {x | c.eval I x 0 ∈ Acc} ≤ 1 / 2 + b n + Real.exp (-(γ * n)) := by
-  set D_r : ℝ := (r : ℝ) + (2 : ℝ) ^ k₀ - k₀ - 1
-  have hDr_pos : 0 < D_r := gateSweep_denom_pos (by omega) k₀
-  set δ := D_r * ε / (2 : ℝ) ^ k₀
-  have hδ : 0 < δ := by positivity
-  have hμ : 0 < min (δ / 4) (1 / 2) := lt_min (by positivity) (by norm_num)
+  set δ := ((r : ℝ) + (2 : ℝ) ^ k₀ - k₀ - 1) * ε / (2 : ℝ) ^ k₀
+  have hδ : 0 < δ := div_pos (mul_pos (gateSweep_denom_pos (by omega) k₀) hε) (pow_pos two_pos k₀)
+  have hμ : 0 < min (δ / 4) (1 / 2) := lt_min (by positivity) one_half_pos
   refine ⟨min (δ / 4) (1 / 2) * Real.log 2, by positivity, fun U _ _ S K b hbias hK => ?_⟩
   exact eventually_agreement_le_of_signalWidth_supply.{u, v} hr (by positivity) hbias hK
     (eventually_exists_layout_signalWidth_le_gateSweep.{u, v} hr k₀
@@ -992,13 +985,11 @@ theorem accepted_hiddenSteinerNetwork {σ : Signature.{v}} {U : Type u} [Nonempt
     (hiddenSteinerNetwork c I Acc π).accepted =
       {x | ∃ y : Fin k → U, ∀ o, c.eval I (Fin.append x y) o ∈ Acc o} := by
   ext x
-  simp only [hiddenSteinerNetwork, Network.accepted_hide, Network.accepted_reindex,
-    accepted_steinerNetwork, mem_ofPred_eq]
-  refine exists_congr fun y => ?_
-  have happend : Sum.elim x y ∘ finSumFinEquiv.symm = Fin.append x y := by
+  have happend (y : Fin k → U) : Sum.elim x y ∘ finSumFinEquiv.symm = Fin.append x y := by
     rw [← Fin.append_comp_sumElim, Function.comp_assoc]
     exact congrArg (Fin.append x y ∘ ·) finSumFinEquiv.self_comp_symm
-  rw [happend]
+  simp only [hiddenSteinerNetwork, Network.accepted_hide, Network.accepted_reindex,
+    accepted_steinerNetwork, mem_ofPred_eq, happend]
 
 end Compiler
 

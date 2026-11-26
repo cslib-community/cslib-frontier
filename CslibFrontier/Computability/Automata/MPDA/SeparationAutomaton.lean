@@ -202,25 +202,22 @@ private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
   | ga_c =>
     obtain ⟨n, k, gs, p, hg, hn, hk, hp, rfl, rfl, rfl⟩ := hinv
     obtain ⟨t, ht, rfl⟩ := Op.apply_pop_zero_pair.mp happ
-    rcases replicate_append_eq_cons ht with ⟨-, -, rfl⟩ | ⟨rfl, -⟩
-    · exact ⟨_, _, rfl, n, k, gs, p, 1, hg, hn, hk, le_rfl, hp, by simp [List.append_assoc],
-        rfl, rfl⟩
-    · omega
+    obtain ⟨-, -, rfl⟩ := (replicate_append_eq_cons ht).resolve_right fun h => by omega
+    exact ⟨_, _, rfl, n, k, gs, p, 1, hg, hn, hk, le_rfl, hp, by simp [List.append_assoc],
+      rfl, rfl⟩
   | gc_c =>
     obtain ⟨n, k, gs, p, r, hg, hn, hk, hr, hrp, rfl, rfl, rfl⟩ := hinv
     obtain ⟨t, ht, rfl⟩ := Op.apply_pop_zero_pair.mp happ
-    rcases replicate_append_eq_cons ht with ⟨hpr, -, rfl⟩ | ⟨-, -, h, -⟩
-    · exact ⟨_, _, rfl, n, k, gs, p, r + 1, hg, hn, hk, by omega, by omega,
-        by simp [List.replicate_succ', List.append_assoc], rfl, rfl⟩
-    · cases h
+    obtain ⟨hpr, -, rfl⟩ := (replicate_append_eq_cons ht).resolve_right nofun
+    exact ⟨_, _, rfl, n, k, gs, p, r + 1, hg, hn, hk, by omega, by omega,
+      by simp [List.replicate_succ', List.append_assoc], rfl, rfl⟩
   | gc_c' =>
     obtain ⟨n, k, gs, p, r, hg, hn, hk, hr, hrp, rfl, rfl, rfl⟩ := hinv
     obtain ⟨t, ht, rfl⟩ := Op.apply_pop_zero_pair.mp happ
-    rcases replicate_append_eq_cons ht with ⟨-, h, -⟩ | ⟨hpr, hn', -, rfl⟩
-    · cases h
-    · obtain rfl : r = p := by omega
-      exact ⟨_, _, rfl, n, k, gs, r, hg, by omega, hk,
-        by simp [List.replicate_succ', List.append_assoc], rfl, rfl⟩
+    obtain ⟨hpr, hn', -, rfl⟩ := (replicate_append_eq_cons ht).resolve_left nofun
+    obtain rfl : r = p := by omega
+    exact ⟨_, _, rfl, n, k, gs, r, hg, by omega, hk,
+      by simp [List.replicate_succ', List.append_assoc], rfl, rfl⟩
   | gb_b =>
     obtain ⟨n, k, gs, p, hg, hn, hk, rfl, rfl, rfl⟩ := hinv
     exact ⟨_, _, Op.apply_push_one_pair.mp happ, n, k, gs, p, 1, hg, hn, hk, le_rfl, by simp,
@@ -240,27 +237,24 @@ private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
   | gB_d =>
     obtain ⟨n, k, gs, p, q, hg, hn, hk, hq, rfl, rfl, rfl⟩ := hinv
     obtain ⟨t, ht, rfl⟩ := Op.apply_pop_one_pair.mp happ
-    rcases replicate_append_eq_cons ht with ⟨-, -, rfl⟩ | ⟨rfl, -⟩
-    · exact ⟨_, _, rfl, n, k, gs, p, q, 1, hg, hn, hk, le_rfl, hq,
-        by simp [List.append_assoc], rfl, rfl⟩
-    · omega
+    obtain ⟨-, -, rfl⟩ := (replicate_append_eq_cons ht).resolve_right fun h => by omega
+    exact ⟨_, _, rfl, n, k, gs, p, q, 1, hg, hn, hk, le_rfl, hq,
+      by simp [List.append_assoc], rfl, rfl⟩
   | gd_d =>
     obtain ⟨n, k, gs, p, q, r, hg, hn, hk, hr, hrq, rfl, rfl, rfl⟩ := hinv
     obtain ⟨t, ht, rfl⟩ := Op.apply_pop_one_pair.mp happ
-    rcases replicate_append_eq_cons ht with ⟨hqr, -, rfl⟩ | ⟨-, -, h, -⟩
-    · exact ⟨_, _, rfl, n, k, gs, p, q, r + 1, hg, hn, hk, by omega, by omega,
-        by simp [List.replicate_succ', List.append_assoc], rfl, rfl⟩
-    · cases h
+    obtain ⟨hqr, -, rfl⟩ := (replicate_append_eq_cons ht).resolve_right nofun
+    exact ⟨_, _, rfl, n, k, gs, p, q, r + 1, hg, hn, hk, by omega, by omega,
+      by simp [List.replicate_succ', List.append_assoc], rfl, rfl⟩
   | gd_d' =>
     obtain ⟨n, k, gs, p, q, r, hg, hn, hk, hr, hrq, rfl, rfl, rfl⟩ := hinv
     obtain ⟨t, ht, rfl⟩ := Op.apply_pop_one_pair.mp happ
-    rcases replicate_append_eq_cons ht with ⟨-, h, -⟩ | ⟨hqr, hk', -, rfl⟩
-    · cases h
-    · obtain rfl : r = q := by omega
-      refine ⟨_, _, rfl, n, k, gs ++ [group p r], grouped_append_singleton hg ⟨p, r, rfl⟩,
-        by simp; omega, by simp; omega, ?_, ?_, ?_⟩
-      · simp [← pre_append_group, List.replicate_succ', List.append_assoc]
-      all_goals simp [Nat.sub_sub]
+    obtain ⟨hqr, hk', -, rfl⟩ := (replicate_append_eq_cons ht).resolve_left nofun
+    obtain rfl : r = q := by omega
+    refine ⟨_, _, rfl, n, k, gs ++ [group p r], grouped_append_singleton hg ⟨p, r, rfl⟩,
+      by simp; omega, by simp; omega, ?_, ?_, ?_⟩
+    · simp [← pre_append_group, List.replicate_succ', List.append_assoc]
+    all_goals simp [Nat.sub_sub]
   | ge_a =>
     obtain ⟨n, k, gs, hg, hn, hk, rfl, rfl, rfl⟩ := hinv
     exact ⟨_, _, Op.apply_push_zero_pair.mp happ, n, k, gs, 1, hg, hn, hk, le_rfl, rfl, by simp,

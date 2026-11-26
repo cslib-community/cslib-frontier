@@ -52,14 +52,11 @@ theorem totalDegree_monomialExtension_le (f : (ι → Bool) → R) {d : ℕ}
   refine totalDegree_finsetSum_le fun u _ => ?_
   by_cases hu : f u = 0
   · simp [hu]
-  · refine (totalDegree_mul _ _).trans ?_
-    rw [totalDegree_C, zero_add]
-    refine (totalDegree_finsetProd _ _).trans (le_trans ?_ (hd u hu))
-    rw [card_filter]
-    refine sum_le_sum fun i _ => ?_
+  · refine (totalDegree_mul _ _).trans ((Nat.add_le_add (totalDegree_C _).le
+      ((totalDegree_finsetProd _ _).trans ((sum_le_sum fun i _ => ?_).trans
+        ((card_filter _ _).symm.trans_le (hd u hu))))).trans_eq (zero_add d))
     split_ifs
-    · exact (totalDegree_monomial_le _ _).trans (by simp)
-    · simp
+    exacts [(totalDegree_monomial_le _ _).trans (by simp), by simp]
 
 /-- At the indicator of `c`, the monomial extension of `f` is the sum of `f` over the points below
 `c`: the monomial of `u` is `1` there when every set bit of `u` is set in `c`, and `0` otherwise. -/
@@ -72,8 +69,7 @@ theorem eval_indicator_monomialExtension (f : (ι → Bool) → R) (c : ι → B
   split_ifs with h
   · rw [prod_eq_one fun i _ => ?_, mul_one]
     cases hu : u i <;> simp [hu, h i]
-  · push Not at h
-    obtain ⟨i, hu, hc⟩ := h
+  · obtain ⟨i, hu, hc⟩ := by simpa only [not_forall, Classical.not_imp] using h
     rw [prod_eq_zero (mem_univ i) (by simp [hu, hc]), mul_zero]
 
 end MvPolynomial
