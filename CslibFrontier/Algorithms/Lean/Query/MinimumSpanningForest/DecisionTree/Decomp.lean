@@ -58,19 +58,12 @@ namespace Cslib.Query.MinimumSpanningForest
 theorem edgeUnion_castAdd {e₁ e₂ n : ℕ} (ends₁ : Fin e₁ → Sym2 (Fin n))
     (ends₂ : Fin e₂ → Sym2 (Fin n)) (i : Fin e₁) :
     edgeUnion ends₁ ends₂ (Fin.castAdd e₂ i) = ends₁ i := by
-  dsimp only [edgeUnion]
-  have h : (Fin.castAdd e₂ i).val < e₁ := i.isLt
-  simp only [h, ↓reduceDIte]
-  rfl
+  simp [edgeUnion]
 
 theorem edgeUnion_natAdd {e₁ e₂ n : ℕ} (ends₁ : Fin e₁ → Sym2 (Fin n))
     (ends₂ : Fin e₂ → Sym2 (Fin n)) (j : Fin e₂) :
     edgeUnion ends₁ ends₂ (Fin.natAdd e₁ j) = ends₂ j := by
-  dsimp only [edgeUnion]
-  have h : ¬ ((Fin.natAdd e₁ j).val < e₁) := by simp
-  simp only [h, ↓reduceDIte]
-  congr 1
-  exact Fin.ext (by simp)
+  simp [edgeUnion]
 
 private def blockPerm {e₁ e₂ : ℕ} (p₁ : Equiv.Perm (Fin e₁)) (p₂ : Equiv.Perm (Fin e₂)) :
     Equiv.Perm (Fin (e₁ + e₂)) :=
@@ -198,30 +191,20 @@ theorem msfDecomposes_of_card_inter_le_one {e₁ e₂ n : ℕ}
   have hnotL : ∀ e : Fin (e₁ + e₂), e ∉ Set.range embL → ∀ a b : Fin n,
       edgeUnion ends₁ ends₂ e = s(a, b) → a ∈ (V₂ : Set (Fin n)) ∧ b ∈ (V₂ : Set (Fin n)) := by
     intro e he a b hab
-    have hge : ¬ (e.val < e₁) := fun h =>
-      he ⟨⟨e.val, h⟩, Fin.ext rfl⟩
-    let j : Fin e₂ := ⟨e.val - e₁, by omega⟩
-    have hje : Fin.natAdd e₁ j = e := Fin.ext (by simp [j]; omega)
-    have hend : edgeUnion ends₁ ends₂ e = ends₂ j := by
-      rw [← hje, edgeUnion_natAdd]
-    exact hV₂' j a b (hend ▸ hab)
+    have hge : ¬ e.val < e₁ := fun h => he ⟨⟨e.val, h⟩, Fin.ext rfl⟩
+    exact hV₂' ⟨e.val - e₁, by omega⟩ a b ((dite_eq_right hge).symm.trans hab)
   have hnotR : ∀ e : Fin (e₁ + e₂), e ∉ Set.range embR → ∀ a b : Fin n,
       edgeUnion ends₁ ends₂ e = s(a, b) → a ∈ (V₁ : Set (Fin n)) ∧ b ∈ (V₁ : Set (Fin n)) := by
     intro e he a b hab
-    have hlt : e.val < e₁ := by
-      by_contra hnot
-      exact he ⟨⟨e.val - e₁, by omega⟩, Fin.ext (by simp [embR]; omega)⟩
-    let i : Fin e₁ := ⟨e.val, hlt⟩
-    have hie : Fin.castAdd e₂ i = e := Fin.ext rfl
-    have hend : edgeUnion ends₁ ends₂ e = ends₁ i := by
-      rw [← hie, edgeUnion_castAdd]
-    exact hV₁' i a b (hend ▸ hab)
+    have hlt : e.val < e₁ :=
+      not_le.mp fun hle => he ⟨⟨e.val - e₁, by omega⟩, Fin.ext (Nat.add_sub_of_le hle)⟩
+    exact hV₁' ⟨e.val, hlt⟩ a b ((dite_eq_left hlt).symm.trans hab)
   ext e
   rw [Finset.mem_union, Finset.mem_map, Finset.mem_map]
   by_cases he : e.val < e₁
   · let i : Fin e₁ := ⟨e.val, he⟩
     have hie : Fin.castAdd e₂ i = e := Fin.ext rfl
-    have he_ends : edgeUnion ends₁ ends₂ e = ends₁ i := by rw [← hie, edgeUnion_castAdd]
+    have he_ends : edgeUnion ends₁ ends₂ e = ends₁ i := dite_eq_left he
     induction hi : ends₁ i using Sym2.ind with
     | _ a b =>
       have hab : edgeUnion ends₁ ends₂ e = s(a, b) := he_ends.trans hi
@@ -231,27 +214,22 @@ theorem msfDecomposes_of_card_inter_le_one {e₁ e₂ n : ℕ}
         hV₁' hnotL hsub12 {f | f ∈ (Finset.univ : Finset (Fin (e₁ + e₂))) ∧ p f < p e} ha hb
       have hpre : embL ⁻¹' {f | f ∈ (Finset.univ : Finset (Fin (e₁ + e₂))) ∧ p f < p e} =
           {x | x ∈ (Finset.univ : Finset (Fin e₁)) ∧
-            p (Fin.castAdd e₂ x) < p (Fin.castAdd e₂ i)} := by
-        ext x
-        simp [embL, hie]
+            p (Fin.castAdd e₂ x) < p (Fin.castAdd e₂ i)} :=
+        Set.ext fun x => by simp [embL, hie]
       rw [hpre] at hconn_iff
       rw [Cslib.Multigraph.mem_msf_iff p hab]
-      constructor
-      · intro h
-        refine .inl ⟨i, ?_, hie⟩
-        rw [Cslib.Multigraph.mem_msf_iff (fun x => p (Fin.castAdd e₂ x)) hi]
+      refine ⟨fun h => .inl ⟨i, ?_, hie⟩, ?_⟩
+      · rw [Cslib.Multigraph.mem_msf_iff (fun x => p (Fin.castAdd e₂ x)) hi]
         exact ⟨Finset.mem_univ _, fun hc => h.2 (hconn_iff.mpr hc)⟩
       · rintro (⟨x, hx, hxe⟩ | ⟨y, _, hye⟩)
-        · have : x = i := Fin.castAdd_injective e₁ e₂ (hxe.trans hie.symm)
-          subst this
+        · obtain rfl := Fin.castAdd_injective e₁ e₂ (hxe.trans hie.symm)
           rw [Cslib.Multigraph.mem_msf_iff (fun y => p (Fin.castAdd e₂ y)) hi] at hx
           exact ⟨Finset.mem_univ _, fun hc => hx.2 (hconn_iff.mp hc)⟩
-        · exfalso
-          have : e.val = e₁ + y.val := congrArg Fin.val hye.symm
+        · have : e.val = e₁ + y.val := congrArg Fin.val hye.symm
           omega
   · let j : Fin e₂ := ⟨e.val - e₁, by omega⟩
     have hje : Fin.natAdd e₁ j = e := Fin.ext (by simp [j]; omega)
-    have he_ends : edgeUnion ends₁ ends₂ e = ends₂ j := by rw [← hje, edgeUnion_natAdd]
+    have he_ends : edgeUnion ends₁ ends₂ e = ends₂ j := dite_eq_right he
     induction hj : ends₂ j using Sym2.ind with
     | _ a b =>
       have hab : edgeUnion ends₁ ends₂ e = s(a, b) := he_ends.trans hj
@@ -261,23 +239,17 @@ theorem msfDecomposes_of_card_inter_le_one {e₁ e₂ n : ℕ}
         hV₂' hnotR hsub21 {f | f ∈ (Finset.univ : Finset (Fin (e₁ + e₂))) ∧ p f < p e} ha hb
       have hpre : embR ⁻¹' {f | f ∈ (Finset.univ : Finset (Fin (e₁ + e₂))) ∧ p f < p e} =
           {x | x ∈ (Finset.univ : Finset (Fin e₂)) ∧
-            p (Fin.natAdd e₁ x) < p (Fin.natAdd e₁ j)} := by
-        ext x
-        simp [embR, hje]
+            p (Fin.natAdd e₁ x) < p (Fin.natAdd e₁ j)} :=
+        Set.ext fun x => by simp [embR, hje]
       rw [hpre] at hconn_iff
       rw [Cslib.Multigraph.mem_msf_iff p hab]
-      constructor
-      · intro h
-        refine .inr ⟨j, ?_, hje⟩
-        rw [Cslib.Multigraph.mem_msf_iff (fun x => p (Fin.natAdd e₁ x)) hj]
+      refine ⟨fun h => .inr ⟨j, ?_, hje⟩, ?_⟩
+      · rw [Cslib.Multigraph.mem_msf_iff (fun x => p (Fin.natAdd e₁ x)) hj]
         exact ⟨Finset.mem_univ _, fun hc => h.2 (hconn_iff.mpr hc)⟩
       · rintro (⟨x, _, hxe⟩ | ⟨y, hy, hye⟩)
-        · exfalso
-          have : x.val = e.val := congrArg Fin.val hxe
+        · have : x.val = e.val := congrArg Fin.val hxe
           omega
-        · have : y = j := Fin.ext (by
-            have := congrArg Fin.val (hye.trans hje.symm); simp at this; omega)
-          subst this
+        · obtain rfl := Fin.natAdd_injective _ _ (hye.trans hje.symm)
           rw [Cslib.Multigraph.mem_msf_iff (fun x => p (Fin.natAdd e₁ x)) hj] at hy
           exact ⟨Finset.mem_univ _, fun hc => hy.2 (hconn_iff.mp hc)⟩
 
@@ -321,11 +293,8 @@ theorem MSFTree.restrictBlock_depth_le {e₁ e₂ : ℕ} {α : Type} (T : MSFTre
   induction T with
   | leaf _ => rfl
   | node i j l r ihl ihr =>
-    dsimp only [MSFTree.restrictBlock, MSFTree.depth]
-    split_ifs
-    · omega
-    · omega
-    · dsimp only [MSFTree.depth]; omega
+    dsimp only [MSFTree.restrictBlock]
+    split_ifs <;> dsimp only [MSFTree.depth] <;> omega
 
 private theorem blockPerm_val_lt {e₁ e₂ : ℕ} (p₁ : Equiv.Perm (Fin e₁))
     (p₂ : Equiv.Perm (Fin e₂)) {i j : Fin (e₁ + e₂)} (hi : i.val < e₁) (hj : e₁ ≤ j.val) :
@@ -505,37 +474,18 @@ theorem graftTree_eval {e₁ e₂ : ℕ} (T₁ : MSFDT e₁) (T₂ : MSFDT e₂)
         (T₂.eval (orderPerm (fun j => p (Fin.natAdd e₁ j))
           (p.injective.comp (Fin.natAdd_injective _ _)))).map
           ⟨Fin.natAdd e₁, Fin.natAdd_injective _ _⟩ := by
-  let p₁ := orderPerm (fun i => p (Fin.castAdd e₂ i))
-    (p.injective.comp (Fin.castAdd_injective _ _))
   let p₂ := orderPerm (fun j => p (Fin.natAdd e₁ j))
     (p.injective.comp (Fin.natAdd_injective _ _))
-  have hord₁ : ∀ a b : Fin e₁, (p₁ a).val < (p₁ b).val ↔
-      (p (Fin.castAdd e₂ a)).val < (p (Fin.castAdd e₂ b)).val := fun a b =>
-    orderPerm_lt_iff _ _ a b
-  have hord₂ : ∀ a b : Fin e₂, (p₂ a).val < (p₂ b).val ↔
-      (p (Fin.natAdd e₁ a)).val < (p (Fin.natAdd e₁ b)).val := fun a b =>
-    orderPerm_lt_iff _ _ a b
   induction T₁ with
   | leaf A =>
     dsimp only [graftTree]
-    rw [MSFTree.liftEmb_eval (Fin.natAdd e₁) _ p₂ p hord₂, MSFTree.mapLeaves_eval]
+    rw [MSFTree.liftEmb_eval (Fin.natAdd e₁) _ p₂ p (fun a b => orderPerm_lt_iff _ _ a b),
+      MSFTree.mapLeaves_eval]
     rfl
   | node i j l r ihl ihr =>
-    dsimp only [graftTree, MSFTree.eval]
-    have h := hord₁ i j
-    dsimp only [p₁] at h
-    by_cases hlt :
-        (orderPerm (fun i => p (Fin.castAdd e₂ i))
-          (p.injective.comp (Fin.castAdd_injective _ _)) i).val <
-        (orderPerm (fun i => p (Fin.castAdd e₂ i))
-          (p.injective.comp (Fin.castAdd_injective _ _)) j).val
-    · have hlt' : (p (Fin.castAdd e₂ i)).val < (p (Fin.castAdd e₂ j)).val := h.mp hlt
-      simp only [hlt, hlt', ↓reduceIte]
-      exact ihl
-    · have hlt' : ¬ ((p (Fin.castAdd e₂ i)).val < (p (Fin.castAdd e₂ j)).val) :=
-        fun x => hlt (h.mpr x)
-      simp only [hlt, hlt', ↓reduceIte]
-      exact ihr
+    simp only [graftTree, MSFTree.eval, ← Fin.lt_def, orderPerm_lt_iff]
+    split_ifs
+    exacts [ihl, ihr]
 
 /-- Step toward Theorem 5.8 of [PettieRamachandran2002] (#8624), Lemma 5.5 (§5.1, p. 26):
 binary additivity `T*(G₁ ∪ G₂) = T*(G₁) + T*(G₂)` under Property 5.3 (`MSFDecomposes`). -/

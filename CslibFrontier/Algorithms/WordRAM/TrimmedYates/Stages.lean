@@ -69,9 +69,8 @@ theorem yatesTransform_natOne_eq_intOne {d : ℕ} (l : List (Fin d))
   induction l generalizing G with
   | nil => rfl
   | cons i l ih =>
-    have hpass : yatesPass (1 : ℕ) i G = yatesPass (1 : ℤ) i G := by
-      funext S; simp [yatesPass]
-    rw [yatesTransform_cons, yatesTransform_cons, hpass, ih]
+    rw [yatesTransform_cons, yatesTransform_cons, ← ih]
+    exact congrArg (yatesTransform (1 : ℕ) l) (funext fun S => by simp [yatesPass])
 
 /-- Cell body for one trimmed Yates pass in coordinate `rGenBitMask = 1 <<< k`, with cutoff
 `rStageCutoff`, current stage `rStageCurRoot`, fallback stage `rStageFbRoot`, and sign mode
@@ -375,11 +374,11 @@ theorem exec_stagesCode {w d domPtr free initRoot fbBase cutoff signMode B₀ B 
         ∀ Y, #Y < cutoff → P_low Y → fbFn (setMask Y) = Signed.encode (G_k Y) := by
       by_cases hcut0 : cutoff = 0
       · exact ⟨0, fun _ => 0, by simp [hcut0], HoldsTrie.zero_root _ _ _, fun _ hY _ => by omega⟩
-      · obtain ⟨hfbb_le, hfb_all⟩ := hfb_valid (by omega)
+      · obtain ⟨hfbb_le, hfb_all⟩ := hfb_valid (Nat.pos_of_ne_zero hcut0)
         obtain ⟨fbFn, hfb_tr, hfb_eq⟩ := hfb_all k hk
-        refine ⟨s.mem (fbBase + k), fbFn, by simp [hcut0], ?_, hfb_eq⟩
-        rw [hsframe _ (Or.inl (by omega))]
-        exact (hfb_tr.congr_below fun a ha => hsframe a (Or.inl ha)).mono_bound (by omega)
+        refine ⟨s.mem (fbBase + k), fbFn, ite_eq_right hcut0, ?_, hfb_eq⟩
+        exact hsframe (fbBase + k) (Or.inl (by omega)) ▸
+          (hfb_tr.congr_below fun a ha => hsframe a (Or.inl ha)).mono_bound (by omega)
     obtain ⟨u₀, he₀, hu₀cr, hu₀fbr, hu₀bm, hu₀mem⟩ : ∃ u₀, ExecWithin (B := .standard) w (ram[
           rGenTmp ← rRootsOut + rStageIdx;
           rStageCurRoot ← *rGenTmp;
@@ -435,10 +434,9 @@ theorem exec_stagesCode {w d domPtr free initRoot fbBase cutoff signMode B₀ B 
       · refine ⟨outFn, ⟨S_new, fun a ha => ⟨by have := (hS_new ha).1; omega, (hS_new ha).2⟩,
           Set.disjoint_left.2 fun a ha hx => by have := (hS_new ha).1; have := hx.2; omega,
           ?_⟩, fun X hX => ?_⟩
-        · rw [(congrFun hz_mem _).trans (Function.update_self _ _ _)]
-          exact hrep_new.congr_mem fun a ha => by
-            have := (hS_new ha).1
-            rw [hz_mem, Function.update_of_ne (by omega)]
+        · rw [hz_mem, Function.update_self]
+          exact hrep_new.congr_mem fun a ha =>
+            Function.update_of_ne (by have := (hS_new ha).1; omega) _ _
         · rw [List.take_succ_eq_append_getElem (by simpa using hk), List.getElem_finRange,
             yatesTransform_append, yatesTransform_cons, yatesTransform_nil]
           exact hout_eq X hX
@@ -464,18 +462,15 @@ theorem exec_stagesCode {w d domPtr free initRoot fbBase cutoff signMode B₀ B 
       by regs_frame, by regs_frame, by regs_frame, hs₀ro, exclHi, hs₀fr, le_rfl, by omega, ?_, ?_⟩
     · intro j hj
       obtain rfl : j = 0 := Nat.eq_zero_of_le_zero hj
-      simp only [Nat.add_zero, List.take_zero, yatesTransform_nil]
-      rw [(congrFun hs₀mem free).trans (Function.update_self _ _ _)]
-      exact ⟨initFn, (htrie_init.congr_below fun a ha => by
-        rw [hs₀mem, Function.update_of_ne (by omega)]).toOutside_of_le le_rfl (by omega), hinit_eq⟩
+      simp only [Nat.add_zero, List.take_zero, yatesTransform_nil, hs₀mem, Function.update_self]
+      exact ⟨initFn, (htrie_init.congr_below fun a ha =>
+        Function.update_of_ne ha.ne _ _).toOutside_of_le le_rfl (by omega), hinit_eq⟩
     · exact fun a _ => (congrFun hs₀mem a).trans (Function.update_of_ne (by omega) _ _)
   obtain ⟨y, hloop, hyP, _⟩ := ExecWithin.loop_count P (fun s hs => hs.2.2.1) hbody
     (by simp [hs₀k]) hs₀P
   obtain ⟨_, _, _, _, _, _, _, _, hyro, endFree, hyfr, hlo_ef, hhi_ef, hystages, hyframe⟩ := hyP
   have htot : ExecWithin w stagesCode x y (d * (dom.length * (32 * d + 63) + 22) + 7) :=
-    (hinit_ex.seq hloop).mono (by
-      rw [hs₀k, Nat.sub_zero, Nat.add_assoc _ 20 2]
-      omega)
+    (hinit_ex.seq hloop).mono (by rw [hs₀k, Nat.sub_zero, Nat.add_assoc _ 20 2]; omega)
   refine ⟨y, endFree, htot, hyro, hyfr, hlo_ef, hhi_ef,
     fun k hk => let ⟨stFn, hout, heq⟩ := hystages k hk; ⟨stFn, hout.toHoldsTrie, heq⟩,
     hyframe, fun i hi => htot.regs_eq (stagesCode_preserves i hi)⟩
