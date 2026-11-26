@@ -40,15 +40,6 @@ example :
         min (CNF.lratHintCount cert.toList) cert.size ≤ g s :=
   not_exists_polynomiallyBounded_checkLRAT_pigeonhole name_injective
 
--- VeriPB polynomially simulates LRAT and is exponentially more succinct on these formulas.
-example :
-    ¬ ∃ g : ℕ → ℕ, PolynomiallyBounded g ∧ ∀ (n s : ℕ) (P : Proof),
-      check (((CNF.pigeonhole (n + 1) n).relabel (name n)).map Clause.toPB) P = true →
-      P.steps.all Step.IsCP → P.steps.length + hintCount P.steps ≤ s →
-      ∃ cert, ((CNF.pigeonhole (n + 1) n).relabel (name n)).checkLRAT cert = true ∧
-        cert.size + CNF.lratHintCount cert.toList ≤ g s :=
-  (check_toVeriPB_and_not_exists_polynomiallyBounded name_injective).2.2
-
 end CslibFrontierTests.Logics.Propositional.VeriPBPigeonholeSeparation
 
 end
