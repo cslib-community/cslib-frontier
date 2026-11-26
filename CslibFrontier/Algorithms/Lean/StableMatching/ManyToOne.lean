@@ -286,9 +286,7 @@ private theorem mem_clone_recvPref_iff {s : Fin (n * I.maxQuota)} {r : Fin m} :
       (finProdFinEquiv.symm s).snd.val < I.quota (finProdFinEquiv.symm s).fst ∧
         r ∈ I.hospPref (finProdFinEquiv.symm s).fst := by
   dsimp only [cloneInstance]
-  split_ifs with hk
-  · exact ⟨fun hr => ⟨hk, hr⟩, fun h => h.2⟩
-  · exact ⟨fun h => False.elim (List.not_mem_nil h), fun h => absurd h.1 hk⟩
+  split_ifs with hk <;> simp only [hk, true_and, false_and, List.not_mem_nil]
 
 private theorem clone_recvRank_seat_some (h : Fin n) (j : Fin (I.quota h)) (r : Fin m) :
     I.cloneInstance.recvRank (I.seat h j) (some r) = I.hospRank h r := by
@@ -380,28 +378,19 @@ private theorem card_residents_projectClone (μ : PartialMatching m (n * I.maxQu
     ((I.projectClone μ).residents h).card =
       ((PartialMatching.matchedReceivers μ).filter
         (fun s => (finProdFinEquiv.symm s).fst = h)).card := by
-  let S := (PartialMatching.matchedReceivers μ).filter
-    (fun s => (finProdFinEquiv.symm s).fst = h)
-  have himg : S = ((I.projectClone μ).residents h).attach.image
-      (fun r => (μ r.val).get (I.isSome_of_mem_residents_projectClone r.property)) := by
-    ext s
-    simp only [S, Finset.mem_filter, PartialMatching.mem_matchedReceivers, Finset.mem_image,
-      Finset.mem_attach, true_and, Subtype.exists, ManyToOneMatching.mem_residents, projectClone]
-    refine ⟨?_, ?_⟩
-    · rintro ⟨hs_some, hfst⟩
-      obtain ⟨r, hr⟩ := Option.isSome_iff_exists.1 hs_some
-      have hμr : μ r = some s := μ.eq_some_iff.1 hr
-      exact ⟨r, by rw [hμr, Option.map_some, hfst], by simp [hμr]⟩
-    · rintro ⟨r, hr_hosp, rfl⟩
-      obtain ⟨s', hs', hfst⟩ := Option.map_eq_some_iff.1 hr_hosp
-      simp only [hs', Option.get_some]
-      exact ⟨by rw [μ.eq_some_iff.2 hs']; rfl, hfst⟩
-  change ((I.projectClone μ).residents h).card = S.card
-  rw [himg, Finset.card_image_of_injective, Finset.card_attach]
-  rintro ⟨r₁, hr₁⟩ ⟨r₂, hr₂⟩ heq
-  dsimp only at heq
-  exact Subtype.ext (μ.inj (Option.some_get _).symm
-    (heq ▸ (Option.some_get (I.isSome_of_mem_residents_projectClone hr₂)).symm))
+  refine Finset.card_bij (fun r hr => (μ r).get (I.isSome_of_mem_residents_projectClone hr))
+    (fun r hr => ?_) (fun r₁ hr₁ r₂ hr₂ heq => ?_) (fun s hs => ?_)
+  · obtain ⟨s, hs, hfst⟩ := Option.map_eq_some_iff.1 (ManyToOneMatching.mem_residents.1 hr)
+    simp only [Finset.mem_filter, PartialMatching.mem_matchedReceivers,
+      Option.get_of_eq_some _ hs, μ.eq_some_iff.2 hs, Option.isSome_some, hfst, and_self]
+  · exact μ.inj (Option.some_get _).symm
+      (heq ▸ (Option.some_get (I.isSome_of_mem_residents_projectClone hr₂)).symm)
+  · simp only [Finset.mem_filter, PartialMatching.mem_matchedReceivers] at hs
+    obtain ⟨r, hr⟩ := Option.isSome_iff_exists.1 hs.1
+    have hμr : μ r = some s := μ.eq_some_iff.1 hr
+    exact ⟨r, ManyToOneMatching.mem_residents.2
+      (by simp only [projectClone, hμr, Option.map_some, hs.2]),
+      by simp only [hμr, Option.get_some]⟩
 
 private theorem isStable_projectClone {μ : PartialMatching m (n * I.maxQuota)}
     (hμ : I.cloneInstance.IsStable μ) : I.IsStable (I.projectClone μ) := by
@@ -450,12 +439,8 @@ private theorem isStable_projectClone {μ : PartialMatching m (n * I.maxQuota)}
     obtain ⟨s, hs_img, hs_not_S⟩ := Finset.exists_mem_notMem_of_card_lt_card hcard_S
     obtain ⟨j, -, rfl⟩ := Finset.mem_image.1 hs_img
     have hs_none : μ.symm (I.seat h j) = none := by
-      cases hsym : μ.symm (I.seat h j) with
-      | none => rfl
-      | some _ =>
-        refine absurd ?_ hs_not_S
-        rw [Finset.mem_filter, PartialMatching.mem_matchedReceivers, hsym]
-        exact ⟨rfl, I.seat_symm_fst h j⟩
+      simpa only [Finset.mem_filter, PartialMatching.mem_matchedReceivers,
+        I.seat_symm_fst h j, and_true, Option.not_isSome_iff_eq_none] using hs_not_S
     refine hμ_nb r (I.seat h j) ⟨hprop_seat j, ?_⟩
     rw [hs_none, I.cloneInstance.recvRank_some_lt_none_iff, mem_clone_recvPref_iff,
       seat_symm_fst, seat_symm_snd_val]

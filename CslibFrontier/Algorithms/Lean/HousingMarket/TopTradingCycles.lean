@@ -231,9 +231,7 @@ theorem ttcRounds_mem {k : ℕ} {R : Finset (Fin n)} (hk : R.card ≤ k) {i : Fi
 theorem ttcRounds_injOn {k : ℕ} {R : Finset (Fin n)} (hk : R.card ≤ k) :
     Set.InjOn (I.ttcRounds k R) R := by
   induction k generalizing R with
-  | zero =>
-    intro a ha
-    simp_all
+  | zero => simp_all
   | succ k ih =>
     intro a ha b hb hab
     have hk' := card_sdiff_cycleAgents_le (I := I) hk ⟨a, ha⟩
@@ -345,9 +343,7 @@ private theorem eq_ttcRounds_of_inStrictCore {μ : Allocation n} (hμ : I.InStri
     {R : Finset (Fin n)} (hk : R.card ≤ k) (hR : ∀ i ∈ R, μ i ∈ R) :
     ∀ i ∈ R, μ i = I.ttcRounds k R i := by
   induction k generalizing R with
-  | zero =>
-    intro i hi
-    simp_all
+  | zero => simp_all
   | succ k ih =>
     intro i hi
     have hk' := card_sdiff_cycleAgents_le (I := I) hk ⟨i, hi⟩
@@ -487,10 +483,9 @@ variable (I)
 
 /-- The TTC allocation is competitive at the TTC prices: every agent's house costs as much as its
 own, and it is the agent's favourite among the houses it can afford ([ShapleyScarf1974]). -/
-theorem isCompetitive_ttc : I.IsCompetitive I.ttc I.ttcPrice := by
-  intro i
-  refine ⟨(ttcPriceRounds_ttcRounds (by simp) (Finset.mem_univ i)).le, fun h hh => ?_⟩
-  exact rank_ttcRounds_le_of_ttcPriceRounds_le (by simp) (Finset.mem_univ i) (Finset.mem_univ h) hh
+theorem isCompetitive_ttc : I.IsCompetitive I.ttc I.ttcPrice := fun i =>
+  ⟨(ttcPriceRounds_ttcRounds (by simp) (Finset.mem_univ i)).le, fun h =>
+    rank_ttcRounds_le_of_ttcPriceRounds_le (by simp) (Finset.mem_univ i) (Finset.mem_univ h)⟩
 
 variable {I} in
 /-- An allocation that is competitive at some prices, in any linear order, is the TTC allocation:

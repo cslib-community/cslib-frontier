@@ -631,19 +631,16 @@ theorem CanRelabel.le_relabel {f : N.Preflow} {h : V → ℕ} {u : V} (hr : f.Ca
 /-- Relabels preserve valid labelings ([CLRS2009], Lemma 26.16). -/
 theorem IsValidLabeling.relabel {f : N.Preflow} {h : V → ℕ} {u : V} (hh : f.IsValidLabeling h)
     (hr : f.CanRelabel h u) : f.IsValidLabeling (f.relabel h u) where
-  source := by rw [relabel_of_ne f h (Ne.symm hr.active.1)]; exact hh.source
-  sink := by rw [relabel_of_ne f h (Ne.symm hr.active.2.1)]; exact hh.sink
+  source := by simpa [relabel_of_ne f h hr.active.1.symm] using hh.source
+  sink := by simpa [relabel_of_ne f h hr.active.2.1.symm] using hh.sink
   le_add_one x y hxy := by
-    by_cases hx : x = u
-    · subst hx
-      by_cases hy : y = x
-      · subst hy
-        omega
-      · rw [relabel_self, relabel_of_ne f h hy]
-        exact relabelHeight_le hxy
-    · rw [relabel_of_ne f h hx]
-      have h1 := hh.le_add_one x y hxy
+    rcases eq_or_ne x u with rfl | hx
+    · rcases eq_or_ne y x with rfl | hy
+      · omega
+      · simpa [relabel_self, relabel_of_ne f h hy] using relabelHeight_le hxy
+    · have h1 := hh.le_add_one x y hxy
       have h2 := hr.le_relabel y
+      rw [relabel_of_ne f h hx]
       omega
 
 /-! ### Initialization -/
@@ -668,15 +665,8 @@ theorem isValidLabeling_initial (hst : N.s ≠ N.t) :
   source := by simp [initialHeight]
   sink := by simp [initialHeight, hst.symm]
   le_add_one u v huv := by
-    unfold initialHeight
-    by_cases hu : u = N.s
-    · subst hu
-      by_cases hv : v = N.s
-      · subst hv
-        omega
-      · exfalso
-        simp [resCap, initial, hv] at huv
-    · simp [hu]
+    by_cases hu : u = N.s <;> by_cases hv : v = N.s <;>
+      simp_all [initialHeight, resCap, initial]
 
 end DecidableEq
 

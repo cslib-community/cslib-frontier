@@ -332,10 +332,9 @@ private theorem empFreq_concentrates [DecidableEq α] (q : PMF α) (k : ℕ) [Ne
   have hexp : (q y).toReal = distExpectation q f := by
     rw [distExpectation, tsum_eq_single y fun z hz => by simp [f, hz]]
     simp [f]
-  have hf : ∀ z ∈ q.support, f z ∈ Set.Icc (0 : ℝ) 1 := fun z _ => by
-    dsimp only [f]; split_ifs <;> simp
-  have hmax : max ((1 : ℝ) - 0) 1 = 1 := by norm_num
-  simpa only [hfreq, hexp, hmax, one_pow, div_one] using boundedMean_concentrates q f hf k hδ
+  have h := boundedMean_concentrates (a := 0) (b := 1) q f
+    (fun z _ => by by_cases hz : z = y <;> simp [f, hz]) k hδ
+  simpa [hfreq, hexp] using h
 
 private theorem empFreq_all_concentrates [Fintype α] [DecidableEq α] (q : PMF α) (k : ℕ)
     [NeZero k] {δ : ℝ} (hδ : 0 ≤ δ) :
@@ -372,9 +371,8 @@ theorem isReplicable_amplifyFinite [Fintype α] [Nonempty α] [LinearOrder α]
     (by positivity) fun v₁ hv₁ v₂ hv₂ => thresholdRound_union_disagree_le hab N hv₁ hv₂ ?_
   intro i hi
   simp only [Set.mem_ofPred_eq, ne_eq, Set.mem_iUnion, Finset.mem_univ, exists_true_left] at hi ⊢
-  by_contra hnone
-  push Not at hnone
-  exact hi (by simp only [pickThresholded, hnone])
+  contrapose! hi
+  simp only [pickThresholded, hi]
 
 /-- **Accuracy of `amplifyFinite`**: if `A` errs with probability at most `β₀ < 1 / (|α| + 1)`
 on `𝒟` and the threshold window `[a, b)` satisfies `β₀ + δ < a ≤ b ≤ (1 - β₀) / |α| - δ`, then
@@ -420,7 +418,7 @@ theorem isAccurateFor_amplifyFinite [Fintype α] [Nonempty α] [LinearOrder α]
   let cand := Finset.univ.filter fun y : α => thresholdRound a b N i (empFreq k v y) = true
   have hcand : cand.Nonempty := ⟨y₀, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hy₀_pass⟩⟩
   have hmem : pickThresholded a b N k i v ∈ cand := by
-    rw [pickThresholded, dite_eq_left_of_eq_true (eq_true hcand)]
+    rw [pickThresholded, dite_eq_left hcand]
     exact Finset.min'_mem cand hcand
   have hbad_mass : (A.marginal D (pickThresholded a b N k i v)).toReal ≤ β₀ := by
     rw [← PMF.toOuterMeasure_apply_singleton]
@@ -429,7 +427,7 @@ theorem isAccurateFor_amplifyFinite [Fintype α] [Nonempty α] [LinearOrder α]
   have hfalse := thresholdRound_false_of_lt_left hab i
     (show empFreq k v (pickThresholded a b N k i v) < a by
       linarith [(abs_sub_le_iff.mp (hconc (pickThresholded a b N k i v))).1])
-  exact absurd (Finset.mem_filter.mp hmem).2 (by rw [hfalse]; decide)
+  exact Bool.false_ne_true (hfalse.symm.trans (Finset.mem_filter.mp hmem).2)
 
 /-- **Finite-domain amplification theorem** [ImpagliazzoLeiPitassiSorrell2022]: for any finite
 nonempty linearly ordered output type `α`, if `A` achieves error `β₀ < 1 / (|α| + 1)` on `𝒟`
@@ -497,9 +495,7 @@ theorem strictMajorityCandidate_eq_of_lt_two_mul {k : ℕ} [DecidableEq α] (v :
     k < 2 * (Finset.univ.filter fun j' => v j' = v j).card
   have hne : cands.Nonempty := ⟨j₀, Finset.mem_filter.mpr
     ⟨Finset.mem_univ _, by simpa [(Finset.mem_filter.mp hj₀).2] using hy⟩⟩
-  dsimp only [strictMajorityCandidate]
-  split_ifs with h'
-  swap; · exact absurd hne h'
+  rw [strictMajorityCandidate, dite_eq_left hne]
   have hj_cond := (Finset.mem_filter.mp (Finset.min'_mem cands hne)).2
   finset_card
 
@@ -928,15 +924,14 @@ theorem isAccurateFor_amplifyReplicability [DecidableEq α] (A : Algorithm X Ω 
     (good D)ᶜ le_rfl fun trials _ htr => ?_).trans
     (by linarith [goodTrials_fail_le A D hδ ha_half T k₁ k₂ rs])
   rw [PMF.toOuterMeasure_map_apply]
-  have hempty : (fun i : Fin N => pickFirstThresholded a b N i trials) ⁻¹' (good D)ᶜ = ∅ := by
-    refine Set.eq_empty_iff_forall_notMem.mpr fun i hy_bad => ?_
-    obtain ⟨tStar, yStar, hpick, hyStar⟩ :=
-      pickFirstThresholded_eq_heavy A D hab.le hb_acc ht₀ htr i
-    rw [Set.mem_preimage, hpick] at hy_bad
-    refine herr ⟨tStar, hyStar.trans ?_⟩
-    rw [← PMF.toOuterMeasure_apply_singleton]
-    exact Probability.PMF.toOuterMeasure_toReal_mono _ (Set.singleton_subset_iff.mpr hy_bad)
-  simp [hempty]
+  suffices (fun i : Fin N => pickFirstThresholded a b N i trials) ⁻¹' (good D)ᶜ = ∅ by simp [this]
+  refine Set.eq_empty_iff_forall_notMem.mpr fun i hy_bad => ?_
+  obtain ⟨tStar, yStar, hpick, hyStar⟩ :=
+    pickFirstThresholded_eq_heavy A D hab.le hb_acc ht₀ htr i
+  refine herr ⟨tStar, hyStar.trans ?_⟩
+  rw [← PMF.toOuterMeasure_apply_singleton]
+  exact Probability.PMF.toOuterMeasure_toReal_mono _
+    (Set.singleton_subset_iff.mpr (hpick ▸ hy_bad))
 
 /-- **General-domain replicability and accuracy-preserving amplification**: over any
 `[DecidableEq α]`, for any initial `ρ₀ < 1 / 2` and target `ρ, β > 0`, there exist shared-seed
