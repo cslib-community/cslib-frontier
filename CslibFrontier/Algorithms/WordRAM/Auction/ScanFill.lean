@@ -190,8 +190,7 @@ theorem scanMaxProg_spec {w n matBase maxM : ℕ} {cost : Fin n × Fin n → ℤ
     by rw [clientState_bind, clientState_pure, hs_eq], ?_, fun i j => ?_⟩
   · rw [memoryCost_bind', memoryCost_pure]
     dsimp only [d] at hmc_it ⊢; omega
-  · rw [clientResult_bind, clientResult_pure]
-    exact hM_le
+  · simpa only [clientResult_bind, clientResult_pure] using hM_le
   · rw [clientResult_bind, clientResult_pure]
     simpa [hcost_mem i j, Signed.encode_div_two] using
       hprev (i.val * n + j.val) (Cslib.Matrix.pairIndex_lt (i, j))
@@ -332,22 +331,19 @@ theorem fillC_spec {w : ℕ} (ws : AuctionWS) {cost : Fin ws.n × Fin ws.n → �
       have hst_eq : (Memory.spec 0).clientState s (fillCStep (ws, k)) =
           ⟨Function.update s.mem (ws.bC + k) written, s.frontier⟩ :=
         congrArg (fun r => r.2.1) run
-      refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun x hx => ?_, ?_⟩
-      · rw [hst_eq]
-        exact Function.update_of_ne (by omega) _ _
-      · rw [hst_eq, StateTransitionSpec.clientResult, run]
-        dsimp only
-        refine ⟨rfl, hsfr, fun a ha => ?_, fun i j hij => ?_⟩
-        · rw [Function.update_of_ne (by omega)]
-          exact hlow a ha
-        · rcases Nat.lt_succ_iff_lt_or_eq.mp hij with hlt' | heq
-          · rw [Function.update_of_ne (by omega)]
-            exact hfilled i j hlt'
-          · rw [heq, Function.update_self, hwritten]
-            have hpair := Cslib.Matrix.pairIndex_injective
-              (show Cslib.Matrix.pairIndex (i, j) = Cslib.Matrix.pairIndex (i₀, j₀) from
-                heq.trans hij₀.symm)
-            rw [hpair])
+      refine ⟨hsafe, hv, hmc, by rw [hst_eq],
+        fun x hx => hst_eq ▸ Function.update_of_ne (by omega) _ _, ?_⟩
+      rw [hst_eq, StateTransitionSpec.clientResult, run]
+      dsimp only
+      refine ⟨rfl, hsfr,
+        fun a ha => (Function.update_of_ne (by omega) _ _).trans (hlow a ha),
+        fun i j hij => ?_⟩
+      rcases Nat.lt_succ_iff_lt_or_eq.mp hij with hlt' | heq
+      · exact (Function.update_of_ne (by omega) _ _).trans (hfilled i j hlt')
+      · have hpair : Cslib.Matrix.pairIndex (i, j) = Cslib.Matrix.pairIndex (i₀, j₀) :=
+          heq.trans hij₀.symm
+        rcases Cslib.Matrix.pairIndex_injective hpair with ⟨rfl, rfl⟩
+        rw [heq, Function.update_self, hwritten])
     0 s₀ ⟨rfl, rfl, fun _ _ => rfl, fun _ _ h => absurd h (Nat.not_lt_zero _)⟩
   obtain ⟨hsafe, hv, hmc, hfr', hmod, _, _, _, hfilled⟩ := hit
   exact ⟨⟨hfit_addr.of_le (by omega), hsafe⟩, hv, hmc, hfr', hmod,

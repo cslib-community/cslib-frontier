@@ -430,8 +430,8 @@ theorem stepBodyLog_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (log : List ℕ)
     have hstep := Trail.step_of_status_eq_conflict hstat
     rw [hc, Bool.toNat_true] at hconf
     wram_exec [hconf, h1]
-    wram_call (logConflict_spec (w := w) φ N T t log _ hs' hl' hstat hfit) framed with v₁ m₁ h₁
-    obtain ⟨⟨-, -, -, -, -, -, -, -, -, -, hmem₁⟩, hlg₁, hlog₁⟩ := h₁
+    wram_call (logConflict_spec (w := w) φ N T t log _ hs' hl' hstat hfit) framed with v₁ m₁
+      ⟨⟨-, -, -, -, -, -, -, -, -, -, hmem₁⟩, hlg₁, hlog₁⟩
     have hs₁ : StateAt φ N T (Data.havoc logConflict (x.havoc scan v x.mem) v₁ m₁) t := by
       wram_simp [*]
     refine WP.seq ?_
@@ -480,13 +480,12 @@ theorem stepBodyLog_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (log : List ℕ)
         simp [logOut, ← hπdef, hstat, ← hT]
       wram_exec [hconf, halls, h1]
       wram_call (push_spec (w := w) φ N T _ t _ hs' (by wram_simp; exact hcode) hv hun hfit')
-        framed with v₂ m₂ ⟨hs₂, hfr₂⟩
+        framed with v₂ m₂ ⟨⟨-, -, -, -, -, -, -, -, -, htp₂, hmem₂⟩, hfr₂⟩
       have hl₂ : LogAt N T (Data.havoc push (x.havoc scan v x.mem) v₂ m₂) log := by
         wram_simp [*]
         exact hlog.frame fun a ha _ => by simpa using hfr₂ a (by omega)
       have hs₂' : StateAt φ N T (Data.havoc push (x.havoc scan v x.mem) v₂ m₂)
           (⟨nextLiteral φ π, false⟩ :: t) := by
-        obtain ⟨-, -, -, -, -, -, -, -, -, htp₂, hmem₂⟩ := hs₂
         wram_simp [*]
         exact hmem₂
       wram_call (logBranch_spec (w := w) φ N T _ t log _ hs₂' hl₂ hfit) framed
@@ -522,16 +521,15 @@ theorem mainLoopLog_spec (φ : CNF ℕ) (N T : ℕ) :
       obtain ⟨hgo', hout, hlist⟩ := hys
       have hone : y.regs one = 1 := (hy.regs_eq (by decide)).trans h1
       have hx : ¬(Cond.eq go one).Holds y := by simp [Cond.holds_eq, hgo', hone]
-      refine ⟨y, (ExecWithin.loop_iter hc hy (ExecWithin.loop_exit hx)).mono ?_,
+      exact ⟨y, (ExecWithin.loop_iter hc hy (ExecWithin.loop_exit hx)).mono (by nlinarith),
         hout, by simpa [hst] using hlist⟩
-      simp only; nlinarith
     · rename_i t' hst
       rw [hst] at hys hy
       obtain ⟨hs', hl'⟩ := hys
       obtain ⟨z, hz, hzo, hzl⟩ := mainLoopLog_spec φ N T k t' _ y a hs' hl'
         (hfit.of_le (by simp only [List.length_append]; omega)) h
-      refine ⟨z, (ExecWithin.loop_iter hc hy hz).mono ?_, hzo, by simpa [hst] using hzl⟩
-      simp only; nlinarith
+      exact ⟨z, (ExecWithin.loop_iter hc hy hz).mono (by nlinarith),
+        hzo, by simpa [hst] using hzl⟩
 
 /-- The run of the search, `nodes` steps long, ends with the answer of the search, and its log is
 the output of the variant. -/
@@ -640,10 +638,9 @@ theorem leafCount_searchTree_le_of_executes (N : ℕ) (φ : CNF ℕ)
   obtain ⟨v', hv'⟩ := hex
   obtain ⟨-, rfl⟩ := hv'.unique h
   -- the words of the tree are in the output
-  obtain ⟨c, hc⟩ : ∃ c, solve φ = .unsat c := by
-    cases hs : solve φ with
-    | sat σ => exact absurd ⟨σ, solve_sat hs⟩ hφ
-    | unsat c => exact ⟨c, rfl⟩
+  cases hc : solve φ with
+  | sat σ => exact absurd ⟨σ, solve_sat hc⟩ hφ
+  | unsat c =>
   have hout : outputList y.mem (L + 1 + 4 * N) = 0 :: treeWords φ := by
     simpa [← hyo, refutationWords, answerWords, hc] using hyl
   obtain ⟨-, -, htree⟩ : _ ∧ _ ∧ HoldsList (L + 1 + 4 * N + 1 + 1) (treeWords φ) y.mem := by
@@ -656,8 +653,7 @@ theorem leafCount_searchTree_le_of_executes (N : ℕ) (φ : CNF ℕ)
   have hleaf := leafCount_searchTree_le_length_preorder φ (logOut φ)
     (fun π hπ => by unfold logOut; cases hs : status φ π <;> simp_all) (depth φ) []
     (by simp [openVars_nil, depth]) (dfs_eq_none_of_not_satisfiable hφ)
-  simp only at hb
-  unfold treeWords at hb
+  dsimp only [treeWords] at hb
   omega
 
 /-- **The running time in the form `c · 2 ^ N · E`**: the variant halts within `301 · 2 ^ N · E`

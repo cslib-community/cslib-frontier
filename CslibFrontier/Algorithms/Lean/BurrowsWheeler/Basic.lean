@@ -273,9 +273,7 @@ theorem bwtFirst_perm (w : List α) : bwtFirst w ~ w := by
 /-- The last column is a permutation of the word ([BurrowsWheeler1994], Section 2, step D1). -/
 theorem bwtLast_perm (w : List α) : bwtLast w ~ w := by
   have h := (map_rotate_one_bwtMatrix_perm w).filterMap List.getLast?
-  have hf : (List.getLast? ∘ (·.rotate 1) : List α → Option α) = List.head? :=
-    funext getLast?_rotate_one
-  rw [List.filterMap_map, hf] at h
+  rw [List.filterMap_map, Function.comp_def, funext getLast?_rotate_one] at h
   exact h.symm.trans (bwtFirst_perm w)
 
 theorem pairwise_bwtFirst (w : List α) : (bwtFirst w).Pairwise (· ≤ ·) :=
@@ -322,10 +320,9 @@ private theorem exists_lfMap (w : List α) {r : ℕ} (hr : r < (bwtMatrix w).len
     List.Pairwise.filter_key_eq headKey (c : WithBot α) ((pairwise_bwtMatrix w).imp headKey_mono),
     List.getElem?_take, List.getElem?_drop] at hpos
   split_ifs at hpos with hk
-  · obtain ⟨v, hv, hvr⟩ := Option.map_eq_some_iff.mp hpos
+  · obtain ⟨_, hv, hvr⟩ := Option.map_eq_some_iff.mp hpos
     obtain ⟨hlt, rfl⟩ := List.getElem?_eq_some_iff.mp hv
-    rw [hlf]
-    exact ⟨hlt, hvr⟩
+    exact hlf ▸ ⟨hlt, hvr⟩
   · simp at hpos
 
 /-- The LF-mapping stays inside the matrix. -/
@@ -388,9 +385,7 @@ theorem lfMap_bwtLast_injOn (w : List α) {r r' : ℕ} (hr : r < (bwtMatrix w).l
     simp at hmono
     omega
   rcases lt_trichotomy r r' with hlt | rfl | hgt
-  · exact (key hlt hr' h).elim
-  · rfl
-  · exact (key hgt hr h.symm).elim
+  exacts [(key hlt hr' h).elim, rfl, (key hgt hr h.symm).elim]
 
 /-- The LF-mapping permutes the rows ([BurrowsWheeler1994], Section 2, step D2). -/
 theorem map_lfMap_range_perm (w : List α) :
@@ -399,9 +394,8 @@ theorem map_lfMap_range_perm (w : List α) :
   refine (List.subperm_of_subset
     (List.Nodup.map_on (fun _ hx _ hy => lfMap_bwtLast_injOn w
       (List.mem_range.mp hx) (List.mem_range.mp hy)) List.nodup_range)
-    fun x hx => ?_).perm_of_length_le (by simp)
-  obtain ⟨r, hr, rfl⟩ := List.mem_map.mp hx
-  exact List.mem_range.mpr (lfMap_bwtLast_lt w (List.mem_range.mp hr))
+    (List.forall_mem_map.mpr fun r hr =>
+      List.mem_range.mpr (lfMap_bwtLast_lt w (List.mem_range.mp hr)))).perm_of_length_le (by simp)
 
 /-- One decoding step: if row `r` holds `w.rotate (k + 1)`, then entry `r` of the last column is
 `w[k]`, and the LF-mapping moves to a row holding `w.rotate k`. -/
