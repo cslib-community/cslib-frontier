@@ -22,7 +22,10 @@ the prefix, a fair internal coin, or the reply to a query computed from the pref
 [BrownCohenIrvingPiliouras2024, Definition 6.1] for `M` is
 `ProbOracleComp.LipschitzAt K O (M.run n)`. `Machine.stepLaw M O` is the step law of `M` against
 the oracle `O`, and the two descriptions have the same output law
-(`Machine.evalWith_output_stepLaw`).
+(`Machine.evalWith_output_stepLaw`). Each step makes at most one external query, so the run of
+`n` steps is `ProbOracleComp.LipschitzAt` with constant `n` at every oracle
+(`Machine.lipschitzAt_run`); the source observes after Definition 6.1 that every time-`T` machine
+is Lipschitz with constant `O(T)`.
 
 The transcript is the list of bits written so far, most recent first, and the step may read all
 of it; relevant coordinates, tapes and encodings are not modelled.
@@ -30,7 +33,9 @@ of it; relevant coordinates, tapes and encodings are not modelled.
 For machines whose every step queries an encoding of the whole transcript so far
 (`prefixMachine`), Definition 6.1 suffices for the soundness step of `Debate.lean`: a perturbation
 of the step law is then a perturbation of the external oracle
-(`lipschitzAt_stepLaw_of_lipschitzAt_run`, `soundness_of_lipschitzAt_run_prefixMachine`).
+(`lipschitzAt_stepLaw_of_lipschitzAt_run`, `soundness_of_lipschitzAt_run_prefixMachine`). This is
+a step toward [BrownCohenIrvingPiliouras2024, Theorem 6.2], not that theorem; the full statement
+is tracked in cslib-frontier issue #7579.
 
 ## Main definitions
 
@@ -150,6 +155,34 @@ theorem evalWith_output_stepLaw (M : Machine Query) (O : Query → PMF Bool) (n 
   rw [output, run, OracleComp.evalWith_map, OracleComp.evalWith_map,
     evalWith_transcript_stepLaw]
 
+/-- The next bit makes at most one external query. -/
+private theorem isQueryBounded_next (M : Machine Query) (bits : List Bool) :
+    (M.next bits).IsQueryBounded 1 := by
+  unfold next
+  cases M.step bits with
+  | det bit => exact .pure bit 1
+  | coin => exact (ProbOracleComp.IsQueryBounded.sample _).mono zero_le_one
+  | ask query => exact ProbOracleComp.IsQueryBounded.query query
+
+/-- The transcript of `n` steps makes at most `n` external queries. -/
+private theorem isQueryBounded_transcript (M : Machine Query) (n : ℕ) :
+    (M.transcript n).IsQueryBounded n := by
+  induction n with
+  | zero => exact .pure _ 0
+  | succ n ih =>
+    exact ih.bind fun bits => by
+      simpa using (isQueryBounded_next M bits).bind fun bit => .pure (bit :: bits) 0
+
+/-- The run of `n` steps makes at most `n` external queries, one per step. -/
+theorem isQueryBounded_run (M : Machine Query) (n : ℕ) : (M.run n).IsQueryBounded n :=
+  (OracleComp.isCostBounded_map_iff _ _ _).2 (M.isQueryBounded_transcript n)
+
+/-- The run of `n` steps is Lipschitz at every oracle with the trivial constant `n`: each step
+makes at most one external query. -/
+theorem lipschitzAt_run (M : Machine Query) (O : Query → PMF Bool) (n : ℕ) :
+    LipschitzAt (n : ℝ≥0) O (M.run n) :=
+  ProbOracleComp.LipschitzAt.of_isQueryBounded (M.isQueryBounded_run n) O
+
 end Machine
 
 /-! ### Machines that query the whole transcript -/
@@ -163,13 +196,8 @@ transcript so far. With `Query = List Bool` and `enc = id` it asks the transcrip
 
 /-- The step law of a machine that queries an encoding of the whole transcript is the oracle at
 that encoding. -/
-theorem stepLaw_prefixMachine (enc : List Bool → Query) (O : Query → PMF Bool)
+@[simp] theorem stepLaw_prefixMachine (enc : List Bool → Query) (O : Query → PMF Bool)
     (bits : List Bool) : (prefixMachine enc).stepLaw O bits = O (enc bits) :=
-  rfl
-
-/-- With the identity encoding the step law is the oracle. -/
-theorem stepLaw_prefixMachine_id (O : List Bool → PMF Bool) :
-    (prefixMachine (id : List Bool → List Bool)).stepLaw O = O :=
   rfl
 
 private theorem transcript_prefixMachine_id :
@@ -215,12 +243,12 @@ theorem lipschitzAt_stepLaw_of_lipschitzAt_run {enc : List Bool → Query}
   rwa [← Machine.evalWith_output_stepLaw, ← Machine.evalWith_output_stepLaw, hstep] at hrun
 
 /-- **Soundness under Definition 6.1 for machines that query the whole transcript.** A step
-toward [BrownCohenIrvingPiliouras2024, Theorem 6.2], not that theorem: for machines whose every
-step queries an injective encoding of the whole transcript so far, Definition 6.1 suffices for
-the soundness step `soundness_of_lipschitzAt_stepLaw`. If the output of such a machine of
-`T + 1` steps is `K`-Lipschitz at the external oracle and is `true` with probability at most
-`1 / 3`, then against the honest challenger every proposer makes the verifier accept with
-probability at most `2 / 5`.
+toward [BrownCohenIrvingPiliouras2024, Theorem 6.2], not that theorem; the full statement is
+tracked in cslib-frontier issue #7579. For machines whose every step queries an injective encoding
+of the whole transcript so far, Definition 6.1 suffices for the soundness step
+`soundness_of_lipschitzAt_stepLaw`. If the output of such a machine of `T + 1` steps is
+`K`-Lipschitz at the external oracle and is `true` with probability at most `1 / 3`, then against
+the honest challenger every proposer makes the verifier accept with probability at most `2 / 5`.
 
 The protocol is `Debate.run`: claims and coins lie on a grid, and the interpreter draws the bit
 of each round from the claim and the two coins. Nothing is claimed about running time or query
