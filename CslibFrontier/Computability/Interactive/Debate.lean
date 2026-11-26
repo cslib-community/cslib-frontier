@@ -497,6 +497,17 @@ private theorem apply_false_of_apply_true {N : ℕ} [NeZero N] (k : Fin (N + 1))
   rw [h, ← hone] at hsum
   exact (ENNReal.add_right_inj (ENNReal.div_ne_top (ENNReal.natCast_ne_top _) hN)).1 hsum
 
+/-- A uniform coin from the proposer's copy makes the bit of a round `false` with probability
+`1 - k / N`, whatever the coin from the challenger's copy. -/
+theorem map_coinBit_uniformOfFintype_right_false {N : ℕ} [NeZero N] (k : Fin (N + 1))
+    (z : ZMod N) :
+    (PMF.uniformOfFintype (ZMod N)).map (fun w => coinBit k z w) false =
+      1 - (k.val : ℝ≥0∞) / N := by
+  rw [← PMF.apply_true_add_apply_false ((PMF.uniformOfFintype (ZMod N)).map fun w =>
+    coinBit k z w), map_coinBit_uniformOfFintype_right]
+  exact (ENNReal.add_sub_cancel_left (ENNReal.div_ne_top (ENNReal.natCast_ne_top _)
+    (Nat.cast_ne_zero.2 (NeZero.ne N)))).symm
+
 /-- The expectation of a function of a `Bool`-valued statistic, through the law of the
 statistic. -/
 private theorem tsum_mul_comp_bool {α : Type} (p : PMF α) (f : α → Bool) (g : Bool → ℝ≥0∞) :
