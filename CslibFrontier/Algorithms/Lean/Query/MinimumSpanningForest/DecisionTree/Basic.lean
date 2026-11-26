@@ -122,13 +122,7 @@ theorem MSFTree.liftEmb_eval {e₁ e₂ : ℕ} {α : Type} (ι : Fin e₁ → Fi
   induction T with
   | leaf _ => rfl
   | node a b l r ihl ihr =>
-    dsimp only [MSFTree.liftEmb, MSFTree.eval]
-    have h := hord a b
-    by_cases hp : (p₁ a).val < (p₁ b).val
-    · have hp₂ : (p₂ (ι a)).val < (p₂ (ι b)).val := h.mp hp
-      simp [hp, hp₂, ihl]
-    · have hp₂ : ¬ ((p₂ (ι a)).val < (p₂ (ι b)).val) := fun x => hp (h.mpr x)
-      simp [hp, hp₂, ihr]
+    simp only [MSFTree.liftEmb, MSFTree.eval, ← hord a b, ihl, ihr]
 
 /-- Correctness of `T : MSFTree e α` computing `f : Equiv.Perm (Fin e) → α` on `P`. -/
 def MSFTree.AgreesOn {e : ℕ} {α : Type} (f : Equiv.Perm (Fin e) → α)
@@ -156,12 +150,7 @@ theorem msf_congr_lt {E V W₁ W₂ : Type*} [LinearOrder W₁] [LinearOrder W�
   classical
   ext e
   induction he : ends e using Sym2.ind with
-  | _ a b =>
-    rw [Cslib.Multigraph.mem_msf_iff w₁ he, Cslib.Multigraph.mem_msf_iff w₂ he]
-    have hset : {f | f ∈ S ∧ w₁ f < w₁ e} = {f | f ∈ S ∧ w₂ f < w₂ e} := by
-      ext f
-      simp only [Set.mem_ofPred_eq, h]
-    rw [hset]
+  | _ a b => simp only [Cslib.Multigraph.mem_msf_iff _ he, h]
 
 private noncomputable def orderRank {e : ℕ} {W : Type*} [LinearOrder W]
     (w : Fin e → W) (i : Fin e) : Fin e :=
@@ -212,9 +201,7 @@ noncomputable def orderPerm {e : ℕ} {W : Type*} [LinearOrder W]
 theorem orderPerm_lt_iff {e : ℕ} {W : Type*} [LinearOrder W]
     (w : Fin e → W) (hw : Function.Injective w) (a b : Fin e) :
     orderPerm w hw a < orderPerm w hw b ↔ w a < w b := by
-  dsimp only [orderPerm]
-  simp only [Equiv.ofBijective_apply]
-  exact orderRank_lt_iff w hw a b
+  simpa only [orderPerm, Equiv.ofBijective_apply] using orderRank_lt_iff w hw a b
 
 /-! ## Bitmask Encoding of Edge Subsets -/
 
@@ -331,12 +318,7 @@ private theorem allPairs_prefix_sum : ∀ (r k : ℕ), k ≤ r →
     rw [Nat.choose_succ_succ, Nat.choose_one_right, add_comm]
 
 theorem length_allPairs (r : ℕ) : (allPairs r).length = r.choose 2 := by
-  rw [allPairs, List.length_flatMap]
-  have h := allPairs_prefix_sum r r le_rfl
-  have htake : (List.finRange r).take r = List.finRange r :=
-    List.take_of_length_le (by simp)
-  rw [htake] at h
-  exact h
+  simpa [allPairs, List.length_flatMap] using allPairs_prefix_sum r r le_rfl
 
 theorem getElem_allPairs_pairIdx {r : ℕ} {a b : Fin r} (hab : a.val < b.val) :
     (allPairs r)[pairIdx a.val b.val]'(by
@@ -359,42 +341,20 @@ theorem getElem_allPairs_pairIdx {r : ℕ} {a b : Fin r} (hab : a.val < b.val) :
   have hpre_len : (((List.finRange r).take b.val).flatMap rowFn).length =
       b.val * (b.val - 1) / 2 := by
     rw [List.length_flatMap, allPairs_prefix_sum r b.val b.isLt.le, Nat.choose_two_right]
-  have hidx_eq : pairIdx a.val b.val =
-      (((List.finRange r).take b.val).flatMap rowFn).length + a.val := by
-    rw [hpre_len]; rfl
-  have ha_len : a.val < (rowFn b).length := by simp [rowFn, hab]
-  have hge :
-      (((List.finRange r).take b.val).flatMap rowFn).length ≤ pairIdx a.val b.val := by
-    omega
-  rw [List.getElem_of_eq hflat]
-  rw [List.getElem_append_right hge]
-  have ha_sub : pairIdx a.val b.val -
-      (((List.finRange r).take b.val).flatMap rowFn).length = a.val := by
-    omega
-  have ha_sub_lt : pairIdx a.val b.val -
-      (((List.finRange r).take b.val).flatMap rowFn).length < (rowFn b).length := by
-    rw [ha_sub]; exact ha_len
-  rw [List.getElem_append_left ha_sub_lt]
-  have hrow : (rowFn b)[a.val]'ha_len = (a, b) := by
-    simp [rowFn, List.getElem_map, List.getElem_finRange]
-  simp_rw [ha_sub]
-  exact hrow
+  have hidx : pairIdx a.val b.val =
+      (((List.finRange r).take b.val).flatMap rowFn).length + a.val :=
+    (congrArg (· + a.val) hpre_len).symm
+  rw [List.getElem_of_eq hflat, List.getElem_append_right (by omega),
+    List.getElem_append_left (by simp [hidx, rowFn, hab])]
+  simp [hidx, rowFn, List.getElem_map, List.getElem_finRange]
 
 theorem mem_allPairs_iff {r : ℕ} {a b : Fin r} :
     (a, b) ∈ allPairs r ↔ a.val < b.val := by
-  constructor
-  · intro h
-    rw [allPairs, List.mem_flatMap] at h
-    obtain ⟨b', _, hrow⟩ := h
-    rw [List.mem_map] at hrow
-    obtain ⟨a', _, heq⟩ := hrow
-    have ha' : a'.val = a.val := congrArg (fun p : Fin r × Fin r => p.1.val) heq
-    have hb' : b' = b := congrArg Prod.snd heq
-    rw [← hb', ← ha']
-    exact a'.isLt
-  · intro hab
-    rw [← getElem_allPairs_pairIdx hab]
-    exact List.getElem_mem _
+  refine ⟨fun h => ?_, fun hab => getElem_allPairs_pairIdx hab ▸ List.getElem_mem _⟩
+  simp only [allPairs, List.mem_flatMap, List.mem_map, List.mem_finRange, true_and,
+    Prod.mk.injEq] at h
+  obtain ⟨_, a', ha', rfl⟩ := h
+  exact ha' ▸ a'.isLt
 
 theorem allPairs_lt {r : ℕ} {p : Fin r × Fin r} (hp : p ∈ allPairs r) : p.1.val < p.2.val :=
   mem_allPairs_iff.mp hp
@@ -405,13 +365,11 @@ theorem nodup_allPairs (r : ℕ) : (allPairs r).Nodup := by
       Fin.ext (congrArg (fun p : Fin r × Fin r => p.1.val) h), ?_⟩
   rw [List.pairwise_iff_getElem]
   intro i j hi hj hij x hx1 hx2
-  simp only [List.mem_map, List.mem_finRange] at hx1 hx2
-  rcases hx1 with ⟨_, _, rfl⟩
-  rcases hx2 with ⟨_, _, heq⟩
-  have hfin := congrArg (fun p : Fin r × Fin r => p.2.val) heq
-  dsimp only at hfin
-  simp only [List.getElem_finRange, Fin.val_cast] at hfin
-  exact Nat.ne_of_lt hij hfin.symm
+  simp only [List.mem_map, List.mem_finRange, true_and] at hx1 hx2
+  obtain ⟨_, rfl⟩ := hx1
+  obtain ⟨_, heq⟩ := hx2
+  exact Nat.ne_of_gt hij
+    (by simpa [List.getElem_finRange] using congrArg (fun p : Fin r × Fin r => p.2.val) heq)
 
 theorem pairIdx_getElem_allPairs {r k : ℕ} (hk : k < (allPairs r).length) :
     pairIdx ((allPairs r)[k]).1.val ((allPairs r)[k]).2.val = k := by
@@ -624,20 +582,12 @@ theorem mem_maskEdgePairs_iff {r mask : ℕ} {p : Fin r × Fin r} :
       p.1.val < p.2.val ∧ mask.testBit (pairIdx p.1.val p.2.val) = true := by
   rw [maskEdgePairs_eq_filterMaskAux]
   have hspec := filterMaskAux_bij mask (allPairs r) (nodup_allPairs r) 0
-  constructor
-  · intro hp
-    obtain ⟨j, hj, rfl, htb⟩ := hspec.1 p hp
-    rw [Nat.zero_add] at htb
-    have hlt := allPairs_lt (List.getElem_mem hj)
-    have hidx := pairIdx_getElem_allPairs hj
-    exact ⟨hlt, by simpa [hidx] using htb⟩
-  · rintro ⟨hlt, htb⟩
-    have hj : pairIdx p.1.val p.2.val < (allPairs r).length := by
-      rw [length_allPairs]
-      exact pairIdx_lt_choose_two hlt p.2.isLt
-    have hget := getElem_allPairs_pairIdx hlt
-    have hmem := hspec.2 (pairIdx p.1.val p.2.val) hj (by simpa using htb)
-    rwa [hget] at hmem
+  refine ⟨fun hp => ?_, fun ⟨hlt, htb⟩ => ?_⟩
+  · obtain ⟨j, hj, rfl, htb⟩ := hspec.1 p hp
+    exact ⟨allPairs_lt (List.getElem_mem hj), by simpa [pairIdx_getElem_allPairs hj] using htb⟩
+  · have hj : pairIdx p.1.val p.2.val < (allPairs r).length :=
+      (length_allPairs r).symm ▸ pairIdx_lt_choose_two hlt p.2.isLt
+    simpa [getElem_allPairs_pairIdx hlt] using hspec.2 _ hj (by simpa using htb)
 
 theorem maskEdgePairs_cast {r₁ r₂ mask : ℕ} (hrr : r₁ ≤ r₂)
     (hmask : mask < 2 ^ r₁.choose 2) :
@@ -673,34 +623,21 @@ theorem maskEdgePairs_cast {r₁ r₂ mask : ℕ} (hrr : r₁ ≤ r₂)
     (hmask.trans_le (Nat.pow_le_pow_right (by omega) (by simpa using hk)))
 
 theorem endsOfMask_isSimple (r mask : ℕ) : IsSimple (endsOfMask r mask) := by
-  have hnd : (maskEdgePairs r mask).Nodup := maskEdgePairs_nodup r mask
-  have hmem_all : ∀ x ∈ maskEdgePairs r mask, x ∈ allPairs r := by
-    intro x hx
-    rw [maskEdgePairs_eq_filterMaskAux] at hx
-    exact filterMaskAux_subset mask (allPairs r) 0 hx
+  have hlt (i : Fin (maskEdgePairs r mask).length) :
+      (maskEdgePairs r mask)[i].1.val < (maskEdgePairs r mask)[i].2.val :=
+    allPairs_lt (filterMaskAux_subset mask (allPairs r) 0
+      (maskEdgePairs_eq_filterMaskAux r mask ▸ List.getElem_mem i.isLt))
   refine ⟨fun i => ?_, fun i₁ i₂ he => ?_⟩
-  · have hmem : (maskEdgePairs r mask)[i.val] ∈ allPairs r :=
-      hmem_all _ (List.getElem_mem i.isLt)
-    have hlt := allPairs_lt hmem
-    simp only [endsOfMask, Sym2.mk_isDiag_iff]
-    exact fun h => Nat.ne_of_lt hlt (congrArg Fin.val h)
-  · have hmem₁ : (maskEdgePairs r mask)[i₁.val] ∈ allPairs r :=
-      hmem_all _ (List.getElem_mem i₁.isLt)
-    have hmem₂ : (maskEdgePairs r mask)[i₂.val] ∈ allPairs r :=
-      hmem_all _ (List.getElem_mem i₂.isLt)
-    have hlt₁ := allPairs_lt hmem₁
-    have hlt₂ := allPairs_lt hmem₂
-    dsimp only [endsOfMask] at he
-    have heq : (maskEdgePairs r mask)[i₁.val] = (maskEdgePairs r mask)[i₂.val] := by
-      rcases Sym2.eq_iff.mp he with ⟨h1, h2⟩ | ⟨h1, h2⟩
-      · exact Prod.ext h1 h2
-      · exfalso
-        have v1 : (maskEdgePairs r mask)[i₁.val].1.val = (maskEdgePairs r mask)[i₂.val].2.val :=
-          congrArg Fin.val h1
-        have v2 : (maskEdgePairs r mask)[i₁.val].2.val = (maskEdgePairs r mask)[i₂.val].1.val :=
-          congrArg Fin.val h2
-        omega
-    exact Fin.ext (hnd.getElem_inj_iff.mp heq)
+  · simp only [endsOfMask, Sym2.mk_isDiag_iff]
+    exact fun h => Nat.ne_of_lt (hlt i) (congrArg Fin.val h)
+  · dsimp only [endsOfMask] at he
+    rcases Sym2.eq_iff.mp he with ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · exact Fin.ext ((maskEdgePairs_nodup r mask).getElem_inj_iff.mp (Prod.ext h1 h2))
+    · have v1 := congrArg Fin.val h1
+      have v2 := congrArg Fin.val h2
+      have hlt₁ := hlt i₁
+      have hlt₂ := hlt i₂
+      omega
 
 /-! ## Existence and Optimality of MSF Decision Trees -/
 
@@ -904,17 +841,12 @@ theorem optDepth_le_pairs {e n : ℕ} (ends : Fin e → Sym2 (Fin n)) :
 
 theorem optDepth_eq_zero_of_le_one {e n : ℕ} (he : e ≤ 1) (ends : Fin e → Sym2 (Fin n)) :
     optDepth ends = 0 := by
-  have hsub : Subsingleton (Equiv.Perm (Fin e)) := by
-    refine ⟨fun p q => ?_⟩
-    exact perm_eq_of_forall_lt fun x y _ => by
-      exfalso
-      have hy : y.val < e := y.isLt
-      omega
-  let T : MSFDT e := .leaf (Cslib.Multigraph.msf ends (Equiv.refl _) Finset.univ)
-  have hcorr : T.Correct ends := fun p => by
-    rw [Subsingleton.elim p (Equiv.refl _)]
-    rfl
-  exact Nat.eq_zero_of_le_zero (optDepth_le_of_correct hcorr)
+  have hsub : Subsingleton (Equiv.Perm (Fin e)) :=
+    ⟨fun _ _ => perm_eq_of_forall_lt fun _ y _ => absurd y.isLt (by omega)⟩
+  refine Nat.eq_zero_of_le_zero (optDepth_le_of_correct
+    (T := .leaf (Cslib.Multigraph.msf ends (Equiv.refl _) Finset.univ)) fun p => ?_)
+  rw [Subsingleton.elim p (Equiv.refl _)]
+  rfl
 
 /-! ## Complete Binary Trees (`IsComplete` and `padTo`) -/
 
@@ -1111,27 +1043,15 @@ theorem msfTreeOfFreeM_eval {e : ℕ} {α : Type} :
     rw [heval]
     split_ifs with hab hPl hPr
     · subst hab
-      have hor : LEQuery.keyOracle p (.le a a) = true := by simp [LEQuery.keyOracle_le]
-      rw [hor]
+      simp only [LEQuery.keyOracle_le, le_refl, decide_true]
       exact msfTreeOfFreeM_eval (cont true) P p hp
-    · have hor : LEQuery.keyOracle p (.le a b) = false := by
-        have hnotlt : ¬ ((p a).val < (p b).val) := fun hlt => by
-          have hp_mem : p ∈ permFilterLt P a b := Finset.mem_filter.mpr ⟨hp, hlt⟩
-          rw [hPl] at hp_mem
-          simp at hp_mem
-        rw [keyOracle_perm_iff p hab]
-        exact decide_eq_false hnotlt
-      rw [hor]
+    · have hnotlt : ¬ (p a).val < (p b).val :=
+        fun hlt => Finset.notMem_empty p (hPl ▸ Finset.mem_filter.mpr ⟨hp, hlt⟩)
+      rw [keyOracle_perm_iff p hab, decide_eq_false hnotlt]
       exact msfTreeOfFreeM_eval (cont false) P p hp
-    · have hor : LEQuery.keyOracle p (.le a b) = true := by
-        have hlt : (p a).val < (p b).val := by
-          by_contra hnot
-          have hp_mem : p ∈ permFilterGe P a b := Finset.mem_filter.mpr ⟨hp, hnot⟩
-          rw [hPr] at hp_mem
-          simp at hp_mem
-        rw [keyOracle_perm_iff p hab]
-        exact decide_eq_true hlt
-      rw [hor]
+    · have hlt : (p a).val < (p b).val := by_contra fun hnot =>
+        Finset.notMem_empty p (hPr ▸ Finset.mem_filter.mpr ⟨hp, hnot⟩)
+      rw [keyOracle_perm_iff p hab, decide_eq_true hlt]
       exact msfTreeOfFreeM_eval (cont true) P p hp
     · simp only [MSFTree.eval, keyOracle_perm_iff p hab]
       by_cases hlt : (p a).val < (p b).val
@@ -1159,59 +1079,33 @@ theorem msfTreeOfFreeM_depth_le {e : ℕ} {α : Type} :
     · subst hab
       refine msfTreeOfFreeM_depth_le (cont true) P D hP fun p hp => ?_
       have hq := hD p hp
-      rw [hstep] at hq
-      have hor : LEQuery.keyOracle p (.le a a) = true := by simp [LEQuery.keyOracle_le]
-      rw [hor] at hq
+      simp only [hstep, LEQuery.keyOracle_le, le_refl, decide_true] at hq
       omega
     · refine msfTreeOfFreeM_depth_le (cont false) P D hP fun p hp => ?_
+      have hnotlt : ¬ (p a).val < (p b).val :=
+        fun hlt => Finset.notMem_empty p (hPl ▸ Finset.mem_filter.mpr ⟨hp, hlt⟩)
       have hq := hD p hp
-      rw [hstep] at hq
-      have hor : LEQuery.keyOracle p (.le a b) = false := by
-        have hnotlt : ¬ ((p a).val < (p b).val) := fun hlt => by
-          have hp_mem : p ∈ permFilterLt P a b := Finset.mem_filter.mpr ⟨hp, hlt⟩
-          rw [hPl] at hp_mem
-          simp at hp_mem
-        rw [keyOracle_perm_iff p hab]
-        exact decide_eq_false hnotlt
-      rw [hor] at hq
+      rw [hstep, keyOracle_perm_iff p hab, decide_eq_false hnotlt] at hq
       omega
     · refine msfTreeOfFreeM_depth_le (cont true) P D hP fun p hp => ?_
+      have hlt : (p a).val < (p b).val := by_contra fun hnot =>
+        Finset.notMem_empty p (hPr ▸ Finset.mem_filter.mpr ⟨hp, hnot⟩)
       have hq := hD p hp
-      rw [hstep] at hq
-      have hor : LEQuery.keyOracle p (.le a b) = true := by
-        have hlt : (p a).val < (p b).val := by
-          by_contra hnot
-          have hp_mem : p ∈ permFilterGe P a b := Finset.mem_filter.mpr ⟨hp, hnot⟩
-          rw [hPr] at hp_mem
-          simp at hp_mem
-        rw [keyOracle_perm_iff p hab]
-        exact decide_eq_true hlt
-      rw [hor] at hq
+      rw [hstep, keyOracle_perm_iff p hab, decide_eq_true hlt] at hq
       omega
     · obtain ⟨p0, hp0⟩ := hP
-      have hq0 := hD p0 hp0
-      rw [hstep] at hq0
-      have hPl_ne : (permFilterLt P a b).Nonempty := Finset.nonempty_iff_ne_empty.mpr hPl
-      have hPr_ne : (permFilterGe P a b).Nonempty := Finset.nonempty_iff_ne_empty.mpr hPr
-      have hL := msfTreeOfFreeM_depth_le (cont true) (permFilterLt P a b) (D - 1) hPl_ne
-        fun p hp => by
-          have hp' := Finset.mem_filter.mp hp
-          have hq := hD p hp'.1
-          rw [hstep] at hq
-          have hor : LEQuery.keyOracle p (.le a b) = true := by
-            rw [keyOracle_perm_iff p hab]
-            exact decide_eq_true hp'.2
-          rw [hor] at hq
+      have hq0 := hstep p0 ▸ hD p0 hp0
+      have hL := msfTreeOfFreeM_depth_le (cont true) (permFilterLt P a b) (D - 1)
+        (Finset.nonempty_iff_ne_empty.mpr hPl) fun p hp => by
+          obtain ⟨hpP, hlt⟩ := Finset.mem_filter.mp hp
+          have hq := hD p hpP
+          rw [hstep, keyOracle_perm_iff p hab, decide_eq_true hlt] at hq
           omega
-      have hR := msfTreeOfFreeM_depth_le (cont false) (permFilterGe P a b) (D - 1) hPr_ne
-        fun p hp => by
-          have hp' := Finset.mem_filter.mp hp
-          have hq := hD p hp'.1
-          rw [hstep] at hq
-          have hor : LEQuery.keyOracle p (.le a b) = false := by
-            rw [keyOracle_perm_iff p hab]
-            exact decide_eq_false hp'.2
-          rw [hor] at hq
+      have hR := msfTreeOfFreeM_depth_le (cont false) (permFilterGe P a b) (D - 1)
+        (Finset.nonempty_iff_ne_empty.mpr hPr) fun p hp => by
+          obtain ⟨hpP, hnotlt⟩ := Finset.mem_filter.mp hp
+          have hq := hD p hpP
+          rw [hstep, keyOracle_perm_iff p hab, decide_eq_false hnotlt] at hq
           omega
       dsimp only [MSFTree.depth]
       omega
