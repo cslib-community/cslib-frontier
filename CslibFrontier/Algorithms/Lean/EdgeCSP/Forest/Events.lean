@@ -118,9 +118,7 @@ theorem ancestry_nodes (hg : Grown sem f rs es) (v : V) :
   congr 1
   induction (es.ancestry v).walk.steps with
   | nil => rfl
-  | cons s ss ih =>
-    rcases s with ⟨a, b⟩
-    simp only [List.map_cons, List.zip_cons_cons, List.flatMap_cons, ih, inArc, Arc.copy]
+  | cons s ss ih => simp [ih, inArc, Arc.copy]
 
 /-- The path to a step's input is the exact ancestral prefix before that step. This uses
 actual parent reconstruction, including across copies of the same original constraint. -/
@@ -281,17 +279,14 @@ omit [DecidableEq V] in
 /-- A correctly stamped ancestry has one variable node and two nodes per step. -/
 theorem nodes_length (p : Ancestry F) (hl : p.times.length = p.walk.steps.length) :
     p.nodes.length = 2 * p.walk.steps.length + 1 := by
-  suffices ∀ ss : List ((Occurrence F × Occurrence F) × ℕ),
+  have hflat (ss : List ((Occurrence F × Occurrence F) × ℕ)) :
       (ss.flatMap fun ((a, b), t) => ([.inr (a.1, t), .inl b.var] : List (Node F))).length =
-        2 * ss.length by
-    simp only [nodes, List.length_cons, this, List.length_zip, hl, Nat.min_self]
-  intro ss
-  induction ss with
-  | nil => rfl
-  | cons s ss ih =>
-    rcases s with ⟨⟨a, b⟩, t⟩
-    simp only [List.flatMap_cons, List.cons_append, List.nil_append, List.length_cons, ih]
-    omega
+        2 * ss.length := by
+    induction ss with
+    | nil => rfl
+    | cons _ _ ih =>
+      simp only [List.flatMap_cons, List.cons_append, List.nil_append, List.length_cons, ih]; omega
+  simp only [nodes, List.length_cons, hflat, List.length_zip, hl, Nat.min_self]
 
 omit [DecidableEq V] in
 /-- Even node indices are exactly the endpoints of the corresponding walk prefixes. -/
@@ -350,41 +345,35 @@ variable {sem : Rel → List Bool → Bool} {f : OccurrenceLabeling F Bool} {m :
 /-- The executable common-node list is a prefix of both actual ancestral node lists. -/
 theorem commonNodes_prefix (m : Meeting F) :
     m.commonNodes.IsPrefix m.left.nodes ∧ m.commonNodes.IsPrefix m.right.nodes := by
-  have hp : ∀ (ls rs : List (Node F)),
+  suffices ∀ (ls rs : List (Node F)),
       (((ls.zip rs).takeWhile fun (a, b) => a == b).map Prod.fst).IsPrefix ls ∧
-      (((ls.zip rs).takeWhile fun (a, b) => a == b).map Prod.fst).IsPrefix rs := by
-    intro ls
-    induction ls with
-    | nil => intro rs; exact ⟨⟨[], rfl⟩, ⟨rs, rfl⟩⟩
-    | cons a ls ih =>
-      intro rs
-      cases rs with
-      | nil => exact ⟨⟨a :: ls, rfl⟩, ⟨[], rfl⟩⟩
-      | cons b rs =>
-        by_cases he : a = b
-        · subst b
-          obtain ⟨⟨xs, hxs⟩, ⟨ys, hys⟩⟩ := ih rs
-          exact ⟨⟨xs, by simpa using congrArg (List.cons a) hxs⟩,
-            ⟨ys, by simpa using congrArg (List.cons a) hys⟩⟩
-        · exact ⟨⟨a :: ls, by simp [he]⟩,
-            ⟨b :: rs, by simp [he]⟩⟩
-  exact hp _ _
+      (((ls.zip rs).takeWhile fun (a, b) => a == b).map Prod.fst).IsPrefix rs from this _ _
+  intro ls
+  induction ls with
+  | nil => exact fun rs => ⟨⟨[], rfl⟩, ⟨rs, rfl⟩⟩
+  | cons a ls ih =>
+    rintro (_ | ⟨b, rs⟩)
+    · exact ⟨⟨a :: ls, rfl⟩, ⟨[], rfl⟩⟩
+    · by_cases he : a = b
+      · subst b
+        obtain ⟨⟨xs, hxs⟩, ⟨ys, hys⟩⟩ := ih rs
+        exact ⟨⟨xs, by simpa using congrArg (List.cons a) hxs⟩,
+          ⟨ys, by simpa using congrArg (List.cons a) hys⟩⟩
+      · exact ⟨⟨a :: ls, by simp [he]⟩, ⟨b :: rs, by simp [he]⟩⟩
 
 /-- Every common node prefix is contained in the prefix selected by the extractor. -/
 theorem commonNodes_maximal (m : Meeting F) (ps : List (Node F))
     (hl : ps.IsPrefix m.left.nodes) (hr : ps.IsPrefix m.right.nodes) :
     ps.length ≤ m.commonNodes.length := by
-  have hh : ∀ (ps ls rs : List (Node F)), ps.IsPrefix ls → ps.IsPrefix rs →
-      ps.length ≤ (((ls.zip rs).takeWhile fun (a, b) => a == b).map Prod.fst).length := by
-    intro ps
-    induction ps with
-    | nil => intro ls rs _ _; exact Nat.zero_le _
-    | cons p ps ih =>
-      intro ls rs ⟨xs, hxs⟩ ⟨ys, hys⟩
-      rw [← hxs, ← hys]
-      have hh := ih (ps ++ xs) (ps ++ ys) ⟨xs, rfl⟩ ⟨ys, rfl⟩
-      simpa using Nat.add_le_add_right hh 1
-  exact hh _ _ _ hl hr
+  suffices ∀ (ps ls rs : List (Node F)), ps.IsPrefix ls → ps.IsPrefix rs →
+      ps.length ≤ (((ls.zip rs).takeWhile fun (a, b) => a == b).map Prod.fst).length from
+    this _ _ _ hl hr
+  intro ps
+  induction ps with
+  | nil => exact fun _ _ _ _ => Nat.zero_le _
+  | cons p ps ih =>
+    rintro _ _ ⟨xs, rfl⟩ ⟨ys, rfl⟩
+    simpa using Nat.add_le_add_right (ih (ps ++ xs) (ps ++ ys) ⟨xs, rfl⟩ ⟨ys, rfl⟩) 1
 
 /-- A copied constraint shared by the two ancestries lies inside their computed common
 prefix, with its complete root path. -/
@@ -466,15 +455,14 @@ theorem ancestor_at_common_index (m : Meeting F) {a : Node F}
   have hh : m.commonNodes[m.commonNodes.length - 1]? = some a :=
     List.getLast?_eq_getElem?.symm.trans ha
   have hside (ls : List (Node F)) : m.commonNodes.IsPrefix ls →
-      ls[m.commonNodes.length - 1]? = some a := fun ⟨_, he⟩ => by
-    rw [← he, List.getElem?_append_left hidx]
-    exact hh
+      ls[m.commonNodes.length - 1]? = some a := fun ⟨_, he⟩ =>
+    he ▸ (List.getElem?_append_left hidx).trans hh
   exact ⟨hside _ m.commonNodes_prefix.1, hside _ m.commonNodes_prefix.2⟩
 
 /-- The common-node computation finds an ancestor whenever the two roots agree. -/
 theorem ancestor?_isSome (m : Meeting F) (he : m.left.walk.start = m.right.walk.start) :
-    m.ancestor?.isSome := by
-  exact Option.isSome_iff_ne_none.mpr fun ha =>
+    m.ancestor?.isSome :=
+  Option.isSome_iff_ne_none.mpr fun ha =>
     m.commonNodes_ne_nil he (List.getLast?_eq_none_iff.mp ha)
 
 /-- A copied-constraint ancestor occurs before a step on each path. The `Option` branches
