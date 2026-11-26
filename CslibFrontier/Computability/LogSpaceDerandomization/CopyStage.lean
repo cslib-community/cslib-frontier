@@ -138,7 +138,7 @@ theorem cutoffCorrection_residual_dominates (hCf : ∀ x y, C x y ≤ f) (hf : 0
         cutoffCorrectionIter φ C (k + 1) * C) x y ≤
       (C - cutoffCorrectionIter φ C (k + 1) + cutoffCorrectionIter φ C (k + 1) * C) x y := by
   set F := cutoffCorrectionIter φ C k
-  set E := cutoffCorrectionIter φ C (k + 1)
+  set E := cutoffCorrectionIter φ C (k + 1) with hEdef
   set a := (C + F * C) x y
   set t := θ / (k + 1)
   have hk : (0 : ℝ) < k + 1 := by positivity
@@ -152,7 +152,7 @@ theorem cutoffCorrection_residual_dominates (hCf : ∀ x y, C x y ≤ f) (hf : 0
     Finset.sum_le_sum fun z _ =>
       mul_le_mul_of_nonneg_right (cutoffCorrectionIter_le_succ hC0 hφ0 hφm k x z) (hC0 z y)
   have hθa : E x y ≤ max (a - θ * f) 0 := by
-    rw [show E = cutoffCorrectionIter φ C (k + 1) from rfl, cutoffCorrectionIter_succ]
+    rw [hEdef, cutoffCorrectionIter_succ]
     exact hφθ y a
   have ht0 : 0 ≤ t := by positivity
   have ht1 : t ≤ 1 := by rw [div_le_one hk]; linarith
@@ -162,12 +162,8 @@ theorem cutoffCorrection_residual_dominates (hCf : ∀ x y, C x y ≤ f) (hf : 0
   have hmin : t * a ≤ a - E x y := by
     rcases le_max_iff.mp hθa with he | he <;> nlinarith
   have hcoef : θ / (2 * (k + 1)) = t / 2 := by simp only [t]; field_simp
-  have h1 : t / 2 * E x y ≤ t / 2 * a := mul_le_mul_of_nonneg_left hea (by positivity)
-  have h2 : t / 2 * ((E * C) x y - (F * C) x y) ≤ (E * C) x y - (F * C) x y :=
-    mul_le_of_le_one_left (by linarith) (by linarith)
-  have hadef : a = C x y + (F * C) x y := rfl
   rw [hcoef]
-  simp only [Matrix.add_apply, Matrix.sub_apply]
+  simp only [a, Matrix.add_apply, Matrix.sub_apply] at hea hmin ⊢
   nlinarith
 
 variable {A : Finset V}
@@ -372,15 +368,10 @@ theorem copyStage_mem_copyCover [DecidableEq V] {A O : Finset V}
   obtain ⟨⟨hr, hD⟩, hs⟩ := h
   have hxy := hA _ _ hD
   simp only [copyCover, mem_union, mem_product, mem_singleton, mem_erase, mem_univ, and_true]
-  constructor
-  · by_cases hi : a.2 = 0
-    · exact Or.inl ⟨hxy.1, hi⟩
-    · exact Or.inr ⟨hrO _ _ hi hr, hi⟩
-  · by_cases hj : b.2 = 0
-    · exact Or.inl ⟨hxy.2, hj⟩
-    · refine Or.inr ⟨hcolO a.1 b.1 ?_, hj⟩
-      by_contra hle
-      exact hs (by simp [copyFraction_of_eq_zero (hχ₀ _ (not_lt.mp hle)), hj])
+  refine ⟨(em (a.2 = 0)).imp (⟨hxy.1, ·⟩) fun hi => ⟨hrO _ _ hi hr, hi⟩,
+    (em (b.2 = 0)).imp (⟨hxy.2, ·⟩) fun hj => ⟨hcolO a.1 b.1 ?_, hj⟩⟩
+  by_contra hle
+  exact hs (by simp [copyFraction_of_eq_zero (hχ₀ _ (not_lt.mp hle)), hj])
 
 end Stage
 
@@ -476,8 +467,7 @@ theorem copyStage_rates (hC : C.IsStrictUpperTriangular) (hC0 : ∀ x y, 0 ≤ C
       (cutoffCorrection_residual_le_mul hC0 hφ0 hφθ hθf hCf hf.le hC1 k) hχ0 hχ1 hχ₁ hτ₁ hK,
     copyStage_mul_copyWeight hr0 hχ₀ fun x y h => (hbig x y h).1,
     copyStage_mem_copyCover (cutoffCorrection_residual_mem hφ0 hφθ hθf hA k) hrO hχ₀
-      fun x y h => (hbig x y h).2, ?_⟩
-  exact (card_copyCover_le A O).trans (by omega)
+      fun x y h => (hbig x y h).2, (card_copyCover_le A O).trans (by omega)⟩
 
 end Rates
 

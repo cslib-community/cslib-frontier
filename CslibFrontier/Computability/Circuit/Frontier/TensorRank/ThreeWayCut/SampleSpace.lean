@@ -64,11 +64,8 @@ private instance instIsProbabilityMeasure_blockMeasure :
 private theorem measurePreserving_dot2_unit {u : ℝ × ℝ} (hu : u.1 ^ 2 + u.2 ^ 2 = 1) :
     MeasurePreserving (dot2 u) gauss2 (gaussianReal 0 1) := by
   let v : EuclideanSpace ℝ (Fin 2) := WithLp.toLp 2 ![u.1, u.2]
-  have hv_norm : ‖v‖ = 1 := by
-    simp [EuclideanSpace.norm_eq, Fin.sum_univ_two, v, hu]
-  have hv_nn : ‖v‖₊ ^ 2 = 1 := by
-    ext
-    simp [hv_norm]
+  have hv_nn : ‖v‖₊ ^ 2 = 1 :=
+    Subtype.ext (by simp [EuclideanSpace.norm_eq, Fin.sum_univ_two, v, hu])
   have hmp3 : MeasurePreserving (fun x : EuclideanSpace ℝ (Fin 2) => ⟪v, x⟫)
       (stdGaussian (EuclideanSpace ℝ (Fin 2))) (gaussianReal 0 1) :=
     ⟨by fun_prop, by rw [stdGaussian_map_inner, hv_nn]⟩
@@ -111,18 +108,16 @@ private theorem measurePreserving_ortho2 {u₀ u₁ : ℝ × ℝ}
     (by ring : u₁.1 * p.1 + u₁.2 * p.2 = p.1 * u₁.1 + p.2 * u₁.2)]
 
 private theorem measurePreserving_rot120 : MeasurePreserving rot120 gauss2 gauss2 := by
-  have h := measurePreserving_ortho2 (u₀ := (-1 / 2, -√3 / 2)) (u₁ := (√3 / 2, -1 / 2))
+  convert measurePreserving_ortho2 (u₀ := (-1 / 2, -√3 / 2)) (u₁ := (√3 / 2, -1 / 2))
     (by ring_nf; rw [sq_sqrt (by norm_num)]; norm_num)
     (by ring_nf; rw [sq_sqrt (by norm_num)]; norm_num)
-    (by ring)
-  convert h using 1
+    (by ring) using 1
   funext p
   ext <;> (dsimp [rot120, dot2]; ring)
 
 private theorem measurePreserving_neg2 : MeasurePreserving neg2 gauss2 gauss2 := by
-  have h := measurePreserving_ortho2 (u₀ := (-1, 0)) (u₁ := (0, -1))
-    (by norm_num) (by norm_num) (by norm_num)
-  convert h using 1
+  convert measurePreserving_ortho2 (u₀ := (-1, 0)) (u₁ := (0, -1))
+    (by norm_num) (by norm_num) (by norm_num) using 1
   funext p
   ext <;> (dsimp [neg2, dot2]; ring)
 
@@ -132,9 +127,7 @@ private def shiftTie (τ : Fin 3 → ℝ) : Fin 3 → ℝ :=
 
 private theorem shiftTie_add_one (τ : Fin 3 → ℝ) (c : Fin 3) :
     shiftTie τ (c + 1) = τ c := by
-  dsimp [shiftTie]
-  congr 1
-  fin_cases c <;> decide
+  exact congrArg τ (by fin_cases c <;> decide)
 
 private theorem measurePreserving_shiftTie :
     MeasurePreserving shiftTie gaussTie gaussTie := by
@@ -201,8 +194,7 @@ private theorem gauss2_prod_det_eq_zero :
     (isClosed_eq (by fun_prop) continuous_const).measurableSet
   rw [Measure.prod_apply hSm]
   have ha0 : gauss2 {a : ℝ × ℝ | a.1 = 0} = 0 := by
-    have hset : {a : ℝ × ℝ | a.1 = 0} = ({0} : Set ℝ) ×ˢ (univ : Set ℝ) := by
-      ext ⟨a₀, a₁⟩; simp
+    have hset : {a : ℝ × ℝ | a.1 = 0} = ({0} : Set ℝ) ×ˢ univ := Set.ext fun _ => by simp
     rw [hset, gauss2, Measure.prod_prod, measure_singleton, zero_mul]
   refine (lintegral_eq_zero_iff (measurable_measure_prodMk_left hSm)).mpr ?_
   filter_upwards [compl_mem_ae_iff.mpr ha0] with a (ha : a.1 ≠ 0)
@@ -226,12 +218,10 @@ private theorem measureReal_pi_prod_det2_eq_zero {ι : Type*} [Fintype ι]
         det2 (⟪y₁, WithLp.toLp 2 g.1⟫, ⟪y₁, WithLp.toLp 2 g.2⟫)
           (⟪y₂, WithLp.toLp 2 g.1⟫, ⟪y₂, WithLp.toLp 2 g.2⟫) = 0} = 0 := by
   set ρ := ⟪y₁, y₂⟫
-  have hdiff_pos : 0 < ‖y₂ - y₁‖ ^ 2 :=
-    sq_pos_of_pos (norm_pos_iff.mpr (sub_ne_zero.mpr hne.symm))
-  have hdiff_eq : ‖y₂ - y₁‖ ^ 2 = 2 - 2 * ρ := by
-    rw [norm_sub_sq_real, hy₂, hy₁, real_inner_comm]
-    ring
-  have hρ_lt : ρ < 1 := by linarith only [hdiff_pos, hdiff_eq]
+  have hρ_lt : ρ < 1 := by
+    have hpos : 0 < ‖y₂ - y₁‖ ^ 2 := sq_pos_of_pos (norm_pos_iff.mpr (sub_ne_zero.mpr hne.symm))
+    rw [norm_sub_sq_real, hy₂, hy₁, real_inner_comm] at hpos
+    linarith only [hpos]
   set w := y₂ - ρ • y₁
   have hw_sq : ‖w‖ ^ 2 = 1 - ρ ^ 2 := by
     dsimp [w]
@@ -243,19 +233,12 @@ private theorem measureReal_pi_prod_det2_eq_zero {ι : Type*} [Fintype ι]
     nlinarith only [hρ_gt, hρ_lt, hw_sq]
   let u₂ : EuclideanSpace ℝ ι := ‖w‖⁻¹ • w
   have hu₂_norm : ‖u₂‖ = 1 := by
-    dsimp [u₂]
     rw [norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ hw_pos.ne']
   have hy₁u₂ : ⟪y₁, u₂⟫ = 0 := by
-    dsimp [u₂, w]
-    rw [real_inner_smul_right, inner_sub_right, real_inner_smul_right, real_inner_self_eq_norm_sq,
-      hy₁]
-    change ‖w‖⁻¹ * (ρ - ρ * 1 ^ 2) = 0
-    ring
+    simp [u₂, w, ρ, real_inner_smul_right, inner_sub_right, hy₁]
   have hy₂_decomp (x : EuclideanSpace ℝ ι) :
       ⟪y₂, x⟫ = ρ * ⟪y₁, x⟫ + ‖w‖ * ⟪u₂, x⟫ := by
-    have hw_eq : y₂ = ρ • y₁ + ‖w‖ • u₂ := by
-      dsimp [u₂, w]
-      rw [smul_smul, mul_inv_cancel₀ hw_pos.ne', one_smul, add_sub_cancel]
+    have hw_eq : y₂ = ρ • y₁ + ‖w‖ • u₂ := by simp [u₂, w, smul_smul, hw_pos.ne']
     conv_lhs => rw [hw_eq]
     rw [inner_add_left, real_inner_smul_left, real_inner_smul_left]
   let u : Fin 2 → EuclideanSpace ℝ ι := ![y₁, u₂]
@@ -270,9 +253,8 @@ private theorem measureReal_pi_prod_det2_eq_zero {ι : Type*} [Fintype ι]
     convert (measurePreserving_finTwoArrow (gaussianReal 0 1)).comp
       (MeasurePreserving.mk (by fun_prop) (stdGaussian_map_inner_pi hu_norm hu_orth)) using 1
     ext x <;> simp [proj, u]
-  have hmp_lp := (measurePreserving_toLp_pi_gaussianReal ι).prod
-    (measurePreserving_toLp_pi_gaussianReal ι)
-  have hmp_all := (hmp_single.prod hmp_single).comp hmp_lp
+  have hmp_all := (hmp_single.prod hmp_single).comp
+    ((measurePreserving_toLp_pi_gaussianReal ι).prod (measurePreserving_toLp_pi_gaussianReal ι))
   set S : Set ((ℝ × ℝ) × (ℝ × ℝ)) := {p | p.1.1 * p.2.2 - p.1.2 * p.2.1 = 0}
   have hSm : MeasurableSet S :=
     (isClosed_eq (by fun_prop) continuous_const).measurableSet

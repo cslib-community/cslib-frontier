@@ -108,35 +108,34 @@ private theorem writeHashParamsLoProg_spec {w U N dstMetaBase : ℕ} {s : Memory
     dsimp only [epochHashSpace, ReducedKWise.space, ReducedKWise.seedWords,
       ReducedKWise.tableWords, reducedTableWords, reducedLimbCount]
     rw [Nat.shiftLeft_eq, one_mul, ← two_mul]; ring
-  have heq0 : epochHashSpace U w N = hp 0 := by
-    change epochHashSpace U w N = hpSpace hp; rw [hpSpace_mk]
+  have heq0 : epochHashSpace U w N = hp 0 := (hpSpace_mk ..).symm
   have heq1 : 1 + reducedHalfLimbs t * 6 = hp 1 := by
     change _ = hpSeedWords hp
-    rw [hpSeedWords_mk]; dsimp only [ReducedKWise.seedWords, reducedLimbCount]; ring
+    rw [hpSeedWords_mk, ReducedKWise.seedWords, reducedLimbCount]; ring
   have heq2 : reducedHalfLimbs t * 6 = hp 2 := by
-    change _ = hpBotWords hp; rw [hpBotWords_mk]; dsimp only [reducedLimbCount]; ring
+    change _ = hpBotWords hp
+    rw [hpBotWords_mk, reducedLimbCount]; ring
   have heq3 : (1 <<< (epochQBits U N - 1)) - 1 = hp 3 := by
-    change _ = hpMaskM hp; rw [hpMaskM_mk, Nat.shiftLeft_eq, one_mul]
+    simpa only [Nat.shiftLeft_eq, one_mul] using (hpMaskM_mk ..).symm
   have heq4 : (epochQBits U N - 1) >>> 1 = hp 4 := by
-    change _ = hpHalfM hp; rw [hpHalfM_mk, Nat.shiftRight_eq_div_pow, pow_one]
+    simpa only [Nat.shiftRight_eq_div_pow, pow_one] using (hpHalfM_mk ..).symm
   have heq5 : (1 <<< ((epochQBits U N - 1) >>> 1)) - 1 = hp 5 := by
-    change _ = hpMaskH hp
-    rw [hpMaskH_mk, Nat.shiftRight_eq_div_pow, pow_one, Nat.shiftLeft_eq, one_mul]
+    simpa only [Nat.shiftRight_eq_div_pow, pow_one, Nat.shiftLeft_eq, one_mul] using
+      (hpMaskH_mk ..).symm
   have heq6 : (1 <<< ((epochQBits U N - 1) - ((epochQBits U N - 1) >>> 1))) - 1 = hp 6 := by
-    change _ = hpMaskMH hp
-    rw [hpMaskMH_mk, Nat.shiftRight_eq_div_pow, pow_one, Nat.shiftLeft_eq, one_mul]
+    simpa only [Nat.shiftRight_eq_div_pow, pow_one, Nat.shiftLeft_eq, one_mul] using
+      (hpMaskMH_mk ..).symm
   have heq7 : (1 <<< ((epochQBits U N - 1) -
       (((epochQBits U N - 1) >>> 1) + ((epochQBits U N - 1) >>> 1)))) - 1 = hp 7 := by
-    change _ = hpMaskM2H hp
-    rw [hpMaskM2H_mk, Nat.shiftRight_eq_div_pow, pow_one, Nat.shiftLeft_eq, one_mul, two_mul]
-  have heq8 : epochQBits U N - min (epochQBits U N) (3 * epochHashB N) = hp 8 := by
-    change _ = hpRemShift hp; rw [hpRemShift_mk]
-  have heq9 : reducedChunkBits t = hp 9 := by
-    change _ = hpC hp; rw [hpC_mk]
+    simpa only [Nat.shiftRight_eq_div_pow, pow_one, Nat.shiftLeft_eq, one_mul, two_mul] using
+      (hpMaskM2H_mk ..).symm
+  have heq8 : epochQBits U N - min (epochQBits U N) (3 * epochHashB N) = hp 8 :=
+    (hpRemShift_mk ..).symm
+  have heq9 : reducedChunkBits t = hp 9 := (hpC_mk ..).symm
   have heq10 : (1 <<< reducedChunkBits t) - 1 = hp 10 := by
-    change _ = hpMaskC hp; rw [hpMaskC_mk, Nat.shiftLeft_eq, one_mul]
-  have heq11 : reducedChunkBits t + reducedChunkBits t = hp 11 := by
-    change _ = hpTwoC hp; rw [hpTwoC_mk]; ring
+    simpa only [Nat.shiftLeft_eq, one_mul] using (hpMaskC_mk ..).symm
+  have heq11 : reducedChunkBits t + reducedChunkBits t = hp 11 :=
+    (two_mul _).symm.trans (hpTwoC_mk ..).symm
   set p01 := writeBlock4Prog (dstMetaBase + 8, ((hp 0, hp 1), (hp 2, hp 3))) >>= fun _ =>
     writeBlock4Prog (dstMetaBase + 8 + 4, ((hp 4, hp 5), (hp 6, hp 7)))
   set s2 := (Memory.spec 0).clientState s p01
@@ -165,8 +164,8 @@ private theorem writeHashParamsLoProg_spec {w U N dstMetaBase : ℕ} {s : Memory
       StateTransitionSpec.clientState_pure]
   refine ⟨⟨U, N, dstMetaBase, hw, hN, hNU, hU, rfl, rfl, rfl, rfl, rfl, rfl, h27, hfit_dst⟩,
     ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · rw [hprog_eq, validHistory_bind']; refine ⟨hv01, ?_⟩
-    rw [validHistory_bind']; exact ⟨hv2, trivial⟩
+  · rw [hprog_eq, validHistory_bind']
+    exact ⟨hv01, (validHistory_bind' ..).mpr ⟨hv2, trivial⟩⟩
   · rw [hprog_eq, prog_clientResult_bind, prog_clientResult_bind, prog_clientResult_pure]
   · rw [hs'_eq, hfr2, hfr01]
   · intro j hj
@@ -181,9 +180,7 @@ private theorem writeHashParamsLoProg_spec {w U N dstMetaBase : ℕ} {s : Memory
     rw [hs'_eq, hframe2 a (by omega), hframe01 a (by omega)]
   · rw [hprog_eq, Realization.memoryCost_bind', hc01, Realization.memoryCost_bind',
       memoryCost_pure]
-    change 8 + (memoryCost (writeBlock4Prog (dstMetaBase + 8 + 8, ((hp 8, hp 9), (hp 10, hp 11))))
-      s2 + 0) = 12
-    rw [hc2]
+    exact congrArg (8 + ·) hc2
 
 private theorem realizesBounded_writeHashParamsLo :
     RealizesBounded .exact writeHashParamsLoProg
@@ -284,19 +281,15 @@ private theorem writeHashParamsHiProg_spec {w U N dstMetaBase : ℕ} {s : Memory
   have hhp := fits_epoch_mkHashParams hw hN hNU hU hfit_dst
   set hp := mkHashParams w (epochQBits U N) (epochHashB N) (totalMicroBits N) 3
   have heq12 : 1 <<< (reducedChunkBits t + reducedChunkBits t) = hp 12 := by
-    change _ = hpPow2C hp; rw [hpPow2C_mk, Nat.shiftLeft_eq, one_mul, two_mul]
+    simpa only [Nat.shiftLeft_eq, one_mul, two_mul] using (hpPow2C_mk ..).symm
   have heq13 : (1 <<< (reducedChunkBits t + reducedChunkBits t)) - 1 = hp 13 := by
-    change _ = hpMask2C hp; rw [hpMask2C_mk, Nat.shiftLeft_eq, one_mul, two_mul]
-  have heq14 : reducedPackShift t w = hp 14 := by
-    change _ = hpP hp; rw [hpP_mk]
+    simpa only [Nat.shiftLeft_eq, one_mul, two_mul] using (hpMask2C_mk ..).symm
+  have heq14 : reducedPackShift t w = hp 14 := (hpP_mk ..).symm
   have heq15 : (1 <<< reducedPackShift t w) - 1 = hp 15 := by
-    change _ = hpMaskP hp; rw [hpMaskP_mk, Nat.shiftLeft_eq, one_mul]
-  have heq16 : reducedHalfLimbs t = hp 16 := by
-    change _ = hpL0 hp; rw [hpL0_mk]
-  have heq17 : 3 = hp 17 := by
-    change _ = hpK hp; rw [hpK_mk]
-  have heq18 : Nat.log 2 N = hp 18 := by
-    change _ = hpB' hp; rw [hpB'_mk]; exact (totalMicroBits_eq_log N).symm
+    simpa only [Nat.shiftLeft_eq, one_mul] using (hpMaskP_mk ..).symm
+  have heq16 : reducedHalfLimbs t = hp 16 := (hpL0_mk ..).symm
+  have heq17 : 3 = hp 17 := (hpK_mk ..).symm
+  have heq18 : Nat.log 2 N = hp 18 := (totalMicroBits_eq_log N).symm.trans (hpB'_mk ..).symm
   obtain ⟨_, hv0, hfr0, hm0, hframe0, hc0⟩ :=
     writeBlock4Prog_spec (dstMetaBase + 8 + 12) (hp 12) (hp 13) (hp 14) (hp 15) (s := s)
       (by omega) (hfit27.of_le (by omega)) (hhp 12) (hhp 13) (hhp 14) (hhp 15)
@@ -330,9 +323,7 @@ private theorem writeHashParamsHiProg_spec {w U N dstMetaBase : ℕ} {s : Memory
       | (rw [hframe1 _ (by omega)]; first | exact m00 | exact m01 | exact m02 | exact m03)
   · intro a ha
     rw [hs'_eq, hframe1 a (by omega), hframe0 a (by omega)]
-  · rw [hprog_eq, Realization.memoryCost_bind']
-    change memoryCost (writeBlock4Prog _) s + memoryCost (writeBlock3Prog _) s1 = 7
-    rw [hc0, hc1]
+  · rw [hprog_eq, Realization.memoryCost_bind', hc0, hc1]
 
 private theorem realizesBounded_writeHashParamsHi :
     RealizesBounded .exact writeHashParamsHiProg
@@ -418,36 +409,23 @@ theorem writeHashParamsSubProg_props {w U N hdrBase dstMetaBase : ℕ} {s : Memo
   set s1 := (Memory.spec 0).clientState s (writeHashParamsLoProg d_lo)
   obtain ⟨_, hv_hi, hfr_hi, hmem_hi, hframe_hi, hc_hi⟩ :=
     writeHashParamsHiProg_spec (s := s1) hw hN hNU hU (hfr_lo.symm ▸ h27) hfit_dst
-  set d_hi := ((dstMetaBase + 8, reducedChunkBits t),
-    (reducedHalfLimbs t, (reducedPackShift t w, Nat.log 2 N)))
-  set s2 := (Memory.spec 0).clientState s1 (writeHashParamsHiProg d_hi)
-  have hs_final : (Memory.spec 0).clientState s (writeHashParamsSubProg d) = s2 := by
-    dsimp only [d, writeHashParamsSubProg]
-    rw [StateTransitionSpec.clientState_bind, hst_core, hres_core]
-    dsimp only
-    rw [StateTransitionSpec.clientState_bind, hres_lo, StateTransitionSpec.clientState_bind,
-      StateTransitionSpec.clientState_pure]
-  rw [hs_final]
   dsimp only [d, writeHashParamsSubProg, offHashParams, offCompParams]
-  rw [validHistory_bind', prog_clientResult_bind, Realization.memoryCost_bind', hst_core,
-    hres_core]
+  rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
+    Realization.memoryCost_bind', hst_core, hres_core]
   dsimp only
-  rw [validHistory_bind', validHistory_bind', prog_clientResult_bind, prog_clientResult_bind,
-    prog_clientResult_pure, hres_lo, Realization.memoryCost_bind', Realization.memoryCost_bind',
-    memoryCost_pure]
-  refine ⟨⟨hv_core, hv_lo, hv_hi, trivial⟩, rfl, by rw [hfr_hi, hfr_lo], fun ⟨j, hj⟩ => ?_,
-    fun a ha => by rw [hframe_hi a (by omega), hframe_lo a (by omega)], ?_⟩
+  rw [validHistory_bind', validHistory_bind', StateTransitionSpec.clientState_bind,
+    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure,
+    prog_clientResult_bind, prog_clientResult_bind, prog_clientResult_pure, hres_lo,
+    Realization.memoryCost_bind', Realization.memoryCost_bind', memoryCost_pure]
+  refine ⟨⟨hv_core, hv_lo, hv_hi, trivial⟩, rfl, hfr_hi.trans hfr_lo, fun ⟨j, hj⟩ => ?_,
+    fun a ha => (hframe_hi a (by omega)).trans (hframe_lo a (by omega)), ?_⟩
   · dsimp only
     by_cases hj12 : j < 12
-    · rw [hframe_hi _ (by omega)]
-      exact hmem_lo j hj12
+    · exact (hframe_hi _ (by omega)).trans (hmem_lo j hj12)
     · have hhi := hmem_hi (j - 12) (by omega)
       rw [show dstMetaBase + 20 + (j - 12) = dstMetaBase + 8 + j by omega] at hhi
       exact hhi.trans (congrArg _ (Fin.ext (by dsimp only; omega)))
-  · change memoryCost (computeHashCoreProg _) s +
-      (memoryCost (writeHashParamsLoProg d_lo) s +
-        (memoryCost (writeHashParamsHiProg d_hi) s1 + 0)) ≤ _
-    omega
+  · rw [hc_lo, hc_hi]; omega
 
 /-- `writeHashParamsSubProg` compiles via `RealizesBounded .exact`. -/
 theorem realizesBounded_writeHashParamsSub :

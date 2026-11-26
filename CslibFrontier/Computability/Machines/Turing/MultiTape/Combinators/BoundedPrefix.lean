@@ -96,10 +96,10 @@ private lemma copyCappedCore_runFrom_walk
       rw [inputSymbolInner (cfg := cur) (u₀.length + m) (by simp [cur, Nat.add_assoc])
         (by rw [List.length_append]; omega)]
       simp [List.getElem_append_right]
-    have hwork0 : (tapeOfList (List.replicate N true) (m : ℤ)) = some true := by
-      simp [tapeOfList_ofNat, hltN]
+    have hwork0 : cur.workTapeSymbols 0 = some true := by
+      simp [cur, Cfg.workTapeSymbols, tapeOfList_ofNat, hltN]
     change (copyCappedCore.tr () cur.inputSymbol cur.workTapeSymbols).apply cur = _
-    rw [copyCappedCore, tr_ofTr, hinp, show cur.workTapeSymbols 0 = some true from hwork0]
+    rw [copyCappedCore, tr_ofTr, hinp, hwork0]
     refine Cfg.ext rfl (Fin.ext ?_) (funext fun i => ?_) (funext fun i => ?_) (by simp [cur])
     · have hlenApp : (u₀ ++ raw).length = u₀.length + raw.length := List.length_append
       have hinpPos : (↑(1 + u₀.length + m) + (1 : ℤ)).toNat = 1 + u₀.length + (m + 1) := by omega
@@ -211,8 +211,7 @@ private lemma transformsWordsAt_appendPrefixTM (u₀ raw : List Bool) (N : ℕ) 
           fun _ => ((u₀ ++ raw.take N).length : ℤ), out⟩ :=
       Cfg.ext rfl rfl (funext fun _ => rfl)
         (funext fun _ => by simp [oneTapeCfg, cfg₂, hlenOut]) rfl
-    rw [runFrom_tapeEmb,
-      show u₀.length + min N raw.length + 2 = (u₀ ++ raw.take N).length + 2 by omega, h1,
+    rw [runFrom_tapeEmb, ← hlenOut, h1,
       runFrom_rewindWork_none pEnd (tapeOfList (u₀ ++ raw.take N)) out rfl le_rfl, embed_tapeEmb]
     refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;> fin_cases i <;>
       simp [cfg₂, cfg₃, Cfg.withState]
@@ -487,22 +486,19 @@ private lemma embV_input (kU kC kV : ℕ) :
 private lemma embU_val_ne_zero (kU kC kV : ℕ) (j : Fin (kU + 1 + 2))
     (hj : j ≠ Fin.natAdd (kU + 1) 0) :
     (embU kU kC kV j).val ≠ 0 := by
-  change embUIdx kU j.val ≠ 0
-  unfold embUIdx
+  simp only [embU, embUIdx, Function.Embedding.coeFn_mk]
   split_ifs with h0 h1 h2 <;> first | omega | exact absurd (Fin.ext (by simp [h2])) hj
 
 private lemma embC_val_ge_two (kU kC kV : ℕ) (j : Fin (kC + 1 + 2))
     (hj : j ≠ Fin.natAdd (kC + 1) 0) :
     2 ≤ (embC kU kC kV j).val := by
-  change 2 ≤ embCIdx kU kC j.val
-  unfold embCIdx
+  simp only [embC, embCIdx, Function.Embedding.coeFn_mk]
   split_ifs with h0 h1 h2 <;> first | omega | exact absurd (Fin.ext (by simp [h2])) hj
 
 private lemma embV_val_ge_three (kU kC kV : ℕ) (j : Fin (kV + 2))
     (hj : j ≠ Fin.natAdd kV 0) :
     3 ≤ (embV kU kC kV j).val := by
-  change 3 ≤ embVIdx kU kC kV j.val
-  unfold embVIdx
+  simp only [embV, embVIdx, Function.Embedding.coeFn_mk]
   split_ifs with h0 h1 <;> first | omega | exact absurd (Fin.ext (by simp [h1])) hj
 
 end Helpers
@@ -559,10 +555,8 @@ theorem computableInTimeAndSpace_boundedPrefix
       ((2 * (2 * L + 1 + capBound L + 2 + 1)) + (2 * (capBound L + 2 + 1))) + (K - 2)) +
     (cV * (wBound L + 1) ^ dV + 2 * (wBound L + 2) + 2 * kV + 8 + (K - (kV + 2))))))
   refine ⟨K, _, inferInstance, M, tPoly, sPoly, ?_, ?_, fun p => ?_⟩
-  · dsimp only [tPoly, wBound, capBound]
-    fun_prop
-  · dsimp only [sPoly, wBound, capBound]
-    fun_prop
+  · dsimp only [tPoly, wBound, capBound]; fun_prop
+  · dsimp only [sPoly, wBound, capBound]; fun_prop
   · rcases p with ⟨a, raw⟩
     let u := encA a
     let N := cap a + 1
@@ -581,17 +575,16 @@ theorem computableInTimeAndSpace_boundedPrefix
     let p₂ : ℕ := p₁ + min N raw.length
     have hspec1 : TransformsWordsAt m1 inp 1 p₁ ws₀ ws₁ []
         (2 * (frame u).length + 4) ((frame u).length + 2 + (K - 1)) := by
-      have hr := transformsTapesAt_appendRead frameStopReader tV inp ⟨1, by simp⟩ (by simp) []
       have hread : frameStopReader.read frameStopReader.q₀ (inp.drop (1 - 1)) =
           (frame u, (frame u).length) := by
         simpa [frameStopReader, hinp] using read_frameStopReader u raw
-      have hwords := hr.wordsAt (p := 1) (p' := 1 + (frameStopReader.read frameStopReader.q₀
-          (inp.drop (1 - 1))).2) (ws := ws₀)
-        (ws' := Function.update ws₀ tV ([] ++ (frameStopReader.read frameStopReader.q₀
-          (inp.drop (1 - 1))).1))
+      have hwords := (transformsTapesAt_appendRead frameStopReader tV inp ⟨1, by simp⟩
+        (by simp) []).wordsAt (p := 1)
+        (p' := 1 + (frameStopReader.read frameStopReader.q₀ (inp.drop (1 - 1))).2) (ws := ws₀)
+        (ws' := Function.update ws₀ tV
+          ([] ++ (frameStopReader.read frameStopReader.q₀ (inp.drop (1 - 1))).1))
         (e := []) (fun q hq => ⟨rfl, hq, by simp [ws₀]⟩) (fun _ _ _ _ _ hQ => hQ)
-      have hwords' := hwords.congr rfl (by rw [hread]) rfl (by rw [hread]) rfl
-      refine hwords'.mono ?_ ?_
+      refine (hwords.congr rfl (by rw [hread]) rfl (by rw [hread, List.nil_append]) rfl).mono ?_ ?_
       · simp only [hread, List.nil_append, List.length_nil, Nat.zero_add]; omega
       · simp only [hread, List.nil_append, le_rfl]
     have hspec2 : TransformsWordsAt m2 inp p₁ p₁ ws₁ ws₂ []
@@ -600,10 +593,8 @@ theorem computableInTimeAndSpace_boundedPrefix
           (K - (kU + 1 + 2))) := by
       have hslice := onWords_onSlice true (tm := tmU) (input := frame u) (output := u)
         (by simpa [unframe_frame] using htmU (frame u)) (embU kU kC kV) (ws := ws₁)
-        (fun j hj => by
-          have hneV : embU kU kC kV j ≠ tV :=
-            Fin.ne_of_val_ne (embU_val_ne_zero kU kC kV j hj)
-          simp [ws₁, ws₀, Function.update_of_ne hneV])
+        (fun j hj => by simp [ws₁, ws₀,
+          Function.update_of_ne (Fin.ne_of_val_ne (embU_val_ne_zero kU kC kV j hj) : _ ≠ tV)])
         (by simp [embU_input, ws₁, tV])
       have hW := hslice.words (fun _ => rfl) (fun _ _ _ ⟨hv, he⟩ =>
         ⟨by simpa [ws₂, tU, embU_output] using hv, he⟩)
@@ -644,9 +635,8 @@ theorem computableInTimeAndSpace_boundedPrefix
         fin_cases j
         · simpa [embCopy, ws₄, ws₃, tCap, tV, Function.update_apply, encUnary_apply] using hj
         · simpa [embCopy, ws₄, tV, Function.update_apply] using hj
-      · rw [hx l hl]
-        have hneV : l ≠ tV := fun h => hl ⟨1, by simp [embCopy, h, tV]⟩
-        simp [ws₄, Function.update_of_ne hneV]
+      · have hneV : l ≠ tV := fun h => hl ⟨1, by simp [embCopy, h, tV]⟩
+        simp [ws₄, Function.update_of_ne hneV, hx l hl]
     have hspec5 : TransformsWordsAt m5 inp p₂ p₂ ws₄ ws₄
         (encB (f (a, raw.take N)))
         (cV * ((frame u ++ raw.take N).length + 1) ^ dV + 4)
@@ -671,17 +661,14 @@ theorem computableInTimeAndSpace_boundedPrefix
     have hmin : min N raw.length ≤ capBound L := (min_le_left _ _).trans hNle
     have hW : (frame u ++ raw.take N).length ≤ wBound L := by
       simp only [List.length_append, hlenFrame, List.length_take, wBound]; omega
-    have hpow : cV * ((frame u ++ raw.take N).length + 1) ^ dV ≤ cV * (wBound L + 1) ^ dV := by
-      gcongr
+    have hpow := Nat.mul_le_mul_left cV (Nat.pow_le_pow_left (Nat.add_le_add_right hW 1) dV)
     have ht_le : (2 * (frame u).length + 4) +
         ((cU * ((frame u).length + 1) ^ dU + L + 6) +
         ((cC * (L + 1) ^ dC + (encUnary N).length + 6) +
         ((((frame u).length + 1) + (min N raw.length + 1) +
           (((frame u).length + min N raw.length + 2) + (min N raw.length + 2))) +
         (cV * ((frame u ++ raw.take N).length + 1) ^ dV + 4)))) ≤ tPoly L := by
-      dsimp only [tPoly, wBound, capBound] at hlen1 hmin hW hpow ⊢
-      rw [hlenFrame]
-      omega
+      simp only [tPoly, wBound, capBound, hlenFrame] at hlen1 hmin hW hpow ⊢; omega
     have hs_le : ((frame u).length + 2 + (K - 1)) +
         ((cU * ((frame u).length + 1) ^ dU + 2 * (frame u).length + 2 * L + 3 * kU + 18 +
           (K - (kU + 1 + 2))) +
@@ -692,9 +679,7 @@ theorem computableInTimeAndSpace_boundedPrefix
             (2 * (min N raw.length + 2 + 1))) + (K - 2)) +
         (cV * ((frame u ++ raw.take N).length + 1) ^ dV +
           2 * ((frame u ++ raw.take N).length + 2) + 2 * kV + 8 + (K - (kV + 2)))))) ≤ sPoly L := by
-      dsimp only [sPoly, wBound, capBound] at hlen1 hmin hW hpow ⊢
-      rw [hlenFrame]
-      omega
+      simp only [sPoly, wBound, capBound, hlenFrame] at hlen1 hmin hW hpow ⊢; omega
     obtain ⟨p', ws', _, hrun, ⟨_, _, _, rfl⟩, hspace⟩ :=
       (hcomp.mono ht_le hs_le) inp 1 ws₀ [] ⟨rfl, rfl, rfl⟩
     obtain ⟨rp, hrpHead, hrpLast, hrpLen, hrpSpace⟩ := (exists_runPath_iff_runFrom rfl).mpr

@@ -118,8 +118,7 @@ theorem monotone_iff_forall_update_le [Finite ι] [DecidableEq ι] {β : Type*} 
     have hlt := hc.lt
     revert hlt
     cases a i <;> cases c <;> decide
-  have := h a i
-  rwa [update_eq_self_iff.2 ha.symm] at this
+  simpa [(update_eq_self_iff (f := a) (a := i)).2 ha.symm] using h a i
 
 variable [DecidableEq ι]
 
@@ -147,9 +146,7 @@ theorem monotone_iff_forall_violatedEdges_eq_empty {f : (ι → Bool) → Bool} 
   refine ⟨fun h i => eq_empty_iff_forall_notMem.2 fun x hx => ?_,
     fun h x i => by_contra fun hlt => ?_⟩
   · obtain ⟨hxi, h1, h2⟩ := mem_violatedEdges.1 hx
-    have := h x i
-    rw [update_eq_self_iff.2 hxi.symm, h1, h2] at this
-    exact absurd this (by decide)
+    simpa [(update_eq_self_iff (f := x) (a := i)).2 hxi.symm, h1, h2, Bool.le_iff_imp] using h x i
   · have h1 : f (update x i false) = true ∧ f (update x i true) = false := by
       revert hlt; cases f (update x i false) <;> cases f (update x i true) <;> decide
     exact notMem_empty _ (h i ▸ mem_violatedEdges.2 ⟨update_self .., by simpa using h1⟩)
@@ -220,9 +217,7 @@ variable [Fintype ι]
 private theorem mem_violatedEdges_iff_viol {f : (ι → Bool) → Bool} {i : ι} {x : ι → Bool} :
     x ∈ violatedEdges f i ↔ x i = false ∧ Viol f i x := by
   rw [mem_violatedEdges, Viol]
-  exact and_congr_right fun hx => by
-    have h : update x i false = x := update_eq_self_iff.2 hx.symm
-    rw [h]
+  exact and_congr_right fun hx => by rw [(update_eq_self_iff (f := x) (a := i)).2 hx.symm]
 
 /-- Each violated edge has two endpoints. -/
 private theorem card_viol (f : (ι → Bool) → Bool) (i : ι) :
@@ -231,9 +226,8 @@ private theorem card_viol (f : (ι → Bool) → Bool) (i : ι) :
     (fun x => if x i = false ∧ Viol f i x then (1 : ℕ) else 0)
   simp only [update_self, viol_update, true_and, Bool.true_eq_false, false_and,
     ↓reduceIte, add_zero] at h
-  have he : violatedEdges f i = univ.filter fun x => x i = false ∧ Viol f i x := by
-    ext x
-    simp [mem_violatedEdges_iff_viol]
+  have he : violatedEdges f i = univ.filter fun x => x i = false ∧ Viol f i x :=
+    Finset.ext fun _ => by simp [mem_violatedEdges_iff_viol]
   rw [he, card_filter, card_filter, h, two_mul]
 
 /-- The endpoints of the violated edges in direction `i`, the points `x` such that `f` decreases
@@ -357,23 +351,17 @@ theorem card_violatedEdges_le_distMonotone (f : (ι → Bool) → Bool) (i : ι)
     simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq]
     split_ifs with h
     · exact h
-    · push Not at h
-      intro heq
-      have hmono := hg (update_le_update_iff'.2 (Bool.false_le true) :
-        update x i false ≤ update x i true)
-      rw [update_eq_self_iff.2 hxi.symm, ← h, h1, ← heq, h2] at hmono
-      exact absurd hmono (by decide)
+    · intro heq
+      simpa [(update_eq_self_iff (f := x) (a := i)).2 hxi.symm, ← not_ne_iff.1 h, h1, ← heq, h2,
+        Bool.le_iff_imp] using
+        hg (update_le_update_iff'.2 (Bool.false_le true) : update x i false ≤ update x i true)
   · intro x hx y hy hxy
     rw [mem_coe, mem_violatedEdges] at hx hy
     dsimp only at hxy
     split_ifs at hxy with h1 h2 h2
     · exact hxy
-    · have hi := congrFun hxy i
-      rw [hx.1, update_self] at hi
-      exact Bool.noConfusion hi
-    · have hi := congrFun hxy i
-      rw [hy.1, update_self] at hi
-      exact Bool.noConfusion hi
+    · exact absurd (congrFun hxy i) (by simp [hx.1])
+    · exact absurd (congrFun hxy i) (by simp [hy.1])
     · have := congrArg (fun z => update z i false) hxy
       simp only [update_idem] at this
       rwa [update_eq_self_iff.2 hx.1.symm, update_eq_self_iff.2 hy.1.symm] at this

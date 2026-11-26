@@ -226,9 +226,8 @@ private def HgArgminOK (s : HgState n) (S : List (Fin n)) (b : Option (Fin n)) :
     ∀ k, b = some k → vget s.used k = false ∧ ∀ j ∈ S, vget s.used j = false →
       vget s.minv k ≤ vget s.minv j
 
-private theorem hgArgminOK_nil (s : HgState n) : HgArgminOK s [] none := by
-  unfold HgArgminOK
-  simp
+private theorem hgArgminOK_nil (s : HgState n) : HgArgminOK s [] none :=
+  ⟨by simp, by simp⟩
 
 private theorem hgArgmin_foldl (s : HgState n) (l : List (Fin n)) :
     ∀ (S : List (Fin n)) (b : Option (Fin n)), HgArgminOK s S b →
@@ -237,21 +236,17 @@ private theorem hgArgmin_foldl (s : HgState n) (l : List (Fin n)) :
   | nil => intro S b h; simpa using h
   | cons x l ih =>
     intro S b h
-    rw [List.foldl_cons, show S ++ x :: l = (S ++ [x]) ++ l by simp]
+    rw [List.foldl_cons, ← List.singleton_append, ← List.append_assoc]
     apply ih
     unfold HgArgminOK at h
     unfold hgArgminStep
     by_cases hx : vget s.used x = true
     · rw [ite_eq_left hx]
-      refine ⟨fun hb j hj => ?_, fun k hk => ?_⟩
-      · rcases List.mem_append.mp hj with hj | hj
-        · exact h.1 hb j hj
-        · exact List.mem_singleton.mp hj ▸ hx
-      · obtain ⟨hk1, hk2⟩ := h.2 k hk
-        refine ⟨hk1, fun j hj hju => ?_⟩
-        rcases List.mem_append.mp hj with hj | hj
-        · exact hk2 j hj hju
-        · exact absurd ((List.mem_singleton.mp hj ▸ hju).symm.trans hx) Bool.noConfusion
+      refine ⟨fun hb j hj => (List.mem_append.mp hj).elim (h.1 hb j)
+          (fun hj => List.mem_singleton.mp hj ▸ hx), fun k hk => ?_⟩
+      obtain ⟨hk1, hk2⟩ := h.2 k hk
+      refine ⟨hk1, fun j hj hju => (List.mem_append.mp hj).elim (hk2 j · hju) fun hj => ?_⟩
+      exact (Bool.false_ne_true ((List.mem_singleton.mp hj ▸ hju).symm.trans hx)).elim
     · rw [ite_eq_right hx]
       have hx' : vget s.used x = false := Bool.eq_false_iff.mpr hx
       have hsome (m : Fin n) (hm : vget s.used m = false)
@@ -259,10 +254,8 @@ private theorem hgArgmin_foldl (s : HgState n) (l : List (Fin n)) :
           (hmx : vget s.minv m ≤ vget s.minv x) : HgArgminOK s (S ++ [x]) (some m) := by
         refine ⟨(fun hb => nomatch hb), fun k hk => ?_⟩
         cases hk
-        refine ⟨hm, fun j hj hju => ?_⟩
-        rcases List.mem_append.mp hj with hj | hj
-        · exact hS j hj hju
-        · exact List.mem_singleton.mp hj ▸ hmx
+        exact ⟨hm, fun j hj hju => (List.mem_append.mp hj).elim (hS j · hju)
+          fun hj => List.mem_singleton.mp hj ▸ hmx⟩
       cases b with
       | none =>
         exact hsome x hx' (fun j hj hju =>
@@ -420,11 +413,10 @@ variable {r : Fin n} {y z : Vector ℤ n} {mate : Vector (Option (Fin n)) n}
 theorem HgInv.tree_iff_used (h : HgInv c r y z mate used tree minv path) {i j : Fin n}
     (hm : vget mate j = some i) : vget tree i = true ↔ vget used j = true := by
   rw [h.tree_iff]
-  constructor
-  · rintro (rfl | ⟨j', hj', hm'⟩)
-    · exact absurd hm (h.root_free j)
-    · rwa [mate_inj h.matching hm hm']
-  · exact fun hj => .inr ⟨j, hj, hm⟩
+  refine ⟨?_, fun hj => .inr ⟨j, hj, hm⟩⟩
+  rintro (rfl | ⟨j', hj', hm'⟩)
+  · exact absurd hm (h.root_free j)
+  · rwa [mate_inj h.matching hm hm']
 
 theorem HgInv.minv_nonneg (h : HgInv c r y z mate used tree minv path) {j : Fin n}
     (hj : vget used j = false) : 0 ≤ vget minv j := by
@@ -470,8 +462,7 @@ theorem hgInv_dual {r : Fin n} {s : HgState n}
     omega
   · rw [hgRed_dual, h.tight i j hm, if_congr (h.tree_iff_used hm) rfl rfl]
     split_ifs <;> omega
-  · rw [hgDual_minv, hgRed_dual, ite_eq_left hi, hj, ite_eq_right Bool.false_ne_true,
-      ite_eq_right Bool.false_ne_true]
+  · simp only [hgDual_minv, hgRed_dual, hi, hj, ↓reduceIte, Bool.false_eq_true]
     have := h.minv_le i j hi hj
     omega
   · have hp := h.path_ok j
@@ -483,9 +474,8 @@ theorem hgInv_dual {r : Fin n} {s : HgState n}
       rw [hgRed_dual, h2, ite_eq_left het, hgDual_minv, h1]
       split_ifs <;> omega
     · obtain ⟨h1, h2⟩ := hp.tail e he
-      have het := hp.tree e (List.mem_of_mem_tail he)
       refine ⟨?_, h2⟩
-      rw [hgRed_dual, h1, ite_eq_left het, ite_eq_left h2]
+      rw [hgRed_dual, h1, ite_eq_left (hp.tree e (List.mem_of_mem_tail he)), ite_eq_left h2]
       omega
 
 theorem minv_dual_self (s : HgState n) {j₁ : Fin n} (hj₁ : vget s.used j₁ = false) :
@@ -593,38 +583,25 @@ theorem hgInv_extend {r : Fin n} {s : HgState n}
   · simp only [vget_vset_true, h.tree_iff, or_and_right, exists_or, exists_eq_left, hm,
       Option.some.injEq, @eq_comm _ i₀ i]
     exact or_left_comm
-  · have hjj : j ≠ j₁ := by
-      rintro rfl
-      simp at hj
-    rw [hgRelax_minv]
-    dsimp only
-    rw [hj, ite_eq_right Bool.false_ne_true]
+  · have hjj : j ≠ j₁ := fun hjj => by simp [hjj] at hj
+    simp only [hgRelax_minv, hj, Bool.false_eq_true, ↓reduceIte]
     rcases vget_vset_true.mp hi with rfl | hi
     · exact min_le_right _ _
     · exact (min_le_left _ _).trans (h.minv_le i j hi (by rwa [← hU' j hjj]))
   · rw [hgRelax_path]
     dsimp only
     split_ifs with hc
-    · have hjj : j ≠ j₁ := by
-        rintro rfl
-        simp at hc
+    · have hjj : j ≠ j₁ := fun hjj => by simp [hjj] at hc
       have hjs : vget s.used j = false := by rw [← hU' j hjj]; exact hc.1
       obtain ⟨b, l, hql⟩ := List.exists_cons_of_ne_nil hp₁.ne_nil
       refine ⟨List.cons_ne_nil _ _, fun e he => ?_, fun e he => ?_, ?_, ?_, ?_,
         fun e he => htight e he, fun e he => ?_⟩
-      · obtain rfl : (i₀, j) = e := by
-          simpa only [List.head?_cons, Option.mem_def, Option.some.injEq] using he
-        refine ⟨rfl, ?_⟩
-        rw [hgRelax_minv]
-        dsimp only
-        rw [hc.1, ite_eq_right Bool.false_ne_true, ite_eq_right Bool.false_ne_true]
-        exact (min_eq_right hc.2.le).symm
-      · rw [hql, List.getLast?_cons_cons, ← hql] at he
-        exact hp₁.last e he
+      · cases he
+        simp only [hgRelax_minv, hc.1, Bool.false_eq_true, ↓reduceIte]
+        exact ⟨trivial, (min_eq_right hc.2.le).symm⟩
+      · exact hp₁.last e (by rwa [hql, List.getLast?_cons_cons, ← hql] at he)
       · rw [hql]
-        refine List.IsChain.cons_cons ?_ (hql ▸ hp₁.chain)
-        rw [(hp₁.head b (by simp [hql])).1]
-        exact hm
+        exact List.IsChain.cons_cons ((hp₁.head b (by simp [hql])).1.symm ▸ hm) (hql ▸ hp₁.chain)
       · rw [List.map_cons, List.nodup_cons]
         refine ⟨fun hmem => ?_, hp₁.nodup_fst⟩
         obtain ⟨e, he, rfl⟩ := List.mem_map.mp hmem
@@ -635,9 +612,7 @@ theorem hgInv_extend {r : Fin n} {s : HgState n}
         rcases hp₁.mem_cases he with h1 | h1
         · exact hjj h1
         · exact Bool.false_ne_true (hjs.symm.trans h1)
-      · rcases List.mem_cons.mp he with rfl | he'
-        · exact vget_vset_true.mpr (.inl rfl)
-        · exact vget_vset_true.mpr (.inr (hp₁.tree e he'))
+      · exact vget_vset_true.mpr ((List.mem_cons.mp he).imp (congrArg Prod.fst) (hp₁.tree e))
     · have hp := h.path_ok j
       refine ⟨hp.ne_nil, fun e he => ?_, hp.last, hp.chain, hp.nodup_fst, hp.nodup_snd,
         fun e he => ?_, fun e he => vget_vset_true.mpr (.inr (hp.tree e he))⟩
@@ -690,18 +665,14 @@ theorem usedCount_vset {used : Vector Bool n} {j₁ : Fin n}
 
 theorem usedCount_all {used : Vector Bool n} (h : ∀ j, vget used j = true) :
     usedCount used = n := by
-  unfold usedCount
-  rw [Finset.filter_true_of_mem fun j _ => h j]
-  simp
+  simp [usedCount, Finset.filter_true_of_mem fun j _ => h j]
 
 theorem card_lt_of_root_free {mate : Vector (Option (Fin n)) n}
     (hM : IsMatching (fun _ => true) (mateMatching mate)) {r : Fin n}
     (hr : ∀ j, vget mate j ≠ some r) : (mateMatching mate).card < n := by
   rw [← card_matchedLeft hM]
-  have : r ∉ matchedLeft (mateMatching mate) := by
-    intro h
-    obtain ⟨v, hv⟩ := mem_matchedLeft.mp h
-    exact hr v (mem_mateMatching.mp hv)
+  have : r ∉ matchedLeft (mateMatching mate) := fun h =>
+    (mem_matchedLeft.mp h).elim fun v hv => hr v (mem_mateMatching.mp hv)
   simpa using Finset.card_lt_univ_of_notMem this
 
 theorem exists_free_col_of_root_free {mate : Vector (Option (Fin n)) n}
@@ -723,14 +694,12 @@ private theorem hgLoop_spec {r : Fin n} :
       HgOuter c (hgLoop c fuel s).y (hgLoop c fuel s).z (hgLoop c fuel s).mate ∧
         matchedLeft (mateMatching (hgLoop c fuel s).mate) =
           insert r (matchedLeft (mateMatching s.mate)) := by
-  intro fuel
-  induction fuel with
+  intro fuel s h hfuel
+  induction fuel generalizing s with
   | zero =>
-    intro s h hfuel
     have := usedCount_le h.matching h.used_mate
     omega
   | succ fuel ih =>
-    intro s h hfuel
     simp only [hgLoop]
     cases ha : hgArgmin s with
     | none =>
@@ -742,8 +711,7 @@ private theorem hgLoop_spec {r : Fin n} :
       obtain ⟨hj₁, hmin⟩ := hgArgmin_some ha
       have hD := hgInv_dual h hj₁ hmin
       have hz := minv_dual_self s hj₁
-      dsimp only
-      rw [hgDual_mate]
+      simp only [hgDual_mate]
       cases hm : vget s.mate j₁ with
       | none =>
         exact hgAugment hD hj₁ hz hm
@@ -762,18 +730,13 @@ theorem hgInv_init {y z : Vector ℤ n} {mate : Vector (Option (Fin n)) n} {r : 
   refine ⟨h.matching, h.feas, h.tight, fun j hj => hr ?_, fun j hj => ?_, fun i => ?_,
     fun i j hi _ => ?_, fun j => ?_⟩
   · exact mem_matchedLeft.mpr ⟨j, mem_mateMatching.mpr hj⟩
-  · rw [hgInit_used] at hj
-    exact absurd hj Bool.false_ne_true
+  · simp [hgInit_used] at hj
   · simp [hgInit_tree, hgInit_used]
   · rw [hgInit_tree, decide_eq_true_eq] at hi
-    subst hi
-    rw [hgInit_minv]
+    rw [hi, hgInit_minv]
   · rw [hgInit_path]
-    refine ⟨List.cons_ne_nil _ _, ?_, ?_, List.isChain_singleton _, by simp, by simp,
-      by simp, ?_⟩
-    · simp [hgInit_used, hgInit_minv]
-    · simp
-    · simp [hgInit_tree]
+    refine ⟨List.cons_ne_nil _ _, ?_, ?_, List.isChain_singleton _, ?_, ?_, ?_, ?_⟩ <;>
+      simp [hgInit_used, hgInit_minv, hgInit_tree]
 
 private theorem hgPhase_spec {y z : Vector ℤ n} {mate : Vector (Option (Fin n)) n} {r : Fin n}
     (h : HgOuter c y z mate) (hr : r ∉ matchedLeft (mateMatching mate)) :
@@ -783,9 +746,7 @@ private theorem hgPhase_spec {y z : Vector ℤ n} {mate : Vector (Option (Fin n)
   have hI := hgInv_init h hr
   have hlt := card_lt_of_root_free h.matching (r := r) (fun j hj => hr
     (mem_matchedLeft.mpr ⟨j, mem_mateMatching.mpr hj⟩))
-  have h0 : usedCount (hgInit c y z mate r).used = 0 := by
-    unfold usedCount
-    simp [hgInit_used]
+  have h0 : usedCount (hgInit c y z mate r).used = 0 := by simp [usedCount, hgInit_used]
   exact hgLoop_spec n _ hI (by rw [h0, hgInit_mate]; omega)
 
 private theorem hgRows_spec :
@@ -794,14 +755,11 @@ private theorem hgRows_spec :
       HgOuter c (hgRows c rows s).y (hgRows c rows s).z (hgRows c rows s).mate ∧
         matchedLeft (mateMatching (hgRows c rows s).mate) =
           rows.toFinset ∪ matchedLeft (mateMatching s.mate) := by
-  intro rows
-  induction rows with
+  intro rows s hnd h hfree
+  induction rows generalizing s with
   | nil =>
-    intro s _ h _
-    simp only [hgRows, List.toFinset_nil, Finset.empty_union, and_true]
-    exact h
+    simpa only [hgRows, List.toFinset_nil, Finset.empty_union, and_true] using h
   | cons r rs ih =>
-    intro s hnd h hfree
     rw [List.nodup_cons] at hnd
     obtain ⟨hO, hL⟩ := hgPhase_spec h (hfree r List.mem_cons_self)
     obtain ⟨hO', hL'⟩ := ih (hgPhase c s.y s.z s.mate r) hnd.2 hO (by
@@ -812,10 +770,7 @@ private theorem hgRows_spec :
       · exact hfree r' (List.mem_cons_of_mem _ hr') hmem)
     simp only [hgRows]
     refine ⟨hO', ?_⟩
-    rw [hL', hL]
-    ext u
-    simp only [Finset.mem_union, Finset.mem_insert, List.mem_toFinset, List.mem_cons]
-    tauto
+    rw [hL', hL, List.toFinset_cons, Finset.union_insert, Finset.insert_union]
 
 /-! #### Bounded potential and predecessor-array invariants -/
 
@@ -855,18 +810,15 @@ theorem hgStepInv_init {W : ℕ} {y z : Vector ℤ n} {mate : Vector (Option (Fi
     (h : HgOuterBound c W y z mate) (hr : r ∉ matchedLeft (mateMatching mate)) :
     HgStepInv c W r (hgInit c y z mate r) (fun _ => r) := by
   have hI := hgInv_init h.toHgOuter hr
-  refine ⟨hI, h.y_bounds, h.z_bounds, h.free_z_zero, fun j => ?_, fun j => ?_,
-    fun j _ => ?_, fun j j' hm => ?_⟩
-  · rw [hgInit_minv]
-    have hf := h.feas r j
-    have hy := (h.y_bounds r).1
-    have hz := (h.z_bounds j).1
-    have hcw := (hc r j).2
-    unfold hgRed at hf ⊢
-    omega
-  · simp [hgInit_path]
-  · simp [hgInit_path]
-  · exact absurd hm (hI.root_free j')
+  refine ⟨hI, h.y_bounds, h.z_bounds, h.free_z_zero, fun j => ?_, fun j => by simp [hgInit_path],
+    fun j _ => by simp [hgInit_path], fun j j' hm => absurd hm (hI.root_free j')⟩
+  rw [hgInit_minv]
+  have hf := h.feas r j
+  have hy := (h.y_bounds r).1
+  have hz := (h.z_bounds j).1
+  have hcw := (hc r j).2
+  unfold hgRed at hf ⊢
+  omega
 
 theorem hgStepInv_dual {W : ℕ} {r : Fin n} {s : HgState n} {bestRow : Fin n → Fin n}
     (hc : ∀ u v, 0 ≤ c (u, v) ∧ c (u, v) ≤ W)
@@ -882,8 +834,7 @@ theorem hgStepInv_dual {W : ℕ} {r : Fin n} {s : HgState n} {bestRow : Fin n �
     rw [hgDual_mate] at hm
     rw [hgDual_z, h.free_z_zero j hm]
     split_ifs with hu
-    · obtain ⟨i, hi⟩ := h.used_mate j hu
-      simp [hm] at hi
+    · simpa [hm] using h.used_mate j hu
     · rfl
   obtain ⟨j_free, hj_free⟩ := exists_free_col_of_root_free h.matching h.root_free
   have hz_free : vget (hgDual s (vget s.minv j₁)).z j_free = 0 := hfree_z j_free hj_free
@@ -924,8 +875,7 @@ theorem hgStepInv_extend {W : ℕ} {r : Fin n} {s : HgState n} {bestRow : Fin n 
         then i₀ else bestRow j) := by
   have hE := hgInv_extend h.toHgInv hj₁ hz hm
   have hpath_used : ∀ j', vget s.used j' = true →
-      vget (hgExtend c s j₁ i₀).path j' = vget s.path j' := by
-    intro j' hj'
+      vget (hgExtend c s j₁ i₀).path j' = vget s.path j' := fun j' hj' => by
     simp [hgExtend, hgRelax_path, vget_vset_true, hj']
   have hpath_j₁ : vget (hgExtend c s j₁ i₀).path j₁ = vget s.path j₁ := by
     simp [hgExtend, hgRelax_path]
@@ -1080,17 +1030,11 @@ private theorem hg_final {c : Fin n × Fin n → ℤ} {s : HgState n}
     refine Finset.eq_univ_of_card _ ?_
     rw [card_matchedRight h.matching, ← card_matchedLeft h.matching, hL, Finset.card_univ]
   have hP : IsPerfectMatching (fun _ => true) (mateMatching s.mate) := ⟨h.matching, hL, hR⟩
-  have hf : IsFeasiblePotential (fun _ => true) c (vget s.y) (vget s.z) := by
-    intro u v _
-    have := h.feas u v
-    unfold hgRed at this
-    omega
-  have ht : ∀ e ∈ mateMatching s.mate, vget s.y e.1 + vget s.z e.2 = c e := by
-    rintro ⟨u, v⟩ he
-    have := h.tight u v (mem_mateMatching.mp he)
-    unfold hgRed at this
-    dsimp only
-    omega
+  have hf : IsFeasiblePotential (fun _ => true) c (vget s.y) (vget s.z) := fun u v _ =>
+    sub_nonneg.mp (sub_sub (c (u, v)) (vget s.y u) (vget s.z v) ▸ h.feas u v)
+  have ht : ∀ e ∈ mateMatching s.mate, vget s.y e.1 + vget s.z e.2 = c e := fun ⟨u, v⟩ he =>
+    (sub_eq_zero.mp (sub_sub (c (u, v)) (vget s.y u) (vget s.z v) ▸
+      h.tight u v (mem_mateMatching.mp he))).symm
   exact ⟨hP.isMinCostPerfectMatching_of_tight hf ht, hf,
     ((hP.potential_eq_cost_iff hf).mpr ht).symm⟩
 
@@ -1110,9 +1054,7 @@ private theorem hungarian_rows (c : Fin n × Fin n → ℤ) :
     (fun r _ hr => by
       obtain ⟨v, hv⟩ := mem_matchedLeft.mp hr
       simp [hgStartState, mem_mateMatching, vget_replicate] at hv)
-  refine ⟨hO, ?_⟩
-  rw [hL]
-  exact Finset.eq_univ_of_forall fun u => Finset.mem_union_left _ (by simp)
+  exact ⟨hO, hL ▸ Finset.eq_univ_of_forall fun u => Finset.mem_union_left _ (by simp)⟩
 
 /-- **Correctness of the Hungarian method.** The output is a minimum-cost perfect matching of the
 complete bipartite graph on `Fin n × Fin n`, the output potentials are feasible, and the cost of
@@ -1121,9 +1063,8 @@ theorem hungarian_correct (c : Fin n × Fin n → ℤ) :
     IsMinCostPerfectMatching (fun _ => true) c (hungarian c).matching ∧
       IsFeasiblePotential (fun _ => true) c (hungarian c).y (hungarian c).z ∧
       matchingCost c (hungarian c).matching =
-        ∑ u, (hungarian c).y u + ∑ v, (hungarian c).z v := by
-  obtain ⟨hO, hL⟩ := hungarian_rows c
-  exact hg_final hO hL
+        ∑ u, (hungarian c).y u + ∑ v, (hungarian c).z v :=
+  (hungarian_rows c).elim hg_final
 
 /-! #### Uniform shift invariance -/
 
@@ -1227,10 +1168,9 @@ theorem hungarian_add_const (c : Fin n × Fin n → ℤ) (S : ℤ) :
     rw [hy]
     exact hgRows_add_const c S (List.finRange n)
       (hgStartState (Vector.ofFn (hgRowMin c)) (Vector.replicate n 0) (Vector.replicate n none))
-  refine ⟨?_, fun u => ?_, fun v => ?_⟩
-  · simp only [hungarian, hrows, shiftHgState]
-  · simp only [hungarian, hrows, shiftHgState, vget, Vector.getElem_map]
-  · simp only [hungarian, hrows, shiftHgState]
+  exact ⟨by simp only [hungarian, hrows, shiftHgState],
+    fun u => by simp only [hungarian, hrows, shiftHgState, vget, Vector.getElem_map],
+    fun v => by simp only [hungarian, hrows, shiftHgState]⟩
 
 /-- **Egerváry's theorem** for the integral assignment problem: there is a perfect matching of the
 complete bipartite graph on `Fin n × Fin n` and integral feasible potentials whose total equals
@@ -1252,13 +1192,9 @@ theorem isMinCostPerfectMatching_iff_exists_potential (c : Fin n × Fin n → �
   constructor
   · intro hmin
     obtain ⟨M', y, z, hM', hf, heq⟩ := exists_isMinCostPerfectMatching_potential_eq c
-    refine ⟨y, z, hf, le_antisymm ?_ (hM.potential_le_cost hf)⟩
-    rw [← heq]
-    exact hmin.2 M' hM'.1
+    exact ⟨y, z, hf, le_antisymm (heq ▸ hmin.2 M' hM'.1) (hM.potential_le_cost hf)⟩
   · rintro ⟨y, z, hf, heq⟩
-    refine ⟨hM, fun M' hM' => ?_⟩
-    rw [heq]
-    exact hM'.potential_le_cost hf
+    exact ⟨hM, fun M' hM' => heq ▸ hM'.potential_le_cost hf⟩
 
 /-- **Assignment problem, permutation form**: some permutation `σ` minimizes `∑ u, c (u, σ u)`
 over all permutations, certified by integral feasible potentials with equal total. -/

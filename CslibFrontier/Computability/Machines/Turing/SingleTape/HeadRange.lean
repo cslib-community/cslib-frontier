@@ -81,10 +81,7 @@ theorem step_native (M : TM0.Machine Γ Q) (c : Cfg Γ Q) :
 /-- A bounded coordinate path is a path of the original single-tape machine. -/
 theorem ReachesWithin.native {M : TM0.Machine Γ Q} {lo hi : ℤ} {c d : Cfg Γ Q}
     (h : ReachesWithin M lo hi c d) : TM0.Reaches M c.native d.native :=
-  h.lift Cfg.native fun a b hab => by
-    have hs := step_native M a
-    rw [hab.1] at hs
-    exact hs.symm
+  h.lift Cfg.native fun a _ hab => by simpa [hab.1] using (step_native M a).symm
 
 /-- Enlarging the coordinate interval retains every bounded path. -/
 theorem ReachesWithin.mono {M : TM0.Machine Γ Q} {lo hi lo' hi' : ℤ} {c d : Cfg Γ Q}
@@ -139,15 +136,11 @@ theorem ReachesWithin.restrict {M : TM0.Machine Γ Q} {S : Set Q}
   induction h with
   | refl => exact ⟨c', hc, .refl⟩
   | @tail b d _ hs ih =>
-    obtain ⟨b', hb', hr⟩ := ih
+    obtain ⟨b', rfl, hr⟩ := ih
     have hm := step_liftCfg M hS b'
-    rw [hb', hs.1] at hm
-    obtain ⟨d', hd', he⟩ := Option.map_eq_some_iff.mp hm
-    refine ⟨d', he, hr.tail ⟨hd', ?_⟩⟩
-    have hp : b'.position = b.position := congrArg Cfg.position hb'
-    have hq : d'.position = d.position := congrArg Cfg.position he
-    rw [hp, hq]
-    exact hs.2
+    rw [hs.1] at hm
+    obtain ⟨d', hd', rfl⟩ := Option.map_eq_some_iff.mp hm
+    exact ⟨d', rfl, hr.tail ⟨hd', hs.2⟩⟩
 
 end
 
@@ -214,13 +207,9 @@ theorem headRange_reaches {lo hi : ℤ} (q : TM1.Stmt Γ Λ σ) (v : σ) (T : Ta
       ⟨trCfg M (TM1.stepAux q v T), TM1.headAfter q v T p⟩ := by
   induction q generalizing v T p with
   | move d q ih =>
-    cases d
-    all_goals
-      refine Relation.TransGen.head ?_ (ih _ _ _ h.2.2)
-      exact ⟨rfl, h.1, h.2.1, (TM1.HeadRange.endpoints h.2.2).1⟩
-  | write f q ih =>
-    refine Relation.TransGen.head ?_ (ih _ _ _ h.2.2)
-    exact ⟨rfl, h.1, h.2.1, h.1, h.2.1⟩
+    cases d <;>
+      exact .head ⟨rfl, h.1, h.2.1, (TM1.HeadRange.endpoints h.2.2).1⟩ (ih _ _ _ h.2.2)
+  | write f q ih => exact .head ⟨rfl, h.1, h.2.1, h.1, h.2.1⟩ (ih _ _ _ h.2.2)
   | load f q ih =>
     exact HeadPosition.transGen_of_step_eq
       (b := ⟨⟨(some q, f T.head v), T⟩, p⟩) rfl rfl (ih (f T.head v) T p h)
@@ -262,14 +251,9 @@ private theorem TrCfg.right_unique {c : TM2.Cfg Γ Λ σ}
     {a b : TM1.Cfg (Γ' K Γ) (Λ' K Γ Λ σ) σ} (ha : TrCfg c a) (hb : TrCfg c b) : a = b := by
   rcases ha with @⟨q, v, S, L, hL⟩
   rcases hb with @⟨_, _, _, L', hL'⟩
-  have he : L = L' := by
-    apply ListBlank.ext
-    intro n
-    funext k
-    have hk := congrArg (fun T : ListBlank (Option (Γ k)) => T.nth n)
-      ((hL k).trans (hL' k).symm)
-    simpa only [ListBlank.nth_map, proj, PointedMap.mk_val] using hk
-  subst L'
+  obtain rfl : L = L' := ListBlank.ext fun n => funext fun k => by
+    simpa only [ListBlank.nth_map, proj, PointedMap.mk_val] using
+      congrArg (fun T : ListBlank (Option (Γ k)) => T.nth n) ((hL k).trans (hL' k).symm)
   rfl
 
 private theorem TrCfg.with_label {c : TM2.Cfg Γ Λ σ}
@@ -541,12 +525,10 @@ theorem tr_reachesWithin [Fintype Λ] {c d : TM2.Cfg Γ Λ σ}
     cases l with
     | none => cases hed
     | some l =>
-      have he : d = TM2.stepAux (M l) v S := Option.some.inj hed.symm
-      subst d
+      obtain rfl : d = TM2.stepAux (M l) v S := Option.some.inj hed.symm
       obtain ⟨L', hL', hp⟩ := stmt_within M (M l) v S L B hL (hB _ hce)
         (R := B + headOverhead M) (by
-          have hm : stackDepth (M l) ≤ Finset.univ.sup (fun l => stackDepth (M l)) :=
-            Finset.le_sup (f := fun l => stackDepth (M l)) (Finset.mem_univ l)
+          have hm := Finset.le_sup (f := fun l => stackDepth (M l)) (Finset.mem_univ l)
           simp only [headOverhead]
           omega)
       exact ⟨_, TrCfg.mk L' hL', hpath.trans hp.to_reflTransGen⟩
@@ -567,9 +549,7 @@ theorem tr_reachesWithin_halt [Fintype Λ] (ki ko : K) (input : List (Γ ki))
       ⟨TM0.init (trInit ki input), 0⟩
       ⟨⟨(none, default), Tape.mk₁ (trInit ko output)⟩, 0⟩ := by
   obtain ⟨b, hb, hp⟩ := tr_reachesWithin M (trCfg_init ki input) hr B hB
-  have he := hb.right_unique (trCfg_halt ko output)
-  subst b
-  exact hp
+  rwa [hb.right_unique (trCfg_halt ko output)] at hp
 
 end TM2to1
 

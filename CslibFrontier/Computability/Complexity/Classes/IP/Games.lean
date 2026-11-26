@@ -266,9 +266,8 @@ theorem agrees_verifier_ofFn (msg : ℕ → List Bool → List Bool) (n : ℕ)
     agrees msg ((.verifier, n) :: g) j p (List.ofFn m ++ t) =
       (decide (m = BitString.ofList n (msg j p)) &&
         agrees msg g (j + 1) (p ++ List.ofFn m) t) := by
-  simp only [agrees, List.take_left' List.length_ofFn, List.drop_left' List.length_ofFn]
-  congr 1
-  exact Bool.eq_iff_iff.2 (by simp only [decide_eq_true_eq]; exact List.ofFn_inj)
+  simp only [agrees, List.take_left' List.length_ofFn, List.drop_left' List.length_ofFn,
+    List.ofFn_inj]
 
 /-- `agrees` on a transcript that starts with the message of a prover move. -/
 theorem agrees_prover_ofFn (msg : ℕ → List Bool → List Bool) (n : ℕ)
@@ -287,9 +286,7 @@ theorem run_congr (msg : ℕ → List Bool → List Bool) {P P' : ℕ → List B
   | cons x g ih =>
     have ih' (u : List Bool) :=
       ih (j + 1) (p ++ u) fun i q _ hq => h i q (by omega) ((List.prefix_append _ _).trans hq)
-    obtain ⟨_ | _, n⟩ := x <;> simp only [run]
-    · rw [ih']
-    · rw [h j p le_rfl List.prefix_rfl, ih']
+    obtain ⟨_ | _, n⟩ := x <;> simp only [run, ih', h j p le_rfl List.prefix_rfl]
 
 /-- Splitting a count of coins by the first message of the verifier. -/
 private theorem card_filter_verifier (msg : C → ℕ → List Bool → List Bool) (n : ℕ) (j : ℕ)
@@ -341,23 +338,21 @@ theorem card_filter_run_le (msg : C → ℕ → List Bool → List Bool) (P : �
   | nil => exact le_rfl
   | cons x g ih =>
     obtain ⟨_ | _, n⟩ := x
-    · rw [show #(S.filter fun c => D c (run (msg c) P ((.verifier, n) :: g) j p) = true) =
-        #(S.filter fun c => (fun c u => D c (u ++ run (msg c) P g (j + 1) (p ++ u))) c
-          (List.ofFn (BitString.ofList n (msg c j p))) = true) from rfl,
-        card_filter_verifier msg n j p S
-          (fun c u => D c (u ++ run (msg c) P g (j + 1) (p ++ u))), count_verifier]
-      refine sum_le_sum fun m _ =>
-        (ih (j + 1) (p ++ List.ofFn m) _ (fun c t => D c (List.ofFn m ++ t))).trans ?_
-      exact le_of_eq (count_congr_of_length g fun t _ =>
-        (card_filter_agrees_verifier msg n g j p S D m t).symm)
+    · refine (card_filter_verifier msg n j p S
+        (fun c u => D c (u ++ run (msg c) P g (j + 1) (p ++ u)))).trans_le ?_
+      rw [count_verifier]
+      exact sum_le_sum fun m _ =>
+        (ih (j + 1) (p ++ List.ofFn m) _ (fun c t => D c (List.ofFn m ++ t))).trans_eq
+          (count_congr_of_length g fun t _ =>
+            (card_filter_agrees_verifier msg n g j p S D m t).symm)
     · set y := BitString.ofList n (P j p)
-      refine (ih (j + 1) (p ++ List.ofFn y) S (fun c t => D c (List.ofFn y ++ t))).trans ?_
       rw [count_prover]
-      refine (le_of_eq (count_congr_of_length g fun t _ =>
-        (card_filter_agrees_prover msg n g j p S D y t).symm)).trans ?_
-      exact le_sup (f := fun y : Fin n → Bool => count g fun t =>
-        #(S.filter fun c => (agrees (msg c) ((.prover, n) :: g) j p (List.ofFn y ++ t) &&
-          D c (List.ofFn y ++ t)) = true)) (mem_univ y)
+      exact ((ih (j + 1) (p ++ List.ofFn y) S (fun c t => D c (List.ofFn y ++ t))).trans_eq
+        (count_congr_of_length g fun t _ =>
+          (card_filter_agrees_prover msg n g j p S D y t).symm)).trans
+        (le_sup (f := fun y : Fin n → Bool => count g fun t =>
+          #(S.filter fun c => (agrees (msg c) ((.prover, n) :: g) j p (List.ofFn y ++ t) &&
+            D c (List.ofFn y ++ t)) = true)) (mem_univ y))
 
 /-- **Some prover attains the count**, from move `j` after the transcript `p`, for the coins in
 `S`. -/
@@ -373,18 +368,14 @@ theorem exists_card_filter_run_eq (msg : C → ℕ → List Bool → List Bool)
         ih (j + 1) (p ++ List.ofFn m) (S.filter fun c => BitString.ofList n (msg c j p) = m)
           (fun c t => D c (List.ofFn m ++ t))
       set Q : ℕ → List Bool → List Bool := fun i q => P (BitString.ofList n (q.drop p.length)) i q
-      refine ⟨Q, ?_⟩
-      rw [show #(S.filter fun c => D c (run (msg c) Q ((.verifier, n) :: g) j p) = true) =
-        #(S.filter fun c => (fun c u => D c (u ++ run (msg c) Q g (j + 1) (p ++ u))) c
-          (List.ofFn (BitString.ofList n (msg c j p))) = true) from rfl,
-        card_filter_verifier msg n j p S
-          (fun c u => D c (u ++ run (msg c) Q g (j + 1) (p ++ u))), count_verifier]
+      refine ⟨Q, (card_filter_verifier msg n j p S
+        (fun c u => D c (u ++ run (msg c) Q g (j + 1) (p ++ u)))).trans ?_⟩
+      rw [count_verifier]
       refine sum_congr rfl fun m _ => ?_
       have hrun (c : C) : run (msg c) Q g (j + 1) (p ++ List.ofFn m) =
-          run (msg c) (P m) g (j + 1) (p ++ List.ofFn m) := by
-        refine run_congr _ g (j + 1) _ fun i q _ hq => ?_
-        obtain ⟨s, rfl⟩ := hq
-        simp only [Q, List.append_assoc, List.drop_left, BitString.ofList_ofFn_append]
+          run (msg c) (P m) g (j + 1) (p ++ List.ofFn m) :=
+        run_congr _ g (j + 1) _ fun i q _ ⟨s, hq⟩ => by
+          simp only [← hq, Q, List.append_assoc, List.drop_left, BitString.ofList_ofFn_append]
       simp only [hrun, hP m]
       exact count_congr_of_length g fun t _ =>
         (card_filter_agrees_verifier msg n g j p S D m t).symm
@@ -399,9 +390,9 @@ theorem exists_card_filter_run_eq (msg : C → ℕ → List Bool → List Bool)
           run (msg c) P g (j + 1) (p ++ List.ofFn y) :=
         run_congr _ g (j + 1) _ fun i q hi _ => ite_eq_right (by omega)
       simp only [run, Q, ↓reduceIte, BitString.ofList_ofFn, hrun]
-      rw [hP, show count g _ = φ y from rfl, ← hy, count_prover]
-      congr 1 with y' : 1
-      exact count_congr_of_length g fun t _ =>
+      refine hP.trans (hy.symm.trans ?_)
+      rw [count_prover]
+      exact Finset.sup_congr rfl fun y' _ => count_congr_of_length g fun t _ =>
         (card_filter_agrees_prover msg n g j p S D y' t).symm
 
 
@@ -564,8 +555,7 @@ def ofAM (g : List (AMMove × ℕ)) : List (IPMove × ℕ) := g.map fun x => (x.
 
 theorem transcriptLength_ofAM (g : List (AMMove × ℕ)) :
     transcriptLength (ofAM g) = AMGame.transcriptLength g := by
-  simp only [transcriptLength, AMGame.transcriptLength, ofAM, List.map_map]
-  rfl
+  simp [transcriptLength, AMGame.transcriptLength, ofAM, Function.comp_def]
 
 /-- Whether the coins `w` agree with Arthur's messages in the transcript `t` of `g`: at each of
 Arthur's moves the next bits of `w` are Arthur's message, and at each of Merlin's moves the next
@@ -588,9 +578,9 @@ theorem agrees_reveal (g : List (AMMove × ℕ)) (j : ℕ) (p w t : List Bool)
     simp only [AMGame.transcriptLength, List.map_cons, List.sum_cons] at ht
     have hlen : (t.take x.2).length = x.2 := List.length_take_of_le (by omega)
     obtain ⟨_ | _, n⟩ := x <;>
-      · simp only [ofAM_cons, AMMove.toIP, agrees, matchArthur]
-        rw [ih (j + 1) (p ++ t.take n) (t.drop n) (by simp [AMGame.transcriptLength]; omega),
-          List.length_append, hlen, List.drop_drop]
+      simp only [ofAM_cons, AMMove.toIP, agrees, matchArthur, List.length_append, hlen,
+        List.drop_drop,
+        ih (j + 1) (p ++ t.take n) (t.drop n) (by simp [AMGame.transcriptLength]; omega)]
 
 /-- Exactly `2 ^ merlinBits g` coin strings agree with Arthur's messages in a transcript: Arthur's
 bits are determined, Merlin's are free. -/
@@ -692,9 +682,9 @@ theorem AMGameClass_subset_IPGameClass {enc : α ↪ List Bool} (π : List AMMov
     rw [IPGame.countAt, evalShape_map_toIP, bestCount_reveal _ (fun t => V (a, t)) hK, hK,
       transcriptLength_eq_arthurBits_add_merlinBits, pow_add]
     obtain ⟨h1, h2⟩ := hA a
-    refine ⟨fun ha => ?_, fun ha => ?_⟩
-    · linarith [Nat.mul_le_mul_right (2 ^ merlinBits (AMGame.evalShape G n)) (h1 ha)]
-    · linarith [Nat.mul_le_mul_right (2 ^ merlinBits (AMGame.evalShape G n)) (h2 ha)]
+    set M := 2 ^ merlinBits (AMGame.evalShape G n)
+    exact ⟨fun ha => by linarith [Nat.mul_le_mul_right M (h1 ha)],
+      fun ha => by linarith [Nat.mul_le_mul_right M (h2 ha)]⟩
 
 /-- **`AM[k] ⊆ IP[k]`**. -/
 theorem AMk_subset_IPk {enc : α ↪ List Bool} (k : ℕ) : AMk enc k ⊆ IPk enc k :=

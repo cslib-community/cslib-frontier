@@ -122,12 +122,10 @@ def listGenerator (G : PRG.Generator (BitString k) (BitString (2 * k))) :
 /-- The block selected by a bit is the child selected by `Cslib.Crypto.GGM.selectChild`. -/
 private theorem ofFn_block (y : BitString (2 * k)) (bit : Bool) :
     List.ofFn (BitString.block y (finTwoEquiv.symm bit)) = selectChild k (List.ofFn y) bit := by
-  apply List.ext_getElem
-  · cases bit <;>
-      simp only [selectChild, Bool.false_eq_true, ↓reduceIte, List.length_take, List.length_drop,
-        List.length_ofFn] <;> omega
-  · intro i _ _
-    cases bit <;> simp [selectChild, finProdFinEquiv, finTwoEquiv, Nat.add_comm]
+  refine List.ext_getElem ?_ fun i _ _ => ?_
+  · cases bit <;> simp only [selectChild, Bool.false_eq_true, ↓reduceIte, List.length_take,
+      List.length_drop, List.length_ofFn] <;> omega
+  · cases bit <;> simp [selectChild, finProdFinEquiv, finTwoEquiv, Nat.add_comm]
 
 /-- **Agreement with the list construction.** Evaluation with labels of fixed width is
 `Cslib.Crypto.GGM.eval` for the generator read as a generator of lists. -/
@@ -137,9 +135,8 @@ theorem ofFn_evalBits (G : PRG.Generator (BitString k) (BitString (2 * k)))
   induction n generalizing seed with
   | zero => simp
   | succ n ih =>
-    rw [evalBits_succ, ih, List.ofFn_succ, eval_cons]
-    congr 1
-    rw [child, List.length_ofFn, ofFn_block, listGenerator]
+    rw [evalBits_succ, ih, List.ofFn_succ, eval_cons, child, List.length_ofFn, ofFn_block,
+      listGenerator]
     congr 3 with i : 1
     simp
 
@@ -185,9 +182,9 @@ theorem complexity_evalBits_block_le (G : PRG.Generator (BitString k) (BitString
   refine (complexity_comp_le ((fun seed => evalBits G seed x) ∘
       fun y => y ∘ fun j : Fin k => finProdFinEquiv (b, j))
     (fun z => z ∘ fun _ : Fin 1 => i)).trans ?_
-  rw [complexity_wiring, add_zero]
-  refine (complexity_comp_le _ _).trans ?_
-  simpa only [complexity_wiring, zero_add] using complexity_evalBits_le G x
+  simpa only [complexity_wiring, add_zero, zero_add] using
+    (complexity_comp_le (fun y => y ∘ fun j : Fin k => finProdFinEquiv (b, j)) _).trans
+      (Nat.add_le_add_left (complexity_evalBits_le G x) _)
 
 /-- **Circuits for tree evaluation.** If the bits of a seed and of a query of length `n` are
 available, the bits of the label reached are synthesized with, per query bit, a smallest circuit
@@ -235,12 +232,11 @@ theorem complexity_booleanFamily_le [NeZero k]
     (G : PRG.Generator (BitString k) (BitString (2 * k))) (n : ℕ) (seed : BitString k) :
     complexity interpretation (single (booleanFamily G n seed)) ≤
       n * (complexity interpretation ⇑G + 4 * k) + 2 := by
-  refine Synthesis.complexity_le ?_
   have hconst := (Synthesis.const (s := inputs n) false).union (Synthesis.const true)
   have h := synthesis_evalBits G (s := inputs n ∪ ({fun _ => false} ∪ {fun _ => true}))
     (fun _ => seed) id (fun i => by cases seed i <;> simp) (fun i => Or.inl ⟨i, rfl⟩)
-  exact (hconst.trans h).mono Set.Subset.rfl (Set.singleton_subset_iff.2 ⟨0, rfl⟩)
-    (le_of_eq (add_comm _ _))
+  exact ((hconst.trans h).mono Set.Subset.rfl (Set.singleton_subset_iff.2 ⟨0, rfl⟩)
+    (le_of_eq (add_comm _ _))).complexity_le
 
 /-! ### Uniform labels -/
 
@@ -255,8 +251,8 @@ private theorem expect_comp_apply_zero [NeZero k] (F : (ι → Bool) → ℝ) :
   let e : (ι → Fin (k + 1) → Bool) ≃ (ι → Bool) × (ι → Fin k → Bool) :=
     (Equiv.arrowCongr (Equiv.refl ι) (Fin.consEquiv fun _ => Bool).symm).trans
       (Equiv.arrowProdEquivProdArrow _ _ _)
-  rw [← Fintype.expect_comp_fst (β := ι → Fin k → Bool) F]
-  exact Fintype.expect_equiv e _ _ fun _ => rfl
+  exact (Fintype.expect_equiv e _ _ fun _ => rfl).trans
+    (Fintype.expect_comp_fst (β := ι → Fin k → Bool) F)
 
 end Uniform
 
@@ -365,12 +361,11 @@ private theorem hybridProb_zero (G : PRG.Generator (BitString k) (BitString (2 *
         (fun T => PMF.pure (D T)) true).toReal := by
   rw [PRG.Generator.toReal_realExperiment_pure, ← Fintype.expect_boole, hybridProb]
   refine Fintype.expect_equiv (Equiv.funUnique (BitString 0) (BitString k)) _ _ fun L => ?_
-  have hx (x : BitString n) : (fun i : Fin n => x ⟨0 + i, by omega⟩) = x :=
-    funext fun i => congrArg x (Fin.ext (zero_add _))
-  have hL (x : BitString n) : L (fun i : Fin 0 => x ⟨i, by omega⟩) =
-      Equiv.funUnique (BitString 0) (BitString k) L :=
-    congrArg L (Subsingleton.elim _ _)
-  simp only [leaves, hx, hL, truthTableGenerator_apply]
+  have hx (x : BitString n) : leaves G 0 n (zero_add n) L x =
+      evalBits G (Equiv.funUnique (BitString 0) (BitString k) L) x :=
+    congrArg₂ (evalBits G) (congrArg L (Subsingleton.elim _ _))
+      (funext fun i => congrArg x (Fin.ext (zero_add _)))
+  simp only [hx, truthTableGenerator_apply]
   rfl
 
 /-- The last hybrid is a uniformly random function. -/
@@ -408,9 +403,7 @@ theorem secure_truthTableGenerator_booleanFamily [NeZero k]
   have htel (m : ℕ) : ∀ j (h : j + m = n),
       |hybridProb G D j m h - hybridProb G D n 0 (add_zero n)| ≤ (2 ^ n - 2 ^ j) * ε := by
     induction m with
-    | zero =>
-      rintro j rfl
-      simp
+    | zero => exact fun _ h => by simp [← h]
     | succ m ih =>
       intro j h
       have hstep := abs_hybridProb_sub_le G D h (ε := ε) fun c q => by
@@ -478,9 +471,8 @@ theorem isExponentiallySecure_booleanFamily
   refine (secure_truthTableGenerator_booleanFamily ((hsec.of_admissible fun A ⟨test, htest, hA⟩ =>
     ⟨test, htest.trans hsize, hA⟩))).mono ?_
   -- and the loss `2 ^ n` in the advantage is absorbed
-  have hpow : (2 : ℝ≥0) ^ n * 2 ^ (c * n) ≤ 2 ^ (n ^ 2) := by
-    rw [← pow_add]
-    exact pow_le_pow_right₀ one_le_two (by rw [sq]; nlinarith)
+  have hpow : (2 : ℝ≥0) ^ n * 2 ^ (c * n) ≤ 2 ^ (n ^ 2) :=
+    pow_add (2 : ℝ≥0) n (c * n) ▸ pow_le_pow_right₀ one_le_two (by rw [sq]; nlinarith)
   calc ((2 : ℝ≥0) ^ n - 1) * (2 ^ (n ^ 2))⁻¹ ≤ 2 ^ n * (2 ^ n * 2 ^ (c * n))⁻¹ := by
         gcongr
         exact tsub_le_self

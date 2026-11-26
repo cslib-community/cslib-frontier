@@ -69,9 +69,8 @@ private theorem input_mem {α : Type*} (xs : List α)
   List.get_mem _ _
 
 private theorem input_injective {α : Type*} (xs : List α) (hxs : xs.Nodup) :
-    Function.Injective (input xs) := by
-  intro i j hij
-  exact Fin.ext (congrArg (fun k : Fin xs.length => k.val) (hxs.injective_get hij))
+    Function.Injective (input xs) := fun _ _ hij =>
+  Fin.ext (congrArg (fun k : Fin xs.length => k.val) (hxs.injective_get hij))
 
 private theorem exists_input {α : Type*} (xs : List α) {x : α} (hx : x ∈ xs) :
     ∃ i, input xs i = x := by
@@ -100,10 +99,8 @@ private theorem port_injective (v : Vert U C R) : Function.Injective (port N A v
   rcases v with u | (c | r)
   · rintro (i | i) (j | j) h
     · exact congrArg Sum.inl (input_injective _ (N.characters_nodup.filter _) (Sum.inl.inj h))
-    · have hc := (List.mem_filter.mp (input_mem (rowInputs N A u) i)).2
-      exact (of_decide_eq_true hc).2 (Sum.inl.inj h) |>.elim
-    · have hc := (List.mem_filter.mp (input_mem (rowInputs N A u) j)).2
-      exact (of_decide_eq_true hc).2 (Sum.inl.inj h).symm |>.elim
+    · exact absurd (Sum.inl.inj h) (of_decide_eq_true (List.mem_filter.mp (input_mem _ i)).2).2
+    · exact absurd (Sum.inl.inj h).symm (of_decide_eq_true (List.mem_filter.mp (input_mem _ j)).2).2
     · exact congrArg Sum.inr (Subsingleton.elim (α := Fin 1) i j)
   · rintro (i | i) (j | j) h
     · exact congrArg Sum.inl (input_injective _ ((N.branches_nodup).filter _) (Sum.inr.inj h))
@@ -114,12 +111,9 @@ private theorem port_injective (v : Vert U C R) : Function.Injective (port N A v
     · exact i.elim0
     · exact i.elim0
     · exact j.elim0
-    · apply congrArg Sum.inr
-      have hij : decide (i.val = 1) = decide (j.val = 1) := congrArg Prod.snd (Sum.inr.inj h)
-      have hi : i.val < 2 := i.isLt
-      have hj : j.val < 2 := j.isLt
-      simp only [decide_eq_decide] at hij
-      exact Fin.ext (by omega)
+    · have hij := decide_eq_decide.mp (congrArg Prod.snd (Sum.inr.inj h))
+      have : i.val < 2 ∧ j.val < 2 := ⟨i.isLt, j.isLt⟩
+      exact congrArg Sum.inr (Fin.ext (by omega))
 
 private theorem source_row (u : U) (s : Edge C R → Bool) :
     (((gen (cell N A (.inl u)).generator).graph Prim.interp).Legal
@@ -173,17 +167,13 @@ private theorem source_relation (r : R) (s : Edge C R → Bool) :
     (((gen (cell N A (.inr (.inr r))).generator).graph Prim.interp).Legal
       ((polarity N A (.inr (.inr r)) + s) ∘ port N A (.inr (.inr r)))) ↔
       (N.graph (.inr (.inr r))).Sat s := by
-  rw [N.sat_relation_iff]
+  rw [N.sat_relation_iff, ← genLegal_iff]
   dsimp only [cell, Cell.generator]
   cases hreq : N.required r with
-  | false =>
-    rw [← genLegal_iff]
-    simp [GenLegal, Prim.interp, Vertex.Sat, genVertex]
+  | false => simp [GenLegal, Prim.interp, Vertex.Sat, genVertex]
   | true =>
-    rw [← genLegal_iff]
-    simp only [Gadgets.Wire.generator, GenLegal, Prim.interp,
-      List.mem_singleton, forall_eq, true_implies]
-    simp only [polarity, Pi.add_apply, Bool.add_eq_xor, Bool.false_xor, Function.comp_def]
+    simp only [Gadgets.Wire.generator, GenLegal, Prim.interp, List.mem_singleton, forall_eq,
+      true_implies, polarity, Pi.add_apply, Bool.add_eq_xor, Bool.false_xor, Function.comp_def]
     change (2 ≤ (if s (.inr (r, false)) = false then 2 else 0) +
       ((if s (.inr (r, true)) = false then 2 else 0) + 0)) ↔ _
     cases s (.inr (r, false)) <;> cases s (.inr (r, true)) <;> decide
@@ -315,8 +305,7 @@ private theorem boundaryEnd_injective : Function.Injective (boundaryEnd N A) := 
   rintro ⟨v, x⟩ ⟨w, y⟩ h
   obtain rfl : v = w := (endpoint_boundary N A v x).symm.trans
     ((congrArg (fun z => N.endpoints.endpoint z.1 z.2) h).trans (endpoint_boundary N A w y))
-  obtain rfl := port_injective N A v (congrArg Prod.fst h)
-  rfl
+  exact congrArg (Sigma.mk v) (port_injective N A v (congrArg Prod.fst h))
 
 private theorem boundaryEnd_surjective : Function.Surjective (boundaryEnd N A) := by
   rintro ⟨e, b⟩
@@ -324,27 +313,20 @@ private theorem boundaryEnd_surjective : Function.Surjective (boundaryEnd N A) :
   · cases b
     · exact ⟨⟨.inr (.inl c), .inr 0⟩, rfl⟩
     · by_cases hc : c = A.character (N.row c)
-      · refine ⟨⟨.inl (N.row c), .inr 0⟩, ?_⟩
-        simp [boundaryEnd, port, direction, polarity, ← hc]
+      · exact ⟨⟨.inl (N.row c), .inr 0⟩, by simp [boundaryEnd, port, direction, polarity, ← hc]⟩
       · obtain ⟨i, hi⟩ := exists_input (rowInputs N A (N.row c))
           (List.mem_filter.mpr ⟨N.characters_complete c, decide_eq_true ⟨rfl, hc⟩⟩)
         refine ⟨⟨.inl (N.row c), .inl i⟩, ?_⟩
         change (Sum.inl (input (rowInputs N A (N.row c)) i),
           decide ((Sum.inl (input (rowInputs N A (N.row c)) i) : Edge C R) =
             .inl (A.character (N.row c))) ^^ true) = (.inl c, true)
-        rw [hi]
-        simp [hc]
+        simp [hi, hc]
   · cases b
     · cases d
-      · exact ⟨⟨.inr (.inr r), .inr 0⟩, rfl⟩
-      · exact ⟨⟨.inr (.inr r), .inr 1⟩, rfl⟩
-    · have he : (r, d) ∈ N.incident (N.endpoint r d) := by
-        simp [incident, branches, N.relations_complete r]
-      obtain ⟨i, hi⟩ := exists_input (N.incident (N.endpoint r d)) he
-      refine ⟨⟨.inr (.inl (N.endpoint r d)), .inl i⟩, ?_⟩
-      change (Sum.inr (input (N.incident (N.endpoint r d)) i), false ^^ true) = _
-      rw [hi]
-      rfl
+      exacts [⟨⟨.inr (.inr r), .inr 0⟩, rfl⟩, ⟨⟨.inr (.inr r), .inr 1⟩, rfl⟩]
+    · obtain ⟨i, hi⟩ := exists_input (N.incident (N.endpoint r d))
+        (by simp [incident, branches, N.relations_complete r] : (r, d) ∈ _)
+      exact ⟨⟨.inr (.inl (N.endpoint r d)), .inl i⟩, Prod.ext (congrArg Sum.inr hi) rfl⟩
 
 open scoped BigOperators
 
@@ -370,9 +352,9 @@ private theorem local_portMultiset (v : Vert U C R) :
     Diagram.Replacement.portMultiset_boundary _ _ (cell N A v).checkPorts]
   simp only [ports_genVertex, ← Multiset.coe_mapAddMonoidHom, map_add, map_sum,
     Fintype.sum_sum_type]
-  simp only [Multiset.coe_mapAddMonoidHom, Multiset.map_singleton]
-  simp only [ht, hb, WeightedPort.map, WeightedPort.reorient, Port.map, Port.reorient,
-    Sum.elim_inl, Sum.elim_inr, Bool.false_xor, direction]
+  simp only [Multiset.coe_mapAddMonoidHom, Multiset.map_singleton, ht, hb, WeightedPort.map,
+    WeightedPort.reorient, Port.map, Port.reorient, Sum.elim_inl, Sum.elim_inr, Bool.false_xor,
+    direction]
 
 /-- A shared local port retains the original edge's endpoint and reference direction. -/
 private theorem local_shared_endpoint (v : Vert U C R) (w : (cell N A v).diagram.Vtx Prim.interp)
@@ -384,13 +366,10 @@ private theorem local_shared_endpoint (v : Vert U C R) (w : (cell N A v).diagram
   rw [local_portMultiset] at hm
   rcases Multiset.mem_add.mp hm with hm | hm
   · obtain ⟨x, _, hx⟩ := Multiset.mem_sum.mp hm
-    have hx' := Multiset.mem_singleton.mp hx
-    have he' : port N A v x = e := by simpa only [hx', Sum.inl.injEq] using he
-    rw [← he']
-    simpa only [hx'] using endpoint_boundary N A v x
+    rw [Multiset.mem_singleton.mp hx] at he ⊢
+    exact Sum.inl.inj he ▸ endpoint_boundary N A v x
   · obtain ⟨x, _, hx⟩ := Multiset.mem_sum.mp hm
-    rcases Multiset.mem_add.mp hx with hx | hx <;>
-      have hx' := Multiset.mem_singleton.mp hx <;> simp [hx'] at he
+    rcases Multiset.mem_add.mp hx with hx | hx <;> simp [Multiset.mem_singleton.mp hx] at he
 
 /-- The original source cell containing an implementation port of the indicated direction. -/
 @[expose] def cellEndpoint : Edge C R ⊕ Private N A → Bool → Vert U C R

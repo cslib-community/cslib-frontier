@@ -93,13 +93,10 @@ theorem card_filter_trialTuple (P : Finset (Fin k)) (b₀ : Fin k → U) (x : U)
   refine sum_congr rfl fun j _ => ?_
   by_cases hj : j ∈ P
   · simp [hj]
-  have hpw : ∀ r : Fin k → U, trialTuple P b₀ x (j, r) =
-      (insert j P).piecewise (Function.update b₀ j x) r := by
-    intro r
-    funext i
-    by_cases hij : i = j
-    · subst hij
-      simp [trialTuple]
+  have hpw (r : Fin k → U) : trialTuple P b₀ x (j, r) =
+      (insert j P).piecewise (Function.update b₀ j x) r := funext fun i => by
+    rcases eq_or_ne i j with rfl | hij
+    · simp [trialTuple]
     · by_cases hi : i ∈ P <;> simp [trialTuple, hij, hi]
   have h := sum_piecewise_eq_card_pow_nsmul_sum (insert j P) (Function.update b₀ j x)
     (fun y => if q j y then 1 else 0)
@@ -133,7 +130,6 @@ omit [Fintype U] [DecidableEq U] in
 /-- The trial tuple overwrites the free position of `b₀` on `P` and the filler elsewhere. -/
 theorem trialTuple_eq (P : Finset (Fin k)) (b₀ : Fin k → U) (x : U) (t : Trial U k) :
     trialTuple P b₀ x t = Function.update (P.piecewise b₀ t.2) t.1 x := by
-  unfold trialTuple
   rfl
 
 omit [Fintype U] [DecidableEq U] in
@@ -141,15 +137,13 @@ omit [Fintype U] [DecidableEq U] in
 theorem accepts_eq (C' : (Fin k → U) → Fin k → V) (P : Finset (Fin k)) (b₀ : Fin k → U) (x : U)
     (t : Trial U k) :
     accepts C' P b₀ x t = decide (t.1 ∉ P ∧ ∀ i ∈ P, C' (trialTuple P b₀ x t) i = C' b₀ i) := by
-  unfold accepts
   rfl
 
 omit [Fintype U] [DecidableEq U] in
 /-- With no trials, the decoder outputs the default. -/
 @[simp] theorem dpDecode_zero (C' : (Fin k → U) → Fin k → V) (dflt : V) (P : Finset (Fin k))
     (b₀ : Fin k → U) (v : Fin 0 → Trial U k) (x : U) : dpDecode C' dflt P b₀ v x = dflt := by
-  unfold dpDecode
-  simp
+  simp [dpDecode]
 
 omit [Fintype U] [DecidableEq U] in
 /-- The decoder answers from the first trial if it is accepted, and otherwise from the rest. -/
@@ -157,8 +151,7 @@ theorem dpDecode_cons (C' : (Fin k → U) → Fin k → V) (dflt : V) (P : Finse
     (b₀ : Fin k → U) {m : ℕ} (t : Trial U k) (w : Fin m → Trial U k) (x : U) :
     dpDecode C' dflt P b₀ (Fin.cons t w : Fin (m + 1) → Trial U k) x =
       if accepts C' P b₀ x t then C' (trialTuple P b₀ x t) t.1 else dpDecode C' dflt P b₀ w x := by
-  unfold dpDecode
-  rw [firstAccepted_cons]
+  rw [dpDecode, firstAccepted_cons]
   split_ifs <;> rfl
 
 /-- The pairs `(j, y)` that account for the trials accepted at `x`: `j ∉ P`, `y = b₀` on `P`,
@@ -217,14 +210,11 @@ theorem card_filter_dpDecode_ne_mul_le (C' : (Fin k → U) → Fin k → V) (f :
   have hsub : #{v : Fin m → Trial U k | dpDecode C' dflt P b₀ v x ≠ f x} ≤
       #{v : Fin m → Trial U k | (firstAccepted acc v).any bad} +
         #{v : Fin m → Trial U k | ∀ i, acc (v i) = false} := by
-    refine (card_le_card ?_).trans (card_union_le _ _)
-    intro v hv
+    refine (card_le_card fun v hv => ?_).trans (card_union_le _ _)
     simp only [mem_filter, mem_univ, true_and, mem_union] at hv ⊢
     cases h : firstAccepted acc v with
     | none => exact Or.inr ((firstAccepted_eq_none_iff acc v).1 h)
-    | some t =>
-      left
-      simpa [dpDecode, acc, h, bad] using hv
+    | some t => exact Or.inl (by simpa [dpDecode, acc, h, bad] using hv)
   rw [← hnone]
   nlinarith [Nat.mul_le_mul_right a hsub]
 
@@ -280,8 +270,7 @@ theorem sum_card_badPairs (C' : (Fin k → U) → Fin k → V) (f : U → V) (P 
   classical
   simp_rw [badPairs_eq_filter]
   rw [← card_eq_sum_card_fiberwise (fun _ _ => mem_univ _), card_filter, sum_product, sum_comm]
-  refine sum_congr rfl fun y _ => ?_
-  rw [card_filter]
+  exact sum_congr rfl fun _ _ => (card_filter _ _).symm
 
 /-- **Few inputs are rarely accepted**: if the consistent tuples have density at least `μ` among
 the tuples agreeing with `b₀` on `P`, the inputs with fewer than `#S w / (4 #U)` accepted pairs,
@@ -332,16 +321,14 @@ theorem card_filter_acceptedPairs_lt_mul_le (C' : (Fin k → U) → Fin k → V)
   have hpos : 0 < μL * w := mul_pos (div_pos (Nat.cast_pos.2 hL.card_pos) hn) (Nat.cast_pos.2 hw0)
   have h1 : (#S : ℝ) / 2 ≤ n ^ w * Real.exp (-(μL * w / 8)) := le_of_mul_le_mul_right hkey hpos
   have h2 : μ / 2 ≤ Real.exp (-(μL * w / 8)) := by
-    have hnw : (0 : ℝ) < n ^ w := by positivity
-    rw [← mul_le_mul_iff_of_pos_left hnw]
+    rw [← mul_le_mul_iff_of_pos_left (by positivity : (0 : ℝ) < n ^ w)]
     nlinarith
-  have h3 : μL * w / 8 ≤ Real.log (2 / μ) := by
-    have := Real.log_le_log (by positivity) h2
-    rw [Real.log_exp, Real.log_div hμ0.ne' (by norm_num)] at this
-    rw [Real.log_div (by norm_num) hμ0.ne']
-    linarith
-  have : (#L : ℝ) * w = n * (μL * w) := by simp only [μL]; field_simp
-  rw [this]
+  have h3 := Real.log_le_log (by positivity) h2
+  rw [Real.log_exp, Real.log_div hμ0.ne' (by norm_num)] at h3
+  have hLw : (#L : ℝ) * w = n * (μL * w) := by
+    simp only [μL]
+    field_simp
+  rw [hLw, Real.log_div (by norm_num) hμ0.ne']
   nlinarith
 
 /-- **Error at one input, real form**: if at least `θ > 0` pairs are accepted at `x`, the decoder
@@ -434,8 +421,7 @@ theorem sum_card_filter_dpDecode_ne_le (C' : (Fin k → U) → Fin k → V) (f :
       _ ≤ ε * n / 8 * w := by gcongr
   -- the timeout term
   have hexp : Real.exp (-(m * (n ^ (#P + 1) * θ / N))) ≤ ε / 8 := by
-    have hk' : #P + w = k := by
-      rw [add_comm]; simp [w]
+    have hk' : #P + w = k := (card_add_card_compl P).trans (Fintype.card_fin k)
     have hN : (N : ℝ) = k * n ^ k := by
       simp only [N, n, Fintype.card_prod, Fintype.card_fun, Fintype.card_fin]; push_cast
       ring
@@ -465,12 +451,9 @@ theorem sum_card_filter_dpDecode_ne_le (C' : (Fin k → U) → Fin k → V) (f :
       _ = ε / 8 := by rw [Real.exp_neg, Real.exp_log (by positivity)]; field_simp
   -- the bad pairs
   have hbad : (∑ x, (#(badPairs C' f P b₀ x) : ℝ)) ≤ ε / 32 * k * #S := by
-    have h := sum_card_badPairs C' f P b₀
-    have h' : (∑ x, (#(badPairs C' f P b₀ x) : ℝ)) ≤ ∑ y ∈ S, (#(disagreements C' f y) : ℝ) := by
-      rw [← Nat.cast_sum, h, Nat.cast_sum]
-      exact sum_le_sum fun y _ => by
-        exact_mod_cast card_le_card (filter_subset_filter _ (subset_univ _))
-    refine h'.trans ?_
+    rw [← Nat.cast_sum, sum_card_badPairs, Nat.cast_sum]
+    refine (sum_le_sum (g := fun y => (#(disagreements C' f y) : ℝ)) fun y _ =>
+      mod_cast card_le_card (filter_subset_filter _ (subset_univ _))).trans ?_
     rw [← sum_filter_add_sum_filter_not S fun y => ε / 64 * k ≤ #(disagreements C' f y)]
     have hheavy : ∑ y ∈ S with ε / 64 * k ≤ #(disagreements C' f y),
         (#(disagreements C' f y) : ℝ) ≤ k * (ε / 64 * #S) := by
@@ -542,24 +525,24 @@ theorem card_filter_dpDecode_err_le_ge (C' : (Fin k → U) → Fin k → V) (f :
   have hn : (0 : ℝ) < n := by exact_mod_cast Fintype.card_pos
   set bad := ({v : Fin m → Trial U k |
     ¬(#{x | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) ≤ ε * n} : Finset (Fin m → Trial U k))
-  have hsplit := card_filter_add_card_filter_not (s := (univ : Finset (Fin m → Trial U k)))
-    (p := fun v => (#{x | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) ≤ ε * n)
-  rw [card_univ, Fintype.card_fun, Fintype.card_fin] at hsplit
   have hdouble : ∑ v : Fin m → Trial U k, (#{x | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) =
       ∑ x, (#{v : Fin m → Trial U k | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) := by
     simp only [card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero]
     exact sum_comm
   have hsum := sum_card_filter_dpDecode_ne_le C' f dflt P b₀ m hε hδ hε1 hδ1 hk hw hm hS hH
   have hmarkov : (#bad : ℝ) * (ε * n) ≤
-      ∑ v : Fin m → Trial U k, (#{x | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) :=
-    card_filter_mul_le_sum univ _ _ (fun _ _ => Nat.cast_nonneg _)
+      ∑ x, (#{v : Fin m → Trial U k | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) := by
+    rw [← hdouble]
+    exact card_filter_mul_le_sum univ _ _ (fun _ _ => Nat.cast_nonneg _)
       fun _ _ hv => (not_le.1 hv).le
-  rw [hdouble] at hmarkov
   have hbad : (#bad : ℝ) * 2 ≤ N ^ m :=
     le_of_mul_le_mul_right (by linarith [hmarkov.trans hsum]) (mul_pos hε hn)
   have hcast : ((#{v : Fin m → Trial U k |
       (#{x | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) ≤ ε * n} : ℕ) : ℝ) + #bad = N ^ m := by
-    exact_mod_cast hsplit
+    simpa only [card_univ, Fintype.card_fun, Fintype.card_fin, Nat.cast_add, Nat.cast_pow] using
+      congrArg (Nat.cast (R := ℝ)) (card_filter_add_card_filter_not
+        (s := (univ : Finset (Fin m → Trial U k)))
+        (p := fun v => (#{x | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) ≤ ε * n))
   linarith
 
 end Cslib.Circuits.Boolean.DirectProduct

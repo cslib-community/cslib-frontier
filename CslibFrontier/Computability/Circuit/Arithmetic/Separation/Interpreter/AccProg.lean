@@ -139,17 +139,6 @@ private theorem treeF_gives (m : ℕ) (z : Tree) :
   rw [e]
   omega
 
-/-- The brackets of a tree, in preorder: 0 = empty, 1 = a node. -/
-@[expose] def tbits : Tree → List Bool
-  | .nil => [false]
-  | .cons a b => true :: (tbits a ++ tbits b)
-
-theorem length_tbits (z : Tree) : (tbits z).length = z.size := by
-  induction z with
-  | nil => rfl
-  | cons a b iha ihb =>
-    simp only [tbits, List.length_cons, List.length_append, iha, ihb, Tree.size]
-
 /-- The letter as a tree. -/
 @[expose] def ltr : Option Bool → Tree
   | some false => lt0
@@ -157,13 +146,7 @@ theorem length_tbits (z : Tree) : (tbits z).length = z.size := by
   | none => lt2
 
 theorem wordT_eq (z : Tree) : wordT lt0 lt1 z ++ [lt2] = ((tbits z).map some ++ [none]).map ltr :=
-    by
-  have h : wordT lt0 lt1 z = ((tbits z).map some).map ltr := by
-    induction z with
-    | nil => rfl
-    | cons a b iha ihb => simp only [wordT, tbits, List.map_cons, List.map_append, iha, ihb]; rfl
-  rw [h, List.map_append]
-  rfl
+  by rw [List.map_append, List.map_map, ← wordT_eq_map_tbits]; rfl
 
 /-- The letter at a place of the tree of pairs. -/
 private theorem look_pairTree {m : ℕ} {z : Tree} (hz : z.size < 2 ^ m)

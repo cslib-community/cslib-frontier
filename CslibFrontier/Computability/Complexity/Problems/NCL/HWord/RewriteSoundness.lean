@@ -62,35 +62,23 @@ private theorem second_change_marker {p : Symbol q r} {a a' b b' : Option (Fin q
 
 private theorem before_marker {p : Symbol q r} (i : Fin r)
     (h : Compatible rules p (.marker i)) : ∃ a c, p = .pair a (some c) := by
-  rcases p with _ | _ | _ | ⟨a, b⟩
-  · exact h.elim
-  · exact h.elim
-  · exact h.elim
-  · exact h.elim (fun h => ⟨a, _, congrArg (Symbol.pair a) h⟩) fun h =>
-      ⟨a, _, congrArg (Symbol.pair a) h⟩
+  rcases p with _ | _ | _ | ⟨a, b⟩ <;> try exact h.elim
+  exact h.elim (fun h => ⟨a, _, congrArg (Symbol.pair a) h⟩) fun h =>
+    ⟨a, _, congrArg (Symbol.pair a) h⟩
 
 private theorem after_marker {p : Symbol q r} (i : Fin r)
     (h : Compatible rules (.marker i) p) : ∃ c b, p = .pair (some c) b := by
-  rcases p with _ | _ | _ | ⟨a, b⟩
-  · exact h.elim
-  · exact h.elim
-  · exact h.elim
-  · exact h.elim (fun h => ⟨_, b, congrArg (Symbol.pair · b) h⟩) fun h =>
-      ⟨_, b, congrArg (Symbol.pair · b) h⟩
+  rcases p with _ | _ | _ | ⟨a, b⟩ <;> try exact h.elim
+  exact h.elim (fun h => ⟨_, b, congrArg (Symbol.pair · b) h⟩) fun h =>
+    ⟨_, b, congrArg (Symbol.pair · b) h⟩
 
 private theorem pair_interior (k : Fin (n + 3)) (a b : Option (Fin q))
     (hpair : code.symm (u k) = .pair a b)
     (hstart : u 0 = code .start) (hfinish : u ⟨n + 2, by omega⟩ = code .finish) :
     0 < k.val ∧ k.val < n + 2 := by
-  constructor
-  · by_contra h
-    rw [show k = 0 from Fin.ext (by change k.val = 0; omega), hstart,
-      Equiv.symm_apply_apply] at hpair
-    cases hpair
-  · by_contra h
-    rw [show k = ⟨n + 2, by omega⟩ from Fin.ext (by have := k.isLt; change k.val = n + 2; omega),
-      hfinish, Equiv.symm_apply_apply] at hpair
-    cases hpair
+  refine ⟨Nat.pos_of_ne_zero fun hk0 => ?_, lt_of_le_of_ne (by omega) fun hkn => ?_⟩
+  · simp [(Fin.ext hk0 : k = 0), hstart] at hpair
+  · simp [(Fin.ext hkn : k = ⟨n + 2, by omega⟩), hfinish] at hpair
 
 private theorem first_marker_depth (hu : HWord.Legal (compatibility rules) u)
     (k : Fin (n + 3)) (hk : 0 < k.val) (i : Fin r)
@@ -98,12 +86,10 @@ private theorem first_marker_depth (hu : HWord.Legal (compatibility rules) u)
     (hstart : u 0 = code .start) : 3 ≤ k.val := by
   by_contra h
   rcases (by omega : k.val = 1 ∨ k.val = 2) with hc | hc
-  · rw [show (⟨k.val - 1, by omega⟩ : Fin (n + 3)) = 0 from
-      Fin.ext (by change k.val - 1 = 0; omega), hstart, Equiv.symm_apply_apply] at hm
-    cases hm
-  · have hedge := edge_view rules hu 0 ⟨k.val - 1, by omega⟩ (by change 0 + 1 = k.val - 1; omega)
-    rw [hstart, Equiv.symm_apply_apply, hm] at hedge
-    exact hedge
+  · have h0 : (⟨k.val - 1, by omega⟩ : Fin (n + 3)) = 0 := Fin.ext (by simp [hc])
+    simp [h0, hstart] at hm
+  · have hedge := edge_view rules hu 0 ⟨k.val - 1, by omega⟩ (by simp [hc])
+    rwa [hstart, Equiv.symm_apply_apply, hm] at hedge
 
 private structure FirstNeighborhood (u : Fin (n + 3) → Fin (Fintype.card (Symbol q r)))
     (k : Fin (n + 3)) (a a' b : Option (Fin q)) where
@@ -164,9 +150,7 @@ private theorem first_coordinate_rewrites (hu : HWord.Legal (compatibility rules
   have hy := readout_pair_left rules hv changed a' b
     (by simpa only [changed, Nat.sub_add_cancel (by omega : 2 ≤ k.val)] using hpv)
   have hcontext' : readout rules u hu context = readout rules v hv context :=
-    readout_first_off rules hu hv k he a a' b hpu hpv context (by
-      change k.val - 3 + 2 ≠ k.val
-      omega)
+    readout_first_off rules hu hv k he a a' b hpu hpv context (by dsimp [context]; omega)
   have hlocal := marker_right_rewrites rules C.rule C.letter (readout rules u hu changed)
     (readout rules v hv changed) C.left b b C.compatible
     (by simpa only [hx] using C.source) (by simpa only [hy] using C.target)
@@ -183,13 +167,11 @@ private theorem second_marker_depth (hu : HWord.Legal (compatibility rules) u)
     (hfinish : u ⟨n + 2, by omega⟩ = code .finish) : k.val < n := by
   by_contra h
   rcases (by omega : k.val = n ∨ k.val = n + 1) with hc | hc
-  · have hedge := edge_view rules hu ⟨k.val + 1, by omega⟩ ⟨n + 2, by omega⟩
-      (by change k.val + 1 + 1 = n + 2; omega)
-    rw [hm, hfinish, Equiv.symm_apply_apply] at hedge
-    exact hedge
-  · rw [show (⟨k.val + 1, by omega⟩ : Fin (n + 3)) = ⟨n + 2, by omega⟩ from
-      Fin.ext (by change k.val + 1 = n + 2; omega), hfinish, Equiv.symm_apply_apply] at hm
-    cases hm
+  · have hedge := edge_view rules hu ⟨k.val + 1, by omega⟩ ⟨n + 2, by omega⟩ (by simp [hc])
+    rwa [hm, hfinish, Equiv.symm_apply_apply] at hedge
+  · have hn2 : (⟨k.val + 1, by omega⟩ : Fin (n + 3)) = ⟨n + 2, by omega⟩ :=
+      Fin.ext (by simp [hc])
+    simp [hn2, hfinish] at hm
 
 private structure SecondNeighborhood (u : Fin (n + 3) → Fin (Fintype.card (Symbol q r)))
     (k : Fin (n + 3)) (a b b' : Option (Fin q)) where
@@ -247,9 +229,7 @@ private theorem second_coordinate_rewrites (hu : HWord.Legal (compatibility rule
   have hy := readout_pair_right rules hv changed a b'
     (by simpa only [changed, Nat.sub_add_cancel hk0] using hpv)
   have hcontext' : readout rules u hu context = readout rules v hv context :=
-    readout_second_off rules hu hv k he a b b' hpu hpv context (by
-      change k.val + 1 ≠ k.val
-      omega)
+    readout_second_off rules hu hv k he a b b' hpu hpv context (by dsimp [context]; omega)
   have hlocal := marker_left_rewrites rules C.rule C.letter (readout rules u hu changed)
     (readout rules v hv changed) a a C.right C.compatible
     (by simpa only [hx] using C.source) (by simpa only [hy] using C.target)
@@ -264,9 +244,8 @@ private theorem same_pair_eq (k : Fin (n + 3)) (he : ∀ j, j ≠ k → u j = v 
     (a b : Option (Fin q)) (hpu : code.symm (u k) = .pair a b)
     (hpv : code.symm (v k) = .pair a b) : u = v := by
   funext j
-  by_cases hj : j = k
-  · subst j
-    exact code.symm.injective (hpu.trans hpv.symm)
+  rcases eq_or_ne j k with rfl | hj
+  · exact code.symm.injective (hpu.trans hpv.symm)
   · exact he j hj
 
 private theorem first_coordinate_reflGen (hu : HWord.Legal (compatibility rules) u)

@@ -106,9 +106,8 @@ private theorem modeCandPrefix_succ (withQueries : Bool) {U V m : ℕ}
 open Classical in
 theorem dom_ite_eq {U V : ℕ} (S : Finset (Fin U)) (kv : Fin U → Fin V) :
     Dictionary.dom (fun u => if u ∈ S then some (kv u).val else none) = S := by
-  ext u; rw [Dictionary.mem_dom_iff]
-  by_cases hu : u ∈ S <;>
-    simp only [hu, ↓reduceIte, Option.some.injEq, exists_eq', reduceCtorEq, exists_false]
+  ext u
+  by_cases hu : u ∈ S <;> simp [hu]
 
 theorem card_activeKeys {U V n t₀ : ℕ} (s : HardKeyValSeed U V n) (ht₀ : t₀ ≤ n) :
     (s.activeKeys t₀ ht₀).card = n := by
@@ -129,8 +128,7 @@ private theorem segDeletedKeys_mem_activeKeys {U V n t₀ m : ℕ} (s : HardKeyV
     segDeletedKeys s.keys s.delPerm t₀ m ht₀ r ∈
       s.activeKeys t₀ (Nat.le_of_add_right_le ht₀) := by
   refine Finset.mem_map.mpr ⟨⟨r.val, by omega⟩, Finset.mem_univ _, ?_⟩
-  rw [windowEmb_apply]
-  simp only [segDeletedKeys_apply, HardKeyValSeed.permKeyEmb,
+  simp only [windowEmb_apply, segDeletedKeys_apply, HardKeyValSeed.permKeyEmb,
     Function.Embedding.trans_apply, Equiv.coe_toEmbedding]
   rw [liftDelPerm_apply_lt s.delPerm (by omega)]
 
@@ -195,11 +193,11 @@ theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V n t₀ m
         Finset.union_empty] using ⟨hpref_vh, hpref_st⟩
     | succ k ih =>
       have hk_lt : k < m := hk
-      obtain ⟨hvh_k, hst_k⟩ := ih (Nat.le_of_succ_le hk)
       set D_k := (Finset.univ.filter fun r : Fin m => r.val < k).image d
       set B_k := (Finset.univ.filter fun r : Fin m => r.val < k).image b
       set s_k := ((Dynamic.spec U V n).run (Dictionary.empty U)
         (pref_bef ++ modeCandPrefix withQueries d b s.kv k)).1
+      obtain ⟨hvh_k, hst_k⟩ := ih (Nat.le_of_succ_le hk)
       let r₀ : Fin m := ⟨k, hk_lt⟩
       have hdr_not_Dk : d r₀ ∉ D_k := by
         simp only [D_k, Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and]
@@ -218,8 +216,7 @@ theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V n t₀ m
       have hcard (f : Fin m ↪ Fin U) :
           ((Finset.univ.filter fun r : Fin m => r.val < k).image f).card = k := by
         rw [Finset.card_image_of_injective _ f.injective, hflt_lt, Fin.card_Iio]
-      have hdom_sk : Dictionary.dom s_k = (K \ D_k) ∪ B_k := by
-        rw [show s_k = _ from hst_k]; exact dom_ite_eq _ _
+      have hdom_sk : Dictionary.dom s_k = (K \ D_k) ∪ B_k := hst_k ▸ dom_ite_eq _ _
       have hcard_sk : (Dictionary.dom s_k).card = n := by
         rw [hdom_sk, Finset.card_union_of_disjoint, Finset.card_sdiff]
         · have hsubD : D_k ⊆ K := fun _ hx => by
@@ -254,7 +251,7 @@ theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V n t₀ m
             rw [Function.update_self, ite_eq_right]
             simpa only [Finset.mem_union, Finset.mem_sdiff, Finset.mem_insert, true_or,
               not_true_eq_false, and_false, hub, false_or] using hnotB
-          · rw [Function.update_of_ne hud, show s_k = _ from hst_k]
+          · rw [Function.update_of_ne hud, hst_k]
             simp only [Finset.mem_union, Finset.mem_sdiff, Finset.mem_insert, hud, hub, false_or]
             rfl
       rw [modeCandPrefix_succ withQueries d b s.kv hk_lt, ← List.append_assoc,
@@ -263,16 +260,15 @@ theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V n t₀ m
           (pref_bef ++ modeCandPrefix withQueries d b s.kv k)]
       dsimp only
       cases withQueries <;> simp only [modeCandUnit, Bool.false_eq_true, ↓reduceIte,
-        StateTransitionSpec.validHistory_cons, StateTransitionSpec.validHistory_nil, Dynamic.spec]
-      · exact ⟨⟨hvh_k, trivial, ⟨Or.inl hcard_del, (s.kv (b r₀)).isLt⟩, trivial⟩, hupd_st⟩
-      · exact ⟨⟨hvh_k, trivial, trivial, ⟨Or.inl hcard_del, (s.kv (b r₀)).isLt⟩, trivial⟩, hupd_st⟩
+        StateTransitionSpec.validHistory_cons, StateTransitionSpec.validHistory_nil, Dynamic.spec,
+        true_and, and_true]
+      all_goals exact ⟨⟨hvh_k, Or.inl hcard_del, (s.kv (b r₀)).isLt⟩, hupd_st⟩
   obtain ⟨hvh_m, hst_m⟩ := hloop m le_rfl
   have hfull : modeCandPrefix withQueries d b s.kv m =
       s.modeCandidateOps withQueries t₀ m ht₀ B hB := by
     rw [modeCandPrefix_full, HardKeyValSeed.modeCandidateOps_eq]
-    cases withQueries
-    · simp only [Bool.false_eq_true, ↓reduceIte, HardKeyValSeed.candidateUpdateOps_eq]; rfl
-    · simp only [↓reduceIte, HardKeyValSeed.candidateOps_eq]; rfl
+    cases withQueries <;>
+      simp [d, b, π, HardKeyValSeed.candidateUpdateOps_eq, HardKeyValSeed.candidateOps_eq]
   have huniv_flt : (Finset.univ.filter fun r : Fin m => r.val < m) = Finset.univ := by
     ext r; simp only [Finset.mem_filter, Finset.mem_univ, Fin.isLt, and_self]
   rw [hfull] at hvh_m hst_m

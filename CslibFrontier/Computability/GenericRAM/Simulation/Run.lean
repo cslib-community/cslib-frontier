@@ -157,10 +157,9 @@ private theorem finiteState_run_succ_inl {k : M.Config} {p : Program M r} {n : �
     {s t : FiniteState M r} (h : run k p (n + 1) s = some (.inl t)) :
     ∃ u, step k p s = some (.inl u) ∧ run k p n u = some (.inl t) := by
   rw [run_succ] at h
-  rcases hs : step k p s with _ | (u | v)
-  · simp [hs] at h
-  · exact ⟨u, rfl, by simpa only [hs] using h⟩
-  · simp [hs] at h
+  match hs : step k p s with
+  | some (.inl u) => exact ⟨u, rfl, by simpa only [hs] using h⟩
+  | none | some (.inr _) => simp [hs] at h
 
 /-- Multi-step execution is exact iteration of `stepResult` from `some (.inl s)`. -/
 theorem run_eq_iterate_stepResult (k : M.Config) (p : Program M r) (n : ℕ)
@@ -170,10 +169,9 @@ theorem run_eq_iterate_stepResult (k : M.Config) (p : Program M r) (n : ℕ)
   | zero => rfl
   | succ n ih =>
     rw [Function.iterate_succ_apply, run_succ, stepResult_inl]
-    rcases hs : step k p s with _ | (t | v)
-    · simp
-    · exact ih t
-    · simp
+    match step k p s with
+    | some (.inl t) => exact ih t
+    | none | some (.inr _) => simp
 
 theorem run_add (k : M.Config) (p : Program M r) (m n : ℕ) (s : FiniteState M r) :
     run k p (m + n) s =
@@ -182,10 +180,9 @@ theorem run_add (k : M.Config) (p : Program M r) (m n : ℕ) (s : FiniteState M 
       | out => out := by
   rw [Nat.add_comm, run_eq_iterate_stepResult, Function.iterate_add_apply,
     ← run_eq_iterate_stepResult]
-  rcases hr : run k p m s with _ | (t | v)
-  · simp
-  · exact (run_eq_iterate_stepResult k p n t).symm
-  · simp
+  match run k p m s with
+  | some (.inl t) => exact (run_eq_iterate_stepResult k p n t).symm
+  | none | some (.inr _) => simp
 
 /-- Halting output after at most `n` finite steps (`none` on fault or unhalted continuation). -/
 def eval (k : M.Config) (p : Program M r) (n : ℕ) (s : FiniteState M r) : Option M.Value :=
@@ -194,128 +191,74 @@ def eval (k : M.Config) (p : Program M r) (n : ℕ) (s : FiniteState M r) : Opti
 /-! ### Memory-growth and default-preservation invariants -/
 
 theorem default_move {k : M.Config} {s t : FiniteState M r} {d : Fin r} {v : M.Value}
-    (h : s.move k d v = some t) : t.default = s.default := by
-  unfold move at h
-  split at h
-  · injection h with h; subst h; rfl
-  · contradiction
+    (h : s.move k d v = some t) : t.default = s.default :=
+  Option.some.inj (Option.ite_none_right_eq_some.mp h).2 ▸ rfl
 
 theorem length_entries_move_eq {k : M.Config} {s t : FiniteState M r} {d : Fin r} {v : M.Value}
     (h : s.move k d v = some t) :
-    (SparseMemory.entries t.memory).length = (SparseMemory.entries s.memory).length := by
-  unfold move at h
-  split at h
-  · injection h with h; subst h; rfl
-  · contradiction
+    (SparseMemory.entries t.memory).length = (SparseMemory.entries s.memory).length :=
+  Option.some.inj (Option.ite_none_right_eq_some.mp h).2 ▸ rfl
 
 theorem default_evalOp {k : M.Config} {o : Op M r} {s t : FiniteState M r}
     (h : evalOp k o s = some t) : t.default = s.default := by
   cases o with
-  | const d c =>
-    simp only [evalOp, Option.map_eq_some_iff] at h
-    obtain ⟨_, _, rfl⟩ := h
+  | const _ _ | alu _ _ _ =>
+    obtain ⟨_, _, rfl⟩ := Option.map_eq_some_iff.mp h
     rfl
-  | copy d src => exact default_move h
-  | alu f d args =>
-    simp only [evalOp, Option.map_eq_some_iff] at h
-    obtain ⟨_, _, rfl⟩ := h
-    rfl
-  | load d a =>
-    simp only [evalOp, bind, Option.bind_eq_some_iff] at h
-    obtain ⟨_, _, hm⟩ := h
+  | copy _ _ => exact default_move h
+  | load _ _ =>
+    obtain ⟨_, _, hm⟩ := Option.bind_eq_some_iff.mp h
     exact default_move hm
-  | store a src =>
-    simp only [evalOp, bind, Option.bind_eq_some_iff] at h
-    obtain ⟨_, _, hm⟩ := h
-    split at hm
-    · injection hm with hm; subst hm; rfl
-    · contradiction
+  | store _ _ =>
+    obtain ⟨_, _, hm⟩ := Option.bind_eq_some_iff.mp h
+    exact Option.some.inj (Option.ite_none_right_eq_some.mp hm).2 ▸ rfl
 
 /-- A single data operation adds at most one stored address to sparse memory. -/
 theorem length_entries_evalOp_le {k : M.Config} {o : Op M r} {s t : FiniteState M r}
     (h : evalOp k o s = some t) :
     (SparseMemory.entries t.memory).length ≤ (SparseMemory.entries s.memory).length + 1 := by
   cases o with
-  | const d c =>
-    simp only [evalOp, Option.map_eq_some_iff] at h
-    obtain ⟨_, _, rfl⟩ := h
+  | const _ _ | alu _ _ _ =>
+    obtain ⟨_, _, rfl⟩ := Option.map_eq_some_iff.mp h
     exact Nat.le_add_right _ _
-  | copy d src =>
-    rw [length_entries_move_eq h]
-    exact Nat.le_add_right _ _
-  | alu f d args =>
-    simp only [evalOp, Option.map_eq_some_iff] at h
-    obtain ⟨_, _, rfl⟩ := h
-    exact Nat.le_add_right _ _
-  | load d a =>
-    simp only [evalOp, bind, Option.bind_eq_some_iff] at h
-    obtain ⟨_, _, hm⟩ := h
-    rw [length_entries_move_eq hm]
-    exact Nat.le_add_right _ _
-  | store a src =>
-    simp only [evalOp, bind, Option.bind_eq_some_iff] at h
-    obtain ⟨addr, _, hm⟩ := h
-    split at hm
-    · injection hm with hm
-      subst hm
-      exact SparseMemory.length_insert_le addr (s.regs src) s.memory
-    · contradiction
+  | copy _ _ => exact length_entries_move_eq h ▸ Nat.le_add_right _ _
+  | load _ _ =>
+    obtain ⟨_, _, hm⟩ := Option.bind_eq_some_iff.mp h
+    exact length_entries_move_eq hm ▸ Nat.le_add_right _ _
+  | store _ src =>
+    obtain ⟨addr, _, hm⟩ := Option.bind_eq_some_iff.mp h
+    exact Option.some.inj (Option.ite_none_right_eq_some.mp hm).2 ▸
+      SparseMemory.length_insert_le addr (s.regs src) s.memory
 
 theorem default_resume {k : M.Config} {pc : ℕ} {s t : FiniteState M r}
-    (h : resume k pc s = some (.inl t)) : t.default = s.default := by
-  unfold resume at h
-  split at h
-  · simp only [Option.some.injEq, Sum.inl.injEq] at h
-    subst h; rfl
-  · contradiction
+    (h : resume k pc s = some (.inl t)) : t.default = s.default :=
+  Sum.inl.inj (Option.some.inj (Option.ite_none_right_eq_some.mp h).2) ▸ rfl
 
 theorem memory_resume {k : M.Config} {pc : ℕ} {s t : FiniteState M r}
-    (h : resume k pc s = some (.inl t)) : t.memory = s.memory := by
-  unfold resume at h
-  split at h
-  · simp only [Option.some.injEq, Sum.inl.injEq] at h
-    subst h; rfl
-  · contradiction
+    (h : resume k pc s = some (.inl t)) : t.memory = s.memory :=
+  Sum.inl.inj (Option.some.inj (Option.ite_none_right_eq_some.mp h).2) ▸ rfl
 
 theorem default_evalInstr {k : M.Config} {nextPC : ℕ} {i : Instr M r} {s t : FiniteState M r}
     (h : evalInstr k nextPC i s = some (.inl t)) : t.default = s.default := by
-  cases i with
-  | op o =>
-    simp only [evalInstr, bind, Option.bind_eq_some_iff] at h
-    obtain ⟨u, ho, hr⟩ := h
+  rcases i with o | target | ⟨⟨f, args⟩, target⟩ | idx
+  · obtain ⟨_, ho, hr⟩ := Option.bind_eq_some_iff.mp h
     exact (default_resume hr).trans (default_evalOp ho)
-  | jump target => exact default_resume h
-  | branch c target =>
-    cases c with
-    | test f args =>
-      simp only [evalInstr, bind, Option.bind_eq_some_iff] at h
-      obtain ⟨_, _, hr⟩ := h
-      exact default_resume hr
-  | halt idx =>
-    simp only [evalInstr] at h
+  · exact default_resume h
+  · obtain ⟨_, _, hr⟩ := Option.bind_eq_some_iff.mp h
+    exact default_resume hr
+  · simp only [evalInstr] at h
     split at h <;> simp at h
 
 theorem length_entries_evalInstr_le {k : M.Config} {nextPC : ℕ} {i : Instr M r}
     {s t : FiniteState M r} (h : evalInstr k nextPC i s = some (.inl t)) :
     (SparseMemory.entries t.memory).length ≤ (SparseMemory.entries s.memory).length + 1 := by
-  cases i with
-  | op o =>
-    simp only [evalInstr, bind, Option.bind_eq_some_iff] at h
-    obtain ⟨u, ho, hr⟩ := h
-    rw [memory_resume hr]
-    exact length_entries_evalOp_le ho
-  | jump target =>
-    rw [memory_resume h]
-    exact Nat.le_add_right _ _
-  | branch c target =>
-    cases c with
-    | test f args =>
-      simp only [evalInstr, bind, Option.bind_eq_some_iff] at h
-      obtain ⟨_, _, hr⟩ := h
-      rw [memory_resume hr]
-      exact Nat.le_add_right _ _
-  | halt idx =>
-    simp only [evalInstr] at h
+  rcases i with o | target | ⟨⟨f, args⟩, target⟩ | idx
+  · obtain ⟨_, ho, hr⟩ := Option.bind_eq_some_iff.mp h
+    exact memory_resume hr ▸ length_entries_evalOp_le ho
+  · exact memory_resume h ▸ Nat.le_add_right _ _
+  · obtain ⟨_, _, hr⟩ := Option.bind_eq_some_iff.mp h
+    exact memory_resume hr ▸ Nat.le_add_right _ _
+  · simp only [evalInstr] at h
     split at h <;> simp at h
 
 /-- A continuing finite step preserves the memory default. -/
@@ -324,8 +267,7 @@ theorem default_step {k : M.Config} {p : Program M r} {s t : FiniteState M r}
   unfold step at h
   split at h
   · rw [dispatch_eq_getElem? k p 0 s (Nat.zero_le _), Nat.sub_zero] at h
-    simp only [bind, Option.bind_eq_some_iff] at h
-    obtain ⟨i, _, hi⟩ := h
+    obtain ⟨_, _, hi⟩ := Option.bind_eq_some_iff.mp h
     exact default_evalInstr hi
   · simp at h
 
@@ -336,8 +278,7 @@ theorem length_entries_step_le {k : M.Config} {p : Program M r} {s t : FiniteSta
   unfold step at h
   split at h
   · rw [dispatch_eq_getElem? k p 0 s (Nat.zero_le _), Nat.sub_zero] at h
-    simp only [bind, Option.bind_eq_some_iff] at h
-    obtain ⟨i, _, hi⟩ := h
+    obtain ⟨_, _, hi⟩ := Option.bind_eq_some_iff.mp h
     exact length_entries_evalInstr_le hi
   · simp at h
 
@@ -390,15 +331,13 @@ theorem exists_run_eq_inl_of_runs {k : M.Config} {p : Program M r} {n : ℕ}
   | hrefl => exact ⟨s, rfl, hd⟩
   | hhead hab _ ih =>
     subst hd
-    have hstep := denote_step k p s
-    rw [GenericRAM.Next] at hab
-    rw [hab] at hstep
-    rcases hs : step k p s with _ | (s' | v)
-    · simp [hs, denoteResult] at hstep
-    · simp only [hs, denoteResult, Outcome.next.injEq] at hstep
+    have hstep := (denote_step k p s).trans hab
+    match hs : step k p s with
+    | some (.inl s') =>
+      simp only [hs, denoteResult, Outcome.next.injEq] at hstep
       obtain ⟨t, hrun, hden⟩ := ih hstep
       exact ⟨t, by simp [run_succ, hs, hrun], hden⟩
-    · simp [hs, denoteResult] at hstep
+    | none | some (.inr _) => simp [hs, denoteResult] at hstep
 
 /-- **Exact multi-step output refinement**: at every step budget `n`, the finite-state evaluator
 agrees with the fuel-bounded generic RAM interpreter. -/
@@ -408,11 +347,11 @@ theorem denote_run (k : M.Config) (p : Program M r) (n : ℕ) (s : FiniteState M
   | zero => rfl
   | succ n ih =>
     rw [eval, run_succ, GenericRAM.run_succ, ← denote_step]
-    rcases hs : step k p s with _ | (t | v)
-    · rfl
-    · simp only [denoteResult, Option.map_map]
+    match hs : step k p s with
+    | some (.inl t) =>
+      simp only [denoteResult, Option.map_map]
       exact ih t
-    · rfl
+    | none | some (.inr _) => rfl
 
 /-- A halting execution of `m ≤ n` instructions halts with the same output in `n` finite steps. -/
 theorem run_eq_inr_of_executes {k : M.Config} {p : Program M r} {s : FiniteState M r}
@@ -420,11 +359,11 @@ theorem run_eq_inr_of_executes {k : M.Config} {p : Program M r} {s : FiniteState
     run k p n s = some (.inr v) := by
   have hden := denote_run k p n s
   rw [GenericRAM.run_mono h.run_eq hmn, Option.map_some, eval] at hden
-  rcases hr : run k p n s with _ | (t | w)
-  · simp [hr] at hden
-  · simp [hr] at hden
-  · simp only [hr, output_inr, Option.some.injEq] at hden
+  match hr : run k p n s with
+  | some (.inr w) =>
+    simp only [hr, output_inr, Option.some.injEq] at hden
     exact congrArg (some ∘ Sum.inr) hden
+  | none | some (.inl _) => simp [hr] at hden
 
 /-- A halting execution of `m ≤ n` instructions produces `some v` under `eval`. -/
 theorem eval_eq_some_of_executes {k : M.Config} {p : Program M r} {s : FiniteState M r}
@@ -445,14 +384,12 @@ theorem executes_of_run_eq_inr {k : M.Config} {p : Program M r} {n : ℕ}
     · simp [hs] at h
     · simp only [hs] at h
       obtain ⟨m, hmn, hex⟩ := ih h
-      have hnext : GenericRAM.Next k p s.denote t.denote := by
-        rw [GenericRAM.Next, ← denote_step, hs, denoteResult]
-      exact ⟨m + 1, Nat.add_le_add_right hmn 1, hex.head hnext⟩
+      exact ⟨m + 1, Nat.add_le_add_right hmn 1,
+        hex.head (by rw [GenericRAM.Next, ← denote_step, hs, denoteResult])⟩
     · simp only [hs, Option.some.injEq, Sum.inr.injEq] at h
-      cases h
-      have hhalt : GenericRAM.step k p s.denote = .halt v := by
-        rw [← denote_step, hs, denoteResult]
-      exact ⟨1, Nat.succ_le_succ (Nat.zero_le _), .halt hhalt⟩
+      subst h
+      exact ⟨1, Nat.succ_le_succ (Nat.zero_le _),
+        .halt (by rw [← denote_step, hs, denoteResult])⟩
 
 /-- Halting generic-RAM executions from `s.denote` correspond to halting finite-state runs. -/
 theorem executes_iff_exists_run (k : M.Config) (p : Program M r) (s : FiniteState M r)
@@ -557,16 +494,12 @@ theorem init_inO (enc : M.Encoding) :
       (initEncoding (r := r) enc) (encoding enc)
       (fun q => 4 * (initEncoding (r := r) enc q).length)
       (fun q => 4 * (initEncoding (r := r) enc q).length) := by
-  let idInit : NativeCertificate
-      (id : (Fin r → M.Value) × M.Value × SparseMemory M.Address M.Value →
-        (Fin r → M.Value) × M.Value × SparseMemory M.Address M.Value)
-      (initEncoding (r := r) enc) (initEncoding (r := r) enc) :=
-    linear (ComputableInO.of_eq (f := fun x => x) fun _ => rfl)
-  have h := (initCertificate enc (fst idInit) (fst (snd idInit)) (snd (snd idInit))).computes
-  exact h.mono_le (T' := fun q => 4 * (initEncoding (r := r) enc q).length)
-    (S' := fun q => 4 * (initEncoding (r := r) enc q).length)
-    (fun _ => by simp [idInit, initCertificate_time]; omega)
-    (fun _ => by simp [idInit, initCertificate_space]; omega)
+  let idInit : NativeCertificate id (initEncoding (r := r) enc) (initEncoding (r := r) enc) :=
+    linear (ComputableInO.of_eq fun _ => rfl)
+  refine (initCertificate enc (fst idInit) (fst (snd idInit))
+    (snd (snd idInit))).computes.mono_le ?_ ?_ <;> intro
+  · simp [idInit, initCertificate_time]; omega
+  · simp [idInit, initCertificate_space]; omega
 
 /-! ### Outcome projection certificates -/
 
@@ -755,15 +688,9 @@ theorem le_runTime_of_run_eq_inl (enc : M.Encoding) (N : M.NativePrimitives enc)
   have h1 := le_roundCertificate_time_inl enc N p k t
   have h2 := le_maxRoundTime (roundCertificate enc N p) hj (k, Option.some (.inl s))
   rw [iterate_round_inl, hrun] at h2
-  have h4 : maxRoundTime (roundCertificate enc N p) n (k, Option.some (.inl s)) ≤
-      (n + 1) * (maxRoundTime (roundCertificate enc N p) n (k, Option.some (.inl s)) +
-        maxStateLength (encPair enc.config (resultEncoding enc))
-          (round p) n (k, Option.some (.inl s)) +
-        ((encNat n).length + 1) ^ 2) :=
-    le_trans (Nat.le_add_right _ _)
-      (le_trans (Nat.le_add_right _ _) (Nat.le_mul_of_pos_left _ (Nat.succ_pos n)))
   simp only [runTime, runCertificate, congr_time, snd_time, iterate_time]
-  omega
+  exact h1.trans <| h2.trans <| ((Nat.le_add_right _ _).trans (Nat.le_add_right _ _)).trans <|
+    (Nat.le_mul_of_pos_left _ (Nat.succ_pos _)).trans (Nat.le_add_left _ _)
 
 /-- Every continuing state reached within `j ≤ n` steps has its single-step space bound retained
 in `runSpace`. -/
@@ -1057,14 +984,13 @@ theorem step_polyTime (enc : M.Encoding) (N : M.NativePrimitives enc)
 /-- When all scalar primitive certificates are polynomial, `roundCertificate` is polynomial. -/
 theorem roundCertificate_isPolynomial (enc : M.Encoding) (N : M.NativePrimitives enc)
     (p : Program M r) (hN : N.IsPolynomial) :
-    (roundCertificate enc N p).IsPolynomial := by
-  have hstep := stepCertificate_isPolynomial enc N p hN
-  have hres : (stepResultCertificate enc N p).IsPolynomial :=
+    (roundCertificate enc N p).IsPolynomial :=
+  prod_isPolynomial _ _ ⟨.self, .self⟩ <|
     option_isPolynomial _ _ _
       (comp_isPolynomial _ _ ⟨.self, .self⟩ ⟨.self, .self⟩)
       ⟨.self, .self⟩
-      (comp_isPolynomial _ _ hstep (prod_isPolynomial _ _ ⟨.self, .self⟩ ⟨.self, .self⟩))
-  exact prod_isPolynomial _ _ ⟨.self, .self⟩ hres
+      (comp_isPolynomial _ _ (stepCertificate_isPolynomial enc N p hN)
+        (prod_isPolynomial _ _ ⟨.self, .self⟩ ⟨.self, .self⟩))
 
 theorem initCertificate_isPolynomial (enc : M.Encoding)
     {regsFn : α → Fin r → M.Value} {defaultFn : α → M.Value}
@@ -1079,12 +1005,8 @@ theorem initCertificate_isPolynomial (enc : M.Encoding)
 
 theorem constRegsCertificate_isPolynomial (enc : M.Encoding) {initRegFn : α → M.Value}
     (initReg : NativeCertificate initRegFn ei enc.value) (hreg : initReg.IsPolynomial) :
-    (constRegsCertificate (r := r) enc initReg).IsPolynomial := by
-  refine ⟨.add .self ?_, .add .self ?_⟩
-  · simpa [Finset.sum_const, Finset.card_univ, Fintype.card_fin] using
-      (PolyBounded.const r).mul hreg.1
-  · simpa [Finset.sum_const, Finset.card_univ, Fintype.card_fin] using
-      (PolyBounded.const r).mul hreg.2
+    (constRegsCertificate (r := r) enc initReg).IsPolynomial :=
+  ⟨.add .self (.sum _ fun _ _ => hreg.1), .add .self (.sum _ fun _ _ => hreg.2)⟩
 
 theorem initConstCertificate_isPolynomial (enc : M.Encoding)
     {initRegFn defaultFn : α → M.Value}

@@ -255,8 +255,7 @@ theorem equiv_simpInList (Γ : Fin n → SqlType) (e : Expr n) (vs : List Datum)
   next =>
     split
     · split_ifs with h
-      · exact Equiv.inList_nil h
-      · rfl
+      exacts [Equiv.inList_nil h, Equiv.refl _]
     · exact Equiv.inList_singleton _ _ _
     · rfl
 
@@ -399,10 +398,7 @@ theorem equiv_simpProject (es : Fin k → Expr n) (q : Query S n) :
     dsimp only
     split_ifs with hk hcol
     · subst hk
-      have hcol' : FinVec.map (Expr.simplify Γ) es = Expr.col :=
-        funext fun i => by simpa using hcol i
-      rw [hcol'] at h
-      exact h.trans (project_col q)
+      exact (funext hcol ▸ h).trans (project_col q)
     all_goals exact h
   next => rfl
 
@@ -459,8 +455,7 @@ theorem equiv_pushSelect (p : Expr n) (q : Query S n) :
         next =>
           split_ifs with hT
           exacts [hT ▸ select_join_true _ _ _, hp.symm.trans (equiv_simpSelect p _)]
-      · rw [ite_eq_right hθ]
-        exact equiv_simpSelect p _
+      · exact (ite_eq_right hθ).symm ▸ equiv_simpSelect p _
     next => exact equiv_simpSelect p _
   | unionAll q₁ q₂ ih₁ ih₂ =>
     exact (select_unionAll p q₁ q₂).trans (Equiv.unionAll (ih₁ p) (ih₂ p))

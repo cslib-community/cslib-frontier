@@ -210,11 +210,10 @@ theorem multisetWeight_update_bounds (level : α → ℕ) (code : α → Fin ℓ
     | cons a t ih =>
       simp only [Multiset.map_cons, Multiset.sum_cons, Nat.add_mul]
       exact Nat.add_le_add (by cases code a j <;> simp [levelBitCoeff]) ih
-  have hscaled := Nat.mul_le_mul_right (6 ^ (ℓ - (j.val + 1)))
-    (two_mul_sum_six_pow_multiset_le rest level hlt hcard)
-  rw [Nat.mul_assoc] at hscaled
   have hdouble : 2 * (rest.map fun x => levelBitCoeff (level x) j * (code x j).toNat).sum ≤
-      levelBitCoeff m j := (Nat.mul_le_mul_left 2 hsum).trans hscaled
+      levelBitCoeff m j :=
+    (Nat.mul_le_mul_left 2 hsum).trans ((Nat.mul_assoc ..).symm ▸
+      Nat.mul_le_mul_right _ (two_mul_sum_six_pow_multiset_le rest level hlt hcard))
   omega
 
 /-- Hoza's exchange argument: a pointwise minimum over a nonempty finite family of seed functions
@@ -281,9 +280,8 @@ private theorem eq_of_agrees_on_equal_bits {c d : Fin ℓ → Bool} (δ : (Fin �
     (hxy : ∀ j, c j = d j → x j = y j) : x = y := by
   classical
   by_contra hne
-  have hex : ∃ k : ℕ, ∃ j : Fin ℓ, j.val = k ∧ x j ≠ y j := by
-    obtain ⟨j, hj⟩ := Function.ne_iff.mp hne
-    exact ⟨j.val, j, rfl, hj⟩
+  have hex : ∃ k : ℕ, ∃ j : Fin ℓ, j.val = k ∧ x j ≠ y j :=
+    (Function.ne_iff.mp hne).elim fun j hj => ⟨j.val, j, rfl, hj⟩
   obtain ⟨j, hj, hjdiff⟩ := Nat.find_spec hex
   have hsmall := suffix_change_le δ hA.le hstep (j.val + 1) j.isLt (update x j (y j)) y
     (update_agrees j fun i hi => by_contra fun hd => Nat.find_min hex (hj ▸ hi) ⟨i, rfl, hd⟩)
@@ -330,12 +328,9 @@ theorem card_tyingSeeds_le_of_update_bounds (f g : (Fin ℓ → Bool) → ℕ)
     have h₂ := hg x j
     dsimp only [δ]
     cases hc : c j <;> cases hd : d j <;>
-      simp only [hc, hd, Bool.toNat_false, Bool.toNat_true, mul_zero, mul_one, add_zero] at *
-    all_goals refine ⟨abs_le.mpr ⟨by omega, by omega⟩, fun h => ?_⟩
-    · exact (h rfl).elim
-    · exact (by omega : (levelBitCoeff m j : ℤ) ≤ -_).trans (neg_le_abs _)
-    · exact (by omega : (levelBitCoeff m j : ℤ) ≤ _).trans (le_abs_self _)
-    · exact (h rfl).elim
+      simp only [hc, hd, Bool.toNat_false, Bool.toNat_true] at h₁ h₂ ⊢ <;>
+      refine ⟨abs_le.mpr ⟨by omega, by omega⟩, fun h => le_abs.mpr ?_⟩
+    exacts [absurd rfl h, by omega, by omega, absurd rfl h]
   let agree := univ.filter fun j => c j = d j
   have hcount : (univ.filter fun seed => f seed = g seed).card ≤
       (univ : Finset (agree → Bool)).card := by

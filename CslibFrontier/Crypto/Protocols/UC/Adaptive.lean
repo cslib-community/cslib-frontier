@@ -581,8 +581,7 @@ theorem IdealFunctionality.toStatic_toAdaptive {BackQ BackR : Type}
       (F.toAdaptive reveal onCorrupt).applyInitialCorruptions κ C <$> F.init κ ∅ = F.init κ C) :
     (F.toAdaptive reveal onCorrupt).toStatic = F.toProtocol := by
   funext κ C
-  simp only [AdaptiveProtocol.toStatic, IdealFunctionality.toAdaptive,
-    IdealFunctionality.toProtocol]
+  rw [AdaptiveProtocol.toStatic, IdealFunctionality.toProtocol]
   congr 1
   exact hinit κ C
 
@@ -594,14 +593,12 @@ theorem IdealFunctionality.toStatic_toAdaptive_of_initIndep {BackQ BackR : Type}
     (hinit : ∀ κ C, F.init κ C = F.init κ ∅) :
     (F.toAdaptive reveal).toStatic = F.toProtocol := by
   refine F.toStatic_toAdaptive reveal (fun _ _ s => s) fun κ C => ?_
-  have hid : (F.toAdaptive reveal).applyInitialCorruptions κ C = id := by
-    funext s
-    simp only [AdaptiveProtocol.applyInitialCorruptions, IdealFunctionality.toAdaptive, ite_self]
-    clear hinit
-    induction List.finRange n generalizing s with
-    | nil => rfl
-    | cons _ _ ih => exact ih s
-  rw [hid]; exact (id_map _).trans (hinit κ C).symm
+  have hid : (F.toAdaptive reveal).applyInitialCorruptions κ C = id :=
+    funext fun (s : F.State) => by
+      simp only [AdaptiveProtocol.applyInitialCorruptions, IdealFunctionality.toAdaptive, ite_self]
+      induction List.finRange n generalizing s <;> simp [*]
+  rw [hid]
+  exact (id_map _).trans (hinit κ C).symm
 
 /-- Project an `AdaptiveNetR` reply back to `RoutedNetR` (ignoring `.corrupt`, which static
 adversaries never send). -/
@@ -637,9 +634,8 @@ private theorem isQueryBounded_liftStaticNetProgram {α : Type}
     {m : ℕ} (h : program.IsQueryBounded m) :
     (liftStaticNetProgram (View := View) program).IsQueryBounded m := by
   refine OracleComp.IsCostBounded.interpret (fun q => ?_) h
-  rcases q with k | (⟨i, x⟩ | nq)
-  · exact OracleComp.IsCostBounded.query _
-  all_goals exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
+  rcases q with _ | (_ | _) <;>
+    first | exact .query _ | exact (OracleComp.isCostBounded_map_iff ..).mpr (.query _)
 
 /-- Lifting a static adversary preserves its call budget. -/
 theorem Adversary.PolyBounded.ofStatic
@@ -676,8 +672,7 @@ private theorem noNewCorrupt_liftStaticNetProgram (C₀ : Finset (Fin n)) {α : 
       rw [liftStaticNetProgram, OracleComp.interpret_bind, OracleComp.interpret_query] <;>
       refine .bind ?_ ih
     · exact .query trivial
-    · simp only [sumHandler, OracleComp.queriesSatisfy_map_iff]; exact .query trivial
-    · simp only [sumHandler, OracleComp.queriesSatisfy_map_iff]; exact .query trivial
+    all_goals exact (OracleComp.queriesSatisfy_map_iff ..).mpr (.query trivial)
 
 /-- A static adversary lifted via `AdaptiveAdversary.ofStatic` never queries `.corrupt`. -/
 theorem AdaptiveAdversary.noNewCorrupt_ofStatic
@@ -898,23 +893,19 @@ private theorem runFrom_adaptiveRouter_liftStaticNetProgram {α β : Type}
     (fun a rs' sP hR => hR.2 ▸ hfg a rs' hR.1)
     fun q rs' sP k₁ k₂ _ ⟨hrs', hsP⟩ hcont => by
       rcases hsP with rfl; erw [Machine.runFrom_query]
-      rcases q with ⟨i, x⟩ | nq
-      · erw [Machine.runFrom_map, Machine.runFrom_query, bind_map_left]
-        dsimp only [adaptiveRouter, corruptRouter, AdaptiveProtocol.toStatic]
-        conv_lhs => dsimp only [StateT.run]
-        by_cases hi : i ∈ C₀
-        · have hi' : i ∈ rs'.corrupted := hrs' ▸ hi
-          simp only [hi, hi', ↓reduceIte]
+      rcases q with ⟨i, x⟩ | nq <;>
+        erw [Machine.runFrom_map, Machine.runFrom_query, bind_map_left] <;>
+        dsimp only [adaptiveRouter, corruptRouter, AdaptiveProtocol.toStatic] <;>
+        (conv_lhs => dsimp only [StateT.run])
+      · by_cases hi : i ∈ C₀
+        · simp only [hi, hrs' ▸ hi, ↓reduceIte]
           erw [StateT.run_map, bind_assoc, bind_map_left]
-          exact bind_congr fun p => by erw [pure_bind]; exact hcont (.inl p.1) _ _ ⟨hrs', rfl⟩
-        · have hi' : i ∉ rs'.corrupted := hrs' ▸ hi
-          simp only [hi, hi', ↓reduceIte]
-          erw [StateT.run_pure, pure_bind, pure_bind]; exact hcont (.inl none) _ _ ⟨hrs', rfl⟩
-      · erw [Machine.runFrom_map, Machine.runFrom_query, bind_map_left]
-        dsimp only [adaptiveRouter, corruptRouter, AdaptiveProtocol.toStatic]
-        conv_lhs => dsimp only [StateT.run]
-        erw [StateT.run_map, bind_assoc, bind_map_left]
-        exact bind_congr fun p => by erw [pure_bind]; exact hcont (.inr p.1) _ _ ⟨hrs', rfl⟩
+          exact bind_congr fun p => (pure_bind _ _).trans (hcont (.inl p.1) _ _ ⟨hrs', rfl⟩)
+        · simp only [hi, hrs' ▸ hi, ↓reduceIte]
+          erw [StateT.run_pure, pure_bind, pure_bind]
+          exact hcont (.inl none) _ _ ⟨hrs', rfl⟩
+      · erw [StateT.run_map, bind_assoc, bind_map_left]
+        exact bind_congr fun p => (pure_bind _ _).trans (hcont (.inr p.1) _ _ ⟨hrs', rfl⟩)
 
 private theorem runFrom_adaptiveExecMachine_ofStatic {α β : Type}
     (P : AdaptiveProtocol n In Out NetQ NetR View)
@@ -956,14 +947,14 @@ private theorem runFrom_adaptiveExecMachine_ofStatic {α β : Type}
         erw [Machine.runFrom_bind, Machine.runFrom_query, bind_map_left, bind_assoc]
         simp only [corruptRouter, AdaptiveProtocol.toStatic]
         by_cases hi : i ∈ C κ
-        · have hi' : i ∈ rs₁.corrupted := hrs₁ ▸ hi
-          simp only [hi, hi', ↓reduceIte, StateT.run_pure]
+        · simp only [hi, hrs₁ ▸ hi, ↓reduceIte, StateT.run_pure]
           erw [pure_bind, pure_bind, Machine.runFrom_pure, pure_bind]
           exact hcont none _ _ ⟨rfl, hrs₁, rfl⟩
-        · have hi' : i ∉ rs₁.corrupted := hrs₁ ▸ hi
-          simp only [hi, hi', ↓reduceIte]; erw [bind_assoc]
+        · simp only [hi, hrs₁ ▸ hi, ↓reduceIte]
+          erw [bind_assoc]
           exact bind_congr fun p => by
-            erw [Machine.runFrom_pure, pure_bind, pure_bind]; exact hcont p.1 _ _ ⟨rfl, hrs₁, rfl⟩
+            erw [Machine.runFrom_pure, pure_bind, pure_bind]
+            exact hcont p.1 _ _ ⟨rfl, hrs₁, rfl⟩
       · erw [Machine.runFrom_query, Machine.runFrom_query]
         change (fun (p : (AdvR × (A κ (C κ)).State) × _) => (p.1.1, (p.1.2, p.2))) <$>
             (adaptiveRouter .static P κ (C κ)).runFrom

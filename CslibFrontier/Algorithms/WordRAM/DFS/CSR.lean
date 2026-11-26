@@ -356,13 +356,10 @@ theorem prefixSumCode_spec {N w : ℕ} (targetAdj : Fin N → List (Fin N))
       exact hy_out a (by omega)
   have hx₀_P : P (x₀.regs iReg) x₀ := by
     rw [hx₀_i]
-    refine ⟨hx₀_fr, hx₀_p, fun u hu => ?_, fun u => ?_, fun a ha => ?_⟩
-    · have hu0 : u = 0 := by omega
-      subst hu0; simp [hx₀_mem]
-    · simp only [Nat.not_lt_zero, ↓reduceIte, hx₀_mem]
-      rw [Function.update_of_ne (by omega)]
-      exact hdeg u
-    · rw [hx₀_mem, Function.update_of_ne (by omega)]
+    refine ⟨hx₀_fr, hx₀_p, fun u hu => by simp [Nat.le_zero.mp hu, hx₀_mem],
+      fun u => ?_, fun a ha => hx₀_mem ▸ Function.update_of_ne (by omega) 0 x.mem⟩
+    simp only [Nat.not_lt_zero, ↓reduceIte, hx₀_mem]
+    rw [Function.update_of_ne (by omega), hdeg u]
   obtain ⟨y, hy_loop, hy_P, -⟩ := ExecWithin.loop_count P
     (fun y hy => (hy.1 nVerts (by decide)).trans hL) hbody
     (x := x₀) (by omega) hx₀_P
@@ -431,9 +428,7 @@ private theorem partialCSRAt_step {N : ℕ}
   · by_cases hu : u = src <;> simp [*, hp.1 u]
   · rw [hm_cur]
     by_cases hu : u = src
-    · subst hu
-      simp only [mem₁, Function.update_self, List.length_cons]
-      omega
+    · simp only [hu, mem₁, Function.update_self, List.length_cons]; omega
     · have hne : curBase + u.val ≠ curBase + src.val := fun h => hu (Fin.ext (by omega))
       simp [mem₁, Function.update_of_ne hu, Function.update_of_ne hne, hp.2.1 u]
   · rw [hm_cur]
@@ -480,8 +475,7 @@ theorem backfillStepCode_spec {N w : ℕ}
   have hsrc_lt := src.isLt
   have hcur_eq := hp.2.1 src
   have hoff_src : csrOffset targetAdj (src.val + 1) =
-      csrOffset targetAdj src.val + (targetAdj src).length := by
-    simpa using csrOffset_succ targetAdj hsrc_lt
+      csrOffset targetAdj src.val + (targetAdj src).length := csrOffset_succ targetAdj hsrc_lt
   have hoff_le_N := csrOffset_mono targetAdj (by omega : src.val + 1 ≤ N)
   set c := x.mem (curBase + src.val) - 1
   have hc_pos : 1 ≤ x.mem (curBase + src.val) := by omega

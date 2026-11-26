@@ -150,9 +150,9 @@ theorem CNF.exists_any_eval_eq_parity {k : ℕ} (hk1 : 1 ≤ k) (hkn : k ∣ n) 
   have hBdisj : ((univ : Finset (Fin (n / k))) : Set (Fin (n / k))).PairwiseDisjoint B :=
     fun j _ j' _ hjj' => disjoint_left.2 fun i hi hi' =>
       hjj' (Fin.ext ((mem_filter.1 hi).2.symm.trans (mem_filter.1 hi').2))
-  have hBunion : univ.biUnion B = univ := by
-    refine eq_univ_of_forall fun i => mem_biUnion.2 ⟨⟨i.val / k, ?_⟩, mem_univ _, by simp [B]⟩
-    exact Nat.div_lt_div_of_lt_of_dvd hkn i.isLt
+  have hBunion : univ.biUnion B = univ := eq_univ_of_forall fun i =>
+    mem_biUnion.2 ⟨⟨i.val / k, Nat.div_lt_div_of_lt_of_dvd hkn i.isLt⟩, mem_univ _,
+      mem_filter.2 ⟨mem_univ _, rfl⟩⟩
   -- the formula saying that the blocks have the parities `b`
   let F : BitString (n / k) → CNF (Fin n) := fun b =>
     (List.finRange (n / k)).flatMap fun j => CNF.parityOnEq (B j) (b j)
@@ -164,17 +164,12 @@ theorem CNF.exists_any_eval_eq_parity {k : ℕ} (hk1 : 1 ≤ k) (hkn : k ∣ n) 
   · rw [List.length_map, length_toList, card_filter_parity_eq_true hm]
   · obtain ⟨b, -, rfl⟩ := List.mem_map.1 hφ
     obtain ⟨j, -, hc⟩ := List.mem_flatMap.1 hc
-    obtain ⟨y, -, rfl⟩ := List.mem_map.1 hc
-    rw [Clause.length_exclude]
-    exact hBcard j
-  · rw [Bool.eq_iff_iff, List.any_eq_true]
-    simp only [List.mem_map, mem_toList, mem_filter, mem_univ, true_and]
-    rw [show parity n x = parityOn (univ.biUnion B) x by rw [hBunion]; rfl,
-      parityOn_biUnion hBdisj]
-    constructor
-    · rintro ⟨_, ⟨b, hb, rfl⟩, hx⟩
-      rwa [show (fun j => parityOn (B j) x) = b from funext ((hF b x).1 hx)]
-    · exact fun h => ⟨_, ⟨fun j => parityOn (B j) x, h, rfl⟩, (hF _ x).2 fun j => rfl⟩
+    exact (CNF.length_of_mem_parityOnEq hc).trans_le (hBcard j)
+  · change _ = parityOn univ x
+    rw [← hBunion, parityOn_biUnion hBdisj, Bool.eq_iff_iff]
+    simp only [List.any_map, List.any_eq_true, mem_toList, mem_filter, mem_univ,
+      true_and, Function.comp_def, hF, ← funext_iff, exists_eq_right']
+    rfl
 
 /-! ### Unbounded bottom fan-in -/
 
@@ -316,14 +311,10 @@ theorem CNF.card_isolatedInputs_mul_min_le {μ : ℝ} (hμ : 0 < μ) (hμn : μ 
   set S₂ := S.filter fun x => ¬ μ ≤ w x
   set Cl := (Fs.flatten.map List.toFinset).toFinset
   -- inputs of weight at least `μ`: each formula has few solutions of large weight
-  have h₁ : (#S₁ : ℝ) * 2 ^ μ ≤ Fs.length * 2 ^ n := by
-    set A : CNF (Fin n) → Finset (BitString n) := fun φ =>
-      {x | φ.eval x = true ∧ μ ≤ ∑ i, 1 / (φ.critWidth x i : ℝ)}
-    have hsub : S₁ ⊆ Fs.toFinset.biUnion A := fun x hx => by
-      obtain ⟨hxS, hxw⟩ := mem_filter.1 hx
-      exact mem_biUnion.2 ⟨F x, List.mem_toFinset.2 (hF x hxS),
-        mem_filter.2 ⟨mem_univ _, hFx x hxS, hxw⟩⟩
-    exact card_mul_le_length_mul_two_pow (by positivity) hsub
+  have h₁ : (#S₁ : ℝ) * 2 ^ μ ≤ Fs.length * 2 ^ n :=
+    card_mul_le_length_mul_two_pow (by positivity)
+      (fun x hx => mem_biUnion.2 ⟨F x, List.mem_toFinset.2 (hF x (mem_filter.1 hx).1),
+        mem_filter.2 ⟨mem_univ _, hFx x (mem_filter.1 hx).1, (mem_filter.1 hx).2⟩⟩)
       fun φ _ => CNF.card_filter_le_sum_inv_critWidth_mul_two_rpow_le φ μ
   -- inputs of weight below `μ`: their shortest critical clauses are many
   have h₂ : (#S₂ : ℝ) * (μ * 2 ^ (n / μ)) ≤ #Cl * 2 ^ n := by

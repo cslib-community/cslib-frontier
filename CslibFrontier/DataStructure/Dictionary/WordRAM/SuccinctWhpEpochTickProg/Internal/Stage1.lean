@@ -406,17 +406,15 @@ private theorem stage1_dirtyZero_bounds_after_queue {c U V n_max b₀ : ℕ}
     0 < fs_q.dirtyCount → fs_q.dirtyBuckets 0 < numBucketsWhp n_max ∧
       fs_q.rebSliceIdx (fs_q.dirtyBuckets 0) < 3 * numBucketsWhp n_max := by
   subst hfs_q
-  by_cases hrq0 : fs.rebQueued b₀ = 0
-  · rw [ite_eq_left hrq0]
-    intro _
+  split_ifs with hrq0
+  · intro _
     have hb_z : Function.update fs.dirtyBuckets fs.dirtyCount b₀ 0 < numBucketsWhp n_max := by
-      by_cases hdc0 : fs.dirtyCount = 0
+      rcases eq_or_ne fs.dirtyCount 0 with hdc0 | hdc0
       · simpa only [hdc0, Function.update_self] using hb₀
-      · rw [Function.update_of_ne (Ne.symm hdc0)]
-        exact (hpos_init (Nat.pos_of_ne_zero hdc0)).1
+      · simpa only [Function.update_of_ne (Ne.symm hdc0)] using
+          (hpos_init (Nat.pos_of_ne_zero hdc0)).1
     exact ⟨hb_z, rebSliceIdx_lt_of_core hc hb_z⟩
-  · rw [ite_eq_right hrq0]
-    exact hpos_init
+  · exact hpos_init
 
 /-- `Realizes .exact` certificate for `epochTickStage1GenProg`. -/
 theorem realizes_epochTickStage1Gen :
@@ -472,14 +470,11 @@ theorem realizes_epochTickStage1Gen :
          hseed hrep (hdrOff := hdrStageCursor) (val := fs.stageCursor + 1) (s := s)
        exact ⟨c, U, V, w, n_max, { fs with stageCursor := fs.stageCursor + 1 },
          henv, rfl, hw.2.2.2.2.1, hpos_init⟩)
-    | (cases hchk : bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor with
-       | none =>
-         rw [hchk] at hcs_res; simp only [hcs_res] at *
-         have hhit : (0 : ℕ) = 1 := by assumption
-         cases hhit
-       | some p =>
-         rcases p with ⟨b₀, loc₀⟩
-         rw [hchk] at hcs_res
+    | (rcases hchk : bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor with _ | ⟨b₀, loc₀⟩
+       · rw [hchk] at hcs_res
+         simp only [hcs_res] at *
+         cases (by assumption : (0 : ℕ) = 1)
+       · rw [hchk] at hcs_res
          obtain ⟨_, k, _, _, hmk⟩ := hv_o.checkSlot_some hchk
          have hb₀ : b₀ < numBucketsWhp n_max := hrel_o k b₀ loc₀ hmk
          simp only [hcs_res] at *
@@ -487,22 +482,13 @@ theorem realizes_epochTickStage1Gen :
          | exact ⟨c, U, V, w, n_max, θ, fs, henv, rfl, hseed, hrep, hb₀, hdc_lt_q⟩
          | (obtain ⟨_, _, hqb_step⟩ :=
               stage1QueueBucketProg_fastStep henv hb₀ hdc_lt_q hseed hrep (s := s)
-            set s_q := (Memory.spec 0).clientState s
-              (stage1QueueBucketProg ((mkWhpCoreParams c U V w n_max, base), b₀))
-            set fs_q : FastState :=
-              if fs.rebQueued b₀ = 0 then
-                { fs with
-                  rebQueued := Function.update fs.rebQueued b₀ 1
-                  dirtyBuckets := Function.update fs.dirtyBuckets fs.dirtyCount b₀
-                  dirtyCount := fs.dirtyCount + 1 }
-              else fs
-            have hw := writeHdrStep (fs := fs_q) henv (by dsimp [hdrStageCursor]; decide)
-              (henv.fits_of_le_n_max (by omega)) (fun h6 => by dsimp [hdrStageCursor] at h6; omega)
+            have hw := writeHdrStep henv (by simp [hdrStageCursor])
+              (henv.fits_of_le_n_max (by omega)) (by simp [hdrStageCursor])
               hqb_step.2.1 hqb_step.2.2.1 (hdrOff := hdrStageCursor)
-              (val := fs.stageCursor + 1) (s := s_q)
-            exact ⟨c, U, V, w, n_max, { fs_q with stageCursor := fs.stageCursor + 1 },
-              henv, rfl, hw.2.2.2.2.1,
-              stage1_dirtyZero_bounds_after_queue (fs_q := fs_q) hcore hb₀ hpos_init rfl⟩))
+              (val := fs.stageCursor + 1)
+            exact ⟨c, U, V, w, n_max, _, henv, rfl, hw.2.2.2.2.1,
+              by simpa [updateFastHdr, hdrStageCursor, FastState.rebSliceIdx, FastState.rebRole]
+                using stage1_dirtyZero_bounds_after_queue hcore hb₀ hpos_init rfl⟩))
   )
 
 private theorem stage1BumpAndFinish_fastStep {c U V w n_max base : ℕ}
@@ -587,23 +573,14 @@ theorem epochTickStage1GenProg_fastStep {c U V w n_max base : ℕ}
       have hb₀ : b₀ < numBucketsWhp n_max := hrel_o k b₀ loc₀ hmk
       obtain ⟨hqb_mc, hqb_vp, hqb_step⟩ :=
         stage1QueueBucketProg_fastStep henv hb₀ hdc_lt_q hseed hrep (s := s)
-      set fs_q : FastState :=
-        if fs.rebQueued b₀ = 0 then
-          { fs with
-            rebQueued := Function.update fs.rebQueued b₀ 1
-            dirtyBuckets := Function.update fs.dirtyBuckets fs.dirtyCount b₀
-            dirtyCount := fs.dirtyCount + 1 }
-        else fs
-      have hbf := stage1BumpAndFinish_fastStep (fs := fs) (fsMid := fs_q) henv hcur1_fit
+      have hbf := stage1BumpAndFinish_fastStep (fs := fs) henv hcur1_fit
         (stage1_dirtyZero_bounds_after_queue hc hb₀ hpos_init rfl)
         hqb_step.2.1 hqb_step.2.2.1
-        (s := (Memory.spec 0).clientState s (stage1QueueBucketProg ((cp, base), b₀)))
       refine stageSlotCheckSeq_fastStep (kSlot := kSlot) (midCost := 12) (tailCost := 22)
         hr hlt rfl hcs_st hcs_res hcs_mc hcs_vp ?_ hqb_mc hqb_vp hqb_step
         hbf.1 hbf.2.1
-        (by simpa only [fs_q,
-          apply_ite (fun f : FastState => { f with stageCursor := fs.stageCursor + 1 })]
-          using hbf.2.2)
+        (by simpa only [apply_ite fun f : FastState =>
+          { f with stageCursor := fs.stageCursor + 1 }] using hbf.2.2)
         (by omega)
       dsimp only [kSlot, slotCheckBucket, cp, oldTr]
       simp

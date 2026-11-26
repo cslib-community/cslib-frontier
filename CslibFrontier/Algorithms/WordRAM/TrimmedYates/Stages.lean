@@ -102,16 +102,9 @@ private def passCode : Code .standard numRegs := tabulateDom passCellBody
 private theorem passCellBody_preserves (i : Fin numRegs) :
     ¬ IsCellMod i → passCellBody.Preserves i := by
   intro hi
-  exact ⟨by revert i hi; decide +kernel,
-    trieGet_preserves i (by revert i hi; decide +kernel),
-    by revert i hi; decide +kernel,
-    by revert i hi; decide +kernel,
-    by revert i hi; decide +kernel,
-    trieGet_preserves i (by revert i hi; decide +kernel),
-    by revert i hi; decide +kernel,
-    ⟨signedAdd_preserves i (by revert i hi; decide +kernel),
-      signedSub_preserves i (by revert i hi; decide +kernel)⟩,
-    by revert i hi; decide +kernel⟩
+  refine ⟨?_, trieGet_preserves i ?_, ?_, ?_, ?_, trieGet_preserves i ?_, ?_,
+    ⟨signedAdd_preserves i ?_, signedSub_preserves i ?_⟩, ?_⟩ <;>
+    revert i hi <;> decide +kernel
 
 private theorem passCode_preserves (i : Fin numRegs) :
     ¬ IsTabMod i → passCode.Preserves i :=
@@ -170,9 +163,7 @@ private theorem exec_passCode {w d domPtr free curRoot fbRoot cutoff signMode B 
         u.regs rTrieVal = Signed.encode (yatesPass c coord G_k dom[p]) ∧
         u.mem = s.mem ∧ ∀ i, ¬ IsCellMod i → u.regs i = s.regs i := by
     intro s p hp hsz hso hsd ⟨hsbm, hscut, hssm, hscr, hsfbr⟩ hsmem hsck hscc
-    let X := dom[p]
-    change s.regs rCellKey = setMask X at hsck
-    change s.regs rCellCard = #X at hscc
+    set X := dom[p]
     suffices h : ∃ u, ExecWithin w passCellBody s u (18 * d + 47) ∧
         u.regs rTrieVal = Signed.encode (yatesPass c coord G_k X) ∧ u.mem = s.mem by
       obtain ⟨u, hu, hval, hmem⟩ := h
@@ -302,10 +293,8 @@ def stagesCode : Code .standard numRegs :=
 theorem stagesCode_preserves (i : Fin numRegs) :
     ¬ IsStageMod i → stagesCode.Preserves i := by
   intro hi
-  exact ⟨by revert i hi; decide +kernel,
-    by revert i hi; decide +kernel,
-    passCode_preserves i (fun ht => hi (Or.inl ht)),
-    by revert i hi; decide +kernel⟩
+  refine ⟨?_, ?_, passCode_preserves i fun ht => hi (Or.inl ht), ?_⟩ <;>
+    revert i hi <;> decide +kernel
 
 theorem exec_stagesCode {w d domPtr free initRoot fbBase cutoff signMode B₀ B : ℕ}
     {dom : List (Finset (Fin d))} {P_low : Finset (Fin d) → Prop}

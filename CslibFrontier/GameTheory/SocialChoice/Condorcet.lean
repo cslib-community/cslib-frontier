@@ -77,9 +77,7 @@ open Classical in
 
 @[simp] theorem support_self (P : Profile V A) (a : A) : support P a a = 0 := by
   classical
-  unfold support
-  rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-  exact fun i _ => (P i).irrefl a
+  exact Finset.card_eq_zero.2 (Finset.filter_eq_empty_iff.2 fun i _ => (P i).irrefl a)
 
 /-- For distinct alternatives `a` and `b`, every voter ranks either `a` above `b` or `b` above
 `a`. -/
@@ -100,9 +98,7 @@ theorem support_eq_card_of_forall {P : Profile V A} {a b : A}
 theorem support_eq_zero_of_forall {P : Profile V A} {a b : A}
     (h : ∀ i, (P i).Prefers a b) : support P b a = 0 := by
   classical
-  unfold support
-  rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-  exact fun i _ => (P i).asymm (h i)
+  exact Finset.card_eq_zero.2 (Finset.filter_eq_empty_iff.2 fun i _ => (P i).asymm (h i))
 
 /-- Strictly more voters rank `a` above `b` than `b` above `a`. -/
 @[expose] def MajorityPrefers (P : Profile V A) (a b : A) : Prop :=
@@ -198,24 +194,22 @@ private theorem card_filter_threeBlock (e : V ≃ Fin (Fintype.card V)) {c₀ c�
         if p r then t.card else 0 := fun {t r} ht => by
     rw [Finset.filter_congr fun i hi => by rw [ht i hi], Finset.filter_const]
     split_ifs <;> simp
-  have huniv : (Finset.univ : Finset V) = (s₀ ∪ (s₀₁ \ s₀)) ∪ (Finset.univ \ s₀₁) := by
-    rw [Finset.union_sdiff_of_subset hsub₀, Finset.union_sdiff_of_subset (Finset.subset_univ s₀₁)]
-  have hd₁₂ : Disjoint (s₀ ∪ (s₀₁ \ s₀)) (Finset.univ \ s₀₁) := by
-    rw [Finset.union_sdiff_of_subset hsub₀]
-    exact disjoint_sdiff_self_right
-  rw [huniv, Finset.filter_union, Finset.card_union_of_disjoint
-      (hd₁₂.mono (Finset.filter_subset _ _) (Finset.filter_subset _ _)),
-    Finset.filter_union, Finset.card_union_of_disjoint
+  have hsplit {a b : Finset V} (h : a ⊆ b) :
+      (b.filter fun i => p (threeBlockProfile e c₀ c₁ r₀ r₁ r₂ i)).card =
+        (a.filter fun i => p (threeBlockProfile e c₀ c₁ r₀ r₁ r₂ i)).card +
+          ((b \ a).filter fun i => p (threeBlockProfile e c₀ c₁ r₀ r₁ r₂ i)).card := by
+    rw [← Finset.card_union_of_disjoint
       (disjoint_sdiff_self_right.mono (Finset.filter_subset _ _) (Finset.filter_subset _ _)),
-    hcongr (r := r₀) fun i hi => by
-      simp only [s₀, Finset.mem_filter, Finset.mem_univ, true_and] at hi
-      simp [threeBlockProfile, hi],
+      ← Finset.filter_union, Finset.union_sdiff_of_subset h]
+  rw [hsplit (Finset.subset_univ s₀₁), hsplit hsub₀,
+    hcongr (r := r₀) fun i hi => ite_eq_left (Finset.mem_filter.1 hi).2,
     hcongr (r := r₁) fun i hi => by
       simp only [s₀, s₀₁, Finset.mem_sdiff, Finset.mem_filter, Finset.mem_univ, true_and] at hi
       simp [threeBlockProfile, hi.1, hi.2],
     hcongr (r := r₂) fun i hi => by
       simp only [s₀₁, Finset.mem_sdiff, Finset.mem_univ, Finset.mem_filter, true_and] at hi
-      simp [threeBlockProfile, hi, show ¬ (e i : ℕ) < c₀ by omega],
+      have hnot0 : ¬(e i : ℕ) < c₀ := by omega
+      simp [threeBlockProfile, hi, hnot0],
     Finset.card_sdiff_of_subset hsub₀, Finset.card_sdiff_of_subset (Finset.subset_univ s₀₁),
     Finset.card_univ, hs₀, hs₀₁, add_tsub_cancel_left]
 
@@ -273,10 +267,8 @@ theorem exists_condorcetCycle (hV : 3 ≤ Fintype.card V) (hV4 : Fintype.card V 
     ∃ P : Profile V A,
       MajorityPrefers P a b ∧ MajorityPrefers P b c ∧ MajorityPrefers P c a := by
   obtain ⟨P, hab', hbc', hsupp, -⟩ := exists_cyclicThreeBlock hV hab hac hbc
-  refine ⟨P, hab', hbc', ?_⟩
   have := support_add_support P hac
-  unfold MajorityPrefers
-  omega
+  exact ⟨P, hab', hbc', (majorityPrefers_iff_card_lt_two_mul hac.symm).2 (by omega)⟩
 
 /-- With at least three voters and at least three alternatives, there is a preference profile that
 has no Condorcet winner (including `|V| = 4`, where two alternatives tie and every alternative
@@ -289,9 +281,8 @@ theorem exists_profile_forall_not_isCondorcetWinner (hV : 3 ≤ Fintype.card V)
   have : Nonempty V := Fintype.card_pos_iff.1 (by omega)
   refine ⟨P, fun x hx => ?_⟩
   rcases eq_or_ne x a with rfl | hxa
-  · have h_ac := hx c hac.symm
+  · have h_ac : support P c x < support P x c := hx c hac.symm
     have := support_add_support P hac
-    unfold MajorityPrefers at h_ac
     omega
   rcases eq_or_ne x b with rfl | hxb
   · exact hab'.asymm (hx a hab)
@@ -316,9 +307,7 @@ theorem pluralityCount_eq_card_of_forall_isTop {P : Profile V A} {a : A}
 theorem pluralityCount_eq_zero_of_forall_isTop {P : Profile V A} {a b : A} (hab : b ≠ a)
     (h : ∀ i, (P i).IsTop a) : pluralityCount P b = 0 := by
   classical
-  unfold pluralityCount
-  rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-  exact fun i _ hi => hab (hi.unique (h i))
+  exact Finset.card_eq_zero.2 (Finset.filter_eq_empty_iff.2 fun _ _ hi => hab (hi.unique (h _)))
 
 /-- Each voter ranks a unique alternative at the top, so the plurality counts sum to `|V|`. -/
 theorem sum_pluralityCount [Fintype A] [Nonempty A] (P : Profile V A) :
@@ -392,27 +381,21 @@ theorem not_isDictator_plurality [Finite A] [Nontrivial A] (t : Ranking A)
   obtain ⟨a, ham⟩ := exists_ne m
   let P : Profile V A := fun j => if j = i then t.toTop a else t.toTop m
   have hcnt_a : pluralityCount P a = 1 := Finset.card_eq_one.2 ⟨i, Finset.ext fun j => by
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
-    by_cases hj : j = i
-    · simp [P, hj, t.isTop_toTop a]
-    · simp only [P, hj, ↓reduceIte, iff_false]
-      exact fun h => ham (h.unique (t.isTop_toTop m))⟩
+    rcases eq_or_ne j i with rfl | hj
+    · simp [P, t.isTop_toTop a]
+    · simpa [P, hj] using fun h => ham (h.unique (t.isTop_toTop m))⟩
   have hcnt_m : pluralityCount P m = Fintype.card V - 1 := by
-    have hset : (Finset.univ.filter fun j : V => (P j).IsTop m) = Finset.univ.erase i := by
-      ext j
-      by_cases hj : j = i
-      · simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_erase, ne_eq,
-          P, hj, ↓reduceIte, not_true_eq_false, false_and, iff_false]
-        exact fun h => ham ((t.isTop_toTop a).unique h)
-      · simp [P, hj, t.isTop_toTop m]
+    have hset : (Finset.univ.filter fun j : V => (P j).IsTop m) = Finset.univ.erase i :=
+      Finset.ext fun j => by
+        rcases eq_or_ne j i with rfl | hj
+        · simpa [P] using fun h => ham ((t.isTop_toTop a).unique h)
+        · simp [P, hj, t.isTop_toTop m]
     rw [pluralityCount, hset, Finset.card_erase_of_mem (Finset.mem_univ i), Finset.card_univ]
   have hPm : plurality t P = m := plurality_eq_of_isTop t fun x hxm => by
     rw [pluralityRanking_prefers, hcnt_m]
     rcases eq_or_ne x a with rfl | hxa
     · rw [hcnt_a]
-      by_cases hgt : 1 < Fintype.card V - 1
-      · exact .inl hgt
-      · exact .inr ⟨by omega, t.isTop_top x hxm⟩
+      exact (lt_or_eq_of_le (by omega)).imp_right fun h => ⟨h.symm, t.isTop_top x hxm⟩
     · have hcnt0 : pluralityCount P x = 0 :=
         Finset.card_eq_zero.2 <| Finset.filter_eq_empty_iff.2 fun j _ hjx => by
           by_cases hj : j = i <;> simp only [P, hj, ↓reduceIte] at hjx
@@ -420,7 +403,7 @@ theorem not_isDictator_plurality [Finite A] [Nontrivial A] (t : Ranking A)
           · exact hxm (hjx.unique (t.isTop_toTop m))
       exact .inl (hcnt0 ▸ by omega)
   have hdict := (isDictator_iff_of_surjective (surjective_plurality t)).1 hi P a (hPm ▸ ham)
-  rw [hPm, show P i = t.toTop a by simp [P]] at hdict
+  simp only [P, ↓reduceIte, hPm] at hdict
   exact (t.toTop a).asymm (t.isTop_toTop a m ham.symm) hdict
 
 /-- **Plurality rule is manipulable** ([Nisan2007], §9.2.2, pp. 211–212): with at least two voters
@@ -499,10 +482,8 @@ theorem not_isCondorcetConsistent_plurality [Finite A] [Nonempty A] (hV : 3 ≤ 
     · simp only [hxy, hym, hwy.symm, ↓reduceIte]
       exact .inr ⟨by omega, t.isTop_top y hym⟩
     by_cases hxw : x = w
-    · simp only [hxw, hwm, hwy, ↓reduceIte]
-      by_cases hlt : n - (k + k) < k
-      · exact .inl (by omega)
-      · exact .inr ⟨by omega, t.isTop_top w hwm⟩
+    · simp only [hxw, hwm, hwy, ↓reduceIte, zero_add]
+      exact (lt_or_eq_of_le (by omega)).imp_right fun h => ⟨h.symm, t.isTop_top w hwm⟩
     · simp only [hxm, hxy, hxw, ↓reduceIte]
       exact .inl (by omega)
   exact fun hcc => hwm ((hcc P w hcw).symm.trans (plurality_eq_of_isTop t htop_m))
@@ -540,16 +521,13 @@ theorem borda_prefers {P : Profile V A} {a b : A} :
 
 /-- For a nonempty electorate, the Borda count satisfies weak Pareto: if every voter ranks `a`
 above `b`, each voter ranks `a` above strictly more alternatives than `b`. -/
-theorem isPareto_borda [Nonempty V] : (borda (V := V) (A := A)).IsPareto := by
+theorem isPareto_borda [Nonempty V] : (borda (V := V) (A := A)).IsPareto := fun P a b h => by
   classical
-  intro P a b h
-  rw [borda_prefers]
-  refine Finset.sum_lt_sum_of_nonempty Finset.univ_nonempty fun i _ =>
-    Finset.card_lt_card ((Finset.ssubset_iff_of_subset fun x hx => ?_).2 ⟨b, ?_, ?_⟩)
-  · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hx ⊢
-    exact (P i).trans _ _ _ (h i) hx
-  · simp [h i]
-  · simp [(P i).irrefl b]
+  refine borda_prefers.2 (Finset.sum_lt_sum_of_nonempty Finset.univ_nonempty fun i _ =>
+    Finset.card_lt_card ((Finset.ssubset_iff_of_subset fun x hx => ?_).2
+      ⟨b, by simp [h i],
+        by simp [(P i).irrefl b]⟩))
+  exact Finset.mem_filter.2 ⟨Finset.mem_univ _, (P i).trans _ _ _ (h i) (Finset.mem_filter.1 hx).2⟩
 
 /-- With at least two voters and two alternatives, the Borda count has no dictator: if voter `i`
 ranks `a` first and `b` last while all other voters reverse that ranking, `b`'s Borda score is at
@@ -576,37 +554,28 @@ theorem not_isDictator_borda [Nontrivial A] (hV : 2 ≤ Fintype.card V) (i : V) 
       (Finset.univ.filter fun x => s.Prefers z x).card = 0 := fun {s z} hz =>
     Finset.card_eq_zero.2 (Finset.filter_eq_empty_iff.2 fun x _ hzx =>
       s.asymm hzx (hz x (s.ne_of_prefers hzx).symm))
-  have hscore_a : bordaScore P a = Fintype.card A - 1 := by
-    have hcongr (j : V) :
-        (Finset.univ.filter fun x => (P j).Prefers a x).card =
-          if j = i then Fintype.card A - 1 else 0 := by
-      by_cases hj : j = i <;> simp only [P, hj, ↓reduceIte]
-      · exact hcard_top htop_a
-      · exact hcard_bot fun x hxa => r.reverse_prefers.2 (htop_a x hxa)
-    simp [bordaScore, hcongr]
+  have hscore_a : bordaScore P a = Fintype.card A - 1 :=
+    (Finset.sum_eq_single i
+      (fun j _ hj => by
+        simpa [P, hj] using hcard_bot fun x hxa => r.reverse_prefers.2 (htop_a x hxa))
+      fun hi' => absurd (Finset.mem_univ i) hi').trans (by simpa [P] using hcard_top htop_a)
   have hscore_b : bordaScore P b = (Fintype.card V - 1) * (Fintype.card A - 1) := by
-    have hcongr (j : V) :
-        (Finset.univ.filter fun x => (P j).Prefers b x).card =
-          if j = i then 0 else Fintype.card A - 1 := by
-      by_cases hj : j = i <;> simp only [P, hj, ↓reduceIte]
-      · exact hcard_bot hbot_b
-      · exact hcard_top fun x hxb => r.reverse_prefers.2 (hbot_b x hxb)
-    rw [bordaScore, ← Finset.add_sum_erase _ _ (Finset.mem_univ i), hcongr i, ite_eq_left rfl,
-      zero_add,
-      Finset.sum_congr rfl fun j hj => (hcongr j).trans (ite_eq_right (Finset.ne_of_mem_erase hj)),
-      Finset.sum_const_nat fun _ _ => rfl, Finset.card_erase_of_mem (Finset.mem_univ i),
-      Finset.card_univ]
+    have hcongr (j : V) : (Finset.univ.filter fun x => (P j).Prefers b x).card =
+        if j ≠ i then Fintype.card A - 1 else 0 := by
+      rcases eq_or_ne j i with rfl | hj
+      · simpa [P] using hcard_bot hbot_b
+      · simpa [P, hj] using hcard_top fun x hxb => r.reverse_prefers.2 (hbot_b x hxb)
+    simp [bordaScore, hcongr, Finset.sum_ite, Finset.filter_ne']
   have hdict : (borda P).Prefers a b := hi P a b (by simp [P, htop_a b hab.symm])
   rw [borda_prefers, hscore_a, hscore_b] at hdict
-  have := Nat.mul_le_mul_right (Fintype.card A - 1) (show 1 ≤ Fintype.card V - 1 by omega)
+  have := Nat.mul_le_mul_right (Fintype.card A - 1) (Nat.le_sub_of_add_le (a := 1) (b := 1) hV)
   omega
 
 /-- With at least two voters and at least three alternatives, the Borda count violates IIA. -/
 theorem not_isIIA_borda (hV : 2 ≤ Fintype.card V) (hA : 3 ≤ Fintype.card A) :
-    ¬ (borda (V := V) (A := A)).IsIIA := by
+    ¬ (borda (V := V) (A := A)).IsIIA := fun hI => by
   have : Nonempty V := Fintype.card_pos_iff.1 (by omega)
   have : Nontrivial A := Fintype.one_lt_card_iff_nontrivial.1 (by omega)
-  intro hI
   obtain ⟨i, hi⟩ := isDictatorial_of_three_le_card isPareto_borda hI hA
   exact not_isDictator_borda hV i hi
 

@@ -321,9 +321,7 @@ theorem choose_le_length_greedyMasks_mul (han : a < n) (hnℓ : n ≤ ℓ) :
     intro S hS
     set w := List.ofFn fun k : Fin ℓ => decide (k ∈ S)
     have hlen : w.length = ℓ := List.length_ofFn
-    have hblock : maskBlock ℓ w = S := by
-      ext k
-      simp [w, List.getD_eq_getElem?_getD]
+    have hblock : maskBlock ℓ w = S := Finset.ext fun k => by simp [w, List.getD_eq_getElem?_getD]
     have hcount : w.count true = n := by
       rw [count_true_eq_card_maskBlock_of_length hlen, hblock, (mem_powersetCard.1 hS).2]
     obtain ⟨v, hv, hlt⟩ := exists_mem_greedyMasks_lt_overlapCount han hlen hcount
@@ -437,16 +435,13 @@ theorem abs_card_div_sub_card_div_lt (D : Design ℓ n a m) {f : BooleanFunction
     (hm : (m : ℝ) < ε * s) (test : BooleanFunction m)
     (htest : complexity interpretation (single test) ≤ S) :
     |(#{z | test (generator D f z) = true} : ℝ) / 2 ^ ℓ - #{r | test r = true} / 2 ^ m| < ε := by
-  have hcardSeed : (Fintype.card (Fin ℓ → Bool) : ℝ) = 2 ^ ℓ := by simp
-  have hcardOut : (Fintype.card (Fin m → Bool) : ℝ) = 2 ^ m := by simp
   have hs0 : (0 : ℝ) < s := Nat.cast_pos.2
     (Nat.pos_of_ne_zero fun h => (Nat.cast_nonneg m).not_gt (hm.trans_eq (by simp [h])))
   have hε : 0 < ε := pos_of_mul_pos_left ((Nat.cast_nonneg m).trans_lt hm) hs0.le
   rcases Nat.eq_zero_or_pos m with rfl | hm0
   · -- with no output bits, the test sees the same empty string on every seed
     have hr (r : Fin 0 → Bool) : test r = test Fin.elim0 := congrArg test (Subsingleton.elim _ _)
-    rcases hb : test Fin.elim0 with _ | _ <;>
-      simp [hr, hb, show (2 : ℝ) ^ ℓ ≠ 0 by positivity, hε]
+    rcases hb : test Fin.elim0 with _ | _ <;> simp [hr, hb, hε]
   -- the strict agreement bound of the reconstruction, from the slack
   have hslack : 1 / (s : ℝ) < ε / m := by
     rw [div_lt_div_iff₀ hs0 (by exact_mod_cast hm0)]; linarith
@@ -458,11 +453,10 @@ theorem abs_card_div_sub_card_div_lt (D : Design ℓ n a m) {f : BooleanFunction
     test htest
   have h₂ := toReal_realExperiment_sub_toReal_idealExperiment_lt D f hm0 (hhard (S + 1) le_rfl)
     (fun r => !test r) ((complexity_not_le test).trans (by omega))
-  rw [Generator.toReal_realExperiment_pure, Generator.toReal_idealExperiment_pure,
-    nnratCast_dens, nnratCast_dens, hcardSeed, hcardOut] at h₁
-  rw [Generator.toReal_realExperiment_pure, Generator.toReal_idealExperiment_pure,
-    nnratCast_dens, nnratCast_dens, card_not_div (fun z => test (generator D f z)),
-    card_not_div test, hcardSeed, hcardOut] at h₂
+  simp only [Generator.toReal_realExperiment_pure, Generator.toReal_idealExperiment_pure,
+    nnratCast_dens, card_not_div (fun z => test (generator D f z)), card_not_div test] at h₁ h₂
+  simp only [Fintype.card_fun, Fintype.card_fin, Fintype.card_bool, Nat.cast_pow,
+    Nat.cast_ofNat] at h₁ h₂
   exact abs_sub_lt_iff.2 ⟨by linarith, by linarith⟩
 
 end Cslib.Crypto.PRG.NisanWigderson

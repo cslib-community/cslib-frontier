@@ -155,12 +155,8 @@ theorem shamirUniform_viewDist_eq [Fintype F] [Nonempty F] [DecidableEq Party]
     (shamirUniformAccessScheme params).viewDist
         (uniformOfFintype (Shamir.Randomness params)) s secret =
       uniformOfFintype (s → F) := by
-  have hle : s.card ≤ params.threshold := by
-    have hs' : ¬ params.threshold + 1 ≤ s.card := by
-      simpa only [shamirUniformAccessScheme, shamirAccessSchemeOf, shamirAccessStructure,
-        AccessStructure.threshold_authorized_iff] using hs
-    omega
-  exact Shamir.uniformOfFintype_map_restrict_share params s hle secret
+  exact Shamir.uniformOfFintype_map_restrict_share params s
+    (Nat.lt_succ_iff.mp (not_le.mp hs)) secret
 
 /-- Under uniform Shamir randomness, any unauthorized coalition's view has zero mutual
 information with the secret. -/

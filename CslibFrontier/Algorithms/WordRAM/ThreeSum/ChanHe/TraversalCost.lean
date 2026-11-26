@@ -35,8 +35,7 @@ open Cslib.Algorithms.ThreeSum.ChanHe (fuel three_pow_fuel_le)
 
 /-- Full-tree work counts all native pops, not just emitted mathematical instances. -/
 theorem work_fuel_le (n : ℕ) : Math.work (fuel n) ≤ 3 * (2 * Nat.log 2 n + 2) ^ 5 := by
-  have he := Math.work_eq (fuel n)
-  rw [pow_succ] at he
+  have he := pow_succ 3 (fuel n) ▸ Math.work_eq (fuel n)
   have hb := Nat.mul_le_mul_right 3 (three_pow_fuel_le n)
   omega
 
@@ -53,17 +52,12 @@ theorem rootTime_fuel_square_le (n card m : ℕ) :
       70 + 6144 * (2 * Nat.log 2 n + 2) ^ 5 *
         ((card + 1) * (m + 1) + (m + 1) ^ 3) := by
   let S := (card + 1) * (m + 1) + (m + 1) ^ 3
-  have hpos : 1 ≤ S := by
-    have hp : 0 < S := by dsimp only [S]; positivity
-    omega
-  have hvisit := visitTime_square_le card m
-  have hcost : visitTime card m (2 * m ^ 2) + 316 ≤ 2048 * S := by
-    change visitTime card m (2 * m ^ 2) ≤ 1024 * S at hvisit
-    omega
-  have hm := Nat.mul_le_mul (work_fuel_le n) hcost
+  have hp : 0 < S := by positivity
+  have hvisit : visitTime card m (2 * m ^ 2) ≤ 1024 * S := visitTime_square_le card m
+  have hcost : visitTime card m (2 * m ^ 2) + 316 ≤ 2048 * S := by omega
   calc rootTime (fuel n) card m (2 * m ^ 2)
       ≤ 70 + (3 * (2 * Nat.log 2 n + 2) ^ 5) * (2048 * S) :=
-        Nat.add_le_add_left hm 70
+        Nat.add_le_add_left (Nat.mul_le_mul (work_fuel_le n) hcost) 70
     _ = 70 + 6144 * (2 * Nat.log 2 n + 2) ^ 5 *
         ((card + 1) * (m + 1) + (m + 1) ^ 3) := by dsimp only [S]; ring
 

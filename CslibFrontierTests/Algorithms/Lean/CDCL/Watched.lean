@@ -94,7 +94,7 @@ example : (CDCL.solveWith {} [[(0, true)], [(0, false)]]).2.conflicts = 1 ∧
 them: on `x₀ ∨ x₁`, the decision `¬x₀` and the implied `x₁` are both processed. -/
 example : (CDCL.solveWith {} [[(0, true), (1, true)]]).2.decisions = 1 ∧
     (CDCL.solveWith {} [[(0, true), (1, true)]]).2.propagations = 2 := by
-  decide
+  decide +kernel
 
 /-- PHP(4, 3), with pigeon `i` in hole `j` as `3 * i + j`. -/
 private abbrev php43 : CNF ℕ := (CNF.pigeonhole 4 3).relabel fun x => 3 * x.1.val + x.2.val
@@ -255,5 +255,34 @@ example (S : CDCL.WExec two) (p : ℕ) (L : S.exec.LearnedAt (S.exec.tr.splitAt 
     (L.id = 3 → (S.afterConflict p L k₀).red.learnts = S.red.learnts + 1) := by
   rw [S.afterConflict_learnts p L k₀ hred hk]
   exact ⟨fun h => by simp [h, CDCL.isLearntId], fun h => by simp [h, CDCL.isLearntId]⟩
+
+/-! ### Choosing the watches
+
+A trail with `x₀` (decision, position `0`), `¬x₂` (reason `0`) and `x₁` (reason `1`), as the
+codes of its literals and reasons. -/
+
+/-- The trail `x₀, ¬x₂, x₁`, oldest first. -/
+private abbrev trail₃ : CDCL.ATrail := ⟨#[1, 4, 3], #[0, 1, 2], rfl⟩
+
+/-- Each variable on the trail gets its position plus one, so variable `0` at position `0` gets
+`1`, unlike a variable not on the trail. -/
+example : trail₃.positions 4 = #[1, 3, 2, 0] := by decide +kernel
+
+/-- The newest marked variable below a position, `0` when none is marked. -/
+example : trail₃.topMarked (fun v => v == 0 || v == 2) 3 = 2 ∧
+    trail₃.topMarked (fun v => v == 0 || v == 1) 3 = 1 ∧
+    trail₃.topMarked (fun v => v == 1) 2 = 0 := by
+  decide +kernel
+
+/-- The literal on the variable `2` is moved second. -/
+example : CDCL.secondOn 2 [(5, true), (1, false), (2, true)] = [(5, true), (2, true), (1, false)] :=
+  by decide +kernel
+
+/-- The false literal assigned last watches second: `¬x₀`, at position `0` of the trail, before
+`¬x₇`, which is false but not on the trail. -/
+example : CDCL.watchOrderAt (trail₃.positions 8)
+    (CDCL.Assign.ofTrail [⟨(7, true), true⟩, ⟨(0, true), true⟩])
+    [(3, true), (7, false), (0, false)] = [(3, true), (0, false), (7, false)] := by
+  decide +kernel
 
 end CslibFrontierTests.Algorithms.Lean.CDCL.Watched

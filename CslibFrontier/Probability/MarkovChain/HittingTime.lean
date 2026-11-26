@@ -157,7 +157,7 @@ theorem survival_add_le {S : Set V} (hS : ∀ a ∈ S, ∀ b, P a b ≠ 0 → b 
   | t + 1, x, hx => by
     rcases eq_or_ne x v with rfl | hxv
     · simp
-    · rw [show t + 1 + m = t + m + 1 by omega, survival_succ_of_ne hxv, survival_succ_of_ne hxv,
+    · rw [Nat.add_right_comm t 1 m, survival_succ_of_ne hxv, survival_succ_of_ne hxv,
         mul_sum]
       refine sum_le_sum fun y _ => ?_
       rcases eq_or_ne (P x y) 0 with h | h
@@ -249,13 +249,10 @@ theorem hittingTime_ne_top {S : Set V}
   choose m hm using hm
   set M := univ.sup m + 1
   set c := univ.sup fun y => if y ∈ S then survival P v M y else 0
-  have hc1 : c < 1 := by
-    rw [Finset.sup_lt_iff (by simp)]
-    intro y _
+  have hc1 : c < 1 := (Finset.sup_lt_iff zero_lt_one).2 fun y _ => by
     split_ifs with hy
-    · exact (survival_antitone v y ((le_sup (mem_univ y)).trans (Nat.le_succ _))).trans_lt
-        (hm y hy)
-    · simp
+    · exact (survival_antitone v y ((le_sup (mem_univ y)).trans (Nat.le_succ _))).trans_lt (hm y hy)
+    · exact zero_lt_one
   have hcy (y) (hy : y ∈ S) : survival P v M y ≤ c := by
     simpa [hy] using le_sup (f := fun y => if y ∈ S then survival P v M y else 0) (mem_univ y)
   have hgeom (k r : ℕ) : ∀ x ∈ S, survival P v (k * M + r) x ≤ c ^ k := by
@@ -263,9 +260,8 @@ theorem hittingTime_ne_top {S : Set V}
     | zero => intro x _; simpa using survival_le_one v r x
     | succ k ih =>
       intro x hx
-      calc survival P v ((k + 1) * M + r) x = survival P v ((k * M + r) + M) x := by
-            congr 1
-            ring
+      calc survival P v ((k + 1) * M + r) x = survival P v ((k * M + r) + M) x :=
+            congrArg (survival P v · x) (by ring)
         _ ≤ c * survival P v (k * M + r) x := survival_add_le hS hcy _ x hx
         _ ≤ c * c ^ k := mul_le_mul_right (ih x hx) _
         _ = c ^ (k + 1) := (pow_succ' c k).symm
@@ -286,14 +282,11 @@ theorem hittingTime_ne_top {S : Set V}
 /-- The Cauchy product formula in `ℝ≥0∞`, where every family is summable. -/
 private theorem tsum_mul_tsum_eq_tsum_sum_range (f g : ℕ → ℝ≥0∞) :
     (∑' n, f n) * ∑' n, g n = ∑' n, ∑ k ∈ range (n + 1), f k * g (n - k) := by
-  simp_rw [← Nat.sum_antidiagonal_eq_sum_range_succ fun k l => f k * g l]
-  rw [← ENNReal.tsum_mul_right]
-  simp_rw [← ENNReal.tsum_mul_left]
+  simp_rw [← Nat.sum_antidiagonal_eq_sum_range_succ fun k l => f k * g l,
+    ← ENNReal.tsum_mul_right, ← ENNReal.tsum_mul_left]
   rw [← tsum_prod' (f := fun p : ℕ × ℕ => f p.1 * g p.2),
     ← HasAntidiagonal.sigmaAntidiagonalEquivProd.tsum_eq, tsum_sigma']
-  refine tsum_congr fun _ => ?_
-  rw [← Finset.tsum_subtype]
-  rfl
+  exact tsum_congr fun _ => Finset.tsum_subtype _ fun ij : ℕ × ℕ => f ij.1 * g ij.2
 
 theorem firstHit_self_succ (v : V) (t : ℕ) : firstHit P v (t + 1) v = 0 := by
   simp [firstHit]
@@ -309,10 +302,7 @@ theorem firstHit_succ_of_ne {v x : V} (hx : x ≠ v) (t : ℕ) :
 avoided it. -/
 theorem sum_firstHit_add_survival (v : V) :
     ∀ (t : ℕ) (x : V), ∑ j ∈ range (t + 1), firstHit P v j x + survival P v t x = 1
-  | 0, x => by
-    rcases eq_or_ne x v with rfl | hx
-    · simp [firstHit]
-    · simp [firstHit, survival, hx]
+  | 0, x => by rcases eq_or_ne x v with rfl | hx <;> simp [firstHit, survival, *]
   | t + 1, x => by
     rcases eq_or_ne x v with rfl | hx
     · simp [sum_range_succ', firstHit]
@@ -323,10 +313,9 @@ theorem sum_firstHit_add_survival (v : V) :
       exact sum_apply P x
 
 theorem tsum_firstHit_le_one (v x : V) : ∑' j, firstHit P v j x ≤ 1 :=
-  ENNReal.tsum_le_of_sum_range_le fun n => by
-    cases n with
-    | zero => simp
-    | succ t => exact (le_self_add).trans (sum_firstHit_add_survival v t x).le
+  ENNReal.tsum_le_of_sum_range_le fun
+    | 0 => by simp
+    | t + 1 => le_self_add.trans (sum_firstHit_add_survival v t x).le
 
 /-- To avoid `w` up to time `t`, the chain either avoids `v` or visits `v` first at some time
 `j ≤ t` and then avoids `w` for the remaining `t - j` steps. -/
@@ -336,8 +325,7 @@ theorem survival_le_survival_add_sum (v w : V) :
   | 0, x => by
     rcases eq_or_ne x v with rfl | hx
     · simp [firstHit]
-    · rw [survival_zero_of_ne hx]
-      exact le_add_right (survival_le_one w 0 x)
+    · exact survival_zero_of_ne hx ▸ le_add_right (survival_le_one w 0 x)
   | t + 1, x => by
     rcases eq_or_ne x w with rfl | hxw
     · simp
@@ -395,7 +383,6 @@ theorem IsStationary.mul_returnTime_eq_one {π : PMF V} (h : P.IsStationary π) 
   rw [mul_returnTime_eq hπ v, ← tsum_fintype (L := .unconditional V), π.tsum_coe]
   refine (ENNReal.sum_lt_top.2 fun x _ => ?_).ne
   rcases eq_or_ne (π x) 0 with hx | hx
-  · simp [hx]
-  · exact ENNReal.mul_lt_top (π.apply_ne_top x).lt_top (hfin x hx).lt_top
+  exacts [by simp [hx], ENNReal.mul_lt_top (π.apply_ne_top x).lt_top (hfin x hx).lt_top]
 
 end Cslib.Probability.MarkovChain

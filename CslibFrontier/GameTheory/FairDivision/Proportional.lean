@@ -154,20 +154,17 @@ Robertson–Webb oracle `oracle`, `cutAndChooseQ` outputs an envy-free division.
 theorem isEnvyFree_cutAndChooseQ {v : Fin 2 → CakeValuation}
     {oracle : {ι : Type} → RWQuery (Fin 2) ι → ι} (ho : RWQuery.IsValidOracle v oracle) :
     (cutAndChooseQ.eval oracle).IsEnvyFree v := by
-  have hhalf_hi : (1 / 2 : ℝ) ≤ v 0 0 1 := by
-    rw [(v 0).apply_zero_one]
-    norm_num
+  have hhalf_hi : (1 / 2 : ℝ) ≤ v 0 0 1 := by rw [(v 0).apply_zero_one]; norm_num
   obtain ⟨⟨hc0, hc1⟩, hvc0⟩ :=
     ho.eval_cutIn_spec 0 le_rfl (by norm_num) le_rfl (by norm_num) hhalf_hi
   set c := (RWQuery.cutIn (0 : Fin 2) 0 1 (1 / 2)).eval oracle
   have hadd0 := (v 0).val_add le_rfl hc0 hc1 le_rfl
   have h01 := (v 0).apply_zero_one
-  have hv1_sum : v 1 0 c + v 1 c 1 = 1 := by
-    rw [(v 1).val_add le_rfl hc0 hc1 le_rfl, (v 1).apply_zero_one]
+  have hv1_sum : v 1 0 c + v 1 c 1 = 1 :=
+    ((v 1).val_add le_rfl hc0 hc1 le_rfl).trans (v 1).apply_zero_one
+  have hc_def : (RWQuery.cutIn (0 : Fin 2) 0 1 (1 / 2)).eval oracle = c := rfl
   intro i j
-  simp only [cutAndChooseQ, FreeM.eval_bind,
-    show (RWQuery.cutIn (0 : Fin 2) 0 1 (1 / 2)).eval oracle = c from rfl,
-    ho.eval_evalAsk 1 0 c]
+  simp only [cutAndChooseQ, FreeM.eval_bind, hc_def, ho.eval_evalAsk 1 0 c]
   split_ifs <;> fin_cases i <;> fin_cases j <;>
     simp only [FreeM.eval_pure, Fin.zero_eta, Fin.mk_one, Fin.isValue, ↓reduceIte, one_ne_zero,
       CakeValuation.bundleVal_singleton] <;> linarith
@@ -266,8 +263,7 @@ private theorem countQueries_dubinsSpanierAux (n : ℕ)
   | k + 2, _, a, agents => by
       simp only [dubinsSpanierAux, FreeM.countQueries_bind, FreeM.countQueries_pure, add_zero]
       rw [countQueries_mOfFn_const oracle _ (fun _ => RWQuery.countQueries_cutIn _ _ _ _ _),
-        Nat.mul_one]
-      rw [countQueries_dubinsSpanierAux n oracle (k + 1) (by omega)]
+        Nat.mul_one, countQueries_dubinsSpanierAux n oracle (k + 1) (by omega)]
       have hstep : (k + 2) * (k + 2 + 1) = (k + 1) * (k + 1 + 1) + 2 * (k + 2) := by ring
       have hge2 : 2 ≤ (k + 1) * (k + 1 + 1) := by nlinarith
       omega
@@ -286,8 +282,7 @@ theorem countQueries_dubinsSpanierQ_le (n : ℕ)
     (oracle : {ι : Type} → RWQuery (Fin n) ι → ι) :
     (dubinsSpanierQ n).countQueries oracle ≤ n ^ 2 := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
-  · rw [dubinsSpanierQ, FreeM.countQueries_map]
-    simp only [dubinsSpanierAux, FreeM.countQueries_pure, zero_pow (by omega : 2 ≠ 0), le_refl]
+  · exact le_rfl
   · rw [countQueries_dubinsSpanierQ hn oracle]
     have hle : n * (n + 1) ≤ 2 * n ^ 2 := by nlinarith
     omega
@@ -326,13 +321,8 @@ private theorem dubinsSpanierAux_partition (n : ℕ)
         dubinsSpanierAux_partition n oracle (k + 1) (by omega) hc_mem.2
           (fun s : Fin (k + 1) => agents (σ s.succ))
       refine ⟨⟨hc_mem.1, hord_sub⟩, by simp only [List.length_cons, hlen_sub]; omega, ?_⟩
-      set sub := (dubinsSpanierAux n (k + 1) c (fun s => agents (σ s.succ))).eval oracle
-      set pieceOf : Fin (k + 2) → CakePiece :=
-        fun r => Fin.cases ⟨a, c⟩ sub.pieceOf (σ.symm r)
-      have hcomp : pieceOf ∘ σ = Fin.cases ⟨a, c⟩ sub.pieceOf :=
-        funext fun j => by simp only [Function.comp_apply, pieceOf, Equiv.symm_apply_apply]
-      refine (ofFn_comp_equiv_perm pieceOf σ).symm.trans ?_
-      rw [hcomp, List.ofFn_succ, Fin.cases_zero]
+      refine (ofFn_comp_equiv_perm (Fin.cases (⟨a, c⟩ : CakePiece) _) σ.symm).trans ?_
+      rw [List.ofFn_succ, Fin.cases_zero]
       exact hperm_sub.cons ⟨a, c⟩
 
 /-- For `1 ≤ n`, `dubinsSpanierQ n` produces a valid `(n - 1)`-cut contiguous partition of `[0, 1]`
@@ -355,9 +345,8 @@ private theorem dubinsSpanierAux_proportional {n : ℕ} {v : Fin n → CakeValua
           (v (agents r)).pieceVal (((dubinsSpanierAux n m a agents).eval oracle).pieceOf r)
   | 0, _, _, _, _, _, r => Fin.elim0 r
   | 1, _, _, _, _, hrem, r => by
-      simp only [dubinsSpanierAux, FreeM.eval_pure, CakeValuation.pieceVal]
-      have h := hrem r
-      simpa only [Nat.cast_one] using h
+      simpa only [dubinsSpanierAux, FreeM.eval_pure, CakeValuation.pieceVal, Nat.cast_one] using
+        hrem r
   | k + 2, a, ha0, ha1, agents, hrem, r => by
       have hn_pos : 0 < n := (agents 0).pos
       have hn_real : (0 : ℝ) ≤ 1 / (n : ℝ) := by positivity
@@ -381,21 +370,15 @@ private theorem dubinsSpanierAux_proportional {n : ℕ} {v : Fin n → CakeValua
           exact (v (agents (σ s.succ))).apply_mono_right ha0
             (hmarks_get ▸ Tuple.monotone_sort marks.get (Fin.zero_le s.succ))
             (hmark_spec (σ s.succ)).1.2
-        have hadd := (v (agents (σ s.succ))).val_add ha0 hc_bounds.1 hc_bounds.2 le_rfl
-        have htot := hrem (σ s.succ)
-        have hcast : ((k + 2 : ℕ) : ℝ) / (n : ℝ) - 1 / (n : ℝ) =
-            ((k + 1 : ℕ) : ℝ) / (n : ℝ) := by
-          push_cast
-          ring
-        linarith
-      set j := σ.symm r
-      have hr : agents r = agents (σ j) := by rw [Equiv.apply_symm_apply]
-      rw [hr]
-      refine Fin.cases ?_ (fun s => ?_) j
-      · simp only [Fin.cases_zero, CakeValuation.pieceVal]
-        rw [show c = markFn (σ 0) by rw [← hmarks_get], (hmark_spec (σ 0)).2]
-      · simp only [Fin.cases_succ]
-        exact dubinsSpanierAux_proportional ho (k + 1) (ha0.trans hc_bounds.1) hc_bounds.2
+        have hcast : ((k + 2 : ℕ) : ℝ) / n - 1 / n = ((k + 1 : ℕ) : ℝ) / n := by push_cast; ring
+        linarith [(v (agents (σ s.succ))).val_add ha0 hc_bounds.1 hc_bounds.2 le_rfl,
+          hrem (σ s.succ)]
+      have hag_r : agents r = agents (σ (σ.symm r)) := congrArg agents (σ.apply_symm_apply r).symm
+      rw [hag_r]
+      refine Fin.cases ?_ (fun s => ?_) (σ.symm r)
+      · simp only [Fin.cases_zero, CakeValuation.pieceVal, c, hmarks_get, (hmark_spec (σ 0)).2,
+          le_rfl]
+      · exact dubinsSpanierAux_proportional ho (k + 1) (ha0.trans hc_bounds.1) hc_bounds.2
           (fun t => agents (σ t.succ)) hrem_next s
 
 /-- **Dubins–Spanier proportionality:** for every `n`-agent valuation profile `v` and every valid
@@ -404,14 +387,11 @@ theorem isProportional_dubinsSpanierQ {n : ℕ} {v : Fin n → CakeValuation}
     {oracle : {ι : Type} → RWQuery (Fin n) ι → ι} (ho : RWQuery.IsValidOracle v oracle) :
     ((dubinsSpanierQ n).eval oracle).IsProportional v := by
   intro i
-  rw [dubinsSpanierQ, FreeM.eval_map]
-  dsimp only [SubDivision.toDividedCake]
-  rw [CakeValuation.bundleVal_singleton, ← CakeValuation.pieceVal]
-  have hrem : ∀ r : Fin n, (n : ℝ) / (n : ℝ) ≤ v r 0 1 := by
-    intro r
-    have hn_ne : (n : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr r.pos.ne'
-    rw [div_self hn_ne, (v r).apply_zero_one]
-  exact dubinsSpanierAux_proportional ho n le_rfl (by norm_num) id hrem i
+  simpa only [dubinsSpanierQ, FreeM.eval_map, SubDivision.toDividedCake,
+    CakeValuation.bundleVal_singleton, CakeValuation.pieceVal, id_eq] using
+    dubinsSpanierAux_proportional ho n le_rfl zero_le_one id
+      (fun r => by simp [div_self ((Nat.cast_ne_zero (R := ℝ)).mpr r.pos.ne'),
+        (v r).apply_zero_one]) i
 
 /-! ### 3. Even–Paz Divide-and-Conquer Proportional Division (`n` Agents, `O(n log n)` Queries) -/
 
@@ -452,11 +432,7 @@ private theorem ofFn_sumElim_splitFinEquiv {α : Type} {m k : ℕ} (hk : k ≤ m
   refine List.ext_getElem (by simp only [List.length_ofFn, List.length_append]; omega)
     fun i hi1 hi2 => ?_
   simp only [List.length_ofFn] at hi1
-  by_cases hik : i < k
-  · rw [List.getElem_append_left (by rw [List.length_ofFn]; omega)]
-    simp [splitFinEquiv, hik]
-  · rw [List.getElem_append_right (by rw [List.length_ofFn]; omega)]
-    simp [splitFinEquiv, hik]
+  by_cases hik : i < k <;> simp [List.getElem_append, splitFinEquiv, hik]
 
 private noncomputable def evenPazAux (n : ℕ) (m : ℕ) (a b : ℝ) (agents : Fin m → Fin n) :
     FreeM (RWQuery (Fin n)) (SubDivision m) :=
@@ -500,7 +476,7 @@ private theorem clog_half_le_pred {m : ℕ} (hm : 2 ≤ m) :
   have hr_pos : 1 ≤ Nat.clog 2 m := Nat.clog_pos Nat.one_lt_two (by omega)
   have hpow : m ≤ 2 ^ Nat.clog 2 m := Nat.le_pow_clog Nat.one_lt_two m
   have hexp : 2 ^ Nat.clog 2 m = 2 * 2 ^ (Nat.clog 2 m - 1) := by
-    conv_lhs => rw [← Nat.sub_add_cancel hr_pos, Nat.pow_succ, Nat.mul_comm]
+    rw [← pow_succ', Nat.sub_add_cancel hr_pos]
   exact ⟨(Nat.clog_le_iff_le_pow Nat.one_lt_two).mpr (by omega),
     (Nat.clog_le_iff_le_pow Nat.one_lt_two).mpr (by omega)⟩
 
@@ -595,14 +571,9 @@ private theorem evenPazAux_partition (n : ℕ)
       refine ⟨(orderedCutsOn_append_cons _ _).mpr ⟨hordL, hordR⟩, ?_, ?_⟩
       · rw [List.length_append, List.length_cons, hlenL, hlenR]
         omega
-      · set pieceOf : Fin m → CakePiece :=
-          fun r => Sum.elim subL.pieceOf subR.pieceOf (e.symm (σ.symm r))
-        have hcomp : pieceOf ∘ σ = Sum.elim subL.pieceOf subR.pieceOf ∘ e.symm :=
-          funext fun j => by simp only [Function.comp_apply, pieceOf, Equiv.symm_apply_apply]
-        have hperm1 := (ofFn_comp_equiv_perm pieceOf σ).symm
-        rw [hcomp, ofFn_sumElim_splitFinEquiv hk_le] at hperm1
-        rw [intervalsOfCutsOn_append_cons]
-        exact hperm1.trans (hpermL.append hpermR)
+      · refine (ofFn_comp_equiv_perm (Sum.elim subL.pieceOf subR.pieceOf ∘ e.symm) σ.symm).trans ?_
+        rw [ofFn_sumElim_splitFinEquiv hk_le, intervalsOfCutsOn_append_cons]
+        exact hpermL.append hpermR
 
 /-- For `1 ≤ n`, `evenPazQ n` produces a valid `(n - 1)`-cut contiguous partition of `[0, 1]`
 against any oracle. -/
@@ -655,12 +626,12 @@ private theorem evenPazAux_proportional {n : ℕ} {v : Fin n → CakeValuation}
       have hc_bounds : a ≤ c ∧ c ≤ b := by simpa [c, hmarks_get] using (hmark_spec (σ pivotIdx)).1
       set e := splitFinEquiv k hk_le
       set s := e.symm (σ.symm r)
-      have hr : agents r = agents (σ (e s)) := by simp only [s, Equiv.apply_symm_apply]
-      rw [hr]
+      have hag_r : agents r = agents (σ (e s)) := by simp [s]
+      rw [hag_r]
       have hdiv_of_mul {x v₀ w₀ : ℝ} (hx : 0 < x) (h : (x / (m : ℝ)) * v₀ ≤ w₀) :
-          v₀ / (m : ℝ) ≤ w₀ / x := by
-        have h1 := div_le_div_of_nonneg_right h hx.le
-        rwa [show (x / (m : ℝ)) * v₀ / x = v₀ / (m : ℝ) by field_simp [hx.ne']] at h1
+          v₀ / (m : ℝ) ≤ w₀ / x :=
+        (le_div_iff₀ hx).mpr (by
+          rwa [div_mul_eq_mul_div, mul_comm x v₀, ← div_mul_eq_mul_div] at h)
       rcases s with rL | rR
       · simp only [Sum.elim_inl]
         have hmark_le : markFn (σ (e (.inl rL))) ≤ c :=
@@ -682,14 +653,12 @@ private theorem evenPazAux_proportional {n : ℕ} {v : Fin n → CakeValuation}
           rw [← (hmark_spec (σ (e (.inr rR)))).2]
           exact (v (agents (σ (e (.inr rR))))).apply_mono_right ha hmark_ge
             ((hmark_spec (σ (e (.inr rR)))).1.2.trans hb)
-        have hadd := (v (agents (σ (e (.inr rR))))).val_add ha hc_bounds.1 hc_bounds.2 hb
-        have hm_pos : (0 : ℝ) < m := by positivity
         have hval_cb : (((m - k : ℕ) : ℝ) / (m : ℝ)) * v (agents (σ (e (.inr rR)))) a b ≤
             v (agents (σ (e (.inr rR)))) c b := by
-          have hident : 1 - (k : ℝ) / (m : ℝ) = (((m - k : ℕ) : ℝ) / (m : ℝ)) := by
-            rw [Nat.cast_sub hk_le]
-            field_simp [hm_pos.ne']
-          linarith [congrArg (· * v (agents (σ (e (.inr rR)))) a b) hident]
+          have hident : 1 - (k : ℝ) / m = ((m - k : ℕ) : ℝ) / m := by
+            rw [Nat.cast_sub hk_le, sub_div, div_self (Nat.cast_ne_zero.mpr hm0)]
+          linarith [(v (agents (σ (e (.inr rR))))).val_add ha hc_bounds.1 hc_bounds.2 hb,
+            congrArg (· * v (agents (σ (e (.inr rR)))) a b) hident]
         exact (hdiv_of_mul (mod_cast hmk1) hval_cb).trans
           (ih (m - k) (by omega) (ha.trans hc_bounds.1) hc_bounds.2 hb
             (fun t => agents (σ (e (.inr t)))) rR)
@@ -700,11 +669,8 @@ theorem isProportional_evenPazQ {n : ℕ} {v : Fin n → CakeValuation}
     {oracle : {ι : Type} → RWQuery (Fin n) ι → ι} (ho : RWQuery.IsValidOracle v oracle) :
     ((evenPazQ n).eval oracle).IsProportional v := by
   intro i
-  rw [evenPazQ, FreeM.eval_map]
-  dsimp only [SubDivision.toDividedCake]
-  rw [CakeValuation.bundleVal_singleton, ← CakeValuation.pieceVal]
-  have h := evenPazAux_proportional ho n le_rfl (by norm_num) le_rfl id i
-  dsimp only [id] at h
-  rwa [(v i).apply_zero_one] at h
+  simpa only [evenPazQ, FreeM.eval_map, SubDivision.toDividedCake,
+    CakeValuation.bundleVal_singleton, CakeValuation.pieceVal, id_eq, (v i).apply_zero_one] using
+    evenPazAux_proportional ho n le_rfl zero_le_one le_rfl id i
 
 end Cslib.GameTheory.FairDivision

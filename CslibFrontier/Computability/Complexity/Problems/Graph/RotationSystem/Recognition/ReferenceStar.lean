@@ -98,32 +98,22 @@ theorem frozen_iff_exists_subdivisionDart (I : FixedRotationInput)
     cases b
     · have hbound : 3 * i.val < (subdivide I).length := by rw [length_subdivide]; omega
       have hget := Option.some.inj ((List.getElem?_eq_getElem hbound).symm.trans
-        (by simpa only [Fin.val_zero, Nat.add_zero] using subdivide_getElem? I i 0))
-      change ((subdivide I)[3 * i.val]).frozen = true
-      rw [hget]
-      change (I.orders.getD I.graph.edges[i].1 none).isSome = true
-      simpa only [Fin.getElem_fin, Dart.vertex, Graph.edgeEndpoint, Bool.false_eq_true, ↓reduceIte,
+        (by simpa using subdivide_getElem? I i 0))
+      simpa [subdivisionDart, hget, Dart.vertex, Graph.edgeEndpoint,
         List.getD_eq_getElem _ _ i.isLt] using hf
     · have hbound : 3 * i.val + 2 < (subdivide I).length := by rw [length_subdivide]; omega
       have hget := Option.some.inj
         ((List.getElem?_eq_getElem hbound).symm.trans (subdivide_getElem? I i 2))
-      change ((subdivide I)[3 * i.val + 2]).frozen = true
-      rw [hget]
-      change (I.orders.getD I.graph.edges[i].2 none).isSome = true
-      simpa only [Fin.getElem_fin, Dart.vertex, Graph.edgeEndpoint, ↓reduceIte,
+      simpa [subdivisionDart, hget, Dart.vertex, Graph.edgeEndpoint,
         List.getD_eq_getElem _ _ i.isLt] using hf
 
 /-- The actual outgoing first/last route vector points from the original center to its leaf. -/
 theorem referenceDrawing_subdivisionDart_germ (I : FixedRotationInput) (d : Dart I.graph) :
     (referenceDrawing I).germ (subdivisionDart I d) =
       referencePoint I (I.graph.vertices.length + d.index) - referencePoint I d.vertex := by
-  have hends := subdivisionDart_endpoints I d
-  have hline (a : Dart (subdivisionGraph I)) :
-      (referenceDrawing I).germ a =
-        referencePoint I a.reverse.vertex - referencePoint I a.vertex := by
-    rcases a with ⟨e, b⟩
-    cases b <;> rfl
-  rw [hline, hends.1, hends.2]
+  obtain ⟨h1, h2⟩ := subdivisionDart_endpoints I d
+  rw [← h1, ← h2]
+  rcases subdivisionDart I d with ⟨_, _ | _⟩ <;> rfl
 
 /-- Every selected outgoing vector is nonzero, even at either end of an original loop. -/
 theorem referenceDrawing_subdivisionDart_germ_ne_zero {I : FixedRotationInput} (hI : Valid I)
@@ -221,13 +211,10 @@ theorem referenceDrawing_fixedWord_directions_injective {I : FixedRotationInput}
   have harg : ((referenceDrawing I).germ (subdivisionDart I d)).arg =
       ((referenceDrawing I).germ (subdivisionDart I e)).arg :=
     Complex.arg_coe_angle_eq_iff.mp heq
-  have hde := referenceDrawing_fixedWord_arg_lt_iff hI hw hd he
-  have hed := referenceDrawing_fixedWord_arg_lt_iff hI hw he hd
-  have hrank : word.idxOf d.index = word.idxOf e.index := by
-    simp only [harg, lt_self_iff_false, false_iff] at hde hed
-    omega
-  exact (Dart.indexEquiv I.graph).injective
-    (Fin.ext ((List.idxOf_inj hd).mp hrank))
+  have hrank : word.idxOf d.index = word.idxOf e.index := le_antisymm
+    (not_lt.mp (mt (referenceDrawing_fixedWord_arg_lt_iff hI hw hd he).mpr (by simp [harg])))
+    (not_lt.mp (mt (referenceDrawing_fixedWord_arg_lt_iff hI hw he hd).mpr (by simp [harg])))
+  exact (Dart.indexEquiv I.graph).injective (Fin.ext ((List.idxOf_inj hd).mp hrank))
 
 /-- Clockwise is the reversed angular order `c,b,a`, since `sbtw` increases counterclockwise.
 For three distinct original darts, this is exactly increasing cyclic order in the prescribed
@@ -254,9 +241,7 @@ theorem referenceDrawing_fixedWord_clockwise_iff {I : FixedRotationInput} (hI : 
         ((referenceOrder I).idxOf v : ℝ)
       exact sub_pos.mpr (Nat.cast_lt.mpr hs.2.1)
     refine ⟨Complex.neg_pi_div_two_lt_arg_iff.mpr (Or.inl hre), ?_⟩
-    have hupper := Complex.arg_lt_pi_div_two_iff.mpr (Or.inl hre)
-    dsimp [A]
-    linarith only [hupper, Real.pi_pos]
+    linarith [Complex.arg_lt_pi_div_two_iff.mpr (Or.inl hre), Real.pi_pos]
   have hne {d e : Dart I.graph} (hd : d.index ∈ word) (he : e.index ∈ word) (hne : d ≠ e) :
       A d ≠ A e := fun h => hne (referenceDrawing_fixedWord_directions_injective hI hw hd he
     (congrArg (fun x : ℝ => (x : Real.Angle)) h))

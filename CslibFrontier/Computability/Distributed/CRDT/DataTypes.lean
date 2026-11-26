@@ -684,19 +684,16 @@ theorem mem_orsetSurvivingTags_iff {P α Ev : Type*} [DecidableEq P] [DecidableE
       ∃ e ∈ H, opOf e = .add t.replica t.seq t.elem ∧
         ¬ ∃ r ∈ H, opOf r = .remove t.elem ∧ prec e r := by
   simp only [orsetSurvivingTags, Finset.mem_biUnion]
-  constructor
-  · rintro ⟨e, heH, hmem⟩
-    cases hop : opOf e with
-    | add p seq x =>
-      rw [hop] at hmem
-      dsimp only at hmem
-      split_ifs at hmem with hrem
-      · simp at hmem
-      · obtain rfl := Finset.mem_singleton.mp hmem
-        exact ⟨e, heH, hop, hrem⟩
-    | remove x => simp [hop] at hmem
-  · rintro ⟨e, heH, hop, hnot_rem⟩
-    exact ⟨e, heH, by simp [hop, hnot_rem]⟩
+  refine ⟨?_, fun ⟨e, heH, hop, hnot_rem⟩ => ⟨e, heH, by simp [hop, hnot_rem]⟩⟩
+  rintro ⟨e, heH, hmem⟩
+  cases hop : opOf e with
+  | add p seq x =>
+    simp only [hop] at hmem
+    split_ifs at hmem with hrem
+    · simp at hmem
+    · obtain rfl := Finset.mem_singleton.mp hmem
+      exact ⟨e, heH, hop, hrem⟩
+  | remove x => simp [hop] at hmem
 
 /-- Well-formed finite causally closed `OR-Set` execution history `H : Finset Ev` under strict
 partial order `prec` ([ShapiroPreguicaBaqueroZawirski2011R], §3.3.5, Specification 15, p. 26):
@@ -778,55 +775,40 @@ private theorem orset_main_ind (n : ℕ) :
     intro H hH hcard
     -- Step 1: By strong induction on strict causal pasts `P_e ⊂ H`, identify `effOf e` for every
     -- `remove x` event `e ∈ H` directly in terms of `orsetSurvivingTags`.
-    have hrem_eq : ∀ e ∈ H, ∀ x, hH.opOf e = .remove x →
+    have hrem_eq (e : Ev) (he : e ∈ H) (x : α) (hop : hH.opOf e = .remove x) :
         hH.effOf e = .removeTags
           ((orsetSurvivingTags prec hH.opOf (H.filter (fun u => prec u e))).filter
             (fun t => t.elem = x)) := by
-      intro e he x hop
       let P_e := H.filter (fun u => prec u e)
-      have hlt : P_e.card < n := hcard ▸ card_past_lt (prec := prec) he
-      let hP_e : ORSetCausalHistory P α Ev prec P_e :=
-        hH.restrict (Finset.filter_subset _ H) (isCausallyClosed_past hH.closed e)
       obtain ⟨l_src, hl_src, heff⟩ := hH.eff_remove e he x hop
       have hfold : l_src.foldl (fun s u => orsetEffect (hH.effOf u) s) ∅ =
           orsetSurvivingTags prec hH.opOf P_e :=
-        (ih P_e.card hlt P_e hP_e rfl).2 l_src hl_src
+        (ih P_e.card (hcard ▸ card_past_lt he) P_e
+          (hH.restrict (Finset.filter_subset _ H) (isCausallyClosed_past hH.closed e))
+          rfl).2 l_src hl_src
       rwa [hfold] at heff
     -- Step 2: Prove `ConcurrentCommute` on `H`.
-    have h_add_rem : ∀ a ∈ H, ∀ r ∈ H, ∀ p n xa xr,
-        hH.opOf a = .add p n xa → hH.opOf r = .remove xr → ¬ prec a r → ∀ s,
+    have h_add_rem (a : Ev) (haH : a ∈ H) (r : Ev) (hrH : r ∈ H) (p : P) (n : ℕ) (xa xr : α)
+        (hop_a : hH.opOf a = .add p n xa) (hop_r : hH.opOf r = .remove xr)
+        (hnot_prec : ¬ prec a r) (s : Finset (TaggedElem P α)) :
         orsetEffect (hH.effOf a) (orsetEffect (hH.effOf r) s) =
           orsetEffect (hH.effOf r) (orsetEffect (hH.effOf a) s) := by
-      intro a haH r hrH p n xa xr hop_a hop_r hnot_prec s
       rw [hH.eff_add a haH p n xa hop_a, hrem_eq r hrH xr hop_r]
       simp only [orsetEffect]
-      have hnot_in : (⟨xa, p, n⟩ : TaggedElem P α) ∉
-          (orsetSurvivingTags prec hH.opOf (H.filter (fun u => prec u r))).filter
-            (fun t => t.elem = xr) := by
-        intro hmem
-        obtain ⟨hsurv, _⟩ := Finset.mem_filter.mp hmem
-        obtain ⟨u, huP, hu_op, _⟩ := mem_orsetSurvivingTags_iff.mp hsurv
-        obtain ⟨huH, hu_prec⟩ := Finset.mem_filter.mp huP
-        exact hnot_prec
-          (hH.unique_add_tag u huH a haH p n xa p n xa hu_op hop_a rfl rfl ▸ hu_prec)
-      exact (Finset.insert_sdiff_of_notMem s hnot_in).symm
+      refine (Finset.insert_sdiff_of_notMem s fun hmem => ?_).symm
+      obtain ⟨hsurv, -⟩ := Finset.mem_filter.mp hmem
+      obtain ⟨u, huP, hu_op, -⟩ := mem_orsetSurvivingTags_iff.mp hsurv
+      exact hnot_prec (hH.unique_add_tag u (Finset.mem_filter.mp huP).1 a haH p n xa p n xa
+        hu_op hop_a rfl rfl ▸ (Finset.mem_filter.mp huP).2)
     have hcomm : ConcurrentCommute orsetEffect prec hH.effOf (H : Set Ev) := by
       intro e₁ he₁ e₂ he₂ _ hn₁₂ hn₂₁ s
-      cases hop₁ : hH.opOf e₁ with
-      | add p₁ n₁ x₁ =>
-        cases hop₂ : hH.opOf e₂ with
-        | add p₂ n₂ x₂ =>
-          rw [hH.eff_add e₁ he₁ p₁ n₁ x₁ hop₁, hH.eff_add e₂ he₂ p₂ n₂ x₂ hop₂]
-          exact Finset.insert_comm _ _ s
-        | remove x₂ =>
-          exact h_add_rem e₁ he₁ e₂ he₂ p₁ n₁ x₁ x₂ hop₁ hop₂ hn₁₂ s
-      | remove x₁ =>
-        cases hop₂ : hH.opOf e₂ with
-        | add p₂ n₂ x₂ =>
-          exact (h_add_rem e₂ he₂ e₁ he₁ p₂ n₂ x₂ x₁ hop₂ hop₁ hn₂₁ s).symm
-        | remove x₂ =>
-          rw [hrem_eq e₁ he₁ x₁ hop₁, hrem_eq e₂ he₂ x₂ hop₂]
-          exact sdiff_sdiff_comm
+      cases hop₁ : hH.opOf e₁ <;> cases hop₂ : hH.opOf e₂
+      · rw [hH.eff_add e₁ he₁ _ _ _ hop₁, hH.eff_add e₂ he₂ _ _ _ hop₂]
+        exact Finset.insert_comm _ _ s
+      · exact h_add_rem e₁ he₁ e₂ he₂ _ _ _ _ hop₁ hop₂ hn₁₂ s
+      · exact (h_add_rem e₂ he₂ e₁ he₁ _ _ _ _ hop₂ hop₁ hn₂₁ s).symm
+      · rw [hrem_eq e₁ he₁ _ hop₁, hrem_eq e₂ he₂ _ hop₂]
+        exact sdiff_sdiff_comm
     -- Step 3: Prove every causal linearization `l` of `H` folds to `orsetSurvivingTags`.
     refine ⟨hcomm, fun l hl => ?_⟩
     rcases l.eq_nil_or_concat with rfl | ⟨initL, e_last, hconcat⟩
@@ -840,22 +822,18 @@ private theorem orset_main_ind (n : ℕ) :
       obtain ⟨hnodup_init, _, hdisj⟩ := List.nodup_append.mp hl.1
       have he_not_init : e_last ∉ initL := fun h => hdisj e_last h e_last List.mem_cons_self rfl
       -- `e_last` is `prec`-maximal in `H` as the final entry of `initL ++ [e_last]`.
-      have he_max : ∀ y ∈ H, ¬ prec e_last y := by
-        intro y hyH hprec
+      have he_max (y : Ev) (hyH : y ∈ H) (hprec : prec e_last y) : False := by
         have hy_l : y ∈ initL ++ [e_last] := (hl.2.1 y).mpr hyH
         have hidx_lt := hl.2.2 e_last he_last_mem_l y hy_l hprec
-        rw [List.idxOf_append_of_notMem he_not_init, List.idxOf_cons_self, Nat.add_zero] at hidx_lt
         have hidx_y := List.idxOf_lt_length_of_mem hy_l
-        rw [List.length_append, List.length_singleton] at hidx_y
+        simp only [List.idxOf_append_of_notMem he_not_init, List.idxOf_cons_self, Nat.add_zero,
+          List.length_append, List.length_singleton] at hidx_lt hidx_y
         omega
       let H' := H.erase e_last
       have hH'_sub : H' ⊆ H := Finset.erase_subset e_last H
-      have hH'_closed : IsCausallyClosed prec H' := by
-        intro u hu v hvu
-        obtain ⟨hu_ne, huH⟩ := Finset.mem_erase.mp hu
-        have hvH : v ∈ H := hH.closed u huH v hvu
-        refine Finset.mem_erase.mpr ⟨fun hveq => ?_, hvH⟩
-        exact he_max u huH (hveq ▸ hvu)
+      have hH'_closed : IsCausallyClosed prec H' := fun u hu v hvu =>
+        let ⟨_, huH⟩ := Finset.mem_erase.mp hu
+        Finset.mem_erase.mpr ⟨fun hveq => he_max u huH (hveq ▸ hvu), hH.closed u huH v hvu⟩
       have hlin_init : IsCausalLinearization prec H' initL := by
         refine ⟨hnodup_init, fun u => ?_, fun u₁ hu₁ u₂ hu₂ hprec => ?_⟩
         · simp only [H', Finset.mem_erase, ← hl.2.1 u, List.mem_append, List.mem_singleton]
@@ -864,11 +842,10 @@ private theorem orset_main_ind (n : ℕ) :
         · have hlt_app := hl.2.2 u₁ (List.mem_append_left _ hu₁)
             u₂ (List.mem_append_left _ hu₂) hprec
           rwa [List.idxOf_append_of_mem hu₁, List.idxOf_append_of_mem hu₂] at hlt_app
-      have hcard_H' : H'.card < n := hcard ▸ Finset.card_erase_lt_of_mem he_last_H
-      let hH' : ORSetCausalHistory P α Ev prec H' := hH.restrict hH'_sub hH'_closed
       have hfold_init : initL.foldl (fun s e => orsetEffect (hH.effOf e) s) ∅ =
           orsetSurvivingTags prec hH.opOf H' :=
-        (ih H'.card hcard_H' H' hH' rfl).2 initL hlin_init
+        (ih H'.card (hcard ▸ Finset.card_erase_lt_of_mem he_last_H) H'
+          (hH.restrict hH'_sub hH'_closed) rfl).2 initL hlin_init
       rw [List.foldl_append, List.foldl_cons, List.foldl_nil, hfold_init]
       -- Compare `orsetEffect (effOf e_last) (orsetSurvivingTags H')` with `orsetSurvivingTags H`.
       cases hop_last : hH.opOf e_last with
@@ -880,20 +857,15 @@ private theorem orset_main_ind (n : ℕ) :
         constructor
         · rintro (rfl | ⟨u, huH', hu_op, hnot_r⟩)
           · exact ⟨e_last, he_last_H, hop_last, fun ⟨r, hrH, _, hprec⟩ => he_max r hrH hprec⟩
-          · refine ⟨u, hH'_sub huH', hu_op, ?_⟩
-            rintro ⟨r, hrH, hr_op, hprec⟩
-            by_cases hre : r = e_last
-            · rw [hre, hop_last] at hr_op
-              cases hr_op
+          · refine ⟨u, hH'_sub huH', hu_op, fun ⟨r, hrH, hr_op, hprec⟩ => ?_⟩
+            rcases eq_or_ne r e_last with rfl | hre
+            · nomatch hop_last.symm.trans hr_op
             · exact hnot_r ⟨r, Finset.mem_erase.mpr ⟨hre, hrH⟩, hr_op, hprec⟩
         · rintro ⟨u, huH, hu_op, hnot_r⟩
-          by_cases hue : u = e_last
-          · left
-            rw [hue, hop_last] at hu_op
-            cases hu_op
-            exact TaggedElem.ext rfl rfl rfl
-          · right
-            exact ⟨u, Finset.mem_erase.mpr ⟨hue, huH⟩, hu_op,
+          rcases eq_or_ne u e_last with rfl | hue
+          · cases hop_last.symm.trans hu_op
+            exact Or.inl (TaggedElem.ext rfl rfl rfl)
+          · exact Or.inr ⟨u, Finset.mem_erase.mpr ⟨hue, huH⟩, hu_op,
               fun ⟨r, hrH', hr_op, hprec⟩ => hnot_r ⟨r, hH'_sub hrH', hr_op, hprec⟩⟩
       | remove x₀ =>
         rw [hrem_eq e_last he_last_H x₀ hop_last]
@@ -902,17 +874,13 @@ private theorem orset_main_ind (n : ℕ) :
         simp only [Finset.mem_sdiff, Finset.mem_filter, mem_orsetSurvivingTags_iff]
         constructor
         · rintro ⟨⟨u, huH', hu_op, hnot_r'⟩, hnot_filt⟩
-          refine ⟨u, hH'_sub huH', hu_op, ?_⟩
-          rintro ⟨r, hrH, hr_op, hprec⟩
-          by_cases hre : r = e_last
-          · subst hre
-            rw [hop_last] at hr_op
-            cases hr_op
-            apply hnot_filt
-            refine ⟨⟨u, ⟨hH'_sub huH', hprec⟩, hu_op, ?_⟩, rfl⟩
-            rintro ⟨r', ⟨hr'H, hr'_last⟩, hr'_op, hprec'⟩
-            have hr'_ne : r' ≠ r := fun heq => irrefl r (heq ▸ hr'_last)
-            exact hnot_r' ⟨r', Finset.mem_erase.mpr ⟨hr'_ne, hr'H⟩, hr'_op, hprec'⟩
+          refine ⟨u, hH'_sub huH', hu_op, fun ⟨r, hrH, hr_op, hprec⟩ => ?_⟩
+          rcases eq_or_ne r e_last with rfl | hre
+          · cases hop_last.symm.trans hr_op
+            exact hnot_filt ⟨⟨u, ⟨hH'_sub huH', hprec⟩, hu_op,
+              fun ⟨r', ⟨hr'H, hr'_last⟩, hr'_op, hp'⟩ =>
+                hnot_r' ⟨r', Finset.mem_erase.mpr ⟨fun e => irrefl r (e ▸ hr'_last), hr'H⟩,
+                  hr'_op, hp'⟩⟩, rfl⟩
           · exact hnot_r' ⟨r, Finset.mem_erase.mpr ⟨hre, hrH⟩, hr_op, hprec⟩
         · rintro ⟨u, huH, hu_op, hnot_r⟩
           have hue : u ≠ e_last := fun heq => by cases hop_last.symm.trans (heq ▸ hu_op)

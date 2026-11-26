@@ -11,6 +11,7 @@ module
 -- its private helpers (`mkLayer`, `step`, `successors`, `transition`, …), whose bodies are not
 -- exposed.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
+import all CslibFrontier.Logics.Propositional.PseudoBoolean.DynamicProgramming
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Knapsack
 import CslibFrontier.Algorithms.Lean.Knapsack.ProfitDP
 import Mathlib.Data.Fin.VecNotation
@@ -33,7 +34,7 @@ def w : Fin 6 → ℕ := ![5, 4, 6, 3, 7, 2]
 def p : Fin 6 → ℕ := ![10, 40, 30, 50, 35, 40]
 
 /-- The checker accepts the proof of the dynamic program for the capacity `10`. -/
-theorem accepted : checkRed (formula w 10) (some (objective p)) (certify w p 10).proof = true := by
+theorem accepted : checkRed (formula w 10) (some (negProfit p)) (certify w p 10).proof = true := by
   decide +kernel
 
 theorem optimum_eq : (certify w p 10).optimum = 130 := by decide +kernel
@@ -49,7 +50,7 @@ example : (certify w p 10).optimum =
   decide +kernel
 
 /-- With no items, the optimum is `0`. -/
-example : checkRed (formula ![] 3) (some (objective ![])) (certify ![] ![] 3).proof = true ∧
+example : checkRed (formula ![] 3) (some (negProfit ![])) (certify ![] ![] 3).proof = true ∧
     (certify ![] ![] 3).optimum = 0 := by
   decide +kernel
 

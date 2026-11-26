@@ -114,8 +114,7 @@ theorem dom_evalStream {p : ℕ →. ℕ} {c : Code} {x : ℕ → ℕ} :
 theorem mem_evalStream {p : ℕ →. ℕ} {c : Code} {x y : ℕ → ℕ} :
     y ∈ evalStream p c x ↔ eval (p ⊕ (x : ℕ →. ℕ)) c = (y : ℕ →. ℕ) := by
   refine ⟨fun ⟨h, hy⟩ => funext fun n => ?_, fun h => ⟨fun n => ?_, funext fun n => ?_⟩⟩
-  · subst hy
-    exact (Part.some_get (h n)).symm
+  · exact hy ▸ (Part.some_get (h n)).symm
   · exact (h ▸ Part.mem_some (y n) : y n ∈ eval (p ⊕ (x : ℕ →. ℕ)) c n).fst
   · exact Part.get_eq_of_mem (h ▸ Part.mem_some (y n)) _
 
@@ -181,9 +180,8 @@ theorem ComputesStream.exists_cylinder {p : ℕ → ℕ} {c : Code} {F : (ℕ �
 entry, relative to a total oracle, form a countable intersection of open sets. -/
 theorem isGδ_dom_evalStream (p : ℕ → ℕ) (c : Code) : IsGδ (evalStream p c).Dom := by
   have hdom : (evalStream p c).Dom =
-      ⋂ n, {x : ℕ → ℕ | (eval ((p : ℕ →. ℕ) ⊕ (x : ℕ →. ℕ)) c n).Dom} := by
-    ext x
-    simp [PFun.Dom, evalStream]
+      ⋂ n, {x : ℕ → ℕ | (eval ((p : ℕ →. ℕ) ⊕ (x : ℕ →. ℕ)) c n).Dom} :=
+    Set.ext fun _ => by simp [PFun.Dom, evalStream]
   rw [hdom]
   refine IsGδ.iInter_of_isOpen fun n => isOpen_iff_forall_mem_open.2 fun x hx => ?_
   obtain ⟨N, hN⟩ := exists_cylinder_of_mem_eval_join (Part.get_mem hx)
@@ -224,8 +222,7 @@ theorem StreamComputableIn.comp {p q : ℕ →. ℕ} {F G : (ℕ → ℕ) →. (
 /-- **Closure under composition** of computable maps. -/
 theorem StreamComputable.comp {F G : (ℕ → ℕ) →. (ℕ → ℕ)} (hG : StreamComputable G)
     (hF : StreamComputable F) : StreamComputable (G.comp F) := by
-  obtain ⟨d, hd⟩ := hG
-  obtain ⟨c, hc⟩ := hF
+  rcases hG, hF with ⟨⟨_, hd⟩, ⟨_, hc⟩⟩
   exact ⟨_, hd.comp hc⟩
 
 /-- A map is computable exactly when it is computable relative to some computable oracle. -/
@@ -293,9 +290,7 @@ private theorem isAssociate_associate {c : Code} {F : (ℕ → ℕ) → ℕ → 
     cases hv : evaln (prefixOf x k) k c n with
     | none => simp [hv] at h
     | some w =>
-      have hw := evaln_sound (prefixOf_mem x k) (Option.mem_def.2 hv)
-      rw [hc x n, Part.mem_some_iff] at hw
-      simp [hw]
+      simp [Part.mem_some_iff.1 (hc x n ▸ evaln_sound (prefixOf_mem x k) (Option.mem_def.2 hv))]
 
 end Code
 

@@ -97,10 +97,9 @@ theorem readFastLocGenProg_spec {c U V w n_max base b loc : ℕ} {fs : FastState
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
   have hth := henv.2.2.2.1
   obtain ⟨hst, hres, hmc, hvp⟩ := readLocStateGenProg_spec henv hb hloc (s := s)
-  have hls := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 b hb loc hloc
   unfold readFastLocGenProg
   simp only [wp_large_offLocState hth, wp_large_totalLoc hth, wp_large_w hth]
-  exact ⟨hst, hres.trans hls, hmc, hvp⟩
+  exact ⟨hst, hres.trans (hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 b hb loc hloc), hmc, hvp⟩
 
 /-- Write `fs.locState b loc := tag` (`tag < 4`, `d = ((((cp, base), b), loc), tag)`). -/
 @[irreducible] def writeFastLocGenProg :
@@ -145,10 +144,7 @@ theorem writeFastLocGenProg_fastStep {c U V w n_max base b loc tag : ℕ}
   set idxW := b * totalLocalCoordsWhp n_max + loc
   have hidxW : idxW < numBucketsWhp n_max * totalLocalCoordsWhp n_max :=
     mul_add_lt_mul_bound hb hloc
-  have hqv0 := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.1
-  have hloc0 := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
-  have hbptr0 := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
-  have hpool0 := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
+  obtain ⟨hqv0, hloc0, -, hbptr0, hpool0, -⟩ := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2
   refine ⟨hmc, hvp, fastStep_pureArray hw hidxW (by omega) (by omega) (Or.inl (by omega))
     hseed hrep ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
       rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
@@ -164,16 +160,13 @@ theorem writeFastLocGenProg_fastStep {c U V w n_max base b loc tag : ℕ}
       (readPacked_writePacked_disjoint hw hj hidxW (Or.inr (by omega))).trans
         (hpool0 j hj).2⟩)⟩
   dsimp only
-  by_cases hbl : b' = b ∧ loc' = loc
-  · rcases hbl with ⟨rfl, rfl⟩
-    simp only [Function.update_self]
-    exact readPacked_writePacked_self _ _ _ s.mem idxW htag
-  · have hne : b' * totalLocalCoordsWhp n_max + loc' ≠ idxW :=
-      fun heq => hbl (mul_add_inj_right hl' hloc heq)
-    rw [readPacked_writePacked_of_ne hw s.mem hne tag, hloc0 b' hb' loc' hl']
-    by_cases hbb : b' = b
-    · subst hbb; simp [show loc' ≠ loc from fun h => hbl ⟨rfl, h⟩]
-    · simp [hbb]
+  rcases eq_or_ne b' b with rfl | hbb
+  · rcases eq_or_ne loc' loc with rfl | hll
+    · simpa only [Function.update_self] using readPacked_writePacked_self _ _ _ s.mem idxW htag
+    · simpa only [Function.update_self, Function.update_of_ne hll] using
+        (readPacked_writePacked_of_ne hw s.mem (by omega) tag).trans (hloc0 b' hb' loc' hl')
+  · simpa only [Function.update_of_ne hbb] using (readPacked_writePacked_of_ne hw s.mem
+      (fun heq => hbb (mul_add_inj_right hl' hloc heq).1) tag).trans (hloc0 b' hb' loc' hl')
 
 /-! ## Section 2: `poolFreeStack` and `poolOwner` Accessors -/
 
@@ -216,12 +209,11 @@ theorem readPoolFreeStackGenProg_spec {c U V w n_max base j : ℕ} {fs : FastSta
     memoryCost prog s = 2 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
   have hth := henv.2.2.2.1
-  have hw := henv.2.1
-  have hle := seg_add_le (base := base) (WhpLargeEnv.seg_end_le c U V w n_max).2.2.2.2.2.2.2.1
   unfold readPoolFreeStackGenProg
   simp only [wp_large_offPoolFreeStack hth, wp_large_globalPtrBits hth, wp_large_w hth]
   exact ⟨rfl, (clientResult_readPackedGen _ _ _ _ _ _).trans
-    (hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 j hj).1, rfl, validProg_readPacked hw hj hle⟩
+    (hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 j hj).1, rfl, validProg_readPacked henv.2.1 hj
+      (seg_add_le (WhpLargeEnv.seg_end_le c U V w n_max).2.2.2.2.2.2.2.1)⟩
 
 /-- Write `fs.poolFreeStack j := pSlot`
 (`j < poolSizeWhp n_max`, `d = (((cp, base), j), pSlot)`). -/
@@ -257,17 +249,13 @@ theorem writePoolFreeStackGenProg_fastStep {c U V w n_max base j pSlot : ℕ}
   have hth := henv.2.2.2.1
   have hw := henv.2.1
   have hch := largeOffsetChain c U V w n_max
-  have hgk := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
   have hp_g : pSlot < 2 ^ globalPtrBits n_max := lt_two_pow_globalPtrBits_of_le_n_max hp_le
-  have hle := seg_add_le (base := base) (WhpLargeEnv.seg_end_le c U V w n_max).2.2.2.2.2.2.2.1
   unfold writePoolFreeStackGenProg
   simp only [wp_large_offPoolFreeStack hth, wp_large_globalPtrBits hth, wp_large_w hth]
   rw [clientState_writePackedGen]
-  have hqv0 := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.1
-  have hloc0 := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
-  have hbptr0 := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
-  have hpool0 := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
-  refine ⟨rfl, validProg_writePacked hw hgk hj hle,
+  obtain ⟨hqv0, hloc0, -, hbptr0, hpool0, -⟩ := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2
+  refine ⟨rfl, validProg_writePacked hw (globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1) hj
+      (seg_add_le (WhpLargeEnv.seg_end_le c U V w n_max).2.2.2.2.2.2.2.1),
     fastStep_pureArray hw hj (by omega) (by omega) (Or.inr (by omega)) hseed hrep
       ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
         rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
@@ -325,17 +313,13 @@ theorem writePoolOwnerGenProg_fastStep {c U V w n_max base j enc : ℕ}
   have hth := henv.2.2.2.1
   have hw := henv.2.1
   have hch := largeOffsetChain c U V w n_max
-  have hgk := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
   have henc_g : enc < 2 ^ globalPtrBits n_max := lt_two_pow_globalPtrBits_of_le_n_max henc_le
-  have hle := seg_add_le (base := base) (WhpLargeEnv.seg_end_le c U V w n_max).2.2.2.2.2.2.2.2.1
   unfold writePoolOwnerGenProg
   simp only [wp_large_offPoolOwner hth, wp_large_globalPtrBits hth, wp_large_w hth]
   rw [clientState_writePackedGen]
-  have hqv0 := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.1
-  have hloc0 := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
-  have hbptr0 := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
-  have hpool0 := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
-  refine ⟨rfl, validProg_writePacked hw hgk hj hle,
+  obtain ⟨hqv0, hloc0, -, hbptr0, hpool0, -⟩ := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2
+  refine ⟨rfl, validProg_writePacked hw (globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1) hj
+      (seg_add_le (WhpLargeEnv.seg_end_le c U V w n_max).2.2.2.2.2.2.2.2.1),
     fastStep_pureArray hw hj (by omega) (by omega) (Or.inr (by omega)) hseed hrep
       ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
         rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩

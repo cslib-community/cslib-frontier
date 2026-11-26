@@ -61,12 +61,7 @@ private def prepared (input : List ℤ) : WordRAM.Data (r + 9) :=
 private theorem prepared_represents {w : ℕ} {input : List ℤ} (hi : Signed.InputFits w input) :
     Represents w (Signed.initial (r := r) input).data (prepared input) := by
   refine ⟨fun _ => Signed.fits_zero hi.1.1, fun i => ?_, fun a => ?_⟩
-  · have hzero : bank i ≠ zero := bank_ne_scratch i (by dsimp [zero]; omega)
-    have htwo : bank i ≠ two := bank_ne_scratch i (by dsimp [two]; omega)
-    have hleft : bank i ≠ left := bank_ne_scratch i (by dsimp [left]; omega)
-    simp only [prepared, WordRAM.Data.write_regs, WordRAM.Data.set_regs,
-      Function.update_of_ne hleft, Function.update_of_ne htwo, Function.update_of_ne hzero]
-    rfl
+  · simp [prepared, bank, WordRAM.Data.init, Signed.initial, GenericRAM.Data.init, encode]
   · cases a with
     | zero => simp [prepared, Signed.initial, GenericRAM.Data.init, encode, Nat.mul_comm]
     | succ a =>
@@ -97,9 +92,8 @@ theorem runs_compile_input {w n : ℕ} {p : GenericRAM.Program model r}
     ∃ y k, k ≤ 32 * n + 5 ∧ WordRAM.Runs (w + 2) (compile p)
       (WordRAM.State.init (input.map encode)) ⟨entry 5 t.pc, y⟩ k ∧ Represents w t.data y := by
   obtain ⟨y, k, hk, he, hyr⟩ := runs_compile (prologue.assemble 0) (prepared_represents hi) hr
-  have htail : WordRAM.Runs (w + 2) (compile p) ⟨5, prepared input⟩ ⟨entry 5 t.pc, y⟩ k := by
-    simpa [compile, prologue, Code.size, entry, Signed.initial] using he
-  exact ⟨y, 5 + k, by omega, (prepared_runs hi p).trans htail, hyr⟩
+  refine ⟨y, 5 + k, by omega, (prepared_runs hi p).trans ?_, hyr⟩
+  simpa [compile, prologue, Code.size, entry, Signed.initial] using he
 
 /-- The encoded source input fits the target width, including its native length header. -/
 theorem inputFits_encode {w : ℕ} {input : List ℤ} (hi : Signed.InputFits w input) :
@@ -117,8 +111,7 @@ theorem executes_compile_input {w n : ℕ} {p : GenericRAM.Program model r}
     ∃ k ≤ 32 * n + 5, WordRAM.Executes (w + 2) (compile p)
       (WordRAM.State.init (input.map encode)) (encode v) k := by
   obtain ⟨k, hk, he⟩ := executes_compile (prologue.assemble 0) (prepared_represents hi) hr
-  have htail : WordRAM.Executes (w + 2) (compile p) ⟨5, prepared input⟩ (encode v) k := by
-    simpa [compile, prologue, Code.size, entry, Signed.initial] using he
-  exact ⟨5 + k, by omega, WordRAM.Executes.of_runs (prepared_runs hi p) htail⟩
+  refine ⟨5 + k, by omega, WordRAM.Executes.of_runs (prepared_runs hi p) ?_⟩
+  simpa [compile, prologue, Code.size, entry, Signed.initial] using he
 
 end Cslib.GenericRAM.Signed.ToWordRAM

@@ -151,10 +151,8 @@ private theorem card_filter_swapSamples_mem_mul_two_pow_le (G : ConceptClass Z B
   -- Each good swap determines a labeling of the `2m` points realized by `G`.
   let v : (Fin m → Bool) → (Fin (m + m) → Bool) := fun σ =>
     if hσ : σ ∈ Good then fun j => (hw σ hσ).choose (x j) else fun _ => false
-  have hvR : ∀ σ ∈ Good, v σ ∈ restriction G x := by
-    intro σ hσ
-    rw [mem_restriction]
-    exact ⟨(hw σ hσ).choose, (hw σ hσ).choose_spec.1,
+  have hvR : ∀ σ ∈ Good, v σ ∈ restriction G x := fun σ hσ =>
+    mem_restriction.2 ⟨(hw σ hσ).choose, (hw σ hσ).choose_spec.1,
       fun j => by simp only [v, hσ, ↓reduceDIte]⟩
   -- Each labeling is compatible with at most `2 ^ (m - k)` swaps.
   have hfib : ∀ w ∈ Good.image v, (Good.filter fun σ => v σ = w).card * 2 ^ k ≤ 2 ^ m := by
@@ -165,14 +163,12 @@ private theorem card_filter_swapSamples_mem_mul_two_pow_le (G : ConceptClass Z B
     intro σ hσ
     obtain ⟨hσG, rfl⟩ := Finset.mem_filter.1 hσ
     obtain ⟨-, h1, h2⟩ := (hw σ hσG).choose_spec
-    have hva (i : Fin m) : v σ (Fin.castAdd m i) = (hw σ hσG).choose (z.1 i) := by
-      simp only [v, hσG, ↓reduceDIte, x, Fin.append_left]
-    have hvb (i : Fin m) : v σ (Fin.natAdd m i) = (hw σ hσG).choose (z.2 i) := by
-      simp only [v, hσG, ↓reduceDIte, x, Fin.append_right]
     refine Finset.mem_filter.2 ⟨Finset.mem_univ _, fun i => ?_,
       h2.trans_eq (congrArg Finset.card (Finset.filter_congr fun i _ => ?_))⟩
-    · simpa only [hva, hvb, fst_swapSamples_apply, apply_ite (hw σ hσG).choose] using h1 i
-    · rw [snd_swapSamples_apply, apply_ite (hw σ hσG).choose, hva, hvb]
+    · simpa only [v, hσG, ↓reduceDIte, x, Fin.append_left, Fin.append_right,
+        fst_swapSamples_apply, apply_ite (hw σ hσG).choose] using h1 i
+    · simp only [v, hσG, ↓reduceDIte, x, Fin.append_left, Fin.append_right,
+        snd_swapSamples_apply, apply_ite (hw σ hσG).choose]
   have himg : (Good.image v).card ≤ growthFunction G (m + m) := by
     calc (Good.image v).card = ((Good.image v : Finset _) : Set (Fin (m + m) → Bool)).ncard :=
           (Set.ncard_coe_finset _).symm
@@ -279,38 +275,31 @@ private theorem measure_pi_card_lt_le_half (μ : Measure Z) [IsProbabilityMeasur
     Cslib.Probability.PMF.map_measurePi_eq_toMeasure_pi _ fun _ =>
       (measurable_of_countable g).aemeasurable
   have hgm : Measurable fun (T : Fin m → Z) i => g (T i) := measurable_of_countable _
-  have hpre : {T : Fin m → Z | ((Finset.univ.filter fun i => g (T i) = true).card : ℝ) <
-      ε * m / 2} = (fun T i => g (T i)) ⁻¹'
-        {b : Fin m → Bool | ((Finset.univ.filter fun i => b i = true).card : ℝ) < ε * m / 2} :=
-    rfl
-  rw [hpre, ← Measure.map_apply hgm (Set.toFinite _).measurableSet, hmap,
+  change Measure.pi _ ((fun T i => g (T i)) ⁻¹'
+    {b : Fin m → Bool | ((Finset.univ.filter fun i => b i = true).card : ℝ) < ε * m / 2}) ≤ _
+  rw [← Measure.map_apply hgm (Set.toFinite _).measurableSet, hmap,
     PMF.toMeasure_apply_eq_toOuterMeasure]
   set score : Fin m → Bool → ℝ := fun _ b => if b = true then 1 else 0
   have hscore : ∀ i b, b ∈ q.support → score i b ∈ Set.Icc (0 : ℝ) 1 := fun i b _ => by
     cases b <;> simp [score]
-  have hqt : q true = μ {z | g z = true} := by
-    rw [Measure.toPMF_apply, Measure.map_apply (measurable_of_countable g)
-      (measurableSet_singleton _)]
-    rfl
+  have hqt : q true = μ {z | g z = true} :=
+    (Measure.toPMF_apply _ _).trans
+      (Measure.map_apply (measurable_of_countable g) (measurableSet_singleton _))
   have hεq : ε ≤ (q true).toReal := by
     rw [hqt]
     ennreal_to_real using hε
   have hmean : ε * m ≤ ∑ i : Fin m, ∑ a, (q a).toReal * score i a := by
     simp only [score, Fintype.sum_bool, ite_true, mul_one, Bool.false_eq_true, ite_false,
       mul_zero, add_zero, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
-    rw [mul_comm]
-    exact mul_le_mul_of_nonneg_left hεq (Nat.cast_nonneg _)
+    nlinarith
   -- The Chernoff lower tail at relative deviation `1 / 2`.
   have hch := Cslib.Probability.PMF.pi_sum_le_one_sub_mul (fun _ : Fin m => q) score hscore
     hmean (by norm_num : (0 : ℝ) ≤ 1 / 2)
   have hsub : {b : Fin m → Bool | ((Finset.univ.filter fun i => b i = true).card : ℝ) <
       ε * m / 2} ⊆ {b | ∑ i, score i (b i) ≤ (1 - 1 / 2) * (ε * m)} := by
     intro b hb
-    simp only [Set.mem_ofPred_eq] at hb ⊢
-    have hcount : ((Finset.univ.filter fun i => b i = true).card : ℝ) =
-        ∑ i, score i (b i) := by
-      simp only [score, Finset.card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one,
-        Nat.cast_zero]
+    simp only [Set.mem_ofPred_eq, score, Finset.card_filter, Nat.cast_sum, Nat.cast_ite,
+      Nat.cast_one, Nat.cast_zero] at hb ⊢
     linarith
   have hexp : Real.exp (-((1 / 2) ^ 2 * (ε * m) / 2)) < 1 / 2 := by
     calc Real.exp (-((1 / 2) ^ 2 * (ε * m) / 2)) ≤ Real.exp (-1) :=
@@ -362,8 +351,7 @@ theorem measure_pi_not_isEpsNet_mul_two_pow_le (μ : Measure Z) [IsProbabilityMe
       simp only [Set.mem_compl_iff, Set.mem_ofPred_eq, not_le, hk, Nat.lt_ceil]
     have hlow := measure_pi_card_lt_le_half μ g hgε hm
     rw [← hcompl, prob_compl_eq_one_sub .of_discrete] at hlow
-    refine le_trans ?_ (measure_mono hsub)
-    refine ENNReal.le_of_add_le_add_left (a := 1 / 2) (by simp) ?_
+    refine (ENNReal.le_of_add_le_add_left (a := 1 / 2) (by simp) ?_).trans (measure_mono hsub)
     rw [ENNReal.add_halves]
     exact tsub_le_iff_right.1 hlow
   have hJB : ν B ≤

@@ -207,12 +207,10 @@ theorem chineseRemainderOfList_rsaEval_eq_pow {ι : Type*} {N : ι → ℕ} {e m
     (co : l.Pairwise (Function.onFun Nat.Coprime N)) (hN : ∀ i ∈ l, N i ≠ 0)
     (hsmall : m ^ e < (l.map N).prod) :
     (Nat.chineseRemainderOfList (fun i => rsaEval (N i) e m) N l co : ℕ) = m ^ e := by
-  have hmod : m ^ e ≡ Nat.chineseRemainderOfList (fun i => rsaEval (N i) e m) N l co
-      [MOD (l.map N).prod] :=
-    Nat.chineseRemainderOfList_modEq_unique _ N l co fun i _ => (Nat.mod_modEq _ _).symm
-  have hlt := Nat.chineseRemainderOfList_lt_prod (fun i => rsaEval (N i) e m) N l co hN
-  rw [Nat.ModEq, Nat.mod_eq_of_lt hsmall, Nat.mod_eq_of_lt hlt] at hmod
-  exact hmod.symm
+  have hmod := (Nat.chineseRemainderOfList_modEq_unique (z := m ^ e)
+    (fun i => rsaEval (N i) e m) N l co fun _ _ => (Nat.mod_modEq _ _).symm).symm
+  rwa [Nat.ModEq, Nat.mod_eq_of_lt (Nat.chineseRemainderOfList_lt_prod _ N l co hN),
+    Nat.mod_eq_of_lt hsmall] at hmod
 
 /-- The broadcast attack recovers the message: `m` is the unique integer `e`-th root of the Chinese
 remainder combination of its ciphertexts. -/
@@ -367,11 +365,9 @@ theorem computableInPolyTime_factorOfTotient {α : Type} {enc : α ↪ List Bool
     (hN : ComputableInPolyTime N enc encNat) (hφ : ComputableInPolyTime φ enc encNat) :
     ComputableInPolyTime (fun x => factorOfTotient (N x) (φ x)) enc (encPair encNat encNat) := by
   unfold factorOfTotient
-  have hdisc : ComputableInPolyTime
-      (fun x => ((N x + 1 - φ x) ^ 2 - 4 * N x).sqrt) enc encNat :=
-    ComputableInPolyTime.binary_sqrt' (by
-      simp only [sq]
-      fun_prop)
+  have harg : ComputableInPolyTime (fun x => (N x + 1 - φ x) * (N x + 1 - φ x) - 4 * N x)
+      enc encNat := by fun_prop
+  have hdisc := ComputableInPolyTime.binary_sqrt' (by simpa only [sq] using harg)
   fun_prop
 
 /-- The Euler totient computation experiment ([KatzLindell2020], Section 9.2.5, Theorem 9.49):
@@ -472,9 +468,8 @@ theorem succProbability_totientGame_le (gen : RSAGen) (T : ℕ → ℕ → ProbC
 `(gen n).map RSADesc.modulus`. -/
 theorem TotientHard.modulusFactoringHard {gen : RSAGen} (h : TotientHard gen) :
     ModulusFactoringHard (fun n => (gen n).map RSADesc.modulus) := by
-  intro F hF
-  refine (h (factorToTotient F) (isPPTOn_factorToTotient hF)).congr fun n => ?_
-  rw [totientGame_factorToTotient]
+  exact fun F hF => (h (factorToTotient F) (isPPTOn_factorToTotient hF)).congr
+    fun n => congrArg Game.succProbability (totientGame_factorToTotient gen F n)
 
 /-- If factoring `N` is hard for `(gen n).map RSADesc.modulus`, then computing `φ(N)` is hard for
 `gen`. -/
@@ -525,10 +520,9 @@ theorem isPPTOn_totientToKeyRecovery {T : ℕ → ℕ → ProbComp ℕ}
     IsPPTOn (encPair encUnary encRSAPublicKey) encNat
       (fun input => totientToKeyRecovery T input.1 input.2) := by
   unfold totientToKeyRecovery
-  refine IsPPTOn.bind_with
-    (IsPPTOn.preprocess hT (prepare := fun input : ℕ × RSAPublicKey => (input.1, input.2.N))
-      (by fun_prop)) ?_
-  exact (ComputableInPolyTime.binary_modInv' (by fun_prop) (by fun_prop)).isPPTOn
+  exact (hT.preprocess (prepare := fun input : ℕ × RSAPublicKey => (input.1, input.2.N))
+    (by fun_prop)).bind_with
+    (ComputableInPolyTime.binary_modInv' (by fun_prop) (by fun_prop)).isPPTOn
 
 /-- The success probability of `T` in `totientGame` is at most the key-recovery success probability
 of `totientToKeyRecovery T`. -/

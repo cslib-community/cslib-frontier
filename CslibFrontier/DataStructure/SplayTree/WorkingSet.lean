@@ -152,10 +152,8 @@ private theorem sum_fingerWeight_le (s : Finset α) (f : α) :
   norm_num at h₁ h₂
   linarith
 
-private theorem logb_two_three_le_two : Real.logb 2 3 ≤ 2 := by
-  have h4 : Real.logb 2 4 = 2 := by
-    rw [show (4 : ℝ) = 2 ^ (2 : ℕ) by norm_num, Real.logb_two_pow]; norm_num
-  exact (Real.logb_le_logb_of_le (by norm_num) (by norm_num) (by norm_num)).trans_eq h4
+private theorem logb_two_three_le_two : Real.logb 2 3 ≤ 2 :=
+  (Real.logb_le_iff_le_rpow (by norm_num) (by norm_num)).2 (by norm_num)
 
 /-- **Static Finger Theorem** ([SleatorTarjan1985b], Section 2, Theorem 3, p. 659): let `t` be an
 `Ordered` splay tree with `n = |t|` keys and `f ∈ t` a fixed key. A sequence `xs` of `m` accesses to
@@ -245,9 +243,8 @@ private theorem takeWhile_ne_cons_self (y : α) (l : List α) :
   List.takeWhile_cons_of_neg (p := fun z => decide (z ≠ y)) (by simp)
 
 private theorem not_mem_toFinset_takeWhile_ne (y : α) (l : List α) :
-    y ∉ (l.takeWhile fun z => z ≠ y).toFinset := by
-  intro hmem
-  exact absurd (List.all_eq_true.mp List.all_takeWhile y (List.mem_toFinset.mp hmem)) (by simp)
+    y ∉ (l.takeWhile fun z => z ≠ y).toFinset := fun hmem =>
+  absurd (List.all_eq_true.mp List.all_takeWhile y (List.mem_toFinset.mp hmem)) (by simp)
 
 private theorem takeWhile_ne_append_cons_self (x : α) (h l : List α) :
     (h ++ x :: l).takeWhile (fun y => y ≠ x) = h.takeWhile (fun y => y ≠ x) := by
@@ -399,8 +396,8 @@ private theorem splaySeqTime_mtf_telescoping (F : List α) {h R : List α} {t : 
     have hlog : Real.logb 2 (subtreeWeight (mtfWeight (h ++ x :: F ++ R)) t /
         mtfWeight (h ++ x :: F ++ R) x) ≤ 1 + 2 * Real.logb 2 ((recencyRank x h : ℝ) + 1) := by
       have hW₀ : subtreeWeight (mtfWeight (h ++ x :: F ++ R)) t ≤ 2 := by
-        rw [subtreeWeight_eq_sum_elements _ ht, ← hset, sum_mtfWeight]
-        exact sum_range_inv_sq_le_two _
+        simpa only [subtreeWeight_eq_sum_elements _ ht, ← hset, sum_mtfWeight] using
+          sum_range_inv_sq_le_two _
       have hwx := mtfWeight_pos (h ++ x :: F ++ R) x
       have hWpos : 0 < subtreeWeight (mtfWeight (h ++ x :: F ++ R)) t :=
         subtreeWeight_pos (mtfWeight_pos _) (by rintro rfl; simp [elements] at hx)
@@ -419,14 +416,9 @@ private theorem splaySeqTime_mtf_telescoping (F : List α) {h R : List α} {t : 
             recencyRank_le_recencyRank_cons (Ne.symm hyx) h (F ++ R)
         unfold mtfWeight; gcongr
     have hrest := ih (h := x :: h) ho' hset₁
-    rw [show (x :: F).reverse ++ h ++ R = F.reverse ++ x :: h ++ R by simp,
-      show splaySeqTime (x :: F) t = splayTime (splay x t) + splaySeqTime F (splay x t).tree
-        from rfl,
-      show (splaySeq (x :: F) t).1 = (splaySeq F (splay x t).tree).1 from rfl,
-      show ((wsAux h (x :: F)).map wsCharge).sum =
-        wsCharge (recencyRank x h) + ((wsAux (x :: h) F).map wsCharge).sum from rfl,
-      Nat.cast_add]
-    simp only [wsCharge]
+    have hrev : (x :: F).reverse ++ h ++ R = F.reverse ++ x :: h ++ R := by simp
+    simp only [splaySeqTime, splaySeq, wsAux, List.map_cons, List.sum_cons, wsCharge, hrev,
+      Nat.cast_add] at hrest ⊢
     linarith
 
 /-- **Working Set Theorem** ([SleatorTarjan1985b], Section 2, Theorem 4, pp. 659–660): let `t` be
@@ -449,20 +441,18 @@ theorem splaySeqTime_le_working_set (xs : List α) {t : BinaryTree α} (ht : Ord
   let R := (elements t).toList
   have hset : ([] ++ xs ++ R).toFinset = elements t := by
     ext z
-    simp only [List.nil_append, List.mem_toFinset, List.mem_append, Finset.mem_toList, R]
-    exact ⟨fun hz => hz.elim (hxs z) id, Or.inr⟩
+    simp [R, or_iff_right_iff_imp.mpr (hxs z)]
   have htel := splaySeqTime_mtf_telescoping xs ht hset
   rw [wsAux_nil, sum_map_wsCharge, length_workingSetNumbers] at htel
   obtain ⟨ho_end, he_end⟩ := splaySeq_ordered_and_elements xs ht
   have hW : subtreeWeight (mtfWeight ([] ++ xs ++ R)) t ≤ 2 := by
-    rw [subtreeWeight_eq_sum_elements _ ht, ← hset, sum_mtfWeight]
-    exact sum_range_inv_sq_le_two _
+    simpa only [subtreeWeight_eq_sum_elements _ ht, ← hset, sum_mtfWeight] using
+      sum_range_inv_sq_le_two _
   -- Initial potential: total weight at most `2`, so every rank is at most `1`.
   have hΦ₀ := potential_le_sum_logb_of_le (mtfWeight_pos ([] ++ xs ++ R)) ht hW
   rw [Real.logb_self_eq_one (by norm_num), Finset.sum_const, nsmul_eq_mul, mul_one] at hΦ₀
   -- Final potential: every final weight is at least `1/n²`.
   have hsetₘ : (xs.reverse ++ [] ++ R).toFinset = elements t := by
-    ext z
     simp [← hset]
   have hΦₘ : -((elements t).card * (2 * Real.logb 2 (elements t).card)) ≤
       potential (mtfWeight (xs.reverse ++ [] ++ R)) (splaySeq xs t).1 := by
@@ -471,13 +461,11 @@ theorem splaySeqTime_le_working_set (xs : List α) {t : BinaryTree α} (ht : Ord
     rw [← nsmul_eq_mul, ← neg_nsmul, ← Finset.sum_const]
     refine Finset.sum_le_sum fun y hy => ?_
     have hy' : y ∈ xs.reverse ++ [] ++ R := List.mem_toFinset.mp (hsetₘ.symm ▸ hy)
-    have hlog := Real.logb_le_logb_of_le (b := 2) (by norm_num)
-      (by positivity : (0 : ℝ) < (recencyRank y (xs.reverse ++ [] ++ R) : ℝ) + 1)
-      (by exact_mod_cast hsetₘ ▸ recencyRank_lt_card hy' :
-        (recencyRank y (xs.reverse ++ [] ++ R) : ℝ) + 1 ≤ (elements t).card)
+    have hle_card : (recencyRank y (xs.reverse ++ [] ++ R) : ℝ) + 1 ≤ (elements t).card := by
+      exact_mod_cast hsetₘ ▸ recencyRank_lt_card hy'
+    have hlog := Real.logb_le_logb_of_le (b := 2) (by norm_num) (by positivity) hle_card
     rw [mtfWeight, one_div, Real.logb_inv, Real.logb_pow]
-    push_cast
-    linarith
+    push_cast; linarith
   linarith
 
 end WorkingSet

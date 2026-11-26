@@ -285,12 +285,11 @@ theorem isMultilinear_eval_multilinearExtension [Fintype ι] (g : (ι → Bool) 
 exactly when it evaluates the multilinear extension of its values on the cube. -/
 theorem isMultilinear_iff_eq_eval_multilinearExtension [Fintype ι] {f : (ι → F) → F} :
     IsMultilinear f ↔ f = fun x => eval x (multilinearExtension fun b => f (bitPoint b)) := by
-  refine ⟨fun hf => ?_, fun h => by rw [h]; exact isMultilinear_eval_multilinearExtension _⟩
-  have := IsMultilinear.eq_zero_of_forall_bitPoint
-    (hf.sub (isMultilinear_eval_multilinearExtension fun b => f (bitPoint b))) fun b => by
-      simp only [Pi.sub_apply, eval_multilinearExtension, sub_self]
-  funext x
-  exact sub_eq_zero.mp (congrFun this x)
+  refine ⟨fun hf => funext fun x => sub_eq_zero.mp ?_,
+    fun h => h ▸ isMultilinear_eval_multilinearExtension _⟩
+  exact congrFun (IsMultilinear.eq_zero_of_forall_bitPoint
+    (hf.sub (isMultilinear_eval_multilinearExtension _))
+    fun b => by simp [eval_multilinearExtension]) x
 
 /-- The evaluation of a polynomial of degree at most one in each variable is multilinear. -/
 theorem isMultilinear_eval_of_mem_restrictDegree [Finite ι] {P : MvPolynomial ι F}
@@ -300,8 +299,7 @@ theorem isMultilinear_eval_of_mem_restrictDegree [Finite ι] {P : MvPolynomial �
   unfold lineRestrict
   simp only [eval_eq']
   refine isAffineFun_sum _ fun s hs => IsAffineFun.const_mul ?_ _
-  have key (t : F) := prod_apply_update_of_mem (mem_univ i) (fun j (y : F) => y ^ s j) x t
-  simp only [key]
+  simp only [prod_apply_update_of_mem (mem_univ i) (fun j (y : F) => y ^ s j) x]
   refine IsAffineFun.mul_const ?_ _
   rcases Nat.le_one_iff_eq_zero_or_eq_one.mp ((mem_restrictDegree ι P 1).mp hP s hs i) with h | h
   · simpa [h] using isAffineFun_const (1 : F)
@@ -311,10 +309,9 @@ theorem isMultilinear_eval_of_mem_restrictDegree [Finite ι] {P : MvPolynomial �
 theorem isMultilinear_iff_exists_mem_restrictDegree [Finite ι] {f : (ι → F) → F} :
     IsMultilinear f ↔ ∃ P ∈ restrictDegree ι F 1, f = fun x => eval x P := by
   have := Fintype.ofFinite ι
-  refine ⟨fun hf => ⟨_, multilinearExtension_mem_restrictDegree _,
-    isMultilinear_iff_eq_eval_multilinearExtension.mp hf⟩, ?_⟩
-  rintro ⟨P, hP, rfl⟩
-  exact isMultilinear_eval_of_mem_restrictDegree hP
+  exact ⟨fun hf => ⟨_, multilinearExtension_mem_restrictDegree _,
+      isMultilinear_iff_eq_eval_multilinearExtension.mp hf⟩,
+    fun ⟨_, hP, h⟩ => h ▸ isMultilinear_eval_of_mem_restrictDegree hP⟩
 
 end Multilinear
 
@@ -443,10 +440,8 @@ private theorem exists_two_mul_le_sum (D : F → ℕ) :
     rw [← add_sum_erase _ _ (mem_univ t₁)]
     exact Nat.add_le_add_left
       (by simpa [card_erase_of_mem (mem_univ t₁)] using card_nsmul_le_sum _ D (D t₂) h₂) _
-  have hq : 2 ≤ Fintype.card F := Fintype.one_lt_card
-  obtain ⟨m, hm⟩ : ∃ m, Fintype.card F = m + 2 := ⟨_, (Nat.sub_add_cancel hq).symm⟩
+  obtain ⟨m, hm⟩ := Nat.exists_eq_add_of_le' (Fintype.one_lt_card (α := F))
   rw [hm] at hsum ⊢
-  rw [show m + 2 - 1 = m + 1 by omega] at hsum
   have h12 : D t₁ ≤ D t₂ := h₁ t₂ (mem_univ _)
   calc (m + 2) * (D t₁ + D t₂)
       = 2 * D t₁ + m * D t₁ + (m + 2) * D t₂ := by ring

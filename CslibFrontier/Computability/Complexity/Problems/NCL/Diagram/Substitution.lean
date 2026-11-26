@@ -192,8 +192,7 @@ private theorem comp_lift_left {s : (comp D₁ D₂).Edge → Bool} {y : D₁.Ed
   have hne (j) : S₁.ι y ≠ D₁'.bottom j := fun h =>
     hy j (S₁.ι_injective (h.trans (S₁.ι_bottom j).symm))
   have hag (j) : S₂.enc (s ∘ compRight D₁ D₂) (.inl j) = reverse u₁ (S₁.ι y) (D₁'.bottom j) := by
-    rw [reverse_of_ne _ (Ne.symm (hne j)), InnerReach.boundary hp (Or.inr ⟨j, rfl⟩)]
-    exact compEnc_agree S₁ S₂ s j
+    rw [reverse_of_ne _ (Ne.symm (hne j)), InnerReach.boundary hp (Or.inr ⟨j, rfl⟩), compEnc_agree]
   refine ⟨glueComp D₁' D₂' u₁ (S₂.enc (s ∘ compRight D₁ D₂)),
     innerReach_glueComp_left hp (S₂.legal_enc h₂) (compEnc_agree S₁ S₂ s), ?_, ?_⟩ <;>
     rw [compι_compLeft, ← glueComp_reverse_left]
@@ -217,8 +216,7 @@ private theorem comp_lift_right {s : (comp D₁ D₂).Edge → Bool} {e : D₂.I
   obtain ⟨e', he'⟩ := S₂.ι_inr e
   rw [he'] at hf hq
   have hag (j) : reverse u₂ (.inr e') (.inl j) = S₁.enc (s ∘ compLeft D₁ D₂) (D₁'.bottom j) := by
-    rw [reverse_of_ne _ (by simp), InnerReach.boundary hp (Or.inl ⟨j, rfl⟩)]
-    exact compEnc_agree S₁ S₂ s j
+    rw [reverse_of_ne _ (by simp), InnerReach.boundary hp (Or.inl ⟨j, rfl⟩), compEnc_agree]
   have hc : compι S₁ S₂ (.inr (.inr e)) = .inr (.inr e') := congrArg (compRight D₁' D₂') he'
   refine ⟨glueComp D₁' D₂' (S₁.enc (s ∘ compLeft D₁ D₂)) u₂,
     innerReach_glueComp_right hp (S₁.legal_enc h₁) (compEnc_agree S₁ S₂ s), ?_, ?_⟩ <;>
@@ -251,15 +249,13 @@ private theorem comp_lift_shared {s : (comp D₁ D₂).Edge → Bool} (j : Fin b
   rw [S₂.ι_top] at hf₂ hq₂
   -- the two prepared parts agree on the shared wires, before and after the reversal
   have hu (k) : u₂ (.inl k) = u₁ (D₁'.bottom k) := by
-    rw [InnerReach.boundary hp₂ (Or.inl ⟨k, rfl⟩), InnerReach.boundary hp₁ (Or.inr ⟨k, rfl⟩)]
-    exact compEnc_agree S₁ S₂ s k
+    rw [InnerReach.boundary hp₂ (Or.inl ⟨k, rfl⟩), InnerReach.boundary hp₁ (Or.inr ⟨k, rfl⟩),
+      compEnc_agree]
   have hu' (k) : reverse u₂ (.inl j) (.inl k) = reverse u₁ (D₁'.bottom j) (D₁'.bottom k) := by
     rcases eq_or_ne k j with rfl | hk
     · rw [reverse_self, reverse_self, hu]
     · rw [reverse_of_ne _ (by simpa using hk),
         reverse_of_ne _ fun h => hk (bottom_injective D₁' h), hu]
-  have hc : compι S₁ S₂ (compLeft D₁ D₂ (D₁.bottom j)) = compLeft D₁' D₂' (D₁'.bottom j) := by
-    rw [compι_compLeft, S₁.ι_bottom]
   have hflip : reverse (glueComp D₁' D₂' u₁ u₂) (compLeft D₁' D₂' (D₁'.bottom j)) =
       glueComp D₁' D₂' (reverse u₁ (D₁'.bottom j)) (reverse u₂ (.inl j)) := by
     rw [← glueComp_reverse_left]
@@ -269,7 +265,7 @@ private theorem comp_lift_shared {s : (comp D₁ D₂).Edge → Bool} (j : Fin b
       (innerReach_glueComp_right hp₂ (InnerReach.legal hp₁ (S₁.legal_enc h₁)) fun k =>
         (compEnc_agree S₁ S₂ s k).trans (InnerReach.boundary hp₁ (Or.inr ⟨k, rfl⟩)).symm),
     ?_, ?_⟩ <;>
-    rw [hc, hflip]
+    rw [compι_compLeft, S₁.ι_bottom, hflip]
   · exact legal_glueComp hf₁ hf₂ hu'
   · simpa only [compEnc, e₁, e₂] using (innerReach_glueComp_left hq₁ hf₂ hu').trans
       (innerReach_glueComp_right hq₂ (S₁.legal_enc h₁') fun k =>

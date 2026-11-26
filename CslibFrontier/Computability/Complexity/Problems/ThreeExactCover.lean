@@ -142,13 +142,11 @@ private theorem computableInPolyTime_occ_unary :
     ComputableInPolyTime (fun p : CNF ℕ × ℕ => occ p.1 p.2) (encPair encCNF encNat)
       (encList encUnary) := by
   unfold occ
-  refine ComputableInPolyTime.filterWithInput (encA := encUnary) ?_ ?_
-  · fun_prop
-  · have h1 : ComputableInPolyTime (fun q : (CNF ℕ × ℕ) × ℕ => (q.1.1.getD q.2 []).map Prod.fst)
-        (encPair (encPair encCNF encNat) encUnary) (encList encNat) := by
-      unfold encCNF
-      fun_prop
+  have h1 : ComputableInPolyTime (fun q : (CNF ℕ × ℕ) × ℕ => (q.1.1.getD q.2 []).map Prod.fst)
+      (encPair (encPair encCNF encNat) encUnary) (encList encNat) := by
+    unfold encCNF
     fun_prop
+  exact ComputableInPolyTime.filterWithInput (encA := encUnary) (by fun_prop) (by fun_prop)
 
 private theorem computableInPolyTime_occ :
     ComputableInPolyTime (fun p : CNF ℕ × ℕ => occ p.1 p.2) (encPair encCNF encNat)
@@ -230,15 +228,13 @@ private theorem exists_pad_of_mem_gadget {m : ℕ} {O S : List ℕ} (h : S ∈ g
     ∃ P, S = O ++ P ∧ O.length + P.length = 3 ∧ (∀ d ∈ P, m ≤ d ∧ d < 3 * m) ∧ P.Nodup := by
   unfold gadget at h
   split_ifs at h with h₃ h₁₂
-  · rw [List.mem_singleton] at h
-    exact ⟨[], by simp [h], by simpa using h₃, by simp, List.nodup_nil⟩
+  · obtain rfl := List.mem_singleton.mp h
+    exact ⟨[], by simp, by simpa using h₃, by simp, List.nodup_nil⟩
   · obtain ⟨W, hW, rfl⟩ := List.mem_map.mp h
     obtain ⟨i, hi, rfl⟩ := mem_windows.mp hW
     obtain ⟨hlen, hnd, hd⟩ := window_props hi
-    refine ⟨_, rfl, ?_, hd, hnd⟩
-    rw [hlen]
     simp only [Bool.or_eq_true, beq_iff_eq] at h₁₂
-    omega
+    exact ⟨_, rfl, by omega, hd, hnd⟩
   · simp at h
 
 /-- Padding `O` by consecutive dummy elements gives a set of its gadget. -/
@@ -309,9 +305,7 @@ private theorem lt_of_mem_reduce {φ : CNF ℕ}
   rcases hS with ⟨v, -, hS⟩ | hS
   · obtain ⟨P, rfl, -, hP, -⟩ := exists_pad_of_mem_gadget hS
     rcases List.mem_append.mp hx with hx | hx
-    · have := (mem_occ.mp hx).1
-      omega
-    · exact (hP x hx).2
+    exacts [((mem_occ.mp hx).1).trans_le (Nat.le_mul_of_pos_left _ (by decide)), (hP x hx).2]
   · obtain ⟨i, hi, rfl⟩ := mem_windows.mp hS
     exact ((window_props hi).2.2 x hx).2
 
@@ -322,11 +316,8 @@ private theorem isTriple_of_mem_reduce (φ : CNF ℕ) {S : List ℕ} (hS : S ∈
   · rw [reduce_of_syntaxCheck hs, List.mem_append, List.mem_flatMap] at hS
     rcases hS with ⟨v, -, hS⟩ | hS
     · obtain ⟨P, rfl, hlen, hP, hPn⟩ := exists_pad_of_mem_gadget hS
-      refine ⟨by simpa using hlen, List.nodup_append.mpr ⟨nodup_occ φ v, hPn, ?_⟩⟩
-      intro a ha b hb
-      have := (mem_occ.mp ha).1
-      have := (hP b hb).1
-      omega
+      exact ⟨by simpa using hlen, List.nodup_append.mpr ⟨nodup_occ φ v, hPn,
+        fun a ha b hb => ((mem_occ.mp ha).1.trans_le (hP b hb).1).ne⟩⟩
     · obtain ⟨i, hi, rfl⟩ := mem_windows.mp hS
       exact ⟨(window_props hi).1, (window_props hi).2.1⟩
   · simp only [reduce, hs, Bool.false_eq_true, ite_false, noInstance, List.mem_cons,
@@ -358,12 +349,8 @@ private theorem card_filter_toFinset_eq_one {L : List (List ℕ)} (hL : L.flatte
   have hpw := (List.nodup_flatten.mp hL).2
   refine Finset.card_eq_one.mpr ⟨S, Finset.ext fun S' => ?_⟩
   simp only [Finset.mem_filter, List.mem_toFinset, Finset.mem_singleton]
-  constructor
-  · rintro ⟨hS', huS'⟩
-    by_contra hne
-    exact List.disjoint_left.mp (hpw.forall hS' hS hne) huS' huS
-  · rintro rfl
-    exact ⟨hS, huS⟩
+  exact ⟨fun ⟨hS', huS'⟩ => by_contra fun hne =>
+    List.disjoint_left.mp (hpw.forall hS' hS hne) huS' huS, fun h => h ▸ ⟨hS, huS⟩⟩
 
 /-- The clause indices of a set of a reduced instance are the occurrences of a variable: every
 set containing a clause index comes from the gadget of a variable. -/
@@ -410,9 +397,8 @@ theorem oneSatisfiable_of_mem {φ : CNF ℕ}
   have hjC : j ∈ (reduce φ).flatten := by
     refine List.mem_flatten.mpr ⟨occ φ w ++ (List.range (3 - (occ φ w).length)).map (m + 0 + ·),
       ?_, List.mem_append_left _ hjw⟩
-    rw [reduce_of_syntaxCheck hs]
-    refine List.mem_append_left _ (List.mem_flatMap.mpr ⟨w, hvars w hw, ?_⟩)
-    exact append_range_mem_gadget (off := 0) hocc₁ hocc₃ fun i hi => by omega
+    exact reduce_of_syntaxCheck hs ▸ List.mem_append_left _ (List.mem_flatMap.mpr
+      ⟨w, hvars w hw, append_range_mem_gadget (off := 0) hocc₁ hocc₃ fun i hi => by omega⟩)
   obtain ⟨S₀, hS₀⟩ := Finset.card_eq_one.mp (hD j hjC)
   obtain ⟨⟨hS₀D, hjS₀⟩, huniq⟩ : (S₀ ∈ D ∧ j ∈ S₀) ∧ ∀ S, S ∈ D ∧ j ∈ S → S = S₀ := by
     simpa only [Finset.eq_singleton_iff_unique_mem, Finset.mem_filter] using hS₀
@@ -492,8 +478,7 @@ private theorem mem_padBlocks {m : ℕ} {Os : List (List ℕ)} {off : ℕ} {S : 
   | cons O Os ih =>
     rcases List.mem_cons.mp h with rfl | h
     · exact ⟨O, List.mem_cons_self, off, rfl⟩
-    · obtain ⟨O', hO', off', rfl⟩ := ih h
-      exact ⟨O', List.mem_cons_of_mem _ hO', off', rfl⟩
+    · exact (ih h).imp fun O' ⟨hO', off', hS⟩ => ⟨List.mem_cons_of_mem _ hO', off', hS⟩
 
 /-- **Exact-one assignments give exact covers.** The true variables of the clauses have disjoint
 occurrence lists covering all clause indices; padding them with distinct dummy elements and

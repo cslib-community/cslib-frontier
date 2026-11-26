@@ -668,17 +668,14 @@ private theorem comp_interpret_and_queriesWith {oracle₁ oracle₂ : List Bool 
         (OracleComp.interpret G (R₁.program a)) =
       (OracleComp.queriesWith (fun q => oracle₁ q.2) (R₁.program a)).flatMap fun q =>
         OracleComp.queriesWith (fun q' => oracle₂ q'.2) (R₂.program q.2) := by
-  let G (q : Unit × List Bool) : WordQueryComp Unit (List Bool) :=
-    List.take (R₁.alenCap a) <$> R₂.program q.2
-  have hG : ∀ q ∈ OracleComp.queriesWith (fun q => oracle₁ q.2) (R₁.program a),
-      OracleComp.interpret (m := Id) (fun q' => oracle₂ q'.2) (G q) = oracle₁ q.2 := fun q hq => by
-    rw [show OracleComp.interpret (m := Id) (fun q' => oracle₂ q'.2) (G q) =
-        (OracleComp.interpret (m := Id) (fun q' => oracle₂ q'.2) (R₂.program q.2)).take
-          (R₁.alenCap a) from OracleComp.interpret_map .., R₂.eval_eq q.2]
-    exact List.take_of_length_le ((R₁.respects_bound a).2.2.2 q hq |>.trans (R₁.alen_le_alenCap a))
+  intro G
+  have hG (q) (hq : q ∈ OracleComp.queriesWith (fun q => oracle₁ q.2) (R₁.program a)) :
+      OracleComp.interpret (m := Id) (fun q' => oracle₂ q'.2) (G q) = oracle₁ q.2 :=
+    (OracleComp.interpret_map (m := Id) ..).trans ((congrArg (List.take (R₁.alenCap a))
+      (R₂.eval_eq q.2)).trans (List.take_of_length_le
+        ((R₁.respects_bound a).2.2.2 q hq |>.trans (R₁.alen_le_alenCap a))))
   obtain ⟨heval, hqs⟩ := interpret_and_queriesWith_subst oracle₁ oracle₂ G (R₁.program a) hG
-  refine ⟨heval.trans (R₁.eval_eq a), ?_⟩
-  simpa only [G, OracleComp.queriesWith_map] using hqs
+  exact ⟨heval.trans (R₁.eval_eq a), by simpa only [G, OracleComp.queriesWith_map] using hqs⟩
 
 /-- Polynomial reply-length allowance for `BoundedOracleProgram.comp`. -/
 noncomputable def compCapPoly {oracle₁ oracle₂ : List Bool → List Bool} {f : α → β}
@@ -718,13 +715,11 @@ private theorem comp_isOraclePPTOn {oracle₁ oracle₂ : List Bool → List Boo
       (List.take (R₁.alenCap a) <$> R₂.program q.2))
     (prepare := _root_.id) (resources := fun a _ => R₁.alenCap a)
     .id' hhandler (R₁.computableInPolyTime_alenCap.comp (.fst encA encBits))
-    fun a q reply hreply => by
+    fun _ _ _ hreply => by
       rw [OracleComp.interpret_map] at hreply
       obtain ⟨_, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
       exact List.length_take_le _ _
-  convert hsub using 1
-  funext a; rw [OracleComp.interpret_interpret, OracleComp.interpret_interpret]
-  congr 1; funext q; simp only [ProbOracleComp.interpret_query]
+  simpa only [_root_.id, OracleComp.interpret_interpret, ProbOracleComp.interpret_query] using hsub
 
 private theorem comp_respects_bound {oracle₁ oracle₂ : List Bool → List Bool} {f : α → β}
     (R₁ : BoundedOracleProgram encA encB oracle₁ f)
@@ -874,9 +869,8 @@ theorem computableInPolyTime {oracle : List Bool → List Bool} {f : α → β}
     (horacle : ComputableInPolyTime oracle encBits encBits) :
     ComputableInPolyTime f encA encB := by
   obtain ⟨_, _, machine, c, d, hrun⟩ := R.isOraclePPTOn.exists_fin_run_pure_false
-  refine (machine.computableInPolyTime_run_word (input := encA) horacle c d).of_enc_eq fun a => ?_
-  rw [← R.eval_eq a, ← hrun a (fun q => oracle q.2)]
-  rfl
+  exact (machine.computableInPolyTime_run_word (input := encA) horacle c d).of_enc_eq fun a =>
+    ((hrun a fun q => oracle q.2).trans (congrArg encB (R.eval_eq a))).symm
 
 /-- **Explicit `ComputableInO` transfer in polynomial workspace for multi-bit word oracles:**
 simulating `R` against `ComputableInO oracle encBits encBits Tg Sg` uses **polynomial workspace**
@@ -898,9 +892,8 @@ theorem exists_computableInO_polySpace {oracle : List Bool → List Bool} {f : �
   obtain ⟨_, _, machine, c₁, d₁, hrun⟩ := R.isOraclePPTOn.exists_fin_run_pure_false
   obtain ⟨c₀, e₀, S, hSPoly, hcomp⟩ :=
     machine.exists_computableInO_run_word (input := encA) horacle hSg c₁ d₁
-  refine ⟨c₀, e₀, S, hSPoly, c₁, d₁, hcomp.of_enc_eq fun a => ?_⟩
-  rw [← R.eval_eq a, ← hrun a (fun q => oracle q.2)]
-  rfl
+  exact ⟨c₀, e₀, S, hSPoly, c₁, d₁, hcomp.of_enc_eq fun a =>
+    ((hrun a fun q => oracle q.2).trans (congrArg encB (R.eval_eq a))).symm⟩
 
 /-- **Polynomial-space transfer for multi-bit word oracles:** if `oracle : List Bool → List Bool` is
 computable in polynomial space, any `BoundedOracleProgram` relative to `oracle` is computable in
@@ -1264,13 +1257,11 @@ theorem mem_PSPACE {A : Set α} {B : Set β} (D : Decoder encB)
         (.of_polyTime D.computableInPolyTime))
       (.of_polyTime (.const false))
   have horacle : ComputableInPolySpace (encodedDecisionOracle encB B) encBits encBits := by
-    have heq : encodedDecisionOracle encB B =
-        fun w => [if decide (encB (D.decode w) = w) then g (D.decode w) else false] :=
+    have heq : encodedDecisionOracle encB B = _ :=
       funext fun w => congrArg List.singleton (decide_mem_image_eq_of_decoder D hgB w)
     rw [heq]
-    exact (ComputableInPolySpace.of_polyTime (show ComputableInPolyTime (fun b : Bool => [b])
-      encBool encBits from ComputableInPolyTime.id'.of_enc_eq fun b =>
-        (encBool_apply b).symm)).comp hdecB_ps
+    exact (ComputableInPolySpace.of_polyTime
+      (ComputableInPolyTime.id'.of_enc_eq fun b => (encBool_apply b).symm)).comp hdecB_ps
   exact ⟨_, R.toProgram.computableInPolySpace horacle, fun _ => by simp⟩
 
 /-! ### Parameterized exponential and subexponential oracle transfer -/
@@ -1416,16 +1407,15 @@ private theorem expTime_step_dom {dn di da e Cp E clk stepPoly stateB clockLen l
         stepPoly + stateB + (clk + 1) ^ 2 + (clk + 1) ^ e + 1 by omega)
     dsimp only [P]
     exact_mod_cast (by omega : _ ≤ Cp * (lenA + 1) ^ E)
+  have hsub {x : ℕ} (hx : x ≤ stepPoly + stateB + (clk + 1) ^ 2 + (clk + 1) ^ e + 1) :
+      ((clk : ℝ) + 1) * x ≤ Cp * P := by
+    have hm := Nat.mul_le_mul_left (clk + 1) hx
+    dsimp only [P]
+    exact_mod_cast (by omega : (clk + 1) * x ≤ Cp * (lenA + 1) ^ E)
   have hcpow : ((clk : ℝ) + 1) * ((clk : ℝ) + 1) ^ e ≤ Cp * P := by
-    have hm := Nat.mul_le_mul_left (clk + 1)
-      (show (clk + 1) ^ e ≤ stepPoly + stateB + (clk + 1) ^ 2 + (clk + 1) ^ e + 1 by omega)
-    dsimp only [P]
-    exact_mod_cast (by omega : (clk + 1) * (clk + 1) ^ e ≤ Cp * (lenA + 1) ^ E)
+    simpa only [Nat.cast_pow, Nat.cast_add, Nat.cast_one] using hsub (x := (clk + 1) ^ e) (by omega)
   have hclk1 : (clk : ℝ) + 1 ≤ Cp * P := by
-    have hm := Nat.mul_le_mul_left (clk + 1)
-      (show 1 ≤ stepPoly + stateB + (clk + 1) ^ 2 + (clk + 1) ^ e + 1 by omega)
-    dsimp only [P]
-    exact_mod_cast (by omega : clk + 1 ≤ Cp * (lenA + 1) ^ E)
+    simpa only [Nat.cast_one, mul_one] using hsub (x := 1) (by omega)
   have hexp : (2 : ℝ) ^ (δ * (scale * μA + offset : ℕ)) = 2 ^ (δ * offset) * Y := by
     push_cast; rw [← Real.rpow_add (by norm_num : (0 : ℝ) < 2)]; congr 1; ring
   rw [hexp] at hleaf
@@ -1527,27 +1517,26 @@ theorem decidableInExpTime {A : Set α} {B : Set β} {μA : α → ℕ} {μB : �
             (encBool (g (D.decode r))).length + 1) ^ d_step else 0) ≤
         stepPoly a + leafMax a := by
     intro st r
+    simp only [encBool_apply, List.length_singleton]
     have hst : (encPair encNat encFiniteConfig st).length ≤ stateBound a := hstate a i hi
     have hp1 := Nat.pow_le_pow_left (Nat.add_le_add_right hst 1) d_step
+    have hp2 : ((encPair encNat encFiniteConfig st).length + 1 + 1) ^ d_step ≤
+        (stateBound a + 2) ^ d_step := Nat.pow_le_pow_left (by omega) d_step
     split_ifs with hact
     · rcases Bool.and_eq_true_iff.mp (Bool.and_eq_true_iff.mp hact).2 with ⟨hcan_b, hle_b⟩
-      have hst_eq := hiter_eq a i
       set b := D.decode r
       have hμ_le : μB b ≤ K a := by
-        simpa only [st, hst_eq] using (of_decide_eq_true hle_b : μB b ≤ st.1)
+        simpa only [st, hiter_eq a i] using (of_decide_eq_true hle_b : μB b ≤ st.1)
       have hreq_len : (encB b).length ≤ clk a := by
         rw [of_decide_eq_true hcan_b]
-        simpa only [r, st, hst_eq] using (machine.length_pendingRequest_le (hspace a hi)).trans hi
+        simpa only [r, st, hiter_eq a i] using
+          (machine.length_pendingRequest_le (hspace a hi)).trans hi
       have ht_le : t b ≤ leafMax a := by
         refine Nat.cast_le.mp ((ht b).trans (le_trans ?_ (Nat.le_ceil _)))
         have hexp : (2 : ℝ) ^ (δ * μB b) ≤ 2 ^ (δ * (K a : ℝ)) :=
           Real.rpow_le_rpow_of_exponent_le (by norm_num)
             (mul_le_mul_of_nonneg_left (Nat.cast_le.mpr hμ_le) hδ)
         gcongr
-      have hp2 : ((encPair encNat encFiniteConfig st).length +
-          (encBool (g b)).length + 1) ^ d_step ≤ (stateBound a + 2) ^ d_step := by
-        simp only [encBool_apply, List.length_singleton]
-        exact Nat.pow_le_pow_left (by omega) d_step
       dsimp only [stepPoly]; omega
     · dsimp only [stepPoly]; omega
   have hloop := ha_deg.inO.comp (ComputableInO.iterate hn.inO hi_deg.inO hstep hround hround hstate)

@@ -256,27 +256,26 @@ private theorem exec_bfsInnerStep (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     have hcond_s : ¬(Cond.lt zero r6).Holds x₀ := by
       simp only [Cond.holds_lt, hL₀.h_zero, hx₀_r6]; exact hs_pos
     generalize hdf_eq : B.delta fr a = df at hx₀_r7
-    have hneg : ∃ x₁, ExecWithin w (ram[
-        rState ← r3 * sigma; rState ← rState + r5; rState ← deltaBase + rState; *rState ← r7;
-        r5 ← r5 + one ]) x₀ x₁ 5 ∧
-        x₁.regs r1 = B.qHead ∧ x₁.regs r2 = B.qTail ∧
-        x₁.regs r3 = r ∧ x₁.regs r4 = fr ∧ x₁.regs r5 = a + 1 ∧
-        x₁.mem = Function.update x.mem (inp.deltaBase + (r * inp.alphabetSize + a)) df := by
+    obtain ⟨x₁, he_n, hx₁_r1, hx₁_r2, hx₁_r3, hx₁_r4, hx₁_r5, hx₁_mem⟩ :
+        ∃ x₁, ExecWithin w (ram[
+          rState ← r3 * sigma; rState ← rState + r5; rState ← deltaBase + rState; *rState ← r7;
+          r5 ← r5 + one ]) x₀ x₁ 5 ∧
+          x₁.regs r1 = B.qHead ∧ x₁.regs r2 = B.qTail ∧
+          x₁.regs r3 = r ∧ x₁.regs r4 = fr ∧ x₁.regs r5 = a + 1 ∧
+          x₁.mem = Function.update x.mem (inp.deltaBase + (r * inp.alphabetSize + a)) df := by
       refine WP.exists_execWithin ?_
       wram_exec [hL₀.h_sigma, hL₀.h_deltaBase, hL₀.h_one, hx₀_r3, hx₀_r5, hx₀_r7,
         hf_mr, hf_ra, hf_dra, hf_a1]
       exact ⟨by wram_simp [hx₀_r1], by wram_simp [hx₀_r2], by wram_simp [hx₀_r3],
         by wram_simp [hx₀_r4], by wram_simp, by wram_simp [hx₀_mem]⟩
-    obtain ⟨x₁, he_n, hx₁_r1, hx₁_r2, hx₁_r3, hx₁_r4, hx₁_r5, hx₁_mem⟩ := hneg
     have he_tot : ExecWithin w bfsInnerStepCode x x₁ 29 :=
       (he₀.seq (ExecWithin.branch_neg hcond_s he_n)).mono (by omega)
     have hB'_eq : PBFS.innerStep inp.trie r fr B a =
         { B with delta := fun u c => if u = r ∧ c = a then df else B.delta u c } := by
       simp only [PBFS.innerStep, hs_pos, hdf_eq, ↓reduceIte]
     rw [hB'_eq]
-    refine ⟨x₁, he_tot, hL.of_preserves he_tot, ?_, hx₁_r1, hx₁_r2, hx₁_r3, hx₁_r4, hx₁_r5⟩
-    rw [hx₁_mem]
-    exact bfsMem_of_set_delta hr_maxS ha hM
+    exact ⟨x₁, he_tot, hL.of_preserves he_tot, hx₁_mem ▸ bfsMem_of_set_delta hr_maxS ha hM,
+      hx₁_r1, hx₁_r2, hx₁_r3, hx₁_r4, hx₁_r5⟩
 
 private theorem exec_bfsInnerLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     (hw : Fits w inp.wordBound) :
@@ -307,8 +306,7 @@ private theorem exec_bfsInnerLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
   | succ k ih =>
     intro a B x hak hL hM hinv hr1 hr2 hr3 hr4 hr5
     have ha : a < inp.alphabetSize := by omega
-    have hc : (Cond.lt r5 sigma).Holds x := by
-      simp only [Cond.holds_lt, hr5, hL.h_sigma]; exact ha
+    have hc : (Cond.lt r5 sigma).Holds x := by simpa only [Cond.holds_lt, hr5, hL.h_sigma] using ha
     have hinv_next := innerStep_spec hT hchar hterm ha hinv
     obtain ⟨x₁, he_st, hL₁, hM₁, hx₁_r1, hx₁_r2, hx₁_r3, hx₁_r4, hx₁_r5⟩ :=
       exec_bfsInnerStep inp w hvalid hw ha hL hM hinv hr1 hr2 hr3 hr4 hr5
@@ -346,8 +344,7 @@ private theorem exec_bfsOuterLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     dsimp only [PBFS.outerLoop]
     by_cases hlt : B.qHead < B.qTail
     · simp only [hlt, ↓reduceIte]
-      have hc : (Cond.lt r1 r2).Holds x := by
-        simp only [Cond.holds_lt, hr1, hr2]; exact hlt
+      have hc : (Cond.lt r1 r2).Holds x := by simpa only [Cond.holds_lt, hr1, hr2] using hlt
       set qh := B.qHead
       set r := B.queue qh
       set fr := B.fail r
@@ -362,28 +359,26 @@ private theorem exec_bfsOuterLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
       have hf_qaddr : Fits w (inp.queueBase + qh) := fits_of_le_outBase hw (by omega)
       have hf_qh1 : Fits w (qh + 1) := fits_of_le_outBase hw (by omega)
       have hf_faddr : Fits w (inp.failBase + r) := fits_of_le_outBase hw (by omega)
-      have hhd : ∃ x₁, ExecWithin w (ram[
-          r3 ← queueBase + r1; r3 ← *r3;
-          r1 ← r1 + one;
-          r4 ← failBase + r3; r4 ← *r4;
-          r5 ← #0 ]) x x₁ 6 ∧
-          x₁.regs r1 = qh + 1 ∧ x₁.regs r2 = B.qTail ∧
-          x₁.regs r3 = r ∧ x₁.regs r4 = fr ∧ x₁.regs r5 = 0 ∧ x₁.mem = x.mem := by
+      obtain ⟨x₁, he_hd, hx₁_r1, hx₁_r2, hx₁_r3, hx₁_r4, hx₁_r5, hx₁_mem⟩ :
+          ∃ x₁, ExecWithin w (ram[
+            r3 ← queueBase + r1; r3 ← *r3;
+            r1 ← r1 + one;
+            r4 ← failBase + r3; r4 ← *r4;
+            r5 ← #0 ]) x x₁ 6 ∧
+            x₁.regs r1 = qh + 1 ∧ x₁.regs r2 = B.qTail ∧
+            x₁.regs r3 = r ∧ x₁.regs r4 = fr ∧ x₁.regs r5 = 0 ∧ x₁.mem = x.mem := by
         refine WP.exists_execWithin ?_
         wram_exec [hL.h_queueBase, hL.h_failBase, hL.h_one, hr1, hq_read, hf_read,
           hf_qaddr, hf_qh1, hf_faddr]
         exact ⟨by wram_simp, by wram_simp [hr2], by wram_simp, by wram_simp, by wram_simp,
           by wram_simp⟩
-      obtain ⟨x₁, he_hd, hx₁_r1, hx₁_r2, hx₁_r3, hx₁_r4, hx₁_r5, hx₁_mem⟩ := hhd
       set B₁ : PBFS := { B with qHead := qh + 1 }
       obtain ⟨x₂, he_in, hL₂, hM₂, hx₂_r1, hx₂_r2⟩ :=
         exec_bfsInnerLoop inp w hvalid hw qh r fr inp.alphabetSize 0 B₁ x₁ (Nat.zero_add _)
           (hL.of_preserves he_hd) (hx₁_mem ▸ { hM with }) hInner₀ hx₁_r1 hx₁_r2 hx₁_r3 hx₁_r4
           hx₁_r5
       obtain ⟨hinv₂, hqh₂⟩ := outerStep_spec hT hchar hterm hinv hlt
-      obtain ⟨y, he_tl, hLy, hMy⟩ := ih _ x₂ hL₂ hM₂ hinv₂
-        (by linarith [show (PBFS.innerLoop inp.trie r fr inp.alphabetSize 0 B₁).qHead =
-          B.qHead + 1 from hqh₂]) hx₂_r1 hx₂_r2
+      obtain ⟨y, he_tl, hLy, hMy⟩ := ih _ x₂ hL₂ hM₂ hinv₂ (by linarith [hqh₂]) hx₂_r1 hx₂_r2
       exact ⟨y, (ExecWithin.loop_iter hc (he_hd.seq he_in) he_tl).mono
         (by rw [Nat.mul_succ]; omega), hLy, hMy⟩
     · simp only [hlt, ↓reduceIte]
@@ -409,10 +404,10 @@ theorem exec_bfsBuild (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     wram_exec
     exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
   obtain ⟨x₀, he₀, hx₀_r1, hx₀_r2, hx₀_r5, hx₀_mem⟩ := h0_code
-  have hL₀ : LayoutInv inp x₀ := hL.of_preserves he₀
   obtain ⟨x₁, he_rt, hL₁, hM₁, hx₁_r1, hx₁_r2⟩ :=
     exec_bfsRootLoop inp w hvalid hw inp.alphabetSize 0 PBFS.init x₀ (Nat.zero_add _)
-      hL₀ (bfsMem_init (by rwa [hx₀_mem])) (rootLoopInv_init hT) hx₀_r1 hx₀_r2 hx₀_r5
+      (hL.of_preserves he₀) (bfsMem_init (by rwa [hx₀_mem])) (rootLoopInv_init hT) hx₀_r1 hx₀_r2
+      hx₀_r5
   set B₀ := PBFS.rootLoop inp.trie inp.alphabetSize 0 PBFS.init
   obtain ⟨hBFS₀, hqh₀⟩ := bfsInv_rootLoop hT hchar hterm
   obtain ⟨y, he_out, hLy, hMy⟩ :=

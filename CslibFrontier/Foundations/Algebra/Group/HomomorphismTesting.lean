@@ -80,8 +80,8 @@ open Classical in
 /-- Plurality corrections exist without a tie-breaking convention. -/
 theorem exists_plurality (f : G → H) : ∃ φ, IsPlurality f φ := by
   classical
-  exact ⟨fun x => (Fintype.exists_forall_card_filter_le_card_filter (vote f x)).choose,
-    fun x => (Fintype.exists_forall_card_filter_le_card_filter (vote f x)).choose_spec⟩
+  choose φ hφ using fun x => Fintype.exists_forall_card_filter_le_card_filter (vote f x)
+  exact ⟨φ, hφ⟩
 
 open Classical in
 /-- An actual homomorphism passes every test. -/
@@ -220,26 +220,15 @@ private theorem disagreement_moments (f : G → H) (h : G →+ H) :
     (𝔼 x : G, 𝔼 y : G, a x * a (x + y)) = d ^ 2 ∧
     (𝔼 x : G, 𝔼 y : G, a y * a (x + y)) = d ^ 2 := by
   classical
-  dsimp only
-  let a := fun x => if f x ≠ h x then (1 : ℝ) else 0
-  have hd : (𝔼 x, a x) = (hammingDist f h : ℝ) / Fintype.card G :=
-    (hammingDist_div_eq_expect f h).symm
-  have hab : (𝔼 x : G, 𝔼 y : G, a x * a y) = (𝔼 x, a x) ^ 2 := by
-    simp_rw [← mul_expect, ← expect_mul]
-    ring
-  have hac : (𝔼 x : G, 𝔼 y : G, a x * a (x + y)) = (𝔼 x, a x) ^ 2 := by
-    simp_rw [← mul_expect, Fintype.expect_add_left, ← expect_mul]
-    ring
-  have hbc : (𝔼 x : G, 𝔼 y : G, a y * a (x + y)) = (𝔼 x, a x) ^ 2 := by
-    rw [expect_comm]
-    simp_rw [add_comm, ← mul_expect, Fintype.expect_add_left, ← expect_mul]
-    ring
-  exact ⟨by simpa only [Fintype.expect_const] using hd,
+  intro a d
+  have hd : (𝔼 x, a x) = d := (hammingDist_div_eq_expect f h).symm
+  refine ⟨by simpa only [Fintype.expect_const] using hd,
     by simpa only [Fintype.expect_const] using hd,
-    by change (𝔼 x : G, 𝔼 y : G, a (x + y)) = _
-       simpa only [Fintype.expect_add_left, Fintype.expect_const] using hd,
-    hab.trans (congrArg (· ^ 2) hd), hac.trans (congrArg (· ^ 2) hd),
-    hbc.trans (congrArg (· ^ 2) hd)⟩
+    by simp_rw [Fintype.expect_add_left, Fintype.expect_const, hd],
+    by simp_rw [← mul_expect, ← expect_mul, hd, ← sq],
+    by simp_rw [← mul_expect, Fintype.expect_add_left, ← expect_mul, hd, ← sq], ?_⟩
+  rw [expect_comm]
+  simp_rw [add_comm, ← mul_expect, Fintype.expect_add_left, ← expect_mul, hd, ← sq]
 
 open Classical in
 /-- Goldreich r5 Exercise 9.20(2), for any supplied homomorphism, not just a closest one. -/

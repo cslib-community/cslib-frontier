@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Lists
 public import CslibFrontier.Foundations.Data.List.Weighted
+public import Mathlib.Algebra.BigOperators.Group.Finset.Defs
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ListPrograms
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Typed
 import Mathlib.Data.Finset.Lattice.Fold
@@ -52,6 +53,7 @@ steps, as `Interpreter.Does` needs it, and the input lists are read together and
 * `Transducer.exists_formula_run`: one formula runs a transducer, in time linear in the number of
   steps.
 * `Transducer.mem_run_induction`: an invariant of the steps holds at every outcome of a run.
+* `Transducer.weightedSum_run_succ`: one more step of a run, as a sum over the choices.
 * `Transducer.exists_length_le_of_mem_run`: the output lists grow by a constant a step.
 
 ## References
@@ -120,6 +122,19 @@ theorem run_zero (s : State nC nI nO Λ) : run θ tab 0 s = [(1, s)] := rfl
 
 theorem run_succ (k : ℕ) (s : State nC nI nO Λ) :
     run θ tab (k + 1) s = (step θ tab s).weightedBind (run θ tab k) := rfl
+
+/-- One more step of a run, from a state at which the table lists the choices `ch z` of a finite
+type: the sum over these choices of their weight times the run after them. -/
+theorem weightedSum_run_succ {Z : Type} [Fintype Z] (ch : Z → Choice nC nO Λ)
+    {s : State nC nI nO Λ}
+    (hs : tab s.control (fun i => (s.inputs i).headD false) =
+      (Finset.univ : Finset Z).toList.map ch)
+    (k : ℕ) (G : State nC nI nO Λ → A) :
+    (run θ tab (k + 1) s).weightedSum G =
+      ∑ z, (ch z).weight.val θ * (run θ tab k ((ch z).apply s)).weightedSum G := by
+  rw [run_succ, List.weightedSum_weightedBind, step, hs, List.map_map, List.weightedSum,
+    List.map_map]
+  exact Finset.sum_map_toList _ _
 
 /-- An invariant of the steps, with a counter of the steps, holds at every outcome of a run. -/
 theorem mem_run_induction {Inv : ℕ → State nC nI nO Λ → Prop} {k m : ℕ} {s : State nC nI nO Λ}

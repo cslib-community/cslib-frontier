@@ -179,14 +179,11 @@ theorem Good.bob {send : (Fin n → Fin m → Bool) → Bool} {p₀ p₁ : Proto
       _ ≤ 2 ^ st.t * (4 * τ) ^ #st.J * (2 * #(st.Y.filter fun y => send y = b)) := by gcongr
       _ = 2 ^ (st.t + 1) * (4 * τ) ^ #st.J * #(st.Y.filter fun y => send y = b) := by
           rw [pow_succ]; ring
-  X_large := by
-    dsimp only
-    exact h.X_large.trans (mul_le_mul_of_nonneg_right
-      (pow_le_pow_right₀ (by norm_num) (Nat.le_succ _)) (Nat.cast_nonneg _))
+  X_large := h.X_large.trans (mul_le_mul_of_nonneg_right
+    (pow_le_pow_right₀ (by norm_num) (Nat.le_succ _)) (Nat.cast_nonneg _))
   solves := fun x hx y hy => by
     obtain ⟨hy1, hy2⟩ := mem_filter.mp (mem_coe.mp hy)
-    have hsol := h.solves x hx y (mem_coe.mpr hy1)
-    cases b <;> simpa only [Protocol.run_bob, hy2, Bool.cond_true, Bool.cond_false] using hsol
+    cases b <;> simpa [Protocol.run_bob, hy2] using h.solves x hx y (mem_coe.mpr hy1)
   budget := by
     have hbgt := h.budget
     cases b <;> simp only [Protocol.depth, Bool.cond_true, Bool.cond_false] at hbgt ⊢ <;> omega
@@ -288,17 +285,14 @@ theorem Good.alice {send : (Fin n → Fin m) → Bool} {p₀ p₁ : Protocol _ _
     · rw [(mem_filter.mp hy).2 i hi, (mem_filter.mp hy').2 i hi]
   · intro x hx y hy i hi
     rcases mem_union.mp hi with hi | hi
-    · rw [h.ind_eq x (hPX hx) y (filter_subset _ _ hy) i hi]
-      exact (hρ' i hi).symm
+    · exact (h.ind_eq x (hPX hx) y (filter_subset _ _ hy) i hi).trans (hρ' i hi).symm
     · rw [(mem_filter.mp hy).2 i hi, hL.fixed q hqL x hx i hi, hη i hi]
-  · change IsDense τ (st.J ∪ q.I)ᶜ q.P
-    simpa only [compl_union, ← sdiff_eq_inter_compl] using hL.dense q hqL
+  · simpa only [compl_union, ← sdiff_eq_inter_compl] using hL.dense q hqL
   · intro x hx y hy
     obtain ⟨hx1, hx2⟩ := mem_filter.mp (hL.subset q hqL (mem_coe.mp hx))
     have hsol := h.solves x (mem_coe.mpr hx1) y (mem_coe.mpr (filter_subset _ _ (mem_coe.mp hy)))
     cases b <;> simpa only [Protocol.run_alice, hx2, Bool.cond_true, Bool.cond_false] using hsol
   · have hbgt := h.budget
-    change st.t + 1 + (cond b p₁ p₀).depth ≤ c
     cases b <;> simp only [Protocol.depth, Bool.cond_true, Bool.cond_false] at hbgt ⊢ <;> omega
 
 end SimState
@@ -374,10 +368,8 @@ theorem SimState.Good.afterAlice {st : SimState n m} {send : (Fin n → Fin m) �
   have hL := isPartition_partitionOf hτ st.Jᶜ (st.X.filter fun x => send x = bigHalf st.X send)
   have hIJ : q.I ⊆ st.Jᶜ := hL.I_subset q hq
   have hspec := (exists_fix_blocks st.Y q.I q.α (mergeAnswers q.I ρ' st.ρ)).choose_spec
-  refine h.alice hτ _ (card_le_two_mul_card_filter_bigHalf _ _) hL hq hgood _ ?_ _ hspec.1 hspec.2
-  intro i hi
-  have : i ∉ q.I := fun h' => mem_compl.mp (hIJ h') hi
-  simp [mergeAnswers, this]
+  exact h.alice hτ _ (card_le_two_mul_card_filter_bigHalf _ _) hL hq hgood _
+    (fun i hi => ite_eq_right fun h' => mem_compl.mp (hIJ h') hi) _ hspec.1 hspec.2
 
 /-- Under the invariants, some piece of the partition is good. -/
 theorem SimState.Good.exists_goodPiece {st : SimState n m} {send : (Fin n → Fin m) → Bool}
@@ -415,8 +407,7 @@ theorem eval_sim (hτ4 : 4 ≤ τ) (hτm : τ ^ 2 ≤ m) (hτc : 64 * n * (5 * c
       h.bob hτ _ (card_le_two_mul_card_filter_bigHalf _ _)
     rw [sim]
     cases h' : bigHalf st.Y send <;> simp only [h', Bool.cond_false, Bool.cond_true] at hb ⊢
-    · exact ih₀ _ hb z hz
-    · exact ih₁ _ hb z hz
+    exacts [ih₀ _ hb z hz, ih₁ _ hb z hz]
   | alice send p₀ p₁ ih₀ ih₁ =>
     intro st h z hz
     have hq := h.exists_goodPiece hτ4 hτm hτc
@@ -432,8 +423,7 @@ theorem eval_sim (hτ4 : 4 ≤ τ) (hτm : τ ^ 2 ≤ m) (hτc : 64 * n * (5 * c
       · exact hz i (hi.resolve_right hiI)
     have hb := h.afterAlice hτ hqL hgood ρ'
     cases h' : bigHalf st.X send <;> simp only [h', Bool.cond_false, Bool.cond_true] at hb ⊢
-    · exact ih₀ _ hb z hz'
-    · exact ih₁ _ hb z hz'
+    exacts [ih₀ _ hb z hz', ih₁ _ hb z hz']
 
 private theorem four_pow_succ_add_le {t d D : ℕ} (h : d + 1 ≤ D) :
     (4 : ℝ) ^ (t + 1 + d) ≤ 4 ^ (t + D) :=
@@ -470,8 +460,8 @@ private theorem pow_depth_sim_alice (hτ4 : 4 ≤ τ) (hτm : τ ^ 2 ≤ m)
   have hb := h.afterAlice hτ hqL hgood ρ₀
   refine (pow_le_pow_right₀ hM (by omega : _ ≤ #st.J + #q.I + (k ρ₀).depth)).trans ?_
   cases h' : bigHalf st.X send <;> simp only [k, h', Bool.cond_false, Bool.cond_true] at hb ⊢
-  · exact (hJ ▸ ih₀ _ hb).trans (four_pow_succ_add_le (by simp))
-  · exact (hJ ▸ ih₁ _ hb).trans (four_pow_succ_add_le (by simp))
+  exacts [(hJ ▸ ih₀ _ hb).trans (four_pow_succ_add_le (by simp)),
+    (hJ ▸ ih₁ _ hb).trans (four_pow_succ_add_le (by simp))]
 
 /-- **The number of queries of the simulation**: `(m / τ) ^ (#J + depth) ≤ 4 ^ (t + depth p)`. -/
 theorem pow_depth_sim (hτ4 : 4 ≤ τ) (hτm : τ ^ 2 ≤ m) (hτc : 64 * n * (5 * c + 2) ≤ τ) :
@@ -489,8 +479,8 @@ theorem pow_depth_sim (hτ4 : 4 ≤ τ) (hτm : τ ^ 2 ≤ m) (hτc : 64 * n * (
       h.bob hτ _ (card_le_two_mul_card_filter_bigHalf _ _)
     rw [sim]
     cases h' : bigHalf st.Y send <;> simp only [h', Bool.cond_false, Bool.cond_true] at hb ⊢
-    · exact (ih₀ _ hb).trans (four_pow_succ_add_le (by simp))
-    · exact (ih₁ _ hb).trans (four_pow_succ_add_le (by simp))
+    exacts [(ih₀ _ hb).trans (four_pow_succ_add_le (by simp)),
+      (ih₁ _ hb).trans (four_pow_succ_add_le (by simp))]
   | alice send p₀ p₁ ih₀ ih₁ =>
     exact pow_depth_sim_alice hτ4 hτm hτc ih₀ ih₁
 
@@ -512,17 +502,13 @@ private theorem sixtyFour_mul_depth_le_of_four_pow_lt {τ : ℝ} (hτ4 : 4 ≤ �
   have hcn : 2 * p.depth ≤ n * (Nat.log 2 m + 1) := by
     have h1 : ((m : ℝ) / τ) ^ n ≤ (m : ℝ) ^ n :=
       pow_le_pow_left₀ (by positivity) (div_le_self (Nat.cast_nonneg m) (by linarith only [hτ4])) n
-    have h2 : (m : ℝ) ^ n < 2 ^ (n * (Nat.log 2 m + 1)) := by
+    have h2 : (m : ℝ) ^ n ≤ 2 ^ (n * (Nat.log 2 m + 1)) := by
       rw [mul_comm, pow_mul]
-      have : (m : ℝ) < 2 ^ (Nat.log 2 m + 1) := by
-        exact_mod_cast Nat.lt_pow_succ_log_self (by norm_num) m
-      rcases Nat.eq_zero_or_pos n with hn | hn
-      · subst hn
-        rw [pow_zero] at hc
-        exact absurd hc (not_lt.mpr (one_le_pow₀ (by norm_num)))
-      · exact pow_lt_pow_left₀ this (by positivity) hn.ne'
+      exact pow_le_pow_left₀ (Nat.cast_nonneg m)
+        (by exact_mod_cast (Nat.lt_pow_succ_log_self (by norm_num) m).le) n
     have h3 : (2 : ℝ) ^ (2 * p.depth) < 2 ^ (n * (Nat.log 2 m + 1)) := by
-      rw [pow_mul]; norm_num; exact (hc.trans_le h1).trans h2
+      rw [pow_mul]; norm_num
+      exact (hc.trans_le h1).trans_le h2
     have := (pow_lt_pow_iff_right₀ (by norm_num : (1 : ℝ) < 2)).mp h3
     omega
   have h1 : 64 * n * (5 * p.depth + 2) ≤ 320 * n ^ 2 * (Nat.log 2 m + 1) := by
@@ -564,12 +550,11 @@ theorem exists_decisionTree_of_solves {R : (Fin n → Bool) → O → Prop} {τ 
     have hτc : 64 * n * (5 * p.depth + 2) ≤ τ :=
       sixtyFour_mul_depth_le_of_four_pow_lt hτ4 hτn hc
     -- the initial state satisfies the invariants
-    have hinit : (SimState.init n m).Good τ p.depth R p := by
-      refine ⟨univ_nonempty_iff.mpr ⟨fun _ => ⟨0, hm⟩⟩, by simp [SimState.init],
-        by simp [SimState.init], by simp [SimState.init], isDense_univ hτ.le hτm' _, ?_, ?_,
+    have hinit : (SimState.init n m).Good τ p.depth R p :=
+      ⟨univ_nonempty_iff.mpr ⟨fun _ => ⟨0, hm⟩⟩, by simp [SimState.init],
+        by simp [SimState.init], by simp [SimState.init], isDense_univ hτ.le hτm' _,
+        by simp [SimState.init, ← pow_mul, mul_comm], by simp [SimState.init],
         hp.mono (Set.subset_univ _) (Set.subset_univ _), by simp [SimState.init]⟩
-      · simp [SimState.init, ← pow_mul, mul_comm]
-      · simp [SimState.init]
     refine ⟨sim τ p (SimState.init n m), fun z => eval_sim hτ4 hτm hτc p _ hinit z (by
       simp [SimState.init]), ?_⟩
     simpa [SimState.init] using pow_depth_sim hτ4 hτm hτc p _ hinit
@@ -598,8 +583,7 @@ theorem depth_mul_logb_le {R : (Fin n → Bool) → O → Prop} (hm : 16 ≤ m)
   have hlog := Real.logb_le_logb_of_le (b := 2) (by norm_num) (by positivity) hdepth
   rw [Real.logb_pow, Real.logb_two_pow, Nat.cast_mul, Nat.cast_ofNat] at hlog
   have hsqrt : Real.logb 2 m = 2 * Real.logb 2 (Real.sqrt m) := by
-    conv_lhs => rw [← hsq]
-    rw [Real.logb_pow, Nat.cast_ofNat]
+    simpa only [Real.logb_pow, Nat.cast_ofNat] using congrArg (Real.logb 2) hsq.symm
   rw [hsqrt]
   linarith [hlog]
 

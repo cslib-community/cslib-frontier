@@ -212,10 +212,8 @@ section Branch
 private theorem card_coinOutcome_some_true (k g₀ g₁ : ℕ) :
     Nat.card {i : Fin (2 ^ k) // coinOutcome g₀ g₁ i.val = some true} = min (2 ^ k) g₁ := by
   rw [Nat.card_eq_fintype_card, Fintype.card_subtype, ← Fin.card_filter_val_lt]
-  congr 1
-  ext i
-  rw [Finset.mem_filter, Finset.mem_filter]
-  unfold coinOutcome
+  refine congrArg Finset.card (Finset.ext fun i => ?_)
+  rw [Finset.mem_filter, Finset.mem_filter, coinOutcome]
   split_ifs <;> simp_all
 
 private theorem card_coinOutcome_some_false (k g₀ g₁ : ℕ) :
@@ -302,10 +300,9 @@ theorem eval_choose_le (m extra : ℕ) (e e₀ e₁ : ℕ × ℕ) (c : Bool) :
     ProbComp.eval (choose m extra e e₀ e₁) (some c) ≤
       ENNReal.ofReal ((weight m e e₀ e₁ c : ℝ) / total m e e₀ e₁) := by
   refine (eval_branch_le _ _ _ c).trans ?_
-  have hK : (0 : ℝ) < ((2 ^ coinWidth m extra e e₀ e₁ : ℕ) : ℝ) := by positivity
-  rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_div_of_pos hK]
-  refine ENNReal.ofReal_le_ofReal ?_
-  cases c <;> exact natCast_div_div_le _ _ _
+  rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_natCast,
+    ← ENNReal.ofReal_div_of_pos (by positivity)]
+  cases c <;> exact ENNReal.ofReal_le_ofReal (natCast_div_div_le _ _ _)
 
 /-- When the weights fit (`weight false + weight true ≤ total`), the choice at a node picks a child
 `c` of positive weight with probability at least `(1 - 2 ^ (-extra)) weight c / total`. -/
@@ -324,11 +321,9 @@ theorem le_eval_choose {m extra : ℕ} {e e₀ e₁ : ℕ × ℕ}
     rw [← add_mul]
     exact (Nat.div_le_div_right (Nat.mul_le_mul_right _ hfit)).trans
       (Nat.mul_div_cancel_left _ hD).le
-  rw [choose, eval_branch_eq hsum]
-  have hK : (0 : ℝ) < ((2 ^ coinWidth m extra e e₀ e₁ : ℕ) : ℝ) := by positivity
-  rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_div_of_pos hK]
-  refine ENNReal.ofReal_le_ofReal ?_
-  cases c <;> exact le_natCast_div_div hD (Nat.lt_size_self _) hc
+  rw [choose, eval_branch_eq hsum, ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_natCast,
+    ← ENNReal.ofReal_div_of_pos (by positivity)]
+  cases c <;> exact ENNReal.ofReal_le_ofReal (le_natCast_div_div hD (Nat.lt_size_self _) hc)
 
 end Choose
 
@@ -351,9 +346,8 @@ private theorem eval_bind_descend_some_cons (μ : PMF (Option Bool))
     (μ.bind fun o => ProbComp.eval (descend next o)) (some (c :: v)) =
       μ (some c) * ProbComp.eval (next c) (some v) := by
   rw [PMF.bind_apply, tsum_fintype, Fintype.sum_option, Fintype.sum_bool]
-  simp only [descend, ProbComp.eval_pure, ProbComp.eval_map, PMF.pure_apply, reduceCtorEq,
-    ite_false, mul_zero, zero_add, eval_map_cons_some_cons]
-  cases c <;> simp
+  cases c <;> simp only [descend, ProbComp.eval_pure, ProbComp.eval_map, PMF.pure_apply,
+    reduceCtorEq, eval_map_cons_some_cons, ↓reduceIte, mul_zero, zero_add, add_zero]
 
 private theorem eval_bind_descend_some_nil (μ : PMF (Option Bool))
     (next : Bool → ProbComp (Option (List Bool))) :
@@ -412,13 +406,11 @@ noncomputable def invEstimate (e : ℕ × ℕ) : ℝ := (e.2 : ℝ) / e.1
 
 /-- The level factor is nonnegative. -/
 theorem levelFactor_nonneg (m : ℕ) : 0 ≤ levelFactor m := by
-  unfold levelFactor
-  positivity
+  exact div_nonneg (Nat.cast_nonneg _) (Nat.cast_nonneg _)
 
 /-- The inverse of an estimate is nonnegative. -/
 theorem invEstimate_nonneg (e : ℕ × ℕ) : 0 ≤ invEstimate e := by
-  unfold invEstimate
-  positivity
+  exact div_nonneg (Nat.cast_nonneg _) (Nat.cast_nonneg _)
 
 private theorem ratio_eq {M' M a b ac bc bc' : ℝ} (hac : ac ≠ 0) (hbc : bc ≠ 0)
     (hbc' : bc' ≠ 0) :
@@ -633,8 +625,7 @@ theorem le_eval_walk (R : SelfReducible enc W) {A : α → ℕ → ℕ → ProbC
               (some (c :: w)) := by
         intro e₀ he₀ e₁ he₁
         rw [eval_bind_descend_some_cons]
-        have gc : R.GoodEstimate p (R.child y c) (cond c e₁ e₀) := by
-          cases c; exacts [he₀, he₁]
+        have gc : R.GoodEstimate p (R.child y c) (cond c e₁ e₀) := by cases c <;> assumption
         have hbc' : 0 < (cond c e₀ e₁).2 := by cases c; exacts [he₁.1.1, he₀.1.1]
         have hNc : 1 ≤ (W (R.child y c)).card := Finset.card_pos.2 ⟨w, hw⟩
         have hac := pos_of_approx gc.1 hNc hp2
@@ -818,15 +809,11 @@ private theorem one_eighth_le {N ℓ q : ℕ} {e : ℕ × ℕ} (hN : 0 < N)
   have h1 := half_le_stepFactor_pow ℓ q
   have h2 := half_le_levelFactor_pow ℓ
   have h3 := three_quarters_le_card_mul_invEstimate hN (by rw [counterAccuracy]; omega) he
-  have h4 : (N : ℝ) * (stepFactor (precision ℓ q) (precision ℓ q) ^ ℓ *
-      (levelFactor (damping ℓ) ^ ℓ * invEstimate e)) =
-        stepFactor (precision ℓ q) (precision ℓ q) ^ ℓ * levelFactor (damping ℓ) ^ ℓ *
-          (N * invEstimate e) := by ring
-  rw [h4]
-  have h5 : (1 / 2 : ℝ) * (1 / 2) ≤
-      stepFactor (precision ℓ q) (precision ℓ q) ^ ℓ * levelFactor (damping ℓ) ^ ℓ :=
-    mul_le_mul h1 h2 (by norm_num) (by linarith only [h1])
-  exact le_trans (by norm_num) (mul_le_mul h5 h3 (by norm_num) (by positivity))
+  have h5 : (1 / 4 : ℝ) ≤
+      stepFactor (precision ℓ q) (precision ℓ q) ^ ℓ * levelFactor (damping ℓ) ^ ℓ := by
+    nlinarith only [h1, h2]
+  exact (le_trans (by norm_num) (mul_le_mul h5 h3 (by norm_num) (by positivity))).trans_eq
+    (by ring)
 
 /-- **The acceptance probability of a trial.** If the counter is accurate and the root estimate
 `e` is good, then a trial from an instance with at least one witness rejects with probability at

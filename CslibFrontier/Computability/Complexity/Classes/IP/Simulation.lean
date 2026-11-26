@@ -407,8 +407,7 @@ theorem computableInPolyTime_accepts [Finite Operation] :
       accepts matchOp entryPair M p.1 p.2.1 p.2.2)
       (encPair encBits (encPair encBits (encList encEntry))) encBool := by
   cases nonempty_fintype Operation
-  have h := computableInPolyTime_aliveRun matchOp entryPair M
-    (encEntry := encEntry) hmatch hpair
+  have := computableInPolyTime_aliveRun matchOp entryPair M (encEntry := encEntry) hmatch hpair
   unfold accepts
   fun_prop
 
@@ -443,18 +442,14 @@ theorem computableInPolySpace_countAccepts [Finite Control]
     (hfuel : Turing.MultiTapeTM.ComputableInPolyTime fuel enc encUnary) :
     Turing.MultiTapeTM.ComputableInPolySpace (countAccepts MUnit enc fuel) (encPair enc encHistory)
       encNat := by
-  have hfuel' : ComputableInPolyTime (fun q : α × History => fuel q.1)
-      (encPair enc encHistory) encUnary := hfuel.comp (ComputableInPolyTime.fst _ _)
-  have hacc := (computableInPolyTime_accepts (fun _ _ => true) id MUnit
-    (encEntry := encPair encBits encBits)
-    (fun _ => (ComputableInPolyTime.const true))
-    (ComputableInPolyTime.id'))
+  have hacc := computableInPolyTime_accepts (fun _ _ => true) id MUnit
+    (encEntry := encPair encBits encBits) (fun _ => .const true) .id'
   have hverify : ComputableInPolyTime
       (fun p : (α × History) × List Bool =>
         accepts (fun _ _ => true) id MUnit (enc p.1.1) p.2 p.1.2)
       (encPair (encPair enc encHistory) encBits) encBool := by fun_prop
-  exact (computableInPolySpace_acceptCount (.of_polyTime hverify) (hfuel')).congr fun q =>
-    (streamAcceptCount_eq_acceptCount _ q _).symm
+  exact (computableInPolySpace_acceptCount (.of_polyTime hverify)
+    (hfuel.comp (.fst _ _))).congr fun q => (streamAcceptCount_eq_acceptCount _ q _).symm
 
 end Count
 

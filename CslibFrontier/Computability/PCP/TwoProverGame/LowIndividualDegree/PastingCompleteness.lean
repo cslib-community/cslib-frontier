@@ -62,11 +62,9 @@ theorem card_locallyInterpolable_mul_card_le [Fintype F] (x : ι ↪ F)
   classical
   obtain ⟨s, hs, hsize⟩ := exists_subset_card_eq (Nat.succ_le_of_lt hcard)
   let selected (i : ι) := if i ∈ s then g i else none
-  have hselected : successfulSlices selected = s := by
-    ext i
+  have hselected : successfulSlices selected = s := Finset.ext fun i => by
     by_cases hi : i ∈ s
-    · simpa [selected, hi] using hs hi
-    · simp [selected, hi]
+    exacts [by simpa [selected, hi] using hs hi, by simp [selected, hi]]
   obtain ⟨p, hp⟩ := pasteOutcome_eq_some_of_card x selected ((congrArg card hselected).trans hsize)
   have hfit : ¬ FitsSlices x g p := fun h => by
     simpa [hfail] using (pasteOutcome_eq_some_iff x g p).2 ⟨hcard, h⟩
@@ -78,13 +76,9 @@ theorem card_locallyInterpolable_mul_card_le [Fintype F] (x : ι ↪ F)
     intro u hu
     simp only [mem_filter, mem_univ, true_and] at hu ⊢
     obtain ⟨f, hf, hagree⟩ := hu
-    have hline : evalPrefix u p.val = f := by
-      refine evalPrefix_eq_of_paste_agrees x u hp hf fun j r hr => hagree j r ?_
-      by_cases hj : j ∈ s
-      · simpa [selected, hj] using hr
-      · simp [selected, hj] at hr
-    rw [hagree i q hq, ← hline, eval_evalPrefix]
-    rfl
+    have hline := evalPrefix_eq_of_paste_agrees x u hp hf fun j r hr =>
+      hagree j r (Option.ite_none_right_eq_some.mp hr).2
+    rw [hagree i q hq, ← hline, eval_evalPrefix]; rfl
   exact (Nat.mul_le_mul_right _ (card_le_card hsubset)).trans
     (card_filter_eval_eq_mul_card_le (fun h => hne (Subtype.ext h))
       (p.specialize (x i)).prop q.prop)
@@ -117,10 +111,9 @@ theorem enoughSlices_prob_le_paste_prob_add_union [Fintype F] {β : Type*}
         (p.toOuterMeasure bad).toReal := by
     rw [PMF.toOuterMeasure_map_apply]
     simp only [toOuterMeasure_apply_toReal, ← sum_add_distrib]
-    refine sum_congr rfl fun g _ => ?_
-    cases hp : pasteOutcome x g with
-    | none => simp [hp, bad]
-    | some q => simp [hp, bad, ((pasteOutcome_eq_some_iff x g q).mp hp).1]
+    refine sum_congr rfl fun g _ => match hp : pasteOutcome x g with
+      | none => by simp [hp, bad]
+      | some q => by simp [hp, bad, ((pasteOutcome_eq_some_iff x g q).mp hp).1]
   rw [hsplit, add_assoc]
   apply add_le_add_right
   have hsurv (u : Fin m → F) :
@@ -133,8 +126,8 @@ theorem enoughSlices_prob_le_paste_prob_add_union [Fintype F] {β : Type*}
       rintro ⟨g, b⟩ hg
       refine or_iff_not_imp_left.2 fun hmiss => ⟨hg, ?_⟩
       obtain ⟨f, hf, he⟩ := hline b
-      refine ⟨f, hf, fun i q hq => (he _).symm ▸ not_not.1 fun hne => ?_⟩
-      exact hmiss (Set.mem_iUnion₂.mpr ⟨i, mem_univ i, q, hq, hne⟩)
+      exact ⟨f, hf, fun i q hq => (he _).symm ▸ not_not.1 fun hne =>
+        hmiss (Set.mem_iUnion₂.mpr ⟨i, mem_univ i, q, hq, hne⟩)⟩
     have hpre (e : Set (ι → Option (BoundedPolynomial F m d))) :
         ((law u).toOuterMeasure (Prod.fst ⁻¹' e)).toReal = (p.toOuterMeasure e).toReal := by
       rw [← PMF.toOuterMeasure_map_apply, hmarg u]
@@ -157,14 +150,12 @@ theorem enoughSlices_prob_le_paste_prob_add_union [Fintype F] {β : Type*}
           rw [hc, Fintype.card_fun, Fintype.card_fin, Nat.cast_pow,
             div_le_div_iff₀ (pow_pos hF m) hF]
           exact_mod_cast card_locallyInterpolable_mul_card_le x g hg.1 hg.2
-        · have hnonneg : 0 ≤ (m * d : ℝ) / Fintype.card F := by positivity
-          simpa [survives, hg] using hnonneg
+        · simpa [survives, hg] using (by positivity : 0 ≤ (m * d : ℝ) / Fintype.card F)
       _ = _ := by rw [← sum_mul, sum_toReal, one_mul]
   calc
     _ = 𝔼 _u : Fin m → F, (p.toOuterMeasure bad).toReal := (Fintype.expect_const _).symm
-    _ ≤ _ := (expect_le_expect fun u _ => hsurv u).trans (by
-      rw [expect_add_distrib]
-      exact add_le_add_right hlocal _)
+    _ ≤ _ := (expect_le_expect fun u _ => hsurv u).trans
+      ((expect_add_distrib ..).trans_le (add_le_add_right hlocal _))
 
 /-- The loss from discarding incompatible transcripts, estimated by the sum of
 the individual slice-line mismatch probabilities. -/
@@ -191,10 +182,8 @@ open scoped Real
 private theorem transcriptSuccessCount_eq_card {k : ℕ}
     (g : Fin k → Option (BoundedPolynomial F m d)) :
     Measurement.transcriptSuccessCount Option.isSome g = (successfulSlices g).card := by
-  have h : successfulSlices g = univ.filter (fun i => (g i).isSome) := by
-    ext i
-    simp
-  rw [h, card_filter, Measurement.transcriptSuccessCount]
+  rw [Measurement.transcriptSuccessCount, ← card_filter]
+  exact congrArg card (Finset.ext fun _ => by simp)
 
 variable {A : Type*} [Fintype F] [CStarAlgebra A] [PartialOrder A] [StarOrderedRing A]
 
@@ -282,18 +271,17 @@ private theorem enoughSlices_successfulEffect_le {β : Type*} [Fintype β]
   have htuple (x : Fin k ↪ F) : score x ≤
       (((pasteProjectiveSlices x S.alice hM).distribution S.state).toOuterMeasure
         {q | q.isSome}).toReal + (𝔼 u, misses u x) + (m * d : ℝ) / Fintype.card F := by
-    have h := enoughSlices_prob_le_paste_prob_add_union x lineValue hline
-      (fun u => T.answers x u) ((T.alice x).distribution S.state) (fun u => T.answers_map_fst x u)
-    rw [← Measurement.distribution_map] at h
-    exact h
+    have h := enoughSlices_prob_le_paste_prob_add_union x lineValue hline (T.answers x)
+      ((T.alice x).distribution S.state) (T.answers_map_fst x)
+    rwa [← Measurement.distribution_map] at h
   have hswap : (𝔼 x : Fin k ↪ F, 𝔼 u, misses u x) ≤
       (𝔼 u, 𝔼 x : Fin k → F, misses u x) + (k.choose 2 : ℝ) / Fintype.card F := by
     rw [expect_comm univ univ]
     calc
-      _ ≤ 𝔼 u, ((𝔼 x : Fin k → F, misses u x) + (k.choose 2 : ℝ) / Fintype.card F) := by
-        refine expect_le_expect fun u _ => ?_
-        exact expect_embedding_le_expect_add k (misses u) (fun _ => ENNReal.toReal_nonneg)
-          (fun x => toOuterMeasure_toReal_le_one (T.answers x u) _)
+      _ ≤ 𝔼 u, ((𝔼 x : Fin k → F, misses u x) + (k.choose 2 : ℝ) / Fintype.card F) :=
+        expect_le_expect fun u _ =>
+          expect_embedding_le_expect_add k (misses u) (fun _ => ENNReal.toReal_nonneg)
+            (fun x => toOuterMeasure_toReal_le_one (T.answers x u) _)
       _ = _ := by simp only [expect_add_distrib, Fintype.expect_const]
   have hmiss : (𝔼 u, 𝔼 x : Fin k → F, misses u x) ≤
       k * η + k * ((k - 1 : ℕ) : ℝ) * √(2 * χ + 8 * ζ) := by
@@ -312,8 +300,7 @@ private theorem enoughSlices_successfulEffect_le {β : Type*} [Fintype β]
             hpair hcopy))
   have hscore' := expect_le_expect_embedding_add k score
     (fun x => ENNReal.toReal_nonneg) (fun x => toOuterMeasure_toReal_le_one _ _)
-  have hpaste := expect_le_expect (s := (univ : Finset (Fin k ↪ F))) fun x _ =>
-    htuple x
+  have hpaste := expect_le_expect (s := univ) fun (x : Fin k ↪ F) _ => htuple x
   simp only [expect_add_distrib, Fintype.expect_const,
     ← pasteSlices_success_prob_eq_expect] at hpaste
   simp only [← hscore, mul_div_assoc (2 : ℝ)]
@@ -347,8 +334,7 @@ theorem pastedSuccessfulEffect_lower_bound {β : Type*} [Fintype β]
     hmass hpair hcopy
   obtain ⟨hp, hs⟩ := Measurement.average_completedDefects_le S.state S.alice R hM hR hc hpair hcopy
   have h₂ := enoughSlices_successfulEffect_le k S hM R hR hc lineValue hline hp hs hlocal
-  have he : 2 * (81 * χ + 80 * ζ) + 8 * (2 * ζ) = 162 * χ + 176 * ζ := by ring
-  rw [he] at h₂
+  rw [show (2 : ℝ) * (81 * χ + 80 * ζ) + 8 * (2 * ζ) = 162 * χ + 176 * ζ by ring] at h₂
   linarith
 
 end Sequential

@@ -50,10 +50,8 @@ private theorem labeled_edge_of_not_bad {n : ℕ} (A : (Fin k × Fin k) → Fin 
     (hv : Function.Injective v) (m : Fin k → Fin r) :
     ∃ i j : Fin n, T.Adj (v i) (v j) ∧ A (v i, v j) ≠ m (v j) := by
   by_contra hn
-  have hc : ∀ i j, T.Adj (v i) (v j) → A (v i, v j) = m (v j) := fun i j ha =>
-    not_not.mp fun h => hn ⟨i, j, ha, h⟩
-  have hevent := (T.mem_labelingEvent_iff hv).mpr hc
-  exact hA (T.labelingEvent_subset_bad hevent)
+  exact hA (T.labelingEvent_subset_bad ((T.mem_labelingEvent_iff hv).mpr fun i j ha =>
+    not_not.mp fun h => hn ⟨i, j, ha, h⟩))
 
 /-- If `0 < r`, `120 ≤ k * k` and `k ^ 16 < r ^ 104`, then `T` admits a good labeling with `r`
 labels. -/
@@ -70,14 +68,12 @@ private theorem goodLabeling_exists_of_power_bound (hr : 0 < r) (hN : 120 ≤ k 
       (Finset.univ : Finset ((Fin k × Fin k) → Fin r)).card := by
     simpa only [Finset.card_univ, Fintype.card_fun, Fintype.card_prod, Fintype.card_fin]
       using (T.card_badLabelings_le (r := r) (n := 16)).trans_lt htotal
-  obtain ⟨A,_,hA⟩ := Finset.exists_mem_notMem_of_card_lt_card hc
-  refine ⟨⟨fun i j => A (i,j), ?_⟩⟩
-  intro I hI m
+  obtain ⟨A, _, hA⟩ := Finset.exists_mem_notMem_of_card_lt_card hc
+  refine ⟨⟨fun i j => A (i, j), fun I hI m => ?_⟩⟩
   let e : Fin 16 ≃ I := (Finset.equivFinOfCardEq hI).symm
-  let v : Fin 16 → Fin k := fun i => (e i).val
-  have hv : Function.Injective v := Subtype.val_injective.comp e.injective
-  obtain ⟨i, j, ha, hne⟩ := T.labeled_edge_of_not_bad A hA v hv m
-  exact ⟨v i, (e i).property, v j, (e j).property, ha, hne⟩
+  obtain ⟨i, j, ha, hne⟩ := T.labeled_edge_of_not_bad A hA (fun i => (e i).1)
+    (Subtype.val_injective.comp e.injective) m
+  exact ⟨(e i).1, (e i).2, (e j).1, (e j).2, ha, hne⟩
 
 end Tournament
 
@@ -85,8 +81,7 @@ end Tournament
 labeling with `r` labels. -/
 private theorem goodLabeling_exists {M r : ℕ} (hM : 3 ≤ M) (hMr : M ≤ r ^ 2)
     (T : Tournament (2 * M ^ 2 + 1)) : Nonempty (GoodLabeling T r) := by
-  have hr : 0 < r := (Nat.pow_pos_iff.mp
-    (lt_of_lt_of_le (show 0 < M by omega) hMr)).resolve_right (by omega)
+  have hr : 0 < r := Nat.pos_of_ne_zero fun h => absurd (h ▸ hMr) (by omega)
   exact T.goodLabeling_exists_of_power_bound hr (labeling_space_large hM)
     (labeling_power_bound hM hMr)
 

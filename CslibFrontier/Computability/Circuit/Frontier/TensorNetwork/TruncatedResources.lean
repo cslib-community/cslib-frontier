@@ -84,9 +84,7 @@ theorem pointCount_le (fl : List ℕ) (P ℓ r : ℕ) (G : DescribedNetwork T) :
       (encEngine encT (fl, P, ℓ, r, G)).length * (encEngine encT (fl, P, ℓ, r, G)).length + 1 := by
   have hk := DescribedNetwork.length_numEdges_vertices_le (encT := encT) G
   have hlen := length_encEngine (encT := encT) fl P ℓ r G
-  have hℓ : ℓ - 1 ≤ (encEngine encT (fl, P, ℓ, r, G)).length := by omega
-  have hv : G.vertices.length ≤ (encEngine encT (fl, P, ℓ, r, G)).length := by omega
-  exact Nat.add_le_add_right (Nat.mul_le_mul hℓ hv) 1
+  exact Nat.add_le_add_right (Nat.mul_le_mul (by omega) (by omega)) 1
 
 /-- The length of an encoded described network, by components. -/
 private theorem length_encDescribed {T' : Type} (encT' : T' ↪ List Bool)
@@ -433,11 +431,10 @@ theorem directCoreCertificate_le (entry : T → List Bool → List ℕ)
   have hG'n : (DescribedNetwork.encDescribed (encSpecDesc encT) G').length ≤ n := by
     enc_len [hn, encCore]
   -- The specialized entries.
-  have hv : ∀ v' ∈ G'.vertices, ∀ bs : List Bool, bs.length = v'.1.length →
+  have hv (v') (hv' : v' ∈ G'.vertices) (bs : List Bool) (hbs : bs.length = v'.1.length) :
       (specEntryCertificate entry ce).time (v'.2, bs) ≤ E + Uf Z ∧
         (specEntryCertificate entry ce).space (v'.2, bs) ≤ ES + Uf Z ∧
           (encList encNat (specEntry entry v'.2 bs)).length ≤ cS * (Z + Uf Z + 1) := by
-    intro v' hv' bs hbs
     have hvl := length_vertex_le (encSpecDesc encT) G' hv'
     rw [hG', DescribedNetwork.vertices_specNet, List.mem_map] at hv'
     obtain ⟨v, hvG, rfl⟩ := hv'
@@ -450,15 +447,13 @@ theorem directCoreCertificate_le (entry : T → List Bool → List ℕ)
         (encList encNat (entry v.2 bs)).length + 1 ≤ Af Z := by
       have hports := length_le_length_encList encNat v.1
       have hcE' : cE * (ES + 1) ≤ cE * (Z + 1) := Nat.mul_le_mul_left _ (by omega)
-      simp only [length_encPair, encBits_apply] at hvl ⊢
-      simp only [Af]
+      simp only [length_encPair, encBits_apply, Af] at hvl ⊢
       omega
     have hpow : K₃ * ((encPair (encSpecDesc encT) encBits ((v.2, P, ℓ, fl, ζ), bs)).length +
         (encList encNat (entry v.2 bs)).length + 1) ^ K₃ ≤ Uf Z :=
       Nat.mul_le_mul_left K₃ (Nat.pow_le_pow_left hq K₃)
-    refine ⟨h1.trans (Nat.add_le_add hEt hpow), h2.trans (Nat.add_le_add hEs hpow),
-      (hcS ((v.2, P, ℓ, fl, ζ), bs)).trans (Nat.mul_le_mul_left _ ?_)⟩
-    omega
+    exact ⟨h1.trans (Nat.add_le_add hEt hpow), h2.trans (Nat.add_le_add hEs hpow),
+      (hcS ((v.2, P, ℓ, fl, ζ), bs)).trans (Nat.mul_le_mul_left _ (by omega))⟩
   have hr : ∀ z, SumOps.galois.Reduced (P, fl) z → (encList encNat z).length ≤ Z * (2 * Z + 3) :=
     fun z hz => (SumOps.length_encList_le_of_galois_reduced hz).trans (by
       have hfl := length_le_length_encList encNat fl
@@ -500,8 +495,7 @@ theorem directCoreCertificate_le (entry : T → List Bool → List ℕ)
     omega
   · simp only [directCoreCertificate, NativeCertificate.congr, NativeCertificate.comp_space,
       Function.comp_apply]
-    have : Sf Z ≤ K * (Z + 1) ^ K := by omega
-    simp only [Sf] at this
+    simp only [Sf] at h1
     omega
 
 /-- **Time and space of the truncated contraction by direct summation.** There is `K` such that,
@@ -556,9 +550,7 @@ theorem truncDirectCertificate_le (entry : T → List Bool → List ℕ)
     have hR : KA * ((encCore encT (P, fl, r, DescribedNetwork.specNet P ℓ fl
         (FastContraction.digits fl.length k) G)).length + ES + 1) ^ KA ≤ Rf W := by
       refine Nat.mul_le_mul_left _ (Nat.pow_le_pow_left ?_ _)
-      have : 9 * ((encEngine encT (fl, P, ℓ, r, G)).length + 1) ^ 2 ≤ 9 * (Yf W + 1) ^ 2 :=
-        Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) _)
-      omega
+      linarith [Nat.mul_le_mul_left 9 (Nat.pow_le_pow_left (Nat.add_le_add_right hLy 1) 2)]
     have hS' := hS.trans hR
     exact ⟨hT.trans (Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ hR)), hS',
       (hcD (P, fl, r, DescribedNetwork.specNet P ℓ fl
@@ -583,8 +575,7 @@ theorem truncDirectCertificate_le (entry : T → List Bool → List ℕ)
   · simp only [truncDirectCertificate, NativeCertificate.congr, NativeCertificate.comp_space]
     change (NativeCertificate.ofPolyTime modulusChoice_polyTime).space (P, ℓ, r, G) +
       (engineCertificate _ (directCoreCertificate entry ce)).space (fl, P, ℓ, r, G) ≤ _
-    have : Sf W ≤ K * (W + 1) ^ K := by omega
-    simp only [Sf] at this
+    simp only [Sf] at h1
     omega
 
 end Cslib.Circuits.Frontier

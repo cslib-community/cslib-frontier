@@ -380,13 +380,11 @@ private theorem aboveRoomSet_subset_atRoomSet {n : ℕ} (s : FilterState n) (r :
 private theorem nextAfterRoom_atOrAbove {n : ℕ} (r r' : Fin (n - 1)) :
     (nextAfterRoom r).atOrAboveRoom r' = decide (r'.val ≤ r.val) := by
   by_cases h : r.val + 2 < n <;> simp [nextAfterRoom, h, FilterPhase.atOrAboveRoom]
-  have := r'.isLt
   omega
 
 private theorem nextAfterRoom_above {n : ℕ} (r r' : Fin (n - 1)) :
     (nextAfterRoom r).aboveRoom r' = decide (r'.val ≤ r.val) := by
   by_cases h : r.val + 2 < n <;> simp [nextAfterRoom, h, FilterPhase.aboveRoom]
-  have := r'.isLt
   omega
 
 private def filterLocalInv {n : ℕ} (s : FilterState n) (p : Fin n) : Prop :=
@@ -493,28 +491,14 @@ private theorem filterStepShape_of_step {n : ℕ} {s s' : FilterState n} {μ : F
     exact htr ▸ .setVic p _ hph
   · rename_i p
     cases hph : s.phase p <;> simp only [hph, reduceCtorEq] at htr
-    split at htr
-    · rename_i hvne
-      injection htr with htr
-      exact htr ▸ .passVic p _ _ hph hvne
-    · injection htr with htr
-      exact htr ▸ .spinVic p _ _ hph
+    split_ifs at htr with hvne <;> simp only [Option.some.injEq] at htr
+    exacts [htr ▸ .passVic p _ _ hph hvne, htr ▸ .spinVic p _ _ hph]
   · rename_i p target
     cases hph : s.phase p <;> simp only [hph, reduceCtorEq] at htr
-    by_cases htp : target = p
-    · simp [htp] at htr
-    · simp only [ne_eq, htp, not_false_eq_true, ↓reduceIte] at htr
-      split at htr
-      · rename_i hlv
-        split at htr
-        · rename_i hall
-          injection htr with htr
-          exact htr ▸ .passLv p target _ _ hph htp hlv hall
-        · rename_i hne
-          injection htr with htr
-          exact htr ▸ .recLv p target _ _ hph htp hlv hne
-      · injection htr with htr
-        exact htr ▸ .spinLv p target _ _ hph
+    obtain ⟨htp, htr⟩ := Option.ite_none_right_eq_some.mp htr
+    split_ifs at htr with hlv hall <;> simp only [Option.some.injEq] at htr
+    exacts [htr ▸ .passLv p target _ _ hph htp hlv hall,
+      htr ▸ .recLv p target _ _ hph htp hlv hall, htr ▸ .spinLv p target _ _ hph]
   · obtain ⟨hph, ⟨rfl⟩⟩ := Option.ite_none_right_eq_some.mp htr
     exact .exit _ hph
 
@@ -561,22 +545,14 @@ private theorem filterInv_of_unchanged_rooms {n : ℕ} {s : FilterState n} {p : 
     filter_update_eq (·.atOrAboveRoom r) s.phase p ph' (hat r)
   have hab_eq : ∀ r, aboveRoomSet s₁ r = aboveRoomSet s r := fun r =>
     filter_update_eq (·.aboveRoom r) s.phase p ph' (hab r)
-  refine ⟨hloc', ?_, ?_, ?_⟩
-  · intro r cleared hw
-    rw [hat_eq r]
-    dsimp only [s₁] at hw
+  refine ⟨hloc', fun r cleared hw => ?_, fun r hv q hne => ?_, fun r hne => ?_⟩
+  · rw [hat_eq r]
     by_cases hvp : s.victim r = p
-    · rw [hvp, Function.update_self] at hw
-      exact hnw r cleared hw hvp
-    · rw [Function.update_of_ne hvp] at hw
-      exact hinv.cleared_disjoint r cleared hw
-  · intro r hv q hne
-    rw [hab_eq r] at hv
-    rw [hat_eq r]
-    exact hinv.victim_unique_above r hv q hne
-  · intro r hne
-    rw [hat_eq r] at hne ⊢
-    exact hinv.victim_mem r hne
+    · exact hnw r cleared (by simpa only [s₁, hvp, Function.update_self] using hw) hvp
+    · exact hinv.cleared_disjoint r cleared
+        (by simpa only [s₁, Function.update_of_ne hvp] using hw)
+  · exact hat_eq r ▸ hinv.victim_unique_above r (hab_eq r ▸ hv) q hne
+  · exact hat_eq r ▸ hinv.victim_mem r (hat_eq r ▸ hne)
 
 /-- Clearing step shared by `checkLevel`: after `p` in room `r` with victim `p` reads a lower level
 of `target`, every process in `insert target cl` is still outside `atRoomSet s r`. -/
@@ -622,11 +598,8 @@ private theorem filterInv_of_passRoom {n : ℕ} {s : FilterState n} {p : Fin n}
           simpa only [aboveRoomSet, Finset.mem_filter, Finset.mem_univ, true_and, s₁,
             Function.update_of_ne hvp] using hv
         exact hinv.victim_unique_above r hv_old q hne
-    · rw [hab_ne r hrr] at hv
-      exact hinv.victim_unique_above r hv q hne
-  · intro r hne
-    rw [hat_all r] at hne ⊢
-    exact hinv.victim_mem r hne
+    · exact hinv.victim_unique_above r (hab_ne r hrr ▸ hv) q hne
+  · exact fun r hne => hat_all r ▸ hinv.victim_mem r (hat_all r ▸ hne)
 
 private theorem filterInv_step {n : ℕ} {s s' : FilterState n} {μ : FilterAction n}
     (hinv : FilterInv s) (htr : filterStep? s μ = some s') : FilterInv s' := by
@@ -703,17 +676,15 @@ private theorem filterInv_step {n : ℕ} {s s' : FilterState n} {μ : FilterActi
       rw [hab_all r] at hv
       rcases eq_or_ne r r₀ with rfl | hrr
       · simp [s₁, aboveRoomSet, hph, FilterPhase.aboveRoom] at hv
-      · dsimp only [s₁] at hv ⊢
+      · rw [hat_ne r hrr]
+        dsimp only [s₁] at hv ⊢
         rw [Function.update_of_ne hrr] at hv ⊢
-        rw [hat_ne r hrr]
         exact hinv.victim_unique_above r hv
     · intro r hne
       rcases eq_or_ne r r₀ with rfl | hrr
       · simp [hat_eq_r₀, s₁]
-      · dsimp only [s₁]
-        rw [Function.update_of_ne hrr]
-        rw [hat_ne r hrr] at hne ⊢
-        exact hinv.victim_mem r hne
+      · rw [hat_ne r hrr] at hne ⊢
+        simpa only [s₁, Function.update_of_ne hrr] using hinv.victim_mem r hne
   | passVic p r₀ cleared₀ hph hvne =>
     exact filterInv_of_passRoom hinv hph hloc' fun hvp => absurd hvp hvne
   | spinVic | spinLv => exact hinv
@@ -744,10 +715,8 @@ private theorem filterInv_step {n : ℕ} {s s' : FilterState n} {μ : FilterActi
       intro q hq hmem
       exact hinv.cleared_disjoint r cleared hw q hq (Finset.mem_of_mem_erase hmem)
     · intro r hv q hne hmem
-      rw [hab_erase r] at hv
-      rw [hat_erase r] at hmem
-      exact hinv.victim_unique_above r (Finset.mem_of_mem_erase hv) q hne
-        (Finset.mem_of_mem_erase hmem)
+      exact hinv.victim_unique_above r (Finset.mem_of_mem_erase (hab_erase r ▸ hv)) q hne
+        (Finset.mem_of_mem_erase (hat_erase r ▸ hmem))
     · intro r ⟨q, hq⟩
       rw [hat_erase r] at hq ⊢
       obtain ⟨hqp, hq_at⟩ := Finset.mem_erase.mp hq
@@ -825,14 +794,13 @@ reachable state of `filterLock n`, at most one process is in `CriticalSection`. 
 theorem filterLock_mutualExclusion {n : ℕ} {s : FilterState n} (hr : s.Reachable)
     {p q : Fin n} (hp : s.inCS p) (hq : s.inCS q) : p = q := by
   by_cases hn2 : n ≤ 1
-  · exact Fin.ext (by have := p.isLt; have := q.isLt; omega)
-  · have hmem : ∀ x : Fin n, s.inCS x → x ∈ s.atLevel (n - 1) := by
-      intro x hx
-      obtain ⟨k, heqk⟩ : ∃ k, n - 1 = k + 1 := ⟨n - 2, by omega⟩
-      have hk : k < n - 1 := by omega
-      unfold FilterState.inCS at hx
-      rw [heqk]
-      simp [FilterState.atLevel, hk, hx, FilterPhase.aboveRoom]
+  · exact Fin.ext (by omega)
+  · have hk : n - 2 < n - 1 := by omega
+    have hmem (x : Fin n) (hx : s.inCS x) : x ∈ s.atLevel (n - 1) := by
+      have hn1 : n - 1 = (n - 2) + 1 := by omega
+      have hph : s.phase x = .cs := hx
+      rw [hn1]
+      simp [FilterState.atLevel, hk, hph, FilterPhase.aboveRoom]
     have hcap : (s.atLevel (n - 1)).card ≤ 1 := (card_at_level_le hr (n - 1) (by omega)).trans
       (by omega)
     exact Finset.card_le_one.mp hcap p (hmem p hp) q (hmem q hq)
@@ -1557,14 +1525,13 @@ theorem not_deadlockFreeMutex_of_single_register
     simpa only [MutexConfig.inCS, execRegStep_other hp_ne.symm, c₂] using hc₁_cs₁
   let a₂ := soloIter π p₀ (j + 1) c_enter₀
   have hcover : a₂.mem = c₂.mem ∧ a₂.localState p₀ = c₂.localState p₀ := by
-    rw [show a₂ = π.execRegStep c₀ p₀ from soloIter_succ_right π p₀ j c_enter₀]
+    have ha₂ : a₂ = π.execRegStep c₀ p₀ := soloIter_succ_right π p₀ j c_enter₀
+    rw [ha₂]
     dsimp only [c₂, MutexProtocol.execRegStep]
     rw [hc₁_p₀]
     cases hstep₀ : π.step p₀ (c₀.localState p₀) with
     | localStep _ | read _ _ => simp [hstep₀, RegStep.isWrite] at hj_write
-    | write r val next₀ =>
-      refine ⟨funext fun r' => by simp [Subsingleton.elim r' r], ?_⟩
-      simp
+    | write r val _ => exact ⟨funext fun r' => by simp [Subsingleton.elim r' r], by simp⟩
   -- Replay `p₀`'s remaining `k₀ - (j + 1)` solo steps into `.cs` while `p₁` stays in `.cs`!
   let rem := k₀ - (j + 1)
   have hrem_add : (j + 1) + rem = k₀ := Nat.add_sub_of_le (Nat.succ_le_of_lt hj_lt)

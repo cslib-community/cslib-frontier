@@ -227,10 +227,9 @@ theorem _root_.Cslib.IsMonadHom.map_submodularMatroidGreedyStepM
     φ (submodularMatroidGreedyStepM evalSet indepM u S) =
       submodularMatroidGreedyStepM (fun T => φ (evalSet T)) (fun T => φ (indepM T)) u S := by
   simp only [submodularMatroidGreedyStepM, hφ.map_bind, hφ.map_filterIndepM]
-  congr 1
-  ext (_ | ⟨c₀, cs⟩)
-  · exact hφ.map_pure _
-  simp only [hφ.map_bind, hφ.map_scanCandidatesM, hφ.map_pure]
+  refine congrArg _ (funext fun
+    | [] => hφ.map_pure _
+    | c₀ :: cs => by simp only [hφ.map_bind, hφ.map_scanCandidatesM, hφ.map_pure])
 
 @[grind .]
 theorem _root_.Cslib.IsMonadHom.map_submodularMatroidGreedyLoopM
@@ -242,10 +241,7 @@ theorem _root_.Cslib.IsMonadHom.map_submodularMatroidGreedyLoopM
   | zero => exact hφ.map_pure _
   | succ k ih =>
     simp only [submodularMatroidGreedyLoopM, hφ.map_bind, hφ.map_submodularMatroidGreedyStepM]
-    congr 1
-    ext (_ | S')
-    · exact hφ.map_pure _
-    exact ih S'
+    exact congrArg _ (funext fun | none => hφ.map_pure _ | some S' => ih S')
 
 @[grind .]
 theorem _root_.Cslib.IsMonadHom.map_submodularMatroidGreedyM
@@ -654,8 +650,7 @@ theorem div_succ_le_submodularMatroidGreedy {β : Type*} [Field β] [LinearOrder
   have h := add_nsmul_le_succ_nsmul_submodularMatroidGreedy hf hmono hsys hO hOxs
   rw [nsmul_eq_mul, nsmul_eq_mul] at h
   push_cast at h
-  have hp : (0 : β) < (p : β) + 1 := by positivity
-  rw [div_le_iff₀ hp]
+  rw [div_le_iff₀ (by positivity)]
   nlinarith [mul_nonneg (Nat.cast_nonneg (α := β) p) hf0]
 
 omit [DecidableEq α] in
@@ -691,9 +686,8 @@ theorem half_le_submodularMatroidGreedy_of_matroid {β : Type*} [Field β] [Line
     (hM : ∀ S : Finset α, indep S = true ↔ M.Indep (S : Set α)) {xs : List α} {O : Finset α}
     (hO : M.Indep (O : Set α)) (hOxs : O ⊆ xs.toFinset) :
     f O / 2 ≤ f (submodularMatroidGreedy f indep xs) := by
-  have h := div_succ_le_submodularMatroidGreedy hf hmono hf0 (isPSystem_of_matroid hM)
-    ((hM O).mpr hO) hOxs
-  rwa [Nat.cast_one, one_add_one_eq_two] at h
+  simpa [one_add_one_eq_two] using div_succ_le_submodularMatroidGreedy hf hmono hf0
+    (isPSystem_of_matroid hM) ((hM O).mpr hO) hOxs
 
 /-- **`1/(k+1)`-approximation over an intersection of `k ≥ 1` matroids**
 ([FisherNemhauserWolsey1978]; [CalinescuChekuriPalVondrak2011], Section 1), ordered-group form:

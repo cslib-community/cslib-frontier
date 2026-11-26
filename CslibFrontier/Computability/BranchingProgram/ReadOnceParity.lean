@@ -206,9 +206,8 @@ theorem mem_tests_of_mem_tests_reduce :
       obtain ⟨w, hw, l', hl', rfl⟩ := h
       exact ⟨w, mem_of_mem_oddWires hw, l', mem_tests_of_mem_tests_reduce P w.head hl', rfl⟩
     | cast v =>
-      rw [reduce, tests_node_castSucc] at h
       rw [tests_node_castSucc]
-      exact mem_tests_of_mem_tests_reduce P v h
+      exact mem_tests_of_mem_tests_reduce P v (by rwa [reduce, tests_node_castSucc] at h)
 
 /-- Every route of the reduced program is a route of the original one. -/
 theorem mem_routes_of_mem_routes_reduce {n : ℕ} (P : NBP ι α n) {l : List (ι × α)}
@@ -216,9 +215,8 @@ theorem mem_routes_of_mem_routes_reduce {n : ℕ} (P : NBP ι α n) {l : List (�
   cases P with
   | target => exact h
   | node P wires =>
-    rw [routes_node]
-    refine mem_tests_of_mem_tests_reduce (P.node wires) (Fin.last _) ?_
-    rwa [reduce, tests_node_last]
+    simpa only [routes_node] using
+      mem_tests_of_mem_tests_reduce (P.node wires) (Fin.last _) (by rwa [reduce, tests_node_last])
 
 /-- Cancelling parallel wires keeps a program read-once. -/
 theorem IsReadOnce.reduce {n : ℕ} {P : NBP ι α n} (h : P.IsReadOnce) : P.reduce.IsReadOnce :=
@@ -247,17 +245,10 @@ theorem paths_reduce (x : ι → α) :
     | last =>
       simp only [reduce]
       rw [paths_node_last, paths_node_last, List.sum_map_filter, List.sum_map_filter,
-        Nat.cast_list_sum, Nat.cast_list_sum, List.map_map, List.map_map]
-      have hg : ((Nat.cast : ℕ → ZMod 2) ∘ fun w : Wire ι α _ =>
-          if w.on x then P.reduce.paths x w.head else 0) =
-          (Nat.cast : ℕ → ZMod 2) ∘ fun w => if w.on x then P.paths x w.head else 0 := by
-        funext w
-        by_cases hw : w.on x <;> simp [hw, paths_reduce x P w.head]
-      rw [hg, sum_map_oddWires]
-    | cast v =>
-      simp only [reduce]
-      rw [paths_node_castSucc, paths_node_castSucc]
-      exact paths_reduce x P v
+        Nat.cast_list_sum, Nat.cast_list_sum, List.map_map, List.map_map, sum_map_oddWires]
+      congr 2 with w
+      by_cases hw : w.on x <;> simp [hw, paths_reduce x P w.head]
+    | cast v => simpa only [reduce, paths_node_castSucc] using paths_reduce x P v
 
 /-- Cancelling parallel wires keeps the parity of the number of paths switched on. -/
 theorem pathCount_reduce {n : ℕ} (P : NBP ι α n) (x : ι → α) :
@@ -265,9 +256,7 @@ theorem pathCount_reduce {n : ℕ} (P : NBP ι α n) (x : ι → α) :
   cases P with
   | target => rfl
   | node P wires =>
-    have h := paths_reduce x (P.node wires) (Fin.last _)
-    simp only [reduce] at h
-    rwa [paths_node_last, paths_node_last] at h
+    simpa only [reduce, pathCount, paths_node_last] using paths_reduce x (P.node wires) (Fin.last _)
 
 /-- **Cancelling parallel wires keeps the function computed by parity.** -/
 theorem acceptsParity_reduce_iff {n : ℕ} (P : NBP ι α n) (x : ι → α) :

@@ -147,13 +147,10 @@ private theorem phaseWord_cases {n t : ℕ} {x : Letter} (h : (phaseWord n)[t]? 
     (t < 2 * n ∧ x = if t % 2 = 0 then .a else .b) ∨ (2 * n ≤ t ∧ t < 3 * n ∧ x = .c) ∨
       (3 * n ≤ t ∧ t < 4 * n ∧ x = .d) := by
   rw [getElem?_phaseWord] at h
-  by_cases h₁ : t < 2 * n
-  · exact .inl ⟨h₁, (Option.some.inj (by simpa [h₁] using h)).symm⟩
-  by_cases h₂ : t < 3 * n
-  · exact .inr (.inl ⟨by omega, h₂, (Option.some.inj (by simpa [h₁, h₂] using h)).symm⟩)
-  by_cases h₃ : t < 4 * n
-  · exact .inr (.inr ⟨by omega, h₃, (Option.some.inj (by simpa [h₁, h₂, h₃] using h)).symm⟩)
-  · simp [h₁, h₂, h₃] at h
+  if h₁ : t < 2 * n then exact .inl ⟨h₁, by simpa [h₁] using h.symm⟩
+  else if h₂ : t < 3 * n then exact .inr (.inl ⟨by omega, h₂, by simpa [h₁, h₂] using h.symm⟩)
+  else if h₃ : t < 4 * n then exact .inr (.inr ⟨by omega, h₃, by simpa [h₁, h₂, h₃] using h.symm⟩)
+  else simp [h₁, h₂, h₃] at h
 
 /-- **`L'` is `2`-phase-bounded**: every run of a visibly MPDA on a word of `L'` splits into the
 phase `(a b)ⁿ cⁿ`, which pops only from stack `0`, and the phase `dⁿ`. This is the claim "`L'` is
@@ -174,19 +171,15 @@ theorem phaseBounded_two (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
     have hpop : ∀ μ ∈ u, ∀ i γ, μ.2 = .pop i γ → i = o := fun μ hμ i γ hpop =>
       hx μ.1 (List.mem_map_of_mem hμ) i (by rw [← hu μ hμ, hpop]; rfl)
     exact fun μ hμ ν hν i j γ δ hμp hνp => (hpop μ hμ i γ hμp).trans (hpop ν hν j δ hνp).symm
-  intro v hv
-  simp only [List.mem_cons, List.not_mem_nil, or_false] at hv
-  rcases hv with rfl | rfl
-  · refine hphase _ 0 (fun μ hμ => hkind μ (by simp [hμ])) fun x hx i hi => ?_
-    rw [hw₁] at hx
+  simp only [List.forall_mem_cons]
+  refine ⟨hphase _ 0 (fun μ hμ => hkind μ (by simp [hμ])) fun x hx i hi => ?_,
+    hphase _ 1 (fun μ hμ => hkind μ (by simp [hμ])) fun x hx i hi => ?_, nofun⟩
+  · rw [hw₁] at hx
     simp only [List.mem_append, List.mem_flatten, List.mem_replicate] at hx
     rcases hx with ⟨l, ⟨-, rfl⟩, hl⟩ | ⟨-, rfl⟩
-    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
-      rcases hl with rfl | rfl <;> simp_all [kind]
+    · rcases (by simpa using hl : x = .a ∨ x = .b) with rfl | rfl <;> simp_all [kind]
     · simp_all [kind]
-  · refine hphase _ 1 (fun μ hμ => hkind μ (by simp [hμ])) fun x hx i hi => ?_
-    obtain ⟨-, rfl⟩ := List.mem_replicate.mp (hw₂ ▸ hx)
-    simp_all [kind]
+  · simpa [kind, (List.mem_replicate.mp (hw₂ ▸ hx)).2] using hi.symm
 
 /-! ## `L'` is not hole-bounded -/
 
@@ -413,20 +406,16 @@ private theorem phaseInv_step {q q' : PhaseState} {s₀ s₁ : List Unit} {u : L
 
 private theorem mem_phaseLanguage_of_accepts {w : List Letter}
     (h : Acceptor.Accepts phaseAutomaton w) : w ∈ phaseLanguage := by
-  obtain ⟨s, hs, s', hs', μs, rfl, hrun⟩ := h
-  obtain rfl : s = .x := hs
+  obtain ⟨s, rfl, s', hs', μs, rfl, hrun⟩ := h
   rw [Stacks.empty_eq_pair] at hrun
   obtain ⟨s₀, s₁, hc, hinv⟩ :=
     exists_inv_pair_of_configLTS_mTr PhaseInv phaseInv_step hrun ⟨0, rfl, rfl, rfl⟩
   obtain ⟨rfl, rfl⟩ := Stacks.eq_pair_iff.mp hc.symm
   rcases hs' with rfl | rfl
   · obtain ⟨k, hu, h₀, -⟩ := hinv
-    obtain rfl : k = 0 := by simpa using h₀.symm
-    exact ⟨0, by simpa [phaseWord] using hu⟩
+    exact ⟨0, by simp_all [phaseWord]⟩
   · obtain ⟨k, r, t, hrk, -, htk, hu, h₀, h₁⟩ := hinv
-    simp only [List.length_nil] at h₀ h₁
-    obtain rfl : r = k := by omega
-    obtain rfl : t = r := by omega
+    obtain ⟨rfl, rfl⟩ : r = k ∧ t = r := by simp only [List.length_nil] at h₀ h₁; omega
     exact ⟨t, hu⟩
 
 /-- Repeating `a b` from `x` pushes on both stacks. -/
@@ -497,8 +486,8 @@ theorem holeBounded_incomparable_phaseBounded.{u₁, u₂, u₃, u₄} :
   · obtain ⟨s, hs, s', hs', μs, rfl, h⟩ := accepts_of_mem_phaseLanguage hw
     exact ⟨s, hs, s', hs', μs, rfl, h, phaseBounded_two phaseAutomaton_isVisibly h hw⟩
   · intro K State Γ M hM heq
-    obtain ⟨s, hs, s', hs', μs, hμs, h, hb⟩ :=
-      show phaseWord (K + 1) ∈ M.boundedLanguage (HoleBounded K) from heq ▸ ⟨K + 1, rfl⟩
+    have hmem : phaseWord (K + 1) ∈ M.boundedLanguage (HoleBounded K) := heq ▸ ⟨K + 1, rfl⟩
+    obtain ⟨s, hs, s', hs', μs, hμs, h, hb⟩ := hmem
     exact not_holeBounded hM h hμs (by omega) hb
   · intro K State Γ M hM heq
     obtain ⟨s, hs, s', hs', μs, hμs, h, hb⟩ := heq ▸ word_mem_language (K + 1)

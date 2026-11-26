@@ -69,21 +69,14 @@ theorem erase_collisionInsert {s : Finset α} {p : α} (hp : p ∉ s) (r : α) :
       else (s.collisionInsert p r).erase r) = s := by
   by_cases hr : r ∈ s
   · simp [collisionInsert, hr, hp, erase_insert hp]
-  · by_cases hpr : p = r
-    · subst r
-      simp [collisionInsert, hp, erase_insert hp]
-    · simp [collisionInsert, hr, hp, hpr, erase_insert hr]
+  · by_cases hpr : p = r <;> simp_all [collisionInsert]
 
 /-- Every element of a target set supplies a predecessor: erase the reserved element when it
 belongs to the target, and otherwise erase the chosen candidate. -/
 theorem collisionInsert_erase {s : Finset α} {r : α} (hr : r ∈ s) (p : α) :
     (if p ∈ s then s.erase p else s.erase r).collisionInsert p r = s := by
   by_cases hp : p ∈ s
-  · by_cases hpr : p = r
-    · subst r
-      simp [collisionInsert, hp, insert_erase hp]
-    · have hrp : r ≠ p := Ne.symm hpr
-      simp [collisionInsert, hp, hr, hrp, insert_erase hp]
+  · by_cases hpr : p = r <;> simp_all [collisionInsert, eq_comm]
   · simp [collisionInsert, hp, hr, insert_erase hr]
 
 end Finset

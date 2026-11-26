@@ -158,57 +158,48 @@ variable {m : ℕ} {f : Fin m → ZMod 2}
     (hα : ∑ w, α w = f v) (e : Sym2 (Fin m)) (he : ¬ e.IsDiag) (b : ZMod 2) :
     (cfiGraph m f).Adj (.gadget v α hα) (.edge e he b) ↔
       ∃ w : {w : Fin m // w ≠ v}, e = s(v, w.val) ∧ b = α w := by
-  rw [cfiGraph]
   rfl
 
 @[simp] theorem cfiGraph_adj_edge_gadget (e : Sym2 (Fin m)) (he : ¬ e.IsDiag) (b : ZMod 2)
     (v : Fin m) (α : {w : Fin m // w ≠ v} → ZMod 2) (hα : ∑ w, α w = f v) :
     (cfiGraph m f).Adj (.edge e he b) (.gadget v α hα) ↔
       ∃ w : {w : Fin m // w ≠ v}, e = s(v, w.val) ∧ b = α w := by
-  rw [cfiGraph]
   rfl
 
 @[simp] theorem cfiGraph_adj_edge_edge (e₁ : Sym2 (Fin m)) (he₁ : ¬ e₁.IsDiag) (b₁ : ZMod 2)
     (e₂ : Sym2 (Fin m)) (he₂ : ¬ e₂.IsDiag) (b₂ : ZMod 2) :
     (cfiGraph m f).Adj (.edge e₁ he₁ b₁) (.edge e₂ he₂ b₂) ↔ e₁ = e₂ ∧ b₁ ≠ b₂ := by
-  rw [cfiGraph]
   rfl
 
 @[simp] theorem cfiGraph_adj_edge_apex (e₁ : Sym2 (Fin m)) (he₁ : ¬ e₁.IsDiag) (b : ZMod 2)
     (e₂ : Sym2 (Fin m)) (he₂ : ¬ e₂.IsDiag) :
     (cfiGraph m f).Adj (.edge e₁ he₁ b) (.apex e₂ he₂) ↔ e₁ = e₂ := by
-  rw [cfiGraph]
   rfl
 
 @[simp] theorem cfiGraph_adj_apex_edge (e₁ : Sym2 (Fin m)) (he₁ : ¬ e₁.IsDiag)
     (e₂ : Sym2 (Fin m)) (he₂ : ¬ e₂.IsDiag) (b : ZMod 2) :
     (cfiGraph m f).Adj (.apex e₁ he₁) (.edge e₂ he₂ b) ↔ e₁ = e₂ := by
-  rw [cfiGraph]
   rfl
 
 @[simp] theorem not_cfiGraph_adj_gadget_gadget (v₁ : Fin m) (α₁ : {w : Fin m // w ≠ v₁} → ZMod 2)
     (hα₁ : ∑ w, α₁ w = f v₁) (v₂ : Fin m) (α₂ : {w : Fin m // w ≠ v₂} → ZMod 2)
     (hα₂ : ∑ w, α₂ w = f v₂) :
     ¬ (cfiGraph m f).Adj (.gadget v₁ α₁ hα₁) (.gadget v₂ α₂ hα₂) := by
-  rw [cfiGraph]
   exact id
 
 @[simp] theorem not_cfiGraph_adj_gadget_apex (v : Fin m) (α : {w : Fin m // w ≠ v} → ZMod 2)
     (hα : ∑ w, α w = f v) (e : Sym2 (Fin m)) (he : ¬ e.IsDiag) :
     ¬ (cfiGraph m f).Adj (.gadget v α hα) (.apex e he) := by
-  rw [cfiGraph]
   exact id
 
 @[simp] theorem not_cfiGraph_adj_apex_gadget (e : Sym2 (Fin m)) (he : ¬ e.IsDiag)
     (v : Fin m) (α : {w : Fin m // w ≠ v} → ZMod 2) (hα : ∑ w, α w = f v) :
     ¬ (cfiGraph m f).Adj (.apex e he) (.gadget v α hα) := by
-  rw [cfiGraph]
   exact id
 
 @[simp] theorem not_cfiGraph_adj_apex_apex (e₁ : Sym2 (Fin m)) (he₁ : ¬ e₁.IsDiag)
     (e₂ : Sym2 (Fin m)) (he₂ : ¬ e₂.IsDiag) :
     ¬ (cfiGraph m f).Adj (.apex e₁ he₁) (.apex e₂ he₂) := by
-  rw [cfiGraph]
   exact id
 
 end AdjSimp
@@ -348,19 +339,14 @@ private theorem cfiFlipMap_comp {f g : Fin m → ZMod 2} {u w : Fin m} (huw : u 
   cases x with
   | gadget v α hα =>
     by_cases hvu : v = u
-    · rw [cfiFlipMap, dite_eq_left hvu, cfiFlipMap, dite_eq_left hvu]
-      simp only [pi_add_cancel_right]
+    · simp only [cfiFlipMap, dite_eq_left hvu, pi_add_cancel_right]
     · by_cases hvw : v = w
-      · rw [cfiFlipMap, dite_eq_right hvu, dite_eq_left hvw, cfiFlipMap, dite_eq_right hvu,
-          dite_eq_left hvw]
-        simp only [pi_add_cancel_right]
-      · rw [cfiFlipMap, dite_eq_right hvu, dite_eq_right hvw, cfiFlipMap, dite_eq_right hvu,
-          dite_eq_right hvw]
+      · simp only [cfiFlipMap, dite_eq_right hvu, dite_eq_left hvw, pi_add_cancel_right]
+      · simp only [cfiFlipMap, dite_eq_right hvu, dite_eq_right hvw]
   | edge e he b =>
     by_cases heq : e = s(u, w)
-    · rw [cfiFlipMap, ite_eq_left heq, cfiFlipMap, ite_eq_left heq]
-      simp only [CharTwo.add_cancel_right]
-    · rw [cfiFlipMap, ite_eq_right heq, cfiFlipMap, ite_eq_right heq]
+    · simp only [cfiFlipMap, ite_eq_left heq, CharTwo.add_cancel_right]
+    · simp only [cfiFlipMap, ite_eq_right heq]
   | apex e he => rfl
 
 private theorem cfiFlipMap_adj_gadget_edge {f g : Fin m → ZMod 2} {u w : Fin m} (huw : u ≠ w)
@@ -370,8 +356,7 @@ private theorem cfiFlipMap_adj_gadget_edge {f g : Fin m → ZMod 2} {u w : Fin m
     (hadj : (cfiGraph m f).Adj (.gadget v α hα) (.edge e he b)) :
     (cfiGraph m g).Adj (cfiFlipMap huw hfg (.gadget v α hα))
       (cfiFlipMap huw hfg (.edge e he b)) := by
-  rw [cfiGraph_adj_gadget_edge] at hadj
-  obtain ⟨z, rfl, rfl⟩ := hadj
+  obtain ⟨z, rfl, rfl⟩ := (cfiGraph_adj_gadget_edge ..).1 hadj
   have hz : ∀ d : {z : Fin m // z ≠ v}, s(v, z.val) = s(v, d.val) ↔ z = d := fun d => by
     rw [Sym2.congr_right, Subtype.ext_iff]
   rw [cfiFlipMap, cfiFlipMap]
@@ -478,8 +463,7 @@ private theorem cfiBaseMap_cfiBaseMap {f g : Fin m → ZMod 2} {u w : Fin m} (hw
   cases x with
   | gadget v α hα =>
     by_cases hvu : v = u
-    · rw [cfiBaseMap, dite_eq_left hvu, cfiBaseMap, dite_eq_left hvu]
-      simp only [pi_add_cancel_right]
+    · simp only [cfiBaseMap, dite_eq_left hvu, pi_add_cancel_right]
     · rw [cfiBaseMap, dite_eq_right hvu, cfiBaseMap, dite_eq_right hvu]
   | edge _ _ _ | apex _ _ => rfl
 
@@ -945,8 +929,7 @@ private theorem nonempty_iso_cfiGraph_of_sum_eq :
         ← Finset.add_sum_erase _ f (Finset.mem_univ u),
         Finset.sum_congr rfl fun v hv => (hother v (Finset.ne_of_mem_erase hv)).symm,
         hgu, add_right_comm]
-    rw [hsum] at hsum'
-    simp at hsum'
+    simp [hsum] at hsum'
   | d + 2, f, g, hd, hsum => by
     have hgt : 1 < (Finset.univ.filter fun v => f v ≠ g v).card := by omega
     obtain ⟨u, hu, w, hw, huw⟩ := Finset.one_lt_card.1 hgt
@@ -968,9 +951,8 @@ private theorem nonempty_iso_cfiGraph_of_sum_eq :
         · simp [hf'u, hvw]
         · simp [f', hvw, hvu]
     have hd' : (Finset.univ.filter fun v => f' v ≠ g v).card = d := by
-      have hwu_mem : w ∈ (Finset.univ.filter fun v => f v ≠ g v).erase u :=
-        Finset.mem_erase.2 ⟨huw.symm, hw⟩
-      rw [hfilt, Finset.card_erase_of_mem hwu_mem, Finset.card_erase_of_mem hu]
+      rw [hfilt, Finset.card_erase_of_mem (Finset.mem_erase.2 ⟨huw.symm, hw⟩),
+        Finset.card_erase_of_mem hu]
       omega
     have hsum' : ∑ v, f' v = ∑ v, g v := by
       simp only [f', Pi.add_apply, Finset.sum_add_distrib, Fintype.sum_pi_single',

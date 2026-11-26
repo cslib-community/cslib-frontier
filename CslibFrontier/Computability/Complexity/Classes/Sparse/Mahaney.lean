@@ -99,11 +99,10 @@ private theorem eval_cross (σ : ℕ → Bool) (a b : List (Literal ℕ)) :
     CNF.eval σ (a.flatMap fun l => b.map fun m => [l, m]) = true ↔
       ∀ l ∈ a, ∀ m ∈ b, σ l.1 = l.2 ∨ σ m.1 = m.2 := by
   simp only [CNF.eval_eq_true_iff, List.mem_flatMap, List.mem_map, forall_exists_index, and_imp]
-  constructor
-  · intro h l hl m hm
-    simpa [Clause.eval_cons, Literal.eval_eq_true_iff] using h _ l hl m hm rfl
-  · rintro h c l hl m hm rfl
-    simpa [Clause.eval_cons, Literal.eval_eq_true_iff] using h l hl m hm
+  exact ⟨fun h l hl m hm => by
+      simpa [Clause.eval_cons, Literal.eval_eq_true_iff] using h _ l hl m hm rfl,
+    fun h _ l hl m hm hc => by
+      simpa [← hc, Clause.eval_cons, Literal.eval_eq_true_iff] using h l hl m hm⟩
 
 /-- **The disjunction of two nodes is satisfiable exactly when one of them is.** -/
 theorem disj_mem_SAT_iff {φ : CNF ℕ} {a b : List (Literal ℕ)} :
@@ -224,11 +223,9 @@ theorem exists_mem_eraseDupsBy_of_mem_SAT {κ : Type*} [DecidableEq κ]
   · exact .inl hasat
   obtain ⟨b', hb', hxb'⟩ := List.exists_mem_eraseDupsBy
     (r := fun b b' => decide (lab b = lab b')) hx
-  refine .inr ⟨b', hb', ?_⟩
-  rcases hxb' with rfl | hlabel
-  · exact hxsat
-  · have hdisj := (hlab _ _ (of_decide_eq_true hlabel)).1 (disj_mem_SAT_iff.2 (.inr hxsat))
-    exact (disj_mem_SAT_iff.1 hdisj).resolve_left hasat
+  refine .inr ⟨b', hb', hxb'.elim (· ▸ hxsat) fun hlabel => ?_⟩
+  exact (disj_mem_SAT_iff.1 ((hlab _ _ (of_decide_eq_true hlabel)).1
+    (disj_mem_SAT_iff.2 (.inr hxsat)))).resolve_left hasat
 
 /-- A stage keeps a satisfiable node, if there is one: when the first node is dropped, more than
 `t` distinct labels remain, so the first node is unsatisfiable. -/
@@ -413,15 +410,11 @@ theorem SAT_mem_P {β : Type*} {encB : β ↪ List Bool} {S : Set β} (hS : S �
     computableInPolyTime_accepts hkey ((unary_eval q).comp (encoding_length encCNF)),
     fun φ => (accepts_iff (K := encB '' S) (M := p.eval ((encCNF φ).length *
       (encCNF φ).length * (16 * (encCNF φ).length + 21) + (encCNF φ).length))
-      (fun ψ => ?_) (fun a b ha hb hla hlb => ?_) (fun s hs => ?_)).symm⟩
-  · rw [encB.injective.mem_set_image]
-    exact hfS ψ
-  · have hvars := length_vars_le φ
-    have hla' := hla.trans hvars
-    have hlb' := hlb.trans hvars
-    exact (hp _).trans (Polynomial.eval_mono _ ((length_encCNF_disj_le ha hb).trans (by gcongr)))
-  · rw [hq]
-    exact hCD _ s fun w hw => by simpa using hs w hw
+      (fun ψ => (hfS ψ).trans encB.injective.mem_set_image.symm) (fun a b ha hb hla hlb => ?_)
+      (fun s hs => hq _ ▸ hCD _ s fun w hw => by simpa using hs w hw)).symm⟩
+  have hla' := hla.trans (length_vars_le φ)
+  have hlb' := hlb.trans (length_vars_le φ)
+  exact (hp _).trans (Polynomial.eval_mono _ ((length_encCNF_disj_le ha hb).trans (by gcongr)))
 
 end Mahaney
 

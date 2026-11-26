@@ -42,10 +42,8 @@ variable (HP : FourthRootHierarchyParams 16 1 16 32 8)
 lemma clip_bounds (v : ℝ) : (1/2 : ℝ) ≤ clip v ∧ clip v ≤ 1 :=
   ⟨le_max_left _ _, max_le (by norm_num) (min_le_left _ _)⟩
 private lemma clip_dist (v w : ℝ) : |clip v - clip w| ≤ |v-w| := by
-  apply (abs_max_sub_max_le_max _ _ _ _).trans
-  apply max_le
-  · simp only [sub_self, abs_zero]; exact abs_nonneg _
-  · exact (abs_min_sub_min_le_max _ _ _ _).trans (by simp)
+  refine (abs_max_sub_max_le_max _ _ _ _).trans (max_le (by simp) ?_)
+  exact (abs_min_sub_min_le_max _ _ _ _).trans (by simp)
 
 private noncomputable def denominatorRoot (v : ℝ) : ℝ := (clip v) ^ (-(4⁻¹ : ℝ))
 private lemma denominatorRoot_pow (v : ℝ) : denominatorRoot v ^ 4 = (clip v)⁻¹ := by
@@ -60,10 +58,8 @@ private lemma denominatorRoot_bounds (v : ℝ) : 1 ≤ denominatorRoot v ∧ den
   have hi1 : 1 ≤ (clip v)⁻¹ := (one_le_inv₀ hpos).mpr hc.2
   have hi2 : (clip v)⁻¹ ≤ 2 := (inv_le_comm₀ hpos (by norm_num : (0:ℝ)<2)).mpr (by simpa using hc.1)
   refine ⟨by_contra fun h => ?_, by_contra fun h => ?_⟩
-  · have := pow_lt_pow_left₀ (not_le.mp h) hr0 four_ne_zero
-    nlinarith
-  · have := pow_lt_pow_left₀ (not_le.mp h) (by norm_num) four_ne_zero
-    nlinarith
+  · nlinarith [pow_lt_pow_left₀ (not_le.mp h) hr0 four_ne_zero]
+  · nlinarith [pow_lt_pow_left₀ (not_le.mp h) (by norm_num) four_ne_zero]
 private lemma denominatorRoot_dist (v w : ℝ) :
     |denominatorRoot v - denominatorRoot w| ≤ 4 * |v-w| := by
   have hv := denominatorRoot_bounds v
@@ -126,27 +122,23 @@ lemma gate_flat {scale x v q q' : ℝ} (hq : q ≤ HP.η) (hq' : q' ≤ HP.η) :
 private lemma cutoff_root_dist : ∃ L : ℝ, 0 ≤ L ∧ ∀ x x',
     |HP.toHierarchyParams.atomCutoff x ^ (4⁻¹ : ℝ) -
       HP.toHierarchyParams.atomCutoff x' ^ (4⁻¹ : ℝ)| ≤ L * |x-x'| := by
-  obtain ⟨L,hL⟩ := HP.Q_root
-  refine ⟨L, L.coe_nonneg, ?_⟩
-  intro x x'
+  obtain ⟨L, hL⟩ := HP.Q_root
+  refine ⟨L, L.coe_nonneg, fun x x' => ?_⟩
   have h := hL.dist_le_mul (min HP.toHierarchyParams.atomCap (max 0 x))
     (min HP.toHierarchyParams.atomCap (max 0 x'))
-  simp only [Real.dist_eq] at h
-  apply h.trans
-  apply mul_le_mul_of_nonneg_left _ L.coe_nonneg
-  apply (abs_min_sub_min_le_max _ _ _ _).trans
-  apply max_le (by simp)
+  rw [Real.dist_eq, Real.dist_eq] at h
+  refine h.trans (mul_le_mul_of_nonneg_left ?_ L.coe_nonneg)
+  refine (abs_min_sub_min_le_max _ _ _ _).trans (max_le (by simp) ?_)
   exact (abs_max_sub_max_le_max _ _ _ _).trans (by simp)
 
 private lemma output_root (scale x v q : ℝ) :
     output HP scale x v q ^ (4⁻¹ : ℝ) =
       HP.toHierarchyParams.atomCutoff x ^ (4⁻¹ : ℝ) * HP.ρ q ^ (4⁻¹ : ℝ) *
         denominatorRoot (v/scale) := by
-  rw [output, Real.div_rpow (by positivity)
-    (by linarith [clip_bounds (v/scale)] : 0 ≤ clip (v/scale)),
-    Real.mul_rpow (HP.toHierarchyParams.atomCutoff_nonneg _) (HP.ρ_nonneg _)]
-  rw [denominatorRoot, Real.rpow_neg (by linarith [clip_bounds (v/scale)] : 0 ≤ clip (v/scale))]
-  rfl
+  have hc : 0 ≤ clip (v / scale) := by linarith [clip_bounds (v / scale)]
+  rw [output, Real.div_rpow (by positivity) hc,
+    Real.mul_rpow (HP.toHierarchyParams.atomCutoff_nonneg _) (HP.ρ_nonneg _),
+    denominatorRoot, Real.rpow_neg hc, div_eq_mul_inv]
 
 /-- Global fourth-root regularity in the entry, second signal and raw rank. -/
 lemma root_dist {scale : ℝ} (hs : 0 < scale) :
@@ -249,17 +241,15 @@ lemma support {ι : Type*} (s : Finset ι) (a : State ι) (scale : ℝ) :
   by_contra h
   have hsub : ({y ∈ s | output HP scale (a.row y 0) (a.row y 1)
       (firstRank s HP.K a.defaultValue a.row) ≠ 0} : Finset ι) ⊆
-      {y ∈ s | HP.θ < a.row y 0} := by
-    intro y hy
-    exact mem_filter.mpr ⟨(mem_filter.mp hy).1,
+      {y ∈ s | HP.θ < a.row y 0} := fun y hy =>
+    mem_filter.mpr ⟨(mem_filter.mp hy).1,
       not_le.mp fun hx => (mem_filter.mp hy).2 (entry_zero HP hx)⟩
   have hq : HP.θ < kthLargest HP.K s (fun y => a.row y 0) :=
     (lt_kthLargest_iff (rank_pos HP) HP.θ_pos.le).mpr ((not_lt.mp h).trans (card_le_card hsub))
   obtain ⟨y,hy⟩ := card_pos.mp ((rank_pos HP).trans_le (not_lt.mp h))
   exact (mem_filter.mp hy).2 (gate_zero HP (by
-    have hm := threshold_margin HP
-    have hp := HP.η_pos.trans HP.η_lt_η₂
-    linarith [kthLargest_le_firstRank (s := s) (K := HP.K) (z := a.defaultValue) (w := a.row)]))
+    linarith [threshold_margin HP, HP.η_pos, HP.η_lt_η₂,
+      kthLargest_le_firstRank (s := s) (K := HP.K) (z := a.defaultValue) (w := a.row)]))
 
 
 /-- Only the denominator signal is masked; the raw first signal and its rank are intact. -/
@@ -272,11 +262,10 @@ lemma recipe_identity {V Γ Ω : Type*} [Fintype V] [Fintype Γ] [Fintype Ω]
       if Yt σ.2 y then output HP ζ (raw x y/b)
         (CorrectionRowRecipe.secondChannel X Yt ζ prep σ x y)
         (firstRank {z | Y σ.2 z} HP.K 0 (fun z ν => if ν=0 then raw x z/b else 0)) else 0 := by
-  by_cases hy : Yt σ.2 y
-  · simp only [DenseRowRecipe.normalized, CorrectionRowRecipe.secondChannel, hy, ↓reduceIte,
-    output, clip,
-      mul_div_cancel_left₀ _ hζ.ne', firstRank, max_eq_right kthLargest_nonneg, rowGate]
-  · simp only [DenseRowRecipe.normalized, hy, ↓reduceIte]
+  by_cases hy : Yt σ.2 y <;>
+    simp only [DenseRowRecipe.normalized, CorrectionRowRecipe.secondChannel, hy, ↓reduceIte,
+      output, clip, mul_div_cancel_left₀ _ hζ.ne', firstRank, max_eq_right kthLargest_nonneg,
+      rowGate]
 
 
 /-- Core scalar reduction, valid also where the preparatory mean is zero. -/
@@ -285,13 +274,12 @@ lemma entrySize_eq_first {d ζ q hstart : ℝ} {mask : Prop} [Decidable mask]
     (hq : q ∈ Set.Icc 0 1) (hzero : d ≤ hstart → q = 0) :
     entrySize (fun ν : Fin 2 => if ν=0 then d else ζ*(if mask then q else 0)) = d := by
   simp only [entrySize, Fin.isValue, ↓reduceIte, one_ne_zero, abs_of_nonneg hd]
-  apply max_eq_left
-  by_cases hs : d ≤ hstart
-  · simp only [hzero hs, ite_self, mul_zero, abs_zero]; exact hd
-  · have hqd : 0 ≤ (if mask then q else 0 : ℝ) := by split_ifs <;> linarith [hq.1]
-    have hq1 : (if mask then q else 0 : ℝ) ≤ 1 := by split_ifs <;> linarith [hq.2]
-    rw [abs_of_nonneg (mul_nonneg hζ hqd)]
-    exact (mul_le_of_le_one_right hζ hq1).trans (hζh.trans (not_le.mp hs).le)
+  split_ifs
+  · by_cases hs : d ≤ hstart
+    · simp [hzero hs, hd]
+    · rw [max_eq_left_iff, abs_of_nonneg (mul_nonneg hζ hq.1)]
+      exact (mul_le_of_le_one_right hζ hq.2).trans (hζh.trans (not_le.mp hs).le)
+  · simp [hd]
 
 /-- Dummy default entries contribute zero, for every sign and size of the default. -/
 lemma default_zero {ι : Type*} (s : Finset ι) (a : State ι) (scale : ℝ) :

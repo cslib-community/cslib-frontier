@@ -84,9 +84,9 @@ def AllChainsValid (n_max : ℕ) (lm : ℕ × ℕ → ℕ) (L : ℕ → ℕ → 
 /-- An all-zero `LocalMeta` array satisfies `AllChainsValid` with empty chains `L b m = []`. -/
 theorem allChainsValid_of_zero (n_max : ℕ) {lm : ℕ × ℕ → ℕ} (hzero : ∀ p, lm p = 0) :
     AllChainsValid n_max lm (fun _ _ => []) := by
-  refine ⟨fun b _ m _ => ?_, fun _ _ _ _ _ _ _ h => by nomatch h⟩
-  rw [show lmHead n_max lm b m = 0 from hzero _]
-  exact isDLChain_nil n_max _ _
+  refine ⟨fun b _ m _ => ?_, fun _ _ _ _ _ _ _ h => nomatch h⟩
+  have h0 : lmHead n_max lm b m = 0 := hzero _
+  exact h0 ▸ isDLChain_nil n_max _ _
 
 /-- `AllChainsValid` depends only on `lm`. -/
 theorem AllChainsValid.of_lm_eq {n_max : ℕ} {lm lm' : ℕ × ℕ → ℕ} {L : ℕ → ℕ → List ℕ}
@@ -185,43 +185,37 @@ theorem lmUnlinkProg_allChainsValid {U V w n_max h_space base b m j_del : ℕ}
   refine ⟨⟨fun b' hb' m' hm' => ?_, fun b' hb' m₁ hm₁ m₂ hm₂ j hj₁ hj₂ => ?_⟩,
     fun b' hb' m' hm' j => ?_⟩
   · dsimp only [L']
-    by_cases hbm : b' = b ∧ m' = m
-    · rcases hbm with ⟨rfl, rfl⟩
-      rw [ite_eq_left ⟨rfl, rfl⟩]
-      have hunl := isDLChain_unlink (hvalid.1 b' hb' m' hm') hmem
-      refine hunl.congr (by rw [hhead b' hb' m' hm', ite_eq_left ⟨rfl, rfl⟩])
-        (fun x hx => ?_) (fun x hx => ?_)
-      · have hx_cap := (hvalid.1 b' hb' m' hm').lt_cap_of_mem (List.mem_of_mem_erase hx)
-        rw [hprev b' hb' x hx_cap, ite_eq_left rfl]
-      · have hx_cap := (hvalid.1 b' hb' m' hm').lt_cap_of_mem (List.mem_of_mem_erase hx)
-        rw [hnext b' hb' x hx_cap, ite_eq_left rfl]
-    · rw [ite_eq_right hbm]
-      refine (hvalid.1 b' hb' m' hm').congr
-        (by rw [hhead b' hb' m' hm', ite_eq_right hbm])
-        (fun x hx => ?_) (fun x hx => ?_)
-      · have hx_cap := (hvalid.1 b' hb' m' hm').lt_cap_of_mem hx
-        rw [hprev b' hb' x hx_cap]
-        split_ifs with hb_eq hn_pos
-        · subst hb_eq
-          have hm_ne : m' ≠ m := fun heq => hbm ⟨rfl, heq⟩
-          have hn_mem := ((hvalid.1 b' hb' m hm).2.next_sub_one_mem hmem hn_pos).1
-          have hx_ne : x ≠ lmNext n_max (lmAt base U V w n_max h_space s.mem) b' j_del - 1 :=
-            fun heq => hm_ne (hvalid.2 b' hb' m' hm' m hm x hx (heq ▸ hn_mem))
-          rw [Function.update_of_ne hx_ne]
-        · subst hb_eq; rfl
-        · rfl
-      · have hx_cap := (hvalid.1 b' hb' m' hm').lt_cap_of_mem hx
-        rw [hnext b' hb' x hx_cap]
-        split_ifs with hb_eq hp_pos
-        · subst hb_eq
-          have hm_ne : m' ≠ m := fun heq => hbm ⟨rfl, heq⟩
-          rcases (hvalid.1 b' hb' m hm).2.prev_sub_one_mem hmem hp_pos with hp0 | hp_mem
-          · omega
-          · have hx_ne : x ≠ lmPrev n_max (lmAt base U V w n_max h_space s.mem) b' j_del - 1 :=
-              fun heq => hm_ne (hvalid.2 b' hb' m' hm' m hm x hx (heq ▸ hp_mem))
-            rw [Function.update_of_ne hx_ne]
-        · subst hb_eq; rfl
-        · rfl
+    have hchain := hvalid.1 b' hb' m' hm'
+    rcases eq_or_ne b' b with rfl | hb_ne
+    · rcases eq_or_ne m' m with rfl | hm_ne
+      · rw [ite_eq_left ⟨rfl, rfl⟩]
+        have hcap {x} (hx : x ∈ (L b' m').erase j_del) :=
+          hchain.lt_cap_of_mem (List.mem_of_mem_erase hx)
+        exact (isDLChain_unlink hchain hmem).congr
+          ((hhead b' hb' m' hm').trans (ite_eq_left ⟨rfl, rfl⟩))
+          (fun x hx => (hprev b' hb' x (hcap hx)).trans (ite_eq_left rfl))
+          (fun x hx => (hnext b' hb' x (hcap hx)).trans (ite_eq_left rfl))
+      · rw [ite_eq_right (not_and.mpr fun _ => hm_ne)]
+        refine hchain.congr
+          ((hhead b' hb' m' hm').trans (ite_eq_right (not_and.mpr fun _ => hm_ne)))
+          (fun x hx => ?_) (fun x hx => ?_)
+        · rw [hprev b' hb' x (hchain.lt_cap_of_mem hx), ite_eq_left rfl]
+          split_ifs with hn_pos
+          · have hn_mem := ((hvalid.1 b' hb' m hm).2.next_sub_one_mem hmem hn_pos).1
+            rw [Function.update_of_ne (fun heq : x = _ =>
+              hm_ne (hvalid.2 b' hb' m' hm' m hm x hx (heq ▸ hn_mem)))]
+          · rfl
+        · rw [hnext b' hb' x (hchain.lt_cap_of_mem hx), ite_eq_left rfl]
+          split_ifs with hp_pos
+          · rcases (hvalid.1 b' hb' m hm).2.prev_sub_one_mem hmem hp_pos with hp0 | hp_mem
+            · omega
+            · rw [Function.update_of_ne (fun heq : x = _ =>
+                hm_ne (hvalid.2 b' hb' m' hm' m hm x hx (heq ▸ hp_mem)))]
+          · rfl
+    · rw [ite_eq_right (mt And.left hb_ne)]
+      exact hchain.congr ((hhead b' hb' m' hm').trans (ite_eq_right (mt And.left hb_ne)))
+        (fun x hx => (hprev b' hb' x (hchain.lt_cap_of_mem hx)).trans (ite_eq_right hb_ne))
+        (fun x hx => (hnext b' hb' x (hchain.lt_cap_of_mem hx)).trans (ite_eq_right hb_ne))
   · have hold : ∀ m', j ∈ L' b' m' → j ∈ L b' m' := fun m' hj => by
       dsimp only [L'] at hj
       split_ifs at hj with h
@@ -232,14 +226,12 @@ theorem lmUnlinkProg_allChainsValid {U V w n_max h_space base b m j_del : ℕ}
     by_cases hbm : b' = b ∧ m' = m
     · rcases hbm with ⟨rfl, rfl⟩
       rw [ite_eq_left ⟨rfl, rfl⟩]
-      refine ⟨fun hj_er => ⟨List.mem_of_mem_erase hj_er, ?_⟩, fun ⟨hj_in, hne⟩ =>
-        (List.mem_erase_of_ne (fun heq => hne ⟨rfl, heq⟩)).mpr hj_in⟩
-      rintro ⟨_, rfl⟩
-      exact (List.Nodup.not_mem_erase (hvalid.1 b' hb' m' hm').nodup) hj_er
+      exact ⟨fun hj_er => ⟨List.mem_of_mem_erase hj_er, fun ⟨_, heq⟩ =>
+          (List.Nodup.not_mem_erase (hvalid.1 b' hb' m' hm').nodup) (heq ▸ hj_er)⟩,
+        fun ⟨hj_in, hne⟩ => (List.mem_erase_of_ne fun heq => hne ⟨rfl, heq⟩).mpr hj_in⟩
     · rw [ite_eq_right hbm]
-      refine ⟨fun hj_in => ⟨hj_in, ?_⟩, And.left⟩
-      rintro ⟨rfl, rfl⟩
-      exact hbm ⟨rfl, hvalid.2 b' hb' m' hm' m hm j hj_in hmem⟩
+      exact ⟨fun hj_in => ⟨hj_in, fun ⟨hbb, hj'⟩ =>
+        hbm ⟨hbb, hvalid.2 b' hb' m' hm' m hm j hj_in (hbb ▸ hj' ▸ hmem)⟩⟩, And.left⟩
 
 /-! ## Section 2: `prependIfIndexedProg`, `unlinkIfIndexedProg`, and bucket readers -/
 
@@ -336,17 +328,14 @@ theorem prependIfIndexedProg_allChainsValid {U V w n_max h_space base b m j_new 
   intro d s'
   by_cases hj_min : j_new < min n_max (effBucketCap n_max)
   · have hj_cap : j_new < effBucketCap n_max := (lt_min_iff.mp hj_min).2
-    have hs' : s' = (Memory.spec 0).clientState s
-        (lmPrependProg U V w n_max h_space (((base, b), m), j_new)) := by
-      simp only [s', d, prependIfIndexedProg, prependIfIndexedGenProg, p_minCap_mk,
-        lmPrependGenProg_mk, pure_bind, hj_min, ↓reduceIte]
     have hold_le : lmHead n_max (lmAt base U V w n_max h_space s.mem) b m ≤ effBucketCap n_max :=
       (hvalid.1 b hb m hm).head_le_cap
     have eff := lmPrependProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
       (h_space := h_space) (base := base) hw hb hm hj_cap hj_n hold_le
     have hval' := lmPrependProg_allChainsValid (U := U) (V := V) (w := w) (n_max := n_max)
       (h_space := h_space) (base := base) hw hb hm hj_cap hj_n hvalid hj_not
-    rw [hs']
+    simp only [s', d, prependIfIndexedProg, prependIfIndexedGenProg, p_minCap_mk,
+      lmPrependGenProg_mk, pure_bind, hj_min, ↓reduceIte]
     refine ⟨eff.1, eff.2.1, eff.2.2.1, eff.2.2.2.1, eff.2.2.2.2.1,
       fun b' m' => if b' = b ∧ m' = m then j_new :: L b m else L b' m', hval',
       fun b' hb' m' hm' j => ?_⟩
@@ -359,11 +348,8 @@ theorem prependIfIndexedProg_allChainsValid {U V w n_max h_space base b m j_new 
     · rw [ite_eq_right hbm]
       exact ⟨Or.inl, fun h => h.elim id fun h => absurd ⟨h.1, h.2.1⟩ hbm⟩
   · have hj_not_cap : ¬(j_new < effBucketCap n_max) := fun hc => hj_min (lt_min hj_n hc)
-    have hs' : s' = s := by
-      simp only [s', d, prependIfIndexedProg, prependIfIndexedGenProg, p_minCap_mk,
-        lmPrependGenProg_mk, pure_bind, hj_min, ↓reduceIte]
-      rfl
-    rw [hs']
+    simp only [s', d, prependIfIndexedProg, prependIfIndexedGenProg, p_minCap_mk,
+      lmPrependGenProg_mk, pure_bind, hj_min, ↓reduceIte]
     exact ⟨rfl, fun _ _ => rfl, rfl, rfl, rfl, L, hvalid, fun b' _ m' _ j =>
       ⟨Or.inl, fun h => h.elim id fun h => absurd h.2.2.2 hj_not_cap⟩⟩
 
@@ -464,10 +450,6 @@ theorem unlinkIfIndexedProg_allChainsValid {U V w n_max h_space base b m j_del :
   by_cases hj_min : j_del < min n_max (effBucketCap n_max)
   · have hj_cap : j_del < effBucketCap n_max := (lt_min_iff.mp hj_min).2
     have hmem := hmem_if hj_cap
-    have hs' : s' = (Memory.spec 0).clientState s
-        (lmUnlinkProg U V w n_max h_space (((base, b), m), j_del)) := by
-      simp only [s', d, unlinkIfIndexedProg, unlinkIfIndexedGenProg, p_minCap_mk,
-        lmUnlinkGenProg_mk, pure_bind, hj_min, ↓reduceIte]
     have hp_le : lmPrev n_max (lmAt base U V w n_max h_space s.mem) b j_del ≤ effBucketCap n_max :=
       (hvalid.1 b hb m hm).prev_le_cap hmem
     have hn_le : lmNext n_max (lmAt base U V w n_max h_space s.mem) b j_del ≤ effBucketCap n_max :=
@@ -476,18 +458,15 @@ theorem unlinkIfIndexedProg_allChainsValid {U V w n_max h_space base b m j_del :
       (h_space := h_space) (base := base) hw hb hm hj_cap hp_le hn_le
     have ⟨hval', hmem'⟩ := lmUnlinkProg_allChainsValid (U := U) (V := V) (w := w)
       (n_max := n_max) (h_space := h_space) (base := base) hw hb hm hvalid hmem
-    rw [hs']
+    simp only [s', d, unlinkIfIndexedProg, unlinkIfIndexedGenProg, p_minCap_mk,
+      lmUnlinkGenProg_mk, pure_bind, hj_min, ↓reduceIte]
     exact ⟨eff.1, eff.2.1, eff.2.2.1, eff.2.2.2.1, eff.2.2.2.2.1, _, hval', hmem'⟩
   · have hj_not_cap : ¬(j_del < effBucketCap n_max) := fun hc => hj_min (lt_min hj_n hc)
-    have hs' : s' = s := by
-      simp only [s', d, unlinkIfIndexedProg, unlinkIfIndexedGenProg, p_minCap_mk,
-        lmUnlinkGenProg_mk, pure_bind, hj_min, ↓reduceIte]
-      rfl
-    rw [hs']
-    refine ⟨rfl, fun _ _ => rfl, rfl, rfl, rfl, L, hvalid, fun b' hb' m' hm' j =>
-      ⟨fun hj_in => ⟨hj_in, ?_⟩, And.left⟩⟩
-    rintro ⟨_, rfl⟩
-    exact hj_not_cap ((hvalid.1 b' hb' m' hm').lt_cap_of_mem hj_in)
+    simp only [s', d, unlinkIfIndexedProg, unlinkIfIndexedGenProg, p_minCap_mk,
+      lmUnlinkGenProg_mk, pure_bind, hj_min, ↓reduceIte]
+    exact ⟨rfl, fun _ _ => rfl, rfl, rfl, rfl, L, hvalid, fun b' hb' m' hm' j =>
+      ⟨fun hj_in => ⟨hj_in, fun ⟨_, hj'⟩ =>
+        hj_not_cap (hj' ▸ (hvalid.1 b' hb' m' hm').lt_cap_of_mem hj_in)⟩, And.left⟩⟩
 
 /-- Parameter-free `Memory.Prog` reader returning `totalSlots n_max gm` at `base = d.2`. -/
 @[expose]

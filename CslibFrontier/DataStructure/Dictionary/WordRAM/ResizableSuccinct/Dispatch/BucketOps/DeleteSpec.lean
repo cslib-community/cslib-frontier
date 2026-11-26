@@ -153,9 +153,8 @@ theorem compDeleteWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items :
     fun _ => compValAt_congr henv.pos_w fun a ha => hmid_out a (by omega)
   have hcpl_mid : FixedCoupled metaBase itemBase U V w N s_fix s_mid :=
     ⟨hgm_mid.trans hcpl.gm_eq, hlm_mid.trans hcpl.lm_eq,
-      by rw [hgm_mid, htd_mid, hdt_mid]; exact hcpl.win_inv,
-      fun i => by rw [htd_mid]; exact hcpl.td_lt i,
-      fun i => by rw [hdt_mid]; exact hcpl.dt_lt i,
+      by simpa only [hgm_mid, htd_mid, hdt_mid] using hcpl.win_inv,
+      fun i => htd_mid.symm ▸ hcpl.td_lt i, fun i => hdt_mid.symm ▸ hcpl.dt_lt i,
       fun d hd => by
         rw [hgm_mid, hq_mid, hdt_mid]
         exact hcpl.quot_eq d (by simpa only [epochTotalSlots, hgm_mid] using hd),
@@ -167,30 +166,22 @@ theorem compDeleteWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items :
   set m_last := mOfSeed U N θ q_last
   have hm_last_lt : m_last < numMicroPerBucket N := mOfSeed_lt U N θ q_last
   have hprep_comp_res : (Memory.spec 0).clientResult s prog_prep = prep := by
-    change (Memory.spec 0).clientResult s
-      (compFeistelCoordsProg (mkCompParams U V w N, (u.val, h_q)) >>= fun c =>
-        compDeletePrepBodyGenProg (((mkCompParams U V w N, (metaBase, itemBase)), c.1), c.2)) = _
+    dsimp only [prog_prep, d_prep, compDeletePrepWithHashGenProg]
     rw [StateTransitionSpec.clientResult_bind, clientState_compFeistelCoordsProg, hc_res]
     exact (hres_dp.trans hfix_prep_eq.symm).trans hres_fix_prep
   have hprep_comp_st : (Memory.spec 0).clientState s prog_prep = s := by
-    change (Memory.spec 0).clientState s
-      (compFeistelCoordsProg (mkCompParams U V w N, (u.val, h_q)) >>= fun c =>
-        compDeletePrepBodyGenProg (((mkCompParams U V w N, (metaBase, itemBase)), c.1), c.2)) = s
+    dsimp only [prog_prep, d_prep, compDeletePrepWithHashGenProg]
     rw [StateTransitionSpec.clientState_bind, clientState_compFeistelCoordsProg, hc_res]
     exact hst_dp
   have hgm_eq : compGmAt metaBase U w N s.mem =
       gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem := hcpl.gm_eq
   have hprep_comp_cost : memoryCost prog_prep s ≤
       42 + 12 * probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2 (Dictionary.dom s_abs) u := by
-    change memoryCost
-      (compFeistelCoordsProg (mkCompParams U V w N, (u.val, h_q)) >>= fun c =>
-        compDeletePrepBodyGenProg (((mkCompParams U V w N, (metaBase, itemBase)), c.1), c.2)) s ≤ _
+    dsimp only [prog_prep, d_prep, compDeletePrepWithHashGenProg]
     rw [memoryCost_bind_of_clientState_eq (clientState_compFeistelCoordsProg _ s) _,
       memoryCost_compFeistelCoordsProg, hc_res, zero_add]
     rw [hgm_eq] at hcost_dp
-    dsimp only [b, q, m] at hcost_dp hlen_pr hovf_pr ⊢
-    unfold probeExcess
-    omega
+    dsimp only [b, q, m, probeExcess] at hcost_dp hlen_pr hovf_pr ⊢; omega
   have hfit_hq_last : Fits w h_q_last :=
     (fits_compFeistelCoords (s := s_mid) henv.pos_w henv.le_U henv.lt_pow_U henv.le_pow_V hfit_off
       (u.isLt.trans henv.lt_pow_U) (hValOfSeed_lt U N θ q_last)).2.1
@@ -201,11 +192,12 @@ theorem compDeleteWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items :
   rw [← hfix_prep_eq, hres_fix_prep] at hprep_spec_fix
   dsimp only [deletePrepFound, deletePrepIdx, deletePrepPhys] at hprep_spec_fix
   have hbm_eq := bucketMapOfState_feistelBucket henv.le_U (hValOfSeed U N θ) s_abs u
+  let gm_mid := compGmAt metaBase U w N s_mid.mem
   obtain ⟨hfound_iff, hfound_slot⟩ : (found = 1 ↔ (s_abs u).isSome) ∧
       (found = 1 →
-        j_del < bCount N gm₀ b ∧ phys_del = slotOf N gm₀ b j_del ∧
+        j_del < bCount N gm_mid b ∧ phys_del = slotOf N gm_mid b j_del ∧
         (j_del < effBucketCap N → j_del ∈ L b m) ∧
-        (bCount N gm₀ b - 1 < effBucketCap N → bCount N gm₀ b - 1 ∈ L b m_last)) := by
+        (bCount N gm_mid b - 1 < effBucketCap N → bCount N gm_mid b - 1 ∈ L b m_last)) := by
     have hbr := hprep_spec_fix.2.2.2
     by_cases hex : ∃ j < bCount N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b,
         quotAt 0 U (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem
@@ -214,8 +206,8 @@ theorem compDeleteWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items :
       obtain ⟨hf1, hj_lt_fix, hq_del, hphys_eq_fix, hq_last_eq⟩ := hbr
       refine ⟨⟨fun _ => hbm_eq.symm ▸ (hb_inv.hmap_dom b hb_lt q).mpr hex, fun _ => hf1⟩,
         fun _ => ?_⟩
-      dsimp only [gm₀]
-      rw [hgm_eq]
+      dsimp only [gm_mid]
+      rw [hgm_mid, hgm_eq]
       exact ⟨hj_lt_fix, hphys_eq_fix,
         fun hj_cap => (hb_inv.hchain_mem b hb_lt m hm_lt j_del).mpr
           ⟨hj_lt_fix, hj_cap, by rw [hq_del]⟩,
@@ -228,46 +220,34 @@ theorem compDeleteWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items :
   have hm_items_mid : totalSlots N (compGmAt metaBase U w N s_mid.mem) ≤ m_items :=
     hgm_mid.symm ▸ hm_items
   have hpre_fin : CompDeleteFinishWithHashPre w d_fin s_mid := by
-    have hm_last_eq : h_q_last >>> cpBucketBits (mkCompParams U V w N) = m_last := by
-      rw [cpBucketBits_mk]; rfl
     refine ⟨fits_compFeistelCoords henv.pos_w henv.le_U henv.lt_pow_U henv.le_pow_V hfit_off
         (u.isLt.trans henv.lt_pow_U) (hValOfSeed_lt U N θ q),
       hfit_hq_last, hfit1, ?_⟩
-    rw [hb_eq, hm_eq, hm_last_eq]
+    rw [hb_eq, hm_eq, cpBucketBits_mk]
     intro hf1
     obtain ⟨hj_lt, hphys_eq, hmem_del, hmem_last⟩ := hfound_slot hf1
     exact ⟨U, V, N, m_items, s_fix, L, rfl, henv_mid, hcpl_mid, hslot_mid, hm_items_mid,
-      hb_lt, hm_lt, hm_last_lt,
-      by rw [hgm_mid]; exact hj_lt,
-      by rw [hgm_mid]; exact hphys_eq,
-      hb_inv.hchains, hmem_del,
-      by rw [hgm_mid]; exact hmem_last⟩
+      hb_lt, hm_lt, hm_last_lt, hj_lt, hphys_eq, hb_inv.hchains, hmem_del, hmem_last⟩
   unfold deleteFinishWithHashProg deleteFinishWithHashGenProg at hinv_fix'
-  simp only [p_bucketBits_mk, p_bucketMask_mk, deleteFinishGenProg_mk, pure_bind] at hinv_fix'
-  rw [and_mask_xor_eq_feistelBucket (bucketBits N) u.val h_q] at hinv_fix'
-  unfold deleteFinishProg deleteFinishGenProg at hinv_fix'
-  simp only [deleteFoundGenProg_mk, pure_bind] at hinv_fix'
+  simp only [p_bucketBits_mk, p_bucketMask_mk, pure_bind, and_mask_xor_eq_feistelBucket,
+    deleteFinishGenProg, deleteFoundGenProg_mk] at hinv_fix'
   set df_prog := compDeleteFinishGenProg
     ((((((mkCompParams U V w N, (metaBase, itemBase)), b), (found, j_del)), phys_del), m), m_last)
   have hs'_eq : s' = (Memory.spec 0).clientState s_mid df_prog := by
     dsimp only [s', prog_fin, d_fin, compDeleteFinishWithHashGenProg]
     rw [StateTransitionSpec.clientState_bind, clientState_compFeistelCoordsProg, hc_res_mid]
-    simp only [pure_bind, cpBucketBits_mk]
-    rfl
+    simp only [pure_bind, cpBucketBits_mk]; rfl
   have hcost_fin_eq : memoryCost prog_fin s_mid = memoryCost df_prog s_mid := by
     dsimp only [prog_fin, d_fin, compDeleteFinishWithHashGenProg]
     rw [memoryCost_bind_of_clientState_eq (clientState_compFeistelCoordsProg _ s_mid) _,
       memoryCost_compFeistelCoordsProg, hc_res_mid, zero_add]
-    simp only [pure_bind, cpBucketBits_mk]
-    rfl
+    simp only [pure_bind, cpBucketBits_mk]; rfl
   refine ⟨hprep_comp_res, hfound_iff, hpre_prep, hprep_comp_st, hq_last_lt, hpre_fin, ?_⟩
   dsimp only [gm', gm₀]
   rw [hs'_eq, hcost_fin_eq]
   dsimp only [df_prog, compDeleteFinishGenProg]
   by_cases hf1 : found = 1
   · obtain ⟨hj_lt, hphys_eq, hmem_del, hmem_last⟩ := hfound_slot hf1
-    dsimp only [gm₀] at hj_lt hphys_eq hmem_last
-    rw [← hgm_mid] at hj_lt hphys_eq hmem_last
     obtain ⟨hfr_fd, hcpl_fd, hcost_fd⟩ := compDeleteFoundGenProg_effect
       henv_mid hcpl_mid hslot_mid hm_items_mid hb_lt hm_lt hm_last_lt hj_lt
       hb_inv.hchains hmem_del hmem_last

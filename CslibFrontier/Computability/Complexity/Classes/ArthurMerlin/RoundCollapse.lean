@@ -97,12 +97,6 @@ private theorem swapVerifier_apply {L P q : ℕ} (g' : List (AMMove × ℕ)) (k 
   rw [swapVerifier, List.take_left' hs, e2, List.drop_left' hs, List.take_left' List.length_ofFn,
     e4]
 
-private theorem value_repeatShape_cons_arthur (b : Bool) (k p : ℕ) (τ : List (AMMove × ℕ))
-    (f : List Bool → ℚ) :
-    value b (repeatShape k ((.arthur, p) :: τ)) f =
-      (∑ R : Fin (k * p) → Bool, value b (repeatShape k τ) fun t => f (List.ofFn R ++ t)) /
-        2 ^ (k * p) := rfl
-
 /-- The pointwise upper bound behind the swap: the union bound over Merlin's message. -/
 private theorem swap_pointwise_le (τ : List (AMMove × ℕ)) (q p k : ℕ)
     (W : (Fin q → Bool) → List Bool → Bool) :
@@ -134,12 +128,10 @@ private theorem swap_pointwise_le (τ : List (AMMove × ℕ)) (q p k : ℕ)
         _ = _ := by simp
     exact this.trans (by linarith)
   · push Not at hc
-    have hF (y : Fin q → Bool) : (∑ R, H R y) / 2 ^ (2 * k * p) ≤ (8 / 9) ^ k / 2 := by
-      have := value_majority_le ((.arthur, p) :: τ) k (W y) (by
-        have := le_sup' (fun y : Fin q → Bool =>
-          value true ((.arthur, p) :: τ) fun u => ((W y u).toNat : ℚ)) (mem_univ y)
-        linarith)
-      rwa [value_repeatShape_cons_arthur] at this
+    have hF (y : Fin q → Bool) : (∑ R, H R y) / 2 ^ (2 * k * p) ≤ (8 / 9) ^ k / 2 :=
+      value_majority_le ((.arthur, p) :: τ) k (W y) (by
+        linarith [le_sup' (fun y : Fin q → Bool =>
+          value true ((.arthur, p) :: τ) fun u => ((W y u).toNat : ℚ)) (mem_univ y)])
     calc (∑ R, univ.sup' univ_nonempty (H R)) / 2 ^ (2 * k * p)
         ≤ (∑ R, ∑ y, H R y) / 2 ^ (2 * k * p) := by
           gcongr with R
@@ -174,13 +166,10 @@ private theorem swap_pointwise_ge (τ : List (AMMove × ℕ)) (q p k : ℕ)
     value_le_one _ _ fun t => by cases W y₀ t <;> norm_num
   have hpow : (0 : ℚ) ≤ (8 / 9) ^ k := by positivity
   by_cases hc : 2 ≤ 3 * value true ((.arthur, p) :: τ) (fun u => ((W y₀ u).toNat : ℚ))
-  · have hF := value_majority_ge ((.arthur, p) :: τ) k (W y₀) hc
-    rw [value_repeatShape_cons_arthur] at hF
-    have : (∑ R, H R y₀) / 2 ^ (2 * k * p) ≤
-        (∑ R, univ.sup' univ_nonempty (H R)) / 2 ^ (2 * k * p) := by
-      gcongr with R
-      exact le_sup' (H R) (mem_univ y₀)
-    linarith
+  · have hF : _ ≤ (∑ R, H R y₀) / 2 ^ (2 * k * p) :=
+      value_majority_ge ((.arthur, p) :: τ) k (W y₀) hc
+    linarith [div_le_div_of_nonneg_right
+      (sum_le_sum (s := univ) fun R _ => le_sup' (s := univ) (f := H R) (mem_univ y₀)) hP.le]
   · linarith [not_le.mp hc]
 
 /-- **The swap, upper bound.** -/

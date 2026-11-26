@@ -160,7 +160,6 @@ private theorem selMemBagProg_spec {w : ℕ} (args : SelMemArgs) {xs : List ℕ}
     have hres_step :
         (Memory.spec 0).clientResult s (selMemStep (args.target, ⟨cur, curM, found⟩)) =
         ⟨cur + 1, curM / 2, found'⟩ := by
-      dsimp only [selMemStep, found']
       change (⟨cur + 1, curM / 2, _⟩ : SelMemState) = _
       rw [hmem_u]
     dsimp only [List.length_cons, iterate]
@@ -190,14 +189,12 @@ private theorem selMemBagProg_realizes :
     ⟨rfl, Nat.zero_le _⟩
   dsimp only [selMemStep]
   have hcur_fit : Fits w (st.cur + 1) := hfit.of_le (by omega)
-  refine ⟨?_, ?_, ?_⟩
-  · repeat (first | split | assumption | refine And.intro ?_ ?_)
-  · change (st.cur + 1) + j = d.ptr + d.len
-    omega
-  · change (if st.curM % 2 = 1 then
-        if d.target = m.mem st.cur then 1 else st.found
-      else st.found) ≤ 1
-    split_ifs <;> omega
+  refine ⟨by repeat (first | split | assumption | refine And.intro ?_ ?_),
+    Nat.add_right_comm st.cur 1 j ▸ hcur, ?_⟩
+  change (if st.curM % 2 = 1 then
+      if d.target = m.mem st.cur then 1 else st.found
+    else st.found) ≤ 1
+  split_ifs <;> omega
 
 /-! ### Parent-bag mask (`keyMaskProg`) -/
 
@@ -324,38 +321,29 @@ theorem keyMaskProg_spec {w : ℕ} (args : MaskTransArgs) {LB LP : List ℕ}
         (if (if selMemMask u LB args.mask then 1 else 0) = 1 then pow2 else 0) = addTerm := by
       dsimp only [addTerm]
       cases selMemMask u LB args.mask <;> rfl
+    have hr_st : (Memory.spec 0).clientState s (Memory.read curP) = s := rfl
+    have hr_res : (Memory.spec 0).clientResult s (Memory.read curP) = u := hmem_u
     have hv_step : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s (keyMaskStep (env, ⟨curP, pow2, acc⟩))) := by
-      unfold keyMaskStep
-      dsimp only [env]
-      refine validHistory_read_bind (by omega) ?_
-      rw [hmem_u]
-      exact validHistory_bind_step hv_sel (validHistory_pure w _ _)
+        ((Memory.spec w).clientHistory s (keyMaskStep (env, ⟨curP, pow2, acc⟩))) :=
+      validHistory_read_bind (by omega : curP < s.frontier)
+        (hmem_u.symm ▸ validHistory_bind_step hv_sel (validHistory_pure w _ _))
     have hst_step := keyMaskStep_state env ⟨curP, pow2, acc⟩ s
     have hres_step : (Memory.spec 0).clientResult s (keyMaskStep (env, ⟨curP, pow2, acc⟩)) =
         ⟨curP + 1, 2 * pow2, acc + addTerm⟩ := by
-      unfold keyMaskStep
-      dsimp only [env]
-      rw [StateTransitionSpec.clientResult_bind]
-      change (Memory.spec 0).clientResult s
-        (selMemBagProg ⟨s.mem curP, args.bagBPtr, args.bagBLen, args.mask⟩ >>= _) = _
-      rw [hmem_u, StateTransitionSpec.clientResult_bind, hst_sel, hr_sel, hadd_eq]
-      rfl
+      dsimp only [keyMaskStep, env]
+      rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res,
+        StateTransitionSpec.clientResult_bind, hst_sel, hr_sel]
+      exact hadd_eq ▸ rfl
     have hc_step : memoryCost (keyMaskStep (env, ⟨curP, pow2, acc⟩)) s ≤ args.bagBLen + 1 := by
-      unfold keyMaskStep
-      dsimp only [env]
-      rw [memoryCost_bind', memoryCost_read]
-      change 1 + memoryCost
-        (selMemBagProg ⟨s.mem curP, args.bagBPtr, args.bagBLen, args.mask⟩ >>= _) s ≤ _
-      rw [hmem_u, memoryCost_bind', hst_sel, memoryCost_pure, Nat.add_zero]
+      dsimp only [keyMaskStep, env]
+      rw [memoryCost_bind', memoryCost_read, hr_st, hr_res, memoryCost_bind', hst_sel,
+        memoryCost_pure]
       omega
     dsimp only [List.length_cons, iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_, ?_⟩
     · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step, hr_rest]
-      dsimp only [addTerm, keyMask]
-      by_cases hsm : selMemMask u LB args.mask = true <;>
-        simp only [hsm, Bool.false_eq_true, ↓reduceIte, Nat.left_distrib, Nat.mul_one,
-          Nat.zero_add, ← Nat.mul_assoc, Nat.mul_comm pow2 2] <;> omega
+      cases hsm : selMemMask u LB args.mask <;>
+        simp only [addTerm, keyMask, hsm, Bool.false_eq_true, ↓reduceIte] <;> ring
     · rw [memoryCost_bind', hst_step, hres_step]
       calc memoryCost (keyMaskStep (env, ⟨curP, pow2, acc⟩)) s +
             memoryCost (iterate keyMaskStep env rest.length
@@ -382,8 +370,8 @@ theorem keyMaskProg_realizes :
         st.pow2 = 2 ^ (d.bagPLen - j) ∧ st.acc < st.pow2)
       (fun j st m ⟨hj_le, hcur, hp2, hacc_lt⟩ => ?_)
       ⟨le_rfl, rfl, by simp only [Nat.sub_self, Nat.pow_zero], Nat.zero_lt_one⟩
-    have hp2_next : 2 * st.pow2 = 2 ^ (d.bagPLen - j) := by
-      rw [hp2, show d.bagPLen - j = (d.bagPLen - (j + 1)) + 1 by omega, Nat.pow_succ, Nat.mul_comm]
+    have hp2_next : 2 * st.pow2 = 2 ^ (d.bagPLen - j) :=
+      hp2 ▸ (Nat.pow_succ' ..).symm.trans (congrArg (2 ^ ·) (by omega))
     have hp2_fit : Fits w (2 * st.pow2) :=
       hpow.of_le (hp2_next ▸ Nat.pow_le_pow_right (by decide) (Nat.sub_le _ _))
     have hcur_fit : Fits w (st.curP + 1) := hfitP.of_le (by omega)
@@ -398,10 +386,10 @@ theorem keyMaskProg_realizes :
         selMemBagProg_state]
       exact ⟨_, by split_ifs <;> omega, rfl⟩
     refine ⟨by repeat (first | split | assumption | refine And.intro ?_ ?_),
-      Nat.le_of_succ_le hj_le, ?_, ?_, ?_⟩ <;> rw [hres]
-    · dsimp only; omega
-    · exact hp2_next
-    · dsimp only; omega
+      Nat.le_of_succ_le hj_le, ?_⟩
+    rw [hres]
+    dsimp only
+    exact ⟨Nat.add_right_comm st.curP 1 j ▸ hcur, hp2_next, by omega⟩
 
 /-! ### Parent-mask restriction (`restrictMaskProg`) -/
 
@@ -502,48 +490,39 @@ theorem restrictMaskProg_spec {w : ℕ} (args : MaskTransArgs) {LB LP : List ℕ
     let addTerm := if curS % 2 = 1 ∧ memBag u LB = true then pow2 else 0
     obtain ⟨hv_rest, hr_rest, hc_rest⟩ :=
       ih (curP + 1) (curS / 2) (2 * pow2) (acc + addTerm) hrest
+    dsimp only at hr_bm hc_bm
     have hadd_eq :
         (if curS % 2 = 1 then
           if (if memBag u LB then 1 else 0) = 1 then pow2 else 0
         else 0) = addTerm := by
       dsimp only [addTerm]
       by_cases hbit : curS % 2 = 1 <;> cases memBag u LB <;> simp [hbit]
+    have hr_st : (Memory.spec 0).clientState s (Memory.read curP) = s := rfl
+    have hr_res : (Memory.spec 0).clientResult s (Memory.read curP) = u := hmem_u
     have hv_step : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s (restrictStep (env, ⟨curP, curS, pow2, acc⟩))) := by
-      unfold restrictStep
-      dsimp only [env]
-      refine validHistory_read_bind (by omega) ?_
-      rw [hmem_u]
-      exact validHistory_bind_step hv_bm (validHistory_pure w _ _)
+        ((Memory.spec w).clientHistory s (restrictStep (env, ⟨curP, curS, pow2, acc⟩))) :=
+      validHistory_read_bind (by omega : curP < s.frontier)
+        (hmem_u.symm ▸ validHistory_bind_step hv_bm (validHistory_pure w _ _))
     have hst_step := restrictStep_state env ⟨curP, curS, pow2, acc⟩ s
     have hres_step : (Memory.spec 0).clientResult s
         (restrictStep (env, ⟨curP, curS, pow2, acc⟩)) =
         ⟨curP + 1, curS / 2, 2 * pow2, acc + addTerm⟩ := by
-      unfold restrictStep
-      dsimp only [env]
-      rw [StateTransitionSpec.clientResult_bind]
-      change (Memory.spec 0).clientResult s
-        (bagMemProg ⟨s.mem curP, args.bagBPtr, args.bagBLen⟩ >>= _) = _
-      rw [hmem_u, StateTransitionSpec.clientResult_bind, hst_bm, hr_bm, hadd_eq]
-      rfl
+      dsimp only [restrictStep, env]
+      rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res,
+        StateTransitionSpec.clientResult_bind, hst_bm, hr_bm]
+      exact hadd_eq ▸ rfl
     have hc_step : memoryCost (restrictStep (env, ⟨curP, curS, pow2, acc⟩)) s ≤
         args.bagBLen + 1 := by
-      dsimp only at hc_bm
-      unfold restrictStep
-      dsimp only [env]
-      rw [memoryCost_bind', memoryCost_read]
-      change 1 + memoryCost (bagMemProg ⟨s.mem curP, args.bagBPtr, args.bagBLen⟩ >>= _) s ≤ _
-      rw [hmem_u, memoryCost_bind', hst_bm, memoryCost_pure, Nat.add_zero]
+      dsimp only [restrictStep, env]
+      rw [memoryCost_bind', memoryCost_read, hr_st, hr_res, memoryCost_bind', hst_bm,
+        memoryCost_pure]
       omega
     dsimp only [List.length_cons, iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_, ?_⟩
     · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step, hr_rest]
-      dsimp only [addTerm, restrictMask]
-      (by_cases hbit : curS % 2 = 1 <;> by_cases hin : u ∈ LB <;>
-        simp only [hbit, memBag_eq_decide, hin, decide_true, decide_false, and_self, and_false,
-          false_and, Bool.false_eq_true, ↓reduceIte, Nat.left_distrib, Nat.mul_one, Nat.add_zero,
-          Nat.zero_add, ← Nat.mul_assoc, Nat.mul_comm pow2 2])
-      omega
+      by_cases hbit : curS % 2 = 1 <;> by_cases hin : u ∈ LB <;>
+        simp only [addTerm, restrictMask, hbit, memBag_eq_decide, hin, decide_true, decide_false,
+          and_self, and_false, false_and, Bool.false_eq_true, ↓reduceIte] <;> ring
     · rw [memoryCost_bind', hst_step, hres_step]
       calc memoryCost (restrictStep (env, ⟨curP, curS, pow2, acc⟩)) s +
             memoryCost (iterate restrictStep env rest.length
@@ -571,8 +550,8 @@ theorem restrictMaskProg_realizes :
         st.pow2 = 2 ^ (d.bagPLen - j) ∧ st.acc < st.pow2)
       (fun j st m ⟨hj_le, hcur, hp2, hacc_lt⟩ => ?_)
       ⟨le_rfl, rfl, by simp only [Nat.sub_self, Nat.pow_zero], Nat.zero_lt_one⟩
-    have hp2_next : 2 * st.pow2 = 2 ^ (d.bagPLen - j) := by
-      rw [hp2, show d.bagPLen - j = (d.bagPLen - (j + 1)) + 1 by omega, Nat.pow_succ, Nat.mul_comm]
+    have hp2_next : 2 * st.pow2 = 2 ^ (d.bagPLen - j) :=
+      hp2 ▸ (Nat.pow_succ' ..).symm.trans (congrArg (2 ^ ·) (by omega))
     have hp2_fit : Fits w (2 * st.pow2) :=
       hpow.of_le (hp2_next ▸ Nat.pow_le_pow_right (by decide) (Nat.sub_le _ _))
     have hcur_fit : Fits w (st.curP + 1) := hfitP.of_le (by omega)
@@ -587,9 +566,9 @@ theorem restrictMaskProg_realizes :
         bagMemProg_state]
       exact ⟨_, by split_ifs <;> omega, rfl⟩
     refine ⟨by repeat (first | split | assumption | refine And.intro ?_ ?_),
-      Nat.le_of_succ_le hj_le, ?_, ?_, ?_⟩ <;> rw [hres]
-    · dsimp only; omega
-    · exact hp2_next
-    · dsimp only; omega
+      Nat.le_of_succ_le hj_le, ?_⟩
+    rw [hres]
+    dsimp only
+    exact ⟨Nat.add_right_comm st.curP 1 j ▸ hcur, hp2_next, by omega⟩
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

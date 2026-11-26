@@ -160,9 +160,7 @@ theorem HeightConsistent.eq_of_toBinaryTree_eq {t u : AVLTree α}
     | nil => cases eq
     | node key' height' l' r' =>
       obtain ⟨rfl, el, er⟩ := BinaryTree.node.inj eq
-      obtain rfl := il ht.2.1 hu.2.1 el
-      obtain rfl := ir ht.2.2 hu.2.2 er
-      rw [ht.1, hu.1]
+      rw [ht.1, hu.1, il ht.2.1 hu.2.1 el, ir ht.2.2 hu.2.2 er]
 
 /-- The Fibonacci step of the node-count bound: sibling heights `n`, `m` differing by at most `1`
 give `Nat.fib (1 + max n m + 2) ≤ Nat.fib (n + 2) + Nat.fib (m + 2)`. -/
@@ -170,10 +168,9 @@ private theorem fib_one_add_max_add_two_le {n m : ℕ} (hnm : n ≤ m + 1) (hmn 
     Nat.fib (1 + max n m + 2) ≤ Nat.fib (n + 2) + Nat.fib (m + 2) := by
   wlog hle : m ≤ n generalizing n m
   · simpa only [max_comm, add_comm (Nat.fib (n + 2))] using this hmn hnm (by omega)
-  have hfib : Nat.fib (n + 3) = Nat.fib (n + 1) + Nat.fib (n + 2) := Nat.fib_add_two
-  have : Nat.fib (n + 1) ≤ Nat.fib (m + 2) := Nat.fib_mono (by omega)
-  rw [max_eq_left hle, show 1 + n + 2 = n + 3 by omega]
-  omega
+  rw [max_eq_left hle, Nat.add_comm 1 n]
+  exact Nat.fib_add_two.trans_le ((Nat.add_le_add_right (Nat.fib_mono (by omega)) _).trans_eq
+    (Nat.add_comm _ _))
 
 /-- Fibonacci node-count lower bound ([Cormen et al., Problem 13-3(a)][CLRS2009]): any
 height-consistent, AVL-balanced tree `t` satisfies
@@ -187,8 +184,7 @@ theorem fib_height_le_numNodes_add_one {t : AVLTree α}
     obtain ⟨rfl, hcl, hcr⟩ := hc
     obtain ⟨hlr, hrl, hbl, hbr⟩ := hb
     have := fib_one_add_max_add_two_le hlr hrl
-    have := ihl hcl hbl
-    have := ihr hcr hbr
+    have := Nat.add_le_add (ihl hcl hbl) (ihr hcr hbr)
     rw [numNodes_node, cachedHeight_node]
     omega
 
@@ -197,10 +193,8 @@ private theorem two_pow_half_succ_le_fib : ∀ h : ℕ, 2 ^ ((h + 1) / 2) ≤ Na
   | 1 => by decide
   | h + 2 => by
     have ih := two_pow_half_succ_le_fib h
-    have hdiv : (h + 2 + 1) / 2 = (h + 1) / 2 + 1 := by omega
-    have hfib : Nat.fib (h + 2 + 2) = Nat.fib (h + 2) + Nat.fib (h + 2 + 1) := Nat.fib_add_two
     have hmono : Nat.fib (h + 2) ≤ Nat.fib (h + 2 + 1) := Nat.fib_le_fib_succ
-    rw [hdiv, pow_succ]
+    rw [Nat.add_right_comm h 2 1, Nat.add_div_right _ zero_lt_two, pow_succ, Nat.fib_add_two]
     omega
 
 /-- Construct a node computing its cached height in `O(1)` from its children's cached heights. -/
@@ -258,20 +252,18 @@ heights. -/
 
 /-- Rebalancing never returns the empty tree. -/
 theorem balance_ne_nil (a : α) (l r : AVLTree α) : balance a l r ≠ .nil := by
-  have right (a : α) (l r : AVLTree α) : rotateRight a l r ≠ .nil := by
-    cases l <;> simp [rotateRight, mkNode]
-  have left (a : α) (l r : AVLTree α) : rotateLeft a l r ≠ .nil := by
-    cases r <;> simp [rotateLeft, mkNode]
+  have right (a : α) (l r : AVLTree α) : rotateRight a l r ≠ .nil := by cases l <;> nofun
+  have left (a : α) (l r : AVLTree α) : rotateLeft a l r ≠ .nil := by cases r <;> nofun
   unfold balance
   split
   · split
-    · simp [mkNode]
+    · nofun
     · split <;> apply right
   · split
     · split
-      · simp [mkNode]
+      · nofun
       · split <;> apply left
-    · simp [mkNode]
+    · nofun
 
 /-- Single right rotation preserves `HeightConsistent`. -/
 theorem heightConsistent_rotateRight {a : α} {l r : AVLTree α}
@@ -279,8 +271,7 @@ theorem heightConsistent_rotateRight {a : α} {l r : AVLTree α}
     HeightConsistent (rotateRight a l r) := by
   cases l with
   | nil => exact ⟨rfl, trivial, hr⟩
-  | node la lh ll lr =>
-    exact ⟨rfl, hl.2.1, ⟨rfl, hl.2.2, hr⟩⟩
+  | node _ _ _ _ => exact ⟨rfl, hl.2.1, ⟨rfl, hl.2.2, hr⟩⟩
 
 /-- Single left rotation preserves `HeightConsistent`. -/
 theorem heightConsistent_rotateLeft {a : α} {l r : AVLTree α}
@@ -288,8 +279,7 @@ theorem heightConsistent_rotateLeft {a : α} {l r : AVLTree α}
     HeightConsistent (rotateLeft a l r) := by
   cases r with
   | nil => exact ⟨rfl, hl, trivial⟩
-  | node ra rh rl rr =>
-    exact ⟨rfl, ⟨rfl, hl, hr.2.1⟩, hr.2.2⟩
+  | node _ _ _ _ => exact ⟨rfl, ⟨rfl, hl, hr.2.1⟩, hr.2.2⟩
 
 /-- `balance` preserves `HeightConsistent`. -/
 theorem heightConsistent_balance {a : α} {l r : AVLTree α}
@@ -477,21 +467,18 @@ theorem successor_eq_searchTree (x : α) (t : AVLTree α) :
 
 /-- Membership search agrees with finite-set membership on any ordered tree. -/
 theorem contains_eq_true {t : AVLTree α} (ht : Ordered t) (x : α) :
-    contains x t = true ↔ x ∈ elements t := by
-  rw [contains_eq_searchTree]
-  exact SearchTree.contains_eq_true ht x
+    contains x t = true ↔ x ∈ elements t :=
+  contains_eq_searchTree x t ▸ SearchTree.contains_eq_true ht x
 
 /-- Leftmost descent returns the least stored key, or `none` when empty. -/
 theorem minimum_spec {t : AVLTree α} (ht : Ordered t) :
-    LeastResult (elements t) (minimum t) := by
-  rw [minimum_eq_searchTree]
-  exact SearchTree.minimum_spec ht
+    LeastResult (elements t) (minimum t) :=
+  minimum_eq_searchTree t ▸ SearchTree.minimum_spec ht
 
 /-- `successor x t` returns the least stored key strictly greater than `x`, or `none`. -/
 theorem successor_spec {t : AVLTree α} (ht : Ordered t) (x : α) :
-    LeastResult ((elements t).filter (x < ·)) (successor x t) := by
-  rw [successor_eq_searchTree]
-  exact SearchTree.successor_spec ht x
+    LeastResult ((elements t).filter (x < ·)) (successor x t) :=
+  successor_eq_searchTree x t ▸ SearchTree.successor_spec ht x
 
 /-- `mkNode` stores `a` together with the keys of `l` and `r`. -/
 @[simp]
@@ -641,7 +628,7 @@ private theorem valid_and_height_insert {t : AVLTree α} (ht : Valid t) (x : α)
       Nat.zero_le _, Nat.le_refl 1⟩
     simp [insert, mkNode, Ordered, SearchTree.Ordered, SearchTree.elements]
   | node a h l r ihl ihr =>
-    obtain ⟨⟨hol, hor, hl_a, ha_r⟩, ⟨hh, hcl, hcr⟩, ⟨hlr, hrl, hbl, hbr⟩⟩ := ht
+    have ⟨⟨hol, hor, hl_a, ha_r⟩, ⟨hh, hcl, hcr⟩, ⟨hlr, hrl, hbl, hbr⟩⟩ := ht
     simp only [insert, cachedHeight_node]
     split <;> rename_i hxa
     · obtain ⟨hv, hlo, hhi⟩ := ihl ⟨hol, hcl, hbl⟩
@@ -657,8 +644,7 @@ private theorem valid_and_height_insert {t : AVLTree α} (ht : Valid t) (x : α)
         obtain ⟨hv', hb⟩ := valid_and_height_balance a ⟨hol, hcl, hbl⟩ hv hl_a hsep
           (by omega) (by omega)
         exact ⟨hv', by omega, by omega⟩
-      · exact ⟨⟨⟨hol, hor, hl_a, ha_r⟩, ⟨hh, hcl, hcr⟩, ⟨hlr, hrl, hbl, hbr⟩⟩,
-          Nat.le_refl _, Nat.le_succ _⟩
+      · exact ⟨ht, le_rfl, Nat.le_succ _⟩
 
 /-- `insert` preserves full AVL validity (`Ordered`, `HeightConsistent`, and `Balanced`). -/
 theorem valid_insert {t : AVLTree α} (ht : Valid t) (x : α) : Valid (insert x t) :=
@@ -677,11 +663,7 @@ theorem balance_eq_node {a : α} {h : ℕ} {l r : AVLTree α}
     (hrl : r.cachedHeight ≤ l.cachedHeight + 1) :
     balance a l r = .node a h l r := by
   unfold balance mkNode
-  split
-  · omega
-  · split
-    · omega
-    · rw [hh]
+  split_ifs <;> first | omega | rw [hh]
 
 /-- Re-inserting an already-present key into a valid AVL tree leaves the entire tree unchanged. -/
 theorem insert_eq_self {t : AVLTree α} (ht : Valid t) {x : α} (hx : x ∈ elements t) :
@@ -715,22 +697,19 @@ theorem insert_eq_self {t : AVLTree α} (ht : Valid t) {x : α} (hx : x ∈ elem
 
 /-- Search and insertion visit at most `t.cachedHeight` downward-path internal nodes. -/
 theorem searchVisits_le_cachedHeight {t : AVLTree α} (hc : HeightConsistent t) (x : α) :
-    searchVisits x t ≤ t.cachedHeight := by
-  rw [cachedHeight_eq_height hc]
-  exact SearchTree.searchVisits_le_height x t.toBinaryTree
+    searchVisits x t ≤ t.cachedHeight :=
+  (SearchTree.searchVisits_le_height x t.toBinaryTree).trans_eq (cachedHeight_eq_height hc).symm
 
 omit [LinearOrder α] in
 /-- Leftmost minimum descent visits at most `t.cachedHeight` internal nodes. -/
 theorem minimumVisits_le_cachedHeight {t : AVLTree α} (hc : HeightConsistent t) :
-    minimumVisits t ≤ t.cachedHeight := by
-  rw [cachedHeight_eq_height hc]
-  exact SearchTree.minimumVisits_le_height t.toBinaryTree
+    minimumVisits t ≤ t.cachedHeight :=
+  (SearchTree.minimumVisits_le_height t.toBinaryTree).trans_eq (cachedHeight_eq_height hc).symm
 
 /-- Strict-successor search visits at most `t.cachedHeight` internal nodes. -/
 theorem successorVisits_le_cachedHeight {t : AVLTree α} (hc : HeightConsistent t) (x : α) :
-    successorVisits x t ≤ t.cachedHeight := by
-  rw [cachedHeight_eq_height hc]
-  exact SearchTree.successorVisits_le_height x t.toBinaryTree
+    successorVisits x t ≤ t.cachedHeight :=
+  (SearchTree.successorVisits_le_height x t.toBinaryTree).trans_eq (cachedHeight_eq_height hc).symm
 
 end Ordered
 

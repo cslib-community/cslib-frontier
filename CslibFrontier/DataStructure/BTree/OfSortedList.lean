@@ -333,11 +333,9 @@ theorem toList_pack (first : BTree α β) (rest : List (Triple α β)) (ss : Lis
     · rw [pack_cons_of_drop_eq_nil ss h]
       simp
     · rw [pack_cons_of_drop_eq_cons ss h]
-      have hr : rest = rest.take s ++ (k, v, c) :: rest' := by
-        rw [← h, List.take_append_drop]
       have := ih c rest'
       simp only [toListRest_eq_flatMap] at this
-      conv_rhs => rw [hr]
+      conv_rhs => rw [← List.take_append_drop s rest, h]
       simp only [toList_node, toListRest_eq_flatMap, List.flatMap_cons, List.flatMap_append,
         List.cons_append, List.append_assoc, ← this]
 
@@ -481,9 +479,8 @@ private theorem shaped_build {t h fuel : ℕ} {first : BTree α β}
     (hfuel : rest.length ≤ fuel) : Shaped t (build t fuel first rest) := by
   induction fuel generalizing h first rest with
   | zero =>
-    rcases rest with _ | ⟨e, es⟩
-    · simpa using hl.good_first.shaped ht
-    · simp at hfuel
+    obtain rfl : rest = [] := List.eq_nil_of_length_eq_zero (Nat.le_zero.mp hfuel)
+    simpa using hl.good_first.shaped ht
   | succ fuel ih =>
     rcases Nat.lt_or_ge (2 * t - 1) rest.length with hlt | hle
     · rw [build_succ_of_lt hlt]
@@ -495,8 +492,7 @@ private theorem shaped_build {t h fuel : ℕ} {first : BTree α β}
       · simpa using hl.good_first.shaped ht
       · rw [build_of_length_le (List.cons_ne_nil e es) hle]
         obtain ⟨hb, -, hco⟩ := node_of_good hl.good_first hl.good_rest
-        exact { rootKeys_le := hle, rootKeys_pos := fun _ => by simp,
-                occupied_of_mem_children := hco, balanced := hb }
+        exact ⟨hle, fun _ => by simp, hco, hb⟩
 
 /-- Bulk loading builds a tree of root shape at a minimum degree of at least `2`. -/
 private theorem shaped_ofSortedList {t : ℕ} (ht : 2 ≤ t) (l : List (α × β)) :

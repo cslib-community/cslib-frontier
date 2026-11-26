@@ -70,6 +70,12 @@ of the row before. -/
   last : Fin A
 deriving DecidableEq, Fintype
 
+/-- The number of row data of `A` parties: a flag and two parties. -/
+theorem RowData.card_eq (A : ℕ) : Fintype.card (RowData A) = 2 * (A * A) := by
+  rw [Fintype.card_congr (β := Bool × Fin A × Fin A) ⟨fun d => (d.empty, d.first, d.last),
+    fun ⟨e, f, l⟩ => ⟨e, f, l⟩, fun _ => rfl, fun _ => rfl⟩]
+  simp
+
 /-- The segments `X b` that a party writes on a tape for the parties `b` are as the row data
 say: all are empty, or those for the first and for the last party are not empty and all others
 that are not empty lie between them. -/

@@ -127,12 +127,7 @@ private theorem mem_cliqueConstraints {G : SimpleGraph (Fin n)} [DecidableRel G.
     {c : PBConstr} :
     c ∈ cliqueConstraints G ↔ ∃ x y : Fin n, x < y ∧ ¬ G.Adj x y ∧ c = nonEdge x y := by
   simp only [cliqueConstraints, List.mem_flatMap, List.mem_finRange, List.mem_map,
-    List.mem_filter, decide_eq_true_eq, true_and]
-  constructor
-  · rintro ⟨x, y, ⟨hxy, hadj⟩, rfl⟩
-    exact ⟨x, y, hxy, hadj, rfl⟩
-  · rintro ⟨x, y, hxy, hadj, rfl⟩
-    exact ⟨x, y, ⟨hxy, hadj⟩, rfl⟩
+    List.mem_filter, decide_eq_true_eq, true_and, and_assoc, @eq_comm PBConstr _ c]
 
 /-- **The solutions of the encoding are the cliques**: an assignment satisfies the constraints of
 the encoding exactly when the vertices it chooses form a clique. -/
@@ -209,8 +204,7 @@ theorem clique_bounds_of_checkCliqueGraph {G : SimpleGraph (Fin n)} [DecidableRe
       obtain ⟨l', rfl, hle⟩ := hlb σ ((forall_holds_cliqueConstraints_iff G σ).2 hs)
       rw [eval_cliqueObjective] at hle
       have := hcard σ
-      simp only [Option.map_some, Option.getD_some]
-      omega
+      simp only [Option.map_some, Option.getD_some]; omega
     · cases ub with
       | none => exact ⟨∅, by simp, by simp⟩
       | some u' =>
@@ -218,8 +212,7 @@ theorem clique_bounds_of_checkCliqueGraph {G : SimpleGraph (Fin n)} [DecidableRe
         refine ⟨chosen n σ, (forall_holds_cliqueConstraints_iff G σ).1 hσ, ?_⟩
         rw [eval_cliqueObjective] at hle
         have := hcard σ
-        simp only [Option.map_some, Option.getD_some]
-        omega
+        simp only [Option.map_some, Option.getD_some]; omega
   | _ => simp [convConcl] at hconv
 
 /-- **The clique number from an accepted proof** (CakePB's `full_encode_sem_concl_check`): if the

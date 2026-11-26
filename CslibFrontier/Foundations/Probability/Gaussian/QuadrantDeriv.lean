@@ -235,8 +235,7 @@ theorem hasDerivAt_gaussianQuadrant_left_left {ρ : ℝ} (hρ : |ρ| < 1) {α β
       (-(ρ / √(1 - ρ ^ 2)) * (φ (gaussianQuantile α))⁻¹ *
         φ ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2))) α := by
   have h := hasDerivAt_cdf_affine_gaussianQuantile hα (-ρ) (gaussianQuantile β) √(1 - ρ ^ 2)
-  have he (x : ℝ) : -ρ * x + gaussianQuantile β = gaussianQuantile β - ρ * x := by ring
-  simp only [he] at h
+  simp only [neg_mul, ← sub_eq_neg_add] at h
   refine (h.congr_deriv (by ring)).congr_of_eventuallyEq ?_
   filter_upwards [Ioo_mem_nhds hα.1 hα.2] with α' hα' using deriv_gaussianQuadrant_left hρ hα' hβ
 
@@ -249,10 +248,8 @@ theorem hasDerivAt_gaussianQuadrant_left_right {ρ : ℝ} (hρ : |ρ| < 1) {α �
     HasDerivAt (fun β => deriv (fun α => gaussianQuadrant ρ α β) α)
       ((√(1 - ρ ^ 2))⁻¹ * (φ (gaussianQuantile β))⁻¹ *
         φ ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2))) β := by
-  have h := hasDerivAt_cdf_affine_gaussianQuantile hβ 1 (-(ρ * gaussianQuantile α))
-    √(1 - ρ ^ 2)
-  have he (x : ℝ) : 1 * x + -(ρ * gaussianQuantile α) = x - ρ * gaussianQuantile α := by ring
-  simp only [he] at h
+  have h := hasDerivAt_cdf_affine_gaussianQuantile hβ 1 (-(ρ * gaussianQuantile α)) √(1 - ρ ^ 2)
+  simp only [one_mul, ← sub_eq_add_neg] at h
   refine (h.congr_deriv (by ring)).congr_of_eventuallyEq ?_
   filter_upwards [Ioo_mem_nhds hβ.1 hβ.2] with β' hβ' using deriv_gaussianQuadrant_left hρ hα hβ'
 
@@ -278,11 +275,8 @@ theorem hasDerivAt_gaussianQuadrant_right_left {ρ : ℝ} (hρ : |ρ| < 1) {α �
     HasDerivAt (fun α => deriv (fun β => gaussianQuadrant ρ α β) β)
       ((√(1 - ρ ^ 2))⁻¹ * (φ (gaussianQuantile α))⁻¹ *
         φ ((gaussianQuantile α - ρ * gaussianQuantile β) / √(1 - ρ ^ 2))) α := by
-  have h : (fun α => deriv (fun β => gaussianQuadrant ρ α β) β) =
-      fun α => deriv (fun β => gaussianQuadrant ρ β α) β :=
-    funext fun α => by simp_rw [gaussianQuadrant_comm hρ.le α]
-  rw [h]
-  exact hasDerivAt_gaussianQuadrant_left_right hρ hβ hα
+  refine (hasDerivAt_gaussianQuadrant_left_right hρ hβ hα).congr_of_eventuallyEq
+    (Eventually.of_forall fun α' => by simp_rw [gaussianQuadrant_comm hρ.le α'])
 
 /-- **Symmetry of the bivariate Gaussian density**: for `|ρ| < 1` and `s = √(1 - ρ²)`,
 `φ(t) φ((t' - ρt) / s) = φ(t') φ((t - ρt') / s)`; both are `s` times the density of a

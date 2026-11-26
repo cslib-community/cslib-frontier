@@ -125,9 +125,8 @@ theorem not_isGoodNodeSeed_at_changed {seeds : P.SeedAssignment}
       rcases hdiff_z y with hiff | rfl
       · simp only [SeedAssignment.mem_activeAt_iff, hiff]
       · simp [SeedAssignment.mem_activeAt_iff, Ne.symm hwz]
-    have hp_eq : seeds.primSetAt S' ℓ₀ hℓ₀ w_bad = seeds.primSetAt S_cur ℓ₀ hℓ₀ w_bad := by
-      rw [SeedAssignment.primSetAt, SeedAssignment.primSetAt, hact_eq]
-    exact False.elim (hw_bad (hp_eq ▸ hgood.2 ℓ₀ hℓ₀ w_bad))
+    rw [SeedAssignment.primSetAt, hact_eq, ← SeedAssignment.primSetAt] at hw_bad
+    exact (hw_bad (hgood.2 ℓ₀ hℓ₀ w_bad)).elim
 
 private theorem exists_hasBadSeedOn_of_not_allGoodSeeds {seeds : P.SeedAssignment}
     {S' : Finset (Fin P.paddedUniv)} (hcard' : P.nLow 0 ≤ #S' ∧ #S' ≤ P.nHigh 0)
@@ -257,10 +256,9 @@ theorem wellFormedPadded_rawInsertFresh (hcr : P.ConcentrationReady)
       st'.WellFormedPadded scheme (Function.update d x (some v)) storeLvl' := by
   have hd_eq : st.rawQuery scheme = d := funext (st.rawQuery_eq hwf)
   let S' := Insert.insert x (P.paddedDom d)
-  dsimp only [rawInsertFresh]
-  simp only [hd_eq]
   have h_wf : ∃ sl, st.WellFormedPadded scheme d sl ∧
       x ∉ P.paddedDom d ∧ (P.nLow 0 ≤ #S' ∧ #S' ≤ P.nHigh 0) := ⟨storeLvl, hwf, hx_fresh, hcard'⟩
+  simp only [rawInsertFresh, hd_eq]
   rw [dite_eq_left h_wf]
   have ⟨hwf₀, hx₀, hcard₀⟩ := Classical.choose_spec h_wf
   by_cases hgood' : st.seeds.AllGoodSeeds S'
@@ -273,11 +271,10 @@ theorem wellFormedPadded_rawInsertFresh (hcr : P.ConcentrationReady)
       rehashBeforeUpdate_spec hcr st hwf₀ S' x hcard₀
         (mem_insert_iff_or_eq x (P.paddedDom d)) hgood'
     have hwf₁ := Classical.choose_spec hex_wf₁
-    refine ⟨(TreeState.sentCount_normalInsertFresh _ hwf₁ x v hx₀ hg₁).trans hsc₁,
-      Or.inr ⟨ℓ₀, hℓ₀, hng, fun j hj w hnot => ?_⟩,
+    exact ⟨(TreeState.sentCount_normalInsertFresh _ hwf₁ x v hx₀ hg₁).trans hsc₁,
+      Or.inr ⟨ℓ₀, hℓ₀, hng, fun j hj w hnot => by
+        rw [TreeState.seeds_normalInsertFresh _ hwf₁ x v hx₀ hg₁, hout j hj w hnot]⟩,
       _, TreeState.wellFormedPadded_normalInsertFresh _ hwf₁ x v hx₀ hg₁⟩
-    rw [TreeState.seeds_normalInsertFresh _ hwf₁ x v hx₀ hg₁]
-    exact hout j hj w hnot
 
 open scoped Classical in
 /-- Internal **member-only** deletion on `st` (contract: `WellFormedPadded`, `z ∈ paddedDom d`,
@@ -324,8 +321,7 @@ theorem wellFormedPadded_rawDeleteMem (hcr : P.ConcentrationReady)
       st'.WellFormedPadded scheme (Function.update d z none) storeLvl' := by
   have hd_eq : st.rawQuery scheme = d := funext (st.rawQuery_eq hwf)
   let S' := (P.paddedDom d).erase z
-  dsimp only [rawDeleteMem]
-  simp only [hd_eq]
+  simp only [rawDeleteMem, hd_eq]
   by_cases hgood' : st.seeds.AllGoodSeeds S'
   · rw [dite_eq_left hgood']
     obtain ⟨hsc, hsd, sl', hwf'⟩ := wellFormedPadded_normalDeleteMem hwf hz hgood'
@@ -339,9 +335,8 @@ theorem wellFormedPadded_rawDeleteMem (hcr : P.ConcentrationReady)
       rehashBeforeUpdate_spec hcr st hwf₀ S' z hcard₀
         (mem_erase_iff_or_eq z (P.paddedDom d)) hgood'
     obtain ⟨hsc, hsd, sl', hwf'⟩ := wellFormedPadded_normalDeleteMem hwf₁ hz₀ hg₁'
-    refine ⟨hsc.trans hsc₁, Or.inr ⟨ℓ₀, hℓ₀, hng, fun j hj w hnot => ?_⟩, sl', hwf'⟩
-    rw [hsd]
-    exact hout j hj w hnot
+    exact ⟨hsc.trans hsc₁,
+      Or.inr ⟨ℓ₀, hℓ₀, hng, fun j hj w hnot => by rw [hsd, hout j hj w hnot]⟩, sl', hwf'⟩
 
 theorem WellFormedPadded.withSentCount
     {scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth)}
@@ -350,36 +345,34 @@ theorem WellFormedPadded.withSentCount
     ({ st with sentCount := sc } : P.TreeState).WellFormedPadded scheme d storeLvl := by
   let st' : P.TreeState := { st with sentCount := sc }
   have hsd : st'.seeds = st.seeds := st.seeds_withSentCount sc
-  have hdom (ℓ : ℕ) (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ)) :
-      st'.nodeDom ℓ h1 hℓ u = st.nodeDom ℓ h1 hℓ u := by
+  have hdom_q (ℓ : ℕ) (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ)) :
+      st'.nodeDom ℓ h1 hℓ u = st.nodeDom ℓ h1 hℓ u ∧
+        ∀ k, st'.nodeQuery scheme ℓ h1 hℓ u k = st.nodeQuery scheme ℓ h1 hℓ u k := by
     obtain rfl | h2 : ℓ = 1 ∨ 2 ≤ ℓ := by omega
-    · rw [nodeDom_one, nodeDom_one]
-    · obtain hlt | rfl : ℓ < P.depth ∨ ℓ = P.depth := by omega
-      · rw [nodeDom_inner st' h1 h2 hlt hℓ, nodeDom_inner st h1 h2 hlt hℓ]
-      · rw [nodeDom_depth, nodeDom_depth]
-  have hq (ℓ : ℕ) (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ)) (k : _) :
-      st'.nodeQuery scheme ℓ h1 hℓ u k = st.nodeQuery scheme ℓ h1 hℓ u k := by
-    obtain rfl | h2 : ℓ = 1 ∨ 2 ≤ ℓ := by omega
-    · rw [nodeQuery_one, nodeQuery_one]
-    · obtain hlt | rfl : ℓ < P.depth ∨ ℓ = P.depth := by omega
-      · rw [nodeQuery_inner _ st' h1 h2 hlt hℓ, nodeQuery_inner _ st h1 h2 hlt hℓ]
-      · rw [nodeQuery_depth, nodeQuery_depth]
+    · exact ⟨by rw [nodeDom_one, nodeDom_one], fun _ => by rw [nodeQuery_one, nodeQuery_one]⟩
+    · obtain hlt | rfl := hℓ.lt_or_eq
+      · refine ⟨by rw [nodeDom_inner st' h1 h2 hlt hℓ, nodeDom_inner st h1 h2 hlt hℓ], fun _ => ?_⟩
+        rw [nodeQuery_inner _ st' h1 h2 hlt hℓ, nodeQuery_inner _ st h1 h2 hlt hℓ]
+      · exact ⟨by rw [nodeDom_depth, nodeDom_depth],
+          fun _ => by rw [nodeQuery_depth, nodeQuery_depth]⟩
   have hw (ℓ : ℕ) (h2 : 2 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ)) :
       st'.nodeWait ℓ h2 hℓ u = st.nodeWait ℓ h2 hℓ u := by
-    obtain hlt | rfl : ℓ < P.depth ∨ ℓ = P.depth := by omega
+    obtain hlt | rfl := hℓ.lt_or_eq
     · rw [nodeWait_inner st' h2 hlt hℓ, nodeWait_inner st h2 hlt hℓ]
     · rw [nodeWait_depth, nodeWait_depth]
   refine
     { goodSeeds := hsd ▸ hwf.goodSeeds
       storeLvl_bounds := hwf.storeLvl_bounds
       storeLvl_outside := hwf.storeLvl_outside
-      dom_eq := fun ℓ h1 hℓ u => by rw [hdom, hsd, hwf.dom_eq]
+      dom_eq := fun ℓ h1 hℓ u => by rw [(hdom_q ℓ h1 hℓ u).1, hsd, hwf.dom_eq]
       query_eq_of_storeLvl := fun ℓ h1 hℓ u x vx hdx hnx hsl => by
-        rw [hsd] at hnx ⊢; rw [hq]; exact hwf.query_eq_of_storeLvl ℓ h1 hℓ u x vx hdx hnx hsl
+        rw [(hdom_q ℓ h1 hℓ u).2, hsd]
+        exact hwf.query_eq_of_storeLvl ℓ h1 hℓ u x vx hdx (hsd ▸ hnx) hsl
       inner_full := hwf.inner_full
       wait_dom_eq := fun ℓ h2 hℓ u => by rw [hw, hsd, hwf.wait_dom_eq]
       wait_lookup_eq := fun ℓ h2 hℓ u x hx hsl => by
-        rw [hsd] at hx ⊢; rw [hw]; exact hwf.wait_lookup_eq ℓ h2 hℓ u x hx hsl }
+        rw [hw, hsd]
+        exact hwf.wait_lookup_eq ℓ h2 hℓ u x (hsd ▸ hx) hsl }
 
 end TreeState
 
@@ -406,11 +399,8 @@ noncomputable def initTree (P : TreeSchedule) (hcr : P.ConcentrationReady)
 theorem wellFormed_initTree (P : TreeSchedule) (hcr : P.ConcentrationReady)
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth)) :
     (P.initTree hcr scheme).WellFormed scheme (Dictionary.empty P.univ) := by
-  dsimp only [initTree]
-  refine ⟨P.initPaddedDict, _, ?_,
+  exact ⟨P.initPaddedDict, _, P.sentCount_buildTreeFromSeeds .. ▸ P.matchesExternal_initPaddedDict,
     P.wellFormedPadded_buildTreeFromSeeds scheme P.initPaddedDict P.cap _ _⟩
-  rw [P.sentCount_buildTreeFromSeeds]
-  exact P.matchesExternal_initPaddedDict
 
 @[simp]
 theorem query_initTree (P : TreeSchedule) (hcr : P.ConcentrationReady)
@@ -432,8 +422,7 @@ private theorem MatchesExternal.update_real {P : TreeSchedule} {d : P.PaddedDict
     real_eq := fun u' => by
       rcases eq_or_ne u' u with rfl | hu
       · simp
-      · rw [Function.update_of_ne (P.embedReal_injective.ne hu), Function.update_of_ne hu,
-          hm.real_eq u']
+      · simp [hu, P.embedReal_injective.ne hu, hm.real_eq u']
     sentinel_eq := fun y hy => by
       have hne : y ≠ P.embedReal u := fun h => by subst h; exact absurd u.isLt (not_lt.mpr hy)
       rw [Function.update_of_ne hne, hm.sentinel_eq y hy] }
@@ -613,15 +602,13 @@ theorem wellFormed_insert (hcr : P.ConcentrationReady)
   have hreal_iff : (d x).isSome ↔ u ∈ Dictionary.dom dict := by
     simp only [Dictionary.dom, mem_filter, Finset.mem_univ, true_and, ← hm.real_eq u,
       Option.isSome_map, x]
-  dsimp only [insert]
-  rw [hd_eq]
+  simp only [insert, hd_eq]
   by_cases hmem : (d x).isSome
   · rw [ite_eq_left hmem]
     have hx_dom : x ∈ P.paddedDom d := (P.mem_paddedDom_iff d x).mpr hmem
-    refine ⟨Function.update d x (some v), storeLvl, ?_,
+    exact ⟨Function.update d x (some v), storeLvl,
+      st.sentCount_rawOverwrite _ _ _ ▸ hm.overwrite hmem v,
       st.wellFormedPadded_rawOverwrite hwfp hx_dom v⟩
-    rw [st.sentCount_rawOverwrite]
-    exact hm.overwrite hmem v
   · rw [ite_eq_right hmem]
     have hu_not_dom : u ∉ Dictionary.dom dict := mt hreal_iff.mpr hmem
     have hlt_cap : (Dictionary.dom dict).card < P.cap := hcap.resolve_left hu_not_dom
@@ -693,8 +680,7 @@ theorem wellFormed_delete (hcr : P.ConcentrationReady)
   obtain ⟨d, storeLvl, hm, hwfp⟩ := hwf
   have hd_eq : st.rawQuery scheme = d := funext (st.rawQuery_eq hwfp)
   let x := P.embedReal u
-  dsimp only [delete]
-  rw [hd_eq]
+  simp only [delete, hd_eq]
   by_cases hmem : (d x).isSome
   · rw [ite_eq_right (by simp [x, hmem])]
     have hx_dom : x ∈ P.paddedDom d := (P.mem_paddedDom_iff d x).mpr hmem

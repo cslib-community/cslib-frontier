@@ -217,16 +217,12 @@ private theorem eval_cpaGame_repeatToCPAAdversary_true {α : Type} (E : Symmetri
         obtain ⟨rawCt, hrawCt, heq⟩ := hstep
         rw [List.take_of_length_le (hctBound k hk r hrLen rawCt hrawCt)] at heq
         obtain ⟨-, rfl⟩ := Prod.mk.inj heq.symm
-        intro p hp
-        rcases List.mem_cons.mp hp with rfl | hp
-        · exact ⟨hrLen, hrawCt⟩
-        · exact hseen p hp
+        exact List.forall_mem_cons.mpr ⟨⟨hrLen, hrawCt⟩, hseen⟩
       · simp only [hq, Bool.false_eq_true, ↓reduceIte, runWith_norm,
           PMF.mem_support_pure_iff] at hstep
         exact (Prod.mk.inj hstep).2 ▸ hseen)
     (A n []) [] (by simp) out.1 out.2 hout
-  rw [Bool.eq_false_iff]
-  intro hcol
+  refine Bool.eq_false_iff.mpr fun hcol => ?_
   simp only [hasDistinctCollision, List.any_eq_true, Bool.and_eq_true, beq_iff_eq,
     bne_iff_ne] at hcol
   obtain ⟨p, hp, q, hq, hpq1, hpq2⟩ := hcol
@@ -270,14 +266,11 @@ private theorem half_le_uniformList_bne {n : ℕ} (hn : 1 ≤ n) (target : List 
     simpa only [bne] using PMF.map_not_true (BitString.uniformList n) (· == target)
   have heq : ((BitString.uniformList n).map (· == target)) true =
       BitString.uniformList n target := by
-    rw [PMF.map_apply, tsum_eq_single target]
-    · simp
-    · intro r hr
-      simp [beq_eq_false_iff_ne.mpr hr]
+    rw [PMF.map_apply, tsum_eq_single target fun r hr => by simp [beq_eq_false_iff_ne.mpr hr]]
+    simp
   have hle : BitString.uniformList n target ≤ (1 : ℝ≥0∞) / 2 := by
     refine (BitString.uniformList_apply_le n target).trans (ENNReal.div_le_div_left ?_ 1)
-    have h12 : (1 : ℝ≥0∞) ≤ 2 := by norm_num
-    simpa only [pow_one] using pow_le_pow_right' h12 hn
+    simpa only [pow_one] using pow_le_pow_right' one_le_two hn
   rw [hnot, heq]
   calc (1 : ℝ≥0∞) / 2 = 1 - 1 / 2 := by norm_num
     _ ≤ 1 - BitString.uniformList n target := tsub_le_tsub_left hle 1
@@ -295,12 +288,11 @@ private theorem half_le_map_hasDistinctCollision_pairWithUniform {n : ℕ} (hn :
     rcases hnd with hmem | hndRest
     · simp only [pairWithUniform, pmf_norm]
       refine PMF.le_bind_apply_on_support _ fun seen hseen => ?_
-      have hfst := map_fst_of_mem_support_pairWithUniform hseen
-      obtain ⟨p₀, hp₀, hp₀Eq⟩ := List.mem_map.mp (hfst ▸ hmem)
-      refine (half_le_uniformList_bne hn p₀.2).trans ?_
-      change ((BitString.uniformList n).map (· != p₀.2)) true ≤
-        ((BitString.uniformList n).map fun r => hasDistinctCollision ((c, r) :: seen)) true
-      refine PMF.map_true_mono (BitString.uniformList n) fun r _ hr => ?_
+      obtain ⟨p₀, hp₀, hp₀Eq⟩ :=
+        List.mem_map.mp (map_fst_of_mem_support_pairWithUniform hseen ▸ hmem)
+      refine (half_le_uniformList_bne hn p₀.2).trans <|
+        PMF.map_true_mono (F := fun r => hasDistinctCollision ((c, r) :: seen))
+          (BitString.uniformList n) fun r _ hr => ?_
       simp only [hasDistinctCollision, List.any_eq_true, Bool.and_eq_true, beq_iff_eq, bne_iff_ne]
       exact ⟨(c, r), List.mem_cons_self, p₀, List.mem_cons_of_mem _ hp₀, hp₀Eq.symm,
         bne_iff_ne.mp hr⟩
@@ -370,9 +362,8 @@ private theorem eval_cpaGame_repeatToCPAAdversary_false_eq {α : Type} (E : Symm
               rw [List.take_of_length_le (hctBound k hk q.2 hqLen ct hct)]
       · simp [hq, Bool.false_eq_true, runWith_norm, pmf_norm, PMF.map, Function.comp_def])
     (A n []) []
-  have hsim' := congrArg (fun d => d.map fun p => hasDistinctCollision p.2) hsim
-  simp only [pairWithUniform, pmf_norm] at hsim'
-  exact hsim'.symm
+  simpa only [pairWithUniform, PMF.map, pmf_norm] using
+    (congrArg (fun d => d.map fun p => hasDistinctCollision p.2) hsim).symm
 
 /-- **Quantitative repeated-ciphertext reduction** ([BonehShoup2023], Exercise 5.12, printed
 p. 211): for every `1 ≤ n` (`|M| = 2^n ≥ 2`) where `ctBound n` bounds ciphertext lengths on `n`-bit
@@ -390,8 +381,7 @@ theorem succProbability_repeatCiphertextGame_le_two_mul_advantage {α : Type}
       2 * (ProbComp.eval (E.cpaGame (repeatToCPAAdversary ctBound A) false n)) true := by
     rw [eval_cpaGame_repeatToCPAAdversary_false_eq E ctBound A n hctBound, repeatCiphertextGame]
     simp only [pmf_norm, PMF.bind_apply, ← ENNReal.tsum_mul_left]
-    refine tsum_le_tsum fun k => ?_
-    refine tsum_le_tsum fun out => ?_
+    refine tsum_le_tsum fun k => tsum_le_tsum fun out => ?_
     suffices hpt : (PMF.pure (!decide out.2.Nodup)) true ≤
         2 * ((pairWithUniform n out.2).map hasDistinctCollision) true by
       calc (ProbComp.eval (E.keyGen n)) k *

@@ -229,8 +229,7 @@ theorem sum_sq_state_update_sub_le {B} [Fintype B] (p : MeasuredPrefix ι D V W 
     apply extend_bound (p.state step ψ) move H v p.updateCost_nonneg (by norm_num : (0 : ℝ) ≤ 2)
       ih
     · intro G x y
-      refine sum_congr rfl fun b _ => ?_
-      cases hv : enabled b <;> simp [move, hv, ← map_sub]
+      exact sum_congr rfl fun b _ => by cases hv : enabled b <;> simp [move, hv, ← map_sub]
     · rw [sum_comm]
       calc
         _ ≤ ∑ b, 4 * ‖p.state step ψ H b‖ ^ 2 := by
@@ -253,8 +252,7 @@ theorem sum_sq_state_update_sub_le {B} [Fintype B] (p : MeasuredPrefix ι D V W 
       if evalPure G (run br.1) = br.2 then x br.1 else 0
     apply extend_bound (p.state step ψ) move H v p.updateCost_nonneg
       (Real.sqrt_nonneg (2 * (K : ℝ))) ih
-    · intro G x y
-      simp only [move, Fintype.sum_prod_type, sum_sq_record]
+    · exact fun G x y => by simp only [move, Fintype.sum_prod_type, sum_sq_record]
     · simp only [move, Fintype.sum_prod_type]
       rw [sum_comm]
       calc
@@ -296,12 +294,11 @@ private theorem mean_change_unit {R O : Type} [Fintype O] (run : OracleComp (fun
     · have same : evalPure (G i) run = r :=
         (interpret_id_congr H (G i) run fun _ hj =>
           Function.update_of_ne (fun he => hi (by simpa [he, reads] using hj)) ..).1
-      have near := abs_measureProb_sub_le_norm_sub (ψ := U (G i)) (φ := U H)
+      have near := abs_measureProb_sub_le_norm_sub
         (((next r).outcomeIsometry step (G i)).norm_map u |>.trans hu)
         (((next r).outcomeIsometry step H).norm_map u |>.trans hu) (accept r)
-      simp only [hi, ↓reduceIte, zero_add]
-      exact pow_le_pow_left₀ (abs_nonneg _)
-        (by simpa only [gap, score, serviceAcceptance, same, r, U] using near) 2
+      simpa only [hi, ↓reduceIte, zero_add, gap, score, serviceAcceptance, same, r, U] using
+        pow_le_pow_left₀ (abs_nonneg _) near 2
   have all : ∑ i, ‖U (G i) - U H‖ ^ 2 ≤ (next r).updateCost ^ 2 := by
     simpa only [U, outcomeIsometry, EuclideanSpace.norm_sq_eq, PiLp.sub_apply,
       Fintype.sum_prod_type, LinearIsometry.coe_mk, LinearMap.coe_mk, AddHom.coe_mk] using
@@ -312,9 +309,8 @@ private theorem mean_change_unit {R O : Type} [Fintype O] (run : OracleComp (fun
       (Nat.cast_le.mpr ((List.toFinset_card_le _).trans (bound.length_queriesWith_le H))) all
   have jensen := Probability.PMF.sq_tsum_le_tsum_sq μ (g := gap) (fun _ => abs_nonneg _) one
   rw [tsum_fintype, tsum_fintype] at jensen
-  apply Real.le_sqrt_of_sq_le
-  refine jensen.trans ((sum_le_sum fun i _ =>
-    mul_le_mul_of_nonneg_right (hp i) (sq_nonneg _)).trans ?_)
+  refine Real.le_sqrt_of_sq_le (jensen.trans ((sum_le_sum fun i _ =>
+    mul_le_mul_of_nonneg_right (hp i) (sq_nonneg _)).trans ?_))
   rw [← mul_sum]
   exact mul_le_mul_of_nonneg_left squares
     (ENNReal.toReal_nonneg.trans (hp μ.support_nonempty.choose))
@@ -339,8 +335,7 @@ theorem mean_abs_serviceAcceptance_update_sub_le {R O : Type} [Fintype O]
     simp only [serviceAcceptance, map_smul, measureProb_smul, Complex.norm_real,
       Real.norm_of_nonneg (norm_nonneg u)]
   simp_rw [scale, ← mul_sub, abs_mul, abs_of_nonneg (sq_nonneg ‖u‖),
-    ← mul_assoc, mul_comm _ (‖u‖ ^ 2), mul_assoc]
-  rw [← mul_sum]
+    ← mul_assoc, mul_comm _ (‖u‖ ^ 2), mul_assoc, ← mul_sum]
   exact mul_le_mul_of_nonneg_left (mean_change_unit step run next accept H v φ normφ bound μ hp)
     (sq_nonneg _)
 

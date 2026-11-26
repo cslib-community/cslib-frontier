@@ -137,10 +137,8 @@ private theorem inChild_correct (right : Bool) (body : Code M (layout extra (reg
   have fieldEq : fld = childField right := by
     have siblingNe : root sibling ≠ some o := fun e =>
       Finset.disjoint_left.mp dis (root_mem_addresses hroot) (root_mem_addresses e)
-    rcases fields with rfl | rfl <;> cases right
-    all_goals first
-      | rfl
-      | exact (siblingNe (by simpa [record, saved] using oldLink)).elim
+    rcases fields with rfl | rfl <;> cases right <;>
+      first | rfl | exact (siblingNe (by simpa [record, saved] using oldLink)).elim
   have semantic := replaceChild right s.heap t.heap label old (.node nl c d) sibling parent rep
     distinct built.rep built.distinct (by simpa only [built.footprint] using no)
     (by simpa only [built.footprint] using dis) built.frame
@@ -203,8 +201,8 @@ private theorem double_correct (right : Bool) (zero maxSucc : M.Op) (encode : �
     (matches_nodeAt_mkNodeAt built₁.matched).2 mp ms (heightConsistent_mkNodeAt _ hQ ho) hP hs
     curv
   have inside : addresses (nodeAt right pv' (nodeAt (!right) child' q outer) p) =
-      addresses (nodeAt right child outer (nodeAt (!right) pv p q)) := by
-    rw [← view', built₁.footprint]
+      addresses (nodeAt right child outer (nodeAt (!right) pv p q)) :=
+    view'.symm ▸ built₁.footprint
   refine ⟨t, _, (ExecWithin.seq run₂ run₃).mono (by omega), ⟨built₃.rep, ?_, built₃.distinct, ?_,
     built₃.cursor, built₃.saved.trans (curv.trans cursor.symm), built₃.top.trans topv,
     fun z hz => ?_⟩⟩
@@ -212,9 +210,8 @@ private theorem double_correct (right : Bool) (zero maxSucc : M.Op) (encode : �
       rotateAt_nodeSide, ← pk]
     exact built₃.matched
   · rw [built₃.footprint, nodeAt_addresses right label, nodeAt_addresses right label, inside]
-  · rw [built₃.frame z (by
-      rw [nodeAt_addresses right label, inside, ← nodeAt_addresses right label]
-      exact hz), framev z hz]
+  · rw [built₃.frame z (by simpa only [nodeAt_addresses right label, inside] using hz),
+      framev z hz]
 
 /-- The heavy case: a single or a double rotation of the child that is too tall, chosen by
 comparing the cached heights of its children. -/
@@ -255,8 +252,9 @@ private theorem heavy_correct (right : Bool) (zero maxSucc : M.Op) (le : M.Test)
   have qtop : q.ptr 1 = s.ptr 1 := (qptr 1 (by simp [layout])).trans (by simp)
   have qrep : Represents q.heap parent
       (nodeAt right label (nodeAt right ch outer inner) sibling) := qheap ▸ rep
-  have test : M.evalTest le (q.data (if right then 1 else 2)) (q.data (if right then 2 else 1)) =
-      decide (N.cachedHeight ≤ O.cachedHeight) := by
+  have holds : Test.Holds q (Test.data le (if right then 1 else 2) (if right then 2 else 1)) ↔
+      N.cachedHeight ≤ O.cachedHeight := by
+    change M.evalTest le _ _ = true ↔ _
     cases right <;> simp [d1, d2, mo.heightValue, mn.heightValue, le_spec]
   by_cases hle : N.cachedHeight ≤ O.cachedHeight
   · obtain ⟨t, x', y', run, -, -, built⟩ := rotate_correct right zero maxSucc encode zero_spec
@@ -264,19 +262,14 @@ private theorem heavy_correct (right : Bool) (zero maxSucc : M.Op) (le : M.Test)
       ho hn hs qcur
     refine ⟨t, nodeAt right x' outer (nodeAt right y' inner sibling),
       (ExecWithin.seq (ExecWithin.op_eq nav) (ExecWithin.seq read
-      (ExecWithin.branch_pos
-        (show Test.Holds q (Test.data le (if right then 1 else 2) (if right then 2 else 1)) from
-          test.trans (decide_eq_true hle)) run))).mono (by omega), ?_⟩
+      (ExecWithin.branch_pos (holds.mpr hle) run))).mono (by omega), ?_⟩
     simp only [hle, ↓reduceIte, rotateAt_nodeSide]
     exact built.of_start qheap (qcur.trans cursor.symm) qtop
   · obtain ⟨t, tree, run, built⟩ := double_correct right zero maxSucc encode zero_spec max_spec
       field notKey q label ch outer inner sibling O N S parent qrep distinct mo mn ms ho hn hs
       (by rintro rfl; simp at hle) qcur
     refine ⟨t, tree, (ExecWithin.seq (ExecWithin.op_eq nav) (ExecWithin.seq read
-      (ExecWithin.branch_neg
-        (fun holds :
-            Test.Holds q (Test.data le (if right then 1 else 2) (if right then 2 else 1)) =>
-          hle (of_decide_eq_true (test.symm.trans holds))) run))).mono (by omega), ?_⟩
+      (ExecWithin.branch_neg (mt holds.mp hle) run))).mono (by omega), ?_⟩
     simp only [hle, ↓reduceIte]
     exact built.of_start qheap (qcur.trans cursor.symm) qtop
 

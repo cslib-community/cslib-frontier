@@ -116,13 +116,11 @@ private theorem forall_eval_uniformGuess_le_iff {Guess : Type} [Fintype K] [None
       (PMF.uniformOfFintype K).bind fun k =>
         PMF.pure (decide (legal guess ∧ wins guess k))) true ≤ ε) ↔
       ∀ guess, legal guess → (PMF.uniformOfFintype K).toOuterMeasure {k | wins guess k} ≤ ε := by
-  constructor
-  · intro h guess hlegal
-    simpa only [ProbComp.eval_pure, PMF.pure_bind, hlegal, true_and,
+  refine ⟨fun h guess hlegal => ?_, fun h A =>
+      Probability.PMF.bind_apply_le_on_support _ fun guess _ => ?_⟩
+  · simpa only [ProbComp.eval_pure, PMF.pure_bind, hlegal, true_and,
       Probability.PMF.bind_pure_decide_apply_true] using h (pure guess)
-  · intro h A
-    refine Probability.PMF.bind_apply_le_on_support _ fun guess _ => ?_
-    rw [Probability.PMF.bind_pure_decide_apply_true]
+  · rw [Probability.PMF.bind_pure_decide_apply_true]
     by_cases hlegal : legal guess
     · simpa only [hlegal, true_and] using h guess hlegal
     · simp [hlegal]
@@ -265,24 +263,20 @@ private theorem pairSlot_spec {s i j : ℕ} (hi : i < s) (hj : j < s) (hne : i �
       (if pairSlot s i j % (s - 1) < i then pairSlot s i j % (s - 1)
         else pairSlot s i j % (s - 1) + 1) = j := by
   let offset := if j < i then j else j - 1
-  have hoff : offset < s - 1 := by
-    dsimp only [offset]
-    split <;> omega
+  have hoff : offset < s - 1 := by grind
   have hwidth : 0 < s - 1 := Nat.zero_lt_of_lt hoff
   have hquot : pairSlot s i j / (s - 1) = i := by
-    change (i * (s - 1) + offset) / (s - 1) = i
-    rw [Nat.mul_comm i (s - 1), Nat.mul_add_div hwidth, Nat.div_eq_of_lt hoff, Nat.add_zero]
+    rw [pairSlot, Nat.mul_comm i, Nat.mul_add_div hwidth, Nat.div_eq_of_lt hoff, Nat.add_zero]
   have hrem : pairSlot s i j % (s - 1) = offset := by
-    change (i * (s - 1) + offset) % (s - 1) = offset
-    rw [Nat.mul_comm i (s - 1), Nat.mul_add_mod, Nat.mod_eq_of_lt hoff]
-  change i * (s - 1) + offset < s * (s - 1) ∧ _ ∧ _
+    rw [pairSlot, Nat.mul_comm i, Nat.mul_add_mod, Nat.mod_eq_of_lt hoff]
   refine ⟨?_, hquot, ?_⟩
   · calc
-      _ < (i + 1) * (s - 1) := by rw [Nat.add_mul, Nat.one_mul]; omega
+      _ < (i + 1) * (s - 1) := by
+        rw [pairSlot, Nat.add_mul, Nat.one_mul]
+        omega
       _ ≤ _ := Nat.mul_le_mul_right _ (by omega)
   · rw [hrem]
-    dsimp only [offset]
-    split_ifs <;> omega
+    grind
 
 private theorem inv_sq_le_sampleUniformInterval_pair {s slot : ℕ} (hs : 2 ≤ s)
     (hslot : slot < s * (s - 1)) :
@@ -313,11 +307,9 @@ private theorem two_inv_sq_le_sampleCollisionPair [DecidableEq M] [DecidableEq Y
     2 * ((ms.length : ℝ≥0∞) ^ 2)⁻¹ ≤ ((ProbComp.eval (sampleCollisionPair fallback ms)).bind
       fun g => PMF.pure (decide (g.first ≠ g.second ∧ H k g.first = H k g.second))) true := by
   obtain ⟨m, hm, m', hm', hne, hd⟩ := h
-  obtain ⟨i, hi, hi'⟩ := List.mem_iff_getElem.mp hm
-  obtain ⟨j, hj, hj'⟩ := List.mem_iff_getElem.mp hm'
-  have hij : i ≠ j := by
-    rintro rfl
-    exact hne (hi'.symm.trans hj')
+  obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hm
+  obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hm'
+  have hij : i ≠ j := fun h => hne (by simp [h])
   have hlen : 2 ≤ ms.length := by omega
   obtain ⟨ha, ha₁, ha₂⟩ := pairSlot_spec hi hj hij
   obtain ⟨hb, hb₁, hb₂⟩ := pairSlot_spec hj hi hij.symm
@@ -332,10 +324,6 @@ private theorem two_inv_sq_le_sampleCollisionPair [DecidableEq M] [DecidableEq Y
       decodeCollisionPair fallback ms slot = ⟨ms[first], ms[second]⟩ := by
     simp only [decodeCollisionPair, hquot, hrem,
       List.getD_eq_getElem _ _ hfirst, List.getD_eq_getElem _ _ hsecond]
-  have hga : decodeCollisionPair fallback ms a = ⟨m, m'⟩ := by
-    simpa only [hi', hj'] using hdecode (slot := a) hi hj ha₁ ha₂
-  have hgb : decodeCollisionPair fallback ms b = ⟨m', m⟩ := by
-    simpa only [hi', hj'] using hdecode (slot := b) hj hi hb₁ hb₂
   simp only [sampleCollisionPair, ProbComp.eval_map, PMF.bind_map, Function.comp_def,
     Probability.PMF.bind_pure_decide_apply_true]
   let p := ProbComp.eval (ProbComp.sampleUniformInterval (ms.length * (ms.length - 1)) ms.length)
@@ -347,10 +335,9 @@ private theorem two_inv_sq_le_sampleCollisionPair [DecidableEq M] [DecidableEq Y
     exact add_le_add (inv_sq_le_sampleUniformInterval_pair hlen ha)
       (inv_sq_le_sampleUniformInterval_pair hlen hb)
   refine hsum.trans (p.toOuterMeasure.mono fun slot hslot => ?_)
-  simp only [pair, Finset.mem_coe, Finset.mem_insert, Finset.mem_singleton] at hslot
-  rcases hslot with rfl | rfl
-  · simp [hga, hne, hd]
-  · simp [hgb, hne.symm, hd.symm]
+  rcases Finset.mem_insert.mp hslot with rfl | hslot
+  · simp [hdecode (slot := a) hi hj ha₁ ha₂, hne, hd]
+  · simp [Finset.mem_singleton.mp hslot, hdecode (slot := b) hj hi hb₁ hb₂, hne.symm, hd.symm]
 
 private theorem collision_indicator_le_samplePair [DecidableEq M] [DecidableEq Y]
     (H : K → M → Y) (k : K) (fallback : M) (ms : List M) {Q : ℕ} (hlen : ms.length ≤ Q) :
@@ -409,10 +396,9 @@ theorem eval_multiQueryExperiment_le [Fintype K] [Nonempty K] [DecidableEq M] [D
   simp only [multiQueryExperiment, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
   refine Probability.PMF.bind_apply_le_on_support _ fun ms hms => ?_
   rw [Probability.PMF.bind_pure_decide_apply_true]
-  refine ((PMF.uniformOfFintype K).toOuterMeasure.mono fun k hk => ?_).trans
+  refine ((PMF.uniformOfFintype K).toOuterMeasure.mono ?_).trans
     ((hH.toOuterMeasure_not_injOn_le ms.toFinset).trans ?_)
-  · rcases hk with ⟨m, hm, m', hm', hne, heq⟩
-    intro hinj
+  · rintro k ⟨m, hm, m', hm', hne, heq⟩ hinj
     exact hne (hinj (List.mem_toFinset.mpr hm) (List.mem_toFinset.mpr hm') heq)
   · gcongr
     exact ms.toFinset_card_le.trans (hB ms hms)

@@ -162,11 +162,11 @@ private theorem card_introduced_le (P : Path (threshold k α) V) (hk0 : ∀ C �
   have hθ := one_le_threshold hk hα
   calc P.introduced.card = ∑ c ∈ Ico 1 k, (P.introducedOfCard c).card :=
         P.card_introduced_eq_sum hθ hk0
-    _ ≤ ∑ _c ∈ Ico 1 k, U.card * base k α ^ (2 * k) := by
-        refine sum_le_sum fun c hc => ?_
-        obtain ⟨hc1, hck⟩ := mem_Ico.mp hc
-        refine (card_introducedOfCard_le_pow hk hα P hleaf U hU c hc1 hck.le).trans ?_
-        exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (one_le_base hk hα) (by omega))
+    _ ≤ ∑ _c ∈ Ico 1 k, U.card * base k α ^ (2 * k) :=
+        sum_le_sum fun c hc => by
+          obtain ⟨hc1, hck⟩ := mem_Ico.mp hc
+          exact (card_introducedOfCard_le_pow hk hα P hleaf U hU c hc1 hck.le).trans
+            (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (one_le_base hk hα) (by omega)))
     _ ≤ U.card * (k * base k α ^ (2 * k)) := by
         rw [sum_const, Nat.card_Ico, smul_eq_mul, mul_left_comm]
         exact Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ (Nat.sub_le k 1))
@@ -186,15 +186,12 @@ theorem card_node_le (P : Path (threshold k α) V) (hk0 : ∀ C ∈ P.node 0, C.
     (hleaf : Sparse (threshold k α) (P.node P.len)) (U : Finset V)
     (hU : ∀ C ∈ P.node 0, ∀ l ∈ C, l.1 ∈ U) {i : ℕ} (hi : i ≤ P.len) :
     (P.node i).card ≤ (P.node 0).card + U.card * (k * base k α ^ (2 * k)) := by
-  have hθ := one_le_threshold hk hα
-  have hsub : ∀ i ≤ P.len, P.node i ⊆ P.node 0 ∪ P.introduced := by
-    intro i hi
+  have hsub (i) (hi : i ≤ P.len) : P.node i ⊆ P.node 0 ∪ P.introduced := by
     induction i with
     | zero => exact subset_union_left
     | succ i ih =>
-      refine (P.node_succ_subset (by omega)).trans (union_subset (ih (by omega)) ?_)
-      exact (subset_biUnion_of_mem P.introAt (mem_range.mpr (by omega))).trans
-        subset_union_right
+      exact (P.node_succ_subset (by omega)).trans (union_subset (ih (by omega))
+        ((subset_biUnion_of_mem P.introAt (mem_range.mpr (by omega))).trans subset_union_right))
   calc (P.node i).card ≤ (P.node 0 ∪ P.introduced).card := card_le_card (hsub i hi)
     _ ≤ (P.node 0).card + P.introduced.card := card_union_le _ _
     _ ≤ (P.node 0).card + U.card * (k * base k α ^ (2 * k)) :=
@@ -310,15 +307,14 @@ theorem exists_leaves [Fintype V] (hk : 1 ≤ k) (hα : 1 ≤ α) (φ : ClauseSe
       _ = ∑ j ∈ range (ρ + 1), Λ.choose j := by
           rw [card_filter_powerset_card_le_eq_sum_choose, card_range]
   · intro ψ hψ
-    obtain ⟨hψimg, hsparse⟩ := mem_filter.mp hψ
-    obtain ⟨s, -, rfl⟩ := mem_image.mp hψimg
+    obtain ⟨s, -, rfl⟩ := mem_image.mp (mem_filter.mp hψ).1
+    have hsparse := (mem_filter.mp hψ).2
     obtain ⟨w, hw, heq : leaf s = R.tree.walk ψ₀ w⟩ :=
       R.tree.exists_isNodeWord_walkSeq Λ ψ₀ fun i => decide (i ∈ s)
     rw [heq] at hsparse ⊢
-    refine ⟨hsparse, fun C hC => ?_, fun x hx => ?_⟩
-    · obtain ⟨D, hD, hCD⟩ := BranchingRule.refines_walk (R := R) hθ hw C hC
-      exact ⟨D, reduce_subset φ hD, hCD⟩
-    · exact sat_reduce_iff.mp (BranchingRule.sat_of_sat_walk (R := R) hw hx)
+    exact ⟨hsparse, fun C hC => (BranchingRule.refines_walk (R := R) hθ hw C hC).imp
+        fun _ h => ⟨reduce_subset φ h.1, h.2⟩,
+      fun _ hx => sat_reduce_iff.mp (BranchingRule.sat_of_sat_walk (R := R) hw hx)⟩
   · intro x hx
     obtain ⟨w, hw, hwx⟩ :=
       BranchingRule.exists_isLeafWord_sat (R := R) hθ ψ₀ (sat_reduce_iff.mpr hx)

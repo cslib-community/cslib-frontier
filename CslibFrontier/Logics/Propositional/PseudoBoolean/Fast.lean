@@ -259,20 +259,17 @@ private theorem normalizeDistinct_eq {c : PBConstr} (h : (c.terms.map termVar).N
 order of its terms: normalization only reverses them. -/
 theorem normalize_of_nodup {c : PBConstr} (h : (c.terms.map termVar).Nodup)
     (hpos : ∀ t ∈ c.terms, 0 < t.1) : c.normalize = ⟨c.terms.reverse, c.degree⟩ := by
-  have hterm : ∀ t ∈ c.terms, entryTerm (termVar t, termCoeff t) = some t := by
+  have hfm : (c.terms.map fun t => (termVar t, termCoeff t)).filterMap entryTerm = c.terms := by
+    rw [List.filterMap_map]
+    refine (List.filterMap_congr (g := some) ?_).trans (by simp)
     rintro ⟨a, v, b⟩ ht
     have ha := hpos _ ht
     cases b <;> simp [entryTerm, termCoeff, ha]
-  have hfm : (c.terms.map fun t => (termVar t, termCoeff t)).filterMap entryTerm = c.terms := by
-    rw [List.filterMap_map]
-    exact (List.filterMap_congr (g := some) fun t ht => hterm t ht).trans (by simp)
   have hmass :
       negMass (c.terms.map fun t => (termVar t, termCoeff t)).reverse = negSum c.terms := by
     simp only [negMass, negSum, List.map_reverse, List.sum_reverse, List.map_map]
-    congr 1
-    refine List.map_congr_left fun t ht => ?_
-    obtain ⟨a, v, b⟩ := t
-    cases b <;> simp [termCoeff]
+    exact congrArg List.sum
+      (List.map_congr_left fun ⟨a, v, b⟩ _ => by cases b <;> simp [termCoeff])
   rw [← normalizeDistinct_eq h]
   simp only [normalizeDistinct, fromLinear, List.filterMap_reverse, hfm, hmass]
   congr 1
@@ -754,6 +751,7 @@ private theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f
   have hc' : f.toState.core = f.core.toList := rfl
   have ht : f.toState.tcb = f.s.tcb := rfl
   have ho : f.toState.order = f.s.order := rfl
+  have mkWF {d c s} (hd : d.WF) (hc : c.WF) : (⟨d, c, s⟩ : FState).WF := ⟨hd, hc⟩
   have fallback (t) : Option.map FState.toState (Option.map FState.ofState
       (stepTop F obj f.toState t)) = stepTop F obj f.toState t := by
     simp [Option.map_map, Function.comp_def]
@@ -778,12 +776,9 @@ private theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f
       rw [stepTop_step_of_ne_del _ _ _ (by simp)]
       simp only [stepTopFast, runStep, rupFast_eq hdb]
       rw [hs']
-      by_cases hr : rup f.db.toList c hs
-      · simp only [hr, ↓reduceIte, Option.map_some, Option.mem_def, Option.some.injEq,
-          forall_eq', normalizeFast_eq]
-        exact ⟨by simp [FState.toState, (DB.push_spec hf.db f.s.next _).2],
-          ⟨(DB.push_spec hf.db _ _).1, hf.core⟩⟩
-      · simp [hr]
+      by_cases hr : rup f.db.toList c hs <;>
+        simp [hr, FState.toState, (DB.push_spec hf.db f.s.next _).2,
+          mkWF (DB.push_spec hf.db _ _).1 hf.core]
     | del ids =>
       rw [stepTop_step_del]
       simp only [stepTopFast, runStep, nodupFast_eq, hdb, hcore, hs', hc', ht, ho,
@@ -791,10 +786,7 @@ private theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f
       obtain ⟨hw₁, hl₁⟩ := DB.eraseAll_compact_spec hf.db ids
       obtain ⟨hw₂, hl₂⟩ := DB.eraseAll_compact_spec hf.core ids
       split
-      · split
-        · simp
-        · simp only [Option.map_some, Option.mem_def, Option.some.injEq, forall_eq']
-          exact ⟨by simp [FState.toState, hl₁, hl₂], ⟨hw₁, hw₂⟩⟩
+      · split <;> simp [FState.toState, hl₁, hl₂, mkWF hw₁ hw₂]
       · simp
     | _ => exact ⟨fallback _, fallbackWF _⟩
   | deld ids =>
@@ -802,20 +794,14 @@ private theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f
     simp only [stepTopFast, nodupFast_eq, hdb, hcore, hs', hc',
       any_contains_eq_any_isSome_lookup]
     obtain ⟨hw₁, hl₁⟩ := DB.eraseAll_compact_spec hf.db ids
-    split
-    · simp only [Option.map_some, Option.mem_def, Option.some.injEq, forall_eq']
-      exact ⟨by simp [FState.toState, hl₁], ⟨hw₁, hf.core⟩⟩
-    · simp
+    split <;> simp [FState.toState, hl₁, mkWF hw₁ hf.core]
   | delc ids =>
     rw [stepTop_delc]
     simp only [stepTopFast, nodupFast_eq, hcore, hs', hc', ht, ho,
       any_fst_beq_eq_isSome_lookup]
     obtain ⟨hw₁, hl₁⟩ := DB.eraseAll_compact_spec hf.db ids
     obtain ⟨hw₂, hl₂⟩ := DB.eraseAll_compact_spec hf.core ids
-    split
-    · simp only [Option.map_some, Option.mem_def, Option.some.injEq, forall_eq']
-      exact ⟨by simp [FState.toState, hl₁, hl₂], ⟨hw₁, hw₂⟩⟩
-    · simp
+    split <;> simp [FState.toState, hl₁, hl₂, mkWF hw₁ hw₂]
   | _ => exact ⟨fallback _, fallbackWF _⟩
 
 /-- Run the top-level steps on the compiled state. -/
@@ -868,19 +854,17 @@ private theorem runTopFast_init (F : List PBConstr) (obj : Option Objective) (P 
 /-- **The compiled checker agrees with the reference checker** on every input. -/
 theorem checkRedFast_eq_checkRed (F : List PBConstr) (obj : Option Objective) (P : RedProof)
     (pres : Option (List ℕ)) : checkRedFast F obj P pres = checkRed F obj P pres := by
-  have h := runTopFast_init F obj P pres
   unfold checkRedFast checkRed
-  cases hf : runTopFast F obj (.ofState (State.init F obj pres)) P.steps <;>
-    rw [hf] at h <;> simp only [Option.map_none, Option.map_some] at h <;> rw [← h]
+  rw [← runTopFast_init F obj P pres]
+  cases runTopFast F obj (.ofState (State.init F obj pres)) P.steps <;> rfl
 
 /-- The compiled checker of output sections agrees with the reference one on every input. -/
 theorem checkRedOutputFast_eq_checkRedOutput (F : List PBConstr) (obj : Option Objective)
     (P : RedProof) (pres : Option (List ℕ)) (sec : OutputSection) :
     checkRedOutputFast F obj P pres sec = checkRedOutput F obj P pres sec := by
-  have h := runTopFast_init F obj P pres
   unfold checkRedOutputFast checkRedOutput
-  cases hf : runTopFast F obj (.ofState (State.init F obj pres)) P.steps <;>
-    rw [hf] at h <;> simp only [Option.map_none, Option.map_some] at h <;> rw [← h]
+  rw [← runTopFast_init F obj P pres]
+  cases runTopFast F obj (.ofState (State.init F obj pres)) P.steps <;> rfl
 
 /-- **The compiled code of `checkRed` is `checkRedFast`.** The kernel and `decide` keep reducing
 the reference definition; compiled callers run the compiled checker, justified by

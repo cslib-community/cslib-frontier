@@ -282,24 +282,11 @@ private theorem prgLeafVerify_runWith_of_delta {d sdLen comLen rowLen : ℕ}
     simp only [hopen, forall_const, ite_true]
     congr 1
     funext vIdx
-    by_cases hv : vIdx = 0
-    · subst hv
-      simp [FAEST.verifierRows]
-    · simp [FAEST.verifierRows, hv, prf, prgLeafProofOfDelta, hne_chal hv]
+    by_cases hv : vIdx = 0 <;>
+      simp [FAEST.verifierRows, hv, prf, prgLeafProofOfDelta, hne_chal]
   rw [hrows]
-  dsimp only
-  simp only [ProbOracleComp.runWith_pure]
-  have hcols : (FAEST.convertExpandedRows d
-      (FAEST.verifierRows (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)
-        (chalToIdx delta))).columns =
-      fun j => (FAEST.convertExpandedRows d
-          (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).columns j +
-        fun k => (BitString.equivFin d).symm (chalToIdx delta) j *
-          (FAEST.convertExpandedRows d
-            (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).u k := by
-    funext j
-    exact FAEST.convertExpandedRows_correlation _ (chalToIdx delta) j
-  rw [hcols]
+  simp only [ProbOracleComp.runWith_pure,
+    funext (FAEST.convertExpandedRows_correlation _ (chalToIdx delta))]
   exact congrArg PMF.pure (Prod.ext (hRel _ _ delta) rfl)
 
 /-- Every supported run of `prgLeafGame` against `voleithMemoize` records an empty `H_leaf`
@@ -415,7 +402,7 @@ theorem prgLeafGame_eq_pure_true {d sdLen comLen rowLen : ℕ}
     congr 1
     funext ⟨prf, st⟩
     simp [PMF.map, PMF.pure_bind, Function.comp_def]
-  rw [hgame, h, show (fun _ : Chal => true) = Function.const Chal true from rfl, PMF.map_const]
+  simpa only [hgame, Function.const_def, PMF.map_const] using h
 
 private theorem convertExpandedRows_zero_u {rowLen : ℕ} :
     ∀ d : ℕ, (FAEST.convertExpandedRows d (fun _ : Fin (2 ^ d) => (0 : BitString rowLen))).u = 0
@@ -469,28 +456,18 @@ private theorem toOuterMeasure_prgLeaf_queryLog_fails_of_nil_not_rel {d sdLen co
       ([], [])).map fun (b, st) =>
         decide (b = true ∧ (extLog st.1).elim false (Rel stmt) = false)).toOuterMeasure
         {true} = 1 := by
-  have hpure : ((ProbOracleComp.runWith
-      (voleithMemoize (d := d) (sdLen := sdLen) (comLen := comLen) (rowLen := rowLen)
-        (Stmt := Stmt) (Seed := Seed) (IV := IV) (PreMsg := PreMsg) (Chal := Chal))
-      (prgLeafGame expand prgLeaf encWit chalToIdx mkPreMsg checkRel defaultSeed iv keys stmt w)
-      ([], [])).map fun (b, st) =>
-        decide (b = true ∧ (extLog st.1).elim false (Rel stmt) = false)) = PMF.pure true := by
-    refine PMF.map_eq_pure_iff.mpr ?_
-    rintro ⟨b, st⟩ hsupp
-    have htr : st.1 = [] := prgLeafGame_leafTrace_eq_nil expand prgLeaf encWit chalToIdx mkPreMsg
+  rw [(PMF.map_eq_pure_iff (b := true)).mpr]
+  · simp
+  · rintro ⟨b, st⟩ hsupp
+    have htr := prgLeafGame_leafTrace_eq_nil expand prgLeaf encWit chalToIdx mkPreMsg
       checkRel defaultSeed iv keys stmt w hRel hsupp
-    have hb_supp : b ∈ ((ProbOracleComp.runWith voleithMemoize
+    have hb : b ∈ ((ProbOracleComp.runWith voleithMemoize
         (prgLeafGame expand prgLeaf encWit chalToIdx mkPreMsg checkRel defaultSeed iv keys stmt w)
-        ([], [])).map Prod.fst).support := by
-      rw [PMF.mem_support_map_iff]
-      exact ⟨(b, st), hsupp, rfl⟩
+        ([], [])).map Prod.fst).support :=
+      (PMF.mem_support_map_iff _ _ _).mpr ⟨(b, st), hsupp, rfl⟩
     rw [prgLeafGame_eq_pure_true expand prgLeaf encWit chalToIdx mkPreMsg checkRel defaultSeed iv
-      keys stmt w hRel, PMF.support_pure, Set.mem_singleton_iff] at hb_supp
-    dsimp only
-    rw [htr, hb_supp]
-    exact decide_eq_true ⟨rfl, hbad⟩
-  rw [hpure]
-  simp
+      keys stmt w hRel, PMF.support_pure, Set.mem_singleton_iff] at hb
+    simpa only [htr, hb, true_and, decide_eq_true_eq] using hbad
 
 /-- **Disjoint-statement query-log separation for `leaf_hash::aes_ctr`**: given two statements
 `stmt₀, stmt₁` with disjoint `Rel`-witness sets and valid witnesses `(w₀, w₁)`, **every**
@@ -574,16 +551,11 @@ theorem prgLeafProofOfDelta_eq_of {d sdLen comLen rowLen : ℕ} {Seed IV PreMsg 
       delta =
     prgLeafProofOfDelta expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv keys₁ w₁
       delta := by
-  simp only [prgLeafProofOfDelta]
-  have hcoms : (fun idx => (prgLeaf (keys₀ idx) iv idx).com) =
-      (fun idx => (prgLeaf (keys₁ idx) iv idx).com) := funext hcom
   have hkeys : (fun idx => if idx = chalToIdx delta then defaultSeed else keys₀ idx) =
-      (fun idx => if idx = chalToIdx delta then defaultSeed else keys₁ idx) := by
-    funext idx
-    by_cases heq : idx = chalToIdx delta
-    · simp [heq]
-    · simp [heq, hopen idx heq]
-  rw [hcoms, hpre, hdCorr, hkeys]
+      fun idx => if idx = chalToIdx delta then defaultSeed else keys₁ idx :=
+    funext fun idx => by by_cases heq : idx = chalToIdx delta <;> simp [heq, hopen idx]
+  simp only [prgLeafProofOfDelta]
+  rw [funext hcom, hpre, hdCorr, hkeys]
 
 private theorem prgLeaf_preimage_extractor_fails_of_not_rel {d sdLen comLen rowLen : ℕ}
     {Stmt Seed IV PreMsg Chal Wit : Type}
@@ -633,18 +605,9 @@ private theorem prgLeaf_preimage_extractor_fails_of_not_rel {d sdLen comLen rowL
         (FAEST.convertExpandedRows d
           (fun idx => expand (prgLeaf (extPre prf.coms prf.iv idx) prf.iv idx).seedOut)).u)
       decide (ok = true ∧ Rel stmt wExt = false))]
-  have hconst :
-      (fun delta : Chal =>
-        let prf := prgLeafProofOfDelta expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv
-          keys w delta
-        let wExt := decWit (prf.dCorr +
-          (FAEST.convertExpandedRows d
-            (fun idx => expand (prgLeaf (extPre prf.coms prf.iv idx) prf.iv idx).seedOut)).u)
-        decide (true = true ∧ Rel stmt wExt = false)) = Function.const Chal true := by
-    funext delta
-    exact decide_eq_true ⟨rfl, hExtFail⟩
-  rw [hconst, PMF.map_const]
-  simp
+  simp only [prgLeafProofOfDelta, true_and, hExtFail, decide_true]
+  change ((PMF.uniformOfFintype Chal).map (Function.const Chal true)).toOuterMeasure {true} = 1
+  simp [PMF.map_const]
 
 
 /-- Conditional step toward a pre-challenge preimage-table separation (#7068, #4987), not the
@@ -721,13 +684,12 @@ theorem prgLeaf_preimage_extractor_fails {d sdLen comLen rowLen : ℕ}
   · refine ⟨stmt₁, w₁, keys₁, prgLeaf_preimage_extractor_fails_of_not_rel expand prgLeaf encWit
       decWit chalToIdx mkPreMsg Rel checkRel extPre defaultSeed iv keys₁ stmt₁ w₁ hValid₁ hRel₁
       ?_⟩
-    have h1_false : Rel stmt₁ wExt = false := Bool.eq_false_iff.mpr fun h1 => hDisj wExt ⟨h0, h1⟩
     change Rel stmt₁ (decWit ((encWit w₁ +
       (FAEST.convertExpandedRows d (fun idx => expand (prgLeaf (keys₁ idx) iv idx).seedOut)).u) +
       (FAEST.convertExpandedRows d
         (fun idx => expand (prgLeaf (extPre coms₁ iv idx) iv idx).seedOut)).u)) = false
     rw [← hdCorrEq, ← hcoms]
-    exact h1_false
+    exact Bool.eq_false_iff.mpr fun h1 => hDisj wExt ⟨h0, h1⟩
   · exact ⟨stmt₀, w₀, keys₀, prgLeaf_preimage_extractor_fails_of_not_rel expand prgLeaf encWit
       decWit chalToIdx mkPreMsg Rel checkRel extPre defaultSeed iv keys₀ stmt₀ w₀ hValid₀ hRel₀
       (Bool.eq_false_iff.mpr h0)⟩
@@ -819,12 +781,8 @@ theorem exists_valid_prgLeaf_proofOnly_extract_fails_ge {d sdLen comLen rowLen :
             ((fun delta => decide (true = true ∧
               (ext [] (prgLeafProofOfDelta expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv
                 keys w delta)).elim false (Rel stmt) = false)) ⁻¹' {true}) := by
-          refine (PMF.uniformOfFintype Chal).toOuterMeasure.mono ?_
-          intro delta hdelta
-          rw [Set.mem_singleton_iff] at hdelta
-          subst hdelta
-          simp only [Set.mem_preimage, Set.mem_singleton_iff, hp, decide_eq_true_eq]
-          exact ⟨trivial, he⟩
+          refine (PMF.uniformOfFintype Chal).toOuterMeasure.mono (Set.singleton_subset_iff.mpr ?_)
+          simp [hp, he]
   by_cases h0 : (ext [] prfStar).elim false (Rel stmt₀) = true
   · refine ⟨stmt₁, w₁, keys₁, hValid₁, hge stmt₁ w₁ keys₁ hRel₁ hPrfEq.symm ?_⟩
     cases hext : ext [] prfStar with

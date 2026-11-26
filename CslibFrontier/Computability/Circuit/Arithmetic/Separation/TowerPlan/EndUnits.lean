@@ -108,11 +108,9 @@ theorem channelHolders_of_target_eq_done (hh : 0 < h) {x : Relay T m A} (hx : x.
     dite_eq_left j.2
   rcases x with ⟨a, c, γ, s⟩ | ⟨j, i, e⟩ | ⟨j, e, s⟩ | e
   · exact absurd hd (start_target_ne_done hx β)
-  · obtain rfl : i = T.chosenType hh (edgeLoads (load lhat n o)) j := by
-      by_contra hi
-      apply hne
-      rw [moveCount_eq, countOfLoad]
-      exact ite_eq_right fun h => hi ((Tower.isChosenType_iff hh).1 h)
+  · obtain rfl : i = T.chosenType hh (edgeLoads (load lhat n o)) j :=
+      Decidable.byContradiction fun hi => hne <|
+        (moveCount_eq _).trans (ite_eq_right fun h => hi ((Tower.isChosenType_iff hh).1 h))
     have h1 : T.vx (T.chosenType hh (edgeLoads (load lhat n o)) j) (T.e0 e) =
         T.vx (T.chosenType hh (edgeLoads (load lhat n o)) j) (T.e1 e) :=
       (T.nr_vx0 j.2.le _ ⟨e, hx⟩).trans (T.nr_vx1 j.2.le _ ⟨e, hx⟩).symm
@@ -181,13 +179,11 @@ private theorem sum_done_le (P : T.Node) (j : Fin J) (e : T.Ed j) (β : Bool) :
         Tower.Node.ofChamber j.2.le (bif β then T.e1 e else T.e0 e) := by
     cases β <;> fin_cases s <;> simp [Relay.target, Relay.child, Relay.party, RelayRole.elim]
   split_ifs with hP
-  · refine le_trans (add_le_add (sum_le_sum fun i _ => ?_) (sum_le_sum fun s _ => ?_))
-      (sum_done_le_load j e β)
-    · split_ifs <;> simp
-    · split_ifs with h1 h2 <;> simp_all
-  · refine Nat.le_zero.2 (Nat.add_eq_zero_iff.2 ⟨sum_eq_zero fun i _ => ite_eq_right fun h =>
-      hP (h.2 ▸ hI i).symm, sum_eq_zero fun s _ => ite_eq_right fun h => hP ?_⟩)
-    exact (hM s h.1).symm.trans h.2
+  · refine (add_le_add (sum_le_sum fun i _ => by split_ifs <;> simp)
+      (sum_le_sum fun s _ => by split_ifs <;> simp_all)).trans (sum_done_le_load j e β)
+  · exact Nat.le_zero.2 (Nat.add_eq_zero_iff.2 ⟨sum_eq_zero fun i _ => ite_eq_right fun h =>
+      hP (h.2 ▸ hI i).symm, sum_eq_zero fun s _ => ite_eq_right fun h =>
+        hP ((hM s h.1).symm.trans h.2)⟩)
 
 /-- The alive units of the child channels of a node are at most the units between the node and
 its parent. -/
@@ -222,19 +218,16 @@ private theorem sum_isChild_le (P : T.Node) :
     rw [Tower.sum_ite_incidentSum, sum_comm, ← sum_add_distrib]
     refine sum_le_sum fun e _ => (congrArg₂ (· + ·) sum_comm sum_comm).trans_le ?_
     rw [← sum_add_distrib]
-    refine (sum_le_sum fun β _ => sum_done_le P j e β).trans_eq ?_
-    rw [Fintype.sum_bool, add_comm]
-    rfl
+    exact (sum_le_sum fun β _ => sum_done_le P j e β).trans_eq
+      (by simp only [Fintype.sum_bool, Bool.cond_false, Bool.cond_true, add_comm])
   have hF : ∑ e : T.Ed J, ∑ β, (if (Relay.final e : Relay T m A).target R ch β = .done ∧
       (Relay.final e).child R ch β = P then relayAlive lhat n o (.final e) β else 0) ≤
       ∑ c : T.X J, if Tower.Node.ofChamber le_rfl c = P then
         T.parentUnits (edgeLoads (load lhat n o)) J c else 0 := by
     rw [Tower.sum_ite_incidentSum]
     refine sum_le_sum fun e _ => ?_
-    have h (β : Bool) := relayAlive_final_le (lhat := lhat) (n := n) (o := o) (R := R) (ch := ch)
-      e β
-    have h0 := h false
-    have h1 := h true
+    have h0 := relayAlive_final_le (lhat := lhat) (n := n) (o := o) (R := R) (ch := ch) e false
+    have h1 := relayAlive_final_le (lhat := lhat) (n := n) (o := o) (R := R) (ch := ch) e true
     simp only [Fintype.sum_bool, Relay.target, Relay.child, Relay.party, RelayRole.elim, true_and,
       Bool.cond_true, Bool.cond_false]
     split_ifs <;> omega
@@ -319,9 +312,8 @@ private theorem exists_mem_givenUnits {u : PlanUnit R FL Pl U0 U1}
     obtain ⟨d, hd⟩ := VertexMove.exists_isPicked L (⟨j, i, ω, d₀⟩ : VertexMove FL)
     set t := (⟨j, i, ω, d⟩ : VertexMove FL).minUnits L
     have ht :
-        moveCount lhat (initialCounts n) (outcomeOf R FL Pl o) (.vertex ⟨j, i, ω, d⟩) = t := by
-      rw [moveCount_eq, countOfLoad]
-      exact ite_eq_left hd
+        moveCount lhat (initialCounts n) (outcomeOf R FL Pl o) (.vertex ⟨j, i, ω, d⟩) = t :=
+      (moveCount_eq _).trans (ite_eq_left hd)
     have hrk : unitRank R FL Pl lhat n o u < FL.slotCount d q * t := by
       refine lt_of_lt_of_le ?_ (hd.1 q hq)
       have := rk_lt (idx := unitIndex R FL Pl) (key := unitTarget R FL Pl)
@@ -344,10 +336,9 @@ theorem unitTarget_eq_done_of_mem_cur {u : PlanUnit R FL Pl U0 U1}
     (ha : IsAlive R FL Pl lhat n o u) : unitTarget R FL Pl u = .done := by
   by_contra hd
   obtain ⟨z, hz⟩ := exists_mem_givenUnits ha hd
-  refine (Plan.mem_cur.1 hu).2 ((moveSlotEquiv R FL Pl).symm z) ((moveSlotEquiv R FL Pl).symm z).1.2
-    ?_
-  change u ∈ givenUnits R FL Pl lhat n o (moveSlotEquiv R FL Pl ((moveSlotEquiv R FL Pl).symm z))
-  rwa [Equiv.apply_symm_apply]
+  exact (Plan.mem_cur.1 hu).2 ((moveSlotEquiv R FL Pl).symm z)
+    ((moveSlotEquiv R FL Pl).symm z).1.2
+    (show u ∈ givenUnits R FL Pl lhat n o _ by rwa [Equiv.apply_symm_apply])
 
 /-! ### The units between the nodes and their parents -/
 

@@ -251,8 +251,7 @@ private theorem lin_eq_short {g₁ g₂ : α × (List Bool × List Bool) → Lis
     (h₁ : Lin enc g₁ encBits) (h₂ : Lin enc g₂ encBits) (hl₁ : ∀ x, (g₁ x).length ≤ 2)
     (hl₂ : ∀ x, (g₂ x).length ≤ 2) : Lin enc (fun x => decide (g₁ x = g₂ x)) encBool := by
   refine (ComputableInO.eq' h₁ h₂).mono 16 (fun x => ?_) fun x => ?_
-  · simp only [encBits_apply]
-    nlinarith [hl₁ x, hl₂ x]
+  · simp only [encBits_apply]; nlinarith [hl₁ x, hl₂ x]
   · have := hl₁ x
     have := hl₂ x
     enc_len
@@ -447,17 +446,12 @@ theorem mem_SigmaTwoTIME_of_chain {π σ : Type} {eP : π ↪ List Bool} {eS : �
         exact List.cons_ne_nil _ _ hr.symm
       have hg := heqG u (P a, step^[m] s₀) (hlen ▸ hLG hTg)
       simp only [encPair_apply, encBool_apply, hgoalm] at hg
-      rw [chainCheck_single hR, hw, him, hg]
-      rfl
+      simp [chainCheck_single hR, hw, him, hg]
     · obtain ⟨hi', hw', -⟩ := drop_map_range_eq_cons hr.symm
       rw [chainCheck_cons_cons hR, hu₁, hw, hw']
-      have hx := heqF u (P a, (step^[leadingTrues v] s₀, bw))
-        (hlen ▸ hLF (hTn _ (by omega)))
-      rw [show next (P a, (step^[leadingTrues v] s₀, bw)) = step^[leadingTrues v + 1] s₀ from
-        (Function.iterate_succ_apply' step _ _).symm] at hx
+      have hx := heqF u (P a, (step^[leadingTrues v] s₀, bw)) (hlen ▸ hLF (hTn _ (by omega)))
       simp only [encPair_apply, encBits_apply, encBool_apply] at hx
-      rw [hx]
-      simp
+      simp [hx, Function.iterate_succ_apply', step]
   · -- soundness: the guessed words are the iterates, by induction
     rintro ⟨u, hu, hV⟩
     set bw := unframe u with hbw
@@ -490,26 +484,20 @@ theorem mem_SigmaTwoTIME_of_chain {π σ : Type} {eP : π ↪ List Bool} {eS : �
             rwa [cvRest, leadingTrues_pick]
           simpa only [chainCheck_cons_cons hR, cvPos_pick, decide_eq_true_iff] using
             hV (pick k j L) (length_pick hpick)
-        have hP' := eq_of_forall_take_drop hpos
         have hpre := hpreF u (P a, (step^[k] s₀, bw))
-        simp only [encPair_apply, encBits_apply, encBool_apply] at hpre
-        rw [hP'] at hpre
-        have hw' : w' = eS (step^[k + 1] s₀) := by
-          rw [eq_of_frame_prefix hpre, Function.iterate_succ_apply']
-        rw [← List.tail_drop, ihk, List.tail_cons, hw', ← List.tail_drop, hwr, List.tail_cons]
+        simp only [encPair_apply, encBits_apply, encBool_apply, eq_of_forall_take_drop hpos] at hpre
+        rw [← List.tail_drop, ihk, List.tail_cons, eq_of_frame_prefix hpre,
+          Function.iterate_succ_apply', ← List.tail_drop, hwr, List.tail_cons]
     set m := (frames E).length with hm
     have hR : cvRest (eS s₀) u (pick m 0 L) = [eS (step^[m] s₀)] := by
       rw [cvRest, leadingTrues_pick, hchain m le_rfl, List.drop_length]
     have hmE := length_frames_le E
-    have := hV (pick m 0 L) (length_pick (by omega))
-    dsimp only at this
-    rw [chainCheck_single hR, decide_eq_true_iff] at this
+    have hlast := hV (pick m 0 L) (length_pick (by omega))
+    simp only [chainCheck_single hR, decide_eq_true_iff] at hlast
     have hpre := hpreG u (P a, step^[m] s₀)
     simp only [encPair_apply, encBool_apply] at hpre
-    rw [List.take_of_length_le (hpre.length_le.trans (by simp))] at this
-    rw [this] at hpre
-    obtain ⟨r, hr⟩ := hpre
-    simp only [List.singleton_append, List.cons.injEq] at hr
-    exact hsound a bw m hr.1.symm
+    rw [List.take_of_length_le (hpre.length_le.trans (by simp))] at hlast
+    obtain ⟨r, hr⟩ := hlast ▸ hpre
+    exact hsound a bw m (List.cons.inj hr).1.symm
 
 end Cslib.Complexity

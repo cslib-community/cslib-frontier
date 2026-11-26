@@ -192,24 +192,18 @@ private theorem pow_four_lt {ρ : ℝ} (h0 : 3 / 20 < ρ) (h1 : ρ < 1 / 2) :
 theorem strictAntiOn_ksGamma : StrictAntiOn ksGamma (Icc (3 / 20) (1 / 2)) := by
   refine strictAntiOn_of_deriv_neg (convex_Icc _ _) ?_ ?_
   · intro x hx
-    have : x ≠ 0 := by linarith [hx.1]
-    have : 1 - x ≠ 0 := by linarith [hx.2]
-    have : 2 - 3 * x ≠ 0 := by linarith [hx.2]
-    have : (2 : ℝ) ≠ 0 := two_ne_zero
     unfold ksGamma
-    exact ContinuousAt.continuousWithinAt (by fun_prop (disch := assumption))
+    exact ContinuousAt.continuousWithinAt (by fun_prop (disch := linarith [hx.1, hx.2]))
   · intro x hx
     rw [interior_Icc] at hx
     have h0 : 0 < x := by linarith [hx.1]
-    rw [(hasDerivAt_ksGamma h0 hx.2).deriv]
-    have hl := pow_four_lt hx.1 hx.2
     have hp1 : 0 < 1 - x := by linarith [hx.2]
     have hp2 : 0 < 2 - 3 * x := by linarith [hx.2]
-    have := log_lt_log (pow_pos hp1 4) hl
-    rw [log_pow, log_mul h0.ne' (pow_pos hp2 3).ne', log_pow] at this
-    push_cast at this
-    rw [div_lt_iff₀ two_pos, zero_mul]
-    linarith only [this]
+    have hlog := log_lt_log (pow_pos hp1 4) (pow_four_lt hx.1 hx.2)
+    rw [log_pow, log_mul h0.ne' (pow_pos hp2 3).ne', log_pow] at hlog
+    push_cast at hlog
+    rw [(hasDerivAt_ksGamma h0 hx.2).deriv, div_lt_iff₀ two_pos, zero_mul]
+    linarith only [hlog]
 
 /-- For `0 < ρ ≤ 3 / 20`, `ρ / 20 ≤ γ(ρ)`. -/
 private theorem div_le_ksGamma_of_le {ρ : ℝ} (h0 : 0 < ρ) (h1 : ρ ≤ 3 / 20) :

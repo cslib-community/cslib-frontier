@@ -327,10 +327,9 @@ Two-Function Borell inequality for the indicators `1_A`, `1_B` is the Two-Set Bo
 theorem TwoFunctionBorellInequality.twoSetBorellInequality {ρ : ℝ} (hρ : |ρ| ≤ 1)
     (h : TwoFunctionBorellInequality ρ ι) : TwoSetBorellInequality ρ ι := by
   intro A B hA hB
-  have := h _ _ (measurable_one.indicator hA) (measurable_one.indicator hB)
-    (indicator_one_mem_Icc A) (indicator_one_mem_Icc B)
-  rwa [integral_gaussianQuadrant_indicator hρ hA hB, integral_indicator_one hA,
-    integral_indicator_one hB] at this
+  simpa only [integral_gaussianQuadrant_indicator hρ hA hB, integral_indicator_one hA,
+    integral_indicator_one hB] using h _ _ (measurable_one.indicator hA)
+      (measurable_one.indicator hB) (indicator_one_mem_Icc A) (indicator_one_mem_Icc B)
 
 /-- **Two functions give Borell's Isoperimetric Theorem**
 [O'Donnell, Exercise 11.26 (a)][ODonnell2014]: for `ρ ∈ [0, 1]` and measurable
@@ -367,12 +366,10 @@ theorem TwoFunctionBorellInequality.gaussianNoiseStability_le_of_ae {ρ : ℝ} (
   have hfg : f =ᵐ[Measure.pi fun _ : ι => gaussianReal 0 1] g := by
     filter_upwards [hf.ae_eq_mk, hf01] with z hz h01
     simpa only [g, ← hz, min_eq_right h01.2] using (max_eq_right h01.1).symm
-  have h1 := (measurePreserving_fst_correlatedGaussianPi ι ρ).quasiMeasurePreserving.ae_eq_comp hfg
-  have h2 := (measurePreserving_snd_correlatedGaussianPi ι (abs_le.2 ⟨by linarith, hρ1⟩)
-    ).quasiMeasurePreserving.ae_eq_comp hfg
-  have hstab : gaussianNoiseStability ρ f = gaussianNoiseStability ρ g :=
-    integral_congr_ae (h1.mul h2)
-  rw [hstab, integral_congr_ae hfg]
+  refine (integral_congr_ae (((measurePreserving_fst_correlatedGaussianPi ι
+      ρ).quasiMeasurePreserving.ae_eq_comp hfg).mul ((measurePreserving_snd_correlatedGaussianPi ι
+      (abs_le.2 ⟨by linarith, hρ1⟩)).quasiMeasurePreserving.ae_eq_comp hfg))).trans_le ?_
+  rw [integral_congr_ae hfg]
   exact h.gaussianNoiseStability_le hρ0 hρ1
     (measurable_const.max (measurable_const.min hf.stronglyMeasurable_mk.measurable))
     fun z => ⟨le_max_left _ _, max_le zero_le_one (min_le_left _ _)⟩
@@ -517,9 +514,7 @@ theorem twoFunctionBorellInequality_zero (ι : Type*) [Fintype ι] :
   intro f g hf hg hf01 hg01
   have hC : correlatedGaussianPi ι 0 = (Measure.pi fun _ : ι => gaussianReal 0 1).prod
       (Measure.pi fun _ : ι => gaussianReal 0 1) := by
-    rw [correlatedGaussianPi_eq_map]
-    simp only [zero_mul, zero_add, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow,
-      sub_zero, sqrt_one, one_mul, Prod.mk.eta, Measure.map_id']
+    simp [correlatedGaussianPi_eq_map]
   have hEf := integral_mem_Icc (μ := Measure.pi fun _ : ι => gaussianReal 0 1) hf01
   have hEg := integral_mem_Icc (μ := Measure.pi fun _ : ι => gaussianReal 0 1) hg01
   rw [hC, gaussianQuadrant_zero hEf.1 hEf.2 hEg.1 hEg.2, ← integral_prod_mul]

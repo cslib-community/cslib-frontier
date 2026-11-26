@@ -741,8 +741,7 @@ private theorem initSetup_spec {U V n_max w base : ℕ}
   let x_mid (b : Seed) : Data rHash := (MultiplyShift.initData w₀ d₁ b.val).extend hashEmbed x₁
   have hregB (b : Seed) : (x_mid b).regs regB = b.val := by
     change ((x_mid b).comap hashEmbed).regs MultiplyShift.regB = b.val
-    rw [show (x_mid b).comap hashEmbed = _ from Data.comap_extend hashEmbed_injective _ x₁]
-    simp [MultiplyShift.initData]
+    simp [x_mid, Data.comap_extend hashEmbed_injective, MultiplyShift.initData]
   have hstep2 (b : Seed) : ∃ y, Exec w (storeHeader U n_max) (x_mid b) y 11 ∧
       y.regs frontierReg = base + space n_max ∧ Rep U V n_max w base b (Dictionary.empty U) y ∧
       Modifies (Block.mk base (space n_max)).footprint x₁.mem y.mem := by
@@ -774,9 +773,7 @@ private theorem initSetup_spec {U V n_max w base : ℕ}
         obtain ⟨b, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hz
         exact hμ₂ b ▸ ExecCodeDist.of_exec (hys b).1)
       (fun _ _ => le_rfl)).congr_dist ?_ (by norm_num)
-    rw [PMF.bind_map, PMF.map_comp]
-    simp only [Function.comp_def, hμ₂]
-    rfl
+    simp only [PMF.bind_map, PMF.map_comp, Function.comp_def, hμ₂]; rfl
   · rw [PMF.map_comp, show Prod.fst ∘ (fun b : Seed => (b, y_init b)) = id from rfl,
       PMF.map_id, one_mul]
   · obtain ⟨b, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hp
@@ -1128,8 +1125,7 @@ theorem opCode_spec {U V n_max w base : ℕ}
       Rep U V n_max w base b ((Dictionary.spec U V n_max).stepFn s o).1 z ∧
       Modifies (Block.mk base (space n_max)).footprint x.mem z.mem := by
   let u := opKey o
-  have hu_reg : x.regs argU = u.val := by
-    cases o with | query _ => exact harg.2 | insert _ _ => exact harg.2.1
+  have hu_reg : x.regs argU = u.val := by cases o <;> simp_all [argMatch, u, opKey]
   obtain ⟨L, hbL⟩ := hr.buckets _ (multiplyShift_lt_numBuckets b u)
   have hL_le : L.length ≤ 1 + collCount n_max s u b := hbL.length_le u
   obtain ⟨x₁, he1, hx₁_bdd, hmx₁, hbase1, htag1, hargU1, hargV1, hout1,
@@ -1347,11 +1343,10 @@ theorem seq_expected_amortized (U V n_max w base : ℕ)
   refine ⟨ν₀, ν_final, T_ops, he_init, hex_steps, hseed_final, hrep_final, ?_⟩
   have hpot : (∑' q, ν_final q * (C.potential q.1 q.2 : ℝ≥0∞)) = 0 := by simp [C, impl]
   have hinit : C.initTime = 16 := by change (3 : ℝ≥0∞) + 13 = 16; norm_num
-  have htotal : (Dictionary.spec U V n_max).totalCost C.charge (Dictionary.empty U) ops =
-      chargeVal * ops.length :=
-    (StateTransitionSpec.totalCost_const (Dictionary.spec U V n_max) chargeVal
-      (Dictionary.empty U) ops).trans (Nat.mul_comm _ _)
-  rw [hpot, add_zero, htotal] at hbound
-  exact hbound.trans_eq (by change C.initTime + ((0 : ℕ) : ℝ≥0∞) + _ = _; simp [hinit])
+  have hinitP : C.initPotential = 0 := rfl
+  have hchg : C.charge = fun _ _ => chargeVal := rfl
+  rw [hpot, hinitP, Nat.cast_zero, add_zero, add_zero, hchg,
+    StateTransitionSpec.totalCost_const, Nat.mul_comm] at hbound
+  exact hinit ▸ hbound
 
 end Cslib.DataStructure.Dictionary.WordRAM.ChainedHash

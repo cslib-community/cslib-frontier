@@ -132,13 +132,11 @@ theorem tourLength_eq_sum (D : List (List ℕ)) (p : List ℕ) :
     List.getD_append _ _ _ _ hk, List.getD_eq_getElem _ _ hk]
   congr 1
   by_cases h : k + 1 < p.length
-  · rw [List.getD_append _ _ _ _ h, List.getD_eq_getElem _ _ h]
-    simp only [Nat.mod_eq_of_lt h]
+  · simp only [List.getD_append _ _ _ _ h, List.getD_eq_getElem _ _ h, Nat.mod_eq_of_lt h]
   · have hk1 : k + 1 = p.length := by omega
-    simp only [hk1, Nat.mod_self, List.getD_append_right _ _ _ _ (le_refl _), Nat.sub_self]
     cases p with
     | nil => simp at hk
-    | cons a l => rfl
+    | cons a l => simp [hk1]
 
 /-! ### Membership in `NP` -/
 
@@ -194,12 +192,10 @@ length `n`. -/
 theorem isVerifier : IsVerifier encTSP (Polynomial.X ^ 2) verifier TSP := by
   rintro ⟨D, b⟩
   have hmem : (⟨D, b⟩ : TSPInstance) ∈ TSP ↔
-      ∃ p : List ℕ, p.Nodup ∧ (∀ v, v ∈ p ↔ v ∈ List.range D.length) ∧
-      tourLength D p ≤ b := by
-    refine exists_congr fun p => ?_
-    rw [← and_assoc]
-    refine and_congr_left fun _ => ⟨fun h => ⟨h.nodup_iff.2 List.nodup_range, fun _ => h.mem_iff⟩,
-      fun h => (List.perm_ext_iff_of_nodup h.1 List.nodup_range).2 h.2⟩
+      ∃ p : List ℕ, p.Nodup ∧ (∀ v, v ∈ p ↔ v ∈ List.range D.length) ∧ tourLength D p ≤ b :=
+    exists_congr fun p => (and_congr_left fun _ =>
+      ⟨fun h => ⟨h.nodup_iff.2 List.nodup_range, fun _ => h.mem_iff⟩,
+        fun h => (List.perm_ext_iff_of_nodup h.1 List.nodup_range).2 h.2⟩).trans and_assoc
   rw [hmem]
   refine Graph.isVerifier_verifyOrdering (V := fun x : TSPInstance => List.range x.dist.length)
     (P := fun x p => tourLength x.dist p ≤ x.bound) (fun x => ?_)
@@ -212,12 +208,11 @@ theorem isVerifier : IsVerifier encTSP (Polynomial.X ^ 2) verifier TSP := by
 @[fun_prop]
 theorem computableInPolyTime_verifier :
     ComputableInPolyTime verifier (encPair encTSP encBits) encBool := by
-  have hdist : ComputableInPolyTime TSPInstance.dist encTSP (encList (encList encNat)) := by
-    fun_prop
   have hV : ComputableInPolyTime (fun x : TSPInstance => List.range x.dist.length) encTSP
       (encList encNat) := by
     simpa only [List.map_id', Function.comp_def] using mapWithInput (f := fun _ i => i)
-      (range.comp ((length_list (encList encNat)).comp hdist))
+      (range.comp ((length_list (encList encNat)).comp
+        (by fun_prop : ComputableInPolyTime TSPInstance.dist encTSP (encList (encList encNat)))))
       (unary_to_binary.comp (snd _ _))
   have hD : ComputableInPolyTime (fun q : TSPInstance × List ℕ => q.1.dist)
       (encPair encTSP (encList encNat)) (encList (encList encNat)) := by fun_prop
@@ -296,18 +291,15 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
   rw [mem_HamCycle_iff]
   have hVnd := G.nodup_distinctVertices
   have hmemV : ∀ v, v ∈ G.distinctVertices ↔ v ∈ G.vertices := fun _ => Graph.mem_distinctVertices
-  have hlenV :
-      ∀ q : List ℕ, q.Nodup → (∀ v, v ∈ q ↔ v ∈ G.vertices) →
-        q.length = G.distinctVertices.length :=
-    fun q hq hcov =>
-      ((List.perm_ext_iff_of_nodup hq hVnd).2 fun v => (hcov v).trans (hmemV v).symm).length_eq
+  have hlenV (q : List ℕ) (hq : q.Nodup) (hcov : ∀ v, v ∈ q ↔ v ∈ G.vertices) :
+      q.length = G.distinctVertices.length :=
+    ((List.perm_ext_iff_of_nodup hq hVnd).2 fun v => (hcov v).trans (hmemV v).symm).length_eq
   unfold toTSP
   generalize G.distinctVertices = V at hVnd hmemV hlenV ⊢
   split_ifs with hn
   · refine ⟨fun ⟨p, hp, hlen⟩ => ?_, fun ⟨q, hq, hcov, h3, _⟩ =>
       absurd (hlenV q hq hcov) (by omega)⟩
-    rw [show p = [0] by simpa using hp] at hlen
-    simp [TSP.tourLength, TSP.dist] at hlen
+    simp [List.perm_singleton.1 hp, TSP.tourLength, TSP.dist] at hlen
   · push Not at hn
     simp only [TSP, Set.mem_ofPred_eq, List.length_map]
     constructor
@@ -329,8 +321,7 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
           (by rw [List.length_map, List.length_range]; exact hlen.trans hplen.ge) _
           (List.mem_map.2 ⟨k, List.mem_range.2 (hplen ▸ hk), rfl⟩)
         · rw [dist_map (hget k) (hget (k + 1))] at h
-          split_ifs at h with hadj
-          exacts [hadj, by omega]
+          exact of_not_not fun hna => absurd ((ite_eq_right hna).symm.trans h) (by decide)
         · intro a ha
           obtain ⟨j, -, rfl⟩ := List.mem_map.1 ha
           rw [dist_map (hget j) (hget (j + 1))]
@@ -343,9 +334,8 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
       · rw [← hmemV, List.mem_map]
         refine ⟨fun ⟨i, hi, hv⟩ =>
           hv ▸ (List.getD_eq_getElem _ _ (hplt i hi) ▸ List.getElem_mem _), fun hv => ?_⟩
-        have hlt := List.idxOf_lt_length_iff.2 hv
-        exact ⟨V.idxOf v, hp.mem_iff.2 (List.mem_range.2 hlt),
-          (List.getD_eq_getElem _ _ hlt).trans (List.getElem_idxOf _)⟩
+        exact ⟨V.idxOf v, hp.mem_iff.2 (List.mem_range.2 (List.idxOf_lt_length_iff.2 hv)),
+          (List.getD_eq_getElem _ _ (List.idxOf_lt_length_iff.2 hv)).trans (List.getElem_idxOf _)⟩
       · have hp'len : (p ++ p.take 1).length = V.length + 1 := by
           enc_len [List.length_take, hplen]
         rw [chain_iff]

@@ -102,9 +102,8 @@ def constMatrix {ι κ : Type*} (A : Matrix ι κ ℚ) : Matrix ι κ (Form n) :
 
 /-- Evaluating `constMatrix A` maps `c` over the entries of `A`. -/
 @[simp] theorem eval_constMatrix {ι κ : Type*} (c : ℚ →+* R) (X : Fin n → R)
-    (A : Matrix ι κ ℚ) : (constMatrix A).map (eval c X) = A.map c := by
-  ext i j
-  exact eval_constant c X (A i j)
+    (A : Matrix ι κ ℚ) : (constMatrix A).map (eval c X) = A.map c :=
+  Matrix.ext fun i j => eval_constant c X (A i j)
 
 end Affine
 
@@ -242,9 +241,7 @@ private theorem realized_leaf (a : Affine.Form n) (r : R) (ha : Affine.eval c X 
   rw [fromBlocks_map]
   simp only [Affine.eval_constMatrix, Matrix.map_one c (map_zero c) (map_one c),
     Matrix.map_zero, map_zero]
-  congr 1
-  ext
-  simp [scalar, ha]
+  exact congrArg (fromBlocks 1 · 0 1) (Matrix.ext fun _ _ => by simp [scalar, ha])
 
 private theorem realized_input : realized c X (.input i) = fromBlocks 1 (-scalar (X i)) 0 1 :=
   realized_leaf c X _ _ (Affine.eval_variable c X i)
@@ -275,10 +272,8 @@ private theorem leaf_realization (a : R) :
       M * fromBlocks 1 (-scalar a) 0 1 = 1 ∧
       fromCols (1 : Matrix Unit Unit R) 0 * M *
         fromRows (0 : Matrix Unit Unit R) (1 : Matrix Unit Unit R) = scalar a := by
-  refine ⟨fromBlocks 1 (scalar a) 0 1, ?_, ?_, ?_⟩
-  · simp [fromBlocks_multiply]
-  · simp [fromBlocks_multiply]
-  · simp [fromCols_mul_fromBlocks, fromCols_mul_fromRows]
+  refine ⟨fromBlocks 1 (scalar a) 0 1, ?_, ?_,
+    by simp [fromCols_mul_fromBlocks, fromCols_mul_fromRows]⟩ <;> simp [fromBlocks_multiply]
 
 private theorem fromBlocks_zero₂₂_inverse {ι κ : Type*} [Fintype ι] [Fintype κ]
     [DecidableEq ι] [DecidableEq κ]
@@ -306,14 +301,12 @@ private theorem fromBlocks_zero₂₂_inverse {ι κ : Type*} [Fintype ι] [Fint
       fromBlocks 1 (A' * B) 0 1 = _
     rw [← ha]
     simpa [Matrix.neg_mul] using (Matrix.fromBlocks_zero₂₂_schur_factor A A' B C hAA' hA'A).symm
-  refine ⟨↑(U * D * V)⁻¹, ?_, ?_, ?_⟩
-  · rw [← hS]; exact (U * D * V).mul_inv
-  · rw [← hS]; exact (U * D * V).inv_mul
-  · change fromCols (0 : Matrix κ ι R) (-1) *
-      (V.inv * (D.inv * U.inv)) * fromRows (0 : Matrix ι κ R) (1 : Matrix κ κ R) = b
-    simp [V, D, U, fromBlocks_multiply, Matrix.mul_zero, Matrix.zero_mul,
-      Matrix.fromCols_mul_fromBlocks, fromCols_mul_fromRows,
-      Matrix.mul_assoc, Matrix.neg_mul, Matrix.mul_neg]
+  refine ⟨↑(U * D * V)⁻¹, hS ▸ (U * D * V).mul_inv, hS ▸ (U * D * V).inv_mul, ?_⟩
+  change fromCols (0 : Matrix κ ι R) (-1) *
+    (V.inv * (D.inv * U.inv)) * fromRows (0 : Matrix ι κ R) (1 : Matrix κ κ R) = b
+  simp [V, D, U, fromBlocks_multiply, Matrix.mul_zero, Matrix.zero_mul,
+    Matrix.fromCols_mul_fromBlocks, fromCols_mul_fromRows,
+    Matrix.mul_assoc, Matrix.neg_mul, Matrix.mul_neg]
 
 /-- Affine realization for a multiplication gate from realizations of its two arguments. -/
 private theorem realization_mul (args : Fin (ratSignature.Arity .mul) → Formula n) {a b : R}
@@ -333,17 +326,14 @@ private theorem realization_mul (args : Fin (ratSignature.Arity .mul) → Formul
   have hB2 : B * realized c X (args 1) = Mf * colR c (args 0) * rowR c (args 1) := by
     simp [B, Matrix.mul_assoc, hg2, Matrix.mul_one]
   refine ⟨fromBlocks Mf B 0 Mg, ?_, ?_, ?_⟩
-  · rw [realized_mul, fromBlocks_multiply]
-    simp [hf1, hg1, hB1, Matrix.mul_zero, Matrix.zero_mul, Matrix.neg_mul]
-  · rw [realized_mul, fromBlocks_multiply]
-    simp [hf2, hg2, hB2, Matrix.mul_zero, Matrix.zero_mul, Matrix.mul_neg, Matrix.neg_mul,
-      ← Matrix.mul_assoc]
+  · simp [realized_mul c X args, fromBlocks_multiply, hf1, hg1, hB1, Matrix.mul_zero,
+      Matrix.zero_mul, Matrix.neg_mul]
+  · simp [realized_mul c X args, fromBlocks_multiply, hf2, hg2, hB2, Matrix.mul_zero,
+      Matrix.zero_mul, Matrix.mul_neg, Matrix.neg_mul, ← Matrix.mul_assoc]
   · rw [rowR_mul, colR_mul, fromCols_mul_fromBlocks, fromCols_mul_fromRows]
-    simp only [Matrix.mul_zero, Matrix.zero_mul, add_zero, zero_add, B]
-    trans (rowR c (args 0) * Mf * colR c (args 0)) * (rowR c (args 1) * Mg * colR c (args 1))
-    · simp only [Matrix.mul_assoc]
-    · rw [hfr, hgr]
-      exact (map_mul (Matrix.uniqueRingEquiv (m := Unit)).symm a b).symm
+    simp only [Matrix.mul_zero, Matrix.zero_mul, add_zero, zero_add, B, ← Matrix.mul_assoc]
+    rw [Matrix.mul_assoc _ (rowR c (args 1)), Matrix.mul_assoc _ (rowR c (args 1) * Mg), hfr, hgr]
+    exact (map_mul (Matrix.uniqueRingEquiv (m := Unit)).symm a b).symm
 
 /-- Exact affine realization of every defined formula: the evaluated pencil is invertible, and
 the row, its inverse and the column multiply to the value. -/
@@ -353,27 +343,23 @@ theorem Eval.realization {f : Formula n} {v : R} (hv : f.Eval c X v) :
       rowR c f * M * colR c f = scalar v := by
   induction f generalizing v with
   | input i =>
-    obtain rfl : v = X i := hv
     rw [realized_input, rowR_input, colR_input]
-    exact leaf_realization (X i)
+    exact hv ▸ leaf_realization (X i)
   | gate op args ih =>
     cases op with
     | const q =>
-      obtain rfl : v = c q := hv
       rw [realized_const, rowR_const, colR_const]
-      exact leaf_realization (c q)
+      exact hv ▸ leaf_realization (c q)
     | add =>
       obtain ⟨a, b, ha, hb, rfl⟩ := hv
       obtain ⟨Mf, hf1, hf2, hfr⟩ := ih 0 ha
       obtain ⟨Mg, hg1, hg2, hgr⟩ := ih 1 hb
-      refine ⟨fromBlocks Mf 0 0 Mg, ?_, ?_, ?_⟩
-      · rw [realized_add, fromBlocks_multiply]
-        simp [hf1, hg1]
-      · rw [realized_add, fromBlocks_multiply]
-        simp [hf2, hg2]
-      · rw [rowR_add, colR_add, fromCols_mul_fromBlocks, fromCols_mul_fromRows]
-        simp only [Matrix.mul_zero, add_zero, zero_add, hfr, hgr]
-        exact (map_add (Matrix.uniqueRingEquiv (m := Unit)).symm a b).symm
+      refine ⟨fromBlocks Mf 0 0 Mg,
+        by simp [realized_add c X args, fromBlocks_multiply, hf1, hg1],
+        by simp [realized_add c X args, fromBlocks_multiply, hf2, hg2], ?_⟩
+      rw [rowR_add, colR_add, fromCols_mul_fromBlocks, fromCols_mul_fromRows]
+      simp only [Matrix.mul_zero, add_zero, zero_add, hfr, hgr]
+      exact (map_add (Matrix.uniqueRingEquiv (m := Unit)).symm a b).symm
     | mul =>
       obtain ⟨a, b, ha, hb, rfl⟩ := hv
       obtain ⟨Mf, hf1, hf2, hfr⟩ := ih 0 ha
@@ -426,9 +412,8 @@ not a new counted gate. -/
 def certificates (f : Formula n) : List (Formula n) := inverseNodes f ++ [inv f]
 
 private theorem Eval.pencil_isUnit {f : Formula n} {a : R} (ha : f.Eval c X a) :
-    IsUnit (realized c X f) := by
-  obtain ⟨M, hM, hM', _⟩ := ha.realization
-  exact isUnit_iff_exists.mpr ⟨M, hM, hM'⟩
+    IsUnit (realized c X f) :=
+  ha.realization.elim fun M ⟨hM, hM', _⟩ => isUnit_iff_exists.mpr ⟨M, hM, hM'⟩
 
 /-- At a defined point, the augmented pencil is invertible exactly when the value is. -/
 theorem Eval.augmented_isUnit_iff {f : Formula n} {a : R} (ha : f.Eval c X a) :
@@ -445,12 +430,10 @@ private theorem Eval.inverseNodes_units {f : Formula n} {a : R} (ha : f.Eval c X
   | var _ | const _ => simp
   | add f g ihf ihg =>
     obtain ⟨a₁, a₂, ha₁, ha₂, -⟩ := eval_add_iff.mp ha
-    simpa only [inverseNodes_add, List.mem_append, or_imp, forall_and] using
-      And.intro (ihf ha₁) (ihg ha₂)
+    simpa [or_imp, forall_and] using ⟨ihf ha₁, ihg ha₂⟩
   | mul f g ihf ihg =>
     obtain ⟨a₁, a₂, ha₁, ha₂, -⟩ := eval_mul_iff.mp ha
-    simpa only [inverseNodes_mul, List.mem_append, or_imp, forall_and] using
-      And.intro (ihf ha₁) (ihg ha₂)
+    simpa [or_imp, forall_and] using ⟨ihf ha₁, ihg ha₂⟩
   | inv f ih =>
     obtain ⟨b, hb, -, -⟩ := eval_inv_iff.mp ha
     simpa only [inverseNodes_inv, List.mem_cons, forall_eq_or_imp] using ⟨ha.pencil_isUnit, ih hb⟩
@@ -488,9 +471,8 @@ theorem certificates_iff (f : Formula n) :
     exact ⟨a, ha, ha.augmented_isUnit_iff.mp (hu (inv f) (by simp [certificates]))⟩
   · rintro ⟨a, ha, hua⟩ h hh
     rcases List.mem_append.mp hh with hh | hh
-    · exact Eval.inverseNodes_units c X ha h hh
-    · obtain rfl : h = inv f := by simpa using hh
-      exact ha.augmented_isUnit_iff.mpr hua
+    exacts [Eval.inverseNodes_units c X ha h hh,
+      List.mem_singleton.mp hh ▸ ha.augmented_isUnit_iff.mpr hua]
 
 private theorem inverseNodes_length (f : Formula n) : (inverseNodes f).length ≤ f.nodeCount := by
   induction f using inductionOn with
@@ -505,13 +487,11 @@ theorem nodeCount_le_of_mem_inverseNodes {f h : Formula n} (hh : h ∈ inverseNo
   induction f using inductionOn with
   | var _ | const _ => simp at hh
   | add f g ihf ihg =>
-    rcases List.mem_append.mp hh with hh | hh
-    · exact (ihf hh).trans (by simp only [nodeCount_add]; omega)
-    · exact (ihg hh).trans (by simp only [nodeCount_add]; omega)
+    have := (List.mem_append.mp hh).imp ihf ihg
+    simp only [nodeCount_add]; omega
   | mul f g ihf ihg =>
-    rcases List.mem_append.mp hh with hh | hh
-    · exact (ihf hh).trans (by simp only [nodeCount_mul]; omega)
-    · exact (ihg hh).trans (by simp only [nodeCount_mul]; omega)
+    have := (List.mem_append.mp hh).imp ihf ihg
+    simp only [nodeCount_mul]; omega
   | inv f ih =>
     rcases List.mem_cons.mp hh with rfl | hh
     · rfl
@@ -566,10 +546,8 @@ private theorem normalized [Algebra ℚ R] (Z : Fin (n + 1) → R) (u : R) (hu :
     Z 0 * ((algebraMap ℚ R) a.1 + ∑ i, (algebraMap ℚ R) (a.2 i) * (u * Z i.succ))
   rw [Fin.sum_univ_succ]
   simp only [coeff, Fin.cases_zero, Fin.cases_succ, mul_add, Finset.mul_sum]
-  congr 1
-  · exact Algebra.commutes a.1 (Z 0)
-  · refine Finset.sum_congr rfl fun i _ => ?_
-    rw [← mul_assoc, ← Algebra.commutes (a.2 i) (Z 0), mul_assoc, ← mul_assoc (Z 0) u, hu, one_mul]
+  refine congrArg₂ _ (Algebra.commutes a.1 (Z 0)) (Finset.sum_congr rfl fun i _ => ?_)
+  rw [← mul_assoc, ← Algebra.commutes (a.2 i) (Z 0), mul_assoc, ← mul_assoc (Z 0) u, hu, one_mul]
 
 private theorem normalized_pencil {ι : Type*} [Fintype ι] [DecidableEq ι] [Algebra ℚ R]
     (L : Matrix ι ι (Form n)) (Z : Fin (n + 1) → R) (u : R) (hu : Z 0 * u = 1) :
@@ -585,8 +563,7 @@ theorem normalized_pencil_unit {ι : Type*} [Fintype ι] [DecidableEq ι] [Algeb
     (L : Matrix ι ι (Form n)) (Z : Fin (n + 1) → R) (z : Rˣ) (hz : (z : R) = Z 0)
     (hL : IsUnit (L.map (homogeneous (algebraMap ℚ R) Z))) :
     IsUnit (L.map (eval (algebraMap ℚ R) (fun i => (↑z⁻¹ : R) * Z i.succ))) := by
-  have hu : Z 0 * (↑z⁻¹ : R) = 1 := by rw [← hz]; exact z.val_inv
-  rw [normalized_pencil L Z (↑z⁻¹ : R) hu] at hL
+  rw [normalized_pencil L Z (↑z⁻¹ : R) (hz ▸ z.val_inv)] at hL
   exact (z.isUnit.map (Matrix.scalar ι) |>.mul_left_iff).mp (by simpa [hz] using hL)
 
 /-- Reindexing a pencil's coefficients does not alter its matrix evaluation. -/

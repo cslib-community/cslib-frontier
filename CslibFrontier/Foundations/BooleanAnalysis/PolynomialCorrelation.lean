@@ -126,14 +126,11 @@ theorem exists_eq_add_majority_mul {m : ℕ} (f : BitString (2 * m + 1) → R) :
     fun x => f (fun i => !x i) - q (fun i => !x i)
   refine ⟨q, hq, _, comp_not_mem_lowDegree hr, fun x => ?_⟩
   by_cases hx : weight x ≤ m
-  · have hmaj : majority (2 * m + 1) x = false :=
-      Bool.eq_false_iff.2 (majority_eq_true_iff.not.2 (by omega))
-    simp [hmaj, hqf x hx]
-  · have hmaj : majority (2 * m + 1) x = true := majority_eq_true_iff.2 (by omega)
-    have hnot : weight (fun i => !x i) ≤ m := by
-      rw [weight_not, Fintype.card_fin]
-      omega
-    simp only [hmaj, bitVal_true, one_mul, hrf _ hnot, Bool.not_not]
+  · simp [Bool.eq_false_iff.2 ((majority_eq_true_iff (n := 2 * m + 1) (x := x)).not.2 (by omega)),
+      hqf x hx]
+  · have hnot : weight (fun i => !x i) ≤ m := by rw [weight_not, Fintype.card_fin]; omega
+    simp only [(majority_eq_true_iff (n := 2 * m + 1) (x := x)).2 (by omega), bitVal_true, one_mul,
+      hrf _ hnot, Bool.not_not]
     ring
 
 end Interpolation
@@ -284,20 +281,15 @@ private theorem atomSpan_mono {w w' : ℕ} (h : w ≤ w') : atomSpan m w ≤ ato
 private theorem atomSpan_eq_top : atomSpan m (m + 1) = ⊤ := by
   refine eq_top_iff.2 fun f _ => ?_
   obtain ⟨q, hq, r, hr, hf⟩ := exists_eq_add_majority_mul (R := ZMod 2) f
-  have hlow : lowDegree (ZMod 2) (Fin (2 * m + 1)) m ≤ atomSpan m (m + 1) := by
-    refine Submodule.span_le.2 ?_
-    rintro _ ⟨A, hA, rfl⟩
-    exact Submodule.subset_span
+  have hlow : lowDegree (ZMod 2) (Fin (2 * m + 1)) m ≤ atomSpan m (m + 1) :=
+    Submodule.span_le.2 fun ⦃_⦄ ⟨A, hA, hAx⟩ => hAx ▸ Submodule.subset_span
       ⟨(A, false), ⟨hA, by simpa [atomWeight] using Nat.le_succ_of_le hA⟩, atom_false A⟩
   have hmaj : lowDegree (ZMod 2) (Fin (2 * m + 1)) m ≤
-      (atomSpan m (m + 1)).comap (LinearMap.mulLeft (ZMod 2) majVal) := by
-    refine Submodule.span_le.2 ?_
-    rintro _ ⟨A, hA, rfl⟩
-    refine Submodule.subset_span ⟨(A, true), ⟨hA, by simp [atomWeight]⟩, ?_⟩
-    rw [← majVal_mul_atom (A, false), atom_false]
-    rfl
-  rw [show f = q + majVal * r from funext hf]
-  exact add_mem (hlow hq) (hmaj hr)
+      (atomSpan m (m + 1)).comap (LinearMap.mulLeft (ZMod 2) majVal) :=
+    Submodule.span_le.2 fun ⦃_⦄ ⟨A, hA, hAx⟩ => hAx ▸ Submodule.subset_span
+      ⟨(A, true), ⟨hA, by simp [atomWeight]⟩,
+        (majVal_mul_atom (A, false)).symm.trans (congrArg (majVal * ·) (atom_false A))⟩
+  exact funext hf ▸ add_mem (hlow hq) (hmaj hr)
 
 /-- Multiplying an atom by a variable of its block raises its weight by at most one. -/
 private theorem bitVal_mul_atom_mem {c : Finset (Fin (2 * m + 1)) × Bool} (hc : #c.1 ≤ m)
@@ -337,8 +329,7 @@ private theorem gen_update_true (a : Fin k → Finset (Fin (2 * m + 1)) × Bool)
     (x : BitString (k * (2 * m + 1))) :
     gen (Function.update a i ((a i).1, true)) x = majVal (block x i) * gen a x := by
   conv_rhs => rw [← Function.update_eq_self i a, gen_update]
-  rw [gen_update, ← mul_assoc, ← majVal_mul_atom]
-  rfl
+  rw [gen_update, ← mul_assoc, ← majVal_mul_atom]; rfl
 
 private theorem genSpan_mono {r s : ℕ} (h : r ≤ s) : genSpan k m r ≤ genSpan k m s :=
   Submodule.span_mono (Set.image_mono fun _ ha => ⟨ha.1, ha.2.trans h⟩)
@@ -404,11 +395,10 @@ private theorem mul_mem_genSpan {d r : ℕ} {P f : BitString (k * (2 * m + 1)) �
 /-- The products span all functions. -/
 private theorem mem_genSpan (f : BitString (k * (2 * m + 1)) → ZMod 2) :
     f ∈ genSpan k m (k * (2 * m + 1)) := by
-  have h1 : (1 : BitString (k * (2 * m + 1)) → ZMod 2) ∈ genSpan k m 0 := by
-    refine Submodule.subset_span ⟨fun _ => (∅, false), ⟨fun _ => by simp, by
-      simp [genWeight, atomWeight]⟩, ?_⟩
-    funext x
-    simp [gen, atom_false]
+  have h1 : (1 : BitString (k * (2 * m + 1)) → ZMod 2) ∈ genSpan k m 0 :=
+    Submodule.subset_span ⟨fun _ => (∅, false),
+      ⟨fun _ => Nat.zero_le _, by simp [genWeight, atomWeight]⟩,
+      funext fun _ => by simp [gen, atom_false]⟩
   simpa using mul_mem_genSpan (mem_lowDegree_self f) h1
 
 /-- Parity in `ZMod 2` is the sum of the bits. -/
@@ -468,9 +458,7 @@ private theorem mul_gen_update_false_add_sum_erase_eq
       gen a x := by
   intro a'
   have ha_eq : Function.update a' i ((a' i).1, true) = a := by
-    dsimp only [a']
-    rw [Function.update_self, Function.update_idem,
-      show ((a i).1, true) = a i from Prod.ext rfl hb.symm, Function.update_eq_self]
+    simp [a', ← hb]
   rw [← ha_eq]
   simp only [Pi.add_apply, Pi.mul_apply, Finset.sum_apply, gen_update_true]
   rw [← sum_mul, ← add_mul, hx, ← add_sum_erase univ (fun j => majVal (block x j))
@@ -507,9 +495,8 @@ private theorem exists_mem_span_firstFlagUnset_eq {d : ℕ}
       by_cases hall : FirstFlagUnset (fun A : Finset (Fin (2 * m + 1)) => #A + d ≤ m) a
       · exact ⟨gen a, Submodule.subset_span ⟨a, ⟨ha, hall⟩, rfl⟩, fun _ _ => rfl⟩
       -- the first block with room for `d` more bits carries its majority
-      obtain ⟨i, hi, hmi, hb⟩ : ∃ i, #(a i).1 + d ≤ m ∧ (∀ j < i, ¬#(a j).1 + d ≤ m) ∧
-          (a i).2 = true := by
-        simpa [FirstFlagUnset] using hall
+      simp only [FirstFlagUnset, not_forall, Bool.not_eq_false] at hall
+      obtain ⟨i, hi, hmi, hb⟩ := hall
       set a' := Function.update a i ((a i).1, false) with ha'_def
       have ha' (j : Fin k) : #(a' j).1 ≤ m := by
         rcases eq_or_ne j i with rfl | hj <;> simp [a', Function.update_of_ne, ha j, *]
@@ -637,18 +624,15 @@ private theorem card_filter_card_le_le_choose (m d : ℕ) :
 /-- The middle binomial coefficient of an odd number `ℓ` is at most `2 ^ ℓ / √ℓ`. -/
 private theorem choose_mul_sqrt_le (m : ℕ) :
     ((2 * m + 1).choose m : ℝ) * √((2 * m + 1 : ℕ) : ℝ) ≤ 2 ^ (2 * m + 1) := by
-  have h := choose_half_sq_mul_le (2 * m + 1)
-  rw [show (2 * m + 1) / 2 = m by omega] at h
+  have hdiv : (2 * m + 1) / 2 = m := by omega
   have h' : ((2 * m + 1).choose m : ℝ) ^ 2 * (2 * m + 1 : ℕ) ≤ (2 ^ (2 * m + 1)) ^ 2 := by
-    have : (2 * m + 1).choose m ^ 2 * (2 * m + 1) ≤ (2 ^ (2 * m + 1)) ^ 2 :=
-      calc
-        _ ≤ (2 * m + 1).choose m ^ 2 * (2 * m + 1 + 1) := Nat.mul_le_mul_left _ (Nat.le_succ _)
-        _ ≤ 4 ^ (2 * m + 1) := h
-        _ = (2 ^ (2 * m + 1)) ^ 2 := by rw [← pow_mul, pow_mul']; norm_num
-    exact_mod_cast this
-  rw [← Real.sqrt_sq (by positivity : (0 : ℝ) ≤ 2 ^ (2 * m + 1)),
-    ← Real.sqrt_sq (by positivity : (0 : ℝ) ≤ (2 * m + 1).choose m),
-    ← Real.sqrt_mul (by positivity)]
+    exact_mod_cast calc
+      (2 * m + 1).choose m ^ 2 * (2 * m + 1)
+        ≤ (2 * m + 1).choose m ^ 2 * (2 * m + 1 + 1) := Nat.mul_le_mul_left _ (Nat.le_succ _)
+      _ ≤ 4 ^ (2 * m + 1) := by simpa only [hdiv] using choose_half_sq_mul_le (2 * m + 1)
+      _ = (2 ^ (2 * m + 1)) ^ 2 := by rw [← pow_mul, pow_mul']; norm_num
+  have h2_nn : (0 : ℝ) ≤ 2 ^ (2 * m + 1) := by positivity
+  rw [← Real.sqrt_sq h2_nn, ← Real.sqrt_sq (Nat.cast_nonneg _), ← Real.sqrt_mul (sq_nonneg _)]
   exact Real.sqrt_le_sqrt h'
 
 /-- **Exponential correlation bound for polynomials**: for odd `ℓ`, the correlation of the

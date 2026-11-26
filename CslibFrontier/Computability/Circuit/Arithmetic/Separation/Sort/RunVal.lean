@@ -75,17 +75,10 @@ theorem IsRuns.val_eq {P : Series F (Ch S J × Γ)} {em : X → Ch S J → List 
   · refine Finset.sum_congr rfl fun W hW => ?_
     refine h.of_fib _ fun x => ?_
     rw [Finset.mem_filter, hR]
-    constructor
-    · rintro ⟨⟨h1, h2⟩, h3⟩
-      rw [h1.eq_tup, h3]
-    · intro h1
-      obtain ⟨h2, h3⟩ := Mt.of_tup h1
-      refine ⟨⟨h2, ?_⟩, h3⟩
-      rw [mem_contents, ← h3] at hW
-      exact hW
-  · intro x hx
-    rw [mem_contents]
-    exact ((hR x).1 hx).2
+    refine ⟨fun ⟨⟨h1, _⟩, h3⟩ => h3 ▸ h1.eq_tup, fun h1 => ?_⟩
+    obtain ⟨h2, rfl⟩ := Mt.of_tup h1
+    exact ⟨⟨h2, mem_contents.1 hW⟩, rfl⟩
+  · exact fun x hx => mem_contents.2 ((hR x).1 hx).2
 
 theorem IsRuns.exists_mt {P : Series F (Ch S J × Γ)} {em : X → Ch S J → List Γ} {wt : X → F}
     (h : IsRuns P em wt) {u : J → List Γ} {W : S → List Γ} (hW : hat P (tup W u) ≠ 0) :

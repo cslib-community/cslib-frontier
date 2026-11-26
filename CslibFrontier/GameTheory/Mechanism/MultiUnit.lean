@@ -132,8 +132,7 @@ theorem le_of_beats {b : ι → ℝ} {j i : ι} (h : Beats b j i) : b i ≤ b j 
   exact h.elim le_of_lt fun h => h.1.le
 
 theorem le_of_not_beats {b : ι → ℝ} {j i : ι} (h : ¬ Beats b j i) : b j ≤ b i := by
-  by_contra hlt
-  exact h (Or.inl (not_le.1 hlt))
+  exact not_lt.1 fun hlt => h (Or.inl hlt)
 
 variable [Fintype ι]
 
@@ -190,16 +189,12 @@ theorem exists_rank_eq {b : ι → ℝ} {r : ℕ} (hr : r < Fintype.card ι) : �
 theorem wins_one_iff {b : ι → ℝ} {i : ι} : Wins 1 b i ↔ Vickrey.Wins b i := by
   classical
   rw [Wins, Nat.lt_one_iff, rank, Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-  constructor
-  · intro h j hj
-    have hnb : ¬ Beats b j i := h (Finset.mem_univ j)
-    refine ⟨le_of_not_beats hnb, fun hlt => ?_⟩
-    exact (le_of_not_beats hnb).lt_of_ne fun heq => hnb (Or.inr ⟨heq.symm, hlt⟩)
-  · rintro h j - (hlt | ⟨heq, hji⟩)
-    · have hj : j ≠ i := fun he => by subst he; exact lt_irrefl _ hlt
-      exact not_lt.2 (h j hj).1 hlt
-    · have hj : j ≠ i := ne_of_lt hji
-      exact ((h j hj).2 hji).ne heq.symm
+  refine ⟨fun h j _ => ⟨le_of_not_beats (h (Finset.mem_univ j)), fun hlt =>
+    (le_of_not_beats (h (Finset.mem_univ j))).lt_of_ne fun heq =>
+      h (Finset.mem_univ j) (Or.inr ⟨heq.symm, hlt⟩)⟩, ?_⟩
+  rintro h j - (hlt | ⟨heq, hji⟩)
+  · exact not_lt.2 (h j (fun he => lt_irrefl _ (he ▸ hlt))).1 hlt
+  · exact ((h j hji.ne).2 hji).ne heq.symm
 
 open Classical in
 /-- Top-`k` allocation rule: each of the `k` highest-ranked bidders receives `1` item, and all
@@ -208,11 +203,9 @@ noncomputable def allocation (k : ℕ) (b : ι → ℝ) (i : ι) : ℝ :=
   if Wins k b i then 1 else 0
 
 theorem allocation_one : allocation (ι := ι) 1 = Vickrey.allocation := by
-  funext b i
-  unfold allocation Vickrey.allocation
-  by_cases h : Wins 1 b i
-  · rw [ite_eq_left h, ite_eq_left (wins_one_iff.1 h)]
-  · rw [ite_eq_right h, ite_eq_right (mt wins_one_iff.2 h)]
+  classical
+  ext b i
+  simp only [allocation, Vickrey.allocation, wins_one_iff]
 
 theorem allocation_eq_one_iff {k : ℕ} {b : ι → ℝ} {i : ι} :
     allocation k b i = 1 ↔ Wins k b i := by
@@ -224,9 +217,7 @@ theorem allocation_eq_zero_iff {k : ℕ} {b : ι → ℝ} {i : ι} :
 
 theorem allocation_binary (k : ℕ) (b : ι → ℝ) (i : ι) :
     allocation k b i = 0 ∨ allocation k b i = 1 := by
-  unfold allocation
-  split_ifs
-  exacts [Or.inr rfl, Or.inl rfl]
+  by_cases h : Wins k b i <;> simp [allocation, h]
 
 theorem isBinary_allocation (k : ℕ) : IsBinary (allocation (ι := ι) k) :=
   fun b _ i => allocation_binary k b i
@@ -241,11 +232,10 @@ theorem card_wins (k : ℕ) (b : ι → ℝ) :
       Finset.range (min k (Fintype.card ι)) := by
     ext r
     rw [Finset.mem_image, Finset.mem_range, lt_min_iff]
-    refine ⟨?_, fun ⟨hrk, hrn⟩ => ?_⟩
-    · rintro ⟨i, hi, rfl⟩
-      exact ⟨(Finset.mem_filter.1 hi).2, rank_lt_card b i⟩
-    · obtain ⟨i, hi⟩ := exists_rank_eq (b := b) hrn
-      exact ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ i, by rw [Wins, hi]; exact hrk⟩, hi⟩
+    refine ⟨fun ⟨i, hi, hr⟩ => ⟨hr ▸ (Finset.mem_filter.1 hi).2, hr ▸ rank_lt_card b i⟩,
+      fun ⟨hrk, hrn⟩ => ?_⟩
+    obtain ⟨i, hi⟩ := exists_rank_eq (b := b) hrn
+    exact ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ i, hi.trans_lt hrk⟩, hi⟩
   rw [himg, Finset.card_range]
 
 open Classical in
@@ -315,9 +305,8 @@ theorem bidAtRank_eq_of_rank {r : ℕ} {b : ι → ℝ} {i : ι} (hi : rank b i 
   rw [dite_eq_left hex, rank_injective b ((Classical.choose_spec hex).trans hi.symm)]
 
 theorem bidAtRank_eq_of_rank_nonneg {r : ℕ} {b : ι → ℝ} (hb : 0 ≤ b) {i : ι}
-    (hi : rank b i = r) : bidAtRank r b = b i := by
-  have hbi : 0 ≤ b i := hb i
-  rw [bidAtRank_eq_of_rank hi, max_eq_right hbi]
+    (hi : rank b i = r) : bidAtRank r b = b i :=
+  (bidAtRank_eq_of_rank hi).trans (max_eq_right (hb i))
 
 theorem bidAtRank_of_card_le {r : ℕ} (b : ι → ℝ) (hr : Fintype.card ι ≤ r) :
     bidAtRank r b = 0 := by
@@ -459,18 +448,16 @@ open Classical in
 theorem nextBidMechanism_isDSIC_of_card_le_one (k : ℕ) (hn : Fintype.card ι ≤ 1) :
     (nextBidMechanism (ι := ι) k).IsDSIC := by
   intro i b v _ _
-  have hp0 : ∀ c : ι → ℝ, (nextBidMechanism k).payment c i = 0 := fun c => by
-    simp only [nextBidMechanism]
-    rw [bidAtRank_of_card_le c (by omega), zero_mul]
+  have hp0 (c : ι → ℝ) : (nextBidMechanism k).payment c i = 0 := by
+    simp only [nextBidMechanism_payment, bidAtRank_of_card_le (r := rank c i + 1) c (by omega),
+      zero_mul]
   have ha : ∀ c : ι → ℝ, allocation k c i = if 0 < k then 1 else 0 := fun c => by
     have hsub : Subsingleton ι := Fintype.card_le_one_iff_subsingleton.1 hn
     have hr0 : rank c i = 0 := by
       rw [rank, Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-      intro j _ hjb
-      exact beats_irrefl c i (hsub.elim j i ▸ hjb)
+      exact fun j _ hjb => beats_irrefl c i (hsub.elim j i ▸ hjb)
     simp only [allocation, Wins, hr0]
-  simp only [Mechanism.utility, hp0]
-  simp only [nextBidMechanism, ha, sub_zero, le_rfl]
+  simp only [Mechanism.utility, hp0, nextBidMechanism_allocation, ha, sub_zero, le_rfl]
 
 open Classical in
 /-- If bidder `i`'s bid strictly exceeds every other bid, `rank b i = 0`. -/
@@ -522,9 +509,9 @@ theorem not_isDSIC_nextBidMechanism {k : ℕ} (hk : 2 ≤ k) (hn : 2 ≤ Fintype
   have hpay_shaded : bidAtRank 2 b = 0 := by
     by_cases hex : ∃ m, rank b m = 2
     · obtain ⟨m, hm⟩ := hex
-      have hm0 : m ≠ i₀ := fun h => by rw [h, hrank_b_i₀] at hm; omega
-      have hm1 : m ≠ i₁ := fun h => by rw [h, hrank_b_i₁] at hm; omega
-      rw [bidAtRank_eq_of_rank_nonneg hb0 hm, hb_other m hm0 hm1]
+      rw [bidAtRank_eq_of_rank_nonneg hb0 hm, hb_other m
+        (fun h => by simp [h, hrank_b_i₀] at hm)
+        (fun h => by simp [h, hrank_b_i₁] at hm)]
     · exact dite_eq_right hex
   -- At truthful profile `b* = update b i₀ 3`, `i₀` has rank `0` and `i₁` has rank `1`.
   let bStar := Function.update b i₀ 3

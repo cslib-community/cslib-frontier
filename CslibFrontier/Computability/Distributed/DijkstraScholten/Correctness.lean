@@ -166,7 +166,7 @@ private theorem ancestor?_add (s : State P) (a b : ℕ) (p : P) :
   | zero =>
     simp [ancestor?, Option.bind]
   | succ a ih =>
-    rw [show a + 1 + b = a + b + 1 by omega]
+    rw [Nat.succ_add]
     simp only [ancestor?]
     cases (s.proc p).parent <;> simp [ih]
 
@@ -236,10 +236,7 @@ private theorem trInv_root_parent {P : Type*} [DecidableEq P] (root : P) :
       root).trans hinv
   | detach p q =>
     obtain ⟨_, rfl⟩ := tr_detach_iff.mp htr
-    simp only [State.detachState]
-    by_cases h : root = p
-    · subst h; simp
-    · simp [Function.update_of_ne h, hinv]
+    by_cases h : root = p <;> simp [State.detachState, h, hinv]
 
 /-- `root` never acquires a `parent` pointer in any reachable configuration. -/
 theorem Reachable.root_parent_eq_none {P : Type*} [DecidableEq P] {root : P} {s : State P}
@@ -334,16 +331,8 @@ private theorem children_attach {P : Type*} [Fintype P] [DecidableEq P] (s : Sta
   have heq : s'.children root p =
       if src = p then insert dst (s.children root p) else s.children root p := by
     ext q
-    split_ifs with h <;>
-      simp only [State.children, s', Finset.mem_insert, Finset.mem_filter, Finset.mem_univ,
-        true_and]
-    · subst h
-      rcases eq_or_ne q dst with rfl | hq
-      · simp [hdst]
-      · simp [hq]
-    · rcases eq_or_ne q dst with rfl | hq
-      · simp [h, hpar]
-      · simp [Function.update_of_ne hq]
+    by_cases hq : q = dst <;>
+      split_ifs with h <;> simp [State.children, s', hdst, hpar, h, hq]
   rw [heq]
   split_ifs <;> simp [Finset.card_insert_of_notMem hnotMem, Nat.add_comm]
 
@@ -354,20 +343,12 @@ private theorem children_detach {P : Type*} [Fintype P] [DecidableEq P] (s : Sta
   have heq : (s.detachState p q).children root r =
       if q = r then (s.children root r).erase p else s.children root r := by
     ext x
-    split_ifs with hqr
-    · subst hqr
-      rw [State.children, Finset.mem_filter, Finset.mem_erase, State.children, Finset.mem_filter]
-      rcases eq_or_ne x p with rfl | hx
-      · simp [State.detachState]
-      · simp [State.detachState, hx]
-    · rw [State.children, Finset.mem_filter, State.children, Finset.mem_filter]
-      rcases eq_or_ne x p with rfl | hx
-      · simp [State.detachState, hpar, hqr]
-      · simp [State.detachState, Function.update_of_ne hx]
+    by_cases hx : x = p <;>
+      split_ifs with hqr <;>
+        simp [State.children, State.detachState, Function.update_apply, hpar, hqr, hx]
   rw [heq]
   split_ifs with hqr
-  · subst hqr
-    exact Finset.card_erase_add_one (by simp [State.children, hp, hpar])
+  · exact Finset.card_erase_add_one (by simp [State.children, hp, hqr ▸ hpar])
   · simp
 
 private theorem trInv_deficit_conservation {P : Type*} [Fintype P] [DecidableEq P] (root : P) :
@@ -387,11 +368,10 @@ private theorem trInv_deficit_conservation {P : Type*} [Fintype P] [DecidableEq 
       children_congr
         (parent_eq_of_update_same_parent s src (s.proc src).active ((s.proc src).deficit + 1))
         root p
-    have hsig : (s.sendBasicState src dst).inFlightSignalTo p = s.inFlightSignalTo p := rfl
-    rw [hbasic, hsig, hchild]
-    simp only [State.sendBasicState]
-    by_cases h : p = src
-    · subst h; simp only [Function.update_self, ↓reduceIte]; omega
+    rw [hbasic, hchild]
+    simp only [State.sendBasicState, State.inFlightSignalTo] at hcons ⊢
+    rcases eq_or_ne p src with rfl | h
+    · simp only [Function.update_self, ↓reduceIte]; omega
     · simp only [Function.update_of_ne h, Ne.symm h, ↓reduceIte]; omega
   | recvBasic src dst =>
     obtain ⟨hmem, rfl⟩ := tr_recvBasic_iff.mp htr
@@ -420,13 +400,9 @@ private theorem trInv_deficit_conservation {P : Type*} [Fintype P] [DecidableEq 
       omega
   | becomeIdle q =>
     obtain ⟨_, rfl⟩ := tr_becomeIdle_iff.mp htr
-    have hch : (s.becomeIdleState q).children root p = s.children root p :=
-      children_congr (parent_eq_of_update_same_parent s q false (s.proc q).deficit) root p
-    have hdef : ((s.becomeIdleState q).proc p).deficit = (s.proc p).deficit :=
-      deficit_eq_of_update_same_deficit s q false (s.proc q).parent p
-    rw [hdef, show (s.becomeIdleState q).inFlightBasicFrom p = s.inFlightBasicFrom p from rfl,
-      show (s.becomeIdleState q).inFlightSignalTo p = s.inFlightSignalTo p from rfl, hch]
-    exact hinv p
+    rw [children_congr (parent_eq_of_update_same_parent s q false (s.proc q).deficit) root p]
+    simpa only [State.becomeIdleState, State.inFlightBasicFrom, State.inFlightSignalTo,
+      deficit_eq_of_update_same_deficit s q false (s.proc q).parent p] using hinv p
   | recvSignal q =>
     obtain ⟨hmem, rfl⟩ := tr_recvSignal_iff.mp htr
     have hcons := hinv p
@@ -437,12 +413,13 @@ private theorem trInv_deficit_conservation {P : Type*} [Fintype P] [DecidableEq 
     have hch : (s.recvSignalState q).children root p = s.children root p :=
       children_congr
         (parent_eq_of_update_same_parent s q (s.proc q).active ((s.proc q).deficit - 1)) root p
-    rw [show (s.recvSignalState q).inFlightBasicFrom p = s.inFlightBasicFrom p from rfl, hch]
-    by_cases hp : p = q
-    · subst hp
-      simp only [State.recvSignalState, Function.update_self, ↓reduceIte] at hsig ⊢
+    rw [hch]
+    rcases eq_or_ne p q with rfl | hp
+    · simp only [State.recvSignalState, State.inFlightBasicFrom, Function.update_self,
+        ↓reduceIte] at hcons hsig ⊢
       omega
-    · simp only [State.recvSignalState, Function.update_of_ne hp, hp, ↓reduceIte] at hsig ⊢
+    · simp only [State.recvSignalState, State.inFlightBasicFrom, Function.update_of_ne hp, hp,
+        ↓reduceIte] at hcons hsig ⊢
       omega
   | detach q r =>
     obtain ⟨⟨hq, _, _, hpar⟩, rfl⟩ := tr_detach_iff.mp htr
@@ -453,7 +430,8 @@ private theorem trInv_deficit_conservation {P : Type*} [Fintype P] [DecidableEq 
       Multiset.count_cons p r s.signals
     have hdef : ((s.detachState q r).proc p).deficit = (s.proc p).deficit :=
       deficit_eq_of_update_same_deficit s q (s.proc q).active none p
-    rw [hdef, show (s.detachState q r).inFlightBasicFrom p = s.inFlightBasicFrom p from rfl, hsig]
+    change _ = s.inFlightBasicFrom p + _ + _
+    rw [hdef, hsig]
     simp only [eq_comm (a := p)]
     omega
 
@@ -467,10 +445,7 @@ theorem Reachable.deficit_eq_inFlight_add_children {P : Type*} [Fintype P] [Deci
       s.inFlightBasicFrom p + s.inFlightSignalTo p + (s.children root p).card := by
   obtain ⟨tr, hmtr⟩ := hr
   refine LTS.mtrInv_of_trInv (trInv_deficit_conservation root) _ tr s hmtr (fun q => ?_) p
-  have hch : (initState root).children root q = ∅ :=
-    Finset.eq_empty_iff_forall_notMem.mpr (by simp [State.children, initState])
-  rw [hch]
-  simp [State.inFlightBasicFrom, State.inFlightSignalTo, initState]
+  simp [State.inFlightBasicFrom, State.inFlightSignalTo, State.children, initState]
 
 /-! ### Engagement-tree reachability to `root` and acyclicity (P4) -/
 
@@ -613,13 +588,11 @@ private theorem mtr_reaches_root {P : Type*} [Finite P] [DecidableEq P] (root : 
         (parent_eq_of_update_same_parent s₀ q (s₀.proc q).active ((s₀.proc q).deficit - 1))
     | detach q r =>
       obtain ⟨⟨hq_ne, _, hdef0, _⟩, rfl⟩ := tr_detach_iff.mp hstep
-      have hleaf : ∀ c, (s₀.proc c).parent ≠ some q := by
-        intro c hc
-        by_cases hcr : c = root
-        · subst hcr; simp [hr₀.root_parent_eq_none] at hc
-        · have hmem : c ∈ s₀.children root q := by
-            simp [State.children, hcr, hc]
-          have hpos : 0 < (s₀.children root q).card := Finset.card_pos.mpr ⟨c, hmem⟩
+      have hleaf (c : P) (hc : (s₀.proc c).parent = some q) : False := by
+        rcases eq_or_ne c root with rfl | hcr
+        · simp [hr₀.root_parent_eq_none] at hc
+        · have hpos : 0 < (s₀.children root q).card :=
+            Finset.card_pos.mpr ⟨c, by simp [State.children, hcr, hc]⟩
           have hcons := hr₀.deficit_eq_inFlight_add_children q
           omega
       have hpar_ne : ∀ x, x ≠ q → ((s₀.detachState q r).proc x).parent = (s₀.proc x).parent :=
@@ -628,8 +601,7 @@ private theorem mtr_reaches_root {P : Type*} [Finite P] [DecidableEq P] (root : 
       have hpq : p ≠ q := by
         rintro rfl
         rcases hp with rfl | hpar'
-        · exact hq_ne rfl
-        · simp [State.detachState] at hpar'
+        exacts [hq_ne rfl, hpar' (by simp [State.detachState])]
       obtain ⟨k, hk⟩ := ih₀ p (hp.imp id fun hpar' => hpar_ne p hpq ▸ hpar')
       exact ⟨k, ancestor?_preserve_of_detach hleaf hpar_ne k p hpq hk⟩
 
@@ -742,9 +714,7 @@ theorem State.ComputationIdle.step_drainMeasure {P : Type*} [Fintype P] [Decidab
     simp [hidle.1 p] at hact
   | recvSignal p =>
     obtain ⟨hmem, rfl⟩ := tr_recvSignal_iff.mp htr
-    let s₁ := s.recvSignalState p
-    change ((∃ q, Action.recvSignal p = .recvSignal q) ∨ _) ∧
-      s₁.ComputationIdle ∧ s₁.drainMeasure root + 1 = s.drainMeasure root
+    set s₁ := s.recvSignalState p
     refine ⟨Or.inl ⟨p, rfl⟩, ?_, ?_⟩
     · refine ⟨fun q => ?_, hidle.2⟩
       simp only [s₁, State.recvSignalState]
@@ -760,9 +730,7 @@ theorem State.ComputationIdle.step_drainMeasure {P : Type*} [Fintype P] [Decidab
       omega
   | detach p q =>
     obtain ⟨⟨hp_ne, _, _, hpar⟩, rfl⟩ := tr_detach_iff.mp htr
-    let s₁ := s.detachState p q
-    change (_ ∨ (∃ x y, Action.detach p q = .detach x y)) ∧
-      s₁.ComputationIdle ∧ s₁.drainMeasure root + 1 = s.drainMeasure root
+    set s₁ := s.detachState p q
     refine ⟨Or.inr ⟨p, q, rfl⟩, ?_, ?_⟩
     · refine ⟨fun x => ?_, hidle.2⟩
       simp only [s₁, State.detachState]
@@ -786,14 +754,11 @@ theorem State.ComputationIdle.mtr_drainMeasure {P : Type*} [Fintype P] [Decidabl
     (hmtr : (lts root).MTr s tr s') :
     s'.ComputationIdle ∧ s'.drainMeasure root + tr.length = s.drainMeasure root := by
   induction hmtr with
-  | refl =>
-    exact ⟨hidle, by simp⟩
+  | refl => exact ⟨hidle, Nat.add_zero _⟩
   | stepL htr _ ih =>
     obtain ⟨_, hidle₁, hstep⟩ := hidle.step_drainMeasure htr
     obtain ⟨hidle₂, hrest⟩ := ih hidle₁
-    refine ⟨hidle₂, ?_⟩
-    simp only [List.length_cons]
-    omega
+    exact ⟨hidle₂, by simp only [List.length_cons]; omega⟩
 
 /-- Deadlock-freedom during draining: a reachable `ComputationIdle` configuration has no enabled
 transitions in `lts root` iff `root` has already detected `Terminated`. -/

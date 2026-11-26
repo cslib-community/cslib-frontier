@@ -208,15 +208,13 @@ private theorem card_filter_contains_mul_two_pow_of_determined {U V : Finset (Fi
     have hD' := hD.mono (subset_insert e D)
     have ih' := ih hD' fun e' he' => hfresh e' (mem_insert_of_mem he')
     set S' := S.filter fun c => Contains (ofColoring c) D
-    have hS' : Determined (U ∪ D.image Prod.fst) (V ∪ D.image Prod.snd) S' := by
-      intro c c' hU hV hc
-      refine mem_filter.2 ⟨hS c c' (fun u hu => hU u (mem_union_left _ hu))
-        (fun v hv => hV v (mem_union_left _ hv)) (mem_filter.1 hc).1, ?_⟩
-      have hcD := contains_ofColoring_iff.1 (mem_filter.1 hc).2
-      refine contains_ofColoring_iff.2 fun e' he' => ?_
-      rw [← hU _ (mem_union_right _ (mem_image_of_mem _ he')),
-        ← hV _ (mem_union_right _ (mem_image_of_mem _ he'))]
-      exact hcD e' he'
+    have hS' : Determined (U ∪ D.image Prod.fst) (V ∪ D.image Prod.snd) S' := fun c c' hU hV hc =>
+      mem_filter.2 ⟨hS c c' (fun u hu => hU u (mem_union_left _ hu))
+        (fun v hv => hV v (mem_union_left _ hv)) (mem_filter.1 hc).1,
+        contains_ofColoring_iff.2 fun e' he' => by
+          rw [← hU _ (mem_union_right _ (mem_image_of_mem _ he')),
+            ← hV _ (mem_union_right _ (mem_image_of_mem _ he'))]
+          exact contains_ofColoring_iff.1 (mem_filter.1 hc).2 e' he'⟩
     have hne (e' : Fin n × Fin n) (he' : e' ∈ D) : e.1 ≠ e'.1 ∧ e.2 ≠ e'.2 := by
       have h := hD e (mem_insert_self e D) e' (mem_insert_of_mem he')
       exact ⟨fun h' => he (h (Or.inl h') ▸ he'), fun h' => he (h (Or.inr h') ▸ he')⟩
@@ -242,12 +240,11 @@ private theorem card_filter_not_contains_mul_le {U V : Finset (Fin n)} {S : Fins
     (hfresh : ∀ e ∈ D, e.1 ∉ U ∨ e.2 ∉ V) (hDs : D.card ≤ s) :
     #{c ∈ S | ¬Contains (ofColoring c) D} * 2 ^ s ≤ (2 ^ s - 1) * #S := by
   have h := card_filter_contains_mul_two_pow_of_determined hS hD hfresh
-  have hsplit := card_filter_add_card_filter_not (s := S) fun c => Contains (ofColoring c) D
   have hle : #S ≤ #{c ∈ S | Contains (ofColoring c) D} * 2 ^ s :=
     h ▸ Nat.mul_le_mul_left _ (Nat.pow_le_pow_right two_pos hDs)
-  have hmul : #{c ∈ S | ¬Contains (ofColoring c) D} * 2 ^ s +
-      #{c ∈ S | Contains (ofColoring c) D} * 2 ^ s = #S * 2 ^ s := by
-    rw [← add_mul, add_comm, hsplit]
+  have hmul : #{c ∈ S | Contains (ofColoring c) D} * 2 ^ s +
+      #{c ∈ S | ¬Contains (ofColoring c) D} * 2 ^ s = #S * 2 ^ s := by
+    rw [← add_mul, card_filter_add_card_filter_not]
   rw [Nat.sub_one_mul, mul_comm (2 ^ s)]
   omega
 
@@ -275,10 +272,8 @@ private theorem exists_fresh {𝒟 𝒞 : Finset (Finset (Fin n × Fin n))} (h�
     card_image_le.trans (hcard D (h𝒞 hD))
   set B := 𝒟.filter fun D => ∃ e ∈ D, e.1 ∈ U ∧ e.2 ∈ V
   have hB : B.card ≤ (𝒞.card * s) ^ 2 := by
-    have hsub : B.biUnion (fun D => D.filter fun e => e.1 ∈ U ∧ e.2 ∈ V) ⊆ U ×ˢ V := by
-      intro e he
-      obtain ⟨_, -, he⟩ := mem_biUnion.1 he
-      exact mem_product.2 (mem_filter.1 he).2
+    have hsub : B.biUnion (fun D => D.filter fun e => e.1 ∈ U ∧ e.2 ∈ V) ⊆ U ×ˢ V :=
+      biUnion_subset.2 fun _ _ _ he => mem_product.2 (mem_filter.1 he).2
     have hdisj' : (B : Set (Finset (Fin n × Fin n))).PairwiseDisjoint
         fun D => D.filter fun e => e.1 ∈ U ∧ e.2 ∈ V := fun D hD D' hD' hDD' =>
       disjoint_filter_filter (hdisj (filter_subset _ _ hD) (filter_subset _ _ hD') hDD')
@@ -387,22 +382,18 @@ theorem card_stepExceptions_le_of_step {F G : Finset (Finset (Fin n × Fin n))}
   obtain ⟨W, -, ⟨-, ⟨V₀, hV₀, hV₀W⟩ | ⟨-, V, hV, hVW⟩⟩, rfl⟩ := h
   · refine (card_eq_zero.2 (eq_empty_of_forall_notMem fun c hc => ?_)).trans_le (Nat.zero_le _)
     obtain ⟨⟨t, ht, hct⟩, hF'⟩ := mem_stepExceptions.1 hc
-    rcases mem_insert.1 ht with rfl | ht
-    · exact hF' ⟨V₀, hV₀, hct.mono hV₀W⟩
-    · exact hF' ⟨t, ht, hct⟩
+    exact (mem_insert.1 ht).elim (fun h => hF' ⟨V₀, hV₀, (h ▸ hct).mono hV₀W⟩)
+      fun ht => hF' ⟨t, ht, hct⟩
   rw [stepCap, Nat.le_div_iff_mul_le (by positivity)]
   have hexc (c : Coloring n) (hc : c ∈ stepExceptions F (insert W F)) :
       Contains (ofColoring c) W ∧ ∀ i, ¬Contains (ofColoring c) (V i) := by
     obtain ⟨⟨t, ht, hct⟩, hF'⟩ := mem_stepExceptions.1 hc
-    rcases mem_insert.1 ht with rfl | ht
-    · exact ⟨hct, fun i hi => hF' ⟨V i, hV i, hi⟩⟩
-    · exact absurd ⟨t, ht, hct⟩ hF'
+    exact (mem_insert.1 ht).elim (fun h => ⟨h ▸ hct, fun i hi => hF' ⟨V i, hV i, hi⟩⟩)
+      fun ht => absurd ⟨t, ht, hct⟩ hF'
   by_cases hsub : ∃ i, V i ⊆ W
   · obtain ⟨i, hi⟩ := hsub
-    refine (Nat.mul_le_mul_right _ (card_eq_zero.2 (eq_empty_of_forall_notMem fun c hc =>
-      ?_)).le).trans (by simp)
-    obtain ⟨hcW, hcV⟩ := hexc c hc
-    exact hcV i (hcW.mono hi)
+    have hemp := eq_empty_of_forall_notMem fun c hc => (hexc c hc).2 i ((hexc c hc).1.mono hi)
+    simp [card_eq_zero.2 hemp]
   push Not at hsub
   have hinter (i j : Fin r) (hij : i ≠ j) : (V i \ W) ∩ (V j \ W) = ∅ := by
     refine eq_empty_of_forall_notMem fun e he => ?_
@@ -417,19 +408,13 @@ theorem card_stepExceptions_le_of_step {F G : Finset (Finset (Fin n × Fin n))}
     (Finset.forall_mem_image.2 fun i _ => sdiff_nonempty.2 (hsub i))
     (Finset.forall_mem_image.2 fun i _ =>
       (card_le_card sdiff_subset).trans (mem_matchings.1 (hF (hV i))).2)
-    (fun D hD D' hD' hDD' => by
-      obtain ⟨i, -, rfl⟩ := mem_image.1 (mem_coe.1 hD)
-      obtain ⟨j, -, rfl⟩ := mem_image.1 (mem_coe.1 hD')
-      exact disjoint_iff_inter_eq_empty.2 (hinter i j fun hij => hDD' (hij ▸ rfl)))
+    (Finset.forall_mem_image.2 fun i _ => Finset.forall_mem_image.2 fun j _ hDD' =>
+      disjoint_iff_inter_eq_empty.2 (hinter i j (ne_of_apply_ne (fun k => V k \ W) hDD')))
     (by rwa [card_image_of_injective _ hinj, card_univ, Fintype.card_fin])
   refine le_trans (Nat.mul_le_mul_right _ (card_le_card fun c hc => ?_)) hcount
   obtain ⟨hcW, hcV⟩ := hexc c hc
-  refine mem_filter.2 ⟨mem_univ _, fun D hD hcD => ?_⟩
-  obtain ⟨i, -, rfl⟩ := mem_image.1 hD
-  refine hcV i fun e he => ?_
-  by_cases heW : e ∈ W
-  · exact hcW e heW
-  · exact hcD e (mem_sdiff.2 ⟨he, heW⟩)
+  exact mem_filter.2 ⟨mem_univ _, Finset.forall_mem_image.2 fun i _ hcD => hcV i fun e he =>
+    if heW : e ∈ W then hcW e heW else hcD e (mem_sdiff.2 ⟨he, heW⟩)⟩
 
 /-- `m` closure steps make at most `m` times `stepCap n s q` negative errors. -/
 theorem card_stepExceptions_le_of_relatesInSteps {F G : Finset (Finset (Fin n × Fin n))} {m : ℕ}

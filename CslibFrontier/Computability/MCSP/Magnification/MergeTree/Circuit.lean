@@ -280,8 +280,7 @@ theorem fanInAtMost_tree (n s k : ℕ) :
     rw [Nat.add_mul, Nat.one_mul] at hℓ
     refine Circuit.FanInAtMost.comp ((fanInAtMost_layer _ _ _ _ _ _ _).mono ?_) ?_
     · exact Nat.add_le_add (by unfold headerLength; omega) (le_max_right _ _)
-    · have he : n - (ℓ + k) - j * k = n - ℓ - (j + 1) * k := by
-        rw [Nat.add_mul, Nat.one_mul]; omega
+    · have he : n - (ℓ + k) - j * k = n - ℓ - (j + 1) * k := by rw [Nat.add_mul]; omega
       exact he ▸ fanInAtMost_tree n s k j (ℓ + k) _ finProdFinEquiv.symm (by omega)
 
 /-- **Oracle gates of the merge-tree circuit**: `1 + W · ∑_{i < j} 2 ^ ((i + 1) k)`, where
@@ -417,11 +416,9 @@ private theorem two_mul_mul_mmwLevels_le (n s : ℕ) : 2 * (s * mmwLevels n s) �
 theorem mul_size_mmwCircuit_le {n s : ℕ} (hns : n ≤ s) :
     s * (mmwCircuit n s).size ≤ 129 * 2 ^ n + 3 * s := by
   have hc := mul_cost_program_mmwCircuit_le hns
-  have hm := two_mul_mul_mmwLevels_le n s
-  rw [mmwCircuit, size_circuit]
-  rw [mmwCircuit, cost_program_circuit] at hc
-  simp only [Nat.mul_add, Nat.mul_one, Nat.mul_left_comm s 2] at hc ⊢
-  omega
+  simp only [mmwCircuit, size_circuit, cost_program_circuit, Nat.mul_add, Nat.mul_one,
+    Nat.mul_left_comm s 2] at hc ⊢
+  linarith [two_mul_mul_mmwLevels_le n s]
 
 /-- **Adaptivity of the McKay–Murray–Williams circuit**: at most `n / ⌊log₂ s⌋ + 1` oracle gates
 on any path. -/
@@ -454,8 +451,6 @@ theorem fanInAtMost_mmwCircuit {n s : ℕ} (hns : n ≤ s) (hs : 2 ≤ s) :
       _ = 4 * 2 * s ^ 3 := by ring
       _ ≤ 4 * s * s ^ 3 := by gcongr
       _ = 4 * s ^ 4 := by ring
-  have hmax : max (2 ^ (n - m * k)) (2 ^ k * stateWidth n s) ≤ 4 * s ^ 4 :=
-    max_le (hleaf.trans (by omega)) hmerge
   unfold headerLength
   omega
 

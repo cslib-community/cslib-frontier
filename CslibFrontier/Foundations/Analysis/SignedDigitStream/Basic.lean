@@ -300,11 +300,8 @@ theorem streamPrefix_diffDigit (N : ℕ → ℤ) (T : ℕ) :
 theorem abs_streamPrefix_diffDigit_sub_lt {z : ℝ} {N : ℕ → ℤ}
     (hN : IsScaledApprox z N) (T : ℕ) :
     |streamPrefix (diffDigit N) T - z| < 2 / (2 : ℝ) ^ T := by
-  rw [streamPrefix_diffDigit]
   have hpos : (0 : ℝ) < (2 : ℝ) ^ T := by positivity
-  have heq : (N T : ℝ) / (2 : ℝ) ^ T - z = ((N T : ℝ) - (2 : ℝ) ^ T * z) / (2 : ℝ) ^ T := by
-    field_simp
-  rw [heq, abs_div, abs_of_pos hpos]
+  rw [streamPrefix_diffDigit, div_sub' hpos.ne', abs_div, abs_of_pos hpos]
   exact div_lt_div_of_pos_right (hN T) hpos
 
 /-- **Lemma 10.1 (exact representation)** [OpenAI2026LogSpace, Lemma 10.1]: the difference digits
@@ -340,11 +337,8 @@ theorem centeredResidue_eq_self {q : ℕ} (hq : 4 ≤ q) {d : ℤ} (hd : IsSigne
     conv_lhs => rw [show q = (q - 1) + 1 by omega, pow_succ, mul_comm]
   have hd_bounds := isSignedDigit_iff_le.mp hd
   by_cases hd0 : 0 ≤ d
-  · rw [Int.emod_eq_of_lt hd0 (by omega)]
-    simp [show d ≤ (2 : ℤ) ^ (q - 1) by omega]
-  · have hmod : d % (2 : ℤ) ^ q = d + (2 : ℤ) ^ q := by
-      rw [← Int.add_emod_right d ((2 : ℤ) ^ q), Int.emod_eq_of_lt (by omega) (by omega)]
-    rw [hmod]
+  · rw [Int.emod_eq_of_lt hd0 (by omega), ite_eq_left (by omega)]
+  · rw [← Int.add_emod_right d ((2 : ℤ) ^ q), Int.emod_eq_of_lt (by omega) (by omega)]
     simp [show ¬ d + (2 : ℤ) ^ q ≤ (2 : ℤ) ^ (q - 1) by omega]
 
 /-- **Lemma 10.1 (residue decoding)** [OpenAI2026LogSpace, Lemma 10.1]: for `q ≥ 4`, the place-`t`
@@ -358,13 +352,10 @@ theorem decodeDiffResidue_eq_diffDigit {q : ℕ} (hq : 4 ≤ q) {z : ℝ} {N : �
     simpa only [decodeDiffResidue, centeredResidue_emod, diffDigit] using
       centeredResidue_eq_self hq hdig
   | succ t =>
-    simp only [decodeDiffResidue, Nat.add_sub_cancel]
     have hmod : (N (t + 1) % (2 : ℤ) ^ q - 2 * (N t % (2 : ℤ) ^ q)) % (2 : ℤ) ^ q =
         diffDigit N (t + 1) % (2 : ℤ) ^ q := by
-      unfold diffDigit
-      conv_rhs => rw [Int.sub_emod, Int.mul_emod]
-      rw [Int.sub_emod, Int.emod_emod, Int.mul_emod (2 : ℤ) (N t % (2 : ℤ) ^ q), Int.emod_emod]
-    rw [← centeredResidue_emod, hmod, centeredResidue_emod]
+      simp [diffDigit, Int.sub_emod, Int.mul_emod]
+    rw [decodeDiffResidue, Nat.add_sub_cancel, ← centeredResidue_emod, hmod, centeredResidue_emod]
     exact centeredResidue_eq_self hq hdig
 
 /-- **Signed floor-shift residue identity** [OpenAI2026LogSpace, (10.11)]: discarding the low `s`
@@ -374,17 +365,14 @@ theorem ediv_two_pow_emod_eq (a : ℤ) (q s : ℕ) :
     (a / (2 : ℤ) ^ s) % (2 : ℤ) ^ q = (a % (2 : ℤ) ^ (q + s)) / (2 : ℤ) ^ s := by
   have hs_pos : (0 : ℤ) < (2 : ℤ) ^ s := by positivity
   have hqs_pos : (0 : ℤ) < (2 : ℤ) ^ (q + s) := by positivity
-  set M := (2 : ℤ) ^ (q + s)
-  set r := a % M
-  set qM := a / M
-  have hpow : M = (2 : ℤ) ^ s * (2 : ℤ) ^ q := by dsimp only [M]; rw [pow_add, mul_comm]
-  have ha : a = r + (2 : ℤ) ^ s * ((2 : ℤ) ^ q * qM) := by
-    have hdiv : M * qM + r = a := Int.mul_ediv_add_emod a M
-    rw [← hdiv, hpow]; ring
-  have hediv : a / (2 : ℤ) ^ s = r / (2 : ℤ) ^ s + (2 : ℤ) ^ q * qM := by
-    rw [ha, Int.add_mul_ediv_left _ _ hs_pos.ne']
-  have hdiv0 : 0 ≤ r / (2 : ℤ) ^ s := Int.ediv_nonneg (Int.emod_nonneg a hqs_pos.ne') hs_pos.le
-  have hdivlt : r / (2 : ℤ) ^ s < (2 : ℤ) ^ q :=
+  have hpow : (2 : ℤ) ^ (q + s) = (2 : ℤ) ^ s * (2 : ℤ) ^ q := by rw [pow_add, mul_comm]
+  have hediv : a / (2 : ℤ) ^ s =
+      (a % (2 : ℤ) ^ (q + s)) / (2 : ℤ) ^ s + (2 : ℤ) ^ q * (a / (2 : ℤ) ^ (q + s)) := by
+    conv_lhs => rw [← Int.mul_ediv_add_emod a ((2 : ℤ) ^ (q + s)), hpow, mul_assoc, add_comm]
+    rw [Int.add_mul_ediv_left _ _ hs_pos.ne', ← hpow]
+  have hdiv0 : 0 ≤ (a % (2 : ℤ) ^ (q + s)) / (2 : ℤ) ^ s :=
+    Int.ediv_nonneg (Int.emod_nonneg a hqs_pos.ne') hs_pos.le
+  have hdivlt : (a % (2 : ℤ) ^ (q + s)) / (2 : ℤ) ^ s < (2 : ℤ) ^ q :=
     Int.ediv_lt_of_lt_mul hs_pos (by rw [mul_comm, ← hpow]; exact Int.emod_lt_of_pos a hqs_pos)
   rw [hediv, Int.add_mul_emod_self_left, Int.emod_eq_of_lt hdiv0 hdivlt]
 

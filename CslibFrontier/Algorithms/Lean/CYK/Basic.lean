@@ -159,14 +159,11 @@ theorem nodup_scan {f : ChomskyNormalFormRule T G.NT → Option G.NT} {acc : Lis
 theorem mem_leafCell {i : ℕ} {A : G.NT} :
     A ∈ leafCell G w i ↔ ∃ a, w[i]? = some a ∧ leaf A a ∈ G.rules := by
   simp only [leafCell, mem_scan, List.not_mem_nil, false_or]
-  constructor
-  · rintro ⟨⟨B, a⟩ | ⟨_, _, _⟩, hr, h⟩
-    · obtain ⟨ha, rfl⟩ := by
-        simpa only [leafMatch, Option.ite_none_right_eq_some, Option.some.injEq] using h
-      exact ⟨a, ha, hr⟩
-    · cases h
-  · rintro ⟨a, h, hr⟩
-    exact ⟨leaf A a, hr, by simp [leafMatch, h]⟩
+  refine ⟨?_, fun ⟨a, h, hr⟩ => ⟨leaf A a, hr, by simp [leafMatch, h]⟩⟩
+  rintro ⟨⟨B, a⟩ | _, hr, h⟩
+  · simp only [leafMatch, Option.ite_none_right_eq_some, Option.some.injEq] at h
+    exact ⟨a, h.1, h.2 ▸ hr⟩
+  · cases h
 
 omit [DecidableEq T] in
 theorem mem_nodeCell {tbl : Table G} {i l : ℕ} {A : G.NT} :
@@ -175,21 +172,18 @@ theorem mem_nodeCell {tbl : Table G} {i l : ℕ} {A : G.NT} :
   have hnm (L R : List G.NT) :
       (∃ r ∈ G.rules, nodeMatch G L R r = some A) ↔
         ∃ B C, node A B C ∈ G.rules ∧ B ∈ L ∧ C ∈ R := by
-    constructor
-    · rintro ⟨⟨_, _⟩ | ⟨A', B, C⟩, hr, h⟩
-      · cases h
-      · obtain ⟨⟨hB, hC⟩, heq⟩ := Option.ite_none_right_eq_some.1 h
-        exact ⟨B, C, Option.some.inj heq ▸ hr, hB, hC⟩
-    · exact fun ⟨B, C, hr, hB, hC⟩ => ⟨node A B C, hr, ite_eq_left ⟨hB, hC⟩⟩
-  have key : ∀ (ks : List ℕ) (acc : List G.NT), A ∈ ks.foldl (fun acc k =>
+    refine ⟨?_, fun ⟨B, C, hr, hB, hC⟩ => ⟨node A B C, hr, ite_eq_left ⟨hB, hC⟩⟩⟩
+    rintro ⟨⟨_, _⟩ | ⟨A', B, C⟩, hr, h⟩
+    · cases h
+    · obtain ⟨⟨hB, hC⟩, heq⟩ := Option.ite_none_right_eq_some.1 h
+      exact ⟨B, C, Option.some.inj heq ▸ hr, hB, hC⟩
+  have key (ks : List ℕ) (acc : List G.NT) : A ∈ ks.foldl (fun acc k =>
       scan G (nodeMatch G (tbl i (k + 1)) (tbl (i + k + 1) (l - k - 1))) acc) acc ↔
       A ∈ acc ∨ ∃ k ∈ ks, ∃ B C, node A B C ∈ G.rules ∧
         B ∈ tbl i (k + 1) ∧ C ∈ tbl (i + k + 1) (l - k - 1) := by
-    intro ks
-    induction ks with
+    induction ks generalizing acc with
     | nil => simp
     | cons k ks ih =>
-      intro acc
       simp only [List.foldl_cons, ih, mem_scan, hnm, List.mem_cons, exists_eq_or_imp, or_assoc]
   simpa [nodeCell] using key (List.range (l - 1)) []
 
@@ -263,8 +257,7 @@ private theorem mem_cell_iff {tbl : Table G} {L i : ℕ} (hi : i + (L + 1) ≤ w
         (htbl (i + k + 1) (L + 1 + 1 - k - 1) (by omega) (by omega) (by omega) C)
     constructor
     · rintro ⟨k, hk, B, C, hr, hB, hC⟩
-      have hk' : k < L + 1 := by omega
-      obtain ⟨hB', hC'⟩ := (hcell k hk' B C).mp ⟨hB, hC⟩
+      obtain ⟨hB', hC'⟩ := (hcell k hk B C).mp ⟨hB, hC⟩
       exact ⟨B, C, s.take (k + 1), s.drop (k + 1), hr,
         List.ne_nil_of_length_pos (by rw [List.length_take]; omega),
         List.ne_nil_of_length_pos (by rw [List.length_drop]; omega),
@@ -274,11 +267,9 @@ private theorem mem_cell_iff {tbl : Table G} {L i : ℕ} (hi : i + (L + 1) ≤ w
       have hv' := List.length_pos_of_ne_nil hv
       have hlen' : u.length + v.length = L + 2 := by rw [← List.length_append, ← huv, hlen]
       have hk : u.length - 1 < L + 1 := by omega
-      have htk : s.take (u.length - 1 + 1) = u := by
-        rw [Nat.sub_add_cancel hu', huv, List.take_left]
-      have hdp : s.drop (u.length - 1 + 1) = v := by
-        rw [Nat.sub_add_cancel hu', huv, List.drop_left]
-      obtain ⟨hB', hC'⟩ := (hcell (u.length - 1) hk B C).mpr ⟨htk.symm ▸ hB, hdp.symm ▸ hC⟩
+      have hsub : u.length - 1 + 1 = u.length := Nat.sub_add_cancel hu'
+      obtain ⟨hB', hC'⟩ := (hcell (u.length - 1) hk B C).mpr
+        ⟨by rwa [hsub, huv, List.take_left], by rwa [hsub, huv, List.drop_left]⟩
       exact ⟨u.length - 1, hk, B, C, hr, hB', hC'⟩
 
 /-- **Correctness of the CYK table**: after filling the levels `1, …, L`, the cell of a subword of
@@ -293,7 +284,7 @@ theorem mem_table_iff {L i l : ℕ} (hl : 0 < l) (hlL : l ≤ L) (hi : i + l ≤
     rw [table, level_apply]
     split_ifs with h
     · obtain ⟨rfl, -⟩ := h
-      exact mem_cell_iff hi (fun i l hl hlL hi A => ih hl hlL hi A) A
+      exact mem_cell_iff hi (fun _ _ => ih) A
     · exact ih hl (by omega) hi A
 
 /-- **Correctness of CYK** [Hopcroft, Motwani and Ullman, Section 7.4.4][Hopcroft2006]: the test
@@ -315,29 +306,26 @@ theorem exists_rule_of_mem_cell {tbl : Table G} {i l : ℕ} {A : G.NT}
     (h : A ∈ cell G w tbl i l) : ∃ r ∈ G.rules, r.input = A := by
   unfold cell at h
   split_ifs at h
-  · obtain ⟨a, -, hr⟩ := mem_leafCell.mp h
-    exact ⟨_, hr, rfl⟩
-  · obtain ⟨k, -, B, C, hr, -⟩ := mem_nodeCell.mp h
-    exact ⟨_, hr, rfl⟩
+  · exact (mem_leafCell.mp h).elim fun _ ⟨_, hr⟩ => ⟨_, hr, rfl⟩
+  · exact (mem_nodeCell.mp h).elim fun _ ⟨_, _, _, hr, _⟩ => ⟨_, hr, rfl⟩
 
 theorem nodup_cell (tbl : Table G) (i l : ℕ) : (cell G w tbl i l).Nodup := by
   unfold cell nodeCell leafCell
   split_ifs
   · exact nodup_scan List.nodup_nil
-  · suffices ∀ (ks : List ℕ) (acc : List G.NT), acc.Nodup → (ks.foldl (fun acc k =>
-        scan G (nodeMatch G (tbl i (k + 1)) (tbl (i + k + 1) (l - k - 1))) acc) acc).Nodup from
-      this _ _ List.nodup_nil
-    intro ks
-    induction ks with
-    | nil => exact fun _ h => h
-    | cons k ks ih => exact fun acc h => ih _ (nodup_scan h)
+  · have key (ks : List ℕ) (acc : List G.NT) (h : acc.Nodup) : (ks.foldl (fun acc k =>
+        scan G (nodeMatch G (tbl i (k + 1)) (tbl (i + k + 1) (l - k - 1))) acc) acc).Nodup := by
+      induction ks generalizing acc with
+      | nil => exact h
+      | cons _ _ ih => exact ih _ (nodup_scan h)
+    exact key _ _ List.nodup_nil
 
 /-- A cell has at most one entry per rule. -/
 theorem length_cell_le (tbl : Table G) (i l : ℕ) : (cell G w tbl i l).length ≤ G.rules.length := by
-  have hsub : cell G w tbl i l ⊆ G.rules.map ChomskyNormalFormRule.input := fun A hA => by
-    obtain ⟨r, hr, rfl⟩ := exists_rule_of_mem_cell hA
-    exact List.mem_map_of_mem hr
-  simpa using ((nodup_cell tbl i l).subperm hsub).length_le
+  exact ((nodup_cell (w := w) tbl i l).subperm fun A hA =>
+    let ⟨_, hr, hEq⟩ := exists_rule_of_mem_cell hA
+    hEq ▸ List.mem_map_of_mem (f := ChomskyNormalFormRule.input) hr).length_le.trans_eq
+    (List.length_map _)
 
 /-- Every cell of the table is a list without repetitions of at most `|R|` nonterminals, for a
 grammar with `|R|` rules. -/

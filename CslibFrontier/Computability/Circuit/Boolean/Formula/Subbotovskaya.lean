@@ -142,21 +142,17 @@ theorem IsLeafMinimal.arg {op : Op} {args : Fin (signature.Arity op) → Formula
     (hF : (gate op args).IsLeafMinimal) (j : Fin (signature.Arity op)) :
     (args j).IsLeafMinimal := by
   intro G hG
-  have hcomp : (gate op (update args j G)).Computes interpretation
-      ((gate op args).eval interpretation) := fun x => by
+  have hle := hF (gate op (update args j G)) fun x => by
     simp only [eval_gate]
     congr 1 with k : 1
     rcases eq_or_ne k j with rfl | hk
     · simpa using hG x
     · simp [hk]
-  have hle := hF (gate op (update args j G)) hcomp
   simp only [leafSize_gate] at hle
-  have heq : ∑ k ∈ univ.erase j, (update args j G k).leafSize =
-      ∑ k ∈ univ.erase j, (args k).leafSize :=
-    sum_congr rfl fun k hk => by simp [ne_of_mem_erase hk]
   rw [← add_sum_erase univ (fun k => (args k).leafSize) (mem_univ j),
-    ← add_sum_erase univ (fun k => (update args j G k).leafSize) (mem_univ j),
-    update_self, heq] at hle
+    ← add_sum_erase univ (fun k => (update args j G k).leafSize) (mem_univ j), update_self,
+    sum_congr rfl fun k hk => congrArg leafSize
+      (update_of_ne (β := fun _ => Formula signature n) (ne_of_mem_erase hk) G args)] at hle
   omega
 
 theorem IsLeafMinimal.of_not {F : Formula signature n} (h : F.not.IsLeafMinimal) :
@@ -190,14 +186,11 @@ private theorem exists_restrictAt_eq_const_of_leafSize_eq_one {G : Formula signa
     (a : Bool) :
     ∃ b₀ : Bool, G.restrictAt i b₀ = const a ∧ G.restrictAt i (!b₀) = const (!a) ∧
       ∀ x, G.eval interpretation x = if x i = b₀ then a else !a := by
-  have h0 : (G.restrictAt i false).leafSize = 0 := by
-    have := leafSize_restrictAt_add_leafSizeIn_le G i false; omega
-  have h1 : (G.restrictAt i true).leafSize = 0 := by
-    have := leafSize_restrictAt_add_leafSizeIn_le G i true; omega
-  obtain ⟨c₀, hc₀⟩ := exists_restrict_eq_const _ h0
-  obtain ⟨c₁, hc₁⟩ := exists_restrict_eq_const _ h1
-  change G.restrictAt i false = const c₀ at hc₀
-  change G.restrictAt i true = const c₁ at hc₁
+  have hleaf (b : Bool) : (G.restrictAt i b).leafSize = 0 := by
+    have := leafSize_restrictAt_add_leafSizeIn_le G i b
+    omega
+  obtain ⟨c₀, hc₀ : G.restrictAt i false = const c₀⟩ := exists_restrict_eq_const _ (hleaf false)
+  obtain ⟨c₁, hc₁ : G.restrictAt i true = const c₁⟩ := exists_restrict_eq_const _ (hleaf true)
   have heval (x : BitString n) : G.eval interpretation x = if x i then c₁ else c₀ := by
     conv_lhs => rw [← update_eq_self i x, ← eval_restrictAt]
     cases x i <;> simp [hc₀, hc₁]
@@ -406,10 +399,7 @@ theorem sum_formulaSize_restrict_update_le_add_one (f : BooleanFunction n)
       (2 * #ρ.free - 3) * formulaSize (f ∘ ρ.fill) + 1 := by
   have h := sum_formulaSize_restrict_update_le f ρ
   rw [Nat.sub_mul]
-  split_ifs at h with h1
-  · rw [h1] at h ⊢
-    omega
-  · omega
+  split_ifs at h with h1 <;> omega
 
 /-! ### Deterministic shrinkage and Subbotovskaya's parity lower bound -/
 
@@ -497,10 +487,9 @@ theorem exists_extensions_formulaSize_sq_mul_pow_three_le (f : BooleanFunction n
       hext₁.trans ((PartialAssignment.Extends.refl ρ₀).update_some hi b)
     refine ⟨ρ, PartialAssignment.mem_extensions.2 ⟨hext₀, hfree⟩, ?_⟩
     have hpos_card : 0 < #ρ₁.free := by omega
-    have hpos : 0 < (#ρ₁.free) ^ 3 := by positivity
     have h1 : #ρ₀.free - 1 = #ρ₁.free := by omega
     rw [h1] at hstep
-    refine Nat.le_of_mul_le_mul_right ?_ hpos
+    refine Nat.le_of_mul_le_mul_right ?_ (by positivity : 0 < (#ρ₁.free) ^ 3)
     calc formulaSize (f ∘ ρ.fill) ^ 2 * (#ρ₀.free) ^ 3 * (#ρ₁.free) ^ 3
         = formulaSize (f ∘ ρ.fill) ^ 2 * (#ρ₁.free) ^ 3 * (#ρ₀.free) ^ 3 := by ring
       _ ≤ formulaSize (f ∘ ρ₁.fill) ^ 2 * k ^ 3 * (#ρ₀.free) ^ 3 :=
@@ -585,8 +574,7 @@ theorem sum_extensions_formulaSize_sub_sq_le (f : BooleanFunction n)
           Option.ne_none_iff_exists'.1 fun h => hi (PartialAssignment.mem_free.2 h)
         rw [hc, hext i c hc]
     rw [hexts, sum_singleton, card_singleton, mul_one, one_pow, mul_one]
-    have : (L₀ - s) ^ 2 ≤ L₀ ^ 2 := Nat.pow_le_pow_left (Nat.sub_le L₀ s) 2
-    exact Nat.mul_le_mul_right (s ^ 3) this
+    exact Nat.mul_le_mul_right (s ^ 3) (Nat.pow_le_pow_left (Nat.sub_le L₀ s) 2)
   | succ d ih =>
     set t := k + 1
     have ht1 : 2 ≤ t := by omega
@@ -614,9 +602,7 @@ theorem sum_extensions_formulaSize_sub_sq_le (f : BooleanFunction n)
     have hcard_rec : (s - k) * N_k = 2 * t * N_t := by
       simpa [t] using PartialAssignment.mul_card_extensions_sub_one ρ₀ (by omega : 1 ≤ t)
     have hsub_rec : (s - k) * (S_k - k * N_k) ≤ (2 * t - 3) * (S_t - t * N_t) := by
-      rw [Nat.mul_sub_left_distrib, Nat.mul_sub_left_distrib]
-      have h1 : (s - k) * (k * N_k) = k * ((s - k) * N_k) := by ring
-      rw [h1, hcard_rec]
+      rw [Nat.mul_sub_left_distrib, Nat.mul_sub_left_distrib, mul_left_comm, hcard_rec]
       have h2 : (2 * t - 3) * (t * N_t) + N_t ≤ k * (2 * t * N_t) := by
         obtain ⟨m, rfl⟩ : ∃ m, k = m + 1 := ⟨k - 1, by omega⟩
         change (2 * m + 1) * ((m + 2) * N_t) + N_t ≤ (m + 1) * (2 * (m + 2) * N_t)
@@ -667,7 +653,7 @@ theorem exists_mem_formulaSize_sub_sq_le (f : BooleanFunction n)
       _ ≤ S_k := sum_le_sum_of_subset hAsub
   have h2 : (L' - 2 * k) * N_k ≤ 2 * (S_k - k * N_k) := by
     have : L' * N_k ≤ 2 * S_k := by nlinarith
-    rw [Nat.sub_mul, Nat.mul_sub_left_distrib, show 2 * (k * N_k) = 2 * k * N_k by ring]
+    rw [Nat.sub_mul, Nat.mul_sub_left_distrib, ← mul_assoc]
     omega
   have hsq : ((L' - 2 * k) * N_k) ^ 2 ≤ (2 * (S_k - k * N_k)) ^ 2 := by gcongr
   have havg := sum_extensions_formulaSize_sub_sq_le f ρ₀ hk1 hk

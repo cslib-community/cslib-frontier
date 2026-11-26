@@ -239,9 +239,8 @@ theorem value_between {α β : Type*}
   induction finish with
   | zero => omega
   | succ finish ih =>
-      by_cases h : start = finish
-      · subst finish
-        exact hmatch start (by omega) (by omega)
+      rcases eq_or_ne start finish with rfl | h
+      · exact hmatch start (by omega) (by omega)
       · exact (ih (by omega) (fun x hx hy => hmatch x hx (by omega))
           (fun x hx hy => htransmit x hx (by omega))).trans
           ((htransmit finish (by omega) (by omega)).trans (hmatch finish (by omega) (by omega)))
@@ -313,12 +312,9 @@ theorem CycleOn.southeast_corner
       cornerNorth
         (componentAt grid (quarterEast east) (quarterSouth south))
         (quadrantAt (quarterEast east) (quarterSouth south)) = true := by
-  rw [quarterEast, quarterSouth,
-    show 2 * east = 2 * east + 0 by omega,
-    componentAt_double_add grid east south 0 1 (by omega) (by omega),
-    cycle.southeast]
-  simp [quadrantAt, Quadrant.ofBits,
-    cornerWest, cornerNorth]
+  rw [quarterEast, quarterSouth, ← Nat.add_zero (2 * east),
+    componentAt_double_add grid east south 0 1 (by omega) (by omega), cycle.southeast]
+  simp [quadrantAt, Quadrant.ofBits, cornerWest, cornerNorth]
 
 /-- The inward northeast quarter joins the west and south red edges. -/
 theorem CycleOn.northeast_corner
@@ -330,13 +326,9 @@ theorem CycleOn.northeast_corner
       cornerSouth
         (componentAt grid (quarterEast east) (quarterNorth north))
         (quadrantAt (quarterEast east) (quarterNorth north)) = true := by
-  rw [quarterEast, quarterNorth,
-    show 2 * east = 2 * east + 0 by omega,
-    show 2 * north = 2 * north + 0 by omega,
-    componentAt_double_add grid east north 0 0 (by omega) (by omega),
-    cycle.northeast]
-  simp [quadrantAt, Quadrant.ofBits,
-    cornerWest, cornerSouth]
+  rw [quarterEast, quarterNorth, ← Nat.add_zero (2 * east), ← Nat.add_zero (2 * north),
+    componentAt_double_add grid east north 0 0 (by omega) (by omega), cycle.northeast]
+  simp [quadrantAt, Quadrant.ofBits, cornerWest, cornerSouth]
 
 /-- The inward northwest quarter joins the east and south red edges. -/
 theorem CycleOn.northwest_corner
@@ -348,12 +340,9 @@ theorem CycleOn.northwest_corner
       cornerSouth
         (componentAt grid (quarterWest west) (quarterNorth north))
         (quadrantAt (quarterWest west) (quarterNorth north)) = true := by
-  rw [quarterWest, quarterNorth,
-    show 2 * north = 2 * north + 0 by omega,
-    componentAt_double_add grid west north 1 0 (by omega) (by omega),
-    cycle.northwest]
-  simp [quadrantAt, Quadrant.ofBits,
-    cornerEast, cornerSouth]
+  rw [quarterWest, quarterNorth, ← Nat.add_zero (2 * north),
+    componentAt_double_add grid west north 1 0 (by omega) (by omega), cycle.northwest]
+  simp [quadrantAt, Quadrant.ofBits, cornerEast, cornerSouth]
 
 /-- Every strict interior quarter on the south side carries a horizontal wire. -/
 theorem CycleOn.south_path
@@ -633,10 +622,8 @@ theorem Related.right_unique {parity : Bool} {a b c : Option Shade}
     (hab : Related parity a b) (hac : Related parity a c) : b = c := by
   cases parity
   · exact hab.symm.trans hac
-  · obtain ⟨s, hs, hb⟩ := hab
-    obtain ⟨t, ht, hc⟩ := hac
-    obtain rfl : s = t := Option.some.inj (hs.symm.trans ht)
-    exact hb.trans hc.symm
+  · rcases hab, hac with ⟨⟨_, rfl, rfl⟩, ⟨_, ⟨⟩, rfl⟩⟩
+    rfl
 
 /-- Shade relations compose by taking the exclusive-or of their parities. -/
 theorem Related.trans {first second third : Option Shade}
@@ -746,25 +733,18 @@ tile and edge-matching rules. -/
 theorem validShadeGrid {indexGrid : Nat → Nat → Index}
     (labeling : ValidPortLabeling indexGrid) :
     ValidShadeGrid indexGrid labeling.stateGrid := by
-  constructor
-  · intro x y
-    simp only [locallyAllowed]
-    apply allowedFor_iff.mpr
-    constructor
-    · simpa only [stateGrid, portPresent, componentAt] using labeling.present ⟨x, y, .west⟩
-    · simpa only [stateGrid, portPresent, componentAt] using labeling.present ⟨x, y, .east⟩
-    · simpa only [stateGrid, portPresent, componentAt] using labeling.present ⟨x, y, .south⟩
-    · simpa only [stateGrid, portPresent, componentAt] using labeling.present ⟨x, y, .north⟩
-    · exact fun hpath => labeling.related (Link.horizontal x y hpath)
-    · exact fun hpath => labeling.related (Link.vertical x y hpath)
-    · exact fun heast hsouth => labeling.related (Link.eastSouth x y heast hsouth)
-    · exact fun heast hnorth => labeling.related (Link.eastNorth x y heast hnorth)
-    · exact fun hwest hsouth => labeling.related (Link.westSouth x y hwest hsouth)
-    · exact fun hwest hnorth => labeling.related (Link.westNorth x y hwest hnorth)
-    · exact fun hhorizontal hvertical =>
-        ne_of_related_true (labeling.related (Link.crossing x y hhorizontal hvertical))
-  · exact fun x y => labeling.related (Link.horizontalMatch x y)
-  · exact fun x y => labeling.related (Link.verticalMatch x y)
+  exact ⟨fun x y => allowedFor_iff.mpr
+    ⟨labeling.present ⟨x, y, .west⟩, labeling.present ⟨x, y, .east⟩,
+     labeling.present ⟨x, y, .south⟩, labeling.present ⟨x, y, .north⟩,
+     fun h => labeling.related (.horizontal x y h),
+     fun h => labeling.related (.vertical x y h),
+     fun he hs => labeling.related (.eastSouth x y he hs),
+     fun he hn => labeling.related (.eastNorth x y he hn),
+     fun hw hs => labeling.related (.westSouth x y hw hs),
+     fun hw hn => labeling.related (.westNorth x y hw hn),
+     fun hh hv => ne_of_related_true (labeling.related (.crossing x y hh hv))⟩,
+   fun x y => labeling.related (.horizontalMatch x y),
+   fun x y => labeling.related (.verticalMatch x y)⟩
 
 end ValidPortLabeling
 

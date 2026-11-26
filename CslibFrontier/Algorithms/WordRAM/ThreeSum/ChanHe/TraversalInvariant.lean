@@ -100,10 +100,8 @@ def Arena.Separated (a : Arena) : Prop :=
 
 /-- The reserved stack fits inside the gap between `a.stack` and `a.floor`. -/
 theorem Arena.Separated.capacity_le_gap {a : Arena} (ha : a.Separated) :
-    a.capacity ≤ a.floor - a.stack := by
-  have ht := ha.2.1
-  have hf := ha.2.2.1
-  omega
+    a.capacity ≤ a.floor - a.stack :=
+  Nat.le_sub_of_add_le' (ha.2.1.trans ((Nat.le_add_right _ _).trans ha.2.2.1))
 
 /-- A single signed envelope covers both actual native kernels at every worklist transition. -/
 def Arena.Ready (a : Arena) (w : ℕ) : Prop :=
@@ -170,11 +168,9 @@ theorem Cursor.Invariant.nonempty {a : Arena} {w : ℕ} {target : List Node}
     {s : Cursor} {x : Data 128} (h : s.Invariant a w target x)
     (hc : (Cond.lt zero (registers WordStack.len)).Holds x) : s.pending ≠ [] := by
   intro he
-  have hz := h.controls.2.2.2.2.2.2.2.2.2.1
   have hl := h.stack.length_eq
-  change x.regs zero < x.regs (registers WordStack.len) at hc
   simp only [he, List.flatMap_nil, List.length_nil, Data.comap_regs] at hl
-  omega
+  simp only [Cond.holds_lt, hl, h.controls.2.2.2.2.2.2.2.2.2.1, lt_self_iff_false] at hc
 
 /-- A finished actual loop has emitted the complete target, with every array already read back. -/
 theorem Cursor.Invariant.finished {a : Arena} {w : ℕ} {target : List Node}

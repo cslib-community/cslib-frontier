@@ -64,18 +64,14 @@ theorem countingMachine_nonblocking : (countingMachine I P F C).Nonblocking := b
 
 /-- Forgetting the occurrence labels recovers the native compiler's reachability relation. -/
 theorem toNTM_countingMachine : (countingMachine I P F C).toNTM = machine I P F C := by
-  have h (q : State SI SP SF) (input : Option Bool) (work : Fin k → Option Bool)
-      (act : Turing.Action k Bool (State SI SP SF)) :
-      (countingMachine I P F C).toNTM.Tr q input work act ↔
-        (machine I P F C).Tr q input work act := by
-    rw [machine, MultiTapePTM.tr_toNTM_iff]
-    simp only [MultiTapeCTM.toNTM, countingMachine, List.mem_map,
-      Equiv.apply_symm_apply, Equiv.symm_apply_eq]
-    cases q <;> simp [choiceBits, tr_withCoin, instruction]
-  change MultiTapeNTM.mk _ _ = MultiTapeNTM.mk _ _
-  congr 1
-  funext q input work act
-  exact propext (h q input work act)
+  suffices (countingMachine I P F C).toNTM.Tr = (machine I P F C).Tr by
+    change MultiTapeNTM.mk _ _ = MultiTapeNTM.mk _ _
+    exact congrArg _ this
+  ext q input work act
+  rw [machine, MultiTapePTM.tr_toNTM_iff]
+  simp only [MultiTapeCTM.toNTM, countingMachine, List.mem_map,
+    Equiv.apply_symm_apply, Equiv.symm_apply_eq]
+  cases q <;> simp [choiceBits, tr_withCoin, instruction]
 
 /-- A bound on the native computation paths is also a clock for the counting presentation. -/
 theorem countingMachine_haltsWithin {input : List Bool} {fuel : ℕ}
@@ -126,11 +122,8 @@ theorem map_snd_replayChoices {input : List Bool} (cfg : Cfg k Bool (State SI SP
     cases h : (countingMachine I P F C).step? cfg i with
     | none => rfl
     | some next =>
-      simp only [Option.bind]
-      rw [← ih next]
-      cases hnext : replayChoices I P F C next rest with
-      | none => rfl
-      | some pair => cases pair; rfl
+      simp only [Option.bind, ← ih next]
+      rcases replayChoices I P F C next rest with _ | ⟨_, _⟩ <;> rfl
 
 /-- Concatenating occurrence traces concatenates their genuine choice sequences. -/
 theorem replayChoices_append {input : List Bool} (cfg : Cfg k Bool (State SI SP SF) input)
@@ -147,13 +140,10 @@ theorem replayChoices_append {input : List Bool} (cfg : Cfg k Bool (State SI SP 
     cases (countingMachine I P F C).step? cfg i with
     | none => rfl
     | some next =>
-      simp only [Option.bind]
-      rw [ih next]
-      cases replayChoices I P F C next first with
-      | none => rfl
-      | some result =>
-        obtain ⟨firstBits, middle⟩ := result
-        simp only [Option.bind, Option.map_some, Option.map_map]
+      simp only [Option.bind, ih next]
+      rcases replayChoices I P F C next first with _ | ⟨firstBits, middle⟩
+      · rfl
+      · simp only [Option.map_some, Option.map_map]
         cases atChoice cfg <;> rfl
 
 /-- Crossing a choice boundary adds precisely the bit that selects the next pass. -/

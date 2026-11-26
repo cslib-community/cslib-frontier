@@ -567,15 +567,13 @@ private theorem weakImplies_reify {z : ℕ} {c : PBConstr} (hz : z ∉ c.vars)
     rw [htz, sing, ← cf_eq_lin, hXcf] at hcoef
     simp only [Finsupp.add_apply, Finsupp.single_eq_same, hγz, add_zero] at hcoef
     by_contra hp
-    simp only [Bool.not_eq_false] at hp
-    simp only [termCoeff, hp, ↓reduceIte] at hcoef
-    omega
+    rw [Bool.not_eq_false] at hp
+    simp only [termCoeff, hp, ↓reduceIte] at hcoef; omega
   obtain ⟨hzs, hzc⟩ := zpart X.normalize.terms hneg
   have hfc := cf_filter_add (fun t => termVar t != z) X.normalize.terms
   have hfs := negSum_filter_add (fun t => termVar t != z) X.normalize.terms
   rw [VeriPB.filter_not_bne] at hfc hfs
-  rw [cf_normalize, hXcf] at hzc hfc
-  rw [cf_normalize, hXcf] at hzs
+  rw [cf_normalize, hXcf] at hzc hfc hzs
   simp only [Finsupp.add_apply, Finsupp.single_eq_same, hγz, add_zero] at hzc hzs
   rw [substC_one hneg]
   have hG : cf (X.normalize.terms.filter (termVar · != z)) = γ := by
@@ -588,12 +586,11 @@ private theorem weakImplies_reify {z : ℕ} {c : PBConstr} (hz : z ∉ c.vars)
     rw [hMd, hMs]
     have : (negSum X.normalize.terms : ℤ) = negSum (X.normalize.terms.filter (termVar · != z)) +
       negSum (X.normalize.terms.filter (termVar · == z)) := by exact_mod_cast hfs.symm
-    rw [hNYc, hNYs, hYnm, hYpm]
     rw [hYnm, hYs, hYd] at hNYd
-    rw [hXnm, hXs, hXd] at hDd
-    rw [hXnm] at hDs
+    rw [hXnm] at hDd hDs
+    rw [hXs, hXd] at hDd
     rw [hNc] at hnc hQd
-    omega
+    rw [hNYc, hNYs, hYnm, hYpm]; omega
 
 private theorem negMass_toLinear_eq_zero {ts : List (ℕ × Literal ℕ)} (h : ∀ v, 0 ≤ cf ts v) :
     negMass (toLinear ts) = 0 := by
@@ -618,22 +615,16 @@ private theorem substLin_of_not_mem {z : ℕ} {w : VeriPB.WVal} :
 /-- The objective goal of a witness on a variable outside the objective is trivially true. -/
 theorem objGoal_normalize_degree {z : ℕ} {w : VeriPB.WVal} {f : VeriPB.Objective}
     (h : z ∉ f.lin.map (·.1)) : (VeriPB.objGoal f [(z, w)]).normalize.degree = 0 := by
-  have h0 : negMass (toLinear (VeriPB.objGoal f [(z, w)]).terms) = 0 := by
-    refine negMass_toLinear_eq_zero fun v => ?_
-    rw [VeriPB.objGoal, substLin_of_not_mem _ h, cf_fromLinear]
-    have := sing_subLinear f.lin f.lin
-    simp only [sing, sub_self] at this
-    simp [this]
-  have hs := negSum_fromLinear (VeriPB.subLinear f.lin (VeriPB.Witness.substLin [(z, w)] f.lin).1)
-    (VeriPB.Witness.substLin [(z, w)] f.lin).2
-  rw [← VeriPB.objGoal] at hs
-  have hd : ((VeriPB.objGoal f [(z, w)]).degree : ℤ) =
-      max ((VeriPB.Witness.substLin [(z, w)] f.lin).2 +
-        negMass (VeriPB.subLinear f.lin (VeriPB.Witness.substLin [(z, w)] f.lin).1)) 0 := by
-    simp only [VeriPB.objGoal, fromLinear]; omega
-  rw [substLin_of_not_mem _ h] at hd hs
-  simp only [normalize, fromLinear, h0]
-  omega
+  simp only [VeriPB.objGoal, substLin_of_not_mem _ h]
+  have h0 : negMass (toLinear (fromLinear (VeriPB.subLinear f.lin f.lin) 0).terms) = 0 :=
+    negMass_toLinear_eq_zero fun v => by
+      have hsub := sing_subLinear f.lin f.lin
+      simp only [cf_fromLinear, sing, sub_self] at hsub ⊢
+      simp [hsub]
+  have hs := negSum_fromLinear (VeriPB.subLinear f.lin f.lin) 0
+  have hd := degree_normalize (fromLinear (VeriPB.subLinear f.lin f.lin) 0)
+  rw [h0, hs] at hd
+  simp only [fromLinear] at hd ⊢; omega
 
 /-- The witness `z ↦ w` on `l ⇒ c`, for `l` on `z` false under `w` and `z` not in `c`, leaves the
 trivially true `c` of degree `0`. -/
@@ -878,22 +869,23 @@ theorem stepTop_red_of_covered {F : List PBConstr} {obj : Option Objective} {s :
       some (s.addStrengthened (if sub.isSome then s.next + 1 else s.next) c) := by
   have hok : redOk s.obj s.order s.db (if s.tcb then s.core else s.db) ω c false
       ((s.next, c.negate) :: s.db) [] none = true := by
-    simp only [redOk, visible, List.filter_nil, List.map_nil, Bool.false_or, Bool.and_eq_true]
-    refine ⟨⟨⟨?_, ?_⟩, ?_⟩, ?_⟩
+    dsimp only [redOk, visible, goalCovered, objuCovered, substCovered]
+    simp only [List.filter_nil, List.map_nil, Bool.false_or, Bool.and_eq_true, List.all_eq_true]
+    refine ⟨⟨⟨?_, by simp [h1]⟩, ?_⟩, ?_, fun e he => ?_⟩
     · cases ho : s.order with
       | none => rfl
       | some L => simp [hord L ho]
-    · simp [goalCovered, objuCovered, h1]
     · cases ho : s.order with
       | none => rfl
       | some L => simp [hord L ho]
-    · simp only [substCovered, Bool.and_eq_true, List.all_eq_true]
-      refine ⟨?_, fun e he => ?_⟩
-      · cases hf : s.obj with
-        | none => rfl
-        | some f => simp [goalCovered, objuCovered, hobj f hf]
-      · rcases hgs e he with h | h <;> simp [goalCovered, h]
-  simp [stepTop, redCheckP, hp, hsub, redCheckOn, runGoals, hok]
+    · cases hf : s.obj with
+      | none => rfl
+      | some f => simp [hobj f hf]
+    · rcases hgs e he with h | h <;> simp [h]
+  have hrg : runGoals (goalOf s.obj s.order s.db ω c) noScope none ((s.next, c.negate) :: s.db)
+      (s.next + 1) [] [] = some (((s.next, c.negate) :: s.db), s.next + 1, []) := rfl
+  dsimp only [stepTop, redCheckP, redCheckOn]
+  simp [hp, hsub, hrg, hok]
 
 
 /-! ### Reification -/
@@ -979,11 +971,10 @@ theorem runTop_reify {F : List PBConstr} {obj : Option Objective} {s : State} {z
     runTop F obj s (reify z c) =
       some ((s.addStrengthened (s.next + 1) (impl [(z, true)] c)).addStrengthened (s.next + 3)
         (impl [(z, false)] c.negate)) := by
-  have hs' := hs
-  simp only [State.fresh, Bool.and_eq_true, List.all_eq_true, Bool.not_eq_true',
-    Bool.eq_false_iff, ne_eq, List.contains_iff_mem] at hs'
-  obtain ⟨hdb, hv⟩ := hs'
   simp only [reify, runTop, stepTop_reifyFwd hs hc]
+  simp only [State.fresh, Bool.and_eq_true, List.all_eq_true, Bool.not_eq_true',
+    Bool.eq_false_iff, ne_eq, List.contains_iff_mem] at hs
+  obtain ⟨hdb, hv⟩ := hs
   rw [stepTop_reifyBwd (s := s.addStrengthened (s.next + 1) (impl [(z, true)] c)) hv hc hnc]
   · rfl
   · intro e he hz
@@ -993,8 +984,7 @@ theorem runTop_reify {F : List PBConstr} {obj : Option Objective} {s : State} {z
     · exact absurd hz (hdb e (List.mem_append_left _ he))
     · split at he
       · rcases List.mem_cons.1 he with rfl | he
-        · rfl
-        · exact absurd hz (hdb e (List.mem_append_right _ he))
+        exacts [rfl, absurd hz (hdb e (List.mem_append_right _ he))]
       · exact absurd hz (hdb e (List.mem_append_right _ he))
 
 /-! ### Wrapping and unwrapping -/

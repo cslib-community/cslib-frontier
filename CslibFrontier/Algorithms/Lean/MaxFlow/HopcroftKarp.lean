@@ -340,8 +340,7 @@ theorem vecPotential_vset_add {α : Type*} {n : ℕ} {p : α → Prop} [Decidabl
     rcases eq_or_ne u w with rfl | h
     · simp [hx]
     · simp [h, vget_vset_ne _ _ h.symm]
-  rw [vecPotential, hset, Finset.sum_erase_add _ c (by simp [hw])]
-  rfl
+  simpa [vecPotential, hset] using Finset.sum_erase_add _ c (by simp [hw])
 
 private theorem vecPotential_vset_le {α : Type*} {n : ℕ} {p : α → Prop} [DecidablePred p]
     {c : Fin n → ℕ} (t : Vector α n) (w : Fin n) {x : α} (hx : ¬ p x) :
@@ -391,9 +390,7 @@ private theorem matchedLeft_foldl (mate : Vector (Option (Fin m)) r) (l : List (
     rw [List.foldl_cons, ih]
     rcases hv : vget mate v with _ | w <;> simp only [hkMarkStep, hv, List.mem_cons,
       exists_eq_or_imp, reduceCtorEq, false_or, Option.some.injEq]
-    rcases eq_or_ne w u with rfl | h
-    · simp
-    · simp [h, vget_vset_ne _ _ h]
+    by_cases h : w = u <;> simp [h, vget_vset_ne]
 
 private theorem hkMatchedLeft_spec (mate : Vector (Option (Fin m)) r) (u : Fin m) :
     vget (hkMatchedLeft mate) u = true ↔ u ∈ matchedLeft (mateMatching mate) := by
@@ -412,13 +409,11 @@ private theorem bfsInit_foldl (ml : Vector Bool m) (l : List (Fin m))
     rw [List.foldl_cons]
     obtain ⟨ih1, ih2⟩ := ih (hkBfsInitStep ml p x)
     refine ⟨fun u => ?_, fun u => ?_⟩
-    · rw [ih1 u]
-      unfold hkBfsInitStep
+    · rw [ih1 u, hkBfsInitStep]
       rcases eq_or_ne u x with rfl | hux
       · by_cases hx : vget ml u = true <;> simp [hx]
       · by_cases hx : vget ml x = true <;> simp [hx, hux, vget_vset_ne _ _ hux.symm]
-    · rw [ih2 u]
-      unfold hkBfsInitStep
+    · rw [ih2 u, hkBfsInitStep]
       rcases eq_or_ne u x with rfl | hux <;> split_ifs with hx <;> simp [*]
 
 private theorem bfsInit_nodup (ml : Vector Bool m) (l : List (Fin m))
@@ -651,8 +646,7 @@ private theorem hkBfsLoop_spec (hadj : BipAdjValid G adj) (fuel : ℕ) {j : ℕ}
     HKBfsSpec G (mateMatching mate) (hkBfsLoop G adj mate fuel j dist frontier) := by
   induction fuel generalizing j dist frontier with
   | zero =>
-    have := Finset.card_le_univ (altLeft G (mateMatching mate) j)
-    simp only [Fintype.card_fin] at this
+    have := (Finset.card_le_univ (altLeft G (mateMatching mate) j)).trans_eq (Fintype.card_fin m)
     omega
   | succ fuel ih =>
     have hs0 : HKStepInv G (mateMatching mate) j ⟨dist, [], false⟩ :=
@@ -682,8 +676,8 @@ private theorem hkBfsLoop_spec (hadj : BipAdjValid G adj) (fuel : ℕ) {j : ℕ}
         | none => rfl
         | some i =>
           rcases Nat.lt_or_eq_of_le (hs.bound u i hd) with hlt | rfl
-          · have hij : i ≤ j := Nat.lt_succ_iff.mp hlt
-            exact absurd (altLeft_mono hij ((hs.exact u i hij).mp hd).1) hu
+          · exact absurd (altLeft_mono (Nat.lt_succ_iff.mp hlt)
+              ((hs.exact u i (Nat.lt_succ_iff.mp hlt)).mp hd).1) hu
           · exact absurd ((hs.next_iff u).mp hd) (by simp [hnil])
     · obtain ⟨w, hw⟩ := List.exists_mem_of_ne_nil s.next (fun h => hne (by simp [h]))
       have hwl := hs.next_layer w hw
@@ -721,10 +715,8 @@ private theorem hkBfsLoop_k_le (G : Fin m × Fin r → Bool) (adj : Fin m → Li
   | zero => simp [hkBfsLoop]
   | succ fuel ih =>
     simp only [hkBfsLoop]
-    split_ifs with hf hne
-    · simp
-    · simp
-    · exact (ih (j + 1) _ _).trans (by omega)
+    split_ifs
+    exacts [Nat.le_add_right _ _, Nat.le_add_right _ _, (ih (j + 1) _ _).trans (by omega)]
 
 theorem hkBfs_k_le (G : Fin m × Fin r → Bool) (adj : Fin m → List (Fin r))
     (mate : Vector (Option (Fin m)) r) :
@@ -752,17 +744,15 @@ private theorem hkBfsStep_potential (G : Fin m × Fin r → Bool) (mate : Vector
         ((hkBfsStep G mate j u s v).next.map c).sum =
       vecPotential (· = none) c s.dist + (s.next.map c).sum := by
   unfold hkBfsStep
-  split_ifs
-  · cases vget mate v with
-    | none => rfl
-    | some w =>
-      dsimp only
-      split_ifs with hd
-      · have := vecPotential_vset_add (c := c) (p := (· = none)) (t := s.dist)
-          (x := some (j + 1)) hd (by simp)
-        simp; omega
-      · rfl
-  · rfl
+  cases vget mate v with
+  | none => split_ifs <;> rfl
+  | some w =>
+    dsimp only
+    split_ifs with hG hd
+    · have := vecPotential_vset_add (c := c) (p := (· = none)) (t := s.dist)
+        (x := some (j + 1)) hd (by simp)
+      simp; omega
+    all_goals rfl
 
 theorem layerFold_potential (G : Fin m × Fin r → Bool) (adj : Fin m → List (Fin r))
     (mate : Vector (Option (Fin m)) r) (c : Fin m → ℕ) (j : ℕ) (us : List (Fin m))
@@ -1023,15 +1013,15 @@ private theorem hkDfs_spec (hadj : BipAdjValid G adj)
   intro f
   induction f with
   | zero =>
-    intro i hi u vis acc S hu hS hinv
-    simp only [hkDfs]
-    exact (hkDfsLevel_post (accept := true) hex (by omega) (by simp; omega)
-      (fun h => nomatch h) hu hS (adj u) vis hinv).weaken blocked
+    exact fun i hi u vis acc S hu hS hinv =>
+      (hkDfsLevel_post (accept := true) hex (Nat.le_of_eq (Nat.zero_add i ▸ hi))
+        (iff_of_true rfl (Nat.zero_add i ▸ hi)) (fun h => nomatch h) hu hS (adj u) vis
+        hinv).weaken blocked
   | succ f ih =>
-    intro i hi u vis acc S hu hS hinv
-    simp only [hkDfs]
-    exact (hkDfsLevel_post (accept := false) hex (by omega) (by simp; omega)
-      (fun _ => ih (i + 1) (by omega)) hu hS (adj u) vis hinv).weaken blocked
+    exact fun i hi u vis acc S hu hS hinv =>
+      (hkDfsLevel_post (accept := false) hex (Nat.le_trans (Nat.le_add_left _ _) hi.le)
+        (iff_of_false Bool.false_ne_true (by omega))
+        (fun _ => ih (i + 1) (by omega)) hu hS (adj u) vis hinv).weaken blocked
 
 private theorem hkDfsRoots_spec (hadj : BipAdjValid G adj)
     (hex : ∀ u i, i ≤ k → (vget dist u = some i ↔ IsLayer G (mateMatching mate) u i))
@@ -1211,10 +1201,8 @@ theorem hkLoop_spec (hadj : BipAdjValid G adj) :
       have hpost := ih (n + 1) _ hM' (by omega)
       have hle := hpost.le_phases
       refine ⟨hpost.isMatching, by omega, ?_, hpost.closed⟩
-      have : (hkLoop G adj fuel (n + 1) (hkPhase G adj mate b.dist b.k)).phases - n =
-          (hkLoop G adj fuel (n + 1) (hkPhase G adj mate b.dist b.k)).phases -
-            (n + 1) + 1 := by omega
-      exact this ▸ .step hb.noShort ht hfree hN (hmate' ▸ hpost.run)
+      rw [← Nat.sub_add_cancel (Nat.sub_pos_of_lt hle), Nat.sub_sub]
+      exact .step hb.noShort ht hfree hN (hmate' ▸ hpost.run)
     · obtain ⟨hstable, hsub, hdist⟩ := hb.found_false (Bool.eq_false_iff.mpr hf)
       exact ⟨hM, le_rfl, Nat.sub_self n ▸ .done, b.k, hstable, hsub, hdist⟩
 
@@ -1237,11 +1225,9 @@ private theorem foldl_filter_of_id {α β : Type*} (step : α → β → α) (p 
 private theorem hkBfs_exactBipAdj (G : Fin m × Fin r → Bool) (mate : Vector (Option (Fin m)) r) :
     hkBfs G (exactBipAdj G) mate = hkBfs G (denseBipAdj m r) mate := by
   have hlayer (j us s) :
-      hkBfsLayer G (exactBipAdj G) mate j us s = hkBfsLayer G (denseBipAdj m r) mate j us s := by
-    unfold hkBfsLayer exactBipAdj denseBipAdj
-    congr 1
-    funext s' u
-    exact foldl_filter_of_id _ _ (fun st v hG => by simp [hkBfsStep, hG]) _ _
+      hkBfsLayer G (exactBipAdj G) mate j us s = hkBfsLayer G (denseBipAdj m r) mate j us s :=
+    congrArg (List.foldl · s us) (funext fun _ => funext fun _ =>
+      foldl_filter_of_id _ _ (fun _ _ hG => by simp [hkBfsStep, hG]) _ _)
   have hloop (fuel) : ∀ j dist frontier,
       hkBfsLoop G (exactBipAdj G) mate fuel j dist frontier =
         hkBfsLoop G (denseBipAdj m r) mate fuel j dist frontier := by
@@ -1296,9 +1282,8 @@ private theorem hkPhase_exactBipAdj (G : Fin m × Fin r → Bool) (mate : Vector
 same output as `hopcroftKarpDense G`. -/
 theorem hopcroftKarp_exactBipAdj (G : Fin m × Fin r → Bool) :
     hopcroftKarp G (exactBipAdj G) = hopcroftKarpDense G := by
-  have hloop : ∀ fuel n mate,
+  have hloop (fuel) : ∀ n mate,
       hkLoop G (exactBipAdj G) fuel n mate = hkLoop G (denseBipAdj m r) fuel n mate := by
-    intro fuel
     induction fuel with
     | zero => intros; rfl
     | succ fuel ih =>
@@ -1320,8 +1305,7 @@ theorem mem_foldl_hkMatchingStep (mate : Vector (Option (Fin m)) r) (l : List (F
   induction l generalizing a with
   | nil => simp
   | cons x l ih =>
-    rw [List.foldl_cons, ih]
-    unfold hkMatchingStep
+    rw [List.foldl_cons, ih, hkMatchingStep]
     grind
 
 theorem mem_foldl_hkCoverLeftStep (dist : Vector (Option ℕ) m) (l : List (Fin m))
@@ -1330,8 +1314,7 @@ theorem mem_foldl_hkCoverLeftStep (dist : Vector (Option ℕ) m) (l : List (Fin 
   induction l generalizing a with
   | nil => simp
   | cons x l ih =>
-    rw [List.foldl_cons, ih]
-    unfold hkCoverLeftStep
+    rw [List.foldl_cons, ih, hkCoverLeftStep]
     grind
 
 theorem mem_foldl_hkCoverRightStep (mate : Vector (Option (Fin m)) r)
@@ -1341,8 +1324,7 @@ theorem mem_foldl_hkCoverRightStep (mate : Vector (Option (Fin m)) r)
   induction l generalizing a with
   | nil => simp
   | cons x l ih =>
-    rw [List.foldl_cons, ih]
-    unfold hkCoverRightStep
+    rw [List.foldl_cons, ih, hkCoverRightStep]
     grind
 
 end Extract
@@ -1383,11 +1365,9 @@ theorem hopcroftKarp_correct (hadj : BipAdjValid G adj) :
   set out := hkLoop G adj (m + 1) 0 (Vector.replicate r none)
   have hcover : (hopcroftKarp G adj).cover = layerCover G (mateMatching out.mate) k := by
     simp only [hopcroftKarp, layerCover, VertexCover.mk.injEq]
-    refine ⟨?_, ?_⟩
-    · ext u
-      simp [mem_foldl_hkCoverLeftStep, out, hdist]
-    · ext v
-      simp [mem_foldl_hkCoverRightStep, mem_altRight_iff_of_stable hM hstable hsub, out, hdist]
+    exact ⟨Finset.ext fun u => by simp [mem_foldl_hkCoverLeftStep, out, hdist],
+      Finset.ext fun v => by
+        simp [mem_foldl_hkCoverRightStep, mem_altRight_iff_of_stable hM hstable hsub, out, hdist]⟩
   rw [hopcroftKarp_matching_eq_mateMatching, hcover]
   obtain ⟨hmax, hmin⟩ := isMaxMatching_isMinVertexCover_of_stable hM hstable hsub
   exact ⟨hmax, hmin, (size_layerCover_of_stable hM hstable hsub).symm,
@@ -1404,9 +1384,8 @@ theorem hopcroftKarpDense_correct (G : Fin m × Fin r → Bool) :
 /-- Hopcroft–Karp returns a matching of the same cardinality as any maximum matching `M` of `G`. -/
 theorem card_hopcroftKarp_matching_eq {M : Finset (Fin m × Fin r)}
     (hadj : BipAdjValid G adj) (hM : IsMaxMatching G M) :
-    (hopcroftKarp G adj).matching.card = M.card := by
-  have h1 := (hopcroftKarp_correct hadj).1
-  exact le_antisymm (hM.2 _ h1.1) (h1.2 _ hM.1)
+    (hopcroftKarp G adj).matching.card = M.card :=
+  le_antisymm (hM.2 _ (hopcroftKarp_correct hadj).1.1) ((hopcroftKarp_correct hadj).1.2 _ hM.1)
 
 end Main
 

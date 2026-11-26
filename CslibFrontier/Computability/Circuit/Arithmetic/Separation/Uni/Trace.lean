@@ -31,6 +31,7 @@ From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Uni.Trace`.
 
 ## Main results
 
+* `Uni.closed_σi`: the initial configuration is closed.
 * `Uni.cols_ext`, `Uni.unb_proj`, `Uni.unb_bv`: column-slice representation lemmas.
 * `Uni.chain_len`, `Uni.chain_val`: length and value invariants along matched chains.
 * `Uni.MX.len_cn`, `Uni.MX.len`, `Uni.MX.length_eq`, `Uni.MX.vals`, `Uni.MX.size_eq`.
@@ -129,6 +130,14 @@ variable {A M K : Type}
 @[expose] def σi (P : Mach A M K) (bits : List Bool) : Mach.State M K :=
   ⟨P.m0, fun _ => 0, [(P.kN, ![0, 0, 0, 0])], 0, bits⟩
 
+/-- The initial configuration is closed: its counter, its registers and the entries of its only
+record `(P.kN, ![0, 0, 0, 0])` are `0`. -/
+theorem closed_σi (P : Mach A M K) (bits : List Bool) : Mach.Closed (σi P bits) := by
+  refine ⟨fun c hc i => ?_, fun j hj => ⟨_, List.mem_singleton_self _, (Nat.le_zero.1 hj).symm⟩,
+    fun _ => le_rfl⟩
+  rw [List.mem_singleton.1 hc]
+  fin_cases i <;> exact le_rfl
+
 /-- Key-letter content list of an `L`-bit numeric record `ρ : Rec K`. -/
 @[expose] def cN (L : ℕ) (ρ : Rec K) : List (Bl K) := cont ρ.1 (unb L ρ.2)
 
@@ -221,10 +230,9 @@ theorem MX.vals :
 
 theorem MX.size_eq : Nat.size (x.steps.length + 1) = x.init.length + 1 := by
   have h1 := hx.vals.2
-  have h2 := hx.len_cn.2
   have h3 := binaryValue_lt_two_pow x.finalCounter
-  rw [binaryValue_cons, Bool.toNat_true, one_mul] at h1
-  rw [show x.finalCounter.length = x.init.length by omega] at h1 h3
+  rw [binaryValue_cons, Bool.toNat_true, one_mul, Nat.succ.inj hx.len_cn.2] at h1
+  rw [Nat.succ.inj hx.len_cn.2] at h3
   exact le_antisymm (Nat.size_le.2 (by rw [pow_succ]; omega))
     (Nat.succ_le_iff.2 (Nat.lt_size.2 (by omega)))
 
@@ -249,11 +257,8 @@ theorem recs_lsN {P : Mach A M K} (L : ℕ) (tr : List P.Step) :
 theorem lsN_ne {P : Mach A M K} (L : ℕ) (tr : List P.Step) : lsN L tr ≠ [] := by
   simp [lsN, dfN]
 
-theorem unb_zero (L : ℕ) : unb L ![0, 0, 0, 0] = List.replicate L fun _ : Fin 4 => false := by
-  refine cols_ext fun j => ?_
-  rw [unb_proj, List.map_replicate]
-  have h : (![0, 0, 0, 0] : Fin 4 → ℕ) j = 0 := by fin_cases j <;> rfl
-  rw [h, Nat.zero_mod, binaryWord_zero]
+theorem unb_zero (L : ℕ) : unb L ![0, 0, 0, 0] = List.replicate L fun _ : Fin 4 => false :=
+  cols_ext fun j => by fin_cases j <;> simp [unb_proj, binaryWord_zero]
 
 theorem block_of {P : Mach A M K} {x : XP P}
     (hx : ∀ s ∈ x.steps, s.2.length = x.init.length + 1) :
@@ -327,9 +332,7 @@ theorem MX.unique [Fintype K] [DecidableEq K] {P : Mach A M K} {x x' : XP P}
   have e1 : x.init = x'.init := unit_list hL
   have e3 : x.steps = x'.steps :=
     List.ext_getElem hT fun i h1 h2 => by
-      have h3 : nst x.steps[i] = nst x'.steps[i] := by
-        simpa [h1, h2] using congrArg (·[i]?) e
-      dsimp only [nst] at h3
+      have h3 : nst x.steps[i] = nst x'.steps[i] := by simpa [h1, h2] using congrArg (·[i]?) e
       refine Prod.ext (Prod.mk.inj h3).1 ?_
       rw [← unb_bv (x.steps[i]).2, ← unb_bv (x'.steps[i]).2,
         hx.len _ (List.getElem_mem h1), hx'.len _ (List.getElem_mem h2), hL]

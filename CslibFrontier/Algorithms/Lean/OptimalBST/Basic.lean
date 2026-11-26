@@ -83,12 +83,8 @@ theorem isBST_iff {i j : ℕ} {t : BinaryTree ℕ} :
     | @node i j k l r hik hkj _ _ ihl ihr =>
       obtain ⟨-, hol, hel⟩ := ihl
       obtain ⟨-, hor, her⟩ := ihr
-      refine ⟨by omega, ⟨hol, hor, ?_, ?_⟩, ?_⟩
-      · intro x hx
-        rw [hel, mem_Ioc] at hx
-        omega
-      · intro x hx
-        rw [her, mem_Ioc] at hx
+      refine ⟨by omega, ⟨hol, hor, fun x hx => ?_, fun x hx => (mem_Ioc.1 (her ▸ hx)).1⟩, ?_⟩
+      · rw [hel, mem_Ioc] at hx
         omega
       · ext x
         simp only [mem_elements_node, hel, her, mem_Ioc]
@@ -161,15 +157,13 @@ theorem treeCost_knuthWeight (p q : ℕ → β) {i j : ℕ} {t : BinaryTree ℕ}
     have hl' := hl.le
     simp only [Nat.add_sub_cancel] at hl'
     -- split the key range `(i, j]` at the root
-    have hIoc : ∀ f : ℕ → β, ∑ x ∈ Ioc i j, f x =
+    have hIoc (f : ℕ → β) : ∑ x ∈ Ioc i j, f x =
         ∑ x ∈ Ioc i s, f x + f (s + 1) + ∑ x ∈ Ioc (s + 1) j, f x := by
-      intro f
       rw [← sum_Ioc_consecutive f hl' (by omega : s ≤ j),
         ← sum_Ioc_consecutive f (by omega : s ≤ s + 1) hkj, Nat.Ioc_succ_singleton, sum_singleton,
         add_assoc]
-    have hIcc : ∀ f : ℕ → β, ∑ x ∈ Icc i j, f x =
+    have hIcc (f : ℕ → β) : ∑ x ∈ Icc i j, f x =
         ∑ x ∈ Icc i s, f x + ∑ x ∈ Icc (s + 1) j, f x := by
-      intro f
       rw [← Ico_add_one_right_eq_Icc, ← Ico_add_one_right_eq_Icc, ← Ico_add_one_right_eq_Icc,
         sum_Ico_consecutive f (by omega : i ≤ s + 1) (by omega : s + 1 ≤ j + 1)]
     rw [hIoc, hIcc,

@@ -146,9 +146,8 @@ private theorem isBoundedComp_coinStep_bind {t i n : ℕ} {cfg : FiniteConfig k 
         ((hbuf op).trans hit)
         (fun y => by simp only [List.take_take, min_self])
         (fun y => hcont _ fun op' => ?_)
-      by_cases heq : op' = op
-      · subst heq
-        simp [FiniteConfig.receive]
+      rcases eq_or_ne op' op with rfl | heq
+      · simp [FiniteConfig.receive]
       · simpa [FiniteConfig.receive, heq] using (hbuf op').trans (Nat.le_succ i)
 
 /-- Folding `coinStep M t` over a list of coins `r` produces a bounded query program. -/
@@ -246,9 +245,8 @@ private theorem mapM_lookup_eq [BEq α] [LawfulBEq α] (f : α → PMF β) (quer
     simp only [List.mapM_cons, Probability.PMF.monad_bind_eq_bind,
       Probability.PMF.monad_pure_eq_pure, PMF.bind_map, PMF.map_bind, PMF.pure_map,
       Function.comp_def]
-    by_cases hma : m = a
-    · subst hma
-      simp only [List.lookup, beq_self_eq_true, PMF.bind_const]
+    rcases eq_or_ne m a with rfl | hma
+    · simp only [List.lookup, beq_self_eq_true, PMF.bind_const]
       rfl
     · simp only [List.lookup, beq_false_of_ne hma, PMF.bind_const]
       exact ih (List.mem_of_ne_of_mem hma hm)
@@ -307,18 +305,14 @@ private theorem listPiPMF_extract [DecidableEq ι] (default : α) (μ : ι → P
   | nil => cases hi₀
   | cons i rest ih =>
     obtain ⟨_, hl_rest⟩ := List.nodup_cons.mp hl
-    by_cases h : i₀ = i
-    · subst h
-      simp [listPiPMF]
-    · have herase : (i :: rest).erase i₀ = i :: rest.erase i₀ := by simp [Ne.symm h]
-      rw [herase, listPiPMF, ih hl_rest (List.mem_of_ne_of_mem h hi₀)]
+    rcases eq_or_ne i₀ i with rfl | h
+    · simp [listPiPMF]
+    · rw [List.erase_cons_tail (not_beq_of_ne h.symm), listPiPMF,
+        ih hl_rest (List.mem_of_ne_of_mem h hi₀)]
       simp only [listPiPMF, Probability.PMF.monad_bind_eq_bind, PMF.map_bind, PMF.map_comp,
         Function.comp_def]
-      rw [PMF.bind_comm]
-      congr 1 with a₀ : 1
-      congr 1 with a : 1
-      congr 1 with f : 1
-      exact Function.update_comm h a₀ a f
+      exact (PMF.bind_comm _ _ _).trans (congrArg _ (funext fun a₀ => congrArg _ (funext fun a =>
+        congrArg (PMF.map · _) (funext (Function.update_comm (β := fun _ => α) h a₀ a)))))
 
 /-- Presample an independent tuple of `Sigma TreeStrategy` across all channels `i : ι`. -/
 private noncomputable def piPresample [Fintype ι] [DecidableEq ι] (P : ι → Prover Unit) (L : ℕ)
@@ -346,14 +340,13 @@ private theorem piPresample_step [Fintype ι] [DecidableEq ι] (P : ι → Prove
     mkLayer i (d₀ i) (s₀ i)
   have hl : (Finset.univ : Finset ι).toList.Nodup := Finset.nodup_toList Finset.univ
   have hi₀ : i₀ ∈ (Finset.univ : Finset ι).toList := Finset.mem_toList.mpr (Finset.mem_univ i₀)
-  change (listPiPMF defaultTree (μ d s) (Finset.univ : Finset ι).toList).map _ = _
-  rw [listPiPMF_extract defaultTree (μ d s) (Finset.univ : Finset ι).toList hl hi₀,
-    show μ d s i₀ = mkLayer i₀ (d' + 1) (s i₀) from congrArg (mkLayer i₀ · (s i₀)) hd]
+  have hμ₀ : μ d s i₀ = mkLayer i₀ (d' + 1) (s i₀) := congrArg (mkLayer i₀ · (s i₀)) hd
   have hupd (x : ι → Sigma TreeStrategy) (a : TreeStrategy (d' + 1)) :
-      (Function.update x i₀ (Sigma.mk (d' + 1) a) i₀).2.step m = a.step m := by
-    rw [Function.update_self]
-  simp only [mkLayer, PMF.map_bind, PMF.bind_map, PMF.map_comp, Function.comp_def,
-    hupd, Function.update_idem]
+      (Function.update x i₀ ⟨d' + 1, a⟩ i₀).2.step m = a.step m := by rw [Function.update_self]
+  change (listPiPMF defaultTree (μ d s) (Finset.univ : Finset ι).toList).map _ = _
+  rw [listPiPMF_extract defaultTree (μ d s) _ hl hi₀, hμ₀]
+  simp only [mkLayer, PMF.map_bind, PMF.bind_map, PMF.map_comp, Function.comp_def, hupd,
+    Function.update_idem]
   have hstep := congrArg (PMF.bind · fun (res : List Bool × Sigma TreeStrategy) =>
       (listPiPMF defaultTree (μ d s) ((Finset.univ : Finset ι).toList.erase i₀)).map fun f =>
         (res.1, Function.update f i₀ res.2))
@@ -446,10 +439,7 @@ private theorem mem_listMapM {l : List α} {g : α → PMF β} {S : α → List 
     (hS : ∀ a ∈ l, ∀ b ∈ (g a).support, b ∈ S a) :
     ∀ xs ∈ (l.mapM g).support, xs ∈ listMapM l S := by
   induction l with
-  | nil =>
-    intro xs hxs
-    supp_cases hxs [List.mapM_nil]
-    exact List.mem_singleton_self []
+  | nil => simp [listMapM]
   | cons a rest ih =>
     intro xs hxs
     supp_cases hxs [List.mapM_cons] with ⟨b, hb, ys, hys, rfl⟩
@@ -496,10 +486,7 @@ private theorem support_listPiPMF_subset [DecidableEq ι] (default : α)
     (l : List ι) (hS : ∀ i ∈ l, ∀ a ∈ (μ i).support, a ∈ S i) :
     ∀ f ∈ (listPiPMF default μ l).support, f ∈ allListPi default S l := by
   induction l with
-  | nil =>
-    intro f hf
-    supp_cases hf [listPiPMF]
-    exact List.mem_singleton_self _
+  | nil => simp [allListPi, listPiPMF]
   | cons i rest ih =>
     intro f hf
     supp_cases hf [listPiPMF] with ⟨a, ha, g, hg, rfl⟩
@@ -695,19 +682,17 @@ theorem validFrom_candidateProver (H : List (List (List Bool × List Bool)))
     | nil => simp [hm] at hmem_match
     | cons first more =>
       obtain ⟨r₀, rest₀⟩ := first
-      have hc := hcons _ (hmemF.mp (hm ▸ List.mem_cons_self)) _ hh
-      simp only [consistentHist, beq_self_eq_true, ↓reduceIte, Bool.and_eq_true,
-        beq_iff_eq] at hc
+      have hc : r₀ = r ∧ consistentHist rest₀ rest = true := by
+        simpa [consistentHist] using hcons _ (hmemF.mp (hm ▸ List.mem_cons_self)) _ hh
       have hstep : (candidateProver H).respond q cand =
           (r₀, (cand.filterMap filterFn).map Prod.snd) := by
         simp only [candidateProver, stepCandidates, filterFn, hm]
-      refine ⟨by rw [hstep, hc.1], ?_⟩
-      rw [hstep]
-      refine ih _ (fun t₁ ht₁ t₂ ht₂ => ?_) (List.mem_map_of_mem hmem_match)
+      simp only [DetProver.ValidFrom, hstep]
+      refine ⟨hc.1.symm, ih _ (fun t₁ ht₁ t₂ ht₂ => ?_) (List.mem_map_of_mem hmem_match)⟩
       obtain ⟨⟨r₁, s₁⟩, hs₁, rfl⟩ := List.mem_map.mp ht₁
       obtain ⟨⟨r₂, s₂⟩, hs₂, rfl⟩ := List.mem_map.mp ht₂
-      have hc12 := hcons _ (hmemF.mp hs₁) _ (hmemF.mp hs₂)
-      simp only [consistentHist, beq_self_eq_true, ↓reduceIte, Bool.and_eq_true] at hc12
+      have hc12 : r₁ = r₂ ∧ consistentHist s₁ s₂ = true := by
+        simpa [consistentHist] using hcons _ (hmemF.mp hs₁) _ (hmemF.mp hs₂)
       exact hc12.2
 
 end Cslib.Complexity.MIP

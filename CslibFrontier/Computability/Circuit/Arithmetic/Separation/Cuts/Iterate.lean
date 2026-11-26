@@ -90,11 +90,9 @@ private theorem exists_isCut_factor (hc : OneCutAt θ v a₀ α Λ) (hv : 1 ≤ 
         Nat.mul_le_mul_left _ ((pow_add v 64 48).symm.le.trans (pmono (by norm_num)))
       _ ≤ τ := Nat.div_mul_le_self _ _
   have hB : τ * k / v ^ 256 * v ^ 48 ≤ τ := by
-    have h1 : τ * k / v ^ 256 ≤ τ / v ^ 192 := by
-      rw [show v ^ 256 = v ^ 64 * v ^ 192 by rw [← pow_add], ← Nat.div_div_eq_div_mul]
-      exact Nat.div_le_div_right (Nat.div_le_of_le_mul (by
-        rw [Nat.mul_comm]
-        exact Nat.mul_le_mul_right _ hkv))
+    have h1 : τ * k / (v ^ 64 * v ^ 192) ≤ τ / v ^ 192 := Nat.div_div_eq_div_mul _ _ _ ▸
+      Nat.div_le_div_right (Nat.div_le_of_le_mul (Nat.mul_comm τ k ▸ Nat.mul_le_mul_right _ hkv))
+    rw [← pow_add] at h1
     exact (Nat.mul_le_mul h1 (pmono (by norm_num))).trans (Nat.div_mul_le_self _ _)
   refine ⟨G, _, _, hG, hcut, ?_, ?_⟩
   · calc (s / k + τ / v ^ 256) * Λ * k * v ^ 48
@@ -155,21 +153,21 @@ theorem exists_isCut_iterate (hc : OneCutAt θ v a₀ α Λ) (hv : 110 ≤ v) (h
   have last : ∀ r τ s c, v ^ H ≤ τ → τ ≤ v ^ α → τ * Λ < v ^ H * v ^ 64 → s * v ^ 48 ≤ c * τ →
       1 ≤ c → c ≤ v → ∃ (G : Tree) (P t s' : ℕ), IsCut θ τ s (v ^ H) s' P t G ∧
         P * v ^ H ≤ τ * X ^ (r + 1) ∧ t * v ^ 48 ≤ c * τ * X ^ (r + 1) ∧
-        s' * v ^ 48 ≤ c * v ^ H * X ^ (r + 1) ∧ G.size ≤ 4 ^ r * (v ^ a₀ + 3000) := by
-    intro r τ s c hτ hτα hτΛ hs hc1 hcv
-    obtain ⟨G, P, t, s', h1, h2, h3, h4, h5⟩ :=
-      hc.exists_isCut_last hv1 hΛ hH hτ hτα hτΛ hs hc1 hcv
-    have hXr : X ≤ X ^ (r + 1) := Nat.le_self_pow (Nat.succ_ne_zero r) X
-    exact ⟨G, P, t, s', h1, h2.trans (Nat.mul_le_mul_left _ (le_trans (by omega) hXr)),
-      h3.trans (Nat.mul_le_mul_left _ (le_trans (by omega) hXr)),
-      h4.trans (Nat.mul_le_mul_left _ (le_trans (by omega) hXr)),
-      h5.trans ((Nat.le_add_right _ _).trans
-        (Nat.le_mul_of_pos_left _ (Nat.pow_pos (by norm_num))))⟩
+        s' * v ^ 48 ≤ c * v ^ H * X ^ (r + 1) ∧ G.size ≤ 4 ^ r * (v ^ a₀ + 3000) :=
+    fun r τ s c hτ hτα hτΛ hs hc1 hcv => by
+      obtain ⟨G, P, t, s', h1, h2, h3, h4, h5⟩ :=
+        hc.exists_isCut_last hv1 hΛ hH hτ hτα hτΛ hs hc1 hcv
+      have hXr : X ≤ X ^ (r + 1) := Nat.le_self_pow (Nat.succ_ne_zero r) X
+      exact ⟨G, P, t, s', h1, h2.trans (Nat.mul_le_mul_left _ (le_trans (by omega) hXr)),
+        h3.trans (Nat.mul_le_mul_left _ (le_trans (by omega) hXr)),
+        h4.trans (Nat.mul_le_mul_left _ (le_trans (by omega) hXr)),
+        h5.trans ((Nat.le_add_right _ _).trans
+          (Nat.le_mul_of_pos_left _ (Nat.pow_pos (by norm_num))))⟩
   intro r
   induction r with
   | zero =>
-    intro τ s c hτ hτα hτΛ hs hc1 hcv
-    exact last 0 τ s c hτ hτα (by simpa using hτΛ) hs hc1 (by omega)
+    exact fun τ s c hτ hτα hτΛ hs hc1 hcv =>
+      last 0 τ s c hτ hτα (by simpa using hτΛ) hs hc1 (by omega)
   | succ r ih =>
     intro τ s c hτ hτα hτΛ hs hc1 hcv
     have h4r : 1 ≤ 4 ^ (r + 1) := Nat.one_le_pow _ _ (by norm_num)
@@ -202,8 +200,7 @@ theorem exists_isCut_iterate (hc : OneCutAt θ v a₀ α Λ) (hv : 110 ≤ v) (h
         _ < v ^ H * v ^ (63 + 62 * r) * v := Nat.mul_lt_mul_of_pos_right h1 (by omega)
         _ = v ^ H * v ^ (64 + 62 * r) := by
           rw [Nat.mul_assoc, ← pow_succ]
-          congr 2
-          ring
+          exact congrArg (v ^ H * v ^ ·) (by omega)
     have hs₁c : s₁ * v ^ 48 ≤ 4 * c * τ₁ := Nat.le_of_mul_le_mul_right (c := v ^ 63)
       (calc s₁ * v ^ 48 * v ^ 63 = s₁ * v ^ 63 * v ^ 48 := by ring
         _ ≤ 2 * c * (τ * Λ) := hs₁.trans_eq (by ring)
@@ -337,8 +334,7 @@ theorem polylog_loss_le {h C v α : ℕ} (hl : 100 ≤ lg v) (hα : 1 ≤ α)
         Nat.pow_le_pow_left (Nat.mul_le_mul_right _ hl) _
     _ = lg v ^ ((3 * C + 4) * (16 * h * α + 1)) := by
         rw [← pow_mul (lg v) (C + 1) 3, ← pow_succ', ← pow_mul]
-        congr 1
-        ring
+        exact congrArg (lg v ^ ·) (by ring)
     _ ≤ lg v ^ ((3 * C + 4) * (32 * h + 2) * α) := Nat.pow_le_pow_right (by omega) (by
         rw [Nat.mul_assoc (3 * C + 4) (32 * h + 2)]
         refine Nat.mul_le_mul_left _ ?_

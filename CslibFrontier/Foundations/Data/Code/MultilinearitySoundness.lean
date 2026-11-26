@@ -112,15 +112,13 @@ noncomputable def wrongPointsApprox (f : (Fin n → F) → F) (δ : ℝ) (i : Fi
 
 /-- At `δ = 0`, `wrongPointsApprox f 0 i` coincides with `wrongPoints f i`. -/
 @[simp] theorem wrongPointsApprox_zero (f : (Fin n → F) → F) (i : Fin n) :
-    wrongPointsApprox f 0 i = wrongPoints f i := by
-  ext x
-  simp [wrongPointsApprox, wrongPoints]
+    wrongPointsApprox f 0 i = wrongPoints f i :=
+  Finset.ext fun _ => by simp [wrongPointsApprox, wrongPoints]
 
 omit [Field F] [Fintype F] [DecidableEq F] in
 private theorem lineRestrict_update (f : (Fin n → F) → F) (x : Fin n → F) (i : Fin n) (t : F) :
-    lineRestrict f (update x i t) i = lineRestrict f x i := by
-  funext s
-  simp [lineRestrict]
+    lineRestrict f (update x i t) i = lineRestrict f x i :=
+  funext fun _ => by simp [lineRestrict]
 
 open Classical in
 private theorem mem_wrongPointsApprox_update (f : (Fin n → F) → F) (δ : ℝ) (x : Fin n → F)
@@ -224,27 +222,23 @@ private theorem card_agreePointsApprox_le {f g : (Fin n → F) → F} (hg : IsMu
     (δ : ℝ) (i : Fin n) :
     #(agreePointsApprox f g δ i) ≤ Fintype.card F ^ (n - 1) := by
   have hfib : #{y : Fin n → F | y i = 0} = Fintype.card F ^ (n - 1) := by
-    have := Fintype.card_filter_piFinset_const_eq_of_mem (univ : Finset F) i (mem_univ 0)
-    simpa [Fintype.piFinset_univ] using this
+    simpa [Fintype.piFinset_univ] using
+      Fintype.card_filter_piFinset_const_eq_of_mem (univ : Finset F) i (mem_univ 0)
   rw [← hfib]
   refine card_le_card_of_injOn (fun x => update x i 0) (fun x _ => by simp) ?_
   intro x hx x' hx' hxx'
   simp only [agreePointsApprox, coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hx hx'
-  have hf : lineApprox f δ i x = lineApprox f δ i x' := by
-    rw [← lineApprox_update f δ i x 0, ← lineApprox_update f δ i x' 0]
-    exact congrArg (lineApprox f δ i) hxx'
-  have hg' : lineRestrict g x i = lineRestrict g x' i := by
-    rw [← lineRestrict_update g x i 0, ← lineRestrict_update g x' i 0]
-    exact congrArg (lineRestrict g · i) hxx'
+  have hxx0 : update x i 0 = update x' i 0 := hxx'
   have hxi : x i = x' i := by
     by_contra hne
     refine hx.2.1 ((isAffineFun_lineApprox hx.1).eq_of_eq_of_eq (hg x i) hne ?_ ?_)
     · simpa [lineRestrict] using hx.2.2
-    · rw [hf, hg']
+    · rw [← lineApprox_update f δ i x 0, ← lineRestrict_update g x i 0, hxx0,
+        lineApprox_update, lineRestrict_update]
       simpa [lineRestrict] using hx'.2.2
   calc x = update (update x i 0) i (x i) := by simp
     _ = update (update x' i 0) i (x' i) := by
-      rw [show update x i 0 = update x' i 0 from hxx', hxi]
+      rw [hxx0, hxi]
     _ = x' := by simp
 
 /-- **The self-improvement lemma for `δ`-approximate affineness**: a multilinear function `g`
@@ -298,8 +292,7 @@ theorem IsMultilinear.hammingDist_le_of_two_mul_le_approx {f g : (Fin n → F) �
       _ = n * δ * (Fintype.card F : ℝ) ^ n := by simp [mul_assoc]
   have hWC : (#(W ∪ C) : ℝ) ≤ ∑ i, (#(wrongPointsApprox f δ i) : ℝ) +
       n * δ * (Fintype.card F : ℝ) ^ n := by
-    have h1 : (#(W ∪ C) : ℝ) ≤ (#W : ℝ) + (#C : ℝ) := by exact_mod_cast card_union_le W C
-    linarith only [h1, hW, hC]
+    linarith only [show (#(W ∪ C) : ℝ) ≤ #W + #C from mod_cast card_union_le W C, hW, hC]
   have hI : #I ≤ n * Fintype.card F ^ (n - 1) := by
     refine card_biUnion_le.trans ?_
     calc ∑ i, #(agreePointsApprox f g δ i) ≤ ∑ _i : Fin n, Fintype.card F ^ (n - 1) :=
@@ -351,9 +344,8 @@ private theorem card_wrongPointsApprox_succ (f : (Fin (n + 1) → F) → F) (δ 
     #(wrongPointsApprox f δ j.succ) =
       ∑ t, #(wrongPointsApprox (fun y => f (Fin.cons t y)) δ j) := by
   have hline (x : Fin (n + 1) → F) :
-      lineRestrict f x j.succ = lineRestrict (fun y => f (Fin.cons (x 0) y)) (Fin.tail x) j := by
-    funext t
-    simp only [lineRestrict, Fin.cons_update, Fin.cons_self_tail]
+      lineRestrict f x j.succ = lineRestrict (fun y => f (Fin.cons (x 0) y)) (Fin.tail x) j :=
+    funext fun _ => by simp [lineRestrict, Fin.cons_update]
   simp only [wrongPointsApprox, hline]
   exact Fin.card_filter_zero_tail
     (fun t y => ¬IsApproxAffine δ (lineRestrict (fun y => f (Fin.cons t y)) y j))
@@ -402,12 +394,9 @@ private theorem exists_isMultilinear_hammingDist_le_of_slices_approx (f : (Fin (
       exact (hnotC hnotW).symm
     have htval (t : F) (hnotCt : Fin.cons t (Fin.tail x) ∉ corruptPoints f δ 0) :
         lineApprox f δ 0 x t = f (Fin.cons t (Fin.tail x)) := by
-      have hnotWt : Fin.cons t (Fin.tail x) ∉ wrongPointsApprox f δ 0 := by
-        rw [← hcons, mem_wrongPointsApprox_update]
-        exact hnotW
-      simp only [corruptPoints, mem_filter, mem_univ, true_and, not_and, not_not] at hnotCt
-      have heq := (hnotCt hnotWt).symm
-      simpa [← hcons, lineApprox_update] using heq
+      simp only [← hcons, corruptPoints, mem_filter, mem_univ, true_and,
+        mem_wrongPointsApprox_update, lineApprox_update, update_self, not_and, not_not] at hnotCt
+      simpa only [hcons] using (hnotCt hnotW).symm
     have hline := hl_aff.eq_of_eq_of_eq (hg x 0) h12
       (by rw [hg0]; simp only [htval t₁ hC1, h1, sub_self, zero_div, zero_mul, add_zero])
       (by rw [hg0]; simp only [htval t₂ hC2, h2, div_self hd, one_mul, add_sub_cancel])
@@ -418,9 +407,8 @@ private theorem exists_isMultilinear_hammingDist_le_of_slices_approx (f : (Fin (
           #{y : Fin n → F | Fin.cons t y ∈ corruptPoints f δ 0}) := by
     have hsplit : bad t h = ({x | f (Fin.cons t (Fin.tail x)) ≠ h (Fin.tail x)} :
           Finset (Fin (n + 1) → F)) ∪
-        ({x | Fin.cons t (Fin.tail x) ∈ corruptPoints f δ 0} : Finset (Fin (n + 1) → F)) := by
-      ext x
-      simp [bad]
+        ({x | Fin.cons t (Fin.tail x) ∈ corruptPoints f δ 0} : Finset (Fin (n + 1) → F)) :=
+      Finset.ext fun _ => by simp [bad]
     rw [hsplit]
     calc #(_ ∪ _) ≤ #{x : Fin (n + 1) → F | f (Fin.cons t (Fin.tail x)) ≠ h (Fin.tail x)} +
           #{x : Fin (n + 1) → F | Fin.cons t (Fin.tail x) ∈ corruptPoints f δ 0} :=
@@ -437,10 +425,8 @@ private theorem exists_isMultilinear_hammingDist_le_of_slices_approx (f : (Fin (
           (Nat.add_le_add_left (card_union_le _ _) _))
     _ ≤ #(wrongPointsApprox f δ 0) + #(corruptPoints f δ 0) + (#(bad t₁ g₁) + #(bad t₂ g₂)) :=
         Nat.add_le_add_right (card_union_le _ _) _
-    _ ≤ _ := by
-        refine Nat.add_le_add_left ?_ _
-        rw [mul_add]
-        exact Nat.add_le_add (hcard t₁ g₁) (hcard t₂ g₂)
+    _ ≤ _ := Nat.add_le_add_left
+        ((Nat.add_le_add (hcard t₁ g₁) (hcard t₂ g₂)).trans_eq (mul_add _ _ _).symm) _
 
 open Classical in
 /-- Induction on the dimension for `δ`-approximate multilinearity testing, using thresholds
@@ -456,19 +442,15 @@ private theorem exists_isMultilinear_hammingDist_le_mul_approx {m : ℕ} (hm : 0
         ∃ g, IsMultilinear g ∧ (hammingDist h g : ℝ) ≤ γ * (Fintype.card F : ℝ) ^ k := by
   have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast hm
   have hq : (0 : ℝ) < Fintype.card F := by exact_mod_cast Fintype.card_pos
-  have hr_nonneg : 0 ≤ 1 - 1 / (2 * (m : ℝ)) := by
-    have : 1 / (2 * (m : ℝ)) ≤ 1 := (div_le_one (by positivity)).2 (by linarith only [hm1])
-    linarith only [this]
+  have hr_nonneg : 0 ≤ 1 - 1 / (2 * (m : ℝ)) :=
+    sub_nonneg.2 ((div_le_one (by positivity)).2 (by linarith))
   have hr_le_one : 1 - 1 / (2 * (m : ℝ)) ≤ 1 := sub_le_self _ (by positivity)
   intro k
   induction k with
   | zero =>
     intro hk h _
     refine ⟨h, fun _ i => i.elim0, ?_⟩
-    simp only [hammingDist_self, Nat.cast_zero, pow_zero, mul_one]
-    simp only [CharP.cast_eq_zero, zero_mul, add_zero, mul_zero, zero_add, one_mul, ne_eq,
-      OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, zero_div] at hk
-    linarith only [hk, hε₀]
+    simpa [hammingDist_self] using hε₀.trans (by simpa using hk : ε₀ ≤ γ)
   | succ k ih =>
     intro hk f hf
     have hk' : (2 * (k : ℝ) + 1) * (ε₀ + k * δ) + 2 * (k : ℝ) ^ 2 / Fintype.card F ≤ γ := by
@@ -520,10 +502,8 @@ private theorem exists_isMultilinear_hammingDist_le_mul_approx {m : ℕ} (hm : 0
             sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => by positivity
         _ = (#(corruptPoints f δ 0) : ℝ) := hsumC
         _ ≤ δ * (Fintype.card F : ℝ) ^ (k + 1) := card_corruptPoints_le f hδ0 0
-    have hbadC_le : (#badC : ℝ) ≤ 40 * δ * Fintype.card F := by
-      have hden : (0 : ℝ) < (1 / 40 : ℝ) * (Fintype.card F : ℝ) ^ k := by positivity
-      refine le_of_mul_le_mul_right (hbadC.trans_eq ?_) hden
-      ring
+    have hbadC_le : (#badC : ℝ) ≤ 40 * δ * Fintype.card F :=
+      le_of_mul_le_mul_right (hbadC.trans_eq (by ring)) (by positivity)
     -- `16 + 40 δ |F| ≤ |F| / (2 m)`, leaving at least two good slices.
     have hgap : 16 + 40 * δ * Fintype.card F ≤ Fintype.card F / (2 * m) := by
       have h1 : 400 * (m : ℝ) ^ 2 * δ ≤ 1 := by rwa [le_div_iff₀' (by positivity)] at hδ
@@ -587,8 +567,7 @@ private theorem exists_isMultilinear_hammingDist_le_mul_approx {m : ℕ} (hm : 0
             2 * ((k + 1 : ℕ) : ℝ) ^ 2 * (Fintype.card F : ℝ) ^ k := by gcongr
       _ = ((2 * ((k + 1 : ℕ) : ℝ) + 1) * (ε₀ + ((k + 1 : ℕ) : ℝ) * δ) +
             2 * ((k + 1 : ℕ) : ℝ) ^ 2 / Fintype.card F) * (Fintype.card F : ℝ) ^ (k + 1) := by
-          field_simp
-          ring
+          field_simp; ring
       _ ≤ γ * (Fintype.card F : ℝ) ^ (k + 1) := by gcongr
 
 /-- **Polynomial soundness of the multilinearity test (`δ`-approximate lines)**: if in every

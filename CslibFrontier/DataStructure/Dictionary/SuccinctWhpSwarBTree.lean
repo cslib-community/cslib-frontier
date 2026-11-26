@@ -134,8 +134,7 @@ theorem wordDropLow_eq_div (W j word : ℕ) :
 theorem wordDropLow_lt {W a b word : ℕ} (hw : word < 2 ^ ((a + b) * W)) :
     wordDropLow W a word < 2 ^ (b * W) := by
   rw [wordDropLow_eq_div]
-  refine Nat.div_lt_of_lt_mul ?_
-  rwa [← Nat.pow_add, ← Nat.add_mul]
+  exact Nat.div_lt_of_lt_mul (by rwa [← Nat.pow_add, ← Nat.add_mul])
 
 /-- Bit `i * W + b`, for `b < W`, lies below bit `j * W` exactly when lane `i` lies below
 lane `j`. -/
@@ -274,8 +273,7 @@ theorem wordUpdateAt_lt {W j m v word : ℕ} (hj : j < m) (hv : v < 2 ^ W)
 theorem swarOnes_eq_sum {W : ℕ} (hW : 1 ≤ W) (n : ℕ) :
     swarOnes W n = ∑ j ∈ range n, 2 ^ (j * W) := by
   have hpos : 0 < 2 ^ W - 1 := Nat.sub_pos_of_lt (Nat.one_lt_two_pow (by omega))
-  have hgeom : ∀ k, (∑ j ∈ range k, 2 ^ (j * W)) * (2 ^ W - 1) = 2 ^ (k * W) - 1 := by
-    intro k
+  have hgeom (k : ℕ) : (∑ j ∈ range k, 2 ^ (j * W)) * (2 ^ W - 1) = 2 ^ (k * W) - 1 := by
     induction k with
     | zero => simp
     | succ k ih =>
@@ -303,8 +301,7 @@ private theorem ltMask_eq_sum (fpBits m q keysWord : ℕ)
     have := hlanes j hj
     have := Nat.two_pow_pos fpBits
     dsimp only [d, W]
-    rw [Nat.pow_add]
-    omega
+    rw [Nat.pow_add]; omega
   have hdiff_eq : (2 ^ fpBits + q) * swarOnes W m - (keysWord + swarOnes W m) =
       ∑ j ∈ range m, d j * 2 ^ (j * W) := by
     have hkw_sum := word_eq_sum_laneGet hW_pos hkw
@@ -336,8 +333,7 @@ private theorem ltMask_eq_sum (fpBits m q keysWord : ℕ)
   rw [testBit_laneGet]
   by_cases hb : b < W
   · simp only [hb, decide_true, Bool.true_and, Nat.testBit_and, Nat.testBit_shiftRight]
-    have h1_tb_succ : ∀ n, (1 : ℕ).testBit (n + 1) = false := fun n => by
-      simp [Nat.testBit_succ]
+    have h1_tb_succ (n : ℕ) : (1 : ℕ).testBit (n + 1) = false := by simp [Nat.testBit_succ]
     have hones_tb : (swarOnes W m).testBit (k * W + b) = decide (k < m ∧ b = 0) := by
       have hl := testBit_laneGet W (swarOnes W m) k b
       have hf1 : ∑ j ∈ range m, 2 ^ (j * W) = ∑ j ∈ range m, 1 * 2 ^ (j * W) :=
@@ -407,22 +403,17 @@ theorem swarRank_eq_count_lt {fpBits capLanes m q keysWord : ℕ}
       ∑ s ∈ range (2 * capLanes), c s * 2 ^ (s * W) := by
     rw [hlt_eq, swarOnes_eq_sum hW capLanes, sum_mul_sum, ← sum_product']
     have hmaps : ∀ p ∈ P, p.1 + p.2 ∈ range (2 * capLanes) := fun p hp => by
-      obtain ⟨hj, hi⟩ := mem_product.mp hp
-      rw [mem_range] at hj hi ⊢
+      simp only [P, mem_product, mem_range] at hp ⊢
       omega
     rw [← sum_fiberwise_of_maps_to hmaps]
     refine sum_congr rfl fun s _ => ?_
-    dsimp only [c]
-    rw [sum_mul]
+    simp only [c, sum_mul]
     refine sum_congr rfl fun p hp => ?_
-    dsimp only [b, W]
     rw [mul_assoc, ← Nat.pow_add, ← Nat.add_mul, (mem_filter.mp hp).2]
-  have hrank_lane : swarRank fpBits capLanes m q keysWord =
-      laneGet W (ltMask fpBits m q keysWord * swarOnes W capLanes) (capLanes - 1) := rfl
-  rw [hrank_lane, hprod_eq, laneGet_sum_mul_pow hc_lt]
+  change laneGet W (ltMask fpBits m q keysWord * swarOnes W capLanes) (capLanes - 1) = _
+  rw [hprod_eq, laneGet_sum_mul_pow hc_lt]
   have hlt_2cap : capLanes - 1 < 2 * capLanes := by omega
-  simp only [hlt_2cap, ↓reduceIte]
-  dsimp only [c]
+  simp only [hlt_2cap, ↓reduceIte, c]
   have hbij : ∑ p ∈ P.filter (fun p => p.1 + p.2 = capLanes - 1), b p.1 =
       ∑ j ∈ range m, b j := by
     refine sum_nbij' (fun p => p.1) (fun j => (j, capLanes - 1 - j))
@@ -436,9 +427,7 @@ theorem swarRank_eq_count_lt {fpBits capLanes m q keysWord : ℕ}
         exact Prod.ext rfl (by dsimp at he ⊢; omega))
       (fun _ _ => rfl)
       (fun _ _ => rfl)
-  rw [hbij]
-  dsimp only [b]
-  rw [← sum_filter, sum_const, nsmul_eq_mul, Nat.cast_id, mul_one]
+  simp only [hbij, b, ← sum_filter, sum_const, nsmul_eq_mul, Nat.cast_id, mul_one]
 
 /-! ## Section 2: Iterative Top-Down Split-Only SWAR B+-Tree -/
 
@@ -831,8 +820,7 @@ theorem ValidSubtree.leafCount_le_card_nodeSet {isRoot : Bool} {fpBits W_val tMi
     refine ⟨fun v hv_in => ?_, ?_⟩
     · rw [BTreeTree.nodeSet, mem_insert, mem_biUnion] at hv_in
       rcases hv_in with rfl | ⟨i, _, hvi⟩
-      · exact hidx
-      · exact (hrec i).1 v hvi
+      exacts [hidx, (hrec i).1 v hvi]
     · rw [BTreeTree.leafCount, BTreeTree.nodeSet,
         card_insert_of_notMem (by
           simpa only [mem_biUnion, not_exists, not_and] using fun i _ => hnot i),
@@ -843,10 +831,9 @@ theorem ValidSubtree.leafCount_le_card_nodeSet {isRoot : Bool} {fpBits W_val tMi
 theorem ValidSubtree.card_nodeSet_le_alloc {isRoot : Bool} {fpBits W_val tMin alloc : ℕ}
     {nodes : ℕ → BTreeNode} {lo hi : ℕ} {mapFn : ℕ → Option ℕ} {T : BTreeTree}
     (hv : ValidSubtree isRoot fpBits W_val tMin alloc nodes lo hi mapFn T) :
-    #T.nodeSet ≤ alloc := by
-  have hsub : T.nodeSet ⊆ range alloc := fun v hv_in =>
-    mem_range.mpr ((hv.leafCount_le_card_nodeSet).1 v hv_in)
-  exact (card_le_card hsub).trans (by rw [card_range])
+    #T.nodeSet ≤ alloc :=
+  card_range alloc ▸ card_le_card fun v hv_in =>
+    mem_range.mpr (hv.leafCount_le_card_nodeSet.1 v hv_in)
 
 /-- For any branch whose children all share `(cs 0).height`, `height = 1 + (cs 0).height`. -/
 theorem BTreeTree.height_branch_of_eq {idx cnt : ℕ} {cs : Fin (cnt + 1) → BTreeTree}

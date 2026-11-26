@@ -191,8 +191,7 @@ private theorem execProgramDist_halt0_eq_pure {B : Basis} {r w : ℕ} {p : Progr
     refine le_antisymm (iSup_le fun t => ?_) ?_
     · by_cases ht : 1 ≤ t
       · rw [h2 t ht, PMF.pure_apply_self]
-      · obtain rfl : t = 0 := by omega
-        simp [evalRand, runRand_zero]
+      · simp [Nat.eq_zero_of_not_pos ht, evalRand, runRand_zero]
     · calc (1 : ℝ≥0∞)
         _ = (evalRand w p 1 ⟨0, x⟩) (.halted (x.regs retReg) x) := by
             rw [h1, PMF.pure_apply_self]
@@ -202,11 +201,8 @@ private theorem execProgramDist_halt0_eq_pure {B : Basis} {r w : ℕ} {p : Progr
     refine le_antisymm (iSup_le fun t => ?_) zero_le
     by_cases ht : 1 ≤ t
     · rw [h2 t ht]
-      have hne_cfg : RandCfg.halted v y ≠ RandCfg.halted (x.regs retReg) x := by
-        intro heq; cases heq; exact hvy rfl
-      exact le_of_eq (PMF.pure_apply_of_ne _ _ hne_cfg)
-    · obtain rfl : t = 0 := by omega
-      simp [evalRand, runRand_zero]
+      exact (PMF.pure_apply_of_ne _ _ (mt (Prod.ext_iff.mpr ∘ RandCfg.halted.inj) hvy)).le
+    · simp [Nat.eq_zero_of_not_pos ht, evalRand, runRand_zero]
 
 private theorem execFlatProgramOps_cons_inv
     {B : Basis} {r w base space : ℕ} {D : StateTransitionSpec.{0, 0, 0}}
@@ -300,12 +296,11 @@ private theorem not_halt_zero_of_execFlatProgramOps
       (prepareFlatRegs input encode (.query u₀)
           (prepareFlatRegs input encode (.insert u₀ 0) p₀.2)).regs =
         (prepareFlatRegs input encode (.query u₀)
-          (prepareFlatRegs input encode (.insert u₁ 0) p₀.2)).regs := by
-    funext i
-    by_cases hi : input i = true <;> simp [prepareFlatRegs, hi]
+          (prepareFlatRegs input encode (.insert u₁ 0) p₀.2)).regs :=
+    funext fun i => by by_cases hi : input i = true <;> simp [prepareFlatRegs, hi]
   have hne_u : u₀ ≠ u₁ := by simp [u₀, u₁]
-  simp only [Dictionary.empty, Function.update_self, Function.update_of_ne hne_u] at hans₀ hans₁
-  rw [hregs_eq] at hans₀
+  simp only [Dictionary.empty, Function.update_self, Function.update_of_ne hne_u, hregs_eq]
+    at hans₀ hans₁
   cases hans₀.symm.trans hans₁
 
 private theorem one_le_of_execProgramDist_no_halt0
@@ -385,15 +380,13 @@ private theorem code_assemble_zero_ne_halt {B : Basis} {r : ℕ} (c : Code B r) 
     (c.assemble pc)[0]? ≠ some (.halt retReg) := by
   induction c generalizing pc with
   | seq c₁ c₂ ih₁ _ =>
-    have h0 : 0 < (c₁.assemble pc).length := by rw [Code.length_assemble]; exact code_size_pos c₁
-    simp only [Code.assemble, List.getElem?_append_left h0]
+    simp only [Code.assemble, List.getElem?_append_left (c₁.length_assemble pc ▸ code_size_pos c₁)]
     exact ih₁ pc
   | _ => simp [Code.assemble]
 
 private theorem code_program_zero_ne_halt {B : Basis} {r : ℕ} (c : Code B r) (out retReg : Fin r) :
     (c.program out)[0]? ≠ some (.halt retReg) := by
-  have h0 : 0 < (c.assemble 0).length := by rw [Code.length_assemble]; exact code_size_pos c
-  simp only [Code.program, List.getElem?_append_left h0]
+  simp only [Code.program, List.getElem?_append_left (c.length_assemble 0 ▸ code_size_pos c)]
   exact code_assemble_zero_ne_halt c 0 retReg
 
 private theorem exists_initData_of_fits {B : Basis} {r_ds k_init w base : ℕ}
@@ -416,14 +409,11 @@ private theorem exists_initData_of_fits {B : Basis} {r_ds k_init w base : ℕ}
     ⟨fun i => ?_, fun _ => fits_zero w⟩, by simp, fun j => ?_, fun _ => rfl⟩
   · dsimp only
     split_ifs with h₁ h₂
-    · exact hbase
-    · exact hparams_fit (Classical.choose h₂)
-    · exact fits_zero w
+    exacts [hbase, hparams_fit (Classical.choose h₂), fits_zero w]
   · dsimp only
     split_ifs with h₁ h₂
-    · exact (hparams_fr j h₁).symm
-    · exact hparams_agree (Classical.choose h₂) j (Classical.choose_spec h₂)
-    · exact absurd ⟨j, rfl⟩ h₂
+    exacts [(hparams_fr j h₁).symm, hparams_agree _ j (Classical.choose_spec h₂),
+      absurd ⟨j, rfl⟩ h₂]
 
 /-- Extract an initialized latent-state distribution `ν₀` from any zero-error
 `WordRAM.Randomized.StateTransitionImpl`, witnessing `ExecFlatProgramOps` along every valid
@@ -473,12 +463,11 @@ private theorem le_initPotential_add_tsum_totalCost
     LB ≤ (initPotential : ℝ≥0∞) +
       ∑' ops, dist ops *
         ((Dynamic.spec U V n).totalCost charge (Dictionary.empty U) ops : ℝ≥0∞) := by
-  have hmono := Cslib.Probability.PMF.tsum_mul_mono_support dist hT
-  have hadd := Cslib.Probability.PMF.tsum_mul_add_of_support dist
-    (g := fun _ => (initPotential : ℝ≥0∞))
-    (f := fun ops => ((Dynamic.spec U V n).totalCost charge (Dictionary.empty U) ops : ℝ≥0∞))
-    (fun _ _ => rfl)
-  exact hlb.trans (hmono.trans_eq hadd)
+  exact hlb.trans ((Cslib.Probability.PMF.tsum_mul_mono_support dist hT).trans_eq
+    (Cslib.Probability.PMF.tsum_mul_add_of_support dist
+      (g := fun _ => (initPotential : ℝ≥0∞))
+      (f := fun ops => ((Dynamic.spec U V n).totalCost charge (Dictionary.empty U) ops : ℝ≥0∞))
+      fun _ _ => rfl))
 
 private theorem tsum_mul_add_const_length {Op : Type*} (dist : PMF (List Op))
     (cost : List Op → ℝ≥0∞) (ov : ℝ≥0∞) {L : ℕ}
@@ -650,8 +639,7 @@ private theorem le_expectedFlatTime_mode_of_det_indexedScheme (withQueries : Boo
       ∑' ops, modeDist withQueries U V n hU hV ops *
         flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   have hM2 : 2 ≤ modeHorizon withQueries n + 1 := by
-    cases withQueries <;> simp only [modeHorizon, modeStride, ↓reduceIte, Bool.false_eq_true] <;>
-      omega
+    cases withQueries <;> simp only [modeHorizon_false, modeHorizon_true] <;> omega
   exact le_expectedFlatTime_mode_of_no_halt withQueries hU hV hspace p_op
     (not_halt_zero_of_execFlatProgramOps hn (by omega) hV hM2 ν₀ hex_corr)
     encode decode ν₀ hsupp₀ hex_corr hlb
@@ -872,10 +860,8 @@ private theorem expectedFlatTime_scaled_iqd
         flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   simpa only [modeDist_true, mul_assoc] using
     expectedFlatTime_scaled_of_mode true hc_cp (mul_nonneg (Nat.cast_nonneg n) hY) hn hU2 hV hpers
-      p_op encode decode ν₀ hsupp₀ (by rwa [modeHorizon_true])
-      fun hcorr => by
-        rw [modeDist_true]
-        simpa only [mul_assoc] using hlb (by rwa [modeHorizon_true] at hcorr)
+      p_op encode decode ν₀ hsupp₀ ((modeHorizon_true n).symm ▸ hex_corr) fun hcorr => by
+        simpa only [modeDist_true, mul_assoc] using hlb (modeHorizon_true n ▸ hcorr)
 
 private theorem expectedFlatTime_scaled_upd
     {B : Basis} {U V n r w base space r_max : ℕ} {input : Fin r → Bool} {Latent : Type z}
@@ -901,10 +887,8 @@ private theorem expectedFlatTime_scaled_upd
         flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   simpa only [modeDist_false, mul_assoc] using
     expectedFlatTime_scaled_of_mode false hc_cp (mul_nonneg (Nat.cast_nonneg n) hY) hn hU2 hV hpers
-      p_op encode decode ν₀ hsupp₀ (by rwa [modeHorizon_false])
-      fun hcorr => by
-        rw [modeDist_false]
-        simpa only [mul_assoc] using hlb (by rwa [modeHorizon_false] at hcorr)
+      p_op encode decode ν₀ hsupp₀ ((modeHorizon_false n).symm ▸ hex_corr) fun hcorr => by
+        simpa only [modeDist_false, mul_assoc] using hlb (modeHorizon_false n ▸ hcorr)
 
 /-- Word-RAM **Theorem 1.1 / Theorem 3.1** ([LiLiangYuZhou2023], Section 1, p. 1 and footnote 1 /
 PDF p. 2, and Section 3, pp. 10–13 / PDF pp. 11–14; [Yao1977]): for any `α > 0`, `c_R ≥ 0`,

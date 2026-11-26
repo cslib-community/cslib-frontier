@@ -113,12 +113,9 @@ private theorem lexDesc_trans {M : Type*} [Fintype M] {L₁ L₂ L₃ : M → �
   · exact (heq₁ x (lt_of_le_of_lt (le_max_left _ _) hx)).trans
       (heq₂ x (lt_of_le_of_lt (le_max_right _ _) hx))
   · rcases lt_trichotomy c₁ c₂ with h | rfl | h
-    · rw [max_eq_right h.le, heq₁ c₂ h]
-      exact hlt₂
-    · rw [max_self]
-      exact hlt₁.trans hlt₂
-    · rw [max_eq_left h.le, ← heq₂ c₁ h]
-      exact hlt₁
+    · simpa only [max_eq_right h.le, heq₁ c₂ h] using hlt₂
+    · simpa only [max_self] using hlt₁.trans hlt₂
+    · simpa only [max_eq_left h.le, ← heq₂ c₁ h] using hlt₁
 
 /-- If `L'` agrees with `L` outside `{a, b}`, while `L' a < L a`, `L' b < L a`, and `L b < L a`,
 then `LexDesc L' L`. -/
@@ -240,18 +237,12 @@ theorem hasFIP [Finite M] (G : LoadBalancingGame ι M) : G.toCostGame.HasFIP := 
   let R : (ι → M) → (ι → M) → Prop := fun A' A =>
     LexDesc (G.load A') (G.load A) ∨
       (G.load A' = G.load A ∧ G.toCostGame.socialCost A' < G.toCostGame.socialCost A)
-  have : Std.Irrefl R := ⟨fun A h => by
-    rcases h with h | ⟨-, hlt⟩
-    · exact lexDesc_irrefl _ h
-    · exact lt_irrefl _ hlt⟩
-  have : IsTrans (ι → M) R := ⟨fun A₁ A₂ A₃ h₁₂ h₂₃ => by
-    rcases h₁₂ with h₁ | ⟨heq₁, hlt₁⟩
-    · rcases h₂₃ with h₂ | ⟨heq₂, -⟩
-      · exact Or.inl (lexDesc_trans h₁ h₂)
-      · exact Or.inl (heq₂ ▸ h₁)
-    · rcases h₂₃ with h₂ | ⟨heq₂, hlt₂⟩
-      · exact Or.inl (heq₁.symm ▸ h₂)
-      · exact Or.inr ⟨heq₁.trans heq₂, hlt₁.trans hlt₂⟩⟩
+  have : Std.Irrefl R := ⟨fun A h =>
+    h.elim (lexDesc_irrefl _) fun ⟨_, hlt⟩ => lt_irrefl _ hlt⟩
+  have : IsTrans (ι → M) R := ⟨by
+    rintro A₁ A₂ A₃ (h₁ | ⟨heq₁, hlt₁⟩) (h₂ | ⟨heq₂, hlt₂⟩)
+    exacts [.inl (lexDesc_trans h₁ h₂), .inl (heq₂ ▸ h₁),
+      .inl (heq₁.symm ▸ h₂), .inr ⟨heq₁.trans heq₂, hlt₁.trans hlt₂⟩]⟩
   have hwf : WellFounded R := Finite.wellFounded_of_trans_of_irrefl R
   refine Subrelation.wf (r := R) ?_ hwf
   rintro A' A ⟨i, b, rfl, hlt⟩
@@ -275,11 +266,9 @@ theorem hasFIP [Finite M] (G : LoadBalancingGame ι M) : G.toCostGame.HasFIP := 
       rw [hload, Function.update_of_ne hki]
   · left
     have hla : G.load (Function.update A i b) (A i) < G.load A (A i) := by
-      rw [G.load_update_self_of_ne A i hne]
-      linarith [div_pos hwpos (G.speed_pos (A i))]
+      rw [G.load_update_self_of_ne A i hne]; linarith [div_pos hwpos (G.speed_pos (A i))]
     have hlb : G.load A b < G.load A (A i) := by
-      rw [G.load_update_of_ne A i hne] at hlt'
-      linarith [div_pos hwpos (G.speed_pos b)]
+      rw [G.load_update_of_ne A i hne] at hlt'; linarith [div_pos hwpos (G.speed_pos b)]
     exact lexDesc_of_two_below hla hlt' hlb fun j h1 h2 => G.load_update_other A i h1 h2
 
 /-- **Existence of pure Nash equilibria** ([Vocking2007]): every uniformly
@@ -334,35 +323,25 @@ private theorem isSatisfied_after_bestResponse {G : LoadBalancingGame ι M} (hId
   have hmin_load (k : M) : G.load A b ≤ G.load A k := by
     simpa only [hId b, hId k, div_one, add_le_add_iff_right] using hmin k
   have hlt_a : G.load A b + G.weight i < G.load A (A i) := by
-    simp only [IsSatisfied, not_forall, not_le] at hunsat
-    obtain ⟨k, hk⟩ := hunsat
-    rw [hId k, div_one] at hk
-    linarith [hmin_load k]
+    obtain ⟨k, hk⟩ := not_forall.mp hunsat
+    rw [not_le, hId k, div_one] at hk; linarith [hmin_load k]
   have hne : b ≠ A i := fun h => by linarith [h ▸ hlt_a, G.weight_nonneg i]
-  have hload_ge : ∀ k, G.load A b ≤ G.load (Function.update A i b) k := by
-    intro k
-    by_cases hkb : k = b
-    · rw [hkb, G.load_update_of_ne A i hne, hId b, div_one]
-      linarith [G.weight_nonneg i]
-    · by_cases hka : k = A i
-      · rw [hka, G.load_update_self_of_ne A i hne, hId (A i), div_one]
-        linarith
-      · rw [G.load_update_other A i hka hkb]
-        exact hmin_load k
-  have hsat_i : G.IsSatisfied (Function.update A i b) i := by
-    intro k
-    rw [Function.update_self, G.load_update_of_ne A i hne, hId b, hId k, div_one]
+  have hload_ge (k : M) : G.load A b ≤ G.load (Function.update A i b) k := by
+    rcases eq_or_ne k b with rfl | hkb
+    · rw [G.load_update_of_ne A i hne, hId k, div_one]; linarith [G.weight_nonneg i]
+    · rcases eq_or_ne k (A i) with rfl | hka
+      · rw [G.load_update_self_of_ne A i hne, hId (A i), div_one]; linarith
+      · exact (G.load_update_other A i hka hkb).symm ▸ hmin_load k
+  refine ⟨fun k => ?_, fun j hj hwij k => ?_⟩
+  · rw [Function.update_self, G.load_update_of_ne A i hne, hId b, hId k, div_one]
     linarith [hload_ge k]
-  refine ⟨hsat_i, fun j hj hwij k => ?_⟩
   have hji : j ≠ i := fun h => hunsat (h ▸ hj)
   rw [Function.update_of_ne hji, hId k, div_one]
   by_cases hjb : A j = b
-  · rw [hjb, G.load_update_of_ne A i hne, hId b, div_one]
-    linarith [hload_ge k]
+  · rw [hjb, G.load_update_of_ne A i hne, hId b, div_one]; linarith [hload_ge k]
   · have hle_prev : G.load (Function.update A i b) (A j) ≤ G.load A (A j) := by
       by_cases hja : A j = A i
-      · rw [hja, G.load_update_self_of_ne A i hne]
-        linarith [div_nonneg (G.weight_nonneg i) (G.speed_pos (A i)).le]
+      · rw [hja, G.load_update_self_of_ne A i hne, hId (A i), div_one]; linarith [G.weight_nonneg i]
       · rw [G.load_update_other A i hja hjb]
     have hjb_sat : G.load A (A j) ≤ G.load A b + G.weight j := by
       simpa only [hId b, div_one] using hj b
@@ -425,9 +404,8 @@ private theorem exists_snoc_of_not_isPureNash [Finite M] [Nonempty M]
       ∀ t : Fin (k + 1), G.IsMaxWeightBestResponseStep (γ₁ t.succ) (γ₁ t.castSucc) (move₁ t) := by
   classical
   have : Fintype M := Fintype.ofFinite M
-  rw [G.isPureNash_iff_forall_isSatisfied] at hNE
-  push Not at hNE
-  obtain ⟨i, hi⟩ := hNE
+  obtain ⟨i, hi⟩ : ∃ i, ¬ G.IsSatisfied (γ (Fin.last k)) i := by
+    rwa [G.isPureNash_iff_forall_isSatisfied, not_forall] at hNE
   let U : Finset ι := univ.filter fun j => ¬ G.IsSatisfied (γ (Fin.last k)) j
   obtain ⟨i₀, hi₀U, hi₀max⟩ := exists_max_image U G.weight ⟨i, mem_filter.mpr ⟨mem_univ i, hi⟩⟩
   obtain ⟨b, -, hbmin⟩ := exists_min_image univ
@@ -442,9 +420,8 @@ private theorem exists_snoc_of_not_isPureNash [Finite M] [Nonempty M]
       fun j hj => hi₀max j (mem_filter.mpr ⟨mem_univ j, hj⟩),
       fun m => hbmin m (mem_univ m)⟩
   | cast t =>
-    rw [show t.castSucc.succ = t.succ.castSucc from rfl]
-    simp only [Fin.snoc_castSucc]
-    exact hγ t
+    rw [Fin.succ_castSucc]
+    simpa only [Fin.snoc_castSucc] using hγ t
 
 /-- Starting from any assignment `A₀` on identical machines, max-weight best-response dynamics
 reach a pure Nash equilibrium in at most `|ι|` steps ([EvenDarKesselmanMansour2003];
@@ -501,10 +478,9 @@ variable {n : ℕ} {M : Type*} [DecidableEq M]
 private theorem prefixLoad_le_load (G : LoadBalancingGame (Fin n) M) (A : Fin n → M) (k : ℕ)
     (j : M) : G.prefixLoad A k j ≤ G.load A j := by
   rw [prefixLoad, load, UnrelatedLoadBalancingGame.load]
-  refine sum_le_sum_of_subset_of_nonneg (fun r hr => ?_) fun r _ _ =>
-    div_nonneg (G.weight_nonneg r) (G.speed_pos j).le
-  simp only [mem_filter, mem_univ, true_and] at hr ⊢
-  exact hr.2
+  exact sum_le_sum_of_subset_of_nonneg
+    (fun r hr => mem_filter.mpr ⟨mem_univ r, (mem_filter.mp hr).2.2⟩)
+    fun r _ _ => div_nonneg (G.weight_nonneg r) (G.speed_pos j).le
 
 /-- **LPT produces a pure Nash equilibrium on uniformly related machines**
 ([FotakisKontogiannisKoutsoupiasMavronicolasSpirakis2002]; [Vocking2007]): if jobs
@@ -518,8 +494,7 @@ theorem IsRelatedLPT.isPureNash {G : LoadBalancingGame (Fin n) M} {A : Fin n →
   set S : Finset (Fin n) := univ.filter fun r => A r = A i
   have hSne : S.Nonempty := ⟨i, mem_filter.mpr ⟨mem_univ i, rfl⟩⟩
   let r : Fin n := S.max' hSne
-  have hrS : r ∈ S := max'_mem S hSne
-  have hAr : A r = A i := (mem_filter.mp hrS).2
+  have hAr : A r = A i := (mem_filter.mp (max'_mem S hSne)).2
   have hir : i ≤ r := le_max' S i (mem_filter.mpr ⟨mem_univ i, rfl⟩)
   -- Since `r` is the last job on machine `A i`, its post-insertion load equals `G.load A (A i)`.
   have hload_r : G.load A (A i) = G.prefixLoad A r (A r) + G.weight r / G.speed (A r) := by
@@ -584,17 +559,14 @@ private theorem isPureNash_comp_symm (G : LoadBalancingGame (Fin n) M)
       speed := G.speed
       weight_nonneg := fun i => G.weight_nonneg (e i)
       speed_pos := G.speed_pos }
-  have hload_eq : ∀ j : M, G.load (As ∘ e.symm) j = Gs.load As j := fun j => by
-    rw [G.load_eq_sum_div, Gs.load_eq_sum_div, sum_filter, sum_filter]
-    congr 1
-    rw [← Equiv.sum_comp e (fun i => if (As ∘ e.symm) i = j then G.weight i else 0)]
-    refine sum_congr rfl fun i _ => ?_
-    simp [Gs]
+  have hload_eq (j : M) : G.load (As ∘ e.symm) j = Gs.load As j := by
+    rw [G.load_eq_sum_div, Gs.load_eq_sum_div, sum_filter, sum_filter,
+      ← Equiv.sum_comp e (fun i => if (As ∘ e.symm) i = j then G.weight i else 0)]
+    exact congrArg (· / G.speed j) (sum_congr rfl fun i _ => by simp [Gs])
   rw [G.isPureNash_iff]
   intro i k _
-  rw [hload_eq, hload_eq]
-  have h := Gs.isPureNash_load_le hNE (e.symm i) k
-  simpa only [Gs, Function.comp_apply, Equiv.apply_symm_apply] using h
+  simpa only [hload_eq, Gs, Function.comp_apply, Equiv.apply_symm_apply] using
+    Gs.isPureNash_load_le hNE (e.symm i) k
 
 /-- **LPT algorithm produces a pure Nash equilibrium for any weight vector on uniformly related
 machines** ([FotakisKontogiannisKoutsoupiasMavronicolasSpirakis2002]; [Vocking2007]): sorting jobs
@@ -627,8 +599,7 @@ theorem IsIdentical.prefixLoad_eq_scheduling {m : ℕ} {G : LoadBalancingGame (F
     (hId : G.IsIdentical) (A : Fin n → Fin m) (k : ℕ) (j : Fin m) :
     G.prefixLoad A k j = Cslib.Algorithms.Lean.Scheduling.prefixLoad G.weight A k j := by
   rw [prefixLoad, Cslib.Algorithms.Lean.Scheduling.prefixLoad_def]
-  refine sum_congr rfl fun r _ => ?_
-  rw [hId j, div_one]
+  exact sum_congr rfl fun _ _ => by rw [hId j, div_one]
 
 /-- On identical machines (`Fin n` jobs, `Fin m` machines), greedy post-insertion LPT
 (`IsRelatedLPT`) coincides with Graham's list-scheduling condition
@@ -653,10 +624,9 @@ theorem IsIdentical.isPureNash_lptSchedule {m : ℕ} [NeZero m]
       speed := G.speed
       weight_nonneg := fun i => G.weight_nonneg (e i)
       speed_pos := G.speed_pos }
-  have hIds : Gs.IsIdentical := hId
   have hLPT : Gs.IsRelatedLPT
       (Cslib.Algorithms.Lean.Scheduling.listSchedule (m := m) Gs.weight) :=
-    (hIds.isRelatedLPT_iff_isListSchedule _).mpr
+    (IsIdentical.isRelatedLPT_iff_isListSchedule (G := Gs) hId _).mpr
       (Cslib.Algorithms.Lean.Scheduling.isListSchedule_listSchedule Gs.weight)
   exact G.isPureNash_comp_symm e
     (hLPT.isPureNash (Cslib.Algorithms.Lean.Scheduling.antitone_comp_lptOrder G.weight))

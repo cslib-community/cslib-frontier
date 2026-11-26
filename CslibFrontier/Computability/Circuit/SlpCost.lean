@@ -38,7 +38,8 @@ relations, connectives, bounded quantifiers and choice (`Cslib.Circuits.Cost.ite
 
 ## Main results
 
-* `Cslib.Circuits.SlpN.snoc`, `SlpN.le`, `SlpN.castLE`, `SlpN.inputs`, `Cost.run`, `SlpN.stage`.
+* `Cslib.Circuits.SlpN.snoc`, `SlpN.le`, `SlpN.castLE`, `SlpN.mapInputs`, `SlpN.inputs`,
+  `SlpN.exists_isSlpStep`, `Cost.run`, `SlpN.stage`.
 
 ## References
 
@@ -147,6 +148,16 @@ theorem SlpN.castLE {D' : ℕ} (hD : D ≤ D') {inp' : Fin n → Inp → Fin D'}
         · exact absurd (fun i => (hw i x).trans_lt (Fin.isLt _)) ‹_›
       | cast k => simpa using hP' k x
 
+/-- A program whose inputs are among the inputs `inp'` computes the same functions from them. -/
+theorem SlpN.mapInputs {n' : ℕ} {inp' : Fin n' → Inp → Fin D} (f : Fin n → Fin n')
+    (hf : ∀ i x, inp' (f i) x = inp i x) {p : ℕ} {H : Set (Inp → ℕ)} (h : SlpN inp p H) :
+    SlpN inp' p H := by
+  obtain ⟨P, hP⟩ := h
+  refine ⟨P.mapInputs f, fun g hg => (hP g hg).imp fun k hk x => ?_⟩
+  rw [Program.eval_mapInputs, ← hk x]
+  congr 3
+  exact funext fun i => hf i x
+
 /-- The inputs take one gate each. -/
 theorem SlpN.inputs (inp : Fin n → Inp → Fin D) :
     SlpN inp n (Set.range fun i x => (inp i x : ℕ)) := by
@@ -158,6 +169,17 @@ theorem SlpN.inputs (inp : Fin n → Inp → Fin D) :
     refine ⟨P, ?_⟩
     rintro _ ⟨i, rfl⟩
     exact ⟨i, fun x => by rw [hP i x]; simp⟩
+
+/-- A program with `p` gates on `n` inputs gives a list of `n + p` steps, inputs first, in which
+every function that the program computes is a step. -/
+theorem SlpN.exists_isSlpStep [NeZero D] {p : ℕ} {H : Set (Inp → ℕ)} (h : SlpN inp p H) :
+    ∃ fn : ℕ → Inp → Fin D, (∀ k < n + p, IsSlpStep inp fn k) ∧
+      ∀ f ∈ H, ∃ k : Fin (n + p), ∀ x, (fn k x : ℕ) = f x := by
+  obtain ⟨P, hP⟩ := h
+  obtain ⟨fn, hs, -, hg⟩ := exists_isSlpStep_of_program inp P
+  refine ⟨fn, hs, fun f hf => ?_⟩
+  obtain ⟨k, hk⟩ := hP f hf
+  exact ⟨⟨n + k, by omega⟩, fun x => by rw [hg, hk]⟩
 
 /-- `h` is computed in at most `c` steps from functions of `A`. -/
 inductive Cost (D : ℕ) (A : Set (Inp → ℕ)) : ℕ → (Inp → ℕ) → Prop

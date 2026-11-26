@@ -301,9 +301,8 @@ theorem friSmoothBatchIOP_rbrSound [DecidableEq F] (params : FRISmoothParams F) 
     · cases pref with
       | nil => exact absurd (Nat.zero_le _) h
       | cons head rest =>
-        simp only [List.length_cons] at h
-        simp only [List.cons_append, friSmoothBatchDoomed, friSmoothDoomed,
-          length_friBatchTailTranscript, List.length_append, List.length_singleton]
+        simp only [List.length_cons, List.cons_append, friSmoothBatchDoomed, friSmoothDoomed,
+          length_friBatchTailTranscript, List.length_append] at h ⊢
         split_ifs <;> omega
   reject_of_doomed stmt oracles chals hdoomed := by
     rw [iopVerify_friSmoothBatchIOP_eq_iopVerify_friSmoothIOP]
@@ -373,9 +372,8 @@ theorem toOuterMeasure_not_friSmoothBatchGoodStep_cons [Fintype F] [DecidableEq 
         {c' | ¬ friSmoothGoodStep params B (stmt.eval c₀.batchCoeffs)
           (friBatchTailTranscript rest) π c'} := by
   simp only [friSmoothBatchGoodStep_cons]
-  exact toOuterMeasure_uniform_friBatchChal_toFRIChal
-    {c' | ¬ friSmoothGoodStep params B (stmt.eval c₀.batchCoeffs)
-      (friBatchTailTranscript rest) π c'}
+  rw [← toOuterMeasure_uniform_friBatchChal_toFRIChal (t := t)]
+  rfl
 
 /-- **Unconditional query-round escape bound for `friSmoothBatchIOP`**: when
 `pref.length = params.m + 1` and `pref` is doomed at threshold `B`, the probability over a uniform
@@ -469,10 +467,9 @@ theorem friBatchRound0Escape_of_gapBound [Fintype F] [DecidableEq F] {d : ℕ}
     (hgap : FRIBatchRound0GapBound C t e B_batch) :
     FRIBatchRound0Escape C t e ((B_batch : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) := by
   classical
-  refine fun stmt hnot =>
-    PMF.toOuterMeasure_uniformOfFintype_le_div Fintype.card_pos ?_
-  rw [Fintype.card_fun, Fintype.card_fin]
-  exact hgap stmt hnot _ fun _ hx => (Finset.mem_filter.mp hx).2
+  exact fun stmt hnot => PMF.toOuterMeasure_uniformOfFintype_le_div Fintype.card_pos (by
+    simpa only [Fintype.card_fun, Fintype.card_fin] using
+      hgap stmt hnot _ fun _ hx => (Finset.mem_filter.mp hx).2)
 
 /-- **Polymorphic integer smooth round-0 batching proximity-gap contract** (specialization of
 `FRIBatchRound0GapBound` to `params.initialCode`). -/
@@ -507,8 +504,7 @@ private theorem lt_card_filter_eq_iff_hammingDist_le [DecidableEq F] {d e : ℕ}
     (w c : OracleTable d F) :
     2 ^ d - e - 1 < (Finset.univ.filter fun s : Fin (2 ^ d) => w s = c s).card ↔
       hammingDist w c ≤ e := by
-  have htot := card_filter_eq_add_hammingDist w c
-  simp only [Fintype.card_fin] at htot
+  have htot := Fintype.card_fin (2 ^ d) ▸ card_filter_eq_add_hammingDist w c
   omega
 
 /-- Private helper: converts any real-density affine correlated-agreement step on `params.eval 0`
@@ -548,10 +544,9 @@ private theorem smoothBatchRound0Escape_of_real_density [Fintype F] [DecidableEq
         let ⟨c, hc, hc_gt⟩ := (Finset.mem_filter.mp hx).2
         ⟨c, hc, (lt_card_filter_eq_iff_hammingDist_le he_lt (stmt.eval x) c).mp hc_gt⟩
     exact hnot ⟨D', by rwa [Fintype.card_fin] at hD'_card, v₀, hv₀, v, hv, hagree⟩
-  have hne_top : (PMF.uniformOfFintype (Fin t → F)).toOuterMeasure S ≠ ⊤ := by
-    rw [PMF.toOuterMeasure_uniformOfFintype]
-    exact ENNReal.mul_ne_top (ENNReal.natCast_ne_top _)
-      (ENNReal.inv_ne_top.mpr (Nat.cast_ne_zero.mpr Fintype.card_ne_zero))
+  have hne_top : (PMF.uniformOfFintype (Fin t → F)).toOuterMeasure S ≠ ⊤ :=
+    PMF.toOuterMeasure_uniformOfFintype S ▸
+      ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) (by simp)
   rw [← ENNReal.ofReal_toReal hne_top, PMF.toOuterMeasure_uniformOfFintype_toReal]
   simpa only [Fintype.card_fun, Fintype.card_fin, Nat.cast_pow] using ENNReal.ofReal_le_ofReal hle_R
 
@@ -728,9 +723,9 @@ theorem friSmoothBatchRBREscape_of_escape (params : FRISmoothParams F) (t : ℕ)
     exact (friSmoothBatchRound0_escape_le_of_escape params t hbatch hnot π).trans (le_max_left _ _)
   | cons head rest =>
     by_cases hle : (head :: rest).length ≤ params.m
-    · have hpos : 1 ≤ (head :: rest).length := by simp
-      exact (friSmoothBatchCommitRound_escape_le_of_weightedCurveGap params t hgap stmt
-        (head :: rest) hpos hle π hdoomed).trans ((le_max_left _ _).trans (le_max_right _ _))
+    · exact (friSmoothBatchCommitRound_escape_le_of_weightedCurveGap params t hgap stmt
+        (head :: rest) (Nat.succ_pos _) hle π hdoomed).trans
+        ((le_max_left _ _).trans (le_max_right _ _))
     · by_cases heq : (head :: rest).length = params.m + 1
       · exact (friSmoothBatchQueryRound_escape_le params t (2 ^ params.d - e - 1) stmt
           (head :: rest) heq π hdoomed).trans ((le_max_right _ _).trans (le_max_right _ _))
@@ -882,10 +877,7 @@ theorem friBatchGoodStep_iff_friSmoothBatchGoodStep [DecidableEq F] (params : FR
     (π : OracleTable params.d F) (c : FRIBatchChal F params.d params.q t) :
     friBatchGoodStep params t B stmt pref π c ↔
       friSmoothBatchGoodStep params.toSmooth t B stmt pref π c := by
-  unfold friBatchGoodStep friSmoothBatchGoodStep
-  split_ifs
-  · exact friBatchDoomed_iff_friSmoothBatchDoomed params t B stmt (pref ++ [(π, c)])
-  · exact Iff.rfl
+  simp only [friBatchGoodStep, friSmoothBatchGoodStep, friBatchDoomed_iff_friSmoothBatchDoomed]
 
 private theorem batchRound0GapBound_iff_smooth [Fintype F] [DecidableEq F] (params : FRIParams F)
     (t e B_batch : ℕ) :
@@ -1094,8 +1086,7 @@ theorem batchRound0Escape_of_johnson [Fintype F] [DecidableEq F]
       (ENNReal.ofReal
         (1800 * ((mJ + 1 : ℝ) ^ 6) * ((2 ^ params.d : ℝ) ^ 2) /
           (((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) * (Fintype.card F : ℝ)))) := by
-  rw [batchRound0Escape_iff_smooth]
-  simpa only [params.toSmooth_dim (Nat.zero_le _)] using
+  simpa only [batchRound0Escape_iff_smooth, params.toSmooth_dim (Nat.zero_le _)] using
     smoothBatchRound0Escape_of_johnson params.toSmooth t hmJ
       (by simpa only [params.toSmooth_dim (Nat.zero_le _)] using he)
 
@@ -1109,8 +1100,7 @@ theorem batchRound0Escape_of_johnson_eta [Fintype F] [DecidableEq F]
       (ENNReal.ofReal
         (115200 * ((2 ^ params.d : ℝ) ^ 2) /
           (((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) * (η ^ 6) * (Fintype.card F : ℝ)))) := by
-  rw [batchRound0Escape_iff_smooth]
-  simpa only [params.toSmooth_dim (Nat.zero_le _)] using
+  simpa only [batchRound0Escape_iff_smooth, params.toSmooth_dim (Nat.zero_le _)] using
     smoothBatchRound0Escape_of_johnson_eta params.toSmooth t hη
       (by simpa only [params.toSmooth_dim (Nat.zero_le _)] using he)
 

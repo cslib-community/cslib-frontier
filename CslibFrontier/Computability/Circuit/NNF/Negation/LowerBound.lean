@@ -139,12 +139,9 @@ theorem mem_edgeNbhd_iff {c : Fin 3} {u t : V} :
       M.toSimpleGraph.Adj (M.mate c u) t := by
   simp only [edgeNbhd, mem_insert, toSimpleGraph_adj]
   constructor
-  · rintro (h | h | h)
-    · exact .inl h
-    · exact .inr (.inl h)
-    · simp only [otherNbrs, mem_union, mem_image, mem_erase, mem_univ, and_true] at h
-      rcases h with ⟨c', -, h⟩ | ⟨c', -, h⟩
-      exacts [.inr (.inr (.inl ⟨c', h⟩)), .inr (.inr (.inr ⟨c', h⟩))]
+  · simp only [otherNbrs, mem_union, mem_image, mem_erase, mem_univ, and_true]
+    rintro (h | h | ⟨c', -, h⟩ | ⟨c', -, h⟩)
+    exacts [.inl h, .inr (.inl h), .inr (.inr (.inl ⟨c', h⟩)), .inr (.inr (.inr ⟨c', h⟩))]
   · rintro (h | h | ⟨c', rfl⟩ | ⟨c', rfl⟩)
     · exact .inl h
     · exact .inr (.inl h)
@@ -244,12 +241,12 @@ theorem otherNbrs_notMem_ends {u t : V} (hu : u ∈ S) (ht : t ∈ M.otherNbrs c
   rw [mem_ends]
   rintro ⟨u', hu', htu⟩
   by_cases h : u = u'
-  · rw [← h] at htu
-    rcases htu with htu | htu <;> rw [htu] at ht
-    exacts [self_notMem_otherNbrs c u ht, mate_notMem_otherNbrs c u ht]
-  · have hn := hS.notMem_edgeNbhd hu hu' h (otherNbrs_subset_edgeNbhd c u ht)
-    rcases htu with htu | htu <;> rw [htu] at hn
-    exacts [hn (self_mem_edgeNbhd c u'), hn (mate_mem_edgeNbhd c u')]
+  · subst h
+    exact htu.elim (fun h => self_notMem_otherNbrs c u (h ▸ ht))
+      (fun h => mate_notMem_otherNbrs c u (h ▸ ht))
+  · refine hS.notMem_edgeNbhd hu hu' h (otherNbrs_subset_edgeNbhd c u ht) ?_
+    rcases htu with rfl | rfl
+    exacts [self_mem_edgeNbhd c _, mate_mem_edgeNbhd c _]
 
 /-- An edge of another colour at an end of a listed edge leads off the ends. -/
 theorem mate_notMem_ends {a : V} (ha : a ∈ M.ends c S) {c' : Fin 3} (hc' : c' ≠ c) :
@@ -305,14 +302,13 @@ theorem witness_eq_false (hS : M.IsSeparatedCrossing A c S)
   unfold witness
   split_ifs with h
   · obtain ⟨y, hyR, hy, hyx, hyu⟩ := h
-    by_contra hxv
-    rw [Bool.not_eq_false] at hxv
+    refine Bool.eq_false_iff.2 fun hxv => ?_
     have hz : ∀ t, A.piecewise y x t = true → x t = true ∨ y t = true := fun t ht => by
       simp only [Finset.piecewise] at ht; split_ifs at ht <;> simp [ht]
     -- `z` contains the edge at `u`, of colour `c` ...
-    have hzc : M.HasColor (A.piecewise y x) c := ⟨u, by
-      rw [Finset.piecewise_eq_of_mem _ _ _ (hS.mem u hu)]; exact hyu, by
-      rw [Finset.piecewise_eq_of_notMem _ _ _ (hS.mate_notMem u hu)]; exact hxv⟩
+    have hzc : M.HasColor (A.piecewise y x) c :=
+      ⟨u, (A.piecewise_eq_of_mem y x (hS.mem u hu)).trans hyu,
+        (A.piecewise_eq_of_notMem y x (hS.mate_notMem u hu)).trans hxv⟩
     -- ... and no edge of another colour.
     have hzc' : ∀ c', c' ≠ c → ¬M.HasColor (A.piecewise y x) c' := by
       rintro c' hc' ⟨a, ha, hb⟩
@@ -433,11 +429,10 @@ theorem sum_witness_le (hS : M.IsSeparatedCrossing A c S) :
             eq_of_clearOn_eq hxy fun h => ht (hT t h)
           have hP : P x ↔ P y := forall₂_congr fun v hv => by
             have hne : v ≠ u := fun h => hu (h ▸ hv)
-            have hwT : M.witness c S R v y ∉ T := fun hw => by
-              refine hS.end_notMem_edgeNbhd huS (hJS hv) hne (witness_eq (S := S) (R := R) v y) ?_
-              simp only [T, mem_insert, mem_singleton] at hw
-              rcases hw with hw | hw <;> rw [hw]
-              exacts [self_mem_edgeNbhd c u, mate_mem_edgeNbhd c u]
+            have hwT : M.witness c S R v y ∉ T := fun hw =>
+              hS.end_notMem_edgeNbhd huS (hJS hv) hne (witness_eq (S := S) (R := R) v y)
+                (insert_subset (self_mem_edgeNbhd c u)
+                  (singleton_subset_iff.mpr (mate_mem_edgeNbhd c u)) hw)
             rw [witness_congr hZ, eq_of_clearOn_eq hxy hwT]
           simp only [g, hP, hh x y hZ]
         · simp only [g]; split_ifs <;> simp [h0 x]
@@ -463,21 +458,17 @@ theorem sum_witness_le (hS : M.IsSeparatedCrossing A c S) :
               · rcases hwT with hw | hw <;> rw [hw]
                 exacts [hfree _ (mate_mem_otherNbrs hc' u), hfree _ (mate_mate_mem_otherNbrs hc' u)]
             have hbI : M.IsIndep b := (mem_filter.mp hx).2.clearOn T
-            have hyI : M.IsIndep y := by
-              rintro c' v ⟨h1, h2⟩
+            have hyI : M.IsIndep y := fun c' v ⟨h1, h2⟩ => by
               by_cases hv : v = w
-              · subst hv
-                rw [hyb _ (M.mate_ne c' _), hnbr] at h2; exact absurd h2 (by simp)
+              · rw [hv, hyb _ (M.mate_ne c' w), hnbr] at h2
+                exact Bool.false_ne_true h2
               by_cases hmv : M.mate c' v = w
-              · have : v = M.mate c' w := by rw [← hmv, M.mate_mate]
-                rw [hyb v hv, this, hnbr] at h1; exact absurd h1 (by simp)
-              · rw [hyb v hv] at h1; rw [hyb _ hmv] at h2; exact hbI c' v ⟨h1, h2⟩
-            have hyF : y ∈ F := by
-              refine mem_filter.mpr ⟨mem_filter.mpr ⟨mem_univ _, hyI⟩, ?_⟩
-              funext t
-              by_cases ht : t ∈ T
-              · rw [clearOn_eq_of_mem ht]; exact (clearOn_eq_of_mem ht).symm
-              · rw [clearOn_eq_of_notMem ht, hyb t fun h => ht (h ▸ hwT)]
+              · rw [hyb v hv, ← M.mate_eq_iff.mpr hmv, hnbr] at h1
+                exact Bool.false_ne_true h1
+              · exact hbI c' v ⟨(hyb v hv).symm.trans h1, (hyb _ hmv).symm.trans h2⟩
+            have hyF : y ∈ F := mem_filter.mpr ⟨mem_filter.mpr ⟨mem_univ _, hyI⟩, funext fun t =>
+              if ht : t ∈ T then (clearOn_eq_of_mem ht).trans (clearOn_eq_of_mem ht).symm
+              else (clearOn_eq_of_notMem ht).trans (hyb t fun h => ht (h ▸ hwT))⟩
             have hay : a y = 0 := by
               have hwy : M.witness c S R u y = w := witness_congr fun t ht =>
                 (hyb t fun h => ht (h ▸ hT w hwT)).trans (hoff x t ht)
@@ -669,10 +660,8 @@ theorem le_card_of_isCover {γ : ℝ} (hG : IsBalancedCutExpander M.toSimpleGrap
       hR.2.subset (Set.mem_iUnion.mpr ⟨i, hx⟩)
     have hmix : ∀ x ∈ R i, ∀ y ∈ R i, X.piecewise x y ∈ R i := fun x hx y hy => by
       rw [hRi] at hx hy ⊢
-      exact ⟨(funext fun ⟨_, ht⟩ => X.piecewise_eq_of_mem x y ht :
-          (↑X : Set V).domRestrict (X.piecewise x y) = (↑X : Set V).domRestrict x) ▸ hx.1,
-        (funext fun ⟨_, ht⟩ => X.piecewise_eq_of_notMem x y ht :
-          (↑X : Set V)ᶜ.domRestrict (X.piecewise x y) = (↑X : Set V)ᶜ.domRestrict y) ▸ hy.2⟩
+      exact ⟨(congrArg (· ∈ P) (funext fun ⟨_, ht⟩ => X.piecewise_eq_of_mem x y ht)).mpr hx.1,
+        (congrArg (· ∈ Q) (funext fun ⟨_, ht⟩ => X.piecewise_eq_of_notMem x y ht)).mpr hy.2⟩
     obtain ⟨c, S, hS, hcard⟩ := M.exists_isSeparatedCrossing hG hX1 hX2
     refine (card_filter_mem_le hS hmix hsub).trans (mul_le_mul_of_nonneg_right ?_ hIpos.le)
     rw [← Real.rpow_natCast]
@@ -720,9 +709,8 @@ theorem le_size_of_isDecomposable {γ : ℝ} (hG : IsBalancedCutExpander M.toSim
     (hf : ∀ x, D.toFun x = !M.someButNotAllColors x) :
     (48 / 47 : ℝ) ^ (γ * Fintype.card V / 126) ≤ D.size := by
   obtain ⟨R, hR⟩ := Circuits.NNF.exists_isCover hD hn
-  have : D.toFun ⁻¹' {true} = M.someButNotAllColors ⁻¹' {false} := by ext x; simp [hf]
-  rw [this] at hR
-  exact le_card_of_isCover hG hR
+  have : D.toFun ⁻¹' {true} = M.someButNotAllColors ⁻¹' {false} := Set.ext fun x => by simp [hf]
+  exact le_card_of_isCover hG (this ▸ hR)
 
 end Expander
 

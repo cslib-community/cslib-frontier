@@ -116,11 +116,9 @@ positive `k`. -/
 theorem mem_no_iff {S : SetSystem} {k : ℕ} :
     (S, k) ∈ (GapSetCover 3).no ↔ S.Coverable ∧ 3 * k ≤ S.optCoverSize ∧ 0 < k := by
   rw [GapSetCover, mem_no_GapSetCoverFn]
-  refine and_congr_right fun _ => and_congr (by exact_mod_cast Iff.rfl) ⟨?_, ?_⟩
-  · exact fun h => Nat.pos_of_ne_zero fun hk => by norm_num [hk] at h
-  · intro hk
-    have hk_pos : (0 : ℝ) < k := by exact_mod_cast hk
-    linarith
+  refine and_congr_right fun _ => and_congr (by exact_mod_cast Iff.rfl)
+    ⟨fun h => Nat.pos_of_ne_zero fun hk => by norm_num [hk] at h,
+      fun hk => by linarith [(Nat.cast_pos (α := ℝ)).mpr hk]⟩
 
 /-- The optimum of a coverable system is at most its number of sets. -/
 private theorem optCoverSize_le_length {S : SetSystem} (hS : S.Coverable) :
@@ -137,9 +135,7 @@ theorem ground_ne_nil_of_mem_no {S : SetSystem} {k : ℕ} (hno : (S, k) ∈ (Gap
     S.ground ≠ [] := by
   obtain ⟨-, hopt, hk⟩ := mem_no_iff.mp hno
   intro hS
-  have hnil : S.IsCover ∅ := fun u hu => by simp [hS] at hu
-  have h0 := SetSystem.optCoverSize_le hnil
-  simp only [card_empty] at h0
+  have : S.optCoverSize ≤ 0 := SetSystem.optCoverSize_le (C := ∅) fun _ hu => by simp [hS] at hu
   omega
 
 /-! ### Positions and parameters -/
@@ -160,14 +156,10 @@ theorem mem_residues {S : SetSystem} {i : Fin S.sets.length} {j : ℕ} :
 list play no part on either side. -/
 theorem forall_residues_iff (S : SetSystem) (C : Finset (Fin S.sets.length)) :
     (∀ u < S.ground.length, ∃ i ∈ C, u ∈ residues S i) ↔ S.IsCover C := by
-  constructor
-  · intro h u hu
-    obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hu
-    obtain ⟨i, hi, hji⟩ := h j hj
-    exact ⟨i, hi, (mem_residues.mp hji).2⟩
-  · intro h u hu
-    obtain ⟨i, hi, hui⟩ := h _ (List.getElem_mem hu)
-    exact ⟨i, hi, mem_residues.mpr ⟨hu, hui⟩⟩
+  refine ⟨fun h u hu => ?_, fun h u hu =>
+    (h _ (List.getElem_mem hu)).imp fun i ⟨hi, hui⟩ => ⟨hi, mem_residues.mpr ⟨hu, hui⟩⟩⟩
+  obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hu
+  exact (h j hj).imp fun i ⟨hi, hji⟩ => ⟨hi, (mem_residues.mp hji).2⟩
 
 /-- `N + t + 4`, for `N` ground positions and `t` sets. -/
 @[expose] def bound (S : SetSystem) : ℕ :=
@@ -181,9 +173,7 @@ private theorem three_le_size (S : SetSystem) : 3 ≤ Nat.size (bound S) :=
   Nat.lt_size.mpr (by simp only [bound]; omega)
 
 theorem eighteen_le_arity (S : SetSystem) : 18 ≤ arity S := by
-  have := three_le_size S
-  simp only [arity]
-  omega
+  exact Nat.mul_le_mul_left 6 (three_le_size S)
 
 instance (S : SetSystem) : NeZero (arity S) :=
   ⟨by have := eighteen_le_arity S; omega⟩
@@ -267,10 +257,8 @@ theorem reduce_positive (x : (SetSystem × ℕ) × List Bool) : (reduce x).Posit
     refine mem_nonInputComponents.mpr ⟨⟨_, rfl⟩, fun i h => ?_⟩
     have := congrFun h fun _ => false
     simp [Window.template_equivFin] at this
-  have hpos := card_pos.mpr ⟨_, hmem⟩
-  refine ⟨(eighteen_le_arity S).trans_lt' (by norm_num), Nat.succ_pos _, ?_⟩
-  change 0 < _ + _
-  omega
+  exact ⟨(eighteen_le_arity S).trans_lt' (by norm_num), Nat.succ_pos _,
+    Nat.add_pos_left (card_pos.mpr ⟨_, hmem⟩) _⟩
 
 /-! ### Correctness -/
 
@@ -284,8 +272,7 @@ theorem reduce_mem_of_yes {S : SetSystem} {k : ℕ} (hyes : (S, k) ∈ (GapSetCo
   obtain ⟨hcov, hopt⟩ := mem_yes_iff.mp hyes
   by_cases hS : S.ground = []
   · rw [reduce_of_ground_eq_nil hS, fallback, ofFunction_mem_iff]
-    have h := ecomplexity_wiring (I := I) (fun _ : Fin 1 => (0 : Fin 1))
-    exact h.le.trans zero_le
+    exact (ecomplexity_wiring (I := I) fun _ : Fin 1 => (0 : Fin 1)).le.trans zero_le
   rw [reduce_of_ground_ne_nil hS, ofTable_mem_iff]
   obtain ⟨C, hC, hcard⟩ := SetSystem.exists_isCover_optCoverSize hcov
   have hCt : #C ≤ S.sets.length := (card_le_univ C).trans_eq (Fintype.card_fin _)
@@ -373,17 +360,13 @@ theorem three_mul_card_reduce_mem_le {S : SetSystem} {k : ℕ} (hno : (S, k) ∈
   have hcard : #{r : Fin q → Bool | reduce ((S, k), List.ofFn r) ∈ MultiMCSP I} =
       2 ^ (q - 2 ^ arity S) * #{T : Fin (2 ^ arity S) → Bool | ofTable S k T ∈ MultiMCSP I} := by
     refine Eq.trans ?_ ((BitString.card_filter_take hq g).trans (congrArg _ ?_))
-    · congr 1
-      ext r
-      simp only [mem_filter, mem_univ, true_and, g, reduce_of_ground_ne_nil hS,
-        List.getD_eq_getElem?_getD,
-        show ∀ y : Fin (2 ^ arity S), ((List.ofFn r).take (2 ^ arity S))[y.1]? = (List.ofFn r)[y.1]?
-          from fun y => List.getElem?_take_of_lt y.isLt]
-    · congr 1
-      ext T
-      have hT : (fun y : Fin (2 ^ arity S) => (List.ofFn T).getD y false) = T :=
-        funext fun y => by rw [List.getD_eq_getElem _ _ (by simp), List.getElem_ofFn]
-      simp only [mem_filter, mem_univ, true_and, g, hT]
+    · exact congrArg card (Finset.ext fun r => by
+        simp only [mem_filter, mem_univ, true_and, g, reduce_of_ground_ne_nil hS,
+          List.getD_eq_getElem?_getD,
+          fun y : Fin (2 ^ arity S) => List.getElem?_take_of_lt (l := List.ofFn r) y.isLt])
+    · exact congrArg card (Finset.ext fun T => by
+        simp only [mem_filter, mem_univ, true_and, g, List.getD_eq_getElem?_getD,
+          List.getElem?_ofFn, Fin.is_lt, ↓reduceDIte, Option.getD_some])
   rw [hcard]
   calc 3 * (2 ^ (q - 2 ^ arity S) * #{T : Fin (2 ^ arity S) → Bool | ofTable S k T ∈ MultiMCSP I})
       = 2 ^ (q - 2 ^ arity S) * (3 * #{T : Fin (2 ^ arity S) → Bool |

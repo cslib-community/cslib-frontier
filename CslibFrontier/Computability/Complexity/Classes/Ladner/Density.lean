@@ -125,9 +125,9 @@ private theorem checkShorter_eq_true_iff {C : Type} {test : C × List Bool → B
   simp only [checkShorter, List.all_eq_true, Cslib.BitString.mem_enumList]
   constructor
   · intro h x hx
-    have hu := h (pad x (n - 1 - x.length)) (by rw [length_pad]; omega)
     have hlt : n - 1 - x.length < n := by omega
-    simpa only [unpad_pad, decide_eq_true hlt, ↓reduceIte] using hu
+    simpa only [unpad_pad, decide_eq_true hlt, ↓reduceIte] using
+      h (pad x (n - 1 - x.length)) (by rw [length_pad]; omega)
   · intro h u hu
     split_ifs with hlt
     · have hlen := congrArg List.length (pad_unpad (hu ▸ of_decide_eq_true hlt))
@@ -138,19 +138,14 @@ private theorem checkShorter_eq_true_iff {C : Type} {test : C × List Bool → B
 private theorem isComputable_checkShorter {C : Type} {encC : C ↪ List Bool}
     {test : C × List Bool → Bool} (htest : IsComputable test (encPair encC encBits) encBool) :
     IsComputable (checkShorter test) (encPair encC encUnary) encBool := by
-  let body : (C × ℕ) × List Bool → Bool := fun q =>
-    if decide ((unpad q.2).2 < q.1.2) then test (q.1.1, (unpad q.2).1) else true
   have hguard : ComputableInPolyTime (fun q : (C × ℕ) × List Bool => decide ((unpad q.2).2 < q.1.2))
       (encPair (encPair encC encUnary) encBits) encBool := by fun_prop
   have harg : ComputableInPolyTime (fun q : (C × ℕ) × List Bool => (q.1.1, (unpad q.2).1))
       (encPair (encPair encC encUnary) encBits) (encPair encC encBits) := by fun_prop
-  have htrue : ComputableInPolyTime (fun _ : (C × ℕ) × List Bool => true)
-      (encPair (encPair encC encUnary) encBits) encBool := .const true
-  have hbody : IsComputable body (encPair (encPair encC encUnary) encBits) encBool :=
-    hguard.isComputable.ite (htest.comp harg.isComputable) htrue.isComputable
   have hdup : ComputableInPolyTime (fun p : C × ℕ => (p, p.2))
       (encPair encC encUnary) (encPair (encPair encC encUnary) encUnary) := by fun_prop
-  exact hbody.forall_bits.comp hdup.isComputable
+  exact (hguard.isComputable.ite (htest.comp harg.isComputable)
+    (ComputableInPolyTime.const true).isComputable).forall_bits.comp hdup.isComputable
 
 end Ladner
 
@@ -231,39 +226,29 @@ private theorem recursivelyPresentable_coneOf {W : Set (List Bool) → Set (List
       simp only [eqTest, decide_eq_true_eq, hj x]
       exact Bool.eq_iff_iff.mpr (by rw [← hB' x, hL₂ x, ← hWLi, Set.mem_ofPred_eq])
     refine ⟨Nat.pair i j, Set.ext fun w => ?_⟩
-    have hchk : Ladner.checkShorter eqTest ((i, j), w.length) = true :=
-      Ladner.checkShorter_eq_true_iff.mpr fun x _ => hall x
-    simp only [Set.mem_ofPred_eq, present, Nat.unpair_pair, hchk, ↓reduceIte]
-    exact Set.ext_iff.mp hLi w
+    simp only [present, Nat.unpair_pair,
+      Ladner.checkShorter_eq_true_iff.mpr fun x _ => hall x, ↓reduceIte, Set.ext_iff.mp hLi w]
   · rintro ⟨m, rfl⟩
     dsimp only
     set i := m.unpair.1
     set j := m.unpair.2
-    by_cases hall : ∀ x : List Bool, eqTest ((i, j), x) = true
-    · have hchk : ∀ w : List Bool, Ladner.checkShorter eqTest ((i, j), w.length) = true :=
-        fun w => Ladner.checkShorter_eq_true_iff.mpr fun x _ => hall x
-      have heq : {a | present (m, a) = true} = {u | g (i, u) = true} := by
-        ext w
-        simp only [Set.mem_ofPred_eq, present, show m.unpair = (i, j) from rfl, hchk w, ↓reduceIte]
+    by_cases hall : ∀ x : List Bool, eqTest (m.unpair, x) = true
+    · have heq : {a | present (m, a) = true} = {u | g (i, u) = true} := Set.ext fun w => by
+        simp only [Set.mem_ofPred_eq, present,
+          Ladner.checkShorter_eq_true_iff.mpr fun x _ => hall x, ↓reduceIte, i]
       rw [heq]
       refine ⟨⟨fun w => transducerIndexed (i, w), computableInPolyTime_transducerIndexed i,
         fun w => (hB' _).symm⟩, ⟨fun w => transducerIndexed (j, w),
         computableInPolyTime_transducerIndexed j, fun x => ?_⟩⟩
       rw [hB' x, of_decide_eq_true (hall x), ← hwval (fun u => g (i, u)), Set.mem_ofPred_eq]
-    · push Not at hall
-      obtain ⟨x₀, hx₀⟩ := hall
-      replace hx₀ : eqTest ((i, j), x₀) = false := Bool.eq_false_iff.mpr hx₀
-      have hfin : (B ∆ {a | present (m, a) = true}).Finite := by
-        refine (List.finite_length_lt Bool (x₀.length + 1)).subset fun w hw => ?_
-        by_contra hlen
-        rw [Set.mem_ofPred_eq, not_lt] at hlen
-        have hfalse : Ladner.checkShorter eqTest ((i, j), w.length) = false :=
-          Bool.eq_false_iff.mpr fun htrue => by
-            simpa [hx₀] using Ladner.checkShorter_eq_true_iff.mp htrue x₀ (by omega)
-        simp only [Set.mem_symmDiff, Set.mem_ofPred_eq, present, show m.unpair = (i, j) from rfl,
-          hfalse, Bool.false_eq_true, ↓reduceIte, hB' w] at hw
-        exact hw.elim (fun h => h.2 h.1) fun h => h.2 h.1
-      exact hclosed hBmem hfin
+    · obtain ⟨x₀, hx₀⟩ := not_forall.mp hall
+      refine hclosed hBmem ((List.finite_length_lt Bool (x₀.length + 1)).subset fun w hw => ?_)
+      by_contra hlen
+      rw [Set.mem_ofPred_eq, not_lt] at hlen
+      have hfalse : Ladner.checkShorter eqTest (m.unpair, w.length) = false :=
+        Bool.eq_false_iff.mpr fun htrue => hx₀ (Ladner.checkShorter_eq_true_iff.mp htrue x₀ hlen)
+      simp only [Set.mem_symmDiff, Set.mem_ofPred_eq, present, hfalse, Bool.false_eq_true,
+        ↓reduceIte, hB' w, and_not_self, or_self] at hw
 
 /-- **The polynomial-time `m`-degree of a problem outside `P` is closed under finite
 variations.** -/
@@ -339,9 +324,7 @@ private theorem symmDiff_markedUnion_finite (A : Set (List Bool)) {L L' : Set (L
     (hfin : (L ∆ L').Finite) : (markedUnion A L ∆ markedUnion A L').Finite := by
   refine (hfin.image (true :: ·)).subset ?_
   rintro (_ | ⟨_ | _, u⟩) hw
-  · have hnil : ∀ S, ([] : List Bool) ∉ markedUnion A S := by
-      rintro S ⟨_, ⟨h, -⟩ | ⟨h, -⟩⟩ <;> cases h
-    simp [Set.mem_symmDiff, hnil] at hw
+  · rcases hw with ⟨⟨_, ⟨h, -⟩ | ⟨h, -⟩⟩, -⟩ | ⟨⟨_, ⟨h, -⟩ | ⟨h, -⟩⟩, -⟩ <;> cases h
   · simp [Set.mem_symmDiff, cons_mem_markedUnion] at hw
   · exact ⟨u, by simpa [Set.mem_symmDiff, cons_mem_markedUnion] using hw, rfl⟩
 
@@ -351,9 +334,7 @@ private theorem polyTimeReducible_ite_of_reducible {G A B : Set (List Bool)}
   obtain ⟨g, hg, hG'⟩ := hG
   obtain ⟨r, hr, hAB'⟩ := hAB
   refine ⟨fun w => if g w then w else r w, hg.ite .id' hr, fun w => ?_⟩
-  by_cases hw : w ∈ G
-  · simp [Set.ite, hw, (hG' w).mp hw]
-  · simp [Set.ite, hw, Bool.eq_false_iff.mpr fun h => hw ((hG' w).mpr h), hAB' w]
+  by_cases hw : w ∈ G <;> simp [Set.ite, hw, ← hG' w, hAB' w]
 
 /-- Core witness for full Ladner density when both `A` and `B` lie outside `P`: uniform
 diagonalization yields `G ∈ P` such that `markedUnion A (G.ite B A)` sits strictly between `A` and
@@ -374,15 +355,11 @@ private theorem exists_mem_P_markedUnion_ite_between {A B : Set (List Bool)}
     if w.isEmpty then false else if w.headD false then g w.tail else fa w.tail
   have hwval (g : List Bool → Bool) :
       {u | wval g u = true} = markedUnion A {u | g u = true} := by
-    ext w
-    cases w with
-    | nil =>
-      simp only [Set.mem_ofPred_eq, wval, List.isEmpty_nil, ↓reduceIte, Bool.false_eq_true]
-      refine ⟨False.elim, ?_⟩
+    ext (_ | ⟨b, u⟩)
+    · simp only [Set.mem_ofPred_eq, wval, List.isEmpty_nil, ↓reduceIte, Bool.false_eq_true,
+        false_iff]
       rintro ⟨x, ⟨h, -⟩ | ⟨h, -⟩⟩ <;> cases h
-    | cons b u =>
-      rw [cons_mem_markedUnion]
-      cases b <;> simp [wval, hA' u]
+    · cases b <;> simp [cons_mem_markedUnion, wval, hA' u]
   have hwcomp {G : ℕ × List Bool → Bool}
       (hG : IsComputable G (encPair encUnary encBits) encBool) :
       IsComputable (fun p : ℕ × List Bool => wval (fun u => G (p.1, u)) p.2)
@@ -405,9 +382,8 @@ private theorem exists_mem_P_markedUnion_ite_between {A B : Set (List Bool)}
     hwval hwcomp
   have hC₂_fv := closedUnderFiniteVariation_coneOf (W := markedUnion A) hBP
     (fun _ _ => symmDiff_markedUnion_finite A)
-  have hA_not_C₂ : A ∉ coneOf (markedUnion A) B := by
-    rintro ⟨-, hB_mAA⟩
-    exact hBA (hB_mAA.trans (polyTimeReducible_markedUnion (.refl encBits A) (.refl encBits A) ha₀))
+  have hA_not_C₂ : A ∉ coneOf (markedUnion A) B := fun ⟨_, hB_mAA⟩ =>
+    hBA (hB_mAA.trans (polyTimeReducible_markedUnion (.refl encBits A) (.refl encBits A) ha₀))
   obtain ⟨G, hG, hnotC₁, hnotC₂⟩ := exists_mem_P_ite_notMem
     hC₁_pres hC₂_pres hC₁_fv hC₂_fv hdecB hdecA hBA hA_not_C₂
   have hDB : PolyTimeReducible encBits encBits (G.ite B A) B :=

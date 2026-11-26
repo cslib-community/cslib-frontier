@@ -146,9 +146,9 @@ theorem startCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
             Function.update_of_ne (by omega : addr ≠ candBase g + k),
             Function.update_of_ne (by omega : addr ≠ tabBase g + s * L + k)]
           exact hzFr addr (by omega) (by omega))
-      (by rw [hlab1]; exact Nat.zero_le _)
-      (by rw [hlab1]; exact ⟨hc1, hs1, htmp1, hidx1, fun _ h => by omega, fun _ h => by omega,
-        fun addr _ _ => congrFun hm1 addr⟩)
+      (hlab1.symm ▸ Nat.zero_le L)
+      (hlab1.symm ▸ ⟨hc1, hs1, htmp1, hidx1, fun _ h => absurd h (Nat.not_lt_zero _),
+        fun _ h => absurd h (Nat.not_lt_zero _), fun addr _ _ => congrFun hm1 addr⟩)
   rw [hlab1, Nat.sub_zero] at hx2
   have : Fits w (visBase g + s) := fits_top hw (by wram_omega)
   obtain ⟨y, hx3, hc3, hstk3, hcmp3, hidx3, hym⟩ :
@@ -175,10 +175,8 @@ theorem startCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
     by simp only [start, List.reverse_singleton, holdsList_cons_iff, holdsList_nil, and_true, hym,
       Function.update_self],
     hcmp3, Nat.zero_le _, fun _ h => by simp only [start, List.not_mem_nil] at h, holdsList_nil _ _⟩
-  · have hvs : v ≠ s := by
-      rintro rfl
-      rw [show (start S v).get v = some id from List.getD_set_self (hT.len_table ▸ hs)] at hvn
-      nomatch hvn
+  · have hvs : v ≠ s := fun heq =>
+      nomatch (heq ▸ hvn).symm.trans (List.getD_set_self (hT.len_table ▸ hs))
     rw [hym, Function.update_of_ne (by wram_omega), Function.update_of_ne (by omega),
       hfr2 _ (by wram_omega) (by wram_omega)]
     exact hT.vis_none v hv
@@ -293,13 +291,10 @@ theorem pruneCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
                   Bool.toNat_false])
               unfold pruneBody
               wram_exec [hzC.one, hzC.candB, hk_reg, hck_mem, hck0]
-              exact ⟨⟨by wram_simp [hzC],
-                  by wram_simp [hzT2],
-                  by wram_simp [hzT3],
-                  by wram_simp [hzR],
+              refine ⟨⟨?_, ?_, ?_, ?_,
                   by simpa only [Data.set_mem] using hk'.1,
-                  by simpa only [Data.set_mem] using hk'.2⟩,
-                by wram_simp⟩
+                  by simpa only [Data.set_mem] using hk'.2⟩, ?_⟩
+              all_goals wram_simp [hzC, hzT2, hzT3, hzR]
             | true =>
               have hck1 : (S.cand ⟨k, hk⟩).toNat = 1 := by simp only [hck, Bool.toNat_true]
               have hfk_lt := (f ⟨k, hk⟩).isLt
@@ -326,13 +321,10 @@ theorem pruneCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
                 unfold pruneBody
                 wram_exec [hzC.one, hzC.two, hzC.candB, hzT2, hzT3, hzE, hk_reg, hck_mem, hck1,
                   hfa, hha, hcfa, heq_val]
-                exact ⟨⟨by wram_simp [hzC],
-                    by wram_simp [hzT2],
-                    by wram_simp [hzT3],
-                    by wram_simp [hzR],
+                refine ⟨⟨?_, ?_, ?_, ?_,
                     by simpa only [Data.set_mem] using hk'.1,
-                    by simpa only [Data.set_mem] using hk'.2⟩,
-                  by wram_simp⟩
+                    by simpa only [Data.set_mem] using hk'.2⟩, ?_⟩
+                all_goals wram_simp [hzC, hzT2, hzT3, hzR]
               · have hpws := prefix_write_step hzCand hzFr
                   (show Function.update z.mem (candBase g + k) 0 =
                     Function.update z.mem (candBase g + k) (cVal k) by
@@ -342,20 +334,13 @@ theorem pruneCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
                 unfold pruneBody
                 wram_exec [hzC.zero, hzC.one, hzC.two, hzC.candB, hzT2, hzT3, hzE, hk_reg,
                   hck_mem, hck1, hfa, hha, hcfa, heq_val]
-                exact ⟨⟨by wram_simp [hzC],
-                    by wram_simp [hzT2],
-                    by wram_simp [hzT3],
-                    by wram_simp [hzR],
+                refine ⟨⟨?_, ?_, ?_, ?_,
                     by simpa only [Data.write_mem, Data.set_mem] using hpws.1,
-                    by simpa only [Data.write_mem, Data.set_mem] using hpws.2⟩,
-                  by wram_simp⟩)
-          (by
-            rw [hlab2]
-            exact Nat.zero_le _)
-          (by
-            rw [hlab2]
-            exact ⟨hc2, ht2_2, ht3_2, hr2'.trans hr1,
-              fun _ h => by omega, fun addr _ => congrFun (hm2'.trans hm1) addr⟩)
+                    by simpa only [Data.write_mem, Data.set_mem] using hpws.2⟩, ?_⟩
+                all_goals wram_simp [hzC, hzT2, hzT3, hzR])
+          (hlab2.symm ▸ Nat.zero_le L)
+          (hlab2.symm ▸ ⟨hc2, ht2_2, ht3_2, hr2'.trans hr1,
+            fun _ h => absurd h (Nat.not_lt_zero _), fun addr _ => congrFun (hm2'.trans hm1) addr⟩)
       rw [hlab2, Nat.sub_zero] at hx3
       have hpr_eq : prune S e =
           { S with cand := fun a => S.cand a && decide (e.constraint (f a) = h a) } := by
@@ -366,9 +351,7 @@ theorem pruneCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
       rw [hpr_eq]
       exact ⟨hS.toTableStateAt.frame hyC rfl (candBase g) (by wram_omega)
           (fun a ha => hyFr a (by omega)),
-        by
-          rw [← hpr_eq]
-          exact (step_prune S e).potential_le.trans hS.pot_le,
+        hpr_eq ▸ (step_prune S e).potential_le.trans hS.pot_le,
         fun a ha => by simpa only [cVal, ha, ↓reduceDIte] using hyCand a ha,
         hyR.stackLen.trans hS.stack_len, hS.stack_lt,
         hS.stack_mem.frame (fun a _ _ => hyFr a (by wram_omega)),
