@@ -189,18 +189,15 @@ theorem msfEdges_isSpanningForest {n : ℕ} {W : Type} [LinearOrder W]
     IsSpanningForest es (msfEdges es w) := by
   have hsf := Cslib.Multigraph.isSpanningForest_msf (ends := edgeEnds es) w (S := Finset.univ) hw
   refine ⟨msfEdges_subperm es w, kruskalIsAcyclic_of_multigraph es _ hsf.isAcyclic, ?_⟩
-  have heq : (Finset.univ : Finset (Fin es.length)).toList.Perm (List.finRange es.length) :=
-    List.perm_of_nodup_nodup_toFinset_eq (Finset.nodup_toList _) (List.nodup_finRange _) (by
-      ext i; simp)
   have heq_es : ((Finset.univ : Finset (Fin es.length)).toList.map fun i => es[i.val]).Perm es := by
-    have hm := heq.map fun i : Fin es.length => es[i.val]
+    have hm := (List.perm_of_nodup_nodup_toFinset_eq (Finset.nodup_toList Finset.univ)
+      (List.nodup_finRange _) (Finset.ext fun _ => by simp)).map fun i : Fin es.length => es[i.val]
     rwa [List.map_getElem_finRange] at hm
   ext u v
   rw [Bool.eq_iff_iff, ← Perm.edgePartition_eq heq_es, rel_edgePartition_map_iff_joins,
     msfEdges, rel_edgePartition_map_iff_joins]
-  refine ⟨fun h => Cslib.Multigraph.Joins.mono (by simp) h, fun h => ?_⟩
-  exact h.of_forall fun e _ a b hab =>
-    (hsf.joins e (Finset.mem_univ e) a b hab).mono (by simp)
+  exact ⟨fun h => h.mono (by simp), fun h => h.of_forall fun e _ a b hab =>
+    (hsf.joins e (Finset.mem_univ e) a b hab).mono (by simp)⟩
 
 theorem msfEdges_threshold_partition {n : ℕ} {W : Type} [LinearOrder W]
     (es : List (WeightedEdge n ℕ)) (w : Fin es.length → W)
@@ -213,35 +210,22 @@ theorem msfEdges_threshold_partition {n : ℕ} {W : Type} [LinearOrder W]
   have hl_perm : ((msfEdges es w).filter fun e => decide (e.weight ≤ t)).Perm
       ((M.filter fun i => decide (es[i.val].weight ≤ t)).toList.map fun i => es[i.val]) := by
     rw [msfEdges, List.filter_map]
-    refine List.Perm.map _ ?_
-    refine List.perm_of_nodup_nodup_toFinset_eq ((Finset.nodup_toList _).filter _)
-      (Finset.nodup_toList _) ?_
-    ext i
-    simp [M]
+    exact (List.perm_of_nodup_nodup_toFinset_eq ((Finset.nodup_toList _).filter _)
+      (Finset.nodup_toList _) (Finset.ext fun _ => by simp [M])).map _
   have hr_perm : (es.filter fun e => decide (e.weight ≤ t)).Perm
       (((Finset.univ : Finset (Fin es.length)).filter fun i =>
         decide (es[i.val].weight ≤ t)).toList.map fun i => es[i.val]) := by
-    have hfin : (es.filter fun e => decide (e.weight ≤ t)) =
-        ((List.finRange es.length).filter fun i =>
-          decide (es[i.val].weight ≤ t)).map fun i => es[i.val] := by
-      conv_lhs => rw [← List.map_getElem_finRange es, List.filter_map]
-      rfl
-    rw [hfin]
-    refine List.Perm.map _ ?_
-    refine List.perm_of_nodup_nodup_toFinset_eq ((List.nodup_finRange _).filter _)
-      (Finset.nodup_toList _) ?_
-    ext i
-    simp
+    conv_lhs => rw [← List.map_getElem_finRange es, List.filter_map]
+    exact (List.perm_of_nodup_nodup_toFinset_eq ((List.nodup_finRange _).filter _)
+      (Finset.nodup_toList _) (Finset.ext fun _ => by simp)).map _
   ext u v
   rw [Bool.eq_iff_iff, Perm.edgePartition_eq hl_perm, Perm.edgePartition_eq hr_perm,
     rel_edgePartition_map_iff_joins, rel_edgePartition_map_iff_joins]
   have h1 : (((M.filter fun i => decide (es[i.val].weight ≤ t)) : Finset (Fin es.length)) :
-      Set (Fin es.length)) = {f | f ∈ M ∧ w f < k} := by
-    ext i; simp [M, hk]
+      Set (Fin es.length)) = {f | f ∈ M ∧ w f < k} := Set.ext fun _ => by simp [M, hk]
   have h2 : (((Finset.univ.filter fun i : Fin es.length =>
       decide (es[i.val].weight ≤ t)) : Finset (Fin es.length)) : Set (Fin es.length)) =
-      {f | f ∈ (Finset.univ : Finset (Fin es.length)) ∧ w f < k} := by
-    ext i; simp [hk]
+      {f | f ∈ (Finset.univ : Finset (Fin es.length)) ∧ w f < k} := Set.ext fun _ => by simp [hk]
   rw [h1, h2]
   exact Cslib.Multigraph.joins_msf_lt_iff w
 
@@ -502,9 +486,8 @@ theorem isMinSpanningForest_iff_threshold_partition {n : ℕ} (es F : List (Weig
         rw [← hU_thresh t]; omega
       exact edgePartition_eq_of_subperm_of_numComponents_eq (hF.1.1.filter _) hnc_eq
     · have ht_le : totalWeight es ≤ t := by dsimp only [W] at htW; omega
-      have hfl := filter_eq_self_of_subperm_totalWeight hF.1.1 ht_le
-      have hel := filter_eq_self_of_subperm_totalWeight (List.Subperm.refl es) ht_le
-      rw [hfl, hel, hF.1.2.2]
+      rw [filter_eq_self_of_subperm_totalWeight hF.1.1 ht_le,
+        filter_eq_self_of_subperm_totalWeight (.refl es) ht_le, hF.1.2.2]
   · rintro ⟨hF_sf, hF_thresh⟩
     exact isMinSpanningForest_of_threshold es F hF_sf hF_thresh
 
@@ -581,13 +564,10 @@ theorem isMinSpanningForest_of_weakSupport {n : ℕ} (G G_b F : List (WeightedEd
         edgePartition (G.filter fun e => decide (e.weight ≤ t)) := fun t =>
     (hF_thresh.2 t).trans (hthresh_eq t)
   have hFG_part : edgePartition F = edgePartition G := by
-    have hfl := filter_eq_self_of_subperm_totalWeight (hF.1.1.trans hsub)
-      (le_rfl (a := totalWeight G))
-    have hfr := filter_eq_self_of_subperm_totalWeight (List.Subperm.refl G)
-      (le_rfl (a := totalWeight G))
-    simpa [hfl, hfr] using hF_G_thresh (totalWeight G)
-  have hF_sf : IsSpanningForest G F := ⟨hF.1.1.trans hsub, hF.1.2.1, hFG_part⟩
-  exact (isMinSpanningForest_iff_threshold_partition G F).mpr ⟨hF_sf, hF_G_thresh⟩
+    simpa only [filter_eq_self_of_subperm_totalWeight (hF.1.1.trans hsub) le_rfl,
+      filter_eq_self_of_subperm_totalWeight (.refl G) le_rfl] using hF_G_thresh (totalWeight G)
+  exact (isMinSpanningForest_iff_threshold_partition G F).mpr
+    ⟨⟨hF.1.1.trans hsub, hF.1.2.1, hFG_part⟩, hF_G_thresh⟩
 
 /-! ## Graph Contraction and Cut-Step Extension -/
 
@@ -703,30 +683,21 @@ theorem exists_extend_isMinSpanningForest_of_cutStep {n : ℕ}
     (A : Finset (Fin n)) (hcut : e.u ∈ A ↔ e.v ∉ A)
     (hmin : ∀ f ∈ es, (f.u ∈ A ↔ f.v ∉ A) → e.weight ≤ f.weight) :
     ∃ F_ext : List (WeightedEdge n ℕ), IsMinSpanningForest es (e :: F_ext) := by
-  obtain ⟨k, hk, hget⟩ := List.mem_iff_getElem.mp he
+  obtain ⟨k, hk, he_i₀⟩ := List.mem_iff_getElem.mp he
   let i₀ : Fin es.length := ⟨k, hk⟩
-  have he_i₀ : es[i₀.val] = e := hget
   let w := edgeWeightPrefer es i₀
   have hcut_w : ∀ t : ℕ, ∃ m : ℕ ×ₗ (ℕ ×ₗ ℕ), ∀ i : Fin es.length,
       w i < m ↔ es[i.val].weight ≤ t := fun t =>
     ⟨toLex (t + 1, toLex (0, 0)), fun i => by
       dsimp only [w, edgeWeightPrefer]
-      rw [Prod.Lex.lt_iff]
-      simp only [ofLex_toLex]
-      constructor
-      · rintro (h | ⟨_, h⟩)
-        · omega
-        · rw [Prod.Lex.lt_iff] at h
-          simp only [ofLex_toLex] at h
-          omega
-      · intro h
-        exact .inl (by omega)⟩
+      simp only [Prod.Lex.lt_iff, ofLex_toLex, Nat.not_lt_zero, and_false, or_false,
+        Nat.lt_succ_iff]⟩
   let U := msfEdges es w
   have hU_sf := msfEdges_isSpanningForest es w (edgeWeightPrefer_injective es i₀)
   have hU_thresh := msfEdges_threshold_partition es w hcut_w
   have hU_msf : IsMinSpanningForest es U := isMinSpanningForest_of_threshold es U hU_sf hU_thresh
   have hi₀_in : i₀ ∈ Cslib.Multigraph.msf (edgeEnds es) w Finset.univ := by
-    have he_ends : edgeEnds es i₀ = s(e.u, e.v) := by simp [edgeEnds, he_i₀]
+    have he_ends : edgeEnds es i₀ = s(e.u, e.v) := by simp [edgeEnds, i₀, he_i₀]
     rw [Cslib.Multigraph.mem_msf_iff w he_ends]
     refine ⟨Finset.mem_univ _, fun hj => ?_⟩
     have not_joins_cut : ∀ {x y : Fin n}, x ∈ A → y ∉ A →
@@ -807,18 +778,13 @@ theorem isMinSpanningForest_append_of_contract {n n' : ℕ}
       obtain ⟨u, rfl⟩ := hsurj u'
       obtain ⟨v, rfl⟩ := hsurj v'
       rw [Bool.eq_iff_iff, edgePartitionFrom_contract_rel p c hc K u v,
-        edgePartitionFrom_contract_rel p c hc es u v]
-      have hcomb_K : edgePartition (F' ++ K) = edgePartitionFrom p K := by
-        rw [edgePartition, edgePartitionFrom_append]; rfl
-      have hcomb_es : edgePartition es = edgePartitionFrom p es :=
-        (edgePartitionFrom_subperm_eq hF'_sub).symm
-      rw [← hcomb_K, ← hcomb_es, hK.2.2]
+        edgePartitionFrom_contract_rel p c hc es u v, edgePartitionFrom_subperm_eq hF'_sub,
+        ← hK.2.2, edgePartition, edgePartitionFrom_append]
+      exact Iff.rfl
   have hL_sf_es : IsSpanningForest es (F' ++ L) := by
-    have hdisj : ∀ e ∈ F', e ∉ L := fun e heF heL => by
-      have hrelF : p.rel e.u e.v = true :=
-        rel_edgePartitionFrom_of_mem (Partition.discrete n) heF
-      have heq_c : c e.u = c e.v := (hc e.u e.v).mpr hrelF
-      exact hL_msf.1.2.1.ne_of_mem (List.mem_map_of_mem (f := contractEdge c) heL) heq_c
+    have hdisj : ∀ e ∈ F', e ∉ L := fun e heF heL =>
+      hL_msf.1.2.1.ne_of_mem (List.mem_map_of_mem (f := contractEdge c) heL)
+        ((hc e.u e.v).mpr (rel_edgePartitionFrom_of_mem (Partition.discrete n) heF))
     have hsub_app : (F' ++ L).Subperm es := by
       rw [List.subperm_iff_count]
       intro a
