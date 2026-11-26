@@ -15,8 +15,9 @@ import Mathlib.MeasureTheory.Integral.IntegralEqImproper
 /-!
 # The derivative rule for the Laplace transform
 
-If `f : ℝ → E` is continuous from the right at `0`, has derivative `f' t` at every `t > 0`, and
-both `f` and `f'` are of exponential order `σ` on `(0, ∞)`, then on the half-plane `re s > σ`
+If `f : ℝ → E` is continuous from the right at `0`, has derivative `f' t` at every `t > 0`, `f`
+is of exponential order `σ` and `f'` of exponential order `σ'` on `(0, ∞)` (with independent
+constants), then at every `s` with `σ < re s` and `σ' < re s`
 `laplace f' s = s • laplace f s - f 0` (`laplace_deriv`).
 
 **Endpoint convention.** The transform integrates over `(0, ∞)`, so `f` and `f'` matter only
@@ -26,13 +27,15 @@ there; `f 0` enters through right-continuity at `0`: it is the right limit `f (0
 
 ## Main results
 
-* `laplaceConvergent_deriv`: the transform of `f'` converges on `re s > σ`.
-* `laplace_deriv`: `laplace f' s = s • laplace f s - f 0` on `re s > σ`.
+* `laplaceConvergent_deriv`: the transform of `f'` converges on `re s > σ'`.
+* `laplace_deriv`: `laplace f' s = s • laplace f s - f 0` on `re s > max σ σ'`.
 
 ## References
 
-* D. V. Widder, *The Laplace Transform*, Princeton University Press, 1941, Chapter II
-  (the transform of a derivative). Locators to be checked.
+* S. Boyd, *EE263: Introduction to Linear Dynamical Systems*, Stanford, lecture notes
+  "Solution via Laplace transform and matrix exponential" (Stanford Engineering Everywhere
+  handout `10-expm.pdf`), slide 10–3 ("Derivative property"): `L(ż) = s Z(s) - z(0)`, by
+  integration by parts.
 -/
 
 public section
@@ -49,8 +52,8 @@ private theorem aestronglyMeasurable_of_hasDerivAt [CompleteSpace E]
   (aestronglyMeasurable_deriv f _).congr <| (ae_restrict_iff' measurableSet_Ioi).2 <|
     ae_of_all _ fun t ht => (hderiv t ht).deriv
 
-/-- The derivative `f'` of a function on `(0, ∞)` of exponential order `σ` (with `f'` itself of
-exponential order `σ`) has a convergent Laplace transform on `re s > σ`. -/
+/-- If `f` has derivative `f' t` at every `t > 0` and `‖f' t‖ ≤ M exp (σ t)` for `t > 0`, the
+Laplace transform of `f'` converges on `re s > σ`. -/
 theorem laplaceConvergent_deriv [CompleteSpace E] {M σ : ℝ}
     (hderiv : ∀ t ∈ Ioi (0 : ℝ), HasDerivAt f (f' t) t)
     (hf'M : ∀ t ∈ Ioi (0 : ℝ), ‖f' t‖ ≤ M * Real.exp (σ * t)) (hs : σ < s.re) :
@@ -59,18 +62,19 @@ theorem laplaceConvergent_deriv [CompleteSpace E] {M σ : ℝ}
 
 /-- **The derivative rule** `laplace f' s = s • laplace f s - f 0`. Hypotheses: `f` is continuous
 from the right at `0` (so `f 0` is the right limit `f (0⁺)`), `f` has derivative `f' t` at every
-`t > 0`, and `‖f t‖, ‖f' t‖ ≤ M exp (σ t)` for `t > 0`; the conclusion holds for every `s` with
-`σ < re s`. -/
-theorem laplace_deriv [CompleteSpace E] {M σ : ℝ} (hf0 : ContinuousWithinAt f (Ici 0) 0)
+`t > 0`, `‖f t‖ ≤ M exp (σ t)` and `‖f' t‖ ≤ M' exp (σ' t)` for `t > 0`; the conclusion holds
+for every `s` with `σ < re s` and `σ' < re s`. -/
+theorem laplace_deriv [CompleteSpace E] {M M' σ σ' : ℝ} (hf0 : ContinuousWithinAt f (Ici 0) 0)
     (hderiv : ∀ t ∈ Ioi (0 : ℝ), HasDerivAt f (f' t) t)
     (hfM : ∀ t ∈ Ioi (0 : ℝ), ‖f t‖ ≤ M * Real.exp (σ * t))
-    (hf'M : ∀ t ∈ Ioi (0 : ℝ), ‖f' t‖ ≤ M * Real.exp (σ * t)) (hs : σ < s.re) :
+    (hf'M : ∀ t ∈ Ioi (0 : ℝ), ‖f' t‖ ≤ M' * Real.exp (σ' * t)) (hs : σ < s.re)
+    (hs' : σ' < s.re) :
     laplace f' s = s • laplace f s - f 0 := by
   have hmeas : AEStronglyMeasurable f (volume.restrict (Ioi 0)) :=
     ContinuousOn.aestronglyMeasurable (fun t ht => (hderiv t ht).continuousAt.continuousWithinAt)
       measurableSet_Ioi
   have hL := laplaceConvergent_of_norm_le_exp hmeas hfM hs
-  have hL' := laplaceConvergent_deriv hderiv hf'M hs
+  have hL' := laplaceConvergent_deriv hderiv hf'M hs'
   have hc : ∀ t : ℝ, HasDerivAt (fun τ : ℝ => Complex.exp (-s * τ))
       (-s * Complex.exp (-s * t)) t := fun t => by
     simpa [mul_comm] using ((Complex.ofRealCLM.hasDerivAt (x := t)).const_mul (-s)).cexp

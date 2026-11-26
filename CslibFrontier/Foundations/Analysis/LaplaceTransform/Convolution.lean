@@ -38,8 +38,10 @@ Mathlib's `MeasureTheory.integral_convolution` (Fubini).
 
 ## References
 
-* D. V. Widder, *The Laplace Transform*, Princeton University Press, 1941, Chapter II
-  (the convolution, or *Faltung*, theorem). Locators to be checked.
+* S. Boyd, *EE263: Introduction to Linear Dynamical Systems*, Stanford, lecture notes
+  "Linear dynamical systems with inputs & outputs" (Stanford Engineering Everywhere handout
+  `13-lin-sys.pdf`), slide 13–8: with zero initial state `Y(s) = H(s) U(s)` and `y = h ∗ u`, the
+  convolution theorem for the matrix-valued kernel of an LTI system.
 -/
 
 public section

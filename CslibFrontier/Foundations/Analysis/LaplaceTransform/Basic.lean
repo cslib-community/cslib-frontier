@@ -61,15 +61,18 @@ order here, so it does not apply.
   exponential order `σ` on `re s > σ`; `tendsto_cexp_smul_of_norm_le_exp`: the damped integrand
   tends to `0`.
 * `hasDerivAt_laplace`, `differentiableOn_laplace`: holomorphy on `re s > σ`, with
-  `deriv (laplace f) s = -laplace (t • f) s`.
+  `deriv (laplace f) s = -laplace (t • f) s`; `laplaceConvergent_ofReal_smul_of_norm_le_exp`:
+  the transform of `t • f` converges there.
 * `laplace_cexp_smul`: the frequency-shift rule `laplace (exp (a t) • f) s = laplace f (s - a)`.
 * `laplace_cexp`, `laplace_mul_cexp`: `laplace (exp (a t)) s = 1 / (s - a)` and
   `laplace (t exp (a t)) s = 1 / (s - a) ^ 2` for `re s > re a`.
 
 ## References
 
-* D. V. Widder, *The Laplace Transform*, Princeton University Press, 1941, Chapter II
-  (convergence; analyticity and the derivative of the transform). Locators to be checked.
+* S. Boyd, *EE263: Introduction to Linear Dynamical Systems*, Stanford, lecture notes
+  "Solution via Laplace transform and matrix exponential" (Stanford Engineering Everywhere
+  handout `10-expm.pdf`), slide 10–2: the transform of a matrix-valued function, taken entrywise,
+  converges on `re s > a` when every entry is bounded by `α e^{a t}`.
 -/
 
 public section
@@ -92,12 +95,6 @@ integral does not converge (`LaplaceConvergent`). -/
   ∫ t : ℝ in Ioi 0, Complex.exp (-s * t) • f t
 
 variable {f g : ℝ → E} {s : ℂ}
-
-theorem laplaceConvergent_iff : LaplaceConvergent f s ↔
-    IntegrableOn (fun t : ℝ => Complex.exp (-s * t) • f t) (Ioi 0) := Iff.rfl
-
-theorem laplace_eq (f : ℝ → E) (s : ℂ) :
-    laplace f s = ∫ t : ℝ in Ioi 0, Complex.exp (-s * t) • f t := rfl
 
 /-- The Laplace transform depends only on the values of `f` on `(0, ∞)`. -/
 theorem laplace_congr (h : EqOn f g (Ioi 0)) : laplace f s = laplace g s :=
@@ -307,11 +304,28 @@ private theorem le_exp_mul_div {ε : ℝ} (hε : 0 < ε) (t : ℝ) : t ≤ Real.
   rw [le_div_iff₀ hε]
   linarith [Real.add_one_le_exp (ε * t)]
 
+/-- **Convergence of the transform of `t • f`.** If `f` is a.e.-strongly measurable on `(0, ∞)`
+and `‖f t‖ ≤ M exp (σ t)` for `t > 0`, the Laplace transform of `fun t => (t : ℂ) • f t`
+converges at every `s` with `σ < re s`. -/
+theorem laplaceConvergent_ofReal_smul_of_norm_le_exp {M σ : ℝ}
+    (hf : AEStronglyMeasurable f (volume.restrict (Ioi 0)))
+    (hM : ∀ t ∈ Ioi (0 : ℝ), ‖f t‖ ≤ M * Real.exp (σ * t)) (hs : σ < s.re) :
+    LaplaceConvergent (fun t => (t : ℂ) • f t) s := by
+  obtain ⟨c, hc1, hc2⟩ := exists_between hs
+  refine laplaceConvergent_of_norm_le_exp (M := M / (c - σ)) (σ := c)
+    ((Continuous.aestronglyMeasurable (by fun_prop)).smul hf) (fun t (ht : 0 < t) => ?_) hc2
+  rw [norm_smul, Complex.norm_real, Real.norm_of_nonneg ht.le]
+  calc t * ‖f t‖ ≤ Real.exp ((c - σ) * t) / (c - σ) * (M * Real.exp (σ * t)) :=
+        mul_le_mul (le_exp_mul_div (by linarith) t) (hM t ht) (norm_nonneg _) (by positivity)
+    _ = M / (c - σ) * Real.exp (c * t) := by
+        rw [div_mul_eq_mul_div, mul_left_comm, ← Real.exp_add, mul_div_right_comm]
+        ring_nf
+
 /-- **The Laplace transform is holomorphic on the half-plane of exponential order**, with
 derivative `-laplace (t • f)`. If `f` is a.e.-strongly measurable on `(0, ∞)` and
 `‖f t‖ ≤ M exp (σ t)` for `t > 0`, then at every `s` with `σ < re s` the Laplace transform of
-`f` has complex derivative `-laplace (fun t => (t : ℂ) • f t) s`, and the Laplace transform of
-`t • f` converges at `s`. -/
+`f` has complex derivative `-laplace (fun t => (t : ℂ) • f t) s`. The transform of `t • f`
+converges there (`laplaceConvergent_ofReal_smul_of_norm_le_exp`). -/
 theorem hasDerivAt_laplace {M σ : ℝ}
     (hf : AEStronglyMeasurable f (volume.restrict (Ioi 0)))
     (hM : ∀ t ∈ Ioi (0 : ℝ), ‖f t‖ ≤ M * Real.exp (σ * t)) (hs : σ < s.re) :
@@ -436,20 +450,9 @@ theorem laplace_cexp {a : ℂ} (hs : a.re < s.re) :
 
 /-- The transform of `t exp (a t)` converges on `re s > re a`. -/
 theorem laplaceConvergent_mul_cexp {a : ℂ} (hs : a.re < s.re) :
-    LaplaceConvergent (fun t : ℝ => (t : ℂ) * Complex.exp (a * t)) s := by
-  obtain ⟨c, hc1, hc2⟩ := exists_between hs
-  have hle : ∀ t ∈ Ioi (0 : ℝ), ‖(t : ℂ) * Complex.exp (a * t)‖ ≤
-      1 / (c - a.re) * Real.exp (c * t) := fun t (ht : 0 < t) => by
-    rw [norm_mul, Complex.norm_real, Real.norm_of_nonneg ht.le, Complex.norm_exp]
-    have h1 := le_exp_mul_div (ε := c - a.re) (by linarith) t
-    calc t * Real.exp (a * t).re ≤ Real.exp ((c - a.re) * t) / (c - a.re) *
-          Real.exp (a.re * t) := by
-          gcongr
-          · simp
-      _ = 1 / (c - a.re) * Real.exp (c * t) := by
-          rw [div_mul_eq_mul_div, ← Real.exp_add, one_div_mul_eq_div]
-          ring_nf
-  exact laplaceConvergent_of_norm_le_exp (Continuous.aestronglyMeasurable (by fun_prop)) hle hc2
+    LaplaceConvergent (fun t : ℝ => (t : ℂ) * Complex.exp (a * t)) s :=
+  laplaceConvergent_ofReal_smul_of_norm_le_exp (M := 1) (Continuous.aestronglyMeasurable
+    (by fun_prop)) (fun t _ => by rw [one_mul, Complex.norm_exp]; simp) hs
 
 /-- **The transform of `t exp (a t)`**: `laplace (fun t => t exp (a t)) s = 1 / (s - a) ^ 2` on
 `re s > re a`. It is computed from `laplace_cexp` by the derivative rule `hasDerivAt_laplace`. -/

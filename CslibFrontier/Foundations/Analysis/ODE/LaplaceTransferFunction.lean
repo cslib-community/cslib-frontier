@@ -61,14 +61,19 @@ controllability or observability is assumed.
   (`LTISystem.exists_pos_re_le_of_meromorphicOrderAt_neg_of_isExponentiallyStable`).
 
 The converse fails: a pole of `(s I - A)⁻¹` can cancel in `C (s I - A)⁻¹ B`, so `H` can be
-holomorphic on `re s > -1` although `A` has the eigenvalue `1` (the tests check #8322's hidden
-unstable mode). The stability certificate concerns `A`, not `H`.
+holomorphic on `re s > -1` although `A` has the eigenvalue `1` (for instance when the mode of
+`1` is neither controllable nor observable). The stability certificate concerns `A`, not `H`.
 
 ## References
 
-* S. Boyd, *EE263: Introduction to Linear Dynamical Systems*, Stanford, lecture "Solution via
-  Laplace transform and matrix exponential" (the resolvent, the transfer function, poles as
-  eigenvalues). Locator to be checked.
+* S. Boyd, *EE263: Introduction to Linear Dynamical Systems*, Stanford, lecture notes
+  "Linear dynamical systems with inputs & outputs" (Stanford Engineering Everywhere handout
+  `13-lin-sys.pdf`), slides 13–6 to 13–8: the transform of the forced solution, the transfer
+  function `H(s) = C (sI - A)⁻¹ B + D`, and `Y(s) = H(s) U(s)` for zero initial state.
+* S. Boyd, *EE263: Introduction to Linear Dynamical Systems*, Stanford, lecture notes
+  "Solution via Laplace transform and matrix exponential" (Stanford Engineering Everywhere
+  handout `10-expm.pdf`), slide 10–11: the poles of the entries of the resolvent are eigenvalues
+  of `A`, but cancellation can hide an eigenvalue.
 -/
 
 public section
@@ -80,13 +85,13 @@ namespace Matrix
 variable {n : Type*} [Fintype n] [DecidableEq n] {A : Matrix n n ℝ} {M ω : ℝ} {s : ℂ}
 
 /-- The entries of the real flow, read over `ℂ`, are those of the flow of `A` read over `ℂ`. -/
-theorem ofReal_exp_smul_apply (A : Matrix n n ℝ) (t : ℝ) (i j : n) :
+private theorem ofReal_exp_smul_apply (A : Matrix n n ℝ) (t : ℝ) (i j : n) :
     ((exp (t • A) i j : ℝ) : ℂ) = exp ((t : ℂ) • A.map (algebraMap ℝ ℂ)) i j := by
   rw [← map_algebraMap_exp_smul]
   rfl
 
 /-- The entries of the real flow are continuous in time. -/
-theorem continuous_exp_smul_apply (A : Matrix n n ℝ) (i j : n) :
+private theorem continuous_exp_smul_apply (A : Matrix n n ℝ) (i j : n) :
     Continuous fun t : ℝ => exp (t • A) i j := by
   have hc : Continuous fun t : ℝ => exp (t • toEuclideanCLM (𝕜 := ℝ) A) :=
     (differentiable_exp_smul_const ℝ (toEuclideanCLM (𝕜 := ℝ) A)).continuous

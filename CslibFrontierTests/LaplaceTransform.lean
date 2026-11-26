@@ -9,6 +9,7 @@ module
 
 import CslibFrontier.Foundations.Analysis.LaplaceTransform.Deriv
 import CslibFrontier.Foundations.Analysis.ODE.LaplaceTransferFunction
+import CslibFrontierTests.TransferFunction
 import Mathlib.Analysis.Calculus.Deriv.Mul
 import Mathlib.Analysis.Calculus.Deriv.Prod
 import Mathlib.Analysis.Complex.CauchyIntegral
@@ -20,22 +21,25 @@ A `module` client using the public statements only.
 
 * Milestone 1: `laplace (exp (-t)) s = 1 / (s + 1)` and `laplace (t exp (-t)) s = 1 / (s + 1) ^ 2`
   on `re s > -1`; holomorphy; the derivative rule for `f = exp (-t)`; the convolution theorem for
-  `exp (-t) ∗ exp (-t)`.
+  `exp (-t) ∗ exp (-t)`; the derivative rule for `f = exp (2 t)`, whose derivative has the larger
+  constant `2`.
 * The RC circuit `A = -1/τ`, `B = 1/τ`, `C = 1`, `D = 0` with `τ > 0`: `H s = 1 / (τ s + 1)`,
   `laplace h s = 1 / (τ s + 1)` on `re s > -1/τ`, and `laplace y = H · laplace u` for every
   admissible input.
 * The repeated pole `A = !![-1, 1; 0, -1]`, `B = (0, 1)ᵀ`, `C = (1, 0)`: `h t = t exp (-t)`,
   `H s = 1 / (s + 1) ^ 2` for `s ≠ -1`, and `laplace h = H` on a half-plane `re s > -α`, `α > 0`,
-  obtained from the stability of `A`; the transform computed in milestone 1 agrees with it.
-* The hidden unstable mode of #8322, `A = diag (1, -1, -3)`, `B = (0, 1, 1)ᵀ`, `C = (0, 1, -2)`:
-  `1` is an eigenvalue of `A` but not a pole of `H`; `laplace h = H` on `re s > -1`.
+  obtained from the stability of `A`; the transform computed in milestone 1 agrees with it; `-1`
+  is a pole of `H`.
+* A hidden unstable mode, `A = diag (1, -1, -3)`, `B = (0, 1, 1)ᵀ`, `C = (0, 1, -2)`: `1` is an
+  eigenvalue of `A` but not a pole of `H`; `laplace h = H` on `re s > -1`. The systems `hidden`
+  and `Adef` and their transfer functions come from `CslibFrontierTests.TransferFunction`.
 -/
 
 set_option linter.privateModule false
 
 namespace CslibFrontierTests.LaplaceTransform
 
-open Set Matrix NormedSpace LTISystem
+open Set Matrix NormedSpace LTISystem CslibFrontierTests.TransferFunction Filter Topology
 
 /-! ### Milestone 1 -/
 
@@ -75,7 +79,21 @@ example {s : ℂ} (hs : -1 < s.re) :
       simpa using ((Complex.ofRealCLM.hasDerivAt (x := t)).neg).cexp
   rw [laplace_deriv (Continuous.continuousWithinAt (by fun_prop)) hd
     (fun t _ => norm_exp_neg_le t) (fun t _ => by rw [norm_neg]; exact norm_exp_neg_le t)
-    (by simpa using hs), laplace_exp_neg hs]
+    (by simpa using hs) (by simpa using hs), laplace_exp_neg hs]
+  simp
+
+/-- The derivative rule for `f t = exp (2 t)`, `f' t = 2 exp (2 t)`: the natural bounds have
+different constants, `‖f t‖ ≤ 1 · exp (2 t)` and `‖f' t‖ ≤ 2 · exp (2 t)`. -/
+example {s : ℂ} (hs : 2 < s.re) :
+    laplace (fun t : ℝ => 2 * Complex.exp (2 * t)) s = s * (1 / (s - 2)) - 1 := by
+  have hd : ∀ t ∈ Ioi (0 : ℝ),
+      HasDerivAt (fun τ : ℝ => Complex.exp (2 * τ)) (2 * Complex.exp (2 * t)) t := fun t _ => by
+    simpa [mul_comm] using ((Complex.ofRealCLM.hasDerivAt (x := t)).const_mul 2).cexp
+  rw [laplace_deriv (M := 1) (M' := 2) (σ := 2) (σ' := 2)
+    (Continuous.continuousWithinAt (by fun_prop)) hd
+    (fun t _ => by rw [one_mul, Complex.norm_exp]; simp)
+    (fun t _ => by rw [norm_mul, Complex.norm_exp]; simp) hs hs,
+    laplace_cexp (a := 2) (by simpa using hs)]
   simp
 
 /-- The convolution theorem for `exp (-t) ∗ exp (-t)` (which is `t exp (-t)`). -/
@@ -217,16 +235,7 @@ theorem laplace_responseKernel_repeatedPole {s : ℂ} (hs : -1 < s.re) :
     simp [responseKernel_repeatedPole (le_of_lt ht)]]
   exact laplace_mul_exp_neg hs
 
-theorem isHurwitz_repeatedPole : repeatedPole.A.IsHurwitz := by
-  intro μ hμ
-  rw [spectrum.mem_iff, Algebra.algebraMap_eq_smul_one, isUnit_iff_isUnit_det, isUnit_iff_ne_zero,
-    not_not, det_fin_two] at hμ
-  have h : (μ + 1) ^ 2 = 0 := by
-    rw [← hμ]
-    simp
-    ring
-  rw [eq_neg_of_add_eq_zero_left (pow_eq_zero_iff two_ne_zero |>.1 h)]
-  norm_num
+theorem isHurwitz_repeatedPole : repeatedPole.A.IsHurwitz := isHurwitz_Adef
 
 /-- `H s = 1 / (s + 1) ^ 2` for `s ≠ -1`, computed algebraically. -/
 theorem transferFunction_repeatedPole {s : ℂ} (hs : s + 1 ≠ 0) :
@@ -266,64 +275,18 @@ example : ∃ α > 0, ∀ z : ℂ,
     repeatedPole isHurwitz_repeatedPole.isExponentiallyStable
   ⟨α, hα, h 0 0⟩
 
+/-- **The repeated pole is a pole.** `-1` is a pole of `H`, although `H (-1) = 0` there by the
+junk value of the matrix inverse: the order sees only a punctured neighbourhood. -/
+example : meromorphicOrderAt (fun s => repeatedPole.transferFunction s 0 0) (-1) < 0 := by
+  have h : (fun s => repeatedPole.transferFunction s 0 0) =ᶠ[𝓝[≠] (-1 : ℂ)]
+      (· - (-1)) ^ (-2 : ℤ) := by
+    filter_upwards [self_mem_nhdsWithin] with s (hs : s ≠ -1)
+    rw [transferFunction_repeatedPole fun h => hs (eq_neg_of_add_eq_zero_left h)]
+    simp [_root_.zpow_neg]
+  rw [meromorphicOrderAt_congr h, meromorphicOrderAt_zpow_id_sub_const]
+  decide
+
 /-! ### The hidden unstable mode -/
-
-/-- The diagonal entries `1, -1, -3` of the state matrix. -/
-def d : Fin 3 → ℝ := ![1, -1, -3]
-
-/-- A system whose unstable mode `1` is neither controllable nor observable (#8322). -/
-noncomputable def hidden : LTISystem (Fin 3) (Fin 1) (Fin 1) where
-  A := diagonal d
-  B := !![0; 1; 1]
-  C := !![0, 1, -2]
-  D := 0
-
-theorem one_mem_spectrum : (1 : ℂ) ∈ spectrum ℂ (hidden.A.map (algebraMap ℝ ℂ)) := by
-  rw [spectrum.mem_iff, Algebra.algebraMap_eq_smul_one, isUnit_iff_isUnit_det, one_smul,
-    show hidden.A = diagonal d from rfl, diagonal_map (map_zero _), ← diagonal_one, diagonal_sub,
-    det_diagonal, Fin.prod_univ_three]
-  simp [d]
-
-/-- The visible part of the transfer function. -/
-noncomputable def g (s : ℂ) : ℂ := (1 - s) / ((s + 1) * (s + 3))
-
-theorem transferFunction_hidden {s : ℂ} (h1 : s + 1 ≠ 0) (h3 : s + 3 ≠ 0) :
-    hidden.transferFunction s 0 0 = g s := by
-  have hA : s • (1 : Matrix (Fin 3) (Fin 3) ℂ) - hidden.A.map (algebraMap ℝ ℂ) =
-      diagonal fun i => s - d i := by
-    rw [show hidden.A = diagonal d from rfl, diagonal_map (map_zero _), smul_one_eq_diagonal,
-      diagonal_sub]
-    rfl
-  unfold LTISystem.transferFunction
-  rw [hA]
-  by_cases hs : s = 1
-  · subst hs
-    rw [nonsing_inv_apply_not_isUnit _ (by simp [det_diagonal, Fin.prod_univ_three, d])]
-    simp [g, hidden]
-  · have hd : ∀ i, s - d i ≠ 0 := fun i => by
-      fin_cases i
-      · simpa [d] using sub_ne_zero.2 hs
-      · simpa [d] using h1
-      · simpa [d] using h3
-    rw [inv_eq_left_inv (B := diagonal fun i => (s - d i)⁻¹) (by
-      rw [diagonal_mul_diagonal, ← diagonal_one]
-      exact congrArg diagonal (funext fun i => inv_mul_cancel₀ (hd i)))]
-    have h1' : s - 1 ≠ 0 := sub_ne_zero.2 hs
-    simp [hidden, g, Matrix.mul_apply, Fin.sum_univ_three, d]
-    field_simp
-    ring
-
-theorem ne_zero_of_re {s : ℂ} (hs : -1 < s.re) : s + 1 ≠ 0 ∧ s + 3 ≠ 0 := by
-  constructor <;> intro h <;> have := congrArg Complex.re h <;> simp at this <;> linarith
-
-theorem differentiableOn_transferFunction_hidden :
-    DifferentiableOn ℂ (fun s => hidden.transferFunction s 0 0) {s | -1 < s.re} := by
-  refine DifferentiableOn.congr (f := g) (fun s hs => ?_) fun s hs =>
-    transferFunction_hidden (ne_zero_of_re hs).1 (ne_zero_of_re hs).2
-  have hg : DifferentiableAt ℂ (fun z : ℂ => (1 - z) / ((z + 1) * (z + 3))) s := by
-    apply DifferentiableAt.div <;> first | fun_prop |
-      exact mul_ne_zero (ne_zero_of_re hs).1 (ne_zero_of_re hs).2
-  exact hg.differentiableWithinAt
 
 /-- **Hidden-mode warning, poles.** `1` is an eigenvalue of `hidden.A` (`one_mem_spectrum`), but
 it is not a pole of `H`: the order of `H` at `1` is nonnegative. -/
@@ -335,10 +298,10 @@ example : 0 ≤ meromorphicOrderAt (fun s => hidden.transferFunction s 0 0) 1 :=
 /-- `h t = exp (-t) - 2 exp (-3 t)`: the unstable mode is invisible in the impulse response. -/
 theorem responseKernel_hidden (t : ℝ) :
     hidden.responseKernel t 0 0 = Real.exp (-t) - 2 * Real.exp (-3 * t) := by
-  rw [responseKernel_eq, show hidden.A = diagonal d from rfl, ← diagonal_smul, exp_diagonal,
-    Pi.exp_def]
+  have hA : hidden.A = diagonal d := rfl
+  rw [responseKernel_eq, hA, ← diagonal_smul, exp_diagonal, Pi.exp_def]
   simp only [Matrix.mul_apply, Fin.sum_univ_three, diagonal_apply, ← Real.exp_eq_exp_ℝ]
-  simp [hidden, d]
+  simp [TransferFunction.hidden, d]
   ring_nf
 
 /-- **Hidden-mode warning, transforms.** Although the flow of `hidden.A` grows like `exp t`, the

@@ -41,9 +41,10 @@ For square complex matrices, with no norm chosen, the hypothesis is an entrywise
 
 ## References
 
-* S. Boyd, *EE263: Introduction to Linear Dynamical Systems*, Stanford, lecture "Solution via
-  Laplace transform and matrix exponential" (the resolvent `(sI - A)⁻¹` as the transform of
-  `e^{tA}`). Locator to be checked.
+* S. Boyd, *EE263: Introduction to Linear Dynamical Systems*, Stanford, lecture notes
+  "Solution via Laplace transform and matrix exponential" (Stanford Engineering Everywhere
+  handout `10-expm.pdf`), slide 10–5 (the resolvent `(sI - A)⁻¹`, defined off the eigenvalues
+  of `A`) and slide 10–13 (the state-transition matrix `L⁻¹((sI - A)⁻¹) = e^{tA}`).
 -/
 
 public section
