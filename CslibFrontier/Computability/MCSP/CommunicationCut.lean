@@ -37,8 +37,8 @@ at least `512` distinct crossing wires (`mcspSquare_32_crossing_cut`).
 * `Cslib.MCSP.CommunicationCut.position`, `Cslib.MCSP.CommunicationCut.probe`,
   `Cslib.MCSP.CommunicationCut.mask`, `Cslib.MCSP.CommunicationCut.splice`: prefix-split-suffix
   indexing and balanced cut splicing.
-* `Cslib.MCSP.CommunicationCut.badSelectors`: suffix selectors on which some mixed splice of two
-  distinct prefix probes is accepted by `mcspSquare`.
+* `Cslib.MCSP.CommunicationCut.mixedTest`: evaluation of `mcspSquare` on the splice of two
+  prefix probes across `mask r h`.
 * `Cslib.MCSP.CommunicationCut.crossingWires`: distinct source wires feeding a gate on the
   opposite side of a circuit partition.
 
@@ -217,13 +217,11 @@ private theorem card_badMasks_le (pair : BooleanFunction r × BooleanFunction r)
     · intro h₁ _ h₂ _ h
       exact splice_injective_in_mask heq h
 
-/-- Union of bad selectors across all ordered pairs of `r`-bit prefix functions. -/
-noncomputable def badSelectors (r s : ℕ) : Finset (BooleanFunction s) :=
+private noncomputable def badSelectors (r s : ℕ) : Finset (BooleanFunction s) :=
   open scoped Classical in
   (Finset.univ : Finset (BooleanFunction r × BooleanFunction r)).biUnion (badMasks s)
 
-/-- Union bound on the number of bad suffix selectors. -/
-theorem card_badSelectors_le (r s : ℕ) :
+private theorem card_badSelectors_le (r s : ℕ) :
     (badSelectors r s).card ≤ 2 ^ (2 ^ r + 2 ^ r + descriptionBitBound (r + (s + 1))) := by
   classical
   let pairs := (Finset.univ : Finset (BooleanFunction r × BooleanFunction r))

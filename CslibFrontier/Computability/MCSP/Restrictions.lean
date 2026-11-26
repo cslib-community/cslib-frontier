@@ -43,7 +43,11 @@ the unconditional De Morgan circuit lower bound
 * `Cslib.MCSP.Restrictions.mcspSquare`: exact MCSP slice at gate cutoff `m ^ 2` on `2 ^ m` bits.
 * `Cslib.MCSP.Restrictions.descriptionBitBound`: binary description bit bound
   `computableFunctionsLogBound m (m ^ 2)`.
-* `Cslib.MCSP.Restrictions.CornerCertificates`: backward certificate demands for constant inputs.
+* `Cslib.MCSP.Restrictions.CornerCertificates.selectedPins`,
+  `Cslib.MCSP.Restrictions.CornerCertificates.cornerValue`,
+  `Cslib.MCSP.Restrictions.CornerCertificates.Needed`,
+  `Cslib.MCSP.Restrictions.CornerCertificates.cornerInputs`: two-corner backward certificate
+  demands for the constant inputs `0^N` and `1^N`.
 
 ## Main results
 
@@ -52,6 +56,9 @@ the unconditional De Morgan circuit lower bound
 * `Cslib.MCSP.Restrictions.card_accepting_mcspSquare_le`: upper bound on accepted tables of
   `mcspSquare m`.
 * `Cslib.MCSP.Restrictions.mcspSquare_near_linear`: near-linear gate lower bound `N - B(m) - 1`.
+* `Cslib.MCSP.Restrictions.CornerCertificates.card_cornerInputs_le`,
+  `Cslib.MCSP.Restrictions.CornerCertificates.agrees_on_cornerInputs`: combined two-corner input
+  demand bound `g + 1` and soundness of corner input certificates.
 * `Cslib.MCSP.Restrictions.mcspSquare_two_certificate_lower_bound`: unconditional two-corner
   lower bound `2 * N - 2 * B(m) - 1`.
 * `Cslib.MCSP.Restrictions.mcspSquare_sixteen_lower_bound`: finite bound at `m = 16` (`120277`).
