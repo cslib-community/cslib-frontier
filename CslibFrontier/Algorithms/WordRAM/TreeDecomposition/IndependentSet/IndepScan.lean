@@ -146,9 +146,7 @@ private theorem noAdjScanProg_spec {w m : ℕ} (args : NoAdjArgs) {adjL xs : Lis
   intro ys
   induction ys with
   | nil =>
-    intro cur curM ok _ _ hok
-    refine ⟨validHistory_pure w s _, ?_⟩
-    rcases hok with rfl | rfl <;> rfl
+    rintro cur curM _ _ _ (rfl | rfl) <;> exact ⟨validHistory_pure w s _, rfl⟩
   | cons u rest ih =>
     intro cur curM ok hcur hus hok
     obtain ⟨hb, hmem_u, hrest⟩ := HoldsIn.cons_iff.mp hcur
@@ -385,9 +383,8 @@ theorem indepBagProg_spec {w m : ℕ} (args : IndepBagArgs) {adjL xs : List ℕ}
   intro ys
   induction ys with
   | nil =>
-    intro cur curM ok _ _ hok
-    refine ⟨validHistory_pure w s _, ?_, by simp [iterate, memoryCost_pure]⟩
-    rcases hok with rfl | rfl <;> rfl
+    rintro cur curM _ _ _ (rfl | rfl) <;>
+      exact ⟨validHistory_pure w s _, rfl, by simp [iterate, memoryCost_pure]⟩
   | cons u rest ih =>
     intro cur curM ok hcur hus hok
     obtain ⟨hb, hmem_u, hrest⟩ := HoldsIn.cons_iff.mp hcur
@@ -412,10 +409,9 @@ theorem indepBagProg_spec {w m : ℕ} (args : IndepBagArgs) {adjL xs : List ℕ}
     have hst_step := (indepBagStep_eval env ⟨cur, (u :: rest).length, curM, ok⟩ s).1
     have hres_step : (Memory.spec 0).clientResult s
         (indepBagStep (env, ⟨cur, (u :: rest).length, curM, ok⟩)) =
-        ⟨cur + 1, rest.length, curM / 2, ok'⟩ := by
-      refine ((indepBagStep_eval env ⟨cur, (u :: rest).length, curM, ok⟩ s).2).trans ?_
-      simp only [env, hmem_u, List.length_cons, Nat.add_sub_cancel, hr_na]
-      rfl
+        ⟨cur + 1, rest.length, curM / 2, ok'⟩ :=
+      ((indepBagStep_eval env ⟨cur, (u :: rest).length, curM, ok⟩ s).2).trans
+        (by simp only [env, hmem_u, List.length_cons, Nat.add_sub_cancel, hr_na]; rfl)
     have hv_step : (Memory.spec w).ValidHistory s
         ((Memory.spec w).clientHistory s
           (indepBagStep (env, ⟨cur, (u :: rest).length, curM, ok⟩))) := by
@@ -432,8 +428,7 @@ theorem indepBagProg_spec {w m : ℕ} (args : IndepBagArgs) {adjL xs : List ℕ}
       rw [memoryCost_bind', memoryCost_read, hr_st, hr_res, hmem_u]
       simp only [env, List.length_cons, Nat.add_sub_cancel]
       split
-      · rw [memoryCost_bind', hst_na, memoryCost_pure, Nat.add_zero]
-        omega
+      · rw [memoryCost_bind', hst_na, memoryCost_pure, Nat.add_zero]; omega
       · simp [memoryCost_pure]
     simp only [List.length_cons] at hst_step hres_step hv_step hc_step ⊢
     dsimp only [iterate]
@@ -498,8 +493,7 @@ theorem indepBagProg_realizes :
     refine ⟨?_, Nat.le_of_succ_le hj_le, ?_, ?_, ?_, ?_, ?_⟩
     · repeat (first | split | exact hnoAdj_safe | assumption | refine And.intro ?_ ?_)
     · simp only [hres_ev, hrem_eq, Nat.add_sub_cancel]
-    · simp only [hres_ev]
-      omega
+    · simp only [hres_ev]; omega
     · simp only [hres_ev, hr_na]
       split_ifs <;> omega
     · rwa [hst_ev]

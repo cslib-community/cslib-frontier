@@ -247,9 +247,7 @@ theorem resReachable_source_of_excess_pos (f : N.Preflow) {x : V} (hx : 0 < f.ex
       exact Nat.cast_eq_zero.mpr (by omega)]
     exact sub_nonpos.mpr (Finset.sum_nonneg fun _ _ => Finset.sum_nonneg fun _ _ =>
       Int.natCast_nonneg _)
-  have hnonneg : ∀ v ∈ U, 0 ≤ f.excess v := fun v hv =>
-    f.excess_nonneg fun h => hsU (h ▸ hv)
-  have hle := Finset.single_le_sum hnonneg hxU
+  have hle := Finset.single_le_sum (fun v hv => f.excess_nonneg fun h => hsU (h ▸ hv)) hxU
   omega
 
 /-- **Height bound** ([CLRS2009], Lemma 26.20): under a valid labeling, a vertex with positive
@@ -329,10 +327,8 @@ theorem IsValidLabeling.exists_canPush_or_canRelabel {f : N.Preflow} {h : V → 
   by_cases hex : ∃ v, 0 < f.resCap u v ∧ h u = h v + 1
   · obtain ⟨v, hpos, heq⟩ := hex
     exact .inl ⟨v, hu, hpos, heq⟩
-  · refine .inr ⟨hu, fun v hpos => ?_⟩
-    have h1 := hh.le_add_one u v hpos
-    have h2 : ¬ (0 < f.resCap u v ∧ h u = h v + 1) := fun h' => hex ⟨v, h'⟩
-    omega
+  · exact .inr ⟨hu, fun v hpos =>
+      Nat.lt_succ_iff.mp ((hh.le_add_one u v hpos).lt_of_ne fun heq => hex ⟨v, hpos, heq⟩)⟩
 
 /-! ### Termination and the gap cut -/
 
@@ -548,16 +544,11 @@ theorem IsValidLabeling.push {f : N.Preflow} {h : V → ℕ} {u v : V} (hh : f.I
   source := hh.source
   sink := hh.sink
   le_add_one x y hxy := by
-    by_cases hb : x = v ∧ y = u
-    · obtain ⟨rfl, rfl⟩ := hb
-      have := hp.height_eq
-      omega
-    · by_cases ha : x = u ∧ y = v
-      · obtain ⟨rfl, rfl⟩ := ha
-        have := hp.height_eq
-        omega
-      · rw [f.resCap_push_of_ne ha hb] at hxy
-        exact hh.le_add_one x y hxy
+    rcases Decidable.em (x = u ∧ y = v) with ⟨rfl, rfl⟩ | ha
+    · exact hp.height_eq.le
+    · rcases Decidable.em (x = v ∧ y = u) with ⟨rfl, rfl⟩ | hb
+      · exact hp.height_eq ▸ Nat.le_add_right _ 2
+      · exact hh.le_add_one x y (f.resCap_push_of_ne ha hb ▸ hxy)
 
 /-! ### The relabel operation -/
 
@@ -626,10 +617,8 @@ theorem IsValidLabeling.relabel {f : N.Preflow} {h : V → ℕ} {u : V} (hh : f.
     · rcases eq_or_ne y x with rfl | hy
       · omega
       · simpa [relabel_self, relabel_of_ne f h hy] using relabelHeight_le hxy
-    · have h1 := hh.le_add_one x y hxy
-      have h2 := hr.le_relabel y
-      rw [relabel_of_ne f h hx]
-      omega
+    · rw [relabel_of_ne f h hx]
+      exact (hh.le_add_one x y hxy).trans (Nat.add_le_add_right (hr.le_relabel y) 1)
 
 /-! ### Initialization -/
 

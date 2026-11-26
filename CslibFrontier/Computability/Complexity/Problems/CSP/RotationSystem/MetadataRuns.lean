@@ -164,15 +164,14 @@ private theorem stage_fields (keys : List ℕ) (I : State Rel)
       have hbody : (step keys J).body = J.body.relabel (collapse keys J) := by
         rw [step, he, collapse_of_pending_eq he]
         exact hf.1
-      have hports : (step keys J).ports = (J.ports.drop (runLength (a::ks))).map
-          (collapse keys J) := by
+      have hports : (step keys J).ports =
+          (J.ports.drop (runLength (a::ks))).map (collapse keys J) := by
         rw [step, he, collapse_of_pending_eq he]
         exact hf.2.1
       have hlen : (step keys J).ports.length = J.ports.length - runLength (a::ks) := by
         rw [hports, List.length_map, List.length_drop]
       refine ⟨by omega, ?_, ?_, fun _ _ => ?_⟩
-      · rw [hbody, ih.2.1]
-        simp only [CSP.relabel, Constraint.relabel, List.map_map, Function.comp_def]
+      · simp only [hbody, ih.2.1, CSP.relabel, Constraint.relabel, List.map_map, Function.comp_def]
         rfl
       · have heq : I.ports.length - J.ports.length + runLength (a::ks) =
             I.ports.length - (step keys J).ports.length := by omega
@@ -180,11 +179,8 @@ private theorem stage_fields (keys : List ℕ) (I : State Rel)
         conv_lhs => rw [ih.2.2.1, ← List.map_drop, List.map_map, List.drop_drop]
       · have heq : J.body.occurrences.length + J.ports.length - runLength (a::ks) =
             I.body.occurrences.length + (step keys J).ports.length := by omega
-        have hrl : runLength (a::ks) = (List.takeWhile (fun b => decide (b=a)) (a::ks)).length :=
-          rfl
-        have ht := hf.2.2
-        rw [← hrl, heq] at ht
-        simpa only [step, he] using ht
+        rw [← heq, step, he]
+        exact hf.2.2
 
 private theorem pull_range (keys : List ℕ) (I : State Rel) (s : ℕ) :
     pull keys I s = (List.range s).foldl
@@ -220,10 +216,8 @@ theorem fields_closeMetadataRuns (I : State Rel) (keys : List ℕ)
       (keys ≠ [] → K.rotation.successor.length = 2*I.body.occurrences.length ∧
         ∀ v ∈ K.rotation.successor, v < 2*I.body.occurrences.length) := by
   have hf := stage_fields keys I hl keys.length
-  have hp : (stage keys I keys.length).ports=[] := by
-    apply List.length_eq_zero_iff.mp
-    dsimp only at hf
-    omega
+  have hp : (stage keys I keys.length).ports = [] :=
+    List.length_eq_zero_iff.mp (by have := hf.1; omega)
   rw [aligned_output I keys hl]
   change (stage keys I keys.length).body=I.body.relabel
       ((List.range keys.length).foldl (fun f s => collapse keys ((step keys)^[s] I) ∘ f) id) ∧ _
@@ -598,10 +592,7 @@ private theorem recover_fuel (keys : List ℕ) (fuel : ℕ) (I : State Rel)
       set ν := τ ∘ pull keys (step keys I) fuel
       have hb := recover_closeFirstMetadataRun sem I a ks ha ν
         (by simpa only [step, he] using hrec.1)
-      have hbody : I.body.eval sem (ν ∘ collapse keys I) = true := by
-        rw [collapse_of_pending_eq he]
-        exact hb.1
-      refine ⟨by simpa only [ν, Function.comp_assoc] using hbody, ?_⟩
+      refine ⟨(collapse_of_pending_eq he).symm ▸ hb.1, ?_⟩
       change ((pending keys I).zip (I.ports.map (ν ∘ collapse keys I))).IsChain _
       apply (first_run_agreement _ _ (by simpa only [List.length_map] using hl)).mpr
       constructor
@@ -612,9 +603,7 @@ private theorem recover_fuel (keys : List ℕ) (fuel : ℕ) (I : State Rel)
             (I.ports.drop (runLength (pending keys I))).map (ν ∘ collapse keys I) := by
           rw [step, collapse_of_pending_eq he, he]
           exact hb.2.2
-        have hh := hrec.2
-        rw [pending_step keys I hp, hw] at hh
-        simpa only [← List.map_drop] using hh
+        simpa only [pending_step keys I hp, hw, ← List.map_drop] using hrec.2
 
 private theorem forward_fuel (keys : List ℕ) (fuel : ℕ) (I : State Rel)
     (hp : I.ports.length ≤ keys.length) (hf : I.ports.length ≤ fuel)

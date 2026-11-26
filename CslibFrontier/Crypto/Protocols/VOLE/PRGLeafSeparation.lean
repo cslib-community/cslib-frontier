@@ -402,7 +402,7 @@ theorem prgLeafGame_eq_pure_true {d sdLen comLen rowLen : ℕ}
     congr 1
     funext ⟨prf, st⟩
     simp [PMF.map, PMF.pure_bind, Function.comp_def]
-  rw [hgame, h, show (fun _ : Chal => true) = Function.const Chal true from rfl, PMF.map_const]
+  simpa only [hgame, Function.const_def, PMF.map_const] using h
 
 private theorem convertExpandedRows_zero_u {rowLen : ℕ} :
     ∀ d : ℕ, (FAEST.convertExpandedRows d (fun _ : Fin (2 ^ d) => (0 : BitString rowLen))).u = 0
@@ -463,9 +463,8 @@ private theorem toOuterMeasure_prgLeaf_queryLog_fails_of_nil_not_rel {d sdLen co
       checkRel defaultSeed iv keys stmt w hRel hsupp
     have hb : b ∈ ((ProbOracleComp.runWith voleithMemoize
         (prgLeafGame expand prgLeaf encWit chalToIdx mkPreMsg checkRel defaultSeed iv keys stmt w)
-        ([], [])).map Prod.fst).support := by
-      rw [PMF.mem_support_map_iff]
-      exact ⟨(b, st), hsupp, rfl⟩
+        ([], [])).map Prod.fst).support :=
+      (PMF.mem_support_map_iff _ _ _).mpr ⟨(b, st), hsupp, rfl⟩
     rw [prgLeafGame_eq_pure_true expand prgLeaf encWit chalToIdx mkPreMsg checkRel defaultSeed iv
       keys stmt w hRel, PMF.support_pure, Set.mem_singleton_iff] at hb
     simpa only [htr, hb, true_and, decide_eq_true_eq] using hbad
@@ -782,12 +781,8 @@ theorem exists_valid_prgLeaf_proofOnly_extract_fails_ge {d sdLen comLen rowLen :
             ((fun delta => decide (true = true ∧
               (ext [] (prgLeafProofOfDelta expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv
                 keys w delta)).elim false (Rel stmt) = false)) ⁻¹' {true}) := by
-          refine (PMF.uniformOfFintype Chal).toOuterMeasure.mono ?_
-          intro delta hdelta
-          rw [Set.mem_singleton_iff] at hdelta
-          subst hdelta
-          simp only [Set.mem_preimage, Set.mem_singleton_iff, hp, decide_eq_true_eq]
-          exact ⟨trivial, he⟩
+          refine (PMF.uniformOfFintype Chal).toOuterMeasure.mono (Set.singleton_subset_iff.mpr ?_)
+          simp [hp, he]
   by_cases h0 : (ext [] prfStar).elim false (Rel stmt₀) = true
   · refine ⟨stmt₁, w₁, keys₁, hValid₁, hge stmt₁ w₁ keys₁ hRel₁ hPrfEq.symm ?_⟩
     cases hext : ext [] prfStar with

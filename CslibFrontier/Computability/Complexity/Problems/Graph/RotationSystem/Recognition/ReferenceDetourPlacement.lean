@@ -115,12 +115,10 @@ private theorem cut_parameters {a b : ℝ} (hab : a ≠ b) {z : ℂ}
   have hshift (x : ℝ) (hx : |x| < min (z.re - min a b) (max a b - z.re)) :
       z + (⟨x, x * (a + b)⟩ : ℂ) ∈ openSegment ℝ (parabolaPoint a) (parabolaPoint b) := by
     have hx' := lt_min_iff.mp hx
-    refine (mem_openChord_iff hab _).mpr ⟨?_, ?_⟩
-    · change min a b < z.re + x ∧ z.re + x < max a b
-      exact ⟨by linarith [neg_abs_le x],
-        by linarith [le_abs_self x]⟩
-    · change z.im + x * (a + b) = (a + b) * (z.re + x) - a * b
-      nlinarith only [hline]
+    simp only [mem_openChord_iff hab, Set.mem_Ioo, Complex.add_re, Complex.add_im]
+    exact ⟨⟨by linarith [neg_abs_le x, hbetween.1],
+      by linarith [le_abs_self x, hbetween.2]⟩,
+      by nlinarith only [hline]⟩
   have hleft := hshift (-r) (by simpa only [abs_neg, abs_of_pos hr] using hm)
   have hright := hshift r (by simpa only [abs_of_pos hr] using hm)
   rw [openSegment_eq_image_lineMap] at hleft hright
@@ -171,9 +169,7 @@ private theorem choose_geometry {ι : Type*} [Finite ι] (s m : ι → ℝ)
       linarith [Finset.single_le_sum (fun j _ => (div_pos zero_lt_one (hm j)).le)
         (Finset.mem_univ i)]
     have hprod := (div_lt_iff₀ (hm i)).mp hTi
-    exact (min_le_right _ _).trans_lt
-      ((div_lt_iff₀ (by positivity : 0 < 2 * T)).mpr
-        (by nlinarith))
+    exact (min_le_right _ _).trans_lt ((div_lt_iff₀ (by positivity)).mpr (by nlinarith))
   · intro i
     have hKi : 1 + |s i| ≤ K := by
       dsimp [K]
@@ -329,15 +325,10 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
   have hPkeep (e : X) (he : F e.val = true) : d e = 0 ∧
       P e = Route.line (AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (α e))
         (AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (β e)) := by
-    have hd := (hkeep e he).1
-    have hR : R e = Route.line (⟨-r, -r * s e⟩ : ℂ) ⟨r, r * s e⟩ := by
-      simp only [R, he, ↓reduceIte]
-    have hline : P e = Route.line (P e).start (P e).finish := by
-      dsimp only [P, placed]
-      rw [hR]
-      cases flip e <;> simp only [Bool.false_eq_true, ↓reduceIte, Route.reverse_line,
-        Route.translate_line, Route.start_line, Route.finish_line]
-    exact ⟨hd, by rw [hline, hpointA e, hpointB e]⟩
+    refine ⟨(hkeep e he).1, ?_⟩
+    rw [← hpointA e, ← hpointB e]
+    dsimp only [P, placed, R]
+    cases flip e <;> simp [he, Route.reverse_line, Route.translate_line]
   refine ⟨r, hr, d, α, β, ?_, hPkeep, ?_, ?_, ?_⟩
   · exact fun e => ⟨hα e, hαβ e, hβ e, hpointA e, hpointB e,
       placed_simple (hends e).2.2.1 (flip e) z, hball e⟩

@@ -189,13 +189,11 @@ theorem totalWeight_kruskalEdges_le_sum_consecutivePairs {k : ℕ} (δ : Fin k �
   have hHw : totalWeight H = (q.consecutivePairs.map fun e => δ e.1 e.2).sum := by
     simp [totalWeight, hH, Function.comp_def]
   rw [← hHw]
-  refine totalWeight_kruskalEdges_completeEdges_le δ ?_ ?_ ?_
+  refine totalWeight_kruskalEdges_completeEdges_le δ ?_
+    (List.forall_mem_map.2 fun _ _ => rfl) ?_
   · have hmap : H.map WeightedEdge.u = q.dropLast := by
       simpa [hH, Function.comp_def] using map_fst_consecutivePairs q
     exact List.Nodup.of_map _ (hmap ▸ hq.sublist (List.dropLast_sublist q))
-  · intro e he
-    obtain ⟨p, -, rfl⟩ := List.mem_map.1 he
-    rfl
   · intro x y
     cases q with
     | nil => exact absurd (hcov x) (by simp)
@@ -234,24 +232,22 @@ theorem mul_totalWeight_kruskalEdges_le {k : ℕ} (δ : Fin k → Fin k → ℕ)
   have hclen : c.length = k := by simp [hc, hlen]
   rcases Nat.eq_zero_or_pos k with rfl | hk
   · simp
-  obtain ⟨m, hm, hmax⟩ : ∃ m ∈ c, ∀ x ∈ c, x ≤ m := by
-    obtain ⟨m, hm⟩ := Option.isSome_iff_exists.1
-      (List.isSome_max?_of_ne_nil (l := c) (List.ne_nil_of_length_pos (by omega)))
-    exact ⟨m, List.max?_eq_some_iff.1 hm⟩
+  obtain ⟨m, hm⟩ := Option.isSome_iff_exists.1
+    (List.isSome_max?_of_ne_nil (l := c) (List.ne_nil_of_length_pos (by omega)))
+  obtain ⟨hm, hmax⟩ := List.max?_eq_some_iff.1 hm
   have hCm : cycleCost δ q ≤ k * m := by
     simpa [cycleCost, ← hc, hclen, smul_eq_mul] using List.sum_le_length_nsmul c m hmax
   obtain ⟨c₁, c₂, hsplit⟩ := List.append_of_mem hm
   set q' := q.rotate (c₁.length + 1) with hq'
   have hq'nd : q'.Nodup := (List.rotate_perm q _).nodup_iff.2 hq
   have hq'cov : ∀ x, x ∈ q' := fun x => (List.rotate_perm q _).mem_iff.2 (hcov x)
-  have hrot : ∀ n, List.zipWith δ (q.rotate n) ((q.rotate n).rotate 1) = c.rotate n := by
-    intro n
+  have hrot (n) : List.zipWith δ (q.rotate n) ((q.rotate n).rotate 1) = c.rotate n := by
     rw [List.rotate_rotate, Nat.add_comm, ← List.rotate_rotate, hc,
       List.zipWith_rotate_distrib _ _ _ _ (List.length_rotate q 1).symm]
+  have hc1 : c₁ ++ m :: c₂ = (c₁ ++ [m]) ++ c₂ := by simp
   have hc' : List.zipWith δ q' (q'.rotate 1) = c₂ ++ c₁ ++ [m] := by
-    rw [hq', hrot, hsplit, show c₁ ++ m :: c₂ = (c₁ ++ [m]) ++ c₂ by simp,
-      show c₁.length + 1 = (c₁ ++ [m]).length by simp, List.rotate_append_length_eq]
-    simp
+    rw [hq', hrot, hsplit, hc1, ← List.length_singleton (a := m), ← List.length_append,
+      List.rotate_append_length_eq, List.append_assoc]
   have hpath : (q'.consecutivePairs.map fun e => δ e.1 e.2) = c₂ ++ c₁ := by
     obtain ⟨a, L, hq'eq⟩ := List.exists_cons_of_ne_nil (List.ne_nil_of_mem (hq'cov ⟨0, hk⟩))
     obtain ⟨b, hb⟩ := zipWith_rotate_one_eq δ a L
@@ -477,9 +473,8 @@ theorem length_mul_edgeCost_steinerMST_le_of_diag {δ : α → α → ℕ} (hdia
   by_cases hne : ∃ a ∈ R, ∃ b ∈ R, a ≠ b
   · obtain ⟨s, hs_nd, hs_R, hR_s, hs_cost⟩ :=
       exists_cycleCost_le_of_connects hsymm htri hne hT
-    obtain ⟨a, l, rfl⟩ := List.exists_cons_of_ne_nil (l := s) (by
-      rintro rfl
-      simpa using hR_s R[0] (List.getElem_mem (by omega)))
+    obtain ⟨a, l, rfl⟩ := List.exists_cons_of_ne_nil
+      (List.ne_nil_of_mem (hR_s R[0] (List.getElem_mem (by omega))))
     have hpos : ∀ x ∈ a :: l, 0 < (indices R x).length := fun x hx => by
       obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem (hs_R x hx)
       exact List.length_pos_of_mem (mem_indices.2 rfl : (⟨i, hi⟩ : Fin R.length) ∈ _)
@@ -488,12 +483,10 @@ theorem length_mul_edgeCost_steinerMST_le_of_diag {δ : α → α → ℕ} (hdia
   · push Not at hne
     have hall : ∀ i j : Fin R.length, R[i] = R[j] := fun i j =>
       hne R[i] (List.getElem_mem _) R[j] (List.getElem_mem _)
-    have h0 : totalWeight (kruskalEdges (completeEdges (terminalCost δ R))) = 0 := by
-      refine List.sum_eq_zero fun w hw => ?_
-      obtain ⟨e, he, rfl⟩ := List.mem_map.1 hw
-      rw [mem_completeEdges.1 ((kruskalEdges_subperm _).subset he)]
-      dsimp only [terminalCost]
-      rw [hall e.u e.v, hdiag]
+    have h0 : totalWeight (kruskalEdges (completeEdges (terminalCost δ R))) = 0 :=
+      List.sum_eq_zero (List.forall_mem_map.2 fun e he => by
+        rw [mem_completeEdges.1 ((kruskalEdges_subperm _).subset he)]
+        exact (congrArg (δ · R[e.v]) (hall e.u e.v)).trans (hdiag _))
     simp [h0]
 
 /-- The factor-2 bound follows from the sharp form: divide by `|R|`, and for `R = []` the tree is

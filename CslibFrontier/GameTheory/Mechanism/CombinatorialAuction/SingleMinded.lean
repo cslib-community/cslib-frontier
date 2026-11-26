@@ -346,9 +346,7 @@ theorem isIR_of_hasCriticalPayments [DecidableEq N] [DecidableEq M] {m : Mechani
   simp only [utility]
   by_cases hi : i ∈ m.winners b
   · simp only [hi, ↓reduceIte, SingleMindedBid.eval_self, hcrit b hb i hi]
-    have hle : criticalValue m.winners b i ≤ (b i).value :=
-      criticalValue_le_of_mem (hb i) (by rwa [Function.update_eq_self])
-    linarith
+    linarith [criticalValue_le_of_mem (hb i) (Function.update_eq_self i b ▸ hi)]
   · simp only [hi, ↓reduceIte, h0 b hb i hi, sub_zero, le_refl]
 
 /-- Sufficiency of [BlumrosenNisan2007], Lemma 11.9 (pp. 274–275): if losers pay `0`, the
@@ -395,11 +393,9 @@ theorem isDSIC_of_isWeakMonotone [DecidableEq N] [DecidableEq M] {m : Mechanism 
               (by simpa only [Function.update_self] using hzt)
         simp only [utility, htwin, ↓reduceIte, h0 _ (update_value_nonneg hb i ht) i htwin]
         linarith
-    · have hutil_dev : m.utility i trueBid b = -m.payment b i := by
-        simp [utility, hwin, SingleMindedBid.eval, hsub]
-      linarith [hasNonnegPayment_of_hasCriticalPayments h0 hcrit b hb i]
-  · simp only [utility, hwin, ↓reduceIte, h0 b hb i hwin, sub_zero]
-    exact hir
+    · exact (le_of_eq_of_le (by simp [utility, hwin, SingleMindedBid.eval, hsub])
+        (neg_nonpos.2 (hasNonnegPayment_of_hasCriticalPayments h0 hcrit b hb i))).trans hir
+  · simpa only [utility, hwin, ↓reduceIte, h0 b hb i hwin, sub_zero] using hir
 
 /-- Necessity of weak monotonicity in [BlumrosenNisan2007], Lemma 11.9 (p. 274): every DSIC
 mechanism in which losers pay `0` has a weakly monotone allocation rule. Neither `IsIR` nor
@@ -930,9 +926,8 @@ theorem losMechanism_isFeasible {N M : Type*} [Fintype N] [LinearOrder N] [Decid
 
 /-- Losing bidders pay `0` in the LOS greedy mechanism. -/
 theorem losMechanism_losersPayZero {N M : Type*} [Fintype N] [LinearOrder N] [DecidableEq M] :
-    (losMechanism (N := N) (M := M)).LosersPayZero := by
-  intro b _ i hni
-  exact ite_eq_right hni
+    (losMechanism (N := N) (M := M)).LosersPayZero :=
+  fun _ _ _ hni => ite_eq_right hni
 
 /-- An empty-bundle bidder has zero payment in `losMechanism`. -/
 theorem losPayment_eq_zero_of_bundle_empty {N M : Type*} [Fintype N] [LinearOrder N]
@@ -1030,9 +1025,8 @@ private theorem winners_agree_before_blocker {N M : Type*} [Fintype N] [LinearOr
         by_cases hti : t = i
         · subst hti; exact hdisj_i.symm
         · exact heq.1 hrw t ht hti htr
-      · intro hr
-        refine heq.2 fun t ht hti htr => ?_
-        exact (mem_losWinners_iff_earlier_winners b r).1 hr t ht htr
+      · exact fun hr => heq.2 fun t ht _ htr =>
+          (mem_losWinners_iff_earlier_winners b r).1 hr t ht htr
     rw [mem_losWinnersWithout_iff_earlier b hki]
     exact ⟨fun h r hr hri hlt => h r ((h_agree r hri hlt).2 hr) hlt, fun h r hr hlt =>
       h r ((h_agree r (losWinnersWithout_subset_ne b hr) hlt).1 hr)
@@ -1175,9 +1169,8 @@ private theorem sum_optBlocked_le {N M : Type*} [LinearOrder N] [Fintype M]
   -- Display (11.2) via Cauchy–Schwarz (`Finset.sum_mul_sq_le_sq_mul_sq`).
   have hcs_sq : (∑ j ∈ optI, Real.sqrt (b j).bundle.card) ^ 2 ≤
       (optI.card : ℝ) * ∑ j ∈ optI, ((b j).bundle.card : ℝ) := by
-    have hcs := Finset.sum_mul_sq_le_sq_mul_sq optI
-      (fun _ => (1 : ℝ)) (fun j => Real.sqrt (b j).bundle.card)
-    simpa [Real.sq_sqrt (Nat.cast_nonneg _)] using hcs
+    simpa [Real.sq_sqrt (Nat.cast_nonneg _)] using
+      Finset.sum_mul_sq_le_sq_mul_sq optI (fun _ => (1 : ℝ)) fun j => Real.sqrt (b j).bundle.card
   have hcard_optI : (optI.card : ℝ) ≤ (b i).bundle.card := by
     exact_mod_cast card_optBlocked_le hopt i hsub fun j hj => (hspec j hj).2
   have hcompatI : IsCompatible b optI := hopt.subset (Finset.coe_subset.2 hsub)
@@ -1186,9 +1179,8 @@ private theorem sum_optBlocked_le {N M : Type*} [LinearOrder N] [Fintype M]
   have hcs_bound : ∑ j ∈ optI, Real.sqrt (b j).bundle.card ≤
       Real.sqrt (b i).bundle.card * Real.sqrt (Fintype.card M) := by
     rw [← Real.sqrt_mul (Nat.cast_nonneg _)]
-    refine Real.le_sqrt_of_sq_le ?_
-    exact hcs_sq.trans (mul_le_mul hcard_optI hsum_card
-      (Finset.sum_nonneg fun _ _ => Nat.cast_nonneg _) (Nat.cast_nonneg _))
+    exact Real.le_sqrt_of_sq_le (hcs_sq.trans (mul_le_mul hcard_optI hsum_card
+      (Finset.sum_nonneg fun _ _ => Nat.cast_nonneg _) (Nat.cast_nonneg _)))
   calc ∑ j ∈ optI, (b j).value
       ≤ losScore (b i) * ∑ j ∈ optI, Real.sqrt (b j).bundle.card := h11_1
     _ ≤ losScore (b i) * (Real.sqrt (b i).bundle.card * Real.sqrt (Fintype.card M)) :=
@@ -1221,8 +1213,6 @@ theorem losWinners_approx {N M : Type*} [Fintype N] [LinearOrder N] [Fintype M] 
       ∑ j ∈ s.filter (fun j => (b j).bundle.Nonempty), (b j).value := fun s => by
     rw [← Finset.sum_filter_add_sum_filter_not s (fun j => (b j).bundle = ∅)]
     simp only [← Finset.nonempty_iff_ne_empty]
-  have hopt_part := hsplit opt
-  have hW_part := hsplit W
   have hsubEmpty : optEmpty ⊆ wEmpty := fun j hj => by
     rcases Finset.mem_filter.1 hj with ⟨_, he⟩
     exact Finset.mem_filter.2 ⟨mem_losWinners_of_bundle_empty b he, he⟩
@@ -1265,13 +1255,13 @@ theorem losWinners_approx {N M : Type*} [Fintype N] [LinearOrder N] [Fintype M] 
     Real.one_le_sqrt.2 (by exact_mod_cast Fintype.card_pos (α := M))
   have hwEmpty_nn : 0 ≤ ∑ i ∈ wEmpty, (b i).value := Finset.sum_nonneg fun i _ => hb i
   calc ∑ j ∈ opt, (b j).value
-      = ∑ j ∈ optEmpty, (b j).value + ∑ j ∈ optPos, (b j).value := hopt_part
+      = ∑ j ∈ optEmpty, (b j).value + ∑ j ∈ optPos, (b j).value := hsplit opt
     _ ≤ ∑ i ∈ wEmpty, (b i).value + Real.sqrt (Fintype.card M) * ∑ i ∈ wPos, (b i).value :=
         add_le_add hsumEmpty hsumPos
     _ ≤ Real.sqrt (Fintype.card M) * ∑ i ∈ wEmpty, (b i).value +
         Real.sqrt (Fintype.card M) * ∑ i ∈ wPos, (b i).value := by
         nlinarith
     _ = Real.sqrt (Fintype.card M) * ∑ i ∈ W, (b i).value := by
-        rw [← mul_add, ← hW_part]
+        rw [← mul_add, ← hsplit W]
 
 end Cslib.GameTheory.CombinatorialAuction.SingleMinded

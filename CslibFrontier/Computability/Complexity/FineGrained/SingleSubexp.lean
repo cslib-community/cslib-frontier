@@ -304,16 +304,14 @@ theorem DecidableInSingleSubexpTime.of_computableInPolyTime {A : Set α} {μ : �
     {g : α → Bool} (hg : ComputableInPolyTime g encIn encBool) (hA : ∀ a, a ∈ A ↔ g a = true) :
     DecidableInSingleSubexpTime A encIn μ := by
   obtain ⟨e, hO⟩ := DecidableInExpTime.of_computableInPolyTime (μ := μ) hg hA
-  exact ⟨fun _ => 0, e, fun _ => le_rfl, by simp,
-    by simpa only [zero_mul] using hO⟩
+  exact ⟨0, e, fun _ => le_rfl, isLittleO_zero _ _, by simpa [Pi.zero_apply] using hO⟩
 
 /-- Polynomial-time computable functions are computable in single-machine subexponential time. -/
 theorem ComputableInSingleSubexpTime.of_computableInPolyTime {f : α → β} {μ : α → ℕ}
     (hf : ComputableInPolyTime f encIn encMid) :
     ComputableInSingleSubexpTime f encIn encMid μ := by
   obtain ⟨e, hO⟩ := ComputableInExpTime.of_computableInPolyTime (μ := μ) hf
-  exact ⟨fun _ => 0, e, fun _ => le_rfl, by simp,
-    by simpa only [zero_mul] using hO⟩
+  exact ⟨0, e, fun _ => le_rfl, isLittleO_zero _ _, by simpa [Pi.zero_apply] using hO⟩
 
 /-- Guarding a single-machine subexponential function by a polynomial-time test and fallback
 preserves single-machine subexponential time. -/
@@ -336,9 +334,8 @@ theorem DecidableInSingleSubexpTime.of_computableInSingleSubexpTime_polyBounded
     {test : β → Bool} (htest : ComputableInPolyTime test encMid encBool) :
     DecidableInSingleSubexpTime {a | test (f a) = true} encIn μ := by
   obtain ⟨s, e, hnn, hs_o, hf⟩ := hf
-  obtain ⟨e', h⟩ :=
-    DecidableInTimeO.of_computableInTimeO_polyBounded (fun a => hnn (μ a)) hf hlen htest
-  exact ⟨s, e', hnn, hs_o, h⟩
+  exact ⟨s, (DecidableInTimeO.of_computableInTimeO_polyBounded (fun a => hnn (μ a)) hf hlen
+    htest).imp fun _ h => ⟨hnn, hs_o, h⟩⟩
 
 /-- **Transfer along linear-parameter parsimonious reductions (`SingleSubexp`).** -/
 theorem ComputableInSingleSubexpTime.of_reduction {μA : α → ℕ} {μB : β → ℕ}
@@ -455,9 +452,7 @@ theorem ComputableInSingleSubexpTime.of_uniformFamily {f : α → β} {μ : α �
             gcongr
             linarith [one_le_pow₀ (n := ds) hL1]
         _ = (C_sched : ℝ) * L1 ^ (ds * d) := by
-          simp only [C_sched, mul_pow, ← pow_mul]
-          push_cast
-          rfl
+          simp only [C_sched, mul_pow, ← pow_mul, Nat.cast_pow, Nat.cast_add, Nat.cast_one]
     have hexp_bound : (2 : ℝ) ^ ((μ a : ℝ) / (sched a + 1)) ≤
         (2 ^ N : ℝ) * 2 ^ (δ * μ a) := by
       have hδμ : 0 ≤ δ * μ a := by positivity

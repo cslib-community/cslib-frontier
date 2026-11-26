@@ -312,43 +312,37 @@ private theorem link_liftAdversary_mapNetMachine {n : ℕ} {In Out NQ₁ NQ₂ R
   | query_bind q cont ih =>
     simp only [PFunctor.FreeM.bind_eq_bind]
     erw [Machine.runFrom_bind, Machine.runFrom_bind, ProbOracleComp.simulate_bind]
-    cases q with
-    | inl k =>
-      rw [← ProbOracleComp.sample_unifFin]
+    rcases q with k | p | adv
+    · rw [← ProbOracleComp.sample_unifFin]
       erw [Machine.runFrom_sample, Machine.runFrom_sample]
       rw [ProbOracleComp.simulate_map, ProbOracleComp.simulate_sample]
       simp only [bind_map_left, map_bind]
       exact bind_congr fun a => ih a s
-    | inr e =>
-      cases e with
-      | inl p =>
-        erw [Machine.runFrom_query, Machine.runFrom_query]
-        dsimp only [liftAdversary, Machine.liftRight, mapNetMachine] at s ⊢
-        rw [StateT.run_lift, StateT.run_lift, bind_pure_comp, bind_pure_comp,
-          ProbOracleComp.simulate_map, ProbOracleComp.simulate_query]
-        simp only [mapRightHandler, bind_map_left, map_bind]
-        exact bind_congr fun a => ih a s
-      | inr adv =>
-        erw [Machine.runFrom_query, Machine.runFrom_query]
-        dsimp only [liftAdversary, Machine.liftRight, mapNetMachine, StateT.run] at s ⊢
-        have hint : Machine.liftRightProgram (partySpec n In Out)
-            (OracleComp.interpret
-              (sumHandler
-                (fun k => OracleComp.query (spec := probOracleSpec (netSpec NQ₂ R)) (Sum.inl k))
-                fun nq => ProbOracleComp.query (spec := netSpec NQ₂ R) (f nq))
-              ((A.handle adv).run s)) =
-            ProbOracleComp.simulate
-              (mapRightHandler (L := partySpec n In Out) (R := netSpec NQ₂ R) f)
-              (Machine.liftRightProgram (partySpec n In Out) ((A.handle adv).run s)) := by
-          dsimp only [Machine.liftRightProgram, ProbOracleComp.simulate]
-          rw [OracleComp.substitute_eq_interpret]
-          erw [OracleComp.interpret_interpret, OracleComp.interpret_interpret]
-          congr 1 with r : 1
-          cases r with
-          | inl k => erw [OracleComp.interpret_query]
-          | inr nq => rfl
-        erw [hint, map_bind, map_bind]
-        exact bind_congr fun x => ih x.1 x.2
+    · erw [Machine.runFrom_query, Machine.runFrom_query]
+      dsimp only [liftAdversary, Machine.liftRight, mapNetMachine] at s ⊢
+      rw [StateT.run_lift, StateT.run_lift, bind_pure_comp, bind_pure_comp,
+        ProbOracleComp.simulate_map, ProbOracleComp.simulate_query]
+      simp only [mapRightHandler, bind_map_left, map_bind]
+      exact bind_congr fun a => ih a s
+    · erw [Machine.runFrom_query, Machine.runFrom_query]
+      dsimp only [liftAdversary, Machine.liftRight, mapNetMachine, StateT.run] at s ⊢
+      have hint : Machine.liftRightProgram (partySpec n In Out)
+          (OracleComp.interpret
+            (sumHandler
+              (fun k => OracleComp.query (spec := probOracleSpec (netSpec NQ₂ R)) (Sum.inl k))
+              fun nq => ProbOracleComp.query (spec := netSpec NQ₂ R) (f nq))
+            ((A.handle adv).run s)) =
+          ProbOracleComp.simulate
+            (mapRightHandler (L := partySpec n In Out) (R := netSpec NQ₂ R) f)
+            (Machine.liftRightProgram (partySpec n In Out) ((A.handle adv).run s)) := by
+        dsimp only [Machine.liftRightProgram, ProbOracleComp.simulate]
+        rw [OracleComp.substitute_eq_interpret]
+        erw [OracleComp.interpret_interpret, OracleComp.interpret_interpret]
+        congr 1 with (k | nq) : 1
+        · erw [OracleComp.interpret_query]
+        · rfl
+      erw [hint, map_bind, map_bind]
+      exact bind_congr fun x => ih x.1 x.2
 
 private def relabelSessionHandler {m n : ℕ} {SubIn SubOut BackQ BackR : Type} :
     (q : Fin m × ((Fin n × SubIn) ⊕ RoutedNetQ n SubIn BackQ)) →
@@ -397,12 +391,9 @@ private theorem interpret_liftParty_toJoint {m n : ℕ} {SubIn SubOut BackQ Back
         (liftMultiParty (NQ := RoutedNetQ n SubIn BackQ) (NR := RoutedNetR SubOut BackR) prog) := by
   dsimp only [liftParty, liftMultiParty, relabelSessionProg]
   erw [OracleComp.interpret_interpret, OracleComp.interpret_interpret]
-  congr 1 with r : 1
-  cases r with
-  | inl k => rfl
-  | inr c =>
-    dsimp only [sumHandler]
-    erw [OracleComp.interpret_query]
+  congr 1 with (k | c) : 1
+  · rfl
+  · exact OracleComp.interpret_query _ _
 
 private theorem link_toJoint_eq_relabelSessionProg {m n : ℕ}
     {In Out NetQ NetR SubIn SubOut BackQ BackR α : Type}

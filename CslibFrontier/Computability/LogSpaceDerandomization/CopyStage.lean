@@ -138,7 +138,7 @@ theorem cutoffCorrection_residual_dominates (hCf : ∀ x y, C x y ≤ f) (hf : 0
         cutoffCorrectionIter φ C (k + 1) * C) x y ≤
       (C - cutoffCorrectionIter φ C (k + 1) + cutoffCorrectionIter φ C (k + 1) * C) x y := by
   set F := cutoffCorrectionIter φ C k
-  set E := cutoffCorrectionIter φ C (k + 1)
+  set E := cutoffCorrectionIter φ C (k + 1) with hEdef
   set a := (C + F * C) x y
   set t := θ / (k + 1)
   have hk : (0 : ℝ) < k + 1 := by positivity
@@ -152,7 +152,7 @@ theorem cutoffCorrection_residual_dominates (hCf : ∀ x y, C x y ≤ f) (hf : 0
     Finset.sum_le_sum fun z _ =>
       mul_le_mul_of_nonneg_right (cutoffCorrectionIter_le_succ hC0 hφ0 hφm k x z) (hC0 z y)
   have hθa : E x y ≤ max (a - θ * f) 0 := by
-    rw [show E = cutoffCorrectionIter φ C (k + 1) from rfl, cutoffCorrectionIter_succ]
+    rw [hEdef, cutoffCorrectionIter_succ]
     exact hφθ y a
   have ht0 : 0 ≤ t := by positivity
   have ht1 : t ≤ 1 := by rw [div_le_one hk]; linarith
@@ -162,12 +162,8 @@ theorem cutoffCorrection_residual_dominates (hCf : ∀ x y, C x y ≤ f) (hf : 0
   have hmin : t * a ≤ a - E x y := by
     rcases le_max_iff.mp hθa with he | he <;> nlinarith
   have hcoef : θ / (2 * (k + 1)) = t / 2 := by simp only [t]; field_simp
-  have h1 : t / 2 * E x y ≤ t / 2 * a := mul_le_mul_of_nonneg_left hea (by positivity)
-  have h2 : t / 2 * ((E * C) x y - (F * C) x y) ≤ (E * C) x y - (F * C) x y :=
-    mul_le_of_le_one_left (by linarith) (by linarith)
-  have hadef : a = C x y + (F * C) x y := rfl
   rw [hcoef]
-  simp only [Matrix.add_apply, Matrix.sub_apply]
+  simp only [a, Matrix.add_apply, Matrix.sub_apply] at hea hmin ⊢
   nlinarith
 
 variable {A : Finset V}

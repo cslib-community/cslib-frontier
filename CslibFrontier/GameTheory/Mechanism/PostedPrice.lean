@@ -921,24 +921,16 @@ theorem integral_sum_payment_le_two_mul_virtualPostedPrices [LinearOrder ι]
     refine Finset.sum_congr rfl fun i _ => ?_
     have hthr : IsReserveThreshold (fun z => virtualValue (μ i) (f i) z - t) (p i) :=
       isReserveThreshold_virtualPostedPrices hμ hreg i
-    dsimp only [priorReject]
+    dsimp only [postedPrice, acceptMechanism, priorReject, excess]
     split_ifs with hprev
     · by_cases hpi : p i ≤ v i
-      · have hwin : AcceptWins (fun k z => p k ≤ z) v i :=
-          ⟨hpi, fun j hj => not_le.mpr (hprev j hj)⟩
-        have hφge := hthr.2.1 (v i) (lt_of_le_of_ne hpi (Ne.symm (hv i).2))
-        rw [show (postedPrice p).allocation v i = 1 from acceptAllocation_eq_one_iff.mpr hwin,
-          show excess i (v i) = virtualValue (μ i) (f i) (v i) - t from max_eq_left hφge]
+      · rw [acceptAllocation_eq_one_iff.mpr ⟨hpi, fun j hj => not_le.mpr (hprev j hj)⟩,
+          max_eq_left (hthr.2.1 (v i) (lt_of_le_of_ne hpi (Ne.symm (hv i).2)))]
         ring
-      · have hφle : virtualValue (μ i) (f i) (v i) - t ≤ 0 :=
-          le_of_not_gt fun hgt => hpi (hthr.2.2 (v i) (hv i).1 hgt.le)
-        have halloc0 : (postedPrice p).allocation v i = 0 :=
-          acceptAllocation_eq_zero_iff.mpr fun hw => hpi hw.1
-        rw [halloc0, show excess i (v i) = 0 from max_eq_right hφle]
+      · rw [acceptAllocation_eq_zero_iff.mpr fun hw => hpi hw.1,
+          max_eq_right (le_of_not_gt fun hgt => hpi (hthr.2.2 (v i) (hv i).1 hgt.le))]
         ring
-    · have halloc0 : (postedPrice p).allocation v i = 0 :=
-        acceptAllocation_eq_zero_iff.mpr fun hw => hprev fun j hj => not_le.mp (hw.2 j hj)
-      rw [halloc0]
+    · rw [acceptAllocation_eq_zero_iff.mpr fun hw => hprev fun j hj => not_le.mp (hw.2 j hj)]
       ring
   -- Measurability & integrability of `priorReject`, `allReject`, and `excess`.
   have hm_prior : ∀ i, Measurable (priorReject i) := fun i =>
@@ -962,10 +954,9 @@ theorem integral_sum_payment_le_two_mul_virtualPostedPrices [LinearOrder ι]
     (integrable_const 1).sub hint_allReject
   have hm_excess : ∀ i, Measurable (excess i) := fun i =>
     (((hμ i).measurable_virtualValue).sub measurable_const).max measurable_const
-  have hint_excess_i : ∀ i, Integrable (excess i) (μ i) := fun i =>
-    (((hμ i).integrable_virtualValue).sub (integrable_const t)).sup (integrable_zero _ _ _)
   have hint_excess_pi : ∀ i, Integrable (fun v : ι → ℝ => excess i (v i)) (Measure.pi μ) :=
-    fun i => integrable_comp_eval (hint_excess_i i)
+    fun i => integrable_comp_eval
+      ((((hμ i).integrable_virtualValue).sub (integrable_const t)).sup (integrable_zero _ _ _))
   have hint_prod : ∀ i, Integrable (fun v => priorReject i v * excess i (v i)) (Measure.pi μ) := by
     intro i
     refine Integrable.mono' (hint_excess_pi i)

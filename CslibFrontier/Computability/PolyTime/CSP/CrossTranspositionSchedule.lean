@@ -188,16 +188,12 @@ theorem recover_transposeSchedule (I : State Rel) (js : List ℕ) (τ : ℕ → 
     rw [hp] at hstep
     have hprior := ih (fun z => τ (2^e*z)) hstep.1
     have hass : (fun z => τ (2^e*(2^(js.countP (fun t => decide (t+1<I.ports.length)))*z))) =
-        (fun z => τ (2^((js++[j]).countP (fun t => decide (t+1<I.ports.length)))*z)) := by
-      funext z
-      simp only [countP_snoc, e, pow_add]
-      congr 1
-      ac_rfl
+        (fun z => τ (2^((js++[j]).countP (fun t => decide (t+1<I.ports.length)))*z)) :=
+      funext fun z => congrArg τ (by simp only [countP_snoc, e, pow_add]; ring)
     refine ⟨by simpa only [hass] using hprior.1, ?_⟩
     rw [transposeSchedule_snoc]
     change (transposeAdjacent g w J j).ports.map τ = _
-    rw [hstep.2, hprior.2, List.foldl_append, List.foldl_cons, List.foldl_nil]
-    simp only [hass]
+    rw [hstep.2, hprior.2, List.foldl_append, List.foldl_cons, List.foldl_nil, hass]
 
 private theorem forward_step (I : State Rel) (j : ℕ) (σ : ℕ → Bool)
     (hs : I.body.eval sem σ = true) :
@@ -401,20 +397,17 @@ private theorem prefix_size (encRel : Rel ↪ List Bool) (I : State Rel) (js s :
          _ = K := by dsimp only [K]; ring
   have hL : L = 8*K := by dsimp only [L, K]; ring
   have hpad : K ≤ L := by rw [hL]; omega
-  have hw : ∀ z ∈ J.body.vars ++ J.ports, z.size ≤ L := by
-    intro z hz
-    have hx := name_width_transposeSchedule_le g w I s S hb.2.2.2.2 z hz
+  have hw : ∀ z ∈ J.body.vars ++ J.ports, z.size ≤ L := fun z hz => by
+    have hx : z.size ≤ max S (2*g.numAux+7).size + k :=
+      name_width_transposeSchedule_le g w I s S hb.2.2.2.2 z hz
     have hmax : max S (2*g.numAux+7).size ≤ K :=
       max_le (hSU.trans hUK) (hC.2.2.2.1.trans hCK)
-    change z.size ≤ max S (2*g.numAux+7).size + k at hx
-    rw [hL]
-    omega
+    rw [hL]; omega
   have hstore := prefix_storage g w I s
   have hD : J.rotation.successor.length ≤ L ∧
       ∀ v ∈ J.rotation.successor, v.size ≤ L := by
     by_cases hzero : k=0
-    · have heq := hstore.1 hzero
-      change J = I at heq
+    · have heq : J = I := hstore.1 hzero
       rw [heq]
       refine ⟨hb.2.2.1.trans (hSU.trans (hUK.trans hpad)), ?_⟩
       intro v hv
@@ -435,8 +428,7 @@ private theorem prefix_size (encRel : Rel ↪ List Bool) (I : State Rel) (js s :
       · rw [ht.1, hL]; omega
       · intro v hv
         have hx := (ht.2 v hv).trans (Nat.size_le_self _)
-        rw [hL]
-        omega
+        rw [hL]; omega
   exact State.encoding_length_le encRel J L (hq.trans hpad) (hm.trans hpad)
     (hp.trans (hUK.trans hpad)) hD.1 (hr.trans hpad) hw hD.2
 

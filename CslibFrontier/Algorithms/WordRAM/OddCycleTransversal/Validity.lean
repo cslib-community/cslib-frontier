@@ -100,6 +100,10 @@ private theorem validHistory_bfsProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.Stat
   refine validHistory_write_bind hd0 (fits_zero w) (validHistory_write_bind hp0 (fits_zero w) ?_)
   have hs2 := memReady_write (memReady_write hs1 (distBase n) 0 (fits_zero w))
     (parBase n) 0 (fits_zero w)
+  have hdist_lt {v : ℕ} (hv : v < 0 + splitCount n) {t : Memory.State} (ht : MemReady w n t) :
+      distBase n + v < t.frontier := by
+    have := ht.2
+    dsimp only [octWorkspace, distBase, flowBase, splitCount] at hv this ⊢; omega
   refine validHistory_bind_step
     (validHistory_iterate_nat (Inv := MemReady w n) (splitCount n - 1) 0
       (fun layer hlayer t ht => ⟨?_, ?_⟩) hs2)
@@ -114,9 +118,7 @@ private theorem validHistory_bfsProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.Stat
       (validHistory_pure _ _ _)
     · unfold bfsMidStep
       dsimp only [SplitNetArgs.n, SplitNetArgs.m, SplitNetArgs.arg1]
-      refine validHistory_read_bind
-        (by have := ht'.2
-            dsimp only [octWorkspace, distBase, flowBase, splitCount] at hu this ⊢; omega) ?_
+      refine validHistory_read_bind (hdist_lt hu ht') ?_
       refine validHistory_ite (fun _ => ?_) (fun _ => validHistory_pure _ _ _)
       refine validHistory_bind_step
         (validHistory_iterate_nat (Inv := MemReady w n) (splitCount n) 0
@@ -124,23 +126,18 @@ private theorem validHistory_bfsProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.Stat
         (validHistory_pure _ _ _)
       · unfold bfsInnerStep
         dsimp only [BfsInnerArgs.n, BfsInnerArgs.m, BfsInnerArgs.layer, BfsInnerArgs.u]
-        have hdv : distBase n + v < t''.frontier := by
-          have := ht''.2
-          dsimp only [octWorkspace, distBase, flowBase, splitCount] at hv this ⊢; omega
-        refine validHistory_read_bind hdv ?_
+        refine validHistory_read_bind (hdist_lt hv ht'') ?_
         refine validHistory_bind_ready ht''
           (validHistory_readResCap (d := (((n, m), u), v)) ht''
             (hu.trans_eq (Nat.zero_add _)) (hv.trans_eq (Nat.zero_add _)))
           fun _ t3 ht3 => validHistory_ite (fun _ => ?_) (fun _ => validHistory_pure _ _ _)
-        refine validHistory_write_bind
-          (by have := ht3.2
-              dsimp only [octWorkspace, distBase, flowBase, splitCount] at hv this ⊢; omega)
-          (by apply hw.of_le; dsimp only [octWorkspace, splitCount] at hlayer ⊢; omega) ?_
+        refine validHistory_write_bind (hdist_lt hv ht3)
+          (hw.of_le (by dsimp only [octWorkspace, splitCount] at hlayer ⊢; omega)) ?_
         exact validHistory_write_bind
           (by have := ht3.2
               dsimp only [octWorkspace, parBase, distBase, flowBase, splitCount] at hv this ⊢
               omega)
-          (by apply hw.of_le; dsimp only [octWorkspace, splitCount] at hu ⊢; omega)
+          (hw.of_le (by dsimp only [octWorkspace, splitCount] at hu ⊢; omega))
           (validHistory_pure _ _ _)
       · exact clientResult_bfsInnerStep _ t''
     · exact clientResult_bfsMidStep _ t'
@@ -189,8 +186,7 @@ private theorem validHistory_minSepProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.S
             (validHistory_pure _ _ _)
         · refine validHistory_read_bind had2 ?_
           refine validHistory_ite (fun _ => ?_) (fun _ => validHistory_pure _ _ _)
-          exact validHistory_write_bind had2
-            (by apply hw.of_le; dsimp only [octWorkspace]; omega)
+          exact validHistory_write_bind had2 (hw.of_le (by dsimp only [octWorkspace]; omega))
             (validHistory_pure _ _ _))
       n 0 hs1)
     fun _ s2 hs2 => ?_
@@ -213,8 +209,8 @@ private theorem validHistory_minSepProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.S
       dsimp only [octWorkspace, sepOutBase, parBase, distBase, flowBase, splitCount] at hfr hv ⊢
       omega
     exact validHistory_ite
-      (fun _ => validHistory_write_bind hsep
-        (by apply hw.of_le; dsimp only [octWorkspace]; omega) (validHistory_pure _ _ _))
+      (fun _ => validHistory_write_bind hsep (hw.of_le (by dsimp only [octWorkspace]; omega))
+        (validHistory_pure _ _ _))
       (fun _ => validHistory_write_bind hsep (fits_zero w) (validHistory_pure _ _ _))
   · exact (clientResult_extractSepStep _ t).1
 
@@ -486,7 +482,7 @@ theorem validHistory_octProg {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G
     (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (octProg ())) := by
   intro s₀
   have hfr0 : s₀.frontier = 3 + n * n := by
-    rw [show s₀.frontier = (encodeInput G k).length + 1 from rfl, length_encodeInput]; omega
+    simp only [s₀, Memory.State.init, length_encodeInput]; omega
   have hwf0 : Memory.WellFormed w s₀ :=
     Memory.wellFormed_init (inputFits_encodeInput G hw hk)
       (hw.of_le (by simp only [length_encodeInput, octWorkspace]; omega))
@@ -521,8 +517,7 @@ theorem validHistory_octProg {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G
     refine validHistory_ite (fun _ => ?_) (fun _ => ?_)
     · exact validHistory_write_bind
         (by have := ht1.2; dsimp only [octWorkspace, sepBase] at *; omega)
-        (by apply hw.of_le; dsimp only [octWorkspace]; omega)
-        (validHistory_pure _ _ _)
+        (hw.of_le (by dsimp only [octWorkspace]; omega)) (validHistory_pure _ _ _)
     · exact validHistory_ite
         (fun hLn => validHistory_bind_step
           (validHistory_compressProg (d := (((n, k), m + 1), _)) hw hLn ht1)

@@ -10,6 +10,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.WordCoordinateFingerprintLabels
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateCriticalLimit
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledIndexedFeasibility
+import Mathlib.Tactic.NormNum
 
 /-!
 # Indexed constraints for coordinate selection
@@ -21,6 +22,7 @@ increase for the individual row queries.
 
 Their sum-of-squares feasibility polynomial uses one auxiliary variable per label.
 Its modular evaluator costs one additional counting level over the labels.
+A fixed-width witness can make the labels select any given point in the root grid.
 
 Adapted from lean-canny's `SelectionSystem` and `SelectionSystemCorrectness` at
 `970f28a5ecefc1327402ade16c068aa4b1b2c183`.
@@ -186,5 +188,54 @@ theorem exists_selectionFeasibilityPolynomial_zero_iff {n d : ℕ}
         (Int.castRingHom ℝ) (x i) := by
   rw [selectionFeasibilityPolynomial, exists_indexedFeasibilityPolynomial_zero_iff]
   exact exists_congr (selection_constraints_iff F hF mass hn word)
+
+open Classical in
+/-- Each coordinate root grid point has a fixed-width word whose fingerprint labels
+select precisely that point in the grid. This adapts lean-canny's
+`CoordinateFingerprintSelection` and `ChoiceTupleCompleteness`
+at `970f28a5ecefc1327402ade16c068aa4b1b2c183`. -/
+theorem exists_coordinateSelectionWitness {n d mass : ℕ}
+    (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ d + 1)
+    (hmass : F.coeffNorm1 ≤ 2 ^ mass) (hd : 1 ≤ d) (hn : 0 < n)
+    {x : Fin n → ℝ} (hx : x ∈ coordinateRootGrid (Nat.succ_pos d) F hF) :
+    ∃ word : List Bool, word.length = coordinateFingerprintWitnessWidth ((d + 1) ^ n) n ∧
+      ∀ y : Fin n → ℝ, (y ∈ coordinateRootGrid (Nat.succ_pos d) F hF ∧
+        ∀ i : Fin n, 0 < (wordCoordinateFingerprintLabel F hF mass hn word i.val).eval₂
+          (Int.castRingHom ℝ) (y i)) ↔ y = x := by
+  let D := (d + 1) ^ n
+  let b := parametricCoordinateCoeffNormExponent n (d + 1) mass
+  let Q (i : Fin n) :=
+    (Polynomial.Bivariate.swap
+      (parametricCoordinatePolynomial (Nat.succ_pos d) F hF i)).leadingCoeff
+  have hroot {y : Fin n → ℝ} (hy : y ∈ coordinateRootGrid (Nat.succ_pos d) F hF) (i : Fin n) :
+      (Q i).eval₂ (Int.castRingHom ℝ) (y i) = 0 := by
+    simpa only [Q, Polynomial.IsRoot.def, Polynomial.eval_map] using mem_coordinateRootGrid.mp hy i
+  have hbounds (i : Fin n) :=
+    leadingCoeff_swap_parametricCoordinatePolynomial_bounds (Nat.succ_le_succ hd) F hF hmass i
+  have hone : (1 : Polynomial ℤ).coeffNorm1 ≤ 2 ^ b := by
+    rw [Polynomial.coeffNorm1_one]
+    exact Nat.one_le_two_pow
+  have hlabels (i : Fin n) := Polynomial.exists_fingerprintIntegerRootLabel (q := 1)
+    (leadingCoeff_swap_parametricCoordinatePolynomial_ne_zero (Nat.succ_pos d) F hF i)
+    (hbounds i).1 (by simp) (hbounds i).2 hone (hroot hx i) (by simp)
+  choose μ t target hprime hmin hmax ht htarget hpos hneg using hlabels
+  let f (i : Fin n) : CoordinateFingerprint := ⟨μ i, t i, target i⟩
+  have hf (i : Fin n) : (f i).Bounded D := ⟨hmin i, hmax i, ht i, htarget i⟩
+  obtain ⟨word, hlen, hword⟩ := exists_coordinateFingerprintWitness f hf
+  have hlabel (i : Fin n) : wordCoordinateFingerprintLabel F hF mass hn word i.val =
+      Polynomial.fingerprintIntegerRootLabel (Q i) 1 D b (μ i) (t i) (target i) := by
+    simp only [wordCoordinateFingerprintLabel, hword i, Nat.mod_eq_of_lt i.isLt, f, Q, D, b]
+  have hhalf : (0 : ℝ) < 1 / 2 := by norm_num
+  refine ⟨word, hlen, fun y => ?_⟩
+  constructor
+  · rintro ⟨hy, hypos⟩
+    funext i
+    by_contra hne
+    have hnpos := (hneg i (y i) (hroot hy i) hne).trans (by norm_num : (-1 : ℝ) / 2 ≤ 0)
+    exact (not_lt_of_ge hnpos) (by simpa only [hlabel] using hypos i)
+  · rintro rfl
+    refine ⟨hx, fun i => ?_⟩
+    rw [hlabel i]
+    exact hhalf.trans_le (hpos i)
 
 end Cslib.Complexity.RealAlgebraic

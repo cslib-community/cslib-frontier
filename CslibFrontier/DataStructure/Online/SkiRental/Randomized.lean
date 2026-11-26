@@ -107,9 +107,7 @@ theorem ofReal_randomizedRatio {B : ℕ} (hB : 1 ≤ B) :
       ((B ^ B : ℕ) : ℝ≥0∞) / ((B ^ B - (B - 1) ^ B : ℕ) : ℝ≥0∞) := by
   have hlt : (B - 1) ^ B < B ^ B := Nat.pow_lt_pow_left (by omega) (by omega)
   have hcast : (((B ^ B - (B - 1) ^ B : ℕ)) : ℝ) = (B : ℝ) ^ B - ((B : ℝ) - 1) ^ B := by
-    rw [Nat.cast_sub hlt.le]
-    push_cast [Nat.cast_sub hB]
-    ring
+    simp [Nat.cast_sub hlt.le, Nat.cast_sub hB]
   have hpos : (0 : ℝ) < ((B ^ B - (B - 1) ^ B : ℕ) : ℝ) := by
     exact_mod_cast Nat.sub_pos_of_lt hlt
   rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_div_of_pos hpos,
@@ -144,8 +142,7 @@ ratio (`SkiRental.breakEven_mul_cost_le`, `SkiRental.exists_ratio_violation_of_l
 theorem randomizedRatio_lt_two_sub {B : ℕ} (hB : 2 ≤ B) :
     randomizedRatio B < 2 - 1 / (B : ℝ) := by
   rcases hB.eq_or_lt with rfl | hB3
-  · rw [randomizedRatio_eq (by norm_num)]
-    norm_num
+  · rw [randomizedRatio_eq (by norm_num)]; norm_num
   · have h53 : Real.exp 1 / (Real.exp 1 - 1) < 5 / 3 := by
       rw [div_lt_iff₀ (by linarith [Real.exp_one_gt_d9])]
       linarith [Real.exp_one_gt_d9]
@@ -238,8 +235,7 @@ private theorem le_sum_adv_mul_cost_aux (m t : ℕ) :
     have htail : ∑ k ∈ Ico t m, m ^ k * (m + 1) ^ (m - 1 - k) + m ^ m =
         m ^ t * (m + 1) ^ (m - t) := by omega
     rw [← htail] at hb
-    rw [← hb]
-    exact le_of_eq (by ring)
+    exact hb ▸ le_of_eq (by ring)
   · -- the strategy rents through every short sequence: it pays at least `2B - 1` on the long one
     have hb := sum_adv_mul_aux m m le_rfl
     rw [Nat.sub_self, pow_zero, mul_one] at hb
@@ -276,9 +272,7 @@ theorem buyWeight_eq {B t : ℕ} (hB : 1 ≤ B) (ht : t < B) :
     (buyWeight B t : ℝ) = (B : ℝ) ^ (B - 1) * (1 - 1 / (B : ℝ)) ^ (B - 1 - t) := by
   have hB0 : (B : ℝ) ≠ 0 := by positivity
   have hpow : (B : ℝ) ^ (B - 1) = (B : ℝ) ^ t * (B : ℝ) ^ (B - 1 - t) := by
-    rw [← pow_add]
-    congr 1
-    omega
+    rw [← pow_add, Nat.add_sub_cancel' (by omega)]
   rw [hpow, buyWeight, Nat.cast_mul, Nat.cast_pow, Nat.cast_pow, Nat.cast_sub hB, Nat.cast_one,
     one_sub_div hB0, div_pow]
   field_simp
@@ -454,8 +448,7 @@ theorem exists_randomized_witness (B : ℕ) (μ : RandStrategy (problem B)) :
       ENNReal.ofReal (randomizedRatio B) * (problem B).scheduleCost false reqs states ≤
         RandStrategy.expectedCost μ false reqs := by
   rcases Nat.eq_zero_or_pos B with rfl | hB
-  · refine ⟨[()], [false], ⟨id, trivial⟩, le_rfl, ?_⟩
-    simp [randomizedRatio]
+  · exact ⟨[()], [false], ⟨id, trivial⟩, le_rfl, by simp [randomizedRatio]⟩
   have : NeZero B := ⟨hB.ne'⟩
   have hV0 : ((B ^ (B - 1) : ℕ) : ℝ≥0∞) ≠ 0 := by exact_mod_cast (pow_pos hB _).ne'
   obtain ⟨o, -, ho⟩ := RandStrategy.exists_le_mul_expectedCost (adversary B) false
@@ -463,12 +456,10 @@ theorem exists_randomized_witness (B : ℕ) (μ : RandStrategy (problem B)) :
     (fun o => ((B ^ B * min (advDays B o) B : ℕ) : ℝ≥0∞))
     ((B ^ B - (B - 1) ^ B : ℕ) : ℝ≥0∞)
     (by
-      simp only [adversary_apply]
-      rw [tsum_natCast_div_mul]
+      simp only [adversary_apply, tsum_natCast_div_mul]
       exact ENNReal.div_ne_top (ENNReal.natCast_ne_top _) hV0)
     (fun A => by
-      simp only [adversary_apply]
-      rw [tsum_natCast_div_mul, tsum_natCast_div_mul, ← mul_div_assoc, ← Nat.cast_mul]
+      simp only [adversary_apply, tsum_natCast_div_mul, ← mul_div_assoc, ← Nat.cast_mul]
       have key : ∑ o, advWeight B o * (B ^ B * min (advDays B o) B) ≤
           (B ^ B - (B - 1) ^ B) *
             ∑ o, advWeight B o * A.cost false (List.replicate (advDays B o) ()) := by

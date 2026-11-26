@@ -107,13 +107,11 @@ private theorem angular_crossing_integral_le {c θ : ℝ} (hc0 : 0 ≤ c) (hcπ 
     ring
   have hint_g_shift : ∫ φ in (-π)..π, g (φ - θ) = 2 * c := by
     rw [intervalIntegral.integral_comp_sub_right, ← hint_g]
-    simpa only [show -π - θ + 2 * π = π - θ by ring, show -π + 2 * π = π by ring] using
-      hg_per.intervalIntegral_add_eq (-π - θ) (-π)
+    convert hg_per.intervalIntegral_add_eq (-π - θ) (-π) using 2 <;> ring
   let cross : ℝ → ℝ := fun φ => if ¬(cos c ≤ cos φ ↔ cos c ≤ cos (φ - θ)) then 1 else 0
   have hcross_eq (φ : ℝ) : cross φ = g φ + g (φ - θ) - 2 * (g φ * g (φ - θ)) := by
     by_cases h1 : cos c ≤ cos φ <;> by_cases h2 : cos c ≤ cos (φ - θ) <;>
-      simp [cross, g, h1, h2]
-    norm_num
+      norm_num [cross, g, h1, h2]
   have hprod_ii : IntervalIntegrable (fun φ => g φ * g (φ - θ)) volume (-π) π :=
     hint_bdd _ (hg_meas.mul (hg_meas.comp (measurable_id.sub_const θ)))
       (fun x => mul_nonneg (hg0 _) (hg0 _))
@@ -134,8 +132,7 @@ private theorem angular_crossing_integral_le {c θ : ℝ} (hc0 : 0 ≤ c) (hcπ 
         hint_bdd indI (measurable_const.indicator measurableSet_Icc)
           (fun _ => indicator_nonneg (fun _ _ => zero_le_one) _)
           (fun _ => indicator_apply_le' (fun _ => one_le_two) fun _ => zero_le_two)
-      have hpt : ∀ φ ∈ Icc (-π) π, indI φ ≤ g φ * g (φ - θ) := by
-        intro φ _
+      have hpt φ (_ : φ ∈ Icc (-π) π) : indI φ ≤ g φ * g (φ - θ) := by
         by_cases hφ : φ ∈ Icc (θ - c) c
         · have h1 : |φ| ≤ c := abs_le.mpr ⟨by linarith [hφ.1], hφ.2⟩
           have h2 : |φ - θ| ≤ c := abs_le.mpr ⟨by linarith [hφ.1], by linarith [hφ.2]⟩
@@ -201,10 +198,9 @@ theorem measureReal_stdGaussian_mem_uIoc_le_exp_mul_angle
     dsimp [rad]; positivity
   have hrad_int : IntegrableOn rad (Ioi 0) :=
     (integrable_mul_exp_neg_sq_div_two.const_mul _).integrableOn
-  have hdens : ∀ r φ,
+  have hdens (r φ : ℝ) :
       gaussianPDFReal 0 1 (r * cos φ) * gaussianPDFReal 0 1 (r * sin φ) =
         (2 * π)⁻¹ * exp (-(r ^ 2) / 2) := by
-    intro r φ
     simp only [gaussianPDFReal_def, sub_zero, NNReal.coe_one, mul_one]
     rw [mul_mul_mul_comm, ← mul_inv, mul_self_sqrt (by positivity), ← exp_add]
     congr 2
@@ -215,8 +211,8 @@ theorem measureReal_stdGaussian_mem_uIoc_le_exp_mul_angle
     rw [← integral_indicator_one hAm]
     change ∫ z, A.indicator (fun _ => (1 : ℝ)) z ∂((gaussianReal 0 1).prod (gaussianReal 0 1)) = _
     rw [gaussianReal_of_var_ne_zero 0 one_ne_zero,
-      prod_withDensity (measurable_gaussianPDF 0 1) (measurable_gaussianPDF 0 1)]
-    rw [integral_withDensity_eq_integral_toReal_smul]
+      prod_withDensity (measurable_gaussianPDF 0 1) (measurable_gaussianPDF 0 1),
+      integral_withDensity_eq_integral_toReal_smul]
     · rw [← Measure.volume_eq_prod, ← integral_comp_polarCoord_symm]
       trans ∫ p in Ioi (0 : ℝ) ×ˢ Ioo (-π) π,
           rad p.1 * A.indicator (fun _ => (1 : ℝ)) (p.1 * cos p.2, p.1 * sin p.2)
@@ -303,9 +299,8 @@ theorem measureReal_stdGaussian_mem_uIoc_le_exp_mul_angle
       (Ioi |t|).indicator (fun r => rad r * (2 * θ)) :=
     funext fun _ => (indicator_mul_right _ _ _).symm
   have hRHS_int :
-      IntegrableOn (fun r => rad r * (Ioi |t|).indicator (fun _ => 2 * θ) r) (Ioi 0) := by
-    rw [hrewrite]
-    exact (hrad_int.mul_const _).indicator measurableSet_Ioi
+      IntegrableOn (fun r => rad r * (Ioi |t|).indicator (fun _ => 2 * θ) r) (Ioi 0) :=
+    hrewrite ▸ (hrad_int.mul_const _).indicator measurableSet_Ioi
   calc ∫ r in Ioi (0 : ℝ), rad r * angInt r
       ≤ ∫ r in Ioi (0 : ℝ), rad r * (Ioi |t|).indicator (fun _ => 2 * θ) r :=
         integral_mono_ae hLHS_int hRHS_int hang_ae

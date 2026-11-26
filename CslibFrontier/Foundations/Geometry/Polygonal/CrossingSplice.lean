@@ -405,13 +405,9 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
   have hc : c ∈ Metric.sphere z ρ := (hjSphere lj).mpr (Or.inl rfl)
   have hd : d ∈ Metric.sphere z ρ := (hjSphere uj).mpr (Or.inr rfl)
   have hport_ne {u v : ℝ} (hu : u ∈ Set.Icc 0 1) (hv : v ∈ Set.Icc 0 1)
-      (hsphere : p.eval i u ∈ Metric.sphere z ρ) : p.eval i u ≠ p.eval j v := by
-    intro h
-    have hmem₁ : p.eval i u ∈ segment ℝ (p.point i.castSucc) (p.point i.succ) :=
-      lineMap_mem_segment ℝ _ _ hu
-    have hmem₂ : p.eval j v ∈ segment ℝ (p.point j.castSucc) (p.point j.succ) :=
-      lineMap_mem_segment ℝ _ _ hv
-    have he : p.eval i u = z := hpair ⟨hmem₁, h.symm ▸ hmem₂⟩
+      (hsphere : p.eval i u ∈ Metric.sphere z ρ) : p.eval i u ≠ p.eval j v := fun h => by
+    have he : p.eval i u = z := hpair ⟨lineMap_mem_segment ℝ _ _ hu,
+      Set.mem_of_eq_of_mem h (lineMap_mem_segment ℝ _ _ hv)⟩
       ⟨openSegment_subset_segment ℝ _ _ hzi, openSegment_subset_segment ℝ _ _ hzj⟩
     exact hρ.ne' ((Metric.mem_sphere.mp hsphere).symm.trans (he.symm ▸ dist_self z))
   have hli' : li ∈ Set.Icc 0 1 := ⟨hli.le, (hi₀.trans hui).le⟩
@@ -455,20 +451,17 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
   let N := segment ℝ a c ∪ segment ℝ b d
   have hcenter : z ∉ N := by
     let f := AffineEquiv.pointReflection ℝ z
-    have hfb : f a = b := midpoint_eq_iff.mp hiMid
-    have hfd : f c = d := midpoint_eq_iff.mp hjMid
     have hfz : f z = z := AffineEquiv.pointReflection_self ℝ z
     have hreflect : f.toAffineMap '' segment ℝ a c = segment ℝ b d := by
-      rw [image_segment, AffineEquiv.coe_toAffineMap, hfb, hfd]
+      rw [image_segment, AffineEquiv.coe_toAffineMap]
+      exact congrArg₂ _ (midpoint_eq_iff.mp hiMid) (midpoint_eq_iff.mp hjMid)
     rintro (h | h)
     · exact Set.disjoint_left.mp hdisjoint h (hreflect ▸ ⟨z, h, hfz⟩)
     · obtain ⟨w, hw, he⟩ := hreflect ▸ h
       exact Set.disjoint_left.mp hdisjoint (f.injective (he.trans hfz.symm) ▸ hw) h
   have hq : q.support = E ∪ N := by
-    dsimp only [q]
-    rw [support_concat _ _ hjoinS, support_concat _ _ hjoinR, support_concat _ _ hjoinM,
-      support_concat _ _ hjoinL, support_reverse]
-    simp only [L, R, E, N, support_line]
+    simp only [q, L, R, E, N, support_concat _ _ hjoinS, support_concat _ _ hjoinR,
+      support_concat _ _ hjoinM, support_concat _ _ hjoinL, support_reverse, support_line]
     ac_rfl
   have hNew : N ⊆ B := Set.union_subset
     ((convex_closedBall z ρ).segment_subset (Metric.sphere_subset_closedBall ha)
@@ -476,8 +469,7 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
     ((convex_closedBall z ρ).segment_subset (Metric.sphere_subset_closedBall hb)
       (Metric.sphere_subset_closedBall hd))
   have hE : E ⊆ p.support := by
-    dsimp only [E]
-    rw [hA, hM, hS]
+    simp only [E, hA, hM, hS]
     exact Set.union_subset (Set.union_subset (intervalSupport_subset p 0 i le_rfl
       (hi₀.trans hui).le) (intervalSupport_subset p i j (hli.trans hi₀).le
         (hj₀.trans huj).le)) (intervalSupport_subset p j jlast (hlj.trans hj₀).le le_rfl)
@@ -861,18 +853,16 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
       q.position k s = q.position l t := by
     rcases hcontact k hs hw with ⟨x, hx, hx₁, hx₂⟩ | ⟨x, hx, hx₁, hx₂⟩ <;>
       rcases hcontact l ht (he ▸ hw) with ⟨y, hy, hy₁, hy₂⟩ | ⟨y, hy, hy₁, hy₂⟩
-    · have hxy := AffineMap.lineMap_injective ℝ (hport_ne hli' hlj' ha)
-        (hx₁.symm.trans (he.trans hy₁))
-      rw [hx₂, hy₂, hxy]
+    · rw [hx₂, hy₂, AffineMap.lineMap_injective ℝ (hport_ne hli' hlj' ha)
+        (hx₁.symm.trans (he.trans hy₁))]
     · exact (Set.disjoint_left.mp hdisjoint
         (hx₁.symm ▸ lineMap_mem_segment ℝ _ _ hx)
         (he.symm ▸ hy₁.symm ▸ lineMap_mem_segment ℝ _ _ hy)).elim
     · exact (Set.disjoint_left.mp hdisjoint
         (he.symm ▸ hy₁.symm ▸ lineMap_mem_segment ℝ _ _ hy)
         (hx₁.symm ▸ lineMap_mem_segment ℝ _ _ hx)).elim
-    · have hxy := AffineMap.lineMap_injective ℝ (hport_ne hui' huj' hb)
-        (hx₁.symm.trans (he.trans hy₁))
-      rw [hx₂, hy₂, hxy]
+    · rw [hx₂, hy₂, AffineMap.lineMap_injective ℝ (hport_ne hui' huj' hb)
+        (hx₁.symm.trans (he.trans hy₁))]
   have hExteriorVisit (k : Fin q.segments) {u : ℝ} (hu : u ∈ Set.Icc 0 1) (hw : q.eval k u ∉ B) :=
     (hExterior k hu hw).imp fun _ => Exists.imp fun _ h => And.intro h.1 (And.intro h.2.1 h.2.2.1)
   have hPoints (hp : Function.Injective p.point) : Function.Injective q.point := by
@@ -894,8 +884,7 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
       (a : Fin (q.segments + 1)) (l : Fin q.segments) :
       q.point a ∉ openSegment ℝ (q.point l.castSucc) (q.point l.succ) := by
     intro he
-    rw [openSegment_eq_image_lineMap] at he
-    obtain ⟨t, ht, hqb⟩ := he
+    obtain ⟨t, ht, hqb⟩ := by rwa [openSegment_eq_image_lineMap] at he
     obtain ⟨k, s, hs, hsb, hqa, hsa⟩ := exists_parameter_at_point q a
     have hqt : q.eval k s = q.eval l t := hqa.trans hqb.symm
     have hpos : q.position k s ≠ q.position l t :=
@@ -907,22 +896,19 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
     obtain ⟨a', hpa, _⟩ := exists_point_at_end_parameter i hu (fun h => hsb (hsU.mpr h))
     exact hp a' j
       ((hpa.symm.trans (hi.trans (hqt.trans hj.symm))) ▸ lineMap_mem_openSegment ℝ _ _ (htV.mp ht))
-  have hDisk : q.support ∩ B = N := by
-    ext w
-    constructor
-    · rintro ⟨hw, hdisk⟩
+  have hDisk : q.support ∩ B = N := Set.Subset.antisymm
+    (fun w ⟨hw, hdisk⟩ => by
       obtain ⟨k, u, hu, rfl⟩ := (q.mem_support_iff w).mp hw
       rcases hcontact k hu hdisk with ⟨v, hv, he, _⟩ | ⟨v, hv, he, _⟩
       · exact Or.inl (he.symm ▸ lineMap_mem_segment ℝ _ _ hv)
-      · exact Or.inr (he.symm ▸ lineMap_mem_segment ℝ _ _ hv)
-    · exact fun hw => ⟨hq.symm ▸ Or.inr hw, hNew hw⟩
+      · exact Or.inr (he.symm ▸ lineMap_mem_segment ℝ _ _ hv))
+    fun _ hw => ⟨hq.symm ▸ Or.inr hw, hNew hw⟩
   have hNoCenter : z ∉ q.support := fun hz =>
     hcenter (hDisk ▸ ⟨hz, Metric.mem_closedBall_self (x := z) hρ.le⟩)
   refine ⟨q, hstart, hfinish, hNoCenter, ?_, ?_, ?_, hCross, hpositions, hExteriorContact, hnondeg,
     hExteriorVisit, hPoints, hAvoid, hexterior_open, li, ui, lj, uj,
     hli, hi₀, hui, hlj, hj₀, huj, ha, hb, hc, hd, hDisk, hdisjoint⟩
-  · change q.support \ B = p.support \ B
-    rw [hq]
+  · rw [hq]
     ext w
     exact ⟨fun hw => ⟨hE (hw.1.resolve_right (fun hn => hw.2 (hNew hn))), hw.2⟩,
       fun hw => ⟨Or.inl (cover hw), hw.2⟩⟩

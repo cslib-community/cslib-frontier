@@ -176,9 +176,7 @@ private theorem approx_scale_le {F n m Δ d B : ℝ}
   have h2 : d * (√m / Δ) ≤ √m * 4 := by
     rw [mul_div_left_comm]; exact mul_le_mul_of_nonneg_left hdiv (Real.sqrt_nonneg m)
   refine le_of_mul_le_mul_left ?_ hd
-  have := mul_le_mul_of_nonneg_left (show d * (√(n / Δ) + √m / Δ) ≤ 4 * (√(n * d) + √m) by
-    linarith [Real.sqrt_nonneg (n * d)]) hF
-  linarith
+  nlinarith [Real.sqrt_nonneg (n * d)]
 
 end Helpers
 
@@ -411,10 +409,9 @@ private theorem index_to_value_bound_of_twoValues {ι V W α : Type*}
     L ≤ C * ((T : ℝ) + 1) := by
   classical
   obtain ⟨U', ψ₀', out', hnorm, hsim⟩ := exists_sim_index_to_value step v₀ read U ψ₀ T idx
-  have hres := htwo U' (hnorm.trans hψ₀) out' fun X hX => by
-    rw [hsim X (fun i => by rcases hX i with hi | hi <;> simpa [hi] using ‹_›) (P X)]
-    exact hgood X hX
-  simpa only [Nat.cast_add, Nat.cast_one] using hres
+  simpa only [Nat.cast_add, Nat.cast_one] using htwo U' (hnorm.trans hψ₀) out' fun X hX =>
+    (hgood X hX).trans_eq
+      (hsim X (fun i => by rcases hX i with hi | hi <;> simpa [hi] using ‹_›) (P X)).symm
 
 private theorem perm_index_to_value_bound_of_twoValues {ι V W α : Type*}
     [Fintype ι] [Fintype V] [Fintype W] [Nonempty ι]
@@ -433,10 +430,8 @@ private theorem perm_index_to_value_bound_of_twoValues {ι V W α : Type*}
     L ≤ C * ((T : ℝ) + 1) := by
   classical
   obtain ⟨U', ψ₀', out', hnorm, hsim⟩ := exists_sim_index_to_value_perm π v₀ a₀ a₁ hne U ψ₀ T idx
-  have hres := htwo U' (hnorm.trans hψ₀) out' fun X hX => by
-    rw [hsim X hX (P X)]
-    exact hgood X hX
-  simpa only [Nat.cast_add, Nat.cast_one] using hres
+  simpa only [Nat.cast_add, Nat.cast_one] using htwo U' (hnorm.trans hψ₀) out' fun X hX =>
+    (hgood X hX).trans_eq (hsim X hX (P X)).symm
 
 end TwoValueSimBridge
 
@@ -535,9 +530,8 @@ private theorem one_sub_mul_kthSmallest_le_of_sim {ι V W α : Type*}
         (by rw [min_eq_left (Nat.zero_le d₂)]; exact Nat.zero_le c₁)
         (by rw [max_eq_right (Nat.zero_le d₂)]; exact hc₁_le_d₂)
         (Or.inl rfl) (Or.inr (by linarith only [hcsub, hc₁_lt_R, hd₂_ge])) ?_
-      push_cast
-      rw [zero_sub, abs_neg, abs_of_nonneg (Nat.cast_nonneg d₂)]
-      exact hd₂_le_4
+      simpa only [Nat.cast_zero, zero_sub, abs_neg,
+        abs_of_nonneg (Nat.cast_nonneg (α := ℝ) d₂)] using hd₂_le_4
   · have hkd₁ : k < d₁ := by dsimp only [c₁] at hhi; omega
     have hk_lt_R : (k : ℝ) < Δ := Nat.lt_ceil.mp hkd₁
     have hk_le_d₂ : k ≤ d₂ := by

@@ -246,7 +246,6 @@ theorem correct_op (hE : Env v a P B Post R) {Γ : List ℕ} {α : Type} (k : �
         (by simp only [length_countTestCode, length_compile]; omega)
         (by simp only [length_countTestCode, length_compile]; omega)
   | true =>
-  have hdb : base + 2 * k + 2 + scratch (body ⟨0, Nat.one_pos⟩) ≤ regs.length := by omega
   -- the body block
   let code := compile v (α := α ⊕ Fin ((TC.shape k).binder ⟨0, Nat.one_pos⟩).vars)
     (Sum.elim fv fun i => base + i.val) (base + 2 * k + 2) (body ⟨0, Nat.one_pos⟩) true
@@ -275,8 +274,7 @@ theorem correct_op (hE : Env v a P B Post R) {Γ : List ℕ} {α : Type} (k : �
       fun regs' h => ⟨h.1, h.2.reflTransGen⟩
   · have : 0 < a.1 ^ k := pow_pos hn k
     have hcard : Nat.card (Fin k → Fin a.1) ≤ a.1 ^ k - 1 + 1 := by
-      rw [Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin]
-      omega
+      simp only [Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_fin]; omega
     obtain ⟨m, hm, hsteps⟩ := (Relation.reflTransGen_iff_relatesWithinSteps hcard).mp hsat
     exact loop_complete hP' hbase hE.card_le hNB hNB h0 hdst hM
       (fun us ws t regs₃ hmid => (hbody us ws t regs₃ hmid).2) m 0 s₀ regsI hsteps (by omega)
@@ -313,13 +311,11 @@ theorem encodedLanguage_mem_NL {φ : Formula (language L) TC.shape [] Empty}
       let _ := v.decode a
       obtain ⟨hB1, hnB, hwidth, -, -⟩ := decider_bounds v a (TC.width φ)
       have hE : Env v a _ (((encStructure a).length + 1) ^ (v.maxArity + TC.width φ)) _ F :=
-        ⟨fun fv base val => ModelChecker.atomicCompiler_correct hwf fv base val, hB1, hnB, hF,
-          hPost⟩
-      have hC := correct hE φ rfl true hwidth (fun e : Empty => e.elim) 3 Empty.elim
-        RelEnv.empty b T regs hP (by decide) (fun e => e.elim) (by omega) h0 (fun e => e.elim) hB
-      refine ⟨hC.1.mono fun regs' ⟨hk, hsat⟩ =>
-        ⟨hk.bounded, hwf, hn, (hφ (decoded v a hn)).mpr hsat⟩, fun ⟨_, _, hK⟩ => ?_⟩
-      exact (hC.2 ((hφ (decoded v a hn)).mp hK)).mono fun _ _ => trivial
+        ⟨ModelChecker.atomicCompiler_correct hwf, hB1, hnB, hF, hPost⟩
+      have hC := correct hE φ rfl true hwidth Empty.elim 3 Empty.elim
+        RelEnv.empty b T regs hP (by decide) nofun (by omega) h0 nofun hB
+      exact ⟨hC.1.mono fun _ ⟨hk, hsat⟩ => ⟨hk.bounded, hwf, hn, (hφ (decoded v a hn)).mpr hsat⟩,
+        fun ⟨_, _, hK⟩ => (hC.2 ((hφ (decoded v a hn)).mp hK)).mono fun _ _ => trivial⟩
 
 end Cslib.Logic.FO.Ordered.TCModelChecker
 

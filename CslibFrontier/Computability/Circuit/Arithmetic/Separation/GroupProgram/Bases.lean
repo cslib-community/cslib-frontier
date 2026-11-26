@@ -188,12 +188,10 @@ private theorem exists_formula_simSem (mu : Tape.Letter S Unit Γ → Matrix Q Q
   set x := Tree.cons (num T) (.cons (num q) (num q'))
   let s₀ : Transducer.State (Fintype.card Q) 0 n (List Bool) := ⟨q, Fin.elim0, fun _ => []⟩
   have hs₀ : s₀.enc ofBits = .cons (num q) (.cons .nil (listT (List.replicate n .nil))) := by
-    simp only [Transducer.State.enc, s₀, List.ofFn_zero, List.map_nil, List.ofFn_const]
-    rfl
+    simp only [Transducer.State.enc, s₀, List.ofFn_zero, List.map_nil, List.ofFn_const]; rfl
   have h1 : Gives θ (.cons (.hd .id) (.cons (.hd (.tl .id)) (.cons (.quote .nil)
-      (.quote (listT (List.replicate n .nil)))))) x (.cons (num T) (s₀.enc ofBits)) 20 := by
-    rw [hs₀]
-    exact ((Gives.id x).hd.cons ((Gives.id x).tl.hd.cons ((Gives.quote _ x).cons
+      (.quote (listT (List.replicate n .nil)))))) x (.cons (num T) (s₀.enc ofBits)) 20 :=
+    hs₀ ▸ ((Gives.id x).hd.cons ((Gives.id x).tl.hd.cons ((Gives.quote _ x).cons
       (Gives.quote _ x)))).mono (by omega)
   refine ((Does.letk_enc (Does.of_gives h1 (hR T s₀)) (f := fun s =>
     (if s.control = q' then [((1 : A), s.outputs)] else []).map (Prod.map id Outputs.enc))
@@ -207,8 +205,7 @@ private theorem exists_formula_simSem (mu : Tape.Letter S Unit Γ → Matrix Q Q
     by_cases h : b.2.control = q'
     · refine ((Does.ite_true e (by simp [h, bit, one]) (Gives.id y).tl.tl.tl).of_eq ?_).mono
         (by omega)
-      simp only [h, ↓reduceIte, List.map_cons, List.map_nil]
-      rfl
+      simp only [h, ↓reduceIte, List.map_cons, List.map_nil]; rfl
     · have hne : num (b.2.control : ℕ) ≠ num q' := fun h' =>
         h (Fin.ext (by simpa using congrArg len h'))
       exact ((Does.ite_false (by simpa [hne, bit] using e) (Does.fail y)).of_eq
@@ -350,20 +347,17 @@ private theorem exists_formula_packSem (sep : List Bool) {c : ℕ} (hsep : sep.l
     (f := fun i : Fin (tapeCount S) => nthF i.rev (.hd (.tl (.tl (.tl .id)))))
     (g := fun i => nthF (Fin.castAdd (tapeCount S) i.rev) (.hd .id))
     (fun i => ⟨B.flags.getD i.rev [], o (Fin.castAdd (tapeCount S) i.rev)⟩)
-    (fun i => by
-      have := nthF_gives (i.rev : ℕ) gF
-      rw [getD_map_flags] at this
-      exact this.mono (by have := i.rev.2; omega))
+    (fun i => (getD_map_flags B.flags i.rev ▸ nthF_gives (i.rev : ℕ) gF).mono
+      (by have := i.rev.2; omega))
     (fun i => (nthF_gives_ofFn (Fin.castAdd (tapeCount S) i.rev) gO).mono (by omega))
   have hR := Does.of_gives (iR.cons (gOnes.cons ((Gives.id x).tl.hd.cons
     (gW.cons (Gives.id x).tl.tl.hd))))
     (hCP c N m ub (writeItems B.flags o) B.writeKeys t hsep (by omega) fun it hit => by
       obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hit
       exact ⟨by
-        dsimp only
         have := length_getD_le B.flags i.rev
         have := hO (Fin.castAdd (tapeCount S) i.rev)
-        omega, hc _⟩)
+        dsimp only; omega, hc _⟩)
   rw [show (writeItems B.flags o).length = tapeCount S from List.length_ofFn] at hR
   -- what is read
   have hC : ∀ t1 : Tree, Does θ _ (.cons x t1)
@@ -387,10 +381,8 @@ private theorem exists_formula_packSem (sep : List Bool) {c : ℕ} (hsep : sep.l
     have h := hCP c N m ub (readItems m o) B.readKeys t1 hsep (by omega) fun it hit => by
       obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hit
       exact ⟨by
-        dsimp only
         have := hO (Fin.natAdd (tapeCount S) i.rev)
-        simp only [List.length_replicate]
-        omega, hc _⟩
+        simp only [List.length_replicate]; omega, hc _⟩
     rw [show (readItems m o).length = tapeCount S from List.length_ofFn] at h
     exact Does.of_gives (iC.cons (gOnes'.cons ((Gives.id y).hd.tl.hd.cons
       ((Gives.id y).hd.tl.tl.tl.tl.tl.cons (Gives.id y).tl)))) h

@@ -364,20 +364,16 @@ public lemma foldNext_inO : ComputableInO foldNext (encPair eSt encBool) eSt
     (fun p => ((encPair eSt encBool p).length + 1) ^ 2)
     fun p => (encPair eSt encBool p).length + 1 := by
   have hs := fst eSt encBool
-  have hb := snd eSt encBool
-  have hdc := hs.fst'
   have hn := hs.snd'
-  have hr := hn.fst'
   have hk := hn.snd'.fst'
   have hcur := hn.snd'.snd'
   have hk1 := (ComputableInO.eq encNat).comp (hk.prod (const (encMid := encNat) 1))
   have hsucc := (of_linear (.of_cons_true (f := (· + 1)) (encIn := encUnary) (encMid := encUnary)
     fun n => rfl)).comp_linear hcur
-  have hkpred := ComputableInO.natPred.comp hk
-  have hdigit := hdc.prod (hr.prod (hk.prod (hk1.ite hsucc hcur)))
-  have hend := hdc.prod (hr.prod (hkpred.prod hcur))
-  refine ((hb.ite hdigit hend).of_enc_eq (g := foldNext) fun p => ?_).mono 100 (fun p => ?_)
-    fun p => ?_
+  have hdigit := hs.fst'.prod (hn.fst'.prod (hk.prod (hk1.ite hsucc hcur)))
+  have hend := hs.fst'.prod (hn.fst'.prod ((ComputableInO.natPred.comp hk).prod hcur))
+  refine (((snd eSt encBool).ite hdigit hend).of_enc_eq (g := foldNext) fun p => ?_).mono 100
+    (fun p => ?_) fun p => ?_
   · obtain ⟨⟨dc, r, k, cur⟩, b⟩ := p
     cases b <;> simp [foldNext, scan]
   all_goals
@@ -422,25 +418,21 @@ public lemma stepAt_inO : ComputableInO stepAt eSt (encPair eCfg eSym)
     (fun s => ((eSt s).length + 1) ^ 3) fun s => (eSt s).length + 1 := by
   have hdc := fst (encPair eDesc eCfg) (encPair encNat (encPair encNat encUnary))
   have hn := snd (encPair eDesc eCfg) (encPair encNat (encPair encNat encUnary))
-  have hc := hdc.snd'
-  have hpos := (hc.of_enc_eq (encOut := eCfgFields)
+  have hpos := (hdc.snd'.of_enc_eq (encOut := eCfgFields)
     (g := fun s : St => (s.1.2.state, s.1.2.inputPos, s.1.2.workTapes)) fun _ => rfl).snd'.fst'
-  have hr := hn.fst'
-  have hk := hn.snd'.fst'
-  have hcur := hn.snd'.snd'
   have hor := (ComputableInDegree.of_finite (encIn := encPair encBool encBool)
     (encMid := encBool) fun b : Bool × Bool => b.1 || !b.2).inO_one.comp_linear
       ((ComputableInO.natIsZero.comp_linear hpos).prod
-        (ComputableInO.natIsZero.comp_linear hk))
+        (ComputableInO.natIsZero.comp_linear hn.snd'.fst'))
   have hsym : ComputableInO symAt eSt eSym _ _ :=
     (hor.ite (const none) ((ComputableInDegree.optionSome (enc₁ := encUnary)
-      (enc := eSym)).inO_one.comp_linear hcur)).of_enc_eq fun s => by
+      (enc := eSym)).inO_one.comp_linear hn.snd'.snd')).of_enc_eq fun s => by
         simp only [symAt, Function.comp_apply]
         split_ifs <;> simp_all
   -- bridge for #862: tidy client of the plain `stepWith_inO`
   have hstep := stepWith_inO.comp (hdc.prod hsym)
-  have hidle := hc.prod (const (encMid := eSym) none)
-  refine (((ComputableInO.natIsZero.comp_linear hr).ite hidle hstep).of_enc_eq (g := stepAt)
+  refine (((ComputableInO.natIsZero.comp_linear hn.fst').ite
+    (hdc.snd'.prod (const (encMid := eSym) none)) hstep).of_enc_eq (g := stepAt)
     fun s => ?_).mono 100 (fun s => ?_) fun s => ?_
   · simp only [stepAt, Function.comp_apply]
     split_ifs <;> simp_all

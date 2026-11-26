@@ -388,11 +388,8 @@ theorem map_zipWith_uniformBlocks :
         = (PMF.uniformOfFintype (BitString n)).bind fun u =>
             ((uniformBlocks ms.length).map fun us => List.zipWith (· + ·) us ms).map
               ((u + m) :: ·) := by
-          rw [List.length_cons, uniformBlocks_succ, PMF.map_bind]
-          congr 1
-          funext u
-          rw [PMF.map_comp, PMF.map_comp]
-          rfl
+          simp only [List.length_cons, uniformBlocks_succ, PMF.map_bind, PMF.map_comp,
+            Function.comp_def, List.zipWith_cons_cons]
       _ = (PMF.uniformOfFintype (BitString n)).bind fun u =>
             (uniformBlocks ms.length).map ((u + m) :: ·) := by
           rw [map_zipWith_uniformBlocks ms]
@@ -410,9 +407,8 @@ theorem map_iv_uniformBlocks_zipWith (ms : List (BitString n)) :
         (uniformBlocks (n := n) ms.length).map (iv, ·) := by
   rw [PMF.map_bind]
   refine congrArg _ (funext fun iv => ?_)
-  rw [PMF.map_comp]
-  conv_rhs => rw [← map_zipWith_uniformBlocks ms, PMF.map_comp]
-  rfl
+  conv_rhs => rw [← map_zipWith_uniformBlocks ms]
+  simp only [PMF.map_comp, Function.comp_def]
 
 /-- **Lazy-sampled multi-block chain collision lemma**: when the initial chaining block `iv` and
   the `bs.length` step outputs are drawn independently and uniformly from `BitString n`, the outer

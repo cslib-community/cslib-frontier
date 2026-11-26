@@ -241,9 +241,7 @@ theorem runOffset_mono {U b f : ℕ} (S : Finset (Fin U))
     runOffset S quot rem o m₁ ≤ runOffset S quot rem o m₂ := by
   induction h with
   | refl => exact le_rfl
-  | step _ ih =>
-    rw [runOffset_succ]
-    omega
+  | step _ ih => rw [runOffset_succ]; omega
 
 /-- Number of occupied buckets (`isOcc = true`) in `[0, m)` relative to `o`. -/
 @[expose] def occBefore {b f : ℕ} (st : FilterState b f) (o : Fin (2 ^ b)) (m : ℕ) : ℕ :=
@@ -389,9 +387,8 @@ theorem IntervalValid.lt_runOffset_iff {U b f : ℕ} {S : Finset (Fin U)}
   · intro hle
     by_contra! hge
     have hlen_lt : pref.length < stream.length := by omega
-    have hsuff_ne : suff ≠ [] := fun hnil => by
+    obtain ⟨p, rest, hsuff_cons⟩ := List.exists_cons_of_ne_nil (l := suff) fun hnil => by
       simp [hstream_eq, hnil] at hlen_lt
-    obtain ⟨p, rest, hsuff_cons⟩ := List.exists_cons_of_ne_nil hsuff_ne
     have hp_fst : p.1 = true :=
       fst_head_nonempty_flatMap_taggedRun ((List.range (ℓ - m)).map (m + ·))
         (fun j => bucketRun S quot rem (probeSlot b o j)) hsuff_cons
@@ -507,9 +504,8 @@ theorem FilterInv.exists_backSlot_empty {U b f n : ℕ} {S : Finset (Fin U)}
     refine hinv.card_full_slots_le A fun p hp => ?_
     obtain ⟨idx, hidx, rfl⟩ := Finset.mem_image.mp hp
     have hidx_lt : idx < #S + 1 := Finset.mem_range.mp hidx
-    rw [probeSlot_backSlot_sub q (by omega)]
     have hsub : #S + 1 - idx = (#S - idx) + 1 := by omega
-    rw [hsub]
+    rw [probeSlot_backSlot_sub q (by omega), hsub]
     exact Bool.eq_true_of_not_eq_false (hall (#S - idx) (by omega))
   omega
 
@@ -679,9 +675,7 @@ theorem FilterInv.bucketRun_eq_nil_of_isFull_eq_false {U b f n : ℕ} {S : Finse
     (hinv : FilterInv n S quot rem st) {p : Fin (2 ^ b)} (hp : st.isFull p = false) :
     bucketRun S quot rem p = [] := by
   have h1 := (hinv.empty_slot p hp).1.symm.trans (hinv.isOcc_eq p)
-  cases h : bucketRun S quot rem p
-  · rfl
-  · simp [h] at h1
+  simpa [List.isEmpty_iff] using h1.symm
 
 /-- A home slot whose forward cluster length is zero is unoccupied, so its bucket run is empty. -/
 theorem FilterInv.isOcc_eq_false_of_fwdLen_eq_zero {U b f n : ℕ} {S : Finset (Fin U)}
@@ -841,13 +835,11 @@ theorem FilterInv.querySlot_eq_true_iff {U b f n : ℕ} {S : Finset (Fin U)}
   set t := hinv.fwdLen hS_lt q
   set o := hinv.clusterStart hS_lt q
   set ℓ := hinv.clusterLen hS_lt q
-  have hq_eq : probeSlot b o a = q := by
-    dsimp only [o, clusterStart]
-    simpa using probeSlot_backSlot_add q a 0
+  have hq_eq : probeSlot b o a = q := by simpa [o, clusterStart] using probeSlot_backSlot_add q a 0
   by_cases ht_pos : 1 ≤ t
   · have ha_lt_ℓ : a < ℓ := by dsimp only [ℓ, clusterLen]; omega
-    have hvalid := hinv.intervalValid_cluster hS_lt q
-    rw [FilterInv.querySlot, hvalid.queryCluster_eq_true_iff hinv.isOcc_eq ha_lt_ℓ, hq_eq]
+    rw [FilterInv.querySlot,
+      (hinv.intervalValid_cluster hS_lt q).queryCluster_eq_true_iff hinv.isOcc_eq ha_lt_ℓ, hq_eq]
   · obtain ⟨hocc_q, hrun_nil⟩ := hinv.isOcc_eq_false_of_fwdLen_eq_zero hS_lt q (by omega)
     dsimp only [o, a, q] at *
     simp [FilterInv.querySlot, queryCluster, hq_eq, hocc_q, hrun_nil]

@@ -112,7 +112,7 @@ private theorem computableInPolyTime_paddedTime_succ :
 
 private theorem computableInPolyTime_paddedTime :
     ComputableInPolyTime paddedTime encUnary encUnary := by
-  rw [show paddedTime = _ from funext paddedTime_eq]
+  rw [funext paddedTime_eq]
   fun_prop
 
 private theorem computableInPolyTime_two_pow_paddedTime :
@@ -210,10 +210,7 @@ theorem exists_computableInO_simulate (F : NetworkFamily encN value Admissible c
     have hY : (encPair encNat encN (paddedTime c.2 + 1, F.net (c.1, c.2, i))).length ≤ Y c := by
       have hG' := (hnl (c, i)).trans
         (Nat.mul_le_mul_left an (Nat.pow_le_pow_left (Nat.add_le_add_right hZ 1) dn))
-      dsimp only at hG'
-      rw [length_encPair]
-      simp only [Y]
-      omega
+      simpa only [length_encPair, Y] using Nat.add_le_add_left hG' _
     have hA := hK c.2 (paddedTime c.2 + 1) (F.net (c.1, c.2, i)) hc.2 (by omega)
       (paddedTime_add_one_le hc.2) (F.admissible c.1 c.2 i hc.1 hc.2 hi)
     have hKY := Nat.mul_le_mul_left K (Nat.pow_le_pow_left (Nat.add_le_add_right hY 1) K)
@@ -252,14 +249,12 @@ theorem exists_computableInO_simulate (F : NetworkFamily encN value Admissible c
   have hspace (c : List Bool × ℕ) : csim.space c ≤ V c := by
     have hG := (bG c).2
     simp only [csim, cms, NativeCertificate.congr, NativeCertificate.branch_space,
-      NativeCertificate.const_space]
+      NativeCertificate.const_space, V, sz] at hG ⊢
     split_ifs with hc
-    · have hc' : c.1.length ≤ c.2 ∧ 2 ≤ c.2 := of_decide_eq_true hc
-      have hQ : Q c ≤ U c := Finset.sup_le fun i hi => (hone c hc' i (Finset.mem_range.mp hi)).2
-      simp only [V, sz] at hG hQ ⊢
+    · have hQ : Q c ≤ U c := Finset.sup_le fun i hi =>
+        (hone c (of_decide_eq_true hc) i (Finset.mem_range.mp hi)).2
       omega
-    · simp only [V, sz] at hG ⊢
-      omega
+    · omega
   -- Absorb the constants.
   set k := k₀ * 2 ^ d₀ + d₀ + K with hk
   have hVk (c : List Bool × ℕ) : V c ≤ k * (c.1.length + c.2 + 1) ^ k := by

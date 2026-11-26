@@ -208,11 +208,9 @@ private theorem nodeWait_normalInsertFresh_of_ne
     (hu : u ≠ st.seeds.nodeAt ℓ hℓ x) :
     (st.normalInsertFresh hwf x v hx_fresh hgood').nodeWait ℓ h2 hℓ u = st.nodeWait ℓ h2 hℓ u := by
   by_cases hlt : ℓ < P.depth
-  · simp only [nodeWait_inner _ h2 hlt]
-    dsimp only [normalInsertFresh]; rw [dite_eq_right hu]
+  · simp only [nodeWait_inner _ h2 hlt, normalInsertFresh, dite_eq_right hu]
   · obtain rfl : ℓ = P.depth := by omega
-    simp only [nodeWait_depth]
-    dsimp only [normalInsertFresh]; rw [Function.update_of_ne hu]
+    simp only [nodeWait_depth, normalInsertFresh, Function.update_of_ne hu]
 
 /-- `normalInsertFresh` pushes `(x_id^[ℓ], x_id^[ℓ - 1])` onto the waiting list of
 `nodeAt ℓ x`. -/
@@ -233,12 +231,10 @@ private theorem nodeWait_normalInsertFresh_self
           (st.seeds.idAt ℓ (by omega) hℓ x)
           (some (st.seeds.idAt (ℓ - 1) (by omega) (by omega) x)) := by
   by_cases hlt : ℓ < P.depth
-  · simp only [nodeWait_inner _ h2 hlt]
-    dsimp only [normalInsertFresh]; rw [dite_eq_left rfl]
+  · simp only [nodeWait_inner _ h2 hlt, normalInsertFresh]
     exact ⟨WaitingList.dom_push .., funext fun _ => WaitingList.lookup_push ..⟩
   · obtain rfl : ℓ = P.depth := by omega
-    simp only [nodeWait_depth]
-    dsimp only [normalInsertFresh]; rw [Function.update_self]
+    simp only [nodeWait_depth, normalInsertFresh, Function.update_self]
     exact ⟨WaitingList.dom_push .., funext fun _ => WaitingList.lookup_push ..⟩
 
 /-- **Normal-path fresh insertion preserves `WellFormedPadded`** (`storeLvl` extended with
@@ -270,8 +266,7 @@ theorem wellFormedPadded_normalInsertFresh
           exact hwf.storeLvl_bounds y hy_old
       storeLvl_outside := fun y hy => by
         rw [hdom_upd, mem_insert, not_or] at hy
-        rw [Function.update_of_ne hy.1]
-        exact hwf.storeLvl_outside y hy.2
+        simpa only [Function.update_of_ne hy.1] using hwf.storeLvl_outside y hy.2
       dom_eq := fun ℓ h1 hℓ u => ?_
       query_eq_of_storeLvl := fun ℓ h1 hℓ u y vy hdy hny hsly => ?_
       inner_full := fun ℓ h2 hlt u => by

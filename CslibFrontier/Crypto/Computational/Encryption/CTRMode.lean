@@ -256,13 +256,10 @@ private theorem ctrAnyHit_eq_true_iff (c : List (BitString n × BitString n))
           by simpa using List.mem_map.2 ⟨p, hp, (beq_iff_eq.1 hpe).symm⟩⟩
       · exact ⟨j + 1, Nat.add_lt_add_right hj 1,
           by simpa [Nat.add_assoc, Nat.add_comm 1 j] using hmem⟩
-    · rintro ⟨j, hj, hmem⟩
-      cases j with
-      | zero =>
-        obtain ⟨v, hv⟩ : ∃ v, (counter iv i, v) ∈ c := by simpa using hmem
+    · rintro ⟨_ | j, hj, hmem⟩
+      · obtain ⟨v, hv⟩ : ∃ v, (counter iv i, v) ∈ c := by simpa using hmem
         exact Or.inl ⟨(counter iv i, v), hv, beq_self_eq_true _⟩
-      | succ j =>
-        exact Or.inr ⟨j, Nat.lt_of_add_lt_add_right hj,
+      · exact Or.inr ⟨j, Nat.lt_of_add_lt_add_right hj,
           by simpa [Nat.add_assoc, Nat.add_comm 1 j] using hmem⟩
 
 private theorem runWith_freshStep_ctrMaskQueriesFrom
@@ -379,17 +376,15 @@ private theorem toOuterMeasure_bad_freshQuery_le
         {x | x.2.2 = true} ≤
       ((blockModeBlocks ℓ q * s.1.length : ℕ) : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹ := by
   rw [runWith_freshStep_ctrQueryProgram counter ℓ b q s hintra, PMF.toOuterMeasure_map_apply]
-  have hs' : s.2 = false := by simpa using hs
   have hpre :
       ((fun p : BitString n × List (BitString n) =>
           ((p.1, List.zipWith (· + ·) p.2 (blockModeSelect ℓ b q)),
             (ctrCache s.1 counter p.1 0 p.2,
               s.2 || ctrAnyHit s.1 counter p.1 0 (blockModeBlocks ℓ q)))) ⁻¹'
         {x | x.2.2 = true}) =
-      {p : BitString n × List (BitString n) |
-        ctrAnyHit s.1 counter p.1 0 (blockModeBlocks ℓ q) = true} := by
+      {p | ctrAnyHit s.1 counter p.1 0 (blockModeBlocks ℓ q) = true} := by
     ext p
-    simp [hs']
+    simp [Bool.eq_false_iff.2 hs]
   rw [hpre, PMF.toOuterMeasure_bind_apply]
   calc ∑' iv, (PMF.uniformOfFintype (BitString n)) iv *
         ((uniformBlocks (n := n) (blockModeBlocks ℓ q)).map (iv, ·)).toOuterMeasure
@@ -399,10 +394,8 @@ private theorem toOuterMeasure_bad_freshQuery_le
         refine tsum_le_tsum fun iv => mul_le_mul_of_nonneg_left ?_ zero_le
         rw [PMF.toOuterMeasure_map_apply]
         by_cases hhit : ctrAnyHit s.1 counter iv 0 (blockModeBlocks ℓ q) = true
-        · have hex :
-              iv ∈ {iv' | ∃ j < blockModeBlocks ℓ q, counter iv' j ∈ s.1.map Prod.fst} := by
-            simpa using (ctrAnyHit_eq_true_iff s.1 counter iv 0 (blockModeBlocks ℓ q)).1 hhit
-          rw [Set.indicator_of_mem hex, Pi.one_apply]
+        · rw [Set.indicator_of_mem (by
+            simpa using (ctrAnyHit_eq_true_iff s.1 counter iv 0 _).1 hhit), Pi.one_apply]
           exact PMF.toOuterMeasure_le_one _ _
         · simp [Set.preimage, hhit]
     _ = (PMF.uniformOfFintype (BitString n)).toOuterMeasure

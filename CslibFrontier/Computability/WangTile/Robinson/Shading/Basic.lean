@@ -239,9 +239,8 @@ theorem value_between {α β : Type*}
   induction finish with
   | zero => omega
   | succ finish ih =>
-      by_cases h : start = finish
-      · subst finish
-        exact hmatch start (by omega) (by omega)
+      rcases eq_or_ne start finish with rfl | h
+      · exact hmatch start (by omega) (by omega)
       · exact (ih (by omega) (fun x hx hy => hmatch x hx (by omega))
           (fun x hx hy => htransmit x hx (by omega))).trans
           ((htransmit finish (by omega) (by omega)).trans (hmatch finish (by omega) (by omega)))
@@ -313,12 +312,9 @@ theorem CycleOn.southeast_corner
       cornerNorth
         (componentAt grid (quarterEast east) (quarterSouth south))
         (quadrantAt (quarterEast east) (quarterSouth south)) = true := by
-  rw [quarterEast, quarterSouth,
-    show 2 * east = 2 * east + 0 by omega,
-    componentAt_double_add grid east south 0 1 (by omega) (by omega),
-    cycle.southeast]
-  simp [quadrantAt, Quadrant.ofBits,
-    cornerWest, cornerNorth]
+  rw [quarterEast, quarterSouth, ← Nat.add_zero (2 * east),
+    componentAt_double_add grid east south 0 1 (by omega) (by omega), cycle.southeast]
+  simp [quadrantAt, Quadrant.ofBits, cornerWest, cornerNorth]
 
 /-- The inward northeast quarter joins the west and south red edges. -/
 theorem CycleOn.northeast_corner
@@ -330,13 +326,9 @@ theorem CycleOn.northeast_corner
       cornerSouth
         (componentAt grid (quarterEast east) (quarterNorth north))
         (quadrantAt (quarterEast east) (quarterNorth north)) = true := by
-  rw [quarterEast, quarterNorth,
-    show 2 * east = 2 * east + 0 by omega,
-    show 2 * north = 2 * north + 0 by omega,
-    componentAt_double_add grid east north 0 0 (by omega) (by omega),
-    cycle.northeast]
-  simp [quadrantAt, Quadrant.ofBits,
-    cornerWest, cornerSouth]
+  rw [quarterEast, quarterNorth, ← Nat.add_zero (2 * east), ← Nat.add_zero (2 * north),
+    componentAt_double_add grid east north 0 0 (by omega) (by omega), cycle.northeast]
+  simp [quadrantAt, Quadrant.ofBits, cornerWest, cornerSouth]
 
 /-- The inward northwest quarter joins the east and south red edges. -/
 theorem CycleOn.northwest_corner
@@ -348,12 +340,9 @@ theorem CycleOn.northwest_corner
       cornerSouth
         (componentAt grid (quarterWest west) (quarterNorth north))
         (quadrantAt (quarterWest west) (quarterNorth north)) = true := by
-  rw [quarterWest, quarterNorth,
-    show 2 * north = 2 * north + 0 by omega,
-    componentAt_double_add grid west north 1 0 (by omega) (by omega),
-    cycle.northwest]
-  simp [quadrantAt, Quadrant.ofBits,
-    cornerEast, cornerSouth]
+  rw [quarterWest, quarterNorth, ← Nat.add_zero (2 * north),
+    componentAt_double_add grid west north 1 0 (by omega) (by omega), cycle.northwest]
+  simp [quadrantAt, Quadrant.ofBits, cornerEast, cornerSouth]
 
 /-- Every strict interior quarter on the south side carries a horizontal wire. -/
 theorem CycleOn.south_path

@@ -81,10 +81,8 @@ variable {σ : Signature.{v}} {n m g : ℕ}
 @[simp] theorem Wire.rank_gate (k : Fin g) : (Wire.gate k : Wire n g).rank = k.val + 1 := rfl
 
 /-- Every wire in a `g`-gate namespace has topological rank at most `g`. -/
-theorem Wire.rank_le (w : Wire n g) : w.rank ≤ g := by
-  cases w with
-  | input _ => exact Nat.zero_le g
-  | gate k => exact k.isLt
+theorem Wire.rank_le (w : Wire n g) : w.rank ≤ g :=
+  match w with | .input _ => Nat.zero_le g | .gate k => k.isLt
 
 /-- An input slot `(k, a)` of gate `k` in a circuit `C`. -/
 abbrev Circuit.Slot (C : Circuit σ n m) : Type :=
@@ -109,8 +107,7 @@ theorem Circuit.nodup_allSlots (C : Circuit σ n m) : C.allSlots.Nodup := by
   refine List.nodup_flatMap.mpr ⟨fun k _ => (List.nodup_finRange _).map fun _ _ h =>
     eq_of_heq (Sigma.mk.inj_iff.mp h).2,
     (List.nodup_finRange C.size).pairwise_of_forall_ne fun k₁ _ k₂ _ hne => ?_⟩
-  rw [Function.onFun, List.disjoint_left]
-  intro s hs₁ hs₂
+  refine List.disjoint_left.mpr fun s hs₁ hs₂ => ?_
   obtain ⟨_, _, rfl⟩ := List.mem_map.mp hs₁
   obtain ⟨_, _, heq⟩ := List.mem_map.mp hs₂
   exact hne (congrArg Sigma.fst heq).symm
@@ -136,8 +133,7 @@ theorem Circuit.rank_lt_of_slotWire_eq (C : Circuit σ n m) {s : C.Slot} {v : Wi
   | input _ => simp
   | gate j =>
     have hlt := C.program.lt_of_lines_wires_eq_gate s.1 s.2 j hs
-    simp only [Wire.rank_gate]
-    omega
+    simp only [Wire.rank_gate]; omega
 
 /-- The out-degree of wire `v` in `C`: the number of gate input slots that read `v`. -/
 @[expose] def Circuit.outDeg (C : Circuit σ n m) (v : Wire n C.size) : ℕ :=
@@ -356,18 +352,12 @@ theorem Circuit.uniqueReaderSlot_eq_none_iff (C : Circuit σ n m) {v : Wire n C.
 /-- `C.criticalPathAux` is never empty. -/
 theorem Circuit.criticalPathAux_ne_nil (C : Circuit σ n m) (fuel : ℕ) (v : Wire n C.size) :
     C.criticalPathAux fuel v ≠ [] := by
-  cases fuel with
-  | zero => simp [Circuit.criticalPathAux]
-  | succ fuel =>
-    cases h : C.uniqueReaderSlot v <;> simp [Circuit.criticalPathAux, h]
+  cases fuel <;> cases h : C.uniqueReaderSlot v <;> simp [Circuit.criticalPathAux, h]
 
 /-- The first wire of `C.criticalPathAux fuel v` is `v`. -/
 @[simp] theorem Circuit.head_criticalPathAux (C : Circuit σ n m) (fuel : ℕ) (v : Wire n C.size) :
     (C.criticalPathAux fuel v).head (C.criticalPathAux_ne_nil fuel v) = v := by
-  cases fuel with
-  | zero => rfl
-  | succ fuel =>
-    cases h : C.uniqueReaderSlot v <;> simp [Circuit.criticalPathAux, h]
+  cases fuel <;> cases h : C.uniqueReaderSlot v <;> simp [Circuit.criticalPathAux, h]
 
 /-- Every wire in the tail of `C.criticalPathAux fuel v` has strictly larger rank than `v`. -/
 theorem Circuit.rank_lt_of_mem_tail_criticalPathAux (C : Circuit σ n m) :

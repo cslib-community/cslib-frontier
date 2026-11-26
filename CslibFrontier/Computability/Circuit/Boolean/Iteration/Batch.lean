@@ -224,15 +224,14 @@ private theorem batch_construction_cost (n s M N r L : ℕ) (hN : N ≤ 2 ^ n)
   have hd : d ≤ 2 * n + 2 := by
     apply Nat.clog_le_of_le_pow
     have he : 2 ^ (2 * n + 2) = 4 * (U * U) := by
-      rw [hUdef, show 2 * n + 2 = n + n + 2 by omega, pow_add, pow_add]
+      rw [pow_add, mul_comm 2 n, pow_mul, ← hUdef]
       ring
-    rw [he, show r * (2 * L + 1) = 2 * (r * L) + r by ring]
-    have hp : r * L ≤ U * U := Nat.mul_le_mul hrN hLN
-    have hU2 : U ≤ U * U := Nat.le_mul_of_pos_right U hU
+    have hp := Nat.mul_le_mul hrN hLN
+    have hU2 := Nat.le_mul_of_pos_right U hU
+    rw [he, mul_add, mul_one, mul_left_comm]
     omega
   have hP : 1 ≤ P := Nat.one_le_pow _ _ (by omega)
-  have hn1 : n + 1 ≤ P := by
-    simpa only [pow_one] using Nat.pow_le_pow_right (show 0 < n + 1 by omega) (by decide : 1 ≤ 3)
+  have hn1 : n + 1 ≤ P := Nat.le_self_pow (by decide) _
   have hn2 : (n + 1) ^ 2 ≤ P := Nat.pow_le_pow_right (by omega) (by decide)
   -- the shared dictionary
   have hwidth : (d + 1) ^ 2 * (n + (n + 1) + 1) ≤ 18 * P := by
@@ -243,7 +242,7 @@ private theorem batch_construction_cost (n s M N r L : ℕ) (hN : N ≤ 2 ^ n)
       _ = 18 * P := by simp only [P]; ring
   have hrecords : r * (2 * L + 1) + M + 1 ≤ 3 * (r * L) + N / L + 1 := by
     have hrL := Nat.mul_le_mul_left r hL
-    rw [show r * (2 * L + 1) = 2 * (r * L) + r * 1 by ring]
+    rw [mul_add, mul_left_comm]
     omega
   have hdict : 48 * (r * (2 * L + 1) + M + 1) * (d + 1) ^ 2 * (n + (n + 1) + 1) ≤
       864 * P * (3 * (r * L) + N / L + 1) := by
@@ -271,9 +270,8 @@ private theorem batch_construction_cost (n s M N r L : ℕ) (hN : N ≤ 2 ^ n)
   have hmem_full : (2 * L + 1) * (4 * ((n + 2) + n + 1)) + 2 * L * s +
       200 * (2 * L + 1) * (n + (n + 2) + 1) ^ 2 + 40000 * powerBudget n s 0 L + 4 * n ≤
         40002 * (L * s) + 85440 * (L * P) := by
-    simp only [powerBudget, Nat.zero_div]
-    rw [mul_assoc 2 L s, show 40000 * (L * s + (n + 1) ^ 3 * (L + 0 + 1)) =
-      40000 * (L * s) + 40000 * (P * (L + 0 + 1)) by simp only [P]; ring]
+    have hpb : powerBudget n s 0 L = L * s + P * (L + 0 + 1) := by rw [powerBudget, Nat.zero_div]
+    rw [mul_assoc 2 L s, hpb, Nat.mul_add 40000]
     omega
   unfold batchBudget
   change 2 + (r * (2 * L * s) + 48 * (r * (2 * L + 1) + M + 1) * (d + 1) ^ 2 *
@@ -285,9 +283,7 @@ private theorem batch_construction_cost (n s M N r L : ℕ) (hN : N ≤ 2 ^ n)
           r * (40002 * (L * s) + 85440 * (L * P))) := by gcongr
     _ = 2 + 40004 * (r * L * s) + 88032 * (P * (r * L)) + 864 * (P * (N / L)) + 864 * P := by ring
     _ ≤ 100000 * (r * L * s + P * (r * L + N / L + 1)) := by
-        rw [show 100000 * (r * L * s + P * (r * L + N / L + 1)) =
-          100000 * (r * L * s) + 100000 * (P * (r * L)) + 100000 * (P * (N / L)) + 100000 * P by
-            ring]
+        simp only [mul_add, mul_one]
         omega
 
 /-- **Batched powers on promised prefixes.** If the first `L` states of each input trajectory
@@ -352,8 +348,6 @@ theorem batched_fixed_power_on_prefixes (c : Circuit signature n n)
     (fun x member => BitString.block x member) (fun _ _ => Or.inl ⟨_, rfl⟩)
     (fun b => Or.inr (by cases b <;> simp [constants])) T L hL hLN (by omega) cp hcp
     {x | ∀ i : Fin L, f^[i.val] x ∈ S} hcov
-  let output : BitString (r * n) → BitString (r * n) := fun x i =>
-    result (finProdFinEquiv.symm i).1 x (finProdFinEquiv.symm i).2
   obtain ⟨out, hout, hsize⟩ := ((hconst.trans hs).mono Set.Subset.rfl
     (Set.range_subset_iff.mpr fun i => Set.mem_iUnion.mpr
       ⟨(finProdFinEquiv.symm i).1, (finProdFinEquiv.symm i).2, rfl⟩)

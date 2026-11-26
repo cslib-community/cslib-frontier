@@ -283,14 +283,8 @@ theorem pairAvgApprox_isScaledApprox {x y : ℕ → ℤ}
   have hy_err := abs_streamVal_sub_streamPrefix_le hy (t + 4)
   refine abs_ediv_sub_lt_two_of_scaled A (by decide : 0 < 32) hA
     (abs_two_pow_mul_sub_le_of_prefix ?_)
-  rw [abs_sub_comm]
-  have hdiff : (streamVal x + streamVal y) / 2 -
-      (streamPrefix x (t + 4) + streamPrefix y (t + 4)) / 2 =
-      ((streamVal x - streamPrefix x (t + 4)) + (streamVal y - streamPrefix y (t + 4))) / 2 := by
-    ring
-  rw [hdiff, abs_div, abs_two]
-  linarith [abs_add_le (streamVal x - streamPrefix x (t + 4))
-    (streamVal y - streamPrefix y (t + 4))]
+  rw [abs_sub_le_iff] at hx_err hy_err ⊢
+  exact ⟨by linarith, by linarith⟩
 
 theorem pairAvgApprox_emod {x y : ℕ → ℤ} (t q : ℕ) :
     pairAvgApprox x y t % (2 : ℤ) ^ q =
@@ -427,9 +421,9 @@ theorem shiftClipApprox_isScaledApprox (v : ℤ) {x : ℕ → ℤ} (hx : IsSigne
             rw [← mul_sub, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ v)]
             gcongr
         _ = 3 / 8 := by
-            rw [show (2 : ℝ) ^ t * ((2 : ℝ) ^ v * (6 / (2 : ℝ) ^ K)) =
-              6 * ((2 : ℝ) ^ t * ((2 : ℝ) ^ v / (2 : ℝ) ^ K)) by ring, hzpow]
-            norm_num
+            have hr : (2 : ℝ) ^ t * ((2 : ℝ) ^ v * (6 / (2 : ℝ) ^ K)) =
+                6 * ((2 : ℝ) ^ t * ((2 : ℝ) ^ v / (2 : ℝ) ^ K)) := by ring
+            linarith
     exact abs_ediv_sub_lt_two_of_scaled A (by decide : 0 < 16) hA htrunc
 
 end ElementaryOperations

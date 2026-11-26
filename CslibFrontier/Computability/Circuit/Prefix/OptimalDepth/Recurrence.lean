@@ -256,7 +256,7 @@ private theorem V_step_ineq {k : ℕ} (hk : 3 ≤ k) :
       by_cases hsmall : m + 2 ≤ k - 1
       · have hdiff := V_succ_sub_self_small hsmall 0
         simp only [Nat.zero_add, Nat.succ_ne_zero, ↓reduceIte, V_zero_right, pow_succ'] at hdiff ⊢
-        linarith [show (0 : ℝ) ≤ (3 / 2 : ℝ) ^ m by positivity]
+        linarith [pow_nonneg (div_nonneg (zero_le_three : (0 : ℝ) ≤ 3) zero_le_two) m]
       · linarith [V_one_mul_three_halves hk (by omega : k - 1 ≤ m + 1),
           pow_le_V_one hk (m + 1) (by omega)]
   | succ h ih =>
@@ -361,17 +361,14 @@ theorem W_split_depth_one {k r d h : ℕ} (hr : 2 ≤ r) :
   obtain ⟨hr0, hr1⟩ : r ≠ 0 ∧ r ≠ 1 := by omega
   by_cases hr2 : r = 2
   · subst hr2
-    have hl : min (d + 1) (2 - 1) = 1 := Nat.min_eq_right (by omega)
-    simp only [W, Nat.add_sub_cancel, ↓reduceIte, hr0, hr1, Nat.succ_ne_zero, hl,
-      Finset.Ico_self, Finset.sum_empty, zero_add]
+    simp only [W, Nat.add_sub_cancel, ↓reduceIte, hr0, hr1, Nat.succ_ne_zero,
+      Nat.min_eq_right (Nat.succ_pos d), Finset.Ico_self, Finset.sum_empty, zero_add]
     ring
   · obtain ⟨hr_m1_0, hr_m1_1⟩ : r - 1 ≠ 0 ∧ r - 1 ≠ 1 := by omega
     cases d with
     | zero =>
-      have hl : min 1 (r - 1) = 1 := Nat.min_eq_left (by omega)
-      simp only [W, hr_m1_0, hr_m1_1, hr0, hr1, ↓reduceIte, Nat.succ_ne_zero, hl,
-        Finset.Ico_self, Finset.sum_empty, zero_add, Nat.sub_self, V_zero_left]
-      norm_num
+      norm_num [W, hr_m1_0, hr_m1_1, hr0, hr1, Nat.succ_ne_zero,
+        Nat.min_eq_left (Nat.pos_of_ne_zero hr_m1_0), V_zero_left]
     | succ m =>
       set l := min (m + 1) (r - 1 - 1)
       rw [W_succ_eq (r := r - 1) (by omega) m.add_one_ne_zero rfl,
@@ -387,10 +384,7 @@ theorem W_split_depth_two {k r d h : ℕ} (hk : 3 ≤ k) (hr : 2 ≤ r) (_hrk : 
   obtain ⟨hr0, hr1⟩ : r ≠ 0 ∧ r ≠ 1 := by omega
   cases d with
   | zero =>
-    have hl : min 1 (r - 1) = 1 := Nat.min_eq_left (by omega)
-    simp only [W, hr0, hr1, ↓reduceIte, Nat.succ_ne_zero, hl, Finset.Ico_self, Finset.sum_empty,
-      zero_add, Nat.sub_self, V_zero_left]
-    norm_num
+    norm_num [W, hr0, hr1, Nat.succ_ne_zero, Nat.min_eq_left (Nat.sub_pos_of_lt hr), V_zero_left]
   | succ m =>
     by_cases hsmall : m + 2 ≤ r - 1
     · rw [W_succ_eq hr m.add_one_ne_zero (Nat.min_eq_left (by omega : m + 1 ≤ r - 1)),
@@ -408,17 +402,13 @@ theorem W_split_depth_two {k r d h : ℕ} (hk : 3 ≤ k) (hr : 2 ≤ r) (_hrk : 
             2 * V k (m + 1 - (u + 1)) (h + 1) := by
         cases u with
         | zero =>
-          rw [Finset.Ico_self, Finset.sum_empty, Finset.sum_empty, show m + 2 - 1 = m + 1 by omega]
+          rw [Finset.Ico_self, Finset.sum_empty, Finset.sum_empty, Nat.add_sub_cancel (m + 1) 1]
           ring
         | succ u' =>
-          have hleft :=
-            sum_Ico_one_succ_shift (l := u' + 1) (by omega) (m + 1) (fun x => V k x (h + 1))
-          have hright : ∑ i ∈ Finset.Ico 1 (u' + 2), V k (m + 1 - i) (h + 1) =
-              (∑ j ∈ Finset.Ico 1 (u' + 1), V k (m + 1 - j) (h + 1)) +
-                V k (m + 2 - (u' + 2)) (h + 1) := by
-            rw [Finset.sum_Ico_succ_top (by omega) (fun i => V k (m + 1 - i) (h + 1)),
-              show m + 1 - (u' + 1) = m + 2 - (u' + 2) by omega]
-          rw [hleft, hright]
+          have hsub : m + 1 - (u' + 1) = m + 2 - (u' + 1 + 1) := by omega
+          rw [sum_Ico_one_succ_shift (l := u' + 1) (by omega) (m + 1) (fun x => V k x (h + 1)),
+            Finset.sum_Ico_succ_top (Nat.le_add_left 1 u') (fun i => V k (m + 1 - i) (h + 1)),
+            hsub]
           ring
       set a := m - u
       have hchain (w : ℕ) :

@@ -121,8 +121,7 @@ private lemma mem_inter_eq_center {r s : Fin 3} (hrs : r ≠ s) {x : MetricGraph
 private lemma leg_unique_of_ne_center {r s : Fin 3} {x : MetricGraph W} (hx : x ≠ T.center)
     (hr : x ∈ interval T.center (T.leaf r)) (hs : x ∈ interval T.center (T.leaf s)) :
     r = s := by
-  by_contra hrs
-  exact hx (mem_inter_eq_center hrs hr hs)
+  exact by_contra fun hrs => hx (mem_inter_eq_center hrs hr hs)
 
 private lemma center_mem_interval_of_ne_leg (hT : W.graph.IsTree) {r s : Fin 3} (hrs : r ≠ s)
     {x y : MetricGraph W}
@@ -696,17 +695,16 @@ theorem eval_isAnonymous [Nonempty V] (hT : W.graph.IsTree) (P : ThreeLeafScheme
   rw [eval, eval]
   refine ((P.toTreeEMVS hT).eval_eq_iff hT (x ∘ σ) ((P.toTreeEMVS hT).eval hT x)).mpr
     fun q hq S hS hw => ?_
-  let S' : Finset (Fin 3) := S.map σ.toEmbedding
-  have hS' (i : Fin 3) : i ∈ S' ↔ x i ∈ branch ((P.toTreeEMVS hT).eval hT x) q := by
-    simp only [S', Finset.mem_map, Equiv.coe_toEmbedding]
+  have hS' (i : Fin 3) :
+      i ∈ S.map σ.toEmbedding ↔ x i ∈ branch ((P.toTreeEMVS hT).eval hT x) q := by
+    simp only [Finset.mem_map, Equiv.coe_toEmbedding]
     exact ⟨fun ⟨j, hj, h⟩ => h ▸ (hS j).mp hj, fun hi =>
       ⟨σ.symm i, (hS (σ.symm i)).mpr (by simpa using hi), σ.apply_symm_apply i⟩⟩
-  have hcard : S'.card = S.card := Finset.card_map _
   refine (((P.toTreeEMVS hT).eval_eq_iff hT x ((P.toTreeEMVS hT).eval hT x)).mp rfl)
-    q hq S' hS' ?_
+    q hq (S.map σ.toEmbedding) hS' ?_
   rcases hw with ⟨r, hy, hyl, hqm, h⟩ | ⟨r, hy, hyc, hqm, h⟩
-  · exact Or.inl ⟨r, hy, hyl, hqm, by simpa only [outwardWin, hcard] using h⟩
-  · exact Or.inr ⟨r, hy, hyc, hqm, by simpa only [inwardWin, hcard] using h⟩
+  · exact Or.inl ⟨r, hy, hyl, hqm, by simpa only [outwardWin, Finset.card_map] using h⟩
+  · exact Or.inr ⟨r, hy, hyc, hqm, by simpa only [inwardWin, Finset.card_map] using h⟩
 
 end ThreeLeafScheme
 
@@ -841,27 +839,22 @@ theorem isStrategyProof_surjective_anonymous_iff_threeLeafScheme [Nonempty V]
           ⟨hwp, (win_congr_card_of_isAnonymous hT E hf_anon hpl.symm hcard.symm).mp
             ((hout_iff r hp_leg hpl).mpr hlt)⟩
       exact hle.trans_lt hdp_lt
-    · set t := (thr r + dist T.center y) / 2
-      have hthr_t : thr r < t := by dsimp only [t]; linarith
-      have hty : t < dist T.center y := by dsimp only [t]; linarith
-      obtain ⟨p, hp_leg, hdp⟩ := exists_point_on_leg_dist hT r ((hthr0 r).trans hthr_t.le)
-        (hty.le.trans (hleg_le hy))
-      have hpy : p ≠ y := fun h => by rw [h] at hdp; linarith
-      have hpl : p ≠ T.leaf r := fun h => by rw [h] at hdp; linarith [hleg_le hy]
+    · obtain ⟨p, hp_leg, hdp⟩ :=
+        exists_point_on_leg_dist (T := T) (d := (thr r + dist T.center y) / 2) hT r
+          (by linarith [hthr0 r])
+          (by linarith [hleg_le hy])
+      have hpy : p ≠ y := fun h => by linarith [congrArg (dist T.center) h]
+      have hpl : p ≠ T.leaf r := fun h => by linarith [congrArg (dist T.center) h, hleg_le hy]
       have hbr_py : branch p y = branch p (T.leaf r) :=
-        branch_eq_of_mem hT ((mem_branch_outward_iff hT hp_leg hpl y).mpr ⟨hy, hdp ▸ hty⟩)
+        branch_eq_of_mem hT ((mem_branch_outward_iff hT hp_leg hpl y).mpr ⟨hy, by linarith⟩)
       have hnot_py : ¬ E.win p y Sᶜ := fun hw => by
         rw [E.branch_eq hpy.symm hpl.symm hbr_py] at hw
-        exact hthr_t.not_ge (hdp ▸ ((hout_iff r hp_leg hpl).mp
-          ((win_congr_card_of_isAnonymous hT E hf_anon hpl.symm hcard).mp hw)).le)
+        linarith [((hout_iff r hp_leg hpl).mp
+          ((win_congr_card_of_isAnonymous hT E hf_anon hpl.symm hcard).mp hw)).le]
       have hbr_yp : branch y p = branch y T.center :=
         branch_eq_of_mem hT ((mem_branch_inward_iff hT hy hyc p).mpr
-          ⟨hpy, fun h => by linarith [h.2, hdp, hty]⟩)
+          ⟨hpy, fun h => by linarith [h.2]⟩)
       simpa only [compl_compl, ← E.branch_eq hpy hyc.symm hbr_yp] using E.duality hpy hnot_py
-  have hin1_iff (r : Fin 3) {y : MetricGraph W} :=
-    hin_iff {0} {0, 1} high (by decide) P.high_nonneg hhigh_iff r (y := y)
-  have hin2_iff (r : Fin 3) {y : MetricGraph W} :=
-    hin_iff {0, 1} {0} low (by decide) P.low_nonneg hlow_iff r (y := y)
   have hwin_eq (y q : MetricGraph W) (hqy : q ≠ y) (S : Finset (Fin 3)) :
       E.win y q S ↔ (P.toTreeEMVS hT).win y q S := by
     have hSle : S.card ≤ 3 := by simpa only [Fintype.card_fin] using Finset.card_le_univ S
@@ -886,7 +879,8 @@ theorem isStrategyProof_surjective_anonymous_iff_threeLeafScheme [Nonempty V]
     have hwin_in (r : Fin 3) (hy : y ∈ interval T.center (T.leaf r)) (hyc : y ≠ T.center) :
         E.win y T.center S ↔ P.inwardWin r (dist T.center y) S :=
       hwin_card T.center hyc.symm (fun h => (P.low_le_high r).trans_lt h)
-        (hin1_iff r hy hyc) (hin2_iff r hy hyc)
+        (hin_iff {0} {0, 1} high (by decide) P.high_nonneg hhigh_iff r hy hyc)
+        (hin_iff {0, 1} {0} low (by decide) P.low_nonneg hlow_iff r hy hyc)
     obtain ⟨r, hy⟩ := T.cover y
     by_cases hyc : y = T.center
     · subst hyc

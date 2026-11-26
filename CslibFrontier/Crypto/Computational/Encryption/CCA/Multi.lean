@@ -450,13 +450,12 @@ private theorem isOraclePPTOn_cca2MultiToSingleAt_choose {Msg : Type} [Inhabited
       (fun ⟨(n, pk), split⟩ =>
         (cca2MultiToSingleAt valid encrypt decBound adversary split).choose n pk) := by
   dsimp only [cca2MultiToSingleAt]
-  refine (hA.choose.on.preprocess (by fun_prop)).bind_with ?_
-  refine IsOraclePPTOn.cond (by fun_prop) ?_ (by fun_prop)
-  refine (IsPPTOn.mapMWith (element := encPair encMsg encMsg) (by fun_prop)
-    (by fun_prop)).isOraclePPTOn.bind_with ?_
-  refine (IsPPTOn.mapMWith (element := encPair encMsg encMsg) (by fun_prop)
-    (by fun_prop)).isOraclePPTOn.bind_with ?_
-  fun_prop
+  refine (hA.choose.on.preprocess (by fun_prop)).bind_with
+    (IsOraclePPTOn.cond (by fun_prop) ?_ (by fun_prop))
+  exact (IsPPTOn.mapMWith (element := encPair encMsg encMsg) (by fun_prop)
+    (by fun_prop)).isOraclePPTOn.bind_with
+    ((IsPPTOn.mapMWith (element := encPair encMsg encMsg) (by fun_prop)
+      (by fun_prop)).isOraclePPTOn.bind_with (by fun_prop))
 
 /-- Phase 2 (`guess`) of `cca2MultiToSingleAt` is uniformly strict oracle PPT in
 `(n, state, ct)`. -/
@@ -530,12 +529,10 @@ theorem isPPT_cca2MultiToSingle {Msg : Type} [Inhabited Msg]
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (hA : adversary.IsPPT encMsg) :
     (cca2MultiToSingle valid encrypt decBound Q adversary).IsPPT encMsg where
-  choose := by
-    have hsample : IsOraclePPTOn (Operation := Unit) (encPair encUnary encBits) encUnary
-        (fun caller : ℕ × List Bool =>
-          ProbOracleComp.sample (ProbComp.sampleDyadicIndex (Q caller.1))) := by fun_prop
-    exact (hsample.bind_with
-      (isOraclePPTOn_cca2MultiToSingleAt_choose hvalid hencrypt hA)).isOraclePPT
+  choose := ((by fun_prop : IsOraclePPTOn (Operation := Unit) (encPair encUnary encBits) encUnary
+    fun caller : ℕ × List Bool =>
+      ProbOracleComp.sample (ProbComp.sampleDyadicIndex (Q caller.1))).bind_with
+    (isOraclePPTOn_cca2MultiToSingleAt_choose hvalid hencrypt hA)).isOraclePPT
   guess := isOraclePPTOn_cca2MultiToSingleAt_guess valid encrypt hdecBound hA 0
 
 /-- `cca2MultiToSingleAt` preserves both Phase 1 (`Q₁ n`) and Phase 2 (`Q₂ n`) decryption query
@@ -635,8 +632,8 @@ private theorem eval_cca2GameOn_cca2MultiToSingleAt {Msg Out : Type} [Inhabited 
   by_cases hcond :
       (decide (split < challenges.length) &&
         challenges.all (fun p => valid n keys.1 p.1 p.2)) = true
-  · obtain ⟨hltDec, hall⟩ := Bool.and_eq_true_iff.mp hcond
-    have hlt : split < challenges.length := decide_eq_true_eq.mp hltDec
+  · obtain ⟨hlt, hall⟩ : split < challenges.length ∧
+        challenges.all (fun p => valid n keys.1 p.1 p.2) = true := by simpa using hcond
     have hvalid_target : valid n keys.1 challenges[split].1 challenges[split].2 = true :=
       List.all_eq_true.mp hall _ (List.getElem_mem hlt)
     simp only [hcond, ↓reduceIte, ChoiceOut.msg₀, ChoiceOut.msg₁, ChoiceOut.state,
@@ -652,18 +649,15 @@ private theorem eval_cca2GameOn_cca2MultiToSingleAt {Msg Out : Type} [Inhabited 
           (hdecBound keys hkeys) (adversary.guess n stateA (ctsFront ++ ct :: ctsBack)))
     simp only [hguess]
     cases bit
-    · simp only [Bool.false_eq_true, ↓reduceIte, cca2MultiHybridCont, ProbComp.eval_bind]
-      congr 1 with ctsFront : 1
-      rw [List.drop_eq_getElem_cons hlt, List.mapM_cons]
-      simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
-      exact PMF.bind_comm _ _ _
-    · simp only [↓reduceIte, cca2MultiHybridCont, ProbComp.eval_bind]
-      rw [List.take_add_one, List.getElem?_eq_getElem hlt, Option.toList_some,
-        List.mapM_append, List.mapM_cons, List.mapM_nil]
-      simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind,
-        List.append_assoc, List.singleton_append]
-      congr 1 with ctsFront : 1
-      exact PMF.bind_comm _ _ _
+    · simp only [Bool.false_eq_true, ↓reduceIte, cca2MultiHybridCont, ProbComp.eval_bind,
+        List.drop_eq_getElem_cons hlt, List.mapM_cons, ProbComp.eval_pure, PMF.bind_bind,
+        PMF.pure_bind]
+      exact congrArg _ (funext fun _ => PMF.bind_comm _ _ _)
+    · simp only [↓reduceIte, cca2MultiHybridCont, ProbComp.eval_bind, List.take_add_one,
+        List.getElem?_eq_getElem hlt, Option.toList_some, List.mapM_append, List.mapM_cons,
+        List.mapM_nil, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, List.append_assoc,
+        List.singleton_append]
+      exact congrArg _ (funext fun _ => PMF.bind_comm _ _ _)
   · simp only [hcond, Bool.false_eq_true, ↓reduceIte, ChoiceOut.msg₀, ChoiceOut.msg₁,
       ChoiceOut.state, ChoiceOut.msgs, OracleComp.interpret_pure, StateT.run_pure,
       ProbComp.eval_pure, PMF.pure_bind, decode_rejectMultiCCA2State]

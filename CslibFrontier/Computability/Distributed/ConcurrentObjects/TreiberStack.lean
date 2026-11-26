@@ -397,14 +397,12 @@ theorem treiberFreshNode_cas_fail_witnesses_intervening_cas {P V : Type u} [Deci
     rw [hlbl] at htr_j
     rcases htr_j.2 with ⟨v, hst⟩ | hst <;> (rw [hst] at hj_chg; exact absurd rfl hj_chg)
   | exec q done =>
-    rw [hlbl] at htr_j
-    dsimp only [treiberFreshNodeSystem] at htr_j
-    obtain ⟨_, hstep_j⟩ := htr_j
+    obtain ⟨_, hstep_j⟩ := hlbl ▸ htr_j
     obtain ⟨hs1, rfl⟩ := Prod.mk.inj hstep_j
     obtain ⟨hdone_f, resp, hret⟩ := treiberFreshNodeStep_head_ne (hs1.symm ▸ hj_chg)
-    refine ⟨j, q, resp, hj_lt, fun h => ?_, hdone_f ▸ hlbl, hj_chg, hs1 ▸ hret⟩
-    subst h
-    exact hj_chg (hp_no_mod j hj_lt (congrArg StepLabel.proc hlbl))
+    exact ⟨j, q, resp, hj_lt,
+      fun h => hj_chg (hp_no_mod j hj_lt (h ▸ congrArg StepLabel.proc hlbl)),
+      hdone_f ▸ hlbl, hj_chg, hs1 ▸ hret⟩
 
 /-! ### Spine representation and forward inductive invariant for linearizability -/
 
@@ -532,23 +530,21 @@ private theorem wellFormed_of_procHistoryMatch {P V : Type u} [DecidableEq P]
   intro p
   rw [History.procSubhistory_append]
   have hp := hm p
-  generalize threads p = ph at hp
-  cases ph with
+  cases hph : threads p with
   | idle =>
-    obtain ⟨hR, cs, hH⟩ := hp
+    obtain ⟨hR, cs, hH⟩ := hph ▸ hp
     rw [hR, List.append_nil, hH]
     exact History.isSequential_flatMap_toEvents cs
   | pushAlloc _ | pushRead _ _ | pushCAS _ _ _ | popRead | popNext _ | popCAS _ _ _ =>
-    obtain ⟨hR, cs, hH⟩ := hp
+    obtain ⟨hR, cs, hH⟩ := hph ▸ hp
     rw [hR, List.append_nil, hH]
     exact hseq_inv cs p _
   | returning resp =>
-    obtain ⟨hR, cs, op, hH⟩ := hp
+    obtain ⟨hR, cs, op, hH⟩ := hph ▸ hp
     rw [hR, hH]
-    have hpair := History.isSequential_append_pair
-      (History.isSequential_flatMap_toEvents cs)
-      (by rw [History.length_flatMap_toEvents]; omega) p () op resp
-    simpa only [List.append_assoc, List.cons_append, List.nil_append] using hpair
+    simpa only [List.append_assoc, List.cons_append, List.nil_append] using
+      History.isSequential_append_pair (History.isSequential_flatMap_toEvents cs)
+        (by rw [History.length_flatMap_toEvents]; omega) p () op resp
 
 /-- Heap and fresh-node ownership invariant relating `heap`, `spine`, and `threads`. -/
 private structure NodeOwnershipInv {P V : Type u}
@@ -954,14 +950,11 @@ private theorem treiberInv_exec {P V : Type u} [DecidableEq P]
         List.flatMap_cons, List.flatMap_nil, List.append_nil, OpCall.toEvents,
         List.append_assoc, List.cons_append, List.nil_append]
     · simp only [Function.update_of_ne hqp]
-      have hR'_q :
-          History.procSubhistory (R.filter fun e => decide (e.proc ≠ p)) q =
-            History.procSubhistory R q := by
-        simp only [History.procSubhistory, List.filter_filter]
-        exact List.filter_congr fun e _ => by by_cases h : e.proc = q <;> simp [h, hqp]
-      exact procHistoryMatch_congr (by
+      refine procHistoryMatch_congr (by
         simp only [History.procSubhistory_append, History.procSubhistory_cons, Event.proc_resp,
-          Ne.symm hqp, ↓reduceIte, History.procSubhistory_nil, List.append_nil]) hR'_q (hpm q)
+          Ne.symm hqp, ↓reduceIte, History.procSubhistory_nil, List.append_nil]) ?_ (hpm q)
+      simp only [History.procSubhistory, List.filter_filter]
+      exact List.filter_congr fun e _ => by by_cases h : e.proc = q <;> simp [h, hqp]
 
 private theorem treiberInv_of_reachable {P V : Type u} [DecidableEq P]
     {s : TreiberFreshNodeState P V} (hs : (treiberFreshNodeSystem P V).Reachable s) :
@@ -986,15 +979,11 @@ theorem treiberFreshNode_isLinearizable {P V : Type u} [DecidableEq P]
     IsLinearizable (fun _ : Unit => stackSeqSpec V) s.history := by
   obtain ⟨spine, R, S_calls, _, _, heval, hR_resp, hpm, heqS, hprecS⟩ :=
     treiberInv_of_reachable hs
-  have hwf' := wellFormed_of_procHistoryMatch hpm
-  let S := S_calls.flatMap OpCall.toEvents
-  refine ⟨s.history ++ R, ⟨R, hR_resp, rfl, hwf'⟩, S,
-    History.isSequential_flatMap_toEvents S_calls, ?_, heqS, hprecS⟩
-  intro u
-  cases u
-  have hall_u : ∀ e ∈ S, e.obj = () := fun _ _ => rfl
-  rw [History.objSubhistory_eq_self_of_forall_obj hall_u]
-  simp only [stackSeqSpec, SeqSpec.mem_ofMachine_allowed]
-  exact evalStack_mem_allowed heval
+  refine ⟨s.history ++ R, ⟨R, hR_resp, rfl, wellFormed_of_procHistoryMatch hpm⟩,
+    S_calls.flatMap OpCall.toEvents, History.isSequential_flatMap_toEvents S_calls, ?_,
+    heqS, hprecS⟩
+  rintro ⟨⟩
+  rw [History.objSubhistory_eq_self_of_forall_obj fun _ _ => rfl]
+  simpa only [stackSeqSpec, SeqSpec.mem_ofMachine_allowed] using evalStack_mem_allowed heval
 
 end Cslib.Distributed.ConcurrentObjects

@@ -396,11 +396,10 @@ theorem IsCriticalCoalition.tipsAll (hp : ∀ i, 0 ≤ G.directProb i) (hL : ∀
   have h1step : G.cascadeStep M (fun i => decide (i ∈ M)) = fun _ => true := by
     ext j
     by_cases hj : j ∈ M <;> simp [cascadeStep, hj, hM j]
-  have htop : G.cascadeStep M (fun _ => true) = fun _ => true := by
-    have hle := G.cascadeStep_mono hp hL h0 h1 M
-      (a := fun i => decide (i ∈ M)) (b := fun _ => true) fun _ => Bool.le_true _
-    rw [h1step] at hle
-    exact le_antisymm (fun _ => Bool.le_true _) hle
+  have htop : G.cascadeStep M (fun _ => true) = fun _ => true :=
+    le_antisymm (fun _ => Bool.le_true _) (by
+      simpa only [h1step] using
+        G.cascadeStep_mono hp hL h0 h1 M (a := fun i => decide (i ∈ M)) fun _ => Bool.le_true _)
   rcases hcard : Fintype.card ι with _ | k
   · ext i
     exact (Fintype.card_eq_zero_iff.mp hcard).elim i
@@ -609,13 +608,11 @@ theorem isSmooth_toCostGame {μ : ℝ}
     simpa only [CostGame.socialCost, sum_add_distrib] using sum_le_sum fun i _ => hpt i
   have hswap : (∑ i, ∑ j ∈ (univ.erase i).filter (fun j => !s j), G.contagion j i * G.loss i) =
       ∑ j ∈ univ.filter (fun j => !s j), ∑ i ∈ univ.erase j, G.contagion j i * G.loss i := by
-    have he : ∀ a : ι, univ.erase a = univ.filter (· ≠ a) := fun a => by
-      ext
-      simp [and_comm]
+    have he : ∀ a : ι, univ.erase a = univ.filter (· ≠ a) :=
+      fun _ => Finset.ext fun _ => by simp [and_comm]
     simp only [he, filter_filter, sum_filter]
     rw [sum_comm]
-    refine sum_congr rfl fun j _ => ?_
-    by_cases hsj : (!s j) = true <;> simp [hsj, ne_comm]
+    exact sum_congr rfl fun j _ => by by_cases hsj : (!s j) = true <;> simp [hsj, ne_comm]
   -- Step 3: For each `j` with `!s j`, `directProb j * loss j ≤ cost j s`, while investing `j` have
   -- `0 ≤ μ * cost j s`.
   have hbound_j : ∑ j ∈ univ.filter (fun j => !s j),
@@ -683,13 +680,11 @@ theorem symmetricIDSSpec_criticalCost_eq_geom_sum {ι : Type*} [Fintype ι] [Dec
       p * L * (1 - p * q) ^ ((univ.erase i).filter (fun j => !s j)).card := by
   set u := ((univ.erase i).filter (fun j => !s j)).card
   have hclosed : (symmetricIDSSpec ι p q L c).criticalCost i s = p * L * (1 - p * q) ^ u := by
-    rw [InterdependentSecuritySpec.criticalCost, symmetricIDSSpec_noContagionProb]
-    rfl
+    rw [InterdependentSecuritySpec.criticalCost, symmetricIDSSpec_noContagionProb]; rfl
   refine ⟨?_, hclosed⟩
   rw [hclosed]
   have hgeom : p * q * ∑ k ∈ range u, (1 - p * q) ^ k = 1 - (1 - p * q) ^ u := by
-    have := geom_sum_mul_neg (1 - p * q) u
-    linarith
+    linarith [geom_sum_mul_neg (1 - p * q) u]
   calc p * L * (1 - p * q) ^ u
       = p * L - p * L * (1 - (1 - p * q) ^ u) := by ring
     _ = p * L - p * L * (p * q * ∑ k ∈ range u, (1 - p * q) ^ k) := by rw [hgeom]
@@ -713,13 +708,11 @@ theorem symmetricIDSSpec_cost_allFalse_eq_geom_sum (n : ℕ) (p q L c : ℝ) (i 
     simp only [InterdependentSecuritySpec.toCostGame, Bool.false_eq_true, ↓reduceIte,
       InterdependentSecuritySpec.contagionProb, symmetricIDSSpec_noContagionProb,
       symmetricIDS_unprotected_allFalse_card]
-    simp only [symmetricIDSSpec]
-    ring
+    simp only [symmetricIDSSpec]; ring
   refine ⟨?_, hclosed⟩
   rw [hclosed]
   have hgeom : p * q * ∑ k ∈ range n, (1 - p * q) ^ k = 1 - (1 - p * q) ^ n := by
-    have := geom_sum_mul_neg (1 - p * q) n
-    linarith
+    linarith [geom_sum_mul_neg (1 - p * q) n]
   calc L * (1 - (1 - p) * (1 - p * q) ^ n)
       = p * L + L * (1 - p) * (1 - (1 - p * q) ^ n) := by ring
     _ = p * L + L * (1 - p) * (p * q * ∑ k ∈ range n, (1 - p * q) ^ k) := by rw [hgeom]
@@ -1081,10 +1074,9 @@ theorem symmetricIDSSpec_prisonersDilemma_socialCost_le (n : ℕ) {p q L c : ℝ
       calc p * q * L * (1 - p) * ∑ k ∈ range n, (1 - p * q) ^ k
           ≤ p * q * L * 1 * ∑ k ∈ range n, (1 - p * q) ^ k :=
             mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left h1_sub_p hA) hB
-        _ ≤ p * q * L * (n : ℝ) := by
-            rw [mul_one]
-            exact mul_le_mul_of_nonneg_left hsum_le hA
-    linarith [show (1 + (n : ℝ) * q) * (p * L) = p * L + p * q * L * (n : ℝ) by ring]
+        _ ≤ p * q * L * (n : ℝ) := by simpa [mul_one] using mul_le_mul_of_nonneg_left hsum_le hA
+    have hexpand : (1 + (n : ℝ) * q) * (p * L) = p * L + p * q * L * (n : ℝ) := by ring
+    linarith
   have hub_soc : G.toCostGame.socialCost (fun _ => false) ≤
       ((n + 1 : ℕ) : ℝ) * ((1 + (n : ℝ) * q) * (p * L)) := by
     simpa only [CostGame.socialCost, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul] using

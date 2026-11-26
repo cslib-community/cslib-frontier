@@ -115,9 +115,8 @@ private theorem sum_powersetCard_indicator [Fintype ι] (A : ι → Set Ω) (r :
       ∑ s ∈ (Finset.univ : Finset ι).powersetCard r, if s ∈ T.powerset then (1 : ℝ) else 0 :=
     Finset.sum_congr rfl fun s _ => by
       simp [Set.indicator_apply, T, Finset.mem_powerset, Finset.subset_iff]
-  have hinter : (Finset.univ : Finset ι).powersetCard r ∩ T.powerset = T.powersetCard r := by
-    ext s
-    simp [and_comm]
+  have hinter : (Finset.univ : Finset ι).powersetCard r ∩ T.powerset = T.powersetCard r :=
+    Finset.ext fun _ => by simp [and_comm]
   rw [hsum, Finset.sum_boole, Finset.filter_mem_eq_inter, hinter, Finset.card_powersetCard]
 
 /-- Pointwise Bonferroni identity expressing the truncated inclusion-exclusion error in terms of
@@ -317,10 +316,8 @@ theorem tendsto_measureReal_natCard_eq_poisson_of_factorialMoments
       (lam ^ r / r.factorial) * (lam ^ k / k.factorial) := by
     have hchoose :
         ((r + k).choose k : ℝ) * (r.factorial * k.factorial : ℝ) = (r + k).factorial := by
-      have h0 := Nat.choose_mul_factorial_mul_factorial (Nat.le_add_left k r)
-      rw [Nat.add_sub_cancel] at h0
-      exact_mod_cast (by linarith : (r + k).choose k * (r.factorial * k.factorial) =
-        (r + k).factorial)
+      exact_mod_cast ((mul_assoc _ _ _).symm.trans (mul_right_comm _ _ _)).trans
+        (Nat.add_sub_cancel r k ▸ Nat.choose_mul_factorial_mul_factorial (Nat.le_add_left k r))
     have hfac_ne : ((r + k).factorial : ℝ) ≠ 0 := by positivity
     calc ((r + k).choose k : ℝ) * (lam ^ (r + k) / (r + k).factorial)
         = (((r + k).choose k : ℝ) * (r.factorial * k.factorial : ℝ) / (r + k).factorial) *
@@ -336,15 +333,11 @@ theorem tendsto_measureReal_natCard_eq_poisson_of_factorialMoments
         (lam ^ k / k.factorial))) := by
     have hfin := tendsto_finsetSum (Finset.range M) fun r _ =>
       ((hmom (r + k)).const_mul (((r + k).choose k : ℝ))).const_mul ((-1 : ℝ) ^ r)
-    have hsum_eq : (∑ r ∈ Finset.range M, (-1 : ℝ) ^ r * (lam ^ r / r.factorial)) *
-        (lam ^ k / k.factorial) = ∑ r ∈ Finset.range M, (-1 : ℝ) ^ r *
-        (((r + k).choose k : ℝ) * (lam ^ (r + k) / (r + k).factorial)) := by
-      rw [Finset.sum_mul]
-      refine Finset.sum_congr rfl fun r _ => ?_
-      rw [hterm r]
-      ring
-    rw [hsum_eq]
-    exact hfin.congr fun n => Finset.sum_congr rfl fun r _ => by ring
+    convert (hfin.congr fun n => Finset.sum_congr rfl fun r _ => (mul_assoc _ _ _).symm) using 2
+    rw [Finset.sum_mul]
+    refine Finset.sum_congr rfl fun r _ => ?_
+    rw [hterm r]
+    ring
   rw [Metric.tendsto_atTop]
   intro ε hε
   have hε2 : 0 < ε / 2 := by positivity

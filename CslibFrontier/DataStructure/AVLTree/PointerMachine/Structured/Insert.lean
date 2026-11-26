@@ -415,10 +415,8 @@ private theorem missing_correct [LinearOrder M.Value]
   obtain ⟨a, ea, heapA, leafA, matchA, sizeA, cursorA, rootA, dataA, _⟩ :=
     createLeaf_correct zero maxSucc lt encode zero_spec max_spec
       field notKey source safe s vacant
-  have graft := graftLeaf s.heap cs label side rep distinct rfl (by
-    cases cs with
-    | nil => trivial
-    | cons frame cs => cases frame <;> exact chosen)
+  have graft := graftLeaf s.heap cs label side rep distinct rfl
+    (by rcases cs with _ | ⟨_ | _, _⟩ <;> trivial)
   obtain ⟨b, eb, heapB, dataB, cursorB, ptrB⟩ :=
     SearchTree.PointerMachine.Structured.ascend_correct a cs label .nil .nil
       (by simpa only [parent] using leafA) cursorA
@@ -436,7 +434,8 @@ private theorem missing_correct [LinearOrder M.Value]
     (ExecWithin.seq ea (ExecWithin.seq eb ec)).mono (by omega)
   refine ⟨c, tree, exec, ⟨repC, matchC, distinctC, rootC, ⟨by omega, by omega⟩, ?_,
     fun i h1 h2 => exec.data_keep [1, 2]
-      (missing_dataDests zero maxSucc lt heavy le field source) (by simp [h1, h2]), ?_, ?_⟩⟩
+      (missing_dataDests zero maxSucc lt heavy le field source) (by simp [h1, h2]), ?_,
+    fun _ f hf => by simp [payloadC _ f hf, heapB, leafA.1, record, hf]⟩⟩
   · rw [addressesC, graft.2.2.1]
     exact ⟨Finset.subset_insert _ _, Finset.Subset.refl _⟩
   · intro z f hz hf
@@ -449,9 +448,6 @@ private theorem missing_correct [LinearOrder M.Value]
         simp [List.getElem?_modify_eq, Option.map_map, Function.comp_def,
           List.getElem?_append_left hz]
       · rw [List.getElem?_modify_ne _ _ eq, List.getElem?_append_left hz]
-  · intro _ f hf
-    rw [payloadC _ f hf, heapB, leafA.1]
-    simp [record, hf]
 
 private theorem afterSeek_found (zero maxSucc : M.Op) (lt heavy le : M.Test)
     (field : Fin (extra + 1)) (source : Fin (extra + 1) → Fin (regs + 3))
@@ -512,14 +508,12 @@ theorem insert_correct [LinearOrder M.Value]
     cases focus with
     | nil =>
       let cleared := a.setPtr 5 none
-      have parent : cleared.ptr 2 = contextParent cs := by
-        simpa [cleared, State.setPtr] using ra.parent
-      have rootCleared : cleared.ptr 1 = root (plug cs .nil) := by
-        simpa [cleared, State.setPtr, ra.reconstruction] using rootA
       obtain ⟨b, result, eb, rb⟩ := missing_correct zero maxSucc lt heavy le encode
         zero_spec max_spec compare heavy_spec le_spec field notKey source safe
         cleared cs original (ra.reconstruction ▸ matched) valid (query.symm ▸ ra.path)
-        (ra.heap.symm ▸ ra.reconstruction ▸ rep) (ra.reconstruction ▸ distinct) parent rootCleared
+        (ra.heap.symm ▸ ra.reconstruction ▸ rep) (ra.reconstruction ▸ distinct)
+        (by simpa [cleared, State.setPtr] using ra.parent)
+        (by simpa [cleared, State.setPtr, ra.reconstruction] using rootA)
       have run := ExecWithin.seq ea
         (afterSeek_missing zero maxSucc lt heavy le field source a ra.cursor b _ eb)
       have depth := height_add_context_length_le cs (.nil : BinaryTree (Label M extra))

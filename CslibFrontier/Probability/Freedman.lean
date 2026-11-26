@@ -207,12 +207,10 @@ theorem seqProcess_ville_le (step : ∀ t : ℕ, (Fin t → α) → PMF α)
       by_cases hh : h ∈ (seqProcess step m).support
       · rw [tsum_map_mul]
         refine mul_le_mul_right ?_ _
-        by_cases hex : ∃ (j : ℕ) (hj : j ≤ m), c ≤ Z j (Fin.take j hj h)
-        · simp only [stoppedProcess, Fin.init_snoc, hex, ↓reduceIte]
-          rw [ENNReal.tsum_mul_right, (step m h).tsum_coe, one_mul]
-        · simp only [stoppedProcess, Fin.init_snoc, hex, ↓reduceIte]
-          rw [stoppedProcess_eq_of_not_exists Z c h hex]
-          exact hsuper m hm_lt h hh
+        simp only [stoppedProcess, Fin.init_snoc]
+        split_ifs with hex
+        · rw [ENNReal.tsum_mul_right, (step m h).tsum_coe, one_mul]
+        · exact stoppedProcess_eq_of_not_exists Z c h hex ▸ hsuper m hm_lt h hh
       · rw [((seqProcess step m).apply_eq_zero_iff h).mpr hh, zero_mul, zero_mul]
   set E : Set (Fin n → α) := {h | ∃ (k : ℕ) (hk : k ≤ n), c ≤ Z k (Fin.take k hk h)}
   rw [toOuterMeasure_eq_tsum_mul_indicator, ← ENNReal.tsum_mul_right]
@@ -295,20 +293,15 @@ theorem tsum_seqProcess_freedman_exp_le_one (step : ∀ t : ℕ, (Fin t → α) 
         ((Real.exp (s * b) - 1 - s * b) / b ^ 2) * seqPredVar V n h)) ≤ 1 := by
   set ψ := (Real.exp (s * b) - 1 - s * b) / b ^ 2
   have hstep := freedman_step_le step X V hb n hd1 hd2 hmean hupper hvar hs
+  clear hd1 hd2 hmean hupper hvar
   induction n with
   | zero =>
     rw [seqProcess, tsum_eq_single Fin.elim0 fun h hh =>
       absurd (Subsingleton.elim h Fin.elim0) hh]
     simp
   | succ m ih =>
-    have ih' := ih (fun k hk => hd1 k (Nat.lt_succ_of_lt hk))
-      (fun k hk => hd2 k (Nat.lt_succ_of_lt hk))
-      (fun k hk => hmean k (Nat.lt_succ_of_lt hk))
-      (fun k hk => hupper k (Nat.lt_succ_of_lt hk))
-      (fun k hk => hvar k (Nat.lt_succ_of_lt hk))
-      (fun k hk => hstep k (Nat.lt_succ_of_lt hk))
     rw [seqProcess, tsum_bind_mul]
-    refine (tsum_le_tsum fun h => ?_).trans ih'
+    refine (tsum_le_tsum fun h => ?_).trans (ih fun k hk => hstep k (Nat.lt_succ_of_lt hk))
     classical
     by_cases hh : h ∈ (seqProcess step m).support
     · rw [tsum_map_mul]

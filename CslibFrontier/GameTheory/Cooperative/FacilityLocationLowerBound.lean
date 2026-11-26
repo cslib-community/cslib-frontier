@@ -150,8 +150,8 @@ private theorem flTightInstance_planCost {m k : ℕ} (F' : Finset (Fin m)) (hF' 
     · obtain ⟨i₀, hi₀⟩ := hF'
       split_ifs with hj
       · exact (Finset.inf'_le _ hj).trans (by simp [flTightInstance])
-      · exact (Finset.inf'_le _ hi₀).trans
-          (by simp [flTightInstance, show i₀ ≠ j from fun h => hj (h ▸ hi₀)])
+      · have hne : i₀ ≠ j := fun h => hj (h ▸ hi₀)
+        exact (Finset.inf'_le _ hi₀).trans (by simp [flTightInstance, hne])
     · dsimp only [flTightInstance]
       split_ifs <;> first | (subst_vars; contradiction) | norm_num
   have hconn_r (r : Fin k) :
@@ -179,8 +179,7 @@ theorem flTightInstance_cost_univ (m k : ℕ) [NeZero m] :
     norm_num
   · refine (flTightInstance m k).le_toCostSharingGame_cost_of_nonempty hU fun F' hF' => ?_
     rw [flTightInstance_planCost F' hF']
-    have hcard : (1 : ℝ) ≤ (F'.card : ℝ) := by exact_mod_cast hF'.card_pos
-    linarith
+    exact_mod_cast Nat.add_le_add_left hF'.card_pos (3 * m + k)
 
 /-- On `flTightInstance m k` (`m ≥ 1, k ≥ 1`), every facility `i` opens in `FLCostShare` at the
 same time `1 + 3 / (k + 1)`, so every agent pays `1 + 3 / (k + 1)` and total recovered cost is
@@ -192,9 +191,8 @@ theorem flTightInstance_flCostShareScheme_sum (m k : ℕ) [NeZero m] (hk : 1 ≤
   have hk_ge : (1 : ℝ) ≤ k := by exact_mod_cast hk
   have hk1_pos : (0 : ℝ) < (k : ℝ) + 1 := by linarith
   have ht_gt : 1 < t := by dsimp only [t]; linarith [div_pos (by norm_num : (0 : ℝ) < 3) hk1_pos]
-  have ht_le3 : t ≤ 3 := by
-    have h : 3 / ((k : ℝ) + 1) ≤ 2 := (div_le_iff₀ hk1_pos).2 (by linarith)
-    dsimp only [t]; linarith
+  have hdiv : 3 / ((k : ℝ) + 1) ≤ 2 := (div_le_iff₀ hk1_pos).2 (by linarith)
+  have ht_le3 : t ≤ 3 := by dsimp only [t]; linarith
   have hopen_eq (i : Fin m) : (flTightInstance m k).openTime i Finset.univ = t := by
     refine ((flTightInstance m k).eq_openTime_of_sum_max_eq
       ⟨.inl 0, Finset.mem_univ _⟩ (by norm_num [flTightInstance]) ?_).symm
@@ -351,7 +349,6 @@ private theorem sliceCoalition_cost {k m : ℕ} [NeZero k] [NeZero m]
     have hopen : ∑ c ∈ F', (flHardInstance k m).openCost c = 3 * (F'.card : ℝ) := by
       simp [flHardInstance, mul_comm]
     let matched : Finset (Fin m) := F'.image fun c => c i
-    have hmatched_card : matched.card ≤ F'.card := Finset.card_image_le
     have hrow_ge : 3 * (m : ℝ) - 2 * (matched.card : ℝ) ≤
         ∑ a ∈ rowCoalition i, F'.inf' hF' (fun c => (flHardInstance k m).connCost c a) := by
       rw [rowCoalition, Finset.sum_image (fun x₁ _ x₂ _ h => congrArg Prod.snd h),
@@ -373,8 +370,8 @@ private theorem sliceCoalition_cost {k m : ℕ} [NeZero k] [NeZero m]
         (k : ℝ) - 1 = ∑ _a ∈ punctureCoalition i b, (1 : ℝ) := by
             rw [Finset.sum_const, nsmul_eq_mul, mul_one, card_punctureCoalition]
         _ ≤ _ := Finset.sum_le_sum hterm
-    have hF_ge1 : (1 : ℝ) ≤ (F'.card : ℝ) := by exact_mod_cast hF'.card_pos
-    have hm_le : (matched.card : ℝ) ≤ (F'.card : ℝ) := by exact_mod_cast hmatched_card
+    have hF_ge1 : (1 : ℝ) ≤ (F'.card : ℝ) := Nat.one_le_cast.2 hF'.card_pos
+    have hm_le : (matched.card : ℝ) ≤ (F'.card : ℝ) := Nat.cast_le.2 Finset.card_image_le
     linarith
 
 /-- Self-inverse bijection `(b, x) ↦ (Function.update b i x, b i)` on `(Fin k → Fin m) × Fin m`. -/
@@ -492,17 +489,14 @@ theorem not_exists_crossMonotone_isBudgetBalanced {γ : ℝ} (hγ : 1 / 3 < γ) 
     have h6 : 6 < (3 * γ - 1) * (k : ℝ) := (div_lt_iff₀ hε).1 hk_cast |>.trans_eq (mul_comm _ _)
     linarith
   let m : ℕ := k * (k + 2) + 1
-  have hnk : NeZero k := ⟨by omega⟩
-  have hnm : NeZero m := ⟨by omega⟩
-  refine ⟨k, m, hnk, hnm, flHardInstance_isMetric k m, ?_⟩
-  rintro ⟨ξ, hcm, hbb⟩
+  have : NeZero k := ⟨by omega⟩
+  have : NeZero m := ⟨by omega⟩
+  refine ⟨k, m, inferInstance, inferInstance, flHardInstance_isMetric k m, fun ⟨ξ, hcm, hbb⟩ => ?_⟩
   have hmul : γ * (3 * (m : ℝ) + (k : ℝ)) * (k : ℝ) ≤
       (m : ℝ) * ((k : ℝ) + 3) + (k : ℝ) * ((k : ℝ) + 2) :=
-    (mul_le_mul_of_nonneg_right
-      (@flHardInstance_budgetBalance_le k m hnk hnm ξ γ hcm hbb) hk_pos.le).trans_eq
+    (mul_le_mul_of_nonneg_right (flHardInstance_budgetBalance_le hcm hbb) hk_pos.le).trans_eq
       (by field_simp [hk_pos.ne'])
-  have hm_ge : (k : ℝ) * ((k : ℝ) + 2) < (m : ℝ) := by
-    dsimp only [m]; push_cast; linarith
+  have hm_ge : (k : ℝ) * ((k : ℝ) + 2) < (m : ℝ) := by exact_mod_cast Nat.lt_succ_self _
   have hm_pos : (0 : ℝ) < (m : ℝ) := Nat.cast_pos.mpr (Nat.succ_pos _)
   nlinarith [mul_lt_mul_of_pos_right hcoeff hm_pos, sq_nonneg (k : ℝ)]
 

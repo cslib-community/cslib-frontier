@@ -129,10 +129,8 @@ theorem map_mem_SubsetSum_iff {ι : Type*} [DecidableEq ι] {xs : List ι} (hxs 
   · rintro ⟨F, hF, rfl⟩
     refine ⟨(xs.filter (· ∈ F)).map f, (List.filter_sublist).map f, ?_⟩
     rw [← List.sum_toFinset _ (hxs.filter _)]
-    congr 1
-    ext x
-    simp only [List.mem_toFinset, List.mem_filter, decide_eq_true_eq]
-    exact ⟨fun h => h.2, fun h => ⟨List.mem_toFinset.1 (hF h), h⟩⟩
+    refine congrArg (·.sum f) (Finset.ext fun x => ?_)
+    simpa using fun hx => List.mem_toFinset.1 (hF hx)
 
 namespace SubsetSum
 
@@ -480,10 +478,7 @@ theorem counts_iff_satisfiable (hφ : ∀ c ∈ φ, c.length ≤ 3) :
     obtain ⟨l, hl, hi, hb⟩ := covers_eq_true_iff.1 (mem_filter.1 ha).2
     rw [List.getD_eq_getElem _ _ hj] at hl
     refine (Clause.eval_eq_true_iff _ _).2 ⟨l, hl, ?_⟩
-    rw [hi, hb]
-    cases b
-    · exact decide_eq_false (hnot i (mem_filter.1 ha).1)
-    · exact decide_eq_true (mem_filter.1 ha).1
+    cases b <;> simp [hi, hb, (mem_filter.1 ha).1, hnot i]
   · rintro ⟨σ, hσ⟩
     -- Choose the true literal of each variable, then fill each clause position with slack.
     set b : ℕ → Bool := fun i => σ (φ.distinctVars.getD i 0) with hb
@@ -514,10 +509,9 @@ theorem counts_iff_satisfiable (hφ : ∀ c ∈ φ, c.length ≤ 3) :
       have hBj : ({c ∈ B | c.1 = j} : Finset (ℕ × Bool)) =
           ({c ∈ (univ : Finset Bool) | cnt j + (!c).toNat ≤ 2}).image (Prod.mk j) := by
         ext ⟨j', c⟩
-        simp only [hB, mem_filter, mem_product, mem_range, mem_univ, and_true, mem_image,
-          true_and, Prod.mk.injEq]
-        exact ⟨fun ⟨⟨_, h⟩, rfl⟩ => ⟨c, h, rfl, rfl⟩,
-          fun ⟨c', h, hj', hc'⟩ => hj' ▸ hc' ▸ ⟨⟨hj, h⟩, rfl⟩⟩
+        rcases eq_or_ne j j' with rfl | h
+        · simp [hB, hj]
+        · simp [hB, h, h.symm]
       change cnt j + _ = 3
       rw [hBj, card_image_of_injective _ (Prod.mk_right_injective j),
         card_filter _ (univ : Finset Bool), Fintype.sum_bool]

@@ -69,8 +69,7 @@ each of its roles at `P`. -/
 private theorem sum_relayAlive_le (τ : Target T m A) :
     ∑ x, ∑ d, (if x.target R ch d = τ then relayAlive lhat n o x d else 0) ≤
       load lhat n o τ := by
-  rw [load_eq_sum]
-  omega
+  rw [load_eq_sum]; omega
 
 /-- The channels of relays whose units lie on edges of the level `j`, with the weights `w` of the
 edges. -/
@@ -121,8 +120,7 @@ units of the third one. -/
 private theorem relayAlive_middle_le_two (hg : ∀ mv, GoodOutcome lhat n o mv) (j : Fin J)
     (e : T.Ed j) {s : Fin 4} (hs : s = 1 ∨ s = 3) :
     relayAlive lhat n o (.middle j e s) false ≤ relayAlive lhat n o (.middle j e 2) false := by
-  have h2 : (Relay.middle j e 2 : Relay T m A).Occurs R ch :=
-    ⟨fun h => absurd h (by decide), fun h => absurd h (by decide)⟩
+  have h2 : (Relay.middle j e 2 : Relay T m A).Occurs R ch := ⟨nofun, nofun⟩
   by_cases hx : (Relay.middle j e s).Occurs R ch
   · rw [relayAlive_eq_moveCount hg hx, relayAlive_eq_moveCount hg h2]
     rcases hs with rfl | rfl
@@ -131,7 +129,7 @@ private theorem relayAlive_middle_le_two (hg : ∀ mv, GoodOutcome lhat n o mv) 
       exact alive_le_load _
     · refine (moveCount_relay_le _ hx).trans ?_
       rw [← relayAlive_eq_moveCount hg h2 true]
-      simp only [Relay.input, show (3 : Fin 4) ≠ 0 by decide, ↓reduceIte]
+      simp only [Relay.input, Fin.reduceEq, ↓reduceIte]
       refine (load_le_relayAlive (fun _ _ => by simp [Move.target]) (.middle j e 2) true
         fun x d h _ => ?_).trans_eq ?_
       · obtain ⟨rfl, h' | h' | h'⟩ := Relay.of_target_eq_relay_middle h
@@ -336,9 +334,7 @@ theorem sum_unitsAt_relay_le (hg : ∀ mv, GoodOutcome lhat n o mv) (P : T.Node)
       if Tower.Node.root = P then ∑ e, edgeLoads (load lhat n o) J e else 0 := by
     cases P <;> simp [Tower.Node.lift]
   simp only [sum_add_distrib, ← mul_sum] at hI hM
-  have hC0 : (∑ c : T.X 0, if Tower.Node.ofChamber (Nat.zero_le J) c = P then
-      T.childUnits hh (edgeLoads (load lhat n o)) 0 c else 0) = 0 := by
-    simp [Tower.childUnits]
+  rw [sum_eq_zero fun _ _ => by simp [Tower.childUnits], zero_add] at hC
   rw [h0, Relay.sum_eq, hL]; omega
 
 /-! ### Law moves -/

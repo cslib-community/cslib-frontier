@@ -154,9 +154,8 @@ theorem walkAt_cons_succ (v : V) (a : D) (k : Fin t → D) (i : ℕ) :
 /-- The `(i + 1)`-th dart of a walk whose first label is `a` is the `i`-th dart of the walk along
 the remaining labels from the neighbor along `a`. -/
 theorem walkDart_cons_succ (v : V) (a : D) (k : Fin t → D) (i : Fin t) :
-    G.walkDart (v, Fin.cons a k) i.succ = G.walkDart (G.neighbor v a, k) i := by
-  rw [walkDart, Fin.val_succ, walkAt_cons_succ]
-  rfl
+    G.walkDart (v, Fin.cons a k) i.succ = G.walkDart (G.neighbor v a, k) i :=
+  Prod.ext (G.walkAt_cons_succ v a k i) rfl
 
 /-- The walk along the first `n` labels of a walk follows it for `n` steps. -/
 theorem walkAt_take (p : V × (Fin t → D)) {n i : ℕ} (hn : n ≤ t) (hi : i ≤ n) :
@@ -170,21 +169,18 @@ theorem walkAt_take (p : V × (Fin t → D)) {n i : ℕ} (hn : n ≤ t) (hi : i 
 
 /-- The darts of the walk along the first `n` labels of a walk are its first `n` darts. -/
 theorem walkDart_take (p : V × (Fin t → D)) {n : ℕ} (hn : n ≤ t) (i : Fin n) :
-    G.walkDart (p.1, Fin.take n hn p.2) i = G.walkDart p (Fin.castLE hn i) := by
-  rw [walkDart, walkDart, G.walkAt_take p hn i.isLt.le]
-  rfl
+    G.walkDart (p.1, Fin.take n hn p.2) i = G.walkDart p (Fin.castLE hn i) :=
+  Prod.ext (G.walkAt_take p hn i.isLt.le) rfl
 
 /-- Appending a label to a walk does not change its first `t` steps. -/
 theorem walkAt_snoc (v : V) (k : Fin t → D) (a : D) {i : ℕ} (hi : i ≤ t) :
     G.walkAt (v, Fin.snoc k a) i = G.walkAt (v, k) i := by
-  rw [← G.walkAt_take (v, Fin.snoc k a) t.le_succ hi]
-  simp [Fin.take_eq_init]
+  simp [← G.walkAt_take (v, Fin.snoc k a) t.le_succ hi, Fin.take_eq_init]
 
 /-- The `i`-th dart of a walk extended by a label `a` is the `i`-th dart of the walk. -/
 theorem walkDart_snoc_castSucc (v : V) (k : Fin t → D) (a : D) (i : Fin t) :
-    G.walkDart (v, Fin.snoc k a) i.castSucc = G.walkDart (v, k) i := by
-  rw [walkDart, walkDart, Fin.val_castSucc, G.walkAt_snoc v k a i.isLt.le]
-  simp
+    G.walkDart (v, Fin.snoc k a) i.castSucc = G.walkDart (v, k) i :=
+  Prod.ext (G.walkAt_snoc v k a i.isLt.le) (Fin.snoc_castSucc (α := fun _ => D) a k i)
 
 /-- The walk along the labels of `p` after its `n`-th step, from the `n`-th vertex of `p`. -/
 def walkDrop (p : V × (Fin t → D)) (n : ℕ) : V × (Fin (t - n) → D) :=
@@ -214,9 +210,8 @@ theorem walkAt_walkDrop (p : V × (Fin t → D)) (n i : ℕ) :
 
 /-- The `j`-th dart of the walk after the `n`-th step of `p` is the `(n + j)`-th dart of `p`. -/
 theorem walkDart_walkDrop (p : V × (Fin t → D)) (n : ℕ) (j : Fin (t - n)) :
-    G.walkDart (G.walkDrop p n) j = G.walkDart p ⟨n + j, by have := j.isLt; omega⟩ := by
-  rw [walkDart, walkDart, walkAt_walkDrop]
-  rfl
+    G.walkDart (G.walkDrop p n) j = G.walkDart p ⟨n + j, by have := j.isLt; omega⟩ :=
+  Prod.ext (G.walkAt_walkDrop p n j) rfl
 
 /-- A walk of length `t` ends at the neighbor along its labels in the power `G ^ t`. -/
 theorem walkAt_length (p : V × (Fin t → D)) : G.walkAt p t = (G.pow t).neighbor p.1 p.2 := by
@@ -254,9 +249,8 @@ theorem walkDart_rot_pow (p : V × (Fin t → D)) (i : Fin t) :
       exact (G.pow t).neighbor_neighbor_rot _ _
     | cast i =>
       rw [walkDart_snoc_castSucc, Prod.mk.eta, ih, Fin.rev_castSucc]
-      congr 1
-      conv_rhs => rw [← Fin.cons_self_tail k]
-      exact (G.walkDart_cons_succ _ _ _ _).symm
+      conv_rhs => rw [← Fin.cons_self_tail k, G.walkDart_cons_succ]
+      rfl
 
 /-- Reversing a walk in `G ^ t` reverses its trajectory. -/
 theorem walkAt_rot_pow (p : V × (Fin t → D)) {i : ℕ} (hi : i ≤ t) :

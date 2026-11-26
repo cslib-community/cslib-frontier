@@ -188,7 +188,7 @@ private theorem sum_powerset_bernWeight {α : Type*} [DecidableEq α] (p : α �
     · exact Finset.prod_congr rfl fun a ha => by simp [f, ha, Finset.disjoint_left.mp hEout ha]
     · exact Finset.prod_congr rfl fun a ha => by
         rcases Finset.mem_sdiff.mp ha with ⟨_, haE⟩
-        simp [g, haE, show a ∉ inSet from fun h => haE (hinE h)]
+        simp [g, haE, mt (@hinE a) haE]
   · intro E hEU hnot
     rw [Finset.mem_filter] at hnot
     by_cases h1 : inSet ⊆ E
@@ -301,8 +301,7 @@ theorem activeSetProb_eq_sum_liveGraphWeight
         have hE₀F := Finset.mem_powerset.mp hE₀_sub
         have hE₁F := Finset.mem_powerset.mp hE₁_sub
         refine Finset.mem_filter.mpr ⟨Finset.mem_univ _,
-          (hP _ _ fun e he => by
-            simp [toE, digraphEquivEdgeFinset, show e ∉ E₁ from fun h => he (hE₁F h)]).mpr hPE₀,
+          (hP _ _ fun e he => by simp [toE, digraphEquivEdgeFinset, mt (@hE₁F e) he]).mpr hPE₀,
           fun e he => by
             simp only [toE, digraphEquivEdgeFinset]
             exact Finset.mem_union.mpr (Or.inr (hinE₁ he)),
@@ -671,21 +670,15 @@ private theorem integral_reflectCouple {X Y : Finset V} (hXY : X ⊆ Y) (φ : Fi
   have hint_piece_rhs : ∀ K : Finset V,
       Integrable ((E K).indicator fun U => φ (M.thresholdFinal U Y)) (thresholdMeasure V) :=
     fun K => (M.integrable_of_finset Y φ).indicator (hmE K)
-  have hterm_eq : ∀ (K : Finset V) (U : V → ℝ),
-      (E K).indicator (fun U' => φ (M.reflectCouple X Y U')) U =
-        (E K).indicator (fun U' => φ (M.thresholdFinal U' Y)) (M.reflectMap K U) := by
-    intro K U
-    by_cases hU : U ∈ E K
-    · have hRU : M.reflectMap K U ∈ E K := (hmem_reflect K U).mp hU
-      rw [indicator_of_mem hU, indicator_of_mem hRU]
-      dsimp only [reflectCouple]
-      rw [hU.1, congrArg (· ∪ Y) hRU.1.symm, M.thresholdFinal_union_eq,
-        Finset.union_eq_right.mpr hXY]
-    · have hRU : M.reflectMap K U ∉ E K := mt (hmem_reflect K U).mpr hU
-      rw [indicator_of_notMem hU, indicator_of_notMem hRU]
   have hfn : ∀ K : Finset V, ((E K).indicator fun U => φ (M.reflectCouple X Y U)) =
       fun U => (E K).indicator (fun U' => φ (M.thresholdFinal U' Y)) (M.reflectMap K U) :=
-    fun K => funext (hterm_eq K)
+    fun K => funext fun U => by
+      by_cases hU : U ∈ E K
+      · have hRU : M.reflectMap K U ∈ E K := (hmem_reflect K U).mp hU
+        rw [indicator_of_mem hU, indicator_of_mem hRU]
+        simp only [reflectCouple, hU.1, congrArg (· ∪ Y) hRU.1.symm, M.thresholdFinal_union_eq,
+          Finset.union_eq_right.mpr hXY]
+      · rw [indicator_of_notMem hU, indicator_of_notMem (mt (hmem_reflect K U).mpr hU)]
   have hint_piece_lhs : ∀ K : Finset V,
       Integrable ((E K).indicator fun U => φ (M.reflectCouple X Y U)) (thresholdMeasure V) := by
     intro K
@@ -798,10 +791,7 @@ theorem isSubmodular_toTimeLayered_thresholdFn
       fun X => Finset.univ.filter fun u => (u, prev) ∈ X
     have hU : slice (A ∪ B) = slice A ∪ slice B := Finset.ext fun _ => by simp [slice]
     have hI : slice (A ∩ B) = slice A ∩ slice B := Finset.ext fun _ => by simp [slice]
-    change M.thresholdFn vt.1 (slice (A ∪ B)) + M.thresholdFn vt.1 (slice (A ∩ B)) ≤
-      M.thresholdFn vt.1 (slice A) + M.thresholdFn vt.1 (slice B)
-    rw [hU, hI]
-    exact hlocal vt.1 (slice A) (slice B)
+    simpa only [← hU, ← hI, slice] using hlocal vt.1 (slice A) (slice B)
 
 /-- Monotonicity of expected step-`t` active count in the `T`-step nonprogressive threshold
 process ([Kleinberg2007], Section 24.3, p. 622). -/

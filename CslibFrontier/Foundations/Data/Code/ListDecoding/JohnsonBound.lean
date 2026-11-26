@@ -227,10 +227,8 @@ private theorem qary_johnson_denom_ge {q n d e : ℕ} (hq : 2 ≤ q) (hn : 0 < n
     johnsonRadius_eq_sub_sqrt hqR δ
   set s : ℝ := Real.sqrt (θ ^ 2 - θ * δ)
   have hs0 : 0 ≤ s := Real.sqrt_nonneg _
-  have hs_le : θ ^ 2 - θ * δ ≤ s ^ 2 := by
-    rcases le_total (θ ^ 2 - θ * δ) 0 with hle | hge
-    · exact hle.trans (sq_nonneg s)
-    · exact (Real.sq_sqrt hge).ge
+  have hs_le : θ ^ 2 - θ * δ ≤ s ^ 2 :=
+    (le_total (θ ^ 2 - θ * δ) 0).elim (fun h => h.trans (sq_nonneg s)) fun h => (Real.sq_sqrt h).ge
   have hθx : s + ε ≤ θ - x := by linarith
   have hdiff : ε ^ 2 ≤ (θ - x) ^ 2 - (θ ^ 2 - θ * δ) := by
     nlinarith [pow_le_pow_left₀ (by positivity) hθx 2, mul_nonneg hs0 hε.le]
@@ -378,14 +376,11 @@ theorem isListDecodable_of_le_johnsonRadius [Nonempty ι] [Fintype α]
     push_cast [Nat.cast_sub hhyp.2.le, Nat.cast_sub (by omega : 1 ≤ q),
       Nat.cast_sub hdn, Nat.cast_sub hen] at h1
     exact (mul_le_mul_of_nonneg_left hdenom (Nat.cast_nonneg _)).trans h1
-  have hB_le : (#B : ℝ) ≤ ((q : ℝ) - 1) * δ / (q * ε ^ 2) := by
-    have hdn_eq : ((q : ℝ) - 1) * δ * n ^ 2 = ((q : ℝ) - 1) * n * d := by
-      dsimp only [δ]
-      field_simp
-    rw [le_div_iff₀ (by positivity)]
-    refine le_of_mul_le_mul_right ?_ (sq_pos_of_pos hnR)
-    linarith [hjohnR]
-  exact Nat.le_floor hB_le
+  have hdn_eq : ((q : ℝ) - 1) * δ * n ^ 2 = ((q : ℝ) - 1) * n * d := by
+    dsimp only [δ]
+    field_simp
+  refine Nat.le_floor ((le_div_iff₀ (by positivity)).2 ?_)
+  exact le_of_mul_le_mul_right (by linarith [hjohnR]) (sq_pos_of_pos hnR)
 
 /-- **The alphabet-free (`q → ∞`) real Johnson bound** [Johnson1962] (locator unverified),
 [GuruswamiRudraSudan2019] (locator unverified): whatever the alphabet `α`, a code `C : Set (ι → α)`
@@ -412,18 +407,15 @@ theorem isListDecodable_of_le_johnsonRadiusLimit [Nonempty ι] {C : Set (ι → 
   refine isListDecodable_iff_forall_finset.2 fun w B hB => ?_
   set e : ℕ := ⌊ρ * n⌋₊
   have heρ : (e : ℝ) ≤ ρ * n := Nat.floor_le (mul_nonneg hneg hnR.le)
-  have hen : e ≤ n := by
-    have : (e : ℝ) < n := heρ.trans_lt (by nlinarith)
-    exact_mod_cast this.le
+  have hen : e ≤ n := Nat.cast_le.1 (heρ.trans (by nlinarith))
   set x : ℝ := (e : ℝ) / n
   have hxρ : x ≤ ρ := (div_le_iff₀ hnR).2 heρ
   set s : ℝ := Real.sqrt (1 - δ)
   have hs0 : 0 ≤ s := Real.sqrt_nonneg _
   have h1δ : 1 - δ = s ^ 2 := (Real.sq_sqrt (sub_nonneg.2 ((div_le_one hnR).2
     (by exact_mod_cast hdn)))).symm
-  have h1x : s + ε ≤ 1 - x := by
-    have : ρ ≤ 1 - s - ε := hρ
-    linarith
+  dsimp only [johnsonRadiusLimit] at hρ
+  have h1x : s + ε ≤ 1 - x := by linarith
   have hdenom : (n : ℝ) ^ 2 * ε ^ 2 ≤ ((n : ℝ) - e) ^ 2 - (n : ℝ) * ((n : ℝ) - d) := by
     have hsq := pow_le_pow_left₀ (by positivity) h1x 2
     have he_eq : (e : ℝ) = x * n := by dsimp only [x]; field_simp

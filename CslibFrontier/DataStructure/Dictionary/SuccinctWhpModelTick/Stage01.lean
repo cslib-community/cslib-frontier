@@ -78,8 +78,7 @@ theorem epochTickStage0_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl (fun _ _ => rfl)
       (fun _ _ => rfl) (fun b _ loc _ => congrFun (hinL_eq 1 (Or.inr rfl) _ b) _)
       (by dsimp only; exact hbo) ?_ rfl
-    dsimp only [ValidEpochStage]
-    simp only [Nat.reduceEqDiff, ↓reduceIte]
+    simp only [ValidEpochStage, Nat.reduceEqDiff, ↓reduceIte]
     exact ⟨Nat.zero_le _, le_rfl, fun _ h => absurd h (Nat.not_lt_zero _),
       fun _ h => absurd h (Nat.not_lt_zero _),
       fun id hid b' loc' hc' => Or.inl (hz id hid b' loc' hc'),
@@ -124,11 +123,9 @@ theorem epochTickStage0_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       dsimp only
       have hzero_next : ∀ id < fs.stageCursor + 1, ∀ b' loc',
           bufCheckSlot oldTr id = some (b', loc') →
-          fs.rebQueued b' = 0 ∧ fs.rebDoneFlag b' = 0 := by
-        intro id hid b' loc' hc'
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hid with hid' | rfl
-        · exact hzero0 id hid' b' loc' hc'
-        · rw [hchk] at hc'; cases hc'
+          fs.rebQueued b' = 0 ∧ fs.rebDoneFlag b' = 0 := fun id hid b' loc' hc' =>
+        (Nat.lt_succ_iff_lt_or_eq.mp hid).elim (fun hid' => hzero0 id hid' b' loc' hc')
+          fun h => by simp [h, hchk] at hc'
       split_ifs with hdone
       · exact henter _ _ fun id hid => hzero_next id (hid.trans_le hdone)
       · exact hcont _ _ _ (Nat.lt_of_not_le hdone).le hzero_next
@@ -183,8 +180,7 @@ private theorem epochTickStage1Finish_spec {c U V n_max : ℕ} {θ : SeedWhp c U
       (by
         simp only [FastState.oldEp, Nat.reduceLeDiff, ↓reduceIte]
         exact hbo) ?_ rfl
-    dsimp only [ValidEpochStage]
-    simp only [Nat.reduceEqDiff, ↓reduceIte]
+    simp only [ValidEpochStage, Nat.reduceEqDiff, ↓reduceIte]
     exact ⟨Nat.zero_le _, fun _ h => absurd h (Nat.not_lt_zero _)⟩
   · rw [ite_eq_right hdc0]
     have hdc_pos : 0 < s.dirtyCount := Nat.pos_of_ne_zero hdc0
@@ -308,13 +304,12 @@ theorem epochTickStage1_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
               dirtyCount := fs.dirtyCount + 1
               stageCursor := nextCur } := by
           dsimp only [fs']; rw [hchk]; exact ite_eq_left hq0
-        have hdf₀ : fs.rebDoneFlag b₀ = 0 := by
-          rcases hall_or fs.stageCursor hlt b₀ loc₀ hchk with ⟨_, hd⟩ | ⟨j, hj, hdb⟩
-          · exact hd
-          · have := (hd_props j hj).2.1; rw [hdb, hq0] at this; omega
-        have hne_prev : ∀ j < fs.dirtyCount, fs.dirtyBuckets j ≠ b₀ := by
-          intro j hj heq
-          have := (hd_props j hj).2.1; rw [heq, hq0] at this; omega
+        have hne_prev : ∀ j < fs.dirtyCount, fs.dirtyBuckets j ≠ b₀ := fun j hj heq => by
+          have h1 := (hd_props j hj).2.1
+          rw [heq, hq0] at h1; omega
+        have hdf₀ : fs.rebDoneFlag b₀ = 0 :=
+          (hall_or fs.stageCursor hlt b₀ loc₀ hchk).elim And.right fun ⟨j, hj, hdb⟩ =>
+            absurd hdb (hne_prev j hj)
         rw [hfs'_eq]
         dsimp only
         obtain ⟨hc', hom'⟩ := hcore_step _ _ _

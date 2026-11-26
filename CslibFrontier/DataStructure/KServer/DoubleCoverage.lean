@@ -155,10 +155,9 @@ private theorem spread_update_of_forall_eq {n : Nat} (t : Fin (n + 1) → Int) (
   rw [spread_update]
   congr 2
   rw [← Finset.add_sum_erase _ _ (Finset.mem_univ a)]
-  have hrest : ∀ j ∈ Finset.univ.erase a, |r - Function.update t a r j| - |t a - t j| = δ :=
-    fun j hj => by
-      rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)]
-      exact h j (Finset.ne_of_mem_erase hj)
+  have hrest (j : Fin (n + 1)) (hj : j ∈ Finset.univ.erase a) :
+      |r - Function.update t a r j| - |t a - t j| = δ :=
+    Function.update_of_ne (Finset.ne_of_mem_erase hj) r t ▸ h j (Finset.ne_of_mem_erase hj)
   rw [Finset.sum_congr rfl hrest, Finset.sum_const, Finset.card_erase_of_mem (Finset.mem_univ _),
     Finset.card_univ, Fintype.card_fin, Function.update_self]
   simp only [sub_self, abs_zero, add_tsub_cancel_right, nsmul_eq_mul, zero_add]
@@ -232,12 +231,10 @@ private theorem exists_match_to_request (s o : Fin k → Int) {r : Int} (hr : �
     ∃ σ, o (σ i) = r ∧ matchCostAlong NatMetric.line s o σ ≤ matchCost NatMetric.line s o := by
   obtain ⟨σ, hσ⟩ := exists_matchCost_eq NatMetric.line s o
   obtain ⟨j, hj⟩ := hr
-  set a := σ.symm j
-  have ha : o (σ a) = r := by simp only [a, Equiv.apply_symm_apply, hj]
-  refine ⟨σ * Equiv.swap a i, ?_, ?_⟩
-  · simp only [Equiv.Perm.mul_apply, Equiv.swap_apply_right, ha]
-  · rw [hσ]
-    exact matchCostAlong_swap_le NatMetric.line s o σ (by rw [ha]; exact hbtw a)
+  have ha : o (σ (σ.symm j)) = r := by simp only [Equiv.apply_symm_apply, hj]
+  exact ⟨σ * Equiv.swap (σ.symm j) i,
+    by simp only [Equiv.Perm.mul_apply, Equiv.swap_apply_right, ha],
+    hσ ▸ matchCostAlong_swap_le NatMetric.line s o σ (ha ▸ hbtw _)⟩
 
 /-- Moving server `i` to `r` after uncrossing lowers the matching distance by the move. -/
 private theorem matchCost_update_add_le (s o : Fin k → Int) {r : Int} (hr : ∃ j, o j = r)
@@ -360,11 +357,9 @@ theorem exists_dcSorted_eq {n : Nat} (t : Fin (n + 1) → Int) (r : Int) :
       Fin.ne_of_val_ne (by dsimp; omega)
     rcases min_choice (r - t ⟨countLe t r - 1, by omega⟩) (t ⟨countLe t r, by omega⟩ - r) with h | h
     · refine ⟨⟨countLe t r - 1, by omega⟩, ?_⟩
-      rw [Function.update_of_ne hne, Function.update_self, h]
-      ring
+      rw [Function.update_of_ne hne, Function.update_self, h]; ring
     · refine ⟨⟨countLe t r, by omega⟩, ?_⟩
-      rw [Function.update_self, h]
-      ring
+      rw [Function.update_self, h]; ring
 
 private theorem spread_eq_pairSum {k : Nat} (s : Fin k → Int) :
     spread s = (pairSum NatMetric.line s : Int) := by

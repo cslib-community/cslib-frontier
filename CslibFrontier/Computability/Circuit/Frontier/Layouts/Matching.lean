@@ -100,10 +100,6 @@ open Set
 /-- Boolean disagreement indicator: `1` if `x ≠ y`, `0` otherwise. -/
 private def boolDiff (x y : Bool) : ℕ := if x = y then 0 else 1
 
-private theorem boolDiff_triangle (x y m : Bool) :
-    boolDiff x y ≤ boolDiff x m + boolDiff y m := by
-  cases x <;> cases y <;> cases m <;> decide
-
 private theorem boolDiff_slack (x y m : Bool) :
     boolDiff x y + 2 * (if x = true ∧ y = true ∧ m = false then 1 else 0) ≤
       boolDiff x m + boolDiff y m := by
@@ -134,14 +130,10 @@ theorem pairKey_mem {α : Type*} [LinearOrder α] (a b c d : α) :
       pairKey a b c d = c ∨ pairKey a b c d = d := by
   unfold pairKey
   rcases min_choice (max a b) (max (min a b) (min c d)) with h | h
-  · rw [h]
-    exact (max_choice a b).imp id Or.inl
-  · rw [h]
-    rcases max_choice (min a b) (min c d) with h' | h'
-    · rw [h']
-      exact (min_choice a b).imp id Or.inl
-    · rw [h']
-      exact Or.inr (Or.inr (min_choice c d))
+  · exact h.symm ▸ (max_choice a b).imp id Or.inl
+  · rcases max_choice (min a b) (min c d) with h' | h'
+    · exact (h.trans h').symm ▸ (min_choice a b).imp id Or.inl
+    · exact Or.inr (Or.inr ((h.trans h').symm ▸ min_choice c d))
 
 /-- Disagreement count at a single cubic vertex with three incident edge colors `a, b, c` and
 vertex color `x`. -/
@@ -224,11 +216,6 @@ theorem exists_twoVertexCost_lt_starCost_add :
       starCost true false true + starCost false false true := by
   decide
 
-private theorem straddlesOn_pair_iff {ι α : Type*} [LinearOrder α] (score : ι → α) (t : α)
-    (a b : ι) : StraddlesOn score t {a, b} ↔ decide (score a < t) ≠ decide (score b < t) := by
-  simp only [StraddlesOn, mem_insert_iff, mem_singleton_iff]
-  by_cases ha : score a < t <;> by_cases hb : score b < t <;> simp [ha, hb, not_lt.mp]
-
 namespace Multigraph
 
 variable {V E : Type*} (G : Multigraph V E)
@@ -264,8 +251,7 @@ noncomputable def matchingCost {α : Type*} [LinearOrder α] (M : Set E) (score 
     {e | e ∈ M ∧ G.PairStraddlesAny score t e}.ncard +
     {e | e ∈ M ∧ G.PairStraddlesBoth score t e}.ncard
 
-theorem isMatching_empty : G.IsMatching (∅ : Set E) := by
-  simp [IsMatching]
+theorem isMatching_empty : G.IsMatching (∅ : Set E) := Set.pairwise_empty _
 
 theorem matchedVertices_empty : G.matchedVertices (∅ : Set E) = ∅ := by
   ext v; simp [matchedVertices]
@@ -611,11 +597,10 @@ theorem ncard_edgeCut_threshold_add_slack_le_matchingCost [Finite V] [Finite E]
       ∑ e ∈ Mfinᶜ, (boolDiff (col (G.src e)) (ecol e) + boolDiff (col (G.tgt e)) (ecol e)) =
       ∑ v : V, ∑ e ∈ Finset.univ.filter (fun e => e ∉ M ∧ e ∈ G.incidenceSet v),
         boolDiff (col v) (ecol e) := by
-    rw [Finset.sum_comm' (t' := Mfinᶜ) (s' := fun e => {G.src e, G.tgt e}) ?_]
-    · exact Finset.sum_congr rfl fun e _ => by rw [Finset.sum_pair (hloop e)]
-    · intro v e
-      simp [Mfin, mem_incidenceSet, eq_comm]
-      tauto
+    rw [Finset.sum_comm' (t' := Mfinᶜ) (s' := fun e => {G.src e, G.tgt e}) fun v e => by
+      simp [Mfin, mem_incidenceSet, eq_comm]; tauto]
+    exact Finset.sum_congr rfl fun e _ =>
+      (Finset.sum_pair (f := fun v => boolDiff (col v) (ecol e)) (hloop e)).symm
   -- Split vertex sum into unmatched vertices and matched pairs.
   let vsum (v : V) : ℕ :=
     ∑ e ∈ Finset.univ.filter (fun e => e ∉ M ∧ e ∈ G.incidenceSet v), boolDiff (col v) (ecol e)

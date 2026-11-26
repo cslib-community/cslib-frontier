@@ -109,7 +109,7 @@ theorem demonicGrow_advGrowMem (w : ℕ) (init : ℕ → ℕ) (L k : ℕ) (mem :
   refine ⟨fun a ha => by simp [advGrowMem, ha], fun a hlo hhi => ?_, fun a ha => ?_⟩
   · simpa only [Fits, advGrowMem, Nat.not_lt.mpr hlo, ↓reduceIte, hhi] using
       Nat.mod_lt _ (Nat.two_pow_pos w)
-  · simp [advGrowMem, show ¬a < L by omega, show ¬a < L + k by omega]
+  · simp [advGrowMem, Nat.not_lt.mpr ((Nat.le_add_right L k).trans ha), Nat.not_lt.mpr ha]
 
 /-- Single step of randomized execution of `p : RProgram B r` at word width `w` under single-step
 growth initializer `advStep : RState r → ℕ → ℕ`. Halted and faulted configurations are absorbing. -/
@@ -277,13 +277,10 @@ theorem evalRandDemonic_halted_mono (w : ℕ) (adv : RAdv r) (p : RProgram B r) 
     (v : ℕ) (d : RData r) :
     Monotone fun t => evalRandDemonic w adv p t s (.halted v d) := by
   refine monotone_nat_of_le_succ fun t => ?_
-  have hstep : evalRandDemonic w adv p (t + 1) s = (evalRandDemonic w adv p t s).bind
-      fun cfg => (stepRandResizable w ((adv.shift t) 0) p cfg).eval := by
-    simp only [evalRandDemonic, runRandResizable_add w adv p t 1, ProbComp.eval_bind,
-      runRandResizable_succ, runRandResizable_zero, bind_pure]
-  rw [hstep, PMF.bind_apply]
-  refine le_of_eq_of_le ?_ (le_tsum (f := fun cfg => evalRandDemonic w adv p t s cfg *
-    (stepRandResizable w ((adv.shift t) 0) p cfg).eval (.halted v d)) (.halted v d))
+  simp only [evalRandDemonic, runRandResizable_add w adv p t 1, ProbComp.eval_bind,
+    runRandResizable_succ, runRandResizable_zero, bind_pure, PMF.bind_apply]
+  refine le_of_eq_of_le ?_ (le_tsum (f := fun cfg => (runRandResizable w adv p t (.running s)).eval
+    cfg * (stepRandResizable w ((adv.shift t) 0) p cfg).eval (.halted v d)) (.halted v d))
   simp [stepRandResizable_halted]
 
 /-- Any deterministic transition `stepRandResizable w (adv 0) p (.running s) = pure (.running s')`
@@ -725,8 +722,8 @@ theorem RDemonicExec.supExpectedStepsWithin_assemble {w L_peak n pc N : ℕ} {c 
     refine (supExpectedStepsWithin_le_of_const fun _ =>
       stepRandResizable_branch_pos hp.branch_head hc).trans ?_
     refine (add_le_add le_rfl (ih hp.branch_pos)).trans_eq ?_
-    rw [Nat.cast_add, Nat.cast_one, show pc + neg.size + 2 + pos.size =
-      pc + (RCode.branch c pos neg).size by simp only [RCode.size]; omega, add_left_comm, add_assoc]
+    simp only [RCode.size, Nat.add_assoc, Nat.add_comm 2 pos.size, Nat.cast_add, Nat.cast_one]
+    ac_rfl
   | @branch_neg c pos neg x T P hc _ ih =>
     refine (supExpectedStepsWithin_le_of_const fun _ =>
       stepRandResizable_branch_neg hp.branch_head hc).trans ?_
@@ -734,16 +731,15 @@ theorem RDemonicExec.supExpectedStepsWithin_assemble {w L_peak n pc N : ℕ} {c 
       (supExpectedStepsWithin_le_of_const fun _ =>
         stepRandResizable_jump hp.branch_jump).trans (add_le_add le_rfl
           (le_iSup₂_of_le y hy le_rfl)))))).trans_eq ?_
-    rw [show pc + neg.size + pos.size + 2 = pc + (RCode.branch c pos neg).size by
-      simp only [RCode.size]; omega, Nat.cast_add, Nat.cast_ofNat, ← one_add_one_eq_two]
+    simp only [RCode.size, Nat.add_assoc, Nat.cast_add, Nat.cast_one, ← one_add_one_eq_two]
     ac_rfl
   | @loop_exit c body x P _ hc hp_y =>
     refine (supExpectedStepsWithin_le_of_const fun _ =>
       stepRandResizable_branch_neg hp.head hc).trans ?_
     refine (add_le_add le_rfl (supExpectedStepsWithin_le_of_const fun _ =>
       stepRandResizable_jump hp.loop_exit)).trans ?_
-    rw [← add_assoc, one_add_one_eq_two, show pc + body.size + 3 = pc + (RCode.loop c body).size
-      by simp only [RCode.size]; omega]
+    rw [← add_assoc, one_add_one_eq_two]
+    simp only [RCode.size, Nat.add_assoc]
     exact add_le_add (by simp) (le_iSup₂_of_le x hp_y le_rfl)
   | @loop_iter c body x T₁ T₂ Q P hc _ _ ihb ihl =>
     refine (supExpectedStepsWithin_le_of_const fun _ =>
@@ -783,22 +779,20 @@ theorem RDemonicExec.demonicSafeWithin_assemble {w L_peak n pc T_hor : ℕ} {c :
     refine demonicSafeWithin_of_pure hpos.frontier_le
       (fun _ => stepRandResizable_branch_pos hp.branch_head hc) fun _ _ _ =>
       ih hp.branch_pos fun y hy => ?_
-    simpa [RCode.size, show pc + neg.size + 2 + pos.size = pc + (neg.size + pos.size + 2) by omega]
-      using (hcont y hy).anti (by omega)
+    simpa only [RCode.size, Nat.add_assoc, Nat.add_comm 2 pos.size] using
+      (hcont y hy).anti (by omega)
   | @branch_neg _ pos neg _ _ _ hc hneg ih =>
     refine demonicSafeWithin_of_pure hneg.frontier_le
       (fun _ => stepRandResizable_branch_neg hp.branch_head hc) fun _ _ _ =>
       ih hp.branch_neg fun y hy =>
         demonicSafeWithin_of_pure (hcont y hy).frontier_le
           (fun _ => stepRandResizable_jump hp.branch_jump) fun _ _ _ => ?_
-    simpa [RCode.size, show pc + neg.size + pos.size + 2 = pc + (neg.size + pos.size + 2) by omega]
-      using (hcont y hy).anti (by omega)
+    simpa only [RCode.size, Nat.add_assoc] using (hcont y hy).anti (by omega)
   | @loop_exit _ body _ _ hL hc hp_y =>
     refine demonicSafeWithin_of_pure hL (fun _ => stepRandResizable_branch_neg hp.head hc)
       fun _ _ _ => demonicSafeWithin_of_pure hL (fun _ => stepRandResizable_jump hp.loop_exit)
         fun _ _ _ => ?_
-    simpa [RCode.size, show pc + body.size + 3 = pc + (body.size + 3) by omega]
-      using (hcont _ hp_y).anti (by omega)
+    simpa only [RCode.size, Nat.add_assoc] using (hcont _ hp_y).anti (by omega)
   | @loop_iter _ body _ _ _ _ _ hc hbody hloop ihb ihl =>
     exact demonicSafeWithin_of_pure hbody.frontier_le
       (fun _ => stepRandResizable_branch_pos hp.head hc) fun _ _ _ =>

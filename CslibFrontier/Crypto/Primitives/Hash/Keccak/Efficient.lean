@@ -83,9 +83,9 @@ abbrev encSpongeView (layout : SpongeLayout) : SpongeView layout ↪ List Bool :
     (encBitString (64 * layout.capacityLanes))
 
 private theorem computableInPolyTime_bytesToBitsLE :
-    ComputableInPolyTime bytesToBitsLE encByteStringLE encBits := by
-  apply flatMapToBitsWithInput (id' (encIn := encByteStringLE))
-  exact (snd encByteStringLE encByteLE).of_enc_eq fun _ => rfl
+    ComputableInPolyTime bytesToBitsLE encByteStringLE encBits :=
+  flatMapToBitsWithInput (id' (encIn := encByteStringLE))
+    ((snd encByteStringLE encByteLE).of_enc_eq fun _ => rfl)
 
 private theorem computableInPolyTime_pad10star1 (rate : ℕ) :
     ComputableInPolyTime (pad10star1 rate) encUnary encBits := by
@@ -121,18 +121,14 @@ private theorem computableInPolyTime_keccakP1600Bits : ComputableInPolyTime
 split as the exact flat state consumed by the retained circuit and converting the result back. -/
 theorem computableInPolyTime_keccakP1600Rounds24View (layout : SpongeLayout) :
     ComputableInPolyTime (keccakP1600Rounds24View layout)
-      (encSpongeView layout) (encSpongeView layout) := by
-  have hflatten : ComputableInPolyTime
-      (fun state : SpongeView layout => stateBits (ofSpongeView layout state))
-      (encSpongeView layout) (encBitString 1600) :=
-    ComputableInPolyTime.of_finite _
-  have hunflatten : ComputableInPolyTime
-      (fun bits : BitString 1600 => toSpongeView layout (stateOfBits bits))
-      (encBitString 1600) (encSpongeView layout) :=
-    ComputableInPolyTime.of_finite _
-  exact (hunflatten.comp (computableInPolyTime_keccakP1600Bits.comp hflatten)).of_enc_eq
+      (encSpongeView layout) (encSpongeView layout) :=
+  ((of_finite fun bits : BitString 1600 => toSpongeView layout (stateOfBits bits) :
+      ComputableInPolyTime _ (encBitString 1600) (encSpongeView layout)).comp
+    (computableInPolyTime_keccakP1600Bits.comp
+      (of_finite fun state : SpongeView layout => stateBits (ofSpongeView layout state) :
+        ComputableInPolyTime _ (encSpongeView layout) (encBitString 1600)))).of_enc_eq
     fun state => by
-    simp only [Function.comp_apply, keccakP1600Rounds24View, stateOfBits_stateBits]
+      simp only [Function.comp_apply, keccakP1600Rounds24View, stateOfBits_stateBits]
 
 private theorem computableInPolyTime_absorb (layout : SpongeLayout) :
     ComputableInPolyTime
@@ -166,28 +162,17 @@ private theorem computableInPolyTime_absorb (layout : SpongeLayout) :
       (encSpongeView layout) := by
     unfold Sponge.absorbStep
     exact (computableInPolyTime_keccakP1600Rounds24View layout).comp hpreprocess
-  exact Turing.MultiTapeTM.ComputableInPolyTime.foldl_of_bounded_growth
-    (encA := encBitString (64 * layout.rateLanes))
-    (encL := encList (encBitString (64 * layout.rateLanes)))
-    (encB := encSpongeView layout)
-    (step := Sponge.absorbStep (keccakP1600Rounds24View layout))
-    (id' (encIn := encList (encBitString (64 * layout.rateLanes))))
-    (const (0 : SpongeView layout))
-    hstep
-    (growth := 0)
-    fun _ _ => by simp [encSpongeView]
+  exact foldl_of_bounded_growth (id' (encIn := encList (encBitString (64 * layout.rateLanes))))
+    (const (0 : SpongeView layout)) hstep (growth := 0) fun _ _ => by simp [encSpongeView]
 
 private theorem computableInPolyTime_iteratePermutation (layout : SpongeLayout) :
     ComputableInPolyTime
       (fun p : SpongeView layout × ℕ =>
         (keccakP1600Rounds24View layout)^[p.2] p.1)
-      (encPair (encSpongeView layout) encUnary) (encSpongeView layout) := by
-  exact Turing.MultiTapeTM.ComputableInPolyTime.iterate_of_bounded_growth
-    (snd (encSpongeView layout) encUnary)
-    (fst (encSpongeView layout) encUnary)
-    (computableInPolyTime_keccakP1600Rounds24View layout)
-    (growth := 0)
-    fun _ => by simp [encSpongeView]
+      (encPair (encSpongeView layout) encUnary) (encSpongeView layout) :=
+  iterate_of_bounded_growth (snd (encSpongeView layout) encUnary)
+    (fst (encSpongeView layout) encUnary) (computableInPolyTime_keccakP1600Rounds24View layout)
+    (growth := 0) fun _ => by simp [encSpongeView]
 
 private theorem squeeze_eq_map_range {R C O : Type*} (P : R × C → R × C)
     (out : R × C → O) (count : ℕ) (state : R × C) :

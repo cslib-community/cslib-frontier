@@ -219,8 +219,7 @@ private theorem write_stage (C : QuantumSigningForger) (s : Level) (H A keys sk)
   simp only [stage_run, callWindow]
   simp_rw [PMF.bind_comm μ (C.cutInteraction s (H.withDigestRegister s D) keys i rows),
     PMF.bind_comm V (C.cutInteraction s (H.withDigestRegister s D) keys i rows)]
-  apply congrArg (PMF.bind past ·)
-  funext ⟨x, ⟨d,l⟩, t⟩
+  refine congrArg (PMF.bind past ·) (funext fun ⟨x, ⟨d, l⟩, t⟩ => ?_)
   cases x with
   | finished f => simp [scanned, preparedPrefix, Preparation.isReady, resumeRetries]
   | signing q k =>
@@ -297,9 +296,9 @@ private theorem all_windows (C : QuantumSigningForger) (s : Level) (H : Xofs)
       gcongr
       exact_mod_cast (by lia : 1 + ys.length ≤ 814)
     have rest : |prob (μ.bind adjacentLaw) - prob (μ.bind last)| ≤ k * B :=
-      abs_common_bind _ _ _ fun y => ih (ys ++ [y]) (by
-        simp only [List.length_append, List.length_singleton]
-        lia)
+      abs_common_bind _ _ _ fun y => ih (ys ++ [y])
+        (by simpa only [List.length_append, List.length_singleton, Nat.add_assoc,
+          Nat.add_comm 1 k] using cap)
     have endLaw : ((maskList s (k + 1)).bind fun zs =>
         U.bind (C.callWindow s H A keys sk next i rows (ys ++ zs) 0)) = μ.bind last := by
       simp only [maskList, PMF.iid, PMF.monad_bind_eq_bind, PMF.map_bind, PMF.bind_bind,
@@ -448,9 +447,10 @@ private theorem cut_bind_gap (C : QuantumSigningForger) (s : Level) (G : Xofs) (
   refine Game.advantage_bind_le_of_support past _ _ fun ⟨x, ⟨d, l⟩, t⟩ hx => ?_
   rw [← NNReal.coe_le_coe, Game.coe_advantage, Game.coe_succProbability, Game.coe_succProbability,
     NNReal.coe_mk]
-  refine bound x d l t ?_
-  rw [show past = _ from (OracleComp.runWith_eq_run_interpret _ _ _).symm] at hx
-  exact OracleComp.mem_supportWith_of_mem_support_runWith _ (fun _ _ _ _ _ => Set.mem_univ _) hx
+  dsimp only [past, cutInteraction, prefixInteraction] at hx
+  rw [← OracleComp.runWith_eq_run_interpret] at hx
+  exact bound x d l t
+    (OracleComp.mem_supportWith_of_mem_support_runWith _ (fun _ _ _ _ _ => Set.mem_univ _) hx)
 
 private theorem erase_at_cut (C : QuantumSigningForger) (s : Level) (H : Xofs)
     (keys : KeyPair) (sk : PrivateKey s) (A : PublicMatrix s)
@@ -466,14 +466,12 @@ private theorem erase_at_cut (C : QuantumSigningForger) (s : Level) (H : Xofs)
   apply C.cut_bind_gap s G keys i rows _ _ (by positivity)
   intro x d l t possible
   cases x with
-  | finished f =>
-    simp only [sub_self, abs_zero]
-    positivity
+  | finished f => simpa only [sub_self, abs_zero] using mul_nonneg (by norm_num) (by positivity)
   | signing q k =>
-    have h := C.abs_freshDigestSigningCall_keep_sub_erase_le s H keys q D k d l t.tail
-      (cut_cost_after (hash _) i possible) (cut_cost_after (calls _) i possible)
     simpa only [Game.coe_succProbability, prob, key, mat, Option.bind_eq_bind, Option.bind_some,
-      Option.pure_def, Option.getD_some, δ] using h
+      Option.pure_def, Option.getD_some, δ] using
+      C.abs_freshDigestSigningCall_keep_sub_erase_le s H keys q D k d l t.tail
+        (cut_cost_after (hash _) i possible) (cut_cost_after (calls _) i possible)
 
 -- Average both comparisons with the same actual generated matrix. First pay for changing
 -- ambient reads throughout the request, then for removing all the writes made on rejection.
@@ -564,10 +562,10 @@ theorem abs_refreshedCallGame_sub_freshExpansionGame_le (C : QuantumSigningForge
         | _ => PMF.pure false
       else U.bind fun rs => C.commitmentTrialGame s H keys i 0 (List.ofFn rs) false
     | _ => PMF.pure false
-  rw [show orig = Game.succProbability (C.expansionTrialGame s base a b i 0 false) from
-    congrArg Game.succProbability (C.expansionTrialGame_read_eq_freshExpansionGame
-      s base ha hb calls i 0).symm]
-  simp only [win, refreshedCallGame, expansionTrialGame, Game.coe_succProbability,
+  have horig : orig = Game.succProbability (C.expansionTrialGame s base a b i 0 false) :=
+    congrArg Game.succProbability
+      (C.expansionTrialGame_read_eq_freshExpansionGame s base ha hb calls i 0).symm
+  simp only [win, horig, refreshedCallGame, expansionTrialGame, Game.coe_succProbability,
     PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
   apply seeded_gap_le s base a b test cost
   intro H seed
@@ -575,14 +573,12 @@ theorem abs_refreshedCallGame_sub_freshExpansionGame_le (C : QuantumSigningForge
   | none => simp [test, kg, generatedMatrix, cost, prob]
   | some keys =>
     obtain ⟨rho, pair, mat, pk, sk, _⟩ := privateKey_of_keyGen kg
-    have pub : H.expandA s (keys.publicKey.take 32) = some pair.A := by
-      rw [pk, take_encodePublic, mat]
+    have pub : H.expandA s (keys.publicKey.take 32) = some pair.A :=
+      by rw [pk, take_encodePublic, mat]
     simp only [test, kg, pub, Bool.false_eq_true, ↓reduceIte, generatedMatrix, Option.bind_eq_bind,
       Option.bind_some, cost, Option.elim_some]
     have read := C.read_at_generated s H seed keys kg i 0
     simp only [Xofs.expandA_congr (K := H.withDigestRegister s _) (H := H) rfl s, pub] at read
-    rw [show (U.bind fun rs => C.commitmentTrialGame s H keys i 0 (List.ofFn rs) false) = _
-      from read]
-    exact C.conditioned_call_gap s H keys _ pair.A sk mat hash calls i
+    exact read ▸ C.conditioned_call_gap s H keys _ pair.A sk mat hash calls i
 
 end Cslib.Crypto.MLDSA.FIPS204.QuantumSigningForger

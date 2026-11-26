@@ -301,8 +301,7 @@ private theorem ltMask_eq_sum (fpBits m q keysWord : ℕ)
     have := hlanes j hj
     have := Nat.two_pow_pos fpBits
     dsimp only [d, W]
-    rw [Nat.pow_add]
-    omega
+    rw [Nat.pow_add]; omega
   have hdiff_eq : (2 ^ fpBits + q) * swarOnes W m - (keysWord + swarOnes W m) =
       ∑ j ∈ range m, d j * 2 ^ (j * W) := by
     have hkw_sum := word_eq_sum_laneGet hW_pos hkw
@@ -334,8 +333,7 @@ private theorem ltMask_eq_sum (fpBits m q keysWord : ℕ)
   rw [testBit_laneGet]
   by_cases hb : b < W
   · simp only [hb, decide_true, Bool.true_and, Nat.testBit_and, Nat.testBit_shiftRight]
-    have h1_tb_succ : ∀ n, (1 : ℕ).testBit (n + 1) = false := fun n => by
-      simp [Nat.testBit_succ]
+    have h1_tb_succ (n : ℕ) : (1 : ℕ).testBit (n + 1) = false := by simp [Nat.testBit_succ]
     have hones_tb : (swarOnes W m).testBit (k * W + b) = decide (k < m ∧ b = 0) := by
       have hl := testBit_laneGet W (swarOnes W m) k b
       have hf1 : ∑ j ∈ range m, 2 ^ (j * W) = ∑ j ∈ range m, 1 * 2 ^ (j * W) :=
@@ -409,10 +407,8 @@ theorem swarRank_eq_count_lt {fpBits capLanes m q keysWord : ℕ}
       omega
     rw [← sum_fiberwise_of_maps_to hmaps]
     refine sum_congr rfl fun s _ => ?_
-    dsimp only [c]
-    rw [sum_mul]
+    simp only [c, sum_mul]
     refine sum_congr rfl fun p hp => ?_
-    dsimp only [b, W]
     rw [mul_assoc, ← Nat.pow_add, ← Nat.add_mul, (mem_filter.mp hp).2]
   change laneGet W (ltMask fpBits m q keysWord * swarOnes W capLanes) (capLanes - 1) = _
   rw [hprod_eq, laneGet_sum_mul_pow hc_lt]
@@ -431,9 +427,7 @@ theorem swarRank_eq_count_lt {fpBits capLanes m q keysWord : ℕ}
         exact Prod.ext rfl (by dsimp at he ⊢; omega))
       (fun _ _ => rfl)
       (fun _ _ => rfl)
-  rw [hbij]
-  dsimp only [b]
-  rw [← sum_filter, sum_const, nsmul_eq_mul, Nat.cast_id, mul_one]
+  simp only [hbij, b, ← sum_filter, sum_const, nsmul_eq_mul, Nat.cast_id, mul_one]
 
 /-! ## Section 2: Iterative Top-Down Split-Only SWAR B+-Tree -/
 
@@ -826,8 +820,7 @@ theorem ValidSubtree.leafCount_le_card_nodeSet {isRoot : Bool} {fpBits W_val tMi
     refine ⟨fun v hv_in => ?_, ?_⟩
     · rw [BTreeTree.nodeSet, mem_insert, mem_biUnion] at hv_in
       rcases hv_in with rfl | ⟨i, _, hvi⟩
-      · exact hidx
-      · exact (hrec i).1 v hvi
+      exacts [hidx, (hrec i).1 v hvi]
     · rw [BTreeTree.leafCount, BTreeTree.nodeSet,
         card_insert_of_notMem (by
           simpa only [mem_biUnion, not_exists, not_and] using fun i _ => hnot i),

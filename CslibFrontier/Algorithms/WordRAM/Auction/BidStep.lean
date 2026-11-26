@@ -135,9 +135,8 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
       AuctionMem ws C st' s' := by
   have ⟨hbO, hbP, hbS, hout, hfr⟩ := hws
   let cZ : Fin ws.n × Fin ws.n → ℤ := fun e => (C e : ℤ)
-  have hC_spread : ∀ i j k : Fin ws.n, cZ (i, k) - cZ (i, j) ≤ (W : ℤ) := fun i j k => by
-    have := hC_le i k
-    dsimp only [cZ]; omega
+  have hC_spread : ∀ i j k : Fin ws.n, cZ (i, k) - cZ (i, j) ≤ (W : ℤ) := fun i _ k =>
+    (Int.sub_le_self _ (Nat.cast_nonneg _)).trans (Int.ofNat_le.mpr (hC_le i k))
   have hp_le : ∀ j : Fin ws.n, st.price j ≤ (W + ws.eps : ℤ) := fun j =>
     hinv.price_le (by simp [hs_free]) hC_spread (by positivity) j
   have hlen_le : st.free.length ≤ ws.n := by
@@ -160,10 +159,9 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
   have hmul_ij : i₀.val * ws.n + j₀.val < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i₀, j₀)
   have hmul_i : i₀.val * ws.n < ws.n * ws.n := by have := j₀.isLt; omega
   let newPZ := bidPrice cZ (ws.eps : ℤ) st.price i₀ j₀
-  have hnewP_nn : 0 ≤ newPZ := by
-    have := le_bidPrice (c := cZ) (ε := (ws.eps : ℤ)) hj₀_min
-    have := hp_nn j₀
-    dsimp only [newPZ]; omega
+  have hnewP_nn : 0 ≤ newPZ :=
+    (add_nonneg (hp_nn j₀) (Nat.cast_nonneg _)).trans
+      (le_bidPrice (c := cZ) (ε := (ws.eps : ℤ)) hj₀_min)
   let pBranch : Memory.Prog ℕ := computeNewP ws rowBase j₀.val sec
   have hpBranch :
       (sec.hasSecond = 0 → Fits w (s₀.mem (ws.bPrice + j₀.val) + ws.eps)) ∧
@@ -231,9 +229,8 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
     ⟨Function.update (Function.update s₀.mem (ws.bPrice + j₀.val) newPZ.toNat)
       (ws.bOwner + j₀.val) i₀.val, s₀.frontier⟩
   have hold_s_mid : (Function.update s₀.mem (ws.bPrice + j₀.val) newPZ.toNat)
-      (ws.bOwner + j₀.val) = (st.owner j₀).elim ws.n Fin.val := by
-    rw [Function.update_of_ne (by omega)]
-    exact ham.hOwner j₀
+      (ws.bOwner + j₀.val) = (st.owner j₀).elim ws.n Fin.val :=
+    (Function.update_of_ne (by omega) _ _).trans (ham.hOwner j₀)
   let afterBid : Memory.State :=
     match st.owner j₀ with
     | none => s_mid
@@ -250,8 +247,7 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
     dsimp only [afterBid, s_mid]
     cases st.owner j₀ with
     | none =>
-      simp only [Option.elim_none, ↓reduceIte, htop, Option.toList_none, List.nil_append]
-      rfl
+      simp only [Option.elim_none, ↓reduceIte, htop, Option.toList_none, List.nil_append]; rfl
     | some owner =>
       simp only [Option.elim_some, owner.isLt.ne, ↓reduceIte, hsp_eq, Nat.add_sub_cancel,
         Option.toList_some, List.singleton_append, List.length_cons]
@@ -295,9 +291,7 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
           memoryCost_ite_le (Nat.zero_le 1)
             (memoryCost_write_bind_le fun _ _ => Nat.le_refl 0)
   · -- frontier unchanged
-    rw [hrun_state]
-    unfold afterBid
-    cases st.owner j₀ <;> rfl
+    cases ho : st.owner j₀ <;> simp [hrun_state, afterBid, s_mid, ho]
   · -- clientResult = st'.free.length
     rw [hst'_eq, hrun_res]
   · -- AuctionMem ws C st' s'

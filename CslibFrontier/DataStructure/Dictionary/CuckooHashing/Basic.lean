@@ -83,7 +83,6 @@ def maxEvictions (n_max : ℕ) : ℕ :=
   6 * (Nat.clog 2 (max n_max 2) + 2)
 
 theorem seven_le_tableBits (n_max : ℕ) : 7 ≤ tableBits n_max := by
-  unfold tableBits
   have h7 : 7 = Nat.clog 2 128 := by decide
   exact h7 ▸ Nat.clog_mono_right 2 (by omega)
 
@@ -103,7 +102,6 @@ theorem tableBits_le (n_max : ℕ) : tableBits n_max ≤ Nat.clog 2 (max n_max 4
 
 theorem thirtyTwo_mul_max_le_tableSize (n_max : ℕ) :
     32 * max n_max 4 ≤ tableSize n_max := by
-  unfold tableSize tableBits
   exact Nat.le_pow_clog (by decide) _
 
 theorem four_mul_max_le_tableSize (n_max : ℕ) :
@@ -346,18 +344,15 @@ theorem putT1_some_spec {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {tbl : PureTab
     rw [Function.exists_update_iff tbl.t1 (a := h₁ e.key) (b := some e)
       (p := fun _ slot => slot = some d), Option.some.injEq]
     constructor
-    · rintro (((hd | ⟨i, _, hi⟩) | hi) | hd)
-      · exact Or.inr hd.symm
-      · exact Or.inl (Or.inl ⟨i, hi⟩)
-      · exact Or.inl (Or.inr hi)
-      · subst hd
-        exact Or.inl (Or.inl ⟨h₁ e.key, ht1_some⟩)
-    · rintro ((⟨i, hi⟩ | hi) | hd)
+    · rintro (((rfl | ⟨i, _, hi⟩) | hi) | rfl)
+      exacts [Or.inr rfl, Or.inl (Or.inl ⟨i, hi⟩), Or.inl (Or.inr hi),
+        Or.inl (Or.inl ⟨h₁ e.key, ht1_some⟩)]
+    · rintro ((⟨i, hi⟩ | hi) | rfl)
       · by_cases hie : i = h₁ e.key
-        · subst hie; rw [ht1_some] at hi; exact Or.inr (Option.some.inj hi).symm
+        · exact Or.inr (Option.some.inj ((hie ▸ hi).symm.trans ht1_some))
         · exact Or.inl (Or.inl (Or.inr ⟨i, hie, hi⟩))
       · exact Or.inl (Or.inr hi)
-      · exact Or.inl (Or.inl (Or.inl hd.symm))
+      · exact Or.inl (Or.inl (Or.inl rfl))
 
 /-- Exchange of the two sub-tables. It turns `putT2 h₂` into `putT1 h₂`, so the `putT2` lemmas
 below follow from their `putT1` counterparts. -/
@@ -691,8 +686,7 @@ theorem pureReplay_isSome_of_length_le_one {U m : ℕ} (h₁ h₂ : Fin U → Fi
   · simp
   · obtain ⟨k, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hloop.ne'
     simp [pureReplay, pureEvict, pureEvictRound, putT1, PureTable.empty]
-  · simp only [List.length_cons] at hlen
-    omega
+  · simp at hlen
 
 /-- When `ks` has length at most `2` and `0 < maxLoop`, `pureReplay` succeeds for every hash pair
 `(h₁, h₂)` in at most `1` displacement round per key: the first key lands in `T₁`, and even if the
@@ -714,7 +708,6 @@ theorem pureReplay_isSome_of_length_le_two {U m : ℕ} (h₁ h₂ : Fin U → Fi
     rw [pureReplay_append_singleton, htbl₁, Option.bind_some, List.length_singleton, pureEvict,
       ← Prod.mk.eta (p := pureEvictRound h₁ h₂ tbl₁ ⟨v, 1⟩), hround]
     rfl
-  · simp only [List.length_cons] at hlen
-    omega
+  · simp at hlen
 
 end Cslib.DataStructure.Dictionary.CuckooHashing

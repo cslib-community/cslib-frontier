@@ -425,8 +425,7 @@ theorem isMixedNash_relatedMixedLowerNE {k B : ℕ} [NeZero B] (hk : 1 ≤ k) :
             div_nonneg ((relatedMixedLower k B).weight_nonneg _)
               ((relatedMixedLower k B).speed_pos _).le
           have hlt : (x.tier.val : ℝ) + 1 ≤ (k : ℝ) - 1 := by
-            simpa [Nat.cast_sub hk] using
-              (Nat.cast_le (α := ℝ)).mpr (Nat.succ_le_of_lt x.tier.isLt)
+            simpa [Nat.cast_sub hk] using (Nat.cast_le (α := ℝ)).mpr x.tier.isLt
           push_cast; linarith
         · rw [ite_eq_right hj'_last]
           simp only [relatedMixedLower]
@@ -451,7 +450,7 @@ theorem isMixedNash_relatedMixedLowerNE {k B : ℕ} [NeZero B] (hk : 1 ≤ k) :
             hj'_last (Fin.ext (by simpa using h))
         have hge := add_two_pow_div_ge (a := k - 1) (b := j'.tier.val) (by omega)
         rw [Nat.cast_sub hk, Nat.cast_one] at hge
-        linarith [show 0 ≤ 1 / (B : ℝ) by positivity]
+        linarith [one_div_nonneg.mpr hB_pos.le]
 
 /-- Lift a top-tier assignment `f : Fin ((2 * k - 1) * B) → Fin B` to a full pure assignment of
 `relatedMixedLower k B` by fixing all lower-tier jobs to their pure machines. -/
@@ -576,9 +575,8 @@ private theorem ballsIntoBins_params_of_ge_sixteen {k : ℕ} (hk : 16 ≤ k) :
   have hxy_ge2 : 2 ≤ x / y := (le_div_iff₀ hy_pos).mpr (by linarith)
   have hd_le_real : (d : ℝ) ≤ 4 * (k : ℝ) * x / y := Nat.floor_le (by positivity)
   have hd_ge_3 : 3 * (k : ℝ) * x / y ≤ (d : ℝ) := by
-    have hlt : 4 * (k : ℝ) * x / y < (d : ℝ) + 1 := Nat.lt_floor_add_one (4 * (k : ℝ) * x / y)
-    have h1 : (k : ℝ) * (x / y) = (k : ℝ) * x / y := by ring
-    have h2 : 3 * (k : ℝ) * x / y + (k : ℝ) * x / y = 4 * (k : ℝ) * x / y := by ring
+    have hlt : 4 * (k : ℝ) * x / y < (d : ℝ) + 1 := Nat.lt_floor_add_one _
+    have h1 : 3 * (k : ℝ) * x / y + (k : ℝ) * (x / y) = 4 * (k : ℝ) * x / y := by ring
     nlinarith
   have hB2 : 2 ≤ B := (by omega : 2 ≤ 16 ^ 1).trans <|
     (Nat.pow_le_pow_left hk 1).trans (Nat.pow_le_pow_right (by omega) (by omega))
@@ -715,10 +713,8 @@ private theorem optMakespan_le_and_expectedMakespan_ge_of_idlePad
     exact (G.optMakespan_le (fun i => embedM (A₀ (eJ i)))).trans
       ((G.makespan_le_iff _).mpr fun j => (hload_le A₀ j).trans_eq hA₀)
   · let liftA : (ι₀ → M₀) → (ι₁ → M₁) := fun A₀ i => embedM (A₀ (eJ i))
-    have hliftA_inj : Function.Injective liftA := by
-      intro A₁ A₂ h
-      funext x
-      exact hembedM (by simpa only [liftA, eJ.apply_symm_apply] using congrFun h (eJ.symm x))
+    have hliftA_inj : Function.Injective liftA := fun _ _ h => funext fun x =>
+      hembedM (by simpa only [liftA, eJ.apply_symm_apply] using congrFun h (eJ.symm x))
     have hpw : ∀ A₀ : ι₀ → M₀, productWeight p (liftA A₀) = productWeight p₀ A₀ := fun A₀ => by
       rw [productWeight_def, productWeight_def]
       simp_rw [liftA, hp_eq]
@@ -918,8 +914,7 @@ theorem exists_relatedMixedNash_makespan_ge_log_div_log_log_log {m : ℕ} [NeZer
     have hp_isNE : G.toCostGame.IsMixedNash p := by
       rw [G.isMixedNash_iff]
       refine ⟨fun i => ?_, fun i j hpos j' => ?_⟩
-      · rw [isMixedStrategy_iff]
-        refine ⟨fun j => ?_, ?_⟩
+      · refine isMixedStrategy_iff.2 ⟨fun j => ?_, ?_⟩
         · simp only [p]
           split_ifs
           exacts [(hbase_NE.1 (eJ i)).nonneg _, le_rfl]
@@ -953,12 +948,9 @@ theorem exists_relatedMixedNash_makespan_ge_log_div_log_log_log {m : ℕ} [NeZer
           fun _ => rfl]
       by_cases h : j.val < Mfn k
       · simp only [G, dite_eq_left h, LoadBalancingGame.load_eq_sum_div, sum_filter]
-        congr 1
-        refine sum_congr rfl fun x _ => ?_
-        have hiff : embedM (A x) = j ↔ A x = eM ⟨j.val, h⟩ :=
-          ⟨fun heq => eM.symm_apply_eq.mp (Fin.ext (congrArg (·.val) heq)),
-            fun heq => Fin.ext (by simp [embedM, heq])⟩
-        simp only [hiff]
+        refine congrArg (· / _) (sum_congr rfl fun x _ => if_congr ?_ rfl rfl)
+        exact ⟨fun heq => eM.symm_apply_eq.mp (Fin.ext (congrArg (·.val) heq)),
+          fun heq => Fin.ext (by simp [embedM, heq])⟩
       · rw [dite_eq_right h, sum_eq_zero fun x _ => by
           have hne : embedM (A x) ≠ j := fun heq => h (congrArg Fin.val heq ▸ (eM.symm (A x)).isLt)
           rw [ite_eq_right hne], zero_div]

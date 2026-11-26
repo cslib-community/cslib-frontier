@@ -417,8 +417,7 @@ theorem Feasible.branch_domainExaminationBound_le_two_pow_interpolationScale [Fi
     _ = (2 : ℝ) ^ ((branchExamScaleCoeff β k c : ℝ) * interpolationScale N) := by
         rw [← Real.rpow_add two_pos]
         congr 1
-        unfold branchExamScaleCoeff
-        dsimp only [M_coeff]
+        simp only [branchExamScaleCoeff, M_coeff]
         push_cast
         ring
 
@@ -440,9 +439,7 @@ theorem sum_branchAssignments_le_two_pow_interpolationScale [Fintype ι] [Decida
       (2 : ℝ) ^ (((A + 32 : ℕ) : ℝ) * interpolationScale (Fintype.card ι)) := by
   have hbranches_r :
       (#(branchAssignments S) : ℝ) ≤ (2 : ℝ) ^ (32 * interpolationScale (Fintype.card ι)) :=
-    (show (#(branchAssignments S) : ℝ) ≤
-        (2 : ℝ) ^ (Fintype.card ι / (Nat.clog 2 (Fintype.card ι)).sqrt) by
-          exact_mod_cast hbranches).trans
+    (mod_cast hbranches : (#(branchAssignments S) : ℝ) ≤ _).trans
       (two_pow_div_sqrt_clog_le_interpolationScale hn)
   calc ∑ b ∈ branchAssignments S, examSum b
       ≤ ∑ _b ∈ branchAssignments S,
@@ -526,10 +523,9 @@ theorem CNF.branch_domainExaminationBound_parityRowSystem_le_two_pow_interpolati
             ∑ g : Fin (numGroups n'), (Fintype.card (C.LocalCube t g) : ℝ))) ≤
       (2 : ℝ) ^ ((branchExamScaleCoeff β k 6 : ℝ) * interpolationScale (Fintype.card V)) := by
   intro d q C
-  have hcard : #(univ : Finset (Fin rows.length)) ≤ 6 * Fintype.card V := by
-    simpa only [card_univ, Fintype.card_fin] using hlen
   have h := Feasible.branch_domainExaminationBound_le_two_pow_interpolationScale
-    (ι := V) (k := k) (c := 6) (univ : Finset (Fin rows.length)) hF D s hcard hn hn_le hn'_le
+    (ι := V) (k := k) (c := 6) (univ : Finset (Fin rows.length)) hF D s
+    (by simpa only [card_univ, Fintype.card_fin] using hlen) hn hn_le hn'_le
   simpa only [card_univ, Fintype.card_fin] using h.1.trans h.2
 
 /-- **Section 6.3 multi-branch `interpolationScale` domain-examination bound for
@@ -679,8 +675,7 @@ theorem CNF.exists_branch_schedule_and_examBound_parityRowSystem_of_le_clog_pow
             CNF.ParityRowBranchExamBound φ k β_B W b₀ rows e := by
   obtain ⟨N₀, _, hsched⟩ := CNF.exists_branch_schedule_parityRowSystem_of_le_clog_pow k C_B β_B
   refine ⟨max N₀ 16384, le_max_right _ _,
-    fun {V _ _ φ n' B W} hk hN₁ hm hB hW_bound {rows} hW hlen => ?_⟩
-  intro b₀ S e
+    fun {V _ _ φ n' B W} hk hN₁ hm hB hW_bound {rows} hW hlen e => ?_⟩
   obtain ⟨_, ⟨hn_le, _⟩, hbranches, hfeas⟩ :=
     hsched hk ((le_max_left _ _).trans hN₁) hm hB hW_bound hW hlen e
   exact CNF.parityRowBranchExamBound_of_schedule e hlen
@@ -736,7 +731,6 @@ theorem CNF.exists_greedy_parityRowSystem_branch_schedule_and_examBound_of_le_cl
     CNF.exists_greedy_parityRowSystem_branch_schedule_of_le_clog_pow k C_B β_B
   refine ⟨max N₀ 16384, le_max_right _ _,
     fun {V _ _} φ {B} hk hN₁ hB1 hB_le hm => ?_⟩
-  intro D₀ P b₀
   obtain ⟨A₀, hlen0, hw0, hgreedy⟩ :=
     hgreedy_sched φ hk ((le_max_left _ _).trans hN₁) hB1 hB_le hm
   refine ⟨A₀, hlen0, hw0, fun A γ h0 hA hγ =>

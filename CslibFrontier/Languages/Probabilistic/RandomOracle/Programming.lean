@@ -296,15 +296,13 @@ private theorem lazyProgramStep_map_fst [BEq Query]
     (lazyProgramStep dist active inactive samplePre point finish q st).map
         (Prod.map id Prod.fst) =
       lazyProgramHandler dist active inactive samplePre point finish q st := by
-  obtain ⟨cache, log⟩ := st
-  cases q with
-  | inl req =>
-    dsimp only [lazyProgramStep, lazyProgramHandler]
+  rcases q, st with ⟨req | q, cache, log⟩
+  · dsimp only [lazyProgramStep, lazyProgramHandler]
     split_ifs with h
     · simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map_bind, PMF.map_comp]
       exact congrArg (PMF.bind _) (funext fun ts => (PMF.bind_pure_comp _ _).symm)
     · exact PMF.map_comp _ _ _
-  | inr q => exact PMF.map_comp _ _ _
+  · exact PMF.map_comp _ _ _
 
 private theorem overwriteProgramStep_map_fst [BEq Query]
     (dist : PMF Digest) (active : Req → Bool)
@@ -316,15 +314,13 @@ private theorem overwriteProgramStep_map_fst [BEq Query]
     (overwriteProgramStep dist active inactive samplePre point finish q st).map
         (Prod.map id Prod.fst) =
       overwriteProgramHandler dist active inactive samplePre point finish q st := by
-  obtain ⟨cache, log⟩ := st
-  cases q with
-  | inl req =>
-    dsimp only [overwriteProgramStep, overwriteProgramHandler]
+  rcases q, st with ⟨req | q, cache, log⟩
+  · dsimp only [overwriteProgramStep, overwriteProgramHandler]
     split_ifs with h
     · simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map_bind, PMF.map_comp]
       exact congrArg (PMF.bind _) (funext fun ts => (PMF.bind_pure_comp _ _).symm)
     · exact PMF.map_comp _ _ _
-  | inr q => exact PMF.map_comp _ _ _
+  · exact PMF.map_comp _ _ _
 
 private theorem lazyProgramStep_agree_overwriteProgramStep [BEq Query]
     (dist : PMF Digest) (active : Req → Bool)
@@ -634,14 +630,13 @@ theorem closeTo_run_lazyProgramHandler_overwriteProgramHandler_of_isQueryBounded
       ((q_S * (cache.length + Q) : ℕ) * δ) := by
   refine (closeTo_run_lazyProgramHandler_overwriteProgramHandler_raw dist active inactive samplePre
     point finish program cache log).mono ?_
-  have hbad := OracleComp.toOuterMeasure_bad_le
+  refine (OracleComp.toOuterMeasure_bad_le
     (handler := flaggedLazyProgramHandler dist active inactive samplePre point finish)
     (bad := FlagBad) (Sum.elim (fun _ => 1) (fun _ => 0))
     (fun st : (List (Query × Digest) × Log) × Bool => (st.1.1.length : ℝ≥0∞) * δ) δ
     (fun q st hst => by
-      have h := step_bad_flaggedLazyProgramHandler_le dist active inactive samplePre point finish
-        hminEnt q st hst
-      simpa only [Nat.cast_mul, mul_assoc] using h)
+      simpa only [Nat.cast_mul, mul_assoc] using step_bad_flaggedLazyProgramHandler_le dist
+        active inactive samplePre point finish hminEnt q st hst)
     (fun q st _ x hx _ => by
       have hlen := length_cache_flaggedLazyProgramHandler_le dist active inactive samplePre point
         finish q st x hx
@@ -649,10 +644,8 @@ theorem closeTo_run_lazyProgramHandler_overwriteProgramHandler_of_isQueryBounded
           ≤ (st.1.1.length + 1 : ℕ) * δ := by gcongr
         _ = (st.1.1.length : ℝ≥0∞) * δ + δ := by
             rw [Nat.cast_add, Nat.cast_one, add_mul, one_mul])
-    hQ hqS (s := ((cache, log), false)) Bool.false_ne_true
-  refine hbad.trans_eq ?_
-  simp only [Nat.cast_mul, Nat.cast_add]
-  ring
+    hQ hqS (s := ((cache, log), false)) Bool.false_ne_true).trans_eq ?_
+  simp only [Nat.cast_mul, Nat.cast_add]; ring
 
 /-- **Sharpened adaptive RO programming `CloseTo` hop (`ProbOracleComp.runWith`)**: lifts
 `closeTo_run_lazyProgramHandler_overwriteProgramHandler_choose_two` to adversaries with private
@@ -743,8 +736,7 @@ private theorem nodup_fst_step_memoize {Query Digest : Type} [BEq Query] [Lawful
     (hstep : (ans, c') ∈ (memoize distribution key c).support) :
     (c'.map Prod.fst).Nodup := by
   rcases (mem_support_memoize_iff _ _ _ (ans, c')).mp hstep with ⟨-, hnext⟩ | ⟨hlookup, -, hnext⟩
-  · obtain rfl : c' = c := hnext
-    exact hc
+  · simpa only [← hnext] using hc
   · obtain rfl : c' = (key, ans) :: c := hnext
     refine List.nodup_cons.mpr ⟨fun hkey => ?_, hc⟩
     obtain ⟨e, he, heq⟩ := List.mem_map.mp hkey

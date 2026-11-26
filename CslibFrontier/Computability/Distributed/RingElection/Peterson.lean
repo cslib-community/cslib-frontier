@@ -319,12 +319,10 @@ theorem twoHopStep_comm {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
         by_cases he : e = i - 1 <;> simp only [he, hpred_ne, ↓reduceIte]
       rw [hbase_eq]
       by_cases hei : e = i <;> simp only [hei, hne, ↓reduceIte, List.append_nil]
-  · have hmsgs_cons {c : TwoHopConfig n U} {t : Fin n} {m : TwoHopMsg U} {r : List (TwoHopMsg U)}
-        (hq : c.chan (t - 1) = m :: r) :
-        twoHopStepMsgs t c = (twoHopRecv (c.node t) m).sent.length := by
-      simp only [twoHopStepMsgs, hq]
-    rw [hmsgs_cons hqi, hmsgs_cons hstep_i_at_jpred, hnode_i_at_j,
-      hmsgs_cons hqj, hmsgs_cons hstep_j_at_ipred, hnode_j_at_i, Nat.add_comm]
+  · have hcons {c : TwoHopConfig n U} {t m r} (hq : c.chan (t - 1) = m :: r) :
+        twoHopStepMsgs t c = (twoHopRecv (c.node t) m).sent.length := by simp [twoHopStepMsgs, hq]
+    rw [hcons hqi, hcons hstep_i_at_jpred, hnode_i_at_j, hcons hqj, hcons hstep_j_at_ipred,
+      hnode_j_at_i, Nat.add_comm]
 
 /-- **Strip lemma (`strip_one_step`).**
 Given a terminating trace `MTr cfg tr cfg_term` (`IsTerminal cfg_term`) and any single enabled step
@@ -856,13 +854,11 @@ private theorem mtr_wave {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
           omega
       let prog' := Function.update prog p (prog p + 1)
       have hrem' : ∑ x ∈ A, (arcLen A x - 1 - prog' x) = r := by
-        have h : ∑ x ∈ A.erase p, (arcLen A x - 1 - prog' x) =
-            ∑ x ∈ A.erase p, (arcLen A x - 1 - prog x) := Finset.sum_congr rfl fun x hx => by
-          simp only [prog', Function.update_of_ne (Finset.ne_of_mem_erase hx)]
-        rw [← Finset.add_sum_erase _ _ hpA, h]
+        rw [← Finset.add_sum_erase _ _ hpA, Finset.sum_congr rfl fun x hx =>
+          congrArg (arcLen A x - 1 - ·)
+            (Function.update_of_ne (Finset.ne_of_mem_erase hx) (prog p + 1) prog)]
         rw [← Finset.add_sum_erase _ _ hpA] at hrem
-        simp only [prog', Function.update_self]
-        omega
+        simp only [prog', Function.update_self]; omega
       have hprog'_le : ∀ x ∈ A, prog' x ≤ arcLen A x - 1 := fun x hx => by
         by_cases hxp : x = p <;> simp [prog', hxp, hprog_le x hx]; omega
       have hat : ∀ x ∈ A, (twoHopStep t cfg).chan (x + Fin.ofNat n (prog' x)) = [payload x] := by
@@ -1099,7 +1095,7 @@ private theorem exists_canonical_terminal {n : ℕ} [NeZero n] {U : Type*} [Line
   -- Run the final `active = 1` wave (`mtr_wave`) from `cfgK`:
   obtain ⟨w_end, cfg_term, hmtr_end, hmsgs_end, hnode_end, hchan_end⟩ :=
     mtr_wave ⟨qMax, hiStar_mem⟩ (fun i => TwoHopMsg.hop1 (stK.tidMap i))
-      (fun i hi => by simp [hstartK.1 i, show i ∉ (twoHopAllActivePhase uid K).active from hi])
+      (fun i (hi : i ∉ (twoHopAllActivePhase uid K).active) => by simp [hstartK.1 i, hi])
       hstartK.2
   have hprev_self : prevActive stK.active qMax = qMax :=
     Finset.mem_singleton.mp (hiStar_eq ▸ prevActive_mem hiStar_mem)
@@ -1107,16 +1103,15 @@ private theorem exists_canonical_terminal {n : ℕ} [NeZero n] {U : Type*} [Line
       twoHopRecv (cfgK.node qMax) (.hop1 (stK.tidMap (prevActive stK.active qMax))) =
         ⟨.leader maxUid, []⟩ := by
     rw [hprev_self, hstartK.1 qMax]
-    dsimp only [stK, maxUid] at hiStar_mem ⊢
-    simp only [hiStar_mem, ↓reduceIte, twoHopRecv]
+    simp only [stK, maxUid, hiStar_mem, ↓reduceIte, twoHopRecv]
   have hchan_empty : ∀ e, cfg_term.chan e = [] := fun e => by
     rw [hchan_end e]
     split_ifs with he
-    · rw [show e = qMax from Finset.mem_singleton.mp (hiStar_eq ▸ he), hout_iStar]
+    · have heq : e = qMax := Finset.mem_singleton.mp (hiStar_eq ▸ he)
+      rw [heq, hout_iStar]
     · rfl
-  have hterm : (twoHopLTS n U).IsTerminal cfg_term := by
-    intro target _ ⟨hne, _⟩
-    exact hne (hchan_empty (target - 1))
+  have hterm : (twoHopLTS n U).IsTerminal cfg_term := fun target _ ⟨hne, _⟩ =>
+    hne (hchan_empty (target - 1))
   have hmsgs_end_eq : twoHopEmittedMsgs cfgK w_end = n - 1 := by
     have hact : stK.active = {qMax} := hiStar_eq
     rw [hmsgs_end, hact, Finset.card_singleton, Finset.sum_singleton, ← hiStar_eq, hout_iStar]
@@ -1131,8 +1126,7 @@ private theorem exists_canonical_terminal {n : ℕ} [NeZero n] {U : Type*} [Line
     ?_, fun j => ?_, ⟨j₀, hj₀_eq.trans hqMax_eq.symm⟩, ?_, ?_⟩
   · rw [twoHopAllActiveExecMsgs, twoHopEmittedMsgs_append, twoHopExec_of_mtr hmtrK, hmsgs_end_eq]
     change n + (twoHopEmittedMsgs (twoHopAllActiveInit uid) sK + (n - 1)) = 2 * n * K + n
-    rw [← add_assoc, hmsgsK, hcard_K]
-    omega
+    rw [← add_assoc, hmsgsK, hcard_K]; omega
   · dsimp only [maxUid, stK]
     exact hqMax_eq ▸ Finset.le_max' _ (uid j) (Finset.mem_image_of_mem uid (Finset.mem_univ j))
   · simp only [hnode_end qMax, hiStar_mem, ↓reduceIte, hout_iStar]

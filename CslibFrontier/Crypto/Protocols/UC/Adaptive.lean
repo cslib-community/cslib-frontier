@@ -593,13 +593,10 @@ theorem IdealFunctionality.toStatic_toAdaptive_of_initIndep {BackQ BackR : Type}
     (hinit : ∀ κ C, F.init κ C = F.init κ ∅) :
     (F.toAdaptive reveal).toStatic = F.toProtocol := by
   refine F.toStatic_toAdaptive reveal (fun _ _ s => s) fun κ C => ?_
-  have hid : (F.toAdaptive reveal).applyInitialCorruptions κ C = id := by
-    funext s
-    simp only [AdaptiveProtocol.applyInitialCorruptions, IdealFunctionality.toAdaptive, ite_self]
-    clear hinit
-    induction List.finRange n generalizing s with
-    | nil => rfl
-    | cons _ _ ih => exact ih s
+  have hid : (F.toAdaptive reveal).applyInitialCorruptions κ C = id :=
+    funext fun (s : F.State) => by
+      simp only [AdaptiveProtocol.applyInitialCorruptions, IdealFunctionality.toAdaptive, ite_self]
+      induction List.finRange n generalizing s <;> simp [*]
   rw [hid]
   exact (id_map _).trans (hinit κ C).symm
 
@@ -637,9 +634,8 @@ private theorem isQueryBounded_liftStaticNetProgram {α : Type}
     {m : ℕ} (h : program.IsQueryBounded m) :
     (liftStaticNetProgram (View := View) program).IsQueryBounded m := by
   refine OracleComp.IsCostBounded.interpret (fun q => ?_) h
-  rcases q with k | (⟨i, x⟩ | nq)
-  · exact OracleComp.IsCostBounded.query _
-  all_goals exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
+  rcases q with _ | (_ | _) <;>
+    first | exact .query _ | exact (OracleComp.isCostBounded_map_iff ..).mpr (.query _)
 
 /-- Lifting a static adversary preserves its call budget. -/
 theorem Adversary.PolyBounded.ofStatic

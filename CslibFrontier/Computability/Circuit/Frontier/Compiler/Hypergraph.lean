@@ -277,17 +277,14 @@ private theorem eventually_lt_of_hyperSupply {U : Type u} [Finite U] [Nontrivial
     (by linarith [hw, hinp])
   have hdem : (n : ℝ) ≤ ((w : ℝ) - c_n * n) / (1 - c_n) + e n + kappa c_n * Real.log (v + 1) := by
     refine le_of_mul_le_mul_left ?_ h1c_n
-    have hW : (1 - c_n) * (((w : ℝ) - c_n * n) / (1 - c_n)) = w - c_n * n :=
-      mul_div_cancel₀ _ h1c_n.ne'
-    have hX' : (1 - c_n) * (((n : ℝ) - Real.logb q (S n).ncard) / (1 - c_n)) =
-        n - Real.logb q (S n).ncard := mul_div_cancel₀ _ h1c_n.ne'
+    have hW := mul_div_cancel₀ ((w : ℝ) - c_n * n) h1c_n.ne'
+    have hX' := mul_div_cancel₀ ((n : ℝ) - Real.logb q (S n).ncard) h1c_n.ne'
     push_cast at hdemand
     linarith [logb_le_kappa_mul_log h1c_n hq2 (Nat.cast_nonneg (α := ℝ) v)]
   have hres := hn _ v _ (add_nonneg (mul_nonneg (by linarith) g.cast_nonneg) n.cast_nonneg)
     v.cast_nonneg (le_kappa_mul (by linarith) g.cast_nonneg n.cast_nonneg (by exact_mod_cast hvg))
     hdem hsupply
-  rw [hA_inv] at hres
-  linarith
+  rw [hA_inv] at hres; linarith
 
 /-! ### General worst-case, average-case, and nondeterministic meta-theorems -/
 
@@ -393,9 +390,7 @@ private theorem agreement_le_of_forall_bias {U : Type u} [Finite U] [Nonempty U]
   have h' := agreement_le (h Acc) (h Accᶜ)
   rw [Nat.card_fun, Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin, Nat.cast_pow] at h'
   have hq : (0 : ℝ) < (Nat.card U : ℝ) ^ n := pow_pos (Nat.cast_pos.mpr Nat.card_pos) n
-  refine h'.trans_eq ?_
-  field_simp
-  ring
+  exact h'.trans_eq (by field_simp; ring)
 
 /-- Single-circuit agreement bound for a narrow hypergraph layout. -/
 private theorem agreement_le_of_hyperLayout {U : Type u} [Finite U] [Nontrivial U]
@@ -482,8 +477,7 @@ private theorem agreement_le_of_unread_lt_step {U : Type u} [Finite U] [Nontrivi
       Real.logb_mul (pow_pos hK_pos 3).ne' hV.ne', Real.logb_pow, Real.logb_pow,
       Real.logb_self_eq_one hq1]
     push_cast
-    have hW : (1 - c_n) * (((w : ℝ) - c_n * n) / (1 - c_n)) = w - c_n * n :=
-      mul_div_cancel₀ _ h1c_n.ne'
+    have hW := mul_div_cancel₀ ((w : ℝ) - c_n * n) h1c_n.ne'
     linarith [mul_lt_mul_of_pos_left hmargin h1c_n, mul_le_mul_of_nonneg_right hγ_le n.cast_nonneg,
       logb_le_kappa_mul_log h1c_n hq2 (Nat.cast_nonneg (α := ℝ) V)]
   have hl2 : 0 < Real.log 2 := Real.log_pos one_lt_two

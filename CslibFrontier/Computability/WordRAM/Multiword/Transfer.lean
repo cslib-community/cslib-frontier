@@ -85,16 +85,12 @@ theorem exec_copy {w : ℕ} (as ds : List (Fin (r + 4)))
         simp [z, show i ≠ d from fun h => hdis (h ▸ List.mem_cons_self) hi]
       obtain ⟨y, hey, hym, hyf, hyp⟩ := ih ds hlen' (List.nodup_cons.mp hnd).2 hdis' z
       have hp : ∀ i ∉ d :: ds, y.regs i = x.regs i := fun i hi => by
-        rw [hyp i (List.not_mem_of_not_mem_cons hi)]
-        simp [z, List.ne_of_not_mem_cons hi]
+        simp [hyp i (List.not_mem_of_not_mem_cons hi), z, List.ne_of_not_mem_cons hi]
       refine ⟨y, ?_, ?_, ⟨hyf.1, fun i hi _ _ => hp i hi⟩, hp⟩
       · simpa only [copy, List.length_cons, Nat.add_comm 1] using
           (show Exec w (.op (.copy (B := .standard) d a)) x z 1 from Exec.copy).seq hey
-      · simp only [List.map_cons]
-        congr 1
-        · rw [hyp d (List.nodup_cons.mp hnd).1]; simp [z]
-        · rw [hym]
-          exact List.map_congr_left fun i hi => hz i (by simp [hi])
+      · exact congrArg₂ List.cons (by simp [z, hyp d (List.nodup_cons.mp hnd).1])
+          (hym.trans (List.map_congr_left fun i hi => hz i (List.mem_cons_of_mem a hi)))
 
 /-- Exact reconstruction follows from the copied digit sequence, at any radix. -/
 theorem value_copy {β : ℕ} {x y : Data (r + 4)} {as ds : List (Fin (r + 4))}
@@ -142,8 +138,7 @@ theorem exec_constants {w : ℕ} (ds : List (Fin (r + 4))) (cs : List ℕ)
       obtain ⟨y, hey, hym, hyf, hyp⟩ := ih cs hlen' (List.nodup_cons.mp hnd).2
         (fun c hc => hfit c (by simp [hc])) z
       have hp : ∀ i ∉ d :: ds, y.regs i = x.regs i := fun i hi => by
-        rw [hyp i (List.not_mem_of_not_mem_cons hi)]
-        simp [z, List.ne_of_not_mem_cons hi]
+        simp [hyp i (List.not_mem_of_not_mem_cons hi), z, List.ne_of_not_mem_cons hi]
       refine ⟨y, ?_, ?_, ⟨hyf.1, fun i hi _ _ => hp i hi⟩, hp⟩
       · simpa only [constants, List.length_cons, Nat.add_comm 1] using
           (show Exec w (.op (.const (B := .standard) d c)) x z 1 from
@@ -215,8 +210,7 @@ def assemble (as : List (Fin (r + 4))) (d : Fin (r + 4)) : Code .standard (r + 4
 /-- Assembly has a linear instruction count independent of the physical width. -/
 theorem size_assemble (as : List (Fin (r + 4))) (d : Fin (r + 4)) :
     (assemble as d).size = 2 * as.length + 8 := by
-  simp only [assemble, Code.size, Workspace.setup, size_accumulate]
-  omega
+  simp only [assemble, Code.size, Workspace.setup, size_accumulate]; omega
 
 /-- Reconstruction is checked at the original physical width. All intermediate Horner values
 fit because the nonnegative final scalar fits. Inputs are preserved when disjoint from `d`.
@@ -304,8 +298,7 @@ def split (a : Fin (r + 4)) (ds : List (Fin (r + 4))) : Code .standard (r + 4) :
 /-- Conversion has a linear width-independent instruction count, including radix setup. -/
 theorem size_split (a : Fin (r + 4)) (ds : List (Fin (r + 4))) :
     (split a ds).size = 2 * ds.length + 8 := by
-  simp only [split, Code.size, Workspace.setup, size_extract]
-  omega
+  simp only [split, Code.size, Workspace.setup, size_extract]; omega
 
 /-- Exact conversion when the supplied digit list has enough capacity. The input may occur
 among the outputs: its value is copied into workspace before any digit is written. -/

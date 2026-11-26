@@ -65,9 +65,8 @@ private theorem sum_map_add_le {α : Type*} {l : List α} {f : α → ℕ} {k : 
     (by simpa using Nat.mul_le_mul_right (b + k) hl)
 
 private theorem cost_listTm_le {ts : List Tm} (hl : ts.length ≤ X) (h : ∀ t ∈ ts, t.cost σ ≤ b) :
-    (listTm ts).cost σ ≤ X * (b + 100) + 20 := by
-  rw [cost_listTm]
-  exact Nat.add_le_add_right (sum_map_add_le hl h) 20
+    (listTm ts).cost σ ≤ X * (b + 100) + 20 :=
+  cost_listTm ts ▸ Nat.add_le_add_right (sum_map_add_le hl h) 20
 
 private theorem cost_catTm (ts : List Tm) : (catTm ts).cost σ =
     (ts.map fun t => t.cost σ + 62 * (t.expand σ).toList.length + 250).sum + 20 := by
@@ -79,9 +78,8 @@ private theorem cost_catTm (ts : List Tm) : (catTm ts).cost σ =
 expansions. -/
 private theorem cost_catTm_le {ts : List Tm} (hl : ts.length ≤ X)
     (h : ∀ t ∈ ts, t.cost σ + 62 * (t.expand σ).toList.length ≤ b) :
-    (catTm ts).cost σ ≤ X * (b + 250) + 20 := by
-  rw [cost_catTm]
-  exact Nat.add_le_add_right (sum_map_add_le hl h) 20
+    (catTm ts).cost σ ≤ X * (b + 250) + 20 :=
+  cost_catTm ts ▸ Nat.add_le_add_right (sum_map_add_le hl h) 20
 
 end Lists
 
@@ -100,8 +98,7 @@ omit [Fintype S] in
 private theorem cost_valueTm (y : PlanName S M U0 U1 pS) (σ : List Bool → Tree) :
     (C.valueTm y).cost σ ≤ 30 * Lc + 50 := by
   have := hnm y
-  simp only [Codes.valueTm, Tm.cost]
-  omega
+  simp only [Codes.valueTm, Tm.cost]; omega
 
 include hst hnm hdc
 
@@ -145,12 +142,10 @@ private theorem cost_basesTm (p : Fin (K + K)) :
   | left κ =>
     have := cost_valueTm hnm (.state κ.castSucc) (extend C.name st fun _ => .nil)
     have := cost_valueTm hnm (.state κ.succ) (extend C.name st fun _ => .nil)
-    simp only [Codes.basesTm, Codes.baseTm, Fin.addCases_left, Codes.bodyTm, Tm.cost] at *
-    omega
+    simp only [Codes.basesTm, Codes.baseTm, Fin.addCases_left, Codes.bodyTm, Tm.cost] at *; omega
   | right κ =>
     have := cost_valueTm hnm (.part κ) (extend C.name st fun _ => .nil)
-    simp only [Codes.basesTm, Codes.baseTm, Fin.addCases_right, Codes.bodyTm, Tm.cost] at *
-    omega
+    simp only [Codes.basesTm, Codes.baseTm, Fin.addCases_right, Codes.bodyTm, Tm.cost] at *; omega
 
 include hId
 
@@ -233,11 +228,10 @@ theorem cost_pieceTm_le (hXU0 : U0 + 1 ≤ X) (hR : Fintype.card M.Role ≤ X) (
           (C.digitTree (Fin.castLE hmm g)) (C.basesTm p)).expand
             (extend C.name st fun _ => .nil)).toList.length ≤ X := by
         rw [toList_expand_ifTm]
-        split_ifs
-        · simp [Codes.basesTm, Tm.expand, Codes.valueTm, C.name_injective.extend_apply,
+        split_ifs <;>
+          simp [Codes.basesTm, Tm.expand, Codes.valueTm, C.name_injective.extend_apply,
             hst.selfAgree, Codes.selfAgreeTree, Tree.toList]
-          omega
-        · simp
+        omega
       omega
   have h2 := cost_catTm_le (σ := extend C.name st fun _ => .nil) (X := X)
     (b := X * (X * (270 * Lc + 700) + 120) + X * (30 * Lc + 150) + 300 * Lc + 1250)
@@ -260,8 +254,7 @@ theorem cost_pieceTm_le (hXU0 : U0 + 1 ≤ X) (hR : Fintype.card M.Role ≤ X) (
     (b := 2000 * Lc + 4750) (ts := (UnitId.list (K + K) U0 M.Channel U1).map
       (C.endTm tab hD hmm g)) (by simpa [UnitId.list] using hId) fun t ht => by
       obtain ⟨u, -, rfl⟩ := List.mem_map.1 ht
-      have := cost_endTm (hD := hD) hst hnm hdc hmm g u
-      omega
+      exact (cost_endTm (hD := hD) hst hnm hdc hmm g u).trans (by omega)
   have e (l₁ l₂ : List Tm) : (catTm (l₁ ++ l₂)).cost (extend C.name st fun _ => .nil) + 20 =
       (catTm l₁).cost (extend C.name st fun _ => .nil) +
         (catTm l₂).cost (extend C.name st fun _ => .nil) := by

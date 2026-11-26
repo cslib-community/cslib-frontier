@@ -840,8 +840,8 @@ private theorem exec_initFastTail {c U V w n_max base : ℕ} {θ : SeedWhp c U n
       FastMemRep base c U V w n_max (emptyFastState n_max) z_det.1.mem ∧
       (∀ a, (a < base ∨ base + largeSpaceWhp c U V w n_max ≤ a) → z_det.1.mem a = y₂.mem a) := by
   have ⟨_, hw, _, hth, hnU, hU, hV, hfit⟩ := henv
-  have hsp_eq : whpSpace c U V w n_max = largeSpaceWhp c U V w n_max := by
-    unfold whpSpace; exact ite_eq_right (Nat.not_lt.mpr hth)
+  have hsp_eq : whpSpace c U V w n_max = largeSpaceWhp c U V w n_max :=
+    ite_eq_right (Nat.not_lt.mpr hth)
   obtain ⟨hcore_fit, _⟩ := fits_mkWhpParams hw hnU hU hV hfit
   obtain ⟨y₃, ⟨n₁, hn₁, he₁⟩, hy₃_bdd, hy₃_mem, hparam₃, hlow₃⟩ :=
     exec_loadVecUpTo val_coreParamReg hcore_fit hy₂_bdd 67 (by decide)
@@ -880,8 +880,8 @@ private theorem exec_initFastTail {c U V w n_max base : ℕ} {θ : SeedWhp c U n
     dsimp only [cp] at hn₂
     rwa [hmc, Nat.add_zero] at hn₂
   refine ⟨(y₄, n₁ + n₂), by omega, he₁.seq he₂, hy₄_bdd, hbase₄, hfr₄,
-    hmem₄ ▸ hseed', hmem₄ ▸ hfast', fun a ha => ?_⟩
-  exact (congrFun hmem₄ a).trans ((hout a ha).trans (congrFun hy₃_mem a))
+    hmem₄ ▸ hseed', hmem₄ ▸ hfast',
+    fun a ha => (congrFun hmem₄ a).trans ((hout a ha).trans (congrFun hy₃_mem a))⟩
 
 private theorem setup_exec_whp {c U V w n_max base : ℕ}
     (hc : 0 < c) (hw : 0 < w) (hnU : n_max ≤ U) (hU : Fits w U) (hV : Fits w V)
@@ -903,8 +903,7 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
         Modifies (Block.mk base (whpSpace c U V w n_max)).footprint x₁.mem p.2.mem := by
   classical
   by_cases hsm : n_max < whpThreshold c
-  · have hsp : whpSpace c U V w n_max = smallSpaceWhp U V w n_max := by
-      unfold whpSpace; exact ite_eq_left hsm
+  · have hsp : whpSpace c U V w n_max = smallSpaceWhp U V w n_max := ite_eq_left hsm
     let x₁' := x₁.set zeroReg 0
     let m₀ : ProbComp (Data rWhp × ℕ) := pure (x₁', 1)
     let ν₀ : PMF (SeedWhp c U n_max × Data rWhp) :=
@@ -915,16 +914,14 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
     have hqb : OracleComp.IsQueryBounded m₀ (initSetupRandCalls c w n_max) := by
       simp only [initSetupRandCalls, hsm, ↓reduceIte]
       exact .pure _ 0
-    have htime : ∀ z ∈ m₀.support, z.2 ≤ initSetupSteps c w n_max := by
-      intro z hz_mem
-      cases OracleComp.eq_of_mem_supportWith_pure hz_mem
-      simp [initSetupSteps, hsm]
+    have htime : ∀ z ∈ m₀.support, z.2 ≤ initSetupSteps c w n_max := fun _ hz_mem => by
+      simp [OracleComp.eq_of_mem_supportWith_pure hz_mem, initSetupSteps, hsm]
     have hsnd : ν₀.map Prod.snd = (Prod.fst <$> m₀).eval := by
       rw [PMF.map_comp, map_pure, ProbComp.eval_pure]
       exact PMF.map_const _ x₁'
     have hfst : ∀ θ, (ν₀.map Prod.fst) θ ≤ 1 * (seedLawWhp c U n_max) θ := fun θ => by
-      have hid : Prod.fst ∘ (fun θ : SeedWhp c U n_max => (θ, x₁')) = id := rfl
-      rw [PMF.map_comp, one_mul, hid, PMF.map_id]
+      rw [PMF.map_comp, one_mul]
+      exact (congrArg (· θ) (PMF.map_id _)).le
     refine ⟨m₀, ν₀, hex, hqb, htime, hsnd, hfst, fun p hp => ?_⟩
     obtain ⟨θ, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hp
     have hend := smallOffsets_eq U V w n_max
@@ -948,9 +945,7 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
       hinit_eq.symm ▸ ⟨hsm, hsm_rep⟩, whpRunPure_spec hnU θ trivial, rfl, trivial⟩,
       Modifies.refl _ _⟩
   · have hth : whpThreshold c ≤ n_max := Nat.le_of_not_lt hsm
-    have hsp : whpSpace c U V w n_max = largeSpaceWhp c U V w n_max := by
-      unfold whpSpace
-      exact ite_eq_right hsm
+    have hsp : whpSpace c U V w n_max = largeSpaceWhp c U V w n_max := ite_eq_right hsm
     have henv : WhpLargeEnv c U V w n_max w base := ⟨hc, hw, rfl, hth, hnU, hU, hV, hfit⟩
     have hw0_le : w0Whp U ≤ w := w0Whp_le_w hw hU
     have hlog_w := log_n_max_lt_w hth hnU hU
@@ -958,19 +953,15 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
     have hell := Dynamic.one_le_logLogFactor n_max
     have hbc_le : bCharWhp n_max ≤ w := ((Nat.div_le_self _ 4).trans_lt hlog_w).le
     have hb_le : bWhp n_max ≤ w := ((Nat.sub_le _ _).trans_lt hlog_w).le
-    have hfp_le : fpBitsWhp n_max ≤ w := by
-      unfold fpBitsWhp
-      omega
+    have hfp_le : fpBitsWhp n_max ≤ w := by dsimp only [fpBitsWhp]; omega
     have hfit_bkt_end : Fits w ((base + offHashBkt) +
         BitPackedDoubleTabulation.space w (cTabWhp c) (dTabWhp c) (bCharWhp n_max)
-          (bWhp n_max)) := by
-      refine hfit.of_le ?_
-      rw [hsp]; dsimp only [largeSpaceWhp, offHashBkt]; omega
+          (bWhp n_max)) :=
+      hfit.of_le (by simp only [hsp, largeSpaceWhp, offHashBkt]; omega)
     have hfit_fp_end : Fits w ((base + offHashFp c w n_max) +
         BitPackedDoubleTabulation.space w (cTabWhp c) (dTabWhp c) (bCharWhp n_max)
-          (fpBitsWhp n_max)) := by
-      refine hfit.of_le ?_
-      rw [hsp]; dsimp only [largeSpaceWhp, offHashFp, offHashBkt, bktHashWords]; omega
+          (fpBitsWhp n_max)) :=
+      hfit.of_le (by simp only [hsp, largeSpaceWhp, offHashFp, offHashBkt, bktHashWords]; omega)
     let m₁ := resampleStage w (w0Whp U) base offHashBkt (cTabWhp c) (dTabWhp c) (bCharWhp n_max)
       (bWhp n_max) x₁
     let m₂_of := resampleStage w (w0Whp U) base (offHashFp c w n_max) (cTabWhp c) (dTabWhp c)
@@ -1089,9 +1080,7 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
       obtain ⟨hi, _, hst₁₂⟩ := hm₁₂_supp z₁₂ hz₁₂
       have hle_t : (detOut z₁₂.1).2 ≤
           68 + realizes_initFastGen.factor * (initFastCostWhp n_max + 1) := by
-        dsimp only [detOut]
-        rw [dite_eq_left hi]
-        exact (Classical.choose_spec (tailEx z₁₂.1 hi)).1
+        simpa only [detOut, hi, ↓reduceDIte] using (Classical.choose_spec (tailEx z₁₂.1 hi)).1
       simp only [initSetupSteps, hsm, ↓reduceIte]
       omega
     have hsnd : ν₀.map Prod.snd = (Prod.fst <$> m₀).eval := by

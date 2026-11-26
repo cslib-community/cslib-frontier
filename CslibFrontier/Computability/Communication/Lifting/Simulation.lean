@@ -460,8 +460,8 @@ private theorem pow_depth_sim_alice (hτ4 : 4 ≤ τ) (hτm : τ ^ 2 ≤ m)
   have hb := h.afterAlice hτ hqL hgood ρ₀
   refine (pow_le_pow_right₀ hM (by omega : _ ≤ #st.J + #q.I + (k ρ₀).depth)).trans ?_
   cases h' : bigHalf st.X send <;> simp only [k, h', Bool.cond_false, Bool.cond_true] at hb ⊢
-  · exact (hJ ▸ ih₀ _ hb).trans (four_pow_succ_add_le (by simp))
-  · exact (hJ ▸ ih₁ _ hb).trans (four_pow_succ_add_le (by simp))
+  exacts [(hJ ▸ ih₀ _ hb).trans (four_pow_succ_add_le (by simp)),
+    (hJ ▸ ih₁ _ hb).trans (four_pow_succ_add_le (by simp))]
 
 /-- **The number of queries of the simulation**: `(m / τ) ^ (#J + depth) ≤ 4 ^ (t + depth p)`. -/
 theorem pow_depth_sim (hτ4 : 4 ≤ τ) (hτm : τ ^ 2 ≤ m) (hτc : 64 * n * (5 * c + 2) ≤ τ) :
@@ -479,8 +479,8 @@ theorem pow_depth_sim (hτ4 : 4 ≤ τ) (hτm : τ ^ 2 ≤ m) (hτc : 64 * n * (
       h.bob hτ _ (card_le_two_mul_card_filter_bigHalf _ _)
     rw [sim]
     cases h' : bigHalf st.Y send <;> simp only [h', Bool.cond_false, Bool.cond_true] at hb ⊢
-    · exact (ih₀ _ hb).trans (four_pow_succ_add_le (by simp))
-    · exact (ih₁ _ hb).trans (four_pow_succ_add_le (by simp))
+    exacts [(ih₀ _ hb).trans (four_pow_succ_add_le (by simp)),
+      (ih₁ _ hb).trans (four_pow_succ_add_le (by simp))]
   | alice send p₀ p₁ ih₀ ih₁ =>
     exact pow_depth_sim_alice hτ4 hτm hτc ih₀ ih₁
 
@@ -502,17 +502,13 @@ private theorem sixtyFour_mul_depth_le_of_four_pow_lt {τ : ℝ} (hτ4 : 4 ≤ �
   have hcn : 2 * p.depth ≤ n * (Nat.log 2 m + 1) := by
     have h1 : ((m : ℝ) / τ) ^ n ≤ (m : ℝ) ^ n :=
       pow_le_pow_left₀ (by positivity) (div_le_self (Nat.cast_nonneg m) (by linarith only [hτ4])) n
-    have h2 : (m : ℝ) ^ n < 2 ^ (n * (Nat.log 2 m + 1)) := by
+    have h2 : (m : ℝ) ^ n ≤ 2 ^ (n * (Nat.log 2 m + 1)) := by
       rw [mul_comm, pow_mul]
-      have : (m : ℝ) < 2 ^ (Nat.log 2 m + 1) := by
-        exact_mod_cast Nat.lt_pow_succ_log_self (by norm_num) m
-      rcases Nat.eq_zero_or_pos n with hn | hn
-      · subst hn
-        rw [pow_zero] at hc
-        exact absurd hc (not_lt.mpr (one_le_pow₀ (by norm_num)))
-      · exact pow_lt_pow_left₀ this (by positivity) hn.ne'
+      exact pow_le_pow_left₀ (Nat.cast_nonneg m)
+        (by exact_mod_cast (Nat.lt_pow_succ_log_self (by norm_num) m).le) n
     have h3 : (2 : ℝ) ^ (2 * p.depth) < 2 ^ (n * (Nat.log 2 m + 1)) := by
-      rw [pow_mul]; norm_num; exact (hc.trans_le h1).trans h2
+      rw [pow_mul]; norm_num
+      exact (hc.trans_le h1).trans_le h2
     have := (pow_lt_pow_iff_right₀ (by norm_num : (1 : ℝ) < 2)).mp h3
     omega
   have h1 : 64 * n * (5 * p.depth + 2) ≤ 320 * n ^ 2 * (Nat.log 2 m + 1) := by
@@ -554,12 +550,11 @@ theorem exists_decisionTree_of_solves {R : (Fin n → Bool) → O → Prop} {τ 
     have hτc : 64 * n * (5 * p.depth + 2) ≤ τ :=
       sixtyFour_mul_depth_le_of_four_pow_lt hτ4 hτn hc
     -- the initial state satisfies the invariants
-    have hinit : (SimState.init n m).Good τ p.depth R p := by
-      refine ⟨univ_nonempty_iff.mpr ⟨fun _ => ⟨0, hm⟩⟩, by simp [SimState.init],
-        by simp [SimState.init], by simp [SimState.init], isDense_univ hτ.le hτm' _, ?_, ?_,
+    have hinit : (SimState.init n m).Good τ p.depth R p :=
+      ⟨univ_nonempty_iff.mpr ⟨fun _ => ⟨0, hm⟩⟩, by simp [SimState.init],
+        by simp [SimState.init], by simp [SimState.init], isDense_univ hτ.le hτm' _,
+        by simp [SimState.init, ← pow_mul, mul_comm], by simp [SimState.init],
         hp.mono (Set.subset_univ _) (Set.subset_univ _), by simp [SimState.init]⟩
-      · simp [SimState.init, ← pow_mul, mul_comm]
-      · simp [SimState.init]
     refine ⟨sim τ p (SimState.init n m), fun z => eval_sim hτ4 hτm hτc p _ hinit z (by
       simp [SimState.init]), ?_⟩
     simpa [SimState.init] using pow_depth_sim hτ4 hτm hτc p _ hinit

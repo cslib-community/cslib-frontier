@@ -215,29 +215,24 @@ theorem Exec.execRand {w : ℕ} {c : Code B r} {x y : Data r} {n : ℕ} (h : Exe
   induction h with
   | op ho => exact .op ho
   | @seq c₁ c₂ x y z m n _ _ ih₁ ih₂ =>
-    simpa only [pure_bind] using ExecRand.seq ih₁ (m₂ := fun _ => pure (z, n)) fun z' hz' => by
-      cases OracleComp.eq_of_mem_supportWith_pure hz'
-      exact ih₂
+    simpa only [pure_bind] using ExecRand.seq ih₁ (m₂ := fun _ => pure (z, n)) fun _ hz' =>
+      (OracleComp.eq_of_mem_supportWith_pure hz').symm ▸ ih₂
   | branch_pos hc _ ih =>
     simpa only [map_pure] using ExecRand.branch_pos hc ih
   | branch_neg hc _ ih =>
     simpa only [map_pure] using ExecRand.branch_neg hc ih
   | loop_exit hc => exact .loop_exit hc
   | @loop_iter c body x y z m n hc _ _ ihb ihl =>
-    simpa only [pure_bind] using
-      ExecRand.loop_iter hc ihb (ml := fun _ => pure (z, n)) fun z' hz' => by
-        cases OracleComp.eq_of_mem_supportWith_pure hz'
-        exact ihl
+    simpa only [pure_bind] using ExecRand.loop_iter hc ihb (ml := fun _ => pure (z, n))
+      fun _ hz' => (OracleComp.eq_of_mem_supportWith_pure hz').symm ▸ ihl
 
 /-- Prepending a deterministic `Exec` onto a randomized `ExecRand` shifts the instruction count by
 `n₁`. -/
 theorem Exec.seqRand {w : ℕ} {c₁ c₂ : Code B r} {x y : Data r} {n₁ : ℕ}
     {m₂ : ProbComp (Data r × ℕ)} (h₁ : Exec w c₁ x y n₁) (h₂ : ExecRand w c₂ y m₂) :
     ExecRand w (.seq c₁ c₂) x ((fun z => (z.1, n₁ + z.2)) <$> m₂) := by
-  simpa only [pure_bind, ← bind_pure_comp] using
-    ExecRand.seq h₁.execRand (m₂ := fun _ => m₂) fun z' hz' => by
-      cases OracleComp.eq_of_mem_supportWith_pure hz'
-      exact h₂
+  simpa only [pure_bind, ← bind_pure_comp] using ExecRand.seq h₁.execRand (m₂ := fun _ => m₂)
+    fun _ hz' => (OracleComp.eq_of_mem_supportWith_pure hz').symm ▸ h₂
 
 /-! ## Renaming registers in structured randomized executions -/
 
@@ -590,10 +585,8 @@ with output `y.regs out` and final machine data `y` at any fuel `T ≥ n + 1`. -
 theorem Exec.runRand_program {c : Code B r} {x y : Data r} {n T : ℕ}
     (h : Exec w c x y n) (out : Fin r) (hT : n + 1 ≤ T) :
     runRand w (c.program out) T (.running ⟨0, x⟩) = pure (.halted (y.regs out) y) := by
-  rw [h.execRand.runRand_program out fun z hz => by
-    cases OracleComp.eq_of_mem_supportWith_pure hz
-    exact hT]
-  rfl
+  simpa only [map_pure] using h.execRand.runRand_program out fun _ hz =>
+    (OracleComp.eq_of_mem_supportWith_pure hz).symm ▸ hT
 
 /-- Compiling an `ExecRandWithin w c x P T R` certificate via `c.program out` yields
 `RandHaltsWithin`, `RandCallsBounded`, and pathwise `P` on the halting data at any fuel

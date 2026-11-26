@@ -267,12 +267,12 @@ theorem language_mem_NP (hS : S ∈ NP encBits) (hsparse : S ∈ SPARSE encBits)
     ⟨hnd, hlen, hpairs, fun h => by simpa only [h, ↓reduceIte] using hw h⟩, ?_⟩
   -- the guessed words are distinct short members of `S`, so there are at most census many
   have hcount : pairs.length ≤ c * (m.eval n + 1) ^ d := by
-    have hle := length_le_length_shortMembers (S := S) (n := m.eval n) hnd fun s hs => by
-      obtain ⟨sc, hsc, rfl⟩ := List.mem_map.mp hs
-      obtain ⟨hlenS, hc, hV⟩ := hpairs sc hsc
-      exact ⟨(hSV sc.1).2 ⟨sc.2, by rw [encBits_apply]; exact hc, hV⟩, hlenS⟩
-    rw [List.length_map] at hle
-    exact hle.trans (hcensus _)
+    rw [← List.length_map Prod.fst]
+    refine (length_le_length_shortMembers (S := S) (n := m.eval n) hnd fun s hs => ?_).trans
+      (hcensus _)
+    obtain ⟨sc, hsc, rfl⟩ := List.mem_map.mp hs
+    obtain ⟨hlenS, hc, hV⟩ := hpairs sc hsc
+    exact ⟨(hSV sc.1).2 ⟨sc.2, hc, hV⟩, hlenS⟩
   have hpair (sc : List Bool × List Bool) (hsc : sc ∈ pairs) :
       2 * (encPair encBits encBits sc).length + 1 ≤
         4 * m.eval n + 2 * pS.eval (m.eval n) + 3 := by
@@ -400,38 +400,24 @@ theorem isOraclePPTOn_program {enc : α ↪ List Bool} {req fin : α × ℕ → 
     (hN : ComputableInPolyTime N enc encUnary) (hcount : ComputableInPolyTime count enc encUnary) :
     IsOraclePPTOn enc encBool
       (fun a => OracleComp.interpret ProbOracleComp.query (program req fin N count a)) := by
-  have hq : IsOraclePPTOn (encPair enc (encPair encUnary encUnary)) encBool
-      (fun pair : α × ℕ × ℕ => OracleComp.interpret ProbOracleComp.query
-        (queryBit (req (pair.1, (pair.2.1 + pair.2.2 + 1) / 2)))) :=
-    isOraclePPTOn_queryBit (input := encPair enc (encPair encUnary encUnary))
-      (req := fun pair : α × ℕ × ℕ => req (pair.1, (pair.2.1 + pair.2.2 + 1) / 2))
-      (by fun_prop)
-  have hpost : ComputableInPolyTime (fun x : (α × ℕ × ℕ) × Bool =>
-      if x.2 then ((x.1.2.1 + x.1.2.2 + 1) / 2, x.1.2.2)
-      else (x.1.2.1, (x.1.2.1 + x.1.2.2 + 1) / 2 - 1))
-      (encPair (encPair enc (encPair encUnary encUnary)) encBool) (encPair encUnary encUnary) := by
-    fun_prop
-  have hyes := hq.map_with (f := fun pair b => if b then ((pair.2.1 + pair.2.2 + 1) / 2, pair.2.2)
-    else (pair.2.1, (pair.2.1 + pair.2.2 + 1) / 2 - 1)) hpost
-  have hno : IsOraclePPTOn (Operation := Unit) (encPair enc (encPair encUnary encUnary))
-      (encPair encUnary encUnary) (fun pair : α × ℕ × ℕ => pure pair.2) :=
-    (ComputableInPolyTime.snd _ _).isOraclePPTOn
-  have hcond : ComputableInPolyTime (fun pair : α × ℕ × ℕ => decide (pair.2.1 < pair.2.2))
-      (encPair enc (encPair encUnary encUnary)) encBool := by fun_prop
+  have hyes := (isOraclePPTOn_queryBit (input := encPair enc (encPair encUnary encUnary))
+    (req := fun pair : α × ℕ × ℕ => req (pair.1, (pair.2.1 + pair.2.2 + 1) / 2))
+    (by fun_prop)).map_with
+      (f := fun pair b => if b then ((pair.2.1 + pair.2.2 + 1) / 2, pair.2.2)
+        else (pair.2.1, (pair.2.1 + pair.2.2 + 1) / 2 - 1)) (by fun_prop)
   have hstep : IsOraclePPTOn (encPair enc (encPair encUnary encUnary)) (encPair encUnary encUnary)
       (fun pair : α × ℕ × ℕ => OracleComp.interpret ProbOracleComp.query
         (searchStepProgram req pair.1 pair.2)) := by
-    refine (IsOraclePPTOn.ite (condition := fun pair : α × ℕ × ℕ => pair.2.1 < pair.2.2) hcond
-      hyes hno).congr fun pair State oracle s => ?_
+    refine (IsOraclePPTOn.ite (condition := fun pair : α × ℕ × ℕ => pair.2.1 < pair.2.2)
+      (by fun_prop) hyes (ComputableInPolyTime.snd _ _).isOraclePPTOn).congr
+      fun pair State oracle s => ?_
     unfold searchStepProgram
     split_ifs <;> simp only [OracleComp.interpret_map, OracleComp.interpret_pure]
-  have hinit : ComputableInPolyTime (fun a => ((0 : ℕ), N a)) enc (encPair encUnary encUnary) := by
-    fun_prop
   have hit := IsOraclePPTOn.iterateWith_spec (input := enc)
     (stateEncoding := encPair encUnary encUnary) (count := count)
     (initial := fun a => ((0 : ℕ), N a))
     (step := fun a st => OracleComp.interpret ProbOracleComp.query (searchStepProgram req a st))
-    hcount hinit hstep (fun a _ st => st.1 ≤ st.2 ∧ st.2 ≤ N a)
+    hcount (by fun_prop) hstep (fun a _ st => st.1 ≤ st.2 ∧ st.2 ≤ N a)
     (fun a => ⟨Nat.zero_le _, le_rfl⟩) (fun a i st _ hinv next hnext => by
       unfold searchStepProgram at hnext
       by_cases h : st.1 < st.2
@@ -439,18 +425,13 @@ theorem isOraclePPTOn_program {enc : α ↪ List Bool} {req fin : α × ℕ → 
         obtain ⟨b, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
         cases b <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> omega
       · simp only [h, ↓reduceIte, OracleComp.interpret_pure] at hnext
-        rw [OracleComp.eq_of_mem_supportWith_pure hnext]
-        exact hinv)
+        exact OracleComp.eq_of_mem_supportWith_pure hnext ▸ hinv)
     (size := fun a => 3 * N a + 1) (by growth_poly) (fun a i st _ hinv => by enc_len)
-  have hfinal : IsOraclePPTOn (encPair enc (encPair encUnary encUnary)) encBool
-      (fun pair : α × ℕ × ℕ => OracleComp.interpret ProbOracleComp.query
-        (queryBit (fin (pair.1, pair.2.1)))) :=
-    isOraclePPTOn_queryBit (input := encPair enc (encPair encUnary encUnary))
-      (req := fun pair : α × ℕ × ℕ => fin (pair.1, pair.2.1))
-      (by fun_prop)
-  have hbind := hit.1.bind_with (second := fun a st => OracleComp.interpret ProbOracleComp.query
-    (queryBit (fin (a, st.1)))) hfinal
-  simpa only [program, OracleComp.interpret_bind, OracleComp.interpret_iterate] using hbind
+  simpa only [program, OracleComp.interpret_bind, OracleComp.interpret_iterate] using
+    hit.1.bind_with (second := fun a st => OracleComp.interpret ProbOracleComp.query
+      (queryBit (fin (a, st.1))))
+      (isOraclePPTOn_queryBit (input := encPair enc (encPair encUnary encUnary))
+        (req := fun pair : α × ℕ × ℕ => fin (pair.1, pair.2.1)) (by fun_prop))
 
 end KadinCensus
 

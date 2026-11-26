@@ -333,9 +333,9 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
     (LB := inst.bagAt jFin) (LP := inst.bagAt pFin) (oldL := tblList pFin) (bestL := bestL)
     (capO := capO) (capB := capB) (s := t_c)
     (hj_bag.mono_frontier (hp_a.trans hp_cp)) rfl
-    (by dsimp only [ppArgs]; rw [hj_val] at *; exact hj_blo.trans (le_trans (by omega) hp_tlo))
+    (hj_blo.trans (le_trans (by omega) hp_tlo))
     (hp_bag.mono_frontier (hp_a.trans hp_cp)) rfl
-    (by dsimp only [ppArgs]; exact hp_blo.trans (le_trans (by omega) hp_tlo))
+    (hp_blo.trans (le_trans (by omega) hp_tlo))
     (hp_tbl.mono_frontier (hp_a.trans hp_cp)) hp_tlen rfl
     (by simpa only [hp_tlen] using hp_tbl.1)
     hbest_cp hbestL_len (fun _ hx => List.mem_le_foldl_max hx) hbestL_le hfit_sum
@@ -403,10 +403,8 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
     dsimp only
     iterate 9 rw [memoryCost_bind', memoryCost_read, hr_s, hr_r]
     rw [hp_read, hj_len_m, hj_pow_m, hp_len_m, hp_pow_m]
-    have ha_st : (Memory.spec 0).clientState t (Memory.alloc tblPLen) = t_a := rfl
-    have ha_res : (Memory.spec 0).clientResult t (Memory.alloc tblPLen) = bestPtr := rfl
-    rw [memoryCost_bind', memoryCost_alloc, ha_st, ha_res,
-      memoryCost_bind', memoryCost_bind', memoryCost_pure, Nat.add_zero]
+    rw [memoryCost_bind', memoryCost_alloc, memoryCost_bind', memoryCost_bind',
+      memoryCost_pure, Nat.add_zero]
     have hc_cp_M : memoryCost (childPassProg cpArgs) t_a ≤ 2 ^ M * (4 * M ^ 2 + 4 * M + 3) :=
       hc_cp.trans (Nat.mul_le_mul hj_pow_le (cp_cost_poly_le hj_len_le hp_len_le))
     have hc_pp_M : memoryCost (parentPassProg ppArgs) t_c ≤
@@ -440,9 +438,7 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
         by simpa only [hj_tlen] using hj_tbl.1,
         hp_bag.mono_frontier hp_a, rfl, hp_blo.trans (le_trans (by omega) hlay.desc_hi),
         hbest_init, List.length_replicate,
-        by have : (inst.bagAt jFin).length * inst.maxWeight ≤ B :=
-             Nat.mul_le_mul_right _ hj_len_le
-           dsimp only [cpArgs, capB, B, W, M, MWISInstance.maxWeight] at *; omega,
+        Nat.add_le_add_right (Nat.mul_le_mul_right _ hj_len_le) _,
         hfit_tfr.of_le (inst.adjMatrix_len ▸ hlay.adj_holds.1),
         hfit_tfr.of_le (inst.weights_len ▸ hlay.wt_holds.1),
         hfit_tfr.of_le hj_bag.1,
@@ -453,12 +449,9 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
     have hpp_safe : ParentPassPre w ppArgs t_c :=
       ⟨h2, inst.bagAt jFin, inst.bagAt pFin, tblList pFin, bestL, capO, capB,
         hj_bag.mono_frontier (hp_a.trans hp_cp), rfl,
-        by
-          rw [hj_val] at *
-          dsimp only [ppArgs]
-          exact hj_blo.trans (le_trans (by omega) hp_tlo),
+        hj_blo.trans (le_trans (by omega) hp_tlo),
         hp_bag.mono_frontier (hp_a.trans hp_cp), rfl,
-        by dsimp only [ppArgs]; exact hp_blo.trans (le_trans (by omega) hp_tlo),
+        hp_blo.trans (le_trans (by omega) hp_tlo),
         hp_tbl.mono_frontier (hp_a.trans hp_cp), hp_tlen, rfl,
         by simpa only [hp_tlen] using hp_tbl.1,
         hbest_cp, hbestL_len, le_rfl, List.foldl_max_le (Nat.zero_le _) hbestL_le,
@@ -566,10 +559,9 @@ theorem processNodesProg_spec {w : ℕ} (inst : MWISInstance) (descBase : ℕ)
         rw [Fin.val_ofNat, show n - (n - (k + 1)) = k + 1 by omega, Nat.mod_eq_of_lt (by omega)]
       rw [show n - k = (n - (k + 1)) + 1 by omega, tablesInst_succ]
       simp only [hj_ofNat]
-      by_cases hip : i = pFin
-      · subst hip
-        dsimp only [tblList']
-        have hs_lt_old : s < (tblList pFin).length := (hlay.tbl_holds pFin).1.symm ▸ hs
+      dsimp only [tblList']
+      rcases eq_or_ne i pFin with rfl | hip
+      · have hs_lt_old : s < (tblList pFin).length := (hlay.tbl_holds pFin).1.symm ▸ hs
         have hold_eq : (tblList pFin)[s] =
             (tablesInst inst.adj inst.wt n inst.parFin inst.bagAt
               (n - (k + 1)))[pFin].getD s 0 := by
@@ -581,8 +573,7 @@ theorem processNodesProg_spec {w : ℕ} (inst : MWISInstance) (descBase : ℕ)
           getD_childPassList_eq inst.adj inst.wt (inst.bagAt jFin) (inst.bagAt pFin)
             (tblList jFin) _ (2 ^ (inst.bagAt jFin).length) (hagree jFin) _
             (restrictMask_lt_two_pow _ _ s)]
-      · dsimp only [tblList']
-        rw [Function.update_of_ne hip, Fin.getElem_fin,
+      · rw [Function.update_of_ne hip, Fin.getElem_fin,
           Vector.getElem_set_ne _ _ fun h => hip (Fin.ext h).symm]
         exact hagree i s hs
     let st₁ := (Memory.spec 0).clientState st (processNodeStep (args, k + 1))

@@ -249,8 +249,7 @@ theorem bidPrice_epsCS {p : Fin n → ℤ} {i j : Fin n} (k : Fin n) (hk : k ≠
 
 /-- A state with no unassigned person is fixed by `bidStep`. -/
 theorem bidStep_nil {s : AuctionState n} (hs : s.free = []) : bidStep c ε s = s := by
-  unfold bidStep
-  rw [hs]
+  simp [bidStep, hs]
 
 /-- Unfolding one bid of the person `i` on top of the stack: it bids for a best object `j`. -/
 theorem bidStep_cons {s : AuctionState n} {i : Fin n} {rest : List (Fin n)}
@@ -328,9 +327,8 @@ theorem sum_price_bidStep {s : AuctionState n} {i : Fin n} {rest : List (Fin n)}
     (hs : s.free = i :: rest) :
     ∑ j, s.price j + ε ≤ ∑ j, (bidStep c ε s).price j := by
   obtain ⟨j, hj, heq⟩ := bidStep_cons (c := c) (ε := ε) hs
-  rw [heq]
-  dsimp only
-  rw [Finset.sum_update_of_mem (mem_univ j), sum_eq_add_sum_sdiff_singleton_of_mem (mem_univ j)]
+  rw [heq, Finset.sum_update_of_mem (mem_univ j),
+    sum_eq_add_sum_sdiff_singleton_of_mem (mem_univ j)]
   linarith [le_bidPrice (ε := ε) hj]
 
 /-- A bid by an unassigned person increments the bid counter. -/
@@ -392,16 +390,13 @@ theorem auctionLoop_spec (hε : 0 < ε) {C : ℤ} (hC : ∀ i j k, c (i, k) - c 
 theorem auctionLoop_add {s : AuctionState n} {fuel : ℕ} (h : (auctionLoop c ε fuel s).free = [])
     (m : ℕ) : auctionLoop c ε (fuel + m) s = auctionLoop c ε fuel s := by
   induction fuel generalizing s with
-  | zero =>
-    rw [auctionLoop] at h
-    cases m <;> simp [auctionLoop, h]
+  | zero => cases m <;> simp_all [auctionLoop]
   | succ fuel ih =>
     rw [Nat.add_right_comm]
     rcases hs : s.free with _ | ⟨i, rest⟩
     · simp [auctionLoop, hs]
     · rw [auctionLoop, hs] at h
-      rw [auctionLoop, hs, auctionLoop, hs]
-      exact ih h
+      simpa only [auctionLoop, hs] using ih h
 
 /-- A run with `fuel` makes at most `fuel` bids. -/
 theorem bids_auctionLoop_le (fuel : ℕ) (s : AuctionState n) :
@@ -422,9 +417,8 @@ theorem lt_bidBound_mul (hε : 0 < ε) (C : ℤ) :
   have hεn : ((ε.toNat : ℕ) : ℤ) = ε := Int.toNat_of_nonneg hε.le
   have key : n * (C + ε).toNat < bidBound n C ε * ε.toNat := by
     simpa only [bidBound, Nat.add_mul, one_mul] using Nat.lt_div_mul_add (by omega : 0 < ε.toNat)
-  have h1 : (n : ℤ) * (C + ε) ≤ ((n * (C + ε).toNat : ℕ) : ℤ) := by
-    rw [Nat.cast_mul]
-    exact mul_le_mul_of_nonneg_left (Int.self_le_toNat _) (Nat.cast_nonneg n)
+  have h1 : (n : ℤ) * (C + ε) ≤ (n : ℤ) * (C + ε).toNat :=
+    mul_le_mul_of_nonneg_left (Int.self_le_toNat _) (Nat.cast_nonneg n)
   exact h1.trans_lt (by simpa only [Nat.cast_mul, hεn] using (Nat.cast_lt (α := ℤ)).2 key)
 
 /-- `costSpread c` bounds every row cost range. -/
@@ -475,9 +469,9 @@ variable {s : AuctionState n}
 theorem AuctionInv.owner_objectOf (h : AuctionInv c ε s) (hs : s.free = []) (i : Fin n) :
     s.owner (s.objectOf i) = some i := by
   obtain ⟨j₀, hj₀⟩ : ∃ j, s.owner j = some i := by simpa [hs] using h.mem_free i
-  have hsome : ((List.finRange n).find? fun j => decide (s.owner j = some i)).isSome :=
-    List.find?_isSome.2 ⟨j₀, List.mem_finRange j₀, decide_eq_true hj₀⟩
-  obtain ⟨j, hj⟩ := Option.isSome_iff_exists.1 hsome
+  obtain ⟨j, hj⟩ := Option.isSome_iff_exists.1
+    ((List.find?_isSome (p := fun j => decide (s.owner j = some i))).2
+      ⟨j₀, List.mem_finRange j₀, decide_eq_true hj₀⟩)
   simpa only [AuctionState.objectOf, hj, Option.getD_some, decide_eq_true_eq] using
     List.find?_some hj
 
@@ -636,9 +630,7 @@ private theorem bidPrice_add_const (c : Fin n × Fin n → ℤ) (d ε : ℤ) (p 
 theorem bidStep_add_const (c : Fin n × Fin n → ℤ) (d ε : ℤ) (s : AuctionState n) :
     bidStep (fun e => c e + d) ε s = bidStep c ε s := by
   unfold bidStep
-  cases s.free with
-  | nil => rfl
-  | cons i rest => simp only [bestObject_add_const, bidPrice_add_const]
+  cases s.free <;> simp only [bestObject_add_const, bidPrice_add_const]
 
 /-- Shifting every cost by a constant `d` leaves `auctionLoop` unchanged. -/
 theorem auctionLoop_add_const (c : Fin n × Fin n → ℤ) (d ε : ℤ) :

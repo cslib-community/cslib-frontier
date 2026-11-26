@@ -200,10 +200,8 @@ theorem exists_majority_minor {R : Set (Fin m → Bool)}
       (by simp [i, j]) (by simp [i, k]) (by simp [j, k])
     have he' : (fun p => Cslib.majority 3
         (fun q => (![Pi.single i true, Pi.single j true, Pi.single k true] :
-          Fin 3 → Fin (n + 1) → Bool) q p)) = 0 := by
-      rw [← he]
-      ext p
-      exact (median_apply_eq_majority _ _ _ _).symm
+          Fin 3 → Fin (n + 1) → Bool) q p)) = 0 :=
+      (funext fun p => (median_apply_eq_majority _ _ _ p).symm).trans he
     exact hz (he' ▸ hm)
   obtain rfl : n = 2 := by omega
   exact ⟨S, trace, hz, hu⟩
@@ -296,22 +294,17 @@ theorem exists_binary_parity_minor {R : Set (Fin m → Bool)}
       ext i
       simp [Cslib.parity, Cslib.parityOn_eq_sum, Fin.sum_univ_succ, add_assoc]
     have he := congrArg (Cslib.parityOn Finset.univ) heq
-    rw [Cslib.parityOn_add, Cslib.parityOn_add, hh, hh, hh] at he
-    have hzpar : Cslib.parityOn Finset.univ (0 : Fin (n + 1) → Bool) = false :=
-      (Cslib.parityOn_eq_sum _ _).trans Finset.sum_const_zero
-    rw [hzpar] at he
-    exact Bool.false_ne_true he.symm
+    rw [Cslib.parityOn_add, Cslib.parityOn_add, hh, hh, hh, Cslib.parityOn_eq_sum] at he
+    simp at he
   obtain ⟨q, hq⟩ := hex
   have hfull : (fun _ : Fin (n + 1) => true) ∈ S := heven_full (ha q) hq ▸ ha q
   have hefull : Cslib.parityOn Finset.univ (fun _ : Fin (n + 1) => true) = false := by
     rwa [heven_full (ha q) hq] at hq
   have hn2 : n + 1 = 2 := by
     by_contra hh
-    have hn3 : 3 ≤ n + 1 := by omega
     have hne3 : n + 1 ≠ 3 := by
       rintro ⟨⟩
-      revert hefull
-      decide
+      exact absurd hefull (by decide)
     have hn4 : 4 ≤ n + 1 := by omega
     let i : Fin (n + 1) := ⟨0, by omega⟩
     let j : Fin (n + 1) := ⟨1, by omega⟩
@@ -329,12 +322,9 @@ theorem exists_binary_parity_minor {R : Set (Fin m → Bool)}
     have hv : (fun _ : Fin (n + 1) => true) + Pi.single i true + w ∈ S := by
       have hm := mem_of_cofactor_closure (parity_const true) (hc i true)
         ![fun _ => true, Pi.single i true, w]
-        (by
-          intro q
+        (fun q => by
           fin_cases q
-          · exact hfull
-          · exact hu i
-          · exact hw)
+          exacts [hfull, hu i, hw])
         (by intro q; fin_cases q <;> simp [w, i, j, k])
       convert hm using 1
       ext p
@@ -379,9 +369,8 @@ Only projections, cofactors and single-port twists occur in the returned trace. 
 theorem exists_nand_trace {R : Set (Fin m → Bool)}
     (h : ¬IsPolymorphism (Cslib.parity 3) R) : Nonempty (Trace R nand) := by
   obtain ⟨S, ⟨trace⟩, hb, hz, hu⟩ := exists_binary_parity_minor h
-  have he := binary_parity_failure_eq hb hz hu
   have ht : twist S (fun _ => true) = nand := by
-    rw [he]
+    rw [binary_parity_failure_eq hb hz hu]
     ext x
     change (x + (fun _ => true) ≠ 0) ↔ ¬(x 0 = true ∧ x 1 = true)
     revert x

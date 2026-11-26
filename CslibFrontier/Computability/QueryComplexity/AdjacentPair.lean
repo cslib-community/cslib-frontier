@@ -58,27 +58,22 @@ true bit. -/
   adjacentPairBlocks (sum_sqrtBlockSizes n)
 
 /-- On the empty input length there are no blocks and the function rejects. -/
-@[simp] theorem adjacentPairSqrt_zero_length (x : BitString 0) : adjacentPairSqrt 0 x = false := by
-  cases h : adjacentPairSqrt 0 x with
-  | false => rfl
-  | true =>
-    obtain ⟨b, _⟩ := adjacentPairBlocks_eq_true_iff.mp h
-    exact absurd b.isLt (by simp)
+@[simp] theorem adjacentPairSqrt_zero_length (x : BitString 0) : adjacentPairSqrt 0 x = false :=
+  Bool.eq_false_iff.mpr fun h =>
+    (adjacentPairBlocks_eq_true_iff.mp h).elim fun b _ => Fin.elim0 b
 
 /-- **Sensitivity lower bound**: `⌊√n⌋ ≤ s(f_n)` for `n ≥ 4`. -/
 theorem sqrt_le_sensitivity_adjacentPairSqrt {n : ℕ} (hn : 4 ≤ n) :
     Nat.sqrt n ≤ sensitivity (adjacentPairSqrt n) := by
-  have hk : 0 < Nat.sqrt n := Nat.sqrt_pos.mpr (by omega)
-  let b : Fin (Nat.sqrt n) := ⟨0, hk⟩
+  let b : Fin (Nat.sqrt n) := ⟨0, Nat.sqrt_pos.mpr (by omega)⟩
   exact (sqrt_le_sqrtBlockSizes n b).trans
     (le_sensitivity_adjacentPairBlocks _ (two_le_sqrtBlockSizes hn b))
 
 /-- **Sensitivity upper bound**: `s(f_n) ≤ 3⌊√n⌋` for every `n`. -/
 theorem sensitivity_adjacentPairSqrt_le (n : ℕ) :
-    sensitivity (adjacentPairSqrt n) ≤ 3 * Nat.sqrt n := by
-  have h := sensitivity_adjacentPairBlocks_le (sum_sqrtBlockSizes n) (sqrtBlockSizes_le n)
-  rw [max_self] at h
-  exact h
+    sensitivity (adjacentPairSqrt n) ≤ 3 * Nat.sqrt n :=
+  max_self (3 * Nat.sqrt n) ▸ sensitivity_adjacentPairBlocks_le (sum_sqrtBlockSizes n)
+    (sqrtBlockSizes_le n)
 
 /-- **Block-sensitivity lower bound**: `n ≤ 3 bs(f_n)` for `n ≥ 4`. -/
 theorem card_le_three_mul_blockSensitivity_adjacentPairSqrt {n : ℕ} (hn : 4 ≤ n) :

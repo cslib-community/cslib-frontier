@@ -211,8 +211,7 @@ private theorem run_overwrite (K : ℕ) (hγ : 0 < P.γ₁) (dist : PMF Digest)
         (expandSigningRetries P K program)).run [] := by
   simp only [runTrials, ↓reduceIte]
   apply run_interpret_map_state _ _ Prod.fst
-  rintro q ⟨cache, log⟩
-  rcases q with m | k
+  rintro (m | k) ⟨cache, log⟩
   · simp only [RandomOracle.overwriteProgramHandler, ↓reduceDIte, PMF.monad_bind_eq_bind,
       PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map, programmedTrial, trialCoins,
       PMF.map_comp, Function.comp_def, RandomOracle.programmedTrialStep, Bool.true_or, ↓reduceIte]
@@ -443,10 +442,9 @@ theorem closeTo_partialSigningROM (hP : P.Valid) (hq : 2 * P.γ₁ < P.q)
   cases e : expand c with
   | none => simp [partialResult, e, trialPoint, SecretKey.publicKey]
   | some poly =>
-    dsimp only
-    rw [← freshSigningAttempt_eq_simulate P hP hq hβ d ω sk hs₁ hs₂ (hc c poly e)]
-    simp only [freshSigningAttempt, PMF.map_comp, Function.comp_def, terminalTranscript,
-      Option.map_map, partialResult, e, trialPoint]
+    simp only [e, ← freshSigningAttempt_eq_simulate P hP hq hβ d ω sk hs₁ hs₂ (hc c poly e),
+      freshSigningAttempt, PMF.map_comp, Function.comp_def, terminalTranscript, Option.map_map,
+      partialResult, trialPoint]
 
 /-- A digest cache write records the direct hash reply or the terminal answer of a signing
 request. A signing error is a terminal write, while an erased rejection makes no entry. -/
@@ -479,8 +477,7 @@ private theorem expand_partialSigningProgram (K : ℕ)
     expandSigningRetries P K (partialSigningProgram P program) =
       interpret (outerSigningQuery P K) program := by
   simp only [expandSigningRetries, partialSigningProgram, interpret_interpret]
-  congr 1 with q
-  cases q <;> simp [sumHandler, outerSigningQuery]
+  congr 1 with (_ | _) <;> simp [sumHandler, outerSigningQuery]
 
 /-- Execute the partial signing simulator, recording the last writer at each cache entry and
 the actual outward query/reply transcript. Both lists are newest first. Retry attempts are
@@ -510,11 +507,9 @@ theorem simulatePartialSigningTranscript_forget (d ω K : ℕ) (hβ : P.β < P.�
       (outerSigningQuery P K q)) program [] [])
   rw [PMF.map_comp, ← interpret_interpret] at forget
   refine forget.trans ?_
-  unfold simulatePartialSigningROM runTerminalTrials
-  rw [expand_partialSigningProgram]
+  rw [simulatePartialSigningROM, runTerminalTrials, expand_partialSigningProgram]
   apply run_interpret_map_state _ _ erase
-  intro q st
-  rcases q with m | point
+  rintro (m | point) st
   · simp only [observedTrial, terminalTrialHandler, sumHandler, PMF.monad_bind_eq_bind,
       PMF.monad_pure_eq_pure, PMF.map_bind]
     congr 1 with raw : 1

@@ -535,8 +535,7 @@ private theorem dischargeLoop_spec {adj : V → List V} (hadj : IsAdjacency N ad
           (ihNe x hx).2.trans (relabel_height_of_ne _ hx)⟩, by omega, ?_, nofun, nofun, nofun,
         fun _ w hw hadm => ?_, ihRes⟩
       · rwa [State.numNonsatPushes_cons, ite_eq_right fun h => h.1, Nat.zero_add]
-      · rw [List.length_nil, add_one_mul]
-        omega
+      · rw [List.length_nil, add_one_mul]; omega
       · cases hrel : r.relabeled
         · have h1 := hs.prInv.valid.le_add_one w u (ihBk hrel w u hadm).1
           have h2 := (ihBk hrel w u hadm).2
@@ -558,8 +557,7 @@ private theorem dischargeLoop_spec {adj : V → List V} (hadj : IsAdjacency N ad
         refine ⟨ihInv, ihRun, ihPr, ihAct, ihNs, ihRel,
           fun x hx => ⟨(ihNe x hx).1.trans (Function.update_of_ne hx _ _), (ihNe x hx).2⟩, ihH, ?_,
           ihHeq, ihBk, ihEx, ihIn, ihRes⟩
-        rw [List.length_cons]
-        omega
+        rw [List.length_cons]; omega
       have hp : s.pr.flow.CanPush s.pr.height u v := ⟨hact, hadm.1, hadm.2⟩
       have hs' : CAInv adj ⟨s.pr.apply (.push u v), s.cur⟩ :=
         ⟨hs.prInv.apply (o := .push u v) hp, currentArcInv_push hs.curInv hp⟩
@@ -1012,10 +1010,7 @@ private theorem rtfNext_spec {adj : V → List V} (hadj : IsAdjacency N adj)
   cases hrel : d.relabeled
   · simp only [hrel, Bool.false_eq_true, ↓reduceIte]
     refine ⟨rtfInv_noRelabel hinv htodo a b hdInv hdAct (hdBk hrel) (hdEx hrel), ?_⟩
-    unfold rtfMeasure
-    dsimp only
-    rw [htodo, hdHeq hrel, List.length_cons]
-    omega
+    simp only [rtfMeasure, htodo, hdHeq hrel, List.length_cons]; omega
   · have hpos := hdRel.mp hrel
     simp only [hrel, ↓reduceIte]
     refine ⟨rtfInv_relabel hinv htodo a b hdInv hdAct hdNe (hdIn hrel) hdRes, ?_⟩
@@ -1023,10 +1018,7 @@ private theorem rtfNext_spec {adj : V → List V} (hadj : IsAdjacency N adj)
       (show sumHeightMax V - ∑ v, d.ca.pr.height v + 1 ≤ sumHeightMax V - ∑ v, st.ca.pr.height v
         by omega)
     rw [Nat.add_mul, Nat.one_mul] at h2
-    unfold rtfMeasure
-    dsimp only
-    rw [htodo, List.length_append, List.length_cons]
-    omega
+    simp only [rtfMeasure, htodo, List.length_append, List.length_cons]; omega
 
 private theorem rtfLoop_spec {adj : V → List V} (hadj : IsAdjacency N adj)
     {caNorm : CAState N → CAState N} (hcaNorm : ∀ s, caNorm s = s)
@@ -1061,8 +1053,7 @@ private theorem rtfLoop_spec {adj : V → List V} (hadj : IsAdjacency N adj)
         have hadv_d : d.advances + advPotential adj d.ca ≤ advPotential adj st.ca :=
           advPotential_discharge hu_ne.1 hu_ne.2 hinv.caInv hdInv hdNe hdH hdAdv
         rw [rtfLoop, htodo]
-        dsimp only
-        rw [hd_eq, hstNorm]
+        simp only [hd_eq, hstNorm]
         set st' : RTFState N :=
           if d.relabeled then
             { ca := d.ca, done := [u], todo := st.done ++ rest,
@@ -1081,8 +1072,7 @@ private theorem rtfLoop_spec {adj : V → List V} (hadj : IsAdjacency N adj)
         rw [hadv_eq, hca_eq] at ihAdv
         refine ⟨ihInv, ihTodo, State.isRun_append hdRun ihRun, st.ca.pr.run_append _ _ ▸ ihPr, ?_,
           by omega, by omega, by omega⟩
-        rw [State.numNonsatPushes_append]
-        omega
+        rw [State.numNonsatPushes_append]; omega
 
 omit [DecidableEq V] in
 private theorem rtfMeasure_lt_rtfFuel {adj : V → List V} {st : RTFState N} (hinv : RTFInv adj st)
@@ -1138,14 +1128,10 @@ private theorem rtfLoop_shift_counters {adj : V → List V} :
         (r.1, { r.2 with discharges := a + r.2.discharges, advances := b + r.2.advances })
   | fuel, st, a, b => by
     cases htodo : st.todo with
-    | nil =>
-      rw [rtfLoop.eq_def, rtfLoop.eq_def]
-      rfl
+    | nil => rw [rtfLoop.eq_def, rtfLoop.eq_def]; rfl
     | cons u rest =>
       cases fuel with
-      | zero =>
-        rw [rtfLoop.eq_def, rtfLoop.eq_def]
-        rfl
+      | zero => rw [rtfLoop.eq_def, rtfLoop.eq_def]; rfl
       | succ fuel =>
         rw [rtfLoop.eq_def, rtfLoop.eq_def]
         simp only [id_eq]
@@ -1169,9 +1155,7 @@ private theorem rtfLoop_shift_counters {adj : V → List V} :
         rw [← hst' 0 0] at ih1 ih2
         change (let r := rtfLoop adj id id fuel _; (d.ops ++ r.1, r.2)) = _
         rw [hst' (a + 1) (b + d.advances), hst' (0 + 1) (0 + d.advances), ih1, ih2]
-        dsimp only
-        simp only [Nat.zero_add, Nat.add_assoc]
-        rfl
+        simp only [Nat.zero_add, Nat.add_assoc]; rfl
 
 /-- One outer iteration of `rtfLoop adj id id (rtfFuel V) st` when `st.todo = u :: rest`. -/
 theorem rtfLoop_step {adj : V → List V} (hadj : IsAdjacency N adj) {st : RTFState N}
@@ -1374,21 +1358,18 @@ theorem relabelToFrontWith_bounds {vs : List V} (hnodup : vs.Nodup)
   obtain ⟨_, _, _, hrun, hdis, hns, _⟩ :=
     relabelToFrontWith_correct hnodup hmem hadj hcaNorm hstNorm hst
   have h2n : 2 ≤ Fintype.card V := Finset.card_pair hst ▸ Finset.card_le_univ {N.s, N.t}
-  have hrel := numRelabels_lt hst hrun
-  have hrel_sharp := numRelabels_le hst hrun
-  have hsat := numSatPushes_le_posArcs hst hrun
-  have hsat_sharp := numSatPushes_le hst hrun
   have hdis_cube : (relabelToFrontWith N vs adj caNorm stNorm).discharges ≤
       2 * Fintype.card V ^ 3 :=
     hdis.trans (card_sub_two_bound (Fintype.card V) h2n)
   have hlen : (relabelToFrontWith N vs adj caNorm stNorm).ops.length ≤ 4 * Fintype.card V ^ 3 := by
     rw [State.length_eq (PushRelabel.init N)]
-    have hsat_v : Fintype.card V * N.symArcs.card ≤
-        Fintype.card V * (Fintype.card V * (Fintype.card V - 1)) :=
-      Nat.mul_le_mul_left _ N.card_symArcs_le_mul_pred
-    have hsum := ops_sum_bound (Fintype.card V) h2n
+    have := numRelabels_le hst hrun
+    have := numSatPushes_le hst hrun
+    have := Nat.mul_le_mul_left (Fintype.card V) N.card_symArcs_le_mul_pred
+    have := ops_sum_bound (Fintype.card V) h2n
     omega
-  exact ⟨hrel.le, hsat, hdis_cube, by omega, hlen⟩
+  exact ⟨(numRelabels_lt hst hrun).le, numSatPushes_le_posArcs hst hrun, hdis_cube, by omega,
+    hlen⟩
 
 /-- **Combined discharge, push/relabel operation, and current-arc advance count bound
 (`discharges + ops.length + advances`):** at most `6|V|³ + 2|V| ∑ v, (adj v).length` in general,

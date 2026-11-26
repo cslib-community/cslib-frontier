@@ -252,8 +252,7 @@ private theorem opt_eq_sum {i : Fin (n + 1)} {S : Finset V} (hS : G.IsIndepSet (
       simp only [Finset.mem_biUnion, Finset.mem_inter]
       refine ⟨fun hx => ?_, fun ⟨_, _, hx, _⟩ => hx⟩
       obtain ⟨hxs, hxi⟩ := Finset.mem_sdiff.1 (hJsub hx)
-      obtain ⟨c, hc, hxc⟩ := exists_mem_children_of_mem_subtreeVerts hxs hxi
-      exact ⟨c, hc, hx, hxc⟩
+      exact (exists_mem_children_of_mem_subtreeVerts hxs hxi).imp fun _ ⟨hc, hxc⟩ => ⟨hc, hx, hxc⟩
     have hdisj : (↑(R.children i) : Set (Fin (n + 1))).PairwiseDisjoint
         fun c => J ∩ R.subtreeVerts c := by
       intro c hc c' hc' hne
@@ -276,17 +275,15 @@ private theorem opt_eq_sum {i : Fin (n + 1)} {S : Finset V} (hS : G.IsIndepSet (
       intro c hc c' hc' hne
       refine Finset.disjoint_left.2 fun x hx hx' => hne ?_
       obtain ⟨hxc, hxp⟩ := Finset.mem_sdiff.1 (hKsub c hx)
-      obtain ⟨hxc', -⟩ := Finset.mem_sdiff.1 (hKsub c' hx')
-      rw [hpar c hc] at hxp
-      exact eq_of_mem_subtreeVerts_of_mem_children hc hc' hxc hxc' hxp
+      exact eq_of_mem_subtreeVerts_of_mem_children hc hc' hxc (Finset.mem_sdiff.1 (hKsub c' hx')).1
+        (hpar c hc ▸ hxp)
     set J := (R.children i).biUnion K with hJdef
     have hmemJ : ∀ x ∈ J, ∃ c ∈ R.children i, x ∈ K c := fun x hx => Finset.mem_biUnion.1 hx
     have hJsub : J ⊆ below R i := by
       intro x hx
       obtain ⟨c, hc, hxc⟩ := hmemJ x hx
       obtain ⟨hxs, hxp⟩ := Finset.mem_sdiff.1 (hKsub c hxc)
-      rw [hpar c hc] at hxp
-      exact Finset.mem_sdiff.2 ⟨subtreeVerts_subset_of_mem_children hc hxs, hxp⟩
+      exact Finset.mem_sdiff.2 ⟨subtreeVerts_subset_of_mem_children hc hxs, hpar c hc ▸ hxp⟩
     have hJS : G.IsIndepSet (↑(J ∪ S) : Set V) := by
       -- A vertex of `K c` and a neighbour of it in `J ∪ S` lie in `K c ∪ S`.
       have hkey : ∀ c ∈ R.children i, ∀ x ∈ K c, ∀ y ∈ J ∪ S, G.Adj x y → y ∈ K c ∪ S := by
@@ -296,9 +293,8 @@ private theorem opt_eq_sum {i : Fin (n + 1)} {S : Finset V} (hS : G.IsIndepSet (
           obtain ⟨hxs, hxp⟩ := Finset.mem_sdiff.1 (hKsub c hx)
           have hys := mem_subtreeVerts_of_adj hxs hxp hxy
           obtain ⟨hys', hyp'⟩ := Finset.mem_sdiff.1 (hKsub c' hyc')
-          rw [hpar c' hc'] at hyp'
-          rw [eq_of_mem_subtreeVerts_of_mem_children hc hc' hys hys' hyp']
-          exact Finset.mem_union_left _ hyc'
+          exact Finset.mem_union_left _
+            (eq_of_mem_subtreeVerts_of_mem_children hc hc' hys hys' (hpar c' hc' ▸ hyp') ▸ hyc')
         · exact Finset.mem_union_right _ hy
       refine isIndepSet_iff_forall.2 fun x hx y hy hxy => ?_
       rcases Finset.mem_union.1 hx with hx' | hx'
@@ -354,11 +350,8 @@ private theorem tables_eq_sum {t : ℕ} (ht : t ≤ n) {i : Fin (n + 1)} {S : Fi
         refine ⟨fun ⟨hc, _⟩ => (eq_or_ne c j).imp_right fun hcj =>
             ⟨hc, by have := Fin.val_ne_of_ne hcj; omega⟩, ?_⟩
         rintro (rfl | ⟨hc, _⟩)
-        · exact ⟨hjmem, by omega⟩
-        · exact ⟨hc, by omega⟩
-      have hjnot : j ∉ (R.children (R.parent j)).filter (fun c => n - t < c.val) := by
-        simp [hjv]
-      rw [hfilter, Finset.sum_insert hjnot, Nat.add_comm]
+        exacts [⟨hjmem, by omega⟩, ⟨hc, by omega⟩]
+      rw [hfilter, Finset.sum_insert (by simp [hjv]), Nat.add_comm]
     · rw [Function.update_of_ne hi, ih (by omega) hSi hS]
       refine Finset.sum_congr (Finset.ext fun c => ?_) fun _ _ => rfl
       simp only [Finset.mem_filter]

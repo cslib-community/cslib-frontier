@@ -121,14 +121,10 @@ theorem evalOne_inheritedClause (τ : Variable V → Bool) (i : ℕ) (c : Clause
   have heval (a : Literal V × ℕ) (ha : a ∈ c.zipIdx) :
       Literal.eval τ (positiveLiteral i a.2 a.1) =
         Literal.eval (fun v => τ (.inl v)) a.1 := by
-    rcases a with ⟨⟨v, b⟩, j⟩
-    cases b with
-    | true => simp [positiveLiteral, Literal.eval]
-    | false =>
-      have hh := (evalOne_complementClauses_iff τ (.inl v) (auxiliary i j 0)
-        (auxiliary i j 1) (auxiliary i j 2) (auxiliary i j 3) (auxiliary i j 4)).mp
-          (hcomp ((v, false), j) ha)
+    rcases a with ⟨⟨v, false | true⟩, j⟩
+    · have hh := (evalOne_complementClauses_iff _ _ _ _ _ _ _).mp (hcomp _ ha)
       simpa [positiveLiteral, Literal.eval] using (congrArg Bool.not hh.1).symm
+    · simp [positiveLiteral, Literal.eval]
   unfold Clause.evalOne
   congr 1
   rw [List.countP_map]
@@ -195,20 +191,15 @@ theorem evalOne_complementBlock_of_formula (φ : CNF V) (τ : Variable V → Boo
 theorem sourceVariable_mem_formula {φ : CNF V} {v : V} (hv : v ∈ φ.vars) :
     Sum.inl v ∈ (formula φ).vars := by
   obtain ⟨c, hc, b, hl⟩ := CNF.mem_vars.mp hv
-  obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hc
-  obtain ⟨j, hj, hlj⟩ := List.mem_iff_getElem.mp hl
-  have hci : (φ[i], i) ∈ φ.zipIdx :=
-    List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_getElem hi)
-  have hlj' : ((v, b), j) ∈ φ[i].zipIdx :=
-    List.mem_zipIdx_iff_getElem?.mpr (by rw [List.getElem?_eq_getElem hj, hlj])
-  apply CNF.mem_vars.mpr
+  obtain ⟨⟨c, i⟩, hci, rfl⟩ := List.mem_map.mp ((List.zipIdx_map_fst 0 φ).symm ▸ hc)
+  obtain ⟨⟨_, j⟩, hlj, rfl⟩ := List.mem_map.mp ((List.zipIdx_map_fst 0 c).symm ▸ hl)
   cases b with
   | true =>
-    exact ⟨_, List.mem_flatMap.mpr ⟨_, hci, List.mem_append_left _ (List.mem_singleton_self _)⟩,
-      true, List.mem_map.mpr ⟨((v, true), j), hlj', rfl⟩⟩
+    exact CNF.mem_vars.mpr ⟨_, List.mem_flatMap.mpr ⟨_, hci, List.mem_cons_self⟩,
+      true, List.mem_map.mpr ⟨((v, true), j), hlj, rfl⟩⟩
   | false =>
-    exact ⟨_, List.mem_flatMap.mpr ⟨_, hci, List.mem_append_right _
-      (List.mem_flatMap.mpr ⟨((v, false), j), hlj', List.mem_cons_self⟩)⟩,
+    exact CNF.mem_vars.mpr ⟨_, List.mem_flatMap.mpr ⟨_, hci, List.mem_cons_of_mem _
+      (List.mem_flatMap.mpr ⟨((v, false), j), hlj, List.mem_cons_self⟩)⟩,
       true, List.mem_cons_self⟩
 
 /-- Satisfying complement blocks with equal source values agree on all of their variables. -/
@@ -238,35 +229,28 @@ theorem assignments_agree_iff {φ : CNF V} {σ τ : Variable V → Bool}
     (hσ : CNF.evalOne σ (formula φ) = true) (hτ : CNF.evalOne τ (formula φ) = true) :
     (∀ v ∈ (formula φ).vars, σ v = τ v) ↔
       ∀ v ∈ φ.vars, σ (.inl v) = τ (.inl v) := by
-  constructor
-  · intro h v hv
-    exact h (.inl v) (sourceVariable_mem_formula hv)
-  · intro h v hv
-    obtain ⟨c, hc, b, hl⟩ := CNF.mem_vars.mp hv
-    obtain ⟨⟨a, i⟩, ha, hc⟩ := List.mem_flatMap.mp hc
-    have hsource (l : Literal V) (j : ℕ) (hlj : (l, j) ∈ a.zipIdx) :
-        σ (.inl l.1) = τ (.inl l.1) :=
-      h l.1 (CNF.mem_vars.mpr ⟨a, List.fst_mem_of_mem_zipIdx ha, l.2,
-        List.fst_mem_of_mem_zipIdx hlj⟩)
-    have hagree (l : Literal V) (j : ℕ) (hlj : (l, j) ∈ a.zipIdx) :
-        ∀ u ∈ (complementBlock i j l).vars, σ u = τ u :=
-      complementBlock_assignments_agree σ τ i j l
-        (evalOne_complementBlock_of_formula φ σ hσ (List.mem_zipIdx_iff_getElem?.mp ha)
-          (List.mem_zipIdx_iff_getElem?.mp hlj))
-        (evalOne_complementBlock_of_formula φ τ hτ (List.mem_zipIdx_iff_getElem?.mp ha)
-          (List.mem_zipIdx_iff_getElem?.mp hlj))
-        (hsource l j hlj)
-    rcases List.mem_append.mp hc with hc | hc
-    · obtain rfl := List.mem_singleton.mp hc
-      obtain ⟨⟨⟨w, b⟩, j⟩, hlj, he⟩ := List.mem_map.mp hl
-      obtain rfl : v = (positiveLiteral i j (w, b)).1 := (congrArg Prod.fst he).symm
-      cases b with
-      | true => exact hsource (w, true) j hlj
-      | false =>
-        exact hagree (w, false) j hlj (auxiliary i j 0)
-          (by simp [complementBlock, complementClauses, forceFalseClauses, CNF.vars])
-    · obtain ⟨⟨l, j⟩, hlj, hc⟩ := List.mem_flatMap.mp hc
-      exact hagree l j hlj v (CNF.mem_vars.mpr ⟨c, hc, b, hl⟩)
+  refine ⟨fun h v hv => h (.inl v) (sourceVariable_mem_formula hv), fun h v hv => ?_⟩
+  obtain ⟨c, hc, b, hl⟩ := CNF.mem_vars.mp hv
+  obtain ⟨⟨a, i⟩, ha, hc⟩ := List.mem_flatMap.mp hc
+  have hsource (l : Literal V) (j : ℕ) (hlj : (l, j) ∈ a.zipIdx) :
+      σ (.inl l.1) = τ (.inl l.1) :=
+    h l.1 (CNF.mem_vars.mpr ⟨a, List.fst_mem_of_mem_zipIdx ha, l.2,
+      List.fst_mem_of_mem_zipIdx hlj⟩)
+  have hagree (l : Literal V) (j : ℕ) (hlj : (l, j) ∈ a.zipIdx) :
+      ∀ u ∈ (complementBlock i j l).vars, σ u = τ u :=
+    complementBlock_assignments_agree σ τ i j l
+      (evalOne_complementBlock_of_formula φ σ hσ (List.mem_zipIdx_iff_getElem?.mp ha)
+        (List.mem_zipIdx_iff_getElem?.mp hlj))
+      (evalOne_complementBlock_of_formula φ τ hτ (List.mem_zipIdx_iff_getElem?.mp ha)
+        (List.mem_zipIdx_iff_getElem?.mp hlj))
+      (hsource l j hlj)
+  rcases List.mem_cons.mp hc with rfl | hc
+  · obtain ⟨⟨⟨w, false | true⟩, j⟩, hlj, ⟨rfl, -⟩⟩ := List.mem_map.mp hl
+    · exact hagree (w, false) j hlj _
+        (by simp [complementBlock, complementClauses, forceFalseClauses, CNF.vars])
+    · exact hsource (w, true) j hlj
+  · obtain ⟨⟨l, j⟩, hlj, hc⟩ := List.mem_flatMap.mp hc
+    exact hagree l j hlj v (CNF.mem_vars.mpr ⟨c, hc, b, hl⟩)
 
 /-- Polarity elimination preserves the number of satisfying assignments on occurring variables. -/
 theorem oneModelCount_formula [DecidableEq V] (φ : CNF V) :
@@ -332,9 +316,8 @@ theorem positive_formula (φ : CNF V) :
     ∀ c ∈ formula φ, ∀ l ∈ c, l.2 = true := by
   intro c hc l hl
   obtain ⟨⟨a, i⟩, _, hc⟩ := List.mem_flatMap.mp hc
-  rcases List.mem_append.mp hc with hc | hc
-  · obtain rfl := List.mem_singleton.mp hc
-    obtain ⟨⟨b, j⟩, _, rfl⟩ := List.mem_map.mp hl
+  rcases List.mem_cons.mp hc with rfl | hc
+  · obtain ⟨⟨b, j⟩, _, rfl⟩ := List.mem_map.mp hl
     rfl
   · obtain ⟨⟨b, j⟩, _, hc⟩ := List.mem_flatMap.mp hc
     exact positive_complementBlock i j b c hc l hl
@@ -350,9 +333,8 @@ private theorem width_complementBlock (i j : ℕ) (l : Literal V) :
 theorem width_clauseClauses {k : ℕ} (hk : 3 ≤ k) (i : ℕ) (c : Clause V)
     (hc : c.length ≤ k) : ∀ a ∈ clauseClauses i c, a.length ≤ k := by
   intro a ha
-  rcases List.mem_append.mp ha with ha | ha
-  · obtain rfl := List.mem_singleton.mp ha
-    simpa using hc
+  rcases List.mem_cons.mp ha with rfl | ha
+  · simpa using hc
   · obtain ⟨⟨l, j⟩, _, ha⟩ := List.mem_flatMap.mp ha
     exact (width_complementBlock i j l a ha).le.trans hk
 
@@ -361,9 +343,8 @@ theorem exactWidth_formula {φ : CNF V} (hw : ∀ c ∈ φ, c.length = 3) :
     ∀ c ∈ formula φ, c.length = 3 := by
   intro c hc
   obtain ⟨⟨a, i⟩, ha, hc⟩ := List.mem_flatMap.mp hc
-  rcases List.mem_append.mp hc with hc | hc
-  · obtain rfl := List.mem_singleton.mp hc
-    simpa using hw a (List.fst_mem_of_mem_zipIdx ha)
+  rcases List.mem_cons.mp hc with rfl | hc
+  · simpa using hw a (List.fst_mem_of_mem_zipIdx ha)
   · obtain ⟨⟨l, j⟩, _, hc⟩ := List.mem_flatMap.mp hc
     exact width_complementBlock i j l c hc
 
@@ -395,9 +376,8 @@ theorem nodup_formula {φ : CNF V} (hn : ∀ c ∈ φ, (c.map Prod.fst).Nodup) :
     ∀ c ∈ formula φ, (c.map Prod.fst).Nodup := by
   intro c hc
   obtain ⟨⟨a, i⟩, ha, hc⟩ := List.mem_flatMap.mp hc
-  rcases List.mem_append.mp hc with hc | hc
-  · obtain rfl := List.mem_singleton.mp hc
-    exact nodup_inheritedClause i a (hn a (List.fst_mem_of_mem_zipIdx ha))
+  rcases List.mem_cons.mp hc with rfl | hc
+  · exact nodup_inheritedClause i a (hn a (List.fst_mem_of_mem_zipIdx ha))
   · obtain ⟨⟨l, j⟩, _, hc⟩ := List.mem_flatMap.mp hc
     exact nodup_complementBlock i j l c hc
 

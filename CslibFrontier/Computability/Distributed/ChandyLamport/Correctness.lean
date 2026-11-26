@@ -305,14 +305,12 @@ theorem postRecv_records_iff_preInFlight [DecidableEq P] [DecidableRel sys.graph
     rcases hinv.recordedSrc src dest hsrc_some hadj with ⟨hmem, hrec⟩ | ⟨hnotm, _, ⟨sv, hsv⟩⟩
     · obtain ⟨buf, hbuf⟩ := hrec hpost_dest
       have hpre_eq : preInFlight S₁ src dest = msg :: takeBeforeMarker ws := by
-        rw [preInFlight_of_recorded hsrc_some, any_isMarker_eq_true_iff.mpr hmem, hch]
-        rfl
+        rw [preInFlight_of_recorded hsrc_some, any_isMarker_eq_true_iff.mpr hmem, hch]; rfl
       refine Or.inl ⟨by simp [hpre_eq], by simp [hpre_eq], ?_⟩
       simp [stepSnap, SnapGlobalState.applyApp, hpost_dest, hbuf, ChannelRec.recordApp,
         ChannelRec.msgs]
     · have hpost_eq : postInFlight S₁ src dest = msg :: unmarker ws := by
-        rw [postInFlight_of_recorded hsrc_some, any_isMarker_eq_false_iff.mpr hnotm, hch]
-        rfl
+        rw [postInFlight_of_recorded hsrc_some, any_isMarker_eq_false_iff.mpr hnotm, hch]; rfl
       refine Or.inr ⟨preInFlight_eq_nil_of_recorded_of_notMem hsrc_some hnotm,
         by simp [hpost_eq], ?_⟩
       simp [stepSnap, SnapGlobalState.applyApp, hpost_dest, hsv, ChannelRec.recordApp,
@@ -919,11 +917,10 @@ private lemma cutMTr_pre_props [DecidableEq P] {C₀ C₁ : CutState P S M}
     cases hmtr
     exact ⟨.refl, rfl, rfl, rfl⟩
   | cons e es ih =>
-    cases hmtr with
-    | stepL htr hrest =>
-      obtain ⟨hmtr', hsnap, hpost, hrec⟩ := ih hrest
-      exact ⟨.stepL htr.1 hmtr', hsnap.trans htr.2.2.1, hpost.trans htr.2.2.2.1,
-        hrec.trans htr.2.2.2.2.1⟩
+    obtain _ | ⟨htr, hrest⟩ := hmtr
+    obtain ⟨hmtr', hsnap, hpost, hrec⟩ := ih hrest
+    exact ⟨.stepL htr.1 hmtr', hsnap.trans htr.2.2.1, hpost.trans htr.2.2.2.1,
+      hrec.trans htr.2.2.2.2.1⟩
 
 private lemma cutMTr_cross_props [DecidableEq P] {C₁ C₂ : CutState P S M}
     {ps : List P} (hmtr : CutMTr sys C₁ (ps.map CutStep.cross) C₂) :
@@ -944,8 +941,7 @@ private lemma cutMTr_cross_props [DecidableEq P] {C₁ C₂ : CutState P S M}
   intro qs
   induction qs with
   | nil =>
-    intro C hm
-    cases hm
+    rintro C ⟨⟩
     exact ⟨rfl, rfl, rfl, rfl, fun _ => Or.inl rfl⟩
   | cons q qs ih =>
     rintro C (_ | ⟨⟨hq_none, hCms, hCmsnap, hCmpre, hCmpost, hCmrec⟩, hrest⟩)
@@ -967,15 +963,13 @@ private lemma cutMTr_post_props [DecidableEq P] {C₂ C₃ : CutState P S M}
     cases hmtr
     exact ⟨.refl, rfl, fun _ _ => rfl⟩
   | cons e es ih =>
-    cases hmtr with
-    | @stepL _ _ Cm _ _ htr hrest =>
-      rcases htr with ⟨htr_e, _, hsnap₁, hpre₁, _, hrec₁⟩
-      obtain ⟨hmtr', hsnap₂, hbuf₂⟩ := ih hrest
-      refine ⟨.stepL htr_e hmtr', hsnap₂.trans hsnap₁, fun u v => ?_⟩
-      rw [hbuf₂ u v, hrec₁ u v, hpre₁ u v]
-      by_cases hp : e.popsFrom u v
-      · cases C₂.preChan u v <;> simp [hp, List.append_assoc]
-      · simp [hp]
+    obtain _ | ⟨⟨htr_e, _, hsnap₁, hpre₁, _, hrec₁⟩, hrest⟩ := hmtr
+    obtain ⟨hmtr', hsnap₂, hbuf₂⟩ := ih hrest
+    refine ⟨.stepL htr_e hmtr', hsnap₂.trans hsnap₁, fun u v => ?_⟩
+    rw [hbuf₂ u v, hrec₁ u v, hpre₁ u v]
+    by_cases hp : e.popsFrom u v
+    · cases C₂.preChan u v <;> simp [hp, List.append_assoc]
+    · simp [hp]
 
 private lemma cutMTr_preserves_valid [DecidableEq P] {C₁ C₂ : CutState P S M}
     {sts : List (CutStep P S M)} (hv : C₁.Valid) (hmtr : CutMTr sys C₁ sts C₂) : C₂.Valid := by
@@ -1520,11 +1514,8 @@ theorem System.InputEnabled.exists_fair_snapOmegaExecution
     {S₀ : SnapGlobalState P S M} (hwf₀ : sys.WellFormedSnapChan S₀) :
     ∃ ss xs, ss 0 = S₀ ∧ sys.snapLts.OmegaExecution ss xs ∧ FairChannels ss xs := by
   cases nonempty_fintype P
-  have hwf_seq : ∀ k, sys.WellFormedSnapChan (fairSeq sys hinp S₀ k).2 := by
-    intro k
-    induction k with
-    | zero => exact hwf₀
-    | succ k ih => exact (fairPhase_spec sys hinp _ ih).2.2.1
+  have hwf_seq (k : ℕ) : sys.WellFormedSnapChan (fairSeq sys hinp S₀ k).2 :=
+    Nat.rec hwf₀ (fun _ ih => (fairPhase_spec sys hinp _ ih).2.2.1) k
   let ts : ωSequence (SnapGlobalState P S M) :=
     ωSequence.mk fun k => (fairSeq sys hinp S₀ k).2
   let xls : ωSequence (List (SnapEvent P S M)) :=

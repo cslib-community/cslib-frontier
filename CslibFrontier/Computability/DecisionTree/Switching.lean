@@ -295,8 +295,7 @@ private theorem encode_extends (s : ℕ) (ρ : PartialAssignment ι) (x : ι →
   have hiV : i ∉ (F.queried ρ).toFinset := fun hiV => by
     simp [free_of_mem_queried (List.mem_toFinset.1 hiV)] at hi
   by_cases h : F.queried ρ = []
-  · rw [encode_of_queried_eq_nil h]
-    exact hi
+  · rwa [encode_of_queried_eq_nil h]
   by_cases hs : s ≤ (F.queried ρ).length
   · rw [encode_of_le h hs]
     dsimp only
@@ -402,17 +401,14 @@ private theorem length_encode {ρ : PartialAssignment ι} {s : ℕ} {x : ι → 
     (hs : s ≤ F.pathLength ρ x) : (F.encode s ρ x).2.length = s := by
   by_cases h : F.queried ρ = []
   · rw [pathLength_of_queried_eq_nil h] at hs
-    rw [encode_of_queried_eq_nil h, Nat.le_zero.1 hs]
-    rfl
+    simp [encode_of_queried_eq_nil h, Nat.le_zero.1 hs]
   by_cases hsV : s ≤ (F.queried ρ).length
-  · rw [encode_of_le h hsV]
-    simp [hsV]
+  · simp [encode_of_le h hsV, hsV]
   · rw [encode_of_lt h (by omega)]
     dsimp only
     rw [List.length_append, Term.length_stageCode,
-      length_encode (ρ := ρ.assign (F.queried ρ).toFinset x) (by
-        rw [pathLength_of_queried_ne_nil h] at hs
-        omega)]
+      length_encode (ρ := ρ.assign (F.queried ρ).toFinset x)
+        (by rw [pathLength_of_queried_ne_nil h] at hs; omega)]
     omega
 termination_by #ρ.free
 decreasing_by exact card_free_assign_lt h x
@@ -467,9 +463,7 @@ theorem card_filter_pathLength_le {k : ℕ} (hk : ∀ t ∈ F, t.length ≤ k)
             rw [card_free_encode hnd hx, hcard]
           · exact mem_image_ofFn (length_encode hx) fun e he => fst_lt_of_mem_encode hk s ρ x he
     _ ≤ #(ρ₀.extensions (ℓ - s) ×ˢ C) := card_image_le
-    _ ≤ _ := by
-      rw [card_product]
-      exact Nat.mul_le_mul_left _ hC
+    _ ≤ _ := card_product _ _ ▸ Nat.mul_le_mul_left _ hC
 
 /-- **Håstad's switching lemma**, counting version. If every term of `F` has at most `k` literals
 and reads each variable once, then at most `#E(ℓ - s) (4k)^s` of the extensions of `ρ₀` leaving `ℓ`

@@ -210,9 +210,8 @@ private theorem recipHalfStream_certificate {x : ℕ → ℤ} (hx : IsSignedStre
   have hp_le : |streamVal (recipProdStream x t)| ≤ 3 / 64 := by
     rw [streamVal_recipProdStream hx hx_mem t, recipPrefixRat_cast, ← streamVal_suffixStream hx]
     exact abs_recipProdVal_le hx hx_mem t
-  rw [abs_div, abs_of_pos (by norm_num : (0 : ℝ) < 2)]
-  have htri := abs_add_le (recipAlpha x t : ℝ) (streamVal (recipProdStream x t))
-  linarith
+  rw [abs_div, abs_of_pos (zero_lt_two : (0 : ℝ) < 2)]
+  linarith [abs_add_le (recipAlpha x t : ℝ) (streamVal (recipProdStream x t))]
 
 theorem recipHalfStream_isSignedStream {x : ℕ → ℤ} (hx : IsSignedStream x)
     (hx_mem : streamVal x ∈ Set.Icc (1 / 4 : ℝ) 1) (t : ℕ) :
@@ -281,9 +280,8 @@ theorem recip64Approx_isScaledApprox {x : ℕ → ℤ} (hx : IsSignedStream x)
     have hp_le : |(recipBeta x t : ℝ) * (streamVal x - (recipPrefixRat x t : ℝ))| ≤ 3 / 64 := by
       rw [recipPrefixRat_cast, ← streamVal_suffixStream hx]
       exact abs_recipProdVal_le hx hx_mem t
-    have htri := abs_add_le (recipAlpha x t : ℝ)
-      ((recipBeta x t : ℝ) * (streamVal x - (recipPrefixRat x t : ℝ)))
-    linarith
+    linarith [abs_add_le (recipAlpha x t : ℝ)
+      ((recipBeta x t : ℝ) * (streamVal x - (recipPrefixRat x t : ℝ)))]
   have hclip_eq : shiftClipVal 1 (streamVal (recipHalfStream x t)) = T := by
     rw [streamVal_recipHalfStream hx hx_mem t]
     unfold shiftClipVal
@@ -292,19 +290,13 @@ theorem recip64Approx_isScaledApprox {x : ℕ → ℤ} (hx : IsSignedStream x)
   rw [hclip_eq] at hsc
   have hfl := abs_ediv_sub_div_lt_one A (by decide : (0 : ℤ) < 8)
   push_cast at hfl
-  have hA_err : |(A : ℝ) / 8 - (2 : ℝ) ^ t * T| < 1 / 4 := by
-    have hpow : (2 : ℝ) ^ (t + 3) = 8 * (2 : ℝ) ^ t := by ring
-    rw [hpow] at hsc
-    have hsub : (A : ℝ) / 8 - (2 : ℝ) ^ t * T = ((A : ℝ) - 8 * (2 : ℝ) ^ t * T) / 8 := by ring
-    rw [hsub, abs_div, abs_of_pos (by norm_num : (0 : ℝ) < 8)]
-    linarith
-  have hrem := abs_recipTaylor_remainder_le hx hx_mem t
-  have htri1 := abs_sub_le ((A / 8 : ℤ) : ℝ) ((A : ℝ) / 8) ((2 : ℝ) ^ t * T)
-  have htri2 := abs_sub_le ((A / 8 : ℤ) : ℝ) ((2 : ℝ) ^ t * T)
-    ((2 : ℝ) ^ t * (1 / (64 * streamVal x)))
-  have hrem' : |(2 : ℝ) ^ t * T - (2 : ℝ) ^ t * (1 / (64 * streamVal x))| ≤ 1 / 128 := by
-    simpa only [← mul_sub, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ t)] using hrem
-  linarith
+  have hsc' := abs_lt.mp ((by ring : (2 : ℝ) ^ (t + 3) = 8 * (2 : ℝ) ^ t) ▸ hsc)
+  have hA_err : |(A : ℝ) / 8 - (2 : ℝ) ^ t * T| < 1 / 4 := abs_lt.mpr ⟨by linarith, by linarith⟩
+  have hrem : |(2 : ℝ) ^ t * T - (2 : ℝ) ^ t * (1 / (64 * streamVal x))| ≤ 1 / 128 := by
+    simpa only [T, ← mul_sub, abs_mul, abs_of_pos (pow_pos (zero_lt_two : (0 : ℝ) < 2) t)] using
+      abs_recipTaylor_remainder_le hx hx_mem t
+  linarith [abs_sub_le ((A / 8 : ℤ) : ℝ) ((A : ℝ) / 8) ((2 : ℝ) ^ t * T),
+    abs_sub_le ((A / 8 : ℤ) : ℝ) ((2 : ℝ) ^ t * T) ((2 : ℝ) ^ t * (1 / (64 * streamVal x)))]
 
 /-- The target value `1 / (64 * streamVal x)` of `recip64Stream` is bounded by `1`. -/
 private theorem abs_one_div_sixtyfour_mul_le_one {x : ℕ → ℤ}

@@ -96,7 +96,7 @@ theorem exists_subdivision_embedding_with_reference_spokes {I : FixedRotationInp
           (T d).IsSimple ∧ (T d).support \ Metric.ball (D.vertex v) ρ = {D.cutPort ρ d.val}) ∧
         Pairwise (fun d e => (T d).support ∩ (T e).support = {D.vertex v}) := by
     cases hw : I.orders.getD v none with
-    | none => exact absurd (show (I.orders.getD v none).isSome = true from hv) (by rw [hw]; simp)
+    | none => exact (Option.not_isSome_iff_eq_none.mpr hw hv).elim
     | some word => exact exists_reference_spokes_at_cutPorts hI hD hReal hfixed hρ.1 hw
   choose T hT hTpair using hf
   let spoke (d : Dart I.graph) (hd : fixed d.vertex) := T d.vertex hd ⟨d, rfl⟩
@@ -168,27 +168,22 @@ theorem exists_subdivision_embedding_with_reference_spokes {I : FixedRotationInp
       x = D.cutPort ρ d := by
     obtain ⟨_, _, _, _, hb⟩ := hspoke d hd
     exact Set.mem_singleton_iff.mp (hb ▸ (show x ∈ _ \ _ from ⟨hx, ho⟩))
-  have hportClosed (d : Dart I.graph) :
-      D.cutPort ρ d ∈ Metric.closedBall (D.vertex d.vertex) ρ := by
-    rw [Metric.mem_closedBall, dist_eq_norm, hcf]
+  have hportClosed (d : Dart I.graph) : D.cutPort ρ d ∈ Metric.closedBall (D.vertex d.vertex) ρ :=
+    Metric.mem_closedBall.mpr ((dist_eq_norm _ _).trans (hcf d)).le
   have hportOutside (d : Dart I.graph) :
       D.cutPort ρ d ∉ Metric.ball (D.vertex d.vertex) ρ := by
     simp [Metric.mem_ball, dist_eq_norm, hcf]
   have hclosed (d : Dart I.graph) (hd : fixed d.vertex) :
-      (spoke d hd).support ⊆ Metric.closedBall (D.vertex d.vertex) ρ := by
-    intro x hx
-    by_cases he : x ∈ Metric.ball (D.vertex d.vertex) ρ
-    · exact Metric.ball_subset_closedBall he
-    · exact hbound d hd hx he ▸ hportClosed d
+      (spoke d hd).support ⊆ Metric.closedBall (D.vertex d.vertex) ρ := fun x hx =>
+    if he : x ∈ Metric.ball (D.vertex d.vertex) ρ then Metric.ball_subset_closedBall he
+    else hbound d hd hx he ▸ hportClosed d
   have hsimple (e : SubEdge I) : (F.route e).IsSimple := by
     change (route e).IsSimple
     by_cases he : changed e
-    · simp only [route, dite_eq_left he, orientSpoke]
-      obtain ⟨_, _, _, hs, _⟩ := hspoke (endDart I e) he.2
-      split
-      exacts [hs.reverse, hs]
-    · rw [hkeep e he]
-      exact hE.simple e
+    · obtain ⟨_, _, _, hs, _⟩ := hspoke (endDart I e) he.2
+      simp only [route, dite_eq_left he, orientSpoke]
+      split <;> first | exact hs.reverse | exact hs
+    · exact (hkeep e he).symm ▸ hE.simple e
   have hvertex_end (e : SubEdge I) {v : ℕ} (hv : v ∈ (subdivisionGraph I).vertices)
       (hx : E.vertex v ∈ (F.route e).support) : ∃ b, Dart.vertex (e, b) = v := by
     by_cases he : changed e
@@ -202,18 +197,15 @@ theorem exists_subdivision_embedding_with_reference_spokes {I : FixedRotationInp
             (hcenter v hvOld ▸ Metric.mem_closedBall_self hρ.1.le)
         exact ⟨d.2, (subdivisionDart_endpoints I d).1.trans hsame⟩
       · rw [ha, hport a] at hx hxball
-        have hsame : a.vertex = d.vertex := by
-          by_contra hne
-          exact Set.disjoint_left.mp (hdisj _ (horig a) _ (horig d) hne) (hportClosed a) hxball
-        have hoa : D.cutPort ρ a ∉ Metric.ball (D.vertex d.vertex) ρ := by
-          simpa only [hsame] using hportOutside a
-        have had := hD.cutPort_injective hρ.1 a d hsame (hbound d he.2 hx hoa)
+        have hsame : a.vertex = d.vertex := by_contra fun hne =>
+          Set.disjoint_left.mp (hdisj _ (horig a) _ (horig d) hne) (hportClosed a) hxball
+        have had := hD.cutPort_injective hρ.1 a d hsame
+          (hbound d he.2 hx (hsame ▸ hportOutside a))
         refine ⟨!d.2, ?_⟩
         change (subdivisionDart I d).reverse.vertex = v
         simpa only [had] using ha.symm
     · obtain ⟨k, t, ht, hval⟩ := ((E.route e).mem_support_iff _).mp (by rwa [← hkeep e he])
-      obtain ⟨b, _, hb⟩ := hE.vertex_contacts e k t ht v hv hval
-      exact ⟨b, hb⟩
+      exact (hE.vertex_contacts e k t ht v hv hval).imp fun _ => And.right
   have hvertex : ∀ e (k : Fin (F.route e).segments) (t : ℝ), t ∈ Set.Icc 0 1 →
       ∀ v ∈ (subdivisionGraph I).vertices, (F.route e).eval k t = F.vertex v →
       ∃ b, (F.route e).AtEnd k t b ∧ Dart.vertex (e, b) = v := by

@@ -257,12 +257,10 @@ theorem useHint_lt (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1) (hq : 4 * γ�
 Lemma 1(3) of the Dilithium v3.1 specification. -/
 theorem useHint_true_ne_highBits (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1)
     (hq : 4 * γ₂ < q) (r : ZMod q) : useHint q γ₂ true r ≠ highBits q γ₂ r := by
-  have hm := bucketCount_pos hγ hq
   have hm2 : 2 ≤ (q - 1) / (2 * γ₂) := two_le_bucketCount hγ hq
-  have hr₀ := highBits_nonneg (q := q) hγ r
-  have hrm := highBits_lt (q := q) hγ hdvd (by omega) r
   have ⟨hs₁, hs₂⟩ := hintStep_bounds (q := q) (γ₂ := γ₂) true r
-  rw [useHint_eq_add_emod hγ hdvd hq, add_emod_natCast_eq_sub_wrap hm hr₀ hrm hs₁ hs₂]
+  rw [useHint_eq_add_emod hγ hdvd hq, add_emod_natCast_eq_sub_wrap (bucketCount_pos hγ hq)
+    (highBits_nonneg hγ r) (highBits_lt hγ hdvd (by omega) r) hs₁ hs₂]
   simp only [hintStep, Bool.cond_true]
   split_ifs <;> omega
 
@@ -292,18 +290,17 @@ theorem abs_hintResidual_valMinAbs_le (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q 
     push_cast; ring
   rw [hres]
   refine (ZMod.abs_valMinAbs_intCast_le _).trans (abs_le.mpr ?_)
+  push_cast
   cases h
   · have hr₁₀ := highBits_nonneg (q := q) hγ r
     have hr₁m := highBits_lt (q := q) hγ hdvd (by omega) r
     simp only [hintWrap, hintStep, Bool.cond_false, add_zero, zero_mul, zero_add]
-    split_ifs <;> constructor <;> omega
+    split_ifs <;> omega
   · by_cases hrpos : 0 < lowBits q γ₂ r
     · have hw := hintWrap_nonneg_of_pos hγ hrpos
-      simp only [hintStep, Bool.cond_true, hrpos, ↓reduceIte, one_mul]
-      constructor <;> push_cast <;> omega
+      simp only [hintStep, Bool.cond_true, hrpos, ↓reduceIte, one_mul]; omega
     · have hw := hintWrap_nonpos_of_not_pos hγ hdvd hq hrpos
-      simp only [hintStep, Bool.cond_true, hrpos, ↓reduceIte, neg_one_mul]
-      constructor <;> push_cast <;> omega
+      simp only [hintStep, Bool.cond_true, hrpos, ↓reduceIte, neg_one_mul]; omega
 
 /-- **Hint recovery.** If `|z| ≤ γ₂`, using the hint made from `z` and `r` recovers the high bits
 of `r + z`. This is the scalar form of Lemma 1(1) in the Dilithium v3.1 specification, with its
@@ -350,14 +347,13 @@ theorem useHint_makeHint (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1) (hq : 4 
       · have hw := hintWrap_nonpos_of_not_pos hγ hdvd hq hrpos
         have hb'_eq : b' = lowBits q γ₂ r + z.valMinAbs + 2 * γ₂ - hintWrap q γ₂ true r := by
           simp only [b', hintStep, Bool.cond_true, hrpos, ↓reduceIte, neg_one_mul]; push_cast; ring
-        have hhi' : lowBits q γ₂ r + z.valMinAbs - hintWrap q γ₂ true r ≤ -(γ₂ : ℤ) := by
-          by_contra h
-          refine hnot ⟨by omega, by omega, fun hbz => ?_⟩
-          simp only [hintWrap, hintStep, Bool.cond_true, hrpos, ↓reduceIte] at h
-          split_ifs at h <;> omega
+        have hhi' : lowBits q γ₂ r + z.valMinAbs - hintWrap q γ₂ true r ≤ -(γ₂ : ℤ) :=
+          le_of_not_gt fun h => hnot ⟨by omega, by omega,
+            fun _ => by
+              simp only [hintWrap, hintStep, Bool.cond_true, hrpos, ↓reduceIte] at h
+              split_ifs at h <;> omega⟩
         exact ⟨by omega, by omega, by omega⟩
-    rw [hsum']
-    exact (highBits_intCast_mul_add_of_le hγ hdvd hq (useHint_nonneg hγ hq true r)
+    exact hsum' ▸ (highBits_intCast_mul_add_of_le hγ hdvd hq (useHint_nonneg hγ hq true r)
       (useHint_lt hγ hdvd hq true r) hb.1 hb.2.1 hb.2.2).symm
 
 /-- Apply `MakeHint` coefficientwise. -/

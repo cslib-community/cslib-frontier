@@ -298,11 +298,10 @@ theorem evaln_mono {σ₁ σ₂ : List ℕ} (hσ : σ₁ <+: σ₂) {k₁ k₂ c
 
 /-- The use of a stage-`k` computation is below `k`: it reads only the first `k` oracle values. -/
 theorem evaln_take (σ : List ℕ) (k : ℕ) (c : Code) (n : ℕ) :
-    evaln (σ.take k) k c n = evaln σ k c n := by
-  refine Option.ext fun x => ⟨fun h => ?_, fun h => ?_⟩
-  · exact evaln_mono (List.take_prefix k σ) le_rfl h
-  · refine evaln_mono_of_agree (K := k) (fun i hi y hy => ?_) le_rfl le_rfl h
-    rwa [List.getElem?_take_of_lt hi]
+    evaln (σ.take k) k c n = evaln σ k c n :=
+  Option.ext fun _ => ⟨evaln_mono (List.take_prefix k σ) le_rfl,
+    evaln_mono_of_agree (K := k) (fun _ hi _ hy => (List.getElem?_take_of_lt hi).trans hy)
+      le_rfl le_rfl⟩
 
 -- As in Mathlib's `Nat.Partrec.Code.evaln_sound`: the `simp` calls unfold `PFun` coercions.
 set_option backward.isDefEq.respectTransparency false in
@@ -373,8 +372,7 @@ theorem getElem_prefixOf (f : ℕ → ℕ) {N i : ℕ} (h : i < (prefixOf f N).l
 
 theorem prefixOf_prefix (f : ℕ → ℕ) {N₁ N₂ : ℕ} (h : N₁ ≤ N₂) :
     prefixOf f N₁ <+: prefixOf f N₂ := by
-  rw [List.prefix_iff_eq_take]
-  simp [prefixOf, ← List.map_take, List.take_range, min_eq_left h]
+  simp [List.prefix_iff_eq_take, prefixOf, ← List.map_take, List.take_range, min_eq_left h]
 
 /-- Every total oracle extends each of its prefixes. -/
 theorem prefixOf_mem (f : ℕ → ℕ) (N : ℕ) :
@@ -476,11 +474,7 @@ theorem evaln_complete {f : ℕ → ℕ} {c n x} :
           evaln_mono (prefixOf_prefix f (le_max_right _ _)) (Nat.succ_le_succ <| le_max_right _ _)
             hk₂⟩
   | _ =>
-    refine ⟨0, ?_⟩
-    simp only [eval, evaln, pure, PFun.pure, PFun.coe_val, Part.mem_some_iff, Option.bind_eq_bind,
-      Option.mem_def, Option.bind_eq_some_iff, Option.guard_eq_some', Option.some.injEq,
-      exists_const, exists_and_right] at h ⊢
-    exact ⟨⟨_, le_rfl⟩, h.symm⟩
+    exact ⟨0, n, by simpa [eval, evaln, pure, PFun.pure, PFun.coe_val, eq_comm] using h⟩
 
 /-- Completeness with a single stage parameter: a convergent computation relative to the total
 oracle `f` converges at some stage `s` against the prefix of `f` of length `s`. -/
@@ -504,8 +498,7 @@ theorem exists_use {f : ℕ → ℕ} {c n x} (h : x ∈ eval (f : ℕ →. ℕ) 
     ∃ N, ∀ g : ℕ → ℕ, (∀ i < N, g i = f i) → x ∈ eval (g : ℕ →. ℕ) c n := by
   obtain ⟨N, k, hk⟩ := evaln_complete.1 h
   refine ⟨N, fun g hg => evaln_sound (fun i hi => ?_) hk⟩
-  rw [getElem_prefixOf, ← hg i (by simpa using hi)]
-  exact Part.mem_some _
+  simp [← hg i (length_prefixOf f N ▸ hi), PFun.coe_val]
 
 end Code
 
@@ -578,8 +571,7 @@ theorem TuringDegree.countable_Iic (d : TuringDegree) : (Set.Iic d).Countable :=
   induction d using Antisymmetrization.ind with
   | _ g =>
   refine ((Nat.RecursiveIn.countable_setOf_turingReducible g).image
-    (toAntisymmetrization _)).mono ?_
-  intro d hd
+    (toAntisymmetrization _)).mono fun d hd => ?_
   induction d using Antisymmetrization.ind with
   | _ f => exact ⟨f, hd, rfl⟩
 

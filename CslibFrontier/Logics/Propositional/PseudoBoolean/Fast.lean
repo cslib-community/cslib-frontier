@@ -259,20 +259,17 @@ private theorem normalizeDistinct_eq {c : PBConstr} (h : (c.terms.map termVar).N
 order of its terms: normalization only reverses them. -/
 theorem normalize_of_nodup {c : PBConstr} (h : (c.terms.map termVar).Nodup)
     (hpos : ∀ t ∈ c.terms, 0 < t.1) : c.normalize = ⟨c.terms.reverse, c.degree⟩ := by
-  have hterm : ∀ t ∈ c.terms, entryTerm (termVar t, termCoeff t) = some t := by
+  have hfm : (c.terms.map fun t => (termVar t, termCoeff t)).filterMap entryTerm = c.terms := by
+    rw [List.filterMap_map]
+    refine (List.filterMap_congr (g := some) ?_).trans (by simp)
     rintro ⟨a, v, b⟩ ht
     have ha := hpos _ ht
     cases b <;> simp [entryTerm, termCoeff, ha]
-  have hfm : (c.terms.map fun t => (termVar t, termCoeff t)).filterMap entryTerm = c.terms := by
-    rw [List.filterMap_map]
-    exact (List.filterMap_congr (g := some) fun t ht => hterm t ht).trans (by simp)
   have hmass :
       negMass (c.terms.map fun t => (termVar t, termCoeff t)).reverse = negSum c.terms := by
     simp only [negMass, negSum, List.map_reverse, List.sum_reverse, List.map_map]
-    congr 1
-    refine List.map_congr_left fun t ht => ?_
-    obtain ⟨a, v, b⟩ := t
-    cases b <;> simp [termCoeff]
+    exact congrArg List.sum
+      (List.map_congr_left fun ⟨a, v, b⟩ _ => by cases b <;> simp [termCoeff])
   rw [← normalizeDistinct_eq h]
   simp only [normalizeDistinct, fromLinear, List.filterMap_reverse, hfm, hmass]
   congr 1
@@ -789,9 +786,7 @@ private theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f
       obtain ⟨hw₁, hl₁⟩ := DB.eraseAll_compact_spec hf.db ids
       obtain ⟨hw₂, hl₂⟩ := DB.eraseAll_compact_spec hf.core ids
       split
-      · split
-        · simp
-        · simp [FState.toState, hl₁, hl₂, mkWF hw₁ hw₂]
+      · split <;> simp [FState.toState, hl₁, hl₂, mkWF hw₁ hw₂]
       · simp
     | _ => exact ⟨fallback _, fallbackWF _⟩
   | deld ids =>
@@ -859,19 +854,17 @@ private theorem runTopFast_init (F : List PBConstr) (obj : Option Objective) (P 
 /-- **The compiled checker agrees with the reference checker** on every input. -/
 theorem checkRedFast_eq_checkRed (F : List PBConstr) (obj : Option Objective) (P : RedProof)
     (pres : Option (List ℕ)) : checkRedFast F obj P pres = checkRed F obj P pres := by
-  have h := runTopFast_init F obj P pres
   unfold checkRedFast checkRed
-  cases hf : runTopFast F obj (.ofState (State.init F obj pres)) P.steps <;>
-    rw [hf] at h <;> simp only [Option.map_none, Option.map_some] at h <;> rw [← h]
+  rw [← runTopFast_init F obj P pres]
+  cases runTopFast F obj (.ofState (State.init F obj pres)) P.steps <;> rfl
 
 /-- The compiled checker of output sections agrees with the reference one on every input. -/
 theorem checkRedOutputFast_eq_checkRedOutput (F : List PBConstr) (obj : Option Objective)
     (P : RedProof) (pres : Option (List ℕ)) (sec : OutputSection) :
     checkRedOutputFast F obj P pres sec = checkRedOutput F obj P pres sec := by
-  have h := runTopFast_init F obj P pres
   unfold checkRedOutputFast checkRedOutput
-  cases hf : runTopFast F obj (.ofState (State.init F obj pres)) P.steps <;>
-    rw [hf] at h <;> simp only [Option.map_none, Option.map_some] at h <;> rw [← h]
+  rw [← runTopFast_init F obj P pres]
+  cases runTopFast F obj (.ofState (State.init F obj pres)) P.steps <;> rfl
 
 /-- **The compiled code of `checkRed` is `checkRedFast`.** The kernel and `decide` keep reducing
 the reference definition; compiled callers run the compiled checker, justified by

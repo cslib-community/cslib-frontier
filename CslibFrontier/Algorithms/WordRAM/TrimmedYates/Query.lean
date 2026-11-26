@@ -230,8 +230,8 @@ private theorem exec_qLongBranch {w d s baseFree outBase qWorkStart rootF rootG 
       (by rw [hcList_len]; regs_frame) (by regs_frame) (by regs_frame) hcList_nd hcmem (by omega)
       (by rw [hsum_Hq]; exact hfit_space.of_le (by omega)) hfit_mask
   have hys_spec := prefixesUpTo_spec (#C - s) hcList_nd
-  have hys_len : (prefixesUpTo (#C - s) cList).length = H_q := by
-    rw [length_prefixesUpTo (#C - s) hcList_nd, hsum_Hq]
+  have hys_len : (prefixesUpTo (#C - s) cList).length = H_q :=
+    (length_prefixesUpTo (#C - s) hcList_nd).trans hsum_Hq
   generalize prefixesUpTo (#C - s) cList = ys at hw₁_dlen hw₁_dom hys_spec hys_len
   have hys_sub : ∀ Y ∈ ys, Y ⊆ C := fun Y hY => hcList_tf ▸ ((hys_spec.2 Y).mp hY).1
   obtain ⟨w₂, he_flip, hw₂_dom, hw₂_fr, hw₂_regs⟩ :=
@@ -241,13 +241,12 @@ private theorem exec_qLongBranch {w d s baseFree outBase qWorkStart rootF rootG 
   have hhigh_nd : (ys.map (C \ ·)).Nodup := hys_spec.1.map_on fun Y₁ h₁ Y₂ h₂ heq => by
     rw [← Finset.sdiff_sdiff_eq_self (hys_sub Y₁ h₁), heq,
       Finset.sdiff_sdiff_eq_self (hys_sub Y₂ h₂)]
-  have hhigh_mem : ∀ X, X ∈ ys.map (C \ ·) ↔ X ⊆ C ∧ s ≤ #X := fun X => by
-    simp only [List.mem_map]
-    refine ⟨?_, fun ⟨hXC, hsX⟩ => ⟨C \ X, (hys_spec.2 _).mpr ⟨hcList_tf ▸ sdiff_subset,
-      by rw [Finset.card_sdiff_of_subset hXC]; omega⟩, Finset.sdiff_sdiff_eq_self hXC⟩⟩
-    rintro ⟨Y, hY, rfl⟩
-    have := ((hys_spec.2 Y).mp hY).2
-    exact ⟨sdiff_subset, by rw [Finset.card_sdiff_of_subset (hys_sub Y hY)]; omega⟩
+  have hhigh_mem (X : Finset (Fin d)) : X ∈ ys.map (C \ ·) ↔ X ⊆ C ∧ s ≤ #X := by
+    simp only [List.mem_map, hys_spec.2]
+    refine ⟨fun ⟨Y, ⟨hY, _⟩, hYX⟩ => hYX ▸
+      ⟨sdiff_subset, by rw [Finset.card_sdiff_of_subset (hcList_tf ▸ hY)]; omega⟩,
+      fun ⟨hXC, _⟩ => ⟨C \ X, ⟨hcList_tf ▸ sdiff_subset,
+        by rw [Finset.card_sdiff_of_subset hXC]; omega⟩, Finset.sdiff_sdiff_eq_self hXC⟩⟩
   -- Run the three high-domain Yates transforms with the precomputed low stages as fallback.
   obtain ⟨w₃, he_w3, hw₃_dp, hw₃_dl, hw₃_fr, hw₃_cut, hw₃_mem⟩ :
       ∃ w₃, ExecWithin w qHighPrepCode w₂ w₃ 5 ∧ w₃.regs Reg.entryPtr = qWorkStart + d ∧
@@ -350,7 +349,6 @@ theorem exec_queryStep {w d s baseFree outBase rootF rootG qPtr preFs preGs preH
       z.regs rQueryIdx = st.regs rQueryIdx + 1 := by
   have hfit_mask : Fits w (2 ^ d) := mask_fits_of_valueEnvelope hfit_val
   have hfit_d : Fits w d := hfit_mask.of_le Nat.lt_two_pow_self.le
-  have hf_ob : Fits w outBase := hfit_space.of_le (by omega)
   generalize hq_eq : st.regs rQueryIdx = q at hst hq ⊢
   obtain ⟨hsz, hso, hsd, hss, hsout, hspf, hstF, hstG, hsqp, hsqc,
     hspFs, hspGs, hspHs, hs_pre, hs_ob, hs_ans⟩ := hst
@@ -376,13 +374,13 @@ theorem exec_queryStep {w d s baseFree outBase rootF rootG qPtr preFs preGs preH
   have hcList_tf : cList.toFinset = C := by rw [← hcList_def]; ext; simp
   have hcList_len : cList.length = #C := hcList_tf ▸ (List.toFinset_card_of_nodup hcList_nd).symm
   rw [hcList_len] at hu₁_clen
-  have hu₁_below : ∀ a < qWorkStart, u₁.mem a = st.mem a :=
-    fun a ha => (hu₁_cfr a (.inl ha)).trans (congrFun hu₀_mem a)
-  have hu₁_ob : ∀ a < outBase, u₁.mem a = preMem a :=
-    fun a ha => (hu₁_below a (by omega)).trans (hs_pre a ha)
+  have hu₁_below (a : ℕ) (ha : a < qWorkStart) : u₁.mem a = st.mem a :=
+    (hu₁_cfr a (.inl ha)).trans (congrFun hu₀_mem a)
+  have hu₁_ob (a : ℕ) (ha : a < outBase) : u₁.mem a = preMem a :=
+    (hu₁_below a (by omega)).trans (hs_pre a ha)
   have hu₁_s : u₁.regs Reg.thresh = s := by regs_frame
   -- Answer the query: by one lookup when `#C < s`, by the high-domain transforms otherwise.
-  have hbr : ∃ u_ans, ExecWithin w qBranchCode u₁ u_ans
+  obtain ⟨u_ans, he_br, hu_val, hu_below⟩ : ∃ u_ans, ExecWithin w qBranchCode u₁ u_ans
         (180 * (d + 1) ^ 2 * H_pos - (5 + (11 * d + 5) + 3)) ∧
       u_ans.regs rTrieVal = Signed.encode (coveringProduct f g C) ∧
       (∀ a < qWorkStart, u_ans.mem a = st.mem a) := by
@@ -395,7 +393,8 @@ theorem exec_queryStep {w d s baseFree outBase rootF rootG qPtr preFs preGs preH
         wram_simp [hu₁_ob _ hpHs_lt]
       obtain ⟨v₁, he_get, hv₁_val, hv₁_mem, -⟩ :=
         exec_trieGet v₀ (by regs_frame) (by regs_frame) (by regs_frame) hv₀_root (by regs_frame)
-          (hv₀_mem ▸ hpreOut_tr.congr_below hu₁_ob) hf_ob hfit_d (hfit_mask.of_le (setMask_lt C).le)
+          (hv₀_mem ▸ hpreOut_tr.congr_below hu₁_ob) (hfit_space.of_le (by omega)) hfit_d
+          (hfit_mask.of_le (setMask_lt C).le)
       rw [hpreOut_eq C (by omega)] at hv₁_val
       obtain ⟨n_b, hn_b, hex_b⟩ := he_ld.seq he_get
       exact ⟨v₁, ⟨n_b + 1, shortBranch_budget_le hH_pos1 hn_b,
@@ -409,13 +408,9 @@ theorem exec_queryStep {w d s baseFree outBase rootF rootG qPtr preFs preGs preH
         hpreF_st hpreG_st hpreH_st (by omega) hH_pos1 (hCs_H C hC_mem) hqw_bound hfit_space
         hfit_val
   -- Write the answer and advance the query index.
-  obtain ⟨u_ans, he_br, hu_val, hu_below⟩ := hbr
-  have hu_one : u_ans.regs rOne = 1 :=
-    (he_br.regs_eq qBranchCode_preserves_one).trans (by regs_frame)
-  have hu_out : u_ans.regs Reg.outPtr = outBase :=
-    (he_br.regs_eq qBranchCode_preserves_out).trans (by regs_frame)
-  have hu_qi : u_ans.regs rQueryIdx = q :=
-    (he_br.regs_eq qBranchCode_preserves_qi).trans (by regs_frame)
+  have hu_one := (he_br.regs_eq qBranchCode_preserves_one).trans (c := 1) (by regs_frame)
+  have hu_out := (he_br.regs_eq qBranchCode_preserves_out).trans (c := outBase) (by regs_frame)
+  have hu_qi := (he_br.regs_eq qBranchCode_preserves_qi).trans (c := q) (by regs_frame)
   have hf_q1 : Fits w (q + 1) := hfit_space.of_le (by omega)
   have hf_out_q1 : Fits w (outBase + (q + 1)) := hfit_space.of_le (by omega)
   obtain ⟨z, he_wr, hz_qi, hz_mem⟩ : ∃ z, ExecWithin w qWriteCode u_ans z 3 ∧
@@ -436,7 +431,7 @@ theorem exec_queryStep {w d s baseFree outBase rootF rootG qPtr preFs preGs preH
   · rw [hz_mem, Function.update_of_ne (by omega), hu_below a (by omega), hs_pre a ha]
   · rw [hz_mem, Function.update_of_ne (by omega), hu_below outBase (by omega), hs_ob]
   · rcases eq_or_ne j q with rfl | hjq
-    · rw [show outBase + 1 + j = outBase + (j + 1) by omega, hz_mem, Function.update_self, ← hC_def]
+    · rw [Nat.add_assoc, Nat.add_comm 1 j, hz_mem, Function.update_self, ← hC_def]
     · rw [hz_mem, Function.update_of_ne (by omega), hu_below _ (by omega), hs_ans j hj (by omega)]
 
 end Cslib.Algorithms.WordRAM.TrimmedYates

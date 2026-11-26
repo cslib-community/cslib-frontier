@@ -135,8 +135,7 @@ private theorem norm_compressed_action_sub_sq_le
   have hPc : (1 - Pᴴ * P).PosSemidef := by
     simpa only [hP, hPP, hQ, hQQ] using posSemidef_conjTranspose_mul_self Q
   have hQc : (1 - Qᴴ * Q).PosSemidef := by
-    rw [hQ, hQQ, sub_sub_cancel]
-    simpa only [hP, hPP] using posSemidef_conjTranspose_mul_self P
+    simpa only [hQ, hQQ, Q, sub_sub_cancel, hP, hPP] using posSemidef_conjTranspose_mul_self P
   have horth : inner ℂ u' (-v') = 0 := by
     rw [inner_neg_right, EuclideanSpace.inner_eq_star_dotProduct, dotProduct_comm]
     change -(star (P *ᵥ u.ofLp) ⬝ᵥ (Q *ᵥ v.ofLp)) = 0
@@ -149,9 +148,8 @@ private theorem norm_compressed_action_sub_sq_le
   change ‖u' + -v'‖ ^ 2 ≤ ‖u‖ ^ 2 + ‖v‖ ^ 2
   simp only [pow_two, norm_add_sq_eq_norm_sq_add_norm_sq_of_inner_eq_zero u' (-v') horth,
     norm_neg]
-  have hu : ‖u'‖ ≤ ‖u‖ := norm_toLp_mulVec_le_of_posSemidef hPc u
-  have hv : ‖v'‖ ≤ ‖v‖ := norm_toLp_mulVec_le_of_posSemidef hQc v
-  gcongr
+  exact add_le_add (mul_self_le_mul_self (norm_nonneg _) (norm_toLp_mulVec_le_of_posSemidef hPc u))
+    (mul_self_le_mul_self (norm_nonneg _) (norm_toLp_mulVec_le_of_posSemidef hQc v))
 
 private theorem expect_norm_compressed_action_sub_sq_le
     {I H K F : Type*} [Fintype I] [Fintype H] [DecidableEq H] [Fintype K] [Fintype F]
@@ -187,11 +185,11 @@ private theorem expect_norm_compressed_action_sub_sq_le
   have hsplit (x : F) :
       (WithLp.toLp 2 (((D * E) * A₀ x - C x * (D * E)) *ᵥ ψ.ofLp) : EuclideanSpace ℂ K) =
         WithLp.toLp 2 (D *ᵥ (before x).ofLp) + after x := by
-    rw [show (D * E) * A₀ x - C x * (D * E) =
-      D * (E * A₀ x - R x * E) + (D * R x - C x * D) * E by
-        simp only [Matrix.mul_assoc, Matrix.mul_sub, Matrix.sub_mul]
-        abel]
-    simp only [before, after, add_mulVec, WithLp.toLp_add, ← mulVec_mulVec]
+    have hmat : (D * E) * A₀ x - C x * (D * E) =
+        D * (E * A₀ x - R x * E) + (D * R x - C x * D) * E := by
+      simp only [Matrix.mul_assoc, Matrix.mul_sub, Matrix.sub_mul]
+      abel
+    simp only [hmat, before, after, add_mulVec, WithLp.toLp_add, ← mulVec_mulVec]
   simp_rw [hsplit]
   split_ifs with hexact
   · have hzero (x : F) : after x = 0 := by simp [after, he hexact x]
@@ -394,8 +392,8 @@ theorem exists_pauliBraidingExtraction
   have hscore :
       (pauliBraidingGame n TwoProverGame.chsh id (fun _ => id)).quantumWinProb T =
         (pauliBraidingGame n TwoProverGame.chsh id (fun _ => id)).quantumWinProb S := by
-    rw [SeededGame.quantumWinProb, SeededGame.quantumWinProb, show T.answers = S.answers from
-      funext fun x => funext fun y => S.answers_dilate a₀ a₀ x y]
+    rw [SeededGame.quantumWinProb, SeededGame.quantumWinProb]
+    exact congrArg _ (funext₂ (S.answers_dilate a₀ a₀))
   obtain ⟨P, Q, _, hclose, hcross, ⟨J, _, _, V, hV⟩, ⟨L, _, _, W, hW⟩⟩ :=
     exists_local_pauliCompression_of_pauliBraidingGame T
       (fun b q => S.isProjective_alice_dilate a₀ a₀ (.basis b q))
@@ -447,8 +445,7 @@ theorem exists_pauliBraidingExtraction
         he₁, Matrix.one_mul]
     have hGF : G * F = F := by
       simp only [G, F, QuantumStrategy.dilateEmbed, kroneckerOne_apply, ← mul_kronecker_mul,
-        Matrix.mul_assoc, show (ancillaEmbed (ι := I) a₀) = e₁ from rfl,
-        he₁, Matrix.mul_one, Matrix.one_mul]
+        Matrix.mul_assoc, e₁, he₁, Matrix.mul_one, Matrix.one_mul]
     have hcompress (x : Fin n → Bool) : G * A x * F = F * A₀ x := by
       dsimp only [A, A₀]
       have hT := map_average_basisObservable kroneckerOne.toLinearMap
@@ -499,8 +496,7 @@ theorem exists_pauliBraidingExtraction
         he₂, Matrix.one_mul]
     have hGF : G * F = F := by
       simp only [G, F, QuantumStrategy.dilateEmbed, oneKronecker_apply, ← mul_kronecker_mul,
-        Matrix.mul_assoc, show (ancillaEmbed (ι := K) a₀) = e₂ from rfl,
-        he₂, Matrix.mul_one, Matrix.one_mul]
+        Matrix.mul_assoc, e₂, he₂, Matrix.mul_one, Matrix.one_mul]
     have hcompress (x : Fin n → Bool) : G * A x * F = F * A₀ x := by
       dsimp only [A, A₀]
       have hT := map_average_basisObservable oneKronecker.toLinearMap

@@ -201,8 +201,7 @@ theorem exists_good_split_ofNode {first : BTree α β} {rest : List (Triple α �
     {h : ℕ} (hf : Good t h first) (hr : ∀ e ∈ rest, Good t h e.child)
     (hlo : 2 * t - 1 < rest.length) (hhi : rest.length ≤ 2 * t - 1 + t + 1) :
     ∃ l k v r, ofNode t first rest = split l k v r ∧ Good t (h + 1) l ∧ Good t (h + 1) r := by
-  unfold ofNode
-  rw [ite_eq_right (by omega)]
+  rw [ofNode, ite_eq_right (by omega)]
   split
   · next heq => exact absurd (List.drop_eq_nil_iff.mp heq) (by omega)
   · next k v c right heq =>
@@ -482,13 +481,11 @@ theorem insertRest_spec {rest : List (Triple α β)}
   | nil => simp
   | cons e rest ih =>
     obtain ⟨k', v', c⟩ := e
-    have hs' := hs
-    rw [toListRest_cons, List.cons_append, List.isSortedAssoc_append_cons_iff,
-      List.isSortedAssoc_append_iff] at hs'
-    obtain ⟨hpre, ⟨hcs, hrs, hcr⟩, hlt, hgt⟩ := hs'
+    simp only [toListRest_cons, List.cons_append] at hs ⊢
+    obtain ⟨hpre, ⟨hcs, hrs, hcr⟩, hlt, hgt⟩ := by
+      rwa [List.isSortedAssoc_append_cons_iff, List.isSortedAssoc_append_iff] at hs
     have hcc := hc _ (List.mem_cons_self ..) hcs
     have ih := ih (fun e he => hc e (List.mem_cons_of_mem _ he))
-    simp only [toListRest_cons, List.cons_append] at hs ⊢
     rw [insertRest_cons]
     by_cases h₁ : k ≤ k'
     · by_cases h₂ : k' ≤ k
@@ -525,14 +522,10 @@ theorem toList_insertOrSplit_of_isSortedAssoc {tr : BTree α β} (h : tr.toList.
     have spec := insertRest_spec (t := t) (k := k) (v := v) ihr first.toList h
     rw [toList_node, List.isSortedAssoc_append_iff] at h
     rw [insertOrSplit_node]
-    cases hr : insertRest t k v rest with
-    | some r =>
-      simp only [InsertResult.toList_ofNode, toList_node]
-      exact spec.2 r hr
-    | none =>
-      simp only [InsertResult.toList_ofNode, toList_node]
-      rw [← InsertResult.toList_withRest, ihf h.1,
+    cases hr : insertRest t k v rest <;> simp only [InsertResult.toList_ofNode, toList_node]
+    · rw [← InsertResult.toList_withRest, ihf h.1,
         SortedAssoc.insert_append_of_forall_gt (spec.1 hr)]
+    · exact spec.2 _ hr
 
 /-- Model equation of insertion on a tree with sorted entries. -/
 theorem toList_insert_of_isSortedAssoc {tr : BTree α β} (h : tr.toList.IsSortedAssoc) :
@@ -551,8 +544,6 @@ theorem fits_insertRest {rest : List (Triple α β)} {h : ℕ}
     obtain ⟨k', v', c⟩ := e
     have hcc : Good t h c ∧ (insertOrSplit t k v c).Fits t c := hc _ List.mem_cons_self
     have hrest : ∀ e ∈ rest, Good t h e.child := fun e he => (hc e (List.mem_cons_of_mem _ he)).1
-    have ih := fun r (hr : insertRest t k v rest = some r) =>
-      ih (fun e he => hc e (List.mem_cons_of_mem _ he)) hr
     rw [insertRest_cons] at hr
     by_cases h₁ : k ≤ k'
     · by_cases h₂ : k' ≤ k
@@ -565,7 +556,7 @@ theorem fits_insertRest {rest : List (Triple α β)} {h : ℕ}
       · obtain ⟨hp₁, hp₂, hl₁, hl₂⟩ :=
           InsertResult.fits_withRest hcc.2 hcc.1.occupied hcc.1.height_eq hrest
         exact ⟨List.forall_mem_cons.2 ⟨hp₁, hp₂⟩, by simpa using hl₁, by simpa using hl₂⟩
-      · obtain ⟨h₁, h₂, h₃⟩ := ih _ hr'
+      · obtain ⟨h₁, h₂, h₃⟩ := ih (fun e he => hc e (List.mem_cons_of_mem _ he)) hr'
         exact ⟨List.forall_mem_cons.2 ⟨hcc.1, h₁⟩, by simpa using h₂, by simpa using h₃⟩
 
 /-- Shape invariant of the bottom-up insertion. -/
