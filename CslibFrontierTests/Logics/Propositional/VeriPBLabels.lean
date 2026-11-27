@@ -26,8 +26,13 @@ elaboration of it.
   constraints, and they do not change the instance. One label on an equality, two on an
   inequality (`label_equality_too_few` and `label_inequality_too_many`), a label before `min:`
   and a bare `@` are rejected, as by VeriPB. CakePB accepts the first two, ignoring the labels.
-* **Kernel proofs** for labelled instances are accepted, and a proof referring to a label is
-  rejected by the kernel text front end, as by CakePB.
+* **Kernel proofs**, checked by the kernel text front end (`Cslib.Logic.PL.VeriPB.Text.checkOPB`,
+  `Cslib.Logic.PL.VeriPB.Text.checkDIMACS`), with the labels of the instance and of the proof,
+  which CakePB rejects: labels in subproofs and around an order, a `dom` step with a scope, a
+  label given again, and the rejection of an undefined label, of two labels before one rule and
+  of a label before `deld`. Where such a proof is accepted, CakePB accepts VeriPB's elaboration of
+  it, which numbers the labelled constraints as the front end does. The kernel front end also
+  checks `def_order_labels` and a kernel form of the specification labels below.
 * **Augmented proofs**, elaborated by `Cslib.Logic.PL.VeriPB.Elab.checkAugmented` and run by
   `#guard`: references to the labels of the instance; a later label of the same name, in the
   instance or in the proof, takes precedence; VeriPB's test `def_order_labels`, where a label
@@ -115,14 +120,14 @@ conclusion UNSAT : 5;
 end pseudo-Boolean proof;
 "
 
--- A label in a kernel proof is rejected, as by CakePB (VeriPB accepts it).
-example : checkOPB eqOPB eqKernelLabel = none := by decide +kernel
-
-/-! ### Augmented proofs -/
+-- The kernel text front end resolves the labels of the instance; CakePB rejects a label in a
+-- proof.
+theorem eqKernelLabel_accepted : checkOPB eqOPB eqKernelLabel = some (.unsat 5) := by
+  decide +kernel
 
 /-- The refutation of `eqOPB` through its labels, with a label of the proof for the
 contradiction. -/
-def eqAugmented : String := "pseudo-Boolean proof version 3.0
+def eqLabelled : String := "pseudo-Boolean proof version 3.0
 f 4;
 @c pol @both_hi @one + @two + ;
 output NONE;
@@ -130,11 +135,186 @@ conclusion UNSAT : @c;
 end pseudo-Boolean proof;
 "
 
-#guard checkAugmented eqOPB eqAugmented == some (.unsat 5)
+theorem eqLabelled_accepted : checkOPB eqOPB eqLabelled = some (.unsat 5) := by decide +kernel
+
+-- So the labelled proof certifies that `eqOPB` has no solution.
+example : ∃ I, parseOPB eqOPB = some I ∧ ∀ σ : ℕ → Bool, ¬ ∀ c ∈ I.constraints, c.Holds σ :=
+  not_satisfiable_of_checkOPB eqLabelled_accepted
+
+-- An undefined label, and two labels before one rule, are rejected.
+example : checkOPB eqOPB "pseudo-Boolean proof version 3.0
+f 4;
+@c pol @both_hi @three + @two + ;
+output NONE;
+conclusion UNSAT : @c;
+end pseudo-Boolean proof;
+" = none := by decide +kernel
+
+example : checkOPB eqOPB "pseudo-Boolean proof version 3.0
+f 4;
+@a @b pol @both_hi @one + @two + ;
+output NONE;
+conclusion UNSAT : @a;
+end pseudo-Boolean proof;
+" = none := by decide +kernel
+
+-- So is a label before a rule that derives no constraint.
+example : checkOPB eqOPB "pseudo-Boolean proof version 3.0
+f 4;
+@d deld 3;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+" = none := by decide +kernel
+
+-- A label before `e C : j` names `j`, as in VeriPB.
+example : checkOPB eqOPB "pseudo-Boolean proof version 3.0
+f 4;
+@h e 1 ~x1 1 ~x2 >= 1 : 2;
+@c pol @h @one + @two + ;
+output NONE;
+conclusion UNSAT : @c;
+end pseudo-Boolean proof;
+" = some (.unsat 5) := by decide +kernel
+
+-- A label given again names its new constraint from then on, here `~x1 >= 1`.
+example : checkOPB eqOPB "pseudo-Boolean proof version 3.0
+f 4;
+@one pol @both_hi @two + ;
+@c pol @one 3 + ;
+output NONE;
+conclusion UNSAT : @c;
+end pseudo-Boolean proof;
+" = some (.unsat 6) := by decide +kernel
+
+/-- Labels in subproofs: `@r` names the constraint of a `red` step after its subproof, `@g` a
+constraint derived in a `proofgoal` block, `@n` one derived in the subproof of `pbc`, and `@p`
+the constraint of the `pbc` step; `e` checks the constraints that `@r` and `@p` name. VeriPB's
+elaboration numbers them `8`, `7`, `10` and `11`. -/
+def subLabelled : String := "pseudo-Boolean proof version 3.0
+f 4;
+@r red 1 ~x3 >= 1 : x3 -> 0 : subproof
+proofgoal #1
+@g pol 6;
+qed : @g;
+qed;
+e 1 ~x3 >= 1 : @r;
+@p pbc 1 ~x1 >= 1 : subproof
+@n pol @both_hi @two + 9 +;
+qed : @n;
+e 1 ~x1 >= 1 : @p;
+@c pol @p @one +;
+output NONE;
+conclusion UNSAT : @c;
+end pseudo-Boolean proof;
+"
+
+theorem subLabelled_accepted : checkOPB eqOPB subLabelled = some (.unsat 12) := by
+  decide +kernel
+
+/-- `x1 + x2 >= 1`, minimizing `x1 + x2`. -/
+def sym2OPB : String := "* #variable= 2 #constraint= 1
+min: +1 x1 +1 x2 ;
++1 x1 +1 x2 >= 1 ;
+"
+
+/-- The optimality proof by `dom` of
+`CslibFrontierTests.Logics.Propositional.VeriPBText.domAuxObjProof` with labels, after a labelled
+literal axiom `@t`. Inside the order, the specification and the transitivity and reflexivity
+proofs have labels of their own, so `@t` still names the axiom afterwards. The scope `scope geq`
+and the negated order `#2` take numbers, so `@g` is `7`, `@d` `8`, `@i` `9` and `@b` `10`, as in
+VeriPB's elaboration. -/
+def domLabelled : String := "pseudo-Boolean proof version 3.0
+f 1;
+@t pol x1;
+def_order notaux
+vars
+left u1;
+right v1;
+aux $a1;
+end;
+spec
+@s red 1 $a1 1 u1 >= 1 : $a1 -> 1 : subproof
+qed;
+red 1 ~$a1 1 ~u1 >= 1 : $a1 -> 0 : subproof
+qed;
+end;
+def
+1 $a1 1 v1 >= 1;
+end;
+transitivity
+vars
+fresh_right w1;
+fresh_aux_1 $b1;
+fresh_aux_2 $c1;
+end;
+proof
+proofgoal #1
+@t pol 9 5 + 2 + 7 + 4 + 8 +;
+qed : @t;
+qed;
+end;
+reflexivity
+proof
+proofgoal #1
+@t pol 11 13 +;
+qed : @t;
+qed;
+end;
+end;
+e 1 x1 >= 0 : @t;
+load_order notaux x1;
+@d dom 1 ~x1 1 x2 >= 1 : x1 -> x2 x2 -> x1 : subproof
+scope geq
+proofgoal #2
+@g pol 6 5 + 3 +;
+qed : @g;
+end;
+qed;
+e 1 ~x1 1 x2 >= 1 : @d;
+@i soli ~x1 x2;
+@b pol 1 @i +;
+output NONE;
+conclusion BOUNDS 1 : @b 1;
+end pseudo-Boolean proof;
+"
+
+-- A label before `sol`, which adds no constraint, is rejected, as by VeriPB.
+example : checkOPB sym2OPB "pseudo-Boolean proof version 3.0
+f 1;
+@s sol ~x1 x2;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+" = none := by decide +kernel
+
+theorem domLabelled_accepted :
+    checkOPB sym2OPB domLabelled = some (.bounds (some 1) 10 (some 1) none) := by
+  decide +kernel
+
+-- So the optimum of `x1 + x2` subject to `x1 + x2 >= 1` is at least `1`, and `1` is reached.
+example : ∃ I f, parseOPB sym2OPB = some I ∧ I.objective = some f ∧
+    (∀ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) → ∃ l, some 1 = some l ∧ l ≤ f.eval σ) ∧
+    ∀ u, some (1 : ℤ) = some u → ∃ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) ∧
+      f.eval σ ≤ u :=
+  bounds_of_checkOPB domLabelled_accepted
+
+-- A DIMACS formula has no labels, but its proof may have some.
+example : checkDIMACS "p cnf 1 2\n1 0\n-1 0\n" "pseudo-Boolean proof version 3.0
+f 2;
+@c pol 1 2 + ;
+output NONE;
+conclusion UNSAT : @c;
+end pseudo-Boolean proof;
+" = some (.unsat 3) := by decide +kernel
+
+/-! ### Augmented proofs -/
+
+#guard checkAugmented eqOPB eqLabelled == some (.unsat 5)
 -- `@both_lo` is `x1 + x2 >= 1`, which does not refute.
-#guard checkAugmented eqOPB (eqAugmented.replace "@both_hi" "@both_lo") == none
+#guard checkAugmented eqOPB (eqLabelled.replace "@both_hi" "@both_lo") == none
 -- Without the labels of the instance, the proof is rejected.
-#guard checkAugmented eqPlain eqAugmented == none
+#guard checkAugmented eqPlain eqLabelled == none
 
 /-- VeriPB's test `input_equality_with_label`: each labelled constraint checked by `e`. -/
 def charsProof : String := "pseudo-Boolean proof version 3.0
@@ -214,6 +394,9 @@ end pseudo-Boolean proof;
 
 #guard checkAugmented "" defOrderLabels == some .noClaim
 #guard checkAugmented "" (defOrderLabels.replace "e +1 x9" "e +1 x8") == none
+-- The kernel text front end gives the transitivity proof its own labels too.
+#guard checkOPB "" defOrderLabels == some .noClaim
+#guard checkOPB "" (defOrderLabels.replace "e +1 x9" "e +1 x8") == none
 
 /-- The order `u1 ≤ v1` through `$a1` of
 `CslibFrontierTests.Logics.Propositional.VeriPBText.notAux`, the first step of its specification
@@ -303,5 +486,19 @@ def specNoSub (goal body : String) : String :=
 #guard checkAugmented trivOPB (specNoSub "1" "@y rup >= 1 : 3 2 ;") == some .noClaim
 #guard checkAugmented trivOPB (specNoSub "@s1" "@y pol 3 2 + ;") == some .noClaim
 #guard checkAugmented trivOPB (specNoSub "1" "@y rup >= 1 : 3 ;") == none
+
+/-- `specLabels "@s1"` in the kernel format: the subproof of `proofgoal @s1` refers to the
+negated goal `4` and to the negation `3` of the second step by number, and names its
+contradiction `@y`. -/
+def specKernel : String :=
+  (specLabels "@s1").replace "rup >= 1 : -1 -2 ;\nqed : -1;" "@y rup >= 1 : 4 3 ;\nqed : @y;"
+
+-- The kernel text front end resolves `@s1` to the constraint `2` of the specification, and does
+-- not see it in the transitivity proof.
+#guard checkOPB trivOPB specKernel == some .noClaim
+#guard checkOPB trivOPB (specKernel.replace "qed : @x;\nqed;\nend;\nreflexivity"
+  "qed : @s1;\nqed;\nend;\nreflexivity") == none
+#guard checkOPB trivOPB (specKernel.replace "proofgoal @s1" "proofgoal 2") == some .noClaim
+#guard checkOPB trivOPB (specKernel.replace "proofgoal @s1" "proofgoal 1") == none
 
 end CslibFrontierTests.Logics.Propositional.VeriPBLabels
