@@ -198,10 +198,6 @@ private theorem appendWireCode_input (n offset : ℕ) :
   · simp only [Program.appendWireCode, shiftCodeWire, dite_eq_right hi, ite_eq_right hi]
     omega
 
-private theorem toNat_castAdd {n k : ℕ} (w : Wire n k) (extra : ℕ) :
-    (w.castAdd extra).toNat = w.toNat := by
-  cases w <;> rfl
-
 /-- The serialized code of `c.append d` is `appendCode n c.code d.code`. -/
 theorem code_append {σ : Signature.{v}} {n m p : ℕ} (c : Circuit σ n m) (d : Circuit σ n p) :
     (c.append d).code = appendCode n c.code d.code := by
@@ -209,7 +205,7 @@ theorem code_append {σ : Signature.{v}} {n m p : ℕ} (c : Circuit σ n m) (d :
       (Program.appendedWire Wire.input ∘ d.outputs) j).toNat) =
       Fin.append (fun j => (c.outputs j).toNat)
         (shiftCodeWire n c.size ∘ fun j => (d.outputs j).toNat) :=
-    funext fun j => Fin.addCases (fun _ => by simp [toNat_castAdd])
+    funext fun j => Fin.addCases (fun _ => by simp)
       (fun _ => by simp [Program.appendedWire_toNat, appendWireCode_input]) j
   simp only [appendCode, Circuit.code, Circuit.append, Program.code_append, appendWireCode_input,
     Program.length_code, hout, List.ofFn_fin_append, List.map_ofFn]

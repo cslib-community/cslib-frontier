@@ -4855,6 +4855,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Copositive
 public import CslibFrontier.Foundations.Quantum.Algebra.GatedAgreement
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.CuckooHashing.Evict
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBox.Core
+public import CslibFrontier.Computability.Circuit.Encoding.Simulation
 public import CslibFrontier.Foundations.Data.BitString.WeightedEnumeration
 public import CslibFrontier.Computability.Automata.Weighted.Rat
 public import CslibFrontier.Computability.LogSpaceDerandomization.AtomCutoffs
