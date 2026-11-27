@@ -74,12 +74,7 @@ theorem HasValueDensity.integral_virtualValue_eq_zero {μ : Measure ℝ} [IsFini
     ∫ v, virtualValue μ f v ∂μ = 0 := by
   have hkey := hμ.integral_payment_eq_integral_virtualValue_mul (g := fun _ => (1 : ℝ))
     measurable_const (B := 1) (fun _ _ => by norm_num)
-  have hlhs : (fun v : ℝ => v * 1 - ∫ _ in (0 : ℝ)..v, (1 : ℝ)) = fun _ => 0 := by
-    funext v
-    rw [intervalIntegral.integral_const, smul_eq_mul]
-    ring
-  rw [hlhs, integral_zero] at hkey
-  simpa only [mul_one] using hkey.symm
+  simpa [intervalIntegral.integral_const] using hkey.symm
 
 namespace Vickrey
 
@@ -93,12 +88,10 @@ private noncomputable def auxAllocation {n : ℕ} (φ : ℝ → ℝ) (v : Fin (n
 
 private theorem auxAllocation_nonneg {n : ℕ} (φ : ℝ → ℝ) (v : Fin (n + 1) → ℝ) (i : Fin (n + 1)) :
     0 ≤ auxAllocation φ v i := by
-  refine Fin.lastCases ?_ ?_ i
-  · simp only [auxAllocation, Fin.snoc_last, sub_nonneg]
-    exact (reserveAllocation_mem_singleItemFeasible φ _).2
-  · intro j
-    simp only [auxAllocation, Fin.snoc_castSucc]
-    exact reserveAllocation_nonneg φ _ j
+  refine Fin.lastCases ?_ (fun j => ?_) i
+  · simpa only [auxAllocation, Fin.snoc_last, sub_nonneg] using
+      (reserveAllocation_mem_singleItemFeasible φ _).2
+  · simpa only [auxAllocation, Fin.snoc_castSucc] using reserveAllocation_nonneg φ _ j
 
 private theorem sum_auxAllocation {n : ℕ} (φ : ℝ → ℝ) (v : Fin (n + 1) → ℝ) :
     ∑ i : Fin (n + 1), auxAllocation φ v i = 1 := by
@@ -129,12 +122,11 @@ private theorem measurable_auxAllocation {n : ℕ} {φ : ℝ → ℝ} (hφ : Mea
     (i : Fin (n + 1)) : Measurable fun v : Fin (n + 1) → ℝ => auxAllocation φ v i := by
   have hproj : Measurable fun (v : Fin (n + 1) → ℝ) (j : Fin n) => v j.castSucc :=
     measurable_pi_iff.2 fun j => measurable_pi_apply j.castSucc
-  refine Fin.lastCases ?_ ?_ i
+  refine Fin.lastCases ?_ (fun j => ?_) i
   · simp only [auxAllocation, Fin.snoc_last]
     exact measurable_const.sub
       (Finset.measurable_sum Finset.univ fun j _ => (measurable_reserveAllocation hφ j).comp hproj)
-  · intro j
-    simp only [auxAllocation, Fin.snoc_castSucc]
+  · simp only [auxAllocation, Fin.snoc_castSucc]
     exact (measurable_reserveAllocation hφ j).comp hproj
 
 private theorem auxAllocation_abs_le_one {n : ℕ} (φ : ℝ → ℝ) (v : Fin (n + 1) → ℝ)
@@ -145,15 +137,11 @@ private theorem auxAllocation_abs_le_one {n : ℕ} (φ : ℝ → ℝ) (v : Fin (
 private theorem ae_pos {ι : Type*} [Fintype ι] {μ : Measure ℝ} [IsProbabilityMeasure μ]
     {f : ℝ → NNReal} {h : ℝ} (hμ : HasValueDensity μ f h) :
     ∀ᵐ v ∂Measure.pi (fun _ : ι => μ), ∀ i, 0 < v i := by
-  rw [ae_all_iff]
-  intro i
-  have h0 : ∀ᵐ x ∂μ, 0 < x := by
-    have := hμ.nullSingletonClass
-    have hne : ∀ᵐ x ∂μ, x ≠ 0 := by
-      rw [ae_iff]; simp only [ne_eq, not_not, ofPred_eq_eq_singleton, measure_singleton]
-    filter_upwards [hμ.ae_mem, hne] with x hx hne
-    exact lt_of_le_of_ne hx.1 hne.symm
-  exact (Measure.quasiMeasurePreserving_eval (fun _ : ι => μ) i).ae h0
+  have := hμ.nullSingletonClass
+  have hne : ∀ᵐ x ∂μ, x ≠ 0 := by simp [ae_iff]
+  refine ae_all_iff.2 fun i => (Measure.quasiMeasurePreserving_eval (fun _ : ι => μ) i).ae ?_
+  filter_upwards [hμ.ae_mem, hne] with x hx hne
+  exact lt_of_le_of_ne hx.1 hne.symm
 
 /-- **Bulow–Klemperer theorem (Myerson reserve vs. Vickrey with one extra bidder)**
 ([BulowKlemperer1996]; [Roughgarden2016], Theorem 5.6; [Hartline2021], Theorem 5.1.1; locators not
@@ -174,17 +162,11 @@ theorem integral_sum_payment_reserve_le_vickrey_succ
   have hB_vic : ∀ v : Fin (n + 1) → ℝ, 0 ≤ v → ∀ i, |allocation v i| ≤ 1 := fun v _ i => by
     rcases allocation_binary v i with h | h <;> rw [h] <;> norm_num
   -- Rewrite both sides as expected virtual welfare
-  have hLHS : ∫ v, ∑ i : Fin n, (myerson (reserveAllocation φ)).payment v i
-        ∂Measure.pi (fun _ : Fin n => μ) =
-      ∫ v, ∑ i : Fin n, φ (v i) * reserveAllocation φ v i ∂Measure.pi (fun _ : Fin n => μ) :=
-    integral_sum_myersonPayment_eq (fun _ => hμ)
-      (fun i => measurable_reserveAllocation hφm i) hB_res
-  have hRHS : ∫ v, ∑ i : Fin (n + 1), (Vickrey.mechanism (ι := Fin (n + 1))).payment v i
-        ∂Measure.pi (fun _ : Fin (n + 1) => μ) =
-      ∫ v, ∑ i : Fin (n + 1), φ (v i) * allocation v i ∂Measure.pi (fun _ : Fin (n + 1) => μ) :=
+  dsimp only [myerson]
+  rw [integral_sum_myersonPayment_eq (fun _ => hμ)
+      (fun i => measurable_reserveAllocation hφm i) hB_res,
     mechanism_isDSIC.integral_sum_payment_eq mechanism_isNormalized (fun _ => hμ)
-      (fun i => measurable_allocation i) hB_vic
-  rw [hLHS, hRHS]
+      (fun i => measurable_allocation i) hB_vic]
   -- Step 1: expected virtual welfare of `auxAllocation` on Fin (n + 1) equals the LHS
   have haux_int : ∀ i : Fin (n + 1),
       Integrable (fun v : Fin (n + 1) → ℝ => φ (v i) * auxAllocation φ v i)
@@ -215,10 +197,8 @@ theorem integral_sum_payment_reserve_le_vickrey_succ
         (Measure.pi fun _ : Fin n => μ) :=
       integrable_finsetSum _ fun i _ => integrable_virtualValue_mul (fun _ => hμ) i
         (measurable_reserveAllocation hφm i) (fun v hv => hB_res v hv i)
-    have hmap := integral_map hmp.measurable.aemeasurable
-      (by rw [hmp.map_eq]; exact hFint.aestronglyMeasurable)
-    rw [hmp.map_eq] at hmap
-    rw [hmap]
+    rw [← hmp.map_eq, integral_map hmp.measurable.aemeasurable
+      (hmp.map_eq.symm ▸ hFint.aestronglyMeasurable)]
     exact integral_congr_ae (.of_forall fun _ =>
       Finset.sum_congr rfl fun _ _ => by simp only [auxAllocation, Fin.snoc_castSucc])
   rw [haux_eq]
@@ -283,40 +263,29 @@ theorem integral_sum_payment_le_vickrey_succ_of_isBayesNash
     rcases (hMX b hb).1 i with h | h <;> rw [h] <;> norm_num
   have hB_res : ∀ v : Fin n → ℝ, 0 ≤ v → ∀ i, |reserveAllocation φ v i| ≤ 1 := fun v _ i => by
     rcases reserveAllocation_binary φ v i with h | h <;> rw [h] <;> norm_num
-  have hrev := hBN.integral_sum_payment_eq (fun _ => hμ) hp hx hB
-  have h0sum : ∑ i : Fin n, M.interimPayment (fun _ => μ) β i (β i 0) ≤ 0 :=
-    Finset.sum_nonpos fun i _ => h0 i
   have hvw_le : ∫ v, ∑ i : Fin n, φ (v i) * M.allocation (fun j => β j (v j)) i
         ∂Measure.pi (fun _ : Fin n => μ) ≤
-      ∫ v, ∑ i : Fin n, φ (v i) * reserveAllocation φ v i
+      ∫ v, ∑ i : Fin n, (myerson (reserveAllocation φ)).payment v i
         ∂Measure.pi (fun _ : Fin n => μ) := by
+    dsimp only [myerson, φ]
+    rw [integral_sum_myersonPayment_eq (fun _ => hμ)
+      (fun i => measurable_reserveAllocation hμ.measurable_virtualValue i) hB_res]
     have hmax := isVirtualWelfareMaximizing_reserveAllocation (ι := Fin n)
       (hreg.strictMonoOn_Ioi hμ).monotoneOn (virtualValue_le μ f 0)
-    have hIntL : Integrable (fun v : Fin n → ℝ =>
-        ∑ i : Fin n, φ (v i) * M.allocation (fun j => β j (v j)) i)
-        (Measure.pi fun _ : Fin n => μ) :=
-      integrable_finsetSum _ fun i _ => Integrable.mono'
-        ((integrable_comp_eval hμ.integrable_virtualValue).norm.mul_const 1)
+    refine integral_mono_ae
+      (integrable_finsetSum _ fun i _ => Integrable.mono'
+        (integrable_comp_eval hμ.integrable_virtualValue).norm
         ((hμ.measurable_virtualValue.comp (measurable_pi_apply i)).mul (hx i)).aestronglyMeasurable
-        (by
-          filter_upwards [ae_mem_box fun _ : Fin n => hμ] with v hv
-          rw [norm_mul, mul_one]
-          exact mul_le_of_le_one_right (norm_nonneg _) (hB _ (fun j => hBN.nonneg (hv j)) i))
-    have hIntR : Integrable (fun v : Fin n → ℝ =>
-        ∑ i : Fin n, φ (v i) * reserveAllocation φ v i)
-        (Measure.pi fun _ : Fin n => μ) :=
-      integrable_finsetSum _ fun i _ => integrable_virtualValue_mul (fun _ => hμ) i
-        (measurable_reserveAllocation hμ.measurable_virtualValue i) (fun v hv => hB_res v hv i)
-    refine integral_mono_ae hIntL hIntR ?_
+        ((ae_mem_box fun _ : Fin n => hμ).mono fun v hv => by
+          simp only [norm_mul, Real.norm_eq_abs]
+          exact mul_le_of_le_one_right (abs_nonneg _) (hB _ (fun j => hBN.nonneg (hv j)) i)))
+      (integrable_finsetSum _ fun i _ => integrable_virtualValue_mul (fun _ => hμ) i
+        (measurable_reserveAllocation hμ.measurable_virtualValue i) (fun v hv => hB_res v hv i)) ?_
     filter_upwards [ae_mem_box fun _ : Fin n => hμ] with v hv
     exact (hmax v fun j => (hv j).1).2 _ (hMX _ fun j => hBN.nonneg (hv j))
-  have hMyerson : ∫ v, ∑ i : Fin n, φ (v i) * reserveAllocation φ v i
-        ∂Measure.pi (fun _ : Fin n => μ) =
-      ∫ v, ∑ i : Fin n, (myerson (reserveAllocation φ)).payment v i
-        ∂Measure.pi (fun _ : Fin n => μ) :=
-    (integral_sum_myersonPayment_eq (fun _ => hμ)
-      (fun i => measurable_reserveAllocation hμ.measurable_virtualValue i) hB_res).symm
-  linarith [integral_sum_payment_reserve_le_vickrey_succ hμ hreg n]
+  linarith [hBN.integral_sum_payment_eq (fun _ => hμ) hp hx hB,
+    Finset.sum_nonpos (s := Finset.univ) fun i _ => h0 i,
+    integral_sum_payment_reserve_le_vickrey_succ hμ hreg n]
 
 end Vickrey
 

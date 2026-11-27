@@ -80,16 +80,10 @@ theorem senderIdeal_run {State Output : Type} (A : Sender State) (k : ℕ)
   simp only [senderIdeal, StateT.run_bind]
   simp only [pmf_norm, simulatedOpening, StateT.lift, StateT.run, Phased.handler,
     OracleComp.sumHandler, Phased.advance, Phased.observe]
-  apply congrArg (initial.bind)
-  funext st
-  apply congrArg ((senderTables A k st).bind)
-  apply funext
-  rintro ⟨ts, final⟩
-  apply congrArg ((PMF.uniformOfFintype (Fin k → Bool)).bind)
-  funext choices
-  apply congrArg ((finish final).bind)
-  apply funext
-  rintro ⟨submission, out⟩
+  refine congrArg initial.bind (funext fun st => ?_)
+  refine congrArg (senderTables A k st).bind (funext fun ⟨ts, final⟩ => ?_)
+  refine congrArg (PMF.uniformOfFintype (Fin k → Bool)).bind (funext fun choices => ?_)
+  refine congrArg (finish final).bind (funext fun ⟨submission, out⟩ => ?_)
   split <;>
     change PMF.map Prod.fst (StateT.run (m := PMF) _ _) = _
   all_goals simp only [StateT.run_bind, StateT.run_pure]
@@ -189,12 +183,8 @@ theorem receiverIdeal_eq_real {State Later Output : Type} (A : Receiver State) (
   simp only [receiverIdeal, receiverPrefix, StateT.run_bind, StateT.run_pure]
   simp only [pmf_norm, StateT.lift, StateT.run, Phased.handler, OracleComp.sumHandler,
     Phased.advance, Phased.observe]
-  apply congrArg ((receiverRun A false k st).bind)
-  apply funext
-  rintro ⟨transcript, final⟩
-  apply congrArg ((plan transcript final).bind)
-  apply funext
-  rintro ⟨release, later⟩
+  refine congrArg (receiverRun A false k st).bind (funext fun ⟨transcript, final⟩ => ?_)
+  refine congrArg (plan transcript final).bind (funext fun ⟨release, later⟩ => ?_)
   cases release <;> simp only [Bool.false_eq_true, ↓reduceIte]
   all_goals
     change PMF.map Prod.fst (StateT.run (m := PMF) _ _) = _

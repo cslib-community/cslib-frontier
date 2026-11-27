@@ -170,9 +170,7 @@ theorem eval_coalitionQuery_shamir {ι : Type} [Fintype ι] [DecidableEq ι] [De
 theorem isTPrivate_shamir {ι : Type} [Fintype ι] [DecidableEq ι] (params : Shamir.Params F S) :
     (shamir ι params).IsTPrivate params.threshold := by
   classical
-  rw [Scheme.isTPrivate_iff]
-  intro T hT i i'
-  rw [eval_coalitionQuery_shamir params T hT i, eval_coalitionQuery_shamir params T hT i']
+  exact (Scheme.isTPrivate_iff _ _).2 fun T hT i i' => by simp [eval_coalitionQuery_shamir, hT]
 
 /-- On every supported query draw of `PIR.shamir`, Lagrange interpolation at `0` of the honest
 server answers equals `1` if `x i = true` and `0` if `x i = false`. -/
@@ -202,10 +200,8 @@ theorem reconstruct_answer_shamir {ι : Type} [Fintype ι] [DecidableEq ι]
 theorem isCorrect_shamir {ι : Type} [Fintype ι] [DecidableEq ι] (params : Shamir.Params F S) :
     (shamir ι params).IsCorrect := by
   classical
-  rw [Scheme.isCorrect_iff]
-  intro x i r q hrq
-  rw [reconstruct_shamir, reconstruct_answer_shamir params x i hrq]
-  cases x i <;> simp
+  exact (Scheme.isCorrect_iff _).2 fun x i r q hrq => by
+    by_cases hxi : x i <;> simp [reconstruct_shamir, reconstruct_answer_shamir params x i hrq, hxi]
 
 /-- **Sharpness of the collusion threshold**: `(params.threshold + 1)` servers are authorized in
 Shamir secret sharing and can reconstruct the target index, so `PIR.shamir` is not
@@ -258,9 +254,8 @@ theorem isTPrivate_shamirCube {D ι : Type} [Fintype D] [DecidableEq D] [Fintype
     (params : Shamir.Params F S) :
     (shamirCube D ι params).IsTPrivate params.threshold := by
   classical
-  rw [Scheme.isTPrivate_iff]
-  intro T hT i i'
-  rw [eval_coalitionQuery_shamirCube params T hT i, eval_coalitionQuery_shamirCube params T hT i']
+  exact (Scheme.isTPrivate_iff _ _).2 fun T hT i i' => by
+    simp [eval_coalitionQuery_shamirCube, hT]
 
 /-- **Sharpness of the collusion threshold for `PIR.shamirCube`**: even when `|S| > |D| * t`
 servers are used for degree-`d t` reconstruction, any `params.threshold + 1` colluding servers can
@@ -310,34 +305,29 @@ theorem reconstruct_answer_shamirCube {D ι : Type} [Fintype D] [DecidableEq D]
     simp only [poly, term, _root_.Polynomial.eval_finsetSum]
     refine Finset.sum_congr rfl fun j _ => ?_
     by_cases hxj : x j <;> simp [hxj, _root_.Polynomial.eval_prod, factor, Shamir.share]
-  have hpoly_deg : poly.degree < Fintype.card S := by
-    refine _root_.Polynomial.degree_le_natDegree.trans_lt ?_
-    suffices poly.natDegree ≤ Fintype.card D * params.threshold by
-      exact_mod_cast this.trans_lt hdeg
-    refine _root_.Polynomial.natDegree_sum_le_of_forall_le _ _ fun j _ => ?_
-    by_cases hxj : x j
-    · simp only [term, hxj, ↓reduceIte]
-      refine (_root_.Polynomial.natDegree_prod_le _ _).trans ?_
-      exact (Finset.sum_le_sum fun l _ =>
-        Shamir.Polynomial.natDegree_sharingPolynomial_le _ _
-          (Shamir.Polynomial.tailPolynomial_degree_lt _ _)).trans_eq (by simp)
-    · simp [term, hxj]
+  have hpoly_deg : poly.degree < Fintype.card S :=
+    _root_.Polynomial.degree_le_natDegree.trans_lt <| WithBot.coe_lt_coe.2 <|
+      (_root_.Polynomial.natDegree_sum_le_of_forall_le _ _ fun j _ => by
+        by_cases hxj : x j
+        · simp only [term, hxj, ↓reduceIte]
+          exact (_root_.Polynomial.natDegree_prod_le _ _).trans
+            ((Finset.sum_le_sum fun l _ => Shamir.Polynomial.natDegree_sharingPolynomial_le _ _
+              (Shamir.Polynomial.tailPolynomial_degree_lt _ _)).trans_eq (by simp))
+        · simp [term, hxj]).trans_lt hdeg
   dsimp only [shamirCube]
   rw [hans,
     Shamir.Polynomial.reconstruct_eq_constantCoeff_of_eval_eq params.point_injective hpoly_deg]
   simp only [poly, term, map_sum _root_.Polynomial.constantCoeff]
   rw [Finset.sum_eq_single i ?_ (fun hi => (hi (Finset.mem_univ i)).elim)]
-  · by_cases hxi : x i
-    · simp only [hxi, ↓reduceIte, map_prod _root_.Polynomial.constantCoeff, factor,
-        Shamir.Polynomial.constantCoeff_sharingPolynomial, Finset.prod_const_one]
-    · simp [hxi]
+  · by_cases hxi : x i <;> simp only [hxi, Bool.false_eq_true, ↓reduceIte, map_zero,
+      map_prod _root_.Polynomial.constantCoeff, factor,
+      Shamir.Polynomial.constantCoeff_sharingPolynomial, Finset.prod_const_one]
   · intro j _ hji
     obtain ⟨l₀, hl₀⟩ := Function.ne_iff.mp hji
-    by_cases hxj : x j
-    · simp only [hxj, ↓reduceIte, map_prod _root_.Polynomial.constantCoeff]
-      exact Finset.prod_eq_zero (Finset.mem_univ l₀) (by
-        simp only [factor, hl₀, ↓reduceIte, Shamir.Polynomial.constantCoeff_sharingPolynomial])
-    · simp [hxj]
+    cases hxj : x j <;> simp only [Bool.false_eq_true, ↓reduceIte, map_zero,
+      map_prod _root_.Polynomial.constantCoeff]
+    exact Finset.prod_eq_zero (Finset.mem_univ l₀)
+      (by simp only [factor, hl₀, ↓reduceIte, Shamir.Polynomial.constantCoeff_sharingPolynomial])
 
 /-- **Degree-`d` polynomial PIR is perfectly correct** whenever `|D| * params.threshold < |S|`:
 each server evaluates a polynomial of degree at most `|D| * t` whose constant term is `1` if `x i`
@@ -346,8 +336,7 @@ theorem isCorrect_shamirCube {D ι : Type} [Fintype D] [DecidableEq D] [Fintype 
     (params : Shamir.Params F S) (hdeg : Fintype.card D * params.threshold < Fintype.card S) :
     (shamirCube D ι params).IsCorrect := by
   classical
-  rw [Scheme.isCorrect_iff]
-  intro x i r q hrq
+  refine (Scheme.isCorrect_iff _).2 fun x i r q hrq => ?_
   rw [reconstruct_shamirCube, reconstruct_answer_shamirCube params hdeg x i hrq]
   cases x i <;> simp
 
@@ -406,9 +395,8 @@ theorem hasTPrivateScheme_of_le_mul_self (params : Shamir.Params F S) {n m : ℕ
   refine (((isCorrect_shamir (ι := Fin m) params).rows (Fin m)).hasTPrivateScheme
     ((isTPrivate_shamir (ι := Fin m) params).rows (Fin m))).mono ?_ |>.fin_of_le_card
     (by simpa using h)
-  have hcomm := communication_shamir_rows_le (F := F) (S := S) (ρ := Fin m) (ι := Fin m)
-  simp only [Fintype.card_fin] at hcomm
-  linarith
+  simpa only [Fintype.card_fin, two_mul] using
+    communication_shamir_rows_le (F := F) (S := S) (ρ := Fin m) (ι := Fin m)
 
 /-- **Unbalanced `(d t + 1)`-server `O(n ^ (1 / d))` `t`-private PIR**: whenever
 `d * params.threshold < |S|` and `n ≤ ℓ ^ d`, `PIR.shamirCube` gives a perfectly correct `t`-private
@@ -436,10 +424,8 @@ theorem hasTPrivateScheme_rows_of_le_pow (params : Shamir.Params F S) {n d ℓ :
   refine (((isCorrect_shamirCube (D := Fin d) (ι := Fin ℓ) params (by simpa using hdeg)).rows
     (Fin ℓ)).hasTPrivateScheme ((isTPrivate_shamirCube params).rows (Fin ℓ))).mono ?_
     |>.fin_of_le_card (by simpa [pow_succ'] using h)
-  have hcomm :=
+  simpa only [Fintype.card_fin, add_one_mul, one_mul] using
     communication_shamirCube_rows_le (F := F) (S := S) (ρ := Fin ℓ) (D := Fin d) (ι := Fin ℓ)
-  simp only [Fintype.card_fin] at hcomm
-  nlinarith
 
 end ShamirBounds
 

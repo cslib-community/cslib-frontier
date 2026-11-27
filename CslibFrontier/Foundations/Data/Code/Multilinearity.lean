@@ -127,8 +127,7 @@ instance [Fintype F] [DecidableEq F] : DecidablePred (IsAffineFun (F := F)) :=
 /-- An affine function is determined by its values at `0` and `1`. -/
 theorem isAffineFun_iff {g : F → F} : IsAffineFun g ↔ ∀ t, g t = (g 1 - g 0) * t + g 0 := by
   refine ⟨fun ⟨a, b, h⟩ t => ?_, fun h => ⟨_, _, h⟩⟩
-  rw [h t, h 1, h 0]
-  ring
+  rw [h t, h 1, h 0]; ring
 
 /-- Affine functions of one variable are the underlying functions of Mathlib's affine maps. -/
 theorem isAffineFun_iff_exists_affineMap {g : F → F} :
@@ -155,15 +154,13 @@ theorem isAffineFun_one_sub : IsAffineFun fun t : F => 1 - t :=
 /-- The sum of affine functions is affine. -/
 theorem IsAffineFun.add {g h : F → F} (hg : IsAffineFun g) (hh : IsAffineFun h) :
     IsAffineFun fun t => g t + h t := by
-  obtain ⟨a, b, hg⟩ := hg
-  obtain ⟨c, d, hh⟩ := hh
+  rcases hg, hh with ⟨⟨a, b, hg⟩, ⟨c, d, hh⟩⟩
   exact ⟨a + c, b + d, fun t => by simp only [hg, hh]; ring⟩
 
 /-- The difference of affine functions is affine. -/
 theorem IsAffineFun.sub {g h : F → F} (hg : IsAffineFun g) (hh : IsAffineFun h) :
     IsAffineFun fun t => g t - h t := by
-  obtain ⟨a, b, hg⟩ := hg
-  obtain ⟨c, d, hh⟩ := hh
+  rcases hg, hh with ⟨⟨a, b, hg⟩, ⟨c, d, hh⟩⟩
   exact ⟨a - c, b - d, fun t => by simp only [hg, hh]; ring⟩
 
 /-- A constant multiple of an affine function is affine. -/
@@ -191,8 +188,7 @@ theorem isAffineFun_sum {κ : Type*} (s : Finset κ) {g : κ → F → F}
 /-- **Affine functions agreeing at two points are equal.** -/
 theorem IsAffineFun.eq_of_eq_of_eq {g h : F → F} (hg : IsAffineFun g) (hh : IsAffineFun h) {s u : F}
     (hsu : s ≠ u) (hs : g s = h s) (hu : g u = h u) : g = h := by
-  obtain ⟨a, b, hg⟩ := hg
-  obtain ⟨c, d, hh⟩ := hh
+  rcases hg, hh with ⟨⟨a, b, hg⟩, ⟨c, d, hh⟩⟩
   rw [hg, hh] at hs hu
   obtain rfl : a = c := sub_eq_zero.mp
     ((mul_eq_zero.mp (by linear_combination hs - hu : (a - c) * (s - u) = 0)).resolve_right
@@ -246,16 +242,12 @@ private theorem IsMultilinear.eq_zero_aux [Fintype ι] {h : (ι → F) → F} (h
       have hc (c : F) (hc : c = 0 ∨ c = 1) : h (update x i c) = 0 := by
         refine ih _ ?_
         have hsub : ({j | update x i c j ≠ 0 ∧ update x i c j ≠ 1} : Finset ι) ⊆
-            ({j | x j ≠ 0 ∧ x j ≠ 1} : Finset ι).erase i := by
-          intro j hj
+            ({j | x j ≠ 0 ∧ x j ≠ 1} : Finset ι).erase i := fun j hj => by
           simp only [mem_filter, mem_univ, true_and] at hj
           rcases eq_or_ne j i with rfl | hji
-          · simp only [update_self] at hj
-            rcases hc with rfl | rfl <;> exact absurd rfl (by tauto)
-          · simp only [update_of_ne hji] at hj
-            exact mem_erase.2 ⟨hji, mem_filter.2 ⟨mem_univ j, hj⟩⟩
-        have hmem : i ∈ ({j | x j ≠ 0 ∧ x j ≠ 1} : Finset ι) := by simp [hi]
-        have := (card_le_card hsub).trans_eq (card_erase_of_mem hmem)
+          · rcases hc with rfl | rfl <;> simp at hj
+          · simpa [hji] using hj
+        have := (card_le_card hsub).trans_eq (card_erase_of_mem (by simp [hi]))
         omega
       have hline := (hh x i).eq_of_eq_of_eq (isAffineFun_const 0) zero_ne_one
         (hc 0 (Or.inl rfl)) (hc 1 (Or.inr rfl))
@@ -286,19 +278,17 @@ theorem isMultilinear_eval_multilinearExtension [Fintype ι] (g : (ι → Bool) 
   simp only [eval_multilinearExtension_eq_sum, eval_indicatorPoly_apply, key]
   refine isAffineFun_sum _ fun a _ => (IsAffineFun.mul_const ?_ _).const_mul (g a)
   split_ifs
-  · exact isAffineFun_id
-  · exact isAffineFun_one_sub
+  exacts [isAffineFun_id, isAffineFun_one_sub]
 
 /-- **Multilinear functions are multilinear extensions**: a function on `F ^ ι` is multilinear
 exactly when it evaluates the multilinear extension of its values on the cube. -/
 theorem isMultilinear_iff_eq_eval_multilinearExtension [Fintype ι] {f : (ι → F) → F} :
     IsMultilinear f ↔ f = fun x => eval x (multilinearExtension fun b => f (bitPoint b)) := by
-  refine ⟨fun hf => ?_, fun h => by rw [h]; exact isMultilinear_eval_multilinearExtension _⟩
-  have := IsMultilinear.eq_zero_of_forall_bitPoint
-    (hf.sub (isMultilinear_eval_multilinearExtension fun b => f (bitPoint b))) fun b => by
-      simp only [Pi.sub_apply, eval_multilinearExtension, sub_self]
-  funext x
-  exact sub_eq_zero.mp (congrFun this x)
+  refine ⟨fun hf => funext fun x => sub_eq_zero.mp ?_,
+    fun h => h ▸ isMultilinear_eval_multilinearExtension _⟩
+  exact congrFun (IsMultilinear.eq_zero_of_forall_bitPoint
+    (hf.sub (isMultilinear_eval_multilinearExtension _))
+    fun b => by simp [eval_multilinearExtension]) x
 
 /-- The evaluation of a polynomial of degree at most one in each variable is multilinear. -/
 theorem isMultilinear_eval_of_mem_restrictDegree [Finite ι] {P : MvPolynomial ι F}
@@ -308,10 +298,7 @@ theorem isMultilinear_eval_of_mem_restrictDegree [Finite ι] {P : MvPolynomial �
   unfold lineRestrict
   simp only [eval_eq']
   refine isAffineFun_sum _ fun s hs => IsAffineFun.const_mul ?_ _
-  have key (t : F) : (∏ j, update x i t j ^ s j) =
-      t ^ s i * ∏ j ∈ univ.erase i, x j ^ s j :=
-    prod_apply_update_of_mem (mem_univ i) (fun j (y : F) => y ^ s j) x t
-  simp only [key]
+  simp only [prod_apply_update_of_mem (mem_univ i) (fun j (y : F) => y ^ s j) x]
   refine IsAffineFun.mul_const ?_ _
   rcases Nat.le_one_iff_eq_zero_or_eq_one.mp ((mem_restrictDegree ι P 1).mp hP s hs i) with h | h
   · simpa [h] using isAffineFun_const (1 : F)
@@ -321,10 +308,9 @@ theorem isMultilinear_eval_of_mem_restrictDegree [Finite ι] {P : MvPolynomial �
 theorem isMultilinear_iff_exists_mem_restrictDegree [Finite ι] {f : (ι → F) → F} :
     IsMultilinear f ↔ ∃ P ∈ restrictDegree ι F 1, f = fun x => eval x P := by
   have := Fintype.ofFinite ι
-  refine ⟨fun hf => ⟨_, multilinearExtension_mem_restrictDegree _,
-    isMultilinear_iff_eq_eval_multilinearExtension.mp hf⟩, ?_⟩
-  rintro ⟨P, hP, rfl⟩
-  exact isMultilinear_eval_of_mem_restrictDegree hP
+  exact ⟨fun hf => ⟨_, multilinearExtension_mem_restrictDegree _,
+      isMultilinear_iff_eq_eval_multilinearExtension.mp hf⟩,
+    fun ⟨_, hP, h⟩ => h ▸ isMultilinear_eval_of_mem_restrictDegree hP⟩
 
 end Multilinear
 
@@ -351,8 +337,7 @@ theorem multilinearityTestRejection_eq (f : (ι → F) → F) :
     multilinearityTestRejection f =
       𝔼 i, (#(wrongPoints f i) : ℝ) / Fintype.card (ι → F) := by
   refine expect_congr rfl fun i _ => ?_
-  rw [Fintype.expect_eq_sum_div_card, wrongPoints, Finset.natCast_card_filter]
-  simp only [ite_not]
+  simp [Fintype.expect_eq_sum_div_card, wrongPoints, Finset.natCast_card_filter, ite_not]
 
 /-- The rejection probability is nonnegative. -/
 theorem multilinearityTestRejection_nonneg (f : (ι → F) → F) :
@@ -409,15 +394,11 @@ theorem isMultilinear_sliceInterpolant {n : ℕ} (t₁ t₂ : F) {g₁ g₂ : (F
       g₁ (Fin.tail x) - t₁ * ((g₂ (Fin.tail x) - g₁ (Fin.tail x)) / (t₂ - t₁)),
       fun t => by ring⟩
   | succ j =>
-    have hsucc : lineRestrict (sliceInterpolant t₁ t₂ g₁ g₂) x j.succ = fun t =>
-        lineRestrict g₁ (Fin.tail x) j t +
-          (x 0 - t₁) / (t₂ - t₁) *
-            (lineRestrict g₂ (Fin.tail x) j t - lineRestrict g₁ (Fin.tail x) j t) := by
-      funext t
-      simp only [sliceInterpolant, lineRestrict, Fin.tail_update_succ,
-        update_of_ne (Fin.succ_ne_zero j).symm]
-    rw [hsucc]
-    exact (hg₁ _ j).add (((hg₂ _ j).sub (hg₁ _ j)).const_mul _)
+    unfold lineRestrict
+    simpa only [sliceInterpolant, lineRestrict, Fin.tail_update_succ,
+      update_of_ne (Fin.succ_ne_zero j).symm] using
+      (hg₁ (Fin.tail x) j).add (((hg₂ (Fin.tail x) j).sub (hg₁ (Fin.tail x) j)).const_mul
+        ((x 0 - t₁) / (t₂ - t₁)))
 
 section Soundness
 
@@ -453,10 +434,8 @@ private theorem exists_two_mul_le_sum (D : F → ℕ) :
     rw [← add_sum_erase _ _ (mem_univ t₁)]
     exact Nat.add_le_add_left
       (by simpa [card_erase_of_mem (mem_univ t₁)] using card_nsmul_le_sum _ D (D t₂) h₂) _
-  have hq : 2 ≤ Fintype.card F := Fintype.one_lt_card
-  obtain ⟨m, hm⟩ : ∃ m, Fintype.card F = m + 2 := ⟨_, (Nat.sub_add_cancel hq).symm⟩
+  obtain ⟨m, hm⟩ := Nat.exists_eq_add_of_le' (Fintype.one_lt_card (α := F))
   rw [hm] at hsum ⊢
-  rw [show m + 2 - 1 = m + 1 by omega] at hsum
   have h12 : D t₁ ≤ D t₂ := h₁ t₂ (mem_univ _)
   calc (m + 2) * (D t₁ + D t₂)
       = 2 * D t₁ + m * D t₁ + (m + 2) * D t₂ := by ring
@@ -530,11 +509,9 @@ theorem exists_isMultilinear_hammingDist_le (f : (Fin n → F) → F) :
             2 ^ (j : ℕ) * #(wrongPoints (fun y => f (Fin.cons t y)) j) :=
         Nat.add_le_add_left (Nat.mul_le_mul_left _ (sum_le_sum fun t _ => hdist t)) _
       _ = ∑ i : Fin (n + 1), 2 ^ (i : ℕ) * #(wrongPoints f i) := by
-        rw [Fin.sum_univ_succ, sum_comm, mul_sum]
+        rw [Fin.sum_univ_succ, sum_comm]
         simp only [card_wrongPoints_succ, mul_sum, Fin.val_zero, pow_zero, one_mul,
-          Fin.val_succ, pow_succ]
-        congr 1
-        refine sum_congr rfl fun j _ => sum_congr rfl fun t _ => by ring
+          Fin.val_succ, pow_succ', mul_assoc]
 
 /-- **Quantitative soundness of the multilinearity test**, as a probability: some multilinear `g`
 is within relative distance `n * 2 ^ (n - 1) * ρ` of `f`, where `ρ` is the rejection probability
@@ -548,11 +525,10 @@ theorem exists_isMultilinear_hammingDist_div_le (f : (Fin n → F) → F) :
   refine ⟨g, hg, ?_⟩
   have hcard : (0 : ℝ) < Fintype.card (Fin n → F) := by exact_mod_cast Fintype.card_pos
   rcases Nat.eq_zero_or_pos n with rfl | hn
-  · have : hammingDist f g = 0 := by simpa using hdist
-    simp [this]
+  · have h0 : hammingDist f g = 0 := by simpa [Finset.univ_eq_empty] using hdist
+    simp [h0]
   rw [multilinearityTestRejection_eq, Fintype.expect_eq_sum_div_card, Fintype.card_fin,
     ← sum_div, div_le_iff₀ hcard]
-  have hn' : (n : ℝ) ≠ 0 := by exact_mod_cast hn.ne'
   calc (hammingDist f g : ℝ)
       ≤ ∑ i : Fin n, (2 : ℝ) ^ (i : ℕ) * #(wrongPoints f i) := by exact_mod_cast hdist
     _ ≤ ∑ i : Fin n, (2 : ℝ) ^ (n - 1) * #(wrongPoints f i) :=

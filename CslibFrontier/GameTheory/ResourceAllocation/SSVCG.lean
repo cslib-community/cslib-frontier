@@ -191,9 +191,7 @@ theorem allocation_isSocialOptimum {M : SSVCGMechanism ι} (hC : 0 ≤ M.capacit
   have hex : ∃ d, (M.reportedGame θ).IsSocialOptimum d :=
     KellyGame.exists_isSocialOptimum hC fun i =>
       (hfam.admissible (θ i) (hθ i)).continuousOn.mono Icc_subset_Ici_self
-  unfold allocation
-  simp only [hex, ↓reduceDIte]
-  exact Classical.choose_spec hex
+  simpa only [allocation, hex, ↓reduceDIte] using Classical.choose_spec hex
 
 theorem allocation_eq_of_isSocialOptimum {M : SSVCGMechanism ι} (hC : 0 ≤ M.capacity)
     (hfam : IsSSVCGSurrogateFamily M.surrogate) {θ : ι → ℝ} (hθ : ∀ i, 0 < θ i)
@@ -207,31 +205,24 @@ theorem allocation_eq_of_isSocialOptimum {M : SSVCGMechanism ι} (hC : 0 ≤ M.c
   rw [huniq (M.allocation θ) (allocation_isSocialOptimum hC hfam hθ), huniq d hd]
 
 theorem clarkePivot_update_self [DecidableEq ι] (θ : ι → ℝ) (i : ι) (t : ℝ) :
-    M.clarkePivot (Function.update θ i t) i = M.clarkePivot θ i := by
-  unfold clarkePivot
-  congr 1
-  ext y
-  simp only [mem_image, Set.mem_ofPred_eq, KellyGame.IsFeasibleAllocation, reportedGame]
-  constructor <;> rintro ⟨x, hx, rfl⟩ <;> exact ⟨x, hx, Finset.sum_congr rfl fun j hj => by
-    rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)]⟩
+    M.clarkePivot (Function.update θ i t) i = M.clarkePivot θ i :=
+  congrArg sSup (image_congr fun _ _ => Finset.sum_congr rfl fun j hj => by
+    rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)])
 
 /-- Clarke-pivot SSVCG payments are always nonnegative for admissible surrogate families. -/
 theorem payment_nonneg [DecidableEq ι] {M : SSVCGMechanism ι} (hC : 0 ≤ M.capacity)
     (hfam : IsSSVCGSurrogateFamily M.surrogate) {θ : ι → ℝ} (hθ : ∀ i, 0 < θ i) (i : ι) :
     0 ≤ M.payment θ i := by
-  unfold payment clarkePivot
-  rw [sub_nonneg]
-  have hfeas := (allocation_isSocialOptimum hC hfam hθ).1
+  rw [payment, clarkePivot, sub_nonneg]
   have hcont : ContinuousOn
       (fun x : ι → ℝ => ∑ j ∈ Finset.univ.erase i, M.surrogate (θ j) (x j))
-      {x | (M.reportedGame θ).IsFeasibleAllocation x} := by
-    refine continuousOn_finsetSum _ fun j _ => ?_
-    have hj_cont : ContinuousOn (M.surrogate (θ j)) (Icc 0 M.capacity) :=
-      (hfam.admissible (θ j) (hθ j)).continuousOn.mono Icc_subset_Ici_self
-    exact hj_cont.comp (continuous_apply j).continuousOn fun x hx =>
-      ⟨hx.1 j, (M.reportedGame θ).isFeasibleAllocation_le_capacity hx j⟩
+      {x | (M.reportedGame θ).IsFeasibleAllocation x} :=
+    continuousOn_finsetSum _ fun j _ =>
+      ((hfam.admissible (θ j) (hθ j)).continuousOn.mono Icc_subset_Ici_self).comp
+        (continuous_apply j).continuousOn fun x hx =>
+        ⟨hx.1 j, (M.reportedGame θ).isFeasibleAllocation_le_capacity hx j⟩
   exact le_csSup (KellyGame.isCompact_isFeasibleAllocation.image_of_continuousOn hcont).bddAbove
-    ⟨M.allocation θ, hfeas, rfl⟩
+    ⟨M.allocation θ, (allocation_isSocialOptimum hC hfam hθ).1, rfl⟩
 
 end Basic
 
@@ -251,57 +242,43 @@ private theorem hybridGame_welfare_eq (M : SSVCGMechanism ι) (U : ι → ℝ �
     (x : ι → ℝ) :
     (M.hybridGame U θ i).welfare x =
       U i (x i) + ∑ j ∈ Finset.univ.erase i, M.surrogate (θ j) (x j) := by
-  unfold KellyGame.welfare hybridGame
-  dsimp only
-  rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i), Function.update_self]
-  congr 1
-  exact Finset.sum_congr rfl fun j hj => by
-    rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)]
+  simp only [KellyGame.welfare, hybridGame, ← Finset.add_sum_erase _ _ (Finset.mem_univ i),
+    Function.update_self]
+  exact congrArg (U i (x i) + ·) (Finset.sum_congr rfl fun j hj => by
+    rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)])
 
 private theorem payoff_eq_hybridWelfare_sub_pivot (M : SSVCGMechanism ι) (U : ι → ℝ → ℝ)
     (θ : ι → ℝ) (i : ι) :
     M.payoff U θ i = (M.hybridGame U θ i).welfare (M.allocation θ) - M.clarkePivot θ i := by
-  rw [payoff, payment, hybridGame_welfare_eq]
-  ring
+  rw [payoff, payment, hybridGame_welfare_eq]; ring
 
 omit [Fintype ι] in
 private theorem update_pos {θ : ι → ℝ} (hθ : ∀ j, 0 < θ j) {i : ι} {t : ℝ} (ht : 0 < t)
     (j : ι) : 0 < Function.update θ i t j := by
-  rcases eq_or_ne j i with rfl | hji
-  · simpa using ht
-  · simpa [hji] using hθ j
+  rcases eq_or_ne j i with rfl | hji <;> simp [*, hθ j]
 
 omit [Fintype ι] in
 private theorem hybridGame_update_self (M : SSVCGMechanism ι) (U : ι → ℝ → ℝ) (θ : ι → ℝ)
-    (i : ι) (t : ℝ) : M.hybridGame U (Function.update θ i t) i = M.hybridGame U θ i := by
-  unfold hybridGame
-  congr 1
-  ext j
-  rcases eq_or_ne j i with rfl | hji <;> simp [*]
+    (i : ι) (t : ℝ) : M.hybridGame U (Function.update θ i t) i = M.hybridGame U θ i :=
+  congrArg (KellyGame.mk M.capacity) (funext fun j => by
+    rcases eq_or_ne j i with rfl | hji <;> simp [*])
 
 omit [Fintype ι] in
 private theorem hybridGame_admissible {M : SSVCGMechanism ι}
     (hfam : IsSSVCGSurrogateFamily M.surrogate) {U : ι → ℝ → ℝ}
     {θ : ι → ℝ} (hθ : ∀ j, 0 < θ j) {i : ι} (hUi : IsAdmissibleUtility (U i)) (j : ι) :
     IsAdmissibleUtility ((M.hybridGame U θ i).utility j) := by
-  unfold hybridGame
-  dsimp only
-  rcases eq_or_ne j i with rfl | hji
-  · rwa [Function.update_self]
-  · rw [Function.update_of_ne hji]
-    exact hfam.admissible (θ j) (hθ j)
+  rcases eq_or_ne j i with rfl | hji <;> simp [hybridGame, *, hfam.admissible (θ j) (hθ j)]
 
 omit [Fintype ι] in
 private theorem hybridGame_strictMonoOn {M : SSVCGMechanism ι}
     (hfam : IsSSVCGSurrogateFamily M.surrogate) {U : ι → ℝ → ℝ}
     {θ : ι → ℝ} (hθ : ∀ j, 0 < θ j) {i : ι} (hUi : StrictMonoOn (U i) (Ici 0)) :
     ∀ j, StrictMonoOn ((M.hybridGame U θ i).utility j) (Icc 0 M.capacity) := fun j => by
-  unfold hybridGame; dsimp only
   rcases eq_or_ne j i with rfl | hji
-  · rw [Function.update_self]
-    exact hUi.mono Icc_subset_Ici_self
-  · rw [Function.update_of_ne hji]
-    exact (hfam.admissible (θ j) (hθ j)).strictMonoOn.mono Icc_subset_Ici_self
+  · simpa only [hybridGame, Function.update_self] using hUi.mono Icc_subset_Ici_self
+  · simpa only [hybridGame, Function.update_of_ne hji] using
+      (hfam.admissible (θ j) (hθ j)).strictMonoOn.mono Icc_subset_Ici_self
 
 private theorem hybridGame_isSocialOptimum_of_reported_update {M : SSVCGMechanism ι}
     (hC : 0 ≤ M.capacity) (hfam : IsSSVCGSurrogateFamily M.surrogate) {U : ι → ℝ → ℝ}
@@ -339,9 +316,7 @@ theorem isNashEquilibrium_iff {M : SSVCGMechanism ι} (hC : 0 < M.capacity)
     have hθ' : ∀ j, 0 < θ' j := update_pos hθ ht_pos
     have hd_eq (j : ι) : derivWithin ((M.reportedGame θ').utility j) (Ici 0) (xStar j) =
         derivWithin ((M.hybridGame U θ i).utility j) (Ici 0) (xStar j) := by
-      rcases eq_or_ne j i with rfl | hji
-      · simp [reportedGame, hybridGame, θ', ht_deriv]
-      · simp [reportedGame, hybridGame, θ', hji]
+      rcases eq_or_ne j i with rfl | hji <;> simp [reportedGame, hybridGame, θ', *]
     have hrep_opt : (M.reportedGame θ').IsSocialOptimum xStar :=
       (KellyGame.isSocialOptimum_iff_kkt hC fun j => hfam.admissible (θ' j) (hθ' j)).mpr
         ⟨hx_feas, hx_sum, μ, hμ, fun j => (hd_eq j).trans_le (hle j),
@@ -349,12 +324,9 @@ theorem isNashEquilibrium_iff {M : SSVCGMechanism ι} (hC : 0 < M.capacity)
     exact hybridGame_isSocialOptimum_of_reported_update hC.le hfam hθ hne ht_pos hθ' hxStar hrep_opt
   · intro hopt
     refine ⟨hθ, fun i t ht => ?_⟩
-    have hfeas' : (M.hybridGame U θ i).IsFeasibleAllocation
-        (M.allocation (Function.update θ i t)) :=
-      (allocation_isSocialOptimum hC.le hfam (update_pos hθ ht)).1
     rw [payoff_eq_hybridWelfare_sub_pivot, payoff_eq_hybridWelfare_sub_pivot,
       M.clarkePivot_update_self, M.hybridGame_update_self]
-    linarith [(hopt i).2 _ hfeas']
+    linarith [(hopt i).2 _ (allocation_isSocialOptimum hC.le hfam (update_pos (i := i) hθ ht)).1]
 
 /-- **Existence of a fully efficient SSVCG Nash equilibrium (`PoS = 1`)** ([Johari2007], §21.4,
 Corollary 21.12): for any admissible utilities and positive capacity, an SSVCG mechanism admits a
@@ -375,20 +347,14 @@ theorem exists_efficient_isNashEquilibrium [Nonempty ι] {M : SSVCGMechanism ι}
     (KellyGame.isSocialOptimum_iff_kkt hC fun i => hfam.admissible (θ i) (hθ i)).mpr
       ⟨hdS_feas, hdS_sum, μ, hμ, fun i => (hθ_deriv i).trans_le (hle i),
         fun i hi => (hθ_deriv i).trans (heq i hi)⟩
-  have halloc_eq : M.allocation θ = dS :=
-    allocation_eq_of_isSocialOptimum hC.le hfam hθ hrep_opt
-  have hne : M.IsNashEquilibrium U θ := by
-    rw [isNashEquilibrium_iff hC hfam hU hθ]
-    intro i
-    rw [halloc_eq, KellyGame.isSocialOptimum_iff_kkt hC (hybridGame_admissible hfam hθ (hU i))]
-    have hd_eq (j : ι) : derivWithin ((M.hybridGame U θ i).utility j) (Ici 0) (dS j) =
-        derivWithin (U j) (Ici 0) (dS j) := by
-      rcases eq_or_ne j i with rfl | hji
-      · simp [hybridGame]
-      · simp [hybridGame, hji, hθ_deriv]
-    exact ⟨hdS_feas, hdS_sum, μ, hμ, fun j => (hd_eq j).trans_le (hle j),
-      fun j hj => (hd_eq j).trans (heq j hj)⟩
-  exact ⟨θ, hne, halloc_eq ▸ hdS⟩
+  have halloc_eq := allocation_eq_of_isSocialOptimum hC.le hfam hθ hrep_opt
+  refine ⟨θ, (isNashEquilibrium_iff hC hfam hU hθ).mpr fun i => ?_, halloc_eq ▸ hdS⟩
+  rw [halloc_eq, KellyGame.isSocialOptimum_iff_kkt hC (hybridGame_admissible hfam hθ (hU i))]
+  have hd_eq (j : ι) : derivWithin ((M.hybridGame U θ i).utility j) (Ici 0) (dS j) =
+      derivWithin (U j) (Ici 0) (dS j) := by
+    rcases eq_or_ne j i with rfl | hji <;> simp [hybridGame, *]
+  exact ⟨hdS_feas, hdS_sum, μ, hμ, fun j => (hd_eq j).trans_le (hle j),
+    fun j hj => (hd_eq j).trans (heq j hj)⟩
 
 private theorem hybrid_opt_pos_of_infiniteSlope {M : SSVCGMechanism ι} (hC : 0 < M.capacity)
     (hfam : IsSSVCGSurrogateFamily M.surrogate) {U : ι → ℝ → ℝ}
@@ -407,41 +373,30 @@ private theorem hybrid_opt_pos_of_infiniteSlope {M : SSVCGMechanism ι} (hC : 0 
   set g := M.surrogate (θ k)
   have hg : IsAdmissibleUtility g := hfam.admissible (θ k) (hθ k)
   set bound := derivWithin g (Ici 0) 0
-  have hev_slope : ∀ᶠ t in 𝓝[>] (0 : ℝ), bound < deriv (U i) t :=
-    hUi.tendsto_deriv_atTop.eventually (eventually_gt_atTop bound)
-  have hev_Ioc : ∀ᶠ t in 𝓝[>] (0 : ℝ), t ∈ Ioc 0 (x k) :=
-    Filter.eventually_iff.mpr (Ioc_mem_nhdsGT hxk)
-  obtain ⟨t, ⟨ht0, htxk⟩, hslope⟩ := (hev_Ioc.and hev_slope).exists
+  obtain ⟨t, ⟨ht0, htxk⟩, hslope⟩ :=
+    ((Filter.eventually_iff.mpr (Ioc_mem_nhdsGT hxk)).and
+      (hUi.tendsto_deriv_atTop.eventually (eventually_gt_atTop bound))).exists
   set y := Function.update (Function.update x k (x k - t)) i t
-  have hyi : y i = t := by simp only [y, Function.update_self]
-  have hyk : y k = x k - t := by
-    simp only [y, Function.update_of_ne hki, Function.update_self]
-  have hy_other : ∀ j, j ≠ k → j ≠ i → y j = x j := fun j hjk hji => by
-    simp only [y, Function.update_of_ne hji, Function.update_of_ne hjk]
+  have hyi : y i = t := Function.update_self ..
+  have hyk : y k = x k - t := by simp [y, hki]
+  have hy_other (j : ι) (hjk : j ≠ k) (hji : j ≠ i) : y j = x j := by simp [y, hji, hjk]
+  have hk_mem : k ∈ Finset.univ.erase i := Finset.mem_erase.mpr ⟨hki, Finset.mem_univ k⟩
   have hy_feas : (M.hybridGame U θ i).IsFeasibleAllocation y := by
     refine ⟨fun j => ?_, ?_⟩
-    · by_cases hji : j = i
-      · subst hji; rw [hyi]; exact ht0.le
-      · by_cases hjk : j = k
-        · subst hjk; rw [hyk]; linarith
-        · rw [hy_other j hjk hji]; exact hx.1.1 j
+    · rcases eq_or_ne j i with rfl | hji
+      · exact hyi.symm ▸ ht0.le
+      · rcases eq_or_ne j k with rfl | hjk
+        · linarith [hyk]
+        · exact (hy_other j hjk hji).symm ▸ hx.1.1 j
     · have hsum_y : ∑ j, y j = ∑ j, x j := by
-        rw [← Finset.add_sum_erase _ y (Finset.mem_univ i),
-          ← Finset.add_sum_erase _ x (Finset.mem_univ i)]
-        have hk_mem : k ∈ Finset.univ.erase i := Finset.mem_erase.mpr ⟨hki, Finset.mem_univ k⟩
-        rw [← Finset.add_sum_erase _ y hk_mem, ← Finset.add_sum_erase _ x hk_mem]
-        have hrest : ∑ j ∈ (Finset.univ.erase i).erase k, y j =
-            ∑ j ∈ (Finset.univ.erase i).erase k, x j :=
-          Finset.sum_congr rfl fun j hj =>
-            hy_other j (Finset.ne_of_mem_erase hj)
-              (Finset.ne_of_mem_erase (Finset.mem_of_mem_erase hj))
-        rw [hrest, hyi, hyk, hxi0]
+        rw [Finset.sum_update_of_mem (Finset.mem_univ i), Finset.sdiff_singleton_eq_erase,
+          Finset.sum_update_of_mem hk_mem, Finset.sdiff_singleton_eq_erase,
+          ← Finset.add_sum_erase _ x (Finset.mem_univ i), ← Finset.add_sum_erase _ x hk_mem, hxi0]
         ring
       linarith [hx.1.2]
   have hle := hx.2 y hy_feas
-  rw [hybridGame_welfare_eq, hybridGame_welfare_eq] at hle
-  have hk_mem : k ∈ Finset.univ.erase i := Finset.mem_erase.mpr ⟨hki, Finset.mem_univ k⟩
-  rw [← Finset.add_sum_erase _ (fun j => M.surrogate (θ j) (y j)) hk_mem,
+  rw [hybridGame_welfare_eq, hybridGame_welfare_eq,
+    ← Finset.add_sum_erase _ (fun j => M.surrogate (θ j) (y j)) hk_mem,
     ← Finset.add_sum_erase _ (fun j => M.surrogate (θ j) (x j)) hk_mem] at hle
   have hrest : ∑ j ∈ (Finset.univ.erase i).erase k, M.surrogate (θ j) (y j) =
       ∑ j ∈ (Finset.univ.erase i).erase k, M.surrogate (θ j) (x j) :=
@@ -449,13 +404,9 @@ private theorem hybrid_opt_pos_of_infiniteSlope {M : SSVCGMechanism ι} (hC : 0 
       rw [hy_other j (Finset.ne_of_mem_erase hj)
         (Finset.ne_of_mem_erase (Finset.mem_of_mem_erase hj))]
   rw [hrest, hyi, hyk, hxi0] at hle
-  have hU_lb : deriv (U i) t * t ≤ U i t - U i 0 := by linarith [hUi.le_add_deriv ht0 le_rfl]
-  have hg_ub : g (x k) - g (x k - t) ≤ bound * t := by
-    have hconc := hg.le_add_derivWithin (sub_nonneg.mpr htxk) hxk.le
-    have hanti := hg.derivWithin_antitoneOn le_rfl (sub_nonneg.mpr htxk) (sub_nonneg.mpr htxk)
-    linarith [mul_le_mul_of_nonneg_right hanti ht0.le]
-  have hcontr : deriv (U i) t * t ≤ bound * t := by linarith
-  nlinarith
+  have hanti := hg.derivWithin_antitoneOn le_rfl (sub_nonneg.mpr htxk) (sub_nonneg.mpr htxk)
+  linarith [hUi.le_add_deriv ht0 le_rfl, hg.le_add_derivWithin (sub_nonneg.mpr htxk) hxk.le,
+    mul_le_mul_of_nonneg_right hanti ht0.le, mul_lt_mul_of_pos_right hslope ht0]
 
 /-- **Full efficiency (`PoA = 1`) of SSVCG under infinite initial marginal utility**
 ([Johari2007], §21.4, Proposition 21.14): if capacity is positive and every user's concave strictly
@@ -472,16 +423,30 @@ theorem isSocialOptimum_of_isNashEquilibrium_of_infiniteSlope {M : SSVCGMechanis
   · exact ⟨hd_rep.1, fun x _ => by simp [KellyGame.welfare]⟩
   have : Nonempty ι := not_isEmpty_iff.mp hEmpty
   by_cases hcard : 2 ≤ Fintype.card ι
-  · have hhybrid_opt : ∀ i, (M.hybridGame U θ i).IsSocialOptimum d := by
+  · have hswap_deriv : ∀ {i k : ι} {z : ι → ℝ},
+        (M.hybridGame U θ i).IsSocialOptimum z → k ≠ i → 0 < z i →
+        derivWithin (M.surrogate (θ k)) (Ici 0) (z k) ≤ deriv (U i) (z i) ∧
+          (0 < z k → deriv (U i) (z i) = derivWithin (M.surrogate (θ k)) (Ici 0) (z k)) := by
+      intro i k z hz hki hzi
+      have hdi : HasDerivWithinAt ((M.hybridGame U θ i).utility i) (deriv (U i) (z i))
+          (Icc 0 M.capacity) (z i) := by
+        simpa only [hybridGame, Function.update_self] using
+          ((hU i).hasDerivAt hzi).hasDerivWithinAt
+      have hdk : HasDerivWithinAt ((M.hybridGame U θ i).utility k)
+          (derivWithin (M.surrogate (θ k)) (Ici 0) (z k)) (Icc 0 M.capacity) (z k) := by
+        simp only [hybridGame, Function.update_of_ne hki]
+        exact ((hfam.admissible (θ k) (hθ k)).hasDerivWithinAt (hz.1.1 k)).mono
+          Icc_subset_Ici_self
+      exact ⟨hz.swap_deriv_le (Ne.symm hki) hzi hdi hdk, fun hzk => le_antisymm
+        (hz.swap_deriv_le hki hzk hdk hdi) (hz.swap_deriv_le (Ne.symm hki) hzi hdi hdk)⟩
+    have hhybrid_opt : ∀ i, (M.hybridGame U θ i).IsSocialOptimum d := by
       intro i
-      have hcont_h : ∀ j, ContinuousOn ((M.hybridGame U θ i).utility j) (Icc 0 M.capacity) := by
-        intro j
-        unfold hybridGame; dsimp only
-        by_cases hji : j = i
-        · subst hji; rw [Function.update_self]; exact (hU j).continuousOn.mono Icc_subset_Ici_self
-        · rw [Function.update_of_ne hji]
-          exact (hfam.admissible (θ j) (hθ j)).continuousOn.mono Icc_subset_Ici_self
-      obtain ⟨xStar, hxStar⟩ := KellyGame.exists_isSocialOptimum hC.le hcont_h
+      obtain ⟨xStar, hxStar⟩ := KellyGame.exists_isSocialOptimum
+        (G := M.hybridGame U θ i) hC.le fun j => by
+          rcases eq_or_ne j i with rfl | hji
+          · simpa [hybridGame] using (hU j).continuousOn.mono Icc_subset_Ici_self
+          · simpa [hybridGame, hji] using
+              (hfam.admissible (θ j) (hθ j)).continuousOn.mono Icc_subset_Ici_self
       have hx_pos : 0 < xStar i := hybrid_opt_pos_of_infiniteSlope hC hfam hθ (hU i) hxStar
       have hx_sum : ∑ j, xStar j = M.capacity :=
         hxStar.sum_eq_capacity (hybridGame_strictMonoOn hfam hθ (hU i).strictMonoOn)
@@ -489,77 +454,41 @@ theorem isSocialOptimum_of_isNashEquilibrium_of_infiniteSlope {M : SSVCGMechanis
       obtain ⟨t, ht_pos, ht_deriv⟩ := hfam.surjective_derivWithin _ hγ (xStar i) hx_pos.le
       set θ' := Function.update θ i t
       have hθ' : ∀ j, 0 < θ' j := update_pos hθ ht_pos
-      have hdi_deriv : HasDerivWithinAt ((M.hybridGame U θ i).utility i) (deriv (U i) (xStar i))
-          (Icc 0 M.capacity) (xStar i) := by
-        simpa only [hybridGame, Function.update_self] using
-          ((hU i).hasDerivAt hx_pos).hasDerivWithinAt
-      have hdj_deriv : ∀ {j}, j ≠ i →
-          HasDerivWithinAt ((M.hybridGame U θ i).utility j)
-            (derivWithin (M.surrogate (θ j)) (Ici 0) (xStar j))
-            (Icc 0 M.capacity) (xStar j) := fun {j} hji => by
-        simp only [hybridGame, Function.update_of_ne hji]
-        exact ((hfam.admissible (θ j) (hθ j)).hasDerivWithinAt (hxStar.1.1 j)).mono
-          Icc_subset_Ici_self
       have hrep_opt : (M.reportedGame θ').IsSocialOptimum xStar := by
         rw [KellyGame.isSocialOptimum_iff_kkt hC fun j => hfam.admissible (θ' j) (hθ' j)]
         refine ⟨hxStar.1, hx_sum, deriv (U i) (xStar i), hγ, fun j => ?_, fun j hj => ?_⟩
-        · by_cases hji : j = i
-          · subst hji; simp only [reportedGame, θ', Function.update_self, ht_deriv]; exact le_rfl
-          · simp only [reportedGame, θ', Function.update_of_ne hji]
-            exact hxStar.swap_deriv_le (Ne.symm hji) hx_pos hdi_deriv (hdj_deriv hji)
-        · by_cases hji : j = i
-          · subst hji; simp only [reportedGame, θ', Function.update_self, ht_deriv]
-          · simp only [reportedGame, θ', Function.update_of_ne hji]
-            exact le_antisymm
-              (hxStar.swap_deriv_le (Ne.symm hji) hx_pos hdi_deriv (hdj_deriv hji))
-              (hxStar.swap_deriv_le hji hj (hdj_deriv hji) hdi_deriv)
+        · rcases eq_or_ne j i with rfl | hji
+          · simp [reportedGame, θ', ht_deriv]
+          · simpa [reportedGame, θ', hji] using (hswap_deriv hxStar hji hx_pos).1
+        · rcases eq_or_ne j i with rfl | hji
+          · simp [reportedGame, θ', ht_deriv]
+          · simpa [reportedGame, θ', hji] using ((hswap_deriv hxStar hji hx_pos).2 hj).symm
       exact hybridGame_isSocialOptimum_of_reported_update hC.le hfam hθ hne ht_pos hθ' hxStar
         hrep_opt
     have hd_pos : ∀ i, 0 < d i :=
       fun i => hybrid_opt_pos_of_infiniteSlope hC hfam hθ (hU i) (hhybrid_opt i)
     obtain ⟨hd_feas, hd_sum, μ, hμ, _, hrep_eq⟩ :=
       (KellyGame.isSocialOptimum_iff_kkt hC fun i => hfam.admissible (θ i) (hθ i)).mp hd_rep
-    have htrue_eq : ∀ i, deriv (U i) (d i) = μ := by
-      intro i
+    have htrue_eq : ∀ i, deriv (U i) (d i) = μ := fun i => by
       obtain ⟨k, hki⟩ := Fintype.exists_ne_of_one_lt_card (by omega) i
-      have hdi_deriv : HasDerivWithinAt ((M.hybridGame U θ i).utility i) (deriv (U i) (d i))
-          (Icc 0 M.capacity) (d i) := by
-        simpa only [hybridGame, Function.update_self] using
-          ((hU i).hasDerivAt (hd_pos i)).hasDerivWithinAt
-      have hdk_deriv : HasDerivWithinAt ((M.hybridGame U θ i).utility k)
-          (derivWithin (M.surrogate (θ k)) (Ici 0) (d k)) (Icc 0 M.capacity) (d k) := by
-        simp only [hybridGame, Function.update_of_ne hki]
-        exact ((hfam.admissible (θ k) (hθ k)).hasDerivWithinAt (hd_pos k).le).mono
-          Icc_subset_Ici_self
-      have heq_ik : deriv (U i) (d i) = derivWithin (M.surrogate (θ k)) (Ici 0) (d k) :=
-        le_antisymm
-          ((hhybrid_opt i).swap_deriv_le hki (hd_pos k) hdk_deriv hdi_deriv)
-          ((hhybrid_opt i).swap_deriv_le (Ne.symm hki) (hd_pos i) hdi_deriv hdk_deriv)
-      rw [heq_ik]
-      exact hrep_eq k (hd_pos k)
+      exact ((hswap_deriv (hhybrid_opt i) hki (hd_pos i)).2 (hd_pos k)).trans
+        (hrep_eq k (hd_pos k))
     refine ⟨hd_feas, fun x hx => ?_⟩
-    have htan : ∑ i, U i (x i) ≤ ∑ i, (U i (d i) + deriv (U i) (d i) * (x i - d i)) :=
-      Finset.sum_le_sum fun i _ => (hU i).le_add_deriv (hd_pos i) (hx.1 i)
-    have hlin : ∑ i, deriv (U i) (d i) * (x i - d i) ≤ 0 := by
-      simp_rw [htrue_eq, ← Finset.mul_sum, Finset.sum_sub_distrib]
-      simp only [reportedGame] at hd_sum
-      exact mul_nonpos_of_nonneg_of_nonpos hμ.le (by linarith [hx.2, hd_sum])
-    rw [Finset.sum_add_distrib] at htan
+    have htan := Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) =>
+      (hU i).le_add_deriv (hd_pos i) (hx.1 i)
+    simp only [Finset.sum_add_distrib, htrue_eq, ← Finset.mul_sum, Finset.sum_sub_distrib] at htan
     change ∑ i, U i (x i) ≤ ∑ i, U i (d i)
-    linarith
+    linarith [mul_nonpos_of_nonneg_of_nonpos hμ.le (sub_nonpos.mpr (hd_sum.symm ▸ hx.2))]
   · have hsub : Subsingleton ι := Fintype.card_le_one_iff_subsingleton.mp (by omega)
     obtain ⟨i₀⟩ := ‹Nonempty ι›
     have huniv : (Finset.univ : Finset ι) = {i₀} :=
       Finset.eq_singleton_iff_unique_mem.mpr ⟨Finset.mem_univ i₀, fun j _ => hsub.elim j i₀⟩
-    have hmono_rep : ∀ j, StrictMonoOn ((M.reportedGame θ).utility j) (Icc 0 M.capacity) :=
-      fun j => (hfam.admissible (θ j) (hθ j)).strictMonoOn.mono Icc_subset_Ici_self
-    have hd_sum : d i₀ = M.capacity := by
-      simpa only [huniv, Finset.sum_singleton, reportedGame] using
-        hd_rep.sum_eq_capacity hmono_rep
     refine ⟨hd_rep.1, fun x hx => ?_⟩
-    have hx_le : x i₀ ≤ d i₀ := by simpa only [huniv, Finset.sum_singleton, hd_sum] using hx.2
-    simp only [KellyGame.welfare, huniv, Finset.sum_singleton]
-    exact (hU i₀).strictMonoOn.monotoneOn (hx.1 i₀) (hd_rep.1.1 i₀) hx_le
+    have hx_le : x i₀ ≤ d i₀ := by
+      simpa only [huniv, Finset.sum_singleton] using hx.2.trans_eq (hd_rep.sum_eq_capacity
+        fun j => (hfam.admissible (θ j) (hθ j)).strictMonoOn.mono Icc_subset_Ici_self).symm
+    simpa only [KellyGame.welfare, huniv, Finset.sum_singleton] using
+      (hU i₀).strictMonoOn.monotoneOn (hx.1 i₀) (hd_rep.1.1 i₀) hx_le
 
 end Characterization
 
@@ -609,10 +538,8 @@ theorem isSSVCGSurrogateFamily_mul_log_one_add :
     simp only [smul_eq_mul] at h ⊢
     nlinarith
   · refine ⟨γ * (1 + d), mul_pos hγ (by linarith), ?_⟩
-    have h1 : HasDerivWithinAt (fun x => (γ * (1 + d)) * Real.log (1 + x))
-        ((γ * (1 + d)) * (1 / (1 + d))) (Ici 0) d :=
-      ((hasDerivAt_log_one_add hd).const_mul (γ * (1 + d))).hasDerivWithinAt
-    rw [h1.derivWithin (uniqueDiffOn_Ici 0 d hd)]
+    rw [((hasDerivAt_log_one_add hd).const_mul (γ * (1 + d))).hasDerivWithinAt.derivWithin
+      (uniqueDiffOn_Ici 0 d hd)]
     have h1d : (1 : ℝ) + d ≠ 0 := by linarith
     field_simp
 
@@ -650,15 +577,11 @@ theorem exists_bluff_isNashEquilibrium :
     rw [((hasDerivAt_log_one_add hx).const_mul c).hasDerivWithinAt.derivWithin
       (uniqueDiffOn_Ici 0 x hx)]
     ring
-  have hrep_opt : (M.reportedGame θ).IsSocialOptimum ![1, 0] := by
-    refine isSocialOptimum_finTwo_one_zero (fun i => hfam.admissible (θ i) (hθ i))
-      (by norm_num : (0 : ℝ) < 3 / 2) ?_ ?_
-    · dsimp [M, θ, SSVCGMechanism.reportedGame]
-      rw [hderiv_scaled 3 1 zero_le_one]
-      norm_num
-    · dsimp [M, θ, SSVCGMechanism.reportedGame]
-      rw [hderiv_scaled (1 / 4) 0 le_rfl]
-      norm_num
+  have hrep_opt : (M.reportedGame θ).IsSocialOptimum ![1, 0] :=
+    isSocialOptimum_finTwo_one_zero (fun i => hfam.admissible (θ i) (hθ i))
+      (by norm_num : (0 : ℝ) < 3 / 2)
+      (by rw [hderiv_scaled _ 1 zero_le_one]; norm_num [θ])
+      (by rw [hderiv_scaled _ 0 le_rfl]; norm_num [θ])
   have halloc : M.allocation θ = ![1, 0] :=
     SSVCGMechanism.allocation_eq_of_isSocialOptimum (by simp [M]) hfam hθ hrep_opt
   have hne : M.IsNashEquilibrium U θ := by
@@ -666,23 +589,20 @@ theorem exists_bluff_isNashEquilibrium :
     intro i
     rw [halloc]
     have hadm_h := SSVCGMechanism.hybridGame_admissible (M := M) hfam hθ (U := U) (i := i) hadm
-    fin_cases i
+    have h10 : (1 : Fin 2) ≠ 0 := by decide
+    fin_cases i <;> simp only [Fin.zero_eta, Fin.mk_one] at hadm_h ⊢
     · exact isSocialOptimum_finTwo_one_zero hadm_h (by norm_num : (0 : ℝ) < 1 / 2)
-        (by change derivWithin (fun t => Real.log (1 + t)) (Ici 0) 1 = 1 / 2
-            rw [hderiv 1 zero_le_one]; norm_num)
-        (by change derivWithin (fun t => (1 / 4 : ℝ) * Real.log (1 + t)) (Ici 0) 0 ≤ 1 / 2
-            rw [hderiv_scaled (1 / 4) 0 le_rfl]; norm_num)
+        (by rw [Function.update_self, hderiv 1 zero_le_one]; norm_num)
+        (by rw [Function.update_of_ne h10, hderiv_scaled _ 0 le_rfl]; norm_num [θ])
     · exact isSocialOptimum_finTwo_one_zero hadm_h (by norm_num : (0 : ℝ) < 3 / 2)
-        (by change derivWithin (fun t => (3 : ℝ) * Real.log (1 + t)) (Ici 0) 1 = 3 / 2
-            rw [hderiv_scaled 3 1 zero_le_one]; norm_num)
-        (by change derivWithin (fun t => Real.log (1 + t)) (Ici 0) 0 ≤ 3 / 2
-            rw [hderiv 0 le_rfl]; norm_num)
+        (by rw [Function.update_of_ne h10.symm, hderiv_scaled _ 1 zero_le_one]; norm_num [θ])
+        (by rw [Function.update_self, hderiv 0 le_rfl]; norm_num)
   refine ⟨hne, halloc, ?_⟩
   rw [halloc]
   simp only [KellyGame.welfare, U, Fin.sum_univ_two, Matrix.cons_val_zero, Matrix.cons_val_one,
     add_zero, Real.log_one]
-  rw [show (1 : ℝ) + 1 = 2 by norm_num, show (1 : ℝ) + 1 / 2 = 3 / 2 by norm_num,
-    ← Real.log_mul (by norm_num) (by norm_num)]
+  norm_num1
+  rw [← Real.log_mul (by norm_num) (by norm_num)]
   exact Real.log_lt_log (by norm_num) (by norm_num)
 
 end BluffExample

@@ -130,14 +130,10 @@ private theorem fold_max_union {α : Type*} [DecidableEq α] (b : ℝ) (g : α �
       (monotone_fold_max b g Finset.subset_union_right)
 
 private theorem isSubmodular_fold_max {α : Type*} [DecidableEq α] (b : ℝ) (g : α → ℝ) :
-    Submodular.IsSubmodular fun T : Finset α => T.fold max b g := by
-  intro A B
-  have hU := fold_max_union b g A B
-  have hI : (A ∩ B).fold max b g ≤ min (A.fold max b g) (B.fold max b g) :=
-    le_min (monotone_fold_max b g Finset.inter_subset_left)
-      (monotone_fold_max b g Finset.inter_subset_right)
-  have hsum := max_add_min (A.fold max b g) (B.fold max b g)
-  linarith
+    Submodular.IsSubmodular fun T : Finset α => T.fold max b g := fun A B => by
+  linarith [fold_max_union b g A B, max_add_min (A.fold max b g) (B.fold max b g),
+    le_min (monotone_fold_max b g (Finset.inter_subset_left (s₁ := A) (s₂ := B)))
+      (monotone_fold_max b g (Finset.inter_subset_right (s₁ := A) (s₂ := B)))]
 
 private theorem fold_max_sub_eq_sub_fold_min {α : Type*} (v : ℝ) (c : α → ℝ) (u : Finset α) :
     u.fold max 0 (fun x => v - c x) = v - u.fold min v c := by
@@ -183,9 +179,8 @@ theorem secondPrice_def [Fintype ι] [DecidableEq ι] (j : J) (s : ∀ i, S i) (
 theorem secondPrice_update_self [Fintype ι] [DecidableEq ι] (j : J) (s : ∀ i, S i) (i : ι)
     (a : S i) :
     G.secondPrice j (Function.update s i a) i = G.secondPrice j s i := by
-  unfold secondPrice
-  refine Finset.fold_congr fun i' hi' => ?_
-  rw [Function.update_of_ne (Finset.ne_of_mem_erase hi')]
+  exact Finset.fold_congr fun i' hi' =>
+    congrArg (G.serviceCost j i') (Function.update_of_ne (Finset.ne_of_mem_erase hi') a s)
 
 private theorem fold_min_eq_inf' {α : Type*} {s : Finset α} (hne : s.Nonempty) (b : ℝ)
     (g : α → ℝ) (hle : ∀ x ∈ s, g x ≤ b) : s.fold min b g = s.inf' hne g := by
@@ -321,49 +316,32 @@ private theorem clientProfit_eq_clientSurplus_sub [Fintype ι] [DecidableEq ι] 
   unfold clientProfit secondPrice clientSurplus
   rw [fold_profileSet, fold_profileWithout, fold_max_sub_eq_sub_fold_min,
     fold_max_sub_eq_sub_fold_min]
-  dsimp only
-  have hfold : (Finset.univ.fold min (G.value j) fun i' => G.serviceCost j i' (s i')) =
-      min (G.serviceCost j i (s i))
-        ((Finset.univ.erase i).fold min (G.value j) fun i' => G.serviceCost j i' (s i')) := by
-    conv_lhs => rw [← Finset.insert_erase (Finset.mem_univ i)]
-    exact Finset.fold_insert (Finset.notMem_erase i Finset.univ)
-  rw [hfold]
-  let m := (Finset.univ.erase i).fold min (G.value j) fun i' => G.serviceCost j i' (s i')
-  change max 0 (m - G.serviceCost j i (s i)) =
-    (G.value j - min (G.serviceCost j i (s i)) m) - (G.value j - m)
+  set m := (Finset.univ.erase i).fold min (G.value j) fun i' => G.serviceCost j i' (s i')
+  rw [← Finset.insert_erase (Finset.mem_univ i), Finset.fold_insert (Finset.notMem_erase i _)]
   rcases le_total (G.serviceCost j i (s i)) m with h | h
-  · rw [min_eq_left h, max_eq_right (by linarith)]
-    ring
-  · rw [min_eq_right h, max_eq_left (by linarith)]
-    ring
+  · linarith [min_eq_left h, max_eq_right (sub_nonneg.mpr h)]
+  · linarith [min_eq_right h, max_eq_left (sub_nonpos.mpr h)]
 
 /-- Client-by-client budget bound: across all providers `i`, total profit extracted from client `j`
 never exceeds `j`'s social surplus (at most one lowest-cost provider earns positive profit). -/
 private theorem sum_clientProfit_le_clientSurplus [Fintype ι] [DecidableEq ι] (j : J)
     (s : ∀ i, S i) :
     ∑ i : ι, G.clientProfit j s i ≤ G.clientSurplus j (profileSet s) := by
+  have hsurp (T) : 0 ≤ G.clientSurplus j T := (Finset.le_fold_max 0).2 (.inl le_rfl)
   by_cases hne : Nonempty ι
   · obtain ⟨i₀, _, hi₀⟩ :=
       Finset.exists_min_image Finset.univ (fun i => G.serviceCost j i (s i)) Finset.univ_nonempty
-    have hzero : ∀ i ∈ Finset.univ.erase i₀, G.clientProfit j s i = 0 := by
-      intro i hi
+    have hzero (i) (hi : i ∈ Finset.univ.erase i₀) : G.clientProfit j s i = 0 := by
       have hne_i : i₀ ∈ Finset.univ.erase i :=
         Finset.mem_erase.mpr ⟨(Finset.ne_of_mem_erase hi).symm, Finset.mem_univ i₀⟩
       have hsec_le : G.secondPrice j s i ≤ G.serviceCost j i₀ (s i₀) :=
-        (Finset.fold_min_le (G.serviceCost j i₀ (s i₀))).2 (Or.inr ⟨i₀, hne_i, le_rfl⟩)
-      have hmin_le : G.serviceCost j i₀ (s i₀) ≤ G.serviceCost j i (s i) :=
-        hi₀ i (Finset.mem_univ i)
-      rw [clientProfit_def, max_eq_left (by linarith)]
+        (Finset.fold_min_le (G.serviceCost j i₀ (s i₀))).2 (.inr ⟨i₀, hne_i, le_rfl⟩)
+      rw [clientProfit_def, max_eq_left (sub_nonpos.mpr (hsec_le.trans (hi₀ i (mem_univ i))))]
     rw [← Finset.add_sum_erase Finset.univ (fun i => G.clientProfit j s i) (Finset.mem_univ i₀),
       Finset.sum_eq_zero hzero, add_zero, clientProfit_eq_clientSurplus_sub]
-    have hnonneg : 0 ≤ G.clientSurplus j (profileWithout s i₀) := by
-      unfold clientSurplus
-      exact (Finset.le_fold_max 0).2 (Or.inl le_rfl)
-    linarith
-  · have hEmpty : IsEmpty ι := not_nonempty_iff.mp hne
-    simp only [Finset.univ_eq_empty, Finset.sum_empty]
-    unfold clientSurplus
-    exact (Finset.le_fold_max 0).2 (Or.inl le_rfl)
+    linarith [hsurp (profileWithout s i₀)]
+  · have := not_nonempty_iff.mp hne
+    simpa only [Finset.univ_eq_empty, Finset.sum_empty] using hsurp (profileSet s)
 
 /-- Social welfare in the competitive facility location game is monotone ([TardosWexler2007],
 Theorem 19.18, p. 505). -/
@@ -405,20 +383,17 @@ theorem profit_sub_profit_eq [Fintype ι] [DecidableEq ι] [Fintype J] (s : ∀ 
     (a : S i) :
     G.profit i (Function.update s i a) - G.profit i s =
       G.socialWelfare (profileSet (Function.update s i a)) - G.socialWelfare (profileSet s) := by
+  classical
   simpa only [toUtilityGame_utility, toUtilityGame_profileValue] using
-    IsBasic.utility_sub_utility_eq (G := G.toUtilityGame) (fun k s' => by
-      simp only [toUtilityGame_utility, profit_def, toUtilityGame_profileValue,
-        toUtilityGame_socialValue, socialWelfare, ← Finset.sum_sub_distrib]
-      exact Finset.sum_congr rfl fun j _ => G.clientProfit_eq_clientSurplus_sub j s' k) s i a
+    IsBasic.utility_sub_utility_eq (G := G.toUtilityGame)
+      G.isBasic_toUtilityGame.utility_eq_marginal s i a
 
 /-- **Theorem 19.16** ([TardosWexler2007], p. 503): the competitive facility location game is an
 exact potential game with social welfare `V(s)` as potential (`-V(s)` for `toCostGame`). -/
 theorem isExactPotential [Fintype ι] [DecidableEq ι] [Fintype J] :
-    G.toCostGame.IsExactPotential (fun s => -G.socialWelfare (profileSet s)) := by
-  intro s i a
+    G.toCostGame.IsExactPotential (fun s => -G.socialWelfare (profileSet s)) := fun s i a => by
   simp only [toCostGame_cost]
-  have h := G.profit_sub_profit_eq s i a
-  linarith
+  linarith [G.profit_sub_profit_eq s i a]
 
 /-- **Corollary 19.17 (existence)** ([TardosWexler2007], p. 504): every finite nonempty competitive
 facility location game admits a pure Nash equilibrium. -/
@@ -514,13 +489,10 @@ private theorem socialWelfare_twoByTwoTight (b₀ b₁ : Bool) :
     twoByTwoTight.socialWelfare (profileSet ![b₀, b₁]) =
       (if !b₀ || b₁ then 1 else 0) + (if b₀ then 1 else 0) := by
   unfold socialWelfare clientSurplus
-  rw [Fin.sum_univ_two, fold_profileSet, fold_profileSet]
-  have huniv : (Finset.univ : Finset (Fin 2)) = {0, 1} := by decide
-  have h01 : (0 : Fin 2) ≠ 1 := by decide
-  rw [huniv, Finset.fold_insert (by simp only [mem_singleton, h01, not_false_eq_true]),
-    Finset.fold_singleton,
-    Finset.fold_insert (by simp only [mem_singleton, h01, not_false_eq_true]),
-    Finset.fold_singleton]
+  have huniv : (Finset.univ : Finset (Fin 2)) = {0, 1} := rfl
+  rw [Fin.sum_univ_two, fold_profileSet, fold_profileSet, huniv,
+    Finset.fold_insert (by decide), Finset.fold_singleton,
+    Finset.fold_insert (by decide), Finset.fold_singleton]
   cases b₀ <;> cases b₁ <;> norm_num [twoByTwoTight]
 
 private theorem neg_le_neg_of_fin_two_bool_update (f : (Fin 2 → Bool) → ℝ)
@@ -601,14 +573,14 @@ theorem isBasic_withOpeningCost [Fintype ι] [DecidableEq ι] [∀ i, DecidableE
     simp [Submodular.modularSum, Finset.sum_neg_distrib, sub_eq_add_neg]
   sum_utility_le s := by
     have h := G.isBasic_toUtilityGame.sum_utility_le s
-    simp only [toUtilityGame_utility, toUtilityGame_profileValue] at h
-    simp only [withOpeningCost_utility, withOpeningCost_profileValue, Finset.sum_sub_distrib]
+    simp only [toUtilityGame_utility, toUtilityGame_profileValue, withOpeningCost_utility,
+      withOpeningCost_profileValue, Finset.sum_sub_distrib] at h ⊢
     linarith
   utility_eq_marginal i s := by
     have h := G.isBasic_toUtilityGame.utility_eq_marginal i s
-    simp only [toUtilityGame_utility, toUtilityGame_profileValue, toUtilityGame_socialValue] at h
-    simp only [withOpeningCost_utility, withOpeningCost_profileValue, withOpeningCost_socialValue,
-      sum_profileWithout]
+    simp only [toUtilityGame_utility, toUtilityGame_profileValue, toUtilityGame_socialValue,
+      withOpeningCost_utility, withOpeningCost_profileValue, withOpeningCost_socialValue,
+      sum_profileWithout] at h ⊢
     linarith [Finset.add_sum_erase Finset.univ (fun k => openingCost k (s k)) (Finset.mem_univ i)]
 
 /-- **Exercise 19.17(b)** ([TardosWexler2007], p. 515): at any pure Nash equilibrium `s` of the
@@ -623,16 +595,13 @@ theorem netWelfare_le_two_mul_add_openingCost_of_isPureNash [Fintype ι] [Decida
   rw [isPureNash_toCostGame_iff] at hs
   have hdev :=
     G.isValid_toUtilityGame.profileValue_sub_le_sum_deviation G.monotone_socialWelfare s o
-  simp only [toUtilityGame_profileValue, toUtilityGame_utility] at hdev
   have hbud := G.isValid_toUtilityGame.sum_utility_le s
-  simp only [toUtilityGame_profileValue, toUtilityGame_utility] at hbud
   have hne : ∑ i, (G.profit i (Function.update s i (o i)) - openingCost i (o i)) ≤
-      ∑ i, (G.profit i s - openingCost i (s i)) := by
-    refine Finset.sum_le_sum fun i _ => ?_
-    have hi := hs i (o i)
-    simpa only [withOpeningCost_utility, Function.update_self] using hi
-  rw [Finset.sum_sub_distrib, Finset.sum_sub_distrib] at hne
-  simp only [withOpeningCost_profileValue]
+      ∑ i, (G.profit i s - openingCost i (s i)) :=
+    Finset.sum_le_sum fun i _ => by
+      simpa only [withOpeningCost_utility, Function.update_self] using hs i (o i)
+  simp only [toUtilityGame_profileValue, toUtilityGame_utility, Finset.sum_sub_distrib,
+    withOpeningCost_profileValue] at hdev hbud hne ⊢
   linarith
 
 /-- Parametrized 2-provider, 1-client instance with opening costs witnessing unbounded price of
@@ -650,15 +619,12 @@ private theorem openingCostTrap_profileValue {M : ℝ} (hM : 1 ≤ M) (b₀ b₁
       (if !b₀ || b₁ then M else 0) - (if !b₀ then M - 1 else 0) := by
   rw [withOpeningCost_profileValue, Fin.sum_univ_two]
   unfold socialWelfare clientSurplus
-  rw [Fintype.sum_unique, fold_profileSet]
-  have huniv : (Finset.univ : Finset (Fin 2)) = {0, 1} := by decide
-  have h01 : (0 : Fin 2) ≠ 1 := by decide
-  rw [huniv, Finset.fold_insert (by simp only [mem_singleton, h01, not_false_eq_true]),
-    Finset.fold_singleton]
+  have huniv : (Finset.univ : Finset (Fin 2)) = {0, 1} := rfl
+  rw [Fintype.sum_unique, fold_profileSet, huniv,
+    Finset.fold_insert (by decide), Finset.fold_singleton]
   cases b₀ <;> cases b₁ <;> norm_num [openingCostTrapGame, openingCostTrapFee]
-  · rw [max_eq_left (by linarith)]; ring
-  · rw [max_eq_left (by linarith)]; ring
-  · linarith
+  all_goals try rw [max_eq_left (by linarith)]
+  all_goals linarith
 
 /-- **Exercise 19.17(a)** ([TardosWexler2007], p. 515): when facilities have nonnegative opening
 costs, no constant price-of-anarchy bound holds — for every `C : ℝ`, there is a 2-provider,
@@ -676,27 +642,17 @@ theorem exists_withOpeningCost_poa_gt (C : ℝ) :
   have hM1 : 1 ≤ M := le_trans (by norm_num) (le_max_left 2 (C + 1))
   have hMC : C < M := lt_of_lt_of_le (by linarith) (le_max_right 2 (C + 1))
   refine ⟨openingCostTrapGame M, openingCostTrapFee M, ![false, false], ![true, true],
-    ?_, ?_, ?_, ?_, ?_⟩
-  · intro _ i b
-    dsimp only [openingCostTrapGame]
+    fun _ _ b => ?_, fun i b => ?_, ?_, ?_, ?_⟩
+  · dsimp only [openingCostTrapGame]
     split_ifs <;> constructor <;> linarith
-  · intro i b
-    dsimp only [openingCostTrapFee]
+  · dsimp only [openingCostTrapFee]
     split_ifs <;> linarith
-  · have hpot :=
-      ((openingCostTrapGame M).isBasic_withOpeningCost (openingCostTrapFee M)).isExactPotential
-    refine hpot.isGeneralizedOrdinalPotential.isPureNash_of_forall_update_le
-      (neg_le_neg_of_fin_two_bool_update
-        ((openingCostTrapGame M).withOpeningCost (openingCostTrapFee M)).profileValue ?_ ?_)
-    · rw [openingCostTrap_profileValue hM1, openingCostTrap_profileValue hM1]
-      norm_num
-    · rw [openingCostTrap_profileValue hM1, openingCostTrap_profileValue hM1]
-      norm_num
-  · rw [openingCostTrap_profileValue hM1]
-    norm_num
-  · rw [openingCostTrap_profileValue hM1, openingCostTrap_profileValue hM1]
-    norm_num
-    linarith
+  · refine ((openingCostTrapGame M).isBasic_withOpeningCost
+      (openingCostTrapFee M)).isExactPotential.isGeneralizedOrdinalPotential
+      |>.isPureNash_of_forall_update_le (neg_le_neg_of_fin_two_bool_update _ ?_ ?_) <;>
+    simp [openingCostTrap_profileValue hM1]
+  · simp [openingCostTrap_profileValue hM1]
+  · simpa [openingCostTrap_profileValue hM1] using hMC
 
 end OpeningCosts
 

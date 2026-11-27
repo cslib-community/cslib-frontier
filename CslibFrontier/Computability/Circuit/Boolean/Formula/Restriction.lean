@@ -162,21 +162,12 @@ variable (x : BitString n)
 /-- `mkNot F` evaluates to the negation of `F`. -/
 @[simp] theorem eval_mkNot (F : Formula signature n) :
     (mkNot F).eval interpretation x = !F.eval interpretation x := by
-  rcases F with _ | ⟨_ | _ | _ | _, args⟩
-  · rfl
-  · rfl
-  · rw [gate_not_eq, mkNot_not, eval_not, Bool.not_not]
-  · rw [gate_and_eq, mkNot_and, eval_not]
-  · rw [gate_or_eq, mkNot_or, eval_not]
+  rcases F with _ | ⟨_ | _ | _ | _, args⟩ <;>
+    first | rfl | rw [gate_not_eq, mkNot_not, eval_not, Bool.not_not]
 
 /-- `mkNot` preserves leaf size. -/
 @[simp] theorem leafSize_mkNot (F : Formula signature n) : (mkNot F).leafSize = F.leafSize := by
-  rcases F with _ | ⟨_ | _ | _ | _, args⟩
-  · rfl
-  · rfl
-  · rw [gate_not_eq, mkNot_not, leafSize_not]
-  · rw [gate_and_eq, mkNot_and, leafSize_not]
-  · rw [gate_or_eq, mkNot_or, leafSize_not]
+  rcases F with _ | ⟨_ | _ | _ | _, args⟩ <;> rfl
 
 /-- `mkAnd F G` evaluates to the conjunction of `F` and `G`. -/
 @[simp] theorem eval_mkAnd (F G : Formula signature n) :
@@ -293,11 +284,8 @@ theorem restrict_input_of_eq_some {i : Fin n} {b : Bool} (h : ρ i = some b) :
     (F.restrict ρ).eval interpretation x = F.eval interpretation (ρ.fill x) := by
   induction F with
   | input i =>
-    cases h : ρ i with
-    | none => rw [restrict_input_of_eq_none ρ h, eval_input, eval_input,
-        PartialAssignment.fill_of_eq_none h]
-    | some b => rw [restrict_input_of_eq_some ρ h, eval_input, eval_const,
-        PartialAssignment.fill_of_eq_some h]
+    cases h : ρ i <;>
+      simp [h, PartialAssignment.fill_of_eq_none, PartialAssignment.fill_of_eq_some]
   | gate op args ih =>
     cases op with
     | const b => rfl
@@ -327,9 +315,7 @@ theorem leafSize_restrict_update_le (F : Formula signature n) (i : Fin n) (b : B
       F.leafSize := by
   have h := leafSize_restrict_le (Function.update PartialAssignment.empty i (some b)) F
   have hfree : PartialAssignment.free (Function.update PartialAssignment.empty i (some b)) =
-      {i}ᶜ := by
-    ext j
-    by_cases hj : j = i <;> simp [hj]
+      {i}ᶜ := Finset.ext fun j => by by_cases hj : j = i <;> simp [hj]
   rw [hfree] at h
   have := leafSizeIn_add_leafSizeIn_compl {i} F
   omega
@@ -377,19 +363,12 @@ private def ConstOrSimplified (F : Formula signature n) : Prop :=
 private theorem constOrSimplified_mkNot {F : Formula signature n} (hF : ConstOrSimplified F) :
     ConstOrSimplified (mkNot F) := by
   rcases hF with ⟨b, rfl⟩ | (_ | _ | ⟨hF, hG⟩ | ⟨hF, hG⟩ | ⟨hF, hG⟩ | ⟨hF, hG⟩)
-  · exact .inl ⟨!b, rfl⟩
-  · exact .inr (.not_input _)
-  · exact .inr (.input _)
-  · exact .inr (.not_and hF hG)
-  · exact .inr (.not_or hF hG)
-  · exact .inr (.and hF hG)
-  · exact .inr (.or hF hG)
+  exacts [.inl ⟨!b, rfl⟩, .inr (.not_input _), .inr (.input _), .inr (.not_and hF hG),
+    .inr (.not_or hF hG), .inr (.and hF hG), .inr (.or hF hG)]
 
 private theorem constValue?_eq_none_of_constOrSimplified {F : Formula signature n}
-    (hF : ConstOrSimplified F) (h : ∀ b, F.constValue? ≠ some b) : F.IsSimplified := by
-  rcases hF with ⟨b, rfl⟩ | hF
-  · exact absurd rfl (h b)
-  · exact hF
+    (hF : ConstOrSimplified F) (h : ∀ b, F.constValue? ≠ some b) : F.IsSimplified :=
+  hF.resolve_left fun ⟨b, hb⟩ => h b (hb ▸ rfl)
 
 private theorem constOrSimplified_mkAnd {F G : Formula signature n} (hF : ConstOrSimplified F)
     (hG : ConstOrSimplified G) : ConstOrSimplified (mkAnd F G) := by
@@ -422,7 +401,7 @@ theorem restrict_eq_const_or_isSimplified (F : Formula signature n) :
   induction F with
   | input i =>
     cases h : ρ i with
-    | none => exact Or.inr (by rw [restrict_input_of_eq_none ρ h]; exact .input i)
+    | none => exact Or.inr ((restrict_input_of_eq_none ρ h).symm ▸ .input i)
     | some b => exact Or.inl ⟨b, restrict_input_of_eq_some ρ h⟩
   | gate op args ih =>
     cases op with
@@ -434,9 +413,8 @@ theorem restrict_eq_const_or_isSimplified (F : Formula signature n) :
 /-- A restriction without leaves is a constant. -/
 theorem exists_restrict_eq_const {F : Formula signature n} (h : (F.restrict ρ).leafSize = 0) :
     ∃ b, F.restrict ρ = const b :=
-  (restrict_eq_const_or_isSimplified ρ F).resolve_right fun hs => by
-    have := hs.one_le_leafSize
-    omega
+  (restrict_eq_const_or_isSimplified ρ F).resolve_right fun hs =>
+    Nat.ne_of_gt hs.one_le_leafSize h
 
 end Formula
 
@@ -478,18 +456,15 @@ theorem le_formulaSize_iff {k : ℕ} :
   Nat.le_zero.1 (formulaSize_le (F := const b) fun _ => rfl)
 
 /-- A function of no inputs has formula size zero. -/
-theorem formulaSize_eq_zero_of_dependsOn_empty (hf : DependsOn f ∅) : formulaSize f = 0 := by
-  have : f = fun _ => f (fun _ => false) := funext fun x => hf.empty x _
-  rw [this, formulaSize_const]
+theorem formulaSize_eq_zero_of_dependsOn_empty (hf : DependsOn f ∅) : formulaSize f = 0 :=
+  (congrArg formulaSize (funext fun x => hf.empty x fun _ => false)).trans (formulaSize_const _)
 
 /-- A restriction of a formula computing `f` computes the restriction of `f`, with only the leaves
 of the free inputs. -/
 theorem formulaSize_comp_fill_le_leafSizeIn {F : Formula signature n}
     (hF : F.Computes interpretation f) (ρ : PartialAssignment (Fin n)) :
     formulaSize (f ∘ ρ.fill) ≤ F.leafSizeIn ρ.free :=
-  (formulaSize_le (F := F.restrict ρ) fun x => by
-    rw [eval_restrict, hF]
-    rfl).trans (leafSize_restrict_le ρ F)
+  (formulaSize_le (F := F.restrict ρ) fun x => by simp [hF _]).trans (leafSize_restrict_le ρ F)
 
 /-- Restricting a Boolean function by a partial assignment does not increase its formula size. -/
 theorem formulaSize_comp_fill_le (f : BooleanFunction n) (ρ : PartialAssignment (Fin n)) :
@@ -506,11 +481,9 @@ theorem leafSizeIn_eq_leafSize_of_dependsOn {S : Finset (Fin n)} (hf : DependsOn
   refine le_antisymm (leafSizeIn_le_leafSize S F) ?_
   have hρ : f ∘ (PartialAssignment.outside S fun _ => false).fill = f :=
     funext fun x => hf fun i hi => by
-      simp only [PartialAssignment.fill_outside]
-      exact Finset.piecewise_eq_of_mem _ _ _ hi
-  have := formulaSize_comp_fill_le_leafSizeIn hF (PartialAssignment.outside S fun _ => false)
-  rw [hρ, PartialAssignment.free_outside] at this
-  omega
+      simp [PartialAssignment.fill_outside, Finset.piecewise_eq_of_mem _ _ _ hi]
+  simpa only [hρ, PartialAssignment.free_outside, ← hmin] using
+    formulaSize_comp_fill_le_leafSizeIn hF (PartialAssignment.outside S fun _ => false)
 
 /-- Every function has a formula of least leaf size that is a constant or has at most `3 L - 2`
 operation nodes for `L` leaves. -/

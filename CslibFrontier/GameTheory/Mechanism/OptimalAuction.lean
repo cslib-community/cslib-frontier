@@ -281,15 +281,13 @@ theorem measurableSet_wins [Countable ι] (i : ι) : MeasurableSet {b : ι → �
 
 /-- The Vickrey allocation is measurable in the bid profile. -/
 theorem measurable_allocation [Countable ι] (i : ι) :
-    Measurable fun b : ι → ℝ => allocation b i := by
-  unfold allocation
-  exact Measurable.ite (measurableSet_wins i) measurable_const measurable_const
+    Measurable fun b : ι → ℝ => allocation b i :=
+  Measurable.ite (measurableSet_wins i) measurable_const measurable_const
 
 /-- The reserve rule is measurable in the bid profile. -/
 theorem measurable_reserveAllocation [Countable ι] {φ : ℝ → ℝ} (hφ : Measurable φ) (i : ι) :
-    Measurable fun b : ι → ℝ => reserveAllocation φ b i := by
-  unfold reserveAllocation
-  exact Measurable.ite ((measurableSet_wins i).inter
+    Measurable fun b : ι → ℝ => reserveAllocation φ b i :=
+  Measurable.ite ((measurableSet_wins i).inter
     ((measurableSet_lt measurable_const (measurable_pi_apply i)).inter
       (measurableSet_le measurable_const (hφ.comp (measurable_pi_apply i)))))
     measurable_const measurable_const
@@ -316,8 +314,7 @@ theorem isVirtualWelfareMaximizing_reserveAllocation {φ : ℝ → ℝ} (hφ : M
   obtain ⟨w, hw⟩ := exists_wins b
   have hle (j : ι) : φ (b j) ≤ max 0 (φ (b w)) := by
     rcases (hb j).eq_or_lt with hj0 | hjpos
-    · rw [← hj0]
-      exact hφ0.trans (le_max_left _ _)
+    · exact hj0 ▸ hφ0.trans (le_max_left _ _)
     · rcases eq_or_ne j w with rfl | hj
       · exact le_max_right _ _
       · have hbw : b j ≤ b w := (hw j hj).1
@@ -330,16 +327,12 @@ theorem isVirtualWelfareMaximizing_reserveAllocation {φ : ℝ → ℝ} (hφ : M
       _ ≤ max 0 (φ (b w)) * 1 := mul_le_mul_of_nonneg_left hy.2 (le_max_left _ _)
       _ = max 0 (φ (b w)) := mul_one _
   have hR : ∑ j, φ (b j) * reserveAllocation φ b j = max 0 (φ (b w)) := by
-    rw [Finset.sum_eq_single w
-      (fun j _ hj => by
-        rw [reserveAllocation_eq_zero_iff.2 fun h => hj (h.1.unique hw), mul_zero])
-      (fun hw' => absurd (Finset.mem_univ w) hw')]
+    rw [Finset.sum_eq_single_of_mem w (Finset.mem_univ w) fun j _ hj => by
+      rw [reserveAllocation_eq_zero_iff.2 fun h => hj (h.1.unique hw), mul_zero]]
     by_cases h0 : 0 < b w ∧ 0 ≤ φ (b w)
     · rw [reserveAllocation_eq_one_iff.2 ⟨hw, h0.1, h0.2⟩, mul_one, max_eq_right h0.2]
-    · have hφle : φ (b w) ≤ 0 := by
-        rcases (hb w).eq_or_lt with hbw0 | hbwpos
-        · rwa [← hbw0]
-        · exact le_of_not_ge fun hφnonneg => h0 ⟨hbwpos, hφnonneg⟩
+    · have hφle : φ (b w) ≤ 0 := (hb w).eq_or_lt.elim (fun h => h ▸ hφ0) fun h =>
+        le_of_not_ge fun h' => h0 ⟨h, h'⟩
       rw [reserveAllocation_eq_zero_iff.2 fun h => h0 h.2, mul_zero, max_eq_left hφle]
   exact hR ▸ hL
 

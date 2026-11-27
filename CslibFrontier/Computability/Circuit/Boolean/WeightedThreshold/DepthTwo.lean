@@ -236,20 +236,16 @@ theorem lines_depthTwo_bottom_or_top (top : Op) (bottom : Fin top.arity → Op)
   · obtain ⟨j, k', f, hi, -, hk⟩ := Circuit.exists_lines_pi _ k
     obtain rfl : k' = Fin.last 0 := Fin.fin_one_eq_zero k'
     refine .inl ⟨j, (Program.lines_append_castAdd _ _ _ k).trans ?_⟩
-    rw [hk]
-    change (((Program.empty.gate _).lines (Fin.last 0)).mapWires f).mapWires (Wire.castAdd 1) = _
-    rw [Program.lines_gate_last]
+    erw [hk, Program.lines_gate_last]
     exact congrArg (Line.mk (σ := signature) (bottom j))
-      (funext fun a => congrArg (Wire.castAdd 1) (hi (args j a)))
+      (funext fun a => congrArg (Wire.castAdd _) (hi (args j a)))
   · obtain rfl : k = Fin.last 0 := Fin.fin_one_eq_zero k
     choose ws hws using Circuit.outputs_pi_eq_gate
       (fun j => Circuit.oneGate (σ := signature) (bottom j) (args j)) (fun _ => ⟨Fin.last 0, rfl⟩)
     refine .inr ⟨fun a => Fin.castAdd 1 (ws a), (Program.lines_append_natAdd _ _ _ _).trans ?_⟩
-    change ((Program.empty.gate _).lines (Fin.last 0)).mapWires (Program.appendedWire _) = _
-    rw [Program.lines_gate_last]
-    simp only [Line.mapWires, Function.comp_def, Wire.Renaming.castSucc_apply, Wire.castSucc_input,
-      Program.appendedWire_input, hws, Wire.castAdd_gate]
-    rfl
+    erw [Program.lines_gate_last]
+    exact congrArg (Line.mk (σ := signature) top)
+      (funext fun a => (Program.appendedWire_input _ a).trans (congrArg (Wire.castAdd 1) (hws a)))
 
 /-! ### Alternating linear function and integer interval telescoping -/
 
@@ -399,11 +395,9 @@ theorem gateWeight_eq_zero_of_depths_le_one {n g : ℕ} (p : Program signature n
     (hd : p.depths gate ≤ 1) (k : Fin g) :
     gateWeight p gate k = 0 := by
   dsimp only [gateWeight, lineWeight]
-  refine sum_eq_zero fun i hi => absurd ?_ (not_lt.mpr hd)
-  have hlt := p.wireDepths_lines_lt gate i
-  rw [(mem_filter.mp hi).2] at hlt
-  change p.depths k < p.depths gate at hlt
-  have := p.depths_pos k
+  refine sum_eq_zero fun i hi => ?_
+  have hlt := (mem_filter.mp hi).2 ▸ p.wireDepths_lines_lt gate i
+  have : 0 < p.wireDepths (.gate k) := p.depths_pos k
   omega
 
 /-- Any gate of depth at most `1` in a weighted threshold program has empty `gateSupport`. -/

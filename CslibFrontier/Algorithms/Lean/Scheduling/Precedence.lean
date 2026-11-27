@@ -103,8 +103,7 @@ theorem le_makespan (p s : J → ℕ) (j : J) : s j + p j ≤ makespan p s :=
   le_sup (f := fun j => s j + p j) (mem_univ j)
 
 theorem makespan_le_iff {p s : J → ℕ} {T : ℕ} : makespan p s ≤ T ↔ ∀ j, s j + p j ≤ T := by
-  unfold makespan
-  simp [Finset.sup_le_iff]
+  simp [makespan, Finset.sup_le_iff]
 
 /-- Summing the number of running jobs over the slots before the makespan counts each job's
 processing time once. -/
@@ -115,12 +114,9 @@ theorem sum_card_running (p s : J → ℕ) :
   refine sum_congr rfl fun j _ => ?_
   have hj := le_makespan p s j
   have hfilter : (range (makespan p s)).filter (fun t => s j ≤ t ∧ t < s j + p j) =
-      Ico (s j) (s j + p j) := by
-    ext t
-    simp only [mem_filter, mem_range, mem_Ico]
-    omega
-  rw [← card_filter, hfilter, Nat.card_Ico]
-  omega
+      Ico (s j) (s j + p j) :=
+    Finset.ext fun t => by simp only [mem_filter, mem_range, mem_Ico]; omega
+  rw [← card_filter, hfilter, Nat.card_Ico]; omega
 
 omit [Fintype J] in
 /-- A set of slots each covered by a job of a list `c` has at most `∑ j ∈ c, p j` elements. -/
@@ -134,10 +130,8 @@ private theorem card_le_sum_of_covered (p s : J → ℕ) (c : List J) (T : Finse
     rw [List.map_cons, List.sum_cons,
       ← card_filter_add_card_filter_not (fun t => s j ≤ t ∧ t < s j + p j)]
     refine Nat.add_le_add ?_ (ih _ fun t ht => ?_)
-    · calc #(T.filter fun t => (s j ≤ t ∧ t < s j + p j)) ≤ #(Ico (s j) (s j + p j)) := by
-            refine card_le_card fun t ht => ?_
-            simp only [mem_filter] at ht
-            simpa using ht.2
+    · calc #(T.filter fun t => (s j ≤ t ∧ t < s j + p j)) ≤ #(Ico (s j) (s j + p j)) :=
+            card_le_card fun t ht => mem_Ico.mpr (mem_filter.mp ht).2
         _ = p j := by simp
     · rw [mem_filter] at ht
       obtain ⟨i, hi, hrun⟩ := hT t ht.1
@@ -167,17 +161,13 @@ private theorem exists_chain_covering {m : ℕ} {prec : J → J → Prop} {p s :
       Nat.le_findGreatest (by omega) h'
     obtain ⟨i, hij, hi⟩ := hg.ready_started t₀ j ht₀m ht₀
     obtain ⟨c, hhead, hchain, hcov⟩ := ih i hij
-    refine ⟨j :: c, rfl, ?_, ?_⟩
-    · refine hchain.cons fun y hy => ?_
-      rw [hhead, Option.mem_some_iff] at hy
-      exact hy ▸ hij
-    · intro t' ht' hm'
-      by_cases hsj : s j ≤ t'
-      · exact ⟨j, List.mem_cons_self, hsj, ht'⟩
-      · push Not at hsj
-        have := hmax t' hsj hm'
-        obtain ⟨k, hk, hrun⟩ := hcov t' (by omega) hm'
-        exact ⟨k, List.mem_cons_of_mem _ hk, hrun⟩
+    refine ⟨j :: c, rfl, hchain.cons fun y hy => Option.mem_some_iff.mp (hhead ▸ hy) ▸ hij, ?_⟩
+    intro t' ht' hm'
+    by_cases hsj : s j ≤ t'
+    · exact ⟨j, List.mem_cons_self, hsj, ht'⟩
+    · have := hmax t' (not_le.mp hsj) hm'
+      obtain ⟨k, hk, hrun⟩ := hcov t' (by omega) hm'
+      exact ⟨k, List.mem_cons_of_mem _ hk, hrun⟩
   · push Not at hex
     refine ⟨[j], rfl, List.isChain_singleton j,
       fun t ht hm => ⟨j, List.mem_singleton_self j, ?_, ht⟩⟩
@@ -199,22 +189,18 @@ theorem IsGreedy.exists_chain {m : ℕ} {prec : J → J → Prop} {p s : J → �
     · obtain ⟨j, -, hj⟩ := exists_mem_eq_sup univ hJ fun j => s j + p j
       obtain ⟨c, -, hchain, hcov⟩ := exists_chain_covering hg hwf j
       exact ⟨c, hchain, fun t ht => hcov t (by rw [makespan] at ht; omega)⟩
-    · refine ⟨[], List.isChain_nil, fun t ht _ => ?_⟩
-      rw [not_nonempty_iff_eq_empty] at hJ
-      simp [makespan, hJ] at ht
+    · exact ⟨[], List.isChain_nil, fun t ht _ => by
+        simp [makespan, not_nonempty_iff_eq_empty.mp hJ] at ht⟩
   refine ⟨c.reverse, List.isChain_reverse.mpr hchain, ?_⟩
   rw [List.map_reverse, List.sum_reverse]
   set N := (range (makespan p s)).filter fun t => #(running p s t) < m
-  have hN : #N ≤ (c.map p).sum := card_le_sum_of_covered p s c N fun t ht => by
-    rw [mem_filter, mem_range] at ht
-    exact hcov t ht.1 ht.2
+  have hN : #N ≤ (c.map p).sum := card_le_sum_of_covered p s c N fun t ht =>
+    hcov t (mem_range.mp (mem_filter.mp ht).1) (mem_filter.mp ht).2
   have hslot : ∀ t ∈ range (makespan p s),
-      m ≤ #(running p s t) + (m - 1) * (if #(running p s t) < m then 1 else 0) := by
-    intro t ht
+      m ≤ #(running p s t) + (m - 1) * (if #(running p s t) < m then 1 else 0) := fun t ht => by
     split_ifs with h
-    · rw [mem_range] at ht
-      obtain ⟨i, hi, hrun⟩ := hcov t ht h
-      have : 0 < #(running p s t) := card_pos.mpr ⟨i, mem_running.mpr hrun⟩
+    · obtain ⟨i, _, hrun⟩ := hcov t (mem_range.mp ht) h
+      have := card_pos.mpr ⟨i, mem_running.mpr hrun⟩
       omega
     · omega
   calc m * makespan p s = ∑ _t ∈ range (makespan p s), m := by simp [mul_comm]
@@ -265,9 +251,8 @@ theorem IsGreedy.mul_makespan_le {m : ℕ} {prec : J → J → Prop} {p s s' : J
   calc m * makespan p s ≤ ∑ j, p j + (m - 1) * (c.map p).sum := h
     _ ≤ m * makespan p s' + (m - 1) * makespan p s' := by gcongr
     _ = (2 * m - 1) * makespan p s' := by
-        rcases Nat.eq_zero_or_pos m with rfl | hm
-        · simp
-        · rw [← add_mul]; congr 1; omega
+        rw [← add_mul]
+        exact congrArg (· * _) (by omega)
 
 /-- **Graham's anomaly bound** ([Graham1966], §II, Theorem (p. 1570)): let `s` be a greedy
 schedule on `m'` machines for well-founded precedences `prec'` and processing times `p'`, and `s'`
@@ -362,19 +347,12 @@ private theorem GreedyInv.step {m : ℕ} {p : J → ℕ} {N : ℕ} {D : Finset J
       omega
     · rw [mem_running]
       rcases mem_union.mp hj with hj | hj
-      · rw [hs'D j (mem_inter.mp hj).2]
-        exact mem_running.mp (mem_inter.mp hj).1
-      · rw [hs'A j hj]
-        have := hp j
-        omega
-  have hcardN : #(running p s' N) = r + #A := by
-    rw [hrunN, card_union_of_disjoint hdisj]
+      · exact hs'D j (mem_inter.mp hj).2 ▸ mem_running.mp (mem_inter.mp hj).1
+      · exact hs'A j hj ▸ ⟨le_rfl, Nat.lt_add_of_pos_right (hp j)⟩
   -- If slot `N` is not full, every ready job was placed.
-  have hAR_eq : #(running p s' N) < m → A = R := by
-    intro hlt
-    refine eq_of_subset_of_card_le hAR ?_
-    have := min_le_right #R (m - r)
-    rcases min_choice #R (m - r) with hmin | hmin <;> omega
+  have hAR_eq : #(running p s' N) < m → A = R := fun hlt => by
+    rw [hrunN, card_union_of_disjoint hdisj] at hlt
+    exact eq_of_subset_of_card_le hAR (by omega)
   refine ⟨D ∪ A, s', ⟨?_, ?_, ?_, ?_, ?_, ?_⟩⟩
   · intro j hj
     rcases mem_union.mp hj with hj | hj
@@ -401,34 +379,21 @@ private theorem GreedyInv.step {m : ℕ} {p : J → ℕ} {N : ℕ} {D : Finset J
       calc #(running p s' t ∩ (D ∪ A)) ≤ #((running p s N ∩ D) ∪ A) :=
             card_le_card (hrun_ge t ht)
         _ = r + #A := card_union_of_disjoint hdisj
-        _ ≤ m := by
-            have := min_le_right #R (m - r)
-            omega
+        _ ≤ m := by omega
   · intro t ht j hm htj
     rcases Nat.lt_succ_iff_lt_or_eq.mp ht with ht | rfl
     · rw [hrun_lt t ht] at hm
-      have htj' : t < s j := by
-        by_cases hj : j ∈ D
-        · rwa [← hs'D j hj]
-        · exact (hs'N j hj).1 ▸ ht
+      have htj' : t < s j := if hj : j ∈ D then hs'D j hj ▸ htj else (hs'N j hj).1 ▸ ht
       obtain ⟨i, hij, hi⟩ := h.ready t ht j hm htj'
-      refine ⟨i, hij, ?_⟩
-      by_cases hiD : i ∈ D
-      · rwa [hs'D i hiD]
-      · have := hs'N i hiD
-        omega
+      exact ⟨i, hij, if hiD : i ∈ D then hs'D i hiD ▸ hi
+        else lt_of_lt_of_le ht (Nat.le_add_right_of_le (hs'N i hiD).2)⟩
     · have hjD : j ∉ D := fun hjD => (h.lt_of_mem j hjD).not_ge (hs'D j hjD ▸ htj).le
       have hjA : j ∉ A := fun hjA => (hs'A j hjA ▸ htj).false
-      have hjR : j ∉ R := by rwa [← hAR_eq hm]
-      rw [hR, mem_filter] at hjR
-      simp only [mem_univ, true_and, not_and, not_forall] at hjR
+      have hjR : j ∉ R := hAR_eq hm ▸ hjA
+      simp only [hR, mem_filter, mem_univ, true_and, not_and, not_forall] at hjR
       obtain ⟨i, hij, hi⟩ := hjR hjD
-      refine ⟨i, hij, ?_⟩
-      by_cases hiD : i ∈ D
-      · exact hs'D i hiD ▸ not_le.mp (hi hiD)
-      · have := hp i
-        have := hs'N i hiD
-        omega
+      exact ⟨i, hij, if hiD : i ∈ D then hs'D i hiD ▸ not_le.mp (hi hiD)
+        else lt_of_le_of_lt (hs'N i hiD).2 (Nat.lt_add_of_pos_right (hp i))⟩
   · intro t ht hDA
     have hD : D ≠ univ := fun hD =>
       hDA (eq_univ_iff_forall.mpr fun x => mem_union_left _ (hD ▸ mem_univ x))
@@ -449,8 +414,6 @@ private theorem GreedyInv.step {m : ℕ} {p : J → ℕ} {N : ℕ} {D : Finset J
             mem_filter.mpr ⟨mem_univ _, hkD, fun i hik => ⟨hpred i hik, hready i hik⟩⟩
           have hR0 : 0 < #R := card_pos.mpr ⟨k, hkR⟩
           rw [hAne, card_empty] at hA
-          have hmr : m ≤ r := by
-            rcases min_choice #R (m - r) with hmin | hmin <;> omega
           obtain ⟨j, hj⟩ := card_pos.mp (show 0 < r by omega)
           exact ⟨j, mem_union_left _ hj⟩
         · push Not at hready
@@ -470,9 +433,7 @@ private theorem sum_card_running_range_le (p s : J → ℕ) (N : ℕ) :
   refine sum_le_sum fun j _ => ?_
   rw [← card_filter]
   calc #((range N).filter fun t => s j ≤ t ∧ t < s j + p j) ≤ #(Ico (s j) (s j + p j)) :=
-        card_le_card fun t ht => by
-          rw [mem_filter] at ht
-          exact mem_Ico.mpr ht.2
+        card_le_card fun t ht => mem_Ico.mpr (mem_filter.mp ht).2
     _ = p j := by simp
 
 private theorem exists_greedyInv {m : ℕ} {p : J → ℕ} (hwf : WellFounded prec)
@@ -492,15 +453,14 @@ theorem exists_isGreedy (m : ℕ) (hm : 0 < m) (prec : J → J → Prop) (hwf : 
   obtain ⟨D, s, h⟩ := exists_greedyInv (prec := prec) hwf hm hp (∑ j, p j + 1)
   have hD : D = univ := by
     by_contra hD
-    have hcov : ∀ t ∈ range (∑ j, p j + 1), 1 ≤ #(running p s t) := fun t ht => by
-      obtain ⟨k, hk⟩ := h.busy t (mem_range.mp ht) hD
-      exact card_pos.mpr ⟨k, (mem_inter.mp hk).1⟩
+    have hcov : ∀ t ∈ range (∑ j, p j + 1), 1 ≤ #(running p s t) := fun t ht =>
+      card_pos.mpr ((h.busy t (mem_range.mp ht) hD).mono inter_subset_left)
     have := (card_nsmul_le_sum _ _ 1 hcov).trans (sum_card_running_range_le p s _)
     simp at this
   subst hD
-  refine ⟨s, ⟨⟨fun i j hij => (h.prec_le i j hij (mem_univ j)).2, fun t => ?_⟩, ?_⟩⟩
-  · simpa using h.card_le t
-  · exact fun t j hlt htj => h.ready t (htj.trans (h.lt_of_mem j (mem_univ j))) j hlt htj
+  exact ⟨s, ⟨⟨fun i j hij => (h.prec_le i j hij (mem_univ j)).2,
+    fun t => by simpa using h.card_le t⟩,
+    fun t j hlt htj => h.ready t (htj.trans (h.lt_of_mem j (mem_univ j))) j hlt htj⟩⟩
 
 end Existence
 

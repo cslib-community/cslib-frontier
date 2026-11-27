@@ -65,19 +65,11 @@ private theorem eval_esymm_on_support {n : ℕ} (x : Finset (Fin n)) (j : ℕ) :
     eval (fun i => if i ∈ x then (1 : ℤ) else 0) (esymm (Fin n) ℤ j) = x.card.choose j := by
   classical
   rw [esymm, map_sum]
-  simp only [map_prod, eval_X]
-  have indicator (s : Finset (Fin n)) :
-      (∏ i ∈ s, (if i ∈ x then (1 : ℤ) else 0)) = if s ⊆ x then 1 else 0 := by
-    by_cases h : s ⊆ x
-    · exact (ite_eq_left h).symm ▸ prod_eq_one fun i hi => by simp [h hi]
-    · obtain ⟨i, hi, hx⟩ := Finset.not_subset.mp h
-      exact (ite_eq_right h).symm ▸ prod_eq_zero hi (by simp [hx])
+  simp only [map_prod, eval_X, Finset.prod_boole, ← Finset.subset_iff, ← Finset.sum_filter]
   have filter_eq : ((univ : Finset (Fin n)).powersetCard j).filter (· ⊆ x) = x.powersetCard j := by
     ext s
     simp [and_comm]
-  simp_rw [indicator]
-  rw [← Finset.sum_filter, filter_eq]
-  simp
+  simp [filter_eq]
 
 /-- Integer multilinear interpolation on consecutive layers of a Boolean cube.
 The value function prescribes one integer per weight in the half-open band.

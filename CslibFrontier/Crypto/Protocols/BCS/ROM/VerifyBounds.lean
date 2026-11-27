@@ -141,10 +141,7 @@ theorem isCostBounded_bcsMTCost_bcsVerifyROM (iop : PublicCoinIOP r d Stmt Wit S
   intro qs
   induction qs with
   | nil => exact fun _ => Nat.zero_le _
-  | cons _ _ ih =>
-    rintro (_ | ⟨op, _⟩)
-    · exact le_rfl
-    · exact Nat.add_le_add_left (ih _) _
+  | cons _ _ ih => exact fun | [] => le_rfl | _ :: _ => Nat.add_le_add_left (ih _) _
 
 /-- If `iop.queries x chals` makes at most `q_iop` oracle queries for every `chals` and every
 authentication path in `prf.openings` has length at most `L_path`, then
@@ -164,9 +161,8 @@ theorem isCostBounded_bcsMTCost_bcsVerifyROM_of_queries_le
             rcases List.mem_map.mp hx with ⟨p, hp, rfl⟩
             exact Nat.add_le_add_right (hops p.2 (List.of_mem_zip hp).2) 1
     _ ≤ q_iop * (L_path + 1) := by
-        refine Nat.mul_le_mul_right _ ?_
         rw [List.length_zip]
-        exact (Nat.min_le_left _ _).trans (hqs _)
+        exact Nat.mul_le_mul_right _ ((Nat.min_le_left _ _).trans (hqs _))
 
 end CostBounds
 
@@ -193,14 +189,11 @@ private theorem validFSChain_of_mem_support_bcsChallengesAuxProg
   | m + 1, hm, tr_FS, tr_FS', chals, hnodup, hsupp, hmem => by
     supp_cases hmem [bcsChallengesAuxProg, run_interpret_bind, run_interpret_query,
       run_interpret_pure] with ⟨⟨prev, tr_FS₁⟩, hprev, ⟨c, tr_FS₂⟩, hc, rfl, rfl⟩
-    obtain ⟨-, hnodup₁, hsupp₁, -⟩ :=
-      mem_support_run_memoize_invariant
-        (fun _ : BCSFSQuery Stmt Chal => PMF.uniformOfFintype Chal)
-        (bcsChallengesAuxProg x roots m (Nat.le_of_succ_le hm)) hnodup hsupp hprev
+    obtain ⟨-, hnodup₁, hsupp₁, -⟩ := mem_support_run_memoize_invariant _
+      (bcsChallengesAuxProg x roots m (Nat.le_of_succ_le hm)) hnodup hsupp hprev
     obtain ⟨_, hsteps_prev⟩ := validFSChain_of_mem_support_bcsChallengesAuxProg x roots m
       (Nat.le_of_succ_le hm) hnodup hsupp hprev
-    obtain ⟨hc_mem, hsub₂, -, -⟩ := mem_support_memoize_nodup
-      (fun _ : BCSFSQuery Stmt Chal => PMF.uniformOfFintype Chal)
+    obtain ⟨hc_mem, hsub₂, -, -⟩ := mem_support_memoize_nodup _
       (x, rootPrefix roots ⟨m, hm⟩, List.ofFn prev) hnodup₁ hsupp₁ hc
     refine ⟨by simp [hm], fun i hi => ?_⟩
     rw [List.length_take_of_le (by simpa using hm)] at hi

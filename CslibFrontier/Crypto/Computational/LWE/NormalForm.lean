@@ -91,11 +91,8 @@ def gaussInv? {n q : ℕ} [Fact (Nat.Prime q)] (A : Matrix (Fin n) (Fin n) (ZMod
 theorem gaussInv?_eq_some_inv {n q : ℕ} [Fact (Nat.Prime q)]
     (A : Matrix (Fin n) (Fin n) (ZMod q)) :
     A.det ≠ 0 ↔ gaussInv? A = some A⁻¹ := by
-  unfold gaussInv?
-  dsimp
-  split_ifs with h
-  · simp [h]
-  · simp [Matrix.inv_def, h, Ring.inverse_eq_inv A.det]
+  dsimp only [gaussInv?]
+  split_ifs with h <;> simp [Matrix.inv_def, h, Ring.inverse_eq_inv A.det]
 
 /-- Extract the top block. -/
 def topBlock {m n q : ℕ}
@@ -288,15 +285,13 @@ private theorem bottomBlock_stackRows (A1 : Matrix (Fin n) (Fin n) (ZMod q))
 
 omit [Fact (Nat.Prime q)] in
 private theorem topVec_append (e1 : Fin n → ZMod q) (e2 : Fin m → ZMod q) :
-    topVec (Fin.append e1 e2) = e1 := by
-  funext i
-  simp [topVec]
+    topVec (Fin.append e1 e2) = e1 :=
+  funext (Fin.append_left e1 e2)
 
 omit [Fact (Nat.Prime q)] in
 private theorem bottomVec_append (e1 : Fin n → ZMod q) (e2 : Fin m → ZMod q) :
-    bottomVec (Fin.append e1 e2) = e2 := by
-  funext i
-  simp [bottomVec]
+    bottomVec (Fin.append e1 e2) = e2 :=
+  funext (Fin.append_right e1 e2)
 
 private theorem uniformOfFintype_matrix_split :
     PMF.uniformOfFintype (Matrix (Fin (n + m)) (Fin n) (ZMod q)) =
@@ -313,10 +308,10 @@ private theorem pi_fin_add {γ : Type*} [Finite γ] (p : PMF γ) :
         (PMF.pi fun _ : Fin m => p).map fun e2 => (e1, e2)).map
         fun x => Fin.append x.1 x.2 := by
   ext outcome
-  rw [show (fun x : (Fin n → γ) × (Fin m → γ) => Fin.append x.1 x.2) =
-      Fin.appendEquiv n m from rfl, PMF.map_equiv_apply, PMF.bind_map_prodMk_apply]
-  simp only [PMF.pi_apply, Fin.appendEquiv_symm_apply]
-  exact Fin.prod_univ_add (fun i => p (outcome i))
+  have heq : (fun x : (Fin n → γ) × (Fin m → γ) => Fin.append x.1 x.2) = Fin.appendEquiv n m := rfl
+  rw [heq, PMF.map_equiv_apply, PMF.bind_map_prodMk_apply]
+  simpa only [PMF.pi_apply, Fin.appendEquiv_symm_apply] using
+    Fin.prod_univ_add fun i => p (outcome i)
 
 /-- The common shape of both reductions: drawing a full sample and giving up on a singular top
 block is drawing the top block first, then an error-secret sample when the block is invertible. -/
@@ -408,19 +403,14 @@ private theorem uniformEnsemble_eq_realEnsemble {k : ℕ} :
     uniformEnsemble (fun _ => n) (fun _ => k) (fun _ => q) 0 =
       realEnsemble (fun _ => n) (fun _ => k) (fun _ => q)
         (fun _ => PMF.uniformOfFintype (ZMod q)) 0 := by
-  unfold uniformEnsemble realEnsemble
-  congr 1
-  simp only [publicMatrixLaw, pmf_norm]
-  exact (bind_publicMatrix_uniform _).symm
+  simp only [uniformEnsemble, realEnsemble, publicMatrixLaw, pmf_norm, bind_publicMatrix_uniform]
 
 private theorem uniformEnsemble_eq_realEnsembleErrorSecret {k : ℕ} :
     uniformEnsemble (fun _ => n) (fun _ => k) (fun _ => q) 0 =
       realEnsembleErrorSecret (fun _ => n) (fun _ => k) (fun _ => q)
         (fun _ => PMF.uniformOfFintype (ZMod q)) 0 := by
-  unfold uniformEnsemble realEnsembleErrorSecret
-  congr 1
-  simp only [publicMatrixLawErrorSecret, pmf_norm]
-  exact (bind_publicMatrix_uniform _).symm
+  simp only [uniformEnsemble, realEnsembleErrorSecret, publicMatrixLawErrorSecret, pmf_norm,
+    bind_publicMatrix_uniform]
 
 /-- On real samples with an invertible top block, the search reduction recovers the secret
 whenever the adversary names the error-secret sample's secret. -/
@@ -449,10 +439,9 @@ private theorem le_searchGame_reduceNormalSearch (noise : PMF (ZMod q))
   · rw [eval_reduceNormalSearch_publicMatrix adversary A s e h, PMF.bind_bind]
     refine PMF.bind_apply_mono_on_support _ _ fun g _ => ?_
     simp only [PMF.pure_bind]
-    by_cases hg : g = encZModVec n q (topVec e)
-    · rw [hg, decodeZModVec_encZModVec, add_sub_cancel_right, Matrix.mulVec_mulVec,
-        Matrix.nonsing_inv_mul _ (isUnit_iff_ne_zero.mpr h), Matrix.one_mulVec]
-      simp
+    rcases eq_or_ne g (encZModVec n q (topVec e)) with rfl | hg
+    · simp [decodeZModVec_encZModVec, Matrix.mulVec_mulVec,
+        Matrix.nonsing_inv_mul _ (isUnit_iff_ne_zero.mpr h)]
     · simp [hg]
 
 omit [Fact (Nat.Prime q)] in

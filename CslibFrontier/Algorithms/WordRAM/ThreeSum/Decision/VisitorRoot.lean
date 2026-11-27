@@ -63,11 +63,8 @@ theorem oneRoot_preserves {r : ℕ} (solver : Code .standard (r + 7))
   have hskip : (Code.op (B := Basis.standard) (.copy
       (preprocessingRegisters r (slot 0)) (preprocessingRegisters r (slot 0)))).Preserves
         (preprocessingRegisters r i) := by
-    simp only [Code.Preserves, Op.dest, ne_eq, Option.some.injEq]
-    intro he
-    have hv := congrArg Fin.val he
-    simp only [preprocessingRegisters, Fin.val_castAdd] at hv
-    dsimp only [slot] at hv
+    simp only [Code.Preserves, Op.dest, ne_eq, Option.some.injEq,
+      (preprocessing_injective r).eq_iff, Fin.ext_iff, slot]
     omega
   have hprepare : (prepareHost (r := r)).Preserves (preprocessingRegisters r i) := by
     simp only [prepareHost, Code.Preserves, Op.dest, ne_eq, Option.some.injEq]
@@ -79,10 +76,8 @@ theorem oneRoot_preserves {r : ℕ} (solver : Code .standard (r + 7))
     simp only [receive, Code.Preserves, Op.dest, ne_eq, Option.some.injEq]
     exact ⟨controller_ne_preprocessing answer i, controller_ne_preprocessing answer i⟩
   have hrelease : (releasePacked (r := r)).Preserves (preprocessingRegisters r i) := by
-    simp only [releasePacked, Code.Preserves, Op.dest, ne_eq, Option.some.injEq]
-    intro he
-    have hv := congrArg Fin.val he
-    simp only [preprocessingRegisters, Fin.val_castAdd, heap] at hv
+    simp only [releasePacked, Code.Preserves, Op.dest, ne_eq, Option.some.injEq,
+      (preprocessing_injective r).eq_iff, Fin.ext_iff, heap]
     omega
   exact ⟨lift (hinit i hi), lift (hpush i hi), lift (hpop i hi), hskip, hskip, hskip, hskip,
     lift (hlocal i hi), ⟨hprepare, hhost, hreceive⟩, hrelease, lift (hchildren i hi)⟩

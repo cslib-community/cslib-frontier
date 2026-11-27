@@ -82,29 +82,14 @@ public theorem exec_tileStep {w L m N A t E : ℕ} (hw : 0 < w) (hm : m ≤ L)
   let γ := t % B
   let pa := BandPreparation.catalogueBase L m N + β * 10 ^ L
   let pb := BandPreparation.catalogueBase L m N + (B + γ) * 10 ^ L
-  have habQ : a ≤ b ∧ b ≤ qs.length :=
-    hg.span_bounds (Wanted.tileKey L m N ∘ Wanted.inputPairs qs) hoffsets ht
-  have hB : 0 < B := by dsimp only [B] at *; nlinarith only [ht, Nat.zero_le t]
-  have hβ : β < B := (Nat.div_lt_iff_lt_mul hB).mpr (by simpa [B, pow_two] using ht)
-  have hγ : γ < B := Nat.mod_lt t hB
-  have hT : (β, γ) ∈ tiles L m N :=
-    Finset.mem_product.mpr ⟨Finset.mem_range.mpr hβ, Finset.mem_range.mpr hγ⟩
-  have htnum : β * numBands L m N + γ = t := by
-    simpa only [β, γ, B, Nat.mul_comm] using Nat.div_add_mod t B
-  have hcode (j : ℕ) (hj : j < qs.length) :
-      x.mem (codeBase L m N qs.length + j) < 10 ^ L := by
-    rw [hg.codes j hj]
-    exact router_code_lt hm qs old hvalues j hj
-  let queries : Fin (b - a) → OutStr L := fun i => PrunedQuery.queryAt
-    ⟨x.mem (codeBase L m N qs.length + (a + i.val)), hcode _ (by have hi := i.isLt; omega)⟩
-  have hinput (i : Fin (b - a)) : x.mem (codeBase L m N qs.length + (a + i.val)) =
-      (PrunedQuery.queryIndex (queries i)).val := by
-    simp only [queries, PrunedQuery.queryIndex_queryAt]
-  have hset : Finset.univ.image queries =
-      wantedStrings (MaskTable.layout hm) qs.toFinset β γ :=
-    hg.span_queries hm qs hvalues hoffsets (β, γ) hT a b
-      (by rw [htnum])
-      (by rw [htnum]; rfl) queries hinput
+  obtain ⟨hT, htnum, habQ, queries, hinput, hset⟩ := hg.decode_span hm qs hvalues hoffsets ht
+  change β * numBands L m N + γ = t at htnum
+  change (Fin (b - a) → OutStr L) at queries
+  change (∀ i, x.mem (codeBase L m N qs.length + (a + i.val)) =
+    (PrunedQuery.queryIndex (queries i)).val) at hinput
+  change Finset.univ.image queries = wantedStrings (MaskTable.layout hm) qs.toFinset β γ at hset
+  have ⟨hβ, hγ⟩ : β < B ∧ γ < B := by
+    simpa only [tiles, Finset.mem_product, Finset.mem_range] using hT
   obtain ⟨arg, har, arp, arm, ari, _, arL, arA, arB, arq, arQ, aro, arf, arE⟩ :=
     exec_tileArguments x hp hx ht (rfl : x.mem (offsetBase L m N qs.length + t) = a)
       (rfl : x.mem (offsetBase L m N qs.length + t + 1) = b) habQ.1 habQ.2 hfit

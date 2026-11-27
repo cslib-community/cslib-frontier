@@ -103,8 +103,7 @@ theorem Term.mulCost_toCircuit (zero one : C) (t : Term C d) :
 /-- There is one linear-form addition per variable, including the initial addition to zero. -/
 theorem Term.addCost_toCircuit (zero one : C) (t : Term C d) :
     (t.toCircuit zero one).program.cost ArithOp.addCost = d := by
-  rw [Term.cost_program_toCircuit]
-  simp [ArithOp.addCost]
+  simp [Term.cost_program_toCircuit, ArithOp.addCost]
 
 /-- The total gate count includes coefficient constants, zero, scaling, and the power circuit. -/
 theorem Term.size_toCircuit (zero one : C) (t : Term C d) :
@@ -147,17 +146,15 @@ theorem eval_compile [Semiring R] (zero one : C) (constant : C → R)
   | add => simp [operationCircuit, Circuit.eval_oneGate, arithInterpretationWith]
   | term t =>
     have hx : Fin.append x args = x := funext fun i => Fin.append_left _ _ i
-    rw [operationCircuit, hx, Term.eval_toCircuit zero one constant hzero hone]
-    rfl
+    simp [operationCircuit, hx, Term.eval_toCircuit zero one constant hzero hone]
 
 /-- Compiling a closed Waring circuit preserves equality of formal polynomials at every output. -/
 theorem polynomial_compile {K : Type*} [CommSemiring K]
     (c : Circuit (SumOfTerms.signature (Term K d)) 0 m) :
     (compile 0 1 c).eval (arithInterpretationWith K MvPolynomial.C) MvPolynomial.X =
       c.eval (SumOfTerms.interpretation Term.polynomial) Fin.elim0 := by
-  have h : (fun t : Term K d => t.eval MvPolynomial.C MvPolynomial.X) = Term.polynomial := by
-    funext t
-    simp only [Term.eval, Term.polynomial, MvPolynomial.smul_eq_C_mul]
+  have h : (fun t : Term K d => t.eval MvPolynomial.C MvPolynomial.X) = Term.polynomial :=
+    funext fun _ => by simp only [Term.eval, Term.polynomial, MvPolynomial.smul_eq_C_mul]
   simpa only [Fin.append_elim0, Fin.cast_refl, Function.comp_id, h] using
     eval_compile 0 1 MvPolynomial.C MvPolynomial.C_0 MvPolynomial.C_1 c MvPolynomial.X Fin.elim0
 
@@ -188,14 +185,11 @@ private theorem cost_program_compile_of_termCost (zero one : C)
     (compile zero one c).program.cost weight =
       weight .add * c.program.cost SumOfTerms.addCost +
         term * c.program.cost SumOfTerms.termCost := by
-  rw [compile, Circuit.cost_program_simulateWithContext]
   have h : (fun op => (operationCircuit zero one d op).program.cost weight) =
-      SumOfTerms.weightedCost (weight .add) term := by
-    funext op
-    cases op with
-    | add => exact Circuit.cost_program_oneGate _ _ _
-    | term t => exact hterm t
-  rw [h, SumOfTerms.cost_weightedCost]
+      SumOfTerms.weightedCost (weight .add) term := funext fun
+    | .add => Circuit.cost_program_oneGate _ _ _
+    | .term t => hterm t
+  rw [compile, Circuit.cost_program_simulateWithContext, h, SumOfTerms.cost_weightedCost]
 
 /-- Multiplications are exactly the per-term count times the number of source term gates. -/
 theorem mulCost_compile (zero one : C)

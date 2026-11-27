@@ -50,13 +50,8 @@ theorem matrices_zero_one (m n g p : ℕ) (values : ℕ → ℤ) (idx : Instance
       leftMatrix m n g p values idx a k ≤ 1) ∧
     (∀ k a, 0 ≤ rightMatrix m n g p values idx k a ∧
       rightMatrix m n g p values idx k a ≤ 1) := by
-  constructor <;> intro a k
-  · exact ⟨Int.natCast_nonneg _, by
-      dsimp only [leftMatrix]
-      exact_mod_cast WriteMatrices.entry_le_one false _ _ _⟩
-  · exact ⟨Int.natCast_nonneg _, by
-      dsimp only [rightMatrix]
-      exact_mod_cast WriteMatrices.entry_le_one true _ _ _⟩
+  exact ⟨fun _ _ => ⟨Int.natCast_nonneg _, Int.ofNat_le.mpr (WriteMatrices.entry_le_one false ..)⟩,
+    fun _ _ => ⟨Int.natCast_nonneg _, Int.ofNat_le.mpr (WriteMatrices.entry_le_one true ..)⟩⟩
 
 /-- The actual computed ordinal of an existing finite class/chunk/piece. This is a value
 specification for the caller's selection register, not a table supplied to the adapter. -/
@@ -87,10 +82,8 @@ theorem recordQueryCount_pos {n D g p : ℕ} (values : ℕ → ℤ) (hp : p ≠ 
     change idx.chunk < (residueClass wAB p idx.residue).card ⌈/⌉ queryCap n D at hk
     omega
   rw [hcard] at hkcard
-  unfold recordQueryCount
-  change 0 < min (queryCap n D) (Nat.count (fun q => R q = idx.residue.val) (n * n) -
-    idx.chunk * queryCap n D)
-  omega
+  simp only [recordQueryCount, lt_min_iff, hcap, true_and, tsub_pos_iff_lt]
+  exact hkcard
 
 /-- Actual query pointer into the protected producer catalogue. -/
 @[expose] def recordQueries (n D p : ℕ) (idx : InstanceIndex p) : ℕ :=

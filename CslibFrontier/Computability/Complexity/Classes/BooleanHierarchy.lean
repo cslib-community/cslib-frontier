@@ -74,12 +74,8 @@ theorem differenceHierarchy_subset {C D : Set (Set α)} (hC : C ⊆ D) (h0 : ∅
     (hD : ∀ A ∈ D, ∀ B ∈ D, A \ B ∈ D) (n : ℕ) :
     differenceHierarchy C n ⊆ D := by
   induction n with
-  | zero =>
-    rintro A (rfl : A = ∅)
-    exact h0
-  | succ n ih =>
-    rintro A ⟨B, hB, E, hE, rfl⟩
-    exact hD B (hC hB) E (ih hE)
+  | zero => exact Set.singleton_subset_iff.mpr h0
+  | succ n ih => exact fun _ ⟨B, hB, E, hE, hA⟩ => hA ▸ hD B (hC hB) E (ih hE)
 
 /-- Inverse images preserve every level whenever they preserve the base classes. -/
 theorem preimage_mem_differenceHierarchy {C : Set (Set α)} {D : Set (Set β)}
@@ -97,12 +93,8 @@ theorem preimage_mem_differenceHierarchy {C : Set (Set α)} {D : Set (Set β)}
 theorem differenceHierarchy_subset_succ {C : Set (Set α)} (hC : ∅ ∈ C) (n : ℕ) :
     differenceHierarchy C n ⊆ differenceHierarchy C (n + 1) := by
   induction n with
-  | zero =>
-    rintro A (rfl : A = ∅)
-    exact ⟨∅, hC, ∅, rfl, by simp⟩
-  | succ n ih =>
-    rintro A ⟨B, hB, D, hD, rfl⟩
-    exact ⟨B, hB, D, ih hD, rfl⟩
+  | zero => exact Set.singleton_subset_iff.mpr ⟨∅, hC, ∅, rfl, by simp⟩
+  | succ n ih => exact fun _ ⟨B, hB, D, hD, hA⟩ => hA ▸ ⟨B, hB, D, ih hD, rfl⟩
 
 /-- If the universe belongs to the base class, complementation costs one level. -/
 theorem compl_mem_differenceHierarchy_succ {C : Set (Set α)} (hC : Set.univ ∈ C)
@@ -358,10 +350,9 @@ theorem BH_eq_of_coBH_subset {k m : ℕ} (h : coBH enc k ⊆ BH enc k) (hm : k �
 `coBH enc k ⊆ BH enc k`, then `coBH enc m = BH enc k` for every `m ≥ k`. -/
 theorem coBH_eq_BH_of_coBH_subset {k m : ℕ} (h : coBH enc k ⊆ BH enc k) (hm : k ≤ m) :
     coBH enc m = BH enc k := by
-  have hm_eq : coBH enc m = coBH enc k := by
-    ext A
-    simp only [mem_coBH, BH_eq_of_coBH_subset h hm]
-  rw [hm_eq, ← BH_eq_coBH_iff_BH_succ_eq.mpr (BH_succ_eq_iff_coBH_subset.mpr h)]
+  ext A
+  rw [mem_coBH, BH_eq_of_coBH_subset h hm, ← mem_coBH,
+    BH_eq_coBH_iff_BH_succ_eq.mpr (BH_succ_eq_iff_coBH_subset.mpr h)]
 
 /-- **Full Boolean-hierarchy collapse** [Cai et al., Section 2][CaiEtAl1988]; [Kadin][Kadin1988]:
 if `coBH enc k ⊆ BH enc k`, then the entire Boolean hierarchy collapses to `BH enc k`. -/
@@ -374,10 +365,7 @@ theorem BooleanHierarchy_eq_BH_of_coBH_subset {k : ℕ} (h : coBH enc k ⊆ BH e
 
 /-- If `NP = coNP`, the entire Boolean hierarchy collapses to `NP`. -/
 theorem BooleanHierarchy_eq_NP_of_NP_eq_coNP (h : NP enc = coNP enc) :
-    BooleanHierarchy enc = NP enc := by
-  rw [← BH_one]
-  refine BooleanHierarchy_eq_BH_of_coBH_subset ?_
-  rw [coBH_one, BH_one]
-  exact h.symm.subset
+    BooleanHierarchy enc = NP enc :=
+  BH_one (enc := enc) ▸ BooleanHierarchy_eq_BH_of_coBH_subset (k := 1) (by simp [h])
 
 end Cslib.Complexity

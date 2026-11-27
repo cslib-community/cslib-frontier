@@ -181,18 +181,13 @@ private theorem scope_table_reindex {A : Type} (B : CSP A V) (r : A)
   intro d
   obtain ⟨⟨o, side⟩, ho⟩ := (incidenceDartEquiv _).surjective (ed.symm d)
   have hd : ed (incidenceDart o side) = d := by
-    rw [← incidenceDartEquiv_apply (o, side), ho]
-    exact ed.apply_symm_apply d
+    simpa only [← incidenceDartEquiv_apply (o, side), ho] using ed.apply_symm_apply d
   rw [← hd]
   simp only [ed, occurrenceDartEquiv_apply]
-  obtain ⟨⟨p, other⟩, hp⟩ := (incidenceDartEquiv _).surjective
-    (source.rotate (incidenceDart o side))
-  have hstep : c.successor.getD (incidenceDart o side).index 0 =
-      (incidenceDart p other).index := by
-    rw [← RotationCertificate.index_decode_rotate hr]
-    exact (congrArg Dart.index hp).symm
-  have ht := getD_reindexLastScopeCertificate_of_step B r x q c hr
-    o p side other hstep
+  obtain ⟨⟨p, other⟩, hp⟩ := (incidenceDartEquiv _).surjective (source.rotate _)
+  have hstep : c.successor.getD (incidenceDart o side).index 0 = (incidenceDart p other).index :=
+    (RotationCertificate.index_decode_rotate hr _).symm.trans (congrArg Dart.index hp).symm
+  have ht := getD_reindexLastScopeCertificate_of_step B r x q c hr o p side other hstep
   have hbnd : (incidenceDart (e o) side).index < 2 * H.edges.length :=
     ((Dart.indexEquiv H) (incidenceDart (e o) side)).isLt
   rw [RotationCertificate.getD_reindex _ _ _ _ hbnd, (hm o side).2, hstep]
@@ -267,15 +262,12 @@ private theorem reindexOfFn_boundary_certificate {F : CSP Rel V} {n : ℕ} {v : 
       else RotationCertificate.reindex w.certificate (2 * (F.occurrences.length + n))
         (boundaryIndexMap F.occurrences.length n shiftF)
         (boundaryIndexMap F.occurrences.length n shiftB) := by
-  by_cases hshort : n ≤ 1
-  · rw [ite_eq_left hshort]
-    exact reindexOfFn_short_certificate w hn hshort
-  · rw [ite_eq_right hshort]
-    have hf := window_coordinates F.occurrences.length n shiftF
+  split_ifs with hshort
+  · exact reindexOfFn_short_certificate w hn hshort
+  · have hf := window_coordinates F.occurrences.length n shiftF
     have hb := window_coordinates F.occurrences.length n shiftB
-    refine reindexOfFn_certificate w hn _ _ hf.1 hb.1 (fun j side => ?_) (fun j side => ?_)
-    · rw [hf.2 j side, hF]
-    · rw [hb.2 (q.symm j) side, hB, Equiv.apply_symm_apply]
+    exact reindexOfFn_certificate w hn _ _ hf.1 hb.1 (fun j side => by rw [hf.2 j side, hF])
+      fun j side => by rw [hb.2 (q.symm j) side, hB, Equiv.apply_symm_apply]
 
 /-- The existing static LEFT constructor emits the complete raw table.
 Only its original witness and boundary-distinctness premise are needed; short tables retain

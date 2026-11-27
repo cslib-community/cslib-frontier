@@ -93,15 +93,9 @@ theorem P_comm (f : Z → Z) (hf : Isometry f) (hs : Function.Surjective f)
   simp only [hc] at h1
   exact h1.unique card_pos' (A.P_spec (f z))
 
-theorem P_fix (z : Z) : A.Fix (A.P z) := by
-  intro g
-  have h1 := (A.P_spec z).map (A g).isometry (A g).surjective
-  have h2 := (A.P_spec z).comp_equiv (Equiv.mulLeft g)
-  refine h1.unique card_pos' ?_
-  have e : (fun i => A g (A i z)) = (fun g => A g z) ∘ Equiv.mulLeft g :=
-    funext fun k => (A.act_mul g k z).symm
-  rw [e]
-  exact h2
+theorem P_fix (z : Z) : A.Fix (A.P z) := fun g =>
+  ((A.P_spec z).map (A g).isometry (A g).surjective).unique card_pos' <| by
+    simpa [Function.comp_def, act_mul] using (A.P_spec z).comp_equiv (Equiv.mulLeft g)
 
 end proj
 end IsoAct

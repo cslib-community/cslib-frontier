@@ -111,36 +111,12 @@ lemma apply?_pop_cons (sym : StackSym) (rest : List StackSym) :
 /-- A stack operation changes the stack height by at most one (increasing). -/
 lemma length_le_of_apply? {op : StackOp StackSym} {s s' : List StackSym}
     (h : op.apply? s = some s') : s'.length ≤ s.length + 1 := by
-  cases op with
-  | stay =>
-    cases h
-    exact Nat.le_succ _
-  | push sym =>
-    cases h
-    exact le_rfl
-  | pop =>
-    cases s with
-    | nil => cases h
-    | cons _ _ =>
-      cases h
-      simp; omega
+  cases op <;> cases s <;> cases h <;> simp only [List.length_cons, List.length_nil] <;> omega
 
 /-- A stack operation decreases the stack height by at most one. -/
 lemma le_length_add_one_of_apply? {op : StackOp StackSym} {s s' : List StackSym}
     (h : op.apply? s = some s') : s.length ≤ s'.length + 1 := by
-  cases op with
-  | stay =>
-    cases h
-    exact Nat.le_succ _
-  | push sym =>
-    cases h
-    simp; omega
-  | pop =>
-    cases s with
-    | nil => cases h
-    | cons _ _ =>
-      cases h
-      simp
+  cases op <;> cases s <;> cases h <;> simp only [List.length_cons, List.length_nil] <;> omega
 
 end StackOp
 
@@ -546,30 +522,22 @@ private lemma ofMultiTapeNTM_space_map_lift (ntm : MultiTapeNTM k Symbol State)
 private lemma head_map_lift {ntm : MultiTapeNTM k Symbol State}
     (p : ntm.ComputationPath input) :
     (RelSeries.map p.toRunPath (ofMultiTapeNTMLiftHom ntm input)).head =
-      (ofMultiTapeNTM ntm).initCfg input := by
-  change (⟨p.head, []⟩ : Cfg k Symbol PUnit State input) = _
-  rw [p.head_eq]
-  rfl
+      (ofMultiTapeNTM ntm).initCfg input :=
+  congrArg (Cfg.mk · []) p.head_eq
 
 private lemma head_map_tapes {ntm : MultiTapeNTM k Symbol State}
     (p : (ofMultiTapeNTM ntm).ComputationPath input) :
     (RelSeries.map p.toRunPath (ofMultiTapeNTMTapesHom ntm input)).head =
-      ntm.initCfg input := by
-  change p.head.tapes = _
-  rw [p.head_eq]
-  rfl
+      ntm.initCfg input :=
+  congrArg Cfg.tapes p.head_eq
 
 /-- `ofMultiTapeNTM` preserves work-tape space bounds exactly. -/
 theorem ofMultiTapeNTM_runsInSpace_iff {ntm : MultiTapeNTM k Symbol State} {s : ℕ} :
     (ofMultiTapeNTM ntm).RunsInSpace input s ↔ ntm.RunsInSpace input s :=
-  ⟨fun h p => by
-    simpa [ComputationPath.space, MultiTapeNTM.ComputationPath.space,
-      ofMultiTapeNTM_space_map_lift] using
-      h ⟨RelSeries.map p.toRunPath (ofMultiTapeNTMLiftHom ntm input), head_map_lift p⟩,
-   fun h p => by
-    simpa [ComputationPath.space, MultiTapeNTM.ComputationPath.space,
-      ofMultiTapeNTM_space_map_tapes] using
-      h ⟨RelSeries.map p.toRunPath (ofMultiTapeNTMTapesHom ntm input), head_map_tapes p⟩⟩
+  ⟨fun h p => (ofMultiTapeNTM_space_map_lift ntm p.toRunPath).symm.trans_le
+    (h ⟨RelSeries.map p.toRunPath (ofMultiTapeNTMLiftHom ntm input), head_map_lift p⟩),
+   fun h p => (ofMultiTapeNTM_space_map_tapes ntm p.toRunPath).symm.trans_le
+    (h ⟨RelSeries.map p.toRunPath (ofMultiTapeNTMTapesHom ntm input), head_map_tapes p⟩)⟩
 
 /-- `ofMultiTapeNTM` preserves all-branches time bounds exactly. -/
 theorem ofMultiTapeNTM_runsInTime_iff {ntm : MultiTapeNTM k Symbol State} {t : ℕ} :

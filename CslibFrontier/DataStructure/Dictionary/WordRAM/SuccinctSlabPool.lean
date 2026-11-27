@@ -168,9 +168,8 @@ theorem memoryCost_gmPushSlabProg_le (U V w n_max h_space : ℕ) (d : ℕ × ℕ
     memoryCost (gmPushSlabProg U V w n_max h_space d) s ≤ 38 := by
   dsimp only [gmPushSlabProg, gmPushSlabGenProg]
   simp only [ite_dirSlabs_mk]
-  simp only [readGMGenProg_mk, writeGMGenProg_mk,
-    p_gmSlabMetaBase_mk, p_dirSlabs_mk, p_gmSlabDirBase_mk]
-  simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
+  simp only [readGMGenProg_mk, writeGMGenProg_mk, p_gmSlabMetaBase_mk, p_dirSlabs_mk,
+    p_gmSlabDirBase_mk, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
     memoryCost_readGMProg, memoryCost_writeGMProg]
   split_ifs <;> (simp only [memoryCost_writeGMProg, memoryCost_pure]) <;> omega
 
@@ -307,15 +306,10 @@ private theorem gmPushSlab_bounds {U V w₀ n_max h_space : ℕ} {d : ℕ × ℕ
   obtain ⟨hownB_lt, hownS_lt, hbel_lt, -⟩ := gmSlabMeta_lt hb_pos hp_lt
   have hq_le_p := q_le_nslabs_of_slabBijection hslab hb
   have hmax_le := maxFullSlabs_le n_max
-  refine ⟨hq_idx_lt, h0_lt, htop_idx_lt,
-    by rw [hepnew]; exact hownB_lt,
-    by rw [hepnew]; exact hownS_lt,
-    by rw [hepnew]; exact hbel_lt,
-    fun hq_pos => by
-      rw [heqb] at hq_pos; rw [hetop]
-      exact gmSlabAboveIdx_lt hb_pos ((hslab.top_lt hb hq_pos).trans hp_lt),
-    fun hdir => by rw [heqb] at hdir ⊢; exact gmSlabDirIdx_lt hb_pos hb hdir,
-    by rw [heqb]; omega, by rw [hepnew]; omega⟩
+  rw [heqb, hepnew, hetop]
+  exact ⟨hq_idx_lt, h0_lt, htop_idx_lt, hownB_lt, hownS_lt, hbel_lt,
+    fun hq_pos => gmSlabAboveIdx_lt hb_pos ((hslab.top_lt hb hq_pos).trans hp_lt),
+    gmSlabDirIdx_lt hb_pos hb, by omega, by omega⟩
 
 theorem realizes_gmPushSlabGen :
     Realizes .exact gmPushSlabGenProg
@@ -580,9 +574,8 @@ theorem memoryCost_gmRelinkMovedSlabProg_le (U V w n_max h_space : ℕ) (d : (�
     memoryCost (gmRelinkMovedSlabProg U V w n_max h_space d) s ≤ 14 := by
   dsimp only [gmRelinkMovedSlabProg, gmRelinkMovedSlabGenProg]
   simp only [ite_dirSlabs_mk]
-  simp only [readGMGenProg_mk, writeGMGenProg_mk,
-    p_gmSlabMetaBase_mk, p_dirSlabs_mk, p_gmSlabDirBase_mk]
-  simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_readGMProg]
+  simp only [readGMGenProg_mk, writeGMGenProg_mk, p_gmSlabMetaBase_mk, p_dirSlabs_mk,
+    p_gmSlabDirBase_mk, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_readGMProg]
   split_ifs <;> (simp only [memoryCost_writeGMProg, memoryCost_pure]) <;> omega
 
 /-- Pure bounds invariant for `gmRelinkMovedSlabProg` and `gmLinkMovedNeighborsProg`. -/
@@ -695,13 +688,9 @@ private theorem gmRelinkMovedSlab_bounds {U V w₀ n_max h_space : ℕ}
   intro e_blast s1 e_slast s2 e_qlast
   have heblast : e_blast = gm (gmSlabOwnerBIdx n_max d.2) := clientResult_readGMProg s hownB_lt
   have heslast : e_slast = gm (gmSlabOwnerSIdx n_max d.2) := clientResult_readGMProg s hownS_lt
-  refine ⟨hownB_lt, hownS_lt,
-    by rw [heblast]; exact gmQIdx_lt hb_pos hb_last,
-    fun hdir => by
-      rw [heblast, heslast]; rw [heslast] at hdir
-      exact gmSlabDirIdx_lt hb_pos hb_last hdir,
-    by rw [heslast]; exact hs_le,
-    fun _ => by rw [heblast]; exact gmSlabTopIdx_lt hb_pos hb_last⟩
+  rw [heblast, heslast]
+  exact ⟨hownB_lt, hownS_lt, gmQIdx_lt hb_pos hb_last, gmSlabDirIdx_lt hb_pos hb_last,
+    hs_le, fun _ => gmSlabTopIdx_lt hb_pos hb_last⟩
 
 theorem realizes_gmRelinkMovedSlabGen :
     Realizes .exact gmRelinkMovedSlabGenProg
@@ -751,8 +740,7 @@ theorem memoryCost_gmLinkMovedNeighborsProg_le (U V w n_max h_space : ℕ) (d : 
     (s : Memory.State) :
     memoryCost (gmLinkMovedNeighborsProg U V w n_max h_space d) s ≤ 34 := by
   simp only [gmLinkMovedNeighborsProg, gmLinkMovedNeighborsGenProg, readGMGenProg_mk,
-    writeGMGenProg_mk, p_gmSlabMetaBase_mk]
-  simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
+    writeGMGenProg_mk, p_gmSlabMetaBase_mk, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
     memoryCost_readGMProg, memoryCost_writeGMProg]
   split_ifs <;> (simp only [memoryCost_writeGMProg, memoryCost_pure]) <;> omega
 
@@ -866,13 +854,10 @@ private theorem gmLinkMovedNeighbors_bounds {U V w₀ n_max h_space : ℕ}
     gmQIdx_lt hb_pos hb_last
   have heqlast : e_qlast = gm (gmQIdx (gm (gmSlabOwnerBIdx n_max d.2))) := by
     dsimp only [e_qlast]; rw [heblast]; exact clientResult_readGMProg s hq_lt
-  refine ⟨hownB_lt, hownS_lt, hbel_lt, habv_lt, by rw [heblast]; exact hq_lt,
-    fun hs => by rw [hebellast]; rw [heslast] at hs; exact gmSlabAboveIdx_lt hb_pos (hbel_cap hs),
-    by rw [heslast]; exact hs_le,
-    fun hs => by
-      rw [heabvlast]; rw [heslast, heqlast] at hs
-      exact gmSlabBelowIdx_lt hb_pos (habv_cap hs),
-    hdel0, hdel1, hdel2, hdel3⟩
+  rw [heblast, heslast, hebellast, heabvlast, heqlast]
+  exact ⟨hownB_lt, hownS_lt, hbel_lt, habv_lt, hq_lt,
+    fun hs => gmSlabAboveIdx_lt hb_pos (hbel_cap hs), hs_le,
+    fun hs => gmSlabBelowIdx_lt hb_pos (habv_cap hs), hdel0, hdel1, hdel2, hdel3⟩
 
 theorem realizes_gmLinkMovedNeighborsGen :
     Realizes .exact gmLinkMovedNeighborsGenProg
@@ -917,14 +902,11 @@ theorem memoryCost_gmCompactSlabProg_le (U V w n_max h_space : ℕ) (d : ℕ × 
   rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_readGMProg]
   split_ifs with hlt
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_writeGMProg]
-    set p_last := (Memory.spec 0).clientResult s (readGMProg U V w n_max h_space (d.1, 0)) - 1
-    set s₁ := (Memory.spec 0).clientState s (readGMProg U V w n_max h_space (d.1, 0))
-    have h1 := memoryCost_gmRelinkMovedSlabProg_le U V w n_max h_space (d, p_last) s₁
-    have h2 := memoryCost_gmLinkMovedNeighborsProg_le U V w n_max h_space (d, p_last)
-      ((Memory.spec 0).clientState s₁ (gmRelinkMovedSlabProg U V w n_max h_space (d, p_last)))
-    omega
-  · rw [memoryCost_writeGMProg]
-    omega
+    exact (Nat.add_le_add_left (Nat.add_le_add
+      (memoryCost_gmRelinkMovedSlabProg_le _ _ _ _ _ _ _)
+      (Nat.add_le_add_right (memoryCost_gmLinkMovedNeighborsProg_le _ _ _ _ _ _ _) _)) _).trans
+      (by decide)
+  · rw [memoryCost_writeGMProg]; omega
 
 /-- Pure bounds invariant for `gmCompactSlabProg`. -/
 @[expose]
@@ -1039,13 +1021,10 @@ theorem realizes_gmCompactSlabGen :
       realizes_gmLinkMovedNeighborsGen]
   all_goals try exact h.1
   all_goals try exact zero_lt_globalMetaLen n_max
-  · rw [clientResult_readGMProg s (zero_lt_globalMetaLen n_max)]; exact h.2.1
-  · rw [clientResult_readGMProg s (zero_lt_globalMetaLen n_max)]; exact h.2.1
-  · rw [clientResult_readGMProg s (zero_lt_globalMetaLen n_max)] at hc ⊢
-    exact h.2.2.2.2 hc
-  · rw [clientResult_readGMProg s (zero_lt_globalMetaLen n_max)] at hc ⊢
-    exact gmMovedSlabPre_after_relink hw (h.2.2.2.2 hc)
-  · rw [clientResult_readGMProg s (zero_lt_globalMetaLen n_max)]; exact h.2.1
+  all_goals rw [clientResult_readGMProg s (zero_lt_globalMetaLen n_max)] at *
+  all_goals try exact h.2.1
+  · exact h.2.2.2.2 hc
+  · exact gmMovedSlabPre_after_relink hw (h.2.2.2.2 hc)
 
 /-- Parameter-free `Memory.Prog` operation popping the top slab of bucket `b = d.2.2` at
 `base = d.2.1` and compacting the physical slab pool. -/
@@ -1068,10 +1047,7 @@ theorem memoryCost_gmPopSlabProg_le (U V w n_max h_space : ℕ) (d : ℕ × ℕ)
     memoryCost (gmPopSlabProg U V w n_max h_space d) s ≤ 68 := by
   simp only [gmPopSlabProg, gmPopSlabGenProg, gmUnlinkTopSlabGenProg_mk, gmCompactSlabGenProg_mk]
   rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_gmUnlinkTopSlabProg]
-  have h := memoryCost_gmCompactSlabProg_le U V w n_max h_space
-    (d.1, (Memory.spec 0).clientResult s (gmUnlinkTopSlabProg U V w n_max h_space d))
-    ((Memory.spec 0).clientState s (gmUnlinkTopSlabProg U V w n_max h_space d))
-  omega
+  exact (Nat.add_le_add_left (memoryCost_gmCompactSlabProg_le _ _ _ _ _ _ _) _).trans (by decide)
 
 theorem gmCompactSlabInv_of_slabBijection {U V w₀ n_max h_space base b : ℕ}
     (hw : 0 < w₀) (hb_pos : 0 < bucketBits n_max) (hb : b < numBuckets n_max)
@@ -1106,20 +1082,16 @@ theorem gmCompactSlabInv_of_slabBijection {U V w₀ n_max h_space base b : ℕ}
     lt_of_lt_of_le (by omega : gm 0 - 1 < gm 0) hslab.nslabs_le,
     hb_last, by have := hslab.nslabs_le; omega, ?_, ?_, hb_pos⟩
   · intro hs_pos
-    have hbel_eq := hslab.below_eq _ hb_last _ hs_last hs_pos
-    rw [hptr_last] at hbel_eq
-    rw [hbel_eq]
+    rw [← hptr_last, hslab.below_eq _ hb_last _ hs_last hs_pos]
     exact hslab.ptr_lt_maxFullSlabs hb_last (by omega)
   · intro hs_lt_q
     rw [huQ _ hb_last] at hs_lt_q
     have hs1_lt : gm (gmSlabOwnerSIdx n_max (gm 0 - 1)) + 1 <
         gm (gmQIdx (gm (gmSlabOwnerBIdx n_max (gm 0 - 1)))) := by
       split_ifs at hs_lt_q with hbeq
-      · subst hbeq; omega
+      · rw [hbeq]; omega
       · exact hs_lt_q
-    have habv_eq := hslab.above_eq _ hb_last _ hs_last hs1_lt
-    rw [hptr_last] at habv_eq
-    rw [habv_eq]
+    rw [← hptr_last, hslab.above_eq _ hb_last _ hs_last hs1_lt]
     exact hslab.ptr_lt_maxFullSlabs hb_last hs1_lt
 
 theorem gmCompactSlabPre_of_gmPopSlabPre {U V w₀ n_max h_space w base b : ℕ} {s : Memory.State}
@@ -1129,8 +1101,7 @@ theorem gmCompactSlabPre_of_gmPopSlabPre {U V w₀ n_max h_space w base b : ℕ}
       ((Memory.spec 0).clientResult s (gmUnlinkTopSlabProg U V w₀ n_max h_space (base, b)))
       ((Memory.spec 0).clientState s (gmUnlinkTopSlabProg U V w₀ n_max h_space (base, b))) := by
   rcases h with ⟨hdict, hslab, hb, hq_pos, hb_pos⟩
-  have hinv := gmCompactSlabInv_of_slabBijection hw hb_pos hb s hslab hq_pos
-  rcases hinv with ⟨h1, h2, h3, h4⟩
+  rcases gmCompactSlabInv_of_slabBijection hw hb_pos hb s hslab hq_pos with ⟨h1, h2, h3, h4⟩
   exact ⟨hdict, h1, h2, h3, fun hlt => ⟨hdict, h4 hlt⟩⟩
 
 /-- Under `SlabBijection` and `1 ≤ gm (gmQIdx b)` (`b < numBuckets n_max`), `gmPopSlabProg` runs in

@@ -108,9 +108,8 @@ theorem keyRank_injective (k : Fin n → ℕ) : Function.Injective (keyRank k) :
   by_contra hij
   rcases lt_trichotomy (k i) (k j) with hk | hk | hk
   · exact (keyRank_lt_keyRank k (Or.inl hk)).ne h
-  · rcases lt_or_gt_of_ne hij with hl | hl
-    · exact (keyRank_lt_keyRank k (Or.inr ⟨hk, hl⟩)).ne h
-    · exact (keyRank_lt_keyRank k (Or.inr ⟨hk.symm, hl⟩)).ne' h
+  · exact (lt_or_gt_of_ne hij).elim (fun hl => (keyRank_lt_keyRank k (Or.inr ⟨hk, hl⟩)).ne h)
+      fun hl => (keyRank_lt_keyRank k (Or.inr ⟨hk.symm, hl⟩)).ne' h
   · exact (keyRank_lt_keyRank k (Or.inl hk)).ne' h
 
 /-- Ordering positions by key, ties broken by position, as a permutation. -/
@@ -159,10 +158,7 @@ private theorem relabelFin_eq_flatten (A : Fin n → Fin n → Bool) (k : Fin n 
 theorem relabelFin_comp {A A' : Fin n → Fin n → Bool} {k : Fin n → ℕ}
     (hk : Function.Injective k) (σ : Equiv.Perm (Fin n)) (hA : ∀ i j, A' (σ i) (σ j) = A i j) :
     relabelFin A' k = relabelFin A (k ∘ σ) := by
-  rw [relabelFin, relabelFin, rankPerm_comp hk]
-  congr with t : 1
-  simp only [Equiv.symm_trans_apply]
-  rw [← hA, Equiv.apply_symm_apply, Equiv.apply_symm_apply]
+  simp [relabelFin, rankPerm_comp hk, ← hA]
 
 /-- Equal relabelings come from isomorphic adjacency matrices. -/
 theorem exists_equiv_of_relabelFin_eq {n' : ℕ} {A : Fin n → Fin n → Bool}
@@ -171,11 +167,8 @@ theorem exists_equiv_of_relabelFin_eq {n' : ℕ} {A : Fin n → Fin n → Bool}
     ∃ σ : Fin n ≃ Fin n', ∀ i j, A' (σ i) (σ j) = A i j := by
   obtain ⟨hnn, hf⟩ := Sigma.mk.inj_iff.1 (List.ofFn_inj'.1 h)
   obtain rfl : n = n' := Nat.mul_self_inj.1 hnn
-  have hf := eq_of_heq hf
   refine ⟨(rankPerm k).trans (rankPerm k').symm, fun i j => ?_⟩
-  have := congrFun hf (finProdFinEquiv (rankPerm k i, rankPerm k j))
-  simp only [Equiv.symm_apply_apply, Equiv.symm_apply_apply] at this
-  simpa using this.symm
+  simpa using (congrFun (eq_of_heq hf) (finProdFinEquiv (rankPerm k i, rankPerm k j))).symm
 
 /-! ### Computing relabelings -/
 
@@ -210,9 +203,8 @@ private theorem filter_rankOf_eq (n : ℕ) (keys : List ℕ) (r : Fin n) :
     List.filter_eq, List.count_eq_one_of_mem List.nodup_range (List.mem_range.2 (Fin.isLt _)),
     List.replicate_one]
   intro i hi
-  have hi := List.mem_range.1 hi
-  rw [rankOf_eq n keys ⟨i, hi⟩, ← rankPerm_apply, decide_eq_decide]
-  rw [← Fin.ext_iff, ← Equiv.eq_symm_apply, Fin.ext_iff]
+  rw [rankOf_eq n keys ⟨i, List.mem_range.1 hi⟩, ← rankPerm_apply, decide_eq_decide,
+    ← Fin.ext_iff, ← Equiv.eq_symm_apply, Fin.ext_iff]
 
 private theorem orderOf_eq (n : ℕ) (keys : List ℕ) :
     orderOf n keys = List.ofFn fun r : Fin n => ((rankPerm (keyAt n keys)).symm r : ℕ) := by
@@ -320,10 +312,8 @@ private theorem pow_succ_le_descFactorial_add (D n : ℕ) :
         have := Nat.mul_le_mul_left (n + 1) (Nat.descFactorial_le_pow D (n + 1))
         omega
       _ ≤ D.descFactorial (n + 2) + (n + 2) ^ 2 * D ^ (n + 1) := by
-        rw [Nat.add_assoc]
-        refine Nat.add_le_add_left ?_ _
-        rw [← Nat.add_mul]
-        exact Nat.mul_le_mul_right _ (by nlinarith)
+        rw [Nat.add_assoc, ← Nat.add_mul]
+        exact Nat.add_le_add_left (Nat.mul_le_mul_right _ (by nlinarith)) _
 
 open Classical in
 /-- **Birthday bound.** Among the functions from `Fin n` to a finite type with `D` elements, the
@@ -339,11 +329,7 @@ private theorem card_filter_not_injective_mul_le (n : ℕ) (β : Type*) [Fintype
     (fun R : Fin n → β => Function.Injective R)
   rw [Finset.card_univ, Fintype.card_fun, Fintype.card_fin, hinj] at hsum
   cases n with
-  | zero =>
-    have hemp : (Finset.univ.filter fun R : Fin 0 → β => ¬ Function.Injective R) = ∅ :=
-      Finset.ext fun R => by simp [Function.injective_of_subsingleton R]
-    rw [hemp]
-    simp
+  | zero => simp [Function.injective_of_subsingleton]
   | succ m =>
     have := pow_succ_le_descFactorial_add (Fintype.card β) m
     calc (Finset.univ.filter fun R : Fin (m + 1) → β => ¬ Function.Injective R).card *
@@ -357,33 +343,22 @@ private theorem card_filter_not_injective_div_le (n : ℕ) :
     ((Finset.univ.filter fun R : Fin n → BitString (keyWidth n) =>
       ¬ Function.Injective R).card : ENNReal) /
       Fintype.card (Fin n → BitString (keyWidth n)) ≤ 1 / 16 := by
-  have hbound := card_filter_not_injective_mul_le n (BitString (keyWidth n))
-  have hclog : 16 * n * n ≤ Fintype.card (BitString (keyWidth n)) := by
-    rw [show Fintype.card (BitString (keyWidth n)) = 2 ^ keyWidth n by simp [BitString]]
-    exact Nat.le_pow_clog (by norm_num) _
-  have hcard : Fintype.card (Fin n → BitString (keyWidth n)) =
-      Fintype.card (BitString (keyWidth n)) ^ n := by simp
-  have hzero : n = 0 → (Finset.univ.filter fun R : Fin n → BitString (keyWidth n) =>
-      ¬ Function.Injective R).card = 0 := by
-    rintro rfl
-    simp only [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-    exact fun R _ h => h (Function.injective_of_subsingleton R)
-  have hDpos : 0 < Fintype.card (BitString (keyWidth n)) := Fintype.card_pos
-  rw [hcard]
-  generalize Fintype.card (BitString (keyWidth n)) = D at *
-  generalize (Finset.univ.filter fun R : Fin n → BitString (keyWidth n) =>
-      ¬ Function.Injective R).card = bad at *
-  have key : bad * 16 ≤ D ^ n := by
-    rcases Nat.eq_zero_or_pos n with rfl | hn
-    · simp [hzero rfl]
-    · have : bad * 16 * (n * n) ≤ D ^ n * (n * n) :=
-        calc bad * 16 * (n * n) = bad * (16 * n * n) := by ring
-          _ ≤ bad * D := Nat.mul_le_mul_left _ hclog
-          _ ≤ n ^ 2 * D ^ n := hbound
-          _ = D ^ n * (n * n) := by ring
-      exact Nat.le_of_mul_le_mul_right this (Nat.mul_pos hn hn)
-  exact_mod_cast (ENNReal.natCast_div_le_natCast_div_iff (a := bad) (c := 1)
-    (pow_pos hDpos n).ne' (by norm_num : (16 : ℕ) ≠ 0)).mpr (by simpa using key)
+  rcases Nat.eq_zero_or_pos n with rfl | hn
+  · simp [Function.injective_of_subsingleton]
+  let D := Fintype.card (BitString (keyWidth n))
+  have hD : D = 2 ^ keyWidth n := by simp [D]
+  have hclog : 16 * n * n ≤ D := hD.symm ▸ Nat.le_pow_clog one_lt_two _
+  have key : (Finset.univ.filter fun R : Fin n → BitString (keyWidth n) =>
+      ¬ Function.Injective R).card * 16 ≤ D ^ n := by
+    refine Nat.le_of_mul_le_mul_right ?_ (Nat.mul_pos hn hn)
+    calc _ * 16 * (n * n) = _ * (16 * n * n) := by ring
+      _ ≤ _ * D := Nat.mul_le_mul_left _ hclog
+      _ ≤ n ^ 2 * D ^ n := card_filter_not_injective_mul_le n (BitString (keyWidth n))
+      _ = D ^ n * (n * n) := by ring
+  rw [Fintype.card_fun, Fintype.card_fin]
+  exact_mod_cast (ENNReal.natCast_div_le_natCast_div_iff (c := 1)
+    (pow_pos (Fintype.card_pos (α := BitString (keyWidth n))) n).ne'
+    (Nat.succ_ne_zero 15)).mpr (by simpa [D] using key)
 
 /-- Two deterministic views of a uniform sample that agree up to a relabeling of the sample
 outside a set of bad samples are close: their expectations of `[0, 1]`-valued functions differ by
@@ -420,10 +395,9 @@ theorem tsum_relabelDist_le {n n' : ℕ} {A : Fin n → Fin n → Bool} {A' : Fi
   obtain rfl : n = n' := Fin.equiv_iff_eq.1 ⟨σ⟩
   refine (tsum_uniform_map_le (fun R => relabelFin A (keyValue ∘ R))
     (fun R => relabelFin A' (keyValue ∘ R)) (Equiv.arrowCongr σ.symm (Equiv.refl _))
-    (fun R => Function.Injective R) (fun R hR => ?_) hf).trans ?_
-  · rw [relabelFin_comp ((keyValue_injective _).comp hR) σ hσ]
-    rfl
-  · exact add_le_add le_rfl (card_filter_not_injective_div_le n)
+    (fun R => Function.Injective R)
+    (fun R hR => relabelFin_comp ((keyValue_injective _).comp hR) σ hσ) hf).trans
+    (add_le_add le_rfl (card_filter_not_injective_div_le n))
 
 /-- Equal relabelings come from isomorphic adjacency matrices. -/
 private theorem exists_equiv_of_mem_support_relabelDist {n n' : ℕ} {A : Fin n → Fin n → Bool}
@@ -468,11 +442,9 @@ theorem acceptProb_round_le {x : GraphIsomorphismInstance} (hx : x ∈ GraphIsom
   refine (acceptProb_guessingRound_le (δ := 1 / 16) (fun f hf => ?_) P).trans_eq ?_
   · simp only [eval_message]
     exact tsum_relabelDist_le σ hσ hf
-  · have h1 : ((17 : ENNReal) / 32) = ((17 / 32 : NNReal) : ENNReal) := by
-      rw [ENNReal.coe_div (by norm_num)]; norm_num
-    have h2 : ((1 : ENNReal) + 1 / 16) / 2 = (((1 + 1 / 16) / 2 : NNReal) : ENNReal) := by
-      rw [ENNReal.coe_div (by norm_num), ENNReal.coe_add, ENNReal.coe_div (by norm_num)]; norm_num
-    rw [h1, h2, ENNReal.coe_inj]
+  · simp (discharger := norm_num) only [← ENNReal.coe_ofNat, ← ENNReal.coe_one,
+      ← ENNReal.coe_div, ← ENNReal.coe_add, ENNReal.coe_inj, ← NNReal.coe_inj,
+      NNReal.coe_div, NNReal.coe_add, NNReal.coe_ofNat, NNReal.coe_one]
     norm_num
 
 /-- **Completeness of one round.** On non-isomorphic graphs the honest prover always names the
@@ -552,11 +524,9 @@ theorem isOraclePPTOn_verifier :
 theorem mem_IP : GraphNonIsomorphism ∈ IP encGraphIsomorphism := by
   refine mem_IP_of isOraclePPTOn_verifier isInteractiveProof_verifier
     (ENNReal.div_le_of_le_mul (by norm_num)) ?_
-  have h1 : ((17 : ENNReal) / 32) = ((17 / 32 : NNReal) : ENNReal) := by
-    rw [ENNReal.coe_div (by norm_num)]; norm_num
-  have h2 : (1 : ENNReal) / 3 = ((1 / 3 : NNReal) : ENNReal) := by
-    rw [ENNReal.coe_div (by norm_num)]; norm_num
-  rw [h1, h2, ← ENNReal.coe_pow, ENNReal.coe_le_coe, ← NNReal.coe_le_coe]
+  simp (discharger := norm_num) only [← ENNReal.coe_ofNat, ← ENNReal.coe_one,
+    ← ENNReal.coe_div, ← ENNReal.coe_pow, ENNReal.coe_le_coe, ← NNReal.coe_le_coe,
+    NNReal.coe_pow, NNReal.coe_div, NNReal.coe_ofNat, NNReal.coe_one]
   norm_num
 
 end GraphNonIsomorphism

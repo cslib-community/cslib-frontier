@@ -148,17 +148,12 @@ private theorem cellAddr_ptr_ne_data (a b : ℕ) (f : Fin L.ptrFields) (g : Fin 
 
 /-- Pointer words retain pointer equality, including null. -/
 theorem ptrWord_injective : Function.Injective (ptrWord L) := by
-  intro p q h
-  cases p with
-  | none => cases q <;> simp_all [ptrWord, nodeAddr]; omega
-  | some a =>
-    cases q with
-    | none => simp [ptrWord, nodeAddr] at h
-    | some b =>
-      have hs : 0 < stride L := by simp [stride]
-      have hab := cellAddr_injective (L := L) (i := 0) (j := 0) hs hs
-        (by simpa [cellAddr, ptrWord] using h)
-      exact congrArg some hab.1
+  rintro (_ | a) (_ | b) h
+  · rfl
+  · simp only [ptrWord, nodeAddr] at h; omega
+  · simp only [ptrWord, nodeAddr] at h; omega
+  · simp only [ptrWord, nodeAddr, Nat.add_left_cancel_iff] at h
+    exact congrArg some (Nat.eq_of_mul_eq_mul_left (by simp [stride]) h)
 
 namespace Fits
 
@@ -210,11 +205,9 @@ theorem scratch (r : Fin (regCount L)) (hr : L.ptrRegs + L.dataRegs + 2 ≤ r.va
 theorem setPtr (r : Fin L.ptrRegs) (p : Pointer) :
     Repr e (x.setPtr r p) (y.set (ptrReg L r) (ptrWord L p)) where
   ptr s := by
-    by_cases hs : s = r
-    · subst s; simp [State.setPtr, Cslib.WordRAM.Data.set]
-    · have hsr : ptrReg L s ≠ ptrReg L r := by simpa [ptrReg, Fin.ext_iff] using hs
-      simp [State.setPtr, Cslib.WordRAM.Data.set, Function.update_of_ne hs,
-        Function.update_of_ne hsr, h.ptr]
+    simp only [State.setPtr, Cslib.WordRAM.Data.set, Function.update_apply, Fin.ext_iff,
+      ptrReg_val, h.ptr]
+    split_ifs <;> rfl
   data s := by
     have hsr : dataReg L s ≠ ptrReg L r := by simp [Fin.ext_iff]; omega
     simpa [State.setPtr, Cslib.WordRAM.Data.set, Function.update_of_ne hsr] using h.data s
@@ -234,11 +227,9 @@ theorem setData (s : Fin L.dataRegs) (v : M.Value) :
     have hrs : ptrReg L r ≠ dataReg L s := by simp [Fin.ext_iff]; omega
     simpa [State.setData, Cslib.WordRAM.Data.set, Function.update_of_ne hrs] using h.ptr r
   data t := by
-    by_cases ht : t = s
-    · subst t; simp [State.setData, Cslib.WordRAM.Data.set]
-    · have hts : dataReg L t ≠ dataReg L s := by simpa [dataReg, Fin.ext_iff] using ht
-      simp [State.setData, Cslib.WordRAM.Data.set, Function.update_of_ne ht,
-        Function.update_of_ne hts, h.data]
+    simp only [State.setData, Cslib.WordRAM.Data.set, Function.update_apply, Fin.ext_iff,
+      dataReg_val, Nat.add_left_cancel_iff, h.data]
+    split_ifs <;> rfl
   free := by
     have hs : freeReg L ≠ dataReg L s := by simp [Fin.ext_iff]; omega
     simpa [State.setData, Cslib.WordRAM.Data.set, Function.update_of_ne hs] using h.free
@@ -271,14 +262,10 @@ private theorem modify (a : ℕ) (g : Record M L → Record M L)
   free := by simpa [hr] using h.free
   zero := by rw [hr]; exact h.zero
   heapPtr b n hn f := by
-    change (x.heap.modify a g)[b]? = some n at hn
-    rw [List.getElem?_modify] at hn
-    obtain ⟨m, hm, rfl⟩ := Option.map_eq_some_iff.mp hn
+    obtain ⟨m, hm, rfl⟩ := Option.map_eq_some_iff.mp (List.getElem?_modify .. ▸ hn)
     simpa only [eq_comm] using hp b m hm f
   heapData b n hn f := by
-    change (x.heap.modify a g)[b]? = some n at hn
-    rw [List.getElem?_modify] at hn
-    obtain ⟨m, hm, rfl⟩ := Option.map_eq_some_iff.mp hn
+    obtain ⟨m, hm, rfl⟩ := Option.map_eq_some_iff.mp (List.getElem?_modify .. ▸ hn)
     simpa only [eq_comm] using hd b m hm f
 
 /-- Storing a pointer field is a single word-memory update. -/
@@ -330,12 +317,9 @@ theorem append (n : Record M L)
       (a < x.heap.length ∧ x.heap[a]? = some m) ∨ (a = x.heap.length ∧ m = n) := by
     by_cases hl : a < x.heap.length
     · exact Or.inl ⟨hl, by simpa only [List.getElem?_append_left hl] using ha⟩
-    · have hb := (List.getElem?_eq_some_iff.mp ha).1
-      have he : a = x.heap.length := by
-        simp only [List.length_append, List.length_singleton] at hb
-        omega
-      exact Or.inr ⟨he, by simpa only [he, List.getElem?_concat_length,
-        Option.some.injEq] using ha.symm⟩
+    · obtain ⟨hb, ha⟩ := List.getElem?_eq_some_iff.mp ha
+      obtain rfl : a = x.heap.length := by simp at hb; omega
+      exact Or.inr ⟨rfl, by simpa using ha.symm⟩
   exact {
     ptr r := (hr _ (by simp; omega)
       (by simp [Fin.ext_iff]; omega)).trans (h.ptr r)

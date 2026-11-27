@@ -117,15 +117,10 @@ theorem filter_map (p : PMF α) (f : α → β) (s : Set β) (h : ∃ b ∈ s, b
   simp only [filter_apply_eq]
   by_cases hb : b ∈ s
   · rw [Set.indicator_of_mem hb, PMF.map_apply, ← ENNReal.tsum_mul_right]
-    refine tsum_congr fun a => ?_
-    rcases eq_or_ne b (f a) with rfl | hab
-    · simp [hb]
-    · simp [hab]
+    exact tsum_congr fun a => by rcases eq_or_ne b (f a) with rfl | hab <;> simp [*]
   · rw [Set.indicator_of_notMem hb, zero_mul]
     refine (tsum_eq_zero_iff.mpr fun a => ?_).symm
-    rcases eq_or_ne b (f a) with rfl | hab
-    · simp [hb]
-    · simp [hab]
+    rcases eq_or_ne b (f a) with rfl | hab <;> simp [*]
 
 /-- Drawing `a` from `μ` and then `b` from `K a`, and conditioning on an event about `a`, is
 drawing `a` from `μ` conditioned on that event and then `b` from `K a`. -/
@@ -165,12 +160,10 @@ theorem filter_bind_pair_prod (μ : PMF α) (ν : PMF β) (s : Set α) (t : Set 
   rw [filter_apply_eq, toOuterMeasure_bind_pair_prod, bind_map_prodMk_apply, filter_apply_eq,
     filter_apply_eq,
     ENNReal.mul_inv (Or.inl (toOuterMeasure_ne_zero μ s hs)) (Or.inl (toOuterMeasure_ne_top μ s))]
-  by_cases ha : a ∈ s
-  · by_cases hb : b ∈ t
-    · simp only [Set.mk_mem_prod ha hb, ha, hb, Set.indicator_of_mem, bind_map_prodMk_apply]
-      ring
-    · simp [ha, hb]
-  · simp [ha]
+  by_cases ha : a ∈ s <;> by_cases hb : b ∈ t
+  · simp only [Set.mk_mem_prod ha hb, ha, hb, Set.indicator_of_mem, bind_map_prodMk_apply]
+    ring
+  all_goals simp [*]
 
 /-- **Conditioning on an independent coordinate.** Under independent draws, conditioning on
 `s ×ˢ t` gives the second draw the law of `ν` conditioned on `t`: the condition `s` on the first

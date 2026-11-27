@@ -135,9 +135,8 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
       AuctionMem ws C st' s' := by
   have ⟨hbO, hbP, hbS, hout, hfr⟩ := hws
   let cZ : Fin ws.n × Fin ws.n → ℤ := fun e => (C e : ℤ)
-  have hC_spread : ∀ i j k : Fin ws.n, cZ (i, k) - cZ (i, j) ≤ (W : ℤ) := fun i j k => by
-    have := hC_le i k
-    dsimp only [cZ]; omega
+  have hC_spread : ∀ i j k : Fin ws.n, cZ (i, k) - cZ (i, j) ≤ (W : ℤ) := fun i _ k =>
+    (Int.sub_le_self _ (Nat.cast_nonneg _)).trans (Int.ofNat_le.mpr (hC_le i k))
   have hp_le : ∀ j : Fin ws.n, st.price j ≤ (W + ws.eps : ℤ) := fun j =>
     hinv.price_le (by simp [hs_free]) hC_spread (by positivity) j
   have hlen_le : st.free.length ≤ ws.n := by
@@ -160,10 +159,9 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
   have hmul_ij : i₀.val * ws.n + j₀.val < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i₀, j₀)
   have hmul_i : i₀.val * ws.n < ws.n * ws.n := by have := j₀.isLt; omega
   let newPZ := bidPrice cZ (ws.eps : ℤ) st.price i₀ j₀
-  have hnewP_nn : 0 ≤ newPZ := by
-    have := le_bidPrice (c := cZ) (ε := (ws.eps : ℤ)) hj₀_min
-    have := hp_nn j₀
-    dsimp only [newPZ]; omega
+  have hnewP_nn : 0 ≤ newPZ :=
+    (add_nonneg (hp_nn j₀) (Nat.cast_nonneg _)).trans
+      (le_bidPrice (c := cZ) (ε := (ws.eps : ℤ)) hj₀_min)
   let pBranch : Memory.Prog ℕ := computeNewP ws rowBase j₀.val sec
   have hpBranch :
       (sec.hasSecond = 0 → Fits w (s₀.mem (ws.bPrice + j₀.val) + ws.eps)) ∧
@@ -179,7 +177,6 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
     cases hsb : secondBest cZ st.price i₀ j₀ with
     | none =>
       rw [hsb] at hsec_spec
-      have hhs0 : sec.hasSecond = 0 := hsec_spec
       have hpj_mem : s₀.mem (ws.bPrice + j₀.val) = (st.price j₀).toNat := ham.hPrice j₀
       have hnp_eq : s₀.mem (ws.bPrice + j₀.val) + ws.eps = newPZ.toNat := by
         rw [hpj_mem]; have := hp_nn j₀
@@ -187,8 +184,8 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
       have hnp_fit : Fits w (s₀.mem (ws.bPrice + j₀.val) + ws.eps) := by
         rw [hpj_mem]; have := hp_nn j₀; have := hp_le j₀
         exact hfit_p.of_le (by omega)
-      refine ⟨fun _ => hnp_fit, fun hne => absurd hhs0 hne, ?_⟩
-      simp only [pBranch, computeNewP, hhs0, ↓reduceIte]
+      refine ⟨fun _ => hnp_fit, fun hne => absurd hsec_spec hne, ?_⟩
+      simp only [pBranch, computeNewP, hsec_spec, ↓reduceIte]
       exact ⟨validHistory_read_bind (by omega) (validHistory_pure w _ _),
         memoryCost_read_bind_le fun _ _ => Nat.le_refl 0, rfl, hnp_eq, hnp_eq ▸ hnp_fit⟩
     | some wVal =>
@@ -198,9 +195,7 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
       have hcj_mem : s₀.mem (rowBase + j₀.val) = C (i₀, j₀) := by
         dsimp only [rowBase]; rw [Nat.add_assoc]; exact ham.hC i₀ j₀
       have hw_ge_rc : redCost cZ st.price i₀ j₀ ≤ wVal := by
-        rw [secondBest, List.min?_eq_some_iff] at hsb
-        obtain ⟨hmem_w, _⟩ := hsb
-        obtain ⟨k_w, _, rfl⟩ := List.mem_map.mp hmem_w
+        obtain ⟨k_w, _, rfl⟩ := List.mem_map.mp (List.min?_eq_some_iff.mp hsb).1
         exact hj₀_min k_w
       have hcj_le : s₀.mem (rowBase + j₀.val) ≤ sec.secondVal := by
         rw [hcj_mem]; have := hp_nn j₀
@@ -219,9 +214,7 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
         memoryCost_read_bind_le fun _ _ => Nat.le_refl 0, rfl, hnp_eq, hnp_eq ▸ hnp_fit⟩
   obtain ⟨hbr_pos, hbr_neg, hv_p, hmc_p, hs_p, hres_p, hfit_np⟩ := hpBranch
   have hsafe_all : BidStepSafe w (ws, st.free.length) s₀ := by
-    unfold BidStepSafe
-    dsimp only
-    rw [hcurI, hs_b, hbj, hs_s]
+    simp only [BidStepSafe, hcurI, hs_b, hbj, hs_s]
     exact ⟨by omega, hfit1, hfit_ws.of_le (by omega),
       hfit_ws.of_le (by omega), hfit_ws.of_le (by omega),
       hsafe_b, hsafe_s, hfit_ws.of_le (by omega), hfit_ws.of_le (by omega),
@@ -236,9 +229,8 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
     ⟨Function.update (Function.update s₀.mem (ws.bPrice + j₀.val) newPZ.toNat)
       (ws.bOwner + j₀.val) i₀.val, s₀.frontier⟩
   have hold_s_mid : (Function.update s₀.mem (ws.bPrice + j₀.val) newPZ.toNat)
-      (ws.bOwner + j₀.val) = (st.owner j₀).elim ws.n Fin.val := by
-    rw [Function.update_of_ne (by omega)]
-    exact ham.hOwner j₀
+      (ws.bOwner + j₀.val) = (st.owner j₀).elim ws.n Fin.val :=
+    (Function.update_of_ne (by omega) _ _).trans (ham.hOwner j₀)
   let afterBid : Memory.State :=
     match st.owner j₀ with
     | none => s_mid
@@ -255,16 +247,12 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
     dsimp only [afterBid, s_mid]
     cases st.owner j₀ with
     | none =>
-      simp only [Option.elim_none, ↓reduceIte, htop, Option.toList_none, List.nil_append]
-      rfl
+      simp only [Option.elim_none, ↓reduceIte, htop, Option.toList_none, List.nil_append]; rfl
     | some owner =>
       simp only [Option.elim_some, owner.isLt.ne, ↓reduceIte, hsp_eq, Nat.add_sub_cancel,
         Option.toList_some, List.singleton_append, List.length_cons]
       rfl
-  have hrun_res : (Memory.spec 0).clientResult s₀ (bidStepProg (ws, st.free.length)) =
-      ((st.owner j₀).toList ++ rest).length := congrArg Prod.fst hrun
-  have hrun_state : (Memory.spec 0).clientState s₀ (bidStepProg (ws, st.free.length)) =
-      afterBid := congrArg Prod.snd hrun
+  obtain ⟨hrun_res, hrun_state⟩ := Prod.mk.inj hrun
   refine ⟨hsafe_all, ?_, ?_, ?_, ?_, ?_⟩
   · -- ValidHistory
     unfold bidStepProg
@@ -275,12 +263,10 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
     rw [hs_b, hbj]
     refine validHistory_bind_step hv_s ?_
     rw [hs_s]
-    change (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (pBranch >>= _))
     refine validHistory_bind_step hv_p ?_
     rw [hs_p, hres_p]
-    refine validHistory_write_bind (by omega) hfit_np ?_
-    refine validHistory_read_bind (by dsimp only; omega) ?_
-    dsimp only
+    refine validHistory_write_bind (by omega) hfit_np
+      (validHistory_read_bind (by dsimp only; omega) ?_)
     simp only [hold_s_mid]
     refine validHistory_write_bind (by dsimp only; omega) (hfit_ws.of_le (by omega)) ?_
     refine validHistory_ite (fun _ => validHistory_pure w _ _) (fun hne => ?_)
@@ -297,100 +283,68 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
       memoryCost_bind', hs_b, hbj, memoryCost_bind', hs_s]
     change 1 + (_ + (_ + memoryCost (pBranch >>= _) s₀)) ≤ _
     rw [memoryCost_bind', hs_p, hres_p]
-    have htail_mc : memoryCost
-        (Memory.write (ws.bPrice + j₀.val) newPZ.toNat >>= fun _ =>
-          Memory.read (ws.bOwner + j₀.val) >>= fun oldOwner =>
-            Memory.write (ws.bOwner + j₀.val) i₀.val >>= fun _ =>
-              if oldOwner = ws.n then pure (st.free.length - 1)
-              else Memory.write (ws.bStack + (st.free.length - 1)) oldOwner >>=
-                fun _ => pure st.free.length) s₀ ≤ 4 :=
-      memoryCost_write_bind_le fun _ _ =>
-        memoryCost_read_bind_le fun _ _ =>
-          memoryCost_write_bind_le fun _ _ =>
-            memoryCost_ite_le (Nat.zero_le 1)
-              (memoryCost_write_bind_le fun _ _ => Nat.le_refl 0)
-    omega
+    refine (Nat.add_le_add_left (Nat.add_le_add hmc_b
+      (Nat.add_le_add hmc_s (Nat.add_le_add hmc_p (?_ : _ ≤ 4)))) 1).trans (by omega)
+    exact memoryCost_write_bind_le fun _ _ =>
+      memoryCost_read_bind_le fun _ _ =>
+        memoryCost_write_bind_le fun _ _ =>
+          memoryCost_ite_le (Nat.zero_le 1)
+            (memoryCost_write_bind_le fun _ _ => Nat.le_refl 0)
   · -- frontier unchanged
-    rw [hrun_state]
-    unfold afterBid
-    cases st.owner j₀ <;> rfl
+    cases ho : st.owner j₀ <;> simp [hrun_state, afterBid, s_mid, ho]
   · -- clientResult = st'.free.length
     rw [hst'_eq, hrun_res]
   · -- AuctionMem ws C st' s'
     rw [hst'_eq, hrun_state]
-    have hs_mid_c : ∀ i j : Fin ws.n, s_mid.mem (ws.bC + (i.val * ws.n + j.val)) = C (i, j) :=
-      fun i j => by
-        have hlt_ij : i.val * ws.n + j.val < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i, j)
-        dsimp only [s_mid]
-        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-        exact ham.hC i j
-    have hs_mid_owner : ∀ j : Fin ws.n,
-        s_mid.mem (ws.bOwner + j.val) =
-          (Function.update st.owner j₀ (some i₀) j).elim ws.n Fin.val := fun j => by
-      dsimp only [s_mid]
-      by_cases hj : j = j₀
-      · subst hj; simp
-      · have hne : j.val ≠ j₀.val := Fin.val_ne_of_ne hj
-        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-          Function.update_of_ne hj]
-        exact ham.hOwner j
-    have hs_mid_price : ∀ j : Fin ws.n,
-        s_mid.mem (ws.bPrice + j.val) = (Function.update st.price j₀ newPZ j).toNat := fun j => by
-      dsimp only [s_mid]
-      rw [Function.update_of_ne (by omega)]
-      by_cases hj : j = j₀
-      · subst hj; simp
-      · have hne : j.val ≠ j₀.val := Fin.val_ne_of_ne hj
-        rw [Function.update_of_ne (by omega), Function.update_of_ne hj]
-        exact ham.hPrice j
+    have hj₀_lt := j₀.isLt
     have hstack_tail : ∀ k (hk : k < rest.length),
         s₀.mem (ws.bStack + k) = (rest[rest.length - 1 - k]'(by omega)).val := fun k hk => by
       have hidx : rest.length + 1 - 1 - k = (rest.length - 1 - k) + 1 := by omega
       simpa only [hs_free, List.length_cons, hidx, List.getElem_cons_succ] using
         ham.hStack k (by omega)
-    have ownerBeforePrice (j : Fin ws.n) : ws.bOwner + j.val < ws.bPrice :=
-      hbP ▸ Nat.add_lt_add_left j.isLt _
-    have priceBeforeStack (j : Fin ws.n) : ws.bPrice + j.val < ws.bStack :=
-      hbS ▸ Nat.add_lt_add_left j.isLt _
-    have ownerBeforeStack (j : Fin ws.n) : ws.bOwner + j.val < ws.bStack :=
-      (ownerBeforePrice j).trans_le ((Nat.le_add_right _ _).trans (priceBeforeStack j).le)
     have hstack_mid (k : ℕ) : s_mid.mem (ws.bStack + k) = s₀.mem (ws.bStack + k) := by
       dsimp only [s_mid]
-      rw [Function.update_of_ne ((ownerBeforeStack j₀).trans_le (Nat.le_add_right _ _)).ne',
-        Function.update_of_ne ((priceBeforeStack j₀).trans_le (Nat.le_add_right _ _)).ne']
+      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
     have hbeforeStack {address : ℕ} (h : address < ws.bStack) :
         afterBid.mem address = s_mid.mem address := by
       unfold afterBid
-      cases st.owner j₀ with
-      | none => rfl
-      | some _ => exact Function.update_of_ne (h.trans_le (Nat.le_add_right _ _)).ne _ _
+      cases st.owner j₀ <;>
+        simp [Function.update_of_ne (by omega : address ≠ ws.bStack + rest.length)]
     refine ⟨fun i j => ?_, fun j => ?_, fun j => ?_, fun k hk => ?_⟩
-    · have hlt : ws.bC + (i.val * ws.n + j.val) < ws.bOwner := by
-        rw [hbO]
-        exact Nat.add_lt_add_left (Cslib.Matrix.pairIndex_lt (i, j)) _
-      exact (hbeforeStack (hlt.trans_le ((Nat.le_add_right _ _).trans
-        (ownerBeforeStack j).le))).trans (hs_mid_c i j)
-    · exact (hbeforeStack (ownerBeforeStack j)).trans (hs_mid_owner j)
-    · exact (hbeforeStack (priceBeforeStack j)).trans (hs_mid_price j)
-    · unfold afterBid
+    · have hlt_ij : i.val * ws.n + j.val < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i, j)
+      rw [hbeforeStack (show ws.bC + (i.val * ws.n + j.val) < ws.bStack by omega)]
+      dsimp only [s_mid]
+      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+      exact ham.hC i j
+    · have hj_lt := j.isLt
+      rw [hbeforeStack (by omega)]
+      dsimp only [s_mid]
+      rcases eq_or_ne j j₀ with rfl | hj
+      · simp
+      · rw [Function.update_of_ne (by simpa using Fin.val_ne_of_ne hj),
+          Function.update_of_ne (by omega), Function.update_of_ne hj]
+        exact ham.hOwner j
+    · have hj_lt := j.isLt
+      rw [hbeforeStack (by omega)]
+      dsimp only [s_mid]
+      rw [Function.update_of_ne (by omega)]
+      rcases eq_or_ne j j₀ with rfl | hj
+      · simp
+      · simp [hj, Fin.val_ne_of_ne hj, ham.hPrice j]
+    · dsimp only [afterBid]
       revert hk
-      cases ho : st.owner j₀ with
+      cases st.owner j₀ with
       | none =>
         simp only [Option.toList_none, List.nil_append]
-        intro hk
-        exact (hstack_mid k).trans (hstack_tail k hk)
+        exact fun hk => (hstack_mid k).trans (hstack_tail k hk)
       | some prevI =>
         simp only [Option.toList_some, List.singleton_append, List.length_cons]
         intro hk
         rcases Nat.lt_succ_iff_lt_or_eq.mp hk with hlt_r | rfl
-        · have hne := (Nat.add_lt_add_left hlt_r ws.bStack).ne
-          change Function.update s_mid.mem (ws.bStack + rest.length) prevI.val
-            (ws.bStack + k) = _
-          rw [Function.update_of_ne hne, hstack_mid, hstack_tail k hlt_r]
+        · rw [Function.update_of_ne (by omega), hstack_mid, hstack_tail k hlt_r]
           have hpred : rest.length - 1 - k + 1 = rest.length - k := by omega
           simp only [Nat.add_sub_cancel, ← hpred, List.getElem_cons_succ]
-        · rw [Function.update_self]
-          simp only [Nat.add_sub_cancel, Nat.sub_self, List.getElem_cons_zero]
+        · simp
 
 end
 

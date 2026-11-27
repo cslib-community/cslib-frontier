@@ -163,32 +163,27 @@ private theorem card_le_of_bad_good {κ : Type} [Fintype κ] {D : PMF X}
   -- Every concept outside `B` sees only valid answers, so `h₀` is a good hypothesis for it.
   have hcover : (univ : Finset κ) ⊆ B ∪ G := by
     intro i _
-    by_cases hiB : i ∈ B
-    · exact mem_union_left _ hiB
-    refine mem_union_right _ (mem_filter.2 ⟨mem_univ _, ?_⟩)
-    set answer : Query X → ℝ := fun φ =>
-      if φ ∈ L then nullAnswer D φ else expect D (f i) φ with hanswer
-    have hvalid : ∀ φ, |answer φ - expect D (f i) φ| ≤ τ := by
-      intro φ
+    rw [mem_union]
+    refine or_iff_not_imp_left.2 fun hiB => mem_filter.2 ⟨mem_univ _, ?_⟩
+    set answer : Query X → ℝ := fun φ => if φ ∈ L then nullAnswer D φ else expect D (f i) φ with ha
+    have hvalid : ∀ φ, |answer φ - expect D (f i) φ| ≤ τ := fun φ => by
       by_cases hφ : φ ∈ L
-      · simp only [hanswer, hφ, ite_true]
-        rw [expect_eq_nullAnswer_add_bias, sub_add_cancel_left, abs_neg]
+      · simp only [ha, hφ, ite_true, expect_eq_nullAnswer_add_bias, sub_add_cancel_left,
+          abs_neg]
         exact le_of_not_gt fun hlt => hiB (mem_biUnion.2 ⟨φ, hφ, mem_filter.2 ⟨mem_univ _, hlt⟩⟩)
-      · simpa only [hanswer, hφ, ite_false, sub_self, abs_zero] using hτ
+      · simpa only [ha, hφ, ite_false, sub_self, abs_zero] using hτ
     have hrun : run A answer = h₀ :=
       (OracleComp.interpret_id_congr (nullAnswer D) answer A fun φ hφ => by
-        simp only [hanswer, List.mem_toFinset.2 hφ, ite_true, hL]).1
-    have hdis := hrun ▸ hA (f i) (hf i) answer hvalid
+        simp only [ha, List.mem_toFinset.2 hφ, ite_true, hL]).1
     rw [corr_eq_one_sub_two_mul_disagreement]
-    linarith
+    linarith [hrun ▸ hA (f i) (hf i) answer hvalid]
   have hBcard : (#B : ℝ) ≤ q * b := by
     calc (#B : ℝ) ≤ ∑ φ ∈ L, (#({i | τ < |bias D φ (f i)|} : Finset κ) : ℝ) := by
           exact_mod_cast card_biUnion_le
       _ ≤ ∑ _φ ∈ L, b := sum_le_sum fun φ _ => hbad φ
       _ = #L * b := by rw [sum_const, nsmul_eq_mul]
-      _ ≤ q * b := by
-          refine mul_le_mul_of_nonneg_right ?_ hb
-          exact_mod_cast (List.toFinset_card_le _).trans (hq.length_queriesWith_le (nullAnswer D))
+      _ ≤ q * b := mul_le_mul_of_nonneg_right
+          (mod_cast (List.toFinset_card_le _).trans (hq.length_queriesWith_le (nullAnswer D))) hb
   calc (Fintype.card κ : ℝ) = #(univ : Finset κ) := by rw [card_univ]
     _ ≤ #(B ∪ G) := by exact_mod_cast card_le_card hcover
     _ ≤ #B + #G := by exact_mod_cast card_union_le B G
@@ -211,40 +206,29 @@ private theorem card_bad_le {κ : Type} [Fintype κ] (D : PMF X) (f : κ → X �
     (hτ : 0 ≤ τ) (hγ1 : γ ≤ 1) (hγτ : γ < τ ^ 2)
     (hcorr : ∀ i j, i ≠ j → corr D (f i) (f j) ≤ γ) (φ : Query X) :
     (#({i | τ < |bias D φ (f i)|} : Finset κ) : ℝ) ≤ 2 * ((1 - γ) / (τ ^ 2 - γ)) := by
-  have hpos : 0 < τ ^ 2 - γ := sub_pos.2 hγτ
   have hsplit : ({i | τ < |bias D φ (f i)|} : Finset κ) ⊆
-      ({i | τ ≤ bias D φ (f i)} : Finset κ) ∪ ({i | τ ≤ -bias D φ (f i)} : Finset κ) := by
-    intro i hi
-    rcases lt_abs.1 (mem_filter.1 hi).2 with h | h
-    · exact mem_union_left _ (mem_filter.2 ⟨mem_univ _, h.le⟩)
-    · exact mem_union_right _ (mem_filter.2 ⟨mem_univ _, h.le⟩)
-  have hyy : ∀ i ∈ (univ : Finset κ), ∀ j ∈ (univ : Finset κ), i ≠ j →
-      ⟪emb D (fun x => BitString.signVal (f i x)),
-        emb D (fun x => BitString.signVal (f j x))⟫ ≤ γ :=
-    fun i _ j _ hij => (inner_emb_corr D (f i) (f j)).trans_le (hcorr i j hij)
-  have hplus : (#({i | τ ≤ bias D φ (f i)} : Finset κ) : ℝ) * (τ ^ 2 - γ) ≤ 1 - γ :=
-    InnerProductGeometry.card_mul_sq_sub_le_of_le_inner (x := emb D (slope φ))
-      (y := fun i => emb D fun x => BitString.signVal (f i x))
-      (norm_emb_le D _ (abs_slope_le φ)) (fun i _ => norm_emb_signVal_le D (f i)) hτ hγ1
-      (fun i hi => (inner_emb_bias D φ (f i)).trans_ge (mem_filter.1 hi).2)
-      (fun i _ j _ hij => hyy i (mem_univ i) j (mem_univ j) hij)
-  have hminus : (#({i | τ ≤ -bias D φ (f i)} : Finset κ) : ℝ) * (τ ^ 2 - γ) ≤ 1 - γ :=
-    InnerProductGeometry.card_mul_sq_sub_le_of_le_inner (x := emb D fun x => -slope φ x)
-      (y := fun i => emb D fun x => BitString.signVal (f i x))
-      (norm_emb_le D _ fun x => (abs_neg (slope φ x)).trans_le (abs_slope_le φ x))
-      (fun i _ => norm_emb_signVal_le D (f i)) hτ hγ1
-      (fun i hi => by
-        have h := (mem_filter.1 hi).2
-        rw [← inner_emb_bias, ← inner_neg_right] at h
-        convert h using 2
-        ext x
-        simp only [emb, PiLp.neg_apply, mul_neg])
-      (fun i _ j _ hij => hyy i (mem_univ i) j (mem_univ j) hij)
+      ({i | τ ≤ bias D φ (f i)} : Finset κ) ∪ ({i | τ ≤ -bias D φ (f i)} : Finset κ) :=
+    fun i hi => by
+      simp only [mem_union, mem_filter, mem_univ, true_and]
+      exact (lt_abs.1 (mem_filter.1 hi).2).imp le_of_lt le_of_lt
+  have hbound (x : EuclideanSpace ℝ X) (hx : ‖x‖ ≤ 1) (S : Finset κ)
+      (hS : ∀ i ∈ S, τ ≤ ⟪emb D (fun z => BitString.signVal (f i z)), x⟫) :
+      (#S : ℝ) ≤ (1 - γ) / (τ ^ 2 - γ) :=
+    (le_div_iff₀ (sub_pos.2 hγτ)).2 (InnerProductGeometry.card_mul_sq_sub_le_of_le_inner hx
+      (fun i _ => norm_emb_signVal_le D (f i)) hτ hγ1 hS fun i _ j _ hij =>
+        (inner_emb_corr D (f i) (f j)).trans_le (hcorr i j hij))
+  have hplus := hbound (emb D (slope φ)) (norm_emb_le D _ (abs_slope_le φ))
+    ({i | τ ≤ bias D φ (f i)} : Finset κ) fun i hi =>
+      (inner_emb_bias D φ (f i)).trans_ge (mem_filter.1 hi).2
+  have hminus := hbound (-emb D (slope φ))
+    (norm_neg (emb D (slope φ)) ▸ norm_emb_le D _ (abs_slope_le φ))
+    ({i | τ ≤ -bias D φ (f i)} : Finset κ) fun i hi => by
+      simpa only [inner_neg_right, inner_emb_bias] using (mem_filter.1 hi).2
   have hu : (#({i | τ < |bias D φ (f i)|} : Finset κ) : ℝ) ≤
       #({i | τ ≤ bias D φ (f i)} : Finset κ) + #({i | τ ≤ -bias D φ (f i)} : Finset κ) := by
     exact_mod_cast (card_le_card hsplit).trans (card_union_le _ _)
   rw [two_mul]
-  exact hu.trans (add_le_add ((le_div_iff₀ hpos).2 hplus) ((le_div_iff₀ hpos).2 hminus))
+  exact hu.trans (add_le_add hplus hminus)
 
 open Classical in
 private theorem card_good_le {κ : Type} [Fintype κ] (D : PMF X) (f : κ → X → Bool) {ε γ : ℝ}
@@ -321,24 +305,16 @@ theorem LearnsStateless.card_mul_sq_sub_one_le_two_mul {κ : Type} [Fintype κ] 
   set d : ℝ := (Fintype.card κ : ℝ) with hd
   have hdpos : 0 < d := by linarith
   rcases le_or_gt (d * τ ^ 2) 1 with h1 | h1
-  · linarith [show (0 : ℝ) ≤ 2 * q by positivity]
+  · linarith [Nat.cast_nonneg (α := ℝ) q]
   have hγτ : 1 / d < τ ^ 2 := by rw [div_lt_iff₀ hdpos]; linarith
   have hγ1 : 1 / d < 1 := by rw [div_lt_one hdpos]; linarith
-  have hγε : 1 / d < (1 - 2 * 0) ^ 2 := by rwa [mul_zero, sub_zero, one_pow]
-  have h := hA.card_le_of_corr_le hq hf hcorr hτ le_rfl (by norm_num) hγτ hγε
+  have h := hA.card_le_of_corr_le hq hf hcorr hτ le_rfl (by norm_num) hγτ
+    (by simpa only [mul_zero, sub_zero, one_pow] using hγ1)
   rw [mul_zero, sub_zero, one_pow, div_self (sub_pos.2 hγ1).ne'] at h
-  have hxmul : (1 - 1 / d) / (τ ^ 2 - 1 / d) * (τ ^ 2 - 1 / d) = 1 - 1 / d :=
-    div_mul_cancel₀ _ (sub_pos.2 hγτ).ne'
-  have h4 : (d - 1) * (τ ^ 2 - 1 / d) ≤ 2 * q * (1 - 1 / d) := by
-    have := mul_le_mul_of_nonneg_right
-      (show d - 1 ≤ 2 * q * ((1 - 1 / d) / (τ ^ 2 - 1 / d)) by linarith) (sub_pos.2 hγτ).le
-    rwa [mul_assoc (2 * (q : ℝ)), hxmul] at this
-  have h5 : (d - 1) * (d * τ ^ 2 - 1) ≤ (d - 1) * (2 * q) := by
-    have e : (d - 1) * (τ ^ 2 - 1 / d) * d = (d - 1) * (d * τ ^ 2 - 1) := by field_simp
-    have e' : 2 * q * (1 - 1 / d) * d = (d - 1) * (2 * q) := by field_simp
-    rw [← e, ← e']
-    exact mul_le_mul_of_nonneg_right h4 hdpos.le
-  exact le_of_mul_le_mul_left h5 (by linarith)
+  have h4 : (d - 1) * (τ ^ 2 - 1 / d) ≤ 2 * q * (1 - 1 / d) :=
+    (le_div_iff₀ (sub_pos.2 hγτ)).1 (by rw [mul_div_assoc]; linarith)
+  field_simp at h4
+  nlinarith
 
 /-- **The statistical query dimension bound for weak learning** [Reyzin, Theorem 12][Reyzin2020].
 If `C` contains `d` concepts with pairwise correlations at most `1 / d` under `D`, and `A` learns
@@ -353,31 +329,25 @@ theorem LearnsStateless.card_mul_sq_sub_one_le_two_mul_add_one {κ : Type} [Fint
     (hτ : 0 ≤ τ) (hε0 : 0 ≤ ε) (hετ : τ ≤ 1 - 2 * ε) :
     Fintype.card κ * τ ^ 2 - 1 ≤ 2 * q + 1 := by
   rcases le_or_gt ((Fintype.card κ : ℝ) * τ ^ 2) 1 with h1 | h1
-  · linarith [show (0 : ℝ) ≤ 2 * q + 1 by positivity]
-  have hd1 : (1 : ℝ) ≤ Fintype.card κ := by
-    refine Nat.one_le_cast.2 (Nat.one_le_iff_ne_zero.2 fun h0 => ?_)
-    rw [h0, Nat.cast_zero, zero_mul] at h1; linarith
+  · linarith [Nat.cast_nonneg (α := ℝ) q]
+  have hd1 : (1 : ℝ) ≤ Fintype.card κ :=
+    Nat.one_le_cast.2 (Nat.one_le_iff_ne_zero.2 fun h0 => by simp [h0] at h1; linarith)
   set d : ℝ := (Fintype.card κ : ℝ) with hd
   have hdpos : 0 < d := by linarith
   have hγτ : 1 / d < τ ^ 2 := by rw [div_lt_iff₀ hdpos]; linarith
   have hττ : τ ^ 2 ≤ (1 - 2 * ε) ^ 2 := pow_le_pow_left₀ hτ hετ 2
-  have hγε : 1 / d < (1 - 2 * ε) ^ 2 := hγτ.trans_le hττ
-  have h := hA.card_le_of_corr_le hq hf hcorr hτ hε0 (by linarith) hγτ hγε
+  have h := hA.card_le_of_corr_le hq hf hcorr hτ hε0 (by linarith) hγτ (hγτ.trans_le hττ)
   have hnum : 0 ≤ 1 - 1 / d := by rwa [sub_nonneg, div_le_one hdpos]
   have hpos : 0 < τ ^ 2 - 1 / d := sub_pos.2 hγτ
-  have h2 : (1 - 1 / d) / ((1 - 2 * ε) ^ 2 - 1 / d) ≤ (1 - 1 / d) / (τ ^ 2 - 1 / d) := by gcongr
   have h' : d ≤ (2 * q + 1) * ((1 - 1 / d) / (τ ^ 2 - 1 / d)) := by
     calc d ≤ _ := h
-      _ ≤ 2 * q * ((1 - 1 / d) / (τ ^ 2 - 1 / d)) + (1 - 1 / d) / (τ ^ 2 - 1 / d) := by
-        linarith
+      _ ≤ 2 * q * ((1 - 1 / d) / (τ ^ 2 - 1 / d)) + (1 - 1 / d) / (τ ^ 2 - 1 / d) := by gcongr
       _ = _ := by ring
   have h3 : d * (τ ^ 2 - 1 / d) ≤ (2 * q + 1) * (1 - 1 / d) := by
     calc d * (τ ^ 2 - 1 / d)
         ≤ (2 * q + 1) * ((1 - 1 / d) / (τ ^ 2 - 1 / d)) * (τ ^ 2 - 1 / d) := by gcongr
       _ = _ := by rw [mul_assoc, div_mul_cancel₀ _ hpos.ne']
-  have h4 : d * (τ ^ 2 - 1 / d) = d * τ ^ 2 - 1 := by field_simp
-  have h5 : (2 * q + 1) * (1 - 1 / d) ≤ 2 * q + 1 := by
-    nlinarith [show 0 ≤ (2 * q + 1 : ℝ) * (1 / d) by positivity]
-  linarith
+  field_simp at h3
+  nlinarith
 
 end Cslib.MachineLearning.StatisticalQuery

@@ -221,8 +221,7 @@ theorem evalWith_trial (r : ℕ) (keys : List X) :
     evalWith (answer F) (trial F r keys) =
       (F.seed r).map fun s => (⟨s, keys.map (F.hash r s)⟩ : Trial F r) := by
   simp only [trial, evalWith_bind, evalWith_query, evalWith_evalAll, evalWith_pure,
-    PMF.pure_bind, answer_draw]
-  rw [← PMF.bind_pure_comp]
+    PMF.pure_bind, answer_draw, ← PMF.bind_pure_comp]
   rfl
 
 theorem expectedCost_trial (cost : Query F → ℝ≥0∞) (r : ℕ) (keys : List X) :
@@ -297,20 +296,17 @@ variable [DecidableEq X]
 theorem card_filter_eq_length {r : ℕ} {keys : List X} (hkeys : keys.Nodup)
     (f : X → Fin (r + 1)) (j : Fin (r + 1)) :
     (keys.toFinset.filter fun x => f x = j).card = (bucketOf keys (keys.map f) j).length := by
-  rw [bucketOf_map, ← List.toFinset_card_of_nodup (hkeys.filter _), List.toFinset_filter]
-  simp
+  simp [bucketOf_map, ← List.toFinset_card_of_nodup (hkeys.filter _)]
 
 theorem mem_bucket_iff_mem_bucketOf {F : Family X} {D : Description F} {keys : List X}
     {vs : List (Fin (D.top.range + 1))} (hvs : vs = keys.map D.top.apply)
     {j : Fin (D.top.range + 1)} {x : X} : x ∈ bucket D keys j ↔ x ∈ bucketOf keys vs j := by
-  subst hvs
-  simp [bucketOf_map, mem_bucket]
+  simp [hvs, bucketOf_map, mem_bucket]
 
 theorem card_bucket_eq_length {F : Family X} {D : Description F} {keys : List X}
     (hkeys : keys.Nodup) {vs : List (Fin (D.top.range + 1))} (hvs : vs = keys.map D.top.apply)
-    (j : Fin (D.top.range + 1)) : (bucket D keys j).card = (bucketOf keys vs j).length := by
-  subst hvs
-  exact card_filter_eq_length hkeys _ j
+    (j : Fin (D.top.range + 1)) : (bucket D keys j).card = (bucketOf keys vs j).length :=
+  hvs ▸ card_filter_eq_length hkeys _ j
 
 end Buckets
 
@@ -344,26 +340,21 @@ theorem valid_of_mem_support_build {fuel : ℕ} {keys : List X} (hkeys : keys.No
     {D : Description F} (hD : some D ∈ (evalWith (answer F) (build F fuel keys)).support) :
     Valid D keys := by
   rw [support_evalWith, build, mem_supportWith_bind_iff] at hD
-  obtain ⟨o, ho, hD⟩ := hD
-  cases o with
-  | none => simp at hD
-  | some t =>
-    obtain ⟨hgood, ht⟩ := mem_supportWith_retry ho
+  rcases hD with ⟨none | t, ho, hD⟩
+  · simp at hD
+  · obtain ⟨hgood, ht⟩ := mem_supportWith_retry ho
     obtain ⟨-, htv⟩ := mem_supportWith_trial ht
-    simp only [Option.elim_some, buildRest, mem_supportWith_map_iff] at hD
+    simp only [Option.elim_some, buildRest, mem_supportWith_map_iff, mem_supportWith_pi_iff] at hD
     obtain ⟨sec, hsec, hasm⟩ := hD
     obtain ⟨hs, rfl⟩ := assemble_eq_some hasm
-    rw [mem_supportWith_pi_iff] at hsec
     have hcard := card_bucket_eq_length (D := ⟨⟨keys.length - 1, t.seed⟩,
       fun j => (sec j).get (hs j)⟩) hkeys htv
     have hsecj (j) := mem_supportWith_buildSecondary ((Option.some_get (hs j)).symm ▸ hsec j)
     refine ⟨rfl, by simpa only [hcard, TopGood] using hgood, fun j hj => ?_,
       fun j x hx y hy hxy => ?_⟩
-    · rw [hcard] at hj ⊢
-      have hpos : 0 < (bucketOf keys t.values j).length ^ 2 := by positivity
-      have hr := (hsecj j).1
-      dsimp only at hr ⊢
-      omega
+    · dsimp only
+      rw [hcard, (hsecj j).1]
+      exact Nat.sub_add_cancel (Nat.pow_pos (Nat.pos_of_ne_zero (hcard j ▸ hj)))
     · rw [Finset.mem_coe, mem_bucket_iff_mem_bucketOf htv] at hx hy
       exact (hsecj j).2 hx hy hxy
 
@@ -424,9 +415,7 @@ private theorem evalWith_map_option_none {α β : Type} (f : α → β)
     evalWith (answer F) (Option.map f <$> program) none = evalWith (answer F) program none := by
   rw [evalWith_map, ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
     ← PMF.toOuterMeasure_apply_singleton]
-  congr 1
-  ext o
-  cases o <;> simp
+  exact congrArg _ (Set.ext fun o => by cases o <;> simp)
 
 /-- The block of a bucket is built except with probability `2^{-fuel}` (always, for an empty
 bucket and positive fuel). -/
@@ -447,9 +436,7 @@ theorem evalWith_buildRest_none_le (hF : ∀ r, IsTwoUniversal (F.seed r) (F.has
     PMF.toOuterMeasure_map_apply]
   refine le_trans (MeasureTheory.measure_mono fun sec hsec => ?_)
     ((toOuterMeasure_evalWith_pi_exists_le (answer F) _ fun _ o => o = none).trans ?_)
-  · simp only [Set.mem_preimage, Set.mem_singleton_iff, assemble, dite_eq_right_iff,
-      reduceCtorEq, imp_false, not_forall, Option.not_isSome_iff_eq_none] at hsec
-    exact hsec
+  · simpa [assemble] using hsec
   · calc ∑ j : Fin (keys.length - 1 + 1), (evalWith (answer F)
           (buildSecondary F fuel (bucketOf keys t.values j))).toOuterMeasure {o | o = none}
         ≤ ∑ _j : Fin (keys.length - 1 + 1), (2⁻¹ : ℝ≥0∞) ^ fuel := by

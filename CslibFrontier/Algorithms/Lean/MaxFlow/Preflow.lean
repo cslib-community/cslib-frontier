@@ -101,11 +101,8 @@ variable {N}
 @[expose] def excess (f : N.Preflow) (v : V) : ℤ :=
   (∑ u, (f u v : ℤ)) - ∑ w, (f v w : ℤ)
 
-theorem excess_nonneg (f : N.Preflow) {v : V} (hv : v ≠ N.s) : 0 ≤ f.excess v := by
-  have h : ((∑ w, f v w : ℕ) : ℤ) ≤ ((∑ u, f u v : ℕ) : ℤ) := by exact_mod_cast f.out_le_in v hv
-  push_cast at h
-  unfold excess
-  omega
+theorem excess_nonneg (f : N.Preflow) {v : V} (hv : v ≠ N.s) : 0 ≤ f.excess v :=
+  sub_nonneg.mpr (mod_cast f.out_le_in v hv)
 
 /-- Residual capacity `c_f(u, v)`: unused capacity on `(u, v)` plus cancellable flow on `(v, u)`. -/
 @[expose] def resCap (f : N.Preflow) (u v : V) : ℕ :=
@@ -181,20 +178,17 @@ private theorem le_add_card_of_reflTransGen {r : V → V → Prop} {h : V → �
     (hr : ∀ u v, r u v → h u ≤ h v + 1) {u w : V} (huw : Relation.ReflTransGen r u w) :
     h u + 1 ≤ h w + Fintype.card V := by
   classical
-  have key : ∀ x, Relation.ReflTransGen r x w → Finset.Icc (h w) (h x) ⊆ Finset.univ.image h := by
-    intro x hx
+  have key (x : V) (hx : Relation.ReflTransGen r x w) :
+      Finset.Icc (h w) (h x) ⊆ Finset.univ.image h := by
     induction hx using Relation.ReflTransGen.head_induction_on with
-    | refl =>
-      intro k hk
-      rw [Finset.mem_Icc] at hk
-      exact Finset.mem_image.mpr ⟨w, Finset.mem_univ _, by omega⟩
+    | refl => exact fun k hk =>
+      Finset.mem_image.mpr ⟨w, Finset.mem_univ _, by have := Finset.mem_Icc.mp hk; omega⟩
     | @head x y hxy _ ih =>
       intro k hk
       rw [Finset.mem_Icc] at hk
       by_cases hky : k ≤ h y
       · exact ih (Finset.mem_Icc.mpr ⟨hk.1, hky⟩)
-      · have := hr x y hxy
-        exact Finset.mem_image.mpr ⟨x, Finset.mem_univ _, by omega⟩
+      · exact Finset.mem_image.mpr ⟨x, Finset.mem_univ _, by have := hr x y hxy; omega⟩
   finset_card [key u huw, Nat.card_Icc (h w) (h u)]
 
 theorem IsValidLabeling.le_add_card {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h)
@@ -205,14 +199,12 @@ theorem IsValidLabeling.le_add_card {f : N.Preflow} {h : V → ℕ} (hh : f.IsVa
 theorem IsValidLabeling.not_resReachable {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h) :
     ¬ f.ResReachable N.s N.t := by
   intro hst
-  have := hh.le_add_card hst
-  rw [hh.source, hh.sink] at this
+  have := hh.source ▸ hh.sink ▸ hh.le_add_card hst
   omega
 
 theorem IsValidLabeling.source_ne_sink {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h) :
-    N.s ≠ N.t := by
-  intro hst
-  exact hh.not_resReachable (hst ▸ .refl)
+    N.s ≠ N.t :=
+  fun hst => hh.not_resReachable (hst ▸ .refl)
 
 /-! ### Excess and residual reachability -/
 
@@ -251,17 +243,14 @@ theorem resReachable_source_of_excess_pos (f : N.Preflow) {x : V} (hx : 0 < f.ex
       exact Nat.cast_eq_zero.mpr (by omega)]
     exact sub_nonpos.mpr (Finset.sum_nonneg fun _ _ => Finset.sum_nonneg fun _ _ =>
       Int.natCast_nonneg _)
-  have hnonneg : ∀ v ∈ U, 0 ≤ f.excess v := fun v hv =>
-    f.excess_nonneg fun h => hsU (h ▸ hv)
-  have hle := Finset.single_le_sum hnonneg hxU
+  have hle := Finset.single_le_sum (fun v hv => f.excess_nonneg fun h => hsU (h ▸ hv)) hxU
   omega
 
 /-- **Height bound** ([CLRS2009], Lemma 26.20): under a valid labeling, a vertex with positive
 excess has height at most `2|V| - 1`. -/
 theorem IsValidLabeling.le_of_excess_pos {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h)
     {x : V} (hx : 0 < f.excess x) : h x ≤ 2 * Fintype.card V - 1 := by
-  have := hh.le_add_card (f.resReachable_source_of_excess_pos hx)
-  rw [hh.source] at this
+  have := hh.source ▸ hh.le_add_card (f.resReachable_source_of_excess_pos hx)
   omega
 
 /-! ### Push and relabel -/
@@ -321,15 +310,11 @@ instance [DecidableEq V] (f : N.Preflow) (h : V → ℕ) (u : V) : Decidable (f.
 
 theorem CanPush.ne {f : N.Preflow} {h : V → ℕ} {u v : V} (hp : f.CanPush h u v) : u ≠ v := by
   rintro rfl
-  have := hp.height_eq
-  omega
+  exact Nat.succ_ne_self _ hp.height_eq.symm
 
 theorem CanPush.pushAmount_pos {f : N.Preflow} {h : V → ℕ} {u v : V} (hp : f.CanPush h u v) :
-    0 < f.pushAmount u v := by
-  have h1 := hp.active.2.2
-  have h2 := hp.resCap_pos
-  unfold pushAmount
-  omega
+    0 < f.pushAmount u v :=
+  lt_min (Int.pos_iff_toNat_pos.mp hp.active.2.2) hp.resCap_pos
 
 /-- Every active vertex admits a push or a relabel ([CLRS2009], Lemma 26.14). -/
 theorem IsValidLabeling.exists_canPush_or_canRelabel {f : N.Preflow} {h : V → ℕ} {u : V}
@@ -337,28 +322,23 @@ theorem IsValidLabeling.exists_canPush_or_canRelabel {f : N.Preflow} {h : V → 
   by_cases hex : ∃ v, 0 < f.resCap u v ∧ h u = h v + 1
   · obtain ⟨v, hpos, heq⟩ := hex
     exact .inl ⟨v, hu, hpos, heq⟩
-  · refine .inr ⟨hu, fun v hpos => ?_⟩
-    have h1 := hh.le_add_one u v hpos
-    have h2 : ¬ (0 < f.resCap u v ∧ h u = h v + 1) := fun h' => hex ⟨v, h'⟩
-    omega
+  · exact .inr ⟨hu, fun v hpos =>
+      Nat.lt_succ_iff.mp ((hh.le_add_one u v hpos).lt_of_ne fun heq => hex ⟨v, hpos, heq⟩)⟩
 
 /-! ### Termination and the gap cut -/
 
 /-- With no active vertex, every vertex other than `N.s` and `N.t` has zero excess. -/
 theorem excess_eq_zero_of_forall_not_isActive (f : N.Preflow) (hno : ∀ v, ¬ f.IsActive v) :
-    ∀ v, v ≠ N.s → v ≠ N.t → f.excess v = 0 := by
-  intro v hs ht
-  have h1 := f.excess_nonneg hs
-  by_contra h
-  exact hno v ⟨hs, ht, by omega⟩
+    ∀ v, v ≠ N.s → v ≠ N.t → f.excess v = 0 := fun v hs ht =>
+  Classical.byContradiction fun h =>
+    hno v ⟨hs, ht, lt_of_le_of_ne (f.excess_nonneg hs) (Ne.symm h)⟩
 
 /-- **Optimality at termination** ([CLRS2009], Theorem 26.18): a preflow with a valid labeling and
 no active vertex is a maximum flow. -/
 theorem IsValidLabeling.isMaxFlow_toFlow {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h)
-    (hz : ∀ v, v ≠ N.s → v ≠ N.t → f.excess v = 0) : (f.toFlow hz).IsMaxFlow := by
-  rw [Flow.isMaxFlow_iff_not_exists_augmentingPath _ hh.source_ne_sink,
-    Flow.exists_augmentingPath_iff_resReachable]
-  exact hh.not_resReachable
+    (hz : ∀ v, v ≠ N.s → v ≠ N.t → f.excess v = 0) : (f.toFlow hz).IsMaxFlow :=
+  (Flow.isMaxFlow_iff_not_exists_augmentingPath _ hh.source_ne_sink).mpr
+    (mt (Flow.exists_augmentingPath_iff_resReachable _).mp hh.not_resReachable)
 
 /-- The least level `0 < k < |V|` occupied by no vertex (`0` if there is none). -/
 @[expose] def gapLevel (h : V → ℕ) : ℕ :=
@@ -368,10 +348,7 @@ theorem IsValidLabeling.isMaxFlow_toFlow {f : N.Preflow} {h : V → ℕ} (hh : f
 theorem IsValidLabeling.exists_gap {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h) :
     ∃ k, 0 < k ∧ k < Fintype.card V ∧ ∀ v, h v ≠ k := by
   classical
-  by_contra hcon
-  have hocc : ∀ k, 0 < k → k < Fintype.card V → ∃ v, h v = k := fun k h0 h1 => by
-    by_contra hne
-    exact hcon ⟨k, h0, h1, fun v hv => hne ⟨v, hv⟩⟩
+  by_contra! hocc
   have hsub : Finset.range (Fintype.card V + 1) ⊆ Finset.univ.image h := by
     intro k hk
     rw [Finset.mem_range] at hk
@@ -407,10 +384,8 @@ theorem mem_gapCut {h : V → ℕ} {v : V} : v ∈ gapCut h ↔ gapLevel h < h v
 theorem IsValidLabeling.isCut_gapCut {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h) :
     N.IsCut (gapCut h) := by
   obtain ⟨_, hlt, _⟩ := hh.gapLevel_spec
-  refine ⟨mem_gapCut.mpr (by rw [hh.source]; exact hlt), fun ht => ?_⟩
-  have := mem_gapCut.mp ht
-  rw [hh.sink] at this
-  omega
+  exact ⟨mem_gapCut.mpr (hh.source.symm ▸ hlt),
+    fun ht => Nat.not_lt_zero _ (hh.sink ▸ mem_gapCut.mp ht)⟩
 
 theorem IsValidLabeling.resCap_eq_zero_of_mem_gapCut {f : N.Preflow} {h : V → ℕ}
     (hh : f.IsValidLabeling h) {u w : V} (hu : u ∈ gapCut h) (hw : w ∉ gapCut h) :
@@ -452,11 +427,10 @@ theorem pushFun_sub_pushFun (f : V → V → ℕ) (u v : V) (δ : ℕ) (x y : V)
       (f x y : ℤ) - (f y x : ℤ) + (if x = u ∧ y = v then (δ : ℤ) else 0) -
         (if x = v ∧ y = u then (δ : ℤ) else 0) := by
   unfold pushFun
-  simp only [show (y = v ∧ x = u) ↔ (x = u ∧ y = v) from and_comm,
-    show (y = u ∧ x = v) ↔ (x = v ∧ y = u) from and_comm]
+  simp only [and_comm (a := y = v), and_comm (a := y = u)]
   split_ifs with hA hB
-  · have : x = y := hA.1.trans hB.2.symm
-    subst this; omega
+  · cases hA.1.trans hB.2.symm
+    omega
   all_goals omega
 
 theorem sum_pushFun_sub (f : V → V → ℕ) (u v : V) (δ : ℕ) (x : V) :
@@ -464,19 +438,8 @@ theorem sum_pushFun_sub (f : V → V → ℕ) (u v : V) (δ : ℕ) (x : V) :
       (∑ y, (f y x : ℤ)) - (∑ y, (f x y : ℤ)) - (if x = u then (δ : ℤ) else 0) +
         (if x = v then (δ : ℤ) else 0) := by
   rw [← Finset.sum_sub_distrib, ← Finset.sum_sub_distrib]
-  have hpt : ∀ y, (pushFun f u v δ y x : ℤ) - (pushFun f u v δ x y : ℤ) =
-      ((f y x : ℤ) - (f x y : ℤ)) + ((if y = u ∧ x = v then (δ : ℤ) else 0) -
-        (if y = v ∧ x = u then (δ : ℤ) else 0)) := by
-    intro y
-    rw [pushFun_sub_pushFun f u v δ y x]
-    omega
-  simp only [hpt]
-  rw [Finset.sum_add_distrib, Finset.sum_sub_distrib]
-  have h1 : ∑ y, (if y = u ∧ x = v then (δ : ℤ) else 0) = if x = v then (δ : ℤ) else 0 := by
-    by_cases hx : x = v <;> simp [hx]
-  have h2 : ∑ y, (if y = v ∧ x = u then (δ : ℤ) else 0) = if x = u then (δ : ℤ) else 0 := by
-    by_cases hx : x = u <;> simp [hx]
-  rw [Finset.sum_sub_distrib, h1, h2]
+  simp only [pushFun_sub_pushFun, add_sub_assoc, Finset.sum_add_distrib, Finset.sum_sub_distrib,
+    ite_and, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
   omega
 
 /-- Push `f.pushAmount u v` units from `u` to `v`, cancelling reverse flow first ([CLRS2009],
@@ -524,11 +487,7 @@ theorem resCap_push_coe (f : N.Preflow) (u v x y : V) :
     ((f.push u v).resCap x y : ℤ) =
       f.resCap x y - (if x = u ∧ y = v then (f.pushAmount u v : ℤ) else 0) +
         (if x = v ∧ y = u then (f.pushAmount u v : ℤ) else 0) := by
-  rw [resCap_coe, resCap_coe]
-  have := pushFun_sub_pushFun f.toFun u v (f.pushAmount u v) x y
-  change (N.cap x y : ℤ) - ((pushFun f u v (f.pushAmount u v) x y : ℤ) -
-    (pushFun f u v (f.pushAmount u v) y x : ℤ)) = _
-  rw [this]
+  rw [resCap_coe, resCap_coe, push_apply, push_apply, pushFun_sub_pushFun]
   omega
 
 theorem resCap_push_self (f : N.Preflow) {u v : V} (huv : u ≠ v) :
@@ -552,23 +511,19 @@ theorem resCap_push_of_ne (f : N.Preflow) {u v x y : V} (h1 : ¬ (x = u ∧ y = 
 
 theorem excess_push_self (f : N.Preflow) {u v : V} (huv : u ≠ v) :
     (f.push u v).excess u = f.excess u - f.pushAmount u v := by
-  rw [excess_push, ite_eq_left rfl, ite_eq_right huv]
-  omega
+  rw [excess_push, ite_eq_left rfl, ite_eq_right huv, add_zero]
 
 theorem excess_push_target (f : N.Preflow) {u v : V} (huv : u ≠ v) :
     (f.push u v).excess v = f.excess v + f.pushAmount u v := by
-  rw [excess_push, ite_eq_right (Ne.symm huv), ite_eq_left rfl]
-  omega
+  rw [excess_push, ite_eq_right (Ne.symm huv), ite_eq_left rfl, sub_zero]
 
 theorem excess_push_of_ne (f : N.Preflow) {u v x : V} (hu : x ≠ u) (hv : x ≠ v) :
     (f.push u v).excess x = f.excess x := by
-  rw [excess_push, ite_eq_right hu, ite_eq_right hv]
-  omega
+  rw [excess_push, ite_eq_right hu, ite_eq_right hv, sub_zero, add_zero]
 
 theorem isActive_push_of_ne (f : N.Preflow) {u v x : V} (hu : x ≠ u) (hv : x ≠ v) :
     (f.push u v).IsActive x ↔ f.IsActive x := by
-  unfold IsActive
-  rw [excess_push_of_ne f hu hv]
+  simp only [IsActive, excess_push_of_ne f hu hv]
 
 /-- Pushes preserve valid labelings ([CLRS2009], Lemma 26.16). -/
 theorem IsValidLabeling.push {f : N.Preflow} {h : V → ℕ} {u v : V} (hh : f.IsValidLabeling h)
@@ -576,16 +531,11 @@ theorem IsValidLabeling.push {f : N.Preflow} {h : V → ℕ} {u v : V} (hh : f.I
   source := hh.source
   sink := hh.sink
   le_add_one x y hxy := by
-    by_cases hb : x = v ∧ y = u
-    · obtain ⟨rfl, rfl⟩ := hb
-      have := hp.height_eq
-      omega
-    · by_cases ha : x = u ∧ y = v
-      · obtain ⟨rfl, rfl⟩ := ha
-        have := hp.height_eq
-        omega
-      · rw [f.resCap_push_of_ne ha hb] at hxy
-        exact hh.le_add_one x y hxy
+    rcases Decidable.em (x = u ∧ y = v) with ⟨rfl, rfl⟩ | ha
+    · exact hp.height_eq.le
+    · rcases Decidable.em (x = v ∧ y = u) with ⟨rfl, rfl⟩ | hb
+      · exact hp.height_eq ▸ Nat.le_add_right _ 2
+      · exact hh.le_add_one x y (f.resCap_push_of_ne ha hb ▸ hxy)
 
 /-! ### The relabel operation -/
 
@@ -621,10 +571,7 @@ theorem relabelHeight_le {f : N.Preflow} {h : V → ℕ} {u v : V} (hpos : 0 < f
     f.relabelHeight h u ≤ h v + 1 := by
   have hv : v ∈ f.resNbrs u := (mem_resNbrs f u v).mpr hpos
   have hne : (f.resNbrs u).Nonempty := ⟨v, hv⟩
-  unfold relabelHeight
-  simp only [hne, ↓reduceDIte]
-  have := Finset.inf'_le h hv
-  omega
+  simpa only [relabelHeight, hne, ↓reduceDIte] using Nat.add_le_add_right (Finset.inf'_le h hv) 1
 
 omit [DecidableEq V] in
 /-- A relabel strictly raises the height of the relabelled vertex ([CLRS2009], Lemma 26.15). -/
@@ -640,29 +587,22 @@ theorem CanRelabel.lt_relabelHeight {f : N.Preflow} {h : V → ℕ} {u : V} (hr 
 
 theorem CanRelabel.le_relabel {f : N.Preflow} {h : V → ℕ} {u : V} (hr : f.CanRelabel h u) (x : V) :
     h x ≤ f.relabel h u x := by
-  by_cases hx : x = u
-  · subst hx
-    rw [relabel_self]
-    exact hr.lt_relabelHeight.le
+  rcases eq_or_ne x u with rfl | hx
+  · exact relabel_self f h x ▸ hr.lt_relabelHeight.le
   · rw [relabel_of_ne f h hx]
 
 /-- Relabels preserve valid labelings ([CLRS2009], Lemma 26.16). -/
 theorem IsValidLabeling.relabel {f : N.Preflow} {h : V → ℕ} {u : V} (hh : f.IsValidLabeling h)
     (hr : f.CanRelabel h u) : f.IsValidLabeling (f.relabel h u) where
-  source := by rw [relabel_of_ne f h (Ne.symm hr.active.1)]; exact hh.source
-  sink := by rw [relabel_of_ne f h (Ne.symm hr.active.2.1)]; exact hh.sink
+  source := by simpa [relabel_of_ne f h hr.active.1.symm] using hh.source
+  sink := by simpa [relabel_of_ne f h hr.active.2.1.symm] using hh.sink
   le_add_one x y hxy := by
-    by_cases hx : x = u
-    · subst hx
-      by_cases hy : y = x
-      · subst hy
-        omega
-      · rw [relabel_self, relabel_of_ne f h hy]
-        exact relabelHeight_le hxy
+    rcases eq_or_ne x u with rfl | hx
+    · rcases eq_or_ne y x with rfl | hy
+      · omega
+      · simpa [relabel_self, relabel_of_ne f h hy] using relabelHeight_le hxy
     · rw [relabel_of_ne f h hx]
-      have h1 := hh.le_add_one x y hxy
-      have h2 := hr.le_relabel y
-      omega
+      exact (hh.le_add_one x y hxy).trans (Nat.add_le_add_right (hr.le_relabel y) 1)
 
 /-! ### Initialization -/
 
@@ -686,15 +626,8 @@ theorem isValidLabeling_initial (hst : N.s ≠ N.t) :
   source := by simp [initialHeight]
   sink := by simp [initialHeight, hst.symm]
   le_add_one u v huv := by
-    unfold initialHeight
-    by_cases hu : u = N.s
-    · subst hu
-      by_cases hv : v = N.s
-      · subst hv
-        omega
-      · exfalso
-        simp [resCap, initial, hv] at huv
-    · simp [hu]
+    by_cases hu : u = N.s <;> by_cases hv : v = N.s <;>
+      simp_all [initialHeight, resCap, initial]
 
 end DecidableEq
 

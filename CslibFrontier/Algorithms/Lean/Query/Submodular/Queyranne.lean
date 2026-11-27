@@ -122,15 +122,10 @@ private theorem eval_qScanM_best_mem
   | cons c cs ih =>
     rcases c with ⟨b, sb⟩
     simp only [qScanM, FreeM.eval_bind, ValueQuery.eval_ask]
-    by_cases h : oracle (.value (A ∪ b)) + sBest < vBest + sb
-    · simp only [h, ↓reduceIte]
-      obtain ⟨s, hs⟩ := ih b sb (oracle (.value (A ∪ b)))
-      exact ⟨s, List.mem_cons_of_mem _ hs⟩
-    · simp only [h, ↓reduceIte]
-      obtain ⟨s, hs⟩ := ih best sBest vBest
-      rcases List.mem_cons.mp hs with heq | hmem
-      · exact ⟨s, heq ▸ List.mem_cons_self⟩
-      · exact ⟨s, List.mem_cons_of_mem _ (List.mem_cons_of_mem _ hmem)⟩
+    by_cases h : oracle (.value (A ∪ b)) + sBest < vBest + sb <;> simp only [h, ↓reduceIte]
+    · exact (ih b sb _).imp fun _ => List.mem_cons_of_mem _
+    · exact (ih best sBest vBest).imp fun _ hs => (List.mem_cons.mp hs).elim
+        (List.mem_cons.mpr ∘ .inl) (List.mem_cons_of_mem _ ∘ List.mem_cons_of_mem _)
 
 private theorem eraseBlock_qScanM_eq_cons
     (oracle : {ι : Type} → ValueQuery V β ι → ι)
@@ -146,12 +141,10 @@ private theorem eraseBlock_qScanM_eq_cons
   have hlen_er := length_eraseBlock ⟨sBest, hsBest⟩
   cases her : eraseBlock ((qScanM ValueQuery.ask A c₀.1 c₀.2
       (oracle (.value (A ∪ c₀.1))) (c₁ :: cs)).eval oracle).best (c₀ :: c₁ :: cs) with
-  | nil => rw [her, List.length_nil] at hlen_er; simp at hlen_er
+  | nil => simp [her] at hlen_er
   | cons d₀ ds =>
     refine ⟨sBest, d₀, ds, hsBest, rfl, ?_⟩
-    rw [her] at hlen_er
-    simp only [List.length_cons] at hlen_er
-    omega
+    simp only [her, List.length_cons] at hlen_er; omega
 
 private theorem countQueries_qSearchStepsM_eq
     (oracle : {ι : Type} → ValueQuery V β ι → ι) :
@@ -260,7 +253,8 @@ private theorem countQueries_queyranneRecM_eq
     have ih := countQueries_queyranneRecM_eq oracle steps
       (mergeBlocks sr.fst sr.snd (b₀ :: b₁ :: bs)) hmerge.1 hmerge.2 hlen'
     have hq := countQueries_qSearchM_eq oracle b₀ b₁ bs
-    rw [show bs.length = steps + 1 by omega] at hq
+    have hbs : bs.length = steps + 1 := by omega
+    rw [hbs] at hq
     simp only [queyranneRecM, FreeM.countQueries_bind]
     split_ifs <;> simp only [FreeM.countQueries_pure, add_zero] <;> linarith
 
@@ -271,35 +265,24 @@ theorem countQueries_queyranneQuery_eq
     (oracle : {ι : Type} → ValueQuery V β ι → ι) {vs : List V} (hvs : 2 ≤ vs.toFinset.card) :
     6 * (queyranneQuery vs).countQueries oracle + 12 * vs.toFinset.card =
       vs.toFinset.card * (vs.toFinset.card + 1) * (vs.toFinset.card + 2) + 6 := by
-  have hu_nd : vs.eraseDups.Nodup := List.nodup_eraseDups vs
   have hu_len : vs.eraseDups.length = vs.toFinset.card := List.length_eraseDups vs
   have hne : ∀ b ∈ vs.eraseDups.map ({·} : V → Finset V), b.Nonempty :=
     List.forall_mem_map.mpr fun v _ => Finset.singleton_nonempty v
   have hdisj : (vs.eraseDups.map ({·} : V → Finset V)).Pairwise Disjoint :=
-    List.pairwise_map.mpr (hu_nd.imp fun hab => Finset.disjoint_singleton.mpr hab)
-  have hlen : (vs.eraseDups.map ({·} : V → Finset V)).length =
-      (vs.eraseDups.length - 2) + 2 := by
-    rw [List.length_map]
-    omega
-  have hrec := countQueries_queyranneRecM_eq oracle (vs.eraseDups.length - 2) _ hne hdisj hlen
-  have h1 : vs.eraseDups.length - 2 + 2 = vs.toFinset.card := by omega
-  have h2 : vs.eraseDups.length - 2 + 3 = vs.toFinset.card + 1 := by omega
-  have h3 : vs.eraseDups.length - 2 + 4 = vs.toFinset.card + 2 := by omega
-  rwa [h1, h2, h3] at hrec
+    List.pairwise_map.mpr ((List.nodup_eraseDups vs).imp Finset.disjoint_singleton.mpr)
+  have hm : vs.toFinset.card = (vs.eraseDups.length - 2) + 2 := by omega
+  rw [hm]
+  exact countQueries_queyranneRecM_eq oracle (vs.eraseDups.length - 2) _ hne hdisj
+    (by rw [List.length_map]; omega)
 
 /-- On degenerate inputs with fewer than two distinct elements, `queyranneQuery vs` makes `1`
 query (`∅`). -/
 theorem countQueries_queyranneQuery_eq_one_of_lt_two
     (oracle : {ι : Type} → ValueQuery V β ι → ι) {vs : List V} (hvs : vs.toFinset.card < 2) :
     (queyranneQuery vs).countQueries oracle = 1 := by
-  have hu_len : vs.eraseDups.length = vs.toFinset.card := List.length_eraseDups vs
-  have hlen : vs.eraseDups.length < 2 := hu_len.symm ▸ hvs
+  have hlen : vs.eraseDups.length < 2 := (List.length_eraseDups vs).symm ▸ hvs
   simp only [queyranneQuery, queyranneM]
-  rcases hu : vs.eraseDups with _ | ⟨a, _ | ⟨b, bs⟩⟩
-  · simp [queyranneRecM]
-  · simp [queyranneRecM]
-  · rw [hu] at hlen
-    simp at hlen
+  rcases hu : vs.eraseDups with _ | ⟨a, _ | ⟨b, bs⟩⟩ <;> simp_all [queyranneRecM]
 
 /-- When `2 ≤ vs.toFinset.card`, `3 * countQueries ≤ vs.toFinset.card ^ 3` against any oracle. -/
 theorem three_mul_countQueries_queyranneQuery_le
@@ -308,10 +291,8 @@ theorem three_mul_countQueries_queyranneQuery_le
   have heq := countQueries_queyranneQuery_eq oracle hvs
   set n := vs.toFinset.card
   rcases Nat.eq_or_lt_of_le hvs with heq2 | hn
-  · rw [← heq2] at heq ⊢
-    omega
-  · have hge3 : 3 ≤ n := hn
-    nlinarith
+  · rw [← heq2] at heq ⊢; omega
+  · nlinarith
 
 /-- Pointwise cubic upper bound valid for all input lists `vs`, including degenerate lists with
 `vs.toFinset.card < 2`. -/

@@ -92,8 +92,7 @@ def Clause.toDIMACS (c : Clause ℕ) : Array Int :=
 /-- **Reading the DIMACS integer of a literal gives it back.** -/
 @[simp] theorem Literal.ofDIMACS_toDIMACS (l : Literal ℕ) :
     Literal.ofDIMACS l.toDIMACS = some l := by
-  unfold Literal.ofDIMACS
-  rw [Literal.natAbs_toDIMACS, Nat.add_sub_cancel]
+  rw [Literal.ofDIMACS, Literal.natAbs_toDIMACS, Nat.add_sub_cancel]
   rcases l with ⟨v, _ | _⟩
   · rw [ite_eq_right (by simp [Literal.toDIMACS]; omega),
       ite_eq_left (by simp [Literal.toDIMACS]; omega)]
@@ -133,9 +132,8 @@ theorem Clause.residual_eq_empty_iff {c : Clause ℕ} {t : List (Literal ℕ)} :
     simpa [List.filter_eq_nil_iff] using h
   · rename_i l ls h
     have hl := List.mem_filter.1 (h ▸ List.mem_cons_self : l ∈ _)
-    simp only [Bool.not_eq_true', List.contains_eq_mem, decide_eq_false_iff_not] at hl
     split <;> simp only [reduceCtorEq, false_iff, not_forall]
-    all_goals exact ⟨l, hl.1, hl.2⟩
+    all_goals exact ⟨l, hl.1, by simpa using hl.2⟩
 
 /-- The residual of a clause is the unit `l` exactly when `l` is a literal of the clause that is
 not false, and every other literal of the clause is false. -/
@@ -151,9 +149,8 @@ theorem Clause.residual_eq_unit_iff {c : Clause ℕ} {t : List (Literal ℕ)} {l
     by_contra fun hne => ((hmem m).1 hm).2 (hc m ((hmem m).1 hm).1 hne)
   unfold residual
   split
-  · rename_i h
-    simp only [reduceCtorEq, false_iff, not_and]
-    exact fun hl hlt _ => List.not_mem_nil (h ▸ (hmem l).2 ⟨hl, hlt⟩)
+  next h =>
+    exact ⟨nofun, fun ⟨hl, hlt, _⟩ => (List.not_mem_nil (h ▸ (hmem l).2 ⟨hl, hlt⟩)).elim⟩
   · rename_i a as h
     split <;> rename_i hall
     · simp only [Clause.Residual.unit.injEq]
@@ -181,10 +178,9 @@ theorem Clause.residual_of_forall_ne {c : Clause ℕ} {t : List (Literal ℕ)} {
 /-- The residual of a clause reads the assumed literals only through membership. -/
 theorem Clause.residual_congr (c : Clause ℕ) {t t' : List (Literal ℕ)} (h : ∀ l, l ∈ t ↔ l ∈ t') :
     c.residual t = c.residual t' := by
-  have hf : (fun l => !t.contains (Std.Sat.Literal.negate l)) =
-      fun l => !t'.contains (Std.Sat.Literal.negate l) :=
-    funext fun _ => by simp only [List.contains_eq_mem, h]
-  simp only [residual, hf]
+  unfold residual
+  rw [List.filter_congr (q := fun l => !t'.contains (Std.Sat.Literal.negate l))
+    fun _ _ => by simp only [List.contains_eq_mem, h]]
 
 /-- Unit propagation along hints, from the literals `trail` assumed true, reading the hinted
 clauses with `lookup`. Each hinted clause must have every literal but one false under `trail`, and
@@ -363,9 +359,8 @@ theorem CNF.false_of_checkLRATAux {σ : ℕ → Bool} {db : List (ℕ × Clause 
 theorem CNF.not_satisfiable_of_checkLRAT {φ : CNF ℕ} {cert : Array LRAT.IntAction}
     (h : φ.checkLRAT cert = true) : ¬ φ.Satisfiable := by
   rintro ⟨σ, hσ⟩
-  refine false_of_checkLRATAux (σ := σ) ?_ h
-  intro e he
-  obtain ⟨p, hp, rfl⟩ := List.mem_map.1 (show e ∈ φ.zipIdx.map fun e => (e.2 + 1, e.1) from he)
+  refine false_of_checkLRATAux (σ := σ) (fun e he => ?_) h
+  obtain ⟨p, hp, rfl⟩ := List.mem_map.1 (he : e ∈ φ.zipIdx.map fun e => (e.2 + 1, e.1))
   exact (CNF.eval_eq_true_iff σ φ).1 hσ _
     (List.mem_of_getElem? (List.mem_zipIdx_iff_getElem?.1 hp))
 

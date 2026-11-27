@@ -76,8 +76,7 @@ private theorem rankArray_go_append (l₁ l₂ : List ℕ) (r : ℕ) (rk : Array
   | nil => simp only [List.nil_append, List.length_nil, Nat.add_zero, rankArray.go]
   | cons i l₁ ih =>
     simp only [List.cons_append, List.length_cons, rankArray.go, ih]
-    congr 1
-    omega
+    exact congrArg (fun k => rankArray.go l₂ k _) (by omega)
 
 /-- Scattering one additional suffix-array entry appends a single `Array.set!` at rank
 `sa.length`. -/
@@ -115,10 +114,9 @@ private theorem rankArray_go_getElem? {l : List ℕ} (hl : l.Nodup) (r : ℕ) {r
         Array.set!_eq_setIfInBounds, Array.getElem?_setIfInBounds_self_of_lt hi, Nat.add_zero]
     | succ k =>
       rw [List.getElem_cons_succ, ih hl.2 (r + 1) (fun j hj => by
-        rw [Array.set!_eq_setIfInBounds, Array.size_setIfInBounds]
-        exact hlt j (List.mem_cons_of_mem i hj)) k (by simp only [List.length_cons] at hk; omega)]
-      congr 1
-      omega
+        simpa [Array.set!_eq_setIfInBounds] using hlt j (List.mem_cons_of_mem i hj)) k
+        (by simp only [List.length_cons] at hk; omega)]
+      exact congrArg some (by omega)
 
 @[simp] theorem size_rankArray (n : ℕ) (sa : List ℕ) : (rankArray n sa).size = n := by
   rw [rankArray, size_rankArray_go, Array.size_replicate]
@@ -126,13 +124,12 @@ private theorem rankArray_go_getElem? {l : List ℕ} (hl : l.Nodup) (r : ℕ) {r
 /-- `rankArray n sa` inverts `sa` when `sa` lists distinct positions below `n`. -/
 theorem getElem!_rankArray {n : ℕ} {sa : List ℕ} (hnd : sa.Nodup) (hlt : ∀ i ∈ sa, i < n)
     {r : ℕ} (hr : r < sa.length) : (rankArray n sa)[sa[r]]! = r := by
-  have h := rankArray_go_getElem? hnd 0 (rk := Array.replicate n 0)
-    (fun i hi => by rw [Array.size_replicate]; exact hlt i hi) r hr
-  rw [Nat.zero_add] at h
   have hlt' : sa[r] < (rankArray n sa).size := by
-    rw [size_rankArray]; exact hlt _ (List.getElem_mem hr)
-  rw [getElem!_pos (rankArray n sa) sa[r] hlt']
-  exact Option.some.inj (by rwa [← getElem?_pos (rankArray n sa) sa[r] hlt', rankArray])
+    simpa only [size_rankArray] using hlt _ (List.getElem_mem hr)
+  rw [getElem!_pos (rankArray n sa) sa[r] hlt', ← Option.some_inj,
+    ← getElem?_pos (rankArray n sa) sa[r] hlt', rankArray]
+  simpa only [Nat.zero_add] using rankArray_go_getElem? hnd 0
+    (fun i hi => by simpa only [Array.size_replicate] using hlt i hi) r hr
 
 section Algorithm
 
@@ -156,16 +153,14 @@ private theorem extend_eq_add_lcpLen (w : Array α) (j i h : ℕ) :
     extend w j i h = h + List.lcpLen (w.toList.drop (j + h)) (w.toList.drop (i + h)) := by
   fun_induction extend w j i h with
   | case1 h hlt heq ih =>
-    rw [ih, List.drop_eq_getElem_cons (i := j + h) (l := w.toList) (by simpa using hlt.1),
-      List.drop_eq_getElem_cons (i := i + h) (l := w.toList) (by simpa using hlt.2),
+    rw [ih, List.drop_eq_getElem_cons hlt.1, List.drop_eq_getElem_cons hlt.2,
       Array.getElem_toList, Array.getElem_toList, heq, List.lcpLen_cons_cons_self,
-      show j + (h + 1) = j + h + 1 by omega, show i + (h + 1) = i + h + 1 by omega]
+      ← Nat.add_assoc, ← Nat.add_assoc]
     omega
   | case2 h hlt hne =>
-    rw [List.drop_eq_getElem_cons (i := j + h) (l := w.toList) (by simpa using hlt.1),
-      List.drop_eq_getElem_cons (i := i + h) (l := w.toList) (by simpa using hlt.2),
-      Array.getElem_toList, Array.getElem_toList, List.lcpLen_cons_cons]
-    simp only [hne, ↓reduceIte, Nat.add_zero]
+    rw [List.drop_eq_getElem_cons hlt.1, List.drop_eq_getElem_cons hlt.2,
+      Array.getElem_toList, Array.getElem_toList, List.lcpLen_cons_cons, ite_eq_right hne,
+      Nat.add_zero]
   | case3 h hlt =>
     have h1 := List.lcpLen_le_length_left (w.toList.drop (j + h)) (w.toList.drop (i + h))
     have h2 := List.lcpLen_le_length_right (w.toList.drop (j + h)) (w.toList.drop (i + h))
@@ -255,9 +250,8 @@ private theorem kasaiLoop_spec {w : Array α} {sa rk : Array ℕ}
     fun r r' hr hr' h => (hsa.nodup.getElem_inj_iff (i := r) (j := r')
       (hi := by simpa using hr) (hj := by simpa using hr')).1
       (by simpa only [Array.getElem_toList] using h)
-  have hsalt : ∀ (r : ℕ) (hr : r < sa.size), sa[r] < w.size := fun r hr => by
-    have := hsa.getElem_lt (r := r) (by simpa using hr)
-    simpa only [Array.getElem_toList, Array.length_toList] using this
+  have hsalt : ∀ (r : ℕ) (hr : r < sa.size), sa[r] < w.size := fun r hr =>
+    by simpa only [Array.getElem_toList, Array.length_toList] using hsa.getElem_lt hr
   have hrank : ∀ {i : ℕ}, i < w.size →
       ∃ r, ∃ hr : r < sa.size, sa[r] = i ∧ rk[i]! = r := fun {i} hiw => by
     obtain ⟨r, hr, hri⟩ := hsa.exists_getElem_eq (by simpa only [Array.length_toList] using hiw)
@@ -294,8 +288,7 @@ private theorem kasaiLoop_spec {w : Array α} {sa rk : Array ℕ}
     have hsize' : (lcp.set! rk[i]! h').size = w.size := by
       rwa [Array.set!_eq_setIfInBounds, Array.size_setIfInBounds]
     refine ih (by omega) hsize' (fun r' hr' hr'i => ?_) (fun r' hr' hr'd => ?_)
-    · rw [hext]
-      exact hsa.getElem_lcpArray_sub_one_le (r := r) (r' := r') (by simpa using hr)
+    · exact hext.symm ▸ hsa.getElem_lcpArray_sub_one_le (by simpa using hr)
         (by simpa using hr') (by simp only [Array.getElem_toList, hri, hr'i])
     · simp only [hrki, hext, Array.set!_eq_setIfInBounds]
       rcases eq_or_ne r r' with rfl | hrr
@@ -303,11 +296,9 @@ private theorem kasaiLoop_spec {w : Array α} {sa rk : Array ℕ}
       · rw [Array.getElem_setIfInBounds_ne (by omega) hrr]
         exact hdone r' hr' (hprev hr hr' hri hrr hr'd)
   | case3 i h lcp hiw =>
-    apply List.ext_getElem (by simp only [Array.length_toList, length_lcpArray]; omega)
-    intro r h1 h2
-    simp only [Array.length_toList] at h1
-    rw [Array.getElem_toList]
-    exact hdone r (by omega) (Or.inr (by have := hsalt r (by omega); omega))
+    refine List.ext_getElem (by simp [hsize, hsa.length_eq]) fun r h1 _ => ?_
+    have hr : r < sa.size := by simp only [Array.length_toList] at h1; omega
+    exact hdone r hr (Or.inr ((hsalt r hr).trans_le (not_lt.mp hiw)))
 
 /-- **Correctness of Kasai et al.'s algorithm**: on a suffix array, `kasaiArray` returns the LCP
 array. -/
@@ -315,9 +306,8 @@ theorem kasaiArray_toList {w : Array α} {sa : Array ℕ} (hsa : IsSuffixArray w
     (kasaiArray w sa).toList = lcpArray w.toList sa.toList := by
   refine kasaiLoop_spec hsa (fun r hr => ?_) (Nat.zero_le _) Array.size_replicate
     (fun _ _ _ => Nat.zero_le _) (fun r hr hr0 => ?_)
-  · have := getElem!_rankArray (n := w.size) hsa.nodup (fun i hi => by
-      simpa only [Array.length_toList] using hsa.mem_iff.mp hi) (r := r) (by simpa using hr)
-    simpa only [Array.getElem_toList] using this
+  · simpa only [Array.getElem_toList] using getElem!_rankArray (n := w.size) hsa.nodup
+      (fun i hi => by simpa only [Array.length_toList] using hsa.mem_iff.mp hi) hr
   · rcases hr0 with rfl | hlt
     · rw [Array.getElem_replicate, getElem_lcpArray_zero]
     · omega

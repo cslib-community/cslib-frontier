@@ -68,15 +68,9 @@ theorem cat_eq_cons {A : Fin K → List Γ} {a : Γ} {W : List Γ} (h : cat A = 
     rcases hA : A 0 with _ | ⟨b, l⟩
     · rw [hA, List.nil_append] at h
       obtain ⟨i, l, h1, h2, h3⟩ := ih h
-      refine ⟨i.succ, l, ?_, h2, ?_⟩
-      · intro j hj
-        refine Fin.cases (fun _ => hA) (fun j hj => h1 j (by simpa using hj)) j hj
-      · rw [cat_succ, Function.update_of_ne (Fin.succ_ne_zero i).symm, hA, List.nil_append, ← h3]
-        congr 1
-        funext j
-        rcases eq_or_ne j i with rfl | e
-        · simp
-        · simp [e, (Fin.succ_injective _).ne e]
+      refine ⟨i.succ, l, Fin.cases (fun _ => hA) fun j hj => h1 j (by simpa using hj), h2, ?_⟩
+      rw [cat_succ, Function.update_of_ne (Fin.succ_ne_zero i).symm, hA, List.nil_append, ← h3]
+      exact congrArg cat (funext fun j => by simp [Function.update_apply])
     · rw [hA, List.cons_append, List.cons.injEq] at h
       refine ⟨0, l, fun j hj => absurd hj (Fin.not_lt_zero j), by rw [hA, h.1], ?_⟩
       rw [cat_succ, Function.update_self, ← h.2]
@@ -96,11 +90,7 @@ theorem cat_of_cons {A : Fin K → List Γ} {a : Γ} {i : Fin K} {l : List Γ}
       rw [Function.update_of_ne (Ne.symm e), h1 0 (Fin.succ_pos i'),
         List.nil_append, List.nil_append,
         ih (A := fun j => A j.succ) (i := i') (fun j hj => h1 _ (by simpa using hj)) h2]
-      congr 2
-      funext j
-      rcases eq_or_ne j i' with rfl | e'
-      · simp
-      · simp [e', (Fin.succ_injective _).ne e']
+      exact congrArg (a :: cat ·) (funext fun j => by simp [Function.update_apply])
 
 /-- Staircase support condition on a matrix of words. -/
 @[expose] def Stair (X : Fin K → Fin K → List Γ) : Prop :=
@@ -151,9 +141,7 @@ private theorem IsRef.first {A B : Fin K → List Γ} {X : Fin K → Fin K → L
     · exact hx1 j hj
     · by_contra hne
       exact absurd (h.stair a a' b j (by simp [hx2]) hne h') (not_le.2 hj)
-  have hB := cat_of_cons (A := fun a' => X a' b) (i := a) (l := x)
-    (fun j hj => hrow j hj b) hx2
-  rw [h.col b] at hB
+  have hB := (h.col b).symm.trans (cat_of_cons (fun j hj => hrow j hj b) hx2)
   refine ⟨b, x, _, hx2, fun j hj => (h.col j).symm.trans (cat_eq_nil.2 (hcol j hj)), hB,
     ?_, fun a' => ?_, fun b' => ?_⟩
   · intro a₁ a₂ b₁ b₂ n1 n2 hlt
@@ -195,19 +183,16 @@ theorem IsRef.unique {A B : Fin K → List Γ} {X Y : Fin K → Fin K → List �
     obtain ⟨a, l, h1, h2, h3⟩ := cat_eq_cons hW
     obtain ⟨b, x, m, hx, hb, hB, href⟩ := h.first h1 h2
     obtain ⟨b', y, m', hy, hb', hB', href'⟩ := h'.first h1 h2
-    obtain rfl : b = b' := by
-      rcases lt_trichotomy b b' with e | rfl | e
-      · simp [hb' b e] at hB
-      · rfl
-      · simp [hb b' e] at hB'
+    obtain rfl : b = b' := le_antisymm
+      (not_lt.1 fun e => by simp [hb b' e] at hB')
+      (not_lt.1 fun e => by simp [hb' b e] at hB)
     obtain rfl : m = m' := by simpa [hB] using hB'
     have hrec := ih href href' h3
     funext a' b'
     have h4 := congrFun (congrFun hrec a') b'
     by_cases e : a' = a ∧ b' = b
     · obtain ⟨rfl, rfl⟩ := e
-      simp only [upd, and_self, ite_true] at h4
-      rw [hx, hy, h4]
+      simpa [upd, hx, hy] using h4
     · simpa [upd, e] using h4
 
 theorem IsRef.exists {A B : Fin K → List Γ} (h : cat A = cat B) : ∃ X, IsRef A B X := by
@@ -243,21 +228,16 @@ theorem IsRef.exists {A B : Fin K → List Γ} (h : cat A = cat B) : ∃ X, IsRe
         · exact absurd (key _ _ n1).2.1 (not_le.2 hlt)
         · exact hX.stair _ _ _ _ m1 m2 hlt
     · rcases eq_or_ne a' a with rfl | e
-      · rw [upd_row, cat_of_cons (a := c) (i := b) (l := X a' b), Function.update_idem,
+      · rw [upd_row, cat_of_cons
+          (fun j hj => (Function.update_of_ne hj.ne _ _).trans (hcol j hj a'))
+          (Function.update_self b (c :: X a' b) (X a')), Function.update_idem,
           Function.update_eq_self, hX.row, Function.update_self, h2]
-        · intro j hj
-          rw [Function.update_of_ne hj.ne]
-          exact hcol j hj a'
-        · simp
       · rw [upd_row_ne _ _ _ _ e, hX.row, Function.update_of_ne e]
     · rcases eq_or_ne b' b with rfl | e
-      · rw [upd_col, cat_of_cons (i := a) (l := X a b') (a := c), Function.update_idem]
-        · rw [Function.update_eq_self (f := fun a' => X a' b') a,
-            hX.col, Function.update_self, g2]
-        · intro j hj
-          rw [Function.update_of_ne hj.ne]
-          exact hrow j hj b'
-        · simp
+      · rw [upd_col, cat_of_cons
+          (fun j hj => (Function.update_of_ne hj.ne _ _).trans (hrow j hj b'))
+          (Function.update_self a (c :: X a b') fun a' => X a' b'), Function.update_idem,
+          Function.update_eq_self (f := fun a' => X a' b') a, hX.col, Function.update_self, g2]
       · rw [upd_col_ne _ _ _ _ e, hX.col, Function.update_of_ne e]
 
 section Lengths
@@ -267,14 +247,11 @@ variable {K' : ℕ}
 /-- The concatenation of `K + K'` words is that of the first `K` and then of the last `K'`. -/
 theorem cat_add (X : Fin (K + K') → List Γ) :
     cat X = cat (fun κ => X (Fin.castAdd K' κ)) ++ cat fun κ => X (Fin.natAdd K κ) := by
-  simp only [cat]
-  rw [List.ofFn_add, List.flatten_append]
-  rfl
+  simp only [cat, List.ofFn_add, List.flatten_append]; rfl
 
 /-- The length of a concatenation is the sum of the lengths. -/
 theorem sum_length_cat (X : Fin K → List Γ) : ∑ b, (X b).length = (cat X).length := by
-  rw [cat, List.length_flatten, List.map_ofFn, List.sum_ofFn]
-  rfl
+  rw [cat, List.length_flatten, List.map_ofFn, List.sum_ofFn]; rfl
 
 /-- Every word of a sequence is at most as long as the concatenation. -/
 theorem length_le_cat (X : Fin K → List Γ) (b : Fin K) : (X b).length ≤ (cat X).length :=

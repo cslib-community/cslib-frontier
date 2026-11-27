@@ -38,18 +38,13 @@ theorem exists_short_coordinate_selector {S : Finset α} (hS : S.Nonempty)
   · obtain ⟨x, hx⟩ := hS
     refine ⟨[], Nat.zero_le _, x, hx, fun y hy => ?_⟩
     exact ⟨fun _ => card_le_one.mp hsingle y hy x hx, fun _ _ h => (List.not_mem_nil h).elim⟩
-  have hN : N ≠ 0 := by
-    rintro rfl
-    exact hsingle (by simpa only [pow_zero] using hcard)
-  obtain ⟨N, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hN
+  obtain ⟨N, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (n := N) fun h =>
+    hsingle (by simpa only [h, pow_zero] using hcard)
   obtain ⟨a, ha, b, hb, hab⟩ := one_lt_card.mp (lt_of_not_ge hsingle)
-  have hne : f a ≠ f b := fun he => hab (hinj ha hb he)
-  obtain ⟨i, hi⟩ := Function.ne_iff.mp hne
+  obtain ⟨i, hi⟩ := Function.ne_iff.mp fun he => hab (hinj ha hb he)
   let fiber (v : β) := S.filter (fun x => f x i = v)
-  have hdisj : Disjoint (fiber (f a i)) (fiber (f b i)) := by
-    apply disjoint_left.mpr
-    intro x hxa hxb
-    exact hi ((mem_filter.mp hxa).2.symm.trans (mem_filter.mp hxb).2)
+  have hdisj : Disjoint (fiber (f a i)) (fiber (f b i)) := disjoint_left.mpr fun x hxa hxb =>
+    hi ((mem_filter.mp hxa).2.symm.trans (mem_filter.mp hxb).2)
   have hsum : (fiber (f a i)).card + (fiber (f b i)).card ≤ S.card := by
     rw [← card_union_of_disjoint hdisj]
     exact card_le_card (union_subset (filter_subset _ _) (filter_subset _ _))
@@ -63,12 +58,8 @@ theorem exists_short_coordinate_selector {S : Finset α} (hS : S.Nonempty)
   obtain ⟨L, hL, x, hx, hsel⟩ := exists_short_coordinate_selector hv (hinj.mono hsub) hsmall
   refine ⟨(i, v) :: L, Nat.succ_le_succ hL, x, hsub hx, fun y hy => ?_⟩
   simp only [List.forall_mem_cons]
-  constructor
-  · rintro ⟨hyi, hyL⟩
-    exact (hsel y (mem_filter.mpr ⟨hy, hyi⟩)).mp hyL
-  · intro hxy
-    subst y
-    exact ⟨(mem_filter.mp hx).2, (hsel x hx).mpr rfl⟩
+  exact ⟨fun ⟨hyi, hyL⟩ => (hsel y (mem_filter.mpr ⟨hy, hyi⟩)).mp hyL,
+    fun hxy => hxy ▸ ⟨(mem_filter.mp hx).2, (hsel x hx).mpr rfl⟩⟩
 termination_by N
 
 end Finset

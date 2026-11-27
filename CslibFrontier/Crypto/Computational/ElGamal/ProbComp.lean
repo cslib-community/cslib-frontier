@@ -292,17 +292,12 @@ theorem advantage_kemGame_hashedElGamalEncapsProb_le (keyLen : ℕ → ℕ)
         (F.kdfIdealGame (fun m => PMF.pure (d m)) keyLen
           (F.kemToKDFDistinguisher distinguisher) n) +
       4 / 2 ^ n := by
-  have h0 := F.advantage_eval_kemRealGame_ddhRealGame_le H d distinguisher n
-  have h1 := (Game.advantage_comm _ _).trans_le
-    (F.advantage_kdfIdealGame_eval_kemIdealGame_le keyLen H d distinguisher n)
-  have hmid := Game.advantage_triangle
-    (F.ddhRealGame (fun m => PMF.pure (d m)) (F.kemToDDHDistinguisher H distinguisher) n)
-    (F.ddhRandomGame (fun m => PMF.pure (d m)) (F.kemToDDHDistinguisher H distinguisher) n)
-    (F.kdfIdealGame (fun m => PMF.pure (d m)) keyLen
-      (F.kemToKDFDistinguisher distinguisher) n)
-  conv at hmid => rhs; arg 2; arg 1; rw [F.ddhRandomGame_kdfToDDHDistinguisher]
-  exact (Game.advantage_four_hop_le h0 h1).trans
-    ((add_le_add (add_le_add le_rfl hmid) le_rfl).trans_eq (by ring))
+  rw [← F.ddhRandomGame_kdfToDDHDistinguisher]
+  exact (Game.advantage_four_hop_le
+    (F.advantage_eval_kemRealGame_ddhRealGame_le H d distinguisher n)
+    ((Game.advantage_comm _ _).trans_le
+      (F.advantage_kdfIdealGame_eval_kemIdealGame_le keyLen H d distinguisher n))).trans
+    ((add_le_add (add_le_add le_rfl (Game.advantage_triangle _ _ _)) le_rfl).trans_eq (by ring))
 
 /-- **Key-encapsulation step of Theorem 11.5 for the $\mathcal{E}'_{\mathrm{EG}}$ variant of
 Remark 11.1** ([BonehShoup2023], Remark 11.1, p. 446, and Section 11.5.2, Theorem 11.5,
@@ -522,13 +517,8 @@ theorem advantage_gameOn_elGamalMsgCPAGameOn_le {Msg : Type}
   · simp only [gameOn, elGamalKeyGenProb, elGamalEncryptProb, apply_ite ProbComp.eval,
       encodeElGamalPublicKey_eq_encode, k, pmf_norm]
     pmf_swap with a choice
-    by_cases hv : valid n
-        (encPair F.encDesc encBits
-          (d n, F.encode (d n) ((a : ZMod (F.order (d n))) • F.generator (d n))))
-        choice.1.1 choice.1.2 = true
-    · simp only [hv, ↓reduceIte, dropFrame_encPair_encBits, encodeElGamalEncrypt, F.smul_encode,
-        smul_smul, mul_comm _ (a : ZMod (F.order (d n)))]
-    · simp only [hv, Bool.false_eq_true, ↓reduceIte, PMF.bind_const]
+    split_ifs <;> simp only [dropFrame_encPair_encBits, encodeElGamalEncrypt, F.smul_encode,
+      smul_smul, mul_comm _ (a : ZMod (F.order (d n))), PMF.bind_const]
   · simp only [elGamalMsgCPAGameOn, elGamalMsgCPAGameWith, PMF.monad_bind_eq_bind,
       PMF.monad_pure_eq_pure, PMF.pure_bind, k]
     pmf_swap with α choice

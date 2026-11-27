@@ -70,31 +70,26 @@ private theorem foldl_coeffBitBound_ge (cs : List ℚ) (init : ℕ) :
     init ≤ cs.foldl (fun acc q => max acc (max (Int.natAbs q.num).size q.den.size)) init := by
   induction cs generalizing init with
   | nil => exact le_rfl
-  | cons q qs ih =>
-    simp only [List.foldl_cons]
-    exact (le_max_left _ _).trans (ih _)
+  | cons q qs ih => exact (le_max_left _ _).trans (ih _)
 
 /-- Every coefficient list `cs` satisfies `HasCoeffBitBound (coeffBitBound cs) cs`. -/
 theorem hasCoeffBitBound_coeffBitBound (cs : List ℚ) :
     HasCoeffBitBound (coeffBitBound cs) cs := by
-  have haux : ∀ (qs : List ℚ) (init : ℕ), ∀ q ∈ qs,
-      let M := qs.foldl (fun acc r => max acc (max (Int.natAbs r.num).size r.den.size)) init
-      Int.natAbs q.num ≤ 2 ^ M ∧ q.den ≤ 2 ^ M := by
-    intro qs
-    induction qs with
-    | nil => simp
-    | cons a as ih =>
-      intro init q hq
-      simp only [List.foldl_cons]
-      rcases List.mem_cons.mp hq with rfl | hmem
-      · have hle := (le_max_right init (max (Int.natAbs q.num).size q.den.size)).trans
-          (foldl_coeffBitBound_ge as _)
-        exact ⟨(Nat.lt_size_self _).le.trans
-            (Nat.pow_le_pow_right zero_lt_two ((le_max_left _ _).trans hle)),
-          (Nat.lt_size_self _).le.trans
-            (Nat.pow_le_pow_right zero_lt_two ((le_max_right _ _).trans hle))⟩
-      · exact ih _ q hmem
-  exact haux cs 0
+  suffices ∀ (init : ℕ), ∀ q ∈ cs,
+      let M := cs.foldl (fun acc r => max acc (max (Int.natAbs r.num).size r.den.size)) init
+      Int.natAbs q.num ≤ 2 ^ M ∧ q.den ≤ 2 ^ M from this 0
+  induction cs with
+  | nil => simp
+  | cons a as ih =>
+    rintro init q hq
+    rcases List.mem_cons.mp hq with rfl | hmem
+    · have hle := (le_max_right init (max (Int.natAbs q.num).size q.den.size)).trans
+        (foldl_coeffBitBound_ge as _)
+      have hpow {n : ℕ} (h : n.size ≤ max (Int.natAbs q.num).size q.den.size) :
+          n ≤ 2 ^ (q :: as).foldl (fun acc r => max acc (max r.num.natAbs.size r.den.size)) init :=
+        (Nat.lt_size_self n).le.trans (Nat.pow_le_pow_right zero_lt_two (h.trans hle))
+      exact ⟨hpow (le_max_left _ _), hpow (le_max_right _ _)⟩
+    · exact ih _ q hmem
 
 /-- `HasCoeffBitBound B` is preserved by `CoeffList.trim`. -/
 theorem HasCoeffBitBound.trim {B : ℕ} {cs : List ℚ} (hB : HasCoeffBitBound B cs) :
@@ -155,9 +150,7 @@ theorem cauchyBoundNat_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : HasCoeffBi
         _ ≤ (2 : ℚ) ^ B * (2 : ℚ) ^ B :=
               mul_le_mul_of_nonneg_right hm_le (by positivity)
         _ = (2 : ℚ) ^ (2 * B) := by rw [two_mul, pow_add]
-    have hb_le : b ≤ ((2 ^ (2 * B) + 1 : ℕ) : ℚ) := by
-      dsimp only [b]
-      push_cast; linarith
+    have hb_le : b ≤ ((2 ^ (2 * B) + 1 : ℕ) : ℚ) := by push_cast; linarith
     have hfloor_le : ((Int.natAbs b.num / b.den : ℕ) : ℚ) ≤ b := by
       have hnum_eq : (Int.natAbs b.num : ℚ) / b.den = b :=
         calc (Int.natAbs b.num : ℚ) / b.den
@@ -230,11 +223,10 @@ theorem sqNormList_clearDenoms_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : Ha
         ≤ 2 ^ B * 2 ^ (cs.length * B) :=
           Nat.mul_le_mul (htB q hq).1 ((Nat.div_le_self _ _).trans hD_le)
       _ = 2 ^ ((cs.length + 1) * B) := by rw [Nat.add_one_mul, add_comm, pow_add]
+  have h4 : (2 ^ ((cs.length + 1) * B)) ^ 2 = 4 ^ ((cs.length + 1) * B) := pow_right_comm 2 _ 2
   have hsq : sqNormList ns ≤ t.length * 4 ^ ((cs.length + 1) * B) := by
-    have h1 := foldl_sqNorm_le_of_bound ns (2 ^ ((cs.length + 1) * B)) 0 hns_bound
-    have h4 : (2 ^ ((cs.length + 1) * B)) ^ 2 = 4 ^ ((cs.length + 1) * B) := by
-      rw [← pow_mul, mul_comm _ 2, pow_mul]; rfl
-    simpa only [sqNormList, zero_add, h4, ns, clearDenomsList, List.length_map] using h1
+    simpa only [sqNormList, zero_add, h4, ns, clearDenomsList, List.length_map]
+      using foldl_sqNorm_le_of_bound ns (2 ^ ((cs.length + 1) * B)) 0 hns_bound
   exact hsq.trans (Nat.mul_le_mul_right _ ht_len)
 
 /-- Logarithmic bound on `sqNormList (clearDenomsList (CoeffList.trim cs)).2`
@@ -256,22 +248,14 @@ theorem mignotteBisectionDepth_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : Ha
   by_cases hd : 2 ≤ (ofCoeffList cs).natDegree
   · have hbase := mignotteBisectionDepth_le cs hd
     have hcb := clog4_cauchyBoundNat_le_of_bitBound hB
-    have hsn := clog4_sqNormList_le_of_bitBound hB
     have hd_le_n : (ofCoeffList cs).natDegree ≤ cs.length :=
       (natDegree_ofCoeffList_le cs).trans (Nat.sub_le _ _)
-    have hclog_d : Nat.clog 4 (ofCoeffList cs).natDegree ≤ cs.length :=
-      Nat.clog_le_of_le_pow (hd_le_n.trans
-        (Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_left (by decide : 2 ≤ 4) cs.length)))
-    have h1 : ((ofCoeffList cs).natDegree + 2) * Nat.clog 4 (ofCoeffList cs).natDegree ≤
-        (cs.length + 2) * cs.length :=
-      Nat.mul_le_mul (Nat.add_le_add_right hd_le_n 2) hclog_d
-    have h2 : ((ofCoeffList cs).natDegree - 1) *
-          Nat.clog 4 (sqNormList (Prod.snd (clearDenomsList (CoeffList.trim cs)))) ≤
-        cs.length * (cs.length + (cs.length + 1) * B) :=
-      Nat.mul_le_mul ((Nat.sub_le _ _).trans hd_le_n) hsn
+    have h1 := Nat.mul_le_mul (Nat.add_le_add_right hd_le_n 2)
+      (Nat.clog_le_of_le_pow (b := 4) (hd_le_n.trans
+        (Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_left (by decide) cs.length))))
+    have h2 := Nat.mul_le_mul ((Nat.sub_le _ 1).trans hd_le_n) (clog4_sqNormList_le_of_bitBound hB)
     nlinarith
-  · rw [mignotteBisectionDepth_eq_zero_of_natDegree_le_one (by omega)]
-    exact Nat.zero_le _
+  · simp [mignotteBisectionDepth_eq_zero_of_natDegree_le_one (cs := cs) (by omega)]
 
 /-- Predicate asserting that `q : ℚ` is a dyadic rational `z / 2 ^ e` with `|z| ≤ b * 2 ^ e`. -/
 def DyadicBounded (b e : ℕ) (q : ℚ) : Prop :=
@@ -290,12 +274,9 @@ theorem DyadicBounded.mono {b e e' : ℕ} {q : ℚ} (hq : DyadicBounded b e q) (
     DyadicBounded b e' q := by
   obtain ⟨z, rfl, hz⟩ := hq
   refine ⟨z * (2 : ℤ) ^ (e' - e), ?_, ?_⟩
-  · have hpow : (2 : ℚ) ^ e' = (2 : ℚ) ^ e * (2 : ℚ) ^ (e' - e) := by
-      rw [← pow_add, Nat.add_sub_of_le he]
-    rw [hpow, Int.cast_mul, Int.cast_pow, Int.cast_ofNat]
-    exact (mul_div_mul_right (z : ℚ) ((2 : ℚ) ^ e) (by positivity)).symm
+  · rw [Int.cast_mul, Int.cast_pow, Int.cast_ofNat, div_eq_div_iff (by positivity) (by positivity)]
+    rw [mul_assoc, ← pow_add, Nat.sub_add_cancel he]
   · rw [Int.natAbs_mul, Int.natAbs_pow]
-    change Int.natAbs z * 2 ^ (e' - e) ≤ b * 2 ^ e'
     calc Int.natAbs z * 2 ^ (e' - e)
         ≤ (b * 2 ^ e) * 2 ^ (e' - e) := Nat.mul_le_mul_right _ hz
       _ = b * 2 ^ e' := by rw [mul_assoc, ← pow_add, Nat.add_sub_of_le he]
@@ -307,35 +288,29 @@ theorem DyadicBounded.mid {b e : ℕ} {u v : ℚ}
     DyadicBounded b (e + 1) ((u + v) / 2) := by
   obtain ⟨zu, rfl, hzu⟩ := hu
   obtain ⟨zv, rfl, hzv⟩ := hv
-  refine ⟨zu + zv, ?_, ?_⟩
-  · rw [pow_succ, Int.cast_add]
-    ring
-  · calc Int.natAbs (zu + zv)
-        ≤ Int.natAbs zu + Int.natAbs zv := Int.natAbs_add_le _ _
-      _ ≤ b * 2 ^ e + b * 2 ^ e := Nat.add_le_add hzu hzv
-      _ = b * 2 ^ (e + 1) := by ring
+  refine ⟨zu + zv, by simp only [← add_div, div_div, pow_succ, Int.cast_add], ?_⟩
+  calc Int.natAbs (zu + zv)
+      ≤ Int.natAbs zu + Int.natAbs zv := Int.natAbs_add_le _ _
+    _ ≤ b * 2 ^ e + b * 2 ^ e := Nat.add_le_add hzu hzv
+    _ = b * 2 ^ (e + 1) := by ring
 
 /-- Denominator bound `q.den ≤ 2 ^ e` for any `DyadicBounded b e q`. -/
 theorem DyadicBounded.den_le {b e : ℕ} {q : ℚ} (hq : DyadicBounded b e q) :
     q.den ≤ 2 ^ e := by
   obtain ⟨z, rfl, _⟩ := hq
-  have hdvd : (((z : ℚ) / (2 : ℚ) ^ e).den : ℤ) ∣ (2 : ℤ) ^ e := by
-    simpa [Rat.divInt_eq_div] using Rat.den_dvd z ((2 : ℤ) ^ e)
-  exact Nat.le_of_dvd (Nat.pow_pos zero_lt_two) (by exact_mod_cast hdvd)
+  refine Nat.le_of_dvd (Nat.pow_pos zero_lt_two) (Int.ofNat_dvd.mp ?_)
+  simpa [Rat.divInt_eq_div] using Rat.den_dvd z ((2 : ℤ) ^ e)
 
 /-- Numerator magnitude bound `Int.natAbs q.num ≤ b * 2 ^ e` for any `DyadicBounded b e q`. -/
 theorem DyadicBounded.natAbs_num_le {b e : ℕ} {q : ℚ} (hq : DyadicBounded b e q) :
     Int.natAbs q.num ≤ b * 2 ^ e := by
-  have hden := hq.den_le
-  obtain ⟨z, hq_eq, hz⟩ := hq
-  have hcrossQ : (q.num : ℚ) * (2 : ℚ) ^ e = (z : ℚ) * (q.den : ℚ) :=
-    (div_eq_div_iff (Nat.cast_ne_zero.mpr q.den_nz) (by positivity)).mp
+  have ⟨z, hq_eq, hz⟩ := hq
+  have hcrossZ : q.num * (2 : ℤ) ^ e = z * (q.den : ℤ) := by
+    exact_mod_cast (div_eq_div_iff (Nat.cast_ne_zero.mpr q.den_nz) (by positivity)).mp
       ((Rat.num_div_den q).trans hq_eq)
-  have hcrossZ : q.num * (2 : ℤ) ^ e = z * (q.den : ℤ) := by exact_mod_cast hcrossQ
   have hcrossN : Int.natAbs q.num * 2 ^ e = Int.natAbs z * q.den := by
     simpa [Int.natAbs_mul, Int.natAbs_pow] using congrArg Int.natAbs hcrossZ
-  exact Nat.le_of_mul_le_mul_right (hcrossN ▸ Nat.mul_le_mul hz hden)
-    (Nat.pow_pos zero_lt_two)
+  exact Nat.le_of_mul_le_mul_right (hcrossN ▸ Nat.mul_le_mul hz hq.den_le) (Nat.pow_pos zero_lt_two)
 
 /-- Dyadic bound for `refineLeftLoop`: starting from `DyadicBounded b e` endpoints, `fuel` steps
 produce endpoints satisfying `DyadicBounded b (e + fuel)`. -/
@@ -381,21 +356,19 @@ theorem isolateIoc_dyadicBounded (t : List ℚ) (seq : List (List ℚ)) (depthBo
     dsimp only
     split_ifs with hc0 hc1
     · simp
-    · rintro I hI
-      obtain rfl := List.mem_singleton.mp hI
-      have href := refineLeftRoot_dyadicBounded t seq depthBound b e u v vu hu hv
-      exact ⟨href.1.mono (by omega), href.2.mono (by omega)⟩
+    · obtain ⟨hl, hr⟩ := refineLeftRoot_dyadicBounded t seq depthBound b e u v vu hu hv
+      simpa only [List.mem_singleton, forall_eq] using ⟨hl.mono (by omega), hr.mono (by omega)⟩
     · cases fuel with
       | zero => simp
       | succ fuel' =>
-        have hm : DyadicBounded b (e + 1) ((u + v) / 2) := hu.mid hv
-        intro I hI
-        have heq : e + 1 + fuel' + depthBound = e + (fuel' + 1) + depthBound := by omega
+        have hm := hu.mid hv
+        rw [← Nat.add_assoc e fuel' 1, Nat.add_right_comm e fuel' 1]
+        rintro I hI
         rcases List.mem_append.mp hI with hL | hR
-        · simpa only [heq] using isolateIoc_dyadicBounded t seq depthBound fuel' b (e + 1) u
-            ((u + v) / 2) vu _ (hu.mono (by omega)) hm I hL
-        · simpa only [heq] using isolateIoc_dyadicBounded t seq depthBound fuel' b (e + 1)
-            ((u + v) / 2) v _ vv hm (hv.mono (by omega)) I hR
+        · exact isolateIoc_dyadicBounded t seq depthBound fuel' b (e + 1) u ((u + v) / 2) vu _
+            (hu.mono (by omega)) hm I hL
+        · exact isolateIoc_dyadicBounded t seq depthBound fuel' b (e + 1) ((u + v) / 2) v _ vv
+            hm (hv.mono (by omega)) I hR
 
 /-- Unconditional dyadic endpoint bound: every interval in `isolateRoots cs` has endpoints of the
 form `z / 2 ^ (2 * mignotteBisectionDepth cs)` with
@@ -407,9 +380,8 @@ theorem isolateRoots_dyadicBounded (cs : List ℚ) :
   simp only [isolateRoots]
   split_ifs with he
   · simp
-  · intro I hI
-    simpa only [zero_add, two_mul] using isolateIoc_dyadicBounded (CoeffList.trim cs)
+  · simpa only [zero_add, two_mul] using isolateIoc_dyadicBounded (CoeffList.trim cs)
       (sturmSeqList cs) (mignotteBisectionDepth cs) (mignotteBisectionDepth cs)
-      (cauchyBoundNat cs) 0 _ _ _ _ (DyadicBounded.of_neg_nat _) (DyadicBounded.of_nat _) I hI
+      (cauchyBoundNat cs) 0 _ _ _ _ (.of_neg_nat _) (.of_nat _)
 
 end Cslib.RealRoot

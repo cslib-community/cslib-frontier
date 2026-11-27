@@ -60,18 +60,13 @@ theorem sum_propagation_mul_dyadic_decay_le {C q : ℝ}
     _ ≤ ∑ i ∈ range m, (C * q) ^ (m - i) := by
       refine sum_le_sum fun i hi => ?_
       have hi' := mem_range.mp hi
-      have hrem : m - i ≤ dyadicSlack m i := by
-        have hcount : m - i = m - (i + 1) + 1 := by omega
-        rw [hcount]
-        exact Nat.succ_le_of_lt Nat.lt_two_pow_self
+      have hrem : m - i ≤ dyadicSlack m i :=
+        (by omega : m - i ≤ m - (i + 1) + 1).trans Nat.lt_two_pow_self
       rw [mul_pow]
       exact mul_le_mul_of_nonneg_left (pow_le_pow_of_le_one hq hq1 hrem)
         (pow_nonneg hC _)
-    _ = ∑ i ∈ range m, (C * q) ^ ((m - 1 - i) + 1) := by
-      refine sum_congr rfl fun i hi => ?_
-      congr 1
-      have hi' := mem_range.mp hi
-      omega
+    _ = ∑ i ∈ range m, (C * q) ^ ((m - 1 - i) + 1) :=
+      sum_congr rfl fun i hi => congrArg ((C * q) ^ ·) (by simp only [mem_range] at hi; omega)
     _ = ∑ i ∈ range m, (C * q) ^ (i + 1) :=
       sum_range_reflect (fun i => (C * q) ^ (i + 1)) m
     _ ≤ C * q / (1 - C * q) := by
@@ -102,9 +97,7 @@ theorem vertexNormPow_firstOverflowNoiseTail_le_dyadic_budget {Ω V ι : Type*}
   calc
     _ = ε * ∑ i ∈ range m, C ^ (m - i) * q ^ dyadicSlack m i := by
       rw [mul_sum]
-      apply sum_congr rfl
-      intro i _
-      ring
+      exact sum_congr rfl fun _ _ => by ring
     _ ≤ _ := mul_le_mul_of_nonneg_left
       (sum_propagation_mul_dyadic_decay_le hC hq hq1 hCq m) hε
 

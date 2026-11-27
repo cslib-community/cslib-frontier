@@ -128,8 +128,7 @@ hypothesis of error above `ε` have probability at most `δ`. -/
 theorem learns_iff {A : QueryLearner ι Ω} {μ : PMF Ω} {C : ConceptClass (ι → Bool) Bool} {ε δ : ℝ} :
     A.Learns μ C ε δ ↔
       ∀ f ∈ C, μ.toOuterMeasure {ω | ε < uniformError f ((A ω).eval f)} ≤ ENNReal.ofReal δ := by
-  refine forall₂_congr fun f _ => ?_
-  rw [PMF.toOuterMeasure_map_apply]
+  simp_rw [Learns, PMF.toOuterMeasure_map_apply]
   rfl
 
 /-- **Learning from a density bound.** With uniform seeds from a finite type, a learner learns `C`
@@ -145,15 +144,12 @@ theorem learns_uniformOfFintype_of_le_dens [Fintype Ω] [Nonempty Ω] {A : Query
   simp only [Finset.dens_univ, not_le] at hsplit
   have hcast : (Finset.dens {ω | uniformError f ((A ω).eval f) ≤ ε} : ℝ) +
       Finset.dens {ω | ε < uniformError f ((A ω).eval f)} = 1 := mod_cast hsplit
+  have hbad : ((Finset.univ.filter (· ∈ {ω | ε < uniformError f ((A ω).eval f)})).card : ℝ) /
+      Fintype.card Ω = Finset.dens {ω | ε < uniformError f ((A ω).eval f)} :=
+    (Finset.nnratCast_dens _).symm
   rw [← ENNReal.ofReal_toReal (PMF.toOuterMeasure_ne_top _ _),
     PMF.toOuterMeasure_uniformOfFintype_toReal]
-  refine ENNReal.ofReal_le_ofReal ?_
-  have hbad : ((Finset.univ.filter (· ∈ {ω | ε < uniformError f ((A ω).eval f)})).card : ℝ) /
-      Fintype.card Ω = Finset.dens {ω | ε < uniformError f ((A ω).eval f)} := by
-    rw [Finset.nnratCast_dens]
-    rfl
-  rw [hbad]
-  linarith [h f hf]
+  exact ENNReal.ofReal_le_ofReal (by linarith [h f hf, hbad])
 
 end Learns
 

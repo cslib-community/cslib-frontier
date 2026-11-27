@@ -234,8 +234,7 @@ private theorem lt_edist_of_not_mem_ball {V : Type*} [L.Structure V] {k s r : �
     {idx : Fin s → Fin k} {x : V} {j : Fin k} (hj : ∃ u, idx u = j)
     (hx : x ∉ ball L (a ∘ idx) r) : ((r : ℕ) : ℕ∞) < (gaifmanGraph L V).edist x (a j) := by
   obtain ⟨u, rfl⟩ := hj
-  rw [SimpleGraph.edist_comm]
-  exact lt_of_not_ge fun hle => hx (mem_ball.2 ⟨u, hle⟩)
+  exact lt_of_not_ge fun hle => hx (mem_ball.2 ⟨u, SimpleGraph.edist_comm ▸ hle⟩)
 
 /-- The pebble separation of a clustered position extends to a new pebble `x`, given the
 separation `hnew` of `x` from the pebbles outside its cluster. -/
@@ -254,18 +253,15 @@ private theorem sep_snoc {V : Type*} [L.Structure V] {m k c c' : ℕ} {a : Fin k
   | last =>
     induction j using Fin.lastCases with
     | last => exact absurd rfl hij
-    | cast j =>
-      simp only [Fin.snoc_last, Fin.snoc_castSucc]
-      exact hnew j hij
+    | cast j => simpa only [Fin.snoc_last, Fin.snoc_castSucc] using hnew j hij
   | cast i =>
     induction j using Fin.lastCases with
     | last =>
-      simp only [Fin.snoc_castSucc, Fin.snoc_last]
-      rw [SimpleGraph.edist_comm]
-      exact hnew i (Ne.symm hij)
+      simpa only [Fin.snoc_castSucc, Fin.snoc_last, SimpleGraph.edist_comm] using
+        hnew i (Ne.symm hij)
     | cast j =>
-      simp only [Fin.snoc_castSucc]
-      exact (cast_two_pow_le_succ m).trans_lt (hsep i j (hcl i j hij))
+      simpa only [Fin.snoc_castSucc] using
+        (cast_two_pow_le_succ m).trans_lt (hsep i j (hcl i j hij))
 
 /-- Lift an untouched cluster `E` across `Fin.snoc a x` and `Fin.snoc b y` at radius `d ≤ r`. -/
 private def ClusterEntry.snocSkip {r d k c c' : ℕ} {a : Fin k → M} {b : Fin k → N}
@@ -393,12 +389,9 @@ private theorem ClusterWitness.forth [Finite M] {m k : ℕ} {a : Fin k → M} {b
     let E : SM ≃ SN := EM.trans ((Equiv.sigmaCongrRight ballEquiv).trans EN.symm)
     let H : M → N := fun z => if hz : z ∈ SM then (E ⟨z, hz⟩).val else e z
     have hH (z : SM) : H z = (E z).val := dite_eq_left z.property
-    have hEq (p : Fin W.c) {z : M} (hzp : z ∈ BM p) : H z = (W.entry p).isoFun z := by
-      let q : Σ p, BM p := ⟨p, ⟨z, hzp⟩⟩
-      change H (EM.symm q).val = (W.entry p).isoFun z
-      rw [hH (EM.symm q)]
-      simp only [E, Equiv.trans_apply, Equiv.apply_symm_apply]
-      rfl
+    have hEq (p : Fin W.c) {z : M} (hzp : z ∈ BM p) : H z = (W.entry p).isoFun z :=
+      (hH (EM.symm ⟨p, ⟨z, hzp⟩⟩)).trans
+        (by simp only [E, Equiv.trans_apply, Equiv.apply_symm_apply]; rfl)
     have hBij : Set.BijOn H SM SN := by
       refine ⟨fun z hz => hH ⟨z, hz⟩ ▸ (E ⟨z, hz⟩).property,
         fun z hz w hw he => ?_, fun w hw => ?_⟩
@@ -447,12 +440,11 @@ private theorem ClusterWitness.duplicatorWins [Finite M] :
     refine duplicatorWins_succ.2 ⟨W.partialIso, fun x => ?_, fun y => ?_⟩
     · obtain ⟨y, ⟨W'⟩⟩ := W.forth e (he n (Nat.lt_succ_self n)) x
       exact ⟨y, W'.duplicatorWins e (fun m hm => he m (Nat.lt_succ_of_lt hm))⟩
-    · have hM : Nonempty M := ⟨e.symm y⟩
-      have hN : Nonempty N := ⟨y⟩
+    · have : Nonempty M := ⟨e.symm y⟩
+      have : Nonempty N := ⟨y⟩
       have : Finite N := Finite.of_equiv M e
-      have he' : ∀ z, NbhdIso L (2 ^ n - 1) (fun _ : Fin 1 => z) (fun _ : Fin 1 => e.symm z) :=
-        fun z => by simpa using (he n (Nat.lt_succ_self n) (e.symm z)).symm
-      obtain ⟨x, ⟨W'⟩⟩ := W.symm.forth e.symm he' y
+      obtain ⟨x, ⟨W'⟩⟩ := W.symm.forth e.symm
+        (fun z => by simpa using (he n (Nat.lt_succ_self n) (e.symm z)).symm) y
       exact ⟨x, W'.symm.duplicatorWins e (fun m hm => he m (Nat.lt_succ_of_lt hm))⟩
 
 /-! ### Sharp Gaifman locality (`2 ^ n - 1`) -/
@@ -519,7 +511,6 @@ theorem HanfEquiv.duplicatorWins_of_two_pow [Finite M] [Nonempty M] :
       HanfEquiv L (2 ^ (n - 1) - 1) a b → DuplicatorWins L n a b
   | 0, _, _, _, H => duplicatorWins_zero.2 H.nbhdIso.partialIso
   | m + 1, k, a, b, H => by
-    have hP := H.nbhdIso.partialIso
     simp only [Nat.add_sub_cancel] at H
     obtain ⟨f, hf⟩ := hanfEquiv_iff.1 H
     have he : ∀ c', NbhdIso L (2 ^ (m - 1) - 1) (fun _ : Fin 1 => c')
@@ -527,16 +518,12 @@ theorem HanfEquiv.duplicatorWins_of_two_pow [Finite M] [Nonempty M] :
       obtain ⟨h, Hh⟩ := nbhdIso_iff.1 (hf c')
       have hres := Hh.restrict (x := fun _ : Fin 1 => c') (l := 0) (d := 2 ^ (m - 1) - 1)
         (fun _ => mem_ball_snoc.2 (.inr (mem_ball_self _ 0 0)))
-        (by
-          have : 2 ^ (m - 1) ≤ 2 ^ m := Nat.pow_le_pow_right (by decide) (Nat.sub_le m 1)
-          omega)
+        (by have := Nat.pow_le_pow_right Nat.two_pos (Nat.sub_le m 1); omega)
       have hc' : h c' = f c' := by simpa using Hh.map_tuple (Fin.last k)
       exact (by simpa [Function.comp_def, hc'] using hres : IsNbhdIso L _ _ _ h).nbhdIso
-    refine duplicatorWins_succ.2 ⟨hP, fun c => ⟨f c, ?_⟩, fun d => ⟨f.symm d, ?_⟩⟩
-    · exact (hf c).duplicatorWins_of_equiv_two_pow f he
-    · have hd := hf (f.symm d)
-      rw [f.apply_symm_apply] at hd
-      exact hd.duplicatorWins_of_equiv_two_pow f he
+    refine duplicatorWins_succ.2 ⟨H.nbhdIso.partialIso,
+      fun c => ⟨f c, (hf c).duplicatorWins_of_equiv_two_pow f he⟩, fun d => ⟨f.symm d, ?_⟩⟩
+    exact ((f.apply_symm_apply d) ▸ hf (f.symm d)).duplicatorWins_of_equiv_two_pow f he
 
 /-- **Sharp Hanf locality for bounded formulas** ([Libkin, Exercises 4.10 and 4.11][Libkin2004]):
 over a finite nonempty structure and a relational language, tuples that are Hanf-equivalent at
@@ -581,12 +568,8 @@ def loopReach : ℕ → Language.graph.Formula (Fin 1)
 
 @[simp] theorem quantifierRank_loopReach (n : ℕ) : quantifierRank (loopReach n) = n := by
   induction n with
-  | zero =>
-    simp only [loopReach, Relations.formula₂, Relations.formula,
-      quantifierRank_relations_boundedFormula]
-  | succ k ih =>
-    simp only [loopReach, quantifierRank_ex, quantifierRank_inf, quantifierRank_relabel,
-      quantifierRank_distLE, ih, max_self]
+  | zero => simp [loopReach, Relations.formula₂, Relations.formula]
+  | succ k ih => simp [loopReach, ih]
 
 theorem realize_loopReach_zero {M : Type*} [Language.graph.Structure M] (x : M) :
     (loopReach 0).Realize ![x] ↔ RelMap adj ![x, x] := by
@@ -725,8 +708,7 @@ theorem exists_nbhdIso_realize_loopReach {n r : ℕ} (hn : 1 ≤ n) (hr : r < 2 
       NbhdIso Language.graph r a b ∧
       (loopReach n).Realize a ∧
       ¬ (loopReach n).Realize b := by
-  have hm : 2 ≤ 2 ^ n := by
-    simpa only [pow_one] using Nat.pow_le_pow_right (by decide : 0 < 2) hn
+  have hm : 2 ≤ 2 ^ n := Nat.le_self_pow (by omega) 2
   set m := 2 ^ n
   let P := SimpleGraph.pathGraph m
   let G := P ⊕g P
@@ -744,17 +726,16 @@ theorem exists_nbhdIso_realize_loopReach {n r : ℕ} (hn : 1 ≤ n) (hr : r < 2 
     rw [mem_ball_const, gaifmanGraph_loopGraphRel] at hu
     rcases u with j | j
     · refine iff_of_false Sum.inr_ne_inl fun h => ?_
-      have hj : (j : ℕ) = m - 1 := congrArg Fin.val (Sum.inl.inj h)
+      obtain rfl := Sum.inl.inj h
       rw [SimpleGraph.edist_sum_inl, SimpleGraph.edist_pathGraph, Nat.cast_le] at hu
-      simp only [x₀] at hu
-      omega
-    · exact absurd hu (not_le.2 (by
-        rw [SimpleGraph.edist_eq_top_of_not_reachable (SimpleGraph.not_reachable_sum_inl_inr _ _)]
-        exact ENat.natCast_lt_top r))
+      simp only [x₀] at hu; omega
+    · rw [SimpleGraph.edist_eq_top_of_not_reachable
+        (SimpleGraph.not_reachable_sum_inl_inr _ _)] at hu
+      exact False.elim ((ENat.natCast_lt_top r).not_ge hu)
   · rw [hvec, realize_loopReach_loopGraphRel]
     refine ⟨loopPt, rfl, ?_⟩
-    rw [SimpleGraph.edist_sum_inl, SimpleGraph.edist_pathGraph, Nat.cast_le]
-    simp only [x₀, m]
+    simp only [G, P, loopPt, x₀, m, SimpleGraph.edist_sum_inl, SimpleGraph.edist_pathGraph,
+      Nat.cast_le]
     omega
   · rw [hvec, realize_loopReach_loopGraphRel]
     rintro ⟨y, rfl, hy⟩
@@ -902,15 +883,11 @@ private theorem gaifmanGraph_dirSumPathRel {m : ℕ} (S : Fin m ⊕ Fin m → Pr
   unfold dirSumPathRel
   rw [gaifmanGraph_or_eq_and]
   ext u v
-  rcases u with x | x <;> rcases v with y | y
-  · simp only [SimpleGraph.fromRel_adj, dirSumBase, SimpleGraph.sum_adj_inl,
-      SimpleGraph.pathGraph_adj, ne_eq, Sum.inl.injEq, Fin.ext_iff]
-    exact ⟨fun h => h.2, fun h => ⟨by omega, h⟩⟩
-  · simp [SimpleGraph.fromRel_adj, dirSumBase]
-  · simp [SimpleGraph.fromRel_adj, dirSumBase]
-  · simp only [SimpleGraph.fromRel_adj, dirSumBase, SimpleGraph.sum_adj_inr,
-      SimpleGraph.pathGraph_adj, ne_eq, Sum.inr.injEq, Fin.ext_iff]
-    exact ⟨fun h => h.2, fun h => ⟨by omega, h⟩⟩
+  rcases u with x | x <;> rcases v with y | y <;>
+    simp only [SimpleGraph.fromRel_adj, dirSumBase, SimpleGraph.sum_adj_inl,
+      SimpleGraph.sum_adj_inr, SimpleGraph.pathGraph_adj, ne_eq, Sum.inl.injEq, Sum.inr.injEq,
+      Fin.ext_iff] <;>
+    first | omega | simp
 
 private theorem realize_distLE_dirSumPathRel_inl {m : ℕ} (S : Fin m ⊕ Fin m → Prop) (k : ℕ) :
     ∀ (x : Fin m) (v : Fin m ⊕ Fin m),
@@ -921,30 +898,21 @@ private theorem realize_distLE_dirSumPathRel_inl {m : ℕ} (S : Fin m ⊕ Fin m 
   let := relStructure (dirSumPathRel S)
   induction k with
   | zero =>
-    intro x v
-    rw [realize_distLE_zero, relMap_relStructure]
-    cases v with
-    | inl y =>
-      simp only [dirSumPathRel, dirSumBase, Sum.inl.injEq, Fin.ext_iff, pow_zero]
+    rintro x (y | y) <;> rw [realize_distLE_zero, relMap_relStructure]
+    · simp only [dirSumPathRel, dirSumBase, Sum.inl.injEq, Fin.ext_iff, pow_zero]
       omega
-    | inr y =>
-      simp only [dirSumPathRel, dirSumBase, reduceCtorEq, false_and, or_false]
+    · simp only [dirSumPathRel, dirSumBase, reduceCtorEq, false_and, or_false]
   | succ k ih =>
-    intro x v
-    rw [realize_distLE_succ]
-    have hpow : 2 ^ (k + 1) = 2 ^ k + 2 ^ k := by rw [pow_succ, mul_two]
-    cases v with
-    | inl y =>
-      refine ⟨?_, fun ⟨hxy, hyx⟩ => ⟨.inl ⟨min (y : ℕ) ((x : ℕ) + 2 ^ k), by omega⟩, ?_⟩⟩
-      · rintro ⟨z | z, hz⟩ <;> simp only [ih] at hz
-        · omega
-        · exact False.elim hz.1
-      · simp only [ih]; omega
-    | inr y =>
-      refine ⟨?_, False.elim⟩
-      rintro ⟨z | z, hz⟩ <;> simp only [ih] at hz
-      · exact hz.2
-      · exact hz.1
+    rintro x (y | y)
+    · rw [realize_distLE_succ]
+      simp only [Sum.exists, ih, false_and, exists_false, or_false]
+      have hpow : 2 ^ (k + 1) = 2 ^ k + 2 ^ k := by rw [pow_succ, mul_two]
+      refine ⟨fun ⟨z, hz⟩ => by omega,
+        fun ⟨hxy, hyx⟩ => ⟨⟨min (y : ℕ) ((x : ℕ) + 2 ^ k), by omega⟩, ?_⟩⟩
+      dsimp only
+      omega
+    · rw [realize_distLE_succ]
+      simp [ih]
 
 private theorem realize_distLE_dirSumPathRel {m : ℕ} (S : Fin m ⊕ Fin m → Prop) (k : ℕ) :
     ∀ u v : Fin m ⊕ Fin m,
@@ -1030,24 +998,13 @@ private theorem realize_fwdStrict_dirSumPathRel_inl {m : ℕ} (S : Fin m ⊕ Fin
   | zero =>
     intro z
     rw [realize_fwdStrict_zero]
-    constructor
-    · rintro ⟨u | u, huL, huE⟩
-      · rw [realize_loopReach_zero, relMap_relStructure] at huL
-        rw [realize_strictEdge, relMap_relStructure] at huE
-        rcases huE with ⟨hne, hadj⟩
-        simp only [dirSumPathRel, dirSumBase, Nat.add_eq_left, one_ne_zero, true_and, false_or,
-          hne, false_and, or_false] at huL hadj
-        exact ⟨u, huL, by omega, by omega⟩
-      · rw [realize_strictEdge, relMap_relStructure] at huE
-        rcases huE with ⟨_, hadj⟩
-        simp only [dirSumPathRel, dirSumBase, reduceCtorEq, false_and, or_false] at hadj
-    · rintro ⟨u, huS, h1, h2⟩
-      have huz : (u : ℕ) + 1 = (z : ℕ) := by omega
-      refine ⟨Sum.inl u, ?_, ?_⟩
-      · rw [realize_loopReach_zero, relMap_relStructure]
-        exact .inr ⟨rfl, huS⟩
-      · rw [realize_strictEdge, relMap_relStructure]
-        exact ⟨fun h => by have := congrArg Fin.val (Sum.inl.inj h); omega, .inl huz⟩
+    simp only [Sum.exists, realize_loopReach_zero, realize_strictEdge, relMap_relStructure,
+      dirSumPathRel, dirSumBase, Nat.add_eq_left, one_ne_zero, ne_eq, Sum.inl.injEq, Fin.ext_iff,
+      reduceCtorEq, true_and, false_and, and_false, false_or, or_false, exists_false]
+    refine exists_congr fun u => ⟨fun ⟨huS, hne, hadj⟩ => ?_, fun ⟨huS, h1, h2⟩ => ?_⟩
+    · have := hadj.resolve_right fun h => hne h.1
+      exact ⟨huS, by omega, by omega⟩
+    · exact ⟨huS, by omega, .inl (by omega)⟩
   | succ k ih =>
     intro z
     rw [realize_fwdStrict_succ]
@@ -1063,7 +1020,7 @@ private theorem realize_fwdStrict_dirSumPathRel_inl {m : ℕ} (S : Fin m ⊕ Fin
         (ih _).2 ⟨u, huS, ?_, ?_⟩, ?_⟩ <;>
       · dsimp only
         have := @Nat.one_le_two_pow k
-        have : 2 ≤ 2 ^ (k + 1) := by rw [pow_succ]; omega
+        rw [pow_succ] at *
         omega
 
 private theorem realize_fwdStrict_dirSumPathRel {m : ℕ} (S : Fin m ⊕ Fin m → Prop) (k : ℕ) :
@@ -1122,8 +1079,7 @@ private theorem exists_dirSumPath_hanfEquiv {k d : ℕ} (hd : d < 2 ^ (k + 1) - 
       omega
     by_cases hswap : D ≤ (coord c : ℕ) + d
     · -- Near `D`: `f c = Sum.swap c`, and `Sum.swap` is the local isomorphism.
-      have hfc : f c = Sum.swap c := by change fFun c = c.swap; simp only [fFun, hswap, ↓reduceIte]
-      rw [hfc]
+      rw [show f c = Sum.swap c from ite_eq_left hswap]
       refine @IsNbhdIso.nbhdIso Language.graph _ _ (relStructure (dirSumPathRel S₁))
         (relStructure (dirSumPathRel S₂)) 1 d _ _ _
         (isNbhdIso_or_eq_and c (Equiv.sumComm (Fin m) (Fin m)) dirSumBase_swap fun u hu => ?_)
@@ -1134,8 +1090,7 @@ private theorem exists_dirSumPath_hanfEquiv {k d : ℕ} (hd : d < 2 ^ (k + 1) - 
       · simp only [Equiv.sumComm_apply, Sum.swap_inr, S₁, S₂]
         exact iff_of_false (by omega) False.elim
     · -- Away from `D`: `f c = c`, and `id` is the local isomorphism.
-      have hfc : f c = c := by change fFun c = c; simp only [fFun, hswap, ↓reduceIte]
-      rw [hfc]
+      rw [show f c = c from ite_eq_right hswap]
       refine @IsNbhdIso.nbhdIso Language.graph _ _ (relStructure (dirSumPathRel S₁))
         (relStructure (dirSumPathRel S₂)) 1 d _ _ _
         (isNbhdIso_or_eq_and c (Equiv.refl (Fin m ⊕ Fin m)) (fun _ _ => Iff.rfl) fun u hu => ?_)
@@ -1218,48 +1173,37 @@ private theorem edist_optRel_some_some {V : Type*} (R : V → V → Prop) (x y :
   let proj : GO →g G :=
     { toFun := fun u => u.getD x
       map_rel' := fun {u v} h => by
-        dsimp only [GO] at h
-        rw [gaifmanGraph_optRel_adj] at h
-        rcases u with _ | a <;> rcases v with _ | b <;>
-          [exact False.elim h; exact False.elim h; exact False.elim h; exact h] }
+        rw [show GO = _ from rfl, gaifmanGraph_optRel_adj] at h
+        rcases u with _ | a <;> rcases v with _ | b <;> first | exact h.elim | exact h }
   exact le_antisymm (emb.edist_le x y) (proj.edist_le (some x) (some y))
 
 private theorem isNbhdIso_optRel_none {V₁ V₂ : Type*} (R₁ : V₁ → V₁ → Prop)
     (R₂ : V₂ → V₂ → Prop) (d : ℕ) {k : ℕ} :
     @IsNbhdIso Language.graph (Option V₁) (Option V₂) (relStructure (optRel R₁))
       (relStructure (optRel R₂)) k d (fun _ => none) (fun _ => none) (fun _ => none) := by
-  have hball₁ : ∀ u : Option V₁,
-      u ∈ @ball Language.graph (Option V₁) (relStructure (optRel R₁)) k (fun _ => none) d →
-        u = none := by
-    intro u hu
+  have hball₁ (u : Option V₁)
+      (hu : u ∈ @ball Language.graph (Option V₁) (relStructure (optRel R₁)) k
+        (fun _ => none) d) : u = none := by
     obtain ⟨_, hx⟩ := (@mem_ball Language.graph (Option V₁) (relStructure (optRel R₁))
       k (fun _ => none) d u).1 hu
     cases u with
     | none => rfl
-    | some x =>
-      rw [edist_optRel_none_some] at hx
-      exact absurd hx (not_le.2 (ENat.natCast_lt_top d))
-  have hball₂ : ∀ v : Option V₂,
-      v ∈ @ball Language.graph (Option V₂) (relStructure (optRel R₂)) k (fun _ => none) d ↔
-        ∃ _ : Fin k, v = none := by
-    intro v
-    rw [@mem_ball Language.graph (Option V₂) (relStructure (optRel R₂))]
-    refine exists_congr fun _ => ?_
-    cases v with
-    | none => simp
-    | some y =>
-      rw [edist_optRel_none_some]
-      exact iff_of_false (not_le.2 (ENat.natCast_lt_top d)) (fun h => by cases h)
+    | some _ => exact absurd (edist_optRel_none_some R₁ _ ▸ hx) (ENat.natCast_lt_top d).not_ge
   refine @IsNbhdIso.mk Language.graph (Option V₁) (Option V₂) (relStructure (optRel R₁))
     (relStructure (optRel R₂)) k d (fun _ => none) (fun _ => none) (fun _ => none)
     ⟨fun u hu => ?_, fun u hu v hv _ => (hball₁ u hu).trans (hball₁ v hv).symm,
-      fun v hv => ?_⟩ (fun _ => rfl) (fun {l} R t ht => ?_)
+      fun v hv => ?_⟩ (fun _ => rfl) fun {l} R t ht => ?_
   · obtain ⟨i, _⟩ := (@mem_ball Language.graph (Option V₁) (relStructure (optRel R₁))
       k (fun _ => none) d u).1 hu
-    exact (hball₂ none).2 ⟨i, rfl⟩
-  · obtain ⟨i, rfl⟩ := (hball₂ v).1 hv
-    exact ⟨none, @mem_ball_self Language.graph (Option V₁) (relStructure (optRel R₁))
-      k (fun _ => none) d i, rfl⟩
+    exact @mem_ball_self Language.graph (Option V₂) (relStructure (optRel R₂))
+      k (fun _ => none) d i
+  · obtain ⟨i, hx⟩ := (@mem_ball Language.graph (Option V₂) (relStructure (optRel R₂))
+      k (fun _ => none) d v).1 hv
+    cases v with
+    | none =>
+      exact ⟨none, @mem_ball_self Language.graph (Option V₁) (relStructure (optRel R₁))
+        k (fun _ => none) d i, rfl⟩
+    | some _ => exact absurd (edist_optRel_none_some R₂ _ ▸ hx) (ENat.natCast_lt_top d).not_ge
   · cases R
     rw [relMap_adj_relStructure (optRel R₂) ((fun _ => none) ∘ t),
       relMap_adj_relStructure (optRel R₁) t]
@@ -1331,12 +1275,11 @@ private theorem hanfEquiv_optRel_none {V₁ V₂ : Type*} {R₁ : V₁ → V₁ 
       fun w => ?_⟩
   cases w with
   | none =>
-    have e1 : (Fin.snoc (fun _ : Fin 1 => (none : Option V₁)) none : Fin 2 → Option V₁) =
-        fun _ => none := by ext i; fin_cases i <;> rfl
-    have e2 : (Fin.snoc (fun _ : Fin 1 => (none : Option V₂))
-        (Equiv.optionCongr f none) : Fin 2 → Option V₂) = fun _ => none := by
-      ext i; fin_cases i <;> rfl
-    rw [e1, e2]
+    rw [Equiv.optionCongr_apply, Option.map_none,
+      show (Fin.snoc (fun _ : Fin 1 => (none : Option V₁)) none : Fin 2 → Option V₁) =
+        fun _ => none from funext (Fin.forall_fin_two.2 ⟨rfl, rfl⟩),
+      show (Fin.snoc (fun _ : Fin 1 => (none : Option V₂)) none : Fin 2 → Option V₂) =
+        fun _ => none from funext (Fin.forall_fin_two.2 ⟨rfl, rfl⟩)]
     exact @IsNbhdIso.nbhdIso Language.graph (Option V₁) (Option V₂)
       (relStructure (optRel R₁)) (relStructure (optRel R₂)) 2 d _ _ _
       (isNbhdIso_optRel_none R₁ R₂ d)
@@ -1422,18 +1365,19 @@ theorem exists_hanfEquiv_formula_not_realize_iff {n d : ℕ} (hn : 2 ≤ n)
       φ.Realize a ∧ ¬ φ.Realize b := by
   obtain ⟨k, rfl⟩ : ∃ k, n = k + 2 := ⟨n - 2, by omega⟩
   obtain ⟨m, _, S₁, S₂, hHanf, hM₁, hM₂⟩ := exists_dirSumPath_hanfEquiv hd
-  refine ⟨Option (Fin m ⊕ Fin m), Option (Fin m ⊕ Fin m), inferInstance, ⟨none⟩,
+  have hrelab (S : Fin m ⊕ Fin m → Prop) :
+      @Formula.Realize _ _ (relStructure (optRel (dirSumPathRel S))) (Fin 1)
+        (Formula.relabel (Empty.elim : Empty → Fin 1) (twoLoopSentence k)) (fun _ => none) ↔
+        @Sentence.Realize _ (Fin m ⊕ Fin m) (relStructure (dirSumPathRel S))
+          (twoLoopSentence k) := by
+    rw [@Formula.realize_relabel _ _ (relStructure (optRel (dirSumPathRel S))),
+      Subsingleton.elim ((fun _ : Fin 1 => none) ∘ Empty.elim) (@default _ Unique.instInhabited)]
+    exact realize_twoLoopSentence_optRel (dirSumPathRel S) k
+  exact ⟨Option (Fin m ⊕ Fin m), Option (Fin m ⊕ Fin m), inferInstance, ⟨none⟩,
     relStructure (optRel (dirSumPathRel S₁)), relStructure (optRel (dirSumPathRel S₂)),
     fun _ => none, fun _ => none, Formula.relabel Empty.elim (twoLoopSentence k),
-    ?_, hanfEquiv_optRel_none hHanf, ?_, ?_⟩
-  · rw [quantifierRank_formula_relabel, quantifierRank_twoLoopSentence]
-  · rw [@Formula.realize_relabel _ _ (relStructure (optRel (dirSumPathRel S₁))),
-      Subsingleton.elim ((fun _ : Fin 1 => none) ∘ Empty.elim) (@default _ Unique.instInhabited)]
-    simpa only [Sentence.Realize] using (realize_twoLoopSentence_optRel (dirSumPathRel S₁) k).2 hM₁
-  · rw [@Formula.realize_relabel _ _ (relStructure (optRel (dirSumPathRel S₂))),
-      Subsingleton.elim ((fun _ : Fin 1 => none) ∘ Empty.elim) (@default _ Unique.instInhabited)]
-    exact mt (fun h => (realize_twoLoopSentence_optRel (dirSumPathRel S₂) k).1
-      (by simpa only [Sentence.Realize] using h)) hM₂
+    (quantifierRank_formula_relabel _ _).trans (quantifierRank_twoLoopSentence k),
+    hanfEquiv_optRel_none hHanf, (hrelab S₁).2 hM₁, mt (hrelab S₂).1 hM₂⟩
 
 /-- **Optimality of the Hanf locality rank `2 ^ (n - 1) - 1` for sentences**
 ([Libkin, Exercise 4.11][Libkin2004]): any radius function `ρ` giving Hanf locality on finite

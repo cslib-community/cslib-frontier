@@ -114,12 +114,8 @@ theorem monotone_iff_forall_update_le [Finite ι] [DecidableEq ι] {β : Type*} 
   rw [monotone_iff_forall_covBy]
   intro a b hab
   obtain ⟨i, c, hc, rfl⟩ := Pi.covBy_iff_exists_right_eq.1 hab
-  obtain ⟨ha, rfl⟩ : a i = false ∧ c = true := by
-    have hlt := hc.lt
-    revert hlt
-    cases a i <;> cases c <;> decide
-  have := h a i
-  rwa [update_eq_self_iff.2 ha.symm] at this
+  obtain ⟨ha, rfl⟩ := Bool.lt_iff.1 hc.lt
+  simpa [(update_eq_self_iff (f := a) (a := i)).2 ha.symm] using h a i
 
 variable [DecidableEq ι]
 
@@ -143,16 +139,12 @@ theorem mem_violatedEdges {f : (ι → Bool) → Bool} {i : ι} {x : ι → Bool
 /-- A Boolean function is monotone exactly when it has no violated edge in any direction. -/
 theorem monotone_iff_forall_violatedEdges_eq_empty {f : (ι → Bool) → Bool} :
     Monotone f ↔ ∀ i, violatedEdges f i = ∅ := by
-  rw [monotone_iff_forall_update_le]
-  refine ⟨fun h i => eq_empty_iff_forall_notMem.2 fun x hx => ?_,
-    fun h x i => by_contra fun hlt => ?_⟩
-  · obtain ⟨hxi, h1, h2⟩ := mem_violatedEdges.1 hx
-    have := h x i
-    rw [update_eq_self_iff.2 hxi.symm, h1, h2] at this
-    exact absurd this (by decide)
-  · have h1 : f (update x i false) = true ∧ f (update x i true) = false := by
-      revert hlt; cases f (update x i false) <;> cases f (update x i true) <;> decide
-    exact notMem_empty _ (h i ▸ mem_violatedEdges.2 ⟨update_self .., by simpa using h1⟩)
+  simp only [monotone_iff_forall_update_le, eq_empty_iff_forall_notMem, mem_violatedEdges,
+    Bool.le_iff_imp]
+  exact ⟨fun h i x ⟨hxi, h1, h2⟩ =>
+      by simpa [(update_eq_self_iff (f := x) (a := i)).2 hxi.symm, h1, h2] using h x i,
+    fun h x i h1 => by_contra fun h2 => h i (update x i false)
+      ⟨update_self .., by simpa using h1, by simpa using Bool.eq_false_iff.2 h2⟩⟩
 
 end ViolatedEdges
 
@@ -206,12 +198,9 @@ private theorem viol_sortAlong_square (f : (ι → Bool) → Bool) {i j : ι} (h
       (if Viol (sortAlong i f) j (update y i true) then 1 else 0) : ℕ) ≤
     (if Viol f j (update y i false) then 1 else 0) +
       (if Viol f j (update y i true) then 1 else 0) := by
-  simp only [Viol]
-  simp only [update_comm hij, sortAlong_update_false, sortAlong_update_true]
-  generalize f (update (update y j false) i false) = a
-  generalize f (update (update y j false) i true) = b
-  generalize f (update (update y j true) i false) = c
-  generalize f (update (update y j true) i true) = d
+  simp only [Viol, update_comm hij, sortAlong_update_false, sortAlong_update_true]
+  generalize f (update (update y j false) i false) = a, f (update (update y j false) i true) = b,
+    f (update (update y j true) i false) = c, f (update (update y j true) i true) = d
   revert a b c d
   decide
 
@@ -220,9 +209,7 @@ variable [Fintype ι]
 private theorem mem_violatedEdges_iff_viol {f : (ι → Bool) → Bool} {i : ι} {x : ι → Bool} :
     x ∈ violatedEdges f i ↔ x i = false ∧ Viol f i x := by
   rw [mem_violatedEdges, Viol]
-  exact and_congr_right fun hx => by
-    have h : update x i false = x := update_eq_self_iff.2 hx.symm
-    rw [h]
+  exact and_congr_right fun hx => by rw [(update_eq_self_iff (f := x) (a := i)).2 hx.symm]
 
 /-- Each violated edge has two endpoints. -/
 private theorem card_viol (f : (ι → Bool) → Bool) (i : ι) :
@@ -231,9 +218,8 @@ private theorem card_viol (f : (ι → Bool) → Bool) (i : ι) :
     (fun x => if x i = false ∧ Viol f i x then (1 : ℕ) else 0)
   simp only [update_self, viol_update, true_and, Bool.true_eq_false, false_and,
     ↓reduceIte, add_zero] at h
-  have he : violatedEdges f i = univ.filter fun x => x i = false ∧ Viol f i x := by
-    ext x
-    simp [mem_violatedEdges_iff_viol]
+  have he : violatedEdges f i = univ.filter fun x => x i = false ∧ Viol f i x :=
+    Finset.ext fun _ => by simp [mem_violatedEdges_iff_viol]
   rw [he, card_filter, card_filter, h, two_mul]
 
 /-- The endpoints of the violated edges in direction `i`, the points `x` such that `f` decreases
@@ -255,10 +241,7 @@ theorem violatedEdges_sortAlong_self (f : (ι → Bool) → Bool) (i : ι) :
     violatedEdges (sortAlong i f) i = ∅ := by
   refine eq_empty_iff_forall_notMem.2 fun x hx => ?_
   obtain ⟨hxi, h1, h2⟩ := mem_violatedEdges.1 hx
-  have hx' : update x i false = x := update_eq_self_iff.2 hxi.symm
-  rw [← hx', sortAlong_update_false, Bool.and_eq_true] at h1
-  rw [← hx', update_idem, sortAlong_update_true, h1.1, Bool.true_or] at h2
-  exact Bool.noConfusion h2
+  simp_all [sortAlong]
 
 /-- **The Key Claim** [Roughgarden, §8.3.1][Roughgarden2015CC]: sorting along any direction `i`
 does not increase the number of violated edges in any direction `j`. -/
@@ -357,23 +340,17 @@ theorem card_violatedEdges_le_distMonotone (f : (ι → Bool) → Bool) (i : ι)
     simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq]
     split_ifs with h
     · exact h
-    · push Not at h
-      intro heq
-      have hmono := hg (update_le_update_iff'.2 (Bool.false_le true) :
-        update x i false ≤ update x i true)
-      rw [update_eq_self_iff.2 hxi.symm, ← h, h1, ← heq, h2] at hmono
-      exact absurd hmono (by decide)
+    · intro heq
+      simpa [(update_eq_self_iff (f := x) (a := i)).2 hxi.symm, ← not_ne_iff.1 h, h1, ← heq, h2,
+        Bool.le_iff_imp] using
+        hg (update_le_update_iff'.2 (Bool.false_le true) : update x i false ≤ update x i true)
   · intro x hx y hy hxy
     rw [mem_coe, mem_violatedEdges] at hx hy
     dsimp only at hxy
     split_ifs at hxy with h1 h2 h2
     · exact hxy
-    · have hi := congrFun hxy i
-      rw [hx.1, update_self] at hi
-      exact Bool.noConfusion hi
-    · have hi := congrFun hxy i
-      rw [hy.1, update_self] at hi
-      exact Bool.noConfusion hi
+    · exact absurd (congrFun hxy i) (by simp [hx.1])
+    · exact absurd (congrFun hxy i) (by simp [hy.1])
     · have := congrArg (fun z => update z i false) hxy
       simp only [update_idem] at this
       rwa [update_eq_self_iff.2 hx.1.symm, update_eq_self_iff.2 hy.1.symm] at this
@@ -393,9 +370,7 @@ theorem le_relDistMonotone_iff {f : (ι → Bool) → Bool} {ε : ℝ} :
     ε ≤ relDistMonotone f ↔
       ∀ g : (ι → Bool) → Bool, Monotone g → ε ≤ hammingDist f g / 2 ^ Fintype.card ι := by
   refine ⟨fun h g hg => h.trans ?_, fun h => ?_⟩
-  · rw [relDistMonotone]
-    gcongr
-    exact_mod_cast distMonotone_le hg
+  · exact div_le_div_of_nonneg_right (Nat.cast_le.2 (distMonotone_le hg)) (by positivity)
   · obtain ⟨g, hg, hfg⟩ := exists_monotone_hammingDist_eq_distMonotone f
     simpa [relDistMonotone, hfg] using h g hg
 

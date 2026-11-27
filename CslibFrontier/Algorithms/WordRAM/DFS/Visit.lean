@@ -65,61 +65,6 @@ private theorem visit_eq_foldEmpty {V : Type*} [DecidableEq V] {adj : V → List
       ⟨s.visited, u :: s.finished⟩ := by
   simp [visit, hu, foldEmpty]
 
-private theorem visit_nil_struct {V : Type*} [DecidableEq V] (adj : V → List V) :
-    ∀ (k : ℕ) (u : V) (vis : Finset V),
-      let s := visit adj k u ⟨vis, []⟩
-      s.finished.Nodup ∧ (∀ x ∈ s.finished, x ∉ vis) ∧
-        (∀ x, x ∈ s.visited ↔ x ∈ vis ∨ x ∈ s.finished)
-  | 0, _, vis => ⟨List.nodup_nil, by simp [visit], by simp [visit]⟩
-  | k + 1, u, vis => by
-    by_cases hu : u ∈ vis
-    · simp [visit, hu]
-    · have hfold : ∀ (es : List V) (v₀ : Finset V),
-          let t := foldEmpty adj k es v₀
-          t.finished.Nodup ∧ (∀ x ∈ t.finished, x ∉ v₀) ∧
-            (∀ x, x ∈ t.visited ↔ x ∈ v₀ ∨ x ∈ t.finished) := by
-        intro es
-        induction es with
-        | nil => intro v₀; exact ⟨List.nodup_nil, by simp [foldEmpty], by simp [foldEmpty]⟩
-        | cons w es ih =>
-          intro v₀
-          obtain ⟨hnd₁, hdis₁, hvis₁⟩ := visit_nil_struct adj k w v₀
-          obtain ⟨hnd₂, hdis₂, hvis₂⟩ := ih (visit adj k w ⟨v₀, []⟩).visited
-          rw [foldEmpty_cons]
-          dsimp only
-          refine ⟨List.nodup_append.2 ⟨hnd₂, hnd₁, fun x hx₂ y hx₁ hxy => ?_⟩,
-            fun x hx => ?_, fun x => ?_⟩
-          · subst hxy
-            exact hdis₂ x hx₂ ((hvis₁ x).2 (.inr hx₁))
-          · rcases List.mem_append.1 hx with hx₂ | hx₁
-            · exact fun hv => hdis₂ x hx₂ ((hvis₁ x).2 (.inl hv))
-            · exact hdis₁ x hx₁
-          · rw [hvis₂ x, hvis₁ x, List.mem_append]
-            tauto
-      obtain ⟨hnd, hdis, hvis⟩ := hfold (adj u) (insert u vis)
-      rw [visit_eq_foldEmpty hu]
-      dsimp only
-      refine ⟨List.nodup_cons.2 ⟨fun hmem => hdis u hmem (Finset.mem_insert_self u vis), hnd⟩,
-        fun x hx => ?_, fun x => ?_⟩
-      · rcases List.mem_cons.1 hx with rfl | hx
-        · exact hu
-        · exact fun hv => hdis x hx (Finset.mem_insert_of_mem hv)
-      · rw [hvis x, Finset.mem_insert, List.mem_cons]
-        tauto
-
-private theorem card_visit_nil {V : Type*} [DecidableEq V] (adj : V → List V)
-    (k : ℕ) (u : V) (vis : Finset V) :
-    (visit adj k u ⟨vis, []⟩).visited.card =
-      vis.card + (visit adj k u ⟨vis, []⟩).finished.length := by
-  obtain ⟨hnd, hdis, hvis⟩ := visit_nil_struct adj k u vis
-  have hdisj : Disjoint vis (visit adj k u ⟨vis, []⟩).finished.toFinset :=
-    Finset.disjoint_right.2 fun x hx => hdis x (List.mem_toFinset.1 hx)
-  have hunion : (visit adj k u ⟨vis, []⟩).visited =
-      vis ∪ (visit adj k u ⟨vis, []⟩).finished.toFinset := by
-    ext x
-    simp [hvis x]
-  rw [hunion, Finset.card_union_of_disjoint hdisj, List.toFinset_card_of_nodup hnd]
-
 /-- The visited flags at `visAddr` encode the set `vis`. -/
 private def VisAt {N : ℕ} (vis : Finset (Fin N)) (visAddr : ℕ) (mem : ℕ → ℕ) : Prop :=
   ∀ w : Fin N, mem (visAddr + w.val) = (decide (w ∈ vis)).toNat
@@ -253,6 +198,17 @@ private theorem dfsStepBody_pop {N w : ℕ} (adj : Fin N → List (Fin N))
   · have := v.isLt
     wram_simp [hvis v]
 
+private theorem CSRAt.successor {N offAddr edgeAddr : ℕ} {adj : Fin N → List (Fin N)}
+    {mem : ℕ → ℕ} (hcsr : CSRAt adj offAddr edgeAddr mem) (u v : Fin N) (idx : ℕ)
+    (hidx : idx < (adj u).length) (hv : (adj u)[idx]'hidx = v) :
+    let j := csrOffset adj u.val + idx
+    j < csrOffset adj (u.val + 1) ∧ j < csrOffset adj N ∧ mem (edgeAddr + j) = v.val := by
+  have hend : csrOffset adj u.val + idx < csrOffset adj (u.val + 1) := by
+    rw [csrOffset_succ adj u.isLt]
+    simpa only [Fin.eta] using Nat.add_lt_add_left hidx _
+  exact ⟨hend, hend.trans_le (csrOffset_mono adj (Nat.succ_le_of_lt u.isLt)),
+    by simpa only [Nat.add_assoc, hv] using hcsr.2 u idx hidx⟩
+
 private theorem dfsStepBody_skip {N w : ℕ} (adj : Fin N → List (Fin N))
     (offAddr edgeAddr visAddr finAddr stkAddr Mc : ℕ)
     (hdisj1 : offAddr + N + 1 ≤ visAddr)
@@ -285,15 +241,7 @@ private theorem dfsStepBody_skip {N w : ℕ} (adj : Fin N → List (Fin N))
       x₁.mem (stkAddr + 3 * d + 2) = csrOffset adj (u.val + 1) ∧
       (∀ a, a ≠ stkAddr + 3 * d + 1 → x₁.mem a = x.mem a) ∧
       (∀ r : Fin 28, (r.val < 19 ∨ r = compIdxReg ∨ r = oldFinReg) → x₁.regs r = x.regs r) := by
-  have hoff_u := csrOffset_succ adj u.isLt
-  simp only [Fin.eta] at hoff_u
-  set j := csrOffset adj u.val + idx
-  have hj_lt_end : j < csrOffset adj (u.val + 1) := by omega
-  have hj_lt_N : j < csrOffset adj N :=
-    lt_of_lt_of_le hj_lt_end (csrOffset_mono adj (by have := u.isLt; omega : u.val + 1 ≤ N))
-  have hedge_j : x.mem (edgeAddr + j) = v.val := by
-    rw [show edgeAddr + j = edgeAddr + csrOffset adj u.val + idx by dsimp only [j]; omega,
-      hcsr.2 u idx hidx_lt, hv_eq]
+  obtain ⟨hj_lt_end, hj_lt_N, hedge_j⟩ := hcsr.successor u v idx hidx_lt hv_eq
   have hvis_v1 : x.mem (visAddr + v.val) = 1 := by simpa [hmem] using hvis v
   have hu_lt := u.isLt
   have hv_lt := v.isLt
@@ -348,15 +296,7 @@ private theorem dfsStepBody_push {N w : ℕ} (adj : Fin N → List (Fin N))
       (∀ a, ¬ (a = visAddr + v.val ∨
           (stkAddr + 3 * d ≤ a ∧ a < stkAddr + 3 * N)) → x₁.mem a = x.mem a) ∧
       (∀ r : Fin 28, (r.val < 19 ∨ r = compIdxReg ∨ r = oldFinReg) → x₁.regs r = x.regs r) := by
-  have hoff_u := csrOffset_succ adj u.isLt
-  simp only [Fin.eta] at hoff_u
-  set j := csrOffset adj u.val + idx
-  have hj_lt_end : j < csrOffset adj (u.val + 1) := by omega
-  have hj_lt_N : j < csrOffset adj N :=
-    lt_of_lt_of_le hj_lt_end (csrOffset_mono adj (by have := u.isLt; omega : u.val + 1 ≤ N))
-  have hedge_j : x.mem (edgeAddr + j) = v.val := by
-    rw [show edgeAddr + j = edgeAddr + csrOffset adj u.val + idx by dsimp only [j]; omega,
-      hcsr.2 u idx hidx_lt, hv_eq]
+  obtain ⟨hj_lt_end, hj_lt_N, hedge_j⟩ := hcsr.successor u v idx hidx_lt hv_eq
   have hvis_v0 : x.mem (visAddr + v.val) = 0 := by simpa [hmem] using hvis v
   set vis₁ := insert v vis
   have hcard_vis₁_le : vis₁.card ≤ N := by simpa using Finset.card_le_univ vis₁

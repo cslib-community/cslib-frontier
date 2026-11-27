@@ -215,11 +215,8 @@ private lemma nonempty_integralFrame_cons {ι : Type*}
             pairing := ?_
             reduced_independent := ?_ }⟩
   · intro i j
-    refine Fin.cases ?_ (fun a => ?_) i <;> refine Fin.cases ?_ (fun z => ?_) j
-    · simp [π, hxc]
-    · simp [π, hbc, Ne.symm (Fin.succ_ne_zero _)]
-    · simp [φ, π, hxc]
-    · simp [φ, π, hbc, b.pairing]
+    refine Fin.cases ?_ (fun _ => ?_) i <;> refine Fin.cases ?_ (fun _ => ?_) j <;>
+      simp [φ, π, hxc, hbc, b.pairing, Ne.symm (Fin.succ_ne_zero _)]
   · change LinearIndependent K (reduce ∘ Fin.cons x b.vector)
     rw [Fin.comp_cons, linearIndependent_finCons]
     refine ⟨b.reduced_independent, fun hx => one_ne_zero (α := K) ?_⟩
@@ -233,16 +230,9 @@ any Laurent-series subspace. The coordinate functionals guarantee saturation. -/
 theorem exists_integralFrame {ι : Type*} [Finite ι]
     (U : Submodule (F K) (ι → F K)) : Nonempty (IntegralFrame U) := by
   classical
-  by_cases hU : U = ⊥
-  · subst U
-    exact ⟨{ length := 0
-             vector := Fin.elim0
-             coordinate := Fin.elim0
-             span_eq := by simp
-             vector_integral := fun j => Fin.elim0 j
-             coordinate_integral := fun j => Fin.elim0 j
-             pairing := fun i => Fin.elim0 i
-             reduced_independent := linearIndependent_empty_type }⟩
+  rcases eq_or_ne U ⊥ with rfl | hU
+  · exact ⟨⟨0, Fin.elim0, Fin.elim0, by simp, fun j => j.elim0, fun j => j.elim0,
+      fun i => i.elim0, linearIndependent_empty_type⟩⟩
   obtain ⟨v, hvU, hv⟩ := Submodule.exists_mem_ne_zero_of_ne_bot hU
   obtain ⟨c, u, _, hxint, hxc⟩ := normalize_vector v hv
   let x : ι → F K := u • v
@@ -263,9 +253,8 @@ private lemma linearIndependent : LinearIndependent (F K) b.vector := by
   classical
   rw [linearIndependent_iff']
   intro s c hc j hj
-  have hh := congrArg (b.coordinate j) hc
-  simpa only [map_sum, map_smul, b.pairing, smul_eq_mul, mul_ite,
-    mul_one, mul_zero, Finset.sum_ite_eq, hj, ite_true, map_zero] using hh
+  simpa only [map_sum, map_smul, b.pairing, smul_eq_mul, mul_ite, mul_one, mul_zero,
+    Finset.sum_ite_eq, hj, ite_true, map_zero] using congrArg (b.coordinate j) hc
 
 /-- Every vector of an `IntegralFrame U` belongs to `U`. -/
 lemma vector_mem (j : Fin b.length) : b.vector j ∈ U :=
@@ -327,23 +316,18 @@ lemma reducedSet_eq_span {ι : Type*} {U : Submodule (F K) (ι → F K)}
     reducedSet U = (Submodule.span K (Set.range (fun j => reduce (b.vector j))) : Set (ι → K)) := by
   classical
   ext y
-  constructor
+  refine ⟨?_, fun hy => ?_⟩
   · rintro ⟨x, hxU, hxI, rfl⟩
-    have he := congrArg reduce (b.sum_coordinates x hxU)
-    rw [reduce_sum] at he
-    simp_rw [reduce_smul (b.integral_coordinates x hxI _) (b.vector_integral _)] at he
-    rw [← he]
-    exact Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _
-      (Submodule.subset_span ⟨j, rfl⟩)
-  · intro hy
-    obtain ⟨c, rfl⟩ := (Submodule.mem_span_range_iff_exists_fun K).mp hy
-    refine ⟨∑ j, (HahnSeries.C (c j) : F K) • b.vector j, ?_, ?_, ?_⟩
-    · exact U.sum_mem fun j _ => U.smul_mem _ (b.vector_mem j)
-    · exact fun i => by
-        simpa only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul] using
-          Finset.sum_induction _ Integral (fun _ _ => Integral.add) integral_zero
-            fun j _ => (integral_C _).mul (b.vector_integral j i)
-    · simp only [reduce_sum, reduce_C_smul]
+    rw [← b.sum_coordinates x hxU, reduce_sum]
+    simp_rw [reduce_smul (b.integral_coordinates x hxI _) (b.vector_integral _)]
+    exact Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _ (Submodule.subset_span ⟨j, rfl⟩)
+  · obtain ⟨c, rfl⟩ := (Submodule.mem_span_range_iff_exists_fun K).mp hy
+    refine ⟨∑ j, (HahnSeries.C (c j) : F K) • b.vector j,
+      U.sum_mem fun j _ => U.smul_mem _ (b.vector_mem j), fun i => ?_,
+      by simp only [reduce_sum, reduce_C_smul]⟩
+    simpa only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul] using
+      Finset.sum_induction _ Integral (fun _ _ => Integral.add) integral_zero
+        fun j _ => (integral_C _).mul (b.vector_integral j i)
 
 /-- For any integral frame `b` of `U`, `reducedSubspace U` is the `K`-span of the reduced frame
 vectors. -/
@@ -421,8 +405,7 @@ private theorem reduction_weighted_supported {ι : Type*} [Finite ι]
   classical
   obtain ⟨x, hxU, rfl⟩ := hyU
   by_cases hx : x = 0
-  · subst x
-    simp [weightMap, reduction]
+  · simp [hx, weightMap, reduction]
   obtain ⟨c, u, hu, hnI, hnc⟩ := normalize_vector x hx
   have hnU : u • x ∈ U := U.smul_mem u hxU
   have hr : reduce (u • x) ≠ 0 := fun he =>
@@ -454,9 +437,7 @@ private def IntegralFrame.subframe {ι : Type*} {U : Submodule (F K) (ι → F K
 /-- `reducedSubspace` is monotone with respect to submodule inclusion. -/
 lemma reducedSubspace_mono {ι : Type*} {U V : Submodule (F K) (ι → F K)}
     (h : U ≤ V) : reducedSubspace U ≤ reducedSubspace V := by
-  apply Submodule.span_mono
-  rintro y ⟨x, hx, hI, rfl⟩
-  exact ⟨x, h hx, hI, rfl⟩
+  exact Submodule.span_mono fun _ ⟨x, hx, hI, hy⟩ => ⟨x, h hx, hI, hy⟩
 
 /-- Choose an integral-lattice subspace on whose reduction a specified
 projection is injective, of dimension equal to that projection's rank. -/
@@ -473,21 +454,16 @@ private theorem exists_projection_subspace {ι : Type*} [Finite ι]
   let b' := b.subframe a ha
   let U' := Submodule.span (F K) (Set.range (b.vector ∘ a))
   refine ⟨U', Submodule.span_le.mpr fun _ ⟨j, hj⟩ => hj ▸ b.vector_mem (a j), ?_, ?_⟩
-  · rw [reducedSubspace_eq_span b, Submodule.map_span, ← Set.range_comp]
-    change finrank (F K) U' = finrank K (Submodule.span K
-      (Set.range (fun j => P (reduce (b.vector j)))))
+  · rw [← b'.length_eq_finrank, reducedSubspace_eq_span b, Submodule.map_span, ← Set.range_comp]
+    change k = finrank K (Submodule.span K (Set.range fun j => P (reduce (b.vector j))))
     rw [← hs, finrank_span_eq_card hi, Fintype.card_fin]
-    exact b'.length_eq_finrank.symm
   · intro x hxU hxI hxP
-    have hx : reduce x ∈ Submodule.span K (Set.range (fun j => reduce (b'.vector j))) := by
-      rw [← SetLike.mem_coe, ← reducedSet_eq_span b']
-      exact ⟨x, hxU, hxI, rfl⟩
-    obtain ⟨c, hc⟩ := (Submodule.mem_span_range_iff_exists_fun K).mp hx
+    obtain ⟨c, hc⟩ := (Submodule.mem_span_range_iff_exists_fun K).mp
+      ((reducedSet_eq_span b').subset ⟨x, hxU, hxI, rfl⟩)
     have hh : ∑ j, c j • P (reduce (b.vector (a j))) = 0 := by
-      rw [← hxP, ← hc, map_sum]; simp only [map_smul]; rfl
-    have hz := Fintype.linearIndependent_iff.mp hi c hh
-    rw [← hc]
-    exact Finset.sum_eq_zero fun i _ => by rw [hz i, zero_smul]
+      simpa only [map_sum, map_smul, b', IntegralFrame.subframe, Function.comp_apply] using
+        (congrArg P hc).trans hxP
+    simp [← hc, b', IntegralFrame.subframe, Fintype.linearIndependent_iff.mp hi c hh]
 
 /-- Low coordinate projection and its complementary support subspace. -/
 def lowProjection {ι : Type*} (w : ι → ℕ) (A : ℕ) :
@@ -559,14 +535,10 @@ private lemma liftMap_integral (P : (ι → K) →ₗ[K] (κ → K)) {x : ι →
 omit [Fintype κ] [DecidableEq κ] in
 private lemma reduction_liftMap (P : (ι → K) →ₗ[K] κ → K) (x : ι → F K) :
     reduce (liftMap P x) = P (reduce x) := by
-  have hc (a : K) (z : F K) : reduction (HahnSeries.C a * z) = a * reduction z := by
-    rw [HahnSeries.C_mul_eq_smul]; rfl
+  -- constant multiplication commutes with reduction
   funext j
   conv_rhs => rw [← Matrix.toLin'_toMatrix' P]
-  change reduction (∑ i, HahnSeries.C (LinearMap.toMatrix' P j i) * x i) = _
-  simp only [reduction, HahnSeries.coeff_sum] -- constant multiplication commutes with reduction
-  change (∑ i, reduction (HahnSeries.C (LinearMap.toMatrix' P j i) * x i)) = _
-  simp only [hc]
+  simp only [reduce, liftMap_apply, reduction, HahnSeries.coeff_sum, HahnSeries.C_mul_eq_smul]
   rfl
 
 /-- Extend a linear equivalence to Laurent-series vectors. -/
@@ -606,13 +578,11 @@ private lemma reducedSubspace_liftEquiv (E : (ι → K) ≃ₗ[K] (κ → K))
     reducedSubspace (U.map (liftEquiv E).toLinearMap) =
       (reducedSubspace U).map E.toLinearMap := by
   rw [reducedSubspace, reducedSubspace, Submodule.map_span]
-  congr 1
-  ext y
-  constructor
-  · rintro ⟨z, ⟨x, hxU, rfl⟩, hzI, rfl⟩
-    have hxI := (integral_liftEquiv_iff E x).mp hzI
-    exact ⟨reduce x, ⟨x, hxU, hxI, rfl⟩, (reduction_liftMap E.toLinearMap x).symm⟩
-  · rintro ⟨z, ⟨x, hxU, hxI, rfl⟩, rfl⟩
+  refine congrArg _ (Set.ext fun y => ⟨?_, ?_⟩)
+  · rintro ⟨_, ⟨x, hxU, rfl⟩, hzI, rfl⟩
+    exact ⟨reduce x, ⟨x, hxU, (integral_liftEquiv_iff E x).mp hzI, rfl⟩,
+      (reduction_liftMap E.toLinearMap x).symm⟩
+  · rintro ⟨_, ⟨x, hxU, hxI, rfl⟩, rfl⟩
     exact ⟨liftEquiv E x, ⟨x, hxU, rfl⟩, liftMap_integral E.toLinearMap hxI,
       reduction_liftMap E.toLinearMap x⟩
 

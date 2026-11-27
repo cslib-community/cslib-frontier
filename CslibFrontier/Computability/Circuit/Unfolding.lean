@@ -129,10 +129,8 @@ theorem Program.exists_wireFormula_eq_of_eq_gate (p : Program σ n g) {w : Wire 
   | gate p line ih =>
     refine Fin.lastCases ?_ (fun k => by simp [ih]) k
     rw [gateFormula_gate_last, Formula.eval_gate, eval_gate_last, Line.eval]
-    congr 1
-    funext a
-    simp only [Function.comp_apply]
-    cases line.wires a <;> simp [ih]
+    exact congrArg _ (funext fun a => by cases hw : line.wires a <;>
+      simp [Function.comp_apply, hw, ih])
 
 /-- The formula of a wire computes the wire. -/
 @[simp] theorem Program.eval_wireFormula (I : Interpretation σ U) (p : Program σ n g)
@@ -236,9 +234,9 @@ end Circuit
     (p.append feed q).wireFormula (w.castAdd g₂) = p.wireFormula w := by
   induction q with
   | empty => cases w <;> rfl
-  | gate q line ih =>
-    rw [show w.castAdd (_ + 1) = (w.castAdd _).castSucc by cases w <;> rfl]
-    exact (wireFormula_gate_castSucc (p.append feed q) _ _).trans ih
+  | @gate g' q line ih =>
+    have hw : w.castAdd (g' + 1) = (w.castAdd g').castSucc := by cases w <;> rfl
+    exact (congrArg _ hw).trans ((wireFormula_gate_castSucc (p.append feed q) _ _).trans ih)
 
 /-- Continuing `p` by `q` on the inputs, a wire of `q` unfolds to its formula in `q`. -/
 @[simp] theorem Program.wireFormula_append_input_appendedWire {g₁ g₂ : ℕ} (p : Program σ n g₁)
@@ -300,12 +298,10 @@ theorem Circuit.gateFormula_pi_of_forall (P : Formula σ n → Prop) {m : ℕ}
   | input => rfl
   | gate op args ih =>
     change (Program.gate _ _).gateFormula (Fin.last _) = _
-    rw [Program.gateFormula_gate_last]
-    simp only [Line.mapWires_op, Line.mapWires_wires]
-    congr 1
-    funext a
-    exact (Program.wireFormula_append_castAdd _ _ Program.empty _).trans
-      ((Circuit.toFormula_pi _ a).trans (ih a))
+    simp only [Program.gateFormula_gate_last, Line.mapWires_op, Line.mapWires_wires]
+    exact congrArg (Formula.gate op) (funext fun a =>
+      (Program.wireFormula_append_castAdd _ _ Program.empty _).trans
+        ((Circuit.toFormula_pi _ a).trans (ih a)))
 
 /-- The formulas of the gates of the circuit of a formula `F` are subformulas of `F`: they satisfy
 every property of `F` inherited by the arguments of operation nodes. -/
@@ -321,8 +317,7 @@ theorem Formula.gateFormula_toCircuit_of_closed (P : Formula σ n → Prop)
       change P ((gate op args).toCircuit.toFormula 0)
       rwa [toFormula_toCircuit]
     | cast k =>
-      change P ((Program.gate _ _).gateFormula k.castSucc)
-      rw [Program.gateFormula_gate_castSucc]
-      exact Circuit.gateFormula_pi_of_forall P _ (fun j => ih j (hP op args j hF)) k
+      exact (Program.gateFormula_gate_castSucc _ _ k).symm ▸
+        Circuit.gateFormula_pi_of_forall P _ (fun j => ih j (hP op args j hF)) k
 
 end Cslib.Circuits

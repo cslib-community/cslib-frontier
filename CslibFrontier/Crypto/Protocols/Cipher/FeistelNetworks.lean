@@ -401,8 +401,7 @@ theorem feistelNetwork_replicate_mod {k : ℕ} {f : G → G}
     induction m with
     | zero => rfl
     | succ m ih => rw [Nat.mul_succ, feistelNetwork_replicate_add, ih, hperiod]; rfl
-  conv_lhs => rw [← Nat.div_add_mod r k]
-  rw [feistelNetwork_replicate_add, hmul (r / k)]
+  conv_lhs => rw [← Nat.div_add_mod r k, feistelNetwork_replicate_add, hmul (r / k)]
   rfl
 
 /-- A single Feistel round with the identically zero function `0 : G → G` is
@@ -451,12 +450,9 @@ theorem feistelNetwork_replicate_id (hneg : ∀ a : G, -a = a) (r : ℕ) (p : G 
       else if r % 3 = 1 then (p.2, p.1 + p.2)
       else (p.1 + p.2, p.1) := by
   rw [feistelNetwork_replicate_mod (feistelNetwork_replicate_three_id hneg) r]
-  have hmod : r % 3 = 0 ∨ r % 3 = 1 ∨ r % 3 = 2 := by omega
   rcases p with ⟨l, r'⟩
-  rcases hmod with h0 | h1 | h2'
-  · rw [h0]; rfl
-  · rw [h1]; rfl
-  · rw [h2']; simp [List.replicate, feistelRound, add_self_cancel_left_of_neg_eq_self hneg]
+  rcases (by omega : r % 3 = 0 ∨ r % 3 = 1 ∨ r % 3 = 2) with h | h | h <;>
+    simp [h, List.replicate, feistelRound, add_self_cancel_left_of_neg_eq_self hneg]
 
 end Periodicity
 
@@ -503,9 +499,8 @@ private theorem card_biUnion_perm_div_le {β : Type*} (S : Finset β) {k : ℕ}
   refine (div_le_div_of_nonneg_right (Nat.cast_le.mpr Finset.card_biUnion_le)
     (Nat.cast_nonneg _)).trans ?_
   rw [Nat.cast_sum, Finset.sum_div]
-  refine (Finset.sum_le_sum fun i hi =>
-    card_filter_perm_div_factorial_le (xs i) (hxs i hi) (ys i)).trans_eq ?_
-  simp [div_eq_mul_inv]
+  simpa [div_eq_mul_inv] using Finset.sum_le_sum fun i hi =>
+    card_filter_perm_div_factorial_le (xs i) (hxs i hi) (ys i)
 
 private theorem card_erase_erase {x y : α} (hxy : x ≠ y) :
     (((Finset.univ.erase x).erase y).card : ℝ) = (Fintype.card α : ℝ) - 2 := by
@@ -591,10 +586,8 @@ omit [AddGroup G] in
 (original bound). -/
 theorem randomFunctionGame_feistel1CPAAttack_true [Nonempty G] (l₀ r₀ : G) :
     randomFunctionGame (feistel1CPAAttack l₀ r₀) true = (Fintype.card G : ℝ≥0∞)⁻¹ := by
-  have hgame :
-      randomFunctionGame (feistel1CPAAttack l₀ r₀) =
-        (PMF.uniformOfFintype G).map (fun v => decide (v = r₀)) := by
-    calc randomFunctionGame (feistel1CPAAttack l₀ r₀)
+  have hgame := calc
+    randomFunctionGame (feistel1CPAAttack l₀ r₀)
         = (((PMF.uniformOfFintype (G × G → G × G)).map (fun table => table (l₀, r₀))).map
             Prod.fst).map (fun v => decide (v = r₀)) := by
           simp [randomFunctionGame, feistel1CPAAttack, PMF.map_comp, Function.comp_def]; rfl
@@ -619,12 +612,7 @@ omit [AddGroup G] in
 (original bound). -/
 theorem idealPermGame_feistel1CPAAttack_true_le [Nonempty G] (l₀ r₀ : G) :
     (idealPermGame (feistel1CPAAttack l₀ r₀) true).toReal ≤ (Fintype.card G : ℝ)⁻¹ := by
-  have hgame :
-      idealPermGame (feistel1CPAAttack l₀ r₀) =
-        (PMF.uniformOfFintype (Equiv.Perm (G × G))).bind fun π =>
-          PMF.pure (decide ((π (l₀, r₀)).1 = r₀)) := by
-    simp [idealPermGame, feistel1CPAAttack, PMF.monad_bind_eq_bind]
-  rw [hgame]
+  simp only [interp_norm, pmf_norm, idealPermGame, feistel1CPAAttack]
   refine (perm_decide_toReal_le_biUnion (Finset.univ : Finset G) (k := 1)
     (fun _ => ![(l₀, r₀)]) (fun _ _ => Function.injective_of_subsingleton _)
     (fun w => ![(r₀, w)])
@@ -737,8 +725,6 @@ theorem eval_feistel3_repeated_feistel3RepeatedKeyCPAAttack
       (feistel3RepeatedKeyCPAAttack x) = PMF.pure true := by
   have happ := Equiv.congr_fun
     (prodComm_trans_feistelNetwork_reverse_trans_prodComm hneg [f, f, f]) (feistel3 f f f (x, x))
-  change (feistel3 f f f (feistel3 f f f (x, x)).swap).swap =
-    (feistel3 f f f).symm (feistel3 f f f (x, x)) at happ
   have h : feistel3 f f f ((feistel3 f f f (x, x)).2, (feistel3 f f f (x, x)).1) = (x, x) :=
     Prod.swap_injective (happ.trans (Equiv.symm_apply_apply (feistel3 f f f) (x, x)))
   simp [feistel3RepeatedKeyCPAAttack, h]

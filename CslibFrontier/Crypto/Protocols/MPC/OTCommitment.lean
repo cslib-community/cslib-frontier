@@ -203,9 +203,8 @@ private theorem fixed_binding {k : ℕ} (ts : Fin k → Fin 4 → Bool)
   let win := fun c => doubleOpens c (fun i => ts i (boolPairToFin4 (false, c i))) o = true
   have : Subsingleton {c // win c} := ⟨fun a b => Subtype.ext
     (doubleOpens_unique ts o a.property b.property)⟩
-  have hc : Nat.card {c // win c} ≤ 1 := by
-    rw [Nat.card_eq_fintype_card]
-    exact Fintype.card_le_one_iff_subsingleton.mpr inferInstance
+  have hc : Nat.card {c // win c} ≤ 1 :=
+    Nat.card_eq_fintype_card.trans_le (Fintype.card_le_one_iff_subsingleton.mpr inferInstance)
   calc
     _ ≤ (1 : ℝ≥0∞) / Fintype.card (Fin k → Bool) :=
       mul_le_mul_of_nonneg_right (by exact_mod_cast hc) zero_le
@@ -218,16 +217,12 @@ theorem binding {State : Type} (A : Sender State) (k : ℕ) (initial : PMF State
     bindingGame A k initial finish true ≤ (2 : ℝ≥0∞)⁻¹ ^ k := by
   simp only [bindingGame, Probability.PMF.monad_bind_eq_bind,
     Probability.PMF.monad_pure_eq_pure]
-  apply Probability.PMF.bind_apply_le_on_support
-  intro st _
+  refine Probability.PMF.bind_apply_le_on_support _ fun st _ => ?_
   simp only [senderRun_eq, PMF.bind_map, Function.comp_def]
   rw [PMF.bind_comm]
-  apply Probability.PMF.bind_apply_le_on_support
-  intro ts _
+  refine Probability.PMF.bind_apply_le_on_support _ fun ts _ => ?_
   rw [PMF.bind_comm]
-  apply Probability.PMF.bind_apply_le_on_support
-  intro o _
-  exact fixed_binding ts.1 o
+  exact Probability.PMF.bind_apply_le_on_support _ fun o _ => fixed_binding ts.1 o
 
 /-- An adaptive receiver can choose any of the four OT slots from its private state, then
 process the selected bit with arbitrary additional randomness. State may contain its full view. -/
@@ -302,12 +297,11 @@ theorem receiverRun_succ {State : Type} (A : Receiver State) (b : Bool) (k : ℕ
 
 private theorem uniform_table (b : Bool) (j : Fin 4) :
     (PMF.uniformOfFintype Bool).map (fun r => table b r j) = PMF.uniformOfFintype Bool := by
-  cases b <;> by_cases h : (fin4ToBoolPair j).2 = true
-  · simp only [table, h, ↓reduceIte, Bool.xor_false]
-    exact PMF.map_id _
-  · simp only [table, h]
-    exact PMF.map_id _
-  · simpa [table, h, Equiv.boolNot] using PMF.uniformOfFintype_map_equiv Equiv.boolNot
+  by_cases h : (fin4ToBoolPair j).2 = true
+  · cases b
+    · simp only [table, h, ↓reduceIte, Bool.xor_false]
+      exact PMF.map_id _
+    · simpa [table, h, Equiv.boolNot] using PMF.uniformOfFintype_map_equiv Equiv.boolNot
   · simp only [table, h]
     exact PMF.map_id _
 

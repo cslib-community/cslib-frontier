@@ -60,11 +60,9 @@ private theorem sum_mul_le_cap_mul_sum_pos {ι : Type*} [Fintype ι]
   classical
   rw [mul_sum, sum_filter]
   refine sum_le_sum fun i _ => ?_
-  by_cases hi : 0 < v i
-  · rw [ite_eq_left hi]
-    exact mul_le_mul_of_nonneg_right (hw i) hi.le
-  · rw [ite_eq_right hi]
-    exact mul_nonpos_of_nonneg_of_nonpos (hw₀ i) (le_of_not_gt hi)
+  split_ifs with hi
+  · exact mul_le_mul_of_nonneg_right (hw i) hi.le
+  · exact mul_nonpos_of_nonneg_of_nonpos (hw₀ i) (le_of_not_gt hi)
 
 private theorem sum_mul_mul_le_of_rectangle_sum_le (M : X → Y → ℝ)
     (p : X → ℝ) (q : Y → ℝ) {a b K : ℝ}
@@ -112,10 +110,9 @@ theorem abs_sum_mul_signVal_le_discrepancy_of_weight_le [Nonempty X] [Nonempty Y
   rw [mul_assoc (a * b)]
   refine abs_le.mpr ⟨?_, sum_mul_mul_le_of_rectangle_sum_le _ p q ha hb hp₀ hp hq₀ hq
     fun A B => (le_abs_self _).trans (hrect A B)⟩
-  have h := sum_mul_mul_le_of_rectangle_sum_le (fun x y => -signVal (g x y)) p q ha hb hp₀ hp hq₀ hq
-    fun A B => by simpa only [sum_neg_distrib] using (neg_le_abs _).trans (hrect A B)
-  simp only [mul_neg, sum_neg_distrib] at h
-  linarith
+  simpa only [mul_neg, sum_neg_distrib, neg_le] using
+    sum_mul_mul_le_of_rectangle_sum_le (fun x y => -signVal (g x y)) p q ha hb hp₀ hp hq₀ hq
+      fun A B => by simpa only [sum_neg_distrib] using (neg_le_abs _).trans (hrect A B)
 
 /-- Uniform discrepancy bounds the bias of a gadget under independent sources with atom caps
 `a` and `b`. The alphabets may differ, and the atom caps are arbitrary nonnegative reals. -/
@@ -141,7 +138,7 @@ theorem abs_sum_mul_signVal_le_discrepancy_mul_rpow_minEntropy [Nonempty X] [Non
     (by positivity : (0 : ℝ) ≤ 2 ^ (-PMF.minEntropy p))
     (by positivity : (0 : ℝ) ≤ 2 ^ (-PMF.minEntropy q))
     (PMF.toReal_apply_le_rpow_neg_minEntropy p) (PMF.toReal_apply_le_rpow_neg_minEntropy q)
-  rwa [← Real.rpow_add (by norm_num : (0 : ℝ) < 2), ← sub_eq_add_neg] at h
+  rwa [← Real.rpow_add two_pos, ← sub_eq_add_neg] at h
 
 private theorem rpow_minEntropy_mul_discrepancy_le [Nonempty X]
     (p q : PMF X) (g : X → X → Bool) {b : ℕ} {η s : ℝ}
@@ -155,11 +152,8 @@ private theorem rpow_minEntropy_mul_discrepancy_le [Nonempty X]
     _ ≤ (2 : ℝ) ^ (-PMF.minEntropy p - PMF.minEntropy q) *
         (Fintype.card X * Fintype.card X) * 2 ^ (-η * b) := by gcongr
     _ = (2 : ℝ) ^ (-PMF.minEntropy p - PMF.minEntropy q + 2 * b - η * b) := by
-      rw [hcard]
-      push_cast
-      simp only [← Real.rpow_natCast, ← Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
-      congr 1
-      ring
+      simp only [hcard, Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast, ← Real.rpow_add two_pos]
+      exact congrArg ((2 : ℝ) ^ ·) (by ring)
     _ ≤ 2 ^ (-s) :=
       Real.rpow_le_rpow_of_exponent_le (by norm_num) (by nlinarith [hentropy])
 
@@ -262,14 +256,13 @@ theorem sum_mass_filter_rowBias_lt_rpow_of_minEntropy [Nonempty X]
     (by positivity : (0 : ℝ) ≤ 2 ^ (-PMF.minEntropy q))
     (PMF.toReal_apply_le_rpow_neg_minEntropy p) (PMF.toReal_apply_le_rpow_neg_minEntropy q)
     (by positivity) (by positivity)
-  rw [← Real.rpow_add (by norm_num : (0 : ℝ) < 2), ← sub_eq_add_neg]
+  rw [← Real.rpow_add two_pos, ← sub_eq_add_neg]
   have h := rpow_minEntropy_mul_discrepancy_le p q g hcard hdisc
     (s := (γ + lam) * b + 1) (by nlinarith [hentropy])
   calc
     _ ≤ 2 * 2 ^ (-((γ + lam) * b + 1)) := mul_le_mul_of_nonneg_left h (by norm_num)
     _ = 2 ^ (-lam * b) * 2 ^ (-γ * b) := by
-      rw [← Real.rpow_add (by norm_num : (0 : ℝ) < 2),
-        show -lam * b + -γ * b = 1 + -((γ + lam) * b + 1) by ring,
-        Real.rpow_add (by norm_num : (0 : ℝ) < 2), Real.rpow_one]
+      have hexp : -lam * b + -γ * b = 1 + -((γ + lam) * b + 1) := by ring
+      rw [← Real.rpow_add two_pos, hexp, Real.rpow_add two_pos, Real.rpow_one]
 
 end Cslib.Communication

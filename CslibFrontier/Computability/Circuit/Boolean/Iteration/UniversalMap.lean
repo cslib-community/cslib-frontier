@@ -153,9 +153,7 @@ private theorem prodMap_iterate_append {m k : ℕ} (U : BitString m → BitStrin
   induction T generalizing x y with
   | zero => rfl
   | succ T ih =>
-    have h : prodMap U P (Fin.append x y) = Fin.append (U x) (P y) := by simp [prodMap]
-    rw [Function.iterate_succ_apply, h, ih]
-    simp only [Function.iterate_succ_apply]
+    simp only [Function.iterate_succ_apply, prodMap, Fin.append_left, Fin.append_right, ih]
 
 /-- Each power of a product map is at least as hard as the same power of its second factor: fix the
 first factor's input and read the second factor's outputs. -/
@@ -196,9 +194,7 @@ theorem prodMap_power_circuit_left {m k : ℕ} (U : BitString m → BitString m)
 
 /-- The permutation `x ↦ g • x` of a group action has inverse `x ↦ g⁻¹ • x`. -/
 theorem smul_perm_symm {G α : Type*} [Group G] [MulAction G α] (g : G) :
-    ⇑(MulAction.toPerm g : Equiv.Perm α).symm = fun x => g⁻¹ • x := by
-  funext x
-  rfl
+    ⇑(MulAction.toPerm g : Equiv.Perm α).symm = fun x => g⁻¹ • x := rfl
 
 /-- If a circuit evaluates a group action on encodings of elements and points, every integer power
 of the action of a fixed element, including the inverse permutation, has a circuit with at most two
@@ -338,14 +334,10 @@ theorem lines_wire_lt {g : ℕ} (p : Program σ n g) (j : Fin g) :
     induction j using Fin.lastCases with
     | last =>
       rw [Program.lines_gate_last]
-      intro a b h
-      obtain ⟨b', -, rfl⟩ := castSucc_eq_gate h
-      exact b'.isLt
+      exact fun _ _ h => (castSucc_eq_gate h).elim fun b' ⟨_, hb⟩ => hb ▸ b'.isLt
     | cast j =>
       rw [Program.lines_gate_castSucc]
-      intro a b h
-      obtain ⟨b', hw, rfl⟩ := castSucc_eq_gate h
-      exact ih j a b' hw
+      exact fun a _ h => (castSucc_eq_gate h).elim fun b' ⟨hw, hb⟩ => hb ▸ ih j a b' hw
 
 /-- Reading a wire by its index, from work registers that hold the gate values. -/
 private theorem read_wireIndex {g : ℕ} (x : Fin n → V) (w : Fin G → V) (e : Fin g → V)
@@ -354,11 +346,7 @@ private theorem read_wireIndex {g : ℕ} (x : Fin n → V) (w : Fin G → V) (e 
     read x w (wireIndex wire) = Wire.elim x e wire := by
   cases wire with
   | input i => simp [read, wireIndex, Wire.elim]
-  | gate b =>
-    have hb := hlt b rfl
-    have hr : read x w (n + b.val) = w ⟨b, hb⟩ := by
-      simp [read, hb]
-    simpa [wireIndex, Wire.elim] using hr.trans (hw b hb rfl)
+  | gate b => simpa [wireIndex, Wire.elim, read, hlt b rfl] using hw b (hlt b rfl) rfl
 
 /-- After `k ≤ G` steps from the start state, the first `k` work registers hold the values of the
 corresponding gates. -/

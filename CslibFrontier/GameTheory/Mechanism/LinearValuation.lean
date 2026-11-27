@@ -111,15 +111,13 @@ theorem isDSIC_toSingleParameter_iff [DecidableEq ι] {M : Mechanism ι Ω} {x :
     (M.toSingleParameter x).IsDSIC ↔ M.IsDSICOn (linearDomain x) := by
   constructor
   · rintro h i B _ hB ⟨w, hw, rfl⟩
-    simp only [linearDomain, Set.mem_image, Set.mem_Ici] at hB
-    choose c hc hcB using hB
+    choose c hc hcB using fun j => (Set.mem_image _ _ _).mp (hB j)
     obtain rfl : linearProfile x c = B := funext hcB
-    have := h i c w hc hw
-    rwa [utility_toSingleParameter, utility_toSingleParameter, linearProfile_update] at this
+    simpa only [utility_toSingleParameter, linearProfile_update] using h i c w hc hw
   · intro h i b v hb hv
-    rw [utility_toSingleParameter, utility_toSingleParameter, linearProfile_update]
-    exact h i _ _ (fun j => linearValuation_mem_linearDomain x j (hb j))
-      (linearValuation_mem_linearDomain x i hv)
+    simpa only [utility_toSingleParameter, linearProfile_update] using
+      h i (linearProfile x b) _ (fun j => linearValuation_mem_linearDomain x j (hb j))
+        (linearValuation_mem_linearDomain x i hv)
 
 /-- A DSIC general mechanism, run on linear valuations, is DSIC as a single-parameter
 mechanism. -/
@@ -150,9 +148,7 @@ agent `j`'s scalar bid is its reported value `B j (Pi.single j 1)` of a unit all
 theorem toSingleParameter_toMechanism (M : Mechanism ι) :
     M.toMechanism.toSingleParameter id = M := by
   cases M
-  simp only [GameTheory.Mechanism.toSingleParameter, toMechanism,
-    GameTheory.Mechanism.linearProfile_apply, GameTheory.Mechanism.linearValuation_apply, id_eq,
-    Pi.single_eq_same, mul_one]
+  simp [GameTheory.Mechanism.toSingleParameter, toMechanism]
 
 /-- A single-parameter mechanism is DSIC exactly when its general form is DSIC on linear
 valuations of allocation vectors. -/

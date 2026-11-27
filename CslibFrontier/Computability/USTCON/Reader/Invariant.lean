@@ -156,10 +156,9 @@ private theorem inv_hdrT {i : ℕ} (hi : i ≤ I.t) :
   · simp only [step, init, lt_irrefl, decide_false, Bool.false_eq_true, ite_false]
     refine ⟨⟨le_rfl, le_rfl, by bound_tac, by bound_tac, ?_, ?_, by bound_tac, by bound_tac,
       by bound_tac, by bound_tac, by bound_tac, by bound_tac, by bound_tac⟩, rfl, ?_, ?_⟩
-    · simp only [depthOf, depth]; omega
-    · simp only [lenOf, walkLength, depth]; omega
-    · simp only [depthOf, depth]; ring
-    · simp only [lenOf, walkLength, depth]; ring
+    all_goals
+      simp only [depthOf, lenOf, walkLength, depth]
+      omega
 
 private theorem inv_size {m d l : ℕ} (hm : m ≤ I.n) (hd : d + 16 * Nat.size m = depthOf I)
     (hl : l + 4168 * Nat.size m = lenOf I) :
@@ -193,14 +192,13 @@ private theorem inv_fill {q : State} (hb : Bounds I q) (hc : q.ctl = .fill) (hp 
     (hv : q.ev.vertex = ((I.s : ℕ), (I.s : ℕ))) (hlow : q.ev.lower.length ≤ depthOf I)
     (hfr : q.ev.frames = []) (hw : q.w = q.c) (hj : q.j = lenOf I) :
     Inv I (step q (machine.readBit I.encode q)).1 := by
-  have hp' := hp
-  obtain ⟨hn, hs, ht, hd, hl⟩ := hp
+  have ⟨_, _, _, hd, _⟩ := hp
   rw [readBit_of_addr_none (by simp [addr, hc])]
   by_cases hlen : q.ev.lower.length = q.depth
   · simp only [step, hc, hlen, ite_true]
-    exact ⟨{ hb with cnt := hb.cnt }, hp', by rw [hlen, hd], hfr, by simp [hw, hj]⟩
+    exact ⟨{ hb with cnt := hb.cnt }, hp, by rw [hlen, hd], hfr, by simp [hw, hj]⟩
   · simp only [step, hc, hlen, ite_false]
-    refine ⟨{ hb with lower := ?_ }, hp', hv, ?_, hfr, hw, hj⟩ <;>
+    refine ⟨{ hb with lower := ?_ }, hp, hv, ?_, hfr, hw, hj⟩ <;>
       simp only [List.length_cons] <;> omega
 
 private theorem inv_next {q : State} (hb : Bounds I q) (hc : q.ctl = .next) (hp : WalkParams I q)
@@ -216,8 +214,7 @@ private theorem inv_next {q : State} (hb : Bounds I q) (hc : q.ctl = .next) (hp 
     refine ⟨{ hb with
         w := (Nat.div_le_self _ _).trans hb.w, j := (by dsimp only; omega), frames := (by simp) },
       hp, by simp [hlow], by dsimp only; omega, ?_⟩
-    simp only [hw]
-    exact div_pow_sub_succ hj hjT
+    simpa only [hw] using div_pow_sub_succ hj hjT
 
 private theorem inv_eval {q : State} (hb : Bounds I q) (hc : q.ctl = .eval) (hp : WalkParams I q)
     (hlen : q.ev.lower.length + q.ev.frames.length = depthOf I + 1) (hj : q.j < lenOf I)
@@ -242,18 +239,16 @@ private theorem inv_check {q : State} (hb : Bounds I q) (hc : q.ctl = .check) (h
     (hw : q.w = q.c / numLabels ^ lenOf I) :
     Inv I (step q (machine.readBit I.encode q)).1 := by
   rw [readBit_of_addr_none (by simp [addr, hc])]
-  by_cases hw₀ : q.w ≠ 0
+  rcases eq_or_ne q.w 0 with hw₀ | hw₀
+  · by_cases hvt : q.ev.vertex.1 = q.t
+    · simp only [step, hc, hw₀, hvt, ne_eq, not_true_eq_false, ite_false, ite_true]
+      exact ⟨{ hb with w := Nat.zero_le _ }, trivial⟩
+    · simp only [step, hc, hw₀, hvt, ne_eq, not_true_eq_false, ite_false]
+      have hlt := ((Nat.div_eq_zero_iff).mp (hw.symm.trans hw₀)).resolve_left
+        (pow_pos numLabels_pos _).ne'
+      exact ⟨{ hb with c := hlt, w := Nat.zero_le _ }, hp⟩
   · simp only [step, hc, hw₀, ne_eq, not_false_eq_true, ite_true]
     exact ⟨{ hb with cnt := hb.cnt }, trivial⟩
-  · have hw₀' : q.w = 0 := by simpa using hw₀
-    by_cases hvt : q.ev.vertex.1 = q.t
-    · simp only [step, hc, hw₀', hvt, ne_eq, not_true_eq_false, ite_false, ite_true]
-      exact ⟨{ hb with w := Nat.zero_le _ }, trivial⟩
-    · simp only [step, hc, hw₀', hvt, ne_eq, not_true_eq_false, ite_false]
-      have hlt : q.c < numLabels ^ lenOf I := by
-        rw [hw₀', eq_comm, Nat.div_eq_zero_iff] at hw
-        exact hw.resolve_left (pow_pos numLabels_pos _).ne'
-      exact ⟨{ hb with c := hlt, w := Nat.zero_le _ }, hp⟩
 
 /-- **The invariant is kept by a step.** -/
 private theorem inv_step {q : State} (h : Inv I q) (hd : q.ctl ≠ .done) :
@@ -313,14 +308,10 @@ private theorem size_le_of_le_pow {x T : ℕ} (h : x ≤ numLabels ^ T) : Nat.si
     _ < 2 ^ (65 * T + 1) := Nat.pow_lt_pow_right (by norm_num) (by omega)
 
 /-- There are ten control states. -/
-private theorem card_ctl : Nat.card Ctl = 10 := by
-  rw [Nat.card_eq_fintype_card]
-  rfl
+private theorem card_ctl : Nat.card Ctl = 10 := Nat.card_eq_fintype_card
 
 /-- There are seven program counters. -/
-private theorem card_pc : Nat.card ReingoldPc = 7 := by
-  rw [Nat.card_eq_fintype_card]
-  rfl
+private theorem card_pc : Nat.card ReingoldPc = 7 := Nat.card_eq_fintype_card
 
 /-- There are `257 ^ 8` labels. -/
 private theorem natCard_label : Nat.card Label = 257 ^ 8 := by
@@ -343,30 +334,21 @@ private theorem length_encState_le_of_bounds {q : State} (hb : Bounds I q) :
   have hT : lenOf I = 4168 * a + 136240 := by simp only [lenOf, walkLength, depth]; ring
   have hle {x : ℕ} (hx : x ≤ I.n) : (encNat x).length ≤ a :=
     length_encNat_eq_size x ▸ Nat.size_le_size hx
-  have h₁ := hle hb.cnt
-  have h₂ := hle hb.n
-  have h₃ := hle hb.s
-  have h₄ := hle hb.t
-  have h₅ := hle hb.v₁.le
-  have h₆ := hle hb.v₂.le
-  have h₇ : (encNat q.depth).length ≤ 16 * a + 524 :=
-    (length_encNat_le_self _).trans (hD ▸ hb.depth)
-  have h₈ : (encNat q.len).length ≤ 4168 * a + 136240 :=
-    (length_encNat_le_self _).trans (hT ▸ hb.len)
-  have h₉ : (encNat q.j).length ≤ 4168 * a + 136240 :=
-    (length_encNat_le_self _).trans (hT ▸ hb.j)
+  have h_fields : _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ :=
+    ⟨hle hb.cnt, hle hb.n, hle hb.s, hle hb.t, hle hb.v₁.le, hle hb.v₂.le⟩
+  have h_dlj : _ ∧ _ ∧ _ := ⟨(length_encNat_le_self _).trans (hD ▸ hb.depth),
+    (length_encNat_le_self _).trans (hT ▸ hb.len), (length_encNat_le_self _).trans (hT ▸ hb.j)⟩
   have h₁₀ : (encNat q.c).length ≤ 65 * (4168 * a + 136240) + 1 := by
     rw [length_encNat_eq_size, ← hT]; exact size_le_of_le_pow hb.c
   have h₁₁ : (encNat q.w).length ≤ 65 * (4168 * a + 136240) + 1 := by
     rw [length_encNat_eq_size, ← hT]; exact size_le_of_le_pow hb.w
   have h₁₂ : (encCtl q.ctl).length ≤ 10 := card_ctl ▸ (length_encFinEnum_lt _).le
-  have h₁₃ : (encList encLab q.ev.lower).length ≤ (16 * a + 525) * (2 * Nat.card Label + 1) :=
-    (length_encList_finEnum_le _).trans (Nat.mul_le_mul_right _ (by have := hb.lower; omega))
-  have h₁₄ : (encList encFrame q.ev.frames).length ≤
-      (16 * a + 525) * (2 * Nat.card (ReingoldPc × Label) + 1) :=
-    (length_encList_finEnum_le _).trans (Nat.mul_le_mul_right _ (by have := hb.frames; omega))
-  rw [natCard_label] at h₁₃
-  rw [card_frame] at h₁₄
+  have h₁₃ : (encList encLab q.ev.lower).length ≤ (16 * a + 525) * (2 * 257 ^ 8 + 1) :=
+    (length_encList_finEnum_le _).trans
+      (Nat.mul_le_mul (by have := hb.lower; omega) (congrArg (2 * · + 1) natCard_label).le)
+  have h₁₄ : (encList encFrame q.ev.frames).length ≤ (16 * a + 525) * (2 * (7 * 257 ^ 8) + 1) :=
+    (length_encList_finEnum_le _).trans
+      (Nat.mul_le_mul (by have := hb.frames; omega) (congrArg (2 * · + 1) card_frame).le)
   refine (length_encState_le q).trans ?_
   rw [stateConst, mul_assoc]
   exact Nat.mul_le_mul_left _ (by omega)

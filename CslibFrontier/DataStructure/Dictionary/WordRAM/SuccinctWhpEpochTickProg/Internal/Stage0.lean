@@ -178,7 +178,7 @@ theorem realizes_epochTickStage0Gen :
     obtain ⟨c, U, V, _, n_max, θ, fs, dict, henv, rfl, hrep, hcore, hs0⟩ := h
     cases henv.2.2.1
     have hth := henv.2.2.2.1
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hold_or : fs.oldEp = 0 ∨ fs.oldEp = 1 := by
       rcases hcore.curEp_or with h01 | h01 <;> simp [FastState.oldEp, h01]
     have hbo := hcore.bufOld_valid
@@ -204,11 +204,8 @@ theorem realizes_epochTickStage0Gen :
     | (rw [wp_large_M hth]
        cases hchk : bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor with
        | none =>
-         have hhit : ((Memory.spec 0).clientResult s
-           (bufCheckSlotGenProg (((mkWhpCoreParams c U V w n_max, base), fs.oldEp),
-             fs.stageCursor))).1 = 1 := by assumption
          rw [hchk] at hcs_res
-         simp [hcs_res] at hhit
+         simp only [hcs_res, zero_ne_one] at *
        | some p =>
          obtain ⟨_, k, _, _, hmk⟩ := hv_o.checkSlot_some hchk
          rw [hchk] at hcs_res
@@ -256,7 +253,6 @@ theorem epochTickStage0GenProg_fastStep {c U V w n_max base : ℕ}
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ (epochTickStage0 fs) s s' := by
   have hth := henv.2.2.2.1
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
   set cp := mkWhpCoreParams c U V w n_max
   have hold_or : fs.oldEp = 0 ∨ fs.oldEp = 1 := by
     rcases hc.curEp_or with h | h <;> simp [FastState.oldEp, h]
@@ -294,8 +290,7 @@ theorem epochTickStage0GenProg_fastStep {c U V w n_max base : ℕ}
       refine stageSlotCheckSeq_fastStep (kSlot := kSlot) (midCost := 10) (tailCost := 3)
         hr hlt rfl hcs_st hcs_res hcs_mc hcs_vp ?_ hcf_mc hcf_vp hcf_step
         htail.1 htail.2.1 htail.2.2 (by omega)
-      dsimp only [kSlot, slotCheckBucket, cp, oldTr]
-      simp
+      simp [kSlot, slotCheckBucket, cp, oldTr]
     | none =>
       rw [hchk] at hcs_res; dsimp only at hcs_res ⊢
       have htail := stage0Tail_fastStep (fs := fs) (fsMid := fs) henv hcur1_fit hseed hrep (s := s)
@@ -303,8 +298,7 @@ theorem epochTickStage0GenProg_fastStep {c U V w n_max base : ℕ}
         (midCost := 0) (tailCost := 3) hr hlt rfl hcs_st hcs_res hcs_mc hcs_vp ?_
         (by simp) (validProg_pure ()) (FastStateStep.refl hseed hrep)
         htail.1 htail.2.1 htail.2.2 (by omega)
-      dsimp only [kSlot, cp, oldTr]
-      simp [zero_ne_one, pure_bind]
+      simp [kSlot, cp, oldTr, zero_ne_one]
   · rw [ite_eq_right hlt]
     obtain ⟨ht1_mc, ht1_vp, ht1_step⟩ :=
       tickToStage1Prog_fastStep (fs := fs) henv hseed hrep (s := s)

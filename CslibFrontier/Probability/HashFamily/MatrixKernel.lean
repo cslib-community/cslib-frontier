@@ -53,14 +53,13 @@ theorem expect_card_ker_mulVecLin :
     congr 1
     exact Fintype.card_of_subtype _ (fun x => by simp [LinearMap.mem_ker])
   simp_rw [kerCount]
-  rw [expect_sum_comm, ← sum_erase_add _ _ (mem_univ (0 : ι → F))]
-  rw [sum_congr rfl (fun x hx => atom x (mem_erase.mp hx).1)]
+  rw [expect_sum_comm, ← sum_erase_add _ _ (mem_univ (0 : ι → F)),
+    sum_congr rfl fun x hx => atom x (mem_erase.mp hx).1]
   simp only [Matrix.mulVec_zero, ↓reduceIte, Fintype.expect_const, sum_const, nsmul_eq_mul,
     card_erase_of_mem (mem_univ _), card_univ, Nat.cast_sub (Fintype.card_pos : 0 < Fintype.card
       (ι → F)), Nat.cast_one]
   change (N - 1) * N⁻¹ + 1 = 2 - N⁻¹
-  field_simp
-  ring
+  field_simp; ring
 
 /-- Over a field of size `q`, the expected square root of the kernel cardinality of a
 uniform square matrix is at most `1 + 1/(√q + 1)`. Singular matrices are included. -/
@@ -81,9 +80,8 @@ theorem expect_sqrt_card_ker_mulVecLin_le :
     | zero => rw [hk, hd]; simp
     | succ n =>
       have hq : (Fintype.card F : ℝ) ≤ (Nat.card K : ℝ) := by
-        exact_mod_cast (show Fintype.card F ≤ Nat.card K by
-          rw [hk, hd, pow_succ]
-          exact Nat.le_mul_of_pos_left _ (pow_pos Fintype.card_pos _))
+        rw [Nat.cast_le, hk, hd, pow_succ]
+        exact Nat.le_mul_of_pos_left _ (pow_pos Fintype.card_pos n)
       have hs := Real.sqrt_le_sqrt hq
       have hone : (1 : ℝ) ≤ Real.sqrt (Nat.card K) :=
         Real.one_le_sqrt.mpr ((by exact_mod_cast Fintype.card_pos :
@@ -97,12 +95,9 @@ theorem expect_sqrt_card_ker_mulVecLin_le :
         _ = (Nat.card K : ℝ) - 1 := by rw [Real.sq_sqrt (Nat.cast_nonneg _)]
   refine (expect_le_expect fun A _ => point A).trans ?_
   rw [expect_add_distrib, Fintype.expect_const, ← expect_div, expect_sub_distrib,
-    Fintype.expect_const, expect_card_ker_mulVecLin]
-  change 1 + (2 - (Fintype.card (ι → F) : ℝ)⁻¹ - 1) / b ≤ 1 + b⁻¹
-  rw [← one_div b]
+    Fintype.expect_const, expect_card_ker_mulVecLin, ← one_div b]
   gcongr
-  have := inv_nonneg.mpr (Nat.cast_nonneg (Fintype.card (ι → F)) : (0 : ℝ) ≤ _)
-  linarith
+  linarith [inv_nonneg.mpr (Nat.cast_nonneg (Fintype.card (ι → F)) : (0 : ℝ) ≤ _)]
 
 /-- For independent uniform square matrices, count all tuples killed by their respective
 matrices. The square-root moment of that joint kernel is at most the product of the individual

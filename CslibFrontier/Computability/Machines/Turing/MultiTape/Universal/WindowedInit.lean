@@ -109,13 +109,10 @@ private lemma toUnary_inO : ComputableInO (fun t : ℕ => t) encNat encUnary
   refine ((foldl (encA := encBool) (encL := encBits) (list := fun t : ℕ => (encNat t).reverse)
     (init := fun _ => 0) (step := dbl) hrev (const 0) dbl_deg.inO_one
     (R := fun t => 2 * t + 2) (Q := fun t => 2 * t + 2) (B := fun t => t)
-    (fun t i _ => ?_) (fun t i _ => ?_) (fun t i _ => ?_)).mono 8 (fun t => ?_)
-      fun t => ?_).of_enc_eq fun t => ?_
-  · have := foldl_dbl_take_le t i
-    simp only [length_encPair, encUnary_apply, encBool_apply, List.length_replicate,
-      List.length_singleton]
-    omega
-  · have := foldl_dbl_take_le t i
+    ?hRQ ?hRQ (fun t i _ => ?_)).mono 8 (fun t => ?_) fun t => ?_).of_enc_eq fun t =>
+      congrArg encUnary (foldl_dbl_bits t).symm
+  · intro t i _
+    have := foldl_dbl_take_le t i
     simp only [length_encPair, encUnary_apply, encBool_apply, List.length_replicate,
       List.length_singleton]
     omega
@@ -128,7 +125,6 @@ private lemma toUnary_inO : ComputableInO (fun t : ℕ => t) encNat encUnary
   · have := length_encNat_le_self t
     simp only [encBits_apply, List.length_reverse]
     nlinarith
-  · rw [foldl_dbl_bits]
 
 /-! ### Recoding the input symbols -/
 
@@ -174,8 +170,7 @@ private lemma ins_four (x : List ℕ) : ins (ins (ins (ins (encList encUnary x))
     have hsym : eSym (some (a + 1)) = List.replicate (a + 1 + 1) true := rfl
     rw [encList_cons, List.map_cons, encList_cons, ins_append, ins_append, ins_append, ins_append,
       ih, hsym, encUnary_apply, frame_replicate_true, frame_replicate_true, ins_replicate,
-      ins_replicate, ins_replicate, ins_replicate, show 2 * (a + 1 + 1) = 2 * a + 1 + 1 + 1 + 1 by
-        omega]
+      ins_replicate, ins_replicate, ins_replicate, Nat.mul_succ, Nat.mul_succ]
 
 private lemma length_encList_recode (x : List ℕ) :
     (encList eSym (x.map fun a => some (a + 1))).length =

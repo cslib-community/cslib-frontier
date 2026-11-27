@@ -54,9 +54,7 @@ private def orientSpoke (p : Route) (b : Bool) : Route := if b then p.reverse el
 private theorem orientSpoke_ends (p : Route) (b : Bool) :
     (orientSpoke p b).endpoint b = p.start ∧
       (orientSpoke p b).endpoint (!b) = p.finish := by
-  cases b
-  · exact ⟨rfl, rfl⟩
-  · exact ⟨p.endpoint_reverse true, p.endpoint_reverse false⟩
+  cases b <;> first | exact ⟨rfl, rfl⟩ | exact ⟨p.endpoint_reverse true, p.endpoint_reverse false⟩
 
 private theorem atEnd_of_eval_eq {p : Route} (hp : p.IsSimple) (hne : p.start ≠ p.finish)
     (k : Fin p.segments) {t : ℝ} (ht : t ∈ Set.Icc 0 1) (b : Bool)
@@ -98,22 +96,20 @@ theorem exists_subdivision_embedding_with_reference_spokes {I : FixedRotationInp
           (T d).IsSimple ∧ (T d).support \ Metric.ball (D.vertex v) ρ = {D.cutPort ρ d.val}) ∧
         Pairwise (fun d e => (T d).support ∩ (T e).support = {D.vertex v}) := by
     cases hw : I.orders.getD v none with
-    | none => exact absurd (show (I.orders.getD v none).isSome = true from hv) (by rw [hw]; simp)
+    | none => exact (Option.not_isSome_iff_eq_none.mpr hw hv).elim
     | some word => exact exists_reference_spokes_at_cutPorts hI hD hReal hfixed hρ.1 hw
   choose T hT hTpair using hf
   let spoke (d : Dart I.graph) (hd : fixed d.vertex) := T d.vertex hd ⟨d, rfl⟩
   have hspoke (d : Dart I.graph) (hd : fixed d.vertex) := hT d.vertex hd ⟨d, rfl⟩
-  have horig (d : Dart I.graph) : d.vertex ∈ I.graph.vertices := by
-    apply I.graph.edgeEndpoint_mem (fun edge he => ?_) d.1.isLt d.2
-    have hb := hI.edge_endpoints_lt he
-    rw [hI.1]
-    exact ⟨List.mem_range.mpr hb.1, List.mem_range.mpr hb.2⟩
+  have horig (d : Dart I.graph) : d.vertex ∈ I.graph.vertices :=
+    I.graph.edgeEndpoint_mem (fun _ he => by
+      rw [hI.1]
+      simpa only [List.mem_range] using hI.edge_endpoints_lt he) d.1.isLt d.2
   let changed (e : SubEdge I) : Prop :=
     (subdivisionEdgeIndex I e).piece ≠ 1 ∧ fixed (endDart I e).vertex
   have hchange (d : Dart I.graph) : changed (subdivisionDart I d).1 ↔ fixed d.vertex := by
-    simp only [changed, endDart_subdivisionDart, subdivisionEdgeIndex_subdivisionDart]
-    rcases d with ⟨e, b⟩
-    cases b <;> simp
+    rcases d with ⟨e, _ | _⟩ <;>
+      simp [changed, endDart_subdivisionDart, subdivisionEdgeIndex_subdivisionDart]
   let route (e : SubEdge I) := if he : changed e then
     orientSpoke (spoke (endDart I e) he.2) (endDart I e).2 else E.route e
   have hkeep (e : SubEdge I) (he : ¬ changed e) : route e = E.route e := dite_eq_right he
@@ -121,9 +117,8 @@ theorem exists_subdivision_embedding_with_reference_spokes {I : FixedRotationInp
       route (subdivisionDart I d).1 = orientSpoke (spoke d hd) d.2 := by
     simp only [route, dite_eq_left ((hchange d).mpr hd)]
     have hcongr : ∀ d' (hd' : fixed d'.vertex), d' = d →
-        orientSpoke (spoke d' hd') d'.2 = orientSpoke (spoke d hd) d.2 := by
-      rintro _ _ rfl
-      rfl
+        orientSpoke (spoke d' hd') d'.2 = orientSpoke (spoke d hd) d.2
+      | _, _, rfl => rfl
     exact hcongr _ _ (endDart_subdivisionDart I d)
   have hends (d : Dart I.graph) (hd : fixed d.vertex) (b : Bool) :
       (route (subdivisionDart I d).1).endpoint b =
@@ -132,21 +127,17 @@ theorem exists_subdivision_embedding_with_reference_spokes {I : FixedRotationInp
     obtain ⟨hs, ht, _, _, _⟩ := hspoke d hd
     by_cases hb : b = d.2
     · rw [hb, (orientSpoke_ends (spoke d hd) d.2).1, hs]
-      change D.vertex d.vertex = E.vertex (subdivisionDart I d).vertex
-      rw [(subdivisionDart_endpoints I d).1, hcenter _ (horig d)]
+      exact (hcenter _ (horig d)).symm.trans
+        (congrArg E.vertex (subdivisionDart_endpoints I d).1.symm)
     · rw [Bool.eq_not.mpr hb, (orientSpoke_ends (spoke d hd) d.2).2, ht]
-      change D.cutPort ρ d = E.vertex (subdivisionDart I d).reverse.vertex
       exact (hport d).symm
   let F : PolygonalDrawing (subdivisionGraph I) := {
     vertex := E.vertex
     route := route
-    endpoint_eq := by
-      intro e b
+    endpoint_eq := fun e b => by
       by_cases he : changed e
-      · have h := hends (endDart I e) he.2 b
-        simpa only [subdivisionDart_endDart I e he.1] using h
-      · rw [hkeep e he, E.endpoint_eq]
-  }
+      · simpa only [subdivisionDart_endDart I e he.1] using hends (endDart I e) he.2 b
+      · rw [hkeep e he, E.endpoint_eq] }
   have hdecl (e : SubEdge I) (b : Bool) :
       Dart.vertex (e, b) ∈ (subdivisionGraph I).vertices :=
     ((referenceOrder_enumerates hI).2 _).mp ((subdivision_endpoint_spec hI e).1 b)
@@ -156,11 +147,10 @@ theorem exists_subdivision_embedding_with_reference_spokes {I : FixedRotationInp
     · exact Or.inl (hI.1.symm ▸ List.mem_range.mpr hsmall)
     · have hbound : v < I.graph.vertices.length + 2 * I.graph.edges.length := by
         simpa only [subdivisionGraph, subdivisionSize, List.mem_range] using hv
-      let j : Fin (2 * I.graph.edges.length) := ⟨v - I.graph.vertices.length, by omega⟩
-      let d := (Dart.indexEquiv I.graph).symm j
-      have hi : d.index = j.val :=
-        congrArg Fin.val ((Dart.indexEquiv I.graph).apply_symm_apply j)
-      exact Or.inr ⟨d, by rw [(subdivisionDart_endpoints I d).2, hi]; dsimp [j]; omega⟩
+      let d := (Dart.indexEquiv I.graph).symm ⟨v - I.graph.vertices.length, by omega⟩
+      have hi : d.index = v - I.graph.vertices.length :=
+        congrArg Fin.val ((Dart.indexEquiv I.graph).apply_symm_apply ⟨_, by omega⟩)
+      exact Or.inr ⟨d, by rw [(subdivisionDart_endpoints I d).2, hi]; omega⟩
   have hcf (d : Dart I.graph) : ‖D.cutPort ρ d - D.vertex d.vertex‖ = ρ := by
     simpa only [dist_eq_norm] using hD.dist_cutPort hρ.1.le d
   have hsupp (d : Dart I.graph) (hd : fixed d.vertex) :
@@ -176,27 +166,22 @@ theorem exists_subdivision_embedding_with_reference_spokes {I : FixedRotationInp
       x = D.cutPort ρ d := by
     obtain ⟨_, _, _, _, hb⟩ := hspoke d hd
     exact Set.mem_singleton_iff.mp (hb ▸ (show x ∈ _ \ _ from ⟨hx, ho⟩))
-  have hportClosed (d : Dart I.graph) :
-      D.cutPort ρ d ∈ Metric.closedBall (D.vertex d.vertex) ρ := by
-    rw [Metric.mem_closedBall, dist_eq_norm, hcf]
+  have hportClosed (d : Dart I.graph) : D.cutPort ρ d ∈ Metric.closedBall (D.vertex d.vertex) ρ :=
+    Metric.mem_closedBall.mpr ((dist_eq_norm _ _).trans (hcf d)).le
   have hportOutside (d : Dart I.graph) :
       D.cutPort ρ d ∉ Metric.ball (D.vertex d.vertex) ρ := by
     simp [Metric.mem_ball, dist_eq_norm, hcf]
   have hclosed (d : Dart I.graph) (hd : fixed d.vertex) :
-      (spoke d hd).support ⊆ Metric.closedBall (D.vertex d.vertex) ρ := by
-    intro x hx
-    by_cases he : x ∈ Metric.ball (D.vertex d.vertex) ρ
-    · exact Metric.ball_subset_closedBall he
-    · exact hbound d hd hx he ▸ hportClosed d
+      (spoke d hd).support ⊆ Metric.closedBall (D.vertex d.vertex) ρ := fun x hx =>
+    if he : x ∈ Metric.ball (D.vertex d.vertex) ρ then Metric.ball_subset_closedBall he
+    else hbound d hd hx he ▸ hportClosed d
   have hsimple (e : SubEdge I) : (F.route e).IsSimple := by
     change (route e).IsSimple
     by_cases he : changed e
-    · simp only [route, dite_eq_left he, orientSpoke]
-      obtain ⟨_, _, _, hs, _⟩ := hspoke (endDart I e) he.2
-      split
-      exacts [hs.reverse, hs]
-    · rw [hkeep e he]
-      exact hE.simple e
+    · obtain ⟨_, _, _, hs, _⟩ := hspoke (endDart I e) he.2
+      simp only [route, dite_eq_left he, orientSpoke]
+      split <;> first | exact hs.reverse | exact hs
+    · exact (hkeep e he).symm ▸ hE.simple e
   have hvertex_end (e : SubEdge I) {v : ℕ} (hv : v ∈ (subdivisionGraph I).vertices)
       (hx : E.vertex v ∈ (F.route e).support) : ∃ b, Dart.vertex (e, b) = v := by
     by_cases he : changed e
@@ -205,57 +190,41 @@ theorem exists_subdivision_embedding_with_reference_spokes {I : FixedRotationInp
       have hxball := hclosed d he.2 hx
       rw [← subdivisionDart_endDart I e he.1]
       rcases hnames v hv with hvOld | ⟨a, ha⟩
-      · have hsame : d.vertex = v := by
-          by_contra hne
-          have hxv : E.vertex v ∈ Metric.closedBall (D.vertex v) ρ := by
-            rw [hcenter v hvOld]
-            exact Metric.mem_closedBall_self hρ.1.le
-          exact Set.disjoint_left.mp (hdisj _ (horig d) _ hvOld hne) hxball hxv
+      · have hsame : d.vertex = v := by_contra fun hne =>
+          Set.disjoint_left.mp (hdisj _ (horig d) _ hvOld hne) hxball
+            (hcenter v hvOld ▸ Metric.mem_closedBall_self hρ.1.le)
         exact ⟨d.2, (subdivisionDart_endpoints I d).1.trans hsame⟩
       · rw [ha, hport a] at hx hxball
-        have hsame : a.vertex = d.vertex := by
-          by_contra hne
-          exact Set.disjoint_left.mp (hdisj _ (horig a) _ (horig d) hne) (hportClosed a) hxball
-        have hoa : D.cutPort ρ a ∉ Metric.ball (D.vertex d.vertex) ρ := by
-          simpa only [hsame] using hportOutside a
-        have had := hD.cutPort_injective hρ.1 a d hsame (hbound d he.2 hx hoa)
+        have hsame : a.vertex = d.vertex := by_contra fun hne =>
+          Set.disjoint_left.mp (hdisj _ (horig a) _ (horig d) hne) (hportClosed a) hxball
+        have had := hD.cutPort_injective hρ.1 a d hsame
+          (hbound d he.2 hx (hsame ▸ hportOutside a))
         refine ⟨!d.2, ?_⟩
-        change (subdivisionDart I d).reverse.vertex = v
-        simpa only [had] using ha.symm
-    · change E.vertex v ∈ (route e).support at hx
-      rw [hkeep e he] at hx
-      obtain ⟨k, t, ht, hval⟩ := ((E.route e).mem_support_iff _).mp hx
-      obtain ⟨b, _, hb⟩ := hE.vertex_contacts e k t ht v hv hval
-      exact ⟨b, hb⟩
+        exact (congrArg (fun x => (subdivisionDart I x).reverse.vertex) had.symm).trans ha.symm
+    · obtain ⟨k, t, ht, hval⟩ := ((E.route e).mem_support_iff _).mp (by rwa [← hkeep e he])
+      exact (hE.vertex_contacts e k t ht v hv hval).imp fun _ => And.right
   have hvertex : ∀ e (k : Fin (F.route e).segments) (t : ℝ), t ∈ Set.Icc 0 1 →
       ∀ v ∈ (subdivisionGraph I).vertices, (F.route e).eval k t = F.vertex v →
       ∃ b, (F.route e).AtEnd k t b ∧ Dart.vertex (e, b) = v := by
     intro e k t ht v hv heq
-    have hmem := (F.route e).at_mem_support k ht
-    rw [heq] at hmem
-    obtain ⟨b, hb⟩ := hvertex_end e hv hmem
+    obtain ⟨b, hb⟩ := hvertex_end e hv (heq ▸ (F.route e).at_mem_support k ht)
     have hopen : (F.route e).start ≠ (F.route e).finish := by
       change (F.route e).endpoint false ≠ (F.route e).endpoint true
       rw [F.endpoint_eq, F.endpoint_eq]
       exact hE.vertex_ne (hdecl e false) (hdecl e true) (subdivision_endpoint_spec hI e).2
-    refine ⟨b, atEnd_of_eval_eq (hsimple e) hopen k ht b ?_, hb⟩
-    rw [F.endpoint_eq, hb, heq]
+    exact ⟨b, atEnd_of_eval_eq (hsimple e) hopen k ht b
+      (heq.trans (hb ▸ (F.endpoint_eq e b).symm)), hb⟩
   have hsameSpokes (d a : Dart I.graph) (hd : fixed d.vertex) (ha : fixed a.vertex)
       (hne : d ≠ a) {x : ℂ} (hx : x ∈ (spoke d hd).support) (hy : x ∈ (spoke a ha).support) :
       x = D.vertex d.vertex := by
-    have hsame : a.vertex = d.vertex := by
-      by_contra hn
-      exact Set.disjoint_left.mp (hdisj _ (horig a) _ (horig d) hn)
-        (hclosed a ha hy) (hclosed d hd hx)
-    have hcoh : ∀ v (hv : a.vertex = v) (h₂ : fixed v), spoke a ha = T v h₂ ⟨a, hv⟩ := by
-      rintro _ rfl _
-      rfl
+    have hsame : a.vertex = d.vertex := by_contra fun hn =>
+      Set.disjoint_left.mp (hdisj _ (horig a) _ (horig d) hn) (hclosed a ha hy) (hclosed d hd hx)
+    have hcoh : ∀ v (hv : a.vertex = v) (h₂ : fixed v), spoke a ha = T v h₂ ⟨a, hv⟩
+      | _, rfl, _ => rfl
     have he : (⟨d, rfl⟩ : {b : Dart I.graph // b.vertex = d.vertex}) ≠ ⟨a, hsame⟩ :=
       fun hh => hne (congrArg Subtype.val hh)
-    have hmem : x ∈ (T d.vertex hd ⟨d, rfl⟩).support ∩ (T d.vertex hd ⟨a, hsame⟩).support :=
-      ⟨hx, hcoh _ hsame hd ▸ hy⟩
-    rw [hTpair _ hd he] at hmem
-    exact Set.mem_singleton_iff.mp hmem
+    exact Set.mem_singleton_iff.mp
+      (hTpair _ hd he ▸ Set.mem_inter hx (hcoh _ hsame hd ▸ hy))
   have hmeetKept (d : Dart I.graph) (hd : fixed d.vertex) (e : SubEdge I)
       (he : ¬ changed e) {x : ℂ}
       (hx : x ∈ (spoke d hd).support) (hy : x ∈ (F.route e).support) :
@@ -264,11 +233,9 @@ theorem exists_subdivision_embedding_with_reference_spokes {I : FixedRotationInp
     rw [hkeep e he] at hy
     by_cases hm : (subdivisionEdgeIndex I e).piece = 1
     · obtain ⟨b, hb, hval⟩ := hmiddle e hm _ (horig d) x hy (hclosed d hd hx)
-      let a : Dart I.graph := ((subdivisionEdgeIndex I e).original, b)
-      have hout : x ∉ Metric.ball (D.vertex d.vertex) ρ := by
+      exact hbound d hd hx (by
         rw [hval, ← hb]
-        exact hportOutside a
-      exact hbound d hd hx hout
+        exact hportOutside ((subdivisionEdgeIndex I e).original, b))
     · let a := endDart I e
       have heq : (subdivisionDart I a).1 = e := subdivisionDart_endDart I e hm
       have hfa : ¬ fixed a.vertex := fun h => he ⟨hm, h⟩
@@ -289,10 +256,8 @@ theorem exists_subdivision_embedding_with_reference_spokes {I : FixedRotationInp
           (subdivisionDart_endDart I e he.1).symm.trans
             ((congrArg (fun x => (subdivisionDart I x).1) heq).trans
               (subdivisionDart_endDart I f hf.1))
-        refine ⟨d.vertex, ?_, (hsameSpokes d a he.2 hf.2 hda hx hy).trans
-          (hcenter _ (horig d)).symm⟩
-        rw [← (subdivisionDart_endpoints I d).1]
-        exact hdecl _ _
+        exact ⟨d.vertex, (subdivisionDart_endpoints I d).1 ▸ hdecl _ _,
+          (hsameSpokes d a he.2 hf.2 hda hx hy).trans (hcenter _ (horig d)).symm⟩
       · exact ⟨(subdivisionDart I d).reverse.vertex, hdecl _ _,
           (hmeetKept d he.2 f hf hx hy).trans (hport d).symm⟩
     · by_cases hf : changed f
@@ -300,34 +265,25 @@ theorem exists_subdivision_embedding_with_reference_spokes {I : FixedRotationInp
         rw [hchanged_supp hf] at hy
         exact ⟨(subdivisionDart I a).reverse.vertex, hdecl _ _,
           (hmeetKept a hf.2 e he hy hx).trans (hport a).symm⟩
-      · change x ∈ (route e).support at hx
-        change x ∈ (route f).support at hy
-        rw [hkeep e he] at hx
-        rw [hkeep f hf] at hy
-        obtain ⟨i, s, hs, hxs⟩ := ((E.route e).mem_support_iff x).mp hx
-        obtain ⟨j, t, ht, hxt⟩ := ((E.route f).mem_support_iff x).mp hy
+      · obtain ⟨i, s, hs, hxs⟩ := ((E.route e).mem_support_iff x).mp (by rwa [← hkeep e he])
+        obtain ⟨j, t, ht, hxt⟩ := ((E.route f).mem_support_iff x).mp (by rwa [← hkeep f hf])
         obtain ⟨b, _, hb, _, _⟩ := hE.edge_contacts e f hne i j s t hs ht (hxs.trans hxt.symm)
         exact ⟨Dart.vertex (e, b), hdecl e b, hxs.symm.trans
           (((E.route e).at_eq_endpoint i hs b hb).trans (E.endpoint_eq e b))⟩
-  have hEmbed : F.IsEmbedding := by
-    refine ⟨hE.vertices_injective, hsimple, hvertex, ?_⟩
-    intro e f hne i j s t hs ht heq
-    have hx := (F.route e).at_mem_support i hs
-    have hy := (F.route f).at_mem_support j ht
-    obtain ⟨v, hv, hvx⟩ := hmeet e f hne _ hx (heq.symm ▸ hy)
-    obtain ⟨b, hb, hbv⟩ := hvertex e i s hs v hv hvx
-    obtain ⟨c, hc, hcv⟩ := hvertex f j t ht v hv (heq.symm.trans hvx)
-    exact ⟨b, c, hb, hc, hbv.trans hcv.symm⟩
-  refine ⟨E, F, hE, hEmbed, rfl, hcenter, hport, fun e he => hkeep e (fun h => h.1 he), ?_, ?_⟩
-  · intro d hd
-    have hne : ¬ changed (subdivisionDart I d).1 :=
+  have hEmbed : F.IsEmbedding := ⟨hE.vertices_injective, hsimple, hvertex,
+    fun e f hne i j s t hs ht heq => by
+      obtain ⟨v, hv, hvx⟩ := hmeet e f hne _ ((F.route e).at_mem_support i hs)
+        (heq.symm ▸ (F.route f).at_mem_support j ht)
+      obtain ⟨b, hb, hbv⟩ := hvertex e i s hs v hv hvx
+      obtain ⟨c, hc, hcv⟩ := hvertex f j t ht v hv (heq.symm.trans hvx)
+      exact ⟨b, c, hb, hc, hbv.trans hcv.symm⟩⟩
+  refine ⟨E, F, hE, hEmbed, rfl, hcenter, hport, fun e he => hkeep e (fun h => h.1 he),
+    fun d hd => ?_, fun d hd => ?_⟩
+  · have hne : ¬ changed (subdivisionDart I d).1 :=
       fun he => Option.not_isSome_iff_eq_none.mpr hd ((hchange d).mp he)
     refine ⟨hkeep _ hne, ?_⟩
-    change ((route (subdivisionDart I d).1).germ d.2).arg = D.direction d
-    rw [hkeep _ hne]
-    exact hdir d
-  · intro d hd
-    obtain ⟨_, _, ⟨a, ha, hg⟩, _, _⟩ := hspoke d hd
+    simpa only [PolygonalDrawing.direction, PolygonalDrawing.germ, F, hkeep _ hne] using hdir d
+  · obtain ⟨_, _, ⟨a, ha, hg⟩, _, _⟩ := hspoke d hd
     refine ⟨a, ha, ?_⟩
     change (route (subdivisionDart I d).1).germ d.2 = _
     rw [hreplace d hd]

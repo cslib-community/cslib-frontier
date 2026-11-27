@@ -231,9 +231,7 @@ theorem card_filter_correctionAtom_row_ne_zero_lt (hK : 0 < K) {e g : ℝ} (he :
   rw [mem_filter] at hy ⊢
   refine ⟨hy.1, fun h0 => hy.2 ?_⟩
   rw [correctionAtom]
-  split_ifs
-  · rw [← mul_assoc, h0, zero_mul, zero_div, zero_mul]
-  · rfl
+  split_ifs <;> simp [← mul_assoc, h0]
 
 /-- **Column support: the incoming cap** [OpenAI2026LogSpace, (5.18), Lemma 5.6]. Suppose the
 auxiliary score is one wherever `Q` and `ρ` are both nonzero, and `τ` vanishes from `g ≤ 1` on.
@@ -244,8 +242,7 @@ theorem card_filter_correctionAtom_col_ne_zero_lt (hKc : 0 < Kc)
     (hτ : ∀ r, g ≤ r → τ r = 0) (d : ι × κ) (y : V) :
     #{x ∈ ({w | X d.1 w} : Finset V) | correctionAtom I τ K Kc f G X Y Yt Q h ρ g₀ d x y ≠ 0} <
       Kc := by
-  by_contra hle
-  rw [not_lt] at hle
+  by_contra! hle
   have hgate : incomingGate I τ K Kc f G {w | X d.1 w} {w | Y d.2 w} y = 0 := by
     refine incomingGate_eq_zero hKc hg hτ (hle.trans (card_le_card fun x hx => ?_))
     rw [mem_filter] at hx ⊢
@@ -253,8 +250,7 @@ theorem card_filter_correctionAtom_col_ne_zero_lt (hKc : 0 < Kc)
     · rw [correctionAtom]; split_ifs <;> simp [hQ]
     · rw [correctionAtom]; split_ifs <;> simp [rowGate, hρ]
   obtain ⟨x, hx⟩ := card_pos.mp (hKc.trans_le hle)
-  rw [mem_filter, correctionAtom, hgate] at hx
-  split_ifs at hx <;> simp at hx
+  simp [correctionAtom, hgate] at hx
 
 /-- **The correction atom identity, including zero multipliers** [OpenAI2026LogSpace, Lemma 5.3].
 Let `h = 1` wherever `Q ≠ 0`; let `ρ, τ ∈ [0, 1]`, with `ρ` one through `η > 0` and `τ` one
@@ -292,9 +288,9 @@ theorem expect_correctionAtom {x y : V} (hSx : ({s | X s x} : Finset ι).Nonempt
   have hSxr : (0 : ℝ) < #Sx := by exact_mod_cast hSx.card_pos
   have hSyr : (0 : ℝ) < #Sy := by exact_mod_cast hSy.card_pos
   have hM : 0 ≤ M := (sum_nonneg fun w _ => hG0 w).trans hGM
-  have hKr : (0 : ℝ) < K := by linarith [show 0 ≤ c * M / η by positivity]
+  have hKr : (0 : ℝ) < K := by linarith [div_nonneg (mul_nonneg hc hM) hη.le]
   have hKcr : (0 : ℝ) < Kc := by
-    linarith [hB hg0, show (0 : ℝ) ≤ p * #({w | e < G w y / f} : Finset V) by positivity]
+    linarith [hB hg0, mul_nonneg hp (Nat.cast_nonneg #({w | e < G w y / f} : Finset V))]
   -- the row gate fails on at most a quarter of the terminal draws
   have hR : (#{t ∈ Sy | rowGate ρ K f G {w | Y t w} x < 1} : ℝ) * 4 ≤ #Sy := by
     have h := card_filter_rowGate_lt_one_mul_le (Y := Y) Sy x hf hη hρη hG0 hGM
@@ -361,9 +357,8 @@ theorem correctionAtom_nonneg {G : Matrix V V ℝ} {g₀ : V → ℝ}
     0 ≤ correctionAtom I τ K Kc f G X Z Zt Q h ρ g₀ d x z := by
   rw [correctionAtom]
   split_ifs
-  · refine mul_nonneg (div_nonneg (mul_nonneg (hQ0 _) (mul_nonneg (hρ0 _) (hτ0 _))) ?_)
-      (hg₀ z)
-    exact le_trans (by norm_num : (0 : ℝ) ≤ 1 / 2) (le_max_left _ _)
+  · exact mul_nonneg (div_nonneg (mul_nonneg (hQ0 _) (mul_nonneg (hρ0 _) (hτ0 _)))
+      (le_trans (by norm_num : (0 : ℝ) ≤ 1 / 2) (le_max_left _ _))) (hg₀ z)
   · exact le_rfl
 
 end Nonneg

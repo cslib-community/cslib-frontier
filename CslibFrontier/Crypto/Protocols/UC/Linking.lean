@@ -286,9 +286,8 @@ theorem runFrom_liftRight_liftRightProgram (S : Machine R₂ R₁)
     simp only [PFunctor.FreeM.bind_eq_bind]
     rcases q with k | e
     · have h₁ : liftRightProgram L (OracleComp.query (spec := probOracleSpec R₁) (Sum.inl k)) =
-          ProbOracleComp.sample (ProbComp.unifFin k) := by
-        rw [← liftRightProgram_sample L (R := R₁)]
-        rfl
+          ProbOracleComp.sample (ProbComp.unifFin k) :=
+        liftRightProgram_sample L (ProbComp.unifFin k)
       have h₂ : S.runFrom (OracleComp.query (spec := probOracleSpec R₁) (Sum.inl k)) s =
           (fun a => (a, s)) <$> ProbOracleComp.sample (ProbComp.unifFin k) :=
         S.runFrom_sample (ProbComp.unifFin k) s
@@ -297,14 +296,9 @@ theorem runFrom_liftRight_liftRightProgram (S : Machine R₂ R₁)
       erw [Machine.runFrom_bind, Machine.runFrom_sample, bind_map_left]
       exact bind_congr fun a => ih a s
     · rw [liftRightProgram_bind, Machine.runFrom_bind, liftRightProgram_bind]
-      erw [Machine.runFrom_bind]
-      exact (congrArg (fun m => m >>= _)
-        (show (liftRight L S).runFrom
-            (liftRightProgram L (OracleComp.query (spec := probOracleSpec R₁) (Sum.inr e))) s =
-            liftRightProgram L (S.runFrom
-              (OracleComp.query (spec := probOracleSpec R₁) (Sum.inr e)) s) by
-          erw [liftRightProgram_query, Machine.runFrom_query, Machine.runFrom_query]; rfl)).trans
-        (bind_congr fun (x : R₁ e × S.State) => ih x.1 x.2)
+      erw [Machine.runFrom_bind, liftRightProgram_query, Machine.runFrom_query,
+        Machine.runFrom_query]
+      exact bind_congr fun x => ih x.1 x.2
 
 /-- Lifting the forwarding machine yields the forwarding machine on the combined interface. -/
 @[simp] theorem liftRight_id :
@@ -323,12 +317,10 @@ theorem liftRight_comp (A : Machine R₁ E) (S : Machine R₂ R₁) :
   congr 1 with q s : 2
   cases q with
   | inl p =>
-    change (StateT.lift (ProbOracleComp.query (spec := L ⊕ₒ R₂) (Sum.inl p))) s =
-      Equiv.prodAssoc _ _ _ <$> (liftRight L S).runFrom
-        ((StateT.lift (ProbOracleComp.query (spec := L ⊕ₒ R₁) (Sum.inl p))).run s.1) s.2
+    dsimp only
     simp only [StateT.lift, StateT.run, bind_pure_comp]
     erw [Machine.runFrom_map, Machine.runFrom_query]
-    simp only [liftRight, StateT.lift, StateT.run, bind_pure_comp, Functor.map_map]
+    simp only [StateT.lift, StateT.run, bind_pure_comp, Functor.map_map]
     rfl
   | inr e =>
     change liftRightProgram L (Equiv.prodAssoc _ _ _ <$> S.runFrom ((A.handle e).run s.1) s.2) =

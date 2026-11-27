@@ -310,12 +310,10 @@ private theorem singletons_cases {C : ℕ} {D : List (List ℕ)} (hDp : D.Pairwi
     obtain ⟨d, rfl⟩ := hD1 b hb
     exact ⟨d, rfl, by simpa using List.find?_eq_none.1 hf _ hb⟩
   | some b0 =>
-    right
-    rw [List.find?_eq_some_iff_append] at hf
-    obtain ⟨hb0, D1, D2, rfl, hD1'⟩ := hf
+    refine .inr ?_
+    obtain ⟨hb0, D1, D2, rfl, hD1'⟩ := List.find?_eq_some_iff_append.1 hf
     obtain ⟨d, rfl⟩ := hD1 b0 (by simp)
     simp only [List.sum_singleton, decide_eq_true_eq] at hb0
-    obtain ⟨-, hc, -⟩ := List.pairwise_append.1 hDp
     have hD2 := (List.pairwise_cons.1 (List.pairwise_append.1 hDp).2.1).1
     have hbig := big_singletons (C := C) (D := D1 ++ D2) fun b hb => by
       rcases List.mem_append.1 hb with hb | hb
@@ -450,8 +448,7 @@ private theorem core {C : ℕ} {bins : List (List ℕ)} (hp : bins.Pairwise (Lat
     have hne' : g ≠ [d] := fun h => by simp [h] at hg2
     rcases rel_or_rel hp hg.1 hd.1 hne' with h | h
     · simpa using h d (by simp)
-    · exfalso
-      match g, hg2, hle g hg.1, h with
+    · match g, hg2, hle g hg.1, h with
       | c :: c' :: _, _, hgle, h =>
         have h1 := h c (by simp)
         have h2 := h c' (by simp)
@@ -472,9 +469,8 @@ constant is not tight: Dósa and Sgall prove `FF ≤ ⌊17/10 * OPT⌋`. -/
 theorem ten_mul_length_firstFit_le {C : ℕ} {l : List ℕ} {Q : List (List ℕ)}
     (hQ : IsPacking C l Q) : 10 * (firstFit C l).length ≤ 17 * Q.length + 8 := by
   have hF := isPacking_firstFit fun a ha => hQ.le_of_mem ha
-  have key : (firstFit C l).length ≤ Q.length + 1 →
+  have key (h : (firstFit C l).length ≤ Q.length + 1) :
       10 * (firstFit C l).length ≤ 17 * Q.length + 8 := by
-    intro h
     rcases l with _ | ⟨a, l⟩
     · simp [firstFit]
     · have := List.length_pos_iff.2 (hQ.ne_nil (List.cons_ne_nil a l))
@@ -490,8 +486,7 @@ theorem ten_mul_length_firstFit_le {C : ℕ} {l : List ℕ} {Q : List (List ℕ)
       have hs := hF.sum_le
       generalize firstFit 0 l = F at hp0 hs ⊢
       match F, hp0, hs with
-      | [], _, _ => simp
-      | [_], _, _ => simp
+      | [], _, _ | [_], _, _ => simp
       | b :: b' :: _, hp0, hs =>
         have := List.rel_of_pairwise_cons hp0 List.mem_cons_self
         have h1 := hs b (by simp)
@@ -509,8 +504,7 @@ theorem length_firstFit_le_ceil {C : ℕ} {l : List ℕ} {Q : List (List ℕ)}
   rcases Nat.eq_zero_or_pos (firstFit C l).length with h0 | hpos
   · simp [h0]
   · obtain ⟨n, hn⟩ := Nat.exists_eq_add_one.mpr hpos
-    rw [hn] at h ⊢
-    rw [Nat.add_one_le_iff, Nat.lt_ceil]
-    linarith [show (10 * (n + 1) : ℚ) ≤ 17 * Q.length + 8 by exact_mod_cast h]
+    rw [hn, Nat.add_one_le_iff, Nat.lt_ceil]
+    linarith [show (10 * (n + 1) : ℚ) ≤ 17 * Q.length + 8 by exact_mod_cast hn ▸ h]
 
 end Cslib.Algorithms.Lean.BinPacking

@@ -182,30 +182,20 @@ as two bit words. -/
 theorem iknpSenderViewWords_injective :
     Function.Injective (iknpSenderViewWords (κ := κ) (m := m)) := by
   rintro ⟨X, s, ⟨Q, Y, ⟨⟩⟩⟩ ⟨X', s', ⟨Q', Y', ⟨⟩⟩⟩ h
-  simp only [iknpSenderViewWords, IKNPSenderViewWords.mk.injEq] at h
-  obtain ⟨h₀, h₁, hs, hQ⟩ := h
-  have h₀ := List.ofFn_injective h₀
-  have h₁ := List.ofFn_injective h₁
-  refine PartyView.ext ?_ (List.ofFn_injective hs) (Prod.ext ?_ (Prod.ext ?_ rfl))
-  · funext j b
-    cases b
-    · exact congrFun h₀ j
-    · exact congrFun h₁ j
-  · refine Round.received_oracle_ext fun sl hsl => ?_
-    fin_cases sl
-    · exact absurd hsl (by simp [iknpRoleReversal])
-    · funext i
-      exact List.ofFn_injective (congrFun (List.ofFn_injective hQ) i)
-  · exact Round.received_message_eq_of_ne (by simp) _ _
+  obtain ⟨h₀, h₁, hs, hQ⟩ := IKNPSenderViewWords.mk.inj h
+  refine PartyView.ext (funext fun j => funext fun b =>
+    Bool.rec (congrFun (List.ofFn_injective h₀) j) (congrFun (List.ofFn_injective h₁) j) b)
+    (List.ofFn_injective hs) (Prod.ext (Round.received_oracle_ext fun sl hsl => ?_)
+      (Prod.ext (Round.received_message_eq_of_ne (by simp) _ _) rfl))
+  fin_cases sl
+  · exact absurd hsl (by simp [iknpRoleReversal])
+  · exact funext fun i => List.ofFn_injective (congrFun (List.ofFn_injective hQ) i)
 
 /-- The words determine a receiver's view. -/
 theorem iknpReceiverViewWords_injective :
     Function.Injective (iknpReceiverViewWords (κ := κ) (m := m)) := by
   rintro ⟨r, T, ⟨Q, Y, ⟨⟩⟩⟩ ⟨r', T', ⟨Q', Y', ⟨⟩⟩⟩ h
-  simp only [iknpReceiverViewWords, IKNPReceiverViewWords.mk.injEq] at h
-  obtain ⟨hr, hT, h₀, h₁⟩ := h
-  have h₀ := List.ofFn_injective h₀
-  have h₁ := List.ofFn_injective h₁
+  obtain ⟨hr, hT, h₀, h₁⟩ := IKNPReceiverViewWords.mk.inj h
   refine PartyView.ext (List.ofFn_injective hr)
     (funext fun j => List.ofFn_injective (congrFun (List.ofFn_injective hT) j))
     (Prod.ext ?_ (Prod.ext ?_ rfl))
@@ -213,10 +203,8 @@ theorem iknpReceiverViewWords_injective :
     fin_cases sl
     · rfl
     · exact absurd hsl (by simp [iknpRoleReversal])
-  · refine Round.received_message_ext fun _ => funext fun j => funext fun b => ?_
-    cases b
-    · exact congrFun h₀ j
-    · exact congrFun h₁ j
+  · exact Round.received_message_ext fun _ => funext fun j => funext fun b =>
+      Bool.rec (congrFun (List.ofFn_injective h₀) j) (congrFun (List.ofFn_injective h₁) j) b
 
 end ViewWords
 
@@ -343,8 +331,7 @@ theorem isPPT_iknpSenderSim :
     BitString.uniformList, PMF.bind_map, PMF.map_bind, PMF.pure_map, Function.comp_def]
   refine congrArg _ (funext fun s => congrArg _ (funext fun Q => congrArg PMF.pure ?_))
   refine Eq.trans ?_ ((iknpEncoding hash m).view.encCoalition_singleton n d 0 _).symm
-  simp only [senderSimWord, List.map_ofFn, Function.comp_def]
-  rfl
+  simp only [senderSimWord, List.map_ofFn, Function.comp_def]; rfl
 
 /-- Combine four bit words entrywise with `g`, up to the shortest of them. -/
 private def bitsZipWith4 (g : Bool → Bool → Bool → Bool → Bool) (a b c e : List Bool) :
@@ -452,14 +439,10 @@ theorem isPPT_iknpReceiverSim (hh : ComputableInPolyTime hash encBits encBool) :
     BitString.uniformList, PMF.bind_map, PMF.map_bind, PMF.pure_map, Function.comp_def]
   refine congrArg _ (funext fun T => congrArg _ (funext fun u => congrArg PMF.pure ?_))
   refine Eq.trans ?_ ((iknpEncoding hash m).view.encCoalition_singleton n d 1 _).symm
-  obtain ⟨r, hr⟩ : ∃ r : Fin (m n) → Bool, xs receiver = r := ⟨_, rfl⟩
-  obtain ⟨z, hz⟩ : ∃ z : Fin (m n) → Bool, ys receiver = z := ⟨_, rfl⟩
-  have hr' : (iknpEncoding hash m).input.rep n d 1 (xs receiver) = List.ofFn r := by rw [hr]; rfl
-  have hz' : (iknpEncoding hash m).output.rep n d 1 (ys receiver) = List.ofFn z := by rw [hz]; rfl
-  simp only [receiverSimWord, hr', hz', List.map_ofFn, Function.comp_def, bitsZipWith4_ofFn]
-  simp only [receiver] at hr hz
-  simp only [hr, hz]
-  rfl
+  let r : Fin (m n) → Bool := xs receiver
+  let z : Fin (m n) → Bool := ys receiver
+  change receiverSimWord hash (List.ofFn r) (List.ofFn z) _ _ = _
+  simp only [receiverSimWord, List.map_ofFn, Function.comp_def, bitsZipWith4_ofFn]; rfl
 
 /-! ### Corrupted receiver: the reduction to correlation robustness -/
 
@@ -478,9 +461,9 @@ theorem realGame_iknp_receiver_eq (Z : Environment (iknpFamily hash m) {1}) (n :
     (iknpFamily hash m).realGame (fun _ => PMF.pure ()) {1} Z n =
       CorrelationRobust.realGame (CorrelationRobust.atLevel hash n (m n))
         (iknpReceiverToCR hash m Z n) := by
-  simp only [ProtocolFamily.realGame, PMF.monad_bind_eq_bind, PMF.pure_bind]
-  simp only [realJoint_iknp_receiver_bind]
-  simp only [CorrelationRobust.realGame, iknpReceiverToCR, ProbComp.eval_bind]
+  simp only [ProtocolFamily.realGame, PMF.monad_bind_eq_bind, PMF.pure_bind,
+    realJoint_iknp_receiver_bind, CorrelationRobust.realGame, iknpReceiverToCR,
+    ProbComp.eval_bind]
   pmf_swap
 
 /-- The ideal game against a corrupted receiver with `iknpReceiverSim` is the ideal
@@ -489,8 +472,8 @@ theorem idealGame_iknp_receiver_eq (Z : Environment (iknpFamily hash m) {1}) (n 
     (iknpFamily hash m).idealGame (fun _ => PMF.pure ()) {1}
         (fun n _ => iknpReceiverSim (CorrelationRobust.atLevel hash n (m n))) Z n =
       CorrelationRobust.idealGame (iknpReceiverToCR hash m Z n) := by
-  simp only [ProtocolFamily.idealGame, PMF.monad_bind_eq_bind, PMF.pure_bind]
-  simp only [← ProbComp.eval_bind, idealJoint_iknp_receiver_bind]
+  simp only [ProtocolFamily.idealGame, PMF.monad_bind_eq_bind, PMF.pure_bind,
+    ← ProbComp.eval_bind, idealJoint_iknp_receiver_bind]
   simp only [CorrelationRobust.idealGame, iknpReceiverToCR, ProbComp.eval_bind]
   pmf_swap
 
@@ -535,14 +518,9 @@ private theorem reductionGuessWords_polyTime (hh : ComputableInPolyTime hash enc
       (bitsZipWith4_polyTime (redMask false) hr hp.fst' hw (map_hash_polyTime hh ht))
       (bitsZipWith4_polyTime (redMask true) hr hp.snd' hw
         (map_hash_polyTime hh ht))).encoding_comp).encoding_comp
-  have houtputs : ComputableInPolyTime (fun c => encPi encBits fun i : Fin 2 =>
-      Fin.cases (motive := fun _ => List Bool) []
-        (fun _ => bitsZipWith4 chosenBit (r c) (p c).1 (p c).2 (r c)) i) enc encBits := by
-    refine (ComputableInPolyTime.pi fun i => ?_).encoding_comp
-    refine Fin.cases ?_ (fun _ => ?_) i
-    · exact ComputableInPolyTime.const []
-    · exact bitsZipWith4_polyTime _ hr hp.fst' hp.snd' hr
-  exact hk.prod ((ComputableInPolyTime.const ()).prod (hs.prod (hviews.prod houtputs)))
+  exact hk.prod ((ComputableInPolyTime.const ()).prod (hs.prod (hviews.prod
+    (ComputableInPolyTime.pi fun i => Fin.cases (ComputableInPolyTime.const [])
+      (fun _ => bitsZipWith4_polyTime _ hr hp.fst' hp.snd' hr) i).encoding_comp)))
 
 /-- `iknpReceiverToCR Z` is uniform strict PPT whenever `Z` is and the hash is computed in
 polynomial time. -/
@@ -591,9 +569,7 @@ theorem isPPT_iknpReceiverToCR (hh : ComputableInPolyTime hash encBits encBool)
       ((iknpEncoding hash m).view.encCoalition_singleton x.level () 1 _).symm
     rfl
   · simp only [PartyEncoding.encAll, Function.Embedding.coeFn_mk, encDPi_apply]
-    congr 1
-    funext i
-    refine Fin.cases rfl (fun j => ?_) i
+    refine congrArg _ (funext fun i => Fin.cases rfl (fun j => ?_) i)
     obtain rfl := Fin.fin_one_eq_zero j
     refine congrArg List.ofFn (funext fun j => ?_)
     change (if r j then X j true else X j false) = X j (r j)

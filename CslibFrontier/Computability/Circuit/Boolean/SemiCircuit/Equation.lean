@@ -105,8 +105,7 @@ theorem mem_subst_of_ne {E : Equation} {v : ℕ} {ℓ : Lit} {z : ℕ} (hzv : z 
   split_ifs with hv
   · rcases ℓ with ⟨_ | t, c⟩
     · simp [Finset.mem_erase, hzv]
-    · have hzt : z ≠ t := fun h => hzℓ (by simp [h])
-      simp [mem_symmDiff_singleton, Finset.mem_erase, hzv, hzt]
+    · simp [mem_symmDiff_singleton, Finset.mem_erase, hzv, mt (congrArg Arg.node) hzℓ.symm]
   · exact Iff.rfl
 
 /-- Every term of `E.subst v ℓ` either already belongs to `E.terms` or arises from `v ∈ E.terms`
@@ -140,8 +139,7 @@ theorem notMem_subst {E : Equation} {v : ℕ} {ℓ : Lit} (hℓ : ℓ.arg ≠ .n
   split_ifs with hv
   · rcases ℓ with ⟨_ | t, c⟩
     · exact Finset.notMem_erase v _
-    · have ht : v ≠ t := fun h' => hℓ (by simp [h'])
-      exact fun h => Finset.notMem_erase v _ ((mem_symmDiff_singleton.1 h).2 ht)
+    · simp [mem_symmDiff_singleton, mt (congrArg Arg.node) hℓ.symm]
   · exact hv
 
 /-- Rerouting a variable that does not occur in `E.terms` leaves the equation unchanged. -/
@@ -157,12 +155,12 @@ theorem holds_congr {E : Equation} {val val' : ℕ → Bool} (h : ∀ i ∈ E.te
 holds on the assignment giving `v` the value of the literal. -/
 theorem holds_subst_update {E : Equation} {v : ℕ} {ℓ : Lit} (hℓ : ℓ.arg ≠ .node v)
     (val : ℕ → Bool) : (E.subst v ℓ).Holds val ↔ E.Holds (Function.update val v (ℓ.eval val)) := by
-  have hℓu : ℓ.eval (Function.update val v (ℓ.eval val)) = ℓ.eval val :=
-    Lit.eval_congr fun i hi => Function.update_of_ne (by rintro rfl; exact hℓ hi) _ _
-  rw [← holds_subst (E := E) (show Function.update val v (ℓ.eval val) v = _ by
-    rw [hℓu]; exact Function.update_self _ _ _)]
-  exact holds_congr fun i hi =>
-    (Function.update_of_ne (by rintro rfl; exact notMem_subst hℓ hi) _ _).symm
+  set u := Function.update val v (ℓ.eval val)
+  have hu : u v = ℓ.eval u := (Function.update_self v (ℓ.eval val) val).trans
+    (Lit.eval_congr fun i hi => (Function.update_of_ne (fun h : i = v => hℓ (h ▸ hi)) _ _).symm)
+  exact (holds_congr fun i hi =>
+    (Function.update_of_ne (fun h : i = v => notMem_subst hℓ (h ▸ hi)) _ _).symm).trans
+    (holds_subst hu)
 
 /-- Once `p = r + c`, the equation `v + p + r = rhs` reads `v = rhs + c`. -/
 theorem holds_update_iff {E : Equation} {v p r : ℕ} (hterms : E.terms = {v, p, r})
@@ -238,12 +236,10 @@ theorem affEqn_holds {g : Gate} (hg : IsAffineOp g.op) (J : ℕ) (val : ℕ → 
   unfold affEqn Equation.Holds Gate.eval
   unfold IsAffineOp at hg
   dsimp only
-  have h1 := sum_addArg ({J}, g.op false false) (g.op true false ^^ g.op false false) g.left val
-  rw [Finset.sum_singleton] at h1
-  dsimp only at h1
-  have h2 := sum_addArg (addArg ({J}, g.op false false) (g.op true false ^^ g.op false false)
-    g.left) (g.op false true ^^ g.op false false) g.right val
-  rw [h1] at h2
+  have h2 := (sum_addArg (addArg ({J}, g.op false false) (g.op true false ^^ g.op false false)
+    g.left) (g.op false true ^^ g.op false false) g.right val).trans (congrArg (fun x => x + _) (by
+      simpa only [Finset.sum_singleton] using
+        sum_addArg ({J}, g.op false false) (g.op true false ^^ g.op false false) g.left val))
   generalize ∑ i ∈ (addArg (addArg ({J}, g.op false false) (g.op true false ^^ g.op false false)
     g.left) (g.op false true ^^ g.op false false) g.right).1, val i = s at h2 ⊢
   generalize (addArg (addArg ({J}, g.op false false) (g.op true false ^^ g.op false false)

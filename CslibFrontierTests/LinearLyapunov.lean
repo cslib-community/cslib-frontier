@@ -4,8 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Matthew Doty
 -/
 
-import CslibFrontier.Foundations.Analysis.ODE.LinearLyapunov
-import Mathlib.Algebra.Order.Star.Real
+module
+-- upstream: local-only (tests)
+
+import CslibFrontier.Algorithms.LinearAlgebra.LyapunovCertificate
+import Mathlib.Analysis.Calculus.Deriv.Prod
+import Mathlib.Analysis.SpecialFunctions.ExpDeriv
 
 /-! # Tests for linear time-invariant flows and the quadratic Lyapunov criterion
 
@@ -15,14 +19,18 @@ import Mathlib.Algebra.Order.Star.Real
 * The non-diagonalizable `A = !![-1, 1; 0, -1]`: `exp (t • A) = exp (-t) • !![1, t; 0, 1]` for
   `t ≥ 0`, obtained from uniqueness, and exponential stability from the certificate `P = 1`.
 * The concrete example of #8320: `A = !![0, 1; -2, -3]` and `P = !![5/4, 1/4; 1/4, 1/4]` with
-  `Aᵀ P + P A = -1`. The positive-definiteness facts are proved directly here; this is a
-  stand-in for the exact `LDLᵀ` checker client of #8319, whose acceptance theorem will supply the
-  two `Matrix.PosDef` hypotheses instead.
+  `Aᵀ P + P A = -1`. The kernel accepts its `LDLᵀ` certificate (`decide +kernel`), and
+  `Cslib.LinearAlgebra.LyapunovCert.isExponentiallyStable_of_check` turns acceptance into
+  exponential stability of all trajectories. Corrupted certificates are rejected, and so is every
+  certificate with `P = 1`, although `A` is stable: rejection is not instability.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.LinearLyapunov
 
-open Set Filter Topology NormedSpace Matrix ContinuousLinearMap
+open Set Filter Topology NormedSpace Matrix ContinuousLinearMap Mathlib.Tactic.Matrix
+open Cslib.LinearAlgebra
 
 /-! ### Scalar systems -/
 
@@ -133,36 +141,32 @@ example : (toEuclideanCLM (𝕜 := ℝ) jordan).IsExponentiallyStable := by
     · nlinarith [sq_pos_of_ne_zero h, sq_nonneg (v 0 - v 1), sq_nonneg (v 1)]
     · nlinarith [sq_pos_of_ne_zero h, sq_nonneg (v 0 - v 1), sq_nonneg (v 0)]
 
-/-! ### The concrete certificate of #8320 (stand-in for the #8319 checker client) -/
+/-! ### The concrete certificate of #8320, accepted by the `LDLᵀ` checker of #8319 -/
 
-/-- The system matrix of the #8320 example. -/
+/-- The rows of the system matrix `!![0, 1; -2, -3]` of the #8320 example. -/
+def Arows : List (List ℚ) := [[0, 1], [-2, -3]]
+
+/-- The rows of the Lyapunov matrix `P = !![5/4, 1/4; 1/4, 1/4]`. -/
+def Prows : List (List ℚ) := [[5/4, 1/4], [1/4, 1/4]]
+
+/-- The `LDLᵀ` witnesses: `P = L * diagonal (5/4, 1/5) * Lᵀ` with `L = !![1, 0; 1/5, 1]`, and
+the residual `-(Aᵀ * P + P * A) = 1`, which the checker recomputes from `A` and `P`, with `L = 1`
+and `d = (1, 1)`. -/
+def cert : LyapunovCert := ⟨⟨[[1], [1/5, 1]], [5/4, 1/5]⟩, ⟨[[1], [0, 1]], [1, 1]⟩⟩
+
+theorem cert_ok : cert.check 2 Arows Prows = true := by decide +kernel
+
+/-- The system matrix of the #8320 example, over `ℝ`. -/
 abbrev Aex : Matrix (Fin 2) (Fin 2) ℝ := !![0, 1; -2, -3]
 
-/-- The Lyapunov certificate of the #8320 example. -/
-noncomputable abbrev Pex : Matrix (Fin 2) (Fin 2) ℝ := !![5 / 4, 1 / 4; 1 / 4, 1 / 4]
-
-theorem lyapunov_identity : Aexᵀ * Pex + Pex * Aex = -1 := by
-  ext i j; fin_cases i <;> fin_cases j <;> simp [Aex, Pex, Matrix.mul_apply, Fin.sum_univ_two] <;>
-    norm_num
-
-theorem posDef_Pex : Pex.PosDef := by
-  refine PosDef.of_dotProduct_mulVec_pos ?_ fun v hv => ?_
-  · ext i j; fin_cases i <;> fin_cases j <;> rfl
-  · have : v 0 ≠ 0 ∨ v 1 ≠ 0 := by
-      by_contra h
-      push Not at h
-      exact hv (funext fun k => by fin_cases k <;> simp [h.1, h.2])
-    simp only [mulVec, dotProduct, Fin.sum_univ_two, of_apply, cons_val', cons_val_zero,
-      cons_val_one, empty_val', cons_val_fin_one, star_trivial]
-    rcases this with h | h
-    · nlinarith [sq_pos_of_ne_zero h, sq_nonneg (2 * v 0 + v 1), sq_nonneg (v 1)]
-    · nlinarith [sq_pos_of_ne_zero h, sq_nonneg (2 * v 0 + v 1), sq_nonneg (v 0)]
+theorem map_Arows : (ofLists 2 2 Arows).map ((↑) : ℚ → ℝ) = Aex := by
+  ext i j
+  fin_cases i <;> fin_cases j <;> norm_num [Arows, ofLists_apply, ofList_apply]
 
 /-- Every trajectory of `ẋ = Aex x` in `EuclideanSpace ℝ (Fin 2)` decays exponentially in the
-Euclidean norm. -/
+Euclidean norm, from the kernel's acceptance of `cert`. -/
 theorem isExponentiallyStable_Aex : (toEuclideanCLM (𝕜 := ℝ) Aex).IsExponentiallyStable :=
-  isExponentiallyStable_toEuclideanCLM_of_posDef posDef_Pex
-    (by rw [lyapunov_identity, neg_neg]; exact PosDef.one)
+  map_Arows ▸ LyapunovCert.isExponentiallyStable_of_check cert_ok
 
 /-- The same conclusion for coordinate solutions `x : ℝ → Fin 2 → ℝ` of `x' = Aex *ᵥ x`, measured
 in the Euclidean norm of `WithLp.toLp 2 (x t)` (not the supremum norm of `Fin 2 → ℝ`). -/
@@ -171,5 +175,25 @@ example : ∃ M α : ℝ, 0 < α ∧ ∀ x : ℝ → Fin 2 → ℝ,
       ∀ t ≥ 0, ‖WithLp.toLp 2 (x t)‖ ≤ M * Real.exp (-(α * t)) * ‖WithLp.toLp 2 (x 0)‖ := by
   obtain ⟨M, α, hα, h⟩ := isExponentiallyStable_Aex
   exact ⟨M, α, hα, fun x hx => h _ (isTrajectoryOn_toEuclideanCLM_iff.2 hx)⟩
+
+/-! ### Rejected certificates
+
+Rejection is not instability: `Aex` is exponentially stable, yet no certificate is accepted with
+`P = 1`, since `-(Aexᵀ + Aex) = !![0, 1; 1, 6]` is not positive definite. -/
+
+/-- A corrupted witness for `P`. -/
+example : (⟨⟨[[1], [1/4, 1]], [5/4, 1/5]⟩, cert.Q⟩ : LyapunovCert).check 2 Arows Prows = false := by
+  decide +kernel
+
+/-- The same certificate for the unstable `!![0, 1; 2, 3]`, whose residual is not `1`. -/
+example : cert.check 2 [[0, 1], [2, 3]] Prows = false := by decide +kernel
+
+/-- No certificate is accepted for the stable `Aex` with `P = 1`. -/
+theorem rejected_P_one (c : LyapunovCert) : c.check 2 Arows [[1, 0], [0, 1]] = false := by
+  by_contra h
+  have hQ := (LyapunovCert.posDef_of_check (Bool.eq_true_of_not_eq_false h)).2
+  have := hQ.dotProduct_mulVec_pos (x := ![1, 0]) (by simp)
+  norm_num [Arows, ofLists_apply, ofList_apply, dotProduct, mulVec, Fin.sum_univ_two,
+    Matrix.mul_apply] at this
 
 end CslibFrontierTests.LinearLyapunov

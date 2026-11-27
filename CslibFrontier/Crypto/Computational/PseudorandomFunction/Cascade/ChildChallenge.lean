@@ -87,16 +87,11 @@ private theorem bind_cascadeChildChallengeAt {α : Type} {count width n : ℕ}
       Function.update (fun i : Fin count => if i < channel then ideal else real)
           channel (PMF.pure row) = Function.update law channel (PMF.pure row) := by
     funext i
-    by_cases hi : i = channel
-    · simp only [hi, Function.update_self]
-    · rw [Function.update_of_ne hi, Function.update_of_ne hi]
-      have hne : i.val ≠ channel.val := fun h => hi (Fin.ext h)
-      have hlt : (i < channel) ↔ i.val < channel.val + replace.toNat := by
-        cases replace
-        · rfl
-        · change (i.val < channel.val) ↔ i.val < channel.val + 1
-          omega
-      simp only [law, hlt]
+    rcases eq_or_ne i channel with rfl | hi
+    · simp only [Function.update_self]
+    · cases replace
+      · simp [law, hi]
+      · simp [law, hi, le_iff_lt_or_eq, Fin.val_inj]
   simp only [cascadeChildChallengeAt, hupdate]
   rw [← hlaw, ← PMF.bind_bind, PMF.pi_bind_update]
   rfl
@@ -122,14 +117,12 @@ theorem advantage_cascadeChildChannelOracle_eq {count capacity width n : ℕ} [N
     rw [runWith_cascadeChildChannelOracle_eq_finite ideal hbudget]
     simp only [childHybrid, Fin.is_lt, ↓reduceIte]
   rw [← hreal, ← hideal, cascadeChildChallengeGame, cascadeChildChallengeGame]
-  have hrealAt (i : Fin capacity) (h : i.val < count) :
-      real.bind (fun row => cascadeChildChallengeAt real ideal ⟨i.val, h⟩ row program) =
-        childHybrid (count := count) real ideal i.val program := by
-    simpa using bind_cascadeChildChallengeAt real ideal ⟨i.val, h⟩ program false
-  have hidealAt (i : Fin capacity) (h : i.val < count) :
-      ideal.bind (fun row => cascadeChildChallengeAt real ideal ⟨i.val, h⟩ row program) =
-        childHybrid (count := count) real ideal (i.val + 1) program := by
-    simpa using bind_cascadeChildChallengeAt real ideal ⟨i.val, h⟩ program true
+  have hrealAt (i : Fin capacity) (h : i.val < count) :=
+    bind_cascadeChildChallengeAt real ideal ⟨i.val, h⟩ program false
+  have hidealAt (i : Fin capacity) (h : i.val < count) :=
+    bind_cascadeChildChallengeAt real ideal ⟨i.val, h⟩ program true
+  simp only [Bool.false_eq_true, ↓reduceIte, Bool.toNat_false, add_zero, Bool.toNat_true]
+    at hrealAt hidealAt
   simp only [hrealAt, hidealAt]
   exact Game.advantage_hybrid_average (fun cut => childHybrid (count := count) real ideal cut
     program) count capacity hcapacity

@@ -70,6 +70,8 @@ With no certificates, `S a` is the set counted by a `#P` function, so `SBP ⊆ A
 * `Cslib.Complexity.exists_verifier_of_card_certifiedSet`: **the set lower bound protocol**, with
   completeness and soundness on every input separately.
 * `Cslib.Complexity.mem_AM_of_card_certifiedSet`: the protocol for a language.
+* `Cslib.Complexity.mem_AM_of_card_certifiedSet_of_length`: the protocol with element and
+  certificate lengths computed from the instance in unary.
 * `Cslib.Complexity.exists_perfectlyComplete_verifier_of_card_certifiedSet`: the protocol with
   perfect completeness and soundness error `1 / 3`, on every input separately
   ([Arora and Barak, Exercise 8 §3][AroraBarak07]).
@@ -338,6 +340,49 @@ theorem mem_AM_of_card_certifiedSet {N c : Polynomial ℕ} {R : α × List Bool 
     (hnot : ∀ a ∉ A, 2 * #(certifiedSet enc N c R a) ≤ K a) : A ∈ AM enc :=
   let ⟨p, q, V, hV, h⟩ := exists_verifier_of_card_certifiedSet (N := N) (c := c) hR hK hKpos
   ⟨p, q, V, hV, fun a => ⟨fun ha => (h a).1 (hmem a ha), fun ha => (h a).2 (hnot a ha)⟩⟩
+
+/-- The set lower bound protocol also allows the element and certificate lengths to be computed
+from the instance in unary. Padding every counted element with zeros preserves its multiplicity. -/
+theorem mem_AM_of_card_certifiedSet_of_length {N c K : α → ℕ} {R : α × List Bool → Bool}
+    (hN : ComputableInPolyTime N enc encUnary) (hc : ComputableInPolyTime c enc encUnary)
+    (hR : ComputableInPolyTime R (encPair enc encBits) encBool)
+    (hK : ComputableInPolyTime K enc encNat) (hKpos : ∀ a, 0 < K a)
+    (hmem : ∀ a ∈ A, K a ≤ #{x : BitString (N a) | ∃ z : BitString (c a),
+      R (a, List.ofFn x ++ List.ofFn z) = true})
+    (hnot : ∀ a ∉ A, 2 * #{x : BitString (N a) | ∃ z : BitString (c a),
+      R (a, List.ofFn x ++ List.ofFn z) = true} ≤ K a) : A ∈ AM enc := by
+  obtain ⟨s, hs⟩ := hN.polyBounded.exists_polynomial
+  obtain ⟨t, ht⟩ := hc.polyBounded.exists_polynomial
+  let V := fun (p : α × List Bool) =>
+    let split := s.eval (enc p.1).length
+    R (p.1, (p.2.take split).take (N p.1) ++ (p.2.drop split).take (c p.1)) &&
+      !(((p.2.take split).drop (N p.1)).any fun b => b)
+  have hV : ComputableInPolyTime V (encPair enc encBits) encBool := by
+    have ha := ComputableInPolyTime.fst enc encBits
+    have hw := ComputableInPolyTime.snd enc encBits
+    have hn := hN.comp ha
+    have hsplit := (ComputableInPolyTime.unary_eval s).comp
+      ((ComputableInPolyTime.encoding_length enc).comp ha)
+    have hground := ComputableInPolyTime.bitsTakeWithInput hw hsplit
+    exact ComputableInPolyTime.bool_and' (hR.comp (ha.prod (ComputableInPolyTime.bitsAppend
+      (ComputableInPolyTime.bitsTakeWithInput hground hn)
+      (ComputableInPolyTime.bitsTakeWithInput (ComputableInPolyTime.bitsDropWithInput hw hsplit)
+        (hc.comp ha))))) (ComputableInPolyTime.bool_not.comp
+      (ComputableInPolyTime.bitsAnyWithInput (test := fun _ b => b)
+        (ComputableInPolyTime.bitsDropWithInput hground hn) (ComputableInPolyTime.snd _ encBool)))
+  have hcard (a : α) : #(certifiedSet enc s t V a) =
+      #{x : BitString (N a) | ∃ z : BitString (c a), R (a, List.ofFn x ++ List.ofFn z) = true} := by
+    unfold certifiedSet
+    simp only [V, List.take_left' List.length_ofFn, List.drop_left' List.length_ofFn,
+      Bool.and_eq_true, exists_and_right]
+    let good := fun w => ∃ z : BitString (c a), R (a, w ++ List.ofFn z) = true
+    have htrunc (w : List Bool) := BitString.exists_take_ofFn_iff (ht a)
+      (g := fun z => R (a, w ++ z) = true)
+    simp_rw [htrunc]
+    rw [BitString.card_filter_take_drop (hs a) good (fun w => (!w.any fun b => b) = true),
+      BitString.card_filter_not_any, mul_one]
+  exact mem_AM_of_card_certifiedSet hV hK hKpos (fun a ha => by rw [hcard]; exact hmem a ha)
+    (fun a ha => by rw [hcard]; exact hnot a ha)
 
 /-- **`SBP ⊆ AM`** [Böhler, Glaßer and Meister][BoehlerGlasserMeister2006]: the set counted by the
 `#P` function of an `SBP` problem needs no certificates, and the set lower bound protocol applies

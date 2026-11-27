@@ -46,6 +46,8 @@ Nothing here places it in `VP` or proves Valiant's `VNP`-completeness of the per
 
 * `Cslib.Circuits.Arithmetic.genericMatrix_eq_map_rename`: the generic matrix is Mathlib's
   matrix of variables renamed to row-major order.
+* `Cslib.Circuits.Arithmetic.map_genericMatrix`, `map_permanent_genericMatrix`: change of
+  coefficients.
 * `Cslib.Circuits.Arithmetic.totalDegree_det_genericMatrix_le`: the generic determinant has degree
   at most `n`.
 * `Cslib.Circuits.Arithmetic.exists_circuit_det`: a circuit with at most `3 * n ^ 4 + 4` gates;
@@ -89,6 +91,13 @@ theorem genericMatrix_eq_map_rename {K : Type u} [CommSemiring K] {n : ℕ} :
   ext i j
   simp [Arithmetic.genericMatrix]
 
+/-- Mapping the coefficients of the generic matrix over `R` along `f` gives the generic matrix
+over `S`. -/
+theorem map_genericMatrix {R : Type u} {S : Type*} [CommSemiring R] [CommSemiring S] (f : R →+* S)
+    (n : ℕ) : (genericMatrix R n).map (MvPolynomial.map f) = genericMatrix S n := by
+  ext i j
+  simp [genericMatrix]
+
 /-- The determinant family over `K`: its `n`-th member is the determinant of the generic
 `n × n` matrix, a polynomial in `n * n` variables. -/
 noncomputable def detFamily (K : Type u) [CommRing K] : PolynomialFamily K where
@@ -129,6 +138,12 @@ theorem totalDegree_permanent_genericMatrix_le (n : ℕ) :
 theorem isPFamily_permFamily : (permFamily K).IsPFamily :=
   ⟨PolynomiallyBounded.id.mul PolynomiallyBounded.id,
     PolynomiallyBounded.id.mono_of_le (totalDegree_permanent_genericMatrix_le (K := K))⟩
+
+/-- Mapping the coefficients of the generic permanent along `f` gives the generic permanent. -/
+theorem map_permanent_genericMatrix {R : Type u} {S : Type*} [CommSemiring R] [CommSemiring S]
+    (f : R →+* S) (n : ℕ) :
+    MvPolynomial.map f (genericMatrix R n).permanent = (genericMatrix S n).permanent := by
+  simp [genericMatrix, Matrix.permanent, map_prod]
 
 /-! ### Bird's algorithm as an arithmetic circuit -/
 

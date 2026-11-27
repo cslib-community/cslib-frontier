@@ -101,25 +101,20 @@ private theorem polyOfBits_zipWith_xor {l l' : List Bool} (h : l.length = l'.len
     | cons b' l' =>
       simp only [List.zipWith_cons_cons, polyOfBits_cons, List.length_cons,
         Nat.add_right_cancel_iff] at h ⊢
-      rw [ih h, show bitEquiv.symm (b ^^ b') = bitEquiv.symm b + bitEquiv.symm b' by
-        cases b <;> cases b' <;> decide, C_add]
-      ring
+      have hxor : bitEquiv.symm (b ^^ b') = bitEquiv.symm b + bitEquiv.symm b' := by
+        cases b <;> cases b' <;> decide
+      rw [ih h, hxor, C_add]; ring
 
 theorem polyOfBits_eq_zero_iff {l : List Bool} : polyOfBits l = 0 ↔ ∀ b ∈ l, b = false := by
   induction l with
   | nil => simp
   | cons b l ih =>
     rw [polyOfBits_cons, List.forall_mem_cons, ← ih]
-    constructor
-    · intro h
-      have h0 := congrArg (·.coeff 0) h
-      simp only [coeff_add, coeff_C_zero, coeff_X_mul_zero, add_zero, coeff_zero] at h0
-      have hb : b = false := by revert h0; cases b <;> decide
-      subst hb
-      rw [bitEquiv_symm_false, C_0, zero_add] at h
-      exact ⟨rfl, (mul_eq_zero.1 h).resolve_left X_ne_zero⟩
-    · rintro ⟨rfl, h⟩
-      simp [h, bitEquiv_symm_false]
+    refine ⟨fun h => ?_, fun ⟨hb, h⟩ => by simp [hb, h, bitEquiv_symm_false]⟩
+    have h0 := congrArg (·.coeff 0) h
+    simp only [coeff_add, coeff_C_zero, coeff_X_mul_zero, add_zero, coeff_zero] at h0
+    obtain rfl : b = false := by cases b <;> simp_all
+    simpa [bitEquiv_symm_false, X_ne_zero] using h
 
 /-- If `true` appears in `l`, then `polyOfBits l` is nonzero. -/
 theorem polyOfBits_ne_zero_of_mem {l : List Bool} (h : true ∈ l) : polyOfBits l ≠ 0 :=
@@ -136,10 +131,9 @@ theorem degree_polyOfBits_lt (l : List Bool) : (polyOfBits l).degree < l.length 
     · rcases eq_or_ne (polyOfBits l) 0 with h | h
       · rw [h, mul_zero, degree_zero]
         exact WithBot.bot_lt_coe _
-      · rw [degree_mul, degree_X, degree_eq_natDegree h]
+      · rw [degree_mul, degree_X, degree_eq_natDegree h, add_comm 1]
         rw [degree_eq_natDegree h] at ih
-        have : (polyOfBits l).natDegree < l.length := mod_cast ih
-        rw [← Nat.cast_one, ← Nat.cast_add, Nat.cast_lt]; omega
+        exact_mod_cast Nat.succ_lt_succ (WithBot.coe_lt_coe.1 ih)
 
 /-- Dropping a top coefficient that is zero does not change the polynomial. -/
 private theorem polyOfBits_take_of_getD {l : List Bool} {m : ℕ} (hl : l.length = m + 1)
@@ -162,9 +156,7 @@ theorem aeval_polyOfBits {A : Type*} [CommSemiring A] [Algebra (ZMod 2) A] (α :
     simp only [List.getD_cons_succ, List.getD_cons_zero, pow_zero,
       Algebra.algebraMap_eq_smul_one]
     rw [add_comm]
-    congr 1
-    refine Finset.sum_congr rfl fun d _ => ?_
-    rw [mul_smul_comm, pow_succ']
+    exact congrArg (· + _) (Finset.sum_congr rfl fun d _ => by rw [mul_smul_comm, pow_succ'])
 
 /-- The coefficient list of the code `m`, its binary digits, gives the polynomial with code `m`. -/
 theorem polyOfBits_bits (m : ℕ) : polyOfBits m.bits = polyOfCode m := by
@@ -172,9 +164,8 @@ theorem polyOfBits_bits (m : ℕ) : polyOfBits m.bits = polyOfCode m := by
   | zero => simp
   | bit b n hn ih =>
     rw [Nat.bits_append_bit _ _ hn, polyOfBits_cons, ih, Nat.bit_val]
-    have := polyOfCode_two_mul_add n (bitEquiv.symm b)
-    rw [show (bitEquiv.symm b).val = b.toNat by cases b <;> rfl] at this
-    rw [this, add_comm]
+    have hb : (bitEquiv.symm b).val = b.toNat := by cases b <;> rfl
+    rw [← hb, ← polyOfCode_two_mul_add, add_comm]
 
 /-- The binary digits of a nonzero number end with a one. -/
 theorem exists_bits_eq_append_true {m : ℕ} (hm : m ≠ 0) : ∃ l, m.bits = l ++ [true] := by
@@ -182,20 +173,17 @@ theorem exists_bits_eq_append_true {m : ℕ} (hm : m ≠ 0) : ∃ l, m.bits = l 
   | zero => exact absurd rfl hm
   | bit b n hn ih =>
     rw [Nat.bits_append_bit _ _ hn]
-    rcases eq_or_ne n 0 with rfl | hn0
+    rcases Decidable.eq_or_ne n 0 with rfl | hn0
     · exact ⟨[], by simp [hn rfl]⟩
     · obtain ⟨l, hl⟩ := ih hn0
       exact ⟨b :: l, by rw [hl, List.cons_append]⟩
 
 theorem natDegree_polyOfBits_append_true (l : List Bool) :
     (polyOfBits (l ++ [true])).natDegree = l.length := by
-  rw [polyOfBits_append]
-  simp only [polyOfBits_cons, bitEquiv_symm_true, map_one, polyOfBits_nil, mul_zero, add_zero,
-    mul_one]
-  rw [add_comm, natDegree_add_eq_left_of_degree_lt, natDegree_X_pow]
-  rw [degree_X_pow]
-  exact degree_polyOfBits_lt l
-
+  simp only [polyOfBits_append, polyOfBits_cons, bitEquiv_symm_true, map_one, polyOfBits_nil,
+    mul_zero, add_zero, mul_one]
+  rw [add_comm, natDegree_add_eq_left_of_degree_lt
+    ((degree_polyOfBits_lt l).trans_eq (degree_X_pow _).symm), natDegree_X_pow]
 
 /-! ### Reduction modulo a binary polynomial -/
 
@@ -216,20 +204,17 @@ private theorem mk_polyOfBits_mulXMod (l r : List Bool) (h : r.length = l.length
       AdjoinRoot.mk (polyOfBits (l ++ [true])) (X * polyOfBits r) := by
   have hlen : (l ++ [true]).length - 1 = l.length := by simp
   have hs : (false :: r).length = l.length + 1 := by simp [h]
-  have hX : polyOfBits (false :: r) = X * polyOfBits r := by
-    simp [bitEquiv_symm_false]
   unfold mulXMod
   rw [hlen]
   split_ifs with htop
   · have hz : ((false :: r).zipWith xor (l ++ [true])).length = l.length + 1 := by simp [h]
     have htop' : ((false :: r).zipWith xor (l ++ [true])).getD l.length false = false := by
-      rw [List.getD_eq_getElem _ _ (by omega), List.getElem_zipWith]
-      rw [List.getD_eq_getElem _ _ (by omega)] at htop
-      rw [htop, List.getElem_append_right (by simp)]
-      simp
-    rw [polyOfBits_take_of_getD hz htop', polyOfBits_zipWith_xor (by simp [h]), hX, map_add,
-      AdjoinRoot.mk_self, add_zero]
-  · rw [polyOfBits_take_of_getD hs (by simpa using htop), hX]
+      rw [List.getD_eq_getElem _ _ (by omega)] at htop ⊢
+      simp [List.getElem_zipWith, htop, List.getElem_append_right]
+    rw [polyOfBits_take_of_getD hz htop', polyOfBits_zipWith_xor (by simp [h]), polyOfBits_cons,
+      bitEquiv_symm_false, map_zero, zero_add, map_add, AdjoinRoot.mk_self, add_zero]
+  · rw [polyOfBits_take_of_getD hs (Bool.eq_false_iff.mpr htop), polyOfBits_cons,
+      bitEquiv_symm_false, map_zero, zero_add]
 
 /-- One step of `modBits`: the next power of `X` modulo `g`, and the partial remainder. -/
 def modStep (g : List Bool) (state : List Bool × List Bool) (b : Bool) :
@@ -263,23 +248,18 @@ private theorem modStep_foldl (l f p a : List Bool) (hp : p.length = l.length)
   induction f generalizing p a with
   | nil => simp [hp, ha]
   | cons b f ih =>
-    have hp' : (mulXMod (l ++ [true]) p).length = l.length := by
-      simpa using length_mulXMod (l ++ [true]) p (by simpa using hp)
-    have ha' : (if b then a.zipWith xor p else a).length = l.length := by
-      simpa [modStep] using length_modStep_acc (l ++ [true]) p a b
-        (by simpa using hp) (by simpa using ha)
-    obtain ⟨h1, h2, h3, h4⟩ := ih _ _ hp' ha'
+    obtain ⟨h1, h2, h3, h4⟩ := ih (mulXMod (l ++ [true]) p) (if b then a.zipWith xor p else a)
+      (by simpa using length_mulXMod (l ++ [true]) p (by simpa using hp))
+      (by cases b <;> simp [hp, ha])
     refine ⟨h1, h2, ?_, ?_⟩
     · rw [List.foldl_cons, modStep, h3, map_mul, mk_polyOfBits_mulXMod l p hp, map_mul,
         List.length_cons, pow_succ, map_mul, map_mul]
       ring
     · rw [List.foldl_cons, modStep, h4, map_add, map_mul, mk_polyOfBits_mulXMod l p hp,
         polyOfBits_cons]
-      cases b
-      · simp only [Bool.false_eq_true, ↓reduceIte, bitEquiv_symm_false, map_add, map_mul, map_zero]
-        ring
-      · rw [ite_eq_left rfl, polyOfBits_zipWith_xor (by rw [ha, hp]), bitEquiv_symm_true]
-        simp only [map_add, map_mul, map_one]
+      cases b <;>
+        simp only [Bool.false_eq_true, ↓reduceIte, polyOfBits_zipWith_xor (ha.trans hp.symm),
+          bitEquiv_symm_false, bitEquiv_symm_true, map_add, map_mul, map_zero, map_one] <;>
         ring
 
 private theorem length_modBits (l f : List Bool) : (modBits (l ++ [true]) f).length = l.length := by
@@ -362,14 +342,7 @@ theorem any_modBits_bits_iff {d : ℕ} (hd : d ≠ 0) (f : List Bool) :
     (modBits d.bits f).any id = true ↔ ¬ polyOfCode d ∣ polyOfBits f := by
   obtain ⟨l, hl⟩ := exists_bits_eq_append_true hd
   rw [← polyOfBits_bits, hl, ← modBits_all_false_iff]
-  simp only [List.any_eq_true, id_eq]
-  constructor
-  · rintro ⟨b, hb, rfl⟩ h
-    exact Bool.true_eq_false.mp (h true hb)
-  · intro h
-    push Not at h
-    obtain ⟨b, hb, hb'⟩ := h
-    exact ⟨b, hb, by simpa using hb'⟩
+  simp [List.any_eq_true]
 
 /-- One trial divisor passes when its degree is outside the tested range or its remainder
 is nonzero. Both codes use their little-endian binary coefficient words. -/
@@ -392,10 +365,8 @@ theorem isIrreducibleCode_iff (m : ℕ) :
     Bool.or_eq_true]
   rcases lt_or_ge m 2 with hm | hm
   · simp only [not_le.2 hm, false_and, false_iff]
-    obtain rfl | rfl : m = 0 ∨ m = 1 := by omega
-    · simp
-    · rw [polyOfCode_one]
-      exact not_irreducible_one
+    rcases (by omega : m = 0 ∨ m = 1) with rfl | rfl
+    exacts [by simp, polyOfCode_one.symm ▸ not_irreducible_one]
   have hm0 : m ≠ 0 := by omega
   have hdeg : (polyOfCode m).natDegree = Nat.log 2 m := natDegree_polyOfCode hm0
   have hlog : 1 ≤ Nat.log 2 m := Nat.le_log_of_pow_le one_lt_two (by simpa using hm)
@@ -406,9 +377,7 @@ theorem isIrreducibleCode_iff (m : ℕ) :
   constructor
   · intro h q hq hdq hdvd
     obtain ⟨d, rfl⟩ := polyOfCode_surjective q
-    have hd0 : d ≠ 0 := by
-      rintro rfl
-      exact hq.ne_zero polyOfCode_zero
+    have hd0 : d ≠ 0 := fun h => hq.ne_zero (h ▸ polyOfCode_zero)
     rw [natDegree_polyOfCode hd0, Finset.mem_Ioc] at hdq
     have hd2 : 2 ≤ d := (Nat.pow_le_pow_right two_pos hdq.1).trans (Nat.pow_log_le_self 2 hd0)
     have hdm : d < m :=
@@ -422,12 +391,10 @@ theorem isIrreducibleCode_iff (m : ℕ) :
     simp only [not_or, not_lt, Bool.not_eq_true] at hc
     obtain ⟨⟨hd2, hdlog⟩, hany⟩ := hc
     have hd0 : d ≠ 0 := by omega
-    have hd : polyOfCode d ≠ 0 := (polyOfCode_ne_zero_and_natDegree hd0).1
-    refine h (polyOfCode d) (monic_of_ne_zero hd) ?_ ?_
-    · rw [natDegree_polyOfCode hd0, Finset.mem_Ioc]
-      exact ⟨Nat.log_pos one_lt_two hd2, hdlog⟩
-    · by_contra hndvd
-      exact Bool.true_eq_false.mp (((any_modBits_bits_iff hd0 _).2 hndvd).symm.trans hany)
+    refine h (polyOfCode d) (monic_of_ne_zero (polyOfCode_ne_zero_and_natDegree hd0).1) ?_
+      (not_not.mp fun hndvd =>
+        Bool.false_ne_true (hany.symm.trans ((any_modBits_bits_iff hd0 _).2 hndvd)))
+    simpa only [natDegree_polyOfCode hd0, Finset.mem_Ioc] using ⟨Nat.log_pos one_lt_two hd2, hdlog⟩
 
 /-- **The exhaustive search**: the least code `m < B` of an irreducible binary polynomial of degree
 `p`, by trial division (`0` if there is none). -/
@@ -439,18 +406,16 @@ def leastIrreducibleCode (B p : ℕ) : ℕ :=
 theorem polyOfCode_leastIrreducibleCode {B p : ℕ} (hp : p ≠ 0) (hB : 2 ^ (p + 1) ≤ B) :
     polyOfCode (leastIrreducibleCode B p) = leastIrreducible p := by
   obtain ⟨m, -, hm2, hm3, hmin⟩ := exists_code_leastIrreducible hp
-  have hP : ∀ j, (Nat.log 2 j == p && isIrreducibleCode j) = true ↔
+  have hP (j : ℕ) : (Nat.log 2 j == p && isIrreducibleCode j) = true ↔
       Irreducible (polyOfCode j) ∧ (polyOfCode j).natDegree = p := by
-    intro j
     rw [Bool.and_eq_true, beq_iff_eq, isIrreducibleCode_iff, natDegree_polyOfCode_eq_log, and_comm]
   have hfind :
       (List.range B).find? (fun m => Nat.log 2 m == p && isIrreducibleCode m) = some m := by
     rw [List.find?_eq_some_iff_getElem]
     refine ⟨(hP m).2 ⟨hm3 ▸ irreducible_leastIrreducible p, hm3 ▸ natDegree_leastIrreducible hp⟩,
-      m, by simp; omega, by simp, fun j hj => ?_⟩
+      m, List.length_range ▸ hm2.trans_le hB, by simp, fun j hj => ?_⟩
     rw [List.getElem_range, Bool.not_eq_true']
-    by_contra h
-    exact hmin j hj ((hP j).1 (by simpa using h))
+    exact Bool.eq_false_iff.2 fun h => hmin j hj ((hP j).1 h)
   rw [leastIrreducibleCode, hfind, Option.getD_some, hm3]
 
 /-! ### Remainders of powers -/
@@ -469,16 +434,11 @@ theorem pow_eq_sum_powerTable {A : Type*} [CommRing A] [Algebra (ZMod 2) A] (l :
     {α : A} (hα : aeval α (polyOfBits (l ++ [true])) = 0) {e : ℕ} (he : e < 2 * l.length) :
     α ^ e = ∑ d ∈ Finset.range l.length,
       bitEquiv.symm (((powerTable (l ++ [true])).getD e []).getD d false) • α ^ d := by
-  have hlen : (l ++ [true]).length - 1 = l.length := by simp
-  have hget : (powerTable (l ++ [true])).getD e [] =
-      modBits (l ++ [true]) (List.replicate e false ++ [true]) := by
-    rw [List.getD_eq_getElem _ _ (by rw [length_powerTable, hlen]; exact he)]
-    simp [powerTable]
-  rw [hget, ← length_modBits l (List.replicate e false ++ [true]), ← aeval_polyOfBits]
-  have h := mk_polyOfBits_modBits l (List.replicate e false ++ [true])
-  rw [AdjoinRoot.mk_eq_mk, polyOfBits_replicate_append_true] at h
-  have h0 := aeval_eq_zero_of_dvd_aeval_eq_zero h hα
-  rw [map_sub, sub_eq_zero] at h0
-  rw [h0, aeval_X_pow]
+  rw [List.getD_eq_getElem _ _ (by simp [length_powerTable, he])]
+  simp only [powerTable, List.getElem_map, List.getElem_range]
+  rw [← length_modBits l _, ← aeval_polyOfBits]
+  have h0 := aeval_eq_zero_of_dvd_aeval_eq_zero (polyOfBits_replicate_append_true e ▸
+    AdjoinRoot.mk_eq_mk.1 (mk_polyOfBits_modBits l _)) hα
+  rwa [map_sub, aeval_X_pow, sub_eq_zero, eq_comm] at h0
 
 end Cslib

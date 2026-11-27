@@ -80,13 +80,10 @@ private theorem verify_eq_of_reads {G H : Xofs} {bits : ℕ} (s : Level) (pk : L
     (good : ∀ m, G.messageRepresentative pk m = H.messageRepresentative pk m) (f : Forgery) :
     G.verify s pk f.message f.context f.signature =
       H.verify s pk f.message f.context f.signature := by
-  apply Xofs.verify_congr_of_reads
-  · exact Xofs.expandA_congr hA s _
-  · intro d hd
-    have : digestBytes s ≤ 64 := by cases s <;> decide
-    exact challenge_unchanged raw s (by lia)
-  · exact fun _ _ => good _
-  · exact fun w => raw _ (hw w (length_messageRepresentative ..)) _
+  refine Xofs.verify_congr_of_reads _ _ _ _ _ (Xofs.expandA_congr hA s _) (fun d hd => ?_)
+    (fun _ _ => good _) (fun w => raw _ (hw w (length_messageRepresentative ..)) _)
+  have : digestBytes s ≤ 64 := by cases s <;> decide
+  exact challenge_unchanged raw s (by lia)
 
 section Coupled
 
@@ -105,7 +102,7 @@ private theorem sign_eq_row {keys : KeyPair} (hg : p.background.keyGen s seed = 
     privateKey_of_keyGen ((keyGen_eq_of_mem_sampleSigningMaskSeeds hp s seed).trans hg)
   have bgMat :=
     (Xofs.expandA_congr (agree_off_sampleSigningMaskSeeds hp).1 s rho.toList).symm.trans mat
-  let m := formatMessage q.message q.context
+  set m := formatMessage q.message q.context with ← hm
   let μ := p.background.messageRepresentative keys.publicKey m
   have rep : p.shared.representativeFromTr (p.shared.h256.readBytes keys.publicKey 64) m = μ :=
     good m
@@ -118,8 +115,7 @@ private theorem sign_eq_row {keys : KeyPair} (hg : p.background.keyGen s seed = 
   by_cases ctx : q.context.length ≤ 255
   · simp only [Xofs.sign, Xofs.signWithRow, Xofs.signInternal, Xofs.runSigning, Xofs.startSigning,
       Xofs.startSigningWithSeed, Xofs.startDecodedSigning, guard, ctx, ↓reduceIte, Option.pure_def,
-      Option.bind_eq_bind, Option.bind_some, dec,
-      ← show m = formatMessage q.message q.context from rfl, rep, rep', seedRead, mat, bgMat]
+      Option.bind_eq_bind, Option.bind_some, dec, hm, rep, rep', seedRead, mat, bgMat]
     exact congrArg (firstAccepted s.params.ℓ · 814 0) (funext fun κ =>
       attempt_congr_of_read (r := rows (i, BitString.ofList 512 μ)) (κ := κ)
         (read_ne_maskSeed_length hp) (by decide)
@@ -183,15 +179,14 @@ private theorem run_eq_rows (C : QuantumSigningForger) {base : Xofs} {s : Level}
     ((OracleComp.interpret (OracleComp.withSampleListWhen isSigningCall (fun _ _ => 0)
       (C.rowCommand p.background s keys)) program).run
       (C.initial, List.ofFn fun i μ => rows (i, μ))).map (fun (a, st, _) => (a, st)) := by
-  let f := C.hedgeCommand p.background p.shared s keys.secretKey
-  let g := C.rowCommand p.background s keys
   refine OracleComp.IsCostBounded.run_interpret_sampleListWhen_congr isSigningCall
-    hn (fun _ => 0) (fun _ _ => 0) f g (by rintro (k | cmd | sign) h <;> first | contradiction |
-      simp only [f, g, hedgeCommand, rowCommand, signingCommand, OracleComp.sumHandler])
+    hn (fun _ => 0) (fun _ _ => 0) (C.hedgeCommand p.background p.shared s keys.secretKey)
+    (C.rowCommand p.background s keys) (by rintro (k | cmd | sign) h <;> first | contradiction |
+      simp only [hedgeCommand, rowCommand, signingCommand, OracleComp.sumHandler])
     (List.ofFn t) (List.ofFn fun i μ => rows (i, μ)) (by simp) ?_ C.initial
   refine List.forall₂_of_length_eq_of_get (by simp) fun j h₁ h₂ q on => ?_
   rcases q with k | cmd | sign <;> first | contradiction |
-    simp only [List.get_ofFn, Fin.cast_mk, f, g, hedgeCommand, rowCommand, signingCommand,
+    simp only [List.get_ofFn, Fin.cast_mk, hedgeCommand, rowCommand, signingCommand,
       OracleComp.sumHandler, sign_eq_row hp hg good]
 
 private theorem transcript_eq_rows (C : QuantumSigningForger) {base : Xofs} {s : Level}
@@ -205,9 +200,9 @@ private theorem transcript_eq_rows (C : QuantumSigningForger) {base : Xofs} {s :
       C.rowTranscript p.background s keys (List.ofFn fun i μ => rows (i, μ)) := by
   have cmd : C.rowCommand p.background s keys = fun r =>
       C.signingCommand p.background fun q => p.background.signWithRow s keys.secretKey q r := rfl
-  simpa only [transcriptWithHedges, rowTranscript, signingTapeTranscript, cmd,
-    show (0 : Row) = fun _ _ => 0 from rfl, PMF.map_comp, Function.comp_def, probOracleSpec,
-    unifSpec, Width, Row] using
+  have h0 : (0 : Row) = fun _ _ => 0 := rfl
+  simpa only [transcriptWithHedges, rowTranscript, signingTapeTranscript, cmd, h0,
+    PMF.map_comp, Function.comp_def, probOracleSpec, unifSpec, Width, Row] using
     congrArg (PMF.map fun x => (x.1, x.2.2)) (run_eq_rows C hp hg good (hn keys.publicKey))
 
 private noncomputable def privateTranscript (C : QuantumSigningForger) (H : Xofs) (s : Level)
@@ -253,8 +248,7 @@ private theorem uniform_rows_transcript (C : QuantumSigningForger) (H : Xofs) (s
       Bool.false_eq_true, ↓reduceIte]
     exact uniform_row_reply H s keys.secretKey q
       fun sig => PMF.pure (sig, st.1, q.logReply sig st.2)
-  rw [PMF.iid_uniformOfFintype] at joint
-  simp_rw [convert] at joint
+  simp only [U, PMF.iid_uniformOfFintype, convert] at joint
   have eq := congrArg (PMF.map fun (out, st) => (out, st.2)) joint
   rw [← PMF.uniformOfFintype_map_equiv (Equiv.curry (Fin n) (BitString 512) (FixedBytes 64))] at eq
   simp only [rowTranscript, privateTranscript, signingTapeTranscript, sampledSigningTranscript,
@@ -347,21 +341,17 @@ private theorem fixed_rows_bound (C : QuantumSigningForger) (s : Level) (base : 
       obtain ⟨_, _, hp⟩ := (PMF.mem_support_bind_iff ..).mp hj
       obtain ⟨_, hp, ⟨⟩⟩ := (PMF.mem_support_map_iff ..).mp hp
       exact score_eq_rows C hp hgood hn)
-  have marg : joint.map Prod.snd = tapes.bind draw := by
-    simp only [joint, PMF.map_bind, PMF.map_comp, Function.comp_def]
-    exact congrArg tapes.bind (funext fun t => PMF.map_id (draw t))
-  have ref : joint.bind (fun z => right z.2.background) =
+  have eq (t) : (draw t).bind (fun p => right p.background) =
       (base.uniformPrefixes a b).bind right := by
-    have eq (t) : (draw t).bind (fun p => right p.background) =
-        (base.uniformPrefixes a b).bind right := by
-      rw [← base.background_sampleSigningMaskSeeds s seed t ha hb rows, PMF.bind_map]; rfl
-    simp only [joint, PMF.bind_bind, PMF.bind_map, Function.comp_def, eq, PMF.bind_const]
-  rw [ref, ← PMF.toOuterMeasure_map_apply, marg] at close
-  have adv := ENNReal.toReal_mono (PMF.toOuterMeasure_ne_top _ _)
-    (Game.closeTo_iff_coe_advantage_le.mp close)
+    simpa only [PMF.bind_map, Function.comp_def] using
+      congrArg (PMF.bind · right) (base.background_sampleSigningMaskSeeds s seed t ha hb rows)
+  simp only [joint, PMF.map, PMF.bind_bind, PMF.pure_bind, PMF.bind_pure, Function.comp_def, eq,
+    PMF.bind_const, ← PMF.toOuterMeasure_map_apply] at close
   simpa only [ENNReal.coe_toReal, joint, PMF.bind_bind, PMF.bind_map, Function.comp_def,
     tapes, draw, right] using
-    adv.trans (base.prob_representative_ne_sampleSigningMaskSeeds s seed ha hb hsize rows)
+    (ENNReal.toReal_mono (PMF.toOuterMeasure_ne_top _ _)
+      (Game.closeTo_iff_coe_advantage_le.mp close)).trans
+      (base.prob_representative_ne_sampleSigningMaskSeeds s seed ha hb hsize rows)
 
 /-- Replacing Algorithm 7's mask-seed hash with one fresh private seed per signing call in
 the background-device fresh-digest game costs at most the signing budget divided by
@@ -430,24 +420,20 @@ theorem randomPrefixGame_forgery_le_privateMaskSeedGame (C : QuantumSigningForge
   intro R trial view
   let fresh := trial.map (·.any SignedMatrixTrial.newDigestWin)
   let priv := C.privateMaskSeedGame s base a b
-  have birthday : dist fresh (view true) ≤ ((n * (n - 1) : ℕ) : ℝ) / 2 ^ 257 :=
-    C.dist_matrixTrial_sharedMaskSeedGame s base ha hb hn hsize _
-  have privateSeed : dist (view false) priv ≤ n / 2 ^ 256 :=
-    C.dist_maskSeedGame_privateMaskSeedGame s base ha _ hn hsize
   have loss : dist fresh priv ≤ ((n * (n - 1) : ℕ) : ℝ) / 2 ^ 257 +
       dist (view true) (view false) + n / 2 ^ 256 := by
     calc
       _ ≤ dist fresh (view false) + dist (view false) priv := dist_triangle ..
       _ ≤ (dist fresh (view true) + dist (view true) (view false)) + n / 2 ^ 256 :=
-        add_le_add (dist_triangle ..) privateSeed
-      _ ≤ _ := add_le_add (add_le_add birthday le_rfl) le_rfl
+        add_le_add (dist_triangle ..) (C.dist_maskSeedGame_privateMaskSeedGame s base ha _ hn hsize)
+      _ ≤ _ := add_le_add (add_le_add
+        (C.dist_matrixTrial_sharedMaskSeedGame s base ha hb hn hsize _) le_rfl) le_rfl
   rw [← coe_nndist, ← Game.advantage_eq_nndist] at loss
   have branch := NNReal.coe_le_coe.mpr
     (C.randomPrefixGame_forgery_le s base ((by decide : 272 ≤ 1024).trans ha) hb)
   simp only [NNReal.coe_add] at branch
-  refine branch.trans ((add_le_add
-    (Game.coe_succProbability_le_add_of_advantage_le loss) le_rfl).trans_eq ?_)
-  abel
+  exact branch.trans ((add_le_add
+    (Game.coe_succProbability_le_add_of_advantage_le loss) le_rfl).trans_eq (by abel))
 
 
 end QuantumSigningForger

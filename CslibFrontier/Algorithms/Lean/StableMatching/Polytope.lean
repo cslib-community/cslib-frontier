@@ -137,10 +137,8 @@ theorem convex_stablePolytope : Convex ℝ I.stablePolytope := by
       ← Finset.mul_sum, hx_col r, hy_col r, mul_one, hab], fun p r => ?_⟩
   simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, propBetterMass, recvBetterMass,
     Finset.sum_add_distrib, ← Finset.mul_sum]
-  have h1 := mul_le_mul_of_nonneg_left (hx_stab p r) ha
-  have h2 := mul_le_mul_of_nonneg_left (hy_stab p r) hb
-  simp only [propBetterMass, recvBetterMass] at h1 h2
-  linarith
+  dsimp only [propBetterMass, recvBetterMass] at hx_stab hy_stab
+  linarith [mul_le_mul_of_nonneg_left (hx_stab p r) ha, mul_le_mul_of_nonneg_left (hy_stab p r) hb]
 
 /-! ### Incidence matrices of stable matchings -/
 
@@ -157,7 +155,7 @@ theorem matchingMatrix_mem_stablePolytope_iff (μ : Matching n) :
         not_lt_of_ge (h ▸ (Finset.mem_filter.1 hr').2).le hp
     have hr0 : I.recvBetterMass (matchingMatrix μ) r p = 0 :=
       Finset.sum_eq_zero fun p' hp' => ite_eq_right fun h =>
-        not_lt_of_ge ((show p' = μ.symm r by rw [← h, Equiv.symm_apply_apply]) ▸
+        not_lt_of_ge ((μ.symm_apply_apply p').symm.trans (congrArg μ.symm h) ▸
           (Finset.mem_filter.1 hp').2).le hr
     linarith [hstab p r]
   · intro hstab
@@ -169,7 +167,7 @@ theorem matchingMatrix_mem_stablePolytope_iff (μ : Matching n) :
     have hr_nn : 0 ≤ I.recvBetterMass (matchingMatrix μ) r p :=
       Finset.sum_nonneg fun p' _ => matchingMatrix_nonneg μ p' r
     by_cases hpr : μ p = r
-    · linarith [show matchingMatrix μ p r = 1 from ite_eq_left hpr]
+    · simp only [matchingMatrix, hpr, ↓reduceIte]; linarith
     · by_cases hp : I.PropPrefers p (μ p) r
       · have hp1 : 1 ≤ I.propBetterMass (matchingMatrix μ) p r :=
           calc
@@ -248,31 +246,20 @@ theorem eq_one_of_mem_stablePolytope_of_pos {x : Fin n → Fin n → ℝ} (hx : 
     have h := Finset.sum_congr rfl fun r₀ (_ : r₀ ∈ Finset.univ) =>
       (sum_mul_strictLower_eq (I.recvRank_injective r₀) (fun p₀ => x p₀ r₀)).trans
         (by rw [hcol r₀, one_pow])
-    simp only [Finset.sum_add_distrib, ← Finset.mul_sum, Finset.sum_const, Finset.card_univ,
-      Fintype.card_fin, nsmul_eq_mul, mul_one] at h
     rw [Finset.sum_comm (f := fun p₀ r₀ => x p₀ r₀ * I.recvBetterMass x r₀ p₀),
       Finset.sum_comm (f := fun p₀ r₀ => x p₀ r₀ ^ 2)]
-    exact h
+    simpa only [recvBetterMass, Finset.sum_add_distrib, ← Finset.mul_sum, Finset.sum_const,
+      Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, mul_one] using h
   have hsum_ones : ∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀ = (n : ℝ) := by
     simp [hrow]
   have hzero_slack :
       ∑ p₀ : Fin n, ∑ r₀ : Fin n,
         x p₀ r₀ * (x p₀ r₀ + I.propBetterMass x p₀ r₀ + I.recvBetterMass x r₀ p₀ - 1) = 0 := by
-    have hexpand :
-        2 * (∑ p₀ : Fin n, ∑ r₀ : Fin n,
-          x p₀ r₀ * (x p₀ r₀ + I.propBetterMass x p₀ r₀ + I.recvBetterMass x r₀ p₀ - 1)) =
-        (2 * (∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀ * I.propBetterMass x p₀ r₀) +
-          ∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀ ^ 2) +
-        (2 * (∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀ * I.recvBetterMass x r₀ p₀) +
-          ∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀ ^ 2) -
-        2 * (∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀) := by
-      have hpt (p₀ r₀ : Fin n) :
-          2 * (x p₀ r₀ * (x p₀ r₀ + I.propBetterMass x p₀ r₀ + I.recvBetterMass x r₀ p₀ - 1)) =
-            2 * (x p₀ r₀ * I.propBetterMass x p₀ r₀) + x p₀ r₀ ^ 2 +
-              (2 * (x p₀ r₀ * I.recvBetterMass x r₀ p₀) + x p₀ r₀ ^ 2) - 2 * x p₀ r₀ := by
-        ring
-      simp only [Finset.mul_sum]
-      simp_rw [hpt, Finset.sum_sub_distrib, Finset.sum_add_distrib]
+    have hpt (p₀ r₀ : Fin n) :
+        x p₀ r₀ * (x p₀ r₀ + I.propBetterMass x p₀ r₀ + I.recvBetterMass x r₀ p₀ - 1) =
+          x p₀ r₀ * I.propBetterMass x p₀ r₀ + x p₀ r₀ * I.recvBetterMass x r₀ p₀ +
+            x p₀ r₀ ^ 2 - x p₀ r₀ := by ring
+    simp_rw [hpt, Finset.sum_sub_distrib, Finset.sum_add_distrib]
     linarith
   have hterm_nn (p₀ r₀ : Fin n) :
       0 ≤ x p₀ r₀ * (x p₀ r₀ + I.propBetterMass x p₀ r₀ + I.recvBetterMass x r₀ p₀ - 1) :=
@@ -361,19 +348,13 @@ private theorem sum_fin_sub_telescope :
         (if ia.val ≤ k.val ∧ k.val < ib.val then f k.succ - f k.castSucc else 0) =
           (if ia.val ≤ k.val ∧ k.val < ib'.val then f k.succ - f k.castSucc else 0) +
             (if k = k₀ then f k.succ - f k.castSucc else 0) := by
-      by_cases hk : k = k₀
-      · subst hk
-        simp only [k₀, ib', show ia.val ≤ ia.val + d ∧ ia.val + d < ib.val by omega,
-          and_self, ↓reduceIte, lt_irrefl, and_false, zero_add]
-      · have hne : k.val ≠ ia.val + d := fun h => hk (Fin.ext h)
-        by_cases h1 : ia.val ≤ k.val ∧ k.val < ib'.val
-        · simp [h1, show ia.val ≤ k.val ∧ k.val < ib.val by dsimp [ib'] at h1; omega, hk]
-        · simp [h1, show ¬ (ia.val ≤ k.val ∧ k.val < ib.val) by dsimp [ib'] at h1; omega, hk]
+      simp only [Fin.ext_iff, ib', k₀]
+      split_ifs <;> first | ring1 | exact False.elim (by omega)
     simp_rw [hsplit, Finset.sum_add_distrib]
     rw [ih ib' (Nat.le_add_right ia.val d) rfl, Finset.sum_ite_eq']
-    simp only [Finset.mem_univ, ↓reduceIte,
-      show k₀.succ = ib from Fin.ext (by dsimp [k₀]; omega),
-      show k₀.castSucc = ib' from Fin.ext rfl]
+    have hk_succ : k₀.succ = ib := Fin.ext (by simp only [k₀, Fin.val_succ]; omega)
+    have hk_cast : k₀.castSucc = ib' := rfl
+    simp only [Finset.mem_univ, ↓reduceIte, hk_succ, hk_cast]
     ring
 
 /-- **Theorem 10.15** ([SchummerVohra2007], Section 10.4.2, p. 261; [VandeVate1989]; [Rothblum1992];
@@ -386,8 +367,7 @@ theorem stablePolytope_eq_convexHull :
       I.convex_stablePolytope)
   intro x hx
   rcases Nat.eq_zero_or_pos n with rfl | hn
-  · rw [show x = matchingMatrix (Equiv.refl (Fin 0)) from funext fun p => Fin.elim0 p]
-    exact subset_convexHull ℝ _ ⟨Equiv.refl (Fin 0), fun p => Fin.elim0 p, rfl⟩
+  · exact subset_convexHull ℝ _ ⟨Equiv.refl _, fun p => Fin.elim0 p, funext fun p => Fin.elim0 p⟩
   · classical
     obtain ⟨hx_nn, hx_row, hx_col, hx_stab⟩ := hx
     -- Finite breakpoint set containing 0, 1, all P p r, and all P p r + x p r.
@@ -425,23 +405,17 @@ theorem stablePolytope_eq_convexHull :
               x p r') ≤ ∑ r' : Fin n, x p r' :=
             Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _) fun r' _ _ => hx_nn p r'
           _ = 1 := hx_row p
-    have hB_card_ge : 2 ≤ B.card := by
-      have hsub : ({0, 1} : Finset ℝ) ⊆ B := fun y hy => by
-        simp only [Finset.mem_insert, Finset.mem_singleton] at hy
-        rcases hy with rfl | rfl <;> assumption
-      exact (by norm_num : ({0, 1} : Finset ℝ).card = 2) ▸ Finset.card_le_card hsub
     let m : ℕ := B.card - 1
-    have hB_card : B.card = m + 1 := by omega
+    have hB_card : B.card = m + 1 := (Nat.sub_add_cancel (Finset.card_pos.2 ⟨0, h0B⟩)).symm
     let e : Fin (m + 1) ↪o ℝ := B.orderEmbOfFin hB_card
     have hmem_e {y : ℝ} (hy : y ∈ B) : y ∈ Set.range e :=
       (Finset.range_orderEmbOfFin B hB_card).symm ▸ hy
     have he0 : e ⟨0, Nat.succ_pos m⟩ = 0 := by
       rw [Finset.orderEmbOfFin_zero hB_card (Nat.succ_pos m)]
       exact le_antisymm (Finset.min'_le B 0 h0B) (hB_bounds _ (Finset.min'_mem B _)).1
-    have heLast : e (Fin.last m) = 1 := by
-      rw [show (Fin.last m : Fin (m + 1)) = ⟨m + 1 - 1, by omega⟩ from rfl,
-        Finset.orderEmbOfFin_last hB_card (Nat.succ_pos m)]
-      exact le_antisymm (hB_bounds _ (Finset.max'_mem B _)).2 (Finset.le_max' B 1 h1B)
+    have heLast : e (Fin.last m) = 1 :=
+      (Finset.orderEmbOfFin_last hB_card (Nat.succ_pos m)).trans
+        (le_antisymm (hB_bounds _ (Finset.max'_mem B _)).2 (Finset.le_max' B 1 h1B))
     let w : Fin m → ℝ := fun k => e k.succ - e k.castSucc
     let mid : Fin m → ℝ := fun k => (e k.castSucc + e k.succ) / 2
     have hw_pos (k : Fin m) : 0 < w k := sub_pos.2 (e.strictMono k.castSucc_lt_succ)
@@ -451,9 +425,8 @@ theorem stablePolytope_eq_convexHull :
       dsimp only [mid]; linarith [e.strictMono k.castSucc_lt_succ]
     have hmid_not_B (k : Fin m) : mid k ∉ B := fun hmem => by
       obtain ⟨j, hj⟩ := hmem_e hmem
-      have : k.val < j.val := e.lt_iff_lt.1 (hj ▸ hmid_gt k)
-      have : j.val < k.val + 1 := e.lt_iff_lt.1 (hj ▸ hmid_lt k)
-      omega
+      exact Nat.not_lt.2 (Nat.lt_succ_iff.1 (e.lt_iff_lt.1 (hj ▸ hmid_lt k)))
+        (e.lt_iff_lt.1 (hj ▸ hmid_gt k))
     have hmid_01 (k : Fin m) : 0 < mid k ∧ mid k < 1 :=
       ⟨lt_of_le_of_lt (he0 ▸ e.monotone (Fin.zero_le _)) (hmid_gt k),
        lt_of_lt_of_le (hmid_lt k) (heLast ▸ e.monotone (Fin.le_last _))⟩
@@ -472,14 +445,13 @@ theorem stablePolytope_eq_convexHull :
     have hf_inj (k : Fin m) : Function.Injective (f k) := fun p₁ p₂ heq => by
       by_contra hpne
       have hr1 := heq ▸ hf_recv k p₁
-      have hr2 := hf_recv k p₂
       rcases lt_or_gt_of_ne (fun hrk => hpne (I.recvRank_injective (f k p₂) hrk)) with hlt | hgt
       · have hle : I.recvBetterMass x (f k p₂) p₁ + x p₁ (f k p₂) ≤
             I.recvBetterMass x (f k p₂) p₂ := strictLower_add_le (fun p' => hx_nn p' _) hlt
-        linarith [hr1.2, hr2.1]
+        linarith [hr1.2, (hf_recv k p₂).1]
       · have hle : I.recvBetterMass x (f k p₂) p₂ + x p₂ (f k p₂) ≤
             I.recvBetterMass x (f k p₂) p₁ := strictLower_add_le (fun p' => hx_nn p' _) hgt
-        linarith [hr2.2, hr1.1]
+        linarith [(hf_recv k p₂).2, hr1.1]
     let μ : Fin m → Matching n := fun k => permOfInjective (f k) (hf_inj k)
     have hμ_stab (k : Fin m) : I.IsStable (μ k) := fun p r ⟨hp_pref, hr_pref⟩ => by
       have hp_le : I.propBetterMass x p r + x p r ≤ I.propBetterMass x p (f k p) :=
@@ -487,10 +459,9 @@ theorem stablePolytope_eq_convexHull :
       let pStar : Fin n := (μ k).symm r
       have hr_le : I.recvBetterMass x r p + x p r ≤ I.recvBetterMass x r pStar :=
         strictLower_add_le (fun p' => hx_nn p' r) hr_pref
-      have hr_pStar := hf_recv k pStar
-      have hpStar_f : f k pStar = r := (μ k).apply_symm_apply r
-      rw [hpStar_f] at hr_pStar
-      linarith [(hf k p).1, hr_pStar.1, hx_stab p r, hx_nn p r]
+      have hr_pStar : I.recvBetterMass x r pStar < 1 - mid k :=
+        (μ k).apply_symm_apply r ▸ (hf_recv k pStar).1
+      linarith [(hf k p).1, hx_stab p r, hx_nn p r]
     have hμ_iff (k : Fin m) (p r : Fin n) :
         μ k p = r ↔ (I.propBetterMass x p r < mid k ∧ mid k < I.propBetterMass x p r + x p r) := by
       change f k p = r ↔ _
@@ -515,22 +486,13 @@ theorem stablePolytope_eq_convexHull :
       have hia_le_ib : ia ≤ ib := e.le_iff_le.1 (by linarith [hx_nn p r, hia, hib])
       have hterm (k : Fin m) : w k * matchingMatrix (μ k) p r =
           if ia.val ≤ k.val ∧ k.val < ib.val then e k.succ - e k.castSucc else 0 := by
-        rw [matchingMatrix]
-        simp only [hμ_iff k p r]
-        rw [← hib, ← hia]
-        by_cases hidx : ia.val ≤ k.val ∧ k.val < ib.val
-        · have hint : e ia < mid k ∧ mid k < e ib :=
-            ⟨lt_of_le_of_lt (e.monotone hidx.1) (hmid_gt k),
-             lt_of_lt_of_le (hmid_lt k) (e.monotone (Nat.succ_le_of_lt hidx.2))⟩
-          simp [hidx, hint, w]
-        · have hnot_int : ¬ (e ia < mid k ∧ mid k < e ib) := fun ⟨h1, h2⟩ => hidx ⟨
-            by by_contra h
-               have := e.monotone (show k.succ ≤ ia from Nat.succ_le_of_lt (lt_of_not_ge h))
-               linarith [hmid_lt k],
-            by by_contra h
-               have := e.monotone (show ib ≤ k.castSucc from le_of_not_gt h)
-               linarith [hmid_gt k]⟩
-          simp [hidx, hnot_int]
+        have hiff : (e ia < mid k ∧ mid k < e ib) ↔ (ia.val ≤ k.val ∧ k.val < ib.val) :=
+          ⟨fun ⟨h1, h2⟩ => ⟨Nat.lt_succ_iff.1 (e.lt_iff_lt.1 (h1.trans (hmid_lt k))),
+            e.lt_iff_lt.1 ((hmid_gt k).trans h2)⟩,
+           fun ⟨h1, h2⟩ => ⟨(e.monotone h1).trans_lt (hmid_gt k),
+            (hmid_lt k).trans_le (e.monotone (Nat.succ_le_of_lt h2))⟩⟩
+        simp only [matchingMatrix, mul_ite, mul_one, mul_zero, hμ_iff k p r, w]
+        rw [← hib, ← hia, if_congr hiff rfl rfl]
       simp_rw [hterm]
       rw [sum_fin_sub_telescope e ia ib hia_le_ib, hia, hib]; ring
     rw [← hx_decomp]

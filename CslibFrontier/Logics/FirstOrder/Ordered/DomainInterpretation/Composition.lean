@@ -87,26 +87,22 @@ private theorem exists_unrank_comp (hI : I.Admissible) :
       flattenTuple fun j => I.unrank M (J.unrank (I.map hI M) (Fin.cast h i) j) := by
   have hdom (i : Fin (J.card (I.map hI M))) :
       (J.comp C).domain.Realize (flattenTuple fun j => I.unrank M (J.unrank (I.map hI M) i j)) := by
-    rw [realize_comp_domain]
-    simp only [flattenTuple_finProdFinEquiv_apply]
-    exact ⟨fun j => realize_domain_unrank _,
-      (C.realize_onFormula hI J.domain (J.unrank (I.map hI M) i)).mpr (realize_domain_unrank i)⟩
+    simpa only [realize_comp_domain, flattenTuple_finProdFinEquiv_apply] using
+      ⟨fun _ => realize_domain_unrank _,
+        (C.realize_onFormula hI J.domain _).mpr (realize_domain_unrank i)⟩
   have hsurj (x : Fin (l * k) → Fin M.size) (hx : (J.comp C).domain.Realize x) :
       ∃ i, (flattenTuple fun j => I.unrank M (J.unrank (I.map hI M) i j)) = x := by
-    rw [realize_comp_domain] at hx
-    obtain ⟨hb, hJ⟩ := hx
+    obtain ⟨hb, hJ⟩ := (J.realize_comp_domain C x).mp hx
     let r : Fin l → I.map hI M := fun j => I.rank M _ (hb j)
     have hr : (fun p : Fin l × Fin k => x (finProdFinEquiv p)) =
-        fun p => I.unrank M (r p.1) p.2 := by
-      funext p
-      exact (congrFun (unrank_rank (hb p.1)) p.2).symm
+        fun p => I.unrank M (r p.1) p.2 :=
+      funext fun p => (congrFun (unrank_rank (hb p.1)) p.2).symm
     rw [hr, C.realize_onFormula hI J.domain r] at hJ
     obtain ⟨i, hi⟩ := exists_unrank_eq hJ
     refine ⟨i, ?_⟩
     rw [hi]
-    conv_rhs => rw [← flattenTuple_finProdFinEquiv x]
-    congr 1 with j : 1
-    exact unrank_rank (hb j)
+    exact (congrArg flattenTuple (funext fun j => unrank_rank (hb j))).trans
+      (flattenTuple_finProdFinEquiv x)
   have hφ : StrictMono fun r : Fin (I.card M) => lexEquiv (I.unrank M r) :=
     fun _ _ h => Fin.lt_def.mpr (strictMono_lexRank_unrank h)
   have hmono : StrictMono fun i : Fin (J.card (I.map hI M)) =>

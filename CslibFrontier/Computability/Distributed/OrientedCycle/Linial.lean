@@ -85,10 +85,9 @@ private theorem exists_extension {n k : ℕ} (hn : 0 < n) (hk : k ≤ n) {a : Fi
       congrArg ZMod.val h
   obtain ⟨σ, hσ⟩ := Equiv.Perm.exists_extending_pair _ _
     (key Fin.val_injective fun i => by omega) (key ha.injective han)
-  refine ⟨fun v => (σ v).val, ?_, fun v => ZMod.val_lt _, fun i => ?_⟩
-  · intro v w h
-    exact σ.injective (ZMod.val_injective n h)
-  · simp only [hσ, ZMod.val_natCast, Nat.mod_eq_of_lt (han i)]
+  refine ⟨fun v => (σ v).val, fun _ _ h => σ.injective (ZMod.val_injective n h),
+    fun v => ZMod.val_lt _, fun i => ?_⟩
+  simp only [hσ, ZMod.val_natCast, Nat.mod_eq_of_lt (han i)]
 
 /-- **Linial's lower bound, combinatorial core** [Linial][Linial1992], following
 [Laurinharju and Suomela][LaurinharjuSuomela2014]. If a rule of radius `t` properly colours the
@@ -120,9 +119,7 @@ theorem LocalRule.le_iterate_of_isProperColoring {O : Type*} [Fintype O] {n t : 
       have hcl : (Fin.clamp (j + t).toNat (2 * t) : ℕ) = m := by
         simp only [Fin.coe_clamp, hm, Int.toNat_natCast]; omega
       have hmz : (j : ZMod n) + (t : ZMod n) = (m : ZMod n) := by
-        have := congrArg (Int.cast : ℤ → ZMod n) hm
-        push_cast at this
-        exact this
+        simpa using congrArg (Int.cast : ℤ → ZMod n) hm
       constructor
       · have hv : (t : ZMod n) + (j : ZMod n) = ((m : ℕ) : ZMod n) := by
           linear_combination hmz
@@ -149,9 +146,8 @@ theorem Algorithm.le_iterate_of_isProperColoring {S O : Type*} [Fintype O] {n t 
     (hA : ∀ x : ZMod n → ℕ, Function.Injective x → (∀ v, x v < n) →
       IsProperColoring (A.run x t)) :
     n ≤ (2 ^ ·)^[2 * t] (Fintype.card O) :=
-  (A.toLocalRule t).le_iterate_of_isProperColoring fun x hx hxn => by
-    have h : A.run x t = (A.toLocalRule t).apply x := funext (A.run_eq_apply x t)
-    exact h ▸ hA x hx hxn
+  (A.toLocalRule t).le_iterate_of_isProperColoring fun x hx hxn =>
+    funext (A.run_eq_apply x t) ▸ hA x hx hxn
 
 /-- Linial's lower bound in terms of `log*`: a `t`-round algorithm properly colouring every oriented
 `n`-cycle with distinct identifiers below `n` and colours below `c` has
@@ -180,7 +176,6 @@ properly 3-colours every oriented `n`-cycle with distinct identifiers from `{0, 
 `log* n ≤ 2t + 2`, that is `t ≥ (log* n) / 2 - 1`. -/
 theorem Algorithm.ColorsCycle.logStar_le_of_three {S : Type*} {A : Algorithm ℕ S ℕ} {n t : ℕ}
     (hA : A.ColorsCycle n t 3) : Nat.logStar n ≤ 2 * t + 2 := by
-  have h3 : Nat.logStar 3 = 2 := by decide
-  simpa [h3] using hA.logStar_le
+  simpa [show Nat.logStar 3 = 2 by decide] using hA.logStar_le
 
 end Cslib.Distributed.OrientedCycle

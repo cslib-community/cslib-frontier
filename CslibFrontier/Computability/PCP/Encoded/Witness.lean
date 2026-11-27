@@ -169,27 +169,22 @@ theorem satisfies_ofCompactCNFLabels {φ : CNF ℕ} {w : List Bool}
   have hsatMath : ∀ edge,
       (ConstraintGraph.ofCNF ψ.compact).Satisfies
         (ConstraintGraph.cnfLabelling ψ.compact τc) edge := by
-    have hle := ConstraintGraph.card_unsatEdges_cnfLabelling_le (φ := ψ.compact) hc3 τc
-    rw [CNF.countUnsat_eq_zero_iff.mpr hceval, Nat.mul_zero, Nat.le_zero, Finset.card_eq_zero,
-      ConstraintGraph.unsatEdges_eq_empty_iff] at hle
-    exact hle
+    simpa [CNF.countUnsat_eq_zero_iff.mpr hceval, ConstraintGraph.unsatEdges_eq_empty_iff] using
+      ConstraintGraph.card_unsatEdges_cnfLabelling_le (φ := ψ.compact) hc3 τc
   have hlabel (u : ℕ ⊕ Fin ψ.compact.length)
       (hu : Graph.cnfVertexNumber u < 2 * (ψ.vars.length + ψ.length)) :
       (ofCompactCNFLabels φ w).getD (Graph.cnfVertexNumber u) (fun _ => false) =
         ConstraintGraph.cnfLabelling ψ.compact τc u := by
     rw [ofCompactCNFLabels, List.getD_eq_getElem?_getD, List.getElem?_map,
       List.getElem?_range hu, Option.map_some, Option.getD_some]
-    dsimp only
-    rw [show φ.to3CNF = ψ from rfl, show φ.to3CNFAssignment (SAT.assignment φ w) = τ from rfl]
     rcases u with x | j
     · simp only [Graph.cnfVertexNumber, Nat.mul_mod_right, ↓reduceIte,
-        Nat.mul_div_right _ (by decide : 0 < 2), ConstraintGraph.cnfLabelling]
+        Nat.mul_div_right _ two_pos, ConstraintGraph.cnfLabelling]
       rfl
-    · have hj : j.val < ψ.length := by simpa only [CNF.length_compact] using j.isLt
-      have hneg : ¬ (2 * j.val + 1) % 2 = 0 := by omega
-      have hdiv : (2 * j.val + 1) / 2 = j.val := by omega
-      simp only [Graph.cnfVertexNumber, hdiv, hneg, ↓reduceIte, List.getD_eq_getElem?_getD,
-        List.getElem?_eq_getElem hj, Option.getD_some]
+    · have hj : j.val < φ.to3CNF.length := by simpa only [CNF.length_compact] using j.isLt
+      simp only [Graph.cnfVertexNumber, Nat.mul_add_mod_self_left, Nat.mod_eq_of_lt one_lt_two,
+        Nat.one_ne_zero, ↓reduceIte, Nat.mul_add_div two_pos, Nat.div_eq_of_lt one_lt_two,
+        Nat.add_zero, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hj, Option.getD_some]
       funext q
       change ψ[j.val][q.val]?.elim false (fun lit => τ lit.1) =
         ψ.compact[j.val][q.val]?.elim false (fun l => ψ.vars[l.1]?.elim false τ)
@@ -199,30 +194,21 @@ theorem satisfies_ofCompactCNFLabels {φ : CNF ℕ} {w : List Bool}
       | some lit =>
         have hmemVar : lit.1 ∈ ψ.vars := List.mem_map.mpr
           ⟨lit, List.mem_flatten.mpr ⟨ψ[j.val], List.getElem_mem hj, List.mem_of_getElem? hq⟩, rfl⟩
-        simp only [Option.map_some, Option.elim_some, Prod.map_fst]
-        rw [@List.getElem?_idxOf _ instBEqOfDecidableEq _ _ _ hmemVar]; rfl
+        simp only [Option.map_some, Option.elim_some, Prod.map_fst,
+          @List.getElem?_idxOf _ instBEqOfDecidableEq _ _ _ hmemVar]
   have hedge := Graph.wellFormed_ofCompactCNF ψ _ (List.getElem_mem e.isLt)
-  change ((Graph.ofCompactCNF ψ).toGraph id).Satisfies
-    (fun v => (ofCompactCNFLabels φ w).getD v (fun _ => false)) e
   dsimp only [Graph.ofCompactCNF]
   rw [Graph.toGraph_ofCNF ψ.vars.length ψ.compact]
+  dsimp only [ConstraintGraph.Satisfies, ConstraintGraph.comap, ConstraintGraph.map,
+    Function.comp_def]
   set idx := (Graph.ofCNFEnumeration ψ.vars.length ψ.compact).equiv e
   have hgr := (Graph.toGraph_ofCNF ψ.vars.length ψ.compact).symm
-  have hsrcIdx : Graph.cnfVertexNumber ((ConstraintGraph.ofCNF ψ.compact).src idx) <
-      2 * (ψ.vars.length + ψ.length) :=
-    (congrArg (fun g => g.src e) hgr).trans_lt
-      (by simpa [Graph.toGraph, Graph.ofCompactCNF, Graph.ofCNF, CNF.length_compact] using hedge.1)
-  have hdstIdx : Graph.cnfVertexNumber ((ConstraintGraph.ofCNF ψ.compact).dst idx) <
-      2 * (ψ.vars.length + ψ.length) :=
-    (congrArg (fun g => g.dst e) hgr).trans_lt
-      (by simpa [Graph.toGraph, Graph.ofCompactCNF, Graph.ofCNF, CNF.length_compact] using hedge.2)
-  simp only [ConstraintGraph.Satisfies, ConstraintGraph.comap, ConstraintGraph.map]
-  change (ConstraintGraph.ofCNF ψ.compact).rel idx
-    ((ofCompactCNFLabels φ w).getD
-      (Graph.cnfVertexNumber ((ConstraintGraph.ofCNF ψ.compact).src idx)) (fun _ => false))
-    ((ofCompactCNFLabels φ w).getD
-      (Graph.cnfVertexNumber ((ConstraintGraph.ofCNF ψ.compact).dst idx)) (fun _ => false))
-  rw [hlabel _ hsrcIdx, hlabel _ hdstIdx]
+  have hsrcIdx := (congrArg (fun g => g.src e) hgr).trans_lt
+    (by simpa [Graph.toGraph, Graph.ofCompactCNF, Graph.ofCNF, CNF.length_compact] using hedge.1)
+  have hdstIdx := (congrArg (fun g => g.dst e) hgr).trans_lt
+    (by simpa [Graph.toGraph, Graph.ofCompactCNF, Graph.ofCNF, CNF.length_compact] using hedge.2)
+  rw [hlabel ((ConstraintGraph.ofCNF ψ.compact).src idx) hsrcIdx,
+    hlabel ((ConstraintGraph.ofCNF ψ.compact).dst idx) hdstIdx]
   exact hsatMath idx
 
 /-- Compiling `Graph.ofCompactCNF φ.to3CNF` labels from `(φ, w)` runs in polynomial time. -/
@@ -329,7 +315,7 @@ theorem satisfies_composeLabels (impl : Implementation α I P R Q Γ)
     (e : Fin (impl.composeTabulated number coins queries g).edges.length) :
     ((impl.composeTabulated number coins queries g).toGraph id).Satisfies
       (fun v => (impl.composeLabels encode aux number default γ g labels).getD v defaultOut) e := by
-  let L := impl.composeLabels encode aux number default γ g labels
+  set L := impl.composeLabels encode aux number default γ g labels
   let σ : ℕ → α := fun v => labels.getD v default
   let G := g.toGraph id
   let A := (T.composeTest G).labellingOf (T.composeProof G σ) γ
@@ -345,9 +331,8 @@ theorem satisfies_composeLabels (impl : Implementation α I P R Q Γ)
   have hedge (ed : Fin g.edges.length) : g.edgeAt (fun _ _ => false) ed.val = g.edges[ed.val] := by
     simp [edgeAt, List.getD_eq_getElem?_getD]
   have hends (ed : Fin g.edges.length) :
-      (fun b : Fin 2 => σ (G.ends ed b)) = ![σ g.edges[ed.val].src, σ g.edges[ed.val].dst] := by
-    funext b
-    fin_cases b <;> rfl
+      (fun b : Fin 2 => σ (G.ends ed b)) = ![σ g.edges[ed.val].src, σ g.edges[ed.val].dst] :=
+    funext fun b => by fin_cases b <;> rfl
   have hl_src (ed : Fin g.edges.length) (ω : R) :
       L.getD (composeVertex number Fin.val (.inr (ed, ω))) defaultOut = A (.inr (ed, ω)) := by
     change L.getD (ed.val * width + (number (.inr (.inr ω))).val) defaultOut = _
@@ -382,21 +367,19 @@ theorem satisfies_composeLabels (impl : Implementation α I P R Q Γ)
       simp only [A, LocalTest.labellingOf, composeSlotLabel, Sum.elim_inl,
         AssignmentTester.composeProof, testerPos, Prod.mk.injEq, and_true, ← hends ed]
       exact (haux (g.edges[ed.val]).constraint _ p).symm
-  change ((impl.composeTabulated number coins queries g).toGraph id).Satisfies
-    (fun v => L.getD v defaultOut) e
-  dsimp only [composeTabulated]
+  dsimp only [composeTabulated] at e ⊢
   rw [toGraph_mapConstraints]
+  dsimp only [ConstraintGraph.Satisfies, ConstraintGraph.comap, Function.comp_def, id_eq]
   set e' : Fin (impl.compose number coins queries g).edges.length :=
     finCongr (length_edges_mapConstraints _ _) e
-  change ((impl.compose number coins queries g).toGraph (composeEval impl)).Satisfies
+  change ((impl.compose number coins queries g).toGraph impl.composeEval).Satisfies
     (fun v => L.getD v defaultOut) e'
   rw [toGraph_compose impl hreal number coins queries g hcoins hqueries hmemCoins hmemQueries]
+  dsimp only [ConstraintGraph.Satisfies, ConstraintGraph.comap, ConstraintGraph.map,
+    Function.comp_def, AssignmentTester.compose, AssignmentTester.composeTest,
+    LocalTest.toConstraintGraph, LocalTest.mix, LocalTest.map]
   set p := (composeEnumeration impl number coins queries g
     hcoins hqueries hmemCoins hmemQueries).equiv e'
-  change (T.compose G).rel p
-    (L.getD (composeVertex number Fin.val (.inr p.1)) defaultOut)
-    (L.getD (composeVertex number Fin.val
-      (.inl (testerPos G p.1.1 ((T.test (G.rel p.1.1)).query p.1.2 p.2)))) defaultOut)
   rw [hl_src p.1.1 p.1.2, hl_dst p.1.1]
   exact LocalTest.satisfies_labellingOf
     (passes_composeTest_composeProof hcomplete G (hsat p.1.1) p.1.2)
@@ -553,10 +536,9 @@ private theorem satisfies_regularPreprocess (g : Graph C)
     cases side <;>
       simpa only [preprocessRelation, hrot, Bool.false_eq_true, ↓reduceIte, Bool.not_false,
         Bool.not_true, ConstraintGraph.endpoint, toGraph, hedge, List.get_eq_getElem] using hsatv
-  · have hrot : R.graph.neighbor v (.inl (.inl (.inr d))) =
-        ((g.toGraph eval).cloudGraph (g.cloudFamily eval fallback family)).neighbor v d := rfl
-    rw [preprocessRelation, hrot, ConstraintGraph.endpoint_neighbor_cloudGraph]
-    exact decide_eq_true rfl
+  · rw [preprocessRelation]
+    exact decide_eq_true (congrArg σ
+      (ConstraintGraph.endpoint_neighbor_cloudGraph (g.cloudFamily eval fallback family) v d).symm)
   all_goals simp [preprocessRelation]
 
 /-- Satisfying vertex labels lift to satisfying walk-opinion labels on
@@ -593,24 +575,13 @@ theorem satisfies_powerPreprocessLabels [DecidableEq α] (g : Graph C)
       g R.graph (fun p => (p.1.val, p.2))
       (g.preprocessRotation_eq eval fallback family rotate hrotate) w.1.val v w.2]
     rcases hpair : ((R.graph.pow w.1.val).rot (v, w.2)).1 with ⟨idx, side⟩
-    have hedge : g.edgeAt fallback idx.val = g.edges[idx.val] := by
-      simp [edgeAt, List.getD_eq_getElem?_getD]
-    change labels.getD (if side then (g.edgeAt fallback idx.val).dst else
-        (g.edgeAt fallback idx.val).src) default =
-      R.truthful T σ_prep v w
-    rw [hedge]
     cases side <;> simp [RegularConstraintGraph.truthful, σ_prep, σ, ConstraintGraph.endpoint,
-      toGraph, RotationMap.neighbor, hpair]
-  change ((g.powerPreprocess eval fallback rotate T q walks).toGraph id).Satisfies
-    (fun u => (powerPreprocessLabels fallback default rotate T g labels).getD u defaultPow) e
+      toGraph, RotationMap.neighbor, edgeAt, List.getD_eq_getElem?_getD, hpair]
   rw [toGraph_powerPreprocess g eval fallback family rotate hrotate T q walks hwalks hmem]
   set p := (g.powerPreprocessEnumeration eval fallback rotate T q walks hwalks hmem).equiv e
-  change (R.power T q).rel p
-    ((powerPreprocessLabels fallback default rotate T g labels).getD
-      (halfEdgeNumber (p.1.1.val, p.1.2)) defaultPow)
-    ((powerPreprocessLabels fallback default rotate T g labels).getD
-      (halfEdgeNumber (((R.graph.killedPow T q).rot p).1.1.val,
-        ((R.graph.killedPow T q).rot p).1.2)) defaultPow)
+  dsimp only [ConstraintGraph.Satisfies, ConstraintGraph.comap, ConstraintGraph.map,
+    Function.comp_def, RegularConstraintGraph.toConstraintGraph, RegularConstraintGraph.power,
+    RotationMap.neighbor]
   rw [hl p.1, hl ((R.graph.killedPow T q).rot p).1]
   exact RegularConstraintGraph.satisfies_power_iff.2 fun _ hi =>
     (R.rel_truthful_iff T q σ_prep p hi).2
@@ -678,9 +649,8 @@ def amplifyLabels (fallback : Constraint) (rotate : ℕ × (ℕ × D) → ℕ ×
 theorem length_amplifyLabels (fallback : Constraint) (rotate : ℕ × (ℕ × D) → ℕ × D)
     (T q : ℕ) [NeZero q] (g : Graph Constraint) (labels : List SelectedAlphabet) :
     (amplifyLabels fallback rotate T q g labels).length =
-      (g.amplify id fallback rotate T q).vertices := by
-  dsimp only [amplifyLabels, amplify]
-  exact length_composeSelectedLabels _ _ _
+      (g.amplify id fallback rotate T q).vertices :=
+  length_composeSelectedLabels _ _ _
 
 /-- One round of `amplify` preserves satisfaction of explicit label lists. -/
 theorem satisfies_amplifyLabels (fallback : Constraint)
@@ -692,13 +662,11 @@ theorem satisfies_amplifyLabels (fallback : Constraint)
     (e : Fin (g.amplify id fallback rotate T q).edges.length) :
     ((g.amplify id fallback rotate T q).toGraph id).Satisfies
       (fun v => (amplifyLabels fallback rotate T q g labels).getD v defaultSelectedAlphabet)
-      e := by
-  have hwfPow := g.wellFormed_powerPreprocess id fallback family rotate hrotate T q
-    (FinEnum.toList _)
-  have hsatPow := satisfies_powerPreprocessLabels g id fallback family rotate hrotate T q
-    (FinEnum.toList _) FinEnum.nodup_toList FinEnum.mem_toList defaultSelectedAlphabet hsat
-    (fun _ => defaultSelectedAlphabet)
-  exact satisfies_composeSelectedLabels (fun _ => defaultSelectedAlphabet) hwfPow hsatPow e
+      e :=
+  satisfies_composeSelectedLabels (fun _ => defaultSelectedAlphabet)
+    (g.wellFormed_powerPreprocess id fallback family rotate hrotate T q (FinEnum.toList _))
+    (satisfies_powerPreprocessLabels g id fallback family rotate hrotate T q (FinEnum.toList _)
+      FinEnum.nodup_toList FinEnum.mem_toList defaultSelectedAlphabet hsat _) e
 
 /-- Joint graph-and-label step for `amplifyIter`. -/
 def amplifyIterStep (fallback : Constraint) (rotate : ℕ × (ℕ × D) → ℕ × D)
@@ -730,19 +698,12 @@ theorem length_amplifyIterLabels (fallback : Constraint) (rotate : ℕ × (ℕ �
     (hlen : labels.length = g.vertices) :
     (amplifyIterLabels fallback rotate T q k g labels).length =
       (amplifyIter fallback rotate T q k g).vertices := by
-  have hinv : ∀ m (g₀ : Graph Constraint) (L₀ : List SelectedAlphabet),
-      L₀.length = g₀.vertices →
-      ((amplifyIterStep fallback rotate T q)^[m] (g₀, L₀)).2.length =
-        ((amplifyIterStep fallback rotate T q)^[m] (g₀, L₀)).1.vertices := by
-    intro m
-    induction m with
-    | zero => exact fun _ _ h => h
-    | succ m ih =>
-      intro g₀ L₀ _
-      rw [Function.iterate_succ_apply]
-      exact ih _ _ (length_amplifyLabels fallback rotate T q g₀ L₀)
-  rw [amplifyIterLabels, ← fst_amplifyIterStep]
-  exact hinv k g labels hlen
+  rw [amplifyIterLabels, amplifyIter]
+  induction k generalizing g labels with
+  | zero => exact hlen
+  | succ k ih =>
+    rw [Function.iterate_succ_apply, Function.iterate_succ_apply]
+    exact ih (length_amplifyLabels fallback rotate T q g labels)
 
 /-- Iterated normalized amplification rounds preserve satisfaction of explicit label lists. -/
 theorem satisfies_amplifyIterLabels (fallback : Constraint)
@@ -755,28 +716,15 @@ theorem satisfies_amplifyIterLabels (fallback : Constraint)
     ((amplifyIter fallback rotate T q k g).toGraph id).Satisfies
       (fun v => (amplifyIterLabels fallback rotate T q k g labels).getD v defaultSelectedAlphabet)
       e := by
-  have hmain : ∀ m g₀ labels₀,
-      (∀ e, (g₀.toGraph id).Satisfies (fun v => labels₀.getD v defaultSelectedAlphabet) e) →
-      ∀ e : Fin ((amplifyIterStep fallback rotate T q)^[m] (g₀, labels₀)).1.edges.length,
-        (((amplifyIterStep fallback rotate T q)^[m] (g₀, labels₀)).1.toGraph id).Satisfies
-          (fun v => (((amplifyIterStep fallback rotate T q)^[m] (g₀, labels₀)).2).getD v
-            defaultSelectedAlphabet)
-          e := by
-    intro m
-    induction m with
-    | zero => exact fun g₀ labels₀ h => h
-    | succ m ih =>
-      intro g₀ labels₀ h
-      rw [Function.iterate_succ_apply]
-      exact ih _ _ (satisfies_amplifyLabels fallback family rotate hrotate T q h)
-  unfold amplifyIterLabels
-  have hfst := (fst_amplifyIterStep fallback rotate T q k g labels).symm
-  have hcov := hmain k g labels hsat
-  generalize hres : (amplifyIterStep fallback rotate T q)^[k] (g, labels) = res at hfst hcov ⊢
-  rcases res with ⟨g', labels'⟩
-  dsimp only at hfst hcov ⊢
-  subst g'
-  exact hcov e
+  revert e
+  unfold amplifyIter amplifyIterLabels
+  induction k generalizing g labels with
+  | zero => exact hsat
+  | succ k ih =>
+    simp only [Function.iterate_succ_apply]
+    exact @ih (g.amplify id fallback rotate T q)
+      (amplifyLabels fallback rotate T q g labels)
+      (satisfies_amplifyLabels fallback family rotate hrotate T q hsat)
 
 private theorem polyBounded_amplifyStateBound {Input : Type} {input : Input ↪ List Bool}
     {graph : Input → Graph Constraint}
@@ -835,8 +783,8 @@ theorem isPolyTime_amplifyIterLabels_clog {Input : Type} {input : Input ↪ List
   have heval' : ComputableInPolyTime
       (fun p : Constraint × (SelectedAlphabet × SelectedAlphabet) => p.1 p.2.1 p.2.2)
       (encPair (encPi (encPi encBool)) (encPair encSelectedAlphabet encSelectedAlphabet))
-      encBool := by
-    exact (isPolyTime_constraintTableEval encSelectedAlphabet).comp
+      encBool :=
+    (isPolyTime_constraintTableEval encSelectedAlphabet).comp
       ((hconv.comp (fst _ _)).prod (snd _ _))
   have hfstEnc := fst (encoding (encConstraintTable (α := SelectedAlphabet)))
     (encList encSelectedAlphabet)
@@ -865,10 +813,9 @@ theorem isPolyTime_amplifyIterLabels_clog {Input : Type} {input : Input ↪ List
         (fun g _ => g.wellFormed_amplify id fallback family rotate hrotate T q)
         (fun _ h => h) (fun _ _ edge _ => length_constraintTable_le edge.constraint)
         (fun g _ => hgrowth g) (hwellFormed x) hi
-      have hsz_bound : ∀ m, ((amplify id fallback rotate T q)^[m] (graph x)).vertices +
+      have hsz_bound (m : ℕ) : ((amplify id fallback rotate T q)^[m] (graph x)).vertices +
           ((amplify id fallback rotate T q)^[m] (graph x)).edges.length ≤
           max factor 1 ^ m * ((graph x).vertices + (graph x).edges.length) := by
-        intro m
         induction m with
         | zero => simp
         | succ m ih =>
@@ -895,7 +842,6 @@ theorem isPolyTime_amplifyIterLabels_clog {Input : Type} {input : Input ↪ List
       rw [← hfst] at hgr
       simp only [length_encPair]
       omega
-  unfold amplifyIterLabels
   exact hsndEnc.comp hiter
 
 end AmplifyLabels
@@ -972,16 +918,9 @@ theorem proofOfLabelList_eq_proofOfLabels {α : Type} {width : ℕ}
     (encode : α → Fin width → Bool) (default : α) (labels : List α) :
     proofOfLabelList encode labels =
       proofOfLabels width labels.length encode (fun v => labels.getD v default) := by
-  rw [proofOfLabelList, proofOfLabels, BitString.ofFn_blocksEquiv_symm]
-  have hofFn : (List.ofFn fun i : Fin labels.length =>
-      List.ofFn (encode (labels.getD i.val default))) =
-      labels.map (fun a => List.ofFn (encode a)) := by
-    apply List.ext_getElem (by simp)
-    intro i hi₁ hi₂
-    have hi₃ : i < labels.length := by simpa using hi₂
-    simp only [List.getElem_ofFn, List.getElem_map, List.getD_eq_getElem?_getD,
-      List.getElem?_eq_getElem hi₃, Option.getD_some]
-  rw [hofFn, List.flatMap_def]
+  rw [proofOfLabelList, proofOfLabels, BitString.ofFn_blocksEquiv_symm, List.flatMap_def]
+  exact congrArg List.flatten (List.ext_getElem (by simp)
+    fun _ _ _ => by simp [List.getD_eq_getElem?_getD]).symm
 
 /-- Bit-packing a list of labels from a fixed finite alphabet runs in polynomial time. -/
 theorem isPolyTime_proofOfLabelList {α Input : Type} [Finite α] {width : ℕ}
@@ -1013,18 +952,15 @@ def gapGraphLabels (φ : CNF ℕ) (w : List Bool) : List SelectedAlphabet :=
 /-- The compiled `gapGraphLabels` list matches `(gapGraph φ).vertices`. -/
 @[simp]
 theorem length_gapGraphLabels (φ : CNF ℕ) (w : List Bool) :
-    (gapGraphLabels φ w).length = (gapGraph φ).vertices := by
-  rw [gapGraphLabels, gapGraph]
-  exact Graph.length_arithmeticAmplifyLabels (length_composeSelectedLabels _ _ _)
+    (gapGraphLabels φ w).length = (gapGraph φ).vertices :=
+  Graph.length_arithmeticAmplifyLabels (length_composeSelectedLabels _ _ _)
 
 /-- A `SAT.npRelation` witness compiles to satisfying vertex labels for `gapGraph φ`. -/
 theorem satisfies_gapGraphLabels {φ : CNF ℕ} {w : List Bool}
     (hw : SAT.npRelation.IsWitness φ w) (e : Fin (gapGraph φ).edges.length) :
     ((gapGraph φ).toGraph id).Satisfies
-      (fun v => (gapGraphLabels φ w).getD v defaultSelectedAlphabet) e := by
-  rw [gapGraphLabels]
-  unfold gapGraph at e ⊢
-  exact Graph.satisfies_arithmeticAmplifyLabels
+      (fun v => (gapGraphLabels φ w).getD v defaultSelectedAlphabet) e :=
+  Graph.satisfies_arithmeticAmplifyLabels
     (satisfies_composeSelectedLabels (fun _ => false)
       (Graph.wellFormed_ofCompactCNF φ.to3CNF)
       (satisfies_ofCompactCNFLabels hw)) e

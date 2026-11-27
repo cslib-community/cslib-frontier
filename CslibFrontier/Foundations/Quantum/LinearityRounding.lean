@@ -101,9 +101,7 @@ theorem exists_isProjective_charObs_of_linear_contractions
     rw [sum_fourierCoeff_mul_self_eq]
     have hscale : (((Fintype.card (n → Bool) : ℚ≥0)⁻¹ : ℚ≥0) : ℝ) =
         ((2 : ℝ) ^ Fintype.card n)⁻¹ := by
-      rw [NNRat.cast_inv, Fintype.card_fun, Fintype.card_bool]
-      push_cast
-      rfl
+      simp [NNRat.cast_inv]
     rw [← hscale, NNRat.cast_smul_eq_nnqsmul ℝ]
     change (𝔼 a, A a * A a) ≤ 1
     simpa only [Fintype.expect_const] using
@@ -146,11 +144,9 @@ theorem exists_isProjective_charObs_of_linear_contractions
   refine ⟨P, hP, hU, hmul, ?_⟩
   have hRnorm : φ.norm R ^ 2 ≤ δ := by
     rw [φ.norm_sq, hR.isSelfAdjoint.star_eq]
-    refine (φ.re_apply_mono (mul_self_le_self_of_nonneg_of_le_one hR ?_)).trans ?_
-    · exact sub_le_self _ hH
-    · change (φ (1 - ∑ u, D u)).re ≤ δ
-      rw [map_sub, AlgState.map_one, Complex.sub_re, Complex.one_re]
-      linarith only [hmass]
+    refine (φ.re_apply_mono (mul_self_le_self_of_nonneg_of_le_one hR (sub_le_self _ hH))).trans ?_
+    rw [show R = 1 - ∑ u, D u from rfl, map_sub, AlgState.map_one, Complex.sub_re, Complex.one_re]
+    linarith only [hmass]
   have hcompletion : 𝔼 a, φ.norm (walshSum D a - B.charObs a) ^ 2 ≤ δ := by
     have he (a : n → Bool) : walshSum D a - B.charObs a = walshSum (fun _ => -(w • R)) a := by
       rw [Measurement.charObs_eq_observable_map, Measurement.observable_map]
@@ -183,7 +179,6 @@ theorem exists_isProjective_charObs_kroneckerOne_of_linear
       𝔼 a, φ.norm ((A a - P.charObs a) ⊗ₖ 1) ^ 2 ≤ 40 * δ := by
   obtain ⟨P, hP, hU, hmul, h⟩ := exists_isProjective_charObs_of_linear
     (φ.comap kroneckerOne (OrderHomClass.mono _)) A hA hA2 hδ
-  refine ⟨P, hP, hU, hmul, ?_⟩
-  simpa only [AlgState.norm_comap, kroneckerOne_apply] using h
+  exact ⟨P, hP, hU, hmul, by simpa only [AlgState.norm_comap, kroneckerOne_apply] using h⟩
 
 end Cslib.Quantum

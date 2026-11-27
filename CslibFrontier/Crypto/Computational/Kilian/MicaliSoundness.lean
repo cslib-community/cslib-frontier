@@ -308,10 +308,8 @@ private theorem fsTraceSound_cons_iff {V : PCPVerifier α} {L : Set α}
         FSTraceSound V L tr tr_FS := by
   refine ⟨fun h => ⟨h x rt ρs List.mem_cons_self, fun x' rt' ρs' he => h x' rt' ρs'
     (List.mem_cons_of_mem _ he)⟩, fun ⟨hhead, htail⟩ x' rt' ρs' he => ?_⟩
-  rcases List.mem_cons.mp he with heq | he
-  · cases heq
-    exact hhead
-  · exact htail x' rt' ρs' he
+  rcases List.mem_cons.mp he with ⟨⟨rfl, rfl⟩, rfl⟩ | he
+  exacts [hhead, htail x' rt' ρs' he]
 
 /-- **Single-step Fiat–Shamir bad-event bound**: from a Fiat–Shamir trace `tr_FS` satisfying
 `FSTraceSound V L tr tr_FS`, one call to the lazy Fiat–Shamir oracle violates `FSTraceSound` with
@@ -326,14 +324,11 @@ private theorem toOuterMeasure_memoize_not_fsTraceSound_step [BEq α] (V : PCPVe
       q tr_FS).toOuterMeasure {out | ¬ FSTraceSound V L tr out.2} ≤ (1 / 2) ^ m := by
   rcases q with ⟨x, rt⟩
   cases hlookup : tr_FS.lookup (x, rt) with
-  | some ρs =>
-    rw [memoize_of_some _ _ _ _ hlookup, PMF.monad_pure_eq_pure, PMF.toOuterMeasure_pure_apply]
-    simp [htr]
+  | some ρs => simp [memoize_of_some _ _ _ _ hlookup, htr]
   | none =>
     rw [memoize_of_none _ _ _ hlookup]
     change ((ProbComp.eval (kilianChallenges V m x)).map
-      (fun ρs => (ρs, ((x, rt), ρs) :: tr_FS))).toOuterMeasure
-      {out | ¬ FSTraceSound V L tr out.2} ≤ _
+      (fun ρs => (ρs, ((x, rt), ρs) :: tr_FS))).toOuterMeasure _ ≤ _
     rw [PMF.toOuterMeasure_map_apply]
     by_cases hx : x ∈ L
     · simp [fsTraceSound_cons_iff, hx, htr]
@@ -549,12 +544,9 @@ private theorem mem_micaliForbiddenDigests_of_not_micaliGoodState_cons
     not_and] at hnot_mem
   obtain ⟨⟨⟨hnot_snd, hnot_left⟩, hnot_right⟩, hnot_rt⟩ := hnot_mem
   refine hbad ⟨traceCollisionFree_cons_iff.mpr
-    ⟨hfree, fun p hp heq => False.elim (hnot_snd p hp heq)⟩, fun x rt ρs he hx => ?_⟩
-  have hchildren : ∀ p ∈ tr_MT, ans ≠ unframe p.1 ∧ ans ≠ dropFrame p.1 :=
-    fun ⟨m, a⟩ hp =>
-      ⟨fun heq => hnot_left (m, a) hp heq.symm, fun heq => hnot_right (m, a) hp heq.symm⟩
+    ⟨hfree, fun p hp heq => (hnot_snd p hp heq).elim⟩, fun x rt ρs he hx => ?_⟩
   rw [micaliExtractProof_cons_of_ne V tr_MT msg x (fun heq => hnot_rt ((x, rt), ρs) he heq.symm)
-    hchildren]
+    fun ⟨m, a⟩ hp => ⟨mt Eq.symm (hnot_left (m, a) hp), mt Eq.symm (hnot_right (m, a) hp)⟩]
   exact hfs x rt ρs he hx
 
 /-- **Single-step bad-state bound for `micaliMemoize`**: from a good state `(tr_MT, tr_FS)`, a call
@@ -578,20 +570,17 @@ private theorem toOuterMeasure_micaliMemoize_not_goodState_step [BEq α]
       simp only [micaliMTCost, micaliFSCost, Nat.cast_one, Nat.cast_zero, one_mul, zero_mul,
         add_zero, RandomOracle.memoizeSum_inl, PMF.toOuterMeasure_map_apply]
       cases hlookup : tr_MT.lookup msg with
-      | some ans =>
-        rw [memoize_of_some _ _ _ _ hlookup, PMF.monad_pure_eq_pure, PMF.toOuterMeasure_pure_apply]
-        simp [hst]
+      | some ans => simp [memoize_of_some _ _ _ _ hlookup, hst]
       | none =>
         rw [memoize_of_none _ _ _ hlookup]
         change ((BitString.uniformList σ).map
-          (fun ans => (ans, (msg, ans) :: tr_MT))).toOuterMeasure
-          {x | ¬ MicaliGoodState V L (x.2, tr_FS)} ≤ _
+          (fun ans => (ans, (msg, ans) :: tr_MT))).toOuterMeasure _ ≤ _
         rw [PMF.toOuterMeasure_map_apply]
-        refine ((BitString.uniformList σ).toOuterMeasure.mono (s₂ :=
-          {ans | ans ∈ micaliForbiddenDigests (tr_MT, tr_FS)})
-          fun ans hans => mem_micaliForbiddenDigests_of_not_micaliGoodState_cons hst hans).trans ?_
-        simpa [length_micaliForbiddenDigests] using
-          toOuterMeasure_uniformList_mem_list_le σ (micaliForbiddenDigests (tr_MT, tr_FS))
+        refine le_trans ?_ (by
+          simpa [length_micaliForbiddenDigests] using
+            toOuterMeasure_uniformList_mem_list_le σ (micaliForbiddenDigests (tr_MT, tr_FS)))
+        exact (BitString.uniformList σ).toOuterMeasure.mono fun ans hans =>
+          mem_micaliForbiddenDigests_of_not_micaliGoodState_cons hst hans
     | inr xrt =>
       simp only [micaliMTCost, micaliFSCost, Nat.cast_zero, Nat.cast_one, zero_mul, one_mul,
         zero_add, RandomOracle.memoizeSum_inr, PMF.toOuterMeasure_map_apply]
@@ -645,8 +634,7 @@ private theorem toOuterMeasure_run_micaliMemoize_not_goodState_le [BEq α] {β :
     hMT hFS (s := ([], [])) (not_not.mpr (micaliGoodState_nil V L))
   refine h.trans (le_of_eq ?_)
   simp only [List.length_nil, mul_zero, add_zero, u]
-  push_cast
-  ring
+  push_cast; ring
 
 /-! #### Support invariants of `memoize`, `kilianVerifyProg` and `micaliVerify` -/
 
@@ -681,8 +669,7 @@ private theorem allOpenings_of_mem_support_mapM_kilianCheckProg
       (fun ⟨_, _⟩ => rfl) hcons₁
     rintro p hp ⟨a, opening⟩ ho
     rcases List.mem_cons.mp hp with rfl | htl
-    · intro q hq
-      exact hsub₂ _ (hhd (a, opening) ho q hq)
+    · exact fun q hq => hsub₂ _ (hhd (a, opening) ho q hq)
     · exact ih hnodup₁ hsupp₁ hcs p htl (a, opening) ho
 
 /-- Running `kilianVerifyProg V x root ρs response` under `memoize dist` records every opening path
@@ -700,12 +687,10 @@ private theorem allOpeningsQueriedInTrace_of_mem_support_kilianVerifyProg
     AllOpeningsQueriedInTrace (fun _ => h) [] V tr' x ρs response := by
   supp_cases hmem [kilianVerifyProg, run_interpret_bind, run_interpret_pure]
     with ⟨⟨checks, tr₁⟩, hchecks, rfl, rfl⟩
-  have hall := allOpenings_of_mem_support_mapM_kilianCheckProg dist V x root
-    (ρs.zip response) hnodup hsupp hchecks hcons
   rintro ⟨a, opening⟩ ho
-  simp only [kilianOpenings, List.mem_flatMap] at ho
-  obtain ⟨p, hp, ho⟩ := ho
-  exact hall p hp (a, opening) ho
+  obtain ⟨p, hp, ho⟩ := List.mem_flatMap.mp ho
+  exact allOpenings_of_mem_support_mapM_kilianCheckProg dist V x root (ρs.zip response)
+    hnodup hsupp hchecks hcons p hp (a, opening) ho
 
 /-- Any outcome `(true, st')` in the support of `micaliSoundnessProg V L P` under `micaliMemoize`
 must violate `MicaliGoodState V L st'`. -/
@@ -780,11 +765,9 @@ theorem micaliSoundness_bound [DecidableEq α] (V : PCPVerifier α) (L : Set α)
   set run := (OracleComp.interpret (micaliMemoize V σ m) (micaliSoundnessProg V L P)).run ([], [])
   rw [← PMF.toOuterMeasure_apply_inter_support]
   calc run.toOuterMeasure ((Prod.fst ⁻¹' {true}) ∩ run.support)
-      ≤ run.toOuterMeasure {out | ¬ MicaliGoodState V L out.2} := by
-        refine run.toOuterMeasure.mono fun ⟨res, st'⟩ ⟨hres, hmem⟩ => ?_
-        simp only [Set.mem_preimage, Set.mem_singleton_iff] at hres
-        subst hres
-        exact not_micaliGoodState_of_mem_support_micaliSoundnessProg V L σ m P hmem
+      ≤ run.toOuterMeasure {out | ¬ MicaliGoodState V L out.2} :=
+        run.toOuterMeasure.mono fun ⟨_, _⟩ ⟨hres, hmem⟩ =>
+          not_micaliGoodState_of_mem_support_micaliSoundnessProg V L σ m P (hres ▸ hmem)
     _ ≤ ((t_FS + 1 : ℕ) : ℝ≥0∞) * (1 / 2) ^ m +
           (Q_MT : ℝ≥0∞) * (((3 * Q_MT + (t_FS + 1) : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)) :=
         toOuterMeasure_run_micaliMemoize_not_goodState_le V L σ m hsound hMT
@@ -834,8 +817,7 @@ theorem micaliProofBits_micaliProvePure_le {hTree : List Bool → List Bool}
   set H : List Bool → List Bool → List Bool := fun k y =>
     if k.length = σ then hTree y else List.replicate k.length false
   set k₀ : List Bool := List.replicate σ false
-  have hk₀ : k₀.length = σ := List.length_replicate
-  have hH_eq : H k₀ = hTree := funext fun y => by simp [H, hk₀]
+  have hH_eq : H k₀ = hTree := funext fun y => by simp [H, k₀]
   have hlenH : ∀ k y, (H k y).length = k.length := fun k y => by
     by_cases hk : k.length = σ <;> simp [H, hk, hlen y]
   have hstep_eq : merklePathStep (fun _ => hTree) [] = merklePathStep H k₀ :=
@@ -849,12 +831,10 @@ theorem micaliProofBits_micaliProvePure_le {hTree : List Bool → List Bool}
   have hdepth : (hFS (x, kilianCommit (fun _ => hTree) V [] x table)).length *
       (q * (1 + kilianDepth V x * k₀.length)) ≤
       m * (q * (1 + (V.coins x + Nat.clog 2 q) * σ)) := by
-    rw [hm, hk₀]
+    rw [hm, List.length_replicate]
     gcongr
     exact kilianDepth_le hq
-  unfold micaliProofBits micaliProvePure
-  dsimp only
-  rw [hrespond]
+  simp only [micaliProofBits, micaliProvePure, hrespond]
   omega
 
 /-- **Polylogarithmic Micali proof size**: for a verifier with at most `c * (log₂ |enc x| + 1)`
@@ -878,8 +858,9 @@ theorem micaliProofBits_micaliProvePure_le_log {enc : α ↪ List Bool} {c : ℕ
       σ + m * (q * (1 + (c * ℓ + L) * σ)) := by gcongr
   refine ((micaliProofBits_micaliProvePure_le hlen hm hρs hq).trans hstep).trans ?_
   have hms : m * σ ≤ (σ + m + 1) ^ 2 := by nlinarith
+  have hmℓ : m ≤ (σ + m + 1) ^ 2 * ℓ := by nlinarith
   have h₄ : m * σ ≤ (σ + m + 1) ^ 2 * ℓ := by nlinarith
-  nlinarith [Nat.mul_le_mul_left q (show m ≤ (σ + m + 1) ^ 2 * ℓ by nlinarith),
+  nlinarith [Nat.mul_le_mul_left q hmℓ,
     Nat.mul_le_mul_left (q * c) (Nat.mul_le_mul_right ℓ hms), Nat.mul_le_mul_left (q * L) h₄]
 
 /-- **Micali's CS Proofs for arbitrary NP relations in the Random Oracle Model**
@@ -918,9 +899,8 @@ theorem exists_micaliCSProof_of_npRelation [DecidableEq α] {enc : α ↪ List B
           micaliProofBits (micaliProvePure hTree hFS V x table) ≤
             C * (σ + m + 1) ^ 2 * (Nat.log 2 (enc x).length + 1) := by
   obtain ⟨V, compile, c, d, hV, hpcp, hcompile, hacc⟩ := exists_pcpVerifier_of_npRelation enc R
-  have hq : ∀ x ρ, ρ.length = V.coins x → (V.queries (x, ρ)).length ≤ d := by
-    intro x ρ hρ
-    simpa using hpcp.length_queries_le x ρ hρ
+  have hq (x : α) (ρ : List Bool) (hρ : ρ.length = V.coins x) : (V.queries (x, ρ)).length ≤ d :=
+    by simpa using hpcp.length_queries_le x ρ hρ
   exact ⟨V, compile, c, d, hV, hpcp.coins_le, hq, hcompile, hpcp.mem_iff_exists_tableVerifier,
     hacc, fun x w hw σ m => micaliHonestGame_eq_pure_true V (hacc x w hw) σ m,
     fun P t_FS Q_MT σ m hFS hMT => micaliSoundness_bound V R.language σ m hpcp.sound hFS hMT,

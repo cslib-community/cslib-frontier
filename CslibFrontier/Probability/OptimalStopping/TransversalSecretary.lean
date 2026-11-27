@@ -144,12 +144,11 @@ private theorem mem_priceSamplingStep_of_notMem {G : L × R → Bool} {w : L →
       ∀ r, G (a, r) = true → p r < w a → r ∉ M0.image Prod.snd → p e.2 ≤ p r := by
   unfold priceSamplingStep at he
   split_ifs at he with hne
-  · rcases Finset.mem_insert.mp he with rfl | hm0
-    · obtain ⟨hmem, hmin⟩ := Classical.choose_spec (Finset.exists_min_image _ p hne)
-      obtain ⟨-, hG, hp, hfree⟩ := Finset.mem_filter.mp hmem
-      exact ⟨rfl, hG, hp, hfree, fun r h1 h2 h3 =>
-        hmin r (Finset.mem_filter.mpr ⟨Finset.mem_univ _, h1, h2, h3⟩)⟩
-    · exact absurd hm0 hnot
+  · obtain rfl := (Finset.mem_insert.mp he).resolve_right hnot
+    obtain ⟨hmem, hmin⟩ := Classical.choose_spec (Finset.exists_min_image _ p hne)
+    obtain ⟨-, hG, hp, hfree⟩ := Finset.mem_filter.mp hmem
+    exact ⟨rfl, hG, hp, hfree, fun r h1 h2 h3 =>
+      hmin r (Finset.mem_filter.mpr ⟨Finset.mem_univ _, h1, h2, h3⟩)⟩
   · exact absurd he hnot
 
 omit [Fintype L] in
@@ -172,9 +171,8 @@ private theorem mem_foldl_priceSamplingStep_imp (G : L × R → Bool) (w : L →
   | nil => exact Or.inl he
   | cons a t ih =>
     rcases ih _ he with hstep | ht
-    · by_cases hm0 : e ∈ M0
-      · exact Or.inl hm0
-      · exact Or.inr ((mem_priceSamplingStep_of_notMem hstep hm0).1 ▸ List.mem_cons_self ..)
+    · exact if hm0 : e ∈ M0 then Or.inl hm0
+      else Or.inr ((mem_priceSamplingStep_of_notMem hstep hm0).1 ▸ List.mem_cons_self ..)
     · exact Or.inr (List.mem_cons_of_mem _ ht)
 
 omit [Fintype L] in
@@ -201,21 +199,15 @@ private theorem foldl_priceSamplingStep_isMatching (G : L × R → Bool) (w : L 
       · obtain ⟨-, hG, -, hfree⟩ :=
           Finset.mem_filter.mp (Classical.choose_spec (Finset.exists_min_image _ p hne)).1
         refine ⟨fun e he => ?_, fun u v₁ v₂ h₁ h₂ => ?_, fun u₁ u₂ v h₁ h₂ => ?_⟩
-        · rcases Finset.mem_insert.mp he with rfl | he0
-          · exact hG
-          · exact hM0.1 e he0
-        · rcases Finset.mem_insert.mp h₁ with h₁ | h₁ <;>
-            rcases Finset.mem_insert.mp h₂ with h₂ | h₂
-          · exact (Prod.ext_iff.mp h₁).2.trans (Prod.ext_iff.mp h₂).2.symm
-          · exact absurd (Finset.mem_image.mpr ⟨_, h₂, (Prod.ext_iff.mp h₁).1⟩) ha_fresh
-          · exact absurd (Finset.mem_image.mpr ⟨_, h₁, (Prod.ext_iff.mp h₂).1⟩) ha_fresh
-          · exact hM0.2.1 u v₁ v₂ h₁ h₂
-        · rcases Finset.mem_insert.mp h₁ with h₁ | h₁ <;>
-            rcases Finset.mem_insert.mp h₂ with h₂ | h₂
-          · exact (Prod.ext_iff.mp h₁).1.trans (Prod.ext_iff.mp h₂).1.symm
-          · exact absurd (Finset.mem_image.mpr ⟨_, h₂, (Prod.ext_iff.mp h₁).2⟩) hfree
-          · exact absurd (Finset.mem_image.mpr ⟨_, h₁, (Prod.ext_iff.mp h₂).2⟩) hfree
-          · exact hM0.2.2 u₁ u₂ v h₁ h₂
+        · exact (Finset.mem_insert.mp he).elim (fun h => h ▸ hG) (hM0.1 e)
+        · rcases Finset.mem_insert.mp h₁ with ⟨rfl, rfl⟩ | h₁ <;>
+            rcases Finset.mem_insert.mp h₂ with ⟨rfl, rfl⟩ | h₂
+          exacts [rfl, absurd (Finset.mem_image_of_mem _ h₂) ha_fresh,
+            absurd (Finset.mem_image_of_mem _ h₁) ha_fresh, hM0.2.1 _ _ _ h₁ h₂]
+        · rcases Finset.mem_insert.mp h₁ with ⟨rfl, rfl⟩ | h₁ <;>
+            rcases Finset.mem_insert.mp h₂ with ⟨rfl, rfl⟩ | h₂
+          exacts [rfl, absurd (Finset.mem_image_of_mem _ h₂) hfree,
+            absurd (Finset.mem_image_of_mem _ h₁) hfree, hM0.2.2 _ _ _ h₁ h₂]
       · exact hM0
     exact ih hnodup_t hM1 fun l hl =>
       notMem_fst_priceSamplingStep G w p M0 (fun h => ha_not_t (h ▸ hl))
@@ -239,9 +231,8 @@ private theorem exists_matched_of_uncontested_neighbor (G : L × R → Bool) (w 
   induction xs generalizing M0 with
   | nil => simp at hl
   | cons a t ih =>
-    by_cases ha : a = l
-    · subst ha
-      have hcand : (Finset.univ.filter fun r' : R =>
+    rcases eq_or_ne a l with rfl | ha
+    · have hcand : (Finset.univ.filter fun r' : R =>
           G (a, r') = true ∧ p r' < w a ∧ r' ∉ M0.image Prod.snd).Nonempty :=
         ⟨r, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hG, hplt, hr_free⟩⟩
       simp only [List.foldl_cons, priceSamplingStep, hcand, ↓reduceDIte]
@@ -273,17 +264,14 @@ theorem sum_le_four_mul_degree_mul_expectedPriceSampling
   let h : R → L := fun r =>
     if hr : (N r).Nonempty then Classical.choose ((N r).exists_max_image w hr)
     else Classical.choice hL
-  have hh_mem : ∀ r ∈ Ract, h r ∈ N r := by
-    intro r hr
+  have hh_mem : ∀ r ∈ Ract, h r ∈ N r := fun r hr => by
     obtain ⟨l, hl⟩ := (Finset.mem_filter.mp hr).2
     have hne : (N r).Nonempty := ⟨l, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hl⟩⟩
-    simp only [h, hne, ↓reduceDIte]
-    exact (Classical.choose_spec ((N r).exists_max_image w hne)).1
-  have hh_max : ∀ r ∈ Ract, ∀ l ∈ N r, w l ≤ w (h r) := by
-    intro r hr l hl
+    simpa only [h, hne, ↓reduceDIte] using (Classical.choose_spec ((N r).exists_max_image w hne)).1
+  have hh_max : ∀ r ∈ Ract, ∀ l ∈ N r, w l ≤ w (h r) := fun r _ l hl => by
     have hne : (N r).Nonempty := ⟨l, hl⟩
-    simp only [h, hne, ↓reduceDIte]
-    exact (Classical.choose_spec ((N r).exists_max_image w hne)).2 l hl
+    simpa only [h, hne, ↓reduceDIte] using
+      (Classical.choose_spec ((N r).exists_max_image w hne)).2 l hl
   let H : Finset L := Ract.image h
   -- Claim 1: `∑ e ∈ M, w e.1 ≤ d * ∑ l ∈ H, w l`.
   have hclaim1 : ∑ e ∈ M, w e.1 ≤ (d : ℝ) * ∑ l ∈ H, w l := by
@@ -291,25 +279,20 @@ theorem sum_le_four_mul_degree_mul_expectedPriceSampling
       Prod.ext (hM.2.2 e₁.1 e₂.1 e₁.2 h₁ (hsnd ▸ h₂)) hsnd
     have hM_le_R : ∑ e ∈ M, w e.1 ≤ ∑ r ∈ Ract, w (h r) := by
       calc ∑ e ∈ M, w e.1
-          ≤ ∑ e ∈ M, w (h e.2) := by
-            refine Finset.sum_le_sum fun ⟨l, r⟩ he => ?_
-            have hr_act : r ∈ Ract :=
-              Finset.mem_filter.mpr ⟨Finset.mem_univ _, ⟨l, hM.1 (l, r) he⟩⟩
-            have hl_N : l ∈ N r := Finset.mem_filter.mpr ⟨Finset.mem_univ _, hM.1 (l, r) he⟩
-            exact hh_max r hr_act l hl_N
+          ≤ ∑ e ∈ M, w (h e.2) := Finset.sum_le_sum fun ⟨l, r⟩ he =>
+              hh_max r (Finset.mem_filter.mpr ⟨Finset.mem_univ _, ⟨l, hM.1 (l, r) he⟩⟩) l
+                (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hM.1 (l, r) he⟩)
         _ = ∑ r ∈ M.image Prod.snd, w (h r) :=
             (Finset.sum_image (f := fun r => w (h r)) (fun e₁ h₁ e₂ h₂ => hinj h₁ h₂)).symm
-        _ ≤ ∑ r ∈ Ract, w (h r) := by
-            refine Finset.sum_le_sum_of_subset_of_nonneg ?_ (fun r _ _ => hw (h r))
-            intro r hr
-            obtain ⟨⟨l, r'⟩, he, rfl⟩ := Finset.mem_image.mp hr
-            exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, ⟨l, hM.1 (l, r') he⟩⟩
-    have hfib : ∑ r ∈ Ract, w (h r) = ∑ l ∈ H, ∑ r ∈ Ract with h r = l, w (h r) :=
-      (Finset.sum_fiberwise_of_maps_to (fun r hr => Finset.mem_image_of_mem h hr)
-        (fun r => w (h r))).symm
+        _ ≤ ∑ r ∈ Ract, w (h r) := Finset.sum_le_sum_of_subset_of_nonneg
+            (Finset.image_subset_iff.mpr fun ⟨l, r⟩ he =>
+              Finset.mem_filter.mpr ⟨Finset.mem_univ _, l, hM.1 (l, r) he⟩)
+            fun r _ _ => hw (h r)
     calc ∑ e ∈ M, w e.1
         ≤ ∑ r ∈ Ract, w (h r) := hM_le_R
-      _ = ∑ l ∈ H, ∑ r ∈ Ract with h r = l, w (h r) := hfib
+      _ = ∑ l ∈ H, ∑ r ∈ Ract with h r = l, w (h r) :=
+          (Finset.sum_fiberwise_of_maps_to (fun r hr => Finset.mem_image_of_mem h hr)
+            fun r => w (h r)).symm
       _ ≤ ∑ l ∈ H, (d : ℝ) * w l := by
           refine Finset.sum_le_sum fun l _ => ?_
           rw [Finset.sum_congr rfl (fun r hr => congrArg w (Finset.mem_filter.mp hr).2),
@@ -326,9 +309,8 @@ theorem sum_le_four_mul_degree_mul_expectedPriceSampling
     let s := (Fintype.card L + 1) / 2
     have hcard_perm : (Fintype.card (Fin (Fintype.card L) ≃ L) : ℝ) =
         ((Nat.factorial (Fintype.card L) : ℕ) : ℝ) := by
-      have he : (Fin (Fintype.card L) ≃ L) ≃ Equiv.Perm (Fin (Fintype.card L)) :=
-        Equiv.equivCongr (Equiv.refl _) (Fintype.equivFin L)
-      rw [Fintype.card_congr he, Fintype.card_perm, Fintype.card_fin]
+      rw [Fintype.card_congr (Equiv.equivCongr (Equiv.refl _) (Fintype.equivFin L)),
+        Fintype.card_perm, Fintype.card_fin]
     have hl_bound : ∀ l ∈ H, w l ≤
         4 * ∑ σ : Fin (Fintype.card L) ≃ L, (μ σ).toReal *
           ∑ e ∈ priceSamplingMatch G w σ with e.1 = l, w e.1 := by
@@ -339,9 +321,7 @@ theorem sum_le_four_mul_degree_mul_expectedPriceSampling
           mul_nonneg ENNReal.toReal_nonneg (Finset.sum_nonneg fun e _ => hw e.1))
       have hwl_pos : 0 < w l := lt_of_le_of_ne (hw l) (Ne.symm hwl)
       obtain ⟨r, hr_act, hr_eq⟩ := Finset.mem_image.mp hl
-      have hG_lr : G (l, r) = true := by
-        have hm := (Finset.mem_filter.mp (hh_mem r hr_act)).2
-        rwa [hr_eq] at hm
+      have hG_lr : G (l, r) = true := hr_eq ▸ (Finset.mem_filter.mp (hh_mem r hr_act)).2
       have hmax_r : ∀ y ∈ N r, w y ≤ w l := fun y hy => hr_eq ▸ hh_max r hr_act y hy
       -- Choose comparison vertex `lcmp ≠ l`: second-best neighbor of `r` if one exists, else any
       -- element distinct from `l`.
@@ -352,9 +332,8 @@ theorem sum_le_four_mul_degree_mul_expectedPriceSampling
         · obtain ⟨s2, hs2_mem, hs2_max⟩ := ((N r).erase l).exists_max_image w hsecond
           have hs2_ne : s2 ≠ l := (Finset.mem_erase.mp hs2_mem).1
           have hs2_N : s2 ∈ N r := Finset.erase_subset _ _ hs2_mem
-          have hs2_lt : w s2 < w l := by
-            refine lt_of_le_of_ne (hmax_r s2 hs2_N) fun heq => ?_
-            exact hwl_pos.ne' (heq ▸ hwb s2 l hs2_ne heq)
+          have hs2_lt : w s2 < w l := (hmax_r s2 hs2_N).lt_of_ne fun heq =>
+            hwl_pos.ne' (heq ▸ hwb s2 l hs2_ne heq)
           refine ⟨s2, hs2_ne, fun σ hs2S hlNS => ?_⟩
           have hp_eq : itemPrice G w (sampleSet σ s) r = w s2 := by
             apply le_antisymm
@@ -372,21 +351,18 @@ theorem sum_le_four_mul_degree_mul_expectedPriceSampling
           have ha_le : w a ≤ w s2 := hs2_max a
             (Finset.mem_erase.mpr ⟨ha_ne, Finset.mem_filter.mpr ⟨Finset.mem_univ _, haG⟩⟩)
           linarith [hp_eq]
-        · have hne_other : (Finset.univ.erase l).Nonempty := Finset.card_pos.mp <| by
-            rw [Finset.card_erase_of_mem (Finset.mem_univ l), Finset.card_univ]
-            omega
-          obtain ⟨l', hl'⟩ := hne_other
+        · obtain ⟨l', hl'⟩ : (Finset.univ.erase l).Nonempty := Finset.card_pos.mp <| by
+            rw [Finset.card_erase_of_mem (Finset.mem_univ l), Finset.card_univ]; omega
           refine ⟨l', (Finset.mem_erase.mp hl').1, fun σ _ hlNS => ?_⟩
           have hempty : (sampleSet σ s).filter (fun y => G (y, r) = true) = ∅ :=
             Finset.filter_eq_empty_iff.mpr fun y hyS hyG =>
               if hyl : y = l then hlNS (hyl ▸ hyS)
               else hsecond ⟨y, Finset.mem_erase.mpr
                 ⟨hyl, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hyG⟩⟩⟩
-          have hp_zero : itemPrice G w (sampleSet σ s) r = 0 := by
-            simp [itemPrice, hempty, sampleMax]
           refine exists_matched_of_uncontested_neighbor G w _ (postSampleList σ s) ∅
             ((mem_postSampleList_iff_notMem_sampleSet σ s l).mpr hlNS) hG_lr
-            (hp_zero ▸ hwl_pos) (by simp) fun a _ ha_ne ⟨haG, _⟩ => ?_
+            (by simpa [itemPrice, sampleMax, s, hempty] using hwl_pos) (by simp)
+            fun a _ ha_ne ⟨haG, _⟩ => ?_
           exact hsecond ⟨a, Finset.mem_erase.mpr
             ⟨ha_ne, Finset.mem_filter.mpr ⟨Finset.mem_univ _, haG⟩⟩⟩
       obtain ⟨lcmp, hcmp_ne, hmatched⟩ := hex_cmp
@@ -406,8 +382,7 @@ theorem sum_le_four_mul_degree_mul_expectedPriceSampling
           _ = ∑ σ : Fin (Fintype.card L) ≃ L, (μ σ).toReal *
                 if lcmp ∈ sampleSet σ s ∧ l ∉ sampleSet σ s then (1 : ℝ) else 0 := by
               rw [Finset.mul_sum]
-              refine Finset.sum_congr rfl fun σ _ => ?_
-              simp [μ, uniformOfFintype_apply, hcard_perm]
+              exact Finset.sum_congr rfl fun σ _ => by simp [μ, uniformOfFintype_apply, hcard_perm]
       have hw_mul := mul_le_mul_of_nonneg_right (hprob.trans_eq hprob_eq) hwl_pos.le
       rw [Finset.sum_mul] at hw_mul
       have hterm_le : ∑ σ : Fin (Fintype.card L) ≃ L,
@@ -415,15 +390,15 @@ theorem sum_le_four_mul_degree_mul_expectedPriceSampling
           ∑ σ : Fin (Fintype.card L) ≃ L, (μ σ).toReal *
             ∑ e ∈ priceSamplingMatch G w σ with e.1 = l, w e.1 := by
         refine Finset.sum_le_sum fun σ _ => ?_
-        rw [mul_assoc]
-        refine mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
         split_ifs with hs
         · obtain ⟨r', hr'⟩ := hmatched σ hs.1 hs.2
-          rw [one_mul]
-          exact Finset.single_le_sum (fun e _ => hw e.1)
-            (Finset.mem_filter (p := fun e => e.1 = l).mpr ⟨hr', rfl⟩)
-        · rw [zero_mul]
-          exact Finset.sum_nonneg fun e _ => hw e.1
+          rw [mul_one]
+          exact mul_le_mul_of_nonneg_left
+            (Finset.single_le_sum (fun e _ => hw e.1)
+              (Finset.mem_filter (p := fun e => e.1 = l).mpr ⟨hr', rfl⟩))
+            ENNReal.toReal_nonneg
+        · simpa only [mul_zero, zero_mul] using mul_nonneg ENNReal.toReal_nonneg
+            (Finset.sum_nonneg fun e _ => hw e.1)
       linarith [hw_mul.trans hterm_le]
     calc ∑ l ∈ H, w l
         ≤ ∑ l ∈ H, 4 * ∑ σ : Fin (Fintype.card L) ≃ L, (μ σ).toReal *
@@ -436,16 +411,10 @@ theorem sum_le_four_mul_degree_mul_expectedPriceSampling
       _ ≤ 4 * ∑ σ : Fin (Fintype.card L) ≃ L, (μ σ).toReal *
             ∑ e ∈ priceSamplingMatch G w σ, w e.1 := by
           gcongr with σ
-          have hdisj : (H : Set L).PairwiseDisjoint
-              fun l => (priceSamplingMatch G w σ).filter fun e => e.1 = l := by
-            intro l₁ _ l₂ _ hne
-            refine Finset.disjoint_left.mpr fun e h₁ h₂ => hne ?_
-            exact (Finset.mem_filter.mp h₁).2.symm.trans (Finset.mem_filter.mp h₂).2
-          rw [← Finset.sum_biUnion hdisj]
-          refine Finset.sum_le_sum_of_subset_of_nonneg ?_ (fun e _ _ => hw e.1)
-          intro e he
-          obtain ⟨l, _, he'⟩ := Finset.mem_biUnion.mp he
-          exact (Finset.mem_filter.mp he').1
+          rw [← Finset.sum_biUnion fun l₁ _ l₂ _ hne =>
+            Finset.disjoint_filter.mpr fun _ _ h₁ h₂ => hne (h₁.symm.trans h₂)]
+          exact Finset.sum_le_sum_of_subset_of_nonneg
+            (Finset.biUnion_subset.mpr fun _ _ => Finset.filter_subset _ _) fun e _ _ => hw e.1
       _ = 4 * expectedPriceSamplingWeight G w := rfl
   calc ∑ e ∈ M, w e.1 ≤ (d : ℝ) * ∑ l ∈ H, w l := hclaim1
     _ ≤ (d : ℝ) * (4 * expectedPriceSamplingWeight G w) :=
@@ -547,41 +516,29 @@ private theorem foldl_priceSamplingStep_split_agent
   | nil => simp at hl
   | cons a t ih =>
     obtain ⟨ha_not_t, hnodup_t⟩ := List.nodup_cons.mp hnodup
-    by_cases ha : a = l
-    · subst ha
-      have hiff (G' w') (r : R) :
+    rcases eq_or_ne a l with rfl | ha
+    · have hiff (G' w') (r : R) :
           (a, r) ∈ t.foldl (priceSamplingStep G' w' p) (priceSamplingStep G' w' p M0 a) ↔
             (a, r) ∈ priceSamplingStep G' w' p M0 a :=
         ⟨fun h => (mem_foldl_priceSamplingStep_imp G' w' p t _ h).resolve_right ha_not_t,
           fun h => subset_foldl_priceSamplingStep G' w' p t _ h⟩
       exact ⟨M0, hfresh a (List.mem_cons_self ..), hiff G₁ w₁, hiff G₂ w₂⟩
     · have hstep : priceSamplingStep G₁ w₁ p M0 a = priceSamplingStep G₂ w₂ p M0 a := by
-        unfold priceSamplingStep
-        have hcand : (Finset.univ.filter fun r : R =>
-            G₁ (a, r) = true ∧ p r < w₁ a ∧ r ∉ M0.image Prod.snd) =
-            (Finset.univ.filter fun r : R =>
-            G₂ (a, r) = true ∧ p r < w₂ a ∧ r ∉ M0.image Prod.snd) := by
-          ext r
-          simp [hG a ha r, hw a ha]
-        simp_rw [hcand]
+        simp only [priceSamplingStep, hG a ha, hw a ha]
       rw [List.foldl_cons, List.foldl_cons, hstep]
       exact ih (priceSamplingStep G₂ w₂ p M0 a) hnodup_t
         ((List.mem_cons.mp hl).resolve_left (Ne.symm ha)) fun x hx =>
-          notMem_fst_priceSamplingStep G₂ w₂ p M0 (fun h => ha_not_t (by rw [← h]; exact hx))
+          notMem_fst_priceSamplingStep G₂ w₂ p M0 (fun h => ha_not_t (h ▸ hx))
             (hfresh x (List.mem_cons_of_mem _ hx))
 
 private theorem alloc_none_of_notMem_post (profile : L → USVType R)
     (σ : Fin (Fintype.card L) ≃ L) {l : L}
     (hl : l ∉ postSampleList σ ((Fintype.card L + 1) / 2)) :
-    priceSamplingUSVAlloc profile σ l = none := by
-  cases h : priceSamplingUSVAlloc profile σ l with
-  | none => rfl
-  | some r =>
-    rcases mem_foldl_priceSamplingStep_imp (profileGraph profile) (profileWeight profile) _
-        (postSampleList σ _) ∅ ((priceSamplingUSVAlloc_eq_some_iff profile σ l r).mp h)
-      with h0 | hl'
-    · simp at h0
-    · exact absurd hl' hl
+    priceSamplingUSVAlloc profile σ l = none :=
+  Option.eq_none_iff_forall_not_mem.mpr fun r h => hl <|
+    (mem_foldl_priceSamplingStep_imp (profileGraph profile) (profileWeight profile) _
+      (postSampleList σ _) ∅ ((priceSamplingUSVAlloc_eq_some_iff profile σ l r).mp h)).resolve_left
+      (Finset.notMem_empty _)
 
 /-- **Ex-post individual rationality** ([BabaioffImmorlicaKleinberg2007], Theorem 4.2): under
 truthful reporting, every agent's utility is nonnegative for every arrival order `σ` (regardless of
@@ -593,12 +550,11 @@ theorem priceSamplingUSV_ir (profile : L → USVType R) (σ : Fin (Fintype.card 
   cases h : priceSamplingUSVAlloc profile σ l with
   | none => norm_num
   | some r =>
-    obtain ⟨hdes, hlt⟩ := mem_foldl_priceSamplingStep_cand (profileGraph profile)
-      (profileWeight profile) _ (postSampleList_nodup σ _) (fun _ _ => by simp)
-      ((priceSamplingUSVAlloc_eq_some_iff profile σ l r).mp h) (by simp)
-    dsimp only [profileGraph, profileWeight] at hdes hlt
-    simp only [hdes, ↓reduceIte]
-    linarith
+    obtain ⟨hdes, hlt⟩ : (profile l).desired r = true ∧ _ < (profile l).value :=
+      mem_foldl_priceSamplingStep_cand (profileGraph profile) (profileWeight profile) _
+        (postSampleList_nodup σ _) (fun _ _ => by simp)
+        ((priceSamplingUSVAlloc_eq_some_iff profile σ l r).mp h) (by simp)
+    simp only [hdes, ↓reduceIte]; linarith
 
 /-- **Ex-post dominant-strategy truthfulness (Theorem 4.2)** of [BabaioffImmorlicaKleinberg2007]
 (Section 4, p. 6): in the Unknown Single-Value (USV) unit-demand domain—even without any bound
@@ -626,16 +582,13 @@ theorem priceSamplingUSV_truthful (profile : L → USVType R) (σ : Fin (Fintype
         itemPrice (profileGraph profM) (profileWeight profM) (sampleSet σ s) := by
       funext r
       unfold itemPrice sampleMax
-      have hf : ((sampleSet σ s).filter fun a => profileGraph profT (a, r) = true) =
-          ((sampleSet σ s).filter fun a => profileGraph profM (a, r) = true) :=
-        Finset.filter_congr fun a haS => by
-          have hne : a ≠ l := fun h => hl_not_S (h ▸ haS)
-          simp only [profileGraph, profT, profM, Function.update_of_ne hne]
-      rw [hf]
+      rw [Finset.filter_congr (q := fun a => profileGraph profM (a, r) = true) fun a haS => by
+        simp only [profileGraph, profT, profM,
+          Function.update_of_ne fun h : a = l => hl_not_S (h ▸ haS)]]
       split_ifs with hne
       · exact Finset.sup'_congr hne rfl fun a ha => by
-          have hne_a : a ≠ l := fun h => hl_not_S (h ▸ (Finset.mem_filter.mp ha).1)
-          simp only [profileWeight, profT, profM, Function.update_of_ne hne_a]
+          simp only [profileWeight, profT, profM,
+            Function.update_of_ne fun h : a = l => hl_not_S (h ▸ (Finset.mem_filter.mp ha).1)]
       · rfl
     set p := itemPrice (profileGraph profT) (profileWeight profT) (sampleSet σ s)
     have hp_nonneg : ∀ r : R, 0 ≤ p r :=
@@ -662,16 +615,12 @@ theorem priceSamplingUSV_truthful (profile : L → USVType R) (σ : Fin (Fintype
           (priceSamplingUSVAlloc_eq_some_iff profM σ l r').mp hallocM
       have hr'_snd : r' ∉ Mbefore.image Prod.snd :=
         (mem_priceSamplingStep_of_notMem hstepM (hnot_Mb r')).2.2.2.1
-      have hpayM : priceSamplingUSVPayment profM σ l = p r' := by
-        rw [priceSamplingUSVPayment, hallocM, ← hp_eq]
-      conv_lhs => rw [priceSamplingUSVUtility, hpayM]
+      conv_lhs => rw [priceSamplingUSVUtility, priceSamplingUSVPayment, hallocM, ← hp_eq]
       by_cases hdes : trueType.desired r' = true
       · simp only [hdes, ↓reduceIte]
         by_cases hlt : p r' < trueType.value
-        · have hdesT : profileGraph profT (l, r') = true := by
-            simpa only [profileGraph, profT, Function.update_self] using hdes
-          have hltT : p r' < profileWeight profT l := by
-            simpa only [profileWeight, profT, Function.update_self] using hlt
+        · have hdesT : profileGraph profT (l, r') = true := by simp [profileGraph, profT, hdes]
+          have hltT : p r' < profileWeight profT l := by simp [profileWeight, profT, hlt]
           have hcandT : (Finset.univ.filter fun r : R =>
               profileGraph profT (l, r) = true ∧ p r < profileWeight profT l ∧
                 r ∉ Mbefore.image Prod.snd).Nonempty :=
@@ -679,16 +628,13 @@ theorem priceSamplingUSV_truthful (profile : L → USVType R) (σ : Fin (Fintype
           set r₀ := Classical.choose (Finset.exists_min_image _ p hcandT)
           have hmT_step : (l, r₀) ∈
               priceSamplingStep (profileGraph profT) (profileWeight profT) p Mbefore l := by
-            rw [priceSamplingStep, dite_eq_left hcandT]
-            exact Finset.mem_insert_self ..
+            simp only [priceSamplingStep, hcandT, ↓reduceDIte, r₀, Finset.mem_insert_self]
           obtain ⟨-, hG₀, -, -, hmin₀⟩ := mem_priceSamplingStep_of_notMem hmT_step (hnot_Mb r₀)
           have hallocT : priceSamplingUSVAlloc profT σ l = some r₀ :=
             (priceSamplingUSVAlloc_eq_some_iff profT σ l r₀).mpr ((hiffT r₀).mpr hmT_step)
-          have hr₀_des : trueType.desired r₀ = true := by
-            simpa only [profileGraph, profT, Function.update_self] using hG₀
-          have hp_min : p r₀ ≤ p r' := hmin₀ r' hdesT hltT hr'_snd
-          simp only [priceSamplingUSVUtility, priceSamplingUSVPayment, hallocT, hr₀_des, ↓reduceIte]
-          linarith
+          simp only [profileGraph, profT, Function.update_self] at hG₀
+          simp only [priceSamplingUSVUtility, priceSamplingUSVPayment, hallocT, hG₀, ↓reduceIte]
+          linarith [hmin₀ r' hdesT hltT hr'_snd]
         · linarith
       · simp only [hdes, Bool.false_eq_true, ↓reduceIte, zero_sub]
         linarith [hp_nonneg r']

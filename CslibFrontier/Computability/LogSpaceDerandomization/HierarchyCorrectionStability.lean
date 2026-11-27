@@ -104,23 +104,17 @@ theorem correctionRequest_maximum_root_stability
       (2 * HP.Q HP.toHierarchyParams.atomCap) ^ (4⁻¹ : ℝ) * Lγ *
         |maximum σ y - maximum' σ y| := by
   obtain ⟨⟨Lγ, hγ⟩, _⟩ := HP.cutoff_roots HP.γ (by simp)
-  refine ⟨Lγ, Lγ.coe_nonneg, ?_⟩
-  intro P J inst V instV k D ident r Kc raw prep maximum maximum' σ x y
-  rw [correctionRequest_multiplier D ident r (polynomialAuxCutoff4 HP.θ) HP.incomingCutoff
-    HP.ρ HP.toHierarchyParams.atomCutoff HP.γ HP.K Kc raw prep maximum,
-    correctionRequest_multiplier D ident r (polynomialAuxCutoff4 HP.θ) HP.incomingCutoff
-      HP.ρ HP.toHierarchyParams.atomCutoff HP.γ HP.K Kc raw prep maximum']
-  let b := correctionRequest D ident r (polynomialAuxCutoff4 HP.θ) HP.incomingCutoff HP.ρ
-    HP.toHierarchyParams.atomCutoff (fun _ => 1) HP.K Kc raw prep (fun _ _ => 0) σ x y
+  refine ⟨Lγ, Lγ.coe_nonneg, fun P J _ V _ k D ident r Kc raw prep maximum maximum' σ x y => ?_⟩
+  rw [correctionRequest_multiplier D ident r _ _ _ _ HP.γ _ _ _ _ maximum,
+    correctionRequest_multiplier D ident r _ _ _ _ HP.γ _ _ _ _ maximum']
   have hb := unitMultiplier_range HP D ident r Kc raw prep σ x y
-  change b ∈ Set.Icc 0 (2 * HP.Q HP.toHierarchyParams.atomCap) at hb
   rw [Real.mul_rpow hb.1 (HP.γ_nonneg _), Real.mul_rpow hb.1 (HP.γ_nonneg _),
     ← mul_sub, abs_mul, abs_of_nonneg (Real.rpow_nonneg hb.1 _)]
-  have hroot := Real.rpow_le_rpow hb.1 hb.2 (by norm_num : (0 : ℝ) ≤ 4⁻¹)
   have hdist := hγ.dist_le_mul (maximum σ y) (maximum' σ y)
   simp only [Real.dist_eq] at hdist
-  exact (mul_le_mul hroot hdist (abs_nonneg _)
-    (by positivity)).trans_eq (by ring)
+  exact (mul_le_mul (Real.rpow_le_rpow hb.1 hb.2 (by norm_num))
+    hdist (abs_nonneg _) (by positivity)).trans_eq
+    (by ring)
 
 set_option backward.isDefEq.respectTransparency false in
 /-- Integrated actual-request root error from the pilot-maximum error on the same pairs.
@@ -146,10 +140,8 @@ theorem correctionRequest_maximum_root_moment
         (fun σ y => r.terminal.retains (channels D) σ (ident y))
         (fun σ _ y => maximum σ y - maximum' σ y) := by
   obtain ⟨Lγ, hLγ, hdist⟩ := correctionRequest_maximum_root_stability HP
-  refine ⟨Lγ, hLγ, ?_⟩
-  intro P J inst V instV k D ident r Kc raw prep maximum maximum' N u hNu
-  apply rowNormPow_le_mul hNu
-  intro σ x y _ _
+  refine ⟨Lγ, hLγ, fun P J _ V _ k D ident r Kc raw prep maximum maximum' N u hNu =>
+    rowNormPow_le_mul hNu fun σ x y _ _ => ?_⟩
   simpa only [Nat.cast_ofNat, mul_pow] using pow_le_pow_left₀ (abs_nonneg _)
     (hdist P J V k D ident r Kc raw prep maximum maximum' σ x y) 4
 

@@ -218,23 +218,20 @@ private theorem reachable_succ (D : BlockDecomposition f H) (U : Finset (Fin n))
           Nat.le_of_mul_le_mul_left (by linarith) (Nat.pos_of_ne_zero hT)
         omega
     · intro p hp q hq
-      have hq' := Finset.mem_filter.mp hq
+      obtain ⟨hqQ, hqbad⟩ := Finset.mem_filter.mp hq
       have hne : P'.Nonempty := ⟨p, hp⟩
-      simp only [dite_eq_left hne]
-      rw [hval p (hP' hp) q hq'.1]
-      exact hconst q hq'.1 hq'.2 p hp _ hne.choose_spec
+      simp only [dite_eq_left hne, hval p (hP' hp) q hqQ]
+      exact hconst q hqQ hqbad p hp _ hne.choose_spec
   | summary V =>
     obtain ⟨σ, Φ, hΦ⟩ := hstep U
     obtain ⟨v, -, hv⟩ := Finset.exists_le_card_fiber_of_mul_le_card_of_maps_to
       (s := P) (t := Finset.univ) (f := σ) (n := P.card / V) (by simp)
       ⟨σ fun _ => false, Finset.mem_univ _⟩
       (by simpa [Finset.card_univ] using Nat.mul_div_le P.card V)
-    refine ⟨P.filter (σ · = v), Q, fun q => Φ (η q) v q, ?_, ?_, ?_⟩
-    · exact (Nat.div_le_div_right hP).trans hv
-    · simpa [BlockKind.qcost] using hQ
-    · intro p hp q hq
-      obtain ⟨hp, hσ⟩ := Finset.mem_filter.mp hp
-      rw [hΦ, hη p hp q hq, hσ]
+    refine ⟨P.filter (σ · = v), Q, fun q => Φ (η q) v q, (Nat.div_le_div_right hP).trans hv,
+      by simpa [BlockKind.qcost] using hQ, fun p hp q hq => ?_⟩
+    obtain ⟨hp, hσ⟩ := Finset.mem_filter.mp hp
+    rw [hΦ, hη p hp q hq, hσ]
 
 private theorem reachable_le (D : BlockDecomposition f H) (U : Finset (Fin n)) :
     ∀ i ≤ D.length, Reachable D U i
@@ -254,8 +251,7 @@ private theorem not_reachable {K : ℕ}
   classical
   obtain ⟨P, Q, η, hNP, hNQ, hη⟩ := h
   let o : (↥(↑U : Set (Fin n))ᶜ → Bool) → Bool := fun q => D.output (η q)
-  have hf' : ∀ p ∈ P, ∀ q ∈ Q, f (glue U p q) = o q := by
-    intro p hp q hq
+  have hf' (p) (hp : p ∈ P) (q) (hq : q ∈ Q) : f (glue U p q) = o q := by
     rw [← D.output_history, hη p hp q hq]
   have hsplit := Finset.card_filter_add_card_filter_not (s := Q) (fun q => o q = true)
   simp only [Bool.not_eq_true] at hsplit
@@ -304,10 +300,8 @@ theorem BlockDecomposition.two_pow_lt_mul_cost {K : ℕ}
   have hUc : Uᶜ.card = n - a := by rw [Finset.card_compl, hU, Fintype.card_fin]
   have reach := reachable_le D U D.length le_rfl
   rw [hU, hUc, ← hDpdef, ← hDqdef] at reach
-  refine not_reachable hf D U reach ?_ ?_
-  · exact (Nat.le_div_iff_mul_le hDp).mpr ha1
-  · rw [Nat.le_div_iff_mul_le hDq]
-    refine (Nat.lt_of_mul_lt_mul_left (a := 2 ^ a) ?_).le
-    rwa [← pow_add, Nat.add_sub_cancel' han]
+  refine not_reachable hf D U reach ((Nat.le_div_iff_mul_le hDp).mpr ha1) ?_
+  rw [Nat.le_div_iff_mul_le hDq]
+  exact (Nat.lt_of_mul_lt_mul_left (a := 2 ^ a) (by rwa [← pow_add, Nat.add_sub_cancel' han])).le
 
 end Cslib.Circuits.Boolean.WeightedThreshold

@@ -126,28 +126,23 @@ theorem budgetedOutput_eq_some {A : ι → Set (∀ v, α v)}
     (hstop : ∀ w a, r w a = none → ∀ i, a ∉ A i) {T : ∀ p : V × ℕ, α p.1} {a : ∀ v, α v}
     (h : budgetedOutput vbl r B T = some a) (i : ι) : a ∉ A i := by
   unfold budgetedOutput at h
-  split at h
-  · cases h
-    exact hstop _ _ ‹_› i
-  · cases h
+  split at h <;> cases h
+  exact hstop _ _ ‹_› i
 
 /-- The budgeted output depends only on the entries `(v, k)` with `k ≤ B`. -/
 theorem dependsOn_budgetedOutput [Fintype V] :
     DependsOn (budgetedOutput vbl r B (α := α))
       ((univ ×ˢ range (B + 1) : Finset (V × ℕ)) : Set (V × ℕ)) := by
   intro T T' h
-  obtain ⟨h₁, h₂⟩ := Prod.ext_iff.1 (dependsOn_run_current (vbl := vbl) (r := r) B h)
-  simp only at h₁ h₂
-  unfold budgetedOutput
-  rw [h₂, h₁]
+  obtain ⟨h₁, h₂⟩ := Prod.mk.inj (dependsOn_run_current (vbl := vbl) (r := r) B h)
+  rw [budgetedOutput, budgetedOutput, h₂, h₁]
 
 /-- Two coupled runs that do not diverge have the same budgeted output. -/
 theorem budgetedOutput_eq_of_not_diverge {T : ∀ p : V × ℕ, α p.1 × α p.1}
     (hT : ¬Diverge vbl r T) :
     budgetedOutput vbl r B (fstTable T) = budgetedOutput vbl r B (sndTable T) := by
   simp only [Diverge, not_exists, not_or, not_not] at hT
-  unfold budgetedOutput
-  rw [(hT B).2, (hT B).1]
+  rw [budgetedOutput, budgetedOutput, (hT B).2, (hT B).1]
 
 end Budgeted
 
@@ -206,12 +201,10 @@ private theorem toOuterMeasure_readSeed {β : V → Type*} [∀ v, Finite (β v)
   have hseed : ((Probability.PMF.uniformOfFintype (BudgetSeed α L B)).map
       (readSeed B G)).toMeasure.map read = Measure.pi fun q => κ q.1 := by
     rw [PMF.toMeasure_map (hf := hread), PMF.map_comp]
-    have hcomp : read ∘ readSeed B G =
-        fun (σ : BudgetSeed α L B) (q : V × Fin (B + 1)) => G q.1 (σ q) := by
-      funext σ q
-      simp only [Function.comp_apply, read, readSeed]
-      congr 2
-      exact Prod.ext rfl (Fin.ext (min_eq_left (Nat.lt_succ_iff.1 q.2.isLt)))
+    have hcomp : read ∘ readSeed B G = fun (σ : BudgetSeed α L B) q => G q.1 (σ q) := by
+      ext σ q
+      exact congrArg (fun k => G q.1 (σ (q.1, k)))
+        (Fin.ext (min_eq_left (Nat.lt_succ_iff.1 q.2.isLt)))
     rw [hcomp, ← Probability.PMF.pi_uniformOfFintype, ← Probability.PMF.pi_map,
       Probability.PMF.toMeasure_pi]
   rw [← PMF.toOuterMeasure_map_apply, ← PMF.toMeasure_apply_eq_toOuterMeasure_apply _ hEm, hE',
@@ -263,11 +256,11 @@ theorem seedTable_disagree_le {ι : Type*} [Finite ι] (vbl : ι → Finset V)
     {T | budgetedOutput vbl r B (fstTable T) ≠ budgetedOutput vbl r B (sndTable T)}
   have hEdep : DependsOn (· ∈ E) ((univ ×ˢ range (B + 1) : Finset (V × ℕ)) : Set (V × ℕ)) :=
     fun T T' h => by
-      have h₁ := dependsOn_budgetedOutput (vbl := vbl) (r := r) (B := B) (x := fstTable T)
-        (y := fstTable T') fun p hp => by simp only [fstTable]; rw [h p hp]
-      have h₂ := dependsOn_budgetedOutput (vbl := vbl) (r := r) (B := B) (x := sndTable T)
-        (y := sndTable T') fun p hp => by simp only [sndTable]; rw [h p hp]
-      simp only [E, Set.mem_ofPred_eq, h₁, h₂]
+      simp only [E, Set.mem_ofPred_eq,
+        dependsOn_budgetedOutput (x := fstTable T) (y := fstTable T')
+          fun p hp => congrArg Prod.fst (h p hp),
+        dependsOn_budgetedOutput (x := sndTable T) (y := sndTable T')
+          fun p hp => congrArg Prod.snd (h p hp)]
   have hcalc : (Probability.PMF.uniformOfFintype (BudgetSeed α L B)).toOuterMeasure
       {σ | budgetedOutput vbl r B (seedTable B P σ) ≠
         budgetedOutput vbl r B (seedTable B Q σ)} ≤
@@ -286,8 +279,7 @@ theorem seedTable_disagree_le {ι : Type*} [Finite ι] (vbl : ι → Finset V)
       _ ≤ 2 * ∑ v, ENNReal.ofReal (2 * dist (P v).toPMF (Q v).toPMF) := by
           gcongr with v; exact hdis v
   ennreal_to_real at hcalc
-  simp only [← mul_sum, ← mul_assoc] at hcalc
-  linarith
+  simp only [← mul_sum, ← mul_assoc] at hcalc; linarith
 
 omit [Fintype V] [∀ v, Fintype (α v)] [∀ v, DecidableEq (α v)] in
 /-- A budgeted run times out only after `B + 1` resamplings: its log after `B + 1` steps has
@@ -342,10 +334,8 @@ theorem seedTable_timeout_le {ι : Type*} [Fintype ι] (vbl : ι → Finset V)
     fun T T' h => by simp only [E, Set.mem_ofPred_eq, dependsOn_budgetedOutput h]
   have hseed : (Probability.PMF.uniformOfFintype (BudgetSeed α L B)).toOuterMeasure
       {σ | budgetedOutput vbl r B (seedTable B P σ) = none} = table μ E := by
-    rw [show {σ | budgetedOutput vbl r B (seedTable B P σ) = none} =
-        readSeed B (fun v => gridSample (P v)) ⁻¹' E from rfl, toOuterMeasure_readSeed B _ hEdep,
-      table_def]
-    simp only [map_gridSample, μ]
+    simpa only [seedTable, E, Set.preimage_ofPred_eq, table_def, map_gridSample, μ] using
+      toOuterMeasure_readSeed B (fun v => gridSample (P v)) hEdep
   -- A timeout forces `B + 1` resamplings.
   have hsub : E ⊆ {T | ((B + 1 : ℕ) : ℝ≥0∞) ≤ maxSteps T} := fun T hT => by
     have hlog := isLog_run vbl A (historyRule_valid hr) T (B + 1)
@@ -353,11 +343,12 @@ theorem seedTable_timeout_le {ι : Type*} [Fintype ι] (vbl : ι → Finset V)
       using length_le_sum_iSup_count vbl A hlog
   have hxd : (1 / (d + 2 : ℝ)) / (1 - 1 / (d + 2)) = 1 / (d + 1) := by
     have h2 : (d + 2 : ℝ) ≠ 0 := by positivity
-    rw [one_sub_div h2, show (d + 2 : ℝ) - 1 = d + 1 by ring, div_div_div_cancel_right₀ h2]
+    rw [one_sub_div h2, div_div_div_cancel_right₀ h2]
+    exact congrArg (1 / ·) (by ring)
   have hint : ∫⁻ T, maxSteps T ∂table μ ≤ Fintype.card ι * ENNReal.ofReal (1 / (d + 1)) := by
-    have h := lintegral_sum_iSup_count_le_of_bound μ vbl A hAm fun i =>
-      lintegral_iSup_count_le μ vbl A hAm hA Γ hΓ hx hPx i
-    simpa only [hxd, sum_const, card_univ, nsmul_eq_mul] using h
+    simpa only [hxd, sum_const, card_univ, nsmul_eq_mul] using
+      lintegral_sum_iSup_count_le_of_bound μ vbl A hAm fun i =>
+        lintegral_iSup_count_le μ vbl A hAm hA Γ hΓ hx hPx i
   have hmeas : Measurable maxSteps :=
     Finset.measurable_sum _ fun i _ => measurable_iSup_count vbl A hAm i
   have hB0 : ((B + 1 : ℕ) : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.2 (Nat.succ_ne_zero B)
@@ -371,9 +362,7 @@ theorem seedTable_timeout_le {ι : Type*} [Fintype ι] (vbl : ι → Finset V)
             (ENNReal.natCast_ne_top _)
       _ ≤ Fintype.card ι * ENNReal.ofReal (1 / (d + 1)) / ((B + 1 : ℕ) : ℝ≥0∞) := by gcongr
   ennreal_to_real at hcalc
-  refine hcalc.trans_eq ?_
-  push_cast
-  field_simp
+  exact hcalc.trans_eq (by push_cast; field_simp)
 
 /-- The **budgeted Moser–Tardos learner**. On the dataset `S`, it runs the rule `historyRule r`
 for `B` steps on the table of the shared seed for the estimated grid distributions `P̂ S`, and
@@ -417,9 +406,8 @@ theorem isAccurateOn_budgetedMoserTardos {ι X : Type*} [Fintype ι] {m : ℕ}
   refine (Probability.PMF.toOuterMeasure_toReal_mono _
     (t := {σ | budgetedOutput vbl r B (seedTable B (est S) σ) = none}) fun σ hσ => ?_).trans
     (seedTable_timeout_le B vbl r (est S) A hA Γ hΓ hΓd (hP S hS) hp hr)
-  cases ho : budgetedOutput vbl r B (seedTable B (est S) σ) with
-  | none => exact ho
-  | some a => exact (hσ ⟨a, ho, budgetedOutput_eq_some hstop ho⟩).elim
+  rcases ho : budgetedOutput vbl r B (seedTable B (est S) σ) with _ | a
+  exacts [ho, (hσ ⟨a, ho, budgetedOutput_eq_some hstop ho⟩).elim]
 
 /-- **Strong accuracy of the budgeted learner (original).** If the local-lemma hypothesis holds
 for the estimates of every dataset, the learner outputs an assignment avoiding every event except
@@ -435,9 +423,9 @@ theorem isAccurate_budgetedMoserTardos {ι X : Type*} [Fintype ι] {m : ℕ}
     (hstop : ∀ w a, r w a = none → ∀ i, a ∉ A i) :
     IsAccurate (budgetedMoserTardos B vbl r est) (fun _ => goodOutput A)
       (Fintype.card ι / ((d + 1) * (B + 1))) := fun D _ => by
-  have h := isAccurateOn_budgetedMoserTardos B vbl r est A hA Γ hΓ hΓd Set.univ
-    (fun S _ => hP S) hp hr hstop D
-  simpa only [Set.compl_univ, measure_empty, ENNReal.toReal_zero, add_zero] using h
+  simpa only [Set.compl_univ, measure_empty, ENNReal.toReal_zero, add_zero] using
+    isAccurateOn_budgetedMoserTardos B vbl r est A hA Γ hΓ hΓd Set.univ (fun S _ => hP S)
+      hp hr hstop D
 
 /-- Two-sample expectations of a function with values in `[0, 1]`, computed in `ℝ≥0∞` and in `ℝ`,
 agree. -/
@@ -487,14 +475,13 @@ theorem disagreeProb_budgetedMoserTardos_le {ι X : Type*} [Finite ι] {m : ℕ}
     ENNReal.ofReal (dist (est S₁ v).toPMF (est S₂ v).toPMF)
   have he := fun v => toReal_tsum_tsum_iid D (fun S₁ S₂ => dist (est S₁ v).toPMF (est S₂ v).toPMF)
     (fun _ _ => dist_nonneg) (fun _ _ => Cslib.Probability.PMF.dist_le_one _ _)
-  have hpair : ∀ S₁ S₂ : Fin m → X,
+  have hpair (S₁ S₂ : Fin m → X) :
       ((Probability.PMF.uniformOfFintype (BudgetSeed α L B)).map fun σ =>
         (budgetedOutput vbl r B (seedTable B (est S₁) σ),
           budgetedOutput vbl r B (seedTable B (est S₂) σ))).toOuterMeasure
         {q | q.1 ≠ q.2} ≤
         4 * ∑ v, ENNReal.ofReal (dist (est S₁ v).toPMF (est S₂ v).toPMF) +
           goodᶜ.indicator 1 S₁ := by
-    intro S₁ S₂
     rw [PMF.toOuterMeasure_map_apply]
     by_cases hS : S₁ ∈ good
     · rw [Set.indicator_of_notMem (Set.notMem_compl_iff.2 hS), add_zero]
@@ -520,12 +507,10 @@ theorem disagreeProb_budgetedMoserTardos_le {ι X : Type*} [Finite ι] {m : ℕ}
           rw [← Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable]
           refine tsum_congr fun S₁ => ?_
           rw [← Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable]
-          refine tsum_congr fun S₂ => sum_congr rfl fun v _ => ?_
-          ring
-  have he_top : ∀ v, e v ≠ ∞ := fun v => (he v).1
+          exact tsum_congr fun S₂ => sum_congr rfl fun v _ => by ring
+  have he_top (v : V) : e v ≠ ∞ := (he v).1
   ennreal_to_real at hbound
-  rw [Algorithm.disagreeProb]
-  exact hbound.trans_eq (by simp only [e, μ, fun v => (he v).2])
+  simpa only [Algorithm.disagreeProb, e, μ, fun v => (he v).2] using hbound
 
 end Seed
 

@@ -113,13 +113,11 @@ theorem Occurs.toFun_eq_true (hC : C.IsDecomposable) {y : ι → Bool} {v : N}
     exact ih (by rw [eval_and hg, hz, hl, hyl]; rfl) fun i hi =>
       hout i fun hir => hi (vars_and hg ▸ Finset.mem_union_right _ hir)
   | @orChild v l r c _ hg hc _ ih =>
-    have hev : C.eval z v = true := by
-      rw [eval_or hg]
-      rcases hc with rfl | rfl <;> simp [hz]
-    refine ih hev fun i hi =>
-      hout i fun hic => hi (vars_or hg ▸ ?_)
     rcases hc with rfl | rfl
-    exacts [Finset.mem_union_left _ hic, Finset.mem_union_right _ hic]
+    · exact ih (by simp [eval_or hg, hz]) fun i hi =>
+        hout i fun hic => hi (vars_or hg ▸ Finset.mem_union_left _ hic)
+    · exact ih (by simp [eval_or hg, hz]) fun i hi =>
+        hout i fun hic => hi (vars_or hg ▸ Finset.mem_union_right _ hic)
 
 /-! ### One rectangle per node -/
 
@@ -133,13 +131,9 @@ omit [Fintype ι] in
 private theorem piecewise_mem_certRect {v c : N} {X : Finset ι} (hcX : C.vars c ⊆ X)
     {x z : ι → Bool} (hx : x ∈ certRect C v c X) (hz : z ∈ certRect C v c X) :
     X.piecewise x z ∈ certRect C v c X := by
-  obtain ⟨hxc, -⟩ := hx
   obtain ⟨-, y, hy, hzy⟩ := hz
-  refine ⟨?_, y, hy, fun i hi => ?_⟩
-  · rw [C.eval_congr c fun i hi => Finset.piecewise_eq_of_mem _ _ _ (hcX hi)]
-    exact hxc
-  · rw [Finset.piecewise_eq_of_notMem _ _ _ hi]
-    exact hzy i hi
+  exact ⟨(C.eval_congr c fun i hi => Finset.piecewise_eq_of_mem _ _ _ (hcX hi)).trans hx.1,
+    y, hy, fun i hi => (Finset.piecewise_eq_of_notMem _ _ _ hi).trans (hzy i hi)⟩
 
 omit [Fintype ι] in
 private theorem certRect_subset (hC : C.IsDecomposable) {v c : N} {X : Finset ι}
@@ -171,14 +165,12 @@ private theorem isBalancedRectangle_nodeRect (hn : 2 ≤ Fintype.card ι) (v : N
   · exact isBalancedRectangle_of_piecewise_mem hv fun _ hx _ hz =>
       piecewise_mem_certRect subset_rfl hx hz
   · split
-    · split_ifs with _ h _ h
-      · exact isBalancedRectangle_of_piecewise_mem h.choose_spec.2.2 fun _ hx _ hz =>
-          piecewise_mem_certRect h.choose_spec.1 hx hz
-      · exact isBalancedRectangle_empty hX₀
-      · exact isBalancedRectangle_of_piecewise_mem h.choose_spec.2.2 fun _ hx _ hz =>
-          piecewise_mem_certRect h.choose_spec.1 hx hz
-      all_goals exact isBalancedRectangle_empty hX₀
-    exact isBalancedRectangle_empty hX₀
+    · split_ifs with _ h _ h <;>
+        first
+        | exact isBalancedRectangle_of_piecewise_mem h.choose_spec.2.2 fun _ hx _ hz =>
+            piecewise_mem_certRect h.choose_spec.1 hx hz
+        | exact isBalancedRectangle_empty hX₀
+    · exact isBalancedRectangle_empty hX₀
 
 private theorem nodeRect_subset (hC : C.IsDecomposable) (v : N) :
     nodeRect C v ⊆ C.toFun ⁻¹' {true} := by
@@ -186,13 +178,12 @@ private theorem nodeRect_subset (hC : C.IsDecomposable) (v : N) :
   split_ifs
   · exact certRect_subset hC subset_rfl fun _ h => h
   · split
-    next l r hg =>
-      split_ifs with _ h _ h
-      · exact certRect_subset hC h.choose_spec.2.1 fun z hz => by simp [eval_or hg, hz]
-      · exact empty_subset _
-      · exact certRect_subset hC h.choose_spec.2.1 fun z hz => by simp [eval_or hg, hz]
-      all_goals exact empty_subset _
-    exact empty_subset _
+    · next l r hg =>
+        split_ifs with _ h _ h <;>
+          first
+          | exact certRect_subset hC h.choose_spec.2.1 fun z hz => by simp [eval_or hg, hz]
+          | exact empty_subset _
+    · exact empty_subset _
 
 private theorem isBalanced_iff {X : Finset ι} :
     IsBalanced X ↔ Fintype.card ι ≤ 3 * X.card ∧ 3 * X.card ≤ 2 * Fintype.card ι := by
@@ -292,16 +283,14 @@ rectangles. -/
 theorem exists_isCover [Fintype N] (hC : C.IsDecomposable) (hn : 2 ≤ Fintype.card ι) :
     ∃ R : Fin C.size → Set (ι → Bool), IsCover (C.toFun ⁻¹' {true}) R := by
   obtain ⟨R, hR, hU⟩ := exists_nodeCover hC hn
-  refine ⟨fun i => R ((Fintype.equivFin N).symm i), fun i => hR _, ?_⟩
-  rw [← hU]
-  exact (Fintype.equivFin N).symm.iSup_comp (g := R)
+  exact ⟨fun i => R ((Fintype.equivFin N).symm i), fun i => hR _,
+    ((Fintype.equivFin N).symm.iSup_comp (g := R)).trans hU⟩
 
 /-- **[BovaCapelliMengelSlivovsky2016], [ArenasBroadrickLiewVanDenBroeck2026, Theorem 3.1].**
 Every DNNF computing `f` over at least two variables has at least `Cov^m_1(f)` nodes. -/
 theorem coverNumberFun_le_size [Fintype N] (hC : C.IsDecomposable) (hn : 2 ≤ Fintype.card ι) :
-    coverNumberFun true C.toFun ≤ C.size := by
-  obtain ⟨R, hR⟩ := exists_isCover hC hn
-  exact hR.coverNumber_le
+    coverNumberFun true C.toFun ≤ C.size :=
+  (exists_isCover hC hn).elim fun _ hR => hR.coverNumber_le
 
 /-- Every DNNF computing `¬f` over at least two variables has at least `Cov^m_0(f)` nodes. -/
 theorem coverNumberFun_false_le_size [Fintype N] (hC : C.IsDecomposable) (hn : 2 ≤ Fintype.card ι)

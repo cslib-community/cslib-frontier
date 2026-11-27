@@ -61,7 +61,6 @@ private theorem systematic_row (s : Level) (A : PublicMatrix s) (t : Fin s.param
       Fin.snoc (Fin.append (fun j => if j = i then (1 : Negacyclic (ZMod 8380417) 256).coeffs
         else 0) (A i)) (-t i) := by
   unfold systematic ModuleSIS.hermiteMatrix
-  change Fin.append _ (Fin.snoc (A i) (-t i)) = _
   exact Fin.append_snoc _ _ _
 
 /-- Integer lift of the three blocks of a self-target witness, with the challenge last. -/
@@ -257,10 +256,8 @@ def rawPoint (s : Level) : List Bool ↪ ModuleSIS.SelfTarget.Point s.params.k 2
 theorem rawPoint_pointAddress {s : Level} {p : ModuleSIS.SelfTarget.Point s.params.k 256 8380417}
     (hm : p.1.length = 512) (hv : OnCommitmentGrid s p.2) :
     rawPoint s (pointAddress s p) = p := by
-  change (if (decodePoint s (pointAddress s p)).1.length = 512 ∧
-    pointAddress s (decodePoint s (pointAddress s p)) = pointAddress s p then _ else _) = _
-  rw [decodePoint_address hm hv]
-  simp only [hm, and_self, ite_true]
+  simp only [rawPoint, Function.Embedding.coeFn_mk, decodePoint_address hm hv, hm, and_self,
+    ite_true]
 
 /-- A fixed-width message representative and a ring product on the verifier's grid. -/
 abbrev GridPoint (s : Level) := BitString 512 × {v : Fin s.params.k → Poly // OnCommitmentGrid s v}
@@ -293,8 +290,7 @@ abbrev GridPoint (s : Level) := BitString 512 × {v : Fin s.params.k → Poly //
 
 private theorem commitmentPoint_onGrid (s : Level) (bytes : List Byte) (A : PublicMatrix s)
     (f : Forgery) (o : Opening s) : OnCommitmentGrid s (commitmentPoint s bytes A f o).2 := by
-  unfold OnCommitmentGrid
-  rw [highBits_commitmentPoint]
+  rw [OnCommitmentGrid, highBits_commitmentPoint]
   exact fun _ _ => rfl
 
 /-- The byte verifier only queries canonical grid points with a 512-bit message prefix. -/
@@ -323,10 +319,8 @@ private theorem product_witness (s : Level) (rho : FixedBytes 32) (A : PublicMat
     let y := witness s ⟨A, t⟩ bytes f o
     (y.msg, moduleSISMap (systematic s A t) (fun i j => (liftWitness s y i j : ZMod 8380417))) =
       commitmentPoint s bytes A f o := by
-  dsimp only
-  rw [systematic_liftWitness]
-  simp only [witness, SelfTargetCandidate.ofCompressedForgery]
-  rw [selfTargetMap_compressedForgeryLowPart]
+  dsimp only [witness, SelfTargetCandidate.ofCompressedForgery]
+  rw [systematic_liftWitness, selfTargetMap_compressedForgeryLowPart]
   unfold commitmentPoint hintedCommitment compressedVerifierCommitment
   rw [decode_encodePublic, publicKey_matrix]; rfl
 
@@ -348,11 +342,10 @@ private theorem accepts_digest_of_opening {s : Level} (pk : MLDSA.PublicKey s.pa
     (bytes : List Byte) {f : Forgery} {o : Opening s} {d : FixedBytes (digestBytes s)}
     (ho : opening s f = some o) (hd : d.toList = o.signature.digest) :
     ModuleSIS.SelfTarget.accepts (expandDigest s) (compressedSelfTargetRadius s.params 13)
-      (liftWitness s (witness s pk bytes f o)) d := by
-  apply decide_eq_true
-  refine ⟨short_witness ho, ?_⟩
-  simpa [expandDigest, hd, liftWitness, witness, SelfTargetCandidate.ofCompressedForgery]
-    using (opening_eq_some_iff.mp ho).2.2.1
+      (liftWitness s (witness s pk bytes f o)) d :=
+  decide_eq_true ⟨short_witness ho, by
+    simpa [expandDigest, hd, liftWitness, witness, SelfTargetCandidate.ofCompressedForgery]
+      using (opening_eq_some_iff.mp ho).2.2.1⟩
 
 /-- Adversary with saved private randomness and a joint interface for matrix-seed and
 commitment-digest queries. -/
@@ -439,9 +432,8 @@ theorem accepts_extract_of_verify {s : Level} (rho : FixedBytes 32) (A : PublicM
       exact of_decide_eq_true accept
     simp only [extract, ho, ModuleSIS.SelfTarget.product, hp]
     refine ⟨⟨length_messageRepresentative .., ?_⟩, accepts_digest_of_opening _ _ ho he⟩
-    rw [show moduleSISMap (systematic s A t) _ =
-        (commitmentPoint s (encodePublic s rho.toList t) A f o).2 from congrArg Prod.snd hp]
-    exact commitmentPoint_onGrid s (encodePublic s rho.toList t) A f o
+    exact Eq.mpr (congrArg (OnCommitmentGrid s) (congrArg Prod.snd hp))
+      (commitmentPoint_onGrid s (encodePublic s rho.toList t) A f o)
 
 /-- Run the byte-key adversary on the original matrix seed and rounded bytes while it
 queries the same digest oracle as the final self-target check. -/
@@ -454,16 +446,11 @@ def solver {Coins : Type} (s : Level) (adv : Forger s Coins) :
 private theorem solver_bounded {Coins : Type} {s : Level} {adv : Forger s Coins} {Q : ℕ}
     (hQ : ∀ bytes r, (adv bytes r).IsQueryBounded Q) (M) (r) :
     (solver s adv M r).IsQueryBounded Q := by
-  apply (isCostBounded_map_iff _ _ _).mpr
-  apply (isCostBounded_map_iff _ _ _).mpr
+  refine (isCostBounded_map_iff _ _ _).mpr ((isCostBounded_map_iff _ _ _).mpr ?_)
   apply IsCostBounded.run_interpret _ (hQ _ _)
-  rintro q ⟨cache, tape⟩
-  rcases q with rho | p
-  · apply (isCostBounded_map_iff _ _ _).mpr
-    change IsCostBounded _ (memoize (fun _ => pure (tape.headD 0)) rho cache) 1
-    cases he : cache.lookup rho with
-    | none => rw [memoize_of_none _ _ _ he, pure_bind]; exact .pure _ _
-    | some v => rw [memoize_of_some _ _ _ _ he]; exact .pure _ _
+  rintro (rho | p) ⟨cache, tape⟩
+  · refine (isCostBounded_map_iff _ _ _).mpr ?_
+    cases he : cache.lookup rho <;> simp [handler, sumHandler, memoize, he, IsCostBounded.pure]
   · exact (isCostBounded_map_iff _ _ _).mpr ((isCostBounded_map_iff _ _ _).mpr (.query p))
 
 private def runDigest (s : Level) (program : OracleComp (DigestOracle s) Bool) : ProbComp Bool :=
@@ -507,16 +494,11 @@ private theorem tape_run {s : Level} {α : Type} (program : OracleComp (Both s) 
   · cases h : m.lookup k <;>
       simp only [StateT.run, withSampleList, handler, sumHandler, memoize, h, bind_pure_comp,
         map_pure, interpret_pure, stepAt, RandomOracle.memoizeSum_inl, pmf_norm, Function.comp_def]
-    all_goals
-      change PMF.map _ (PMF.pure _) = _
-      simp
+    all_goals exact PMF.pure_map _ _
   · simp only [StateT.run, withSampleList, handler, sumHandler, interpret_map, interpret_query,
       stepAt, RandomOracle.memoizeSum_inr, memoize_digest, Functor.map_map, pmf_norm,
       Function.comp_def]
-    change PMF.map _ ((Protocols.ROMSignature.oracle (Digest s) p d).map
-      (fun (a, state) => ((a, m, t.tail), state))) = _
-    rw [PMF.map_comp]
-    rfl
+    exact PMF.map_comp ..
 
 private theorem run_both {s : Level} {α : Type} {program : OracleComp (Both s) α} {Q : ℕ}
     (hQ : program.IsQueryBounded Q) (mc : Cache s) (dc : DigestCache s) :
@@ -603,13 +585,12 @@ private theorem trial_eq_online {Coins : Type} (s : Level) (Q : ℕ) (adv : Forg
       (trial s adv ⟨r, rho, List.ofFn tape⟩ A t).eval) =
       onlineTrial s adv r rho A t ([(rho, A)], []) := by
   let bytes := encodePublic s rho.toList t
-  let finish (x : Forgery × DigestCache s) :=
-    ((interpret (Protocols.ROMSignature.oracle (Digest s))
-      (verify s bytes A x.1)).run x.2).map Prod.fst
-  have h := congrArg (fun μ => PMF.bind μ finish)
-    (run_both (hQ bytes r) [(rho, A)] [])
-  simpa only [trial, eval_runDigest, runForger, onlineTrial, matrixDigestOracle, bytes, finish,
-    run_interpret_bind, pmf_norm, Function.comp_def] using h
+  simpa only [trial, eval_runDigest, runForger, onlineTrial, matrixDigestOracle, bytes,
+    run_interpret_bind, pmf_norm, Function.comp_def] using
+    congrArg (fun μ => PMF.bind μ fun x : Forgery × DigestCache s =>
+      ((interpret (Protocols.ROMSignature.oracle (Digest s))
+        (verify s bytes A x.1)).run x.2).map Prod.fst)
+      (run_both (hQ bytes r) [(rho, A)] [])
 
 /-- Run the byte forger and final digest check with the matrix cache left by key generation
 and an initially empty digest cache. Both share all digest entries throughout the trial. -/
@@ -649,10 +630,9 @@ private theorem rawVerifier_point (s : Level) (bytes : List Byte) (A : PublicMat
     interpret (rawQueries s) (rawVerifier s bytes A f) =
       liftRight (spec₁ := fun _ : FixedBytes 32 => PublicMatrix s) (verify s bytes A f) := by
   rw [rawVerifier, interpret_interpret, liftRight, substitute_eq_interpret]
-  apply interpret_verify_congr
-  intro p hm hv
+  refine interpret_verify_congr _ _ _ _ _ fun p hm hv => ?_
   simp only [interpret_query, rawQueries, sumHandler]
-  rw [rawPoint_pointAddress (s := s) (p := p) hm hv]
+  rw [rawPoint_pointAddress hm hv]
 
 private noncomputable def rawOracle (s : Level) :=
   RandomOracle.memoizeSum (fun _ : FixedBytes 32 => PMF.uniformOfFintype (PublicMatrix s))
@@ -672,11 +652,11 @@ private theorem run_raw {s : Level} {α : Type} (prog : OracleComp (RawOracleSpe
       RandomOracle.memoizeSum_inl, PMF.map_comp, Function.comp_def]
   · simp only [rawOracle, rawQueries, sumHandler, interpret_query, matrixDigestOracle,
       RandomOracle.memoizeSum_inr, PMF.map_comp, Function.comp_def]
-    have h := memoize_map (m := PMF) (rawPoint s) (id : Digest s → _)
-      (fun _ => PMF.uniformOfFintype _) (fun _ => PMF.uniformOfFintype _)
-      (fun _ => (PMF.map_id _).symm) w d
-    have h' := congrArg (PMF.map (fun (a, d') => (a, m, d'))) h
-    simpa only [PMF.monad_map_eq_map, PMF.map_comp, Function.comp_def, id_eq] using h'
+    simpa only [PMF.monad_map_eq_map, PMF.map_comp, Function.comp_def, id_eq] using
+      congrArg (PMF.map fun (a, d') => (a, m, d'))
+        (memoize_map (m := PMF) (rawPoint s) (id : Digest s → _)
+          (fun _ => PMF.uniformOfFintype _) (fun _ => PMF.uniformOfFintype _)
+          (fun _ => (PMF.map_id _).symm) w d)
 
 /-- The raw classical game runs the verifier on the same digest cache as the adversary.
 Both use the literal untagged FIPS commitment string. -/
@@ -700,8 +680,8 @@ theorem observeRaw_eq {Coins : Type} (s : Level) (coins : ProbComp Coins)
   simp only [interpret_bind, rawVerifier_point, StateT.run_bind, PMF.monad_bind_eq_bind,
     onlineTrial, pointForger, PMF.map_bind]
   refine congrArg (PMF.bind _) (funext fun ⟨f, m, d⟩ => ?_)
-  rw [show matrixDigestOracle s = RandomOracle.memoizeSum _ _ from rfl,
-    RandomOracle.run_interpret_memoizeSum_liftRight, PMF.map_comp, funext₂ (memoize_digest s)]
+  rw [matrixDigestOracle, RandomOracle.run_interpret_memoizeSum_liftRight, PMF.map_comp,
+    funext₂ (memoize_digest s)]
   rfl
 
 /-- The Hermite instance obtained by prefixing the identity to a single uniform right block. -/
@@ -848,9 +828,7 @@ theorem keyOnly_le_moduleLWE_add_fork_fairMatrices {Coins : Type} (s : Level) (Q
     rw [keyOnlyGame_eq_moduleLWE_realGame s Q coins adv bounded]
     simp only [ModuleLWE.realGame, ModuleLWE.eval_realExperiment, distinguisher,
       distinguisherFromSaved, saved, sampleSaved, ProbComp.eval_bind, ProbComp.eval_pure, pmf_norm]
-    iterate 5
-      apply CloseTo.bind_right
-      intro _ _
+    iterate 5 refine CloseTo.bind_right _ fun _ _ => ?_
     rw [ProbComp.eval_replicateFin, MatrixOracle.eval_sampleMatrix, PMF.pi_uniformOfFintype]
     exact (closeTo_of_dist_le_ofReal
       (MatrixOracle.dist_matrixTapeFair_le s Q attempts)).symm.bind_left _

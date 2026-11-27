@@ -89,8 +89,7 @@ private theorem count_last_pair_le (sites : List Point) (a b : Point) (l : Fin 2
     [signal sites a b l].count v ≤ (pathPortSignals sites [a, b]).count v := by
   change _ ≤
     [signal sites a b 0, signal sites a b 1, signal sites b a 0, signal sites b a 1].count v
-  rcases (by fin_cases l <;> simp : l = 0 ∨ l = 1) with rfl | rfl <;>
-    simp only [List.count_cons, List.count_nil] <;> omega
+  fin_cases l <;> simp only [Fin.zero_eta, Fin.mk_one, List.count_cons, List.count_nil] <;> omega
 
 /-- External literals use only their actual path-half ports; unused clause halves overcount. -/
 theorem count_links_lastLiteral_le (sites : List Point) (positive : Bool) (r : Route)
@@ -217,13 +216,11 @@ private theorem count_crossing_inr (φ : CNF ℕ) (p : Point) (v : PairedCrossov
 
 private theorem count_ordinary_inr (φ : CNF ℕ) (p : Point) (v : PairedCrossover.Variable) :
     (ordinarySignals φ).count (p, Sum.inr v) = 0 := by
-  rw [List.count_eq_zero]
-  simp [ordinarySignals]
+  simp [List.count_eq_zero, ordinarySignals]
 
 private theorem count_crossing_inl (φ : CNF ℕ) (p : Point) (v : Fin 4 × Fin 2) :
     (crossingSignals φ).count (p, Sum.inl v) = 0 := by
-  rw [List.count_eq_zero]
-  simp [crossingSignals]
+  simp [List.count_eq_zero, crossingSignals]
 
 /-- Count actual emitted literals by internal template literals and actual path-half ports. -/
 theorem count_vars_rawFormula_le (φ : CNF ℕ) (v : Variable) :
@@ -237,14 +234,10 @@ theorem count_vars_rawFormula_le (φ : CNF ℕ) (v : Variable) :
   rw [heq] at he
   have ho : CNF.vars (((ordinaryCells φ).flatMap ordinaryClauses).map Prod.fst) =
       ordinarySignals φ := by
-    rw [vars_flatMap]
-    simp_rw [vars_ordinaryBlock]
-    rfl
+    simp_rw [vars_flatMap, vars_ordinaryBlock, ordinarySignals]
   have hc : CNF.vars (((crossingSites φ).flatMap crossingClauses).map Prod.fst) =
       crossingSignals φ := by
-    rw [vars_flatMap]
-    simp_rw [vars_crossingBlock]
-    rfl
+    simp_rw [vars_flatMap, vars_crossingBlock, crossingSignals]
   simp only [rawFormula, placedClauses, List.map_append, count_vars_append,
     vars_originalClauses, ho, hc]
   omega
@@ -291,8 +284,7 @@ theorem count_vars_rawFormula_le_three {φ : CNF ℕ}
       rw [count_vars_pairedTerminal] at hcompare
       omega
     · rw [count_allPathPortSignals_nonterminal p v ht] at hcompare
-      have hlocal := count_vars_pairedFormula v
-      have hmul := Nat.mul_le_mul hn hlocal
+      have hmul := Nat.mul_le_mul hn (count_vars_pairedFormula v)
       omega
 
 /-- Injective compaction preserves the actual literal-occurrence bound. -/

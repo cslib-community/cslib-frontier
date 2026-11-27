@@ -129,22 +129,16 @@ theorem eval_multilinearExtension_wiringPred (g : Gate) (i : ℕ) (z : Fin (C.wi
   rw [← (Equiv.sumArrowEquivProdArrow _ _ Bool).symm.sum_comp, Fintype.sum_prod_type]
   simp only [Equiv.sumArrowEquivProdArrow_symm_apply_inl, Fintype.prod_sum_type,
     Sum.elim_inl, Sum.elim_inr, wiringPred]
-  by_cases hg : C.gate i a = g
-  · rw [ite_eq_left hg]
-    rw [Finset.sum_eq_single (C.left i a), Finset.sum_eq_single (C.right i a)]
+  rw [Finset.sum_eq_single (C.left i a), Finset.sum_eq_single (C.right i a)]
+  · by_cases hg : C.gate i a = g
     · simp only [Function.comp_def, Equiv.sumArrowEquivProdArrow_symm_apply_inl, hg,
         Equiv.sumArrowEquivProdArrow_symm_apply_inr, and_self, ↓reduceIte, one_mul, mul_assoc]
       congr 1
-    · intro c _ hc
-      simp [Function.comp_def, Ne.symm hc]
-    · simp
-    · intro b _ hb
-      refine Finset.sum_eq_zero fun c _ => ?_
-      simp [Function.comp_def, Ne.symm hb]
-    · simp
-  · rw [ite_eq_right hg]
-    refine Finset.sum_eq_zero fun b _ => Finset.sum_eq_zero fun c _ => ?_
-    simp [Function.comp_def, hg]
+    · simp [Function.comp_def, hg]
+  · exact fun c _ hc => by simp [Function.comp_def, Ne.symm hc]
+  · simp
+  · exact fun b _ hb => Finset.sum_eq_zero fun c _ => by simp [Function.comp_def, Ne.symm hb]
+  · simp
 
 /-- **The GKR identity** [Thaler, Lemma 4.7][Thaler2022]. The multilinear extension of the values
 of layer `i + 1` is a sum over the pairs of gates `b`, `c` of layer `i` of the multilinear

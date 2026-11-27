@@ -57,24 +57,15 @@ theorem true_getLastD_of_eval_implicationChain (σ : V → Bool) (first : V) (re
   | nil => exact hf
   | cons next rest ih =>
     have hlinks := (eval_implicationChain σ _).1 h
-    have hn : σ next = true := hlinks (first, next) (by
-      change (first, next) ∈ (first, next) :: (next :: rest).consecutivePairs
-      exact List.mem_cons_self) hf
-    have ht : (implicationChain (next :: rest)).eval σ = true := by
-      apply (eval_implicationChain σ _).2
-      intro p hp
-      exact hlinks p (by
-        change p ∈ (first, next) :: (next :: rest).consecutivePairs
-        exact List.mem_cons_of_mem _ hp)
+    have hn : σ next = true := hlinks (first, next) List.mem_cons_self hf
+    have ht := (eval_implicationChain σ _).2 fun p hp => hlinks p (List.mem_cons_of_mem _ hp)
     simpa only [List.getLastD_cons] using ih next ht hn
 
 /-- Assigning one value to every variable on the chain satisfies all of its implications. -/
 theorem eval_implicationChain_of_constant (σ : V → Bool) (vs : List V) (value : Bool)
     (h : ∀ v ∈ vs, σ v = value) : (implicationChain vs).eval σ = true := by
-  apply (eval_implicationChain σ vs).2
-  intro p hp hptrue
+  refine (eval_implicationChain σ vs).2 fun p hp hptrue => ?_
   obtain ⟨ha, hb⟩ := List.of_mem_zip hp
-  rw [h p.2 (List.mem_of_mem_tail hb), ← h p.1 ha]
-  exact hptrue
+  rwa [h p.2 (List.mem_of_mem_tail hb), ← h p.1 ha]
 
 end Cslib.Logic.PL.CNF

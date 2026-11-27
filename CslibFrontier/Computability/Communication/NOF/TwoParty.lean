@@ -82,17 +82,11 @@ def ofTwoParty : Communication.Protocol (X 0) (X 1) Z → Protocol X Z
 
 @[simp] theorem run_ofTwoParty (p : Communication.Protocol (X 0) (X 1) Z) (x : ∀ i, X i) :
     (ofTwoParty p).run x = p.run (x 0) (x 1) := by
-  induction p with
-  | output z => rfl
-  | alice send p₀ p₁ ih₀ ih₁ => simp [ofTwoParty, ih₀, ih₁]
-  | bob send p₀ p₁ ih₀ ih₁ => simp [ofTwoParty, ih₀, ih₁]
+  induction p <;> simp [ofTwoParty, *]
 
 @[simp] theorem depth_ofTwoParty (p : Communication.Protocol (X 0) (X 1) Z) :
     (ofTwoParty p).depth = p.depth := by
-  induction p with
-  | output z => rfl
-  | alice send p₀ p₁ ih₀ ih₁ => simp [ofTwoParty, ih₀, ih₁]
-  | bob send p₀ p₁ ih₀ ih₁ => simp [ofTwoParty, ih₀, ih₁]
+  induction p <;> simp [ofTwoParty, *]
 
 /-- **Two-party protocols are two-player NOF protocols**: computing `f` with two players costs at
 most the two-party communication complexity of `f` read as a function of `x 0` and `x 1`. -/
@@ -122,19 +116,12 @@ private theorem sum_cylinderIntersection_eq_sum_rectangle (ν : PMF (∀ i, X i)
       ∑ a ∈ A, ∑ b ∈ B, ((ν.map (piFinTwoEquiv X)) (a, b)).toReal *
         signVal (f ((piFinTwoEquiv X).symm (a, b))) := by
   rw [← sum_product']
-  refine sum_nbij' (fun x => (x 0, x 1)) (fun q => (piFinTwoEquiv X).symm q) ?_ ?_ ?_ ?_ ?_
-  · intro x hx
-    simpa [mem_product] using (hφ x).mp (mem_filter.mp hx).2
-  · intro q hq
-    refine mem_filter.mpr ⟨mem_univ _, (hφ _).mpr ?_⟩
-    simpa [mem_product, piFinTwoEquiv] using hq
-  · intro x _
-    exact (piFinTwoEquiv X).symm_apply_apply x
-  · intro q _
-    exact (piFinTwoEquiv X).apply_symm_apply q
-  · intro x _
-    have hx : (piFinTwoEquiv X).symm (x 0, x 1) = x := (piFinTwoEquiv X).symm_apply_apply x
-    rw [PMF.map_equiv_apply, hx]
+  refine sum_nbij' (piFinTwoEquiv X) (piFinTwoEquiv X).symm
+    (fun x hx => by simpa [mem_product] using (hφ x).mp (mem_filter.mp hx).2)
+    (fun q hq => mem_filter.mpr ⟨mem_univ _, (hφ _).mpr (by simpa [mem_product] using hq)⟩)
+    (fun x _ => (piFinTwoEquiv X).symm_apply_apply x)
+    (fun q _ => (piFinTwoEquiv X).apply_symm_apply q) fun x _ => ?_
+  simp only [PMF.map_equiv_apply, Prod.mk.eta, Equiv.symm_apply_apply]
 
 /-- **With two players the NOF discrepancy is the two-party discrepancy**: the cylinder
 intersections of two players are the rectangles. -/

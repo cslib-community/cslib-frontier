@@ -72,13 +72,10 @@ private theorem checkSpan_eq_true_iff (g : AndOrGraph) (bound : ℕ) (ranks : Li
 private theorem checkBandwidth_eq_true_iff (g : AndOrGraph) (bound : ℕ) (ranks : List ℕ) :
     g.checkBandwidth bound ranks = true ↔ ranks.length = g.vertices.length ∧ ranks.Nodup ∧
       (∀ r ∈ ranks, r < g.vertices.length) ∧ Span g bound ranks := by
-  simp only [checkBandwidth, Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true]
-  exact ⟨fun ⟨⟨⟨hlen, hd⟩, hb⟩, hs⟩ =>
-      ⟨hlen, hd, hb, (checkSpan_eq_true_iff g bound ranks hlen).mp
-        (by simpa only [List.all_eq_true, decide_eq_true_eq] using hs)⟩,
-    fun ⟨hlen, hd, hb, hs⟩ => ⟨⟨⟨hlen, hd⟩, hb⟩,
-      by simpa only [List.all_eq_true, decide_eq_true_eq] using
-        (checkSpan_eq_true_iff g bound ranks hlen).mpr hs⟩⟩
+  simp only [checkBandwidth, Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true (l := ranks),
+    and_assoc]
+  exact and_congr_right fun hlen =>
+    and_congr_right' (and_congr_right' (checkSpan_eq_true_iff g bound ranks hlen))
 
 private theorem hasBandwidth_of_check (g : AndOrGraph) (bound : ℕ) (ranks : List ℕ)
     (h : g.checkBandwidth bound ranks = true) : g.graph.HasBandwidth bound := by
@@ -115,19 +112,15 @@ private theorem check_of_certificate (g : AndOrGraph) (bound : ℕ)
     rw [List.getD_eq_getElem _ _ (by simpa only [ranks, List.length_ofFn] using u.isLt)]
     simp only [ranks, List.getElem_ofFn, Fin.eta]
   apply (checkBandwidth_eq_true_iff g bound ranks).mpr
-  refine ⟨List.length_ofFn, ?_, ?_, ?_⟩
-  · exact List.nodup_ofFn.mpr (Fin.val_injective.comp C.order.injective)
-  · intro r hr
-    obtain ⟨u, rfl⟩ := List.mem_ofFn.mp hr
-    have hu := (C.order u).isLt
-    omega
-  · intro u v p hp q hq he hb
-    let p' : WeightedPort (Fin g.edgeCount) := ⟨⟨⟨p.port.edge, hb⟩, p.port.dir⟩, p.weight⟩
+  refine ⟨List.length_ofFn, List.nodup_ofFn.mpr (Fin.val_injective.comp C.order.injective),
+    fun r hr => ?_, fun u v p hp q hq he hb => ?_⟩
+  · obtain ⟨u, rfl⟩ := List.mem_ofFn.mp hr
+    exact (C.order u).isLt.trans_eq hsize.symm
+  · let p' : WeightedPort (Fin g.edgeCount) := ⟨⟨⟨p.port.edge, hb⟩, p.port.dir⟩, p.weight⟩
     let q' : WeightedPort (Fin g.edgeCount) :=
       ⟨⟨⟨q.port.edge, he ▸ hb⟩, q.port.dir⟩, q.weight⟩
-    have hp' : p' ∈ (g.graph u).ports := (g.mem_graph_ports_iff u p').mpr hp
-    have hq' : q' ∈ (g.graph v).ports := (g.mem_graph_ports_iff v q').mpr hq
-    have hspan := C.span u v p' hp' q' hq' (Fin.ext he)
+    have hspan := C.span u v p' ((g.mem_graph_ports_iff u p').mpr hp)
+      q' ((g.mem_graph_ports_iff v q').mpr hq) (Fin.ext he)
     rw [hget, hget]
     simp only [Nat.dist] at hspan
     omega
@@ -228,10 +221,7 @@ theorem computableInPolyTime_checkBandwidth (bound : ℕ) :
 /-- Recognizing a bandwidth bound is in NP under the ordinary numbered graph encoding. -/
 theorem hasBandwidth_mem_NP (bound : ℕ) :
     {g : AndOrGraph | g.graph.HasBandwidth bound} ∈ NP encAndOrGraph := by
-  have heq : {g : AndOrGraph | g.graph.HasBandwidth bound} =
-      {g | ∃ ranks, g.checkBandwidth bound ranks = true} :=
-    Set.ext fun g => (g.exists_checkBandwidth_iff bound).symm
-  rw [heq]
+  simp only [← exists_checkBandwidth_iff]
   refine mem_NP_of_witness (p := 2 * Polynomial.X ^ 2 + Polynomial.X) (.list .nat)
     (computableInPolyTime_checkBandwidth bound) (fun _ _ => Iff.rfl) ?_
   intro g ranks h

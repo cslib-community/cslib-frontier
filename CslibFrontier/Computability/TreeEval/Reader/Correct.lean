@@ -38,8 +38,8 @@ variable {ℓ H : ℕ} (T : Tree ℓ H)
 /-- The input at an offset into the body, in the form produced by `simp`. -/
 @[simp] theorem getElem?_encode_body (k : ℕ) :
     T.encode[ℓ + (H + (2 + k))]? = T.body[k]? := by
-  rw [Tree.encode, show ℓ + (H + (2 + k)) = (Tree.header ℓ H).length + k by simp; omega,
-    List.getElem?_append_right (by omega)]
+  have h : ℓ + (H + (2 + k)) = (Tree.header ℓ H).length + k := by simp; omega
+  rw [Tree.encode, h, List.getElem?_append_right (Nat.le_add_right _ _)]
   simp
 
 /-- A configuration of the machine on `T`, running with the prime `p`. -/
@@ -78,23 +78,17 @@ private theorem runFrom_leaf_loop {p : ℕ} [Fact p.Prime] {st : List Frame} {v 
   | succ i ih =>
     obtain ⟨R', h', hR', hS'⟩ := ih (by omega)
     have hbit : T.body.getD (pathOffset ℓ H (path st) + i) false = v ⟨i, by omega⟩ := by
-      rw [List.getD_eq_getElem?_getD, Tree.getElem_body_leaf T hv ⟨i, by omega⟩]
-      rfl
+      rw [List.getD_eq_getElem?_getD, Tree.getElem_body_leaf T hv ⟨i, by omega⟩]; rfl
     refine ⟨_, by rw [ReadMachine.runFrom_add, h', ReadMachine.runFrom_one, next_leaf _ _ _ _
       (by omega), hbit], hR'.set_modifyAt hp _ _ _, ?_⟩
-    rw [toState_set_modifyAt R' t ⟨i, by omega⟩ (hR' t).1, hS']
-    funext r j
-    by_cases hr : r = t
-    · subst hr
-      by_cases hj : j = ⟨i, by omega⟩
-      · subst hj
-        have : ((R'.get r).getD i 0 : ZMod p) = R'.toState p ℓ r ⟨i, by omega⟩ := rfl
-        simp only [Function.update_self, cast_addMod, cast_ite_sgnVal, this, hS']
-        simp [add_comm]
-      · have hji : (j : ℕ) ≠ i := fun e => hj (Fin.ext e)
-        simp only [Function.update_self, Function.update_of_ne hj,
-          show (j : ℕ) < i + 1 ↔ (j : ℕ) < i by omega]
-    · simp [hr]
+    have hget : ((R'.get t).getD i 0 : ZMod p) = R'.toState p ℓ t ⟨i, by omega⟩ := rfl
+    rw [toState_set_modifyAt R' t ⟨i, by omega⟩ (hR' t).1]
+    simp only [cast_addMod, cast_ite_sgnVal, hget, hS', Function.update_idem, Function.update_self]
+    congr 1
+    funext j
+    rcases eq_or_ne j ⟨i, by omega⟩ with rfl | hj
+    · simp [add_comm]
+    · simp only [Function.update_of_ne hj, Nat.lt_succ_iff_lt_or_eq, Fin.val_ne_of_ne hj, or_false]
 
 /-- **The leaf phase**: a call on the leaf at the current path adds `±` its value to the target
 register and returns, in `ℓ + 2` steps. -/
@@ -151,8 +145,7 @@ private theorem runFrom_scan_loop {p : ℕ} [Fact p.Prime] {fr : Frame} {st : Li
     obtain ⟨acc, h', hlen, hlt, hsum⟩ := ih (by omega)
     have hℓ : 0 < ℓ := by grind [tableLength]
     have hbit : T.body.getD (pathOffset ℓ H (path st) + k) false = tableBit f k := by
-      rw [List.getD_eq_getElem?_getD, Tree.getElem_body_gate T hf (by omega)]
-      rfl
+      rw [List.getD_eq_getElem?_getD, Tree.getElem_body_gate T hf (by omega)]; rfl
     refine ⟨_, by
         rw [ReadMachine.runFrom_add, h', ReadMachine.runFrom_one,
           next_scan _ _ _ (by omega), hbit],
@@ -161,11 +154,8 @@ private theorem runFrom_scan_loop {p : ℕ} [Fact p.Prime] {fr : Frame} {st : Li
     · split_ifs
       exacts [(modifyAt_addMod_wf hp hlt _ _).2, hlt]
     · rw [Finset.sum_range_succ, ← hsum i]
-      by_cases hb : tableBit f k
-      · by_cases hi : k % ℓ = i <;>
-          simp [hb, hi, modifyAt, List.getD_eq_getElem?_getD, hlen, i.isLt, BitString.bitVal,
-            add_comm]
-      · simp [hb, BitString.bitVal]
+      cases hb : tableBit f k <;> by_cases hi : k % ℓ = i <;>
+        simp [hi, modifyAt, List.getD_eq_getElem?_getD, hlen, i.isLt, BitString.bitVal, add_comm]
 
 /-- The bit of a table at position `k * ℓ + i`. -/
 theorem tableBit_mul_add (f : Gate ℓ) (k : ℕ) (i : Fin ℓ) :
@@ -201,8 +191,7 @@ private theorem runFrom_update {p : ℕ} [Fact p.Prime] {fr : Frame} {st : List 
     congr 2
     rw [hsum i, tableLength, Nat.sum_range_mul_ite_mod _ i.isLt, eval_gatePoly_eq_sum]
     refine Finset.sum_congr rfl fun k _ => ?_
-    rw [tableBit_mul_add, cast_weight, Nat.mul_add_div_fin]
-    rfl
+    rw [tableBit_mul_add, cast_weight, Nat.mul_add_div_fin]; rfl
 
 private theorem next_push {p : ℕ} (R : Regs) {st : List Frame} (hst : st.length ≠ H) (neg : Bool)
     (t : Fin 3) (out : List Bool) :
@@ -292,16 +281,15 @@ private theorem exists_runFrom_rounds {p : ℕ} [Fact p.Prime] {st : List Frame}
   | zero =>
     intro j R hR hj
     obtain ⟨n, R', h, hR', hS'⟩ := exists_runFrom_round hf hl hr (j := j) (by omega) neg t R hR out
-    refine ⟨n, R', ?_, hR', by simpa using hS'⟩
-    simpa only [show ¬j + 1 < p - 1 by omega, ↓reduceIte] using h
+    rw [ite_eq_right (by omega)] at h
+    exact ⟨n, R', h, hR', by simpa using hS'⟩
   | succ k ih =>
     intro j R hR hj
     obtain ⟨n, R', h, hR', hS'⟩ := exists_runFrom_round hf hl hr (j := j) (by omega) neg t R hR out
-    simp only [show j + 1 < p - 1 by omega, ↓reduceIte] at h
+    rw [ite_eq_left (by omega)] at h
     obtain ⟨n', R'', h', hR'', hS''⟩ := ih (j + 1) R' hR' (by omega)
-    refine ⟨n + n', R'', by rw [ReadMachine.runFrom_add, h, h'], hR'', ?_⟩
-    rw [hS'', hS']
-    simp only [List.range'_succ, List.map_cons, List.foldl_cons]
+    exact ⟨n + n', R'', by rw [ReadMachine.runFrom_add, h, h'], hR'',
+      by simp [hS'', hS', List.range'_succ]⟩
 
 /-- **A call on a subtree** at the path of the stack performs the procedure on it and returns,
 for every initial content of the registers. -/
@@ -327,9 +315,9 @@ theorem exists_runFrom_call {p : ℕ} [Fact p.Prime] {d : ℕ} (U : Tree ℓ d) 
         (fun Q => by simpa [h, hpath, List.append_assoc] using hst (true :: Q))
         st'' neg t R out hR rfl)
       neg t out (p - 2) 0 R hR (by omega)
+    have hp1 : p - 1 = p - 2 + 1 := by omega
     refine ⟨1 + n, R', by rw [ReadMachine.runFrom_add, ReadMachine.runFrom_one, next_push _ hlen,
-      h], hR', ?_⟩
-    rw [hS', proc, List.range_eq_range', show p - 1 = p - 2 + 1 by omega]
+      h], hR', by rw [hS', proc, List.range_eq_range', hp1]⟩
 
 /-! ### The header, the prime and the output -/
 
@@ -342,16 +330,14 @@ theorem getElem?_encode_ell : T.encode[ℓ]? = some false := by
   simp [Tree.header]
 
 theorem getElem?_encode_height {n : ℕ} (hn : n < H) : T.encode[ℓ + 1 + n]? = some true := by
-  rw [Tree.encode, List.getElem?_append_left (by simp; omega)]
-  simp only [Tree.header, List.append_assoc, List.cons_append]
-  rw [List.getElem?_append_right (by simp; omega)]
-  simp [show ℓ + 1 + n - ℓ = n + 1 by omega, List.getElem?_append_left, hn]
+  have h : ℓ + 1 + n = (List.replicate ℓ true).length + (n + 1) := by simp; omega
+  rw [Tree.encode, List.getElem?_append_left (by simp; omega), Tree.header, List.append_assoc, h,
+    List.getElem?_append_right (Nat.le_add_right _ _)]
+  simp [List.getElem?_append_left, hn]
 
 theorem getElem?_encode_height_end : T.encode[ℓ + 1 + H]? = some false := by
-  rw [Tree.encode, List.getElem?_append_left (by simp; omega)]
-  simp only [Tree.header, List.append_assoc, List.cons_append]
-  rw [List.getElem?_append_right (by simp; omega)]
-  simp [show ℓ + 1 + H - ℓ = H + 1 by omega]
+  rw [Tree.encode, List.getElem?_append_left (by simp; omega), Nat.add_assoc, Nat.add_comm 1]
+  simp [Tree.header, List.append_assoc]
 
 /-- The state while searching the prime. -/
 private abbrev primeCfg (ℓ H q d : ℕ) : ReadMachine.Cfg State :=
@@ -368,8 +354,8 @@ private theorem run_header : machine.run T.encode (ℓ + 1 + (H + 1)) = primeCfg
     | zero => rfl
     | succ n ih =>
       rw [ReadMachine.run_add, ih (by omega), ReadMachine.runFrom_one]
-      simp [ReadMachine.next, machine, step, addr, ReadMachine.readBit, List.getD_eq_getElem?_getD,
-        getElem?_encode_lt_ell (T := T) (show n < ℓ by omega)]
+      simp [ReadMachine.next, machine, step, addr, ReadMachine.readBit,
+        List.getD_eq_getElem?_getD, getElem?_encode_lt_ell (T := T) (n := n) (by omega)]
   have h₂ : ∀ n ≤ H, machine.run T.encode (ℓ + 1 + n) =
       ⟨⟨ℓ, 0, 0, ([], [], []), [], .ret, .hdrHeight n⟩, []⟩ := by
     intro n hn
@@ -380,8 +366,8 @@ private theorem run_header : machine.run T.encode (ℓ + 1 + (H + 1)) = primeCfg
         getElem?_encode_ell (T := T)]
     | succ n ih =>
       rw [← Nat.add_assoc, ReadMachine.run_add, ih (by omega), ReadMachine.runFrom_one]
-      simp [ReadMachine.next, machine, step, addr, ReadMachine.readBit, List.getD_eq_getElem?_getD,
-        getElem?_encode_height (T := T) (show n < H by omega)]
+      simp [ReadMachine.next, machine, step, addr, ReadMachine.readBit,
+        List.getD_eq_getElem?_getD, getElem?_encode_height (T := T) (n := n) (by omega)]
   rw [← Nat.add_assoc, ReadMachine.run_add, h₂ H le_rfl, ReadMachine.runFrom_one]
   simp [ReadMachine.next, machine, step, addr, ReadMachine.readBit, List.getD_eq_getElem?_getD,
     getElem?_encode_height_end (T := T)]
@@ -403,17 +389,16 @@ private theorem exists_runFrom_test {q : ℕ} :
       hdiv m hm hlt (Nat.mod_eq_zero_of_dvd hdvd)⟩
     exact ⟨1, by simp [ReadMachine.runFrom_one, ReadMachine.next, machine, step, hprime]⟩
   | k + 1, d, hd, hd2, hdiv => by
+    have hdq : d < q := by omega
     by_cases hmod : q % d = 0
     · have hnot : ¬q.Prime := fun hp =>
-        (Nat.prime_def_lt'.mp hp).2 d hd2 (by omega) (Nat.dvd_of_mod_eq_zero hmod)
-      exact ⟨1, by
-        rw [ReadMachine.runFrom_one]
-        simp [ReadMachine.next, machine, step, show d < q by omega, hmod, hnot]⟩
+        (Nat.prime_def_lt'.mp hp).2 d hd2 hdq (Nat.dvd_of_mod_eq_zero hmod)
+      exact ⟨1, by simp [ReadMachine.runFrom_one, ReadMachine.next, machine, step, hdq, hmod, hnot]⟩
     · obtain ⟨n, hn⟩ := exists_runFrom_test k (d + 1) (by omega) (by omega) fun e he hlt =>
         if h : e = d then h ▸ hmod else hdiv e he (by omega)
       exact ⟨1 + n, by
         rw [ReadMachine.runFrom_add, ReadMachine.runFrom_one, ← hn]
-        simp [ReadMachine.next, machine, step, show d < q by omega, hmod]⟩
+        simp [ReadMachine.next, machine, step, hdq, hmod]⟩
 
 /-- The least prime `p ≥ 2ℓ + 2`. -/
 def primeFor (ℓ : ℕ) : ℕ :=
@@ -436,10 +421,8 @@ private theorem exists_runFrom_search :
       (by omega) le_rfl (fun _ _ hlt => absurd hlt (by omega))
     exact ⟨n, by simpa only [primeFor_prime ℓ, ↓reduceIte] using hn⟩
   | k + 1, q, hq, hq2 => by
-    have hnot : ¬q.Prime := fun hp => by
-      have := Nat.find_min' (Nat.exists_infinite_primes (2 * ℓ + 2)) ⟨hq2, hp⟩
-      rw [← primeFor] at this
-      omega
+    have hnot : ¬q.Prime := fun hp =>
+      (Nat.not_le_of_gt (by omega : q < primeFor ℓ)) (Nat.find_min' _ ⟨hq2, hp⟩)
     obtain ⟨n, hn⟩ := exists_runFrom_test (T := T) (q := q) (q - 2) 2 (by omega) le_rfl
       (fun _ _ hlt => absurd hlt (by omega))
     simp only [hnot, ↓reduceIte] at hn
@@ -470,11 +453,10 @@ value of the tree as its output. -/
 theorem exists_run_eq (T : Tree ℓ H) :
     ∃ n s, machine.run T.encode n = ⟨s, List.ofFn T.eval⟩ ∧ machine.halt s = true := by
   have : Fact (primeFor ℓ).Prime := ⟨primeFor_prime ℓ⟩
-  have hK : 2 * ℓ < Fintype.card (ZMod (primeFor ℓ)) - 1 := by
-    have := le_primeFor ℓ
-    rw [ZMod.card]; omega
+  have hlp := le_primeFor ℓ
+  have hK : 2 * ℓ < Fintype.card (ZMod (primeFor ℓ)) - 1 := by rw [ZMod.card]; omega
   obtain ⟨n₁, h₁⟩ := exists_runFrom_search (T := T) (primeFor ℓ - (2 * ℓ + 2)) (2 * ℓ + 2)
-    (by have := le_primeFor ℓ; omega) le_rfl
+    (by omega) le_rfl
   obtain ⟨n₂, R, h₂, hR, hS⟩ := exists_runFrom_call (T := T) (p := primeFor ℓ) T []
     (fun Q => by simp [path]) [] false 2 (zeroRegs ℓ) []
     (fun r => by fin_cases r <;> simp [Regs.get, (Fact.out : (primeFor ℓ).Prime).pos]) rfl

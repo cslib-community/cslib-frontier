@@ -130,8 +130,8 @@ theorem exec_tabulateDom {w d domPtr free T_cell : ℕ}
     have hrsz := (hsmem _ (by omega)).trans hsz
     have hfit_p : Fits w (domPtr + (p + p) + 1) := hfit_free.of_le (by omega)
     have hcf_fit : Fits w (curFree + 2 * d) := hfit_free.of_le (by
-      have := Nat.mul_le_mul_left (2 * d) (show p + 1 ≤ dom.length from hp)
-      rw [mul_add] at this; omega)
+      have := Nat.mul_add (2 * d) p 1 ▸ Nat.mul_le_mul_left (2 * d) (Nat.succ_le_of_lt hp)
+      omega)
     unfold tabulateDomStep
     wram_exec * [hrmk, hrsz]
     wram_call (hcell _ p hp (by regs_frame) (by regs_frame) (by regs_frame)
@@ -157,8 +157,7 @@ theorem exec_tabulateDom {w d domPtr free T_cell : ℕ}
       · subst hqp'; rfl
       · exact hdone q hq (by omega)
     · refine (hu₃_frame a ha).trans ?_
-      simp only [Data.set_mem, hu₁_mem]
-      exact hsframe a (by omega)
+      simpa only [Data.set_mem, hu₁_mem] using hsframe a (by omega)
   have hs₁P : P (s₁.regs rCellIdx) s₁ := by
     refine ⟨fun i hi => ?_, by simp [s₁], free + 2, _, _, by regs_frame, le_rfl, by simp [s₁],
       by simp [Set.insert_subset_iff], hs₀_rep, by simp [s₁],
@@ -168,12 +167,11 @@ theorem exec_tabulateDom {w d domPtr free T_cell : ℕ}
   obtain ⟨y, hloop, ⟨-, hysav, free', S', outFn, hyfree, hlo', hhi', hS', hyrep, hydone, hyframe⟩,
       -⟩ := ExecWithin.loop_count P (fun s hs => (hs.1 _ (by decide)).trans hdl) hbody
     (by simp [s₁]) hs₁P
-  refine ⟨y, free', S', outFn, (hinit0.seq (hinit1.seq hloop)).mono ?_, hysav, hyfree, hlo', hhi',
-    hS', hyrep, fun X hX => ?_, hyframe⟩
-  · simp only [s₁, Data.set_regs_self, Nat.sub_zero]
-    ring_nf; omega
-  · obtain ⟨q, hq, rfl⟩ := List.getElem_of_mem hX
-    exact hydone q hq hq
+  refine ⟨y, free', S', outFn, (hinit0.seq (hinit1.seq hloop)).mono
+      (le_of_eq (by simp only [s₁, Data.set_regs_self, Nat.sub_zero]; ring)),
+    hysav, hyfree, hlo', hhi', hS', hyrep, fun X hX => ?_, hyframe⟩
+  obtain ⟨q, hq, rfl⟩ := List.getElem_of_mem hX
+  exact hydone q hq hq
 
 /-- Cell body for pointwise multiplication of `rStageCurRoot` and `rStageFbRoot` at `rCellKey`. -/
 private def mulCellBody : Code .standard numRegs :=
@@ -240,9 +238,9 @@ theorem exec_tabulateMul {w d domPtr free rootF rootG B : ℕ}
         u.mem = s.mem ∧ ∀ i, ¬ IsCellMod i → u.regs i = s.regs i := by
     intro s p hp hsz hso hsd ⟨hsrF, hsrG⟩ hsmem hsck _
     suffices h : ∃ u, ExecWithin w mulCellBody s u (18 * d + 37) ∧
-        u.regs rTrieVal = Signed.encode (valF dom[p] * valG dom[p]) ∧ u.mem = s.mem by
-      obtain ⟨u, hu, hval, hmem⟩ := h
-      exact ⟨u, hu, hval, hmem, fun i hi => hu.regs_eq (mulCellBody_preserves i hi)⟩
+        u.regs rTrieVal = Signed.encode (valF dom[p] * valG dom[p]) ∧ u.mem = s.mem from
+      h.imp fun u ⟨hu, hval, hmem⟩ =>
+        ⟨hu, hval, hmem, fun i hi => hu.regs_eq (mulCellBody_preserves i hi)⟩
     have hXp : dom[p] ∈ dom := List.getElem_mem hp
     have hfit_bound : Fits w free := hfit_free.of_le (by omega)
     have hfit_key : Fits w (setMask dom[p]) := hfit_mask.of_le (setMask_lt _).le
@@ -268,11 +266,9 @@ theorem exec_tabulateMul {w d domPtr free rootF rootG B : ℕ}
       (cellFn := fun X => Signed.encode (valF X * valG X))
       (T_cell := 18 * d + 37) x hz ho hd hdp hdl hfree hfree_pos
       hnd hdom hdom_below ⟨hrF, hrG⟩ hInv_congr hcell hfit_free hfit_mask
-  have he' : ExecWithin w tabulateMul x y (dom.length * (32 * d + 53) + 9) :=
-    he.mono (le_of_eq (by ring))
-  exact ⟨y, free', outFn, he', hysav, hyfree, hlo', hhi',
-    HoldsTrie.iff_exists_trieRep.mpr
-      ⟨S', fun a ha => ⟨hfree_pos.trans (hS' ha).1, (hS' ha).2⟩, hyrep⟩,
-    hydom, hyframe, fun i hi => he'.regs_eq (tabulateMul_preserves i hi)⟩
+  have he' := he.mono (T₂ := dom.length * (32 * d + 53) + 9) (le_of_eq (by ring))
+  exact ⟨y, free', outFn, he', hysav, hyfree, hlo', hhi', HoldsTrie.iff_exists_trieRep.mpr
+    ⟨S', fun a ha => ⟨hfree_pos.trans (hS' ha).1, (hS' ha).2⟩, hyrep⟩, hydom, hyframe,
+    fun i hi => he'.regs_eq (tabulateMul_preserves i hi)⟩
 
 end Cslib.Algorithms.WordRAM.TrimmedYates

@@ -110,13 +110,10 @@ theorem PartialIsoOn.mono {S T : Set (Fin k)} {a : Fin k → M} {b : Fin k → N
 theorem PartialIsoOn.congr {S : Set (Fin k)} {a a' : Fin k → M} {b b' : Fin k → N}
     (ha : Set.EqOn a a' S) (hb : Set.EqOn b b' S) (h : PartialIsoOn L S a b) :
     PartialIsoOn L S a' b' :=
-  ⟨fun i hi j hj => by
-      rw [← ha hi, ← ha hj, ← hb hi, ← hb hj]
-      exact h.eq_iff i hi j hj,
-    fun R f hf => by
-      rw [show a' ∘ f = a ∘ f from funext fun t => (ha (hf t)).symm,
-        show b' ∘ f = b ∘ f from funext fun t => (hb (hf t)).symm]
-      exact h.relMap_iff R f hf⟩
+  ⟨fun i hi j hj => ha hi ▸ ha hj ▸ hb hi ▸ hb hj ▸ h.eq_iff i hi j hj, fun R f hf => by
+    have haf : a' ∘ f = a ∘ f := funext fun t => (ha (hf t)).symm
+    have hbf : b' ∘ f = b ∘ f := funext fun t => (hb (hf t)).symm
+    simpa only [haf, hbf] using h.relMap_iff R f hf⟩
 
 /-- With no pebbles placed, every position is a partial isomorphism, provided `L` has no nullary
 relation symbols: these are sentences that the two structures would have to agree on. -/
@@ -145,13 +142,9 @@ theorem PartialIsoOn.update_of_mem {S : Set (Fin k)} {a : Fin k → M} {b : Fin 
     PartialIsoOn L (insert i S) (Function.update a i c) (Function.update b i (b j₀)) := by
   let g : Fin k → Fin k := Function.update id i j₀
   have hgS (r : Fin k) (hr : r ∈ insert i S) : g r ∈ S := by
-    by_cases hri : r = i
-    · simpa [g, hri] using hj₀
-    · simpa [g, Function.update_of_ne hri] using (Set.mem_insert_iff.1 hr).resolve_left hri
-  have ha : Function.update a i c = a ∘ g := funext fun r => by
-    by_cases hri : r = i <;> simp [g, hri, hc]
-  have hb : Function.update b i (b j₀) = b ∘ g := funext fun r => by
-    by_cases hri : r = i <;> simp [g, hri]
+    rcases eq_or_ne r i with rfl | hri <;> simp_all [g]
+  have ha : Function.update a i c = a ∘ g := hc ▸ (Function.comp_update a id i j₀).symm
+  have hb : Function.update b i (b j₀) = b ∘ g := (Function.comp_update b id i j₀).symm
   rw [ha, hb]
   exact ⟨fun r hr s hs => h.eq_iff (g r) (hgS r hr) (g s) (hgS s hs),
     fun R f hf => h.relMap_iff R (g ∘ f) fun t => hgS (f t) (hf t)⟩
@@ -198,22 +191,21 @@ def PebbleWins : ℕ → Set (Fin k) → (Fin k → M) → (Fin k → N) → Pro
         PebbleWins n (insert i S) (Function.update a i c) (Function.update b i d))
 
 theorem pebbleWins_zero {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N} :
-    PebbleWins L 0 S a b ↔ PartialIsoOn L S a b := by
-  rw [PebbleWins]
+    PebbleWins L 0 S a b ↔ PartialIsoOn L S a b :=
+  Iff.rfl
 
 theorem pebbleWins_succ {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N} :
     PebbleWins L (n + 1) S a b ↔ PartialIsoOn L S a b ∧
       (∀ i (c : M), ∃ d : N,
         PebbleWins L n (insert i S) (Function.update a i c) (Function.update b i d)) ∧
       (∀ i (d : N), ∃ c : M,
-        PebbleWins L n (insert i S) (Function.update a i c) (Function.update b i d)) := by
-  rw [PebbleWins]
+        PebbleWins L n (insert i S) (Function.update a i c) (Function.update b i d)) :=
+  Iff.rfl
 
 theorem PebbleWins.partialIsoOn {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N}
     (h : PebbleWins L n S a b) : PartialIsoOn L S a b := by
-  cases n with
-  | zero => exact pebbleWins_zero.1 h
-  | succ n => exact (pebbleWins_succ.1 h).1
+  rcases n with _ | n
+  exacts [h, h.1]
 
 theorem PebbleWins.forth {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N}
     (h : PebbleWins L (n + 1) S a b) (i : Fin k) (c : M) :
@@ -272,12 +264,8 @@ theorem PebbleWins.trans :
       PebbleWins L n S a b → PebbleWins L n S b c → PebbleWins L n S a c
   | 0, _, _, _, _, h₁, h₂ => pebbleWins_zero.2 (h₁.partialIsoOn.trans h₂.partialIsoOn)
   | _ + 1, _, _, _, _, h₁, h₂ => pebbleWins_succ.2 ⟨h₁.partialIsoOn.trans h₂.partialIsoOn,
-      fun i x => by
-        obtain ⟨y, hy⟩ := h₁.forth i x
-        exact (h₂.forth i y).imp fun _ hz => hy.trans hz,
-      fun i z => by
-        obtain ⟨y, hy⟩ := h₂.back i z
-        exact (h₁.back i y).imp fun _ hx => hx.trans hy⟩
+      fun i x => (h₁.forth i x).elim fun y hy => (h₂.forth i y).imp fun _ => hy.trans,
+      fun i z => (h₂.back i z).elim fun y hy => (h₁.back i y).imp fun _ hx => hx.trans hy⟩
 
 /-! ### Back-and-forth invariants and the infinite game -/
 
@@ -349,14 +337,11 @@ theorem pebbleWinsForever_iff_forall_pebbleWins [Finite M] [Finite N] {S : Set (
 and its image. -/
 theorem _root_.FirstOrder.Language.Equiv.pebbleWinsForever (e : M ≃[L] N) (S : Set (Fin k))
     (a : Fin k → M) : PebbleWinsForever L S a (e ∘ a) := by
-  refine ⟨fun _ a b => b = e ∘ a, ⟨?_, ?_, ?_⟩, rfl⟩
-  · rintro S a b rfl
-    refine ⟨fun i _ j _ => e.injective.eq_iff.symm, fun R f _ => ?_⟩
-    rw [Function.comp_assoc, e.map_rel]
-  · rintro S a b rfl i c
-    exact ⟨e c, (Function.comp_update e a i c).symm⟩
-  · rintro S a b rfl i d
-    exact ⟨e.symm d, by rw [Function.comp_update, e.apply_symm_apply]⟩
+  refine ⟨fun _ a b => b = e ∘ a, ⟨?_, fun h i c => ⟨e c, h ▸ (Function.comp_update e _ i c).symm⟩,
+    fun h i d => ⟨e.symm d, by rw [h, Function.comp_update, e.apply_symm_apply]⟩⟩, rfl⟩
+  rintro S a b rfl
+  exact ⟨fun _ _ _ _ => e.injective.eq_iff.symm,
+    fun R f _ => by rw [Function.comp_assoc, e.map_rel]⟩
 
 /-- Duplicator wins every finite game between a structure and an isomorphic copy, from a position
 and its image. -/

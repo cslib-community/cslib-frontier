@@ -278,8 +278,7 @@ private theorem knownSum_map (Δ : L) (K : Fin n ⊕ Fin N → L)
 private theorem one_ne_zero_of_col {col : L →+ ZMod 2} {Δ : L} (hΔ : col Δ = 1) :
     (1 : R) ≠ 0 := by
   intro h
-  have h0 : Δ = 0 := by rw [← one_smul R Δ, h, zero_smul]
-  rw [h0, map_zero] at hΔ
+  rw [← one_smul R Δ, h, zero_smul, map_zero] at hΔ
   exact absurd hΔ (by decide)
 
 /-- The colour of a label shifted by `v • Δ`, for a bit `v` and an offset of colour `1`. -/
@@ -303,11 +302,7 @@ private theorem lockstep_update {Δ : L} {K : Fin n ⊕ Fin N → L}
     (ha : a = wireLabel Δ (K w) v) (u : Fin n ⊕ Fin N) :
     Function.update gst w (some a) u = (Function.update pst w (some v) u).map
       (wireLabel Δ (K u)) := by
-  by_cases hu : u = w
-  · subst hu
-    simp [ha]
-  · simp only [Function.update_of_ne hu]
-    exact h u
+  by_cases hu : u = w <;> simp [hu, ha, h]
 
 private theorem lockstep_pair {Δ : L} {K : Fin n ⊕ Fin N → L}
     {pst : Fin n ⊕ Fin N → Option R} {gst : Fin n ⊕ Fin N → Option L}
@@ -356,11 +351,9 @@ private theorem lockstep_evalGate [DecidableEq R] {H : L → ℕ → L} {col : L
       · subst hv0
         simp only [ite_true, wireLabel, zero_smul, add_zero]
         exact lockstep_pair hmap x (.inr y) (H (K c) i) hy
-      · simp only [hv0, ite_false]
-        exact hmap
+      · simpa only [hv0, ite_false, one_ne_zero] using hmap
   | join x y =>
-    change μ = _ at hcons
-    subst hcons
+    obtain rfl : μ = Material.shift (K y - K x) := hcons
     exact lockstep_pair hmap x y (K y - K x) (by abel)
 
 private theorem lockstep_evalGates [DecidableEq R] {H : L → ℕ → L} {col : L →+ ZMod 2}
@@ -396,11 +389,10 @@ theorem evaluate_garbleWith [DecidableEq R] {S : SwitchSystem n m N R} (hS : S.W
       · simp only [SwitchSystem.initState, Sum.elim_inl, Option.some.injEq] at ha
         rw [← ha, hσ.1 i]
       · simp [SwitchSystem.initState] at ha
-  have key : ∀ t, Lockstep Δ (zeroLabels S H col Δ K) σ
+  have key (t : ℕ) : Lockstep Δ (zeroLabels S H col Δ K) σ
       (S.sweep^[t] (SwitchSystem.initState x))
       ((evalGates H col 0 S.gates (garbleWith S H col Δ K).material)^[t]
         (Sum.elim (fun i => some ((garbleWith S H col Δ K).encode x i)) fun _ => none)) := by
-    intro t
     induction t with
     | zero => exact hinit
     | succ t ih =>

@@ -139,18 +139,14 @@ theorem readBufAllocsProg_spec {c U V w n_max base ep : ℕ}
     (Memory.spec 0).clientResult s prog = ((fs.buf ep).nodeAlloc, (fs.buf ep).itemAlloc) ∧
     memoryCost prog s ≤ 2 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
+  obtain ⟨_, _, hmNa, hmIa, _⟩ := hrep.buf_rep hep
   unfold readBufAllocsProg
-  simp only [pure_bind]
-  rcases hep with rfl | rfl
-  · simp only [↓reduceIte]
-    exact readBufAllocsProg_pair_spec (by dsimp [hdrBuf0NodeAlloc]; omega)
-      (by dsimp [hdrBuf0ItemAlloc]; omega) (hrep.buf_rep (.inl rfl)).2.2.1
-      (hrep.buf_rep (.inl rfl)).2.2.2.1
-  · simp only [one_ne_zero, ↓reduceIte]
-    exact readBufAllocsProg_pair_spec (by dsimp [hdrBuf1NodeAlloc]; omega)
-      (by dsimp [hdrBuf1ItemAlloc]; omega) (hrep.buf_rep (.inr rfl)).2.2.1
-      (hrep.buf_rep (.inr rfl)).2.2.2.1
+  rcases hep with rfl | rfl <;> simp only [pure_bind, one_ne_zero, ↓reduceIte]
+  · exact readBufAllocsProg_pair_spec (by dsimp [hdrBuf0NodeAlloc]; omega)
+      (by dsimp [hdrBuf0ItemAlloc]; omega) hmNa hmIa
+  · exact readBufAllocsProg_pair_spec (by dsimp [hdrBuf1NodeAlloc]; omega)
+      (by dsimp [hdrBuf1ItemAlloc]; omega) hmNa hmIa
 
 /-- `FastStateStep` wrapper around `bufClearStepsGenProg_spec`. -/
 theorem bufClearStepsGenProg_fastStep {c U V w n_max base ep k : ℕ}
@@ -291,15 +287,14 @@ theorem stageCursorReads_spec {c U V w n_max base : ℕ}
     (hrep : FastMemRep base c U V w n_max fs s.mem) :
     StageCursorReads w (base + largeSpaceWhp c U V w n_max) base fs.oldEp
       (fs.buf fs.oldEp).nodeAlloc (fs.buf fs.oldEp).itemAlloc fs.stageCursor s := by
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   have hh := fastMemHdrs hrep
   obtain ⟨hro_st, hro_res, hro_mc, hro_vp⟩ := readOldEpProg_spec (w := w)
     (F := base + largeSpaceWhp c U V w n_max) (by dsimp [hdrCurEp]; omega) hce
     hh.curEp (s := s)
   obtain ⟨hra_st, hra_res, hra_mc, hra_vp⟩ := readBufAllocsProg_spec henv hold_or hrep (s := s)
-  obtain ⟨hsc_st, hsc_res, hsc_mc, hsc_vp⟩ := readHdrProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrStageCursor)
-    (by dsimp [hdrStageCursor]; omega) (s := s)
+  obtain ⟨hsc_st, hsc_res, hsc_mc, hsc_vp⟩ := readHdrProg_large_spec c U V w n_max
+    (base := base) (hdrOff := hdrStageCursor) (s := s) (by decide)
   rw [hh.stageCursor] at hsc_res
   exact ⟨hro_st, hro_res, le_of_eq hro_mc, hro_vp, hra_st, hra_res, hra_mc, hra_vp,
     hsc_st, hsc_res, le_of_eq hsc_mc, hsc_vp⟩
@@ -578,11 +573,10 @@ theorem rebScanSteps_preserved {c U n_max : ℕ} (θ : SeedWhp c U n_max) (b : �
           hpk.dirtyCount.trans hp1.dirtyCount, hpk.dirtyIdx.trans hp1.dirtyIdx,
           hpk.dirtyBuckets.trans hp1.dirtyBuckets, hpk.rebCandSalt.trans hp1.rebCandSalt,
           hpk.bktCount.trans hp1.bktCount, hpk.liveRole.trans hp1.liveRole,
-          hpk.overmarsRole.trans hp1.overmarsRole, by
-            have := hpk.rebInsCount_le
-            have := hp1.rebInsCount_le
-            omega⟩ :
-            RebScanPreserved fs _ (k + 1))) ?_
+          hpk.overmarsRole.trans hp1.overmarsRole,
+          (hpk.rebInsCount_le.trans (Nat.add_le_add_right hp1.rebInsCount_le k)).trans_eq
+            (by omega)⟩ :
+          RebScanPreserved fs _ (k + 1))) ?_
       split_ifs with hact
       · cases btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
             (fs.slices (fs.rebSliceIdx b))

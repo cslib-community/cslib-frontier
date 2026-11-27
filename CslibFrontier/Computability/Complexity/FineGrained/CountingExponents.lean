@@ -360,11 +360,8 @@ theorem SharpKSAT_computableInExpTime_one (k : ℕ) :
 theorem DecidableInExpTime.KSAT_of_SharpKSAT {k : ℕ} {δ : ℝ} (hδ : 0 ≤ δ)
     (h : ComputableInExpTime (SharpKSAT k) encCNF encNat CNF.numVars δ) :
     DecidableInExpTime (KSAT k) encCNF CNF.numVars δ := by
-  have hpos : ComputableInPolyTime (fun n : ℕ => decide (0 < n)) encNat encBool :=
-    ComputableInPolyTime.binary_lt.comp
-      ((ComputableInPolyTime.const 0).prod ComputableInPolyTime.id')
   have hdec := DecidableInExpTime.of_computableInExpTime_polyBounded hδ h
-    (polyBounded_length_encNat_SharpKSAT k) hpos
+    (polyBounded_length_encNat_SharpKSAT k) ComputableInPolyTime.binary_pos
   convert hdec using 1
   ext φ
   simp only [Set.mem_ofPred_eq, decide_eq_true_eq, mem_KSAT_iff_pos_SharpKSAT]

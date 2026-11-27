@@ -130,16 +130,11 @@ private lemma transfer {n N e : ℕ} (x : Fin 3 → ℕ) (f : Formula n)
       (fun i => (↑z⁻¹ : Matrix _ _ _) * specializedLift n N e x i.succ) v)
     (hu : IsUnit v) :
     ∃ a, Evaluates f (tupleAt n N e x) a ∧ IsUnit a := by
-  have hzinv : regular e (↑z⁻¹ : Matrix _ _ _) = (rationalLift n N e x 0)⁻¹ := by
-    symm
-    apply Matrix.inv_eq_left_inv
-    change regular e (↑z⁻¹ : Matrix _ _ _) * regular e (specializedLift n N e x 0) = 1
-    simp only [← map_mul, ← hz, Units.inv_mul, map_one]
+  have hzinv : regular e (↑z⁻¹ : Matrix _ _ _) = (rationalLift n N e x 0)⁻¹ :=
+    (Matrix.inv_eq_left_inv
+      (by simp only [rationalLift, ← map_mul, ← hz, Units.inv_mul, map_one])).symm
   refine ⟨regular e v, ?_, hu.map (regular e)⟩
-  change f.Eval (algebraMap ℚ _) (tupleAt n N e x) (regular e v)
-  change f.Eval (algebraMap ℚ _)
-    (fun i => (regular e (specializedLift n N e x 0))⁻¹ * regular e
-      (specializedLift n N e x i.succ)) (regular e v)
+  unfold Evaluates tupleAt
   simpa only [map_mul, hzinv, rationalLift] using hf.map_algebraMap (regular e)
 
 private lemma emitted {n N e H : ℕ} (x : Fin 3 → Fin H)
@@ -210,24 +205,21 @@ private lemma condition_nonzero {n s N e : ℕ} (hs : 1 ≤ s) (f : Formula n) (
     simp [onePencil, Affine.eval_constant, Matrix.one_apply, Subsingleton.elim i j]
   · obtain ⟨h, hh, rfl⟩ := List.mem_map.mp hp
     have hb := (Formula.certificate_bounds f s hs hf).2 h hh
-    apply PencilCertificates.determinant_ne_zero (CyclotomicRing.character e)
+    exact PencilCertificates.determinant_ne_zero (CyclotomicRing.character e)
       (CyclotomicRing.character_primitive e) (witnessEmbedding e) (finPencil h)
-      (2 * s + 1) d hb.1 hb.2 hN hMN hM hd Y
-    exact (finPencil_unit _ _ h).mpr (hcert h hh)
+      (2 * s + 1) d hb.1 hb.2 hN hMN hM hd Y ((finPencil_unit _ _ h).mpr (hcert h hh))
 
 private lemma condition_degree {n s N e : ℕ} (hs : 1 ≤ s) (f : Formula n) (hf : f.nodeCount ≤ s) :
     (conditions N e f).length ≤ s + 2 ∧
     ∀ p ∈ conditions N e f, p.totalDegree ≤ 3 * (2 * s + 1) * (CyclotomicRing.dimension e) ^ 2 := by
-  refine ⟨?_, ?_⟩
-  · have hh := (Formula.certificate_bounds f s hs hf).1
-    simpa only [conditions, List.length_cons, List.length_map] using Nat.succ_le_succ hh
-  · intro p hp
-    rcases List.mem_cons.mp hp with rfl | hp
-    · exact (PencilCertificates.degree_le _ _).trans (by gcongr; omega)
-    · obtain ⟨h, hh, rfl⟩ := List.mem_map.mp hp
-      exact (PencilCertificates.degree_le _ _).trans (by
-        gcongr
-        exact ((Formula.certificate_bounds f s hs hf).2 h hh).2)
+  have hb := Formula.certificate_bounds f s hs hf
+  refine ⟨by simpa only [conditions, List.length_cons, List.length_map] using Nat.succ_le_succ hb.1,
+    fun p hp => ?_⟩
+  rcases List.mem_cons.mp hp with rfl | hp
+  · exact (PencilCertificates.degree_le _ _).trans (by gcongr; omega)
+  · obtain ⟨h, hh, rfl⟩ := List.mem_map.mp hp
+    exact (PencilCertificates.degree_le _ _).trans
+      (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ (hb.2 h hh).2))
 
 lemma integer_grid {K : Type*} [Field K] [CharZero K] (P : List (MvPolynomial (Fin 3) K))
     (hP : ∀ p ∈ P, p ≠ 0) (d H : ℕ) (hd : ∀ p ∈ P, p.totalDegree ≤ d)
@@ -323,8 +315,7 @@ private theorem M_le (n s : ℕ) : ambientDimension n s ≤ 2 * (rankBound s * d
 `rankBound s * delta n s`. -/
 theorem M_minimal (n s k : ℕ) (hk : rankBound s * delta n s < 2 ^ k) :
     ambientDimension n s ≤ 2 ^ k := by
-  apply Nat.pow_le_pow_right (by omega)
-  exact Nat.succ_le_of_lt (Nat.log_lt_of_lt_pow (threshold_pos n s).ne' hk)
+  exact Nat.pow_le_pow_right (by omega) (Nat.log_lt_of_lt_pow (threshold_pos n s).ne' hk)
 
 /-- The truncation parameter `truncation n s` is at least `1`. -/
 theorem N_pos (n s : ℕ) : 1 ≤ truncation n s := by
@@ -350,20 +341,15 @@ private theorem w_bound (n s : ℕ) : w n ≤ n + s + 1 := by unfold w; omega
 private theorem B_bound (n s : ℕ) : rankBound s ≤ 2 * (n + s + 1) := by unfold rankBound; omega
 
 private theorem delta_bound (n s : ℕ) : delta n s ≤ 4 * (n + s + 1) ^ 4 := by
-  calc delta n s ≤ 2 * (n + s + 1) ^ 3 * (2 * (n + s + 1)) := by
-         unfold delta
-         gcongr
-         · exact w_bound n s
-         · exact B_bound n s
+  calc delta n s ≤ 2 * (n + s + 1) ^ 3 * (2 * (n + s + 1)) :=
+         Nat.mul_le_mul (Nat.mul_le_mul_left 2 (Nat.pow_le_pow_left (w_bound n s) 3)) (B_bound n s)
        _ = _ := by ring
 
 /-- `ambientDimension n s` is at most `16 * (n + s + 1) ^ 5`. -/
 theorem polynomial_M (n s : ℕ) : ambientDimension n s ≤ 16 * (n + s + 1) ^ 5 := by
   calc ambientDimension n s ≤ 2 * (rankBound s * delta n s) := M_le n s
-       _ ≤ 2 * ((2 * (n + s + 1)) * (4 * (n + s + 1) ^ 4)) := by
-          gcongr
-          · exact B_bound n s
-          · exact delta_bound n s
+       _ ≤ 2 * ((2 * (n + s + 1)) * (4 * (n + s + 1) ^ 4)) :=
+          Nat.mul_le_mul_left 2 (Nat.mul_le_mul (B_bound n s) (delta_bound n s))
        _ = _ := by ring
 
 /-- The grid side length is polynomial in `n + s + 1`, for every `n`, including `n = 0`: the

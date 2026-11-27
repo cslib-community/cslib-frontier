@@ -257,25 +257,14 @@ private theorem walk_injective_of_step_ne_none {α : Type} {f g : α → Option 
   intro i
   induction i with
   | zero =>
-    intro j _ _ heq
-    cases j with
-    | zero => rfl
-    | succ j =>
-      have hgj := hstep j (by omega)
-      rw [← heq, walk, hc] at hgj
-      nomatch hgj
+    rintro (_ | j) _ _ heq
+    · rfl
+    · exact nomatch (heq.symm ▸ hstep j (by omega)).symm.trans hc
   | succ i ih =>
-    intro j hi hj heq
-    cases j with
-    | zero =>
-      have hgi := hstep i (by omega)
-      rw [heq, walk, hc] at hgi
-      nomatch hgi
-    | succ j =>
-      have hgi := hstep i (by omega)
-      have hgj := hstep j (by omega)
-      rw [heq] at hgi
-      exact congrArg Nat.succ (ih j (by omega) (by omega) (Option.some.inj (hgi.symm.trans hgj)))
+    rintro (_ | j) hi hj heq
+    · exact nomatch (heq ▸ hstep i (by omega)).symm.trans hc
+    · have h := (heq ▸ hstep i (by omega)).symm.trans (hstep j (by omega))
+      exact congrArg Nat.succ (ih j (by omega) (by omega) (Option.some.inj h))
 
 private theorem step_walk_eq_none_of_walk_mem {α : Type} {f g : α → Option α} {H : Finset α}
     (hfg : ∀ x y, f x = some y ↔ g y = some x) {c : α} (hc : g c = none) {k : ℕ}
@@ -350,21 +339,12 @@ theorem inEdge?_eq_some_iff {m m' : ℕ} (s : RelocationState m m') (u v : Fin m
   simp only [inEdge?, hasEdge]
   split_ifs with hp
   · rw [List.getElem?_eq_some_iff]
-    constructor
-    · rintro ⟨ht, rfl⟩
-      have hlt : m + ((s.perm.symm v).val - m) < m' := by
-        have := (s.perm.symm v).isLt; omega
-      refine ⟨(s.perm.symm v).val - m, ht, hlt, rfl, ?_⟩
-      have hmk : (⟨m + ((s.perm.symm v).val - m), hlt⟩ : Fin m') = s.perm.symm v := by
-        ext; dsimp; omega
-      rw [hmk, Equiv.apply_symm_apply]
-    · rintro ⟨t, ht, _, rfl, rfl⟩
-      simp only [Equiv.symm_apply_apply, Nat.add_sub_cancel_left]
-      exact ⟨ht, trivial⟩
-  · simp only [false_iff]
-    rintro ⟨_, _, _, _, rfl⟩
-    simp only [Equiv.symm_apply_apply] at hp
-    omega
+    refine ⟨fun ⟨ht, h⟩ => ?_, fun ⟨t, ht, _, h1, h2⟩ =>
+      ⟨by simpa [← h2] using ht, by simpa [← h2] using h1⟩⟩
+    have hlt := (Nat.add_sub_of_le hp).trans_lt (s.perm.symm v).isLt
+    exact ⟨(s.perm.symm v).val - m, ht, hlt, h,
+      s.perm.eq_symm_apply.mp (Fin.ext (Nat.add_sub_of_le hp))⟩
+  · exact iff_of_false (by simp) fun ⟨_, _, _, _, h⟩ => hp (by simp [← h])
 
 /-- When `s.history.Nodup`, `outEdge? s u = some v` iff there is a directed edge from `u` to `v`
 in the relocation graph ([WangRen2025], Definition 3.6 and Lemma 3.9, p. 15). -/
@@ -381,16 +361,14 @@ theorem outEdge?_eq_some_iff {m m' : ℕ} {s : RelocationState m m'} (hnd : s.hi
   | some idx =>
     dsimp only
     obtain ⟨hlt, rfl, _⟩ := List.idxOf?_eq_some_iff.mp hidx
+    have hti {t : ℕ} (ht : t < s.history.length) (heq : s.history[t] = s.history[idx]) :
+        idx = t := (hnd.getElem_inj_iff (hi := hlt) (hj := ht)).mp heq.symm
     split_ifs with hmt
-    · simp only [Option.some.injEq]
-      refine ⟨fun h => ⟨idx, hlt, hmt, rfl, h⟩, ?_⟩
+    · refine ⟨fun h => ⟨idx, hlt, hmt, rfl, Option.some.inj h⟩, ?_⟩
       rintro ⟨t, ht, _, heq, rfl⟩
-      have hti : idx = t := (hnd.getElem_inj_iff (hi := hlt) (hj := ht)).mp heq.symm
-      subst hti; rfl
-    · simp only [false_iff]
-      rintro ⟨t, ht, hmt', heq, _⟩
-      have hti : idx = t := (hnd.getElem_inj_iff (hi := hlt) (hj := ht)).mp heq.symm
-      exact hmt (hti ▸ hmt')
+      cases hti ht heq
+      rfl
+    · exact iff_of_false (by simp) fun ⟨t, ht, hmt', heq, _⟩ => hmt (hti ht heq ▸ hmt')
 
 /-- **Lemma 3.9** of [WangRen2025] (p. 15): when `s.history.Nodup`, `outEdge?` and `inEdge?` are
 mutually inverse partial functions, so every node has at most one out-edge and at most one
@@ -519,18 +497,9 @@ theorem access_eq_some_iff {m m' : ℕ} (s : RelocationState m m') (c : Fin m') 
     access s c = some e ↔ s.perm (Fin.castLE hm e) = startOfChain s c := by
   simp only [access]
   split_ifs with hlt
-  · simp only [Option.some.injEq]
-    refine ⟨fun h => ?_, fun h => ?_⟩
-    · rw [← h]
-      exact s.perm.apply_symm_apply (startOfChain s c)
-    · ext
-      have := congrArg (fun x => (s.perm.symm x).val) h
-      simpa using this.symm
-  · simp only [false_iff]
-    intro h
-    have := congrArg (fun x => (s.perm.symm x).val) h
-    simp only [Equiv.symm_apply_apply, Fin.val_castLE] at this
-    exact hlt (this ▸ e.isLt)
+  · refine ⟨fun h => Option.some.inj h ▸ s.perm.apply_symm_apply (startOfChain s c), fun h => ?_⟩
+    exact congrArg some (Fin.ext (by simpa using congrArg (fun x => (s.perm.symm x).val) h.symm))
+  · exact ⟨False.elim, fun h => hlt (by simp [← congrArg (fun x => (s.perm.symm x).val) h])⟩
 
 /-- **Fact 3.12** of [WangRen2025] (p. 15): `access s c = none` iff the chain containing `c`
 starts at `s.perm i` for some `i ≥ m`. -/
@@ -552,12 +521,9 @@ theorem access_locate {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid) (e 
 p. 15). -/
 theorem locate_injective {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid)
     (hm : m ≤ m') :
-    Function.Injective (fun e => locate s e hm) := by
-  intro e₁ e₂ h
-  dsimp only at h
-  have h₁ := access_locate hv e₁ hm
-  rw [h, access_locate hv e₂ hm] at h₁
-  exact Option.some.inj h₁.symm
+    Function.Injective (fun e => locate s e hm) := fun e₁ e₂ h =>
+  Option.some.inj
+    ((access_locate hv e₁ hm).symm.trans ((congrArg (access s) h).trans (access_locate hv e₂ hm)))
 
 /-- For any valid state `s` and logical element `e`, `locate s e hm` is an unconsumed physical
 position (`locate s e hm ∉ s.history`). -/
@@ -592,12 +558,10 @@ theorem existsUnique_access_eq {m m' : ℕ} {s : RelocationState m m'} (hv : s.V
 theorem valid_relocate {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid) {c : Fin m'}
     (hc : c ∉ s.history) (hlen : m + s.history.length < m') :
     (relocate s c).Valid := by
-  refine ⟨?_, by simp only [relocate, List.length_append, List.length_singleton]; omega⟩
-  rw [relocate, List.nodup_append]
-  refine ⟨hv.1, List.nodup_singleton c, fun a ha b hb hab => ?_⟩
-  have hbc : b = c := List.mem_singleton.mp hb
-  subst hbc; subst hab
-  exact hc ha
+  refine ⟨List.nodup_append.mpr ⟨hv.1, List.nodup_singleton c,
+    fun _ ha _ hb h => hc (List.mem_singleton.mp hb ▸ h ▸ ha)⟩, ?_⟩
+  simp only [relocate, List.length_append, List.length_singleton]
+  omega
 
 private theorem hasEdge_relocate_iff {m m' : ℕ} (s : RelocationState m m') (c x y : Fin m')
     (hlen : m + s.history.length < m') :
@@ -609,15 +573,12 @@ private theorem hasEdge_relocate_iff {m m' : ℕ} (s : RelocationState m m') (c 
     by_cases hlt : t < s.history.length
     · rw [List.getElem_append_left hlt] at hx
       exact Or.inl ⟨t, hlt, hmt, hx, hy⟩
-    · have hteq : t = s.history.length := by omega
-      subst hteq
+    · obtain rfl : t = s.history.length := by omega
       simp only [List.getElem_append_right le_rfl, Nat.sub_self, List.getElem_cons_zero] at hx
       exact Or.inr ⟨hx.symm, hy⟩
-  · rintro (⟨t, ht, hmt, hx, hy⟩ | ⟨rfl, rfl⟩)
-    · refine ⟨t, by omega, hmt, ?_, hy⟩
-      rw [List.getElem_append_left ht, hx]
-    · refine ⟨s.history.length, by omega, hlen, ?_, rfl⟩
-      simp [List.getElem_append_right le_rfl]
+  · rintro (⟨t, ht, hmt, rfl, rfl⟩ | ⟨rfl, rfl⟩)
+    · exact ⟨t, by omega, hmt, List.getElem_append_left ht, rfl⟩
+    · exact ⟨s.history.length, by omega, hlen, by simp [List.getElem_append_right le_rfl], rfl⟩
 
 private theorem outEdge?_relocate_self {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid)
     {c : Fin m'} (hc : c ∉ s.history) (hlen : m + s.history.length < m') :
@@ -860,12 +821,9 @@ private theorem card_extPerms_ofFn_mul_card_embedding {m m' : ℕ} (hm : m ≤ m
     (emb : Fin m ↪ Fin m') :
     (extPerms (List.ofFn fun i => (Fin.castLEEmb hm i, emb i))).card *
       Fintype.card (Fin m ↪ Fin m') = Fintype.card (Equiv.Perm (Fin m')) := by
-  have hall : ∀ e : Fin m ↪ Fin m',
-      (extPerms (List.ofFn fun i => (Fin.castLEEmb hm i, e i))).card =
-        (extPerms (List.ofFn fun i => (Fin.castLEEmb hm i, emb i))).card :=
-    fun e => card_extPerms_ofFn_eq (Fin.castLEEmb hm) e emb
-  rw [Fintype.card_perm, ← sum_card_extPerms_ofFn (Fin.castLEEmb hm)]
-  simp only [hall, Finset.sum_const, Finset.card_univ, smul_eq_mul, mul_comm]
+  rw [Fintype.card_perm, ← sum_card_extPerms_ofFn (Fin.castLEEmb hm),
+    Finset.sum_congr rfl fun e _ => card_extPerms_ofFn_eq (Fin.castLEEmb hm) e emb]
+  simp only [Finset.sum_const, Finset.card_univ, smul_eq_mul, mul_comm]
 
 private theorem uniformOfFintype_perm_map_castLEEmb {m m' : ℕ} (hm : m ≤ m') :
     have : Nonempty (Fin m ↪ Fin m') := ⟨Fin.castLEEmb hm⟩
@@ -874,25 +832,19 @@ private theorem uniformOfFintype_perm_map_castLEEmb {m m' : ℕ} (hm : m ≤ m')
       PMF.uniformOfFintype (Fin m ↪ Fin m') := by
   intro
   ext emb
-  rw [PMF.map_apply, PMF.uniformOfFintype_apply]
-  simp only [PMF.uniformOfFintype_apply]
-  have hiff : ∀ π : Equiv.Perm (Fin m'),
+  have hiff (π : Equiv.Perm (Fin m')) :
       emb = (Fin.castLEEmb hm).trans π.toEmbedding ↔
         π ∈ extPerms (List.ofFn fun i => (Fin.castLEEmb hm i, emb i)) := by
-    intro π
-    rw [extPerms_ofFn_eq]
-    simp [DFunLike.ext_iff, eq_comm]
-  simp only [hiff, tsum_fintype, ← Finset.sum_filter, Finset.filter_mem_eq_inter,
-    Finset.univ_inter, Finset.sum_const, nsmul_eq_mul]
+    simp [extPerms_ofFn_eq, DFunLike.ext_iff, eq_comm]
+  simp only [PMF.map_apply, PMF.uniformOfFintype_apply, hiff, tsum_fintype, ← Finset.sum_filter,
+    Finset.filter_mem_eq_inter, Finset.univ_inter, Finset.sum_const, nsmul_eq_mul]
   have hcard : ((extPerms (List.ofFn fun i => (Fin.castLEEmb hm i, emb i))).card : ℝ≥0∞) *
-      (Fintype.card (Fin m ↪ Fin m') : ℝ≥0∞) = (Fintype.card (Equiv.Perm (Fin m')) : ℝ≥0∞) :=
-    by exact_mod_cast card_extPerms_ofFn_mul_card_embedding hm emb
-  have hC0 : ((extPerms (List.ofFn fun i => (Fin.castLEEmb hm i, emb i))).card : ℝ≥0∞) ≠ 0 := by
-    intro h
-    rw [h, zero_mul] at hcard
-    exact Nat.cast_ne_zero.mpr Fintype.card_ne_zero hcard.symm
-  have hCtop : ((extPerms (List.ofFn fun i => (Fin.castLEEmb hm i, emb i))).card : ℝ≥0∞) ≠ ⊤ :=
-    ENNReal.natCast_ne_top _
+      (Fintype.card (Fin m ↪ Fin m') : ℝ≥0∞) = (Fintype.card (Equiv.Perm (Fin m')) : ℝ≥0∞) := by
+    exact_mod_cast card_extPerms_ofFn_mul_card_embedding hm emb
+  have hC0 : ((extPerms (List.ofFn fun i => (Fin.castLEEmb hm i, emb i))).card : ℝ≥0∞) ≠ 0 :=
+    fun h => Nat.cast_ne_zero.mpr Fintype.card_ne_zero (by rwa [h, zero_mul, eq_comm] at hcard)
+  have hCtop :=
+    ENNReal.natCast_ne_top (extPerms (List.ofFn fun i => (Fin.castLEEmb hm i, emb i))).card
   rw [← hcard, ENNReal.mul_inv (Or.inl hC0) (Or.inl hCtop), ← mul_assoc,
     ENNReal.mul_inv_cancel hC0 hCtop, one_mul]
 
@@ -948,16 +900,12 @@ private theorem initIdealArray_eq_elem_iff {m m' : ℕ} (emb : Fin m ↪ Fin m')
   simp only [initIdealArray]
   cases h : (List.finRange m).find? (fun x => emb x == p) with
   | none =>
-    dsimp only
-    simp only [reduceCtorEq, false_iff]
-    intro hep
-    have := List.find?_eq_none.mp h e (List.mem_finRange e)
-    simp [hep] at this
+    exact ⟨(fun h' => nomatch h'), fun hep => by
+      simpa [hep] using List.find?_eq_none.mp h e (List.mem_finRange e)⟩
   | some e' =>
-    dsimp only
-    simp only [IdealCell.elem.injEq]
     have he' : emb e' = p := by simpa using List.find?_some h
-    exact ⟨fun h => h ▸ he', fun h => emb.injective (he'.trans h.symm)⟩
+    exact ⟨fun h' => IdealCell.elem.inj h' ▸ he',
+      fun h' => congrArg IdealCell.elem (emb.injective (he'.trans h'.symm))⟩
 
 private theorem stateToIdealArray_init {m m' : ℕ} (perm : Equiv.Perm (Fin m')) (hm : m ≤ m') :
     stateToIdealArray (init (m := m) perm) =
@@ -1043,16 +991,14 @@ private theorem access_relocate_endOfChain_perm_add {m m' : ℕ} {s : Relocation
   have hc'_not_mem : c' ∉ s.history :=
     endOfChain_not_mem_history hv (inEdge?_eq_none_of_le_symm s (by simp))
   have hc'_not_mem' : c' ∉ (relocate s c).history := by simp [relocate, hc'_not_mem, hc'c]
-  have hc'_acc : access s c' = none := access_endOfChain_perm_add_eq_none hv.1 hlen
   refine Option.ext fun e => ?_
   rw [access_eq_some_iff_locate_eq hv' hc'_not_mem' e hm,
     access_eq_some_iff_locate_eq hv hc e hm]
   refine ⟨fun h => ?_, locate_relocate_self_eq hv hc hlen hm⟩
   by_contra hne
   have heq : locate s e hm = c' := (locate_relocate_of_ne hv hc hlen hm hne).symm.trans h
-  have := (access_eq_some_iff_locate_eq hv hc'_not_mem e hm).mpr heq
-  rw [hc'_acc] at this
-  nomatch this
+  exact nomatch
+    (heq ▸ access_locate hv e hm).symm.trans (access_endOfChain_perm_add_eq_none hv.1 hlen)
 
 private theorem access_relocate_of_ne {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid)
     {c p : Fin m'} (hc : c ∉ s.history) (hp : p ∉ s.history)
@@ -1128,10 +1074,8 @@ private theorem outEdge?_congr {m m' : ℕ} {π₁ π₂ : Equiv.Perm (Fin m')} 
   | none => rfl
   | some idx =>
     have hlt : idx < hist.length := (List.idxOf?_eq_some_iff.mp hidx).1
-    dsimp only
-    split_ifs with hmt
-    · rw [hpre ⟨m + idx, hmt⟩ (by dsimp; omega)]
-    · rfl
+    exact dite_congr rfl (fun hmt => congrArg some (hpre ⟨m + idx, hmt⟩ (by dsimp; omega)))
+      fun _ => rfl
 
 private theorem startOfChain_congr {m m' : ℕ} {π₁ π₂ : Equiv.Perm (Fin m')}
     {hist : List (Fin m')} (hpre : ∀ i : Fin m', i.val < m + hist.length → π₁ i = π₂ i) :
@@ -1188,15 +1132,13 @@ private theorem realRunSteps_snd_congr {m m' : ℕ} {π₁ π₂ : Equiv.Perm (F
   induction cs generalizing hist with
   | nil => rfl
   | cons c cs ih =>
+    have hlen : (hist ++ [c]).length = hist.length + 1 := List.length_append ..
     simp only [List.length_cons] at hpre
-    simp only [realRunSteps, realStep, relocate]
-    have hpre₂ : ∀ i : Fin m', i.val < m + ((hist ++ [c]).length + cs.length) → π₁ i = π₂ i :=
-      fun i hi => hpre i (by simp only [List.length_append, List.length_singleton] at hi; omega)
-    rw [access_congr (fun i hi => hpre i (by omega)) hm, ih (hist ++ [c]) hpre₂]
-    congr 1
-    refine Option.map_congr fun e _ => locate_congr (fun i hi => hpre i ?_) e hm
-    simp only [List.length_append, List.length_singleton] at hi
-    omega
+    have hacc := access_congr (m := m) (hist := hist) (fun i hi => hpre i (by omega)) hm
+    have hih := ih (hist ++ [c]) fun i hi => hpre i (by omega)
+    simp only [realRunSteps, realStep, relocate, hacc, hih]
+    exact congrArg (· :: _) (Option.map_congr fun e _ =>
+      locate_congr (fun i hi => hpre i (by omega)) e hm)
 
 /-! ### Lemma 3.16 and Theorem 3.3: Perfect Security and Main Guarantee -/
 
@@ -1229,11 +1171,9 @@ private theorem eval_idealStep_stateToIdealArray {m m' : ℕ} (s : RelocationSta
       (PMF.uniformOfFintype {j : Fin m' // m + s.history.length ≤ j.val}).map fun j =>
         idealUpdate (stateToIdealArray s) c (endOfChain s (s.perm j.val)) := by
   intro
-  have hne : (emptyPositions (stateToIdealArray s)).Nonempty := by
-    obtain ⟨w⟩ : Nonempty (emptyPositions (stateToIdealArray s)) :=
-      ⟨stepEquiv s hv ⟨⟨m + s.history.length, hlen⟩, le_rfl⟩⟩
-    exact ⟨w.val, w.property⟩
-  have : Nonempty (emptyPositions (stateToIdealArray s)) := hne.to_subtype
+  let w := stepEquiv s hv ⟨⟨m + s.history.length, hlen⟩, le_rfl⟩
+  have hne : (emptyPositions (stateToIdealArray s)).Nonempty := ⟨w.val, w.property⟩
+  have : Nonempty (emptyPositions (stateToIdealArray s)) := ⟨w⟩
   simp only [idealStep, hne, ↓reduceDIte, ProbComp.eval_bind, ProbComp.eval_uniform,
     ProbComp.eval_pure, PMF.map]
   exact (PMF.uniformOfFintype_bind_bijective (stepEquiv s hv).bijective fun _ => rfl).symm
@@ -1265,15 +1205,10 @@ private theorem realRunSteps_snoc_stateToIdealArray {m m' : ℕ} (perm : Equiv.P
      (y.1, (fun e => locate (init (m := m) perm) e hm), outs ++ [y.2])) := by
   have hfst : (realRunSteps (init (m := m) perm) cs hm).1 = ⟨perm, cs⟩ := by
     simpa [init] using realRunSteps_fst (init (m := m) perm) cs hm
-  have hv : (⟨perm, cs⟩ : RelocationState m m').Valid := ⟨hnd_cs, Nat.le_of_lt hlt⟩
-  have hrel := stateToIdealArray_relocate hv hc hlt hm
-  rw [Prod.ext_iff] at hrel
-  dsimp only at hrel ⊢
-  rw [realRunSteps_append (init (m := m) perm) cs [c] hm]
-  dsimp only
-  rw [hfst]
-  simp only [realRunSteps]
-  rw [show (realStep ⟨perm, cs⟩ c hm).1 = relocate ⟨perm, cs⟩ c from rfl, hrel.1, hrel.2]
+  obtain ⟨h₁, h₂⟩ :=
+    Prod.mk.inj (stateToIdealArray_relocate (s := ⟨perm, cs⟩) ⟨hnd_cs, hlt.le⟩ hc hlt hm)
+  simp only [realRunSteps_append (init (m := m) perm) cs [c] hm, hfst, realRunSteps, h₂]
+  exact Prod.ext h₁ rfl
 
 private theorem realJointPMF_eq_idealJointPMF {m m' : ℕ} (cs : List (Fin m')) (hm : m ≤ m')
     (hnd : cs.Nodup) (hlen : m + cs.length ≤ m') :
@@ -1341,10 +1276,10 @@ theorem eval_realExperiment_eq_idealExperiment {m m' Q : ℕ} {c : Fin Q → Fin
   have hnd : (List.ofFn c).Nodup := List.nodup_ofFn.mpr hc
   have hlen : m + (List.ofFn c).length ≤ m' := by
     simp only [List.length_ofFn]; omega
-  have hjoint := congrArg (PMF.map fun (_, initPos, outs) => RelocationOutput.mk initPos outs)
-    (realJointPMF_eq_idealJointPMF (List.ofFn c) hm hnd hlen)
   simpa [realJointPMF, idealJointPMF, realExperiment, idealExperiment,
-    PMF.map_comp, PMF.map_bind, Function.comp_def, PMF.bind_pure_comp] using hjoint
+    PMF.map_comp, PMF.map_bind, Function.comp_def, PMF.bind_pure_comp] using
+    congrArg (PMF.map fun (_, initPos, outs) => RelocationOutput.mk initPos outs)
+      (realJointPMF_eq_idealJointPMF (List.ofFn c) hm hnd hlen)
 
 end Cslib.Crypto.Protocols.PIR.Preprocessing.Relocation
 

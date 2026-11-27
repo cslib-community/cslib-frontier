@@ -156,8 +156,7 @@ theorem dictionarySearch_sound {w : P}
 theorem evalPure_dictionarySearch_eq_none_iff :
     (dictionarySearch input accept D).evalPure H = none ↔
       ∀ w ∈ D, accept (H (input w)) = false := by
-  rw [evalPure_dictionarySearch]
-  simp
+  simp [evalPure_dictionarySearch]
 
 /-- **Success of (18.1).** If the secret is in the dictionary and passes the test, the search
 returns a candidate that passes: the secret, or another candidate the test cannot tell from
@@ -195,13 +194,11 @@ theorem not_isQueryBounded_dictionarySearch {input : P → X} {accept : Y → Bo
   | cons w ws ih =>
     intro h
     rw [dictionarySearch_cons] at h
-    obtain ⟨hle, hcont⟩ := OracleComp.IsCostBounded.liftBind_iff.mp h
+    obtain ⟨_, hcont⟩ := OracleComp.IsCostBounded.liftBind_iff.mp h
     have h₀ : OracleComp.IsCostBounded (fun _ => 1)
-        (if accept y₀ = true then pure (some w) else dictionarySearch input accept ws)
-        (n - 1) := hcont y₀
-    simp only [hy, Bool.false_eq_true, ↓reduceIte] at h₀
-    exact ih (n := n - 1)
-      (by simp only [List.length_cons] at hn; omega) h₀
+        (if accept y₀ then pure (some w) else dictionarySearch input accept ws) (n - 1) := hcont y₀
+    refine ih (n := n - 1) (by simp only [List.length_cons] at hn; omega) ?_
+    simpa only [hy, Bool.false_eq_true, ↓reduceIte] using h₀
 
 end Search
 
@@ -264,9 +261,7 @@ theorem lookup_evalPure_dictionaryTable (vk : Y) :
       (dictionaryPreimageSearch input vk D).evalPure H := by
   rw [evalPure_dictionaryTable, evalPure_dictionarySearch, List.lookup_eq_findSome?,
     List.findSome?_map, List.find?_eq_findSome?_guard]
-  congr 1
-  funext w
-  simp [Option.guard, @eq_comm _ vk]
+  exact congrArg (List.findSome? · D) (funext fun w => by simp [Option.guard, @eq_comm _ vk])
 
 /-- **The batch search (18.3).** One table, then one lookup for each entry of `F`. -/
 def dictionaryBatchSearch (input : P → X) (D : List P) (F : List Y) :

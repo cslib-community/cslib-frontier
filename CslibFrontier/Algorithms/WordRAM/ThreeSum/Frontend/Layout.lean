@@ -158,13 +158,11 @@ theorem array_values {input : List ℤ} {rs : List (ℕ × ℕ)}
   split_ifs at hu
   · exact .inl (List.mem_singleton.mp hu)
   · obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hu
-    obtain ⟨z, hz, he⟩ := List.mem_map.mp ((hkeys p.1).mp (List.mem_map.mpr
-      ⟨p, (List.mem_filter.mp hp).1, rfl⟩))
+    obtain ⟨z, hz, he⟩ := List.mem_map.mp ((hkeys p.1).mp
+      (List.mem_map_of_mem (List.mem_of_mem_filter hp)))
     refine .inr ⟨z, hz, ?_⟩
-    rw [← he]
     unfold value
-    split_ifs
-    exacts [.inr (twice_encode z), .inl rfl]
+    split_ifs <;> simp [← he, twice_encode]
 
 /-- Every compact output word is a canonical signed encoding. -/
 theorem array_canonical {input : List ℤ} {rs : List (ℕ × ℕ)}
@@ -217,20 +215,14 @@ theorem roots_decoded {input : List ℤ} {rs : List (ℕ × ℕ)} {U : ℕ}
     (hvalues : ∀ z ∈ input, |z| ≤ (U : ℤ)) :
     (roots U rs).map decodeRoot =
       Cslib.Algorithms.ThreeSum.inputs U (fun i : Fin input.length => input[i]) := by
+  have hB1 := select_B hkeys hcounts hvalues (w := false)
+  have hB2 := select_B hkeys hcounts hvalues (w := true)
+  simp only [Bool.false_eq_true, ↓reduceIte] at hB1 hB2
   simp only [roots, Cslib.Algorithms.ThreeSum.inputs, List.map_append, List.map_flatMap,
-    decodeRoot, select_A hkeys hcounts hvalues,
-    show ∀ β β' v, ((select U β β' v.toNat 1 rs).map Signed.decode).toFinset =
-      Cslib.Algorithms.ThreeSum.splitB (2 * U) β β' v false
-        (Finset.univ.image (fun i : Fin input.length => input[i]))
-      from fun β β' v => select_B hkeys hcounts hvalues β β' v false,
-    show ∀ β β' v, ((select U β β' v.toNat 2 rs).map Signed.decode).toFinset =
-      Cslib.Algorithms.ThreeSum.splitB (2 * U) β β' v true
-        (Finset.univ.image (fun i : Fin input.length => input[i]))
-      from fun β β' v => select_B hkeys hcounts hvalues β β' v true,
-    List.map_cons, List.map_nil, List.toFinset_cons, List.toFinset_nil,
-    Signed.decode, Nat.zero_mod, ↓reduceIte, Nat.zero_div, Int.natCast_zero,
-    Finset.insert_empty, select_twice hkeys hcounts, select_original hkeys hcounts,
-    select_zero hkeys hcounts]
+    decodeRoot, select_A hkeys hcounts hvalues, hB1, hB2, List.map_cons, List.map_nil,
+    List.toFinset_cons, List.toFinset_nil, Signed.decode, Nat.zero_mod, ↓reduceIte,
+    Nat.zero_div, Int.natCast_zero, Finset.insert_empty, select_twice hkeys hcounts,
+    select_original hkeys hcounts, select_zero hkeys hcounts]
 
 private theorem map_range_mul {α : Type*} (a b : ℕ) (f : ℕ → α) :
     (List.range (a * b)).map f =

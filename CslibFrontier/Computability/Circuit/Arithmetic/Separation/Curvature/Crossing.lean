@@ -98,11 +98,9 @@ private theorem prop_crossing_hubs_c {f : α → β → α → β → K} {R : �
     (fun _ _ _ hz => by simp only [hz 2 (by decide), hz 3 (by decide)])
     (fun z => hf (z 0) (z 1) (z 2) (z 3)) o o').trans
     (mul_le_mul_of_nonneg_right (le_of_eq ?_) (by positivity))
-  rw [Fin.prod_univ_four, Real.rpow_add (Nat.cast_pos.2 Fintype.card_pos),
+  simp only [Fin.prod_univ_four, four, Fin.isValue, or_true, true_or, ↓reduceIte,
     Real.rpow_add (Nat.cast_pos.2 Fintype.card_pos)]
-  change (Fintype.card α : ℝ) ^ F.wireExponent x o * (Fintype.card β : ℝ) ^ F.wireExponent y o *
-    (Fintype.card α : ℝ) ^ F.wireExponent v o' * (Fintype.card β : ℝ) ^ F.wireExponent u o' = _
-  ring
+  ac_rfl
 
 /-- Proof of Proposition B.3: Lemma A.3 with the hubs `w, w'` for part (b) of Proposition B.2 bounds
 `F(Ψ_N)`. Here `f` is a sum of `L` products of a function of the indices at `x, u` and one of those
@@ -120,11 +118,9 @@ private theorem prop_crossing_hubs_b {f : α → β → α → β → K} {L : �
     (fun _ _ _ hz => by simp only [hz 1 (by decide), hz 2 (by decide)])
     (fun z => hf (z 0) (z 1) (z 2) (z 3)) w w').trans
     (mul_le_mul_of_nonneg_right (le_of_eq ?_) (by positivity))
-  rw [Fin.prod_univ_four, Real.rpow_add (Nat.cast_pos.2 Fintype.card_pos),
+  simp only [Fin.prod_univ_four, four, Fin.isValue, or_true, true_or, ↓reduceIte,
     Real.rpow_add (Nat.cast_pos.2 Fintype.card_pos)]
-  change (Fintype.card α : ℝ) ^ F.wireExponent x w * (Fintype.card β : ℝ) ^ F.wireExponent y w' *
-    (Fintype.card α : ℝ) ^ F.wireExponent v w' * (Fintype.card β : ℝ) ^ F.wireExponent u w = _
-  ring
+  ac_rfl
 
 /-- Proof of Proposition B.3: the product of the two wires is covered by the `Θ + 1` tensors `Ψ_N`
 of Proposition B.2 (a), and `F` is subadditive. The left side is the value of `F` at the two wires,
@@ -147,13 +143,11 @@ private theorem prop_crossing_some {J : Type} [Fintype J] (Ψ : J → α → β 
     ∃ j, (Fintype.card α : ℝ) ^ F.wireExponent x v * (Fintype.card β : ℝ) ^ F.wireExponent y u ≤
       Fintype.card J * F (push ![x, y, v, u] (four (Ψ j))) := by
   have h1 := prop_crossing_cover F Ψ hΨ x y v u
-  have : Nonempty J :=
-    Finset.univ_nonempty_iff.mp <| Finset.nonempty_of_ne_empty fun h => by
-      simp only [h, Finset.sum_empty] at h1
-      exact h1.not_gt (mul_pos (Real.rpow_pos_of_pos (Nat.cast_pos.2 Fintype.card_pos) _)
-        (Real.rpow_pos_of_pos (Nat.cast_pos.2 Fintype.card_pos) _))
-  obtain ⟨j, -, hj⟩ := Finset.exists_max_image (Finset.univ : Finset J)
-    (fun j => F (push ![x, y, v, u] (four (Ψ j)))) Finset.univ_nonempty
+  have hne : (Finset.univ : Finset J).Nonempty := Finset.nonempty_of_ne_empty fun h => by
+    simp only [h, Finset.sum_empty] at h1
+    exact h1.not_gt (by positivity)
+  obtain ⟨j, -, hj⟩ := Finset.exists_max_image Finset.univ
+    (fun j => F (push ![x, y, v, u] (four (Ψ j)))) hne
   exact ⟨j, h1.trans ((Finset.sum_le_sum hj).trans_eq (by simp [nsmul_eq_mul]))⟩
 
 /-- Proof of Proposition B.3: Lemma A.3, with the hubs `o, o'` for (c) and `w, w'` for (b), bounds
@@ -177,8 +171,7 @@ private theorem prop_crossing_term {J : Type} [Fintype J] (Ψ : J → α → β 
   have hα : (0 : ℝ) < Fintype.card α := Nat.cast_pos.2 Fintype.card_pos
   have hβ : (0 : ℝ) < Fintype.card β := Nat.cast_pos.2 Fintype.card_pos
   obtain ⟨j, hj⟩ := prop_crossing_some F Ψ hΨ x y v u
-  have : Nonempty J := ⟨j⟩
-  have hJ0 : (0 : ℝ) < Fintype.card J := Nat.cast_pos.2 Fintype.card_pos
+  have hJ0 : (0 : ℝ) < Fintype.card J := Nat.cast_pos.2 (@Fintype.card_pos _ _ ⟨j⟩)
   refine ⟨j, ?_⟩
   have hexp (s s' : ℝ) (n : ℕ) (e : ℝ) :
       (Fintype.card α : ℝ) ^ s * (Fintype.card β : ℝ) ^ s' * (n : ℝ) ^ e ≤
@@ -206,8 +199,7 @@ private theorem prop_crossing_classes (E : ℕ) : ∃ μ e,
   have hmaps : ∀ s ∈ lowStates E, (s.1.card, energy s.1 + energy s.2) ∈ S := fun s hs => by
     obtain ⟨h1, h2⟩ := mem_lowStates.1 hs
     have h3 : s.1.card ≤ energy s.1 := by
-      rw [energy, Finset.card_eq_sum_ones]
-      exact Finset.sum_le_sum fun _ _ => by omega
+      simpa only [energy, Finset.card_eq_sum_ones] using Finset.sum_le_sum fun _ _ => by omega
     simp only [hS, mem_product, mem_range]; omega
   obtain ⟨z, hz, hmax⟩ :=
     Finset.exists_max_image S (fun z => (states z.1 z.2).card) ⟨(0, 0), by simp [hS]⟩
@@ -249,8 +241,8 @@ private theorem prop_crossing_class_size {κ : ℝ} (hκ : 0 < κ)
   have hupper := (Real.log_le_log h0 (by exact_mod_cast hle)).trans (hup E)
   have hv := mul_le_mul_of_nonneg_left (sqrt_floor_le hp n) hκ.le
   have hd : 0 ≤ δ * (κ * √(n : ℝ)) := by positivity
-  refine ⟨μ, e, he, hpos, abs_le.2 ⟨?_, ?_⟩⟩ <;>
-    linarith [show logLowStates E = Real.log (lowStates E).card from rfl]
+  unfold logLowStates at hn
+  exact ⟨μ, e, he, hpos, abs_le.2 ⟨by linarith, by linarith⟩⟩
 
 /-- Proof of Proposition B.3: in the same units, the logarithm of the number of products in (b) is
 at most `l + o(1)` and that in (c) at most `r + o(1)`, with `l² = N/n₀` and `r² = (Θ - N)/n₀`. Here
@@ -267,9 +259,8 @@ private theorem prop_crossing_products {κ : ℝ} (hκ : 0 < κ)
   have h2 : Real.log ((M : ℝ) + 1) ≤ δ * κ * √(n : ℝ) :=
     (Real.log_le_log (by positivity) (by linarith)).trans hlog
   have hsc : (stateCount M : ℝ) ≠ 0 := Nat.cast_ne_zero.2 (lowStates_card_pos M).ne'
-  have h5 : (√(M : ℝ) / √(n : ℝ) + δ) * (κ * √(n : ℝ)) = κ * √(M : ℝ) + δ * κ * √(n : ℝ) := by
-    field_simp
-  rw [h5, Nat.cast_mul, Nat.cast_add, Nat.cast_one, Real.log_mul (by positivity) hsc]
+  rw [Nat.cast_mul, Nat.cast_add, Nat.cast_one, Real.log_mul (by positivity) hsc, add_mul,
+    mul_left_comm (√(M : ℝ) / √(n : ℝ)) κ, div_mul_cancel₀ _ hsn.ne']
   linarith [hup M]
 
 /-- Proof of Proposition B.3, the tensors: for every `δ > 0` there are `s > 0` and finite sets
@@ -302,12 +293,7 @@ private theorem prop_crossing_tensors (K : Type) [Field K] {p q : ℝ} (hp : 0 �
   have hH : ((2 * (e₁ + e₂) : ℕ) : ℝ) ≤ A * n := by
     have h1 : (e₁ : ℝ) ≤ p ^ 2 * n := (Nat.cast_le.2 he₁).trans (Nat.floor_le (by positivity))
     have h2 : (e₂ : ℝ) ≤ q ^ 2 * n := (Nat.cast_le.2 he₂).trans (Nat.floor_le (by positivity))
-    push_cast
-    linarith [hA]
-  have hnum' (M : ℕ) (hM : M ≤ 2 * (e₁ + e₂)) :
-      Real.log (((M + 1) * stateCount M : ℕ) : ℝ) ≤
-        (Real.sqrt M / Real.sqrt n + δ) * (c * Real.sqrt n) :=
-    hnum M ((Nat.cast_le.2 hM).trans hH)
+    push_cast; linarith [hA]
   refine ⟨↥(states μ e₁), ↥(states ν e₂), Fin (2 * (e₁ + e₂) + 1), inferInstance, inferInstance,
     (Finset.card_pos.1 hpos₁).to_subtype, inferInstance, inferInstance,
     (Finset.card_pos.1 hpos₂).to_subtype, inferInstance, fun N a b c d => ((Ψ N a b c d : ℤ) : K),
@@ -319,16 +305,14 @@ private theorem prop_crossing_tensors (K : Type) [Field K] {p q : ℝ} (hp : 0 �
     exact ⟨fun k z => (g k z : K), fun k z => (h k z : K), fun a b c d => by simp [hgh]⟩
   · obtain ⟨g, h, hgh⟩ := hL N
     exact ⟨fun k z => (g k z : K), fun k z => (h k z : K), fun a b c d => by simp [hgh]⟩
-  · rw [← Int.cast_sum, hΨ, ite_and]
-    split_ifs <;> simp
-  · rw [Fintype.card_fin]
-    push_cast at hH ⊢
-    linarith [Real.log_le_log (by positivity)
-      (show 2 * ((e₁ : ℝ) + e₂) + 1 ≤ A * n + 1 by linarith)]
+  · simp [← Int.cast_sum, hΨ, apply_ite Int.cast, ← ite_and, and_comm]
+  · simpa only [Fintype.card_fin, Nat.cast_add, Nat.cast_one, mul_assoc] using
+      (Real.log_le_log (by positivity) (add_le_add_left hH 1)).trans hlog
   · have hN : (N : ℕ) ≤ 2 * (e₁ + e₂) := by omega
     refine ⟨Real.sqrt ((2 * (e₁ + e₂) - N : ℕ) : ℝ) / Real.sqrt n,
       Real.sqrt ((N : ℕ) : ℝ) / Real.sqrt n, by positivity, by positivity, ?_,
-      hnum' _ (Nat.sub_le _ _), hnum' _ hN⟩
+      hnum _ ((Nat.cast_le.2 (Nat.sub_le _ _)).trans hH),
+      hnum _ ((Nat.cast_le.2 hN).trans hH)⟩
     rwa [div_pow, div_pow, Real.sq_sqrt (Nat.cast_nonneg (2 * (e₁ + e₂) - N)),
       Real.sq_sqrt (Nat.cast_nonneg (N : ℕ)), Real.sq_sqrt hn0.le, ← add_div, div_le_iff₀ hn0,
       Nat.cast_sub hN, sub_add_cancel]
@@ -397,39 +381,29 @@ theorem isPrice_crossing {Y : Type} {d : Y → Y → ℝ} (hd : IsPrice K d)
     have hT0 : 0 < T := by positivity
     set η := δ / T with hη
     have hη0 : 0 < η := by positivity
-    obtain ⟨F, c, hc, hF⟩ := hd.exists_spectralPoint ![x, y, v, u, o, o', w, w'] hη0
+    let pts : Fin 8 → Y := ![x, y, v, u, o, o', w, w']
+    obtain ⟨F, c, hc, hF⟩ := hd.exists_spectralPoint pts hη0
     obtain ⟨z, ⟨hz1, hz2, hz3⟩, h⟩ := prop_crossing_spectral hp hq F 0 1 2 3 4 5 6 7
     refine ⟨z, ⟨hz1, hz2, hz3⟩, ?_⟩
     have q1 : z.1 ≤ ρ + 1 := by nlinarith [sq_nonneg (z.1 - 1)]
     have q2 : z.2 ≤ ρ + 1 := by nlinarith [sq_nonneg (z.2 - 1)]
-    have lo (i j : Fin 8) {t : ℝ} (ht : 0 ≤ t) :
-        t * (c * F.wireExponent i j) ≤
-          t * d (![x, y, v, u, o, o', w, w'] i) (![x, y, v, u, o, o', w, w'] j) + t * η := by
-      rw [← mul_add]
-      exact mul_le_mul_of_nonneg_left (by linarith [(abs_lt.1 (hF i j)).1]) ht
-    have hi (i j : Fin 8) {t : ℝ} (ht : 0 ≤ t) :
-        t * d (![x, y, v, u, o, o', w, w'] i) (![x, y, v, u, o, o', w, w'] j) ≤
-          t * (c * F.wireExponent i j) + t * η := by
-      rw [← mul_add]
-      exact mul_le_mul_of_nonneg_left (by linarith [(abs_lt.1 (hF i j)).2]) ht
-    have hsum : 3 * (p * η) + 3 * (q * η) + (ρ + 1) * η = δ := by
-      rw [hη]
-      field_simp
-      rw [hT]
-      ring
+    have lo (i j : Fin 8) (a b : Y) {t : ℝ} (ht : 0 ≤ t)
+        (ha : pts i = a := by rfl) (hb : pts j = b := by rfl) :
+        t * (c * F.wireExponent i j) ≤ t * d a b + t * η :=
+      ha ▸ hb ▸ mul_add t _ η ▸ mul_le_mul_of_nonneg_left (by linarith [(abs_lt.1 (hF i j)).1]) ht
+    have hi (i j : Fin 8) (a b : Y) {t : ℝ} (ht : 0 ≤ t)
+        (ha : pts i = a := by rfl) (hb : pts j = b := by rfl) :
+        t * d a b ≤ t * (c * F.wireExponent i j) + t * η :=
+      ha ▸ hb ▸ mul_add t _ η ▸ mul_le_mul_of_nonneg_left (by linarith [(abs_lt.1 (hF i j)).2]) ht
+    have hsum : 3 * (p * η) + 3 * (q * η) + (ρ + 1) * η = δ :=
+      (by ring : _ = η * T).trans (div_mul_cancel₀ δ hT0.ne')
     rw [← min_add_add_right]
     refine le_min ?_ ?_
-    · have ha : _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ :=
-        ⟨hi 0 2 hp, hi 1 3 hq, lo 0 4 hp, lo 1 4 hq, lo 2 5 hp, lo 3 5 hq, lo 4 5 hz1⟩
-      dsimp at ha
-      rcases ha with ⟨a1, a2, a3, a4, a5, a6, a7⟩
-      linarith [mul_le_mul_of_nonneg_left (h.trans (min_le_left _ _)) hc,
+    · linarith [hi 0 2 x v hp, hi 1 3 y u hq, lo 0 4 x o hp, lo 1 4 y o hq, lo 2 5 v o' hp,
+        lo 3 5 u o' hq, lo 4 5 o o' hz1, mul_le_mul_of_nonneg_left (h.trans (min_le_left _ _)) hc,
         mul_le_mul_of_nonneg_right q1 hη0.le]
-    · have ha : _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ :=
-        ⟨hi 0 2 hp, hi 1 3 hq, lo 0 6 hp, lo 3 6 hq, lo 1 7 hq, lo 2 7 hp, lo 6 7 hz2⟩
-      dsimp at ha
-      rcases ha with ⟨a1, a2, a3, a4, a5, a6, a7⟩
-      linarith [mul_le_mul_of_nonneg_left (h.trans (min_le_right _ _)) hc,
+    · linarith [hi 0 2 x v hp, hi 1 3 y u hq, lo 0 6 x w hp, lo 3 6 u w hq, lo 1 7 y w' hq,
+        lo 2 7 v w' hp, lo 6 7 w w' hz2, mul_le_mul_of_nonneg_left (h.trans (min_le_right _ _)) hc,
         mul_le_mul_of_nonneg_right q2 hη0.le]
   exact ⟨z.1, z.2, h1, h2, h3, le_min_iff.1 h⟩
 
@@ -446,10 +420,8 @@ theorem isPrice_crossing_two_mul_le {Y : Type} {d : Y → Y → ℝ} (hd : IsPri
         τ * (p ^ 2 + q ^ 2) + (d o o' ^ 2 + d w w' ^ 2) / (2 * τ) := by
   obtain ⟨r, l, hr, hl, hrl, h1, h2⟩ := isPrice_crossing hd x v y u o o' w w' hp hq
   have am (a b : ℝ) : a * b ≤ τ / 2 * a ^ 2 + b ^ 2 / (2 * τ) := by
-    have e : τ / 2 * a ^ 2 + b ^ 2 / (2 * τ) - a * b = (τ * a - b) ^ 2 / (2 * τ) := by
-      field_simp
-      ring
-    linarith [div_nonneg (sq_nonneg (τ * a - b)) (mul_nonneg zero_le_two hτ.le)]
+    calc a * b ≤ a * b + (τ * a - b) ^ 2 / (2 * τ) := le_add_of_nonneg_right (by positivity)
+      _ = τ / 2 * a ^ 2 + b ^ 2 / (2 * τ) := by field_simp; ring
   rw [add_div]
   linarith [am r (d o o'), am l (d w w'),
     mul_le_mul_of_nonneg_left hrl (div_nonneg hτ.le zero_le_two)]

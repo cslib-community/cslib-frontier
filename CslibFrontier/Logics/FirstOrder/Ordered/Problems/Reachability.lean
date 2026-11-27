@@ -141,8 +141,7 @@ theorem realize_reachSentence (M : Structure Language.graph) :
           (Term.var (Sum.inr (1 : Fin (2 * 1)))))).Realize
         TC.interpretation Operator.RelEnv.empty (Sum.elim Empty.elim (TC.pair us vs)) ↔
       graphAdj M (us 0) (vs 0) := by
-    simp only [Operator.Formula.realize_ofFO, Formula.realize_rel₂]
-    rfl
+    simp only [Operator.Formula.realize_ofFO, Formula.realize_rel₂]; rfl
   rw [reachSentence, TC.realize_tc_pair, mem_Reach]
   simp only [Matrix.cons_val_fin_one]
   exact (Relation.reflTransGen_equiv_iff (Equiv.funUnique (Fin 1) (Fin M.size)) hedge
@@ -206,12 +205,10 @@ theorem PosTCDefinable.of_reduces_Reach {L : Language} {K : Query L} (h : Reduce
     have hconst (c : NumericFunction 0) (idx : I.map hI M)
         (hidx : idx.val = c.index (I.card M)) (u : Fin k → Fin M.size) :
         I.domain.Realize u ∧ (C.const c).Realize u ↔ u = I.unrank M idx := by
-      constructor
-      · rintro ⟨hu, hc⟩
-        rw [← I.unrank_rank hu] at hc ⊢
-        exact congrArg (I.unrank M) (Fin.ext (((C.realize_const M c _).mp hc).trans hidx.symm))
-      · rintro rfl
-        exact ⟨I.realize_domain_unrank idx, (C.realize_const M c idx).mpr hidx⟩
+      refine ⟨fun ⟨hu, hc⟩ => ?_, fun h =>
+        h ▸ ⟨I.realize_domain_unrank idx, (C.realize_const M c idx).mpr hidx⟩⟩
+      rw [← I.unrank_rank hu] at hc ⊢
+      exact congrArg (I.unrank M) (Fin.ext (((C.realize_const M c _).mp hc).trans hidx.symm))
     have hzero := hconst .zero zeroIdx rfl
     have hmax := hconst .max maxIdx rfl
     have hpair_left (xs ys : Fin k → Fin M.size) (j : Fin k) :
@@ -224,15 +221,12 @@ theorem PosTCDefinable.of_reduces_Reach {L : Language} {K : Query L} (h : Reduce
           graphAdj (I.map hI M) (e u) (e w) := by
       change _ ↔ (I.rel Language.adj).Realize
         (fun p => I.unrank M (![e u, e w] p.1) p.2)
-      refine iff_of_eq (congrArg (I.rel Language.adj).Realize (funext fun p => ?_))
-      rcases p with ⟨b, j⟩
+      refine iff_of_eq (congrArg (I.rel Language.adj).Realize (funext fun ⟨b, j⟩ => ?_))
       fin_cases b
       exacts [(congrFun (I.unrank_rank u.property) j).symm,
         (congrFun (I.unrank_rank w.property) j).symm]
-    let z₀ : {x : Fin k → Fin M.size // I.domain.Realize x} :=
-      ⟨I.unrank M zeroIdx, I.realize_domain_unrank zeroIdx⟩
-    let m₀ : {x : Fin k → Fin M.size // I.domain.Realize x} :=
-      ⟨I.unrank M maxIdx, I.realize_domain_unrank maxIdx⟩
+    let z₀ := e.symm zeroIdx
+    let m₀ := e.symm maxIdx
     have hpath : Relation.ReflTransGen
         (fun u w : Fin k → Fin M.size =>
           (I.domain.Realize u ∧ I.domain.Realize w) ∧
@@ -241,28 +235,16 @@ theorem PosTCDefinable.of_reduces_Reach {L : Language} {K : Query L} (h : Reduce
         z₀.val m₀.val ↔ I.map hI M ∈ Reach := by
       rw [reflTransGen_subtype_iff z₀ m₀]
       change _ ↔ Relation.ReflTransGen (graphAdj (I.map hI M)) zeroIdx maxIdx
-      rw [← I.rank_unrank zeroIdx, ← I.rank_unrank maxIdx]
+      rw [← e.apply_symm_apply zeroIdx, ← e.apply_symm_apply maxIdx]
       exact Relation.reflTransGen_equiv_iff e hedge z₀ m₀
-    have hargs_l (xs : Fin (2 * k) → Fin M.size) :
-        (fun i => Term.realize (Sum.elim Empty.elim xs)
-          (TC.left (fun i : Fin (2 * k) => (Term.var (.inr i) : (language L).Term _)) i)) =
-          TC.left xs := rfl
-    have hargs_r (xs : Fin (2 * k) → Fin M.size) :
-        (fun i => Term.realize (Sum.elim Empty.elim xs)
-          (TC.right (fun i : Fin (2 * k) => (Term.var (.inr i) : (language L).Term _)) i)) =
-          TC.right xs := rfl
-    have hleft_id (xs : Fin (2 * k) → Fin M.size) :
-        (fun x => xs (TC.left _root_.id x)) = TC.left xs := rfl
-    have hright_id (xs : Fin (2 * k) → Fin M.size) :
-        (fun x => xs (TC.right _root_.id x)) = TC.right xs := rfl
     rw [← hpath]
     simp only [pullbackReachSentence, Operator.Formula.realize_exs, Operator.Formula.realize_conj,
       Operator.Formula.realize_ofFO, TC.realize_tc, Formula.realize_inf, Formula.realize_relabel,
-      Function.comp_def, apply_ite, Sum.elim_inr, hpair_left, hpair_right, hargs_l, hargs_r,
-      hleft_id, hright_id, hzero, hmax]
-    exact ⟨fun hr => ⟨TC.pair z₀.val m₀.val, TC.left_pair _ _, TC.right_pair _ _, by
-      simpa only [TC.left_pair, TC.right_pair] using hr⟩,
+      Function.comp_def, apply_ite, Sum.elim_inr, hpair_left, hpair_right, hzero, hmax]
+    dsimp only [TC.left, TC.right, Term.realize, Sum.elim_inr, id]
+    refine ⟨fun hr => ⟨TC.pair z₀.val m₀.val, TC.left_pair _ _, TC.right_pair _ _, ?_⟩,
       fun ⟨_, hz, ht, hr⟩ => by rwa [hz, ht] at hr⟩
+    exact (congrArg₂ _ (TC.left_pair _ _) (TC.right_pair _ _)).mpr hr
 
 /-- **Ordered first-order reductions to `Reach` pull back FO(TC) definability.** -/
 theorem TCDefinable.of_reduces_Reach {L : Language} {K : Query L} (h : Reduces K Reach) :
@@ -358,10 +340,8 @@ theorem mem_Reach_boundedReachInterpretation {L : Language} {d : ℕ}
       fin_cases b
       exacts [congrFun (lexEquiv.symm_apply_apply u) j, congrFun (lexEquiv.symm_apply_apply w) j]
     rw [hsymm]
-    have hzero_eq (a : Fin (d + 2) → Fin M.size) : (∀ j, a j = 0) ↔ a = Z :=
-      ⟨fun h => funext h, fun h j => h ▸ rfl⟩
-    have hmax_eq (a : Fin (d + 2) → Fin M.size) : (∀ j, a j = maxElem) ↔ a = T :=
-      ⟨fun h => funext h, fun h j => h ▸ rfl⟩
+    have hzero_eq (a : Fin (d + 2) → Fin M.size) : (∀ j, a j = 0) ↔ a = Z := funext_iff.symm
+    have hmax_eq (a : Fin (d + 2) → Fin M.size) : (∀ j, a j = maxElem) ↔ a = T := funext_iff.symm
     have hsum : ((fun p : Fin 2 × Fin (d + 2) => ![u, w] p.1 p.2) ∘
           Sum.elim (fun i => ((0 : Fin 2), payloadIdx i))
             (fun i => ((1 : Fin 2), payloadIdx i))) =
@@ -380,40 +360,31 @@ theorem mem_Reach_boundedReachInterpretation {L : Language} {d : ℕ}
   have hZ_ne_T : Z ≠ T := fun h => h0_ne_max (congrFun h (tagZeroIdx d))
   constructor
   · intro hpath
-    let Inv (w : Fin (d + 2) → Fin M.size) : Prop :=
-      w = Z ∨
-        (IsMid w ∧ ∃ x : Fin d → Fin M.size, src.Realize x ∧
-          Relation.ReflTransGen (fun a b => step.Realize (Sum.elim a b))
-            x (fun i => w (payloadIdx i))) ∨
-        (w = T ∧ ∃ x y : Fin d → Fin M.size, src.Realize x ∧
-          Relation.ReflTransGen (fun a b => step.Realize (Sum.elim a b)) x y ∧ tgt.Realize y)
-    have hinv : ∀ {w}, Relation.ReflTransGen Edge Z w → Inv w := by
-      intro w hw
+    let Step (a b : Fin d → Fin M.size) : Prop := step.Realize (Sum.elim a b)
+    have hinv {w} (hw : Relation.ReflTransGen Edge Z w) :
+        w = Z ∨ (IsMid w ∧ ∃ x, src.Realize x ∧
+          Relation.ReflTransGen Step x (fun i => w (payloadIdx i))) ∨
+          (w = T ∧ ∃ x y, src.Realize x ∧ Relation.ReflTransGen Step x y ∧ tgt.Realize y) := by
       induction hw with
       | refl => exact Or.inl rfl
       | @tail u w _ huw ih =>
         rcases ih with rfl | ⟨hu_mid, x, hx, hxu⟩ | ⟨rfl, -⟩
-        · rcases huw with ⟨⟨_, hw_mid⟩, hsrc⟩ | ⟨⟨hZ, _⟩, _⟩ | ⟨⟨hZ, _⟩, _⟩
-          exacts [Or.inr (Or.inl ⟨hw_mid, _, hsrc, .refl⟩), (hZ_not_mid hZ).elim,
-            (hZ_not_mid hZ).elim]
+        · simp only [Edge, true_and, hZ_not_mid, false_and, or_false] at huw
+          exact Or.inr (Or.inl ⟨huw.1, _, huw.2, .refl⟩)
         · rcases huw with ⟨⟨rfl, _⟩, _⟩ | ⟨⟨_, hw_mid⟩, hstep⟩ | ⟨⟨_, rfl⟩, htgt⟩
           exacts [(hZ_not_mid hu_mid).elim, Or.inr (Or.inl ⟨hw_mid, x, hx, hxu.tail hstep⟩),
             Or.inr (Or.inr ⟨rfl, x, _, hx, hxu, htgt⟩)]
-        · rcases huw with ⟨⟨hTZ, _⟩, _⟩ | ⟨⟨hT, _⟩, _⟩ | ⟨⟨hT, _⟩, _⟩
-          exacts [(hZ_ne_T hTZ.symm).elim, (hT_not_mid hT).elim, (hT_not_mid hT).elim]
+        · simp [Edge, hZ_ne_T.symm, hT_not_mid] at huw
     rcases hinv hpath with hTZ | ⟨hT, -⟩ | ⟨_, hgoal⟩
     exacts [(hZ_ne_T hTZ.symm).elim, (hT_not_mid hT).elim, hgoal]
   · rintro ⟨x, y, hx, hxy, hy⟩
     have hmid (a : Fin d → Fin M.size) : IsMid (midTuple maxElem a) := ⟨rfl, rfl⟩
-    have h1 : Edge Z (midTuple maxElem x) :=
-      Or.inl ⟨⟨rfl, hmid x⟩, by simpa only [midTuple_payload] using hx⟩
-    have h2 : Relation.ReflTransGen Edge (midTuple maxElem x) (midTuple maxElem y) :=
-      Relation.ReflTransGen.lift (midTuple maxElem)
-        (fun a b hab => Or.inr (Or.inl ⟨⟨hmid a, hmid b⟩, by
-          simpa only [midTuple_payload] using hab⟩)) x y hxy
-    have h3 : Edge (midTuple maxElem y) T :=
-      Or.inr (Or.inr ⟨⟨hmid y, rfl⟩, by simpa only [midTuple_payload] using hy⟩)
-    exact (Relation.ReflTransGen.head h1 h2).tail h3
+    refine (Relation.ReflTransGen.head (r := Edge)
+      (Or.inl ⟨⟨rfl, hmid x⟩, by simpa only [midTuple_payload] using hx⟩)
+      (Relation.ReflTransGen.lift (midTuple maxElem) (fun a b hab =>
+        Or.inr (Or.inl ⟨⟨hmid a, hmid b⟩, by simpa only [midTuple_payload] using hab⟩))
+        x y hxy)).tail
+      (Or.inr (Or.inr ⟨⟨hmid y, rfl⟩, by simpa only [midTuple_payload] using hy⟩))
 
 end BoundedReach
 
@@ -520,26 +491,18 @@ theorem mem_Reach_stReachToReachInterpretation
     (M : Structure stGraphLanguage) :
     stReachToReachInterpretation.toDomainInterpretation.map hI M ∈ Reach ↔ M ∈ STReach := by
   refine (mem_Reach_boundedReachInterpretation _ _ _ M).trans ?_
-  rw [mem_STReach]
-  have hmark (r : STMarkerRelation 1) (x : Fin 1 → Fin M.size) :
-      (Relations.formula₁
-        ((LHom.sumInl : stGraphLanguage →ᴸ language stGraphLanguage).onRelation (.inr r))
-        (.var (0 : Fin 1))).Realize x ↔
-      Language.Structure.RelMap (L := stGraphLanguage) (.inr r) ![x 0] := by
-    simp only [Formula.realize_rel₁, Term.realize_var]
-    rfl
+  let uEquiv := Equiv.funUnique (Fin 1) (Fin M.size)
   have hstep (a b : Fin 1 → Fin M.size) :
       (Relations.formula₂
         ((LHom.sumInl : stGraphLanguage →ᴸ language stGraphLanguage).onRelation (.inl .adj))
         (.var (.inl (0 : Fin 1))) (.var (.inr (0 : Fin 1)))).Realize (Sum.elim a b) ↔
       Language.Structure.RelMap (L := stGraphLanguage) (.inl .adj) ![a 0, b 0] := by
-    simp only [Formula.realize_rel₂, Term.realize_var, Sum.elim_inl, Sum.elim_inr]
-    rfl
-  let uEquiv := Equiv.funUnique (Fin 1) (Fin M.size)
-  exact ⟨fun ⟨x, y, hx, hxy, hy⟩ => ⟨x 0, y 0, (hmark .source x).mp hx, (hmark .target y).mp hy,
-      (Relation.reflTransGen_equiv_iff uEquiv hstep x y).mp hxy⟩,
-    fun ⟨s, t, hs, ht, hst⟩ => ⟨uEquiv.symm s, uEquiv.symm t, (hmark .source _).mpr hs,
-      (Relation.reflTransGen_equiv_iff uEquiv hstep _ _).mpr hst, (hmark .target _).mpr ht⟩⟩
+    simp only [Formula.realize_rel₂, Term.realize_var, Sum.elim_inl, Sum.elim_inr]; rfl
+  refine (exists₂_congr fun x y => ?_).trans
+    (uEquiv.exists_congr_right.trans (exists_congr fun _ => uEquiv.exists_congr_right))
+  simp only [Formula.realize_rel₁, Term.realize_var]
+  exact ⟨fun ⟨hx, hxy, hy⟩ => ⟨hx, hy, (Relation.reflTransGen_equiv_iff uEquiv hstep x y).mp hxy⟩,
+    fun ⟨hx, hy, hxy⟩ => ⟨hx, (Relation.reflTransGen_equiv_iff uEquiv hstep x y).mpr hxy, hy⟩⟩
 
 /-- **Endpoint normalization**: `STReach` first-order reduces to canonical `0`-to-`max` `Reach`
 (including when `s = t`). -/
@@ -569,46 +532,31 @@ theorem mem_STReach_reachToSTReachInterpretation
       Language.Structure.RelMap (L := stGraphLanguage) R (e ∘ x) ↔
         (I.rel R).Realize (fun p => x p.1) := by
     rw [I.relMap_map_toDomainInterpretation (by decide)]
-    change (I.rel R).Realize
-        (fun p => lexEquiv.symm (finCongr hc (e (x p.1))) p.2) ↔
-      (I.rel R).Realize (fun p => x p.1)
+    change (I.rel R).Realize (fun p => lexEquiv.symm (finCongr hc (e (x p.1))) p.2) ↔ _
     simp only [e, Equiv.trans_apply, Equiv.apply_symm_apply, Equiv.symm_apply_apply,
       Equiv.funUnique_symm_apply, uniqueElim_const]
-  have hrel1 (R : stGraphLanguage.Relations 1) (s : Fin M.size) :
-      Language.Structure.RelMap (L := stGraphLanguage) R ![e s] ↔
-        (I.rel R).Realize (fun p => (![s] : Fin 1 → Fin M.size) p.1) := by
-    simpa only [Matrix.vecCons, Fin.comp_cons, Matrix.empty_eq (e ∘ ![])] using hrel R ![s]
+  have he1 (s : Fin M.size) : ![e s] = e ∘ ![s] := funext fun | (0 : Fin 1) => rfl
+  have he2 (x y : Fin M.size) : ![e x, e y] = e ∘ ![x, y] :=
+    funext fun | (0 : Fin 2) => rfl | (1 : Fin 2) => rfl
   have hsrc (s : Fin M.size) :
       Language.Structure.RelMap (L := stGraphLanguage) (.inr .source) ![e s] ↔ s = 0 :=
-    (hrel1 (.inr .source) s).trans (by
-      simp only [I, reachToSTReachInterpretation, Formula.realize_equal, Term.realize_var,
-        realize_zero_eq, Matrix.cons_val_zero])
+    he1 s ▸ hrel (.inr .source) ![s]
   have htgt (t : Fin M.size) :
-      Language.Structure.RelMap (L := stGraphLanguage) (.inr .target) ![e t] ↔
-        t = M.maxElem :=
-    (hrel1 (.inr .target) t).trans (by
-      simp only [I, reachToSTReachInterpretation, Formula.realize_equal, Term.realize_var,
-        realize_max_eq, Matrix.cons_val_zero])
+      Language.Structure.RelMap (L := stGraphLanguage) (.inr .target) ![e t] ↔ t = M.maxElem :=
+    he1 t ▸ hrel (.inr .target) ![t]
   have hadj (x y : Fin M.size) :
       graphAdj M x y ↔
-        Language.Structure.RelMap (L := stGraphLanguage) (.inl .adj) ![e x, e y] := by
-    have h : Language.Structure.RelMap (L := stGraphLanguage) (.inl .adj) ![e x, e y] ↔
-        (I.rel (.inl .adj)).Realize (fun p => (![x, y] : Fin 2 → Fin M.size) p.1) := by
-      simpa only [Matrix.vecCons, Fin.comp_cons, Matrix.empty_eq (e ∘ ![])] using
-        hrel (.inl .adj) ![x, y]
-    refine Iff.symm (h.trans ?_)
-    simp only [I, reachToSTReachInterpretation, Formula.realize_rel₂, Term.realize_var,
-      Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_fin_one]
-    rfl
+        Language.Structure.RelMap (L := stGraphLanguage) (.inl .adj) ![e x, e y] :=
+    ((he2 x y ▸ hrel (.inl .adj) ![x, y]).trans (by
+      simp only [I, reachToSTReachInterpretation, Formula.realize_rel₂, Term.realize_var]
+      rfl)).symm
   rw [mem_STReach, mem_Reach]
-  constructor
-  · rintro ⟨s', t', hs', ht', hpath⟩
-    obtain ⟨s, rfl⟩ := e.surjective s'
-    obtain ⟨t, rfl⟩ := e.surjective t'
-    rw [(hsrc s).mp hs', (htgt t).mp ht'] at hpath
-    exact (Relation.reflTransGen_equiv_iff e hadj _ _).mpr hpath
-  · exact fun hpath => ⟨e 0, e M.maxElem,
-      (hsrc 0).mpr rfl, (htgt _).mpr rfl, (Relation.reflTransGen_equiv_iff e hadj _ _).mp hpath⟩
+  refine ⟨fun ⟨s', t', hs', ht', hpath⟩ => ?_, fun hpath =>
+    ⟨e 0, e M.maxElem, (hsrc 0).mpr rfl, (htgt _).mpr rfl,
+      (Relation.reflTransGen_equiv_iff e hadj _ _).mp hpath⟩⟩
+  obtain ⟨s, rfl⟩ := e.surjective s'
+  obtain ⟨t, rfl⟩ := e.surjective t'
+  rwa [(hsrc s).mp hs', (htgt t).mp ht', ← Relation.reflTransGen_equiv_iff e hadj] at hpath
 
 /-- `Reach` first-order reduces to `STReach`. -/
 theorem reach_reduces_STReach : Reduces Reach STReach :=

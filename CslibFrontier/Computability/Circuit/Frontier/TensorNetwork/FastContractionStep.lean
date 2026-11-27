@@ -123,10 +123,8 @@ theorem pairwise_isUnit_points (hirr : Irreducible ((monicOf x.fl).map (Int.cast
     (ha : active x = true) :
     Pairwise fun i j : Fin (points x).length =>
       IsUnit (liftO hirr ((points x).getD i []) - liftO hirr ((points x).getD j [])) := by
-  have hn : numPoints x ≤ 2 ^ x.fl.length := by
-    simp only [active, decide_eq_true_eq] at ha
-    exact ha.2.2.2.2.2.1
-  exact pairwise_isUnit_liftO_sub_digits hirr hn
+  simp only [active, decide_eq_true_eq] at ha
+  exact pairwise_isUnit_liftO_sub_digits hirr ha.2.2.2.2.2.1
 
 /-- **The step of an active call is correct**, for the native child builder and well-formed
 calls. -/
@@ -134,9 +132,7 @@ theorem stepCorrect_nativeMk (ev : T → List Bool → List ℕ) :
     StepCorrect ev (nativeMk (T := T)) WF := by
   intro x hx ha vals hvals
   obtain ⟨hirr, hD⟩ := hx
-  have ha' := ha
-  simp only [active, decide_eq_true_eq] at ha'
-  obtain ⟨-, hu, huM, hua, -, -, -⟩ := ha'
+  obtain ⟨-, hu, huM, hua, -⟩ := by simpa only [active, decide_eq_true_eq] using ha
   have hlen : (points x).length = numPoints x := by simp [points]
   have hr := DescribedNetwork.rows_le_of_isRowsFirstBipartite hD (one_le_edges_of_active ha)
   refine NativeCall.val_recover_eq_contraction hirr hD ev hu huM hua (le_taperStep_mul hu)
@@ -153,8 +149,7 @@ theorem stepCorrect_nativeMk (ev : T → List Bool → List ℕ) :
   · intro k hk hkL hq i hi
     rw [hlen] at hi
     have hkmem : k ∈ nodes x := by
-      simp only [nodes, List.mem_filter, List.mem_range, decide_eq_true_eq]
-      exact ⟨hk, hkL, hq⟩
+      simpa only [nodes, List.mem_filter, List.mem_range, decide_eq_true_eq] using ⟨hk, hkL, hq⟩
     obtain ⟨j, hj, hjk⟩ := List.getElem_of_mem hkmem
     have hgetD : (nodes x).getD j 0 = k := by rw [List.getD_eq_getElem _ _ hj, hjk]
     have hlev := level_eq (x := x) hk
@@ -174,18 +169,10 @@ theorem stepCorrect_nativeMk (ev : T → List Bool → List ℕ) :
       rw [hw, hprec]; exact hβ
     have hmem : (j, i, β, g) ∈ children x :=
       mem_children.mpr ⟨hj, by omega, hβ', List.mem_range.mp hg⟩
-    have key : ∀ v P, level x k = v → nodePrec x j = P →
-        val P x.fl (vals (j, i, β, g)) =
-          (nativeChild x.fl (slots x) v P (node (slots x) k) ((points x).getD i []) x.rows x.net
-            (nativeParentPacking x.rows (slots x) x.net) β g).contraction
-            fun d bs => val P x.fl (d.entry ev bs) := by
-      rintro v P rfl rfl
-      have h := hvals _ hmem
-      rw [nativeMk_eq ⟨hirr, hD⟩ ha hmem] at h
-      simp only at h
-      rw [hgetD] at h
-      exact h
-    exact key _ _ hlev hprec
+    have h := hvals _ hmem
+    rw [nativeMk_eq ⟨hirr, hD⟩ ha hmem] at h
+    simp only at h
+    rwa [hgetD, hlev, hprec] at h
 
 /-- The nodes of positive multiplicity, as grid indices. -/
 theorem mem_nodes {k : ℕ} : k ∈ nodes x ↔

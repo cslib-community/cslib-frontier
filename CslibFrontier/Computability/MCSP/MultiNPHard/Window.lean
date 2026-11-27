@@ -218,9 +218,8 @@ theorem value_congr (A : Fin t → Finset (Fin (2 ^ p))) {T T' : Fin (2 ^ p) →
   | window i y =>
     funext x
     simp only [value_window]
-    refine decide_eq_decide.mpr (and_congr_right fun _ => ?_)
-    exact ⟨fun ⟨hm, hT⟩ => ⟨hm, (h i rfl _ hm).symm.trans hT⟩,
-      fun ⟨hm, hT⟩ => ⟨hm, (h i rfl _ hm).trans hT⟩⟩
+    exact decide_eq_decide.mpr (and_congr_right fun _ =>
+      and_congr_right fun hm => by rw [h i rfl _ hm])
   | _ => rfl
 
 /-- The last input `2^p - 1`, whose window gates compute the windows of `T`. -/
@@ -232,10 +231,8 @@ theorem value_window_last (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^ p) 
     (x : Fin p → Bool) :
     value A T (.window i (lastIdx p)) x =
       decide (BitString.equivFin p x ∈ A i ∧ T (BitString.equivFin p x) = true) := by
-  have hle : BitString.equivFin p x ≤ lastIdx p := by
-    fin_index [lastIdx]
   rw [value_window]
-  exact decide_eq_decide.mpr (and_iff_right hle)
+  exact decide_eq_decide.mpr (and_iff_right (by fin_index [lastIdx]))
 
 /-! ### The program -/
 
@@ -257,11 +254,6 @@ private def andLine (w₁ w₂ : Wire p (gateCount p t)) :
 private def orLine (w₁ w₂ : Wire p (gateCount p t)) :
     Line DeMorgan.signature p (gateCount p t) :=
   ⟨.or, fun a => if a.val = 0 then w₁ else w₂⟩
-
-private theorem eval_notLine (w : Wire p (gateCount p t)) (x : Fin p → Bool)
-    (v : Fin (gateCount p t) → Bool) :
-    (notLine w).eval DeMorgan.interpretation x v = !Wire.elim x v w :=
-  rfl
 
 private theorem eval_andLine (w₁ w₂ : Wire p (gateCount p t)) (x : Fin p → Bool)
     (v : Fin (gateCount p t) → Bool) :
@@ -311,10 +303,7 @@ private theorem elim_litWire (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^ 
     (x : Fin p → Bool) (y : Fin (2 ^ p)) (b : Fin p) :
     Wire.elim x (template A T x) (litWire y b) = decide (x b = (y : ℕ).testBit b) := by
   unfold litWire
-  split <;> rename_i h
-  · simp [h]
-  · rw [elim_gateWire]
-    simp [h]
+  split_ifs with h <;> simp [h]
 
 /-- The last prefix conjunction of `y` recognizes `y`. -/
 private theorem value_grid_last (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^ p) → Bool)
@@ -323,10 +312,8 @@ private theorem value_grid_last (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2
   rw [value_grid]
   refine decide_eq_decide.mpr ⟨fun h => ?_, ?_⟩
   · rw [← Equiv.eq_symm_apply]
-    funext b
-    rw [BitString.equivFin_symm_apply]
-    refine h b ?_
-    fin_index [lastBit]
+    exact funext fun b => (h b (by fin_index [lastBit])).trans
+      (BitString.equivFin_symm_apply y b).symm
   · rintro rfl b _
     rw [← BitString.equivFin_symm_apply, Equiv.symm_apply_apply]
 
@@ -342,43 +329,27 @@ private theorem value_eq_eval (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^
     simp only [line, eval_andLine, elim_litWire]
     by_cases hk : (k : ℕ) = 0
     · rw [dite_eq_left hk, elim_litWire, Bool.and_self, value_grid]
-      refine decide_eq_decide.mpr ⟨fun h => h k le_rfl, fun h b hb => ?_⟩
-      obtain rfl : b = k := by omega
-      exact h
+      exact decide_eq_decide.mpr ⟨fun h => h k le_rfl, fun h b hb => (by omega : b = k) ▸ h⟩
     · rw [dite_eq_right hk, elim_gateWire, value_grid, value_grid, ← Bool.decide_and]
       refine decide_eq_decide.mpr
-        ⟨fun h => ⟨fun b hb => h b ?_, h k le_rfl⟩, fun ⟨h, hk'⟩ b hb => ?_⟩
-      · fin_index
-      · rcases (Fin.le_iff_val_le_val.mp hb).lt_or_eq with hlt | heq
-        · exact h b (by fin_index)
-        · obtain rfl : b = k := Fin.ext heq
-          exact hk'
+        ⟨fun h => ⟨fun b hb => h b (by fin_index), h k le_rfl⟩, fun ⟨h, hk'⟩ b hb => ?_⟩
+      exact hb.lt_or_eq.elim (fun hlt => h b (by fin_index)) fun he => he ▸ hk'
   | window i y =>
     simp only [line, eval_orLine]
     have hsel : Wire.elim x (template A T x)
         (if y ∈ A i ∧ T y = true then gateWire (.grid y (lastBit p)) else gateWire .zero) =
         decide (BitString.equivFin p x = y ∧ y ∈ A i ∧ T y = true) := by
-      split <;> rename_i hy
-      · rw [elim_gateWire, value_grid_last]
-        exact decide_eq_decide.mpr (by tauto)
-      · rw [elim_gateWire, value_zero]
-        exact (decide_eq_false fun h => hy h.2).symm
+      split_ifs with hy <;> simp [value_grid_last, value_zero, hy]
     rw [hsel, value_window]
     split <;> rename_i hy0
     · rw [elim_gateWire, value_zero, Bool.false_or]
-      refine decide_eq_decide.mpr ⟨fun ⟨hle, hm, hT⟩ => ?_, fun ⟨he, hm, hT⟩ => ?_⟩
-      · have he : BitString.equivFin p x = y := by omega
-        exact ⟨he, he ▸ hm, he ▸ hT⟩
-      · exact ⟨he.le, he ▸ hm, he ▸ hT⟩
+      refine decide_eq_decide.mpr ⟨fun ⟨hle, hP⟩ => ?_, fun ⟨he, hP⟩ => ⟨he.le, he.symm ▸ hP⟩⟩
+      have he : BitString.equivFin p x = y := by omega
+      exact ⟨he, he ▸ hP⟩
     · rw [elim_gateWire, value_window, ← Bool.decide_or]
-      refine decide_eq_decide.mpr ⟨fun ⟨hle, hm, hT⟩ => ?_, ?_⟩
-      · rcases (Fin.le_iff_val_le_val.mp hle).lt_or_eq with hlt | heq
-        · exact .inl ⟨by fin_index, hm, hT⟩
-        · have he : BitString.equivFin p x = y := Fin.ext heq
-          exact .inr ⟨he, he ▸ hm, he ▸ hT⟩
-      · rintro (⟨hle, hm, hT⟩ | ⟨he, hm, hT⟩)
-        · exact ⟨by fin_index, hm, hT⟩
-        · exact ⟨he.le, he ▸ hm, he ▸ hT⟩
+      refine decide_eq_decide.mpr ⟨fun ⟨hle, hP⟩ => ?_, fun h => ?_⟩
+      · exact hle.lt_or_eq.imp (fun hlt => ⟨by fin_index, hP⟩) fun he => ⟨he, he ▸ hP⟩
+      · exact h.elim (fun ⟨hle, hP⟩ => ⟨by fin_index, hP⟩) fun ⟨he, hP⟩ => ⟨he.le, he.symm ▸ hP⟩
 
 /-- A wire is *early* for gate `κ` when it is an input or a gate numbered before `κ`. -/
 private def Early (κ : Gate p t) (w : Wire p (gateCount p t)) : Prop :=
@@ -386,15 +357,12 @@ private def Early (κ : Gate p t) (w : Wire p (gateCount p t)) : Prop :=
 
 omit [NeZero p] in
 private theorem early_input (κ : Gate p t) (i : Fin p) : Early κ (.input i) := by
-  intro s h
-  cases h
+  rintro _ ⟨⟩
 
 omit [NeZero p] in
 private theorem early_gateWire {κ κ' : Gate p t}
     (h : (Gate.equivFin p t κ' : ℕ) < Gate.equivFin p t κ) : Early κ (gateWire κ') := by
-  rintro s hs
-  cases hs
-  exact h
+  exact fun _ hs => Wire.gate.inj hs ▸ h
 
 omit [NeZero p] in
 private theorem early_litWire (κ : Gate p t) (y : Fin (2 ^ p)) (b : Fin p)
@@ -432,16 +400,13 @@ private theorem line_early (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^ p)
     simp only [Gate.val_equivFin_grid]
     omega
   | window i y =>
-    have hy := y.isLt
-    have hgrid : p * (y : ℕ) + p ≤ 2 ^ p * p := by
-      rw [Nat.mul_comm (2 ^ p), ← Nat.mul_succ]
-      exact Nat.mul_le_mul_left p hy
+    have hgrid : p * (y : ℕ) + p ≤ 2 ^ p * p :=
+      (Nat.mul_succ p y).symm.trans_le ((Nat.mul_comm p _).trans_le (Nat.mul_le_mul_right p y.isLt))
     change Early _ (if a.val = 0 then _ else _)
-    refine early_ite (early_dite (fun _ => early_gateWire ?_) fun hy0 => early_gateWire ?_)
-      (early_ite (early_gateWire ?_) (early_gateWire ?_))
-    all_goals
-      simp only [Gate.val_equivFin_zero, Gate.val_equivFin_grid, Gate.val_equivFin_window, lastBit]
-      omega
+    refine early_ite (early_dite (fun _ => early_gateWire ?_) fun _ => early_gateWire ?_)
+      (early_ite (early_gateWire ?_) (early_gateWire ?_)) <;>
+      simp only [Gate.val_equivFin_zero, Gate.val_equivFin_grid, Gate.val_equivFin_window,
+        lastBit] <;> omega
 
 /-- **The template as a program.** For `p ≥ 1`, a program over the constant-free De Morgan basis
 with one gate for each gate of the layout computes the window template, and its gate
@@ -452,11 +417,9 @@ theorem exists_program (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^ p) →
         ∀ κ, (P.lines (Gate.equivFin p t κ)).op = κ.op := by
   obtain ⟨P, hP, hop⟩ := Program.exists_eval_eq_of_lines DeMorgan.interpretation
     (fun j => line A T ((Gate.equivFin p t).symm j)) (template A T)
-    (fun j a s hs => by
-      simpa only [Equiv.apply_symm_apply] using line_early A T _ a s hs)
+    (fun j a => by simpa only [Early, Equiv.apply_symm_apply] using line_early A T _ a)
     (fun x j => value_eq_eval A T x _)
-  refine ⟨P, hP, fun κ => ?_⟩
-  rw [hop, Equiv.symm_apply_apply, line_op]
+  exact ⟨P, hP, fun κ => by rw [hop, Equiv.symm_apply_apply, line_op]⟩
 
 end Lines
 
@@ -476,8 +439,7 @@ theorem ecomplexity_template [NeZero p] (A : Fin t → Finset (Fin (2 ^ p)))
   obtain ⟨P, hP, -⟩ := exists_program A T
   have heval : (P.mapOp (Boolean.DeMorganBasis.hom I)).eval I = template A T :=
     funext fun x => (Program.eval_mapOp (I := Boolean.DeMorgan.interpretation) P x).trans (hP x)
-  rw [← heval]
-  exact ecomplexity_eval_eq_card_nonInputComponents I _
+  exact heval ▸ ecomplexity_eval_eq_card_nonInputComponents I _
 
 /-- An OR of `#C` input coordinates costs `#C - 1` gates of the constant-free basis. -/
 private theorem synthesis_or {n : ℕ} {C : Finset (Fin n)} (hC : C.Nonempty) :
@@ -488,21 +450,13 @@ private theorem synthesis_or {n : ℕ} {C : Finset (Fin n)} (hC : C.Nonempty) :
     simpa only [Finset.mem_singleton, exists_eq_left, Bool.decide_eq_true, Finset.card_singleton,
       Nat.sub_self] using Synthesis.of_mem (s := inputs n) ⟨a, rfl⟩
   | cons a s ha hs ih =>
-    have hbin := Synthesis.binary (Synthesis.of_mem (s := inputs n) ⟨a, rfl⟩) ih
-      Boolean.DeMorgan.Op.or
-    have hf : (fun x : Fin n → Bool =>
-        Boolean.DeMorgan.interpretation .or fun i => if i.val = 0 then x a
-          else decide (∃ b ∈ s, x b = true)) =
-        fun x => decide (∃ b ∈ Finset.cons a s ha, x b = true) := by
-      funext x
-      simp only [Boolean.DeMorgan.interpretation_or, Fin.isValue, Fin.val_zero, ite_true,
-        Fin.val_one, one_ne_zero, ite_false, Finset.mem_cons, exists_eq_or_imp, Bool.decide_or,
-        Bool.decide_eq_true]
-    rw [hf] at hbin
-    refine hbin.mono le_rfl le_rfl ?_
-    rw [Finset.card_cons]
-    have := hs.card_pos
-    omega
+    convert Synthesis.binary (Synthesis.of_mem (s := inputs n) ⟨a, rfl⟩) ih
+      Boolean.DeMorgan.Op.or using 2
+    · funext x
+      simp [Boolean.DeMorgan.interpretation_or]
+    · rw [Finset.card_cons]
+      have := hs.card_pos
+      omega
 
 /-- **The table given the template.** If the windows `C` cover every input, then `T` costs at
 most `#C - 1` gates given the template: it is the OR of the last gates of those windows. This is
@@ -526,10 +480,8 @@ theorem ecomplexityGiven_tableFun_le (A : Fin t → Finset (Fin (2 ^ p))) (T : F
     funext o
     simp only [single_apply, tableFun, Finset.mem_image, exists_exists_and_eq_and, coord,
       Fin.append_right, template_equivFin, value_window_last, decide_eq_true_eq]
-    obtain ⟨i, hi, hy⟩ := hC (BitString.equivFin p x)
-    cases hT : T (BitString.equivFin p x)
-    · simp
-    · simpa [hT] using ⟨i, hi, hy⟩
+    exact Bool.eq_iff_iff.2 ⟨fun h => (of_decide_eq_true h).choose_spec.2.2,
+      fun hT => decide_eq_true ((hC _).imp fun _ ⟨hi, hy⟩ => ⟨hi, hy, hT⟩)⟩
   · rw [Circuit.size_mapOp]
     exact_mod_cast hsize.trans (by rw [Finset.card_image_of_injective _ hinj])
 

@@ -56,12 +56,8 @@ theorem push_le_prod_wire_hubs {A : Type} [Fintype A] [DecidableEq A] (π : A �
       prod (fun a => wire K (Fintype.card (t.Index a)) (π a) (if S a then o₁ else o₂)) *
           wire K r o₁ o₂ := by
   classical
-  let Λ : Option A → Type := fun o => match o with
-    | none => Fin r
-    | some a => t.Index a
-  let iΛ : ∀ o, Fintype (Λ o) := fun o => match o with
-    | none => inferInstanceAs (Fintype (Fin r))
-    | some a => inferInstanceAs (Fintype (t.Index a))
+  let Λ : Option A → Type := fun | none => Fin r | some a => t.Index a
+  let iΛ : ∀ o, Fintype (Λ o) := fun | none => inferInstance | some _ => inferInstance
   let ξ : A ⊕ Bool → I := Sum.elim π fun b => if b then o₁ else o₂
   let src : Option A → A ⊕ Bool := fun o => o.elim (Sum.inr true) Sum.inl
   let tgt : Option A → A ⊕ Bool := fun o => o.elim (Sum.inr false) fun a => Sum.inr (decide (S a))
@@ -99,10 +95,8 @@ theorem push_le_prod_wire_hubs {A : Type} [Fintype A] [DecidableEq A] (π : A �
     ((antisymmRel_prod_sum _).1.trans
         (mul_le_mul' (prod_le_prod fun a => ?_) ((antisymmRel_prod_unique _).1.trans ?_))))
   · change wire K (Fintype.card (t.Index a)) (π a) (if decide (S a) then o₁ else o₂) ≤ _
-    simp only [decide_eq_true_eq]
-    exact le_refl _
-  · change wire K (Fintype.card (Fin r)) o₁ o₂ ≤ _
-    rw [Fintype.card_fin]
+    simp [decide_eq_true_eq]
+  · exact (congrArg (fun n => wire K n o₁ o₂) (Fintype.card_fin r)).le
 
 /-- Lemma A.3 for two further parties `o₁, o₂`: the parties are `I₁ ⊔ I₂` and the two hubs. -/
 theorem push_inl_le_prod_wire_hubs {I₁ I₂ : Type} [Fintype I₁] [DecidableEq I₁] [Fintype I₂]

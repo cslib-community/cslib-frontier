@@ -120,10 +120,8 @@ theorem closure_range_x : closure (Set.range (x h)) = ⊤ := by
     by simpa [D] using hp
   have hij : i < j := lt_of_not_ge fun hji => hM <| by
     rcases hji.lt_or_eq with hji | rfl
-    · rw [one_apply_ne hji.ne']
-      exact (mem_U.1 A.2 i j).1 hji
-    · rw [one_apply_eq]
-      exact (mem_U.1 A.2 j j).2
+    · simpa [one_apply_ne hji.ne'] using (mem_U.1 A.2 i j).1 hji
+    · simpa using (mem_U.1 A.2 j j).2
   have hrow (b : Fin h) : ((A : SL2 h) : Matrix (Fin h) (Fin h) (ZMod 2)) j b =
       (1 : Matrix _ _ (ZMod 2)) j b :=
     of_not_not fun hb => (hmax (j, b) (by simpa [D] using hb)).not_gt hij
@@ -134,21 +132,17 @@ theorem closure_range_x : closure (Set.range (x h)) = ⊤ := by
     by_cases ha : a = i
     · subst ha
       rw [transvection_mul_apply_same, hrow, Matrix.add_apply, one_mul]
-      rcases eq_or_ne j b with rfl | hb
-      · simp only [one_apply_eq, single_apply_same]
-      · simp [hb, one_apply_ne hb]
-    · rw [transvection_mul_apply_of_ne _ _ _ _ ha]
-      simp [Ne.symm ha]
+      rcases eq_or_ne j b with rfl | hb <;> simp [*]
+    · simp [transvection_mul_apply_of_ne _ _ _ _ ha, Ne.symm ha]
   have hsub : D (el hij * A) ⊆ (D A).erase (i, j) := fun p hp' => by
     simp only [D, Finset.mem_filter, Finset.mem_univ, true_and, hB] at hp'
     by_cases hpij : p = (i, j)
     · subst hpij
       rw [one_apply_ne hij.ne] at hM hp'
       exact absurd (by simpa using (by decide : ∀ c : ZMod 2, c ≠ 0 → c + 1 = 0) _ hM) hp'
-    · refine Finset.mem_erase.2 ⟨hpij, ?_⟩
-      have h0 : single i j (1 : ZMod 2) p.1 p.2 = 0 :=
-        single_apply_of_ne _ _ _ _ _ fun e => hpij (Prod.ext e.1.symm e.2.symm)
-      simpa [D, h0] using hp'
+    · exact Finset.mem_erase.2 ⟨hpij,
+        by simpa [D, single_apply_of_ne _ _ _ _ _ fun e => hpij (Prod.ext e.1.symm e.2.symm)]
+          using hp'⟩
   have hlt := (Finset.card_le_card hsub).trans_lt (Finset.card_erase_lt_of_mem hp)
   rw [show A = el hij * (el hij * A) by rw [← mul_assoc, el_mul_el, one_mul]]
   exact mul_mem (el_mem hij) (ih _ (hA ▸ hlt) _ rfl)

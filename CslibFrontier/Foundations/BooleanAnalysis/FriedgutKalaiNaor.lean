@@ -115,7 +115,6 @@ theorem exists_one_sub_le_abs_fourierCoeff_singleton {f : (ι → Bool) → Bool
   set a : ι → ℝ := fun i => fourierCoeff F {i} with ha
   set ℓ : (ι → Bool) → ℝ := fun x => ∑ i, a i * signVal (x i) with hℓ
   set A := ∑ i, a i ^ 2 with hA
-  have hWA : levelWeight 1 F = A := levelWeight_one F
   -- `𝔼 F ℓ = 𝔼 ℓ ^ 2 = A` and `𝔼 F ^ 2 = 1`
   have hFℓ : 𝔼 x, F x * ℓ x = A := by
     simp only [hℓ, mul_sum, expect_sum_comm]
@@ -134,14 +133,13 @@ theorem exists_one_sub_le_abs_fourierCoeff_singleton {f : (ι → Bool) → Bool
       hℓℓ]
     ring
   have hδ'0 : 0 ≤ δ' := expect_nonneg fun x _ => sq_nonneg _
-  have hδ'δ : δ' ≤ δ := by rw [hδ'A, ← hWA]; linarith
+  have hδ'δ : δ' ≤ δ := by linarith [hδ'A, levelWeight_one F, hW]
   have hδ'1 : δ' ≤ 1 / 1600 := hδ'δ.trans hδ
   -- the variance of `ℓ ^ 2` is at most `6400 δ'`
   set V := 𝔼 x, (ℓ x ^ 2 - 𝔼 y, ℓ y ^ 2) ^ 2 with hV
   have hVeq : V = 2 * (A ^ 2 - ∑ i, a i ^ 4) := expect_sum_mul_signVal_sq_sub_expect_sq a
   have hVle : V ≤ 6400 * δ' := by
-    by_contra hVgt
-    push Not at hVgt
+    by_contra! hVgt
     have hVpos : 0 < V := lt_of_le_of_lt (by positivity) hVgt
     have hℓdeg : (fun x => ℓ x ^ 2) ∈ lowDegree ℝ ι 2 :=
       pow_mem_lowDegree (sum_mul_signVal_mem_lowDegree_one a) 2
@@ -208,36 +206,27 @@ theorem exists_hammingDist_xor_div_le_of_le_levelWeight_one [Nonempty ι]
     ∃ (i : ι) (b : Bool),
       (hammingDist f (fun x => b ^^ x i) : ℝ) / 2 ^ Fintype.card ι ≤ 1601 * δ := by
   classical
-  by_cases hδ : δ ≤ 1 / 1600
+  rcases le_or_gt δ (1 / 1600) with hδ | hδ
   · obtain ⟨i, hi⟩ := exists_one_sub_le_abs_fourierCoeff_singleton hδ hW
     set a := fourierCoeff (fun x => signVal (f x)) {i}
     refine ⟨i, decide (a < 0), ?_⟩
     -- the correlation of `f` with `x ↦ b ⊕ x_i` is `signVal b * a = |a|`
     have hcorr := expect_signVal_mul_signVal f (fun x => decide (a < 0) ^^ x i)
     have hcorr' : 𝔼 x, signVal (f x) * signVal (decide (a < 0) ^^ x i) = |a| := by
-      have : 𝔼 x, signVal (f x) * signVal (decide (a < 0) ^^ x i) =
+      have hmul : 𝔼 x, signVal (f x) * signVal (decide (a < 0) ^^ x i) =
           signVal (decide (a < 0)) * a := by
         rw [show a = 𝔼 x, signVal (f x) * chi ℝ {i} x from rfl, mul_expect]
-        refine expect_congr rfl fun x _ => ?_
-        rw [signVal_xor, chi_singleton]
-        ring
-      rw [this]
-      by_cases ha : a < 0
-      · rw [decide_eq_true ha, signVal_true, abs_of_neg ha]; ring
-      · rw [decide_eq_false ha, signVal_false, abs_of_nonneg (not_lt.mp ha), one_mul]
+        exact expect_congr rfl fun _ _ => by rw [signVal_xor, chi_singleton]; ring
+      rw [hmul]
+      rcases lt_or_ge a 0 with ha | ha <;> simp [ha, not_lt.mpr, abs_of_neg, abs_of_nonneg]
     rw [hcorr', mul_div_assoc] at hcorr
     linarith only [hi, hcorr]
   · -- for `δ > 1 / 1600` the bound exceeds one and holds for any `i` and `b`
-    push Not at hδ
-    refine ⟨Classical.arbitrary ι, false, ?_⟩
+    refine ⟨Classical.arbitrary ι, false, (div_le_iff₀ (by positivity)).mpr ?_⟩
     have h1 : (hammingDist f (fun x => false ^^ x (Classical.arbitrary ι)) : ℝ) ≤
-        2 ^ Fintype.card ι := by
-      have := hammingDist_le_card_fintype (x := f)
-        (y := fun x => false ^^ x (Classical.arbitrary ι))
-      rw [Fintype.card_fun, Fintype.card_bool] at this
-      exact_mod_cast this
-    rw [div_le_iff₀ (by positivity)]
-    nlinarith only [hδ, h1, pow_pos (by norm_num : (0 : ℝ) < 2) (Fintype.card ι)]
+        2 ^ Fintype.card ι :=
+      mod_cast (hammingDist_le_card_fintype (x := f) (y := _)).trans_eq (by simp)
+    nlinarith only [hδ, h1, pow_pos (zero_lt_two' ℝ) (Fintype.card ι)]
 
 /-- **Boolean functions of degree-one weight one are signed dictators**: if `W^1[f] = 1`, then
 `f x = b ⊕ x_i` for some coordinate `i` and bit `b` [O'Donnell, Exercise 1.19(a)][ODonnell2014].
@@ -251,9 +240,8 @@ theorem exists_eq_xor_of_levelWeight_one_eq_one {f : (ι → Bool) → Bool}
     exact absurd hW zero_ne_one
   | inr h =>
     obtain ⟨i, b, hib⟩ := exists_hammingDist_xor_div_le_of_le_levelWeight_one (f := f) (δ := 0)
-      (by rw [hW]; norm_num)
-    refine ⟨i, b, hammingDist_eq_zero.mp ?_⟩
+      (by linarith)
     rw [mul_zero, div_le_iff₀ (by positivity), zero_mul] at hib
-    exact_mod_cast le_antisymm hib (Nat.cast_nonneg _)
+    exact ⟨i, b, hammingDist_eq_zero.mp (Nat.le_zero.mp (mod_cast hib))⟩
 
 end Cslib.BitString

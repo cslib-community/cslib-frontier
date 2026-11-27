@@ -85,9 +85,7 @@ theorem singleItem_some (k i : ι) : singleItem (some k) i = if k = i then 1 els
   simp [singleItem]
 
 theorem singleItem_nonneg : 0 ≤ (singleItem : Option ι → ι → ℝ) := fun ω i => by
-  change (0 : ℝ) ≤ singleItem ω i
-  unfold singleItem
-  split_ifs <;> norm_num
+  by_cases h : ω = some i <;> simp [singleItem, h]
 
 private theorem sum_linearProfile_none (b : ι → ℝ) (s : Finset ι) :
     ∑ j ∈ s, linearProfile singleItem b j none = 0 := by
@@ -190,14 +188,8 @@ theorem singleItem_winner (b : ι → ℝ) : singleItem (winner b) = allocation 
 
 /-- Every single-item outcome allocates a feasible 0-1 vector. -/
 theorem singleItem_mem_singleItemFeasible (ω : Option ι) : singleItem ω ∈ singleItemFeasible := by
-  refine ⟨fun j => ?_, ?_⟩
-  · cases ω with
-    | none => exact Or.inl (singleItem_none j)
-    | some k =>
-      rw [singleItem_some]
-      split_ifs
-      exacts [Or.inr rfl, Or.inl rfl]
-  · cases ω <;> simp
+  refine ⟨fun j => ?_, by cases ω <;> simp⟩
+  by_cases h : ω = some j <;> simp [singleItem, h]
 
 /-- On nonnegative bids the Vickrey winner maximizes welfare among single-item outcomes. -/
 theorem welfare_le_winner {b : ι → ℝ} (hb : 0 ≤ b) (ω : Option ι) :
@@ -214,19 +206,16 @@ private noncomputable def vickreyRule (f₀ : (ι → Option ι → ℝ) → Opt
 
 private theorem vickreyRule_linearProfile (f₀ : (ι → Option ι → ℝ) → Option ι) {b : ι → ℝ}
     (hb : 0 ≤ b) : vickreyRule f₀ (linearProfile singleItem b) = winner b := by
-  unfold vickreyRule
-  rw [ite_eq_left (by rw [ownBids_linearProfile]; exact ⟨hb, rfl⟩), ownBids_linearProfile]
+  simp [vickreyRule, ownBids_linearProfile, hb]
 
 private theorem isWelfareMaximizing_vickreyRule {f₀ : (ι → Option ι → ℝ) → Option ι}
     (hf₀ : GameTheory.Mechanism.IsWelfareMaximizing f₀) :
     GameTheory.Mechanism.IsWelfareMaximizing (vickreyRule f₀) := by
   intro B ω
   by_cases h : 0 ≤ ownBids B ∧ linearProfile singleItem (ownBids B) = B
-  · obtain ⟨hb, hB⟩ := h
-    rw [← hB, vickreyRule_linearProfile f₀ hb]
-    exact welfare_le_winner hb ω
-  · unfold vickreyRule
-    rw [ite_eq_right h]
+  · rw [← h.2, vickreyRule_linearProfile f₀ h.1]
+    exact welfare_le_winner h.1 ω
+  · simp only [vickreyRule, h, ↓reduceIte]
     exact hf₀ B ω
 
 /-- **VCG with Vickrey's tie-breaking charges as Vickrey**: if a welfare-maximizing outcome rule
@@ -286,9 +275,7 @@ private theorem exists_singleItem_eq_of_mem {y : ι → ℝ} (hy : y ∈ singleI
         rw [Finset.sum_pair hki] at hle
         linarith [hy.2]
   · push Not at h
-    refine ⟨none, funext fun i => ?_⟩
-    rw [singleItem_none]
-    exact ((hy.1 i).resolve_right (h i)).symm
+    exact ⟨none, funext fun i => (singleItem_none i).trans ((hy.1 i).resolve_right (h i)).symm⟩
 
 /-- The canonical bijection between `Option ι` and `singleItemFeasible`: `none` is the zero
 allocation and `some i` gives the item to bidder `i`. -/
@@ -369,15 +356,12 @@ theorem vcg_singleItemFeasible_allocation {b : ι → ℝ} (hb : 0 ≤ b) :
 theorem vcg_singleItemFeasible_payment {b : ι → ℝ} (hb : 0 ≤ b) :
     ((vcg (vcgOutcome (ι := ι))).toSingleParameter Subtype.val).payment b =
       mechanism.payment b := by
-  let f₀ := Classical.choose
-    (GameTheory.Mechanism.exists_isWelfareMaximizing (ι := ι) (Ω := Option ι))
-  have hf := isWelfareMaximizing_vickreyRule (Classical.choose_spec
-    (GameTheory.Mechanism.exists_isWelfareMaximizing (ι := ι) (Ω := Option ι)))
+  let hmax := GameTheory.Mechanism.exists_isWelfareMaximizing (ι := ι) (Ω := Option ι)
   funext i
-  change (vcg fun u => singleItemEquiv (vickreyRule f₀ fun j ω => u j (singleItemEquiv ω))).payment
-      (linearProfile Subtype.val b) i = mechanism.payment b i
+  dsimp only [GameTheory.Mechanism.toSingleParameter]
+  unfold vcgOutcome
   rw [GameTheory.Mechanism.vcg_payment_comp_equiv singleItemEquiv]
-  exact congrFun (vcg_toSingleParameter_eq_of_eq_winner hf
-    (vickreyRule_linearProfile f₀ hb)).2 i
+  exact congrFun (vcg_toSingleParameter_eq_of_eq_winner
+    (isWelfareMaximizing_vickreyRule hmax.choose_spec) (vickreyRule_linearProfile _ hb)).2 i
 
 end Cslib.GameTheory.SingleParameter.Vickrey

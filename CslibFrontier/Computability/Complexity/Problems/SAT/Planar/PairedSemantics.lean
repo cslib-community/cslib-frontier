@@ -83,9 +83,8 @@ theorem ordinary_port_value {φ : CNF ℕ} {σ : Variable → Bool}
     (h : (rawFormula φ).eval σ = true) {p : Point} (hp : p ∈ ordinaryCells φ)
     (s : Fin 4) (lane : Fin 2) :
     σ (port (crossingSites φ) p s lane) = σ (p, Sum.inl (0, 0)) := by
-  have hn := ((mem_ordinaryCells φ p).1 hp).2
-  have hr := ((eval_rawFormula_iff φ σ).1 h).2.1 p hp
-  simpa only [port, hn, ↓reduceIte] using (OrdinaryRing.eval_formula_iff _).1 hr (s, lane)
+  simpa only [port, ((mem_ordinaryCells φ p).1 hp).2, ↓reduceIte] using
+    (OrdinaryRing.eval_formula_iff _).1 (((eval_rawFormula_iff φ σ).1 h).2.1 p hp) (s, lane)
 
 /-- A crossing port carries the horizontal or vertical incoming value, independently of lane. -/
 theorem crossing_port_value {φ : CNF ℕ} {σ : Variable → Bool}
@@ -119,8 +118,7 @@ theorem wire_cells_agree {φ : CNF ℕ}
   obtain ⟨⟨p, k⟩, hpk, rfl⟩ := List.mem_map.mp hc
   obtain ⟨hk, heq⟩ := List.mem_zipIdx' hpk
   have hk' : k < (occurrencePath φ o).length := by
-    simp only [List.length_dropLast] at hk
-    omega
+    simp only [List.length_dropLast] at hk; omega
   have heq' : (occurrencePath φ o)[k] = p := (List.getElem_dropLast hk).symm.trans heq.symm
   have hpod : p ∈ (occurrencePath φ o).dropLast := List.fst_mem_of_mem_zipIdx hpk
   have hpo : p ∈ occurrencePath φ o := List.dropLast_subset _ hpod
@@ -155,12 +153,9 @@ theorem map_fst_links (sites : List Point) (r : Route) :
       length_wire] at hj
     simp only [List.getElem_map, List.consecutivePairs, List.getElem_zip, List.getElem_tail]
     rw [getElem_wire sites r i (by omega), getElem_wire sites r (i + 1) (by omega)]
-    simp only [List.getElem_dropLast]
     have hn : r.getD (i + 1) r[i] = r[i + 1] := List.getD_eq_getElem _ _ (by omega)
-    have hp : r.getD (i + 1 - 1) r[i + 1] = r[i] := by
-      rw [Nat.add_sub_cancel, List.getD_eq_getElem _ _ (by omega)]
-    simp only [hn, hp]
-    rfl
+    have hp : r.getD i r[i + 1] = r[i] := List.getD_eq_getElem _ _ (by omega)
+    simp only [List.getElem_dropLast, Nat.add_sub_cancel, hn, hp]; rfl
 
 /-- The source value is read at one fixed port of its ordinary source cell. -/
 def sourceValue (φ : CNF ℕ) (σ : Variable → Bool) (v : ℕ) : Bool :=
@@ -171,8 +166,7 @@ theorem wire_ne_nil {φ : CNF ℕ} {o : Occurrence ℕ}
     (ho : o ∈ Cslib.Logic.PL.occurrences φ) :
     wire (crossingSites φ) (occurrencePath φ o) ≠ [] := by
   have hlen : 2 ≤ (occurrencePath φ o).length := PlanarCompile.occurrencePath_length_ge_two ho
-  rw [← List.length_pos_iff_ne_nil, length_wire]
-  omega
+  rw [← List.length_pos_iff_ne_nil, length_wire]; omega
 
 /-- The actual first entry has the source cell's value. -/
 theorem wire_first_value {φ : CNF ℕ} {σ : Variable → Bool}
@@ -184,16 +178,11 @@ theorem wire_first_value {φ : CNF ℕ} {σ : Variable → Bool}
   have hwpos : 0 < (wire (crossingSites φ) (occurrencePath φ o)).length := by
     rw [length_wire]; omega
   have hhead : (wire (crossingSites φ) (occurrencePath φ o)).headD fallback =
-      (wire (crossingSites φ) (occurrencePath φ o))[0] := by
-    generalize wire (crossingSites φ) (occurrencePath φ o) = xs at hwpos ⊢
-    cases xs with
-    | nil => cases hwpos
-    | cons _ _ => rfl
-  have hp : (occurrencePath φ o).head? = some (Layout.center (φ.distinctVars.idxOf o.lit.1)) :=
-    (PlanarCompile.occurrencePath_endpoints ho).1
+      (wire (crossingSites φ) (occurrencePath φ o))[0] :=
+    match wire (crossingSites φ) (occurrencePath φ o), hwpos with | _ :: _, _ => rfl
+  have hp : (occurrencePath φ o).head? = _ := (PlanarCompile.occurrencePath_endpoints ho).1
   rw [List.head?_eq_getElem?, List.getElem?_eq_getElem (by omega)] at hp
-  have hp' : (occurrencePath φ o)[0] = Layout.center (φ.distinctVars.idxOf o.lit.1) :=
-    Option.some.inj hp
+  have hp' := Option.some.inj hp
   have hret : Layout.center (φ.distinctVars.idxOf o.lit.1) ∈ (occurrencePath φ o).dropLast := by
     rw [← hp', ← List.getElem_dropLast (by simp only [List.length_dropLast]; omega)]
     exact List.getElem_mem _
@@ -213,11 +202,10 @@ theorem wire_values_source {φ : CNF ℕ}
         σ (c lane).2 = sourceValue φ σ o.lit.1 := by
   let fallback : PairedWire.Cell Variable := fun _ => (((0, 0), Sum.inl (0, 0)),
     ((0, 0), Sum.inl (0, 0)))
-  have hl := ((eval_rawFormula_iff φ σ).1 h).2.2.2 o ho
-  rw [map_fst_links] at hl
-  have he := PairedWire.agree_head_of_ne_nil σ fallback _ (wire_ne_nil ho)
-    (wire_cells_agree hw hv h o ho) hl
-  rwa [wire_first_value h ho fallback] at he
+  have hl := map_fst_links (crossingSites φ) (occurrencePath φ o) ▸
+    ((eval_rawFormula_iff φ σ).1 h).2.2.2 o ho
+  simpa only [wire_first_value h ho fallback] using
+    PairedWire.agree_head_of_ne_nil σ fallback _ (wire_ne_nil ho) (wire_cells_agree hw hv h o ho) hl
 
 /-- Constant values along a nonempty retained wire determine its final literal. -/
 theorem lastLiteral_value_of_wire (sites : List Point) (r : Route) (positive value : Bool)
@@ -226,17 +214,13 @@ theorem lastLiteral_value_of_wire (sites : List Point) (r : Route) (positive val
       σ (c lane).1 = value ∧ σ (c lane).2 = value) :
     σ (lastLiteral sites r positive).1.1 = value := by
   have hi : r.length - 2 < r.length - 1 := by omega
+  have hlt1 : r.length - 1 < r.length := by omega
   have hwi : r.length - 2 < (wire sites r).length := by rwa [length_wire]
-  have hc := hcompat _ (List.getElem_mem hwi)
-  rw [getElem_wire _ _ _ hi] at hc
   have hnext : r.length - 2 + 1 = r.length - 1 := by omega
-  have hget (d : Point) : r.getD (r.length - 1) d = r[r.length - 1] :=
-    List.getD_eq_getElem _ _ (by omega)
-  simp only [hnext, hget] at hc
-  have hne : r ≠ [] := by intro he; rw [he] at hlen; simp at hlen
-  unfold lastLiteral
-  rw [List.getD_eq_getElem _ _ (by omega), List.getLastD_eq_getElem _ _ hne]
-  exact (hc _).2
+  rw [lastLiteral, List.getD_eq_getElem _ _ (hi.trans hlt1),
+    List.getLastD_eq_getElem _ _ (List.ne_nil_of_length_pos (Nat.zero_lt_of_lt hlt1))]
+  simpa only [getElem_wire _ _ _ hi, hnext, List.getD_eq_getElem _ _ hlt1] using
+    (hcompat _ (List.getElem_mem hwi) _).2
 
 /-- The literal emitted at an occurrence has precisely its source variable's value. -/
 theorem lastLiteral_value {φ : CNF ℕ}
@@ -333,11 +317,9 @@ theorem exists_compatible_assignment {φ : CNF ℕ}
   refine ⟨liftAssignment σ, ?_, fun _ _ => OrdinaryRing.eval_constant _,
     fun _ _ => PairedCrossover.eval_canonicalExtension _ _⟩
   intro o ho c hc lane
-  unfold wire at hc
   obtain ⟨⟨p, k⟩, hpk, rfl⟩ := List.mem_map.mp hc
-  dsimp only
-  rw [liftAssignment_signal _ σ hcross, liftAssignment_signal _ σ hcross]
-  exact hcompat o ho _ (List.mem_map.mpr ⟨(p, k), hpk, rfl⟩)
+  simpa only [liftAssignment_signal _ σ hcross] using
+    hcompat o ho _ (List.mem_map.mpr ⟨(p, k), hpk, rfl⟩)
 
 /-- Compatible local assignments satisfy the actual output if the source holds. -/
 theorem eval_rawFormula_of_compatible {φ : CNF ℕ} (τ : ℕ → Bool) (σ : Variable → Bool)

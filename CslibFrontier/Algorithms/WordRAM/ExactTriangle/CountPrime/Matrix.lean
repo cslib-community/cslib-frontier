@@ -35,14 +35,9 @@ private def cellKey (transpose : Bool) (n p N source : ℕ) (m : ℕ → ℕ) (j
 
 private theorem cellPosition_injective (N : ℕ) : Function.Injective (cellPosition N) := by
   intro i j he
-  have hr := congrArg Nat.Morton.row he
-  have hc := congrArg Nat.Morton.column he
-  simp only [cellPosition, Nat.Morton.row_index] at hr
-  simp only [cellPosition, Nat.Morton.column_index] at hc
-  calc
-    i = N * (i / N) + i % N := (Nat.div_add_mod i N).symm
-    _ = N * (j / N) + j % N := by rw [hr, hc]
-    _ = j := Nat.div_add_mod j N
+  exact (Nat.ext_div_mod_iff N i j).mpr ⟨
+    by simpa only [cellPosition, Nat.Morton.row_index] using congrArg Nat.Morton.row he,
+    by simpa only [cellPosition, Nat.Morton.column_index] using congrArg Nat.Morton.column he⟩
 
 private theorem cellPosition_lt {k j : ℕ} (hj : j < 4 ^ k) : cellPosition (2 ^ k) j < 4 ^ k := by
   have hN : 0 < 2 ^ k := by positivity

@@ -119,28 +119,23 @@ theorem fifoNext_eq_lruNext_of_notMem {k : Nat} {q : List α} {p : α} (hp : p �
 theorem nodup_fifoNext {k : Nat} {q : List α} (hq : q.Nodup) (p : α) :
     (fifoNext k q p).Nodup := by
   by_cases hp : p ∈ q
-  · simp only [fifoNext, hp, ↓reduceIte]
-    exact hq
-  · rw [fifoNext_eq_lruNext_of_notMem hp]
-    exact nodup_lruNext hq p
+  · simpa only [fifoNext, hp, ↓reduceIte] using hq
+  · exact fifoNext_eq_lruNext_of_notMem hp ▸ nodup_lruNext hq p
 
 /-- `fifoNext k` preserves `length ≤ k`. -/
 theorem length_fifoNext_le {k : Nat} {q : List α} (hq : q.length ≤ k) (p : α) :
     (fifoNext k q p).length ≤ k := by
   by_cases hp : p ∈ q
-  · simp only [fifoNext, hp, ↓reduceIte]
-    exact hq
-  · rw [fifoNext_eq_lruNext_of_notMem hp]
-    exact length_lruNext_le hq p
+  · simpa only [fifoNext, hp, ↓reduceIte] using hq
+  · exact fifoNext_eq_lruNext_of_notMem hp ▸ length_lruNext_le hq p
 
 /-- For `0 < k`, `fifoNext` induces a valid demand-paging transition on `q.toFinset`. -/
 theorem validStep_fifoNext {k : Nat} (hk : 0 < k) {q : List α} (hlen : q.length ≤ k) (p : α) :
     ValidStep k q.toFinset p (fifoNext k q p).toFinset := by
   by_cases hp : p ∈ q
-  · simp only [fifoNext, hp, ↓reduceIte]
-    exact validStep_hit ((List.toFinset_card_le q).trans hlen) (List.mem_toFinset.mpr hp)
-  · rw [fifoNext_eq_lruNext_of_notMem hp]
-    exact validStep_lruNext hk hlen p
+  · simpa only [fifoNext, hp, ↓reduceIte] using
+      validStep_hit ((List.toFinset_card_le q).trans hlen) (List.mem_toFinset.mpr hp)
+  · exact fifoNext_eq_lruNext_of_notMem hp ▸ validStep_lruNext hk hlen p
 
 /-- Deterministic online strategy realizing FIFO for demand paging with positive capacity `k`.
 
@@ -173,9 +168,8 @@ theorem fifoStrategy_costFrom_eq (k : Nat) (hk : 0 < k) (q : List α) (reqs : Li
   induction reqs generalizing q with
   | nil => rfl
   | cons p ps ih =>
-    change stepCost q.toFinset p (fifoNext k q p).toFinset +
-        (fifoStrategy (α := α) k hk).costFrom (fifoNext k q p) ps = _
-    simp only [stepCost, List.mem_toFinset, ih (fifoNext k q p), fifoFaults_cons]
+    rw [DetStrategy.costFrom_cons, ih]
+    simp only [stepCost, List.mem_toFinset, fifoFaults_cons]
 
 /-- From an empty cache `∅`, `fifoStrategy.cost` equals computable `fifoFaults k [] reqs`. -/
 theorem fifoStrategy_cost_empty (k : Nat) (hk : 0 < k) (reqs : List α) :
@@ -218,27 +212,25 @@ theorem fifoFaults_amortized_bound {k : Nat} (hk : 0 < k) {s_off : Finset α} {q
     fifoFaults k q reqs +
         lruPotential k ((problem α k).finalState s_off offStates) (fifoRun k q reqs) ≤
       k * (problem α k).scheduleCost s_off reqs offStates + lruPotential k s_off q := by
-  have h := (fifoStrategy (α := α) k hk).amortized_bound (fifoAmortized k hk) hq hv
-  simpa only [fifoStrategy_costFrom_eq, fifoStrategy_runMem_eq] using h
+  simpa only [fifoStrategy_costFrom_eq, fifoStrategy_runMem_eq] using
+    (fifoStrategy (α := α) k hk).amortized_bound (fifoAmortized k hk) hq hv
 
 /-- **FIFO `k`-competitiveness from a common initial cache** ([SleatorTarjan1985], Section 4, p. 208
 at `n_FIFO = n_MIN = k` with identical initial caches): when online and offline algorithms start
 from the same valid cache `s₀` (including `∅`), `fifoStrategy k hk` incurs at most `k` times the
 faults of any valid offline schedule, with zero additive constant. -/
 theorem fifoStrategy_isCompetitive (k : Nat) (hk : 0 < k) :
-    (fifoStrategy (α := α) k hk).IsCompetitive k 0 := by
-  apply (fifoStrategy (α := α) k hk).competitive_of_amortized (fifoAmortized k hk)
-  intro s₀ _
-  simp only [lruPotential_eq_zero_of_toFinset_eq k (Finset.toList_toFinset s₀), le_refl]
+    (fifoStrategy (α := α) k hk).IsCompetitive k 0 :=
+  (fifoStrategy (α := α) k hk).competitive_of_amortized (fifoAmortized k hk) fun s₀ _ =>
+    (lruPotential_eq_zero_of_toFinset_eq k (Finset.toList_toFinset s₀)).le
 
 /-- **FIFO `k`-competitiveness across arbitrary initial caches** ([SleatorTarjan1985], Section 4,
 p. 208 at `n_FIFO = n_MIN = k`): for any valid initial caches `s₀` and `s_off` of size at most `k`,
 `fifoStrategy k hk` incurs at most `k * optCost + k` faults. -/
 theorem fifoStrategy_isCompetitiveAnyInit (k : Nat) (hk : 0 < k) :
-    (fifoStrategy (α := α) k hk).IsCompetitiveAnyInit k k := by
-  apply (fifoStrategy (α := α) k hk).competitiveAnyInit_of_amortized (fifoAmortized k hk)
-  intro s₀ s_off _ hs_off
-  exact lruPotential_le hs_off s₀.toList
+    (fifoStrategy (α := α) k hk).IsCompetitiveAnyInit k k :=
+  (fifoStrategy (α := α) k hk).competitiveAnyInit_of_amortized (fifoAmortized k hk)
+    fun s₀ _ _ hs_off => lruPotential_le hs_off s₀.toList
 
 /-! ### Last-in, first-out (LIFO) paging and Sleator–Tarjan's counterexample (`2 ≤ k`) -/
 
@@ -288,23 +280,18 @@ theorem lifoFaults_append (k : Nat) (q : List α) (rs₁ rs₂ : List α) :
 theorem nodup_lifoNext {k : Nat} {q : List α} (hq : q.Nodup) (p : α) :
     (lifoNext k q p).Nodup := by
   unfold lifoNext
-  split
+  split_ifs with hp _
   · exact hq
-  · next hp =>
-    split
-    · exact List.nodup_cons.mpr ⟨hp, hq⟩
-    · have hp_drop : p ∉ q.drop 1 := fun h => hp ((List.drop_sublist 1 q).subset h)
-      exact (List.nodup_cons.mpr ⟨hp_drop, hq.sublist (List.drop_sublist 1 q)⟩).take
+  · exact List.nodup_cons.mpr ⟨hp, hq⟩
+  · exact (List.nodup_cons.mpr ⟨fun h => hp ((List.drop_sublist 1 q).subset h),
+      hq.sublist (List.drop_sublist 1 q)⟩).take
 
 /-- `lifoNext k` preserves `length ≤ k`. -/
 theorem length_lifoNext_le {k : Nat} {q : List α} (hq : q.length ≤ k) (p : α) :
     (lifoNext k q p).length ≤ k := by
   unfold lifoNext
-  split
-  · exact hq
-  · split
-    · next hlt => exact Nat.succ_le_of_lt hlt
-    · exact List.length_take_le k _
+  split_ifs with _ hlt
+  exacts [hq, Nat.succ_le_of_lt hlt, List.length_take_le k _]
 
 private theorem lifoNext_cons_of_length_eq {k : Nat} {e p : α} {rest : List α}
     (hk : 1 ≤ k) (hlen : rest.length = k - 1) (hp : p ∉ e :: rest) :
@@ -354,9 +341,8 @@ theorem lifoStrategy_costFrom_eq (k : Nat) (hk : 0 < k) (q : List α) (reqs : Li
   induction reqs generalizing q with
   | nil => rfl
   | cons p ps ih =>
-    change stepCost q.toFinset p (lifoNext k q p).toFinset +
-        (lifoStrategy (α := α) k hk).costFrom (lifoNext k q p) ps = _
-    simp only [stepCost, List.mem_toFinset, ih (lifoNext k q p), lifoFaults_cons]
+    rw [DetStrategy.costFrom_cons, ih]
+    simp only [stepCost, List.mem_toFinset, lifoFaults_cons]
 
 /-- From `∅`, `lifoStrategy.cost` equals computable `lifoFaults k [] reqs`. -/
 theorem lifoStrategy_cost_empty (k : Nat) (hk : 0 < k) (reqs : List α) :
@@ -368,29 +354,17 @@ theorem lifoStrategy_cost_empty (k : Nat) (hk : 0 < k) (reqs : List α) :
 hypothesis `2 ≤ k` in `lifo_not_isCompetitiveFrom_empty` is therefore sharp. -/
 theorem lifoStrategy_one_isCompetitive :
     (lifoStrategy (α := α) 1 (by omega)).IsCompetitive 1 0 := by
-  have hnext : ∀ (q : List α) (p : α), q.length ≤ 1 → lifoNext 1 q p = fifoNext 1 q p := by
-    intro q p hq
-    by_cases hp : p ∈ q
-    · simp only [lifoNext, fifoNext, hp, ↓reduceIte]
-    · cases q with
-      | nil =>
-        simp only [lifoNext, fifoNext, hp, ↓reduceIte, List.length_nil, Nat.zero_lt_one,
-          List.take_succ_cons, List.take_zero]
-      | cons e rest =>
-        simp only [List.length_cons] at hq
-        have hrest : rest = [] := List.eq_nil_of_length_eq_zero (by omega)
-        subst hrest
-        simp only [lifoNext, fifoNext, hp, ↓reduceIte, List.length_singleton, Nat.lt_irrefl,
-          List.drop_succ_cons, List.drop_zero, List.take_succ_cons, List.take_zero]
+  have hnext (q : List α) (p : α) (hq : q.length ≤ 1) : lifoNext 1 q p = fifoNext 1 q p := by
+    rcases q with _ | ⟨e, _ | _⟩
+    · simp [lifoNext, fifoNext]
+    · by_cases hp : p = e <;> simp [lifoNext, fifoNext, hp]
+    · simp at hq
   intro s₀ hs₀ reqs offStates hv
-  have hcost : ∀ (q : List α) (rs : List α), q.length ≤ 1 →
-      lifoFaults 1 q rs = fifoFaults 1 q rs := by
-    intro q rs hq
+  have hcost (q rs : List α) (hq : q.length ≤ 1) : lifoFaults 1 q rs = fifoFaults 1 q rs := by
     induction rs generalizing q with
     | nil => rfl
     | cons p ps ih =>
-      rw [lifoFaults_cons, fifoFaults_cons, hnext q p hq]
-      exact congrArg _ (ih (fifoNext 1 q p) (length_fifoNext_le hq p))
+      rw [lifoFaults_cons, fifoFaults_cons, hnext q p hq, ih _ (length_fifoNext_le hq p)]
   rw [(lifoStrategy (α := α) 1 (by omega)).cost_eq_costFrom hs₀, lifoStrategy_costFrom_eq,
     hcost s₀.toList reqs (by rw [Finset.length_toList]; exact hs₀),
     ← fifoStrategy_costFrom_eq 1 (by omega),
@@ -412,13 +386,12 @@ private theorem lifoRun_warmup {k : Nat} :
     have hxq : x ∉ q := (List.nodup_cons.mp (List.nodup_append.mp hnodup).2.1).1
     have hlt : q.length < k := by simp only [List.length_cons] at hlen; omega
     have hstep : lifoNext k q x = x :: q := by simp only [lifoNext, hxq, hlt, ↓reduceIte]
-    have hlen' : xs.length + (x :: q).length ≤ k := by
-      simp only [List.length_cons] at hlen ⊢; omega
-    obtain ⟨hrun, hfault⟩ := lifoRun_warmup xs (x :: q) hnodup hlen'
-    refine ⟨?_, ?_⟩
-    · rw [lifoRun_cons, hstep, hrun, List.reverse_cons, List.append_assoc, List.singleton_append]
-    · simp only [lifoFaults_cons, hxq, ↓reduceIte, hstep, hfault, List.length_cons]
-      omega
+    obtain ⟨hrun, hfault⟩ := lifoRun_warmup (k := k) xs (x :: q) hnodup
+      (by simp only [List.length_cons] at hlen ⊢; omega)
+    refine ⟨?_, by
+      simpa only [lifoFaults_cons, hxq, ↓reduceIte, hstep, hfault, List.length_cons] using
+        Nat.add_comm 1 xs.length⟩
+    rw [lifoRun_cons, hstep, hrun, List.reverse_cons, List.append_assoc, List.singleton_append]
 
 private theorem lifoFaults_alternating {k : Nat} {base : List α} {a b : α}
     (hlen : base.length = k - 1) (hk : 1 ≤ k) (ha : a ∉ base) (hb : b ∉ base) (hab : a ≠ b) :
@@ -459,7 +432,7 @@ theorem lifoFaults_lifoCounterexample {k : Nat} (hk : 1 ≤ k) {init : List α} 
   have hb_rev : b ∉ init.reverse := by simpa only [List.mem_reverse] using hb_init
   have hrev_len : init.reverse.length = k - 1 := by simp only [List.length_reverse, hinit]
   have hstep1 : lifoNext k init.reverse a = a :: init.reverse := by
-    simp only [lifoNext, ha_rev, show init.reverse.length < k by omega, ↓reduceIte]
+    simp only [lifoNext, ha_rev, hrev_len, Nat.sub_lt hk zero_lt_one, ↓reduceIte]
   have hba_not : b ∉ a :: init.reverse := by simp [hab.symm, hb_rev]
   obtain ⟨_, hfault_alt⟩ := lifoFaults_alternating hrev_len hk ha_rev hb_rev hab t
   simp only [lifoCounterexample, lifoFaults_append, hrun_w, hfault_w, hinit,
@@ -482,17 +455,14 @@ private theorem exists_validSchedule_insertAll {k : Nat} :
     have hstep : ValidStep k s x (insert x s) := validStep_insert hlt hxs
     have hdisj' : ∀ y ∈ xs, y ∉ insert x s := fun y hy hmem =>
       (Finset.mem_insert.mp hmem).elim (hxxs <| · ▸ hy) (hdisj y (List.mem_cons_of_mem x hy))
-    have hcard' : (insert x s).card + xs.length ≤ k := by
-      rw [Finset.card_insert_of_notMem hxs]
-      simp only [List.length_cons] at hcard; omega
-    obtain ⟨ss, hv, hfin, hcost⟩ := exists_validSchedule_insertAll xs (insert x s) hdisj' hnodup'
-      hcard'
+    obtain ⟨ss, hv, hfin, hcost⟩ :=
+      exists_validSchedule_insertAll (k := k) xs (insert x s) hdisj' hnodup' (by
+        simp only [Finset.card_insert_of_notMem hxs, List.length_cons] at hcard ⊢; omega)
     refine ⟨insert x s :: ss, ⟨hstep, hv⟩, ?_, ?_⟩
     · change (problem α k).finalState (insert x s) ss = _
       rw [hfin]
       finset_card [List.toFinset_cons]
-    · change stepCost s x (insert x s) + (problem α k).scheduleCost (insert x s) xs ss =
-        (x :: xs).length
+    · change stepCost s x (insert x s) + (problem α k).scheduleCost (insert x s) xs ss = _
       rw [stepCost_of_notMem hxs, hcost, List.length_cons, Nat.add_comm]
 
 /-- For `2 ≤ k`, an offline schedule of capacity `k` serves `lifoCounterexample init a b t` from `∅`
@@ -504,35 +474,28 @@ theorem exists_offline_lifoCounterexample {k : Nat} (hk2 : 2 ≤ k) {init : List
         (problem α k).scheduleCost ∅ (lifoCounterexample init a b t) offStates = k + 1 := by
   obtain ⟨hnodup_init, hab, ha_init, hb_init⟩ := nodup_append_pair hnodup
   obtain ⟨ss₀, hv₀, hfin₀, hcost₀⟩ := exists_validSchedule_insertAll (k := k) init ∅
-    (fun _ _ h => Finset.notMem_empty _ h) hnodup_init
-    (by simp only [Finset.card_empty, hinit]; omega)
+    (fun _ _ => Finset.notMem_empty _) hnodup_init (by simp only [Finset.card_empty, hinit]; omega)
   rw [Finset.empty_union] at hfin₀
-  have hcard_init : init.toFinset.card = k - 1 := by
-    rw [List.toFinset_card_of_nodup hnodup_init, hinit]
+  have hcard_init : init.toFinset.card = k - 1 :=
+    (List.toFinset_card_of_nodup hnodup_init).trans hinit
   have ha_not : a ∉ init.toFinset := by simpa only [List.mem_toFinset] using ha_init
   have hstep_a : ValidStep k init.toFinset a (insert a init.toFinset) :=
     validStep_insert (by omega) ha_not
-  obtain ⟨e₀, he₀_mem⟩ : ∃ e₀, e₀ ∈ init.toFinset :=
-    Finset.card_pos.mp (by omega)
-  have he₀_in : e₀ ∈ insert a init.toFinset := Finset.mem_insert_of_mem he₀_mem
-  have hb_not_a : b ∉ insert a init.toFinset := by
-    simp only [Finset.mem_insert, hab.symm, List.mem_toFinset, hb_init, or_self, not_false_eq_true]
-  have hcard_ins : (insert a init.toFinset).card ≤ k := by finset_card
+  obtain ⟨e₀, he₀_mem⟩ : ∃ e₀, e₀ ∈ init.toFinset := Finset.card_pos.mp (by omega)
+  have hb_not_a : b ∉ insert a init.toFinset := by simp [hab.symm, hb_init]
   set s_pair := insert b ((insert a init.toFinset).erase e₀)
   have hstep_b : ValidStep k (insert a init.toFinset) b s_pair :=
-    validStep_replace hcard_ins hb_not_a he₀_in
-  have hcard_pair : s_pair.card ≤ k := hstep_b.2.1
-  have he₀_ne_a : e₀ ≠ a := fun h => ha_not (h ▸ he₀_mem)
+    validStep_replace (by finset_card) hb_not_a (Finset.mem_insert_of_mem he₀_mem)
   have ha_pair : a ∈ s_pair :=
-    Finset.mem_insert_of_mem (Finset.mem_erase.mpr ⟨he₀_ne_a.symm, Finset.mem_insert_self a _⟩)
+    Finset.mem_insert_of_mem (Finset.mem_erase.mpr
+      ⟨(ne_of_mem_of_not_mem he₀_mem ha_not).symm, Finset.mem_insert_self a _⟩)
   have hb_pair : b ∈ s_pair := Finset.mem_insert_self b _
   set tailReqs := (List.replicate t [a, b]).flatten
-  have hmem_tail : ∀ p ∈ tailReqs, p ∈ s_pair := by
-    intro p hp
-    rcases List.mem_flatten.mp hp with ⟨l, hl, hpl⟩
-    simp only [(List.mem_replicate.mp hl).2, List.mem_cons, List.not_mem_nil, or_false] at hpl
-    exact hpl.elim (· ▸ ha_pair) (· ▸ hb_pair)
-  have hv_tail := validSchedule_replicate_of_forall_mem hcard_pair hmem_tail
+  have hmem_tail : ∀ p ∈ tailReqs, p ∈ s_pair := fun p hp => by
+    obtain ⟨_, hl, hpl⟩ := List.mem_flatten.mp hp
+    rcases (by simpa [(List.mem_replicate.mp hl).2] using hpl : p = a ∨ p = b) with rfl | rfl
+    exacts [ha_pair, hb_pair]
+  have hv_tail := validSchedule_replicate_of_forall_mem hstep_b.2.1 hmem_tail
   have hcost_tail := scheduleCost_replicate_of_forall_mem (k := k) hmem_tail
   set afterInitReqs := a :: b :: tailReqs
   set afterInitStates := insert a init.toFinset :: s_pair :: List.replicate tailReqs.length s_pair
@@ -540,14 +503,11 @@ theorem exists_offline_lifoCounterexample {k : Nat} (hk2 : 2 ≤ k) {init : List
     ⟨hstep_a, hstep_b, hv_tail⟩
   have hcost_after :
       (problem α k).scheduleCost init.toFinset afterInitReqs afterInitStates = 2 := by
-    change stepCost init.toFinset a (insert a init.toFinset) +
-      (stepCost (insert a init.toFinset) b s_pair +
-        (problem α k).scheduleCost s_pair tailReqs (List.replicate tailReqs.length s_pair)) = 2
-    rw [stepCost_of_notMem ha_not, stepCost_of_notMem hb_not_a, hcost_tail]
-  have hreq_eq : lifoCounterexample init a b t = init ++ afterInitReqs := by
-    simp only [lifoCounterexample, afterInitReqs, tailReqs, List.replicate_succ, List.flatten_cons,
-      List.cons_append, List.nil_append]
-  rw [hreq_eq]
+    simpa only [afterInitReqs, afterInitStates, Problem.scheduleCost, problem,
+      Problem.offlineSpec, stepCost_of_notMem ha_not, stepCost_of_notMem hb_not_a] using
+      congrArg (fun n => 1 + (1 + n)) hcost_tail
+  simp only [lifoCounterexample, List.replicate_succ, List.flatten_cons, List.cons_append,
+    List.nil_append]
   refine ⟨ss₀ ++ afterInitStates, (problem α k).validSchedule_append hv₀ (hfin₀ ▸ hv_after), ?_⟩
   rw [(problem α k).scheduleCost_append hv₀.length_eq, hfin₀, hcost₀, hcost_after, hinit]
   omega
@@ -558,16 +518,13 @@ theorem exists_offline_lifoCounterexample {k : Nat} (hk2 : 2 ≤ k) {init : List
 theorem lifo_not_isCompetitiveFrom_empty {k : Nat} (hk2 : 2 ≤ k) {pages : List α}
     (hnodup : pages.Nodup) (hlen : pages.length = k + 1) (c b : Nat) :
     ¬ (lifoStrategy (α := α) k (by omega)).IsCompetitiveFrom ∅ c b := by
-  have hsplit : pages.take (k - 1) ++ pages.drop (k - 1) = pages := List.take_append_drop _ _
   have hdrop_len : (pages.drop (k - 1)).length = 2 := by
     simp only [List.length_drop, hlen]; omega
   rcases hdrop : pages.drop (k - 1) with _ | ⟨a, _ | ⟨b_pg, _ | _⟩⟩ <;>
     simp only [hdrop, List.length_cons, List.length_nil] at hdrop_len <;> try omega
   set init := pages.take (k - 1)
-  have hinit_len : init.length = k - 1 := by
-    simp only [init, List.length_take, hlen]; omega
-  have hnodup' : (init ++ [a, b_pg]).Nodup := by
-    rwa [← hdrop, hsplit]
+  have hinit_len : init.length = k - 1 := by simp only [init, List.length_take, hlen]; omega
+  have hnodup' : (init ++ [a, b_pg]).Nodup := by rwa [← hdrop, List.take_append_drop]
   set t := c * (k + 1) + b
   obtain ⟨offStates, hv, hoff⟩ := exists_offline_lifoCounterexample hk2 hinit_len hnodup' t
   have hlifo := lifoFaults_lifoCounterexample (k := k) (by omega) hinit_len hnodup' t

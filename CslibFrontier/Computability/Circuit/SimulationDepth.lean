@@ -46,27 +46,23 @@ theorem Program.wireDepths_simulateRenaming_le (p : Program σ n g)
     | input i => exact le_rfl
     | gate j => exact j.elim0
   | gate q line ih =>
-    dsimp only [simulateProgram, simulateRenaming, simulate, cost_gate]
-    dsimp only [simulateProgram, simulateRenaming] at ih
+    dsimp only [simulateProgram, simulateRenaming, simulate, cost_gate] at ih ⊢
     set cost : σ.Op → ℕ := fun op => (impl op).depth
     refine Wire.lastCases ?_ (fun w => ?_) w
     · simp only [Wire.Renaming.apply_gate, Wire.Renaming.skipLast_gates_last]
       rw [Program.wireDepthsWith_gateWire, Program.depthsWith_gate_last]
-      have h₀ := line.wireDepth_add_le_depthWith cost (q.wireDepthsWith cost)
-      have hc : (impl line.op).depth ≤ line.depthWith cost (q.wireDepthsWith cost) :=
-        line.cost_le_depthWith cost _
+      have hc := line.cost_le_depthWith cost (q.wireDepthsWith cost)
       have hD (a : Fin (σ.Arity line.op)) :
           (q.simulate impl).1.wireDepths (((q.simulate impl).2 ∘ line.wires) a) ≤
             line.depthWith cost (q.wireDepthsWith cost) - (impl line.op).depth := by
-        have h₁ := ih (line.wires a)
-        have h₂ : q.wireDepthsWith cost (line.wires a) + (impl line.op).depth ≤
-            line.depthWith cost (q.wireDepthsWith cost) := h₀ a
-        simp only [Function.comp_apply]
+        have := ih (line.wires a)
+        have := line.wireDepth_add_le_depthWith cost (q.wireDepthsWith cost) a
+        dsimp only [Function.comp_apply, cost] at *
         omega
       have h := Program.wireDepths_append_appendedWire_le _ _ hD (impl line.op).program
         ((impl line.op).outputs 0)
       have ho := (impl line.op).outputDepths_le_depth 0
-      simp only [Circuit.outputDepths, Function.comp_apply] at ho
+      dsimp only [Circuit.outputDepths, Function.comp_apply, cost] at hc ho h ⊢
       omega
     · rw [Wire.Renaming.skipLast_castSucc, Program.wireDepthsWith_gate_castSucc]
       have hold := (Program.wireDepths_append_castAdd (q.simulate impl).1

@@ -172,9 +172,8 @@ theorem isQueryBounded_multiPhase2FilterHandler (decBound : List Bool → ℕ)
   unfold multiPhase2FilterHandler
   split_ifs
   · exact OracleComp.IsCostBounded.pure ([], s) 1
-  · rw [Functor.map_map]
-    exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
-      (ProbOracleComp.IsQueryBounded.query ((), request.2))
+  · simpa only [Functor.map_map, OracleComp.isCostBounded_map_iff] using
+      ProbOracleComp.IsQueryBounded.query ((), request.2)
 
 /-- Running a strict oracle PPT program through `multiPhase2FilterHandler` is uniformly strict
 oracle PPT whenever the reply-length cap and forbidden ciphertext list are computable in polynomial
@@ -380,10 +379,8 @@ theorem eval_cca2MultiHybridGameOn_of_le {Msg Out : Type}
     ProbComp.eval (cca2MultiHybridGameOn valid encOut keyGen encrypt decrypt adversary split n) =
       ProbComp.eval (cca2MultiGameOn valid encOut keyGen encrypt decrypt adversary true n) := by
   simp only [cca2MultiHybridGameOn, cca2MultiHybridCont, cca2MultiGameOn, ProbComp.eval_bind]
-  apply PMF.bind_congr_on_support
-  intro keys hkeys
-  apply PMF.bind_congr_on_support
-  rintro ⟨⟨challenges, stateA⟩, ⟨⟩⟩ hchoice
+  refine PMF.bind_congr_on_support _ _ _ fun keys hkeys =>
+    PMF.bind_congr_on_support _ _ _ fun ⟨⟨challenges, stateA⟩, ⟨⟩⟩ hchoice => ?_
   have hle := hbound keys hkeys challenges stateA hchoice
   simp [List.take_of_length_le hle, List.drop_eq_nil_of_le hle]
 
@@ -453,13 +450,12 @@ private theorem isOraclePPTOn_cca2MultiToSingleAt_choose {Msg : Type} [Inhabited
       (fun ⟨(n, pk), split⟩ =>
         (cca2MultiToSingleAt valid encrypt decBound adversary split).choose n pk) := by
   dsimp only [cca2MultiToSingleAt]
-  refine (hA.choose.on.preprocess (by fun_prop)).bind_with ?_
-  refine IsOraclePPTOn.cond (by fun_prop) ?_ (by fun_prop)
-  refine (IsPPTOn.mapMWith (element := encPair encMsg encMsg) (by fun_prop)
-    (by fun_prop)).isOraclePPTOn.bind_with ?_
-  refine (IsPPTOn.mapMWith (element := encPair encMsg encMsg) (by fun_prop)
-    (by fun_prop)).isOraclePPTOn.bind_with ?_
-  fun_prop
+  refine (hA.choose.on.preprocess (by fun_prop)).bind_with
+    (IsOraclePPTOn.cond (by fun_prop) ?_ (by fun_prop))
+  exact (IsPPTOn.mapMWith (element := encPair encMsg encMsg) (by fun_prop)
+    (by fun_prop)).isOraclePPTOn.bind_with
+    ((IsPPTOn.mapMWith (element := encPair encMsg encMsg) (by fun_prop)
+      (by fun_prop)).isOraclePPTOn.bind_with (by fun_prop))
 
 /-- Phase 2 (`guess`) of `cca2MultiToSingleAt` is uniformly strict oracle PPT in
 `(n, state, ct)`. -/
@@ -491,8 +487,7 @@ private theorem isOraclePPTOn_cca2MultiToSingleAt_guess {Msg : Type} [Inhabited 
           (multiCCA2StateDecoder.decode state).ctsFront ++
             ct :: (multiCCA2StateDecoder.decode state).ctsBack))
       (by fun_prop))
-  dsimp only [cca2MultiToSingleAt]
-  fun_prop
+  dsimp only [cca2MultiToSingleAt]; fun_prop
 
 /-- `cca2MultiToSingleAt` preserves strict oracle PPT admissibility (`CCA2AdversaryOf.IsPPT`). -/
 theorem isPPT_cca2MultiToSingleAt {Msg : Type} [Inhabited Msg]
@@ -533,12 +528,10 @@ theorem isPPT_cca2MultiToSingle {Msg : Type} [Inhabited Msg]
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (hA : adversary.IsPPT encMsg) :
     (cca2MultiToSingle valid encrypt decBound Q adversary).IsPPT encMsg where
-  choose := by
-    have hsample : IsOraclePPTOn (Operation := Unit) (encPair encUnary encBits) encUnary
-        (fun caller : ℕ × List Bool =>
-          ProbOracleComp.sample (ProbComp.sampleDyadicIndex (Q caller.1))) := by fun_prop
-    exact (hsample.bind_with
-      (isOraclePPTOn_cca2MultiToSingleAt_choose hvalid hencrypt hA)).isOraclePPT
+  choose := ((by fun_prop : IsOraclePPTOn (Operation := Unit) (encPair encUnary encBits) encUnary
+    fun caller : ℕ × List Bool =>
+      ProbOracleComp.sample (ProbComp.sampleDyadicIndex (Q caller.1))).bind_with
+    (isOraclePPTOn_cca2MultiToSingleAt_choose hvalid hencrypt hA)).isOraclePPT
   guess := isOraclePPTOn_cca2MultiToSingleAt_guess valid encrypt hdecBound hA 0
 
 /-- `cca2MultiToSingleAt` preserves both Phase 1 (`Q₁ n`) and Phase 2 (`Q₂ n`) decryption query
@@ -564,9 +557,8 @@ theorem isQueryBounded_cca2MultiToSingleAt {Msg : Type} [Inhabited Msg]
         OracleComp.IsCostBounded.run_interpret (fun q s => ?_)
           (hQ.2 n (multiCCA2StateDecoder.decode state).stateA _) ()
       rcases q with m | req
-      · simpa [OracleComp.sumHandler, StateT.lift] using
-          (OracleComp.isCostBounded_map_iff (·, s) (ProbOracleComp.sample (ProbComp.unifFin m))
-            0).mpr (ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin m))
+      · simpa [OracleComp.sumHandler, StateT.lift, OracleComp.isCostBounded_map_iff] using
+          ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin m)
       · exact isQueryBounded_multiPhase2FilterHandler (decBound n) _ req s
     · exact OracleComp.IsCostBounded.pure false (Q₂ n)
 
@@ -603,10 +595,7 @@ theorem eval_cca2GameOn_cca2MultiToSingle {Msg Out : Type} [Inhabited Msg]
           ProbComp.eval
             (cca2GameOn valid encOut keyGen encrypt decrypt
               (cca2MultiToSingleAt valid encrypt decBound adversary i.val) bit n)) := by
-  have hguess (i : ℕ) :
-      (cca2MultiToSingleAt valid encrypt decBound adversary i).guess =
-        (cca2MultiToSingleAt valid encrypt decBound adversary 0).guess := rfl
-  simp only [cca2GameOn, cca2MultiToSingle, ProbComp.eval_sampleDyadicIndex, hguess,
+  simp only [cca2GameOn, cca2MultiToSingle, ProbComp.eval_sampleDyadicIndex,
     runWith_norm, pmf_norm]
   exact PMF.bind_comm _ _ _
 
@@ -641,19 +630,14 @@ private theorem eval_cca2GameOn_cca2MultiToSingleAt {Msg Out : Type} [Inhabited 
   by_cases hcond :
       (decide (split < challenges.length) &&
         challenges.all (fun p => valid n keys.1 p.1 p.2)) = true
-  · obtain ⟨hltDec, hall⟩ := Bool.and_eq_true_iff.mp hcond
-    have hlt : split < challenges.length := decide_eq_true_eq.mp hltDec
-    have htarget_eq : challenges.getD split (default, default) = challenges[split] :=
-      List.getD_eq_getElem _ _ hlt
-    have hvalid_target :
-        valid n keys.1 (challenges.getD split (default, default)).1
-          (challenges.getD split (default, default)).2 = true :=
-      List.all_eq_true.mp hall _ (htarget_eq ▸ List.getElem_mem hlt)
+  · obtain ⟨hlt, hall⟩ := by simpa only [Bool.and_eq_true, decide_eq_true_eq] using hcond
+    have hvalid_target : valid n keys.1 challenges[split].1 challenges[split].2 = true :=
+      List.all_eq_true.mp hall _ (List.getElem_mem hlt)
     simp only [hcond, ↓reduceIte, ChoiceOut.msg₀, ChoiceOut.msg₁, ChoiceOut.state,
-      ChoiceOut.msgs, ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_bind,
-      ProbOracleComp.runWith_sample, ProbOracleComp.runWith_pure, PMF.bind_map, Function.comp_def,
-      PMF.bind_bind, PMF.pure_bind, hvalid_target, ProbComp.eval_bind,
-      multiCCA2StateDecoder.decode_enc]
+      ChoiceOut.msgs, List.getD_eq_getElem _ _ hlt, ProbOracleComp.eval_run_interpret_eq_runWith,
+      ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, ProbOracleComp.runWith_pure,
+      PMF.bind_map, Function.comp_def, PMF.bind_bind, PMF.pure_bind, hvalid_target,
+      ProbComp.eval_bind, multiCCA2StateDecoder.decode_enc]
     have hguess (ctsFront ctsBack : List (List Bool)) (ct : List Bool) :=
       (ProbOracleComp.eval_run_interpret_eq_runWith
         (cca2Phase2Oracle encOut decrypt n keys.2 ct) _ ()).symm.trans
@@ -662,20 +646,15 @@ private theorem eval_cca2GameOn_cca2MultiToSingleAt {Msg Out : Type} [Inhabited 
           (hdecBound keys hkeys) (adversary.guess n stateA (ctsFront ++ ct :: ctsBack)))
     simp only [hguess]
     cases bit
-    · simp only [Bool.false_eq_true, ↓reduceIte, cca2MultiHybridCont, ProbComp.eval_bind]
-      congr 1 with ctsFront : 1
-      rw [List.drop_eq_getElem_cons hlt, ← htarget_eq, List.mapM_cons]
-      simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
-      exact PMF.bind_comm _ _ _
-    · simp only [↓reduceIte, cca2MultiHybridCont, ProbComp.eval_bind]
-      rw [List.take_add_one, List.getElem?_eq_getElem hlt, Option.toList_some, ← htarget_eq,
-        List.mapM_append, List.mapM_cons, List.mapM_nil]
-      simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
-      congr 1 with ctsFront : 1
-      rw [PMF.bind_comm]
-      congr 1 with ct : 1
-      congr 1 with ctsBack : 1
-      rw [List.append_assoc, List.singleton_append]
+    · simp only [Bool.false_eq_true, ↓reduceIte, cca2MultiHybridCont, ProbComp.eval_bind,
+        List.drop_eq_getElem_cons hlt, List.mapM_cons, ProbComp.eval_pure, PMF.bind_bind,
+        PMF.pure_bind]
+      exact congrArg _ (funext fun _ => PMF.bind_comm _ _ _)
+    · simp only [↓reduceIte, cca2MultiHybridCont, ProbComp.eval_bind, List.take_add_one,
+        List.getElem?_eq_getElem hlt, Option.toList_some, List.mapM_append, List.mapM_cons,
+        List.mapM_nil, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, List.append_assoc,
+        List.singleton_append]
+      exact congrArg _ (funext fun _ => PMF.bind_comm _ _ _)
   · simp only [hcond, Bool.false_eq_true, ↓reduceIte, ChoiceOut.msg₀, ChoiceOut.msg₁,
       ChoiceOut.state, ChoiceOut.msgs, OracleComp.interpret_pure, StateT.run_pure,
       ProbComp.eval_pure, PMF.pure_bind, decode_rejectMultiCCA2State]
@@ -733,15 +712,13 @@ theorem cca2MultiHybridGameOn_step_gap {Msg Out : Type} [Inhabited Msg]
     · by_cases hlt : split < challenges.length
       · simp [hall, decide_eq_true hlt, add_comm]
       · have hle : challenges.length ≤ split := Nat.le_of_not_lt hlt
-        have hle1 : challenges.length ≤ split + 1 := Nat.le_add_right_of_le hle
-        simp [hall, decide_eq_false hlt, cca2MultiHybridCont,
-          List.take_of_length_le hle, List.take_of_length_le hle1,
-          List.drop_eq_nil_of_le hle, List.drop_eq_nil_of_le hle1]
+        simp [hall, decide_eq_false hlt, cca2MultiHybridCont, List.take_of_length_le hle,
+          List.take_of_length_le (Nat.le_add_right_of_le hle), List.drop_eq_nil_of_le hle,
+          List.drop_eq_nil_of_le (Nat.le_add_right_of_le hle)]
     · simp [hall, ProbComp.eval_pure]
   have hreal := congrArg ENNReal.toReal hadd
-  rw [ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _),
-    ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)] at hreal
-  simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal]
+  simp only [ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _),
+    Game.succProbability, ENNReal.coe_toNNReal_eq_toReal] at hreal ⊢
   linarith
 
 /-- Signed hybrid gap for batch-challenge multi-challenge CCA, a step toward [BonehShoup2023],
@@ -822,10 +799,10 @@ theorem advantage_cca2MultiGameOn {Msg Out : Type} [Inhabited Msg]
           (ProbComp.eval
             (cca2GameOn valid encOut keyGen encrypt decrypt
               (cca2MultiToSingle valid encrypt decBound Q adversary) true n)) := by
-  apply NNReal.eq
-  rw [NNReal.coe_mul, Game.coe_advantage, Game.coe_advantage, NNReal.coe_natCast,
-    cca2MultiGameOn_gap valid encOut keyGen encrypt decrypt decBound Q adversary n hdecBound hQ,
-    abs_mul, Nat.abs_cast]
+  exact NNReal.eq (by
+    rw [NNReal.coe_mul, Game.coe_advantage, Game.coe_advantage, NNReal.coe_natCast,
+      cca2MultiGameOn_gap valid encOut keyGen encrypt decrypt decBound Q adversary n hdecBound hQ,
+      abs_mul, Nat.abs_cast])
 
 /-- Batch-challenge step toward [BonehShoup2023], Theorem 12.1 (printed p. 468), not the cited
 result: single-challenge 1CCA security implies batch-challenge multi-challenge CCA security, in
@@ -856,8 +833,7 @@ theorem INDCCA2On.indcca2MultiOn {Msg Out : Type} [Inhabited Msg]
   obtain ⟨decBound, hdecBoundPoly, hdecBound⟩ := exists_decryption_length_bound hkeyGen hdecrypt
   obtain ⟨_, _, _, _, cq, dq, _, _, hlenCh⟩ := hA.query_bounds
   let Q : ℕ → ℕ := fun n => cq * (n + ck * (n + 1) ^ dk + 2) ^ dq
-  have hQPoly : ComputableInPolyTime Q encUnary encUnary := by
-    dsimp only [Q]; fun_prop
+  have hQPoly : ComputableInPolyTime Q encUnary encUnary := by fun_prop
   have hQ (n : ℕ) (keys : List Bool × List Bool)
       (hkeys : keys ∈ (ProbComp.eval (keyGen n)).support)
       (challenges : List (Msg × Msg)) (stateA : List Bool)

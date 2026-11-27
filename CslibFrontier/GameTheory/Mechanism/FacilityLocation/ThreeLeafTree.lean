@@ -121,8 +121,7 @@ private lemma mem_inter_eq_center {r s : Fin 3} (hrs : r ≠ s) {x : MetricGraph
 private lemma leg_unique_of_ne_center {r s : Fin 3} {x : MetricGraph W} (hx : x ≠ T.center)
     (hr : x ∈ interval T.center (T.leaf r)) (hs : x ∈ interval T.center (T.leaf s)) :
     r = s := by
-  by_contra hrs
-  exact hx (mem_inter_eq_center hrs hr hs)
+  exact by_contra fun hrs => hx (mem_inter_eq_center hrs hr hs)
 
 private lemma center_mem_interval_of_ne_leg (hT : W.graph.IsTree) {r s : Fin 3} (hrs : r ≠ s)
     {x y : MetricGraph W}
@@ -187,10 +186,9 @@ private lemma branch_eq_outward_or_inward (hT : W.graph.IsTree) {r : Fin 3} {y q
     (hy : y ∈ interval T.center (T.leaf r)) (hyc : y ≠ T.center) (hqy : q ≠ y) :
     (y ≠ T.leaf r ∧ branch y q = branch y (T.leaf r)) ∨ branch y q = branch y T.center := by
   by_cases h : q ∈ interval T.center (T.leaf r) ∧ dist T.center y < dist T.center q
-  · have hyl : y ≠ T.leaf r := by
-      rintro rfl
-      have hm := mem_interval_iff.mp h.1
-      linarith [dist_nonneg (x := q) (y := T.leaf r), h.2]
+  · have hyl : y ≠ T.leaf r := fun e => by
+      linarith [mem_interval_iff.mp h.1, dist_nonneg (x := q) (y := T.leaf r),
+        congrArg (dist T.center) e, h.2]
     exact Or.inl ⟨hyl, branch_eq_of_mem hT ((mem_branch_outward_iff hT hy hyl q).mpr h)⟩
   · exact Or.inr (branch_eq_of_mem hT ((mem_branch_inward_iff hT hy hyc q).mpr ⟨hqy, h⟩))
 
@@ -256,10 +254,8 @@ private lemma high_nonneg (P : ThreeLeafScheme T) (r : Fin 3) : 0 ≤ P.high r :
   (P.low_nonneg r).trans (P.low_le_high r)
 
 private lemma low_eq_zero_of_high_pos (P : ThreeLeafScheme T) {r s : Fin 3} (hrs : r ≠ s)
-    (hpos : 0 < P.high r) : P.low s = 0 := by
-  by_contra hne
-  have hls : 0 < P.low s := lt_of_le_of_ne (P.low_nonneg s) (Ne.symm hne)
-  linarith [P.exclusive_legs hrs.symm hls]
+    (hpos : 0 < P.high r) : P.low s = 0 :=
+  le_antisymm (le_of_not_gt fun hls => hpos.ne' (P.exclusive_legs hrs.symm hls)) (P.low_nonneg s)
 
 /-- The `TreeEMVS W (Fin 3)` induced by a `ThreeLeafScheme T`. -/
 noncomputable def toTreeEMVS (hT : W.graph.IsTree) (P : ThreeLeafScheme T) :
@@ -696,17 +692,16 @@ theorem eval_isAnonymous [Nonempty V] (hT : W.graph.IsTree) (P : ThreeLeafScheme
   rw [eval, eval]
   refine ((P.toTreeEMVS hT).eval_eq_iff hT (x ∘ σ) ((P.toTreeEMVS hT).eval hT x)).mpr
     fun q hq S hS hw => ?_
-  let S' : Finset (Fin 3) := S.map σ.toEmbedding
-  have hS' (i : Fin 3) : i ∈ S' ↔ x i ∈ branch ((P.toTreeEMVS hT).eval hT x) q := by
-    simp only [S', Finset.mem_map, Equiv.coe_toEmbedding]
+  have hS' (i : Fin 3) :
+      i ∈ S.map σ.toEmbedding ↔ x i ∈ branch ((P.toTreeEMVS hT).eval hT x) q := by
+    simp only [Finset.mem_map, Equiv.coe_toEmbedding]
     exact ⟨fun ⟨j, hj, h⟩ => h ▸ (hS j).mp hj, fun hi =>
       ⟨σ.symm i, (hS (σ.symm i)).mpr (by simpa using hi), σ.apply_symm_apply i⟩⟩
-  have hcard : S'.card = S.card := Finset.card_map _
   refine (((P.toTreeEMVS hT).eval_eq_iff hT x ((P.toTreeEMVS hT).eval hT x)).mp rfl)
-    q hq S' hS' ?_
+    q hq (S.map σ.toEmbedding) hS' ?_
   rcases hw with ⟨r, hy, hyl, hqm, h⟩ | ⟨r, hy, hyc, hqm, h⟩
-  · exact Or.inl ⟨r, hy, hyl, hqm, by simpa only [outwardWin, hcard] using h⟩
-  · exact Or.inr ⟨r, hy, hyc, hqm, by simpa only [inwardWin, hcard] using h⟩
+  · exact Or.inl ⟨r, hy, hyl, hqm, by simpa only [outwardWin, Finset.card_map] using h⟩
+  · exact Or.inr ⟨r, hy, hyc, hqm, by simpa only [inwardWin, Finset.card_map] using h⟩
 
 end ThreeLeafScheme
 
@@ -725,25 +720,21 @@ private lemma eval_twoVal_mem_branch_iff [Nonempty V] (hT : W.graph.IsTree)
   refine ⟨fun hmem => by_contra fun hnot => ?_, fun hw => by_contra fun hnot => ?_⟩
   · have heq : E.eval hT x = y := (E.eval_eq_iff hT x y).mpr fun q' hq' T' hT' hw' => by
       by_cases hbr : branch y q' = branch y q
-      · have hTS : T' = S := Finset.ext fun i => (hT' i).trans (hbr ▸ (hx_iff i).symm)
-        exact hnot ((E.branch_eq hq' hqy hbr ▸ hTS ▸ hw'))
-      · have hdisj := branch_disjoint_of_ne hT hbr
-        have hTempty : T' = ∅ := Finset.eq_empty_of_forall_notMem fun i hi => by
-          have hx_in := (hT' i).mp hi
-          by_cases hiS : i ∈ S <;> simp only [x, hiS, ↓reduceIte] at hx_in
-          · exact Set.disjoint_left.mp hdisj hx_in (mem_branch_self hqy)
-          · exact notMem_branch_self y q' hx_in
-        exact E.empty_false hq' (hTempty ▸ hw')
-    rw [heq] at hmem
-    exact notMem_branch_self y q hmem
+      · exact hnot (E.branch_eq hq' hqy hbr ▸
+          Finset.ext (fun i => (hT' i).trans (hbr ▸ (hx_iff i).symm)) ▸ hw')
+      · refine E.empty_false hq' (Finset.eq_empty_of_forall_notMem (fun i hi => ?_) ▸ hw')
+        have hx_in := (hT' i).mp hi
+        by_cases hiS : i ∈ S <;> simp only [x, hiS, ↓reduceIte] at hx_in
+        · exact Set.disjoint_left.mp (branch_disjoint_of_ne hT hbr) hx_in (mem_branch_self hqy)
+        · exact notMem_branch_self y q' hx_in
+    exact notMem_branch_self y q (Eq.mp (congrArg (· ∈ branch y q) heq) hmem)
   · set z := E.eval hT x
     have hEq := (E.eval_eq_iff hT x z).mp rfl
     have hzy : z ≠ y := fun h => (h ▸ hEq) q hqy S hx_iff hw
     have hy_qz : y ∈ interval q z := Classical.not_not.mp hnot
     have hq_in : q ∈ branch z y := fun hz_yq => by
       rw [mem_interval_iff, _root_.dist_comm q y, _root_.dist_comm q z] at hy_qz
-      rw [mem_interval_iff] at hz_yq
-      linarith [dist_pos.mpr hzy.symm]
+      linarith [mem_interval_iff.mp hz_yq, dist_pos.mpr hzy.symm]
     refine hEq y hzy.symm Finset.univ (fun i => ?_) (E.univ_true hzy.symm)
     by_cases hi : i ∈ S <;> simp [x, hi, hq_in, mem_branch_self hzy.symm]
 
@@ -776,13 +767,10 @@ theorem isStrategyProof_surjective_anonymous_iff_threeLeafScheme [Nonempty V]
       y ≠ T.leaf r ∧ dist T.center y = d ∧ E.win y (T.leaf r) S}
   have hleg_le {r : Fin 3} {y : MetricGraph W} (hy : y ∈ interval T.center (T.leaf r)) :
       dist T.center y ≤ dist T.center (T.leaf r) := by
-    rw [mem_interval_iff] at hy
-    linarith [dist_nonneg (x := y) (y := T.leaf r)]
+    linarith [mem_interval_iff.mp hy, dist_nonneg (x := y) (y := T.leaf r)]
   have hthr_bdd (S : Finset (Fin 3)) (r : Fin 3) : BddAbove (thrSet S r) :=
-    ⟨dist T.center (T.leaf r), by
-      rintro d (rfl | ⟨y, hy, _, rfl, _⟩)
-      · exact dist_nonneg
-      · exact hleg_le hy⟩
+    ⟨dist T.center (T.leaf r), fun _ h => h.elim (fun e => e ▸ dist_nonneg)
+      fun ⟨_, hy, _, e, _⟩ => e ▸ hleg_le hy⟩
   have hthr_ne (S : Finset (Fin 3)) (r : Fin 3) : (thrSet S r).Nonempty := ⟨0, Or.inl rfl⟩
   let low (r : Fin 3) : ℝ := sSup (thrSet {0} r)
   let high (r : Fin 3) : ℝ := sSup (thrSet {0, 1} r)
@@ -794,8 +782,8 @@ theorem isStrategyProof_surjective_anonymous_iff_threeLeafScheme [Nonempty V]
       have hp_leg : p ∈ interval T.center (T.leaf r) :=
         interval_subset_of_mem hT hy (right_mem_interval _ _) hp_int
       have hlt : dist T.center y < dist T.center p := by
-        rw [mem_interval_iff] at hy hp_int
-        linarith [mem_interval_iff.mp hp_leg, dist_pos.mpr hpy.symm]
+        linarith [mem_interval_iff.mp hy, mem_interval_iff.mp hp_int,
+          mem_interval_iff.mp hp_leg, dist_pos.mpr hpy.symm]
       exact hlt.trans_le (le_csSup (hthr_bdd S r) (Or.inr ⟨p, hp_leg, hpl, rfl, hwp⟩))
     · obtain ⟨d, rfl | ⟨p, hp_leg, hpl, rfl, hwp⟩, hyd⟩ :=
         (lt_csSup_iff (hthr_bdd S r) (hthr_ne S r)).mp hlt
@@ -809,15 +797,11 @@ theorem isStrategyProof_surjective_anonymous_iff_threeLeafScheme [Nonempty V]
     { low := low
       high := high
       low_nonneg := fun r => le_csSup (hthr_bdd {0} r) (Or.inl rfl)
-      low_le_high := fun r => csSup_le (hthr_ne {0} r) fun d hd => by
-        rcases hd with rfl | ⟨y, hy, hyl, rfl, hw⟩
-        · exact le_csSup (hthr_bdd {0, 1} r) (Or.inl rfl)
-        · exact le_csSup (hthr_bdd {0, 1} r)
-            (Or.inr ⟨y, hy, hyl, rfl, E.mono hyl.symm (by decide) hw⟩)
-      high_le_dist := fun r => csSup_le (hthr_ne {0, 1} r) fun d hd => by
-        rcases hd with rfl | ⟨y, hy, _, rfl, _⟩
-        · exact dist_nonneg
-        · exact hleg_le hy
+      low_le_high := fun r => csSup_le (hthr_ne {0} r) fun _ hd =>
+        le_csSup (hthr_bdd {0, 1} r) (hd.imp id fun ⟨y, hy, hyl, e, hw⟩ =>
+          ⟨y, hy, hyl, e, E.mono hyl.symm (by decide) hw⟩)
+      high_le_dist := fun r => csSup_le (hthr_ne {0, 1} r) fun _ hd =>
+        hd.elim (fun e => e ▸ dist_nonneg) fun ⟨_, hy, _, e, _⟩ => e ▸ hleg_le hy
       exclusive_legs := fun {r s} hrs hlr => by_contra fun hne => by
         have hhs : 0 < high s :=
           lt_of_le_of_ne (le_csSup (hthr_bdd {0, 1} s) (Or.inl rfl)) (Ne.symm hne)
@@ -839,38 +823,32 @@ theorem isStrategyProof_surjective_anonymous_iff_threeLeafScheme [Nonempty V]
       E.win y T.center S ↔ thr r < dist T.center y := by
     refine ⟨fun hw => ?_, fun hlt => ?_⟩
     · obtain ⟨p, hp_int, hpy, hpc, hwp⟩ := E.open_interior hyc.symm hw
-      have hp_leg : p ∈ interval T.center (T.leaf r) :=
-        interval_subset_of_mem hT (left_mem_interval _ _) hy (interval_comm y T.center ▸ hp_int)
+      rw [interval_comm] at hp_int
+      have hp_leg := interval_subset_of_mem hT (left_mem_interval _ _) hy hp_int
       have hdp_lt : dist T.center p < dist T.center y := by
-        rw [interval_comm, mem_interval_iff] at hp_int
-        linarith [dist_pos.mpr hpy]
+        linarith [mem_interval_iff.mp hp_int, dist_pos.mpr hpy]
       have hpl : p ≠ T.leaf r := fun h => hdp_lt.not_ge (h ▸ hleg_le hy)
       have hle : thr r ≤ dist T.center p := le_of_not_gt fun hlt =>
         E.exclusive hpc.symm hpl.symm (branch_outward_ne_inward hT hp_leg hpc hpl).symm
           ⟨hwp, (win_congr_card_of_isAnonymous hT E hf_anon hpl.symm hcard.symm).mp
             ((hout_iff r hp_leg hpl).mpr hlt)⟩
       exact hle.trans_lt hdp_lt
-    · set t := (thr r + dist T.center y) / 2
-      have hthr_t : thr r < t := by dsimp only [t]; linarith
-      have hty : t < dist T.center y := by dsimp only [t]; linarith
-      obtain ⟨p, hp_leg, hdp⟩ := exists_point_on_leg_dist hT r ((hthr0 r).trans hthr_t.le)
-        (hty.le.trans (hleg_le hy))
-      have hpy : p ≠ y := fun h => by rw [h] at hdp; linarith
-      have hpl : p ≠ T.leaf r := fun h => by rw [h] at hdp; linarith [hleg_le hy]
+    · obtain ⟨p, hp_leg, hdp⟩ :=
+        exists_point_on_leg_dist (T := T) (d := (thr r + dist T.center y) / 2) hT r
+          (by linarith [hthr0 r])
+          (by linarith [hleg_le hy])
+      have hpy : p ≠ y := fun h => by linarith [congrArg (dist T.center) h]
+      have hpl : p ≠ T.leaf r := fun h => by linarith [congrArg (dist T.center) h, hleg_le hy]
       have hbr_py : branch p y = branch p (T.leaf r) :=
-        branch_eq_of_mem hT ((mem_branch_outward_iff hT hp_leg hpl y).mpr ⟨hy, hdp ▸ hty⟩)
+        branch_eq_of_mem hT ((mem_branch_outward_iff hT hp_leg hpl y).mpr ⟨hy, by linarith⟩)
       have hnot_py : ¬ E.win p y Sᶜ := fun hw => by
         rw [E.branch_eq hpy.symm hpl.symm hbr_py] at hw
-        exact hthr_t.not_ge (hdp ▸ ((hout_iff r hp_leg hpl).mp
-          ((win_congr_card_of_isAnonymous hT E hf_anon hpl.symm hcard).mp hw)).le)
+        linarith [((hout_iff r hp_leg hpl).mp
+          ((win_congr_card_of_isAnonymous hT E hf_anon hpl.symm hcard).mp hw)).le]
       have hbr_yp : branch y p = branch y T.center :=
         branch_eq_of_mem hT ((mem_branch_inward_iff hT hy hyc p).mpr
-          ⟨hpy, fun h => by linarith [h.2, hdp, hty]⟩)
+          ⟨hpy, fun h => by linarith [h.2]⟩)
       simpa only [compl_compl, ← E.branch_eq hpy hyc.symm hbr_yp] using E.duality hpy hnot_py
-  have hin1_iff (r : Fin 3) {y : MetricGraph W} :=
-    hin_iff {0} {0, 1} high (by decide) P.high_nonneg hhigh_iff r (y := y)
-  have hin2_iff (r : Fin 3) {y : MetricGraph W} :=
-    hin_iff {0, 1} {0} low (by decide) P.low_nonneg hlow_iff r (y := y)
   have hwin_eq (y q : MetricGraph W) (hqy : q ≠ y) (S : Finset (Fin 3)) :
       E.win y q S ↔ (P.toTreeEMVS hT).win y q S := by
     have hSle : S.card ≤ 3 := by simpa only [Fintype.card_fin] using Finset.card_le_univ S
@@ -881,14 +859,11 @@ theorem isStrategyProof_surjective_anonymous_iff_threeLeafScheme [Nonempty V]
         h0 | h1 | h2 | h3
       · rw [Finset.card_eq_zero.mp h0]
         exact iff_of_false (E.empty_false hq₀) (by rintro (⟨_, h⟩ | ⟨_, h⟩ | h) <;> simp at h)
-      · have hc1 : S.card = ({0} : Finset (Fin 3)).card := by simp [h1]
-        rw [win_congr_card_of_isAnonymous hT E hf_anon hq₀ hc1, hP₁]
-        refine ⟨fun h => Or.inl ⟨h, by omega⟩, fun h => ?_⟩
-        rcases h with ⟨h, _⟩ | ⟨_, h⟩ | h <;> first | exact h | omega
-      · have hc2 : S.card = ({0, 1} : Finset (Fin 3)).card := by simp [h2]
-        rw [win_congr_card_of_isAnonymous hT E hf_anon hq₀ hc2, hP₂]
-        refine ⟨fun h => Or.inr (Or.inl ⟨h, by omega⟩), fun h => ?_⟩
-        rcases h with ⟨h, _⟩ | ⟨h, _⟩ | h <;> first | exact h12 h | exact h | omega
+      · rw [win_congr_card_of_isAnonymous hT E hf_anon hq₀ (S₂ := {0}) (by simp [h1]), hP₁]
+        exact ⟨fun h => .inl ⟨h, by omega⟩, fun h => h.elim And.left fun _ => by omega⟩
+      · rw [win_congr_card_of_isAnonymous hT E hf_anon hq₀ (S₂ := {0, 1}) (by simp [h2]), hP₂]
+        exact ⟨fun h => .inr (.inl ⟨h, by omega⟩),
+          fun h => h.elim (h12 ∘ And.left) fun h => h.elim And.left fun _ => by omega⟩
       · rw [Finset.eq_univ_of_card S (by simpa using h3)]
         exact iff_of_true (E.univ_true hq₀) (Or.inr (Or.inr (by decide)))
     have hwin_out (r : Fin 3) (hy : y ∈ interval T.center (T.leaf r)) (hyl : y ≠ T.leaf r) :
@@ -898,7 +873,8 @@ theorem isStrategyProof_surjective_anonymous_iff_threeLeafScheme [Nonempty V]
     have hwin_in (r : Fin 3) (hy : y ∈ interval T.center (T.leaf r)) (hyc : y ≠ T.center) :
         E.win y T.center S ↔ P.inwardWin r (dist T.center y) S :=
       hwin_card T.center hyc.symm (fun h => (P.low_le_high r).trans_lt h)
-        (hin1_iff r hy hyc) (hin2_iff r hy hyc)
+        (hin_iff {0} {0, 1} high (by decide) P.high_nonneg hhigh_iff r hy hyc)
+        (hin_iff {0, 1} {0} low (by decide) P.low_nonneg hlow_iff r hy hyc)
     obtain ⟨r, hy⟩ := T.cover y
     by_cases hyc : y = T.center
     · subst hyc
@@ -909,9 +885,7 @@ theorem isStrategyProof_surjective_anonymous_iff_threeLeafScheme [Nonempty V]
       refine ⟨fun hw => Or.inl ⟨s, left_mem_interval _ _, (T.leaf_ne_center s).symm,
         mem_branch_self (T.leaf_ne_center s), hw⟩, ?_⟩
       rintro (⟨s', _, _, hqm, hw⟩ | ⟨_, _, hne, _, _⟩)
-      · obtain rfl : s = s' := by_contra fun hne =>
-          branch_center_ne_of_ne hT hne (branch_eq_of_mem hT hqm)
-        exact hw
+      · exact by_contra (fun hne => branch_center_ne_of_ne hT hne (branch_eq_of_mem hT hqm)) ▸ hw
       · exact absurd rfl hne
     · rcases branch_eq_outward_or_inward hT hy hyc hqy with ⟨hyl, hbr⟩ | hbr
       · rw [E.branch_eq hqy hyl.symm hbr, (P.toTreeEMVS hT).branch_eq hqy hyl.symm hbr,

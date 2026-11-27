@@ -61,17 +61,13 @@ theorem stepCoins_ofDeterministic (M : MultiTapeTM k Bool State) (coins : List B
   induction coins generalizing c with
   | nil => rfl
   | cons bit coins ih =>
-    rw [MultiTapePTM.stepCoins_cons, ih]
-    have hstep : ((MultiTapePTM.ofDeterministic M).withCoin bit).toTM.step c = M.step c := by
-      cases hs : c.state with
-      | none =>
-        rw [MultiTapeTM.step_of_halt hs, MultiTapeTM.step_of_halt hs]
-      | some state =>
-        rw [MultiTapeTM.step_of_state hs, MultiTapeTM.step_of_state hs,
-          MultiTapeMachine.toTM, MultiTapeTM.tr_ofTr]
-        rfl
-    rw [hstep]
-    exact (M.runFrom_succ_eq_step c coins.length).symm
+    rw [MultiTapePTM.stepCoins_cons, ih, List.length_cons, M.runFrom_succ_eq_step]
+    congr 1
+    cases hs : c.state
+    · rw [MultiTapeTM.step_of_halt hs, MultiTapeTM.step_of_halt hs]
+    · rw [MultiTapeTM.step_of_state hs, MultiTapeTM.step_of_state hs,
+        MultiTapeMachine.toTM, MultiTapeTM.tr_ofTr]
+      rfl
 
 end Turing.MultiTapeTM
 
@@ -145,9 +141,7 @@ omit [NeZero b] in
 theorem value_succ_eq_none {n : ℕ} (h : value machine input b σ n = none) :
     value machine input b σ (n + 1) = none := by
   rw [value]
-  split_ifs with hi
-  · rw [h, gate_none]
-  · rfl
+  split_ifs <;> simp [h, gate_none]
 
 /-- The true run at an interval boundary, with one fixed false coin per step. -/
 @[expose] noncomputable def boundary (n : ℕ) : Cfg k Bool State input :=
@@ -265,13 +259,8 @@ private theorem move_iff (i : Fin q) :
   change ((actualSchedule machine input b (q := q) i head : SignType) : ℤ) =
     (boundary machine input b (q := q) (i + 1)).blockIndex b head -
       (boundary machine input b (q := q) i).blockIndex b head at h
-  constructor
-  · intro hm
-    have heq : (actualSchedule machine input b (q := q) i head : ℤ) = σ i head := by omega
-    exact sign_cast_injective heq
-  · intro hs
-    rw [hs] at h
-    omega
+  exact ⟨fun hm => sign_cast_injective (by dsimp only; omega),
+    fun hs => by rw [hs] at h; omega⟩
 
 private theorem gate_true (i : Fin q) (hσ : Prefix machine input b σ i)
     (providers : Fin k → Fin 3 → Option (View k State b))
@@ -286,14 +275,8 @@ private theorem gate_true (i : Fin q) (hσ : Prefix machine input b σ i)
     enteringWindow_true machine input b σ i hσ providers hp]
   have hindex := boundary_index machine input b σ i.isLt.le hσ
   rw [← hindex, machine.intervalStep_view_iff b _ (by simp),
-    ← boundary_succ machine input b i.isLt, move_iff]
-  rw [hindex]
-  change (_ = v.1 ∧ _ = v.2 ∧ _) ↔ _ ∧ v = (_, _)
-  constructor
-  · rintro ⟨hc, hw, hm⟩
-    exact ⟨hm, Prod.ext hc.symm hw.symm⟩
-  · rintro ⟨hm, rfl⟩
-    exact ⟨rfl, rfl, hm⟩
+    ← boundary_succ machine input b i.isLt, move_iff, hindex]
+  exact ⟨fun ⟨hc, hw, hm⟩ => ⟨hm, Prod.ext hc.symm hw.symm⟩, fun ⟨hm, hv⟩ => hv ▸ ⟨rfl, rfl, hm⟩⟩
 
 /-- A successful interval value is exactly the true leaving view, and validates every movement
 label in its prefix. In particular, success at the root validates all earlier labels. -/
@@ -340,40 +323,32 @@ theorem value_eq_some_iff {n : ℕ} (hn : n ≤ q) (v : View k State b) :
           · exact hσ j hj
           · exact (Fin.ext hj : j = i) ▸ h⟩
       rw [hprefix]
-    · have hvn : value machine input b σ n = none := by
-        cases hv : value machine input b σ n with
-        | none => rfl
-        | some w => exact (hσ ((hprev w).mp hv).1).elim
+    · have hvn : value machine input b σ n = none :=
+        Option.eq_none_iff_forall_not_mem.mpr fun w hw => hσ ((hprev w).mp hw).1
       rw [hvn, gate_none]
-      exact ⟨fun h => (by cases h), fun ⟨hp, _⟩ => (hσ fun j hj => hp j (by omega)).elim⟩
+      exact ⟨nofun, fun ⟨hp, _⟩ => (hσ fun j hj => hp j (Nat.lt_succ_of_lt hj)).elim⟩
 
 /-- At the final boundary, every guessed label has been validated. -/
 theorem value_final_eq_some_iff (v : View k State b) :
     value machine input b σ q = some v ↔
       actualSchedule machine input b (q := q) = σ ∧ v = trueView machine input b σ q := by
-  rw [value_eq_some_iff machine input b σ le_rfl,
-    show Prefix machine input b σ q ↔ actualSchedule machine input b (q := q) = σ from
-      ⟨fun h => funext fun j => h j j.isLt, fun h j _ => congrFun h j⟩]
+  have hpref : Prefix machine input b σ q ↔ actualSchedule machine input b (q := q) = σ :=
+    ⟨fun h => funext fun j => h j j.isLt, fun h j _ => congrFun h j⟩
+  rw [value_eq_some_iff machine input b σ le_rfl, hpref]
 
 /-- A wrong complete movement guess fails at the final boundary. -/
 theorem value_final_eq_none_iff :
     value machine input b σ q = none ↔ actualSchedule machine input b (q := q) ≠ σ := by
-  refine ⟨fun hfail heq => ?_, fun hwrong => ?_⟩
-  · have hgood := (value_final_eq_some_iff machine input b σ
-      (trueView machine input b σ q)).mpr ⟨heq, rfl⟩
-    rw [hfail] at hgood; cases hgood
-  · cases hv : value machine input b σ q with
-    | none => rfl
-    | some v => exact (hwrong ((value_final_eq_some_iff machine input b σ v).mp hv).1).elim
+  rw [Option.eq_none_iff_forall_not_mem]
+  simp [Option.mem_def, value_final_eq_some_iff]
 
 omit [NeZero b] in
 /-- The fixed-coin boundaries of a deterministic embedding are the native machine boundaries. -/
 theorem boundary_ofDeterministic (M : MultiTapeTM k Bool State) {n : ℕ} (hn : n ≤ q) :
     boundary (ofDeterministic M) input b (q := q) n =
       M.runFrom (Cfg.init M.q₀ input) (n * b) := by
-  rw [boundary, intervalStart, MultiTapeTM.stepCoins_ofDeterministic]
-  simp only [List.length_take, List.length_replicate,
-    Nat.min_eq_left (Nat.mul_le_mul_right b hn)]
+  rw [boundary, intervalStart, MultiTapeTM.stepCoins_ofDeterministic, List.length_take,
+    List.length_replicate, Nat.min_eq_left (Nat.mul_le_mul_right b hn)]
   rfl
 
 end Turing.MultiTapePTM.BlockComputation

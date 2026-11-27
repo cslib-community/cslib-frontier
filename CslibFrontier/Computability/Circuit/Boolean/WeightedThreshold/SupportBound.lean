@@ -77,8 +77,7 @@ theorem sum_inputDegree (p : Program signature n g) :
   classical
   simp only [inputDegree, card_filter]
   rw [sum_comm]
-  apply sum_congr rfl
-  intro gate _
+  refine sum_congr rfl fun gate _ => ?_
   rw [← card_filter]
   simp [inputSupport]
 
@@ -90,9 +89,7 @@ theorem exists_fixed_inputs_of_inputSupport_card_le (p : Program signature n g)
       (T + 1) * F.card ≤ d * (inputGates p).card := by
   classical
   let F := univ.filter fun i => T < inputDegree p i
-  refine ⟨F, ?_, ?_⟩
-  · intro i hi
-    simpa [F] using hi
+  refine ⟨F, fun i hi => by simpa [F] using hi, ?_⟩
   · calc
       (T + 1) * F.card = ∑ _i ∈ F, (T + 1) := by simp [mul_comm]
       _ ≤ ∑ i ∈ F, inputDegree p i := sum_le_sum fun i hi =>
@@ -116,18 +113,15 @@ private theorem mem_residualSupport (p : Program signature n g) (F : Finset (Fin
 
 private theorem card_residualSupport_le (p : Program signature n g) (F : Finset (Fin n))
     (gate : Fin g) :
-    (residualSupport p F gate).card ≤ (inputSupport p gate).card := by
-  classical
-  rw [residualSupport, card_subtype]
-  exact card_filter_le _ _
+    (residualSupport p F gate).card ≤ (inputSupport p gate).card :=
+  open scoped Classical in (card_subtype _ _).trans_le (card_filter_le _ _)
 
 private theorem card_filter_inputGates (p : Program signature n g) (P : Fin g → Prop)
     [DecidablePred P] (hP : ∀ gate, P gate → gate ∈ inputGates p) :
     (univ.filter fun gate : inputGates p => P gate.val).card = (univ.filter P).card := by
   classical
   rw [← card_image_of_injective _ Subtype.val_injective]
-  congr 1
-  ext gate
+  refine congrArg card (ext fun gate => ?_)
   simp only [mem_image, mem_filter, mem_univ, true_and]
   exact ⟨fun ⟨_, hj, h⟩ => h ▸ hj, fun hg => ⟨⟨gate, hP gate hg⟩, hg, rfl⟩⟩
 
@@ -144,8 +138,7 @@ private theorem cut_deficit_lt_of_rectangleFree (p : Program signature n g)
   obtain ⟨P, Q, v, hv, hP, hQ⟩ := exists_rectangle_of_cut_with_fixed p U A B
   have hPK := le_card_of_pow_le hP h.1 hK
   have hQK := le_card_of_pow_le hQ h.2 hK
-  have hmono : ∀ x ∈ P, ∀ y ∈ Q, f (glue U x y) = readout v := by
-    intro x hx y hy
+  have hmono : ∀ x ∈ P, ∀ y ∈ Q, f (glue U x y) = readout v := fun x hx y hy => by
     rw [← hreadout, hv x hx y hy]
   rcases card_lt_or_card_lt_of_rectangleFree hf U P Q (readout v) hmono with h | h <;> omega
 
@@ -158,10 +151,8 @@ private theorem disjoint_deficit_lt (p : Program signature n g)
       V.card < (univ.filter fun j => ¬ Disjoint (inputSupport p j) V).card + k := by
   classical
   have hV : V ⊆ Uᶜ := subset_compl_iff_disjoint_right.mpr hUV.symm
-  have hcard : Uᶜ.card - (Uᶜ \ V).card = V.card := by
-    rw [card_sdiff_of_subset hV]
-    have := card_le_card hV
-    omega
+  have hcard : Uᶜ.card - (Uᶜ \ V).card = V.card :=
+    card_sdiff_of_subset hV ▸ Nat.sub_sub_self (card_le_card hV)
   have hleft (j : Fin g) :
       inputSupport p j ∩ U ⊆ ∅ ↔ Disjoint (inputSupport p j) U :=
     subset_empty.trans disjoint_iff_inter_eq_empty.symm
@@ -242,14 +233,12 @@ theorem le_inputGates_of_bounded_incidence (p : Program signature n g)
   have hcard : Fintype.card ↥Fᶜ + F.card = n := by
     simpa only [Fintype.card_coe, Fintype.card_fin] using card_compl_add_card F
   have hcardR : (Fintype.card ↥Fᶜ : ℝ) + F.card = n := by exact_mod_cast hcard
-  have hle : (Fintype.card ↥Fᶜ : ℝ) ≤ n := by
-    linarith [show (0 : ℝ) ≤ F.card by positivity]
+  have hfc0 : (0 : ℝ) ≤ F.card := Nat.cast_nonneg _
   have hroot : 2 * Real.sqrt (Fintype.card ↥Fᶜ / 2) ≤ Real.sqrt (2 * (n : ℝ)) := by
-    have hleft := Real.sq_sqrt (show 0 ≤ (Fintype.card ↥Fᶜ : ℝ) / 2 by positivity)
-    have hright := Real.sq_sqrt (show 0 ≤ 2 * (n : ℝ) by positivity)
-    nlinarith [Real.sqrt_nonneg ((Fintype.card ↥Fᶜ : ℝ) / 2),
-      Real.sqrt_nonneg (2 * (n : ℝ))]
-  have hmul := mul_le_mul_of_nonneg_left hroot (show (0 : ℝ) ≤ D + 1 by positivity)
+    have hleft := Real.sq_sqrt (by positivity : 0 ≤ (Fintype.card ↥Fᶜ : ℝ) / 2)
+    have hright := Real.sq_sqrt (by positivity : 0 ≤ 2 * (n : ℝ))
+    nlinarith [Real.sqrt_nonneg ((Fintype.card ↥Fᶜ : ℝ) / 2), Real.sqrt_nonneg (2 * (n : ℝ))]
+  have hmul := mul_le_mul_of_nonneg_left hroot (by positivity : (0 : ℝ) ≤ D + 1)
   rw [Fintype.card_coe (inputGates p)] at h
   nlinarith
 
@@ -324,13 +313,11 @@ theorem two_mul_lt_inputGates_of_inputSupport_card_le_three (p : Program signatu
   have hcardR : (Fintype.card ↥Fᶜ : ℝ) + F.card = n := by exact_mod_cast hcard
   have hFR : (F.card : ℝ) ≤ (3 : ℝ) / (T + 1) * (inputGates p).card := by
     rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity : (0 : ℝ) < T + 1)]
-    have h' : ((T + 1 : ℕ) : ℝ) * F.card ≤ (3 : ℝ) * (inputGates p).card :=
-      by exact_mod_cast hF
+    have h' : ((T + 1 : ℕ) : ℝ) * F.card ≤ (3 : ℝ) * (inputGates p).card := mod_cast hF
     push_cast at h'
     nlinarith
-  have hcoeff : (6 : ℝ) / (T + 1) = 2 * (3 / (T + 1)) := by ring
-  rw [hcoeff]
-  nlinarith
+  rw [div_eq_mul_inv] at hFR ⊢
+  linarith
 
 /-- The incidence lower bound for a native single-output threshold circuit whose output
 selects a gate, assuming each gate reads at most three original inputs. -/
@@ -341,10 +328,9 @@ theorem circuit_two_mul_lt_of_inputSupport_card_le_three (c : Circuit signature 
     (hsupport : ∀ gate, (inputSupport c.program gate).card ≤ 3)
     (T : ℕ) (hK : K ≤ 2 ^ k) :
     (2 * n : ℝ) < (3 + 6 / (T + 1 : ℝ)) * (inputGates c.program).card +
-      (max 3 T : ℕ) * (Nat.log 2 (n + (inputGates c.program).card) : ℝ) + 6 * k + 1 := by
-  obtain ⟨gate, hgate⟩ := houtput
-  apply two_mul_lt_inputGates_of_inputSupport_card_le_three
-    c.program (fun z => z gate) ?_ hf hsupport T hK
-  simpa only [Circuit.eval_of_output_eq_gate hgate] using hcomputes
+      (max 3 T : ℕ) * (Nat.log 2 (n + (inputGates c.program).card) : ℝ) + 6 * k + 1 :=
+  let ⟨gate, hgate⟩ := houtput
+  two_mul_lt_inputGates_of_inputSupport_card_le_three c.program (· gate)
+    (by simpa only [Circuit.eval_of_output_eq_gate hgate] using hcomputes) hf hsupport T hK
 
 end Cslib.Circuits.Boolean.WeightedThreshold

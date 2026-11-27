@@ -115,8 +115,7 @@ theorem realRows_apply (B : Vector (Vector ℤ m) n) (i : Fin n) :
 
 theorem inner_realRows (B : Vector (Vector ℤ m) n) (i j : Fin n) :
     inner ℝ (realRows B i) (realRows B j) = ((dotProduct (rows B i) (rows B j) : ℤ) : ℝ) := by
-  rw [realRows_apply, realRows_apply, inner_ratToEuclidean]
-  simp [dotProduct, rows]
+  simp [realRows_apply, inner_ratToEuclidean, dotProduct, rows]
 
 theorem norm_sq_realRows (B : Vector (Vector ℤ m) n) (i : Fin n) :
     ‖realRows B i‖ ^ 2 = ((dotProduct (rows B i) (rows B i) : ℤ) : ℝ) := by
@@ -166,9 +165,7 @@ theorem isGramSchmidtRows_gramSchmidtRows (B : Vector (Vector ℤ m) n) :
 theorem IsGramSchmidtRows.of_isSizeStep {G : Vector (Vector ℚ m) n} {B C : Vector (Vector ℤ m) n}
     (hG : IsGramSchmidtRows G B) (h : IsSizeStep (realRows B) (realRows C)) :
     IsGramSchmidtRows G C := by
-  intro j
-  rw [h.gramSchmidt_eq]
-  exact hG j
+  exact fun j => (hG j).trans (congrFun h.gramSchmidt_eq.symm j)
 
 /-- `μᵢⱼ = ⟨b*ⱼ, bᵢ⟩ / ‖b*ⱼ‖²`, computed from the Gram–Schmidt rows `G`. -/
 def gsCoeff (G : Vector (Vector ℚ m) n) (B : Vector (Vector ℤ m) n) (i j : Fin n) : ℚ :=
@@ -249,14 +246,12 @@ theorem reduceRow_spec (G : Vector (Vector ℚ m) n) (i : Fin n) :
     (∀ l : Fin n, t ≤ (l : ℕ) → l < i →
       gramSchmidtCoeff ℝ (realRows (reduceRow G i t B)) i l =
         gramSchmidtCoeff ℝ (realRows B) i l) := by
-  intro t
-  induction t with
+  intro t B ht hG hli
+  induction t generalizing B with
   | zero =>
-    intro B _ _ _
     exact ⟨Relation.ReflTransGen.refl, fun _ _ => rfl, fun l hl => absurd hl (Nat.not_lt_zero _),
       fun _ _ _ => rfl⟩
   | succ t ih =>
-    intro B ht hG hli
     have htn : t < n := by have := i.isLt; omega
     have hti : (⟨t, htn⟩ : Fin n) < i := by simp only [Fin.lt_def]; omega
     simp only [reduceRow, htn, dite_true]
@@ -290,17 +285,13 @@ theorem span_reduceRow (G : Vector (Vector ℚ m) n) (i : Fin n) :
     ∀ (t : ℕ) (B : Vector (Vector ℤ m) n), t ≤ i →
     Submodule.span ℤ (Set.range (rows (reduceRow G i t B))) =
       Submodule.span ℤ (Set.range (rows B)) := by
-  intro t
-  induction t with
-  | zero => intro B _; rfl
+  intro t B ht
+  induction t generalizing B with
+  | zero => rfl
   | succ t ih =>
-    intro B ht
     have htn : t < n := by omega
-    have hti : (⟨t, htn⟩ : Fin n) < i := by
-      change t < (i : ℕ); omega
     simp only [reduceRow, htn, dite_true]
-    rw [ih _ (by omega), reduceStep, rows_subRow,
-      Submodule.span_range_update_sub_smul (ne_of_lt hti)]
+    rw [ih _ (by omega), span_reduceStep _ _ (Fin.mk_lt_mk.2 (by omega))]
 
 /-! ### Exchange -/
 
@@ -309,11 +300,7 @@ theorem rows_swap (B : Vector (Vector ℤ m) n) (i j : Fin n) :
   funext l k
   simp only [rows, Function.comp_apply, Fin.getElem_fin, Vector.getElem_swap,
     Equiv.swap_apply_def]
-  rcases eq_or_ne l i with rfl | h1
-  · simp
-  · rcases eq_or_ne l j with rfl | h2
-    · simp [h1, Fin.val_ne_of_ne h1]
-    · simp [h1, h2, Fin.val_ne_of_ne h1, Fin.val_ne_of_ne h2]
+  grind [Fin.ext_iff]
 
 theorem realRows_swap (B : Vector (Vector ℤ m) n) (i j : Fin n) :
     realRows (B.swap i j) = realRows B ∘ Equiv.swap i j := by
@@ -406,9 +393,9 @@ theorem PrefixReduced.succ {δ : ℝ} {b : Fin n → E} {k : ℕ} (hb : PrefixRe
       exact hsize j hji
   · rcases Nat.lt_succ_iff_lt_or_eq.1 hj with hj | hj
     · exact hb.2 i j hj hij
-    · have hk1 : k - 1 < n := by omega
-      obtain rfl : j = ⟨k, hk⟩ := Fin.ext hj
-      obtain rfl : i = ⟨k - 1, hk1⟩ := Fin.ext (by simp only at hij ⊢; omega)
+    · obtain rfl : j = ⟨k, hk⟩ := Fin.ext hj
+      obtain rfl : i = ⟨k - 1, (Nat.sub_le k 1).trans_lt hk⟩ :=
+        Fin.ext (by simp only at hij ⊢; omega)
       exact hex (by simp only at hij; omega)
 
 end Prefix
@@ -434,11 +421,10 @@ def lllLoop (δ : ℚ) : ℕ → Vector (Vector ℤ m) n → ℕ → Vector (Vec
 theorem span_lllLoop (δ : ℚ) : ∀ (fuel : ℕ) (B : Vector (Vector ℤ m) n) (k : ℕ),
     Submodule.span ℤ (Set.range (rows (lllLoop δ fuel B k))) =
       Submodule.span ℤ (Set.range (rows B)) := by
-  intro fuel
-  induction fuel with
-  | zero => intro B k; rfl
+  intro fuel B k
+  induction fuel generalizing B k with
+  | zero => rfl
   | succ fuel ih =>
-    intro B k
     rw [lllLoop]
     dsimp only
     split_ifs with hk h0 hex
@@ -464,10 +450,8 @@ theorem lllLoop_spec {δ : ℚ} (hδ0 : 0 < δ) : ∀ (fuel : ℕ) (B : Vector (
   induction fuel with
   | zero =>
     intro B k s hli hpre hpot hfuel
-    have hs : s = 0 := by omega
-    subst hs
-    rw [pow_zero] at hpot
-    exact absurd hpot (not_lt.2 (hpos B hli))
+    obtain rfl : s = 0 := by omega
+    exact absurd (pow_zero ((δ : ℝ)⁻¹) ▸ hpot) (not_lt.2 (hpos B hli))
   | succ fuel ih =>
     intro B k s hli hpre hpot hfuel
     rw [lllLoop]
@@ -488,8 +472,6 @@ theorem lllLoop_spec {δ : ℚ} (hδ0 : 0 < δ) : ∀ (fuel : ℕ) (B : Vector (
       set B₁ := reduceStep (gramSchmidtRows B) B ⟨k, hk⟩ ⟨k - 1, by omega⟩ with hB₁
       have hG₁ : IsGramSchmidtRows (gramSchmidtRows B) B₁ := hG.of_isSizeStep hstep
       have hli₁ := hstep.linearIndependent hli
-      have hrow₁ : ∀ i : Fin n, i ≠ ⟨k, hk⟩ → rows B₁ i = rows B i := fun i hi =>
-        rows_reduceStep_of_ne _ _ hi
     · -- Case 2: the exchange condition holds; reduce the rest of row `k` and advance.
       obtain ⟨h1, h2, h3, h4⟩ :=
         reduceRow_spec (gramSchmidtRows B) ⟨k, hk⟩ (k - 1) B₁ (by simp only; omega) hG₁ hli₁
@@ -499,15 +481,16 @@ theorem lllLoop_spec {δ : ℚ} (hδ0 : 0 < δ) : ∀ (fuel : ℕ) (B : Vector (
       have hpre' : PrefixReduced (δ : ℝ) (realRows B') k :=
         hpre.congr fun i hi => by
           have hne : i ≠ ⟨k, hk⟩ := Fin.ne_of_lt hi
-          simp only [realRows, Function.comp_apply, h2 i hne, hrow₁ i hne]
+          simp only [realRows, Function.comp_apply, h2 i hne, hB₁, rows_reduceStep_of_ne _ _ hne]
       have hmu : gramSchmidtCoeff ℝ (realRows B') ⟨k, hk⟩ ⟨k - 1, by omega⟩ =
           gramSchmidtCoeff ℝ (realRows B₁) ⟨k, hk⟩ ⟨k - 1, by omega⟩ :=
         h4 _ (by simp only; omega) hk1
       refine hpre'.succ hk (fun l hl => ?_) fun _ => ?_
       · rcases Nat.lt_or_ge (l : ℕ) (k - 1) with hl' | hl'
         · exact h3 l hl'
-        · rw [show l = ⟨k - 1, by omega⟩ from Fin.ext (by simp only; omega), hmu]
-          exact hG.abs_gramSchmidtCoeff_reduceStep_le hk1 hli
+        · obtain rfl : l = ⟨k - 1, (Nat.sub_le k 1).trans_lt hk⟩ :=
+            Fin.ext (by simp only; omega)
+          exact hmu ▸ hG.abs_gramSchmidtCoeff_reduceStep_le hk1 hli
       · simpa only [ExchangeCondAt, (reflTransGen_isSizeStep h1).1, hmu] using
           (hG₁.exchangeCondQ_iff δ hk1).1 hex
     · -- Case 1: the exchange condition fails; swap `bₖ₋₁, bₖ` and step back.
@@ -523,7 +506,7 @@ theorem lllLoop_spec {δ : ℚ} (hδ0 : 0 < δ) : ∀ (fuel : ℕ) (B : Vector (
         have hne1 : i ≠ ⟨k - 1, by omega⟩ := Fin.ne_of_lt hi
         have hne2 : i ≠ ⟨k, hk⟩ := Fin.ne_of_lt (Fin.lt_def.2 (by simp only; omega))
         rw [realRows_swapRows, Function.comp_apply, Equiv.swap_apply_of_ne_of_ne hne1 hne2]
-        simp only [realRows, Function.comp_apply, hrow₁ i hne2]
+        simp only [realRows, Function.comp_apply, hB₁, rows_reduceStep_of_ne _ _ hne2]
       · calc potential (realRows (swapRows B₁ ⟨k - 1, by omega⟩ ⟨k, hk⟩))
             < (δ : ℝ) * potential (realRows B₁) := hswap.potential_lt hli₁
           _ = (δ : ℝ) * potential (realRows B) := by rw [hstep.potential_eq]
@@ -538,13 +521,11 @@ def sqNormSum (B : Vector (Vector ℤ m) n) : ℕ :=
 
 theorem norm_sq_realRows_le (B : Vector (Vector ℤ m) n) (i : Fin n) :
     ‖realRows B i‖ ^ 2 ≤ (sqNormSum B : ℝ) := by
-  have hterm : ∀ j, 0 ≤ dotProduct (rows B j) (rows B j) :=
-    fun j => Finset.sum_nonneg fun _ _ => mul_self_nonneg _
-  have hle : dotProduct (rows B i) (rows B i) ≤ ∑ j, dotProduct (rows B j) (rows B j) :=
-    Finset.single_le_sum (fun j _ => hterm j) (Finset.mem_univ i)
+  have hterm (j : Fin n) : 0 ≤ dotProduct (rows B j) (rows B j) :=
+    Finset.sum_nonneg fun _ _ => mul_self_nonneg _
   rw [norm_sq_realRows, ← Int.cast_natCast, sqNormSum,
     Int.toNat_of_nonneg (Finset.sum_nonneg fun j _ => hterm j)]
-  exact_mod_cast hle
+  exact_mod_cast Finset.single_le_sum (fun j _ => hterm j) (Finset.mem_univ i)
 
 /-- The number of exchange steps allowed by the potential argument: `3 (⌊log₂ B⌋ + 1) · n(n-1)/2`
 bounds `log_{4/3} B^{n(n-1)/2}`. -/
@@ -563,7 +544,7 @@ def swapBudgetOf (δ : ℚ) (n B : ℕ) : ℕ :=
   swapFactor δ * (Nat.log 2 B + 1) * (n * (n - 1) / 2)
 
 theorem swapFactor_three_div_four : swapFactor (3 / 4) = 3 := by
-  rw [swapFactor, show (3 / 4 : ℚ) / (1 - 3 / 4) = ((3 : ℕ) : ℚ) by norm_num, Nat.ceil_natCast]
+  norm_num [swapFactor]
 
 theorem swapBudgetOf_three_div_four (n B : ℕ) : swapBudgetOf (3 / 4) n B = swapBudget n B := by
   rw [swapBudgetOf, swapFactor_three_div_four, swapBudget]
@@ -644,9 +625,9 @@ theorem lll_eq_lllWith (B : Vector (Vector ℤ m) n) : lll B = lllWith (3 / 4) B
 independent. -/
 theorem isReduced_lll (B : Vector (Vector ℤ m) n) (hB : LinearIndependent ℝ (realRows B)) :
     IsReduced (3 / 4) (realRows (lll B)) ∧ LinearIndependent ℝ (realRows (lll B)) := by
-  have hδ : (3 / 4 : ℝ) = ((3 / 4 : ℚ) : ℝ) := by norm_num
-  rw [lll_eq_lllWith, hδ]
-  exact isReduced_lllWith (by norm_num) (by norm_num) B hB
+  have hq : (3 / 4 : ℝ) = ((3 / 4 : ℚ) : ℝ) := by norm_num
+  simpa only [lll_eq_lllWith, hq] using
+    isReduced_lllWith (δ := 3 / 4) (by norm_num) (by norm_num) B hB
 
 /-- LLL preserves the lattice. -/
 theorem span_lll (B : Vector (Vector ℤ m) n) :
@@ -655,8 +636,7 @@ theorem span_lll (B : Vector (Vector ℤ m) n) :
 
 theorem norm_sq_intToEuclidean (v : Fin m → ℤ) :
     ‖intToEuclidean v‖ ^ 2 = ((dotProduct v v : ℤ) : ℝ) := by
-  rw [intToEuclidean_eq_ratToEuclidean, norm_sq_ratToEuclidean]
-  simp [dotProduct]
+  simp [intToEuclidean_eq_ratToEuclidean, norm_sq_ratToEuclidean, dotProduct]
 
 /-- Proposition (1.11) of [LenstraLenstraLovasz1982] with the constant of the remark after
 (1.9): for `1/4 < δ < 1` and `n + 1` linearly independent integer rows, the first row of
@@ -668,13 +648,10 @@ theorem dotProduct_lllWith_zero_le {δ : ℚ} (hδ : 1 / 4 < δ) (hδ1 : δ < 1)
     ((dotProduct (rows (lllWith δ B) 0) (rows (lllWith δ B) 0) : ℤ) : ℚ) ≤
       (4 / (4 * δ - 1)) ^ n * ((dotProduct x x : ℤ) : ℚ) := by
   obtain ⟨hred, -⟩ := isReduced_lllWith (by linarith) hδ1 B hB
-  have hmem : intToEuclidean x ∈ Submodule.span ℤ (Set.range (realRows (lllWith δ B))) := by
-    rw [span_realRows, span_lllWith]
-    exact Submodule.mem_map_of_mem hx
-  have hne : intToEuclidean x ≠ 0 := fun h =>
-    hx0 (intToEuclidean_injective (h.trans (map_zero _).symm))
   have h := hred.norm_sq_le (by simpa using Rat.cast_lt (K := ℝ).2 hδ)
-    (by exact_mod_cast hδ1.le) hmem hne
+    (by exact_mod_cast hδ1.le)
+    (by simpa only [span_realRows, span_lllWith] using Submodule.mem_map_of_mem hx)
+    ((map_ne_zero_iff _ intToEuclidean_injective).2 hx0)
   rw [norm_sq_intToEuclidean, norm_sq_realRows] at h
   exact_mod_cast h
 
@@ -686,7 +663,7 @@ theorem dotProduct_lll_zero_le (B : Vector (Vector ℤ m) (n + 1))
     (hx : x ∈ Submodule.span ℤ (Set.range (rows B))) (hx0 : x ≠ 0) :
     dotProduct (rows (lll B) 0) (rows (lll B) 0) ≤ 2 ^ n * dotProduct x x := by
   have h := dotProduct_lllWith_zero_le (δ := 3 / 4) (by norm_num) (by norm_num) B hB hx hx0
-  rw [← lll_eq_lllWith, show (4 : ℚ) / (4 * (3 / 4) - 1) = 2 by norm_num] at h
+  norm_num [← lll_eq_lllWith] at h
   exact_mod_cast h
 
 /-- A decidable criterion for the hypothesis of `isReduced_lll`: the integer Gram determinant
@@ -694,10 +671,10 @@ is nonzero. -/
 theorem linearIndependent_realRows_iff (B : Vector (Vector ℤ m) n) :
     LinearIndependent ℝ (realRows B) ↔
       (Matrix.of fun i j => dotProduct (rows B i) (rows B j)).det ≠ 0 := by
-  rw [← Matrix.det_gram_ne_zero_iff_linearIndependent (𝕜 := ℝ)]
   have h : Matrix.gram ℝ (realRows B) =
-      (Int.castRingHom ℝ).mapMatrix (Matrix.of fun i j => dotProduct (rows B i) (rows B j)) := by
-    ext i j; exact inner_realRows B i j
-  rw [h, ← RingHom.map_det, eq_intCast, Int.cast_ne_zero]
+      (Int.castRingHom ℝ).mapMatrix (Matrix.of fun i j => dotProduct (rows B i) (rows B j)) :=
+    Matrix.ext (inner_realRows B)
+  rw [← Matrix.det_gram_ne_zero_iff_linearIndependent (𝕜 := ℝ), h, ← RingHom.map_det, eq_intCast,
+    Int.cast_ne_zero]
 
 end Cslib.Algorithms.LatticeReduction

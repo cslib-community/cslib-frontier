@@ -73,12 +73,10 @@ theorem exec {w M : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ) (hM : 0 
           ((Finset.range (x.regs (CountCall.length j))).image (values j)) M ∧
         ∀ i, 28 ≤ i.val → i ≠ CountCall.result j → z.regs i = y.regs i := by
     obtain ⟨hr, hm⟩ := hy
-    have hl : y.regs (CountCall.length j) = x.regs (CountCall.length j) :=
-      hr _ (by dsimp [P, CountCall.length]; omega)
-    have hb : y.regs (CountCall.source j) = x.regs (CountCall.source j) :=
-      hr _ (by dsimp [P, CountCall.source]; omega)
-    have hws : y.regs CountCall.scratch = x.regs CountCall.scratch := hr _ (by decide)
-    have hwh : y.regs CountCall.histogram = x.regs CountCall.histogram := hr _ (by decide)
+    have hl := hr (CountCall.length j) (by fin_cases j <;> decide)
+    have hb := hr (CountCall.source j) (by fin_cases j <;> decide)
+    have hws := hr CountCall.scratch (by decide)
+    have hwh := hr CountCall.histogram (by decide)
     have hwm : y.regs CountCall.modulus = encode (M : ℤ) := by regs_frame
     obtain ⟨z, he, hzm, hzv, hzr⟩ := CountCall.exec j y (values j) hM hmod hwm
       (by simpa only [hl] using hfit j) (by simpa only [hb, hl] using hs j)
@@ -90,13 +88,9 @@ theorem exec {w M : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ) (hM : 0 
       (by simpa only [hl] using hinj j)
     refine ⟨z, by simpa only [hl] using he, ⟨fun i hi => (hzr i (by dsimp [P] at hi; omega)
       fun heq => ?_).trans (hr i hi), fun a ha => ?_⟩, by simpa only [hl] using hzv, hzr⟩
-    · have := congrArg Fin.val heq
-      dsimp [P, CountCall.result] at *
-      omega
+    · fin_cases j <;> exact absurd (heq ▸ hi) (by decide)
     · rw [hzm, Count.memory_before]
-      · exact hm a ha
-      · simpa only [hws] using ha
-      · have := hkd j; rw [hwh]; omega
+      exacts [hm a ha, hws.symm ▸ ha, by have := hkd j; omega]
   have hx : R x := ⟨fun _ _ => rfl, fun _ _ => rfl⟩
   obtain ⟨a, ha, hRa, hva, hfa⟩ := hcall 0 x hx
   obtain ⟨b, hb, hRb, hvb, hfb⟩ := hcall 1 a hRa

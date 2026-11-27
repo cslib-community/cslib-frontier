@@ -80,17 +80,14 @@ theorem IsEmbedding.exists_vertex_move_along_path {G : Graph} {D : PolygonalDraw
       have hk' : k ≤ n := (Nat.le_succ k).trans hk
       obtain ⟨E, hE, hv, hfixed, hroutes⟩ := ih hk'
       have hmove : ‖path (time (k + 1) hk) - E.vertex v‖ < r := by
-        rw [hv, ← dist_eq_norm]
-        exact hnear (step k hk hk')
+        simpa only [hv, dist_eq_norm] using hnear (step k hk hk')
       obtain ⟨F, hF, htarget, hvertices', hroutes'⟩ :=
         hE.exists_square_move hG v (path (time (k + 1) hk)) hr hmove
       refine ⟨F, hF, htarget, fun w hw hne => ?_, fun e he => ?_⟩
-      · rw [hvertices' w ?_, hfixed w hw hne]
-        rw [hv, hfixed w hw hne]
-        exact outside _ (hvertices w hw hne)
-      · rw [hroutes' e ?_, hroutes e he]
-        rw [hroutes e he, hv]
-        exact fun z hz => outside _ (hkeep e he hz)
+      · rw [hvertices' w (hv ▸ hfixed w hw hne ▸ outside _ (hvertices w hw hne)),
+          hfixed w hw hne]
+      · rw [hroutes' e fun z hz => hv ▸ outside _ (hkeep e he (hroutes e he ▸ hz)),
+          hroutes e he]
   simpa only [show time n le_rfl = 1 from Subtype.ext (by simp [time, hnpos.ne']), path.target]
     using place n le_rfl
 
@@ -111,18 +108,13 @@ theorem IsEmbedding.exists_vertex_move_in_compl {G : Graph} {D : PolygonalDrawin
   let occupied := D.vertex '' names
   have hnames : names.Finite := G.vertices.finite_toSet.subset fun _ hw => hw.1
   have hoccupied : occupied.Finite := hnames.image D.vertex
-  have hrank : 1 < Module.rank ℝ ℂ := by
-    rw [Complex.rank_real_complex]
-    simpa only [Nat.cast_one, Nat.cast_ofNat] using
-      (Nat.cast_lt.mpr (by decide : 1 < 2) : (↑(1 : ℕ) : Cardinal) < ↑(2 : ℕ))
+  have hrank : 1 < Module.rank ℝ ℂ := by simp [Complex.rank_real_complex]
   have hpath :=
     (isPathConnected_sdiff_finite_of_isOpen hrank hK.isOpen_compl hconn hoccupied).joinedIn
       (D.vertex v) ⟨hsource, fun ⟨w, ⟨hw, hwv⟩, heq⟩ => hwv (hD.vertices_injective hw hv heq)⟩
       b ⟨htarget, fun ⟨w, ⟨hw, hwv⟩, heq⟩ => hvacant w hw hwv heq.symm⟩
   refine hD.exists_vertex_move_along_path hG v hpath.somePath (hK.union hoccupied.isClosed)
-    (?_) (fun w hw hwv => Or.inr ⟨w, ⟨hw, hwv⟩, rfl⟩) keep fun e he z hz => Or.inl (hkeep e he hz)
-  rintro z ⟨t, rfl⟩ (hz | hz)
-  · exact (hpath.somePath_mem t).1 hz
-  · exact (hpath.somePath_mem t).2 hz
+    (Set.range_subset_iff.mpr fun t h => h.elim (hpath.somePath_mem t).1 (hpath.somePath_mem t).2)
+    (fun w hw hwv => Or.inr ⟨w, ⟨hw, hwv⟩, rfl⟩) keep fun e he z hz => Or.inl (hkeep e he hz)
 
 end Cslib.Complexity.Graph.PolygonalDrawing

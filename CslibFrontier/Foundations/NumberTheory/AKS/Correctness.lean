@@ -66,20 +66,17 @@ open Polynomial Finset
 private theorem lt_minFac_of_gcd {n r : ℕ} (hn : 2 ≤ n) (hnp : ¬n.Prime)
     (hgcd : ∀ a, 1 ≤ a → a ≤ r → a.gcd n = 1 ∨ a.gcd n = n) : r < n.minFac := by
   have hq : n.minFac.Prime := Nat.minFac_prime (by omega)
-  have hlt : n.minFac < n := (Nat.not_prime_iff_minFac_lt hn).mp hnp
   have hg : n.minFac.gcd n = n.minFac := Nat.gcd_eq_left (Nat.minFac_dvd n)
   by_contra hle
-  rcases hgcd n.minFac hq.one_lt.le (not_lt.1 hle) with h | h
-  · exact hq.one_lt.ne' (hg ▸ h)
-  · exact hlt.ne (hg ▸ h)
+  exact (hgcd n.minFac hq.one_lt.le (not_lt.1 hle)).elim
+    (fun h => hq.one_lt.ne' (hg ▸ h))
+    (fun h => ((Nat.not_prime_iff_minFac_lt hn).mp hnp).ne (hg ▸ h))
 
 /-- **Step 4.** If `n ≤ r` and no `a ≤ r` has `1 < gcd(a, n) < n`, then `n` is prime. -/
 theorem prime_of_le_of_gcd {n r : ℕ} (hn : 2 ≤ n)
     (hgcd : ∀ a, 1 ≤ a → a ≤ r → a.gcd n = 1 ∨ a.gcd n = n) (hnr : n ≤ r) : n.Prime := by
   by_contra hnp
-  have := lt_minFac_of_gcd hn hnp hgcd
-  have := Nat.minFac_le (n := n) (by omega)
-  omega
+  linarith [lt_minFac_of_gcd hn hnp hgcd, Nat.minFac_le (Nat.zero_lt_of_lt hn)]
 
 /-- If `n` has positive multiplicative order modulo `r`, then `n` is coprime to `r`. -/
 theorem coprime_of_orderOf_pos {n r : ℕ} (h : 0 < orderOf (n : ZMod r)) : n.Coprime r :=
@@ -96,12 +93,9 @@ theorem exists_eq_pow_of_pow_mul_pow_eq {p q i j i' j' : ℕ} (hp : p.Prime) (hq
   · obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_lt hlt
     rw [pow_add, pow_add, mul_assoc, mul_assoc] at h
     have h' := Nat.eq_of_mul_eq_mul_left (pow_pos (Nat.pos_of_ne_zero hq) i) h
-    have hdvd : q ∣ p ^ j := ⟨q ^ d * p ^ j', by rw [h']; ring⟩
-    obtain ⟨s, -, hs⟩ := (Nat.dvd_prime_pow hp).mp hdvd
-    exact ⟨s, hs⟩
-  · have hj : p ^ j = p ^ j' :=
-      Nat.eq_of_mul_eq_mul_left (pow_pos (Nat.pos_of_ne_zero hq) i) h
-    exact (hne (Prod.ext rfl (Nat.pow_right_injective hp.two_le hj))).elim
+    exact ((Nat.dvd_prime_pow hp).mp ⟨q ^ d * p ^ j', by rw [h']; ring⟩).imp fun _ => And.right
+  · exact (hne (Prod.ext rfl (Nat.pow_right_injective hp.two_le
+      (Nat.eq_of_mul_eq_mul_left (pow_pos (Nat.pos_of_ne_zero hq) i) h)))).elim
 
 /-! ### Products of linear polynomials -/
 
@@ -129,11 +123,10 @@ theorem linProd_injective (hB : B < p) : Function.Injective (linProd (B := B) p)
   intro s s' h
   have hroots := congrArg Polynomial.roots h
   rw [linProd_eq, linProd_eq, roots_multiset_prod_X_sub_C, roots_multiset_prod_X_sub_C] at hroots
-  have hinj : Function.Injective fun a : Fin (B + 1) => -((a : ℕ) : ZMod p) := fun a b hab => by
-    simp only [neg_inj, ZMod.natCast_eq_natCast_iff'] at hab
-    rwa [Nat.mod_eq_of_lt (by omega : (a : ℕ) < p), Nat.mod_eq_of_lt (by omega : (b : ℕ) < p),
-      ← Fin.ext_iff] at hab
-  exact Sym.coe_injective (Multiset.map_injective hinj hroots)
+  refine Sym.coe_injective (Multiset.map_injective (fun a b hab => ?_) hroots)
+  simp only [neg_inj, ZMod.natCast_eq_natCast_iff'] at hab
+  rwa [Nat.mod_eq_of_lt (a.isLt.trans_le hB), Nat.mod_eq_of_lt (b.isLt.trans_le hB),
+    ← Fin.ext_iff] at hab
 
 /-- **The lower bound.** Let `S` be a set of more than `B` residues modulo `r`, each the residue
 of a number introspective for every product `∏_{a ∈ s} (X + a)`. If `B < p`, these `C(2B, B)`
@@ -146,14 +139,12 @@ theorem card_image_aeval_linProd [NeZero r] {ζ : K} (hζ : IsPrimitiveRoot ζ r
     (univ.image fun s : Sym (Fin (B + 1)) B => aeval ζ (linProd p s)).card = B.centralBinom := by
   classical
   rw [card_image_of_injective _ ?inj, card_univ, Sym.card_sym_eq_choose, Fintype.card_fin,
-    show B + 1 + B - 1 = 2 * B by omega, Nat.centralBinom_eq_two_mul_choose]
-  intro s s' hss'
-  simp only at hss'
+    Nat.add_right_comm, Nat.add_sub_cancel, ← two_mul, Nat.centralBinom_eq_two_mul_choose]
+  rintro s s' (hss' : aeval ζ (linProd p s) = aeval ζ (linProd p s'))
   by_contra hne
-  have hdiff : linProd p s - linProd p s' ≠ 0 := sub_ne_zero.mpr fun h => hne
-    (linProd_injective hB h)
   have hF : (linProd p s - linProd p s').map (algebraMap (ZMod p) K) ≠ 0 :=
-    (Polynomial.map_ne_zero_iff (algebraMap (ZMod p) K).injective).mpr hdiff
+    (Polynomial.map_ne_zero_iff (algebraMap (ZMod p) K).injective).mpr
+      (sub_ne_zero.mpr fun h => hne (linProd_injective hB h))
   have hζr : ζ ^ r = 1 := hζ.pow_eq_one
   -- The `|S|` distinct powers `ζ^m` are roots of `F`.
   have hsub : (S.image fun x => ζ ^ x.val).val ⊆
@@ -166,9 +157,8 @@ theorem card_image_aeval_linProd [NeZero r] {ζ : K} (hζ : IsPrimitiveRoot ζ r
   have hcard : (S.image fun x => ζ ^ x.val).card = S.card :=
     card_image_of_injOn fun x _ y _ hxy =>
       ZMod.val_injective r (hζ.pow_inj (ZMod.val_lt x) (ZMod.val_lt y) hxy)
-  have hdeg := hcard ▸ card_le_degree_of_subset_roots hsub
-  have : ((linProd p s - linProd p s').map (algebraMap (ZMod p) K)).natDegree ≤ B :=
-    natDegree_map_le.trans ((natDegree_sub_le _ _).trans (by simp [natDegree_linProd]))
+  have := (hcard ▸ card_le_degree_of_subset_roots hsub).trans (natDegree_map_le.trans
+    ((natDegree_sub_le _ _).trans (max_le (natDegree_linProd s).le (natDegree_linProd s').le)))
   omega
 
 /-- **The upper bound.** If distinct `m₁ ≡ m₂ (mod r)` are both introspective for every product
@@ -190,8 +180,7 @@ theorem card_image_aeval_linProd_le {ζ : K} (hζ : IsPrimitiveRoot ζ r) {m₁ 
     rw [mem_roots hQ, IsRoot, eval_sub, eval_pow, eval_X, eval_pow, eval_X, sub_eq_zero,
       h₁ s ζ hζr, h₂ s ζ hζr,
       pow_eq_pow_of_modEq ((ZMod.natCast_eq_natCast_iff m₁ m₂ r).mp hmod) hζr]
-  refine (card_le_degree_of_subset_roots hsub).trans ((natDegree_sub_le _ _).trans ?_)
-  simp only [natDegree_X_pow, le_refl]
+  simpa using (card_le_degree_of_subset_roots hsub).trans (natDegree_sub_le _ _)
 
 end Bounds
 
@@ -213,8 +202,7 @@ theorem prime_of_passes {n r : ℕ} (hn : 2 ≤ n)
   -- Logarithms.
   have hlog2 : 2 ≤ Real.logb 2 n := by
     rw [Real.le_logb_iff_rpow_le one_lt_two (by positivity)]
-    norm_num
-    exact_mod_cast hn4
+    exact (by norm_num : (2 : ℝ) ^ (2 : ℝ) = 4).trans_le (mod_cast hn4)
   have hord_pos : 0 < orderOf (n : ZMod r) := Nat.cast_pos.1 ((sq_nonneg _).trans_lt hr)
   have hcop : n.Coprime r := coprime_of_orderOf_pos hord_pos
   have hr2 : 2 ≤ r := by
@@ -244,37 +232,28 @@ theorem prime_of_passes {n r : ℕ} (hn : 2 ≤ n)
       (by rw [coe_range]; exact pow_injOn_Iio_orderOf)]
     refine card_le_card fun x hx => ?_
     obtain ⟨i, -, rfl⟩ := mem_image.mp hx
-    simp only [S, mem_filter, mem_univ, true_and]
-    exact ⟨i, i, by rw [← hqp]; push_cast; ring⟩
+    exact mem_filter.mpr ⟨mem_univ _, i, i, by simp [← hqp, mul_pow]⟩
   have ht_tot : t ≤ r.totient := by
     rw [Nat.totient_eq_card_coprime]
     refine card_le_card_of_injOn (fun x => x.val) ?_ (fun x _ y _ hxy => ZMod.val_injective r hxy)
     intro x hx
-    simp only [S, coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hx
-    obtain ⟨i, j, rfl⟩ := hx
+    obtain ⟨i, j, rfl⟩ := (mem_filter.mp hx).2
     simp only [coe_filter, mem_range, Set.mem_ofPred_eq, ZMod.val_natCast]
     exact ⟨Nat.mod_lt _ (by omega), ((ZMod.coprime_mod_iff_coprime _ r).mpr
       (Nat.coprime_mul_iff_left.mpr ⟨hcopq.pow_left i, hcopp.pow_left j⟩)).symm⟩
   have htot_lt : r.totient < r := Nat.totient_lt r (by omega)
   -- The parameter `B = ⌊√t log₂ n⌋`.
   have ht0 : (0 : ℝ) < t := by exact_mod_cast hord_pos.trans_le hord_t
-  have hlogt : Real.logb 2 n < Real.sqrt t := by
-    rw [Real.lt_sqrt (by linarith)]
-    exact hr.trans_le (by exact_mod_cast hord_t)
+  have hlogt : Real.logb 2 n < Real.sqrt t :=
+    (Real.lt_sqrt (by linarith)).mpr (hr.trans_le (mod_cast hord_t))
   set B := ⌊Real.sqrt t * Real.logb 2 n⌋₊
   have hBreal : (B : ℝ) ≤ Real.sqrt t * Real.logb 2 n := Nat.floor_le (by positivity)
-  have hBt : B < t := by
-    exact_mod_cast hBreal.trans_lt <| (mul_lt_mul_of_pos_left hlogt (Real.sqrt_pos.2 ht0)).trans_eq
-      (Real.mul_self_sqrt ht0.le)
-  have hBℓ : B ≤ numTests n r :=
-    Nat.floor_mono (mul_le_mul_of_nonneg_right
-      (Real.sqrt_le_sqrt (by exact_mod_cast ht_tot)) (by linarith))
+  have hBt : B < t := mod_cast hBreal.trans_lt <|
+    (mul_lt_mul_of_pos_left hlogt (Real.sqrt_pos.2 ht0)).trans_eq (Real.mul_self_sqrt ht0.le)
+  have hBℓ : B ≤ numTests n r := Nat.floor_mono <|
+    mul_le_mul_of_nonneg_right (Real.sqrt_le_sqrt (mod_cast ht_tot)) (by linarith)
   have hBp : B < p := by omega
-  have hB3 : 3 ≤ B := by
-    apply Nat.le_floor
-    have : (2 : ℝ) < Real.sqrt t := by linarith
-    push_cast
-    nlinarith
+  have hB3 : 3 ≤ B := Nat.le_floor (by push_cast; nlinarith)
   -- A primitive `r`-th root of unity in characteristic `p`.
   have : NeZero ((r : ℕ) : ZMod p) := ⟨by
     rw [Ne, ZMod.natCast_eq_zero_iff]; exact Nat.not_dvd_of_pos_of_lt (by omega) hrp⟩
@@ -282,17 +261,14 @@ theorem prime_of_passes {n r : ℕ} (hn : 2 ≤ n)
   have hζ := IsCyclotomicExtension.zeta_spec r (ZMod p) K
   set ζ := IsCyclotomicExtension.zeta r (ZMod p) K
   -- Every `q^i p^j` is introspective for every product of the `X + a`, `a ≤ B`.
-  have hintro : ∀ i j : ℕ, ∀ s : Sym (Fin (B + 1)) B,
+  have hintro (i j : ℕ) (s : Sym (Fin (B + 1)) B) :
       Introspective K r (q ^ i * p ^ j) (linProd p s) := by
-    intro i j s
-    apply Introspective.multiset_prod
-    intro f hf
+    refine Introspective.multiset_prod fun f hf => ?_
     obtain ⟨a, -, rfl⟩ := Multiset.mem_map.mp hf
     have hn' : Introspective K r n (X + C ((a : ℕ) : ZMod p)) := by
       rcases Nat.eq_zero_or_pos (a : ℕ) with ha | ha
-      · rw [ha, Nat.cast_zero, C_0, add_zero]
-        exact introspective_X r n
-      · exact introspective_of_congruence hpn (hcong a ha (by have := a.isLt; omega))
+      · simpa [ha] using introspective_X (K := K) r n
+      · exact introspective_of_congruence hpn (hcong a ha (by omega))
     exact ((hn'.div_prime hpn).pow i).mul ((introspective_prime r _).pow j)
   -- The lower bound `C(2B, B)`.
   have hlow := card_image_aeval_linProd (K := K) hζ hBp (S := S) hBt fun x hx => by
@@ -308,21 +284,17 @@ theorem prime_of_passes {n r : ℕ} (hn : 2 ≤ n)
       (fun ij _ => mem_coe.mpr (mem_filter.mpr ⟨mem_univ _, ij.1, ij.2, rfl⟩))
   simp only [mem_product, mem_range] at hij hij'
   -- They are distinct as numbers, since `n` is not a power of `p`.
-  have hm_ne : q ^ i * p ^ j ≠ q ^ i' * p ^ j' := by
-    intro hm
-    obtain ⟨s, hs⟩ := exists_eq_pow_of_pow_mul_pow_eq hp hq0 hne hm
-    have hns : n = p ^ (s + 1) := by rw [← hqp, hs, pow_succ]
-    rcases s with _ | s
-    · exact hnp (by rw [hns, zero_add, pow_one]; exact hp)
-    · exact hpow ⟨p, s + 1 + 1, by omega, hns.symm⟩
+  have hm_ne : q ^ i * p ^ j ≠ q ^ i' * p ^ j' := fun hm => by
+    obtain ⟨_ | s, hs⟩ := exists_eq_pow_of_pow_mul_pow_eq hp hq0 hne hm
+    · exact hnp (by simpa [← hqp, hs] using hp)
+    · exact hpow ⟨p, s + 2, by omega, by rw [← hqp, hs, pow_succ]⟩
   -- The upper bound `n^{⌊√t⌋}`.
   have hup := card_image_aeval_linProd_le (K := K) hζ hm_ne heq (hintro i j) (hintro i' j')
   have hmk : ∀ i j, i ≤ k → j ≤ k → q ^ i * p ^ j ≤ n ^ k := fun i j hi hj => by
     rw [← hqp, mul_pow]
     gcongr; omega
-  have hcard : B.centralBinom ≤ n ^ k := by
-    rw [← hlow]
-    exact hup.trans (max_le (hmk i j (by omega) (by omega)) (hmk i' j' (by omega) (by omega)))
+  have hcard : B.centralBinom ≤ n ^ k := hlow ▸
+    hup.trans (max_le (hmk i j (by omega) (by omega)) (hmk i' j' (by omega) (by omega)))
   -- But `n^{⌊√t⌋} ≤ n^{√t} = 2^{√t log₂ n} < 2^{B + 1} ≤ C(2B, B)`.
   have hreal : (n : ℝ) ^ k < 2 ^ (B + 1) := by
     have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast (by omega : 1 ≤ n)
@@ -332,15 +304,12 @@ theorem prime_of_passes {n r : ℕ} (hn : 2 ≤ n)
         Real.rpow_le_rpow_of_exponent_le hn1 (Real.nat_sqrt_le_real_sqrt)
       _ = (2 : ℝ) ^ (Real.logb 2 n * Real.sqrt t) := by
         rw [Real.rpow_mul zero_le_two, Real.rpow_logb two_pos (by norm_num) (by linarith)]
-      _ < (2 : ℝ) ^ ((B + 1 : ℕ) : ℝ) := by
-        apply Real.rpow_lt_rpow_of_exponent_lt one_lt_two
-        push_cast
-        rw [mul_comm]
-        exact Nat.lt_floor_add_one _
+      _ < (2 : ℝ) ^ ((B + 1 : ℕ) : ℝ) :=
+        Real.rpow_lt_rpow_of_exponent_lt one_lt_two <| (mul_comm _ _).trans_lt
+          (by simpa using Nat.lt_floor_add_one (Real.sqrt t * Real.logb 2 n))
       _ = 2 ^ (B + 1) := Real.rpow_natCast _ _
-  have hnat : n ^ k < 2 ^ (B + 1) := by exact_mod_cast hreal
-  have := two_pow_succ_le_centralBinom hB3
-  omega
+  exact absurd (by exact_mod_cast hreal : n ^ k < 2 ^ (B + 1))
+    (not_lt.mpr ((two_pow_succ_le_centralBinom hB3).trans hcard))
 
 /-- **The AKS tests characterize the primes**: for `n ≥ 2` and `r` such that the multiplicative
 order of `n` modulo `r` exceeds `log₂² n`, `n` passes the tests of the AKS algorithm exactly when

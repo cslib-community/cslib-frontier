@@ -77,29 +77,22 @@ theorem degreeCoefficient_pos {d : ℕ} (hd : 3 ≤ d) : 0 < degreeCoefficient d
 /-- In degree three the coefficient `3 arccos (2√2/3) / π ≈ 0.3245` is at most `1/3`, since
 `cos (π/9) ≤ 2√2/3`. -/
 theorem degreeCoefficient_three_le : degreeCoefficient 3 ≤ 1 / 3 := by
-  have hsqrt : (141421 : ℝ) / 100000 < √2 := (lt_sqrt (by norm_num)).mpr (by norm_num)
-  have hpi := pi_gt_d2
-  have hpi' := pi_lt_d2
-  set θ := π / 9 with hθ
-  have hθ0 : 0 ≤ θ := by positivity
-  have hθlo : 0.3488 ≤ θ := by
-    rw [hθ]
-    linarith
-  have hθhi : θ ≤ 0.35 := by
-    rw [hθ]
-    linarith
-  have hcos : cos θ ≤ 2 * √2 / 3 := by
-    have hb := cos_bound (x := θ) (by rw [abs_of_nonneg hθ0]; linarith)
+  have hsqrt : (141421 : ℝ) / 100000 < √2 :=
+    (lt_sqrt (by norm_num)).mpr
+      (by norm_num)
+  have hθ0 : 0 ≤ π / 9 := by positivity
+  have hθlo : 0.3488 ≤ π / 9 := by linarith [pi_gt_d2]
+  have hθhi : π / 9 ≤ 0.35 := by linarith [pi_lt_d2]
+  have hcos : cos (π / 9) ≤ 2 * √2 / 3 := by
+    have hb := cos_bound (x := π / 9) (by rw [abs_of_nonneg hθ0]; linarith)
     rw [abs_of_nonneg hθ0] at hb
-    have h2 : θ ^ 2 ≥ 0.3488 ^ 2 := by gcongr
-    have h4 : θ ^ 4 ≤ 0.35 ^ 4 := by gcongr
+    have h2 : (π / 9) ^ 2 ≥ 0.3488 ^ 2 := by gcongr
+    have h4 : (π / 9) ^ 4 ≤ 0.35 ^ 4 := by gcongr
     nlinarith [(abs_le.mp hb).2]
-  have harccos : arccos (2 * √2 / 3) ≤ θ :=
-    (arccos_le_arccos hcos).trans_eq (arccos_cos hθ0 (by rw [hθ]; linarith))
+  have harccos : arccos (2 * √2 / 3) ≤ π / 9 :=
+    (arccos_le_arccos hcos).trans_eq (arccos_cos hθ0 (by linarith [pi_lt_d2]))
   have hρ : vertexCorrelation 3 = 2 * √2 / 3 := by norm_num [vertexCorrelation]
-  unfold degreeCoefficient vertexCoefficient
-  rw [hρ, mul_div_assoc', div_le_iff₀ pi_pos]
-  norm_num
+  rw [degreeCoefficient, vertexCoefficient, hρ, mul_div_assoc', div_le_iff₀ pi_pos]
   linarith
 
 end Gaussian
@@ -147,10 +140,8 @@ theorem layoutBound_degree {d : ℕ} (hd : 3 ≤ d) :
   refine ⟨σ, hσ.trans ?_⟩
   have hE := hQ.card_external_le_div_mul_cycleRank hd hG two
   have ⟨_, hV⟩ := hQ.card_external_and_blocks_le_three_mul_cycleRank hd hG two
-  have hmain := mul_le_mul_of_nonneg_left hE (Gaussian.vertexCoefficient_pos hd).le
-  have hslack := mul_le_mul_of_nonneg_left hV (show 0 ≤ η / 3 by positivity)
   unfold Gaussian.degreeCoefficient
-  nlinarith
+  nlinarith [Gaussian.vertexCoefficient_pos hd]
 
 /-- **The layout hypothesis with coefficient one third** for maximum degree three, from Gaussian
 vertex-score layouts: `A_3 = 3 arccos (2√2/3) / π ≤ 1/3`. -/

@@ -178,12 +178,7 @@ theorem berlekampWelchInterleaved_eq_some_iff {F ι κ : Type*} [Field F] [Finty
     hammingDist_le_of_berlekampWelchInterleaved_eq_some h⟩, fun ⟨hdeg, hdist⟩ => ?_⟩
   have hbw (r : κ) := berlekampWelch_eq_some hα hunique (hdeg r)
     ((hammingDist_row_le (fun i r => (P r).eval (α i)) W r).trans hdist)
-  have hsome : ∀ r : κ, (berlekampWelch α e k fun i => W i r).isSome := fun r => by simp [hbw r]
-  have hget : (fun r : κ => (berlekampWelch α e k fun i => W i r).get (hsome r)) = P :=
-    funext fun r => Option.some.inj ((Option.some_get (hsome r)).trans (hbw r))
-  unfold berlekampWelchInterleaved
-  rw [dite_eq_left hsome, hget]
-  exact ite_eq_left hdist
+  simp [berlekampWelchInterleaved, acceptIfClose, hbw, hdist]
 
 /-- **Failure characterization of `berlekampWelchInterleaved` in the unique-decoding regime**
 (`2 * e + k ≤ |ι|`): the decoder returns `none` if and only if `W` has column-Hamming distance
@@ -417,9 +412,9 @@ theorem toOuterMeasure_sum_smul_reedSolomon_close_le_johnson_of_eta
   obtain ⟨m_GS, hm_GS, he', hpow⟩ := ProximityGap.exists_multiplicity_of_eta hk hkn hη he
   refine (toOuterMeasure_sum_smul_reedSolomon_close_le_johnson hα hk hkn hm_GS he' hfar).trans
     (ENNReal.ofReal_le_ofReal ?_)
-  have hn : 1 ≤ Fintype.card ι := hk.trans hkn
   simpa only [mul_one] using siegel_multiplicity_le_eta zero_le_one (sq_nonneg _)
-    (by positivity) (Nat.cast_pos.2 Fintype.card_pos) hη hpow
+    (div_pos (Nat.cast_pos.2 hk) (Nat.cast_pos.2 (hk.trans hkn)))
+    (Nat.cast_pos.2 Fintype.card_pos) hη hpow
 
 /-- **Explicit-parameter Guruswami–Sudan interleaved Reed–Solomon proximity bound up to the Johnson
 bound (single-scalar power batching)** (in the setting of
@@ -534,9 +529,9 @@ theorem toOuterMeasure_sum_pow_smul_reedSolomon_close_le_johnson_of_eta
   obtain ⟨m_GS, hm_GS, he', hpow⟩ := ProximityGap.exists_multiplicity_of_eta hk hkn hη he
   refine (toOuterMeasure_sum_pow_smul_reedSolomon_close_le_johnson hα hk hkn hm_GS he' hfar).trans
     (ENNReal.ofReal_le_ofReal ?_)
-  have hn : 1 ≤ Fintype.card ι := hk.trans hkn
   exact siegel_multiplicity_le_eta (Nat.cast_nonneg _) (sq_nonneg _)
-    (by positivity) (Nat.cast_pos.2 Fintype.card_pos) hη hpow
+    (div_pos (Nat.cast_pos.2 hk) (Nat.cast_pos.2 (hk.trans hkn)))
+    (Nat.cast_pos.2 Fintype.card_pos) hη hpow
 
 end JohnsonRegime
 

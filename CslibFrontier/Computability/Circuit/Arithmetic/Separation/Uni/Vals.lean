@@ -213,15 +213,9 @@ theorem mt_X (x : XP P) (bits : List Bool) :
       List.map_injective_iff.2 hbit (by simpa only [emX_inp] using h2 ())⟩
   · rintro ⟨h1, h2, h3, h4, h5, ⟨h6, h7, h8⟩, h9⟩
     refine ⟨fun s => ?_, fun ⟨⟩ => by rw [emX_inp, h9]⟩
-    cases s with
-    | rg i => rw [emX_rg_false, emX_rg_true, h1]
-    | md => rw [emX_md_false, emX_md_true, h2]
-    | cp => rw [emX_cp_false, emX_cp_true, h3]
-    | fr => rw [emX_fr_false, emX_fr_true, h4]
-    | lk => rw [emX_lk_false, emX_lk_true, h5]
-    | ls => rw [emX_ls_false, emX_ls_true, h5, ← List.append_assoc, ← encW_append, h6]
-    | bk b => rw [emX_bk, emX_bk, h7]
-    | cm k => rw [emX_cm, emX_cm, h8]
+    cases s <;> simp [emX_rg_false, emX_rg_true, emX_md_false, emX_md_true, emX_cp_false,
+      emX_cp_true, emX_fr_false, emX_fr_true, emX_lk_false, emX_lk_true, emX_ls_false,
+      emX_ls_true, emX_bk, emX_cm, ← List.append_assoc, ← encW_append, *]
 
 end EmX
 

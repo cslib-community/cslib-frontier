@@ -111,17 +111,14 @@ theorem Valid.unit_delete {S : State n} {d : ℕ} (hS : S.Valid f) (hf : IsAffin
     intro z _
     by_cases hzx : z = x
     · subst hzx
-      have h1 : S'.wt z = 0 := wt_of_notMem_params (by
-        rw [hparams, Finset.mem_insert, Finset.mem_erase]; tauto)
-      have h2 : S.wt z = 6 := by
-        rw [wt_of_mem hx, SemiCircuit.deg, hc, Finset.card_singleton, config_weight, weight_one]
-      rw [h1, h2, ite_eq_left rfl, ite_eq_right hQx.symm]
+      have hz_not : z ∉ S'.params := by simp [hparams, hQx.symm]
+      rw [wt_of_notMem_params hz_not, wt_of_mem hx, SemiCircuit.deg, hc,
+        Finset.card_singleton, config_weight, weight_one, ite_eq_left rfl, ite_eq_right hQx.symm]
     · rw [ite_eq_right hzx]
       by_cases hzQ : z = Q
       · subst hzQ
         rw [ite_eq_left rfl, wt_of_notMem_params hQp]
-        have := S'.wt_le_bound z
-        rw [config_weightBound] at this
+        have hwb : S'.wt z ≤ 7 := config_weightBound ▸ S'.wt_le_bound z
         omega
       · rw [ite_eq_right hzQ]
         by_cases hu : z ∈ S'.unpaired
@@ -130,8 +127,7 @@ theorem Valid.unit_delete {S : State n} {d : ℕ} (hS : S.Valid f) (hf : IsAffin
           have hzS : z ∈ S.unpaired := mem_unpaired.2 ⟨(hzp.resolve_left hzQ).2,
             (paired_congr hpairs).not.1 hzu⟩
           rw [wt_of_mem hu, wt_of_mem hzS, add_zero]
-          refine weight_mono (Finset.card_le_card ?_)
-          rw [hchildren]; exact Finset.erase_subset _ _
+          exact weight_mono (Finset.card_le_card (hchildren z ▸ Finset.erase_subset _ _))
         · rw [wt_of_notMem hu]; omega
   have hW := W_add_le hN hN' _ _ hpt
   rw [Finset.sum_ite_eq_of_mem' _ _ _ (Finset.mem_insert_of_mem hxp),
