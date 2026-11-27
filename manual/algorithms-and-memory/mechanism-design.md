@@ -522,13 +522,28 @@ objectives, multiple-facility (`k ≥ 2`) location, and impossibility/lower-boun
 For social choice, Arrow's theorem and the Gibbard–Satterthwaite theorem are formalized for strict
 individual rankings. A finite electorate is necessary, but the infinite-electorate counterexample
 built from a nonprincipal ultrafilter (Fishburn 1970) is not formalized. Also not formalized are the
-corollary for individual weak orders, May's theorem, quantitative (Kalai) versions of Arrow's
-theorem, and the complexity of winner determination and manipulation. See `ROADMAP.md` and issue
-#3282.
+corollary for individual weak orders, May's theorem, and the complexity of winner determination and
+manipulation. See `ROADMAP.md` and issue #3282.
+
+Kalai's Fourier-analytic version of Arrow's theorem for 3-candidate Condorcet elections run with one
+2-candidate rule is in
+[CondorcetElection](../../CslibFrontier/Foundations/BooleanAnalysis/CondorcetElection.lean)
+[odonnell14]. Under impartial culture the probability of a Condorcet winner is
+`3/4 - 3/4 Stab_{-1/3}[f]` (`Cslib.BitString.condorcetWinnerProb_eq`). A rule that always gives a
+winner and elects the first candidate under unanimous support is a dictator
+(`Cslib.BitString.exists_eq_of_forall_exists_isCondorcetWinner`). The probability is at most
+`7/9 + 2/9 W¹[f]`, and with the Friedgut–Kalai–Naor theorem a rule whose probability is at least
+`1 - ε` is `14409/2 · ε`-close to a dictator or a negated dictator.
+[CondorcetLimits](../../CslibFrontier/Foundations/BooleanAnalysis/CondorcetLimits.lean) adds
+Guilbaud's formula, the limit `(3/(2π)) arccos(-1/3)` of the probability for majority
+(`Cslib.BitString.tendsto_condorcetWinnerProb_majority`), and the bound
+`7/9 + 4/(9π) + o(1)` for rules whose degree-one Fourier coefficients are all equal
+(`Cslib.BitString.eventually_condorcetWinnerProb_le`).
 
 [alonfeldmanprocacciatennenholtz10]: ../sources.md#alonfeldmanprocacciatennenholtz10
 [hartline21]: ../sources.md#hartline21
 [moulin80]: ../sources.md#moulin80
 [nisan07]: ../sources.md#nisan07
+[odonnell14]: ../sources.md#odonnell14
 [procacciatennenholtz13]: ../sources.md#procacciatennenholtz13
 [schummervohra02]: ../sources.md#schummervohra02

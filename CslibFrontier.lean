@@ -619,6 +619,7 @@ public import CslibFrontier.Computability.WordRAM.RegisterCopy
 public import CslibFrontier.DataStructure.PriorityQueue.FibonacciHeap.Native.ExtractSource
 public import CslibFrontier.Computability.PCP.TwoProverGame.Tsirelson
 public import CslibFrontier.Computability.MCSP.FormulaMagnification.AverageCase
+public import CslibFrontier.Foundations.BooleanAnalysis.CondorcetLimits
 public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser.Normal
 public import CslibFrontier.Probability.StatisticalDistance.CouplingBind
 public import CslibFrontier.Computability.LogSpaceDerandomization.NormalizedAtomRows.FiniteEnvelopePayment
@@ -2009,6 +2010,7 @@ public import CslibFrontier.Probability.MinEntropy.ChainRule
 public import CslibFrontier.Computability.Circuit.Boolean.OracleFormula
 public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Rotation
 public import CslibFrontier.GameTheory.Strategic.Symmetric
+public import CslibFrontier.Foundations.BooleanAnalysis.CondorcetElection
 public import CslibFrontier.Algorithms.WordRAM.Hungarian.Argmin
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Oracle
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Planar.GridDrawing.Composition
@@ -5308,6 +5310,7 @@ public import CslibFrontier.Computability.BranchingProgram.ReadOnce
 public import CslibFrontier.Crypto.Computational.Encryption.OFBMode
 public import CslibFrontier.DataStructure.PriorityQueue.FibonacciHeap.Native.Consolidate
 public import CslibFrontier.Algorithms.Lean.Yates
+public import CslibFrontier.Foundations.Analysis.SpecialFunctions.ArcsinSeries
 public import CslibFrontier.Computability.Complexity.Problems.NCL.HWord.RewriteReduction
 public import CslibFrontier.Foundations.Combinatorics.Expander.AffinePlane
 public import CslibFrontier.GameTheory.Strategic.Nash
@@ -6647,6 +6650,7 @@ public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Execution
 public import CslibFrontier.Computability.BranchingProgram.ReadOnceParity
 public import CslibFrontier.Crypto.Computational.Homomorphic.FixedKey.Security
 public import CslibFrontier.Foundations.Data.Code.Interleaved
+public import CslibFrontier.Foundations.BooleanAnalysis.MajorityStability
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.NodeFrame
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.Hadamard
 public import CslibFrontier.GameTheory.Cooperative.MulticastCostSharing

@@ -8,6 +8,7 @@ import CslibFrontierResults.Entries.SergeevORComplement
 import CslibFrontierResults.Entries.LocallyDecodable
 import CslibFrontierResults.Entries.CombinatorialAuction
 import CslibFrontierResults.Entries.KellyMechanism
+import CslibFrontierResults.Entries.ODonnellMajorityStability
 import CslibFrontierResults.Entries.DictionaryLowerBound
 import CslibFrontierResults.Entries.VeriPBSubgraphIso
 import CslibFrontierResults.Entries.SergeevAdditiveMultiplicative
@@ -60,6 +61,7 @@ import CslibFrontierResults.Entries.TwoSATWordRAM
 import CslibFrontierResults.Entries.SergeevBkSequence
 import CslibFrontierResults.Entries.PredictionMarket
 import CslibFrontierResults.Entries.ODonnellDNFWidth
+import CslibFrontierResults.Entries.ODonnellCondorcetLimits
 import CslibFrontierResults.Entries.RelabelToFront
 import CslibFrontierResults.Entries.LoadBalancing
 import CslibFrontierResults.Entries.PlantedClique
@@ -71,6 +73,7 @@ import CslibFrontierResults.Entries.SelfClosingDoor
 import CslibFrontierResults.Entries.AlternatingTimeSpace
 import CslibFrontierResults.Entries.IndirectRevelation
 import CslibFrontierResults.Entries.PotentialPolymatrix
+import CslibFrontierResults.Entries.ODonnellCondorcet
 import CslibFrontierResults.Entries.EvolutionaryStability
 import CslibFrontierResults.Entries.ODonnellFriedgutConcentration
 import CslibFrontierResults.Entries.LupanovRectifier
