@@ -226,7 +226,7 @@ private def checkLRATFastAux :
 clauses of `φ` numbered from `1`. Clauses are looked up in an array indexed by number, and
 literals in an array of marks indexed by literal, reset after each step. It is for compiled and
 interpreted code, where it is about 2 to 7 times as fast as `CNF.checkLRATKernel`; in the kernel,
-use `CNF.checkLRATKernel` or `CNF.checkLRATRatKernel`. -/
+use `CNF.checkLRATKernel`. -/
 def checkLRATFast (φ : CNF ℕ) (cert : Array LRAT.IntAction) : Bool :=
   checkLRATFastAux (dbOfList (φ.zipIdx.map fun e => (e.2 + 1, e.1))) #[] cert.toList
 
