@@ -69,6 +69,12 @@ theorem streamState_replicate {σ α : Type*} (f : σ → σ) (s : σ) (a : α) 
   simp only [streamState, List.take_replicate, Nat.min_eq_left hj, List.foldl_const,
     List.length_replicate]
 
+private theorem le_sum_range_of_pos {n : ℕ} {f : ℕ → ℕ} (h : ∀ i < n, 0 < f i) :
+    n ≤ ∑ i ∈ Finset.range n, f i :=
+  calc
+    n = ∑ _i ∈ Finset.range n, 1 := by simp
+    _ ≤ _ := Finset.sum_le_sum fun i hi => h i (Finset.mem_range.mp hi)
+
 /-- Stream a bit list with cumulative round costs. `R l i` includes the step, the current and next
 encoded state lengths, and control. `Q` and `B` bound peak step workspace and encoded state size.
 The input is scanned without copying; final output and tape restoration are charged too.
@@ -111,12 +117,8 @@ theorem ComputableInTimeAndSpace.foldl_bits_stream_sum {σ : Type}
     (fun l i hi => Nat.mul_le_mul_left C (Nat.succ_le_succ (hspace l i hi)))
     (fun l i hi => (hstate l i hi).trans (Nat.le_succ _))
     (fun _ _ _ => by simp)
-  have hn (l : List Bool) : l.length ≤ ∑ i ∈ Finset.range l.length, R l i := by
-    calc
-      l.length = ∑ _i ∈ Finset.range l.length, 1 := by simp
-      _ ≤ _ := Finset.sum_le_sum fun i hi => by
-        have hr := hcost l i (Finset.mem_range.mp hi)
-        lia
+  have hn (l : List Bool) : l.length ≤ ∑ i ∈ Finset.range l.length, R l i :=
+    le_sum_range_of_pos fun i hi => (Nat.succ_pos _).trans_le (hcost l i hi)
   have hplain := ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h
   refine ⟨c * (C + 2 * ci + 2 * ce + 20), hplain.mono (fun l => ?_) (fun l => ?_)⟩
   · have hf := hstate l l.length le_rfl
@@ -286,12 +288,8 @@ theorem ComputableInTimeAndSpace.foldl_bits_pair_stream_sum {σ : Type}
     (fun p i hi => Nat.mul_le_mul_left C (Nat.succ_le_succ (hspace p i hi)))
     (fun p i hi => (hstate p i hi).trans (Nat.le_succ _))
     (fun _ _ _ => by simp)
-  have hn (p : σ × List Bool) : p.2.length ≤ ∑ i ∈ Finset.range p.2.length, R p i := by
-    calc
-      p.2.length = ∑ _i ∈ Finset.range p.2.length, 1 := by simp
-      _ ≤ _ := Finset.sum_le_sum fun i hi => by
-        have hr := hcost p i (Finset.mem_range.mp hi)
-        lia
+  have hn (p : σ × List Bool) : p.2.length ≤ ∑ i ∈ Finset.range p.2.length, R p i :=
+    le_sum_range_of_pos fun i hi => (Nat.succ_pos _).trans_le (hcost p i hi)
   have hplain := ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h
   refine ⟨c * (C + 2 * ce + 20), hplain.mono (fun p => ?_) (fun p => ?_)⟩
   · have h₀ := hstate p 0 (Nat.zero_le _)
@@ -403,11 +401,8 @@ theorem ComputableInTimeAndSpace.iterate_unary_stream_sum {σ : Type} {enc : σ 
     (roundCost := fun x i => D * R x i) (sMax := fun x => D * (Q x + B x + 1))
     (lMax := fun x => B x + 1) ?_ ?_ ?_ (fun _ _ _ => by simp)
   · obtain ⟨c, h⟩ := hsf
-    have hn (x : σ × ℕ) : x.2 ≤ ∑ i ∈ Finset.range x.2, R x i := by
-      calc x.2 = ∑ _i ∈ Finset.range x.2, 1 := by simp
-        _ ≤ _ := Finset.sum_le_sum fun i hi => by
-          have := hcost x i (Finset.mem_range.mp hi)
-          omega
+    have hn (x : σ × ℕ) : x.2 ≤ ∑ i ∈ Finset.range x.2, R x i :=
+      le_sum_range_of_pos fun i hi => (Nat.succ_pos _).trans_le (hcost x i hi)
     have hplain := ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h
     refine ⟨c * (D + cF + 5), hplain.mono (fun x => ?_) (fun x => ?_)⟩ <;>
       simp only [List.length_replicate, hst x x.2 le_rfl, ← Finset.mul_sum, Nat.mul_assoc] <;>
