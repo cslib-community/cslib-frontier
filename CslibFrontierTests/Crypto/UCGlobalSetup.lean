@@ -3,8 +3,10 @@ Copyright (c) 2026 Phillipp Schoppmann. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger, Phillipp Schoppmann
 -/
+module
+-- upstream: local-only (test)
 
-import CslibFrontier.Crypto.Protocols.UC.GlobalSetup
+public import CslibFrontier.Crypto.Protocols.UC.GlobalSetup
 import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
@@ -21,6 +23,8 @@ Checked witnesses exercising `CslibFrontier.Crypto.Protocols.UC.GlobalSetup`:
   with zero advantage, while `coinReaderProto` fails to GUC-realize `indepCoinFunc` against
   `coinSetup` with advantage `1/2` against every simulator).
 -/
+
+public section
 
 namespace CslibFrontierTests.Crypto.UCGlobalSetup
 

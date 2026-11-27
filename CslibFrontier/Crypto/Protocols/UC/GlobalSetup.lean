@@ -191,27 +191,6 @@ unchanged. -/
     | .inr g => StateT.lift (ProbOracleComp.query
         (spec := protocolSpec n In Out NetQ NetR ⊕ₒ GSpec) (Sum.inr g))
 
-private theorem prodAssoc_runFrom_run_map {ιI ιJ : Type} {I : ιI → Type} {J : ιJ → Type}
-    {σ β γ : Type} (P : Machine I J) (x : StateT σ (ProbOracleComp J) β) (f : β → γ) (sA : σ)
-    (sP : P.State) :
-    Equiv.prodAssoc _ _ _ <$> P.runFrom ((f <$> x).run sA) sP =
-      (fun p => (f p.1, p.2)) <$> (Equiv.prodAssoc _ _ _ <$> P.runFrom (x.run sA) sP) := by
-  rw [StateT.run_map, Machine.runFrom_map, Functor.map_map, Functor.map_map]
-  rfl
-
-/-- Static-corruption routing in front of a machine with imports commutes with composition. -/
-private theorem routeCorrupt_comp {ιI ιJ : Type} {I : ιI → Type} {J : ιJ → Type}
-    (C : Finset (Fin n)) (M : Machine J (protocolSpec n In Out NetQ NetR)) (P : Machine I J) :
-    routeCorrupt C (M.comp P) = (routeCorrupt C M).comp P := by
-  simp only [routeCorrupt, Machine.comp]
-  congr 1 with q s : 2
-  rcases q with ⟨i, x⟩ | ⟨i, x⟩ | q
-  · by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte] <;> rfl
-  · by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte]
-    · exact (StateT.run_map _ _ _).trans (prodAssoc_runFrom_run_map P _ _ _ _).symm
-    · rfl
-  · exact (StateT.run_map _ _ _).trans (prodAssoc_runFrom_run_map P _ _ _ _).symm
-
 /-- Sharing the global port commutes with composition. -/
 private theorem shareRight_comp_shareRight {ιI ιE₁ ιE₂ : Type} {I : ιI → Type}
     {E₁ : ιE₁ → Type} {E₂ : ιE₂ → Type} (A : Machine (E₁ ⊕ₒ I) E₂) (P : Machine I E₁) :
@@ -258,6 +237,7 @@ parameter `κ`, and auxiliary input `z`. -/
     (κ : ℕ) (z : List Bool) : NNReal :=
   Game.advantage (GlobalExec G π A C Z κ z).eval (GlobalExec G φ S C Z κ z).eval
 
+/-- Every execution with a shared global setup has zero advantage against itself. -/
 @[simp] theorem gAdvantage_self (G : GlobalSetup GSpec)
     (π : GlobalProtocol n In Out NetQ NetR GSpec)
     (A : GlobalExecAdversary n In Out NetQ NetR AdvQ AdvR GSpec)
@@ -266,6 +246,7 @@ parameter `κ`, and auxiliary input `z`. -/
     gAdvantage G π π A A C Z κ z = 0 :=
   Game.advantage_self _
 
+/-- The global-setup distinguishing advantage is symmetric. -/
 theorem gAdvantage_comm (G : GlobalSetup GSpec)
     (π : GlobalProtocol n In Out NetQ₁ NetR₁ GSpec)
     (φ : GlobalProtocol n In Out NetQ₂ NetR₂ GSpec)
@@ -276,6 +257,7 @@ theorem gAdvantage_comm (G : GlobalSetup GSpec)
     gAdvantage G π φ A S C Z κ z = gAdvantage G φ π S A C Z κ z :=
   Game.advantage_comm _ _
 
+/-- Triangle inequality for the global-setup distinguishing advantage. -/
 theorem gAdvantage_triangle (G : GlobalSetup GSpec)
     (π₁ : GlobalProtocol n In Out NetQ₁ NetR₁ GSpec)
     (π₂ : GlobalProtocol n In Out NetQ₂ NetR₂ GSpec)
@@ -331,6 +313,7 @@ abbrev GRealizesWithin (G : GlobalSetup GSpec)
 
 namespace GEmulatesWithin
 
+/-- Concrete global-setup emulation is preserved by weakening the error bound. -/
 theorem mono {G : GlobalSetup GSpec}
     {π : GlobalProtocol n In Out NetQ₁ NetR₁ GSpec}
     {φ : GlobalProtocol n In Out NetQ₂ NetR₂ GSpec}
@@ -341,10 +324,15 @@ theorem mono {G : GlobalSetup GSpec}
   obtain ⟨S, pS, hS, hSg, hadv⟩ := h AdvQ AdvR A pA hA
   exact ⟨S, pS, hS, hSg, fun C Z pZ hZ κ z => (hadv C Z pZ hZ κ z).trans (hε pA pZ κ)⟩
 
+/-- Every global-setup protocol emulates itself with zero error: the adversary is its own simulator.
+-/
 theorem refl (G : GlobalSetup GSpec) (π : GlobalProtocol n In Out NetQ NetR GSpec) :
     GEmulatesWithin G π π Polynomial.X (fun _ _ _ => 0) :=
   fun _ _ A pA hA => ⟨A, pA, hA, SimPolyBound.refl pA, fun C Z _ _ κ z => by simp⟩
 
+/-- Transitivity of concrete global-setup emulation. If `π₁` emulates `π₂` with overhead `g₁₂` and
+error `ε₁₂`, and `π₂` emulates `π₃` with overhead `g₂₃` and error `ε₂₃` monotone in the adversary's
+budget, then `π₁` emulates `π₃` with the composed overhead and the summed error. -/
 theorem trans {G : GlobalSetup GSpec}
     {π₁ : GlobalProtocol n In Out NetQ₁ NetR₁ GSpec}
     {π₂ : GlobalProtocol n In Out NetQ₂ NetR₂ GSpec}
@@ -385,6 +373,8 @@ abbrev GRealizes (G : GlobalSetup GSpec)
     (F : IdealFunctionality n In Out BackQ BackR) : Prop :=
   GEmulates G π F.toGlobalProtocol
 
+/-- Concrete global-setup emulation with negligible error implies asymptotic global-setup emulation.
+-/
 theorem GEmulatesWithin.gEmulates {G : GlobalSetup GSpec}
     {π : GlobalProtocol n In Out NetQ₁ NetR₁ GSpec}
     {φ : GlobalProtocol n In Out NetQ₂ NetR₂ GSpec}
@@ -397,10 +387,12 @@ theorem GEmulatesWithin.gEmulates {G : GlobalSetup GSpec}
 
 namespace GEmulates
 
+/-- Every global-setup protocol emulates itself. -/
 theorem refl (G : GlobalSetup GSpec) (π : GlobalProtocol n In Out NetQ NetR GSpec) :
     GEmulates G π π :=
   (GEmulatesWithin.refl G π).gEmulates fun _ _ => negligible_zero
 
+/-- Asymptotic global-setup emulation is transitive. -/
 theorem trans {G : GlobalSetup GSpec}
     {π₁ : GlobalProtocol n In Out NetQ₁ NetR₁ GSpec}
     {π₂ : GlobalProtocol n In Out NetQ₂ NetR₂ GSpec}
@@ -629,6 +621,8 @@ theorem gExec_gCompSim (G : GlobalSetup GSpec)
   simp only [gExec_eq_run_shareRight_link, gCompSim, gLiftAdversary_comp, gAbsorbAdversary,
     Machine.link_comp]
 
+/-- The advantage against the black-box simulator `gCompSim S_D A` equals the advantage between the
+dummy adversary and `S_D` for the absorbed environment `gAbsorbAdversary C A Z`. -/
 theorem gAdvantage_gCompSim (G : GlobalSetup GSpec)
     (π : GlobalProtocol n In Out NetQ₁ NetR₁ GSpec)
     (φ : GlobalProtocol n In Out NetQ₂ NetR₂ GSpec)
@@ -641,12 +635,15 @@ theorem gAdvantage_gCompSim (G : GlobalSetup GSpec)
       gAdvantage G π φ (gDummyAdversary n _ _ GSpec) S_D C (gAbsorbAdversary C A Z) κ z := by
   rw [gAdvantage, gAdvantage, gExec_eq_gExec_dummy, gExec_gCompSim]
 
+/-- Absorbing the dummy adversary into an environment leaves the environment unchanged. -/
 @[simp] theorem gAbsorbAdversary_dummy (C : Finset (Fin n))
     (Z : GlobalEnvironment n In Out NetQ NetR GSpec) :
     gAbsorbAdversary C (gDummyAdversary n NetQ NetR GSpec) Z = Z := by
   funext κ z
   simp only [gAbsorbAdversary, gLiftAdversary_dummy, Machine.link_id]
 
+/-- Running `S_D` behind the dummy adversary in `gCompSim` does not change its advantage against the
+dummy adversary. -/
 theorem gAdvantage_gCompSim_dummy (G : GlobalSetup GSpec)
     (π : GlobalProtocol n In Out NetQ₁ NetR₁ GSpec)
     (φ : GlobalProtocol n In Out NetQ₂ NetR₂ GSpec)
@@ -691,11 +688,11 @@ private theorem isBounded_gLiftAdversary
       ((OracleComp.IsCostBounded.query _).mono (by omega))
 
 private theorem isBounded_passRight {ιL ιE ιI : Type} {L : ιL → Type} {E : ιE → Type}
-    {I : ιI → Type} {M : Machine (L ⊕ₒ I) E} {t : ℕ} (h : M.IsBounded t) :
+    {I : ιI → Type} {M : Machine (L ⊕ₒ I) E} {t : ℕ} (h : M.IsBounded (t + 1)) :
     (passRight M).IsBounded (t + 1) := by
-  refine ⟨h.1.mono (by omega), fun q s => ?_⟩
+  refine ⟨h.1, fun q s => ?_⟩
   cases q with
-  | inl e => exact (h.2 e s).mono (by omega)
+  | inl e => exact h.2 e s
   | inr i =>
     dsimp only [passRight] at s ⊢
     rw [StateT.run_lift, bind_pure_comp]
@@ -713,6 +710,7 @@ private theorem isBounded_shareRight {ιI ιE : Type} {I : ιI → Type} {E : ι
     exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
       ((OracleComp.IsCostBounded.query _).mono (by omega))
 
+/-- The global-setup dummy adversary makes one oracle call per activation. -/
 theorem gDummyAdversary_polyBounded (n : ℕ) (NetQ NetR : Type) {ιG : Type} (GSpec : ιG → Type) :
     (gDummyAdversary n NetQ NetR GSpec).PolyBounded 1 := fun _ _ => by
   rw [Polynomial.eval_one]
@@ -721,15 +719,19 @@ theorem gDummyAdversary_polyBounded (n : ℕ) (NetQ NetR : Type) {ιG : Type} (G
   rw [StateT.run_lift, bind_pure_comp]
   exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
 
+/-- The black-box simulator `gCompSim S_D A` has budget `pA * (pD + 2) + (pD + 1)` when `S_D` and
+`A` have budgets `pD` and `pA`. -/
 theorem gCompSim_polyBounded
     {S_D : GlobalAdversary n NetQ₁ NetR₁ NetQ₂ NetR₂ GSpec}
     {A : GlobalAdversary n AdvQ AdvR NetQ₁ NetR₁ GSpec}
     {pD pA : Polynomial ℕ} (hS : S_D.PolyBounded pD) (hA : A.PolyBounded pA) :
     (gCompSim S_D A).PolyBounded (pA * (pD + 2) + (pD + 1)) := fun κ C => by
-  have h := (hA κ C).comp (isBounded_passRight (hS κ C))
+  have h := (hA κ C).comp (isBounded_passRight ((hS κ C).mono (Nat.le_succ _)))
   simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_one, Polynomial.eval_ofNat]
   exact h.mono (by ring_nf; omega)
 
+/-- The budget of `gCompSim` is bounded by the simulator overhead `X * (pD + 2) + (pD + 1)` applied
+to the adversary's budget. -/
 theorem simPolyBound_gCompSim (pD pA : Polynomial ℕ) :
     SimPolyBound (Polynomial.X * (pD + 2) + (pD + 1)) pA (pA * (pD + 2) + (pD + 1)) := fun κ => by
   simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_X, Polynomial.eval_one,
@@ -738,6 +740,7 @@ theorem simPolyBound_gCompSim (pD pA : Polynomial ℕ) :
   exact Nat.add_le_add (Nat.mul_le_mul (Nat.le_add_left _ _) (Nat.add_le_add_right hD 2))
     (Nat.add_le_add_right hD 1)
 
+/-- The absorbed environment `gAbsorbAdversary C A Z` has budget `absorbPoly pZ pA`. -/
 theorem gAbsorbAdversary_polyBounded (C : Finset (Fin n))
     {A : GlobalAdversary n AdvQ AdvR NetQ NetR GSpec}
     {Z : GlobalEnvironment n In Out AdvQ AdvR GSpec}
@@ -797,6 +800,8 @@ variable {G : GlobalSetup GSpec}
   {π : GlobalProtocol n In Out NetQ₁ NetR₁ GSpec}
   {φ : GlobalProtocol n In Out NetQ₂ NetR₂ GSpec}
 
+/-- A simulator for the global-setup dummy adversary gives black-box emulation through `gCompSim`,
+with the error evaluated at the absorbed environment's budget. -/
 theorem GEmulatesDummyWithin.gEmulatesBlackBoxWithin {pD : Polynomial ℕ}
     {ε : Polynomial ℕ → ℕ → ℝ≥0} (h : GEmulatesDummyWithin G π φ pD ε) :
     GEmulatesBlackBoxWithin G π φ pD (fun pA pZ => ε (absorbPoly pZ pA)) := by
@@ -805,6 +810,8 @@ theorem GEmulatesDummyWithin.gEmulatesBlackBoxWithin {pD : Polynomial ℕ}
   rw [gAdvantage_gCompSim]
   exact hadv C _ _ (gAbsorbAdversary_polyBounded C hA hZ) κ z
 
+/-- Black-box global-setup emulation implies concrete global-setup emulation with simulator overhead
+`X * (pD + 2) + (pD + 1)`. -/
 theorem GEmulatesBlackBoxWithin.gEmulatesWithin {pD : Polynomial ℕ}
     {ε : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0} (h : GEmulatesBlackBoxWithin G π φ pD ε) :
     GEmulatesWithin G π φ (Polynomial.X * (pD + 2) + (pD + 1)) ε := by
@@ -812,12 +819,23 @@ theorem GEmulatesBlackBoxWithin.gEmulatesWithin {pD : Polynomial ℕ}
   exact fun AdvQ AdvR A pA hA => ⟨gCompSim S_D A, pA * (pD + 2) + (pD + 1),
     gCompSim_polyBounded hS hA, simPolyBound_gCompSim pD pA, hadv AdvQ AdvR A pA hA⟩
 
+/-- Dummy-adversary completeness (sufficiency) for `GEmulatesDummyWithin`, in this library's
+call-bounded (computationally unbounded), fixed-`n`-party, static-corruption shared-setup port model
+(#6043), not the polynomial-time ITM GUC dummy-adversary completeness of [CanettiDPW2007]: a
+simulator for the dummy adversary with budget `pD` and error `ε` gives concrete global-setup
+emulation of every adversary with overhead `X * (pD + 2) + (pD + 1)` and error `ε` at the absorbed
+environment's budget. -/
 theorem GEmulatesDummyWithin.gEmulatesWithin {pD : Polynomial ℕ} {ε : Polynomial ℕ → ℕ → ℝ≥0}
     (h : GEmulatesDummyWithin G π φ pD ε) :
     GEmulatesWithin G π φ (Polynomial.X * (pD + 2) + (pD + 1))
       (fun pA pZ => ε (absorbPoly pZ pA)) :=
   h.gEmulatesBlackBoxWithin.gEmulatesWithin
 
+/-- Dummy-adversary completeness (necessity) for `GEmulatesWithin`, in this library's call-bounded
+(computationally unbounded), fixed-`n`-party, static-corruption shared-setup port model (#6043), not
+the polynomial-time ITM GUC dummy-adversary completeness of [CanettiDPW2007]: concrete global-setup
+emulation specializes to the dummy adversary, giving a dummy simulator whose budget `pD` is bounded
+by `g` at adversary budget `1`. -/
 theorem GEmulatesWithin.gEmulatesDummyWithin {g : Polynomial ℕ}
     {ε : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0} (h : GEmulatesWithin G π φ g ε) :
     ∃ pD, SimPolyBound g 1 pD ∧ GEmulatesDummyWithin G π φ pD (fun pZ => ε 1 pZ) := by
@@ -825,6 +843,7 @@ theorem GEmulatesWithin.gEmulatesDummyWithin {g : Polynomial ℕ}
     (gDummyAdversary_polyBounded n _ _ GSpec)
   exact ⟨pD, hg, S_D, hS, hadv⟩
 
+/-- Black-box global-setup emulation specializes to emulation of the dummy adversary. -/
 theorem GEmulatesBlackBoxWithin.gEmulatesDummyWithin {pD : Polynomial ℕ}
     {ε : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0} (h : GEmulatesBlackBoxWithin G π φ pD ε) :
     GEmulatesDummyWithin G π φ pD (fun pZ => ε 1 pZ) := by
@@ -834,8 +853,10 @@ theorem GEmulatesBlackBoxWithin.gEmulatesDummyWithin {pD : Polynomial ℕ}
   exact hadv _ _ (gDummyAdversary n _ _ GSpec) 1
     (gDummyAdversary_polyBounded n _ _ GSpec) C Z pZ hZ κ z
 
-/-- **Global-setup dummy-adversary completeness:** asymptotic GUC emulation is equivalent to
-simulating the dummy adversary while sharing `GSpec`. -/
+/-- **Global-setup dummy-adversary completeness** for `GEmulates`, in this library's call-bounded
+(computationally unbounded), fixed-`n`-party, static-corruption shared-setup port model (#6043), not
+the polynomial-time ITM GUC dummy-adversary completeness of [CanettiDPW2007]: asymptotic
+global-setup emulation is equivalent to simulating the dummy adversary while sharing `GSpec`. -/
 theorem gEmulates_iff_gEmulatesDummy (G : GlobalSetup GSpec)
     (π : GlobalProtocol n In Out NetQ₁ NetR₁ GSpec)
     (φ : GlobalProtocol n In Out NetQ₂ NetR₂ GSpec) :
@@ -936,6 +957,9 @@ private def gLiftSubNet
             (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR)) ⊕ₒ GSpec) (Sum.inr g))
     program
 
+/-- The composed simulator's machine: queries for `ρ` are forwarded, queries for the subroutine are
+answered by the subroutine simulator `S`, and `S`'s direct `GSpec` calls pass through to the shared
+global setup. -/
 def gHybridSimMachine
     (S : Machine (netSpec (RoutedNetQ n SubIn NQ₂) (RoutedNetR SubOut NR₂) ⊕ₒ GSpec)
       (netSpec (RoutedNetQ n SubIn NQ₁) (RoutedNetR SubOut NR₁))) :
@@ -969,6 +993,8 @@ for the dummy adversary of `π` against `φ`. -/
       (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR₂)) GSpec :=
   fun κ C => gHybridSimMachine (S κ C)
 
+/-- Running the dummy adversary against `gCompose ρ π` equals running the dummy adversary against
+`π` with the hybrid protocol `ρ` absorbed into the environment `gAbsorbHybrid C ρ Z`. -/
 theorem gExec_gCompose_dummy (G : GlobalSetup GSpec)
     (ρ : GlobalHybridProtocol n In Out NetQ NetR SubIn SubOut GSpec)
     (π : GlobalProtocol n SubIn SubOut NQ NR GSpec) (C : Finset (Fin n))
@@ -1238,6 +1264,9 @@ theorem eval_gExec_gCompose_gHybridSim (G : GlobalSetup GSpec)
     ((shareRight (routeCorrupt C (φ κ C))).comp (G κ)) (Z κ z)
   exact fun q s => handle_swap_g C (ρ κ C) (S κ C) q s.1 s.2
 
+/-- The advantage between `gCompose ρ π` against the dummy adversary and `gCompose ρ φ` against
+`gHybridSim S` equals the advantage between `π` against the dummy adversary and `φ` against `S` for
+the absorbed environment `gAbsorbHybrid C ρ Z`. -/
 theorem gAdvantage_gCompose (G : GlobalSetup GSpec)
     (ρ : GlobalHybridProtocol n In Out NetQ NetR SubIn SubOut GSpec)
     (π : GlobalProtocol n SubIn SubOut NQ₁ NR₁ GSpec)
@@ -1297,6 +1326,7 @@ private theorem isBounded_gHybridWrap
     exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
       ((OracleComp.IsCostBounded.query _).mono (by omega))
 
+/-- The absorbed environment `gAbsorbHybrid C ρ Z` has budget `absorbPoly pZ pρ`. -/
 theorem gAbsorbHybrid_polyBounded (C : Finset (Fin n))
     {ρ : GlobalHybridProtocol n In Out NetQ NetR SubIn SubOut GSpec}
     {Z : GlobalEnvironment n In Out
@@ -1308,20 +1338,10 @@ theorem gAbsorbHybrid_polyBounded (C : Finset (Fin n))
       (NQ := RoutedNetQ n SubIn NQ) (NR := RoutedNetR SubOut NR) (ρ κ C))).IsBounded
       (pρ.eval κ + 1) :=
     isBounded_routeCorrupt C (isBounded_gHybridWrap (hρ κ C))
-  have hwrap : (passRight (routeCorrupt C (gHybridWrap
-      (NQ := RoutedNetQ n SubIn NQ) (NR := RoutedNetR SubOut NR) (ρ κ C)))).IsBounded
-      (pρ.eval κ + 1) := by
-    refine ⟨hrc.1, fun q s => ?_⟩
-    cases q with
-    | inl e => exact hrc.2 e s
-    | inr g =>
-      dsimp only [passRight] at s ⊢
-      rw [StateT.run_lift, bind_pure_comp]
-      exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
-        ((OracleComp.IsCostBounded.query _).mono (by omega))
-  refine (Machine.isQueryBounded_link hwrap (hZ κ z)).mono (le_of_eq ?_)
+  refine (Machine.isQueryBounded_link (isBounded_passRight hrc) (hZ κ z)).mono (le_of_eq ?_)
   rw [eval_absorbPoly]
 
+/-- The composed simulator `gHybridSim S` has budget `pS + 1` when `S` has budget `pS`. -/
 theorem gHybridSim_polyBounded
     {S : GlobalAdversary n (RoutedNetQ n SubIn NQ₁) (RoutedNetR SubOut NR₁)
       (RoutedNetQ n SubIn NQ₂) (RoutedNetR SubOut NR₂) GSpec}
@@ -1342,6 +1362,8 @@ theorem gHybridSim_polyBounded
     exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
       ((isQueryBounded_gLiftSubNet ((hS κ C).2 q s)).mono (by omega))
 
+/-- The shared-setup composition `gCompose ρ σ` has budget `(pρ + 1) * (pσ + 2) + (pσ + 1)` when `ρ`
+and `σ` have budgets `pρ` and `pσ`. -/
 theorem gCompose_polyBounded
     {ρ : GlobalHybridProtocol n In Out NetQ NetR SubIn SubOut GSpec}
     {σ : GlobalProtocol n SubIn SubOut NQ NR GSpec}
@@ -1362,6 +1384,13 @@ variable {G : GlobalSetup GSpec}
   {π : GlobalProtocol n SubIn SubOut NQ₁ NR₁ GSpec}
   {φ : GlobalProtocol n SubIn SubOut NQ₂ NR₂ GSpec}
 
+/-- Shared-setup composition for `GEmulatesDummyWithin`, in this library's call-bounded
+(computationally unbounded), fixed-`n`-party, static-corruption shared-setup port model (#6043), a
+step toward the polynomial-time ITM EUC composition theorem of [CanettiDPW2007] but not that
+theorem: if `S` simulates the dummy adversary of `π` in `φ` with budget `pD` and error `ε`, then
+`gHybridSim S` simulates the dummy adversary of `gCompose ρ π` in `gCompose ρ φ` with budget
+`pD + 1` and error `ε` evaluated at the absorbed environment's budget `absorbPoly pZ pρ`, all
+parties sharing the same global setup `G`. -/
 theorem GEmulatesDummyWithin.compose {pρ pD : Polynomial ℕ} {ε : Polynomial ℕ → ℕ → ℝ≥0}
     (hρ : ρ.PolyBounded pρ) (h : GEmulatesDummyWithin G π φ pD ε) :
     GEmulatesDummyWithin G (gCompose ρ π) (gCompose ρ φ) (pD + 1)
@@ -1371,6 +1400,12 @@ theorem GEmulatesDummyWithin.compose {pρ pD : Polynomial ℕ} {ε : Polynomial 
   rw [gAdvantage_gCompose]
   exact hadv C _ _ (gAbsorbHybrid_polyBounded C hρ hZ) κ z
 
+/-- Concrete shared-setup composition for `GEmulatesWithin`, in this library's call-bounded
+(computationally unbounded), fixed-`n`-party, static-corruption shared-setup port model (#6043), a
+step toward the polynomial-time ITM EUC composition theorem of [CanettiDPW2007] but not that
+theorem: if `π` emulates `φ` with simulator overhead `g` and error `ε`, then `gCompose ρ π` emulates
+`gCompose ρ φ` with the overhead below and error `ε 1` evaluated at the environment budget that
+absorbs both the adversary and the hybrid protocol. -/
 theorem GEmulatesWithin.compose {pρ g : Polynomial ℕ}
     {ε : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0} (hρ : ρ.PolyBounded pρ)
     (h : GEmulatesWithin G π φ g ε) :
@@ -1387,9 +1422,12 @@ theorem GEmulatesWithin.compose {pρ g : Polynomial ℕ}
     Polynomial.eval_ofNat, Polynomial.eval_comp]
   gcongr
 
-/-- **Single-session shared-setup EUC composition (call-bounded statistical model):** replacing
-subroutine `π` with `φ` inside a hybrid protocol `ρ` preserves `GEmulates` while `ρ`, `π`, `φ`,
-the adversary/simulator, and the environment all share the same live global setup `G`. -/
+/-- **Single-session shared-setup composition** for `GEmulates`, in this library's call-bounded
+(computationally unbounded), fixed-`n`-party, static-corruption shared-setup port model (#6043), a
+step toward the polynomial-time ITM EUC composition theorem of [CanettiDPW2007] but not that
+theorem: replacing subroutine `π` with `φ` inside a hybrid protocol `ρ` with a polynomial budget
+preserves `GEmulates` while `ρ`, `π`, `φ`, the adversary/simulator, and the environment all share
+the same live global setup `G`. -/
 theorem GEmulates.compose {pρ : Polynomial ℕ} (hρ : ρ.PolyBounded pρ) (h : GEmulates G π φ) :
     GEmulates G (gCompose ρ π) (gCompose ρ φ) := by
   rw [gEmulates_iff_gEmulatesDummy] at h ⊢
@@ -1400,11 +1438,20 @@ theorem GEmulates.compose {pρ : Polynomial ℕ} (hρ : ρ.PolyBounded pρ) (h :
   rw [gAdvantage_gCompose]
   exact hbound C _ (gAbsorbHybrid_polyBounded C hρ hZ) κ z
 
+/-- Replacing an ideal functionality by a protocol that realizes it with shared setup `G`, in this
+library's call-bounded (computationally unbounded), fixed-`n`-party, static-corruption shared-setup
+port model (#6043), not the polynomial-time ITM GUC result of [CanettiDPW2007]: if `π` realizes `F`,
+then `gCompose ρ π` emulates the `F`-hybrid protocol `gCompose ρ F.toGlobalProtocol` in the sense of
+`GEmulates`. -/
 theorem GRealizes.compose {F : IdealFunctionality n SubIn SubOut BackQ BackR}
     {pρ : Polynomial ℕ} (hρ : ρ.PolyBounded pρ) (h : GRealizes G π F) :
     GEmulates G (gCompose ρ π) (gCompose ρ F.toGlobalProtocol) :=
   GEmulates.compose hρ h
 
+/-- Modular protocol design with shared setup `G`, in this library's call-bounded (computationally
+unbounded), fixed-`n`-party, static-corruption shared-setup port model (#6043), not the
+polynomial-time ITM GUC result of [CanettiDPW2007]: if `gCompose ρ F.toGlobalProtocol` realizes `I`
+and `π` realizes `F`, then `gCompose ρ π` realizes `I`. -/
 theorem GRealizes.compose_trans {GQ GR : Type}
     {F : IdealFunctionality n SubIn SubOut BackQ BackR}
     {I : IdealFunctionality n In Out GQ GR}
@@ -1519,7 +1566,7 @@ theorem localCoinProto_realizes_indepCoinFunc : Realizes localCoinProto indepCoi
     (spec := execSpec 1 Unit Bool AdvQ AdvR ⊕ₒ netSpec Unit Bool) (Sum.inr ())
   return decide (pOut = some gBit)
 
-theorem coinDistinguisherEnv_polyBounded {AdvQ AdvR : Type} :
+private theorem coinDistinguisherEnv_polyBounded {AdvQ AdvR : Type} :
     (coinDistinguisherEnv : GlobalEnvironment 1 Unit Bool AdvQ AdvR (netSpec Unit Bool)).PolyBounded
       2 := fun _ _ => by
   rw [Polynomial.eval_ofNat]
