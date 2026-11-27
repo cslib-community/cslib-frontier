@@ -21,7 +21,8 @@ the constructor that join uses on its way back up the spine, following the AVL j
 
 A well-formed rope of height `h` has at least `Nat.fib (h + 2)` leaves, since its sibling heights
 differ by at most one and its internal nodes have non-empty children. Each leaf holds at least one
-element, so the height is at most `2 * Nat.log 2 (length + 1)`.
+element, so the height is at most `2 * Nat.log 2 length`. No `+ 1` is needed, because `empty` and
+a leaf both have height `0`.
 
 ## Main definitions
 
@@ -34,10 +35,9 @@ element, so the height is at most `2 * Nat.log 2 (length + 1)`.
 * `Rope.toList_balanceNode`, `Rope.isWF_balanceNode`, `Rope.height_balanceNode`: the list model,
   well-formedness and the height effect of `balanceNode`.
 * `Rope.leaves_le_length`: a chunked rope has at most as many leaves as elements.
-* `Rope.fib_height_le_leaves`, `Rope.fib_height_le_leaves_add_one`: the Fibonacci lower bound on
-  the number of leaves, for non-empty and for all well-formed ropes.
-* `Rope.height_le_two_mul_log`: a well-formed rope has height at most
-  `2 * Nat.log 2 (length + 1)`.
+* `Rope.fib_height_le_leaves`: the Fibonacci lower bound on the number of leaves of a non-empty
+  well-formed rope.
+* `Rope.height_le_two_mul_log`: a well-formed rope has height at most `2 * Nat.log 2 length`.
 
 ## References
 
@@ -250,19 +250,12 @@ theorem fib_height_le_leaves {t : Rope α} (hw : IsWF B t) (hne : t.isEmpty = fa
     change Nat.fib (max l.height r.height + 3) ≤ l.leaves + r.leaves
     omega
 
-/-- A well-formed rope of height `h` has at least `Nat.fib (h + 2) - 1` leaves; unlike
-`fib_height_le_leaves`, this also covers `empty`. -/
-theorem fib_height_le_leaves_add_one {t : Rope α} (hw : IsWF B t) :
-    Nat.fib (t.height + 2) ≤ t.leaves + 1 := by
-  cases h : t.isEmpty
-  · exact (fib_height_le_leaves hw h).trans (Nat.le_succ _)
-  · obtain rfl := isEmpty_iff.1 h
-    simp [leaves]
-
-/-- A well-formed rope has height at most `2 * Nat.log 2 (length + 1)`. -/
+/-- A well-formed rope has height at most `2 * Nat.log 2 length`. -/
 theorem height_le_two_mul_log {t : Rope α} (hw : IsWF B t) :
-    t.height ≤ 2 * Nat.log 2 (t.length + 1) :=
-  Nat.le_two_mul_log_of_fib_le ((fib_height_le_leaves_add_one hw).trans
-    (Nat.add_le_add_right (leaves_le_length hw.cacheCorrect hw.chunked) 1))
+    t.height ≤ 2 * Nat.log 2 t.length := by
+  cases h : t.isEmpty
+  · exact Nat.le_two_mul_log_of_fib_le
+      ((fib_height_le_leaves hw h).trans (leaves_le_length hw.cacheCorrect hw.chunked))
+  · simp [isEmpty_iff.1 h]
 
 end Cslib.DataStructure.Rope
