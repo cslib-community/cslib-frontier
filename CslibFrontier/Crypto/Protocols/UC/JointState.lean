@@ -94,6 +94,12 @@ without importing the UC ideal-functionality or execution modules.
 * `Cslib.Crypto.Protocols.UC.EmulatesWithin.toJoint_multiSession`,
   `Cslib.Crypto.Protocols.UC.EmulatesWithin.multiSession_toJoint`: fixed-session concrete
   emulation steps in both directions with zero error and `Polynomial.X` overhead.
+* `Cslib.Crypto.Protocols.UC.Realizes.compose_toJoint`,
+  `Cslib.Crypto.Protocols.UC.Realizes.compose_toJoint_trans`,
+  `Cslib.Crypto.Protocols.UC.RealizesWithin.compose_toJoint`,
+  `Cslib.Crypto.Protocols.UC.Realizes.composeMulti_toJoint`: end-to-end fixed-session joint-state
+  composition corollaries combining the relabelling steps with single-instance and multi-session
+  composition.
 
 ## References
 
@@ -722,5 +728,71 @@ theorem EmulatesWithin.multiSession_toJoint {m n : ℕ}
   intro AdvQ AdvR A pA hA
   refine ⟨jointMux A, pA, jointMux_polyBounded hA, SimPolyBound.refl pA, fun C Z pZ _ κ z => ?_⟩
   simp only [advantage, Game.advantage, exec_composeMulti_toJoint, nndist_self, le_rfl]
+
+/-- Adaptation of Theorem 1 (Universal Composition with Joint State) of [CanettiRabin2003], not that
+theorem: for a fixed number `m` of sessions, static corruptions, pull execution and this library's
+call-bounded statistical `Realizes`, if `ρHat` realizes the multi-session extension
+`F.multiSession (Fin m)`, then the joint-state protocol `compose ρ.toJoint ρHat` emulates the
+`m`-session `F`-hybrid protocol `composeMulti ρ F.toProtocol`. -/
+theorem Realizes.compose_toJoint {m n : ℕ}
+    {In Out NetQ NetR SubIn SubOut BackQ BackR NQ NR : Type}
+    {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
+    {F : IdealFunctionality n SubIn SubOut BackQ BackR}
+    {ρHat : Protocol n (SubSessionInput (Fin m) SubIn) SubOut NQ NR} {pρ : Polynomial ℕ}
+    (hρ : ρ.PolyBounded pρ) (h : Realizes ρHat (F.multiSession (Fin m))) :
+    Emulates (UC.compose ρ.toJoint ρHat) (UC.composeMulti ρ F.toProtocol) :=
+  (Realizes.compose (toJoint_polyBounded hρ) h).trans
+    ((EmulatesWithin.toJoint_multiSession ρ F).emulates fun _ _ => negligible_zero)
+
+/-- Adaptation of Theorem 1 (Universal Composition with Joint State) of [CanettiRabin2003], not that
+theorem: for a fixed number `m` of sessions, static corruptions, pull execution and this library's
+call-bounded statistical `Realizes`, if `ρHat` realizes `F.multiSession (Fin m)` and
+`composeMulti ρ F.toProtocol` realizes `G`, then the joint-state protocol `compose ρ.toJoint ρHat`
+realizes `G`. -/
+theorem Realizes.compose_toJoint_trans {m n : ℕ}
+    {In Out NetQ NetR SubIn SubOut BackQ BackR NQ NR GQ GR : Type}
+    {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
+    {F : IdealFunctionality n SubIn SubOut BackQ BackR} {G : IdealFunctionality n In Out GQ GR}
+    {ρHat : Protocol n (SubSessionInput (Fin m) SubIn) SubOut NQ NR} {pρ : Polynomial ℕ}
+    (hρ : ρ.PolyBounded pρ) (h : Realizes ρHat (F.multiSession (Fin m)))
+    (hρG : Realizes (UC.composeMulti ρ F.toProtocol) G) :
+    Realizes (UC.compose ρ.toJoint ρHat) G :=
+  (h.compose_toJoint hρ).trans hρG
+
+/-- Adaptation of Theorem 1 (Universal Composition with Joint State) of [CanettiRabin2003], not that
+theorem: concrete form for a fixed number `m` of sessions, static corruptions, pull execution and
+this library's call-bounded `RealizesWithin`. If `ρHat` realizes `F.multiSession (Fin m)` with
+overhead `g` and error `ε`, then `compose ρ.toJoint ρHat` emulates `composeMulti ρ F.toProtocol`
+with the overhead and error below. -/
+theorem RealizesWithin.compose_toJoint {m n : ℕ}
+    {In Out NetQ NetR SubIn SubOut BackQ BackR NQ NR : Type}
+    {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
+    {F : IdealFunctionality n SubIn SubOut BackQ BackR}
+    {ρHat : Protocol n (SubSessionInput (Fin m) SubIn) SubOut NQ NR} {pρ g : Polynomial ℕ}
+    {ε : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0}
+    (hρ : ρ.PolyBounded pρ) (h : RealizesWithin ρHat (F.multiSession (Fin m)) g ε) :
+    EmulatesWithin (UC.compose ρ.toJoint ρHat) (UC.composeMulti ρ F.toProtocol)
+      (Polynomial.X + compSimPoly (g.comp (Polynomial.X + 1) + 1))
+      (fun pA pZ => ε 1 (absorbPoly (absorbPoly pZ pA) pρ)) := by
+  have htrans := ((h.compose (toJoint_polyBounded hρ)).trans
+    (EmulatesWithin.toJoint_multiSession ρ F) (fun _ _ _ _ _ => le_rfl)).mono
+    (fun _ _ _ => by rw [add_zero])
+  rwa [Polynomial.X_comp] at htrans
+
+/-- Adaptation of Theorem 1 (Universal Composition with Joint State) of [CanettiRabin2003], not that
+theorem: reverse direction for a fixed number `m` of sessions, static corruptions, pull execution
+and this library's call-bounded statistical `Realizes`. If `π` realizes `F`, then the `m`-session
+protocol `composeMulti ρ π` emulates the `F.multiSession (Fin m)`-hybrid protocol
+`compose ρ.toJoint (F.multiSession (Fin m)).toProtocol`. -/
+theorem Realizes.composeMulti_toJoint {m n : ℕ}
+    {In Out NetQ NetR SubIn SubOut NQ NR BackQ BackR : Type}
+    {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
+    {π : Protocol n SubIn SubOut NQ NR} {F : IdealFunctionality n SubIn SubOut BackQ BackR}
+    {pρ pπ pF : Polynomial ℕ}
+    (hρ : ρ.PolyBounded pρ) (hπ : π.PolyBounded pπ) (hF : F.toProtocol.PolyBounded pF)
+    (h : Realizes π F) :
+    Emulates (UC.composeMulti ρ π) (UC.compose ρ.toJoint (F.multiSession (Fin m)).toProtocol) :=
+  (Realizes.composeMulti hρ hπ hF h).trans
+    ((EmulatesWithin.multiSession_toJoint ρ F).emulates fun _ _ => negligible_zero)
 
 end Cslib.Crypto.Protocols.UC
