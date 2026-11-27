@@ -431,7 +431,8 @@ private theorem valid_of_mem_axisChallenge {n p precision : ℕ} [NeZero n] [NeZ
 
 /-- The verifier accepts with certainty whenever the represented point and line tables
 agree on every axis and point, independently of the precision used for sampling. -/
-private theorem run_axisRound_of_checkAxis (π : List Bool → Bool) {n p : ℕ} [NeZero n] [Fact p.Prime]
+private theorem run_axisRound_of_checkAxis (π : List Bool → Bool) {n p : ℕ}
+    [NeZero n] [Fact p.Prime]
     (hall : ∀ (i : Fin n) (x : Fin n → ZMod p),
       checkAxis (proofPoint π p) (proofAxis π p) i x = true)
     (precision : ℕ) :
