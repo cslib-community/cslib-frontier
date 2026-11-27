@@ -113,8 +113,9 @@ theorem averageProb_nonneg {p : ℕ → I → ℝ} {T : ℕ} (hp : ∀ t < T, �
     0 ≤ averageProb p T i :=
   div_nonneg (sum_nonneg fun t ht => hp t (mem_range.mp ht) i) (Nat.cast_nonneg _)
 
-/-- Taking the expectation of a fixed function under the average distribution gives the
-average of its expectations under the individual distributions. -/
+/-- A weighted sum against the average weights equals the average of the individual weighted
+sums. For a positive horizon and probability weights, this gives the expected payoff under the
+average distribution. -/
 theorem sum_averageProb_mul (p : ℕ → I → ℝ) (T : ℕ) (f : I → ℝ) :
     ∑ i, averageProb p T i * f i = (∑ t ∈ range T, ∑ i, p t i * f i) / T := by
   simp only [averageProb_apply, div_mul_eq_mul_div, ← sum_div, sum_mul]
