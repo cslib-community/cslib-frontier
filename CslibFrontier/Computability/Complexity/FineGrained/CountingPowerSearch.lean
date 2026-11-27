@@ -27,7 +27,7 @@ the disjoint sparse-leaf sum over the original declared variables. The certifica
 the encoded input, including the unary declared size, and the supplied leaf computation.
 Its round factor uses the power saving from [MITHardnessGroup2026SH, Lemma 2.2, §2.2].
 A size-based power saving transfers to the occurring variable count for both counting
-and decision after polynomial-time dense relabeling. The decision hypothesis
+and decision after polynomial-time dense relabeling. The randomized decision hypothesis
 equivalences remain open in #8457.
 
 ## Main results
@@ -269,28 +269,23 @@ theorem exists_computableInO_seededSearch_powerBudget {k d : ℕ} (hk : 2 ≤ k)
     {Tw Sw : DeclaredCNF → ℕ} {Tv Sv : DeclaredCNF × List Bool → ℕ}
     (hwidth : ComputableInO width encDeclaredCNF encUnary Tw Sw)
     (hV : ComputableInO V (encPair encDeclaredCNF encBits) encBool Tv Sv)
-    {R Q : List Bool × ℕ × CNF ℕ → ℕ}
+    {R Q : DeclaredCNF × List Bool → ℕ}
     (hresources : ∀ (seed : List Bool) (a : DeclaredCNF) (ψ : CNF ℕ),
       let M := countingThresholdBase k (countingPowerBudget d a.numVars)
       let leaf : DeclaredCNF := ⟨a.numVars, ψ⟩
-      let leafSize := (encPair (encPair encBits encUnary) encCNF ((seed, a.numVars), ψ)).length
+      let leafSize := (encPair encDeclaredCNF encBits (leaf, seed)).length
       let query := (leaf, seed.take (width leaf))
       (∀ c ∈ ψ, c.length ≤ k) → isSparse (countingThreshold M) k ψ = true →
       ψ.vars.toFinset ⊆ Finset.range a.numVars → ψ.length ≤ occBound k M * a.numVars + 1 →
       (encCNF ψ).length ≤ nodeBound k (countingDepthCoeff k M) a.formula →
-      5 * leafSize + Tw leaf + Tv query ≤ R (seed, a.numVars, a.formula) ∧
-      5 * leafSize + Sw leaf + Sv query ≤ Q (seed, a.numVars, a.formula)) :
-    let encInput := encPair encBits (encPair encUnary encCNF)
-    ∃ (verify : List Bool × ℕ × CNF ℕ → Bool) (T S : List Bool × ℕ × CNF ℕ → ℕ) (c e b : ℕ),
+      20 * leafSize + Tw leaf + Tv query ≤ R (a, seed) ∧
+      20 * leafSize + Sw leaf + Sv query ≤ Q (a, seed)) :
+    let encInput := encPair encDeclaredCNF encBits
+    ∃ (verify : DeclaredCNF × List Bool → Bool) (T S : DeclaredCNF × List Bool → ℕ) (c e : ℕ),
       ComputableInO verify encInput encBool T S ∧
-      (∀ (seed : List Bool) (a : DeclaredCNF),
-        (T (seed, a.numVars, a.formula) : ℝ) ≤
-          6 * 2 ^ (3 * (a.numVars + 1 : ℝ) ^ (1 - (d : ℝ)⁻¹)) *
-            (c * (((encInput (seed, a.numVars, a.formula)).length : ℝ) + 1) ^ e +
-              R (seed, a.numVars, a.formula)) + (a.numVars + 2 : ℝ) ^ b) ∧
-      (∀ (seed : List Bool) (a : DeclaredCNF),
-        validDeclaredInput k a.numVars a.formula = false →
-        verify (seed, a.numVars, a.formula) = false) ∧
+      (∀ p, (T p : ℝ) ≤ 6 * 2 ^ (3 * (p.1.numVars + 1 : ℝ) ^ (1 - (d : ℝ)⁻¹)) *
+        (c * (((encInput p).length : ℝ) + 1) ^ e + R p)) ∧
+      (∀ p, validDeclaredInput k p.1.numVars p.1.formula = false → verify p = false) ∧
       ∀ (a : DeclaredCNF) (n : ℕ) (ε : ℝ), 0 ≤ ε →
         validDeclaredInput k a.numVars a.formula = true →
         (∀ ψ : CNF ℕ,
@@ -303,7 +298,7 @@ theorem exists_computableInO_seededSearch_powerBudget {k d : ℕ} (hk : 2 ≤ k)
           width leaf ≤ n ∧
             (acceptCount (fun p => V p != decide (0 < p.1.formula.modelCount))
               leaf (width leaf) : ℝ) ≤ ε * (2 : ℝ) ^ width leaf) →
-        (acceptCount (fun p => verify (p.2, p.1.numVars, p.1.formula) !=
+        (acceptCount (fun p => verify p !=
           decide (0 < p.1.formula.modelCount)) a n : ℝ) ≤
           (2 : ℝ) ^ (a.formula.numVars / countingPowerBudget d a.numVars + 1) *
             (ε * (2 : ℝ) ^ n) := by
@@ -334,30 +329,106 @@ theorem exists_computableInO_seededSearch_powerBudget {k d : ℕ} (hk : 2 ≤ k)
       (fun x => 5 * (encLeaf x).length + Tw (input x) + Tv (query x))
       (fun x => 5 * (encLeaf x).length + Sw (input x) + Sv (query x)) := by
     convert hnat.comp_linear (hV.comp hquery) using 1 <;> funext x <;> dsimp [query] <;> omega
+  let toSearch (p : DeclaredCNF × List Bool) :=
+    (p.2, p.1.numVars, p.1.formula)
+  let fromSearch (x : List Bool × ℕ × CNF ℕ) : DeclaredCNF × List Bool :=
+    let (seed, declared, formula) := x
+    (⟨declared, formula⟩, seed)
   obtain ⟨Tc, Sc, c, e, hcount, _, htime⟩ := declaredSearch_resources encBits hk hd
-    (R := R) (Q := Q) hg
+    (R := R ∘ fromSearch) (Q := Q ∘ fromSearch) hg
     (fun p ψ _ _ _ _ => (Bool.toNat_le (V (query (p, ψ)))).trans Nat.one_le_two_pow) (by
       rintro ⟨seed, declared, formula⟩ ψ hw hs hv hl hlen
-      exact hresources seed ⟨declared, formula⟩ ψ hw hs hv hl hlen)
+      have h := hresources seed ⟨declared, formula⟩ ψ hw hs hv hl hlen
+      have hsize : 5 * (encLeaf ((seed, declared), ψ)).length ≤
+          20 * (encInput (⟨declared, ψ⟩, seed)).length := by
+        change 5 * (encLeaf ((seed, declared), ψ)).length ≤
+          20 * (encPair (encPair encUnary encCNF) encBits ((declared, ψ), seed)).length
+        simp only [encLeaf, encContext, length_encPair, encBits_apply]
+        omega
+      exact ⟨(Nat.add_le_add_right (Nat.add_le_add_right hsize _) _).trans h.1,
+        (Nat.add_le_add_right (Nat.add_le_add_right hsize _) _).trans h.2⟩)
+  have hunpack : ComputableInO (fun a : DeclaredCNF => (a.numVars, a.formula))
+      encDeclaredCNF (encPair encUnary encCNF) (fun a => (encDeclaredCNF a).length)
+      (fun a => (encDeclaredCNF a).length) := ComputableInO.of_eq fun _ => rfl
+  have hprep : ComputableInO toSearch encInput (encPair encBits (encPair encUnary encCNF))
+      (fun p => 2 * (encInput p).length) (fun p => 2 * (encInput p).length) := by
+    simpa only [two_mul, toSearch, Function.comp_apply] using
+      (ComputableInO.snd encDeclaredCNF encBits).prod
+        (hunpack.comp_linear (ComputableInO.fst encDeclaredCNF encBits))
   obtain ⟨b, _, hpos⟩ := ComputableInPolyTime.binary_pos.exists_degree
-  let verify (x : List Bool × ℕ × CNF ℕ) := decide (0 < declaredSearch k d g x)
-  refine ⟨verify, _, _, c, e, b, hpos.inO.comp hcount, ?_, ?_, ?_⟩
-  · intro seed a
-    let x : List Bool × ℕ × CNF ℕ := (seed, a.numVars, a.formula)
-    have hM2 := two_le_countingThresholdBase k (countingPowerBudget d a.numVars)
+  let verify (p : DeclaredCNF × List Bool) := decide (0 < declaredSearch k d g (toSearch p))
+  let E := max e (max b 1)
+  refine ⟨verify, _, _, c * 2 ^ e + 3, E, (hpos.inO.comp hcount).comp hprep, ?_, ?_, ?_⟩
+  · intro p
+    let L : ℝ := (encInput p).length + 1
+    let factor : ℝ := 6 * 2 ^ (3 * (p.1.numVars + 1 : ℝ) ^ (1 - (d : ℝ)⁻¹))
+    let x := toSearch p
+    have hL : 1 ≤ L := le_add_of_nonneg_left (Nat.cast_nonneg _)
+    have hfactor : 1 ≤ factor := by
+      have htwo : (1 : ℝ) ≤ 2 ^ (3 * (p.1.numVars + 1 : ℝ) ^ (1 - (d : ℝ)⁻¹)) :=
+        Real.one_le_rpow one_le_two (by positivity)
+      dsimp only [factor]
+      linarith
+    have hM2 := two_le_countingThresholdBase k (countingPowerBudget d p.1.numVars)
     have hK : 1 ≤ k := by omega
     have hlen := length_encNat_searchDeclaredWith_le
-      (NOf := Prod.snd) (MOf := base k d) (BOf := budget d) (p := (seed, a.numVars))
+      (NOf := Prod.snd) (MOf := base k d) (BOf := budget d) (p := (p.2, p.1.numVars))
       ((by decide : 1 ≤ 2).trans hM2) hK hM2 le_rfl
-      (countingTreeBound_countingThresholdBase hK (one_le_countingPowerBudget d a.numVars))
-      g a.formula
-    have hpow := Nat.pow_le_pow_left (Nat.succ_le_succ hlen) b
-    change ((Tc x + ((encNat (declaredSearch k d g x)).length + 1) ^ b : ℕ) : ℝ) ≤ _
+      (countingTreeBound_countingThresholdBase hK (one_le_countingPowerBudget d p.1.numVars))
+      g p.1.formula
+    have hdecl : encDeclaredCNF p.1 = encPair encUnary encCNF (p.1.numVars, p.1.formula) := rfl
+    have hnative : ((encPair encBits (encPair encUnary encCNF) x).length + 1 : ℕ) ≤
+        2 * ((encInput p).length + 1) := by
+      simp only [x, toSearch, encInput, length_encPair, hdecl, encBits_apply]
+      omega
+    have hnum : p.1.numVars + 2 ≤ (encInput p).length + 1 := by
+      simp only [encInput, length_encPair, hdecl, encUnary_apply, List.length_replicate]
+      omega
+    have hout : ((encNat (declaredSearch k d g x)).length + 1 : ℝ) ≤ L := by
+      have h : (encNat (declaredSearch k d g x)).length + 1 ≤ (encInput p).length + 1 :=
+        (Nat.add_le_add_right hlen 1).trans hnum
+      simpa only [L, Nat.cast_add, Nat.cast_one] using (Nat.cast_le.mpr h : (_ : ℝ) ≤ _)
+    have hLpow : L ≤ L ^ E := by
+      simpa only [pow_one] using pow_le_pow_right₀ hL
+        (show 1 ≤ E from (le_max_right b 1).trans (le_max_right e _))
+    have hposClock : ((encNat (declaredSearch k d g x)).length + 1 : ℝ) ^ b ≤ L ^ E :=
+      (pow_le_pow_left₀ (by positivity) hout _).trans
+        (pow_le_pow_right₀ hL ((le_max_left b 1).trans (le_max_right e _)))
+    have hpoly : (c : ℝ) * ((encPair encBits (encPair encUnary encCNF) x).length + 1 : ℝ) ^ e ≤
+        ((c * 2 ^ e : ℕ) : ℝ) * L ^ E := by
+      have hcast : ((encPair encBits (encPair encUnary encCNF) x).length + 1 : ℝ) ≤ 2 * L := by
+        simpa only [L, Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat, Nat.cast_one] using
+          (Nat.cast_le.mpr hnative : (_ : ℝ) ≤ _)
+      calc
+        _ ≤ c * (2 * L) ^ e :=
+          mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (by positivity) hcast _) (by positivity)
+        _ = ((c * 2 ^ e : ℕ) : ℝ) * L ^ e := by push_cast; rw [mul_pow, mul_assoc]
+        _ ≤ _ := mul_le_mul_of_nonneg_left
+          (pow_le_pow_right₀ hL (le_max_left e _)) (by positivity)
+    have ht : (Tc x : ℝ) ≤ factor *
+        (c * ((encPair encBits (encPair encUnary encCNF) x).length + 1 : ℝ) ^ e + R p) := htime x
+    change ((2 * (encInput p).length + (Tc x +
+      ((encNat (declaredSearch k d g x)).length + 1) ^ b) : ℕ) : ℝ) ≤ _
     push_cast
-    exact add_le_add (htime x) (by exact_mod_cast hpow)
-  · intro seed a ha
-    simp only [verify, declaredSearch, searchDeclaredWith_eq_ite_mul, ha, Bool.false_eq_true,
-      ite_false, lt_self_iff_false, decide_false]
+    calc
+      _ ≤ 2 * L ^ E + (factor * (((c * 2 ^ e : ℕ) : ℝ) * L ^ E + R p) + L ^ E) := by
+        have hprepClock : ((encInput p).length : ℝ) ≤ L ^ E :=
+          (le_add_of_nonneg_right zero_le_one).trans hLpow
+        have hsearchClock := ht.trans
+          (mul_le_mul_of_nonneg_left (add_le_add_left hpoly _) (zero_le_one.trans hfactor))
+        exact add_le_add (mul_le_mul_of_nonneg_left hprepClock (by norm_num))
+          (add_le_add hsearchClock hposClock)
+      _ = factor * (((c * 2 ^ e : ℕ) : ℝ) * L ^ E + R p) + 3 * L ^ E := by ring
+      _ ≤ factor * (((c * 2 ^ e : ℕ) : ℝ) * L ^ E + R p) + factor * (3 * L ^ E) :=
+        add_le_add_right
+          (le_mul_of_one_le_left (show 0 ≤ 3 * L ^ E by positivity) hfactor) _
+      _ = _ := by
+        change _ = factor * (((c : ℝ) * 2 ^ e + 3) * L ^ E + R p)
+        push_cast
+        ring
+  · intro p ha
+    simp only [verify, toSearch, declaredSearch, searchDeclaredWith_eq_ite_mul, ha,
+      Bool.false_eq_true, ite_false, lt_self_iff_false, decide_false]
   · intro a n ε hε ha hleaf
     obtain ⟨hw, hv⟩ := validDeclaredInput_eq_true_iff.mp ha
     have hK : 1 ≤ k := by omega
@@ -389,12 +460,12 @@ theorem exists_computableInO_seededSearch_powerBudget {k d : ℕ} (hk : 2 ≤ k)
           cases V (⟨a.numVars, ψ⟩, List.ofFn bits) <;> rfl
         rw [hcountEq]
         exact herr)
-    have hcongr : acceptCount (fun p => verify (p.2, p.1.numVars, p.1.formula) !=
+    have hcongr : acceptCount (fun p => verify p !=
         decide (0 < p.1.formula.modelCount)) a n = acceptCount W a.formula n := by
       unfold acceptCount
       congr 1
       ext bits
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, verify, declaredSearch,
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, verify, toSearch, declaredSearch,
         searchDeclaredWith_eq_ite_mul, ha, ↓reduceIte, CanonicallyOrderedAdd.mul_pos,
         Nat.two_pow_pos, W, g, query, input, seed, base, budget]
     rw [hcongr]
