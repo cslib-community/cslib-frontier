@@ -531,7 +531,8 @@ private theorem realizes_probeOldBufCandGen :
     obtain ⟨hro_st, hro_res, _, _⟩ := readOldEpProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max)
       (Nat.add_lt_add_left
-        ((by decide : hdrCurEp < 32).trans_le (headerWords_le_largeSpaceWhp c U V w n_max)) base) hce_or hrep.2.2.2.1 (s := s)
+        ((by decide : hdrCurEp < 32).trans_le (headerWords_le_largeSpaceWhp c U V w n_max)) base)
+      hce_or hrep.2.2.2.1 (s := s)
     simp only [hst_st, hst_res, hrep.2.2.2.2.2.1, hro_st, hro_res] at *
     first
     | exact henv.fits_const (by decide)
@@ -569,7 +570,8 @@ private theorem probeOldBufCandGenProg_spec {c U V w n_max base b q_val rKey : �
     have hro := ReadSpec.of_eq (readOldEpProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max)
       (Nat.add_lt_add_left
-        ((by decide : hdrCurEp < 32).trans_le (headerWords_le_largeSpaceWhp c U V w n_max)) base) hce_or hrep.2.2.2.1 (s := s))
+        ((by decide : hdrCurEp < 32).trans_le (headerWords_le_largeSpaceWhp c U V w n_max)) base)
+      hce_or hrep.2.2.2.1 (s := s))
     exact .weaken (hst.bind (.if_pos hle3 (hro.bind (probeBufCandGenProg_spec henv
       (fs.oldEp_or hce_or) hrep hv_old hb hcnt_le hbp_v)))) (by rw [ite_eq_left hle3]) (by omega)
   · exact .weaken (hst.bind (.if_neg hle3 (.pure _))) (by rw [ite_eq_right hle3]) (by omega)
