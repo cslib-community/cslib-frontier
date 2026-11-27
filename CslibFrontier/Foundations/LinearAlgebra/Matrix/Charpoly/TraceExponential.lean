@@ -26,7 +26,8 @@ coefficients `-trace (M^j) / j`. The polynomial of these coefficients is Mathlib
 
 The finite-exponential proof is adapted from
 [lean-canny](https://github.com/edemaine/lean-canny/blob/970f28a5ecefc1327402ade16c068aa4b1b2c183/LeanCanny/CountingHierarchy/TraceExponentialNewton.lean).
-Jacobi's identity is obtained from the existing `Derivation.map_det`.
+Jacobi's identity `Matrix.derivative_det_adjugate`, `(det M)' = tr (adj M * M')` for a matrix
+`M` of polynomials, is obtained from the existing `Derivation.map_det`.
 -/
 
 public section
