@@ -16,8 +16,8 @@ import CslibFrontier.Tactic.ValidProg
 /-!
 # Word-RAM Edge Subroutines for Optimal MSF
 
-Word-RAM base subroutines toward Section 5.2 (pp. 26–27) and Theorem 5.8 of
-[PettieRamachandran2002] (#8624):
+Word-RAM base subroutines toward Section 2.1 (p. 18), Section 5 (pp. 23–24), and Theorem 5.8
+(Section 5.1, p. 27) of [PettieRamachandran2002] (#8624):
 
 - Six faithfully word-encoded argument bundles (`AppendSelIdsArgs`, `RetagEdgesArgs`,
   `CopyStride4Args`, `ConcatThreeArgs`, `LiftEdgesArgs`, `LiftHRemArgs`).
@@ -83,7 +83,8 @@ Word-RAM base subroutines toward Section 5.2 (pp. 26–27) and Theorem 5.8 of
 ## References
 
 * [Pettie and Ramachandran, *An Optimal Minimum Spanning Tree Algorithm*,
-  Journal of the ACM 49(1), 2002][PettieRamachandran2002], Section 5.2, pp. 26–27
+  Journal of the ACM 49(1), 2002][PettieRamachandran2002], Section 2.1 (p. 18),
+  Section 5 (pp. 23–24), and Section 5.1 (pp. 25–27)
 -/
 
 public section

@@ -174,7 +174,7 @@ theorem remDeg_anti {n offBase : ℕ} {mem : ℕ → ℕ} {S T : Finset (Fin n)}
     simp [huT, huS]
 
 /-- Extracts out-of-set memory agreement from `Memory.Modifies` and preserved frontier. -/
-private theorem mem_eq_of_modifies_frontier {α : Type} {w : ℕ} {S : Set ℕ} {s : Memory.State}
+theorem mem_eq_of_modifies_frontier {α : Type} {w : ℕ} {S : Set ℕ} {s : Memory.State}
     {prog : Memory.Prog α}
     (hv : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s prog))
     (hmod : Memory.Modifies S s ((Memory.spec 0).clientState s prog))

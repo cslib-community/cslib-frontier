@@ -33,7 +33,8 @@ relativize `P`, and `Cslib.Complexity.ENP` is the union of `EWithOracle A` over 
 languages `A` in `NP`.
 
 Both `E` and `P` relative to `A` lie inside `E` relative to `A`
-(`Cslib.Complexity.E_subset_EWithOracle`, `Cslib.Complexity.PWithOracle_subset_EWithOracle`). The
+(`Cslib.Complexity.E_subset_EWithOracle`, `Cslib.Complexity.PWithOracle_subset_EWithOracle`), so
+`P ^ NP ⊆ E ^ NP` (`Cslib.Complexity.iUnion_PWithOracle_NP_subset_ENP`). The
 *preprocessing rule* `Cslib.Complexity.preimage_mem_EWithOracle` composes a deterministic
 preparation within time `O(2 ^ (d * n))` with a problem in `P` relative to `A` on the prepared
 instances. Its typical use is padding: a polynomial-time algorithm with an oracle, run on an
@@ -63,8 +64,8 @@ machine writes the padded instance and asks the `NP` oracle about it.
   `Cslib.Complexity.ComputableInPolyTimeWithOracle.comp_computableInO`.
 * `Cslib.Complexity.E_subset_EWithOracle`, `Cslib.Complexity.PWithOracle_subset_EWithOracle`,
   `Cslib.Complexity.preimage_mem_EWithOracle`.
-* `Cslib.Complexity.E_subset_ENP`, `Cslib.Complexity.PWithOracle_subset_ENP`,
-  `Cslib.Complexity.NP_subset_ENP`.
+* `Cslib.Complexity.E_subset_ENP`, `Cslib.Complexity.iUnion_PWithOracle_NP_subset_ENP`,
+  `Cslib.Complexity.NP_subset_ENP`: `E`, `P ^ NP` and `NP` lie inside `E ^ NP`.
 * `Cslib.Complexity.NE_subset_ENP`: `NE ⊆ E ^ NP`, by padding.
 
 ## References
@@ -176,14 +177,14 @@ theorem E_subset_EWithOracle (A : Set (List Bool)) (enc : α ↪ List Bool) :
 theorem E_subset_ENP (enc : α ↪ List Bool) : E enc ⊆ ENP enc := fun _ hL =>
   mem_ENP.mpr ⟨∅, P_subset_NP empty_mem_P, E_subset_EWithOracle ∅ enc hL⟩
 
-/-- `P` relative to a language in `NP` lies inside `E ^ NP`. -/
-theorem PWithOracle_subset_ENP {A : Set (List Bool)} (hA : A ∈ NP encBits) (enc : α ↪ List Bool) :
-    PWithOracle A enc ⊆ ENP enc := fun _ hL =>
-  mem_ENP.mpr ⟨A, hA, PWithOracle_subset_EWithOracle A enc hL⟩
+/-- **`P ^ NP ⊆ E ^ NP`**: `P` relative to a language in `NP` lies inside `E` relative to it. -/
+theorem iUnion_PWithOracle_NP_subset_ENP (enc : α ↪ List Bool) :
+    (⋃ A ∈ NP encBits, PWithOracle A enc) ⊆ ENP enc :=
+  Set.biUnion_mono subset_rfl fun A _ => PWithOracle_subset_EWithOracle A enc
 
 /-- `NP` lies inside `E ^ NP`: one request decides an `NP` language. -/
 theorem NP_subset_ENP : NP encBits ⊆ ENP encBits := fun A hA =>
-  PWithOracle_subset_ENP hA encBits (mem_PWithOracle_self A)
+  iUnion_PWithOracle_NP_subset_ENP encBits (Set.mem_biUnion hA (mem_PWithOracle_self A))
 
 /-- **`NE ⊆ E ^ NP`**, by the standard padding argument. A problem decidable by a nondeterministic
 machine within time `O(2 ^ (k * n))` is decided on the padded instances

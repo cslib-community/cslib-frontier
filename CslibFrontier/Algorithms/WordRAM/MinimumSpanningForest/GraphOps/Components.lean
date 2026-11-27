@@ -36,7 +36,8 @@ undirected CSR graphs, reusing `ArrayOps.fillConstProg`, `Memory.allocBlockDirty
 * `realizes_connectedComponentsProg`, `connectedComponentsProg_spec`: correctness and linear cost.
 * `realizes_contractEdgesProg`, `contractEdgesProg_spec`: correctness and edge-contraction cost.
 * `realizes_compactVerticesProg`, `compactVerticesProg_spec`, `compactVertices_isSimple`,
-  `compactVertices_isMinSpanningForest`: correctness, simplicity, and MSF preservation.
+  `compactVertices_isMinSpanningForest`, `card_le_two_mul_of_noIsolated`: correctness, simplicity,
+  MSF preservation, and non-isolated vertex count bound.
 -/
 
 public section
@@ -2098,5 +2099,36 @@ theorem compactVertices_isMinSpanningForest {nOut n : ℕ}
           contractEdgeList lift (M.filter fun e => decide (e.weight ≤ t)) := by
         simp only [contractEdgeList, List.filter_map]; rfl
       rw [← hcon_es, hfilt, hfilt]; exact hpart_con_eq _ _ (hL.2 t)⟩
+
+/-- Any graph on `Fin n` with no isolated vertices (`∀ y, ∃ e ∈ es, e.u = y ∨ e.v = y`) satisfies
+`n ≤ 2 * es.length`. -/
+theorem card_le_two_mul_of_noIsolated {n : ℕ} {es : List (IndexedEdge n)}
+    (hno : ∀ y : Fin n, ∃ e ∈ es, e.u = y ∨ e.v = y) : n ≤ 2 * es.length := by
+  have hsub : (Finset.univ : Finset (Fin n)) ⊆
+      es.foldr (fun e acc => insert e.u (insert e.v acc)) ∅ := by
+    intro y _
+    obtain ⟨e, he, hy⟩ := hno y
+    clear hno
+    induction es with
+    | nil => simp at he
+    | cons a rest ih =>
+      simp only [List.foldr_cons, Finset.mem_insert]
+      rcases List.mem_cons.mp he with rfl | hmem
+      · rcases hy with rfl | rfl <;> simp
+      · exact Or.inr (Or.inr (ih hmem))
+  have hcard : ∀ l : List (IndexedEdge n),
+      (l.foldr (fun e acc => insert e.u (insert e.v acc)) (∅ : Finset (Fin n))).card ≤
+        2 * l.length := by
+    intro l
+    induction l with
+    | nil => simp
+    | cons a rest ih =>
+      simp only [List.foldr_cons, List.length_cons]
+      have h1 := Finset.card_insert_le a.u (insert a.v (rest.foldr
+        (fun e acc => insert e.u (insert e.v acc)) ∅))
+      have h2 := Finset.card_insert_le a.v (rest.foldr
+        (fun e acc => insert e.u (insert e.v acc)) ∅)
+      omega
+  simpa [Fintype.card_fin] using (Finset.card_le_card hsub).trans (hcard es)
 
 end Cslib.Algorithms.WordRAM.MinimumSpanningForest
