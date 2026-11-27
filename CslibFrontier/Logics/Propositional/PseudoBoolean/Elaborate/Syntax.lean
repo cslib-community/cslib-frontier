@@ -251,40 +251,43 @@ def init (N : Text.Names) : LexState :=
   ⟨0, #[], 0, names, others⟩
 
 /-- The position of the next byte. -/
-@[inline] private def getPos : PM ℕ := return (← get).pos
+@[inline] private def getPos : PM ℕ := fun s => .ok s.pos s
 
 /-- Set the position of the next byte. -/
-@[inline] private def setPos (p : ℕ) : PM Unit := modify fun s => { s with pos := p }
+@[inline] private def setPos (p : ℕ) : PM Unit :=
+  fun s => .ok () { s with pos := p }
 
 /-- The tokens read ahead. -/
-@[inline] private def getAhead : PM (Array String) := return (← get).ahead
+@[inline] private def getAhead : PM (Array String) := fun s => .ok s.ahead s
 
 /-- Set the tokens read ahead. -/
-@[inline] private def setAhead (a : Array String) : PM Unit := modify fun s => { s with ahead := a }
+@[inline] private def setAhead (a : Array String) : PM Unit :=
+  fun s => .ok () { s with ahead := a }
 
 /-- Change the tokens read ahead. -/
 @[inline] private def modifyAhead (f : Array String → Array String) : PM Unit :=
-  modify fun s => { s with ahead := f s.ahead }
+  fun s => .ok () { s with ahead := f s.ahead }
 
 /-- The start of the token read last. -/
-@[inline] private def getLast : PM ℕ := return (← get).last
+@[inline] private def getLast : PM ℕ := fun s => .ok s.last s
 
 /-- Set the start of the token read last. -/
-@[inline] private def setLast (p : ℕ) : PM Unit := modify fun s => { s with last := p }
+@[inline] private def setLast (p : ℕ) : PM Unit :=
+  fun s => .ok () { s with last := p }
 
 /-- The numbers of the other names. -/
-@[inline] private def getNames : PM (Std.HashMap String ℕ) := return (← get).names
+@[inline] private def getNames : PM (Std.HashMap String ℕ) := fun s => .ok s.names s
 
 /-- Change the numbers of the other names. -/
 @[inline] private def modifyNames (f : Std.HashMap String ℕ → Std.HashMap String ℕ) : PM Unit :=
-  modify fun s => { s with names := f s.names }
+  fun s => .ok () { s with names := f s.names }
 
 /-- The other names. -/
-@[inline] private def getOthers : PM (Array String) := return (← get).others
+@[inline] private def getOthers : PM (Array String) := fun s => .ok s.others s
 
 /-- Change the other names. -/
 @[inline] private def modifyOthers (f : Array String → Array String) : PM Unit :=
-  modify fun s => { s with others := f s.others }
+  fun s => .ok () { s with others := f s.others }
 
 /-- The names read so far: those of the instance, extended by those of the proof. -/
 def namesOf (L : Lexer) : PM Text.Names := return ⟨(← Lexer.getOthers).toList, L.base⟩

@@ -224,15 +224,14 @@ namespace Field
 variable {α : Type}
 
 /-- The value of the field. -/
-@[inline] private def get (f : Field α) : EM α := return f.read (← MonadState.get)
+@[inline] private def get (f : Field α) : EM α := fun e => .ok (f.read e) e
 
 /-- Set the field. -/
-@[inline] private def set (f : Field α) (a : α) : EM Unit :=
-  MonadState.modifyGet fun e => ((), f.write a e)
+@[inline] private def set (f : Field α) (a : α) : EM Unit := fun e => .ok () (f.write a e)
 
 /-- Change the field. -/
 @[inline] private def modify (f : Field α) (g : α → α) : EM Unit :=
-  MonadState.modifyGet fun e => ((), f.write (g (f.read e)) e)
+  fun e => .ok () (f.write (g (f.read e)) e)
 
 end Field
 
