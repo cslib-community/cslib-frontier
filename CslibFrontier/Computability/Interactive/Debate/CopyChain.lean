@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Interactive.Debate.Machine
+import CslibFrontier.Foundations.Analysis.ENNRealNatDiv
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Expect
@@ -174,15 +175,6 @@ theorem evalWith_verdict_of_pure {law : List Bool → PMF Bool} (P : Params)
   revert h
   cases bit <;> intro h <;> simpa [hr] using h
 
-/-- One more round at flip probability `δ`: the recursion behind `1 - (1 - δ) ^ n`. -/
-theorem one_sub_pow_succ_le {δ : ℝ≥0∞} (hδ : δ ≤ 1) (n : ℕ) :
-    1 - (1 - δ) ^ (n + 1) ≤ (1 - δ) * (1 - (1 - δ) ^ n) + δ := by
-  have hq : 1 - δ + δ = 1 := tsub_add_cancel_of_le hδ
-  have hqtop : 1 - δ ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top tsub_le_self
-  rw [ENNReal.mul_sub (fun _ _ => hqtop), mul_one, ← pow_succ']
-  calc 1 - (1 - δ) ^ (n + 1) = 1 - δ + δ - (1 - δ) ^ (n + 1) := by rw [hq]
-    _ ≤ 1 - δ - (1 - δ) ^ (n + 1) + δ := add_tsub_le_tsub_add
-
 /-- The acceptance bound from any history: certain once the last bit is `true`. -/
 private theorem le_evalWith_runFrom_copyChainProposer {law : List Bool → PMF Bool}
     (hlaw : ∀ bits, law bits = PMF.pure (bits.headD false)) (P : Params) [NeZero P.grid]
@@ -275,7 +267,7 @@ private theorem le_evalWith_runFrom_copyChainProposer {law : List Bool → PMF B
       refine le_trans ?_ (hsum k (by simpa [abs_of_pos hk0] using hk))
       have htrue := map_coinBit_uniformOfFintype_right k coinA
       rw [map_coinBit_uniformOfFintype_right_false, htrue]
-      exact one_sub_pow_succ_le (htrue ▸ PMF.coe_le_one _ true) n
+      exact ENNReal.one_sub_pow_succ_le (htrue ▸ PMF.coe_le_one _ true) n
 
 /-- **The attack on a deterministic step.** For any parameters with at least one verifier sample
 and any claim `k / N` that is positive and below the verifier's tolerance, `copyChainProposer`
@@ -320,12 +312,6 @@ private theorem two_fifths_lt_one_sub_pow {δ : ℝ≥0∞} {δ₀ : ℝ} {n n�
       rw [ENNReal.ofReal_sub _ (pow_nonneg (by linarith) _), ENNReal.ofReal_one]
     _ ≤ 1 - (1 - δ) ^ n := tsub_le_tsub_left hq 1
 
-/-- A claim `k / N` as an extended nonnegative real is the real quotient. -/
-theorem ofReal_div_natCast (k N : ℕ) (hN : 0 < N) :
-    ENNReal.ofReal ((k : ℝ) / N) = (k : ℝ≥0∞) / N := by
-  rw [ENNReal.ofReal_div_of_pos (by exact_mod_cast hN), ENNReal.ofReal_natCast,
-    ENNReal.ofReal_natCast]
-
 /-- The attack wins with probability above `2 / 5` once the claim is at least `δ₀` and there
 are at least `n₀` rounds with `(1 - δ₀) ^ n₀ < 3 / 5`. -/
 private theorem exists_proposer_two_fifths_lt (P : Params) (O : Query → PMF Bool) (k : ℕ)
@@ -341,7 +327,7 @@ private theorem exists_proposer_two_fifths_lt (P : Params) (O : Query → PMF Bo
   refine lt_of_lt_of_le (two_fifths_lt_one_sub_pow h0 h1 ?_ hn hpow)
     (le_evalWith_run_copyChainProposer P ⟨k, Nat.lt_succ_of_le hkN⟩
       (div_pos (by exact_mod_cast hk0) (by exact_mod_cast hN)) hk hsamples O B)
-  rw [← ofReal_div_natCast k P.grid hN]
+  rw [← ENNReal.ofReal_div_natCast k P.grid hN]
   exact ENNReal.ofReal_le_ofReal hδ
 
 /-! ### The archived constants -/

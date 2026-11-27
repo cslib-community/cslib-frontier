@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Interactive.Debate.CopyChain
 public import CslibFrontier.Probability.PMF.Coin
+import CslibFrontier.Foundations.Analysis.ENNRealNatDiv
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Expect
@@ -430,7 +431,7 @@ private theorem twoBlockBound_step {s a δ : ℝ≥0∞} (hδ : δ ≤ 1) (j : �
       ≤ s * (a * (1 - δ + δ) + a * ((1 - δ) * (1 - (1 - δ) ^ j) + δ)) := by
         rw [h1, mul_one]
         gcongr
-        exact one_sub_pow_succ_le hδ j
+        exact ENNReal.one_sub_pow_succ_le hδ j
     _ = _ := by ring
 
 section Claim
@@ -790,10 +791,10 @@ private theorem exists_proposer_two_fifths_lt_twoBlock (K : ℝ≥0) (d : ℕ)
     (1 / 4) (by norm_num) (by norm_num) (ENNReal.ofReal (1 / 200)) hver B)
   dsimp only
   have ha : ENNReal.ofReal (2499 / 10000) ≤ ((P.grid / 4 : ℕ) : ℝ≥0∞) / P.grid := by
-    rw [← ofReal_div_natCast _ _ hNnat]
+    rw [← ENNReal.ofReal_div_natCast _ _ hNnat]
     exact ENNReal.ofReal_le_ofReal (by linarith)
   have hδ : ENNReal.ofReal (1 / (4 * (d : ℝ) + 1)) ≤ (k : ℝ≥0∞) / P.grid := by
-    rw [← ofReal_div_natCast _ _ hNnat]
+    rw [← ENNReal.ofReal_div_natCast _ _ hNnat]
     exact ENNReal.ofReal_le_ofReal hδ₀
   have hpow : (1 - (k : ℝ≥0∞) / P.grid) ^ m ≤ ENNReal.ofReal (37 / 100) := by
     have hδ1 : 1 / (4 * (d : ℝ) + 1) ≤ 1 := by
