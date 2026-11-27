@@ -32,29 +32,36 @@ This lets a lookup be evaluated under an oracle that compares keys through a key
 
 public section
 
-universe w
+universe u u' v w
 
 namespace Cslib.DataStructure.BTree
 
-variable {α α' β : Type}
+section MapKeys
+
+variable {α : Type u} {α' : Type u'} {β : Type v}
 
 mutual
 /-- Map over keys, keeping values and shape. -/
-@[expose] def mapKeys (g : α → α') : BTree α β → BTree α' β
+def mapKeys (g : α → α') : BTree α β → BTree α' β
   | .leaf => .leaf
   | .node first rest => .node (first.mapKeys g) (mapKeysRest g rest)
 /-- Map over the keys of a list of triples. -/
-@[expose] def mapKeysRest (g : α → α') : List (Triple α β) → List (Triple α' β)
+def mapKeysRest (g : α → α') : List (Triple α β) → List (Triple α' β)
   | [] => []
   | (k, v, c) :: rest => (g k, v, c.mapKeys g) :: mapKeysRest g rest
 end
 
+/-- Mapping keys over the empty tree gives the empty tree. -/
+@[simp] theorem mapKeys_leaf (g : α → α') : (leaf : BTree α β).mapKeys g = leaf := by
+  rw [mapKeys]
+
 /-- Mapping keys over a node maps its first child and its triples. -/
 @[simp] theorem mapKeys_node (g : α → α') (first : BTree α β) (rest : List (Triple α β)) :
-    (node first rest).mapKeys g = node (first.mapKeys g) (mapKeysRest g rest) := rfl
+    (node first rest).mapKeys g = node (first.mapKeys g) (mapKeysRest g rest) := by
+  rw [mapKeys]
 
 /-- `mapKeysRest` is `List.map` over the triples. -/
-theorem mapKeysRest_eq_map (g : α → α') (rest : List (Triple α β)) :
+@[simp] theorem mapKeysRest_eq_map (g : α → α') (rest : List (Triple α β)) :
     mapKeysRest g rest = rest.map fun e => (g e.1, e.val, e.child.mapKeys g) := by
   induction rest with
   | nil => rfl
@@ -76,7 +83,9 @@ private theorem children_mapKeys (g : α → α') (first : BTree α β) (rest : 
   simp only [mapKeys_node, children_node, mapKeysRest_eq_map, List.map_cons, List.map_map]
   rfl
 
-variable {m : Type → Type w} [Monad m]
+end MapKeys
+
+variable {α α' β : Type} {m : Type → Type w} [Monad m]
 
 /-- Lookup in a tree with mapped keys, compared through the key function, is lookup in the
 original tree under the pulled-back comparison. -/
@@ -100,14 +109,6 @@ theorem lookupM_mapKeys (le : α' → α' → m Bool) (visit : m Unit) (g : α �
       · simpa using ih2
       · rfl
 
-private theorem mapKeysRest_take (g : α → α') (n : ℕ) (rest : List (Triple α β)) :
-    mapKeysRest g (rest.take n) = (mapKeysRest g rest).take n := by
-  simp only [mapKeysRest_eq_map, List.map_take]
-
-private theorem mapKeysRest_drop (g : α → α') (n : ℕ) (rest : List (Triple α β)) :
-    mapKeysRest g (rest.drop n) = (mapKeysRest g rest).drop n := by
-  simp only [mapKeysRest_eq_map, List.map_drop]
-
 /-- The within-node binary search commutes with mapping keys. -/
 private theorem slotBinM_mapKeysRest (le : α' → α' → m Bool) (g : α → α') (k : α)
     (rest : List (Triple α β)) :
@@ -119,7 +120,7 @@ private theorem slotBinM_mapKeysRest (le : α' → α' → m Bool) (g : α → �
     · simp only [mapKeysRest, slotBinM_nil]
     · have hm : mapKeysRest g (e :: l) =
           (g e.1, e.val, e.child.mapKeys g) :: mapKeysRest g l := by
-        rcases e with ⟨_, _, _⟩; rfl
+        rcases e with ⟨_, _, _⟩; rw [mapKeysRest]
       have hl : (mapKeysRest g l).length = l.length := by
         rw [mapKeysRest_eq_map, List.length_map]
       rw [hm, slotBinM_cons, slotBinM_cons]
@@ -130,8 +131,12 @@ private theorem slotBinM_mapKeysRest (le : α' → α' → m Bool) (g : α → �
           rw [mapKeysRest_eq_map, List.length_map]; exact hlen)).1 =
           g ((e :: l)[(l.length + 1) / 2]'hlen).1 := by
         simp only [mapKeysRest_eq_map, List.getElem_map]
+      have htake (j : ℕ) : (mapKeysRest g (e :: l)).take j = mapKeysRest g ((e :: l).take j) := by
+        simp only [mapKeysRest_eq_map, List.map_take]
+      have hdrop (j : ℕ) : (mapKeysRest g (e :: l)).drop j = mapKeysRest g ((e :: l).drop j) := by
+        simp only [mapKeysRest_eq_map, List.map_drop]
       have hlt : (e :: l).length < n + 1 := by omega
-      simp only [hget, ← mapKeysRest_take, ← mapKeysRest_drop]
+      simp only [hget, htake, hdrop]
       have h1 := ih _ (by simp only [List.length_take, List.length_cons] at hlt ⊢; omega)
         ((e :: l).take ((l.length + 1) / 2)) rfl
       have h3 := ih _ (by simp only [List.length_drop, List.length_cons] at hlt ⊢; omega)
