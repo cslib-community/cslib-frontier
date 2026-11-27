@@ -16,14 +16,9 @@ public import CslibFrontier.Computability.Complexity.Classes.Space.Savitch
 import CslibFrontier.Computability.Complexity.Classes.Space.Time
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace
 import CslibFrontier.Computability.Complexity.Reduction.Word
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.PolyTime
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
-import CslibFrontier.Tactic.EncLen
 
 /-!
 # Inclusions between complexity classes
@@ -104,20 +99,6 @@ theorem NP_subset_NPSPACE : NP enc ⊆ NPSPACE enc := by
 theorem NP_subset_PSPACE : NP enc ⊆ PSPACE enc :=
   NP_subset_NPSPACE.trans NPSPACE_subset_PSPACE
 
-/-- A polynomial plus `2` to a polynomial times a polynomial is eventually below `2 ^ n ^ K`. -/
-private theorem exists_eventually_le_two_pow_pow {P Q R : ℕ → ℕ} (hP : PolynomiallyBounded P)
-    (hQ : PolynomiallyBounded Q) (hR : PolynomiallyBounded R) :
-    ∃ K, ∀ᶠ n in atTop, P n + 2 ^ Q n * R n ≤ 2 ^ n ^ K := by
-  obtain ⟨K, hK⟩ : PolynomiallyBounded fun n => Q n + n + 1 := by fun_prop
-  refine ⟨K, ?_⟩
-  filter_upwards [hP.eventually_lt_two_pow, hR.eventually_lt_two_pow, hK] with n h₁ h₂ h₃
-  have h₄ : 1 ≤ 2 ^ Q n := Nat.one_le_two_pow
-  calc P n + 2 ^ Q n * R n ≤ 2 ^ n * 2 ^ Q n + 2 ^ Q n * 2 ^ n :=
-        Nat.add_le_add (h₁.le.trans (Nat.le_mul_of_pos_right _ h₄))
-          (Nat.mul_le_mul_left _ h₂.le)
-    _ = 2 ^ (Q n + n + 1) := by ring
-    _ ≤ 2 ^ n ^ K := Nat.pow_le_pow_right (by norm_num) h₃
-
 /-- **`PSPACE ⊆ EXP`** [Arora and Barak, Theorem 4.2][AroraBarak09],
 [Sipser, Section 8.2][Sipser2013]: a decider within space `n ^ k` halts within its number of
 configurations, `(n + 2) * 2 ^ (c * n ^ k)` (`Cslib.Complexity.exists_mem_DTIME_of_mem_DSPACE`). -/
@@ -125,10 +106,14 @@ theorem PSPACE_subset_EXP : PSPACE enc ⊆ EXP enc := by
   intro A hA
   obtain ⟨k, hk⟩ := mem_PSPACE_iff_exists_mem_DSPACE.mp hA
   obtain ⟨c, hc⟩ := exists_mem_DTIME_of_mem_DSPACE hk
-  obtain ⟨K, hK⟩ := exists_eventually_le_two_pow_pow (P := fun _ => 0) (Q := fun n => c * n ^ k)
-    (R := fun n => n + 2) (by fun_prop) (by fun_prop) (by fun_prop)
-  exact mem_EXP_iff.mpr ⟨K, DTIME_mono_of_eventually_le
-    (hK.mono fun n hn => by rw [Nat.mul_comm]; simpa using hn) hc⟩
+  obtain ⟨K, hK⟩ : PolynomiallyBounded (fun n => n + c * n ^ k) := by fun_prop
+  have hlinear : PolynomiallyBounded (fun n => n + 2) := by fun_prop
+  refine mem_EXP_iff.mpr ⟨K, DTIME_mono_of_eventually_le ?_ hc⟩
+  filter_upwards [hlinear.eventually_lt_two_pow, hK] with n hn hpow
+  calc
+    (n + 2) * 2 ^ (c * n ^ k) ≤ 2 ^ n * 2 ^ (c * n ^ k) := Nat.mul_le_mul_right _ hn.le
+    _ = 2 ^ (n + c * n ^ k) := (pow_add ..).symm
+    _ ≤ 2 ^ n ^ K := Nat.pow_le_pow_right (by decide) hpow
 
 /-- **`NP ⊆ EXP`**, through `PSPACE`. -/
 theorem NP_subset_EXP : NP enc ⊆ EXP enc :=

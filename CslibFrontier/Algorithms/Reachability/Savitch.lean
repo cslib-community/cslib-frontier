@@ -9,9 +9,6 @@ module
 
 public import CslibFrontier.Foundations.Data.BitString.Enumeration
 public import CslibFrontier.Foundations.Relation.RelatesWithinSteps
-import CslibFrontier.Foundations.Logic.Function.Iterate
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
 
 /-!
 # Savitch's midpoint reachability
@@ -45,7 +42,7 @@ Its space on multi-tape machines, `O((d + 1) * (w + log₂ d + 1))` plus one edg
 
 namespace Cslib.Reachability
 
-open Cslib.BitString (enumList enumList_succ mem_enumList)
+open Cslib.BitString (enumList mem_enumList)
 
 /-! ### Reachability by midpoints -/
 

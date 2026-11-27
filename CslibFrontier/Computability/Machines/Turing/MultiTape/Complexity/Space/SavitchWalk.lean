@@ -51,6 +51,9 @@ costs the same work space, plus that of the inputs and `O(log n)` for the counte
 
 ## Main definitions
 
+* `Cslib.Reachability.encArgs`, `Cslib.Reachability.encEdgeArgs`: the encodings of the
+  midpoint recursion arguments and the edge test arguments.
+* `Cslib.Reachability.edgeMax`: the largest edge test budget at the given width.
 * `Cslib.Reachability.Walk.encEntry`, `Cslib.Reachability.Walk.encState`: the encoded states.
 * `Cslib.Reachability.Walk.roundStep`, `Cslib.Reachability.Walk.encRound`: a step carrying the
   parameter of the edge test and the width, and its encoding.
@@ -58,6 +61,7 @@ costs the same work space, plus that of the inputs and `O(log n)` for the counte
 
 ## Main results
 
+* `Cslib.Reachability.le_edgeMax`: the maximum bounds the budget of every edge test at that width.
 * `Cslib.Reachability.Walk.computableInSpace_midpoint`: the work space of a midpoint.
 * `Cslib.Reachability.Walk.computableInSpace_roundStep`: the work space of a round.
 * `Cslib.Reachability.Walk.roundStep_iterate`: rounds run the walk.
