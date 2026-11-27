@@ -28,17 +28,16 @@ length and a problem `B ∈ NP` of pairs, for the encoding `frame u ++ enc a` of
 `a ∈ A` exactly when `(adv (enc a).length, a) ∈ B`. `coNP/poly` consists of the complements
 (`Cslib.Complexity.coNPPoly`).
 
-`NP ⊆ NP/poly` with empty advice (`Cslib.Complexity.NP_subset_NPPoly`), and
-`P/poly ⊆ NP/poly ∩ coNP/poly` (`Cslib.Complexity.PPolyOn_subset_NPPoly`,
-`Cslib.Complexity.PPolyOn_subset_coNPPoly`): the advice lists the circuits, which are evaluated in
-polynomial time (`Cslib.Circuits.Boolean.PPoly.exists_evalAdvice`), and `P/poly` is closed under
-complement. `NP/poly` is closed under
-polynomial-time reductions (`Cslib.Complexity.PolyTimeReducible.mem_NPPoly`): the advice for
-instances of length `n` lists the advice of the target problem for every length up to a polynomial
-bound on the length of the reduced instances, and the verifier selects the entry for the length of
-the reduced instance. In particular, if one `coNP`-complete problem is in `NP/poly`, then so is
-every problem in `coNP` (`Cslib.Complexity.coNP_subset_NPPoly_of_coNPComplete`), and
-`coNP ⊆ NP/poly` exactly when `NP ⊆ coNP/poly` (`Cslib.Complexity.coNP_subset_NPPoly_iff`).
+`NP ⊆ NP/poly` with empty advice (`Cslib.Complexity.NP_subset_NPPoly`), and `P/poly ⊆ NP/poly ∩
+coNP/poly` (`Cslib.Complexity.PPolyOn_subset_NPPoly`, `Cslib.Complexity.PPolyOn_subset_coNPPoly`):
+`P/poly` is `P` with polynomial advice (`Cslib.Circuits.Boolean.PPoly_subset_PAdvice`), and it is
+closed under complement. `NP/poly` is closed under polynomial-time reductions
+(`Cslib.Complexity.PolyTimeReducible.mem_NPPoly`): the advice for instances of length `n` lists the
+advice of the target problem for every length up to a polynomial bound on the length of the reduced
+instances, and the verifier selects the entry for the length of the reduced instance. In particular,
+if one `coNP`-complete problem is in `NP/poly`, then so is every problem in `coNP`
+(`Cslib.Complexity.coNP_subset_NPPoly_of_coNPComplete`), and `coNP ⊆ NP/poly` exactly when `NP ⊆
+coNP/poly` (`Cslib.Complexity.coNP_subset_NPPoly_iff`).
 
 `coNP ⊆ NP/poly` is the conclusion of the theorem of Fortnow and Santhanam on OR-distillations
 (`CslibFrontier.Computability.Complexity.Parameterized.Distillation`), and the hypothesis of Yap's
@@ -99,17 +98,15 @@ theorem NP_subset_NPPoly : NP enc ⊆ NPPoly enc := by
 theorem coNP_subset_coNPPoly : coNP enc ⊆ coNPPoly enc := fun _ hA => NP_subset_NPPoly hA
 
 open Circuits.Boolean in
-/-- **`P/poly ⊆ NP/poly`**: the advice for length `n` lists circuits of polynomial size for the
-encoded instances of length `n`, and evaluating them is in `P`
-(`Cslib.Circuits.Boolean.PPoly.exists_evalAdvice`), hence in `NP`. -/
+/-- **`P/poly ⊆ NP/poly`**: a language in `P/poly` is decided in polynomial time with polynomial
+advice (`Cslib.Circuits.Boolean.PPoly_subset_PAdvice`). Reading the encoded instance in place of the
+word gives a pair problem in `P`, hence in `NP`, with the same advice. -/
 theorem PPolyOn_subset_NPPoly : PPolyOn enc ⊆ NPPoly enc := by
   rintro A ⟨L, hL, hAL⟩
-  obtain ⟨S, W, -, adv, -, hadv, heval⟩ := PPoly.exists_evalAdvice hL Polynomial.X
-  refine ⟨adv, hadv, {p | evalAdvice (S.eval (enc p.2).length) (W.eval (enc p.2).length) p.1
-    (enc p.2) = true}, P_subset_NP ⟨_, computableInPolyTime_evalAdvice_eval S W
-      ((encoding_length enc).comp (snd _ _)) (fst _ _)
-      ((of_eq (encIn := enc) (encOut := encBits) fun _ => rfl).comp (snd _ _)), fun _ => .rfl⟩,
-    fun a => (hAL a).trans (heval _ _ (by simp)).symm⟩
+  obtain ⟨adv, hadv, B, hB, hLB⟩ := PPoly_subset_PAdvice hL
+  exact ⟨adv, hadv, {p | (p.1, enc p.2) ∈ B}, PolyTimeReducible.mem_NP
+    ⟨fun p => (p.1, enc p.2), .of_eq fun _ => rfl, fun _ => Iff.rfl⟩ (P_subset_NP hB),
+    fun a => (hAL a).trans (hLB _)⟩
 
 open Circuits.Boolean in
 /-- **`P/poly ⊆ coNP/poly`**: `P/poly` is closed under complement. -/
