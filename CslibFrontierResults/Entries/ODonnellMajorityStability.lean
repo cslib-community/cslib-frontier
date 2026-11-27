@@ -46,15 +46,19 @@ register_result "odonnell-majority-level-weight-asymptotics" where
   title := "The level weights of majority are (2/π)^(3/2) k^(−3/2) (1 ± O(1/k))"
   topic := "analysis of Boolean functions"
   sources := [
-    { paper := ODonnell2014, theorem := "Corollary 5.23 (first statement) and Exercise 5.27(a)",
+    { paper := ODonnell2014, theorem := "Corollary 5.23 and Exercise 5.27(a)",
       locator := "arXiv:2105.10386v1, §5.3, printed p. 124; §5.6, printed p. 137" }
   ]
   theorems := [Cslib.BitString.two_div_pi_mul_centralBinom_div_mem_Icc,
-    Cslib.BitString.levelWeight_signVal_majority_mem_Icc]
+    Cslib.BitString.levelWeight_signVal_majority_mem_Icc,
+    Cslib.BitString.sum_Ioc_levelWeight_signVal_majority_le,
+    Cslib.BitString.le_sum_Ioc_levelWeight_signVal_majority,
+    Cslib.BitString.sum_fourierCoeff_sq_signVal_majority_le]
   scope := "For odd k = 2j + 1: (2/π)^(3/2) k^(−3/2) ≤ [ρ^k] (2/π) arcsin ρ ≤ \
     (2/π)^(3/2) k^(−3/2) (1 + 1/k); and for n = 2m + 1 ≥ 2k², W^k of majority of n bits lies \
-    between (2/π)^(3/2) k^(−3/2) and (2/π)^(3/2) k^(−3/2) (1 + 1/k)². The second statement of \
-    Corollary 5.23 (on W^{>k}) is not covered."
+    between (2/π)^(3/2) k^(−3/2) and (2/π)^(3/2) k^(−3/2) (1 + 1/k)²; W^{>k} of majority lies \
+    between (2/π)^(3/2) k^(−1/2) (1 − 3/k) (for n ≥ 2k²) and (2/π)^(3/2) k^(−1/2) (1 + 1/k) (for \
+    every n); and for every ε > 0 the weight above any degree d ≥ 8/(π³ε²) + 4 is at most ε."
 
 register_result "odonnell-majority-noise-stability-bounds" where
   title := "The noise stability of majority is within O(1/√((1 − ρ²) n)) above (2/π) arcsin ρ"
