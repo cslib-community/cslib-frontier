@@ -9,6 +9,9 @@ module
 
 public import CslibFrontier.Computability.Circuit.Quantum.Controlled
 public import CslibFrontier.Computability.Circuit.Quantum.GateMatrix
+public import CslibFrontier.Computability.Circuit.Quantum.Uniform
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 
 /-!
 # Phase oracles and the reflection about zero
@@ -250,6 +253,31 @@ theorem readBit_classicalRun_andCodes {cs : List ℕ} {w : ℕ} (hc : ∀ c ∈ 
 `cs` are zero. -/
 @[expose] def zeroTestCodes (cs : List ℕ) (w : ℕ) : List GateCode :=
   cs.map (fun c => (false, c, [])) ++ andCodes cs w
+
+private theorem andCodes_eq_zipIdx (cs : List ℕ) (w : ℕ) :
+    andCodes cs w = (false, w + cs.length, []) ::
+      ((cs.zipIdx w).map (fun p => (false, p.2, [p.1, p.2 + 1]))).reverse := by
+  induction cs generalizing w with
+  | nil => simp [andCodes]
+  | cons c cs ih =>
+    rw [andCodes, ih]
+    simp only [List.length_cons, List.zipIdx_cons, List.map_cons, List.reverse_cons,
+      List.cons_append, List.cons.injEq, and_true]
+    congr 2
+    omega
+
+open Turing.MultiTapeTM in
+/-- A polynomial-time generator of control indices and a scratch base gives a polynomial-time
+generator of the elementary gates testing those controls for zero. -/
+@[fun_prop] theorem computableInPolyTime_zeroTestCodes {α : Type} {enc : α ↪ List Bool}
+    {cs : α → List ℕ} {w : α → ℕ} (hcs : ComputableInPolyTime cs enc (encList encUnary))
+    (hw : ComputableInPolyTime w enc encUnary) :
+    ComputableInPolyTime (fun a => zeroTestCodes (cs a) (w a)) enc (encList encGateCode) := by
+  have hz : ComputableInPolyTime (fun a => (cs a).zipIdx) enc
+      (encList (encPair encUnary encUnary)) := (ComputableInPolyTime.zipIdx encUnary).comp hcs
+  simp only [zeroTestCodes, andCodes_eq_zipIdx, List.zipIdx_eq_map_add (i := w _), List.map_map,
+    Function.comp_def]
+  fun_prop
 
 theorem isClassical_zeroTestCodes {cs : List ℕ} {w : ℕ} (hc : ∀ c ∈ cs, c < w)
     (hw : w + cs.length < m) : IsClassical m (zeroTestCodes cs w) := by
