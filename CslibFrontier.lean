@@ -2902,6 +2902,7 @@ public import CslibFrontier.Computability.Complexity.Classes.LogCFL
 public import CslibFrontier.Computability.Complexity.Problems.ThreeSATThree.Size
 public import CslibFrontier.Computability.PCP.Encoded.Witness
 public import CslibFrontier.Algorithms.Lean.Query.Select.Cost
+public import CslibFrontier.Algorithms.WordRAM.MergeSort.Local
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Basic
 public import CslibFrontier.Crypto.Computational.MLDSA.Signing
 public import CslibFrontier.Computability.WordRAM.Randomized.Expected
