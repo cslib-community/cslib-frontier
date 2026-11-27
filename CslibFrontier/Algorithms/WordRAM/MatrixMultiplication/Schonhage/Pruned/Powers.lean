@@ -70,7 +70,10 @@ theorem exec_powers {w L Q : ℕ} (x : Data registers) (hL : x.regs inputDepth =
     exact (hd' : y.regs inputDepth = L).trans hL.symm
   · simp only [PowersLocal, not_or] at hi
     rcases hi with ⟨h1, h2, h3, h4, h5, h6, h7, h8⟩
-    rw [hframe i fun j => by fin_cases j <;> simp [powerRegisters] <;> lrat_tauto]
+    rw [hframe i fun j => by
+      fin_cases j <;>
+        simp only [powerRegisters, Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk, Fin.isValue,
+          Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val, ne_eq] <;> lrat_tauto]
     wram_simp
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery
