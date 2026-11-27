@@ -2620,6 +2620,7 @@ public import CslibFrontier.Computability.Complexity.Classes.AverageCase.Ensembl
 public import CslibFrontier.GameTheory.ResourceAllocation.MarketClearing
 public import CslibFrontier.Computability.Distributed.FailureDetectors.Consensus
 public import CslibFrontier.Crypto.Computational.HashAndSign
+public import CslibFrontier.Computability.Circuit.Boolean.ModGates.Coprime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.Bounds
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.MatrixSpec
 public import CslibFrontier.Computability.Circuit.Boolean.Formula.Andreev
