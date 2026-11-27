@@ -214,26 +214,35 @@ theorem ecomplexityFrom_eq_top_of_fiber_collision {x y : X} (h : sources x = sou
   rintro ⟨c, hc⟩
   exact hne (hc.agrees_on_fibers h)
 
+private theorem ecomplexityFrom_le_add_of_combine {k₁ k₂ k₃ m₁ m₂ m₃ : ℕ}
+    {f : X → Fin m₁ → U} {s₁ : X → Fin k₁ → U} {g : X → Fin m₂ → U} {s₂ : X → Fin k₂ → U}
+    {h : X → Fin m₃ → U} {s₃ : X → Fin k₃ → U}
+    (combine : ∀ (c : {c : Circuit σ k₁ m₁ // c.ComputesFrom I f s₁})
+      (d : {d : Circuit σ k₂ m₂ // d.ComputesFrom I g s₂}),
+      ∃ e : Circuit σ k₃ m₃, e.ComputesFrom I h s₃ ∧
+        e.program.cost cost = c.1.program.cost cost + d.1.program.cost cost) :
+    ecomplexityFrom I cost h s₃ ≤
+      ecomplexityFrom I cost f s₁ + ecomplexityFrom I cost g s₂ := by
+  conv_rhs => simp only [ecomplexityFrom, ENat.iInf_add, ENat.add_iInf]
+  refine le_iInf fun d => le_iInf fun c => ?_
+  obtain ⟨e, he, hcost⟩ := combine c d
+  exact (ecomplexityFrom_le_of_computesFrom e he).trans_eq (by rw [hcost, Nat.cast_add])
+
 /-- Computing through an intermediate family adds at most the two weighted complexities. -/
 theorem ecomplexityFrom_comp_le (f : X → Fin m → U) (g : X → Fin p → U)
     (sources : X → Fin n → U) :
     ecomplexityFrom I cost g sources ≤
       ecomplexityFrom I cost f sources + ecomplexityFrom I cost g f := by
-  conv_rhs => simp only [ecomplexityFrom, ENat.iInf_add, ENat.add_iInf]
-  refine le_iInf fun d => le_iInf fun c => ?_
-  exact (ecomplexityFrom_le_of_computesFrom (cost := cost) (d.1.comp c.1) (c.2.comp d.2)).trans_eq
-    (by rw [Circuit.cost_program_comp, Nat.cast_add])
+  exact ecomplexityFrom_le_add_of_combine fun c d =>
+    ⟨d.1.comp c.1, c.2.comp d.2, Circuit.cost_program_comp ..⟩
 
 /-- Computing two families from the same sources costs at most the sum of their complexities. -/
 theorem ecomplexityFrom_append_le (f : X → Fin m → U) (g : X → Fin p → U)
     (sources : X → Fin n → U) :
     ecomplexityFrom I cost (fun x => Fin.append (f x) (g x)) sources ≤
       ecomplexityFrom I cost f sources + ecomplexityFrom I cost g sources := by
-  conv_rhs => simp only [ecomplexityFrom, ENat.iInf_add, ENat.add_iInf]
-  refine le_iInf fun d => le_iInf fun c => ?_
-  exact (ecomplexityFrom_le_of_computesFrom (cost := cost) (c.1.append d.1)
-    (c.2.append d.2)).trans_eq
-    (by rw [Circuit.cost_program_append, Nat.cast_add])
+  exact ecomplexityFrom_le_add_of_combine fun c d =>
+    ⟨c.1.append d.1, c.2.append d.2, Circuit.cost_program_append ..⟩
 
 /-- Unit weights and the support subtype recover native support complexity. -/
 theorem ecomplexityFrom_unit_subtype (S : Set (Fin n → U))
