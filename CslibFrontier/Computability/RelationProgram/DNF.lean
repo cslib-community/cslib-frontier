@@ -115,6 +115,34 @@ private theorem violations_names (P : Program r H) (f : Fact r H) :
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
     rcases hl with rfl | rfl <;> exact name_lt _
 
+/-- Every literal in the matrix refers to one of the grounded facts. -/
+theorem certificateMatrix_name_lt (P : Program r H) (target : Fact r H)
+    {t : Term ℕ} (ht : t ∈ certificateMatrix P target)
+    {l : Literal ℕ} (hl : l ∈ t) : l.1 < r * 2 ^ H := by
+  rcases List.mem_cons.mp ht with e | other
+  · subst t
+    obtain rfl := List.mem_singleton.mp hl
+    exact name_lt target
+  · obtain ⟨f, _, hf⟩ := List.mem_flatMap.mp other
+    exact violations_names P f t hf l hl
+
+/-- Quantifying only the finite block of ground variables suffices for the universal DNF. -/
+theorem certificateMatrix_finite_correct (P : Program r H) (target : Fact r H) :
+    (∀ σ : Fin (r * 2 ^ H) → Bool, (certificateMatrix P target).eval
+      (fun v => if h : v < r * 2 ^ H then σ ⟨v, h⟩ else false) = true) ↔
+      derives P target := by
+  constructor
+  · intro valid
+    apply (certificateMatrix_correct P target).mp
+    intro σ
+    obtain ⟨t, ht, holds⟩ := (DNF.eval_eq_true_iff _ _).mp (valid (fun v => σ v.val))
+    refine (DNF.eval_eq_true_iff _ _).mpr ⟨t, ht, (Term.eval_eq_true_iff _ _).mpr ?_⟩
+    intro l hl
+    have h := (Term.eval_eq_true_iff _ _).mp holds l hl
+    simpa only [dite_eq_left (certificateMatrix_name_lt P target ht hl)] using h
+  · intro derived σ
+    exact (certificateMatrix_correct P target).mpr derived _
+
 private theorem violations_length (P : Program r H) (f : Fact r H) :
     (violations P f).length ≤ 2 := by
   unfold violations
@@ -161,13 +189,7 @@ theorem certificateMatrix_bits_upper (P : Program r H) (target : Fact r H) :
       3 * (4 * B + 5) := by
     have literals (l : Literal Nat) (hl : l ∈ t) :
         ((encPair encNat encBool) l).length ≤ 2 * B + 2 := by
-      have lt : l.1 < F := by
-        rcases List.mem_cons.mp ht with e | other
-        · subst t
-          obtain rfl := List.mem_singleton.mp hl
-          exact name_lt target
-        · obtain ⟨f, _, hf⟩ := List.mem_flatMap.mp other
-          exact violations_names P f t hf l hl
+      have lt : l.1 < F := certificateMatrix_name_lt P target ht hl
       have size : (encNat l.1).length ≤ B := length_encNat_le_log2 lt.le
       rw [length_encPair, encBool_apply]
       change 2 * (encNat l.1).length + 1 + 1 ≤ _
