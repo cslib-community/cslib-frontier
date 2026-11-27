@@ -115,7 +115,6 @@ example : ∃ q : ℝ, 1 / 2 < q ∧ 0 < q ∧ q < 1 ∧
       subst n
       norm_num at hn
     rw [acceptCount_eq_zero_iff.mpr fun w => by
-      change (!V (a, List.ofFn w)) = false
       rw [hcount a hn' w, ha', Bool.not_true]]
     norm_num [ErrorModel.bounded, ErrorModel.twoSided]
   · have ha' : a = false := Bool.eq_false_of_not_eq_true (fun h => ha (Set.mem_singleton_iff.mpr h))
