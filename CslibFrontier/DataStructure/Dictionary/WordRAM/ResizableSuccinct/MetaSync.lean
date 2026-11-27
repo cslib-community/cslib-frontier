@@ -961,37 +961,40 @@ theorem validProg_winGrowLeftGen {w : ℕ} {d : (CompParams × ℕ) × (ℕ × �
   exact validProg_writeCompDTGen ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl,
     by rw [clientState_writeCompTDGenProg]; exact hfr⟩, Nat.mod_lt _ hM_pos⟩
 
-theorem validProg_winShrinkRightGen {w : ℕ} {d : (CompParams × ℕ) × (ℕ × ℕ)} {s : Memory.State}
-    (h : WinShrinkRightPre w d s) : ValidProg w 0 s (winShrinkRightGenProg d) := by
-  rcases d with ⟨⟨cp, metaBase⟩, ⟨b_win, n_win⟩⟩
-  obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hn_lt, _, hdt_lt, htd_lt⟩ := h
+private theorem validProg_winShrinkSwap {w U V N metaBase c n : ℕ} {s : Memory.State}
+    (hw : 0 < w) (hN : 0 < N) (hnU : N ≤ U) (hU : U < 2 ^ w) (hV : V ≤ 2 ^ w)
+    (hfr : metaBase + offCompItems U w N ≤ s.frontier)
+    (hc : c < maxTailItems N) (hn_lt : n < maxTailItems N)
+    (hdt_lt : compDTAt metaBase U w N s.mem c < maxTailItems N)
+    (htd_lt : compTDAt metaBase U w N s.mem n < maxTailItems N) :
+    ValidProg w 0 s (do
+      let t_rem ← readCompDTGenProg ((mkCompParams U V w N, metaBase), c)
+      let c_last ← readCompTDGenProg ((mkCompParams U V w N, metaBase), n)
+      writeCompTDGenProg (((mkCompParams U V w N, metaBase), t_rem), c_last)
+      writeCompDTGenProg (((mkCompParams U V w N, metaBase), c_last), t_rem)) := by
   have henv : CompMetaEnv w (mkCompParams U V w N) metaBase s :=
     ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩
-  have hcrem_lt : (b_win + n_win) % maxTailItems N < maxTailItems N := Nat.mod_lt _ (by omega)
-  unfold winShrinkRightGenProg; simp only [pure_bind, cpMaxTail_mk]
-  refine validProg_bind (validProg_readCompDTGen ⟨henv, hcrem_lt⟩) ?_
-  rw [clientState_readCompDTGenProg, clientResult_readCompDTGenProg hcrem_lt]
+  refine validProg_bind (validProg_readCompDTGen ⟨henv, hc⟩) ?_
+  rw [clientState_readCompDTGenProg, clientResult_readCompDTGenProg hc]
   refine validProg_bind (validProg_readCompTDGen ⟨henv, hn_lt⟩) ?_
   rw [clientState_readCompTDGenProg, clientResult_readCompTDGenProg hn_lt]
   refine validProg_bind (validProg_writeCompTDGen ⟨henv, hdt_lt⟩) ?_
   exact validProg_writeCompDTGen ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl,
     by rw [clientState_writeCompTDGenProg]; exact hfr⟩, htd_lt⟩
 
+theorem validProg_winShrinkRightGen {w : ℕ} {d : (CompParams × ℕ) × (ℕ × ℕ)} {s : Memory.State}
+    (h : WinShrinkRightPre w d s) : ValidProg w 0 s (winShrinkRightGenProg d) := by
+  rcases d with ⟨⟨cp, metaBase⟩, ⟨b_win, n_win⟩⟩
+  obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hn_lt, _, hdt_lt, htd_lt⟩ := h
+  unfold winShrinkRightGenProg; simp only [pure_bind, cpMaxTail_mk]
+  exact validProg_winShrinkSwap hw hN hnU hU hV hfr (Nat.mod_lt _ (by omega)) hn_lt hdt_lt htd_lt
+
 theorem validProg_winShrinkLeftGen {w : ℕ} {d : (CompParams × ℕ) × (ℕ × ℕ)} {s : Memory.State}
     (h : WinShrinkLeftPre w d s) : ValidProg w 0 s (winShrinkLeftGenProg d) := by
   rcases d with ⟨⟨cp, metaBase⟩, ⟨b_win, n_win⟩⟩
   obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hn_lt, _, hdt_lt, htd_lt⟩ := h
-  have henv : CompMetaEnv w (mkCompParams U V w N) metaBase s :=
-    ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩
-  have hcrem_lt : b_win % maxTailItems N < maxTailItems N := Nat.mod_lt _ (by omega)
   unfold winShrinkLeftGenProg; simp only [pure_bind, cpMaxTail_mk]
-  refine validProg_bind (validProg_readCompDTGen ⟨henv, hcrem_lt⟩) ?_
-  rw [clientState_readCompDTGenProg, clientResult_readCompDTGenProg hcrem_lt]
-  refine validProg_bind (validProg_readCompTDGen ⟨henv, hn_lt⟩) ?_
-  rw [clientState_readCompTDGenProg, clientResult_readCompTDGenProg hn_lt]
-  refine validProg_bind (validProg_writeCompTDGen ⟨henv, hdt_lt⟩) ?_
-  exact validProg_writeCompDTGen ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl,
-    by rw [clientState_writeCompTDGenProg]; exact hfr⟩, htd_lt⟩
+  exact validProg_winShrinkSwap hw hN hnU hU hV hfr (Nat.mod_lt _ (by omega)) hn_lt hdt_lt htd_lt
 
 theorem validProg_readCompBucketCountGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {s : Memory.State}
     (h : ReadCompBucketCountPre w d s) : ValidProg w 0 s (readCompBucketCountGenProg d) := by
