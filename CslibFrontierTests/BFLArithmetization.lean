@@ -254,6 +254,12 @@ private def acceptAct : Universal.Act := ⟨0, [], some 1, none⟩
 private def acceptDesc : Universal.Desc :=
   ⟨0, 0, [(⟨0, none, []⟩, acceptAct), (⟨0, some 0, []⟩, acceptAct), (⟨0, some 1, []⟩, acceptAct)]⟩
 
+-- An external verifier extracts the typed decoder from membership and runs its raw syntax check.
+example {x : Succinct3CNFInstance} (h : x ∈ Succinct3SAT) : x.valid = true := by
+  unfold Succinct3SAT at h
+  obtain ⟨c, hc, _⟩ := h
+  exact x.valid_eq_true_iff.mpr ⟨c, hc⟩
+
 -- A decoder with one clause, two-bit variable addresses and repeated literals.
 -- Output positions alternate between two constant gates in each literal block.
 example :

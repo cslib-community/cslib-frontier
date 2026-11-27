@@ -72,7 +72,7 @@ attribute [fun_prop] encSuccinct3CNF_mk_polyTime encSuccinct3CNF_clauseBits_poly
   encSuccinct3CNF_labelBits_polyTime encSuccinct3CNF_code_polyTime
 
 /-- Satisfiability of the formula obtained by expanding a well-formed succinct decoder. -/
-def Succinct3SAT : Set Succinct3CNFInstance :=
+@[expose] def Succinct3SAT : Set Succinct3CNFInstance :=
   {x | ∃ c : Circuit signature x.clauseBits (3 * (x.labelBits + 1)),
     c.code = x.code ∧ (SuccinctVerifier.toCNF c).Satisfiable}
 
