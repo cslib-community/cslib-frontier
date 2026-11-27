@@ -477,10 +477,11 @@ theorem exists_computableInO_seededSearch_powerBudget {k d : ℕ} (hk : 2 ≤ k)
     exact hW
 
 /-- The shared-seed assembly step of [MITHardnessGroup2026SH, v2, §7, Theorem 7.1(a)].
-Given leaf verifiers with a power-saving clock, a common bound on their seed widths, and error
-at most one third of the reciprocal leaf-count bound, the native sparsifier decides declared
-width-`k` satisfiability with bounded error. The unary seed allocation and the full
-seeded search both run with a fixed power saving in the declared variable count. -/
+Given leaf verifiers with a power-saving clock, a common bound on their seed widths, and
+error at most one third of the reciprocal leaf-count bound, the native sparsifier decides
+declared width-`k` satisfiability with bounded error. The leaf error allowance depends on the
+declared variable count. The unary seed allocation and the full seeded search both run
+with a fixed power saving in that count. -/
 theorem solvesWithErrorInPowerExpTime_of_powerBudgetLeaves {k d : ℕ} (hk : 2 ≤ k) (hd : 1 ≤ d)
     {width : DeclaredCNF → ℕ} {V : DeclaredCNF × List Bool → Bool}
     {Tw Sw : DeclaredCNF → ℕ} {Tv Sv : DeclaredCNF × List Bool → ℕ}
@@ -506,7 +507,7 @@ theorem solvesWithErrorInPowerExpTime_of_powerBudgetLeaves {k d : ℕ} (hk : 2 �
       (width leaf : ℝ) ≤ rate a * ((encDeclaredCNF a).length + 1 : ℝ) ^ e ∧
         (acceptCount (fun x => V x != decide (0 < x.1.formula.modelCount))
           leaf (width leaf) : ℝ) ≤
-          ((1 / 3 : ℝ) / 2 ^ (a.formula.numVars / countingPowerBudget d a.numVars + 1)) *
+          ((1 / 3 : ℝ) / 2 ^ (a.numVars / countingPowerBudget d a.numVars + 1)) *
             (2 : ℝ) ^ width leaf) →
     ∃ q : ℝ, 0 < q ∧ q < 1 ∧ SolvesWithErrorInPowerExpTime
       (PromiseProblem.ofSet {a : DeclaredCNF |
@@ -574,7 +575,7 @@ theorem solvesWithErrorInPowerExpTime_of_powerBudgetLeaves {k d : ℕ} (hk : 2 �
       (hn : (2 : ℝ) ^ (A * (a.numVars + 1 : ℝ) ^ q) * ((encDeclaredCNF a).length + 1) ^ e ≤ n) :
       (acceptCount (fun x => verify x != decide (0 < x.1.formula.modelCount)) a n : ℝ) ≤
         (1 / 3 : ℝ) * 2 ^ n := by
-    let N := a.formula.numVars / countingPowerBudget d a.numVars + 1
+    let N := a.numVars / countingPowerBudget d a.numVars + 1
     let ε := (1 / 3 : ℝ) / 2 ^ N
     have he := herror a n ε (by positivity) hv (by
       intro ψ
@@ -586,7 +587,13 @@ theorem solvesWithErrorInPowerExpTime_of_powerBudgetLeaves {k d : ℕ} (hk : 2 �
       exact (two_rpow_mul_pow_le_two_rpow_mul_pow
         (mul_le_mul_of_nonneg_left (Real.rpow_le_rpow_of_exponent_le hx hpq)
           (Nat.cast_nonneg A)) le_rfl).trans hn)
-    refine he.trans_eq ?_
+    have hvars : a.formula.numVars ≤ a.numVars := by
+      simpa only [CNF.numVars, Finset.card_range] using
+        Finset.card_le_card (validDeclaredInput_eq_true_iff.mp hv).2
+    have hle : a.formula.numVars / countingPowerBudget d a.numVars + 1 ≤ N :=
+      Nat.succ_le_succ (Nat.div_le_div_right hvars)
+    refine (he.trans (mul_le_mul_of_nonneg_right (pow_le_pow_right₀ one_le_two hle)
+      (by positivity))).trans_eq ?_
     change (2 : ℝ) ^ N * ((1 / 3 / 2 ^ N) * 2 ^ n) = _
     field_simp
   obtain ⟨q', _, hq'₀, hq'₁, h⟩ := SolvesWithErrorInPowerExpTime.of_seededVerifier
