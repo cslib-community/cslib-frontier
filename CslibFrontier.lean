@@ -2265,6 +2265,7 @@ public import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson.Circuit
 public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser.MinimalAnd
 public import CslibFrontier.Computability.LogSpaceDerandomization.PolynomialAtomRows.ClippedError
 public import CslibFrontier.Computability.WordRAM.Multiword.Bitwise
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Polynomial.Modular
 public import CslibFrontier.DataStructure.BTree.PredSucc
 public import CslibFrontier.Computability.PolyTime.Graph.RotationSystem
 public import CslibFrontier.Logics.SecondOrder.IndependentSet
@@ -8343,6 +8344,7 @@ public import CslibFrontier.DataStructure.PriorityQueue.BinaryHeap.Native.Base
 public import CslibFrontier.Crypto.Computational.Rompel
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SelfImprovementConsistency
 public import CslibFrontier.Crypto.Computational.Homomorphic.Leveled.Basic
+public import CslibFrontier.Computability.Interactive.Sumcheck.Words
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ImplicitPath
 public import CslibFrontier.Computability.PolyTime.JetArray
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Equality

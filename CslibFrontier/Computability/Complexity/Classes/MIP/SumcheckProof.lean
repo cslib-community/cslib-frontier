@@ -8,11 +8,12 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.PCP.ProofWord
-public import CslibFrontier.Computability.Interactive.Sumcheck
+public import CslibFrontier.Computability.Interactive.Sumcheck.Words
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Foundations.Data.Polynomial.CoeffList
 public import Mathlib.Algebra.Field.ZMod
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 
 /-!
@@ -110,6 +111,36 @@ theorem natDegree_rowPolynomial_le (π : List Bool → Bool) (p : ℕ) (external
     (d width : ℕ) : (rowPolynomial π p external challenges d width).natDegree ≤ d := by
   apply (Polynomial.natDegree_ofCoeffList_le _).trans
   simp [row]
+
+/-- Read the polynomial for the current public history and advance at the given challenge.
+The row address depends only on the earlier challenges. -/
+def advance (p : ℕ) (external : List ℕ) (d width r : ℕ) (s : Interactive.Sumcheck.WordState) :
+    WordOracleComp Unit Interactive.Sumcheck.WordState :=
+  (fun cs => s.advance p cs r) <$> readRow external s.challenges d width
+
+/-- The complete static-proof round update is strict oracle PPT for every oracle. -/
+theorem isOraclePPTOn_advance {α : Type} {enc : α ↪ List Bool} {p d width r : α → ℕ}
+    {ext : α → List ℕ} {s : α → Interactive.Sumcheck.WordState}
+    (hp : ComputableInPolyTime p enc encNat) (he : ComputableInPolyTime ext enc (encList encNat))
+    (hd : ComputableInPolyTime d enc encUnary) (hw : ComputableInPolyTime width enc encUnary)
+    (hr : ComputableInPolyTime r enc encNat)
+    (hs : ComputableInPolyTime s enc Interactive.Sumcheck.encWordState) :
+    IsOraclePPTOn enc Interactive.Sumcheck.encWordState
+      (fun x => advance (p x) (ext x) (d x) (width x) (r x) (s x)) :=
+  IsOraclePPTOn.map_with
+    (isOraclePPTOn_readRow he (Interactive.Sumcheck.encWordState_challenges_polyTime hs) hd hw)
+    (Interactive.Sumcheck.WordState.computableInPolyTime_advance (hs.comp (.fst _ _))
+      (hp.comp (.fst _ _)) (.snd _ _) (hr.comp (.fst _ _)))
+
+/-- The round under a fixed proof performs exactly the update for its stored coefficients. -/
+theorem run_advance (π : List Bool → Bool) (p : ℕ) (ext : List ℕ) (d width r : ℕ)
+    (s : Interactive.Sumcheck.WordState) :
+    (Prover.ofProof π).run (advance p ext d width r s) () =
+      PMF.pure (s.advance p (row π ext s.challenges d width) r, ()) := by
+  simp only [advance, Prover.run, ProbOracleComp.runWith_map]
+  change PMF.map _ ((Prover.ofProof π).run (readRow ext s.challenges d width) ()) = _
+  rw [run_readRow, PMF.pure_map]
+  rfl
 
 /-- Extend a natural-valued table on all other proof keys with coefficient rows. -/
 noncomputable def extendTable {p : ℕ} (F : List ℕ → List ℕ → Polynomial (ZMod p))
