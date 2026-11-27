@@ -278,6 +278,32 @@ def compInsertAppendNewGenProg :
       lmHead N (compLmAt metaBase U w N s.mem) b m ≤ effBucketCap N
 
 
+private theorem compLmAt_pushBackSlot_eq {metaBase itemBase U V w N m_cap b q v : ℕ}
+    {s_fix s : Memory.State}
+    (henv : CompEpochEnv U V w N metaBase itemBase m_cap s)
+    (hcpl : FixedCoupled metaBase itemBase U V w N s_fix s)
+    (hslot : SlotStoreInv N (compGmAt metaBase U w N s.mem))
+    (hb : b < numBuckets N)
+    (htot : totalSlots N (compGmAt metaBase U w N s.mem) < N)
+    (hm_cap : totalSlots N (compGmAt metaBase U w N s.mem) + 1 ≤ m_cap)
+    (hq_lt : q < 2 ^ quotientBits U N) (hv_lt : v < 2 ^ valBits V) :
+    compLmAt metaBase U w N ((Memory.spec 0).clientState s
+      (compPushBackSlotGenProg ((((mkCompParams U V w N, (metaBase, itemBase)), b), q), v))).mem =
+      compLmAt metaBase U w N s.mem := by
+  have hwg : 0 < ghostW w := by unfold ghostW; omega
+  obtain ⟨-, hcpl_pb, -⟩ :=
+    compPushBackSlotGenProg_effect henv hcpl hslot hb htot hm_cap hq_lt hv_lt
+  have hslot_fix : SlotStoreInv N
+      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) := by
+    rw [← hcpl.gm_eq]; exact hslot
+  have htot_fix : totalSlots N
+      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) < N := by
+    rw [← hcpl.gm_eq]; exact htot
+  have eff_pb_fix := pushBackSlotProg_effect (U := U) (V := V) (w := ghostW w) (n_max := N)
+    (h_space := epochHashSpace U (ghostW w) N) (base := 0) (b := b) (q_val := q) (v_val := v)
+    hwg s_fix hslot_fix hb htot_fix hq_lt hv_lt
+  exact hcpl_pb.lm_eq.trans (eff_pb_fix.2.2.1.trans hcpl.lm_eq.symm)
+
 private theorem compInsertAppendNewGenProg_effect {metaBase itemBase U V w N m_cap b m u v : ℕ}
     {s_fix s : Memory.State}
     (henv : CompEpochEnv U V w N metaBase itemBase m_cap s)
@@ -389,25 +415,10 @@ theorem realizesBounded_compInsertAppendNewGen :
     exact ⟨U, V, N, m_cap, s_fix, rfl, henv, hcpl, hslot, hb, htot, hm_cap, hq_lt, hv_lt⟩
   · rw [clientState_compExtractQuotGenProg, clientResult_compExtractQuotGenProg,
       clientState_readCompBucketCountGenProg]
-    have hwg : 0 < ghostW w := by unfold ghostW; omega
     have hq_lt' : keyQuotient (bucketBits N) u < 2 ^ quotientBits U N := by rwa [hq_eq]
-    obtain ⟨hfr_pb, hcpl_pb, _⟩ :=
+    obtain ⟨hfr_pb, -, _⟩ :=
       compPushBackSlotGenProg_effect henv hcpl hslot hb htot hm_cap hq_lt' hv_lt
-    have hslot_fix : SlotStoreInv N
-        (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) := by
-      rw [← hcpl.gm_eq]; exact hslot
-    have htot_fix : totalSlots N
-        (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) < N := by
-      rw [← hcpl.gm_eq]; exact htot
-    have eff_pb_fix := pushBackSlotProg_effect (U := U) (V := V) (w := ghostW w) (n_max := N)
-      (h_space := epochHashSpace U (ghostW w) N) (base := 0) (b := b)
-      (q_val := keyQuotient (bucketBits N) u) (v_val := v)
-      hwg s_fix hslot_fix hb htot_fix hq_lt' hv_lt
-    set s₁ := (Memory.spec 0).clientState s
-      (compPushBackSlotGenProg
-        ((((mkCompParams U V w N, (metaBase, itemBase)), b), keyQuotient (bucketBits N) u), v))
-    have hlm_s₁ : compLmAt metaBase U w N s₁.mem = compLmAt metaBase U w N s.mem :=
-      hcpl_pb.lm_eq.trans (eff_pb_fix.2.2.1.trans hcpl.lm_eq.symm)
+    have hlm_s₁ := compLmAt_pushBackSlot_eq henv hcpl hslot hb htot hm_cap hq_lt' hv_lt
     exact ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V,
       rfl, hfr_pb.frontier_eq.symm ▸ henv.meta_le_frontier, hb, hm, by rw [hlm_s₁]; exact hold⟩
 
@@ -418,7 +429,6 @@ theorem validProg_compInsertAppendNewGen {w : ℕ}
   rcases d with ⟨⟨⟨cp, ⟨metaBase, itemBase⟩⟩, ⟨b, m⟩⟩, ⟨u, v⟩⟩
   obtain ⟨U, V, N, m_cap, s_fix, rfl, _hu_fit, hq_lt, hv_lt, henv, hcpl, hslot,
     hb, hm, htot, hm_cap, hold⟩ := h
-  have hwg : 0 < ghostW w := by unfold ghostW; omega
   have hq_eq : keyQuotient (bucketBits N) u = u >>> bucketBits N :=
     (Nat.shiftRight_eq_div_pow u (bucketBits N)).symm
   have hq_lt' : keyQuotient (bucketBits N) u < 2 ^ quotientBits U N := by rwa [hq_eq]
@@ -433,23 +443,9 @@ theorem validProg_compInsertAppendNewGen {w : ℕ}
   refine validProg_bind
     (validProg_compPushBackSlotGen
       ⟨U, V, N, m_cap, s_fix, rfl, henv, hcpl, hslot, hb, htot, hm_cap, hq_lt', hv_lt⟩) ?_
-  obtain ⟨hfr_pb, hcpl_pb, _⟩ :=
+  obtain ⟨hfr_pb, -, _⟩ :=
     compPushBackSlotGenProg_effect henv hcpl hslot hb htot hm_cap hq_lt' hv_lt
-  have hslot_fix : SlotStoreInv N
-      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) := by
-    rw [← hcpl.gm_eq]; exact hslot
-  have htot_fix : totalSlots N
-      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) < N := by
-    rw [← hcpl.gm_eq]; exact htot
-  have eff_pb_fix := pushBackSlotProg_effect (U := U) (V := V) (w := ghostW w) (n_max := N)
-    (h_space := epochHashSpace U (ghostW w) N) (base := 0) (b := b)
-    (q_val := keyQuotient (bucketBits N) u) (v_val := v)
-    hwg s_fix hslot_fix hb htot_fix hq_lt' hv_lt
-  set s₁ := (Memory.spec 0).clientState s
-    (compPushBackSlotGenProg
-      ((((mkCompParams U V w N, (metaBase, itemBase)), b), keyQuotient (bucketBits N) u), v))
-  have hlm_s₁ : compLmAt metaBase U w N s₁.mem = compLmAt metaBase U w N s.mem :=
-    hcpl_pb.lm_eq.trans (eff_pb_fix.2.2.1.trans hcpl.lm_eq.symm)
+  have hlm_s₁ := compLmAt_pushBackSlot_eq henv hcpl hslot hb htot hm_cap hq_lt' hv_lt
   exact validProg_compPrependIfIndexedGen
     ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V,
       rfl, hfr_pb.frontier_eq.symm ▸ henv.meta_le_frontier, hb, hm, by rw [hlm_s₁]; exact hold⟩
