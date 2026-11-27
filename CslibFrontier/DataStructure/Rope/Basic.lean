@@ -16,8 +16,9 @@ public import CslibFrontier.Foundations.Data.List.ToChunks
 A rope is a persistent sequence stored as a binary tree whose leaves hold non-empty chunks of at
 most `B` elements and whose internal nodes cache their length and height. This file defines the
 raw tree, its three independent well-formedness predicates and the basic API, and proves that
-every operation agrees with the `List` model given by `toList`. Balance of bulk construction,
-join and split are open objectives of cslib-community/cslib-frontier#3670.
+every operation agrees with the `List` model given by `toList`. Bulk construction is
+well-formed. Rotations and the height bound are in `Rope.Balance`; join and split are open
+objectives of cslib-community/cslib-frontier#3670.
 
 `Rope α` is a plain inductive type with no proof fields, so malformed trees can be written down.
 Well-formedness `IsWF B t` is a hypothesis of theorems, never part of the type, and splits into
@@ -49,11 +50,13 @@ other modules.
   the model and the structure.
 * `Rope.get?_eq_getElem?`, `Rope.toList_map`, `Rope.foldl_eq`, `Rope.foldr_eq`: the operations
   agree with the `List` model. Membership is membership in `toList` (`Rope.mem_toList`).
-* `Rope.toList_ofList`, `Rope.cacheCorrect_ofList`, `Rope.chunked_ofList`: bulk construction
-  represents its input with correct caches and, for `1 ≤ B`, chunks of between `1` and `B`
-  elements.
+* `Rope.toList_ofList`, `Rope.isWF_ofList`: bulk construction represents its input and, for
+  `1 ≤ B`, is well-formed.
 * `Rope.isWF_map`: mapping preserves well-formedness.
 * `Rope.IsWF.left`, `Rope.IsWF.right`: the children of a well-formed node are well-formed.
+* `Rope.isWF_node_iff`: inversion of well-formedness at a node, on cached heights.
+* `Rope.isWF_mkNode`: `mkNode` over well-formed children whose heights differ by at most one is
+  well-formed.
 
 ## References
 
@@ -219,6 +222,44 @@ theorem chunked_mkNode {B : ℕ} {l r : Rope α} (hl : Chunked B l) (hr : Chunke
     Chunked B (mkNode l r) := by
   cases l <;> cases r <;> first | assumption | exact ⟨hl, hr, rfl, rfl⟩
 
+@[simp] theorem isEmpty_iff {t : Rope α} : t.isEmpty = true ↔ t = empty := by
+  cases t <;> simp
+
+@[simp] theorem isEmpty_mkNode (l r : Rope α) :
+    (mkNode l r).isEmpty = (l.isEmpty && r.isEmpty) := by
+  cases l <;> cases r <;> rfl
+
+/-- Over two non-empty children, `mkNode` is a node with recomputed caches. -/
+theorem mkNode_of_isEmpty_eq_false {l r : Rope α} (hl : l.isEmpty = false)
+    (hr : r.isEmpty = false) :
+    mkNode l r = .node (l.length + r.length) (max l.height r.height + 1) l r := by
+  cases l <;> cases r <;> simp_all [mkNode]
+
+theorem height_mkNode {l r : Rope α} (hl : l.isEmpty = false) (hr : r.isEmpty = false) :
+    (mkNode l r).height = max l.height r.height + 1 := by
+  rw [mkNode_of_isEmpty_eq_false hl hr, height_node]
+
+/-- Inversion of well-formedness at a node, with the balance condition on cached heights. -/
+theorem isWF_node_iff {B n h : ℕ} {l r : Rope α} :
+    IsWF B (node n h l r) ↔ IsWF B l ∧ IsWF B r ∧ l.isEmpty = false ∧ r.isEmpty = false ∧
+      n = l.length + r.length ∧ h = max l.height r.height + 1 ∧
+      l.height ≤ r.height + 1 ∧ r.height ≤ l.height + 1 := by
+  constructor
+  · rintro ⟨⟨hcl, hcr, hn, hh⟩, ⟨hkl, hkr, hl0, hr0⟩, ⟨hbl, hbr, h₁, h₂⟩⟩
+    rw [← height_eq_structuralHeight hcl, ← height_eq_structuralHeight hcr] at h₁ h₂
+    exact ⟨⟨hcl, hkl, hbl⟩, ⟨hcr, hkr, hbr⟩, hl0, hr0, hn, hh, h₁, h₂⟩
+  · rintro ⟨hl, hr, hl0, hr0, hn, hh, h₁, h₂⟩
+    rw [height_eq_structuralHeight hl.cacheCorrect, height_eq_structuralHeight hr.cacheCorrect]
+      at h₁ h₂
+    exact ⟨⟨hl.cacheCorrect, hr.cacheCorrect, hn, hh⟩, ⟨hl.chunked, hr.chunked, hl0, hr0⟩,
+      ⟨hl.balanced, hr.balanced, h₁, h₂⟩⟩
+
+/-- `mkNode` over well-formed children whose heights differ by at most one is well-formed. -/
+theorem isWF_mkNode {B : ℕ} {l r : Rope α} (hl : IsWF B l) (hr : IsWF B r)
+    (h₁ : l.height ≤ r.height + 1) (h₂ : r.height ≤ l.height + 1) : IsWF B (mkNode l r) := by
+  cases l <;> cases r <;>
+    first | assumption | exact isWF_node_iff.2 ⟨hl, hr, rfl, rfl, rfl, rfl, h₁, h₂⟩
+
 end Structure
 
 /-! ### The list model and basic operations -/
@@ -369,8 +410,7 @@ theorem cacheCorrect_ofList (B : ℕ) (xs : List α) : CacheCorrect (ofList B xs
     (p := fun _ (t : Rope α) => CacheCorrect t) trivial (fun _ => trivial)
     (fun _ _ _ _ _ _ hx hy => cacheCorrect_mkNode hx hy) _
 
-/-- Bulk construction produces chunks of between `1` and `B` elements. Its balance is an open
-objective of cslib-community/cslib-frontier#3670. -/
+/-- Bulk construction produces chunks of between `1` and `B` elements. -/
 theorem chunked_ofList {B : ℕ} (hB : 1 ≤ B) (xs : List α) : Chunked B (ofList B xs) := by
   refine List.balancedFold_induction (op := mkNode) (e := .empty) (f := leaf)
     (p := fun cs (t : Rope α) => (∀ c ∈ cs, 0 < c.length ∧ c.length ≤ B) → Chunked B t)
@@ -379,6 +419,40 @@ theorem chunked_ofList {B : ℕ} (hB : 1 ≤ B) (xs : List α) : Chunked B (ofLi
       (hy fun c hc => h c (List.mem_append_right _ hc))) (xs.toChunks (max 1 B)) fun c hc => ?_
   have := List.length_pos_and_le_of_mem_toChunks (by omega) hc
   omega
+
+/-- The balanced fold of `n` leaves is balanced, with structural height `⌈log₂ n⌉`. -/
+private theorem balanced_ofList_aux (B : ℕ) (xs : List α) :
+    Balanced (ofList B xs) ∧
+      (ofList B xs).structuralHeight = Nat.clog 2 (xs.toChunks (max 1 B)).length := by
+  refine (List.balancedFold_induction_halves (op := mkNode) (e := .empty) (f := leaf)
+    (p := fun cs (t : Rope α) => Balanced t ∧ t.structuralHeight = Nat.clog 2 cs.length ∧
+      (cs ≠ [] → t.isEmpty = false))
+    ⟨trivial, by simp [structuralHeight], by simp⟩ (fun _ => ⟨trivial, by simp [structuralHeight],
+      fun _ => rfl⟩) (fun l₁ l₂ x y hne h₁₂ h₂₁ ⟨hbx, hsx, hex⟩ ⟨hby, hsy, hey⟩ => ?_) _).imp_right
+    And.left
+  have hx := hex hne
+  have hy := hey (by rintro rfl; simp_all)
+  have hpos : 0 < l₁.length := List.length_pos_iff.2 hne
+  have hmono := Nat.clog_mono_right 2 h₁₂
+  have hsucc : Nat.clog 2 l₂.length ≤ Nat.clog 2 l₁.length + 1 := by
+    refine (Nat.clog_mono_right 2 (show l₂.length ≤ 2 * l₁.length by omega)).trans_eq ?_
+    rw [Nat.clog_of_two_le (by decide) (by omega), show (2 * l₁.length + 2 - 1) / 2 = l₁.length by
+      omega]
+  have hsum : Nat.clog 2 (l₁ ++ l₂).length = Nat.clog 2 l₂.length + 1 := by
+    rw [List.length_append, Nat.clog_of_two_le (by decide) (by omega),
+      show (l₁.length + l₂.length + 2 - 1) / 2 = l₂.length by omega]
+  rw [mkNode_of_isEmpty_eq_false hx hy]
+  refine ⟨⟨hbx, hby, by omega, by omega⟩, ?_, fun _ => rfl⟩
+  simp only [structuralHeight, hsx, hsy, hsum]
+  omega
+
+/-- Bulk construction is balanced. -/
+theorem balanced_ofList (B : ℕ) (xs : List α) : Balanced (ofList B xs) :=
+  (balanced_ofList_aux B xs).1
+
+/-- Bulk construction is well-formed. -/
+theorem isWF_ofList {B : ℕ} (hB : 1 ≤ B) (xs : List α) : IsWF B (ofList B xs) :=
+  ⟨cacheCorrect_ofList B xs, chunked_ofList hB xs, balanced_ofList B xs⟩
 
 end Model
 

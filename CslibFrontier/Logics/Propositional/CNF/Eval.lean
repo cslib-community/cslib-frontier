@@ -16,6 +16,7 @@ Two basic facts about `Cslib.Logic.PL.Clause.eval`, complementing
 `Cslib.Logic.PL.Clause.eval_eq_true_iff`: a clause is false exactly when every literal is read
 against its polarity, and its value depends only on the values of its variables. They live in this
 leaf module rather than in `CslibFrontier.Logics.Propositional.CNF`, which is widely imported.
+The module also characterizes membership of a signed literal after relabelling.
 
 ## Main results
 
@@ -53,4 +54,10 @@ theorem CNF.countP_eval_congr {V : Type*} {σ τ : V → Bool} {φ : CNF V}
     exact h v (CNF.mem_vars.2 ⟨c, hc, b, hb⟩)
   simp only [CNF.eval_cons, CNF.eval_nil, Bool.and_true] at hc'
   rw [hc']
+/-- A literal belongs to a relabelled clause exactly when it has a preimage with the same sign. -/
+theorem Clause.mem_relabel_iff {V W : Type*} {f : V → W} {c : Clause V} {w : W} {b : Bool} :
+    (w, b) ∈ c.relabel f ↔ ∃ u, (u, b) ∈ c ∧ f u = w := by
+  simp only [relabel, List.mem_map, Prod.exists, Prod.map_apply, id_eq, Prod.mk.injEq,
+    ← and_assoc, exists_eq_right]
+
 end Cslib.Logic.PL

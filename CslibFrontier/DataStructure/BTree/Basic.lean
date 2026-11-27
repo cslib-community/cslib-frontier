@@ -37,18 +37,22 @@ that well-formedness of concrete trees is checked by `decide`. The operations an
 * `Cslib.DataStructure.BTree`: classic B-trees with keys in `α` and values in `β`.
 * `BTree.Triple`, `BTree.Triple.val`, `BTree.Triple.child`: a node's `(key, value, child)`
   triples and their named components.
-* `BTree.toList`, `BTree.size`, `BTree.height`, `BTree.keys`, `BTree.map`, `BTree.foldl`: entries
-  in order and the basic API.
+* `BTree.toList`, `BTree.size`, `BTree.height`, `BTree.keys`, `BTree.foldl`: entries in order and
+  the basic API.
+* `BTree.bimap`: map over keys and values, keeping shape; `BTree.map` and `BTree.mapKeys` are its
+  value-only and key-only cases.
 * `BTree.Occupied`, `BTree.Balanced`, `BTree.IsWF`: non-root occupancy, equal leaf depth and
   well-formedness at a minimum degree.
 * `BTree.occupied`, `BTree.balanced`, `BTree.isWF`: Boolean checkers deciding them.
 
 ## Main results
 
-* `BTree.induction`, `BTree.induction_isSortedAssoc`: induction over the nested type and over
-  trees with sorted entries split at a node's first separator.
-* `BTree.toList_map`, `BTree.isWF_map`: mapping values maps the entries and keeps
-  well-formedness.
+* `BTree.induction`, `BTree.induction_children`, `BTree.induction_isSortedAssoc`: induction
+  over the nested type, with one hypothesis for all children of a node, and over trees with
+  sorted entries split at a node's first separator.
+* `BTree.toList_bimap`: mapping keys and values maps the entries; `BTree.toList_map` and
+  `BTree.toList_mapKeys` are its cases.
+* `BTree.isWF_map`: mapping values keeps well-formedness.
 * `BTree.IsWF.of_mem_children`: every subtree of a well-formed tree is well-formed.
 * `BTree.isWF_iff`: `isWF` decides `IsWF`.
 
@@ -65,7 +69,7 @@ Ported from `cslib-community/EpsilonEridani` at commit `1966ab476`:
 
 public section
 
-universe u v w
+universe u u' v w
 
 namespace Cslib.DataStructure
 
@@ -90,7 +94,7 @@ abbrev Triple.val {α : Type u} {β : Type v} (e : Triple α β) : β := e.2.1
 /-- The child of a triple, which follows its key. -/
 abbrev Triple.child {α : Type u} {β : Type v} (e : Triple α β) : BTree α β := e.2.2
 
-variable {α : Type u} {β : Type v} {γ : Type w}
+variable {α : Type u} {α' : Type u'} {β : Type v} {γ : Type w}
 
 /-- The value of a triple built from its components. -/
 @[simp] theorem Triple.val_mk (k : α) (v : β) (c : BTree α β) : Triple.val (k, v, c) = v := rfl
@@ -123,15 +127,27 @@ mutual
 end
 
 mutual
-/-- Map over values, keeping keys and shape. -/
-@[expose] def map (f : β → γ) : BTree α β → BTree α γ
+/-- Map over keys and values, keeping shape. -/
+@[expose] def bimap (g : α → α') (f : β → γ) : BTree α β → BTree α' γ
   | leaf => leaf
-  | node first rest => node (first.map f) (mapRest f rest)
-/-- Map over the values of a list of triples. -/
-@[expose] def mapRest (f : β → γ) : List (Triple α β) → List (Triple α γ)
+  | node first rest => node (first.bimap g f) (bimapRest g f rest)
+/-- Map over the keys and values of a list of triples. -/
+@[expose] def bimapRest (g : α → α') (f : β → γ) : List (Triple α β) → List (Triple α' γ)
   | [] => []
-  | (k, v, c) :: rest => (k, f v, c.map f) :: mapRest f rest
+  | (k, v, c) :: rest => (g k, f v, c.bimap g f) :: bimapRest g f rest
 end
+
+/-- Map over values, keeping keys and shape. -/
+@[expose] def map (f : β → γ) : BTree α β → BTree α γ := bimap id f
+
+/-- Map over the values of a list of triples. -/
+@[expose] def mapRest (f : β → γ) : List (Triple α β) → List (Triple α γ) := bimapRest id f
+
+/-- Map over keys, keeping values and shape. -/
+@[expose] def mapKeys (g : α → α') : BTree α β → BTree α' β := bimap g id
+
+/-- Map over the keys of a list of triples. -/
+@[expose] def mapKeysRest (g : α → α') : List (Triple α β) → List (Triple α' β) := bimapRest g id
 
 /-- Number of entries. -/
 @[expose] def size (tr : BTree α β) : ℕ := tr.toList.length
@@ -288,6 +304,21 @@ theorem heightRest_le_iff {n : ℕ} : heightRest rest ≤ n ↔ ∀ e ∈ rest, 
     obtain ⟨_, _, _⟩ := e
     simp only [heightRest_cons, max_le_iff, ih, List.forall_mem_cons]
 
+/-- Mapping keys and values of the empty tree gives the empty tree. -/
+@[simp] theorem bimap_leaf (g : α → α') (f : β → γ) : (leaf : BTree α β).bimap g f = leaf := rfl
+
+/-- Mapping keys and values of a node maps its first child and its triples. -/
+@[simp] theorem bimap_node (g : α → α') (f : β → γ) :
+    (node first rest).bimap g f = node (first.bimap g f) (bimapRest g f rest) := rfl
+
+/-- Mapping keys and values of a list of triples maps the key, the value and the child of each
+triple. -/
+@[simp] theorem bimapRest_eq_map (g : α → α') (f : β → γ) :
+    bimapRest g f rest = rest.map fun e => (g e.1, f e.val, e.child.bimap g f) := by
+  induction rest with
+  | nil => rfl
+  | cons e rest ih => exact congrArg ((g e.1, f e.val, e.child.bimap g f) :: ·) ih
+
 /-- Mapping the empty tree gives the empty tree. -/
 @[simp] theorem map_leaf (f : β → γ) : (leaf : BTree α β).map f = leaf := rfl
 
@@ -295,19 +326,23 @@ theorem heightRest_le_iff {n : ℕ} : heightRest rest ≤ n ↔ ∀ e ∈ rest, 
 @[simp] theorem map_node (f : β → γ) :
     (node first rest).map f = node (first.map f) (mapRest f rest) := rfl
 
-/-- Mapping an empty list of triples gives the empty list. -/
-theorem mapRest_nil (f : β → γ) : mapRest f ([] : List (Triple α β)) = [] := rfl
-
-/-- Mapping a list of triples maps the value and the child of its head, then the rest. -/
-theorem mapRest_cons (f : β → γ) :
-    mapRest f ((k, v, c) :: rest) = (k, f v, c.map f) :: mapRest f rest := rfl
-
 /-- Mapping a list of triples maps the value and the child of each triple, keeping its key. -/
 @[simp] theorem mapRest_eq_map (f : β → γ) :
-    mapRest f rest = rest.map fun e => (e.1, f e.val, e.child.map f) := by
-  induction rest with
-  | nil => rfl
-  | cons e rest ih => exact congrArg ((e.1, f e.val, e.child.map f) :: ·) ih
+    mapRest f rest = rest.map fun e => (e.1, f e.val, e.child.map f) :=
+  bimapRest_eq_map id f
+
+/-- Mapping keys over the empty tree gives the empty tree. -/
+@[simp] theorem mapKeys_leaf (g : α → α') : (leaf : BTree α β).mapKeys g = leaf := rfl
+
+/-- Mapping keys over a node maps its first child and its triples. -/
+@[simp] theorem mapKeys_node (g : α → α') (first : BTree α β) (rest : List (Triple α β)) :
+    (node first rest).mapKeys g = node (first.mapKeys g) (mapKeysRest g rest) := rfl
+
+/-- Mapping the keys of a list of triples maps the key and the child of each triple, keeping its
+value. -/
+@[simp] theorem mapKeysRest_eq_map (g : α → α') (rest : List (Triple α β)) :
+    mapKeysRest g rest = rest.map fun e => (g e.1, e.val, e.child.mapKeys g) :=
+  bimapRest_eq_map g id
 
 /-- The empty tree has no children. -/
 @[simp] theorem children_leaf : (leaf : BTree α β).children = [] := rfl
@@ -379,6 +414,16 @@ decreasing_by
 
 attribute [induction_eliminator] induction
 
+/-- Induction on B-trees with one hypothesis for all children of a node. -/
+theorem induction_children {motive : BTree α β → Prop} (leaf : motive .leaf)
+    (node : ∀ (first : BTree α β) (rest : List (Triple α β)),
+      (∀ c ∈ (node first rest).children, motive c) → motive (.node first rest)) :
+    ∀ tr, motive tr
+  | .leaf => leaf
+  | .node first rest => node first rest fun c _ => induction_children leaf node c
+termination_by tr => sizeOf tr
+decreasing_by exact sizeOf_lt_of_mem_children ‹_›
+
 /-! ### Basic API -/
 
 /-- Membership in a tree is membership in its entries. -/
@@ -413,15 +458,25 @@ theorem keys_def : tr.keys = tr.toList.map Prod.fst := rfl
 @[simp] theorem height_eq_zero_iff : tr.height = 0 ↔ tr = .leaf := by
   cases tr <;> simp
 
-/-- Mapping over values maps the entries, keeping keys. -/
-@[simp] theorem toList_map (f : β → γ) :
-    (tr.map f).toList = tr.toList.map fun p => (p.1, f p.2) := by
+/-- Mapping over keys and values maps the entries. -/
+@[simp] theorem toList_bimap (g : α → α') (f : β → γ) :
+    (tr.bimap g f).toList = tr.toList.map fun p => (g p.1, f p.2) := by
   induction tr with
   | leaf => rfl
   | node _ _ ih₁ ih₂ =>
-    simp only [map_node, toList_node, toListRest_eq_flatMap, mapRest_eq_map, List.map_append, ih₁,
-      List.flatMap_map, List.map_flatMap, List.map_cons]
+    simp only [bimap_node, toList_node, toListRest_eq_flatMap, bimapRest_eq_map, List.map_append,
+      ih₁, List.flatMap_map, List.map_flatMap, List.map_cons]
     exact congrArg _ (List.flatMap_congr fun e he => congrArg (_ :: ·) (ih₂ e he))
+
+/-- Mapping over values maps the entries, keeping keys. -/
+@[simp] theorem toList_map (f : β → γ) :
+    (tr.map f).toList = tr.toList.map fun p => (p.1, f p.2) :=
+  toList_bimap id f
+
+/-- Mapping keys maps the entries, keeping values. -/
+@[simp] theorem toList_mapKeys (g : α → α') (tr : BTree α β) :
+    (tr.mapKeys g).toList = tr.toList.map fun x => (g x.1, x.2) :=
+  toList_bimap g id
 
 /-- Mapping over values keeps the height. -/
 @[simp] theorem height_map (f : β → γ) : (tr.map f).height = tr.height := by
@@ -447,9 +502,19 @@ theorem keys_def : tr.keys = tr.toList.map Prod.fst := rfl
 @[simp] theorem rootKeys_map (f : β → γ) : (tr.map f).rootKeys = tr.rootKeys := by
   cases tr <;> simp
 
-/-- The children of a mapped tree are the mapped children. -/
-@[simp] theorem children_map (f : β → γ) : (tr.map f).children = tr.children.map (·.map f) := by
+/-- The children of a tree with mapped keys and values are the mapped children. -/
+@[simp] theorem children_bimap (g : α → α') (f : β → γ) :
+    (tr.bimap g f).children = tr.children.map (·.bimap g f) := by
   cases tr <;> simp [Function.comp_def]
+
+/-- The children of a mapped tree are the mapped children. -/
+@[simp] theorem children_map (f : β → γ) : (tr.map f).children = tr.children.map (·.map f) :=
+  children_bimap id f
+
+/-- The children of a tree with mapped keys are the mapped children. -/
+@[simp] theorem children_mapKeys (g : α → α') :
+    (tr.mapKeys g).children = tr.children.map (·.mapKeys g) :=
+  children_bimap g id
 
 /-- Mapping the identity leaves the tree unchanged. -/
 @[simp] theorem map_id : tr.map id = tr := by

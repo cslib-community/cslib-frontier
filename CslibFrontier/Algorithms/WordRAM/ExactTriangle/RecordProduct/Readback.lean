@@ -8,11 +8,15 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.RecordData
+import CslibFrontier.Algorithms.WordRAM.ExactTriangle.PreparationLocality
+import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.QuerySpan
 
 /-!
 # Pure source-span readback for either record product
 
-`producer_readback` derives the six-word record descriptor, raw left and right zero/one matrix
+`prepared_record` gives the prepared record, raw matrix blocks, and query coordinates.
+`producer_readback` relates these to the original words of the queried product input.
+The readback includes the six-word record descriptor, raw left and right zero/one matrix
 spans, ordered query-coordinate words, heap bounds and occurrence sparsity from a genuine
 `Instances.Output`, without importing or executing either per-record product backend.
 `raw_left_block` and `raw_right_block` read a record's realized raw matrix blocks as the ordinary
@@ -26,6 +30,63 @@ namespace Cslib.Algorithms.WordRAM.ExactTriangle.RecordProduct
 open Cslib.WordRAM Cslib.Algorithms.ExactTriangle Cslib.Matrix
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
 open Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage
+
+/-- The raw descriptor and matrix blocks of one prepared record, together with its
+protected query coordinates. The coordinates lie before the producer's record region. -/
+structure PreparedRecord (n D g p : ℕ) (values : ℕ → ℤ) (y : Data 64)
+    (idx : InstanceIndex p) (base : ℕ) : Prop where
+  /-- The entire physical record lies below or ends at the heap. -/
+  recordEnd : base + 6 + 2 * (n * D) ≤ y.regs Instances.heap
+  /-- The entire interleaved query span lies before the record region. -/
+  queryEnd : recordQueries n D p idx + 2 * recordQueryCount n D p values idx ≤
+    y.regs Instances.output
+  /-- The six physical descriptor fields at the selected record address. -/
+  descriptor : (Block.mk base 6).Realizes y.mem
+    ![idx.residue.val, idx.piece, recordQueries n D p idx, recordQueryCount n D p values idx,
+      base + 6, base + 6 + n * D]
+  /-- The raw left matrix follows the descriptor. -/
+  left : (Block.mk (base + 6) (n * D)).Realizes y.mem (fun j =>
+    WriteMatrices.entry false (matrixArgs n D g p idx.residue.val idx.piece)
+      (fun q => (values (2 * (n * n) + q) % (p : ℤ)).toNat) j)
+  /-- The raw right matrix follows the left matrix. -/
+  right : (Block.mk (base + 6 + n * D) (n * D)).Realizes y.mem (fun j =>
+    WriteMatrices.entry true (matrixArgs n D g p idx.residue.val idx.piece)
+      (fun q => (values (n * n + q) % (p : ℤ)).toNat) j)
+  /-- Every word in the query span denotes an original vertex. -/
+  queryCoordinates : ∀ j < recordQueryCount n D p values idx,
+    y.mem (recordQueries n D p idx + 2 * j) < n ∧
+      y.mem (recordQueries n D p idx + 2 * j + 1) < n
+
+/-- A finite instance selects an actual record and intact query span in the producer output. -/
+theorem prepared_record {n D g p : ℕ} (values : ℕ → ℤ)
+    {initial y : Data 64} (h : Instances.Output n D g p values initial y)
+    (hD : 16 ≤ D) (hDn : D ≤ n) (hg : 1 ≤ g) (hp : p ≠ 0)
+    (idx : InstanceIndex p)
+    (hidx : idx ∈ instanceIndices (fun a b : Fin n => values (pairIndex (a, b))) D g p) :
+    PreparedRecord n D g p values y idx
+      (y.regs Instances.output + recordOrdinal n D g p values idx * (6 + 2 * (n * D))) := by
+  let wAB := fun a b : Fin n => values (pairIndex (a, b))
+  let count := fun rho => Nat.count (fun q => (values q % (p : ℤ)).toNat = rho) (n * n)
+  have hchunk := ((mem_instanceIndices wAB idx).mp hidx).1
+  have hcard : (residueClass wAB p idx.residue).card = count idx.residue.val :=
+    QuerySpec.card_residueClass wAB hp _ (fun _ => rfl) idx.residue
+  have hout := h.2.2.2.1
+  obtain ⟨descriptor, left, right, hend⟩ := PreparationSpec.instance_readback values wAB hp
+    (fun _ _ => rfl) hD hDn hg h idx hidx
+  have hcoord := (output_query_coordinates values wAB hp (fun _ _ => rfl)
+    (by lia) hDn h idx.residue idx.chunk hchunk).1
+  constructor
+  · rw [hout]
+    exact hend
+  · rw [hout]
+    exact query_end_le_output values hp (by lia) hDn idx hidx
+  · rw [hout]
+    simpa only [recordOrdinal, recordQueries, recordQueryCount, hcard, count] using descriptor
+  · rw [hout]
+    exact left
+  · rw [hout]
+    exact right
+  · simpa only [recordQueries, recordQueryCount, hcard, count] using hcoord
 
 /-- A record's raw left block, as written by the producer, reads as the original left input of the
 ordinary queried product. -/
@@ -96,86 +157,27 @@ theorem producer_readback {m n g p : ℕ} (values : ℕ → ℤ)
           (leftMatrix m n g p values idx) (rightMatrix m n g p values idx) qs) :
             State 160).data.mem (5 + 2 * (n * D m) + a)) ∧
       qs.length * 2 ^ m ≤ n ^ 2 := by
-  let wAB := fun a b : Fin n => values (pairIndex (a, b))
-  let N := n * n
-  let R := fun q => (values q % (p : ℤ)).toNat
-  let C := fun rho => Nat.count (fun q => R q = rho) N
-  let H := numPieces n (D m) g
-  let K := ChunkCatalogue.before C (queryCap n (D m)) p
-  let out := 5 + 6 * N + p + 2 * N * p + 3 * K
-  let ord := recordOrdinal n (D m) g p values idx
-  let recordBase := out + ord * (6 + 2 * (n * D m))
+  have hDn : D m ≤ n := (Nat.le_self_pow (by decide : 18 ≠ 0) (D m)).trans hN
+  have hn : 0 < n := lt_of_lt_of_le (by lia) hDn
   let q := recordQueries n (D m) p idx
   let Q := recordQueryCount n (D m) p values idx
-  have hDn : D m ≤ n := (Nat.le_self_pow (by decide : 18 ≠ 0) (D m)).trans hN
-  have hn : 0 < n := lt_of_lt_of_le (by omega) hDn
   let qs := decodedQueries hn x.mem q Q
-  have hlen : qs.length = Q := decodedQueries_length hn x.mem q Q
-  obtain ⟨hk, hj⟩ := (mem_instanceIndices wAB idx).mp hidx
-  have hcard : (residueClass wAB p idx.residue).card = C idx.residue.val :=
-    QuerySpec.card_residueClass wAB hp R (by intro pair; rfl) idx.residue
-  have hchunk : idx.chunk < C idx.residue.val ⌈/⌉ queryCap n (D m) := by
-    simpa only [numChunks, hcard] using hk
-  have hord := ChunkCatalogue.before_add_lt C (queryCap n (D m)) idx.residue.isLt hchunk
-  have hiCount : ord < K * H := by
-    have hh := Nat.mul_le_mul_right H (Nat.succ_le_of_lt hord)
-    change (ChunkCatalogue.before C (queryCap n (D m)) idx.residue.val + idx.chunk) * H +
-      idx.piece < K * H
-    change (ChunkCatalogue.before C (queryCap n (D m)) idx.residue.val + idx.chunk + 1) * H ≤
-      K * H at hh
-    change idx.piece < H at hj
-    rw [Nat.add_mul, Nat.one_mul] at hh
-    omega
-  obtain ⟨yn, yD, yp, yo, yc, yb, yres, ycnt, yscan, ydesc, yblocks, yframe⟩ := id h
-  change x.regs 39 = out at yo
-  change x.regs 42 = out + (K * H) * (6 + 2 * (n * D m)) at yb
-  have hrecEnd : recordBase + 6 + 2 * (n * D m) ≤ x.regs 42 := by
-    have ht := Nat.mul_le_mul_right (6 + 2 * (n * D m)) hiCount
-    dsimp only [recordBase]
-    rw [yb]
-    nlinarith only [ht]
-  have hcap : 0 < queryCap n (D m) := one_le_queryCap (by omega) hDn
-  have hkcard : idx.chunk * queryCap n (D m) < C idx.residue.val := by
-    have hpositive := recordQueryCount_pos values hp (by omega) hDn idx hidx
-    change 0 < min (queryCap n (D m)) (C idx.residue.val - idx.chunk * queryCap n (D m))
-      at hpositive
-    omega
-  have hQ : idx.chunk * queryCap n (D m) + Q ≤ N := by
-    have hc : C idx.residue.val ≤ N := Nat.count_le _
-    dsimp only [Q, recordQueryCount]
-    change idx.chunk * queryCap n (D m) +
-      min (queryCap n (D m)) (C idx.residue.val - idx.chunk * queryCap n (D m)) ≤ N
-    omega
-  have hqEnd : q + 2 * Q ≤ x.regs 42 := by
-    have hrho := Nat.mul_le_mul_right (2 * N) (Nat.succ_le_of_lt idx.residue.isLt)
-    dsimp only [q, recordQueries]
-    change 5 + 6 * N + p + 2 * idx.residue.val * N + 2 * (idx.chunk * queryCap n (D m)) +
-      2 * Q ≤ _
-    rw [yb]
-    dsimp only [out]
-    nlinarith only [hQ, hrho, Nat.zero_le (3 * K),
-      Nat.zero_le (K * H * (6 + 2 * (n * D m)))]
-  obtain ⟨hdr, hleft, hright⟩ := PreparationSpec.instance_readback values wAB hp
-    (by intro a b; rfl) hD hDn hg h idx hidx
-  have hcoord := (output_query_coordinates values wAB hp (by intro a b; rfl)
-    (by omega) hDn h idx.residue idx.chunk hk).1
-  rw [hcard] at hcoord
-  have hc : ∀ j < Q, x.mem (q + 2 * j) < n ∧ x.mem (q + 2 * j + 1) < n := hcoord
+  obtain ⟨recordEnd, queryEnd, descriptor, left, right, coordinates⟩ :=
+    prepared_record values h hD hDn hg hp idx hidx
+  change x.regs 39 + _ * _ + 6 + 2 * (n * D m) ≤ x.regs 42 at recordEnd
+  have hframe := h.2.2.2.2.2.2.2.2.2.2.2
   dsimp only
-  rw [yo]
-  refine ⟨(yframe 1 (Or.inl (by omega))).trans hheaderD,
-    (yframe 3 (Or.inl (by omega))).trans hheaderN,
-    (by change recordBase + 6 ≤ _; omega),
-    (by simpa only [decodedQueries_length, hcard, recordBase, out, ord, recordOrdinal,
-      C, R, N, K, Q,
-      recordQueryCount, q, recordQueries, Data.comap_mem] using hdr),
-    (by change recordBase + 6 + n * D m ≤ _; omega),
-    (by change recordBase + 6 + n * D m + n * D m ≤ _; omega),
-    (by simpa only [decodedQueries_length] using hqEnd),
-    raw_left_block values idx x.mem qs hleft,
-    raw_right_block hn values idx x.mem qs hright,
-    (by simpa only [decodedQueries_length] using decodedQueries_words hn x.mem _ _ hc), ?_⟩
+  change _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ qs.length * 2 ^ m ≤ n ^ 2
   rw [decodedQueries_length]
-  exact (Nat.mul_le_mul_right (2 ^ m) (min_le_left _ _)).trans (queryCap_mul_two_pow_le n m)
+  exact ⟨(hframe 1 (Or.inl (by lia))).trans hheaderD,
+    (hframe 3 (Or.inl (by lia))).trans hheaderN,
+    le_trans (Nat.le_add_right _ _) recordEnd, descriptor,
+    le_trans (Nat.add_le_add_left (Nat.le_mul_of_pos_left _ (by decide)) _) recordEnd,
+    by simpa only [two_mul, Nat.add_assoc] using recordEnd,
+    queryEnd.trans h.output_le_heap,
+    raw_left_block values idx x.mem qs left,
+    raw_right_block hn values idx x.mem qs right,
+    decodedQueries_words hn x.mem _ _ coordinates,
+    (Nat.mul_le_mul_right (2 ^ m) (min_le_left _ _)).trans (queryCap_mul_two_pow_le n m)⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordProduct

@@ -67,9 +67,8 @@ theorem recursive_sensitivity_zero_at {k r h : ℕ} {I : Type} [Fintype I]
         recursiveFamily T A.label F q x) ⊆
       U ∪ (V ∪ W) := by
     rintro ⟨⟨j, c⟩, a⟩ hp
-    have hchange := (Finset.mem_filter.mp hp).2
-    have hon : recursiveFamily T A.label F q (BitString.flipOn {((j, c), a)} x) = true := by grind
-    obtain ⟨i, hi⟩ := (recursiveFamily_eq_true_iff T A.label F q _).mp hon
+    obtain ⟨i, hi⟩ := (recursiveFamily_eq_true_iff T A.label F q _).mp <|
+      Bool.eq_true_of_not_eq_false (by simpa only [hx] using (Finset.mem_filter.mp hp).2)
     have hioff := (recursiveFamily_eq_false_iff T A.label F q x).mp hx i
     rcases rowClause_repair_cases T A.label F q x i j c a hioff hi with
       ⟨hit, hji, htoff, hton⟩ | ⟨hig, hij, rfl, hgon, hgoff⟩

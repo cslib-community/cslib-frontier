@@ -96,16 +96,7 @@ theorem exec_evaluateTiles {w L m t N A : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht :
     obtain ⟨y, hr, yp, yb, yi, yg, ye, ygeom, yvalues, yf⟩ :=
       exec_tileStep hw hm ht X Y qs old z hz.fixed hz.boxes rfl hj
         hz.groups hz.catalogue hz.geometry hvalues hoffsets hX hY hmag hfit
-    have ha := (hz.groups.offsets _ hj.le).trans (hoffsets _ hj.le)
-    have hb := (hz.groups.offsets _ hj).trans (hoffsets _ hj)
-    have hdiff :
-        z.mem (QueriedProduct.offsetBase L m N qs.length + z.regs QueriedProduct.Reg.index + 1) -
-          z.mem (QueriedProduct.offsetBase L m N qs.length + z.regs QueriedProduct.Reg.index) =
-        Nat.count (fun k => key k = z.regs QueriedProduct.Reg.index) qs.length := by
-      rw [Nat.add_assoc, hb, ha, CountingSort.count_lt_succ]
-      dsimp only [key]
-      omega
-    rw [hdiff] at hr
+    rw [hz.groups.span_length key hoffsets hj] at hr
     refine ⟨y, _, hr, ?_, ?_⟩
     · refine ⟨yp, yb, by rw [yi]; omega, yg, ye, ygeom, ?_, ?_⟩
       · intro i hik
@@ -113,12 +104,9 @@ theorem exec_evaluateTiles {w L m t N A : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht :
         by_cases hki : key i.val = z.regs QueriedProduct.Reg.index
         · exact yvalues i hki
         · have hold : key i.val < z.regs QueriedProduct.Reg.index := by rw [yi] at hik; omega
-          have hs := (CountingSort.position_mem key i.isLt).2
-          have hmcount : Nat.count (fun k => key k < key i.val + 1) qs.length ≤
-              Nat.count (fun k => key k < z.regs QueriedProduct.Reg.index) qs.length :=
-            Nat.count_mono_left (fun k _ hk => by omega)
-          have hpos := CountingSort.position_lt key i.isLt
-          dsimp only [key] at hs hmcount hpos
+          have hpos := hz.groups.position_lt_span key hoffsets hj.le i.isLt hold
+          have hposQ := CountingSort.position_lt key i.isLt
+          dsimp only [key] at hpos hposQ
           exact (yf _ (by omega) (by omega)).trans (hz.answers i hold)
       · intro p ho hf
         have hbQ := (hz.groups.span_bounds key hoffsets hj).2

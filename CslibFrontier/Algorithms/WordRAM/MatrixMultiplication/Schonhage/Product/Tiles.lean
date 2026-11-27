@@ -105,15 +105,7 @@ public theorem exec_evaluateTiles {w L m N A : ℕ} (hw : 0 < w) (hm : m ≤ L)
       simpa only [epochBound] using hz.epoch_le.trans (Nat.mul_le_mul_right _ hz.index_le)
     obtain ⟨y, hr, yp, yi, _, yeu, yg, ye, ym, yvalues, yf⟩ := exec_tileStep hw hm X Y qs old z
       hz.fixed rfl ht rfl hepoch hz.groups hz.catalogue hvalues hoffsets hz.marks hX hY hmag hfit
-    have ha := (hz.groups.offsets _ ht.le).trans (hoffsets _ ht.le)
-    have hb := (hz.groups.offsets _ ht).trans (hoffsets _ ht)
-    have hdiff : z.mem (offsetBase L m N qs.length + z.regs Reg.index + 1) -
-        z.mem (offsetBase L m N qs.length + z.regs Reg.index) =
-      Nat.count (fun k => key k = z.regs Reg.index) qs.length := by
-      rw [Nat.add_assoc, hb, ha, CountingSort.count_lt_succ]
-      dsimp only [key]
-      omega
-    rw [hdiff] at hr
+    rw [hz.groups.span_length key hoffsets ht] at hr
     refine ⟨y, _, hr, ?_, ?_⟩
     · refine ⟨yp, by rw [yi]; omega, ?_, yg, ye, ym, ?_, ?_⟩
       · rw [yi, Nat.add_mul, Nat.one_mul]
@@ -124,12 +116,9 @@ public theorem exec_evaluateTiles {w L m N A : ℕ} (hw : 0 < w) (hm : m ≤ L)
         by_cases hki : key i.val = z.regs Reg.index
         · exact yvalues i hki
         · have hold : key i.val < z.regs Reg.index := by rw [yi] at hik; omega
-          have hs := (CountingSort.position_mem key i.isLt).2
-          have hmcount : Nat.count (fun k => key k < key i.val + 1) qs.length ≤
-              Nat.count (fun k => key k < z.regs Reg.index) qs.length :=
-            Nat.count_mono_left (fun k _ hk => by omega)
-          have hpos := CountingSort.position_lt key i.isLt
-          dsimp only [key] at hs hmcount hpos
+          have hpos := hz.groups.position_lt_span key hoffsets ht.le i.isLt hold
+          have hposQ := CountingSort.position_lt key i.isLt
+          dsimp only [key] at hpos hposQ
           exact (yf _ (by omega) (by omega)).trans (hz.answers i hold)
       · intro p ho hf
         have hbQ := (hz.groups.span_bounds key hoffsets ht).2

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Analysis.InnerProductSpace.MetricProjection
 import CslibFrontier.MachineLearning.OnlineLearning.OnlineGradientDescent
+import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -268,26 +269,21 @@ theorem omd_sum_inner_le {K : Set E} {ψ : E → ℝ} {gradψ : E → E}
     rw [mul_div_cancel_left₀ _ hηt.ne'] at hdiv
     exact hdiv.trans_eq (by field_simp)
   have hsum := (Finset.sum_le_sum hper).trans_eq (Finset.sum_add_distrib ..)
-  have habel : ∀ n ≤ T,
-      ∑ t ∈ range (n + 1),
-          (bregmanDiv ψ gradψ u (x t) - bregmanDiv ψ gradψ u (x (t + 1))) / η t ≤
-        D / η n - bregmanDiv ψ gradψ u (x (n + 1)) / η n := by
-    intro n hn
-    induction n with
-    | zero =>
-      simp only [zero_add, range_one, sum_singleton, sub_div]
-      linarith [div_le_div_of_nonneg_right (hD 0 (Nat.zero_le T)) (hη_pos 0).le]
-    | succ k ih =>
-      rw [Finset.sum_range_succ, sub_div]
-      have hinv : 0 ≤ 1 / η (k + 1) - 1 / η k :=
-        sub_nonneg.mpr (one_div_le_one_div_of_le (hη_pos (k + 1)) (hη_anti k))
-      have hmul := mul_le_mul_of_nonneg_right (hD (k + 1) hn) hinv
-      simp only [mul_sub, mul_one_div] at hmul
-      linarith [ih (by omega)]
-  have hnn : 0 ≤ bregmanDiv ψ gradψ u (x (T + 1)) :=
+  let a (t : ℕ) := bregmanDiv ψ gradψ u (x t)
+  let w (t : ℕ) := 1 / η t
+  have htel := Fin.sum_range_mul_sub_le_of_adjacent w a (fun t => a (t + 1)) (fun _ => 0) D T
+    (fun t ht => mul_le_mul_of_nonneg_right
+      (one_div_le_one_div_of_le (hη_pos _) (hη_anti t))
+      (sub_nonneg.mpr (hD _ (Nat.succ_le_iff.mpr ht))))
+    (fun _ _ => by rw [sub_self, mul_zero])
+  have hinitial := div_nonneg (sub_nonneg.mpr (hD 0 (Nat.zero_le T))) (hη_pos 0).le
+  have hnn : 0 ≤ a (T + 1) :=
     (by positivity : 0 ≤ μ / 2 * (primal (x (T + 1) - u)) ^ 2).trans
       (hsc u hu (x (T + 1)) (hx_mem (T + 1) le_rfl))
-  linarith [habel T le_rfl, div_nonneg hnn (hη_pos T).le]
+  have hfinal := div_nonneg hnn (hη_pos T).le
+  simp only [a, w, one_div_mul_eq_div, sum_const_zero, add_zero, sub_div] at htel
+  simp only [a, sub_div] at hinitial hfinal hsum
+  linarith only [hsum, htel, hinitial, hfinal]
 
 /-- Horizon-independent static regret of **online mirror descent** with step sizes
 `η t = √(μ * D) / (G * √(t + 1))`:

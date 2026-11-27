@@ -173,8 +173,7 @@ theorem migrateActiveCode_execRCodeDist {U V w N_old n n_init base : ℕ}
         ((migLinearFactor * n : ℕ) : ℝ≥0∞) := by
   intro N_new peakF
   obtain ⟨hw, hU, _⟩ := rootHeaderValid_bounds hx hsplit.root_hdr
-  have hNU_old : N_old ≤ U := by rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
-  have hn_old : n ≤ N_old := by rcases hev with ⟨rfl, _⟩ | ⟨_, hnN, _, _⟩ <;> omega
+  obtain ⟨hn_old, _, hNU_old⟩ := epochValid_iff_capacity_bounds.mp hev
   have hnU : n ≤ U := hn_old.trans hNU_old
   obtain ⟨_, _, _, hNU_new⟩ := targetCap_bounds_of_pos hn hnU
   obtain ⟨y_set, steps_set, hex_set, hc_set, hy_set_b, hy_set_fr, habi_set, hbelow_set,

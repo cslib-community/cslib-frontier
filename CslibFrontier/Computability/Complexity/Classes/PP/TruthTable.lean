@@ -12,13 +12,13 @@ public import CslibFrontier.Computability.Complexity.Classes.PP.Closure
 public import CslibFrontier.Computability.Complexity.Classes.SharpP
 public import CslibFrontier.Computability.Complexity.Reduction.TruthTable
 public import CslibFrontier.Foundations.Order.BooleanSubalgebra
+public import CslibFrontier.Computability.Complexity.Classes.PP.SignWeights
 import CslibFrontier.Computability.Complexity.Classes.PP.Characterization
 import CslibFrontier.Computability.Complexity.Classes.SharpP.Products
 import CslibFrontier.Computability.Complexity.Classes.SharpP.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignProduct
 import CslibFrontier.Foundations.Data.List.Lookup
 import Cslib.Foundations.Data.Polynomial.Monotone
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
@@ -38,7 +38,7 @@ Given an indexed language `A ∈ PP (encPair enc encUnary)`, a polynomial-time u
 and a polynomial-time Boolean combiner `d`, let `g₀ ∈ GapP (encPair enc encUnary)` witness `A` via
 `0 < g₀ x ↔ x ∈ A`, and set `g x = 2 * g₀ x - 1`. Then `g x` is never zero, has the sign of
 membership in `A`, and satisfies `|g (a, i)| ≤ 2 ^ M a` for all `i < r a` for a polynomial-time
-unary bound `M a`. Evaluating Newman's polynomial [Newman][Newman1964]
+unary bound `M a`. Evaluating the dyadic variant of Newman's geometric-root product
 $$\operatorname{newmanPoly}(M, z) = \prod_{j=0}^{M} (2^j + z)$$
 and raising to the even exponent `2 * (r a + 1)` yields nonnegative `GapP` weights
 `A⁺ (a, i)` and `A⁻ (a, i)` such that at each query `i < r a`, the weight matching the true
@@ -49,11 +49,6 @@ each guessed answer word `w : Fin (r a) → Bool` makes the weight of the true a
 words. Summing `(if d (a, List.ofFn w) then 1 else -1)` times the word weight over all `w` via
 `GapP.sum_bits_mem` produces a `GapP` function whose sign is determined by the single term for
 `truthTableAnswers A r a`.
-
-## Main definitions
-
-* `Cslib.Complexity.newmanPoly`: Newman's integer polynomial `∏ j ∈ range (M + 1), (2 ^ j + z)`
-  [Newman][Newman1964].
 
 ## Main results
 
@@ -83,32 +78,12 @@ open Turing.MultiTapeTM Finset
 
 variable {α : Type} {enc : α ↪ List Bool}
 
-/-! ### Newman's polynomial and amplified weights -/
-
-/-- Newman's polynomial `∏ j ∈ range (M + 1), (2 ^ j + z)` [Newman][Newman1964], used to
-rationalize the sign of an integer `z` with `1 ≤ |z| ≤ 2 ^ M`. -/
-def newmanPoly (M : ℕ) (z : ℤ) : ℤ :=
-  ∏ j ∈ range (M + 1), ((2 : ℤ) ^ j + z)
+/-! ### Dyadic sign products and amplified weights -/
 
 /-- Even-power amplification of `newmanPoly`, ensuring nonnegativity and a multiplicative dominance
 ratio of at least `2 ^ (2 * K)`. -/
 private def newmanAmp (M K : ℕ) (z : ℤ) : ℤ :=
   newmanPoly M z ^ (2 * K)
-
-/-- Newman's polynomial is at least `1` at every positive integer. -/
-private theorem one_le_newmanPoly {M : ℕ} {z : ℤ} (hz : 1 ≤ z) : 1 ≤ newmanPoly M z :=
-  one_le_prod₀ fun j _ => by
-    have : (0 : ℤ) ≤ (2 : ℤ) ^ j := by positivity
-    omega
-
-/-- **Newman's inequality:** for `1 ≤ z ≤ 2 ^ M`, twice `|newmanPoly M (-z)|` is at most
-`newmanPoly M z`. -/
-theorem two_mul_abs_newmanPoly_neg_le {M : ℕ} {z : ℤ} (hz₁ : 1 ≤ z) (hz₂ : z ≤ (2 : ℤ) ^ M) :
-    2 * |newmanPoly M (-z)| ≤ newmanPoly M z := by
-  have h : 3 * |newmanPoly M (-z)| ≤ newmanPoly M z := by
-    simpa only [newmanPoly, sub_eq_add_neg] using
-      Polynomial.three_mul_abs_prod_two_pow_sub_le hz₁ hz₂
-  exact (mul_le_mul_of_nonneg_right (by decide : (2 : ℤ) ≤ 3) (abs_nonneg _)).trans h
 
 /-- The amplified weight is nonnegative, being an even power. -/
 private theorem newmanAmp_nonneg (M K : ℕ) (z : ℤ) : 0 ≤ newmanAmp M K z :=
@@ -131,19 +106,8 @@ private theorem newmanAmp_mem_GapP {M r : α → ℕ} {h : α × ℕ → ℤ}
     (hh : h ∈ GapP (encPair enc encUnary))
     (hM : ComputableInPolyTime M enc encUnary)
     (hr : ComputableInPolyTime r enc encUnary) :
-    (fun x : α × ℕ => newmanAmp (M x.1) (r x.1 + 1) (h x)) ∈ GapP (encPair enc encUnary) := by
-  have htwo : (fun _ : (α × ℕ) × ℕ => (2 : ℤ)) ∈
-      GapP (encPair (encPair enc encUnary) encUnary) :=
-    GapP.add_mem GapP.one_mem GapP.one_mem
-  have hpow2 : (fun p : (α × ℕ) × ℕ => (2 : ℤ) ^ p.2) ∈
-      GapP (encPair (encPair enc encUnary) encUnary) :=
-    GapP.pow_mem_polyTime htwo ((.snd (encPair enc encUnary) encUnary))
-  have hbody : (fun p : (α × ℕ) × ℕ => (2 : ℤ) ^ p.2 + h p.1) ∈
-      GapP (encPair (encPair enc encUnary) encUnary) :=
-    GapP.add_mem hpow2 (GapP.comp_mem hh ((.fst (encPair enc encUnary) encUnary)))
-  have hprod : (fun x : α × ℕ => newmanPoly (M x.1) (h x)) ∈ GapP (encPair enc encUnary) :=
-    GapP.prod_range_mem hbody (by fun_prop)
-  exact GapP.pow_mem_polyTime hprod (by fun_prop)
+    (fun x : α × ℕ => newmanAmp (M x.1) (r x.1 + 1) (h x)) ∈ GapP (encPair enc encUnary) :=
+  GapP.pow_mem_polyTime (GapP.newmanPoly_mem hh (hM.comp (.fst enc encUnary))) (by fun_prop)
 
 /-! ### Word weights and truth-table gap construction -/
 

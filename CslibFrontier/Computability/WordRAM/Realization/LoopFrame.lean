@@ -30,10 +30,11 @@ explicit `Memory.Modifies` framing.
 * `runClient_alloc`, `clientResult_alloc`, `clientState_alloc`, `validHistory_alloc_bind`,
   `clientResult_bind_alloc`, `clientState_bind_alloc`, `clientResult_bind_allocDirty`,
   `clientState_bind_allocDirty`: primitive allocation step reductions.
-* `triple_iff_realization`, `framedTriple_iff_realization`: equivalence between memory triples
-  and `Realization` judgments.
-* `iterate_rat_witness_spec`, `iterate_potential_spec`: witness-indexed `ℚ` and amortized `ℕ`
-  potential inductions for `iterate` with `Memory.Modifies` framing.
+* `triple_iff_realization`, `framedTriple_iff_realization`, `framedTriple_with_realization`:
+  equivalences and realization-state wrappers between memory triples and `Realization` judgments.
+* `iterate_rat_witness_spec`, `iterate_potential_spec`, `iterate_framedTriple_of_step`:
+  witness-indexed `ℚ`, amortized `ℕ`, and step-triple inductions for `iterate` with
+  `Memory.Modifies` framing.
 * `boundedWhile_rat_witness_spec`, `boundedWhile_potential_spec`, `boundedWhile_spec`:
   witness-indexed `ℚ`, amortized `ℕ`, and rank-bounded worst-case inductions for `boundedWhile`.
 -/
@@ -455,6 +456,38 @@ theorem boundedWhile_spec {δ σ : Type}
       obtain ⟨hs, hv, hc, hm, hi', hr'⟩ := hstep a s hi hg
       exact ⟨hs, hv, by omega, hm, hi', hr'⟩) fuel a s hi hr
   simpa only [Nat.add_zero, Nat.zero_add] using h
+
+/-- Refine a `Memory.FramedTriple` to expose equality with `(Memory.spec 0).clientResult` and
+`clientState`. -/
+theorem framedTriple_with_realization {α : Type} {w : ℕ} {s : Memory.State}
+    {p : Memory.Prog α} {c : ℕ} {S : Set ℕ} {Q : α → Memory.State → Prop}
+    (hft : Memory.FramedTriple w s p c S Q) :
+    Memory.FramedTriple w s p c S fun r s' =>
+      r = (Memory.spec 0).clientResult s p ∧
+      s' = (Memory.spec 0).clientState s p ∧ Q r s' := by
+  obtain ⟨hv, hc, hm, hq⟩ := framedTriple_iff_realization.mp hft
+  exact framedTriple_iff_realization.mpr ⟨hv, hc, hm, rfl, rfl, hq⟩
+
+/-- Lift a step `FramedTriple` (whose safety guard may depend on the step `ValidHistory`) into
+`iterationSafe` and a `FramedTriple` for `iterate body d n a₀`. -/
+theorem iterate_framedTriple_of_step {δ σ : Type} (body : δ × σ → Memory.Prog σ)
+    (safe : ℕ → δ × σ → Memory.State → Prop) (w : ℕ) (d : δ) (B n : ℕ)
+    (inv : ℕ → σ → Memory.State → Prop) (S : Set ℕ)
+    (hstep : ∀ k < n, ∀ a t, inv k a t →
+      ((Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t (body (d, a))) →
+        safe w (d, a) t) ∧
+      Memory.FramedTriple w t (body (d, a)) B S (inv (k + 1)))
+    (a₀ : σ) (s₀ : Memory.State) (h₀ : inv 0 a₀ s₀) :
+    iterationSafe body safe w d n a₀ s₀ ∧
+    Memory.FramedTriple w s₀ (iterate body d n a₀) (B * n) S (inv n) := by
+  have hpot := iterate_potential_spec body safe w d B n inv (fun _ _ _ => 0) S
+    (fun k hk a t hi => by
+      obtain ⟨hsf, hft⟩ := hstep k hk a t hi
+      obtain ⟨hv, hc, hm, hinv'⟩ := framedTriple_iff_realization.mp hft
+      exact ⟨hsf hv, hv, by omega, hm, hinv'⟩)
+    a₀ s₀ h₀
+  obtain ⟨hsafe, hv, hc, hm, hinv_end⟩ := hpot
+  exact ⟨hsafe, framedTriple_iff_realization.mpr ⟨hv, by omega, hm, hinv_end⟩⟩
 
 end Cslib.WordRAM.Realization
 

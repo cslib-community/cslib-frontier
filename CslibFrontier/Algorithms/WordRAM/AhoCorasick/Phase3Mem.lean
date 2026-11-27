@@ -9,8 +9,9 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.AhoCorasick.BFSCorrect
 public import CslibFrontier.Algorithms.WordRAM.AhoCorasick.Phase1Setup
+-- Table updates use the private `read_update_array_cell` and `read_update_matrix_cell` lemmas.
+import all CslibFrontier.Algorithms.WordRAM.AhoCorasick.Layout
 import CslibFrontier.Computability.WordRAM.SymbolicExec
-import CslibFrontier.Foundations.Data.Nat.Div
 
 /-!
 # Phase 3a: `BFSMem` Invariant and Depth-1 Root Loop (`exec_bfsRootLoop`)
@@ -69,24 +70,47 @@ structure BFSMem (inp : Input) (T : PTrie) (B : PBFS) (mem : ℕ → ℕ) : Prop
   outNext_cell : ∀ u < inp.maxS, mem (inp.outNextBase + u) = B.outNext u
   queue_cell : ∀ i < inp.maxS, mem (inp.queueBase + i) = B.queue i
 
+private theorem frame_matrix_cells {mem mem' : ℕ → ℕ} {f : ℕ → ℕ → ℕ}
+    {base rows cols : ℕ}
+    (hread : ∀ u < rows, ∀ c < cols, mem (base + u * cols + c) = f u c)
+    (hframe : ∀ a < base + rows * cols, mem' a = mem a) :
+    ∀ u < rows, ∀ c < cols, mem' (base + u * cols + c) = f u c := by
+  intro u hu c hc
+  have hoff : u * cols + c < rows * cols :=
+    Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
+  exact (hframe _ (by simpa only [Nat.add_assoc] using Nat.add_lt_add_left hoff base)).trans
+    (hread u hu c hc)
+
+-- The BFS updates leave the input text and the fixed trie tables in two separate regions.
+private theorem BFSMem.frame_trie {inp : Input} {T : PTrie} {B : PBFS} {mem mem' : ℕ → ℕ}
+    (hM : BFSMem inp T B mem) (htextTrie : ∀ a < inp.deltaBase, mem' a = mem a)
+    (hdepthTerm : ∀ a, inp.depthBase ≤ a → a < inp.outHeadBase → mem' a = mem a) :
+    Block.HoldsList inp.textBase inp.text mem' ∧
+      (∀ u < inp.maxS, ∀ c < inp.alphabetSize,
+        mem' (inp.trieBase + u * inp.alphabetSize + c) = T.trie u c) ∧
+      (∀ u < inp.maxS, mem' (inp.depthBase + u) = T.depth u) ∧
+      ∀ u < inp.maxS, mem' (inp.termBase + u) = T.isTerm u := by
+  have hlo := layout_order inp
+  exact ⟨hM.txt.frame (fun a _ ha => htextTrie a (by lia)),
+    frame_matrix_cells hM.trie_cell (fun a ha => htextTrie a (by lia)),
+    fun u hu => (hdepthTerm _ (Nat.le_add_right _ _) (by lia)).trans (hM.depth_cell u hu),
+    fun u hu => (hdepthTerm _ (by lia) (by lia)).trans (hM.term_cell u hu)⟩
+
 /-- Transport a `BFSMem` invariant across writes that agree with `mem` on every address strictly
 below `inp.outBase`. Shared by Phase 4 output writes. -/
 theorem bfsMem_of_eq_below_outBase {inp : Input} {T : PTrie} {B : PBFS}
     {mem mem' : ℕ → ℕ} (hM : BFSMem inp T B mem)
     (heq : ∀ a < inp.outBase, mem' a = mem a) : BFSMem inp T B mem' := by
   have hlo := layout_order inp
-  have hmul : ∀ u < inp.maxS, ∀ c < inp.alphabetSize,
-      u * inp.alphabetSize + c < inp.maxS * inp.alphabetSize := fun _ hu _ hc =>
-    Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
-  refine
-    { txt := hM.txt.frame fun a _ ha2 => heq a (by omega)
-      trie_cell := fun u hu c hc => (heq _ (by have := hmul u hu c hc; omega)).trans
-        (hM.trie_cell u hu c hc)
-      delta_cell := fun u hu c hc => (heq _ (by have := hmul u hu c hc; omega)).trans
-        (hM.delta_cell u hu c hc)
-      fail_cell := fun u hu => (heq _ (by omega)).trans (hM.fail_cell u hu)
-      depth_cell := fun u hu => (heq _ (by omega)).trans (hM.depth_cell u hu)
-      term_cell := fun u hu => (heq _ (by omega)).trans (hM.term_cell u hu)
+  obtain ⟨htxt, htrie, hdepth, hterm⟩ :=
+    hM.frame_trie (fun a ha => heq a (by lia)) (fun a _ ha => heq a (by lia))
+  exact
+    { txt := htxt
+      trie_cell := htrie
+      delta_cell := frame_matrix_cells hM.delta_cell (fun a ha => heq a (by lia))
+      fail_cell := fun u hu => (heq _ (by lia)).trans (hM.fail_cell u hu)
+      depth_cell := hdepth
+      term_cell := hterm
       outHead_cell := fun u hu => (heq _ (by omega)).trans (hM.outHead_cell u hu)
       outNext_cell := fun u hu => (heq _ (by omega)).trans (hM.outNext_cell u hu)
       queue_cell := fun i hi => (heq _ (by omega)).trans (hM.queue_cell i hi) }
@@ -108,15 +132,6 @@ theorem bfsMem_init {inp : Input} {T : PTrie} {mem : ℕ → ℕ}
       outNext_cell := fun u hu => hM.zero_rest _ (by omega) (by omega)
       queue_cell := fun i hi => hM.zero_rest _ (by omega) (by omega) }
 
-private theorem bfsMem_preserves_table {mem : ℕ → ℕ} {base s val : ℕ}
-    {f : ℕ → ℕ} {lim : ℕ}
-    (h : ∀ u < lim, mem (base + u) = f u) (u : ℕ) (hu : u < lim) :
-    Function.update mem (base + s) val (base + u) = Function.update f s val u := by
-  by_cases hus : u = s
-  · subst hus; simp
-  · rw [Function.update_of_ne (by omega), Function.update_of_ne hus]
-    exact h u hu
-
 /-- Single-cell update preserving `BFSMem` when writing `delta[u₀, a] := dval`. -/
 theorem bfsMem_of_set_delta {inp : Input} {T : PTrie} {B : PBFS} {mem : ℕ → ℕ}
     {u₀ a dval : ℕ} (hu₀ : u₀ < inp.maxS) (ha : a < inp.alphabetSize)
@@ -126,25 +141,21 @@ theorem bfsMem_of_set_delta {inp : Input} {T : PTrie} {B : PBFS} {mem : ℕ → 
       (Function.update mem (inp.deltaBase + (u₀ * inp.alphabetSize + a)) dval) := by
   have hlo := layout_order inp
   have hrm₀ := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu₀ ha
-  refine
-    { txt := hM.txt.frame fun _ _ _ => Function.update_of_ne (by omega) _ _
-      trie_cell := fun u hu c hc => by
-        have := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
-        exact (Function.update_of_ne (by omega) _ _).trans (hM.trie_cell u hu c hc)
-      delta_cell := fun u hu c hc => by
-        have hiff : inp.deltaBase + u * inp.alphabetSize + c =
-            inp.deltaBase + (u₀ * inp.alphabetSize + a) ↔ u = u₀ ∧ c = a :=
-          ⟨fun h => (Nat.eq_of_add_mul_eq hc ha (by omega)).symm,
-            fun ⟨h1, h2⟩ => by simp only [h1, h2, Nat.add_assoc]⟩
-        simp only [Function.update_apply, hiff, hM.delta_cell u hu c hc]
-      fail_cell := fun u hu => (Function.update_of_ne (by omega) _ _).trans (hM.fail_cell u hu)
-      depth_cell := fun u hu => (Function.update_of_ne (by omega) _ _).trans (hM.depth_cell u hu)
-      term_cell := fun u hu => (Function.update_of_ne (by omega) _ _).trans (hM.term_cell u hu)
-      outHead_cell := fun u hu =>
-        (Function.update_of_ne (by omega) _ _).trans (hM.outHead_cell u hu)
-      outNext_cell := fun u hu =>
-        (Function.update_of_ne (by omega) _ _).trans (hM.outNext_cell u hu)
-      queue_cell := fun i hi => (Function.update_of_ne (by omega) _ _).trans (hM.queue_cell i hi) }
+  have hfr (a' : ℕ) (ha' : a' < inp.deltaBase ∨ inp.failBase ≤ a') :
+      Function.update mem (inp.deltaBase + (u₀ * inp.alphabetSize + a)) dval a' = mem a' :=
+    Function.update_of_ne (by lia) _ _
+  obtain ⟨htxt, htrie, hdepth, hterm⟩ := hM.frame_trie (fun a' ha' => hfr a' (.inl ha'))
+    (fun a' ha' _ => hfr a' (.inr (by lia)))
+  exact
+    { txt := htxt
+      trie_cell := htrie
+      delta_cell := fun u hu c hc => read_update_matrix_cell hc ha (hM.delta_cell u hu c hc)
+      fail_cell := fun u hu => (hfr _ (.inr (Nat.le_add_right _ _))).trans (hM.fail_cell u hu)
+      depth_cell := hdepth
+      term_cell := hterm
+      outHead_cell := fun u hu => (hfr _ (.inr (by lia))).trans (hM.outHead_cell u hu)
+      outNext_cell := fun u hu => (hfr _ (.inr (by lia))).trans (hM.outNext_cell u hu)
+      queue_cell := fun i hi => (hfr _ (.inr (by lia))).trans (hM.queue_cell i hi) }
 
 private theorem bfsMem_of_set_fail_queue {inp : Input} {T : PTrie} {B : PBFS} {mem : ℕ → ℕ}
     {s fval : ℕ} (hs : s < inp.maxS) (hM : BFSMem inp T B mem) :
@@ -156,28 +167,24 @@ private theorem bfsMem_of_set_fail_queue {inp : Input} {T : PTrie} {B : PBFS} {m
       (Function.update (Function.update mem (inp.failBase + s) fval)
         (inp.queueBase + B.qTail) s) := by
   have hlo := layout_order inp
-  have hmul : ∀ u < inp.maxS, ∀ c < inp.alphabetSize,
-      u * inp.alphabetSize + c < inp.maxS * inp.alphabetSize := fun _ hu _ hc =>
-    Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
   have hfr (a : ℕ) (h : a < inp.failBase ∨ inp.depthBase ≤ a ∧ a < inp.queueBase) :
       Function.update (Function.update mem (inp.failBase + s) fval)
         (inp.queueBase + B.qTail) s a = mem a := by
     simp (disch := omega) only [Function.update_of_ne]
+  obtain ⟨htxt, htrie, hdepth, hterm⟩ :=
+    hM.frame_trie (fun a ha => hfr a (.inl (by lia))) (fun a ha₁ ha₂ => hfr a (.inr ⟨ha₁, by lia⟩))
   exact
-    { txt := hM.txt.frame fun _ _ _ => hfr _ (by omega)
-      trie_cell := fun u hu c hc =>
-        (hfr _ (by have := hmul u hu c hc; omega)).trans (hM.trie_cell u hu c hc)
-      delta_cell := fun u hu c hc =>
-        (hfr _ (by have := hmul u hu c hc; omega)).trans (hM.delta_cell u hu c hc)
+    { txt := htxt
+      trie_cell := htrie
+      delta_cell := frame_matrix_cells hM.delta_cell (fun a ha => hfr a (.inl (by lia)))
       fail_cell := fun u hu =>
-        (Function.update_of_ne (by omega) _ _).trans (bfsMem_preserves_table hM.fail_cell u hu)
-      depth_cell := fun _ hu => (hfr _ (by omega)).trans (hM.depth_cell _ hu)
-      term_cell := fun _ hu => (hfr _ (by omega)).trans (hM.term_cell _ hu)
-      outHead_cell := fun _ hu => (hfr _ (by omega)).trans (hM.outHead_cell _ hu)
-      outNext_cell := fun _ hu => (hfr _ (by omega)).trans (hM.outNext_cell _ hu)
-      queue_cell := fun i hi =>
-        bfsMem_preserves_table (fun j hj =>
-          (Function.update_of_ne (by omega) _ _).trans (hM.queue_cell j hj)) i hi }
+        (Function.update_of_ne (by lia) _ _).trans (read_update_array_cell (hM.fail_cell u hu))
+      depth_cell := hdepth
+      term_cell := hterm
+      outHead_cell := fun _ hu => (hfr _ (by lia)).trans (hM.outHead_cell _ hu)
+      outNext_cell := fun _ hu => (hfr _ (by lia)).trans (hM.outNext_cell _ hu)
+      queue_cell := fun i hi => read_update_array_cell
+        ((Function.update_of_ne (by lia) _ _).trans (hM.queue_cell i hi)) }
 
 private theorem bfsMem_of_set_out {inp : Input} {T : PTrie} {B : PBFS} {mem : ℕ → ℕ}
     {s onval ohval : ℕ} (hs : s < inp.maxS) (hM : BFSMem inp T B mem) :
@@ -188,28 +195,24 @@ private theorem bfsMem_of_set_out {inp : Input} {T : PTrie} {B : PBFS} {mem : �
       (Function.update (Function.update mem (inp.outNextBase + s) onval)
         (inp.outHeadBase + s) ohval) := by
   have hlo := layout_order inp
-  have hmul : ∀ u < inp.maxS, ∀ c < inp.alphabetSize,
-      u * inp.alphabetSize + c < inp.maxS * inp.alphabetSize := fun _ hu _ hc =>
-    Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
   have hfr (a : ℕ) (h : a < inp.outHeadBase ∨ inp.queueBase ≤ a) :
       Function.update (Function.update mem (inp.outNextBase + s) onval)
         (inp.outHeadBase + s) ohval a = mem a := by
     simp (disch := omega) only [Function.update_of_ne]
+  obtain ⟨htxt, htrie, hdepth, hterm⟩ :=
+    hM.frame_trie (fun a ha => hfr a (.inl (by lia))) (fun a _ ha => hfr a (.inl ha))
   exact
-    { txt := hM.txt.frame fun _ _ _ => hfr _ (by omega)
-      trie_cell := fun u hu c hc =>
-        (hfr _ (by have := hmul u hu c hc; omega)).trans (hM.trie_cell u hu c hc)
-      delta_cell := fun u hu c hc =>
-        (hfr _ (by have := hmul u hu c hc; omega)).trans (hM.delta_cell u hu c hc)
-      fail_cell := fun _ hu => (hfr _ (by omega)).trans (hM.fail_cell _ hu)
-      depth_cell := fun _ hu => (hfr _ (by omega)).trans (hM.depth_cell _ hu)
-      term_cell := fun _ hu => (hfr _ (by omega)).trans (hM.term_cell _ hu)
-      outHead_cell := fun u hu =>
-        bfsMem_preserves_table (fun v hv =>
-          (Function.update_of_ne (by omega) _ _).trans (hM.outHead_cell v hv)) u hu
+    { txt := htxt
+      trie_cell := htrie
+      delta_cell := frame_matrix_cells hM.delta_cell (fun a ha => hfr a (.inl (by lia)))
+      fail_cell := fun _ hu => (hfr _ (.inl (by lia))).trans (hM.fail_cell _ hu)
+      depth_cell := hdepth
+      term_cell := hterm
+      outHead_cell := fun u hu => read_update_array_cell
+        ((Function.update_of_ne (by lia) _ _).trans (hM.outHead_cell u hu))
       outNext_cell := fun u hu =>
-        (Function.update_of_ne (by omega) _ _).trans (bfsMem_preserves_table hM.outNext_cell u hu)
-      queue_cell := fun _ hi => (hfr _ (by omega)).trans (hM.queue_cell _ hi) }
+        (Function.update_of_ne (by lia) _ _).trans (read_update_array_cell (hM.outNext_cell u hu))
+      queue_cell := fun _ hi => (hfr _ (.inr (Nat.le_add_right _ _))).trans (hM.queue_cell _ hi) }
 
 /-- Combined five-write update preserving `BFSMem` when enqueuing child state `s`. -/
 theorem bfsMem_of_enqueue {inp : Input} {T : PTrie} {B : PBFS} {mem : ℕ → ℕ}

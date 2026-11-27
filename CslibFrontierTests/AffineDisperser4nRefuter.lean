@@ -92,6 +92,16 @@ def xor3Circuit : Circuit (fullSignature 2 Bool) 3 1 :=
 
 #guard (chooseStep? (initialState xor3Circuit)).isSome
 
+/-! `refuterRun` counts the steps of the loop `refute` runs: none from the terminal
+`proj100Circuit`, at least one from the nonterminal `xor3Circuit`. -/
+
+#guard (refuterRun (initialState proj100Circuit) (refuterMeasure (initialState proj100Circuit))
+  0).2 == 0
+#guard 1 ≤ (refuterRun (initialState xor3Circuit) (refuterMeasure (initialState xor3Circuit))
+  0).2
+#guard (refuterRun (initialState xor3Circuit) (refuterMeasure (initialState xor3Circuit))
+  0).2 ≤ refuterMeasure (initialState xor3Circuit)
+
 /-- Opposite-bias paired Case 5a state (`pairs = {(0, false, 1, false), (2, true, 3, false)}`,
 `gate 4 = x₀ ∧ x₂`, `gate 5 = x₁ ∧ x₃`, `gate 6 = gate 4 ∧ gate 5`): `chooseStep?` selects
 `.andOnPair 4 0` and `applyStep` deletes all three gates (`4`, `6`, `5`) in one step (`Δs = -3`). -/

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Probability.StatisticalDistance
 public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.BindCompare
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.ToReal
 import Mathlib.Data.Finset.Max
@@ -164,40 +165,16 @@ theorem map_firstIn_weightedOrderAux (w : Ω → ℝ≥0) :
     have hweightR : weightR ≠ ⊤ := ENNReal.sum_ne_top.mpr fun _ _ => ENNReal.coe_ne_top
     have hcancel := ENNReal.inv_mul_cancel hR hweightR
     -- Inside the region, the original and restricted draws differ by one normalization factor.
-    have hhit (a : Ω) : (if a ∈ R then draw a else 0) =
-        restricted a * (weightR * weightU⁻¹) := by
+    have hhit (a : Ω) : (R : Set Ω).indicator draw a =
+        (weightR * weightU⁻¹) * restricted a := by
       by_cases haR : a ∈ R <;> by_cases haU : a ∈ U
-      · simp only [draw, restricted, weightedDraw_apply, haR, haU, mem_inter, and_self,
-          ↓reduceIte]
-        rw [mul_assoc, ← mul_assoc weightR⁻¹, hcancel, one_mul]
+      · simp only [Set.indicator_of_mem (Finset.mem_coe.mpr haR), draw, restricted,
+          weightedDraw_apply, haR, haU, mem_inter, and_self, ↓reduceIte]
+        rw [mul_comm (weightR * weightU⁻¹), mul_assoc, ← mul_assoc weightR⁻¹, hcancel, one_mul]
       all_goals simp [draw, restricted, weightedDraw_apply, haR, haU]
-    have sum_draw (p : PMF Ω) : ∑ a, p a = 1 := (tsum_fintype p).symm.trans p.tsum_coe
-    have hmass : weightR * weightU⁻¹ + ∑ a, (if a ∈ R then 0 else draw a) = 1 := by
-      have hsum : ∑ a, (if a ∈ R then draw a else 0) = weightR * weightU⁻¹ := by
-        simp only [hhit, ← sum_mul, sum_draw, one_mul]
-      rw [← hsum, ← sum_add_distrib, ← sum_draw draw]
-      exact sum_congr rfl fun a _ => by split_ifs <;> simp
-    ext o
-    rcases o with _ | c
-    · rw [PMF.bind_apply, PMF.map_apply]
-      simp only [reduceCtorEq, ite_false, tsum_zero]
-      refine tsum_eq_zero_iff.mpr fun a => ?_
-      split_ifs <;> simp [PMF.map_apply]
-    have hsome : (restricted.map some) (some c) = restricted c := by
-      simp [PMF.map_apply]
-    rw [PMF.bind_apply, tsum_fintype, hsome]
-    -- A hit contributes only at the target, while a miss restarts the restricted draw.
-    have hterm (a : Ω) : draw a *
-        (if a ∈ R then PMF.pure (some a) else restricted.map some) (some c) =
-        (if c = a then (if c ∈ R then draw a else 0) else 0) +
-          (if a ∈ R then 0 else draw a) * restricted c := by
-      by_cases h : c = a
-      · subst a
-        by_cases hc : c ∈ R <;> simp [hc, hsome, PMF.pure_apply]
-      · by_cases ha : a ∈ R <;> simp [h, ha, hsome, PMF.pure_apply]
-    rw [sum_congr rfl fun a _ => hterm a, sum_add_distrib, sum_ite_eq,
-      ite_eq_left (mem_univ _), hhit, ← sum_mul, mul_comm (restricted c),
-      ← add_mul, hmass, one_mul]
+    have h := Cslib.Probability.PMF.bind_pure_or_resample_eq (R : Set Ω) hhit
+    simpa only [PMF.map_bind, apply_ite, PMF.pure_map, Finset.mem_coe] using
+      congrArg (PMF.map some) h
 
 /-- In a weighted order of all elements, the first element of `R` is distributed as a single
 weighted draw from `R`. -/

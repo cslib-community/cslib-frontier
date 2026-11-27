@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.MachineLearning.OnlineLearning.DynamicRegret
+import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.GCongr
@@ -187,21 +188,12 @@ private theorem adaGradNorm_step_le {K : Set E} {proj : E → E}
     have hr : 0 < r := sqrt_pos.mpr hpos
     set η := γ / r
     have hη : 0 < η := div_pos hγ hr
-    have hproj : ‖x (t + 1) - u‖ ^ 2 ≤ ‖x t - η • grad t (x t) - u‖ ^ 2 :=
-      pow_le_pow_left₀ (norm_nonneg _) (hP.norm_sub_le _ u hu) 2
-    have hexp : ‖x t - η • grad t (x t) - u‖ ^ 2 =
-        ‖x t - u‖ ^ 2 - 2 * η * ⟪grad t (x t), x t - u⟫ + η ^ 2 * ‖grad t (x t)‖ ^ 2 := by
-      rw [sub_right_comm, norm_sub_sq_real, norm_smul, real_inner_smul_right, real_inner_comm,
-        Real.norm_eq_abs, abs_of_pos hη]
-      ring
-    have hdiv := div_le_div_of_nonneg_right
-      (by linarith : 2 * η * ⟪grad t (x t), x t - u⟫ ≤
-        ‖x t - u‖ ^ 2 - ‖x (t + 1) - u‖ ^ 2 + η ^ 2 * ‖grad t (x t)‖ ^ 2) hη.le
-    have hR : (‖x t - u‖ ^ 2 - ‖x (t + 1) - u‖ ^ 2 + η ^ 2 * ‖grad t (x t)‖ ^ 2) / η =
-        r / γ * (‖x t - u‖ ^ 2 - ‖x (t + 1) - u‖ ^ 2) +
-          γ * (‖grad t (x t)‖ ^ 2 / r) := by
-      simp only [η]; field_simp
-    rwa [mul_div_right_comm, mul_div_cancel_right₀ _ hη.ne', hR] at hdiv
+    have h := projected_step_two_mul_inner_le hP (x := x t) (g := grad t (x t)) hu hη
+    have hx : x (t + 1) = proj (x t - η • grad t (x t)) := rfl
+    rw [← hx] at h
+    refine h.trans_eq ?_
+    simp only [η, r]
+    field_simp
 
 /-- Linearized dynamic regret bound for scalar `AdaGrad-Norm` against any sequence of comparators
 `u : ℕ → E` in `K`. -/
@@ -215,59 +207,56 @@ theorem adaGradNorm_dynamic_sum_inner_le {K : Set E} {proj : E → E}
         √(ε + ∑ t ∈ range T, ‖grad t (adaGradNorm proj grad γ ε x₀ t)‖ ^ 2) - γ * √ε := by
   set x := adaGradNorm proj grad γ ε x₀
   set S := adaGradNormSqSum proj grad γ ε x₀
-  have hD0 : 0 ≤ D := (norm_nonneg (x₀ - u 0)).trans (hD _ hx₀ _ (hu 0))
-  have hS_mono (t : ℕ) : S t ≤ S (t + 1) := le_add_of_nonneg_right (sq_nonneg _)
+  have hd (t s : ℕ) : ‖x t - u s‖ ≤ D := hD _ (adaGradNorm_mem hP hx₀ grad γ ε t) _ (hu s)
+  have hD0 := (norm_nonneg _).trans (hd 0 0)
   cases T with
   | zero =>
     simp only [range_zero, sum_empty, pathLength_zero, mul_zero, add_zero, add_mul,
       add_sub_cancel_right]
     positivity
   | succ T =>
-    have key (k : ℕ) : 2 * ∑ t ∈ range (k + 1), ⟪grad t (x t), x t - u t⟫ ≤
-        √(S (k + 1)) / γ * (D ^ 2 - ‖x (k + 1) - u k‖ ^ 2) +
-          (2 * D / γ) * pathLength u (k + 1) * √(S (k + 1)) +
-          γ * ∑ t ∈ range (k + 1), ‖grad t (x t)‖ ^ 2 / √(S (t + 1)) := by
-      induction k with
-      | zero =>
-        have hs := adaGradNorm_step_le hP hγ hε (hu 0) 0 (grad := grad) (x₀ := x₀)
-        simp only [zero_add, range_one, sum_singleton, pathLength_one, mul_zero, zero_mul, add_zero]
-        have hd0 : ‖x 0 - u 0‖ ^ 2 - ‖x 1 - u 0‖ ^ 2 ≤ D ^ 2 - ‖x 1 - u 0‖ ^ 2 :=
-          sub_le_sub_right (pow_le_pow_left₀ (norm_nonneg _) (hD _ hx₀ _ (hu 0)) 2) _
-        linarith [mul_le_mul_of_nonneg_left hd0 (div_nonneg (sqrt_nonneg (S 1)) hγ.le)]
-      | succ k ih =>
-        have hstep := adaGradNorm_step_le hP hγ hε (hu (k + 1)) (k + 1) (grad := grad) (x₀ := x₀)
-        have hr_le : √(S (k + 1)) ≤ √(S (k + 2)) := sqrt_le_sqrt (hS_mono (k + 1))
-        have hmem := adaGradNorm_mem hP hx₀ grad γ ε (k + 1)
-        have hd_le := pow_le_pow_left₀ (norm_nonneg _) (hD _ hmem _ (hu (k + 1))) 2
-        have h1 := mul_le_mul_of_nonneg_left
-          (norm_sub_sq_sub_le (hD _ hmem _ (hu k)) (hD _ hmem _ (hu (k + 1))))
-          (div_nonneg (sqrt_nonneg (S (k + 1))) hγ.le)
-        have h2 := mul_le_mul_of_nonneg_right (div_le_div_of_nonneg_right hr_le hγ.le)
-          (sub_nonneg.mpr hd_le)
-        have h3 : (2 * D / γ) * pathLength u (k + 1) * √(S (k + 1)) +
-            (2 * D / γ) * ‖u (k + 1) - u k‖ * √(S (k + 1)) ≤
-            (2 * D / γ) * pathLength u (k + 2) * √(S (k + 2)) := by
-          rw [pathLength_succ_succ]
-          calc (2 * D / γ) * pathLength u (k + 1) * √(S (k + 1)) +
-                (2 * D / γ) * ‖u (k + 1) - u k‖ * √(S (k + 1))
-              = (2 * D / γ) * (pathLength u (k + 1) + ‖u (k + 1) - u k‖) * √(S (k + 1)) := by ring
-            _ ≤ (2 * D / γ) * (pathLength u (k + 1) + ‖u (k + 1) - u k‖) * √(S (k + 2)) :=
-                mul_le_mul_of_nonneg_left hr_le
-                  (mul_nonneg (by positivity) (add_nonneg (pathLength_nonneg _ _) (norm_nonneg _)))
-        rw [sum_range_succ, sum_range_succ (fun t => ‖grad t (x t)‖ ^ 2 / √(S (t + 1)))]
-        ring_nf at hstep h1 h2 h3 ih ⊢
-        linarith
-    have hrem : 0 ≤ √(S (T + 1)) / γ * ‖x (T + 1) - u T‖ ^ 2 := by positivity
+    let a (t : ℕ) := ‖x t - u t‖ ^ 2
+    let b (t : ℕ) := ‖x (t + 1) - u t‖ ^ 2
+    let w (t : ℕ) := √(S (t + 1)) / γ
+    have hw (t : ℕ) : 0 ≤ w t := div_nonneg (sqrt_nonneg _) hγ.le
+    have hw_mono : Monotone w := monotone_nat_of_le_succ fun t =>
+      div_le_div_of_nonneg_right (sqrt_le_sqrt (le_add_of_nonneg_right (sq_nonneg _))) hγ.le
+    have hcap (t : ℕ) : a t ≤ D ^ 2 := pow_le_pow_left₀ (norm_nonneg _) (hd t t) 2
+    have htel := Fin.sum_range_mul_sub_le_of_adjacent w a b
+      (fun t => w t * (2 * D * ‖u (t + 1) - u t‖)) (D ^ 2) T
+      (fun t _ => mul_le_mul_of_nonneg_right (hw_mono (Nat.le_succ t)) (sub_nonneg.mpr (hcap _)))
+      (fun t _ => mul_le_mul_of_nonneg_left (norm_sub_sq_sub_le (hd (t + 1) t) (hd (t + 1) (t + 1)))
+        (hw t))
+    have hpath : ∑ t ∈ range T, w t * (2 * D * ‖u (t + 1) - u t‖) ≤
+        w T * (2 * D * pathLength u (T + 1)) := by
+      simp only [pathLength, Nat.add_sub_cancel, mul_sum]
+      exact sum_le_sum fun t ht =>
+        mul_le_mul_of_nonneg_right (hw_mono (mem_range.mp ht).le)
+          (mul_nonneg (mul_nonneg zero_le_two hD0) (norm_nonneg _))
+    have hsum := sum_le_sum (s := range (T + 1)) fun t _ =>
+      adaGradNorm_step_le hP hγ hε (hu t) t (grad := grad) (x₀ := x₀)
+    change (∑ t ∈ range (T + 1), 2 * ⟪grad t (x t), x t - u t⟫) ≤
+      ∑ t ∈ range (T + 1), (w t * (a t - b t) + γ * (‖grad t (x t)‖ ^ 2 / √(S (t + 1)))) at hsum
+    rw [← mul_sum, sum_add_distrib, ← mul_sum] at hsum
+    have hinitial := mul_nonneg (hw 0) (sub_nonneg.mpr (hcap 0))
+    have hfinal : w T * (D ^ 2 - b T) ≤ w T * D ^ 2 :=
+      mul_le_mul_of_nonneg_left (sub_le_self _ (sq_nonneg _)) (hw T)
+    have hpot := htel.trans (add_le_add ((sub_le_self _ hinitial).trans hfinal) hpath)
     have heq (t : ℕ) : ε + ∑ s ∈ range t, ‖grad s (x s)‖ ^ 2 = S t :=
       (adaGradNormSqSum_eq _ _ _ _ _ t).symm
     have hcs : ∑ t ∈ range (T + 1), ‖grad t (x t)‖ ^ 2 / √(S (t + 1)) ≤
         2 * (√(S (T + 1)) - √ε) := by
       simpa only [heq] using sum_div_sqrt_cumsum_le (fun t => sq_nonneg ‖grad t (x t)‖) hε (T + 1)
     have hmul := mul_le_mul_of_nonneg_left hcs hγ.le
-    have hk := key T
-    rw [← adaGradNormSqSum_eq proj grad γ ε x₀ (T + 1)]
-    ring_nf at hk hmul hrem ⊢
-    linarith
+    rw [heq]
+    calc
+      _ ≤ (w T * D ^ 2 + w T * (2 * D * pathLength u (T + 1)) +
+          γ * (2 * (√(S (T + 1)) - √ε))) / 2 := by
+        rw [le_div_iff₀ zero_lt_two, mul_comm _ 2]
+        exact hsum.trans (add_le_add hpot hmul)
+      _ = _ := by
+        simp only [w]
+        ring
 
 /-- **Dynamic regret of `AdaGrad-Norm`**: without knowing a gradient bound `G` or horizon `T`,
 scalar `AdaGrad-Norm` incurs data-dependent regret against any sequence `u` in `K`. -/
@@ -355,10 +344,10 @@ theorem isPythagoreanProjection_clampProj {a b : ℝ} (hab : a ≤ b) :
     IsPythagoreanProjection (Set.Icc a b) (clampProj a b) where
   mem _ := ⟨le_min (le_max_right _ _) hab, min_le_right _ _⟩
   norm_sub_le y z := fun ⟨hza, hzb⟩ => by
-    simp only [Real.norm_eq_abs, clampProj, abs_le]
-    constructor <;> rcases le_total y a with _ | _ <;> rcases le_total y b with _ | _ <;>
-      simp only [min_def, max_def] at * <;>
-      split_ifs <;> linarith [le_abs_self (y - z), neg_le_abs (y - z), abs_nonneg (y - z)]
+    have hmin := abs_min_sub_min_le_max (max y a) b (max z a) b
+    rw [sub_self b, abs_zero, max_eq_left (abs_nonneg (max y a - max z a))] at hmin
+    simpa only [Real.norm_eq_abs, clampProj, max_eq_left hza, min_eq_left hzb] using
+      hmin.trans (abs_max_sub_max_le_abs y z a)
 
 /-- State of coordinate-wise diagonal `AdaGrad` on an axis-aligned box over `ι`. -/
 structure AdaGradBoxState (ι : Type*) where

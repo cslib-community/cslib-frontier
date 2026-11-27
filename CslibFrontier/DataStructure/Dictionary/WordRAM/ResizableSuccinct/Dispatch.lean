@@ -253,8 +253,7 @@ private theorem fits_four_add_compactedItemWords {U V w N m base : ℕ}
   have hce : compactedEpochWords U V w N m =
       offCompItems U w N + compactedItemWords U V w N m := by
     unfold compactedEpochWords; rw [ite_eq_right hm.ne']
-  have hoff : 225 ≤ offCompItems U w N := by
-    unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM epochHdrWords; omega
+  have hoff := le_offCompItems_225 U w N
   rw [hce] at hfit
   exact hfit.of_le (by omega)
 
@@ -1093,8 +1092,10 @@ private theorem inEpochDeleteHitTailCode_exec {U V w N n n' n_init base L_peak :
   have hL_sh : x₁₁.frontier ≤ L_peak := by
     rw [hx₁₁_ff]
     exact (Nat.add_le_add_left (compactedEpochWords_mono (by omega : n' ≤ n)) base).trans hL
-  have hfit_n' : Fits w n' := lt_of_le_of_lt
-    (by rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, _⟩ <;> omega : n' ≤ U) hltU
+  have hnN := (epochValid_iff_capacity_bounds.mp hev).1
+  have hfit_n' : Fits w n' := by
+    rw [hn'_eq]
+    exact ((Nat.sub_le n 1).trans (hnN.trans hNU)).trans_lt hltU
   have hn1 : 1 ≤ n := hn
   set x₁₂ := x₁₁.set rOne 1
   set x₁₃ := x₁₂.set rCnt n'
@@ -1542,13 +1543,10 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
       dsimp only [n', s_abs']
       rw [Dynamic.card_dom_delete_eq_of_isSome hsome, hsplit.card_eq]
     have hn'_pos : 0 < n' := by
-      have hev' := hval.2
-      change EpochValid U n' N at hev'
-      rcases hev' with ⟨hn0, hN0⟩ | ⟨hn1, _, _, _⟩
-      · rcases hev with ⟨rfl, _⟩ | ⟨_, _, hN4, _⟩
-        · exact absurd rfl hn.ne'
-        · exfalso; subst hN0; exact absurd (Nat.eq_zero_of_le_zero (by omega : n ≤ 0)) hn.ne'
-      · exact hn1
+      have hnN := (epochValid_iff_capacity_bounds.mp hev).1
+      have hNn' := (epochValid_iff_capacity_bounds.mp
+        (show EpochValid U n' N from hval.2)).2.1
+      lia
     have hcond_pos : (Cond.eq rFound rOne).Holds x₉.toData := by
       change x₉.regs rFound = x₉.regs rOne
       rw [hx₉_found, hhit]
@@ -1919,8 +1917,7 @@ theorem inEpochOpCode_expected_amortized {U V w N n n_init base : ℕ}
   refine ⟨yOf, stepsOf, fun θ => ?_, ?_⟩
   · obtain ⟨h1, h2, h3, h4, h5, h6, h7, _⟩ := hspec θ
     exact ⟨h1, h2, h3, h4, h5, h6, h7⟩
-  · have hNU : N ≤ U := by rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
-    have hnN : n ≤ N := by rcases hev with ⟨rfl, _⟩ | ⟨_, hnN, _, _⟩ <;> omega
+  · obtain ⟨hnN, _, hNU⟩ := epochValid_iff_capacity_bounds.mp hev
     obtain ⟨θ₀⟩ : Nonempty (QuotHashSeed U N) := inferInstance
     have hcard : (Dictionary.dom s_abs).card = n := (hx_split θ₀).card_eq
     have hS_le : ((Dictionary.dom s_abs).erase (opKey o)).card ≤ N :=
