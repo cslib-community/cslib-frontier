@@ -21,6 +21,15 @@ import Mathlib.Data.List.GetD
 A Hadamard gate generates a fair tag bit. The circuit copies the tag and input into a fresh block,
 runs the given circuit there, and returns the tag on wire zero and the circuit decision on wire one.
 Keeping the tag outside the block makes the two branches have disjoint measurement supports.
+
+## Main definitions
+
+* `UniformCircuitFamily.randomTag` prepares the correlated tag and decision wires.
+
+## Main results
+
+* `UniformCircuitFamily.onesProb_randomTag` computes the decision marginal.
+* `UniformCircuitFamily.jointProb_randomTag` computes the joint probability of tag one and success.
 -/
 
 public section

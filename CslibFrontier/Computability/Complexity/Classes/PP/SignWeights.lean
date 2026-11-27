@@ -27,6 +27,15 @@ uniform in the instance. They are used for truth-table closure [FortnowReingold1
 also serve as amplitudes for a postselected quantum decision. The single tagged function in
 `exists_gapP_separation_of_mem_PP` is an original formulation of this counting argument.
 
+## Main definitions
+
+* `newmanPoly` is the product of the dyadic linear factors used to separate the two signs.
+
+## Main results
+
+* `two_mul_abs_newmanPoly_neg_le` gives a factor-two gap throughout the positive integer range.
+* `exists_gapP_separation_of_mem_PP` assigns the larger positive weight to the correct answer.
+
 ## References
 
 * [D. J. Newman, *Rational approximation to |x|*][Newman1964]

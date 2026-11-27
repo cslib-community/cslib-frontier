@@ -33,6 +33,19 @@ The reverse inclusion uses two GapP weights obtained from Newman's polynomial. O
 chosen tag bit the circuit accepts with probability proportional to the square of the corresponding
 weight. The weight on the correct tag is at least twice the magnitude of the other. Squaring
 gives the required conditional decision bounds and proves Theorem 4 for the native gate set.
+
+## Main definitions
+
+* `PostBQP` consists of languages decided in postselected quantum polynomial time.
+
+## Main results
+
+* `PostBQP_eq_PP` identifies bounded-error postselected quantum computation with strict majority.
+
+## References
+
+* [S. Aaronson, *Quantum Computing, Postselection, and Probabilistic Polynomial-Time*]
+  [Aaronson2005Postselection]
 -/
 
 @[expose] public section

@@ -148,8 +148,8 @@ open Quantum Turing.MultiTapeTM
 variable {α : Type} {enc : α ↪ List Bool}
 
 /-- **Acceptance overlaps are `GapP` functions**: for gate codes and two registers computed in
-polynomial time from the instance, the projected pair gap on the measured wires `S` is a `GapP` function of the
-instance. -/
+polynomial time from the instance, the projected pair gap on the measured wires `S` is a `GapP`
+function of the instance. -/
 theorem onesPairGap_mem_GapP (S : List ℕ) {gs : α → List GateCode} {X X' : α → List Bool}
     (hgs : ComputableInPolyTime gs enc (encList encGateCode))
     (hX : ComputableInPolyTime X enc encBits) (hX' : ComputableInPolyTime X' enc encBits) :
