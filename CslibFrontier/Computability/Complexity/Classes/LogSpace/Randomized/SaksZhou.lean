@@ -87,7 +87,7 @@ open scoped Classical in
 /-- The rounded Saks–Zhou acceptance estimate on the entire compact configuration box.
 Each row is traversed in increasing compact-ID order. The initial vertex is the native start ID,
 and the terminal vector selects accepting halts. -/
-noncomputable def saksZhouAcceptEst (c : ℕ) {w : List Bool}
+@[expose] noncomputable def saksZhouAcceptEst (c : ℕ) {w : List Bool}
     (hs : machine.toNTM.RunsInSpace w (c * (Nat.log2 w.length + 1))) (m s d : ℕ)
     (p : NisanShiftSeed (2 * m) s s d) : ℝ :=
   let B := radix (radixExponent State c) w.length
