@@ -253,8 +253,7 @@ private theorem fits_four_add_compactedItemWords {U V w N m base : ℕ}
   have hce : compactedEpochWords U V w N m =
       offCompItems U w N + compactedItemWords U V w N m := by
     unfold compactedEpochWords; rw [ite_eq_right hm.ne']
-  have hoff : 225 ≤ offCompItems U w N := by
-    unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM epochHdrWords; omega
+  have hoff := le_offCompItems_225 U w N
   rw [hce] at hfit
   exact hfit.of_le (by omega)
 

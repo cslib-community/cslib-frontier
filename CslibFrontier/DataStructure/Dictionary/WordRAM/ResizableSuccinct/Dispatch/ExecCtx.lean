@@ -1270,9 +1270,8 @@ theorem loadActiveCtxCode_exec {U V w N n n_init base L_peak : ℕ}
   obtain ⟨hw, hU, hV⟩ := rootHeaderValid_bounds hx hsplit.root_hdr
   have hNU := (epochValid_iff_capacity_bounds.mp hev).2.2
   have hfr_pos : x.frontier = base + offCompItems U w N + compactedItemWords U V w N n := by
-    rw [hfr]; unfold compactedEpochWords; rw [ite_eq_right hn.ne']; omega
-  have hoff_ge : 225 ≤ offCompItems U w N := by
-    unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM epochHdrWords; omega
+    simp only [hfr, compactedEpochWords, ite_eq_right hn.ne', Nat.add_assoc]
+  have hoff_ge := le_offCompItems_225 U w N
   have hfit_fr : Fits w x.frontier := hx.frontier_fits
   obtain ⟨x₁, hex₁, hx₁b, hx₁m, hx₁f, hx₁_hp, hx₁_reg⟩ :=
     loadBlockUpTo_exec rBase rCur (eReg_ne (by decide)) hpReg hpReg_inj
@@ -1415,9 +1414,8 @@ theorem runEvalHashAtQuot {U V w N n n_init base L_peak q : ℕ}
   obtain ⟨hw, hU, _⟩ := rootHeaderValid_bounds hx hsplit.root_hdr
   have hNU := (epochValid_iff_capacity_bounds.mp hev).2.2
   have hfr_pos : x.frontier = base + offCompItems U w N + compactedItemWords U V w N n := by
-    rw [hfr]; unfold compactedEpochWords; rw [ite_eq_right hn.ne']; omega
-  have hoff_ge : 225 ≤ offCompItems U w N := by
-    unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM epochHdrWords; omega
+    simp only [hfr, compactedEpochWords, ite_eq_right hn.ne', Nat.add_assoc]
+  have hoff_ge := le_offCompItems_225 U w N
   have hfit_fr : Fits w x.frontier := hx.frontier_fits
   have hw2 : 2 ≤ w := by
     by_contra h
@@ -1512,7 +1510,7 @@ theorem evalKeyHashCode_exec {U V w N n n_init base L_peak : ℕ}
   obtain ⟨hw, hU, hV⟩ := rootHeaderValid_bounds hx hsplit.root_hdr
   have hNU := (epochValid_iff_capacity_bounds.mp hev).2.2
   have hfr_pos : x.frontier = base + offCompItems U w N + compactedItemWords U V w N n := by
-    rw [hfr]; unfold compactedEpochWords; rw [ite_eq_right hn.ne']; omega
+    simp only [hfr, compactedEpochWords, ite_eq_right hn.ne', Nat.add_assoc]
   have hfit_off : Fits w (base + offCompItems U w N) := hx.frontier_fits.of_le (by omega)
   have hcp_fit := fits_mkCompParams (U := U) (V := V) (w := w) (N := N) hw hNU hU hV hfit_off
   have hin_eq : x.regs ∘ srcExtractQuot = WordEncoding.encode (mkCompParams U V w N, u.val) :=

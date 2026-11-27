@@ -496,9 +496,6 @@ theorem tmpReadOldKV_out_0 :
   (wStreamAll.code_spec mFr srcStreamAll tmpStreamAll
     tmpStreamAll_inj srcStreamAll_ne_tmp tmpStreamAll_ne_mFr srcStreamAll_ne_mFr).1
 
-theorem le_offCompItems_225 (U w N : ℕ) : 225 ≤ offCompItems U w N := by
-  unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM epochHdrWords; omega
-
 theorem growZeroPost_regs_of_not_mem {s : RData rResize} {reg : Fin rResize}
     (hreg : reg ∉ ([mRes, mCur, mIdx, mZero, mOne] : List (Fin rResize))) :
     (growZeroPost mK mRes mCur mIdx mZero mOne s).regs reg = s.regs reg := by

@@ -405,7 +405,7 @@ private theorem epochValid_insert_mig {U N : ℕ} {s_abs : Dictionary.State U} {
   rw [epochValid_iff_capacity_bounds, targetCap_eq_min]
   exact ⟨by lia, by lia, min_le_right _ _⟩
 
-/-- Epoch validity after a delete from at least two keys that keeps the epoch capacity. -/
+/-- Epoch validity after a delete that keeps the epoch capacity. -/
 private theorem epochValid_delete_keep {U N : ℕ} {s_abs : Dictionary.State U} {u : Fin U}
     (hev : EpochValid U (Dictionary.dom s_abs).card N)
     (hmig : ¬4 * ((Dictionary.dom s_abs).card - 1) < N) :

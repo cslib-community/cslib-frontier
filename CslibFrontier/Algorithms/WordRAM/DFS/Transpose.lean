@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.DFS.CSR
+-- Uses `CSRAt.of_eqOn`, `csrOffset_add_lt`, and `csrOffset_transposeAdj_eq`.
 import all CslibFrontier.Algorithms.WordRAM.DFS.CSR
 import CslibFrontier.Computability.WordRAM.SymbolicExec
 

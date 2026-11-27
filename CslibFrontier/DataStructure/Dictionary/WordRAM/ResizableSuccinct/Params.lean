@@ -435,6 +435,15 @@ abbrev epochHashSpace (U w N : ℕ) : ℕ :=
 @[expose, wram_arith] def offCompItems (U w N : ℕ) : ℕ :=
   offDenseToTail U w N + packedWords (maxTailItems N) (globalPtrBits N) w
 
+/-- The compacted item stream starts after the fixed epoch header and scratch region. -/
+theorem le_offCompItems_225 (U w N : ℕ) : 225 ≤ offCompItems U w N :=
+  calc
+    225 ≤ offCompLM U w N := Nat.le_add_right _ _
+    _ ≤ offCompGM U w N := Nat.le_add_right _ _
+    _ ≤ offTailToDense U w N := Nat.le_add_right _ _
+    _ ≤ offDenseToTail U w N := Nat.le_add_right _ _
+    _ ≤ offCompItems U w N := Nat.le_add_right _ _
+
 /-- Total resting word footprint of a compacted epoch `(N, n)`:
 `8` words when `n = 0` (`rootHdrWords`), and `offCompItems U w N + compactedItemWords U V w N n`
 when `0 < n`. -/

@@ -1575,8 +1575,7 @@ theorem streamAllItemsProg_spec {U V w N_old N_new n oldMetaBase newMetaBase are
       set s_mid := (Memory.spec 0).clientState s_k
         (readOldItemKeyValGenProg (((oldHp, oldCp), (oldMetaBase, oldItemBase)), k))
       have hnew_ge_old225 : oldMetaBase + 225 ≤ newMetaBase := by
-        have : 225 ≤ offCompItems U w N_old := by
-          unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM epochHdrWords; omega
+        have := le_offCompItems_225 U w N_old
         have := henv.old_le_newMeta; omega
       have habove_mid : ∀ a, newMetaBase ≤ a → s_mid.mem a = s_k.mem a := fun a ha =>
         hout_ro a (by omega)
@@ -1691,8 +1690,7 @@ theorem streamAllItemsProg_spec {U V w N_old N_new n oldMetaBase newMetaBase are
     ⟨s_fix_end, hinv_end, hcpl_end⟩,
     fun a ha => hlo_end a ha,
     fun a ha => hmid_end a ⟨by
-      have : 225 ≤ offCompItems U w N_old := by
-        unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM epochHdrWords; omega
+      have := le_offCompItems_225 U w N_old
       have := henv.old_le_newMeta; omega, ha.2⟩⟩
 
 /-- Relocate an active compacted epoch representation from `(srcMetaBase, srcItemBase)` to
