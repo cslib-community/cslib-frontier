@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalLabelDetermi
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalRootLabelEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.DyadicSignEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.FingerprintRootLabelEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.RootLabelWitness
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ShiftedCriticalObjectiveEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.SignLabelEvaluation
@@ -184,6 +185,49 @@ example : (signLabelResidue 17 0 1 (fun _ => 3) (fun _ => 0) : ZMod 17) = 1 := b
     Polynomial.eval₂_finsetProd, Polynomial.eval₂_add, Polynomial.eval₂_comp,
     Polynomial.eval₂_neg, Polynomial.eval₂_dyadicSignProduct, Int.coe_castRingHom,
     Finset.univ_unique]
+  decide
+
+-- The number of weighted tests may vary with the binary input.
+example : (fun m : ℕ => fingerprintLabelResidue 17 0 1 m (fun _ => 3) (fun _ => 1) 16) ∈
+    CountingFunction 7 encNat encNat :=
+  fingerprintLabelResidue_mem (a := 0) Decoder.nat (.const 17) (.const 0) (.const 1)
+    ComputableInPolyTime.id' (CountingFunction.of_polyTime (.const 3))
+    (CountingFunction.of_polyTime (.const 1)) (CountingFunction.of_polyTime (.const 16))
+
+-- The derivative slot number and the test count are both binary.
+example : (fun D : ℕ => fingerprintRootLabelResidue 17 D 0 5 2 (-1) 2 id) ∈
+    CountingFunction 7 encNat encNat :=
+  fingerprintRootLabelResidue_mem (a := 0) Decoder.nat (.const 17) ComputableInPolyTime.id'
+    (.const 0) (.const 5) (.const 2) (.const (-1))
+    (CountingFunction.of_polyTime (.const 2))
+    (CountingFunction.of_polyTime (ComputableInPolyTime.snd encNat encNat))
+
+-- Modulo 17 the qualifying constant and the positive derivative have distinct values.
+example : (fingerprintRootLabelResidue 17 1 0 5 2 (-1) 2 id : ZMod 17) =
+    (Polynomial.fingerprintIntegerRootLabel Polynomial.X (Polynomial.C 2) 1 0 5 2 (-1)).eval₂
+      (Int.castRingHom (ZMod 17)) 0 := by
+  let : Fact (Nat.Prime 17) := ⟨by decide⟩
+  apply fingerprintRootLabelResidue_cast _ _ _ _ _ _ (by decide)
+  · simp
+  · intro i
+    fin_cases i
+    simp only [zero_add, Function.iterate_one, Polynomial.derivative_X,
+      Polynomial.eval₂_one, Nat.cast_one, id]
+
+-- The weighted test has zero denominator modulo 17, but its cleared numerator survives.
+example : (fingerprintLabelResidue 17 0 1 1 (fun i => if i = 0 then 0 else 3)
+    (fun _ => 1) 16 : ZMod 17) = 4 := by
+  let : Fact (Nat.Prime 17) := ⟨by decide⟩
+  let g (i : Fin 2) : Polynomial ℤ := Polynomial.C (if i.val = 0 then 0 else 3)
+  have hv (i : Fin 2) : ((if i.val = 0 then 0 else 3 : ℕ) : ZMod 17) =
+      (g i).eval₂ (Int.castRingHom (ZMod 17)) 0 := by
+    fin_cases i <;> simp [g]
+  rw [fingerprintLabelResidue_cast (p := 17) 0 1 g (fun _ : Fin 1 => 1) (-1) 0
+    (fun i => if i = 0 then 0 else 3) (fun _ => 1) 16 hv (by simp) (by decide)]
+  simp only [Polynomial.fingerprintLabelPolynomial, Polynomial.eval₂_sub, Polynomial.eval₂_pow,
+    Polynomial.eval₂_mul, Polynomial.eval₂_C, Polynomial.eval₂_finsetSum,
+    Polynomial.eval₂_finsetProd, Polynomial.eval₂_add, Polynomial.eval₂_comp, Polynomial.eval₂_neg,
+    Polynomial.eval₂_dyadicSignProduct, Int.coe_castRingHom, g]
   decide
 
 -- At -1 the product vanishes, so the cleared values are additive inverses.
@@ -812,6 +856,48 @@ example :
   simpa only [hDegree, hNorm] using
     Polynomial.signLabelPolynomial_bounds 1 g (fun _ => 1)
       (D := 1) (fun _ => Polynomial.natDegree_X_le) hb
+
+-- The weighted fingerprint with a negative target has explicit size bounds.
+example :
+    let g : Fin 2 → Polynomial ℤ := Fin.cases 1 (fun _ => Polynomial.X)
+    let p := Polynomial.fingerprintLabelPolynomial 1 2 g (fun _ => 2) (-2)
+    p.natDegree ≤ 72 ∧ p.coeffNorm1 ≤ 2 ^ 230 := by
+  intro g p
+  have hD (i : Fin 2) : (g i).natDegree ≤ 1 := by
+    refine Fin.cases ?_ (fun _ => ?_) i <;> simp [g]
+  have hb (i : Fin 2) : (g i).coeffNorm1 ≤ 2 ^ 0 := by
+    refine Fin.cases ?_ (fun _ => ?_) i <;> simp [g]
+  have hDegree : Polynomial.fingerprintLabelDegreeBound 1 1 2 1 = 72 := by decide
+  have hNorm : Polynomial.fingerprintLabelNormExponent 1 1 2 0 = 230 := by decide
+  simpa only [hDegree, hNorm] using
+    Polynomial.fingerprintLabelPolynomial_bounds 1 2 g (fun _ => 2) (-2) hD hb
+      (by simp only [Fin.sum_univ_one, le_refl]) (by decide)
+
+-- The prescribed root 1 of X² − 1 can be selected with a margin against the root −1.
+example :
+    let p : Polynomial ℤ := Polynomial.X ^ 2 - 1
+    ∃ μ t : ℕ, ∃ target : ℤ,
+      let label := Polynomial.fingerprintIntegerRootLabel p 1 2 1 μ t target
+      (1 : ℝ) / 2 ≤ label.eval₂ (Int.castRingHom ℝ) 1 ∧
+        label.eval₂ (Int.castRingHom ℝ) (-1) ≤ -(1 : ℝ) / 2 := by
+  intro p
+  have hp : p ≠ 0 := by
+    intro hz
+    have hc := congrArg (fun q : Polynomial ℤ => q.coeff 2) hz
+    exact (one_ne_zero : (1 : ℤ) ≠ 0) (by
+      simpa only [p, Polynomial.coeff_sub, Polynomial.coeff_X_pow_self, Polynomial.coeff_one,
+        Polynomial.coeff_zero, ite_eq_right (show (2 : ℕ) ≠ 0 by decide), sub_zero] using hc)
+  have hD : p.natDegree ≤ 2 := (Polynomial.natDegree_sub_le _ _).trans (by simp)
+  have hb : p.coeffNorm1 ≤ 2 ^ 1 := by
+    apply (Polynomial.coeffNorm1_sub_le _ _).trans
+    rw [pow_two, Polynomial.coeffNorm1_X_mul, Polynomial.coeffNorm1_X, Polynomial.coeffNorm1_one]
+    decide
+  have hx : p.eval₂ (Int.castRingHom ℝ) 1 = 0 := by norm_num [p]
+  have hy : p.eval₂ (Int.castRingHom ℝ) (-1) = 0 := by norm_num [p]
+  obtain ⟨μ, t, target, _, _, _, _, _, hpos, hneg⟩ :=
+    Polynomial.exists_fingerprintIntegerRootLabel (q := 1) hp hD (by simp) hb (by simp)
+      hx (by simp)
+  exact ⟨μ, t, target, hpos, hneg (-1) hy (by norm_num)⟩
 
 -- One precision covers all derivative orders at the real root of 2X.
 example (k : ℕ) :

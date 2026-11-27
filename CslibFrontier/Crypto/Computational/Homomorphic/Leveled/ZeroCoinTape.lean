@@ -73,23 +73,15 @@ theorem length_encPublicKey_support_zeroLink_le {E : Scheme} {n capacity pkBound
     (encPublicKey (challengePk :: rest.map Prod.fst, links)).length ≤
       publicKeyLengthBound rest.length capacity pkBound ctBound := by
   have hhead : (rest.headD ([], [])).2.length ≤ capacity := by
-    cases rest with
-    | nil => simp
-    | cons key rest => exact (hkeys key (by simp)).2
+    cases rest with | nil => simp | cons key _ => exact (hkeys key (by simp)).2
   have hlinksInfo := Scheme.length_and_mem_of_mem_support_encryptZeroKeyLinks
-    (E := E) (width := capacity) (ctBound := ctBound) (fun key hkey => by
-      rcases List.mem_cons.mp hkey with rfl | hkey
-      · exact ⟨hhead, hencrypt _ hpk⟩
-      · exact ⟨(hkeys key hkey).2, hencrypt _ (hkeys key hkey).1⟩) hlinks
-  apply length_encPublicKey_le rest.length capacity pkBound ctBound
-  · simp
-  · intro pk hmem
-    rcases List.mem_cons.mp hmem with rfl | hmem
-    · exact hpk
-    · obtain ⟨key, hkey, rfl⟩ := List.mem_map.mp hmem
-      exact (hkeys key hkey).1
-  · simpa using hlinksInfo.1.le
-  · exact hlinksInfo.2
+    (E := E) (width := capacity) (ctBound := ctBound)
+    (List.forall_mem_cons (a := (challengePk, (rest.headD ([], [])).2)).mpr
+      ⟨⟨hhead, hencrypt challengePk hpk⟩,
+        fun key hkey => ⟨(hkeys key hkey).2, hencrypt _ (hkeys key hkey).1⟩⟩) hlinks
+  exact length_encPublicKey_le rest.length capacity pkBound ctBound _ _ (by simp)
+    (List.forall_mem_cons.mpr ⟨hpk, List.forall_mem_map.mpr fun key hkey => (hkeys key hkey).1⟩)
+    (by simpa using hlinksInfo.1.le) hlinksInfo.2
 
 /-- Exact choice replay using laws only at generated keys and bounded public artifacts.
 Padding reserves `capacity` encryptions per link, independently even for repeated keys. -/
@@ -126,27 +118,15 @@ theorem eval_zeroLinkAdversary_choose_eq_map_coins (E : Scheme)
         evaluateChoose (n, encPublicKey (challengePk :: rest.map Prod.fst,
           Scheme.encryptKeyLinksCoins evaluateEncrypt n encCoins capacity true
             ((challengePk, (rest.headD ([], [])).2) :: rest) linkTape)) chooseTape)))
-  · apply PMF.bind_congr_on_support
-    intro rest hrest
+  · refine PMF.bind_congr_on_support _ _ _ fun rest hrest => ?_
     obtain ⟨hlength, hrestKeys⟩ := (ProbComp.mem_support_replicate_iff _ _ _).mp hrest
+    have hhead : (rest.headD ([], [])).2.length ≤ capacity := by
+      cases rest with | nil => simp | cons k _ => exact (hkeys k (hrestKeys k (by simp))).2
     have hparticipants : ∀ key ∈ (challengePk, (rest.headD ([], [])).2) :: rest,
-        key.1.length ≤ pkBound ∧ key.2.length ≤ capacity := by
-      intro key hmem
-      rcases List.mem_cons.mp hmem with rfl | hmem
-      · refine ⟨hpk, ?_⟩
-        cases rest with
-        | nil => simp
-        | cons key rest => exact (hkeys key (hrestKeys key (by simp))).2
-      · exact hkeys key (hrestKeys key hmem)
-    trans (ProbComp.eval (E.encryptZeroKeyLinks n
-      ((challengePk, (rest.headD ([], [])).2) :: rest))).bind (fun links =>
-        (BitString.uniformList chooseCoins).map
-          (evaluateChoose (n, encPublicKey (challengePk :: rest.map Prod.fst, links))))
-    · apply PMF.bind_congr_on_support
-      intro links hlinks
-      apply hchoose
-      rw [← hlength]
-      exact length_encPublicKey_support_zeroLink_le hpk
+        key.1.length ≤ pkBound ∧ key.2.length ≤ capacity :=
+      List.forall_mem_cons.mpr ⟨⟨hpk, hhead⟩, fun key hmem => hkeys key (hrestKeys key hmem)⟩
+    refine (PMF.bind_congr_on_support _ _ _ fun links hlinks => hchoose _ ?_).trans ?_
+    · exact hlength ▸ length_encPublicKey_support_zeroLink_le hpk
         (fun key hmem => hkeys key (hrestKeys key hmem))
         (fun pk hpk bit => (hencrypt pk hpk bit).2) hlinks
     have hlinks := E.eval_encryptKeyLinks_eq_map_coins evaluateEncrypt n encCoins capacity true
@@ -155,8 +135,7 @@ theorem eval_zeroLinkAdversary_choose_eq_map_coins (E : Scheme)
       (fun key hmem bit => (hencrypt key.1 (hparticipants key hmem).1 bit).1)
     simp only [List.tail_cons, List.length_zip, List.length_cons, Nat.min_eq_right
       (Nat.le_succ _), hlength, ← Nat.mul_assoc, ↓reduceIte] at hlinks
-    rw [hlinks, PMF.bind_map]
-    rfl
+    rw [hlinks, PMF.bind_map]; rfl
   rw [ProbComp.eval_replicate_of_uniformList (depth n) keyCoins _ _ hkey, PMF.bind_map]
   unfold zeroLinkChooseCoins
   dsimp only [Function.comp_def]
@@ -183,10 +162,8 @@ theorem zeroLinkAdversary_choose_state_length_le (E : Scheme)
   simp only [zeroLinkAdversary, ProbComp.eval_bind, PMF.mem_support_bind_iff] at hchoice
   obtain ⟨rest, hrest, links, hlinks, hchoice⟩ := hchoice
   obtain ⟨hlength, hrestKeys⟩ := (ProbComp.mem_support_replicate_iff _ _ _).mp hrest
-  apply hchoose _ _ choice hchoice
-  rw [← hlength]
-  exact length_encPublicKey_support_zeroLink_le hpk
-    (fun key hmem => hkeys key (hrestKeys key hmem)) hencrypt hlinks
+  exact hchoose _ (hlength ▸ length_encPublicKey_support_zeroLink_le hpk
+    (fun key hmem => hkeys key (hrestKeys key hmem)) hencrypt hlinks) choice hchoice
 
 /-- Zero-link replay is native polynomial time in every supplied parameter, key and tape.
 It retains the original head-default behavior on an empty generated key list. -/

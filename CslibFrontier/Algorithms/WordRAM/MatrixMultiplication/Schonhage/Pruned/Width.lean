@@ -43,21 +43,17 @@ def admissionWidth (L Q A B : ℕ) : ℕ :=
 
 /-- The physical threshold is nonzero even for empty inputs and zero operands. -/
 theorem admissionWidth_pos (L Q A B : ℕ) : 0 < admissionWidth L Q A B := by
-  unfold admissionWidth
-  omega
+  exact Nat.succ_pos _
 
 /-- Mathlib's ceiling logarithm derives both actual address-word fit and the signed source
 envelope, retaining the two extra bits charged by the existing signed arithmetic kernels. -/
 theorem admission_bounds {W L Q A B : ℕ} (hW : admissionWidth L Q A B ≤ W) :
     0 < W - 2 ∧ magnitudeBound L A B < 2 ^ ((W - 2) - 1) ∧ Fits W (addressBound L Q) := by
   have hs : Nat.clog 2 (magnitudeBound L A B + addressBound L Q + 1) ≤ (W - 2) - 1 := by
-    unfold admissionWidth at hW
-    omega
-  refine ⟨by unfold admissionWidth at hW; omega, ?_, ?_⟩
-  · exact fits_of_lt_clog_le
-      (by omega : magnitudeBound L A B < magnitudeBound L A B + addressBound L Q + 1) hs
-  · exact fits_of_lt_clog_le
-      (by omega : addressBound L Q < magnitudeBound L A B + addressBound L Q + 1) (by omega)
+    simp only [admissionWidth] at hW; omega
+  refine ⟨?_, fits_of_lt_clog_le (by omega) hs,
+    fits_of_lt_clog_le (by omega) (hs.trans ((Nat.sub_le _ _).trans (Nat.sub_le _ _)))⟩
+  simp only [admissionWidth] at hW; omega
 
 /-- A complete initialized run at every sufficiently wide physical width, with guaranteed input
 fit, a shared pre-halt memory witness, charged halt, all output values and outside preservation. -/
@@ -75,8 +71,7 @@ theorem runs_wide {W L A B : ℕ} (a b : Fin (10 ^ L) → ℤ)
       (∀ c, ¬(outputBase L qs.length ≤ c ∧ c < memoryEnd L qs.length) →
         y.mem c = (State.init (input L a b qs) : State registers).data.mem c) := by
   obtain ⟨hw, hm, ha'⟩ := admission_bounds hW
-  have htwo : W - 2 + 2 = W := by unfold admissionWidth at hW; omega
-  have h := runs hw a b qs ha hb hm (by simpa only [htwo] using ha')
-  simpa only [htwo] using h
+  have htwo : W - 2 + 2 = W := by simp only [admissionWidth] at hW; omega
+  simpa only [htwo] using runs hw a b qs ha hb hm (by simpa only [htwo] using ha')
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

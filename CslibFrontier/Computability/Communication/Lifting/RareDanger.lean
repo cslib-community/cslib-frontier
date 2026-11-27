@@ -69,14 +69,9 @@ theorem card_unsafe_le_of_parityTest_cover {κ : Type*} [Fintype κ] [NeZero m]
   classical
   have htail := probability_exists_parityTest_le w g hX hY hτX hτY hXne t β ht hβ hbound
   rw [PMF.toOuterMeasure_uniformOfFinset_toReal] at htail
-  have hcard : (0 : ℝ) < #X := by exact_mod_cast hXne.card_pos
-  have hbad := (div_le_iff₀ hcard).mp htail
-  refine le_trans ?_ hbad
-  exact_mod_cast card_le_card (show X.filter (fun x => ¬ IsSafe g σ F Y x) ⊆
-      X.filter (fun x => ∃ k, t k < (w k).bias g x) from by
-    intro x hx
-    exact mem_filter.mpr ⟨(mem_filter.mp hx).1,
-      hcover x (mem_filter.mp hx).1 (mem_filter.mp hx).2⟩)
+  refine le_trans ?_ ((div_le_iff₀ (by exact_mod_cast hXne.card_pos)).mp htail)
+  exact_mod_cast card_le_card fun x hx =>
+    mem_filter.mpr ⟨(mem_filter.mp hx).1, hcover x (mem_filter.mp hx).1 (mem_filter.mp hx).2⟩
 
 open scoped Classical in
 /-- A total conditional-parity tail budget of one half leaves at least half of the speaker's
@@ -93,11 +88,10 @@ theorem card_le_two_mul_card_safe_of_parityTest_cover {κ : Type*} [Fintype κ] 
     (#X : ℝ) ≤ 2 * #(X.filter (IsSafe g σ F Y)) := by
   classical
   have hbad := card_unsafe_le_of_parityTest_cover w g hX hY hτX hτY hXne t β ht hβ hbound hcover
-  have hsplit := card_filter_add_card_filter_not (s := X) (IsSafe g σ F Y)
   have hsplitR : (#(X.filter (IsSafe g σ F Y)) : ℝ) +
-      #(X.filter fun x => ¬ IsSafe g σ F Y x) = #X := by exact_mod_cast hsplit
-  have hmul := mul_le_mul_of_nonneg_right hbudget (Nat.cast_nonneg X.card : (0 : ℝ) ≤ #X)
-  linarith
+      #(X.filter fun x => ¬ IsSafe g σ F Y x) = #X :=
+    by exact_mod_cast card_filter_add_card_filter_not (s := X) (IsSafe g σ F Y)
+  nlinarith [mul_le_mul_of_nonneg_right hbudget (Nat.cast_nonneg X.card : (0 : ℝ) ≤ #X)]
 
 /-- Conditional parity-tail estimates supply a valid density-preserving step when their
 witness family covers unsafe inputs and has total budget at most one half. The selected
@@ -157,17 +151,14 @@ theorem card_le_two_mul_card_safe_of_eligible_budget [NeZero m]
     (hbudget : ∑ w, β w ≤ 1 / 2) :
     (#X : ℝ) ≤ 2 * #(X.filter (IsSafe g σ F Y)) := by
   classical
-  apply card_le_two_mul_card_safe_of_parityTest_cover
+  refine card_le_two_mul_card_safe_of_parityTest_cover
     (fun w : {w : ParityTest F Y // w.IsEligible order} => w.val)
     g hX hY hτX hτY hXne
     (fun w => (1 / 2 : ℝ) * (1 / (2 * n) : ℝ) ^ w.val.parity.card)
-    β ?_ hβ hcost ?_ hbudget
-  · intro w
-    obtain ⟨i, _⟩ := w.property.nonempty
-    have hn : 0 < n := Nat.zero_lt_of_lt i.isLt
+    β (fun w => ?_) hβ hcost (fun x _ hx => ?_) hbudget
+  · have := Nat.zero_lt_of_lt w.property.nonempty.choose.isLt
     positivity
-  · intro x _ hx
-    obtain ⟨I, w, hI, hcan, hpI, hpne, hel, hb⟩ :=
+  · obtain ⟨I, w, hI, hcan, hpI, hpne, hel, hb⟩ :=
       exists_parityTest_of_not_isSafe g σ F Y hYne hσ order horder x hx
     exact ⟨⟨w, hcan, hpne, I, hI, hpI, hel⟩, hb⟩
 
@@ -229,18 +220,15 @@ theorem card_le_two_mul_card_safe_of_ratio_budget [NeZero m]
     (hbudget : ∑ w, β w ≤ 1 / 2) :
     (#X : ℝ) ≤ 2 * #(X.filter (IsSafe g σ F Y)) := by
   classical
-  apply card_le_two_mul_card_safe_of_parityTest_cover
+  have hn0 : 0 < n := by omega
+  refine card_le_two_mul_card_safe_of_parityTest_cover
     (fun w : {w : ParityTest F Y // w.IsRatioEligible σ} => w.val)
     g hX hY hτX hτY hXne
     (fun w => (1 / 2 : ℝ) * (1 / (2 * n) : ℝ) ^ w.val.parity.card)
-    β ?_ hβ hcost ?_ hbudget
-  · intro w
-    have hnR : (0 : ℝ) < n := by exact_mod_cast (Nat.zero_lt_of_lt hn)
-    positivity
-  · intro x _ hx
-    obtain ⟨w, hcan, hne, hratio, hb⟩ :=
-      exists_ratio_parityTest_of_isDense_not_isSafe g τY σ F Y hYne hn hσ hY hgap x hx
-    exact ⟨⟨w, hcan, hne, hratio⟩, hb⟩
+    β (fun _ => by positivity) hβ hcost (fun x _ hx => ?_) hbudget
+  obtain ⟨w, hcan, hne, hratio, hb⟩ :=
+    exists_ratio_parityTest_of_isDense_not_isSafe g τY σ F Y hYne hn hσ hY hgap x hx
+  exact ⟨⟨w, hcan, hne, hratio⟩, hb⟩
 
 open scoped Classical in
 /-- **A finite numerical dangerous-values theorem.** The hypotheses involve only densities,
@@ -263,36 +251,29 @@ theorem card_le_two_mul_card_safe_of_discrepancy [NeZero m]
   classical
   have hn1 : 1 ≤ n := by omega
   have hnR : (1 : ℝ) ≤ n := by exact_mod_cast hn1
-  have hnR2 : (2 : ℝ) ≤ n := by exact_mod_cast hn
   have hστ : σ ≤ τY := by
-    have hdiv : 1 ≤ τY / σ := by nlinarith [sq_nonneg (n : ℝ)]
-    simpa only [one_mul] using (le_div_iff₀ hσ).mp hdiv
+    simpa only [one_mul] using
+      (le_div_iff₀ hσ).mp (by nlinarith [sq_nonneg (n : ℝ)] : 1 ≤ τY / σ)
   let P := fun w : ParityTest F Y => w.IsRatioEligible σ
   have hratioW (w : ParityTest F Y) (hw : P w) :
       (#Y : ℝ) ≤ (n : ℝ) ^ (2 * w.parity.card) * σ ^ w.conditioned.card *
-        #(agreeOn Y w.conditioned w.assignment) := by
-    rcases hw.ratio with he | he
-    · exact w.ratio_card_le_of_conditioned_eq_empty hn1 σ he
-    · exact he
-  have hcount (w : ParityTest F Y) (hw : P w) : w.conditioned.card ≤ w.parity.card / r :=
-    conditioningSize_le_div_of_ratio hn hr hratio
-      (w.density_ratio_pow_le hY hσ (hratioW w hw))
-  have hNm : 1 ≤ n * m := Nat.one_le_iff_ne_zero.mpr
-    (Nat.mul_ne_zero (by omega) (NeZero.ne m))
+        #(agreeOn Y w.conditioned w.assignment) :=
+    hw.ratio.elim (w.ratio_card_le_of_conditioned_eq_empty hn1 σ) id
   have hnonneg : 0 ≤ ((n + 1 : ℕ) : ℝ) * u * q := by positivity
-  have hwgt : ((n + 1 : ℕ) : ℝ) * u * q ≤ 1 := by
-    nlinarith [mul_le_mul_of_nonneg_right hnR hnonneg]
-  have hsum := sum_parityTest_pow_le_one P (fun _ hw => hw.canonical)
-    (fun _ hw => hw.nonempty) (fun S => S.card / r) hcount hNm
-    (by linarith : 0 ≤ u) hq.le
-    (fun S _ => pow_div_le_pow_of_le_pow (s := S.card) hu hsize) hwgt hweight
-  apply card_le_two_mul_card_safe_of_ratio_budget g hX hY hτX hτY hσ hXne hYne hn hgap
-    (fun w => (1 / 2 : ℝ) * q ^ w.val.parity.card) (fun _ => by positivity) ?_ ?_
-  · intro w
-    exact w.val.tailCost_le_geometric_budget_of_ratio g hτX hτY hσ.le hστ hq hn1
-      w.property.nonempty (hratioW w.val w.property) hdisc
-  · rw [← mul_sum]
-    nlinarith [hsum]
+  have hsum := sum_parityTest_pow_le_one P (fun _ hw => hw.canonical) (fun _ hw => hw.nonempty)
+    (fun S => S.card / r)
+    (fun w hw => conditioningSize_le_div_of_ratio hn hr hratio
+      (w.density_ratio_pow_le hY hσ (hratioW w hw)))
+    (Nat.one_le_iff_ne_zero.mpr (Nat.mul_ne_zero (by omega) (NeZero.ne m)))
+    (by linarith) hq.le (fun S _ => pow_div_le_pow_of_le_pow (s := S.card) hu hsize)
+    (by nlinarith [mul_le_mul_of_nonneg_right hnR hnonneg])
+    hweight
+  refine card_le_two_mul_card_safe_of_ratio_budget g hX hY hτX hτY hσ hXne hYne hn hgap
+    (fun w => (1 / 2 : ℝ) * q ^ w.val.parity.card) (fun _ => by positivity)
+    (fun w => w.val.tailCost_le_geometric_budget_of_ratio g hτX hτY hσ.le hστ hq hn1
+      w.property.nonempty (hratioW w.val w.property) hdisc) ?_
+  rw [← mul_sum]
+  nlinarith [hsum]
 
 /-- Single-block discrepancy and finite numerical density/counting conditions produce a valid
 simulation step, with no assumed safety or witness estimates. The speaker is restored to the
@@ -336,11 +317,9 @@ theorem exists_pair_of_discrepancy [NeZero m]
   have hsafe := card_le_two_mul_card_safe_of_discrepancy g hX hY hτX hτY hσ
     hXne hYne hn hr hgap hratio hu hsize hq hweight hdisc
   have hXpos : (0 : ℝ) < #X := by exact_mod_cast hXne.card_pos
-  have hsafePos : (0 : ℝ) < #(X.filter (IsSafe g σ F Y)) := by linarith
-  have hsafeNe : (X.filter (IsSafe g σ F Y)).Nonempty :=
-    card_pos.mp (by exact_mod_cast hsafePos)
-  obtain ⟨x, hx⟩ := hsafeNe
-  obtain ⟨y, hy⟩ := (mem_filter.mp hx).2.fiber_nonempty hYne (Subset.refl F) answer
+  obtain ⟨x, hx⟩ := card_pos.mp
+    (by exact_mod_cast (by linarith : (0 : ℝ) < #(X.filter (IsSafe g σ F Y))))
+  obtain ⟨y, hy⟩ := (mem_filter.mp hx).2.fiber_nonempty hYne Subset.rfl answer
   exact ⟨x, (mem_filter.mp hx).1, y, (mem_gadgetFiber.mp hy).1, (mem_gadgetFiber.mp hy).2⟩
 
 end Cslib.Communication.Lifting

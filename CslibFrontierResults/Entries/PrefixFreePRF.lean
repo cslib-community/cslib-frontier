@@ -6,11 +6,36 @@ Authors: Samuel Schlesinger, Erik Demaine
 
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
-import CslibFrontier.Crypto.Primitives.UHF.PrefixFreePRF
+import CslibFrontier.Crypto.Primitives.UHF.CBCMAC
 
 /-!
 # Collected results: universal hashing from prefix-free PRFs
 -/
+
+register_result "cbc-mac-computational-universality" where
+  title := "CBC-MAC from a secure PRF is computationally universal"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Corollary 7.5 (CBC-MAC case)",
+      locator := "v0.6, Section 7.2.2, printed p. 260; equation (7.10) and Q = 2 specialization" }
+  ]
+  theorems := [
+    Cslib.Crypto.PseudorandomFunction.isMultiQueryUHF_cbcMac,
+    Cslib.Crypto.PseudorandomFunction.isComputationalUHF_cbcMac,
+    Cslib.Crypto.UHF.succProbability_multiQueryGame_cbcMac_le,
+    Cslib.Crypto.UHF.succProbability_collisionGame_cbcMac_le,
+    Cslib.Crypto.UHF.isOraclePPT_cbcMacMultiQueryReduction
+  ]
+  scope := "The CBC-MAC case of Corollary 7.5 in the word model, with a base PRF on n-bit keys, \
+    blocks and replies. The hash domain consists of zero to ℓ(n) whole blocks with a unary \
+    polynomial-time cap ℓ. Uniform strict PPT adversaries submit lists of messages or pairs. \
+    A collision requires two distinct valid messages. The prefix-free batch wrapper appends a \
+    common fresh block to each distinct valid message when the alphabet exceeds the block \
+    budget. The base-PRF reduction is certified strict oracle PPT. The concrete \
+    bound uses (7.10)'s CBC term Q²(ℓ(n)+1)²/(2 · 2^n) with the sharper Q.choose 2/2^n \
+    for reply collisions. The single-pair wrapper uses Q = 2 and preserves success exactly. \
+    At width zero only the empty word is valid. At positive widths too small for the block \
+    budget, the CBC term already bounds success by one. Cascade is tracked in #5801."
 
 register_result "extendable-prefix-free-prf-computational-universality" where
   title := "An extendable prefix-free PRF is computationally universal"
@@ -38,3 +63,25 @@ register_result "extendable-prefix-free-prf-computational-universality" where
     caps each of its two replies at the width it computes by public PRF evaluation. \
     The resulting queries are nonempty and in the PRF domain, so the library's \
     domain-relative prefix condition applies to the source game."
+
+register_result "extendable-prefix-free-prf-multi-query-universality" where
+  title := "An extendable prefix-free PRF is computationally multi-query universal"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 7.4",
+      locator := "v0.6, Section 7.2.2, printed pp. 259–260; equation (7.9)" }
+  ]
+  theorems := [
+    Cslib.Crypto.UHF.isMultiQueryUHF_of_extendable_prefixFreePRF,
+    Cslib.Crypto.UHF.succProbability_multiQueryGame_le_prefixFreeBatchReduction,
+    Cslib.Crypto.UHF.isQueryBounded_prefixFreeBatchReduction
+  ]
+  scope := "Uniform strict PPT adversaries, a uniform n-bit key, and public unary security \
+    parameter. Valid hash inputs are aligned raw bit lists within a polynomial block cap. \
+    The block width and hash-domain recognition are polynomial-time computable. \
+    Each one-block extension is in the PRF domain, which eventually contains the all-zero \
+    block used to compute the reply width by public evaluation. Both alphabet reciprocals \
+    are negligible. The wrapper filters and deduplicates the batch, appends a fresh block, \
+    and tests equality of fixed-width replies. The adversary's strict PPT certificate gives \
+    the query cap. Equation (7.9) keeps the sharper birthday term choose(Q, 2) over the \
+    size of the reply alphabet."

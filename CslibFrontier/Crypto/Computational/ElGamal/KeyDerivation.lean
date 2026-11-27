@@ -71,22 +71,13 @@ theorem secureKDF_iff_keyDerivation (setup : ℕ → PMF F.Desc)
       KeyDerivation.Secure F.encCDHInput encBits (F.kdfSecret setup) DDHInput.toCDHInput
         (fun x => H (x.groupParameters, F.encode x.groupParameters x.candidateShared))
         (fun n => Cslib.BitString.uniformList (msgLen n)) := by
-  constructor
-  · intro h D hD
-    have hD' : KDFDistinguisher.IsPPT (F := F) (fun n d u v key => D n ⟨n, d, u, v⟩ key) :=
-      IsPPTOn.preprocess hD
-        (prepare := fun x : F.KDFInput => (x.secParam, x.toCDHInput, x.key)) (by fun_prop)
-    refine (h _ hD').congr fun n => ?_
-    simp only [kdfRealGame, kdfIdealGame, KeyDerivation.realGame, KeyDerivation.idealGame,
-      KeyDerivation.realOutput, KeyDerivation.idealOutput, kdfSecret, ddhRandomTupleLaw,
-      pmf_norm, PMF.bind_const]
-  · intro h D hD
-    have hD' : KeyDerivation.Distinguisher.IsPPT F.encCDHInput encBits
-        (fun _ x key => D x.secParam x.groupParameters x.leftPublic x.rightPublic key) :=
-      IsPPTOn.preprocess hD
-        (prepare := fun p : ℕ × F.CDHInput × List Bool => (⟨p.2.1, p.2.2⟩ : F.KDFInput))
-        (by fun_prop)
-    refine (h _ hD').congr fun n => ?_
+  refine ⟨fun h D hD => (h (fun n d u v key => D n ⟨n, d, u, v⟩ key)
+      (hD.preprocess (prepare := fun x : F.KDFInput => (x.secParam, x.toCDHInput, x.key))
+        (by fun_prop))).congr fun n => ?_,
+    fun h D hD => (h (fun _ x key =>
+        D x.secParam x.groupParameters x.leftPublic x.rightPublic key)
+      (hD.preprocess (prepare := fun p : ℕ × F.CDHInput × List Bool =>
+        (⟨p.2.1, p.2.2⟩ : F.KDFInput)) (by fun_prop))).congr fun n => ?_⟩ <;>
     simp only [kdfRealGame, kdfIdealGame, KeyDerivation.realGame, KeyDerivation.idealGame,
       KeyDerivation.realOutput, KeyDerivation.idealOutput, kdfSecret, ddhRandomTupleLaw,
       pmf_norm, PMF.bind_const]

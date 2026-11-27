@@ -1001,12 +1001,6 @@ theorem holds_atLeast (σ : ℕ → Bool) (f : Objective) (b : ℤ) :
   rw [atLeast, holds_fromLinear_iff, eval]
   omega
 
-private theorem linVal_map_neg (σ : ℕ → Bool) (L : List (ℕ × ℤ)) :
-    linVal σ (L.map fun e => (e.1, -e.2)) = -linVal σ L := by
-  induction L with
-  | nil => simp
-  | cons e L ih => simp only [List.map_cons, linVal_cons, ih]; ring
-
 /-- **The objective-improving constraint** `f ≤ u - 1` (equation (3.6) of the documentation). -/
 @[expose]
 def improving (f : Objective) (u : ℤ) : PBConstr :=
@@ -1191,6 +1185,9 @@ inductive TopStep where
   | presChange (add : Bool) (x : ℕ) (c : PBConstr) (sub : Option (List RedItem))
   /-- `epreserved P` (§5.11.4): the preserved set is `P`, as a set of variables. -/
   | epreserved (vars : List ℕ)
+  /-- `e C : j` (§5.11.1): the constraint numbered `j` is `C` after normalization, up to the order
+  of terms. Like the other checks of §5.11, it changes nothing. -/
+  | econstr (c : PBConstr) (j : ℕ)
   deriving Repr
 
 /-- The linear form `L - L'`: `L` with the coefficients of `L'` subtracted. -/
@@ -1709,7 +1706,8 @@ private def State.improve (f : Objective) (s : State) (v : ℤ) : State :=
 
 /-- Add the constraint `c`, derived by `red` or `dom`, to the state `s` under the number `m`: it is
 a derived constraint, or a core constraint in strengthening-to-core mode (§5.6). -/
-private def State.addStrengthened (s : State) (m : ℕ) (c : PBConstr) : State :=
+@[expose]
+def State.addStrengthened (s : State) (m : ℕ) (c : PBConstr) : State :=
   { s with
     db := (m, c.normalize) :: s.db, next := m + 1,
     core := if s.tcb then (m, c.normalize) :: s.core else s.core }
@@ -1855,6 +1853,8 @@ def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep �
     | none => none
   | .epreserved vs =>
     if s.pres.any (sameVars vs) then some s else none
+  | .econstr c j =>
+    if (lookup s.db j).any (fun d => sameUpToOrder d.normalize c.normalize) then some s else none
   | .dom c ω sub q =>
     match s.order with
     | some L =>
@@ -1955,6 +1955,64 @@ def checkRed (F : List PBConstr) (obj : Option Objective) (P : RedProof)
   match runTop F obj (State.init F obj pres) P.steps with
   | some s => checkConclusion F obj s P.conclusion
   | none => false
+
+/-! ### Equations of the checker -/
+
+/-! The bodies of `Cslib.Logic.PL.VeriPB.stepTop` and `Cslib.Logic.PL.VeriPB.runTop` are not
+exposed; these equations are what a checker computing the same steps needs. -/
+
+theorem runTop_nil (F : List PBConstr) (obj : Option Objective) (s : State) :
+    runTop F obj s [] = some s := by
+  simp only [runTop]
+
+theorem runTop_cons (F : List PBConstr) (obj : Option Objective) (s : State) (t : TopStep)
+    (ts : List TopStep) :
+    runTop F obj s (t :: ts) = (stepTop F obj s t).bind fun s' => runTop F obj s' ts := by
+  simp only [runTop]
+  cases stepTop F obj s t <;> rfl
+
+/-- An implicational step that deletes nothing changes only the database and the next number. -/
+theorem stepTop_step_of_ne_del (F : List PBConstr) (obj : Option Objective) (s : State)
+    {st : Step} (h : ∀ ids, st ≠ .del ids) :
+    stepTop F obj s (.step st) =
+      (runStep s.db s.next st).map fun r => { s with db := r.1, next := r.2 } := by
+  have hd : st.delIds = [] := by cases st <;> simp_all [Step.delIds]
+  simp only [stepTop, hd]
+  cases runStep s.db s.next st <;> simp
+
+/-- The untyped deletion `del id ids` (§5.7.2). -/
+theorem stepTop_step_del (F : List PBConstr) (obj : Option Objective) (s : State) (ids : List ℕ) :
+    stepTop F obj s (.step (.del ids)) =
+      match runStep s.db s.next (.del ids) with
+      | some (db', n') =>
+        if (s.tcb || s.order.isSome) && s.core.any (fun e => ids.contains e.1) then none
+        else some { s with
+          db := db', next := n',
+          core := s.core.filter (fun e => !ids.contains e.1),
+          chk := s.chk && !s.core.any (fun e => ids.contains e.1) }
+      | none => none := by
+  simp only [stepTop, Step.delIds]
+  rfl
+
+/-- The deletion `deld ids` of derived constraints (§5.7.1). -/
+theorem stepTop_deld (F : List PBConstr) (obj : Option Objective) (s : State) (ids : List ℕ) :
+    stepTop F obj s (.deld ids) =
+      if decide ids.Nodup && ids.all (fun i => (lookup s.db i).isSome) &&
+          !s.core.any (fun e => ids.contains e.1) then
+        some { s with db := s.db.filter fun e => !ids.contains e.1 }
+      else none := by
+  simp only [stepTop]
+
+/-- The unchecked deletion `delc ids` of core constraints (§5.7.1). -/
+theorem stepTop_delc (F : List PBConstr) (obj : Option Objective) (s : State) (ids : List ℕ) :
+    stepTop F obj s (.delc ids) =
+      if decide ids.Nodup && ids.all (fun i => s.core.any (·.1 == i)) &&
+          (!s.tcb && s.order.isNone || s.db.all (s.core.contains ·)) then
+        some { s with
+          db := s.db.filter (fun e => !ids.contains e.1),
+          core := s.core.filter (fun e => !ids.contains e.1), chk := false }
+      else none := by
+  simp only [stepTop]
 
 /-! ### Soundness of `red` -/
 
@@ -3320,7 +3378,7 @@ theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} 
         exact ⟨hs.sub, hs.imp, hs.chk, hs.wit, hs.ids.mono (presChangeCheck_le hchk)⟩
       · cases h
     · cases h
-  | epreserved _ | eordDef _ _ | eordLoaded _ _ =>
+  | epreserved _ | eordDef _ _ | eordLoaded _ _ | econstr _ _ =>
     obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
     exact hs
   | dom c ω items q =>
@@ -3566,7 +3624,7 @@ theorem stepTop_mono {F : List PBConstr} {obj : Option Objective} {s s' : State}
         exact .of_le (presChangeCheck_le hchk) rfl rfl id rfl
       · cases h
     · cases h
-  | epreserved _ | eordDef _ _ | eordLoaded _ _ =>
+  | epreserved _ | eordDef _ _ | eordLoaded _ _ | econstr _ _ =>
     obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
     exact .refl s
   | dom c ω sub q =>
@@ -3880,7 +3938,7 @@ theorem stepTop_ordInv {F : List PBConstr} {obj : Option Objective} {s s' : Stat
           · exact hag v hv
       · cases h
     · cases h
-  | epreserved _ | eordDef _ _ | eordLoaded _ _ =>
+  | epreserved _ | eordDef _ _ | eordLoaded _ _ | econstr _ _ =>
     obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
     exact ho
   | dom c ω items q =>
@@ -4115,7 +4173,7 @@ theorem stepTop_fwd {F : List PBConstr} {obj : Option Objective} {s s' : State} 
         exact .inl ⟨τ, hτ, le_rfl, fun _ _ => rfl⟩
       · cases h
     · cases h
-  | epreserved _ | eordDef _ _ | eordLoaded _ _ =>
+  | epreserved _ | eordDef _ _ | eordLoaded _ _ | econstr _ _ =>
     obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
     exact .inl ⟨τ, hτ, le_rfl, fun _ _ => rfl⟩
   | dom c ω items q =>
@@ -4259,7 +4317,7 @@ theorem stepTop_back {F : List PBConstr} {obj : Option Objective} {s s' : State}
         exact ⟨hc, τ, allHold_mono hinv.sub hτ, le_rfl, fun _ _ => rfl⟩
       · cases h
     · cases h
-  | epreserved _ | eordDef _ _ | eordLoaded _ _ =>
+  | epreserved _ | eordDef _ _ | eordLoaded _ _ | econstr _ _ =>
     obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
     exact ⟨hc, τ, hτ, le_rfl, fun _ _ => rfl⟩
 

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
 import CslibFrontier.Tactic.WramOmega
+import CslibFrontier.DataStructure.StateTransition.ClientMap
 
 /-!
 # Metadata and Circular-Window `Memory.Prog` Primitives
@@ -53,8 +54,9 @@ open Cslib.DataStructure.HashFamily.WordRAM
 
 attribute [local simp] Realization.memoryCost_bind'
 attribute [local simp] prog_clientResult_bind prog_runClient_state_bind prog_clientResult_pure
-attribute [local simp] prog_runClient_state_pure prog_clientResult_map prog_runClient_state_map
-attribute [local simp] prog_memoryCost_map prog_clientResult_read prog_runClient_state_read
+attribute [local simp] prog_runClient_state_pure StateTransitionSpec.clientResult_map
+  StateTransitionSpec.fst_snd_runClient_map
+attribute [local simp] Realization.memoryCost_map prog_clientResult_read prog_runClient_state_read
 attribute [local simp] prog_memoryCost_read prog_clientResult_write prog_runClient_state_write
 attribute [local simp] prog_memoryCost_write
 
@@ -84,11 +86,8 @@ theorem clientState_copyCompItemGenProg {U V w N m_items itemBase src dst : ℕ}
           (writeCompQuot itemBase U V w N s.mem dst (compQuotAt itemBase U V w N m_items s.mem src))
           dst (compValAt itemBase U V w N m_items s.mem src),
         frontier := s.frontier } := by
-  unfold StateTransitionSpec.clientState
-  simp only [copyCompItemGenProg, prog_runClient_state_bind, StateTransitionSpec.clientState,
-    clientResult_readCompQuotGenProg hsrc, runClient_state_readCompQuotGenProg,
-    clientResult_readCompValGenProg hsrc, runClient_state_readCompValGenProg,
-    runClient_state_writeCompQuotGenProg, runClient_state_writeCompValGenProg]
+  simp [StateTransitionSpec.clientState, copyCompItemGenProg,
+    clientResult_readCompQuotGenProg hsrc, clientResult_readCompValGenProg hsrc]
 
 /-- `copyCompItemGenProg` issues `12` memory operations. -/
 @[simp] theorem memoryCost_copyCompItemGenProg
@@ -137,8 +136,7 @@ theorem clientState_clearCompItemGenProg (U V w N itemBase d : ℕ) (s : Memory.
         (clearCompItemGenProg ((mkCompParams U V w N, itemBase), d)) =
       { mem := writeCompVal itemBase U V w N (writeCompQuot itemBase U V w N s.mem d 0) d 0,
         frontier := s.frontier } := by
-  unfold StateTransitionSpec.clientState
-  simp [clearCompItemGenProg]
+  simp [StateTransitionSpec.clientState, clearCompItemGenProg]
 
 /-- `clearCompItemGenProg` issues `8` memory operations. -/
 @[simp] theorem memoryCost_clearCompItemGenProg
@@ -567,13 +565,27 @@ theorem realizesBounded_writeCompDTGen :
 
 /-- When positive, the tail-capacity bound `maxTailItems N` is at most `N`. -/
 theorem maxTailItems_le_of_pos {N : ℕ} (hM : 0 < maxTailItems N) : maxTailItems N ≤ N := by
-  have hb_pos : 0 < bucketBits N := by
-    rcases Nat.eq_zero_or_pos (bucketBits N) with hb0 | hb
-    · simp [maxTailItems, tailCapPerBucket, hb0] at hM
-    · exact hb
+  have hb_pos : 0 < bucketBits N :=
+    Nat.pos_of_ne_zero fun hb0 => by simp [maxTailItems, tailCapPerBucket, hb0] at hM
   have h1 := gmSlabMetaBase_add_eq_globalMetaLen hb_pos
   have h2 := globalMetaLen_le_of_bucketBits_pos hb_pos
   wram_omega [h1]
+
+private theorem denseOfCirc_eq_ite {M b_win c : ℕ} (hc : 0 < M → c < M) :
+    denseOfCirc M b_win c =
+      if M = 0 then b_win
+      else if c < b_win % M then b_win + (c + (M - b_win % M))
+      else b_win + (c - b_win % M) := by
+  dsimp only [denseOfCirc]
+  split_ifs with hM0 hlt
+  · rfl
+  · have := hc (Nat.pos_of_ne_zero hM0)
+    have := Nat.mod_lt b_win (Nat.pos_of_ne_zero hM0)
+    rw [show c + M - b_win % M = c + (M - b_win % M) by omega, Nat.mod_eq_of_lt (by omega)]
+  · have := hc (Nat.pos_of_ne_zero hM0)
+    have := Nat.mod_lt b_win (Nat.pos_of_ne_zero hM0)
+    rw [show c + M - b_win % M = (c - b_win % M) + 1 * M by omega,
+      Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt (by omega)]
 
 /-- Overflow-free evaluation of `denseOfCirc (cpMaxTail cp) b_win c` in `Memory.Prog`. -/
 def denseOfCircGenProg : CompParams × (ℕ × ℕ) → Memory.Prog ℕ
@@ -595,24 +607,10 @@ theorem clientResult_denseOfCircGenProg {U V w N b_win c : ℕ}
     (Memory.spec 0).clientResult s
         (denseOfCircGenProg (mkCompParams U V w N, (b_win, c))) =
       denseOfCirc (maxTailItems N) b_win c := by
-  dsimp only [denseOfCircGenProg, denseOfCirc]
+  rw [denseOfCirc_eq_ite hc]
+  dsimp only [denseOfCircGenProg]
   simp only [pure_bind, cpMaxTail_mk]
-  by_cases hM0 : maxTailItems N = 0
-  · rw [ite_eq_left hM0, ite_eq_left hM0]; rfl
-  · rw [ite_eq_right hM0, ite_eq_right hM0]
-    have hM_pos : 0 < maxTailItems N := Nat.pos_of_ne_zero hM0
-    have hc_lt : c < maxTailItems N := hc hM_pos
-    have hrem_lt : b_win % maxTailItems N < maxTailItems N := Nat.mod_lt _ hM_pos
-    by_cases hlt : c < b_win % maxTailItems N
-    · rw [ite_eq_left hlt, prog_clientResult_pure]
-      have heq : c + maxTailItems N - b_win % maxTailItems N =
-          c + (maxTailItems N - b_win % maxTailItems N) := by omega
-      rw [heq, Nat.mod_eq_of_lt (a := c + (maxTailItems N - b_win % maxTailItems N)) (by omega)]
-    · rw [ite_eq_right hlt, prog_clientResult_pure]
-      have heq : c + maxTailItems N - b_win % maxTailItems N =
-          (c - b_win % maxTailItems N) + 1 * maxTailItems N := by omega
-      rw [heq, Nat.add_mul_mod_self_right,
-        Nat.mod_eq_of_lt (a := c - b_win % maxTailItems N) (by omega)]
+  split_ifs <;> rfl
 
 /-- `denseOfCircGenProg` leaves the memory state unchanged. -/
 theorem clientState_denseOfCircGenProg (d : CompParams × (ℕ × ℕ)) (s : Memory.State) :
@@ -657,17 +655,11 @@ theorem realizesBounded_denseOfCircGen :
     obtain ⟨hc_lt, hd_le⟩ := hM_cond hM_pos
     have hMN : maxTailItems N ≤ N := maxTailItems_le_of_pos hM_pos
     have hrem_lt : b_win % maxTailItems N < maxTailItems N := Nat.mod_lt _ hM_pos
-    unfold denseOfCirc at hd_le
-    rw [ite_eq_right hM_ne] at hd_le)
+    rw [denseOfCirc_eq_ite (fun _ => hc_lt), ite_eq_right hM_ne] at hd_le)
   all_goals try omega
-  · have heq : c + maxTailItems N - b_win % maxTailItems N =
-        c + (maxTailItems N - b_win % maxTailItems N) := by omega
-    rw [heq, Nat.mod_eq_of_lt (by omega)] at hd_le
-    exact lt_of_le_of_lt (by omega) hU
-  · have heq : c + maxTailItems N - b_win % maxTailItems N =
-        (c - b_win % maxTailItems N) + 1 * maxTailItems N := by omega
-    rw [heq, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt (by omega)] at hd_le
-    exact lt_of_le_of_lt (by omega) hU
+  all_goals (
+    split_ifs at hd_le
+    exact lt_of_le_of_lt (by omega) hU)
 
 /-- Map physical slot `g < N` to dense index `denseOfPhys N gm td g` in `Memory.Prog`. -/
 def denseOfPhysGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
@@ -695,31 +687,23 @@ theorem clientResult_denseOfPhysGenProg {U V w N metaBase g : ℕ} {s : Memory.S
   dsimp only [denseOfPhysGenProg, denseOfPhys, cpBucketBits_mk, cpSlabSize_mk, cpNSubOne_mk]
   simp only [pure_bind]
   by_cases hb0 : bucketBits N = 0
-  · rw [ite_eq_left hb0, ite_eq_left hb0]; rfl
-  · rw [ite_eq_right hb0, ite_eq_right hb0]
-    have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
+  · simp [hb0]
+  · have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
     have h0_lt : 0 < globalMetaLen N := by wram_omega
-    rw [prog_clientResult_bind, clientResult_readCompGMGenProg h0_lt,
-      clientState_readCompGMGenProg]
+    simp only [hb0, ↓reduceIte, prog_clientResult_bind, clientResult_readCompGMGenProg h0_lt]
     by_cases hg_lt : g < compGmAt metaBase U w N s.mem 0 * slabSize N
-    · rw [ite_eq_left hg_lt, ite_eq_left hg_lt]; rfl
-    · rw [ite_eq_right hg_lt, ite_eq_right hg_lt]
-      obtain ⟨ht1, ht2⟩ := ht_lt hb_pos hg_lt
-      rw [prog_clientResult_bind, clientResult_readCompTDGenProg ht1,
-        clientState_readCompTDGenProg]
-      exact clientResult_denseOfCircGenProg (fun _ => ht2) s
+    · simp [hg_lt]
+    · obtain ⟨ht1, ht2⟩ := ht_lt hb_pos hg_lt
+      simp [hg_lt, ht1, clientResult_denseOfCircGenProg (fun _ => ht2)]
 
 /-- `denseOfPhysGenProg` leaves the memory state unchanged. -/
 theorem clientState_denseOfPhysGenProg (d : (CompParams × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (denseOfPhysGenProg d) = s := by
   rcases d with ⟨⟨cp, metaBase⟩, g⟩
-  unfold StateTransitionSpec.clientState; dsimp only [denseOfPhysGenProg]
-  simp only [pure_bind]
-  by_cases hb0 : cpBucketBits cp = 0
-  · rw [ite_eq_left hb0]; rfl
-  · rw [ite_eq_right hb0, prog_runClient_state_bind]
-    simp only [StateTransitionSpec.clientState, runClient_state_readCompGMGenProg]
-    split_ifs <;> simp
+  simp only [StateTransitionSpec.clientState, denseOfPhysGenProg, pure_bind]
+  split_ifs <;> simp only [prog_runClient_state_bind, prog_runClient_state_pure,
+    runClient_state_readCompGMGenProg]
+  split_ifs <;> simp
 
 /-- `simp`-indexed projection form of `clientState_denseOfPhysGenProg`. -/
 @[simp] theorem runClient_state_denseOfPhysGenProg
@@ -977,8 +961,7 @@ theorem clientState_winShrinkRightGenProg {U V w N metaBase b_win n_win : ℕ} {
           (compTDAt metaBase U w N s.mem n_win)
           (compDTAt metaBase U w N s.mem ((b_win + n_win) % maxTailItems N)),
         frontier := s.frontier } := by
-  unfold StateTransitionSpec.clientState
-  simp [winShrinkRightGenProg, hc, hn]
+  simp [StateTransitionSpec.clientState, winShrinkRightGenProg, hc, hn]
 
 /-- Final memory state of `winShrinkLeftGenProg`, linking `DenseToTail[c_rem]` with
 `TailToDense[n_win]` for `c_rem = b_win % maxTailItems N` and preserving `s.frontier`. -/
@@ -993,7 +976,6 @@ theorem clientState_winShrinkLeftGenProg {U V w N metaBase b_win n_win : ℕ} {s
           (compTDAt metaBase U w N s.mem n_win)
           (compDTAt metaBase U w N s.mem (b_win % maxTailItems N)),
         frontier := s.frontier } := by
-  unfold StateTransitionSpec.clientState
-  simp [winShrinkLeftGenProg, hc, hn]
+  simp [StateTransitionSpec.clientState, winShrinkLeftGenProg, hc, hn]
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

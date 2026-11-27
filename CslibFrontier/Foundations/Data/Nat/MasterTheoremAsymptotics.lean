@@ -12,6 +12,7 @@ public import Mathlib.Analysis.Asymptotics.Defs
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import CslibFrontier.Foundations.Data.Nat.LogTwoRpow
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # The master theorem in asymptotic form
@@ -61,19 +62,12 @@ variable {T : ℕ → ℕ} {a b n₀ T₀ c d : ℕ}
 theorem le_mul_rpow (h : DivideConquerBound T a b n₀ T₀ fun n => c * n ^ d)
     (hb : 1 < b) (hn₀ : 1 ≤ n₀) (hlt : b ^ d < a) {n : ℕ} (hn : n ≠ 0) :
     (T n : ℝ) ≤ (T₀ + c * n₀ ^ d * b ^ d / (a - b ^ d)) * a * (n : ℝ) ^ Real.logb b a := by
-  have ha : 1 ≤ a := by have := Nat.one_le_pow d b (by omega); omega
-  have hmain := h.sub_mul_le_pow_clog ha hb hn₀ n
-  have hpos : (0 : ℝ) < (a : ℝ) - b ^ d := by
-    have : ((b ^ d : ℕ) : ℝ) < a := by exact_mod_cast hlt
-    push_cast at this
-    linarith
-  have hcast : ((a - b ^ d : ℕ) : ℝ) = (a : ℝ) - b ^ d := by
-    rw [Nat.cast_sub hlt.le]; push_cast; ring
-  have hmain' : ((a : ℝ) - b ^ d) * T n ≤
+  have ha : 1 ≤ a := (Nat.one_le_pow d b (by omega)).trans hlt.le
+  have hpos : (0 : ℝ) < (a : ℝ) - b ^ d := sub_pos.2 (by exact_mod_cast hlt)
+  have hmain : ((a : ℝ) - b ^ d) * T n ≤
       (((a : ℝ) - b ^ d) * T₀ + c * n₀ ^ d * b ^ d) * ((a ^ clog b n : ℕ) : ℝ) := by
-    have := (Nat.cast_le (α := ℝ)).mpr hmain
-    push_cast [hcast] at this ⊢
-    exact this
+    simpa [Nat.cast_sub hlt.le] using
+      (Nat.cast_le (α := ℝ)).mpr (h.sub_mul_le_pow_clog ha hb hn₀ n)
   have hT : (T n : ℝ) ≤ (T₀ + c * n₀ ^ d * b ^ d / (a - b ^ d)) * ((a ^ clog b n : ℕ) : ℝ) := by
     have he : (T₀ + c * n₀ ^ d * b ^ d / (a - b ^ d)) * ((a ^ clog b n : ℕ) : ℝ) =
         (((a : ℝ) - b ^ d) * T₀ + c * n₀ ^ d * b ^ d) * ((a ^ clog b n : ℕ) : ℝ) /
@@ -105,27 +99,27 @@ theorem isBigO_pow_mul_log (h : DivideConquerBound T a b n₀ T₀ fun n => c * 
   have hlogb : 0 < Real.log b := Real.log_pos hb'
   refine IsBigO.of_bound ((b : ℝ) ^ d * (T₀ / Real.log b + c * n₀ ^ d * 2 / Real.log b)) ?_
   filter_upwards [eventually_ge_atTop b] with n hn
-  have hL : 1 ≤ Real.logb b n := by
-    rw [← Real.logb_self_eq_one hb']
-    exact Real.logb_le_logb_of_le hb' (by positivity) (by exact_mod_cast hn)
+  have hL : 1 ≤ Real.logb b n := (Real.logb_self_eq_one hb').symm.trans_le
+    (Real.logb_le_logb_of_le hb' (by positivity) (by exact_mod_cast hn))
   have hlog : 0 ≤ Real.log n := Real.log_natCast_nonneg n
   rw [Real.norm_natCast, Real.norm_of_nonneg (by positivity)]
   have hmain : (T n : ℝ) ≤ ((b : ℝ) * n) ^ d * (T₀ + c * n₀ ^ d * (clog b n : ℝ)) := by
     exact_mod_cast h.le_mul_pow_mul_clog ha hb hn₀ had (by omega : n ≠ 0)
-  have hK := clog_le_two_mul_logb hb hn
   have hinner : (T₀ : ℝ) + c * n₀ ^ d * (clog b n : ℝ) ≤
       (T₀ / Real.log b + c * n₀ ^ d * 2 / Real.log b) * Real.log n := by
     have e : (T₀ / Real.log b + c * n₀ ^ d * 2 / Real.log b) * Real.log n =
         T₀ * Real.logb b n + c * n₀ ^ d * (2 * Real.logb b n) := by
-      rw [Real.logb]; field_simp
+      rw [Real.logb]
+      field_simp
     rw [e]
-    have hT0 : (T₀ : ℝ) ≤ T₀ * Real.logb b n := le_mul_of_one_le_right (by positivity) hL
-    have hc : (c : ℝ) * n₀ ^ d * (clog b n : ℝ) ≤ c * n₀ ^ d * (2 * Real.logb b n) := by gcongr
-    linarith
+    linarith [le_mul_of_one_le_right (Nat.cast_nonneg T₀) hL,
+      mul_le_mul_of_nonneg_left (clog_le_two_mul_logb hb hn) (by positivity : (0 : ℝ) ≤ c * n₀ ^ d)]
   calc (T n : ℝ) ≤ _ := hmain
     _ ≤ ((b : ℝ) * n) ^ d * ((T₀ / Real.log b + c * n₀ ^ d * 2 / Real.log b) * Real.log n) :=
         mul_le_mul_of_nonneg_left hinner (by positivity)
-    _ = _ := by rw [mul_pow]; ring
+    _ = _ := by
+        rw [mul_pow]
+        ring
 
 /-- **Master theorem, case 3**: if `a < b ^ d`, then `T = O(n ^ d)`. -/
 theorem isBigO_pow (h : DivideConquerBound T a b n₀ T₀ fun n => c * n ^ d)

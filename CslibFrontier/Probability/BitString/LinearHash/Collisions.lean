@@ -68,9 +68,8 @@ theorem exists_card_collisions_le {n m : ℕ} (pairs : Finset (BitString n × Bi
       2 ^ m * (pairs.filter fun p => hash rows p.1 = hash rows p.2).card ≤ pairs.card := by
   obtain ⟨rows, _, hrows⟩ := exists_le_of_expect_le univ_nonempty
     (expect_card_collisions_le (m := m) pairs distinct)
-  have h := (le_div_iff₀ (by positivity : (0 : ℝ) < 2 ^ m)).mp hrows
-  exact ⟨rows, by exact_mod_cast (by simpa only [mul_comm] using h :
-    (2 : ℝ) ^ m * (pairs.filter fun p => hash rows p.1 = hash rows p.2).card ≤ pairs.card)⟩
+  exact ⟨rows, by exact_mod_cast (mul_comm (2 ^ m : ℝ) _ ▸
+    (le_div_iff₀ (by positivity : (0 : ℝ) < 2 ^ m)).mp hrows)⟩
 
 open Classical in
 /-- Jukna's almost-injective linear map lemma. Lexicographic order selects each unordered
@@ -96,17 +95,10 @@ theorem exists_injOn {n m : ℕ} (S : Finset (BitString n))
     ∃ rows : Fin m → BitString n, Set.InjOn (hash rows) S := by
   classical
   obtain ⟨rows, hrows⟩ := exists_card_collisions_le_choose (m := m) S
-  have hempty : ((S ×ˢ S).filter fun p =>
-      toLex p.1 < toLex p.2 ∧ hash rows p.1 = hash rows p.2).card = 0 := by
-    nlinarith
-  refine ⟨rows, ?_⟩
-  intro x hx y hy hxy
-  by_contra hne
-  have horder : toLex x < toLex y ∨ toLex y < toLex x :=
-    lt_or_gt_of_ne (by simpa using hne)
-  have hnot := Finset.filter_eq_empty_iff.mp (Finset.card_eq_zero.mp hempty)
-  exact horder.elim
-    (fun h => hnot (x := (x, y)) (Finset.mem_product.mpr ⟨hx, hy⟩) ⟨h, hxy⟩)
-    (fun h => hnot (x := (y, x)) (Finset.mem_product.mpr ⟨hy, hx⟩) ⟨h, hxy.symm⟩)
+  have hnot := Finset.filter_eq_empty_iff.mp (Finset.card_eq_zero.mp (by nlinarith))
+  refine ⟨rows, fun x hx y hy hxy => by_contra fun hne => ?_⟩
+  rcases lt_or_gt_of_ne (toLex.injective.ne hne) with h | h
+  · exact hnot (x := (x, y)) (Finset.mem_product.mpr ⟨hx, hy⟩) ⟨h, hxy⟩
+  · exact hnot (x := (y, x)) (Finset.mem_product.mpr ⟨hy, hx⟩) ⟨h, hxy.symm⟩
 
 end Cslib.BitString.LinearHash

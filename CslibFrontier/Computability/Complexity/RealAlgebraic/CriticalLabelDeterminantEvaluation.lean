@@ -8,7 +8,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ShiftedCriticalObjectiveEvaluation
-import CslibFrontier.Computability.Complexity.RealAlgebraic.SparseRootLabelEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.RootLabelPrecision
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryOrder
 
@@ -46,12 +46,12 @@ private theorem criticalShiftedLabelDegreeBound_polyTime {α : Type} {enc : α �
     (hell : ComputableInPolyTime ell enc encNat) (hb : ComputableInPolyTime b enc encNat) :
     ComputableInPolyTime (fun w =>
       Polynomial.signLabelDegreeBound (n w * (ell w).size + 1)
-        (Polynomial.sparseRootLabelPrecision (ell w ^ n w)
+        (Polynomial.derivativeRootLabelPrecision (ell w ^ n w)
           (criticalRootLabelCoeffNormExponent (n w) (ell w) (b w))) (ell w ^ n w))
       enc encNat := by
   have hD := binary_pow' (hbase := hell) (hexponent := hn)
   have hN := unary_to_binary.comp (unary_mul' hn (binary_size.comp hell))
-  have hprecision := sparseRootLabelPrecision_polyTime hD
+  have hprecision := derivativeRootLabelPrecision_polyTime hD
     (criticalRootLabelCoeffNormExponent_polyTime hn hell hb)
   have hm := binary_add' (binary_add' hN (.const 1)) (.const 1)
   have hfactor := binary_mul' (binary_mul' (.const 2) hm)
@@ -80,7 +80,7 @@ theorem criticalLabelDeterminantExponent_polyTime {α : Type} {enc : α ↪ List
   have hm' := binary_add' hm (.const 1)
   have hB := criticalRootLabelCoeffNormExponent_polyTime hn hell hb
   have hderivative := iterateDerivativeNormExponent_polyTime hD hB
-  have hprecision := sparseRootLabelPrecision_polyTime hD hB
+  have hprecision := derivativeRootLabelPrecision_polyTime hD hB
   have hwidth := binary_add' (binary_mul' (.const 2) hprecision) (.const 1)
   have hfactor := binary_mul' (binary_mul' (.const 2) hm') hwidth
   have hlabel := binary_add' (unary_to_binary.comp (binary_size.comp hm))

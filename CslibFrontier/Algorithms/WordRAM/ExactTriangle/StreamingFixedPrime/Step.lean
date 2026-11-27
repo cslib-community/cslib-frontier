@@ -91,13 +91,9 @@ theorem exec_step {w m n g p A i : ℕ} (values : List ℤ)
   have hDn : D m ≤ n := (Nat.le_self_pow (by decide : 18 ≠ 0) (D m)).trans hN
   have hp0 := (Nat.mem_sqrtPrimeWindow_iff_sq.mp hp).1.ne_zero
   have hout' : x.regs (producerBank Instances.output) = a.regs Instances.output := by
-    have hc := cursor.output
-    rw [cursor.chunks] at hc
-    exact hc.trans hout.2.2.2.1.symm
+    rw [← Data.comap_regs, cursor.output, cursor.chunks, hout.2.2.2.1]
   have htotal : x.regs (producerBank Instances.total) = a.regs Instances.produced := by
-    have hc := cursor.total
-    rw [cursor.chunks, cursor.pieces] at hc
-    exact hc.trans hout.2.2.2.2.1.symm
+    rw [← Data.comap_regs, cursor.total, cursor.chunks, cursor.pieces, hout.2.2.2.2.1]
   have hprep : PreparationInput.width n (D m) g p A ≤ w + 2 := by
     have hr := FixedPrime.record_admitted hW
     unfold RecordWitness.admissionWidth RecordProduct.admissionWidth at hr
@@ -110,17 +106,15 @@ theorem exec_step {w m n g p A i : ℕ} (values : List ℤ)
   obtain ⟨c, hc, ccursor, ci, ch, cd, cL, cR, cm⟩ := exec_construct V
     (x.comap producerBank) hD hg hp0 cursor hslotHeap idx hidx
     (hproduced.trans hord.symm) residues descriptor
-    (budget.of_le (cursor.visit_budget_le hD hDn hg hslotHeap (by
-      change x.regs (producerBank Instances.produced) < x.regs (producerBank Instances.total)
-      rw [hproduced, htotal]
-      exact hiM)))
+    (budget.of_le (cursor.visit_budget_le hD hDn hg hslotHeap
+      (by simpa only [Data.comap_regs, hproduced, htotal] using hiM)))
   simp only [Data.comap_regs, Data.comap_mem] at ci ch cd cL cR cm
   have haout := hout.2.2.2.1
   have haprod := hout.2.2.2.2.1
   have hcout : c.regs Instances.output = a.regs Instances.output := by
-    have h := ccursor.output; rw [ccursor.chunks] at h; exact h.trans haout.symm
-  have hcheap : c.regs Instances.heap = a.regs Instances.output + (6 + 2 * (n * D m)) := by
-    simpa only [hout'] using ch
+    simpa only [ccursor.chunks, haout] using ccursor.output
+  have hcheap : c.regs Instances.heap = a.regs Instances.output + (6 + 2 * (n * D m)) :=
+    hout' ▸ ch
   let s := c.extend producerBank x
   have hs : ExecWithin (w + 2) construct x s (40 * (n * D m) + 66) := hc.rename hf
   have sr (j : Fin 64) : s.regs (producerBank j) = c.regs j := hf.extend_apply _ _ j

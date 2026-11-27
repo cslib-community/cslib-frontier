@@ -54,27 +54,24 @@ private theorem prod_range_pow_factorization_centralBinom_le (n : ℕ) (hn : 0 <
   have hS : ∏ x ∈ S, f x = ∏ x ∈ Finset.range (2 * n / 3 + 1), f x := by
     refine Finset.prod_filter_of_ne fun p _ h => ?_
     by_contra hp
-    apply h
-    dsimp only [f]
-    rw [factorization_eq_zero_of_not_prime n.centralBinom hp, _root_.pow_zero]
+    exact h (by simp [f, factorization_eq_zero_of_not_prime n.centralBinom hp])
   change ∏ x ∈ Finset.range (2 * n / 3 + 1), f x ≤ _
   rw [← hS, ← Finset.prod_filter_mul_prod_filter_not S (· ≤ sqrt (2 * n))]
-  apply mul_le_mul'
-  · refine (Finset.prod_le_prod fun p _ => (?_ : f p ≤ 2 * n)).trans ?_
-    · exact pow_factorization_choose_le (by omega)
-    have : (Finset.Icc 1 (sqrt (2 * n))).card = sqrt (2 * n) := by
-      rw [card_Icc, Nat.add_sub_cancel]
+  refine mul_le_mul' ?_ ?_
+  · refine (Finset.prod_le_prod fun p _ =>
+      (pow_factorization_choose_le (by omega) : f p ≤ 2 * n)).trans ?_
     rw [Finset.prod_const]
-    refine pow_right_mono₀ (by omega) ((Finset.card_le_card fun x hx => ?_).trans this.le)
+    refine pow_right_mono₀ (by omega) ((Finset.card_le_card fun x hx => ?_).trans_eq
+      (by rw [card_Icc, Nat.add_sub_cancel] : (Finset.Icc 1 (sqrt (2 * n))).card = _))
     obtain ⟨h1, h2⟩ := Finset.mem_filter.1 hx
     exact Finset.mem_Icc.mpr ⟨(Finset.mem_filter.1 h1).2.one_lt.le, h2⟩
-  · refine le_trans ?_ (primorial_le_four_pow (2 * n / 3))
-    refine (Finset.prod_le_prod fun p hp => (?_ : f p ≤ p)).trans ?_
-    · obtain ⟨h1, h2⟩ := Finset.mem_filter.1 hp
-      refine (pow_right_mono₀ (Finset.mem_filter.1 h1).2.one_lt.le ?_).trans (pow_one p).le
-      exact Nat.factorization_choose_le_one (sqrt_lt'.mp <| not_le.1 h2)
-    refine Finset.prod_le_prod_of_subset_of_one_le (fun x hx => (Finset.mem_filter.1 hx).1) ?_
-    exact fun p hp _ => (Finset.mem_filter.1 hp).2.one_lt.le
+  · refine ((Finset.prod_le_prod fun p hp => (?_ : f p ≤ p)).trans
+      (Finset.prod_le_prod_of_subset_of_one_le (fun x hx => (Finset.mem_filter.1 hx).1)
+        fun p hp _ => (Finset.mem_filter.1 hp).2.one_lt.le)).trans
+      (primorial_le_four_pow (2 * n / 3))
+    obtain ⟨h1, h2⟩ := Finset.mem_filter.1 hp
+    exact (pow_right_mono₀ (Finset.mem_filter.1 h1).2.one_lt.le
+      (Nat.factorization_choose_le_one (sqrt_lt'.mp (not_le.1 h2)))).trans (pow_one p).le
 
 /-- A prime power factor of `C(2 n, n)` at a number in `(2 n / 3, 2 n]` is at most `2 n`, and it is
 trivial unless the number is a prime in `(n, 2 n]`. -/
@@ -115,12 +112,8 @@ primes in `(n, 2 n]`. Mathlib proves the case `k = 0` on the way to Bertrand's p
 theorem Nat.centralBinom_le_pow_card_primes_Ioc (n : ℕ) (hn : 2 < n) :
     n.centralBinom ≤ (2 * n) ^ Nat.sqrt (2 * n) * 4 ^ (2 * n / 3) *
       (2 * n) ^ ((Finset.Ioc n (2 * n)).filter Nat.Prime).card := by
-  have hsplit : n.centralBinom =
-      (∏ x ∈ Finset.range (2 * n / 3 + 1), x ^ n.centralBinom.factorization x) *
-        ∏ x ∈ Finset.Ico (2 * n / 3 + 1) (2 * n + 1), x ^ n.centralBinom.factorization x := by
-    rw [Finset.prod_range_mul_prod_Ico _ (by omega)]
-    exact (Nat.prod_pow_factorization_centralBinom n).symm
-  rw [hsplit]
+  rw [← Nat.prod_pow_factorization_centralBinom n,
+    ← Finset.prod_range_mul_prod_Ico _ (by omega : 2 * n / 3 + 1 ≤ 2 * n + 1)]
   exact mul_le_mul' (prod_range_pow_factorization_centralBinom_le n (by omega))
     (prod_Ico_pow_factorization_centralBinom_le n hn)
 
@@ -131,11 +124,11 @@ prime. -/
 theorem Nat.centralBinom_le_pow_card_primes_Ico (n : ℕ) (hn : 2 < n) :
     n.centralBinom ≤ (2 * n) ^ Nat.sqrt (2 * n) * 4 ^ (2 * n / 3) *
       (2 * n) ^ ((Finset.Ico n (2 * n)).filter Nat.Prime).card := by
-  refine (Nat.centralBinom_le_pow_card_primes_Ioc n hn).trans (Nat.mul_le_mul_left _ ?_)
-  refine Nat.pow_le_pow_right (by omega) (Finset.card_le_card fun p hp => ?_)
+  refine (Nat.centralBinom_le_pow_card_primes_Ioc n hn).trans (Nat.mul_le_mul_left _
+    (Nat.pow_le_pow_right (by omega) (Finset.card_le_card fun p hp => ?_)))
   rw [Finset.mem_filter, Finset.mem_Ioc] at hp
-  rw [Finset.mem_filter, Finset.mem_Ico]
-  refine ⟨⟨hp.1.1.le, lt_of_le_of_ne hp.1.2 fun h => ?_⟩, hp.2⟩
+  refine Finset.mem_filter.mpr ⟨Finset.mem_Ico.mpr ⟨hp.1.1.le, lt_of_le_of_ne hp.1.2 fun h => ?_⟩,
+    hp.2⟩
   have := hp.2.eq_one_or_self_of_dvd 2 ⟨n, h⟩
   omega
 

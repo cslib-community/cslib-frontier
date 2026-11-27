@@ -238,27 +238,15 @@ theorem toOuterMeasure_bad_le_sum_planted_of_cost
           exact (tsum_mul_le_sum_tsum_mul _ _ fun x : spec q × State => ih x.1 x.2).trans
             le_self_add
         · -- Bad target query: the `j = 0` term captures `extract q` and wins with probability `1`.
-          have h0 :
-              ((plantedHandler sim isTarget extract defaultCand dummyReply q
-                  (PlantedOracleState.init 0 defaultCand s)).bind
-                (fun y =>
-                  (OracleComp.interpret
-                    (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-                      (plantedHandler sim isTarget extract defaultCand dummyReply))
-                    (cont y.1)).run y.2)).bind
-                (fun x => PMF.pure
-                  (x.2.planted.hasCaptured && win x.2.planted.candidate x.2.oracleState))
-                true = 1 := by
-            simp only [plantedHandler, PlantedOracleState.init, PlantedState.init,
-              Bool.false_eq_true, ↓reduceIte, ht, beq_self_eq_true, PMF.pure_bind]
-            rw [← runWith_eq_run_interpret]
-            exact runWith_plantedHandler_captured_bind_eq_one sim isTarget extract defaultCand
-              dummyReply (fun st => st.planted.hasCaptured && win st.planted.candidate
-                st.oracleState)
-              (cont (dummyReply q)) rfl (by simp [hwin q s ht hb])
-          simp only [PMF.monad_bind_eq_bind]
-          rw [h0]
-          exact (PMF.toOuterMeasure_le_one _ _).trans le_add_self
+          refine (PMF.toOuterMeasure_le_one _ _).trans
+            (le_trans (le_of_eq (Eq.symm ?_)) le_add_self)
+          simp only [plantedHandler, PlantedOracleState.init, PlantedState.init,
+            Bool.false_eq_true, ↓reduceIte, ht, beq_self_eq_true, PMF.monad_bind_eq_bind,
+            PMF.pure_bind, ← runWith_eq_run_interpret]
+          exact runWith_plantedHandler_captured_bind_eq_one sim isTarget extract defaultCand
+            dummyReply
+            (fun st => st.planted.hasCaptured && win st.planted.candidate st.oracleState)
+            (cont (dummyReply q)) (st := ⟨⟨0, true, extract q⟩, s⟩) rfl (by simp [hwin q s ht hb])
 
 /-- **Adaptive `Q`-query planted-index union bound (`IsQueryBounded`).** When `program` makes at
 most `Q` external queries (`program.IsQueryBounded Q`), `badHandler` agrees with `sim` along `embed`

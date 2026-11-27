@@ -72,9 +72,7 @@ private theorem deliveryState_regs_eq_local (x : Data 128) (i : Fin 128) (hc : i
     (deliveryState x).regs i = (localDeliveryState x).regs i := by
   simp only [deliveryState, localDeliveryState, Data.set_regs, Data.write_regs,
     Function.update_apply, hc, ↓reduceIte]
-  by_cases ht : i = temporary
-  · simp only [eq_true ht, ↓reduceIte]
-  · simp only [ht, ↓reduceIte]
+  by_cases ht : i = temporary <;> simp only [ht, ↓reduceIte]
 
 /-- The appended pointer is the existing node layout's packed base. -/
 theorem deliveryState_packed (x : Data 128) : (deliveryState x).regs packed =
@@ -114,39 +112,25 @@ theorem delivery_output (x : Data 128) (values : Fin 3 → ℕ → ℤ) (before 
     NodePacking.Output L values
       (Function.update before (x.regs outputs + x.regs outputCount) L.packed)
       (deliveryState x).mem := by
-  let L := NodePacking.layout ((nodeState x).comap kernel)
-  let o := x.regs outputs + x.regs outputCount
-  change NodePacking.Output L values before x.mem at h
-  change NodePacking.Output L values (Function.update before o L.packed) (deliveryState x).mem
-  have hm := deliveryState_mem x
-  change (deliveryState x).mem = Function.update x.mem o ((deliveryState x).regs packed) at hm
-  rw [deliveryState_packed] at hm
+  intro L
+  set o := x.regs outputs + x.regs outputCount
+  have hm : (deliveryState x).mem = Function.update x.mem o L.packed := by
+    rw [← deliveryState_packed]
+    exact deliveryState_mem x
   have ho : o < L.base := htable
   have hkeep (a : ℕ) (ha : L.base ≤ a) : (deliveryState x).mem a = x.mem a := by
-    rw [hm, Function.update_of_ne (show a ≠ o by omega)]
-  refine ⟨?_, ?_, ?_⟩
-  · intro j
-    obtain ⟨zs, hnd, hs, hc, hd⟩ := h.heavy j
-    refine ⟨zs, hnd, hs, (hkeep _ (L.base_le_descriptor j)).trans hc, ?_⟩
-    intro k hk
+    rw [hm, Function.update_of_ne (by omega)]
+  refine ⟨fun j => ?_, fun a ha => ?_, fun a ha => ?_⟩
+  · obtain ⟨zs, hnd, hs, hc, hd⟩ := h.heavy j
     have hb := L.base_le_descriptor j
-    have hbase : L.base ≤ L.heavy j + k := by
-      dsimp only [NodePacking.Layout.heavy]
-      omega
-    exact (hkeep _ hbase).trans (hd k hk)
-  · intro a ha
-    have hbase : L.base ≤ L.packed + a := by
-      dsimp only [NodePacking.Layout.packed]
-      omega
-    exact (hkeep _ hbase).trans (h.packed a ha)
-  · intro a ha
-    rw [hm]
+    exact ⟨zs, hnd, hs, (hkeep _ hb).trans hc, fun k hk =>
+      (hkeep _ (by dsimp only [NodePacking.Layout.heavy]; omega)).trans (hd k hk)⟩
+  · exact (hkeep _ (by dsimp only [NodePacking.Layout.packed]; omega)).trans (h.packed a ha)
+  · rw [hm]
     by_cases he : a = o
-    · subst a
-      simp only [Function.update_self]
-      rfl
-    · simp only [Function.update_of_ne he]
-      exact h.frame a ha
+    · subst he
+      simp
+    · simpa only [Function.update_of_ne he] using h.frame a ha
 
 /-- The delivered register is the existing heavy-set cardinality, not a capacity or pair count. -/
 theorem delivery_heavy_card (x : Data 128) (values : Fin 3 → ℕ → ℤ) (before : ℕ → ℕ)
@@ -155,9 +139,8 @@ theorem delivery_heavy_card (x : Data 128) (values : Fin 3 → ℕ → ℤ) (bef
     (deliveryState x).regs (heavyLength j) =
       (Cslib.Algorithms.ThreeSum.ChanHe.heavy
         ((Finset.range ((NodePacking.layout ((nodeState x).comap kernel)).n j)).image (values j))
-        (NodePacking.layout ((nodeState x).comap kernel)).M).card := by
-  rw [deliveryState_heavy_length]
-  exact h.heavy_card j
+        (NodePacking.layout ((nodeState x).comap kernel)).M).card :=
+  deliveryState_heavy_length x j ▸ h.heavy_card j
 
 /-- All non-output controller parameters and the entire stack workspace survive delivery. -/
 theorem deliver_preserves : ∀ i : Fin 128, i ≠ heap → i ≠ outputCount → i ≠ temporary →

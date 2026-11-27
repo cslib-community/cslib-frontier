@@ -13,6 +13,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -86,21 +87,16 @@ private def augment (s : ℕ × C × SelectBestAcc) : C × List (List Bool) :=
 
 private theorem augment_polyTime : ComputableInPolyTime (augment (C := C))
     (encPair encNat (encAcc encC)) (encPair encC (encList encBits)) := by
-  unfold augment encAcc
-  exact (by fun_prop : ComputableInPolyTime (fun s : ℕ × C × SelectBestAcc => s.2.1)
-    (encPair encNat (encPair encC encSelectBestAcc)) encC).prod
-      (computableInPolyTime_augCandidateRows.comp (by fun_prop))
+  have := computableInPolyTime_augCandidateRows
+  fun_prop [augment, encAcc]
 
 private def finish (p : (ℕ × C × SelectBestAcc) × ℕ) : C × SelectBestAcc :=
   (p.1.2.1, finishSelectBestStep ((p.1.1, p.1.2.2), p.2))
 
 private theorem finish_polyTime : ComputableInPolyTime (finish (C := C))
     (encPair (encPair encNat (encAcc encC)) encNat) (encAcc encC) := by
-  unfold finish encAcc
-  exact (by fun_prop : ComputableInPolyTime
-    (fun p : (ℕ × C × SelectBestAcc) × ℕ => p.1.2.1)
-    (encPair (encPair encNat (encPair encC encSelectBestAcc)) encNat) encC).prod
-      (computableInPolyTime_finishSelectBestStep.comp (by fun_prop))
+  have := computableInPolyTime_finishSelectBestStep
+  fun_prop [finish, encAcc]
 
 private def step (count : C × List (List Bool) → ℕ)
     (s : ℕ × C × SelectBestAcc) : C × SelectBestAcc :=
@@ -149,8 +145,7 @@ private def initIn (a : C × ℕ × ℕ × List (List Bool)) : C × SelectBestAc
 
 private theorem initIn_polyTime :
     ComputableInPolyTime (initIn (C := C)) (encInput encC) (encAcc encC) := by
-  unfold initIn encInput encSelectBestIn encAcc encSelectBestAcc
-  fun_prop
+  fun_prop [initIn, encInput, encSelectBestIn, encAcc, encSelectBestAcc]
 
 private def extract (r : ℕ × C × SelectBestAcc) : List Bool :=
   r.2.2.2.2.elim (List.replicate r.2.2.1.1 false) Prod.fst
@@ -166,11 +161,8 @@ private theorem selectCertificate_eq (count : C × List (List Bool) → ℕ)
   have hp := (run_params count a.1 a.2.1 a.2.2.1
     (candidateTupleCount a.2.1 a.2.2.1) a.2.2.2).2.1
   rw [run_eq] at hp
-  simp only [Function.comp_apply, countIn, initIn, run_eq, extract,
-    selectBestTestRow, show (IndexFold.run
-      (selectBestStep (fun rows => count (a.1, rows)))
-      (candidateTupleCount a.2.1 a.2.2.1) ((a.2.1, a.2.2.1), a.2.2.2, none)).2.1.1 = a.2.1
-      by rw [hp]]
+  simp only [Function.comp_apply, countIn, initIn, run_eq, extract, selectBestTestRow]
+  rw [congrArg Prod.fst hp]
 
 /-- One fixed native selector for all encoded contexts. Empty candidate spaces return the zero
 row, exactly as `selectBestTestRow`; otherwise its first-minimum semantics are unchanged. -/
@@ -191,8 +183,7 @@ private def appendRow (p : (C × ℕ × ℕ × List (List Bool)) × List Bool) :
 
 private theorem appendRow_polyTime : ComputableInPolyTime (appendRow (C := C))
     (encPair (encInput encC) encBits) (encInput encC) := by
-  unfold appendRow encInput encSelectBestIn
-  fun_prop
+  fun_prop [appendRow, encInput, encSelectBestIn]
 
 private def outerStep (count : C × List (List Bool) → ℕ)
     (s : C × ℕ × ℕ × List (List Bool)) : C × ℕ × ℕ × List (List Bool) :=
@@ -227,8 +218,7 @@ private def outerInit (a : C × ℕ × ℕ × ℕ × List (List Bool)) :
 
 private theorem outerInit_polyTime :
     ComputableInPolyTime (outerInit (C := C)) (encGreedyInput encC) (encInput encC) := by
-  unfold outerInit encGreedyInput encGreedyIn encInput
-  fun_prop
+  fun_prop [outerInit, encGreedyInput, encGreedyIn, encInput]
 
 /-- One fixed machine runs `3n` greedy rounds for the runtime context. The context survives every
 candidate and round; the returned rows are the original `greedyParityRows` specialization. -/
@@ -342,10 +332,7 @@ private theorem AdditiveBounds.iterate {n : α → ℕ} {init : α → β} {step
     have hround : NativeCertificate.maxRoundTime cs (n a) (init a) +
         NativeCertificate.maxStateLength eb stepF (n a) (init a) +
         ((encNat (n a)).length + 1) ^ 2 ≤
-        M a * (pMax a + B a + ((encNat (n a)).length + 1) ^ 2 + R) := by
-      have := hmaxB.trans (Nat.le_mul_of_pos_left _ hMa)
-      have := Nat.le_mul_of_pos_left (((encNat (n a)).length + 1) ^ 2) hMa
-      nlinarith
+        M a * (pMax a + B a + ((encNat (n a)).length + 1) ^ 2 + R) := by nlinarith
     rw [NativeCertificate.iterate_time]
     exact (Nat.add_le_add (Nat.le_mul_of_pos_left _ hpos) (Nat.mul_le_mul_left _ hround)).trans
       ((by ring : _ = (n a + 1) * M a *
@@ -386,20 +373,18 @@ private theorem select_bounds {count : C × List (List Bool) → ℕ}
         fun _ => ⟨by simp only [NativeCertificate.comp_space]; omega,
           fun _ _ => by simp only [NativeCertificate.comp_time, one_mul]; omega⟩⟩
       (fun _ => le_rfl)).comp_ofPolyTime (fun _ => le_rfl) finish_polyTime
-  have hidx : PolyBounded (fun p : ℕ × C × SelectBestAcc => (encPair encNat (encAcc encC) p).length)
-      (fun p => (encNat p.1).length + 1) :=
-    (PolyBounded.self.mono fun p => by simp only [length_encPair]; omega).add (.const 1)
   have hRound : AdditiveBounds (IndexFold.roundCertificate (stepCertificate cCount))
       (fun _ => 1) (fun s R => cCount.time (augment s) ≤ R) :=
-    ⟨_, (PolyBounded.self.add (hidx.pow 2)).add hPs, fun p => ⟨by
+    ⟨fun p => (encPair encNat (encAcc encC) p).length + ((encNat p.1).length + 1) ^ 2 + Ps p,
+      by growth_poly, fun p => ⟨by
       have := (hBs p).1; have : (encNat p.1).length + 1 ≤ ((encNat p.1).length + 1) ^ 2 := by
         rw [sq]; nlinarith
       change (encPair encNat (encAcc encC) p).length + ((encNat p.1).length + 1) +
-        (stepCertificate cCount).space p ≤ _; omega,
+        (stepCertificate cCount).space p ≤ _; dsimp only; omega,
       fun R hR => by
         have h := (hBs p).2 R hR; rw [one_mul] at h ⊢
         change (encPair encNat (encAcc encC) p).length + ((encNat p.1).length + 1) ^ 2 +
-          (stepCertificate cCount).time p ≤ _; omega⟩⟩
+          (stepCertificate cCount).time p ≤ _; dsimp only; omega⟩⟩
   let qSys (L : ℕ) := pSp (5 * L + 2); let vBound (L : ℕ) := cOut * (qSys L + 1)
   let bAcc (L : ℕ) := 12 * L + vBound L + 7; let lIdx (L : ℕ) := 2 * L * L + 1
   let bFull (L : ℕ) := 2 * lIdx L + 1 + bAcc L
@@ -440,11 +425,10 @@ private theorem select_bounds {count : C × List (List Bool) → ℕ}
     (fun _ => by dsimp only [countIn]; omega) fun ⟨c, m, P, rows⟩ R hR j hj => ?_
   let st := IndexFold.run (step count) j (c, (m, P), rows, none)
   have hparams := run_params count c m P j rows
-  have hidx : st.1 = j := IndexFold.run_index (step count) j (c, (m, P), rows, none)
   have haug_st : augment st = (c, rows ++ [materializeTestRow m (decodeTestTuple m P j)]) := by
     simp only [augment, augCandidateRows, candRowOfState]
-    rw [hparams.1, hparams.2.2, hidx,
-      show st.2.2.1.1 = m by rw [hparams.2.1], show st.2.2.1.2 = P by rw [hparams.2.1]]
+    rw [hparams.1, hparams.2.2, IndexFold.run_index (step count) j (c, (m, P), rows, none),
+      congrArg Prod.fst hparams.2.1, congrArg Prod.snd hparams.2.1]
   exact haug_st ▸ hR j hj
 
 /-- Uniform selector time and polynomial workspace, measured in the full context/input encoding.
@@ -589,9 +573,8 @@ private noncomputable def unitCounter {countSys : List (List Bool) → ℕ}
 private theorem unitCounter_space {countSys : List (List Bool) → ℕ}
     (cCount : NativeCertificate countSys (encList encBits) encNat)
     (hSpace : PolyBounded (fun r => (encList encBits r).length) cCount.space) :
-    PolyBounded (fun p => (encContextRows encUnit p).length) (unitCounter cCount).space :=
-  PolyBounded.self.add (hSpace.comp (PolyBounded.self.mono fun p => by
-    simp only [encContextRows, length_encPair]; omega))
+    PolyBounded (fun p => (encContextRows encUnit p).length) (unitCounter cCount).space := by
+  growth_poly
 
 /-- Re-encode a fixed-counter input as a unit-context input. -/
 private theorem unitInput {α : Type} (enc : α ↪ List Bool) :
@@ -632,10 +615,8 @@ theorem computableInO_selectBestTestRow {countSys : List (List Bool) → ℕ}
   refine (h.comp' (unitInput encSelectBestIn)).mono_le (fun ⟨m, P, rows⟩ => ?_)
     fun ⟨m, P, rows⟩ => ?_
   all_goals
-    have hl : (encInput encUnit ((), m, P, rows)).length =
-        (encSelectBestIn (m, P, rows)).length + 1 := length_unitInput encSelectBestIn (m, P, rows)
-    dsimp only
-    rw [hl]
+    dsimp only [encInput]
+    rw [length_unitInput]
   · nlinarith [Nat.zero_le (candidateTupleCount m P * (encSelectBestIn (m, P, rows)).length)]
   · omega
 
@@ -681,10 +662,8 @@ theorem computableInO_greedyParityRows {countSys : List (List Bool) → ℕ}
   refine (h.comp' (unitInput encGreedyIn)).mono_le (fun ⟨n, m, P, rows⟩ => ?_)
     fun ⟨n, m, P, rows⟩ => ?_
   all_goals
-    have hl : (encGreedyInput encUnit ((), n, m, P, rows)).length =
-        (encGreedyIn (n, m, P, rows)).length + 1 := length_unitInput encGreedyIn (n, m, P, rows)
-    dsimp only
-    rw [hl]
+    dsimp only [encGreedyInput]
+    rw [length_unitInput]
   · have hM : 1 ≤ (3 * n + 1) * (candidateTupleCount m P + 1) := Nat.mul_pos (by omega) (by omega)
     generalize (3 * n + 1) * (candidateTupleCount m P + 1) = M at hM ⊢
     nlinarith [Nat.mul_le_mul_right (encGreedyIn (n, m, P, rows)).length hM]

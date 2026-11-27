@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Composition
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Encoding
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Words
 
 /-!
 # Signed verdict routing

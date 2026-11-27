@@ -48,18 +48,13 @@ theorem exec {w n p scratch a b c A : ℕ} (x : Data 128) (u v z : ℕ → ℤ)
         (fun α β : Fin n => v (α.val * n + β.val))
         (fun α β : Fin n => z (α.val * n + β.val)) p ∧
       ∀ d, d < scratch ∨ memoryEnd n p (Nat.clog 2 n) scratch ≤ d → y.mem d = x.mem d := by
-  let k := Nat.clog 2 n
-  have h2 : 0 < 2 ^ k := by positivity
-  have h4 : 0 < 4 ^ k := by positivity
-  have harea : 0 < 4 ^ k * p := Nat.mul_pos h4 hp0
   obtain ⟨x0, setupRun, ready, memory⟩ := exec_setup x hp0 hn hp hAB hBC hAC hs
-    (hw.of_le (by unfold addressBudget layoutWordBound; dsimp only [k] at *; omega))
+    (hw.of_le (by grind [addressBudget, layoutWordBound]))
   obtain ⟨y, tailRun, finalRegisters, result, frame⟩ := exec_ready x0 u v z hp0
     (Nat.le_pow_clog (by decide : 1 < (2 : ℕ)) n) ready ha hb hc hu hv hz
     (by simpa only [memory] using hinU) (by simpa only [memory] using hinV)
     (by simpa only [memory] using hinZ) hmag hw
-  refine ⟨y, (setupRun.seq tailRun).mono (by unfold cost; omega), finalRegisters, result, ?_⟩
-  intro d hd
-  exact (frame d hd).trans (congrFun memory d)
+  exact ⟨y, (setupRun.seq tailRun).mono (by grind [cost]), finalRegisters, result,
+    fun d hd => (frame d hd).trans (congrFun memory d)⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime

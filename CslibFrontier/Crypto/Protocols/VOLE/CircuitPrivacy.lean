@@ -63,17 +63,13 @@ theorem circuitPublicFirst_correct (C : Circuit (arithSignature F) (p + k) m)
         (voleCommitWitness (circuitTrace C x w) (Fin.init c.u)) =
       (voleCommitWitness (circuitTrace C x w) (Fin.init c.u),
         circuitLinearCoeffs C *ᵥ Fin.init c.v) := by
-  apply Prod.ext
-  · rfl
-  funext row
+  refine Prod.ext rfl (funext fun row => ?_)
   change (circuitLinearCoeffs C *ᵥ
     voleAdjustReceiver (Fin.init c.w) (voleCommitWitness (circuitTrace C x w) (Fin.init c.u))
       c.delta) row - circuitLinearTargets C x y row * c.delta = _
-  rw [circuitLinear_adjusted C c hc]
   have hadd : Fin.init c.u + voleCommitWitness (circuitTrace C x w) (Fin.init c.u) =
       circuitTrace C x w := by simp [voleCommitWitness]
-  rw [hadd, circuitTrace_linear C x w y hy]
-  exact add_sub_cancel_left _ _
+  rw [circuitLinear_adjusted C c hc, hadd, circuitTrace_linear C x w y hy, add_sub_cancel_left]
 
 variable [Fintype F] [DecidableEq F] {Aux View : Type}
 
@@ -145,14 +141,13 @@ theorem circuitReceiverView_eq_expand (C : Circuit (arithSignature F) (p + k) m)
         (circuitReceiverAdapter C statement V) (circuitTrace C statement.1 w) z).map
           (circuitExpandView C statement) := by
   unfold circuitReceiverView maskedMulCheckReceiverView
-  rw [voleWorld_eval, voleWorld_eval]
-  simp only [PMF.monad_bind_eq_bind, PMF.map_bind]
+  simp only [voleWorld_eval, PMF.monad_bind_eq_bind, PMF.map_bind]
   apply PMF.bind_congr_on_support
   intro c hc
   have hfirst := circuitPublicFirst_correct C statement.1 w statement.2 hy c
     (valid_of_mem_support_voleIdealDist hc)
-  simp only [interp_norm, pmf_norm, VOLECorrelation.senderView, interpret_liftVerifier]
-  simp only [interp_norm, pmf_norm, circuitReceiverAdapter]
+  simp only [interp_norm, pmf_norm, VOLECorrelation.senderView, interpret_liftVerifier,
+    circuitReceiverAdapter]
   congr 1 with verifier : 1
   simp [circuitCheck, maskedMulCheck, liftProver, ProbOracleComp.query,
     OracleComp.sumHandler, runAgainst, ProverStrategy.hoist, VerifierStrategy.hoist,
@@ -197,7 +192,6 @@ theorem circuitReceiverSimulate_linear (C : Circuit (arithSignature F) (p + k) m
   obtain ⟨⟨share, ⟨d', _, _, ⟨⟩⟩, _⟩, _, hexpand⟩ := hview
   simp only [circuitExpandView, circuitPublicFirst, Prod.mk.injEq] at hexpand
   obtain ⟨rfl, ⟨⟨rfl, rfl⟩, -⟩, -⟩ := hexpand
-  dsimp only
   ring
 
 end Cslib.Crypto.Protocols.VOLE

@@ -114,8 +114,7 @@ private theorem holds_network_no_tail (n : ℕ) (ms : List (List Bool)) :
       ∃ ls value, y = ls ++ [value] ∧ ls.length = n ∧ value ≤ ms.all (hits · x) :=
   (holds_network [] n ms).mono <| by
     rintro _ _ hx - ⟨ls, rs, ls', value, rfl, rfl, hls, hf, hv⟩
-    have hrs : rs = [] := List.eq_nil_of_length_eq_zero (by simp at hx; omega)
-    subst hrs
+    obtain rfl : rs = [] := List.eq_nil_of_length_eq_zero (by simp at hx; omega)
     exact ⟨ls', value, rfl, hf.length_eq.trans hls, by simpa using hv⟩
 
 private def FeedSpec (ms : List (List Bool)) (x y : List Bool) : Prop :=
@@ -130,12 +129,12 @@ private theorem holds_feed (p : ℕ) (ms : List (List Bool)) :
     rintro _ _ - - ⟨_, ⟨ctrl, ls, _, rfl, rfl, hc, ls', value, rfl, hls', hv⟩,
       ⟨ctrl', _, _, hmid, rfl, hc', us, bit, rs, rfl, rfl, hus, hrs⟩⟩
     obtain ⟨sat, attempt, rfl⟩ := List.length_eq_two.1 hc
-    obtain ⟨sat', attempt', rfl⟩ := List.length_eq_two.1 hc'
+    obtain ⟨_, _, rfl⟩ := List.length_eq_two.1 hc'
     obtain rfl := List.eq_nil_of_length_eq_zero hrs
     simp only [List.cons_append, List.nil_append, List.cons.injEq] at hmid
     obtain ⟨rfl, rfl, hmid⟩ := hmid
-    simp only [bundle, List.length_replicate] at hus
-    obtain ⟨rfl, hvalue⟩ := List.append_inj hmid (hls'.trans hus.symm)
+    obtain ⟨rfl, hvalue⟩ := List.append_inj hmid
+      (hls'.trans (by simpa only [bundle, List.length_replicate] using hus.symm))
     obtain ⟨rfl, -⟩ := List.cons.inj hvalue
     exact ⟨sat, attempt, ls, ls', value, rfl, by simp, hv⟩
 
@@ -151,13 +150,9 @@ private theorem holds_return_caps (p : ℕ) :
 private theorem holds_terminalBase (p : ℕ) (ms : List (List Bool)) :
     Holds Gate.interp (terminalBase p ms) (EndSpec ms) :=
   ((holds_feed p ms).comp (holds_return_caps p)).mono <| by
-    rintro _ _ - - ⟨_, ⟨sat, attempt, ls, ls', value, rfl, rfl, hv⟩,
-      ⟨sat', attempt', value', rs, hmid, hret⟩⟩
-    simp only [List.cons.injEq] at hmid
-    obtain ⟨rfl, rfl, rfl, rfl⟩ := hmid
-    intro hsat
-    have h := hret hsat
-    exact ⟨h.1, le_antisymm le_top (h.2 ▸ hv)⟩
+    rintro _ _ - - ⟨_, ⟨sat, attempt, ls, ls', value, rfl, rfl, hv⟩, ⟨_, _, _, _, hmid, hret⟩⟩
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := by simpa only [List.cons.injEq] using hmid
+    exact fun hsat => ⟨(hret hsat).1, le_antisymm le_top ((hret hsat).2 ▸ hv)⟩
 
 /-- **The actual CNF terminal is sound**: an active satisfied wire needs trying and a true
 matrix on its incoming literal wires. -/
@@ -196,18 +191,15 @@ theorem terminal_spec (qs : List Quantifier) (ms : List (List Bool))
       Satisfies ms (Chain.memories [] qs (t ∘ (chainOcc qs ms).emb)) := by
   obtain ⟨ls, hread⟩ := Chain.botList_controls qs [] (t ∘ (chainOcc qs ms).emb)
   have he := holds_terminal qs 0 ms _ ((terminalOcc qs ms).legal ht)
-  have htop := (shared_top qs ms t).trans hread
-  rw [htop] at he
+  rw [(shared_top qs ms t).trans hread] at he
   have h := he hsat
-  refine ⟨h.1, ?_⟩
   obtain ⟨ls', hread', hb⟩ := Chain.literals_of_try qs [] ((chainOcc qs ms).legal ht) h.1
-  have heq := hread.symm.trans hread'
-  simp only [List.cons.injEq, true_and] at heq
+  have heq : ls = ls' := by simpa using hread.symm.trans hread'
   subst heq
   have hempty : ((Chain.diagram [] qs).topList (t ∘ (chainOcc qs ms).emb)).drop 2 = [] := by
     simp [topList, List.ofFn_succ]
   simp only [hempty, List.append_nil] at hb
-  exact le_antisymm le_top (h.2 ▸ all_hits_mono ms hb)
+  exact ⟨h.1, le_antisymm le_top (h.2 ▸ all_hits_mono ms hb)⟩
 
 private theorem terminal_spec_occ (qs : List Quantifier) (ms : List (List Bool))
     {a b : List Color} {D : Diagram Gate a b} (o : Occurrence (body qs ms) D)
@@ -215,9 +207,8 @@ private theorem terminal_spec_occ (qs : List Quantifier) (ms : List (List Bool))
     (hsat : t ((o.trans (chainOcc qs ms)).emb (Chain.control [] qs qs.length 0)) = false) :
     t ((o.trans (chainOcc qs ms)).emb (Chain.control [] qs qs.length 1)) = true ∧
       Satisfies ms (Chain.memories [] qs (t ∘ (o.trans (chainOcc qs ms)).emb)) := by
-  have h := terminal_spec qs ms (o.legal ht)
+  simpa only [Occurrence.emb_trans, Function.comp_def] using terminal_spec qs ms (o.legal ht)
     (by simpa only [Occurrence.emb_trans, Function.comp_def] using hsat)
-  simpa only [Occurrence.emb_trans, Function.comp_def] using h
 
 /-- **Soundness of the actual quantifier-chain/CNF body**, in any containing diagram. Every
 legal inactive start can reach an active satisfied wire only if the quantified matrix is true.

@@ -508,8 +508,7 @@ private def backLenProg (d : ClusterInput) : Memory.Prog (ℕ × ℕ) :=
 private theorem realizes_backLen :
     Realizes .exact backLenProg WordEncoding.encode WordEncoding.encode
       (fun w d _ => ClusterSafe w d) (fun _ _ => 0) := by
-  have hReadFull := realizes_readFull
-  realize
+  realize [realizes_readFull]
   intro hv
   refine whileSafe_of_measure _ _ _ w d
     (fun m _ => m.1 + m.2 ≤ d.slotCap)
@@ -572,8 +571,7 @@ private def fwdLenProg (x : ClusterInput × ℕ) : Memory.Prog (ℕ × ℕ) :=
 private theorem realizes_fwdLen :
     Realizes .exact fwdLenProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1 ∧ x.2 ≤ x.1.slotCap) (fun _ _ => 0) := by
-  have hReadFull := realizes_readFull
-  realize
+  realize [realizes_readFull]
   · exact h.2
   · intro hv
     refine whileSafe_of_measure _ _ _ w d.1
@@ -625,9 +623,7 @@ private theorem backLen_add_fwdLen_le (s : Memory.State) (d : ClusterInput) :
 private theorem realizes_findCluster :
     Realizes .exact findClusterProg WordEncoding.encode WordEncoding.encode
       (fun w d _ => ClusterSafe w d) (fun _ _ => 0) := by
-  have hBack := realizes_backLen
-  have hFwd := realizes_fwdLen
-  realize
+  realize [realizes_backLen, realizes_fwdLen]
   · exact h
   · exact clientResult_backLen_fst_le s d
   · have := clientResult_backLen_fst_le s d
@@ -684,8 +680,7 @@ private theorem realizes_occBefore :
     Realizes .exact occBeforeProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1 ∧ x.2.1 < x.1.slotCap ∧ x.2.2 ≤ x.1.slotCap)
       (fun _ _ => 0) := by
-  have hReadOcc := realizes_readOcc
-  realize
+  realize [realizes_readOcc]
   rcases d with ⟨d0, o, a⟩
   obtain ⟨hcs, ho, ha⟩ := h
   have h2w := hcs.two_cap_lt
@@ -815,10 +810,7 @@ private def scanStepReadsProg (x : ScanEnv × ScanState) : Memory.Prog ScanReads
 private theorem realizes_scanStepReads :
     Realizes .exact scanStepReadsProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1.d ∧ x.1.o + x.2.i < 2 ^ w) (fun _ _ => 0) := by
-  have hReadOcc := realizes_readOcc
-  have hReadRun := realizes_readRunStart
-  have hReadRem := realizes_readRem
-  realize
+  realize [realizes_readOcc, realizes_readRunStart, realizes_readRem]
   · exact h.2
   · exact h.1
 
@@ -954,11 +946,8 @@ private def scanLoopStep (x : ScanEnv × ScanState) : Memory.Prog ScanState := d
 private theorem realizes_scanLoopStep :
     Realizes .exact scanLoopStep WordEncoding.encode WordEncoding.encode
       (fun w x _ => ScanStepSafe w x) (fun _ _ => 0) := by
-  have hReads := realizes_scanStepReads
-  have hTgt := realizes_scanStepTarget
-  have hStop := realizes_scanStepStop
-  have hQuery := realizes_scanStepQuery
-  realize <;> {
+  realize [realizes_scanStepReads, realizes_scanStepTarget, realizes_scanStepStop,
+      realizes_scanStepQuery] <;> {
     rcases h with ⟨⟨hcs, ho, ha, hℓ, hoccA, hoccA1⟩, hi, hruns, hoccI, hs₀, hs, he, hq⟩
     have h2w := hcs.two_cap_lt
     have h1w := hcs.one_lt_two_pow
@@ -1010,8 +999,7 @@ private def scanLoopProg (env : ScanEnv) : Memory.Prog ScanState :=
 private theorem realizes_scanLoop :
     Realizes .exact scanLoopProg WordEncoding.encode WordEncoding.encode
       (fun w env _ => env.Safe w) (fun _ _ => 0) := by
-  have hStep := realizes_scanLoopStep
-  realize
+  realize [realizes_scanLoopStep]
   refine iterationSafe_of_stepInv _ _ w d
     (fun j (m : ScanState) _ => m.i + j = d.ℓ ∧ m.Bounds d) ?_
     ⟨Nat.zero_add _, le_rfl, le_rfl, le_rfl, le_rfl, le_rfl, Nat.zero_le 1⟩
@@ -1082,10 +1070,7 @@ private theorem realizes_scanCluster :
     Realizes .exact scanClusterProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1 ∧ x.2.1 < x.1.slotCap ∧
         x.2.2.1 ≤ x.2.2.2 ∧ x.2.2.2 ≤ x.1.slotCap) (fun _ _ => 0) := by
-  have hOcc := realizes_occBefore
-  have hReadOcc := realizes_readOcc
-  have hLoop := realizes_scanLoop
-  realize <;> {
+  realize [realizes_occBefore, realizes_readOcc, realizes_scanLoop] <;> {
     first
     | exact h.1
     | exact h.2.1
@@ -1146,11 +1131,7 @@ private theorem realizes_shiftRightStep :
     Realizes .exact shiftRightStep WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1.1 ∧ x.1.2 < x.1.1.slotCap ∧ 1 ≤ x.2 ∧ x.2 ≤ x.1.1.slotCap)
       (fun _ _ => 0) := by
-  have hReadRun := realizes_readRunStart
-  have hReadRem := realizes_readRem
-  have hWriteRun := realizes_writeRunStart
-  have hWriteRem := realizes_writeRem
-  realize <;> {
+  realize [realizes_readRunStart, realizes_readRem, realizes_writeRunStart, realizes_writeRem] <;> {
     rcases d with ⟨⟨d0, o⟩, pos⟩
     rcases h with ⟨hcs, ho, h1, hpos⟩
     have h2w := hcs.two_cap_lt
@@ -1186,8 +1167,7 @@ private theorem realizes_shiftRight :
       (fun w x _ =>
         ClusterSafe w x.1.1 ∧ x.1.2 < x.1.1.slotCap ∧ x.2.2 ≤ x.2.1 ∧ x.2.1 ≤ x.1.1.slotCap)
       (fun _ _ => 0) := by
-  have hStep := realizes_shiftRightStep
-  realize
+  realize [realizes_shiftRightStep]
   refine iterationSafe_of_stepInv _ _ w d
     (fun j (pos : ℕ) _ => j ≤ pos ∧ pos ≤ d.2.1)
     ?_ ⟨h.2.2.1, le_rfl⟩
@@ -1214,8 +1194,7 @@ private def insertClearOldProg (x : (ClusterInput × ℕ) × (ℕ × (ℕ × ℕ
 private theorem realizes_insertClearOld :
     Realizes .exact insertClearOldProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1.1 ∧ x.1.2 + x.2.2.1 < 2 ^ w) (fun _ _ => 0) := by
-  have hWriteRun := realizes_writeRunStart
-  realize <;> {
+  realize [realizes_writeRunStart] <;> {
     rcases h with ⟨hcs, hlt⟩
     have h1w := hcs.one_lt_two_pow
     first
@@ -1243,11 +1222,7 @@ private theorem realizes_insertWriteNew :
     Realizes .exact insertWriteNewProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1.1 ∧ x.1.2 < x.1.1.slotCap ∧
         x.2.1.2 ≤ x.2.2 ∧ x.2.2 ≤ x.1.1.slotCap) (fun _ _ => 0) := by
-  have hWriteRun := realizes_writeRunStart
-  have hWriteRem := realizes_writeRem
-  have hWriteOcc := realizes_writeOcc
-  have hWriteFull := realizes_writeFull
-  realize <;> {
+  realize [realizes_writeRunStart, realizes_writeRem, realizes_writeOcc, realizes_writeFull] <;> {
     rcases d with ⟨⟨d0, o⟩, ⟨s₀, s_idx⟩, ℓ⟩
     rcases h with ⟨hcs, ho, hs, hℓ⟩
     have h2w := hcs.two_cap_lt
@@ -1278,10 +1253,7 @@ private theorem realizes_insertAfterScan :
     Realizes .exact insertAfterScanProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1.1 ∧ x.1.2 < x.1.1.slotCap ∧
         x.2.2.1 ≤ x.2.1.2 ∧ x.2.2.2 ≤ x.2.1.2 ∧ x.2.1.2 ≤ x.1.1.slotCap) (fun _ _ => 0) := by
-  have hClear := realizes_insertClearOld
-  have hShift := realizes_shiftRight
-  have hWrite := realizes_insertWriteNew
-  realize <;> {
+  realize [realizes_insertClearOld, realizes_shiftRight, realizes_insertWriteNew] <;> {
     rcases d with ⟨⟨d0, o⟩, ⟨occQ, ℓ⟩, ⟨s₀, s_idx⟩⟩
     rcases h with ⟨hcs, ho, hs₀, hs, hℓ⟩
     have h2w := hcs.two_cap_lt
@@ -1312,11 +1284,7 @@ private theorem realizes_shiftLeftStep :
     Realizes .exact shiftLeftStep WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1.1 ∧ x.1.2 < x.1.1.slotCap ∧ x.2 + 1 ≤ x.1.1.slotCap)
       (fun _ _ => 0) := by
-  have hReadRun := realizes_readRunStart
-  have hReadRem := realizes_readRem
-  have hWriteRun := realizes_writeRunStart
-  have hWriteRem := realizes_writeRem
-  realize <;> {
+  realize [realizes_readRunStart, realizes_readRem, realizes_writeRunStart, realizes_writeRem] <;> {
     rcases d with ⟨⟨d0, o⟩, pos⟩
     rcases h with ⟨hcs, ho, hpos⟩
     have h2w := hcs.two_cap_lt
@@ -1351,8 +1319,7 @@ private theorem realizes_shiftLeft :
     Realizes .exact shiftLeftProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1.1 ∧ x.1.2 < x.1.1.slotCap ∧ x.2.1 + x.2.2 ≤ x.1.1.slotCap)
       (fun _ _ => 0) := by
-  have hStep := realizes_shiftLeftStep
-  realize
+  realize [realizes_shiftLeftStep]
   refine iterationSafe_of_stepInv _ _ w d
     (fun j (pos : ℕ) _ => pos + j ≤ d.1.1.slotCap)
     ?_ h.2.2
@@ -1378,8 +1345,7 @@ private theorem realizes_deleteHasMore :
         ClusterSafe w x.1.1 ∧ x.1.2 < x.1.1.slotCap ∧
           x.2.1 ≤ x.1.1.slotCap ∧ x.2.2 ≤ x.1.1.slotCap)
       (fun _ _ => 0) := by
-  have hReadRun := realizes_readRunStart
-  realize <;> {
+  realize [realizes_readRunStart] <;> {
     rcases d with ⟨⟨d0, o⟩, s₀, e⟩
     rcases h with ⟨hcs, ho, hs₀, he⟩
     have h2w := hcs.two_cap_lt
@@ -1405,9 +1371,7 @@ private def deleteUpdateRunProg (x : (ClusterInput × ℕ) × (ℕ × (ℕ × �
 private theorem realizes_deleteUpdateRun :
     Realizes .exact deleteUpdateRunProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1.1 ∧ x.1.2 + x.2.2.1 < 2 ^ w) (fun _ _ => 0) := by
-  have hWriteOcc := realizes_writeOcc
-  have hWriteRun := realizes_writeRunStart
-  realize <;> {
+  realize [realizes_writeOcc, realizes_writeRunStart] <;> {
     rcases h with ⟨hcs, hlt⟩
     have h1w := hcs.one_lt_two_pow
     have hq := hcs.q_lt
@@ -1432,10 +1396,7 @@ private theorem realizes_deleteClearEnd :
     Realizes .exact deleteClearEndProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1.1 ∧ x.1.2 < x.1.1.slotCap ∧ 1 ≤ x.2 ∧ x.2 ≤ x.1.1.slotCap)
       (fun _ _ => 0) := by
-  have hWriteFull := realizes_writeFull
-  have hWriteRun := realizes_writeRunStart
-  have hWriteRem := realizes_writeRem
-  realize <;> {
+  realize [realizes_writeFull, realizes_writeRunStart, realizes_writeRem] <;> {
     rcases d with ⟨⟨d0, o⟩, e⟩
     rcases h with ⟨hcs, ho, h1, he⟩
     have h2w := hcs.two_cap_lt
@@ -1462,11 +1423,8 @@ private theorem realizes_deleteAfterScan :
       (fun w x _ => ClusterSafe w x.1.1 ∧ x.1.2 < x.1.1.slotCap ∧
         x.2.1.1 ≤ x.1.1.slotCap ∧ x.2.1.2 ≤ x.1.1.slotCap ∧ x.2.2 ≤ x.1.1.slotCap)
       (fun _ _ => 0) := by
-  have hHasMore := realizes_deleteHasMore
-  have hShift := realizes_shiftLeft
-  have hUpdate := realizes_deleteUpdateRun
-  have hClear := realizes_deleteClearEnd
-  realize <;> {
+  realize [realizes_deleteHasMore, realizes_shiftLeft, realizes_deleteUpdateRun,
+      realizes_deleteClearEnd] <;> {
     rcases d with ⟨⟨d0, o⟩, ⟨s₀, s_idx⟩, e⟩
     rcases h with ⟨hcs, ho, hs₀, hs, he⟩
     have h2w := hcs.two_cap_lt
@@ -1497,9 +1455,7 @@ private theorem realizes_clusterDispatch :
     Realizes .exact clusterDispatchProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1.1 ∧ x.1.2.1 < x.1.1.slotCap ∧ x.1.2.2.2 ≤ x.1.1.slotCap ∧
         x.2.Bounds x.1.2.2.2) (fun _ _ => 0) := by
-  have hIns := realizes_insertAfterScan
-  have hDel := realizes_deleteAfterScan
-  realize <;> {
+  realize [realizes_insertAfterScan, realizes_deleteAfterScan] <;> {
     rcases d with ⟨⟨d0, o, a, ℓ⟩, scan⟩
     rcases h with ⟨hcs, ho, hℓ, hoccQ, hs₀, hs, he, hqFound⟩
     have h1w := hcs.one_lt_two_pow
@@ -1522,10 +1478,7 @@ def clusterOpProg (d : ClusterInput) : Memory.Prog ℕ := do
 theorem realizes_clusterOp :
     Realizes .exact clusterOpProg WordEncoding.encode WordEncoding.encode
       (fun w d _ => ClusterSafe w d) (fun _ _ => 0) := by
-  have hFind := realizes_findCluster
-  have hScan := realizes_scanCluster
-  have hDisp := realizes_clusterDispatch
-  realize <;> {
+  realize [realizes_findCluster, realizes_scanCluster, realizes_clusterDispatch] <;> {
     have hcs := h
     have h_ext := clientResult_findCluster_bounds s d h
     have h_scan := clientResult_scanCluster_bounds s
@@ -2382,11 +2335,8 @@ private theorem clientResult_scanLoop_mk (base w w₀ n k : ℕ)
         rw [occBefore_succ]; cases st.isOcc _ <;> simp
       rw [hruns, hocc]
       ext
-      · rfl
-      · rfl
-      · rfl
-      · rw [calcRunStart_succ]
-        by_cases h1 : runsBefore st o (i + 1) ≤ occBefore st o a <;> simp [h1]
+      iterate 3 rfl
+      · rw [calcRunStart_succ]; split_ifs <;> simp [*]
       · rw [calcTargetSlot_succ]
         dsimp only [snap]
         change (if runsBefore st o (i + 1) ≤ occBefore st o a ∨
@@ -2396,10 +2346,7 @@ private theorem clientResult_scanLoop_mk (base w w₀ n k : ℕ)
         by_cases h1 : runsBefore st o (i + 1) ≤ occBefore st o a <;>
           by_cases h2 : runsBefore st o (i + 1) ≤ occBefore st o (a + 1) <;>
           by_cases h3 : st.remAt (probeSlot (quotBits w₀ n) o i) < r <;> simp [h1, h2, h3]
-      · rw [calcDeleteStopPrefix_succ st o a ℓ (by omega)]
-        by_cases h1 : a < i <;>
-          by_cases h2 : occBefore st o i < runsBefore st o (i + 1) <;>
-          by_cases h3 : calcDeleteStopPrefix st o a ℓ i = ℓ <;> simp [h1, h2, h3]
+      · rw [calcDeleteStopPrefix_succ st o a ℓ (by omega)]; split_ifs <;> simp_all
       · rw [queryAnyPrefix_succ]
         dsimp only [st]
         simp only [← Fin.ext_iff]

@@ -209,19 +209,12 @@ def time (s : ℕ) : ℕ :=
 
 /-- The instruction bound is a polynomial of degree `15`: `time s ≤ 4096 (s + 1)¹⁵`. -/
 theorem time_le (s : ℕ) : time s ≤ 4096 * (s + 1) ^ 15 := by
-  have h (k : ℕ) (hk : k ≤ 15) : s ^ k ≤ (s + 1) ^ 15 :=
-    (Nat.pow_le_pow_left (Nat.le_succ s) k).trans (Nat.pow_le_pow_right (Nat.succ_pos s) hk)
-  have h0 : 1 ≤ (s + 1) ^ 15 := Nat.one_le_pow _ _ (Nat.succ_pos s)
-  have h1 : s ≤ (s + 1) ^ 15 := by simpa using h 1 (by norm_num)
-  have h2 := h 2 (by norm_num); have h3 := h 3 (by norm_num); have h4 := h 4 (by norm_num)
-  have h5 := h 5 (by norm_num); have h6 := h 6 (by norm_num); have h7 := h 7 (by norm_num)
-  have h8 := h 8 (by norm_num); have h9 := h 9 (by norm_num); have h10 := h 10 (by norm_num)
-  have h11 := h 11 (by norm_num); have h12 := h 12 (by norm_num)
-  have h13 := h 13 (by norm_num); have h14 := h 14 (by norm_num); have h15 := h 15 le_rfl
-  generalize (s + 1) ^ 15 = S at *
+  zify
+  rw [← sub_nonneg]
   unfold time OrderSearch.time GcdTotient.time PolyPow.mulTime
+  push_cast
   ring_nf
-  omega
+  positivity
 
 /-- The instruction bound is polynomial in the number of bits. -/
 theorem polynomiallyBounded_time : PolynomiallyBounded time :=
@@ -236,8 +229,6 @@ private theorem sq_le_two_pow (s : ℕ) : s ^ 2 ≤ 2 ^ (s + 1) := by
   | succ k ih =>
     have hk : k < 2 ^ k := Nat.lt_two_pow_self
     have h1 : (k + 1) ^ 2 = k ^ 2 + 2 * k + 1 := by ring
-    have h2 : 2 ^ (k + 1 + 1) = 2 ^ k * 4 := by ring
-    have h3 : 2 ^ (k + 1) = 2 ^ k * 2 := by ring
     omega
 
 /-- Numbers up to `64 s¹⁰` fit the width `8 (s + 1)`, for `s ≥ 2`. -/
@@ -260,12 +251,9 @@ private theorem fits_exp {w s v : ℕ} (hw : 8 * (s + 1) ≤ w) (hv : v < 2 ^ (2
 /-- For `N < 2^s` with `s ≥ 2`, `N² + 2 N + 2` fits the width `8 (s + 1)`. -/
 private theorem fits_sq {w s N : ℕ} (hs : 2 ≤ s) (hw : 8 * (s + 1) ≤ w) (hN : N < 2 ^ s) :
     Fits w (N * N + 2 * N + 2) := by
-  refine fits_exp hw ?_
-  have : (N + 1) * (N + 1) ≤ 2 ^ s * 2 ^ s := Nat.mul_le_mul hN hN
   have h2 : 2 ^ (2 * s + 1) = 2 ^ s * 2 ^ s * 2 := by ring
   have h4 : 2 ≤ 2 ^ s := Nat.le_self_pow (by omega) 2
-  rw [h2]
-  nlinarith
+  exact fits_exp hw (by nlinarith [Nat.mul_le_mul hN hN])
 
 /-! ### Correctness -/
 
@@ -338,10 +326,8 @@ private theorem congruenceSteps_exec {w s : ℕ} (x : Data 36) {N R L : ℕ} (hn
   omega
 
 /-- `n ≥ 2` has at least two bits. -/
-private theorem two_le_size {N : ℕ} (hN : 2 ≤ N) : 2 ≤ Nat.size N := by
-  by_contra h
-  have := Nat.size_le.mp (by omega : Nat.size N ≤ 1)
-  omega
+private theorem two_le_size {N : ℕ} (hN : 2 ≤ N) : 2 ≤ Nat.size N :=
+  Nat.lt_size.mpr (by rwa [pow_one])
 
 /-- **Steps 2 to 5.** For `n ≥ 2` that is not a perfect power, at a word size of at least
 `8 (size n + 1)`, the answer is `1` exactly when `n` is prime. -/
@@ -358,7 +344,7 @@ private theorem searchSteps_exec {w s : ℕ} (x : Data 36) {N : ℕ} (hn : x.reg
   obtain ⟨c, hcdef⟩ : ∃ c, Nat.clog 2 N = c := ⟨_, rfl⟩
   have hc : c ≤ s := hcdef ▸ Nat.clog_le_of_le_pow hNs.le
   have hcc : c * c ≤ s ^ 2 := by rw [sq]; exact Nat.mul_le_mul hc hc
-  have h1s : s ≤ s ^ 2 := by nlinarith
+  have h1s : s ≤ s ^ 2 := Nat.le_self_pow two_ne_zero s
   have h2s : s ^ 2 ≤ s ^ 10 := Nat.pow_le_pow_right (by omega) (by norm_num)
   have h5s : s ^ 5 ≤ s ^ 10 := Nat.pow_le_pow_right (by omega) (by norm_num)
   have hF2 : Fits w 2 := fits_poly hs hw (by omega)
@@ -417,9 +403,8 @@ private theorem searchSteps_exec {w s : ℕ} (x : Data 36) {N : ℕ} (hn : x.reg
 leaves `1` in `ans` if `n` is prime and `0` otherwise, within `time (size n)` instructions. -/
 theorem answers {w : ℕ} (N : ℕ) (hw : 8 * (Nat.size N + 1) ≤ w) :
     program.Answers ans w [N] N.Prime (time (Nat.size N)) := by
-  obtain ⟨s, hsN⟩ : ∃ s, Nat.size N = s := ⟨_, rfl⟩
-  rw [hsN] at hw ⊢
-  have hNs : N < 2 ^ s := hsN ▸ Nat.lt_size_self N
+  set s := Nat.size N with hsN
+  have hNs : N < 2 ^ s := Nat.lt_size_self N
   have h8 : 2 ^ 8 ≤ 2 ^ w := Nat.pow_le_pow_right (by norm_num) (by omega)
   have hF1 : Fits w 1 := fits_iff.mpr (by omega)
   have hF2 : Fits w 2 := fits_iff.mpr (by omega)
@@ -430,7 +415,7 @@ theorem answers {w : ℕ} (N : ℕ) (hw : 8 * (Nat.size N + 1) ≤ w) :
     wram_simp
     exact ⟨by unfold time; omega, nofun, fun hp => absurd hp.two_le (by omega)⟩
   have hN2 : 2 ≤ N := by omega
-  have hs : 2 ≤ s := hsN ▸ two_le_size hN2
+  have hs : 2 ≤ s := two_le_size hN2
   wram_exec [hmem, hF1, hF2, hN]
   wram_call (PerfectPower.exec (w := w)) renamed (low_injective _)
     [hN2, fits_sq hs hw hNs]
@@ -443,13 +428,11 @@ theorem answers {w : ℕ} (N : ℕ) (hw : 8 * (Nat.size N + 1) ≤ w) :
     have hclog : Nat.clog 2 (N + 1) ≤ s := Nat.clog_le_of_le_pow hNs
     unfold PerfectPower.time; gcongr
   by_cases hpp : IsPerfectPower N
-  · have hflag1 : y₃.regs ppFlag = 1 := hflag.trans (ite_eq_left hpp)
-    wram_exec [hflag1, hy₃1]
+  · wram_exec [hflag.trans (ite_eq_left hpp), hy₃1]
     wram_simp
     exact ⟨by unfold time; omega, nofun, fun hp => not_isPerfectPower_of_prime hp hpp⟩
-  · have hflag0 : y₃.regs ppFlag = 0 := hflag.trans (ite_eq_right hpp)
-    wram_exec [hflag0, hy₃1]
-    wram_call (searchSteps_exec y₃ hy₃n hy₃1 hN2 hpp hsN hw) with z ⟨hz1, hziff⟩
+  · wram_exec [hflag.trans (ite_eq_right hpp), hy₃1]
+    wram_call (searchSteps_exec y₃ hy₃n hy₃1 hN2 hpp hsN.symm hw) with z ⟨hz1, hziff⟩
     wram_simp
     exact ⟨by unfold time; omega, hz1, hziff⟩
 

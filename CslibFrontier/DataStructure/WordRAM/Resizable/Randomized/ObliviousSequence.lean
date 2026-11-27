@@ -227,16 +227,11 @@ theorem ExecSteps.frontier_le {B : Basis} {r_ds k_init : ℕ}
   induction h with
   | nil prefOps _ =>
     simpa only [List.append_nil] using hfr
-  | @cons prefOps o ops ν _ μ_step _ _ hstep _ ih =>
-    have h₁ : ∀ q_seq ∈ (ν.bind fun t => (μ_step t).map (t.appendStep o)).support,
-        base ≤ q_seq.data.frontier ∧
-        q_seq.data.frontier ≤ base + spaceBound (prefOps ++ [o]) ∧
-        q_seq.data.regs P.baseReg = base := by
-      intro q_seq hq_seq
+  | cons hstep _ ih =>
+    simpa only [List.append_assoc, List.singleton_append] using ih fun q_seq hq_seq => by
       rw [PMF.mem_support_bind_iff] at hq_seq; obtain ⟨t, ht, hq_map⟩ := hq_seq
       rw [PMF.mem_support_map_iff] at hq_map; obtain ⟨q, hq, rfl⟩ := hq_map
       exact ((hstep t ht).2.2.2.2 q hq).2.1
-    simpa only [List.append_assoc, List.singleton_append] using ih h₁
 
 /-- `ExecSteps` preserves caller memory `[0, base)` across all support states. -/
 theorem ExecSteps.caller_mem {B : Basis} {r_ds k_init : ℕ}
@@ -350,10 +345,8 @@ theorem ExecProgramSteps.transcript_prefix {B : Basis} {r_ds k_init : ℕ}
   | nil _ _ => exact ⟨t, ht, List.prefix_refl _⟩
   | @cons _ o _ ν _ μ_step _ _ _ _ ih =>
     obtain ⟨q, hq⟩ := (μ_step t).support_nonempty
-    have ht' : t.appendStep o q ∈ (ν.bind fun t => (μ_step t).map (t.appendStep o)).support := by
-      rw [PMF.mem_support_bind_iff]
-      exact ⟨t, ht, (PMF.mem_support_map_iff _ _ _).mpr ⟨q, hq, rfl⟩⟩
-    obtain ⟨u, hu, hpref⟩ := ih ht'
+    obtain ⟨u, hu, hpref⟩ := ih (t := t.appendStep o q) <|
+      (PMF.mem_support_bind_iff _ _ _).mpr ⟨t, ht, (PMF.mem_support_map_iff _ _ _).mpr ⟨q, hq, rfl⟩⟩
     exact ⟨u, hu, (List.prefix_append t.transcript [⟨o, q.result⟩]).trans hpref⟩
 
 /-- **`.halt`-rejection soundness check (`not_execProgramSteps_halt`):** a 1-instruction
@@ -383,10 +376,9 @@ theorem not_execProgramSteps_halt {B : Basis} {r_ds k_init : ℕ}
     obtain ⟨_, ⟨hlo, hhi, _⟩, hdec, _⟩ := hq_all q hq
     by_cases hqd : q.data = P.prepare encode o t.data
     · rw [hqd] at hlo hhi hdec
-      have ht' : t.appendStep o q ∈ (ν.bind fun t => (μ_step t).map (t.appendStep o)).support := by
-        rw [PMF.mem_support_bind_iff]
-        exact ⟨t, ht, (PMF.mem_support_map_iff _ _ _).mpr ⟨q, hq, rfl⟩⟩
-      obtain ⟨u, hu, hpref⟩ := hrest.transcript_prefix ht'
+      obtain ⟨u, hu, hpref⟩ := hrest.transcript_prefix (t := t.appendStep o q) <|
+        (PMF.mem_support_bind_iff _ _ _).mpr
+          ⟨t, ht, (PMF.mem_support_map_iff _ _ _).mpr ⟨q, hq, rfl⟩⟩
       exact hbad q.result hdec hlo hhi u hu hpref
     · exact not_execRProgramDist_halt ((PMF.mem_support_map_iff _ _ _).mpr ⟨q, hq, rfl⟩) hqd hprog
 
@@ -539,26 +531,14 @@ theorem seq_expected (C : ObliviousSequenceImpl.{u, v, z} P S w base params)
         C.initTime + (C.initPotential : ℝ≥0∞) + (C.totalCharge ops : ℝ≥0∞) := by
   obtain ⟨ν₀, he_init, hinv, hcaller₀⟩ := C.init_exec hx₀ hfr₀ hpar hfit₀
   obtain ⟨ν_final, T_ops, hex, hcontract, hcost⟩ := C.steps_exec ops ν₀ hv hfit_ops hinv
-  have hbdd₀ : ∀ t ∈ (ν₀.map (SeqROutcome.ofLatentRState (Result := S.Result))).support,
-      t.data.Bounded w := by
-    intro t ht; rw [PMF.mem_support_map_iff] at ht; obtain ⟨u, hu, rfl⟩ := ht
-    exact C.bounded hinv u hu
-  have hfr_init : ∀ t ∈ (ν₀.map (SeqROutcome.ofLatentRState (Result := S.Result))).support,
-      base ≤ t.data.frontier ∧ t.data.frontier ≤ base + C.spaceBound [] ∧
-        t.data.regs P.baseReg = base := by
-    intro t ht; rw [PMF.mem_support_map_iff] at ht; obtain ⟨u, hu, rfl⟩ := ht
-    exact C.frontier_le hinv u hu
-  have hcaller_init : ∀ t ∈ (ν₀.map (SeqROutcome.ofLatentRState (Result := S.Result))).support,
-      ∀ addr < base, t.data.mem addr = x₀.mem addr := by
-    intro t ht; rw [PMF.mem_support_map_iff] at ht; obtain ⟨u, hu, rfl⟩ := ht
-    exact hcaller₀ u hu
-  have hfr_fin := hex.frontier_le hfr_init
-  rw [List.nil_append] at hfr_fin
-  refine ⟨ν₀, ν_final, T_ops, he_init, hcaller₀, hex,
-    fun t ht => ⟨hex.bounded hbdd₀ t ht, hfr_fin t ht, hex.caller_mem hcaller_init t ht⟩,
-    hcontract, ?_⟩
-  rw [add_assoc]
-  exact add_le_add le_rfl hcost
+  have hmap {Q : SeqROutcome C.Latent S.Result r_ds → Prop}
+      (hQ : ∀ u ∈ ν₀.support, Q (.ofLatentRState u)) (t)
+      (ht : t ∈ (ν₀.map SeqROutcome.ofLatentRState).support) : Q t :=
+    ((PMF.mem_support_map_iff _ _ _).mp ht).elim fun u ⟨hu, h⟩ => h ▸ hQ u hu
+  exact ⟨ν₀, ν_final, T_ops, he_init, hcaller₀, hex, fun t ht =>
+    ⟨hex.bounded (hmap (C.bounded hinv)) t ht, hex.frontier_le (hmap (C.frontier_le hinv)) t ht,
+      hex.caller_mem (hmap hcaller₀) t ht⟩,
+    hcontract, by simpa only [add_assoc, totalCharge] using add_le_add le_rfl hcost⟩
 
 /-- **End-to-end compiled flat-`RProgram` expected-time theorem (`seq_toExecRProgramDist`).** -/
 theorem seq_toExecRProgramDist (C : ObliviousSequenceImpl.{u, v, z} P S w base params)
@@ -688,9 +668,8 @@ private theorem steps_toObliviousSequenceImpl (C : StateTransitionImpl P D w bas
   induction hex generalizing prefOps ν with
   | nil _ =>
     refine ⟨ν, .nil (S := D.toObliviousSequenceSpec s₀) prefOps ν, fun t ht => ?_, zero_le⟩
-    obtain ⟨hops, hlbl, htr, _, _⟩ := hsupp t ht
-    rw [List.append_nil]
-    exact ⟨hops, hlbl, htr⟩
+    obtain ⟨hops, hlbl, htr, _⟩ := hsupp t ht
+    exact ⟨by rw [hops, List.append_nil], hlbl, htr⟩
   | @cons o os ν_rel ν_final_rel μ_rel T_rel T_rest C_rest hstep _ ih =>
     subst hproj
     have hmem : ∀ t ∈ ν.support, C.projCoupled t ∈ (ν.map C.projCoupled).support :=
@@ -698,8 +677,7 @@ private theorem steps_toObliviousSequenceImpl (C : StateTransitionImpl P D w bas
     have h_a_nonempty : Nonempty (D.Result o) := by
       obtain ⟨t₀, ht₀⟩ := ν.support_nonempty
       obtain ⟨q₀, hq₀⟩ := (μ_rel (C.projCoupled t₀)).support_nonempty
-      obtain ⟨a₀, _⟩ := (hstep _ (hmem t₀ ht₀)).2 q₀ hq₀
-      exact ⟨a₀⟩
+      exact ((hstep _ (hmem t₀ ht₀)).2 q₀ hq₀).nonempty
     let outOf : CoupledRState C.Seed D.State r_ds → D.Result o :=
       fun q => (C.decode o q.data.regs).getD (Classical.choice h_a_nonempty)
     let liftStep (t : SeqROutcome (TraceRLatent D C.Seed) D.Result r_ds)
@@ -712,11 +690,8 @@ private theorem steps_toObliviousSequenceImpl (C : StateTransitionImpl P D w bas
     let ν₁ : PMF (SeqROutcome (TraceRLatent D C.Seed) D.Result r_ds) :=
       ν.bind fun t => (μ_step t).map (t.appendStep o)
     have hproj₁ : ν₁.map C.projCoupled = (ν.map C.projCoupled).bind μ_rel := by
-      dsimp only [ν₁, μ_step]
-      rw [PMF.map_bind, PMF.bind_map]
-      refine congrArg (ν.bind ·) (funext fun t => ?_)
-      rw [PMF.map_comp, PMF.map_comp]
-      exact PMF.map_id (μ_rel (C.projCoupled t))
+      simp only [ν₁, μ_step, PMF.map_bind, PMF.bind_map, PMF.map_comp]
+      exact congrArg (ν.bind ·) (funext fun t => PMF.map_id (μ_rel (C.projCoupled t)))
     have hsupp₁ : ∀ u ∈ ν₁.support,
         u.latent.trace.ops = prefOps ++ [o] ∧
         u.latent.trace.labels = u.transcript ∧
@@ -724,51 +699,37 @@ private theorem steps_toObliviousSequenceImpl (C : StateTransitionImpl P D w bas
         D.ValidOpSeq u.latent.state os ∧
         C.rep u.latent.seed u.latent.state u.data := by
       intro u hu
-      rw [PMF.mem_support_bind_iff] at hu; obtain ⟨t, ht, hu⟩ := hu
-      rw [PMF.mem_support_map_iff] at hu; obtain ⟨u', hu', rfl⟩ := hu
-      dsimp only [μ_step] at hu'; rw [PMF.mem_support_map_iff] at hu'; obtain ⟨q, hq, rfl⟩ := hu'
+      simp only [ν₁, μ_step, PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at hu
+      obtain ⟨t, ht, _, ⟨q, hq, rfl⟩, rfl⟩ := hu
       obtain ⟨hops_t, hlbl_t, htr_t, hv_t, _⟩ := hsupp t ht
       obtain ⟨a, hstep_a, hdec_a, hrep_q, _⟩ := (hstep _ (hmem t ht)).2 q hq
-      have hout_eq : outOf q = a := by simp [outOf, hdec_a]
       refine ⟨by simp [SeqROutcome.appendStep, liftStep, hops_t],
         by simp [SeqROutcome.appendStep, liftStep, hlbl_t], ?_, hv_t.2 q.state a hstep_a, hrep_q⟩
-      refine htr_t.append ?_
-      rw [hout_eq]; exact .cons ⟨o, a, q.state⟩ hv_t.1 hstep_a (.nil q.state)
+      simpa only [SeqROutcome.appendStep, liftStep, outOf, hdec_a, Option.getD_some] using
+        htr_t.append (.cons ⟨o, a, q.state⟩ hv_t.1 hstep_a (.nil q.state))
     obtain ⟨ν_final, hex_rest, htr_final, hC_rest⟩ := ih (prefOps ++ [o]) ν₁ hproj₁ hsupp₁
-    refine ⟨ν_final, ?_, fun t ht => ?_, ?_⟩
+    refine ⟨ν_final, ?_, fun t ht => (htr_final t ht).imp_left fun h => by simp [h], ?_⟩
     · rw [Cslib.Probability.PMF.tsum_map_mul]
       refine Randomized.ExecSteps.cons (S := D.toObliviousSequenceSpec s₀)
         (μ_step := μ_step) (T_step := fun t => T_rel (C.projCoupled t)) (fun t ht => ?_) hex_rest
       obtain ⟨hops_t, _, htr_t, hv_t, hrep_t⟩ := hsupp t ht
-      have hbdd_t : t.data.Bounded w := C.bounded hrep_t
-      have hfit_t : ∀ i, P.input i = true → Fits w (C.encode o i) := C.arguments_fit o hv_t.1
       obtain ⟨he_rel, hq_rel⟩ := hstep _ (hmem t ht)
-      have hpeak_le :
-          base + C.peakSpaceBound t.latent.state o ≤ base + seqPeakSpaceBound prefOps o := by
-        rw [← hops_t]
-        exact Nat.add_le_add_left (hpeak t.latent.trace t.latent.state o htr_t hv_t.1) base
-      refine ⟨hbdd_t, hfit_t, P.prepare_bounded hbdd_t hfit_t, ?_, ?_⟩
-      · refine (he_rel.mono_peak hpeak_le).congr_dist ?_ le_rfl
-        dsimp only [μ_step]; rw [PMF.map_comp]; rfl
+      have hpeak_le :=
+        Nat.add_le_add_left (hops_t ▸ hpeak t.latent.trace t.latent.state o htr_t hv_t.1) base
+      refine ⟨C.bounded hrep_t, C.arguments_fit o hv_t.1,
+        P.prepare_bounded (C.bounded hrep_t) (C.arguments_fit o hv_t.1), ?_, ?_⟩
+      · exact (he_rel.mono_peak hpeak_le).congr_dist
+          (PMF.map_comp (liftStep t) (μ_rel (C.projCoupled t)) StepROutcome.data).symm le_rfl
       · intro u hu
         dsimp only [μ_step] at hu; rw [PMF.mem_support_map_iff] at hu; obtain ⟨q, hq, rfl⟩ := hu
         obtain ⟨a, hstep_a, hdec_a, hrep_q, hcaller_q⟩ := hq_rel q hq
-        have hout_eq : outOf q = a := by simp [outOf, hdec_a]
         obtain ⟨hlo_q, hhi_q, hbase_q⟩ := C.frontier_le hrep_q
-        have htr_q : D.ValidTranscript s₀ (t.latent.trace ++ [⟨o, a, q.state⟩]) q.state :=
-          htr_t.append (.cons ⟨o, a, q.state⟩ hv_t.1 hstep_a (.nil q.state))
-        have hops_q :
-            (t.latent.trace ++ [({ op := o, result := a, nextState := q.state } : D.Step)]).ops =
-              prefOps ++ [o] := by
-          rw [StateTransitionSpec.Transcript.ops_append, hops_t]; rfl
         have hspace_q : C.spaceBound q.state ≤ seqSpaceBound (prefOps ++ [o]) := by
-          rw [← hops_q]; exact hspace _ q.state htr_q
+          simpa [hops_t] using
+            hspace _ q.state (htr_t.append (.cons ⟨o, a, q.state⟩ hv_t.1 hstep_a (.nil q.state)))
         exact ⟨C.bounded hrep_q,
           ⟨hlo_q, hhi_q.trans (Nat.add_le_add_left hspace_q base), hbase_q⟩,
-          by simp [liftStep, hout_eq, hdec_a], hcaller_q⟩
-    · obtain ⟨hops, hlbl, htr⟩ := htr_final t ht
-      rw [List.append_assoc, List.singleton_append] at hops
-      exact ⟨hops, hlbl, htr⟩
+          by simp [liftStep, outOf, hdec_a], hcaller_q⟩
     · rw [List.map_cons, List.sum_cons, Nat.cast_add, Cslib.Probability.PMF.tsum_map_mul]
       refine add_le_add (Cslib.Probability.PMF.tsum_mul_le_of_support ν fun t ht => ?_) hC_rest
       exact Nat.cast_le.mpr (hcharge _ o (hsupp t ht).2.2.2.1.1)
@@ -836,8 +797,7 @@ charge `opCharge : D.Op → ℕ`. -/
       exact hseed θ
     · intro _
       refine ⟨s₀, fun t ht => ?_⟩
-      rw [PMF.mem_support_map_iff] at ht; obtain ⟨u, hu, rfl⟩ := ht
-      rw [PMF.mem_support_map_iff] at hu; obtain ⟨_, _, rfl⟩ := hu; rfl
+      simp only [PMF.mem_support_map_iff] at ht; obtain ⟨_, ⟨_, _, rfl⟩, rfl⟩ := ht; rfl
     · intro t ht
       rw [PMF.mem_support_map_iff] at ht; obtain ⟨p, hp, rfl⟩ := ht
       obtain ⟨hrep, hpot, _⟩ := hsupp p hp
@@ -875,10 +835,8 @@ charge `opCharge : D.Op → ℕ`. -/
       exact C.peakFitsOpSeq_of_obliviousPeakFits seqPeakSpaceBound hpeak u.latent.trace
         u.latent.state htr_u hv_u (hops_u ▸ hfit_ops)
     obtain ⟨_, T_ops, C_ops, hex_rel, _, _, hamort⟩ :=
-      C.steps_expected_amortized ops ν_rel
-        (fun t ht => (hsupp_rel t ht).1)
-        (fun t ht => by obtain ⟨_, hf, _⟩ := hsupp_rel t ht; exact hf) hseed₀
-        (fun t ht => by obtain ⟨_, _, hr⟩ := hsupp_rel t ht; exact hr) hsingle₀
+      C.steps_expected_amortized ops ν_rel (fun t ht => (hsupp_rel t ht).1)
+        (fun t ht => (hsupp_rel t ht).2.1) hseed₀ (fun t ht => (hsupp_rel t ht).2.2) hsingle₀
     obtain ⟨ν_final, hex, htr_final, hC_ops⟩ :=
       C.steps_toObliviousSequenceImpl seqSpaceBound seqPeakSpaceBound opCharge hspace hpeak hcharge
         hex_rel [] ν_seq hproj_eq hsupp_seq
@@ -891,8 +849,7 @@ charge `opCharge : D.Op → ℕ`. -/
     · intro out hout
       rw [PMF.mem_support_map_iff] at hout; obtain ⟨q, hq, rfl⟩ := hout
       obtain ⟨hops_q, hlbl_q, htr_q⟩ := htr_final q hq
-      rw [List.nil_append] at hops_q
-      exact ⟨q.latent.trace, q.latent.state, hops_q, hlbl_q, htr_q⟩
+      exact ⟨q.latent.trace, q.latent.state, by simpa using hops_q, hlbl_q, htr_q⟩
     · rw [add_comm]
       exact le_self_add.trans (hamort.trans (add_le_add hC_ops hpot₀))
 

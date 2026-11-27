@@ -71,29 +71,24 @@ theorem not_dvd_choose_of_prime_dvd {n q : ℕ} (hq : q.Prime) (hqn : q ∣ n) (
   rintro ⟨m, hm⟩
   have hq1 : 1 ≤ q := hq.one_lt.le
   obtain ⟨k, rfl⟩ := hqn
-  have hk : 1 ≤ k := by
-    rcases Nat.eq_zero_or_pos k with rfl | hk
-    · simp at hlt
-    · exact hk
+  have hk : 1 ≤ k := Nat.pos_of_ne_zero fun h0 => by simp [h0] at hlt
   -- `n · C(n - 1, q - 1) = C(n, q) · q`.
   have hid := Nat.add_one_mul_choose_eq (q * k - 1) (q - 1)
   rw [Nat.sub_add_cancel (Nat.one_le_iff_ne_zero.mpr (Nat.mul_ne_zero hq.ne_zero (by omega))),
-    Nat.sub_add_cancel hq1, hm] at hid
+    Nat.sub_add_cancel hq.one_lt.le, hm] at hid
   -- Hence `C(n - 1, q - 1) = m q`.
-  have hdiv : q ∣ (q * k - 1).choose (q - 1) := by
-    refine ⟨m, Nat.eq_of_mul_eq_mul_left (Nat.mul_pos hq.pos (by omega : 0 < k)) ?_⟩
-    rw [hid]
-    ring
+  have hdiv : q ∣ (q * k - 1).choose (q - 1) :=
+    ⟨m, Nat.eq_of_mul_eq_mul_left (Nat.mul_pos hq.pos hk) (by rw [hid]; ring)⟩
   -- But Lucas's theorem gives `C(n - 1, q - 1) ≡ 1 (mod q)`.
   have := Fact.mk hq
   have hlucas := Choose.choose_modEq_choose_mod_mul_choose_div_nat (n := q * k - 1) (k := q - 1)
     (p := q)
   have hmod : (q * k - 1) % q = q - 1 := by
-    have : q * k - 1 = (q - 1) + q * (k - 1) := by
+    have : q ≤ q * k := Nat.le_mul_of_pos_right q hk
+    have hqk : q * k - 1 = (q - 1) + q * (k - 1) := by
       rw [Nat.mul_sub, mul_one]
-      have : q ≤ q * k := Nat.le_mul_of_pos_right q hk
       omega
-    rw [this, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (by omega)]
+    rw [hqk, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (by omega)]
   rw [hmod, Nat.mod_eq_of_lt (by omega : q - 1 < q), Nat.div_eq_of_lt (by omega : q - 1 < q),
     Nat.choose_self, Nat.choose_zero_right, mul_one] at hlucas
   have h1 := (Nat.modEq_zero_iff_dvd.mpr hdiv).symm.trans hlucas
@@ -111,16 +106,13 @@ prime factor `q < n`, the coefficient `a^{n - q} C(n, q)` of `X^q` would vanish.
 theorem prime_of_add_pow_eq {n : ℕ} (hn : 2 ≤ n) {a : ZMod n} (ha : IsUnit a)
     (h : (X + C a) ^ n = X ^ n + C a) : n.Prime := by
   by_contra hnp
-  set q := n.minFac
-  have hq : q.Prime := Nat.minFac_prime (by omega)
-  have hqlt : q < n := (Nat.not_prime_iff_minFac_lt hn).mp hnp
-  have hcoeff := congrArg (fun f => f.coeff q) h
+  have hq : n.minFac.Prime := Nat.minFac_prime (by omega)
+  have hqlt : n.minFac < n := (Nat.not_prime_iff_minFac_lt hn).mp hnp
+  have hcoeff := congrArg (fun f => f.coeff n.minFac) h
   simp only [coeff_X_add_C_pow, coeff_add, coeff_X_pow, coeff_C, hqlt.ne, hq.ne_zero,
     ite_false, add_zero] at hcoeff
-  have hchoose : ((n.choose q : ℕ) : ZMod n) = 0 :=
-    (ha.pow (n - q)).mul_right_eq_zero.mp hcoeff
   exact not_dvd_choose_of_prime_dvd hq (Nat.minFac_dvd n) hqlt
-    ((ZMod.natCast_eq_zero_iff _ _).mp hchoose)
+    ((ZMod.natCast_eq_zero_iff _ _).mp ((ha.pow _).mul_right_eq_zero.mp hcoeff))
 
 /-- **The AKS identity** [Agrawal, Kayal, Saxena, Lemma 2.1][AKS2004]: for `n ≥ 2` and a unit `a`
 of `ℤ / n`, `n` is prime exactly when `(X + a)^n = X^n + a` in `(ℤ / n)[X]`. -/
@@ -169,12 +161,10 @@ theorem congruence_of_prime {p : ℕ} (hp : p.Prime) (r a : ℕ) : Congruence p 
 
 /-- **Every prime passes the AKS tests**, for every `r` and every bound `A` on the tested `a`:
 the easy direction of [Agrawal, Kayal, Saxena, Theorem 4.1][AKS2004]. -/
-theorem passesUpTo_of_prime {p : ℕ} (hp : p.Prime) (r A : ℕ) : PassesUpTo p r A := by
-  refine ⟨not_isPerfectPower_of_prime hp, fun a _ _ => ?_, Or.inr fun a _ _ =>
-    congruence_of_prime hp r a⟩
-  rcases (Nat.coprime_or_dvd_of_prime hp a) with h | h
-  · exact Or.inl (Nat.Coprime.symm h)
-  · exact Or.inr (Nat.gcd_eq_right h)
+theorem passesUpTo_of_prime {p : ℕ} (hp : p.Prime) (r A : ℕ) : PassesUpTo p r A :=
+  ⟨not_isPerfectPower_of_prime hp,
+    fun a _ _ => (Nat.coprime_or_dvd_of_prime hp a).imp Nat.Coprime.symm Nat.gcd_eq_right,
+    Or.inr fun a _ _ => congruence_of_prime hp r a⟩
 
 /-- **Every prime passes the AKS tests**, for every `r`: the easy direction of
 [Agrawal, Kayal, Saxena, Theorem 4.1][AKS2004]. -/

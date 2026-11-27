@@ -67,15 +67,11 @@ theorem constructed_power_family :
   obtain ⟨hA, hB⟩ := depth_nine_seed_gap M hM
   obtain ⟨hα, hall, hlim⟩ := power_amplification f hf (22 * M ^ 10)
     (M ^ 2 * (2 * M ^ 2 + 1) ^ 9) hs hb hA hB
-  refine ⟨_, hα, _, (fun m => iterateFin f m), ?_, hlim⟩
-  intro m
+  refine ⟨_, hα, _, fun m => iterateFin f m, fun m => ?_, hlim⟩
   obtain ⟨hn, hzero, hnc, hpow, hratio⟩ := hall m
-  refine ⟨hn, hzero, hnc, hpow, ?_⟩
-  apply le_trans _ hratio
-  apply pow_le_pow_left₀ (by norm_num)
-  have hMr : (0 : ℝ) < M := by exact_mod_cast hM
-  simpa only [Nat.cast_mul, Nat.cast_pow, Nat.cast_add, Nat.cast_ofNat, Nat.cast_one]
-    using depth_nine_seed_ratio hMr
+  refine ⟨hn, hzero, hnc, hpow, (pow_le_pow_left₀ (by norm_num) ?_ m).trans hratio⟩
+  simpa only [Nat.cast_mul, Nat.cast_pow, Nat.cast_add, Nat.cast_ofNat, Nat.cast_one] using
+    depth_nine_seed_ratio (Nat.cast_pos.mpr hM)
 
 end Internal
 

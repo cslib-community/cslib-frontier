@@ -37,15 +37,9 @@ theorem dyadicResidueNumerator_eq (s : Finset ℕ) (B : ℕ) (c : ℕ → ℕ) :
         congr 1
         simp only [Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat, mul_div_assoc]
       _ = _ := by rw [Rat.floor_natCast_div_natCast, Int.ofNat_ediv_ofNat]
-  have hsum :
-      dyadicSumNumerator B (fun p : s => (c p : ℚ) / (p : ℕ)) =
-        ((∑ p ∈ s, (2 ^ B * c p) / p : ℕ) : ℤ) := by
-    simp only [dyadicSumNumerator, hfloor]
-    rw [Finset.sum_coe_sort s (fun p : ℕ => (((2 ^ B * c p) / p : ℕ) : ℤ)),
-      Nat.cast_sum]
-  simp only [crtCircleApprox, dyadicCircleApprox, Int.cast_natCast, hsum,
-    dyadicResidueNumerator]
-  rw [show (2 : ℤ) ^ B = ((2 ^ B : ℕ) : ℤ) by norm_cast,
-    ← Int.natCast_emod, Int.cast_natCast]
+  have hpow : (2 : ℤ) ^ B = ((2 ^ B : ℕ) : ℤ) := by norm_cast
+  simp only [crtCircleApprox, dyadicCircleApprox, dyadicSumNumerator, hfloor,
+    Finset.sum_coe_sort s (fun p : ℕ => (((2 ^ B * c p) / p : ℕ) : ℤ)), ← Nat.cast_sum, hpow,
+    ← Int.natCast_emod, Int.cast_natCast, dyadicResidueNumerator]
 
 end Cslib

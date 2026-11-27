@@ -188,11 +188,9 @@ theorem decide_ne_pair_and_verify_eq [DecidableEq M] [DecidableEq Y]
     (decide (p ≠ (m, sign hash k r m)) && verify hash k r p.1 p.2) =
       (decide (p.1 ≠ m) && verify hash k r p.1 p.2) := by
   rcases p with ⟨m', t'⟩
-  by_cases hv : verify hash k r m' t' = true
-  · have ht : t' = sign hash k r m' := eq_sign_of_verify_eq_true hv
-    subst ht
-    by_cases hm : m' = m <;> simp [hm, hv]
-  · simp [Bool.eq_false_iff.mpr hv]
+  cases hv : verify hash k r m' t'
+  · simp
+  · simp +contextual [eq_sign_of_verify_eq_true hv]
 
 /-- For a uniform pad `r ← PMF.uniformOfFintype Y`, the tag `sign hash k r m` is uniformly
 distributed on `Y` for every `k` and `m`. -/
@@ -282,11 +280,8 @@ theorem oneTimeStrongGame_eq_oneTimeGame (seed : PMF K) (hash : K → M → Y)
     (forger : OneTimeForger M Y) :
     oneTimeStrongGame seed hash forger = oneTimeGame seed hash forger := by
   simp only [oneTimeStrongGame, oneTimeForgeExperiment, oneTimeGame, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.bind_map, Function.comp_def, PMF.pure_bind]
-  congr 1 with k : 1; congr 1 with r : 1; congr 1 with m : 1; congr 1 with p : 1
-  rcases p with ⟨m', t'⟩
-  simp only [freshPair, List.mem_singleton]
-  rw [decide_ne_pair_and_verify_eq]
+    PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.bind_map, Function.comp_def, PMF.pure_bind,
+    freshPair, List.mem_singleton, decide_ne_pair_and_verify_eq]
 
 /-- The queried message `m`, uniform tag `t`, and candidate forgery `p = (m', t')` can be sampled
 independently of the hash key `k`, which is drawn last to test
@@ -494,9 +489,7 @@ noncomputable def counterStrongGame (seed : PMF K) (hash : K → M → Y)
 theorem counterStrongGame_eq_counterSlotGame (seed : PMF K) (hash : K → M → Y)
     (forger : CounterForger M Y) :
     counterStrongGame seed hash forger = counterSlotGame seed hash forger := by
-  dsimp only [counterStrongGame, counterSlotGame, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  congr 1 with k : 1; congr 1 with s : 1; congr 1 with res : 1
-  rw [checkCounterSUF_eq_checkCounterSlot]
+  simp only [counterStrongGame, counterSlotGame, checkCounterSUF_eq_checkCounterSlot]
 
 /-- Issued-counter global-message-freshness EUF-CMA success probability is at most issued-slot
 EUF-CMA success probability. -/
@@ -592,10 +585,7 @@ theorem maskedOneTimeStrongGame_eq_maskedOneTimeGame (seed : PMF K) (padDist : P
     (hash : K → M → Y) (forger : OneTimeForger M Y) :
     maskedOneTimeStrongGame seed padDist hash forger =
       maskedOneTimeGame seed padDist hash forger := by
-  dsimp only [maskedOneTimeStrongGame, maskedOneTimeGame, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure]
-  congr 1 with k : 1; congr 1 with r : 1; congr 1 with m : 1; congr 1 with p : 1
-  rw [decide_ne_pair_and_verify_eq]
+  simp only [maskedOneTimeStrongGame, maskedOneTimeGame, decide_ne_pair_and_verify_eq]
 
 /-- The induced pad distinguisher `Y → PMF Bool` that samples `k ← seed`, simulates the one-time
 Carter–Wegman experiment using the supplied pad `r : Y`, and outputs `true` iff the forger
@@ -628,15 +618,11 @@ theorem maskedOneTimeGame_toReal_le_add_advantage [Fintype Y] [Nonempty Y] {seed
       ε.toReal +
         (Game.advantage (padDist.bind (padDistinguisher seed hash forger))
           ((PMF.uniformOfFintype Y).bind (padDistinguisher seed hash forger)) : ℝ) := by
-  have hunif : (PMF.uniformOfFintype Y).bind (padDistinguisher seed hash forger) =
-      oneTimeGame seed hash forger :=
-    (maskedOneTimeGame_eq_bind_padDistinguisher seed (PMF.uniformOfFintype Y) hash forger).symm
-  have hstep := Game.coe_succProbability_le_add_of_advantage_le
-    (g₀ := padDist.bind (padDistinguisher seed hash forger))
-    (g₁ := (PMF.uniformOfFintype Y).bind (padDistinguisher seed hash forger)) le_rfl
-  rw [Game.coe_succProbability, Game.coe_succProbability] at hstep
-  rw [maskedOneTimeGame_eq_bind_padDistinguisher]
-  exact hstep.trans (add_le_add (hunif ▸ ENNReal.toReal_mono hε (oneTimeGame_le hh forger)) le_rfl)
+  rw [maskedOneTimeGame_eq_bind_padDistinguisher, ← Game.coe_succProbability]
+  refine (Game.coe_succProbability_le_add_of_advantage_le le_rfl).trans (add_le_add ?_ le_rfl)
+  rw [Game.coe_succProbability, ← maskedOneTimeGame_eq_bind_padDistinguisher,
+    maskedOneTimeGame_uniform]
+  exact ENNReal.toReal_mono hε (oneTimeGame_le hh forger)
 
 /-- **Pseudorandom-pad Carter–Wegman bound** (after [BonehShoup2023], Section 7.4):
 if `hash` is `ε`-almost-Δ-universal (`ε ≠ ⊤`), then the real-valued forgery probability under any
@@ -780,9 +766,7 @@ theorem prfOneTimeGame_le {n : ℕ} {seed : PMF K} {hash : K → M → BitString
         (Game.advantage
           (ProbComp.eval (prfRealGame id family (prfPadDistinguisher test) n))
           (ProbComp.eval (prfIdealGame id id (prfPadDistinguisher test) n)) : ℝ) := by
-  have hpad : padDistinguisher seed hash forger = fun r => ProbComp.eval (test n r) :=
-    funext htest
-  rw [eval_prfRealGame_prfPadDistinguisher, eval_prfIdealGame_prfPadDistinguisher, ← hpad]
+  simp only [eval_prfRealGame_prfPadDistinguisher, eval_prfIdealGame_prfPadDistinguisher, ← htest]
   exact maskedOneTimeGame_toReal_le_add_advantage hh hε (prfPadDist family n) forger
 
 /-- **Exact single-query PRF-pad reduction for `ProbComp` samplers and forgers** in the one-query,

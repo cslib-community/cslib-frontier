@@ -136,12 +136,9 @@ theorem Clause.eval_resolvent {σ : V → Bool} {c₁ c₂ : Clause V} (v : V)
 theorem Clause.relabel_resolvent {W : Type*} [DecidableEq W] {f : V → W}
     (hf : Function.Injective f) (c₁ c₂ : Clause V) (v : V) :
     (c₁.resolvent c₂ v).relabel f = (c₁.relabel f).resolvent (c₂.relabel f) (f v) := by
-  have key : ∀ b : Bool, ∀ l : Literal V, (Prod.map f id l ≠ (f v, b)) ↔ (l ≠ (v, b)) :=
-    fun b ⟨u, a⟩ => by simp [hf.eq_iff]
   simp only [resolvent, relabel, List.map_append, List.filter_map]
-  congr 2 <;> exact List.filter_congr fun l _ => by
-    simp only [Function.comp_apply, decide_eq_decide]
-    exact (key _ l).symm
+  congr 2 <;> refine List.filter_congr fun ⟨u, a⟩ _ => ?_ <;>
+    simp [Function.comp_apply, hf.eq_iff]
 
 /-! ### Derivations and soundness -/
 
@@ -201,30 +198,27 @@ literals, at most the literal `(v, !b)` falsified by `b`. -/
 theorem exists_of_mem_restrict {c : Clause V} (hc : c ∈ φ.restrict v b) :
     ∃ d ∈ φ, (∀ l ∈ c, l ∈ d) ∧ ∀ l ∈ d, l ∈ c ∨ l = (v, !b) := by
   obtain ⟨d, hd, -, rfl⟩ := mem_restrict.1 hc
-  refine ⟨d, hd, fun l hl => (List.mem_filter.1 hl).1, fun l hl => ?_⟩
-  by_cases hlv : l = (v, !b)
-  · exact Or.inr hlv
-  · exact Or.inl (List.mem_filter.2 ⟨hl, by simpa using hlv⟩)
+  exact ⟨d, hd, fun l hl => (List.mem_filter.1 hl).1, fun l hl =>
+    if hlv : l = (v, !b) then Or.inr hlv else Or.inl (List.mem_filter.2 ⟨hl, by simpa using hlv⟩)⟩
 
 /-- A restricted formula no longer mentions the fixed variable. -/
 theorem fst_ne_of_mem_restrict {c : Clause V} (hc : c ∈ φ.restrict v b) {l : Literal V}
     (hl : l ∈ c) : l.1 ≠ v := by
   obtain ⟨d, -, hvd, rfl⟩ := mem_restrict.1 hc
   obtain ⟨hld, hl⟩ := List.mem_filter.1 hl
-  rintro hlv
   obtain ⟨u, a⟩ := l
-  subst hlv
+  rintro (rfl : u = v)
   cases a <;> cases b <;> simp_all
 
 /-- The variables of a restricted formula are variables of the formula other than the fixed one. -/
 theorem vars_restrict_subset : (φ.restrict v b).vars.toFinset ⊆ φ.vars.toFinset.erase v := by
   intro u hu
-  simp only [List.mem_toFinset, vars, List.mem_map, List.mem_flatten] at hu
-  obtain ⟨l, ⟨c, hc, hl⟩, rfl⟩ := hu
-  refine Finset.mem_erase.2 ⟨fst_ne_of_mem_restrict hc hl, ?_⟩
-  obtain ⟨d, hd, -, rfl⟩ := mem_restrict.1 hc
-  simp only [List.mem_toFinset, vars, List.mem_map, List.mem_flatten]
-  exact ⟨l, ⟨d, hd, (List.mem_filter.1 hl).1⟩, rfl⟩
+  obtain ⟨l, ⟨c, hc, hl⟩, rfl⟩ := by
+    simpa only [List.mem_toFinset, vars, List.mem_map, List.mem_flatten] using hu
+  obtain ⟨d, hd, hvd, rfl⟩ := mem_restrict.1 hc
+  exact Finset.mem_erase.2 ⟨fst_ne_of_mem_restrict (mem_restrict.2 ⟨d, hd, hvd, rfl⟩) hl,
+    List.mem_toFinset.2
+      (List.mem_map.2 ⟨l, List.mem_flatten.2 ⟨d, hd, (List.mem_filter.1 hl).1⟩, rfl⟩)⟩
 
 /-- If `σ` satisfies the restricted formula, then `σ` with `v` set to `b` satisfies the formula. -/
 theorem eval_update_of_eval_restrict {σ : V → Bool} (h : (φ.restrict v b).eval σ = true) :
@@ -233,12 +227,10 @@ theorem eval_update_of_eval_restrict {σ : V → Bool} (h : (φ.restrict v b).ev
   intro d hd
   by_cases hvd : (v, b) ∈ d
   · exact (Clause.eval_eq_true_iff _ _).2 ⟨_, hvd, by simp⟩
-  · have hc := h _ (mem_restrict.2 ⟨d, hd, hvd, rfl⟩)
-    obtain ⟨l, hl, he⟩ := (Clause.eval_eq_true_iff _ _).1 hc
-    refine (Clause.eval_eq_true_iff _ _).2 ⟨l, (List.mem_filter.1 hl).1, ?_⟩
-    have hlv := fst_ne_of_mem_restrict (mem_restrict.2 ⟨d, hd, hvd, rfl⟩) hl
-    obtain ⟨u, a⟩ := l
-    simpa [Function.update_of_ne hlv] using he
+  · have hmem := mem_restrict.2 ⟨d, hd, hvd, rfl⟩
+    obtain ⟨⟨u, a⟩, hl, he⟩ := (Clause.eval_eq_true_iff _ _).1 (h _ hmem)
+    exact (Clause.eval_eq_true_iff _ _).2 ⟨(u, a), (List.mem_filter.1 hl).1,
+      by simpa [Function.update_of_ne (fst_ne_of_mem_restrict hmem hl)] using he⟩
 
 /-- Fixing a variable of an unsatisfiable formula leaves an unsatisfiable formula. -/
 theorem not_satisfiable_restrict (h : ¬ φ.Satisfiable) : ¬ (φ.restrict v b).Satisfiable :=
@@ -286,14 +278,11 @@ theorem derives_nil_of_not_satisfiable {φ : CNF V} (h : ¬ φ.Satisfiable) : φ
   by_cases hv₀ : (v, true) ∈ d₀
   · by_cases hv₁ : (v, false) ∈ d₁
     · convert Derives.resolvent v hd₀ hd₁ hv₀ hv₁ using 1
-      refine (List.eq_nil_iff_forall_not_mem.2 fun l hl => ?_).symm
-      rcases Clause.mem_resolvent.1 hl with ⟨hl, hne⟩ | ⟨hl, hne⟩
-      · exact hne (h₀' l hl)
-      · exact hne (h₁' l hl)
-    · convert hd₁ using 1
-      exact (List.eq_nil_iff_forall_not_mem.2 fun l hl => hv₁ (h₁' l hl ▸ hl)).symm
-  · convert hd₀ using 1
-    exact (List.eq_nil_iff_forall_not_mem.2 fun l hl => hv₀ (h₀' l hl ▸ hl)).symm
+      exact (List.eq_nil_iff_forall_not_mem.2 fun l hl =>
+        (Clause.mem_resolvent.1 hl).elim (fun h => h.2 (h₀' l h.1))
+          (fun h => h.2 (h₁' l h.1))).symm
+    · rwa [List.eq_nil_iff_forall_not_mem.2 fun l hl => hv₁ (h₁' l hl ▸ hl)] at hd₁
+  · rwa [List.eq_nil_iff_forall_not_mem.2 fun l hl => hv₀ (h₀' l hl ▸ hl)] at hd₀
 termination_by φ.vars.toFinset.card
 decreasing_by all_goals exact hlt _
 

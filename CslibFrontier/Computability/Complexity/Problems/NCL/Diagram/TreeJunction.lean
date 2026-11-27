@@ -59,12 +59,9 @@ theorem reverse_middle {n : ℕ} (β : Fin n ⊕ Fin 1 → Bool) (c : Bool) :
     reverse (put β c) middle = put β (!c) := by
   funext y
   rcases y with i | ((e | i) | i)
-  · simp [reverse, put, middle]
-  · exact e.elim
-  · have hi : i = 0 := Fin.eq_zero i
-    subst i
-    simp [reverse, put, middle]
-  · simp [reverse, put, middle]
+  all_goals try exact e.elim
+  all_goals try cases Fin.eq_zero i
+  all_goals simp [reverse, put, middle]
 
 /-- Reversing one boundary wire retains the intermediate value. -/
 theorem reverse_boundary {n : ℕ} (β : Fin n ⊕ Fin 1 → Bool) (c : Bool)
@@ -110,12 +107,9 @@ theorem positive_lift {n : ℕ} {V : Type*} (G : ConstraintGraph V (Edge n))
     ∃ u, G.ReachableOn allowed (put β (active β)) u ∧ G.Legal (reverse u (ι x)) ∧
       G.ReachableOn allowed (reverse u (ι x)) (put (reverse β x) (active (reverse β x))) := by
   refine ⟨put β (active β), .refl, ?_⟩
-  refine Eq.mpr (congrArg (fun u => G.Legal u ∧
-    G.ReachableOn allowed u (put (reverse β x) (active (reverse β x))))
-      (hreverse β (active β) x)) ?_
+  rw [hreverse]
   rcases x with i | j
-  · have hi := hinput β i _hx hβ
-    exact ⟨hi, reachable_put G allowed hm _ _ _ hi (hcanon _ hγ)⟩
+  · exact ⟨hinput β i _hx hβ, reachable_put G allowed hm _ _ _ (hinput β i _hx hβ) (hcanon _ hγ)⟩
   · rw [houtput β j]
     exact ⟨hcanon _ hγ, .refl⟩
 

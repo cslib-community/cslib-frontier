@@ -33,14 +33,9 @@ theorem vertex_incidenceDart_eq_iff {Rel V : Type} [DecidableEq V] {F : CSP Rel 
   have hp := incidenceGraph_bipartite (List.getElem_mem (incidenceEdgeIndex_lt p))
   rw [getElem_incidenceEdgeIndex] at ho hp
   rw [vertex_incidenceDart, vertex_incidenceDart]
-  cases side <;> cases other
-  · simp only [Bool.false_eq_true, ite_false, true_and]
-    exact List.idxOf_inj (CSP.mem_distinctVars.mpr o.var_mem)
-  · simp only [Bool.false_eq_true, ite_false, ite_true, false_and, iff_false]
-    omega
-  · simp only [Bool.false_eq_true, ite_false, ite_true, Bool.true_eq_false, false_and, iff_false]
-    omega
-  · simp only [ite_true, true_and, Fin.ext_iff]
-    omega
+  cases side <;> cases other <;> simp only [Bool.false_eq_true, Bool.true_eq_false,
+    ite_false, ite_true, true_and, false_and, iff_false, Fin.ext_iff]
+  · exact List.idxOf_inj (CSP.mem_distinctVars.mpr o.var_mem)
+  all_goals omega
 
 end Cslib.Complexity.CSP

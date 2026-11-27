@@ -99,19 +99,16 @@ private theorem simHashG_gCache_subset {sc : ProbComp R} {m : M} {st : SimState 
     {z : R × SimState M R CT K} (hz : z ∈ (ProbComp.eval (simHashG sc m st)).support) :
     ∀ e ∈ st.gCache, e ∈ z.2.gCache := by
   intro e he
-  rcases mem_support_simHashG hz with ⟨-, h⟩ | ⟨-, -, h⟩ <;> rw [h]
-  · exact he
-  · exact List.mem_cons_of_mem _ he
+  rcases mem_support_simHashG hz with ⟨-, h⟩ | ⟨-, -, h⟩ <;> simp [h, he]
 
 omit [DecidableEq CT] in
 private theorem simHashG_mem_gCache {sc : ProbComp R} {m : M} {st : SimState M R CT K}
     {z : R × SimState M R CT K} (hz : z ∈ (ProbComp.eval (simHashG sc m st)).support) :
     (m, z.1) ∈ z.2.gCache := by
-  rcases mem_support_simHashG hz with ⟨h1, h⟩ | ⟨-, -, h⟩ <;> rw [h]
+  rcases mem_support_simHashG hz with ⟨h1, h⟩ | ⟨-, -, h⟩
   · obtain ⟨l₁, l₂, htable, -⟩ := List.lookup_eq_some_iff.mp h1
-    rw [htable]
-    simp
-  · exact List.mem_cons_self
+    simp [h, htable]
+  · exact h ▸ List.mem_cons_self
 
 /-- Lazy `H(false, m, c)` oracle that reads `H_q(c)` exactly when the coin test `t (G m)` holds. -/
 private def testHashH (S : Scheme PK SK M R CT K) (m : M) (c : CT) (t : R → Prop)
@@ -150,10 +147,8 @@ private theorem eval_testHashH (S : Scheme PK SK M R CT K) (m : M) (c : CT) (t :
     ProbComp.eval (S.testHashH m c t st) =
       (ProbComp.eval (simHashG S.pke.sampleCoins m st)).bind fun z =>
         ProbComp.eval ((if t z.1 then simHashHq S.sampleKey c
-          else simHashHRaw S.sampleKey (false, m, c)) z.2) := by
-  change ProbComp.eval (simHashG S.pke.sampleCoins m st >>= fun z =>
-    (if t z.1 then simHashHq S.sampleKey c else simHashHRaw S.sampleKey (false, m, c)) z.2) = _
-  rw [ProbComp.eval_bind]
+          else simHashHRaw S.sampleKey (false, m, c)) z.2) :=
+  ProbComp.eval_bind (simHashG S.pke.sampleCoins m st) _
 
 /-- The `H_q`/raw continuation of `testHashH` leaves `gCache` unchanged. -/
 private theorem testCont_gCache_eq (S : Scheme PK SK M R CT K) (m : M) (c : CT) (p : Prop)
@@ -162,15 +157,13 @@ private theorem testCont_gCache_eq (S : Scheme PK SK M R CT K) (m : M) (c : CT) 
       else simHashHRaw S.sampleKey (false, m, c)) st)).support) :
     x.2.gCache = st.gCache := by
   split_ifs at hx
-  · exact simHashHq_gCache_eq _ _ _ _ hx
-  · exact simHashHRaw_gCache_eq _ _ _ _ hx
+  exacts [simHashHq_gCache_eq _ _ _ _ hx, simHashHRaw_gCache_eq _ _ _ _ hx]
 
 private theorem mem_support_testHashH (S : Scheme PK SK M R CT K) (m : M) (c : CT)
     (t : R → Prop) [DecidablePred t] (st : SimState M R CT K) (x : K × SimState M R CT K)
     (hx : x ∈ (ProbComp.eval (S.testHashH m c t st)).support) :
     ∃ z ∈ (ProbComp.eval (simHashG S.pke.sampleCoins m st)).support, x.2.gCache = z.2.gCache := by
-  rw [eval_testHashH, PMF.mem_support_bind_iff] at hx
-  obtain ⟨z, hz, hx⟩ := hx
+  obtain ⟨z, hz, hx⟩ := (PMF.mem_support_bind_iff _ _ _).mp (eval_testHashH S m c t st ▸ hx)
   exact ⟨z, hz, testCont_gCache_eq S m c _ z.2 x hx⟩
 
 /-- On a final state whose cache is good, `testHashH` does not depend on how the coin test treats
@@ -184,15 +177,11 @@ private theorem eval_testHashH_apply_congr (S : Scheme PK SK M R CT K) (pk : PK)
   refine tsum_congr fun z => ?_
   by_cases hz : z ∈ (ProbComp.eval (simHashG S.pke.sampleCoins m st)).support
   · by_cases hgz : GoodCache S.pke pk sk z.2
-    · have hiff := ht z.1 (hgz _ (simHashG_mem_gCache hz))
-      by_cases h1 : t₁ z.1
-      · simp only [h1, hiff.mp h1, ↓reduceIte]
-      · simp only [h1, (not_congr hiff).mp h1, ↓reduceIte]
-    · have h0 (p : Prop) [Decidable p] :
-          ProbComp.eval ((if p then simHashHq S.sampleKey c
-            else simHashHRaw S.sampleKey (false, m, c)) z.2) y = 0 := by
-        refine (PMF.apply_eq_zero_iff _ _).mpr fun hmem => hgz ?_
-        exact hy.of_subset fun e he => by rwa [testCont_gCache_eq S m c p z.2 y hmem]
+    · simp only [ht z.1 (hgz _ (simHashG_mem_gCache hz))]
+    · have h0 (p : Prop) [Decidable p] : ProbComp.eval ((if p then simHashHq S.sampleKey c
+          else simHashHRaw S.sampleKey (false, m, c)) z.2) y = 0 :=
+        (PMF.apply_eq_zero_iff _ _).mpr fun hmem =>
+          hgz (hy.of_subset fun e he => testCont_gCache_eq S m c p z.2 y hmem ▸ he)
       rw [h0, h0]
   · rw [(PMF.apply_eq_zero_iff _ _).mpr hz, zero_mul, zero_mul]
 
@@ -202,8 +191,7 @@ private theorem toOuterMeasure_notGood_eq_zero {P : ExplicitCoinPKE PK SK M R CT
     {μ : PMF (α × SimState M R CT K)} (h : ∀ x ∈ μ.support, ∀ e ∈ x.2.gCache, e ∈ st.gCache) :
     μ.toOuterMeasure {x | ¬GoodCache P pk sk x.2} = 0 := by
   rw [PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
-  intro x hx hbad
-  exact hbad (hs.of_subset (h x hx))
+  exact fun x hx hbad => hbad (hs.of_subset (h x hx))
 
 omit [DecidableEq CT] in
 /-- From a good cache, one lazy `G` query reaches a bad cache with probability at most the
@@ -230,11 +218,7 @@ private theorem simHashG_bad_le (P : ExplicitCoinPKE PK SK M R CT) (pk : PK) (sk
           rcases mem_support_simHashG hz with ⟨h1, -⟩ | ⟨-, -, h2⟩
           · rw [h] at h1; cases h1
           · intro hdec
-            refine hbad fun e he => ?_
-            rw [h2] at he
-            rcases List.mem_cons.mp he with rfl | he
-            · exact hdec
-            · exact hs e he
+            exact hbad (h2.symm ▸ List.forall_mem_cons.mpr ⟨hdec, hs⟩)
       _ = _ := by
           rw [← PMF.toOuterMeasure_map_apply, hmarg, ExplicitCoinPKE.msgFailProb,
             ENNReal.ofReal_toReal (Probability.PMF.toOuterMeasure_ne_top _ _)]
@@ -267,13 +251,9 @@ private theorem testHandler_gCache_subset (S : Scheme PK SK M R CT K)
   rcases q with m | ⟨_ | _, m, c⟩ | c
   · exact simHashG_gCache_subset hx
   · obtain ⟨z, hz, heq⟩ := mem_support_testHashH S m c _ st x hx
-    intro e he
-    rw [heq]
-    exact simHashG_gCache_subset hz e he
-  · intro e he
-    rwa [simHashHRaw_gCache_eq _ _ _ _ hx]
-  · intro e he
-    rwa [testHandler_decaps_gCache_eq S d cStar t c st x hx]
+    exact heq ▸ simHashG_gCache_subset hz
+  · exact fun e he => simHashHRaw_gCache_eq _ _ _ _ hx ▸ he
+  · exact fun e he => testHandler_decaps_gCache_eq S d cStar t c st x hx ▸ he
 
 private theorem testHandler_bad_le [Fintype M] [Nonempty M] (S : Scheme PK SK M R CT K)
     (d : List (M × R) → CT → Bool) (pk : PK)
@@ -329,7 +309,7 @@ private theorem testHandler_run_bad_le [Fintype M] [Nonempty M] (S : Scheme PK S
         (fun q st => ProbComp.eval (S.testHandler d cStar t q st)) prog).run st).toOuterMeasure
         {x | ¬GoodCache S.pke pk sk x.2} ≤
       k * ENNReal.ofReal (S.pke.keyPairMaxFailProb pk sk) := by
-  have h := OracleComp.toOuterMeasure_bad_le_two
+  simpa only [mul_zero, add_zero, Nat.cast_zero] using OracleComp.toOuterMeasure_bad_le_two
     (handler := fun q st => ProbComp.eval (S.testHandler d cStar t q st))
     (bad := fun st => ¬GoodCache S.pke pk sk st) ROQuery.ghCost (fun _ => 0)
     (fun _ => ENNReal.ofReal (S.pke.keyPairMaxFailProb pk sk)) 0 0 0
@@ -338,7 +318,6 @@ private theorem testHandler_run_bad_le [Fintype M] [Nonempty M] (S : Scheme PK S
         testHandler_bad_le S d pk sk cStar t q (of_not_not hs))
     (fun _ _ _ _ _ _ => by simp) hk
     (OracleComp.IsCostBounded.of_forall_cost_eq_zero (fun _ => rfl) prog) (not_not.mpr hs)
-  simpa only [mul_zero, add_zero, Nat.cast_zero] using h
 
 /-- **The coupled and keyless handlers agree until a cached coin fails to decrypt.** Run from a
 state whose cached coins all decrypt correctly, and post-processed by any `next`, a program making
@@ -361,10 +340,9 @@ theorem closeTo_run_coupledFilterHandler_simFilterHandler [Fintype M] [Nonempty 
           next)
       (k * ENNReal.ofReal (S.pke.keyPairMaxFailProb pk sk)) := by
   rw [coupledFilterHandler_eq, simFilterHandler_eq]
-  refine ((identicalUntilBad_testHandler S pk sk cStar d₁ d₂ _ _ hd ?_).closeTo_bind
-    prog st next).mono (testHandler_run_bad_le S d₁ pk sk cStar _ hk hs)
-  intro m c r hdec
-  exact ⟨fun h => h.1, fun h => ⟨h, h ▸ hdec⟩⟩
+  exact ((identicalUntilBad_testHandler S pk sk cStar d₁ d₂ _ _ hd
+    fun m c r hdec => ⟨fun h => h.1, fun h => ⟨h, h ▸ hdec⟩⟩).closeTo_bind prog st next).mono
+    (testHandler_run_bad_le S d₁ pk sk cStar _ hk hs)
 
 private theorem eval_testHashH_of_lookup (S : Scheme PK SK M R CT K) (m : M) (c : CT)
     (t : R → Prop) [DecidablePred t] {st : SimState M R CT K} {r : R}
@@ -382,22 +360,20 @@ private theorem eval_coupledHashH_init (S : Scheme PK SK M R CT K) (pk : PK) (sk
         { gCache := [(m, r)] }) =
       ProbComp.eval ((simHashHq S.sampleKey (S.pke.encDet pk m r)).run
         ({ gCache := [(m, r)] } : SimState M R CT K)) := by
-  change ProbComp.eval (S.testHashH m (S.pke.encDet pk m r) (fun r' =>
-    S.pke.encDet pk m r' = S.pke.encDet pk m r ∧ S.pke.dec sk (S.pke.encDet pk m r) = some m)
-      { gCache := [(m, r)] }) = _
-  rw [eval_testHashH_of_lookup (r := r) _ _ _ _ (by simp),
-    ite_eq_left_of_eq_true _ _ (eq_true ⟨rfl, hr⟩)]
-  rfl
+  simpa [coupledHashH, testHashH, StateT.run, hr] using
+    eval_testHashH_of_lookup S m (S.pke.encDet pk m r)
+      (fun r' => S.pke.encDet pk m r' = S.pke.encDet pk m r ∧
+        S.pke.dec sk (S.pke.encDet pk m r) = some m)
+      (st := { gCache := [(m, r)] }) (r := r) (by simp)
 
 private theorem eval_simHashH_init (S : Scheme PK SK M R CT K) (pk : PK) (m : M) (r : R) :
     ProbComp.eval ((S.simHashH pk (false, m, S.pke.encDet pk m r)).run
         { gCache := [(m, r)] }) =
       ProbComp.eval ((simHashHq S.sampleKey (S.pke.encDet pk m r)).run
         ({ gCache := [(m, r)] } : SimState M R CT K)) := by
-  change ProbComp.eval (S.testHashH m (S.pke.encDet pk m r) (fun r' =>
-    S.pke.encDet pk m r' = S.pke.encDet pk m r) { gCache := [(m, r)] }) = _
-  rw [eval_testHashH_of_lookup (r := r) _ _ _ _ (by simp), ite_eq_left_of_eq_true _ _ (eq_true rfl)]
-  rfl
+  simpa [simHashH, testHashH, StateT.run] using eval_testHashH_of_lookup S m (S.pke.encDet pk m r)
+    (fun r' => S.pke.encDet pk m r' = S.pke.encDet pk m r) (st := { gCache := [(m, r)] })
+    (r := r) (by simp)
 
 /-- **Filtered correctness hop**: for an adversary making at most `qG` queries to `G` and `qH`
 queries to `H` against a `δ`-correct PKE, when the decapsulation filters `d₁` and `d₂` agree on
@@ -413,82 +389,54 @@ theorem advantage_coupledFilterGame_simFilterGame_le [Fintype M] [Nonempty M]
     (Game.advantage (ProbComp.eval (S.coupledFilterGame d₁ A b))
         (ProbComp.eval (S.simFilterGame d₂ A b)) : ℝ) ≤
       ((qG + qH + 1 : ℕ) : ℝ) * δ := by
-  let real : PK → SK → PMF Bool := fun pk sk => ProbComp.eval do
+  let gameAt (pk : PK) (hH : Bool × M × CT → StateT (SimState M R CT K) ProbComp K)
+      (hdl : CT → (q : ROQuery M CT) → StateT (SimState M R CT K) ProbComp (ROResp R K q)) :
+      ProbComp Bool := do
     let mStar ← S.sampleMsg
     let rStar ← S.pke.sampleCoins
     let cStar := S.pke.encDet pk mStar rStar
-    let (kReal, st₀) ← (S.coupledHashH pk sk (false, mStar, cStar)).run
-      { gCache := [(mStar, rStar)] }
+    let (kReal, st₀) ← (hH (false, mStar, cStar)).run { gCache := [(mStar, rStar)] }
     let kRand ← S.sampleKey
-    let (guess, _) ← (OracleComp.interpret
-      (S.coupledFilterHandler (d₁ pk sk) pk sk cStar)
+    let (guess, _) ← (OracleComp.interpret (hdl cStar)
       (A ⟨pk, cStar, if b then kRand else kReal⟩)).run st₀
     return guess
-  let simulated : PK → SK → PMF Bool := fun pk _ => ProbComp.eval do
-    let mStar ← S.sampleMsg
-    let rStar ← S.pke.sampleCoins
-    let cStar := S.pke.encDet pk mStar rStar
-    let (kReal, st₀) ← (S.simHashH pk (false, mStar, cStar)).run
-      { gCache := [(mStar, rStar)] }
-    let kRand ← S.sampleKey
-    let (guess, _) ← (OracleComp.interpret (S.simFilterHandler (d₂ pk) pk cStar)
-      (A ⟨pk, cStar, if b then kRand else kReal⟩)).run st₀
-    return guess
-  have hreal : ProbComp.eval (S.coupledFilterGame d₁ A b) =
-      (ProbComp.eval S.pke.keyGen).bind fun keys => real keys.1 keys.2 := by
-    simp only [coupledFilterGame, real, ProbComp.eval_bind, ProbComp.eval_pure,
-      OracleComp.map_run_interpret ProbComp.isMonadHom_eval]
-  have hsim : ProbComp.eval (S.simFilterGame d₂ A b) =
-      (ProbComp.eval S.pke.keyGen).bind fun keys => simulated keys.1 keys.2 := by
-    simp only [simFilterGame, simulated, ProbComp.eval_bind, ProbComp.eval_pure,
-      OracleComp.map_run_interpret ProbComp.isMonadHom_eval]
-  rw [hreal, hsim]
-  refine S.pke.advantage_bind_keyGen_le real simulated (qG + qH + 1) ?_ hδ
-  intro pk sk
-  dsimp only [real, simulated]
-  simp only [ProbComp.eval_bind, ProbComp.eval_pure,
+  change (Game.advantage
+    (ProbComp.eval (S.pke.keyGen >>= fun (pk, sk) =>
+      gameAt pk (S.coupledHashH pk sk) (S.coupledFilterHandler (d₁ pk sk) pk sk)))
+    (ProbComp.eval (S.pke.keyGen >>= fun (pk, _) =>
+      gameAt pk (S.simHashH pk) (S.simFilterHandler (d₂ pk) pk))) : ℝ) ≤ _
+  rw [ProbComp.eval_bind, ProbComp.eval_bind]
+  refine S.pke.advantage_bind_keyGen_le
+    (fun pk sk => ProbComp.eval
+      (gameAt pk (S.coupledHashH pk sk) (S.coupledFilterHandler (d₁ pk sk) pk sk)))
+    (fun pk _ => ProbComp.eval (gameAt pk (S.simHashH pk) (S.simFilterHandler (d₂ pk) pk)))
+    (qG + qH + 1) (fun pk sk => ?_) hδ
+  simp only [gameAt, ProbComp.eval_bind, ProbComp.eval_pure,
     OracleComp.map_run_interpret ProbComp.isMonadHom_eval]
   set p := ENNReal.ofReal (S.pke.keyPairMaxFailProb pk sk) with hp
-  have hconst {α : Type} (μ : PMF α) (c : ℝ≥0∞) : ∑' a, μ a * c = c := by
-    rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
-  refine (CloseTo.bind_right_tsum _ (err := fun _ => ((qG + qH + 1 : ℕ) : ℝ≥0∞) * p)
-    fun mStar _ => ?_).mono (le_of_eq (hconst _ _))
+  refine CloseTo.bind_right _ fun mStar _ => ?_
   refine (CloseTo.bind_right_tsum _ (err := fun r : R =>
     (if S.pke.dec sk (S.pke.encDet pk mStar r) = some mStar then 0 else 1) +
       ((qG + qH : ℕ) : ℝ≥0∞) * p) fun rStar _ => ?_).mono ?_
   swap
   · simp only [mul_add, tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
-    have hfail : ∑' r, ProbComp.eval S.pke.sampleCoins r *
-        (if S.pke.dec sk (S.pke.encDet pk mStar r) = some mStar then 0 else 1) =
-        ENNReal.ofReal (S.pke.msgFailProb pk sk mStar) := by
-      rw [ExplicitCoinPKE.msgFailProb,
+    refine (add_le_add (le_of_eq_of_le ?_ (ENNReal.ofReal_le_ofReal
+      (S.pke.msgFailProb_le_keyPairMaxFailProb pk sk mStar))) le_rfl).trans_eq ?_
+    · rw [ExplicitCoinPKE.msgFailProb,
         ENNReal.ofReal_toReal (Probability.PMF.toOuterMeasure_ne_top _ _),
         PMF.toOuterMeasure_apply]
-      refine tsum_congr fun r => ?_
-      by_cases h : S.pke.dec sk (S.pke.encDet pk mStar r) = some mStar <;>
-        simp [h, Set.indicator]
-    rw [hfail]
-    calc ENNReal.ofReal (S.pke.msgFailProb pk sk mStar) + ((qG + qH : ℕ) : ℝ≥0∞) * p
-        ≤ p + ((qG + qH : ℕ) : ℝ≥0∞) * p := by
-          gcongr
-          exact ENNReal.ofReal_le_ofReal (S.pke.msgFailProb_le_keyPairMaxFailProb pk sk mStar)
-      _ = ((qG + qH + 1 : ℕ) : ℝ≥0∞) * p := by push_cast; ring
+      exact tsum_congr fun r => by
+        by_cases h : S.pke.dec sk (S.pke.encDet pk mStar r) = some mStar <;> simp [h, Set.indicator]
+    · push_cast; ring
   by_cases hr : S.pke.dec sk (S.pke.encDet pk mStar rStar) = some mStar
-  · rw [ite_eq_left_of_eq_true _ _ (eq_true hr), zero_add,
-      eval_coupledHashH_init S pk sk mStar rStar hr,
-      eval_simHashH_init]
-    refine (CloseTo.bind_right_tsum _ (err := fun _ => ((qG + qH : ℕ) : ℝ≥0∞) * p)
-      fun x hx => ?_).mono (le_of_eq (hconst _ _))
-    have hgood : GoodCache S.pke pk sk x.2 := by
-      intro e he
-      rw [simHashHq_gCache_eq _ _ _ _ hx, List.mem_singleton] at he
-      subst he
-      exact hr
-    refine (CloseTo.bind_right_tsum _ (err := fun _ => ((qG + qH : ℕ) : ℝ≥0∞) * p)
-      fun kRand _ => ?_).mono (le_of_eq (hconst _ _))
-    exact closeTo_run_coupledFilterHandler_simFilterHandler S pk sk _ (d₁ pk sk) (d₂ pk)
-      (hd pk sk) _ (hq.ghCost _) hgood _
-  · rw [ite_eq_right_of_eq_false _ _ (eq_false hr)]
+  · rw [ite_eq_left hr, zero_add, eval_coupledHashH_init S pk sk mStar rStar hr, eval_simHashH_init]
+    refine CloseTo.bind_right _ fun x hx => ?_
+    have hgood : GoodCache S.pke pk sk x.2 := fun e he =>
+      (List.mem_singleton.mp (simHashHq_gCache_eq _ _ _ _ hx ▸ he)) ▸ hr
+    exact CloseTo.bind_right _ fun _ _ =>
+      closeTo_run_coupledFilterHandler_simFilterHandler S pk sk _ (d₁ pk sk) (d₂ pk)
+        (hd pk sk) _ (hq.ghCost _) hgood _
+  · rw [ite_eq_right hr]
     exact fun e => (Probability.PMF.toOuterMeasure_le_one _ e).trans
       (le_self_add.trans le_add_self)
 

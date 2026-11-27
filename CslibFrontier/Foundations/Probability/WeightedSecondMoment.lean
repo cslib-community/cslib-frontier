@@ -45,9 +45,8 @@ variable {Ω₀ : Type*} [MeasurableSpace Ω₀] {P : Measure Ω₀} [IsProbabil
 
 private theorem memLp_of_nonneg_le {f : Ω₀ → ℝ} (hf : Measurable f) {W : ℝ}
     (h0 : ∀ ω, 0 ≤ f ω) (hW : ∀ ω, f ω ≤ W) : MemLp f 2 P := by
-  refine MemLp.of_bound hf.aestronglyMeasurable W (Filter.Eventually.of_forall fun ω => ?_)
-  rw [Real.norm_of_nonneg (h0 ω)]
-  exact hW ω
+  exact MemLp.of_bound hf.aestronglyMeasurable W <|
+    Filter.Eventually.of_forall fun ω => (Real.norm_of_nonneg (h0 ω)).trans_le (hW ω)
 
 private theorem covariance_le_sq_of_nonneg_le {f g : Ω₀ → ℝ} (hf : Measurable f)
     (hg : Measurable g) {W : ℝ} (hf0 : ∀ ω, 0 ≤ f ω) (hfW : ∀ ω, f ω ≤ W)
@@ -119,15 +118,12 @@ theorem measureReal_pi_le_abs_sum_bounded_sub_le (F : Finset κ) {X : κ → (Π
   set P := Measure.pi μ
   have hm (k : κ) (hk : k ∈ F) : MemLp (X k) 2 P :=
     memLp_of_nonneg_le (hX k hk) (h0 k hk) (hle k hk)
-  have hY : MemLp (fun ω => ∑ k ∈ F, X k ω) 2 P := memLp_finsetSum F hm
-  have hmean : ∫ ω, ∑ k ∈ F, X k ω ∂P = ∑ k ∈ F, ∫ ω', X k ω' ∂P :=
-    integral_finsetSum F fun k hk => (hm k hk).integrable one_le_two
-  have cheb := meas_ge_le_variance_div_sq hY hc
-  rw [hmean] at cheb
+  have cheb := meas_ge_le_variance_div_sq (memLp_finsetSum F hm) hc
+  rw [integral_finsetSum F fun k hk => (hm k hk).integrable one_le_two] at cheb
   rw [measureReal_def]
-  refine ENNReal.toReal_le_of_le_ofReal (by positivity) (cheb.trans ?_)
-  exact ENNReal.ofReal_le_ofReal
-    (by gcongr; exact variance_pi_sum_bounded_le F hX h0 hle S hXS G hG hD)
+  refine ENNReal.toReal_le_of_le_ofReal (by positivity) (cheb.trans (ENNReal.ofReal_le_ofReal ?_))
+  gcongr
+  exact variance_pi_sum_bounded_le F hX h0 hle S hXS G hG hD
 
 /-- **Weighted indicator concentration** for locally dependent events in a product probability
 space: when `0 ≤ w k ≤ W` on `F`, `∑ k ∈ F, w k * 1_{A k}` deviates from `∑ k ∈ F, w k * P(A k)`
@@ -147,29 +143,15 @@ theorem measureReal_pi_le_abs_sum_weighted_indicator_sub_le (F : Finset κ)
   let X : κ → (Π i, Ω i) → ℝ := fun k ω => w k * (A k).indicator (1 : (Π i, Ω i) → ℝ) ω
   have hXm (k : κ) (hk : k ∈ F) : Measurable (X k) :=
     measurable_const.mul (measurable_const.indicator (hA k hk))
-  have hX0 (k : κ) (hk : k ∈ F) (ω : Π i, Ω i) : 0 ≤ X k ω := by
-    dsimp only [X]
-    exact mul_nonneg (hw0 k hk) (Set.indicator_apply_nonneg fun _ => zero_le_one)
+  have hX0 (k : κ) (hk : k ∈ F) (ω : Π i, Ω i) : 0 ≤ X k ω :=
+    mul_nonneg (hw0 k hk) (Set.indicator_apply_nonneg fun _ => zero_le_one)
   have hXW (k : κ) (hk : k ∈ F) (ω : Π i, Ω i) : X k ω ≤ W := by
-    dsimp only [X]
-    by_cases hω : ω ∈ A k
-    · simp [hω, hwW k hk]
-    · simp [hω, hW0]
-  have hXdep (k : κ) (hk : k ∈ F) : DependsOn (X k) (S k) := by
-    intro ω₁ ω₂ h12
-    dsimp only [X]
-    congr 1
-    by_cases h1 : ω₁ ∈ A k
-    · have h2 : ω₂ ∈ A k := Eq.mp (hAS k hk h12) h1
-      simp [h1, h2]
-    · have h2 : ω₂ ∉ A k := fun h => h1 (Eq.mpr (hAS k hk h12) h)
-      simp [h1, h2]
+    by_cases hω : ω ∈ A k <;> simp [X, hω, hwW k hk, hW0]
+  have hXdep (k : κ) (hk : k ∈ F) : DependsOn (X k) (S k) := fun ω₁ ω₂ h12 => by
+    by_cases h1 : ω₁ ∈ A k <;> simp [X, h1, ← hAS k hk h12]
   have hmean (k : κ) (hk : k ∈ F) : ∫ ω, X k ω ∂P = w k * P.real (A k) := by
-    dsimp only [X]
     rw [integral_const_mul, integral_indicator_one (hA k hk)]
   have h := measureReal_pi_le_abs_sum_bounded_sub_le (μ := μ) F hXm hX0 hXW S hXdep G hG hD hc
-  have hsum : ∑ k ∈ F, ∫ ω', X k ω' ∂P = ∑ k ∈ F, w k * P.real (A k) :=
-    sum_congr rfl hmean
-  rwa [hsum] at h
+  rwa [sum_congr rfl hmean] at h
 
 end ProbabilityTheory

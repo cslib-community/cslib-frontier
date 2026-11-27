@@ -66,14 +66,11 @@ theorem exteriorRoute_endpoints {G : Graph} {d : Graph.OrthogonalDrawing}
   obtain ⟨b, r, hr⟩ := sourceRoute_shape hd hi
   have hlast := (sourceRoute_endpoints hd hi).2
   rw [hr, List.getLast?_cons_cons] at hlast
-  constructor
-  · simp [exteriorRoute, exteriorPort, sourceDirection, hr, cutStart, cutPoint, List.getD]
-  · change (cutStart k radius (sourceRoute G d i)).getLast? = _
-    rw [hr]
-    change (cutPoint k radius (sourceStart G d i) b :: k • b :: dilateRoute k r).getLast? = _
-    rw [List.getLast?_cons_cons]
-    change ((b :: r).map (k • ·)).getLast? = _
-    rw [List.getLast?_map, hlast, Option.map_some]
+  refine ⟨by simp [exteriorRoute, exteriorPort, sourceDirection, hr, cutStart, cutPoint,
+    List.getD], ?_⟩
+  rw [exteriorRoute, hr]
+  change (cutPoint k radius (sourceStart G d i) b :: k • b :: r.map (k • ·)).getLast? = _
+  rw [List.getLast?_cons_cons, ← List.map_cons, List.getLast?_map, hlast, Option.map_some]
 
 /-- Cutting removes exactly the radius from the scaled Manhattan cost. -/
 theorem exteriorRoute_wireLength {G : Graph} {d : Graph.OrthogonalDrawing}
@@ -99,13 +96,11 @@ theorem exteriorRoute_box_contact {G : Graph} {d : Graph.OrthogonalDrawing}
     (hb : inPointBox (k • sourceStart G d i) radius p) :
     p = realPoint (exteriorPort k radius G d i) := by
   obtain ⟨b, r, he⟩ := sourceRoute_shape hd hi
-  have ho := (sourceRoute_regular hd hi).1
-  have hs := (sourceRoute_regular hd hi).2
+  obtain ⟨ho, hs⟩ := sourceRoute_regular hd hi
+  rw [exteriorRoute, he] at hp
   rw [he] at ho hs
-  change p ∈ support (cutStart k radius (sourceRoute G d i)) at hp
-  rw [he] at hp
-  have hport := cutStart_box_contact ho hs hr hp hb
-  simpa [exteriorPort, sourceDirection, he, cutPoint, List.getD] using hport
+  simpa [exteriorPort, sourceDirection, he, cutPoint, List.getD] using
+    cutStart_box_contact ho hs hr hp hb
 
 /-- A nonincident declared vertex has a closed replacement box disjoint from an exterior route. -/
 theorem exteriorRoute_avoids_box {G : Graph} {d : Graph.OrthogonalDrawing}
@@ -115,12 +110,10 @@ theorem exteriorRoute_avoids_box {G : Graph} {d : Graph.OrthogonalDrawing}
     (hp : p ∈ support (exteriorRoute k radius G d i)) :
     ¬ inPointBox (k • Graph.drawingPosition G d v) radius p := by
   intro hb
-  have hp' := support_cutStart_subset (sourceRoute_regular hd hi).1 hr hp
-  rw [support_dilateRoute] at hp'
-  obtain ⟨q, hq, rfl⟩ := hp'
-  have hnear := near_of_scaled_box hr hb
-  have hvertex := gridPoint_mem_support_of_near (sourceRoute_regular hd hi).1 hq hnear
-  rw [support_sourceRoute] at hvertex
+  obtain ⟨q, hq, rfl⟩ := support_dilateRoute k (sourceRoute G d i) ▸
+    support_cutStart_subset (sourceRoute_regular hd hi).1 hr hp
+  have hvertex := support_sourceRoute G d i ▸
+    gridPoint_mem_support_of_near (sourceRoute_regular hd hi).1 hq (near_of_scaled_box hr hb)
   exact (hd.avoidsVertices i hi v hv hvertex).elim hv₁ hv₂
 
 /-- The exit direction is one of the four cardinal unit vectors. -/
@@ -132,15 +125,11 @@ theorem exteriorPort_ne_center (k radius : ℕ) (hr : 0 < radius) (G : Graph)
     (d : Graph.OrthogonalDrawing) (i : ℕ) :
     exteriorPort k radius G d i ≠ k • sourceStart G d i := by
   intro he
-  have hz : radius • sourceDirection G d i = (0 : Point) :=
+  have hz : radius • sourceDirection G d i = (0, 0) :=
     add_left_cancel (he.trans (add_zero _).symm)
-  change radius • sourceDirection G d i = (0, 0) at hz
-  have hd := sourceDirection_unit G d i
-  rcases hd with hd | hd | hd | hd
-  all_goals
+  rcases sourceDirection_unit G d i with hd | hd | hd | hd <;>
     simp only [hd, Prod.smul_mk, Int.nsmul_eq_mul, Prod.mk.injEq,
-      mul_one, mul_zero, mul_neg_one] at hz
-    omega
+      mul_one, mul_zero, mul_neg_one] at hz <;> omega
 
 /-- A trimmed incidence no longer contains the scaled source clause vertex. -/
 theorem exteriorRoute_not_mem_center {G : Graph} {d : Graph.OrthogonalDrawing}
@@ -151,14 +140,10 @@ theorem exteriorRoute_not_mem_center {G : Graph} {d : Graph.OrthogonalDrawing}
   have hb : inPointBox (k • sourceStart G d i) radius
       (realPoint (k • sourceStart G d i)) := by
     simp only [inPointBox, realPoint]
-    have hn : (0 : ℝ) ≤ radius := Nat.cast_nonneg _
-    constructor
-    · linarith
-    constructor
-    · linarith
-    constructor <;> linarith
-  have he := exteriorRoute_box_contact hd hi hr hp hb
-  exact exteriorPort_ne_center k radius hr₀ G d i (realPoint_injective he.symm)
+    have : (0 : ℝ) ≤ radius := Nat.cast_nonneg _
+    exact ⟨by linarith, by linarith, by linarith, by linarith⟩
+  exact exteriorPort_ne_center k radius hr₀ G d i
+    (realPoint_injective (exteriorRoute_box_contact hd hi hr hp hb).symm)
 
 /-- Different exterior incidences can meet only at their shared scaled variable endpoint.
 The common source clause endpoint has been removed by the positive-radius cut. -/
@@ -169,32 +154,23 @@ theorem exteriorRoute_contacts {G : Graph} {d : Graph.OrthogonalDrawing}
     (hp : p ∈ support (exteriorRoute k radius G d i))
     (hq : p ∈ support (exteriorRoute k radius G d j)) :
     G.edges[i].1 = G.edges[j].1 ∧ p = realPoint (k • sourceFinish G d i) := by
-  have hp' := support_cutStart_subset (sourceRoute_regular hd hi).1 hr hp
-  have hq' := support_cutStart_subset (sourceRoute_regular hd hj).1 hr hq
-  rw [support_dilateRoute] at hp' hq'
-  obtain ⟨q, hq₁, he₁⟩ := hp'
-  obtain ⟨r, hr₁, he₂⟩ := hq'
-  have hqr : q = r :=
-    smul_right_injective (ℝ × ℝ) (Nat.cast_ne_zero.mpr (by omega) : (k : ℝ) ≠ 0)
-      (he₁.trans he₂.symm)
-  subst r
+  obtain ⟨q, hq₁, he₁⟩ := support_dilateRoute k (sourceRoute G d i) ▸
+    support_cutStart_subset (sourceRoute_regular hd hi).1 hr hp
+  obtain ⟨r, hr₁, he₂⟩ := support_dilateRoute k (sourceRoute G d j) ▸
+    support_cutStart_subset (sourceRoute_regular hd hj).1 hr hq
+  obtain rfl : q = r := smul_right_injective (ℝ × ℝ)
+    (Nat.cast_ne_zero.mpr (by omega) : (k : ℝ) ≠ 0) (he₁.trans he₂.symm)
   rw [support_sourceRoute] at hq₁ hr₁
   obtain ⟨v, _, hvi, hvj, hv⟩ := hd.contacts i hi j hj hij q hq₁ hr₁
   have hpv : p = realPoint (k • Graph.drawingPosition G d v) := by
     rw [← he₁, hv, realPoint_nsmul]
-  have hvi₂ : v ≠ G.edges[i].2 := by
-    intro he
-    have hs : sourceStart G d i = Graph.drawingPosition G d v := by
-      rw [sourceStart, List.getD_eq_getElem _ _ hi, ← he]
-    exact exteriorRoute_not_mem_center hd hi hr₀ hr (by simpa only [hs, hpv] using hp)
-  have hvj₂ : v ≠ G.edges[j].2 := by
-    intro he
-    have hs : sourceStart G d j = Graph.drawingPosition G d v := by
-      rw [sourceStart, List.getD_eq_getElem _ _ hj, ← he]
-    exact exteriorRoute_not_mem_center hd hj hr₀ hr (by simpa only [hs, hpv] using hq)
-  have hvi₁ := hvi.resolve_right hvi₂
-  have hvj₁ := hvj.resolve_right hvj₂
-  refine ⟨hvi₁.symm.trans hvj₁, ?_⟩
+  have hnot2 {m : ℕ} (hm : m < G.edges.length)
+      (hpm : p ∈ support (exteriorRoute k radius G d m)) : v ≠ G.edges[m].2 := fun he => by
+    have hs : sourceStart G d m = Graph.drawingPosition G d v := by
+      rw [sourceStart, List.getD_eq_getElem _ _ hm, ← he]
+    exact exteriorRoute_not_mem_center hd hm hr₀ hr (by simpa only [hs, hpv] using hpm)
+  have hvi₁ := hvi.resolve_right (hnot2 hi hp)
+  refine ⟨hvi₁.symm.trans (hvj.resolve_right (hnot2 hj hq)), ?_⟩
   rw [hpv, sourceFinish, List.getD_eq_getElem _ _ hi, ← hvi₁]
 
 /-- A different source vertex center lies outside the closed local replacement box. -/

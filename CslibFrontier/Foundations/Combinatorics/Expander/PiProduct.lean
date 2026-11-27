@@ -61,10 +61,7 @@ def piPerms (σ : ∀ i, K i → Equiv.Perm (V i)) (k : Σ i, K i) : Equiv.Perm 
 theorem piPerms_apply (σ : ∀ i, K i → Equiv.Perm (V i)) (i : ι) (k : K i) (x : ∀ i, V i) :
     piPerms σ ⟨i, k⟩ x = update x i (σ i k (x i)) := by
   funext j
-  by_cases h : j = i
-  · subst h
-    simp [piPerms]
-  · simp [piPerms, h]
+  obtain rfl | h := eq_or_ne j i <;> simp [piPerms, *]
 
 /-- **Poincaré inequalities tensorize over finitely many components**: if every component family
 satisfies `c 𝔼 f² ≤ ∑ k, 𝔼 v, (f (σ i k v) - f v) ^ 2` for every function `f` of expectation zero,
@@ -81,8 +78,7 @@ theorem mul_expect_sq_le_piPerms {n : ℕ} {V K : Fin n → Type*} [∀ i, Finty
       have : ∀ y : ∀ i, V i, f y = f x := fun y ↦ congrArg f (Subsingleton.elim y x)
       rw [← hf]
       simp only [this, Fintype.expect_const]
-    simp only [h0, sub_self]
-    simp
+    simp [h0]
   | succ n ih =>
     -- Split off the component `0` and apply the binary box product.
     let e := Fin.consEquiv V
@@ -92,20 +88,16 @@ theorem mul_expect_sq_le_piPerms {n : ℕ} {V K : Fin n → Type*} [∀ i, Finty
     have hbox := mul_expect_sq_le_boxProdPerms (σ := σ 0)
       (τ := piPerms fun i : Fin n ↦ σ i.succ) (hσ 0)
       (fun g hg ↦ ih (fun i ↦ σ i.succ) (fun i ↦ hσ i.succ) g hg) g
-      (by rw [hexp f]; exact hf)
-    have hL : 𝔼 p, g p ^ 2 = 𝔼 x, f x ^ 2 := hexp fun x ↦ f x ^ 2
-    rw [hL] at hbox
+      (by rwa [hexp f])
+    rw [show (𝔼 p, g p ^ 2) = 𝔼 x, f x ^ 2 from hexp fun x ↦ f x ^ 2] at hbox
     refine hbox.trans_eq ?_
     rw [Fintype.sum_sum_type, Fintype.sum_sigma, Fintype.sum_sigma, Fin.sum_univ_succ]
     congr 1
-    · refine sum_congr rfl fun k _ ↦ ?_
-      rw [← hexp]
-      refine expect_congr rfl fun p _ ↦ ?_
+    · refine sum_congr rfl fun k _ ↦ (expect_congr rfl fun p _ ↦ ?_).trans (hexp _)
       simp only [hg, boxProdPerms_inl, piPerms_apply, e, Fin.consEquiv_apply, Fin.cons_zero,
         Fin.update_cons_zero]
-    · refine sum_congr rfl fun i _ ↦ sum_congr rfl fun k _ ↦ ?_
-      rw [← hexp]
-      refine expect_congr rfl fun p _ ↦ ?_
+    · refine sum_congr rfl fun i _ ↦ sum_congr rfl fun k _ ↦
+        (expect_congr rfl fun p _ ↦ ?_).trans (hexp _)
       simp only [hg, boxProdPerms_inr, piPerms_apply, e, Fin.consEquiv_apply, Fin.cons_succ,
         Fin.cons_update]
 

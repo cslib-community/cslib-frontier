@@ -24,6 +24,17 @@ BASE_SHA = "d" * 40
 COMMIT_ID = "COMMIT_1"
 
 
+REAL_FETCH_REVIEW_POSTS = queue_pr.fetch_review_posts
+
+
+def setUpModule() -> None:
+    # `main` reads review records over REST on every run; tests that do not exercise them see a
+    # PR without any, and never reach the network. ReviewRecordTests patch their own.
+    patcher = patch.object(queue_pr, "fetch_review_posts", return_value=[])
+    patcher.start()
+    unittest.addModuleCleanup(patcher.stop)
+
+
 def check_run(name: str = "ci-checks", status: str = "COMPLETED",
               conclusion: str | None = "SUCCESS", started: str = "2026-11-07T10:00:00Z",
               app: int = 15368) -> dict:
@@ -124,9 +135,47 @@ class AssessTests(unittest.TestCase):
 
 class ArgumentTests(unittest.TestCase):
     def test_abbreviated_sha_and_bad_repo_are_rejected(self) -> None:
-        for argv in (["12", "abc1234"], ["12", SHA, "--repo", "cslib-frontier"]):
+        for argv in (["12", "abc1234"], ["12", SHA, "--repo", "cslib-frontier"],
+                     ["12", SHA, "--hold-hubs", "--allow-hub"]):
             with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
                 queue_pr.main(argv)
+
+
+class QueueEstimateTests(unittest.TestCase):
+    def test_estimate_counts_the_entries_ahead_of_a_new_or_queued_pr(self) -> None:
+        self.assertEqual(
+            queue_pr.queue_estimate(pr(queueDepth=16), 12),
+            "Merge queue: 16 entries ahead of #12; roughly 42 min to land (16 x 14 min / 8 "
+            "concurrent group builds, then its own build) if no group build fails.")
+        queued = pr(queueDepth=16, mergeQueueEntry={"position": 2, "state": "QUEUED"})
+        self.assertIn("1 entry ahead of #12; roughly 16 min", queue_pr.queue_estimate(queued, 12))
+        self.assertIn("0 entries ahead of #12; roughly 14 min",
+                      queue_pr.queue_estimate(pr(queueDepth=0), 12))
+        self.assertIsNone(queue_pr.queue_estimate(pr(), 12))
+
+    def test_fetch_pr_reads_the_queue_depth_only_when_well_formed(self) -> None:
+        for queue, depth in (({"entries": {"totalCount": 5}}, 5), (None, None),
+                             ({"entries": {"totalCount": True}}, None),
+                             ({"entries": {"totalCount": -1}}, None)):
+            response = first_page(check_run(), cursor=None)
+            response["repository"]["mergeQueue"] = queue
+            with self.subTest(queue=queue), \
+                 patch.object(queue_pr, "gh_graphql", return_value=response):
+                self.assertEqual(queue_pr.fetch_pr("o", "r", 12).get("queueDepth"), depth)
+
+    def test_every_run_prints_the_estimate_first_even_when_refused(self) -> None:
+        for fields, status in (({}, 0), ({"isDraft": True}, 1)):
+            out = io.StringIO()
+            with self.subTest(fields=fields), \
+                 patch.object(queue_pr, "fetch_pr",
+                              return_value=pr(check_run(), queueDepth=3, **fields)), \
+                 patch.object(queue_pr, "check_queue_prefix", return_value=None), \
+                 patch.object(queue_pr, "gh_graphql", return_value={
+                     "enqueuePullRequest": {"mergeQueueEntry": {"position": 4}}}), \
+                 contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+                self.assertEqual(queue_pr.main(["12", SHA]), status, out.getvalue())
+                self.assertTrue(out.getvalue().startswith(
+                    "Merge queue: 3 entries ahead of #12; roughly 19 min"), out.getvalue())
 
 
 class PaginationTests(unittest.TestCase):
@@ -479,6 +528,238 @@ class WaitingDiscussionTests(unittest.TestCase):
                 self.assertEqual(result, 1, out)
                 self.assertEqual(events.count("discussion"), 1)
                 api.assert_not_called()
+
+
+NOW = queue_pr.datetime.datetime(2026, 11, 25, 5, 0, tzinfo=queue_pr.datetime.timezone.utc)
+HEAD_TIME = "2026-11-25T03:00:00Z"
+
+
+def post(body: str, posted: str = "2026-11-25T04:00:00Z", url: str = "c") -> queue_pr.ReviewPost:
+    return queue_pr.ReviewPost(url, posted, body)
+
+
+def approve(posted: str = "2026-11-25T04:00:00Z", sha: str = SHA, by: str = "rev-a",
+            url: str = "approve") -> queue_pr.ReviewPost:
+    return post(f"**APPROVE** at {sha} by {by} (agent)\n\nLooks right.", posted, url)
+
+
+class ReviewRecordTests(unittest.TestCase):
+    def check(self, *posts: queue_pr.ReviewPost, reviewer: str | None = None):
+        return queue_pr.review_record_check(list(posts), SHA, now=NOW, since=HEAD_TIME,
+                                            reviewer=reviewer)
+
+    def assertRefused(self, result, *fragments: str) -> None:
+        refusals, _ = result
+        self.assertTrue(any(all(f in r for f in fragments) for r in refusals),
+                        f"no refusal mentions {fragments}: {refusals}")
+
+    def test_no_records_or_a_plain_approval_allow_queueing(self) -> None:
+        self.assertEqual(self.check(), ([], []))
+        self.assertEqual(self.check(approve()), ([], []))
+
+    def test_hold_in_force_refuses_until_its_owner_releases_it_or_it_expires(self) -> None:
+        hold = post("Waiting on the lower PR.\n  **HOLD owner=rev-b until=2026-11-25T08:00Z "
+                    "reason=lower PR #10 has not landed", "2026-11-25T03:30:00Z", "hold")
+        self.assertRefused(self.check(hold, approve()), "HOLD owner=rev-b", "lower PR #10",
+                           "HOLD-RELEASED by=rev-b")
+        released = post("HOLD-RELEASED by=rev-b reason=#10 landed", "2026-11-25T04:30:00Z")
+        self.assertEqual(self.check(hold, approve(), released)[0], [])
+        by_other = post("HOLD-RELEASED by=rev-c reason=impatient", "2026-11-25T04:30:00Z")
+        self.assertRefused(self.check(hold, approve(), by_other), "HOLD owner=rev-b")
+        earlier_release = post("HOLD-RELEASED by=rev-b reason=old", "2026-11-25T03:00:00Z")
+        self.assertRefused(self.check(earlier_release, hold, approve()), "HOLD owner=rev-b")
+        expired = post("HOLD owner=rev-b until=2026-11-25T04:59Z reason=x", "2026-11-25T03:30:00Z")
+        self.assertEqual(self.check(expired, approve())[0], [])
+
+    def test_a_hold_named_in_the_approval_itself_refuses(self) -> None:
+        named = post(f"**APPROVE** at {SHA} by rev-a\n\nHOLD owner=maintainer "
+                     "until=2026-11-26T00:00Z reason=migration first", "2026-11-25T04:00:00Z")
+        self.assertRefused(self.check(named), "HOLD owner=maintainer", "migration first")
+        for by in ("maintainer", "SamuelSchlesinger"):
+            self.assertEqual(self.check(named, post(f"HOLD-RELEASED by={by} reason=done",
+                                                    "2026-11-25T04:10:00Z"))[0], [])
+        self.assertRefused(self.check(named, post("HOLD-RELEASED by=rev-a reason=done",
+                                                  "2026-11-25T04:10:00Z")), "owner=maintainer")
+
+    def test_records_in_fenced_code_blocks_are_examples_not_records(self) -> None:
+        example = post("Use this form:\n```\nHOLD owner=rev-b until=2026-11-25T08:00Z reason=x\n"
+                       f"CLAIM review head={SHA} by=rev-b until=2026-11-25T05:30Z\n```\n"
+                       "~~~text\nHOLD owner=rev-c until=2026-11-25T08:00Z reason=y\n~~~\n"
+                       "Holding nothing here.", "2026-11-25T04:50:00Z", "example")
+        self.assertEqual(self.check(approve(), example),
+                         ([], ["example: Holding nothing here."]))
+        after = post("```\nnot closed\nHOLD owner=rev-b until=2026-11-25T08:00Z reason=x",
+                     "2026-11-25T04:50:00Z")
+        self.assertEqual(self.check(approve(), after)[0], [])
+
+    def test_unexpired_claim_of_another_reviewer_without_a_verdict_refuses(self) -> None:
+        claim = post(f"CLAIM review head={SHA} by=rev-b until=2026-11-25T05:30Z",
+                     "2026-11-25T04:50:00Z", "claim")
+        self.assertRefused(self.check(approve(), claim), "`rev-b` claims review",
+                           "2026-11-25T05:30Z", "--reviewer")
+        self.assertEqual(self.check(approve(), claim, reviewer="rev-b")[0], [])
+        refused = self.check(approve(), claim, reviewer="rev-a")
+        self.assertRefused(refused, "`rev-b` claims review")
+        self.assertNotIn("--reviewer", " ".join(refused[0]))
+        other_head = post(f"CLAIM review head={'b' * 40} by=rev-b until=2026-11-25T05:30Z",
+                          "2026-11-25T04:50:00Z")
+        self.assertEqual(self.check(approve(), other_head)[0], [])
+        expired = post(f"CLAIM review head={SHA} by=rev-b until=2026-11-25T04:59Z",
+                       "2026-11-25T04:20:00Z")
+        self.assertEqual(self.check(approve(), expired)[0], [])
+
+    def test_a_claim_holds_at_most_forty_five_minutes_after_it_was_posted(self) -> None:
+        overlong = post(f"**CLAIM review head={SHA} by=rev-b until=2026-11-26T00:00Z**",
+                        "2026-11-25T04:10:00Z")
+        self.assertEqual(self.check(approve(), overlong)[0], [])
+        recent = post(f"**CLAIM review head={SHA} by=rev-b until=2026-11-26T00:00Z**",
+                      "2026-11-25T04:30:00Z")
+        self.assertRefused(self.check(approve(), recent), "until 2026-11-25T05:15Z")
+
+    def test_the_claimants_verdict_at_the_head_ends_its_claim(self) -> None:
+        claim = post(f"CLAIM review head={SHA} by=rev-b until=2026-11-25T05:30Z",
+                     "2026-11-25T04:40:00Z")
+        for verdict, ends in (
+                (approve("2026-11-25T04:50:00Z", by="rev-b"), True),
+                (post(f"**APPROVE** at {SHA} by rev-b. This is agent review.",
+                      "2026-11-25T04:50:00Z"), True),
+                (post(f"**APPROVE** at {SHA} by `rev-b`),", "2026-11-25T04:50:00Z"), True),
+                (post(f"**REQUEST_CHANGES** at `{SHA[:12]}` by `rev-b`", "2026-11-25T04:50:00Z"),
+                 True),
+                (post(f"**APPROVE** at {SHA}\n\n`rev-b` (agent) checked the statement.",
+                      "2026-11-25T04:50:00Z"), True),
+                (approve("2026-11-25T04:50:00Z", by="rev-c"), False),
+                (approve("2026-11-25T04:50:00Z", sha="b" * 40, by="rev-b"), False),
+                (approve("2026-11-25T04:30:00Z", by="rev-b"), False)):
+            with self.subTest(verdict=verdict.body.splitlines()[0], posted=verdict.posted):
+                posts = sorted([claim, verdict], key=lambda p: p.posted)
+                claims = [r for r in self.check(*posts)[0] if "claims review" in r]
+                self.assertEqual(claims == [], ends, claims)
+
+    def test_request_changes_after_the_newest_approval_at_the_head_refuses(self) -> None:
+        changes = post(f"**REQUEST_CHANGES** at `{SHA[:12]}` by `rev-b`\n\nThe name overclaims.",
+                       "2026-11-25T04:30:00Z", "changes")
+        self.assertRefused(self.check(approve(), changes), "**REQUEST_CHANGES**", "changes")
+        self.assertRefused(self.check(changes), "**REQUEST_CHANGES**")
+        self.assertEqual(self.check(changes, approve("2026-11-25T04:40:00Z"))[0], [])
+        at_old_head = post(f"**REQUEST_CHANGES** at {'b' * 40}", "2026-11-25T04:30:00Z")
+        self.assertEqual(self.check(approve(), at_old_head)[0], [])
+        not_first_line = post(f"Note\n**REQUEST_CHANGES** at {SHA}", "2026-11-25T04:30:00Z")
+        self.assertEqual(self.check(approve(), not_first_line)[0], [])
+        short = post("**REQUEST_CHANGES** at aaaaaa", "2026-11-25T04:30:00Z")
+        self.assertEqual(self.check(approve(), short)[0], [])
+
+    def test_free_text_holds_since_the_approval_are_advisories_not_refusals(self) -> None:
+        before = post("Hold until #10 lands.", "2026-11-25T03:30:00Z", "before")
+        malformed = post("HOLD owner=rev-b until=tomorrow reason=x", "2026-11-25T04:10:00Z",
+                         "malformed")
+        prose = post("The hypotheses hold for every n.", "2026-11-25T04:20:00Z", "prose")
+        plural = post("Holds. None remain; the threshold holds.", "2026-11-25T04:25:00Z")
+        refusals, advisories = self.check(before, approve(), malformed, prose, plural)
+        self.assertEqual(refusals, [])
+        self.assertEqual(advisories, ["malformed: HOLD owner=rev-b until=tomorrow reason=x",
+                                      "prose: The hypotheses hold for every n."])
+        # Without an approval at the head, posts since the head was committed are listed.
+        self.assertEqual(self.check(post("hold this", "2026-11-25T02:00:00Z", "old"),
+                                    post("hold that", "2026-11-25T03:10:00Z", "new"))[1],
+                         ["new: hold that"])
+        structured = post("HOLD owner=rev-b until=2026-11-25T04:10Z reason=expired",
+                          "2026-11-25T04:05:00Z")
+        self.assertEqual(self.check(approve(), structured), ([], []))
+
+
+class ReviewRecordMainTests(unittest.TestCase):
+    def run_main(self, posts, *args: str):
+        out = io.StringIO()
+        with patch.object(queue_pr, "fetch_pr", return_value=pr(check_run())), \
+             patch.object(queue_pr, "fetch_review_posts", side_effect=posts) as read, \
+             patch.object(queue_pr, "fetch_discussion") as discussion, \
+             patch.object(queue_pr, "check_queue_prefix", return_value=None), \
+             patch.object(queue_pr, "gh_graphql", return_value={
+                 "enqueuePullRequest": {"mergeQueueEntry": {"position": 1}}}) as api, \
+             patch.object(queue_pr, "utc_now", return_value=NOW), \
+             contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+            result = queue_pr.main(["12", SHA, *args])
+        return result, out.getvalue(), read, discussion, api
+
+    def test_instant_ready_run_reads_records_and_refuses_a_hold_without_enqueuing(self) -> None:
+        hold = post("HOLD owner=rev-b until=2026-11-25T08:00Z reason=lower PR", url="hold")
+        result, out, read, discussion, api = self.run_main([[approve(), hold]])
+        self.assertEqual(result, 1, out)
+        self.assertIn("#12 not queued: HOLD owner=rev-b", out)
+        read.assert_called_once_with("cslib-community", "cslib-frontier", 12)
+        discussion.assert_not_called()  # no sleep and no prefix: no discussion snapshot
+        api.assert_not_called()
+
+    def test_reviewer_exempts_its_own_claim_and_advisories_do_not_block(self) -> None:
+        claim = post(f"CLAIM review head={SHA} by=rev-a until=2026-11-25T05:30Z",
+                     "2026-11-25T04:50:00Z")
+        note = post("Holding off on a nit; not blocking.", "2026-11-25T04:55:00Z", "nit")
+        result, out, _, _, api = self.run_main([[approve(), claim, note]])
+        self.assertEqual(result, 1, out)
+        self.assertIn("`rev-a` claims review", out)
+        api.assert_not_called()
+        result, out, _, _, api = self.run_main([[approve(), claim, note]], "--reviewer", "rev-a")
+        self.assertEqual(result, 0, out)
+        self.assertIn("Advisory:", out)
+        self.assertIn("nit: Holding off on a nit; not blocking.", out)
+        api.assert_called_once_with(queue_pr.ENQUEUE, id="PR_1", sha=SHA)
+
+    def test_unreadable_records_stop_without_enqueuing(self) -> None:
+        result, out, _, _, api = self.run_main(queue_pr.GhError("HTTP 502"))
+        self.assertEqual(result, 2, out)
+        self.assertIn("queue_pr: HTTP 502", out)
+        api.assert_not_called()
+
+    def test_malformed_reviewer_is_rejected(self) -> None:
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            queue_pr.main(["12", SHA, "--reviewer", "two words"])
+
+
+class FetchReviewPostsTests(unittest.TestCase):
+    def test_comments_and_submitted_reviews_are_read_over_rest_oldest_first(self) -> None:
+        comments = [{"id": 1, "html_url": "u1", "created_at": "2026-11-25T04:10:00Z",
+                     "body": "late"}]
+        reviews = [{"id": 2, "html_url": "u2", "submitted_at": "2026-11-25T04:00:00Z",
+                    "state": "APPROVED", "body": "early"},
+                   {"id": 3, "state": "PENDING", "body": "draft"},
+                   {"id": 4, "html_url": "u4", "submitted_at": "2026-11-25T04:20:00Z",
+                    "state": "COMMENTED", "body": None}]
+        outputs = [json.dumps(comments), json.dumps(reviews[:2]) + json.dumps(reviews[2:])]
+        with patch.object(queue_pr.subprocess, "run", side_effect=[
+                subprocess.CompletedProcess([], 0, output, "") for output in outputs]) as run:
+            posts = REAL_FETCH_REVIEW_POSTS("o", "r", 12)
+        self.assertEqual(posts, [queue_pr.ReviewPost("u2", "2026-11-25T04:00:00Z", "early"),
+                                 queue_pr.ReviewPost("u1", "2026-11-25T04:10:00Z", "late"),
+                                 queue_pr.ReviewPost("u4", "2026-11-25T04:20:00Z", "")])
+        self.assertEqual([c.args[0] for c in run.call_args_list], [
+            ["gh", "api", "--paginate", "repos/o/r/issues/12/comments?per_page=100"],
+            ["gh", "api", "--paginate", "repos/o/r/pulls/12/reviews?per_page=100"]])
+
+    def test_concatenated_pages_from_gh_paginate_are_decoded(self) -> None:
+        for stdout, items in (('[{"a": 1}][{"a": 2}]', [{"a": 1}, {"a": 2}]),
+                              ('[{"a": 1}]\n[]\n[{"a": 3}]\n', [{"a": 1}, {"a": 3}]),
+                              ("[]", [])):
+            with self.subTest(stdout=stdout), patch.object(
+                    queue_pr.subprocess, "run",
+                    return_value=subprocess.CompletedProcess([], 0, stdout, "")):
+                self.assertEqual(queue_pr.gh_rest_items("e"), items)
+
+    def test_errors_and_malformed_responses_raise_gh_error(self) -> None:
+        for result in (subprocess.CompletedProcess([], 1, "", "unknown flag: --slurp"),
+                       subprocess.CompletedProcess([], 0, "not JSON", ""),
+                       subprocess.CompletedProcess([], 0, "", ""),
+                       subprocess.CompletedProcess([], 0, "[][", ""),
+                       subprocess.CompletedProcess([], 0, '{"message": "x"}', ""),
+                       subprocess.CompletedProcess([], 0, '[]{"message": "x"}', ""),
+                       subprocess.CompletedProcess([], 0, "[1]", ""),
+                       subprocess.CompletedProcess([], 0, '[{"created_at": null}]', ""),
+                       subprocess.CompletedProcess(
+                           [], 0, '[{"created_at": "2026-11-25T04:00Z", "body": ""}]', "")):
+            with self.subTest(result=result), \
+                 patch.object(queue_pr.subprocess, "run", return_value=result), \
+                 self.assertRaises(queue_pr.GhError):
+                REAL_FETCH_REVIEW_POSTS("o", "r", 12)
 
 
 class RetargetAncestorTests(unittest.TestCase):
@@ -860,31 +1141,36 @@ class HubImpactQueueTests(unittest.TestCase):
             "leaf_pr": leaf_pr_sha,
         }
 
-    def test_hub_notice_and_hold_hubs_with_active_queue(self) -> None:
+    @staticmethod
+    def _run_main(root: pathlib.Path, sha: str, base_sha: str, entries: list[tuple[int, str]],
+                  extra_args: list[str] = (), threshold: int = 3,
+                  high: int = 4) -> tuple[int, str, int]:
         import check_hub_impact
         import queue_status
 
+        enqueue_ok = {"enqueuePullRequest": {"mergeQueueEntry": {"position": 2, "state": "QUEUED"}}}
+        candidate_pr = pr(check_run(), baseRefOid=base_sha, headRefOid=sha)
+        candidate_pr["commits"]["nodes"][0]["commit"]["oid"] = sha
+        out = io.StringIO()
+        with patch.object(queue_pr, "ROOT", root), \
+             patch.object(queue_pr, "replay_repository", return_value=root), \
+             patch.object(queue_pr, "fetch_pr", return_value=candidate_pr), \
+             patch.object(queue_pr, "fetch_discussion", return_value=("same",)), \
+             patch.object(queue_status, "prefix", return_value=(base_sha, entries)), \
+             patch.object(queue_status, "fetch_objects"), \
+             patch.object(check_hub_impact, "DEFAULT_THRESHOLD", threshold), \
+             patch.object(check_hub_impact, "HIGH_THRESHOLD", high), \
+             patch.object(queue_pr, "gh_graphql", return_value=enqueue_ok) as api, \
+             contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+            rc = queue_pr.main(["12", sha, *extra_args])
+        return rc, out.getvalue(), api.call_count
+
+    def test_hub_notice_and_hold_hubs_with_active_queue(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, self.GIT_ENV):
             root, shas = self._seed_hub_repo(pathlib.Path(tmp))
-            enqueue_ok = {"enqueuePullRequest": {"mergeQueueEntry": {"position": 2, "state": "QUEUED"}}}
 
-            def run_case(sha: str, base_sha: str, entries: list[tuple[int, str]],
-                         extra_args: list[str] = (), threshold: int = 3, high: int = 4) -> tuple[int, str, int]:
-                candidate_pr = pr(check_run(), baseRefOid=base_sha, headRefOid=sha)
-                candidate_pr["commits"]["nodes"][0]["commit"]["oid"] = sha
-                out = io.StringIO()
-                with patch.object(queue_pr, "ROOT", root), \
-                     patch.object(queue_pr, "replay_repository", return_value=root), \
-                     patch.object(queue_pr, "fetch_pr", return_value=candidate_pr), \
-                     patch.object(queue_pr, "fetch_discussion", return_value=("same",)), \
-                     patch.object(queue_status, "prefix", return_value=(base_sha, entries)), \
-                     patch.object(queue_status, "fetch_objects"), \
-                     patch.object(check_hub_impact, "DEFAULT_THRESHOLD", threshold), \
-                     patch.object(check_hub_impact, "HIGH_THRESHOLD", high), \
-                     patch.object(queue_pr, "gh_graphql", return_value=enqueue_ok) as api, \
-                     contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
-                    rc = queue_pr.main(["12", sha, *extra_args])
-                return rc, out.getvalue(), api.call_count
+            def run_case(*args, **kwargs) -> tuple[int, str, int]:
+                return self._run_main(root, *args, **kwargs)
 
             # 1. >= HIGH_THRESHOLD (4 >= 4): default queues and prints `Warning:`.
             rc, out, calls = run_case(shas["hub_pr"], shas["m0"], [(10, shas["queued"])])
@@ -925,6 +1211,37 @@ class HubImpactQueueTests(unittest.TestCase):
             self.assertEqual(calls, 1)
             self.assertNotIn("Hub.lean", out)
 
+    def test_hub_pacing_refuses_by_queue_depth_and_the_rebuilds_it_adds(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, self.GIT_ENV), \
+             patch.object(queue_pr, "HUB_PACING_DEPTH", 1):
+            root, shas = self._seed_hub_repo(pathlib.Path(tmp))
+            # `Hub.lean` rebuilds Hub, Mid, Leaf1, Leaf2 and Smoke; #11 already rebuilds only Leaf2.
+            leaf_ahead = [(10, shas["queued"]), (11, shas["leaf_pr"])]
+            rc, out, calls = self._run_main(root, shas["hub_pr"], shas["m0"], leaf_ahead)
+            self.assertEqual((rc, calls), (1, 0), out)
+            self.assertIn("#12 not queued: modifies high-fan-in hub module(s) "
+                          "(`CslibFrontier/Hub.lean` (4 transitive importers)) and it adds 4 "
+                          "modules to the 1 that the 2 entries ahead already rebuild; a hub PR "
+                          "waits while more than 1 entries are ahead", out)
+            self.assertIn("--allow-hub", out)
+
+            rc, out, calls = self._run_main(root, shas["hub_pr"], shas["m0"], leaf_ahead,
+                                            ["--allow-hub"])
+            self.assertEqual((rc, calls), (0, 1), out)
+            self.assertIn("Warning: #12 modifies high-fan-in hub module(s)", out)
+            self.assertIn("(#10, #11); it adds 4 modules to the 1 that the 2 entries ahead", out)
+
+            # #11 already rebuilds Mid's cone, so the hub PR adds only Hub itself: below threshold.
+            mid_ahead = [(10, shas["queued"]), (11, shas["mid_pr"])]
+            rc, out, calls = self._run_main(root, shas["hub_pr"], shas["m0"], mid_ahead)
+            self.assertEqual((rc, calls), (0, 1), out)
+            self.assertIn("it adds 1 module to the 4 that the 2 entries ahead already rebuild", out)
+
+            # At most `HUB_PACING_DEPTH` entries ahead: advisory only.
+            rc, out, calls = self._run_main(root, shas["hub_pr"], shas["m0"], leaf_ahead[1:])
+            self.assertEqual((rc, calls), (0, 1), out)
+            self.assertIn("it adds 4 modules to the 1 that the 1 entries ahead", out)
+
     def test_bare_repo_without_checkout_skips_advisory_but_fails_closed_for_hold_hubs(self) -> None:
         import queue_status
 
@@ -947,6 +1264,20 @@ class HubImpactQueueTests(unittest.TestCase):
                     )
                 )
                 self.assertEqual(notices, [])
+                # Hub pacing that cannot check the PR still queues it, with a note saying so.
+                with patch.object(queue_pr, "HUB_PACING_DEPTH", 0):
+                    for allow_hub in (False, True):
+                        notices = []
+                        self.assertIsNone(queue_pr.check_queue_prefix(
+                            "o", "r", 12, shas["hub_pr"], root=scratch,
+                            on_hub_notice=notices.append, allow_hub=allow_hub))
+                        if allow_hub:
+                            self.assertEqual(notices, [])
+                        else:
+                            self.assertEqual(len(notices), 1, notices)
+                            self.assertTrue(notices[0].startswith(
+                                "Note: hub pacing needs a local `CslibFrontier/` checkout"),
+                                notices)
                 # `--hold-hubs` fails closed when `CslibFrontier/*.lean` changed and cannot be scanned.
                 refusal = queue_pr.check_queue_prefix(
                     "o", "r", 12, shas["hub_pr"], root=scratch, hold_hubs=True,
@@ -976,15 +1307,15 @@ class HubImpactQueueTests(unittest.TestCase):
             root, shas = self._seed_hub_repo(pathlib.Path(tmp))
             seen: list[tuple[object, str]] = []
 
-            def fake_transitive(graph: object, mod: str) -> int:
+            def fake_rebuilt(graph: object, mod: str) -> set[str]:
                 seen.append((graph, mod))
-                return 650
+                return {f"CslibFrontier.Client{i}" for i in range(650)}
 
             notices: list[str] = []
             with patch.object(queue_status, "prefix", return_value=(shas["m0"], [(10, shas["queued"])])), \
                  patch.object(queue_status, "fetch_objects"), \
                  patch.object(check_hub_impact, "build_reverse_graph", return_value=(sentinel, 1000)), \
-                 patch.object(check_hub_impact, "transitive_importers", side_effect=fake_transitive):
+                 patch.object(check_hub_impact, "rebuilt_importers", side_effect=fake_rebuilt):
                 rc_reason = queue_pr.check_queue_prefix(
                     "o", "r", 12, shas["hub_pr"], root=root, on_hub_notice=notices.append,
                 )

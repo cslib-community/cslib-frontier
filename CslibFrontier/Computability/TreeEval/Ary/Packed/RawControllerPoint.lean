@@ -30,27 +30,13 @@ theorem point_ofRegs {p d r : ℕ} (S : Ary.State (ZMod p) d r) (t : Fin (d + 1)
       (fun a : Fin (d * r) => p +
         (Cslib.BitString.blocksEquiv.symm (fun j => S (Ary.reg t j)) a).val) := by
   have hlength := length_point (ofRegs S) (length_ofRegs S) t
-  apply List.ext_getElem (hlength.trans List.length_ofFn.symm)
-  intro a ha _
-  let ai : Fin (d * r) := ⟨a, by omega⟩
-  rcases hpair : finProdFinEquiv.symm ai with ⟨j, i⟩
-  have hai : finProdFinEquiv (j, i) = ai := by
-    rw [← hpair, Equiv.apply_symm_apply]
-  have hav : i.val + r * j.val = a := congrArg Fin.val hai
-  have hread := point_getD (ofRegs S) (length_ofRegs S) t j i
-  rw [reg_eq] at hread
-  change (point d r t.val (ofRegs S)).getD (i.val + r * j.val) 0 =
-    (ofRegs S).getD (i.val + r * (Ary.reg t j).val) 0 at hread
-  rw [hav] at hread
-  rw [← List.getD_eq_getElem _ _ ha]
-  rw [hread]
-  change (ofRegs S).getD (finProdFinEquiv (Ary.reg t j, i)).val 0 = _
-  rw [ofRegs, List.getD_ofFn_of_lt _ (finProdFinEquiv (Ary.reg t j, i)).isLt 0]
-  simp only [List.getElem_ofFn]
-  change p + (S (finProdFinEquiv.symm (finProdFinEquiv (Ary.reg t j, i))).1
-      (finProdFinEquiv.symm (finProdFinEquiv (Ary.reg t j, i))).2).val =
-    p + (S (Ary.reg t (finProdFinEquiv.symm ai).1) (finProdFinEquiv.symm ai).2).val
-  rw [Equiv.symm_apply_apply]
-  rw [hpair]
+  refine List.ext_getElem (hlength.trans List.length_ofFn.symm) fun a ha hb => ?_
+  simp only [List.getElem_ofFn, Cslib.BitString.blocksEquiv_symm_apply]
+  obtain ⟨⟨j, i⟩, hpair⟩ := finProdFinEquiv.surjective ⟨a, List.length_ofFn ▸ hb⟩
+  have ha_eq : a = index r j i := (congrArg Fin.val hpair).symm
+  rw [← hpair, Equiv.symm_apply_apply, ← List.getD_eq_getElem _ 0 ha, ha_eq,
+    point_getD (ofRegs S) (length_ofRegs S) t j i, reg_eq]
+  erw [ofRegs, List.getD_ofFn_of_lt _ (finProdFinEquiv (Ary.reg t j, i)).isLt 0]
+  simp only [Fin.eta, Equiv.symm_apply_apply]
 
 end Cslib.TreeEval.Ary.Packed.RawController

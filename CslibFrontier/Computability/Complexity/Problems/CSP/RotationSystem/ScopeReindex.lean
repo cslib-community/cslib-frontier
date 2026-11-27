@@ -37,16 +37,13 @@ theorem argumentSuccessor_reindexLastScopeOccurrenceEquiv (F : CSP Rel V) (r : R
     (o : (F ++ [Constraint.mk r (List.ofFn scope)]).Occurrence) :
     reindexLastScopeOccurrenceEquiv F r scope q (argumentSuccessor o) =
       argumentSuccessor (reindexLastScopeOccurrenceEquiv F r scope q o) := by
-  have hqs (j : Fin n) : q.symm (finRotate n j) = finRotate n (q.symm j) := by
-    apply q.injective
-    rw [Equiv.apply_symm_apply, hq, Equiv.apply_symm_apply]
+  have hqs (j : Fin n) : q.symm (finRotate n j) = finRotate n (q.symm j) :=
+    q.injective (by rw [Equiv.apply_symm_apply, hq, Equiv.apply_symm_apply])
   obtain ⟨o, rfl⟩ := (appendOfFnOccurrenceEquiv F r scope).surjective o
   cases o with
   | inl o =>
     rw [argumentSuccessor_appendOfFnOccurrenceEquiv_inl,
       reindexLastScopeOccurrenceEquiv_apply, reindexLastScopeOccurrenceEquiv_apply]
-    change appendOfFnOccurrenceEquiv F r (scope ∘ q) (Sum.inl (argumentSuccessor o)) =
-      argumentSuccessor (appendOfFnOccurrenceEquiv F r (scope ∘ q) (Sum.inl o))
     exact (argumentSuccessor_appendOfFnOccurrenceEquiv_inl F r (scope ∘ q) o).symm
   | inr j =>
     rw [argumentSuccessor_appendOfFnOccurrenceEquiv_inr,
@@ -127,15 +124,10 @@ theorem verifyRotationCertificate_reindexLastScopeCertificate (F : CSP Rel V) (r
     (h : verifyRotationCertificate (F ++ [Constraint.mk r (List.ofFn scope)]) c = true) :
     verifyRotationCertificate (F ++ [Constraint.mk r (List.ofFn (scope ∘ q))])
       (reindexLastScopeCertificate F r scope q c hrot) = true := by
-  obtain ⟨hr, hg, ho⟩ := (verifyRotationCertificate_eq_true_iff _ _).mp h
-  let rho :=
-    RotationCertificate.decode (incidenceGraph (F ++ [Constraint.mk r (List.ofFn scope)])) c hrot
-  let tau := reindexLastScopeRotation F r scope q rho
-  have hgenus : tau.NumericalGenusZero :=
-    numericalGenusZero_reindexLastScopeRotation F r scope q rho hg
-  have horder : RespectsArgumentOrder tau :=
-    respectsArgumentOrder_reindexLastScopeRotation F r scope q hq rho ho
-  exact verifyRotationCertificate_ofRotation tau hgenus horder
+  obtain ⟨_, hg, ho⟩ := (verifyRotationCertificate_eq_true_iff _ _).mp h
+  exact verifyRotationCertificate_ofRotation _
+    (numericalGenusZero_reindexLastScopeRotation F r scope q _ hg)
+    (respectsArgumentOrder_reindexLastScopeRotation F r scope q hq _ ho)
 
 /-- Each actual supplied source-table step becomes its exact reindexed target-table step.
 This supports complete generated-table inspection without reducing choice-based inverse
@@ -152,12 +144,10 @@ theorem getD_reindexLastScopeCertificate_of_step (F : CSP Rel V) (r : Rel) {n : 
   let rho :=
     RotationCertificate.decode (incidenceGraph (F ++ [Constraint.mk r (List.ofFn scope)])) c hrot
   let e := reindexLastScopeOccurrenceEquiv F r scope q
-  have hr : rho.rotate (incidenceDart o side) = incidenceDart p other := by
-    apply (Dart.indexEquiv _).injective
-    apply Fin.ext
-    change (rho.rotate (incidenceDart o side)).index = (incidenceDart p other).index
-    rw [RotationCertificate.index_decode_rotate]
-    exact hstep
+  have hr : rho.rotate (incidenceDart o side) = incidenceDart p other :=
+    (Dart.indexEquiv _).injective <| Fin.ext <| by
+      change (rho.rotate (incidenceDart o side)).index = (incidenceDart p other).index
+      rwa [RotationCertificate.index_decode_rotate]
   rw [reindexLastScopeCertificate, RotationCertificate.getD_ofRotation]
   change ((occurrenceTransport rho e (reindex_variable_fibers F r scope q)
     (reindex_constraint_fibers F r scope q)).rotate (incidenceDart (e o) side)).index = _

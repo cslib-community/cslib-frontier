@@ -149,19 +149,19 @@ example {α : Type} (p : (queue Nat).Client α)
     (reverseStep ⟨[3, 7], []⟩ (.inl (.push 9))).1 = ⟨[3, 7, 9], []⟩ ∧
     (reverseStep ⟨[3, 7], []⟩ (.inl .pop)).2 = some 7 ∧
     (∃ c' traces, Executes directExec (link methods p) ([], [])
-        ((queue Nat).runClient [] p).1 c' traces ∧
-      directQueue.rep ((queue Nat).runClient [] p).2.1 c' ∧
-      traces.length ≤ ((queue Nat).runClient [] p).2.2.length * 3) ∧
+        ((queue Nat).clientResult [] p) c' traces ∧
+      directQueue.rep ((queue Nat).clientState [] p) c' ∧
+      traces.length ≤ ((queue Nat).clientHistory [] p).length * 3) ∧
     (∃ c' traces, Executes reverseExec (link methods p) ⟨[], []⟩
-        ((queue Nat).runClient [] p).1 c' traces ∧
-      reversedQueue.rep ((queue Nat).runClient [] p).2.1 c' ∧
-      traces.length ≤ ((queue Nat).runClient [] p).2.2.length * 3) ∧
-    (a₁ = ((queue Nat).runClient [] p).1 ∧
-      traces₁.length ≤ ((queue Nat).runClient [] p).2.2.length * 3) ∧
-    (a₂ = ((queue Nat).runClient [] p).1 ∧
-      traces₂.length ≤ ((queue Nat).runClient [] p).2.2.length * 3) ∧
-    ((queue String).runClient []
-      (.liftBind (.enqueue "first") fun _ => .liftBind .dequeue fun answer => .pure answer)).1 =
+        ((queue Nat).clientResult [] p) c' traces ∧
+      reversedQueue.rep ((queue Nat).clientState [] p) c' ∧
+      traces.length ≤ ((queue Nat).clientHistory [] p).length * 3) ∧
+    (a₁ = (queue Nat).clientResult [] p ∧
+      traces₁.length ≤ ((queue Nat).clientHistory [] p).length * 3) ∧
+    (a₂ = (queue Nat).clientResult [] p ∧
+      traces₂.length ≤ ((queue Nat).clientHistory [] p).length * 3) ∧
+    (queue String).clientResult []
+      (.liftBind (.enqueue "first") fun _ => .liftBind .dequeue fun answer => .pure answer) =
         some "first" := by
   refine ⟨rfl, rfl, ?_, ?_, ?_, ?_, rfl⟩
   · obtain ⟨c', traces, s', he, hr, hb, ht⟩ :=

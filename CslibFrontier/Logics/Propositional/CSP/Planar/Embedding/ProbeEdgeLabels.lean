@@ -41,10 +41,8 @@ theorem probeEdgeLabels_bodyOccurrence (F : CSP Rel V) (ports : List V)
       x (incidenceDart o side).1 := by
   have ho : incidenceEdgeIndex o < F.occurrences.length := by
     simpa only [incidenceGraph_edges, List.length_map] using incidenceEdgeIndex_lt o
-  unfold probeEdgeLabels
-  simp only [incidenceDart]
-  simp only [incidenceEdgeIndex_bodyOccurrence, ite_eq_left ho]
-  exact List.getD_ofFn x (incidenceDart o side).1 false
+  simpa only [probeEdgeLabels, incidenceDart, incidenceEdgeIndex_bodyOccurrence, ite_eq_left ho]
+    using List.getD_ofFn x (incidenceDart o side).1 false
 
 /-- Each actual probe occurrence reads its original port coordinate, despite the reversed
 scope. The finite coordinate supplies the bounds, including at arities zero and one. -/
@@ -52,14 +50,10 @@ theorem probeEdgeLabels_probeOccurrence (F : CSP Rel V) (ports : List V)
     (t : Fin ports.length → Bool) (x : Fin (incidenceGraph F).edges.length → Bool)
     (i : Fin ports.length) (side : Bool) :
     probeEdgeLabels F ports t x (incidenceDart (probeOccurrence F ports i) side).1 = t i := by
-  unfold probeEdgeLabels
-  simp only [incidenceDart]
-  have hnot : ¬ F.occurrences.length + (ports.length - 1 - i.val) < F.occurrences.length := by omega
-  simp only [incidenceEdgeIndex_probeOccurrence, ite_eq_right hnot]
-  have he : ports.length - 1 -
-      (F.occurrences.length + (ports.length - 1 - i.val) - F.occurrences.length) = i.val := by
-    omega
-  rw [he]
-  exact List.getD_ofFn t i false
+  have hnot : ¬ F.occurrences.length + (ports.length - 1 - i.val) < F.occurrences.length :=
+    Nat.not_lt.2 (Nat.le_add_right _ _)
+  have he : ports.length - 1 - (ports.length - 1 - i.val) = i.val := by omega
+  simpa only [probeEdgeLabels, incidenceDart, incidenceEdgeIndex_probeOccurrence, ite_eq_right hnot,
+    Nat.add_sub_cancel_left, he] using List.getD_ofFn t i false
 
 end Cslib.Complexity.CSP.OrderedBoundary

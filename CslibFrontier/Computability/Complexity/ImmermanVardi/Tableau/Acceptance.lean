@@ -72,18 +72,13 @@ private theorem row_at_maximum_definable (tm : MultiTapeTM m Bool State)
     apply Definable.conj
     · exact (Definable.ofFO (Ordered.natEq L (tagIndex q) (.var none))).congr
         fun _ _ => Ordered.realize_natEq _ _ _
-    · apply (trace_lfp_definable_terms tm input inputFormula hinput
-        ![.var none, Ordered.max L, Ordered.max L]).congr
-      intro i v
+    · refine (trace_lfp_definable_terms tm input inputFormula hinput
+        ![.var none, Ordered.max L, Ordered.max L]).congr fun i v => ?_
       have hm : (Ordered.max L).realize v = maximum (size := size) i :=
         Fin.ext (Ordered.realize_max_val _)
-      have htuple :
-          (fun j => ((![.var none, Ordered.max L, Ordered.max L] :
-            Fin 3 → (Ordered.language L).Term (Option Empty)) j).realize v) =
-            ![v none, maximum (size := size) i, maximum (size := size) i] := by
-        ext j
-        fin_cases j <;> simp [hm]
-      rw [htuple]
+      convert Iff.rfl using 2
+      ext j
+      fin_cases j <;> simp [hm]
   exact hf.congr fun i _ => traceRow_lfp tm (input i) (hn i) (hB i)
     (maximum (size := size) i) q (maximum (size := size) i)
 

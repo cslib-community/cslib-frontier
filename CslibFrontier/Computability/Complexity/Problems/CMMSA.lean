@@ -217,17 +217,8 @@ theorem mem_no_GapCMMSA_one :
     I ∈ (GapCMMSA Δ g 1).no ↔ I.WellFormed Δ ∧ 1 ≤ g ∧
       ∀ S ⊆ Finset.range I.weights.length, (I.weight S : ℝ) ≤ g * I.threshold →
         ∃ φ ∈ I.formulas, φ.eval (fun i => decide (i ∈ S)) = false := by
-  simp only [mem_no_GapCMMSA, le_refl, true_and, one_mul, Nat.cast_lt]
-  refine and_congr_right fun _ => and_congr_right fun _ =>
-    forall₂_congr fun S _ => imp_congr_right fun _ => ?_
-  constructor
-  · intro h
-    by_contra hall
-    simp only [not_exists, not_and, Bool.not_eq_false] at hall
-    exact h.ne (List.countP_eq_length.2 hall)
-  · rintro ⟨φ, hφ, hfalse⟩
-    refine lt_of_le_of_ne List.countP_le_length fun h => ?_
-    have := List.countP_eq_length.1 h φ hφ
-    simp only [hfalse, Bool.false_eq_true] at this
+  simp only [mem_no_GapCMMSA, satCount, le_refl, true_and, one_mul, Nat.cast_lt,
+    Nat.lt_iff_le_and_ne, List.countP_le_length, ne_eq, List.countP_eq_length, not_forall,
+    Bool.not_eq_true, exists_prop]
 
 end Cslib.Complexity

@@ -53,47 +53,43 @@ private theorem tracks_step {M : TM0.Machine Γ Q} {lo hi : ℤ} {c : Cfg Γ Q}
     (hs : HeadPosition.StepWithin M lo hi x y) :
     ∃ d, step M c = some d ∧ Tracks lo hi d y := by
   rcases c with ⟨q, a, L, R⟩
-  rcases x with ⟨native, p⟩
+  rcases x with ⟨_, p⟩
   obtain ⟨he, hL, hR⟩ := hc
-  have hn : native = TM0.cfgOf q a L R := he.symm
-  subst native
+  dsimp only at hL hR
+  obtain ⟨hst, -, -, hlo, hhi⟩ := hs
+  obtain rfl : _ = TM0.cfgOf q a L R := he.symm
   cases hM : M q a with
-  | none => simp only [HeadPosition.StepWithin, HeadPosition.step, TM0.cfgOf, hM,
-      Option.map_none] at hs; cases hs.1
+  | none =>
+    cases (by simpa only [HeadPosition.step, TM0.cfgOf, hM, Option.map_none]
+      using hst : none = some y)
   | some result =>
     rcases result with ⟨q', action⟩
     cases action with
     | write b =>
-      have hy : y = ⟨TM0.cfgOf q' b L R, p⟩ := by
-        apply Option.some.inj
-        simpa only [HeadPosition.step, TM0.cfgOf, hM, Option.map_some, Tape.write] using hs.1.symm
-      subst y
+      obtain rfl : y = ⟨TM0.cfgOf q' b L R, p⟩ := Option.some.inj <| by
+        simpa only [HeadPosition.step, TM0.cfgOf, hM, Option.map_some, Tape.write] using hst.symm
       exact ⟨⟨q', b, L, R⟩, by simp only [step, hM], rfl, hL, hR⟩
     | move direction =>
       cases direction with
       | left =>
-        have hy : y = ⟨TM0.cfgOf q' L.headI L.tail (a :: R), p - 1⟩ := by
-          apply Option.some.inj
+        obtain rfl : y = ⟨TM0.cfgOf q' L.headI L.tail (a :: R), p - 1⟩ := Option.some.inj <| by
           simpa only [HeadPosition.step, TM0.cfgOf, hM, Option.map_some, Tape.move,
-            ListBlank.head_mk, ListBlank.tail_mk, ListBlank.cons_mk] using hs.1.symm
-        subst y
-        have hp : lo ≤ p - 1 := hs.2.2.2.1
-        have hlen : 0 < L.length := by change (L.length : ℤ) = p - lo at hL; omega
+            ListBlank.head_mk, ListBlank.tail_mk, ListBlank.cons_mk] using hst.symm
         cases L with
-        | nil => cases hlen
+        | nil =>
+          simp only [List.length_nil, Nat.cast_zero] at hL hlo
+          omega
         | cons b L =>
           refine ⟨⟨q', b, L, a :: R⟩, by simp only [step, hM], rfl, ?_, ?_⟩ <;>
             simp only [List.length_cons, Int.natCast_succ] at hL hR ⊢ <;> omega
       | right =>
-        have hy : y = ⟨TM0.cfgOf q' R.headI (a :: L) R.tail, p + 1⟩ := by
-          apply Option.some.inj
+        obtain rfl : y = ⟨TM0.cfgOf q' R.headI (a :: L) R.tail, p + 1⟩ := Option.some.inj <| by
           simpa only [HeadPosition.step, TM0.cfgOf, hM, Option.map_some, Tape.move,
-            ListBlank.head_mk, ListBlank.tail_mk, ListBlank.cons_mk] using hs.1.symm
-        subst y
-        have hp : p + 1 ≤ hi := hs.2.2.2.2
-        have hlen : 0 < R.length := by change (R.length : ℤ) = hi - p at hR; omega
+            ListBlank.head_mk, ListBlank.tail_mk, ListBlank.cons_mk] using hst.symm
         cases R with
-        | nil => cases hlen
+        | nil =>
+          simp only [List.length_nil, Nat.cast_zero] at hR hhi
+          omega
         | cons b R =>
           refine ⟨⟨q', b, a :: L, R⟩, by simp only [step, hM], rfl, ?_, ?_⟩ <;>
             simp only [List.length_cons, Int.natCast_succ] at hL hR ⊢ <;> omega
@@ -119,27 +115,16 @@ private theorem step_eq_none_of_native {M : TM0.Machine Γ Q} {c : Cfg Γ Q}
     (h : TM0.step M c.toNative = none) : step M c = none := by
   cases hs : step M c with
   | none => rfl
-  | some d =>
-    have hn := step_native hs
-    rw [h] at hn
-    cases hn
+  | some _ => cases h.symm.trans (step_native hs)
 
 end
 
 private theorem mk_injective_of_length {L R : List Γ} (hlen : L.length = R.length)
     (h : ListBlank.mk L = ListBlank.mk R) : L = R := by
-  have hrel : BlankRel L R := Quotient.exact' h
-  rcases hrel with ⟨n, he⟩ | ⟨n, he⟩
-  · have hn : n = 0 := by
-      have := congrArg List.length he
-      simp only [List.length_append, List.length_replicate] at this
-      omega
-    simpa only [hn, List.replicate_zero, List.append_nil] using he.symm
-  · have hn : n = 0 := by
-      have := congrArg List.length he
-      simp only [List.length_append, List.length_replicate] at this
-      omega
-    simpa only [hn, List.replicate_zero, List.append_nil] using he
+  rcases Quotient.exact' h with ⟨n, rfl⟩ | ⟨n, rfl⟩ <;>
+    simp only [List.length_append, List.length_replicate, Nat.left_eq_add, Nat.add_eq_left]
+      at hlen <;>
+    simp [hlen]
 
 private theorem toNative_injective_of_lengths {c d : Cfg Γ Q}
     (hL : c.left.length = d.left.length) (hR : c.right.length = d.right.length)
@@ -148,11 +133,7 @@ private theorem toNative_injective_of_lengths {c d : Cfg Γ Q}
   rcases d with ⟨q', a', L', R'⟩
   simp only [Cfg.toNative, TM0.cfgOf, TM0.Cfg.mk.injEq, Tape.mk.injEq] at h
   obtain ⟨rfl, rfl, hl, hr⟩ := h
-  have heL : L = L' := mk_injective_of_length hL hl
-  have heR : R = R' := mk_injective_of_length hR hr
-  subst L'
-  subst R'
-  rfl
+  rw [mk_injective_of_length (L := L) hL hl, mk_injective_of_length (L := R) hR hr]
 
 private theorem mk_pad (L : List Γ) (n : ℕ) :
     ListBlank.mk (L ++ List.replicate n default) = ListBlank.mk L :=
@@ -189,16 +170,9 @@ private theorem reaches_of_headRange [Inhabited Q] {M : TM0.Machine Γ Q}
     (hcL : c.left.length = 1) (hcR : c.right.length = radius)
     (hdL : d.left.length = 1) (hdR : d.right.length = radius) :
     StateTransition.Reaches (step M) c d := by
-  obtain ⟨e, hce, he, hL, hR⟩ := headRange_reaches hr c rfl (by simp only [hcL]; omega)
-    (by simp only [hcR]; omega)
-  have heL : e.left.length = d.left.length := by
-    change (e.left.length : ℤ) = 0 - -1 at hL
-    omega
-  have heR : e.right.length = d.right.length := by
-    change (e.right.length : ℤ) = (radius : ℤ) - 0 at hR
-    omega
-  have hed : e = d := toNative_injective_of_lengths heL heR he
-  exact hed ▸ hce
+  obtain ⟨e, hce, he, hL, hR⟩ := headRange_reaches hr c rfl (by simp [hcL]) (by simp [hcR])
+  dsimp only at hL hR
+  exact toNative_injective_of_lengths (by omega) (by omega) he ▸ hce
 
 /-- Filling an origin window is polynomial-time in its control, tape list and unary radius. -/
 theorem computableInPolyTime_ofList {Γ Q α : Type} [Inhabited Γ] {encIn : α ↪ List Bool}
@@ -209,15 +183,13 @@ theorem computableInPolyTime_ofList {Γ Q α : Type} [Inhabited Γ] {encIn : α 
     (hr : Turing.MultiTapeTM.ComputableInPolyTime radius encIn Turing.MultiTapeTM.encUnary) :
     Turing.MultiTapeTM.ComputableInPolyTime (fun a => Cfg.ofList (q a) (input a) (radius a))
       encIn (encCfg (Γ := Γ) (Q := Q)) := by
-  have hs : ComputableInPolyTime (fun a => (input a).headI) encIn (encFinite Γ) := by
-    convert listHeadDWithInput hi (const default) using 1
-    funext a
-    cases input a <;> rfl
-  have ht := (listTail (encFinite Γ)).comp hi
-  have hn := (length_list (encFinite Γ)).comp ht
-  have hpad := replicate (encA := encFinite Γ) (unary_sub' hr hn) (const (default : Γ))
-  have hright := (listAppend (encFinite Γ)).comp (ht.prod hpad)
-  exact encCfg_mk_polyTime hq hs (Turing.MultiTapeTM.ComputableInPolyTime.const [default]) hright
+  have hs : ComputableInPolyTime (fun a => (input a).headI) encIn (encFinite Γ) :=
+    (listHeadDWithInput hi (const default)).of_enc_eq fun a => by cases input a <;> rfl
+  let ht := (listTail (encFinite Γ)).comp hi
+  have hpad := replicate (encA := encFinite Γ)
+    (unary_sub' hr ((length_list (encFinite Γ)).comp ht)) (const (default : Γ))
+  exact encCfg_mk_polyTime hq hs (const [default])
+    ((listAppend (encFinite Γ)).comp (ht.prod hpad))
 
 end Turing.TM0Window
 
@@ -265,11 +237,8 @@ variable {α : Type} {encIn : α ↪ List Bool} {f : α → Bool}
 
 private theorem trInit_tail_length {K : Type} [DecidableEq K] {Γ : K → Type} (k : K)
     (input : List (Γ k)) : (TM2to1.trInit k input).tail.length ≤ input.length := by
-  let mkCell : Γ k → TM2to1.Γ' K Γ :=
-    fun a => (false, Function.update (fun _ => none) k (some a))
-  change (input.reverse.map mkCell).tail.length ≤ input.length
-  simp only [List.length_tail, List.length_map, List.length_reverse]
-  omega
+  change (List.map (β := TM2to1.Γ' K Γ) _ input.reverse).tail.length ≤ input.length
+  simp [TM2to1.Γ']
 
 /-- The finite input window represents the original compiled initial configuration. -/
 theorem inputWindow_toNative (h : TM2Computable encIn encBool f) (p : Polynomial ℕ) (a : α) :
@@ -286,20 +255,14 @@ theorem haltWindow_toNative (h : TM2Computable encIn encBool f) (p : Polynomial 
 private theorem inputWindow_fits (h : TM2Computable encIn encBool f)
     (p : Polynomial ℕ) (a : α) :
     (TM2to1.trInit h.tm.k₀ (List.map h.inputAlphabet.symm (encIn a))).tail.length ≤
-      h.tm.windowRadius p (encIn a).length := by
-  have ht := trInit_tail_length h.tm.k₀ (List.map h.inputAlphabet.symm (encIn a))
-  simp only [List.length_map] at ht
-  dsimp only [FinTM2.windowRadius]
-  omega
+      h.tm.windowRadius p (encIn a).length :=
+  (trInit_tail_length _ _).trans (by simp [FinTM2.windowRadius]; omega)
 
 private theorem haltWindow_fits (h : TM2Computable encIn encBool f)
     (p : Polynomial ℕ) (a : α) (bit : Bool) :
     (TM2to1.trInit h.tm.k₁ [h.outputAlphabet.symm bit]).tail.length ≤
-      h.tm.windowRadius p (encIn a).length := by
-  have ht := trInit_tail_length h.tm.k₁ [h.outputAlphabet.symm bit]
-  simp only [List.length_cons, List.length_nil] at ht
-  dsimp only [FinTM2.windowRadius]
-  omega
+      h.tm.windowRadius p (encIn a).length :=
+  (trInit_tail_length _ _).trans (by simp [FinTM2.windowRadius])
 
 private theorem inputWindow_right_length (h : TM2Computable encIn encBool f)
     (p : Polynomial ℕ) (a : α) :
@@ -354,11 +317,9 @@ private theorem headRange_toWindow (h : TM2Computable encIn encBool f) (p : Poly
       ⟨h.tm.toTM0Halt [h.outputAlphabet.symm bit], 0⟩) :
     StateTransition.Reaches (Turing.TM0Window.step h.tm.toTM0)
       (h.inputWindow p a) (h.haltWindow p a bit) := by
-  have hr' := hr.mono (show (-1 : ℤ) ≤ -1 from le_rfl)
-    (show (p.eval (encIn a).length + TM2to1.headOverhead h.tm.m : ℤ) ≤
-      (h.tm.windowRadius p (encIn a).length : ℤ) by
-        dsimp only [FinTM2.windowRadius]
-        omega)
+  have hr' : HeadPosition.ReachesWithin h.tm.toTM0 (-1)
+      (h.tm.windowRadius p (encIn a).length) _ _ :=
+    hr.mono le_rfl (by dsimp only [FinTM2.windowRadius]; omega)
   rw [← inputWindow_toNative h p a, ← haltWindow_toNative h p a bit] at hr'
   exact reaches_of_headRange hr' rfl (inputWindow_right_length h p a) rfl
     (haltWindow_right_length h p a bit)
@@ -379,8 +340,7 @@ theorem mem_PSPACE_exists_windowTM0 {α : Type} {encIn : α ↪ List Bool} {A : 
   obtain ⟨f, h, hfinite, p, hp, hf, ht⟩ := mem_PSPACE_exists_boundedTM0 hA
   refine ⟨f, h, hfinite, p, fun a => ⟨fun ha => ?_, fun hr => ?_⟩⟩
   · exact h.headRange_toWindow p a true (by simpa only [(hf a).mp ha] using hp a)
-  · apply (ht a).mpr
-    simpa only [TM2Computable.inputWindow_toNative, TM2Computable.haltWindow_toNative] using
-      reaches_native hr
+  · exact (ht a).mpr (by simpa only [TM2Computable.inputWindow_toNative,
+      TM2Computable.haltWindow_toNative] using reaches_native hr)
 
 end Cslib.Complexity

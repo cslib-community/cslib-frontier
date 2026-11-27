@@ -93,6 +93,9 @@ abbrev one : Fin 32 := 1
 abbrev two : Fin 32 := 2
 /-- Base of the literal array, which is also the end of the clauses. -/
 abbrev tb : Fin 32 := 3
+/-- End of the refutation log, in the variant that writes the search tree
+(`Cslib.Algorithms.WordRAM.DPLL.programLog`). -/
+abbrev lg : Fin 32 := 4
 /-- Base of the trail. -/
 abbrev sb : Fin 32 := 5
 /-- Top of the trail: the address after its last entry. -/

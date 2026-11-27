@@ -96,7 +96,7 @@ private theorem index_coordinates (F : CSP Unit ℕ) (hw : F.WellFormed arity)
     (incidenceDart ((ternaryCoordinates F hw).symm p) side).index =
       6 * p.1.val + 2 * p.2.val + side.toNat := by
   change 2 * incidenceEdgeIndex ((ternaryCoordinates F hw).symm p) + side.toNat = _
-  rw [incidenceEdgeIndex_eq_mul_add 3 (fun row hrow => hw row hrow)]
+  rw [incidenceEdgeIndex_eq_mul_add 3 hw]
   change 2 * (3 * p.1.val + p.2.val) + side.toNat = _
   omega
 
@@ -111,10 +111,9 @@ private theorem index_orderedOccurrence (F : CSP Unit ℕ) (c : RotationCertific
       (wellFormed_orderedConstraints F c hw)).symm (i', portPermutation c i j)) side).index = _
   rw [index_coordinates, index_coordinates]
   have hside : side.toNat < 2 := by cases side <;> decide
-  have hrow : (6 * i.val + 2 * j.val + side.toNat) / 6 = i.val := by omega
-  have hport : (6 * i.val + 2 * j.val + side.toNat) / 2 % 3 = j.val := by omega
-  have hend : (6 * i.val + 2 * j.val + side.toNat) % 2 = side.toNat := by omega
-  simp only [dartReindex, hrow, hport, hend]
+  simp only [dartReindex, show (6 * i.val + 2 * j.val + side.toNat) / 6 = i.val by omega,
+    show (6 * i.val + 2 * j.val + side.toNat) / 2 % 3 = j.val by omega,
+    show (6 * i.val + 2 * j.val + side.toNat) % 2 = side.toNat by omega]
   cases hf : forward c i.val <;> fin_cases j <;>
     simp [portPermutation, hf, Equiv.swap_apply_def, i']
 
@@ -137,16 +136,14 @@ private theorem orderedCertificate_eq_ofRotation (F : CSP Unit ℕ) (c : Rotatio
     orderedCertificate F c = RotationCertificate.ofRotation (orderedRotation F c hw r) := by
   have hcount : (incidenceGraph (orderedConstraints F c)).edges.length =
       (incidenceGraph F).edges.length := by
-    rw [length_edges_incidenceGraph_eq_mul 3
-      (fun row hrow => wellFormed_orderedConstraints F c hw row hrow),
-      length_edges_incidenceGraph_eq_mul 3 (fun row hrow => hw row hrow),
-      length_orderedConstraints]
-  have h := RotationCertificate.reindex_eq_ofRotation_transport r c ht
-    (occurrenceDartEquiv (orderedOccurrenceEquiv F c hw))
-    (occurrenceDartEquiv_vertex_eq_iff _ (variable_fibers F c hw) (constraint_fibers F c hw))
-    (dartReindex c) (dartReindex c) (index_orderedDart F c hw)
-    (fun a => by rw [index_orderedDart, dartReindex_involutive c])
-  simpa only [orderedCertificate, orderedRotation, occurrenceTransport, hcount] using h
+    rw [length_edges_incidenceGraph_eq_mul 3 (wellFormed_orderedConstraints F c hw),
+      length_edges_incidenceGraph_eq_mul 3 hw, length_orderedConstraints]
+  simpa only [orderedCertificate, orderedRotation, occurrenceTransport, hcount] using
+    RotationCertificate.reindex_eq_ofRotation_transport r c ht
+      (occurrenceDartEquiv (orderedOccurrenceEquiv F c hw))
+      (occurrenceDartEquiv_vertex_eq_iff _ (variable_fibers F c hw) (constraint_fibers F c hw))
+      (dartReindex c) (dartReindex c) (index_orderedDart F c hw)
+      fun a => by rw [index_orderedDart, dartReindex_involutive c]
 
 private theorem constraint_cycle_step (F : CSP Unit ℕ) (c : RotationCertificate)
     (hw : F.WellFormed arity) (r : RotationSystem (incidenceGraph F))
@@ -156,51 +153,35 @@ private theorem constraint_cycle_step (F : CSP Unit ℕ) (c : RotationCertificat
       incidenceDart ((ternaryCoordinates F hw).symm
         (i, (portPermutation c i).symm (finRotate 3 (portPermutation c i j)))) true := by
   let dart (k : Fin 3) := incidenceDart ((ternaryCoordinates F hw).symm (i, k)) true
-  have hdinj : Function.Injective dart := by
-    intro a b hab
-    exact congrArg Prod.snd ((ternaryCoordinates F hw).symm.injective
-      (incidenceDart_injective true hab))
-  have hv (a b : Fin 3) : (dart a).vertex = (dart b).vertex :=
-    (vertex_incidenceDart_eq_iff _ _ true true).mpr ⟨rfl, rfl⟩
+  have hdinj : Function.Injective dart := fun _ _ hab =>
+    congrArg Prod.snd ((ternaryCoordinates F hw).symm.injective (incidenceDart_injective true hab))
   have himage (a : Fin 3) : ∃ b : Fin 3, r.rotate (dart a) = dart b := by
     obtain ⟨o, ho⟩ := exists_incidenceDart (r.rotate (dart a))
     have hvertex := r.vertex_rotate (dart a)
     rw [← ho] at hvertex
     have hf := (vertex_incidenceDart_eq_iff o
       ((ternaryCoordinates F hw).symm (i, a)) (r.rotate (dart a)).2 true).mp hvertex
-    have hside : (r.rotate (dart a)).2 = true := hf.1
-    have hrow : o.1 = i := by
-      have h : o.1 = ((ternaryCoordinates F hw).symm (i, a)).1 := by
-        simpa only [hside, ite_true] using hf.2
-      exact h
-    let p := ternaryCoordinates F hw o
-    refine ⟨p.2, ho.symm.trans ?_⟩
-    rw [hside]
-    apply congrArg (fun occurrence => incidenceDart occurrence true)
-    apply (ternaryCoordinates F hw).injective
+    refine ⟨(ternaryCoordinates F hw o).2, ho.symm.trans ?_⟩
+    rw [hf.1]
+    refine congrArg (fun occ => incidenceDart occ true) ((ternaryCoordinates F hw).injective ?_)
     rw [Equiv.apply_symm_apply]
+    have hrow : o.1 = ((ternaryCoordinates F hw).symm (i, a)).1 := by
+      simpa only [hf.1, ite_true] using hf.2
     exact Prod.ext hrow rfl
   let next (a : Fin 3) := (himage a).choose
   have hnext (a : Fin 3) : r.rotate (dart a) = dart (next a) := (himage a).choose_spec
-  have hni : Function.Injective next := by
-    intro a b hab
-    apply hdinj
-    apply r.rotate.injective
-    exact (hnext a).trans ((congrArg dart hab).trans (hnext b).symm)
-  have hnf (a : Fin 3) : next a ≠ a := by
-    intro he
-    obtain ⟨b, hba⟩ := exists_ne a
-    have hfixed : r.rotate (dart a) = dart a := (hnext a).trans (congrArg dart he)
-    have heq := ((r.sameCycle_iff _ _).mpr (hv a b)).eq_of_left hfixed
-    exact hba (hdinj heq).symm
+  have hni : Function.Injective next := fun a b hab =>
+    hdinj <| r.rotate.injective <| (hnext a).trans ((congrArg dart hab).trans (hnext b).symm)
+  have hnf (a : Fin 3) : next a ≠ a := fun he =>
+    let ⟨b, hba⟩ := exists_ne a
+    hba (hdinj <| ((r.sameCycle_iff (dart a) (dart b)).mpr
+      ((vertex_incidenceDart_eq_iff _ _ true true).mpr ⟨rfl, rfl⟩)).eq_of_left
+        ((hnext a).trans (congrArg dart he))).symm
   have hread : c.successor.getD (6 * i.val + 1) 0 = 6 * i.val + 2 * (next 0).val + 1 := by
-    have h := (ht (dart 0)).trans (congrArg Dart.index (hnext 0))
     simpa only [dart, index_coordinates, Fin.val_zero, Nat.mul_zero, Nat.add_zero,
-      Bool.toNat_true] using h
-  have hforward : forward c i.val = decide (next 0 = 1) := by
-    apply Bool.eq_iff_iff.mpr
-    simp only [forward, decide_eq_true_eq, hread, Fin.ext_iff, Fin.val_one]
-    omega
+      Bool.toNat_true] using (ht (dart 0)).trans (congrArg Dart.index (hnext 0))
+  have hforward : forward c i.val = decide (next 0 = 1) := Bool.eq_iff_iff.mpr <| by
+    simp only [forward, decide_eq_true_eq, hread, Fin.ext_iff, Fin.val_one]; omega
   -- Only the three finite ports are enumerated here, never a source graph or drawing.
   have classification : ∀ f : Fin 3 → Fin 3, Function.Injective f →
       (∀ a, f a ≠ a) → ∀ a,
@@ -210,9 +191,7 @@ private theorem constraint_cycle_step (F : CSP Unit ℕ) (c : RotationCertificat
     decide +kernel
   have hconj : portPermutation c i (next j) = finRotate 3 (portPermutation c i j) := by
     simpa only [portPermutation, hforward] using classification next hni hnf j
-  have hn := congrArg (portPermutation c i).symm hconj
-  simp only [Equiv.symm_apply_apply] at hn
-  exact (hnext j).trans (congrArg dart hn)
+  exact (hnext j).trans (congrArg dart <| by simpa using congrArg (portPermutation c i).symm hconj)
 
 private theorem respectsArgumentOrder_orderedRotation (F : CSP Unit ℕ)
     (c : RotationCertificate) (hw : F.WellFormed arity)
@@ -229,11 +208,9 @@ private theorem respectsArgumentOrder_orderedRotation (F : CSP Unit ℕ)
     (incidenceDart (e ((ternaryCoordinates F hw).symm (i, j))) true) = _
   rw [← occurrenceDartEquiv_apply, occurrenceTransport_rotate,
     constraint_cycle_step F c hw r ht i j, occurrenceDartEquiv_apply]
-  apply congrArg (fun occurrence => incidenceDart occurrence true)
+  refine congrArg (fun occ => incidenceDart occ true) ?_
   change arityOccurrence (orderedConstraints F c) (wellFormed_orderedConstraints F c hw) i'
-      (portPermutation c i ((portPermutation c i).symm (finRotate 3 (portPermutation c i j)))) =
-    argumentSuccessor (arityOccurrence (orderedConstraints F c)
-      (wellFormed_orderedConstraints F c hw) i' (portPermutation c i j))
+      (portPermutation c i ((portPermutation c i).symm (finRotate 3 (portPermutation c i j)))) = _
   rw [Equiv.apply_symm_apply]
   exact (argumentSuccessor_arityOccurrence (orderedConstraints F c)
     (wellFormed_orderedConstraints F c hw) i' (portPermutation c i j)).symm
@@ -247,13 +224,12 @@ theorem verifyRotationCertificate_orderedCertificate (F : CSP Unit ℕ)
     verifyRotationCertificate (orderedConstraints F c) (orderedCertificate F c) = true := by
   obtain ⟨hrot, hgenus⟩ := (RotationCertificate.verifyGenusZero_eq_true_iff _ _).mp hc
   let r := RotationCertificate.decode (incidenceGraph F) c hrot
-  have ht (a : Dart (incidenceGraph F)) :
-      c.successor.getD a.index 0 = (r.rotate a).index :=
+  have ht a : c.successor.getD a.index 0 = (r.rotate a).index :=
     (RotationCertificate.index_decode_rotate hrot a).symm
   rw [orderedCertificate_eq_ofRotation F c hw r ht]
-  apply verifyRotationCertificate_ofRotation
-  · exact numericalGenusZero_occurrenceTransport r (orderedOccurrenceEquiv F c hw)
-      (variable_fibers F c hw) (constraint_fibers F c hw) hgenus
-  · exact respectsArgumentOrder_orderedRotation F c hw r ht
+  exact verifyRotationCertificate_ofRotation (orderedRotation F c hw r)
+    (numericalGenusZero_occurrenceTransport r (orderedOccurrenceEquiv F c hw)
+      (variable_fibers F c hw) (constraint_fibers F c hw) hgenus)
+    (respectsArgumentOrder_orderedRotation F c hw r ht)
 
 end Cslib.Complexity.CSP.OneHot3

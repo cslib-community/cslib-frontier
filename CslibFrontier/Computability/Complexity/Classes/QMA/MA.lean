@@ -137,10 +137,8 @@ theorem acceptProb_ofMA (F : UniformCircuitFamily) (q p : Polynomial ℕ) (x : L
         2 ^ p.eval x.length) := by
   set N := NPVerifier.width F (q + p) x.length
   have hp : x.length + q.eval x.length + p.eval x.length ≤ N := by
-    have := (ofNP F (q + p)).add_witnessLength_le x.length
-    change x.length + (q + p).eval x.length ≤ N at this
-    rw [Polynomial.eval_add] at this
-    omega
+    have : x.length + (q + p).eval x.length ≤ N := (ofNP F (q + p)).add_witnessLength_le x.length
+    rw [Polynomial.eval_add] at this; omega
   have hq : x.length + q.eval x.length ≤ N := by omega
   set s : ℂ := (((Real.sqrt 2)⁻¹ : ℝ) : ℂ)
   set X : (Fin (q.eval x.length) → Bool) × (Fin (p.eval x.length) → Bool) → Fin N → Bool :=
@@ -151,16 +149,11 @@ theorem acceptProb_ofMA (F : UniformCircuitFamily) (q p : Polynomial ℕ) (x : L
   have hXinj : Function.Injective X := by
     rintro ⟨y, r⟩ ⟨y', r'⟩ h
     rw [hX, hX] at h
-    have hr : r = r' := by
-      have := congrArg (· ∘ blockEmb _ hp) h
-      simpa using this
-    subst hr
-    have hy : y = y' := by
-      funext i
-      have hne : ∀ j, blockEmb _ hp j ≠ blockEmb _ hq i := by fin_index [blockEmb_apply_val]
-      have := congrFun h (blockEmb _ hq i)
-      rwa [glue_of_not _ _ _ hne, glue_of_not _ _ _ hne, glue_apply_emb, glue_apply_emb] at this
-    rw [hy]
+    obtain rfl : r = r' := by simpa using congrArg (· ∘ blockEmb _ hp) h
+    refine Prod.ext (funext fun i => ?_) rfl
+    have hne (j) : blockEmb _ hp j ≠ blockEmb _ hq i := by fin_index [blockEmb_apply_val]
+    have hi := congrFun h (blockEmb _ hq i)
+    rwa [glue_of_not _ _ _ hne, glue_of_not _ _ _ hne, glue_apply_emb, glue_apply_emb] at hi
   have hv : Orthonormal ℂ fun yr => ket (X yr) :=
     (EuclideanSpace.orthonormal_single (𝕜 := ℂ)).comp X hXinj
   have hstate : Circuit.eval (Circuit.ofCodes N (hadamardCodes (x.length + q.eval x.length)
@@ -169,11 +162,9 @@ theorem acceptProb_ofMA (F : UniformCircuitFamily) (q p : Polynomial ℕ) (x : L
     rw [embedState_eq_sum, map_sum, Fintype.sum_prod_type]
     refine sum_congr rfl fun y _ => ?_
     rw [map_smul, glue_blockEmb_inputState hq x rfl y,
-      eval_hadamardCodes_ket hp _ fun i => ?_, smul_sum]
-    · refine sum_congr rfl fun r _ => ?_
-      rw [smul_smul, glue_blockEmb_inputState hp _ (by simp) r]
-    · rw [inputState, List.getD_eq_getElem?_getD, List.getElem?_eq_none (by simp)]
-      rfl
+      eval_hadamardCodes_ket hp _ fun i => by simp [inputState, List.getD_eq_getElem?_getD],
+      smul_sum]
+    exact sum_congr rfl fun r _ => by rw [smul_smul, glue_blockEmb_inputState hp _ (by simp) r]
   set U := (Circuit.eval (Circuit.ofCodes N (NPVerifier.gates F (q + p) x.length))).toLinearIsometry
   have hyr (yr : (Fin (q.eval x.length) → Bool) × (Fin (p.eval x.length) → Bool)) :
       measureProb (U (ket (X yr))) (accepting N) =
@@ -182,27 +173,19 @@ theorem acceptProb_ofMA (F : UniformCircuitFamily) (q p : Polynomial ℕ) (x : L
       simp [Polynomial.eval_add]
     rw [← hF _ hlen, ← measureProb_ofNP_inputState F (q + p) x _ hlen, ← List.append_assoc]
     rfl
-  have key := measureProb_map_sum_orthonormal U hv (fun yr => ψ.ofLp yr.1 * s ^ p.eval x.length)
-    (accepting N) (fun yr => f (List.ofFn yr.1 ++ List.ofFn yr.2) = true)
-    (fun yr h => by rw [hyr, ite_eq_left_iff.mpr fun h' => absurd h h'])
-    (fun yr h => by rw [hyr, ite_eq_right_iff.mpr fun h' => absurd h' h])
-  have hmain : measureProb (Circuit.eval (Circuit.ofCodes N (MAVerifier.gates F q p x.length))
-      (embedState (blockEmb x.length hq) (inputState N x) ψ)) (accepting N) =
-      ∑ yr ∈ univ.filter fun yr : (Fin (q.eval x.length) → Bool) × (Fin (p.eval x.length) → Bool)
-        => f (List.ofFn yr.1 ++ List.ofFn yr.2) = true,
-        ‖ψ.ofLp yr.1 * s ^ p.eval x.length‖ ^ 2 := by
-    rw [MAVerifier.gates, Circuit.ofCodes_append, Circuit.eval_append, hstate]
-    exact key
-  rw [show (ofMA F q p).acceptProb x ψ = measureProb (Circuit.eval (Circuit.ofCodes N
-    (MAVerifier.gates F q p x.length)) (embedState (blockEmb x.length hq) (inputState N x) ψ))
-    (accepting N) from rfl, hmain]
   have hs : ‖s ^ p.eval x.length‖ ^ 2 = 1 / 2 ^ p.eval x.length := by
     rw [norm_pow, ← pow_mul, mul_comm, pow_mul, Complex.norm_real, Real.norm_eq_abs,
       sq_abs, inv_pow, Real.sq_sqrt (by norm_num), one_div, inv_pow]
+  change measureProb (Circuit.eval (Circuit.ofCodes N (MAVerifier.gates F q p x.length))
+    (embedState (blockEmb x.length hq) (inputState N x) ψ)) (accepting N) = _
+  rw [MAVerifier.gates, Circuit.ofCodes_append, Circuit.eval_append, hstate]
+  refine (measureProb_map_sum_orthonormal U hv _ (accepting N)
+    (fun yr => f (List.ofFn yr.1 ++ List.ofFn yr.2) = true)
+    (fun yr h => by rw [hyr, ite_eq_left_iff.mpr fun h' => absurd h h'])
+    (fun yr h => by rw [hyr, ite_eq_right_iff.mpr fun h' => absurd h' h])).trans ?_
   rw [sum_filter, Fintype.sum_prod_type]
   refine sum_congr rfl fun y _ => ?_
-  simp only [norm_mul, mul_pow, hs]
-  rw [← sum_filter, sum_const, nsmul_eq_mul]
+  simp only [norm_mul, mul_pow, hs, ← sum_filter, sum_const, nsmul_eq_mul]
   ring
 
 /-- **A basis proof** `y` is accepted with probability `#{r | f (y ++ r)} / 2^{p(|x|)}`. -/
@@ -228,13 +211,12 @@ theorem acceptProb_ofMA_zeroWitness (F : UniformCircuitFamily) (p : Polynomial �
     (ofMA F 0 p).toUniformCircuitFamily.acceptProb x =
       (univ.filter fun r : Fin (p.eval x.length) → Bool => f (List.ofFn r)).card /
         2 ^ p.eval x.length := by
-  have hzero := (ofMA F 0 p).acceptProb_ket_of_witnessLength_eq_zero x
-    Polynomial.eval_zero default
   have hseed := acceptProb_ofMA_ket F 0 p x f (by simpa using hF) default
   rw [List.eq_nil_of_length_eq_zero (by simp : (List.ofFn
     (default : Fin ((0 : Polynomial ℕ).eval x.length) → Bool)).length = 0)] at hseed
   simp only [List.nil_append] at hseed
-  exact hzero.symm.trans hseed
+  exact ((ofMA F 0 p).acceptProb_ket_of_witnessLength_eq_zero x
+    Polynomial.eval_zero default).symm.trans hseed
 
 /-- **Soundness of the Merlin–Arthur verifier**: if every basis proof is accepted with probability
 at most `t`, then so is every unit witness state. -/
@@ -265,20 +247,18 @@ variable {α : Type} {enc : α ↪ List Bool}
 private theorem two_thirds_le_div {m c : ℕ} (h : 2 * 2 ^ m ≤ 3 * c) :
     (2 / 3 : ℝ) ≤ c / 2 ^ m := by
   rw [le_div_iff₀ (by positivity)]
-  have : (2 * 2 ^ m : ℝ) ≤ 3 * c := by exact_mod_cast h
-  linarith
+  linarith [show (2 * 2 ^ m : ℝ) ≤ 3 * c from mod_cast h]
 
 private theorem div_le_one_third {m : ℕ} (g : (Fin m → Bool) → Bool)
     (h : 2 * 2 ^ m ≤ 3 * (univ.filter fun r => g r = false).card) :
     ((univ.filter fun r => g r = true).card / 2 ^ m : ℝ) ≤ 1 / 3 := by
   have hsum := card_filter_add_card_filter_not (s := univ) fun r => g r = true
-  simp only [Bool.not_eq_true] at hsum
-  rw [card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_bool] at hsum
+  simp only [Bool.not_eq_true, card_univ, Fintype.card_fun, Fintype.card_fin,
+    Fintype.card_bool] at hsum
   rw [div_le_iff₀ (by positivity)]
-  have h₁ : (2 * 2 ^ m : ℝ) ≤ 3 * (univ.filter fun r => g r = false).card := by exact_mod_cast h
-  have h₂ : ((univ.filter fun r => g r = true).card : ℝ) +
-      (univ.filter fun r => g r = false).card = 2 ^ m := by exact_mod_cast hsum
-  linarith
+  linarith [show (2 * 2 ^ m : ℝ) ≤ 3 * #(univ.filter fun r => g r = false) from mod_cast h,
+    show (#(univ.filter fun r => g r = true) : ℝ) + #(univ.filter fun r => g r = false) = 2 ^ m
+      from mod_cast hsum]
 
 /-- **`MA ⊆ QMA`**: Merlin's proof is read as a quantum witness and Arthur's coins are prepared
 with Hadamard gates. A basis state of a good proof is accepted with probability at least `2 / 3`;
@@ -299,16 +279,9 @@ verifier runs as a reversible circuit; this is the Merlin–Arthur verifier with
 theorem BPP_subset_BQP : BPP enc ⊆ BQP enc := by
   rintro A ⟨p, V, hV, hA⟩
   obtain ⟨F, hF⟩ := exists_uniformCircuitFamily hV
-  have hacc (a : α) : (UniformVerifierFamily.ofMA F 0 p).toUniformCircuitFamily.acceptProb (enc a) =
-      (univ.filter fun r : Fin (p.eval (enc a).length) → Bool => V (a, List.ofFn r)).card /
-        2 ^ p.eval (enc a).length :=
-    UniformVerifierFamily.acceptProb_ofMA_zeroWitness F p (enc a) (fun w => V (a, w))
-      (fun w _ => hF (a, w))
-  refine ⟨(UniformVerifierFamily.ofMA F 0 p).toUniformCircuitFamily, fun a => ⟨fun ha => ?_,
-    fun ha => ?_⟩⟩
-  · rw [hacc]
-    exact two_thirds_le_div ((hA a).1 ha)
-  · rw [hacc]
-    exact div_le_one_third (fun r => V (a, List.ofFn r)) ((hA a).2 ha)
+  refine ⟨(UniformVerifierFamily.ofMA F 0 p).toUniformCircuitFamily, fun a => ?_⟩
+  rw [UniformVerifierFamily.acceptProb_ofMA_zeroWitness F p (enc a) (fun w => V (a, w))
+    (fun w _ => hF (a, w))]
+  exact ⟨fun ha => two_thirds_le_div ((hA a).1 ha), fun ha => div_le_one_third _ ((hA a).2 ha)⟩
 
 end Cslib.Complexity

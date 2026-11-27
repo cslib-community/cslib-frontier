@@ -299,15 +299,10 @@ theorem sum_mul_poissonBinomial (ps : List I) :
         ∑ k ∈ Finset.range (ps.length + 1),
             ((k + 1 : ℕ) : ℝ) * (poissonBinomial ps (k + 1)).toReal =
           ∑ k ∈ Finset.range (ps.length + 1), (k : ℝ) * (poissonBinomial ps k).toReal := by
-      have h1 :
-          ∑ k ∈ Finset.range (ps.length + 1),
-              ((k + 1 : ℕ) : ℝ) * (poissonBinomial ps (k + 1)).toReal =
-            ∑ k ∈ Finset.range (ps.length + 2), (k : ℝ) * (poissonBinomial ps k).toReal := by
-        symm
-        rw [Finset.sum_range_succ']
-        simp
-      rw [h1, Finset.sum_range_succ, poissonBinomial_eq_zero_of_lt (by omega)]
-      simp
+      have h1 := Finset.sum_range_succ'
+        (fun k => (k : ℝ) * (poissonBinomial ps k).toReal) (ps.length + 1)
+      rw [Finset.sum_range_succ, poissonBinomial_eq_zero_of_lt (by omega)] at h1
+      simpa using h1.symm
     rw [hshift, ih]
     simp_rw [Finset.sum_add_distrib]
     rw [ih, sum_range_poissonBinomial_toReal]

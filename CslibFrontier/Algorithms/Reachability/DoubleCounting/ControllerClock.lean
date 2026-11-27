@@ -49,15 +49,11 @@ private theorem predecessorStep_clock {σ : Type} {n : ℕ} (clock : σ → ℕ)
     (v u : Fin n) (c : ℕ) (s : σ) :
     clock ((predecessorStep edge member v c u).run s).2 ≤ clock s + (E + M) := by
   unfold predecessorStep
-  apply bind_optionT_clock clock E M _ _ (he u v)
-  intro answer state
-  cases answer with
-  | false => change clock state ≤ _; omega
-  | true =>
-    have h := bind_optionT_clock clock M 0 (member u)
-      (fun hit => if hit then pure (c + 1) else pure c) (hm u)
-      (fun hit state => by cases hit <;> (change clock state ≤ _; omega)) state
-    simpa using h
+  refine bind_optionT_clock clock E M _ _ (he u v) (fun answer state => ?_) s
+  cases answer
+  · exact Nat.le_add_right _ _
+  · simpa using bind_optionT_clock clock M 0 (member u) _ (hm u)
+      (fun hit state => by cases hit <;> exact Nat.le_add_right _ _) state
 
 private theorem countPredecessors_clock {σ : Type} {n : ℕ} (clock : σ → ℕ) (E M : ℕ)
     (edge : Fin n → Fin n → OptionT (StateM σ) Bool)
@@ -66,10 +62,8 @@ private theorem countPredecessors_clock {σ : Type} {n : ℕ} (clock : σ → �
     (hm : ∀ v s, clock ((member v).run s).2 ≤ clock s + M)
     (v : Fin n) (s : σ) :
     clock ((countPredecessors edge member v).run s).2 ≤ clock s + n * (E + M) := by
-  unfold countPredecessors
   apply foldlM_optionT_clock
-  intro c u state
-  exact predecessorStep_clock clock E M edge member he hm v u c state
+  exact fun c u => predecessorStep_clock clock E M edge member he hm v u c
 
 private theorem scanVertex_clock {σ : Type} {n : ℕ} (clock : σ → ℕ) (E M : ℕ)
     (edge : Fin n → Fin n → OptionT (StateM σ) Bool)
@@ -79,16 +73,14 @@ private theorem scanVertex_clock {σ : Type} {n : ℕ} (clock : σ → ℕ) (E M
     (k : ℕ) (a : RoundUpdate) (v : Fin n) (s : σ) :
     clock ((scanVertex edge member k a v).run s).2 ≤ clock s + (M + n * (E + M)) := by
   unfold scanVertex
-  apply bind_optionT_clock clock M (n * (E + M)) _ _ (hm v)
-  intro answer state
-  cases answer with
-  | true => change clock state ≤ _; omega
-  | false =>
-    have h := bind_optionT_clock clock (n * (E + M)) 0 (countPredecessors edge member v)
+  refine bind_optionT_clock clock M (n * (E + M)) _ _ (hm v) (fun answer state => ?_) s
+  cases answer
+  · simpa using bind_optionT_clock clock (n * (E + M)) 0 (countPredecessors edge member v)
       (fun p => pure (a.addVertex k p))
       (countPredecessors_clock clock E M edge member he hm v)
-      (fun _ state => by change clock state ≤ _; omega) state
-    simpa using h
+      (fun _ s' => Nat.le_refl (clock s')) state
+  · change clock state ≤ _
+    omega
 
 /-- Arbitrary replying or rejecting callbacks cost at most one membership test per vertex,
 then at most one edge and one membership test per predecessor. Tied rounds are covered. -/
@@ -99,10 +91,8 @@ theorem scanNextRound_clock {σ : Type} {n : ℕ} (clock : σ → ℕ) (E M : �
     (hm : ∀ v s, clock ((member k t v).run s).2 ≤ clock s + M) (s : σ) :
     clock ((scanNextRound edge member k t).run s).2 ≤
       clock s + n * (M + n * (E + M)) := by
-  unfold scanNextRound
   apply foldlM_optionT_clock
-  intro a v state
-  exact scanVertex_clock clock E M edge (member k t) he hm k a v state
+  exact fun a v => scanVertex_clock clock E M edge (member k t) he hm k a v
 
 /-- A fuel-bounded run spends at most the round budget per unit of fuel, plus one terminal
 membership budget. Only radii below `limit` need a membership certificate. -/
@@ -122,16 +112,16 @@ theorem runRounds_clock {σ : Type} {n : ℕ} (clock : σ → ℕ) (E M limit : 
     calc
       _ ≤ clock s + (n * (M + n * (E + M)) +
           (fuel * (n * (M + n * (E + M))) + M)) := by
-        apply bind_optionT_clock clock (n * (M + n * (E + M)))
+        refine bind_optionT_clock clock (n * (M + n * (E + M)))
           (fuel * (n * (M + n * (E + M))) + M) _ _
           (scanNextRound_clock clock E M edge member k t he (hm k hkl t))
-        intro a state
+          (fun a state => ?_) s
         split
         · change clock state ≤ _; omega
         split
         · have h := bind_optionT_clock clock M 0 (member k t target)
             (fun hit => pure (some (ControllerVerdict.decided hit))) (hm k hkl t target)
-            (fun _ state => by change clock state ≤ _; omega) state
+            (fun _ s' => Nat.le_refl (clock s')) state
           simp only [Nat.add_zero] at h
           exact h.trans (by omega)
         · simpa only [runRounds, Nat.add_assoc] using ih (k + 1) a.tally (by omega) state
