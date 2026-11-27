@@ -13,6 +13,7 @@ import CslibFrontier.Foundations.Analysis.SpecialFunctions.Arccos
 import CslibFrontier.Foundations.Probability.Gaussian.Correlated
 import CslibFrontier.Foundations.Probability.Gaussian.Polar
 import CslibFrontier.Foundations.Probability.Gaussian.Real
+import Mathlib.Analysis.SpecialFunctions.PolarCoord
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.IntegrationByParts
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.Periodic
@@ -216,7 +217,7 @@ theorem measureReal_stdGaussian_mem_uIoc_le_exp_mul_angle
   have hang_meas : Measurable angInt := by
     have hj : Measurable (Function.uncurry fun r φ =>
         A.indicator (fun _ => (1 : ℝ)) (r * cos φ, r * sin φ)) :=
-      (measurable_const.indicator hAm).comp (by fun_prop)
+      (measurable_const.indicator hAm).comp continuous_polarCoord_symm.measurable
     simp_rw [angInt, intervalIntegral.integral_of_le hπ_le]
     exact (hj.stronglyMeasurable.integral_prod_right (ν := volume.restrict (Ioc (-π) π))).measurable
   have hang_bdd : ∀ r, 0 ≤ angInt r ∧ angInt r ≤ 2 * π := fun r => by

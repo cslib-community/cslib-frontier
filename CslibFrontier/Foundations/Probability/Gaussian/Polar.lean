@@ -97,11 +97,9 @@ theorem measureReal_prod_gaussianReal_polar {A : Set (ℝ × ℝ)} (hA : Measura
           · have hrad : Measurable planarGaussianRadialWeight := by
               unfold planarGaussianRadialWeight
               fun_prop
-            have hpolar : Measurable fun p : ℝ × ℝ => (p.1 * cos p.2, p.1 * sin p.2) :=
-              (measurable_fst.mul (continuous_cos.measurable.comp measurable_snd)).prodMk
-                (measurable_fst.mul (continuous_sin.measurable.comp measurable_snd))
             exact ((hrad.comp measurable_fst).mul
-              ((measurable_const.indicator hA).comp hpolar)).aestronglyMeasurable
+              ((measurable_const.indicator hA).comp
+                continuous_polarCoord_symm.measurable)).aestronglyMeasurable
           · simp only [f, norm_mul, mul_one]
             exact mul_le_of_le_one_right (norm_nonneg _)
               ((norm_indicator_le_norm_self _ _).trans_eq norm_one)
