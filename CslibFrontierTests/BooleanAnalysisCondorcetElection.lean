@@ -47,7 +47,7 @@ variable {ι : Type*}
 
 /-- A dictator always gives a Condorcet winner, so Arrow's hypotheses are satisfiable. -/
 theorem dictator_exists_isCondorcetWinner (i : ι) (π : ι → Equiv.Perm (Fin 3)) :
-    ∃ c, IsCondorcetWinner (fun x => x i) π c := by
+    ∃ c, IsCondorcetWinner (fun _ x => x i) π c := by
   obtain ⟨c, h₁, h₂⟩ := exists_top (π i)
   exact ⟨c, by simp only [IsCondorcetWinner, condorcetVotes, decide_eq_true_eq,
     decide_eq_false_iff_not, sub_add_cancel]; exact ⟨h₁, h₂⟩⟩
@@ -56,9 +56,14 @@ theorem dictator_exists_isCondorcetWinner (i : ι) (π : ι → Equiv.Perm (Fin 
 example [Finite ι] (i : ι) : ∃ j, (fun x : ι → Bool => x i) = fun x => x j :=
   exists_eq_of_forall_exists_isCondorcetWinner rfl (dictator_exists_isCondorcetWinner i)
 
+-- Arrow's Theorem for three rules recovers the dictator from its own hypotheses.
+example [Finite ι] (i : ι) : ∃ j, ∀ _ : Fin 3, (fun x : ι → Bool => x i) = fun x => x j :=
+  exists_forall_eq_of_forall_exists_isCondorcetWinner (fun _ => rfl) (fun _ => rfl)
+    (dictator_exists_isCondorcetWinner i)
+
 /-- A negated dictator always gives a Condorcet winner. -/
 theorem negDictator_exists_isCondorcetWinner (i : ι) (π : ι → Equiv.Perm (Fin 3)) :
-    ∃ c, IsCondorcetWinner (fun x => !x i) π c := by
+    ∃ c, IsCondorcetWinner (fun _ x => !x i) π c := by
   obtain ⟨c, h₁, h₂⟩ := exists_bottom (π i)
   exact ⟨c, by simp only [IsCondorcetWinner, condorcetVotes, Bool.not_eq_true',
     Bool.not_eq_false', decide_eq_true_eq, decide_eq_false_iff_not, sub_add_cancel]; exact ⟨h₁, h₂⟩⟩
@@ -76,7 +81,7 @@ theorem condorcetWinnerProb_dictator [Fintype ι] [DecidableEq ι] (i : ι) :
 /-- **The majority of three voters** [O'Donnell, Exercise 2.50][ODonnell2014]: `204` of the `216`
 profiles of rankings have a Condorcet winner. -/
 theorem card_majority_three :
-    #{π : Fin 3 → Equiv.Perm (Fin 3) | ∃ c, IsCondorcetWinner (majority 3) π c} = 204 := by
+    #{π : Fin 3 → Equiv.Perm (Fin 3) | ∃ c, IsCondorcetWinner (fun _ => majority 3) π c} = 204 := by
   decide +kernel
 
 /-- **The majority of three voters** [O'Donnell, Exercise 2.50][ODonnell2014]: the probability of

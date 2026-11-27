@@ -4388,6 +4388,7 @@ It proves Theorem 2.56, Corollary 2.59 and Arrow's Theorem, the last assuming on
 Exercise 2.50's value `17/18` is checked in the module's test file.
 [CondorcetLimits](../CslibFrontier/Foundations/BooleanAnalysis/CondorcetLimits.lean) proves Guilbaud's Formula from Theorem 2.56 and Theorem 2.45 along `n = 2m + 1`, and Proposition 2.58 and Theorem 2.57 with the `o_n(1)` terms stated as "for every `ε > 0`, eventually in `n`"; Proposition 2.58 goes through the exact bound `n W¹[f] ≤ E[|x₁ + ⋯ + xₙ|]²` for equal degree-one coefficients (Theorem 2.33) and the monotonicity of `E[|x₁ + ⋯ + xₙ|]` in `n`.
 Exercise 2.24's rate `O(1/n)` is not formalized.
+§2.6, p. 65, Exercise 2.51(a) (three unanimous rules that always give a Condorcet winner are equal, via `g(x) = −f(−x)`) is proved along the hint; part (b), more than three candidates, is not formalized.
 
 <a id="oliveirapichsanthanam2019"></a>
 ## oliveirapichsanthanam2019
