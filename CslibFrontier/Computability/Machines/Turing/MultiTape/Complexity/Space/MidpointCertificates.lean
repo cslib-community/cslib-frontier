@@ -7,6 +7,7 @@ Authors: vhalan anandarajah
 module
 -- upstream: candidate
 
+public import CslibFrontier.Algorithms.Reachability.Savitch
 public import Mathlib.Data.List.Chain
 public import Mathlib.Logic.Function.Iterate
 import Mathlib.Data.Nat.Basic
@@ -28,6 +29,7 @@ literal deterministic protocol.
 ## Main results
 
 * `midpointCheck_iff` proves exact-step semantics.
+* `reach_of_midpointCheck` relates this specialization to Frontier's native Savitch recursion.
 * `midpointBits_exact` and `midpointSchedule_alternates` account for a verification branch.
 
 ## References
@@ -69,6 +71,29 @@ theorem midpointCheck_iff {State : Type} (step : State → State)
       cases right
       · exact (ih a _).mpr rfl
       · exact (ih _ b).mpr h
+
+/-- Exact deterministic midpoint verification supplies a witness for the native bounded
+reachability recursion whenever the transition preserves the configured word width. -/
+theorem reach_of_midpointCheck (step : List Bool → List Bool) (w depth : ℕ) (u v : List Bool)
+    (preserves : ∀ a, a.length = w → (step a).length = w) (hu : u.length = w)
+    (check : midpointCheck step depth u v) :
+    reach (fun a b => decide (step a = b)) w depth u v = true := by
+  induction depth generalizing u v with
+  | zero =>
+    have h : step u = v := check
+    simp [reach, h]
+  | succ depth ih =>
+    obtain ⟨m, moves⟩ := check
+    have left : midpointCheck step depth u m := moves false
+    have right : midpointCheck step depth m v := moves true
+    have widths (n : ℕ) : (step^[n] u).length = w := by
+      induction n with
+      | zero => exact hu
+      | succ n hn => rw [Function.iterate_succ_apply']; exact preserves _ hn
+    have hm : m.length = w :=
+      (midpointCheck_iff step depth u m).mp left ▸ widths _
+    simp only [reach, List.any_eq_true, Bool.and_eq_true, Cslib.BitString.mem_enumList]
+    exact ⟨m, hm, ih u m hu left, ih m v hm right⟩
 
 /-- The two quantifier roles on a verification branch. -/
 inductive MidpointQuantifier where

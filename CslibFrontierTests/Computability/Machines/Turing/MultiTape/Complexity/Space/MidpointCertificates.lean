@@ -17,3 +17,11 @@ example : midpointCheck Nat.succ 2 1 5 := (midpointCheck_iff _ _ _ _).mpr (by de
 example : ¬ midpointCheck Nat.succ 2 1 4 := by rw [midpointCheck_iff]; decide
 example : midpointBits 8 3 = 27 := by decide
 example : (midpointSchedule 3).length = 6 := by decide
+
+example : reach (fun a b => decide (a.map Bool.not = b)) 1 1 [true] [true] = true := by
+  apply reach_of_midpointCheck (List.map Bool.not) 1 1 [true] [true]
+  · intro a h
+    simpa only [List.length_map] using h
+  · rfl
+  · rw [midpointCheck_iff]
+    decide
