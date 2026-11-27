@@ -8,14 +8,16 @@ module
 -- upstream: local-only (test driver)
 
 public import CslibFrontier.Foundations.BooleanAnalysis.MajorityStability
+public import CslibFrontier.Foundations.Analysis.SpecialFunctions.ArcsinSeries
 
 /-! # Limits of the spectrum and noise stability of majority
 
 The degree-one weight of majority tends to `2/π` and the degree-three weight to `1/(3π)`, the
 first two coefficients of `(2/π) arcsin ρ = (2/π)(ρ + ρ³/6 + ⋯)`. Majority of three bits has
 degree-one weight `3/4`, above its limit `2/π`, and majority of five bits has degree-one weight
-at most `7/5` times its limit. At `ρ = 1/2` the noise stability of majority tends
-to `(2/π) arcsin(1/2) = 1/3`, and at `δ = 1/2` its noise sensitivity tends to `1/2`.
+at most `7/5` times its limit. At `ρ = 1/2` the noise stability of majority tends to
+`(2/π) arcsin(1/2) = 1/3`, and at `δ = 1/2` its noise sensitivity tends to `1/2`. At `ρ = 0` the
+upper bound of Theorem 5.18 holds. At `z = 1` the Maclaurin series of `arcsin` sums to `π/2`.
 -/
 
 public section
@@ -76,5 +78,9 @@ theorem tendsto_noiseSensitivity_half :
   convert h using 2
   norm_num [arccos_zero]
   field_simp
+
+/-- At `z = 1` the Maclaurin series of `arcsin` gives `∑_n C(2n, n) / (4ⁿ (2n + 1)) = π/2`. -/
+example : HasSum (fun n => (Nat.centralBinom n : ℝ) / 4 ^ n / (2 * n + 1)) (π / 2) := by
+  simpa [arcsin_one] using hasSum_arcsin (x := 1) (by norm_num)
 
 end CslibFrontierTests.BooleanAnalysisMajorityStability
