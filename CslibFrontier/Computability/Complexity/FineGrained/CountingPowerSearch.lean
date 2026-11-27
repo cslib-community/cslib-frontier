@@ -633,6 +633,19 @@ private theorem exists_budget_power_lt_one {p : ℝ} (hp1 : p < 1) (k : ℕ) :
   rw [add_mul, one_mul, div_mul_eq_mul_div]
   linarith
 
+private theorem sparseLeaf_size_le {ψ : CNF ℕ} {declared A : ℕ} {b : ℝ}
+    (hb : 1 ≤ b) (hsupport : ψ.vars.toFinset ⊆ Finset.range declared)
+    (hclauses : (ψ.length : ℝ) ≤ A * (declared + 1 : ℝ) ^ b) :
+    (ψ.numVars + ψ.length + 1 : ℝ) ≤ (A + 1 : ℝ) * (declared + 1 : ℝ) ^ b := by
+  have hvars : ψ.numVars ≤ declared := by
+    simpa only [CNF.numVars, Finset.card_range] using Finset.card_le_card hsupport
+  have hbase : (1 : ℝ) ≤ declared + 1 := le_add_of_nonneg_left (Nat.cast_nonneg _)
+  have hn : (declared + 1 : ℝ) ≤ (declared + 1 : ℝ) ^ b := by
+    simpa only [Real.rpow_one] using Real.rpow_le_rpow_of_exponent_le hbase hb
+  have hn' : (ψ.numVars + 1 : ℝ) ≤ (declared + 1 : ℝ) :=
+    add_le_add_left (Nat.cast_le.mpr hvars) 1
+  linarith [hn'.trans hn]
+
 private theorem computableInPowerExpTime_declaredSearch_of_size {k : ℕ} (hk : 2 ≤ k)
     {p : ℝ} (hp : 0 < p) (hp1 : p < 1) {g : CNF ℕ → ℕ}
     (hcap : ∀ φ, g φ ≤ 2 ^ φ.numVars)
@@ -689,16 +702,8 @@ private theorem computableInPowerExpTime_declaredSearch_of_size {k : ℕ} (hk : 
       hclock (fun _ ψ _ _ _ _ => hcap ψ) (by
         rintro ⟨context, declared, formula⟩ ψ _ _ hsupport hclauses hbits
         let x : Unit × ℕ × CNF ℕ := (context, declared, formula)
-        have hvars : ψ.numVars ≤ declared := by
-          simpa only [CNF.numVars, Finset.card_range] using Finset.card_le_card hsupport
-        have hclauses' : (ψ.length : ℝ) ≤ A * (X x) ^ b :=
-          (Nat.cast_le.mpr hclauses).trans (hA hd declared)
-        have hn : X x ≤ (X x) ^ b := by
-          simpa only [Real.rpow_one] using Real.rpow_le_rpow_of_exponent_le (hX x) hb
-        have hvars' : (ψ.numVars : ℝ) + 1 ≤ X x :=
-          add_le_add (Nat.cast_le.mpr hvars) le_rfl
-        have hsize : (ψ.numVars + ψ.length + 1 : ℝ) ≤ (A + 1 : ℝ) * (X x) ^ b := by
-          linarith [hvars'.trans hn]
+        have hsize : (ψ.numVars + ψ.length + 1 : ℝ) ≤ (A + 1 : ℝ) * (X x) ^ b :=
+          sparseLeaf_size_le hb hsupport ((Nat.cast_le.mpr hclauses).trans (hA hd declared))
         have hpow := Real.rpow_le_rpow (by positivity) hsize hp.le
         rw [Real.mul_rpow (by positivity) (by positivity),
           ← Real.rpow_mul (zero_le_one.trans (hX x))] at hpow
@@ -957,18 +962,9 @@ private theorem solvesWithErrorInPowerExpTime_declaredSat_of_size {k : ℕ} (hk 
       ((20 * (encSeeded (leaf, seed)).length + Tw leaf +
         Tv (leaf, seed.take (width leaf)) : ℕ) : ℝ) ≤ X a * P (a, seed) := by
     intro leaf
-    have hvars : ψ.numVars ≤ a.numVars := by
-      simpa only [CNF.numVars, Finset.card_range] using Finset.card_le_card hsupport
     have hsize : (μ leaf + 1 : ℝ) ≤ (J + 1 : ℝ) * (a.numVars + 1 : ℝ) ^ b := by
-      have hclauses' : (ψ.length : ℝ) ≤ J * (a.numVars + 1 : ℝ) ^ b :=
-        (Nat.cast_le.mpr hclauses).trans (hJ hd a.numVars)
-      have hn : (a.numVars + 1 : ℝ) ≤ (a.numVars + 1 : ℝ) ^ b := by
-        simpa only [Real.rpow_one] using Real.rpow_le_rpow_of_exponent_le
-          (le_add_of_nonneg_left (Nat.cast_nonneg a.numVars)) hb
-      have hnv : (ψ.numVars + 1 : ℝ) ≤ (a.numVars + 1 : ℝ) :=
-        add_le_add_left (Nat.cast_le.mpr hvars) 1
       simp only [μ, leaf, Nat.cast_add]
-      linarith [hnv.trans hn]
+      exact sparseLeaf_size_le hb hsupport ((Nat.cast_le.mpr hclauses).trans (hJ hd a.numVars))
     have hrate (C : ℕ) (hC : C ≤ max Cw Cv) :
         (2 : ℝ) ^ (C * (μ leaf + 1 : ℝ) ^ p) ≤ X a := by
       refine (two_rpow_mul_rpow_le_of_le_mul_rpow (C := C)
