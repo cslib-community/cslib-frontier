@@ -10678,6 +10678,7 @@ public import CslibFrontier.Computability.Machines.Turing.SingleTape.Partrec
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Contraction.Robust
 public import CslibFrontier.Foundations.Combinatorics.Multidigraph.Arborescence
 public import CslibFrontier.Computability.Circuit.Boolean.CodeTemplate
+public import CslibFrontier.Computability.Complexity.Classes.BQP.Nondeterministic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
 public import CslibFrontier.Computability.Circuit.Monotone.Clique.LowerBound
 public import CslibFrontier.Computability.Circuit.Boolean.CodeReplication

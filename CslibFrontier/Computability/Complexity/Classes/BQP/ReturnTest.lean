@@ -19,6 +19,14 @@ A CNOT layer saves the initial register, including its zero padding. After the c
 the same layer adds its final register to the saved copy. A reversible counter detects whether
 all the differences vanish. The resulting uniform circuit accepts with probability equal to the
 squared norm of the diagonal entry at the input basis state.
+
+## Main definitions
+
+* `Cslib.Quantum.UniformCircuitFamily.returnTest` tests return to the entire padded input register.
+
+## Main results
+
+* `Cslib.Quantum.UniformCircuitFamily.acceptProb_returnTest` gives its acceptance probability.
 -/
 
 public section
