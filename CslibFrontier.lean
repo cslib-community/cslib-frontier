@@ -4911,6 +4911,7 @@ public import CslibFrontier.Computability.Automata.MPDA.EmptinessComplete
 public import CslibFrontier.Foundations.Data.Polynomial.FiniteDifference
 public import CslibFrontier.Foundations.Combinatorics.FiniteCover.Basic
 public import CslibFrontier.Computability.Complexity.FineGrained.SharpSatisfiabilityHypothesis
+public import CslibFrontier.Computability.Complexity.Classes.MIP.LineTest
 public import CslibFrontier.Foundations.Combinatorics.BinomialTail
 public import CslibFrontier.Algorithms.WordRAM.Arborescence.Internal.ContractSpec
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute
