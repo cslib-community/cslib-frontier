@@ -32,6 +32,7 @@ than that of a dense `Cslib.LinearAlgebra.DecouplingCert` on circuits of more th
   the modified nodal equations.
 * `Cslib.Electrical.Netlist.isExponentiallyStable_of_sparseCheck`
 -/
+
 public section
 
 open Set Matrix Mathlib.Tactic.Matrix Cslib.LinearAlgebra
