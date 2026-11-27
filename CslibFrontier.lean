@@ -8386,6 +8386,7 @@ public import CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalDeliver
 public import CslibFrontier.Logics.Propositional.CSP.Planar.OneInThree
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.ExtendTapes
+public import CslibFrontier.Logics.Propositional.CNF.LRATFile
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.WhileCond.Partial
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.StepMachine.Basic
 public import CslibFrontier.Computability.LogSpaceDerandomization.RowCompression.Reference

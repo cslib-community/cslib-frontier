@@ -61,6 +61,14 @@ allowNonModules = true
 
 # The VeriPB elaborator and kernel checker on files (`scripts/VeriPBElab.lean`); not a default
 # target.
+# The LRAT checker on DIMACS and LRAT files (`scripts/LratCheck.lean`), the counterpart of
+# `cake_lpr` and drat-trim's `lrat-check`; not a default target.
+[[lean_exe]]
+name = "lrat_check"
+srcDir = "scripts"
+root = "LratCheck"
+allowNonModules = true
+
 [[lean_exe]]
 name = "veripb_elab"
 srcDir = "scripts"
