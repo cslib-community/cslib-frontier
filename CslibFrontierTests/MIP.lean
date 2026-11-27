@@ -8,7 +8,7 @@ import CslibFrontier.Computability.Complexity.Classes.IP.GraphNonIsomorphism
 import CslibFrontier.Computability.Complexity.Classes.IP.Shamir
 import CslibFrontier.Computability.Complexity.Classes.MIP
 import CslibFrontier.Languages.Probabilistic.UniformNat
-import CslibFrontier.Computability.Complexity.Classes.MIP.LineTest
+import CslibFrontier.Computability.Complexity.Classes.MIP.Correction
 
 /-! Multiprover interactive proofs (`MIP₂` and `MIP`), non-communicating provers, deterministic
 prover optimality, transcript consistency, the upper bound `MIP ⊆ NEXP`,
@@ -162,5 +162,25 @@ example :
     tsum_fintype, Fin.sum_univ_succ]
   norm_num [div_eq_mul_inv, two_mul, Fin.sum_univ_succ]
   ring
+
+section
+
+open Cslib.Complexity.MIP
+
+private def correctionProof (q : List Bool) : Bool :=
+  decide (q ∈ [encPair encBits encNat (correctionKey [0] [0], 2),
+    encPair encBits encNat (pointTableKey [0], 1),
+    encPair encBits encNat (pointTableKey [0], 2)])
+
+-- At direction zero both point queries use the same address. Its binary value six
+-- represents one over F₅, so the constant-one polynomial is accepted.
+example : (Prover.ofProof correctionProof).run (correctAt 5 1 [0] [0]) () = PMF.pure (some 1, ()) := by
+  let : Fact (Nat.Prime 5) := ⟨by decide⟩
+  let z : Fin 1 → ZMod 5 := fun _ => 0
+  have h := run_correctAt correctionProof z z
+  have ha : correctionAnswer correctionProof z z = some 1 := by decide
+  simpa only [ha, show (List.ofFn fun j => (z j).val) = [0] by decide] using h
+
+end
 
 end CslibFrontierTests.MIP
