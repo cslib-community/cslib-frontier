@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger, Phillipp Schoppmann
 module
 
 import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Robust
+import CslibFrontier.Foundations.Data.Code.BerlekampWelch
 import Mathlib.Algebra.Field.ZMod
 
 /-!
@@ -239,8 +240,8 @@ private def r3₂ : Randomness params3 := ![4]
 private def w3 : Fin 3 → ZMod 5 := ![1, 1, 4]
 
 example :
-    hammingDist w3 (share params3 r3₁ 1) ≤ params3.threshold ∧
-      hammingDist w3 (share params3 r3₂ 2) ≤ params3.threshold ∧
+    hammingDist (share params3 r3₁ 1) w3 ≤ params3.threshold ∧
+      hammingDist (share params3 r3₂ 2) w3 ≤ params3.threshold ∧
       (1 : ZMod 5) ≠ 2 := by
   have hs1 : share params3 r3₁ 1 = ![1, 1, 1] := by
     funext i

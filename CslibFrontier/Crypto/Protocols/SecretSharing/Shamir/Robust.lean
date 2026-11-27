@@ -11,7 +11,6 @@ public import CslibFrontier.Init
 public import Cslib.Crypto.Protocols.SecretSharing.Shamir
 public import CslibFrontier.Foundations.Data.Code.BerlekampWelch
 public import CslibFrontier.Foundations.Data.Code.ReedSolomon
-import Cslib.Crypto.Protocols.SecretSharing.Shamir.Polynomial
 import CslibFrontier.Foundations.Data.Hamming
 
 /-!
@@ -22,6 +21,9 @@ Reed–Solomon codes (`Cslib.Code.reedSolomon`) and the Welch–Berlekamp decode
 (`Cslib.Code.berlekampWelch`) [Shamir1979], [ReedSolomon1960], [WelchBerlekamp1986], supporting
 active malicious share corruption as used in perfectly secure MPC (`n ≥ 3t + 1`)
 [BenOrGoldwasserWigderson1988], [AsharovLindell2017].
+
+`robustReconstruct` is `noncomputable`: like `Cslib.Code.berlekampWelch`, it selects a solution of
+the key equations by `Classical.choose`, and no machine running time is claimed.
 
 ## Main definitions
 
@@ -47,10 +49,9 @@ active malicious share corruption as used in perfectly secure MPC (`n ≥ 3t + 1
   `Cslib.Crypto.Protocols.SecretSharing.Shamir.robustReconstruct_zero_eq_none_of_errors`:
   error detection (`e = 0`) accepts valid sharings and rejects any nonzero tampering of weight
   `< n - t` (hence `≤ t` when `2 * t < n`).
-* `Cslib.Crypto.Protocols.SecretSharing.Shamir.keyEquation_exists`,
-  `Cslib.Crypto.Protocols.SecretSharing.Shamir.keyEquation_div_eq`: existence and exact division
-  for arbitrary nonzero Welch–Berlekamp key-equation solutions `(E, Q)` without requiring `E` to be
-  monic of full degree `e`.
+* `Cslib.Crypto.Protocols.SecretSharing.Shamir.keyEquation_div_eq`: exact division for arbitrary
+  nonzero Welch–Berlekamp key-equation solutions `(E, Q)` without requiring `E` to be monic of
+  full degree `e`.
 
 ## References
 
@@ -58,13 +59,12 @@ active malicious share corruption as used in perfectly secure MPC (`n ≥ 3t + 1
 * [I. S. Reed, G. Solomon, *Polynomial codes over certain finite fields*][ReedSolomon1960].
 * [L. R. Welch, E. R. Berlekamp, *Error correction for algebraic block codes*][WelchBerlekamp1986].
 * [M. Ben-Or, S. Goldwasser, A. Wigderson, *Completeness Theorems for Non-Cryptographic
-  Fault-Tolerant Distributed Computation*][BenOrGoldwasserWigderson1988] (BGW `n ≥ 3t + 1`
-  threshold; exact page/section locators not verified from rendered PDF).
+  Fault-Tolerant Distributed Computation*][BenOrGoldwasserWigderson1988].
 * [G. Asharov, Y. Lindell, *A Full Proof of the BGW Protocol for Perfectly Secure Multiparty
-  Computation*][AsharovLindell2017] (exact page/section locators not verified from rendered PDF).
+  Computation*][AsharovLindell2017].
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto.Protocols.SecretSharing.Shamir
 
@@ -190,19 +190,21 @@ the BGW threshold `3 * t < n` uniquely identifies the secret and sharing polynom
 theorem eq_of_hammingDist_le_share [DecidableEq F] (params : Params F Party) {e : ℕ}
     (huniq : 2 * e + params.threshold < Fintype.card Party) {w : Party → F}
     {r₁ r₂ : Randomness params} {a₁ a₂ : F}
-    (hd₁ : hammingDist w (share params r₁ a₁) ≤ e)
-    (hd₂ : hammingDist w (share params r₂ a₂) ≤ e) :
+    (hd₁ : hammingDist (share params r₁ a₁) w ≤ e)
+    (hd₂ : hammingDist (share params r₂ a₂) w ≤ e) :
     r₁ = r₂ ∧ a₁ = a₂ := by
   have hceq := Cslib.Code.eq_of_hammingDist_le_reedSolomon params.point_injective
     (by omega : 2 * e + (params.threshold + 1) ≤ Fintype.card Party)
-    (share_mem_reedSolomon params r₁ a₁) (share_mem_reedSolomon params r₂ a₂) hd₁ hd₂
+    (share_mem_reedSolomon params r₁ a₁) (share_mem_reedSolomon params r₂ a₂)
+    ((hammingDist_comm _ _).trans_le hd₁) ((hammingDist_comm _ _).trans_le hd₂)
   exact (share_eq_share_iff params).1 hceq
 
 /-! ### Welch–Berlekamp robust reconstruction and error detection -/
 
 /-- Robust Shamir reconstruction up to `e` adversarial errors via the Welch–Berlekamp decoder
 `Cslib.Code.berlekampWelch`, returning the constant term `p.eval 0` of the decoded polynomial.
-At `e = 0`, this performs exact error detection. -/
+At `e = 0`, this performs exact error detection. It is `noncomputable`: the decoder selects a
+key-equation solution by `Classical.choose`, and no machine running time is claimed. -/
 noncomputable def robustReconstruct [DecidableEq F] (params : Params F Party) (e : ℕ)
     (w : Party → F) : Option F :=
   (Cslib.Code.berlekampWelch params.point e (params.threshold + 1) w).map (fun p => p.eval 0)
@@ -304,55 +306,6 @@ theorem robustReconstruct_zero_eq_none_of_errors [DecidableEq F] (params : Param
 
 /-! ### Arbitrary nonzero-error-locator Welch–Berlekamp key equation -/
 
-private lemma degree_sharingPolynomial_mul_lt (params : Params F Party) {e : ℕ}
-    (r : Randomness params) (a₀ : F) {E : _root_.Polynomial F} (hE0 : E ≠ 0)
-    (hEdeg : E.natDegree ≤ e) :
-    (Polynomial.sharingPolynomial a₀ (Polynomial.tailPolynomial params.threshold r) * E).degree <
-      ((e + (params.threshold + 1) : ℕ) : WithBot ℕ) := by
-  let f := Polynomial.sharingPolynomial a₀ (Polynomial.tailPolynomial params.threshold r)
-  rcases eq_or_ne f 0 with hf0 | hf0
-  · change (f * E).degree < _
-    rw [hf0, zero_mul, _root_.Polynomial.degree_zero]
-    exact WithBot.bot_lt_coe _
-  · have hfdeg : f.degree < (params.threshold + 1 : WithBot ℕ) :=
-      Polynomial.degree_sharingPolynomial_tailPolynomial_lt_succ a₀ params.threshold r
-    have hfnat : f.natDegree < params.threshold + 1 :=
-      (_root_.Polynomial.natDegree_lt_iff_degree_lt hf0).2 hfdeg
-    calc (f * E).degree
-        ≤ f.degree + E.degree := _root_.Polynomial.degree_mul_le f E
-      _ = ((f.natDegree + E.natDegree : ℕ) : WithBot ℕ) := by
-          rw [_root_.Polynomial.degree_eq_natDegree hf0, _root_.Polynomial.degree_eq_natDegree hE0,
-            Nat.cast_add]
-      _ < ((e + (params.threshold + 1) : ℕ) : WithBot ℕ) := by
-          exact_mod_cast (by omega : f.natDegree + E.natDegree < e + (params.threshold + 1))
-
-/-- **Key-equation existence without degree padding**: if `w` differs from `share params r a₀` on
-at most `e` positions, then `E = Lagrange.nodal {i | share params r a₀ i ≠ w i} params.point`
-(monic of degree `≤ e`) and `Q = f * E` satisfy `Q(αᵢ) = wᵢ · E(αᵢ)` with
-`deg Q < e + params.threshold + 1`. -/
-theorem keyEquation_exists [DecidableEq F] (params : Params F Party) {e : ℕ}
-    {r : Randomness params} {a₀ : F} {w : Party → F}
-    (he : hammingDist (share params r a₀) w ≤ e) :
-    ∃ E Q : _root_.Polynomial F,
-      E ≠ 0 ∧ E.natDegree ≤ e ∧ Q.degree < ((e + (params.threshold + 1) : ℕ) : WithBot ℕ) ∧
-      (∀ i, Q.eval (params.point i) = w i * E.eval (params.point i)) := by
-  classical
-  let errors : Finset Party := {i | share params r a₀ i ≠ w i}
-  have herrors : errors.card ≤ e := he
-  let E := Lagrange.nodal errors params.point
-  let f := Polynomial.sharingPolynomial a₀ (Polynomial.tailPolynomial params.threshold r)
-  have hE0 : E ≠ 0 := (Lagrange.nodal_monic (s := errors) (v := params.point)).ne_zero
-  have hEdeg : E.natDegree ≤ e := by
-    rw [Lagrange.natDegree_nodal]
-    exact herrors
-  refine ⟨E, f * E, hE0, hEdeg, degree_sharingPolynomial_mul_lt params r a₀ hE0 hEdeg, fun i => ?_⟩
-  rw [_root_.Polynomial.eval_mul]
-  by_cases hi : i ∈ errors
-  · rw [Lagrange.eval_nodal_at_node hi, mul_zero, mul_zero]
-  · have hEq : f.eval (params.point i) = w i := by
-      simpa [errors, f, share] using hi
-    rw [hEq]
-
 /-- **Welch–Berlekamp division theorem for arbitrary nonzero `(E, Q)`**: under
 `2 * e + t < n`, if `w` is within distance `e` of `share params r a₀` and *any* pair `(E, Q)`
 with `E ≠ 0`, `E.natDegree ≤ e`, `Q.degree < e + t + 1` satisfies `Q(αᵢ) = wᵢ · E(αᵢ)` at all
@@ -365,28 +318,16 @@ theorem keyEquation_div_eq [DecidableEq F] (params : Params F Party) {e : ℕ}
     (heval : ∀ i, Q.eval (params.point i) = w i * E.eval (params.point i)) :
     Q = Polynomial.sharingPolynomial a₀ (Polynomial.tailPolynomial params.threshold r) * E ∧
       E ∣ Q ∧ (Q / E).eval 0 = a₀ := by
-  classical
-  let f := Polynomial.sharingPolynomial a₀ (Polynomial.tailPolynomial params.threshold r)
-  let correct : Finset Party := {i | share params r a₀ i = w i}
-  have hcorrect : correct.card + hammingDist (share params r a₀) w = Fintype.card Party :=
-    card_filter_eq_add_hammingDist _ _
-  have hQeq : Q = f * E := by
-    refine sub_eq_zero.1 (_root_.Polynomial.eq_zero_of_degree_lt_of_eval_finset_eq_zero
-      (correct.image params.point) ?_ ?_)
-    · rw [card_image_of_injective _ params.point_injective]
-      calc (Q - f * E).degree
-          ≤ max Q.degree (f * E).degree := _root_.Polynomial.degree_sub_le Q (f * E)
-        _ < ((e + (params.threshold + 1) : ℕ) : WithBot ℕ) :=
-            max_lt hQdeg (degree_sharingPolynomial_mul_lt params r a₀ hE0 hEdeg)
-        _ ≤ correct.card := by exact_mod_cast (by omega)
-    · intro x hx
-      obtain ⟨i, hi, rfl⟩ := mem_image.1 hx
-      have hwi : share params r a₀ i = w i := (mem_filter.1 hi).2
-      rw [_root_.Polynomial.eval_sub, _root_.Polynomial.eval_mul, heval i]
-      have hfi : f.eval (params.point i) = w i := hwi
-      rw [hfi, sub_self]
-  refine ⟨hQeq, ⟨f, by rw [hQeq, mul_comm]⟩, ?_⟩
-  rw [hQeq, mul_div_cancel_right₀ _ hE0, ← _root_.Polynomial.coeff_zero_eq_eval_zero,
+  have hn : 2 * e + (params.threshold + 1) ≤ Fintype.card Party := by omega
+  have hdeg : (Polynomial.sharingPolynomial a₀
+      (Polynomial.tailPolynomial params.threshold r)).degree < (params.threshold + 1 : ℕ) := by
+    simpa only [Nat.cast_add, Nat.cast_one] using
+      Polynomial.degree_sharingPolynomial_tailPolynomial_lt_succ a₀ params.threshold r
+  have hQ := Cslib.Code.BerlekampWelch.eq_mul_of_eval_eq params.point_injective hn hdeg he hEdeg
+    hQdeg heval
+  refine ⟨hQ, ⟨_, by rw [hQ, mul_comm]⟩, ?_⟩
+  rw [Cslib.Code.BerlekampWelch.div_eq_of_eval_eq params.point_injective hn hdeg he hE0 hEdeg
+    hQdeg heval, ← _root_.Polynomial.coeff_zero_eq_eval_zero,
     Polynomial.coeff_zero_sharingPolynomial]
 
 end Cslib.Crypto.Protocols.SecretSharing.Shamir

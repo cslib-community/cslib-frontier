@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Data.Code.ReedSolomon
-public import Mathlib.Algebra.Polynomial.Div
+public import Mathlib.Algebra.Polynomial.FieldDivision
 import CslibFrontier.Foundations.Data.Hamming
 import Mathlib.LinearAlgebra.Lagrange
 
@@ -24,7 +24,10 @@ decoder [WelchBerlekamp1986], [GuruswamiRudraSudan2019] looks for a monic
 and `Q = p * E` (`Cslib.Code.BerlekampWelch.exists_isSolution`). Conversely, if `2 e + k ≤ n`,
 then for every solution `Q - p * E` has degree less than `e + k` and vanishes at the at least
 `n - e ≥ e + k` points without errors, so `Q = p * E` and `p` is the quotient `Q /ₘ E`
-(`Cslib.Code.BerlekampWelch.IsSolution.divByMonic_eq`).
+(`Cslib.Code.BerlekampWelch.IsSolution.divByMonic_eq`). The argument needs neither monicity nor
+degree exactly `e`: for any `E` of degree at most `e` it gives `Q = p * E`, and `p = Q / E` when
+`E ≠ 0` (`Cslib.Code.BerlekampWelch.eq_mul_of_eval_eq`,
+`Cslib.Code.BerlekampWelch.div_eq_of_eval_eq`).
 
 The decoder `Cslib.Code.berlekampWelch` takes a solution `(E, Q)`, and returns the quotient
 `Q /ₘ E` after checking, as in [GuruswamiRudraSudan2019], that `E` divides `Q` and that the
@@ -57,6 +60,8 @@ and no running time is formalized.
 * `Cslib.Code.BerlekampWelch.exists_isSolution`: the key equations have a solution.
 * `Cslib.Code.BerlekampWelch.IsSolution.eq_mul`,
   `Cslib.Code.BerlekampWelch.IsSolution.divByMonic_eq`: every solution yields the polynomial.
+* `Cslib.Code.BerlekampWelch.eq_mul_of_eval_eq`, `Cslib.Code.BerlekampWelch.div_eq_of_eval_eq`:
+  the same for unnormalized solutions, with `E` of degree at most `e`.
 * `Cslib.Code.degree_lt_of_berlekampWelch_eq_some`,
   `Cslib.Code.hammingDist_le_of_berlekampWelch_eq_some`,
   `Cslib.Code.exists_isSolution_mul_of_berlekampWelch_eq_some`: soundness of the decoder.
@@ -99,9 +104,9 @@ structure IsSolution (α w : ι → F) (e k : ℕ) (E Q : F[X]) : Prop where
 
 variable {α w : ι → F} {e k : ℕ} {p : F[X]}
 
-/-- The product of a polynomial of degree less than `k` with a polynomial of degree `e` has degree
-less than `e + k`. -/
-private theorem degree_mul_lt {E : F[X]} (hp : p.degree < k) (hE : E.natDegree = e) :
+/-- The product of a polynomial of degree less than `k` with a polynomial of degree at most `e` has
+degree less than `e + k`. -/
+private theorem degree_mul_lt {E : F[X]} (hp : p.degree < k) (hE : E.natDegree ≤ e) :
     (p * E).degree < (e + k : ℕ) := by
   rcases eq_or_ne p 0 with rfl | hp0
   · rw [zero_mul, degree_zero]
@@ -110,8 +115,7 @@ private theorem degree_mul_lt {E : F[X]} (hp : p.degree < k) (hE : E.natDegree =
   · rw [mul_zero, degree_zero]
     exact WithBot.bot_lt_coe _
   have := (natDegree_lt_iff_degree_lt hp0).2 hp
-  rw [degree_mul, degree_eq_natDegree hp0, degree_eq_natDegree hE0, hE, ← Nat.cast_add,
-    Nat.cast_lt]
+  rw [degree_mul, degree_eq_natDegree hp0, degree_eq_natDegree hE0, ← Nat.cast_add, Nat.cast_lt]
   omega
 
 /-- The quotient `Q /ₘ E` of a solution of the key equations has degree less than `k`. -/
@@ -143,18 +147,21 @@ theorem exists_isSolution (hp : p.degree < k) (he : hammingDist (fun i => p.eval
     rw [Lagrange.nodal_monic.natDegree_mul (monic_X_pow _), Lagrange.natDegree_nodal,
       natDegree_X_pow]
     omega
-  refine ⟨_, _, ⟨hmonic, hdeg, degree_mul_lt hp hdeg, fun i => ?_⟩⟩
+  refine ⟨_, _, ⟨hmonic, hdeg, degree_mul_lt hp hdeg.le, fun i => ?_⟩⟩
   rw [eval_mul]
   by_cases hi : i ∈ errors
   · rw [eval_mul, Lagrange.eval_nodal_at_node hi, zero_mul, mul_zero, mul_zero]
   · rw [show p.eval (α i) = w i by simpa [errors] using hi]
 
-/-- **Correctness of the key equations.** With distinct points, if `2 e + k ≤ n` and the received
-word `w` is within distance `e` of the values of a polynomial `p` of degree less than `k`, every
-solution `(E, Q)` of the key equations has `Q = p * E`. -/
-theorem IsSolution.eq_mul (hα : Function.Injective α) (hn : 2 * e + k ≤ Fintype.card ι)
+/-- **Correctness of the unnormalized key equations.** With distinct points, if `2 e + k ≤ n` and
+the received word `w` is within distance `e` of the values of a polynomial `p` of degree less than
+`k`, then any `E` of degree at most `e` and `Q` of degree less than `e + k` with
+`Q (α i) = w i * E (α i)` at every point satisfy `Q = p * E`. Neither monicity of `E` nor
+`E.natDegree = e` is needed. -/
+theorem eq_mul_of_eval_eq (hα : Function.Injective α) (hn : 2 * e + k ≤ Fintype.card ι)
     (hp : p.degree < k) (he : hammingDist (fun i => p.eval (α i)) w ≤ e) {E Q : F[X]}
-    (h : IsSolution α w e k E Q) : Q = p * E := by
+    (hE : E.natDegree ≤ e) (hQ : Q.degree < (e + k : ℕ))
+    (heval : ∀ i, Q.eval (α i) = w i * E.eval (α i)) : Q = p * E := by
   classical
   -- `Q - p * E` vanishes at the points without errors, of which there are at least `e + k`
   let correct : Finset ι := {i | p.eval (α i) = w i}
@@ -163,11 +170,28 @@ theorem IsSolution.eq_mul (hα : Function.Injective α) (hn : 2 * e + k ≤ Fint
   refine sub_eq_zero.1 (eq_zero_of_degree_lt_of_eval_finset_eq_zero (correct.image α) ?_ ?_)
   · rw [card_image_of_injective _ hα]
     calc (Q - p * E).degree ≤ max Q.degree (p * E).degree := degree_sub_le _ _
-      _ < (e + k : ℕ) := max_lt h.degree_lt (degree_mul_lt hp h.natDegree_eq)
+      _ < (e + k : ℕ) := max_lt hQ (degree_mul_lt hp hE)
       _ ≤ #correct := by exact_mod_cast (by omega)
   · intro x hx
     obtain ⟨i, hi, rfl⟩ := mem_image.1 hx
-    rw [eval_sub, eval_mul, h.eval_eq i, (mem_filter.1 hi).2, sub_self]
+    rw [eval_sub, eval_mul, heval i, (mem_filter.1 hi).2, sub_self]
+
+/-- With distinct points, if `2 e + k ≤ n` and the received word `w` is within distance `e` of the
+values of a polynomial `p` of degree less than `k`, then any nonzero `E` of degree at most `e` and
+`Q` of degree less than `e + k` with `Q (α i) = w i * E (α i)` at every point give `p = Q / E`. -/
+theorem div_eq_of_eval_eq (hα : Function.Injective α) (hn : 2 * e + k ≤ Fintype.card ι)
+    (hp : p.degree < k) (he : hammingDist (fun i => p.eval (α i)) w ≤ e) {E Q : F[X]}
+    (hE0 : E ≠ 0) (hE : E.natDegree ≤ e) (hQ : Q.degree < (e + k : ℕ))
+    (heval : ∀ i, Q.eval (α i) = w i * E.eval (α i)) : Q / E = p := by
+  rw [eq_mul_of_eval_eq hα hn hp he hE hQ heval, mul_div_cancel_right₀ _ hE0]
+
+/-- **Correctness of the key equations.** With distinct points, if `2 e + k ≤ n` and the received
+word `w` is within distance `e` of the values of a polynomial `p` of degree less than `k`, every
+solution `(E, Q)` of the key equations has `Q = p * E`. -/
+theorem IsSolution.eq_mul (hα : Function.Injective α) (hn : 2 * e + k ≤ Fintype.card ι)
+    (hp : p.degree < k) (he : hammingDist (fun i => p.eval (α i)) w ≤ e) {E Q : F[X]}
+    (h : IsSolution α w e k E Q) : Q = p * E :=
+  eq_mul_of_eval_eq hα hn hp he h.natDegree_eq.le h.degree_lt h.eval_eq
 
 /-- With distinct points, if `2 e + k ≤ n` and the received word is within distance `e` of the
 values of a polynomial `p` of degree less than `k`, every solution `(E, Q)` of the key equations
