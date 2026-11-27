@@ -16,7 +16,8 @@ public import Mathlib.Data.Nat.Log
 
 A binary tree whose sibling heights differ by at most one has at least `Nat.fib (h + 2)` leaves
 (or nodes, counted suitably) at height `h`. These lemmas turn that count into the logarithmic
-height bound `h ≤ 2 * Nat.log 2 n`, without real numbers. They are shared by AVL trees and ropes.
+height bound `h ≤ 2 * Nat.log 2 n`, without real numbers. AVL trees, ropes and Fibonacci heaps
+share them.
 
 ## Main results
 
