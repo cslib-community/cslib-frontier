@@ -17,6 +17,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Conditiona
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Foundations.Data.List.Fold
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
+
 /-!
 # Word operations and pairing in logarithmic space
 
@@ -204,19 +206,14 @@ theorem append {f₁ : α → β₁} {f₂ : α → β₂} {g : α → β}
     ComputableInLogSpace g encIn encOut := by
   obtain ⟨t₁, c₁, h₁⟩ := h₁
   obtain ⟨t₂, c₂, h₂⟩ := h₂
-  obtain ⟨d₁, _, k₁, Q₁, hfin₁, tm₁, h₁⟩ := Internal.NormalForm.exactBounds h₁
-  obtain ⟨d₂, _, k₂, Q₂, hfin₂, tm₂, h₂⟩ := Internal.NormalForm.exactBounds h₂
-  let := hfin₁
-  let := hfin₂
-  refine ⟨(fun a => d₁ * (t₁ a + 1) + d₂ * (t₂ a + 1)),
-    d₁ * (c₁ + 1) + d₂ * (c₂ + 1) + 2 * max k₁ k₂,
-    max k₁ k₂, Q₁ ⊕ Q₂, inferInstance, appendTM tm₁ tm₂, ?_⟩
-  have h a := ((h₁ a).append (h₂ a)).computesInTimeAndSpace
-  simp only [← hg] at h
-  refine ComputesFunInTimeAndSpace.mono h (fun _ => le_rfl) ?_
-  intro a
-  generalize Nat.log2 (encIn a).length = l
-  simp only [Nat.mul_add, Nat.add_mul, Nat.mul_one, Nat.mul_assoc]
+  have hc₁ := ComputableInBigO.of_bounds h₁ (.refl t₁) (BigOLe.refl _)
+  have hc₂ := ComputableInBigO.of_bounds h₂ (.refl t₂) (BigOLe.refl _)
+  obtain ⟨c, h⟩ := hc₁.append hc₂ hg
+  refine ⟨_, c * (c₁ + c₂ + 1), h.mono (fun _ => le_rfl) fun a => ?_⟩
+  dsimp only
+  rw [Nat.mul_assoc]
+  apply Nat.mul_le_mul_left
+  rw [Nat.add_mul, Nat.add_mul, Nat.one_mul]
   omega
 
 /-- The first component of a pair. -/

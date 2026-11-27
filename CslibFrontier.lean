@@ -9929,6 +9929,7 @@ public import CslibFrontier.Crypto.Computational.SchnorrProofOfKnowledge
 public import CslibFrontier.Computability.Circuit.Fusion.Graph.Inequality
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
 public import CslibFrontier.Algorithms.WordRAM.AhoCorasick
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Tabulation
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.DiscreteLog
 public import CslibFrontier.Computability.MCSP.PartialHardness.Soundness
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Values
