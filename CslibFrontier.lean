@@ -5942,6 +5942,7 @@ public import CslibFrontier.Foundations.Combinatorics.Expander.Chernoff
 public import CslibFrontier.Foundations.Data.MvPolynomial.SchwartzZippel
 public import CslibFrontier.Foundations.Data.Finset.CollisionInsert
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
+public import CslibFrontier.Computability.Complexity.Classes.MIP.HonestProof
 public import CslibFrontier.Algorithms.WordRAM.BellmanFord
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted.Meaning
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.VertexSplitGenus
