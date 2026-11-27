@@ -830,6 +830,17 @@ namespace CNF
 
 open VeriPB
 
+private theorem lratEntries_parts (φ : CNF ℕ) (J : List Entry)
+    (hJ : J = φ.lratDB.map fun e => ⟨e.1, e.1, e.2⟩) :
+    lratPart J = φ.lratDB ∧ renPart J = (φ.lratDB.map fun e => (e.1, e.1)) ∧
+      pbPart J = initDb (φ.map Clause.toPB) ∧
+      (φ.map Clause.toPB).length + 1 = φ.length + 1 := by
+  subst hJ
+  refine ⟨?_, ?_, ?_, by simp⟩
+  · simp [lratPart, Function.comp_def]
+  · simp [renPart, Function.comp_def]
+  · simp [pbPart, initDb, lratDB, List.zipIdx_map, Function.comp_def]
+
 /-- **LRAT certificates are VeriPB proofs**: if the LRAT checker accepts a certificate for `φ`,
 the kernel checker accepts its translation for the clauses of `φ` read as pseudo-Boolean
 constraints. The converse fails for runs that skip a hint
@@ -837,12 +848,7 @@ constraints. The converse fails for runs that skip a hint
 theorem check_toVeriPB {φ : CNF ℕ} {cert : Array LRAT.IntAction} (h : φ.checkLRAT cert = true) :
     check (φ.map Clause.toPB) (φ.toVeriPB cert) = true := by
   let J : List Entry := φ.lratDB.map fun e => ⟨e.1, e.1, e.2⟩
-  have hl : lratPart J = φ.lratDB := by simp [J, lratPart, Function.comp_def]
-  have hr : renPart J = φ.lratDB.map fun e => (e.1, e.1) := by
-    simp [J, renPart, Function.comp_def]
-  have hp : pbPart J = initDb (φ.map Clause.toPB) := by
-    simp [J, pbPart, initDb, lratDB, List.zipIdx_map, Function.comp_def]
-  have hn : (φ.map Clause.toPB).length + 1 = φ.length + 1 := by simp
+  obtain ⟨hl, hr, hp, hn⟩ := lratEntries_parts φ J rfl
   obtain ⟨D, m, hrun, hc⟩ := check_aux cert.toList J (φ.length + 1)
     (hp ▸ hn ▸ idOk_initDb _) (hl ▸ h)
   unfold check
@@ -861,12 +867,7 @@ theorem checkLRAT_iff_check_toVeriPB {φ : CNF ℕ} {cert : Array LRAT.IntAction
     φ.checkLRAT cert = true ↔ check (φ.map Clause.toPB) (φ.toVeriPB cert) = true := by
   refine ⟨check_toVeriPB, fun h => ?_⟩
   let J : List Entry := φ.lratDB.map fun e => ⟨e.1, e.1, e.2⟩
-  have hl : lratPart J = φ.lratDB := by simp [J, lratPart, Function.comp_def]
-  have hr : renPart J = φ.lratDB.map fun e => (e.1, e.1) := by
-    simp [J, renPart, Function.comp_def]
-  have hp : pbPart J = initDb (φ.map Clause.toPB) := by
-    simp [J, pbPart, initDb, lratDB, List.zipIdx_map, Function.comp_def]
-  have hn : (φ.map Clause.toPB).length + 1 = φ.length + 1 := by simp
+  obtain ⟨hl, hr, hp, hn⟩ := lratEntries_parts φ J rfl
   have h0 : ∀ e ∈ J, 0 < e.num := by
     intro e he
     obtain ⟨x, hx, rfl⟩ := List.mem_map.1 he
