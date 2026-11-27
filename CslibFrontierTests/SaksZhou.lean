@@ -40,6 +40,11 @@ example : (({y : Fin (2 ^ 1) | snap 1 (1 / 2) y ≠ snap 1 (3 / 4) y} : Finset _
     2 ^ 1 * (1 / 4) + (2 ^ 1)⁻¹ :=
   dens_snap_ne_le 1 (by rw [abs_le]; constructor <;> norm_num)
 
+-- A unit shift at scale four crosses the boundary for 4/16. The next numerator, 5/16,
+-- reaches that same boundary after the shift. The clipped zero entry stays zero.
+example : (snapCount 4 4 16 1, snapCount 4 5 16 1, snapCount 4 0 16 3) = (0, 1, 0) := by
+  decide
+
 /-! ### Dyadic substochastic matrices -/
 
 example : IsDyadicSubstochastic 1 (!![1 / 2] : Matrix (Fin 1) (Fin 1) ℝ) where

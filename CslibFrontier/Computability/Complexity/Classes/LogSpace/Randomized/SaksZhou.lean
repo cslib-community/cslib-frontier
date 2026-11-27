@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.ConfigurationMatrix
 public import CslibFrontier.Probability.SaksZhou.Nisan
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 import Mathlib.Data.Nat.Sqrt
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -23,7 +24,7 @@ Connects the configuration transition matrix of a fair-coin logspace machine
 (`Cslib.Probability.SaksZhou.dens_snapIter_bitNisanPow_far_le`). For a `BPL` language, the machine
 has at most `2 ^ R` reachable views with `R = O(log n)` (`exists_finset_reachable`), so setting
 `s = ⌊√R⌋ + 1` levels (`2 ^ (s * s) ≥ 2 ^ R`), `d = 5 R + 5` bits of rounding precision, and
-`m = 5 d` gives `bitNisanPow (2 * m) s` iterated `s` times with shared Toeplitz-Nisan hash seeds
+`m = 5 d` gives `s` iterations of `bitNisanPow` with shared Toeplitz-Nisan hash seeds
 and `s` fresh rounding shifts totaling `O(log^{3/2} n)` bits
 (`Cslib.Complexity.exists_saksZhouSeeds_of_mem_BPL`).
 
@@ -59,6 +60,22 @@ inclusion, which additionally requires evaluating `snapIter` of `bitNisanPow` re
 -/
 
 public section
+
+namespace Cslib.Probability.SaksZhou
+
+open Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInSpace
+
+/-- Binary rounding of a counted frequency fits in the workspace used for its counts, scale
+and shift. The scale is supplied in binary as the grid denominator `2 ^ d`. -/
+theorem computableInSpace_snapCount {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
+    {scale hits total shift : α → ℕ}
+    (hq : ComputableInSpace scale enc encNat S) (hh : ComputableInSpace hits enc encNat S)
+    (ht : ComputableInSpace total enc encNat S) (hy : ComputableInSpace shift enc encNat S) :
+    ComputableInSpace (fun a => snapCount (scale a) (hits a) (total a) (shift a)) enc encNat S :=
+  budget_natDiv (budget_natSub (budget_natMul (budget_natMul hh hq) hq) (budget_natMul hy ht))
+    (budget_natMul ht hq)
+
+end Cslib.Probability.SaksZhou
 
 namespace Turing.MultiTapePTM
 
@@ -101,12 +118,12 @@ private theorem exists_smul_configMatrix_mul_card_eq {V : Finset (FiniteCfg k Bo
 open scoped Classical in
 /-- The Saks–Zhou acceptance probability estimate at parameters `(m, s, d)` on seed-shift pair
 `p : NisanShiftSeed (2 * m) s s d`: the entry at the initial view of
-`snapIter d (bitNisanPow (2 * m) s · p.1) ((2 : ℝ)⁻¹ • machine.configMatrix ℝ V) s p.2 *ᵥ
-acceptVec`. -/
+the iterated rounded configuration matrix applied to the accept vector, with the states of `V`
+numbered by `Fintype.equivFin V`. -/
 noncomputable def saksZhouAcceptEst {input : List Bool} (V : Finset (FiniteCfg k Bool State))
     (hinit : machine.toNTM.initView input ∈ V) (m s d : ℕ)
     (p : NisanShiftSeed (2 * m) s s d) : ℝ :=
-  (snapIter d (fun B => bitNisanPow (2 * m) s B p.1)
+  (snapIter d (fun B => bitNisanPow (Fintype.equivFin V).symm (2 * m) s B p.1)
     ((2 : ℝ)⁻¹ • machine.configMatrix ℝ V) s p.2 *ᵥ FiniteCfg.acceptVec ℝ V) ⟨_, hinit⟩
 
 private theorem abs_mulVec_acceptVec_sub_le {V : Finset (FiniteCfg k Bool State)}
@@ -137,7 +154,7 @@ theorem dens_saksZhouAcceptEst_far_le {input : List Bool} {V : Finset (FiniteCfg
       s * (ε + V.card ^ 2 * (2 ^ d * ε + (2 ^ d)⁻¹)) := by
   classical
   let P : Matrix V V ℝ := (2 : ℝ)⁻¹ • machine.configMatrix ℝ V
-  have hsz := dens_snapIter_bitNisanPow_far_le d m s s hs hdm
+  have hsz := dens_snapIter_bitNisanPow_far_le (Fintype.equivFin V).symm d m s s hs hdm
     (smul_configMatrix_nonneg machine V) (fun x => (sum_smul_configMatrix_eq_one machine hV x).le)
     (exists_smul_configMatrix_mul_card_eq machine hm) hε
     (by simpa only [Fintype.card_coe] using herr)
@@ -150,7 +167,8 @@ theorem dens_saksZhouAcceptEst_far_le {input : List Bool} {V : Finset (FiniteCfg
             (machine.acceptCoins input (2 ^ (s * s)) : ℝ) / 2 ^ (2 ^ (s * s))|) ⊆
       rowFarSet ((2 : ℝ) ^ (s * s) * (Fintype.card V * (2 / 2 ^ d)))
         (fun p : NisanShiftSeed (2 * m) s s d =>
-          snapIter d (fun B => bitNisanPow (2 * m) s B p.1) P s p.2) (P ^ 2 ^ (s * s)) := by
+          snapIter d (fun B => bitNisanPow (Fintype.equivFin V).symm (2 * m) s B p.1) P s p.2)
+        (P ^ 2 ^ (s * s)) := by
     intro p hp
     refine mem_rowFarSet.mpr ⟨⟨_, hinit⟩, lt_of_lt_of_le ?_ (abs_mulVec_acceptVec_sub_le _ _ _)⟩
     simpa only [Finset.mem_filter, Finset.mem_univ, true_and, Fintype.card_coe, saksZhouAcceptEst,
