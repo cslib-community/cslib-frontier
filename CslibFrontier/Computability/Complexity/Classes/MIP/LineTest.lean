@@ -19,13 +19,14 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 # Checking a proof oracle's value at an arbitrary field point
 
 At a point `x`, the prover gives coefficients for the polynomial on a line through `x`.
-The verifier compares evaluations at the nonzero nodes `1, …, n + 1` with the oracle.
+The verifier compares evaluations at `1, …, n + 1` with the oracle. Soundness uses
+`n + 1 < p`, so these nodes are distinct and nonzero in the prime field.
 The modulus and dimension are in unary. Coefficients use the fixed-width binary residue
 words of `QBFProtocol.decodeReply`.
 
 ## Main definitions
 
-* `Cslib.Complexity.MIP.checkLineReply` tests the supplied polynomial at consecutive nonzero nodes.
+* `Cslib.Complexity.MIP.checkLineReply` tests the supplied polynomial at consecutive nodes.
 
 ## Main results
 
@@ -89,13 +90,14 @@ private theorem mem_reedMuller_of_multilinear {F : Type*} [Field F] {n : ℕ}
   simpa using totalDegree_multilinearExtension_le (R := F) (fun b => f (bitPoint b))
 
 private theorem exists_linePolynomial {p n : ℕ} [Fact p.Prime] (P : Polynomial (ZMod p))
-    (hP : P.natDegree ≤ n) : ∃ reply, linePolynomial p n reply = P := by
+    (hP : P.natDegree ≤ n) :
+    ∃ reply, reply.length ≤ replyLimit p n ∧ linePolynomial p n reply = P := by
   let vals := (P.coeffsBelow (n + 1)).map ZMod.val
   have hlen : vals.length = n + 1 := by simp [vals]
   have hval (a : ℕ) (ha : a ∈ vals) : a < p := by
     obtain ⟨z, _, rfl⟩ := List.mem_map.mp ha
     exact ZMod.val_lt z
-  refine ⟨(encodeReply p vals).take (replyLimit p n), ?_⟩
+  refine ⟨(encodeReply p vals).take (replyLimit p n), List.length_take_le _ _, ?_⟩
   rw [linePolynomial, decodeReply_encodeReply hval hlen.le, List.map_range_eq_ofFn,
     List.ofFn_getD_eq_of_length 0 hlen]
   simpa [vals, List.map_map, Function.comp_def] using
@@ -105,16 +107,17 @@ private theorem exists_linePolynomial {p n : ℕ} [Fact p.Prime] (P : Polynomial
 direction. The reply passes every check and gives the prescribed value at zero. -/
 theorem exists_checkLineReply {p n : ℕ} [Fact p.Prime] {f : (Fin n → ZMod p) → ZMod p}
     (hf : IsMultilinear f) (x v : Fin n → ZMod p) :
-    ∃ reply, checkLineReply p n reply (List.ofFn fun i : Fin (n + 1) =>
+    ∃ reply, reply.length ≤ replyLimit p n ∧
+      checkLineReply p n reply (List.ofFn fun i : Fin (n + 1) =>
         (f (x + ((i.val + 1 : ℕ) : ZMod p) • v)).val) = true ∧
       (hornerMod p 0 (decodeReply p n reply) : ZMod p) = f x := by
   obtain ⟨P, hdeg, hP⟩ := exists_natDegree_le_eval_eq_of_mem_reedMuller
     (mem_reedMuller_of_multilinear hf) x v
-  obtain ⟨reply, heq⟩ := exists_linePolynomial P hdeg
+  obtain ⟨reply, hlen, heq⟩ := exists_linePolynomial P hdeg
   have heval (z : ℕ) : hornerMod p z (decodeReply p n reply) =
       (f (x + (z : ZMod p) • v)).val := by
     rw [← hP, ← heq, eval_linePolynomial, ZMod.val_natCast_of_lt (hornerMod_lt _ _)]
-  refine ⟨reply, List.all_eq_true.mpr ?_, ?_⟩
+  refine ⟨reply, hlen, List.all_eq_true.mpr ?_, ?_⟩
   · intro i hi
     have hi' := List.mem_range.mp hi
     simp only [decide_eq_true_eq, List.getD_eq_getElem?_getD, List.getElem?_ofFn,
