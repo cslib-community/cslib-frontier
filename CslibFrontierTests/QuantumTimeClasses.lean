@@ -7,6 +7,8 @@ Authors: Samuel Schlesinger
 import CslibFrontier.Computability.Circuit.Quantum.PhaseOracle
 import CslibFrontier.Computability.Complexity.Classes.BQP.Nondeterministic
 import CslibFrontier.Computability.Complexity.Classes.BQP.TensorContraction
+import CslibFrontier.Computability.Complexity.Classes.PostBQP
+import CslibFrontier.Computability.Circuit.Quantum.RandomTag
 import CslibFrontierTests.BQPTensorContraction
 
 /-! Nondeterministic, exact and postselected quantum time: circuits accepting with probability
@@ -193,5 +195,20 @@ example : (Set.univ : Set Unit) ∈ ⋃ C, DTIME encUnit fun n =>
     2 ^ (C * (n + 2) / Nat.sqrt (Nat.log 2 (n + 2))) :=
   PostBQTIME_subset_iUnion_DTIME_two_pow_div_sqrt_log_two (T := fun n => n + 2)
     (fun n => max_le (by omega) (by omega)) (univ_mem_PostBQTIME _)
+
+-- With no payload and an empty circuit, selecting the copied decision selects exactly the true tag.
+example : (constFamily 1 (by decide) [] (by simp)).randomTag.postselectedAcceptProb [] = 1 := by
+  let F := constFamily 1 (by decide) [] (by simp)
+  have h (b : Bool) : F.acceptProb [b] = if b then 1 else 0 := by
+    change acceptProb 2 [] [b] = _
+    rw [acceptProb_eq_acceptGap _ (by simp)]
+    cases b <;> norm_num [hadamardCount, acceptGap_nil, inputState]
+  change F.randomTag.postselectedAcceptProb [] = 1
+  rw [UniformCircuitFamily.postselectedAcceptProb, UniformCircuitFamily.jointProb_randomTag,
+    UniformCircuitFamily.onesProb_randomTag, h, h]
+  norm_num
+
+example : (Set.univ : Set Unit) ∈ PP encUnit :=
+  PostBQP_subset_PP (Set.mem_iUnion.mpr ⟨0, univ_mem_PostBQTIME _⟩)
 
 end CslibFrontierTests.QuantumTimeClasses
