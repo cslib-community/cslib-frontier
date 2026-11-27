@@ -11,9 +11,9 @@ import CslibFrontier.Logics.Propositional.CNF.LRATFile
 `lake exe lrat_check FORMULA.cnf PROOF.lrat` reads a DIMACS CNF file and an LRAT proof, text or
 binary, and checks the proof with `Cslib.Logic.PL.CNF.checkDIMACSLRAT`: Lean core's LRAT parser
 and the array checker `Cslib.Logic.PL.CNF.checkLRATFast`, which checks RUP and RAT steps and
-deletions. It prints `s VERIFIED UNSAT` and exits with `0` when the proof is accepted, and
-`s REJECTED` with the reason and exits with `1` otherwise, as `cake_lpr` does; `c` lines give the
-time spent reading the files and checking.
+deletions. It prints `s VERIFIED UNSAT`, as `cake_lpr` does, and exits with `0` when the proof
+is accepted, and prints `s REJECTED` with the reason and exits with `1` otherwise; `c` lines give
+the time spent reading the files and checking.
 
 The verdict is correct by `Cslib.Logic.PL.CNF.not_satisfiable_of_checkDIMACSLRAT`: an accepted
 proof shows that the formula `Cslib.Logic.PL.CNF.ofDIMACS` reads from the file is unsatisfiable.
