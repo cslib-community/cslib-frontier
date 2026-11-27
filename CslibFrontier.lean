@@ -10700,6 +10700,7 @@ public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Cy
 public import CslibFrontier.Crypto.Primitives.Garbling.Adaptive
 public import CslibFrontier.Computability.Circuit.Boolean.ACC0
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.Exec.MigrateCompactBack
+public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n.RefuterSizes
 public import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystemConverse
 public import CslibFrontier.Computability.Complexity.CookLevin.Witness
 public import CslibFrontier.GameTheory.FairDivision.Basic

@@ -37,6 +37,7 @@ circuit's output on every consistent assignment (`SemiCircuit.out_eval_ofCircuit
 
 * `Cslib.Circuits.Boolean.SemiCircuit.cost_binaryB2Cost_le_size`,
   `Cslib.Circuits.Boolean.SemiCircuit.size_ofCircuitBinary`,
+  `Cslib.Circuits.Boolean.SemiCircuit.mem_gates_ofCircuitBinary`,
   `Cslib.Circuits.Boolean.SemiCircuit.wellFormed_ofCircuitBinary`,
   `Cslib.Circuits.Boolean.SemiCircuit.out_eval_ofCircuitBinary`.
 
@@ -331,6 +332,11 @@ def ofCircuitBinary (C : Circuit (fullSignature 2 Bool) n 1) : SemiCircuit where
     (ofCircuitBinary C).size = C.program.cost binaryB2Cost := by
   change (programBinaryGates C.program).card + (∅ : Finset ℕ).card = C.program.cost binaryB2Cost
   rw [Finset.card_empty, add_zero, card_programBinaryGates]
+
+/-- Every gate of `ofCircuitBinary C` is named `n + j` for a program line `j < C.size`. -/
+theorem mem_gates_ofCircuitBinary {C : Circuit (fullSignature 2 Bool) n 1} {J : ℕ}
+    (hJ : J ∈ (ofCircuitBinary C).gates) : n ≤ J ∧ J < n + C.size :=
+  mem_programBinaryGates_bounds hJ
 
 /-- The binary-gate semi-circuit `ofCircuitBinary C` is well formed. -/
 theorem wellFormed_ofCircuitBinary (C : Circuit (fullSignature 2 Bool) n 1) :
