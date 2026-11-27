@@ -21,6 +21,11 @@ For machines that query the whole transcript: with the identity encoding the mac
 output program of `Debate.lean`. With the encoding `Option.some`, which is injective but not
 surjective, the trivial Lipschitz constant of the run gives the step-law hypothesis, and the
 soundness statement applies to an oracle that always answers `false`.
+
+At the constants printed in Figure 1 (`Params.figure1`), with `K = 1` and one step: completeness
+applied to the step law that always writes `true`, soundness applied to the step law that always
+writes `false`, and the prefix-machine corollary applied to the oracle that always answers
+`false`.
 -/
 
 public section
@@ -101,5 +106,43 @@ example (T : ℕ) (A : Proposer (Params.default ((T + 1 : ℕ) : ℝ≥0) T).gri
   · exact h
   · simp [Machine.run, Machine.transcript, OracleComp.evalWith_bind, Machine.evalWith_next,
       stepLaw_prefixMachine]
+
+/-- Completeness at the constants of Figure 1, with `K = 1` and one step: under the step law that
+always writes `true`, the honest proposer is accepted with probability at least `3 / 5` against
+every challenger. -/
+example (B : Challenger (Params.figure1 1 1).grid) :
+    3 / 5 ≤ OracleComp.evalWith (sumHandler ProbComp.unifOracle fun _ => PMF.pure true)
+      (run (Params.figure1 1 1) (honestProposer (Params.figure1 1 1)) B) true := by
+  refine completeness_figure1_stepLaw one_pos 1 ?_ B
+  rw [← run_prefixMachine_id, evalWith_run_one]
+  simp only [stepLaw_prefixMachine, PMF.pure_apply_self]
+  exact ENNReal.div_le_of_le_mul (by norm_num)
+
+/-- Soundness at the constants of Figure 1, with `K = 1` and one step: under the step law that
+always writes `false`, which is `1`-Lipschitz since the output of one step makes one query, every
+proposer is accepted with probability at most `2 / 5` against the honest challenger. -/
+example (A : Proposer (Params.figure1 1 1).grid) :
+    OracleComp.evalWith (sumHandler ProbComp.unifOracle fun _ => PMF.pure false)
+      (run (Params.figure1 1 1) A (honestChallenger (Params.figure1 1 1))) true ≤ 2 / 5 := by
+  refine soundness_figure1_of_lipschitzAt_stepLaw one_pos 1 ?_ ?_ A
+  · have h := lipschitzAt_stepLaw_of_lipschitzAt_run (enc := id) Function.injective_id
+      ((prefixMachine id).lipschitzAt_run (fun _ => PMF.pure false) 1)
+    rw [Nat.cast_one] at h
+    exact h
+  · rw [← run_prefixMachine_id, evalWith_run_one]
+    simp
+
+/-- The prefix-machine corollary at the constants of Figure 1, with `K = 1` and one step: against
+the oracle that always answers `false`, through the encoding `Option.some`, no proposer is
+accepted with probability above `2 / 5`. -/
+example (A : Proposer (Params.figure1 1 1).grid) :
+    OracleComp.evalWith (sumHandler ProbComp.unifOracle
+        ((prefixMachine Option.some).stepLaw fun _ : Option (List Bool) => PMF.pure false))
+      (run (Params.figure1 1 1) A (honestChallenger (Params.figure1 1 1))) true ≤ 2 / 5 := by
+  refine soundness_figure1_of_lipschitzAt_run_prefixMachine (Option.some_injective _) one_pos 1
+    ?_ ?_ A
+  · simpa using (prefixMachine Option.some).lipschitzAt_run (fun _ => PMF.pure false) 1
+  · rw [evalWith_run_one]
+    simp
 
 end CslibFrontierTests.DebateMachine
