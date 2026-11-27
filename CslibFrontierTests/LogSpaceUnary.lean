@@ -80,7 +80,7 @@ example : ComputableInLogSpace (fun w : List Bool => w.length ^ 2) encBits encNa
   fail_if_success fun_prop
   exact ComputableInLogSpace.unaryToBinary (by fun_prop)
 
--- Generate and flatten variable-length rows. The first row is empty and later rows use both indices.
+-- Flatten variable-length rows, including an empty row and rows that depend on both indices.
 example : ComputableInLogSpace (fun p : ℕ × ℕ => ((List.range p.1).map fun j =>
     (List.range j).map fun i => p.2 + i + j).flatten) (encPair encUnary encUnary)
     (encList encUnary) := by
