@@ -3452,6 +3452,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Cuts.Ini
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Reindex
 public import CslibFrontier.Algorithms.Lean.KMP.Search
 public import CslibFrontier.Crypto.Computational.DiffieHellman
+public import CslibFrontier.Computability.Complexity.Classes.BQP.ReturnTest
 public import CslibFrontier.Algorithms.Lean.Query.Submodular.Greedy
 public import CslibFrontier.Foundations.Data.MvPolynomial.InterpolateLast
 public import CslibFrontier.MachineLearning.PACLearning.NatarajanAgnostic
