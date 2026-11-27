@@ -27,11 +27,17 @@ accepting sink. The graph has polynomially many vertices, so its closure needs l
 many squarings. This implements the Boolean matrix-powering argument of [Arora and Barak,
 Chapter 6, Exercise 9(b–c), 2007 draft][AroraBarak07].
 
-`exists_mem_AC_one_of_mem_NL` constructs a language in the nonuniform class `AC 1` agreeing with
-the given problem on every encoded instance. This works for arbitrary injective encodings,
-including those on which a decider has no specification outside the image. For the identity
-encoding, `NL_subset_AC_one` gives class containment. Composing with
-`Cslib.Circuits.Boolean.AC_subset_NC_succ` at exponent one puts these languages in `NC 2`.
+## Main results
+
+* `Cslib.Complexity.exists_mem_AC_one_of_mem_NL` constructs a nonuniform AC¹ language agreeing
+  with the given problem on every encoded instance, for arbitrary injective encodings.
+* `Cslib.Complexity.NL_subset_AC_one` gives the nonuniform class containment for bit languages.
+  Composing with `Cslib.Circuits.Boolean.AC_subset_NC_succ` at exponent one gives NC².
+
+## References
+
+* [S. Arora and B. Barak, *Computational Complexity: A Modern Approach*, 2007 web draft,
+  Chapter 6, Exercise 9(b–c)][AroraBarak07]
 -/
 
 public section
@@ -151,7 +157,7 @@ theorem exists_mem_AC_one_of_mem_NL {α : Type} {enc : α ↪ List Bool} {A : Se
   · exact (h.1 a).2.trans ((STCON.configurationInstance_mem_iff ntm c (h.1 a).1).symm.trans
       (eval_acceptanceCircuit ntm c (enc a)).symm)
 
-/-- **NL ⊆ AC¹** for bit languages, with polynomial size and logarithmic depth in the
+/-- **NL ⊆ nonuniform AC¹** for bit languages, with polynomial size and logarithmic depth in the
 unbounded fan-in basis. -/
 theorem NL_subset_AC_one : NL _root_.Turing.MultiTapeTM.encBits ⊆ AC 1 := by
   intro A hA
