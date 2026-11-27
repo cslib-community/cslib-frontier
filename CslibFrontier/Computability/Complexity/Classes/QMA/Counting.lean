@@ -112,7 +112,7 @@ theorem traceGap_mem_GapP (V : UniformVerifierFamily) {d : α → ℕ}
   let reg' : (α × List Bool) × ℕ → List Bool := fun x => reg (x.1, x.2 + 1)
   have hreg' : ComputableInPolyTime reg' (encPair (encPair enc encBits) encUnary) encBits :=
     hreg.comp (by fun_prop)
-  have hprod := GapP.prod_range_mem (onesPairGap_zero_mem_GapP hgs hreg hreg')
+  have hprod := GapP.prod_range_mem (onesPairGap_mem_GapP [0] hgs hreg hreg')
     (r := fun x : α × List Bool => d x.1) (by fun_prop)
   let closed : α × List Bool → Bool := fun x =>
     decide (BitString.listBlock (m x.1) x.2 0 = BitString.listBlock (m x.1) x.2 (d x.1))

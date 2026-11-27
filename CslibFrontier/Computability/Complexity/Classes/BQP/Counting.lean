@@ -46,7 +46,7 @@ uniform circuit families of `Cslib.Complexity.BQP`.
 * `Cslib.Quantum.computableInPolyTime_pathStep`,
   `Cslib.Quantum.computableInPolyTime_foldl_pathStep`: the path simulation runs in polynomial
   time.
-* `Cslib.Complexity.onesPairGap_zero_mem_GapP`: acceptance overlaps of polynomial-time gate codes
+* `Cslib.Complexity.onesPairGap_mem_GapP`: acceptance overlaps of polynomial-time gate codes
   and registers are `GapP`.
 * `Cslib.Complexity.acceptGap_mem_GapP`: the acceptance gap of a uniform family is `GapP`.
 * `Cslib.Complexity.BQP_subset_AWPP`, `Cslib.Complexity.BQP_subset_PP`,
@@ -148,12 +148,12 @@ open Quantum Turing.MultiTapeTM
 variable {α : Type} {enc : α ↪ List Bool}
 
 /-- **Acceptance overlaps are `GapP` functions**: for gate codes and two registers computed in
-polynomial time from the instance, the projected pair gap of qubit `0` is a `GapP` function of the
+polynomial time from the instance, the projected pair gap on the measured wires `S` is a `GapP` function of the
 instance. -/
-theorem onesPairGap_zero_mem_GapP {gs : α → List GateCode} {X X' : α → List Bool}
+theorem onesPairGap_mem_GapP (S : List ℕ) {gs : α → List GateCode} {X X' : α → List Bool}
     (hgs : ComputableInPolyTime gs enc (encList encGateCode))
     (hX : ComputableInPolyTime X enc encBits) (hX' : ComputableInPolyTime X' enc encBits) :
-    (fun a => onesPairGap [0] (gs a) (X a) (X' a)) ∈ GapP enc := by
+    (fun a => onesPairGap S (gs a) (X a) (X' a)) ∈ GapP enc := by
   let h : α → ℕ := fun a => hadamardCount (gs a)
   have hh : ComputableInPolyTime h enc encUnary := by
     simp only [h, hadamardCount_eq_countP]; fun_prop
@@ -169,27 +169,39 @@ theorem onesPairGap_zero_mem_GapP {gs : α → List GateCode} {X X' : α → Lis
       (encPair encBits (encPair encBits encBool)) :=
     computableInPolyTime_foldl_pathStep (by fun_prop) (by fun_prop)
   let T : (α × List Bool) × List Bool → ℤ := fun p =>
-    if (run₁ p).1 = (run₂ p).1 ∧ (run₁ p).1.headD false = true then
+    if (run₁ p).1 = (run₂ p).1 ∧ (S.all fun i => (run₁ p).1.getD i false) = true then
       (if (run₁ p).2.2 ^^ (run₂ p).2.2 then -1 else 1) else 0
+  have hall : ComputableInPolyTime
+      (fun p : (α × List Bool) × List Bool => S.all fun i => (run₁ p).1.getD i false)
+      (encPair (encPair enc encBits) encBits) encBool :=
+    ComputableInPolyTime.allWithInput (encA := encUnary) (.const S)
+      (ComputableInPolyTime.bitsGetDWithInput
+        (hrun₁.fst'.comp (.fst _ _)) (.snd _ _) false)
   have hT : T ∈ GapP (encPair (encPair enc encBits) encBits) :=
     mem_GapP_of_polyTime (by dsimp only [T]; fun_prop)
   convert GapP.sum_bits_mem (GapP.sum_bits_mem hT (r := fun p : α × List Bool => h p.1)
     (by fun_prop)) hh using 2 with a
   rw [onesPairGap]
-  exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => onesPairTerm_zero _ _ _ _ _
+  rfl
 
-/-- **The acceptance gap of a uniform family is a `GapP` function** of the instance. -/
-theorem acceptGap_mem_GapP (F : UniformCircuitFamily) :
-    (fun a => acceptGap (F.gates (enc a).length)
+/-- **The projected gap of a uniform family is a `GapP` function** of the instance. -/
+theorem onesGap_mem_GapP (F : UniformCircuitFamily) (S : List ℕ) :
+    (fun a => onesGap S (F.gates (enc a).length)
       (List.ofFn (inputState (F.width (enc a).length) (enc a)))) ∈ GapP enc := by
   have := F.computableInPolyTime_gates
   have := F.computableInPolyTime_width
   let X : α → List Bool := fun a =>
     enc a ++ List.replicate (F.width (enc a).length - (enc a).length) false
   have hX : ComputableInPolyTime X enc encBits := by dsimp only [X]; fun_prop
-  convert onesPairGap_zero_mem_GapP (gs := fun a => F.gates (enc a).length) (by fun_prop) hX hX
+  convert onesPairGap_mem_GapP S (gs := fun a => F.gates (enc a).length) (by fun_prop) hX hX
     using 2 with a
-  rw [ofFn_inputState (F.le_width _), acceptGap, onesGap_eq_onesPairGap]
+  rw [ofFn_inputState (F.le_width _), onesGap_eq_onesPairGap]
+
+/-- **The acceptance gap of a uniform family is a `GapP` function** of the instance. -/
+theorem acceptGap_mem_GapP (F : UniformCircuitFamily) :
+    (fun a => acceptGap (F.gates (enc a).length)
+      (List.ofFn (inputState (F.width (enc a).length) (enc a)))) ∈ GapP enc :=
+  onesGap_mem_GapP F [0]
 
 /-- **`BQP ⊆ AWPP`** [Fortnow, Rogers][FortnowRogers1999]: the acceptance probability of a uniform
 family is a `GapP` function divided by `2^h`, with `h` computed in polynomial time. -/
