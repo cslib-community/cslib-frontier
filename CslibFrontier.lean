@@ -6986,6 +6986,7 @@ public import CslibFrontier.Computability.Complexity.Problems.NCL.Diagram.Typing
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.GroupCirculant.Eigenvalues
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting
 public import CslibFrontier.Crypto.Protocols.MPC.PolyTime.Encoding
+public import CslibFrontier.Computability.Complexity.Classes.MIP.AxisSoundness
 public import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.Partition.DjpLoop
 public import CslibFrontier.Foundations.GroupTheory.SLTower.Ring
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationHardness
