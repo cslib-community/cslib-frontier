@@ -373,21 +373,17 @@ theorem not_solvesUnitSyncApproxAgreement_of_partition [Fintype P] [IsStrictOrde
   let adv : (P → Bool) → ℕ → P → P → M := fun σ r j i =>
     πK.send r j (cover r (nbr (i, σ i) j)) i
   have hmem (k j) : j ∉ grp k ↔ g j ≠ k := by simp [grp]
-  have key : ∀ (k : Fin 3) (σ : P → Bool),
-      (∀ i j, g i ≠ k → g j ≠ k → (σ i ^^ cross i j) = σ j) →
-      ∀ i, g i ≠ k →
-        πK.decision (grp k) (adv σ) (bitVal ∘ σ) R i = πK.output i (cover R (i, σ i)) := by
-    intro k σ hσ i hi
-    unfold decision
-    rw [state_eq_coverState πK Prod.fst (bitVal ∘ Prod.snd) nbr (grp k) (adv σ) (bitVal ∘ σ)
-      (fun i => (i, σ i)) (fun _ _ => rfl) (fun _ _ => rfl) ?_ (fun _ _ _ _ _ => rfl) R i
-      ((hmem k i).mpr hi)]
+  have key (k : Fin 3) (σ : P → Bool)
+      (hσ : ∀ i j, g i ≠ k → g j ≠ k → (σ i ^^ cross i j) = σ j) (i : P) (hi : g i ≠ k) :
+      πK.decision (grp k) (adv σ) (bitVal ∘ σ) R i = πK.output i (cover R (i, σ i)) := by
+    rw [decision, state_eq_coverState πK Prod.fst (bitVal ∘ Prod.snd) nbr (grp k) (adv σ)
+      (bitVal ∘ σ) (fun i => (i, σ i)) (fun _ _ => rfl) (fun _ _ => rfl) ?_
+      (fun _ _ _ _ _ => rfl) R i ((hmem k i).mpr hi)]
     exact fun i' hi' j' hj' =>
       Prod.ext rfl (hσ i' j' ((hmem k i').mp hi') ((hmem k j').mp hj'))
-  have hconst : ∀ (k : Fin 3) (b : Bool) (i : P), g i ≠ k →
-      (∀ i j, g i ≠ k → g j ≠ k → cross i j = false) →
+  have hconst (k : Fin 3) (b : Bool) (i : P) (hi : g i ≠ k)
+      (hcross : ∀ i j, g i ≠ k → g j ≠ k → cross i j = false) :
       πK.output i (cover R (i, b)) = bitVal b := by
-    intro k b i hi hcross
     have hm := h.validity (grp k) (hcard k) (adv fun _ => b) (bitVal ∘ fun _ => b) (bitVal b)
       (bitVal b) (fun _ _ => hbit_Icc b) (fun _ _ => ⟨le_rfl, le_rfl⟩) i ((hmem k i).mpr hi)
     rw [key k (fun _ => b) (fun i j hi hj => by simp [hcross i j hi hj]) i hi] at hm
@@ -809,12 +805,11 @@ theorem not_solvesUnitAsyncApproxAgreement_of_partition [Fintype P] [IsStrictOrd
   have hcoverC : ∀ p, p ∉ C → p ∈ B ∨ p ∈ A := fun p hp => by have := hcover p; tauto
   let x_split : P → K := fun p => if p ∈ A then 1 else 0
   -- A fair honest run with faulty set `G` and constant input `c ∈ [0, 1]`: `q ∉ G` decides `c`.
-  have hrun : ∀ (G : Finset P) (c : K) (q : P), G.card ≤ t → q ∉ G → c ∈ Set.Icc 0 1 →
+  have hrun (G : Finset P) (c : K) (q : P) (hG : G.card ≤ t) (hq : q ∉ G) (hc : c ∈ Set.Icc 0 1) :
       ∃ (ss : ωSequence (State P S M K)) (xs : ωSequence (Action P M)) (n : ℕ),
         (∀ k, (xs k).IsHonest) ∧ (ss n).ProcDecided q c ∧
         ((πK.toBroadcast (fun _ => c) a₀).lts G).MTr
           ((πK.toBroadcast (fun _ => c) a₀).start G none) (xs.extract 0 n) (ss n) := by
-    intro G c q hG hq hc
     obtain ⟨ss, xs, ha_bc, hhon⟩ :=
       (πK.toBroadcast (fun _ => c) a₀).exists_honest_admissibleRun G none
     have ha_run := (πK.admissibleRun_iff_toBroadcast G (fun _ => c) a₀ ss xs).mpr ha_bc
@@ -829,21 +824,20 @@ theorem not_solvesUnitAsyncApproxAgreement_of_partition [Fintype P] [IsStrictOrd
   obtain ⟨ss₁, xs₁, n₁, hhon₁, hdec₁, hmtr₁⟩ := hrun C 1 a₀ hC ha₀_not_C ⟨zero_le_one, le_rfl⟩
   -- Run 3 (`B` equivocating faulty, `x_split`): replay `C` from Run 1, then `A` from Run 2.
   let u₀ := πK.start B x_split
-  have hreplay : ∀ (G F_other : Finset P) (c : K) (u : State P S M K)
-      {n : ℕ} {ss : ωSequence (State P S M K)} {xs : ωSequence (Action P M)},
-      Disjoint B G → Disjoint F_other G →
-      (∀ p, p ∉ F_other → p ∈ B ∨ p ∈ G) →
-      (∀ p ∈ G, x_split p = c) →
-      (∀ p ∈ G, u.proc p = u₀.proc p) →
-      (∀ e : Envelope P M, e.src ∈ G → u₀.msgs.count e ≤ u.msgs.count e) →
-      ((πK.toBroadcast (fun _ => c) a₀).lts F_other).MTr
-        ((πK.toBroadcast (fun _ => c) a₀).start F_other none) (xs.extract 0 n) (ss n) →
-      (∀ k, (xs k).IsHonest) →
+  have hreplay (G F_other : Finset P) (c : K) (u : State P S M K)
+      {n : ℕ} {ss : ωSequence (State P S M K)} {xs : ωSequence (Action P M)}
+      (hBG : Disjoint B G) (hFG : Disjoint F_other G)
+      (hcovG : ∀ p, p ∉ F_other → p ∈ B ∨ p ∈ G)
+      (hxG : ∀ p ∈ G, x_split p = c)
+      (hprocG : ∀ p ∈ G, u.proc p = u₀.proc p)
+      (hmsgG : ∀ e : Envelope P M, e.src ∈ G → u₀.msgs.count e ≤ u.msgs.count e)
+      (hmtr : ((πK.toBroadcast (fun _ => c) a₀).lts F_other).MTr
+        ((πK.toBroadcast (fun _ => c) a₀).start F_other none) (xs.extract 0 n) (ss n))
+      (hhon : ∀ k, (xs k).IsHonest) :
       ∃ yl u', (πK.lts B).MTr u yl u' ∧
         (∀ p ∈ G, u'.proc p = (ss n).proc p) ∧
         (∀ p ∉ G, u'.proc p = u.proc p) ∧
         (∀ e : Envelope P M, e.src ∉ G → u'.msgs.count e = u.msgs.count e) := by
-    intro G F_other c u n ss xs hBG hFG hcovG hxG hprocG hmsgG hmtr hhon
     refine (πK.toBroadcast (fun _ => c) a₀).replay_subset_mTr hBG hmtr
       (extract_isHonest_of_forall xs hhon)
       (fun e he => hcovG e.src
@@ -1501,9 +1495,8 @@ theorem asyncApproxProtocol_terminates {t R : ℕ} (ht : t < Fintype.card P)
   · have hR : 0 < R := Nat.pos_of_ne_zero hR0
     have h1 : 1 ≤ Fintype.card P - t := by omega
     -- Prove by induction on `r ≤ R` that all correct processes eventually reach round `r`.
-    have hall_reach : ∀ r ≤ R, ∃ K_r, ∀ k, K_r ≤ k → ∀ p ∉ F,
+    have hall_reach (r : ℕ) (hr_le : r ≤ R) : ∃ K_r, ∀ k, K_r ≤ k → ∀ p ∉ F,
         r ≤ ((ss k).proc p).state.round := by
-      intro r hr_le
       induction r with
       | zero => exact ⟨0, fun _ _ _ _ => Nat.zero_le _⟩
       | succ r ih =>
@@ -1533,15 +1526,13 @@ theorem asyncApproxProtocol_terminates {t R : ℕ} (ht : t < Fintype.card P)
           · omega
           · simpa only [roundSenders, Finset.mem_filter, Finset.mem_univ, true_and] using
               hhmono r q hsome
-        have hsenders_ge : Fintype.card P - t ≤ (roundSenders ((ss k).proc p).state r).card :=
-          (by rw [Finset.card_univ_sdiff]; omega : Fintype.card P - t ≤ (Finset.univ \ F).card
-            ).trans (Finset.card_le_card hall_heard)
+        have hcard := Finset.card_le_card hall_heard
+        rw [Finset.card_univ_sdiff] at hcard
         have heq_r : ((ss k).proc p).state.round = r := by omega
-        rcases (asyncInv_reachable ((asyncApproxProtocol P K t R).admissibleRun_reachable ha
-          k)).stop_cond h1 p hpF with hR_eq | hlt_card
-        · omega
-        · rw [heq_r] at hlt_card
-          omega
+        have hstop := (asyncInv_reachable
+          ((asyncApproxProtocol P K t R).admissibleRun_reachable ha k)).stop_cond h1 p hpF
+        rw [heq_r] at hstop
+        omega
     obtain ⟨K_R, hK_R⟩ := hall_reach R le_rfl
     have hinv_KR := asyncInv_reachable
       ((asyncApproxProtocol P K t R).admissibleRun_reachable ha K_R)

@@ -128,10 +128,9 @@ private theorem createLeaf_correct [LinearOrder M.Value] (zero maxSucc : M.Op)
   let q := { initialized with pc := 0 }
   have init := initialize_correct zero maxSucc encode zero_spec max_spec s pc
   have h01 : (0 : Fin (regs + 3)) ≠ 1 := by simp
-  have h02 : (0 : Fin (regs + 3)) ≠ 2 := by
-    simp [Fin.ext_iff, Nat.mod_eq_of_lt (by omega : 2 < regs + 3)]
-  have h12 : (1 : Fin (regs + 3)) ≠ 2 := by
-    simp [Fin.ext_iff, Nat.mod_eq_of_lt (by omega : 2 < regs + 3)]
+  have hlt2 : 2 < regs + 3 := by omega
+  have h02 : (0 : Fin (regs + 3)) ≠ 2 := by simp [Fin.ext_iff, Nat.mod_eq_of_lt hlt2]
+  have h12 : (1 : Fin (regs + 3)) ≠ 2 := by simp [Fin.ext_iff, Nat.mod_eq_of_lt hlt2]
   have keyData : (fun f => q.data (leafRegisters field source f)) = label.data := by
     funext f
     by_cases hf : f = field
@@ -159,18 +158,15 @@ private theorem createLeaf_correct [LinearOrder M.Value] (zero maxSucc : M.Op)
       q t (extra + 9) := by
     cases h : M.evalTest lt (s.data 0) parentKey <;>
       simpa [q, initialized, State.setData, h01, h02, side, h] using run
-  have branched := selected.branch lt 0 2 _ _ rfl
-  have execution := init.sequence branched
   let result := { t with pc := 4 +
     (branch lt 0 2 (insertLeaf (leafRegisters field source) 0)
       (insertLeaf (leafRegisters field source) 1)).length }
-  refine ⟨result, ?_, ?_, ?_, ?_, size, cursor, rootReg, ?_, ptr⟩
-  · convert execution using 1 <;> first | rfl | omega
+  refine ⟨result, ?_, ?_, ?_,
+    by simp [Matches, AVLTree.insert, mkNode, Ne.symm notKey], size, cursor, rootReg,
+    fun i h1 h2 => by simp [result, data, q, initialized, State.setData, h1, h2], ptr⟩
+  · convert init.sequence (selected.branch lt 0 2 _ _ rfl) using 1 <;> first | rfl | omega
   · rwa [keyData] at heap
   · rwa [keyData] at rep
-  · simp [Matches, AVLTree.insert, mkNode, Ne.symm notKey]
-  · intro i h1 h2
-    simp [result, data, q, initialized, State.setData, h1, h2]
 
 private theorem ancestorStep_correct (zero maxSucc : M.Op) (heavy le : M.Test)
     (encode : ℕ → M.Value)
@@ -256,7 +252,7 @@ private theorem rebalance_step (zero maxSucc : M.Op) (heavy le : M.Test)
       { s.setPtr 5 none with pc := 2 } { t with pc := 0 } time := by
     simpa [rebalanceAncestors, body] using
       run.inBlock [.null 5, .ifPtrEq 0 5 (2 + body.length)] [.halt] 0
-  rw [show 2 + time = time + 1 + 1 by omega]
+  rw [Nat.add_comm 2 time]
   refine .head s mid _ _ ?_ (.head mid _ _ _ ?_ bodyRun)
   · simp [step, rebalanceAncestors, pc, Instr.effect, Instr.next, mid]
   · simp [step, rebalanceAncestors, mid, Instr.effect, Instr.next, State.setPtr, cursor]
@@ -425,8 +421,9 @@ theorem InsertResult.before [LinearOrder M.Value]
     (safe : ∀ f, f ≠ field → f ≠ 0 → source f ≠ 1 ∧ source f ≠ 2) :
     InsertResult encode field source s t before after original := by
   obtain ⟨rep, matched, distinct, root, space, footprint, hdata, payload, freshPayload⟩ := h
-  have query : x.data 0 = s.data 0 := data 0 (by simp)
-    (by simp [Fin.ext_iff, Nat.mod_eq_of_lt (by omega : 2 < (regs + 1) + 2)])
+  have hlt2 : 2 < (regs + 1) + 2 := by omega
+  have query : x.data 0 = s.data 0 :=
+    data 0 (by simp) (by simp [Fin.ext_iff, Nat.mod_eq_of_lt hlt2])
   rw [query] at matched
   rw [heap] at space footprint payload freshPayload
   refine ⟨rep, matched, distinct, root, space, footprint,
@@ -570,45 +567,36 @@ theorem insert_correct [LinearOrder M.Value]
       time ≤ 141 * original.cachedHeight + extra + 31 ∧
       time ≤ 282 * Nat.log 2 (original.elements.card + 1) + extra + 31 ∧
       InsertResult encode field source s t tree result original := by
-  have h01 : (0 : Fin ((regs + 1) + 2)) ≠ 1 := by simp
-  have h02 : (0 : Fin ((regs + 1) + 2)) ≠ 2 := by
-    simp [Fin.ext_iff, Nat.mod_eq_of_lt (by omega : 2 < (regs + 1) + 2)]
   obtain ⟨a, ta, cs, focus, ea, ba, ra⟩ := seek_correct lt compare s tree rep cursor pc
-  have query := ra.data 0 h01
+  have query := ra.data 0 (by simp)
   have rootA : a.ptr 1 = root tree :=
     (ra.ptr 1 (by simp [layout]) (by simp [layout]) (by simp [layout])).trans rootReg
-  have visits : SearchTree.searchVisits (s.data 0) (keys tree) ≤ original.cachedHeight := by
-    rw [matched.keys]; exact searchVisits_le_cachedHeight valid.heightConsistent _
+  have visits : SearchTree.searchVisits (s.data 0) (keys tree) ≤ original.cachedHeight :=
+    matched.keys.symm ▸ searchVisits_le_cachedHeight valid.heightConsistent _
   have searchTime : ta ≤ 7 * original.cachedHeight + 4 := by omega
-  suffices ∃ t result time,
-      Executes (insert zero maxSucc lt heavy le field source) s t time ∧
-      time ≤ 141 * original.cachedHeight + extra + 31 ∧
-      InsertResult encode field source s t tree result original by
-    obtain ⟨t, result, time, exec, bound, outcome⟩ := this
-    have := valid.cachedHeight_le_two_mul_log
-    exact ⟨t, result, time, exec, bound, by omega, outcome⟩
+  have hlog := valid.cachedHeight_le_two_mul_log
   cases focus with
   | nil =>
     let cleared := { a.setPtr 5 none with pc := 0 }
-    have complete : Represents cleared.heap none (plug cs .nil) := by
-      simpa only [cleared, State.setPtr, ra.heap, ← ra.reconstruction] using rep
-    have path : SearchPath (cleared.data 0) cs := by
-      simpa only [cleared, State.setPtr, query] using ra.path
     obtain ⟨b, result, tb, eb, bb, rb⟩ := missing_correct zero maxSucc lt heavy le encode
       zero_spec max_spec compare heavy_spec le_spec field notKey source safe cleared cs
-      original (ra.reconstruction ▸ matched) valid path complete (ra.reconstruction ▸ distinct)
+      original (ra.reconstruction ▸ matched) valid
+      (by simpa only [cleared, State.setPtr, query] using ra.path)
+      (by simpa only [cleared, State.setPtr, ra.heap, ← ra.reconstruction] using rep)
+      (ra.reconstruction ▸ distinct)
       (by simpa [cleared, State.setPtr] using ra.parent)
       (by simpa [cleared, State.setPtr, ra.reconstruction] using rootA) rfl
     have run := ea.sequence (afterSeek_missing zero maxSucc lt heavy le field source
       { a with pc := 0 } rfl ra.cursor b tb eb)
     let t := { b with pc := (seek (regs := regs + 1) (extra := extra) lt).length +
       (insertAfterSeek zero maxSucc lt heavy le field source).length }
-    have before : InsertResult encode field source s b tree result original := by
-      rw [ra.reconstruction]; exact rb.before ra.heap (fun i h1 _ => ra.data i h1) safe
+    have before : InsertResult encode field source s b tree result original :=
+      ra.reconstruction.symm ▸ rb.before ra.heap (fun i h1 _ => ra.data i h1) safe
     have depth := height_add_context_length_le cs (.nil : BinaryTree (Label M extra))
     rw [← ra.reconstruction, matched.shape_height,
       ← cachedHeight_eq_height valid.heightConsistent] at depth
-    exact ⟨t, result, ta + (tb + 3) + 1, run, by omega, before.withPc _⟩
+    have htime : ta + (tb + 3) + 1 ≤ 141 * original.cachedHeight + extra + 31 := by omega
+    exact ⟨t, result, ta + (tb + 3) + 1, run, htime, htime.trans (by omega), before.withPc _⟩
   | node label left right =>
     have present : AVLTree.contains (s.data 0) original = true := by
       simp [contains_eq_searchTree, ← matched.keys, ← ra.found, ra.cursor, root]
@@ -617,7 +605,8 @@ theorem insert_correct [LinearOrder M.Value]
       { a with pc := 0 } rfl (by simp [ra.cursor, root]))
     let t := { a.setPtr 5 none with pc := (seek (regs := regs + 1) (extra := extra) lt).length +
       (insertAfterSeek zero maxSucc lt heavy le field source).length }
-    exact ⟨t, tree, ta + 3 + 1, run, by omega,
+    have htime : ta + 3 + 1 ≤ 141 * original.cachedHeight + extra + 31 := by omega
+    exact ⟨t, tree, ta + 3 + 1, run, htime, htime.trans (by omega),
       ra.heap.symm ▸ rep, unchanged.symm ▸ matched, distinct,
       by simpa [t, State.setPtr] using rootA,
       by simp [t, State.setPtr, ra.heap],

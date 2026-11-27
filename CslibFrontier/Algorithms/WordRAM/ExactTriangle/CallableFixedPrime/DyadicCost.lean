@@ -113,25 +113,18 @@ theorem timeBound_le_dyadicTime {n F p : ℕ} (hf : 0 < blocks n) (values : List
     values mem hv' hp
   change (_ : ℝ) ≤ DyadicCost.costCoefficient (weightExponent n F) n *
     ((n : ℝ) ^ 3 / groups n) at hc
-  have hraw := rawTotal_le values hlen hv
-  have hlog : Nat.clog 2 (n + window n + groups n + p + rawTotal n values + 4) ≤ setupLog n F :=
-    Nat.clog_mono_right 2 (by omega)
-  have hparam := DyadicParameters.timeBound_le n
-  have hnat : DyadicParameters.timeBound n + PrimeSelection.timeBound n (window n) +
-      timeBound (m := level n) hn (groups n) p values mem + 42 ≤
-    3 * (16 * Nat.log 2 n + 36 + (PrimeSelection.timeBound n (window n) + 16) +
-      FixedPrime.timeBound (m := level n) hn (groups n) p values mem) +
-        24 * (n * n) + 24669 * setupLog n F + 497 + 16 := by
-    unfold timeBound
-    dsimp only [D, window] at *
-    nlinarith only [hlog, hparam]
-  have hreal := (Nat.cast_le (α := ℝ)).mpr hnat
+  have hlog : (Nat.clog 2 (n + window n + groups n + p + rawTotal n values + 4) : ℝ) ≤
+      setupLog n F := by
+    have := rawTotal_le values hlen hv
+    exact_mod_cast Nat.clog_mono_right 2 (by omega)
+  have hparam := (Nat.cast_le (α := ℝ)).mpr (DyadicParameters.timeBound_le n)
   have hceil : upperTime n F ≤ (⌈upperTime n F⌉₊ : ℝ) := Nat.le_ceil _
-  apply (Nat.cast_le (α := ℝ)).mp
-  unfold dyadicTime
-  push_cast at hreal hc ⊢
+  rw [← Nat.cast_le (α := ℝ)]
+  unfold timeBound dyadicTime
+  dsimp only [D, window] at hlog hc ⊢
+  push_cast at hparam hc ⊢
   unfold upperTime at hceil ⊢
-  nlinarith only [hreal, hc, hceil]
+  nlinarith only [hlog, hparam, hc, hceil]
 
 private theorem setupLog_le_log {n F κ : ℕ} (hF : F ≤ (n + 2) ^ κ) :
     setupLog n F ≤ (κ + 7) * Nat.clog 2 (n + 2) := by
@@ -200,28 +193,26 @@ theorem exists_dyadicTime_subcubic_bound {κ : ℕ} (hκ : 1 ≤ κ) :
       calc
         _ ≤ 3 * (n : ℝ) ^ (2 / 1197 - 33 / 20000 : ℝ) * ((n : ℝ) ^ 3 / groups n) := by gcongr
         _ ≤ 3 * (n : ℝ) ^ (2 / 1197 - 33 / 20000 : ℝ) *
-            (16 * (n : ℝ) ^ (3 - 2 / 1197 : ℝ)) := by
-          exact mul_le_mul_of_nonneg_left (cubic_div_groups_le (by omega)) (by positivity)
+            (16 * (n : ℝ) ^ (3 - 2 / 1197 : ℝ)) :=
+          mul_le_mul_of_nonneg_left (cubic_div_groups_le (by omega)) (by positivity)
         _ = _ := by
           rw [mul_assoc, mul_left_comm ((n : ℝ) ^ (2 / 1197 - 33 / 20000 : ℝ)) 16,
             ← mul_assoc, ← Real.rpow_add (by exact_mod_cast (by omega : 0 < n))]
           norm_num
-    have hclog : Nat.clog 2 (n + 2) ≤ 2 * (n * n) :=
-      (Nat.clog_le_of_le_pow Nat.lt_two_pow_self.le).trans (by nlinarith)
-    have hsetup := (setupLog_le_log hF).trans (Nat.mul_le_mul_left (κ + 7) hclog)
-    have hsmallNat : 24 * (n * n) + 24669 * setupLog n F + 514 ≤
-        (49338 * (κ + 7) + 538) * (n * n) := by nlinarith
-    have hsmallR := (Nat.cast_le (α := ℝ)).mpr hsmallNat
+    have hsetup : (setupLog n F : ℝ) ≤ 2 * (κ + 7 : ℕ) * (n : ℝ) ^ 2 := by
+      have hclog : Nat.clog 2 (n + 2) ≤ 2 * (n * n) :=
+        (Nat.clog_le_of_le_pow Nat.lt_two_pow_self.le).trans (by nlinarith)
+      exact_mod_cast ((setupLog_le_log hF).trans (Nat.mul_le_mul_left (κ + 7) hclog)).trans_eq
+        (by ring)
     have hpow : (n : ℝ) ^ 2 ≤ (n : ℝ) ^ (3 - 33 / 20000 : ℝ) := by
       rw [← Real.rpow_natCast]
       exact Real.rpow_le_rpow_of_exponent_le (by exact_mod_cast hn1) (by norm_num)
-    have hscaled := mul_le_mul_of_nonneg_left hpow
-      (show (0 : ℝ) ≤ (49338 * (κ + 7) + 538 : ℕ) by positivity)
+    have h1n : (1 : ℝ) ≤ (n : ℝ) ^ 2 := by exact_mod_cast (by nlinarith : 1 ≤ n ^ 2)
     have hceil := (Nat.ceil_lt_add_one (upperTime_nonneg hn2 F)).le
     unfold dyadicTime C
-    push_cast at hsmallR hscaled ⊢
+    push_cast at hsetup ⊢
     unfold upperTime at hceil ⊢
-    nlinarith only [hmain, hsmallR, hscaled, hceil]
+    nlinarith only [hmain, hsetup, hpow, h1n, hceil, Nat.cast_nonneg (α := ℝ) κ]
   obtain ⟨N, hN⟩ := eventually_atTop.mp hfinal
   exact ⟨C, by dsimp only [C]; positivity, max N (2 ^ 2394), le_max_right _ _,
     fun n hn => hN n ((le_max_left _ _).trans hn)⟩

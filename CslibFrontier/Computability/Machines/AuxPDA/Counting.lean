@@ -199,13 +199,12 @@ theorem branches_of_halted (M : CountingAuxPDA k Symbol StackSym State)
 theorem nil_mem_branches (M : CountingAuxPDA k Symbol StackSym State)
     (cfg : AuxPDA.Cfg k Symbol StackSym State input) (fuel : ℕ) :
     [] ∈ M.branches fuel cfg ↔ cfg.Halted := by
-  cases fuel with
-  | zero =>
-    cases hs : cfg.tapes.state <;> simp [branches, hs, AuxPDA.Cfg.Halted, Turing.Cfg.Halted]
-  | succ fuel =>
-    cases hs : cfg.tapes.state with
-    | none => simp [branches, hs, AuxPDA.Cfg.Halted, Turing.Cfg.Halted]
-    | some _ =>
+  cases hs : cfg.tapes.state with
+  | none => simp [M.branches_of_halted hs, AuxPDA.Cfg.Halted, Turing.Cfg.Halted, hs]
+  | some _ =>
+    cases fuel with
+    | zero => simp [branches, hs, AuxPDA.Cfg.Halted, Turing.Cfg.Halted]
+    | succ fuel =>
       simp only [branches, hs, Finset.mem_biUnion, Finset.mem_univ, true_and, AuxPDA.Cfg.Halted,
         Turing.Cfg.Halted, reduceCtorEq, iff_false, not_exists]
       exact fun i => by cases (M.actions cfg)[i.val].apply? cfg <;> simp
@@ -311,8 +310,7 @@ theorem HaltsWithin.mono {M : CountingAuxPDA k Symbol StackSym State}
   | halt halted => exact .halt halted
   | @step fuel cfg nonempty valid next ih =>
     obtain ⟨rest, rfl⟩ := Nat.exists_eq_add_of_le hle
-    rw [show fuel + 1 + rest = (fuel + rest) + 1 by omega]
-    exact .step nonempty valid fun index nextCfg hact =>
+    exact Nat.add_right_comm fuel 1 rest ▸ .step nonempty valid fun index nextCfg hact =>
       ih index nextCfg hact (Nat.le_add_right fuel rest)
 
 /-- No valid replay can exceed an all-branches halting clock. -/
@@ -399,16 +397,10 @@ theorem branchCount_add_not (M : CountingAuxPDA k Symbol StackSym State)
     M.branchCount verdict fuel cfg + M.branchCount (fun out => !verdict out) fuel cfg =
       (M.branches fuel cfg).card := by
   unfold branchCount
-  have hfilter :
-      (M.branches fuel cfg).filter (fun choices =>
-        (M.runBranch cfg choices).any (fun final => !verdict final.tapes.output)) =
-      (M.branches fuel cfg).filter (fun choices =>
-        ¬(M.runBranch cfg choices).any (fun final => verdict final.tapes.output)) :=
-    Finset.filter_congr fun choices hchoices => by
-      obtain ⟨_, final, hrun, _⟩ := (M.mem_branches_iff cfg fuel choices).mp hchoices
-      simp [hrun]
-  rw [hfilter]
-  exact Finset.card_filter_add_card_filter_not _
+  refine (congrArg (Nat.add _ ∘ Finset.card) (Finset.filter_congr fun choices hchoices => ?_)).trans
+    (Finset.card_filter_add_card_filter_not _)
+  obtain ⟨_, final, hrun, _⟩ := (M.mem_branches_iff cfg fuel choices).mp hchoices
+  simp [hrun]
 
 /-- Branch counts at a running configuration sum over transition occurrences (skipping any
 underflowing occurrences). -/
@@ -571,9 +563,8 @@ theorem ofMultiTapeCTM_haltsWithin_iff (M : MultiTapeCTM k Symbol State) (fuel :
       · exact .halt hh
       · refine .step (by simpa only [ofMultiTapeCTM_actions, ne_eq, List.map_eq_nil_iff] using hne)
           (fun _ => by simp [ofMultiTapeCTM_actions, AuxPDA.Action.apply?]) fun idx _ hact => ?_
-        simp only [ofMultiTapeCTM_actions, List.getElem_map, AuxPDA.Action.apply?,
-          AuxPDA.StackOp.apply?_stay, Option.map_some, Option.some.injEq] at hact
-        exact hact ▸ (ih _).mpr (hnext (idx.cast hlen_eq))
+        obtain rfl : _ = _ := by simpa [ofMultiTapeCTM_actions, AuxPDA.Action.apply?] using hact
+        exact (ih _).mpr (hnext (idx.cast hlen_eq))
 
 theorem ofMultiTapeCTM_acceptCount (M : MultiTapeCTM k Bool State) {input : List Bool}
     (fuel : ℕ) (c : Turing.Cfg k Bool State input) (s : List PUnit) :

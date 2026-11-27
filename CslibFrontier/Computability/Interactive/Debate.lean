@@ -428,10 +428,9 @@ private theorem countLaw_tail (ν : PMF Bool) {n : ℕ} (hn : 0 < n) {e : ℝ} (
   rwa [hsets]
 
 private theorem sampleCount_pos {e f : ℝ} (he : 0 < e) (hf0 : 0 < f) (hf : f < 2) :
-    0 < sampleCount e f := by
-  rw [sampleCount, Nat.ceil_pos]
-  have hlog : Real.log (f / 2) < 0 := Real.log_neg (by positivity) (by linarith)
-  exact div_pos (by linarith) (by positivity)
+    0 < sampleCount e f :=
+  Nat.ceil_pos.2 (div_pos (neg_pos.2 (Real.log_neg (half_pos hf0) ((div_lt_one two_pos).2 hf)))
+    (mul_pos two_pos (sq_pos_of_pos he)))
 
 private theorem two_mul_exp_sampleCount_le {e f : ℝ} (he : 0 < e) (hf0 : 0 < f) :
     2 * Real.exp (-2 * sampleCount e f * e ^ 2) ≤ f := by
@@ -682,9 +681,7 @@ private noncomputable def rejectValue (law : List Bool → PMF Bool) (b : ℝ) :
 private theorem rejectValue_le_one (law : List Bool → PMF Bool) (b : ℝ) :
     ∀ n bits, rejectValue law b n bits ≤ 1
   | 0, bits => by rw [rejectValue]; split_ifs <;> simp
-  | n + 1, bits => by
-    rw [rejectValue]
-    exact (min_le_left _ _).trans (mix_le_one _ fun bit => rejectValue_le_one law b n _)
+  | n + 1, bits => (min_le_left _ _).trans (mix_le_one _ fun _ => rejectValue_le_one law b n _)
 
 /-- Any law of the next bit within `b` of `law` does no better than the best nearby step law. -/
 private theorem rejectValue_succ_le_mix (law : List Bool → PMF Bool) {b : ℝ} (n : ℕ)
@@ -863,8 +860,7 @@ private theorem tsum_countLaw_mul_mix (ν : PMF Bool) {N : ℕ} [NeZero N] (x y 
       countLaw ν N k * ((k.val : ℝ≥0∞) / N * x + ((N - k.val : ℕ) : ℝ≥0∞) / N * y) =
         countLaw ν N k * (k.val : ℝ≥0∞) * (x / N) +
           countLaw ν N k * ((N - k.val : ℕ) : ℝ≥0∞) * (y / N) := by
-    simp only [div_eq_mul_inv]
-    ring
+    simp only [div_eq_mul_inv]; ring
   have hcancel (z w : ℝ≥0∞) : N * z * (w / N) = z * w := by
     rw [div_eq_mul_inv]
     calc N * z * (w * (N : ℝ≥0∞)⁻¹) = z * w * (N * (N : ℝ≥0∞)⁻¹) := by ring
@@ -1073,8 +1069,7 @@ theorem completeness_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ) {law : List Bo
     ENNReal.toReal_ofReal (by positivity), ENNReal.toReal_natCast, Nat.cast_add, Nat.cast_one]
     at hreal
   have hslack : (1 - 1 / 100 : ℝ) * ((T : ℝ) + 1) * (1 / (100 * (T + 1))) = 99 / 10000 := by
-    field_simp
-    ring
+    field_simp; ring
   rw [hslack] at hreal
   rw [← ENNReal.toReal_le_toReal (ENNReal.div_ne_top (by simp) (by simp)) hfin, ENNReal.toReal_div,
     ENNReal.toReal_ofNat, ENNReal.toReal_ofNat]
@@ -1125,9 +1120,7 @@ theorem soundness_of_lipschitzAt_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ)
     (ev law (run (Params.default K T) A (honestChallenger (Params.default K T))))
   have hclose' := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hUtop,
     ENNReal.mul_ne_top ENNReal.coe_ne_top ENNReal.ofReal_ne_top⟩) hclose
-  have hK20 : (K : ℝ) * (5 / (100 * (K : ℝ))) = 1 / 20 := by
-    field_simp
-    ring
+  have hK20 : (K : ℝ) * (5 / (100 * (K : ℝ))) = 1 / 20 := by field_simp; ring
   rw [ENNReal.toReal_add hUtop (ENNReal.mul_ne_top ENNReal.coe_ne_top ENNReal.ofReal_ne_top),
     ENNReal.toReal_mul, ENNReal.coe_toReal, ENNReal.toReal_ofReal (by positivity), hK20] at hclose'
   have h1 : 1 / (100 * ((T : ℝ) + 1)) ≤ 1 := (div_le_one (by positivity)).2 (by linarith)

@@ -164,16 +164,12 @@ theorem select_select {q : Query S n} {Γ : Fin n → SqlType} (hq : q.typeOf = 
   simp only [Except.ok_bind, Except.toOption_bind, Expr.toOption_filterRows c rs,
     Expr.toOption_filterRows (binary .and c p) rs, Expr.toOption_evalTruth_and]
   by_cases hC : ∀ r ∈ rs, (c.evalTruth r).toOption.isSome
-  · have hAnd : ∀ r ∈ rs, ((c.evalTruth r).toOption.bind
-        fun s => (p.evalTruth r).toOption.map (s ⊓ ·)).isSome := fun r hr => by
-      obtain ⟨s, hs⟩ := Option.isSome_iff_exists.mp (hC r hr)
-      simp [hs, ht r hr]
-    rw [ite_eq_left hC, ite_eq_left hAnd, Option.bind_some,
+  · choose s hs using fun r (hr : r ∈ rs) => Option.isSome_iff_exists.mp (hC r hr)
+    rw [ite_eq_left hC, ite_eq_left fun r hr => by simp [hs r hr, ht r hr], Option.bind_some,
       hp.filterRows_eq_ok fun r hr => hrs r (List.mem_filter.mp hr).1, Except.toOption_ok,
       List.filter_filter]
-    refine congrArg some (List.filter_congr fun r hr => ?_)
-    obtain ⟨s, hs⟩ := Option.isSome_iff_exists.mp (hC r hr)
-    simp [hs, ht r hr, Truth.inf_eq_true_iff, Bool.and_comm]
+    exact congrArg some (List.filter_congr fun r hr => by
+      simp [hs r hr, ht r hr, Truth.inf_eq_true_iff, Bool.and_comm])
   · rw [ite_eq_right hC, Option.bind_none, eq_comm]
     exact ite_eq_right fun hall => hC fun r hr =>
       Option.isSome_iff_ne_none.mpr fun hs => by simpa [hs] using hall r hr
@@ -329,11 +325,10 @@ theorem project_project {q : Query S n} {Γ : Fin n → SqlType} (hq : q.typeOf 
 /-- `SELECT *`: projecting on every column in order is the identity. -/
 theorem project_col (q : Query S n) : Equiv .ordered (project Expr.col q) q :=
   Equiv.of_eval_eq fun D _ => by
-    simp only [eval_project]
-    rcases q.eval D with e | rs
-    · rfl
-    rw [Except.ok_bind, Except.mapM_eq_ok_map (g := id) fun _ _ => Expr.evalRow_eq_ok_iff.mpr
-      fun _ => rfl, List.map_id]
+    rcases h : q.eval D with e | rs
+    · simp [eval_project, h]
+    · simpa [eval_project, h] using
+        Except.mapM_eq_ok_map (g := id) fun r _ => Expr.evalRow_col_comp id r
 
 /-! ### `UNION ALL` -/
 

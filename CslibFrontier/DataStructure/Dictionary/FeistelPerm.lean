@@ -1355,18 +1355,9 @@ theorem dens_not_injOn_idCompressorBit_le {s L : ℕ} (hsL : s ≤ L) (S : Finse
       ¬ Set.InjOn (fun u => idCompressorHead s (2 ^ (L - s)) θ (bitDomainEquiv hsL u))
         (S : Set (Fin (2 ^ L)))} : ℝ) ≤
       (#S : ℝ) ^ 2 / (2 * (2 ^ s : ℝ)) := by
-  let S' := S.map (bitDomainEquiv hsL).toEmbedding
-  have hinj_iff (θ : IdCompressorSeed s (2 ^ (L - s))) :
-      Set.InjOn (fun u => idCompressorHead s (2 ^ (L - s)) θ (bitDomainEquiv hsL u)) ↑S ↔
-        Set.InjOn (idCompressorHead s (2 ^ (L - s)) θ) ↑S' :=
-    ⟨fun h _ hx _ hy heq => by
-      obtain ⟨u, hu, rfl⟩ := mem_map.mp hx
-      obtain ⟨v, hv, rfl⟩ := mem_map.mp hy
-      exact congrArg _ (h hu hv heq),
-     fun h _ hu _ hv heq =>
-      (bitDomainEquiv hsL).injective (h (mem_map_of_mem _ hu) (mem_map_of_mem _ hv) heq)⟩
-  have hcard : #S' = #S := card_map _
-  simpa only [hinj_iff, hcard] using dens_not_injOn_idCompressorHead_le s (2 ^ (L - s)) S'
+  have hinj := (bitDomainEquiv hsL).injective.injOn (s := ↑S)
+  simpa only [coe_map, Equiv.coe_toEmbedding, ← hinj.comp_iff, Function.comp_def, card_map] using
+    dens_not_injOn_idCompressorHead_le s (2 ^ (L - s)) (S.map (bitDomainEquiv hsL).toEmbedding)
 
 end IdCompressor
 

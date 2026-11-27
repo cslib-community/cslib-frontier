@@ -456,8 +456,8 @@ theorem expandParent_spec (hfa : ∀ y ∈ C, a y (f y) = true) (hfC : ∀ y ∈
         obtain ⟨m, hm⟩ := ih n'' (by omega) (q x0) hwC hn
         obtain ⟨y, hyC, -, -, hpy⟩ := hpO u hu hqu
         obtain ⟨k, hk⟩ := hR1 y hyC
-        refine ⟨m + k + 1, ?_⟩
-        rw [Function.iterate_succ_apply, hpy, Function.iterate_add_apply, hk, hm]
+        exact ⟨m + k + 1, by
+          rw [Function.iterate_succ_apply, hpy, Function.iterate_add_apply, hk, hm]⟩
       · obtain ⟨m, hm⟩ := ih n' (by omega) (q u) (hqO u hu hqu) hn
         exact ⟨m + 1, by rw [Function.iterate_succ_apply, hpO' u hu hqu, hm]⟩
   refine ⟨⟨?_, ?_, ?_⟩, ?_⟩
@@ -482,9 +482,8 @@ theorem expandParent_spec (hfa : ∀ y ∈ C, a y (f y) = true) (hfC : ∀ y ∈
   · have hsub : C ⊆ Finset.univ.erase r := fun y hy =>
       Finset.mem_erase.mpr ⟨fun h => hrC (h ▸ hy), Finset.mem_univ y⟩
     rw [parentCost, parentCost, ← Finset.sum_sdiff hsub, ← Finset.sum_sdiff hsub]
-    congr 1
-    · refine Finset.sum_congr rfl fun v hv => ?_
-      have hvC : v ∉ C := (Finset.mem_sdiff.mp hv).2
+    refine congrArg₂ _ (Finset.sum_congr rfl fun v hv => ?_) ?_
+    · have hvC : v ∉ C := (Finset.mem_sdiff.mp hv).2
       by_cases hqv : q v = x0
       · obtain ⟨y, -, -, hbi, hpy⟩ := hpO v hvC hqv
         simp [hpy, hqv, contractCost, hvC, hbi]
@@ -541,25 +540,24 @@ theorem exists_contract_le [IsOrderedAddMonoid β]
       rw [Function.iterate_succ_apply] at hw
       obtain ⟨n, hn⟩ := ih (by omega) (t w) hw
       exact ⟨n + 1, by rw [Function.iterate_succ_apply, hqO w hw0, ite_eq_right hw1, hn]⟩
-  have hqx0 : ∃ n, q^[n] x0 = r := by
-    obtain ⟨n, hn⟩ := hQ k' (by omega) (t x) htx
-    exact ⟨n + 1, by rw [Function.iterate_succ_apply, hqC x0 hx0, ite_eq_left rfl, hn]⟩
+  have hqx0 : ∃ n, q^[n] x0 = r :=
+    (hQ k' (by omega) (t x) htx).elim fun n hn =>
+      ⟨n + 1, by rw [Function.iterate_succ_apply, hqC x0 hx0, ite_eq_left rfl, hn]⟩
   have hqreach : ∀ v, ∃ n, q^[n] v = r := by
     intro v
     by_cases hvC : v ∈ C
-    · by_cases hvx : v = x0
-      · exact hvx ▸ hqx0
+    · rcases eq_or_ne v x0 with rfl | hvx
+      · exact hqx0
       · exact ⟨1, by rw [Function.iterate_one, hqC v hvC, ite_eq_right hvx]⟩
     · obtain ⟨d, hd⟩ := ht.reach v
       induction d generalizing v with
       | zero => exact ⟨0, hd⟩
       | succ d ih =>
         rw [Function.iterate_succ_apply] at hd
-        by_cases htv : t v ∈ C
-        · obtain ⟨n, hn⟩ := hqx0
-          exact ⟨n + 1, by rw [Function.iterate_succ_apply, hqO v hvC, ite_eq_left htv, hn]⟩
-        · obtain ⟨n, hn⟩ := ih (t v) htv hd
-          exact ⟨n + 1, by rw [Function.iterate_succ_apply, hqO v hvC, ite_eq_right htv, hn]⟩
+        obtain ⟨n, hn⟩ : ∃ n, q^[n] (q v) = r :=
+          hqO v hvC ▸ if htv : t v ∈ C then ite_eq_left htv ▸ hqx0
+            else ite_eq_right htv ▸ ih (t v) htv hd
+        exact ⟨n + 1, by rw [Function.iterate_succ_apply, hn]⟩
   have hqadj : ∀ v, v ≠ r → contractAdj a C x0 r v (q v) = true := by
     intro v hvr
     by_cases hvC : v ∈ C
@@ -585,8 +583,7 @@ theorem exists_contract_le [IsOrderedAddMonoid β]
     split_ifs with htv
     · obtain ⟨y, hbi, -, -, hymin⟩ := bestEntry_spec (c := c) ⟨t v, htv, ht.adj v hvr⟩
       simpa [contractCost, hvC, hbi] using hymin _ htv (ht.adj v hvr)
-    · have htx0 : t v ≠ x0 := fun h => htv (h ▸ hx0)
-      simp [contractCost, hvC, htx0]
+    · simp [contractCost, hvC, (ne_of_mem_of_not_mem hx0 htv).symm]
   · rw [← Finset.add_sum_erase C _ hx0, hqC x0 hx0, ite_eq_left rfl]
     have h0 : ∑ v ∈ C.erase x0, contractCost a c f C x0 v (q v) = 0 :=
       Finset.sum_eq_zero fun v hv => by
@@ -597,9 +594,9 @@ theorem exists_contract_le [IsOrderedAddMonoid β]
     simp only [contractCost, ↓reduceIte, hx0, hbo]
     refine (hxsmin x hxC (ht.adj x (hCr x hxC))).trans ?_
     rw [exitCost, ← Finset.add_sum_erase C _ hxC]
-    refine add_le_add le_rfl (Finset.sum_le_sum fun y hy => ?_)
-    have hyC := Finset.mem_of_mem_erase hy
-    exact hfmin y (hCr y hyC) _ (ht.adj y (hCr y hyC)) (ht.ne (hCr y hyC))
+    exact add_le_add le_rfl (Finset.sum_le_sum fun y hy =>
+      let hyC := Finset.mem_of_mem_erase hy
+      hfmin y (hCr y hyC) _ (ht.adj y (hCr y hyC)) (ht.ne (hCr y hyC)))
 
 end Contract
 
@@ -631,19 +628,18 @@ theorem liveVertices_ssubset {a : V → V → Bool} {f : V → V} {C : Finset V}
         exact ⟨y, fun h => hvC (h ▸ hyC), hCr y hyC, hy⟩
       · exact ⟨w, hwv, hwr, (contractAdj_out_out_iff hvC hwC).mp hvw⟩
   have hz := hfC x0 hx0
-  refine (Finset.ssubset_iff_of_subset hsub).mpr ⟨f x0, ?_, ?_⟩
-  · exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, hCr _ hz, f (f x0), (hfa _ hz).2,
-      hCr _ (hfC _ hz), (hfa _ hz).1⟩
-  · intro h
-    obtain ⟨-, w, -, hwr, hadj⟩ := (Finset.mem_filter.mp h).2
-    exact hwr ((contractAdj_mem_iff hz (hfa x0 hx0).2).mp hadj)
+  refine (Finset.ssubset_iff_of_subset hsub).mpr
+    ⟨f x0, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hCr _ hz, f (f x0), (hfa _ hz).2,
+      hCr _ (hfC _ hz), (hfa _ hz).1⟩, fun h => ?_⟩
+  obtain ⟨-, w, -, hwr, hadj⟩ := (Finset.mem_filter.mp h).2
+  exact hwr ((contractAdj_mem_iff hz (hfa x0 hx0).2).mp hadj)
 
 /-- A graph has strictly fewer live vertices than `FinEnum.card V` (since `r` is not live). -/
 theorem liveVertices_card_lt (a : V → V → Bool) (r : V) :
     (liveVertices a r).card < FinEnum.card V := by
   rw [FinEnum.card_eq_fintypeCard, ← Finset.card_univ]
-  refine Finset.card_lt_card ⟨Finset.subset_univ _, fun h => ?_⟩
-  exact (Finset.mem_filter.mp (h (Finset.mem_univ r))).2.1 rfl
+  exact Finset.card_lt_card ⟨Finset.subset_univ _,
+    fun h => (Finset.mem_filter.mp (h (Finset.mem_univ r))).2.1 rfl⟩
 
 variable [LinearOrder β] [AddCommMonoid β]
 

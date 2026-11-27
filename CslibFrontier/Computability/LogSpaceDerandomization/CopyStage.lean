@@ -180,9 +180,8 @@ theorem cutoffCorrectionIter_mem (hA : ∀ x y, C x y ≠ 0 → x ∈ A ∧ y �
       refine Finset.sum_eq_zero fun z _ => by_contra fun hmul => ?_
       obtain ⟨hE, hCz⟩ := mul_ne_zero_iff.1 hmul
       exact hxy ⟨(ih x z hE).1, (hA z y hCz).2⟩
-    rw [cutoffCorrectionIter_succ]
-    change φ y ((C + cutoffCorrectionIter φ C k * C) x y) = 0
-    rw [hin, cutoff_zero hφ0 hφθ hθf]
+    simpa only [cutoffCorrectionIter_succ, cutoffCorrection, Matrix.of_apply, hin] using
+      cutoff_zero hφ0 hφθ hθf y
 
 include hφ0 hφθ hθf in
 /-- **The residual stays within the support of `C`** [OpenAI2026LogSpace, Lemma 4.4]. -/
@@ -211,9 +210,8 @@ theorem cutoffCorrectionIter_isStrictUpperTriangular [Preorder V]
   | zero => intro x y _; simp [cutoffCorrectionIter]
   | succ k ih =>
     intro x y hxy
-    rw [cutoffCorrectionIter_succ]
-    change φ y ((C + cutoffCorrectionIter φ C k * C) x y) = 0
-    rw [(hC.add (ih.mul hC)) hxy, cutoff_zero hφ0 hφθ hθf]
+    simpa only [cutoffCorrectionIter_succ, cutoffCorrection, Matrix.of_apply,
+      (hC.add (ih.mul hC)) hxy] using cutoff_zero hφ0 hφθ hθf y
 
 include hφ0 hφθ hθf in
 /-- **The residual of a strictly upper triangular matrix is strictly upper triangular.** -/
@@ -266,9 +264,8 @@ theorem copyFraction_of_eq_zero (h : χ t = 0) (j : Fin (m + 1)) :
 theorem copyFraction_of_eq_one (h : χ t = 1) (j : Fin (m + 1)) :
     copyFraction χ m t j = 1 / (m + 1) := by
   unfold copyFraction
-  split_ifs
-  · rw [h]; field_simp; ring
-  · rw [h]
+  split_ifs <;> simp only [h, mul_one]
+  field_simp; ring
 
 end Fraction
 
@@ -389,8 +386,7 @@ theorem card_mul_le_of_incidences {V : Type*} [Fintype V] {k : ℕ}
   have hcount : ∀ i y, (#{x | δ < G i x y} : ℝ) * δ = ∑ x, if δ < G i x y then δ else 0 :=
     fun i y => by rw [Finset.sum_ite, Finset.sum_const_zero, add_zero, Finset.sum_const,
       nsmul_eq_mul]
-  have hrowA : ∀ i x, (∑ y, if δ < G i x y then δ else 0) ≤ if x ∈ A then s i else 0 := by
-    intro i x
+  have hrowA (i) (x) : (∑ y, if δ < G i x y then δ else 0) ≤ if x ∈ A then s i else 0 := by
     split_ifs with hx
     · exact (Finset.sum_le_sum fun y _ => hind i x y).trans (hGs i x)
     · refine le_of_eq (Finset.sum_eq_zero fun y _ => ?_)
@@ -452,11 +448,10 @@ theorem copyStage_rates (hC : C.IsStrictUpperTriangular) (hC0 : ∀ x y, 0 ≤ C
   intro D
   have hθf : 0 ≤ θ * f := by positivity
   have hD0 : ∀ x y, 0 ≤ D x y := cutoffCorrection_residual_nonneg hC0 hφ0 hφθ hφm hθf k
-  have hbig : ∀ x y, τ₀ < D x y → (∀ j, r j y = 1) ∧ y ∈ O := fun x y h => by
-    rcases hcol y with hgood | hcopy
-    · have := cutoffCorrection_residual_le hC hC0 hCf hC1 hφ0 hφθ hφm hφL hf hθ hL hgood k x
-      exact absurd (this.trans hτ₀) (not_le.mpr h)
-    · exact hcopy
+  have hbig (x y : V) (h : τ₀ < D x y) : (∀ j, r j y = 1) ∧ y ∈ O :=
+    (hcol y).resolve_left fun hgood =>
+      ((cutoffCorrection_residual_le hC hC0 hCf hC1 hφ0 hφθ hφm hφL hf hθ hL hgood k x).trans
+        hτ₀).not_gt h
   refine ⟨copyStage_le (fun j x => (hr01 j x).1) (fun j x => (hr01 j x).2) hD0
       (cutoffCorrection_residual_le_mul hC0 hφ0 hφθ hθf hCf hf.le hC1 k) hχ0 hχ1 hχ₁ hτ₁ hK,
     copyStage_mul_copyWeight hr0 hχ₀ fun x y h => (hbig x y h).1,

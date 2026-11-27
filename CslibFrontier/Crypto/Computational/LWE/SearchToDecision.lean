@@ -435,11 +435,7 @@ private theorem pi_trueCount_far_le {N : ℕ} (μ : PMF Bool) {ε : ℝ} (hε : 
     ((PMF.pi fun _ : Fin N => μ).toOuterMeasure
       {x | ε ≤ |(trueCount x : ℝ) - N * (μ true).toReal|}).toReal ≤
         2 * Real.exp (-2 * ε ^ 2 / N) := by
-  have hsum (x : Fin N → Bool) : ∑ i, (if x i then (1 : ℝ) else 0) = trueCount x := by
-    simp [trueCount, Finset.sum_boole]
-  have hmean : ∑ _i : Fin N, ∑ a : Bool, (μ a).toReal * (if a then (1 : ℝ) else 0) =
-      N * (μ true).toReal := by simp
-  simpa only [hsum, hmean, Fintype.card_fin, one_pow, mul_one] using
+  simpa [trueCount, Finset.sum_boole] using
     PMF.pi_sum_abs_sub_mean_ge (fun _ : Fin N => μ) (fun _ b => if b then (1 : ℝ) else 0)
       (bound := 1) zero_le_one (fun _ b _ => by cases b <;> simp) hε
 
@@ -476,10 +472,9 @@ theorem pi_estimatorLaw_guessSecret_ne_le {n m q : ℕ} [Fact (Nat.Prime q)] (N 
       PMF.toOuterMeasure_map_apply] at h
     refine h.trans_eq ?_
     congr 2
-    rcases Nat.eq_zero_or_pos N with rfl | hN
-    · simp
-    · have : (N : ℝ) ≠ 0 := by positivity
-      field_simp; ring
+    rcases eq_or_ne (N : ℝ) 0 with hN | hN
+    · simp [hN]
+    · field_simp; ring
   calc (μ.toOuterMeasure {X | guessSecret X ≠ s}).toReal
       ≤ (μ.toOuterMeasure (⋃ o ∈ Finset.univ, E o)).toReal :=
         ENNReal.toReal_mono (PMF.toOuterMeasure_ne_top _ _) (MeasureTheory.measure_mono hsub)

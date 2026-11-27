@@ -9,6 +9,7 @@ import CslibFrontierResults.Registry
 import CslibFrontier.Computability.Complexity.FineGrained.SatisfiabilityHypothesis
 import CslibFrontier.Computability.Complexity.FineGrained.SharpSatisfiabilityHypothesis
 import CslibFrontier.Computability.Complexity.FineGrained.SharpTwoSATPower
+import CslibFrontier.Computability.Complexity.FineGrained.WeakExponentialTimeHypothesis
 
 /-!
 # Collected results: the Satisfiability Hypothesis
@@ -44,6 +45,49 @@ register_result "sharp-sh-fixed-width-size" where
     exponent measures occurring variables plus clauses. The deterministic multitape bounds \
     allow polynomial overhead in encoded input length, and the width-guarded counter returns \
     zero on inputs outside the width bound."
+
+register_result "sh-iff-weak-eth" where
+  title := "The Satisfiability Hypothesis is equivalent to Weak ETH"
+  topic := "fine-grained complexity"
+  sources := [
+    { paper := MITHardnessGroup2026SH,
+      theorem := "Theorem 2.4 (decision case)",
+      locator := "arXiv:2611.02650v2, §2.3, p. 7" }
+  ]
+  theorems := [Cslib.Complexity.SH_iff_WeakETH]
+  scope := "On native binary CNF inputs (encCNF), SH for unrestricted SAT is equivalent to \
+    ruling out any fixed power saving in the exponent measured in occurring variables \
+    for deterministic multitape 3SAT solvers. Both bounds allow polynomial overhead in \
+    encoded input length. The 3SAT language rejects wider formulas."
+
+register_result "sh-iff-weak-k-eth" where
+  title := "The Satisfiability Hypothesis is equivalent to Weak k-ETH at every fixed width k ≥ 3"
+  topic := "fine-grained complexity"
+  sources := [
+    { paper := MITHardnessGroup2026SH,
+      theorem := "Corollary 2.5",
+      locator := "arXiv:2611.02650v2, §2.3, p. 7" }
+  ]
+  theorems := [Cslib.Complexity.SH_iff_WeakKETH]
+  scope := "For fixed k ≥ 3, SH and Weak ETH are each equivalent to ruling out any fixed \
+    power saving in the exponent measured in occurring variables for deterministic \
+    multitape k-SAT solvers. Inputs use the native binary CNF encoding (encCNF), with \
+    polynomial overhead in encoded input length and rejection of wider formulas."
+
+register_result "sharp-sh-iff-weak-sharp-eth" where
+  title := "The counting Satisfiability Hypothesis is equivalent to Weak #ETH"
+  topic := "fine-grained complexity"
+  sources := [
+    { paper := MITHardnessGroup2026SH,
+      theorem := "Theorem 2.4 (counting case)",
+      locator := "arXiv:2611.02650v2, §2.3, p. 7" }
+  ]
+  theorems := [Cslib.Complexity.SharpSH_iff_WeakSharpETH]
+  scope := "With native binary CNF input (encCNF) and binary counts (encNat), #SH measures \
+    occurring variables, clauses, and literal occurrences of unrestricted formulas. Weak #ETH \
+    measures occurring variables of width-at-most-three formulas. Both rule out fixed power \
+    savings for deterministic multitape counters with polynomial overhead in the encoded \
+    input length. The width-three counter returns zero on wider formulas."
 
 register_result "sh-implies-sharp-sh" where
   title := "The Satisfiability Hypothesis implies its counting counterpart"

@@ -151,13 +151,11 @@ theorem ValidSchedule.induction {motive : (s : P.State) → (reqs : List P.Req) 
     (hv : P.ValidSchedule s reqs states) : motive s reqs states hv := by
   induction reqs generalizing s states with
   | nil =>
-    cases states with
-    | nil => exact nil s
-    | cons _ _ => cases hv
+    match states, hv with
+    | [], _ => exact nil s
   | cons r rs ih =>
-    cases states with
-    | nil => cases hv
-    | cons s' ss => exact cons s r rs s' ss hv.1 hv.2 (ih hv.2)
+    match states, hv with
+    | s' :: ss, ⟨hstep, hrest⟩ => exact cons s r rs s' ss hstep hrest (ih hrest)
 
 @[simp]
 theorem scheduleCost_nil (s : P.State) : P.scheduleCost s [] [] = 0 := rfl
@@ -243,10 +241,8 @@ theorem runClient_scheduleClient {s : P.State} {reqs : List P.Req} {states : Lis
   induction hv using ValidSchedule.induction with
   | nil => rfl
   | cons _ r rs s' ss _ _ ih =>
-    change (let rest := P.offlineSpec.runClient s' (P.scheduleClient rs ss)
-      (rest.1, rest.2.1, (r, s') :: rest.2.2)) = _
-    rw [ih]
-    rfl
+    dsimp only [scheduleClient, StateTransitionSpec.runClient]
+    rw [ih]; rfl
 
 /-- Every `ValidSchedule` yields an admissible `offlineSpec` operation history. -/
 theorem validHistory_zip {s : P.State} {reqs : List P.Req} {states : List P.State}
@@ -264,10 +260,8 @@ theorem totalCost_zip (c : Nat) {s : P.State} {reqs : List P.Req} {states : List
   induction hv using ValidSchedule.induction with
   | nil => rfl
   | cons s r rs s' ss _ _ ih =>
-    change c * P.stepCost s r s' +
-        P.offlineSpec.totalCost (fun s₀ o => c * P.stepCost s₀ o.1 o.2) s' (rs.zip ss) = _
-    rw [ih]
-    simp only [scheduleCost_cons, Nat.mul_add]
+    dsimp only [List.zip_cons_cons, StateTransitionSpec.totalCost]
+    rw [ih, scheduleCost_cons, Nat.mul_add]
 
 end Problem
 
@@ -644,8 +638,7 @@ theorem cost_adaptiveRequests_eq {chooseReq : P.State → P.Req} {w : Nat}
         (A.project (A.step m (chooseReq (A.project m)))) = w)
     {s₀ : P.State} (hs₀ : P.ValidInit s₀) (n : Nat) :
     A.cost s₀ (A.adaptiveRequests chooseReq s₀ n) = n * w := by
-  rw [A.cost_eq_costFrom hs₀]
-  exact A.costFrom_adaptiveRequestsFrom_eq hw (A.valid_init hs₀).1 n
+  exact A.cost_eq_costFrom hs₀ _ ▸ A.costFrom_adaptiveRequestsFrom_eq hw (A.valid_init hs₀).1 n
 
 /-- If `chooseReq` forces step cost at least `w` at every reachable state of `A`, then `n` generated
 requests force online cost at least `n * w`. -/

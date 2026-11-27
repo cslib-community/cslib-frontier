@@ -172,14 +172,11 @@ private noncomputable def down (a t : ℝ) : ℝ := if t ≤ a then 1 else 0
 private theorem up_nonneg (a t : ℝ) : 0 ≤ up a t := by unfold up; split_ifs <;> norm_num
 private theorem up_le_one (a t : ℝ) : up a t ≤ 1 := by unfold up; split_ifs <;> norm_num
 private theorem up_of_le {a t : ℝ} (h : t ≤ a) : up a t = 0 := by simp only [up, h, ↓reduceIte]
-private theorem up_of_lt {a t : ℝ} (h : a < t) : up a t = 1 := by
-  simp only [up, not_le.mpr h, ↓reduceIte]
+private theorem up_of_lt {a t : ℝ} (h : a < t) : up a t = 1 := ite_eq_right (not_le.mpr h)
 private theorem down_nonneg (a t : ℝ) : 0 ≤ down a t := by unfold down; split_ifs <;> norm_num
 private theorem down_le_one (a t : ℝ) : down a t ≤ 1 := by unfold down; split_ifs <;> norm_num
-private theorem down_of_le {a t : ℝ} (h : t ≤ a) : down a t = 1 := by
-  simp only [down, h, ↓reduceIte]
-private theorem down_of_lt {a t : ℝ} (h : a < t) : down a t = 0 := by
-  simp only [down, not_le.mpr h, ↓reduceIte]
+private theorem down_of_le {a t : ℝ} (h : t ≤ a) : down a t = 1 := ite_eq_left h
+private theorem down_of_lt {a t : ℝ} (h : a < t) : down a t = 0 := ite_eq_right (not_le.mpr h)
 private theorem down_antitone (a : ℝ) : Antitone (down a) := fun s t hst => by
   unfold down; split_ifs with h1 h2 <;> first | exact absurd (hst.trans h1) h2 | norm_num
 
@@ -193,7 +190,6 @@ complements remain open. -/
 theorem nonempty (hq : 0 < q) (hcπ : 0 < cπ) :
     Nonempty (HierarchyParams q cπ Cπ Cpair Cvar) := by
   set θ : ℝ := 1 / (4 * q)
-  have hθ : 0 < θ := by positivity
   obtain ⟨k, hk⟩ := exists_factorial_bound_le θ 1 (δ := 1 / (4 * q)) (by positivity)
   set m : ℕ := ⌈q⌉₊ * (k + 1)
   set J : ℕ := ⌈4 * Cπ * m * k * (k + 1)⌉₊ + 1
@@ -225,14 +221,13 @@ theorem nonempty (hq : 0 < q) (hcπ : 0 < cπ) :
     le_Q := fun _ => le_max_left _ _
     Q_mono := fun _ _ h => max_le_max (by linarith) le_rfl
     Q_lipschitz := fun s t _ => ?_
-    θ_pos := hθ
+    θ_pos := by positivity
     L_nonneg := zero_le_one
     truncation := ?_
     χ_nonneg := up_nonneg _
     χ_le_one := up_le_one _
     χ_zero := fun _ h => up_of_le h
-    χ_one := fun t h => up_of_lt (lt_of_lt_of_le (by
-      rw [div_lt_div_iff_of_pos_left one_pos (by positivity) hq]; linarith) h)
+    χ_one := fun _ h => up_of_lt ((one_div_lt_one_div_of_lt hq (lt_two_mul_self hq)).trans_le h)
     τ₁_le := le_rfl
     copies := ?_
     δ₀_pos := by norm_num
@@ -333,9 +328,8 @@ theorem cutoff_nonneg (hf : 0 < f) (t : ℝ) : 0 ≤ P.cutoff f t :=
   mul_nonneg hf.le (P.Q_nonneg _)
 
 theorem cutoff_le (hf : 0 < f) (t : ℝ) : P.cutoff f t ≤ max (t - P.θ * f) 0 := by
-  have h := P.Q_le (t / f)
   calc P.cutoff f t = f * P.Q (t / f) := rfl
-    _ ≤ f * max (t / f - P.θ) 0 := mul_le_mul_of_nonneg_left h hf.le
+    _ ≤ f * max (t / f - P.θ) 0 := mul_le_mul_of_nonneg_left (P.Q_le (t / f)) hf.le
     _ = max (t - P.θ * f) 0 := by
         rw [mul_max_of_nonneg _ _ hf.le, mul_zero, mul_sub, mul_div_cancel₀ _ hf.ne', mul_comm]
 
@@ -348,10 +342,10 @@ theorem cutoff_mono (hf : 0 < f) : Monotone (P.cutoff f) := fun _ _ h =>
 
 theorem cutoff_lipschitz (hf : 0 < f) (s t : ℝ) (h : s ≤ t) :
     P.cutoff f t - P.cutoff f s ≤ P.L * (t - s) := by
-  have hl := P.Q_lipschitz (s / f) (t / f) (div_le_div_of_nonneg_right h hf.le)
   calc P.cutoff f t - P.cutoff f s = f * (P.Q (t / f) - P.Q (s / f)) := by
         simp only [cutoff]; ring
-    _ ≤ f * (P.L * (t / f - s / f)) := mul_le_mul_of_nonneg_left hl hf.le
+    _ ≤ f * (P.L * (t / f - s / f)) :=
+        mul_le_mul_of_nonneg_left (P.Q_lipschitz _ _ (div_le_div_of_nonneg_right h hf.le)) hf.le
     _ = P.L * (t - s) := by field_simp
 
 private theorem phi_nonneg (hf : 0 < f) (y : V) (t : ℝ) :
@@ -462,9 +456,8 @@ theorem proj_mulVec_one_le [DecidableEq V] : P.proj X Y f C *ᵥ 1 ≤ 1 := fun 
 
 /-- The primary copy projects to its parent with weight one. -/
 theorem proj_primary [DecidableEq V] (x w : V) :
-    P.proj X Y f C (toLex (x, 0)) w = if w = x then 1 else 0 := by
-  simp only [proj, submatrix_apply, id, ofLex_toLex]
-  exact copyWeight_apply_of_eq_one (by simp [weight, detectorWeight]) w
+    P.proj X Y f C (toLex (x, 0)) w = if w = x then 1 else 0 :=
+  copyWeight_apply_of_eq_one (by simp [weight, detectorWeight]) w
 
 end Stage
 

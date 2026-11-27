@@ -393,9 +393,7 @@ def restrictEval [DecidableEq P] (plan : NonadaptivePlan P Γ q) (w : plan.query
 
 theorem restrictEval_restrict [DecidableEq P] (plan : NonadaptivePlan P Γ q) (y : P → Γ) :
     plan.restrictEval (plan.querySet.restrict y) = plan.eval y := by
-  simp only [restrictEval, eval]
-  congr 1
-  funext k
+  refine congrArg plan.decide (funext fun k => ?_)
   split <;> simp_all [Finset.restrict]
 
 /-- Mask the positions in `H` using the fixed word `z`: queries to `H` are skipped and answered
@@ -438,7 +436,6 @@ noncomputable def ofTuple [Nonempty Γ] (Q : Fin q → P) (output : (Fin q → �
 
 theorem eval_ofTuple [Nonempty Γ] (Q : Fin q → P) (output : (Fin q → Γ) → Bool) (y : P → Γ) :
     (ofTuple Q output).eval y = output (y ∘ Q) := by
-  rw [eval, ofTuple]
   rfl
 
 end NonadaptivePlan
@@ -548,9 +545,8 @@ theorem decodeLaw_nonadaptivePlan_mask [DecidableEq P] (H : Finset P) (z : P →
     (planLaw : ProbComp (NonadaptivePlan P Γ q)) (y : P → Γ) :
     decodeLaw (nonadaptivePlan (NonadaptivePlan.mask H z <$> planLaw)) y =
       decodeLaw (nonadaptivePlan planLaw) (splice H z y) := by
-  rw [decodeLaw_nonadaptivePlan, decodeLaw_nonadaptivePlan, ProbComp.eval_map, PMF.map_comp]
-  congr 1 with plan
-  exact NonadaptivePlan.eval_mask H z plan y
+  simp [decodeLaw_nonadaptivePlan, ProbComp.eval_map, PMF.map_comp, Function.comp_def,
+    NonadaptivePlan.eval_mask]
 
 theorem expectedReads_nonadaptivePlan_mask [DecidableEq P] (H : Finset P) (z : P → Γ)
     (planLaw : ProbComp (NonadaptivePlan P Γ q)) (y : P → Γ) (j : P) :
@@ -792,15 +788,11 @@ theorem toReal_decodeLaw_nonadaptivize [Fintype Γ] [Nonempty Γ] [DecidableEq �
                 if guess = y j then decodeLaw (nonadaptivize (q + 1) (cont (y j)) hcont_yj) y
                 else PMF.pure u := by
             rw [ProbComp.eval_bind, PMF.map_bind]
-            by_cases hgy : guess = y j
-            · subst hgy
-              simp only [↓reduceIte, nonadaptivize, decodeLaw_nonadaptivePlan]
+            rcases eq_or_ne guess (y j) with rfl | hgy
+            · simp only [↓reduceIte, nonadaptivize, decodeLaw_nonadaptivePlan]
               congr 1 with rest
-              simp only [ProbComp.eval_pure, PMF.pure_map, NonadaptivePlan.eval, Fin.cons_zero,
-                Option.map_some, ↓reduceIte]
-              rfl
-            · simp only [hgy, ProbComp.eval_pure, PMF.pure_map, NonadaptivePlan.eval, Fin.cons_zero,
-                Option.map_some, Option.some.injEq, Ne.symm hgy, ↓reduceIte, PMF.bind_const]
+              simp [NonadaptivePlan.eval, Fin.tail_def]
+            · simp [hgy, NonadaptivePlan.eval, Ne.symm hgy]
           simp_rw [hstep]
           by_cases hgy : guess = y j <;> simp [hgy]
         rw [hlaw, hinr_prog, Probability.PMF.toReal_uniformOfFintype_bind_apply,

@@ -79,14 +79,12 @@ theorem le_minEntropy_map_of_injOn (p : PMF α) {f : α → β} (hf : Set.InjOn 
   classical
   rw [le_minEntropy_iff] at hk ⊢
   intro b
-  by_cases hb : ∃ a ∈ p.support, f a = b
-  · obtain ⟨a, ha, rfl⟩ := hb
-    have hmap : p.map f (f a) = p a := by
-      rw [PMF.map_apply, tsum_eq_single a fun a' ha' => ?_, ite_eq_left rfl]
-      exact ite_eq_right_iff.mpr fun heq =>
-        (p.apply_eq_zero_iff a').mpr fun hsupp => ha' (hf hsupp ha heq.symm)
-    exact hmap ▸ hk a
-  · rw [(PMF.apply_eq_zero_iff _ _).mpr (by rwa [PMF.support_map]), ENNReal.toReal_zero]
+  by_cases hb : b ∈ (p.map f).support
+  · obtain ⟨a, ha, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hb
+    rw [PMF.map_apply, tsum_eq_single a fun a' ha' => ite_eq_right_iff.mpr fun heq =>
+      (p.apply_eq_zero_iff a').mpr fun hs => ha' (hf hs ha heq.symm), ite_eq_left rfl]
+    exact hk a
+  · rw [(PMF.apply_eq_zero_iff _ _).mpr hb, ENNReal.toReal_zero]
     positivity
 
 /-- **Pointwise min-entropy chain rule** for `conditionalSnd`: conditioning a joint law
@@ -107,12 +105,11 @@ theorem minEntropy_map_conditionalSnd_ge_of_apply_ge [Fintype L] (J : PMF (L × 
   intro y
   have henn : (J.map Prod.fst) ℓ * (conditionalSnd J ℓ).map f y ≤
       ((J.map Prod.snd).map f) y := by
-    have hlhs : (∑' a, (J.map Prod.fst) ℓ * if y = f a then conditionalSnd J ℓ a else 0) =
-        ∑' a, if y = f a then J (ℓ, a) else 0 :=
-      tsum_congr fun a => by split_ifs <;> simp only [marginal_mul_conditionalSnd, mul_zero]
-    rw [PMF.map_apply f (conditionalSnd J ℓ) y, ← ENNReal.tsum_mul_left, hlhs,
-      PMF.map_comp, PMF.map_apply, tsum_prod']
-    exact le_tsum (f := fun l : L => ∑' a : α, if y = (f ∘ Prod.snd) (l, a) then J (l, a) else 0) ℓ
+    rw [PMF.map_apply f (conditionalSnd J ℓ) y, ← ENNReal.tsum_mul_left, PMF.map_comp,
+      PMF.map_apply (f ∘ Prod.snd) J y, tsum_prod']
+    refine (tsum_congr fun a => ?_).trans_le
+      (le_tsum (f := fun l : L => ∑' a : α, if y = f a then J (l, a) else 0) ℓ)
+    split_ifs <;> simp only [marginal_mul_conditionalSnd, mul_zero]
   have hreal : ((J.map Prod.fst) ℓ).toReal * (((conditionalSnd J ℓ).map f) y).toReal ≤
       (((J.map Prod.snd).map f) y).toReal :=
     ENNReal.toReal_mul ▸ ENNReal.toReal_mono (PMF.apply_ne_top _ _) henn
@@ -123,10 +120,10 @@ theorem minEntropy_map_conditionalSnd_ge_of_apply_ge [Fintype L] (J : PMF (L × 
           (le_div_iff₀ hmarg_pos).mpr (by linarith)
       _ ≤ 2 ^ (-k) / (δ / Fintype.card L) :=
           div_le_div₀ (by positivity) (hk y) (div_pos hδ hL_pos) hℓ
+  have hexp : -(k - Real.logb 2 (Fintype.card L) - Real.logb 2 δ⁻¹) =
+      (-k) + Real.logb 2 (Fintype.card L) + Real.logb 2 δ⁻¹ := by ring
   refine hdiv.trans_eq ?_
-  rw [show -(k - Real.logb 2 (Fintype.card L) - Real.logb 2 δ⁻¹) =
-      (-k) + Real.logb 2 (Fintype.card L) + Real.logb 2 δ⁻¹ by ring,
-    Real.rpow_add two_pos, Real.rpow_add two_pos,
+  rw [hexp, Real.rpow_add two_pos, Real.rpow_add two_pos,
     Real.rpow_logb two_pos (by norm_num) hL_pos,
     Real.rpow_logb two_pos (by norm_num) (inv_pos.mpr hδ)]
   field_simp
@@ -180,11 +177,10 @@ theorem dist_bind_le_of_compl_le [Finite L] [Fintype β] (μ : PMF L) (p q : L �
     (hgood : ∀ ℓ ∈ G, ℓ ∈ μ.support → dist (p ℓ) (q ℓ) ≤ ε) :
     dist (μ.bind p) (μ.bind q) ≤ δ + ε := by
   let _ := Fintype.ofFinite L
-  have hmap (k : L → PMF β) : (μ.bind fun ℓ => (k ℓ).map (ℓ, ·)).map Prod.snd = μ.bind k := by
-    simp [PMF.map_bind, PMF.map_comp, PMF.map_id]
-  rw [← hmap p, ← hmap q]
-  exact (dist_map_le _ _ Prod.snd).trans
-    (dist_bind_pair_le_of_compl_le μ p q G hε hbad hgood)
+  simpa only [PMF.map_bind, PMF.map_comp, Prod.snd_comp_mk, PMF.map_id] using
+    (dist_map_le (μ.bind fun ℓ => (p ℓ).map (ℓ, ·))
+      (μ.bind fun ℓ => (q ℓ).map (ℓ, ·)) Prod.snd).trans
+      (dist_bind_pair_le_of_compl_le μ p q G hε hbad hgood)
 
 /-- **Exact uniform-lifting on a marginal**: if `A.map f` is within statistical distance `γ < 1` of
 the uniform distribution on a finite nonempty type `β`, then there exists a distribution `A'`
@@ -247,14 +243,13 @@ theorem exists_dist_le_and_le_minEntropy_map_of_dist_uniform [Fintype α] [Finty
   have hA'_toReal (a : α) : (A' a).toReal = w a / (1 - d) := by
     rw [PMF.ofFintype_apply, ENNReal.toReal_ofReal (div_nonneg (hw_nonneg a) hd1.le)]
   refine ⟨A', ?_, ?_⟩
-  · refine hdist.trans' ?_
-    rw [dist_eq]
+  · rw [dist_eq]
     have hpt (a : α) : |(A a).toReal - (A' a).toReal| ≤
         ((A a).toReal - w a) + (w a / (1 - d) - w a) := by
       have h2 : w a ≤ w a / (1 - d) :=
-        le_div_iff₀ hd1 |>.mpr (mul_le_of_le_one_right (hw_nonneg a) (by linarith))
+        (le_div_iff₀ hd1).mpr (mul_le_of_le_one_right (hw_nonneg a) (by linarith only [hd0]))
       rw [hA'_toReal, abs_le]
-      constructor <;> linarith [hw_le a]
+      constructor <;> linarith only [h2, hw_le a]
     have hsum := Finset.sum_le_sum fun a (_ : a ∈ Finset.univ) => hpt a
     rw [Finset.sum_add_distrib, Finset.sum_sub_distrib, Finset.sum_sub_distrib,
       ← Finset.sum_div, sum_toReal A, hw_sum, div_self hd1.ne'] at hsum

@@ -71,8 +71,7 @@ theorem packedWords_pos (b d w : ℕ) : 0 < packedWords b d w :=
 
 theorem packedWords_mul_two_pow_slotPackShift (b d w : ℕ) :
     packedWords b d w * 2 ^ slotPackShift b d w = 2 ^ b := by
-  dsimp only [packedWords]
-  rw [← pow_add, Nat.sub_add_cancel (slotPackShift_le b d w)]
+  rw [packedWords, ← pow_add, Nat.sub_add_cancel (slotPackShift_le b d w)]
 
 /-- Whenever `0 < d` and `2 * d ≤ w`, the total bits `2 ^ (slotPackShift b d w) * d` used per word
 is at most `w / 2` (and hence strictly less than `w`). -/
@@ -88,9 +87,8 @@ theorem two_pow_slotPackShift_mul_le {b d w : ℕ} (hd : 0 < d) (hdw : 2 * d ≤
   omega
 
 theorem two_pow_slotPackShift_mul_lt {b d w : ℕ} (hd : 0 < d) (hdw : 2 * d ≤ w) :
-    2 ^ slotPackShift b d w * d < w := by
-  have hle := two_pow_slotPackShift_mul_le (b := b) hd hdw
-  omega
+    2 ^ slotPackShift b d w * d < w :=
+  (two_pow_slotPackShift_mul_le hd hdw).trans_lt (Nat.div_lt_self (by omega) one_lt_two)
 
 /-- Word-count upper bound: whenever `0 < d` and `2 * d ≤ w`, `packedWords b d w` is at most
 `4 * (2 ^ b * d) / w + 1`. -/
@@ -115,16 +113,13 @@ theorem packedWords_le {b d w : ℕ} (hd : 0 < d) (hdw : 2 * d ≤ w) :
     exact ((Nat.le_div_iff_mul_le (by omega)).mpr hmul_le).trans (Nat.le_succ _)
 
 theorem shiftRight_lt_packedWords (b d w : ℕ) (q : Fin (2 ^ b)) :
-    q.val >>> slotPackShift b d w < packedWords b d w := by
-  rw [Nat.shiftRight_eq_div_pow]
-  apply Nat.div_lt_of_lt_mul
-  rw [mul_comm, packedWords_mul_two_pow_slotPackShift]
-  exact q.isLt
+    q.val >>> slotPackShift b d w < packedWords b d w :=
+  Nat.shiftRight_eq_div_pow .. ▸ Nat.div_lt_of_lt_mul
+    (q.isLt.trans_eq ((packedWords_mul_two_pow_slotPackShift b d w).symm.trans (Nat.mul_comm _ _)))
 
 theorem and_two_pow_slotPackShift_lt (b d w : ℕ) (q : Fin (2 ^ b)) :
-    q.val &&& (2 ^ slotPackShift b d w - 1) < 2 ^ slotPackShift b d w := by
-  rw [Nat.and_two_pow_sub_one_eq_mod]
-  exact Nat.mod_lt _ (Nat.two_pow_pos _)
+    q.val &&& (2 ^ slotPackShift b d w - 1) < 2 ^ slotPackShift b d w :=
+  Nat.and_two_pow_sub_one_eq_mod _ _ ▸ Nat.mod_lt _ (Nat.two_pow_pos _)
 
 theorem shiftRight_mul_add_and_eq (x p : ℕ) :
     (x >>> p) * 2 ^ p + (x &&& (2 ^ p - 1)) = x := by
@@ -151,11 +146,10 @@ theorem shiftRight_mul_add_and_eq (x p : ℕ) :
 
 theorem writePackedMem_outside (arrBase b d w : ℕ) (mem : ℕ → ℕ) (q : Fin (2 ^ b)) (val : ℕ)
     {a : ℕ} (ha : a < arrBase ∨ arrBase + packedWords b d w ≤ a) :
-    writePackedMem arrBase b d w mem q val a = mem a := by
-  unfold writePackedMem
-  have hwIdx := shiftRight_lt_packedWords b d w q
-  generalize q.val >>> slotPackShift b d w = wIdx at hwIdx ⊢
-  rw [Function.update_of_ne (by omega)]
+    writePackedMem arrBase b d w mem q val a = mem a :=
+  Function.update_of_ne (ha.elim (fun h => (Nat.lt_of_lt_of_le h (Nat.le_add_right _ _)).ne)
+    fun h => (Nat.lt_of_lt_of_le (Nat.add_lt_add_left (shiftRight_lt_packedWords b d w q) arrBase)
+      h).ne') _ _
 
 @[simp]
 theorem extractPacked_writePackedMem_self (arrBase b d w : ℕ) (mem : ℕ → ℕ)
@@ -234,8 +228,8 @@ theorem extractBit_writeBitMem (arrBase b w : ℕ) (mem : ℕ → ℕ)
 
 @[simp]
 theorem extractPacked_zero (arrBase b d w : ℕ) (q : Fin (2 ^ b)) :
-    extractPacked arrBase b d w (fun _ => 0) q = ⟨0, Nat.two_pow_pos d⟩ := by
-  exact Fin.ext (getLimb_zero d _)
+    extractPacked arrBase b d w (fun _ => 0) q = ⟨0, Nat.two_pow_pos d⟩ :=
+  Fin.ext (getLimb_zero d _)
 
 @[simp]
 theorem extractBit_zero (arrBase b w : ℕ) (q : Fin (2 ^ b)) :
@@ -245,12 +239,9 @@ theorem extractBit_zero (arrBase b w : ℕ) (q : Fin (2 ^ b)) :
 /-- A packed read only depends on the `packedWords b d w` words of its array. -/
 private theorem extractPacked_congr {arrBase b d w : ℕ} {mem₁ mem₂ : ℕ → ℕ}
     (h : ∀ a, arrBase ≤ a → a < arrBase + packedWords b d w → mem₁ a = mem₂ a) :
-    extractPacked arrBase b d w mem₁ = extractPacked arrBase b d w mem₂ := by
-  ext q
-  dsimp only [extractPacked]
-  have hlt := shiftRight_lt_packedWords b d w q
-  generalize q.val >>> slotPackShift b d w = wIdx at hlt ⊢
-  rw [h (arrBase + wIdx) (by omega) (by omega)]
+    extractPacked arrBase b d w mem₁ = extractPacked arrBase b d w mem₂ :=
+  funext fun q => Fin.ext (congrArg (getLimb d · _)
+    (h _ (Nat.le_add_right _ _) (Nat.add_lt_add_left (shiftRight_lt_packedWords b d w q) arrBase)))
 
 /-- A `1`-bit read only depends on the `packedWords b 1 w` words of its array. -/
 private theorem extractBit_congr {arrBase b w : ℕ} {mem₁ mem₂ : ℕ → ℕ}
@@ -325,8 +316,8 @@ theorem quotBits_le_add_three (w₀ n : ℕ) : quotBits w₀ n ≤ w₀ + 3 := b
   exact max_le h2 h3
 
 theorem two_pow_quotBits_le_sixteen_mul {w₀ n : ℕ} (hn : 1 ≤ n) :
-    2 ^ quotBits w₀ n ≤ 16 * n := by
-  exact (tableSize_le_sixteen_mul (effCap w₀ n)).trans
+    2 ^ quotBits w₀ n ≤ 16 * n :=
+  (tableSize_le_sixteen_mul (effCap w₀ n)).trans
     (Nat.mul_le_mul_left 16 (max_le (min_le_left n (2 ^ w₀)) hn))
 
 theorem remBits_pos {w₀ k : ℕ} (hw₀ : 0 < w₀) : 0 < remBits w₀ k :=
@@ -335,9 +326,8 @@ theorem remBits_pos {w₀ k : ℕ} (hw₀ : 0 < w₀) : 0 < remBits w₀ k :=
 theorem remBits_le_w₀ (w₀ k : ℕ) : remBits w₀ k ≤ w₀ :=
   min_le_left w₀ (k + 1)
 
-theorem remBits_le_two_mul {w₀ k : ℕ} (hk : 1 ≤ k) : remBits w₀ k ≤ 2 * k := by
-  have h1 : remBits w₀ k ≤ k + 1 := min_le_right w₀ (k + 1)
-  omega
+theorem remBits_le_two_mul {w₀ k : ℕ} (hk : 1 ≤ k) : remBits w₀ k ≤ 2 * k :=
+  (min_le_right w₀ (k + 1)).trans (by omega)
 
 /-- **Compact space bound**: for all `n ≥ 1`, `k ≥ 1`, `0 < w₀`, `2 * w₀ ≤ w`, and
 `quotBits w₀ n ≤ w`, the total Word-RAM footprint `space w w₀ n k` is at most
@@ -405,13 +395,12 @@ in `mem`. -/
 
 theorem extractFilterState_congr {base w w₀ n k : ℕ} {mem₁ mem₂ : ℕ → ℕ}
     (h : ∀ a, fullBase base w w₀ n ≤ a → a < base + space w w₀ n k → mem₁ a = mem₂ a) :
-    extractFilterState base w w₀ n k mem₁ = extractFilterState base w w₀ n k mem₂ := by
-  dsimp only [extractFilterState]
-  rw [FilterState.mk.injEq]
-  exact ⟨extractBit_congr fun a h₁ _ => h a h₁ (by wram_omega),
-    extractBit_congr fun a _ _ => h a (by wram_omega) (by wram_omega),
-    extractBit_congr fun a _ _ => h a (by wram_omega) (by wram_omega),
-    extractPacked_congr fun a _ _ => h a (by wram_omega) (by wram_omega)⟩
+    extractFilterState base w w₀ n k mem₁ = extractFilterState base w w₀ n k mem₂ :=
+  (FilterState.mk.injEq ..).mpr
+    ⟨extractBit_congr fun a h₁ _ => h a h₁ (by wram_omega),
+      extractBit_congr fun a _ _ => h a (by wram_omega) (by wram_omega),
+      extractBit_congr fun a _ _ => h a (by wram_omega) (by wram_omega),
+      extractPacked_congr fun a _ _ => h a (by wram_omega) (by wram_omega)⟩
 
 /-- Zeroed slot arrays `[fullBase, base + space)` represent `FilterState.empty`. -/
 theorem extractFilterState_of_zero {base w w₀ n k : ℕ} {mem : ℕ → ℕ}
@@ -429,59 +418,55 @@ theorem extractFilterState_writeFull (base w w₀ n k : ℕ) (mem : ℕ → ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (bval : Bool) :
     extractFilterState base w w₀ n k
       (writeBitMem (fullBase base w w₀ n) (quotBits w₀ n) w mem q bval) =
-      (extractFilterState base w w₀ n k mem).setFull q bval := by
-  dsimp only [extractFilterState, FilterState.setFull]
-  rw [FilterState.mk.injEq]
-  exact ⟨extractBit_writeBitMem _ _ _ _ _ _,
-    extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
-    extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
-    extractPacked_writePackedMem_of_disjoint _ _ _ (by wram_omega)⟩
+      (extractFilterState base w w₀ n k mem).setFull q bval :=
+  (FilterState.mk.injEq ..).mpr
+    ⟨extractBit_writeBitMem _ _ _ _ _ _,
+      extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+      extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+      extractPacked_writePackedMem_of_disjoint _ _ _ (by wram_omega)⟩
 
 @[simp]
 theorem extractFilterState_writeOcc (base w w₀ n k : ℕ) (mem : ℕ → ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (bval : Bool) :
     extractFilterState base w w₀ n k
       (writeBitMem (occBase base w w₀ n) (quotBits w₀ n) w mem q bval) =
-      (extractFilterState base w w₀ n k mem).setOcc q bval := by
-  dsimp only [extractFilterState, FilterState.setOcc]
-  rw [FilterState.mk.injEq]
-  exact ⟨extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
-    extractBit_writeBitMem _ _ _ _ _ _,
-    extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
-    extractPacked_writePackedMem_of_disjoint _ _ _ (by wram_omega)⟩
+      (extractFilterState base w w₀ n k mem).setOcc q bval :=
+  (FilterState.mk.injEq ..).mpr
+    ⟨extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+      extractBit_writeBitMem _ _ _ _ _ _,
+      extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+      extractPacked_writePackedMem_of_disjoint _ _ _ (by wram_omega)⟩
 
 @[simp]
 theorem extractFilterState_writeRunStart (base w w₀ n k : ℕ) (mem : ℕ → ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (bval : Bool) :
     extractFilterState base w w₀ n k
       (writeBitMem (runBase base w w₀ n) (quotBits w₀ n) w mem q bval) =
-      (extractFilterState base w w₀ n k mem).setRunStart q bval := by
-  dsimp only [extractFilterState, FilterState.setRunStart]
-  rw [FilterState.mk.injEq]
-  exact ⟨extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
-    extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
-    extractBit_writeBitMem _ _ _ _ _ _,
-    extractPacked_writePackedMem_of_disjoint _ _ _ (by wram_omega)⟩
+      (extractFilterState base w w₀ n k mem).setRunStart q bval :=
+  (FilterState.mk.injEq ..).mpr
+    ⟨extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+      extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+      extractBit_writeBitMem _ _ _ _ _ _,
+      extractPacked_writePackedMem_of_disjoint _ _ _ (by wram_omega)⟩
 
 @[simp]
 theorem extractFilterState_writeRem (base w w₀ n k : ℕ) (mem : ℕ → ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) :
     extractFilterState base w w₀ n k
       (writePackedMem (remBase base w w₀ n) (quotBits w₀ n) (remBits w₀ k) w mem q r.val) =
-      (extractFilterState base w w₀ n k mem).setRem q r := by
-  dsimp only [extractFilterState, FilterState.setRem]
-  rw [FilterState.mk.injEq]
-  exact ⟨extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
-    extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
-    extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
-    extractPacked_writePackedMem _ _ _ _ _ _ _⟩
+      (extractFilterState base w w₀ n k mem).setRem q r :=
+  (FilterState.mk.injEq ..).mpr
+    ⟨extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+      extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+      extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+      extractPacked_writePackedMem _ _ _ _ _ _ _⟩
 
 /-! ## Section 3: Slot modular arithmetic and memory layout offsets -/
 
 /-- Bitwise identity `(o.val + d) &&& (2 ^ b - 1) = (probeSlot b o d).val`. -/
 theorem add_and_eq_probeSlot_val {b : ℕ} (o : Fin (2 ^ b)) (d : ℕ) :
-    (o.val + d) &&& (2 ^ b - 1) = (probeSlot b o d).val := by
-  exact Nat.and_two_pow_sub_one_eq_mod _ b
+    (o.val + d) &&& (2 ^ b - 1) = (probeSlot b o d).val :=
+  Nat.and_two_pow_sub_one_eq_mod _ b
 
 /-- Bitwise identity `(q.val + 2 ^ b - a) &&& (2 ^ b - 1) = (backSlot b q a).val` for `a ≤ 2 ^ b`.
 -/

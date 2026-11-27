@@ -113,11 +113,9 @@ supported on the basis of a representing dictionary, so the basic solution of th
 basic solution of `A *ᵥ x = b`. -/
 theorem eq_zero_of_mulVec_eq_zero (h : D.Represents A b c) {w : ι → K}
     (hw : ∀ j ∉ D.basis, w j = 0) (hAw : A *ᵥ w = 0) : w = 0 := by
-  have hsol : D.IsSolution (D.basicSolution + w) := by
-    rw [h.isSolution_iff, mulVec_add, hAw, add_zero, h.mulVec_basicSolution]
-  have := D.eq_basicSolution_of_isSolution hsol fun j hj => by
-    rw [Pi.add_apply, D.basicSolution_of_notMem hj, hw j hj, add_zero]
-  exact left_eq_add.1 this.symm
+  refine left_eq_add.1 (D.eq_basicSolution_of_isSolution ?_ fun j hj => ?_).symm
+  · rw [h.isSolution_iff, mulVec_add, hAw, add_zero, h.mulVec_basicSolution]
+  · rw [Pi.add_apply, D.basicSolution_of_notMem hj, hw j hj, add_zero]
 
 variable [LinearOrder K]
 
@@ -246,10 +244,8 @@ omit [LinearOrder K] [IsStrictOrderedRing K] in
 theorem slackDictionary_represents :
     (slackDictionary A b c).Represents (slackMatrix A) b (Fin.append c 0) := by
   refine ⟨fun x => ?_, fun x _ => ?_⟩
-  · rw [isSolution_slackDictionary_iff, funext_iff]
-    refine forall_congr' fun i => ?_
-    rw [slackMatrix_mulVec]
-    constructor <;> intro h <;> linear_combination h
+  · simp only [isSolution_slackDictionary_iff, funext_iff, slackMatrix_mulVec]
+    exact forall_congr' fun _ => by constructor <;> intro h <;> linear_combination h
   · rw [Dictionary.value, sum_compl_slack, dotProduct, Fin.sum_univ_add]
     simp only [slackDictionary, Fin.append_left, Fin.append_right, Pi.zero_apply, zero_mul,
       Finset.sum_const_zero, add_zero, zero_add]
@@ -291,10 +287,8 @@ theorem eq_withSlack_of_isSolution {z : Fin (n + m) → K}
 
 theorem withSlack_mem_feasibleSet_iff (x : Fin n → K) :
     withSlack A b x ∈ (slackDictionary A b c).feasibleSet ↔ 0 ≤ x ∧ A *ᵥ x ≤ b := by
-  rw [Dictionary.mem_feasibleSet]
-  simp only [isSolution_withSlack, true_and, Pi.le_def, Pi.zero_apply]
-  rw [Fin.forall_fin_add]
-  simp only [withSlack_castAdd, withSlack_natAdd, sub_nonneg]
+  simp only [Dictionary.mem_feasibleSet, isSolution_withSlack, true_and, Pi.le_def,
+    Pi.zero_apply, Fin.forall_fin_add, withSlack_castAdd, withSlack_natAdd, sub_nonneg]
 
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 theorem value_withSlack (x : Fin n → K) :

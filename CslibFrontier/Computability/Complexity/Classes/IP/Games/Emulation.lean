@@ -329,8 +329,6 @@ theorem value_le (B Z K μ : ℕ) (hBK : B ≤ K) (hμ : 0 < μ) (V : List Bool 
           simpa using List.count_le_length (a := true) (l := List.ofFn c)
         have hsum_nonneg : (0 : ℚ) ≤ ∑ b ∈ range (B + 1), if r ∈ bad b then (1 : ℚ) else 0 :=
           sum_nonneg fun _ _ => by split_ifs <;> norm_num
-        have hE_nonneg : (0 : ℚ) ≤ verifierMoves g * ((B + 1) * 2 ^ K / (μ * 2 ^ B)) +
-            μ ^ (verifierMoves g + 1) * N / 2 ^ κ := by positivity
         by_cases hloc : affineHash (affineSeedEquiv B (n + Z) r) (Fin.append m z) = 0 ∧
             (!((List.ofFn z).take (Z + κ - ((List.ofFn c).count true + K))).any fun b => b) = true
         · rw [decide_eq_true hloc, Bool.toNat_true, Nat.cast_one, one_mul]
@@ -341,26 +339,23 @@ theorem value_le (B Z K μ : ℕ) (hBK : B ≤ K) (hμ : 0 < μ) (V : List Bool 
               simpa only [hr, ite_true] using single_le_sum
                 (f := fun b => if r ∈ bad b then (1 : ℚ) else 0)
                 (fun _ _ => by split_ifs <;> norm_num) (mem_range.2 (Nat.lt_succ_of_le hbB))
-            have hv : AMGame.value true (shape B Z g) (fun t => ((check B Z K V g
-                ((List.ofFn c).count true) (p ++ List.ofFn m) t).toNat : ℚ)) ≤ 1 :=
-              AMGame.value_le_one _ _ fun t => by
-                cases check B Z K V g ((List.ofFn c).count true) (p ++ List.ofFn m) t <;> norm_num
+            have hv := AMGame.value_le_one true (shape B Z g)
+              (f := fun t => ((check B Z K V g ((List.ofFn c).count true)
+                (p ++ List.ofFn m) t).toNat : ℚ)) fun _ => Nat.cast_le.2 (Bool.toNat_le _)
+            have hE : (0 : ℚ) ≤ verifierMoves g * ((B + 1) * 2 ^ K / (μ * 2 ^ B)) +
+                μ ^ (verifierMoves g + 1) * N / 2 ^ κ := by positivity
             linarith
-          · have hle : 2 ^ κ * countFrom g V (p ++ List.ofFn m) ≤
-                μ * 2 ^ ((List.ofFn c).count true) * N :=
-              not_lt.1 fun hcon => hm (mem_filter.2 ⟨mem_univ _, hcon⟩)
-            refine (ih _ (hbB.trans hBK) _).trans ?_
+          · have hle : (2 : ℚ) ^ κ * countFrom g V (p ++ List.ofFn m) ≤
+                μ * 2 ^ ((List.ofFn c).count true) * N := by
+              exact_mod_cast not_lt.1 fun h => hm (mem_filter.2 ⟨mem_univ m, h⟩)
             have hle' : (μ : ℚ) ^ verifierMoves g * countFrom g V (p ++ List.ofFn m) /
                 2 ^ ((List.ofFn c).count true) ≤ μ ^ (verifierMoves g + 1) * N / 2 ^ κ := by
               rw [div_le_div_iff₀ (by positivity) (by positivity), pow_succ]
-              have hq : (2 : ℚ) ^ κ * countFrom g V (p ++ List.ofFn m) ≤
-                  μ * 2 ^ ((List.ofFn c).count true) * N := by
-                exact_mod_cast hle
-              linarith [mul_le_mul_of_nonneg_left hq
+              linarith [mul_le_mul_of_nonneg_left hle
                 (pow_nonneg (Nat.cast_nonneg (α := ℚ) μ) (verifierMoves g))]
-            linarith
+            linarith [ih _ (hbB.trans hBK) (p ++ List.ofFn m)]
         · rw [decide_eq_false hloc, Bool.toNat_false, Nat.cast_zero, zero_mul]
-          linarith
+          exact add_nonneg hsum_nonneg (by positivity)
       -- average over Arthur's seeds
       rw [div_le_iff₀ hP]
       refine (sum_le_sum fun r _ => hpt r).trans ?_
@@ -370,10 +365,9 @@ theorem value_le (B Z K μ : ℕ) (hBK : B ≤ K) (hμ : 0 < μ) (V : List Bool 
           if r ∈ bad b then (1 : ℚ) else 0) ≤ 2 ^ K * 2 ^ (B * (n + Z) + B) / (μ * 2 ^ B) := by
         intro b _
         rw [sum_boole, filter_mem_eq_inter, univ_inter, le_div_iff₀ (by positivity)]
-        have := hbad b
         calc (#(bad b) : ℚ) * (μ * 2 ^ B) = ((μ * #(bad b) * 2 ^ B : ℕ) : ℚ) := by
               push_cast; ring
-          _ ≤ ((2 ^ K * 2 ^ (B * (n + Z) + B) : ℕ) : ℚ) := by exact_mod_cast this
+          _ ≤ ((2 ^ K * 2 ^ (B * (n + Z) + B) : ℕ) : ℚ) := by exact_mod_cast hbad b
           _ = _ := by push_cast; ring
       have hsum := sum_le_sum hb'
       rw [sum_const, card_range, nsmul_eq_mul] at hsum
@@ -459,8 +453,7 @@ theorem one_sub_le_value (B Z K : ℕ) (hBK : B ≤ K) (hZ : B + K ≤ Z) (V : L
         by_contra! hcon
         have h1 := sum_lt_sum_of_nonempty nonempty_range_add_one hcon
         rw [← mul_sum, sum_const, card_range, smul_eq_mul] at h1
-        have h2 := Nat.mul_le_mul_left (B + 1) hsumU
-        omega
+        exact h1.not_ge (Nat.mul_le_mul_left (B + 1) hsumU)
       have hβB : β ≤ B := Nat.lt_succ_iff.1 (mem_range.1 hβ)
       -- the padded set of good answers
       let S : Finset (Fin (n + Z) → Bool) :=

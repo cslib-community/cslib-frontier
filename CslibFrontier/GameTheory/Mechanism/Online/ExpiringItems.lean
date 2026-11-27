@@ -161,12 +161,9 @@ private noncomputable def rankIn (θ : ι → AgentType (Fin T)) (A : Finset ι)
 private theorem rankIn_lt_of_beats {θ : ι → AgentType (Fin T)} {A : Finset ι} {i j : ι}
     (hi : i ∈ A) (h : Beats θ i j) : rankIn θ A i < rankIn θ A j := by
   classical
-  apply Finset.card_lt_card
-  rw [Finset.ssubset_iff_of_subset]
-  · exact ⟨i, Finset.mem_filter.mpr ⟨hi, h⟩, fun hm => beats_irrefl θ i (Finset.mem_filter.mp hm).2⟩
-  · intro x hx
-    rw [Finset.mem_filter] at hx ⊢
-    exact ⟨hx.1, beats_trans hx.2 h⟩
+  refine Finset.card_lt_card <| (Finset.ssubset_iff_of_subset fun x hx => ?_).mpr
+    ⟨i, Finset.mem_filter.mpr ⟨hi, h⟩, fun hm => beats_irrefl θ i (Finset.mem_filter.mp hm).2⟩
+  exact Finset.mem_filter.mpr ((Finset.mem_filter.mp hx).imp_right fun hxi => beats_trans hxi h)
 
 private theorem rankIn_injOn (θ : ι → AgentType (Fin T)) (A : Finset ι) :
     Set.InjOn (rankIn θ A) (A : Set ι) := by
@@ -250,11 +247,10 @@ private theorem topK_eq_erase_of_not_mem {θ : ι → AgentType (Fin T)} {k : �
     · exact Finset.card_erase_add_one (Finset.mem_filter.2 ⟨hiA, h⟩)
     · rw [add_zero]
       exact congrArg Finset.card (Finset.erase_eq_of_notMem fun hm => h (Finset.mem_filter.1 hm).2)
-  have hlt : Beats θ i j → rankIn θ A i < rankIn θ A j := rankIn_lt_of_beats hiA
   simp only [topK, Finset.mem_filter, Finset.mem_erase, ne_eq, hji, not_false_eq_true, true_and]
   refine and_congr_right fun _ => ?_
   split_ifs at hrank with h
-  · have := hlt h
+  · have := rankIn_lt_of_beats hiA h
     omega
   · omega
 
@@ -1152,12 +1148,10 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
     refine (welfare_le_sum_value {0} fun j hj => ?_).trans_eq (by rw [Finset.sum_singleton, hStar0])
     have hj0v : j.val ≠ 0 := fun h => Finset.notMem_singleton.1 hj (Fin.ext h)
     by_cases hjm : j.val ≤ m
-    · left
-      have hj_eq : j = mainAgent ⟨j.val - 1, by omega⟩ := by
-        ext; simp [mainAgent]; omega
-      rw [hj_eq, hmain_loses]
-    · right
-      simp only [θStar, hj0v, hjm, ↓reduceIte, pointType]
+    · have hj_eq : j = mainAgent ⟨j.val - 1, by omega⟩ :=
+        Fin.ext (by simp [mainAgent]; omega)
+      exact Or.inl (hj_eq ▸ hmain_loses _)
+    · exact Or.inr (by simp only [θStar, hj0v, hjm, ↓reduceIte, pointType])
   have hoptStar : 1 + (m : ℝ) * vlow ≤ optWelfare (fun _ => 1) θStar := by
     let fStar : Fin (2 * m + 1) → Option (Fin (m + 1)) := fun j =>
       if h : j.val ≤ m then some ⟨j.val, Nat.lt_succ_of_le h⟩ else none

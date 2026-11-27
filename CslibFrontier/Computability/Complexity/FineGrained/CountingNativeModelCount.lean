@@ -88,13 +88,12 @@ public theorem exists_counter_of_polyTime_toDeclared {α : Type} {encA : α ↪ 
   have hpow : ∀ x k, ((encPair encUnary encCNF (g' x)).length + 1) ^ k ≤
       (p + 1) ^ k * ((encA x).length + 1) ^ (q * k) := fun x =>
     Nat.add_one_pow_le_of_le_mul_pow (Nat.succ_pos _) (hp x)
-  have hP_le : ∀ x E, dv + dg + 1 ≤ E → P x ≤ 3 * ((encA x).length + 1) ^ E := by
-    intro x E hE
-    have hY1 : 1 ≤ (encA x).length + 1 := Nat.le_add_left 1 _
-    have h1 := Nat.pow_le_pow_right hY1 (show dv ≤ E by omega)
-    have h2 := Nat.pow_le_pow_right hY1 (show dg ≤ E by omega)
+  have hP_le (x : α) (E : ℕ) (hE : dv + dg + 1 ≤ E) : P x ≤ 3 * ((encA x).length + 1) ^ E := by
+    have hle (d : ℕ) (hd : d ≤ E) := Nat.pow_le_pow_right (Nat.le_add_left 1 (encA x).length) hd
+    have h1 := hle dv (by omega)
+    have h2 := hle dg (by omega)
     have h3 := (Nat.le_succ (encA x).length).trans
-      (Nat.le_self_pow (by omega : E ≠ 0) ((encA x).length + 1))
+      (@Nat.le_self_pow E (by omega) ((encA x).length + 1))
     dsimp only [P]
     omega
   refine ⟨fun x => if valid x then count₀ (g' x) else 0, T, S, A,
@@ -117,18 +116,15 @@ public theorem exists_counter_of_polyTime_toDeclared {α : Type} {encA : α ↪ 
     have hQ : (1 : ℝ) ≤ ((p : ℝ) + 1) ^ e₀ := one_le_pow₀ (by linarith [p.cast_nonneg (α := ℝ)])
     have hZ : (0 : ℝ) ≤ (((encA x).length : ℝ) + 1) ^ (dv + dg + 1 + q * e₀) := by positivity
     have hc₀ : (0 : ℝ) ≤ c₀ := Nat.cast_nonneg c₀
-    change ((P x + T₀ (g' x) : ℕ) : ℝ) ≤ _
-    push_cast
+    push_cast [T]
     nlinarith [hT₀ (g' x), mul_le_mul_of_nonneg_left hW (mul_nonneg hc₀ (zero_le_one.trans hX1)),
       mul_le_mul_of_nonneg_right hX1 hZ, mul_le_mul_of_nonneg_left hQ hc₀]
   · have hY1 : 1 ≤ (encA x).length + 1 := Nat.le_add_left 1 _
     have hS₀x := (hS₀ (g' x)).trans (Nat.mul_le_mul_left a₀ ((hpow x b₀).trans
       (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hY1 (Nat.le_add_left _ (dv + dg + 1))))))
     have hP_B := hP_le x (dv + dg + 1 + q * b₀) (Nat.le_add_right _ _)
-    change P x + S₀ (g' x) ≤
-      (3 + a₀ * (p + 1) ^ b₀) * ((encA x).length + 1) ^ (dv + dg + 1 + q * b₀)
-    rw [Nat.add_mul, Nat.mul_assoc]
-    omega
+    dsimp only [S]
+    rw [Nat.add_mul, Nat.mul_assoc]; omega
 
 /-- Dense relabeling followed by declaring the number of variables. -/
 private theorem computableInPolyTime_declareDense :
@@ -182,21 +178,15 @@ public theorem exists_modelCounter (k : ℕ) :
       (Nat.pow_le_pow_right hY1 (by omega)).trans (Nat.le_mul_of_pos_left _ hN1)
     have hmul := Nat.mul_le_mul_left (c * (p + 1) ^ e) (Nat.mul_le_mul_left N hqe)
     change Y ^ d + T (g φ) ≤ _ * (N * Y ^ (q * e + d) + 1)
-    generalize N * Y ^ (q * e + d) = Z at hd' hmul ⊢
-    generalize c * (p + 1) ^ e = u at hTg hmul ⊢
-    generalize a * (p + 1) ^ b = v
+    generalize N * Y ^ (q * e + d) = Z, c * (p + 1) ^ e = u, a * (p + 1) ^ b = v at *
     nlinarith [Nat.zero_le (c * Z), Nat.zero_le (v * Z), Nat.zero_le (u * Z)]
   · -- space
-    have hSg : S (g φ) ≤ a * (p + 1) ^ b * Y ^ (q * b + d) :=
-      (hS (g φ)).trans (by
-        rw [mul_assoc]
-        exact Nat.mul_le_mul_left a ((hpow b).trans (Nat.mul_le_mul_left _
-          (Nat.pow_le_pow_right hY1 (by omega)))))
+    have hSg : S (g φ) ≤ a * (p + 1) ^ b * Y ^ (q * b + d) := (hS (g φ)).trans <|
+      mul_assoc a _ _ ▸ Nat.mul_le_mul_left a ((hpow b).trans
+        (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hY1 (by omega))))
     have hd' : Y ^ d ≤ Y ^ (q * b + d) := Nat.pow_le_pow_right hY1 (by omega)
     change Y ^ d + S (g φ) ≤ _ * (Y ^ (q * b + d) + 1)
-    generalize Y ^ (q * b + d) = Z at hSg hd' ⊢
-    generalize a * (p + 1) ^ b = v at hSg ⊢
-    generalize c * (p + 1) ^ e = u
+    generalize Y ^ (q * b + d) = Z, a * (p + 1) ^ b = v, c * (p + 1) ^ e = u at *
     nlinarith [Nat.zero_le (c * Z), Nat.zero_le (v * Z), Nat.zero_le (u * Z)]
 
 /-- Compose `CountingNativeEndpoint.exists_modelCounter` with a polynomial-time CNF compilation
@@ -222,11 +212,9 @@ public theorem exists_shiftedCounter_of_polyTime_toCNF {α : Type} {encA : α �
   have hfCNF_poly : ComputableInPolyTime fCNF encA encCNF :=
     hvalid.ite hφ (const [])
   set fPow : α → ℕ := fun x => if valid x then 2 ^ shift x else 0
-  have hfPow_poly : ComputableInPolyTime fPow encA encNat :=
-    hvalid.ite (binary_two_pow.comp hshift) (const 0)
   obtain ⟨d₁, _, hfCNF_deg⟩ := hfCNF_poly.exists_degree
   obtain ⟨p, q, hfCNF_len⟩ := hfCNF_poly.polyBounded_length.exists_le
-  obtain ⟨d₂, _, hfPow_deg⟩ := hfPow_poly.exists_degree
+  obtain ⟨d₂, _, hfPow_deg⟩ := (hvalid.ite (binary_two_pow.comp hshift) (const 0)).exists_degree
   obtain ⟨d₃, _, hmul_deg⟩ := (binary_mul' (fst encNat encNat) (snd encNat encNat)).exists_degree
   obtain ⟨countCNF, A₀, e₀, b₀, hcountCNF_spec, hcountCNF_inO⟩ := exists_modelCounter k
   have hsub := hcountCNF_inO.comp hfCNF_deg.inO
@@ -250,11 +238,11 @@ public theorem exists_shiftedCounter_of_polyTime_toCNF {α : Type} {encA : α �
     have hφ_pow := Nat.add_one_pow_le_of_le_mul_pow hY1 (hfCNF_len x)
     have hSpair_le : Y ^ d₂ + (Y ^ d₁ + ((encCNF (fCNF x)).length + 1) ^ b₀) ≤
         (2 + (p + 1) ^ b₀) * Y ^ B₁ := by
-      have hd₂ : Y ^ d₂ ≤ Y ^ B₁ := Nat.pow_le_pow_right hY1 (by dsimp only [B₁]; omega)
-      have hd₁ : Y ^ d₁ ≤ Y ^ B₁ := Nat.pow_le_pow_right hY1 (by dsimp only [B₁]; omega)
-      have h3 := (hφ_pow b₀).trans (Nat.mul_le_mul_left _
-        (Nat.pow_le_pow_right hY1 (show q * b₀ ≤ B₁ by dsimp only [B₁]; omega)))
-      nlinarith
+      have hB₁ {k} (hk : k ≤ d₁ + d₂) :=
+        Nat.pow_le_pow_right hY1 (hk.trans (Nat.le_add_right _ (q * b₀)))
+      have h3 := (hφ_pow b₀).trans
+        (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hY1 (Nat.le_add_left _ (d₁ + d₂))))
+      nlinarith [hB₁ (Nat.le_add_left d₂ d₁), hB₁ (Nat.le_add_right d₁ d₂)]
     have hpair_d₃ : ((encPair encNat encNat (fPow x, countCNF (fCNF x))).length + 1) ^ d₃ ≤
         M ^ d₃ * Y ^ (B₁ * d₃) := by
       have h1 := (hpair_len x).trans
@@ -270,8 +258,8 @@ public theorem exists_shiftedCounter_of_polyTime_toCNF {α : Type} {encA : α �
       · simp [fCNF, hvx, CNF.numVars, CNF.vars]
     have hle (k : ℕ) (hk : k ≤ e) : Y ^ k ≤ N * Y ^ e :=
       (Nat.pow_le_pow_right hY1 hk).trans (Nat.le_mul_of_pos_left _ hN1)
-    have hsub_T := Nat.mul_le_mul (hK_bound hnum_le) ((hφ_pow e₀).trans
-      (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hY1 (show q * e₀ ≤ e by dsimp only [e]; omega))))
+    have hsub_T := Nat.mul_le_mul (hK_bound hnum_le) ((hφ_pow e₀).trans (Nat.mul_le_mul_left _
+      (Nat.pow_le_pow_right hY1 ((Nat.le_add_left _ B₁).trans (Nat.le_add_right _ (B₁ * d₃))))))
     have hd₃ := hpair_d₃.trans (Nat.mul_le_mul_left _ (hle _ (by dsimp only [e]; omega)))
     change Y ^ d₂ + (Y ^ d₁ + ⌈(2 : ℝ) ^ ((A₀ : ℝ) * interpolationScale (fCNF x).numVars)⌉₊ *
       ((encCNF (fCNF x)).length + 1) ^ e₀) +

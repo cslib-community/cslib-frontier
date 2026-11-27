@@ -316,8 +316,7 @@ theorem IsIdentical.makespan_eq_opt_of_three_jobs_two_machines
     · have hA_all : ∀ i : Fin 3, A i = jstar := fun i =>
         (mem_filter.mp (show i ∈ S from eq_univ_of_card S (by simpa using hcard3) ▸ mem_univ i)).2
       have hload_other : G.load A jother = 0 := by
-        rw [G.load_eq_sum_div, sum_eq_zero fun i hi =>
-          absurd (mem_filter.mp hi).2 (hA_all i ▸ hjne.symm), zero_div]
+        simp [G.load_eq_sum_div, hA_all, hjne.symm]
       have hNE := (G.isPureNash_iff A).mp hA 0 jother (hA_all 0 ▸ hjne)
       rw [hA_all 0, hload_other, hId jother, div_one, zero_add] at hNE
       exact hNE.trans (hw_le 0)
@@ -366,9 +365,8 @@ theorem IsIdentical.makespan_le_optMakespan_add_of_weight_le {G : LoadBalancingG
   · rw [← hjstar, G.load_eq_sum_div, hS0, sum_empty, zero_div]
     nlinarith [G.optMakespan_nonneg, (div_le_one hm_pos).mpr hm_ge1]
   · have hbound := hId.card_mul_load_sub_le_card_mul_optMakespan hA (mem_filter.mp hi₀).2
-    have heq : (Fintype.card M : ℝ) * (G.optMakespan + (1 - 1 / (Fintype.card M : ℝ)) * B) =
-        (Fintype.card M : ℝ) * G.optMakespan + ((Fintype.card M : ℝ) - 1) * B := by
-      field_simp
+    have heq : (Fintype.card M : ℝ) * ((1 - 1 / (Fintype.card M : ℝ)) * B) =
+        ((Fintype.card M : ℝ) - 1) * B := by field_simp
     rw [← hjstar]
     nlinarith [hw i₀]
 
@@ -520,14 +518,14 @@ theorem makespan_goldenRatioTightNE :
       ((1 + √5) / 2) * goldenRatioTight.optMakespan := by
   have hφ_pos : (0 : ℝ) < (1 + √5) / 2 := by positivity
   have h15 : (1 : ℝ) ≤ √5 := Real.one_le_sqrt.mpr (by norm_num)
-  have hφ_ge1 : (1 : ℝ) ≤ (1 + √5) / 2 := by linarith
   obtain ⟨hload0, hload1⟩ := load_goldenRatioTightNE
   rw [optMakespan_goldenRatioTight, mul_one]
   refine le_antisymm ((goldenRatioTight.makespan_le_iff _).mpr fun j => ?_)
     (hload0 ▸ goldenRatioTight.load_le_makespan goldenRatioTightNE 0)
   rcases (eq_or_ne j 0).imp_right (Fin.eq_one_of_ne_zero _) with rfl | rfl
-  · rw [hload0]
-  · rw [hload1, div_le_iff₀ hφ_pos]; nlinarith
+  · exact hload0.le
+  · rw [hload1, div_le_iff₀ hφ_pos]
+    nlinarith
 
 end TwoRelatedGoldenRatio
 
@@ -596,9 +594,8 @@ theorem card_speedPrefix_step_of_sum_speed_le (G : LoadBalancingGame ι M) (L : 
       exact_mod_cast (by nlinarith [Nat.cast_nonneg (α := ℝ) k] :
         (k : ℝ) * (#(P (k + 1)) : ℝ) ≤ (#(P k \ P (k + 1)) : ℝ))
     rw [card_sdiff_of_subset hsub] at hnat
-    have hcard_le := card_le_card hsub
-    have hdist : (k + 1) * #(P (k + 1)) = k * #(P (k + 1)) + #(P (k + 1)) := by ring
-    omega
+    rw [Nat.succ_mul]
+    linarith [Nat.sub_add_cancel (card_le_card hsub)]
   · simp [not_nonempty_iff_eq_empty.mp hne]
 
 omit [Fintype ι] [DecidableEq ι] [DecidableEq M] [Nonempty M] in
@@ -706,9 +703,8 @@ theorem factorial_le_card_of_makespan_ge (G : LoadBalancingGame ι M) {A : ι �
   classical
   obtain ⟨Aopt, hAopt⟩ := G.exists_makespan_eq_optMakespan
   obtain ⟨jstar, hjstar⟩ := G.exists_load_eq_makespan A
-  have hpos_load : 0 < G.load A jstar := by
-    have : (1 : ℝ) ≤ ((c + 1 : ℕ) : ℝ) := by exact_mod_cast Nat.succ_pos c
-    rw [hjstar]; nlinarith
+  have hpos_load : 0 < G.load A jstar :=
+    lt_of_lt_of_le (mul_pos (Nat.cast_pos.mpr (Nat.succ_pos c)) hopt) (hjstar ▸ hge)
   obtain ⟨i₀, hi₀⟩ : ∃ i₀ : ι, A i₀ = jstar := by
     by_contra! hnone
     simp [G.load_eq_sum_div, filter_false_of_mem fun i _ => hnone i] at hpos_load

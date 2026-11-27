@@ -77,8 +77,7 @@ theorem decodeAnswer_answerWords (G : Instance) :
 unsatisfiable. -/
 theorem answerWords_eq_nil_iff (G : Instance) :
     answerWords G = [] ↔ ¬ ((∀ c ∈ G.φ, c.length ≤ 2) ∧ G.φ.Satisfiable) := by
-  rw [← isSome_solveFin_iff]
-  unfold answerWords
+  rw [← isSome_solveFin_iff, answerWords]
   cases solveFin G.n G.φ <;> simp [encodeAssignment]
 
 /-- Any assignment decoded from `answerWords G` witnesses width `≤ 2` and satisfies `G.φ`. -/
@@ -107,7 +106,6 @@ def program : Program .standard 28 := solver.program outBase
 theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
     ∃ y, ExecWithin w solver (Data.init G.encode) y (512 * (G.n + G.φ.length + 1) - 1) ∧
       y.regs outBase = G.outAddrBase ∧ outputList y.mem (y.regs outBase) = answerWords G := by
-  have hm0 : (Data.init G.encode : Data 28).mem 0 = G.encode.length := Data.init_mem_zero _
   have hm1 : (Data.init G.encode : Data 28).mem 1 = G.n := rfl
   have hm2 : (Data.init G.encode : Data 28).mem 2 = G.φ.length := rfl
   have hf3 : Fits w 3 := G.fits_of_le hfit (by unfold Instance.wordBound; omega)
@@ -121,8 +119,9 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
     unfold headerSetupCode
     have hf_ob : Fits w (G.encode.length + 1) :=
       hf_ob1.of_le (by simp only [Instance.outAddrBase]; omega)
-    wram_exec [Data.init_regs, hm0, hm1, hm2, hf3.of_le (by decide : 1 ≤ 3),
-      hf3.of_le (by decide : 2 ≤ 3), hf3, hf_ob]
+    wram_exec [Data.init_regs, Data.init_mem_zero, hm1, hm2,
+      hf3.of_le (Nat.le_succ_of_le (Nat.le_succ_of_le le_rfl)),
+      hf3.of_le (Nat.le_succ_of_le le_rfl), hf3, hf_ob]
     exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp; rfl, by wram_simp, by wram_simp⟩
   let s₁ := ((s₀.set compIdxReg 1).set pReg 3).set iReg 0
@@ -143,11 +142,8 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
     (hs₂_fr r hr).trans (by wram_simp [s₁])
   have hs₂_0 : s₂.regs cZero = 0 := (hs₂_fr0 cZero (by decide)).trans hs₀_0
   have hs₂_1 : s₂.regs cOne = 1 := (hs₂_fr0 cOne (by decide)).trans hs₀_1
-  have hs₂_2 : s₂.regs cTwo = 2 := (hs₂_fr0 cTwo (by decide)).trans hs₀_2
-  have hs₂_3 : s₂.regs cThree = 3 := (hs₂_fr0 cThree (by decide)).trans hs₀_3
   have hs₂_ob : s₂.regs outBase = G.outAddrBase := (hs₂_fr0 outBase (by decide)).trans hs₀_ob
   have hs₂_nv : s₂.regs nv = G.n := (hs₂_fr0 nv (by decide)).trans hs₀_nv
-  have hs₂_mc : s₂.regs mClauses = G.φ.length := (hs₂_fr0 mClauses (by decide)).trans hs₀_mc
   have hwrite_nil (s : Data 28) (h0 : s.regs cZero = 0) (h1 : s.regs cOne = 1)
       (hok : s.regs compIdxReg = 0) (hob : s.regs outBase = G.outAddrBase)
       (hans : answerWords G = []) {pos : Code .standard 28} :
@@ -215,9 +211,9 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           s₃.regs ordB = kOrdAddr wb N Mc ∧ s₃.regs finB = kOrdAddr wb N Mc ∧
           s₃.regs stkB = kStkAddr wb N Mc ∧ s₃.regs compB = kCompAddr wb N Mc := by
         unfold setupWorkRegsCode
-        wram_exec [hs₂_0, hs₂_1, hs₂_2, hs₂_3, hs₂_ob, hs₂_nv, hs₂_mc]
+        wram_exec [hs₂_fr0, hs₀_0, hs₀_1, hs₀_2, hs₀_3, hs₀_ob, hs₀_nv, hs₀_mc]
         · refine ⟨rfl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-          all_goals wram_simp [hs₂_0, hs₂_1, hs₂_2, hs₂_3, hs₂_nv, hs₂_mc, hs₂_ob]
+          all_goals wram_simp [hs₂_fr0, hs₀_0, hs₀_1, hs₀_2, hs₀_3, hs₀_nv, hs₀_mc, hs₀_ob]
           all_goals
             dsimp only [wb, N, Mc, Instance.workBase, kOffAddr, kEdgeAddr, kRevOffAddr,
               kRevEdgeAddr, kCurAddr, kVisAddr, kOrdAddr, kStkAddr, kCompAddr]
@@ -319,11 +315,10 @@ theorem program_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
       ExecutesList w program (State.init G.encode) (answerWords G) steps := by
   obtain ⟨y, ⟨steps, hsteps, hexec⟩, hyout, hylist⟩ := solver_spec G hfit
   have hlen := length_answerWords_le G
-  have hfit_out : Fits w (y.regs outBase + (outputList y.mem (y.regs outBase)).length) := by
-    rw [hylist, hyout]
-    exact G.fits_of_le hfit
-      (by simp only [Instance.outAddrBase, G.encode_length, Instance.wordBound]; omega)
-  exact ⟨steps + 1, by omega, hylist ▸ hexec.executesList outBase hfit_out⟩
+  refine ⟨steps + 1, by omega, hylist ▸ hexec.executesList outBase ?_⟩
+  rw [hylist, hyout]
+  exact G.fits_of_le hfit
+    (by simp only [Instance.outAddrBase, G.encode_length, Instance.wordBound]; omega)
 
 /-- Fixed-program `Program.ComputesListInTime` certificate for Word-RAM 2-SAT. -/
 theorem computesListInTime_program :

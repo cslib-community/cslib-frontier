@@ -199,11 +199,9 @@ private theorem card_corruptPoints_le (f : (Fin n → F) → F) {δ : ℝ} (hδ 
           · exact card_lineApprox_disagree_le hu
       _ = #bases * (δ * Fintype.card F) := by rw [sum_const, nsmul_eq_mul]
       _ = (Fintype.card F : ℝ) ^ (n - 1) * (δ * Fintype.card F) := by rw [hfib]; push_cast; rfl
-  have hq : (Fintype.card F : ℝ) ^ (n - 1) * (Fintype.card F : ℝ) = (Fintype.card F : ℝ) ^ n := by
-    rw [← pow_succ, Nat.sub_add_cancel hn]
   calc (#(corruptPoints f δ i) : ℝ) ≤ (#target : ℝ) := by exact_mod_cast hinj
     _ ≤ (Fintype.card F : ℝ) ^ (n - 1) * (δ * Fintype.card F) := hcardTarget
-    _ = δ * (Fintype.card F : ℝ) ^ n := by rw [mul_left_comm, hq]
+    _ = δ * (Fintype.card F : ℝ) ^ n := by rw [mul_left_comm, ← pow_succ, Nat.sub_add_cancel hn]
 
 open Classical in
 /-- Points where the canonical affine fit on the line in direction `i` and `lineRestrict g` are
@@ -289,9 +287,8 @@ theorem IsMultilinear.hammingDist_le_of_two_mul_le_approx {f g : (Fin n → F) �
           sum_le_sum fun i _ => card_corruptPoints_le f hδ i
       _ = n * δ * (Fintype.card F : ℝ) ^ n := by simp [mul_assoc]
   have hWC : (#(W ∪ C) : ℝ) ≤ ∑ i, (#(wrongPointsApprox f δ i) : ℝ) +
-      n * δ * (Fintype.card F : ℝ) ^ n := by
-    have hWC0 : (#(W ∪ C) : ℝ) ≤ #W + #C := mod_cast card_union_le W C
-    linarith only [hWC0, hW, hC]
+      n * δ * (Fintype.card F : ℝ) ^ n :=
+    ((Nat.cast_le.mpr (card_union_le W C)).trans_eq (Nat.cast_add _ _)).trans (add_le_add hW hC)
   have hI : #I ≤ n * Fintype.card F ^ (n - 1) := by
     refine card_biUnion_le.trans ?_
     calc ∑ i, #(agreePointsApprox f g δ i) ≤ ∑ _i : Fin n, Fintype.card F ^ (n - 1) :=
@@ -446,17 +443,16 @@ private theorem exists_isMultilinear_hammingDist_le_mul_approx {m : ℕ} (hm : 0
   intro k
   induction k with
   | zero =>
-    intro hk h _
-    refine ⟨h, fun _ i => i.elim0, ?_⟩
-    simpa [hammingDist_self] using hε₀.trans (by simpa using hk : ε₀ ≤ γ)
+    exact fun hk h _ => ⟨h, fun _ i => i.elim0,
+      by simpa [hammingDist_self] using hε₀.trans (by simpa using hk)⟩
   | succ k ih =>
     intro hk f hf
     have hk' : (2 * (k : ℝ) + 1) * (ε₀ + k * δ) + 2 * (k : ℝ) ^ 2 / Fintype.card F ≤ γ := by
       refine le_trans ?_ hk
       push_cast
       gcongr <;> linarith only [Nat.cast_nonneg (α := ℝ) k]
-    obtain ⟨θ, hθ⟩ : ∃ θ : ℝ,
-        θ = (1 - 1 / (2 * (m : ℝ))) ^ k * ε₀ * (Fintype.card F : ℝ) ^ k := ⟨_, rfl⟩
+    obtain ⟨θ, hθ⟩ : ∃ θ : ℝ, θ = (1 - 1 / (2 * (m : ℝ))) ^ k * ε₀ * (Fintype.card F : ℝ) ^ k :=
+      ⟨_, rfl⟩
     rw [← hθ] at ih
     have hT : (∑ i, (#(wrongPointsApprox f δ i) : ℝ)) <
         ((1 - 1 / (2 * (m : ℝ))) * Fintype.card F) * θ := by
@@ -602,7 +598,7 @@ theorem exists_isMultilinear_hammingDist_lt_of_approx (f : (Fin n → F) → F) 
     have h1n : 1 / (2 * (n : ℝ)) ≤ 1 := (div_le_one (by positivity)).2 (by linarith only [hnr])
     have hb := one_add_mul_le_pow (a := -(1 / (2 * (n : ℝ)))) (by linarith only [h1n]) n
     have hn2n : (n : ℝ) * (1 / (2 * (n : ℝ))) = 1 / 2 := by
-      have hn0 : (n : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hn.ne'
+      have : (n : ℝ) ≠ 0 := mod_cast hn.ne'
       field_simp
     rw [← sub_eq_add_neg] at hb
     linarith only [hb, hn2n, mul_neg (n : ℝ) (1 / (2 * (n : ℝ)))]
@@ -665,8 +661,6 @@ theorem exists_isMultilinear_hammingDist_lt_of_lineOracle (f : (Fin n → F) →
       (hammingDist f g : ℝ) < 3 * n ^ 2 * (ε + δ + 1 / Fintype.card F) * Fintype.card F ^ n := by
   classical
   have hq' : (0 : ℝ) < Fintype.card F := by exact_mod_cast Fintype.card_pos
-  have hcard : (Fintype.card (Fin n → F) : ℝ) = (Fintype.card F : ℝ) ^ n := by
-    simp [Fintype.card_pi]
   -- Convert expected rejection over `(i, x)` into total disagreement count across directions.
   have hsum_rej : (∑ i : Fin n, (#({x | L i (update x i 0) (x i) ≠ f x} :
       Finset (Fin n → F)) : ℝ)) < ε * δ * (Fintype.card F : ℝ) ^ n := by
@@ -674,7 +668,8 @@ theorem exists_isMultilinear_hammingDist_lt_of_lineOracle (f : (Fin n → F) →
         (𝔼 x : Fin n → F, if L i (update x i 0) (x i) = f x then (0 : ℝ) else (1 : ℝ)) =
           (#({x : Fin n → F | L i (update x i 0) (x i) ≠ f x} : Finset (Fin n → F)) : ℝ) /
             (Fintype.card F : ℝ) ^ n := by
-      rw [Fintype.expect_eq_sum_div_card, hcard, Finset.natCast_card_filter]
+      rw [Fintype.expect_eq_sum_div_card, Fintype.card_pi, Finset.prod_const, Finset.card_univ,
+        Fintype.card_fin, Nat.cast_pow, Finset.natCast_card_filter]
       exact congrArg (· / _) (Finset.sum_congr rfl fun x _ => by simp [ite_not])
     simp_rw [hexp] at hrej
     rw [Fintype.expect_eq_sum_div_card, Fintype.card_fin, ← sum_div, div_div,

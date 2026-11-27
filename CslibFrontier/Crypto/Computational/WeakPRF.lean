@@ -249,8 +249,7 @@ theorem length_zeroPatch {family : List Bool → List Bool → List Bool}
     (zeroPatch family key query).length = key.length := by
   unfold zeroPatch
   split_ifs
-  · exact hquery
-  · exact hlen key query hquery
+  exacts [hquery, hlen key query hquery]
 
 /-- On the all-zero query the patched family returns the query itself. -/
 theorem zeroPatch_replicate_false (family : List Bool → List Bool → List Bool)
@@ -334,12 +333,11 @@ private theorem weakRun_apply_le {α : Type} (n : ℕ) (first second : List Bool
     simp only [weakRun, OracleComp.interpret_pure]
     exact le_self_add
   | liftBind q k Q _ ih =>
+    rw [weakRun_query_bind, weakRun_query_bind]
     rcases q with m | request
-    · rw [weakRun_query_bind, weakRun_query_bind]
-      simp only [Sum.elim_inl, Nat.add_zero]
+    · simp only [Sum.elim_inl, Nat.add_zero]
       exact PMF.bind_apply_le_add_const_on_support _ a fun x _ => ih x
-    · rw [weakRun_query_bind, weakRun_query_bind]
-      simp only [Sum.elim_inr, OracleComp.sumHandler, eval_weakSample, PMF.bind_bind,
+    · simp only [Sum.elim_inr, OracleComp.sumHandler, eval_weakSample, PMF.bind_bind,
         PMF.pure_bind]
       refine (PMF.bind_apply_le_add_of_ne (BitString.uniformList n)
         (fun point => weakRun n first (k (point ++ first point)))
@@ -368,18 +366,15 @@ theorem advantage_weakPrfRealGame_zeroPatch_le (family : List Bool → List Bool
   have hne : (Q : ℝ≥0∞) * (2 ^ n)⁻¹ ≠ ⊤ :=
     ENNReal.mul_ne_top (ENNReal.natCast_ne_top Q)
       (ENNReal.inv_ne_top.mpr (pow_ne_zero _ two_ne_zero))
-  have hfirst : ProbComp.eval (weakPrfRealGame (zeroPatch family) adversary n) true ≤
-      ProbComp.eval (weakPrfRealGame family adversary n) true + Q * (2 ^ n)⁻¹ := by
+  have hstep {f₁ f₂ : List Bool → List Bool → List Bool}
+      (hag : ∀ key p, p ≠ List.replicate n false → prfOracle f₁ n key p = prfOracle f₂ n key p) :
+      ProbComp.eval (weakPrfRealGame f₁ adversary n) true ≤
+        ProbComp.eval (weakPrfRealGame f₂ adversary n) true + Q * (2 ^ n)⁻¹ := by
     rw [heval, heval]
     exact PMF.bind_apply_le_add_const_on_support _ true fun key _ =>
-      weakRun_apply_le n _ _ (hagree key) hq true
-  have hsecond : ProbComp.eval (weakPrfRealGame family adversary n) true ≤
-      ProbComp.eval (weakPrfRealGame (zeroPatch family) adversary n) true + Q * (2 ^ n)⁻¹ := by
-    rw [heval, heval]
-    exact PMF.bind_apply_le_add_const_on_support _ true fun key _ =>
-      weakRun_apply_le n _ _ (fun point hpoint => (hagree key point hpoint).symm) hq true
+      weakRun_apply_le n _ _ (hag key) hq true
   simpa [ENNReal.toReal_mul, ENNReal.toReal_inv, div_eq_mul_inv] using
-    Game.advantage_le_of_apply_le hne hfirst hsecond
+    Game.advantage_le_of_apply_le hne (hstep hagree) (hstep fun k p hp => (hagree k p hp).symm)
 
 /-- **Zero patching preserves weak pseudorandomness**: a weak adversary sees the all-zero point
 with probability `2⁻ⁿ` per call, so the patched family stays weakly pseudorandom. -/

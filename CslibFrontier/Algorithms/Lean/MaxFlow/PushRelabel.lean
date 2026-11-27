@@ -361,16 +361,15 @@ theorem PairInv.apply {a b : V} {σ : State N} {c : ℕ} (hc : σ.PairInv a b c)
     exact ⟨fun h0 => by have := hc.1 h0; have := hle a; omega,
       fun hpos => (hc.2 hpos).trans (hle b)⟩
   | push u v =>
-    have hp : σ.flow.CanPush σ.height u v := ho
-    have huv := hp.ne
+    have huv := ho.ne
     have hδ := σ.flow.pushAmount_le_resCap u v
-    have hδpos := hp.pushAmount_pos
+    have hδpos := ho.pushAmount_pos
     simp only [PairInv, apply_push_flow, apply_push_height]
     by_cases hab : u = a ∧ v = b
     · obtain ⟨rfl, rfl⟩ := hab
       have hr := σ.flow.resCap_push_self huv
-      have hc2 := hc.2 hp.resCap_pos
-      have heq := hp.height_eq
+      have hc2 := hc.2 ho.resCap_pos
+      have heq := ho.height_eq
       by_cases hsat : σ.flow.pushAmount u v = σ.flow.resCap u v
       · rw [ite_eq_left ⟨rfl, hsat⟩]
         exact ⟨fun _ => by omega, fun _ => by omega⟩
@@ -380,7 +379,7 @@ theorem PairInv.apply {a b : V} {σ : State N} {c : ℕ} (hc : σ.PairInv a b c)
       by_cases hba : u = b ∧ v = a
       · obtain ⟨rfl, rfl⟩ := hba
         have hr := σ.flow.resCap_push_swap huv
-        have heq := hp.height_eq
+        have heq := ho.height_eq
         have ⟨hc1, hc2⟩ := hc
         exact ⟨fun _ => by omega, fun _ => by omega⟩
       · rwa [σ.flow.resCap_push_of_ne (fun h => hab ⟨h.1.symm, h.2.symm⟩)
@@ -555,9 +554,9 @@ theorem numRelabels_lt (hst : N.s ≠ N.t) {os : List (Op V)} (hos : (init N).Is
   have hn : 0 < Fintype.card V := Fintype.card_pos_iff.mpr ⟨N.s⟩
   have h1 : (Fintype.card V - 2) * (2 * Fintype.card V - 1) < 2 * Fintype.card V ^ 2 :=
     ((Nat.mul_le_mul (n₂ := Fintype.card V - 1) (m₂ := 2 * Fintype.card V)
-      (by omega) (by omega)).trans_lt
-      (Nat.mul_lt_mul_of_pos_right (show Fintype.card V - 1 < Fintype.card V by omega)
-        (by omega))).trans_eq (by ring)
+      (by omega) (Nat.sub_le _ _)).trans_lt
+      (Nat.mul_lt_mul_of_pos_right (Nat.sub_lt hn zero_lt_one)
+        (Nat.mul_pos zero_lt_two hn))).trans_eq (by ring)
   omega
 
 /-- **Saturating-push bound** ([CLRS2009], Lemma 26.22): a run from the initial state performs at
@@ -592,17 +591,18 @@ theorem numNonsatPushes_lt_posArcs (hst : N.s ≠ N.t) {os : List (Op V)}
   have h := numNonsatPushes_le hst hos
   have hpos : 0 < Fintype.card V := Fintype.card_pos_iff.mpr ⟨N.s⟩
   have h1 : (Fintype.card V - 2) * (2 * Fintype.card V - 1) ≤ 2 * Fintype.card V ^ 2 :=
-    (Nat.mul_le_mul (n₂ := Fintype.card V) (m₂ := 2 * Fintype.card V)
-      (by omega) (by omega)).trans_eq (by ring)
-  have := Nat.le_mul_of_pos_right (4 * Fintype.card V ^ 2) hpos
-  have := Nat.pow_pos (n := 2) hpos
+    (Nat.mul_le_mul (Nat.sub_le _ _) (Nat.sub_le _ _)).trans_eq (by ring)
   have h2 : (2 * Fintype.card V - 1) * (Fintype.card V * N.symArcs.card) ≤
       4 * Fintype.card V ^ 2 * N.posArcs.card :=
-    (Nat.mul_le_mul (n₂ := 2 * Fintype.card V) (by omega)
+    (Nat.mul_le_mul (Nat.sub_le _ _)
       (Nat.mul_le_mul_left _ N.card_symArcs_le_two_mul_posArcs)).trans_eq (by ring)
-  have : 4 * Fintype.card V ^ 2 * (Fintype.card V + N.posArcs.card) =
-      4 * Fintype.card V ^ 2 * Fintype.card V + 4 * Fintype.card V ^ 2 * N.posArcs.card := by ring
-  omega
+  have h1' : (Fintype.card V - 2) * (2 * Fintype.card V - 1) <
+      4 * Fintype.card V ^ 2 * Fintype.card V :=
+    h1.trans_lt (by
+      have := Nat.pow_pos (n := 2) hpos
+      have := Nat.le_mul_of_pos_right (4 * Fintype.card V ^ 2) hpos
+      omega)
+  exact h.trans_lt ((Nat.add_lt_add_of_lt_of_le h1' h2).trans_eq (by ring))
 
 /-- The total operation bound `2 (|V| - 2)(2|V| - 1) + 2|V| · |V| |N.symArcs|`; at most
 `4|V|²(1 + |E|)` by `maxOps_le`. -/
@@ -615,15 +615,12 @@ theorem maxOps_le (N : Network V) :
     maxOps N ≤ 4 * Fintype.card V ^ 2 * (1 + N.posArcs.card) := by
   unfold maxOps
   have h1 : (Fintype.card V - 2) * (2 * Fintype.card V - 1) ≤ 2 * Fintype.card V ^ 2 :=
-    (Nat.mul_le_mul (n₂ := Fintype.card V) (m₂ := 2 * Fintype.card V)
-      (by omega) (by omega)).trans_eq (by ring)
+    (Nat.mul_le_mul (Nat.sub_le _ _) (Nat.sub_le _ _)).trans_eq (by ring)
   have h2 : 2 * Fintype.card V * (Fintype.card V * N.symArcs.card) ≤
       4 * Fintype.card V ^ 2 * N.posArcs.card :=
     (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _
       N.card_symArcs_le_two_mul_posArcs)).trans_eq (by ring)
-  have : 4 * Fintype.card V ^ 2 * (1 + N.posArcs.card) =
-      4 * Fintype.card V ^ 2 + 4 * Fintype.card V ^ 2 * N.posArcs.card := by ring
-  omega
+  exact (Nat.add_le_add (Nat.mul_le_mul_left 2 h1) h2).trans_eq (by ring)
 
 /-- **Operation bound** ([CLRS2009], Theorem 26.24, operation count): every run of the generic
 algorithm from the initial state has at most `maxOps N ≤ 4|V|²(1 + |E|)` operations
@@ -635,11 +632,10 @@ theorem length_le (hst : N.s ≠ N.t) {os : List (Op V)} (hos : (init N).IsRun o
   have h2 := numSatPushes_le hst hos
   have h3 := numNonsatPushes_le hst hos
   unfold maxOps
+  have hn : 0 < Fintype.card V := Fintype.card_pos_iff.mpr ⟨N.s⟩
   have h4 : (2 * Fintype.card V - 1) * (Fintype.card V * N.symArcs.card) + Fintype.card V *
-      N.symArcs.card ≤ 2 * Fintype.card V * (Fintype.card V * N.symArcs.card) := by
-    have hn : 0 < Fintype.card V := Fintype.card_pos_iff.mpr ⟨N.s⟩
-    rw [← Nat.succ_mul]
-    exact Nat.mul_le_mul_right _ (by omega)
+      N.symArcs.card = 2 * Fintype.card V * (Fintype.card V * N.symArcs.card) := by
+    rw [← Nat.succ_mul, Nat.succ_eq_add_one, Nat.sub_add_cancel (by omega)]
   omega
 
 /-- **Correctness of every run** ([CLRS2009], Lemma 26.14 and Theorem 26.18): if a run of the

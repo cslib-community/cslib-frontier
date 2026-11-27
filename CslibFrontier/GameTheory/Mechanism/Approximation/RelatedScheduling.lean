@@ -157,9 +157,7 @@ theorem CostMechanism.IsDSIC.isAntitoneWork [DecidableEq ι] {M : CostMechanism 
   rcases hab.lt_or_eq with hlt | rfl
   · have h1 := hM (Function.update c i b) (update_mem_posCosts hc i hb) i a ha
     have h2 := hM (Function.update c i a) (update_mem_posCosts hc i ha) i b hb
-    simp only [CostMechanism.utility, Function.update_idem] at h1 h2
-    change M.work (Function.update c i b) i ≤ M.work (Function.update c i a) i
-    nlinarith
+    simp only [CostMechanism.utility, Function.update_idem] at h1 h2 ⊢; nlinarith
   · exact le_rfl
 
 private theorem setIntegral_Ioc_bounds_of_antitoneOn {f : ℝ → ℝ}
@@ -191,17 +189,10 @@ theorem archerTardosMechanism_isDSIC [DecidableEq ι] {q : (ι → ℝ) → ι �
     (archerTardosMechanism q).IsDSIC := by
   intro c hc i v hv
   set f : ℝ → ℝ := fun x => q (Function.update c i x) i
-  have hu_c : (archerTardosMechanism q).utility i v c =
-      (c i - v) * f (c i) + ∫ x in Set.Ioi (c i), f x := by
-    simp only [CostMechanism.utility, archerTardosMechanism, archerTardosPayment, f,
-      Function.update_eq_self]
-    ring
-  have hu_v : (archerTardosMechanism q).utility i v (Function.update c i v) =
-      ∫ x in Set.Ioi v, f x := by
-    simp only [CostMechanism.utility, archerTardosMechanism, archerTardosPayment, f,
-      Function.update_self, Function.update_idem]
-    ring
-  rw [hu_c, hu_v]
+  suffices (c i - v) * f (c i) + ∫ x in Set.Ioi (c i), f x ≤ ∫ x in Set.Ioi v, f x by
+    simp only [CostMechanism.utility, archerTardosMechanism, archerTardosPayment,
+      Function.update_self, Function.update_idem, Function.update_eq_self, f] at this ⊢
+    linarith
   rcases le_total v (c i) with hvc | hcv
   · rw [setIntegral_Ioi_split hvc (hint c hc i v hv)]
     linarith [(setIntegral_Ioc_bounds_of_antitoneOn (hq c hc i) hv hvc
@@ -216,16 +207,13 @@ theorem utility_archerTardosMechanism [DecidableEq ι] (q : (ι → ℝ) → ι 
     (c : ι → ℝ) :
     (archerTardosMechanism q).utility i (c i) c =
       ∫ x in Set.Ioi (c i), q (Function.update c i x) i := by
-  simp only [CostMechanism.utility, archerTardosMechanism, archerTardosPayment]
-  ring
+  simp only [CostMechanism.utility, archerTardosMechanism, archerTardosPayment]; ring
 
 /-- With nonnegative work, Archer–Tardos payments are individually rational. -/
 theorem archerTardosMechanism_isIR [DecidableEq ι] {q : (ι → ℝ) → ι → ℝ}
     (hq0 : ∀ c ∈ posCosts, ∀ i, 0 ≤ q c i) :
-    (archerTardosMechanism q).IsIR := by
-  intro c hc i
-  rw [utility_archerTardosMechanism]
-  exact setIntegral_nonneg measurableSet_Ioi fun x hx =>
+    (archerTardosMechanism q).IsIR := fun c hc i =>
+  utility_archerTardosMechanism q i c ▸ setIntegral_nonneg measurableSet_Ioi fun _ hx =>
     hq0 _ (update_mem_posCosts hc i ((hc i).trans hx)) i
 
 /-- With nonnegative work, Archer–Tardos payments are nonnegative on positive cost profiles. -/
@@ -321,8 +309,7 @@ theorem CostMechanism.IsDSIC.payment_eq_archerTardosPayment [DecidableEq ι] {M 
     simp only [id_eq, intervalIntegral.integral_of_le hb, CostMechanism.utility, f] at hid ⊢
     linarith
   have heq := tendsto_nhds_unique tendsto_const_nhds hconst_lim
-  simp only [CostMechanism.utility, archerTardosPayment] at heq ⊢
-  linarith
+  simp only [CostMechanism.utility, archerTardosPayment] at heq ⊢; linarith
 
 end ArcherTardos
 
@@ -506,9 +493,8 @@ theorem lexOptWork_eq_zero_of_large_cost [LinearOrder (J → M)] [Nontrivial M] 
       (Finset.inf'_le w (Finset.mem_filter.2 ⟨Finset.mem_univ j, (hw j).lt_of_ne' hne0⟩)).trans
         (Finset.single_le_sum (fun j' _ => hw j') hj)
     have hgt : c k * W < x * wMin := (div_lt_iff₀ hwMin_pos).1 hx
-    have hx_pos : 0 < x := pos_of_mul_pos_left
-      ((mul_nonneg (hc k).le (Finset.sum_nonneg fun j _ => hw j)).trans_lt hgt) hwMin_pos.le
-    linarith [mul_le_mul_of_nonneg_left hwMin_le hx_pos.le]
+    have hW0 : 0 ≤ c k * W := mul_nonneg (hc k).le (Finset.sum_nonneg fun j _ => hw j)
+    nlinarith
   · refine ⟨0, fun x _ => Finset.sum_eq_zero fun j _ => le_antisymm ?_ (hw j)⟩
     exact not_lt.1 fun hpos => hne ⟨j, Finset.mem_filter.2 ⟨Finset.mem_univ j, hpos⟩⟩
 

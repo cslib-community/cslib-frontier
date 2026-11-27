@@ -707,8 +707,7 @@ private def bfsQueue {U m : ℕ} (hm : 0 < m) (π : Fin U → Equiv.Perm (Fin m)
 private theorem sum_fin_succ_eq {w : ℕ} (h : Fin (w + 1) → ℕ) :
     h 0 + (∑ i ∈ Finset.range w, if hi : i < w then h ⟨i + 1, Nat.succ_lt_succ hi⟩ else 0) =
       ∑ a : Fin (w + 1), h a := by
-  rw [Fin.sum_univ_succ, Finset.sum_range]
-  simp [Fin.succ]
+  simp [Fin.sum_univ_succ, Finset.sum_range, Fin.succ]
 
 /-- Local BFS step event at vertex `x b` (`b : Fin w`) given `q = bfsQueue hm π x₀ w h x b.val`
 and `slot_b = q.getD b.val ⟨0, hm⟩`. -/
@@ -1017,12 +1016,11 @@ private theorem hasBFSWitness_of_partialDepSet {U m : ℕ} (hm : 0 < m)
       (List.length_filter_le _ _).trans (length_probePrefix hm _ _).le
     rcases eq_or_lt_of_le hhb_le with hhb_eq_kb | hhb_lt_kb
     · exact .inl (by rw [hhb_eq_kb, hslot_eq])
-    · rw [← length_probePrefix hm (π (x b)) k_b] at hhb_lt_kb
-      obtain ⟨j, hj_pref, hj_q⟩ := List.length_filter_lt_length_iff_exists.mp hhb_lt_kb
+    · obtain ⟨j, hj_pref, hj_q⟩ := List.length_filter_lt_length_iff_exists.mp
+        (hhb_lt_kb.trans_eq (length_probePrefix hm (π (x b)) k_b).symm)
       obtain ⟨j₁, hj₁_lt, rfl⟩ := List.mem_map.mp hj_pref
-      rw [List.mem_range] at hj₁_lt
-      exact .inr ⟨⟨k_b, hk_lt b⟩, ⟨j₁, hj₁_lt.trans (hk_lt b)⟩, hj₁_lt,
-        List.mem_toFinset.mpr (by simpa using hj_q), hslot_eq⟩
+      exact .inr ⟨⟨k_b, hk_lt b⟩, ⟨j₁, (List.mem_range.mp hj₁_lt).trans (hk_lt b)⟩,
+        List.mem_range.mp hj₁_lt, List.mem_toFinset.mpr (by simpa using hj_q), hslot_eq⟩
 
 open scoped Classical in
 /-- **Pointwise Probe-Count Decomposition via Minimal Overflow Dichotomy and BFS Witnesses**:
@@ -1281,8 +1279,7 @@ private theorem mem_validTuples_of_bfsStepEvent {U M w : ℕ}
         ⟨f ⟨b + 1, Nat.succ_lt_succ hb⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩,
           snoc_restrictTuple f b hb⟩⟩
       dsimp only [bfsStepEvent]
-      rw [tupleQueue_restrictTuple_eq_bfsQueue x₀ h x p s b hbw]
-      exact hev ⟨b, hb⟩
+      exact tupleQueue_restrictTuple_eq_bfsQueue x₀ h x p s b hbw ▸ hev ⟨b, hb⟩
 
 open scoped Classical in
 /-- **Fixed-Tuple BFS Event Bound under `k`-Wise Independence**:
@@ -1397,9 +1394,7 @@ private theorem card_degSeqFinset_le_four_pow (w : ℕ) :
       exact Fin.ext (Nat.add_right_cancel h)
   calc (degSeqFinset w).card ≤ (Finset.univ : Finset (Fin (2 * w))).powerset.card :=
       Finset.card_le_card_of_injOn (degPrefImage w) (fun f _ => by simp) hinj
-    _ = 4 ^ w := by
-      rw [Finset.card_powerset, Finset.card_univ, Fintype.card_fin, pow_mul]
-      rfl
+    _ = 4 ^ w := by simp [pow_mul]
 
 open scoped Classical in
 /-- **Union Bound over BFS Witnesses of Size `w`**:
@@ -1691,9 +1686,7 @@ theorem sum_probeCount_oddStride_of_whp_kWiseIndependent
     _ ≤ (3 * (Fintype.card Θ_top₁ * Fintype.card Θ_top₂)) * B_card := by
         simp only [b₁, b₂, ← Finset.sum_mul, Finset.sum_add_distrib, Finset.sum_const,
           Finset.card_univ, smul_eq_mul, ← Finset.mul_sum, Finset.sum_boole, Nat.cast_id]
-        have h1 := Nat.mul_le_mul_right (Fintype.card Θ_top₂) hbad₁
-        have h2 := Nat.mul_le_mul_left (Fintype.card Θ_top₁) hbad₂
-        exact Nat.mul_le_mul_right _ (by ring_nf at h1 h2 ⊢; omega)
+        exact Nat.mul_le_mul_right _ (by nlinarith)
     _ = 3 * Fintype.card ((Θ_top₁ × Θ_bot₁) × (Θ_top₂ × Θ_bot₂)) := by
         simp only [B_card, Fintype.card_prod]; ring
 

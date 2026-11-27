@@ -350,16 +350,13 @@ theorem one_sub_card_div_card_le_rate_parityCheck [Fintype L] [Finite R] [Fintyp
   classical
   let := Fintype.ofFinite R
   have _ : Nonempty D := Fintype.card_pos_iff.1 hD
-  have hLR : Fintype.card L = Fintype.card R := B.card_left_eq_card_right
   have h := Code.one_sub_card_div_card_le_rate_parityCheckCode
     (Fintype.card_prod L D ▸ Nat.mul_pos hL hD) (checkMatrix B HL HR)
   rw [parityCheckCode_checkMatrix, coe_submodule] at h
-  have hcard_eq : (Fintype.card (L × ιL ⊕ R × ιR) : ℝ) / Fintype.card (L × D) =
-      ((Fintype.card ιL : ℝ) + Fintype.card ιR) / Fintype.card D := by
-    have : 0 < Fintype.card R := hLR ▸ hL
-    simp only [Fintype.card_sum, Fintype.card_prod, Nat.cast_add, Nat.cast_mul, hLR]
-    field_simp
-  linarith
+  refine le_trans (le_of_eq ?_) h
+  simp only [Fintype.card_sum, Fintype.card_prod, Nat.cast_add, Nat.cast_mul,
+    ← B.card_left_eq_card_right]
+  field_simp
 
 end ParityCheck
 
@@ -371,10 +368,8 @@ private theorem core_tanner_bound {k lam d N W u v : ℝ} (hk : 0 ≤ k) (hlam :
     (hd : 0 ≤ d) (hN : 0 < N) (hW : 0 < W) (hu : 0 ≤ u) (hv : 0 ≤ v)
     (hk2 : k ^ 2 * (u * v) ≤ W ^ 2) (hup : W ≤ d * (u * v) / N + lam * d * √(u * v)) :
     k * (k - lam * d) * N ≤ d * W := by
-  have hkt2 : (k * √(u * v)) ^ 2 ≤ W ^ 2 := by
-    rwa [mul_pow, Real.sq_sqrt (mul_nonneg hu hv)]
-  have hkt : k * √(u * v) ≤ W :=
-    (pow_le_pow_iff_left₀ (by positivity) hW.le two_ne_zero).1 hkt2
+  have hkt : k * √(u * v) ≤ W := (pow_le_pow_iff_left₀ (by positivity) hW.le two_ne_zero).1
+    (by rwa [mul_pow, Real.sq_sqrt (mul_nonneg hu hv)])
   have hkW : k ^ 2 * W ≤ (d * W / N + k * lam * d) * W :=
     calc
       k ^ 2 * W ≤ k ^ 2 * (d * (u * v) / N + lam * d * √(u * v)) :=
@@ -476,14 +471,14 @@ theorem relDist_mul_sub_le_hammingDist [Fintype L] [Fintype R] [Fintype D]
     (hx : x ∈ code B CL CR) (hy : y ∈ code B CL CR) (hxy : x ≠ y) :
     δ * (δ - lam) * Fintype.card (L × D) ≤ hammingDist x y := by
   have hd : (0 : ℝ) < Fintype.card D := Nat.cast_pos.2 Fintype.card_pos
-  have h := mul_sub_card_le_of_hammingDist B (mul_nonneg hδ hd.le) hCL hCR hlam hx hy hxy
   rw [Fintype.card_prod, Nat.cast_mul]
   refine le_of_mul_le_mul_left ?_ hd
   calc
     Fintype.card D * (δ * (δ - lam) * (Fintype.card L * Fintype.card D))
       = δ * Fintype.card D * (δ * Fintype.card D - lam * Fintype.card D) * Fintype.card L := by
         ring
-    _ ≤ Fintype.card D * hammingDist x y := h
+    _ ≤ Fintype.card D * hammingDist x y :=
+      mul_sub_card_le_of_hammingDist B (mul_nonneg hδ hd.le) hCL hCR hlam hx hy hxy
 
 /-- Minimum distance `minDist (code B CL CR)` is at least any integer `n ≤ δ * (δ - lam) * |L × D|`.
 -/

@@ -41,8 +41,7 @@ private noncomputable def heightMap (a b : ℂ) : ℝ →ᵃ[ℝ] ℂ :=
     ((b.im - a.im)⁻¹ • (AffineMap.id ℝ ℝ - AffineMap.const ℝ ℝ a.im))
 
 private theorem heightMap_left (a b : ℂ) : heightMap a b a.im = a := by
-  change AffineMap.lineMap a b ((b.im - a.im)⁻¹ * (a.im - a.im)) = a
-  simp
+  simp [heightMap]
 
 private theorem heightMap_right {a b : ℂ} (hab : a.im ≠ b.im) :
     heightMap a b b.im = b := by
@@ -53,8 +52,7 @@ private theorem heightMap_im {a b : ℂ} (hab : a.im ≠ b.im) (h : ℝ) :
     (heightMap a b h).im = h := by
   change (AffineMap.lineMap a b ((b.im - a.im)⁻¹ * (h - a.im))).im = h
   rw [lineMap_im]
-  field_simp [sub_ne_zero.mpr hab.symm]
-  ring
+  field_simp [sub_ne_zero.mpr hab.symm]; ring
 
 private theorem heightMap_re (a b : ℂ) (h : ℝ) :
     (heightMap a b h).re = horizontalIntercept a b h := by
@@ -63,8 +61,7 @@ private theorem heightMap_re (a b : ℂ) (h : ℝ) :
   rw [AffineMap.apply_lineMap]
   change AffineMap.lineMap a.re b.re ((b.im - a.im)⁻¹ * (h - a.im)) = _
   rw [AffineMap.lineMap_apply_ring']
-  simp only [horizontalIntercept, div_eq_mul_inv]
-  ring
+  simp only [horizontalIntercept, div_eq_mul_inv]; ring
 
 private theorem mem_heightMap_image_iff {a b : ℂ} (hab : a.im ≠ b.im)
     (S : Set ℝ) (z : ℂ) :
@@ -157,11 +154,9 @@ private theorem difference_boundary_ne_zero {a b c d : ℂ}
     Complex.ext ((heightMap_re a b h).trans (hz.trans (heightMap_re c d h).symm))
       ((heightMap_im hab.ne h).trans (heightMap_im hcd.ne h).symm)
   have hmAB : heightMap a b h ∈ segment ℝ a b := by
-    rw [mem_segment_height_iff hab, heightMap_im hab.ne, heightMap_re]
-    exact ⟨hAB, rfl⟩
+    simpa only [mem_segment_height_iff hab, heightMap_im hab.ne, heightMap_re, and_true] using hAB
   have hmCD : heightMap a b h ∈ segment ℝ c d := by
-    rw [mem_segment_height_iff hcd, heightMap_im hab.ne, heightMap_re]
-    exact ⟨hCD, hz⟩
+    simpa only [mem_segment_height_iff hcd, heightMap_im hab.ne, heightMap_re] using ⟨hCD, hz⟩
   rcases hend with rfl | rfl | rfl | rfl
   exacts [ha (heightMap_left a b ▸ hmCD), hb (heightMap_right hab.ne ▸ hmCD),
     hc (heightMap_left c d ▸ heq ▸ hmAB), hd (heightMap_right hcd.ne ▸ heq ▸ hmAB)]
@@ -282,8 +277,8 @@ private theorem weighted_sweeps_ordered {ι : Type*} [Fintype ι]
     rw [Finset.sum_filter]
     by_cases hwindow : c.im < h ∧ h ≤ d.im
     · have hz : heightMap c d h ∈ segment ℝ c d := by
-        rw [mem_segment_height_iff hcd, heightMap_im hcd.ne, heightMap_re]
-        exact ⟨⟨hwindow.1.le, hwindow.2⟩, rfl⟩
+        simpa only [mem_segment_height_iff hcd, heightMap_im hcd.ne, heightMap_re, Set.mem_Icc,
+          and_true] using ⟨hwindow.1.le, hwindow.2⟩
       have hJ : (∑ j : ι × Bool, x j.1 *
           decide ((endpoint j).im = h ∧ (heightMap c d h).re < (endpoint j).re)) = 0 := by
         simpa only [Fintype.sum_prod_type, Fintype.sum_bool, endpoint,
@@ -311,9 +306,8 @@ private theorem weighted_sweeps_eq_zero {ι : Type*} [Fintype ι]
     (∑ i, x i * (decide (Sweep c d (a i)) + decide (Sweep c d (b i)))) = 0 := by
   rcases lt_or_gt_of_ne hcd with hcd | hcd
   · exact weighted_sweeps_ordered a b x hcd hjump
-  · have h := weighted_sweeps_ordered a b x hcd (fun z hz =>
-        hjump z (by simpa only [segment_symm] using hz))
-    simpa only [sweep_reverse hcd.ne.symm] using h
+  · simpa only [sweep_reverse hcd.ne.symm] using weighted_sweeps_ordered a b x hcd fun z hz =>
+      hjump z (by simpa only [segment_symm] using hz)
 
 open Classical in
 /-- Endpoint ray-parity difference equals the indexed Boolean sum of actual open

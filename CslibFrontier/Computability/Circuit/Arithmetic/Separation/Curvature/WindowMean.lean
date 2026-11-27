@@ -68,10 +68,8 @@ theorem mem_window {n : ℕ} {b : Bool} {i k : ℕ} : (b, i, k) ∈ window n ↔
 /-- The window mean as a normalized sum, for the telescoping arguments. -/
 theorem windowAvg_eq_sum (n : ℕ) (f : Bool → ℤ → ℤ → ℝ) :
     windowAvg n f = (∑ b, ∑ i ∈ range (n ^ 2), ∑ k ∈ range n, f b i k) / (2 * n ^ 3) := by
-  rw [windowAvg, Finset.expect_eq_sum_div_card, window, Finset.sum_product, Finset.card_product,
-    Finset.card_product, Finset.card_univ, Fintype.card_bool, Finset.card_range,
-    Finset.card_range]
-  simp only [Finset.sum_product]
+  simp only [windowAvg, Finset.expect_eq_sum_div_card, window, Finset.sum_product,
+    Finset.card_product, Finset.card_univ, Fintype.card_bool, Finset.card_range]
   push_cast; ring
 
 namespace WindowFn
@@ -209,7 +207,7 @@ private theorem abs_boundary_le {n L : ℕ} (hn : n ≠ 0) (hL : L ≤ n ^ 2) {C
     |(∑ b, ∑ j ∈ range L, g b j) / (2 * n ^ 3)| ≤ 2 * C * (1 / n) := by
   have hn' : (0 : ℝ) < n := by exact_mod_cast Nat.pos_of_ne_zero hn
   have hL' : (L : ℝ) ≤ n ^ 2 := by exact_mod_cast hL
-  rw [abs_div, abs_of_pos (show (0 : ℝ) < 2 * n ^ 3 by positivity), div_le_iff₀ (by positivity)]
+  rw [abs_div, abs_of_pos (mul_pos two_pos (pow_pos hn' 3)), div_le_iff₀ (by positivity)]
   calc |∑ b, ∑ j ∈ range L, g b j| ≤ ∑ b : Bool, ∑ j ∈ range L, 2 * C :=
         (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun b _ =>
           (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun j _ => hg b j))
@@ -241,8 +239,7 @@ private theorem mean_shift_one {f : WindowFn} (hf : Bounded f) :
     (fun C hC n b k =>
       (abs_sub _ _).trans (by linarith [hC n b ((n ^ 2 : ℕ) : ℤ) k, hC n b 0 k]))
   rw [Finset.sum_comm, Finset.sum_comm (s := range (n ^ 2)), ← Finset.sum_sub_distrib]
-  refine Finset.sum_congr rfl fun k _ => ?_
-  rw [sum_range_shift (fun i => f n b i k)]; ring
+  exact Finset.sum_congr rfl fun k _ => by rw [sum_range_shift (fun i => f n b i k)]; ring
 
 private theorem mean_shift_one' {f : WindowFn} (hf : Bounded f) :
     mean (fun n b i k => f n b i (k + 1)) = mean f := by
@@ -250,8 +247,7 @@ private theorem mean_shift_one' {f : WindowFn} (hf : Bounded f) :
     (fun n b i => f n b i (n : ℕ) - f n b i 0) (fun n b => ?_)
     (fun C hC n b i => (abs_sub _ _).trans (by linarith [hC n b i (n : ℕ), hC n b i 0]))
   rw [← Finset.sum_sub_distrib]
-  refine Finset.sum_congr rfl fun i _ => ?_
-  rw [sum_range_shift (fun k => f n b i k)]; ring
+  exact Finset.sum_congr rfl fun i _ => by rw [sum_range_shift (fun k => f n b i k)]; ring
 
 /-- From invariance under one step to invariance under every integer number of steps, for a
 family of translations `T a` with `T a ∘ T c = T (a + c)`. -/
@@ -302,15 +298,13 @@ theorem le_mean_tele {F : WindowFn}
   have h1 : (windowAvg n fun b i k => (n : ℝ) ^ 2 * (F n b (i + 1) k - F n b i k)) =
       (∑ k ∈ range n, ∑ b, (F n b ((n ^ 2 : ℕ) : ℤ) k - F n b 0 k)) / (2 * n) := by
     rw [windowAvg_eq_sum, Finset.sum_comm (s := range n)]
-    have : ∀ b : Bool, ∑ i ∈ range (n ^ 2), ∑ k ∈ range n,
+    have hsum (b : Bool) : ∑ i ∈ range (n ^ 2), ∑ k ∈ range n,
         (n : ℝ) ^ 2 * (F n b ((i : ℤ) + 1) k - F n b i k) =
         (n : ℝ) ^ 2 * ∑ k ∈ range n, (F n b ((n ^ 2 : ℕ) : ℤ) k - F n b 0 k) := by
-      intro b
       rw [Finset.sum_comm, Finset.mul_sum]
-      refine Finset.sum_congr rfl fun k _ => ?_
-      rw [← Finset.mul_sum, Finset.sum_sub_distrib, sum_range_shift (fun i => F n b i k)]
-      ring
-    rw [Finset.sum_congr rfl fun b _ => this b, ← Finset.mul_sum]
+      exact Finset.sum_congr rfl fun k _ => by
+        rw [← Finset.mul_sum, Finset.sum_sub_distrib, sum_range_shift (fun i => F n b i k)]; ring
+    rw [Finset.sum_congr rfl fun b _ => hsum b, ← Finset.mul_sum]
     field_simp
   rw [h1, div_le_div_iff₀ (by norm_num) (by positivity)]
   have h2 := Finset.sum_le_sum fun k hk => hn k (Finset.mem_range.1 hk)
@@ -383,8 +377,7 @@ theorem mean_le_rms {f : WindowFn} (hf : Bounded f) : mean f ≤ rms f := by
 
 theorem rms_shift {f : WindowFn} (hf : Bounded f) (a c : ℤ) :
     rms (fun n b i k => f n b (i + a) (k + c)) = rms f := by
-  rw [rms, rms, ← mean_shift (hf.mul hf) a c]
-  rfl
+  exact congrArg Real.sqrt (mean_shift (hf.mul hf) a c)
 
 end WindowFn
 

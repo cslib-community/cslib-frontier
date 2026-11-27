@@ -85,9 +85,8 @@ private theorem monotoneOn_Ici_zero_of_hasDerivAt {f f' : ℝ → ℝ}
     (fun x hx => (hd x hx).continuousAt.continuousWithinAt)
     (fun x hx => (hd x (Set.mem_Ioi.mp (interior_Ici (a := (0 : ℝ)) ▸ hx)).le).differentiableAt
       |>.differentiableWithinAt)
-    fun x hx => by
-      rw [interior_Ici] at hx
-      exact (hd x hx.le).deriv.symm ▸ hnn x hx
+    fun x hx => (hd x (Set.mem_Ioi.mp (interior_Ici (a := (0 : ℝ)) ▸ hx)).le).deriv.symm ▸
+      hnn x (Set.mem_Ioi.mp (interior_Ici (a := (0 : ℝ)) ▸ hx))
 
 private theorem nonneg_of_hasDerivAt_Ici_zero {f f' : ℝ → ℝ} (hf0 : f 0 = 0)
     (hd : ∀ x : ℝ, 0 ≤ x → HasDerivAt f (f' x) x) (hnn : ∀ x : ℝ, 0 < x → 0 ≤ f' x)
@@ -137,8 +136,7 @@ theorem exp_sub_one_sub_le_mul_sq {b u : ℝ} (hb : 0 < b) (hu : u ≤ b) :
       ((((hasDerivAt_exp x).sub_const 1).sub (hasDerivAt_id' x)).div
         (hasDerivAt_pow 2 x) (pow_ne_zero 2 hx.ne')).congr_deriv (by
           dsimp only [Pi.sub_apply]
-          field_simp [hx.ne']
-          ring)
+          field_simp [hx.ne']; ring)
     have hle := monotoneOn_of_deriv_nonneg (convex_Ioi 0)
       (fun x hx => (hd x hx).continuousAt.continuousWithinAt)
       (fun x hx => (hd x (by rwa [interior_Ioi] at hx)).differentiableAt.differentiableWithinAt)
@@ -156,30 +154,22 @@ theorem exp_sub_one_sub_le_div {u : ℝ} (hu0 : 0 ≤ u) (hu3 : u < 3) :
     exp u - 1 - u ≤ u ^ 2 / (2 * (1 - u / 3)) := by
   have hr2_nn (x : ℝ) (hx : 0 ≤ x) : 0 ≤ 2 - (2 - 2 * x) * exp x :=
     nonneg_of_hasDerivAt_Ici_zero (by norm_num)
-      (fun y _ =>
-        ((hasDerivAt_const y (2 : ℝ)).sub
-          (((hasDerivAt_const y (2 : ℝ)).sub
-            ((hasDerivAt_id' y).const_mul 2)).mul (hasDerivAt_exp y))).congr_deriv
-            (by dsimp only [Pi.sub_apply]; ring))
+      (fun y _ => ((((hasDerivAt_id' y).const_mul 2).const_sub 2).mul (hasDerivAt_exp y)
+        |>.const_sub 2).congr_deriv (by ring))
       (fun y hy => mul_nonneg (mul_nonneg zero_le_two hy.le) (exp_pos y).le) hx
   have hr1_nn (x : ℝ) (hx : 0 ≤ x) : 0 ≤ 2 * x + 4 - (4 - 2 * x) * exp x :=
     nonneg_of_hasDerivAt_Ici_zero (by norm_num)
-      (fun y _ =>
-        ((((hasDerivAt_id' y).const_mul 2).add_const 4).sub
-          (((hasDerivAt_const y (4 : ℝ)).sub
-            ((hasDerivAt_id' y).const_mul 2)).mul (hasDerivAt_exp y))).congr_deriv
-            (by dsimp only [Pi.sub_apply]; ring))
+      (fun y _ => ((((hasDerivAt_id' y).const_mul 2).add_const 4).sub
+        ((((hasDerivAt_id' y).const_mul 2).const_sub 4).mul (hasDerivAt_exp y))).congr_deriv
+        (by ring))
       (fun y hy => hr2_nn y hy.le) hx
   have hr0_nn : 0 ≤ u ^ 2 + 4 * u + 6 - (6 - 2 * u) * exp u :=
     nonneg_of_hasDerivAt_Ici_zero (by norm_num)
-      (fun y _ =>
-        ((((hasDerivAt_pow 2 y).add ((hasDerivAt_id' y).const_mul 4)).add_const 6).sub
-          (((hasDerivAt_const y (6 : ℝ)).sub
-            ((hasDerivAt_id' y).const_mul 2)).mul (hasDerivAt_exp y))).congr_deriv
-            (by dsimp only [Pi.sub_apply]; ring))
+      (fun y _ => ((((hasDerivAt_pow 2 y).add ((hasDerivAt_id' y).const_mul 4)).add_const 6).sub
+        ((((hasDerivAt_id' y).const_mul 2).const_sub 6).mul (hasDerivAt_exp y))).congr_deriv
+        (by ring))
       (fun y hy => hr1_nn y hy.le) hu0
-  rw [le_div_iff₀ (by linarith)]
-  nlinarith
+  rw [le_div_iff₀ (by linarith)]; nlinarith
 
 end Real
 
@@ -358,70 +348,59 @@ theorem tsum_mul_exp_le_bennett (q : PMF α) (d : α → ℝ) {b v : ℝ}
     (hvar : ∑' x, (q x).toReal * d x ^ 2 ≤ v) {s : ℝ} (hs : 0 ≤ s) :
     ∑' x, q x * ENNReal.ofReal (Real.exp (s * d x)) ≤
       ENNReal.ofReal (Real.exp ((v / b ^ 2) * (Real.exp (s * b) - 1 - s * b))) := by
-  classical
   rcases eq_or_lt_of_le hs with rfl | hs_pos
   · simp
-  · let d' (x : α) : ℝ := if x ∈ q.support then d x else 0
-    have hd'_le (x : α) : d' x ≤ b :=
-      if hx : x ∈ q.support then (ite_eq_left hx).le.trans (hupper x hx)
-      else (ite_eq_right hx).le.trans hb.le
-    have hmul (f : ℝ → ℝ) :
-        (fun x => (q x).toReal * f (d' x)) = fun x => (q x).toReal * f (d x) := funext fun x => by
-      dsimp only [d']
-      split_ifs with hx
-      · rfl
-      · simp [(q.apply_eq_zero_iff x).mpr hx]
-    have hmul1 := hmul fun z => z
-    have hmul2 := hmul (· ^ 2)
-    have hsum_exp : Summable fun x => (q x).toReal * Real.exp (s * d' x) :=
+  · have hsum_exp : Summable fun x => (q x).toReal * Real.exp (s * d x) :=
       Summable.of_nonneg_of_le (fun _ => mul_nonneg ENNReal.toReal_nonneg (Real.exp_pos _).le)
-        (fun x => mul_le_mul_of_nonneg_left
-          (Real.exp_le_exp.mpr (mul_le_mul_of_nonneg_left (hd'_le x) hs)) ENNReal.toReal_nonneg)
+        (fun x => by
+          by_cases hx : x ∈ q.support
+          · exact mul_le_mul_of_nonneg_left
+              (Real.exp_le_exp.mpr (mul_le_mul_of_nonneg_left (hupper x hx) hs))
+              ENNReal.toReal_nonneg
+          · simp [(q.apply_eq_zero_iff x).mpr hx])
         ((summable_toReal q).mul_right (Real.exp (s * b)))
     set c := (Real.exp (s * b) - 1 - s * b) / b ^ 2
     have hc_nn : 0 ≤ c := div_nonneg (by linarith [Real.add_one_le_exp (s * b)]) (sq_nonneg b)
-    have hsd1 : Summable fun x => (q x).toReal * d' x := hmul1.symm ▸ hd1
-    have hsd2 : Summable fun x => (q x).toReal * d' x ^ 2 := hmul2.symm ▸ hd2
-    have hpt (x : α) : (q x).toReal * Real.exp (s * d' x) ≤
-        (q x).toReal + s * ((q x).toReal * d' x) + c * ((q x).toReal * d' x ^ 2) := by
-      have hexp : Real.exp (s * d' x) ≤ 1 + s * d' x + c * d' x ^ 2 := by
-        linarith [Real.exp_sub_one_sub_le_mul_sq (mul_pos hs_pos hb)
-          (mul_le_mul_of_nonneg_left (hd'_le x) hs),
-          show (s * d' x) ^ 2 / (s * b) ^ 2 * (Real.exp (s * b) - 1 - s * b) = c * d' x ^ 2 by
-            dsimp only [c]; field_simp [hs_pos.ne', hb.ne']]
-      calc
-        (q x).toReal * Real.exp (s * d' x)
-          ≤ (q x).toReal * (1 + s * d' x + c * d' x ^ 2) :=
-            mul_le_mul_of_nonneg_left hexp ENNReal.toReal_nonneg
-        _ = (q x).toReal + s * ((q x).toReal * d' x) + c * ((q x).toReal * d' x ^ 2) := by ring
+    have hpt (x : α) : (q x).toReal * Real.exp (s * d x) ≤
+        (q x).toReal + s * ((q x).toReal * d x) + c * ((q x).toReal * d x ^ 2) := by
+      by_cases hx : x ∈ q.support
+      · have hsq : (s * d x) ^ 2 / (s * b) ^ 2 * (Real.exp (s * b) - 1 - s * b) = c * d x ^ 2 := by
+          dsimp only [c]; field_simp [hs_pos.ne', hb.ne']
+        have hexp : Real.exp (s * d x) ≤ 1 + s * d x + c * d x ^ 2 := by
+          linarith [Real.exp_sub_one_sub_le_mul_sq (mul_pos hs_pos hb)
+            (mul_le_mul_of_nonneg_left (hupper x hx) hs), hsq]
+        calc
+          (q x).toReal * Real.exp (s * d x)
+            ≤ (q x).toReal * (1 + s * d x + c * d x ^ 2) :=
+              mul_le_mul_of_nonneg_left hexp ENNReal.toReal_nonneg
+          _ = (q x).toReal + s * ((q x).toReal * d x) + c * ((q x).toReal * d x ^ 2) := by ring
+      · simp [(q.apply_eq_zero_iff x).mpr hx]
     have htsum_le := hsum_exp.tsum_le_tsum hpt
-      (((summable_toReal q).add (hsd1.mul_left s)).add (hsd2.mul_left c))
-    rw [((summable_toReal q).add (hsd1.mul_left s)).tsum_add (hsd2.mul_left c),
-      (summable_toReal q).tsum_add (hsd1.mul_left s), tsum_toReal, tsum_mul_left, tsum_mul_left,
-      hmul1, hmul2] at htsum_le
+      (((summable_toReal q).add (hd1.mul_left s)).add (hd2.mul_left c))
+    rw [((summable_toReal q).add (hd1.mul_left s)).tsum_add (hd2.mul_left c),
+      (summable_toReal q).tsum_add (hd1.mul_left s), tsum_toReal, tsum_mul_left,
+      tsum_mul_left] at htsum_le
     have hvar_le : c * ∑' x, (q x).toReal * d x ^ 2 ≤
         (v / b ^ 2) * (Real.exp (s * b) - 1 - s * b) := by
       calc
         c * ∑' x, (q x).toReal * d x ^ 2 ≤ c * v := mul_le_mul_of_nonneg_left hvar hc_nn
         _ = (v / b ^ 2) * (Real.exp (s * b) - 1 - s * b) := by dsimp only [c]; ring
-    have hreal_le : ∑' x, (q x).toReal * Real.exp (s * d' x) ≤
+    have hreal_le : ∑' x, (q x).toReal * Real.exp (s * d x) ≤
         Real.exp ((v / b ^ 2) * (Real.exp (s * b) - 1 - s * b)) := by
       calc
-        ∑' x, (q x).toReal * Real.exp (s * d' x)
+        ∑' x, (q x).toReal * Real.exp (s * d x)
           ≤ 1 + s * ∑' x, (q x).toReal * d x + c * ∑' x, (q x).toReal * d x ^ 2 := htsum_le
         _ ≤ 1 + (v / b ^ 2) * (Real.exp (s * b) - 1 - s * b) := by
             linarith [mul_nonpos_of_nonneg_of_nonpos hs hmean, hvar_le]
         _ ≤ Real.exp ((v / b ^ 2) * (Real.exp (s * b) - 1 - s * b)) := by
             linarith [Real.add_one_le_exp ((v / b ^ 2) * (Real.exp (s * b) - 1 - s * b))]
     have htsum_eq : ∑' x, q x * ENNReal.ofReal (Real.exp (s * d x)) =
-        ENNReal.ofReal (∑' x, (q x).toReal * Real.exp (s * d' x)) := by
+        ENNReal.ofReal (∑' x, (q x).toReal * Real.exp (s * d x)) := by
       rw [ENNReal.ofReal_tsum_of_nonneg
         (fun _ => mul_nonneg ENNReal.toReal_nonneg (Real.exp_pos _).le) hsum_exp]
       exact tsum_congr fun x => by
-        rw [congrFun (hmul fun z => Real.exp (s * z)) x, ENNReal.ofReal_mul ENNReal.toReal_nonneg,
-          ENNReal.ofReal_toReal (PMF.apply_ne_top q x)]
-    rw [htsum_eq]
-    exact ENNReal.ofReal_le_ofReal hreal_le
+        rw [ENNReal.ofReal_mul ENNReal.toReal_nonneg, ENNReal.ofReal_toReal (PMF.apply_ne_top q x)]
+    exact htsum_eq.symm ▸ ENNReal.ofReal_le_ofReal hreal_le
 
 /-- **Centered Bennett MGF step** on an arbitrary `q : PMF α` when `g` is bounded in absolute value
 on `q.support` (`g x - μ_g ≤ b`, `b > 0`) and has variance at most `v`. -/
@@ -459,9 +438,8 @@ theorem sum_mul_exp_sub_mean_le_bennett [Fintype α] (q : PMF α) (g : α → �
     (by simpa only [tsum_fintype] using hupper)
     (by simpa only [tsum_fintype] using hvar) hs
   rw [tsum_fintype] at h
-  have hm := ENNReal.toReal_mono ENNReal.ofReal_ne_top h
-  rw [ENNReal.toReal_ofReal (Real.exp_pos _).le, ENNReal.toReal_sum fun x _ =>
-    ENNReal.mul_ne_top (PMF.apply_ne_top q x) ENNReal.ofReal_ne_top] at hm
-  simpa only [tsum_fintype, ENNReal.toReal_mul, ENNReal.toReal_ofReal (Real.exp_pos _).le] using hm
+  simpa only [tsum_fintype, ENNReal.toReal_ofReal (Real.exp_pos _).le,
+    ENNReal.toReal_sum fun x _ => ENNReal.mul_ne_top (PMF.apply_ne_top q x) ENNReal.ofReal_ne_top,
+    ENNReal.toReal_mul] using ENNReal.toReal_mono ENNReal.ofReal_ne_top h
 
 end Cslib.Probability.PMF

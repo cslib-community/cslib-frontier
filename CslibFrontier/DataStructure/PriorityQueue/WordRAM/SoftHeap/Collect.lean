@@ -119,12 +119,12 @@ private theorem TreeMemRep.nodeEntries_rep {rt itemBase nodeBase : ℕ} {mem : �
     simp only [SHTree.nodeEntries_node, List.cons_append, List.mem_cons, List.mem_append] at he
     rcases he with rfl | hL | hR
     · exact ⟨hid, h0, hil⟩
-    · cases hl_eq : l with
-      | none => rw [hl_eq] at hL; simp at hL
-      | some c => rw [hl_eq] at hL; exact ihL c hl_eq (hl c hl_eq) e hL
-    · cases hr_eq : r' with
-      | none => rw [hr_eq] at hR; simp at hR
-      | some c => rw [hr_eq] at hR; exact ihR c hr_eq (hr c hr_eq) e hR
+    · cases l with
+      | none => simp at hL
+      | some c => exact ihL c rfl (hl c rfl) e hL
+    · cases r' with
+      | none => simp at hR
+      | some c => exact ihR c rfl (hr c rfl) e hR
 
 private theorem list_filter_fst_eq_singleton {α : Type} {xs : List (ℕ × α)}
     (hnd : (xs.map Prod.fst).Nodup) {e : ℕ × α} (he : e ∈ xs) :
@@ -468,36 +468,26 @@ private theorem collectNodeStep_head_zero_spec
     ∀ i, ∀ hi : i < (nodeCorruptedAt roots idx).length,
       ((Memory.spec 0).clientState s prog).mem (outBase + curOut + i) =
         (nodeCorruptedAt roots idx)[i] := by
+  intro prog
   have hn_lt : h.nodeBase + 12 * idx + 11 < s.frontier := by
     have := hinv.nc_max; have := hinv.node_pool_lt; omega
-  have hs_eq : (Memory.spec 0).clientState s (collectNodeStep
-      ((h.itemBase, h.nodeBase, outBase, fuel), (idx, curOut))) = s := by
-    dsimp only [collectNodeStep, collectNodeItemBase, collectNodeBase,
+  have hs_eq : (Memory.spec 0).clientState s prog = s := by
+    dsimp only [prog, collectNodeStep, collectNodeItemBase, collectNodeBase,
       collectNodeOutBase, collectNodeFuel, collectNodeIdx, collectNodeOutCount]
     repeat rw [clientState_bind_read]
-    rw [hhd0]; simp only [↓reduceIte]
-    rfl
+    rw [hhd0]; rfl
   rw [hcor0, hcnt0]
-  refine ⟨?_, ?_, ?_, ?_, by rw [hs_eq], ?_, by rw [hs_eq]; exact hinv, ?_⟩
-  · dsimp only [collectNodeStep, collectNodeItemBase, collectNodeBase,
-      collectNodeOutBase, collectNodeFuel, collectNodeIdx, collectNodeOutCount]
-    refine validHistory_read_bind (by omega) (validHistory_read_bind (by omega) ?_)
-    rw [hhd0]; simp only [↓reduceIte]; exact validHistory_pure w _ _
-  · refine ⟨h16, hidx_fit, fun hz => absurd hhd0 hz⟩
-  · dsimp only [collectNodeStep, collectNodeItemBase, collectNodeBase,
-      collectNodeOutBase, collectNodeFuel, collectNodeIdx, collectNodeOutCount]
-    repeat (rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read])
-    rw [hhd0]; simp only [↓reduceIte]
-    rw [memoryCost_bind', memoryCost_pure, memoryCost_pure]
-  · dsimp only [collectNodeStep, collectNodeItemBase, collectNodeBase,
-      collectNodeOutBase, collectNodeFuel, collectNodeIdx, collectNodeOutCount]
-    repeat rw [clientResult_bind_read]
-    rw [hhd0]; simp only [↓reduceIte, List.length_nil]
-    rfl
-  · intro a ha
-    rw [hs_eq] at ha
-    exact absurd rfl ha
-  · intro i hi; simp only [List.length_nil] at hi; omega
+  refine ⟨?_, ⟨h16, hidx_fit, fun hz => absurd hhd0 hz⟩, ?_, ?_, by rw [hs_eq],
+    fun a ha => absurd rfl (hs_eq ▸ ha), by rwa [hs_eq], fun _ hi => nomatch hi⟩
+  all_goals dsimp only [prog, collectNodeStep, collectNodeItemBase, collectNodeBase,
+    collectNodeOutBase, collectNodeFuel, collectNodeIdx, collectNodeOutCount]
+  · refine validHistory_read_bind (by omega) (validHistory_read_bind (by omega) ?_)
+    rw [hhd0]
+    exact validHistory_pure w _ _
+  · repeat (rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read])
+    simp [hhd0, memoryCost_pure]
+  · repeat rw [clientResult_bind_read]
+    rw [hhd0]; rfl
 
 private theorem collectNodeStep_spec
     {w ic₀ nc₀ maxItems maxNodes outBase outCount outCap fuel : ℕ}
@@ -831,8 +821,7 @@ theorem shCollectCorrupted_spec {w ic₀ nc₀ maxItems maxNodes outBase outCoun
     exact List.Perm.flatMap_right (fun e => corrVals e.2.1 e.2.2) hperm_fne
   have hwritten_len : written.length =
       ((forestEntries roots).filter (fun p => decide (p.1.origKey < p.2))).length := by
-    have h := hwritten_perm.length_eq
-    simpa [List.length_map] using h
+    simpa [List.length_map] using hwritten_perm.length_eq
   have hcap_it : outCount + written.length ≤ outCap := by
     rw [hwritten_len]; exact hout_le
   have hit := collectNode_iterate_spec (h.nodeCount - nc₀) (nc₀ + 1) outCount hinv
@@ -856,15 +845,13 @@ theorem shCollectCorrupted_spec {w ic₀ nc₀ maxItems maxNodes outBase outCoun
         (h.nodeCount - nc₀) (nc₀ + 1, outCount) >>= fun st => pure st.2) := rfl
   have hres_raw : (Memory.spec 0).clientResult s
       (shCollectCorrupted (h, nc₀, outBase, outCount, fuel)) = outCount + written.length := by
-    rw [hprog_eq, StateTransitionSpec.clientResult_bind, hres_it]
-    rfl
+    rw [hprog_eq, StateTransitionSpec.clientResult_bind, hres_it]; rfl
   have hs_raw : (Memory.spec 0).clientState s
       (shCollectCorrupted (h, nc₀, outBase, outCount, fuel)) =
       (Memory.spec 0).clientState s
         (iterate collectNodeStep (h.itemBase, h.nodeBase, outBase, fuel)
           (h.nodeCount - nc₀) (nc₀ + 1, outCount)) := by
-    rw [hprog_eq, StateTransitionSpec.clientState_bind]
-    rfl
+    rw [hprog_eq, StateTransitionSpec.clientState_bind]; rfl
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [hprog_eq]
     exact validHistory_bind_step hv_it (validHistory_pure w _ _)

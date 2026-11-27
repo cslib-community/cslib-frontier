@@ -891,12 +891,9 @@ theorem satisfiesWalrasLaw_excessDemandFn : SatisfiesWalrasLaw E.excessDemandFn 
   linarith
 
 theorem isWeakGrossSubstitutes_excessDemandFn : IsWeakGrossSubstitutes E.excessDemandFn := by
-  refine IsWeakGrossSubstitutes.sub_const ?_ E.toExchangeMarket.totalSupply
-  intro p p' hp hle g hfg
-  refine sum_le_sum fun i _ => ?_
-  have hw := isWeakGrossSubstitutes_cobbDouglasExcessDemand (E.weight_nonneg i)
-    (E.endowment_nonneg i) hp hle g hfg
-  linarith
+  refine IsWeakGrossSubstitutes.sub_const (fun p p' hp hle g hfg => sum_le_sum fun i _ => ?_) _
+  linarith [isWeakGrossSubstitutes_cobbDouglasExcessDemand (E.weight_nonneg i)
+    (E.endowment_nonneg i) hp hle g hfg]
 
 /-- If for every pair of distinct goods `j ≠ g` some trader holds a positive endowment of `j` and
 puts positive Cobb–Douglas weight on `g`, then `E.excessDemandFn` satisfies **strict** gross
@@ -909,9 +906,8 @@ theorem isGrossSubstitutes_excessDemandFn
   have hj_ne_g : j ≠ g := fun heq => (ne_of_lt hj_lt) (heq ▸ hfg).symm
   obtain ⟨i₀, hwi₀, hei₀⟩ := hconn g j hj_ne_g
   refine sum_lt_sum (fun i _ => ?_) ⟨i₀, mem_univ i₀, ?_⟩
-  · have hw := isWeakGrossSubstitutes_cobbDouglasExcessDemand (E.weight_nonneg i)
-      (E.endowment_nonneg i) hp hle g hfg
-    linarith
+  · linarith [isWeakGrossSubstitutes_cobbDouglasExcessDemand (E.weight_nonneg i)
+      (E.endowment_nonneg i) hp hle g hfg]
   · simp only [cobbDouglasDemand_apply, hfg]
     have hexp_lt : expenditure p (E.endowment i₀) < expenditure p' (E.endowment i₀) := by
       simp only [expenditure_eq_sum]
@@ -955,13 +951,12 @@ theorem isCompetitiveEquilibrium_of_isWalrasianEquilibrium {p : G → ℝ}
         (fun i => cobbDouglasDemand (E.weight i) p (E.toExchangeMarket.income p i)) g =
         E.excessDemandFn p g := fun g => by
     simp [ExchangeMarket.excessDemand_eq, excessDemandFn, ExchangeMarket.income_eq]
-  refine ⟨fun g => (heq.1 g).le, fun i => ?_, fun g => ?_, fun g => ?_⟩
-  · rw [ExchangeMarket.mem_demandSet, toExchangeMarket_utility]
-    exact cobbDouglasDemand_mem_demandSet (E.weight_nonneg i) (E.sum_weight i) heq.1
-      (E.toExchangeMarket.income_nonneg (fun g => (heq.1 g).le) i)
-  · rw [hex_eq, hz0]
-    exact le_rfl
-  · rw [hex_eq, hz0, Pi.zero_apply, mul_zero]
+  refine ⟨fun g => (heq.1 g).le, fun i => ?_,
+    fun g => le_of_eq ((hex_eq g).trans (congrFun hz0 g)),
+    fun g => by rw [hex_eq, hz0, Pi.zero_apply, mul_zero]⟩
+  rw [ExchangeMarket.mem_demandSet, toExchangeMarket_utility]
+  exact cobbDouglasDemand_mem_demandSet (E.weight_nonneg i) (E.sum_weight i) heq.1
+    (E.toExchangeMarket.income_nonneg (fun g => (heq.1 g).le) i)
 
 end CobbDouglasExchangeMarket
 
@@ -1123,13 +1118,11 @@ theorem cesDemand_mem_demandSet [Nonempty G] {α p : G → ℝ} {ρ m : ℝ}
       mul_nonneg (Real.rpow_nonneg (hα g).le _) (hb.1 g)
     have hk_pos : ∀ g, 0 < k g := fun g =>
       mul_pos (hp g) (Real.rpow_pos_of_pos (hα g) _)
-    have hfk : ∀ g, f g * k g = p g * b g := by
-      intro g
+    have hfk : ∀ g, f g * k g = p g * b g := fun g => by
       dsimp only [f, k]
       rw [Real.rpow_neg (hα g).le, mul_comm (p g), ← mul_assoc, mul_right_comm _ (b g),
         mul_inv_cancel₀ (Real.rpow_pos_of_pos (hα g) _).ne', one_mul, mul_comm]
-    have hf_pow : ∀ g, (f g) ^ ρ = α g * (b g) ^ ρ := by
-      intro g
+    have hf_pow : ∀ g, (f g) ^ ρ = α g * (b g) ^ ρ := fun g => by
       dsimp only [f]
       rw [Real.mul_rpow (Real.rpow_nonneg (hα g).le _) (hb.1 g),
         ← Real.rpow_mul (hα g).le, one_div_mul_cancel hρ_ne, Real.rpow_one]

@@ -168,9 +168,8 @@ theorem streamPrefix_zero (x : ℕ → ℤ) : streamPrefix x 0 = (x 0 : ℝ) := 
   simp [streamPrefix]
 
 theorem streamPrefix_succ (x : ℕ → ℤ) (K : ℕ) :
-    streamPrefix x (K + 1) = streamPrefix x K + (x (K + 1) : ℝ) / (2 : ℝ) ^ (K + 1) := by
-  unfold streamPrefix
-  exact sum_range_succ _ (K + 1)
+    streamPrefix x (K + 1) = streamPrefix x K + (x (K + 1) : ℝ) / (2 : ℝ) ^ (K + 1) :=
+  sum_range_succ (fun j => (x j : ℝ) / (2 : ℝ) ^ j) (K + 1)
 
 theorem streamPrefix_eq_intPrefix_div (x : ℕ → ℤ) (K : ℕ) :
     streamPrefix x K = (intPrefix x K : ℝ) / (2 : ℝ) ^ K := by
@@ -229,16 +228,12 @@ theorem abs_streamVal_le_twelve {x : ℕ → ℤ} (hx : IsSignedStream x) :
 
 theorem suffixStream_isSignedStream {x : ℕ → ℤ} (hx : IsSignedStream x) (K : ℕ) :
     IsSignedStream (suffixStream x K) := fun j => by
-  unfold suffixStream
-  split_ifs
-  · exact isSignedDigit_zero
-  · exact hx j
+  by_cases hj : j ≤ K <;> simp [suffixStream, hj, isSignedDigit_zero, hx j]
 
 theorem streamPrefix_suffixStream_le (x : ℕ → ℤ) {K M : ℕ} (hM : M ≤ K) :
     streamPrefix (suffixStream x K) M = 0 :=
   sum_eq_zero fun j hj => by
-    have hjK : j ≤ K := (Nat.lt_succ_iff.mp (mem_range.mp hj)).trans hM
-    simp [suffixStream, hjK]
+    simp [suffixStream, (Nat.lt_succ_iff.mp (mem_range.mp hj)).trans hM]
 
 theorem streamVal_suffixStream {x : ℕ → ℤ} (hx : IsSignedStream x) (K : ℕ) :
     streamVal (suffixStream x K) = streamVal x - streamPrefix x K := by
@@ -246,9 +241,10 @@ theorem streamVal_suffixStream {x : ℕ → ℤ} (hx : IsSignedStream x) (K : �
   have hss := (suffixStream_isSignedStream hx K).summable.sum_add_tsum_nat_add (K + 1)
   have htail : (fun m : ℕ => (suffixStream x K (m + (K + 1)) : ℝ) / (2 : ℝ) ^ (m + (K + 1))) =
       fun m : ℕ => (x (m + (K + 1)) : ℝ) / (2 : ℝ) ^ (m + (K + 1)) :=
-    funext fun m => by simp [suffixStream, show ¬ m + (K + 1) ≤ K by omega]
-  rw [show ∑ j ∈ range (K + 1), (suffixStream x K j : ℝ) / (2 : ℝ) ^ j = 0 from
-    streamPrefix_suffixStream_le x le_rfl, zero_add, htail] at hss
+    funext fun m => by simp [suffixStream, not_le_of_gt (Nat.lt_add_left m (Nat.lt_succ_self K))]
+  have hp0 : ∑ j ∈ range (K + 1), (suffixStream x K j : ℝ) / (2 : ℝ) ^ j = 0 :=
+    streamPrefix_suffixStream_le x le_rfl
+  rw [hp0, zero_add, htail] at hss
   unfold streamVal streamPrefix
   linarith
 
@@ -309,14 +305,14 @@ of `N` sum to `z`. -/
 theorem streamVal_diffDigit {z : ℝ} {N : ℕ → ℤ} (hz : |z| ≤ 1) (hN : IsScaledApprox z N) :
     streamVal (diffDigit N) = z := by
   by_contra hne
-  have hgap : 0 < |streamVal (diffDigit N) - z| := abs_sub_pos.mpr hne
-  obtain ⟨T, hT⟩ := exists_pow_lt_of_lt_one (div_pos hgap (by norm_num : (0 : ℝ) < 8))
+  obtain ⟨T, hT⟩ := exists_pow_lt_of_lt_one
+    (div_pos (abs_sub_pos.mpr hne) (by norm_num : (0 : ℝ) < 8))
     (by norm_num : (1 / 2 : ℝ) < 1)
   have h1 := abs_streamVal_sub_streamPrefix_le (diffDigit_isSignedStream hz hN) T
   have h2 := abs_streamPrefix_diffDigit_sub_lt hN T
-  have htri := abs_sub_le (streamVal (diffDigit N)) (streamPrefix (diffDigit N) T) z
+  have h8 : (8 : ℝ) * (1 / (2 : ℝ) ^ T) = 6 / (2 : ℝ) ^ T + 2 / (2 : ℝ) ^ T := by ring
   rw [one_div_pow] at hT
-  linarith [show (8 : ℝ) * (1 / (2 : ℝ) ^ T) = 6 / (2 : ℝ) ^ T + 2 / (2 : ℝ) ^ T by ring]
+  linarith [abs_sub_le (streamVal (diffDigit N)) (streamPrefix (diffDigit N) T) z]
 
 theorem hasSum_diffDigit {z : ℝ} {N : ℕ → ℤ} (hz : |z| ≤ 1) (hN : IsScaledApprox z N) :
     HasSum (fun j : ℕ => (diffDigit N j : ℝ) / (2 : ℝ) ^ j) z := by
@@ -334,12 +330,12 @@ theorem centeredResidue_eq_self {q : ℕ} (hq : 4 ≤ q) {d : ℤ} (hd : IsSigne
   have hq1 : (8 : ℤ) ≤ (2 : ℤ) ^ (q - 1) :=
     (by decide : (8 : ℤ) = 2 ^ 3).trans_le (pow_le_pow_right₀ (by decide) (by omega))
   have hpow : (2 : ℤ) ^ q = 2 * (2 : ℤ) ^ (q - 1) := by
-    conv_lhs => rw [show q = (q - 1) + 1 by omega, pow_succ, mul_comm]
+    rw [← pow_succ', Nat.sub_add_cancel (by omega)]
   have hd_bounds := isSignedDigit_iff_le.mp hd
   by_cases hd0 : 0 ≤ d
   · rw [Int.emod_eq_of_lt hd0 (by omega), ite_eq_left (by omega)]
-  · rw [← Int.add_emod_right d ((2 : ℤ) ^ q), Int.emod_eq_of_lt (by omega) (by omega)]
-    simp [show ¬ d + (2 : ℤ) ^ q ≤ (2 : ℤ) ^ (q - 1) by omega]
+  · rw [← Int.add_emod_right d ((2 : ℤ) ^ q), Int.emod_eq_of_lt (by omega) (by omega),
+      ite_eq_right (by omega), add_sub_cancel_right]
 
 /-- **Lemma 10.1 (residue decoding)** [OpenAI2026LogSpace, Lemma 10.1]: for `q ≥ 4`, the place-`t`
 difference digit is uniquely determined by `N t % 2 ^ q` and `N (t - 1) % 2 ^ q`. -/

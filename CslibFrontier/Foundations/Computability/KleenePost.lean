@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Computability.RecursiveInCode
 public import Mathlib.Algebra.Notation.Indicator
+import CslibFrontier.Foundations.Data.List.Primrec
 
 /-!
 # The Kleene–Post theorem: incomparable Turing degrees
@@ -57,6 +58,16 @@ open Code
 /-- A finite binary string, read as a finite oracle prefix with values in `{0, 1}`. -/
 @[expose]
 def bits (σ : List Bool) : List ℕ := σ.map Bool.toNat
+
+/-- Converting a finite binary string to its `{0, 1}`-valued prefix is primitive recursive. -/
+theorem primrec_bits : _root_.Primrec bits :=
+  _root_.Primrec.list_map _root_.Primrec.id
+    ((_root_.Primrec.dom_bool Bool.toNat).comp _root_.Primrec.snd).to₂
+
+/-- Converting the first `M` bits of a Boolean sequence via `bits` agrees with `prefixOf`. -/
+theorem prefixOf_bool_eq_bits (g : ℕ → Bool) (M : ℕ) :
+    bits ((List.range M).map g) = prefixOf (fun n => (g n).toNat) M := by
+  simp [bits, prefixOf, Function.comp_def]
 
 /-- Stage bound `p.2.1` in a halting witness `(σ, k, y)`. -/
 abbrev witnessStage (p : List Bool × ℕ × ℕ) : ℕ := p.2.1
@@ -127,6 +138,7 @@ theorem step_snd (c : Code) (σ τ : List Bool) : τ <+: (step c σ τ).2 := by
   · simp [step, h]
 
 /-- The finite string `σ` is an initial segment of the `Bool` sequence `a`. -/
+@[expose]
 def Agrees (σ : List Bool) (a : ℕ → Bool) : Prop := ∀ i (h : i < σ.length), σ[i] = a i
 
 /-- The diagonalization step: if `a` extends the first output of `step c σ τ` and `b` extends the
@@ -151,13 +163,11 @@ theorem step_spec {c : Code} {σ τ : List Bool} {a b : ℕ → Bool}
   · rw [show step c σ τ = (σ ++ [false], τ) by simp [step, h]] at hσ hτ
     obtain ⟨N, k, hk⟩ := evaln_complete.1 hx
     let M := max N τ.length
-    have hbits : bits ((List.range M).map b) = prefixOf (fun n => (b n).toNat) M := by
-      simp [bits, prefixOf, Function.comp_def]
     refine h ⟨((List.range M).map b, k, (a σ.length).toNat), ?_, ?_⟩
     · rw [List.prefix_iff_eq_take]
       exact List.ext_getElem (by simp; omega)
         fun i h₁ _ => by simp [hτ i h₁]
-    · rw [hbits]
+    · rw [prefixOf_bool_eq_bits]
       exact evaln_mono (prefixOf_prefix _ (le_max_left _ _)) le_rfl hk
 
 /-- The finite-extension construction. Stage `2e + 1` extends the first string against code `e`,
@@ -208,20 +218,22 @@ noncomputable def limA (n : ℕ) : Bool := (stage (2 * n + 2)).1.getD n false
 @[expose]
 noncomputable def limB (n : ℕ) : Bool := (stage (2 * n + 2)).2.getD n false
 
-private theorem agrees_of_prefix {f : ℕ → List Bool}
-    (hpref : ∀ {s t}, s ≤ t → f s <+: f t) (hlen : ∀ i, i < (f (2 * i + 2)).length) (s : ℕ) :
-    Agrees (f s) (fun n => (f (2 * n + 2)).getD n false) := fun i hi => by
+/-- Every stage of a prefix-monotone chain of binary strings agrees with the limit sequence
+extracted at indices `idx i` whenever `i < (f (idx i)).length`. -/
+theorem agrees_of_prefix {f : ℕ → List Bool} {idx : ℕ → ℕ}
+    (hpref : ∀ {s t}, s ≤ t → f s <+: f t) (hlen : ∀ i, i < (f (idx i)).length) (s : ℕ) :
+    Agrees (f s) (fun n => (f (idx n)).getD n false) := fun i hi => by
   dsimp only
   rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (hlen i), Option.getD_some,
-    (hpref (le_max_left s (2 * i + 2))).getElem hi,
-    (hpref (le_max_right s (2 * i + 2))).getElem (hlen i)]
+    (hpref (le_max_left s (idx i))).getElem hi,
+    (hpref (le_max_right s (idx i))).getElem (hlen i)]
 
 theorem agrees_limA (s : ℕ) : Agrees (stage s).1 limA :=
-  agrees_of_prefix (fun h => (stage_prefix h).1)
+  agrees_of_prefix (idx := fun n => 2 * n + 2) (fun h => (stage_prefix h).1)
     (fun i => by have := (length_stage (2 * i + 2)).1; omega) s
 
 theorem agrees_limB (s : ℕ) : Agrees (stage s).2 limB :=
-  agrees_of_prefix (fun h => (stage_prefix h).2)
+  agrees_of_prefix (idx := fun n => 2 * n + 2) (fun h => (stage_prefix h).2)
     (fun i => by have := (length_stage (2 * i + 2)).2; omega) s
 
 theorem not_limA_le_limB :

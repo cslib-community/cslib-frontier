@@ -380,11 +380,9 @@ theorem clauseOf_eq_map_shapeOf (x : List Bool) (n T j tag p : ℕ) :
                 show κ.t0 = decide (p / 2 ^ slotBits k State / 2 ^ colBits T = 0) from rfl,
                 decide_eq_true_eq]
               split_ifs with ht
-              · rw [relabel_tseitinClause, hκ, Key.initBit_ofFields]
-                rfl
+              · rw [relabel_tseitinClause, hκ, Key.initBit_ofFields]; rfl
               · rcases table tm l with ⟨op, a, b⟩
-                rw [relabel_tseitinClause, hκ, refSrc_eval, refSrc_eval]
-                rfl
+                rw [relabel_tseitinClause, hκ, refSrc_eval, refSrc_eval]; rfl
             · rfl
         · simp only [show κ.p0 = decide (p = 0) from rfl, h0, h1, h2, ↓reduceIte, decide_eq_true_eq]
           split_ifs with hp
@@ -589,10 +587,8 @@ theorem refSrc_inRange {j tag p : ℕ} {r : Ref k State}
   · simp only [Key.refSrc]; split <;> trivial
   · simp only [Key.refSrc, Key.guard_ofFields]
     split
-    · rename_i hg
-      refine ⟨slot_lt_two_pow l, ?_⟩
-      rw [colSrcOf_eval]
-      exact (Loc.labelCol_le l _).trans_lt ((hr hg).trans_le (numCols_le_two_pow T))
+    · exact ⟨slot_lt_two_pow l, colSrcOf_eval l cs _ T ▸
+        (Loc.labelCol_le l _).trans_lt ((hr ‹_›).trans_le (numCols_le_two_pow T))⟩
     · trivial
 
 /-- A property of every literal of every branch of `shapeOf` holds of its literals. -/
@@ -632,15 +628,14 @@ theorem inRange_of_mem_shapeOf {j tag p : ℕ} {sh : Shape}
     simp only [Bool.and_eq_true, Key.colOK_ofFields, decide_eq_true_eq] at hok
     have hw := table_inWindow (n := n) hok.2.lt tm l
     unfold posShape at hlit
-    generalize table tm l = e at hw hlit
-    obtain ⟨op, a, b⟩ := e
-    obtain ⟨hra, hrb⟩ := hw
+    rcases htab : table tm l with ⟨op, a, b⟩
+    rw [htab] at hw hlit
     split_ifs at hlit <;> rcases fst_mem_tseitinClause hlit with h | h | h <;> simp only [h]
     all_goals first
       | trivial
       | exact ⟨slot_lt_two_pow _, hc⟩
-      | exact refSrc_inRange hra
-      | exact refSrc_inRange hrb
+      | exact refSrc_inRange hw.1
+      | exact refSrc_inRange hw.2
   · exact ⟨slot_lt_two_pow _, Nat.two_pow_pos _⟩
 
 /-- **A shape looks up `x` only at a payload within it.** -/

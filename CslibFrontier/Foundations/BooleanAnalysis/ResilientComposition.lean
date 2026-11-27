@@ -100,9 +100,8 @@ theorem isUndetermined_composeBlocks_iff {m w : ℕ} (g : BitString m → Bool)
         (hj : j ∉ univ.filter fun j =>
           IsUndetermined (tribePart Q j) (h j) fun i => x (finProdFinEquiv (j, i))) :
         h j (fun i => u (finProdFinEquiv (j, i))) =
-          h j (fun i => x (finProdFinEquiv (j, i))) := by
-      by_contra hdiff
-      exact hj (mem_filter.mpr ⟨mem_univ j,
+          h j (fun i => x (finProdFinEquiv (j, i))) :=
+      not_ne_iff.mp fun hdiff => hj (mem_filter.mpr ⟨mem_univ j,
         fun i => u (finProdFinEquiv (j, i)), fun i => x (finProdFinEquiv (j, i)),
         fun i hi => hu _ (by simpa [mem_tribePart] using hi), fun _ _ => rfl, hdiff⟩)
     exact ⟨fun j => h j fun i => y (finProdFinEquiv (j, i)),
@@ -118,10 +117,8 @@ theorem isUndetermined_composeBlocks_iff {m w : ℕ} (g : BitString m → Bool)
           (∀ i ∉ tribePart Q j, v i = x (finProdFinEquiv (j, i))) ∧ h j v = u j := by
         by_cases hj : IsUndetermined (tribePart Q j) (h j) fun i => x (finProdFinEquiv (j, i))
         · obtain ⟨y₀, z₀, hy₀, hz₀, hdiff⟩ := hj
-          by_cases h1 : h j y₀ = u j
-          · exact ⟨y₀, hy₀, h1⟩
-          · exact ⟨z₀, hz₀,
-              (Bool.eq_not_of_ne (Ne.symm hdiff)).trans (Bool.eq_not_of_ne (Ne.symm h1)).symm⟩
+          exact if h1 : h j y₀ = u j then ⟨y₀, hy₀, h1⟩ else ⟨z₀, hz₀,
+            (Bool.eq_not_of_ne (Ne.symm hdiff)).trans (Bool.eq_not_of_ne (Ne.symm h1)).symm⟩
         · exact ⟨fun i => x (finProdFinEquiv (j, i)), fun _ _ => rfl, (hu j hj).symm⟩
       choose v hv_agree hv_val using hexj
       refine ⟨fun k => v (finProdFinEquiv.symm k).1 (finProdFinEquiv.symm k).2, fun k hk => ?_,
@@ -165,7 +162,6 @@ theorem expect_not_isUndetermined_and_eq_true {f : (ι → Bool) → Bool}
     (hf : ∀ x, f (fun i => !x i) = !f x) (Q : Finset ι) :
     𝔼 x, (if ¬IsUndetermined Q f x ∧ f x = true then (1 : ℝ) else 0) =
       (1 - coalitionInfluence (PMF.uniformOfFintype (ι → Bool)) Q f) / 2 := by
-  have hsym := expect_not_isUndetermined_symm hf Q
   have hsum : (𝔼 x, (if ¬IsUndetermined Q f x ∧ f x = true then (1 : ℝ) else 0)) +
       (𝔼 x, (if ¬IsUndetermined Q f x ∧ f x = false then (1 : ℝ) else 0)) =
       1 - coalitionInfluence (PMF.uniformOfFintype (ι → Bool)) Q f := by
@@ -174,9 +170,9 @@ theorem expect_not_isUndetermined_and_eq_true {f : (ι → Bool) → Bool}
         (if ¬IsUndetermined Q f x ∧ f x = true then (1 : ℝ) else 0) +
           (if ¬IsUndetermined Q f x ∧ f x = false then (1 : ℝ) else 0) =
         1 - if IsUndetermined Q f x then (1 : ℝ) else 0 := by
-      by_cases hu : IsUndetermined Q f x <;> cases hfx : f x <;> simp [hu]
+      by_cases hu : IsUndetermined Q f x <;> cases f x <;> simp [hu]
     simp_rw [hpt, expect_sub_distrib, expect_const univ_nonempty]
-  linarith
+  linarith [expect_not_isUndetermined_symm hf Q]
 
 /-- Same as `expect_not_isUndetermined_and_eq_true` for determined `false` outcomes. -/
 theorem expect_not_isUndetermined_and_eq_false {f : (ι → Bool) → Bool}
@@ -344,7 +340,6 @@ theorem coalitionInfluence_iterMaj3_le (d : ℕ) (Q : Finset (Fin (3 ^ d))) :
     dsimp only [iterMaj3]
     rw [coalitionInfluence_comp_finCast (@Nat.pow_succ' 3 d) _ Q,
       coalitionInfluence_composeBlocks_maj3 _ (fun _ => iterMaj3_not d) Q']
-    dsimp only
     let p (j : Fin 3) :=
       coalitionInfluence (PMF.uniformOfFintype (BitString (3 ^ d))) (tribePart Q' j) (iterMaj3 d)
     have hp_prod : 0 ≤ p 0 * p 1 * p 2 := mul_nonneg

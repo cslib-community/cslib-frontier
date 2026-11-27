@@ -300,9 +300,7 @@ theorem activeSetProb_eq_sum_liveGraphWeight
         have hE₁F := Finset.mem_powerset.mp hE₁_sub
         refine Finset.mem_filter.mpr ⟨Finset.mem_univ _,
           (hP _ _ fun e he => by simp [toE, digraphEquivEdgeFinset, mt (@hE₁F e) he]).mpr hPE₀,
-          fun e he => by
-            simp only [toE, digraphEquivEdgeFinset]
-            exact Finset.mem_union.mpr (Or.inr (hinE₁ he)),
+          fun e he => Finset.mem_union.mpr (Or.inr (hinE₁ he)),
           fun e he => by
             have he₀ : e ∉ E₀ := fun h => (Finset.mem_sdiff.mp (hE₀F h)).2 (hout he)
             have he₁ : e ∉ E₁ := fun h => Finset.disjoint_left.mp hdisjE₁ h he
@@ -781,11 +779,9 @@ process ([Kleinberg2007], Section 24.3, p. 622). -/
 theorem monotone_nonprogStepInfluence (T : ℕ) (t : Fin (T + 1)) :
     Monotone (M.nonprogStepInfluence T t) := by
   intro A B hAB
-  rw [M.nonprogStepInfluence_eq_toTimeLayered, M.nonprogStepInfluence_eq_toTimeLayered]
-  have hφ_mono : Monotone (fun X : Finset (V × Fin (T + 1)) =>
-      ((X.filter (·.2 = t)).card : ℝ)) :=
-    fun _ _ h => Nat.cast_le.mpr (Finset.card_le_card (Finset.filter_subset_filter _ h))
-  exact (M.toTimeLayered T).monotone_integral_thresholdFinal hφ_mono
+  simp only [M.nonprogStepInfluence_eq_toTimeLayered]
+  exact (M.toTimeLayered T).monotone_integral_thresholdFinal
+    (fun _ _ h => Nat.cast_le.mpr (Finset.card_le_card (Finset.filter_subset_filter _ h)))
     fun _ hx => mem_seedLayer0.mpr ⟨(mem_seedLayer0.mp hx).1, hAB (mem_seedLayer0.mp hx).2⟩
 
 /-- Submodularity of expected step-`t` active count in the `T`-step nonprogressive threshold
@@ -797,15 +793,14 @@ theorem isSubmodular_nonprogStepInfluence
   intro A B
   simp only [M.nonprogStepInfluence_eq_toTimeLayered, seedLayer0_union, seedLayer0_inter]
   let φ : Finset (V × Fin (T + 1)) → ℝ := fun X => ((X.filter (·.2 = t)).card : ℝ)
-  have hφ_mono : Monotone φ :=
-    fun _ _ h => Nat.cast_le.mpr (Finset.card_le_card (Finset.filter_subset_filter _ h))
   have hφ_sub : IsSubmodular φ := fun X Y => by
     dsimp only [φ]
     rw [Finset.filter_union, Finset.filter_inter_distrib]
     exact_mod_cast (Finset.card_union_add_card_inter _ _).le
   exact (M.toTimeLayered T).isSubmodular_integral_thresholdFinal
-    (M.isSubmodular_toTimeLayered_thresholdFn hlocal T) hφ_mono hφ_sub
-    (seedLayer0 T A) (seedLayer0 T B)
+    (M.isSubmodular_toTimeLayered_thresholdFn hlocal T)
+    (fun _ _ h => Nat.cast_le.mpr (Finset.card_le_card (Finset.filter_subset_filter _ h)))
+    hφ_sub (seedLayer0 T A) (seedLayer0 T B)
 
 end GeneralThresholdModel
 

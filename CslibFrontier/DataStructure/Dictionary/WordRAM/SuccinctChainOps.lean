@@ -91,8 +91,8 @@ theorem allChainsValid_of_zero (n_max : ℕ) {lm : ℕ × ℕ → ℕ} (hzero : 
 /-- `AllChainsValid` depends only on `lm`. -/
 theorem AllChainsValid.of_lm_eq {n_max : ℕ} {lm lm' : ℕ × ℕ → ℕ} {L : ℕ → ℕ → List ℕ}
     (h : AllChainsValid n_max lm L) (heq : lm' = lm) :
-    AllChainsValid n_max lm' L := by
-  subst heq; exact h
+    AllChainsValid n_max lm' L :=
+  heq ▸ h
 
 /-- Prepending `j_new < effBucketCap n_max` (with `j_new ∉ L b m'` for all `m'`) preserves
 `AllChainsValid`. -/
@@ -107,11 +107,9 @@ theorem lmPrependProg_allChainsValid {U V w n_max h_space base b m j_new : ℕ}
     let L' := fun b' m' => if b' = b ∧ m' = m then j_new :: L b m else L b' m'
     AllChainsValid n_max (lmAt base U V w n_max h_space s'.mem) L' := by
   intro s' L'
-  have hold_le : lmHead n_max (lmAt base U V w n_max h_space s.mem) b m ≤ effBucketCap n_max :=
-    (hvalid.1 b hb m hm).head_le_cap
-  have eff := lmPrependProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
-    (h_space := h_space) (base := base) hw hb hm hj_cap hj_n hold_le
-  rcases eff with ⟨_, _, _, _, _, hhead, hnext, hprev⟩
+  rcases lmPrependProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
+      (h_space := h_space) (base := base) hw hb hm hj_cap hj_n (hvalid.1 b hb m hm).head_le_cap
+    with ⟨_, _, _, _, _, hhead, hnext, hprev⟩
   refine ⟨fun b' hb' m' hm' => ?_, fun b' hb' m₁ hm₁ m₂ hm₂ j hj₁ hj₂ => ?_⟩
   · dsimp only [L']
     by_cases hbm : b' = b ∧ m' = m
@@ -147,10 +145,8 @@ theorem lmPrependProg_allChainsValid {U V w n_max h_space base b m j_new : ℕ}
         · rfl
   · by_cases hnew : b' = b ∧ j = j_new
     · rcases hnew with ⟨rfl, rfl⟩
-      have hm_eq {m'} (hm' : m' < numMicroPerBucket n_max) (hj : j ∈ L' b' m') : m' = m := by
-        by_contra hne
-        simp only [L', hne, and_false, ↓reduceIte] at hj
-        exact hj_not m' hm' hj
+      have hm_eq {m'} (hm' : m' < numMicroPerBucket n_max) (hj : j ∈ L' b' m') : m' = m :=
+        by_contra fun hne => hj_not m' hm' (by simpa only [L', hne, and_false, ↓reduceIte] using hj)
       exact (hm_eq hm₁ hj₁).trans (hm_eq hm₂ hj₂).symm
     · have hold (m') (hj : j ∈ L' b' m') : j ∈ L b' m' := by
         dsimp only [L'] at hj
@@ -175,13 +171,10 @@ theorem lmUnlinkProg_allChainsValid {U V w n_max h_space base b m j_del : ℕ}
       j ∈ L' b' m' ↔ j ∈ L b' m' ∧ ¬(b' = b ∧ j = j_del)) := by
   intro s' L'
   have hj_cap : j_del < effBucketCap n_max := (hvalid.1 b hb m hm).lt_cap_of_mem hmem
-  have hp_le : lmPrev n_max (lmAt base U V w n_max h_space s.mem) b j_del ≤ effBucketCap n_max :=
-    (hvalid.1 b hb m hm).prev_le_cap hmem
-  have hn_le : lmNext n_max (lmAt base U V w n_max h_space s.mem) b j_del ≤ effBucketCap n_max :=
-    (hvalid.1 b hb m hm).next_le_cap hmem
-  have eff := lmUnlinkProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
-    (h_space := h_space) (base := base) hw hb hm hj_cap hp_le hn_le
-  rcases eff with ⟨_, _, _, _, _, hhead, hnext, hprev⟩
+  rcases lmUnlinkProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
+      (h_space := h_space) (base := base) hw hb hm hj_cap
+      ((hvalid.1 b hb m hm).prev_le_cap hmem) ((hvalid.1 b hb m hm).next_le_cap hmem)
+    with ⟨_, _, _, _, _, hhead, hnext, hprev⟩
   refine ⟨⟨fun b' hb' m' hm' => ?_, fun b' hb' m₁ hm₁ m₂ hm₂ j hj₁ hj₂ => ?_⟩,
     fun b' hb' m' hm' j => ?_⟩
   · dsimp only [L']
@@ -328,10 +321,8 @@ theorem prependIfIndexedProg_allChainsValid {U V w n_max h_space base b m j_new 
   intro d s'
   by_cases hj_min : j_new < min n_max (effBucketCap n_max)
   · have hj_cap : j_new < effBucketCap n_max := (lt_min_iff.mp hj_min).2
-    have hold_le : lmHead n_max (lmAt base U V w n_max h_space s.mem) b m ≤ effBucketCap n_max :=
-      (hvalid.1 b hb m hm).head_le_cap
     have eff := lmPrependProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
-      (h_space := h_space) (base := base) hw hb hm hj_cap hj_n hold_le
+      (h_space := h_space) (base := base) hw hb hm hj_cap hj_n (hvalid.1 b hb m hm).head_le_cap
     have hval' := lmPrependProg_allChainsValid (U := U) (V := V) (w := w) (n_max := n_max)
       (h_space := h_space) (base := base) hw hb hm hj_cap hj_n hvalid hj_not
     simp only [s', d, prependIfIndexedProg, prependIfIndexedGenProg, p_minCap_mk,
@@ -450,12 +441,9 @@ theorem unlinkIfIndexedProg_allChainsValid {U V w n_max h_space base b m j_del :
   by_cases hj_min : j_del < min n_max (effBucketCap n_max)
   · have hj_cap : j_del < effBucketCap n_max := (lt_min_iff.mp hj_min).2
     have hmem := hmem_if hj_cap
-    have hp_le : lmPrev n_max (lmAt base U V w n_max h_space s.mem) b j_del ≤ effBucketCap n_max :=
-      (hvalid.1 b hb m hm).prev_le_cap hmem
-    have hn_le : lmNext n_max (lmAt base U V w n_max h_space s.mem) b j_del ≤ effBucketCap n_max :=
-      (hvalid.1 b hb m hm).next_le_cap hmem
     have eff := lmUnlinkProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
-      (h_space := h_space) (base := base) hw hb hm hj_cap hp_le hn_le
+      (h_space := h_space) (base := base) hw hb hm hj_cap
+      ((hvalid.1 b hb m hm).prev_le_cap hmem) ((hvalid.1 b hb m hm).next_le_cap hmem)
     have ⟨hval', hmem'⟩ := lmUnlinkProg_allChainsValid (U := U) (V := V) (w := w)
       (n_max := n_max) (h_space := h_space) (base := base) hw hb hm hvalid hmem
     simp only [s', d, unlinkIfIndexedProg, unlinkIfIndexedGenProg, p_minCap_mk,
@@ -637,10 +625,8 @@ theorem copyLastPayloadProg_effect {U V w n_max h_space base b phys_del : ℕ}
     lmAt base U V w n_max h_space s'.mem = lmAt base U V w n_max h_space s.mem ∧
     gmAt base U V w n_max h_space s'.mem = gmAt base U V w n_max h_space s.mem := by
   intro gm phys_last q_last v_last s'
-  dsimp only [gm, phys_last, q_last, v_last] at *
-  have hphys_last : slotOf n_max (gmAt base U V w n_max h_space s.mem) b
-      (bCount n_max (gmAt base U V w n_max h_space s.mem) b - 1) < n_max :=
-    (slotOf_lt_and_injective hinv).1 b hb _ (by omega)
+  have hphys_last : phys_last < n_max :=
+    (slotOf_lt_and_injective hinv).1 b hb _ (Nat.sub_lt hbc Nat.one_pos)
   have hq_lt : q_last < 2 ^ quotientBits U n_max := quotAt_lt base U w n_max h_space s.mem phys_last
   have hv_lt : v_last < 2 ^ valBits V := valAt_lt base U V w n_max h_space s.mem phys_last
   let s₁ := (Memory.spec 0).clientState s
@@ -651,9 +637,9 @@ theorem copyLastPayloadProg_effect {U V w n_max h_space base b phys_del : ℕ}
     hw hphys_del hv_lt s₁
   have hs' : s' = (Memory.spec 0).clientState s₁
       (writeValProg U V w n_max h_space ((base, phys_del), v_last)) := by
-    dsimp only [s', s₁, q_last, v_last, phys_last, gm]
-    simp only [copyLastPayloadProg, copyLastPayloadGenProg, lastSlotOfGenProg_mk,
-      readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk]
+    simp only [s', s₁, q_last, v_last, phys_last, gm, copyLastPayloadProg, copyLastPayloadGenProg,
+      lastSlotOfGenProg_mk, readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk,
+      writeValGenProg_mk]
     rw [StateTransitionSpec.clientState_bind, clientState_lastSlotOfProg,
       clientResult_lastSlotOfProg (base, b) s hinv hb hbc,
       StateTransitionSpec.clientState_bind, clientState_readQuotProg,

@@ -750,10 +750,8 @@ private theorem roberts_with_gamma [Fintype ι] [DecidableEq ι] [Fintype Ω] [D
     ∃ w : ι → ℝ, (∀ i, 0 ≤ w i) ∧ (∑ i, w i = 1) ∧
       IsAffineMaximizerFor f Set.univ w (fun x => gamma f x₀ x) := by
   have : Nonempty ι := nonempty_of_surjective_of_two_le_card hf_onto (by omega)
-  have hpad : IsPADOn f (fun _ => Set.univ) :=
-    (isWeaklyMonotoneOn_univ_iff.2 hf_wmon).isPADOn
-  have hgw : IsGeneralizedWMONOn f (fun _ => Set.univ) :=
-    isGeneralizedWMON_of_isPAD hpad
+  have hpad := (isWeaklyMonotoneOn_univ_iff.2 hf_wmon).isPADOn
+  have hgw := isGeneralizedWMON_of_isPAD hpad
   obtain ⟨y₀, hy₀, _⟩ := exists_ne_pair hcard x₀ x₀
   have hxy : x₀ ≠ y₀ := hy₀.symm
   obtain ⟨L, hL⟩ := geometric_hahn_banach_point_open
@@ -884,10 +882,8 @@ theorem exists_weightedWelfare_of_isNeutral_of_isWeaklyMonotone [Fintype ι] [De
   have hf_onto : Function.Surjective f := hneut.surjective
   have : Nonempty ι := nonempty_of_surjective_of_two_le_card hf_onto (by omega)
   have ⟨x₀⟩ : Nonempty Ω := Fintype.card_pos_iff.1 (by omega)
-  have hpad : IsPADOn f (fun _ => Set.univ) :=
-    (isWeaklyMonotoneOn_univ_iff.2 hf_wmon).isPADOn
-  have hgw : IsGeneralizedWMONOn f (fun _ => Set.univ) :=
-    isGeneralizedWMON_of_isPAD hpad
+  have hpad := (isWeaklyMonotoneOn_univ_iff.2 hf_wmon).isPADOn
+  have hgw := isGeneralizedWMON_of_isPAD hpad
   have hgamma_le : ∀ x y : Ω, x ≠ y → gamma f x y ≤ 0 := fun x y hxy => by
     refine le_of_forall_pos_le_add fun ε hε => ?_
     let v : ι → Ω → ℝ := fun _ z => if z = x then ε else if z = y then 0 else -1
@@ -928,8 +924,7 @@ theorem exists_isAffineMaximizerFor_range_of_isWeaklyMonotone [Fintype ι] [Deci
   classical
   let _ : Fintype (Set.range f) := hfin.fintype
   have hcardR : 3 ≤ Fintype.card (Set.range f) := by
-    have := (Set.ncard_eq_toFinset_card' (Set.range f)).trans (Set.toFinset_card _)
-    omega
+    rwa [Set.ncard_eq_toFinset_card', Set.toFinset_card] at hcard
   let ext (u : ι → Set.range f → ℝ) : ι → Ω → ℝ :=
     fun i ω => if h : ω ∈ Set.range f then u i ⟨ω, h⟩ else 0
   let g : (ι → Set.range f → ℝ) → Set.range f := fun u => ⟨f (ext u), Set.mem_range_self _⟩
@@ -964,18 +959,16 @@ theorem exists_isAffineMaximizerFor_range_of_isWeaklyMonotone [Fintype ι] [Deci
     fun i r => if r.val = x then b i x + ε else b i r.val
   have hfu : f (ext u) = x := hpad fun i z hz hzne => by
     simp only [ext, hz, Set.mem_range_self b, ↓reduceDIte, u, hzne, x, ↓reduceIte]; linarith
-  have hle := (hmax u).2 ⟨y, hy⟩ (Set.mem_univ _)
-  have hgu : g u = ⟨x, Set.mem_range_self b⟩ := Subtype.ext hfu
-  rw [hgu] at hle
   calc affineScore w c b y
     _ = affineScore w c' u ⟨y, hy⟩ := by
           simp only [affineScore, c, hy, ↓reduceDIte]
           exact congrArg (c' ⟨y, hy⟩ + ·)
             (Finset.sum_congr rfl fun i _ => by simp only [u, hyx, ↓reduceIte])
-    _ ≤ affineScore w c' u ⟨x, Set.mem_range_self b⟩ := hle
+    _ ≤ affineScore w c' u ⟨x, Set.mem_range_self b⟩ :=
+          (Subtype.ext hfu : g u = ⟨x, Set.mem_range_self b⟩) ▸
+            (hmax u).2 ⟨y, hy⟩ (Set.mem_univ _)
     _ = affineScore w c b x + ε := by
-          simp only [affineScore, c, u, ↓reduceIte, mul_add, Finset.sum_add_distrib,
-            ← Finset.sum_mul, hsum, one_mul, add_assoc]
-          rw [dite_eq_left (Set.mem_range_self b)]
+          simp only [affineScore, c, u, x, Set.mem_range_self b, ↓reduceDIte, ↓reduceIte, mul_add,
+            Finset.sum_add_distrib, ← Finset.sum_mul, hsum, one_mul, add_assoc]
 
 end Cslib.GameTheory.Mechanism

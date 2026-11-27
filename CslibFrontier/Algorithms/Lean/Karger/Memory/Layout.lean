@@ -194,8 +194,7 @@ theorem abs_eq_and_inv {s : Memory.State} {k : ℕ} {W : Fin k → Fin k → ℕ
   have habs : abs L s = ⟨k, W⟩ := by
     rw [abs, hsize]
     exact congrArg (Graph.mk k) (funext₂ hmat)
-  exact ⟨habs, hlim, hC, hsize ▸ hk, by rw [habs]; exact hW, by rw [habs]; exact hdeg,
-    by rw [habs]; exact htotal, by rw [htotal]; exact hfit⟩
+  exact ⟨habs, hlim, hC, hsize ▸ hk, habs ▸ hW, habs ▸ hdeg, habs ▸ htotal, htotal ▸ hfit⟩
 
 /-- The cells of a state satisfying the invariant hold its abstraction. -/
 theorem Inv.cells {s : Memory.State} (hs : Inv L w s) {k : ℕ} {W : Fin k → Fin k → ℕ}
@@ -260,10 +259,8 @@ theorem Layout.not_owns_of_not_mem {a : ℕ} (ha : a ∉ L.footprint) :
 
 /-- The weight field is allocated. -/
 theorem Inv.weight_le {s : Memory.State} (hs : Inv L w s) :
-    L.weight.base + L.weight.length ≤ s.frontier := by
-  have := hs.allocated
-  simp only [Layout.weight, Layout.limit] at this ⊢
-  omega
+    L.weight.base + L.weight.length ≤ s.frontier :=
+  hs.allocated
 
 /-- The abstraction reads only the region. -/
 theorem abs_congr {s s' : Memory.State} (hs : Inv L w s)
@@ -280,11 +277,10 @@ theorem Inv.congr {s s' : Memory.State} (hs : Inv L w s)
   have habs := abs_congr hs h
   have hsize := h _ L.size_mem_footprint
   have htot := h _ L.total_mem_footprint
-  refine ⟨hs.allocated.trans hf, hs.capacity_fits, hsize ▸ hs.size_le, habs ▸ hs.multigraph, ?_,
-    by rw [habs, htot]; exact hs.total_eq, htot ▸ hs.total_fits⟩
-  rw [habs]
-  intro i
-  rw [h _ (L.degree_mem_footprint (i.isLt.trans_le hs.size_le)), hs.degree_eq i]
+  exact ⟨hs.allocated.trans hf, hs.capacity_fits, hsize ▸ hs.size_le, habs ▸ hs.multigraph,
+    habs ▸ fun i => (h _ (L.degree_mem_footprint (i.isLt.trans_le hs.size_le))).trans
+      (hs.degree_eq i),
+    htot.trans (habs ▸ hs.total_eq), htot ▸ hs.total_fits⟩
 
 /-! ## Prefix sums -/
 
@@ -364,15 +360,15 @@ theorem wp_scan {b : Block} {s : Memory.State} :
     have hsplit := sum_eq_sum_Ico_succ_bot (show i < i + (n + 1) by omega)
       fun j => s.mem (b.base + j)
     split_ifs with hx
-    · have h := hQ i le_rfl (by omega) (by simp) (by simpa using hx)
-      simp only [Ico_self, sum_empty, Nat.sub_zero, Nat.add_sub_cancel_left] at h
-      simpa using h
-    · refine wp_scan n (i + 1) (r - s.mem (b.base + i)) _ (fun j hj => hf j (by omega))
-        (by rw [show i + 1 + n = i + (n + 1) by omega]; omega) fun u hu₁ hu₂ hle hlt => ?_
+    · simpa using hQ i le_rfl (by omega) (by simp) (by simpa using hx)
+    · rw [hsplit, ← Nat.add_comm 1 n, ← Nat.add_assoc] at hr
+      refine wp_scan n (i + 1) (r - s.mem (b.base + i)) _ (fun j hj => hf j (by omega)) (by omega)
+        fun u hu₁ hu₂ hle hlt => ?_
       have h₁ := sum_eq_sum_Ico_succ_bot (show i < u by omega) fun j => s.mem (b.base + j)
       have h₂ := sum_eq_sum_Ico_succ_bot (show i < u + 1 by omega) fun j => s.mem (b.base + j)
+      have hcost : u + 1 - i = u + 1 - (i + 1) + 1 := by omega
       have h := hQ u (by omega) (by omega) (by omega) (by omega)
-      rwa [h₁, ← Nat.sub_sub, show u + 1 - i = u + 1 - (i + 1) + 1 by omega] at h
+      rwa [h₁, ← Nat.sub_sub, hcost] at h
 
 
 /-- The degree array as a sum over a range is the total doubled weight. -/

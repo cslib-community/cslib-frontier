@@ -170,9 +170,8 @@ theorem next_accepted (bits : K ≃+ BitString b) (scalar : Fin s ≃ {c : K // 
     (m : Fin a) (f : Fin (width D (ℓ * b) s)) :
     next hk bits scalar menu x (finProdFinEquiv (accepted hk m, f)) =
       x (finProdFinEquiv (accepted hk m, f)) := by
-  simp only [next, Equiv.symm_apply_apply]
-  rw [show Fin.cast hk.symm (accepted hk m) = Fin.castAdd (arity p) m from Fin.ext rfl,
-    Fin.addCases_left]
+  have hcast : Fin.cast hk.symm (accepted hk m) = Fin.castAdd (arity p) m := Fin.ext rfl
+  simp only [next, Equiv.symm_apply_apply, hcast, Fin.addCases_left]
 
 /-- After a phase, the pending block holds the sorted enriched records without their flags. -/
 theorem next_pending (bits : K ≃+ BitString b) (scalar : Fin s ≃ {c : K // c ≠ 0})
@@ -180,8 +179,8 @@ theorem next_pending (bits : K ≃+ BitString b) (scalar : Fin s ≃ {c : K // c
     (j : Fin (arity p)) (f : Fin (width D (ℓ * b) s)) :
     next hk bits scalar menu x (finProdFinEquiv (pending hk j, f)) =
       sortedPending hk bits scalar menu x j (Fin.natAdd 1 f) := by
-  simp only [next, Equiv.symm_apply_apply]
-  rw [show Fin.cast hk.symm (pending hk j) = Fin.natAdd a j from Fin.ext rfl, Fin.addCases_right]
+  have hcast : Fin.cast hk.symm (pending hk j) = Fin.natAdd a j := Fin.ext rfl
+  simp only [next, Equiv.symm_apply_apply, hcast, Fin.addCases_right]
 
 section Correctness
 
@@ -326,12 +325,8 @@ theorem good_next [Fintype K] [DecidableEq K] (bits : K ≃+ BitString b)
   have hEr (i : Fin (arity p)) : E (Sum.inr i) = pending hk i := Fin.ext rfl
   let τ : Equiv.Perm (Fin (2 ^ D)) :=
     E.symm.trans ((Equiv.sumCongr (Equiv.refl _) σ).trans E)
-  have hτa (m : Fin a) : τ (accepted hk m) = accepted hk m := by
-    simp only [τ, Equiv.trans_apply, ← hEl, Equiv.symm_apply_apply, Equiv.sumCongr_apply,
-      Sum.map_inl, Equiv.refl_apply]
-  have hτp (i : Fin (arity p)) : τ (pending hk i) = pending hk (σ i) := by
-    simp only [τ, Equiv.trans_apply, ← hEr, Equiv.symm_apply_apply, Equiv.sumCongr_apply,
-      Sum.map_inr]
+  have hτa (m : Fin a) : τ (accepted hk m) = accepted hk m := by simp [τ, ← hEl]
+  have hτp (i : Fin (arity p)) : τ (pending hk i) = pending hk (σ i) := by simp [τ, ← hEr]
   let dirs' : Fin (2 ^ D) → Fin ℓ → K :=
     fun m => Sum.elim (fun m' => dirs (accepted hk m')) (fun j => menu e (σ j)) (E.symm m)
   have hda (m : Fin a) : dirs' (accepted hk m) = dirs (accepted hk m) := by

@@ -117,8 +117,7 @@ private theorem putUnits_spec (hκ : κ.Injective) (hub : 0 < ub) {v : α → Un
       putUnits ub (cs.map κ) (r ++ [true]) t = if unitCount ub r = cs.length then [t'] else []
   | [], r, _, _, t => ⟨t, by simp [unitCount], by simp [putUnits, unitCount]⟩
   | a₀ :: cs, r, hnd, hv, t => by
-    have h0 := hv 0 (by simp)
-    simp only [List.getElem_cons_zero] at h0
+    have h0 : v a₀ = unitsOf ub r 0 := hv 0 (by simp)
     set t₀ := tset (κ a₀) (ofBits (v a₀).bits) t
     have ht₀ : StoreBound ub t → StoreBound ub t₀ := fun h =>
       h.tset _ _ (UnitContent.length_bits_le _)
@@ -133,8 +132,8 @@ private theorem putUnits_spec (hκ : κ.Injective) (hub : 0 < ub) {v : α → Un
       refine ⟨t', fun h => ⟨fun hb => (h1 (by simpa [hc] using h)).1 (ht₀ hb), fun a => ?_⟩, ?_⟩
       · rw [(h1 (by simpa [hc] using h)).2, hget]
         by_cases ha : a = a₀ <;> simp [ha, (List.nodup_cons.1 hnd).1]
-      · rw [List.drop_append_of_le_length hr, h2, hc]
-        simp
+      · simpa only [List.drop_append_of_le_length hr, hc, List.length_cons,
+          Nat.add_right_cancel_iff] using h2
     · rw [List.drop_eq_nil_of_le (by simp; omega)]
       have hc : unitCount ub r = 1 := by simp [unitCount, Nat.div_eq_of_lt hr]
       refine ⟨t₀, fun h => ⟨ht₀, fun a => ?_⟩, ?_⟩
@@ -177,8 +176,8 @@ private theorem unitCount_eq_of_putUnits_ne_nil (hub : 0 < ub) :
     rw [putUnits, ite_eq_right_iff.2 (by simp)] at h
     rcases le_or_gt ub r.length with hr | hr
     · rw [List.drop_append_of_le_length hr] at h
-      rw [List.length_cons, ← unitCount_eq_of_putUnits_ne_nil hub ks _ _ h]
-      simp only [unitCount, List.length_drop, Nat.div_eq_sub_div hub hr]
+      simp only [List.length_cons, ← unitCount_eq_of_putUnits_ne_nil hub ks _ _ h, unitCount,
+        List.length_drop, Nat.div_eq_sub_div hub hr]
     · rw [List.drop_eq_nil_of_le (by simp; omega)] at h
       cases ks <;> simp_all [putUnits, unitCount, Nat.div_eq_of_lt hr]
 
@@ -254,8 +253,7 @@ private theorem weightedSum_run_roleTable (L : Cut.Law F) (p : L.Role)
     rw [Transducer.weightedSum_run_succ _ rfl, ← (Fin.consEquiv fun _ => RoleChoice L p).sum_comp,
       Fintype.sum_prod_type]
     refine sum_congr rfl fun z _ => ?_
-    simp only [Transducer.Choice.apply]
-    rw [weightedSum_run_roleTable L p htab B, mul_sum]
+    rw [Transducer.Choice.apply, weightedSum_run_roleTable L p htab B, mul_sum]
     refine sum_congr rfl fun f _ => ?_
     simp only [val_termOf (htab _ _ _), Fin.consEquiv_apply,
       Fin.prod_univ_succ, Fin.cons_zero, Fin.cons_succ, sideString, List.ofFn_succ,
@@ -272,9 +270,7 @@ theorem exists_of_mem_run_roleTable (L : Cut.Law F) (p : L.Role) :
       q ∈ Transducer.run θ (roleTable θ L p) B s → ∃ ι : Fin B → L.Index, ∀ i,
         (q.2.outputs i).length = ∑ k, (L.labelLength + L.length (ι k) ((channelList L p).get i)) +
           (s.outputs i).length
-  | 0, s, q, h => by
-    rw [Transducer.run_zero, List.mem_singleton] at h
-    exact ⟨Fin.elim0, fun i => by simp [h]⟩
+  | 0, s, q, h => ⟨Fin.elim0, fun _ => by simp_all [Transducer.run_zero]⟩
   | B + 1, s, q, h => by
     rw [Transducer.run_succ] at h
     obtain ⟨a, ha, r, hr, rfl⟩ := List.mem_weightedBind_iff.1 h
@@ -297,8 +293,8 @@ theorem simulates_role (hkey : key.Injective) (hub : 0 < ub) {r : M.Role}
     Simulates θ mu cb kinds T key [roleInstruction P n o key tg r]
       (roleWriteStep (ub := ub) P n o grp g r) := by
   intro t σ Ψ Ψ' hst hΨ
-  have hct (u) : (tget (key ⟨M.roleParty r, u⟩) t).path = (σ ⟨M.roleParty r, u⟩).bits := by
-    rw [hst.2, path_ofBits]
+  have hct (u) : (tget (key ⟨M.roleParty r, u⟩) t).path = (σ ⟨M.roleParty r, u⟩).bits :=
+    hst.2 _ ▸ path_ofBits _
   rw [scriptSem_cons, List.weightedSum_weightedBind]
   simp only [scriptSem_nil, List.weightedSum_singleton_one, roleInstruction, instructionSem, hkind,
     roleSem]

@@ -216,19 +216,12 @@ def solutionOf (vs : List ℕ) (σ : ℕ → Bool) : List (Literal ℕ) := vs.ma
 theorem mem_solutionOf {vs : List ℕ} {σ : ℕ → Bool} {l : Literal ℕ} :
     l ∈ solutionOf vs σ ↔ l.1 ∈ vs ∧ σ l.1 = l.2 := by
   obtain ⟨v, b⟩ := l
-  simp only [solutionOf, List.mem_map, Prod.mk.injEq]
-  constructor
-  · rintro ⟨w, hw, rfl, rfl⟩
-    exact ⟨hw, rfl⟩
-  · rintro ⟨hv, rfl⟩
-    exact ⟨v, hv, rfl, rfl⟩
+  simp [solutionOf]
 
 theorem contains_solutionOf {vs : List ℕ} {σ : ℕ → Bool} {l : Literal ℕ} (hv : l.1 ∈ vs) :
     (solutionOf vs σ).contains l = Literal.eval σ l := by
   obtain ⟨v, b⟩ := l
-  rw [Bool.eq_iff_iff, List.contains_iff_mem, mem_solutionOf]
-  simp only [Literal.eval, beq_iff_eq]
-  exact ⟨fun h => h.2, fun h => ⟨hv, h⟩⟩
+  simp [mem_solutionOf, Literal.eval, hv, Bool.beq_eq_decide_eq]
 
 /-- The full assignment of `σ` assigns the variables of `vs` as `σ` does. -/
 theorem assignOf_solutionOf {vs : List ℕ} {σ : ℕ → Bool} {v : ℕ} (hv : v ∈ vs) :
@@ -249,11 +242,8 @@ theorem solves_solutionOf {vs : List ℕ} {σ : ℕ → Bool} {cs : List PBConst
     solves (solutionOf vs σ) cs = true := by
   simp only [solves, Bool.and_eq_true, List.all_eq_true, Bool.not_eq_true',
     decide_eq_true_eq]
-  refine ⟨fun l hl => ?_, fun c hc => ?_⟩
-  · obtain ⟨hv, hσ⟩ := mem_solutionOf.1 hl
-    rw [Bool.eq_false_iff, ne_eq, List.contains_iff_mem, mem_solutionOf]
-    obtain ⟨v, b⟩ := l
-    simp_all [Std.Sat.Literal.negate]
+  refine ⟨fun ⟨v, b⟩ hl => ?_, fun c hc => ?_⟩
+  · simp_all [mem_solutionOf, Std.Sat.Literal.negate]
   · obtain ⟨hc, hvs⟩ := h c hc
     rw [List.filter_congr fun t ht => contains_solutionOf (by
       obtain ⟨a, v, b⟩ := t
@@ -319,15 +309,8 @@ theorem exists_checkRed_bounds_of_isOptimal {F : List PBConstr} {f : Objective} 
   set s₁ := (s₀.log F (some f) ρ).improve f (f.eval (assignOf ρ))
   have hval : f.eval (assignOf ρ) = f.eval σ := eval_assignOf_solutionOf hf
   have hstep : stepTop F (some f) s₀ (.soli ρ) = some s₁ := by
-    have hs : solves ρ (s₀.db.map (·.2)) = true := by
-      simp only [s₀, State.init, map_snd_initDb]
-      exact solves_initDb hvs hσ
-    have ha : assigns ρ f = true :=
-      assignsAll_solutionOf fun x hx => by
-        obtain ⟨e, he, rfl⟩ := List.mem_map.1 hx
-        exact hf e he
-    simp only [stepTop, s₀, State.init] at hs ⊢
-    simp [hs, ha, s₁, s₀, State.init]
+    have ha : assigns ρ f = true := assignsAll_solutionOf (List.forall_mem_map.2 hf)
+    simpa [stepTop, s₁, s₀, State.init, map_snd_initDb, ha] using solves_initDb hvs hσ
   have hid : IdOk s₁.db s₁.next := (idOk_initDb F).cons le_rfl _
   obtain ⟨ss, hcp, db', n', hrun, q, hq⟩ := exists_runTop_contra F (some f) s₁ hid
     fun ⟨τ, hτ⟩ => by
@@ -336,8 +319,7 @@ theorem exists_checkRed_bounds_of_isOptimal {F : List PBConstr} {f : Objective} 
       exact absurd (hopt τ (holds_of_allHold_initDb fun e he =>
         hτ e (List.mem_cons_of_mem _ he))) (not_le.2 himp)
   refine ⟨ss, q, hcp, ?_⟩
-  unfold checkRed
-  rw [runTop_cons, hstep, Option.bind_some, hrun]
+  rw [checkRed, runTop_cons, hstep, Option.bind_some, hrun]
   simp [checkConclusion, s₁, s₀, State.improve, State.addCore, State.log, State.init, lowerTo,
     objValue, boundsOk, hq, hval]
 
@@ -358,10 +340,8 @@ theorem isLeast_iff_exists_checkRed_bounds {F : List PBConstr} {f : Objective} {
     exact ⟨_, q, rfl, hP⟩
   · rintro ⟨P, q, hc, hP⟩
     obtain ⟨σ, hσ, hle⟩ := exists_eval_le_of_checkRed hP hc
-    refine ⟨?_, ?_⟩
-    · exact ⟨σ, hσ, le_antisymm hle (le_eval_of_checkRed hP hc σ hσ)⟩
-    · rintro _ ⟨τ, hτ, rfl⟩
-      exact le_eval_of_checkRed hP hc τ hτ
+    exact ⟨⟨σ, hσ, le_antisymm hle (le_eval_of_checkRed hP hc σ hσ)⟩,
+      Set.forall_mem_image.2 (le_eval_of_checkRed hP hc)⟩
 
 /-- **`BOUNDS INF` completeness**: for every objective and preserved set, an unsatisfiable formula
 has an accepted proof of `BOUNDS INF : q INF` made of cutting planes steps. -/
@@ -484,10 +464,9 @@ theorem exists_checkRed_enumComplete_of_sols {F : List PBConstr} {Pres vs : List
   have hs₀ : SolxReady Pres vs s₀ :=
     { pres := rfl, obj := rfl, chk := rfl, presChanged := rfl, idOk := idOk_initDb F
       vars := fun e he x hx => by
-        obtain ⟨c, hc, hce⟩ := List.mem_map.1
-          (by rw [← map_snd_initDb]; exact List.mem_map_of_mem he : e.2 ∈ F.map normalize)
-        rw [← hce] at hx
-        exact hvs c hc (mem_vars_of_mem_vars_normalize hx) }
+        have he' : e.2 ∈ F.map normalize := map_snd_initDb F ▸ List.mem_map_of_mem he
+        obtain ⟨c, hc, hce⟩ := List.mem_map.1 he'
+        exact hvs c hc (mem_vars_of_mem_vars_normalize (hce ▸ hx)) }
   obtain ⟨s', hrun, hs', hlen, hexcl⟩ := exists_runTop_solx (F := F) hP σs s₀ hs₀
     (fun σ hσ => allHold_initDb (hσs σ hσ)) hnd
   obtain ⟨ss, hcp, db', n', hrun', q, hq⟩ := exists_runTop_contra F none s' hs'.idOk
@@ -496,11 +475,7 @@ theorem exists_checkRed_enumComplete_of_sols {F : List PBConstr} {Pres vs : List
       obtain ⟨σ, hσ, he⟩ := List.mem_map.1 (hall _ ⟨τ, holds_of_allHold_initDb hτ₀, rfl⟩)
       exact hτσs σ hσ he.symm
   refine ⟨ss, q, hcp, ?_⟩
-  have hrun₂ : runTop F none s₀ (σs.map (fun σ => .solx (solutionOf vs σ)) ++ ss.map .step) =
-      some { s' with db := db', next := n' } := by
-    rw [runTop_append, hrun, Option.bind_some, hrun']
-  unfold checkRed
-  rw [hrun₂]
+  rw [checkRed, runTop_append, hrun, Option.bind_some, hrun']
   simp [checkConclusion, hs'.pres, hlen, s₀, State.init, hq]
 
 /-- **The solutions of `F` have exactly `n` distinct projections to the preserved set `Pres` iff

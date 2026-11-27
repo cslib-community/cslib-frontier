@@ -166,11 +166,9 @@ theorem bandMargin_mono : Monotone bandMargin :=
   fun _ _ hab => Nat.add_le_add_left (Nat.div_le_div_right (bandStart_mono hab)) _
 
 theorem bandWidth_le_two_pow (k : ℕ) : bandWidth k ≤ 2 ^ k := by
-  cases k with
-  | zero => decide
-  | succ k =>
-    simp only [bandWidth, bandEnd, bandStart]
-    have hpow : 2 ^ (k + 1) = 2 * 2 ^ k := by ring
+  rcases k with _ | k
+  · decide
+  · rw [bandWidth, bandEnd, bandStart, pow_succ]
     omega
 
 theorem mem_band_bandIdx (m : ℕ) : bandStart (bandIdx m) ≤ m ∧ m < bandEnd (bandIdx m) := by
@@ -202,14 +200,13 @@ theorem ten_add_two_mul_le_bandMargin (k : ℕ) : 10 + 2 * k ≤ bandMargin k :=
         calc 2 * (n + 1 + 1) = 2 * (n + 1) + 2 := by ring
           _ ≤ 2 ^ (n + 1) + 2 * 2 ^ n := Nat.add_le_add ih (by omega)
           _ = 2 ^ (n + 1 + 1) := by ring
-  have hp : 2 ^ (m + 2) = 4 * 2 ^ m := by ring
+  rw [pow_add]
   omega
 
 theorem two_mul_bandStart_gt_of_maxBand_le {t k : ℕ} (hk : maxBand t ≤ k) :
     t + bandMargin k < 2 * bandStart k := by
-  have hbase_lt : t + mulBaseMargin < bandStart (maxBand t) :=
-    Nat.lt_pow_succ_log_self (by decide) (t + mulBaseMargin)
-  have hD_ge : bandStart (maxBand t) ≤ bandStart k := bandStart_mono hk
+  have hlt : t + mulBaseMargin < bandStart k :=
+    (Nat.lt_pow_succ_log_self (by decide) _).trans_le (bandStart_mono hk)
   have hD2 : 2 ≤ bandStart k := bandStart_mono (show 2 ≤ k by rw [maxBand] at hk; omega)
   unfold bandMargin
   omega
@@ -221,9 +218,8 @@ theorem three_mul_bandStart_le_four_mul_drop {t k : ℕ} {p : ℕ × ℕ}
     (hp : p ∈ bandPairs t (k + 1)) :
     4 * p.1 + 3 * bandStart (k + 1) ≤ 4 * (t + mulBaseMargin) ∧
       4 * p.2 + 3 * bandStart (k + 1) ≤ 4 * (t + mulBaseMargin) := by
-  obtain ⟨_, hlo, _, hsum⟩ := (mem_filter.mp hp)
-  have hp1 : bandStart (k + 1) ≤ p.1 := hlo.trans (min_le_left _ _)
-  have hp2 : bandStart (k + 1) ≤ p.2 := hlo.trans (min_le_right _ _)
+  obtain ⟨_, hlo, _, hsum⟩ := mem_filter.mp hp
+  rw [le_min_iff] at hlo
   unfold bandMargin at hsum
   omega
 
@@ -275,9 +271,8 @@ theorem bandFoldMod_eq_bandFold_emod (x y : ℕ → ℤ) (t q : ℕ) :
 retaining only diagonals `t - q < i + j ≤ t + bandMargin k` in each band. -/
 theorem mulResidue_eq_mulApprox_emod (x y : ℕ → ℤ) (t q : ℕ) :
     mulResidue x y t q = mulApprox x y t % (2 : ℤ) ^ q := by
-  unfold mulResidue mulApprox
-  rw [bandFoldMod_eq_bandFold_emod x y t q (maxBand t) le_rfl, Nat.sub_self, bandMargin_zero,
-    ← ediv_two_pow_emod_eq]
+  rw [mulResidue, mulApprox, bandFoldMod_eq_bandFold_emod x y t q (maxBand t) le_rfl,
+    Nat.sub_self, bandMargin_zero, ← ediv_two_pow_emod_eq]
 
 end ModularResidues
 

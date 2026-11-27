@@ -123,18 +123,12 @@ private theorem fillConst_loop_spec {w base val count : ℕ} {s : Memory.State}
       simp only [memoryCost_bind', memoryCost_write, memoryCost_pure]
       decide
     have hres : (Memory.spec 0).clientResult t (fillConstStep ((base, val), k)) = k + 1 := by
-      dsimp only [fillConstStep]
-      simp only [clientResult_bind_write, StateTransitionSpec.clientResult_pure]
-    have hst : (Memory.spec 0).clientState t (fillConstStep ((base, val), k)) =
-        ⟨Function.update t.mem (base + k) val, t.frontier⟩ := rfl
-    have hmod : Memory.Modifies S t ⟨Function.update t.mem (base + k) val, t.frontier⟩ :=
-      Memory.Modifies.set t ⟨base, count⟩ hk val
-    refine ⟨hcount.of_le (by omega), hvh, by omega, by rw [hst]; exact hmod,
-      hres, by rw [hst]; exact htfr, wellFormed_clientState hwt hvh, fun j hj => ?_⟩
-    rw [hst]
-    dsimp only
-    by_cases hjk : j = k
-    · rw [hjk, Function.update_self]
+      simp only [fillConstStep, clientResult_bind_write, StateTransitionSpec.clientResult_pure]
+    refine ⟨hcount.of_le (by omega), hvh, by omega, Memory.Modifies.set t ⟨base, count⟩ hk val,
+      hres, htfr, wellFormed_clientState hwt hvh, fun j hj => ?_⟩
+    change Function.update t.mem (base + k) val (base + j) = val
+    rcases eq_or_ne j k with rfl | hjk
+    · exact Function.update_self ..
     · rw [Function.update_of_ne (by omega)]
       exact hfill j (by omega)
   obtain ⟨hsafe, hv, hcost, hmod, _, htfr, hwf', hvals⟩ :=
@@ -144,13 +138,9 @@ private theorem fillConst_loop_spec {w base val count : ℕ} {s : Memory.State}
       fun _ s' => s'.frontier = s.frontier ∧ Memory.WellFormed w s' ∧
         ∀ j < count, s'.mem (base + j) = val :=
     framedTriple_iff_realization.mpr ⟨hv, by simpa using hcost, hmod, htfr, hwf', hvals⟩
-  have hres : Memory.FramedTriple w s (fillConstProg base val count) count S
-      fun _ s' => s'.frontier = s.frontier ∧ Memory.WellFormed w s' ∧
-        ∀ j < count, s'.mem (base + j) = val :=
-    ((hloop.mono le_rfl fun _ _ h =>
-      Memory.FramedTriple.pure (c := 0) (a := ()) h).bind_same).mono
-      (Nat.add_zero count).le fun _ _ h => h
-  exact ⟨hsafe, hres⟩
+  exact ⟨hsafe, ((hloop.mono le_rfl fun _ _ h =>
+    Memory.FramedTriple.pure (c := 0) (a := ()) h).bind_same).mono
+    (Nat.add_zero count).le fun _ _ h => h⟩
 
 /-- Framed specification for `fillConstProg`: fills `[base, base + count)` with `val`, preserves
 frontier and all cells outside `[base, base + count)`, costs at most `count`, and preserves
@@ -181,9 +171,7 @@ theorem realizes_fillConstProg :
   refine (hraw.congr (fun ⟨⟨_, _⟩, _⟩ => rfl)).consequence (fun w d s hwords hmem hbound => ?_)
     (fun _ _ => le_rfl)
   rcases d with ⟨⟨base, val⟩, count⟩
-  have hval : Fits w val := hwords 1
-  have hcnt : Fits w count := hwords 2
-  exact iterationSafe_imp (fillConst_loop_spec hmem hval hcnt hbound).1
+  exact iterationSafe_imp (fillConst_loop_spec hmem (hwords 1) (hwords 2) hbound).1
     (fun _ => rfl) (fun _ _ hs => hs)
 
 /-! ## Uniform realization of `Memory.copy` -/
@@ -430,21 +418,17 @@ private theorem prefixSum_loop_spec {w base count : ℕ} {s : Memory.State}
       dsimp only [prefixSumStep]
       simp only [clientResult_bind_read, clientResult_bind_write,
         StateTransitionSpec.clientResult_pure]
-    have hst : (Memory.spec 0).clientState t (prefixSumStep (base, (k, acc))) =
-        ⟨Function.update t.mem (base + k) acc, t.frontier⟩ := rfl
-    have hmod : Memory.Modifies S t ⟨Function.update t.mem (base + k) acc, t.frontier⟩ :=
-      Memory.Modifies.set t ⟨base, count⟩ hk acc
-    have hfit_k1 : Fits w (k + 1) := hcnt.of_le (by omega)
-    refine ⟨⟨hfit_k1, hfit_next⟩, hvh, by omega, by rw [hst]; exact hmod, ?_⟩
-    rw [hres, hst]
+    refine ⟨⟨hcnt.of_le (by omega), hfit_next⟩, hvh,
+      by omega, Memory.Modifies.set t ⟨base, count⟩ hk acc, ?_⟩
+    rw [hres]
     refine ⟨rfl, hacc_next, htfr, wellFormed_clientState hwt hvh, fun j hj => ?_,
       fun i hik hic => ?_⟩
-    · dsimp only
-      by_cases hjk : j = k
-      · rw [hjk, Function.update_self, hacc]
+    · change Function.update t.mem (base + k) acc (base + j) = _
+      rcases eq_or_ne j k with rfl | hjk
+      · rw [Function.update_self, hacc]
       · rw [Function.update_of_ne (by omega)]
         exact hpref j (by omega)
-    · dsimp only
+    · change Function.update t.mem (base + k) acc (base + i) = _
       rw [Function.update_of_ne (by omega)]
       exact hrest i (by omega) hic
   obtain ⟨hsafe, hv, hcost, hmod, _, hres, htfr, hwf', hpref, _⟩ :=
@@ -458,16 +442,9 @@ private theorem prefixSum_loop_spec {w base count : ℕ} {s : Memory.State}
         Memory.WellFormed w s' ∧
         ∀ j < count, s'.mem (base + j) = ∑ i ∈ Finset.range j, s.mem (base + i) :=
     framedTriple_iff_realization.mpr ⟨hv, by simpa using hcost, hmod, hres, htfr, hwf', hpref⟩
-  have hret : Memory.FramedTriple w s (prefixSumProg base count) (2 * count) S
-      fun res s' =>
-        res = ∑ i ∈ Finset.range count, s.mem (base + i) ∧
-        s'.frontier = s.frontier ∧
-        Memory.WellFormed w s' ∧
-        ∀ j < count, s'.mem (base + j) = ∑ i ∈ Finset.range j, s.mem (base + i) :=
-    ((hloop.mono le_rfl fun res _ h =>
-      Memory.FramedTriple.pure (c := 0) (a := res.2) h).bind_same).mono
-      (Nat.add_zero _).le fun _ _ h => h
-  exact ⟨hsafe, hret⟩
+  exact ⟨hsafe, ((hloop.mono le_rfl fun res _ h =>
+    Memory.FramedTriple.pure (c := 0) (a := res.2) h).bind_same).mono
+    (Nat.add_zero _).le fun _ _ h => h⟩
 
 /-- Framed specification for `prefixSumProg`: computes the in-place exclusive prefix sum over
 `[base, base + count)`, returns the total sum `∑ i ∈ Finset.range count, s.mem (base + i)`,
@@ -526,9 +503,9 @@ theorem allocBlock_spec {w size : ℕ} {s : Memory.State}
   refine Memory.FramedTriple.mono
     (Memory.FramedTriple.allocBlock_bind (c := 0) hfit (Memory.FramedTriple.pure ?_))
     (Nat.zero_add _).le fun _ _ h => h
-  refine ⟨rfl, le_rfl, hwf.step (o := .alloc size) hfit, fun j hj => ?_, fun b' hb' => ?_⟩
-  · exact clear_of_owns (Block.owns_add (b := ⟨s.frontier, size⟩) hj)
-  · exact Block.disjoint_of_allocated_frontier hb' size
+  exact ⟨rfl, le_rfl, hwf.step (o := .alloc size) hfit,
+    fun j hj => clear_of_owns (Block.owns_add (b := ⟨s.frontier, size⟩) hj),
+    fun b' hb' => Block.disjoint_of_allocated_frontier hb' size⟩
 
 /-- Uniform `Realizes .exact` certificate for `Memory.allocBlockDirty` with `work = 0`. -/
 theorem realizes_allocBlockDirty :

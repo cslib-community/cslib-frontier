@@ -97,9 +97,8 @@ theorem randomWalk_apply (x y : V) :
     G.randomWalk x y = G.edgeCount x y / Fintype.card D := by
   change ((PMF.uniformOfFintype D).map (G.neighbor x)) y = _
   rw [PMF.map_apply, tsum_fintype]
-  simp only [PMF.uniformOfFintype_apply]
-  rw [← sum_filter, sum_const, nsmul_eq_mul, div_eq_mul_inv, edgeCount_eq_card_filter]
-  simp_rw [eq_comm (a := y)]
+  simp [PMF.uniformOfFintype_apply, ← sum_filter, div_eq_mul_inv, edgeCount_eq_card_filter,
+    eq_comm]
 
 variable {G}
 
@@ -217,11 +216,9 @@ theorem hittingTime_randomWalk_le_hundred_mul (hD : Fintype.card D ≤ Fintype.c
     {u v : V} (p : G.toSimpleGraph.Walk u v) (hk : p.length ≤ k) :
     hittingTime G.randomWalk v u ≤ 100 * k * (Fintype.card V : ℝ≥0∞) ^ 2 := by
   refine (hittingTime_randomWalk_le_length_mul p).trans ?_
-  have : p.length * (Fintype.card D * Fintype.card V) ≤ 100 * k * Fintype.card V ^ 2 := by
-    calc p.length * (Fintype.card D * Fintype.card V)
-        ≤ k * (Fintype.card V * Fintype.card V) := by gcongr
-      _ ≤ 100 * k * Fintype.card V ^ 2 := by nlinarith
-  exact_mod_cast this
+  exact_mod_cast calc p.length * (Fintype.card D * Fintype.card V)
+      ≤ k * (Fintype.card V * Fintype.card V) := by gcongr
+    _ ≤ 100 * k * Fintype.card V ^ 2 := by nlinarith
 
 /-- For vertices `s`, `t` in the same component of a `d`-regular multigraph on `n` vertices,
 `E_s[τ_t] ≤ (n - 1) d n`: a path has fewer than `n` edges. -/
@@ -338,12 +335,10 @@ theorem isStationary_randomWalk_iff (hG : G.toSimpleGraph.Connected) (π : PMF V
       ENNReal.mul_div_cancel
           (Nat.cast_ne_zero.2 Fintype.card_ne_zero) (ENNReal.natCast_ne_top _)]
   set f : V → ℝ := fun x => (π x).toReal
-  have hf : ∀ y, ∑ x, (G.edgeCount y x : ℝ) * f x = Fintype.card D * f y := by
-    intro y
+  have hf : ∀ y, ∑ x, (G.edgeCount y x : ℝ) * f x = Fintype.card D * f y := fun y => by
     have := congrArg ENNReal.toReal (hst y)
-    rw [ENNReal.toReal_sum fun x _ => ENNReal.mul_ne_top (ENNReal.natCast_ne_top _)
-      (π.apply_ne_top x), ENNReal.toReal_mul, ENNReal.toReal_natCast] at this
-    simpa [f, ENNReal.toReal_mul] using this
+    simpa [f, ENNReal.toReal_sum fun x _ => ENNReal.mul_ne_top (ENNReal.natCast_ne_top _)
+      (π.apply_ne_top x), ENNReal.toReal_mul] using this
   obtain ⟨u⟩ := hG.nonempty
   have hconst : ∀ x, π x = π u := fun x =>
     (ENNReal.toReal_eq_toReal_iff' (π.apply_ne_top x) (π.apply_ne_top u)).1
@@ -376,11 +371,9 @@ omit [DecidableEq V] in
 theorem stepOp_randomWalk : G.randomWalk.stepOp = G.walk := by
   ext1 f
   funext x
-  rw [MarkovChain.stepOp_apply, walk_apply]
-  change ∑ y, (((PMF.uniformOfFintype D).map (G.neighbor x)) y).toReal * f y =
-    𝔼 i, f (G.neighbor x i)
-  rw [Cslib.Probability.PMF.sum_map_mul, Fintype.expect_eq_sum_div_card, sum_div]
-  simp [PMF.uniformOfFintype_apply, div_eq_inv_mul]
+  rw [MarkovChain.stepOp_apply, walk_apply, Fintype.expect_eq_sum_div_card, sum_div]
+  exact (Cslib.Probability.PMF.sum_map_mul _ _ _).trans
+    (by simp [PMF.uniformOfFintype_apply, div_eq_inv_mul])
 
 omit [Fintype V] [DecidableEq V] in
 /-- The random walk on the lazy multigraph `G.lazy` is the lazy chain `G.randomWalk.lazy`. -/

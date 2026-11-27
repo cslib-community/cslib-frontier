@@ -126,11 +126,7 @@ theorem isSymmetric_toSymmCostGame_iff {G : BimatrixGame M M} :
   constructor
   · intro h
     ext i j
-    have hij := h (Equiv.swap false true) (fun b => cond b j i) false
-    dsimp only [toSymmCostGame, Function.comp_apply] at hij
-    simp only [Equiv.swap_apply_left, Equiv.swap_apply_right, Bool.cond_true, Bool.cond_false,
-      neg_inj, transpose_apply] at hij ⊢
-    exact hij.symm
+    simpa [toSymmCostGame] using (h (Equiv.swap false true) (fun b => cond b j i) false).symm
   · intro (hG : G.B = G.Aᵀ) π s b
     cases b <;> cases hf : π false <;> cases ht : π true <;>
       first
@@ -347,8 +343,7 @@ theorem symmReduction_pos_and_isNash [Nonempty M] [Nonempty N] {G : BimatrixGame
       (hbr.le_payoff₁ (.inl (Classical.arbitrary M))).trans_eq (hbr.payoff₁_eq_of_pos hj₁)
     rw [hAz, mulVec_symmReductionMatrix_inl, mulVec_symmReductionMatrix_inr, hx, zero_vecMul]
       at hval
-    exact absurd hval
-      (not_le.2 (by simpa [mulVec, dotProduct_comm] using hy_mix.dotProduct_pos (hA _)))
+    exact not_le_of_gt (by simpa [mulVec, dotProduct_comm] using hy_mix.dotProduct_pos (hA _)) hval
   have hsy_pos : 0 < ∑ j : N, z (.inr j) := by
     refine (sum_nonneg fun j _ => hz_mix.nonneg (.inr j)).lt_of_ne fun hsy0 => ?_
     have hy : (fun j => z (.inr j)) = 0 := funext fun j =>
@@ -384,13 +379,11 @@ theorem isSymmetricNash_symmReduction_of_isNash {G : BimatrixGame M N}
   have hy := hbr₂.isMixedStrategy
   set u : ℝ := G.payoff₁ x y
   set v : ℝ := G.payoff₂ x y
-  have hu : 0 < u := G.payoff₁_pos hA hx hy
-  have hv : 0 < v := G.payoff₂_pos hB hx hy
-  have huv : 0 < u + v := add_pos hu hv
+  have huv : 0 < u + v := add_pos (G.payoff₁_pos hA hx hy) (G.payoff₂_pos hB hx hy)
   set α : ℝ := u / (u + v)
   set β : ℝ := v / (u + v)
-  have hα : 0 < α := div_pos hu huv
-  have hβ : 0 < β := div_pos hv huv
+  have hα : 0 < α := div_pos (G.payoff₁_pos hA hx hy) huv
+  have hβ : 0 < β := div_pos (G.payoff₂_pos hB hx hy) huv
   have hαβ : α + β = 1 := by rw [← add_div, div_self huv.ne']
   set z : M ⊕ N → ℝ := Sum.elim (α • x) (β • y)
   have hz_mix : IsMixedStrategy z := isMixedStrategy_iff.2

@@ -224,9 +224,8 @@ theorem realizesBounded_log2Cap :
     RealizesBounded .exact log2CapProg
       (WordEncoding.encode (α := ℕ × (ℕ × ℕ))) (WordEncoding.encode (α := ℕ))
       Log2CapPre (fun _ _ => 0) := by
-  have hlg := RealizesBounded.iterate₀ (WordEncoding.encode (α := ℕ))
-    (WordEncoding.encode (α := ℕ × ℕ)) realizesBounded_log2Step memoryCost_log2Step_ge_one
-  realize
+  realize [RealizesBounded.iterate₀ (WordEncoding.encode (α := ℕ))
+    (WordEncoding.encode (α := ℕ × ℕ)) realizesBounded_log2Step memoryCost_log2Step_ge_one]
   rcases d with ⟨hdrAddr, ⟨K, x₀⟩⟩
   obtain ⟨hfr, hx₀, hK⟩ := h
   exact (log2Loop_spec hfr hx₀ hK).1
@@ -450,9 +449,8 @@ theorem writeBlock3Prog_spec {w : ℕ} (base v0 v1 v2 : ℕ) {s : Memory.State}
   refine ⟨⟨hfr, hfit_end⟩, ?_, ?_⟩
   · rcases s with ⟨mem, fr⟩
     dsimp only [prog, d, writeBlock3Prog] at hfr ⊢
-    refine validHistory_write_step (by omega) hv0 ?_
-    refine validHistory_write_step (by omega) hv1 ?_
-    exact ⟨⟨show base + 2 < fr by omega, hv2⟩, trivial⟩
+    exact validHistory_write_step (by omega) hv0 <|
+      validHistory_write_step (by omega) hv1 ⟨⟨show base + 2 < fr by omega, hv2⟩, trivial⟩
   · dsimp only [s', prog, d, writeBlock3Prog, StateTransitionSpec.clientState]
     simp (disch := omega) only [prog_runClient_state_bind, prog_runClient_state_write,
       Realization.memoryCost_bind', prog_memoryCost_write, Function.update_of_ne,
@@ -500,10 +498,9 @@ theorem writeBlock4Prog_spec {w : ℕ} (base v0 v1 v2 v3 : ℕ) {s : Memory.Stat
   refine ⟨⟨hfr, hfit_end⟩, ?_, ?_⟩
   · rcases s with ⟨mem, fr⟩
     dsimp only [prog, d, writeBlock4Prog] at hfr ⊢
-    refine validHistory_write_step (by omega) hv0 ?_
-    refine validHistory_write_step (by omega) hv1 ?_
-    refine validHistory_write_step (by omega) hv2 ?_
-    exact ⟨⟨show base + 3 < fr by omega, hv3⟩, trivial⟩
+    exact validHistory_write_step (by omega) hv0 <|
+      validHistory_write_step (by omega) hv1 <|
+      validHistory_write_step (by omega) hv2 ⟨⟨show base + 3 < fr by omega, hv3⟩, trivial⟩
   · dsimp only [s', prog, d, writeBlock4Prog, StateTransitionSpec.clientState]
     simp (disch := omega) only [prog_runClient_state_bind, prog_runClient_state_write,
       Realization.memoryCost_bind', prog_memoryCost_write, Function.update_of_ne,
@@ -540,20 +537,18 @@ theorem writeTwoBlock4Fin_spec {w n : ℕ} (base : ℕ) (g : Fin n → ℕ) (off
       (by omega) (hfit_end.of_le (by omega)) (hg _) (hg _) (hg _) (hg _)
   have hs'_eq : s' = (Memory.spec 0).clientState s1 (writeBlock4Prog (base + 4, b1)) :=
     StateTransitionSpec.clientState_bind ..
-  refine ⟨?_, by rw [hs'_eq, hfr1, hfr0], fun j hj => ?_,
+  refine ⟨(validHistory_bind' ..).mpr ⟨hv0, hv1⟩, by rw [hs'_eq, hfr1, hfr0], fun j hj => ?_,
     fun a ha => by rw [hs'_eq, hframe1 a (by omega), hframe0 a (by omega)],
     (Realization.memoryCost_bind' (writeBlock4Prog (base, b0)) _ s).trans (by rw [hc0, hc1])⟩
-  · dsimp only [prog]
-    rw [validHistory_bind']
-    exact ⟨hv0, hv1⟩
-  · rw [hs'_eq]
-    obtain ⟨m00, m01, m02, m03⟩ := hm0
-    obtain ⟨m10, m11, m12, m13⟩ := hm1
-    rcases (show j = 0 ∨ j = 1 ∨ j = 2 ∨ j = 3 ∨ j = 4 ∨ j = 5 ∨ j = 6 ∨ j = 7 by omega) with
-      rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
-    all_goals first
-      | exact m10 | exact m11 | exact m12 | exact m13
-      | (rw [hframe1 _ (by omega)]; first | exact m00 | exact m01 | exact m02 | exact m03)
+  rw [hs'_eq]
+  obtain ⟨m00, m01, m02, m03⟩ := hm0
+  obtain ⟨m10, m11, m12, m13⟩ := hm1
+  rcases lt_or_ge j 4 with hj4 | hj4
+  · refine (hframe1 _ (by omega)).trans ?_
+    rcases (show j = 0 ∨ j = 1 ∨ j = 2 ∨ j = 3 by omega) with rfl | rfl | rfl | rfl
+    exacts [m00, m01, m02, m03]
+  · rcases (show j = 4 ∨ j = 5 ∨ j = 6 ∨ j = 7 by omega) with rfl | rfl | rfl | rfl
+    exacts [m10, m11, m12, m13]
 
 /-- Specification for two consecutive `writeBlock4Prog` calls followed by `pure ret`. -/
 theorem writeTwoBlock4FinRet_spec {w n : ℕ} (base : ℕ) (g : Fin n → ℕ) (off : ℕ)
@@ -583,10 +578,9 @@ theorem writeTwoBlock4FinRet_spec {w n : ℕ} (base : ℕ) (g : Fin n → ℕ) (
       (writeBlock4Prog (base, b0) >>= fun _ => writeBlock4Prog (base + 4, b1)) := by
     dsimp only [s']; rw [hbind, StateTransitionSpec.clientState_bind,
       StateTransitionSpec.clientState_pure]
-  refine ⟨?_, by rw [hbind, prog_clientResult_bind, prog_clientResult_pure],
+  refine ⟨hbind ▸ (validHistory_bind' ..).mpr ⟨hv, trivial⟩,
+    by rw [hbind, prog_clientResult_bind, prog_clientResult_pure],
     hs'_eq ▸ hfr', fun j hj => hs'_eq ▸ hmem' j hj, fun a ha => hs'_eq ▸ hframe' a ha,
     by rw [hbind, Realization.memoryCost_bind', memoryCost_pure, hc]⟩
-  rw [hbind, validHistory_bind']
-  exact ⟨hv, trivial⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct.ParamsComputeAux

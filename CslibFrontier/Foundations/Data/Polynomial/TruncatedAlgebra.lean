@@ -128,15 +128,14 @@ theorem coeff_mk (i : ℕ) (p : R[X]) : coeff i (mk r p) = if i < r then p.coeff
 theorem coeff_mk_of_lt {i : ℕ} (hi : i < r) (p : R[X]) : coeff i (mk r p) = p.coeff i := by
   simp only [coeff_mk, hi, ↓reduceIte]
 
-theorem coeff_eq_zero_of_le {i : ℕ} (hi : r ≤ i) (x : Truncated R r) : coeff i x = 0 := by
-  induction x using induction_on with
-  | hp p => simp only [coeff_mk, not_lt_of_ge hi, ↓reduceIte]
+theorem coeff_eq_zero_of_le {i : ℕ} (hi : r ≤ i) (x : Truncated R r) : coeff i x = 0 :=
+  induction_on x fun _ => by simp only [coeff_mk, not_lt_of_ge hi, ↓reduceIte]
 
 @[ext]
-theorem ext {x y : Truncated R r} (h : ∀ i < r, coeff i x = coeff i y) : x = y := by
-  revert h
-  exact induction_on x fun _ => induction_on y fun _ h =>
-    mk_eq_mk_iff.mpr fun i hi => by simpa only [coeff_mk, hi, ↓reduceIte] using h i hi
+theorem ext {x y : Truncated R r} (h : ∀ i < r, coeff i x = coeff i y) : x = y :=
+  induction_on (P := fun x => (∀ i < r, coeff i x = coeff i y) → x = y) x (fun _ =>
+    induction_on (P := fun y => (∀ i < r, coeff i (mk r _) = coeff i y) → mk r _ = y) y fun _ h =>
+      mk_eq_mk_iff.mpr fun i hi => by simpa only [coeff_mk, hi, ↓reduceIte] using h i hi) h
 
 @[simp]
 theorem coeff_zero (i : ℕ) : coeff i (0 : Truncated R r) = 0 := by
@@ -150,8 +149,7 @@ theorem coeff_one (i : ℕ) : coeff i (1 : Truncated R r) = if i = 0 ∧ 0 < r t
 
 theorem coeff_C (a : R) (i : ℕ) :
     coeff i (mk r (C a)) = if i = 0 ∧ 0 < r then a else 0 := by
-  rw [coeff_mk, Polynomial.coeff_C]
-  by_cases hi0 : i = 0 <;> simp [hi0]
+  by_cases hi0 : i = 0 <;> simp [Polynomial.coeff_C, hi0]
 
 @[simp]
 theorem coeff_algebraMap (a : R) (i : ℕ) :
@@ -160,28 +158,23 @@ theorem coeff_algebraMap (a : R) (i : ℕ) :
 
 @[simp]
 theorem coeff_var (i : ℕ) : coeff i (var R r) = if i = 1 ∧ 1 < r then 1 else 0 := by
-  rw [var, coeff_mk, Polynomial.coeff_X]
-  by_cases hi : i = 1 <;> by_cases hir : i < r <;> simp_all [eq_comm]
+  by_cases hi : i = 1 <;> simp [var, Polynomial.coeff_X, hi, eq_comm]
 
 @[simp]
 theorem coeff_var_pow (k i : ℕ) :
     coeff i ((var R r) ^ k) = if i = k ∧ k < r then 1 else 0 := by
-  rw [var, ← map_pow, coeff_mk, Polynomial.coeff_X_pow]
-  by_cases hik : i = k <;> by_cases hir : i < r <;> simp_all
+  by_cases hik : i = k <;> simp [var, ← map_pow, Polynomial.coeff_X_pow, hik]
 
 @[simp]
 theorem coeff_add (i : ℕ) (x y : Truncated R r) :
     coeff i (x + y) = coeff i x + coeff i y :=
   induction_on x fun p => induction_on y fun q => by
-    rw [← map_add, coeff_mk, coeff_mk, coeff_mk, Polynomial.coeff_add]
-    split_ifs <;> simp
+    by_cases hi : i < r <;> simp [← map_add, hi]
 
 @[simp]
-theorem coeff_neg (i : ℕ) (x : Truncated R r) : coeff i (-x) = -coeff i x := by
-  induction x using induction_on with
-  | hp p =>
-    rw [← map_neg, coeff_mk, coeff_mk, Polynomial.coeff_neg]
-    split_ifs <;> simp
+theorem coeff_neg (i : ℕ) (x : Truncated R r) : coeff i (-x) = -coeff i x :=
+  induction_on x fun p => by
+    by_cases hi : i < r <;> simp [← map_neg, hi]
 
 @[simp]
 theorem coeff_sub (i : ℕ) (x y : Truncated R r) :
@@ -190,11 +183,9 @@ theorem coeff_sub (i : ℕ) (x y : Truncated R r) :
 
 @[simp]
 theorem coeff_smul (i : ℕ) (a : R) (x : Truncated R r) :
-    coeff i (a • x) = a * coeff i x := by
-  induction x using induction_on with
-  | hp p =>
-    rw [← map_smul, coeff_mk, coeff_mk, AddMonoidAlgebra.coeff_smul_apply, smul_eq_mul]
-    split_ifs <;> simp
+    coeff i (a • x) = a * coeff i x :=
+  induction_on x fun p => by
+    by_cases hi : i < r <;> simp [← map_smul, hi]
 
 theorem coeff_smul_algebra {S : Type*} [CommRing S] [Algebra R S] (i : ℕ) (a : R)
     (x : Truncated S r) : coeff i (a • x) = algebraMap R S a * coeff i x := by
@@ -250,11 +241,7 @@ theorem toPoly_def (x : Truncated R r) :
 @[simp]
 theorem coeff_toPoly (x : Truncated R r) (i : ℕ) : (toPoly x).coeff i = coeff i x := by
   rw [toPoly, ← Polynomial.lcoeff_apply, map_sum]
-  simp only [Polynomial.lcoeff_apply, Polynomial.coeff_C_mul_X_pow, Finset.sum_ite_eq,
-    Finset.mem_range]
-  split_ifs with hi
-  · rfl
-  · exact (coeff_eq_zero_of_le (not_lt.mp hi) x).symm
+  simpa [Polynomial.coeff_C_mul_X_pow] using fun hi => (coeff_eq_zero_of_le hi x).symm
 
 @[simp]
 theorem mk_toPoly (x : Truncated R r) : mk r (toPoly x) = x := by
@@ -262,9 +249,8 @@ theorem mk_toPoly (x : Truncated R r) : mk r (toPoly x) = x := by
   rw [coeff_mk_of_lt hi, coeff_toPoly]
 
 theorem toPoly_mk (p : R[X]) :
-    toPoly (mk r p) = ∑ i ∈ Finset.range r, C (p.coeff i) * X ^ i := by
-  refine Finset.sum_congr rfl fun i hi => ?_
-  rw [coeff_mk_of_lt (Finset.mem_range.mp hi)]
+    toPoly (mk r p) = ∑ i ∈ Finset.range r, C (p.coeff i) * X ^ i :=
+  Finset.sum_congr rfl fun _ hi => by rw [coeff_mk_of_lt (Finset.mem_range.mp hi)]
 
 theorem natDegree_toPoly_lt (hr : 0 < r) (x : Truncated R r) : (toPoly x).natDegree < r := by
   by_cases h0 : toPoly x = 0
@@ -308,22 +294,20 @@ theorem getD_coeffs (x : Truncated R r) (i : ℕ) : (coeffs x).getD i 0 = coeff 
 projecting the truncation of their power-series product. -/
 theorem mk_trunc_mul_trunc (f g : R⟦X⟧) :
     mk r ((PowerSeries.trunc r f : R[X]) * (PowerSeries.trunc r g : R[X])) =
-      mk r (PowerSeries.trunc r (f * g)) := by
-  rw [mk_eq_mk_iff]
-  intro i hi
-  rw [← Polynomial.coeff_coe, Polynomial.coe_mul,
-    ← PowerSeries.coeff_mul_eq_coeff_trunc_mul_trunc f g hi, PowerSeries.coeff_trunc]
-  simp only [hi, ↓reduceIte]
+      mk r (PowerSeries.trunc r (f * g)) :=
+  mk_eq_mk_iff.mpr fun _ hi => by
+    rw [← Polynomial.coeff_coe, Polynomial.coe_mul,
+      ← PowerSeries.coeff_mul_eq_coeff_trunc_mul_trunc f g hi, PowerSeries.coeff_trunc,
+      ite_eq_left hi]
 
 /-- Truncating a power series before raising to a power and projecting to `Truncated R r` equals
 projecting the truncation of the power. -/
 theorem mk_trunc_pow (f : R⟦X⟧) (n : ℕ) :
-    mk r ((PowerSeries.trunc r f : R[X]) ^ n) = mk r (PowerSeries.trunc r (f ^ n)) := by
-  rw [mk_eq_mk_iff]
-  intro i hi
-  have h := congrArg (fun p : R[X] => p.coeff i) (PowerSeries.trunc_trunc_pow f r n)
-  rw [← Polynomial.coeff_coe, Polynomial.coe_pow]
-  simpa only [PowerSeries.coeff_trunc, hi, ↓reduceIte, Polynomial.coeff_coe] using h
+    mk r ((PowerSeries.trunc r f : R[X]) ^ n) = mk r (PowerSeries.trunc r (f ^ n)) :=
+  mk_eq_mk_iff.mpr fun i hi => by
+    have h := congrArg (fun p : R[X] => p.coeff i) (PowerSeries.trunc_trunc_pow f r n)
+    rw [← Polynomial.coeff_coe, Polynomial.coe_pow]
+    simpa only [PowerSeries.coeff_trunc, hi, ↓reduceIte, Polynomial.coeff_coe] using h
 
 end Basic
 
@@ -468,8 +452,7 @@ theorem substZeroConst_var {S : Type*} [CommRing S] [Algebra R S] {g : Truncated
 
 theorem substZeroConst_apply {S : Type*} [CommRing S] [Algebra R S] {g : Truncated S r}
     (hg0 : coeff 0 g = 0) (x : Truncated R r) :
-    substZeroConst hg0 x = subst (pow_eq_zero_of_coeff_zero hg0) x := by
-  simp only [substZeroConst]
+    substZeroConst hg0 x = subst (pow_eq_zero_of_coeff_zero hg0) x := rfl
 
 @[simp]
 theorem substZeroConst_mk {S : Type*} [CommRing S] [Algebra R S] {g : Truncated S r}
@@ -481,10 +464,8 @@ theorem subst_comp {S T : Type*} [CommRing S] [CommRing T] [Algebra R S] [Algebr
     [Algebra R T] [IsScalarTower R S T] {g : Truncated S r} (hg : g ^ r = 0)
     {h : Truncated T r} (hh : h ^ r = 0) :
     ((subst hh).restrictScalars R).comp (subst hg) =
-      subst (by rw [← map_pow, hg, map_zero] : (subst hh g) ^ r = 0) := by
-  refine AlgHom.ext fun f => ?_
-  induction f using induction_on with
-  | hp p =>
+      subst (by rw [← map_pow, hg, map_zero] : (subst hh g) ^ r = 0) :=
+  AlgHom.ext fun f => induction_on f fun p => by
     simp only [AlgHom.comp_apply, AlgHom.coe_restrictScalars', subst_mk]
     exact (Polynomial.aeval_algHom_apply ((subst hh).restrictScalars R) g p).symm
 
@@ -563,17 +544,14 @@ theorem proj_var {s r : ℕ} (hsr : s ≤ r) :
 
 @[simp]
 theorem coeff_proj {s r : ℕ} (hsr : s ≤ r) {i : ℕ} (hi : i < s) (x : Truncated R r) :
-    coeff i (proj hsr x) = coeff i x := by
-  induction x using induction_on with
-  | hp p =>
-    rw [proj_mk, coeff_mk_of_lt hi, coeff_mk_of_lt (lt_of_lt_of_le hi hsr)]
+    coeff i (proj hsr x) = coeff i x :=
+  induction_on x fun _ => by rw [proj_mk, coeff_mk_of_lt hi, coeff_mk_of_lt (lt_of_lt_of_le hi hsr)]
 
 /-- Truncation projection commutes with nilpotent substitution. -/
 theorem proj_subst {S : Type*} [CommRing S] [Algebra R S] {s r : ℕ} (hsr : s ≤ r)
     {g : Truncated S r} (hg : g ^ r = 0) {hg' : (proj hsr g) ^ s = 0} (f : Truncated R r) :
-    proj hsr (subst hg f) = subst hg' (proj hsr f) := by
-  induction f using induction_on with
-  | hp p =>
+    proj hsr (subst hg f) = subst hg' (proj hsr f) :=
+  induction_on f fun p => by
     rw [subst_mk, proj_mk, subst_mk]
     exact (Polynomial.aeval_algHom_apply ((proj hsr).restrictScalars R) g p).symm
 
@@ -600,11 +578,9 @@ theorem map_var {S : Type*} [CommRing S] (φ : R →+* S) (r : ℕ) :
 
 @[simp]
 theorem coeff_map {S : Type*} [CommRing S] (φ : R →+* S) (r i : ℕ) (x : Truncated R r) :
-    coeff i (map φ r x) = φ (coeff i x) := by
-  induction x using induction_on with
-  | hp p =>
-    simp only [map_mk, coeff_mk, Polynomial.coeff_map]
-    split_ifs <;> simp
+    coeff i (map φ r x) = φ (coeff i x) :=
+  induction_on x fun _ => by
+    by_cases hi : i < r <;> simp [hi]
 
 private noncomputable def toAdjoinRootAlgHom (R : Type*) [CommRing R] (r : ℕ) :
     Truncated R r →ₐ[R] AdjoinRoot ((X : R[X]) ^ r) :=

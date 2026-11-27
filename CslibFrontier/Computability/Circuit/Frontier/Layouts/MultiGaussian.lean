@@ -150,10 +150,8 @@ theorem exists_width_le_of_unitRows [Fintype V] [Fintype E] (G : Multigraph V E)
     simp only [Multigraph.mem_edgeCut, cEvent, mem_ofPred_eq, mem_uIoc, ← not_lt]
     lrat_tauto
   have hEdgeCross (t : ℝ) (e : E) : P.real (cEvent t e) ≤ arccos (ρ e) / π := by
-    have hu := hunit (G.src e)
-    have hv := hunit (G.tgt e)
-    refine (measureReal_mem_uIoc_le (hu.trans hv.symm) t).trans ?_
-    rw [InnerProductGeometry.angle_eq_arccos_inner_of_norm_eq_one hu hv]
+    refine (measureReal_mem_uIoc_le ((hunit (G.src e)).trans (hunit (G.tgt e)).symm) t).trans ?_
+    rw [InnerProductGeometry.angle_eq_arccos_inner_of_norm_eq_one (hunit _) (hunit _)]
     exact div_le_div_of_nonneg_right (arccos_le_arccos (hcorr e)) pi_pos.le
   have htop : -T + M * δ = T := by rw [hδ]; field_simp; ring
   exact G.exists_width_le_of_vertexScore hdeg (score ω) hδpos M (a := -T) (B := B)
@@ -163,7 +161,7 @@ theorem exists_width_le_of_unitRows [Fintype V] [Fintype E] (G : Multigraph V E)
         tail (T ≤ ·) (fun x hx => hx.trans (le_abs_self x)) hhigh)
     (by
       intro i hi
-      rw [show -T + ((i : ℝ) + 1) * δ = -T + i * δ + δ by ring]
+      rw [add_mul, one_mul, ← add_assoc]
       have hC := ncard_lt_of_notMem_deviation (hmid i hi).1
       have hW := ncard_lt_of_notMem_deviation (hmid i hi).2
       have hCm : ∑ e, P.real (cEvent (-T + i * δ) e) ≤ S_cross :=
@@ -199,9 +197,8 @@ theorem exists_multi_vertex_sample [Finite V] [Finite E] (hloop : G.Loopless) {d
     (fun _ _ h => unitKernelRow_eq_zero_of_lt h) (fun _ => ρ)
     (fun e => hρ.trans (le_inner_unitKernelRow_src_tgt hloop hd hdeg hq R e))
     hT hε hM large
-  refine ⟨σ, hσ.trans_eq ?_⟩
-  congr 1
-  rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← Nat.card_eq_fintype_card, mul_comm]
+  exact ⟨σ, hσ.trans_eq <| by
+    rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← Nat.card_eq_fintype_card, mul_comm]⟩
 
 /-- **Asymptotic Gaussian layout bound for localized unit rows.** For every `d ≥ 2`, radius `R`,
 and vertex slack `ξ > 0`, there is a threshold `N₀` such that every multigraph `G` of maximum
@@ -236,13 +233,12 @@ theorem exists_width_le_of_unitRows_add_mul {d : ℕ} (hd : 2 ≤ d) (R : ℕ) {
       rw [← mul_div_assoc, div_le_iff₀ (Nat.cast_pos.mpr hM)]
       linarith [(div_le_iff₀ hξ).mp hMR]
     exact (div_le_self (by positivity) hsqrt).trans hfrac
-  have herr : D / T ^ 2 + D * (2 * T / M) / √(2 * π) + (D + 1) * ε ≤ ξ := by
-    linarith [show (D + 1) * ε = ξ / 4 by simp only [ε]; field_simp]
+  have hε' : (D + 1) * ε = ξ / 4 := by simp only [ε]; field_simp
+  have herr : D / T ^ 2 + D * (2 * T / M) / √(2 * π) + (D + 1) * ε ≤ ξ := by linarith
   refine ⟨⌈((M : ℝ) * (D + 1) + 2) * (vertexOverlap d R : ℝ) / ε ^ 2⌉₊,
     fun V E _ _ G hdeg large row hunit hsupp ρ hcorr => ?_⟩
-  have hlarge : ((M : ℝ) * (D + 1) + 2) * (vertexOverlap d R : ℝ) / ε ^ 2 < Nat.card V :=
-    (Nat.le_ceil _).trans_lt (Nat.cast_lt.mpr large)
-  obtain ⟨σ, hσ⟩ := exists_width_le_of_unitRows G hd hdeg R row hunit hsupp ρ hcorr hT hε hM hlarge
+  obtain ⟨σ, hσ⟩ := exists_width_le_of_unitRows G hd hdeg R row hunit hsupp ρ hcorr hT hε hM
+    ((Nat.le_ceil _).trans_lt (Nat.cast_lt.mpr large))
   exact ⟨σ, hσ.trans
     (by linarith [mul_le_mul_of_nonneg_left herr (Nat.cast_nonneg (α := ℝ) (Nat.card V))])⟩
 
@@ -255,7 +251,7 @@ theorem exists_width_le_vertexCoefficient {d : ℕ} (hd : 2 ≤ d) {ξ : ℝ} (h
         ∃ σ : Layout V, (G.width σ : ℝ) ≤ vertexCoefficient d * Nat.card E + ξ * Nat.card V := by
   set D : ℝ := (d : ℝ)
   have hD : 2 ≤ D := by simp only [D]; exact_mod_cast hd
-  set g := vertexCorrelation d
+  set g := vertexCorrelation d with hg_def
   have hg : 0 < g := vertexCorrelation_pos hd
   obtain ⟨η, hη, hcont⟩ := Metric.continuousAt_iff.mp
     (continuous_arccos.continuousAt (x := g)) (π * ξ / (4 * D)) (by positivity)
@@ -264,11 +260,10 @@ theorem exists_width_le_vertexCoefficient {d : ℕ} (hd : 2 ≤ d) {ξ : ℝ} (h
   have hρg : ρ < g := by simp only [ρ]; linarith
   have hcoef : arccos ρ / π ≤ vertexCoefficient d + ξ / (4 * D) := by
     have hdist : dist ρ g < η := by
-      rw [Real.dist_eq, show ρ - g = -(min η g / 2) by simp only [ρ]; ring, abs_neg,
-        abs_of_pos (by positivity)]
+      rw [Real.dist_eq, sub_sub_cancel_left, abs_neg, abs_of_pos (half_pos hmin)]
       linarith [min_le_left η g]
     have H := (le_abs_self _).trans (hcont hdist).le
-    rw [vertexCoefficient, show vertexCorrelation d = g from rfl, div_le_iff₀ pi_pos, add_mul,
+    rw [vertexCoefficient, ← hg_def, div_le_iff₀ pi_pos, add_mul,
       div_mul_cancel₀ _ pi_pos.ne', ← mul_div_right_comm, mul_comm ξ π]
     linarith
   obtain ⟨q, R, hq, hcorr⟩ := exists_decay_radius_degree hd hρg
@@ -287,7 +282,6 @@ theorem exists_width_le_vertexCoefficient {d : ℕ} (hd : 2 ≤ d) {ξ : ℝ} (h
   have herror : ξ / (4 * D) * Nat.card E ≤ ξ / 4 * Nat.card V :=
     (mul_le_mul_of_nonneg_left hE (by positivity)).trans_eq
       (by field_simp)
-  have h1 := mul_le_mul_of_nonneg_right hcoef (Nat.cast_nonneg (α := ℝ) (Nat.card E))
-  nlinarith
+  nlinarith [mul_le_mul_of_nonneg_right hcoef (Nat.cast_nonneg (α := ℝ) (Nat.card E))]
 
 end Cslib.Circuits.Frontier.Gaussian

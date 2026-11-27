@@ -212,8 +212,7 @@ theorem isSome_fromRaw : ∀ {n} {χ : RawFormula},
     simp only [← isSome_varOfRaw]
     cases hR : decode₂ (Σ l, L.Relations l) r with
     | none =>
-      refine iff_of_false (by simp) fun ⟨⟨R, hR', _⟩, _⟩ => ?_
-      simp [← hR'] at hR
+      exact iff_of_false Bool.false_ne_true fun ⟨⟨R, hR', _⟩, _⟩ => by simp [← hR'] at hR
     | some R =>
       have hr := decode₂_eq_some.1 hR
       rw [Option.bind_some]
@@ -282,8 +281,7 @@ theorem quantifierDepth_toRaw : ∀ {n} (φ : L.BoundedFormula α n),
 theorem fromRaw_toRaw : ∀ {n} (φ : L.BoundedFormula α n), fromRaw n φ.toRaw = some φ
   | _, falsum => rfl
   | n, equal t₁ t₂ => by
-    obtain ⟨v, rfl⟩ := term_eq_var t₁
-    obtain ⟨w, rfl⟩ := term_eq_var t₂
+    rcases term_eq_var t₁, term_eq_var t₂ with ⟨⟨v, rfl⟩, ⟨w, rfl⟩⟩
     simp [fromRaw]
   | n, @rel _ _ _ l R ts => by
     have hs : ∀ y ∈ List.ofFn (fun i => rawTerm (ts i)), (varOfRaw (α := α) n y).isSome :=
@@ -478,9 +476,8 @@ theorem primrec_id_primcodableRaw (e₁ e₂ : Encodable (Σ l, L.Relations l)) 
   obtain ⟨σ, hσ⟩ := toRaw_eq_rename (L := L) (α := α) (n := n) e₁ e₂
   let _ : Primcodable (L.BoundedFormula α n) := primcodableRaw
   refine @Primrec.encode_iff _ _ _ (@primcodableRaw L α n _ e₂ _ _) _ |>.1 ?_
-  change Primrec fun φ : L.BoundedFormula α n => encode (@toRaw L α _ e₂ _ n φ)
-  simp only [hσ]
-  exact Primrec.encode.comp (RawFormula.primrec₂_rename.comp (Primrec.const σ) primrec_toRaw)
+  exact (Primrec.encode.comp (RawFormula.primrec₂_rename.comp (Primrec.const σ)
+    primrec_toRaw)).of_eq fun φ => (congrArg encode (hσ φ)).symm
 
 end SymbolEncoding
 
@@ -586,12 +583,10 @@ theorem exists_structure_realize_iff_toRaw (M : Type*) [Nonempty M] (φ : L.Sent
       (realize_toRaw (fun _ _ => Iff.rfl) φ fun w => w.elim Empty.elim Fin.elim0).1 h⟩
 
 /-- A sentence is finitely satisfiable iff its raw formula is. -/
-theorem finSat_iff_toRaw (φ : L.Sentence) : FinSat φ ↔ RawFormula.FinSat (toRaw φ) := by
-  refine ⟨fun ⟨M, hS, hf, hn, h⟩ => ?_, fun ⟨M, hf, hn, I, ρ, h⟩ => ?_⟩
-  · obtain ⟨I, ρ, h'⟩ := (exists_structure_realize_iff_toRaw M φ).1 ⟨hS, h⟩
-    exact ⟨M, hf, hn, I, ρ, h'⟩
-  · obtain ⟨hS, h'⟩ := (exists_structure_realize_iff_toRaw M φ).2 ⟨I, ρ, h⟩
-    exact ⟨M, hS, hf, hn, h'⟩
+theorem finSat_iff_toRaw (φ : L.Sentence) : FinSat φ ↔ RawFormula.FinSat (toRaw φ) :=
+  exists_congr fun M => by
+    rw [exists_comm, @exists_comm (L.Structure M)]
+    exact exists_congr fun _ => exists_congr fun _ => exists_structure_realize_iff_toRaw M φ
 
 /-- A sentence is finitely valid iff its raw formula is. -/
 theorem finValid_iff_toRaw (φ : L.Sentence) : FinValid φ ↔ RawFormula.FinValid (toRaw φ) := by

@@ -368,17 +368,12 @@ private theorem dens_kmvEstimate_lt_le (hh : IsPairwiseIndependentHash h) {ε : 
       ({θ | w ≤ |((D.filter fun a => (h θ a).val < K).card : ℝ) - μ|} : Finset ι) := by
     intro θ hθ
     simp only [mem_filter, mem_univ, true_and] at hθ ⊢
-    have hKv' := hKv θ hθ
-    have hne : (lowest t (D.image (kmvKey h θ))).Nonempty := by
-      rw [← card_pos, card_lowest_image_kmvKey, min_eq_left hD]
-      exact ht
+    have hne : (lowest t (D.image (kmvKey h θ))).Nonempty :=
+      card_pos.1 (by simp [card_lowest_image_kmvKey, min_eq_left hD, ht])
     obtain ⟨p, hp, hpv⟩ := exists_mem_eq_sup _ hne fun p : Fin M ×ₗ α => (ofLex p).1.val
-    have hX : (D.filter fun a => (h θ a).val < K).card < t :=
-      lt_of_not_ge fun hge => by
-        have := (forall_mem_lowest_kmvKey_iff θ hD K).2 hge p hp
-        simp only [kmvMaxHash] at hKv'
-        omega
-    have hXR : ((D.filter fun a => (h θ a).val < K).card : ℝ) + 1 ≤ t := by exact_mod_cast hX
+    have hXR : ((D.filter fun a => (h θ a).val < K).card : ℝ) + 1 ≤ t := by
+      refine mod_cast Nat.succ_le_of_lt (lt_of_not_ge fun hge => not_lt_of_ge (hKv θ hθ) ?_)
+      simpa only [kmvMaxHash, hpv] using (forall_mem_lowest_kmvKey_iff θ hD K).2 hge p hp
     exact le_abs.2 (.inr (by linarith))
   calc _ ≤ (dens ({θ | w ≤ |((D.filter fun a => (h θ a).val < K).card : ℝ) - μ|} :
         Finset ι) : ℝ) := by exact_mod_cast dens_le_dens hsub
@@ -489,9 +484,8 @@ private theorem exists_card_le_image_eq_lowest (θ : ι) (D : Finset α) :
     Subset.antisymm (image_subset_iff.2 fun _ ha => (mem_filter.1 ha).2) fun p hp =>
       let ⟨a, ha, hpa⟩ := mem_image.1 (lowest_subset _ _ hp)
       mem_image.2 ⟨a, mem_filter.2 ⟨ha, hpa.symm ▸ hp⟩, hpa⟩
-  refine ⟨_, ?_, himg⟩
-  rw [← card_image_kmvKey (h := h) θ, himg, card_lowest]
-  exact min_le_left _ _
+  exact ⟨_, by simpa only [← card_image_kmvKey (h := h) θ, himg, card_lowest_image_kmvKey] using
+    min_le_left t D.card, himg⟩
 
 /-- The states reachable from the seeds in `Ω` have an injective `b`-bit encoding as soon as
 `#Ω (n + 1) ^ (c t) ≤ 2 ^ b`, on streams of any length. -/

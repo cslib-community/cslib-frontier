@@ -399,11 +399,9 @@ theorem ab_of_reaches {Q : Config → Prop} {l l' : ℕ} {st st' : St} {x : ℕ}
     (h : decider.Reaches (encCNF φ) (decider.Oblivious (bnd φ)) (l, st.regs x) (l', st'.regs x))
     (hcont : ∀ b : Bool, decider.AllBranches (encCNF φ) (bnd φ) (Post φ) Q (l', st'.regs b.toNat))
     (b : Bool) : decider.AllBranches (encCNF φ) (bnd φ) (Post φ) Q (l, st.regs b.toNat) := by
-  have := allBranches_of_oblivious (Post := Post φ)
+  simpa only [withChoice_regs] using (allBranches_of_oblivious (Post := Post φ)
     (Q := fun s => ∃ b : Bool, s = (l', st'.regs b.toNat)) (by simp [bnd]) h
-    (fun c => ⟨c, by simp⟩) b
-  rw [withChoice_regs] at this
-  exact this.bind fun _ ⟨b', hb'⟩ => hb' ▸ hcont b'
+    (fun c => ⟨c, by simp⟩) b).bind fun _ ⟨b', hb'⟩ => hb' ▸ hcont b'
 
 /-- A step at a choice: `yes` for the choice `0` and `no` for the choice `1`. -/
 theorem ab_choice {Q : Config → Prop} {l yes no : ℕ} {st : St}
@@ -888,17 +886,15 @@ theorem ab_walk {st : St} (hinv : LoopInv φ st) (b : Bool) :
       fun s ⟨st₂, b₂, c, hcφ, hs₂, hready⟩ => ?_
     subst hs₂
     obtain ⟨ho₀, hcur, hsg, hph, hst, hln, hB₂, ℓ', m, hℓ', hm, hc, ho₁, ho₂⟩ := hready
-    refine (ab_check hcφ (hcur ▸ hOc.2) (by rw [hsg]; exact hsgn) hℓ' hm hc ho₁ ho₂ hB₂ b₂).mono
+    refine (ab_check hcφ (hcur ▸ hOc.2) (hsg ▸ hsgn) hℓ' hm hc ho₁ ho₂ hB₂ b₂).mono
       fun s ⟨st₃, b₃, hs₃, h₀, hph', hst', hln', hcur₃, hsg₃, hB₃, harc⟩ => ⟨st₃, b₃, hs₃, ?_, ?_⟩
-    · have harc' : φ.Implies (v, decide (st.sgn = 1)) ℓ' := by rwa [hsg] at harc
-      have hℓ'eq : (ℓ'.1, decide (st₃.sgn = 1)) = ℓ' := by rw [hsg₃, decide_toNat_eq_one]
-      refine ⟨x, b₀, ℓ'.1, ℓ'.2, by rw [h₀, ho₀]; exact hO₀, ⟨⟨c, hcφ, hℓ'⟩, hcur₃ ▸ ho₁⟩,
-        by rw [hsg₃]; exact Bool.toNat_le _, hln'.trans (hln.trans hlen),
+    · refine ⟨x, b₀, ℓ'.1, ℓ'.2, (h₀.trans ho₀) ▸ hO₀, ⟨⟨c, hcφ, hℓ'⟩, hcur₃ ▸ ho₁⟩,
+        hsg₃ ▸ Bool.toNat_le _, hln'.trans (hln.trans hlen),
         by simp only [hst', hst, hln', hln, stepSt] at hsteps ⊢; omega, hB₃, ?_⟩
-      rw [hph', hph, hℓ'eq]
+      rw [hph', hph, hsg₃, decide_toNat_eq_one]
       rcases hreach with ⟨h0, hr⟩ | ⟨h1, hr₁, hr₂⟩
-      · exact .inl ⟨h0, hr.tail harc'⟩
-      · exact .inr ⟨h1, hr₁, hr₂.tail harc'⟩
+      · exact .inl ⟨h0, hr.tail (hsg ▸ harc)⟩
+      · exact .inr ⟨h1, hr₁, hr₂.tail (hsg ▸ harc)⟩
     · simp only [measure, hph', hph, hst', hst, hln', hln, stepSt]; omega
   · refine ab_of_reaches (x := 0) ?_ (fun b => ab_reject hB b) b
     have := mem_regs_zero hB

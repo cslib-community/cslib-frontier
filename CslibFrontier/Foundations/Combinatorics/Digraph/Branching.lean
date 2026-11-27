@@ -244,19 +244,10 @@ theorem isBranching_branchingDigraph_iff [Finite V] {p : V → V} :
   have hkpos : 0 < k := Function.minimalPeriod_pos_of_mem_periodicPts hn
   have hper : p^[k] (p^[n] v) = p^[n] v := Function.isPeriodicPt_minimalPeriod p _
   by_contra hne
-  have hall : ∀ i < k, p (p^[i] (p^[n] v)) ≠ p^[i] (p^[n] v) := by
-    intro i hi heq
-    have hloop : p^[i] (p^[n] v) = p^[n] v := (Function.iterate_fixed heq (k - i)).symm.trans
-      (by rw [← Function.iterate_add_apply, Nat.sub_add_cancel hi.le, hper])
-    exact hne (hloop ▸ heq)
-  have htg : ∀ m, 0 < m → m ≤ k →
-      Relation.TransGen (branchingDigraph p).Adj (p^[m] (p^[n] v)) (p^[n] v) := by
-    intro m hm hmk
-    induction m, hm using Nat.le_induction with
-    | base => exact .single ⟨hall 0 hkpos, rfl⟩
-    | succ m hm ih =>
-      exact .head ⟨hall m hmk, by rw [Function.iterate_succ_apply']⟩ (ih (by omega))
-  exact hB.acyclic (hper ▸ htg k hkpos le_rfl)
+  have hrtg : Relation.ReflTransGen (branchingDigraph p).Adj (p^[n] v) (p (p^[n] v)) := by
+    simpa only [← Function.iterate_succ_apply, Nat.succ_eq_add_one, Nat.sub_add_cancel hkpos,
+      hper] using reflTransGen_branchingDigraph_iterate p (p (p^[n] v)) (k - 1)
+  exact hB.acyclic (Relation.TransGen.tail'_iff.mpr ⟨_, hrtg, hne, rfl⟩)
 
 /-- Every branching is `branchingDigraph p` for a parent-towards-root map `p` fixing every vertex
 with no incoming arc. -/

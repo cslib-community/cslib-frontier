@@ -95,26 +95,21 @@ theorem one_sub_mul_sqrt_le_two_mul_mul_sub_of_le {ψ₀ : State N W} (hψ₀ : 
   have hδR : ∀ p ∈ R, ‖inner ℂ (run U ψ₀ p.1 T) (run U ψ₀ p.2 T)‖ ≤ δ := fun p hp => by
     obtain ⟨h1, h2, h3⟩ := hmemR.1 hp
     exact hδ p.1 p.2 h1 h2 h3
-  have hm : ∀ p ∈ R, (N - a).choose (N - b) ≤ #{q ∈ R | q.1 = p.1} := by
-    intro p hp
+  have hm : ∀ p ∈ R, (N - a).choose (N - b) ≤ #{q ∈ R | q.1 = p.1} := fun p hp => by
     obtain ⟨h1, -, -⟩ := hmemR.1 hp
     rw [← h1, ← card_ge p.1]
-    refine card_le_card_of_injOn (fun y => (p.1, y)) (fun y hy => ?_) fun _ _ _ _ h =>
-      congrArg Prod.snd h
-    obtain ⟨hy1, hy2⟩ := (mem_filter.1 hy).2
+    refine card_le_card_of_injOn (p.1, ·) (fun y hy => ?_) fun _ _ _ _ => congrArg Prod.snd
+    obtain ⟨-, hy1, hy2⟩ := mem_filter.1 hy
     exact mem_filter.2 ⟨hmemR.2 ⟨h1, hy2, hy1⟩, rfl⟩
-  have hm' : ∀ p ∈ R, b.choose a ≤ #{q ∈ R | q.2 = p.2} := by
-    intro p hp
+  have hm' : ∀ p ∈ R, b.choose a ≤ #{q ∈ R | q.2 = p.2} := fun p hp => by
     obtain ⟨-, h2, -⟩ := hmemR.1 hp
     rw [← h2, ← card_filter_le_and_weight_eq p.2 a]
-    refine card_le_card_of_injOn (fun x => (x, p.2)) (fun x hx => ?_) fun _ _ _ _ h =>
-      congrArg Prod.fst h
-    obtain ⟨hx1, hx2⟩ := (mem_filter.1 hx).2
+    refine card_le_card_of_injOn (·, p.2) (fun x hx => ?_) fun _ _ _ _ => congrArg Prod.fst
+    obtain ⟨-, hx1, hx2⟩ := mem_filter.1 hx
     exact mem_filter.2 ⟨hmemR.2 ⟨hx2, h2, hx1⟩, rfl⟩
   have hL : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i →
       #{q ∈ R | q.1 i ≠ q.2 i ∧ q.1 = p.1} * #{q ∈ R | q.1 i ≠ q.2 i ∧ q.2 = p.2} ≤
-        (N - a - 1).choose (N - b) * (b - 1).choose a := by
-    intro p hp i hi
+        (N - a - 1).choose (N - b) * (b - 1).choose a := fun p hp i hi => by
     obtain ⟨h1, h2, h12⟩ := hmemR.1 hp
     obtain ⟨hp1, hp2⟩ := Bool.lt_iff.1 (lt_of_le_of_ne (h12 i) hi)
     refine Nat.mul_le_mul ?_ ?_

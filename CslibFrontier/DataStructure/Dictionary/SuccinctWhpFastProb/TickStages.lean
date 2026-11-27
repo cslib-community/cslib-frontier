@@ -198,9 +198,8 @@ private theorem tickStage2_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     · dsimp only [stageWorkRemaining]
       rw [hm_stg, hm_dc, hm_di, hm_cs]
       simp only [hs2, Nat.reduceEqDiff, ↓reduceIte, Nat.min_zero]
-      have hs_lt_max : fs.rebCandSalt + 1 ≤ sMaxWhp c n_max - 1 := by have := s_opt.isLt; omega
       have hsub1 : sMaxWhp c n_max - 1 - fs.rebCandSalt =
-          (sMaxWhp c n_max - 1 - (fs.rebCandSalt + 1)) + 1 := by omega
+          (sMaxWhp c n_max - 1 - (fs.rebCandSalt + 1)) + 1 := by have := s_opt.isLt; omega
       rw [hsub1, Nat.add_mul, one_mul]; omega
     · exact fun _ _ => ⟨s_opt, by simpa only [fsScan, b, hm_db, hm_di] using hs_opt_inj,
         Nat.succ_le_of_lt (hm_cs.symm ▸ hlt_s_opt)⟩
@@ -237,9 +236,7 @@ private theorem tickStage2_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       · dsimp only [stageWorkRemaining]
         rw [hm_stg, hm_dc, hm_di, hm_cs, hm_cur]
         simp only [hs2, Nat.reduceEqDiff, ↓reduceIte]
-        have hlt_3L : fs.rebScanCursor + 16 < 3 * (slabScale n_max) ^ 12 := by
-          rw [hm_cnt, hm_cur] at hdone_b; omega
-        omega
+        rw [hm_cnt, hm_cur] at hdone_b; omega
       · intro _ _; rw [hm_db, hm_di, hm_cs]; exact ⟨s_opt, hs_opt_inj, hc_le_s_opt⟩
 
 private theorem tickStage3_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
@@ -382,10 +379,8 @@ theorem epochTick_some_of_work_bound {c U V n_max : ℕ} {θ : SeedWhp c U n_max
       have hv' := epochTick_spec hc hom hpre htick_some
       set fs' : FastState :=
         { fs with curEp := 1 - fs.curEp, epochClock := 0, rebStage := 0, stageCursor := 0 }
-      have hbo5 := hc.bufOld_valid
-      have hns3 : ¬fs.rebStage ≤ 3 := by omega
-      have hns4 : ¬fs.rebStage = 4 := by omega
-      rw [ite_eq_right hns3, ite_eq_right hns4] at hbo5
+      have hbo5 := ite_eq_right (by omega : ¬fs.rebStage = 4) ▸
+        ite_eq_right (by omega : ¬fs.rebStage ≤ 3) ▸ hc.bufOld_valid
       refine ⟨fs', htick_some, hv', ?_, (fun h => by cases h), Or.inr hbo5.2.2.2⟩
       have := stageWorkRemaining_le_max hv'.toCore hv'.stage_valid
       have := stageWorkMax_add_one_le_qEpoch hc.hth

@@ -30,6 +30,9 @@ Boyd, El Ghaoui, Feron and Balakrishnan, §6.2):
 * **Dissipation inequality.** If `R ⪯ 0` and `W ⪰ 0`, the output energy on `[0, ∞)` is finite and
   at most `V 0` (`Matrix.integrableOn_Ioi_and_integral_le`). No stability of `A` is assumed or
   concluded: output energy says nothing about unobservable modes.
+* **Reversed dissipation inequality.** If `R ⪰ 0` and `ẋ = A x` is exponentially stable, the
+  output energy on `[0, ∞)` is finite (`Matrix.integrableOn_Ioi_exp_smul_mulVec`) and at least
+  `V 0` (`Matrix.integrableOn_Ioi_and_le_integral`). `W` need not be positive semidefinite.
 
 A decay inequality `Aᵀ P + P A + 2 α P ⪯ 0` gives `V t ≤ exp (-2 α t) V 0` for `V` built on `P`
 (`Matrix.dotProduct_mulVec_le_exp_neg_mul`, from `le_exp_mul_sub_mul_of_hasDerivWithinAt`), and
@@ -55,6 +58,10 @@ Applying the results above to these trajectories, and summing over the columns o
 * the upper bounds `∫₀^∞ ‖h t v‖₂² ≤ (B v)ᵀ W (B v)` and `∫₀^∞ ‖h t‖_F² ≤ tr (Bᵀ W B)` from a
   dissipation inequality (`LTISystem.integrableOn_Ioi_and_integral_mulVec_le`,
   `LTISystem.integrableOn_Ioi_and_integral_frobeniusSq_le`), without any stability assumption;
+* the lower bounds `(B v)ᵀ W (B v) ≤ ∫₀^∞ ‖h t v‖₂²` and `tr (Bᵀ W B) ≤ ∫₀^∞ ‖h t‖_F²` from
+  `Aᵀ W + W A + Cᵀ C ⪰ 0` and exponential stability
+  (`LTISystem.integrableOn_Ioi_and_le_integral_mulVec`,
+  `LTISystem.integrableOn_Ioi_and_le_integral_frobeniusSq`);
 * the envelopes `‖h t v‖₂² ≤ γ β exp (-2 α t) ‖v‖₂²` and
   `‖h t‖_F² ≤ γ tr (Bᵀ P B) exp (-2 α t)` from `Cᵀ C ⪯ γ P` and `Bᵀ P B ⪯ β 1`
   (`LTISystem.responseKernel_mulVec_sq_le`, `LTISystem.frobeniusSq_responseKernel_le`), and the
@@ -276,6 +283,72 @@ theorem tendsto_exp_smul_mulVec [DecidableEq n]
   simpa [Function.comp_def] using ((PiLp.continuous_ofLp 2 _).tendsto 0).comp h0
 
 
+/-- **A stable system has finite output energy.** If `ẋ = A x` is exponentially stable, then for
+every `C` and every initial state `u` the output energy density `‖C exp (t A) u‖₂²` is integrable
+on `(0, ∞)`. -/
+theorem integrableOn_Ioi_exp_smul_mulVec [DecidableEq n] {p : Type*} [Fintype p]
+    {C : Matrix p n ℝ} (hA : (toEuclideanCLM (𝕜 := ℝ) A).IsExponentiallyStable) (u : n → ℝ) :
+    IntegrableOn (fun t : ℝ => C *ᵥ (exp (t • A) *ᵥ u) ⬝ᵥ C *ᵥ (exp (t • A) *ᵥ u)) (Ioi 0) := by
+  obtain ⟨M, α, hα, hM⟩ := hA
+  have hx := (isTrajectoryOn_toEuclideanCLM_iff (x := fun t => exp (t • A) *ᵥ u)
+    (s := Ici (0 : ℝ))).2 (hasDerivWithinAt_exp_smul_mulVec A u)
+  set K := toEuclideanCLM (𝕜 := ℝ) (Cᵀ * C)
+  set c := ‖K‖ * (M * ‖WithLp.toLp 2 u‖) ^ 2
+  have henv : ∀ t ∈ Ioi (0 : ℝ),
+      C *ᵥ (exp (t • A) *ᵥ u) ⬝ᵥ C *ᵥ (exp (t • A) *ᵥ u) ≤ c * Real.exp (-(2 * α) * t) := by
+    intro t ht
+    set y := WithLp.toLp 2 (exp (t • A) *ᵥ u)
+    have hy : ‖y‖ ≤ M * Real.exp (-(α * t)) * ‖WithLp.toLp 2 u‖ := by
+      simpa using hM _ hx t (le_of_lt ht)
+    have hq := (real_inner_le_norm y (K y)).trans
+      (mul_le_mul_of_nonneg_left (K.le_opNorm y) (norm_nonneg y))
+    rw [inner_toEuclideanCLM, dotProduct_transpose_mul_mulVec] at hq
+    have he : Real.exp (-(α * t)) ^ 2 = Real.exp (-(2 * α) * t) := by
+      rw [← Real.exp_nat_mul]; congr 1; push_cast; ring
+    calc _ ≤ ‖y‖ * (‖K‖ * ‖y‖) := hq
+      _ = ‖K‖ * ‖y‖ ^ 2 := by ring
+      _ ≤ ‖K‖ * (M * Real.exp (-(α * t)) * ‖WithLp.toLp 2 u‖) ^ 2 := by gcongr
+      _ = c * Real.exp (-(2 * α) * t) := by rw [← he]; ring
+  have hcont : ContinuousOn
+      (fun t : ℝ => C *ᵥ (exp (t • A) *ᵥ u) ⬝ᵥ C *ᵥ (exp (t • A) *ᵥ u)) (Ioi 0) := by
+    have hxc : ContinuousOn (fun t : ℝ => exp (t • A) *ᵥ u) (Ioi 0) := fun t ht =>
+      ((hasDerivWithinAt_exp_smul_mulVec A u t (le_of_lt ht)).continuousWithinAt).mono
+        fun τ hτ => le_of_lt hτ
+    exact ((continuous_const.matrix_mulVec continuous_id).dotProduct
+      (continuous_const.matrix_mulVec continuous_id)).comp_continuousOn hxc
+  exact ((integrableOn_exp_mul_Ioi (show -(2 * α) < 0 by linarith) 0).const_mul c).mono'
+    (hcont.aestronglyMeasurable measurableSet_Ioi) <|
+      (ae_restrict_iff' measurableSet_Ioi).2 <| Eventually.of_forall fun t ht => by
+        rw [Real.norm_of_nonneg (dotProduct_self_nonneg' _)]
+        exact henv t ht
+
+/-- **Energy lower bound from a reversed dissipation inequality.** If
+`Aᵀ W + W A + Cᵀ C ⪰ 0` as a quadratic form and `ẋ = A x` is exponentially stable, then for
+every `u` the output energy density `‖C exp (t A) u‖₂²` is integrable on `(0, ∞)` and its
+integral is at least `u ⬝ᵥ W *ᵥ u`. `W` need not be positive semidefinite. With the observability
+Gramian `G` (`Matrix.dotProduct_mulVec_eq_integral`) this is `W ⪯ G` as quadratic forms. -/
+theorem integrableOn_Ioi_and_le_integral [DecidableEq n] {W : Matrix n n ℝ} {p : Type*}
+    [Fintype p] {C : Matrix p n ℝ} (hR : ∀ y, 0 ≤ y ⬝ᵥ (Aᵀ * W + W * A + Cᵀ * C) *ᵥ y)
+    (hA : (toEuclideanCLM (𝕜 := ℝ) A).IsExponentiallyStable) (u : n → ℝ) :
+    IntegrableOn (fun t : ℝ => C *ᵥ (exp (t • A) *ᵥ u) ⬝ᵥ C *ᵥ (exp (t • A) *ᵥ u)) (Ioi 0) ∧
+      u ⬝ᵥ W *ᵥ u ≤
+        ∫ t in Ioi (0 : ℝ), C *ᵥ (exp (t • A) *ᵥ u) ⬝ᵥ C *ᵥ (exp (t • A) *ᵥ u) := by
+  have hint := integrableOn_Ioi_exp_smul_mulVec (C := C) hA u
+  refine ⟨hint, le_of_tendsto_of_tendsto (f := fun T : ℝ =>
+    u ⬝ᵥ W *ᵥ u - exp (T • A) *ᵥ u ⬝ᵥ W *ᵥ (exp (T • A) *ᵥ u)) ?_
+    (intervalIntegral_tendsto_integral_Ioi 0 hint tendsto_id) ?_⟩
+  · simpa [Function.comp_def] using
+      (((continuous_dotProduct_mulVec W).tendsto 0).comp (tendsto_exp_smul_mulVec hA u)).const_sub
+        (u ⬝ᵥ W *ᵥ u)
+  · filter_upwards [eventually_ge_atTop 0] with T hT
+    have h := integral_mulVec_dotProduct_eq (C := C) (W := W)
+      (hasDerivWithinAt_exp_smul_mulVec A u) hT
+    simp only [zero_smul, NormedSpace.exp_zero, one_mulVec] at h
+    have := intervalIntegral.integral_nonneg_of_forall (μ := volume) hT fun t =>
+      hR (exp (t • A) *ᵥ u)
+    simp only [id]
+    linarith
+
 /-- The output energy of `t ↦ exp (t • A) *ᵥ u` under the Gramian equation and stability. -/
 private theorem gramian_key {W : Matrix n n ℝ} {p : Type*} [Fintype p] [DecidableEq n]
     {C : Matrix p n ℝ} (hR : Aᵀ * W + W * A + Cᵀ * C = 0)
@@ -365,6 +438,17 @@ private theorem frobeniusSq_eq [DecidableEq m] (t : ℝ) :
       S.C *ᵥ (exp (t • S.A) *ᵥ (S.B *ᵥ Pi.single j 1)) := by
   simp only [sum_sq_eq_sum_mulVec_single, responseKernel_mulVec_eq']
 
+/-- If the energy density of every column of `h` is integrable on `(0, ∞)`, then so is
+`‖h t‖_F²`, and its integral is the sum of the columns' energies. -/
+private theorem integrableOn_Ioi_and_integral_frobeniusSq_eq_sum [DecidableEq m]
+    (h : ∀ j, IntegrableOn (fun t => S.responseKernel t *ᵥ Pi.single j (1 : ℝ) ⬝ᵥ
+      S.responseKernel t *ᵥ Pi.single j 1) (Ioi 0)) :
+    IntegrableOn (fun t => ∑ i, ∑ j, S.responseKernel t i j ^ 2) (Ioi 0) ∧
+      ∫ t in Ioi 0, ∑ i, ∑ j, S.responseKernel t i j ^ 2 = ∑ j, ∫ t in Ioi 0,
+        S.responseKernel t *ᵥ Pi.single j (1 : ℝ) ⬝ᵥ S.responseKernel t *ᵥ Pi.single j 1 := by
+  simp only [sum_sq_eq_sum_mulVec_single]
+  exact ⟨integrable_finsetSum _ fun j _ => h j, integral_finsetSum _ fun j _ => h j⟩
+
 /-! ### Exact energy from the Gramian equation -/
 
 /-- **Finite-horizon storage identity.** If `Aᵀ W + W A + Cᵀ C = 0`, then for `T ≥ 0`
@@ -404,9 +488,9 @@ theorem integrableOn_Ioi_and_integral_frobeniusSq_eq
       ∫ t in Ioi 0, ∑ i, ∑ j, S.responseKernel t i j ^ 2 = trace (S.Bᵀ * W * S.B) := by
   classical
   have h := fun j => integrableOn_Ioi_and_integral_mulVec_eq hR hA (Pi.single j (1 : ℝ))
-  simp only [sum_sq_eq_sum_mulVec_single, trace_eq_sum]
-  exact ⟨integrable_finsetSum _ fun j _ => (h j).1,
-    (integral_finsetSum _ fun j _ => (h j).1).trans (Finset.sum_congr rfl fun j _ => (h j).2)⟩
+  obtain ⟨hi, he⟩ := integrableOn_Ioi_and_integral_frobeniusSq_eq_sum fun j => (h j).1
+  rw [he, trace_eq_sum]
+  exact ⟨hi, Finset.sum_congr rfl fun j _ => (h j).2⟩
 
 /-! ### Upper bounds from a dissipation inequality -/
 
@@ -434,9 +518,38 @@ theorem integrableOn_Ioi_and_integral_frobeniusSq_le (hW : W.PosSemidef)
       ∫ t in Ioi 0, ∑ i, ∑ j, S.responseKernel t i j ^ 2 ≤ trace (S.Bᵀ * W * S.B) := by
   classical
   have h := fun j => integrableOn_Ioi_and_integral_mulVec_le hW hR (Pi.single j (1 : ℝ))
-  simp only [sum_sq_eq_sum_mulVec_single, trace_eq_sum]
-  exact ⟨integrable_finsetSum _ fun j _ => (h j).1,
-    (integral_finsetSum _ fun j _ => (h j).1).trans_le (Finset.sum_le_sum fun j _ => (h j).2)⟩
+  obtain ⟨hi, he⟩ := integrableOn_Ioi_and_integral_frobeniusSq_eq_sum fun j => (h j).1
+  rw [he, trace_eq_sum]
+  exact ⟨hi, Finset.sum_le_sum fun j _ => (h j).2⟩
+
+/-! ### Lower bounds from a reversed dissipation inequality -/
+
+/-- **Input-direction energy lower bound.** If `Aᵀ W + W A + Cᵀ C ⪰ 0` and `ẋ = A x` is
+exponentially stable, then `‖h t v‖₂²` is integrable on `(0, ∞)` and
+`(B v)ᵀ W (B v) ≤ ∫₀^∞ ‖h t v‖₂²`. `W` need not be positive semidefinite. -/
+theorem integrableOn_Ioi_and_le_integral_mulVec
+    (hR : (S.Aᵀ * W + W * S.A + S.Cᵀ * S.C).PosSemidef)
+    (hA : (toEuclideanCLM (𝕜 := ℝ) S.A).IsExponentiallyStable) (v : m → ℝ) :
+    IntegrableOn (fun t => S.responseKernel t *ᵥ v ⬝ᵥ S.responseKernel t *ᵥ v) (Ioi 0) ∧
+      S.B *ᵥ v ⬝ᵥ W *ᵥ (S.B *ᵥ v) ≤
+        ∫ t in Ioi 0, S.responseKernel t *ᵥ v ⬝ᵥ S.responseKernel t *ᵥ v := by
+  simp only [responseKernel_mulVec_eq']
+  exact integrableOn_Ioi_and_le_integral
+    (fun y => by simpa only [star_trivial] using hR.dotProduct_mulVec_nonneg y) hA _
+
+/-- **Impulse-response energy lower bound.** If `Aᵀ W + W A + Cᵀ C ⪰ 0` and `ẋ = A x` is
+exponentially stable, then `‖h t‖_F²` is integrable on `(0, ∞)` and
+`tr (Bᵀ W B) ≤ ∫₀^∞ ‖h t‖_F²`. `W` need not be positive semidefinite. -/
+theorem integrableOn_Ioi_and_le_integral_frobeniusSq
+    (hR : (S.Aᵀ * W + W * S.A + S.Cᵀ * S.C).PosSemidef)
+    (hA : (toEuclideanCLM (𝕜 := ℝ) S.A).IsExponentiallyStable) :
+    IntegrableOn (fun t => ∑ i, ∑ j, S.responseKernel t i j ^ 2) (Ioi 0) ∧
+      trace (S.Bᵀ * W * S.B) ≤ ∫ t in Ioi 0, ∑ i, ∑ j, S.responseKernel t i j ^ 2 := by
+  classical
+  have h := fun j => integrableOn_Ioi_and_le_integral_mulVec hR hA (Pi.single j (1 : ℝ))
+  obtain ⟨hi, he⟩ := integrableOn_Ioi_and_integral_frobeniusSq_eq_sum fun j => (h j).1
+  rw [he, trace_eq_sum]
+  exact ⟨hi, Finset.sum_le_sum fun j _ => (h j).2⟩
 
 /-! ### Decay envelopes -/
 

@@ -190,8 +190,7 @@ private theorem rupChain_spec {db : List LRATEntry} {ls : List (Clause ℕ)} (hl
     rw [propagateHints_cons, find?_map_toPair] at hprop
     rcases hfind : db.find? (·.id == h) with _ | e
     · simp [hfind] at hprop
-    have he := List.mem_of_find?_eq_some hfind
-    obtain ⟨hd₀, hsub⟩ := hdb e he
+    obtain ⟨hd₀, hsub⟩ := hdb _ (List.mem_of_find?_eq_some hfind)
     simp only [hfind, Option.map_some, LRATEntry.toPair] at hprop
     rcases hres : e.clause.residual t with _ | l | _
     · -- every literal of the hinted clause is false: the chain ends with its line
@@ -225,8 +224,8 @@ private theorem rupChain_spec {db : List LRATEntry} {ls : List (Clause ℕ)} (hl
             simp only [freeVars, Finset.mem_filter, List.mem_toFinset]
             refine ⟨hls.fst_mem_vars hd₀ hl₀, ?_⟩
             cases b
-            · exact ⟨by simpa [Literal.negate] using hlnew, hA.2⟩
-            · exact ⟨hA.2, by simpa [Literal.negate] using hlnew⟩
+            exacts [⟨by simpa [Literal.negate] using hlnew, hA.2⟩,
+              ⟨hA.2, by simpa [Literal.negate] using hlnew⟩]
           exact Nat.succ_le_of_lt (hvar₁.trans_lt (Finset.card_erase_lt_of_mem hv))
       · simp only [hl₀, ↓reduceIte]
         exact ⟨[], e.line, rfl, hls, hd₀, fun m hm => (hopen m hm).resolve_right
@@ -261,14 +260,11 @@ private theorem lratToProofAux_spec :
     simp only [checkLRATAux, Bool.and_eq_true] at h
     obtain ⟨ls₁, d, hc, hp₁, hd, hf, hlen₁, hvar₁⟩ := rupChain_spec hls hdb _ _ h.1
     have hdb' : ∀ e ∈ (⟨id, Clause.ofDIMACS c.toList, d⟩ :: db : List LRATEntry),
-        e.line ∈ ls₁ ++ ls ∧ ∀ l ∈ e.line, l ∈ e.clause := by
-      intro e he
-      rcases List.mem_cons.1 he with rfl | he
-      · refine ⟨hd, fun m hm => ?_⟩
+        e.line ∈ ls₁ ++ ls ∧ ∀ l ∈ e.line, l ∈ e.clause :=
+      List.forall_mem_cons.2 ⟨⟨hd, fun m hm => by
         obtain ⟨m', hm', hmm'⟩ := List.mem_map.1 (hf m hm)
-        have heq : m' = m := by simpa using negate_eq_iff.1 hmm'
-        exact heq ▸ hm'
-      · exact ⟨List.mem_append_right _ (hdb e he).1, (hdb e he).2⟩
+        simpa [negate_eq_iff.1 hmm'] using hm'⟩,
+        fun e he => ⟨List.mem_append_right _ (hdb e he).1, (hdb e he).2⟩⟩
     obtain ⟨ls₂, hc₂, hp₂, hnil, hlen₂, hvar₂⟩ :=
       lratToProofAux_spec rest _ _ hp₁ hdb' (by simpa [LRATEntry.toPair] using h.2)
     refine ⟨ls₂ ++ ls₁, by simp [lratToProofAux, hc, hc₂], by simpa using hp₂,
@@ -295,16 +291,12 @@ theorem isProof_lratToProof {cert : Array LRAT.IntAction} (h : φ.checkLRAT cert
     ∃ ls, φ.lratToProof cert = some ls ∧ φ.IsProof ls ∧ [] ∈ ls ∧
       ls.length ≤
         φ.length + min (lratHintCount cert.toList) (cert.size * φ.vars.toFinset.card) := by
-  have hdb : (φ.zipIdx.map fun e => (⟨e.2 + 1, e.1, e.1⟩ : LRATEntry)).map LRATEntry.toPair =
-      φ.lratDB := by
-    simp [lratDB, LRATEntry.toPair, Function.comp_def]
   obtain ⟨ls', hc, hp, hnil, hlen, hvar⟩ := lratToProofAux_spec cert.toList
     (φ.zipIdx.map fun e => (⟨e.2 + 1, e.1, e.1⟩ : LRATEntry)) φ
     (isProof_of_subset fun _ => id)
-    (fun e he => by
-      obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
-      exact ⟨List.mem_of_getElem? (List.mem_zipIdx_iff_getElem?.1 hp), fun _ hl => hl⟩)
-    (by rw [hdb]; exact h)
+    (List.forall_mem_map.2 fun _ hp =>
+      ⟨List.mem_of_getElem? (List.mem_zipIdx_iff_getElem?.1 hp), fun _ hl => hl⟩)
+    (by simpa [checkLRAT, lratDB, LRATEntry.toPair, Function.comp_def] using h)
   refine ⟨_, hc, hp, hnil, ?_⟩
   simp only [List.length_append, Array.length_toList] at hlen hvar ⊢
   omega

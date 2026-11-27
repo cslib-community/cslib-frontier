@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.Propositional.CNF.LRAT
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.RupComplete
 import CslibFrontier.Algorithms.Lean.DPLL
 import CslibFrontier.Logics.Propositional.CNF.Tautology
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Fast
@@ -49,14 +50,27 @@ literal exactly when it is unit. The trails of the LRAT checker stay consistent,
 negation of a tautological RUP clause; the kernel refutes that negation at once, from the `~`
 hint alone.
 
-**Why only one direction.** The theorem is an implication, not an equivalence. The kernel's
+**When the converse holds.** The theorem is an implication. The kernel's
 `Cslib.Logic.PL.VeriPB.rupHints` skips a hinted constraint that neither conflicts nor propagates,
 while the LRAT checker's `Cslib.Logic.PL.CNF.propagateWith` rejects a hinted clause with two
 literals left. So an LRAT step with a superfluous non-unit hint is rejected by `checkLRAT`, while
-its translation is accepted; the test client checks such a certificate. An equivalence between
-`checkLRAT` and the acceptance of some translation would say nothing, since a translation could
-itself run `checkLRAT`. The faithful converse is the back-translation of the clausal `rup`/`del`
-fragment of the kernel format into LRAT.
+its translation is accepted; the test client checks such a certificate. The kernel also refutes
+the negation of a tautological RUP clause at once, whatever its hints, while the LRAT checker must
+follow them from an inconsistent trail. Both checkers agree on everything else: a hint that names
+no clause becomes the kernel hint `0`, which names no constraint; a deletion keeps the databases
+equal under the renaming; a RAT step, or a certificate without an empty-clause step, leaves the
+kernel's conclusion `0`, which names no contradiction; and both stop at the first empty-clause
+step. So the converse holds for runs that skip no hint (`Cslib.Logic.PL.VeriPB.hintTight`): in the
+kernel run of the translation, every hinted constraint propagated without a conflict is
+*asserting* (`Cslib.Logic.PL.VeriPB.asserting`), a term not falsified has a coefficient above the
+slack, and no `~` hint conflicts by itself. This is a condition on the kernel run alone. It does
+not ask the run to succeed, and checks nothing after the run of a step stops, at a conflict, at
+the end of the hints, at a hint that names no constraint, or at a failing step; but a run that
+skips a hint before it fails violates it. On a clause, an asserting constraint is unit, so a
+kernel run that skips no hint is an LRAT run, step by step
+(`Cslib.Logic.PL.CNF.checkLRAT_iff_check_toVeriPB`). The back-translation of the clausal `rup`/`del`
+fragment of the kernel format into LRAT, which drops skipped hints, is
+`Cslib.Logic.PL.VeriPB.toLRAT`.
 
 ## Main definitions
 
@@ -64,6 +78,8 @@ fragment of the kernel format into LRAT.
   literals left.
 * `Cslib.Logic.PL.VeriPB.hintCount`: the number of hints of kernel steps.
 * `Cslib.Logic.PL.CNF.toVeriPB`: the translation.
+* `Cslib.Logic.PL.VeriPB.asserting`, `Cslib.Logic.PL.VeriPB.hintTight`: asserting constraints,
+  and kernel runs that skip no hint.
 
 ## Main results
 
@@ -72,6 +88,9 @@ fragment of the kernel format into LRAT.
   pseudo-Boolean propagation is unit propagation.
 * `Cslib.Logic.PL.CNF.check_toVeriPB`: an accepted LRAT certificate translates into an accepted
   kernel proof.
+* `Cslib.Logic.PL.CNF.checkLRAT_iff_check_toVeriPB`: when the kernel run of the translation skips
+  no hint, the LRAT checker accepts the certificate exactly when the kernel accepts the
+  translation.
 * `Cslib.Logic.PL.CNF.length_toVeriPB_le`, `Cslib.Logic.PL.CNF.hintCount_toVeriPB_le`,
   `Cslib.Logic.PL.CNF.toVeriPB_fragment`: a certificate of `S` steps with `H` hints translates
   into at most `S` steps with at most `H + S` hints, all `rup` steps for clauses or `del` steps.
@@ -119,10 +138,6 @@ theorem Clause.residual_congr_left {c c' : Clause ℕ} (h : ∀ l, l ∈ c ↔ l
 
 namespace VeriPB
 
-/-- A trail is *consistent* when it holds no literal together with its negation. -/
-def TrailConsistent (ρ : List (Literal ℕ)) : Prop :=
-  ∀ l ∈ ρ, Std.Sat.Literal.negate l ∉ ρ
-
 mutual
 
 /-- The number of hints of a step: those of a `rup` step, and those of the steps of a `pbc`
@@ -138,19 +153,6 @@ def hintCount : List Step → ℕ
   | s :: ss => s.hintCount + VeriPB.hintCount ss
 
 end
-
-/-- A literal whose negation is not on a consistent trail extends it consistently. -/
-theorem TrailConsistent.cons {t : List (Literal ℕ)} (ht : TrailConsistent t) {l : Literal ℕ}
-    (hl : Std.Sat.Literal.negate l ∉ t) : TrailConsistent (l :: t) := by
-  intro m hm hnm
-  simp only [List.mem_cons] at hm hnm
-  rcases hm with rfl | hm
-  · rcases hnm with h | h
-    · exact absurd h (by cases m; simp [Std.Sat.Literal.negate])
-    · exact hl h
-  · rcases hnm with h | h
-    · exact hl (h ▸ by simpa using hm)
-    · exact ht m hm h
 
 /-- **A constraint of degree `0` propagates nothing**: it never conflicts, and a term it could
 force has a coefficient within the slack. -/
@@ -345,6 +347,112 @@ theorem propagate_toPB (d : Clause ℕ) {ρ : List (Literal ℕ)} (hρ : TrailCo
     unfold Clause.unitStep
     rw [Clause.residual_congr_left (c' := d) (by simp [hN, List.mem_dedup])]
 
+/-! ### Runs that skip no hint -/
+
+/-- A constraint is **asserting** on the trail `ρ` when a term the trail does not falsify has a
+coefficient above the slack: propagation forces its literal, or finds it already on the trail. -/
+def asserting (ρ : List (Literal ℕ)) (c : PBConstr) : Bool :=
+  c.terms.any fun t => !falsified ρ t && decide (slack ρ c < t.1)
+
+/-- **The run of `Cslib.Logic.PL.VeriPB.rupHints` along `hs` from `ρ` skips no hint**: every
+hinted database constraint it propagates without a conflict is asserting
+(`Cslib.Logic.PL.VeriPB.asserting`), and the negated constraint `~` does not conflict by itself.
+The run *skips* a hint when it propagates a constraint that neither conflicts nor asserts, which
+LRAT forbids. The predicate says nothing once the run stops, at a conflict, at the end of the hints
+or at a hint that names no constraint; in particular it does not ask the run to succeed. -/
+def hintsTight (db : List (ℕ × PBConstr)) (neg : PBConstr) :
+    List Hint → List (Literal ℕ) → Bool
+  | [], _ => true
+  | h :: hs, ρ =>
+    match resolve db neg h with
+    | none => true
+    | some c =>
+      match propagate ρ c with
+      | none => decide (h ≠ .neg)
+      | some ρ' => (decide (h = .neg) || asserting ρ c) && hintsTight db neg hs ρ'
+
+mutual
+
+/-- **The kernel run of a step skips no hint**, from the database `db` and the next number `n`:
+the hints of a `rup` step skip none (`Cslib.Logic.PL.VeriPB.hintsTight`), and the run of the
+steps of a `pbc` subproof skips none, from the database extended by the negated constraint, as
+`Cslib.Logic.PL.VeriPB.subproofRefutes` runs it. -/
+def Step.hintTight : List (ℕ × PBConstr) → ℕ → Step → Bool
+  | db, _, .rup c hs => hintsTight db c.negate hs []
+  | db, n, .pbc c sub _ => VeriPB.stepsTight ((n, c.negate) :: db) (n + 1) sub
+  | _, _, _ => true
+
+/-- **The kernel run of the steps skips no hint**: every step it runs from the database `db` and
+the next number `n` skips none (`Cslib.Logic.PL.VeriPB.Step.hintTight`), so every `rup` step it
+runs, also inside a `pbc` subproof, has hints that skip none. The steps are run as
+`Cslib.Logic.PL.VeriPB.runSteps` runs them, and the predicate says nothing after a step that
+fails. -/
+def stepsTight : List (ℕ × PBConstr) → ℕ → List Step → Bool
+  | _, _, [] => true
+  | db, n, s :: ss =>
+    s.hintTight db n &&
+    match runStep db n s with
+    | some (db', n') => stepsTight db' n' ss
+    | none => true
+
+end
+
+/-- **The kernel run of a proof for `F` skips no hint** (`Cslib.Logic.PL.VeriPB.stepsTight`). -/
+def hintTight (F : List PBConstr) (P : Proof) : Bool :=
+  stepsTight (initDb F) (F.length + 1) P.steps
+
+/-- A constraint of degree `0` is never asserting: the slack is the sum of the coefficients of
+the terms not falsified. -/
+theorem asserting_of_degree_eq_zero {c : PBConstr} (h : c.degree = 0) (ρ : List (Literal ℕ)) :
+    asserting ρ c = false := by
+  refine List.any_eq_false.2 fun t ht hp => ?_
+  have hf : (!falsified ρ t) = true := by revert hp; cases falsified ρ t <;> simp
+  have hlt : slack ρ c < t.1 := by revert hp; simp
+  have := le_coeffSum_of_mem ((List.mem_filter (p := fun t => !falsified ρ t)).2 ⟨ht, hf⟩)
+  simp only [slack, h, Nat.cast_zero, sub_zero] at hlt
+  omega
+
+/-- **An asserting constraint of degree `1` leaves exactly one literal not false**: the asserting
+term is not falsified, and with positive coefficients, two terms not falsified give a slack at
+least the coefficient of each. -/
+private theorem exists_residual_eq_unit_of_asserting {c : PBConstr}
+    (hpos : ∀ t ∈ c.terms, 0 < t.1) (hd : c.degree = 1) {ρ : List (Literal ℕ)}
+    (ha : asserting ρ c = true) : ∃ l, Clause.residual (c.terms.map (·.2)) ρ = .unit l := by
+  set F := c.terms.filter fun t => !falsified ρ t with hF
+  have hFpos : ∀ t ∈ F, 0 < t.1 := fun t ht => hpos t (List.mem_of_mem_filter ht)
+  have hslack : slack ρ c = (coeffSum F : ℤ) - 1 := by simp [slack, hd, hF]
+  obtain ⟨t, ht, hp⟩ := List.any_eq_true.1 ha
+  have htF : t ∈ F := List.mem_filter.2 ⟨ht, by revert hp; cases falsified ρ t <;> simp⟩
+  have hlt : slack ρ c < t.1 := by revert hp; simp
+  unfold Clause.residual
+  rw [filter_map_snd, ← hF]
+  match hFm : F with
+  | [] => simp at htF
+  | [t₀] => exact ⟨t₀.2, by simp⟩
+  | t₁ :: t₂ :: ts =>
+    exfalso
+    have h1 := hFpos t₁ (by simp)
+    have h2 := hFpos t₂ (by simp)
+    have hs : coeffSum (t₁ :: t₂ :: ts) = t₁.1 + (t₂.1 + coeffSum ts) := by simp [coeffSum]
+    simp only [List.mem_cons] at htF
+    rcases htF with rfl | rfl | htF
+    · omega
+    · omega
+    · have := le_coeffSum_of_mem htF
+      omega
+
+/-- **An asserting clause is unit**: a tautological clause is never asserting, and otherwise its
+normal form has degree `1`, and its asserting term is the one literal not false. -/
+theorem exists_residual_eq_unit_of_asserting_toPB (d : Clause ℕ) {ρ : List (Literal ℕ)}
+    (ha : asserting ρ d.toPB.normalize = true) : ∃ l, d.residual ρ = .unit l := by
+  by_cases hd : ∃ l ∈ d, Std.Sat.Literal.negate l ∈ d
+  · simp [asserting_of_degree_eq_zero (Clause.degree_normalize_toPB_of_isTautology hd)] at ha
+  · have hN := Clause.normalize_toPB_of_not_isTautology hd
+    rw [Clause.residual_congr_left (c' := d.toPB.normalize.terms.map (·.2))
+      (by simp [hN, List.mem_dedup])]
+    exact exists_residual_eq_unit_of_asserting (fun _ ht => pos_of_mem_normalize ht) (by rw [hN])
+      ha
+
 end VeriPB
 
 /-! ### The translation -/
@@ -352,10 +460,10 @@ end VeriPB
 namespace CNF
 
 /-- The hints of an LRAT step as kernel hints, renumbered along `ren`, which maps certificate
-numbers to kernel numbers, the first match counting. A hint without a number is dropped; the LRAT
-checker rejects it. -/
+numbers to kernel numbers, the first match counting. A hint without a number becomes the hint `0`,
+a number the kernel never gives a constraint, so the kernel rejects it as the LRAT checker does. -/
 def renameHints (ren : List (ℕ × ℕ)) (hs : List ℕ) : List VeriPB.Hint :=
-  hs.filterMap fun h => (ren.lookup h).map VeriPB.Hint.id
+  hs.map fun h => .id ((ren.lookup h).getD 0)
 
 /-- **The translation of the steps of an LRAT certificate**, from the renaming `ren` of
 certificate numbers to kernel numbers and the next kernel number `n`:
@@ -496,6 +604,56 @@ private theorem rup_toPB {J : List Entry} (hJ : (J.map Entry.num).Nodup) (d : Cl
     rw [hρ]
     exact rupHints_renameHints hJ _ _ _ _ (consistent_map_negate hd) hset h
 
+/-- **A deletion on both sides**: the LRAT checker and the kernel delete the same entries, and
+the kernel's `del` of the kernel numbers of the deleted clauses succeeds. -/
+private theorem del_parts {J : List Entry} {n : ℕ} (hid : IdOk (pbPart J) n) (ids : Array ℕ) :
+    lratPart (J.filter fun e => !ids.toList.contains e.key) =
+        (lratPart J).filter (fun e => !ids.toList.contains e.1) ∧
+      renPart (J.filter fun e => !ids.toList.contains e.key) =
+        (renPart J).filter (fun e => !ids.toList.contains e.1) ∧
+      IdOk (pbPart (J.filter fun e => !ids.toList.contains e.key)) n ∧
+      runStep (pbPart J) n
+        (.del (((renPart J).filter fun e => ids.toList.contains e.1).map (·.2))) =
+        some (pbPart (J.filter fun e => !ids.toList.contains e.key), n) := by
+  have hJ : (J.map Entry.num).Nodup := pbPart_map_fst J ▸ hid.nodup
+  set J' := J.filter fun e => !ids.toList.contains e.key
+  have hl : lratPart J' = (lratPart J).filter fun e => !ids.toList.contains e.1 := by
+    simp [J', lratPart, List.filter_map, Function.comp_def]
+  have hr : renPart J' = (renPart J).filter fun e => !ids.toList.contains e.1 := by
+    simp [J', renPart, List.filter_map, Function.comp_def]
+  have hdel : ((renPart J).filter fun e => ids.toList.contains e.1).map (·.2) =
+      (J.filter fun e => ids.toList.contains e.key).map Entry.num := by
+    simp [renPart, List.filter_map, Function.comp_def]
+  have hnd : ((J.filter fun e => ids.toList.contains e.key).map Entry.num).Nodup :=
+    hJ.sublist (List.filter_sublist.map _)
+  have hall : ((J.filter fun e => ids.toList.contains e.key).map Entry.num).all
+      (fun i => (lookup (pbPart J) i).isSome) = true := by
+    refine List.all_eq_true.2 fun p hp => ?_
+    obtain ⟨e, he, rfl⟩ := List.mem_map.1 hp
+    simp only [lookup, Option.isSome_map, List.find?_isSome]
+    exact ⟨(e.num, e.clause.toPB.normalize),
+      List.mem_map_of_mem (List.mem_of_mem_filter he), by simp⟩
+  have hp : (pbPart J).filter (fun e =>
+      !((J.filter fun e => ids.toList.contains e.key).map Entry.num).contains e.1) =
+      pbPart J' := by
+    simp only [pbPart, J', List.filter_map]
+    congr 1
+    refine List.filter_congr fun e he => ?_
+    simp only [Function.comp_apply, List.contains_eq_mem]
+    congr 1
+    refine decide_eq_decide.2 ⟨fun hm => ?_, fun hk => ?_⟩
+    · obtain ⟨e', he', hn⟩ := List.mem_map.1 hm
+      obtain ⟨he', hk⟩ := List.mem_filter.1 he'
+      obtain rfl : e' = e := List.inj_on_of_nodup_map hJ he' he hn
+      simpa using hk
+    · exact List.mem_map_of_mem (List.mem_filter.2 ⟨he, by simpa using hk⟩)
+  have hstep : runStep (pbPart J) n
+      (.del (((renPart J).filter fun e => ids.toList.contains e.1).map (·.2))) =
+      some (pbPart J', n) := by
+    simp only [runStep]
+    rw [hdel, ite_eq_left (by simp only [hnd, hall, decide_true, Bool.and_self]), hp]
+  exact ⟨hl, hr, hp ▸ hid.filter _, hstep⟩
+
 /-- **The invariant of the translation**: from LRAT and kernel databases that hold the same
 clauses under the renaming, an accepted certificate translates into steps that the kernel runs
 to a database naming a contradiction at the translated conclusion. -/
@@ -524,47 +682,147 @@ private theorem check_aux : ∀ (cert : List LRAT.IntAction) (J : List Entry) (n
     exact hrun
   | .addRat .. :: _, _, _, _, h => by simp [CNF.checkLRATAux] at h
   | .del ids :: rest, J, n, hid, h => by
-    have hJ : (J.map Entry.num).Nodup := pbPart_map_fst J ▸ hid.nodup
     simp only [CNF.checkLRATAux] at h
-    set J' := J.filter fun e => !ids.toList.contains e.key
-    have hl : lratPart J' = (lratPart J).filter fun e => !ids.toList.contains e.1 := by
-      simp [J', lratPart, List.filter_map, Function.comp_def]
-    have hr : renPart J' = (renPart J).filter fun e => !ids.toList.contains e.1 := by
-      simp [J', renPart, List.filter_map, Function.comp_def]
-    have hdel : ((renPart J).filter fun e => ids.toList.contains e.1).map (·.2) =
-        (J.filter fun e => ids.toList.contains e.key).map Entry.num := by
-      simp [renPart, List.filter_map, Function.comp_def]
-    have hnd : ((J.filter fun e => ids.toList.contains e.key).map Entry.num).Nodup :=
-      hJ.sublist (List.filter_sublist.map _)
-    have hall : ((J.filter fun e => ids.toList.contains e.key).map Entry.num).all
-        (fun i => (lookup (pbPart J) i).isSome) = true := by
-      refine List.all_eq_true.2 fun p hp => ?_
-      obtain ⟨e, he, rfl⟩ := List.mem_map.1 hp
-      simp only [lookup, Option.isSome_map, List.find?_isSome]
-      exact ⟨(e.num, e.clause.toPB.normalize),
-        List.mem_map_of_mem (List.mem_of_mem_filter he), by simp⟩
-    have hp : (pbPart J).filter (fun e =>
-        !((J.filter fun e => ids.toList.contains e.key).map Entry.num).contains e.1) =
-        pbPart J' := by
-      simp only [pbPart, J', List.filter_map]
-      congr 1
-      refine List.filter_congr fun e he => ?_
-      simp only [Function.comp_apply, List.contains_eq_mem]
-      congr 1
-      refine decide_eq_decide.2 ⟨fun hm => ?_, fun hk => ?_⟩
-      · obtain ⟨e', he', hn⟩ := List.mem_map.1 hm
-        obtain ⟨he', hk⟩ := List.mem_filter.1 he'
-        obtain rfl : e' = e := List.inj_on_of_nodup_map hJ he' he hn
-        simpa using hk
-      · exact List.mem_map_of_mem (List.mem_filter.2 ⟨he, by simpa using hk⟩)
-    have hstep : runStep (pbPart J) n
-        (.del (((renPart J).filter fun e => ids.toList.contains e.1).map (·.2))) =
-        some (pbPart J', n) := by
-      simp only [runStep]
-      rw [hdel, ite_eq_left (by simp only [hnd, hall, decide_true, Bool.and_self]), hp]
-    obtain ⟨D, m, hrun, hc⟩ := check_aux rest J' n (hp ▸ hid.filter _) (hl ▸ h)
+    obtain ⟨hl, hr, hid', hstep⟩ := del_parts hid ids
+    obtain ⟨D, m, hrun, hc⟩ := check_aux rest _ n hid' (hl ▸ h)
     simp only [CNF.toVeriPBAux, ← hr, runSteps, hstep]
     exact ⟨D, m, hrun, hc⟩
+
+/-! ### The converse, for runs that skip no hint -/
+
+/-- A number that names no clause of the LRAT database has no kernel number. -/
+private theorem lookup_renPart_eq_none {J : List Entry} {h : ℕ}
+    (hl : (lratPart J).lookup h = none) : (renPart J).lookup h = none := by
+  induction J with
+  | nil => rfl
+  | cons e J ih =>
+    by_cases he : h = e.key
+    · subst he
+      simp [lratPart] at hl
+    · have hne : (h == e.key) = false := by simpa using he
+      have := ih (by simpa [lratPart, List.lookup_cons, hne] using hl)
+      simpa [renPart, List.lookup_cons, hne] using this
+
+/-- The kernel database has no constraint numbered `0`. -/
+private theorem lookup_pbPart_zero {J : List Entry} (h0 : ∀ e ∈ J, 0 < e.num) :
+    lookup (pbPart J) 0 = none := by
+  unfold lookup
+  rw [List.find?_eq_none.2 fun e he => ?_]
+  · rfl
+  obtain ⟨e', he', rfl⟩ := List.mem_map.1 he
+  simp [(h0 e' he').ne']
+
+/-- **A renumbered run that skips no hint propagates in the LRAT checker as in the kernel**, from
+a consistent trail with the same literals: a hinted clause that conflicts in the kernel is
+falsified, one that propagates without a conflict is asserting, so it is unit, and a hint that
+names no clause names no constraint. -/
+private theorem propagateHints_of_rupHints {J : List Entry} (hJ : (J.map Entry.num).Nodup)
+    (h0 : ∀ e ∈ J, 0 < e.num) (neg : PBConstr) :
+    ∀ (hs : List ℕ) (t ρ : List (Literal ℕ)), TrailConsistent t → (∀ l, l ∈ ρ ↔ l ∈ t) →
+      hintsTight (pbPart J) neg (CNF.renameHints (renPart J) hs) ρ = true →
+      rupHints (pbPart J) neg (CNF.renameHints (renPart J) hs) ρ = true →
+      CNF.propagateHints (lratPart J) t hs = true
+  | [], _, _, _, _, _, h => by simp [CNF.renameHints, rupHints] at h
+  | x :: hs, t, ρ, ht, hρ, hT, h => by
+    simp only [CNF.propagateHints, CNF.propagateWith]
+    rcases hl : (lratPart J).lookup x with _ | d
+    · simp [CNF.renameHints, lookup_renPart_eq_none hl, rupHints, resolve,
+        lookup_pbPart_zero h0] at h
+    obtain ⟨p, hp, hq⟩ := lookup_parts hJ hl
+    have hcons : CNF.renameHints (renPart J) (x :: hs) =
+        .id p :: CNF.renameHints (renPart J) hs := by
+      simp [CNF.renameHints, hp]
+    have hρc : TrailConsistent ρ := fun l hl hn => ht l ((hρ l).1 hl) ((hρ _).1 hn)
+    rw [hcons] at hT h
+    simp only [rupHints, resolve, hq, propagate_toPB d hρc] at h
+    simp only [hintsTight, resolve, hq, propagate_toPB d hρc, reduceCtorEq, decide_false,
+      Bool.false_or] at hT
+    dsimp only
+    rw [← Clause.residual_congr _ hρ]
+    unfold Clause.unitStep at h hT
+    rcases hr : d.residual ρ with _ | l | _ <;> simp only [hr] at h hT ⊢
+    · obtain ⟨-, hlt, -⟩ := Clause.residual_eq_unit_iff.1 hr
+      refine propagateHints_of_rupHints hJ h0 neg hs (l :: t) _
+        (ht.cons fun hn => hlt ((hρ _).2 hn)) ?_ (Bool.and_eq_true_iff.1 hT).2 h
+      intro m
+      split
+      · rename_i hc
+        have : l ∈ t := (hρ l).1 (by simpa using hc)
+        simp only [List.mem_cons, hρ]
+        exact ⟨fun h => .inr h, fun h => h.elim (· ▸ this) id⟩
+      · simp [hρ]
+    · obtain ⟨l, hl⟩ := exists_residual_eq_unit_of_asserting_toPB d (Bool.and_eq_true_iff.1 hT).1
+      simp [hr] at hl
+
+/-- **A `rup` step that skips no hint comes from a RUP step**: its negated clause does not
+conflict by itself, so the clause is not a tautology, and the kernel and the LRAT checker start
+from the negated literals. -/
+private theorem propagateHints_of_rup {J : List Entry} (hJ : (J.map Entry.num).Nodup)
+    (h0 : ∀ e ∈ J, 0 < e.num) (d : Clause ℕ) (hs : List ℕ)
+    (hT : hintsTight (pbPart J) d.toPB.negate (.neg :: CNF.renameHints (renPart J) hs) [] = true)
+    (h : rup (pbPart J) d.toPB (.neg :: CNF.renameHints (renPart J) hs) = true) :
+    CNF.propagateHints (lratPart J) (d.map Std.Sat.Literal.negate) hs = true := by
+  unfold rup at h
+  simp only [rupHints, resolve] at h
+  simp only [hintsTight, resolve] at hT
+  by_cases hd : ∃ l ∈ d, Std.Sat.Literal.negate l ∈ d
+  · simp [propagate_nil_negate_toPB_of_isTautology hd] at hT
+  · obtain ⟨ρ, hρ, hset⟩ := propagate_nil_negate_toPB hd
+    rw [hρ] at h hT
+    exact propagateHints_of_rupHints hJ h0 _ _ _ _ (consistent_map_negate hd) hset
+      (Bool.and_eq_true_iff.1 hT).2 h
+
+/-- **The converse invariant**: from LRAT and kernel databases that hold the same clauses under
+the renaming, a translation that the kernel runs, skipping no hint, to a database naming a
+contradiction at the translated conclusion comes from an accepted certificate. -/
+private theorem checkLRATAux_of_check : ∀ (cert : List LRAT.IntAction) (J : List Entry) (n : ℕ),
+    IdOk (pbPart J) n → 0 < n → (∀ e ∈ J, 0 < e.num) →
+    stepsTight (pbPart J) n (CNF.toVeriPBAux (renPart J) n cert).steps = true →
+    ∀ D m, runSteps (pbPart J) n (CNF.toVeriPBAux (renPart J) n cert).steps = some (D, m) →
+    namesContra D (CNF.toVeriPBAux (renPart J) n cert).conclusion = true →
+    CNF.checkLRATAux (lratPart J) cert = true
+  | [], J, _, _, _, h0, _, D, m, hrun, hc => by
+    simp only [CNF.toVeriPBAux, runSteps, Option.some.injEq, Prod.mk.injEq] at hrun
+    obtain ⟨rfl, -⟩ := hrun
+    simp [CNF.toVeriPBAux, namesContra, lookup_pbPart_zero h0] at hc
+  | .addEmpty _ hints :: _, J, n, hid, _, h0, hT, D, m, hrun, _ => by
+    have hJ : (J.map Entry.num).Nodup := pbPart_map_fst J ▸ hid.nodup
+    simp only [CNF.checkLRATAux]
+    simp only [CNF.toVeriPBAux, runSteps, runStep] at hrun
+    have hr : rup (pbPart J) (Clause.toPB []) (CNF.renameHints (renPart J) hints.toList) =
+        true := by
+      by_contra hne
+      simp [hne] at hrun
+    simp only [CNF.toVeriPBAux, stepsTight, Step.hintTight, Bool.and_eq_true] at hT
+    unfold rup at hr
+    exact propagateHints_of_rupHints hJ h0 _ _ [] [] (by simp [TrailConsistent]) (by simp)
+      hT.1 hr
+  | .addRup i c hints :: rest, J, n, hid, hn, h0, hT, D, m, hrun, hc => by
+    have hJ : (J.map Entry.num).Nodup := pbPart_map_fst J ▸ hid.nodup
+    simp only [CNF.toVeriPBAux, stepsTight, Step.hintTight, runStep, Bool.and_eq_true] at hT
+    simp only [CNF.toVeriPBAux, runSteps, runStep] at hrun hc
+    have hr : rup (pbPart J) (Clause.ofDIMACS c.toList).toPB
+        (.neg :: CNF.renameHints (renPart J) hints.toList) = true := by
+      by_contra hne
+      simp [hne] at hrun
+    simp only [hr, ↓reduceIte] at hrun hT
+    have h0' : ∀ e ∈ (⟨i, n, Clause.ofDIMACS c.toList⟩ :: J : List Entry), 0 < e.num :=
+      fun e he => (List.mem_cons.1 he).elim (fun he => he ▸ hn) (h0 e)
+    have h2 := checkLRATAux_of_check rest (⟨i, n, Clause.ofDIMACS c.toList⟩ :: J) (n + 1)
+      (hid.cons le_rfl _) (by omega) h0' hT.2 D m hrun hc
+    simp only [CNF.checkLRATAux, Bool.and_eq_true]
+    exact ⟨propagateHints_of_rup hJ h0 _ _ hT.1 hr, h2⟩
+  | .addRat .. :: _, J, _, _, _, h0, _, D, m, hrun, hc => by
+    simp only [CNF.toVeriPBAux, runSteps, Option.some.injEq, Prod.mk.injEq] at hrun
+    obtain ⟨rfl, -⟩ := hrun
+    simp [CNF.toVeriPBAux, namesContra, lookup_pbPart_zero h0] at hc
+  | .del ids :: rest, J, n, hid, hn, h0, hT, D, m, hrun, hc => by
+    obtain ⟨hl, hr, hid', hstep⟩ := del_parts hid ids
+    simp only [CNF.toVeriPBAux, ← hr, stepsTight, Step.hintTight, runSteps, hstep, Bool.true_and]
+      at hT hrun hc
+    simp only [CNF.checkLRATAux, ← hl]
+    exact checkLRATAux_of_check rest _ n hid' hn (fun e he => h0 e (List.mem_of_mem_filter he))
+      hT D m hrun hc
 
 end VeriPB
 
@@ -574,7 +832,8 @@ open VeriPB
 
 /-- **LRAT certificates are VeriPB proofs**: if the LRAT checker accepts a certificate for `φ`,
 the kernel checker accepts its translation for the clauses of `φ` read as pseudo-Boolean
-constraints. The converse fails (see the module documentation). -/
+constraints. The converse fails for runs that skip a hint
+(`Cslib.Logic.PL.CNF.checkLRAT_iff_check_toVeriPB`). -/
 theorem check_toVeriPB {φ : CNF ℕ} {cert : Array LRAT.IntAction} (h : φ.checkLRAT cert = true) :
     check (φ.map Clause.toPB) (φ.toVeriPB cert) = true := by
   let J : List Entry := φ.lratDB.map fun e => ⟨e.1, e.1, e.2⟩
@@ -590,6 +849,43 @@ theorem check_toVeriPB {φ : CNF ℕ} {cert : Array LRAT.IntAction} (h : φ.chec
   rw [hn, ← hp]
   simp only [toVeriPB, ← hr, hrun, hc]
 
+/-- **For runs that skip no hint, LRAT and the kernel accept the same certificates.** If the
+kernel run of the translation skips no hint (`Cslib.Logic.PL.VeriPB.hintTight`: every hinted
+clause it propagates without a conflict is unit, and no RUP step conflicts from its negated
+clause alone), then the LRAT checker accepts the certificate exactly when the kernel
+accepts its translation. The hypothesis is needed: the kernel skips a hinted clause with two
+literals left, which the LRAT checker rejects, and it refutes the negation of a tautological RUP
+clause at once, whatever its hints. -/
+theorem checkLRAT_iff_check_toVeriPB {φ : CNF ℕ} {cert : Array LRAT.IntAction}
+    (hT : hintTight (φ.map Clause.toPB) (φ.toVeriPB cert) = true) :
+    φ.checkLRAT cert = true ↔ check (φ.map Clause.toPB) (φ.toVeriPB cert) = true := by
+  refine ⟨check_toVeriPB, fun h => ?_⟩
+  let J : List Entry := φ.lratDB.map fun e => ⟨e.1, e.1, e.2⟩
+  have hl : lratPart J = φ.lratDB := by simp [J, lratPart, Function.comp_def]
+  have hr : renPart J = φ.lratDB.map fun e => (e.1, e.1) := by
+    simp [J, renPart, Function.comp_def]
+  have hp : pbPart J = initDb (φ.map Clause.toPB) := by
+    simp [J, pbPart, initDb, lratDB, List.zipIdx_map, Function.comp_def]
+  have hn : (φ.map Clause.toPB).length + 1 = φ.length + 1 := by simp
+  have h0 : ∀ e ∈ J, 0 < e.num := by
+    intro e he
+    obtain ⟨x, hx, rfl⟩ := List.mem_map.1 he
+    simp only [lratDB] at hx
+    obtain ⟨y, -, rfl⟩ := List.mem_map.1 hx
+    exact Nat.succ_pos _
+  unfold check at h
+  unfold hintTight at hT
+  rw [hn, ← hp] at h hT
+  simp only [toVeriPB, ← hr] at h hT
+  rcases hrun : runSteps (pbPart J) (φ.length + 1)
+    (toVeriPBAux (renPart J) (φ.length + 1) cert.toList).steps with _ | ⟨D, m⟩
+  · simp [hrun] at h
+  · simp only [hrun] at h
+    unfold checkLRAT
+    rw [← hl]
+    exact checkLRATAux_of_check cert.toList J _ (hp ▸ hn ▸ idOk_initDb _) (by omega) h0 hT
+      D m hrun h
+
 /-! ### Size and fragment -/
 
 /-- The translation of the steps has at most one step per certificate step, and at most one hint
@@ -599,15 +895,13 @@ private theorem toVeriPBAux_size : ∀ (ren : List (ℕ × ℕ)) (n : ℕ) (cert
       VeriPB.hintCount (toVeriPBAux ren n cert).steps ≤ lratHintCount cert + cert.length
   | _, _, [] => by simp [toVeriPBAux, VeriPB.hintCount]
   | ren, n, .addEmpty _ hints :: rest => by
-    have : (renameHints ren hints.toList).length ≤ hints.size :=
-      (List.length_filterMap_le _ _).trans (by simp)
+    have : (renameHints ren hints.toList).length ≤ hints.size := by simp [renameHints]
     simp only [toVeriPBAux, List.length_cons, List.length_nil, VeriPB.hintCount,
       VeriPB.Step.hintCount, lratHintCount]
     omega
   | ren, n, .addRup i c hints :: rest => by
     have ih := toVeriPBAux_size ((i, n) :: ren) (n + 1) rest
-    have : (renameHints ren hints.toList).length ≤ hints.size :=
-      (List.length_filterMap_le _ _).trans (by simp)
+    have : (renameHints ren hints.toList).length ≤ hints.size := by simp [renameHints]
     simp only [toVeriPBAux, List.length_cons, VeriPB.hintCount, VeriPB.Step.hintCount,
       lratHintCount]
     omega

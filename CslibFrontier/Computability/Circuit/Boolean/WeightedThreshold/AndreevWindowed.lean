@@ -315,23 +315,13 @@ theorem eval_andreevWindowedCircuit_eq_evalInt (b m r B : ℕ)
       andreevWindowedCircuitEvalInt b m r B w := by
   simp only [andreevWindowedCircuit, eval_depthTwo, id, interpretation_andreevWindowedBottomOp]
   simp only [interpretation, andreevWindowedTopOp, andreevWindowedCircuitEvalInt]
-  have hsum :
-      (∑ j : Fin (4 * #(andreevPrefixSubsets b r) * B),
-        let idx := (andreevWindowedBottomEquiv b r B).symm j
-        (andreevWindowedTopWeightInt b m B idx.subset idx.staircase idx.step : ℝ) *
-          (andreevWindowedBottomEvalInt b m B idx.subset idx.staircase idx.step w).toNat) =
-      ∑ S ∈ andreevPrefixSubsets b r, ∑ τ : Bool, ∑ k : Fin (2 * B),
-        (andreevWindowedTopWeightInt b m B S τ k : ℝ) *
-          (andreevWindowedBottomEvalInt b m B S τ k w).toNat := by
-    rw [← (andreevWindowedBottomEquiv b r B).sum_comp]
-    simp only [Equiv.symm_apply_apply,
-      ← (AndreevWindowedBottomIndex.equivProd b r B).symm.sum_comp, Fintype.sum_prod_type]
-    exact sum_coe_sort (andreevPrefixSubsets b r) (fun S =>
-      ∑ τ : Bool, ∑ k : Fin (2 * B),
-        (andreevWindowedTopWeightInt b m B S τ k : ℝ) *
-          (andreevWindowedBottomEvalInt b m B S τ k w).toNat)
-  rw [hsum]
-  exact decide_eq_decide.mpr (mod_cast Iff.rfl)
+  refine decide_eq_decide.mpr ?_
+  rw [← (andreevWindowedBottomEquiv b r B).sum_comp]
+  simp only [Equiv.symm_apply_apply,
+    ← (AndreevWindowedBottomIndex.equivProd b r B).symm.sum_comp, Fintype.sum_prod_type]
+  dsimp only [AndreevWindowedBottomIndex.equivProd, Equiv.coe_fn_symm_mk]
+  conv_rhs => rw [← sum_coe_sort]
+  exact_mod_cast Iff.rfl
 
 /-- On any in-window input `w`, `andreevWindowedCircuit b m r B` evaluates to
 `andreevSubcubeEval b m r w`. -/
@@ -503,12 +493,9 @@ private theorem cast_andreevTableScore_flipTable (b m : ℕ) (S : Finset (Fin b)
   have hcard : (#{i ∈ andreevTableSupport b m | w i = true} : ℝ) =
       ∑ c : BitString b, ((andreevTable b m w c).toNat : ℝ) := by
     rw [andreevTableSupport, card_filter, sum_map]
-    simp only [Function.Embedding.coeFn_mk, Nat.cast_sum]
-    rw [← (BitString.equivFin b).sum_comp
-      fun idx => ((if w (andreevTableIndex b m idx) = true then 1 else 0 : ℕ) : ℝ)]
+    simp only [Function.Embedding.coeFn_mk, Nat.cast_sum, ← (BitString.equivFin b).sum_comp]
     exact sum_congr rfl fun c _ => by
-      simp only [andreevTable]
-      cases w (andreevTableIndex b m (BitString.equivFin b c)) <;> simp
+      cases h : w (andreevTableIndex b m (BitString.equivFin b c)) <;> simp [andreevTable, h]
   rw [hscore, hcard, sum_sub_distrib, ← mul_sum]
   simp only [sum_const, card_univ, BitString.card, nsmul_eq_mul, Nat.cast_pow, Nat.cast_ofNat]
   ring

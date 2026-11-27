@@ -298,10 +298,8 @@ theorem twoHopStep_comm {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
       twoHopStepMsgs j cfg + twoHopStepMsgs i (twoHopStep j cfg) := by
   obtain ⟨hstep_i_at_jpred, hnode_i_at_j, hlhs⟩ := twoHopStep_two_of_ne hne hi hj
   obtain ⟨hstep_j_at_ipred, hnode_j_at_i, hrhs⟩ := twoHopStep_two_of_ne hne.symm hj hi
-  have hqi : cfg.chan (i - 1) = (cfg.chan (i - 1)).head hi :: (cfg.chan (i - 1)).tail :=
-    (List.cons_head_tail hi).symm
-  have hqj : cfg.chan (j - 1) = (cfg.chan (j - 1)).head hj :: (cfg.chan (j - 1)).tail :=
-    (List.cons_head_tail hj).symm
+  have hqi := (List.cons_head_tail hi).symm
+  have hqj := (List.cons_head_tail hj).symm
   refine ⟨by rw [hstep_i_at_jpred]; exact List.cons_ne_nil _ _,
     by rw [hstep_j_at_ipred]; exact List.cons_ne_nil _ _, ?_, ?_⟩
   · refine TwoHopConfig.ext (funext fun x => ?_) (funext fun e => ?_)
@@ -309,16 +307,11 @@ theorem twoHopStep_comm {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
         twoHopStep_node_of_cons hstep_j_at_ipred, hnode_j_at_i,
         twoHopStep_node_of_cons hqi, twoHopStep_node_of_cons hqj]
       by_cases hxj : x = j <;> by_cases hxi : x = i <;> simp [hxj, hxi, hne, hne.symm]
-    · rw [hlhs e, hrhs e]
+    · rw [hlhs e, hrhs e, List.append_assoc, List.append_assoc]
       have hpred_ne : i - 1 ≠ j - 1 := fun h => hne (sub_left_injective h)
-      have hbase_eq :
-          (if e = i - 1 then (cfg.chan (i - 1)).tail
-            else if e = j - 1 then (cfg.chan (j - 1)).tail else cfg.chan e) =
-          (if e = j - 1 then (cfg.chan (j - 1)).tail
-            else if e = i - 1 then (cfg.chan (i - 1)).tail else cfg.chan e) := by
-        by_cases he : e = i - 1 <;> simp only [he, hpred_ne, ↓reduceIte]
-      rw [hbase_eq]
-      by_cases hei : e = i <;> simp only [hei, hne, ↓reduceIte, List.append_nil]
+      congr 1
+      · by_cases he : e = i - 1 <;> simp only [he, hpred_ne, ↓reduceIte]
+      · by_cases hei : e = i <;> simp only [hei, hne, ↓reduceIte, List.nil_append, List.append_nil]
   · have hcons {c : TwoHopConfig n U} {t m r} (hq : c.chan (t - 1) = m :: r) :
         twoHopStepMsgs t c = (twoHopRecv (c.node t) m).sent.length := by simp [twoHopStepMsgs, hq]
     rw [hcons hqi, hcons hstep_i_at_jpred, hnode_i_at_j, hcons hqj, hcons hstep_j_at_ipred,
@@ -723,8 +716,7 @@ theorem twoHopAllActive_phases_le_log {n : ℕ} [NeZero n] {U : Type*} [LinearOr
           ≤ 2 ^ (Nat.log 2 n + 1) * (twoHopAllActivePhase uid (Nat.log 2 n + 1)).active.card :=
             Nat.le_mul_of_pos_right _ hcard_pos
         _ ≤ n := hpow
-    have hle := Nat.le_log_of_pow_le (by omega) h2pow
-    omega
+    exact absurd (Nat.le_log_of_pow_le (by omega) h2pow) (by omega)
   have hlog_lt_n : Nat.log 2 n < n :=
     Nat.lt_two_pow_self.trans_le (Nat.pow_log_le_self 2 (NeZero.ne n))
   obtain ⟨_, hallK, hstopK⟩ := twoHopAllActivePhases_prefix_spec uid n
@@ -733,8 +725,7 @@ theorem twoHopAllActive_phases_le_log {n : ℕ} [NeZero n] {U : Type*} [LinearOr
   have hnot2_K : ¬ 2 ≤ (twoHopAllActivePhase uid (twoHopAllActivePhases uid)).active.card :=
     hstopK (lt_of_le_of_lt hK_le_log hlog_lt_n)
   have hcard_K : (twoHopAllActivePhase uid (twoHopAllActivePhases uid)).active.card = 1 := by
-    have hpos : 1 ≤ (twoHopAllActivePhase uid (twoHopAllActivePhases uid)).active.card :=
-      Finset.card_pos.mpr (twoHopAllActivePhase_inv huid (twoHopAllActivePhases uid)).1
+    have := Finset.card_pos.mpr (twoHopAllActivePhase_inv huid (twoHopAllActivePhases uid)).1
     omega
   exact ⟨hK_le_log, hcard_K,
     (congrArg TwoHopPhaseState.active (phase_stable_of_lt_two uid hnot2_K _ hK_le_log) ▸ hcard_K)⟩

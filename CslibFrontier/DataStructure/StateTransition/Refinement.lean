@@ -264,12 +264,9 @@ def comp (M : Refinement D E) (N : Refinement E F) : Refinement D F where
 
 /-- Composing refinements represents the same states as composing their modules. -/
 theorem comp_rep_iff (M : Refinement D E) (N : Refinement E F) (s : D.State) (f : F.State) :
-    (M.comp N).toModule.rep s f ↔ (M.toModule.comp N.toModule).rep s f := by
-  refine ⟨?_, ?_⟩
-  · rintro ⟨⟨hN, hM⟩, rfl⟩
-    exact ⟨_, ⟨hM, rfl⟩, hN, rfl⟩
-  · rintro ⟨_, ⟨hM, rfl⟩, hN, rfl⟩
-    exact ⟨⟨hN, hM⟩, rfl⟩
+    (M.comp N).toModule.rep s f ↔ (M.toModule.comp N.toModule).rep s f :=
+  ⟨fun ⟨⟨hN, hM⟩, hs⟩ => ⟨_, ⟨hM, hs⟩, hN, rfl⟩,
+    fun ⟨_, ⟨hM, hs⟩, hN, he⟩ => ⟨⟨hN, he.symm ▸ hM⟩, (congrArg M.abs he).trans hs⟩⟩
 
 /-- Linking through a composition links through each refinement in turn. -/
 theorem link_comp (M : Refinement D E) (N : Refinement E F) (p : D.Client α) :
@@ -340,12 +337,10 @@ theorem Amortized.mono (A : M.Amortized lower upper potential)
     {lower' : E.State → E.Op → ℕ} {upper' : D.State → D.Op → ℕ}
     (hlower : ∀ e o, lower' e o ≤ lower e o)
     (hupper : ∀ s o, D.valid s o → upper s o ≤ upper' s o) :
-    M.Amortized lower' upper' potential := by
-  refine ⟨fun {e} o {a e' tr} hi hv hrun => ?_⟩
-  have h := A.step o hi hv hrun
-  have hl := E.totalCostTranscript_mono hlower e tr
-  have hu := hupper _ o hv
-  omega
+    M.Amortized lower' upper' potential :=
+  ⟨fun {_} o {_ _ _} hi hv hrun =>
+    (Nat.add_le_add_right (E.totalCostTranscript_mono hlower _ _) _).trans
+      ((A.step o hi hv hrun).trans (Nat.add_le_add_right (hupper _ o hv) _))⟩
 
 /-- **Exchange at a constant rate.** Scaling both currencies and the potential by `K` preserves
 the amortized inequality. -/
@@ -468,15 +463,11 @@ theorem Amortized.prod {M₁ : Refinement D₁ E} {M₂ : Refinement D₂ E} {J 
     (M₁.prod M₂ J frame₁ frame₂).Amortized lower (productCharge upper₁ upper₂)
       (fun e => Φ₁ e + Φ₂ e) := by
   refine ⟨fun {e} o {a e' tr} ⟨hi₁, hi₂, hJ⟩ hv hrun => ?_⟩
-  cases o with
-  | inl o =>
-    have := A₁.step o hi₁ hv hrun
-    have := potential₁ o hi₁ hi₂ hJ hv hrun
-    dsimp only [productCharge, Refinement.prod]; omega
-  | inr o =>
-    have := A₂.step o hi₂ hv hrun
-    have := potential₂ o hi₁ hi₂ hJ hv hrun
-    dsimp only [productCharge, Refinement.prod]; omega
+  cases o <;> dsimp only [productCharge, Refinement.prod]
+  · have := A₁.step _ hi₁ hv hrun
+    rw [potential₁ _ hi₁ hi₂ hJ hv hrun]; omega
+  · have := A₂.step _ hi₂ hv hrun
+    rw [potential₂ _ hi₁ hi₂ hJ hv hrun]; omega
 
 /-- **Potentials stack through a realization.** An amortized refinement over a native
 implementation with an amortized certificate yields an amortized certificate of the realized

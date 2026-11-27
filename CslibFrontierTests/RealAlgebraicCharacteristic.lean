@@ -22,6 +22,50 @@ open Cslib Cslib.Complexity Cslib.Complexity.RealAlgebraic Turing.MultiTapeTM Po
 private instance : Fact (Nat.Prime 2) := ⟨by decide⟩
 private instance : Fact (Nat.Prime 3) := ⟨by decide⟩
 
+-- The relation and the multiplier carry different parameters through the binary norm bound.
+open MvPolynomial.PurePower in
+example :
+    let r : Fin 1 → MvPolynomial (Fin 1) (MvPolynomial (Fin 2) ℤ) :=
+      fun _ => MvPolynomial.C (MvPolynomial.X 0)
+    let v : MvPolynomial (Fin 1) (MvPolynomial (Fin 2) ℤ) :=
+      MvPolynomial.C (MvPolynomial.X 1) * MvPolynomial.X 0
+    (multiplicationMatrix (by decide : 1 ≤ 2) r (by intro i; simp [r]) v).charpoly.sum
+      (fun _ a => a.coeffNorm1) ≤ 2 ^ multiplicationMatrixCharpolyCoeffNormExponent 1 2 1 0 0 := by
+  let r : Fin 1 → MvPolynomial (Fin 1) (MvPolynomial (Fin 2) ℤ) :=
+    fun _ => MvPolynomial.C (MvPolynomial.X 0)
+  let v : MvPolynomial (Fin 1) (MvPolynomial (Fin 2) ℤ) :=
+    MvPolynomial.C (MvPolynomial.X 1) * MvPolynomial.X 0
+  have hr (i : Fin 1) : (r i).totalDegree < 2 := by simp [r]
+  have hR (i : Fin 1) : (r i).coeff.sum (fun _ a => a.coeffNorm1) ≤ 2 ^ 0 := by
+    dsimp only [r]
+    rw [MvPolynomial.sum_C MvPolynomial.coeffNorm1_zero, MvPolynomial.coeffNorm1_X, pow_zero]
+  have hdeg : v.totalDegree ≤ 1 := by
+    dsimp only [v]
+    exact (MvPolynomial.totalDegree_mul _ _).trans
+      (by rw [MvPolynomial.totalDegree_C, MvPolynomial.totalDegree_X, zero_add])
+  have hV : v.coeff.sum (fun _ a => a.coeffNorm1) ≤ 2 ^ 0 := by
+    dsimp only [v]
+    rw [MvPolynomial.C_mul_X_eq_monomial, MvPolynomial.sum_monomial_eq MvPolynomial.coeffNorm1_zero,
+      MvPolynomial.coeffNorm1_X, pow_zero]
+  exact sum_multiplicationMatrix_charpoly_le_pow_two MvPolynomial.coeffNorm1_zero
+    MvPolynomial.coeffNorm1_one.le MvPolynomial.coeffNorm1_add_le MvPolynomial.coeffNorm1_mul_le
+    MvPolynomial.coeffNorm1_neg MvPolynomial.coeffNorm1_nsmul (by decide) r hr hR v hdeg hV
+
+-- The flattened relative critical-value polynomial keeps the source norm and degree bounds.
+open MvPolynomial.CriticalSystem in
+example :
+    let F : MvPolynomial (Fin 1 ⊕ Fin 1) ℤ := MvPolynomial.X (.inl 0) * MvPolynomial.X (.inr 0)
+    let hF : F.totalDegree ≤ 2 := (MvPolynomial.totalDegree_mul _ _).trans (by simp)
+    let p := flattenedRelativeValuePolynomial (by decide : 1 ≤ 2) F hF
+    p.coeffNorm1 ≤ 2 ^ relativeValueCoeffNormExponent 1 2 0 ∧
+      p.totalDegree ≤ 2 * (6 * (F.totalDegree + 1)) := by
+  dsimp only
+  constructor
+  · apply coeffNorm1_flattenedRelativeValuePolynomial_le (by decide)
+    exact (MvPolynomial.coeffNorm1_mul_le _ _).trans
+      (by simp only [MvPolynomial.coeffNorm1_X, one_mul, pow_zero, le_refl])
+  · exact totalDegree_flattenedRelativeValuePolynomial_le (by decide) _ _
+
 -- The logarithm's zero slot is masked before inversion, including at the smallest prime.
 example (t : ℕ) : traceLogarithmResidue 2 0 t = 0 := by
   simp [traceLogarithmResidue]
@@ -81,6 +125,23 @@ example (u x : ℤ) :
         decide)) := by
   intro F hF
   simpa [F] using relativeValuePolynomial_map (by decide : 1 ≤ 2) F hF u (fun _ => x)
+
+-- The flattened variable slots agree with specialization in a modular coefficient ring.
+open MvPolynomial.CriticalSystem in
+example (y u x : ZMod 5) :
+    let F : MvPolynomial (Fin 1 ⊕ Fin 1) ℤ := MvPolynomial.X (.inl 0) + MvPolynomial.X (.inr 0)
+    let hF : F.totalDegree ≤ 2 := (MvPolynomial.totalDegree_add _ _).trans (by simp)
+    MvPolynomial.eval₂ (Int.castRingHom (ZMod 5))
+      (fun i : Option (Option (Fin 1)) => i.elim y (fun j => j.elim u (fun _ => x)))
+      (flattenedRelativeValuePolynomial (by decide : 1 ≤ 2) F hF) =
+    (valuePolynomial (by decide : 1 ≤ 2) (fun _ => 0) u
+      (MvPolynomial.X (0 : Fin 1) + MvPolynomial.C x)
+      ((MvPolynomial.totalDegree_add _ _).trans (by
+        have : Fact (1 < 5) := ⟨by decide⟩
+        rw [MvPolynomial.totalDegree_X, MvPolynomial.totalDegree_C]
+        decide))).eval y := by
+  intro F hF
+  simpa [F] using eval₂_flattenedRelativeValuePolynomial (by decide : 1 ≤ 2) F hF y u (fun _ => x)
 
 -- A parameter variable remains in the constant coefficient of the witness polynomial.
 open MvPolynomial in

@@ -158,10 +158,8 @@ end ShadeState
 theorem ShadeState.flip_allowed {component : Thick} {quadrant : Quadrant}
     {state : ShadeState} (allowed : allowedFor component quadrant state = true) :
     allowedFor component quadrant (ShadeState.flip state) = true := by
-  have flip_eq (a b : Option Shade) :
-      a.map Shade.opposite = b.map Shade.opposite ↔ a = b :=
-    (Option.map_injective
-      (show Function.Involutive Shade.opposite from Shade.opposite_opposite).injective).eq_iff
+  have flip_eq (a b : Option Shade) : a.map Shade.opposite = b.map Shade.opposite ↔ a = b :=
+    (Option.map_injective (Function.Involutive.injective Shade.opposite_opposite)).eq_iff
   simpa [allowedFor, ShadeState.flip, flip_eq] using allowed
 
 /-- The incidence, transmission and crossing conditions of one allowed quarter. -/
@@ -430,14 +428,12 @@ theorem CycleOn.cycleShade
     (hshade :
       (stateGrid (quarterWest west) (quarterSouth south)).east = some shade) :
     CycleShade stateGrid west east south north shade := by
+  have hwe := cycle.west_lt_east
+  have hsn := cycle.south_lt_north
   have hquarterWestEast : quarterWest west < quarterEast east := by
-    unfold quarterWest quarterEast
-    have := cycle.west_lt_east
-    omega
+    dsimp only [quarterWest, quarterEast]; omega
   have hquarterSouthNorth : quarterSouth south < quarterNorth north := by
-    unfold quarterSouth quarterNorth
-    have := cycle.south_lt_north
-    omega
+    dsimp only [quarterSouth, quarterNorth]; omega
   have hsouth :
       (stateGrid (quarterWest west) (quarterSouth south)).east =
         (stateGrid (quarterEast east) (quarterSouth south)).west :=
@@ -483,15 +479,10 @@ theorem CycleOn.exists_cycleShade
     (cycle : CycleOn grid west east south north)
     (valid : ValidShadeGrid grid stateGrid) :
     ∃ shade, CycleShade stateGrid west east south north shade := by
-  have heast : hasEast
-      (componentAt grid (quarterWest west) (quarterSouth south))
-      (quadrantAt (quarterWest west) (quarterSouth south)) = true := by
-    simp [hasEast, (cycle.southwest_corner).1]
-  have hpresent := ((valid.rules (quarterWest west) (quarterSouth south)).east_present).trans heast
-  rcases hshade :
-      (stateGrid (quarterWest west) (quarterSouth south)).east with _ | shade
-  · simp [hshade] at hpresent
-  · exact ⟨shade, CycleOn.cycleShade cycle valid shade hshade⟩
+  rcases hshade : (stateGrid (quarterWest west) (quarterSouth south)).east with _ | shade
+  · have h := (valid.rules (quarterWest west) (quarterSouth south)).east_present
+    simp [hshade, hasEast, cycle.southwest_corner.1] at h
+  · exact ⟨shade, cycle.cycleShade valid shade hshade⟩
 
 private theorem value_inside {α β : Type*}
     (state : Nat → α) (outgoing incoming : α → β) {start finish position : Nat}

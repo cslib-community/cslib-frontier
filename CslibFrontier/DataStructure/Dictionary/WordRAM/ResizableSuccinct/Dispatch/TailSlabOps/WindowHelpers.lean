@@ -54,18 +54,15 @@ private theorem CompOpFrame.of_gmFrame {metaBase itemBase U V w N m_items m_cap 
 
 private theorem tailBijection_of_gm_eq {N : ℕ} {gm₁ gm₂ : ℕ → ℕ} (h : gm₁ = gm₂)
     (htail : TailBijection N gm₂ (fun b' => gm₂ (gmRIdx b')) (gm₂ 1)) :
-    TailBijection N gm₁ (fun b' => gm₁ (gmRIdx b')) (gm₁ 1) := by
-  rw [h]; exact htail
+    TailBijection N gm₁ (fun b' => gm₁ (gmRIdx b')) (gm₁ 1) := h ▸ htail
 
 private theorem slabBijection_of_gm_eq {N : ℕ} {gm₁ gm₂ : ℕ → ℕ} (h : gm₁ = gm₂)
     (hslab : SlabBijection N gm₂ (fun b' => gm₂ (gmQIdx b')) (gm₂ 0)) :
-    SlabBijection N gm₁ (fun b' => gm₁ (gmQIdx b')) (gm₁ 0) := by
-  rw [h]; exact hslab
+    SlabBijection N gm₁ (fun b' => gm₁ (gmQIdx b')) (gm₁ 0) := h ▸ hslab
 
 private theorem slotStoreInv_of_gm_eq {N : ℕ} {gm₁ gm₂ : ℕ → ℕ} (h : gm₁ = gm₂)
     (hs : SlotStoreInv N gm₂) :
-    SlotStoreInv N gm₁ := by
-  rw [h]; exact hs
+    SlotStoreInv N gm₁ := h ▸ hs
 
 private theorem compOpFrame_writeCompQuot {metaBase itemBase U V w N m_cap d q : ℕ}
     (hw : 0 < w) (hd : d < m_cap) (s : Memory.State) :
@@ -103,12 +100,10 @@ private theorem compOpFrame_tailWindow {metaBase itemBase U V w N m_cap : ℕ} {
 
 private theorem maxTailItems_pos_of_bucketBits_pos {N : ℕ} (hb_pos : 0 < bucketBits N) :
     0 < maxTailItems N := by
-  have hb0 : bucketBits N ≠ 0 := hb_pos.ne'
-  have hB : 0 < numBuckets N := numBuckets_pos N
   have hK : 0 < slabSize N := slabSize_pos N
   unfold maxTailItems tailCapPerBucket
-  rw [ite_eq_right hb0]
-  exact Nat.mul_pos hB (by omega)
+  rw [ite_eq_right hb_pos.ne']
+  exact Nat.mul_pos (numBuckets_pos N) (by omega)
 
 private theorem physByBase_slab {N b_win : ℕ} (dt : ℕ → ℕ) {g : ℕ} (hg : g < b_win) :
     physByBase N b_win dt g = g := by
@@ -151,13 +146,13 @@ private theorem physByBase_range_and_inj {N b_win n_win : ℕ} {td dt : ℕ → 
   obtain ⟨ht1, htd1⟩ := hw.owner_valid d₁ h1 hd₁
   obtain ⟨ht2, htd2⟩ := hw.owner_valid d₂ h2 hd₂
   unfold physByBase at heq
-  rw [ite_eq_right hb0, ite_eq_right (by omega : ¬d₁ < b_win),
-    ite_eq_right hb0, ite_eq_right (by omega : ¬d₂ < b_win)] at heq
+  rw [ite_eq_right hb0, ite_eq_right (Nat.not_lt.mpr h1),
+    ite_eq_right hb0, ite_eq_right (Nat.not_lt.mpr h2)] at heq
   have hdt_eq : dt (d₁ % maxTailItems N) = dt (d₂ % maxTailItems N) := by omega
-  have hmod_eq : d₁ % maxTailItems N = d₂ % maxTailItems N := by
-    rw [← htd1, hdt_eq, htd2]
-  rw [← denseOfCirc_mod_self hM_pos h1 (by omega : d₁ < b_win + maxTailItems N),
-    ← denseOfCirc_mod_self hM_pos h2 (by omega : d₂ < b_win + maxTailItems N), hmod_eq]
+  have hmod_eq : d₁ % maxTailItems N = d₂ % maxTailItems N :=
+    htd1.symm.trans ((congrArg td hdt_eq).trans htd2)
+  rw [← denseOfCirc_mod_self hM_pos h1 (hd₁.trans_le (Nat.add_le_add_left hM b_win)),
+    ← denseOfCirc_mod_self hM_pos h2 (hd₂.trans_le (Nat.add_le_add_left hM b_win)), hmod_eq]
 
 /-- Writing `(q, v)` to dense slot `d < b_win + n_win` in `s` preserves `WindowCoupled` against
 updating `(quotAt, valAt)` at `g = physByBase N b_win dt d` in `s_fix`. -/
@@ -188,16 +183,14 @@ private theorem windowCoupled_write_at {metaBase itemBase U V w N b_win n_win d 
   obtain ⟨hlm2, hgm2, htd2, hdt2⟩ :=
     writeCompVal_meta_frame (metaBase := metaBase) (U := U) (V := V) (N := N) (v := v)
       hw hitem hd (writeCompQuot itemBase U V w N s.mem d q)
-  have hgm_s : compGmAt metaBase U w N s'.mem = compGmAt metaBase U w N s.mem := hgm2.trans hgm1
-  have hlm_s : compLmAt metaBase U w N s'.mem = compLmAt metaBase U w N s.mem := hlm2.trans hlm1
   have htd_s : compTDAt metaBase U w N s'.mem = compTDAt metaBase U w N s.mem := htd2.trans htd1
   have hdt_s : compDTAt metaBase U w N s'.mem = compDTAt metaBase U w N s.mem := hdt2.trans hdt1
   have hinj := (physByBase_range_and_inj hb_pos hbn hM hcpl.win_inv).2
-  refine ⟨hgm_s.trans (hcpl.gm_eq.trans hgm_fix.symm),
-    hlm_s.trans (hcpl.lm_eq.trans hlm_fix.symm),
-    by rw [htd_s, hdt_s]; exact hcpl.win_inv,
-    fun i => by rw [htd_s]; exact hcpl.td_lt i,
-    fun i => by rw [hdt_s]; exact hcpl.dt_lt i,
+  refine ⟨hgm2.trans (hgm1.trans (hcpl.gm_eq.trans hgm_fix.symm)),
+    hlm2.trans (hlm1.trans (hcpl.lm_eq.trans hlm_fix.symm)),
+    htd_s.symm ▸ hdt_s.symm ▸ hcpl.win_inv,
+    fun i => htd_s.symm ▸ hcpl.td_lt i,
+    fun i => hdt_s.symm ▸ hcpl.dt_lt i,
     fun d' hd' => ?_,
     fun d' hd' => ?_⟩
   · dsimp only [s']
@@ -264,8 +257,7 @@ private theorem windowCoupled_shrinkRight {metaBase itemBase U V w N b_win n' : 
     WindowCoupled metaBase itemBase U V w N b_win n' (b_win + n') s_fix s₂ := by
   intro d_last s₁ s₂
   set M := maxTailItems N
-  have hM_pos : 0 < M := maxTailItems_pos_of_bucketBits_pos hb_pos
-  have hmax_eq : max M 1 = M := Nat.max_eq_left hM_pos
+  have hmax_eq : max M 1 = M := Nat.max_eq_left (maxTailItems_pos_of_bucketBits_pos hb_pos)
   have hbn_lt : b_win + n' < b_win + (n' + 1) := by omega
   have hd_last_lt : d_last < b_win + (n' + 1) := hcpl.win_inv.dense_lt n' (Nat.lt_succ_self n')
   have hs1_eq := clientState_copyCompItemGenProg (U := U) (V := V) (w := w) (N := N)
@@ -351,9 +343,8 @@ private theorem windowCoupled_shrinkLeft_write {metaBase itemBase U V w N b_win 
         frontier := s₂.frontier }
     WindowCoupled metaBase itemBase U V w N (b_win + 1) n' ((b_win + 1) + n') s_fix' s₃ := by
   intro d_last s₁ s₂ s₃
-  have hb0 : bucketBits N ≠ 0 := hb_pos.ne'
-  have hM_pos : 0 < maxTailItems N := maxTailItems_pos_of_bucketBits_pos hb_pos
-  have hmax_eq : max (maxTailItems N) 1 = maxTailItems N := Nat.max_eq_left hM_pos
+  have hmax_eq : max (maxTailItems N) 1 = maxTailItems N :=
+    Nat.max_eq_left (maxTailItems_pos_of_bucketBits_pos hb_pos)
   have hm_eq : (b_win + 1) + n' = b_win + (n' + 1) := by omega
   have hb_lt : b_win < b_win + (n' + 1) := by omega
   have hd_last_lt : d_last < b_win + (n' + 1) := hcpl.win_inv.dense_lt n' (Nat.lt_succ_self n')
@@ -385,8 +376,6 @@ private theorem windowCoupled_shrinkLeft_write {metaBase itemBase U V w N b_win 
   have hspec := winShrinkLeft_spec hcpl.win_inv hM htd_b hdt_b
   have hp := physByBase_winShrinkLeft hb_pos hcpl.win_inv hM
   dsimp only [winShrinkLeft] at htd2 hdt2 hspec hp
-  have hgm_s3 := hgm4.trans (hgm3.trans (hgm2.trans hgm1))
-  have hlm_s3 := hlm4.trans (hlm3.trans (hlm2.trans hlm1))
   have htd_s3 := htd4.trans (htd3.trans htd2)
   have hdt_s3 := hdt4.trans (hdt3.trans hdt2)
   have hq_b_lt : compQuotAt itemBase U V w N (b_win + (n' + 1)) s.mem b_win <
@@ -402,9 +391,9 @@ private theorem windowCoupled_shrinkLeft_write {metaBase itemBase U V w N b_win 
   have hp_b : physByBase N b_win (compDTAt metaBase U w N s.mem) b_win =
       N - 1 - compDTAt metaBase U w N s.mem (b_win % maxTailItems N) := by
     unfold physByBase
-    rw [ite_eq_right hb0, ite_eq_right (Nat.lt_irrefl b_win)]
-  refine ⟨hgm_s3.trans (hcpl.gm_eq.trans hgm_fix.symm),
-    hlm_s3.trans (hcpl.lm_eq.trans hlm_fix.symm),
+    rw [ite_eq_right hb_pos.ne', ite_eq_right (Nat.lt_irrefl b_win)]
+  refine ⟨hgm4.trans (hgm3.trans (hgm2.trans (hgm1.trans (hcpl.gm_eq.trans hgm_fix.symm)))),
+    hlm4.trans (hlm3.trans (hlm2.trans (hlm1.trans (hcpl.lm_eq.trans hlm_fix.symm)))),
     by rw [htd_s3, hdt_s3]; exact hspec.1,
     fun i => by rw [htd_s3, hmax_eq]; exact hspec.2.1 i,
     fun i => by rw [hdt_s3, hmax_eq]; exact hspec.2.2 i,

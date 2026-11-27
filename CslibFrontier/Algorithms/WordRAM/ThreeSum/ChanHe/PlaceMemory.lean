@@ -60,18 +60,14 @@ theorem memory_heavy (mem : ℕ → ℕ) (values : ℕ → ℤ) (n M out dst col
       simp only [heavyList, memory, write, hh, ↓reduceIte, List.append_nil] at hj ⊢
     · by_cases hj' : j < (heavyList values n M k).length
       · rw [Function.update_of_ne (by omega), ih (by omega) hj', List.getElem_append_left hj']
-      · obtain rfl : j = (heavyList values n M k).length := by
-          simp only [List.length_append, List.length_singleton] at hj; omega
-        simp
+      · simp [Nat.eq_of_lt_succ_of_not_lt (by simpa using hj) hj']
     · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
       exact ih (by omega) hj
 
 /-- The signed target keys identify exactly the same buckets as the original keys. -/
 theorem targetKey_eq_iff {M : ℕ} (hM : 0 < M) (neg : Bool) (a b : ℤ) :
     targetKey M neg a = targetKey M neg b ↔ residueKey M a = residueKey M b := by
-  rw [targetKey_eq hM, targetKey_eq hM]
-  cases neg
-  exacts [Iff.rfl, residueKey_neg_eq_iff hM a b]
+  cases neg <;> simp [targetKey_eq hM, signedValue, residueKey_neg_eq_iff hM]
 
 /-- The two copies cannot alias another bucket's cells. -/
 theorem targetKey_eq_of_address_eq {M dst col dist r s : ℕ} (hr : r < M) (hs : s < M)
@@ -130,8 +126,8 @@ theorem memory_unwritten (mem : ℕ → ℕ) (values : ℕ → ℤ) (n M out dst
     · rw [Function.update_of_ne (by omega)]
       exact ih (by omega) (fun i hi => hnot i (by omega))
     · have hc : Histogram.count (fun j => residueKey M (values j)) n
-          (residueKey M (values k)) = 1 := by
-        have := count_residue_pos values n M (show k < n by omega); omega
+          (residueKey M (values k)) = 1 :=
+        le_antisymm (not_lt.mp hh) (count_residue_pos values n M (by omega))
       obtain ⟨hne₁, hne₂⟩ := hnot k (by omega) hc
       rw [Function.update_of_ne hne₂, Function.update_of_ne hne₁]
       exact ih (by omega) (fun i hi => hnot i (by omega))
@@ -151,8 +147,8 @@ theorem memory_arrXY (mem : ℕ → ℕ) (values : ℕ → ℤ) (n M out dst col
   · obtain ⟨z, hz⟩ := Finset.card_eq_one.mp hc
     obtain ⟨hS, hres⟩ := Finset.mem_filter.mp (hz.symm.subset (Finset.mem_singleton_self z))
     obtain ⟨j, hj, rfl⟩ := Finset.mem_image.mp hS
-    have hkey : residueKey M (values j) = i := by
-      simp only [residueKey, hres, Int.toNat_natCast]
+    have hkey : residueKey M (values j) = i :=
+      (congrArg Int.toNat hres).trans (Int.toNat_natCast i)
     have hlight : Histogram.count (fun k => residueKey M (values k)) n
         (residueKey M (values j)) = 1 := by
       rwa [hkey, count_eq_card_bucket values n hM hinj]
@@ -204,8 +200,8 @@ theorem memory_arrZ (mem : ℕ → ℕ) (values : ℕ → ℤ) (n M out dst col 
     · obtain ⟨z, hz⟩ := Finset.card_eq_one.mp hc
       obtain ⟨hS, hres⟩ := Finset.mem_filter.mp (hz.symm.subset (Finset.mem_singleton_self z))
       obtain ⟨j, hj, rfl⟩ := Finset.mem_image.mp hS
-      have hr : residueKey M (vals j) = i % M := by
-        simp only [residueKey, hres, Int.toNat_natCast]
+      have hr : residueKey M (vals j) = i % M :=
+        (congrArg Int.toNat hres).trans (Int.toNat_natCast _)
       have hlight : Histogram.count (fun k => residueKey M (values k)) n
           (residueKey M (values j)) = 1 := by
         rwa [← hcount, hr, count_eq_card_bucket vals n hM hinj']
@@ -219,11 +215,10 @@ theorem memory_arrZ (mem : ℕ → ℕ) (values : ℕ → ℤ) (n M out dst col 
         Cslib.Algorithms.ThreeSum.ChanHe.arr, hc, ← hpad]
       refine memory_unwritten mem values n M out dst col (4 * M) t true hdisj le_rfl (by omega) ?_
       intro j _ hlight
-      have hn : i % M ≠ targetKey M true (values j) := fun heq =>
-        hc (by rwa [← count_eq_card_bucket vals n hM hinj', heq, hkey, hcount])
-      have hcopies := (mod_eq_iff_copies hi (residueKey_lt hM (vals j))).not.mp
-        (by simpa only [hkey] using hn)
-      rw [hkey]; omega
+      have hcopies := (mod_eq_iff_copies hi (residueKey_lt hM (vals j))).not.mp fun heq =>
+        hc (by rwa [← count_eq_card_bucket vals n hM hinj', heq, hcount])
+      rw [hkey]
+      omega
   · simp only [Cslib.Algorithms.ThreeSum.ChanHe.arrZ, hi, ↓reduceIte, ← hpad]
     refine memory_unwritten mem values n M out dst col (4 * M) t true hdisj le_rfl (by omega) ?_
     intro j _ _

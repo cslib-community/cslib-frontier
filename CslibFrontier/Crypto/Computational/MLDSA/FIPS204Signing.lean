@@ -100,16 +100,11 @@ theorem length_finishSigningAttempt {s : Level} {sk : PrivateKey s} {y w digest 
     (hd : digest.length = digestBytes s)
     (h : finishSigningAttempt s sk y w digest challenge = some (some sig)) :
     sig.length = signatureBytes s := by
-  unfold finishSigningAttempt at h
-  cases challenge with
-  | none => contradiction
-  | some c =>
-    simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def, Option.some.injEq] at h
-    dsimp only [compressedResponse] at h
-    split_ifs at h with hz hh
-    · simp only [Option.map_some, Option.some.injEq] at h
-      exact h ▸ length_encodeSignature _ _ hd hh.2
-    all_goals contradiction
+  obtain ⟨c, -, hc⟩ := Option.bind_eq_some_iff.mp h
+  obtain ⟨σ, hresp, rfl⟩ := Option.map_eq_some_iff.mp (Option.some.inj hc)
+  dsimp only [compressedResponse] at hresp
+  split_ifs at hresp with _ hh
+  exact (Option.some.inj hresp) ▸ length_encodeSignature _ _ hd hh.2
 
 private def Xofs.attemptWithMask (H : Xofs) (s : Level) (sk : PrivateKey s)
     (matrix : PublicMatrix s) (μ : List Bool) (y : Fin s.params.ℓ → Poly) :
@@ -382,17 +377,11 @@ theorem evalPure_signingQueries_succ {R : Type} (H : Xofs) (s : Level) (sk : Pri
       | some none =>
         OracleComp.evalPure (ExtendableOutput.Request.answer H.h256)
           (signingQueries s sk A μ seed reply fuel (κ + s.params.ℓ)) := by
-  simp only [signingQueries, signingRetryLoop, OracleComp.evalPure_bind]
-  rw [evalPure_signingAttemptReads]
-  simp only [Xofs.attempt, Xofs.attemptWithMask, AttemptCommitment.ofMask, tabulateRingVector_eq]
-  cases finishSigningAttempt s sk (ringVectorCoeffs (H.expandMask s seed κ))
-      (moduleSISMap A (ringVectorCoeffs (H.expandMask s seed κ)))
-      (H.commitmentDigest s
-        (highBitsVec s.params (moduleSISMap A (ringVectorCoeffs (H.expandMask s seed κ)))) μ)
-      (H.sampleInBall s (H.commitmentDigest s
-        (highBitsVec s.params (moduleSISMap A (ringVectorCoeffs (H.expandMask s seed κ)))) μ)) with
-  | none => rfl
-  | some res => cases res <;> rfl
+  simp only [signingQueries, signingRetryLoop, OracleComp.evalPure_bind,
+    evalPure_signingAttemptReads, Xofs.attempt, Xofs.attemptWithMask, AttemptCommitment.ofMask,
+    tabulateRingVector_eq]
+  rcases finishSigningAttempt s sk (ringVectorCoeffs (H.expandMask s seed κ)) _ _ _ with
+    _ | _ | _ <;> rfl
 
 /-- Evaluating `signInternalReads` against a stream answerer applies `reply` to
 `Xofs.signInternal` whenever both XOF pairs agree on SHAKE128. -/

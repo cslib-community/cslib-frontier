@@ -161,13 +161,10 @@ private theorem aliveStep_eq_replayStep (t : ℕ)
       cases MUnit.tr c cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols cfg.answerSymbols b with
       | step => rfl
       | query op next =>
-        simp only [taggedStep, answerFromHistory, Bool.true_and, id_eq]
-        cases rest with
-        | nil => rfl
-        | cons e rest =>
-          obtain ⟨m, y⟩ := e
-          simp only [List.isEmpty_cons, Bool.false_eq_true, ite_false, List.headD_cons,
-            List.tail_cons, beq_iff_eq]
+        rcases rest with _ | ⟨⟨m, y⟩, rest⟩
+        · rfl
+        · simp only [taggedStep, answerFromHistory, Bool.true_and, id_eq, List.isEmpty_cons,
+            Bool.false_eq_true, ite_false, List.headD_cons, List.tail_cons, beq_iff_eq]
           split_ifs with hm <;> simp
 
 private theorem foldl_bind_error {α β γ : Type*} (f : β → γ → Except α β) (l : List γ) (e : α) :
@@ -225,8 +222,7 @@ theorem aliveRun_of_simulate_ok {x r : List Bool} {h : History}
     {p : MultiTapeMachine.FiniteConfig k Bool Control Unit × History}
     (hsim : simulate MUnit r.length x r h = .ok p) :
     aliveRun (fun _ _ => true) id MUnit x r h = (p.1, p.2, true) := by
-  have hrun := aliveRun_spec MUnit x r h
-  rwa [hsim] at hrun
+  simpa [hsim] using aliveRun_spec MUnit x r h
 
 /-- When the replay pauses waiting for a reply to `m`, the live replay stops inactive with `m` on
 channel `()`. -/

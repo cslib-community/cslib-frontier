@@ -137,10 +137,7 @@ private theorem exists_runFrom_round (hd : 0 < d)
   have hBdone : B d = gateRoundWith E p f c t u S := by
     dsimp only [B, G, F, gateRoundWith]
     rw [List.take_of_length_le (by simp)]
-  have hscaleLast :
-      scale (reg t ⟨d - 1, hlast⟩) ((u⁻¹ : Kˣ) : K)
-        (p ⟨d - 1, hlast⟩ (-1) (reg t ⟨d - 1, hlast⟩) (B (d - 1))) = B d := by
-    rw [← hB (d - 1) hlast, hlastEq]
+  have hscaleLast := (hB (d - 1) hlast).symm.trans (congrArg B hlastEq)
   have hexit : next
       ⟨p ⟨d - 1, hlast⟩ (-1) (reg t ⟨d - 1, hlast⟩) (B (d - 1)),
         ⟨i, ⟨d - 1, hlast⟩, true, c, t⟩ :: st, .ret⟩ =
@@ -205,18 +202,13 @@ theorem exists_runFrom_call (hd : 0 < d)
       ⟨procWith e E us T c t S, st, .ret⟩ := by
   induction T generalizing st S c t with
   | leaf v =>
-    refine ⟨1, ?_⟩
-    have hv : read (path st) = .leaf v := by
-      simpa only [List.append_nil, Tree.nodeAt_leaf_nil] using hread []
-    rw [runFrom_one, step_call_leaf hd e E us read S st c t v hv]
-    rfl
+    have hv : read (path st) = .leaf v := by simpa using hread []
+    exact ⟨1, by simp [runFrom_one, step_call_leaf hd e E us read S st c t v hv, procWith]⟩
   | node f ch ih =>
-    have hgate : read (path st) = .gate f := by
-      simpa only [List.append_nil, Tree.nodeAt_node_nil] using hread []
+    have hgate : read (path st) = .gate f := by simpa using hread []
     refine exists_runFrom_gate hd e E us read (fun j => procWith e E us (ch j)) f st hgate
       (fun fr c' t' S' => ih fr.child (fr :: st) (fun P => ?_) S' c' t') S c t
-    rw [path_cons, List.append_assoc, List.singleton_append]
-    exact hread (fr.child :: P)
+    simpa [path_cons] using hread (fr.child :: P)
 
 /-- The complete root call terminates with exactly the recursive procedure's registers. -/
 theorem exists_runFrom_root (hd : 0 < d)

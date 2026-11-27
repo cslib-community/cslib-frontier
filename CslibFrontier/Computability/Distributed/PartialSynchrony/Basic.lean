@@ -311,9 +311,8 @@ theorem length_filter_dedup_eq_card {P : Type*} [Fintype P] [DecidableEq P]
     {procs : List P} (hprocs : ∀ x : P, x ∈ procs) (p : P → Bool) :
     (procs.dedup.filter p).length = (Finset.univ.filter fun x => p x = true).card := by
   rw [← List.toFinset_card_of_nodup ((List.nodup_dedup procs).filter p)]
-  refine congrArg Finset.card (Finset.ext fun x => ?_)
-  simp only [List.mem_toFinset, List.mem_filter, List.mem_dedup, hprocs x, true_and,
-    Finset.mem_filter, Finset.mem_univ]
+  exact congrArg Finset.card (Finset.ext fun x => by simp only [List.mem_toFinset,
+    List.mem_filter, List.mem_dedup, hprocs x, true_and, Finset.mem_filter, Finset.mem_univ])
 
 /-- When `procs` enumerates `P`, `procs.dedup.length = Fintype.card P`. -/
 theorem dedup_length_eq_card {P : Type*} [Fintype P] [DecidableEq P]
@@ -977,17 +976,14 @@ theorem byzState_locked_witness [Fintype P] {F : Finset P} {deliver : ℕ → P 
     simp only [PartialSyncProtocol.byzantineState, byzQuorumProtocol, byzInit, reduceCtorEq] at hlk
   | r + 1, i, lk, hlk => by
     -- Correct witnesses persist from round `r` to `r + 1`.
-    have hmono : ∀ lk : ViewLock V, (Finset.univ \ F).filter (fun h => lk ∈
-          ((byzQuorumProtocol P V procs leader t).byzantineState F deliver adv x r h).votedViews) ⊆
-        (Finset.univ \ F).filter fun h => lk ∈
-          ((byzQuorumProtocol P V procs leader t).byzantineState
-            F deliver adv x (r + 1) h).votedViews
-      := fun _ => Finset.monotone_filter_right _ fun h _ =>
-        byzState_votedViews_mono leader F deliver adv x r.le_succ h
+    have hmono (lk : ViewLock V) := Finset.card_le_card
+      (Finset.monotone_filter_right (Finset.univ \ F) fun h _ hm =>
+        byzState_votedViews_mono (procs := procs) leader (t := t) F deliver adv x
+          (Nat.le_add_right r 1) h (lk := lk) hm)
     by_cases hkeep :
         ((byzQuorumProtocol P V procs leader t).byzantineState F deliver adv x r i).locked = some lk
     · obtain ⟨hlt, hcard⟩ := byzState_locked_witness hprocs hn hF r i hkeep
-      exact ⟨by omega, hcard.trans (Finset.card_le_card (hmono lk))⟩
+      exact ⟨by omega, hcard.trans (hmono lk)⟩
     have hr4 : r % 6 = 4 := by_contra fun hr4 =>
       hkeep (by rwa [byzState_locked_unchanged_of_ne_four leader F deliver adv x r hr4 i] at hlk)
     rw [byzQuorum_state_succ] at hlk
@@ -1023,7 +1019,7 @@ theorem byzState_locked_witness [Fintype P] {F : Finset P} {deliver : ℕ → P 
       have := findQuorumVal_dedup_sub hprocs (by omega) _ hfq
       have := Finset.le_card_sdiff F (Finset.univ.filter fun j =>
         extractVote (r / 6) (byzIncoming procs leader t F deliver adv x r i j) = some val)
-      have := (Finset.card_le_card hsub).trans (Finset.card_le_card (hmono _))
+      have := (Finset.card_le_card hsub).trans (hmono _)
       exact ⟨by dsimp only; omega, by omega⟩
     · exact absurd hlk hkeep
 
@@ -1247,13 +1243,12 @@ theorem byzQuorum_agreement [Fintype P] {F : Finset P} (hprocs : ∀ p : P, p �
   obtain ⟨h₁', -, hh₁'⟩ := byzState_locked_voter leader hprocs hn hF (Finset.mem_filter.1 hq₁).2
   obtain ⟨h₂', -, hh₂'⟩ := byzState_locked_voter leader hprocs hn hF (Finset.mem_filter.1 hq₂).2
   rcases le_total (m₁ / 6) (m₂ / 6) with hle | hle
-  · refine ((byzQuorum_lock_preservation leader hprocs hn hF (Finset.filter_subset _ _) hL₁
+  · exact ((byzQuorum_lock_preservation leader hprocs hn hF (Finset.filter_subset _ _) hL₁
       (fun q hq => (Finset.mem_filter.1 hq).2) (m₂ / 6 - m₁ / 6)).1 (6 * (m₂ / 6 + 1)) h₂' v₂
-      ?_).symm
-    rwa [Nat.add_sub_of_le hle]
-  · refine (byzQuorum_lock_preservation leader hprocs hn hF (Finset.filter_subset _ _) hL₂
-      (fun q hq => (Finset.mem_filter.1 hq).2) (m₁ / 6 - m₂ / 6)).1 (6 * (m₁ / 6 + 1)) h₁' v₁ ?_
-    rwa [Nat.add_sub_of_le hle]
+      (by rwa [Nat.add_sub_of_le hle])).symm
+  · exact (byzQuorum_lock_preservation leader hprocs hn hF (Finset.filter_subset _ _) hL₂
+      (fun q hq => (Finset.mem_filter.1 hq).2) (m₁ / 6 - m₂ / 6)).1 (6 * (m₁ / 6 + 1)) h₁' v₁
+      (by rwa [Nat.add_sub_of_le hle])
 
 /-- When all correct processes start with `val₀` (`∀ h ∉ F, x h = val₀`) and `F.card ≤ t`, every
 process's Subround-0 `properReport` has `allProper = false` and `freqVals ⊆ {val₀}`. -/

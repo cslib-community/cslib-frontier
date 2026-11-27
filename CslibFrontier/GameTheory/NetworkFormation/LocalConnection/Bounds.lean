@@ -612,16 +612,14 @@ theorem IsPureNash.socialCost_le_five_mul_of_isTree [DecidableEq V] {α : ℝ} (
         rw [ncard_edgeSet_eq_card_edgeFinset]; omega
       have hn1_le : ((Fintype.card V - 1 : ℕ) : ℝ) ≤ (Fintype.card V : ℝ) := by
         exact_mod_cast Nat.sub_le (Fintype.card V) 1
-      have hdiv_le : ((Fintype.card V - 1 : ℕ) : ℝ) * (2 * α / (Fintype.card V : ℝ)) ≤
-          2 * α := by
-        rw [mul_div_assoc', div_le_iff₀ hn_pos]
-        nlinarith
-      have hstar_le : networkCost α (starGraph c) ≤ socialCost α s' := by
+      have hdiv_le : ((Fintype.card V - 1 : ℕ) : ℝ) * (2 * α / (Fintype.card V : ℝ)) ≤ 2 * α := by
+        rw [mul_div_assoc', div_le_iff₀ hn_pos]; nlinarith
+      have hstar_le : α * (Fintype.card V - 1 : ℕ) +
+          2 * ((Fintype.card V - 1 : ℕ) : ℝ) ^ 2 ≤ socialCost α s' := by
         have hle := isOptimalNetwork_iff_forall_profile.mp (isOptimalNetwork_starGraph hα2 c) s'
         rwa [networkECost_eq_ofReal_of_connected hα₀ (connected_starGraph c),
           socialECost_eq_ofReal_of_connected hα₀ hc',
-          ENNReal.ofReal_le_ofReal_iff (socialCost_nonneg hα₀ s')] at hle
-      rw [networkCost_starGraph] at hstar_le
+          ENNReal.ofReal_le_ofReal_iff (socialCost_nonneg hα₀ s'), networkCost_starGraph] at hle
       rw [hs.socialCost_eq_networkCost hα₀, networkCost_def, hm]
       have hn1_nn : (0 : ℝ) ≤ ((Fintype.card V - 1 : ℕ) : ℝ) := Nat.cast_nonneg _
       have hsum_uc2 : ((Fintype.card V - 1 : ℕ) : ℝ) * ∑ u : V, ((formedGraph s).dist u c : ℝ) ≤
@@ -699,8 +697,7 @@ theorem IsPureNash.socialCost_le_three_mul_sub_one_of_dist_le {α : ℝ} (hα₀
           rw [← (hconn v₀ w).coe_dist_eq_edist]
           exact_mod_cast (by omega : H.dist v₀ w = (H.dist v₀ w - 1) + 1)
         obtain ⟨p, hpw, hp_ed⟩ := exists_adj_edist_eq_of_edist_eq_add_one hed
-        rw [← (hconn v₀ p).coe_dist_eq_edist] at hp_ed
-        have hp_d : H.dist v₀ p = H.dist v₀ w - 1 := Nat.cast_injective hp_ed
+        have hp_d := Nat.cast_injective ((hconn v₀ p).coe_dist_eq_edist.trans hp_ed)
         exact ⟨p, hpw, by omega⟩
       let par : V → V := fun w => if hw : w ≠ v₀ then (hex_par w hw).choose else v₀
       let H₀ : SimpleGraph V := parentGraph par
@@ -736,15 +733,11 @@ theorem IsPureNash.socialCost_le_three_mul_sub_one_of_dist_le {α : ℝ} (hα₀
       have hH₀_conn : H₀.Connected :=
         ⟨fun x y => (hH₀_dist_root _ x rfl).1.symm.trans (hH₀_dist_root _ y rfl).1⟩
       have hH₀_diam : ∀ x y : V, (H₀.dist x y : ℝ) ≤ 2 * d := fun x y => by
-        have htri := hH₀_conn.dist_triangle (u := x) (v := v₀) (w := y)
+        have htri : (H₀.dist x y : ℝ) ≤ (H₀.dist x v₀ : ℝ) + (H₀.dist v₀ y : ℝ) := by
+          exact_mod_cast hH₀_conn.dist_triangle (u := x) (v := v₀) (w := y)
         rw [dist_comm (u := x) (v := v₀)] at htri
-        have hx_le : (H₀.dist v₀ x : ℝ) ≤ d :=
-          (Nat.cast_le.mpr (hH₀_dist_root _ x rfl).2).trans (hd v₀ x)
-        have hy_le : (H₀.dist v₀ y : ℝ) ≤ d :=
-          (Nat.cast_le.mpr (hH₀_dist_root _ y rfl).2).trans (hd v₀ y)
-        have htriR : (H₀.dist x y : ℝ) ≤ (H₀.dist v₀ x : ℝ) + (H₀.dist v₀ y : ℝ) := by
-          exact_mod_cast htri
-        linarith
+        linarith [(Nat.cast_le.mpr (hH₀_dist_root _ x rfl).2).trans (hd v₀ x),
+          (Nat.cast_le.mpr (hH₀_dist_root _ y rfl).2).trans (hd v₀ y)]
       classical
       have hH₀_edges : H₀.edgeFinset.card ≤ Fintype.card V - 1 := by
         have hsub : H₀.edgeFinset ⊆ (univ.erase v₀).image fun x => s(x, par x) := by
@@ -769,22 +762,14 @@ theorem IsPureNash.socialCost_le_three_mul_sub_one_of_dist_le {α : ℝ} (hα₀
             (2 * d - 1) * (Fintype.card V - 1 : ℕ) := by
         intro u
         let s_dev := Function.update s u (keep u)
-        have hle_dev : H₀ ≤ formedGraph s_dev := by
-          intro a b hab
-          have habH : H.Adj a b := hH₀_le hab
-          have hab_ne : a ≠ b := habH.ne
-          rw [formedGraph_adj] at habH ⊢
-          rcases habH with hb | ha
-          · left
-            rcases eq_or_ne a u with rfl | hau
+        have hle_dev : H₀ ≤ formedGraph s_dev := fun a b hab => by
+          have hmem {x y : V} (hy : y ∈ s x) (hxy : H₀.Adj x y) : y ∈ s_dev x := by
+            rcases eq_or_ne x u with rfl | hxu
             · simpa only [s_dev, Function.update_self, keep, LinkSet.mem_ofFinset, mem_filter] using
-                ⟨hab_ne.symm, hb, hab⟩
-            · simpa only [s_dev, Function.update_of_ne hau] using hb
-          · right
-            rcases eq_or_ne b u with rfl | hbu
-            · simpa only [s_dev, Function.update_self, keep, LinkSet.mem_ofFinset, mem_filter] using
-                ⟨hab_ne, ha, hab.symm⟩
-            · simpa only [s_dev, Function.update_of_ne hbu] using ha
+                ⟨(hH₀_le hxy).ne.symm, hy, hxy⟩
+            · simpa only [s_dev, Function.update_of_ne hxu] using hy
+          exact formedGraph_adj.mpr ((formedGraph_adj.mp (hH₀_le hab)).imp
+            (fun hb => hmem hb hab) (fun ha => hmem ha hab.symm))
         have hconn_dev : (formedGraph s_dev).Connected := hH₀_conn.mono hle_dev
         have hne_u := hs.playerCost_le hα₀ fun x => hconn_dev u x
         rw [playerCost_def, playerCost_def, Function.update_self] at hne_u

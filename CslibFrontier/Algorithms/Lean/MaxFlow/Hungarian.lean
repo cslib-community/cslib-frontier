@@ -457,8 +457,7 @@ theorem hgInv_dual {r : Fin n} {s : HgState n}
   · rw [hgRed_dual]
     have := h.feas i j
     split_ifs with hi hj <;> try omega
-    have h1 := h.minv_le i j hi (Bool.eq_false_iff.mpr hj)
-    have h2 := hmin j (Bool.eq_false_iff.mpr hj)
+    have := (hmin j (Bool.eq_false_iff.mpr hj)).trans (h.minv_le i j hi (Bool.eq_false_iff.mpr hj))
     omega
   · rw [hgRed_dual, h.tight i j hm, if_congr (h.tree_iff_used hm) rfl rfl]
     split_ifs <;> omega
@@ -470,8 +469,7 @@ theorem hgInv_dual {r : Fin n} {s : HgState n}
       fun e he => ?_, hp.tree⟩
     · obtain ⟨h1, h2⟩ := hp.head e he
       refine ⟨h1, ?_⟩
-      have het := hp.tree e (List.mem_of_mem_head? he)
-      rw [hgRed_dual, h2, ite_eq_left het, hgDual_minv, h1]
+      rw [hgRed_dual, h2, ite_eq_left (hp.tree e (List.mem_of_mem_head? he)), hgDual_minv, h1]
       split_ifs <;> omega
     · obtain ⟨h1, h2⟩ := hp.tail e he
       refine ⟨?_, h2⟩
@@ -523,22 +521,17 @@ theorem hgAugment {r : Fin n} {y z : Vector ℤ n} {mate : Vector (Option (Fin n
       · exact (hq.tail (i, j) (by simp [hql, he])).1
     · exact h.tight i j hm
   · rw [hmatch, matchedLeft_augment]
-    ext u
-    simp only [Finset.mem_union, Finset.mem_insert]
-    constructor
-    · rintro (hu | hu)
-      · rcases hp.matchedLeft_toFinset_subset u (by rwa [List.toFinset_reverse]) with
-          ⟨e, he, hue⟩ | hu
-        · rw [List.head?_reverse] at he
-          exact .inl (hue.symm.trans (hq.last e he))
-        · exact .inr hu
-      · exact .inr hu
-    · rintro (rfl | hu)
-      · obtain ⟨e, he⟩ := Option.ne_none_iff_exists'.mp
-          (mt List.getLast?_eq_none_iff.mp hq.ne_nil)
-        exact .inl (mem_matchedLeft.mpr ⟨e.2, List.mem_toFinset.mpr (hq.last e he ▸
-          List.mem_of_getLast? he)⟩)
-      · exact .inr hu
+    refine Finset.Subset.antisymm (Finset.union_subset (fun u hu => ?_)
+      (Finset.subset_insert _ _)) (Finset.insert_subset_iff.mpr ⟨?_, Finset.subset_union_right⟩)
+    · rcases hp.matchedLeft_toFinset_subset u (by rwa [List.toFinset_reverse]) with
+        ⟨e, he, rfl⟩ | hu
+      · rw [List.head?_reverse] at he
+        exact Finset.mem_insert.mpr (.inl (hq.last e he))
+      · exact Finset.mem_insert_of_mem hu
+    · obtain ⟨e, he⟩ := Option.ne_none_iff_exists'.mp
+        (mt List.getLast?_eq_none_iff.mp hq.ne_nil)
+      exact Finset.mem_union_left _ (mem_matchedLeft.mpr
+        ⟨e.2, List.mem_toFinset.mpr (hq.last e he ▸ List.mem_of_getLast? he)⟩)
 
 /-! #### Growing the tree -/
 
@@ -813,11 +806,11 @@ theorem hgStepInv_init {W : ℕ} {y z : Vector ℤ n} {mate : Vector (Option (Fi
   refine ⟨hI, h.y_bounds, h.z_bounds, h.free_z_zero, fun j => ?_, fun j => by simp [hgInit_path],
     fun j _ => by simp [hgInit_path], fun j j' hm => absurd hm (hI.root_free j')⟩
   rw [hgInit_minv]
-  have hf := h.feas r j
-  have hy := (h.y_bounds r).1
-  have hz := (h.z_bounds j).1
-  have hcw := (hc r j).2
-  unfold hgRed at hf ⊢
+  refine ⟨h.feas r j, ?_⟩
+  have := (h.y_bounds r).1
+  have := (h.z_bounds j).1
+  have := (hc r j).2
+  unfold hgRed
   omega
 
 theorem hgStepInv_dual {W : ℕ} {r : Fin n} {s : HgState n} {bestRow : Fin n → Fin n}
@@ -1204,10 +1197,8 @@ theorem exists_perm_assignment (c : Fin n × Fin n → ℤ) :
         (∀ u v, y u + z v ≤ c (u, v)) ∧ ∑ u, c (u, σ u) = ∑ u, y u + ∑ v, z v := by
   obtain ⟨M, y, z, hmin, hf, heq⟩ := exists_isMinCostPerfectMatching_potential_eq c
   obtain ⟨σ, rfl⟩ := exists_eq_permMatching hmin.1
-  refine ⟨σ, y, z, fun τ => ?_, fun u v => hf u v rfl, ?_⟩
-  · have := hmin.2 _ (isPerfectMatching_permMatching τ)
-    rwa [matchingCost_permMatching, matchingCost_permMatching] at this
-  · rwa [matchingCost_permMatching] at heq
+  refine ⟨σ, y, z, fun τ => ?_, fun u v => hf u v rfl, by rwa [matchingCost_permMatching] at heq⟩
+  simpa only [matchingCost_permMatching] using hmin.2 _ (isPerfectMatching_permMatching τ)
 
 end Main
 

@@ -121,15 +121,12 @@ theorem computableInPolyTime_tree :
     | succ i ih =>
       rw [Function.iterate_succ_apply', ih]
       simp only [next, treeStepCode_eq, pow_succ, Nat.mul_two]
-  have hcount : ComputableInPolyTime (fun n : ℕ => Nat.clog 2 (n + 1))
-      encUnary encUnary := by
-    exact (unary_clog_const 2).comp (by fun_prop)
   let bound (n : ℕ) := 5000000 * (n + 2) ^ 2
   have hb : PolyBounded (fun n => (encUnary n).length) bound :=
     polyBounded (by unfold bound; fun_prop)
   have h := iterateWith (encPar := encUnary) (par := fun _ : ℕ => 0)
     (count := fun n => Nat.clog 2 (n + 1)) (init := fun _ => init)
-    (step := fun _ => next) (const 0) hcount (const init)
+    (step := fun _ => next) (const 0) ((unary_clog_const 2).comp (by fun_prop)) (const init)
     (hn.comp (snd encUnary stateEnc)) hb (fun n i hi => by
       rw [heq]
       have hi' : i ≤ n + 1 := hi.trans (Nat.clog_le_of_le_pow (Nat.lt_two_pow_self.le))
@@ -170,10 +167,9 @@ theorem computableInPolyTime_pad :
     have hn := unary_to_binary.comp ((fst (encPair encUnary encUnary) encUnary).fst')
     have hi := unary_to_binary.comp (snd (encPair encUnary encUnary) encUnary)
     fun_prop
-  have h := (const (encOut := encList encGate) [(Op.const false, [])]).prod
-    (mapWithInput (f := fun p i => if i < p.1 then i else p.1)
-      (range.comp (snd encUnary encUnary)) hwire)
-  simpa only [pad_code, Function.comp_def] using h
+  simpa only [pad_code, Function.comp_def] using
+    (const (encOut := encList encGate) [(Op.const false, [])]).prod
+      (mapWithInput (range.comp (snd encUnary encUnary)) hwire)
 
 end PopulationCount
 
@@ -181,14 +177,10 @@ end PopulationCount
 its unary number of inputs. -/
 theorem computableInPolyTime_populationCountCircuit :
     ComputableInPolyTime (fun n => (populationCountCircuit n).code) encUnary encCode := by
-  have hn := unary_to_binary
-  have hp : ComputableInPolyTime (fun n : ℕ => 2 ^ Nat.clog 2 (n + 1))
-      encUnary encUnary := by
-    apply unary_pow_clog_const
-    fun_prop
-  have hpad := PopulationCount.computableInPolyTime_pad.comp
-    ((ComputableInPolyTime.id' (encIn := encUnary)).prod hp)
-  have h := computableInPolyTime_compCode hn PopulationCount.computableInPolyTime_tree hpad
-  simpa only [Function.comp_def, compCode_code, populationCountCircuit] using h
+  simpa only [Function.comp_def, compCode_code, populationCountCircuit] using
+    computableInPolyTime_compCode unary_to_binary PopulationCount.computableInPolyTime_tree
+      (PopulationCount.computableInPolyTime_pad.comp
+        ((ComputableInPolyTime.id' (encIn := encUnary)).prod
+          (unary_pow_clog_const (input := encUnary) (size := fun n => n + 1) (by fun_prop) 2 2)))
 
 end Cslib.Circuits.Boolean

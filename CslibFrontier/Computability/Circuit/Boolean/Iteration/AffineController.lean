@@ -179,12 +179,10 @@ theorem controlled_circuit (g : BitString q → BitString q)
     (Synthesis.const false).union (Synthesis.const true)
   have hflag (j : Fin (2 ^ q)) :
       Synthesis interpretation src {flags j} (2 * q + 1) := by
-    have h := Synthesis.word_eq_const (s := src) (fun x => BitString.equivBitVec (u x))
-      (fun i => by
-        simpa [u, BitString.getLsbD_equivBitVec] using
-          (show (fun x : BitString (q + p) => x (Fin.castAdd p i)) ∈ src from Or.inl ⟨_, rfl⟩))
-      (BitString.equivBitVec (e j))
-    simpa only [BitString.equivBitVec.apply_eq_iff_eq] using h
+    simpa only [BitString.equivBitVec.apply_eq_iff_eq] using
+      Synthesis.word_eq_const (s := src) (fun x => BitString.equivBitVec (u x))
+        (fun i => by simpa [u, src, BitString.getLsbD_equivBitVec] using Or.inl ⟨_, rfl⟩)
+        (BitString.equivBitVec (e j))
   have hrecord (j : Fin (2 ^ q)) :
       Synthesis interpretation src (wires (records j)) K := by
     obtain ⟨c, hc', hs⟩ := ha (e j)
@@ -217,10 +215,9 @@ theorem controlled_circuit (g : BitString q → BitString q)
     exact congrArg₂ Fin.append (congrArg g hj') (congrFun (congrArg a hj') _)
   simp only [he] at hselect
   obtain ⟨c, hc', hs⟩ := (hconst.trans (hall.trans hselect)).exists_circuit_outputs
-  refine ⟨c, hc', hs.trans ?_⟩
+  refine ⟨c, hc', hs.trans (le_of_eq ?_)⟩
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul]
-  ring_nf
-  exact le_rfl
+  ring
 
 /-- A composition-closed payload family with a uniform gate bound can be powered at a cost
 exponential only in the controller width. -/
@@ -279,18 +276,14 @@ theorem affineHash_circuit {k n : ℕ} (seed : (Fin k → BitString n) × BitStr
     have heq : (fun x : BitString n => ∑ j : Fin (n + 1), term j x) =
         fun x => affineHash seed x row := by
       funext x
-      rw [Fin.sum_univ_castSucc]
-      simp only [term, Fin.snoc_castSucc, Fin.snoc_last, affineHash, BitString.LinearHash.hash,
-        dotProduct, Pi.add_apply]
+      simp [Fin.sum_univ_castSucc, term, affineHash, BitString.LinearHash.hash, dotProduct]
     rw [heq] at hsum
     refine hsum.mono Set.Subset.rfl Set.Subset.rfl ?_
     simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul]
     omega
-  have hfam := Synthesis.family (I := interpretation) (s := inputs n)
-    (fun row x => affineHash seed x row) (fun _ => 5 * (n + 1) + 1) hrow
-  obtain ⟨c, hc, hs⟩ := hfam.exists_circuit_outputs
-  refine ⟨c, hc, hs.trans ?_⟩
-  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul, le_rfl]
+  obtain ⟨c, hc, hs⟩ := (Synthesis.family (I := interpretation) (s := inputs n)
+    (fun row x => affineHash seed x row) (fun _ => 5 * (n + 1) + 1) hrow).exists_circuit_outputs
+  exact ⟨c, hc, hs.trans_eq (by simp)⟩
 
 /-- The matrix and offset seed of a Boolean affine map. -/
 def affineMapSeed (a : BitString p →ᵃ[Bool] BitString p) :
@@ -337,10 +330,8 @@ theorem affine_controller_power (g : BitString q → BitString q)
 theorem affineControllerBudget_le (q p : ℕ) :
     affineControllerBudget q p ≤ 32 * 2 ^ q * (q + p ^ 2 + 1) := by
   have hb : p * (5 * (p + 1) + 1) + 6 * q + 4 * p + 1 ≤ 16 * (q + p ^ 2 + 1) := by nlinarith
-  have := Nat.one_le_pow q 2 (by decide)
-  have := Nat.mul_le_mul_left (2 ^ q) hb
   unfold affineControllerBudget
-  nlinarith
+  nlinarith [@Nat.one_le_two_pow q, Nat.mul_le_mul_left (2 ^ q) hb]
 
 /-- Polynomially many controller states give a polynomial gate bound in the total width, uniformly
 over all fixed exponents. -/

@@ -166,10 +166,9 @@ private theorem long_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     h8.1.trans (congrArg (·.relabel u1) (h7.1.trans (h6.1.trans (congrArg (·.relabel u0)
       (h5.1.trans (h4.1.trans (h3.1.trans (h2.1.trans h1.1))))))))
   have hlong : ¬I.ports.length < 2 := by simp [I]
-  change (transposeTail g w I).body = _ ∧ (transposeTail g w I).ports = _
+  dsimp only
   rw [transposeTail, ite_eq_right hlong]
-  change (rotateLeft (rotateLeft J8)).body = _ ∧
-    (rotateLeft (rotateLeft J8)).ports = _
+  dsimp only
   rw [rotateLeft_body, rotateLeft_body, hb8, rotateLeft_ports, rotateLeft_ports, hp8]
   exact ⟨rfl, by simp [List.rotate_cons_succ, List.append_assoc, E]⟩
 
@@ -185,8 +184,7 @@ private theorem eval_long (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     (transposeTail g w (⟨F, L ++ [x, y], c⟩ : State Rel)).body.eval sem τ =
       (insert g w (⟨F, L ++ [x, y], c⟩ : State Rel)).body.eval sem
         (τ ∘ Function.update id 3 (2 * x) ∘ Function.update id 1 (2 * y)) := by
-  rw [(long_fields g w F L x y c).1, CSP.eval_relabel, CSP.eval_relabel]
-  rfl
+  rw [(long_fields g w F L x y c).1, CSP.eval_relabel, CSP.eval_relabel]; rfl
 
 
 /-- Recover source satisfaction and reversed tail values from any satisfying output
@@ -207,18 +205,18 @@ theorem recover_transposeTail (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   let a : Fin 4 → Bool := fun i => ρ (2 * i.val + 1)
   have hr : (insert g w I).body.eval sem ρ = true := by
     simpa only [ρ, u0, u1] using (eval_long g w F L x y c τ).symm.trans ht
+  have hne1 (z : ℕ) : 2 * z ≠ 1 := by omega
+  have hne3 (z : ℕ) : 2 * z ≠ 3 := by omega
   have he (z : ℕ) : ρ (2 * z) = σ z := by
-    simp [ρ, σ, u0, u1, Function.comp_def,
-      show 2 * z ≠ 1 from by omega, show 2 * z ≠ 3 from by omega]
-  have hsource := (eval_insert_iff g w I σ a).mpr ⟨ρ, hr, he, fun _ => rfl⟩
-  have ha := hsource.2
+    simp [ρ, σ, u0, u1, Function.comp_def, hne1 z, hne3 z]
+  obtain ⟨hF, h5', h7'⟩ := (eval_insert_iff g w I σ a).mpr ⟨ρ, hr, he, fun _ => rfl⟩
   have h5 : τ 5 = τ (2 * y) := by
-    simpa [a, ρ, u0, u1, cross, Function.comp_def, show 2 * y ≠ 3 from by omega] using ha.1.symm
+    simpa [a, ρ, u0, u1, cross, Function.comp_def, hne3 y] using h5'.symm
   have h7 : τ 7 = τ (2 * x) := by
-    simpa [a, ρ, u0, u1, cross, Function.comp_def] using ha.2.symm
-  refine ⟨hsource.1, ?_⟩
-  rw [ports_transposeTail, List.map_append, List.map_map]
-  simp only [Function.comp_def, List.map_cons, List.map_nil, h5, h7]
+    simpa [a, ρ, u0, u1, cross, Function.comp_def] using h7'.symm
+  refine ⟨hF, ?_⟩
+  simp only [ports_transposeTail, List.map_append, List.map_map, Function.comp_def,
+    List.map_cons, List.map_nil, h5, h7]
 
 /-- Exact long-branch assignment extension: the output uses fresh tail names carrying
 `y,x`, while agreeing on EVERY doubled old name, including unused names. There is no
@@ -242,23 +240,17 @@ theorem eval_transposeTail_iff (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     obtain ⟨τ, ht, he, hf⟩ := (eval_insert_iff g w I σ a).mp ⟨hσ, ha⟩
     have hsame : τ ∘ u1 ∘ u0 = τ := by
       funext z
-      by_cases h0 : z = 1
-      · subst z
-        simpa [u0, u1, a, Function.comp_def, hy3] using
-          (he y).trans (hf (0 : Fin 4)).symm
-      · by_cases h1 : z = 3
-        · subst z
-          simpa [u0, u1, a, Function.comp_def, h0] using
-            (he x).trans (hf (1 : Fin 4)).symm
+      rcases eq_or_ne z 1 with rfl | h0
+      · simpa [u0, u1, a, Function.comp_def, hy3] using (he y).trans (hf (0 : Fin 4)).symm
+      · rcases eq_or_ne z 3 with rfl | h1
+        · simpa [u0, u1, a, Function.comp_def, h0] using (he x).trans (hf (1 : Fin 4)).symm
         · simp [u0, u1, Function.comp_def, h0, h1]
     refine ⟨τ, (eval_long g w F L x y c τ).trans
       ((congrArg ((insert g w I).body.eval sem) hsame).trans ht), he, ?_⟩
-    rw [ports_transposeTail, List.map_append, List.map_map]
-    have hL : (L.map (fun z => τ (2 * z))) = L.map σ :=
-      congrArg (fun f : ℕ → Bool => L.map f) (funext he)
     have h5 : τ 5 = σ y := by simpa [a] using hf (2 : Fin 4)
     have h7 : τ 7 = σ x := by simpa [a] using hf (3 : Fin 4)
-    simp only [Function.comp_def, List.map_cons, List.map_nil, hL, h5, h7]
+    simp only [ports_transposeTail, List.map_append, List.map_map, Function.comp_def, he,
+      List.map_cons, List.map_nil, h5, h7]
   · rintro ⟨τ, ht, he, _⟩
     simpa only [funext he] using (recover_transposeTail g w F L x y c τ ht).1
 
@@ -288,8 +280,7 @@ theorem length_transposeTail_body (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     (c : Graph.RotationCertificate) :
     (transposeTail g w (⟨F, L ++ [x, y], c⟩ : State Rel)).body.length =
       F.length + g.body.length := by
-  rw [(long_fields g w F L x y c).1]
-  simpa only [CSP.relabel, List.length_map] using
+  simpa only [(long_fields g w F L x y c).1, CSP.relabel, List.length_map] using
     length_insert_body g w (⟨F, L ++ [x, y], c⟩ : State Rel)
 
 /-- Relabeling seams retains every occurrence, including repeated visits. -/
@@ -297,16 +288,15 @@ theorem length_transposeTail_occurrences (F : CSP Rel ℕ) (L : List ℕ) (x y :
     (c : Graph.RotationCertificate) :
     (transposeTail g w (⟨F, L ++ [x, y], c⟩ : State Rel)).body.occurrences.length =
       F.occurrences.length + g.body.occurrences.length := by
-  rw [(long_fields g w F L x y c).1]
-  simpa only [CSP.occurrences_relabel, List.length_map] using
+  simpa only [(long_fields g w F L x y c).1, CSP.occurrences_relabel, List.length_map] using
     length_insert_occurrences g w (⟨F, L ++ [x, y], c⟩ : State Rel)
 
 /-- The two seam deletions restore the original number of boundary positions. -/
 theorem length_transposeTail_ports (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     (c : Graph.RotationCertificate) :
     (transposeTail g w (⟨F, L ++ [x, y], c⟩ : State Rel)).ports.length = L.length + 2 := by
-  rw [ports_transposeTail]
-  simp only [List.length_append, List.length_map, List.length_cons, List.length_nil]
+  simp only [ports_transposeTail, List.length_append, List.length_map, List.length_cons,
+    List.length_nil]
 
 
 private theorem primitive_bounds (J : State Rel) (M P : ℕ)
@@ -360,8 +350,7 @@ theorem emitted_rotation_lengths_le (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   have h0 : Inv J0 := by
     simp only [Inv, J0, length_insert_occurrences, length_insert_ports, length_insert_rotation,
       I, List.length_append, List.length_cons, List.length_nil]
-    dsimp only [M, P]
-    omega
+    exact ⟨rfl, le_rfl, by dsimp only [M, P]; omega⟩
   have cons {J J' : State Rel} {Js : List (State Rel)}
       (hJ' : J' ∈ [rotateRight J, rotateLeft J, fuseHead J, hideHead J])
       (hk : Inv J' → ∀ K ∈ J' :: Js, K.rotation.successor.length ≤ 2 * (M + P))
@@ -393,11 +382,12 @@ theorem name_width_transposeTail_le (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     exact (h.trans (Nat.add_le_add_right hz 1)).trans (le_max_left _ _)
   have hx := heven x (hW x (by simp))
   have hy := heven y (hW y (by simp))
+  have hy3 : 2 * y ≠ 3 := by omega
   have hupdate (z : ℕ) (hz : z.size ≤ B) : (u1 (u0 z)).size ≤ B := by
-    by_cases h1 : z = 1
-    · subst z; simpa [u0, u1, show 2 * y ≠ 3 from by omega] using hy
-    · by_cases h3 : z = 3
-      · subst z; simpa [u0, u1] using hx
+    rcases eq_or_ne z 1 with rfl | h1
+    · simpa [u0, u1, hy3] using hy
+    · rcases eq_or_ne z 3 with rfl | h3
+      · simpa [u0, u1] using hx
       · simpa [u0, u1, h1, h3] using hz
   have hvars : (insert g w I).body.vars = F.vars.map (2 * ·) ++
       g.body.vars.map (fun v => 2 * (finSumFinEquiv v).val + 1) := by
@@ -409,9 +399,8 @@ theorem name_width_transposeTail_le (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   intro z hz
   rw [(long_fields g w F L x y c).1, ports_transposeTail] at hz
   rcases List.mem_append.mp hz with hz | hz
-  · rw [CSP.vars_relabel, CSP.vars_relabel] at hz
-    obtain ⟨a, ha, rfl⟩ := List.mem_map.mp hz
-    obtain ⟨b, hb, rfl⟩ := List.mem_map.mp ha
+  · rw [CSP.vars_relabel, CSP.vars_relabel, List.map_map] at hz
+    obtain ⟨b, hb, rfl⟩ := List.mem_map.mp hz
     apply hupdate
     rw [hvars] at hb
     rcases List.mem_append.mp hb with hb | hb
@@ -501,9 +490,8 @@ theorem storage_transposeTail (I : State Rel) (h : 2 ≤ I.ports.length) :
   let B := (2 * (I.body.occurrences.length + g.body.occurrences.length +
     I.ports.length + 4)).size
   have hB : (2 * (J.body.occurrences.length + J.ports.length)).size ≤ B := by
-    simpa only [hmJ, hpJ] using (Nat.size_le_size (Nat.mul_le_mul_left 2
-      (Nat.le_add_right
-        (I.body.occurrences.length + g.body.occurrences.length + I.ports.length) 4)))
+    rw [hmJ, hpJ]
+    exact Nat.size_le_size (by omega)
   have hj : J.rotation.successor.length = 2 * (J.body.occurrences.length + J.ports.length) ∧
       ∀ v ∈ J.rotation.successor, v.size ≤ B := by
     rcases H with ⟨F, ps, c⟩

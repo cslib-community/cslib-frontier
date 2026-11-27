@@ -75,8 +75,7 @@ private theorem mem_rsCode_iff_toSmooth (params : FRIParams F) {i : ℕ} (hi : i
 private theorem mem_rsCode_comp_toSmooth (params : FRIParams F) {i : ℕ} (hi : i ≤ params.m)
     (v : Fin (params.toSmooth.domainSize i) → F) :
     (v ∘ toSmoothDomEquiv params hi) ∈ params.rsCode i ↔ v ∈ params.toSmooth.rsCode i := by
-  rw [mem_rsCode_iff_toSmooth params hi]
-  simp [Function.comp_assoc]
+  simp [mem_rsCode_iff_toSmooth params hi, Function.comp_assoc]
 
 private theorem friTargetWord_apply_eq_smooth (params : FRIParams F)
     (stmt : OracleTable params.d F)
@@ -260,8 +259,7 @@ theorem friGoodStep_iff_friSmoothGoodStep [DecidableEq F] (params : FRIParams F)
     (pref : List (OracleTable params.d F × FRIChal F params.d params.q))
     (π : OracleTable params.d F) (c : FRIChal F params.d params.q) :
     friGoodStep params B stmt pref π c ↔ friSmoothGoodStep params.toSmooth B stmt pref π c := by
-  unfold friGoodStep friSmoothGoodStep
-  split_ifs <;> simp [friDoomed_iff_friSmoothDoomed]
+  simp only [friGoodStep, friSmoothGoodStep, friDoomed_iff_friSmoothDoomed]
 
 
 /-- Exact equality between binary `friCommitGame` and smooth `friSmoothCommitGame` at
@@ -434,10 +432,9 @@ private theorem uniqueLineGapHypothesis_to_smooth [DecidableEq F] (params : FRIP
   obtain ⟨D', v₀, hv₀, v₁, hv₁, hD'_card, hD'_agree⟩ := hgap i u₀ u₁ Z hZ' hclose'
   refine ⟨D'.image eqv, toSmoothPair params i v₀ v₁, toSmoothPair_mem_rsCode params i hv₀ hv₁,
     by rwa [Finset.card_image_of_injective D' eqv.injective, hdom, hcum], fun y hy => ?_⟩
-  obtain ⟨j, hj, rfl⟩ := Finset.mem_image.mp hy
-  exact (forall_fin_toSmooth_arity_iff params i _).mpr (by
-    simpa only [toSmoothPair, eqv, u₀, u₁, Function.comp_apply, Equiv.symm_apply_apply,
-      Nat.one_ne_zero, ↓reduceIte] using hD'_agree j hj)
+  rcases Finset.mem_image.mp hy with ⟨j, hj, rfl⟩
+  simpa only [forall_fin_toSmooth_arity_iff, toSmoothPair, eqv, u₀, u₁, Function.comp_apply,
+    Equiv.symm_apply_apply, Nat.one_ne_zero, ↓reduceIte] using hD'_agree j hj
 
 end BinaryTranscriptAndBridges
 
@@ -516,8 +513,7 @@ theorem friPreWeight_le [DecidableEq F] (params : FRIParams F) (stmt : OracleTab
     (pref : List (OracleTable params.d F × FRIChal F params.d params.q))
     (i : ℕ) (hi : i ≤ params.m) (j : Fin (2 ^ (params.d - i))) :
     friPreWeight params stmt pref i hi j ≤ 2 ^ i := by
-  rw [friPreWeight_apply_eq_smooth]
-  simpa only [params.toSmooth_cumLog hi] using
+  simpa only [friPreWeight_apply_eq_smooth, params.toSmooth_cumLog hi] using
     friSmoothPreWeight_le params.toSmooth stmt pref i hi (toSmoothDomEquiv params hi j)
 
 /-- Pointwise bound on pushed weights `friNextWeight ... i π j ≤ 2 ^ (i + 1)`. -/
@@ -526,8 +522,7 @@ theorem friNextWeight_le [DecidableEq F] (params : FRIParams F) (stmt : OracleTa
     (i : ℕ) (hi : i < params.m) (π : OracleTable params.d F)
     (j : Fin (2 ^ (params.d - (i + 1)))) :
     friNextWeight params stmt pref i hi π j ≤ 2 ^ (i + 1) := by
-  rw [friNextWeight_apply_eq_smooth]
-  simpa only [params.toSmooth_cumLog hi] using
+  simpa only [friNextWeight_apply_eq_smooth, params.toSmooth_cumLog hi] using
     friSmoothNextWeight_le params.toSmooth stmt pref i hi π (toSmoothDomEquiv params hi j)
 
 
@@ -631,9 +626,8 @@ theorem card_filter_friPrefixPasses_eq [DecidableEq F] (params : FRIParams F)
       s.val % 2 ^ (params.d - i) = j.val ∧ friPrefixPasses params stmt pref i s).card =
     friOracleFilterWeight params stmt pref i hi (prefOracle pref i) j := by
   rw [friOracleFilterWeight_apply_eq_smooth, ← card_filter_friSmoothPrefixPasses_eq]
-  refine congrArg Finset.card (Finset.ext fun s => ?_)
-  simp only [Finset.mem_filter, Finset.mem_univ, true_and, params.toSmooth_domainSize hi,
-    toSmoothDomEquiv_val, friPrefixPasses_iff_smooth]
+  exact congrArg Finset.card (Finset.ext fun s => by
+    simp [params.toSmooth_domainSize hi, toSmoothDomEquiv_val, friPrefixPasses_iff_smooth])
 
 /-- **Binary final query-acceptance counting bound** (corollary of
 `card_filter_friSmoothFinalPasses_le`). -/

@@ -499,17 +499,12 @@ theorem influence_eq_card_univ_of_forall_eq_one {S : Finset V}
   have hae : ∀ᵐ θ ∂thresholdMeasure V,
       ((M.thresholdFinal θ S).card : ℝ) = (Fintype.card V : ℝ) := by
     filter_upwards [ae_mem_Ioo_thresholdMeasure V] with θ hθ
-    have hstep_univ : M.thresholdStep θ S = Finset.univ := Finset.eq_univ_of_forall fun v =>
-      M.mem_thresholdStep.mpr <| (em (v ∈ S)).imp_right fun hv =>
-        (hθ v).2.le.trans (hone v hv).symm.le
-    cases hcard : Fintype.card V with
-    | zero =>
-      have := Fintype.card_eq_zero_iff.mp hcard
-      simp [Subsingleton.elim (M.thresholdFinal θ S) Finset.univ]
-    | succ k =>
-      rw [thresholdFinal, hcard, Function.iterate_succ_apply, hstep_univ,
-        Finset.eq_univ_of_forall fun v => M.subset_thresholdStep_iterate θ _ k (Finset.mem_univ v),
-        Finset.card_univ, hcard]
+    have huniv : M.thresholdFinal θ S = Finset.univ := Finset.eq_univ_of_forall fun v =>
+      by_contra fun hv => by
+        have hvS : v ∉ S := fun h => hv (M.subset_thresholdFinal θ S h)
+        linarith [hone v hvS, M.monotone v (M.subset_thresholdFinal θ S),
+          M.thresholdFn_lt_of_notMem_thresholdFinal hv, (hθ v).2]
+    simp [huniv]
   rw [influence, integral_congr_ae hae, integral_const, probReal_univ, one_smul]
 
 @[simp]

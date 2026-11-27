@@ -499,9 +499,7 @@ theorem snapMTr_iff_validSnapTrace [DecidableEq P] [DecidableRel sys.graph.Adj]
     sys.snapLts.MTr S₁ xl S₂ ↔ sys.validSnapTrace S₁ xl ∧ S₂ = sys.runSnapEvents S₁ xl := by
   induction xl generalizing S₁ with
   | nil =>
-    refine ⟨?_, fun ⟨_, h⟩ => h ▸ .refl⟩
-    rintro ⟨⟩
-    exact ⟨trivial, rfl⟩
+    exact ⟨fun | .refl => ⟨trivial, rfl⟩, fun ⟨_, h⟩ => h ▸ .refl⟩
   | cons a xl ih =>
     refine ⟨?_, fun ⟨⟨hen, hv⟩, h⟩ => .stepL ⟨hen, rfl⟩ (ih.mpr ⟨hv, h⟩)⟩
     rintro (_ | ⟨⟨hen, rfl⟩, hrest⟩)
@@ -593,9 +591,7 @@ theorem snapTr_project [DecidableEq P] [DecidableRel sys.graph.Adj]
         simp [project, stepSnap, applyRecvMarker, hsnap, hr]
     · have hpop : (if u = src ∧ v = dest then unmarker (S₁.chan u v).tail
           else unmarker (S₁.chan u v)) = unmarker (S₁.chan u v) := by
-        split_ifs with h₂
-        · simp [h₂.1, h₂.2, ht]
-        · rfl
+        by_cases h₂ : u = src ∧ v = dest <;> simp [h₂, ht]
       simp only [project, stepSnap, applyRecvMarker]
       cases (S₁.proc dest).snapState <;>
         simp only [apply_ite unmarker, unmarker_append, unmarker_singleton_marker, List.append_nil,

@@ -322,12 +322,11 @@ theorem IsSDStrategyProof.upperContour_eq {n : ℕ} {φ : AssignmentRule n}
     (k : Fin n) (hset : ∀ o : Fin n, (p i).symm o ≤ k ↔ π'.symm o ≤ k) :
     upperContourSum (p i) (φ p i) k =
       upperContourSum (p i) (φ (Function.update p i π') i) k := by
-  have h2 := hsp (Function.update p i π') i (p i) k
-  simp only [Function.update_idem, Function.update_eq_self, Function.update_self] at h2
   have hcongr (x : Fin n → ℝ) : upperContourSum π' x k = upperContourSum (p i) x k := by
     simp only [upperContourSum_eq_sum_filter, ← hset]
-  rw [hcongr, hcongr] at h2
-  exact le_antisymm h2 (hsp p i π' k)
+  refine le_antisymm ?_ (hsp p i π' k)
+  simpa only [Function.update_idem, Function.update_eq_self, Function.update_self, hcongr] using
+    hsp (Function.update p i π') i (p i) k
 
 /-- Swapping two adjacent ranks `k` and `k + 1` in agent `i`'s preference leaves the probability of
 every other object unchanged and preserves the sum of the two swapped objects' probabilities. -/
@@ -356,15 +355,12 @@ theorem IsSDStrategyProof.adjSwap_invariance {n : ℕ} {φ : AssignmentRule n}
     · subst h2; simp only [Fin.le_def]; omega
     · exact Iff.rfl
   refine ⟨fun r hr1 hr2 => ?_, ?_⟩
-  · refine (apply_eq_of_upperContourSum_eq (p i) (huc r hr1) fun _ => huc _ ?_).symm
-    intro heq
-    have hv : r.val - 1 = k.val := congrArg Fin.val heq
-    exact hr2 (Fin.ext (by dsimp; omega))
-  · have htop := huc ⟨k.val + 1, hk⟩ (by simp [Fin.ext_iff])
-    have hk1pos : 0 < (⟨k.val + 1, hk⟩ : Fin n).val := Nat.succ_pos k.val
-    have hsub_eq : (⟨(⟨k.val + 1, hk⟩ : Fin n).val - 1, by omega⟩ : Fin n) = k :=
-      Fin.ext (Nat.add_sub_cancel k.val 1)
-    rw [upperContourSum_succ (p i) _ hk1pos, upperContourSum_succ (p i) _ hk1pos, hsub_eq] at htop
+  · refine (apply_eq_of_upperContourSum_eq (p i) (huc r hr1) fun hr => huc _ fun heq => ?_).symm
+    exact hr2 (Fin.ext ((Nat.sub_eq_iff_eq_add hr).mp (congrArg Fin.val heq)))
+  · have htop := huc ⟨k.val + 1, hk⟩ (Fin.ne_of_val_ne k.val.succ_ne_self)
+    rw [upperContourSum_succ (p i) (φ p i) (Nat.succ_pos k.val),
+      upperContourSum_succ (p i) (φ (Function.update p i π') i) (Nat.succ_pos k.val)] at htop
+    simp only [Nat.add_sub_cancel, Fin.eta] at htop
     by_cases hk0 : k.val = 0
     · rw [upperContourSum_zero (p i) _ hk0, upperContourSum_zero (p i) _ hk0] at htop
       linarith

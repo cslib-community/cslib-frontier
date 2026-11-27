@@ -234,16 +234,14 @@ private theorem getLast?_gadgets (G : Graph) (p : List ℕ) :
 private theorem nodup_gadgets_iff {G : Graph} {p : List ℕ} (hp : ∀ v ∈ p, v ∈ G.vertices) :
     (gadgets G p).Nodup ↔ p.Nodup := by
   rw [gadgets, List.nodup_flatMap]
-  constructor
-  · rintro ⟨-, h⟩
-    exact h.imp fun {a b} hab (h : a = b) => hab (List.mem_cons_self ..) (h ▸ List.mem_cons_self ..)
-  · intro h
-    refine ⟨fun v _ => ?_, h.imp_of_mem fun {a b} _ hb hab x hxa hxb => ?_⟩
-    · simp [splitVertex_eq_splitVertex_iff]
-    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hxa hxb
-      apply hab
-      rcases hxa with rfl | rfl | rfl <;> rcases hxb with h | h | h <;>
-        exact ((splitVertex_eq_splitVertex_iff_of_mem (hp b hb)).1 h).1
+  refine ⟨fun ⟨_, h⟩ =>
+    h.imp fun {a b} hab (heq : a = b) => hab (List.mem_cons_self ..) (heq ▸ List.mem_cons_self ..),
+    fun h => ⟨fun v _ => by simp [splitVertex_eq_splitVertex_iff],
+      h.imp_of_mem fun {a b} _ hb hab x hxa hxb => ?_⟩⟩
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hxa hxb
+  apply hab
+  rcases hxa with rfl | rfl | rfl <;> rcases hxb with h | h | h <;>
+    exact ((splitVertex_eq_splitVertex_iff_of_mem (hp b hb)).1 h).1
 
 private theorem mem_gadgets_iff_of_forall_mem_iff {G : Graph} {p : List ℕ}
     (hp : ∀ v, v ∈ p ↔ v ∈ G.vertices) (x : ℕ) : x ∈ gadgets G p ↔ x ∈ G.split.vertices := by
@@ -339,23 +337,21 @@ private theorem exists_eq_gadgets {G : Graph} (n : ℕ) : ∀ (l : List ℕ) (v 
         · have := hnd₁.getElem_inj_iff.1 (h.trans hsucc.symm)
           omega
     subst hj₀
-    obtain ⟨l₂, rfl⟩ : ∃ l₂, l₁ = G.splitVertex v 1 :: G.splitVertex v 2 :: l₂ := by
-      rcases l₁ with _ | ⟨b, _ | ⟨c, l₂⟩⟩
-      · simp at hj
-      · simp at hj₁
-      · exact ⟨l₂, by rw [← hjm, ← hsucc]; rfl⟩
+    rcases l₁ with _ | ⟨b, _ | ⟨c, l₂⟩⟩
+    · simp at hj
+    · simp at hj₁
+    obtain ⟨rfl, rfl⟩ : b = G.splitVertex v 1 ∧ c = G.splitVertex v 2 := ⟨hjm, hsucc⟩
     rcases l₂ with _ | ⟨x, l₃⟩
     · exact ⟨[v], by simpa using hv, rfl⟩
     -- The vertex after `out(v)` is the entry of an out-neighbour `w` of `v`.
     rcases eq_of_adj_out hv (List.isChain_cons_cons.1 hch₁.tail).1 with rfl | ⟨w, -, rfl⟩
     · simp at hnd₁
-    have hmid' : ∀ u ∈ G.vertices, G.splitVertex u 0 ∈ G.splitVertex w 0 :: l₃ →
+    have hmid' (u : ℕ) (hu : u ∈ G.vertices) (hu0 : G.splitVertex u 0 ∈ G.splitVertex w 0 :: l₃) :
         G.splitVertex u 1 ∈ G.splitVertex w 0 :: l₃ := by
-      intro u hu hu0
-      rcases List.mem_append.1 (show G.splitVertex u 1 ∈
-          [G.splitVertex v 0, G.splitVertex v 1, G.splitVertex v 2] ++ (G.splitVertex w 0 :: l₃)
-          from hmid u hu (List.mem_append_right
-            [G.splitVertex v 0, G.splitVertex v 1, G.splitVertex v 2] hu0)) with h | h
+      have hm1 : G.splitVertex u 1 ∈
+          [G.splitVertex v 0, G.splitVertex v 1, G.splitVertex v 2] ++ (G.splitVertex w 0 :: l₃) :=
+        hmid u hu (by simp [hu0])
+      rcases List.mem_append.1 hm1 with h | h
       · obtain ⟨r, -, h⟩ := mem_triple.1 h
         rw [splitVertex_eq_splitVertex_iff.2 ⟨(splitVertex_eq_splitVertex_iff.1 h).1, rfl⟩] at hu0
         exact absurd (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ hu0)) hnd₀
@@ -391,9 +387,7 @@ theorem split_mem_HamPath_iff (G : Graph) (s t : ℕ) :
   · rintro ⟨q, hnd, hcov, hs, ht, hch⟩
     obtain ⟨p, hp, rfl⟩ := exists_eq_gadgets q.length q s le_rfl hch hnd
       (fun x hx => (hcov x).1 hx) hs
-      (fun u h => by
-        rw [ht, Option.some.injEq, splitVertex_eq_splitVertex_iff] at h
-        omega)
+      (fun u h => by simp [ht, splitVertex_eq_splitVertex_iff] at h)
       (fun u hu _ => (hcov _).2 (splitVertex_mem_split_fst_iff.2 ⟨hu, by omega⟩))
     have hend {x u r} (hx : x ∈ p) (h : G.splitVertex x r = G.splitVertex u r) : x = u :=
       ((splitVertex_eq_splitVertex_iff_of_mem (hp x hx)).mp h.symm).1.symm

@@ -187,11 +187,11 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
     (by simp [x₃, RData.set] : x₃.regs mBase = x₂.regs mBase).trans <|
     (hx₂_r mBase (mReg_ne (by decide)) (fun i => mOldCp_ne_mReg i (Or.inl (by decide)))).trans
       hx₁_base
-  have hx₄_cp34 : x₄.regs (mOldCp ⟨34, by decide⟩) = off := by
-    rw [hx₄_keep3 _ (by simp [Fin.ext_iff]) (mOldCp_lt_160 _) (by simp [Fin.ext_iff]),
-      show x₃.regs (mOldCp ⟨34, by decide⟩) = x₂.regs (mOldCp ⟨34, by decide⟩) by
-        simp [x₃, RData.set, Fin.ext_iff], hx₂_cp_all]
-    exact cpOffItems_mk U V w N
+  have hx₄_cp34 : x₄.regs (mOldCp ⟨34, by decide⟩) = off :=
+    (hx₄_keep3 _ (by simp [Fin.ext_iff]) (mOldCp_lt_160 _)
+      (by simp [Fin.ext_iff])).trans <|
+    (by simp [x₃, RData.set, Fin.ext_iff] : x₃.regs _ = x₂.regs _).trans <|
+    (hx₂_cp_all _).trans (cpOffItems_mk U V w N)
   set x₅ := x₄.set mItemBase (base + off)
   have hex_ib := RDemonicExec.exactBin (f := .add) (d := mItemBase) (i := mBase)
     (j := mOldCp ⟨34, by decide⟩) (w := w) (L_peak := x.frontier) (x := x₄) hx₄f_eq.le
@@ -437,27 +437,23 @@ theorem deleteLastOneCode_demonicExec {U V w N n_init base : ℕ}
       simpa only [Cond.Holds, RData.toData, hy_u0, hy_argu, hu_reg] using hd_eq
     obtain ⟨z, steps_h, hex_h, hc_h, hrep_z, hz_base, hbelow_z⟩ :=
       deleteLastHitTailCode_exec hev hfr hsplit.root_hdr hyb hyf hy_fr_reg hy_base hy_mem
-    have hs_empty : Function.update s_abs u none = Dictionary.empty U := by
-      funext k
+    have hs_empty : Function.update s_abs u none = Dictionary.empty U := funext fun k => by
       by_cases hku : k = u
       · simp [hku, Dictionary.empty]
       · rw [Function.update_of_ne hku]
-        cases hk_eq : s_abs k with
-        | none => rfl
-        | some val =>
-          obtain ⟨d', hd', hd'_eq⟩ := hrec_surj k (by simp [hk_eq])
-          obtain rfl : d' = 0 := Nat.lt_one_iff.mp hd'
-          exact absurd (Fin.ext (hd'_eq.symm.trans hd_eq)) hku
+        exact Option.not_isSome_iff_eq_none.mp fun hk => by
+          obtain ⟨d', hd', hd'_eq⟩ := hrec_surj k hk
+          rw [Nat.lt_one_iff.mp hd'] at hd'_eq
+          exact hku (Fin.ext (hd'_eq.symm.trans hd_eq))
     refine ⟨z, _, hex_r.seq_eq (RDemonicExec.branch_pos hc_eq hex_h),
       hrep_z.bounded, hz_base, hbelow_z, ?_⟩
     rw [ite_eq_left hsome]
     refine ⟨hs_empty, hrep_z, ?_⟩
     unfold deleteLastOneCharge
     linarith only [hc_r, hc_h, hf1]
-  · have hnc_eq : ¬(Cond.eq mU0 mArgU).Holds y.toData := fun h => by
-      have hu : u = ⟨u₀, hu₀_lt⟩ :=
-        Fin.ext (hy_u0.symm.trans (h.trans (hy_argu.trans hu_reg))).symm
-      exact hsome (hu ▸ hs₀ ▸ rfl)
+  · have hnc_eq : ¬(Cond.eq mU0 mArgU).Holds y.toData := fun h =>
+      hsome ((Fin.ext (hy_u0.symm.trans (h.trans (hy_argu.trans hu_reg))) :
+        (⟨u₀, hu₀_lt⟩ : Fin U) = u) ▸ hs₀ ▸ rfl)
     have hex_nop := RDemonicExec.copy (B := .exact) (w := w) (L_peak := x.frontier)
       (d := mZero) (s := mZero) (x := y) hyf.le
     set z := y.set mZero (y.regs mZero)

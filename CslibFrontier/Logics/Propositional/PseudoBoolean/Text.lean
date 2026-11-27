@@ -599,25 +599,21 @@ theorem Names.var?_name {N : Names} (hN : N.WF) {v : ℕ} (hv : v < N.next) :
   unfold Names.name Names.nameChars
   split
   · rename_i hlt
-    obtain ⟨n, rfl⟩ : ∃ n, v = n := ⟨v, rfl⟩
     rw [Names.var?, stdVar?_std]
     simp [hlt]
   · rename_i hle
     have hi : v - N.base < N.others.length := by unfold Names.next at hv; omega
     rw [List.getElem?_eq_getElem hi]
     simp only [String.ofList_toList]
-    have hidx : N.others.idxOf? N.others[v - N.base] = some (v - N.base) := by
-      rw [List.idxOf?_eq_some_iff]
-      exact ⟨hi, rfl, fun j hj h => by
-        have := (hN.nodup.getElem_inj_iff (i := j) (j := v - N.base)).1 h
-        omega⟩
+    have hidx : N.others.idxOf? N.others[v - N.base] = some (v - N.base) :=
+      List.idxOf?_eq_some_iff.2 ⟨hi, rfl, fun j hj h =>
+        hj.ne ((hN.nodup.getElem_inj_iff (i := j) (j := v - N.base)).1 h)⟩
     have hmap : (N.others.idxOf? N.others[v - N.base]).map (N.base + ·) = some v := by
       rw [hidx]; simp; omega
     unfold Names.var?
     split
     · rename_i u hu
-      have := hN.base_le _ (List.getElem_mem hi) u hu
-      simp [show ¬ u < N.base by omega, hmap]
+      simp [Nat.not_lt.2 (hN.base_le _ (List.getElem_mem hi) u hu), hmap]
     · exact hmap
 
 /-- A standard name is written without leading zeros: it is `x(n + 1)` for its variable `n`. -/
@@ -655,7 +651,7 @@ theorem Names.name_of_var? {N : Names} {t : String} {w : ℕ} (h : N.var? t = so
     intro w hw
     obtain ⟨i, hi, rfl⟩ := Option.map_eq_some_iff.1 hw
     obtain ⟨hlt, hget, -⟩ := List.idxOf?_eq_some_iff.1 hi
-    simp only [Names.name, Names.nameChars, show ¬ N.base + i < N.base by omega, ↓reduceIte,
+    simp only [Names.name, Names.nameChars, Nat.not_lt.2 (Nat.le_add_right N.base i), ↓reduceIte,
       Nat.add_sub_cancel_left, List.getElem?_eq_getElem hlt, hget, String.ofList_toList]
   unfold Names.var? at h
   split at h
@@ -739,12 +735,9 @@ theorem Names.name_injective {N : Names} (hN : N.WF) : Function.Injective N.name
 /-- A name read as a variable is read below `next`. -/
 theorem Names.lt_next_of_var? {N : Names} {t : String} {w : ℕ} (h : N.var? t = some w) :
     w < N.next := by
-  have hlook : ∀ {w}, (N.others.idxOf? t).map (N.base + ·) = some w → w < N.next := by
-    intro w hw
+  have hlook : ∀ {w}, (N.others.idxOf? t).map (N.base + ·) = some w → w < N.next := fun hw => by
     obtain ⟨i, hi, rfl⟩ := Option.map_eq_some_iff.1 hw
-    have := (List.idxOf?_eq_some_iff.1 hi).1
-    unfold Names.next
-    omega
+    exact Nat.add_lt_add_left (List.idxOf?_eq_some_iff.1 hi).1 N.base
   unfold Names.var? at h
   split at h
   · split at h
@@ -1474,8 +1467,7 @@ theorem exists_checkRed_of_checkOPBOutput {opb pbp : String} {out : Option Strin
     {concl : Conclusion} (h : (checkOPBOutput opb pbp out).map (·.1) = some concl) :
     ∃ I P, parseOPB opb = some I ∧ checkRed I.constraints I.objective P I.preserved = true ∧
       P.conclusion = concl := by
-  rw [Option.map_eq_some_iff] at h
-  obtain ⟨⟨c', o⟩, h', rfl⟩ := h
+  obtain ⟨⟨c', o⟩, h', rfl⟩ := Option.map_eq_some_iff.1 h
   obtain ⟨I, P, hI, hP, hc, -⟩ := of_checkOPBOutput h'
   exact ⟨I, P, hI, hP, hc⟩
 

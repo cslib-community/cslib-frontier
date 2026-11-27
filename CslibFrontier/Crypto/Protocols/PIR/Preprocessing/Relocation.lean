@@ -821,12 +821,9 @@ private theorem card_extPerms_ofFn_mul_card_embedding {m m' : ℕ} (hm : m ≤ m
     (emb : Fin m ↪ Fin m') :
     (extPerms (List.ofFn fun i => (Fin.castLEEmb hm i, emb i))).card *
       Fintype.card (Fin m ↪ Fin m') = Fintype.card (Equiv.Perm (Fin m')) := by
-  have hall : ∀ e : Fin m ↪ Fin m',
-      (extPerms (List.ofFn fun i => (Fin.castLEEmb hm i, e i))).card =
-        (extPerms (List.ofFn fun i => (Fin.castLEEmb hm i, emb i))).card :=
-    fun e => card_extPerms_ofFn_eq (Fin.castLEEmb hm) e emb
-  rw [Fintype.card_perm, ← sum_card_extPerms_ofFn (Fin.castLEEmb hm)]
-  simp only [hall, Finset.sum_const, Finset.card_univ, smul_eq_mul, mul_comm]
+  rw [Fintype.card_perm, ← sum_card_extPerms_ofFn (Fin.castLEEmb hm),
+    Finset.sum_congr rfl fun e _ => card_extPerms_ofFn_eq (Fin.castLEEmb hm) e emb]
+  simp only [Finset.sum_const, Finset.card_univ, smul_eq_mul, mul_comm]
 
 private theorem uniformOfFintype_perm_map_castLEEmb {m m' : ℕ} (hm : m ≤ m') :
     have : Nonempty (Fin m ↪ Fin m') := ⟨Fin.castLEEmb hm⟩
@@ -1077,10 +1074,8 @@ private theorem outEdge?_congr {m m' : ℕ} {π₁ π₂ : Equiv.Perm (Fin m')} 
   | none => rfl
   | some idx =>
     have hlt : idx < hist.length := (List.idxOf?_eq_some_iff.mp hidx).1
-    dsimp only
-    split_ifs with hmt
-    · rw [hpre ⟨m + idx, hmt⟩ (by dsimp; omega)]
-    · rfl
+    exact dite_congr rfl (fun hmt => congrArg some (hpre ⟨m + idx, hmt⟩ (by dsimp; omega)))
+      fun _ => rfl
 
 private theorem startOfChain_congr {m m' : ℕ} {π₁ π₂ : Equiv.Perm (Fin m')}
     {hist : List (Fin m')} (hpre : ∀ i : Fin m', i.val < m + hist.length → π₁ i = π₂ i) :
@@ -1137,15 +1132,13 @@ private theorem realRunSteps_snd_congr {m m' : ℕ} {π₁ π₂ : Equiv.Perm (F
   induction cs generalizing hist with
   | nil => rfl
   | cons c cs ih =>
+    have hlen : (hist ++ [c]).length = hist.length + 1 := List.length_append ..
     simp only [List.length_cons] at hpre
-    simp only [realRunSteps, realStep, relocate]
-    have hpre₂ : ∀ i : Fin m', i.val < m + ((hist ++ [c]).length + cs.length) → π₁ i = π₂ i :=
-      fun i hi => hpre i (by simp only [List.length_append, List.length_singleton] at hi; omega)
-    rw [access_congr (fun i hi => hpre i (by omega)) hm, ih (hist ++ [c]) hpre₂]
-    congr 1
-    refine Option.map_congr fun e _ => locate_congr (fun i hi => hpre i ?_) e hm
-    simp only [List.length_append, List.length_singleton] at hi
-    omega
+    have hacc := access_congr (m := m) (hist := hist) (fun i hi => hpre i (by omega)) hm
+    have hih := ih (hist ++ [c]) fun i hi => hpre i (by omega)
+    simp only [realRunSteps, realStep, relocate, hacc, hih]
+    exact congrArg (· :: _) (Option.map_congr fun e _ =>
+      locate_congr (fun i hi => hpre i (by omega)) e hm)
 
 /-! ### Lemma 3.16 and Theorem 3.3: Perfect Security and Main Guarantee -/
 
@@ -1214,9 +1207,8 @@ private theorem realRunSteps_snoc_stateToIdealArray {m m' : ℕ} (perm : Equiv.P
     simpa [init] using realRunSteps_fst (init (m := m) perm) cs hm
   obtain ⟨h₁, h₂⟩ :=
     Prod.mk.inj (stateToIdealArray_relocate (s := ⟨perm, cs⟩) ⟨hnd_cs, hlt.le⟩ hc hlt hm)
-  simp only [realRunSteps_append (init (m := m) perm) cs [c] hm, hfst, realRunSteps]
-  rw [show (realStep ⟨perm, cs⟩ c hm).1 = relocate ⟨perm, cs⟩ c from rfl, h₁, h₂]
-  rfl
+  simp only [realRunSteps_append (init (m := m) perm) cs [c] hm, hfst, realRunSteps, h₂]
+  exact Prod.ext h₁ rfl
 
 private theorem realJointPMF_eq_idealJointPMF {m m' : ℕ} (cs : List (Fin m')) (hm : m ≤ m')
     (hnd : cs.Nodup) (hlen : m + cs.length ≤ m') :

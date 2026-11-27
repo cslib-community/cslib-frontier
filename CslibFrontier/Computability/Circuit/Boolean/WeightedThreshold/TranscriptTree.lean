@@ -169,8 +169,7 @@ theorem lineComparison_eval (q : Line signature n 0) (split : Fin n ≃ L ⊕ R)
     (x : L → Bool) (y : R → Bool) :
     (lineComparison q split).eval x y =
       q.eval interpretation (inputOfSplit split x y) Fin.elim0 := by
-  rw [line_eval_eq]
-  simp only [Fintype.sum_empty, add_zero]
+  simp only [line_eval_eq, Fintype.sum_empty, add_zero]
   rw [← split.symm.sum_comp (fun i =>
     lineWeight q (.input i) * ((inputOfSplit split x y i).toNat : ℝ)), Fintype.sum_sum_type]
   simp only [SeparableComparison.eval, lineComparison, inputOfSplit, Function.comp_apply,
@@ -327,9 +326,8 @@ private theorem card_inputGates_gate (p : Program signature n g) (line : Line si
     (inputGates (p.gate line)).card = (inputGates p).card +
       if ∃ i, lineWeight line (.input i) ≠ 0 then 1 else 0 := by
   classical
-  simp only [inputGates, card_filter]
-  rw [Fin.sum_univ_castSucc]
-  simp only [inputWeight_gate_castSucc, inputWeight_gate_last]
+  simp only [inputGates, card_filter, Fin.sum_univ_castSucc, inputWeight_gate_castSucc,
+    inputWeight_gate_last]
 
 /-- A prefix bank preserves the effective input coefficients of every earlier gate. -/
 theorem prefixBank_inputWeight_castAdd (p : Program signature n g) (reads : Fin d → Fin g)
@@ -411,8 +409,7 @@ theorem eval_append_last (p : Program signature n g) (reads : Fin d → Fin g)
       decide (baseline ≤ (∑ i, w i * (x i).toNat) +
         ∑ a, (baseline - thresholds a) *
           (decide ((fun j => p.eval interpretation x (reads j)) = patterns a)).toNat) := by
-  rw [append, Program.eval_gate_last, queryLine_eval]
-  simp only [prefixBank_eval_natAdd]
+  simp only [append, Program.eval_gate_last, queryLine_eval, prefixBank_eval_natAdd]
 
 open scoped Classical in
 /-- A unique matching prefix selects its threshold, with equality returning `true`. -/
@@ -423,14 +420,11 @@ theorem eval_append_of_match (p : Program signature n g) (reads : Fin d → Fin 
     (hmatch : (fun j => p.eval interpretation x (reads j)) = patterns a) :
     (append p reads patterns w thresholds baseline).eval interpretation x (Fin.last (g + m)) =
       decide (thresholds a ≤ ∑ i, w i * (x i).toNat) := by
-  have hne (b : Fin m) (hba : b ≠ a) :
-      (fun j => p.eval interpretation x (reads j)) ≠ patterns b :=
-    fun h => hba (hinj (h.symm.trans hmatch))
   have hsum : (∑ b, (baseline - thresholds b) *
       (decide ((fun j => p.eval interpretation x (reads j)) = patterns b)).toNat) =
-        baseline - thresholds a := by
-    rw [sum_eq_single a (fun b _ hba => by simp [hne b hba]) (fun h => (h (mem_univ a)).elim)]
-    simp [hmatch]
+      baseline - thresholds a :=
+    (sum_eq_single a (fun b _ hba => by simp [hmatch.trans_ne (hinj.ne hba.symm)])
+      (fun h => (h (mem_univ a)).elim)).trans (by simp [hmatch])
   rw [eval_append_last, hsum, Bool.eq_iff_iff, decide_eq_true_iff, decide_eq_true_iff]
   constructor <;> intro <;> linarith
 

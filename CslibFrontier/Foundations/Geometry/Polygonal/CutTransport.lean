@@ -277,11 +277,9 @@ private theorem parameterRoute_ends (p : Route) (S : Finset ℝ) (c : ℂ →ᵃ
   have he := sourceSamples_ends p S c
   constructor
   · simp only [parameterRoute, Route.start, Fin.val_zero, he.1, sourcePosition,
-      Fin.val_zero, Nat.cast_zero, zero_add, Complex.ofReal_zero]
-  · have hlast : (mapAtCuts p S c F).segments = (sourceSamples p S c).length - 1 :=
-      mapAtCuts_segments p S c F
-    simp only [parameterRoute, Route.finish, Fin.val_last, hlast, he.2, sourcePosition,
-      Fin.val_last, Route.segments, Nat.cast_add, Nat.cast_one]
+      Nat.cast_zero, zero_add, Complex.ofReal_zero]
+  · simp only [parameterRoute, Route.finish, Fin.val_last, mapAtCuts_segments p S c F, he.2,
+      sourcePosition, Route.segments, Nat.cast_add, Nat.cast_one]
 
 private theorem mapAtCuts_adjacent (p : Route) (S : Finset ℝ) (c : ℂ →ᵃ[ℝ] ℝ) (F : ℂ → ℂ)
     (i : Fin (mapAtCuts p S c F).segments) :
@@ -362,14 +360,11 @@ private theorem mapAtCuts_parameter (p : Route)
   have hβ := segmentCuts_mem_Icc (List.getElem_mem hk)
   have hαβ : C[k] < C[k + 1] := (segmentCuts_sorted S _ _).strictMono_get
     (show (⟨k, by omega⟩ : Fin C.length) < ⟨k + 1, hk⟩ from Nat.lt_succ_self k)
-  refine ⟨j, C[k], C[k + 1], hα.1, hαβ, hβ.2, ?_, ?_, ?_⟩
-  · exact segmentCuts_adjacent_no_level S c
-      (a := p.point j.castSucc) (b := p.point j.succ) hk
-  · intro t ht
-    rw [heval, hx, hy]
+  refine ⟨j, C[k], C[k + 1], hα.1, hαβ, hβ.2, segmentCuts_adjacent_no_level S c hk,
+    fun t ht => ?_, fun t => ?_⟩
+  · rw [heval, hx, hy]
     exact (segmentCuts_map_lineMap S c F hF _ _ hk ht).symm
-  · intro t
-    rw [hpos, hxp, hyp]
+  · rw [hpos, hxp, hyp]
     change AffineMap.lineMap ((j.val : ℝ) + C[k]) ((j.val : ℝ) + C[k + 1]) t =
       (j.val : ℝ) + AffineMap.lineMap C[k] C[k + 1] t
     simp only [AffineMap.lineMap_apply_ring']
@@ -378,8 +373,8 @@ private theorem mapAtCuts_parameter (p : Route)
 private theorem parameterRoute_real (p : Route) (S : Finset ℝ) (c : ℂ →ᵃ[ℝ] ℝ) (F : ℂ → ℂ)
     (i : Fin (mapAtCuts p S c F).segments) (t : ℝ) :
     (parameterRoute p S c F).eval i t =
-      (((parameterRoute p S c F).eval i t).re : ℝ) := by
-  exact Complex.ext (by simp)
+      (((parameterRoute p S c F).eval i t).re : ℝ) :=
+  Complex.ext (by simp)
     (by simp [Route.eval, parameterRoute, AffineMap.lineMap_apply_module'])
 
 private theorem parameterRoute_open (p : Route) (S : Finset ℝ) (c : ℂ →ᵃ[ℝ] ℝ) (F : ℂ → ℂ) :
@@ -483,7 +478,6 @@ private theorem sourceSamples_piece (p : Route) (S : Finset ℝ)
   let C := cuts S c (p.point j.castSucc) (p.point j.succ)
   have hdef : sourceSamples p S c = L.flatMap f ++ [(Fin.last p.bends,1)] := rfl
   have hLlen : L.length = p.segments := List.length_finRange
-  have hkC : k+1 < C.length := hk
   let prefLen := ((L.take j.val).flatMap f).length
   have hj : j.val < L.length := by simpa only [L, List.length_finRange] using j.isLt
   have hget : L[j.val] = j := by simp [L]

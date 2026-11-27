@@ -144,12 +144,10 @@ theorem two_pow_length_header_code_mul_le (c x : List Bool) :
   have hA : 2 ^ (2 * c.length + 1 + (2 * (code num den x).length.size + 1) +
       2 * x.length.size + 1) * 2 ≤
       2 ^ (2 * c.length + 4) * (6 * x.length + 5) ^ 2 * (2 * x.length + 1) ^ 2 := by
-    have h1 : 2 ^ (2 * (code num den x).length.size) ≤ (6 * x.length + 5) ^ 2 := by
-      rw [pow_mul']
-      exact Nat.pow_le_pow_left ((Nat.two_pow_size_le _).trans (by omega)) 2
-    have h2 : 2 ^ (2 * x.length.size) ≤ (2 * x.length + 1) ^ 2 := by
-      rw [pow_mul']
-      exact Nat.pow_le_pow_left (Nat.two_pow_size_le _) 2
+    have h1 : 2 ^ (2 * (code num den x).length.size) ≤ (6 * x.length + 5) ^ 2 :=
+      (pow_mul' 2 2 _).trans_le (Nat.pow_le_pow_left ((Nat.two_pow_size_le _).trans (by omega)) 2)
+    have h2 : 2 ^ (2 * x.length.size) ≤ (2 * x.length + 1) ^ 2 :=
+      (pow_mul' 2 2 _).trans_le (Nat.pow_le_pow_left (Nat.two_pow_size_le _) 2)
     calc 2 ^ (2 * c.length + 1 + (2 * (code num den x).length.size + 1) +
           2 * x.length.size + 1) * 2 =
         2 ^ (2 * c.length + 4) * 2 ^ (2 * (code num den x).length.size) *
@@ -218,12 +216,10 @@ theorem distHard_problem : DistHard DistNP problem := by
       (Polynomial.C 2 * Polynomial.X + Polynomial.C 1) ^ 2, fun n => by simp⟩
   let f (x : List Bool) : List Bool :=
     encode c (code num den x) (N.eval x.length - (header c (code num den x)).length)
-  have hhead (x : List Bool) : (header c (code num den x)).length ≤ N.eval x.length := by
-    have := length_header_code_le hcdf hden0 c x
-    rw [hN]; omega
   have hflen (x : List Bool) : (f x).length = N.eval x.length := by
-    have := hhead x
-    rw [length_encode]; omega
+    have := length_header_code_le hcdf hden0 c x
+    rw [length_encode, hN]
+    omega
   have hfinj : Function.Injective f := fun x x' h =>
     code_injective hcdf hden0 (encode_injective h).2.1
   have hfpoly : ComputableInPolyTime f encBits encBits := by

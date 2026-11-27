@@ -510,10 +510,9 @@ private theorem ddhOTReceivedWith_one {q : ℕ} [Module (ZMod q) G] {C₀ C₁ :
       let u := (proj₀ raw₀).exponent • g
       let w := ddhOTReceiverMsg g (x 1) (proj₁ raw₁) u
       ddhOTReceiverViewWith (x 1) raw₁ u (ddhOTSenderReply g (x 0) (proj₀ raw₀) w) := by
-  refine PartyView.ext rfl rfl (Prod.ext ?_ (Prod.ext ?_ (Prod.ext ?_ rfl)))
-  · exact Round.received_message_ext fun _ => rfl
-  · exact Round.received_message_eq_of_ne (by decide) _ _
-  · exact Round.received_message_ext fun _ => rfl
+  exact PartyView.ext rfl rfl (Prod.ext (Round.received_message_ext fun _ => rfl)
+    (Prod.ext (Round.received_message_eq_of_ne (by decide) _ _)
+      (Prod.ext (Round.received_message_ext fun _ => rfl) rfl)))
 
 /-- Sender's view in a run with coins `(raw₀, raw₁)`. -/
 private theorem ddhOTReceivedWith_zero {q : ℕ} [Module (ZMod q) G] {C₀ C₁ : Type} (g : G)
@@ -524,10 +523,9 @@ private theorem ddhOTReceivedWith_zero {q : ℕ} [Module (ZMod q) G] {C₀ C₁ 
         PartyView (OTIn G) (DDHOTCoinsWith C₀ C₁) (ddhOTSchedule G) 0) =
       ddhOTSenderViewWith (x 0) raw₀
         (ddhOTReceiverMsg g (x 1) (proj₁ raw₁) ((proj₀ raw₀).exponent • g)) := by
-  refine PartyView.ext rfl rfl (Prod.ext ?_ (Prod.ext ?_ (Prod.ext ?_ rfl)))
-  · exact Round.received_message_eq_of_ne (by decide) _ _
-  · exact Round.received_message_ext fun _ => rfl
-  · exact Round.received_message_eq_of_ne (by decide) _ _
+  exact PartyView.ext rfl rfl (Prod.ext (Round.received_message_eq_of_ne (by decide) _ _)
+    (Prod.ext (Round.received_message_ext fun _ => rfl)
+      (Prod.ext (Round.received_message_eq_of_ne (by decide) _ _) rfl)))
 
 /-! ### Execution law and correctness -/
 
@@ -902,9 +900,8 @@ theorem ideal_receiver_eq_ddhRandomExperiment_of (g : G) (q : ℕ) [NeZero q] [M
     congrArg (PMF.bind _) (funext fun r =>
       congrArg (PMF.bind _) (funext fun s =>
         congrArg (PMF.bind _) (funext fun k => ?_))))
-  have hshift : ∀ (c : ZMod q) (m : G),
-      c • g - (proj₁ raw₁) • k • g + m = c • g + (m - (proj₁ raw₁) • k • g) :=
-    fun c m => by abel
+  have hshift (c : ZMod q) (m : G) :
+      c • g - (proj₁ raw₁) • k • g + m = c • g + (m - (proj₁ raw₁) • k • g) := by abel
   simp_rw [hshift]
   let σ : Bool := x 1
   let e_σ := r • g + s • (a • g)
@@ -1001,15 +998,13 @@ theorem succProbability_ddhOTUncheckedIdealGame_le
     cases τ <;> simp only [Bool.false_eq_true, ↓reduceIte]
     · refine PMF.bind_apply_le_on_support _ fun m₀ _ => ?_
       rw [PMF.bind_comm]
-      refine PMF.bind_apply_le_on_support _ fun pair _ =>
-        PMF.uniformOfFintype_bind_pure_apply_true_le fun y hy y' hy' =>
-          congrArg Prod.snd ((of_decide_eq_true hy).symm.trans (of_decide_eq_true hy'))
+      exact PMF.bind_apply_le_on_support _ fun pair _ =>
+        PMF.uniformOfFintype_bind_pure_apply_true_le fun _ _ _ _ => by simp_all
     · rw [PMF.bind_comm]
       refine PMF.bind_apply_le_on_support _ fun m₁ _ => ?_
       rw [PMF.bind_comm]
-      refine PMF.bind_apply_le_on_support _ fun pair _ =>
-        PMF.uniformOfFintype_bind_pure_apply_true_le fun y hy y' hy' =>
-          congrArg Prod.fst ((of_decide_eq_true hy).symm.trans (of_decide_eq_true hy'))
+      exact PMF.bind_apply_le_on_support _ fun pair _ =>
+        PMF.uniformOfFintype_bind_pure_apply_true_le fun _ _ _ _ => by simp_all
   rw [Game.coe_succProbability, ← ENNReal.toReal_natCast, ← ENNReal.toReal_inv]
   exact ENNReal.toReal_mono (by simp) h_ennreal
 

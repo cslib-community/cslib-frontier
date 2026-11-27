@@ -79,12 +79,9 @@ private theorem placed_contact_eval (p : Route) (flip : Bool) (z : ℂ) (t : ℝ
     (placed p flip z).eval (contactIndex p flip z) (contactTime flip t) = z + p.eval 0 t := by
   cases flip
   · exact Route.eval_translate p z 0 t
-  · change (p.reverse.translate z).eval (0 : Fin p.segments).rev (1 - t) = _
-    have hi : ((0 : Fin p.segments).rev : Fin p.reverse.segments).rev = 0 := Fin.rev_rev _
-    exact (Route.eval_translate _ z _ _).trans
-      (congrArg (fun w => z + w) ((Route.eval_reverse p _ _).trans
-        (congrArg₂ (fun (i : Fin p.segments) (u : ℝ) => p.eval i u) hi
-          (sub_sub_cancel 1 t))))
+  · exact (Route.eval_translate _ z _ _).trans <| congrArg (z + ·) <|
+      (Route.eval_reverse p _ _).trans <|
+        congrArg₂ p.eval (Fin.rev_rev (0 : Fin p.segments)) (sub_sub_cancel 1 t)
 
 private theorem placed_vector (p : Route) (flip : Bool) (z : ℂ) :
     let i := contactIndex p flip z
@@ -131,18 +128,10 @@ private theorem cut_parameters {a b : ℝ} (hab : a ≠ b) {z : ℂ}
     simpa [AffineMap.lineMap_apply_module, Complex.real_smul, parabolaPoint, sub_eq_add_neg] using
       congrArg Complex.re hueq
   rcases lt_or_gt_of_ne hab with hab' | hba
-  · have hlu : l < u := by
-      by_contra h
-      have hmul : 0 ≤ (l - u) * (b - a) :=
-        mul_nonneg (sub_nonneg.mpr (not_lt.mp h)) (sub_nonneg.mpr hab'.le)
-      nlinarith only [hmul, hxl, hxu, hr]
+  · have hlu : l < u := not_le.mp fun h => by nlinarith
     exact ⟨l, u, hl.1, hlu, hu.2, by simpa only [ite_eq_right (not_lt.mpr hab'.le)] using hleq,
       by simpa only [ite_eq_right (not_lt.mpr hab'.le)] using hueq⟩
-  · have hul : u < l := by
-      by_contra h
-      have hmul : 0 ≤ (u - l) * (a - b) :=
-        mul_nonneg (sub_nonneg.mpr (not_lt.mp h)) (sub_nonneg.mpr hba.le)
-      nlinarith only [hmul, hxl, hxu, hr]
+  · have hul : u < l := not_le.mp fun h => by nlinarith
     exact ⟨u, l, hu.1, hul, hl.2, by simpa only [ite_eq_left hba] using hueq,
       by simpa only [ite_eq_left hba] using hleq⟩
 
@@ -156,26 +145,22 @@ private theorem choose_geometry {ι : Type*} [Finite ι] (s m : ι → ℝ)
   let T := 1 + ∑ i, 1 / m i
   let r := min (ρ / (4 * K)) (1 / (2 * T))
   let ε := ρ / 4
-  have hsumK : 0 ≤ ∑ i, |s i| := Finset.sum_nonneg fun i _ => abs_nonneg (s i)
-  have hsumT : 0 ≤ ∑ i, 1 / m i :=
-    Finset.sum_nonneg fun i _ => (div_pos zero_lt_one (hm i)).le
-  have hK : 0 < K := by dsimp [K]; linarith
-  have hT : 0 < T := by dsimp [T]; linarith
+  have hK : 0 < K :=
+    add_pos_of_pos_of_nonneg zero_lt_one (Finset.sum_nonneg fun i _ => abs_nonneg (s i))
+  have hT : 0 < T := add_pos_of_pos_of_nonneg zero_lt_one
+    (Finset.sum_nonneg fun i _ => (div_pos zero_lt_one (hm i)).le)
   have hr : 0 < r := by dsimp [r]; positivity
-  refine ⟨r, ε, hr, by dsimp [ε]; positivity, ?_, ?_⟩
-  · intro i
-    have hTi : 1 / m i < T := by
+  refine ⟨r, ε, hr, by dsimp [ε]; positivity, fun i => ?_, fun i => ?_⟩
+  · have hTi : 1 / m i < T := by
       dsimp [T]
       linarith [Finset.single_le_sum (fun j _ => (div_pos zero_lt_one (hm j)).le)
         (Finset.mem_univ i)]
     have hprod := (div_lt_iff₀ (hm i)).mp hTi
     exact (min_le_right _ _).trans_lt ((div_lt_iff₀ (by positivity)).mpr (by nlinarith))
-  · intro i
-    have hKi : 1 + |s i| ≤ K := by
+  · have hKi : 1 + |s i| ≤ K := by
       dsimp [K]
       linarith [Finset.single_le_sum (fun j _ => abs_nonneg (s j)) (Finset.mem_univ i)]
-    have hK0 : 0 < 4 * K := by positivity
-    have hrK := (le_div_iff₀ hK0).mp (min_le_left _ _ : r ≤ _)
+    have hrK := (le_div_iff₀ (by positivity : 0 < 4 * K)).mp (min_le_left _ _ : r ≤ _)
     dsimp [ε]; nlinarith [mul_le_mul_of_nonneg_left hKi hr.le]
 
 /-- Place the actual finite incident family inside any positive-radius ball. Source cut
@@ -296,12 +281,6 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
     cases tag <;> by_cases hf : b e.val < a e.val <;>
       simp only [flip, hf, decide_true, decide_false, Bool.not_false, Bool.not_true,
         Bool.false_eq_true, ↓reduceIte]
-  have hpointA (e : X) :
-      (P e).start = AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (α e) :=
-    hpoint e false
-  have hpointB (e : X) :
-      (P e).finish = AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (β e) :=
-    hpoint e true
   have hball (e : X) : (P e).support ⊆ Metric.ball z ρ := by
     intro w hw
     obtain ⟨v, hv, rfl⟩ := (placed_support (R e) (flip e) z) ▸ hw
@@ -313,18 +292,20 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
         _ ≤ |v.im - s e * v.re| + |s e * v.re| := abs_add_le _ _
         _ ≤ |v.im - s e * v.re| + |s e| * r := by
           rw [abs_mul]
-          exact add_le_add_right (mul_le_mul_of_nonneg_left hxab (abs_nonneg _)) _
+          gcongr
     rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left]
     nlinarith [Complex.norm_le_abs_re_add_abs_im v, htube e]
   have hPkeep (e : X) (he : F e.val = true) : d e = 0 ∧
       P e = Route.line (AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (α e))
         (AffineMap.lineMap (D.route e.val).start (D.route e.val).finish (β e)) := by
+    have hA : (P e).start = AffineMap.lineMap _ _ (α e) := hpoint e false
+    have hB : (P e).finish = AffineMap.lineMap _ _ (β e) := hpoint e true
     refine ⟨(hkeep e he).1, ?_⟩
-    rw [← hpointA e, ← hpointB e]
+    rw [← hA, ← hB]
     dsimp only [P, placed, R]
     cases flip e <;> simp [he, Route.reverse_line, Route.translate_line]
   refine ⟨r, hr, d, α, β, ?_, hPkeep, ?_, ?_, ?_⟩
-  · exact fun e => ⟨hα e, hαβ e, hβ e, hpointA e, hpointB e,
+  · exact fun e => ⟨hα e, hαβ e, hβ e, hpoint e false, hpoint e true,
       placed_simple (hends e).2.2.1 (flip e) z, hball e⟩
   · intro e f hef
     obtain ⟨w, ⟨he, hf⟩, huniq⟩ := hpair e f hef
@@ -345,15 +326,13 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
         (by rw [← hraw_eval, hetf, add_sub_cancel])
     · have hve := placed_vector (R e) (flip e) z
       have hvf := placed_vector (R f) (flip f) z
+      have hd : ((R e).germ false).re * ((R f).germ false).im -
+          ((R e).germ false).im * ((R f).germ false).re ≠ 0 := hdet e f hef
       dsimp only [placed, flip, a, b, D] at hve hvf ⊢
       rw [hve, hvf]
-      have hd := hdet e f hef
-      change ((R e).germ false).re * ((R f).germ false).im -
-        ((R e).germ false).im * ((R f).germ false).re ≠ 0 at hd
-      split_ifs <;> intro hzero <;> apply hd
-      all_goals
-        try simp only [Complex.neg_re, Complex.neg_im] at hzero
-        nlinarith only [hzero]
+      split_ifs <;> first
+        | exact hd
+        | exact fun h0 => hd (by simp only [Complex.neg_re, Complex.neg_im] at h0; linarith)
   · intro e f g hef heg hfg w hwe hwf hwg
     exact hno3 e f g hef heg hfg (w - z) (mem_placed_support.mp hwe)
       (mem_placed_support.mp hwf) (mem_placed_support.mp hwg)

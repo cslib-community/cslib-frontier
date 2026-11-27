@@ -552,12 +552,10 @@ theorem bridgeAdversary_queryBound
     (pk : PK) {q : ℕ} (hA : (A pk).IsQueryBounded q) :
     (bridgeAdversary com tag S policy bound A pk).IsQueryBounded q := by
   dsimp only [bridgeAdversary]
-  rw [← Nat.zero_add q]
-  refine (ProbOracleComp.IsQueryBounded.sample policy.init).bind fun pst₀ => ?_
-  let st₀ : IssuerState Nullifier Context Opening Commitment Sig PolicyState := ⟨pst₀, [], [], []⟩
-  rw [← Nat.add_zero q]
-  refine (OracleComp.IsCostBounded.run_interpret (fun r st => ?_) hA st₀).bind
-    fun _ => OracleComp.IsCostBounded.pure _ 0
+  rw [← Nat.zero_add q, ← Nat.add_zero q]
+  refine (ProbOracleComp.IsQueryBounded.sample policy.init).bind fun pst₀ =>
+    (OracleComp.IsCostBounded.run_interpret (fun r st => ?_) hA
+      (IssuerState.mk pst₀ [] [] [])).bind fun _ => OracleComp.IsCostBounded.pure _ 0
   rcases r with k | req
   · simpa [OracleComp.sumHandler, StateT.run, StateT.lift] using
       (ProbOracleComp.IsQueryBounded.sample
@@ -928,10 +926,7 @@ theorem wraparound_gap_of_mod_eq_ne {t x t' d bound : ℕ}
     (hmod : (t + x) % bound = (t' + d) % bound) (hne : t + x ≠ t' + d) :
     t' + d = t + x + bound ∨ t + x = t' + d + bound := by
   rcases add_lt_two_mul_decomp (by omega : t + x < 2 * bound) with ⟨h1, hm1⟩ | ⟨h1, hm1⟩ <;>
-    rcases add_lt_two_mul_decomp (by omega : t' + d < 2 * bound) with ⟨h2, hm2⟩ | ⟨h2, hm2⟩
-  · omega
-  · left; omega
-  · right; omega
-  · omega
+    rcases add_lt_two_mul_decomp (by omega : t' + d < 2 * bound) with ⟨h2, hm2⟩ | ⟨h2, hm2⟩ <;>
+    omega
 
 end Cslib.Crypto.AnonymousToken.IssuerBridge

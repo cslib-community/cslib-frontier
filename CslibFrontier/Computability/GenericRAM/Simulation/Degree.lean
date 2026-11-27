@@ -408,19 +408,11 @@ theorem transport_inO_of_hasDegree (enc : M.Encoding) (N : M.NativePrimitives en
       _ = (Ct + 1) * ((steps a + 1) * (X ^ D + S)) := Nat.mul_left_comm _ _ _
       _ ≤ (Ct + Cs + 4) * ((steps a + 1) * (X ^ D + S)) := Nat.mul_le_mul_right _ (by omega)
     have hlin := Nat.mul_le_mul_right (cSteps.time a + cCfg.time a + cInit.time a +
-      (runInputEncoding enc (steps a, (cfg a, initState a))).length)
-      (show 3 ≤ Ct + Cs + 4 by omega)
+      (runInputEncoding enc (steps a, (cfg a, initState a))).length) (Nat.le_add_left 4 (Ct + Cs))
     rw [Nat.mul_add, Nat.mul_add]; omega
   · have hrun := runSpace_le enc N p hCs (steps a) (cfg a) (initState a) (hOutLen a)
     set X := 2 * (enc.config (cfg a)).length + B a + 2
     have hX : X ≤ X ^ D := Nat.le_self_pow (by omega) X
-    have hXD : Cs * X ^ D + X ≤ (Ct + Cs + 4) * X ^ D :=
-      (show Cs * X ^ D + X ≤ (Cs + 1) * X ^ D by rw [Nat.add_mul, one_mul]; omega).trans
-        (Nat.mul_le_mul_right _ (by omega))
-    have hlin := Nat.mul_le_mul_right (cSteps.space a + cCfg.space a + cInit.space a +
-      (runInputEncoding enc (steps a, (cfg a, initState a))).length)
-      (show 3 ≤ Ct + Cs + 4 by omega)
-    have hlog := Nat.le_mul_of_pos_left (encNat (steps a)).length (show 0 < Ct + Cs + 4 by omega)
-    rw [Nat.mul_add, Nat.mul_add, Nat.mul_add]; omega
+    simp only [Nat.add_mul, Nat.mul_add]; omega
 
 end Cslib.GenericRAM.FiniteState

@@ -1086,27 +1086,17 @@ theorem eval_replicate_naorSelectPads (s : ℕ) (generator : List Bool → List 
     simp only [pmf_norm, List.length_cons, OracleComp.replicate_succ, BitString.eval_sampleList,
       naorSelectPads, naorSelectSeeds, List.replicate_succ, List.headD_cons, List.tail_cons,
       List.tail_nil, ↓reduceIte]
-    set D_s := ProbComp.eval (OracleComp.replicate bits.length (BitString.sampleList s))
-    have hstep (u v : List Bool) :
-        D_s.bind (fun rest_s => (ProbComp.eval
-          (OracleComp.replicate bits.length (generator <$> BitString.sampleList s))).bind
-          fun rest_p => PMF.pure
-            ((if openFlags.headD false then generator u else v) ::
-              naorSelectPads generator openFlags.tail bits rest_s rest_p,
-              (if openFlags.headD false then BitString.listRow s 0 u else List.replicate s false) ::
-              naorSelectSeeds s openFlags.tail bits rest_s)) =
-        D_s.map fun rest_s =>
-          ((if openFlags.headD false then generator u else v) ::
-            naorSelectPads generator (List.replicate bits.length true) bits rest_s [],
-            (if openFlags.headD false then BitString.listRow s 0 u else List.replicate s false) ::
-            naorSelectSeeds s openFlags.tail bits rest_s) := by
-      simpa only [pmf_norm, D_s] using congrArg (PMF.map fun q : List (List Bool) × _ =>
+    set D_s := ProbComp.eval (OracleComp.replicate bits.length (BitString.sampleList s)) with hD_s
+    have hstep (u v : List Bool) := congrArg
+      (PMF.map fun q : List (List Bool) × _ =>
         ((if openFlags.headD false then generator u else v) :: q.1,
           (if openFlags.headD false then BitString.listRow s 0 u else List.replicate s false) ::
-            q.2)) (ih openFlags.tail)
+            q.2))
+      (ih openFlags.tail)
+    simp only [pmf_norm, ← hD_s] at hstep
     simp_rw [PMF.bind_comm D_s (BitString.uniformList s), hstep]
     cases openFlags.headD false <;>
-      simp only [Bool.false_eq_true, ↓reduceIte, PMF.bind_const, D_s]
+      simp only [Bool.false_eq_true, ↓reduceIte, PMF.bind_const]
 
 /-! ### Packaged bit commitment scheme -/
 

@@ -146,13 +146,12 @@ private theorem closeTo_runTrials_overwrite (K : ℕ) (hγ : 0 < P.γ₁)
       (runTrials P true K hγ dist sk result program)
       (((S * K) * H + (S * K).choose 2 : ℕ) * commitmentGuessProbability P hγ sk.A) := by
   obtain ⟨hs, hh⟩ := costs_expandSigningRetries P K hS hH
-  have hop := RandomOracle.closeTo_run_lazyProgramHandler_overwriteProgramHandler_choose_two
-    dist (fun _ : List Bool => true) (fun _ h _ => Bool.noConfusion h)
-    (fun _ => signingMaskLaw P hγ) (trialPoint P sk) (fun _ y c _ => (result y c, ()))
-    (fun msg _ => trialPoint_le P hγ sk msg)
-    hs hh [] ()
   simpa only [List.length_nil, Nat.mul_zero, zero_add, runTrials, Bool.false_eq_true,
-    ↓reduceIte] using hop.map (Prod.map id Prod.fst)
+    ↓reduceIte] using
+    (RandomOracle.closeTo_run_lazyProgramHandler_overwriteProgramHandler_choose_two
+      dist (fun _ : List Bool => true) (fun _ h _ => Bool.noConfusion h)
+      (fun _ => signingMaskLaw P hγ) (trialPoint P sk) (fun _ y c _ => (result y c, ()))
+      (fun msg _ => trialPoint_le P hγ sk msg) hs hh [] ()).map (Prod.map id Prod.fst)
 
 /-- One terminal trial or a direct digest call, retaining the chosen annotation on each write. -/
 private noncomputable def terminalTrialHandler {Entry : Type} (dist : PMF Digest)
@@ -427,23 +426,20 @@ theorem closeTo_partialSigningROM (hP : P.Valid) (hq : 2 * P.γ₁ < P.q)
     CloseTo ((runPartialSigningROM P d ω K (by lia) dist expand sk program).map Prod.fst)
       ((simulatePartialSigningROM P d ω K hβ dist expand sk.publicKey program).map Prod.fst)
       ((2 * (S * K) * H + (S * K).choose 2 : ℕ) * commitmentGuessProbability P (by lia) sk.A) := by
-  have hγ : 0 < P.γ₁ := by lia
-  suffices he : simulatePartialSigningROM P d ω K hβ dist expand sk.publicKey program =
-      runTerminalTrials P K dist (fun c => (signingMaskLaw P hγ).map fun y =>
-        (partialResult P d ω expand sk y c).map (Prod.mk (trialPoint P sk [] y).1))
-        (partialSigningProgram P program) by
-    rw [he]
-    exact closeTo_terminalTrials P K hγ dist sk (partialResult P d ω expand sk)
-      (partialSigningProgram_cost P hS) (partialSigningProgram_cost P hH)
-  unfold simulatePartialSigningROM simulatePartialTrial
-  refine congrArg (fun a => runTerminalTrials P K dist a (partialSigningProgram P program))
-    (funext fun c => ?_)
-  cases e : expand c with
-  | none => simp [partialResult, e, trialPoint, SecretKey.publicKey]
-  | some poly =>
-    simp only [e, ← freshSigningAttempt_eq_simulate P hP hq hβ d ω sk hs₁ hs₂ (hc c poly e),
-      freshSigningAttempt, PMF.map_comp, Function.comp_def, terminalTranscript, Option.map_map,
-      partialResult, trialPoint]
+  have he : simulatePartialTrial P d ω hβ expand sk.publicKey = fun c =>
+      (signingMaskLaw P (by lia)).map fun y =>
+        (partialResult P d ω expand sk y c).map (Prod.mk (trialPoint P sk [] y).1) := by
+    funext c
+    cases e : expand c with
+    | none => simp [simulatePartialTrial, partialResult, e, trialPoint, SecretKey.publicKey]
+    | some poly =>
+      simp only [simulatePartialTrial, e,
+        ← freshSigningAttempt_eq_simulate P hP hq hβ d ω sk hs₁ hs₂ (hc c poly e),
+        freshSigningAttempt, PMF.map_comp, Function.comp_def, terminalTranscript, Option.map_map,
+        partialResult, trialPoint]
+  rw [simulatePartialSigningROM, he]
+  exact closeTo_terminalTrials P K (by lia) dist sk (partialResult P d ω expand sk)
+    (partialSigningProgram_cost P hS) (partialSigningProgram_cost P hH)
 
 /-- A digest cache write records the direct hash reply or the terminal answer of a signing
 request. A signing error is a terminal write, while an erased rejection makes no entry. -/

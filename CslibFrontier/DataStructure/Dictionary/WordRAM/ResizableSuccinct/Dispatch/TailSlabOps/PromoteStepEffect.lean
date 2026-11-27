@@ -76,7 +76,6 @@ private theorem compPromoteStep_effect {metaBase itemBase U V w N m_cap b k : �
       compGmAt metaBase U w N s'.mem 1 ≤ m_cap := by
   intro d s' s_fix'
   have hwg : 0 < ghostW w := by unfold ghostW; omega
-  have hb0 : bucketBits N ≠ 0 := hb_pos.ne'
   have hK_pos : 0 < slabSize N := slabSize_pos N
   have hM_pos : 0 < maxTailItems N := maxTailItems_pos_of_bucketBits_pos hb_pos
   have hmax_eq : max (maxTailItems N) 1 = maxTailItems N := Nat.max_eq_left hM_pos
@@ -155,18 +154,12 @@ private theorem compPromoteStep_effect {metaBase itemBase U V w N m_cap b k : �
   set s₇ := (Memory.spec 0).clientState s₆
     (compRemoveTailGMOnlyGenProg ((mkCompParams U V w N, metaBase), b))
   have hres_all : (Memory.spec 0).clientResult s (compPromoteStepGenProg d) = k + 1 := by
-    dsimp only [d, compPromoteStepGenProg, compPromoteFinishStepProg]
-    rw [StateTransitionSpec.clientResult_bind, hst_gm, hres_gm,
-      StateTransitionSpec.clientResult_bind, hst_ds, hres_ds]
-    repeat rw [StateTransitionSpec.clientResult_bind]
-    rfl
+    simp only [d, compPromoteStepGenProg, compPromoteFinishStepProg,
+      StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure,
+      hst_gm, hres_gm, hst_ds, hres_ds]
   have hst_all : s' = s₇ := by
-    dsimp only [s', d, compPromoteStepGenProg, compPromoteFinishStepProg]
-    rw [StateTransitionSpec.clientState_bind, hst_gm, hres_gm,
-      StateTransitionSpec.clientState_bind, hst_ds, hres_ds,
-      StateTransitionSpec.clientState_bind, hmv_st, hmv_res]
-    repeat rw [StateTransitionSpec.clientState_bind]
-    rw [StateTransitionSpec.clientState_pure]
+    simp [s', d, compPromoteStepGenProg, compPromoteFinishStepProg,
+      hst_gm, hres_gm, hst_ds, hres_ds, hmv_st, hmv_res, s₇, s₆, s₅, s₄]
   have hgu_lt : g_u < N := by dsimp only [g_u]; omega
   have hgtop_lt : g_top < N := by dsimp only [g_top]; omega
   have hbwin_lt_N : b_win < N := by omega
@@ -287,21 +280,18 @@ private theorem compPromoteStep_effect {metaBase itemBase U V w N m_cap b k : �
     rw [hv_f3b, hv_f3a, hv_ps, hgm_fix_eq, ← hr_top_eq, hv_f2b, hv_f2a, hv_f1b, hv_f1a]
   have hl_sf3_eq : lmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₃.mem =
       lmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix'.mem := by
-    dsimp only [sf₃, sf₂, sf₁]
     rw [hl_f3b, hl_f3a, hl_f2b, hl_f2a, hl_f1b, hl_f1a, hl_ps]
   refine ⟨hres_all, hframe, ?_, ?_⟩
-  · rw [hst_all]
-    refine ⟨hgm7.trans (by rw [← hgm_fix_eq]; exact hgm_ps.symm),
+  · rw [hst_all, hbwin1_eq, hgm7_1]
+    refine ⟨hgm7.trans (hgm_fix_eq ▸ hgm_ps.symm),
       hfr7.lm_eq.trans (hcpl6.lm_eq.trans hl_sf3_eq),
-      by rw [hbwin1_eq, hgm7_1, hfr7.td_eq, hfr7.dt_eq]; exact hcpl6.win_inv,
-      fun i => by rw [hfr7.td_eq]; exact hcpl6.td_lt i,
-      fun i => by rw [hfr7.dt_eq]; exact hcpl6.dt_lt i,
-      fun idx hidx => ?_,
-      fun idx hidx => ?_⟩
-    · rw [hbwin1_eq, hgm7_1] at hidx ⊢
-      rw [congrFun hfr7.quot_eq idx, hfr7.dt_eq, hcpl6.quot_eq idx hidx, hq_sf3_eq]
-    · rw [hbwin1_eq, hgm7_1] at hidx ⊢
-      rw [congrFun hfr7.val_eq idx, hfr7.dt_eq, hcpl6.val_eq idx hidx, hv_sf3_eq]
-  · rw [hst_all, hbwin1_eq, hgm7_1]; omega
+      hfr7.td_eq.symm ▸ hfr7.dt_eq.symm ▸ hcpl6.win_inv,
+      fun i => hfr7.td_eq.symm ▸ hcpl6.td_lt i,
+      fun i => hfr7.dt_eq.symm ▸ hcpl6.dt_lt i,
+      fun idx hidx => by
+        rw [congrFun hfr7.quot_eq idx, hfr7.dt_eq, hcpl6.quot_eq idx hidx, hq_sf3_eq],
+      fun idx hidx => by
+        rw [congrFun hfr7.val_eq idx, hfr7.dt_eq, hcpl6.val_eq idx hidx, hv_sf3_eq]⟩
+  · simp only [hst_all, hbwin1_eq, hgm7_1]; omega
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

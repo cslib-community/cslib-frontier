@@ -528,9 +528,7 @@ noncomputable def ofPolyVPolyZ (J ℓ : ℕ) {R : Type*} [CommRing R] :
 @[simp]
 theorem ofPolyVPolyZ_apply {J ℓ : ℕ} {R : Type*} [CommRing R]
     (Q : Polynomial (Polynomial R)) (j : Fin J) (u : Fin ℓ) :
-    ofPolyVPolyZ J ℓ Q j u = (Q.coeff u).coeff j := by
-  simp only [ofPolyVPolyZ, RingHom.coe_comp, Function.comp_apply, transpose_apply,
-    ofBivarPoly_apply]
+    ofPolyVPolyZ J ℓ Q j u = (Q.coeff u).coeff j := rfl
 
 /-- Embedding a `z`-polynomial `p : Polynomial R` into `R[z][V]` via `Polynomial.C` and extracting
 its `(J × ℓ)` table via `ofPolyVPolyZ J ℓ` agrees with `ofPolyZ J ℓ p`. -/
@@ -604,9 +602,8 @@ def l1Norm (A : JetTable J ℓ ℤ) : ℕ :=
   ∑ j : Fin J, ∑ u : Fin ℓ, (A j u).natAbs
 
 private theorem l1Norm_eq_prod_sum (A : JetTable J ℓ ℤ) :
-    l1Norm A = ∑ p : Fin J × Fin ℓ, (A p.1 p.2).natAbs := by
-  unfold l1Norm
-  exact (Fintype.sum_prod_type fun p : Fin J × Fin ℓ => (A p.1 p.2).natAbs).symm
+    l1Norm A = ∑ p : Fin J × Fin ℓ, (A p.1 p.2).natAbs :=
+  (Fintype.sum_prod_type fun p : Fin J × Fin ℓ => (A p.1 p.2).natAbs).symm
 
 @[simp]
 theorem l1Norm_zero : l1Norm (0 : JetTable J ℓ ℤ) = 0 := by
@@ -650,9 +647,8 @@ theorem l1Norm_add_le (A B : JetTable J ℓ ℤ) : l1Norm (A + B) ≤ l1Norm A +
   simp only [l1Norm, coe_add, ← sum_add_distrib]
   exact sum_le_sum fun j _ => sum_le_sum fun u _ => Int.natAbs_add_le (A j u) (B j u)
 
-theorem l1Norm_sub_le (A B : JetTable J ℓ ℤ) : l1Norm (A - B) ≤ l1Norm A + l1Norm B := by
-  rw [sub_eq_add_neg, ← l1Norm_neg B]
-  exact l1Norm_add_le A (-B)
+theorem l1Norm_sub_le (A B : JetTable J ℓ ℤ) : l1Norm (A - B) ≤ l1Norm A + l1Norm B :=
+  sub_eq_add_neg A B ▸ l1Norm_neg B ▸ l1Norm_add_le A (-B)
 
 theorem l1Norm_smul (c : ℤ) (A : JetTable J ℓ ℤ) : l1Norm (c • A) = c.natAbs * l1Norm A := by
   simp only [l1Norm, coe_zsmul, smul_eq_mul, Int.natAbs_mul, mul_sum]
@@ -859,8 +855,6 @@ theorem l1Norm_clearedParityFactorJet_le {Δ : ℤ} {B E_ℓ : ℕ} {A_int : Jet
     l1Norm (clearedParityFactorJet Δ A_int a b) ≤
       ℓ * E_ℓ * (B + Δ.natAbs) ^ (2 * ℓ - 1) := by
   let M := B + Δ.natAbs
-  have hBM : B ≤ M := Nat.le_add_right B Δ.natAbs
-  have hΔM : Δ.natAbs ≤ M := Nat.le_add_left Δ.natAbs B
   calc
     l1Norm (clearedParityFactorJet Δ A_int a b)
       ≤ ∑ s : Fin ℓ, l1Norm ((Δ ^ (2 * (ℓ - 1 - (s : ℕ)))) •
@@ -881,23 +875,24 @@ theorem l1Norm_clearedParityFactorJet_le {Δ : ℤ} {B E_ℓ : ℕ} {A_int : Jet
               ≤ (a s).natAbs * l1Norm (const Δ) + (b s).natAbs * l1Norm A_int := by
                 simpa only [l1Norm_smul] using l1Norm_add_le (a s • const Δ) (b s • A_int)
             _ ≤ (a s).natAbs * M + (b s).natAbs * M :=
-                Nat.add_le_add (Nat.mul_le_mul_left _ ((l1Norm_const_le Δ).trans hΔM))
-                  (Nat.mul_le_mul_left _ (hA.trans hBM))
+                Nat.add_le_add
+                  (Nat.mul_le_mul_left _ ((l1Norm_const_le Δ).trans (Nat.le_add_left _ B)))
+                  (Nat.mul_le_mul_left _ (hA.trans (Nat.le_add_right B _)))
             _ ≤ E_ℓ * M := (Nat.add_mul _ _ _).symm ▸ Nat.mul_le_mul_right _ (he s)
         have hH : l1Norm (A_int * (A_int - const Δ)) ≤ M ^ 2 := by
           calc
             l1Norm (A_int * (A_int - const Δ))
               ≤ l1Norm A_int * (l1Norm A_int + l1Norm (const Δ)) :=
                 (l1Norm_mul_le _ _).trans (Nat.mul_le_mul_left _ (l1Norm_sub_le _ _))
-            _ ≤ M * (B + Δ.natAbs) :=
-                Nat.mul_le_mul (hA.trans hBM) (Nat.add_le_add hA (l1Norm_const_le Δ))
+            _ ≤ M * (B + Δ.natAbs) := Nat.mul_le_mul (hA.trans (Nat.le_add_right B _))
+                (Nat.add_le_add hA (l1Norm_const_le Δ))
             _ = M ^ 2 := (sq M).symm
         calc
           Δ.natAbs ^ (2 * (ℓ - 1 - (s : ℕ))) *
               l1Norm ((a s • const Δ + b s • A_int) *
                 (A_int * (A_int - const Δ)) ^ (s : ℕ) * vPow (s : ℕ))
             ≤ M ^ (2 * (ℓ - 1 - (s : ℕ))) * ((E_ℓ * M) * (M ^ 2) ^ (s : ℕ)) :=
-              Nat.mul_le_mul (Nat.pow_le_pow_left hΔM _)
+              Nat.mul_le_mul (Nat.pow_le_pow_left (Nat.le_add_left _ B) _)
                 (hv.trans (Nat.mul_le_mul hE (Nat.pow_le_pow_left hH _)))
           _ = E_ℓ * (M ^ (2 * (ℓ - 1 - (s : ℕ))) * M * M ^ (2 * (s : ℕ))) := by
               rw [← pow_mul]; ring
@@ -951,9 +946,8 @@ theorem cast_groupProd_cleared {r m_test : ℕ} (Γ : ℤ) (m_group : Fin r → 
   rw [map_prod]
   simp only [← hS, zsmul_eq_const_mul, prod_mul_distrib, Int.cast_pow]
   congr 1
-  let Ck := constRingHom J ℓ K
-  have hc : ∀ x : K, (const x : JetTable J ℓ K) = Ck x := fun _ => rfl
-  simp only [hc, ← map_prod, prod_pow_eq_pow_sum, hm]
+  rw [← hm, ← prod_pow_eq_pow_sum]
+  exact map_prod (constRingHom J ℓ K) _ _
 
 /-- **Group-product `ℓ₁`-norm bound (Appendix B.2, p. 49).** If each group sum `S_int g` satisfies
 `‖S_int g‖₁ ≤ 2 ^ (s_group g) * B₁ ^ (m_group g)` with `∑ g, s_group g ≤ n` and
@@ -1018,15 +1012,12 @@ theorem l1Norm_signedPrefixJet_le {n m_test B₁ M_star : ℕ}
     l1Norm (signedPrefixJet updates_int t)
       ≤ (((updates_int.take t).map fun p => p.1 • p.2).map l1Norm).sum :=
         List.le_sum_of_subadditive l1Norm l1Norm_zero.le l1Norm_add_le _
-    _ = ((updates_int.take t).map fun p => l1Norm (p.1 • p.2)).sum := by
-        rw [List.map_map]
-        rfl
-    _ ≤ ((updates_int.take t).map fun p => l1Norm (p.1 • p.2)).length • C :=
-        List.sum_le_length_nsmul _ C hmem
-    _ = min t updates_int.length * C := by
-        simp only [List.length_map, List.length_take, smul_eq_mul]
-    _ ≤ M_star * (2 ^ n * B₁ ^ m_test) := Nat.mul_le_mul_right _ ht
-    _ = M_star * 2 ^ n * B₁ ^ m_test := (Nat.mul_assoc _ _ _).symm
+    _ ≤ min t updates_int.length * C := by
+        simpa only [List.map_map, Function.comp_def, List.length_map, List.length_take,
+          smul_eq_mul] using List.sum_le_length_nsmul _ C hmem
+    _ ≤ M_star * 2 ^ n * B₁ ^ m_test := by
+        rw [Nat.mul_assoc]
+        exact Nat.mul_le_mul_right _ ht
 
 /-- **Finset slice-sum `ℓ₁`-norm bound (Appendix B.2, p. 49).** Summing `m_test`-factor products
 with signs `|ε u| ≤ 1` across an index set `slices` of cardinality `#slices ≤ M_star * 2 ^ n`,
@@ -1079,15 +1070,14 @@ theorem hermiteCramerNumerator_eq_mul {Q J : ℕ} (nodes : Fin Q → ℤ) (hQ : 
       Ω * (Polynomial.hermiteMatrix nodes J).det * H_zero := by
   have hp : H.degree < ↑(Q * J) :=
     Polynomial.degree_le_natDegree.trans_lt (WithBot.coe_lt_coe.mpr hdeg)
-  let c₀ : Fin Q × Fin J := (⟨0, hQ⟩, ⟨0, hJ⟩)
-  have hc₀ : (finProdFinEquiv c₀ : ℕ) = 0 := rfl
+  have hc₀ : (finProdFinEquiv ((⟨0, hQ⟩, ⟨0, hJ⟩) : Fin Q × Fin J) : ℕ) = 0 := rfl
   have hcol : (Int.cast : ℤ → ℚ) ∘ (fun r : Fin Q × Fin J => J_int r.1 r.2) =
       (Ω : ℚ) • Polynomial.taylorJet (fun i => (nodes i : ℚ)) J H :=
     funext fun r => by simp [Polynomial.taylorJet_apply, hjet]
   apply Int.cast_injective (α := ℚ)
   rw [hermiteCramerNumerator, Int.cast_det, Matrix.map_updateCol, hcol, Matrix.det_updateCol_smul,
-    ← Polynomial.det_hermiteMatrix_mul_coeff nodes hp c₀, hc₀, Polynomial.coeff_zero_eq_eval_zero,
-    hzero]
+    ← Polynomial.det_hermiteMatrix_mul_coeff nodes hp (⟨0, hQ⟩, ⟨0, hJ⟩), hc₀,
+    Polynomial.coeff_zero_eq_eval_zero, hzero]
   push_cast; ring
 
 /-- At distinct integer nodes and nonzero denominator `Ω ≠ 0`, the integer Cramer denominator

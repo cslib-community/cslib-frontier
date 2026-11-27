@@ -155,9 +155,7 @@ theorem isMixedStrategy_behaviorToMixed {i : ι} [Fintype (H i)] [DecidableEq (H
     [∀ h, Fintype (Act i h)] {β : ∀ h : H i, Act i h → ℝ} (hβ : IsBehaviorStrategy β) :
     IsMixedStrategy (behaviorToMixed β) := by
   refine isMixedStrategy_iff.2 ⟨fun s => prod_nonneg fun h _ => (hβ h).nonneg (s h), ?_⟩
-  simp only [behaviorToMixed]
-  rw [← Fintype.prod_sum (fun h a => β h a)]
-  exact prod_eq_one fun h _ => (hβ h).sum_eq_one
+  simpa only [behaviorToMixed, ← Fintype.prod_sum] using prod_eq_one fun h _ => (hβ h).sum_eq_one
 
 /-- Pure strategy `s` matches sequence `σ` if `s h = a` for every `(h, a)` in `σ`. -/
 @[expose] def MatchesSeq {i : ι} (s : PureStrategy H Act i) (σ : Seq H Act i) : Prop :=
@@ -571,8 +569,7 @@ theorem terminalProbPure_eq [Fintype ι] [DecidableEq ι] [∀ i h, DecidableEq 
         z.chanceWeight * ∏ i, if MatchesSeq (s i) (z.seq i) then 1 else 0
   | .leaf _, .leaf => by simp
   | @ExtensiveTree.chance _ _ _ _ _ prob _ _, .chance c sub => by
-    rw [terminalProbPure_chance, terminalProbPure_eq s sub, Terminal.chanceWeight_chance, mul_assoc]
-    simp only [Terminal.seq_chance]
+    simp [terminalProbPure_chance, terminalProbPure_eq s sub, mul_assoc]
   | .decision j h _, .decision a sub => by
     have hother (k : ι) (hk : k ∈ univ.erase j) :
         (if MatchesSeq (s k) ((Terminal.decision a sub).seq k) then (1 : ℝ) else 0) =
@@ -591,9 +588,7 @@ theorem terminalProbBehavior_eq [Fintype ι] [DecidableEq ι]
         z.chanceWeight * ∏ i, realizationProbBehavior (β i) (z.seq i)
   | .leaf _, .leaf => by simp
   | @ExtensiveTree.chance _ _ _ _ _ prob _ _, .chance c sub => by
-    rw [terminalProbBehavior_chance, terminalProbBehavior_eq β sub, Terminal.chanceWeight_chance,
-      mul_assoc]
-    simp only [Terminal.seq_chance]
+    simp [terminalProbBehavior_chance, terminalProbBehavior_eq β sub, mul_assoc]
   | .decision j h _, .decision a sub => by
     have hother (k : ι) (hk : k ∈ univ.erase j) :
         realizationProbBehavior (β k) ((Terminal.decision a sub).seq k) =
@@ -711,8 +706,7 @@ private theorem sum_terminal_leaf [∀ i h, Fintype (Act i h)] (w : ι → ℝ)
       invFun := fun _ => PUnit.unit
       left_inv := fun _ => rfl
       right_inv := fun | .leaf => rfl }
-  rw [← e.sum_comp]
-  simp [e]
+  simpa [e] using (e.sum_comp f).symm
 
 private theorem sum_terminal_chance [∀ i h, Fintype (Act i h)] {C : Type} [Fintype C]
     {prob : C → ℝ} {hprob : IsMixedStrategy prob} {next : C → ExtensiveTree ι H Act}
@@ -725,8 +719,7 @@ private theorem sum_terminal_chance [∀ i h, Fintype (Act i h)] {C : Type} [Fin
       invFun := fun | .chance c sub => ⟨c, sub⟩
       left_inv := fun ⟨_, _⟩ => rfl
       right_inv := fun | .chance _ _ => rfl }
-  rw [← e.sum_comp, Fintype.sum_sigma]
-  rfl
+  exact (e.sum_comp f).symm.trans (Fintype.sum_sigma _)
 
 private theorem sum_terminal_decision [∀ i h, Fintype (Act i h)] (i : ι) (h : H i)
     (next : Act i h → ExtensiveTree ι H Act)
@@ -738,8 +731,7 @@ private theorem sum_terminal_decision [∀ i h, Fintype (Act i h)] (i : ι) (h :
       invFun := fun | .decision a sub => ⟨a, sub⟩
       left_inv := fun ⟨_, _⟩ => rfl
       right_inv := fun | .decision _ _ => rfl }
-  rw [← e.sum_comp, Fintype.sum_sigma]
-  rfl
+  exact (e.sum_comp f).symm.trans (Fintype.sum_sigma _)
 
 theorem ExtensiveTree.evalPure_eq_sum_terminal [∀ i h, Fintype (Act i h)]
     [∀ i h, DecidableEq (Act i h)] (s : ∀ i, PureStrategy H Act i) :
@@ -883,9 +875,8 @@ terminal-leaf reach probabilities on nonempty-action finite trees. -/
 theorem RealizationEquivFactor.of_forall_terminal_eq [Fintype ι] [DecidableEq ι]
     {T : ExtensiveTree ι H Act} {i : ι} {r₁ r₂ : Seq H Act i → ℝ}
     (h : ∀ z : Terminal T, r₁ (z.seq i) = r₂ (z.seq i)) :
-    T.RealizationEquivFactor i r₁ r₂ := by
-  intro s z
-  simp only [terminalProbWithFactor, h z]
+    T.RealizationEquivFactor i r₁ r₂ :=
+  fun _ z => by simp only [terminalProbWithFactor, h z]
 
 /-- Realization equivalence implies identical terminal-node probabilities against arbitrary
 mixed opponent strategies. -/

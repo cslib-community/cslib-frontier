@@ -124,13 +124,10 @@ def memReq (e n : ℕ) (w : List Bool) : Bool :=
 
 theorem memReq_iff {e n : ℕ} {w : List Bool} :
     memReq e n w = true ↔ clock e w.length ≤ n ∧ w ∈ requirement e := by
-  simp only [memReq, Bool.and_eq_true, decide_eq_true_eq]
-  have hcap : capPow (2 * w.length + 2) e (n + 1) ≤ n ↔ clock e w.length ≤ n := by
-    simp only [capPow, clock]; omega
-  refine (and_congr_left' hcap).trans (and_congr_right fun hc => ?_)
-  have heq : capPow (2 * w.length + 2) e (n + 1) = clock e w.length := by
-    simp only [capPow, clock] at hc ⊢; omega
-  rw [heq]; rfl
+  simp only [memReq, requirement, Set.mem_ofPred_eq, capPow, clock, Bool.and_eq_true]
+  by_cases hc : (2 * w.length + 2) ^ e ≤ n
+  · simp [Nat.min_eq_left (Nat.le_succ_of_le hc), hc]
+  · simp [hc]
 
 /-- **Every requirement is in `P`**: its clock is a polynomial. -/
 theorem requirement_mem_P (e : ℕ) : requirement e ∈ P encBits := by
@@ -144,9 +141,7 @@ theorem exists_requirement_eq {B : Set (List Bool)} (hB : B ∈ P encBits) (N : 
     ∃ e, N ≤ e ∧ requirement e = B := by
   obtain ⟨f, hf, e, he, hrun⟩ := exists_index_of_mem_P hB N
   refine ⟨e, he, Set.ext fun w => ?_⟩
-  simp only [requirement, Set.mem_ofPred_eq]
-  rw [hrun w, Prod.mk.injEq, List.singleton_inj, and_iff_left rfl, (hf w)]
-  exact ⟨fun h => eBit.injective h, fun h => h ▸ rfl⟩
+  simp [requirement, hrun w, ← hf w, eBit.injective.eq_iff]
 
 /-! ### The stages -/
 
@@ -397,12 +392,10 @@ theorem infinite_core (hs : ∀ w t b, runBool d w t = some b → b = indicator 
       simp only [core, Set.mem_union, Set.mem_inter_iff, Set.mem_image, Set.mem_ofPred_eq, not_or,
         not_and, not_exists] at hw
       have hNi : N ≤ index w := not_lt.mp fun h => hw.2 (index w) h (word_index w)
-      have hnY : ¬ selects d (index w) = true := by simpa [selected] using hw.1 hwA
-      rw [selects_eq_true_iff] at hnY
-      obtain ⟨e, he, hne⟩ := not_forall₂.mp hnY
-      obtain ⟨hnref, hmem⟩ := not_or.mp hne
+      obtain ⟨e, he, hnref, hmem⟩ : ∃ e < coreCount d (table d (index w)),
+          ¬ refuted d e (index w) = true ∧ memReq e (index w) w = true := by
+        simpa [selected, selects_eq_true_iff, word_index] using hw.1 hwA
       have heS : e < S.card := he.trans_le (coreCount_le hs hS _)
-      replace hmem : memReq e (index w) w = true := by simpa [word_index] using hmem
       by_cases hsub : requirement e ⊆ A
       · exact hwU (Finset.le_sup (f := requirement)
           (Finset.mem_filter.mpr ⟨Finset.mem_range.mpr heS, hsub⟩) (memReq_iff.mp hmem).2)

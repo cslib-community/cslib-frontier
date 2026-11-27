@@ -89,10 +89,7 @@ theorem realNetOut_smul (c : K) (f : V × V → K) (v : V) :
 /-- `c` units on the single arc `(a, b)` leave `a` and enter `b`. -/
 theorem realNetOut_single [DecidableEq V] (a b : V) (c : K) (v : V) :
     realNetOut (Pi.single (a, b) c) v = (if v = a then c else 0) - (if v = b then c else 0) := by
-  simp only [realNetOut, Pi.single_apply, Prod.mk.injEq]
-  congr 1
-  · by_cases hv : v = a <;> simp [hv]
-  · by_cases hv : v = b <;> simp [hv]
+  simp [realNetOut, Pi.single_apply, ite_and]
 
 variable [LinearOrder K]
 
@@ -321,9 +318,8 @@ theorem isMaxRealFlow_minRealCutBetween (hW : ∀ u v, 0 ≤ W u v) (hst : s ≠
       refine ⟨fun u v => (hb (u, v)).1, fun u v => (hb (u, v)).2, fun v hvs hvt => ?_⟩
       rw [eq_comm, ← sub_eq_zero, ← realNetOut]
       simp [realNetOut_add, realNetOut_smul, hnet, hf.realNetOut_eq_zero hvs hvt, hvs, hvt]
-    refine (hmax.2 ⟨_, hfeas, rfl⟩).not_gt ?_
-    dsimp only
-    rw [realNetOut_add, realNetOut_smul, hnet, ite_eq_left rfl, ite_eq_right hst]
+    have := hmax.2 ⟨_, hfeas, rfl⟩
+    simp only [realNetOut_add, realNetOut_smul, hnet, ↓reduceIte, hst] at this
     linarith
   have hsat : ∀ u ∈ X, ∀ v ∈ univ \ X, f (u, v) = W u v ∧ f (v, u) = 0 := by
     intro u hu v hv
@@ -331,10 +327,9 @@ theorem isMaxRealFlow_minRealCutBetween (hW : ∀ u v, 0 ≤ W u v) (hst : s ≠
       (mem_sdiff.mp hv).2 (mem_filter.mpr ⟨mem_univ v, (mem_filter.mp hu).2.tail h⟩)
     simp only [Residual, not_or, not_lt] at hres
     exact ⟨le_antisymm (hf.2.1 u v) hres.1, le_antisymm hres.2 (hf.1 v u)⟩
-  have hval : realNetOut f s = cutWeight W X := by
-    rw [hf.realNetOut_eq_sub hsX htX, cutWeight,
-      sum_congr rfl fun u hu => sum_congr rfl fun v hv => (hsat u hu v hv).1,
-      sum_eq_zero fun u hu => sum_eq_zero fun v hv => (hsat u hu v hv).2, sub_zero]
-  exact hval ▸ minRealCutBetween_le_cutWeight W hsX htX
+  rw [hf.realNetOut_eq_sub hsX htX,
+    sum_congr rfl fun u hu => sum_congr rfl fun v hv => (hsat u hu v hv).1,
+    sum_eq_zero fun u hu => sum_eq_zero fun v hv => (hsat u hu v hv).2, sub_zero, ← cutWeight]
+  exact minRealCutBetween_le_cutWeight W hsX htX
 
 end Cslib.Algorithms.Lean.MaxFlow

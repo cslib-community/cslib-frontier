@@ -45,12 +45,10 @@ def Fv (v : Fin 3 → E) (h : ℝ) : ℝ :=
 private theorem Fv_gram {E' : Type*} [NormedAddCommGroup E'] [InnerProductSpace ℝ E']
     [FiniteDimensional ℝ E'] [MeasurableSpace E'] [BorelSpace E'] (v : Fin 3 → E) (v' : Fin 3 → E')
     (hg : ∀ i j, ⟪v i, v j⟫ = ⟪v' i, v' j⟫) (h : ℝ) : Fv v h = Fv v' h := by
-  have hl : MeasurableSet {z : Fin 3 → ℝ | ∀ i, z i < h} := by
-    rw [Set.ofPred_forall]; exact MeasurableSet.iInter fun i =>
-      measurableSet_lt (measurable_pi_apply i) measurable_const
-  have hh : MeasurableSet {z : Fin 3 → ℝ | ∀ i, h ≤ z i} := by
-    rw [Set.ofPred_forall]; exact MeasurableSet.iInter fun i =>
-      measurableSet_le measurable_const (measurable_pi_apply i)
+  have hl : MeasurableSet {z : Fin 3 → ℝ | ∀ i, z i < h} := Set.ofPred_forall _ ▸
+    MeasurableSet.iInter fun i => measurableSet_lt (measurable_pi_apply i) measurable_const
+  have hh : MeasurableSet {z : Fin 3 → ℝ | ∀ i, h ≤ z i} := Set.ofPred_forall _ ▸
+    MeasurableSet.iInter fun i => measurableSet_le measurable_const (measurable_pi_apply i)
   simpa only [Fv, Set.mem_ofPred_eq] using
     congrArg₂ (· - ·) (prob_eq_of_gram v v' hg hl) (prob_eq_of_gram v v' hg hh)
 
@@ -190,12 +188,12 @@ private theorem caseA (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (h
     rw [Real.cos_pi]
     have h1y : 0 ≤ 1 - y := sub_nonneg.mpr (real_inner_le_one_of_norm_eq_one (hv 0) (hv 2))
     have h1z : 0 ≤ 1 - z := sub_nonneg.mpr (real_inner_le_one_of_norm_eq_one (hv 1) (hv 2))
-    have hsq : (sy * sz) ^ 2 ≤ ((1 - y) * (1 - z)) ^ 2 := by
+    have hle : sy * sz ≤ (1 - y) * (1 - z) := by
+      refine (abs_le_of_sq_le_sq' ?_ (mul_nonneg h1y h1z)).2
       have hid : ((1 - y) * (1 - z)) ^ 2 - (sy * sz) ^ 2 = 2 * ((1 - y) * (1 - z) * -(y + z)) := by
         rw [mul_pow sy sz, hP, hR]; ring
-      linarith [mul_nonneg (mul_nonneg h1y h1z) (neg_nonneg.mpr hyz)]
-    have hle := (pow_le_pow_iff_left₀ (by positivity) (mul_nonneg h1y h1z) two_ne_zero).mp hsq
-    ring_nf at hle ⊢; linarith
+      linarith only [hid, mul_nonneg (mul_nonneg h1y h1z) (neg_nonneg.mpr hyz)]
+    linear_combination hle
 
 /-- The deviation potential: sum of the two largest deviations `1 - cos`. -/
 private def Pot (v : Fin 3 → E) : ℝ :=
@@ -231,24 +229,21 @@ private theorem move (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (hh
   set c' := (y + z - 1 - y * z) / (sy * sz)
   have hy1 : y < 1 := (abs_lt.mp ((sq_lt_one_iff_abs_lt_one y).mp hy)).2
   have hz1 : z < 1 := (abs_lt.mp ((sq_lt_one_iff_abs_lt_one z).mp hz)).2
-  have h1y : 0 < 1 - y := sub_pos.mpr hy1
-  have h1z : 0 < 1 - z := sub_pos.mpr hz1
-  have hc'1 : c' ≤ 1 := by
-    have hid : y + z - 1 - y * z = -((1 - y) * (1 - z)) := by ring
-    rw [div_le_one hyz]; linarith [mul_pos h1y h1z]
+  have h1y1z : 0 < (1 - y) * (1 - z) := mul_pos (sub_pos.mpr hy1) (sub_pos.mpr hz1)
+  have hc'1 : c' ≤ 1 := (div_le_one hyz).mpr (by linear_combination h1y1z + hyz)
   have hc'm : -1 ≤ c' := by
     rw [le_div_iff₀ hyz]
-    have hsq : ((1 - y) * (1 - z)) ^ 2 ≤ (sy * sz) ^ 2 := by
+    have hle : (1 - y) * (1 - z) ≤ sy * sz := by
+      refine (abs_le_of_sq_le_sq' ?_ hyz.le).2
       have hid : (sy * sz) ^ 2 - ((1 - y) * (1 - z)) ^ 2 = 2 * ((1 - y) * (1 - z) * (y + z)) := by
         rw [mul_pow sy sz, hP, hR]; ring
-      linarith [mul_nonneg (mul_pos h1y h1z).le hpos.le]
-    have hle := (pow_le_pow_iff_left₀ (mul_pos h1y h1z).le hyz.le two_ne_zero).mp hsq
-    ring_nf at hle ⊢; linarith
+      linarith only [hid, mul_nonneg h1y1z.le hpos.le]
+    linear_combination hle
   set ψ' := Real.arccos c'
   have hcos' : Real.cos ψ' = c' := Real.cos_arccos hc'm hc'1
   refine ⟨canT y z sy sz ψ', fun i => norm_canT hP hR i, ?_, ?_, ?_, ?_⟩
-  · rw [inner_canT]; simp only [canGram, Fin.isValue, Matrix.cons_val_zero, Matrix.cons_val_one]
-    rw [hcos']; simp only [c']; field_simp; ring
+  · simp only [inner_canT, canGram, Matrix.cons_val_zero, Matrix.cons_val_one, hcos', c']
+    field_simp; ring
   · simp [inner_canT, canGram]
   · simp [inner_canT, canGram]
   · rw [← rotF_eq_Fv, hF]
@@ -402,15 +397,13 @@ private theorem eq_pot {h : ℝ} (hh : 0 < h) : ∀ n : ℕ, ∀ v : Fin 3 → E
   induction n with
   | zero =>
     intro v hv hP
-    simp only [pow_zero, mul_one] at hP
-    apply caseA_any v hv hh
-    unfold Pot at hP
-    rcases le_total ⟪v 0, v 2⟫ ⟪v 1, v 2⟫ with h1 | h1 <;>
-    rcases le_total ⟪v 0, v 1⟫ (max ⟪v 0, v 2⟫ ⟪v 1, v 2⟫) with h2 | h2
-    · rw [max_eq_right h2, max_eq_right h1] at hP; left; linarith only [hP]
-    · rw [max_eq_left h2] at hP; right; right; linarith only [hP]
-    · rw [max_eq_right h2, max_eq_left h1] at hP; right; left; linarith only [hP]
-    · rw [max_eq_left h2] at hP; right; right; linarith only [hP]
+    simp only [Pot, pow_zero, mul_one] at hP
+    have hsum : ⟪v 0, v 1⟫ + ⟪v 0, v 2⟫ + ⟪v 1, v 2⟫ ≤
+        max ⟪v 0, v 1⟫ (max ⟪v 0, v 2⟫ ⟪v 1, v 2⟫) := by linarith only [hP]
+    rcases (le_max_iff.trans (or_congr_right le_max_iff)).mp hsum with h | h | h
+    · exact caseA_any v hv hh (Or.inr (Or.inr (by linarith only [h])))
+    · exact caseA_any v hv hh (Or.inr (Or.inl (by linarith only [h])))
+    · exact caseA_any v hv hh (Or.inl (by linarith only [h]))
   | succ n ih =>
     intro v hv hP
     by_cases hA : ⟪v 0, v 1⟫ + ⟪v 0, v 2⟫ ≤ 0 ∨ ⟪v 0, v 1⟫ + ⟪v 1, v 2⟫ ≤ 0 ∨
@@ -454,21 +447,14 @@ private theorem eqMin_E3 (v : Fin 3 → E3) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ
     have h1 : ⟪v 0, v 1⟫ ≤ 1 := real_inner_le_one_of_norm_eq_one (hv 0) (hv 1)
     have h2 : ⟪v 0, v 2⟫ ≤ 1 := real_inner_le_one_of_norm_eq_one (hv 0) (hv 2)
     have h3 : ⟪v 1, v 2⟫ ≤ 1 := real_inner_le_one_of_norm_eq_one (hv 1) (hv 2)
-    have heq : v 1 = v 0 ∧ v 2 = v 0 := by
-      unfold Pot at hP
-      rcases le_total ⟪v 0, v 1⟫ (max ⟪v 0, v 2⟫ ⟪v 1, v 2⟫) with hb | hb
-      · rcases le_total ⟪v 0, v 2⟫ ⟪v 1, v 2⟫ with ha | ha
-        · rw [max_eq_right hb, max_eq_right ha] at hP
-          exact ⟨eq_of_inner_eq_one (hv 0) (hv 1) (by linarith only [h1, h2, hP]),
-            eq_of_inner_eq_one (hv 0) (hv 2) (by linarith only [h1, h2, hP])⟩
-        · rw [max_eq_right hb, max_eq_left ha] at hP
-          have e1 := eq_of_inner_eq_one (hv 0) (hv 1) (by linarith only [h1, h3, hP])
-          exact ⟨e1, (eq_of_inner_eq_one (hv 1) (hv 2) (by linarith only [h1, h3, hP])).trans e1⟩
-      · rw [max_eq_left hb] at hP
-        have e2 := eq_of_inner_eq_one (hv 0) (hv 2) (by linarith only [h2, h3, hP])
-        exact ⟨(eq_of_inner_eq_one (hv 1) (hv 2) (by linarith only [h2, h3, hP])).symm.trans e2, e2⟩
-    have h00 : ⟪v 0, v 0⟫ = 1 := by simp [hv 0]
-    exact allEqual v hv hh (heq.1 ▸ h00) (heq.2 ▸ h00) (by rw [heq.1, heq.2, h00])
+    have hm1 := le_max_left ⟪v 0, v 1⟫ (max ⟪v 0, v 2⟫ ⟪v 1, v 2⟫)
+    have hm2 : ⟪v 0, v 2⟫ ≤ max ⟪v 0, v 1⟫ (max ⟪v 0, v 2⟫ ⟪v 1, v 2⟫) :=
+      le_max_of_le_right (le_max_left _ _)
+    unfold Pot at hP
+    exact allEqual v hv hh
+      (by linarith only [h1, h3, hm2, hP])
+      (by linarith only [h2, h3, hm1, hP])
+      (by linarith only [h2, h3, hm1, hP])
   · obtain ⟨n, hn⟩ := exists_pow_lt_of_lt_one (half_pos hP) (by norm_num : (2 / 3 : ℝ) < 1)
     exact eq_pot hh n v hv (by linarith)
 

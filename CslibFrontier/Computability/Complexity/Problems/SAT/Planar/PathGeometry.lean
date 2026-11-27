@@ -45,15 +45,12 @@ private theorem consecutivePair_index {r : Route} {a b : Point}
     (h : (a, b) ∈ r.consecutivePairs) :
     ∃ (k : ℕ) (hk : k + 1 < r.length), r[k] = a ∧ r[k + 1] = b := by
   obtain ⟨k, hk, heq⟩ := List.mem_iff_getElem.mp h
-  have hk' : k + 1 < r.length := by grind
   simp only [List.consecutivePairs, List.getElem_zip, List.getElem_tail] at heq
-  exact ⟨k, hk', congrArg Prod.fst heq, congrArg Prod.snd heq⟩
+  exact ⟨k, by grind, congrArg Prod.fst heq, congrArg Prod.snd heq⟩
 
 private theorem mem_of_adjacent {r : Route} {p q : Point}
-    (h : (p, q) ∈ r.consecutivePairs ∨ (q, p) ∈ r.consecutivePairs) : p ∈ r := by
-  rcases h with h | h
-  · exact (List.of_mem_zip h).1
-  · exact List.mem_of_mem_tail (List.of_mem_zip h).2
+    (h : (p, q) ∈ r.consecutivePairs ∨ (q, p) ∈ r.consecutivePairs) : p ∈ r :=
+  h.elim (fun h => (List.of_mem_zip h).1) fun h => List.mem_of_mem_tail (List.of_mem_zip h).2
 
 private theorem neighbor_of_straight {r : Route} {p q d : Point}
     (ht : StraightThrough r p d) (hn : r.Nodup)
@@ -150,8 +147,7 @@ private theorem stepPorts_inter {e f : Point × Point} {x : Point × Fin 4}
     (he : Orthogonal.length e.1 e.2 = 1) (hf : Orthogonal.length f.1 f.2 = 1)
     (hx : x ∈ stepPorts e) (hy : x ∈ stepPorts f) :
     e = f ∨ e = (f.2, f.1) := by
-  rcases e with ⟨a, b⟩
-  rcases f with ⟨c, d⟩
+  rcases e, f with ⟨⟨a, b⟩, ⟨c, d⟩⟩
   simp only [stepPorts, List.mem_cons, List.not_mem_nil, or_false] at hx hy
   rcases hx with rfl | rfl <;> rcases hy with hy | hy <;> obtain ⟨rfl, hs⟩ := Prod.mk.inj hy
   · exact Or.inl (Prod.ext rfl (side_injective_on_unit_neighbors he hf hs))
@@ -264,9 +260,8 @@ private theorem occurrencePath_clause_center_iff {φ : CNF ℕ} {o : Occurrence 
   have h := Graph.unitPath_center_iff (SAT.incidenceGraph φ)
     (fun _ => SAT.incidenceGraph_endpoints) (fun _ => SAT.incidenceGraph_loopless) hoidx
     (w := φ.distinctVars.length + i) (by simp only [SAT.incidenceGraph, List.length_range]; omega)
-  have he := incidenceGraph_edge_idxOf ho
   have hb := SAT.incidenceGraph_bipartite (List.getElem_mem hoidx)
-  rw [he] at hb h
+  rw [incidenceGraph_edge_idxOf ho] at hb h
   change Layout.center (φ.distinctVars.length + i) ∈ occurrencePath φ o ↔
     φ.distinctVars.length + i = (List.range _).idxOf (φ.distinctVars.idxOf o.lit.1) ∨
       φ.distinctVars.length + i = (List.range _).idxOf (φ.distinctVars.length + o.clause) at h
@@ -284,9 +279,8 @@ theorem clause_cell_not_mem_path_dropLast {φ : CNF ℕ} {o : Occurrence ℕ}
   have hend := (occurrencePath_endpoints ho).2
   rw [List.getLast?_eq_getElem?, List.getElem?_eq_getElem (by omega)] at hend
   simp only [List.length_dropLast] at hk
-  have heq : (occurrencePath φ o)[k] = (occurrencePath φ o)[(occurrencePath φ o).length - 1] :=
-    (List.getElem_dropLast ..).symm.trans (hget.trans (Option.some.inj hend).symm)
-  have := (occurrencePath_nodup ho).eq_of_getElem_eq (by omega) (by omega) heq
+  have := (occurrencePath_nodup ho).eq_of_getElem_eq (by omega) (by omega)
+    ((List.getElem_dropLast ..).symm.trans (hget.trans (Option.some.inj hend).symm))
   omega
 
 end Cslib.Complexity.SAT.PlanarCompile

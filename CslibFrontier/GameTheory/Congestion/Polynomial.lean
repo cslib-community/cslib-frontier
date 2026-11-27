@@ -275,20 +275,17 @@ theorem polynomialSmoothMu_mono {j d : ℕ} (hjd : j ≤ d) :
   rcases eq_or_lt_of_le hjd with rfl | hlt
   · exact le_rfl
   rcases Nat.eq_zero_or_pos j with rfl | hj
-  · simp only [polynomialSmoothMu, ↓reduceIte]
-    exact polynomialSmoothMu_nonneg d
+  · simpa [polynomialSmoothMu] using polynomialSmoothMu_nonneg d
   have hφ_lt := polynomialRoot_strictMono hj hlt
   have hφj := polynomialRoot_pos j
   have hφd := polynomialRoot_pos d
   simp only [polynomialSmoothMu, hj.ne', (hj.trans hlt).ne', ↓reduceIte]
   have hjd' : (j : ℝ) ≤ d := Nat.cast_le.2 hjd
-  have hf1 : (j : ℝ) / ((j : ℝ) + 1) ≤ (d : ℝ) / ((d : ℝ) + 1) := by
-    rw [div_le_div_iff₀ (by positivity) (by positivity)]
-    linarith
+  have hf1 : (j : ℝ) / ((j : ℝ) + 1) ≤ (d : ℝ) / ((d : ℝ) + 1) :=
+    (div_le_div_iff₀ (by positivity) (by positivity)).2 (by linarith)
   have hf2 : polynomialRoot j / (1 + polynomialRoot j) ≤
-      polynomialRoot d / (1 + polynomialRoot d) := by
-    rw [div_le_div_iff₀ (by positivity) (by positivity)]
-    linarith
+      polynomialRoot d / (1 + polynomialRoot d) :=
+    (div_le_div_iff₀ (by positivity) (by positivity)).2 (by linarith)
   calc (j : ℝ) * polynomialRoot j / (((j : ℝ) + 1) * (1 + polynomialRoot j))
       = ((j : ℝ) / ((j : ℝ) + 1)) * (polynomialRoot j / (1 + polynomialRoot j)) := by
         field_simp
@@ -304,8 +301,7 @@ theorem polynomialSmoothLam_mono {j d : ℕ} (hjd : j ≤ d) :
   | @step m hjm ih =>
     refine ih.trans ?_
     rcases Nat.eq_zero_or_pos m with rfl | hm1
-    · simp only [polynomialSmoothLam, ↓reduceIte]
-      exact one_le_polynomialSmoothLam 1
+    · simpa [polynomialSmoothLam] using one_le_polynomialSmoothLam 1
     have hm_succ : 1 ≤ m + 1 := by omega
     have hφm_lt := polynomialRoot_lt_succ hm1
     have hφ_inc := polynomialRoot_strictMono hm1 (Nat.lt_succ_self m)
@@ -407,10 +403,8 @@ theorem nat_mul_add_one_pow_le_polynomialSmooth {j d : ℕ} (hjd : j ≤ d) (y z
     (y : ℝ) * ((z : ℝ) + 1) ^ j ≤
       polynomialSmoothLam d * (y : ℝ) ^ (j + 1) + polynomialSmoothMu d * (z : ℝ) ^ (j + 1) := by
   rcases Nat.eq_zero_or_pos y with rfl | hy
-  · simp only [Nat.cast_zero, zero_mul]
-    have := polynomialSmoothMu_nonneg d
-    have := one_le_polynomialSmoothLam d
-    positivity
+  · simp only [Nat.cast_zero, zero_mul, zero_pow (Nat.succ_ne_zero j), mul_zero, zero_add]
+    exact mul_nonneg (polynomialSmoothMu_nonneg d) (pow_nonneg (Nat.cast_nonneg z) _)
   rcases Nat.eq_zero_or_pos j with rfl | hj
   · simp only [pow_zero, zero_add, pow_one, mul_one]
     nlinarith [one_le_polynomialSmoothLam d, polynomialSmoothMu_nonneg d]
@@ -509,10 +503,9 @@ theorem expected_socialCost_le_succ_pow_of_hasPolynomialLatencies {d : ℕ} (hd 
   have := Fintype.ofFinite E
   have hnonneg : 0 ≤ C.toCostGame.socialCost s' := by
     obtain ⟨c, hc, hl⟩ := h
-    rw [socialCost_toCostGame]
-    refine sum_nonneg fun e _ => mul_nonneg (Nat.cast_nonneg _) ?_
-    rw [hl]
-    exact sum_nonneg fun j _ => mul_nonneg (hc e j) (by positivity)
+    simp only [socialCost_toCostGame, hl]
+    exact sum_nonneg fun e _ => mul_nonneg (Nat.cast_nonneg _)
+      (sum_nonneg fun j _ => mul_nonneg (hc e j) (by positivity))
   exact (expected_socialCost_le_of_hasPolynomialLatencies hd h hσ s').trans
     (mul_le_mul_of_nonneg_right
       (pow_le_pow_left₀ (polynomialRoot_pos d).le (polynomialRoot_lt_succ hd).le (d + 1)) hnonneg)

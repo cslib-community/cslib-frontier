@@ -403,16 +403,13 @@ theorem Holds.mul (hc : c.Holds σ) (k : ℕ) : (c.mul k).Holds σ := by
   rw [lhs_map_mul]; exact Nat.mul_le_mul_left k hc
 
 theorem le_mul_ceilDiv (a : ℕ) {k : ℕ} (hk : 0 < k) : a ≤ k * ceilDiv a k := by
-  unfold ceilDiv
   have h1 := Nat.div_add_mod (a + k - 1) k
   have h2 := Nat.mod_lt (a + k - 1) hk
-  generalize k * ((a + k - 1) / k) = p at *
+  unfold ceilDiv
   omega
 
 theorem ceilDiv_le_of_le_mul {a k x : ℕ} (hk : 0 < k) (h : a ≤ k * x) : ceilDiv a k ≤ x := by
-  unfold ceilDiv
-  rw [Nat.div_le_iff_le_mul_add_pred hk]
-  generalize k * x = p at *
+  rw [ceilDiv, Nat.div_le_iff_le_mul_add_pred hk]
   omega
 
 theorem lhs_le_mul_lhs_ceilDiv (σ : ℕ → Bool) {k : ℕ} (hk : 0 < k) (ts : List (ℕ × Literal ℕ)) :
@@ -420,62 +417,47 @@ theorem lhs_le_mul_lhs_ceilDiv (σ : ℕ → Bool) {k : ℕ} (hk : 0 < k) (ts : 
   induction ts with
   | nil => simp
   | cons t ts ih =>
-    have : termVal σ t ≤ k * termVal σ (ceilDiv t.1 k, t.2) := by
+    have ht : termVal σ t ≤ k * termVal σ (ceilDiv t.1 k, t.2) := by
       unfold termVal
       cases Literal.eval σ t.2 <;> simp [le_mul_ceilDiv _ hk]
     simp only [List.map_cons, lhs_cons, Nat.mul_add]
-    generalize k * termVal σ (ceilDiv t.1 k, t.2) = p at *
-    generalize k * lhs σ (ts.map fun t => (ceilDiv t.1 k, t.2)) = q at *
     omega
 
 theorem Holds.div (hc : c.Holds σ) (k : ℕ) : (c.div k).Holds σ := by
   rw [PBConstr.div, holds_normalize]
   rw [← holds_normalize] at hc
-  unfold Holds at hc ⊢
   rcases Nat.eq_zero_or_pos k with rfl | hk
-  · simp [ceilDiv]
+  · simp [Holds, ceilDiv]
   · exact ceilDiv_le_of_le_mul hk (hc.trans (lhs_le_mul_lhs_ceilDiv σ hk _))
 
 theorem Holds.saturate (hc : c.Holds σ) : c.saturate.Holds σ := by
   rw [PBConstr.saturate, holds_normalize]
   rw [← holds_normalize] at hc
-  unfold Holds at hc ⊢
-  generalize c.normalize.degree = D at hc ⊢
-  generalize c.normalize.terms = ts at hc ⊢
   suffices ∀ ts : List (ℕ × Literal ℕ),
-      min (lhs σ ts) D ≤ lhs σ (ts.map fun t => (min t.1 D, t.2)) by
-    dsimp only; have := this ts; omega
+      min (lhs σ ts) c.normalize.degree ≤
+        lhs σ (ts.map fun t => (min t.1 c.normalize.degree, t.2)) from
+    (min_eq_right hc).symm.trans_le (this c.normalize.terms)
   intro ts
   induction ts with
   | nil => simp
   | cons t ts ih =>
-    simp only [List.map_cons, lhs_cons]
-    unfold termVal at *
-    cases Literal.eval σ t.2 <;> simp <;> omega
+    cases h : Literal.eval σ t.2 <;> simp [termVal, h] <;> omega
 
 theorem lhs_le_filter (σ : ℕ → Bool) (v : ℕ) (ts : List (ℕ × Literal ℕ)) :
     lhs σ ts ≤ lhs σ (ts.filter (termVar · != v)) + coeffSum (ts.filter (termVar · == v)) := by
   induction ts with
   | nil => simp
   | cons t ts ih =>
-    rw [List.filter_cons, List.filter_cons]
     have := termVal_le σ t
-    by_cases h : termVar t = v
-    · simp only [h, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, beq_self_eq_true,
-        lhs_cons, coeffSum_cons]
-      omega
-    · simp only [bne_iff_ne.2 h, beq_eq_false_iff_ne.2 h, ↓reduceIte, Bool.false_eq_true,
-        lhs_cons]
-      omega
+    by_cases h : termVar t = v <;> simp [h] <;> omega
 
 theorem Holds.weaken (hc : c.Holds σ) (v : ℕ) : (c.weaken v).Holds σ := by
   rw [PBConstr.weaken, holds_normalize]
   rw [← holds_normalize] at hc
+  have := lhs_le_filter σ v c.normalize.terms
   unfold Holds at hc ⊢
-  generalize c.normalize.degree = D at hc ⊢
-  generalize c.normalize.terms = ts at hc ⊢
-  have := lhs_le_filter σ v ts
-  dsimp only; omega
+  dsimp only
+  omega
 
 theorem holds_litAxiom (σ : ℕ → Bool) (l : Literal ℕ) : (litAxiom l).Holds σ := by
   simp [Holds, litAxiom]
@@ -485,17 +467,17 @@ theorem holds_negate (σ : ℕ → Bool) (c : PBConstr) : c.negate.Holds σ ↔ 
   rw [← holds_normalize σ c]
   unfold Holds negate
   dsimp only
-  generalize c.normalize.degree = D
-  generalize c.normalize.terms = ts
-  have hsum : lhs σ (ts.map fun t => (t.1, Std.Sat.Literal.negate t.2)) + lhs σ ts =
-      coeffSum ts := by
+  have hsum : ∀ ts : List (ℕ × Literal ℕ),
+      lhs σ (ts.map fun t => (t.1, Std.Sat.Literal.negate t.2)) + lhs σ ts = coeffSum ts := by
+    intro ts
     induction ts with
     | nil => simp
     | cons t ts ih =>
       obtain ⟨a, l⟩ := t
-      simp only [List.map_cons, lhs_cons, coeffSum_cons]
       have := termVal_add_negate σ a l
+      simp only [List.map_cons, lhs_cons, coeffSum_cons]
       omega
+  have := hsum c.normalize.terms
   omega
 
 /-! ### Clauses -/
@@ -507,20 +489,14 @@ def Clause.toPB (c : Clause ℕ) : PBConstr := ⟨c.dedup.map fun l => (1, l), 1
 
 theorem Clause.holds_toPB_iff (σ : ℕ → Bool) (c : Clause ℕ) :
     c.toPB.Holds σ ↔ c.eval σ = true := by
-  rw [Clause.eval_eq_true_iff]
-  unfold Clause.toPB PBConstr.Holds
-  simp only
-  have : ∀ ls : List (Literal ℕ), 1 ≤ PBConstr.lhs σ (ls.map fun l => (1, l)) ↔
-      ∃ l ∈ ls, Literal.eval σ l = true := by
-    intro ls
+  have hls (ls : List (Literal ℕ)) :
+      1 ≤ PBConstr.lhs σ (ls.map fun l => (1, l)) ↔ ∃ l ∈ ls, Literal.eval σ l = true := by
     induction ls with
     | nil => simp
     | cons l ls ih =>
       simp only [List.map_cons, PBConstr.lhs_cons, List.mem_cons, exists_eq_or_imp, ← ih]
-      unfold PBConstr.termVal
-      cases Literal.eval σ l <;> simp
-  rw [this]
-  simp [List.mem_dedup]
+      cases h : Literal.eval σ l <;> simp [PBConstr.termVal, h]
+  simp [Clause.toPB, PBConstr.Holds, hls, Clause.eval_eq_true_iff, List.mem_dedup]
 
 end Cslib.Logic.PL
 

@@ -56,6 +56,17 @@ theorem range'_eq_range'_iff {a₁ len₁ a₂ len₂ : ℕ} (h1 : 1 ≤ len₁)
   obtain ⟨rfl, h⟩ := List.range'_inj.mp heq
   exact ⟨h.resolve_left (by omega), rfl⟩
 
+private theorem gateWord_range_split {N g : ℕ} (p : Program prefixSignature N g)
+    (k : Fin g) (wires : Fin 2 → Wire N g) (hline : p.lines k = ⟨.mul, wires⟩) {a b : ℕ}
+    (hw : programWord p (.gate k) = List.range' a (b - a)) :
+    ∃ m, a < m ∧ m < b ∧ programWord p (wires 0) = List.range' a (m - a) ∧
+      programWord p (wires 1) = List.range' m (b - m) := by
+  rw [programWord_gate_mul p k wires hline] at hw
+  obtain ⟨hleft, hright, hw0, hw1⟩ := range_split_of_append
+    (programWord_ne_nil p (wires 0)) (programWord_ne_nil p (wires 1)) hw
+  refine ⟨a + (programWord p (wires 0)).length, by lia, by lia, ?_, ?_⟩
+  · simpa only [Nat.add_sub_cancel_left] using hw0
+  · simpa only [Nat.sub_add_eq] using hw1
 
 private theorem exists_wireIntervalTree {N g : ℕ} (p : Program prefixSignature N g)
     (w : Wire N g) :
@@ -77,18 +88,9 @@ private theorem exists_wireIntervalTree {N g : ℕ} (p : Program prefixSignature
     obtain ⟨I, hd, hanc⟩ := ih0 a b hab hw
     rw [wireDepths_gate_id p k wires hline, ancMul_gate_id p k wires hline]
     exact ⟨I, by omega, hanc⟩
-  · have hw_orig := hw
-    rw [programWord_gate_mul p k wires hline] at hw
-    obtain ⟨hm1, hm2, hw0, hw1⟩ := range_split_of_append
-      (programWord_ne_nil p (wires 0)) (programWord_ne_nil p (wires 1)) hw
-    set len0 := (programWord p (wires 0)).length
-    set m := a + len0
-    obtain ⟨IL, hdL, hancL⟩ :=
-      ih0 a m (by omega) (by simpa only [m, Nat.add_sub_cancel_left] using hw0)
-    obtain ⟨IR, hdR, hancR⟩ := ih1 m b (by omega) (by
-      have hbm : b - m = b - a - len0 := by omega
-      rw [hbm]
-      exact hw1)
+  · obtain ⟨m, ham, hmb, hw0, hw1⟩ := gateWord_range_split p k wires hline hw
+    obtain ⟨IL, hdL, hancL⟩ := ih0 a m ham hw0
+    obtain ⟨IR, hdR, hancR⟩ := ih1 m b hmb hw1
     refine ⟨.node IL IR, ?_, ?_⟩
     · rw [wireDepths_gate_mul p k wires hline]
       simp only [IntervalTree.depth]
@@ -97,7 +99,7 @@ private theorem exists_wireIntervalTree {N g : ℕ} (p : Program prefixSignature
       rw [ancMul_gate_mul p k wires hline, Finset.mem_insert, Finset.mem_union] at hj
       simp only [IntervalTree.intervals, Finset.mem_insert, Finset.mem_union]
       rcases hj with rfl | hj0 | hj1
-      · obtain ⟨rfl, hlen⟩ := range'_eq_range'_iff (by omega) (hjw.symm.trans hw_orig)
+      · obtain ⟨rfl, hlen⟩ := range'_eq_range'_iff (by omega) (hjw.symm.trans hw)
         exact Or.inl (Prod.ext rfl (by omega))
       · exact Or.inr (Or.inl (hancL j hj0 p₀ q₀ hpq hjw))
       · exact Or.inr (Or.inr (hancR j hj1 p₀ q₀ hpq hjw))
@@ -146,12 +148,11 @@ private theorem spine_decomposition {N g : ℕ} (p : Program prefixSignature N g
     have hd1_le : p.wireDepths (wires 1) ≤ p.wireDepths (wires 0) := by omega
     have hdepth_gate : p.wireDepths (.gate k) = p.wireDepths (wires 0) + 1 := by
       rw [wireDepths_gate_mul p k wires hline]; omega
-    rw [programWord_gate_mul p k wires hline] at hw
-    obtain ⟨hm1, hm2, hw0, hw1⟩ := range_split_of_append
-      (programWord_ne_nil p (wires 0)) (programWord_ne_nil p (wires 1)) hw
-    set M₀ := (programWord p (wires 0)).length
+    obtain ⟨M₀, hM₀, hm, hw0, hw1⟩ := gateWord_range_split p k wires hline (a := 0) (b := M)
+      (by simpa only [Nat.sub_zero] using hw)
+    rw [Nat.sub_zero] at hw0
     set D₀ := p.wireDepths (wires 0)
-    obtain ⟨v₀, u₀, T₀, hv0, hT0, hvD0, hTD0, hseg0, hanc0⟩ := ih0 M₀ (by omega) hw0 hlen0
+    obtain ⟨v₀, u₀, T₀, hv0, hT0, hvD0, hTD0, hseg0, hanc0⟩ := ih0 M₀ hM₀ hw0 hlen0
     let v : ℕ → Wire N g := fun d => if d = D₀ + 1 then .gate k else v₀ d
     let u : ℕ → Wire N g := fun d => if d = D₀ then wires 1 else u₀ d
     let T : ℕ → ℕ := fun d => if d = D₀ + 1 then M else T₀ d
@@ -169,8 +170,7 @@ private theorem spine_decomposition {N g : ℕ} (p : Program prefixSignature N g
         refine ⟨hTd_lt, ⟨sg₀, ?_, hvd_succ, hwires_d⟩, hrest⟩
         rwa [leftSpine_gate_mul p k wires hline, List.getElem?_append_left (by omega)]
       · simp only [v, u, T, show D₀ ≠ D₀ + 1 by omega, ↓reduceIte, hvD0, hTD0]
-        refine ⟨by omega, ⟨k, ?_, rfl, wires, hline, rfl, rfl⟩, rfl, hd1_le, hw0,
-          by simpa only [Nat.zero_add] using hw1⟩
+        refine ⟨hm, ⟨k, ?_, rfl, wires, hline, rfl, rfl⟩, rfl, hd1_le, hw0, hw1⟩
         simp only [leftSpine_gate_mul p k wires hline,
           List.getElem?_append_right (by rw [hlen0]), hlen0, Nat.sub_self,
           List.getElem?_cons_zero]

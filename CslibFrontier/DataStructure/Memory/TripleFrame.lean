@@ -61,12 +61,9 @@ theorem Triple.copy {s : State} {src dst n : ℕ} (hdisj : src + n ≤ dst ∨ d
     (hfit : ∀ i < n, Fits w (s.mem (src + i)))
     {Q : Unit → State → Prop}
     (hQ : Q () ⟨Cslib.WordRAM.ArrayCopy.copyPrefix s.mem src dst n, s.frontier⟩) :
-    Triple w s (Memory.copy src dst n) (2 * n) Q := by
-  refine triple_iff.mpr ⟨validHistory_copy src dst n s hdisj hsrc hdst hfit,
-    (totalCost_copy src dst n s).le, ?_⟩
-  rw [show (spec w).clientResult s (Memory.copy src dst n) = () from rfl,
-    clientState_copy src dst n s hdisj]
-  exact hQ
+    Triple w s (Memory.copy src dst n) (2 * n) Q :=
+  triple_iff.mpr ⟨validHistory_copy src dst n s hdisj hsrc hdst hfit,
+    (totalCost_copy src dst n s).le, clientState_copy src dst n s hdisj ▸ hQ⟩
 
 /-! ## Modification-set framing predicate -/
 
@@ -109,10 +106,8 @@ theorem write (s : State) (a v : ℕ) :
 theorem set (s : State) (b : Block) {i : ℕ} (hi : i < b.length) (v : ℕ) :
     Memory.Modifies (Set.Ico b.base (b.base + b.length)) s
       ⟨Function.update s.mem (b.base + i) v, s.frontier⟩ :=
-  (write s (b.base + i) v).mono fun _ ha => by
-    have he : _ = b.base + i := ha
-    subst he
-    exact ⟨Nat.le_add_right _ _, by omega⟩
+  (write s (b.base + i) v).mono fun _ ha =>
+    (Set.mem_singleton_iff.mp ha).symm ▸ ⟨Nat.le_add_right _ _, Nat.add_lt_add_left hi _⟩
 
 /-- Zeroed allocation modifies no cell below the old frontier. -/
 theorem alloc (s : State) (k : ℕ) :
@@ -340,12 +335,9 @@ theorem copy {src dst n : ℕ} (hdisj : src + n ≤ dst ∨ dst + n ≤ src)
     (hsrc : src + n ≤ s.frontier) (hdst : dst + n ≤ s.frontier)
     (hfit : ∀ i < n, Fits w (s.mem (src + i))) {Q : Unit → State → Prop}
     (hQ : Q () ⟨Cslib.WordRAM.ArrayCopy.copyPrefix s.mem src dst n, s.frontier⟩) :
-    FramedTriple w s (Memory.copy src dst n) (2 * n) (Set.Ico dst (dst + n)) Q := by
-  refine Triple.copy hdisj hsrc hdst hfit ⟨⟨le_rfl, fun a _ ha => ?_⟩, hQ⟩
-  change Cslib.WordRAM.ArrayCopy.copyPrefix s.mem src dst n a = s.mem a
-  exact Cslib.WordRAM.ArrayCopy.copyPrefix_outside (by
-    simp only [Set.mem_Ico] at ha
-    exact ha)
+    FramedTriple w s (Memory.copy src dst n) (2 * n) (Set.Ico dst (dst + n)) Q :=
+  Triple.copy hdisj hsrc hdst hfit
+    ⟨⟨le_rfl, fun _ _ ha => Cslib.WordRAM.ArrayCopy.copyPrefix_outside ha⟩, hQ⟩
 
 /-- Any `FramedTriple` preserves `WellFormed w`. -/
 theorem wellFormed {Q : α → State → Prop} {p : Prog α} (hwf : WellFormed w s)
@@ -408,10 +400,8 @@ theorem disjoint_iff {b₁ b₂ : Block} :
         · exact Or.inr (Or.inr (Or.inl h12))
         · by_cases h21 : b₂.base + b₂.length ≤ b₁.base
           · exact Or.inr (Or.inr (Or.inr h21))
-          · exfalso
-            have ha := h (max b₁.base b₂.base)
-            apply ha
-            refine ⟨⟨le_max_left _ _, ?_⟩, ⟨le_max_right _ _, ?_⟩⟩ <;> omega
+          · exact absurd ⟨⟨le_max_left _ _, by omega⟩,
+              ⟨le_max_right _ _, by omega⟩⟩ (h (max b₁.base b₂.base))
   · rintro (h | h | h | h) a ⟨⟨h1a, h1b⟩, ⟨h2a, h2b⟩⟩ <;> omega
 
 instance instDecidableDisjoint (b₁ b₂ : Block) : Decidable (b₁.Disjoint b₂) :=
@@ -584,16 +574,10 @@ private theorem mem_writeList_of_not_mem (w base : ℕ) (vs : List ℕ) (s : Mem
   | nil => rfl
   | cons v vs ih =>
     rw [writeList_cons, (Memory.spec w).clientState_bind]
-    have hnot : a ∉ Set.Ico (base + 1) (base + 1 + vs.length) := by
-      simp only [Set.mem_Ico, List.length_cons, not_and, not_lt] at ha ⊢
-      omega
-    have hstep : (Memory.spec w).clientState s (Memory.write base v) =
-        ⟨Function.update s.mem base v, s.frontier⟩ := rfl
-    rw [hstep, ih (base + 1) ⟨Function.update s.mem base v, s.frontier⟩ hnot]
-    have hne : a ≠ base := by
-      simp only [Set.mem_Ico, List.length_cons, not_and, not_lt] at ha
-      omega
-    exact Function.update_of_ne hne v s.mem
+    simp only [Set.mem_Ico, List.length_cons] at ha
+    exact (ih (base + 1) ⟨Function.update s.mem base v, s.frontier⟩
+      fun ⟨h1, h2⟩ => ha ⟨Nat.le_of_succ_le h1, by omega⟩).trans
+        (Function.update_of_ne (fun h => ha ⟨Nat.le_of_eq h.symm, by omega⟩) v s.mem)
 
 /-- After `writeList`, `[base, base + vs.length)` realizes `vs`. -/
 theorem holdsList_writeList (w base : ℕ) (vs : List ℕ) (s : Memory.State) :
@@ -603,13 +587,8 @@ theorem holdsList_writeList (w base : ℕ) (vs : List ℕ) (s : Memory.State) :
   | cons v vs ih =>
     rw [writeList_cons, (Memory.spec w).clientState_bind]
     refine holdsList_cons_iff.mpr ⟨?_, ih (base + 1) ⟨Function.update s.mem base v, s.frontier⟩⟩
-    change ((Memory.spec w).clientState ⟨Function.update s.mem base v, s.frontier⟩
-      (writeList (base + 1) vs)).mem base = v
-    have hnot : base ∉ Set.Ico (base + 1) (base + 1 + vs.length) := by
-      simp only [Set.mem_Ico, not_and, not_lt]
-      omega
-    rw [mem_writeList_of_not_mem w (base + 1) vs ⟨Function.update s.mem base v, s.frontier⟩ hnot]
-    simp
+    rw [mem_writeList_of_not_mem w (base + 1) vs _ fun ⟨h, _⟩ => Nat.not_succ_le_self base h]
+    exact Function.update_self base v s.mem
 
 /-- `writeList` is admissible when `[base, base + vs.length)` is allocated and every written
 word fits `w`. -/
@@ -635,8 +614,7 @@ theorem totalCost_writeList (w base : ℕ) (vs : List ℕ) (s : Memory.State) :
   | cons v vs ih =>
     rw [writeList_cons, (Memory.spec w).clientHistory_bind,
       StateTransitionSpec.totalCost_append, StateTransitionSpec.run_runClient, ih]
-    change 1 + vs.length = vs.length + 1
-    omega
+    exact Nat.add_comm 1 vs.length
 
 /-- General `FramedTriple` specification for `Block.writeList`, including fixed-frontier and
 `WellFormed w` preservation. -/

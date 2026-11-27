@@ -70,9 +70,7 @@ theorem cat_eq_cons {A : Fin K → List Γ} {a : Γ} {W : List Γ} (h : cat A = 
       obtain ⟨i, l, h1, h2, h3⟩ := ih h
       refine ⟨i.succ, l, Fin.cases (fun _ => hA) fun j hj => h1 j (by simpa using hj), h2, ?_⟩
       rw [cat_succ, Function.update_of_ne (Fin.succ_ne_zero i).symm, hA, List.nil_append, ← h3]
-      congr 1
-      funext j
-      simp only [Function.update_apply, (Fin.succ_injective _).eq_iff]
+      exact congrArg cat (funext fun j => by simp [Function.update_apply])
     · rw [hA, List.cons_append, List.cons.injEq] at h
       refine ⟨0, l, fun j hj => absurd hj (Fin.not_lt_zero j), by rw [hA, h.1], ?_⟩
       rw [cat_succ, Function.update_self, ← h.2]
@@ -143,9 +141,7 @@ private theorem IsRef.first {A B : Fin K → List Γ} {X : Fin K → Fin K → L
     · exact hx1 j hj
     · by_contra hne
       exact absurd (h.stair a a' b j (by simp [hx2]) hne h') (not_le.2 hj)
-  have hB := cat_of_cons (A := fun a' => X a' b) (i := a) (l := x)
-    (fun j hj => hrow j hj b) hx2
-  rw [h.col b] at hB
+  have hB := (h.col b).symm.trans (cat_of_cons (fun j hj => hrow j hj b) hx2)
   refine ⟨b, x, _, hx2, fun j hj => (h.col j).symm.trans (cat_eq_nil.2 (hcol j hj)), hB,
     ?_, fun a' => ?_, fun b' => ?_⟩
   · intro a₁ a₂ b₁ b₂ n1 n2 hlt
@@ -196,8 +192,7 @@ theorem IsRef.unique {A B : Fin K → List Γ} {X Y : Fin K → Fin K → List �
     have h4 := congrFun (congrFun hrec a') b'
     by_cases e : a' = a ∧ b' = b
     · obtain ⟨rfl, rfl⟩ := e
-      simp only [upd, and_self, ite_true] at h4
-      rw [hx, hy, h4]
+      simpa [upd, hx, hy] using h4
     · simpa [upd, e] using h4
 
 theorem IsRef.exists {A B : Fin K → List Γ} (h : cat A = cat B) : ∃ X, IsRef A B X := by
@@ -252,14 +247,11 @@ variable {K' : ℕ}
 /-- The concatenation of `K + K'` words is that of the first `K` and then of the last `K'`. -/
 theorem cat_add (X : Fin (K + K') → List Γ) :
     cat X = cat (fun κ => X (Fin.castAdd K' κ)) ++ cat fun κ => X (Fin.natAdd K κ) := by
-  simp only [cat]
-  rw [List.ofFn_add, List.flatten_append]
-  rfl
+  simp only [cat, List.ofFn_add, List.flatten_append]; rfl
 
 /-- The length of a concatenation is the sum of the lengths. -/
 theorem sum_length_cat (X : Fin K → List Γ) : ∑ b, (X b).length = (cat X).length := by
-  rw [cat, List.length_flatten, List.map_ofFn, List.sum_ofFn]
-  rfl
+  rw [cat, List.length_flatten, List.map_ofFn, List.sum_ofFn]; rfl
 
 /-- Every word of a sequence is at most as long as the concatenation. -/
 theorem length_le_cat (X : Fin K → List Γ) (b : Fin K) : (X b).length ≤ (cat X).length :=

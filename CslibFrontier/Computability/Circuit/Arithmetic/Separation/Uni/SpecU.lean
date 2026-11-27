@@ -87,10 +87,7 @@ theorem length_blocks (a : Γ) (ws : List (List Γ)) :
     (blocks a ws).length = (ws.map List.length).sum + ws.length := by
   induction ws with
   | nil => rfl
-  | cons w ws ih =>
-    rw [blocks_cons, List.length_append, List.length_cons, ih, List.map_cons,
-      List.sum_cons, List.length_cons]
-    omega
+  | cons w ws ih => simp [blocks_cons, ih]; omega
 
 end Blocks
 
@@ -102,9 +99,7 @@ theorem rw'_inj {f f' : Bool} {w w' : List (Option (Bl K))} {u v : List (Sy M K)
     (h : rw' f w ++ u = rw' f' w' ++ v) : f = f' ∧ w = w' ∧ u = v := by
   simp only [rw', List.cons_append, List.cons.injEq, Sy.flag.injEq, List.append_assoc] at h
   obtain ⟨rfl, h⟩ := h
-  have hd (w : List (Option (Bl K))) : (Sy.dot : Sy M K) ∉ w.map ol := fun hw => by
-    obtain ⟨o, _, ho⟩ := List.mem_map.1 hw
-    exact ol_ne_dot o ho
+  have hd (w : List (Option (Bl K))) : (Sy.dot : Sy M K) ∉ w.map ol := by simp [ol_ne_dot]
   obtain ⟨h1, h2⟩ := cut_inj (hd w) (hd w') h
   exact ⟨rfl, List.map_injective_iff.2 ol_inj h1, h2⟩
 
@@ -113,18 +108,18 @@ theorem rw'_inj {f f' : Bool} {w w' : List (Option (Bl K))} {u v : List (Sy M K)
   l.flatMap fun r => rw' r.1 r.2
 
 theorem encW_inj :
-    Function.Injective (encW : List (Bool × List (Option (Bl K))) → List (Sy M K)) := by
-  refine flatMap_inj (fun _ => by simp [rw']) fun ⟨f, w⟩ ⟨f', w'⟩ u v h => ?_
-  obtain ⟨rfl, rfl, -⟩ := rw'_inj h
-  rfl
+    Function.Injective (encW : List (Bool × List (Option (Bl K))) → List (Sy M K)) :=
+  flatMap_inj (fun _ => by simp [rw']) fun ⟨f, w⟩ ⟨f', w'⟩ _ _ h =>
+    let ⟨h1, h2, _⟩ := rw'_inj h
+    Prod.ext h1 h2
 
 theorem bar_rw' (f : Bool) (w : List (Option (Bl K))) : (Sy.bar : Sy M K) ∉ rw' f w := by
   simp [rw', fun o => ol_ne_bar (M := M) o]
 
 theorem bar_encW (l : List (Bool × List (Option (Bl K)))) :
-    (Sy.bar : Sy M K) ∉ encW l := by
-  rw [encW, List.mem_flatMap]
-  exact fun ⟨r, _, h⟩ => bar_rw' _ _ h
+    (Sy.bar : Sy M K) ∉ encW l := fun h =>
+  let ⟨r, _, hr⟩ := List.mem_flatMap.1 h
+  bar_rw' r.1 r.2 hr
 
 /-- The records consumed from `lsT` by a distribution pass `d`. -/
 @[expose] def dIn (d : List (Dr K)) : List (Bool × List (Option (Bl K))) :=
@@ -209,7 +204,8 @@ theorem emCo_bk_true (m : Bl K → List (NB M K)) (b : Bl K) :
   rw [emCo, flatten_ofFn_single (Fintype.equivFin (Bl K) b)]
   · simp [on]
   · intro k hk
-    simp [on, show b ≠ (Fintype.equivFin (Bl K)).symm k from fun h => hk (by simp [h])]
+    have hne : b ≠ (Fintype.equivFin (Bl K)).symm k := fun h => hk (by simp [h])
+    simp [on, hne]
 
 theorem emCo_other (m : Bl K → List (NB M K)) {z : Zc K} (h1 : z ≠ lsF)
     (h2 : ∀ b, z ≠ .tp (.bk b) true) : emCo m z = [] := by
@@ -219,17 +215,14 @@ theorem emCo_other (m : Bl K → List (NB M K)) {z : Zc K} (h1 : z ≠ lsF)
     simp [on, h1, h2]
 
 theorem emPs_lsT (p : Ps M K) : emPs p lsT = encW (dIn p.1) ++ [Sy.bar] := by
-  have h2 (d : Dr K) : (emDr d lsT : List (Sy M K)) = rw' d.flag (some d.head :: d.tail) := by
-    simp [emDr, on]
   unfold emPs
   rw [emCo_other _ (by simp) (by simp)]
-  simp only [h2, on, mem_barSet_lsT, ↓reduceIte, List.append_nil, encW, dIn, List.flatMap_map]
+  simp [emDr, on, mem_barSet_lsT, encW, dIn, List.flatMap_map]
 
 theorem emPs_lsF (p : Ps M K) : emPs p lsF = cOut p.2 ++ [Sy.bar] := by
-  have h2 (d : Dr K) : (emDr d lsF : List (Sy M K)) = [] := by simp [emDr, on]
   unfold emPs
   rw [emCo_lsF]
-  simp [h2, on, not_barSet (z := lsF) (by simp) (by simp)]
+  simp [emDr, on, not_barSet (z := lsF) (by simp) (by simp)]
 
 theorem emPs_bk_false (p : Ps M K) (b : Bl K) :
     emPs p (.tp (.bk b) false) = encW (dOut b p.1) ++ [Sy.bar] := by
@@ -248,17 +241,15 @@ theorem emPs_bk_false (p : Ps M K) (b : Bl K) :
 
 theorem emPs_bk_true (p : Ps M K) (b : Bl K) :
     emPs p (.tp (.bk b) true) = (p.2 b).map Subtype.val ++ [Sy.bar] := by
-  have h2 (d : Dr K) : (emDr d (.tp (.bk b) true) : List (Sy M K)) = [] := by simp [emDr, on]
   unfold emPs
   rw [emCo_bk_true]
-  simp [h2, on, not_barSet (z := .tp (.bk b) true) (by simp) (by simp)]
+  simp [emDr, on, not_barSet (z := .tp (.bk b) true) (by simp) (by simp)]
 
 theorem emPs_other (p : Ps M K) {z : Zc K} (h1 : z ≠ lsT) (h2 : z ≠ lsF)
     (h3 : ∀ b s, z ≠ .tp (.bk b) s) : emPs p z = [] := by
-  have e2 (d : Dr K) : (emDr d z : List (Sy M K)) = [] := by simp [emDr, on, h1, h3]
   unfold emPs
   rw [emCo_other _ h2 fun b => h3 b true]
-  simp [e2, on, not_barSet h1 fun b => h3 b false]
+  simp [emDr, on, h1, h3, not_barSet h1 fun b => h3 b false]
 
 omit [Fintype K] in
 theorem emFi_lsT (l : List (Rk K)) :

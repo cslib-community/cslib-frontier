@@ -205,21 +205,16 @@ private theorem mem_Reach_comp {L L' : Language} [L'.IsRelational] {k l : ℕ}
   have hc₂ := (J.comp I).card_toDomainInterpretation M
   let e : J.toDomainInterpretation.map hJ M' ≃ (J.comp I).toDomainInterpretation.map hcomp M :=
     (finCongr hc₁).trans (iso.toEquiv.trans (finCongr hc₂.symm))
-  have he_val (x : J.toDomainInterpretation.map hJ M') : (e x).val = x.val := rfl
   have he_zero : e 0 = 0 := Fin.ext rfl
   have he_max : e (J.toDomainInterpretation.map hJ M').maxElem =
-      ((J.comp I).toDomainInterpretation.map hcomp M).maxElem := by
-    apply Fin.ext
+      ((J.comp I).toDomainInterpretation.map hcomp M).maxElem := Fin.ext <| by
     change J.toDomainInterpretation.card M' - 1 = (J.comp I).toDomainInterpretation.card M - 1
     rw [hc₁, hc₂, ← pow_mul, Nat.mul_comm]
   have hedge (x y : J.toDomainInterpretation.map hJ M') :
       graphAdj (J.toDomainInterpretation.map hJ M') x y ↔
         graphAdj ((J.comp I).toDomainInterpretation.map hcomp M) (e x) (e y) := by
-    have hcast : Fin.cast hc₂ ∘ ![e x, e y] = iso ∘ (Fin.cast hc₁ ∘ ![x, y]) := by
-      funext b
-      cases b using Fin.cases with
-      | zero => rfl
-      | succ b' => exact Subsingleton.elim b' 0 ▸ rfl
+    have hcast : Fin.cast hc₂ ∘ ![e x, e y] = iso ∘ (Fin.cast hc₁ ∘ ![x, y]) :=
+      funext (Fin.cases rfl fun b' => Subsingleton.elim b' 0 ▸ rfl)
     rw [graphAdj, graphAdj, J.relMap_map_toDomainInterpretation hl,
       (J.comp I).relMap_map_toDomainInterpretation (Nat.mul_pos hl hk)]
     change (J.inputStructure (n := M.size ^ k)).RelMap Language.adj (Fin.cast hc₁ ∘ ![x, y]) ↔
@@ -255,25 +250,18 @@ theorem exists_fullTupleInterpretation_Reach_of_encodedLanguage_mem_NL {L : Lang
   refine ⟨(Fintype.card (Register k) + 2) * K', hd, J.comp I, fun M => ?_⟩
   let a := encode v M
   have ha : v.WellFormed a := v.wellFormed_encode M (Equiv.refl M)
-  obtain ⟨hdec_all, -⟩ := hdec
-  obtain ⟨hspace, hacc⟩ := hdec_all a
+  obtain ⟨hspace, hacc⟩ := hdec.1 a
   obtain ⟨hn, hfit⟩ := hpow a ha M.size_ge_two hspace
-  change (encStructure a).length < M.size ^ K' at hn
-  change ∀ u, _ → Fits (M.size ^ K') _ at hfit
-  have hcomp := mem_Reach_comp (hcomp := (J.comp I).admissible_toDomainInterpretation hd)
-    (hJ := J.admissible_toDomainInterpretation hl) hK' hl I J M
-  let P : Structure v.powerLanguage :=
-    ⟨M.size ^ K', FullTupleInterpretation.two_le_pow (n := M.size) hK',
-      v.powerStructure a (M.size ^ K')⟩
-  rw [v.inputStructure_orderedPowerInterpretation K' har hK' M] at hcomp
   let _ : Fact (2 ≤ M.size ^ K') := ⟨FullTupleInterpretation.two_le_pow (n := M.size) hK'⟩
   let _ := v.powerStructure a (M.size ^ K')
-  have hJ_reach : J.toDomainInterpretation.map (J.admissible_toDomainInterpretation hl) P ∈ Reach ↔
-      ntm.Accepts (encStructure a) :=
-    mem_Reach_configurationGraphInterpretation P
-      (v.realize_inputSymbol ha hn) (v.realize_inputLength ha hn) hn ntm hfit
-  exact (mem_encodedLanguage_encode v K M).symm.trans
-    (hacc.trans (hJ_reach.symm.trans hcomp.symm))
+  rw [← mem_encodedLanguage_encode v K M, hacc,
+    mem_Reach_comp (hcomp := (J.comp I).admissible_toDomainInterpretation hd)
+      (hJ := J.admissible_toDomainInterpretation hl) hK' hl I J M,
+    v.inputStructure_orderedPowerInterpretation K' har hK' M]
+  exact (mem_Reach_configurationGraphInterpretation
+    ⟨M.size ^ K', FullTupleInterpretation.two_le_pow (n := M.size) hK',
+      v.powerStructure a (M.size ^ K')⟩
+    (v.realize_inputSymbol ha hn) (v.realize_inputLength ha hn) hn ntm hfit).symm
 
 /-- **Hardness of `Reach` for native `NL` under ordered first-order reductions**
 ([Immerman1999, Theorem 3.16]). -/
@@ -385,26 +373,18 @@ theorem toOrderedGraph_mem_Reach (I : STCONInstance) :
             exact Or.inr (Or.inl ⟨b, Fin.ext hb, hsa.tail hab⟩)
           · obtain rfl : a = I.t := by fin_index [shift]
             exact Or.inr (Or.inr ⟨hw, hsa⟩)
-        · rcases hedge with ⟨hu0, _⟩ | ⟨a, _, ha, _, _⟩ | ⟨ht, _⟩
-          · omega
-          · have := a.isLt; omega
-          · have := I.t.isLt; omega
+        · rcases hedge with ⟨hu0, _⟩ | ⟨a, _, ha, _, _⟩ | ⟨ht, _⟩ <;> omega
     rcases hinv hpath with h0 | ⟨a, ha, -⟩ | ⟨_, hst⟩
     · omega
-    · have ha' : a.val + 1 = I.n + 1 := (congrArg Fin.val ha).symm.trans hval
-      have := a.isLt
-      omega
+    · exact absurd (congrArg Fin.val ha) (by dsimp [shift]; omega)
     · exact hst
   · intro hst
-    have h1 : graphAdj I.toOrderedGraph 0 (shift I.s) :=
-      (hadj 0 (shift I.s)).mpr (Or.inl ⟨rfl, rfl⟩)
     have h2 : Relation.ReflTransGen (graphAdj I.toOrderedGraph) (shift I.s) (shift I.t) :=
       Relation.ReflTransGen.lift shift
         (fun a b hab => (hadj (shift a) (shift b)).mpr (Or.inr (Or.inl ⟨a, b, rfl, rfl, hab⟩)))
         I.s I.t hst
-    have h3 : graphAdj I.toOrderedGraph (shift I.t) I.toOrderedGraph.maxElem :=
-      (hadj (shift I.t) I.toOrderedGraph.maxElem).mpr (Or.inr (Or.inr ⟨rfl, hval⟩))
-    exact (Relation.ReflTransGen.head h1 h2).tail h3
+    exact (Relation.ReflTransGen.head ((hadj 0 (shift I.s)).mpr (Or.inl ⟨rfl, rfl⟩)) h2).tail
+      ((hadj (shift I.t) I.toOrderedGraph.maxElem).mpr (Or.inr (Or.inr ⟨rfl, hval⟩)))
 
 end Cslib.Complexity.STCONInstance
 
@@ -504,7 +484,8 @@ private theorem getD_rawOneHot {n k i : ℕ} (hk : k < n) (hi : i < n) :
     simp
   · rw [List.getElem?_append_right (by simp only [List.length_replicate]; omega)]
     obtain ⟨d, hd⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : i - k ≠ 0)
-    simp [hd, (by omega : d < n), hki.ne']
+    have hdlt : d < n := by omega
+    simp [hd, hdlt, hki.ne']
 
 private def yesSTEncoded : EncodedStructure :=
   (2, [ [false, false, false, false], [true, false], [true, false] ])
@@ -537,14 +518,9 @@ private theorem stconToSTEncoded_mem_iff (I : STCONInstance) :
       match idx, hidx with
       | 0, _ => exact I.length_matrix.trans (sq I.n).symm
       | 1, _ | 2, _ => exact (length_rawOneHot I.n _).trans (pow_one I.n).symm
-    change (stGraphVocabulary.WellFormed (I.n, tables) ∧
-        ∃ hn : 2 ≤ I.n, decoded stGraphVocabulary (I.n, tables) hn ∈ STReach) ↔ I ∈ STCON
-    simp only [hwf, true_and]
     let M := decoded stGraphVocabulary (I.n, tables) hn2
-    have hex : (∃ hn : 2 ≤ I.n, decoded stGraphVocabulary (I.n, tables) hn ∈ STReach) ↔
-        M ∈ STReach :=
-      ⟨fun ⟨_, h⟩ => h, fun h => ⟨hn2, h⟩⟩
-    rw [hex, mem_STReach, mem_STCON]
+    refine (⟨fun ⟨_, _, h⟩ => h, fun h => ⟨hwf, hn2, h⟩⟩ : _ ↔ M ∈ STReach).trans ?_
+    rw [mem_STReach, mem_STCON]
     have htuple1 (x : Fin I.n) : tupleIndex ![x] = x.val := by
       simp [tupleIndex_apply]
     have htuple2 (x y : Fin I.n) : tupleIndex ![x, y] = y.val * I.n + x.val := by

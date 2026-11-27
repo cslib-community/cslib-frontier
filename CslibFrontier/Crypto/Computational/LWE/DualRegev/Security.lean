@@ -848,18 +848,6 @@ private theorem distinguishingGame_uniformEnsemble (n m w : ℕ → ℕ)
           fun guess => guess ^^ bit) := by
   simp only [distinguishingGame_eq_bind, lweDistinguisher, LWE.uniformEnsemble, idealCipherGame,
     pmf_norm, lweExtractPublicKey_toBinary, lweExtractChallenge_toBinary, ProbComp.eval_uniform]
-  have hsplit := congrArg
-    (fun law : PMF (PublicKey (n security) (m security) (w security) ×
-        Ciphertext (m security) (w security)) =>
-      law.bind fun p =>
-        (ProbComp.eval (adversary.choose security (serializePublicKey p.1))).bind fun choice =>
-          (PMF.uniformOfFintype Bool).bind fun bit =>
-            (ProbComp.eval (adversary.guess security (Encryption.ChoiceOut.state choice)
-              (serializeCiphertext (p.2.1, p.2.2 + LWE.encodeBit (w security)
-                (if bit then Encryption.ChoiceOut.msg₁ choice
-                  else Encryption.ChoiceOut.msg₀ choice))))).bind fun guess =>
-              PMF.pure (guess ^^ bit))
-    (uniform_split_lweMatrix (m := m security) (n := n security) (w := w security))
   calc
     _ = ((PMF.uniformOfFintype (PublicKey (n security) (m security) (w security))).bind fun pk =>
           (PMF.uniformOfFintype (Ciphertext (m security) (w security))).map fun c => (pk, c)).bind
@@ -871,7 +859,8 @@ private theorem distinguishingGame_uniformEnsemble (n m w : ℕ → ℕ)
                   (if bit then Encryption.ChoiceOut.msg₁ choice
                     else Encryption.ChoiceOut.msg₀ choice))))).bind fun guess =>
                 PMF.pure (guess ^^ bit)) := by
-      simpa only [PMF.bind_map, PMF.bind_bind, Function.comp_def] using hsplit
+      rw [← uniform_split_lweMatrix, PMF.bind_map]
+      rfl
     _ = _ := by
       simp only [PMF.bind_map, PMF.bind_bind, Function.comp_def]
       pmf_swap with bit pk choice
@@ -920,7 +909,8 @@ theorem advantage_game_le (n m w η : ℕ → ℕ) (adversary : Encryption.Adver
         (distinguishingGame realPK (Encryption.keyDistinguisher enc adversary security))
         (distinguishingGame unifPK (Encryption.keyDistinguisher enc adversary security)) ≤
         (hidingError (n security) (m security) (w security) : ℝ) := by
-    rw [Game.advantage_eq_nndist, coe_nndist]
+    simp only [Game.advantage_eq_nndist, coe_nndist, hidingError, Real.coe_sqrt, NNReal.coe_div,
+      NNReal.coe_pow, NNReal.coe_ofNat]
     let cont (pk : PublicKey (n security) (m security) (w security)) :=
       ProbComp.eval (Encryption.keyDistinguisher enc adversary security (serializePublicKey pk))
     have hd :
@@ -933,9 +923,7 @@ theorem advantage_game_le (n m w η : ℕ → ℕ) (adversary : Encryption.Adver
       · simp only [distinguishingGame_eq_bind, realPK, cont, pmf_norm]
       · simp only [unifPK, uniformPublicKeyWord, distinguishingGame_eq_bind, cont,
           ← PMF.uniformOfFintype_prod, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, pmf_norm]
-    linarith [show (hidingError (n security) (m security) (w security) : ℝ) =
-      Real.sqrt ((2 : ℝ) ^ (w security * n security) / (2 : ℝ) ^ m security) by
-        simp [hidingError]]
+    linarith
   refine hhop1.trans ((add_comm _ _).le.trans (add_le_add ?_ (by exact_mod_cast hdistPK)))
   rw [distinguishingGame_realEnsemble, distinguishingGame_uniformEnsemble]
   simpa only [Game.advantage_self, add_zero] using Game.advantage_le_two_mul_uniform_bool_xor

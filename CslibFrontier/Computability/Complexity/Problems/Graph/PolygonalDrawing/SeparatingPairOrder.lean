@@ -89,14 +89,12 @@ theorem HasRegularContacts.opposite_orders_of_induced_reachable {G : Graph}
     | succ t =>
       have hm := contained l j (path k t.succ).2
       rw [← he, Prod.mk.eta, start k t.succ] at hm
-      rcases hm with hm | hm | hm
-      · exact ((outside k t).1 hm).elim
-      · exact ((outside k t).2 hm).elim
-      · exact (Set.disjoint_left.mp (hdisjoint hkl) (siteMem k t) hm).elim
+      exact hm.elim (fun h => ((outside k t).1 h).elim) fun h =>
+        h.elim (fun h => ((outside k t).2 h).elim)
+          fun h => (Set.disjoint_left.mp (hdisjoint hkl) (siteMem k t) h).elim
   have edgeNe {k l : Fin 3} (hkl : k ≠ l) (i : Fin (length k + 1)) (j : Fin (length l + 1)) :
       (path k i).1 ≠ (path l j).1 := fun he => by
-    have hj := sharedFirst hkl.symm j i he.symm
-    rw [sharedFirst hkl i j he, hj, first, first] at he
+    rw [sharedFirst hkl i j he, sharedFirst hkl.symm j 0 he.symm, first, first] at he
     exact hkl (haInj he)
   have allEdges : Function.Injective (fun p : (k : Fin 3) × Fin (length k + 1) =>
       (path p.1 p.2).1) := fun ⟨k, i⟩ ⟨l, j⟩ he => by
@@ -170,8 +168,8 @@ theorem HasRegularContacts.rotationDistance_lt_iff_of_separating_components {G :
       cases he : component y with
       | none => simp [S, he]
       | some E =>
-        have hCE : C ≠ E := fun h => hxy (hcomponents hc (h.symm ▸ he))
-        have hCE' := SimpleGraph.pairwise_disjoint_supp_connectedComponent K hCE
+        have hCE' := SimpleGraph.pairwise_disjoint_supp_connectedComponent K fun (h : C = E) =>
+          hxy (hcomponents hc (h.symm ▸ he))
         simp only [S, hc, he, Option.elim_some, Set.disjoint_left]
         rintro w ⟨p, hp, rfl⟩ ⟨q, hq, hw⟩
         exact Set.disjoint_left.mp hCE' hp (Subtype.ext (Subtype.ext hw) ▸ hq)
@@ -193,8 +191,8 @@ theorem HasRegularContacts.rotationDistance_lt_iff_of_separating_components {G :
     intro he
     have shared := congrArg (fun d : Dart G => d.reverse.vertex) he
     rcases paths x with hx | ⟨_, hx, _⟩ <;> rcases paths y with hy | ⟨_, hy, _⟩
-    · have hrev := congrArg Dart.reverse (hx.symm.trans (he.trans hy))
-      exact aNe hxy (by simpa only [Dart.reverse_reverse] using hrev)
+    · exact aNe hxy (by
+        simpa only [Dart.reverse_reverse] using congrArg Dart.reverse (hx.symm.trans (he.trans hy)))
     · rw [hx, Dart.reverse_reverse, ha] at shared
       exact (avoid y).1 (shared.symm ▸ hy)
     · rw [hy, Dart.reverse_reverse, ha] at shared
@@ -243,9 +241,7 @@ theorem HasRegularContacts.mergeSort_eq_reverse_of_separating_components {G : Gr
     let fromB (k : ι) := r.rotationDistance (b o) (b k)
     pieces.mergeSort (fun i j => decide (fromB i ≤ fromB j)) =
       (pieces.mergeSort (fun i j => decide (fromA i ≤ fromA j))).reverse := by
-  dsimp only
-  let fromA (k : ι) := r.rotationDistance (a o) (a k)
-  let fromB (k : ι) := r.rotationDistance (b o) (b k)
+  intro fromA fromB
   let order (rank : ι → ℕ) := pieces.mergeSort (fun i j => decide (rank i ≤ rank j))
   have hperm (rank : ι → ℕ) : (order rank).Perm pieces := List.mergeSort_perm _ _
   have sorted (rank : ι → ℕ) : (order rank).Pairwise (fun i j => rank i ≤ rank j) := by
@@ -261,10 +257,9 @@ theorem HasRegularContacts.mergeSort_eq_reverse_of_separating_components {G : Gr
         v hu hv a b ha hb haInj component hcomponents hports (hne hj) (hne hi))
   have revPerm : (order fromA).reverse.Perm pieces :=
     (List.reverse_perm _).trans (hperm fromA)
-  have revSorted : (order fromA).reverse.Pairwise (fun i j => fromB i ≤ fromB j) := by
-    rw [List.pairwise_reverse]
-    exact (sorted fromA).imp_of_mem fun hi hj he =>
-      (reverseLE ((hperm fromA).mem_iff.mp hi) ((hperm fromA).mem_iff.mp hj)).mp he
+  have revSorted : (order fromA).reverse.Pairwise (fun i j => fromB i ≤ fromB j) :=
+    List.pairwise_reverse.mpr ((sorted fromA).imp_of_mem fun hi hj he =>
+      (reverseLE ((hperm fromA).mem_iff.mp hi) ((hperm fromA).mem_iff.mp hj)).mp he)
   change order fromB = (order fromA).reverse
   refine ((hperm fromB).trans revPerm.symm).eq_of_pairwise ?_ (sorted fromB) revSorted
   intro i j hi hj hij hji

@@ -123,12 +123,11 @@ private theorem sum_powersetCard_chi (s : Finset ι) (x : ι → Bool) (m j : �
     (htrue : #{l ∈ s | x l = true} = m) (hfalse : #{l ∈ s | x l = false} = m) :
     ∑ T ∈ s.powersetCard (2 * j), chi ℝ T x = (-1) ^ j * m.choose j := by
   have hs : #s = 2 * m := by
-    rw [← card_filter_add_card_filter_not (s := s) (fun l => x l = true)]
-    simp only [Bool.not_eq_true, htrue, hfalse]
-    omega
+    have hcard := card_filter_add_card_filter_not (s := s) (fun l => x l = true)
+    simp only [Bool.not_eq_true, htrue, hfalse] at hcard; omega
   rcases lt_or_ge m j with hjm | hjm
-  · rw [powersetCard_eq_empty.2 (by omega), sum_empty, Nat.choose_eq_zero_of_lt hjm]
-    simp
+  · simp [powersetCard_eq_empty.2 (hs ▸ Nat.mul_lt_mul_of_pos_left hjm two_pos),
+      Nat.choose_eq_zero_of_lt hjm]
   have hV := Finset.prod_X_add_C_coeff s (fun l => ((-1 : ℝ) ^ (x l).toNat)) (k := #s - 2 * j)
     (by omega)
   rw [show #s - (#s - 2 * j) = 2 * j by omega] at hV
@@ -164,17 +163,9 @@ theorem fourierCoeff_signVal_majority_two_mul_empty (m : ℕ) :
       f x + f (x + fun _ => true) = (-2 : ℝ) * (if weight x = m then 1 else 0) := by
     have hnot : weight (fun i => !x i) + weight x = 2 * m := by simpa using weight_not_add x
     have hhalf : (2 * m + 1) / 2 = m := by omega
-    change signVal (majority (2 * m) x) +
-      signVal (majority (2 * m) (x + fun _ => true)) = _
-    rw [show (x + fun _ => true) = (fun i => !x i) from
-      funext fun i => Bool.xor_true (x i)]
-    rcases lt_trichotomy (weight x) m with hlt | heq | hgt
-    · simp [majority, threshold_apply, hhalf, show ¬m ≤ weight x by omega,
-        show m ≤ weight (fun i => !x i) by omega, ne_of_lt hlt]
-    · norm_num [majority, threshold_apply, hhalf, heq,
-        show m ≤ weight (fun i => !x i) by omega]
-    · simp [majority, threshold_apply, hhalf, show m ≤ weight x by omega,
-        show ¬m ≤ weight (fun i => !x i) by omega, ne_of_gt hgt]
+    have hcomp_eq : (x + fun _ => true) = fun i => !x i := funext fun i => Bool.xor_true (x i)
+    simp only [f, hcomp_eq, majority, threshold_apply, hhalf, signVal, decide_eq_true_eq]
+    split_ifs <;> first | omega | norm_num
   have htie : (𝔼 x : Fin (2 * m) → Bool, if weight x = m then (1 : ℝ) else 0) =
       (2 * m).choose m / (4 : ℝ) ^ m := by
     change (𝔼 x : Fin (2 * m) → Bool, if #{i ∈ univ | x i = true} = m then (1 : ℝ) else 0) = _
@@ -196,12 +187,11 @@ theorem derivative_signVal_majority (m : ℕ) (i : Fin (2 * m + 1)) (x : Fin (2 
       if #{l ∈ univ.erase i | x l = true} = m then 1 else 0 := by
   have ht : weight (update x i true) = weight (update x i false) + 1 := by
     rw [← weight_update_true (x := update x i false) (i := i) (by simp), update_idem]
+  have hhalf : (2 * m + 1 + 1) / 2 = m + 1 := by omega
   rw [derivative, card_filter_erase_eq_weight_update_false, majority, threshold_apply,
-    threshold_apply, ht, show (2 * m + 1 + 1) / 2 = m + 1 by omega]
-  generalize weight (update x i false) = w
-  by_cases h : w = m
-  · simp [h]
-  · simp [h, show m + 1 ≤ w + 1 ↔ m + 1 ≤ w by omega]
+    threshold_apply, ht, hhalf]
+  simp only [signVal, decide_eq_true_eq]
+  split_ifs <;> first | omega | norm_num
 
 /-- **The even Fourier coefficients of majority vanish** [O'Donnell, Theorem 5.19][ODonnell2014]:
 majority of an odd number of bits, read as signs, is odd. -/
@@ -281,15 +271,13 @@ theorem levelWeight_signVal_majority_of_odd (m j : ℕ) :
 theorem levelWeight_signVal_majority_of_even (m : ℕ) {k : ℕ} (hk : Even k) :
     levelWeight k (fun x => signVal (majority (2 * m + 1) x)) = 0 :=
   sum_eq_zero fun S hS => by
-    rw [fourierCoeff_signVal_majority_of_even m ((mem_filter.1 hS).2 ▸ hk)]
-    norm_num
+    simp [fourierCoeff_signVal_majority_of_even m ((mem_filter.1 hS).2 ▸ hk)]
 
 /-- The Fourier coefficient of majority of `2 m + 1` bits, read as signs, on a singleton is
 `C(2 m, m) / 4 ^ m`. -/
 theorem fourierCoeff_signVal_majority_singleton (m : ℕ) (i : Fin (2 * m + 1)) :
     fourierCoeff (fun x => signVal (majority (2 * m + 1) x)) {i} = (2 * m).choose m / 4 ^ m := by
-  rw [fourierCoeff_signVal_majority_of_card_eq m 0 (card_singleton i)]
-  simp
+  simpa using fourierCoeff_signVal_majority_of_card_eq m 0 (card_singleton i)
 
 /-- **The largest Fourier coefficients of majority are on singletons**
 [O'Donnell, Exercise 5.21][ODonnell2014]: `‖Maĵ‖_∞ = Maĵ({i})`. Every coefficient of majority of
@@ -363,16 +351,16 @@ theorem fourierCoeff_signVal_majority_of_card_add_card (m : ℕ) {S T : Finset (
     (h : #S + #T = 2 * m + 2) :
     fourierCoeff (fun x => signVal (majority (2 * m + 1) x)) T =
       (-1) ^ m * fourierCoeff (fun x => signVal (majority (2 * m + 1) x)) S := by
-  rcases Nat.even_or_odd #S with hS | ⟨j, hS⟩
-  · obtain ⟨a, ha⟩ := hS
-    rw [fourierCoeff_signVal_majority_of_even m ⟨a, ha⟩,
+  rcases Nat.even_or_odd #S with ⟨a, ha⟩ | ⟨j, hS⟩
+  · rw [fourierCoeff_signVal_majority_of_even m ⟨a, ha⟩,
       fourierCoeff_signVal_majority_of_even m ⟨m + 1 - a, by omega⟩, mul_zero]
   obtain ⟨r, rfl⟩ : ∃ r, m = j + r := ⟨m - j, by omega⟩
+  have hT : #T = 2 * r + 1 := by omega
+  have hpow : ((-1 : ℝ)) ^ r = (-1) ^ (j + r) * (-1) ^ j := by
+    rw [pow_add, mul_right_comm, ← pow_add, Even.neg_one_pow ⟨j, rfl⟩, one_mul]
   rw [fourierCoeff_signVal_majority_of_card_eq _ j hS,
-    fourierCoeff_signVal_majority_of_card_eq _ r (by omega : #T = 2 * r + 1),
-    ← Nat.choose_symm_add (a := j) (b := r), mul_add, ← Nat.choose_symm_add (a := 2 * j),
-    ← mul_add, show ((-1 : ℝ)) ^ r = (-1) ^ (j + r) * (-1) ^ j by
-      rw [pow_add, mul_right_comm, ← pow_add, Even.neg_one_pow ⟨j, rfl⟩, one_mul]]
+    fourierCoeff_signVal_majority_of_card_eq _ r hT, ← Nat.choose_symm_add (a := j) (b := r),
+    mul_add, ← Nat.choose_symm_add (a := 2 * j), ← mul_add, hpow]
   ring
 
 /-- **Complementary level weights of majority** [O'Donnell, Corollary 5.20][ODonnell2014]: for

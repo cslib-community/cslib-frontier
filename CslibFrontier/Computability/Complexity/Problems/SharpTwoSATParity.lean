@@ -91,10 +91,7 @@ private def typedQuery (φ : CNF ℕ) (odd : Bool) : CNF (Var φ) :=
 
 private theorem vars_typedQuery (φ : CNF ℕ) (odd : Bool) :
     (typedQuery φ odd).vars.toFinset = Finset.univ := by
-  apply Finset.eq_univ_of_forall
-  intro v
-  apply List.mem_toFinset.mpr
-  apply CNF.mem_vars.mpr
+  refine Finset.eq_univ_of_forall fun v => List.mem_toFinset.mpr (CNF.mem_vars.mpr ?_)
   have hstep (i : Fin φ.length) (ab : Choice) {c : Clause (Var φ)}
       (hc : c ∈ stepClauses φ i ab) : c ∈ typedQuery φ odd :=
     List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_flatMap.mpr
@@ -104,19 +101,17 @@ private theorem vars_typedQuery (φ : CNF ℕ) (odd : Bool) :
     obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hc
     let idx : Fin φ.length := ⟨j, hj⟩
     let l : {l // l ∈ φ[idx]} := ⟨(v.val, b), hl⟩
-    let g := gate (selector idx (false, true)) (sourceLiteral idx l)
-    refine ⟨g, hstep idx (false, true) ?_, !b, ?_⟩
-    · exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_map.mpr
-        ⟨l, List.mem_attach _ _, rfl⟩))
-    · exact List.mem_cons_of_mem _ (List.mem_singleton.mpr rfl)
+    exact ⟨gate (selector idx (false, true)) (sourceLiteral idx l),
+      hstep idx (false, true) (List.mem_cons_of_mem _ (List.mem_cons_of_mem _
+        (List.mem_map.mpr ⟨l, List.mem_attach _ _, rfl⟩))),
+      !b, List.mem_cons_of_mem _ (List.mem_singleton.mpr rfl)⟩
   · refine Fin.lastCases ?_ (fun j => ?_) i
     · exact ⟨[(state (Fin.last φ.length), odd)], List.mem_cons_of_mem _ List.mem_cons_self,
         odd, List.mem_cons_self⟩
-    · let g := gate (selector j (false, false)) (state j.castSucc, false)
-      exact ⟨g, hstep j (false, false) List.mem_cons_self, false,
-        List.mem_cons_of_mem _ List.mem_cons_self⟩
-  · let g := gate (selector i ab) (state i.castSucc, ab.1)
-    exact ⟨g, hstep i ab List.mem_cons_self, false, List.mem_cons_self⟩
+    · exact ⟨gate (selector j (false, false)) (state j.castSucc, false),
+        hstep j (false, false) List.mem_cons_self, false, List.mem_cons_of_mem _ List.mem_cons_self⟩
+  · exact ⟨gate (selector i ab) (state i.castSucc, ab.1),
+      hstep i ab List.mem_cons_self, false, List.mem_cons_self⟩
 
 private theorem eval_stepClauses_iff {φ : CNF ℕ} (σ : Var φ → Bool) (i : Fin φ.length)
     (ab : Choice) :
@@ -188,14 +183,11 @@ private theorem signedPathSum {m : ℕ} (sat : Fin m → Bool) (start : Bool) :
       pathWeight sat start path * paritySign (chain start path (Fin.last m))) =
       if ∀ i, sat i = true then paritySign start else 0 := by
   induction m generalizing start with
-  | zero => simp [pathWeight, chain, show Fin.last 0 = 0 by rfl]
+  | zero => simp [pathWeight, chain, Fin.last]
   | succ m ih =>
     rw [← (Fin.consEquiv fun _ : Fin (m + 1) => Bool).sum_comp, Fintype.sum_prod_type]
-    have htail (b : Bool) :
-        (∑ path : Fin m → Bool, pathWeight (Fin.tail sat) b path *
-          paritySign (Fin.cons (α := fun _ => Bool) b path (Fin.last m))) =
-        if ∀ i, (Fin.tail sat) i = true then paritySign b else 0 :=
-      ih (Fin.tail sat) b
+    have htail (b : Bool) := ih (Fin.tail sat) b
+    simp only [chain] at htail
     have hlast : Fin.last (m + 1) = (Fin.last m).succ := rfl
     simp only [Fin.consEquiv_apply, pathWeight_cons, chain, hlast, Fin.cons_succ, mul_assoc,
       ← Finset.mul_sum, htail]
@@ -216,18 +208,11 @@ private def assignmentEquiv (φ : CNF ℕ) :
 
 private theorem modelCount_typedQuery_filter (φ : CNF ℕ) (odd : Bool) :
     (typedQuery φ odd).modelCount =
-      (Finset.univ.filter fun σ : Var φ → Bool => (typedQuery φ odd).eval σ = true).card := by
-  refine CNF.modelCount_eq_card_filter id _ (fun σ τ _ _ => ?_) (fun σ => ?_)
-  · constructor
-    · intro h
-      exact fun v _ => congrFun h v
-    · intro h
-      funext v
-      apply h
-      apply List.mem_toFinset.mp
-      rw [vars_typedQuery]
-      exact Finset.mem_univ _
-  · exact ⟨fun hs => ⟨σ, hs, rfl⟩, by rintro ⟨τ, hτ, rfl⟩; exact hτ⟩
+      (Finset.univ.filter fun σ : Var φ → Bool => (typedQuery φ odd).eval σ = true).card :=
+  CNF.modelCount_eq_card_filter id _
+    (fun _ _ _ _ => ⟨fun h v _ => congrFun h v, fun h => funext fun v =>
+      h v (List.mem_toFinset.mp (vars_typedQuery φ odd ▸ Finset.mem_univ v))⟩)
+    (fun σ => ⟨fun hs => ⟨σ, hs, rfl⟩, fun ⟨_, hτ, h⟩ => h ▸ hτ⟩)
 
 private theorem sum_validFlags {m : ℕ} (sat left right : Fin m → Bool) :
     (∑ f : Fin m → Choice → Bool, if ∀ i, validChoices (sat i) (left i) (right i) (f i)
@@ -236,10 +221,9 @@ private theorem sum_validFlags {m : ℕ} (sat left right : Fin m → Bool) :
   classical
   have h := Fintype.card_congr
     (Equiv.subtypePiEquivPi (p := fun i => validChoices (sat i) (left i) (right i)))
-  rw [Fintype.card_pi] at h
-  simp_rw [card_validChoices] at h
-  rw [← Nat.cast_prod, ← h, Fintype.card_subtype]
-  rw [Finset.card_eq_sum_ones, Nat.cast_sum, Finset.sum_filter]
+  simp only [Fintype.card_pi, card_validChoices] at h
+  rw [← Nat.cast_prod, ← h, Fintype.card_subtype, Finset.card_eq_sum_ones, Nat.cast_sum,
+    Finset.sum_filter]
   simp
 
 private theorem modelCount_typedQuery_paths (φ : CNF ℕ) (odd : Bool) :
@@ -281,12 +265,8 @@ private theorem modelCount_typedQuery_sub (φ : CNF ℕ) :
       let sat (i : Fin φ.length) := φ[i].eval (φ.extendAssignment source)
       have h : (∀ i, sat i = true) ↔ φ.eval (φ.extendAssignment source) = true := by
         rw [CNF.eval_eq_true_iff]
-        constructor
-        · intro h c hc
-          obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hc
-          exact h ⟨i, hi⟩
-        · intro h i
-          exact h _ (List.getElem_mem _)
+        exact ⟨fun h c hc => (List.mem_iff_getElem.mp hc).elim fun i ⟨hi, hci⟩ => hci ▸ h ⟨i, hi⟩,
+          fun h i => h _ (List.getElem_mem _)⟩
       simp only [← h]
       change _ = if ∀ i, sat i = true then paritySign false else 0
       rw [← signedPathSum sat false]
@@ -308,49 +288,36 @@ private def label {φ : CNF ℕ} : Var φ → ℕ
   | .inr (.inr (i, ab)) => blockLabel i.val (selectorOffset ab)
 
 private theorem label_injective (φ : CNF ℕ) : Function.Injective (label (φ := φ)) := by
-  have hbit (b : Bool) : b.toNat ≤ 1 := by cases b <;> decide
-  rintro (v | (i | ⟨i, a, b⟩)) (w | (j | ⟨j, c, d⟩)) h <;>
-    simp only [label, blockLabel, selectorOffset] at h
+  have hoff (ab : Choice) : 2 ≤ selectorOffset ab ∧ selectorOffset ab ≤ 5 := by
+    rcases ab with ⟨a, b⟩
+    cases a <;> cases b <;> decide
+  have hoff_inj : Function.Injective selectorOffset := by
+    rintro ⟨a, b⟩ ⟨c, d⟩
+    cases a <;> cases b <;> cases c <;> cases d <;> decide
+  rintro (v | (i | ⟨i, ab⟩)) (w | (j | ⟨j, cd⟩)) h <;>
+    simp only [label, blockLabel] at h
   · exact congrArg Sum.inl (Subtype.ext (by omega))
   · omega
-  · have := hbit c
-    have := hbit d
-    omega
+  · exact absurd h (by have := hoff cd; omega)
   · omega
   · exact congrArg (Sum.inr ∘ Sum.inl) (Fin.ext (by omega))
-  · have := hbit c
-    have := hbit d
-    omega
-  · have := hbit a
-    have := hbit b
-    omega
-  · have := hbit a
-    have := hbit b
-    omega
-  · have ha := hbit a
-    have hb := hbit b
-    have hc := hbit c
-    have hd := hbit d
-    have hij : i = j := Fin.ext (by omega)
-    subst j
-    cases a <;> cases b <;> cases c <;> cases d <;> simp_all
+  · exact absurd h (by have := hoff cd; omega)
+  · exact absurd h (by have := hoff ab; omega)
+  · exact absurd h (by have := hoff ab; omega)
+  · have h1 := hoff ab
+    have h2 := hoff cd
+    refine congrArg (Sum.inr ∘ Sum.inr) (congrArg₂ Prod.mk (Fin.ext ?_) (hoff_inj ?_)) <;> omega
 
 private theorem length_clause_typedQuery (φ : CNF ℕ) (odd : Bool) {c : Clause (Var φ)}
     (hc : c ∈ typedQuery φ odd) : c.length ≤ 2 := by
   have hstep (i : Fin φ.length) (ab : Choice) : ∀ c ∈ stepClauses φ i ab, c.length ≤ 2 := by
-    simp only [stepClauses, List.mem_cons]
-    rintro _ (rfl | rfl | hm)
-    · exact le_rfl
-    · exact le_rfl
-    · split_ifs at hm with h
-      · cases hm
-      · obtain ⟨_, _, rfl⟩ := List.mem_map.mp hm
-        exact le_rfl
+    by_cases h : ab.1 = ab.2
+    · simp [stepClauses, h, gate]
+    · simp only [stepClauses, h, ↓reduceIte, List.forall_mem_cons, List.forall_mem_map]
+      exact ⟨le_rfl, le_rfl, fun _ _ => le_rfl⟩
   simp only [typedQuery, List.mem_cons, List.mem_flatMap] at hc
   rcases hc with rfl | rfl | ⟨i, _, ab, _, hc⟩
-  · exact Nat.le_succ 1
-  · exact Nat.le_succ 1
-  · exact hstep i ab _ hc
+  exacts [Nat.le_succ 1, Nat.le_succ 1, hstep i ab _ hc]
 
 /-- The even or odd parity query, with the original variables and the chain auxiliaries assigned
 disjoint natural-variable labels. `false` chooses even parity and `true` chooses odd parity. -/
@@ -381,12 +348,8 @@ private theorem parityQuery_eq_zipIdx (φ : CNF ℕ) (odd : Bool) :
     parityQuery φ odd =
       [(blockLabel 0 1, false)] :: [(blockLabel φ.length 1, odd)] ::
         φ.zipIdx.flatMap fun ci => choices.flatMap (indexedStep ci.1 ci.2) := by
-  have hzip : (List.finRange φ.length).map (fun i => (φ[i], i.val)) = φ.zipIdx := by
-    apply List.ext_getElem (by simp)
-    intro n hn hm
-    simp only [List.getElem_map, List.getElem_finRange, List.getElem_zipIdx, Nat.zero_add,
-      Fin.val_cast]
-    rfl
+  have hzip : (List.finRange φ.length).map (fun i => (φ[i], i.val)) = φ.zipIdx :=
+    List.ext_getElem (by simp) fun _ _ _ => by simp
   change (typedQuery φ odd).relabel label = _
   simp only [typedQuery, CNF.relabel, List.map_cons, List.map_flatMap]
   rw [← hzip, List.flatMap_map]

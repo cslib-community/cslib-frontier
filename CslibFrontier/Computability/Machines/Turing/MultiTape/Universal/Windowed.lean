@@ -142,12 +142,12 @@ private lemma getD_take' (l : List (Option ℕ)) (k m : ℕ) :
   · exact List.getD_eq_default _ _ (by simp; omega)
 
 private lemma cellAt_of_nonneg (t : Tape) {i : ℤ} (h : 0 ≤ i) :
-    cellAt t i = t.right.getD i.toNat none := by
-  simp only [cellAt, h, ↓reduceIte]
+    cellAt t i = t.right.getD i.toNat none :=
+  ite_eq_left h
 
 private lemma cellAt_of_neg (t : Tape) {i : ℤ} (h : i < 0) :
-    cellAt t i = t.left.getD (-i - 1).toNat none := by
-  simp only [cellAt, show ¬0 ≤ i by omega, ↓reduceIte]
+    cellAt t i = t.left.getD (-i - 1).toNat none :=
+  ite_eq_right h.not_ge
 
 private lemma cellAt_zero (t : Tape) : cellAt t 0 = t.read := by
   obtain ⟨_, _, _ | _⟩ := t <;> rfl
@@ -189,9 +189,8 @@ private lemma head_apply (t : Tape) (a : Option (Option ℕ) × SignType) :
 private lemma cellAt_apply (t : Tape) (a : Option (Option ℕ) × SignType) (h z : ℤ) :
     cellAt (t.apply a) (z - (h + a.2)) =
       if z = h then a.1.getD (cellAt t (z - h)) else cellAt t (z - h) := by
-  simp only [Tape.apply, cellAt_move]
-  rw [show z - (h + a.2) + a.2 = z - h by ring]
-  obtain ⟨_ | o, m⟩ := a <;> simp [cellAt_write, sub_eq_zero]
+  have hz : z - (h + a.2) + a.2 = z - h := by ring
+  obtain ⟨_ | o, m⟩ := a <;> simp [Tape.apply, cellAt_move, hz, cellAt_write, sub_eq_zero]
 
 private lemma length_left_apply (t : Tape) (a : Option (Option ℕ) × SignType)
     (h : 1 ≤ t.left.length) : ((t.apply a).left.length : ℤ) = t.left.length + a.2 := by
@@ -562,31 +561,28 @@ private theorem sim_spec (d : Desc) (x : List ℕ) (n : ℕ) : ∀ (c : SCfg) (w
       have habs : absApply (inCell x, p) (none, m) = (inCell x, (p : ℤ) + m) := by simp [absApply]
       rw [hm₂, ← habs]
       exact tr_apply hi (none, m)
-    · simp only [List.getElem?_cons_succ] at hW
-      simp only [view, List.getElem?_cons_succ, List.getElem?_map, Option.map_eq_some_iff] at hF
-      obtain ⟨t, ht, rfl⟩ := hF
+    · rw [List.getElem?_cons_succ] at hW
+      obtain ⟨t, ht, rfl⟩ := Option.map_eq_some_iff.1 (by simpa [view] using hF)
       simp only [view, List.getElem?_cons_succ, List.getElem?_map, getElem?_applyTapes, hW, ht,
         Option.map_some, Option.some.injEq] at hW' hF'
       exact hW' ▸ hF' ▸ realView_apply t _ ▸ tr_apply (hws k W t hW ht) _
   | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     intro c hq hlen hagr
     have hrs : firstHalf (n + 2) + (n + 2) / 2 = n + 2 := by simp only [firstHalf]; omega
-    rw [show n.succ.succ = n + 2 from rfl] at hagr ⊢
+    have hsucc : n.succ.succ = n + 2 := rfl
+    rw [hsucc] at hagr ⊢
     simp only [r₂, w₁, r₁] at ih₂ ⊢
     clear r₂ w₁ r₁
     generalize firstHalf (n + 2) = r at hrs ih₁ ih₂ ⊢
     generalize (n + 2) / 2 = s at hrs ih₂ ⊢
     obtain ⟨o₁, q₁, l₁, t₁⟩ := ih₁ c hq (by simpa [extract] using hlen)
       (fun k W F hW hF => by
-        simp only [extract, List.getElem?_map, Option.map_eq_some_iff] at hW
-        obtain ⟨W₀, hW₀, rfl⟩ := hW
+        obtain ⟨W₀, hW₀, rfl⟩ := Option.map_eq_some_iff.1 (by simpa [extract] using hW)
         exact ((hagr k W₀ F hW₀ hF).mono (by omega)).cut)
     have hle : ∀ r w, (extract r w).2.length = w.2.length := by simp [extract]
     have hlen₁ : (extract s (restore r w (sim d r (extract r w)).1)).2.length =
         (view x (run d x r c).1).length := by
-      rw [hle]
-      simp only [restore, List.length_zipWith, l₁, hle, length_view_run]
-      omega
+      simp only [hle, restore, List.length_zipWith, l₁, length_view_run]; omega
     obtain ⟨o₂, q₂, l₂, t₂⟩ := ih₂ (run d x r c).1 q₁ hlen₁ (fun k W F₁ hW hF₁ => by
         simp only [extract, restore, List.getElem?_map, Option.map_eq_some_iff,
           List.getElem?_zipWith_eq_some] at hW
@@ -596,8 +592,7 @@ private theorem sim_spec (d : Desc) (x : List ℕ) (n : ℕ) : ∀ (c : SCfg) (w
           (t₁ k _ F I F₁ (getElem?_extract hW₀) hF hI hF₁))
     rw [← hrs, run_add]
     refine ⟨by rw [o₁, o₂], q₂, ?_, fun k W F W' F' hW hF hW' hF' => ?_⟩
-    · rw [length_restore, l₂, hle, length_restore, l₁, hle]
-      omega
+    · simp only [length_restore, l₂, hle, l₁]; omega
     · simp only [restore, List.getElem?_zipWith_eq_some] at hW'
       obtain ⟨_, J, ⟨W₀, I, hW₀, hI, rfl⟩, hJ, rfl⟩ := hW'
       cases hW.symm.trans hW₀
@@ -634,13 +629,11 @@ theorem universal_eq_sim (d : Desc) (x : List ℕ) (t : ℕ) :
         Option.some.injEq] at hW hF
       subst hW hF
       exact Agr.cut fun z _ _ => cellAt_initWin_input x z
-    · simp only [extract, initWin, view, init, List.map_cons, List.getElem?_cons_succ,
-        List.getElem?_map, List.getElem?_replicate, Option.map_eq_some_iff] at hW hF
-      split_ifs at hW hF with hk
-      · obtain ⟨_, ⟨_, rfl⟩, rfl⟩ := hW
-        obtain ⟨_, ⟨_, rfl⟩, rfl⟩ := hF
-        exact Agr.cut fun z _ _ => rfl
-      · simp at hW
+    · simp only [extract, initWin, view, init, List.map_cons, List.map_replicate,
+        List.getElem?_cons_succ] at hW hF
+      obtain rfl := List.eq_of_mem_replicate (List.mem_of_getElem? hW)
+      obtain rfl := List.eq_of_mem_replicate (List.mem_of_getElem? hF)
+      exact Agr.cut fun _ _ _ => rfl
   obtain ⟨o, q, -, -⟩ := sim_spec d x t (init d) (extract t (initWin d x)) rfl
     (by simp [extract, initWin, view, init]) hagr
   change ((run d x t (init d)).2, (run d x t (init d)).1.state.isNone) = _

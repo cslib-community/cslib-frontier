@@ -101,9 +101,7 @@ theorem HasRegularContacts.opposite_three_path_orders {G : Graph} {D : Polygonal
       Dart.vertex (G := G) (edges j, b) = Dart.vertex (G := H) (j, b) := by
     have he := (Dart.edge_eq_vertices (G := G) (edges j)).symm.trans
       ((edgeEq j).symm.trans (Dart.edge_eq_vertices (G := H) j))
-    cases b
-    · exact congrArg Prod.fst he
-    · exact congrArg Prod.snd he
+    exact Bool.rec (congrArg Prod.fst he) (congrArg Prod.snd he) b
   let lift : Dart H ↪ Dart G := ⟨fun d => (edges d.1, d.2), fun _ _ h =>
     Prod.ext (edges.injective (Prod.mk.inj h).1) (Prod.mk.inj h).2⟩
   have liftVertex (d : Dart H) : (lift d).vertex = d.vertex := hEnds d.1 d.2
@@ -130,14 +128,12 @@ theorem HasRegularContacts.opposite_three_path_orders {G : Graph} {D : Polygonal
   let A := D.subdrawing edges id hEnds
   have hA : A.HasRegularContacts :=
     hD.subdrawing edges id hEnds hH (fun _ h => h) (fun _ _ _ _ h => h)
-  have dirEq (d : Dart H) : A.direction d = D.direction (lift d) := rfl
   have dirInj (a b : Dart H) (hab : a.vertex = b.vertex)
       (he : A.direction a = A.direction b) : a = b :=
     lift.injective (hR.directions_injective (lift a) (lift b)
       (by simpa only [liftVertex] using hab) he)
   let s := A.rotationOfDirections dirInj
   have hS : A.Realizes s := A.realizes_rotationOfDirections (fun d => hR.nonzero (lift d)) dirInj
-  have startAt (k : Fin 3) : (arm k 0).vertex = u := startVertex k 0
   have finishAt (k : Fin 3) : (arm k (Fin.last (length k))).reverse.vertex = v := by
     rw [finishVertex, Fin.lastCases_last]
   have armsNe {a b : Fin 3} (hab : a ≠ b) (i : Fin (length a + 1)) (j : Fin (length b + 1)) :
@@ -148,13 +144,13 @@ theorem HasRegularContacts.opposite_three_path_orders {G : Graph} {D : Polygonal
       (∃ k, d = (arm k (Fin.last (length k))).reverse ∧ d.vertex = v) ∨
       ∃ k j, (d = arm k j.succ ∨ d = (arm k j.castSucc).reverse) ∧ d.vertex = site k j := by
     obtain ⟨k, i, rfl | rfl⟩ := allDarts d
-    · exact Fin.cases (Or.inl ⟨k, rfl, startAt k⟩)
+    · exact Fin.cases (Or.inl ⟨k, rfl, startVertex k 0⟩)
         (fun j => Or.inr (Or.inr ⟨k, j, Or.inl rfl, startVertex k j.succ⟩)) i
     · exact Fin.lastCases (Or.inr (Or.inl ⟨k, rfl, finishAt k⟩))
         (fun j => Or.inr (Or.inr ⟨k, j, Or.inr rfl,
           by rw [finishVertex, Fin.lastCases_castSucc]⟩)) i
   let start : Fin 3 ≃ {d : Dart H // d.vertex = u} :=
-    Equiv.ofBijective (fun k => ⟨arm k 0, startAt k⟩)
+    Equiv.ofBijective (fun k => ⟨arm k 0, startVertex k 0⟩)
       ⟨fun _ _ he => by_contra fun hab => armsNe hab 0 0 (congrArg (·.val.1) he), fun d => by
         rcases classifyDart d.val with ⟨k, hk, _⟩ | ⟨_, _, hv⟩ | ⟨k, j, _, hs⟩
         · exact ⟨k, Subtype.ext hk.symm⟩
@@ -206,10 +202,9 @@ theorem HasRegularContacts.opposite_three_path_orders {G : Graph} {D : Polygonal
       fin_cases i <;> simp [h, a, b, c]
     have hlab : (lift a).vertex = (lift b).vertex := by simpa only [liftVertex] using hab
     have hlbc : (lift b).vertex = (lift c).vertex := by simpa only [liftVertex] using hbc
-    have large := hR.clockwise (lift a) (lift b) (lift c) hlab hlbc
-      (lift.injective.ne nab) (lift.injective.ne nbc) (lift.injective.ne nac)
     exact (inverse_rotate_eq_iff_interval s hab (hab.trans hbc) nab nac nbc hall).trans
-      ((hS.clockwise a b c hab hbc nab nbc nac).symm.trans large)
+      ((hS.clockwise a b c hab hbc nab nbc nac).symm.trans (hR.clockwise (lift a) (lift b)
+        (lift c) hlab hlbc (lift.injective.ne nab) (lift.injective.ne nbc) (lift.injective.ne nac)))
   simp only [← liftArm, ← liftReverse]
   exact (interval start).symm.trans (compare.trans (interval finish).not)
 

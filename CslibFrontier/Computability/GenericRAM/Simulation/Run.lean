@@ -246,8 +246,7 @@ theorem default_evalInstr {k : M.Config} {nextPC : ℕ} {i : Instr M r} {s t : F
   · exact default_resume h
   · obtain ⟨_, _, hr⟩ := Option.bind_eq_some_iff.mp h
     exact default_resume hr
-  · simp only [evalInstr] at h
-    split at h <;> simp at h
+  · obtain ⟨_, ⟨⟩⟩ := Option.ite_none_right_eq_some.mp h
 
 theorem length_entries_evalInstr_le {k : M.Config} {nextPC : ℕ} {i : Instr M r}
     {s t : FiniteState M r} (h : evalInstr k nextPC i s = some (.inl t)) :
@@ -258,8 +257,7 @@ theorem length_entries_evalInstr_le {k : M.Config} {nextPC : ℕ} {i : Instr M r
   · exact memory_resume h ▸ Nat.le_add_right _ _
   · obtain ⟨_, _, hr⟩ := Option.bind_eq_some_iff.mp h
     exact memory_resume hr ▸ Nat.le_add_right _ _
-  · simp only [evalInstr] at h
-    split at h <;> simp at h
+  · obtain ⟨_, ⟨⟩⟩ := Option.ite_none_right_eq_some.mp h
 
 /-- A continuing finite step preserves the memory default. -/
 theorem default_step {k : M.Config} {p : Program M r} {s t : FiniteState M r}
@@ -296,14 +294,10 @@ theorem length_entries_run_le {k : M.Config} {p : Program M r} {n : ℕ} {s t : 
     (h : run k p n s = some (.inl t)) :
     (SparseMemory.entries t.memory).length ≤ (SparseMemory.entries s.memory).length + n := by
   induction n generalizing s with
-  | zero =>
-    obtain ⟨⟨rfl⟩⟩ := h
-    simp
+  | zero => exact (Sum.inl.inj (Option.some.inj h)).symm ▸ le_rfl
   | succ n ih =>
     obtain ⟨u, hs, hr⟩ := finiteState_run_succ_inl h
-    have hstep := length_entries_step_le hs
-    have hrun := ih hr
-    omega
+    linarith [length_entries_step_le hs, ih hr]
 
 /-! ### Multi-step denotation and `Executes` correspondence -/
 
@@ -311,9 +305,7 @@ theorem length_entries_run_le {k : M.Config} {p : Program M r} {n : ℕ} {s t : 
 theorem runs_of_run_eq_inl {k : M.Config} {p : Program M r} {n : ℕ} {s t : FiniteState M r}
     (h : run k p n s = some (.inl t)) : GenericRAM.Runs k p s.denote t.denote n := by
   induction n generalizing s with
-  | zero =>
-    obtain ⟨⟨rfl⟩⟩ := h
-    exact .refl _
+  | zero => exact (Sum.inl.inj (Option.some.inj h)) ▸ .refl _
   | succ n ih =>
     obtain ⟨u, hs, hr⟩ := finiteState_run_succ_inl h
     exact (ih hr).head _ _ _ _ (by rw [GenericRAM.Next, ← denote_step, hs, denoteResult])
@@ -355,11 +347,7 @@ theorem run_eq_inr_of_executes {k : M.Config} {p : Program M r} {s : FiniteState
     run k p n s = some (.inr v) := by
   have hden := denote_run k p n s
   rw [GenericRAM.run_mono h.run_eq hmn, Option.map_some, eval] at hden
-  match hr : run k p n s with
-  | some (.inr w) =>
-    simp only [hr, output_inr, Option.some.injEq] at hden
-    exact congrArg (some ∘ Sum.inr) hden
-  | none | some (.inl _) => simp [hr] at hden
+  rcases hr : run k p n s with _ | (_ | w) <;> simp_all
 
 /-- A halting execution of `m ≤ n` instructions produces `some v` under `eval`. -/
 theorem eval_eq_some_of_executes {k : M.Config} {p : Program M r} {s : FiniteState M r}

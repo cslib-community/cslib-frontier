@@ -159,10 +159,8 @@ theorem sum_map_lookupCost_queriesWith_rainbowAttackStep (h : P → Y) (lookup :
   cases lookup (rainbowChainPure h g (τ - k) k (g (τ - 1 - k) y)) with
   | none => simp
   | some pw₀ =>
-    rw [sum_map_queriesWith_liftLeft_bind TableAttackSpec.lookupCost_inl, Nat.mul_zero,
-      Nat.zero_add, evalPure_rainbowChain,
-      sum_map_queriesWith_liftLeft_bind TableAttackSpec.lookupCost_inl, Nat.mul_zero, Nat.zero_add,
-      OracleComp.evalPure_query]
+    rw [sum_map_queriesWith_liftLeft_bind TableAttackSpec.lookupCost_inl, evalPure_rainbowChain,
+      sum_map_queriesWith_liftLeft_bind TableAttackSpec.lookupCost_inl, OracleComp.evalPure_query]
     split_ifs <;> simp
 
 /-- At step `k < τ`, `rainbowAttackStep` makes `k` hash queries when `lookup` misses and `τ` hash
@@ -402,9 +400,8 @@ private theorem sum_map_hashCost_hellmanLoop_of_no_false_alarm {h : P → Y}
     cases hlk : lookup z with
     | none =>
       have hrec := ih (g₀ (h z)) fun k hk pw₀ hlk' => by
-        rw [← Function.iterate_succ_apply (fun x => g₀ (h x)) k z] at hlk'
         simpa only [Nat.add_sub_cancel, Nat.sub_add_eq, Nat.sub_right_comm] using
-          hnofa (k + 1) (Nat.succ_lt_succ hk) pw₀ hlk'
+          hnofa (k + 1) (Nat.succ_lt_succ hk) pw₀ (by rwa [Function.iterate_succ_apply])
       simp only [hrec]; omega
     | some pw₀ =>
       exact ite_eq_left (by
@@ -446,9 +443,8 @@ private theorem add_le_sum_map_hashCost_hellmanLoop_of_false_alarm {h : P → Y}
     rw [Function.iterate_succ_apply] at hhit
     rw [Nat.add_sub_cancel, Nat.sub_add_eq, Nat.sub_right_comm] at hfa
     have hrec := ih (Nat.lt_of_succ_lt_succ hk) (fun j hj pw₁ hlk' => by
-      rw [← Function.iterate_succ_apply (fun x => g₀ (h x)) j z] at hlk'
       simpa only [Nat.add_sub_cancel, Nat.sub_add_eq, Nat.sub_right_comm] using
-        hbefore (j + 1) (Nat.succ_lt_succ hj) pw₁ hlk') hhit hfa
+        hbefore (j + 1) (Nat.succ_lt_succ hj) pw₁ (by rwa [Function.iterate_succ_apply])) hhit hfa
     rw [sum_map_hashCost_queriesWith_hellmanLoop_succ]
     cases hlk : lookup z with
     | none => simp only; omega

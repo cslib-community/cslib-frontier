@@ -61,10 +61,8 @@ variable {n : ℕ} {Γ α β State : Type*}
 private theorem exists_configLTS_mTr_extract {M : MPDA n State α Γ} {c c' : Config n State Γ}
     {w : List (α × Op n Γ)} (h : M.configLTS.MTr c w c') (a b : ℕ) :
     ∃ c₁ c₂, M.configLTS.MTr c₁ (w.extract a b) c₂ := by
-  rw [← List.take_append_drop a w] at h
-  obtain ⟨c₁, -, h₁⟩ := LTS.MTr.split h
-  rw [← List.take_append_drop (b - a) (w.drop a)] at h₁
-  obtain ⟨c₂, h₂, -⟩ := LTS.MTr.split h₁
+  obtain ⟨c₁, -, h₁⟩ := LTS.MTr.split (List.take_append_drop a w ▸ h)
+  obtain ⟨c₂, h₂, -⟩ := LTS.MTr.split (List.take_append_drop (b - a) (w.drop a) ▸ h₁)
   exact ⟨c₁, c₂, by rwa [List.extract_eq_take_drop]⟩
 
 private theorem net_take_append_nonneg {i : Fin n} {u v : List (α × Op n Γ)}
@@ -78,8 +76,7 @@ private theorem net_take_append_nonneg {i : Fin n} {u v : List (α × Op n Γ)}
 private theorem IsContext.isContextOf {v : List (α × Op n Γ)} (h : IsContext v)
     {μ : α × Op n Γ} (hμ : μ ∈ v) {i : Fin n} (hi : μ.2.stack = some i) : IsContextOf i v := by
   obtain ⟨o, ho⟩ := h
-  rcases ho μ hμ with h' | h' <;> rw [hi] at h' <;> cases h'
-  exact ho
+  rwa [← hi.symm.trans ((ho μ hμ).resolve_left (by simp [hi]))] at ho
 
 private theorem net_eq_zero_of_isContextOf {i j : Fin n} (hij : i ≠ j) :
     ∀ {u : List (α × Op n Γ)}, IsContextOf i u → net j u = 0
@@ -100,9 +97,8 @@ private theorem wellNested_of_isContextOf {M : MPDA n State α Γ} {c c' : Confi
     · exact ⟨net_eq_zero_of_isContextOf hij hv, fun k =>
         (net_eq_zero_of_isContextOf hij fun μ hμ => hv μ (List.mem_of_mem_take hμ)).symm.le⟩
   · rintro ⟨i', j', p, q, z, hij, -, -, ⟨a, γ, hp⟩, ⟨b, δ, hq⟩, -, -⟩
-    have h₁ : i' = i := by simpa [Op.stack] using hv _ (List.mem_of_getElem? hp)
-    have h₂ : j' = i := by simpa [Op.stack] using hv _ (List.mem_of_getElem? hq)
-    exact hij (h₁.trans h₂.symm)
+    exact hij ((by simpa [Op.stack] using hv _ (List.mem_of_getElem? hp) : i' = i).trans
+      (by simpa [Op.stack] using hv _ (List.mem_of_getElem? hq) : j' = i).symm)
 
 private theorem IsContextOf.eq_of_isPushOn {w : List (α × Op n Γ)} {i j : Fin n} {a b q : ℕ}
     (hctx : IsContextOf i (w.extract a b)) (haq : a ≤ q) (hqb : q < b) (hj : IsPushOn w j q) :
@@ -127,10 +123,9 @@ private theorem wellMatched_of_isContextOf {M : MPDA n State α Γ} {c c' : Conf
     rfl
   refine wellNested_of_isContextOf hrun' hctx ?_ fun k => ?_
   · simp [e, net_cons, net_append, hnet, net_nil, Op.net]
-  · rw [e]
-    rcases k with _ | k
-    · simp
-    · rw [List.take_succ_cons, net_cons, List.take_append, net_append]
+  · rcases k with _ | k
+    · simp [e]
+    · rw [e, List.take_succ_cons, net_cons, List.take_append, net_append]
       have h₁ := hk k
       rcases Nat.eq_zero_or_pos (k - (w.extract (p + 1) m).length) with h | h
       · simp only [h, List.take_zero, net_nil, Op.net, Op.kind, OpKind.net, ↓reduceIte]; omega
@@ -151,8 +146,7 @@ private theorem WellNested.wellMatched_of_extract {w : List (α × Op n Γ)} {s 
   have hlen : (w.extract s e).length = e - s := by simp; omega
   have hm'len := hm'.lt_length
   have hw' : w = w.take s ++ (w.extract s e ++ w.drop e) := by
-    rw [List.extract_eq_take_drop, show w.drop e = (w.drop s).drop (e - s) by
-      rw [List.drop_drop]; congr 1; omega, List.take_append_drop, List.take_append_drop]
+    rw [← w.drop_eq_extract_append_drop (hsq.trans hqe.le), List.take_append_drop]
   refine ⟨s + m', ?_, ?_⟩
   · have := (matches_append_left (w.take s) _ (q - s) m').mpr (hm'.append_right (w.drop e))
     rwa [← hw', List.length_take, Nat.min_eq_left (by omega), Nat.add_sub_cancel' hsq] at this
@@ -169,8 +163,9 @@ private theorem exists_matches_of_net_neg {w : List (α × Op n Γ)} {i : Fin n}
   simp only [Nat.cast_zero, zero_add] at hu hk
   have hlen : (w.extract (p + 1) e).length = e - (p + 1) := by simp; omega
   have hulen : u.length < e - (p + 1) := by simp [← hlen, hv]
+  have hpe : p + 1 + u.length ≤ e := by omega
   have hu' : w.extract (p + 1) (p + 1 + u.length) = u := by
-    simp [← w.take_extract (Nat.le_add_right _ _) (show p + 1 + u.length ≤ e by omega), hv]
+    simp [← w.take_extract (Nat.le_add_right _ _) hpe, hv]
   refine ⟨p + 1 + u.length, by omega, by omega, i, hp, ⟨b, δ, ?_⟩, by rwa [hu'], by rwa [hu']⟩
   simp [← List.getElem?_extract _ hulen, hv]
 
@@ -241,7 +236,7 @@ private theorem not_isContext_extract_holes {M : MPDA n State α Γ} {c c' : Con
   obtain ⟨hp'x, hxlen, hp'k⟩ := hp'open.2.of_isPushOn hp'j
   have hbx : b ≤ x := hbpend.1
   have hk : ∀ k, 0 ≤ net j ((w.extract (p' + 1) b).take k) := fun k => by
-    rw [← w.take_extract (show p' + 1 ≤ b by omega) (show b ≤ x + 1 by omega), List.take_take]
+    rw [← w.take_extract (Nat.succ_le_of_lt hp'b) (Nat.le_succ_of_le hbx), List.take_take]
     exact hp'k _
   have hctxv : IsContextOf j (w.extract (p' + 1) b) := fun μ hμ => by
     obtain ⟨k, hk₁, hk₂, hk⟩ := List.mem_extract_iff_getElem?.mp hμ
@@ -263,18 +258,18 @@ private theorem not_isContext_extract_holes {M : MPDA n State α Γ} {c c' : Con
     have e : w.extract (p' + 1 + q + 1) (x + 1) =
         (w.extract (p' + 1) b).drop (q + 1) ++
           (w.extract b (b + 1) ++ w.extract (b + 1) (x + 1)) := by
-      rw [List.drop_eq_extract, hlen, List.extract_extract _ (by omega),
-        w.extract_append_extract (show b ≤ b + 1 by omega) (show b + 1 ≤ x + 1 by omega),
-        show p' + 1 + (b - (p' + 1)) = b by omega,
-        w.extract_append_extract (show p' + 1 + (q + 1) ≤ b by omega) (show b ≤ x + 1 by omega)]
-      rfl
+      have hqb : p' + 1 + (q + 1) ≤ b := by omega
+      rw [List.drop_eq_extract, hlen,
+        List.extract_extract _ (Nat.add_sub_cancel' (Nat.succ_le_of_lt hp'b)).le,
+        w.extract_append_extract (Nat.le_succ b) (Nat.succ_le_succ hbx),
+        Nat.add_sub_cancel' (Nat.succ_le_of_lt hp'b),
+        w.extract_append_extract hqb (Nat.le_succ_of_le hbx), ← Nat.add_assoc]
     rw [e]
     refine net_take_append_nonneg hqk (net_take_append_nonneg (fun k => ?_) hbk) k
     rw [List.extract_eq_singleton hbj']
     rcases k with _ | k <;> simp [Op.net]
   by_cases hs : HolePush w (p' + 1 + q)
-  · have := hmax (p' + 1 + q) (by omega) (by omega) ⟨hs, hspend⟩ hsj
-    omega
+  · exact absurd (hmax (p' + 1 + q) (by omega) (by omega) ⟨hs, hspend⟩ hsj) (by omega)
   · obtain ⟨m, hm, hwn⟩ : WellMatched w (p' + 1 + q) := not_not.1 fun h => hs ⟨⟨j, hsj⟩, h⟩
     have hxm := hspend.lt_of_matches hsj hm
     exact hbnwm (hwn.wellMatched_of_extract (by have := hm.lt_length; omega) (by omega)
@@ -306,8 +301,9 @@ theorem ScopeBounded.holeBounded {M : MPDA n State α Γ} {s s' : State} {w : Li
       simpa [List.extract_eq_take_drop] using (hbal i).1
     have h₁ : 0 ≤ net i (w.extract 0 r₁) := by
       simpa [List.extract_eq_take_drop] using (hbal i).2 r₁
-    rw [← w.extract_append_extract (Nat.zero_le r₁) (show r₁ ≤ w.length by omega),
-      ← w.extract_append_extract (show r₁ ≤ r₁ + 1 by omega) (show r₁ + 1 ≤ w.length by omega),
+    have hr₁w : r₁ + 1 ≤ w.length := by omega
+    rw [← w.extract_append_extract (Nat.zero_le r₁) (Nat.le_of_succ_le hr₁w),
+      ← w.extract_append_extract (Nat.le_add_right r₁ 1) hr₁w,
       net_append, net_append, net_extract_succ hr₁i'] at h₀
     simp only [Op.net, Op.kind, OpKind.net, ↓reduceIte] at h₀
     omega
@@ -327,31 +323,27 @@ theorem ScopeBounded.holeBounded {M : MPDA n State α Γ} {s s' : State} {w : Li
   have hle_m₁ : ∀ a ∈ insert m₁ T, a ≤ m₁ := (Finset.forall_mem_insert _ _ _).2
     ⟨le_rfl, fun a ha => by have := Finset.mem_range.1 (Finset.mem_filter.mp ha).1; omega⟩
   have hcard := List.Splits.card_le (fun _ _ huv hv => IsContext.of_isInfix huv hv) (h r₁ m₁ hm₁)
-    ((insert m₁ T).image (· - r₁)) ?hT ?hTP
+    ((insert m₁ T).image (· - r₁))
+    (Finset.forall_mem_image.2 fun a ha =>
+      (Nat.sub_le_sub_right (hle_m₁ a ha) r₁).trans_lt (by simp; omega))
+    ?hTP
   · rw [Finset.card_image_of_injOn hinj, Finset.card_insert_of_notMem
       (by simp only [T, Finset.mem_filter, Finset.mem_range]; omega)] at hcard
     rw [hRT, Set.ncard_coe_finset]; omega
-  case hT =>
-    intro _ ht
-    obtain ⟨a, ha, rfl⟩ := Finset.mem_image.mp ht
-    have := hge a ha
-    have := hle_m₁ a ha
-    simp; omega
   case hTP =>
-    intro t ht t' ht' htt'
-    obtain ⟨a, ha, rfl⟩ := Finset.mem_image.mp ht
-    obtain ⟨b, hb, rfl⟩ := Finset.mem_image.mp ht'
+    simp only [Finset.forall_mem_image]
+    intro a ha b hb htt'
     have hra := hge a ha
-    have hrb := hge b hb
-    have hab : a < b := by omega
-    have hbm := hle_m₁ b hb
-    rw [List.extract_extract _ (by omega), Nat.add_sub_cancel' hra,
-      show r₁ + (b - r₁ + 1) = b + 1 by omega]
-    have haR := (Finset.mem_filter.mp ((Finset.mem_insert.mp ha).resolve_left (by omega))).2
+    have hb_eq : r₁ + (b - r₁ + 1) = b + 1 := by
+      rw [← Nat.add_assoc, Nat.add_sub_cancel' (hge b hb)]
+    rw [List.extract_extract _ (hb_eq.trans_le (Nat.succ_le_succ (hle_m₁ b hb))),
+      Nat.add_sub_cancel' hra, hb_eq]
+    have haR := (Finset.mem_filter.mp
+      ((Finset.mem_insert.mp ha).resolve_left (by have := hle_m₁ b hb; omega))).2
     rcases Finset.mem_insert.mp hb with rfl | hbT
     · exact not_isContext_extract_pop hrun hm₁ hr₁i haR.1.1 hra (by omega)
     · exact not_isContext_extract_holes hrun haR.1 (Finset.mem_filter.mp hbT).2.1
-        (Finset.mem_filter.mp hbT).2.2 hab
+        (Finset.mem_filter.mp hbT).2.2 (by have := hge b hb; omega)
 
 /-- The first sentence of Proposition 2 in Section 2.1 of [AkshayGastinKrishnaRoychowdhury2020],
 for rounds, with the bound `K * n` instead of `K`: the label sequence of a complete run with at

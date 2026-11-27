@@ -80,10 +80,7 @@ private theorem left_context {a : Symbol Γ Q} (p : List (Symbol Γ Q))
     (hc : (p ++ [a]).IsChain Compatible) (hh : (p ++ [a]).head? = some lb) (ha : Entry a) :
     ∃ L : List Γ, p = lb :: L.reverse.map (fun b => sym (b, false)) := by
   induction p using List.reverseRecOn generalizing a with
-  | nil =>
-    simp only [List.nil_append, List.head?_cons, Option.some.injEq] at hh
-    subst a
-    contradiction
+  | nil => exact False.elim (Option.some.inj hh ▸ ha : Entry lb)
   | append_singleton p x ih =>
     simp only [List.append_assoc, List.singleton_append, List.isChain_append_cons_cons] at hc
     rcases incoming_entry ha hc.2.1 with rfl | ⟨b, rfl⟩
@@ -106,10 +103,7 @@ private theorem right_context {b : Symbol Γ Q} (s : List (Symbol Γ Q))
     (hc : (b :: s).IsChain Compatible) (hh : (b :: s).getLast? = some rb) (hb : Exit b) :
     ∃ R : List Γ, s = R.map (fun a => sym (a, true)) ++ [rb] := by
   induction s generalizing b with
-  | nil =>
-    simp only [List.getLast?_singleton, Option.some.injEq] at hh
-    subst b
-    contradiction
+  | nil => exact False.elim ((Option.some.inj hh : b = rb) ▸ hb : Exit rb)
   | cons x s ih =>
     rcases outgoing_exit hb hc.rel with rfl | ⟨a, rfl⟩
     · exact ⟨[], by rw [chain_from_rb s hc.tail]; rfl⟩
@@ -213,9 +207,8 @@ private theorem end_context_either {c : MicroCfg Γ Q} {a a' : Symbol Γ Q}
     (hw : p ++ [a, rb] ++ s = word c ∨ p ++ [a', rb] ++ s = word c)
     (ha : Entry a) (ha' : Entry a') :
     ∃ L : List Γ, p = lb :: L.reverse.map (fun b => sym (b, false)) ∧ s = [] := by
-  rcases hw with hw | hw
-  · exact (prefix_context hw ha).imp fun _ hL => ⟨hL, end_context hw⟩
-  · exact (prefix_context hw ha').imp fun _ hL => ⟨hL, end_context hw⟩
+  exact hw.elim (fun hw => (prefix_context hw ha).imp fun _ hL => ⟨hL, end_context hw⟩)
+    fun hw => (prefix_context hw ha').imp fun _ hL => ⟨hL, end_context hw⟩
 
 variable [Inhabited Q]
 open Cslib.PostCorrespondence

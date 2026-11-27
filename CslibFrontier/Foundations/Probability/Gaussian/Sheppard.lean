@@ -125,10 +125,9 @@ private theorem angle_set_eq {k : ℝ} (hk : 0 ≤ k) :
   · have := (hmem |θ| ⟨abs_nonneg _, abs_le.2 ⟨by linarith, by linarith⟩⟩).1 (by rwa [cos_abs])
     rcases abs_cases θ with ⟨he, _⟩ | ⟨he, _⟩ <;> rw [he] at this
     exacts [Or.inl this, Or.inr ⟨by linarith, by linarith⟩]
-  · have hθ : π / 2 - a ≤ |θ| ∧ |θ| ≤ π / 2 + a := by
-      rcases h with ⟨h1, h2⟩ | ⟨h1, h2⟩
-      · exact ⟨le_abs.2 (Or.inl h1), abs_le.2 ⟨by linarith, h2⟩⟩
-      · exact ⟨le_abs.2 (Or.inr (le_neg.1 h2)), abs_le.2 ⟨h1, by linarith⟩⟩
+  · have hθ : π / 2 - a ≤ |θ| ∧ |θ| ≤ π / 2 + a :=
+      h.elim (fun ⟨h1, h2⟩ => ⟨le_abs.2 (Or.inl h1), abs_le.2 ⟨by linarith, h2⟩⟩)
+        fun ⟨h1, h2⟩ => ⟨le_abs.2 (Or.inr (le_neg.1 h2)), abs_le.2 ⟨h1, by linarith⟩⟩
     have hb := abs_lt.1 (show |θ| < π by linarith)
     exact ⟨cos_abs θ ▸ (hmem |θ| ⟨abs_nonneg _, by linarith⟩).2 hθ, by linarith, by linarith⟩
 
@@ -170,8 +169,7 @@ theorem gaussianReal_prod_setOf_abs_le_mul_abs {k : ℝ} (hk : 0 ≤ k) :
       ENNReal.ofReal p.1 • A.indicator
           (fun z => gaussianPDF 0 1 z.1 * gaussianPDF 0 1 z.2) (polarCoord.symm p) =
         ENNReal.ofReal ((2 * π)⁻¹ * (p.1 * exp (-2⁻¹ * p.1 ^ 2))) * B.indicator 1 p.2 := by
-    rintro ⟨r, θ⟩ ⟨hr, -⟩
-    have hr : 0 < r := hr
+    rintro ⟨r, θ⟩ ⟨(hr : 0 < r), -⟩
     have hiff : (r * cos θ, r * sin θ) ∈ A ↔ θ ∈ B := by
       simp only [hA, hB, mem_ofPred_eq, abs_mul, abs_of_pos hr]
       rw [mul_left_comm, mul_le_mul_iff_right₀ hr]
@@ -209,11 +207,11 @@ theorem gaussianReal_prod_setOf_abs_le_mul_abs_of_ne_zero {s r : ℝ≥0} (hs : 
     Measure.map_apply (by fun_prop) (measurableSet_le (by fun_prop) (by fun_prop))]
   have hpre : Prod.map (fun x => √(s : ℝ) * x) (fun x => √(r : ℝ) * x) ⁻¹'
       {p : ℝ × ℝ | |p.1| ≤ k * |p.2|} =
-        {p : ℝ × ℝ | |p.1| ≤ k * √(r : ℝ) / √(s : ℝ) * |p.2|} := by
-    ext p
-    simp only [mem_preimage, Prod.map_fst, Prod.map_snd, mem_ofPred_eq, abs_mul,
-      abs_of_nonneg (sqrt_nonneg _), div_mul_eq_mul_div, le_div_iff₀ hs', mul_comm √(s : ℝ),
-      mul_assoc]
+        {p : ℝ × ℝ | |p.1| ≤ k * √(r : ℝ) / √(s : ℝ) * |p.2|} :=
+    Set.ext fun p => by
+      simp only [mem_preimage, Prod.map_fst, Prod.map_snd, mem_ofPred_eq, abs_mul,
+        abs_of_nonneg (sqrt_nonneg _), div_mul_eq_mul_div, le_div_iff₀ hs', mul_comm √(s : ℝ),
+        mul_assoc]
   rw [hpre, gaussianReal_prod_setOf_abs_le_mul_abs (by positivity)]
 
 /-! ### Sheppard's bound -/
@@ -232,15 +230,15 @@ private theorem gaussianReal_prod_setOf_abs_sub_le_abs_le (s : ℝ≥0) (ν : Me
     ((gaussianReal 0 s).prod ν) {p : ℝ × ℝ | |p.1 - c| ≤ |p.2|} ≤
       ((gaussianReal 0 s).prod ν) {p : ℝ × ℝ | |p.1| ≤ |p.2|} := by
   have e (a y : ℝ) :
-      (fun x => (x, y)) ⁻¹' {p : ℝ × ℝ | |p.1 - a| ≤ |p.2|} = Icc (a - |y|) (a + |y|) := by
-    ext x
-    simp only [mem_preimage, mem_ofPred_eq, mem_Icc, abs_le]
-    exact ⟨fun ⟨h1, h2⟩ => ⟨by linarith, by linarith⟩, fun ⟨h1, h2⟩ => ⟨by linarith, by linarith⟩⟩
+      (fun x => (x, y)) ⁻¹' {p : ℝ × ℝ | |p.1 - a| ≤ |p.2|} = Icc (a - |y|) (a + |y|) :=
+    Set.ext fun x => by
+      simp only [mem_preimage, mem_ofPred_eq, mem_Icc, abs_le, le_sub_iff_add_le, neg_add_eq_sub,
+        sub_le_iff_le_add']
   rw [Measure.prod_apply_symm (measurableSet_le (by fun_prop) (by fun_prop)),
     Measure.prod_apply_symm (measurableSet_le (by fun_prop) (by fun_prop))]
-  refine lintegral_mono fun y => ?_
-  rw [e c y]
-  simpa only [← e 0 y, sub_zero] using gaussianReal_Icc_le 0 s c |y|
+  exact lintegral_mono fun y => by
+    rw [e c y]
+    simpa only [← e 0 y, sub_zero] using gaussianReal_Icc_le 0 s c |y|
 
 variable {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E] [FiniteDimensional ℝ E]
   [MeasurableSpace E] [BorelSpace E]
@@ -257,9 +255,8 @@ theorem measureReal_stdGaussian_mem_uIoc_le_arctan {u v : E} (huv : ‖u‖ = �
     ring
   set S : Set (ℝ × ℝ) := {p | |p.1 - 2 * t| ≤ |p.2|} with hS
   have hSm : MeasurableSet S := measurableSet_le (by fun_prop) (by fun_prop)
-  have hsub : {x | t ∈ Ι ⟪u, x⟫ ⟪v, x⟫} ⊆ (fun x => (⟪u + v, x⟫, ⟪v - u, x⟫)) ⁻¹' S := by
-    intro x hx
-    simpa only [mem_preimage, hS, mem_ofPred_eq, inner_add_left, inner_sub_left] using
+  have hsub : {x | t ∈ Ι ⟪u, x⟫ ⟪v, x⟫} ⊆ (fun x => (⟪u + v, x⟫, ⟪v - u, x⟫)) ⁻¹' S := fun x hx =>
+    by simpa only [mem_preimage, hS, mem_ofPred_eq, inner_add_left, inner_sub_left] using
       abs_add_sub_two_mul_le_of_mem_uIoc hx
   have hpair : Measurable fun x : E => (⟪u + v, x⟫, ⟪v - u, x⟫) := by fun_prop
   have hs0 : ‖u + v‖₊ ^ 2 ≠ 0 := pow_ne_zero 2 (nnNorm_ne_zero_iff.2 hne)
@@ -323,8 +320,7 @@ private theorem measureReal_stdGaussian_zero_mem_uIoc_eq_angle_of_norm_eq {u v :
   have h := (measureReal_mono (μ := stdGaussian E) hcompl).trans (measureReal_union_le _ _)
   rw [probReal_compl_eq_one_sub hmeas, hnull, add_zero] at h
   have hneg := measureReal_stdGaussian_mem_uIoc_le_angle (huv.trans (norm_neg v).symm) 0
-  rw [InnerProductGeometry.angle_neg_right, sub_div, div_self pi_ne_zero] at hneg
-  linarith
+  rw [InnerProductGeometry.angle_neg_right, sub_div, div_self pi_ne_zero] at hneg; linarith
 
 /-- **Sheppard's formula** [Sheppard1899] [O'Donnell, Example 11.19][ODonnell2014]: for nonzero
 `u` and `v` at angle `θ` and a standard Gaussian vector `X`, `⟪u, X⟫` and `⟪v, X⟫` differ in sign

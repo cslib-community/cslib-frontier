@@ -124,10 +124,10 @@ theorem gaifmanGraph_relStructure {M : Type*} (R : M → M → Prop) :
 /-- The Gaifman graph of the covering relation of a preorder is its Hasse diagram. -/
 theorem gaifmanGraph_covBy {α : Type*} [Preorder α] :
     @gaifmanGraph Language.graph α (relStructure (· ⋖ ·)) = SimpleGraph.hasse α := by
-  rw [gaifmanGraph_relStructure]
   ext x y
-  rw [SimpleGraph.fromRel_adj, SimpleGraph.hasse_adj]
-  exact ⟨fun h => h.2, fun h => ⟨fun hxy => h.elim (·.ne hxy) (·.ne hxy.symm), h⟩⟩
+  simp only [gaifmanGraph_relStructure, SimpleGraph.fromRel_adj, SimpleGraph.hasse_adj,
+    and_iff_right_iff_imp]
+  exact fun h hxy => h.elim (·.ne hxy) (·.ne hxy.symm)
 
 /-! ### Transitive closure on the successor relation -/
 
@@ -282,9 +282,8 @@ theorem not_exists_formula_transGen :
   rintro ⟨φ, hφ⟩
   refine not_exists_formula_reflTransGen.{u}
     ⟨φ ⊔ (Term.var 0).equal (Term.var 1), fun M _ _ a b => ?_⟩
-  rw [Relation.reflTransGen_iff_eq_or_transGen, Formula.realize_sup, hφ, Formula.realize_equal]
-  simp only [Term.realize_var, Matrix.cons_val_zero, Matrix.cons_val_one]
-  exact or_comm.trans (or_congr_left eq_comm)
+  rw [Relation.reflTransGen_iff_eq_or_transGen]
+  fo_simp [hφ, or_comm, eq_comm]
 
 /-! ### Undirected reachability -/
 
@@ -392,11 +391,8 @@ def distLE : ℕ → Language.graph.Formula (Fin 2)
 
 @[simp] theorem quantifierRank_distLE (k : ℕ) : quantifierRank (distLE k) = k := by
   induction k with
-  | zero =>
-    simp only [distLE, quantifierRank_sup, Term.equal, Relations.formula₂, Relations.formula,
-      quantifierRank_bdEqual, quantifierRank_relations_boundedFormula, max_self]
-  | succ k ih =>
-    simp only [distLE, quantifierRank_ex, quantifierRank_inf, quantifierRank_relabel, ih, max_self]
+  | zero => simp [distLE, Term.equal, Relations.formula₂, Relations.formula]
+  | succ k ih => simp [distLE, ih]
 
 theorem realize_distLE_zero {M : Type*} [Language.graph.Structure M] (x y : M) :
     (distLE 0).Realize ![x, y] ↔ x = y ∨ RelMap adj ![x, y] := by
@@ -419,11 +415,10 @@ theorem realize_distLE (G : SimpleGraph V) (k : ℕ) (x y : V) :
     rw [realize_distLE_zero, pow_zero, Nat.cast_one, SimpleGraph.edist_le_one_iff_adj_or_eq]
     exact Or.comm
   | succ k ih =>
-    have h2 : ((2 ^ (k + 1) : ℕ) : ℕ∞) = ((2 ^ k : ℕ) : ℕ∞) + ((2 ^ k : ℕ) : ℕ∞) := by
-      rw [pow_succ, mul_two, Nat.cast_add]
-    simp only [realize_distLE_succ, ih]
-    exact ⟨fun ⟨_, h1, h2'⟩ => SimpleGraph.edist_triangle.trans (h2 ▸ add_le_add h1 h2'),
-      fun h => SimpleGraph.exists_edist_le_of_edist_le_add (by rwa [Nat.cast_add, ← h2])⟩
+    simp only [realize_distLE_succ, ih, pow_succ, mul_two]
+    exact ⟨fun ⟨_, h1, h2⟩ => SimpleGraph.edist_triangle.trans
+        (by simpa only [Nat.cast_add] using add_le_add h1 h2),
+      SimpleGraph.exists_edist_le_of_edist_le_add⟩
 
 /-- **The locality radius must be exponential in the quantifier rank**
 ([Libkin, §4.3, p. 54][Libkin2004]): the rank-`(k + 1)` formula `distLE (k + 1)` distinguishes two

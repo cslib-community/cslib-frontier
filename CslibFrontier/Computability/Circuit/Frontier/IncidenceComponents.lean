@@ -88,9 +88,8 @@ theorem card_lt_of_partition {ι κ γ : Type*} [Fintype ι] [DecidableEq ι] [F
     omega
   have hUV : Disjoint (U A) (U (P \ A)) := disjoint_left.mpr fun i hiA hiB =>
     (mem_sdiff.mp (mem_filter.mp hiB).2).2 (mem_filter.mp hiA).2
-  have h1 := hbad A hA hkA
-  have h2 := hbad (P \ A) sdiff_subset hkB
-  rcases hdisj (U A) (U (P \ A)) hUV with h | h <;> omega
+  exact (hdisj (U A) (U (P \ A)) hUV).elim
+    (·.not_ge (hbad A hA hkA)) (·.not_ge (hbad (P \ A) sdiff_subset hkB))
 
 /-- Uniform bounds on the excess of every part combine without multiplying the additive term
 by the number of parts. The obstruction must hold for arbitrary disjoint coordinate sets. -/
@@ -109,15 +108,13 @@ theorem two_mul_card_lt_of_partition {ι κ γ : Type*} [Fintype ι] [DecidableE
   let N (c : γ) := (univ.filter fun i => a i = c).card
   let Q (c : γ) := (univ.filter fun j => b j = c).card
   let M := univ.sup fun c => N c - Q c
-  have hM (c : γ) : N c ≤ Q c + M := by
-    have := le_sup (f := fun c => N c - Q c) (mem_univ c)
-    omega
-  have hMbound : M ≤ (Fintype.card κ + L + 2 * k) / 2 := by
-    apply Finset.sup_le
-    intro c _
-    have hloc := hlocal c
-    change 2 * N c < 3 * Q c + L + 2 * k + 1 at hloc
-    have hQ : Q c ≤ Fintype.card κ := card_le_univ _
+  have hM (c : γ) : N c ≤ Q c + M :=
+    (Nat.le_add_of_sub_le (le_sup (f := fun c => N c - Q c) (mem_univ c))).trans_eq
+      (Nat.add_comm _ _)
+  have hMbound : M ≤ (Fintype.card κ + L + 2 * k) / 2 := Finset.sup_le fun c _ => by
+    have := hlocal c
+    have := card_le_univ (univ.filter fun j => b j = c)
+    dsimp only [N, Q] at *
     omega
   have htotal := card_lt_of_partition S a b hpart hM hdisj
   omega
@@ -166,8 +163,7 @@ theorem two_mul_card_lt_of_disjoint {ι κ : Type*} [Fintype ι] [DecidableEq ι
   let S' : J → Finset I := partSupport S a b c
   have hs' (j : J) : (S' j).card ≤ 3 := by
     change ((S j.val).subtype fun i => a i = c).card ≤ 3
-    rw [card_subtype]
-    exact (card_filter_le _ _).trans (hs j.val)
+    exact (card_subtype _ _).trans_le ((card_filter_le _ _).trans (hs j.val))
   have hT' (i : I) : (univ.filter fun j => i ∈ S' j).card ≤ T := by
     apply le_trans (card_le_card_of_injOn Subtype.val ?_ Subtype.val_injective.injOn)
       (hT i.val)

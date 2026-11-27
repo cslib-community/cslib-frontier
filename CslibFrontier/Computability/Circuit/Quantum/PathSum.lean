@@ -257,10 +257,8 @@ theorem run_ofCodes_apply (gs : List GateCode) (hgs : ∀ g ∈ gs, g.WellFormed
     (Circuit.run (Circuit.ofCodes m gs) x).ofLp y =
       (pathGap gs (List.ofFn x) (List.ofFn y) : ℂ) *
         (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) ^ hadamardCount gs := by
-  have h := sgn_mul_run_ofCodes_apply gs hgs x y false
-  simp only [sgn, Bool.false_eq_true, ite_false, one_mul] at h
-  rw [h, pathGap, Int.cast_sum]
-  rfl
+  simpa only [sgn, Bool.false_eq_true, ↓reduceIte, one_mul] using
+    (sgn_mul_run_ofCodes_apply gs hgs x y false).trans (by rw [pathGap, Int.cast_sum]; rfl)
 
 /-- The simulation keeps the register length. -/
 theorem length_foldl_pathStep (gs : List GateCode) (s π : List Bool) (σ : Bool) :
@@ -270,18 +268,6 @@ theorem length_foldl_pathStep (gs : List GateCode) (s π : List Bool) (σ : Bool
   | cons g gs ih =>
     obtain ⟨_ | _, t, cs⟩ := g <;> simp only [List.foldl_cons, pathStep, ih, List.length_set]
 
-private theorem pathTerm_eq (gs : List GateCode) (x y π : List Bool) :
-    pathTerm gs x y π =
-      if (pathRun gs x π).1 = y then (if (pathRun gs x π).2 then -1 else 1) else 0 :=
-  rfl
-
-private theorem onesPairTerm_eq (S : List ℕ) (gs : List GateCode) (x x' π π' : List Bool) :
-    onesPairTerm S gs x x' π π' =
-      if (pathRun gs x π).1 = (pathRun gs x' π').1 ∧
-          (S.all fun j => (pathRun gs x π).1.getD j false) = true then
-        (if (pathRun gs x π).2 ^^ (pathRun gs x' π').2 then -1 else 1) else 0 :=
-  rfl
-
 /-- Summing the products of two path contributions over the outcomes in which every qubit of `S`
 reads `1` gives the contribution of the pair. -/
 private theorem sum_onesAt_pathTerm_mul (S : List ℕ) (gs : List GateCode) (x x' π π' : List Bool)
@@ -289,16 +275,14 @@ private theorem sum_onesAt_pathTerm_mul (S : List ℕ) (gs : List GateCode) (x x
     ∑ y ∈ onesAt m S, pathTerm gs x (List.ofFn y) π * pathTerm gs x' (List.ofFn y) π' =
       onesPairTerm S gs x x' π π' := by
   have hs : (pathRun gs x π).1.length = m := (length_foldl_pathStep gs x π false).trans hx
-  simp only [pathTerm_eq, onesPairTerm_eq]
-  generalize pathRun gs x π = r at hs ⊢
-  rcases r with ⟨s, σ⟩
+  simp only [pathTerm, onesPairTerm]
+  rcases hr : pathRun gs x π with ⟨s, σ⟩
   rcases pathRun gs x' π' with ⟨s', σ'⟩
+  rw [hr] at hs
   dsimp only at hs ⊢
   let y₀ : Fin m → Bool := fun i => s.getD i false
-  have hs₀ : s = List.ofFn y₀ := by
-    apply List.ext_getElem (by simp [hs])
-    intro i h₁ _
-    simp [y₀, List.getD_eq_getElem?_getD, h₁]
+  have hs₀ : s = List.ofFn y₀ := List.ext_getElem (by simp [hs])
+    fun i h₁ _ => by simp [y₀, List.getD_eq_getElem?_getD, h₁]
   have hiff (y : Fin m → Bool) : s = List.ofFn y ↔ y = y₀ := by
     rw [hs₀, List.ofFn_inj, eq_comm]
   simp only [hiff, ite_mul, zero_mul]
@@ -332,8 +316,7 @@ projected gap of `S`. -/
 private theorem sum_onesAt_pathGap_sq (S : List ℕ) (gs : List GateCode) (x : List Bool)
     (hx : x.length = m) :
     ∑ y ∈ onesAt m S, pathGap gs x (List.ofFn y) ^ 2 = onesGap S gs x := by
-  simp only [sq]
-  exact sum_onesAt_pathGap_mul S gs x x hx
+  simpa only [sq, onesGap_eq_onesPairGap] using sum_onesAt_pathGap_mul S gs x x hx
 
 /-- **Probabilities are projected gaps over `2^h`**: for well-formed codes, the probability that
 every qubit of `S` reads `1` is `onesGap S` divided by `2^h`, where `h` counts the Hadamard
@@ -378,9 +361,7 @@ theorem sum_onesAt_star_run_mul_run (gs : List GateCode) (hgs : ∀ g ∈ gs, g.
   simp only [run_ofCodes_apply gs hgs, star_mul', star_pow, Complex.star_def, Complex.conj_ofReal,
     map_intCast]
   rw [← sum_onesAt_pathGap_mul S gs _ _ (List.length_ofFn), Int.cast_sum, Finset.sum_div]
-  refine Finset.sum_congr rfl fun y _ => ?_
-  rw [Int.cast_mul, div_eq_mul_one_div, ← hr]
-  ring
+  refine Finset.sum_congr rfl fun y _ => by rw [Int.cast_mul, div_eq_mul_one_div, ← hr]; ring
 
 /-- **A projected gap is a count between `0` and `2 ^ h`** for well-formed codes on the register
 `X`, since it is `2 ^ h` times a probability. -/

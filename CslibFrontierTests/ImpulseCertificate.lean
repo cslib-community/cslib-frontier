@@ -26,6 +26,9 @@ rejection is closed by `decide +kernel`. The clients are those of #8322:
   its initial output `h 0` vanishes;
 * the damped RLC-type client of #8321, `h t = exp (-t) sin t`: energy `1/8`;
 * a stable unobservable model with singular Gramian `diag (1/2, 0)`;
+* energy lower bounds: `Q = 1/4` certifies `1/4` for the scalar client, the exact Gramian encloses
+  the energy in `[1/2, 1/2]`, and a lower-bound certificate for the unstable `A = 1` is rejected
+  by its stability part, although its `Q = 10` passes the semidefiniteness check;
 * `A = diag (1, -1)` with unobservable unstable mode: an energy upper bound is accepted, and no
   Lyapunov certificate exists, so no internal-stability verdict follows.
 -/
@@ -45,7 +48,7 @@ def scalar : RatLTI 1 1 1 := ⟨[[-1]], [[1]], [[1]], [[0]]⟩
 def zero₁ : LDLCert := ⟨[[1]], [0]⟩
 
 /-- `P = 1`, `α = β = γ = 1`, `lo = hi = 1`: every residual is `0`. -/
-def scalarDecay : DecayCert := ⟨[[1]], 1, 1, 1, 1, 1, zero₁, zero₁, zero₁, zero₁, zero₁⟩
+def scalarDecay : DecayCert := ⟨⟨1, 1, 1, 1, 1⟩, [[1]], zero₁, zero₁, zero₁, zero₁, zero₁⟩
 
 theorem scalarDecay_ok : scalarDecay.check scalar = true := by decide +kernel
 
@@ -67,7 +70,8 @@ theorem scalar_settles : scalarDecay.impulseSettles 1 (1/100) (5/2) 12 = true :=
 
 example {v : Fin 1 → ℝ} (hv : v ⬝ᵥ v ≤ 1) {t : ℝ} (ht : 5 / 2 ≤ t) :
     scalar.toSystem.responseKernel t *ᵥ v ⬝ᵥ scalar.toSystem.responseKernel t *ᵥ v ≤ 1/100 := by
-  have := DecayCert.responseKernel_mulVec_sq_le_of_impulseSettles scalarDecay_ok scalar_settles
+  have := (DecayCert.decayInequalities scalarDecay_ok).responseKernel_mulVec_sq_le_of_impulseSettles
+    scalar_settles
     (v := v) (t := t) (by exact_mod_cast hv) (by norm_num; linarith)
   norm_num at this
   exact this
@@ -86,7 +90,8 @@ theorem scalar_stateSettles : scalarDecay.stateSettles 1 (1/100) (5/2) 12 = true
 example {x : ℝ → Fin 1 → ℝ}
     (hx : ∀ t ∈ Ici (0 : ℝ), HasDerivWithinAt x (scalar.toSystem.A *ᵥ x t) (Ici 0) t)
     (h0 : x 0 ⬝ᵥ x 0 ≤ 1) {t : ℝ} (ht : 5 / 2 ≤ t) : x t ⬝ᵥ x t ≤ 1/100 := by
-  have := DecayCert.dotProduct_self_le_of_stateSettles scalarDecay_ok scalar_stateSettles hx
+  have := (DecayCert.decayInequalities scalarDecay_ok).dotProduct_self_le_of_stateSettles
+    scalar_stateSettles hx
     (by exact_mod_cast h0) (t := t) (by norm_num; linarith)
   norm_num at this
   exact this
@@ -96,13 +101,14 @@ example : scalarDecay.stateSettles (-1) 1 0 1 = false := by decide +kernel
 
 /-- The decay certificate also proves internal stability. -/
 example : (toEuclideanCLM (𝕜 := ℝ) scalar.toSystem.A).IsExponentiallyStable :=
-  DecayCert.isExponentiallyStable scalarDecay_ok
+  (DecayCert.decayInequalities scalarDecay_ok).isExponentiallyStable
 
 /-- `h t ² ≤ exp (-2 t)` for `‖v‖₂ = 1`; here `h t = exp (-t)` and the envelope is attained. -/
 example (v : Fin 1 → ℝ) {t : ℝ} (ht : 0 ≤ t) :
     scalar.toSystem.responseKernel t *ᵥ v ⬝ᵥ scalar.toSystem.responseKernel t *ᵥ v ≤
       Real.exp (-2 * t) * (v ⬝ᵥ v) := by
-  simpa [scalarDecay] using DecayCert.responseKernel_mulVec_sq_le scalarDecay_ok v ht
+  simpa [scalarDecay] using
+    (DecayCert.decayInequalities scalarDecay_ok).responseKernel_mulVec_sq_le v ht
 
 /-- The first deliverable of #8322: the Gramian `W = 1/2` solves `Aᵀ W + W A + Cᵀ C = 0` exactly,
 `P = 1/2` proves stability (`-(Aᵀ P + P A) = 1`), and the energy is `tr (Bᵀ W B) = 1/2`. -/
@@ -135,6 +141,41 @@ example : ∫ t in Ioi 0, scalar.toSystem.responseKernel t 0 0 ^ 2 ≤ 1 := by
 example : ({ scalarBound with bound := 1/2 } : EnergyBoundCert).check scalar = false := by
   decide +kernel
 
+/-- `Q = 1/4` gives `Aᵀ Q + Q A + Cᵀ C = 1/2 ⪰ 0`, and `P = 1/2` proves stability: the energy is
+at least `tr (Bᵀ Q B) = 1/4`. -/
+def scalarLower : EnergyLowerCert :=
+  ⟨[[1/2]], ⟨⟨[[1]], [1/2]⟩, ⟨[[1]], [1]⟩⟩, [[1/4]], ⟨[[1]], [1/2]⟩, 1/4⟩
+
+theorem scalarLower_ok : scalarLower.check scalar = true := by decide +kernel
+
+example : 1/4 ≤ ∫ t in Ioi 0, ∑ i, ∑ j, scalar.toSystem.responseKernel t i j ^ 2 := by
+  simpa [scalarLower] using (EnergyLowerCert.integrableOn_Ioi_and_le_integral scalarLower_ok).2
+
+/-- Claiming more than `tr (Bᵀ Q B) = 1/4` from `Q = 1/4` is rejected. -/
+example : ({ scalarLower with bound := 1/2 } : EnergyLowerCert).check scalar = false := by
+  decide +kernel
+
+/-- The exact Gramian `1/2` as `Q` and as `W` encloses the energy in `[1/2, 1/2]`. -/
+example : ∫ t in Ioi 0, ∑ i, ∑ j, scalar.toSystem.responseKernel t i j ^ 2 ∈
+    Icc (1/2 : ℝ) (1/2) := by
+  have hl : (⟨[[1/2]], ⟨⟨[[1]], [1/2]⟩, ⟨[[1]], [1]⟩⟩, [[1/2]], zero₁, 1/2⟩ :
+      EnergyLowerCert).check scalar = true := by
+    decide +kernel
+  have hu : (⟨[[1/2]], ⟨[[1]], [1/2]⟩, zero₁, 1/2⟩ : EnergyBoundCert).check scalar = true := by
+    decide +kernel
+  simpa using (EnergyLowerCert.integrableOn_Ioi_and_integral_mem_Icc hl hu).2
+
+/-- The stability part is needed. For the unstable `A = 1`, `Q = 10` satisfies
+`Aᵀ Q + Q A + Cᵀ C = 21 ⪰ 0` although the energy is infinite; the certificate is rejected because
+its Lyapunov certificate is. -/
+example : (⟨[[1/2]], ⟨⟨[[1]], [1/2]⟩, ⟨[[1]], [1]⟩⟩, [[10]], ⟨[[1]], [21]⟩, 10⟩ :
+    EnergyLowerCert).check (⟨[[1]], [[1]], [[1]], [[0]]⟩ : RatLTI 1 1 1) = false := by
+  decide +kernel
+
+example : (⟨[[1]], [21]⟩ : LDLCert).checkPosSemidef 1
+    (rowsLin 1 1 1 (rowsGram 1 1 [[1]]) (lyapunovResidual 1 [[1]] [[10]])) = true := by
+  decide +kernel
+
 /-- A model with direct feedthrough gets no impulse-energy certificate. -/
 example : scalarEnergy.check (⟨[[-1]], [[1]], [[1]], [[1]]⟩ : RatLTI 1 1 1) = false := by
   decide +kernel
@@ -145,19 +186,24 @@ example : scalarBound.check (⟨[[-1]], [[1]], [[1]], [[1]]⟩ : RatLTI 1 1 1) =
 /-- The energy tail after `T`: `∫_T^∞ h(t)² dt ≤ exp (-2 T) / 2`. -/
 example {T : ℝ} (hT : 0 ≤ T) :
     ∫ t in Ioi T, scalar.toSystem.responseKernel t 0 0 ^ 2 ≤ Real.exp (-2 * T) / 2 := by
-  have := (DecayCert.integrableOn_Ioi_and_integral_Ioi_frobeniusSq_le scalarDecay_ok hT).2
+  have hD := DecayCert.decayInequalities scalarDecay_ok
+  have := (hD.integrableOn_Ioi_and_integral_Ioi_frobeniusSq_le hT).2
   have htr : rowsTrace 1 (rowsCongr 1 1 scalar.B [[1]]) = 1 := by decide +kernel
   simpa [htr, scalarDecay] using this
 
 /-- The numerical tail `∫_2^∞ h(t)² dt ≤ 1/100`, from `exp 4 ≥ expLower 12 4 > 50`; the
 claim `1/200` is rejected. -/
 example : ∫ t in Ioi (2 : ℝ), ∑ i, ∑ j, scalar.toSystem.responseKernel t i j ^ 2 ≤ 1/100 := by
-  have h : scalarDecay.tailBelow scalar (1/100) 2 12 = true := by decide +kernel
-  have := DecayCert.integral_Ioi_frobeniusSq_le_of_tailBelow scalarDecay_ok h
+  have h : scalarDecay.tailBelow (rowsTrace 1 (rowsCongr 1 1 scalar.B scalarDecay.P)) (1/100) 2
+      12 = true := by
+    decide +kernel
+  have := (DecayCert.decayInequalities scalarDecay_ok).integral_Ioi_frobeniusSq_le_of_tailBelow h
   norm_num at this ⊢
   exact this
 
-example : scalarDecay.tailBelow scalar (1/200) 2 12 = false := by decide +kernel
+example : scalarDecay.tailBelow (rowsTrace 1 (rowsCongr 1 1 scalar.B scalarDecay.P)) (1/200) 2
+    12 = false := by
+  decide +kernel
 
 /-! ### An RC circuit
 
@@ -174,7 +220,7 @@ theorem rc_energy : (⟨[[1/2000]], ⟨⟨[[1]], [1/2000]⟩, ⟨[[1]], [1]⟩�
 
 /-- Decay at rate `α = 1/τ = 1000 s⁻¹` with `P = 1`, `γ = 1` and `β = 10⁶`: the envelope
 `h t ² ≤ 10⁶ exp (-2000 t)` is attained. -/
-theorem rc_decay : (⟨[[1]], 1000, 1, 1, 1, 1000000, zero₁, zero₁, zero₁, zero₁, zero₁⟩ :
+theorem rc_decay : (⟨⟨1000, 1, 1, 1, 1000000⟩, [[1]], zero₁, zero₁, zero₁, zero₁, zero₁⟩ :
     DecayCert).check rc = true := by
   decide +kernel
 
@@ -196,7 +242,7 @@ theorem repeatedPole_energy : (⟨[[1/2, 1/4], [1/4, 3/4]],
 
 /-- Decay with `P = 1` at the rate `α = 1/2`, `γ = β = 1`: `(t exp (-t))² ≤ exp (-t)`. -/
 def repeatedPoleDecay : DecayCert :=
-  ⟨[[1, 0], [0, 1]], 1/2, 1, 1, 1, 1, ⟨[[1], [-1, 1]], [1, 0]⟩, zero₂, zero₂,
+  ⟨⟨1/2, 1, 1, 1, 1⟩, [[1, 0], [0, 1]], ⟨[[1], [-1, 1]], [1, 0]⟩, zero₂, zero₂,
     ⟨[[1], [0, 1]], [0, 1]⟩, zero₁⟩
 
 theorem repeatedPoleDecay_ok : repeatedPoleDecay.check repeatedPole = true := by decide +kernel

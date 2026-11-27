@@ -164,10 +164,9 @@ private theorem epochTickStage1Finish_spec {c U V n_max : ℕ} {θ : SeedWhp c U
   by_cases hdc0 : s.dirtyCount = 0
   · rw [ite_eq_left hdc0]
     have hno_old : ∀ b < numBucketsWhp n_max, ∀ loc < s.bktCount b,
-        s.locState b loc ≠ 2 + s.oldEp := by
-      intro b hb loc hloc hst
-      obtain ⟨j, hj, _⟩ := hold_dirty b hb loc hloc hst
-      omega
+        s.locState b loc ≠ 2 + s.oldEp := fun b hb loc hloc hst =>
+      let ⟨j, hj, _⟩ := hold_dirty b hb loc hloc hst
+      Nat.not_lt_zero j (hdc0 ▸ hj)
     refine step_of_inLiveTree_eq hc hom rfl hc.epochClock_lt
       (Nat.le_add_left 3 2) hc.rebCollision_zero rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
       rfl rfl rfl rfl (fun _ _ => rfl) (fun _ _ => rfl)
@@ -310,31 +309,29 @@ theorem epochTickStage1_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
         refine ⟨hc', hom', hs1, rfl, rfl, rfl, by omega, ?_, ?_, ?_, ?_⟩
         · intro j hj
           rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hj' | rfl
-          · rw [Function.update_of_ne (by omega : j ≠ fs.dirtyCount),
-              Function.update_of_ne (hne_prev j hj')]
-            exact hd_props j hj'
+          · simpa only [Function.update_of_ne hj'.ne, Function.update_of_ne (hne_prev j hj')] using
+              hd_props j hj'
           · simp [hb₀, hdf₀]
         · intro j₁ hj₁ j₂ hj₂ heq
           rcases Nat.lt_succ_iff_lt_or_eq.mp hj₁ with hj₁' | rfl <;>
             rcases Nat.lt_succ_iff_lt_or_eq.mp hj₂ with hj₂' | rfl
-          · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)] at heq
+          · rw [Function.update_of_ne hj₁'.ne, Function.update_of_ne hj₂'.ne] at heq
             exact hd_inj j₁ hj₁' j₂ hj₂' heq
-          · rw [Function.update_of_ne (by omega), Function.update_self] at heq
+          · rw [Function.update_of_ne hj₁'.ne, Function.update_self] at heq
             exact absurd heq (hne_prev j₁ hj₁')
-          · rw [Function.update_self, Function.update_of_ne (by omega)] at heq
+          · rw [Function.update_self, Function.update_of_ne hj₂'.ne] at heq
             exact absurd heq.symm (hne_prev j₂ hj₂')
           · rfl
         · intro id hid b' loc' hc'
-          by_cases hbb : b' = b₀
-          · subst hbb; right; exact ⟨fs.dirtyCount, Nat.lt_succ_self _, by simp⟩
+          rcases eq_or_ne b' b₀ with rfl | hbb
+          · exact Or.inr ⟨fs.dirtyCount, Nat.lt_succ_self _, by simp⟩
           · rw [Function.update_of_ne hbb]
-            rcases hall_or id hid b' loc' hc' with hleft | ⟨j, hj, hdb⟩
-            · exact Or.inl hleft
-            · exact Or.inr ⟨j, Nat.lt_succ_of_lt hj, by rwa [Function.update_of_ne (by omega)]⟩
+            exact (hall_or id hid b' loc' hc').imp_right fun ⟨j, hj, hdb⟩ =>
+              ⟨j, Nat.lt_succ_of_lt hj, Function.update_of_ne hj.ne _ _ ▸ hdb⟩
         · intro id hid b' loc' hc'
           rcases Nat.lt_succ_iff_lt_or_eq.mp hid with hid' | rfl
           · obtain ⟨j, hj, hdb⟩ := hlt_sc id hid' b' loc' hc'
-            exact ⟨j, Nat.lt_succ_of_lt hj, by rwa [Function.update_of_ne (by omega)]⟩
+            exact ⟨j, Nat.lt_succ_of_lt hj, by rwa [Function.update_of_ne hj.ne]⟩
           · rw [hchk] at hc'; injection hc' with hp; injection hp with hbb _
             exact ⟨fs.dirtyCount, Nat.lt_succ_self _, by simp [hbb]⟩
       · -- Only the cursor advances: the slot's bucket, if any, is already dirty.
@@ -350,9 +347,7 @@ theorem epochTickStage1_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
         intro id hid b' loc' hc'
         rcases Nat.lt_succ_iff_lt_or_eq.mp hid with hid' | rfl
         · exact hlt_sc id hid' b' loc' hc'
-        · rcases hall_or _ hlt b' loc' hc' with ⟨hq, _⟩ | hex
-          · exact absurd ⟨b', loc', hc', hq⟩ hnew
-          · exact hex
+        · exact (hall_or _ hlt b' loc' hc').resolve_left fun ⟨hq, _⟩ => hnew ⟨b', loc', hc', hq⟩
     rcases hstep with ⟨hc', hom', hs1', hclk', hbuf', hsc', hdc', hd_p', hd_i', hall_o', hlt_s'⟩
     by_cases hdone : oldTr.itemAlloc ≤ nextCur
     · rw [ite_eq_left hdone]

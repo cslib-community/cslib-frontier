@@ -94,8 +94,7 @@ theorem exists_check_pigeonhole {m n : ℕ} (h : n < m) {f : Fin m × Fin n → 
   obtain ⟨P, hP, hlen, -, hcp, ann, hann⟩ := exists_check_cnf_of_refutableInSize
     (toIneqs_relabel hf (pigeonhole m n) ▸ (refutableInSize_pigeonhole h).relabel f)
   refine ⟨P, hP, hlen, hcp, fun s hs => ?_⟩
-  rw [hann, List.mem_map] at hs
-  obtain ⟨l, -, rfl⟩ := hs
+  obtain ⟨l, -, rfl⟩ := List.mem_map.1 (hann ▸ hs)
   obtain ⟨ops, hops, hlen, -⟩ := l.exists_toStep_eq_pol _
   exact ⟨ops, hops, hlen⟩
 
@@ -120,11 +119,8 @@ theorem two_pow_le_of_forall_check_pigeonhole {n : ℕ} {f : Fin (n + 1) × Fin 
   obtain ⟨cert, hcert, hg⟩ := hsim _ P hP hcp hlen
   have hmin : min (lratHintCount cert.toList) (cert.size * ((n + 1) * n)) ≤
       min (lratHintCount cert.toList) cert.size * ((n + 1) * n + 1) := by
-    rcases le_total (lratHintCount cert.toList) cert.size with h | h
-    · rw [min_eq_left h]
-      exact (min_le_left _ _).trans (Nat.le_mul_of_pos_right _ (Nat.succ_pos _))
-    · rw [min_eq_right h]
-      exact (min_le_right _ _).trans (Nat.mul_le_mul_left _ (Nat.le_succ _))
+    simp only [min_def, mul_add, mul_one]
+    split_ifs <;> omega
   exact (two_pow_le_of_checkLRAT_pigeonhole hf hcert).trans
     (Nat.add_le_add_left (hmin.trans (Nat.mul_le_mul_right _ hg)) _)
 
@@ -150,7 +146,7 @@ theorem not_exists_polynomiallyBounded_checkLRAT_pigeonhole
     fun_prop
   obtain ⟨k, hk⟩ := hG.eventually_lt_two_pow.exists
   have := two_pow_le_of_forall_check_pigeonhole (hf (24 * k)) (hsim (24 * k))
-  rw [show 24 * k / 24 = k by omega] at this
+  rw [Nat.mul_div_cancel_left k (by decide)] at this
   exact absurd hk (not_lt.2 this)
 
 /-! ### VeriPB polynomially simulates LRAT, and not conversely -/
@@ -179,8 +175,7 @@ theorem exists_polynomiallyBounded_check_of_checkLRAT :
   refine ⟨(2 * ·), by fun_prop, fun φ s cert h hs => ⟨φ.toVeriPB cert, check_toVeriPB h, ?_⟩⟩
   have := length_toVeriPB_le φ cert
   have := hintCount_toVeriPB_le φ cert
-  dsimp only
-  omega
+  dsimp only; omega
 
 /-- **LRAT does not polynomially simulate VeriPB**, with the size of a proof its number of steps
 plus its number of hints, for VeriPB kernel proofs and LRAT certificates alike
