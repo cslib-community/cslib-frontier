@@ -36,7 +36,8 @@ per-node bound of `rest.length + 1` into `2 * t * height` on a tree whose root h
 resulting bounds, `countQueries_lookupQ_le` and its siblings, hold for every oracle, since the
 shape of the tree does not depend on the answers; `lookupQ_upperBound` and its siblings restate
 them as `Cslib.Query.UpperBound` over well-formed inputs; `lookupQ_upperBound_size` and
-`rankQ_upperBound_size` bound the cost in the number of entries instead. The
+`rankQ_upperBound_size` bound the cost in the number of entries instead, a bound monotone in
+that number by `monotone_mul_log_size`. The
 minimum and maximum make no comparisons at all. `countQueries_slotM_le` bounds the within-node
 linear search by one comparison per key. The bound is the comparison analysis of B-TREE-SEARCH
 in [CLRS2009], Section 18.2.
@@ -386,6 +387,12 @@ variable {α β : Type} [LinearOrder α] {t : ℕ}
 point queries. -/
 abbrev WFInput (α β : Type) [LinearOrder α] (t : ℕ) := {p : BTree α β × α // IsWF t p.1}
 
+/-- A bound `c * (log_t ((n + 1) / 2) + 1)` in the number `n` of entries is monotone in `n`, as
+`UpperBound.of_pointwise` requires. -/
+theorem monotone_mul_log_size (c t : ℕ) :
+    Monotone fun n => c * (Nat.log t ((n + 1) / 2) + 1) :=
+  fun _ _ h => Nat.mul_le_mul_left _ (Nat.succ_le_succ (Nat.log_mono_right (by omega)))
+
 /-- Lookup makes at most `2 * t` comparisons at each of at most `height` nodes. -/
 theorem lookupQ_upperBound :
     UpperBound (fun p : WFInput α β t => lookupQ p.val.2 p.val.1) (fun p => p.val.1.height)
@@ -426,8 +433,7 @@ theorem rankQ_upperBound :
 theorem lookupQ_upperBound_size :
     UpperBound (fun p : WFInput α β t => lookupQ p.val.2 p.val.1) (fun p => p.val.1.size)
       (fun n => 2 * t * (Nat.log t ((n + 1) / 2) + 1)) :=
-  UpperBound.of_pointwise
-    (fun _ _ h => Nat.mul_le_mul_left _ (Nat.succ_le_succ (Nat.log_mono_right (by omega))))
+  UpperBound.of_pointwise (monotone_mul_log_size _ t)
     fun oracle p => countQueries_lookupQ_le_log oracle p.property p.val.2
 
 /-- Rank in a well-formed tree of at most `n` entries makes at most
@@ -435,8 +441,7 @@ theorem lookupQ_upperBound_size :
 theorem rankQ_upperBound_size :
     UpperBound (fun p : WFInput α β t => rankQ p.val.2 p.val.1) (fun p => p.val.1.size)
       (fun n => 2 * t * (Nat.log t ((n + 1) / 2) + 1)) :=
-  UpperBound.of_pointwise
-    (fun _ _ h => Nat.mul_le_mul_left _ (Nat.succ_le_succ (Nat.log_mono_right (by omega))))
+  UpperBound.of_pointwise (monotone_mul_log_size _ t)
     fun oracle p => countQueries_rankQ_le_log oracle p.property p.val.2
 
 end UpperBounds
