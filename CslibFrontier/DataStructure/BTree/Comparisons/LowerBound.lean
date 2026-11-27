@@ -44,8 +44,10 @@ per-tree bound to `Cslib.Query.LowerBound` both over arbitrary `BTree α β × �
 increasing keys.
 
 This module covers comparison-based `rank` in `FreeM (LEQuery α)` (not machine-instruction lower
-bounds); the companion comparison lower bound for `lookup` (which requires total preorders with
-ties in `FreeM (LEQuery α)`) remains open under `#3674`.
+bounds). The companion comparison lower bound for `lookup` is in
+`CslibFrontier/DataStructure/BTree/Comparisons/LookupLowerBound.lean`. It needs total preorders
+with ties, because under linear orders alone equality is outside the oracle and a lookup program
+can be correct without asking.
 
 ## Main definitions
 

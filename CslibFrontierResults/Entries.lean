@@ -13442,8 +13442,10 @@ register_result "btree-rank-comparison-lower-bound" where
     FreeM (LEQuery α) query model: on any duplicate-free tree (rank_lowerBound_infinite), over \
     general (BTree α β × α) inputs (IsRank.lowerBound_infinite), and over well-formed B-trees \
     WFInput α β t of minimum degree t ≥ 2 (IsRank.lowerBound_wfInput_infinite). Bounds \
-    comparison queries in FreeM (LEQuery α) rather than machine instructions; the companion \
-    comparison lower bound for lookup remains open under #3674."
+    comparison queries in FreeM (LEQuery α) rather than machine instructions. The companion \
+    bound for lookup is proved in Cslib.DataStructure.BTree.IsLookup.lowerBound_wfInput_infinite \
+    for trees with distinct values under key oracles with ties; it is not registered here \
+    because it has no external source."
 
 register_result "nexp-bounded-acceptance-complete" where
   title := "Bounded nondeterministic acceptance is NEXP-complete, and its EXP membership \

@@ -41,8 +41,8 @@ comparisons, stated in the shape of the rank bound.
 2. **Distinct values.** The `n + 1` distinct answers that force the bound are the `n` stored
    values and absence, so the per-tree bound `lookup_lowerBound_infinite` assumes that the values
    of the tree are distinct, and the `Cslib.Query.LowerBound` forms assume `[Infinite β]`. Sets
-   (`β = Unit`) are therefore not covered; the bound for sets is open, since it needs a counting
-   argument over distinct comparison transcripts rather than distinct results.
+   (`β = Unit`) are therefore not covered; the bound for sets is open under `#3674`, since it needs
+   a counting argument over distinct comparison transcripts rather than distinct results.
 
 Given a tree of size `n` with distinct keys `xs` and distinct values, and a fresh key `k ∉ xs`,
 the `n + 1` key functions that send `xs[j]` to `2 * j` and `k` either to `2 * i` for some `i < n`
@@ -98,7 +98,7 @@ the oracle can answer both `k ≤ x` and `x ≤ k` for `k ≠ x`, so whether the
 is decided by comparisons, and the lower bound `lookup_lowerBound_infinite` holds. That bound also
 needs distinct values, since its `n + 1` distinct answers are the `n` stored values and absence;
 sets (`β = Unit`) are not covered, and the bound for them, which needs a counting argument over
-distinct comparison transcripts rather than distinct results, is open. -/
+distinct comparison transcripts rather than distinct results, is open under `#3674`. -/
 structure IsLookup (prog : α → BTree α β → FreeM (LEQuery α) (Option β)) : Prop where
   /-- Under the oracle of a key function that strictly orders `tree.toList`'s keys, `prog k tree`
   is the lookup of `key k` among the entries with mapped keys. -/
