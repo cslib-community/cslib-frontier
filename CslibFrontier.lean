@@ -2397,6 +2397,7 @@ public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime.
 public import CslibFrontier.Computability.Complexity.ImmermanVardi.Tableau.Correct
 public import CslibFrontier.Algorithms.Lean.StoerWagner.Basic
 public import CslibFrontier.Foundations.Combinatorics.Expander.Tower
+public import CslibFrontier.Algorithms.WordRAM.Quicksort.PointerPartition
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Relays
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.PromoteSlab
 public import CslibFrontier.Crypto.Protocols.UOV.Games
@@ -2911,6 +2912,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.Commuting
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Padded
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT.Simulators
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.PolyTime
+public import CslibFrontier.Algorithms.WordRAM.Quicksort.LocalSort
 public import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.TSP
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Product.Program
 public import CslibFrontier.Crypto.Computational.Lattice.QaryKernel
@@ -4657,6 +4659,7 @@ public import CslibFrontier.Crypto.Protocols.MAC.PolynomialEvaluation
 public import CslibFrontier.Computability.LogSpaceDerandomization.RowCompression.ClippedError
 public import CslibFrontier.Probability.IID.CollisionCount
 public import CslibFrontier.Computability.Complexity.FineGrained.MaxSAT.Histogram
+public import CslibFrontier.Algorithms.WordRAM.Quicksort.LocalIteration
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Polar
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CubicEdgeColoring
 public import CslibFrontier.Foundations.NumberTheory.PrimeWindow
@@ -6248,6 +6251,7 @@ public import CslibFrontier.DataStructure.BPlusTree.Range
 public import CslibFrontier.Languages.Probabilistic.Oracle.Lens
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.ConfigurationGraph.Basic
+public import CslibFrontier.Algorithms.WordRAM.Quicksort.LocalModel
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.ScanSet
 public import CslibFrontier.Foundations.Data.List.FixedWidth
 public import CslibFrontier.Crypto.Computational.Encryption.Bitwise
@@ -9693,6 +9697,7 @@ public import CslibFrontier.Foundations.Data.Nat.ChineseRemainder
 public import CslibFrontier.Computability.Complexity.Problems.Graph.SpanningTrees
 public import CslibFrontier.Algorithms.Lean.CDCL.Phase
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.Count
+public import CslibFrontier.Algorithms.WordRAM.Quicksort.StackInvariant
 public import CslibFrontier.Crypto.Computational.MLDSA.ResponseBinding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space
 public import CslibFrontier.Crypto.Primitives.UHF.XorHash.PRF
@@ -10258,6 +10263,7 @@ public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixHybr
 public import CslibFrontier.Computability.Circuit.Boolean.FirstOrder.Parity
 public import CslibFrontier.Logics.Propositional.CNF.Gadgets
 public import CslibFrontier.Foundations.NumberTheory.CRTFiniteSet
+public import CslibFrontier.Algorithms.WordRAM.Quicksort.LocalStack
 public import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.CorrDigraph
 public import CslibFrontier.Foundations.Data.Code.ListDecoding
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PartialDerivatives
@@ -10297,6 +10303,7 @@ public import CslibFrontier.Algorithms.PlantedClique.Encoding
 public import CslibFrontier.Computability.Complexity.Classes.Advice
 public import CslibFrontier.Computability.WordRAM.ExactNotation
 public import CslibFrontier.Computability.Circuit.Iteration
+public import CslibFrontier.Algorithms.WordRAM.Quicksort.PointerPivot
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Rank
 public import CslibFrontier.Computability.Complexity.FineGrained.CountingSparsifyContext
 public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability
