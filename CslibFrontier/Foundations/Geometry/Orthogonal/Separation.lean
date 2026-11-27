@@ -97,14 +97,12 @@ theorem segmentContactCheck_sound {allowed : List Point} {a b c d : Point}
   let uy := min (max a.2 b.2) (max c.2 d.2)
   have hx : (lx : ℝ) ≤ p.1 ∧ p.1 ≤ (ux : ℝ) := coord_mem_box ⟨ha.1, ha.2.1⟩ ⟨hc.1, hc.2.1⟩
   have hy : (ly : ℝ) ≤ p.2 ∧ p.2 ≤ (uy : ℝ) := coord_mem_box ha.2.2 hc.2.2
-  change decide (ux < lx ∨ uy < ly ∨ lx = ux ∧ ly = uy ∧ (lx, ly) ∈ allowed) = true at h
-  rw [decide_eq_true_eq] at h
-  rcases h with h | h | ⟨hxy, hyy, hmem⟩
+  rcases of_decide_eq_true h with h | h | ⟨hxy, hyy, hmem⟩
   · exact False.elim (not_int_bounds_of_lt h hx.2 hx.1)
   · exact False.elim (not_int_bounds_of_lt h hy.2 hy.1)
   · exact ⟨(lx, ly), hmem, Prod.ext
-      (le_antisymm (by change p.1 ≤ (lx : ℝ); rw [hxy]; exact hx.2) hx.1)
-      (le_antisymm (by change p.2 ≤ (ly : ℝ); rw [hyy]; exact hy.2) hy.1)⟩
+      (le_antisymm (hx.2.trans_eq (congrArg Int.cast hxy.symm)) hx.1)
+      (le_antisymm (hy.2.trans_eq (congrArg Int.cast hyy.symm)) hy.1)⟩
 
 /-- A route without repeated listed points is simple when every pair of distinct segments passes
 the contact check whose only allowed contact is their consecutive shared bend. -/
@@ -160,9 +158,7 @@ def coordMax (f : Point → ℤ) (p : Point) : Route → ℤ
 
 private theorem coordMin_le (f : Point → ℤ) :
     ∀ {p : Point} {r : Route} {a : Point}, a ∈ p :: r → coordMin f p r ≤ f a
-  | _, [], _, ha => by
-    obtain rfl := List.mem_singleton.mp ha
-    exact le_rfl
+  | _, [], _, ha => by simp [coordMin, List.mem_singleton.mp ha]
   | _, _ :: _, _, ha => by
     rcases List.mem_cons.mp ha with rfl | ha
     · exact min_le_left _ _
@@ -170,9 +166,7 @@ private theorem coordMin_le (f : Point → ℤ) :
 
 private theorem le_coordMax (f : Point → ℤ) :
     ∀ {p : Point} {r : Route} {a : Point}, a ∈ p :: r → f a ≤ coordMax f p r
-  | _, [], _, ha => by
-    obtain rfl := List.mem_singleton.mp ha
-    exact le_rfl
+  | _, [], _, ha => by simp [coordMax, List.mem_singleton.mp ha]
   | _, _ :: _, _, ha => by
     rcases List.mem_cons.mp ha with rfl | ha
     · exact le_max_left _ _
@@ -244,10 +238,8 @@ theorem routeContactCheck_sound {allowed : List Point} {r s : Route}
 /-- An empty permitted-contact list certifies disjoint continuous supports. -/
 theorem disjoint_support_of_routeContactCheck {r s : Route}
     (h : routeContactCheck [] r s = true) : Disjoint (support r) (support s) := by
-  rw [Set.disjoint_left]
-  intro p hr hs
-  obtain ⟨q, hq, _⟩ := routeContactCheck_sound h hr hs
-  exact List.not_mem_nil hq
+  exact Set.disjoint_left.mpr fun p hr hs =>
+    List.not_mem_nil (routeContactCheck_sound h hr hs).choose_spec.1
 
 /-- Testing against a singleton route certifies that a route avoids a specified vertex. -/
 theorem not_mem_support_of_routeContactCheck {r : Route} {q : Point}

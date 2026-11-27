@@ -122,21 +122,17 @@ theorem mem_permInvPermRel {I₀ I₁ : Finset ι} {target : ι} {p : Equiv.Perm
   obtain ⟨π, σ⟩ := p
   simp only [permInvPermRel, permInvLeft, mem_biUnion, mem_filter, mem_univ, true_and, mem_image,
     Prod.mk.injEq]
-  constructor
-  · rintro ⟨π', hπ', j, hj, rfl, rfl⟩
-    have hsym := symm_mul_swap_self π' j target
-    exact ⟨hπ', by rwa [hsym], by rw [hsym]⟩
-  · rintro ⟨h₀, h₁, hσ⟩
-    exact ⟨π, h₀, σ.symm target, h₁, rfl, hσ.symm⟩
+  refine ⟨?_, fun ⟨h₀, h₁, hσ⟩ => ⟨π, h₀, σ.symm target, h₁, rfl, hσ.symm⟩⟩
+  rintro ⟨π', hπ', j, hj, rfl, rfl⟩
+  simpa only [symm_mul_swap_self, and_true] using ⟨hπ', hj⟩
 
 /-- Swapping coordinates maps `permInvPermRel I₀ I₁ target` onto `permInvPermRel I₁ I₀ target`. -/
 theorem permInvPermRel_swap (I₀ I₁ : Finset ι) (target : ι) :
     (permInvPermRel I₀ I₁ target).map (Equiv.prodComm _ _).toEmbedding =
       permInvPermRel I₁ I₀ target := by
   ext ⟨σ, π⟩
-  simp only [mem_map_equiv, Equiv.prodComm_symm, Equiv.prodComm_apply, mem_permInvPermRel]
-  exact ⟨fun ⟨h₀, h₁, h⟩ => ⟨h₁, h₀, (eq_mul_swap_symm_iff π σ target).1 h⟩,
-    fun ⟨h₁, h₀, h⟩ => ⟨h₀, h₁, (eq_mul_swap_symm_iff π σ target).2 h⟩⟩
+  simp only [mem_map_equiv, Equiv.prodComm_symm, Equiv.prodComm_apply, Prod.fst_swap,
+    Prod.snd_swap, mem_permInvPermRel, and_left_comm, eq_mul_swap_symm_iff π σ target]
 
 /-- When `I₀` and `I₁` are nonempty, `permInvPermRel I₀ I₁ target` is nonempty. -/
 theorem permInvPermRel_nonempty {I₀ I₁ : Finset ι} (h₀ : I₀.Nonempty) (h₁ : I₁.Nonempty)
@@ -145,10 +141,8 @@ theorem permInvPermRel_nonempty {I₀ I₁ : Finset ι} (h₀ : I₀.Nonempty) (
   obtain ⟨j₁, hj₁⟩ := h₁
   let π : Equiv.Perm ι := Equiv.swap i₀ target
   have hπ : π.symm target = i₀ := (Equiv.symm_apply_eq π).2 (Equiv.swap_apply_left i₀ target).symm
-  have hσ : (π * Equiv.swap i₀ j₁).symm target = j₁ := by
-    simpa only [hπ] using symm_mul_swap_self π j₁ target
-  exact ⟨(π, π * Equiv.swap i₀ j₁),
-    mem_permInvPermRel.2 ⟨by rwa [hπ], by rwa [hσ], by rw [hπ, hσ]⟩⟩
+  exact ⟨(π, π * Equiv.swap (π.symm target) j₁), mem_permInvPermRel.2
+    ⟨hπ.symm ▸ hi₀, (symm_mul_swap_self π j₁ target).symm ▸ hj₁, by rw [symm_mul_swap_self]⟩⟩
 
 /-- Every related pair across disjoint `I₀` and `I₁` has distinct target preimages. -/
 theorem permInvPermRel_symm_ne {I₀ I₁ : Finset ι} (hdisj : Disjoint I₀ I₁) {target : ι}
@@ -168,8 +162,7 @@ theorem card_permInvPermRel_fst {I₀ I₁ : Finset ι} {target : ι}
     simp only [mem_filter, mem_permInvPermRel, mem_image, Prod.mk.injEq]
     refine ⟨fun ⟨⟨_, h₁, hσ⟩, hπ⟩ => ⟨σ.symm target, h₁, hπ.symm, hπ ▸ hσ.symm⟩, ?_⟩
     rintro ⟨j, hj, rfl, rfl⟩
-    have hsym := symm_mul_swap_self p.1 j target
-    exact ⟨⟨h₀, by rwa [hsym], by rw [hsym]⟩, rfl⟩
+    simpa only [symm_mul_swap_self, and_true] using ⟨h₀, hj⟩
   rw [hf, card_image_of_injective]
   intro j₁ j₂ hj
   simpa only [symm_mul_swap_self] using
@@ -280,26 +273,20 @@ theorem one_sub_mul_sqrt_min_le_of_permInversion_partition {ι V W : Type*}
     have hR : R.Nonempty := (permInvPermRel_nonempty hne₀ hne₁ target).map
     have hadv := one_sub_mul_sqrt_le_two_mul_mul_sqrt_value step U hψ₀ T hR
       (δ := δ) (m := #I₁) (m' := #I₀) (L := max #I₀ #I₁)
-      (fun p hp => by
-        obtain ⟨q, hq, rfl⟩ := mem_map.1 hp
-        exact hδ q hq)
-      (fun p hp => by
-        obtain ⟨q, hq, rfl⟩ := mem_map.1 hp
+      (forall_mem_map.2 hδ)
+      (forall_mem_map.2 fun q hq => by
         rw [← card_permInvPermRel_fst hq, filter_map, card_map]
         exact le_of_eq (congrArg card (filter_congr fun _ _ => by simp [DFunLike.coe_fn_eq])))
-      (fun p hp => by
-        obtain ⟨q, hq, rfl⟩ := mem_map.1 hp
+      (forall_mem_map.2 fun q hq => by
         rw [← card_permInvPermRel_snd hq, filter_map, card_map]
         exact le_of_eq (congrArg card (filter_congr fun _ _ => by simp [DFunLike.coe_fn_eq])))
-      (fun p hp k hk => by
-        obtain ⟨q, hq, rfl⟩ := mem_map.1 hp
+      (forall_mem_map.2 fun q hq k hk => by
         refine (le_of_eq ?_).trans (card_permInvPermRel_diff_mul_le hdisj hq hk)
         congr 1 <;> rw [filter_map, card_map] <;>
           exact congrArg card (filter_congr fun _ _ => by simp [DFunLike.coe_fn_eq]))
     have hprod : ((#I₁ : ℝ) * (#I₀ : ℝ)) =
         ((min #I₀ #I₁ : ℕ) : ℝ) * ((max #I₀ #I₁ : ℕ) : ℝ) := by
-      norm_cast
-      rw [mul_comm, min_mul_max]
+      exact_mod_cast (mul_comm #I₁ #I₀).trans (min_mul_max #I₀ #I₁).symm
     rw [hprod, Real.sqrt_mul (Nat.cast_nonneg _), ← mul_assoc] at hadv
     exact le_of_mul_le_mul_right hadv
       (Real.sqrt_pos.2 (Nat.cast_pos.2 ((card_pos.2 hne₀).trans_le (Nat.le_max_left _ _))))
@@ -343,12 +330,9 @@ theorem one_sub_mul_sqrt_div_two_le_of_permInversion {ι V W : Type*}
     (1 - δ) * √(Fintype.card ι / 2 : ℕ) ≤ 2 * T := by
   classical
   set n := Fintype.card ι
-  let F₀ : Finset (Fin n) := (Finset.range (n / 2)).attach.map
-    ⟨fun ⟨k, hk⟩ => ⟨k, by have := mem_range.1 hk; omega⟩,
-      fun ⟨a, _⟩ ⟨b, _⟩ h => by injection h with hab; ext; exact hab⟩
-  let I₀ : Finset ι := F₀.map (Fintype.equivFin ι).symm.toEmbedding
-  have hI₀ : #I₀ = n / 2 := by simp [I₀, F₀]
-  have hmin : min #I₀ #I₀ᶜ = n / 2 := by rw [card_compl, hI₀]; omega
+  let I₀ : Finset ι := (univ : Finset (Fin (n / 2))).map
+    ((Fin.castLEEmb (Nat.div_le_self n 2)).trans (Fintype.equivFin ι).symm.toEmbedding)
+  have hmin : min #I₀ #I₀ᶜ = n / 2 := by simp [I₀, card_compl]; omega
   rw [← hmin]
   exact one_sub_mul_sqrt_min_le_of_permInversion_partition step U hψ₀ T
     disjoint_compl_right target fun p hp =>

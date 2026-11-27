@@ -109,12 +109,8 @@ theorem IsSubmodular.insert_add_le [AddCommMonoid β] [Preorder β]
     {f : Finset α → β} (hf : IsSubmodular f)
     ⦃A B : Finset α⦄ (x : α) (hAB : A ⊆ B) (hx : x ∉ B) :
     f (insert x B) + f A ≤ f B + f (insert x A) := by
-  have hinter : B ∩ insert x A = A := by
-    ext y
-    simp only [Finset.mem_inter, Finset.mem_insert]
-    exact ⟨fun ⟨hyB, hy⟩ => hy.elim (fun hyx => absurd (hyx ▸ hyB) hx) id,
-      fun hyA => ⟨hAB hyA, Or.inr hyA⟩⟩
-  simpa only [Finset.union_insert, Finset.union_eq_left.mpr hAB, hinter] using hf B (insert x A)
+  simpa only [Finset.union_insert, Finset.union_eq_left.mpr hAB, Finset.inter_insert_of_notMem hx,
+    Finset.inter_eq_right.mpr hAB] using hf B (insert x A)
 
 /-- When `f` is also monotone, `f (insert x B) + f A ≤ f B + f (insert x A)` holds for every `x`
 without needing `x ∉ B`. -/
@@ -162,8 +158,7 @@ theorem isSubmodular_of_insert_add_le
   have h := union_add_le_of_insert_add_le (A := A) (D := B \ A) hdim
     (Finset.inter_subset_left (s₂ := B)) Finset.disjoint_sdiff
   have hIB : (A ∩ B) ∪ (B \ A) = B := by
-    ext y
-    by_cases hyA : y ∈ A <;> simp [hyA]
+    rw [Finset.inter_comm, Finset.union_comm, Finset.sdiff_union_inter]
   rwa [Finset.union_sdiff_self_eq_union, hIB] at h
 
 /-- **Diminishing-Returns Characterization of Submodularity** ([NemhauserWolseyFisher1978],
@@ -200,11 +195,9 @@ theorem isSubmodular_iff_marginalGain_le
     IsSubmodular f ↔
       ∀ ⦃A B : Finset α⦄ (x : α), A ⊆ B → x ∉ B → marginalGain f B x ≤ marginalGain f A x := by
   rw [isSubmodular_iff_insert_add_le]
-  refine ⟨fun h A B x hAB hx => ?_, fun h A B x hAB hx => ?_⟩
-  · simpa only [marginalGain, sub_le_iff_le_add, sub_add_eq_add_sub, le_sub_iff_add_le,
-      add_comm (f B)] using h x hAB hx
-  · simpa only [marginalGain, sub_le_iff_le_add, sub_add_eq_add_sub, le_sub_iff_add_le,
-      add_comm (f B)] using h x hAB hx
+  refine forall₂_congr fun A B => forall₃_congr fun x _ _ => ?_
+  simp only [marginalGain, sub_le_iff_le_add, sub_add_eq_add_sub, le_sub_iff_add_le,
+    add_comm (f B)]
 
 end DiminishingReturns
 

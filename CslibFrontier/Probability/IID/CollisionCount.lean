@@ -136,24 +136,15 @@ private theorem ex_occ_mul_occ (a b : α) (k : ℕ) :
   | zero => simp [ex, occurrenceCount_eq_sum]
   | succ k ih =>
     rw [ex_succ]
-    have hinner (c : α) : ex μ k (fun x =>
+    have hfun (c : α) : (fun x : Fin k → α =>
         (occurrenceCount (Fin.cons c x : Fin (k + 1) → α) a : ℝ) *
-          occurrenceCount (Fin.cons c x : Fin (k + 1) → α) b) =
+          occurrenceCount (Fin.cons c x : Fin (k + 1) → α) b) = fun x =>
         ((if c = a then 1 else 0) * (if c = b then 1 else 0) +
-          ((if c = a then 1 else 0) * (k * (μ b).toReal) +
-          (if c = b then 1 else 0) * (k * (μ a).toReal))) +
-          (k * (k - 1) * (μ a).toReal * (μ b).toReal +
-            k * (if a = b then (μ a).toReal else 0)) := by
-      have hfun : (fun x : Fin k → α =>
-          (occurrenceCount (Fin.cons c x : Fin (k + 1) → α) a : ℝ) *
-            occurrenceCount (Fin.cons c x : Fin (k + 1) → α) b) = fun x =>
-          ((if c = a then 1 else 0) * (if c = b then 1 else 0) +
-            ((if c = a then 1 else 0) * (occurrenceCount x b : ℝ) +
-              (if c = b then 1 else 0) * (occurrenceCount x a : ℝ))) +
-            (occurrenceCount x a : ℝ) * occurrenceCount x b :=
-        funext fun x => by rw [occurrenceCount_cons, occurrenceCount_cons]; ring
-      rw [hfun, ex_add, ex_add, ex_const, ex_add, ex_const_mul, ex_const_mul, ex_occ, ex_occ, ih]
-    simp only [hinner]
+          ((if c = a then 1 else 0) * (occurrenceCount x b : ℝ) +
+            (if c = b then 1 else 0) * (occurrenceCount x a : ℝ))) +
+          (occurrenceCount x a : ℝ) * occurrenceCount x b :=
+      funext fun x => by rw [occurrenceCount_cons, occurrenceCount_cons]; ring
+    simp only [hfun, ex_add, ex_const, ex_const_mul, ex_occ, ih]
     by_cases hab : a = b
     · subst hab
       simp [mul_add, sum_add_distrib, ← sum_mul, sum_toReal]
@@ -180,21 +171,13 @@ private theorem ex_collisionCount_mul_occ (b : α) (k : ℕ) :
   | zero => simp [ex, collisionCount]
   | succ k ih =>
     rw [ex_succ]
-    have hinner (c : α) : ex μ k (fun x => (collisionCount (Fin.cons c x : Fin (k + 1) → α) : ℝ) *
-        occurrenceCount (Fin.cons c x : Fin (k + 1) → α) b) =
-        (if c = b then 1 else 0) * (k * (μ c).toReal + k * (k - 1) / 2 * ∑ a, (μ a).toReal ^ 2) +
-          ((k * (k - 1) * (μ c).toReal * (μ b).toReal +
-            k * (if c = b then (μ c).toReal else 0)) +
-          (k * (k - 1) * (k - 2) / 2 * (∑ a, (μ a).toReal ^ 2) * (μ b).toReal +
-            k * (k - 1) * (μ b).toReal ^ 2)) := by
-      have hfun : (fun x : Fin k → α => (collisionCount (Fin.cons c x : Fin (k + 1) → α) : ℝ) *
+    have hfun (c : α) : (fun x : Fin k → α =>
+        (collisionCount (Fin.cons c x : Fin (k + 1) → α) : ℝ) *
           occurrenceCount (Fin.cons c x : Fin (k + 1) → α) b) = fun x =>
-          (if c = b then 1 else 0) * ((occurrenceCount x c : ℝ) + collisionCount x) +
-            ((occurrenceCount x c : ℝ) * occurrenceCount x b +
-              (collisionCount x : ℝ) * occurrenceCount x b) :=
-        funext fun x => by rw [collisionCount_cons, occurrenceCount_cons]; ring
-      rw [hfun, ex_add, ex_const_mul, ex_add, ex_add, ex_occ, ex_collisionCount, ih,
-        ex_occ_mul_occ]
+        (if c = b then 1 else 0) * ((occurrenceCount x c : ℝ) + collisionCount x) +
+          ((occurrenceCount x c : ℝ) * occurrenceCount x b +
+            (collisionCount x : ℝ) * occurrenceCount x b) :=
+      funext fun x => by rw [collisionCount_cons, occurrenceCount_cons]; ring
     have hsq : ∑ a, (μ a).toReal * (k * (k - 1) * (μ a).toReal * (μ b).toReal) =
         k * (k - 1) * (∑ a, (μ a).toReal ^ 2) * (μ b).toReal := by
       rw [mul_sum, sum_mul]
@@ -202,8 +185,8 @@ private theorem ex_collisionCount_mul_occ (b : α) (k : ℕ) :
     have hite : ∑ a, (μ a).toReal * (k * if a = b then (μ a).toReal else 0) =
         k * (μ b).toReal ^ 2 := by
       rw [sum_mul_mul_left, sum_mul_ite, sq]
-    simp only [hinner, mul_add, sum_add_distrib, sum_mul_ite_mul, hsq, hite, ← sum_mul,
-      sum_toReal]
+    simp only [hfun, ex_add, ex_const_mul, ex_occ, ex_collisionCount, ih, ex_occ_mul_occ, mul_add,
+      sum_add_distrib, sum_mul_ite_mul, hsq, hite, ← sum_mul, sum_toReal]
     push_cast
     ring
 

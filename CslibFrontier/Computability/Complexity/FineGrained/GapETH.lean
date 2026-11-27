@@ -175,10 +175,8 @@ theorem yes_GapKSAT_perfect (k : ℕ) {s : ℝ} (hs0 : 0 ≤ s) (hs1 : s < 1) :
 theorem no_GapKSAT_perfect_subset_compl (k : ℕ) {s : ℝ} (hs0 : 0 ≤ s) (hs1 : s < 1) :
     (GapKSAT (GapKSATSpec.perfect k s hs0 hs1)).no ⊆ (KSAT k)ᶜ := by
   intro φ hno hsat
-  rw [mem_no_GapKSAT] at hno
-  simp only [GapKSATSpec.perfect] at hno
-  have hzero : φ.unsatVal = 0 := (CNF.unsatVal_eq_zero_iff φ).mpr hsat.2
-  linarith [hno.2]
+  simp only [mem_no_GapKSAT, GapKSATSpec.perfect] at hno
+  linarith [hno.2, (CNF.unsatVal_eq_zero_iff φ).mpr hsat.2]
 
 /-- Enlarging clause width (`width₁ ≤ width₂`) or narrowing the gap
 (`completeness₂ ≤ completeness₁`, `soundness₁ ≤ soundness₂`) enlarges both `yes` and `no`, so
@@ -186,12 +184,10 @@ theorem no_GapKSAT_perfect_subset_compl (k : ℕ) {s : ℝ} (hs0 : 0 ≤ s) (hs1
 theorem GapKSAT_subset_of_le {P₁ P₂ : GapKSATSpec} (hw : P₁.width ≤ P₂.width)
     (hc : P₂.completeness ≤ P₁.completeness) (hs : P₁.soundness ≤ P₂.soundness) :
     (GapKSAT P₁).yes ⊆ (GapKSAT P₂).yes ∧ (GapKSAT P₁).no ⊆ (GapKSAT P₂).no := by
-  constructor
-  · intro φ hφ
-    rw [mem_yes_GapKSAT] at hφ ⊢
+  refine ⟨fun φ hφ => ?_, fun φ hφ => ?_⟩
+  · rw [mem_yes_GapKSAT] at hφ ⊢
     exact ⟨fun c hmem => (hφ.1 c hmem).trans hw, by linarith [hφ.2]⟩
-  · intro φ hφ
-    rw [mem_no_GapKSAT] at hφ ⊢
+  · rw [mem_no_GapKSAT] at hφ ⊢
     exact ⟨fun c hmem => (hφ.1 c hmem).trans hw, by linarith [hφ.2]⟩
 
 /-- **Width-`0` `GapKSAT` lies in `PromiseP`** for all thresholds `0 ≤ s < c ≤ 1`: a width-`0`
@@ -199,31 +195,19 @@ formula consists solely of empty clauses `[]`, so it has value `1` (`unsatVal = 
 value `0` (`unsatVal = 1`) when nonempty. -/
 theorem GapKSAT_zero_mem_PromiseP {P : GapKSATSpec} (h0 : P.width = 0) :
     GapKSAT P ∈ PromiseP encCNF := by
-  have hlen : ComputableInPolyTime (fun φ : CNF ℕ => φ.length) encCNF encUnary :=
-    CNF.computableInPolyTime_length (encV := encNat) ComputableInPolyTime.id'
-  have hdec : ComputableInPolyTime (fun φ : CNF ℕ => decide (φ.length = 0)) encCNF encBool := by
-    have heq : (fun φ : CNF ℕ => decide (φ.length = 0)) = fun φ => φ.length == 0 := rfl
-    rw [heq]
-    fun_prop
-  refine mem_PromiseP_iff.mpr ⟨fun φ => decide (φ.length = 0), hdec,
-    fun φ hφ => ?_, fun φ hφ => ?_⟩
+  have hlen := CNF.computableInPolyTime_length (encV := encNat) ComputableInPolyTime.id'
+  refine mem_PromiseP_iff.mpr ⟨fun φ => φ.length == 0, by fun_prop, fun φ hφ => ?_, fun φ hφ => ?_⟩
   · rw [mem_yes_GapKSAT, h0] at hφ
-    rw [decide_eq_true_eq]
+    rw [beq_iff_eq]
     by_contra hne
-    have hpos : 0 < φ.length := Nat.pos_of_ne_zero hne
-    have hall_one : 1 ≤ φ.unsatVal := by
-      refine (CNF.le_unsatVal_iff φ).mpr fun σ => ?_
-      have hcount : φ.countUnsat σ = φ.length := by
-        refine List.countP_eq_length.mpr fun c hc => ?_
-        have hc0 : c = [] := List.length_eq_zero_iff.mp (Nat.le_zero.mp (hφ.1 c hc))
-        subst hc0
-        rfl
-      rw [hcount, div_self (Nat.cast_ne_zero.mpr hne)]
+    have hall_one : 1 ≤ φ.unsatVal := (CNF.le_unsatVal_iff φ).mpr fun σ => by
+      rw [CNF.countUnsat, List.countP_eq_length.mpr fun c hc =>
+          congrArg (!Clause.eval σ ·) (List.length_eq_zero_iff.mp (Nat.le_zero.mp (hφ.1 c hc))),
+        div_self (Nat.cast_ne_zero.mpr hne)]
     linarith [hφ.2, P.completeness_pos]
   · rw [mem_no_GapKSAT] at hφ
-    rw [decide_eq_false_iff_not]
-    have hpos_val : 0 < φ.unsatVal := by linarith [hφ.2, P.soundness_lt_one]
-    exact (CNF.length_pos_of_unsatVal_pos hpos_val).ne'
+    exact beq_eq_false_iff_ne.mpr
+      (CNF.length_pos_of_unsatVal_pos (by linarith [hφ.2, P.soundness_lt_one])).ne'
 
 /-! ### 2. Threshold MAX-`k`-SAT and rational-midpoint reduction -/
 
@@ -277,17 +261,11 @@ enc_structure encLeaf : Leaf where
 open ComputableInPolyTime in
 theorem computableInPolyTime_leafAccepts :
     ComputableInPolyTime leafAccepts encLeaf encBool := by
-  have heq : leafAccepts = fun q : Leaf =>
-      decide (q.cutoff ≤
-        q.formula.length -
-          q.formula.countP fun c =>
-            !Clause.eval (fun v => q.index.bits.getD (q.varsList.idxOf v) false) c) := by
-    funext q
-    have hfun : bitsAssignment q.varsList q.index =
-        fun v => q.index.bits.getD (q.varsList.idxOf v) false := by
-      funext v
-      exact bitsAssignment_eq_getD q.varsList q.index v
-    simp only [leafAccepts, CNF.countUnsat, hfun]
+  have heq : leafAccepts = fun q : Leaf => decide (q.cutoff ≤ q.formula.length -
+      q.formula.countP fun c =>
+        !Clause.eval (fun v => q.index.bits.getD (q.varsList.idxOf v) false) c) :=
+    funext fun q => by
+      simp only [leafAccepts, CNF.countUnsat, funext (bitsAssignment_eq_getD _ _)]
   rw [heq]
   have hlen : ComputableInPolyTime (fun q : Leaf => q.formula.length) encLeaf encUnary :=
     CNF.computableInPolyTime_length (encV := encNat) (by fun_prop)
@@ -321,19 +299,15 @@ theorem MaxKSATThreshold_decidableInExpTime_one (k : ℕ) :
       varsList := p.1.formula.distinctVars
       cutoff := p.1.cutoff
       index := p.2 }
+  have := SAT.computableInPolyTime_distinctVars
   have hf : ComputableInPolyTime f (encPair encMaxSATThresholdInput encNat)
       MaxSATThresholdSearch.encLeaf := by
     open MaxSATThresholdSearch in
-    have := SAT.computableInPolyTime_distinctVars
-    dsimp only [f]
-    fun_prop
+    dsimp only [f]; fun_prop
   have hν : ComputableInPolyTime MaxSATThresholdInput.numVars encMaxSATThresholdInput encUnary := by
-    have := SAT.computableInPolyTime_distinctVars
-    have heq : MaxSATThresholdInput.numVars = fun x => x.formula.distinctVars.length := by
-      funext x
-      exact x.formula.length_distinctVars.symm
-    rw [heq]
-    fun_prop
+    have heq : MaxSATThresholdInput.numVars = _ :=
+      funext fun x => x.formula.length_distinctVars.symm
+    exact heq ▸ by fun_prop
   let Aunb : Set MaxSATThresholdInput :=
     {x | ∃ σ : ℕ → Bool, x.cutoff ≤ x.formula.length - x.formula.countUnsat σ}
   have hfA (x : MaxSATThresholdInput) :
@@ -344,10 +318,8 @@ theorem MaxKSATThreshold_decidableInExpTime_one (k : ℕ) :
     · rintro ⟨σ, hσ⟩
       obtain ⟨r, hr, hrσ⟩ :=
         exists_lt_two_pow_bitsAssignment_eq (vs := x.formula.distinctVars) σ
-      rw [x.formula.length_distinctVars] at hr
-      refine ⟨r, hr, ?_⟩
-      rw [CNF.countUnsat_congr fun v hv => hrσ v (CNF.mem_distinctVars.mpr hv)]
-      exact hσ
+      exact ⟨r, x.formula.length_distinctVars ▸ hr,
+        (CNF.countUnsat_congr fun v hv => hrσ v (CNF.mem_distinctVars.mpr hv)) ▸ hσ⟩
     · rintro ⟨r, -, hr⟩
       exact ⟨bitsAssignment x.formula.distinctVars r, hr⟩
   have hAunb : DecidableInExpTime Aunb encMaxSATThresholdInput MaxSATThresholdInput.numVars 1 := by
@@ -359,13 +331,11 @@ theorem MaxKSATThreshold_decidableInExpTime_one (k : ℕ) :
       encMaxSATThresholdInput encBool :=
     (computableInPolyTime_all_length_le k).comp (by fun_prop)
   have hinter : MaxKSATThreshold k =
-      {x : MaxSATThresholdInput |
-        (x.formula.all fun c => decide (c.length ≤ k)) = true} ∩ Aunb := by
-    ext x
-    simp only [MaxKSATThreshold, Aunb, Set.mem_inter_iff, Set.mem_ofPred_eq, List.all_eq_true,
-      decide_eq_true_eq]
-  rw [hinter]
-  exact hAunb.inter hwidth zero_le_one
+      {x | (x.formula.all fun c => decide (c.length ≤ k)) = true} ∩ Aunb :=
+    Set.ext fun x => by
+      simp only [MaxKSATThreshold, Aunb, Set.mem_inter_iff, Set.mem_ofPred_eq, List.all_eq_true,
+        decide_eq_true_eq]
+  exact hinter ▸ hAunb.inter hwidth zero_le_one
 
 /-- **Rational-midpoint reduction from `GapKSAT P` to `MaxKSATThreshold P.width`.**
 Choosing a rational `num / den` strictly inside `(P.soundness, P.completeness)` and setting
@@ -395,44 +365,35 @@ theorem exists_reduction_GapKSAT_to_MaxKSATThreshold (P : GapKSATSpec) :
   let f (φ : CNF ℕ) : MaxSATThresholdInput :=
     { formula := φ, cutoff := cutoff φ.length }
   have hf_poly : ComputableInPolyTime f encCNF encMaxSATThresholdInput := by
-    have hlen : ComputableInPolyTime (fun φ : CNF ℕ => φ.length) encCNF encUnary :=
-      CNF.computableInPolyTime_length (encV := encNat) ComputableInPolyTime.id'
     have hcut_u : ComputableInPolyTime cutoff encUnary encUnary := by
-      dsimp only [cutoff]
-      fun_prop
-    have hcut : ComputableInPolyTime (fun φ : CNF ℕ => cutoff φ.length) encCNF encUnary :=
-      hcut_u.comp hlen
-    dsimp only [f]
-    fun_prop
+      dsimp only [cutoff]; fun_prop
+    have := hcut_u.comp (CNF.computableInPolyTime_length (encV := encNat) .id')
+    dsimp only [f]; fun_prop
   refine ⟨f, hf_poly, fun _ => rfl, fun φ hφ => ?_, fun φ hφ hmem => ?_⟩
   · rw [mem_yes_GapKSAT] at hφ
     refine ⟨hφ.1, ?_⟩
     dsimp only [f, cutoff]
     rcases Nat.eq_zero_or_pos φ.length with hm0 | hm_pos
-    · rw [hm0]
-      exact ⟨fun _ => false, Nat.zero_le _⟩
+    · simp [hm0]
     simp only [beq_eq_false_iff_ne.mpr hm_pos.ne', Bool.false_eq_true, ↓reduceIte]
     obtain ⟨σ, hσ_eq⟩ := φ.exists_countUnsat_div_eq_unsatVal
     refine ⟨σ, (Nat.div_lt_iff_lt_mul hden_pos).mpr ?_⟩
     have hmR : (0 : ℝ) < φ.length := Nat.cast_pos.mpr hm_pos
     have hunsat_le : (φ.countUnsat σ : ℝ) ≤ (1 - P.completeness) * (φ.length : ℝ) :=
       (div_le_iff₀ hmR).mp (hσ_eq.trans_le hφ.2)
-    have hreal_lt : (num : ℝ) * φ.length < (φ.length - φ.countUnsat σ : ℝ) * den := by
-      linarith [mul_le_mul_of_nonneg_right hunsat_le hdenR_pos.le,
-        mul_lt_mul_of_pos_right hnum_lt_c hmR]
-    rw [← Nat.cast_sub (φ.countUnsat_le_length σ)] at hreal_lt
-    exact_mod_cast hreal_lt
+    rw [← Nat.cast_lt (α := ℝ), Nat.cast_mul, Nat.cast_mul,
+      Nat.cast_sub (φ.countUnsat_le_length σ)]
+    linarith [mul_le_mul_of_nonneg_right hunsat_le hdenR_pos.le,
+      mul_lt_mul_of_pos_right hnum_lt_c hmR]
   · rw [mem_no_GapKSAT] at hφ
-    have hpos_val : 0 < φ.unsatVal := by linarith [hφ.2, P.soundness_lt_one]
-    have hm_pos : 0 < φ.length := CNF.length_pos_of_unsatVal_pos hpos_val
+    have hm_pos : 0 < φ.length :=
+      CNF.length_pos_of_unsatVal_pos (by linarith [hφ.2, P.soundness_lt_one])
     obtain ⟨-, σ, hσ⟩ := hmem
     dsimp only [f, cutoff] at hσ
     simp only [beq_eq_false_iff_ne.mpr hm_pos.ne', Bool.false_eq_true, ↓reduceIte] at hσ
-    have hnat_lt : num * φ.length < (φ.length - φ.countUnsat σ) * den :=
-      (Nat.div_lt_iff_lt_mul hden_pos).mp hσ
     have hreal_lt : (num : ℝ) * φ.length < (φ.length - φ.countUnsat σ : ℝ) * den := by
       rw [← Nat.cast_sub (φ.countUnsat_le_length σ)]
-      exact_mod_cast hnat_lt
+      exact_mod_cast (Nat.div_lt_iff_lt_mul hden_pos).mp hσ
     have hmR : (0 : ℝ) < φ.length := Nat.cast_pos.mpr hm_pos
     have hunsat_ge : (1 - P.soundness) * (φ.length : ℝ) ≤ (φ.countUnsat σ : ℝ) :=
       (le_div_iff₀ hmR).mp (hφ.2.trans (φ.unsatVal_le σ))
@@ -446,10 +407,9 @@ theorem SolvesPromiseInExpTime.GapKSAT_of_MaxKSATThreshold (P : GapKSATSpec) {δ
       MaxSATThresholdInput.numVars δ) :
     SolvesPromiseInExpTime (GapKSAT P) encCNF CNF.numVars δ := by
   obtain ⟨f, hf, hvars, hyes, hno⟩ := exists_reduction_GapKSAT_to_MaxKSATThreshold P
-  have hY : SolvesPromiseInExpTime (ofSet (MaxKSATThreshold P.width)) encMaxSATThresholdInput
-      MaxSATThresholdInput.numVars δ := solvesPromiseInExpTime_ofSet_iff.mpr h
   simpa only [Nat.cast_one, one_mul] using
-    hY.of_promiseReduction hf hyes hno (c := 1) (fun φ => by rw [hvars]; omega) hδ
+    (solvesPromiseInExpTime_ofSet_iff.mpr h).of_promiseReduction hf hyes hno (c := 1)
+      (fun φ => by rw [hvars]; omega) hδ
 
 /-- Any randomized `2 ^ (δ * n) * poly(L)` solver for `MaxKSATThreshold P.width` (`δ ≥ 0`) transfers
 to `GapKSAT P` under the same error profile `E`. -/
@@ -481,10 +441,8 @@ theorem GapKSAT_solvesWithErrorInExpTime_one (P : GapKSATSpec) (E : ErrorModel) 
 theorem SolvesPromiseInExpTime.GapKSAT_perfect_of_KSAT {k : ℕ} {s : ℝ} (hs0 : 0 ≤ s) (hs1 : s < 1)
     {δ : ℝ} (hδ : 0 ≤ δ) (h : DecidableInExpTime (KSAT k) encCNF CNF.numVars δ) :
     SolvesPromiseInExpTime (GapKSAT (GapKSATSpec.perfect k s hs0 hs1)) encCNF CNF.numVars δ := by
-  have hY : SolvesPromiseInExpTime (ofSet (KSAT k)) encCNF CNF.numVars δ :=
-    solvesPromiseInExpTime_ofSet_iff.mpr h
   simpa only [Nat.cast_one, one_mul] using
-    hY.of_promiseReduction ComputableInPolyTime.id'
+    (solvesPromiseInExpTime_ofSet_iff.mpr h).of_promiseReduction ComputableInPolyTime.id'
       (fun φ hφ => by rwa [yes_GapKSAT_perfect] at hφ)
       (fun φ hφ => no_GapKSAT_perfect_subset_compl k hs0 hs1 hφ)
       (c := 1) (fun _ => by omega) hδ

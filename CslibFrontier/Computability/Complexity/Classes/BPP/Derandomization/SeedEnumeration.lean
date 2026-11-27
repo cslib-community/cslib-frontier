@@ -107,26 +107,15 @@ private theorem majority_iff_of_abs_sub_lt {m ℓ Z R : ℕ} {P : Prop}
     P ↔ 2 ^ ℓ / 2 < Z := by
   have h2ℓ : (0 : ℝ) < 2 ^ ℓ := by positivity
   have h2m : (0 : ℝ) < 2 ^ m := by positivity
-  rw [abs_sub_lt_iff] at hgap
-  constructor
-  · intro hP
-    have hR' : (2 : ℝ) * 2 ^ m ≤ 3 * R := by exact_mod_cast hdec.1 hP
-    have hZ' : (2 : ℝ) ^ ℓ < 2 * Z := by
-      have := hgap.2
-      rw [div_sub_div _ _ h2m.ne' h2ℓ.ne', div_lt_iff₀ (by positivity)] at this
-      nlinarith
-    have hZ'' : 2 ^ ℓ < 2 * Z := by exact_mod_cast hZ'
-    exact (Nat.div_lt_iff_lt_mul two_pos).2 (by omega)
-  · intro hlt
-    by_contra hP
-    have hR' : (3 : ℝ) * R ≤ 2 ^ m := by exact_mod_cast hdec.2 hP
-    have hZ' : (2 : ℝ) * Z < 2 ^ ℓ := by
-      have := hgap.1
-      rw [div_sub_div _ _ h2ℓ.ne' h2m.ne', div_lt_iff₀ (by positivity)] at this
-      nlinarith
-    have hZ'' : 2 * Z < 2 ^ ℓ := by exact_mod_cast hZ'
-    have := (Nat.div_lt_iff_lt_mul two_pos).1 hlt
-    omega
+  obtain ⟨h1, h2⟩ := abs_sub_lt_iff.mp hgap
+  rw [div_sub_div _ _ h2ℓ.ne' h2m.ne', div_lt_iff₀ (by positivity)] at h1
+  rw [div_sub_div _ _ h2m.ne' h2ℓ.ne', div_lt_iff₀ (by positivity)] at h2
+  refine ⟨fun hP => (Nat.div_lt_iff_lt_mul two_pos).2 ?_, fun hlt => by_contra fun hP => ?_⟩
+  · have hR' : (2 : ℝ) * 2 ^ m ≤ 3 * R := by exact_mod_cast hdec.1 hP
+    exact_mod_cast (show (2 : ℝ) ^ ℓ < Z * 2 by nlinarith)
+  · have hR' : (3 : ℝ) * R ≤ 2 ^ m := by exact_mod_cast hdec.2 hP
+    have hlt' : (2 : ℝ) ^ ℓ < Z * 2 := by exact_mod_cast (Nat.div_lt_iff_lt_mul two_pos).1 hlt
+    nlinarith
 
 /-- **Seed enumeration is correct when the generator fools the verifier on the instance.** Let `V`
 answer whether `x ∈ A` with bounded error on random strings of `m` bits: it accepts at least two
@@ -171,12 +160,9 @@ theorem computableInPolyTime_seedDecider {V : α × List Bool → Bool}
       encBits)
     (hseed : ComputableInPolyTime seed enc encUnary)
     (hbudget : PolyBounded (fun x => (enc x).length) fun x => 2 ^ seed x) :
-    ComputableInPolyTime (seedDecider V gen seed) enc encBool := by
-  have hvote : ComputableInPolyTime (fun p : α × List Bool => V (p.1, gen p.1 p.2))
-      (encPair enc encBits) encBool :=
-    hV.comp ((fst enc encBits).prod hgen)
-  exact bitsStrictMajorityWithInput (mapToBitsWithInput (f := fun x z => V (x, gen x z))
-    (bitsEnumList_of_polyBounded hseed hbudget) hvote)
+    ComputableInPolyTime (seedDecider V gen seed) enc encBool :=
+  bitsStrictMajorityWithInput (mapToBitsWithInput (f := fun x z => V (x, gen x z))
+    (bitsEnumList_of_polyBounded hseed hbudget) (hV.comp ((fst enc encBits).prod hgen)))
 
 /-- **Seed enumeration in time `2 ^ O(k)`.** Let `V` be polynomial-time, and the seed length
 `seed x` be computable in unary in polynomial time. Let the generator be polynomial-time on

@@ -96,9 +96,7 @@ theorem inner_phaseOracle_update_not (x : Fin N → Bool) (i : Fin N) (ψ φ : S
   rw [inner_phaseOracle_phaseOracle]
   have h : univ.filter (fun j => x j ≠ update x i (!x i) j) = {i} := by
     ext j
-    by_cases hj : j = i
-    · subst hj; cases hx : x j <;> simp [hx]
-    · simp [hj]
+    by_cases hj : j = i <;> cases hx : x i <;> simp [hj, hx]
   rw [h, sum_singleton]
 
 /-- A query algorithm with a unit initial state and error `ε ≤ 1/2` leaves the states on inputs
@@ -112,12 +110,12 @@ theorem norm_inner_run_le {f : BooleanFunction N} {ε : ℝ}
   have hy := norm_run U ψ₀ y T ▸ hψ₀
   obtain ⟨hx₁, hx₂⟩ := abs_le.1 (h x)
   obtain ⟨hy₁, hy₂⟩ := abs_le.1 (h y)
-  cases hfx : f x <;> cases hfy : f y <;> simp only [hfx, hfy, ne_eq, not_true_eq_false] at hxy
-  · simp only [hfx, hfy, bitVal_false, bitVal_true, sub_zero] at hx₂ hy₁
-    rw [← norm_inner_symm]
+  cases hfx : f x <;> cases hfy : f y <;>
+    simp only [hfx, hfy, ne_eq, not_true_eq_false, bitVal_false, bitVal_true, sub_zero]
+      at hxy hx₁ hx₂ hy₁ hy₂
+  · rw [← norm_inner_symm]
     exact norm_inner_le_two_mul_sqrt_of_measureProb hy hx (by linarith) hx₂ hε
-  · simp only [hfx, hfy, bitVal_false, bitVal_true, sub_zero] at hx₁ hy₂
-    exact norm_inner_le_two_mul_sqrt_of_measureProb hx hy (by linarith) hy₂ hε
+  · exact norm_inner_le_two_mul_sqrt_of_measureProb hx hy (by linarith) hy₂ hε
 
 /-- **The adversary bound for the sensitivity graph**: if a `T`-query algorithm with a unit
 initial state accepts every input `x`, by an outcome in `S`, with probability within `ε ≤ 1/2` of
@@ -137,8 +135,7 @@ theorem one_sub_mul_sum_sensitiveCoords_le {f : BooleanFunction N} {ε : ℝ}
       (hne : x i ≠ y i) : y = update x i (!x i) := by
     obtain ⟨j, -, rfl⟩ := sensitivityGraph_adj.1 hxy
     rcases eq_or_ne j i with rfl | hji
-    · rfl
-    · exact (hne (by simp [update_of_ne hji.symm])).elim
+    exacts [rfl, (hne (by simp [update_of_ne hji.symm])).elim]
   have hbound := one_sub_mul_sum_le_of_sq_le U hψ₀ T R (fun p => u p.1 * w p.2)
     (fun p hp => by
       obtain ⟨i, hi, hp2⟩ := sensitivityGraph_adj.1 (mem_filter.1 hp).2
@@ -177,16 +174,13 @@ theorem one_sub_mul_spectralSensitivity_le {f : BooleanFunction N} {ε : ℝ}
     (S : Finset (Fin N × Bool × W)) (h : ∀ x, |measureProb (run U ψ₀ x T) S - bitVal ℝ (f x)| ≤ ε)
     (hε : 2 * ε ≤ 1) :
     (1 - 2 * √(ε * (1 - ε))) * spectralSensitivity f ≤ 2 * T := by
-  set c := 1 - 2 * √(ε * (1 - ε))
-  rcases (show 0 ≤ c from one_sub_two_mul_sqrt_nonneg ε).eq_or_lt with hc0 | hc0
-  · rw [← hc0, zero_mul]
-    positivity
+  rcases (one_sub_two_mul_sqrt_nonneg ε).eq_or_lt with hc0 | hc0
+  · rw [← hc0, zero_mul]; positivity
   rw [mul_comm, ← le_div_iff₀ hc0]
   refine spectralSensitivity_le_of_forall_sum_le (by positivity) fun u w hu hw hu1 hw1 => ?_
   have := one_sub_mul_sum_sensitiveCoords_le U hψ₀ T S h hε hu hw
   rw [hu1, hw1] at this
-  rw [le_div_iff₀ hc0]
-  linarith
+  rw [le_div_iff₀ hc0]; linarith
 
 /-- **Spectral sensitivity bounds bounded-error quantum queries**: if a `T`-query algorithm with a
 unit initial state accepts every input `x`, by an outcome in `S`, with probability within `1/3` of

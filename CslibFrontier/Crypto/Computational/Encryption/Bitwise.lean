@@ -137,15 +137,11 @@ theorem isPPTOn_bitwiseEncrypt {encrypt : ℕ → List Bool → Bool → ProbCom
       (fun p => prog p.1 p.2) :=
     (hencrypt.preprocess
       (prepare := fun p : (ℕ × List Bool × List Bool) × Bool => (p.1.1, p.1.2.1, p.2)) (by
-        dsimp only [encKeyedInput]
-        fun_prop)).congr fun _ => rfl
+        dsimp only [encKeyedInput]; fun_prop)).congr fun _ => rfl
   have hlist : ComputableInPolyTime (fun x : ℕ × List Bool × List Bool => x.2.2)
       (encKeyedInput encBits) (encList encBool) :=
-    ComputableInPolyTime.bitsToList.comp
-      (show ComputableInPolyTime (fun x : ℕ × List Bool × List Bool => x.2.2)
-        (encKeyedInput encBits) encBits by
-          dsimp only [encKeyedInput]
-          fun_prop)
+    ComputableInPolyTime.bitsToList.comp (by
+      dsimp only [encKeyedInput]; fun_prop)
   exact (isPPTOn_iff_encoded.mp (IsPPTOn.mapMWith (program := prog) hstep hlist)).congr
     fun ⟨_, _, _⟩ => rfl
 
@@ -332,16 +328,8 @@ private theorem isPPTOn_bitwiseToSingleAt_choose
     dsimp only [EMid, EIn, encChoiceOut]; fun_prop
   have hpost := ComputableInPolyTime.ite hcond (hmsgs.prod hrec.encoding_comp)
     (.const ((false, false), rejectBitwiseToSingleState))
-  exact (hchoose.bind_with
-    (second := fun p choice =>
-      pure (if valid p.1.1 p.1.2 (ChoiceOut.msg₀ choice) (ChoiceOut.msg₁ choice) &&
-          decide (p.2 < (ChoiceOut.msg₀ choice).length) && decide (p.2 < maxLen p.1.1) then
-        (((ChoiceOut.msg₀ choice).getD p.2 false, (ChoiceOut.msg₁ choice).getD p.2 false),
-          encBitwiseToSingleState ⟨true, p.1.2, (ChoiceOut.msg₁ choice).take p.2,
-            (ChoiceOut.msg₀ choice).drop (p.2 + 1), ChoiceOut.state choice⟩)
-      else
-        ((false, false), rejectBitwiseToSingleState))) hpost.isPPTOn).congr fun p => by
-    simp only [bitwiseToSingleAt, ProbComp.eval_bind, ProbComp.eval_pure,
+  exact (hchoose.keep_input.bind (output := encChoiceOut encBool) hpost.isPPTOn).congr fun p => by
+    simp only [bitwiseToSingleAt, bind_map_left, ProbComp.eval_bind, ProbComp.eval_pure,
       apply_ite ProbComp.eval, apply_ite PMF.pure]
 
 /-- `bitwiseToSingleAt` is uniformly strict PPT whenever `valid` and `maxLen` are computable in
@@ -367,10 +355,6 @@ theorem isPPT_bitwiseToSingleAt
         encGuessInput encBitwiseToSingleState :=
       bitwiseToSingleStateDecoder.computableInPolyTime.comp
         (by dsimp only [encGuessInput]; fun_prop)
-    have hpk := encBitwiseToSingleState_pk_polyTime hdec
-    have hfrontBits := encBitwiseToSingleState_front_polyTime hdec
-    have hbackBits := encBitwiseToSingleState_back_polyTime hdec
-    have hstateA := encBitwiseToSingleState_stateA_polyTime hdec
     have hfront : IsPPTOn encGuessInput (encList encBits)
         (fun p => (bitwiseToSingleStateDecoder.decode p.2.1).front.mapM
           (encrypt p.1 (bitwiseToSingleStateDecoder.decode p.2.1).pk)) :=
@@ -378,9 +362,8 @@ theorem isPPT_bitwiseToSingleAt
         (hencrypt.preprocess
           (prepare := fun q : (ℕ × List Bool × List Bool) × Bool =>
             (q.1.1, (bitwiseToSingleStateDecoder.decode q.1.2.1).pk, q.2)) (by
-          dsimp only [encGuessInput, encKeyedInput]
-          fun_prop))
-        (ComputableInPolyTime.bitsToList.comp hfrontBits)
+          dsimp only [encGuessInput, encKeyedInput]; fun_prop))
+        (ComputableInPolyTime.bitsToList.comp (encBitwiseToSingleState_front_polyTime hdec))
     have hback : IsPPTOn E1 (encList encBits)
         (fun q => (bitwiseToSingleStateDecoder.decode q.1.2.1).back.mapM
           (encrypt q.1.1 (bitwiseToSingleStateDecoder.decode q.1.2.1).pk)) :=
@@ -388,18 +371,17 @@ theorem isPPT_bitwiseToSingleAt
         (hencrypt.preprocess
           (prepare := fun q : ((ℕ × List Bool × List Bool) × List (List Bool)) × Bool =>
             (q.1.1.1, (bitwiseToSingleStateDecoder.decode q.1.1.2.1).pk, q.2)) (by
-          dsimp only [E1, encGuessInput, encKeyedInput]
-          fun_prop))
+          dsimp only [E1, encGuessInput, encKeyedInput]; fun_prop))
         (ComputableInPolyTime.bitsToList.comp
-          (hbackBits.comp (ComputableInPolyTime.fst encGuessInput (encList encBits))))
+          ((encBitwiseToSingleState_back_polyTime hdec).comp
+            (ComputableInPolyTime.fst encGuessInput (encList encBits))))
     have hguess := hadversary.guess.preprocess
       (show ComputableInPolyTime
         (fun r : ((ℕ × List Bool × List Bool) × List (List Bool)) × List (List Bool) =>
           (r.1.1.1, (bitwiseToSingleStateDecoder.decode r.1.1.2.1).stateA,
             encList encBits (r.1.2 ++ r.1.1.2.2 :: r.2)))
         E2 encGuessInput by
-          dsimp only [E2, E1, encGuessInput]
-          fun_prop)
+          dsimp only [E2, E1, encGuessInput]; fun_prop)
     simpa only [bitwiseToSingleAt] using IsPPTOn.cond
       (encBitwiseToSingleState_active_polyTime hdec)
       (hfront.bind_with (hback.bind_with hguess))
@@ -418,10 +400,9 @@ theorem isPPT_bitwiseToSingle
     (hadversary : adversary.IsPPT) :
     (bitwiseToSingle valid encrypt maxLen adversary).IsPPT where
   choose := by
-    have hsample : IsPPTOn (encPair encUnary encBits) encUnary
-        (fun p : ℕ × List Bool => ProbComp.sampleDyadicIndex (maxLen p.1)) :=
-      isPPTOn_sampleDyadicIndex (hmax.comp (ComputableInPolyTime.fst encUnary encBits))
-    exact hsample.bind_with (isPPTOn_bitwiseToSingleAt_choose hvalid hmax hadversary)
+    exact (isPPTOn_sampleDyadicIndex
+      (hmax.comp (ComputableInPolyTime.fst encUnary encBits))).bind_with
+      (isPPTOn_bitwiseToSingleAt_choose hvalid hmax hadversary)
   guess := (isPPT_bitwiseToSingleAt hvalid hencrypt hmax hadversary 0).guess
 
 /-! ### Coordinate hybrid games and exact advantage identity -/
@@ -516,31 +497,25 @@ theorem bitwiseHybridGameOn_step_gap
       simp only [m₀, m₁, hv, decide_eq_true hs, Bool.and_self, ↓reduceIte,
         PMF.pure_bind, ChoiceOut.msg₀_mk, ChoiceOut.msg₁_mk,
         bitwiseToSingleStateDecoder.decode_enc]
-      have hsplice (b : Bool) (word : List Bool)
-          (hword : m₁.take split ++ b :: m₀.drop (split + 1) = word) :
+      have hsplice (b : Bool) :
           (ProbComp.eval (encrypt n keys.1 b)).bind (fun ct =>
             (ProbComp.eval ((m₁.take split).mapM (encrypt n keys.1))).bind fun front =>
               (ProbComp.eval ((m₀.drop (split + 1)).mapM (encrypt n keys.1))).bind fun back =>
                 ProbComp.eval (adversary.guess n (ChoiceOut.state choice)
                   (encList encBits (front ++ ct :: back)))) =
-            (ProbComp.eval (bitwiseEncrypt encrypt n keys.1 word)).bind
+            (ProbComp.eval (bitwiseEncrypt encrypt n keys.1
+              (m₁.take split ++ b :: m₀.drop (split + 1)))).bind
               (fun ct => ProbComp.eval (adversary.guess n (ChoiceOut.state choice) ct)) := by
-        have hsp := ProbComp.eval_mapM_splice (encrypt n keys.1) (m₁.take split) b
-          (m₀.drop (split + 1))
-        simp only [ProbComp.eval_bind, ProbComp.eval_pure] at hsp
-        have hbind := congrArg (fun p : PMF (List (List Bool)) =>
-          p.bind fun cts => ProbComp.eval (adversary.guess n (ChoiceOut.state choice)
-            (encList encBits cts))) hsp
-        simpa only [PMF.bind_bind, PMF.pure_bind, bitwiseEncrypt, ProbComp.eval_map,
-          PMF.bind_map, Function.comp_def, hword] using hbind
-      have hw₀ : m₁.take split ++ m₀.getD split false :: m₀.drop (split + 1) =
-          m₁.take split ++ m₀.drop split := by
-        rw [List.getD_eq_getElem _ _ hs, List.getElem_cons_drop]
-      have hw₁ : m₁.take split ++ m₁.getD split false :: m₀.drop (split + 1) =
-          m₁.take (split + 1) ++ m₀.drop (split + 1) := by
-        rw [List.getD_eq_getElem _ _ hs₁, ← List.singleton_append, ← List.append_assoc,
-          List.take_append_getElem]
-      rw [hsplice _ _ hw₁, hsplice _ _ hw₀, add_comm]
+        simpa only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind,
+          bitwiseEncrypt, ProbComp.eval_map, PMF.bind_map, Function.comp_def] using
+          congrArg (fun p : PMF (List (List Bool)) =>
+            p.bind fun cts => ProbComp.eval (adversary.guess n (ChoiceOut.state choice)
+              (encList encBits cts)))
+            (ProbComp.eval_mapM_splice (encrypt n keys.1) (m₁.take split) b
+              (m₀.drop (split + 1)))
+      rw [hsplice, hsplice, List.getD_eq_getElem _ _ hs, List.getElem_cons_drop,
+        List.getD_eq_getElem _ _ hs₁, ← List.singleton_append, ← List.append_assoc,
+        List.take_append_getElem, add_comm]
     · have hle₀ : m₀.length ≤ split := Nat.le_of_not_lt hs
       have hle₁ : m₁.length ≤ split := hlenEq ▸ hle₀
       simp only [m₀, m₁, hv, decide_eq_false hs, Bool.and_false, Bool.false_eq_true, ↓reduceIte,
@@ -569,12 +544,11 @@ theorem eval_game_bitwiseToSingle
   simp only [game, gameOn, bitwiseToSingle, pmf_norm, ↓reduceIte]
   rw [PMF.bind_comm]
   simp only [ProbComp.eval_sampleDyadicIndex, PMF.bind_map, Function.comp_def]
-  congr 1 with i
+  refine congrArg (PMF.bind _) (funext fun i => ?_)
   by_cases hi : i.val < maxLen n
-  · simp only [hi, ↓reduceIte]; rfl
-  · rw [ite_eq_right_of_eq_false (c := i.val < maxLen n) (h := eq_false hi)]
-    simp only [bitwiseToSingleAt, decide_eq_false hi, Bool.and_false, Bool.false_eq_true,
-      ↓reduceIte, pmf_norm, decode_rejectBitwiseToSingleState, PMF.bind_const]
+  · exact (ite_eq_left hi).symm
+  · simp only [ite_eq_right hi, bitwiseToSingleAt, decide_eq_false hi, Bool.and_false,
+      Bool.false_eq_true, ↓reduceIte, pmf_norm, decode_rejectBitwiseToSingleState, PMF.bind_const]
 
 /-- Coordinate-hybrid reduction step for `bitwiseEncrypt`: when every admissible challenge pair on
 supported keys has equal lengths at most `maxLen n`, the word adversary's chosen-message advantage
@@ -599,16 +573,14 @@ theorem advantage_bitwiseEncrypt_eq
       (game keyGen encrypt (bitwiseToSingleAt valid encrypt maxLen adversary split) true n))
     (maxLen n) (dyadicSize (maxLen n)) (lt_dyadicSize (maxLen n)).le 1
     (fun split hs => by
-      rw [one_mul]
-      exact bitwiseHybridGameOn_step_gap valid keyGen encrypt maxLen adversary hs
-        fun keys hkeys m₀ m₁ hv => (hlen keys hkeys m₀ m₁ hv).1)
+      simpa only [one_mul] using bitwiseHybridGameOn_step_gap valid keyGen encrypt maxLen adversary
+        hs fun keys hkeys m₀ m₁ hv => (hlen keys hkeys m₀ m₁ hv).1)
   rw [eval_bitwiseHybridGameOn_zero, eval_bitwiseHybridGameOn_of_le valid keyGen encrypt adversary
     hlen, mul_one] at hred
-  simp only [advantage]
-  rw [eval_game_bitwiseToSingle, eval_game_bitwiseToSingle]
-  apply NNReal.eq
-  rw [NNReal.coe_mul, Game.coe_advantage, Game.coe_advantage, NNReal.coe_natCast, hred,
-    abs_mul, Nat.abs_cast]
+  simp only [advantage, eval_game_bitwiseToSingle]
+  exact NNReal.eq <| by
+    rw [NNReal.coe_mul, Game.coe_advantage, Game.coe_advantage, NNReal.coe_natCast, hred,
+      abs_mul, Nat.abs_cast]
 
 /-! ### Asymptotic 1-bit-to-multi-bit chosen-plaintext security -/
 
@@ -654,7 +626,6 @@ theorem wordINDCPA_of_indcpaOn_validBoundedWords
   let maxLen (n : ℕ) : ℕ := ca * (2 * n + 2 * (ck * (n + 1) ^ dk) + 4) ^ da
   have hmax : ComputableInPolyTime maxLen encUnary encUnary := by
     dsimp only [maxLen]; fun_prop
-  have hAdv := hbounded maxLen hmax adversary hadversary
   have heqGame (bit : Bool) (n : ℕ) :
       ProbComp.eval (gameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length) keyGen
         encWord adversary bit n) =
@@ -673,7 +644,7 @@ theorem wordINDCPA_of_indcpaOn_validBoundedWords
         dsimp only [ChoiceOut.msg₀, ChoiceOut.msgs]; enc_len
       exact hm₀.trans (hout.trans (Nat.mul_le_mul_left ca (Nat.pow_le_pow_left hin da)))
     simp only [validBoundedWords, decide_eq_true hmsgLen, Bool.and_true]
-  simpa only [heqGame] using hAdv
+  simpa only [heqGame] using hbounded maxLen hmax adversary hadversary
 
 /-- Public-key-bounded bitwise hybrid step: when every public key produced by `keyGen n` has bit
 length at most `pkBound n` for a polynomially bounded function `pkBound` (which need not be

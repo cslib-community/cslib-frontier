@@ -47,14 +47,10 @@ theorem sum_endpointWeights_eq_zero {ι : Type*} [Fintype ι]
     rw [← Finset.sum_fiberwise_of_maps_to (s := Finset.univ)
       (t := Finset.univ.image endpoint) (g := endpoint)
       (fun i _ => Finset.mem_image_of_mem _ (Finset.mem_univ i))]
-    apply Finset.sum_eq_zero
-    intro p _
+    refine Finset.sum_eq_zero fun p _ => ?_
     rw [Finset.sum_filter]
-    have hterm (i : ι × Bool) :
-        (if endpoint i = p then x i.1 * f (endpoint i) else 0) =
-          (if endpoint i = p then x i.1 else 0) * f p := by
-      split_ifs with h <;> simp [h]
-    simp only [hterm, ← Finset.sum_mul, hfiber, zero_mul]
+    conv_rhs => rw [← zero_mul (f p), ← hfiber p, Finset.sum_mul]
+    exact Finset.sum_congr rfl fun i _ => by split_ifs with h <;> simp [h]
   simpa only [Fintype.sum_prod_type, Fintype.sum_bool, endpoint,
     Bool.false_eq_true, ↓reduceIte, ← mul_add, add_comm] using hsum
 
@@ -87,8 +83,8 @@ theorem eventually_rayParity_eq_of_endpoint_jumps_eq_zero {ι : Type*} [Fintype 
     by_cases hx : x i = true
     · filter_upwards [eventually_rayCrosses_jump (a i) (b i) z (hheight i) (hz i hx)] with w hw
       simpa only [← Bool.add_eq_xor, ← Bool.mul_eq_and, mul_assoc] using congrArg (x i * ·) hw
-    · have hx' : x i = false := Bool.eq_false_iff.mpr hx
-      exact Filter.Eventually.of_forall fun _ => by simp [hx', Bool.mul_eq_and]
+    · exact Filter.Eventually.of_forall fun _ =>
+        by simp [Bool.eq_false_iff.mpr hx, Bool.mul_eq_and]
   filter_upwards [Filter.eventually_all.mpr hi] with w hw
   apply (BooleanRing.add_eq_zero' _ _).mp
   calc

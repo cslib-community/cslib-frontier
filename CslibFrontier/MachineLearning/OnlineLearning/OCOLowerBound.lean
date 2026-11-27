@@ -89,10 +89,9 @@ the exact second/fourth moments in `CslibFrontier.Probability.BitString.Rademach
 theorem khintchine_rademacher_abs_sum (T : ℕ) :
     (2 : ℝ) ^ T * Real.sqrt ((T : ℝ) / 3) ≤
       ∑ σ : Fin T → Bool, |∑ t : Fin T, signVal (σ t)| := by
-  by_cases hT : T = 0
-  · subst hT
-    simp
-  have hTpos : (0 : ℝ) < (T : ℝ) := Nat.cast_pos.mpr (Nat.pos_of_ne_zero hT)
+  rcases eq_or_ne T 0 with rfl | hT
+  · simp
+  have : 0 < T := Nat.pos_of_ne_zero hT
   have hcard : (Fintype.card (Fin T → Bool) : ℝ) = (2 : ℝ) ^ T := by simp
   set radSum : (Fin T → Bool) → ℝ := fun σ => ∑ t : Fin T, signVal (σ t)
   set S1 : ℝ := ∑ σ : Fin T → Bool, |radSum σ|
@@ -103,13 +102,12 @@ theorem khintchine_rademacher_abs_sum (T : ℕ) :
     have h := expect_sq_sum_mul_signVal (fun _ : Fin T => (1 : ℝ))
     simp only [one_mul, one_pow, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, mul_one,
       Fintype.expect_eq_sum_div_card, hcard] at h
-    have h2pos : (0 : ℝ) < (2 : ℝ) ^ T := by positivity
-    exact (div_eq_iff h2pos.ne').mp h |>.trans (mul_comm _ _)
+    exact (div_eq_iff (by positivity)).mp h |>.trans (mul_comm _ _)
   have hS4_le : S4 ≤ (2 : ℝ) ^ T * (3 * (T : ℝ) ^ 2) := by
     have h := expect_sum_mul_signVal_pow_four_le (fun _ : Fin T => (1 : ℝ))
+    have h2pos : (0 : ℝ) < (2 : ℝ) ^ T := by positivity
     simp only [one_mul, one_pow, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, mul_one,
-      Fintype.expect_eq_sum_div_card, hcard,
-      div_le_iff₀ (by positivity : (0 : ℝ) < (2 : ℝ) ^ T)] at h
+      Fintype.expect_eq_sum_div_card, hcard, div_le_iff₀ h2pos] at h
     linarith
   have hS2_pos : 0 < S2 := by rw [hS2_eq]; positivity
   have hcs1 : S2 ^ 2 ≤ S1 * S3 := by
@@ -122,25 +120,11 @@ theorem khintchine_rademacher_abs_sum (T : ℕ) :
           = |radSum σ| * (Real.sqrt |radSum σ| * Real.sqrt |radSum σ|) := by ring
         _ = |radSum σ| * |radSum σ| := by rw [Real.mul_self_sqrt (abs_nonneg _)]
         _ = radSum σ ^ 2 := by rw [← sq, sq_abs]
-    have hR1 : ∑ σ : Fin T → Bool, Real.sqrt |radSum σ| ^ 2 = S1 :=
-      Finset.sum_congr rfl fun σ _ => Real.sq_sqrt (abs_nonneg _)
-    have hR2 : ∑ σ : Fin T → Bool, (|radSum σ| * Real.sqrt |radSum σ|) ^ 2 = S3 := by
-      refine Finset.sum_congr rfl fun σ _ => ?_
-      rw [mul_pow, Real.sq_sqrt (abs_nonneg _)]
-      ring
-    rwa [hL, hR1, hR2] at h
+    simpa only [hL, S1, S3, mul_pow, Real.sq_sqrt (abs_nonneg _), pow_succ _ 2] using h
   have hcs2 : S3 ^ 2 ≤ S2 * S4 := by
-    have h := Finset.sum_mul_sq_le_sq_mul_sq (Finset.univ : Finset (Fin T → Bool))
-      (fun σ => |radSum σ|) (fun σ => radSum σ ^ 2)
-    have hL : ∑ σ : Fin T → Bool, |radSum σ| * radSum σ ^ 2 = S3 := by
-      refine Finset.sum_congr rfl fun σ _ => ?_
-      rw [← sq_abs (radSum σ)]
-      ring
-    have hR1 : ∑ σ : Fin T → Bool, |radSum σ| ^ 2 = S2 :=
-      Finset.sum_congr rfl fun σ _ => sq_abs _
-    have hR2 : ∑ σ : Fin T → Bool, (radSum σ ^ 2) ^ 2 = S4 :=
-      Finset.sum_congr rfl fun σ _ => by ring
-    rwa [hL, hR1, hR2] at h
+    simpa only [S3, S2, S4, pow_succ' _ 2, sq_abs, pow_mul _ 2 2] using
+      Finset.sum_mul_sq_le_sq_mul_sq (Finset.univ : Finset (Fin T → Bool))
+        (fun σ => |radSum σ|) (fun σ => radSum σ ^ 2)
   have hholder : S2 ^ 3 ≤ S1 ^ 2 * S4 := by
     refine le_of_mul_le_mul_left ?_ hS2_pos
     calc S2 * S2 ^ 3 = (S2 ^ 2) ^ 2 := by ring
@@ -152,8 +136,9 @@ theorem khintchine_rademacher_abs_sum (T : ℕ) :
     have h3 : S2 ^ 3 ≤ S1 ^ 2 * ((2 : ℝ) ^ T * (3 * (T : ℝ) ^ 2)) :=
       hholder.trans (mul_le_mul_of_nonneg_left hS4_le (sq_nonneg _))
     rw [hS2_eq] at h3
-    rw [mul_pow, Real.sq_sqrt (by positivity : 0 ≤ (T : ℝ) / 3)]
-    nlinarith [(by positivity : (0 : ℝ) < (2 : ℝ) ^ T * (3 * (T : ℝ) ^ 2))]
+    rw [mul_pow, Real.sq_sqrt (by positivity)]
+    have hpos : (0 : ℝ) < (2 : ℝ) ^ T * (3 * (T : ℝ) ^ 2) := by positivity
+    nlinarith
   have hsqrt := Real.sqrt_le_sqrt hsq
   rwa [Real.sqrt_sq (by positivity),
     Real.sqrt_sq (Finset.sum_nonneg fun _ _ => abs_nonneg _)] at hsqrt
@@ -180,9 +165,7 @@ theorem rademacherLinear_subgrad (e : E) (G : ℝ) (b : Bool) (x y : E) :
 theorem rademacherLinear_convexOn (e : E) (G : ℝ) (b : Bool) {K : Set E} (hK : Convex ℝ K) :
     ConvexOn ℝ K (rademacherLinear e G b) := by
   refine ⟨hK, fun x _ y _ a c _ _ _ => ?_⟩
-  simp only [rademacherLinear, smul_eq_mul, inner_add_right, real_inner_smul_right]
-  ring_nf
-  exact le_rfl
+  simp only [rademacherLinear, smul_eq_mul, inner_add_right, real_inner_smul_right]; linarith
 
 /-- Gradient norm bound `‖rademacherGrad e G b‖ ≤ G` when `‖e‖ ≤ 1` and `0 ≤ G`. -/
 theorem norm_rademacherGrad_le {e : E} {G : ℝ} (he : ‖e‖ ≤ 1) (hG : 0 ≤ G) (b : Bool) :
@@ -214,8 +197,7 @@ private theorem sum_signVal_mul_eq_zero {T : ℕ} (t : Fin T) (g : (Fin T → Bo
     refine Finset.expect_eq_zero fun σ _ => ?_
     simp only [Function.update_self, hinv, ← Finset.expect_mul, expect_bool_signVal, zero_mul]
   rw [Fintype.expect_eq_sum_div_card] at hexp
-  have hcard : (Fintype.card (Fin T → Bool) : ℝ) ≠ 0 := by positivity
-  exact (div_eq_zero_iff.mp hexp).resolve_right hcard
+  exact (div_eq_zero_iff.mp hexp).resolve_right (by positivity)
 
 /-- Total loss of any causal learner averaged over all `2 ^ T` Rademacher sequences vanishes. -/
 theorem sum_rademacherLinear_eval_eq_zero {K : Set E} {T : ℕ} (L : CausalLearner K T)
@@ -223,14 +205,10 @@ theorem sum_rademacherLinear_eval_eq_zero {K : Set E} {T : ℕ} (L : CausalLearn
     ∑ σ : Fin T → Bool, ∑ t : Fin T, rademacherLinear e G (σ t) (L.eval σ t) = 0 := by
   rw [Finset.sum_comm]
   refine Finset.sum_eq_zero fun t _ => ?_
-  have heq : ∀ σ : Fin T → Bool,
-      rademacherLinear e G (σ t) (L.eval σ t) = signVal (σ t) * (G * ⟪e, L.eval σ t⟫) :=
-    fun σ => by simp only [rademacherLinear]; ring
-  rw [Finset.sum_congr rfl fun σ _ => heq σ]
+  simp_rw [rademacherLinear, mul_assoc]
   refine sum_signVal_mul_eq_zero t (fun σ => G * ⟪e, L.eval σ t⟫) fun σ b => ?_
-  have hpref : (fun i (hi : i < t) => Function.update σ t b i) = fun i _ => σ i := by
-    ext i hi
-    exact Function.update_of_ne (ne_of_lt hi) b σ
+  have hpref : (fun i (hi : i < t) => Function.update σ t b i) = fun i _ => σ i :=
+    funext₂ fun _ hi => Function.update_of_ne hi.ne b σ
   simp only [CausalLearner.eval, hpref]
 
 /-- **Minimax `Ω(D * G * √T)` regret lower bound for online convex optimization** [Hazan2022]
@@ -249,39 +227,26 @@ theorem exists_oco_regret_ge {K : Set E} {x₀ e : E} {D G : ℝ}
   set radSum : (Fin T → Bool) → ℝ := fun σ => ∑ t : Fin T, signVal (σ t)
   let uOf (σ : Fin T → Bool) : E := if 0 ≤ radSum σ then x₀ - (D / 2) • e else x₀ + (D / 2) • e
   have huOf_mem (σ : Fin T → Bool) : uOf σ ∈ K := by
-    dsimp only [uOf]
-    split_ifs <;> assumption
+    by_cases hs : 0 ≤ radSum σ <;> simp [uOf, hs, hminus, hplus]
   have hee : ⟪e, e⟫ = 1 := by rw [real_inner_self_eq_norm_sq, he, one_pow]
   have huOf_sum (σ : Fin T → Bool) :
       ∑ t : Fin T, rademacherLinear e G (σ t) (uOf σ) =
         radSum σ * G * ⟪e, x₀⟫ - D * G / 2 * |radSum σ| := by
-    have hfac : ∑ t : Fin T, rademacherLinear e G (σ t) (uOf σ) = radSum σ * (G * ⟪e, uOf σ⟫) := by
-      simp only [rademacherLinear, radSum, Finset.sum_mul]
-      exact Finset.sum_congr rfl fun _ _ => by ring
-    rw [hfac]
-    dsimp only [uOf]
+    simp_rw [rademacherLinear, mul_assoc, ← Finset.sum_mul]
+    dsimp only [radSum, uOf]
     split_ifs with hs
     · rw [inner_sub_right, real_inner_smul_right, hee, mul_one, abs_of_nonneg hs]; ring
     · rw [inner_add_right, real_inner_smul_right, hee, mul_one, abs_of_neg (lt_of_not_ge hs)]; ring
-  have hsum_rad : ∑ σ : Fin T → Bool, radSum σ = 0 := by
-    simp only [radSum]
-    rw [Finset.sum_comm]
-    exact Finset.sum_eq_zero fun t _ => by
+  have hsum_rad : ∑ σ : Fin T → Bool, radSum σ = 0 :=
+    (Finset.sum_comm (s := univ) (t := univ) ..).trans <| Finset.sum_eq_zero fun t _ => by
       simpa only [mul_one] using sum_signVal_mul_eq_zero t (fun _ => (1 : ℝ)) fun _ _ => rfl
   have hsum_reg :
       ∑ σ : Fin T → Bool,
           ∑ t : Fin T,
             (rademacherLinear e G (σ t) (L.eval σ t) - rademacherLinear e G (σ t) (uOf σ)) =
         D * G / 2 * ∑ σ : Fin T → Bool, |radSum σ| := by
-    have hshift : ∑ σ : Fin T → Bool, radSum σ * G * ⟪e, x₀⟫ = 0 := by
-      have hmul : ∑ σ : Fin T → Bool, radSum σ * G * ⟪e, x₀⟫ =
-          (∑ σ : Fin T → Bool, radSum σ) * (G * ⟪e, x₀⟫) := by
-        rw [Finset.sum_mul]
-        exact Finset.sum_congr rfl fun _ _ => by ring
-      rw [hmul, hsum_rad, zero_mul]
-    rw [Finset.sum_congr rfl fun σ _ => Finset.sum_sub_distrib _ _, Finset.sum_sub_distrib,
-      sum_rademacherLinear_eval_eq_zero, zero_sub,
-      Finset.sum_congr rfl fun σ _ => huOf_sum σ, Finset.sum_sub_distrib, hshift, ← Finset.mul_sum]
+    simp only [Finset.sum_sub_distrib, sum_rademacherLinear_eval_eq_zero, huOf_sum,
+      mul_assoc, ← Finset.sum_mul, hsum_rad, zero_mul, zero_sub, ← Finset.mul_sum]
     ring
   have hconst : ∑ _σ : Fin T → Bool, (D * G * Real.sqrt T / (2 * Real.sqrt 3)) ≤
       ∑ σ : Fin T → Bool, ∑ t : Fin T,

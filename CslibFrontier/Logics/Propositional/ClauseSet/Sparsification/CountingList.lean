@@ -132,9 +132,7 @@ theorem Clause.isTautology_eq_true_iff {C : Clause V} :
 
 theorem Clause.isTautology_eq_false_iff {C : Clause V} :
     Clause.isTautology C = false ↔ ∀ l ∈ C, Std.Sat.Literal.negate l ∉ C := by
-  rw [← Bool.not_eq_true, Clause.isTautology_eq_true_iff]
-  push Not
-  rfl
+  simp [← Bool.not_eq_true, Clause.isTautology_eq_true_iff]
 
 /-- Any tautological clause evaluates to `true` under every assignment. -/
 theorem eval_eq_true_of_isTautology {C : Clause V} (h : Clause.isTautology C = true)
@@ -301,15 +299,12 @@ theorem countingNormalized_countingChild {k : ℕ} {ψ : CNF V} (hk : 1 ≤ k)
           exact ⟨(h.nodup D hDψ).filter _, (List.length_filter_le _ D).trans (h.length_le D hDψ),
             fun l hl hneg => h.nontautological D hDψ l (List.mem_filter.mp hl).1
               (List.mem_filter.mp hneg).1⟩
-        · refine ⟨List.nodup_singleton _, hk, fun l hl hneg => ?_⟩
-          rw [List.mem_singleton] at hl hneg
-          subst hl
-          cases bv <;> exact Bool.noConfusion (congrArg Prod.snd hneg)
+        · refine ⟨List.nodup_singleton _, hk, fun _ hl hneg => ?_⟩
+          rw [List.mem_singleton.mp hl] at hneg
+          cases bv <;> simp [Std.Sat.Literal.negate] at hneg
   exact ⟨⟨fun C hC => (hall C hC).1, fun C hC => (hall C hC).2.1,
     ((reduce_sublist _).map _).nodup (nodup_toFinset_dedupClauses _),
-    by
-      rw [countingChild, toClauseSet_reduce]
-      exact reduced_reduce _⟩,
+    by simpa only [countingChild, toClauseSet_reduce] using reduced_reduce _⟩,
     fun C hC => (hall C hC).2.2⟩
 
 private theorem choice_snd_sublist_or_nil (θ : ℕ → ℕ) (k : ℕ) (ψ : CNF V) :
@@ -341,14 +336,12 @@ theorem support_countingChild {ψ : CNF V} {c : ℕ} {H : Clause V} {declared : 
   rcases mem_countingChild hC with hC | hC
   · exact hψ C hC l hl
   · cases b
-    · rw [List.mem_singleton.mp hC] at hl
-      exact hH l hl
+    · exact hH l (by rwa [List.mem_singleton.mp hC] at hl)
     · simp only [countingIntro, ite_true, List.mem_append, petals, negatedHeartUnits,
         List.mem_map] at hC
       rcases hC with ⟨D, hD, rfl⟩ | ⟨l₀, hl₀, rfl⟩
       · exact hψ D (List.filter_sublist.subset hD) l (List.mem_filter.mp hl).1
-      · rw [List.mem_singleton.mp hl]
-        exact hH l₀ hl₀
+      · exact (congrArg (·.1 ∈ declared) (List.mem_singleton.mp hl)).mpr (hH l₀ hl₀)
 
 /-- Every literal occurring in `countingNext θ k ψ b` has its variable in `declared` whenever `ψ`
 does. -/

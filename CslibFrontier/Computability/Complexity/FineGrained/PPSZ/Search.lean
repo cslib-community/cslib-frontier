@@ -73,29 +73,20 @@ theorem satExt_iff (ρ : Fin n → Option Bool) (ψ : CNF (Fin n)) :
     -- choose a true literal in each clause
     have key : ∀ ψ : CNF (Fin n), ψ.eval σ = true →
         ∃ ls ∈ ψ.sections, ∀ l ∈ ls, σ l.1 = l.2 := by
-      intro ψ
+      intro ψ h
       induction ψ with
-      | nil => intro _; exact ⟨[], by simp, by simp⟩
+      | nil => exact ⟨[], by simp, by simp⟩
       | cons c ψ ih =>
-        intro h
         simp only [CNF.eval, List.all_cons, Bool.and_eq_true] at h
         obtain ⟨ls, hls, hl⟩ := ih h.2
         obtain ⟨l, hlc, hlσ⟩ := List.any_eq_true.mp h.1
-        refine ⟨l :: ls, ?_, ?_⟩
-        · simp only [List.sections, List.mem_flatMap, List.mem_map]
-          exact ⟨ls, hls, l, hlc, rfl⟩
-        · exact List.forall_mem_cons.2 ⟨by simpa [Literal.eval] using hlσ, hl⟩
+        exact ⟨l :: ls, List.mem_flatMap.2 ⟨ls, hls, List.mem_map.2 ⟨l, hlc, rfl⟩⟩,
+          List.forall_mem_cons.2 ⟨by simpa [Literal.eval] using hlσ, hl⟩⟩
     obtain ⟨ls, hls, hl⟩ := key ψ hψ
     refine ⟨ls, hls, ?_⟩
     simp only [compatible, Bool.and_eq_true, List.all_eq_true, bne_iff_ne, ne_eq]
-    refine ⟨fun l hl' h => ?_, fun l hl' l' hl'' h => ?_⟩
-    · have := hσρ _ _ h
-      have := hl l hl'
-      grind
-    · subst h
-      have := hl _ hl''
-      have := hl l hl'
-      grind
+    exact ⟨fun l hl' h => by grind [hσρ _ _ h, hl l hl'],
+      fun l hl' _ hl'' h => by grind [hl _ hl'', hl l hl']⟩
   · rintro ⟨ls, hls, hc⟩
     simp only [compatible, Bool.and_eq_true, List.all_eq_true, bne_iff_ne, ne_eq] at hc
     obtain ⟨hρ, hpair⟩ := hc
@@ -124,11 +115,10 @@ theorem satExt_iff (ρ : Fin n → Option Bool) (ψ : CNF (Fin n)) :
     · -- every clause contains its chosen literal
       have key : ∀ (ψ : CNF (Fin n)) (ls' : List (Literal (Fin n))), ls' ∈ ψ.sections →
           (∀ l ∈ ls', σ l.1 = l.2) → ψ.eval σ = true := by
-        intro ψ
-        induction ψ with
-        | nil => intro _ _ _; rfl
+        intro ψ ls' hls' hl'
+        induction ψ generalizing ls' with
+        | nil => rfl
         | cons c ψ ih =>
-          intro ls' hls' hl'
           simp only [List.sections, List.mem_flatMap, List.mem_map] at hls'
           obtain ⟨t, ht, l, hlc, rfl⟩ := hls'
           simp only [CNF.eval, List.all_cons, Bool.and_eq_true]
@@ -143,10 +133,7 @@ theorem satExt_nil (ρ : Fin n → Option Bool) : SatExt ρ [] :=
 /-- Satisfiability by an extension depends only on the set of clauses. -/
 theorem satExt_congr {ρ : Fin n → Option Bool} {ψ ψ' : CNF (Fin n)}
     (h : ∀ c, c ∈ ψ ↔ c ∈ ψ') : SatExt ρ ψ ↔ SatExt ρ ψ' := by
-  have he : ∀ σ : Fin n → Bool, ψ.eval σ = ψ'.eval σ := fun σ => by
-    rw [Bool.eq_iff_iff]
-    simp only [CNF.eval, List.all_eq_true, h]
-  simp only [SatExt, he]
+  simp only [SatExt, CNF.eval, List.all_eq_true, h]
 
 /-- Sections of `n` copies of `l` are the lists of length `n` with entries in `l`. -/
 theorem mem_sections_replicate {α : Type*} {l : List α} {k : ℕ} {f : List α} :
@@ -154,10 +141,7 @@ theorem mem_sections_replicate {α : Type*} {l : List α} {k : ℕ} {f : List α
   rw [List.mem_sections]
   induction f generalizing k with
   | nil => cases k <;> simp
-  | cons a f ih =>
-    cases k with
-    | zero => simp
-    | succ k => simp [List.replicate_succ, ih, and_left_comm]
+  | cons a f ih => cases k <;> simp [List.replicate_succ, ih, and_left_comm]
 
 /-- **The finite search deciding w-implication**: `τ` sets `x` to `b`, or some choice of `w`
 clauses of `φ` has no compatible choice of literals under `τ` with `x` set to `!b`. -/
@@ -181,13 +165,11 @@ theorem wImplied_iff_test (φ : CNF (Fin n)) (w : ℕ) (τ : Fin n → Option Bo
       simp only [not_or, not_not] at hc
       obtain ⟨hτx, σ, hσρ, hψ⟩ := hc
       have hσx : σ x = !b := hσρ x _ (by simp [hρ])
-      have hστ : ∀ y c, τ y = some c → σ y = c := fun y c hy => by
-        by_cases hyx : y = x
-        · subst hyx
-          cases c <;> cases b <;> simp_all
+      have hστ (y : Fin n) (c : Bool) (hy : τ y = some c) : σ y = c := by
+        rcases eq_or_ne y x with rfl | hyx
+        · cases c <;> cases b <;> simp_all
         · exact hσρ y c (by rwa [hρ, Function.update_of_ne hyx])
-      have := h σ hστ hψ
-      grind
+      grind [h σ hστ hψ]
     · rintro (hτx | hsat) σ hστ hψ
       · exact hστ x b hτx
       · by_contra hσx
@@ -205,14 +187,11 @@ theorem wImplied_iff_test (φ : CNF (Fin n)) (w : ℕ) (τ : Fin n → Option Bo
       refine ⟨c₀ :: ψ' ++ List.replicate (w - (ψ'.length + 1)) c₀, ?_, ?_⟩
       · rw [mem_sections_replicate]
         refine ⟨by simp at hlen ⊢; omega, fun c hc => ?_⟩
-        rcases List.mem_append.mp hc with hc | hc
-        · exact hsub c hc
-        · rw [List.eq_of_mem_replicate hc]; exact hsub c₀ (by simp)
-      · rwa [satExt_congr fun c => ?_]
-        refine ⟨fun hc => ?_, List.mem_append_left _⟩
-        rcases List.mem_append.mp hc with hc | hc
-        · exact hc
-        · rw [List.eq_of_mem_replicate hc]; simp
+        exact (List.mem_append.mp hc).elim (hsub c)
+          fun h => List.eq_of_mem_replicate h ▸ hsub c₀ List.mem_cons_self
+      · rwa [satExt_congr fun c => ⟨fun hc => ?_, List.mem_append_left _⟩]
+        exact (List.mem_append.mp hc).elim id fun h =>
+          List.eq_of_mem_replicate h ▸ List.mem_cons_self
     · rintro ⟨cs, hcs, hsat⟩
       rw [mem_sections_replicate] at hcs
       exact ⟨cs, hcs.2, hcs.1.le, hsat⟩
@@ -220,14 +199,12 @@ theorem wImplied_iff_test (φ : CNF (Fin n)) (w : ℕ) (τ : Fin n → Option Bo
     grind [satExt_iff]
   unfold WImplied
   simp only [hone, impliedTest, Bool.or_eq_true, beq_iff_eq, List.any_eq_true, ← hρ, ← hdec]
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro ⟨ψ, hsub, hlen, hτx | hsat⟩
-    · exact Or.inl hτx
-    · exact Or.inr (hsearch.mp ⟨ψ, hsub, hlen, hsat⟩)
+    exacts [.inl hτx, .inr (hsearch.mp ⟨ψ, hsub, hlen, hsat⟩)]
   · rintro (hτx | h)
-    · exact ⟨[], by simp, by simp, Or.inl hτx⟩
-    · obtain ⟨ψ, hsub, hlen, hsat⟩ := hsearch.mpr h
-      exact ⟨ψ, hsub, hlen, Or.inr hsat⟩
+    exacts [⟨[], by simp, Nat.zero_le _, .inl hτx⟩,
+      (hsearch.mpr h).imp fun ψ ⟨hsub, hlen, hsat⟩ => ⟨hsub, hlen, .inr hsat⟩]
 
 /-- **The implied value through the search**: `true` if the search accepts `x = true`, otherwise
 `false` if it accepts `x = false`, and none otherwise. -/

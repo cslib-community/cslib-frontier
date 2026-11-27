@@ -123,9 +123,7 @@ theorem parts_mask_left {L : ℕ} (a : Fin (7 ^ L)) :
     if ℓ ∈ innerSetL (fun ℓ => leftAt (finFunctionFinEquiv.symm a ℓ))
       then (1 : Fin 2) else 0)).val
   rw [← Nat.ofDigits_finFunctionFinEquiv, List.map_ofFn]
-  congr 1
-  apply congrArg List.ofFn
-  funext ℓ
+  refine congrArg _ (congrArg List.ofFn (funext fun ℓ => ?_))
   change (if (finFunctionFinEquiv.symm a ℓ).val < 3 then 0 else 1) = _
   by_cases h : (finFunctionFinEquiv.symm a ℓ).val < 3 <;>
     simp only [innerSetL, Finset.mem_filter, Finset.mem_univ, true_and,
@@ -141,9 +139,7 @@ theorem parts_mask_right {L : ℕ} (a : Fin (7 ^ L)) :
     if ℓ ∈ innerSetR (fun ℓ => rightAt (finFunctionFinEquiv.symm a ℓ))
       then (1 : Fin 2) else 0)).val
   rw [← Nat.ofDigits_finFunctionFinEquiv, List.map_ofFn]
-  congr 1
-  apply congrArg List.ofFn
-  funext ℓ
+  refine congrArg _ (congrArg List.ofFn (funext fun ℓ => ?_))
   change (if (finFunctionFinEquiv.symm a ℓ).val < 3 then 0 else 1) = _
   by_cases h : (finFunctionFinEquiv.symm a ℓ).val < 3 <;>
     simp only [innerSetR, Finset.mem_filter, Finset.mem_univ, true_and,
@@ -245,18 +241,14 @@ theorem bandValue_left {L m N : ℕ} (hm : m ≤ L)
     split <;> simp only [hf, Matrix.zero_apply]
   · obtain ⟨gh, hs, hset⟩ := exists_table_eq_of_lookup_ne_zero hm hmask hz
     have hcard : (innerSetL u).card = m := hset ▸ lay.table_card gh
-    have hf : bandFamilyL lay X β (innerSetL u) = rowBlock lay X (β * K0 L m + gh.1) := by
-      rw [← hset]
-      exact bandFamilyL_table lay X β gh.1 gh.2
+    have hf : bandFamilyL lay X β (innerSetL u) = rowBlock lay X (β * K0 L m + gh.1) :=
+      hset ▸ bandFamilyL_table lay X β gh.1 gh.2
     have ho : (parts L a.val).outer = (lay.rowIdx.symm (outerPartL u hcard)).val :=
       parts_outer_left a hcard
-    have hi : (parts L a.val).inner = (lay.innerIdx.symm (innerPartL u hcard)).val := by
-      change (parts L a.val).inner =
-        (finFunctionFinEquiv fun k => finProdFinEquiv (innerPartL u hcard k)).val
-      exact parts_inner_left a hcard
-    have hg : (MaskTable.lookup L m (parts L a.val).mask - 1) / K0 L m = gh.1.val := by
-      rw [← hs]
-      exact (MaskTable.lookup_blockPair gh).1
+    have hi : (parts L a.val).inner = (lay.innerIdx.symm (innerPartL u hcard)).val :=
+      parts_inner_left a hcard
+    have hg : (MaskTable.lookup L m (parts L a.val).mask - 1) / K0 L m = gh.1.val :=
+      hs ▸ (MaskTable.lookup_blockPair gh).1
     change bandValue L m N β false matrix a.val = (arrayL m (bandFamilyL lay X β)) u
     rw [arrayL, dite_eq_left hcard, hf]
     simp only [bandValue, hz, ↓reduceIte, Bool.false_eq_true, hg, ho, hi,
@@ -284,18 +276,14 @@ theorem bandValue_right {L m N : ℕ} (hm : m ≤ L)
     split <;> simp only [hf, Matrix.zero_apply]
   · obtain ⟨gh, hs, hset⟩ := exists_table_eq_of_lookup_ne_zero hm hmask hz
     have hcard : (innerSetR u).card = m := hset ▸ lay.table_card gh
-    have hf : bandFamilyR lay Y β (innerSetR u) = colBlock lay Y (β * K0 L m + gh.2) := by
-      rw [← hset]
-      exact bandFamilyR_table lay Y β gh.1 gh.2
+    have hf : bandFamilyR lay Y β (innerSetR u) = colBlock lay Y (β * K0 L m + gh.2) :=
+      hset ▸ bandFamilyR_table lay Y β gh.1 gh.2
     have ho : (parts L a.val).outer = (lay.colIdx.symm (outerPartR u hcard)).val :=
       parts_outer_right a hcard
-    have hi : (parts L a.val).inner = (lay.innerIdx.symm (innerPartR u hcard)).val := by
-      change (parts L a.val).inner =
-        (finFunctionFinEquiv fun k => finProdFinEquiv (innerPartR u hcard k)).val
-      exact parts_inner_right a hcard
-    have hg : (MaskTable.lookup L m (parts L a.val).mask - 1) % K0 L m = gh.2.val := by
-      rw [← hs]
-      exact (MaskTable.lookup_blockPair gh).2
+    have hi : (parts L a.val).inner = (lay.innerIdx.symm (innerPartR u hcard)).val :=
+      parts_inner_right a hcard
+    have hg : (MaskTable.lookup L m (parts L a.val).mask - 1) % K0 L m = gh.2.val :=
+      hs ▸ (MaskTable.lookup_blockPair gh).2
     change bandValue L m N β true matrix a.val = (arrayR m (bandFamilyR lay Y β)) u
     rw [arrayR, dite_eq_left hcard, hf]
     simp only [bandValue, hz, ↓reduceIte, hg, ho, hi, colBlock, padCols]

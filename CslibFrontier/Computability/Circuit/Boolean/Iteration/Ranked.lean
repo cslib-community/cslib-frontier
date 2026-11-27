@@ -94,9 +94,7 @@ private theorem corrected_spec (f payload : BitString n → BitString n) (d : Fi
       f^[T - K] (f^[d (chooseRecord flags id first K)] x)) :
     corrected f payload d first flags x = f^[T] x := by
   simp only [corrected, chooseRecord_eq_apply, hp, ← Function.iterate_add_apply]
-  congr 1
-  have := hd (chooseRecord flags id first K)
-  lia
+  exact congrArg (f^[·] x) (by have := hd (chooseRecord flags id first K); omega)
 
 private theorem synthesis_corrected (s : Set (BooleanFunction n)) (c p : Circuit signature n n)
     (d : Fin K → ℕ) (first : Fin K) (flags : BitString n → Fin K → Bool)
@@ -152,9 +150,8 @@ theorem injective_of_no_return_period (f : BitString n → BitString n) (x : Bit
         Nat.sub_add_cancel hij.le] using he.symm
     have h := hperiod.apply_iterate (K - i.val)
     rw [← Function.iterate_add_apply, Nat.sub_add_cancel i.isLt.le] at h
-    have hj := j.isLt
-    exact hret ⟨⟨j.val - i.val - 1, by lia⟩,
-      by simpa [show j.val - i.val - 1 + 1 = j.val - i.val by lia] using h.eq⟩
+    exact hret ⟨⟨j.val - i.val - 1, by have := j.isLt; omega⟩,
+      by simpa only [Nat.sub_add_cancel (Nat.sub_pos_of_lt hij)] using h.eq⟩
   intro i j he
   rcases lt_trichotomy i.val j.val with hij | hij | hij
   exacts [(hlt hij he).elim, Fin.ext hij, (hlt hij he.symm).elim]
@@ -235,12 +232,10 @@ theorem fixed_power_of_ranked_checkpoints (c : Circuit signature n n) (q : Circu
         have hsimple := injective_of_no_return_period f x (K := K)
           (by simpa only [returnFlag, decide_eq_true_eq, Function.iterate_add_apply] using hret)
         exact hp (hcover x hx hsimple i (hmin i hi))
-    · dsimp only [K]
-      ring
+    · dsimp only [K]; ring
   · refine ⟨c.iterate T, fun x _ => congrFun (c.eval_iterate interpretation T) x, ?_⟩
     rw [Circuit.size_iterate]
-    have h := Nat.mul_le_mul_right c.size (Nat.le_of_not_ge hT)
-    change _ ≤ K * _ + _
-    exact h.trans ((Nat.mul_le_mul_left K (by lia)).trans (Nat.le_add_right _ _))
+    exact (Nat.mul_le_mul_right c.size (Nat.le_of_not_ge hT)).trans
+      ((Nat.mul_le_mul_left (2 * L) (by omega)).trans (Nat.le_add_right _ _))
 
 end Cslib.Circuits.Boolean.Iteration

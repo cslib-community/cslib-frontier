@@ -309,16 +309,14 @@ theorem runFrom_interpret_intertwine (M₁ : Machine I E₁) (M₂ : Machine I E
   induction prog using OracleComp.induction generalizing s₁ s₂ with
   | pure a => exact hfg a s₁ s₂ hR
   | query_bind q _ ih =>
-    simp only [PFunctor.FreeM.bind_eq_bind] at hinv ⊢
+    simp only [PFunctor.FreeM.bind_eq_bind, OracleComp.interpret_bind,
+      OracleComp.interpret_query] at hinv ⊢
     have hq := OracleComp.QueriesSatisfy.liftBind_iff.mp hinv
+    erw [runFrom_bind, runFrom_bind, bind_assoc, bind_assoc]
     rcases q with k | q
-    · simp only [OracleComp.interpret_bind, OracleComp.interpret_query, sumHandler]
-      erw [runFrom_bind, runFrom_bind, runFrom_query_inl M₁, runFrom_query_inl M₂,
-        bind_map_left, bind_map_left, bind_assoc, bind_assoc]
+    · erw [runFrom_query_inl M₁, runFrom_query_inl M₂, bind_map_left, bind_map_left]
       exact bind_congr fun a => ih a (hq.2 a) s₁ s₂ hR
-    · simp only [OracleComp.interpret_bind, OracleComp.interpret_query, sumHandler]
-      erw [runFrom_bind, runFrom_bind, bind_assoc, bind_assoc]
-      exact hstep q s₁ s₂ _ _ hq.1 hR fun r s₁'' s₂'' hR' => ih r (hq.2 r) s₁'' s₂'' hR'
+    · exact hstep q s₁ s₂ _ _ hq.1 hR fun r s₁'' s₂'' hR' => ih r (hq.2 r) s₁'' s₂'' hR'
 
 /-- Direct (uninterpreted) state-intertwining specialization of
 `Machine.runFrom_interpret_intertwine` for two machines sharing an exported interface `E`. -/
@@ -380,15 +378,14 @@ private theorem closeEval_runFrom_interpret_trap_eq_zero (M : Machine OracleSpec
   induction prog using OracleComp.induction generalizing s with
   | pure a => exact htrap_f a s hs
   | query_bind q _ ih =>
-    simp only [PFunctor.FreeM.bind_eq_bind] at hinv ⊢
+    simp only [PFunctor.FreeM.bind_eq_bind, OracleComp.interpret_bind,
+      OracleComp.interpret_query] at hinv ⊢
     have hq := OracleComp.QueriesSatisfy.liftBind_iff.mp hinv
+    erw [runFrom_bind, bind_assoc]
     rcases q with k | q
-    · simp only [OracleComp.interpret_bind, OracleComp.interpret_query, sumHandler]
-      erw [runFrom_bind, runFrom_query_inl, bind_map_left, bind_assoc]
+    · erw [runFrom_query_inl, bind_map_left]
       exact closeEval_bind_eq_zero fun a _ => ih a (hq.2 a) s hs
-    · simp only [OracleComp.interpret_bind, OracleComp.interpret_query, sumHandler]
-      erw [runFrom_bind, bind_assoc]
-      exact closeEval_bind_eq_zero fun z hz =>
+    · exact closeEval_bind_eq_zero fun z hz =>
         ih z.1 (hq.2 z.1) z.2 (htrap_step q s hq.1 hs hz)
 
 /-- Sub-probability (clamped) state-intertwining for `closeEval`: two closed machines `M₁` and
@@ -424,16 +421,14 @@ theorem closeEval_runFrom_interpret_le_intertwine
   induction prog using OracleComp.induction generalizing s₁ s₂ with
   | pure a => exact hfg a s₁ s₂ hR
   | query_bind q cont ih =>
-    simp only [PFunctor.FreeM.bind_eq_bind] at hinv ⊢
+    simp only [PFunctor.FreeM.bind_eq_bind, OracleComp.interpret_bind,
+      OracleComp.interpret_query] at hinv ⊢
     have hq := OracleComp.QueriesSatisfy.liftBind_iff.mp hinv
+    erw [runFrom_bind, runFrom_bind, bind_assoc, bind_assoc]
     rcases q with k | q
-    · simp only [OracleComp.interpret_bind, OracleComp.interpret_query, sumHandler]
-      erw [runFrom_bind, runFrom_bind, runFrom_query_inl M₁, runFrom_query_inl M₂,
-        bind_map_left, bind_map_left, bind_assoc, bind_assoc]
+    · erw [runFrom_query_inl M₁, runFrom_query_inl M₂, bind_map_left, bind_map_left]
       exact closeEval_bind_le _ _ _ y fun a => ih a (hq.2 a) s₁ s₂ hR
-    · simp only [OracleComp.interpret_bind, OracleComp.interpret_query, sumHandler]
-      erw [runFrom_bind, runFrom_bind, bind_assoc, bind_assoc]
-      exact hstep q s₁ s₂ _ _ hq.1 hR (fun r s₁'' s₂'' hR' => ih r (hq.2 r) s₁'' s₂'' hR')
+    · exact hstep q s₁ s₂ _ _ hq.1 hR (fun r s₁'' s₂'' hR' => ih r (hq.2 r) s₁'' s₂'' hR')
         fun r s₁'' hT => closeEval_runFrom_interpret_trap_eq_zero M₁ h₁ Inv Trap (cont r)
           (hq.2 r) s₁'' hT f y htrap_f htrap_step
 
@@ -462,9 +457,7 @@ theorem closeEval_runFrom_le_intertwine (M₁ M₂ : Machine OracleSpec.empty E)
   simpa only [sumHandler_query_eq, OracleComp.interpret_query_eq_self] using
     closeEval_runFrom_interpret_le_intertwine M₁ M₂ ProbOracleComp.query ProbOracleComp.query
       Inv R Trap prog hinv s₁ s₂ hR f g y hfg htrap_f
-      (fun q s₁' _ hq hT hz => htrap_step q s₁' hq hT (by
-        erw [runFrom_query] at hz
-        exact hz))
+      (fun q s₁' _ hq hT hz => htrap_step q s₁' hq hT (runFrom_query M₁ q s₁' ▸ hz))
       fun q s₁' s₂' k₁ k₂ hq hR' hcont htrap_k => by
         erw [runFrom_query, runFrom_query]; exact hstep q s₁' s₂' k₁ k₂ hq hR' hcont htrap_k
 

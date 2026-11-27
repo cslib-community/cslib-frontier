@@ -70,10 +70,6 @@ private theorem integral_empiricalRisk_eq_one_of_integral_trueRisk_eq_one {m : �
     (hS : ∀ i, trueRisk ℓ D i = 1 → empiricalRisk ℓ S i = 1)
     {Q : Measure ι} [IsProbabilityMeasure Q] (h1 : ∫ i, trueRisk ℓ D i ∂Q = 1) :
     ∫ i, empiricalRisk ℓ S i ∂Q = 1 := by
-  have hint_sub : Integrable (fun i => 1 - trueRisk ℓ D i) Q :=
-    Integrable.of_mem_Icc 0 1 (measurable_of_countable _).aemeasurable
-      (ae_of_all _ fun i => ⟨sub_nonneg.2 (trueRisk_mem_Icc ℓ D (hℓ01 i)).2,
-        sub_le_self _ (trueRisk_mem_Icc ℓ D (hℓ01 i)).1⟩)
   have hint_tr : Integrable (trueRisk ℓ D) Q :=
     Integrable.of_mem_Icc 0 1 (measurable_of_countable _).aemeasurable
       (ae_of_all _ fun i => trueRisk_mem_Icc ℓ D (hℓ01 i))
@@ -82,14 +78,11 @@ private theorem integral_empiricalRisk_eq_one_of_integral_trueRisk_eq_one {m : �
       one_mul, h1, sub_self]
   have hae : ∀ᵐ i ∂Q, trueRisk ℓ D i = 1 := by
     filter_upwards [(integral_eq_zero_iff_of_nonneg
-      (fun i => sub_nonneg.2 (trueRisk_mem_Icc ℓ D (hℓ01 i)).2) hint_sub).1 hzero] with i hi
+      (fun i => sub_nonneg.2 (trueRisk_mem_Icc ℓ D (hℓ01 i)).2)
+      ((integrable_const 1).sub hint_tr)).1 hzero] with i hi
     rw [Pi.zero_apply] at hi
     linarith
-  have hae_emp : empiricalRisk ℓ S =ᵐ[Q] fun _ => (1 : ℝ) := by
-    filter_upwards [hae] with i hi
-    exact hS i hi
-  rw [integral_congr_ae hae_emp]
-  simp
+  simpa using integral_congr_ae (hae.mono hS)
 
 private theorem integral_risk_mem_Icc {g : ι → ℝ} (hg : ∀ i, g i ∈ Icc (0 : ℝ) 1)
     (Q : Measure ι) [IsProbabilityMeasure Q] :
@@ -202,14 +195,10 @@ theorem measure_pi_exists_zero_risk_gt_of_binaryKL (hℓ : ∀ i, Measurable (�
       klDiv Q P ≠ ⊤ ∧ ∫ i, empiricalRisk ℓ S i ∂Q = 0 ∧
         1 - exp (-(((klDiv Q P).toReal + log ((m + 1) / δ)) / m)) <
           ∫ i, trueRisk ℓ D i ∂Q} ≤ ENNReal.ofReal δ := by
-  refine (measure_mono_ae ?_).trans (measure_pi_exists_binaryKL_integral_risk_gt hℓ hℓ01 hm P hδ)
-  filter_upwards [ae_forall_empiricalRisk_eq hℓ hℓ01 hm] with S hS ⟨Q, hQ, hQP, hq0, hlt⟩
-  have hp := integral_risk_mem_Icc (fun i => trueRisk_mem_Icc ℓ D (hℓ01 i)) Q
-  have hp1 : ∫ i, trueRisk ℓ D i ∂Q < 1 := hp.2.lt_of_ne fun hpeq => by
-    linarith [integral_empiricalRisk_eq_one_of_integral_trueRisk_eq_one hℓ01
-      (fun i hi => (hS i).2 hi) hpeq]
-  refine ⟨Q, hQ, hQP, ?_⟩
-  rw [hq0]
+  refine measure_pi_exists_risk_gt_of_binaryKL_step hℓ hℓ01 hm P hδ
+    (fun q p c => q = 0 ∧ 1 - exp (-c) < p) ?_
+  rintro q p c - hp - h1 ⟨rfl, hlt⟩
+  have hp1 : p < 1 := hp.2.lt_of_ne fun hpeq => by linarith [h1 hpeq]
   by_contra! hkle
   linarith [le_one_sub_exp_neg_of_binaryKL_zero_le hp.1 hp1 hkle]
 

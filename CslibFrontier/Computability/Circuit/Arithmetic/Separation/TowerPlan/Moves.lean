@@ -24,8 +24,8 @@ of the tree among the parties (`Placement`) they are the moves of a play (`moves
 ## Main definitions
 
 * `VertexMove`, `VertexMove.withKind`, `Move`: the law moves at the vertices, and all moves.
-* `Move.law`, `Move.party`, `Move.time`, `Move.target`: the law of a move, the nodes at its
-  roles, its time, and the targets of its channels.
+* `Move.law`, `Move.party`, `Move.time`, `Move.target`, `Move.isVertex`: the law of a move, the
+  nodes at its roles, its time, the targets of its channels, and whether it is a law move.
 * `Placement`: the party of every node of the tree.
 * `moveOrder`, `moves`: the order of the moves, and the moves as `Cut.Moves`.
 * `MoveChannel`, `MoveSlot`, `moveChannelEquiv`, `moveSlotEquiv`: the channels and the slots of
@@ -112,6 +112,11 @@ theorem sum_eq {M : Type*} [AddCommMonoid M] (g : Move R ch FL → M) :
   · exact Fintype.sum_eq_single ⟨hx⟩ fun y hy => absurd rfl hy
   · have : IsEmpty (PLift (x.Occurs R ch)) := ⟨fun y => hx y.down⟩
     exact Fintype.sum_empty _
+
+/-- The move is a law move at a vertex. -/
+@[expose] def isVertex : Move R ch FL → Bool
+  | .relay _ _ => false
+  | .vertex _ => true
 
 /-- The law of a move. -/
 @[expose] def law : Move R ch FL → Law F

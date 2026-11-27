@@ -129,15 +129,14 @@ theorem lpNorm_two_noiseOp_le {p ρ : ℝ} (hp : 1 ≤ p) (hp' : p ≤ 2) (hρ :
     (by linarith) (mul_nonneg hρ hρ) hρρ f f
   rw [expect_mul_noiseOp_mul, add_sub_cancel] at h
   refine (pow_le_pow_iff_left₀ (lpNorm_nonneg _ _) (lpNorm_nonneg _ _) two_ne_zero).1 ?_
-  rw [lpNorm_two_sq, sq (lpNorm p f)]
+  rw [lpNorm_two_sq]
   simpa only [sq] using h
 
 /-- **The `(p, 2)`-Hypercontractivity Theorem, as a bound on noise stability**: for
 `0 ≤ ρ ≤ 1`, `Stab_ρ[f] ≤ ‖f‖_{1 + ρ} ^ 2` [O'Donnell, Chapter 9][ODonnell2014]. -/
 theorem noiseStability_le_lpNorm_sq {ρ : ℝ} (hρ : 0 ≤ ρ) (hρ' : ρ ≤ 1) (f : (ι → Bool) → ℝ) :
     noiseStability ρ f ≤ lpNorm (1 + ρ) f ^ 2 := by
-  rw [sq]
-  exact expect_mul_noiseOp_le_lpNorm_mul_lpNorm hρ hρ' hρ hρ' hρ
+  simpa only [sq, noiseStability] using expect_mul_noiseOp_le_lpNorm_mul_lpNorm hρ hρ' hρ hρ' hρ
     (Real.sqrt_mul_self hρ).ge f f
 
 /-- **The `(4/3, 2)`-Hypercontractivity Theorem**: `Stab_{1/3}[f] ≤ ‖f‖_{4/3} ^ 2`
@@ -154,7 +153,6 @@ theorem noiseStability_one_third_le (f : (ι → Bool) → ℝ) :
 theorem lpNorm_noiseOp_le_lpNorm_two {q ρ : ℝ} (hq : 2 ≤ q) (hρ : 0 ≤ ρ)
     (hρ' : ρ ≤ (√(q - 1))⁻¹) (f : (ι → Bool) → ℝ) : lpNorm q (noiseOp ρ f) ≤ lpNorm 2 f := by
   set u := noiseOp ρ f
-  have hq0 : 0 < q := by linarith
   have hq1 : 0 < q - 1 := by linarith
   set r := (q - 1)⁻¹ with hr
   have hr0 : 0 ≤ r := inv_nonneg.2 hq1.le
@@ -179,20 +177,17 @@ theorem lpNorm_noiseOp_le_lpNorm_two {q ρ : ℝ} (hq : 2 ≤ q) (hρ : 0 ≤ ρ
     at key
   set A := 𝔼 x, |u x| ^ q
   have hA : 0 ≤ A := expect_abs_rpow_nonneg q u
-  have hlp : lpNorm (1 + r) h = A ^ (1 + r)⁻¹ := by
-    simp only [lpNorm, habs, A]
-  rw [hlp, one_add_one_eq_two] at key
+  simp only [lpNorm, habs, one_add_one_eq_two] at key
   change A ^ q⁻¹ ≤ lpNorm 2 f
   rcases hA.eq_or_lt with h0 | hpos
-  · rw [← h0, Real.zero_rpow (inv_ne_zero hq0.ne')]
+  · rw [← h0, Real.zero_rpow (inv_ne_zero (by linarith))]
     exact lpNorm_nonneg _ _
   · have hexp : q⁻¹ + (1 + r)⁻¹ = 1 := by
       rw [hr]
       field_simp
       ring
     refine le_of_mul_le_mul_right ?_ (Real.rpow_pos_of_pos hpos (1 + r)⁻¹)
-    rw [← Real.rpow_add hpos, hexp, Real.rpow_one, mul_comm]
-    exact key
+    rwa [← Real.rpow_add hpos, hexp, Real.rpow_one, mul_comm]
 
 /-- **Hypercontractivity for `p ≤ 2 ≤ q`**: for `1 ≤ p ≤ 2 ≤ q` and
 `0 ≤ ρ ≤ √((p - 1) / (q - 1))`, `‖T_ρ f‖_q ≤ ‖f‖_p`, composing the `(p, 2)` and `(2, q)`

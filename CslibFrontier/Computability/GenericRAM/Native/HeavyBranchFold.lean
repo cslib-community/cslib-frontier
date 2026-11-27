@@ -683,19 +683,18 @@ theorem computableInPolyTime_heavyVarList :
       (encList encNat) := by
   let encSys := encList (encList (encList encNat))
   have hrange : ComputableInPolyTime
-      (fun p : (ℕ × ℕ) × List (List (List ℕ)) => (List.range p.1.1).map fun v => v)
+      (fun p : (ℕ × ℕ) × List (List (List ℕ)) => List.range p.1.1)
       (encPair (encPair encUnary encNat) encSys) (encList encNat) :=
-    (ComputableInPolyTime.map ComputableInPolyTime.unary_to_binary).comp
-      (ComputableInPolyTime.range.comp ((ComputableInPolyTime.fst _ _).fst'))
+    (ComputableInPolyTime.range.comp ((ComputableInPolyTime.fst _ _).fst'))
+      |>.reencodeList .unary_to_binary
   have hpred : ComputableInPolyTime
       (fun q : ((ℕ × ℕ) × List (List (List ℕ))) × ℕ => decide (q.1.1.2 < varDegree q.2 q.1.2))
       (encPair (encPair (encPair encUnary encNat) encSys) encNat) encBool :=
     ComputableInPolyTime.binary_lt' ((ComputableInPolyTime.fst _ _).fst'.snd')
       (ComputableInPolyTime.unary_to_binary.comp (computableInPolyTime_varDegree.comp
         ((ComputableInPolyTime.snd _ _).prod ((ComputableInPolyTime.fst _ _).snd'))))
-  exact (ComputableInPolyTime.filterWithInput
-    (test := fun x v => decide (x.1.2 < varDegree v x.2)) hrange hpred).of_enc_eq
-      fun _ => congrArg (encList encNat) (by rw [List.map_id']; rfl)
+  exact ComputableInPolyTime.filterWithInput (test := fun x v => decide (x.1.2 < varDegree v x.2))
+    hrange hpred
 
 @[fun_prop] theorem computableInPolyTime_heavyVarList_comp {α : Type} {encIn : α ↪ List Bool}
     {fn fb : α → ℕ} {fsys : α → List (List (List ℕ))}

@@ -117,9 +117,8 @@ theorem mem_SigmaP_of_exists {k : ℕ} (hk : 1 ≤ k) {B : Set (α × List Bool)
   · simp only [Set.mem_ofPred_eq, List.map_cons, alternation_true_cons, Polynomial.eval_add,
       Polynomial.eval_comp, List.map_map, Function.comp_def, exists_length_add_iff]
     refine exists_congr fun w => and_congr_right fun hw => ?_
-    have hmem := hB' (a, w)
-    simp only [List.map_cons, alternation_true_cons, hL a w hw] at hmem
-    rw [hmem]
+    rw [hB' (a, w)]
+    simp only [List.map_cons, alternation_true_cons, hL a w hw]
     exact exists_congr fun _ => and_congr_right fun _ => alternation_congr fun _ => by
       simp [hw, List.append_assoc]
 
@@ -167,17 +166,14 @@ theorem PH_eq_SigmaP_of_PiP_subset_SigmaP {k : ℕ} (hk : 1 ≤ k)
       exact SigmaP_mono (Nat.le_add_right k j)
         (h _ (compl_mem_SigmaP_iff.mp (ih _ (compl_mem_SigmaP_iff.mpr hA))))
   refine Set.Subset.antisymm (Set.iUnion_subset fun j => ?_) (SigmaP_subset_PH k)
-  rcases le_total j k with hj | hj
-  · exact SigmaP_mono hj
-  · obtain ⟨i, rfl⟩ := Nat.exists_eq_add_of_le hj
-    exact hlevel i enc
+  exact (le_total j k).elim (fun hj => SigmaP_mono hj) fun hj =>
+    Nat.add_sub_of_le hj ▸ hlevel (j - k) enc
 
 /-- **`NP = coNP` collapses the polynomial hierarchy to `NP`** [Arora and Barak, Theorem 5.4]
 [AroraBarak09]. -/
 theorem PH_eq_NP_of_coNP_subset_NP (h : ∀ {β : Type} (encB : β ↪ List Bool), coNP encB ⊆ NP encB) :
     PH enc = NP enc := by
-  rw [← SigmaP_one]
-  exact PH_eq_SigmaP_of_PiP_subset_SigmaP le_rfl fun encB => by
+  simpa only [SigmaP_one] using PH_eq_SigmaP_of_PiP_subset_SigmaP le_rfl fun encB => by
     simpa only [PiP_one_eq_coNP, SigmaP_one] using h encB
 
 /-- **`P = NP` collapses the polynomial hierarchy to `P`** [Arora and Barak, Theorem 5.4]
@@ -197,8 +193,7 @@ theorem PH_eq_SigmaP_of_SigmaP_succ_subset_SigmaP {k : ℕ}
     (h : ∀ {β : Type} (encB : β ↪ List Bool), SigmaP (k + 1) encB ⊆ SigmaP k encB) :
     PH enc = SigmaP k enc := by
   rcases Nat.eq_zero_or_pos k with rfl | hk
-  · rw [SigmaP_zero]
-    exact PH_eq_P_of_NP_subset_P fun encB => by
+  · simpa only [SigmaP_zero] using PH_eq_P_of_NP_subset_P fun encB => by
       simpa only [zero_add, SigmaP_one, SigmaP_zero] using h encB
   · exact PH_eq_SigmaP_of_PiP_subset_SigmaP hk fun encB =>
       (PiP_subset_SigmaP_succ k).trans (h encB)
@@ -253,9 +248,9 @@ theorem mem_PiP_iff_exists_encBits {k : ℕ} {A : Set α} :
 theorem mem_PH_iff_exists_encBits {A : Set α} :
     A ∈ PH enc ↔ ∃ B ∈ PH encBits, enc ⁻¹' B = A := by
   simp only [mem_PH]
-  refine ⟨fun ⟨k, hA⟩ => ?_, fun ⟨_, ⟨k, hB⟩, hBA⟩ => hBA ▸ ⟨k, preimage_enc_mem_SigmaP hB⟩⟩
-  obtain ⟨B, hB, hBA⟩ := exists_mem_SigmaP_encBits_preimage hA
-  exact ⟨B, ⟨k, hB⟩, hBA⟩
+  exact ⟨fun ⟨k, hA⟩ =>
+      (exists_mem_SigmaP_encBits_preimage hA).imp fun _ ⟨hB, hBA⟩ => ⟨⟨k, hB⟩, hBA⟩,
+    fun ⟨_, ⟨k, hB⟩, hBA⟩ => hBA ▸ ⟨k, preimage_enc_mem_SigmaP hB⟩⟩
 
 /-- **`Πₖ ⊆ Σₖ` on bit strings transfers to every instance encoding.** -/
 theorem PiP_encBits_subset_SigmaP_iff {k : ℕ} :

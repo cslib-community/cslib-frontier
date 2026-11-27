@@ -199,10 +199,8 @@ omit [DecidableEq P] in
 against any number of faults and for any decision round `R`. -/
 theorem solvesByzantineAgreement_ownInput [DecidableEq P] [Subsingleton P] (G : SimpleGraph P)
     (t R : ℕ) : (ownInput G).SolvesByzantineAgreement t R := by
-  have hstate (F adv x r i) : (ownInput G).state F adv x r i = x i := by
-    induction r with
-    | zero => rfl
-    | succ _ ih => exact ih
+  have hstate (F adv x r i) : (ownInput G).state F adv x r i = x i :=
+    Nat.rec rfl (fun _ ih => ih) r
   exact ⟨fun _ _ _ _ i _ j _ => by rw [Subsingleton.elim i j],
     fun F _ adv x v hv i hi => (hstate F adv x R i).trans (hv i hi)⟩
 
@@ -364,8 +362,8 @@ private theorem ofProtocol_state_eq_state (π : Byzantine.Protocol P S M) (F : F
     · simp only [hji, ↓reduceDIte]
       by_cases hj : j ∈ F
       · simp only [hj, ↓reduceIte]
-      · simp only [hj, ↓reduceIte, ← ofProtocol_state_eq_state π F adv x r j hj]
-        rfl
+      · simpa only [hj, ↓reduceIte, ofProtocol] using
+          congrArg (fun s => π.send r j s i) (ofProtocol_state_eq_state π F adv x r j hj)
 
 private theorem state_eq_ofProtocol_state (π : Byzantine.Protocol P S M) (F : Finset P)
     (advG : ℕ → ∀ j i : P, (⊤ : SimpleGraph P).Adj j i → M) (x : P → Bool) (r : ℕ) (i : P)
@@ -410,9 +408,8 @@ fixed-round Boolean Byzantine agreement against `t` faults in any round count `R
 immediately by simulating `π` on `⊤` (`toSupergraph le_top`) and applying the complete-graph node
 bound `Cslib.Distributed.Byzantine.Protocol.not_solvesByzantineAgreement`. -/
 theorem not_solvesByzantineAgreement [Fintype P] {t R : ℕ} (h2 : 2 ≤ Fintype.card P)
-    (h3 : Fintype.card P ≤ 3 * t) : ¬ π.SolvesByzantineAgreement t R := by
+    (h3 : Fintype.card P ≤ 3 * t) : ¬ π.SolvesByzantineAgreement t R := fun h => by
   classical
-  intro h
   exact ((π.toSupergraph (le_top : G ≤ ⊤)).toProtocol).not_solvesByzantineAgreement h2 h3
     ((solvesByzantineAgreement_toProtocol_iff _ t R).mpr
       ((π.solvesByzantineAgreement_toSupergraph_iff le_top t R).mpr h))
@@ -479,12 +476,10 @@ theorem exists_solvesByzantineAgreement_top_iff.{u, v, w} {P : Type u} [Decidabl
     (∃ (S : Type v) (M : Type w) (π : GraphProtocol (⊤ : SimpleGraph P) S M),
         π.SolvesByzantineAgreement t R) ↔
       ∃ (S : Type v) (M : Type w) (π : Byzantine.Protocol P S M),
-        π.SolvesByzantineAgreement t R := by
-  constructor
-  · rintro ⟨S, M, π, h⟩
-    exact ⟨S, Option M, π.toProtocol, (π.solvesByzantineAgreement_toProtocol_iff t R).mpr h⟩
-  · rintro ⟨S, M, π, h⟩
-    exact ⟨S, M, GraphProtocol.ofProtocol π,
-      (GraphProtocol.solvesByzantineAgreement_ofProtocol_iff π t R).mpr h⟩
+        π.SolvesByzantineAgreement t R :=
+  ⟨fun ⟨S, M, π, h⟩ =>
+      ⟨S, Option M, π.toProtocol, (π.solvesByzantineAgreement_toProtocol_iff t R).mpr h⟩,
+    fun ⟨S, M, π, h⟩ => ⟨S, M, GraphProtocol.ofProtocol π,
+      (GraphProtocol.solvesByzantineAgreement_ofProtocol_iff π t R).mpr h⟩⟩
 
 end Cslib.Distributed.ByzantineGraph

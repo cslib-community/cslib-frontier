@@ -161,13 +161,8 @@ private theorem identicalUntilBad_lazyStep_freshStep :
   refine ProbOracleComp.IdenticalUntilBad.of_flag (fun x c z hz => ?_) (fun x c z hz => ?_)
     fun x c a c' => ?_
   · simp only [lazyStep] at hz
-    split at hz
-    · obtain rfl := (PMF.mem_support_pure_iff _ _).1 hz
-      rfl
-    · obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1 hz
-      rfl
-  · obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1 hz
-    rfl
+    split at hz <;> grind [PMF.mem_support_pure_iff, PMF.mem_support_map_iff]
+  · grind [freshStep, PMF.mem_support_map_iff]
   · simp only [lazyStep, freshStep, Bool.false_or]
     cases c.lookup x with
     | none => simp only [Option.isSome_none]

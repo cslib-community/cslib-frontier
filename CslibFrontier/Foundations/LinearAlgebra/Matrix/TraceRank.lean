@@ -44,18 +44,14 @@ theorem sq_trace_le_rank_mul_trace_sq (A : Matrix m n ℝ) :
     (Aᵀ * A).trace ^ 2 ≤ A.rank * ((Aᵀ * A) * (Aᵀ * A)).trace := by
   classical
   have hH : (Aᵀ * A).IsHermitian := by simpa using isHermitian_conjTranspose_mul_self A
-  have hs := hH.spectral_theorem
   have hconj (X : Matrix n n ℝ) :
       (Unitary.conjStarAlgAut ℝ _ hH.eigenvectorUnitary X).trace = X.trace := by
     rw [Unitary.conjStarAlgAut_apply, trace_mul_cycle, Unitary.coe_star_mul_self, Matrix.one_mul]
   have h₁ : (Aᵀ * A).trace = ∑ i, hH.eigenvalues i := by
     simpa using hH.trace_eq_sum_eigenvalues
   have h₂ : ((Aᵀ * A) * (Aᵀ * A)).trace = ∑ i, hH.eigenvalues i ^ 2 := by
-    have h : (Aᵀ * A) * (Aᵀ * A) = Unitary.conjStarAlgAut ℝ _ hH.eigenvectorUnitary
-        (diagonal (RCLike.ofReal ∘ hH.eigenvalues) *
-          diagonal (RCLike.ofReal ∘ hH.eigenvalues)) := by
-      rw [map_mul, ← hs]
-    rw [h, hconj, diagonal_mul_diagonal, trace_diagonal]
+    conv_lhs => rw [hH.spectral_theorem, ← map_mul]
+    rw [hconj, diagonal_mul_diagonal, trace_diagonal]
     simp [sq]
   have hr : A.rank = (Finset.univ.filter fun i => hH.eigenvalues i ≠ 0).card := by
     rw [← rank_transpose_mul_self, hH.rank_eq_card_non_zero_eigs, Fintype.card_subtype]

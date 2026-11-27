@@ -106,26 +106,22 @@ theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
   set arenaB := newMeta + offNew
   have h225_old : 225 ≤ offCompItems U w N_old := le_offCompItems_225 U w N_old
   have h225_new : 225 ≤ offNew := le_offCompItems_225 U w N_new
-  have hpeak_ar : peakF = arenaB + arenaW := hpeak_eq
-  have hfit_ar : Fits w (arenaB + arenaW) := hpeak_ar ▸ hfit_peak
+  have hfit_ar : Fits w (arenaB + arenaW) := hpeak_eq ▸ hfit_peak
   have hiwn_le_aw : iwNew ≤ arenaW := (le_max_right _ _).trans (Nat.le_add_right _ 6)
   have hfit_nm : Fits w (newMeta + offNew) := hfit_ar.of_le (Nat.le_add_right _ _)
   have hfit1 : Fits w 1 := hfit_nm.of_le (by linarith only [h225_new])
   -- Leftward copy #1: `[newMeta, newMeta + offNew)` -> `[base, base + offNew)`
   set z₅ := z₄.set mTmpA newMeta
-  have hex_c5 := RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
+  have hex_c5 := hz₄_nm ▸ RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
     (d := mTmpA) (s := mNewMeta) (x := z₄) hz₄f_eq.le
-  rw [hz₄_nm] at hex_c5
   set z₆ := z₅.set mTmpB base
-  have hex_c6 := RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
-    (d := mTmpB) (s := mBase) (x := z₅) hz₄f_eq.le
   have hz₅_base : z₅.regs mBase = base := by simp [z₅, RData.set, hz₄_base]
-  rw [hz₅_base] at hex_c6
+  have hex_c6 := hz₅_base ▸ RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
+    (d := mTmpB) (s := mBase) (x := z₅) hz₄f_eq.le
   set z₇ := z₆.set mCur offNew
-  have hex_c7 := RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
-    (d := mCur) (s := mOffNew) (x := z₆) hz₄f_eq.le
   have hz₆_off : z₆.regs mOffNew = offNew := by simp [z₆, z₅, RData.set, hz₄_off]
-  rw [hz₆_off] at hex_c7
+  have hex_c7 := hz₆_off ▸ RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
+    (d := mCur) (s := mOffNew) (x := z₆) hz₄f_eq.le
   have hz₇b : z₇.Bounded w :=
     ((hz₄b.set (hfit_nm.of_le (Nat.le_add_right _ _))).set
       (hfit_nm.of_le (by dsimp only [newMeta]; linarith only [h225_old]))).set
@@ -140,8 +136,7 @@ theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
   obtain ⟨hpre_cl1, hv_cl1, hc_cl1, hfr_cl1, hcp_cl1, hout_cl1⟩ :=
     copyLeftwardProg_spec (w := w) (srcBase := newMeta) (dstBase := base) (len := offNew)
       (s₀ := ⟨z₄.mem, peakF⟩) (fun a _ => hz₄b.mem_fits a)
-      (Nat.le_add_right _ _)
-      (by change newMeta + offNew ≤ peakF; rw [hpeak_ar]; exact Nat.le_add_right _ _) hfit1
+      (Nat.le_add_right _ _) ((Nat.le_add_right arenaB arenaW).trans_eq hpeak_eq.symm) hfit1
   obtain ⟨z₈, hex_cl1, hz₈b, hz₈f, hm_cl1, _, hframe_reg_cl1⟩ :=
     execWitness wCopyLeft factor_wCopyLeft_le mFr srcCopyLeft tmpCopyLeft
       tmpCopyLeft_inj srcCopyLeft_ne_tmp tmpCopyLeft_ne_mFr srcCopyLeft_ne_mFr
@@ -169,20 +164,17 @@ theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
     (w := w) (L_peak := peakF) (x := z₈) hz₈f_eq.le (v := base + offNew)
     (by simp [BinOp.evalExact, hz₈_base, hz₈_off]) hfit_ib
   set z₁₀ := z₉.set mTmpA arenaB
-  have hex_c10 := RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
-    (d := mTmpA) (s := mArena) (x := z₉) hz₈f_eq.le
   have hz₉_ar : z₉.regs mArena = arenaB := by simp [z₉, RData.set, hz₈_ar]
-  rw [hz₉_ar] at hex_c10
+  have hex_c10 := hz₉_ar ▸ RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
+    (d := mTmpA) (s := mArena) (x := z₉) hz₈f_eq.le
   set z₁₁ := z₁₀.set mTmpB (base + offNew)
-  have hex_c11 := RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
-    (d := mTmpB) (s := mItemBase) (x := z₁₀) hz₈f_eq.le
   have hz₁₀_ib : z₁₀.regs mItemBase = base + offNew := by simp [z₁₀, z₉, RData.set]
-  rw [hz₁₀_ib] at hex_c11
+  have hex_c11 := hz₁₀_ib ▸ RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
+    (d := mTmpB) (s := mItemBase) (x := z₁₀) hz₈f_eq.le
   set z₁₂ := z₁₁.set mCur iwNew
-  have hex_c12 := RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
-    (d := mCur) (s := mIwNew) (x := z₁₁) hz₈f_eq.le
   have hz₁₁_iwn : z₁₁.regs mIwNew = iwNew := by simp [z₁₁, z₁₀, z₉, RData.set, hz₈_iwn]
-  rw [hz₁₁_iwn] at hex_c12
+  have hex_c12 := hz₁₁_iwn ▸ RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
+    (d := mCur) (s := mIwNew) (x := z₁₁) hz₈f_eq.le
   have hz₁₂b : z₁₂.Bounded w :=
     (((hz₈b.set hfit_ib).set hfit_nm).set hfit_ib).set
       (hfit_ar.of_le (by linarith only [hiwn_le_aw]))
@@ -197,8 +189,7 @@ theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
     copyLeftwardProg_spec (w := w) (srcBase := arenaB) (dstBase := base + offNew) (len := iwNew)
       (s₀ := ⟨z₈.mem, peakF⟩) (fun a _ => hz₈b.mem_fits a)
       (by dsimp only [arenaB, newMeta]; linarith only [h225_old])
-      (by change arenaB + iwNew ≤ peakF; rw [hpeak_ar]; exact Nat.add_le_add_left hiwn_le_aw _)
-      hfit1
+      ((Nat.add_le_add_left hiwn_le_aw arenaB).trans_eq hpeak_eq.symm) hfit1
   obtain ⟨z₁₃, hex_cl2, hz₁₃b, hz₁₃f, hm_cl2, _, hframe_reg_cl2⟩ :=
     execWitness wCopyLeft factor_wCopyLeft_le mFr srcCopyLeft tmpCopyLeft
       tmpCopyLeft_inj srcCopyLeft_ne_tmp tmpCopyLeft_ne_mFr srcCopyLeft_ne_mFr
@@ -218,8 +209,8 @@ theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
     simp (disch := decide) [hz₁₃_keep12, z₁₂, z₁₁, z₁₀, z₉, RData.set, hz₈_iwn, hz₈_pf]
   let frNew := base + offNew + iwNew
   have hfrNew_le : frNew ≤ peakF := by
-    rw [hpeak_ar]; dsimp only [frNew, arenaB, newMeta]
-    linarith only [h225_old, hiwn_le_aw]
+    dsimp only [peakF, frNew, arenaB, newMeta] at hpeak_eq ⊢
+    linarith only [hpeak_eq, h225_old, hiwn_le_aw]
   set z₁₄ := z₁₃.set mCur frNew
   have hex_c14 := RDemonicExec.exactBin (f := .add) (d := mCur) (i := mItemBase) (j := mIwNew)
     (w := w) (L_peak := peakF) (x := z₁₃) hz₁₃f_eq.le (v := frNew)
@@ -232,25 +223,21 @@ theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
   have hz₁₅b : z₁₅.Bounded w :=
     (hz₁₃b.set (hfit_peak.of_le hfrNew_le)).set (hfit_peak.of_le (Nat.sub_le _ _))
   have hz₁₅_k : z₁₅.regs mK = peakF - frNew := by simp [z₁₅, RData.set]
-  have hsub_le_z15 : z₁₅.regs mK ≤ z₁₅.frontier := by
-    rw [hz₁₅_k, show z₁₅.frontier = peakF from hz₁₃f_eq]; exact Nat.sub_le _ _
-  have hsub_frNew : z₁₅.frontier - z₁₅.regs mK = frNew := by
-    rw [show z₁₅.frontier = peakF from hz₁₃f_eq, hz₁₅_k]; exact Nat.sub_sub_self hfrNew_le
-  have hex_sh := shrinkCode_exec (w := w) (L_peak := peakF)
+  have hsub_le_z15 : z₁₅.regs mK ≤ z₁₅.frontier :=
+    hz₁₅_k.trans_le ((Nat.sub_le _ _).trans_eq hz₁₃f_eq.symm)
+  have hsub_frNew : z₁₅.frontier - z₁₅.regs mK = frNew :=
+    (congrArg₂ (· - ·) hz₁₃f_eq hz₁₅_k).trans (Nat.sub_sub_self hfrNew_le)
+  have hex_sh := hz₁₅_k ▸ shrinkCode_exec (w := w) (L_peak := peakF)
     (count := mK) (idx := mIdx) (zero := mZero) (one := mOne)
     hz₁₅b mShrink_nodup hfit1 hz₁₃f_eq.le hsub_le_z15
-  rw [hz₁₅_k] at hex_sh
   set z := shrinkPost mK mIdx mZero mOne z₁₅
   have hzb : z.Bounded w := shrinkPost_bounded hz₁₅b hfit1 hsub_le_z15
-  have hce_new : compactedEpochWords U V w N_new n = offNew + iwNew := by
-    unfold compactedEpochWords; rw [ite_eq_right (Nat.ne_of_gt hn)]
-  have hzf : z.frontier = base + compactedEpochWords U V w N_new n := by
-    change z₁₅.frontier - z₁₅.regs mK = _
-    rw [hsub_frNew, hce_new]; dsimp only [frNew]; ring
-  have hz_clear_lt : ∀ a < frNew, z.mem a = z₁₃.mem a := fun a ha => by
+  have hzf : z.frontier = base + compactedEpochWords U V w N_new n := hsub_frNew.trans (by
+    rw [compactedEpochWords, ite_eq_right (Nat.ne_of_gt hn)]
+    exact Nat.add_assoc _ _ _)
+  have hz_clear_lt (a : ℕ) (ha : a < frNew) : z.mem a = z₁₃.mem a := by
     change clear z₁₃.mem (z₁₅.frontier - z₁₅.regs mK) (z₁₅.regs mK) a = z₁₃.mem a
-    rw [hsub_frNew]
-    exact clear_of_not_owns (by simp only [Block.Owns, not_and_or, not_le]; exact Or.inl ha)
+    exact hsub_frNew ▸ clear_of_not_owns fun h => ha.not_ge h.1
   have hmeta_reloc : ∀ j < offNew, z.mem (base + j) = z₄.mem (newMeta + j) := fun j hj => by
     rw [hz_clear_lt (base + j) (by dsimp only [frNew]; linarith only [hj]),
       hz₁₃_mem_eq, hout_cl2 (base + j) (fun h => by linarith only [hj, h.1]),
@@ -263,37 +250,29 @@ theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
   obtain ⟨hsplit_z, hgm_z⟩ := compactedSplitRep_of_reloc (s_src := ⟨z₄.mem, peakF⟩)
     (s_dst := ⟨z.mem, z.frontier⟩) (srcItemBase := arenaB) hw hhdr_z₄ hpar_z₄
     hrep_z₄ hcard hvals hcpl_z₄ hmeta_reloc hitem_reloc
-  have hz_abi_of : ∀ reg : Fin rResize, reg.val < 5 → reg ≠ mFr → z.regs reg = z₄.regs reg :=
-    fun reg hlt5 hne_fr => by
-      have hne : ∀ c : Fin 160, 5 ≤ c.val → reg ≠ mReg c := fun _ => ne_mReg_of_lt_five hlt5
-      have h160 : reg.val < 160 := by omega
-      simp [z, shrinkPost, z₁₅, z₁₄, RData.set, hne, hz₁₃_keep12 reg hne_fr h160, z₁₂, z₁₁, z₁₀,
-        z₉, hz₈_keep7 reg hne_fr h160, z₇, z₆, z₅]
+  have hz_abi_of (reg : Fin rResize) (hlt5 : reg.val < 5) (hne_fr : reg ≠ mFr) :
+      z.regs reg = z₄.regs reg := by
+    have hne : ∀ c : Fin 160, 5 ≤ c.val → reg ≠ mReg c := fun _ => ne_mReg_of_lt_five hlt5
+    simp [z, shrinkPost, z₁₅, z₁₄, RData.set, hne, hz₁₃_keep12 reg hne_fr (by omega), z₁₂, z₁₁,
+      z₁₀, z₉, hz₈_keep7 reg hne_fr (by omega), z₇, z₆, z₅]
   have hpeak_lin := migratePeakWords_le_linear (V := V) hw hhdr_z₄.fits_U hV hn hev
-  have hoff_lin : offNew ≤ 504 * n + 439 :=
-    (offCompItems_le_linear hw hNU_new hhdr_z₄.fits_U).trans (by linarith only [hN_new_2n])
-  have hiwn_lin := compactedItemWords_le_linear (U := U) (V := V) (w := w) (N := N_new) (n := n)
-    hw hU.le hV
-  have hf1 := one_le_migFactor
-  have hc_cl1_mul : migFactor * (memoryCost
-      (copyLeftwardProg ((newMeta, base), offNew)) ⟨z₄.mem, peakF⟩ + 1) ≤
-      migFactor * (1008 * n + 879) :=
-    Nat.mul_le_mul_left migFactor (by linarith only [hc_cl1, hoff_lin])
-  have hc_cl2_mul : migFactor * (memoryCost
-      (copyLeftwardProg ((arenaB, base + offNew), iwNew)) ⟨z₈.mem, peakF⟩ + 1) ≤
-      migFactor * (4 * n + 5) :=
-    Nat.mul_le_mul_left migFactor (by
-      dsimp only [iwNew] at hc_cl2; linarith only [hc_cl2, hiwn_lin])
+  have hc_cl1' :
+      memoryCost (copyLeftwardProg ((newMeta, base), offNew)) ⟨z₄.mem, peakF⟩ + 1 ≤
+        1008 * n + 879 := by
+    linarith only [hc_cl1, offCompItems_le_linear hw hNU_new hhdr_z₄.fits_U, hN_new_2n]
+  have hc_cl2' :
+      memoryCost (copyLeftwardProg ((arenaB, base + offNew), iwNew)) ⟨z₈.mem, peakF⟩ + 1 ≤
+        4 * n + 5 := by
+    dsimp only [iwNew] at hc_cl2
+    linarith only [hc_cl2, compactedItemWords_le_linear (N := N_new) (n := n) hw hU.le hV]
   have hc_sh_lin : 4 * (peakF - frNew) + 5 ≤ 6056 * n + 3549 := by
     dsimp only [peakF, frNew]; clear * - hpeak_lin; omega
-  have hex_back :=
-    hex_c5.seq_eq (hex_c6.seq_eq (hex_c7.seq_eq
-      ((hex_cl1.mono hc_cl1_mul (fun _ h => h)).seq_eq
-        (hex_ib.seq_eq (hex_c10.seq_eq (hex_c11.seq_eq (hex_c12.seq_eq
-          ((hex_cl2.mono hc_cl2_mul (fun _ h => h)).seq_eq
-            (hex_c14.seq_eq (hex_c15.seq_eq
-              (hex_sh.mono hc_sh_lin (fun _ h => h))))))))))))
-  refine ⟨z, _, hex_back, by nlinarith only [hn, hf1], hzb, hzf, hsplit_z, hgm_z,
+  have hex_back := hex_c5.seq_eq (hex_c6.seq_eq (hex_c7.seq_eq
+    ((hex_cl1.mono (Nat.mul_le_mul_left migFactor hc_cl1') (fun _ h => h)).seq_eq
+      (hex_ib.seq_eq (hex_c10.seq_eq (hex_c11.seq_eq (hex_c12.seq_eq
+        ((hex_cl2.mono (Nat.mul_le_mul_left migFactor hc_cl2') (fun _ h => h)).seq_eq
+          (hex_c14.seq_eq (hex_c15.seq_eq (hex_sh.mono hc_sh_lin (fun _ h => h))))))))))))
+  refine ⟨z, _, hex_back, by nlinarith only [hn, one_le_migFactor], hzb, hzf, hsplit_z, hgm_z,
     abiPreserved_of_lt_five hz_abi_of,
     fun addr haddr => by
       rw [hz_clear_lt addr (by dsimp only [frNew]; linarith only [haddr]),

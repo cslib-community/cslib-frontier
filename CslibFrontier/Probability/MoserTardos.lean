@@ -328,17 +328,12 @@ theorem lintegral_iSup_count_le [Fintype V] [DecidableEq V] [DecidableEq ι] [Fi
       ENNReal.ofReal (x i / (1 - x i)) := by
   have := Fintype.ofFinite ι
   refine lintegral_iSup_count_le_of_pass μ vbl (Adj vbl) (adj_refl vbl) A
-    (fun S T => Proper vbl S ∧ Check vbl A S T) (fun S => ?_) (fun S => ?_)
+    (fun S T => Proper vbl S ∧ Check vbl A S T)
+    (fun S => (MeasurableSet.const _).inter (measurableSet_check vbl A hAm S)) (fun S => ?_)
     (fun T j H w hw hl => ?_) Γ
     (fun a b hne hadj => hΓ a b hne (((adj_iff vbl).1 hadj).resolve_left hne.symm)) hx hP i
-  · by_cases hS : Proper vbl S
-    · simpa only [hS, true_and] using measurableSet_check vbl A hAm S
-    · simp [hS]
-  · by_cases hS : Proper vbl S
-    · simpa only [hS, true_and] using (measure_check_eq_prod μ vbl A hAm hA hS).le
-    · simp [hS]
-  · obtain ⟨W, hcard, hW⟩ := exists_witnesses vbl A hA T j H w hw hl
-    simpa only [← shapes_eq_shapesRel vbl] using ⟨W, hcard, hW⟩
+  · by_cases hS : Proper vbl S <;> simp [hS, measure_check_eq_prod, hAm, hA]
+  · simpa only [← shapes_eq_shapesRel vbl] using exists_witnesses vbl A hA T j H w hw hl
 
 end Expectation
 
@@ -380,9 +375,7 @@ theorem isLog_run [DecidableEq V] (vbl : ι → Finset V) (A : ι → Set (∀ v
   | 0 => isLog_nil vbl A T
   | n + 1 => by
     cases h : sel T (run sel T n) with
-    | none =>
-      rw [run_succ_of_eq_none h]
-      exact isLog_run vbl A hsel T n
+    | none => simpa only [run_succ_of_eq_none h] using isLog_run vbl A hsel T n
     | some i =>
       rw [run_succ_of_eq_some h, isLog_cons]
       exact ⟨hsel T _ i h, isLog_run vbl A hsel T n⟩

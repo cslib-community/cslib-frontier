@@ -44,22 +44,13 @@ private theorem exists_matchingMass_of_complete {n d : ℕ}
           (decodedPoint S.toCommuting.alice u).effect (MvPolynomial.eval u g.val))).re := by
   classical
   let G := (H.toMeasurement.map some).toPOVM
-  let R := QuantumStrategy.rightMeasurement (ι := ι) H
-  let P := decodedPoint S.toCommuting.alice
   have hG (g : BoundedPolynomial F (n + 1) d) :
-      (QuantumStrategy.rightMeasurement (ι := ι) G).effect (some g) = R.effect g := by
-    have he : G.effect (some g) = H.effect g := by
-      simp [G, Measurement.toPOVM_effect, Measurement.map_effect, sum_filter]
+      (QuantumStrategy.rightMeasurement (ι := ι) G).effect (some g) =
+        (QuantumStrategy.rightMeasurement (ι := ι) H).effect g := by
     change (1 : Matrix ι ι ℂ) ⊗ₖ G.effect (some g) = _ ⊗ₖ H.effect g
-    rw [he]
-  have hread (u : Point F (n + 1)) := Measurement.agreement_map_left S.toCommuting.state R (P u)
-    (fun g => MvPolynomial.eval u g.val)
-  change (𝔼 u : Point F (n + 1), (1 - Measurement.agreement S.toCommuting.state
-    (R.map fun g => MvPolynomial.eval u g.val) (P u))) ≤ s at h
-  simp only [hread, expect_sub_distrib, Fintype.expect_const] at h
-  refine ⟨G, ?_⟩
-  simp only [hG]
-  linarith only [h]
+    simp [G, Measurement.toPOVM_effect, Measurement.map_effect, sum_filter]
+  simp only [Measurement.agreement_map_left, expect_sub_distrib, Fintype.expect_const] at h
+  exact ⟨G, by simp only [hG]; linarith only [h]⟩
 
 private theorem loss_mem_Icc {n : ℕ}
     (S : CommutingStrategy (Question F (n + 1)) (Question F (n + 1))
@@ -107,9 +98,8 @@ private theorem exists_polynomial_POVM_of_symmetric_in_range
   have hq : (0 : ℝ) < Fintype.card F := by exact_mod_cast Fintype.card_pos (α := F)
   by_cases hd₀ : d = 0
   · subst d
-    obtain ⟨G, hG⟩ := exists_degree_zero_polynomial_POVM S (fun u => hP (.point u)) (fun u => by
-      rw [hM]
-      exact hP (.point u))
+    obtain ⟨G, hG⟩ := exists_degree_zero_polynomial_POVM S (fun u => hP (.point u))
+      (fun u => hM ▸ hP (.point u))
     have hbase := baseError_le_dimensionInductionError
       (m := (n + 1 : ℝ)) (by linarith [Nat.cast_nonneg (α := ℝ) n]) hk hε hδ hγ.1
       (div_nonneg (Nat.cast_nonneg 0) hq.le)
@@ -123,11 +113,8 @@ private theorem exists_polynomial_POVM_of_symmetric_in_range
     obtain ⟨hε, hδ, hγ⟩ := losses_mem_Icc C d D
     have hbase := baseError_le_dimensionInductionError (m := 1) (by norm_num) hk hε hδ hγ.1
       (div_nonneg (Nat.cast_nonneg d) hq.le)
-    have hwin : (branchGame (F := F) 0 d .axis).commutingWinProb S.toCommuting = 1 - ε :=
-      (sub_sub_cancel 1 _).symm
-    rw [hwin]
-    simp only [Nat.cast_zero, zero_add]
-    exact sub_le_sub_left (by linarith only [hbase, hε.1, hδ.1]) 1
+    dsimp only [ε, C] at hbase hε ⊢
+    rw [Nat.cast_zero, zero_add]; linarith only [hbase, hε.1, hδ.1]
   | succ n ih =>
     let m := (n + 1 : ℝ)
     let M := (n + 2 : ℝ)
@@ -137,16 +124,12 @@ private theorem exists_polynomial_POVM_of_symmetric_in_range
     let θ : ℝ := 1 / (200 * M)
     have hθ₀ : 0 < θ := by positivity
     have hθ₁ : θ < 1 := by dsimp only [θ]; rw [div_lt_iff₀ (by positivity)]; linarith
+    have hsizeR : (400 : ℝ) * (n + 1 + 1) * d ≤ k := mod_cast hsize
     have hs : 2 * (d : ℝ) ≤ θ * k := by
       dsimp only [θ]
-      rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity)]
-      have h : (400 : ℝ) * M * d ≤ k := by
-        dsimp [M]
-        exact_mod_cast hsize
-      linarith only [h]
-    have hdq : d ≤ Fintype.card F := by
-      have h : d ≤ 400 * (n + 2) * d := Nat.le_mul_of_pos_left d (by positivity)
-      exact (h.trans hsize).trans hfield
+      rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity)]; linarith only [hsizeR]
+    have hdq : d ≤ Fintype.card F :=
+      ((Nat.le_mul_of_pos_left d (by positivity)).trans hsize).trans hfield
     have hrq : 1 / (Fintype.card F : ℝ) ≤ r :=
       div_le_div_of_nonneg_right (by exact_mod_cast Nat.pos_of_ne_zero hd₀) hq.le
     have hr : r ∈ Set.Icc (0 : ℝ) 1 :=
@@ -159,10 +142,9 @@ private theorem exists_polynomial_POVM_of_symmetric_in_range
     let σ (x : F) := dimensionInductionError m k (e x) (f x) (g x) r
     have hs' : 400 * (n + 1) * d ≤ k :=
       (Nat.mul_le_mul_right d (Nat.mul_le_mul_left 400 (by omega))).trans hsize
-    have hex (x : F) := ih hs' (T x) (restrictSliceTensor_bob_eq_alice S x hM)
+    choose G hG using fun x : F => ih hs' (T x) (restrictSliceTensor_bob_eq_alice S x hM)
       (by simpa only [T, restrictSliceTensor_state] using hψ)
       (restrictSliceTensor_alice_isProjective S x hP)
-    choose G hG using hex
     have ht (x : F) : (T x).toCommuting = restrictStrategy x C :=
       restrictSliceTensor_toCommuting S x
     have hstate (x : F) : (T x).toCommuting.state = C.state := restrictSliceTensor_joint_state S x
@@ -183,12 +165,11 @@ private theorem exists_polynomial_POVM_of_symmetric_in_range
         average_slice_consistency_loss_le C d D
     have hdiag : m * (𝔼 x, g x) ≤ M * γ := by
       simpa only [m, M, g, ht] using average_slice_diagonal_loss_le C d D
-    have he (x : F) : 0 ≤ e x := (losses_mem_Icc (T x).toCommuting d D).1.1
-    have hf (x : F) : 0 ≤ f x := (losses_mem_Icc (T x).toCommuting d D).2.1.1
-    have hg (x : F) : 0 ≤ g x := (losses_mem_Icc (T x).toCommuting d D).2.2.1
     obtain ⟨hε, hδ, hγ⟩ := losses_mem_Icc C d D
     have hav := mul_expect_inductionLossTerm_le (show 0 < m by linarith) hmM hε.1 hδ.1 hγ.1 hr.1
-      he hf hg haxis hcons hdiag
+      (fun _ => sub_nonneg.mpr (TwoProverGame.commutingWinProb_le_one _ _))
+      (fun _ => sub_nonneg.mpr (TwoProverGame.commutingWinProb_le_one _ _))
+      (fun _ => sub_nonneg.mpr (TwoProverGame.commutingWinProb_le_one _ _)) haxis hcons hdiag
     have hσ : (𝔼 x, σ x) ≤ m ^ 2 * (100000 * (k : ℝ) ^ 2 * M * inductionLossTerm ε δ γ r +
       Real.exp (-(k : ℝ) / (80000 * m ^ 2))) := by
       simp only [σ, dimensionInductionError, ← mul_expect, expect_add_distrib, Fintype.expect_const]
@@ -221,9 +202,7 @@ private theorem exists_complete_of_matchingMass {n d : ℕ}
   let H := (G.toMeasurement.map f).toPOVM
   let R := QuantumStrategy.rightMeasurement (ι := ι) G
   let C := S.toCommuting
-  have hH : QuantumStrategy.rightMeasurement (ι := ι) H = R.map f := by
-    apply Measurement.ext
-    intro g
+  have hH : QuantumStrategy.rightMeasurement (ι := ι) H = R.map f := Measurement.ext fun g => by
     change oneKronecker (ι := ι) (H.effect g) = _
     simp only [H, Measurement.toPOVM_effect, Measurement.map_effect, POVM.toMeasurement_effect,
       map_sum, R]
@@ -236,17 +215,15 @@ private theorem exists_complete_of_matchingMass {n d : ℕ}
           ((QuantumStrategy.rightMeasurement H).map fun g => MvPolynomial.eval u g.val)
           (decodedPoint C.alice u) := by
     rw [hH, Measurement.map_map, Measurement.agreement_map_left, Fintype.sum_option]
-    apply le_add_of_nonneg_left
-    apply C.state.re_apply_nonneg
+    refine le_add_of_nonneg_left (C.state.re_apply_nonneg ?_)
     have hc (a : Answer F (n + 1)) :
         Commute (R.effect none) ((C.alice (.point u)).effect a) :=
       (commute_kroneckerOne_oneKronecker ((S.alice (.point u)).effect a) (G.effect none)).symm
     exact Commute.mul_nonneg (R.nonneg none) ((decodedPoint C.alice u).nonneg _)
       (Measurement.commute_map_right (C.alice (.point u)) decodePoint _ hc _)
-  have hg := h.trans (expect_le_expect fun u _ => hm u)
   refine ⟨H, ?_⟩
   simp only [expect_sub_distrib, Fintype.expect_const]
-  linarith only [hg]
+  linarith only [h.trans (expect_le_expect fun u _ => hm u)]
 
 /-- A quantitative variant of [JNVWY2020LowIndividualDegree, Theorem 6.1]
 for symmetric projective tensor strategies. It follows the same dimension induction
@@ -299,28 +276,22 @@ theorem exists_polynomial_POVM_of_symmetric
     linarith
   by_cases hk₀ : k = 0
   · apply htrivial
-    dsimp only [B, dimensionInductionError]
-    simp only [hk₀, Nat.cast_zero, zero_pow (by norm_num : (2 : ℕ) ≠ 0), mul_zero, zero_mul,
-      zero_add, neg_zero, zero_div, Real.exp_zero, mul_one]
+    simp only [B, dimensionInductionError, hk₀, Nat.cast_zero, zero_pow two_ne_zero,
+      mul_zero, zero_mul, zero_add, neg_zero, zero_div, Real.exp_zero, mul_one]
     exact one_le_pow₀ hm
   have hpos := Nat.pos_of_ne_zero hk₀
   by_cases hd : d = 0
   · subst d
-    obtain ⟨G, hG⟩ := exists_degree_zero_polynomial_POVM S
-      (fun u => hP (.point u)) (fun u => by rw [hM]; exact hP (.point u))
+    obtain ⟨G, hG⟩ := exists_degree_zero_polynomial_POVM S (fun u => hP (.point u))
+      (fun u => hM ▸ hP (.point u))
     apply exists_complete_of_matchingMass S G
     refine (sub_le_sub_left ?_ 1).trans hG
-    have hB : 8 * m * ε + 2 * δ ≤ B :=
-      baseError_le_dimensionInductionError hm hpos hε hδ hγ.1 hr
-    have hnonneg : 0 ≤ 8 * m * ε + 2 * δ :=
-      add_nonneg (mul_nonneg (by linarith) hε.1) (mul_nonneg (by norm_num) hδ.1)
-    linarith only [hB, hnonneg]
+    linarith only [baseError_le_dimensionInductionError hm hpos hε hδ hγ.1 hr,
+      mul_nonneg (by linarith : (0 : ℝ) ≤ 8 * m) hε.1, hδ.1]
   let K := max k (400 * (n + 1) * d)
   have hkK : k ≤ K := le_max_left _ _
-  have hK : K ≤ 400 * k := by
-    apply max_le
-    · omega
-    · simpa only [Nat.mul_assoc] using Nat.mul_le_mul_left 400 hk
+  have hK : K ≤ 400 * k := max_le (by omega)
+    (by simpa only [Nat.mul_assoc] using Nat.mul_le_mul_left 400 hk)
   by_cases hfield : K ≤ Fintype.card F
   · obtain ⟨G, hG⟩ := exists_polynomial_POVM_of_symmetric_in_range D
       (hpos.trans_le hkK) (le_max_right _ _) hfield S hM hψ hP
@@ -328,12 +299,11 @@ theorem exists_polynomial_POVM_of_symmetric
     exact (sub_le_sub_left
       (dimensionInductionError_pad (show 0 ≤ m by linarith) hε.1 hδ.1 hγ.1 hr hkK hK) 1).trans hG
   · apply htrivial
-    have hqK : Fintype.card F ≤ 400 * k := (Nat.lt_of_not_ge hfield).le.trans hK
-    have hqK' : q ≤ 400 * (k : ℝ) := by dsimp [q]; exact_mod_cast hqK
-    have hd' : (1 : ℝ) ≤ d := by exact_mod_cast Nat.pos_of_ne_zero hd
+    have hqK' : (Fintype.card F : ℝ) ≤ 400 * k := by
+      exact_mod_cast (Nat.lt_of_not_ge hfield).le.trans hK
     have hratio : 1 / (400 * (k : ℝ)) ≤ r :=
       (div_le_div_of_nonneg_left zero_le_one hq hqK').trans
-        (div_le_div_of_nonneg_right hd' hq.le)
+        (div_le_div_of_nonneg_right (mod_cast Nat.pos_of_ne_zero hd) hq.le)
     exact one_le_dimensionInductionError_of_large_ratio hm hpos hε.1 hδ.1 hγ.1 hratio
 
 end Cslib.PCP.LowIndividualDegree

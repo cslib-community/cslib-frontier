@@ -56,6 +56,26 @@ private theorem sumBound (a b k x y : ℕ) :
   simp only [Nat.add_mul, Nat.mul_add, Nat.mul_one]
   omega
 
+/-- Concatenate the outputs of two computations on the same input. The output tape
+is write-only, so the workspace only pays for running the two machines. -/
+theorem _root_.Turing.MultiTapeTM.ComputableInBigO.append {enc₂ : δ ↪ List Bool}
+    {f₁ : α → β} {f₂ : α → δ} {g : α → γ}
+    {T₁ S₁ T₂ S₂ : α → ℕ}
+    (h₁ : ComputableInBigO f₁ encIn encMid T₁ S₁)
+    (h₂ : ComputableInBigO f₂ encIn enc₂ T₂ S₂)
+    (hg : ∀ a, encOut (g a) = encMid (f₁ a) ++ enc₂ (f₂ a)) :
+    ComputableInBigO g encIn encOut (fun a => T₁ a + T₂ a) (fun a => S₁ a + S₂ a) := by
+  obtain ⟨c₁, k₁, Q₁, _, tm₁, hm₁⟩ := Internal.NormalForm.bigO h₁
+  obtain ⟨c₂, k₂, Q₂, _, tm₂, hm₂⟩ := Internal.NormalForm.bigO h₂
+  let K := 2 * max k₁ k₂
+  refine ⟨c₁ + c₂ + K, _, _, inferInstance, appendTM tm₁ tm₂, fun a => ?_⟩
+  rw [hg a]
+  refine (((hm₁ a).append (hm₂ a)).mono ?_ ?_).computesInTimeAndSpace
+  · have := sumBound c₁ c₂ K (T₁ a) (T₂ a)
+    beta_reduce
+    omega
+  · exact sumBound c₁ c₂ K (S₁ a) (S₂ a)
+
 /-- Concatenate two computed encodings, retaining the sum of both charged bounds. -/
 theorem append {enc₂ : δ ↪ List Bool} {f₁ : α → β} {f₂ : α → δ} {g : α → γ}
     {T₁ S₁ T₂ S₂ : α → ℕ}
@@ -63,22 +83,14 @@ theorem append {enc₂ : δ ↪ List Bool} {f₁ : α → β} {f₂ : α → δ}
     (h₂ : ComputableInO f₂ encIn enc₂ T₂ S₂)
     (hg : ∀ a, encOut (g a) = encMid (f₁ a) ++ enc₂ (f₂ a)) :
     ComputableInO g encIn encOut (fun a => T₁ a + T₂ a) (fun a => S₁ a + S₂ a) := by
-  obtain ⟨c₁, ⟨k₁, Q₁, _, tm₁, hm₁⟩, hl₁⟩ := Internal.NormalForm.inO h₁
-  obtain ⟨c₂, ⟨k₂, Q₂, _, tm₂, hm₂⟩, hl₂⟩ := Internal.NormalForm.inO h₂
-  let K := 2 * max k₁ k₂
-  refine ⟨c₁ + c₂ + K, ⟨_, _, inferInstance, appendTM tm₁ tm₂, fun a => ?_⟩, fun a => ?_⟩
-  · rw [hg a]
-    refine (((hm₁ a).append (hm₂ a)).mono ?_ ?_).computesInTimeAndSpace
-    · have := sumBound c₁ c₂ K (T₁ a) (T₂ a)
-      beta_reduce
-      omega
-    · exact sumBound c₁ c₂ K (S₁ a) (S₂ a)
-  · rw [hg a, List.length_append]
-    have hleft := hl₁ a
-    have hright := hl₂ a
-    have := sumBound c₁ c₂ K (S₁ a) (S₂ a)
-    beta_reduce
-    omega
+  apply (h₁.computableInBigO.append h₂.computableInBigO hg).with_output_bound
+  obtain ⟨c₁, h₁⟩ := h₁.length_le
+  obtain ⟨c₂, h₂⟩ := h₂.length_le
+  refine ⟨c₁ + c₂, fun a => ?_⟩
+  dsimp only
+  rw [hg, List.length_append]
+  exact (Nat.add_le_add (h₁ a) (h₂ a)).trans (by
+    simpa only [Nat.add_zero] using sumBound c₁ c₂ 0 (S₁ a) (S₂ a))
 
 /-- A fixed output is charged within constant workspace, even when its input is unbounded. -/
 theorem constZero (b : β) :

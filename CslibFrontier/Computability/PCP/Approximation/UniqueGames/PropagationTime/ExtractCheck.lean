@@ -131,43 +131,38 @@ theorem extractCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x
         | none =>
           have hvis0 : z.mem (visBase g + v) = 0 :=
             (hzFr _ (by wram_omega)).trans (hT0.vis_none v hv hgv)
-          have hpws := prefix_write_step hzOut hzFr
-            (show Function.update z.mem (outBaseAddr g + 2 + v) 0 =
-              Function.update z.mem (outBaseAddr g + 2 + v) (labVal v) by
-              simp only [labVal, labelling, hgv, Option.elim_none, default, Fin.val_zero])
+          have h0 : 0 = labVal v := by
+            simp only [labVal, labelling, hgv, Option.elim_none, default, Fin.val_zero]
+          have hpws := prefix_write_step hzOut hzFr (congrArg _ h0)
           unfold extractBody
           wram_exec [hzC.zero, hzC.one, hzC.two, hzC.visB, hzC.outB, hv_reg, hvis0]
-          refine ⟨⟨by wram_simp [hzC], ?_, ?_⟩, by wram_simp⟩
-          · simpa only [Data.write_mem, Data.set_mem] using hpws.1
-          · simpa only [Data.write_mem, Data.set_mem] using hpws.2
+          refine ⟨⟨by wram_simp [hzC], hpws⟩, ?_⟩
+          wram_simp
         | some fn =>
           obtain ⟨hvis1, htab_fn⟩ := hT0.vis_some v hv fn hgv
           have hvis1' : z.mem (visBase g + v) = 1 := (hzFr _ (by wram_omega)).trans hvis1
           have hv_cb := tabRow_hi_le_candBase (g := g) hv
           have hf0_mem : z.mem (tabBase g + v * L) = (fn default).val := by
+            have hdef : (⟨0, NeZero.pos L⟩ : Fin L) = default := rfl
             rw [hzFr _ (by wram_omega)]
-            simpa only [Nat.add_zero, show (⟨0, NeZero.pos L⟩ : Fin L) = default from rfl] using
-              htab_fn 0 (NeZero.pos L)
+            simpa only [Nat.add_zero, hdef] using htab_fn 0 (NeZero.pos L)
           have : Fits w (v * L) := fits_top hw (by wram_omega)
           have : Fits w (tabBase g + v * L) := fits_top hw (by wram_omega)
-          have hpws := prefix_write_step hzOut hzFr
-            (show Function.update z.mem (outBaseAddr g + 2 + v) (fn default).val =
-              Function.update z.mem (outBaseAddr g + 2 + v) (labVal v) by
-              simp only [labVal, labelling, hgv, Option.elim_some])
+          have hfn : (fn default).val = labVal v := by
+            simp only [labVal, labelling, hgv, Option.elim_some]
+          have hpws := prefix_write_step hzOut hzFr (congrArg _ hfn)
           unfold extractBody
           wram_exec [hzC.one, hzC.two, hzC.regL, hzC.visB, hzC.tabB, hzC.outB, hv_reg, hvis1',
             hf0_mem]
-          refine ⟨⟨by wram_simp [hzC], ?_, ?_⟩, by wram_simp⟩
-          · simpa only [Data.write_mem, Data.set_mem] using hpws.1
-          · simpa only [Data.write_mem, Data.set_mem] using hpws.2)
+          refine ⟨⟨by wram_simp [hzC], hpws⟩, ?_⟩
+          wram_simp)
       (by rw [hidx0]; exact Nat.zero_le _)
       (by rw [hidx0]; exact ⟨hT0.consts, fun _ h => by omega, fun _ _ => rfl⟩)
   rw [hidx0, Nat.sub_zero] at hy
   refine ⟨y, (hx0.seq hy).mono (by omega), hyC,
     hT0.inp.frame (fun a ha => hyFr a (by wram_omega)), fun i => ?_⟩
-  change y.mem (outBaseAddr g + 2 + i.val) = _
-  rw [hyOut i.val (by simpa only [List.length_map, List.length_range] using i.isLt)]
-  simp only [labVal, Fin.getElem_fin, List.getElem_map, List.getElem_range]
+  simpa only [Block.read, labVal, Fin.getElem_fin, List.getElem_map, List.getElem_range] using
+    hyOut i.val (by simpa only [List.length_map, List.length_range] using i.isLt)
 
 /-- Specification for `checkCode`. -/
 theorem checkCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x : Data 34)
@@ -205,18 +200,12 @@ theorem checkCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x :
         have hsrc_ltL := (σ e.src).isLt
         have hsrc_mem : z.mem (4 + j * (L + 2)) = e.src := hzMem ▸ hinp.edge_src j hj
         have hdst_mem : z.mem (4 + j * (L + 2) + 1) = e.dst := hzMem ▸ hinp.edge_dst j hj
-        have hlv : z.mem (outBaseAddr g + 2 + e.src) = (σ e.src).val := by
-          rw [hzMem, hout.get e.src
-            (by simpa only [List.length_map, List.length_range] using hs_lt)]
-          simp only [List.getElem_map, List.getElem_range]
-        have hlw : z.mem (outBaseAddr g + 2 + e.dst) = (σ e.dst).val := by
-          rw [hzMem, hout.get e.dst
-            (by simpa only [List.length_map, List.length_range] using hd_lt)]
+        have hlv (u : ℕ) (hu : u < slots g) : z.mem (outBaseAddr g + 2 + u) = (σ u).val := by
+          rw [hzMem, hout.get u (by simpa only [List.length_map, List.length_range] using hu)]
           simp only [List.getElem_map, List.getElem_range]
         have hc_mem : z.mem (4 + j * (L + 2) + ((σ e.src).val + 2)) =
             (e.constraint (σ e.src)).val := by
-          rw [hzMem, show 4 + j * (L + 2) + ((σ e.src).val + 2) =
-            4 + j * (L + 2) + 2 + (σ e.src).val by omega]
+          rw [hzMem, add_comm (σ e.src).val 2, ← add_assoc]
           simpa only [Fin.eta] using hinp.edge_val j hj (σ e.src).val hsrc_ltL
         have : Fits w (j * (L + 2)) := hw.of_le (by omega)
         have : Fits w (4 + j * (L + 2)) := hw.of_le (by omega)
@@ -236,13 +225,13 @@ theorem checkCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x :
         by_cases heq_v : (e.constraint (σ e.src)).val = (σ e.dst).val
         · unfold checkBody
           wram_exec [hzC.one, hzC.two, hzC.stride, hzC.edgeB, hzC.outB, hj_reg,
-            hsrc_mem, hdst_mem, hlv, hlw, hc_mem, heq_v]
+            hsrc_mem, hdst_mem, hlv e.src hs_lt, hlv e.dst hd_lt, hc_mem, heq_v]
           refine ⟨⟨by wram_simp [hzC], ?_, by wram_simp [hzMem]⟩, by wram_simp⟩
           wram_simp [hzOk]
           rw [hall_next, decide_eq_true (Fin.ext heq_v), Bool.and_true]
         · unfold checkBody
           wram_exec [hzC.zero, hzC.one, hzC.two, hzC.stride, hzC.edgeB, hzC.outB, hj_reg,
-            hsrc_mem, hdst_mem, hlv, hlw, hc_mem, heq_v]
+            hsrc_mem, hdst_mem, hlv e.src hs_lt, hlv e.dst hd_lt, hc_mem, heq_v]
           refine ⟨⟨by wram_simp [hzC], ?_, by wram_simp [hzMem]⟩, by wram_simp⟩
           wram_simp
           rw [hall_next, decide_eq_false (fun h => heq_v (congrArg Fin.val h)),
@@ -277,15 +266,13 @@ theorem finishCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x 
     unfold finishCode
     wram_exec [hc.one, hc.regN, hc.outB, hok1]
     refine ⟨by wram_simp [hc.outB], ?_, ?_, ?_⟩
-    · wram_simp [hok1]
-      simp only [hsolve, Option.isSome_some, Bool.toNat_true]
+    · wram_simp [hok1, hsolve, Option.isSome_some, Bool.toNat_true]
     · wram_simp [hc.outB]
       rw [hsolve, outputList_eq_iff]
       refine ⟨?_, holdsList_cons_iff.mpr ⟨Function.update_self .., hout.frame fun a _ _ => ?_⟩⟩
       · rw [Function.update_of_ne (by omega), Function.update_self]
         simp only [encodeSolution, List.length_cons, List.length_map, List.length_range]
-      · simp only [Function.update_of_ne (by omega : a ≠ outBaseAddr g + 1),
-          Function.update_of_ne (by omega : a ≠ outBaseAddr g)]
+      · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
     · wram_simp [hc.outB]
       exact hsolve ▸ fits_top hw (by
         simp only [encodeSolution, List.length_cons, List.length_map, List.length_range]
@@ -297,8 +284,7 @@ theorem finishCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x 
     unfold finishCode
     wram_exec [hc.zero, hc.one, hc.outB, hok0]
     refine ⟨by wram_simp [hc.outB], ?_, ?_, ?_⟩
-    · wram_simp [hok0]
-      simp only [hsolve, Option.isSome_none, Bool.toNat_false]
+    · wram_simp [hok0, hsolve, Option.isSome_none, Bool.toNat_false]
     · wram_simp [hc.outB]
       rw [hsolve, outputList_eq_iff]
       refine ⟨?_, holdsList_cons_iff.mpr ⟨Function.update_self .., holdsList_nil _ _⟩⟩

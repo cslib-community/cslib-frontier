@@ -85,14 +85,12 @@ theorem one_sub_exp_neg_sub_choose_le_iid_uniformOfFintype_exists_collision (f :
     have h := one_sub_exp_neg_le_iid_not_injective ((uniformOfFintype M).map g) s
     rwa [iid_map, PMF.toOuterMeasure_map_apply, Fintype.card_coe] at h
   have hpoints : (μ.toOuterMeasure {x | ¬ Function.Injective x}).toReal ≤
-      s.choose 2 * (Fintype.card M : ℝ)⁻¹ := by
-    have h := iid_not_injective_le (uniformOfFintype M) s
-    rwa [collisionProbability_uniform] at h
+      s.choose 2 * (Fintype.card M : ℝ)⁻¹ :=
+    collisionProbability_uniform (α := M) ▸ iid_not_injective_le (uniformOfFintype M) s
   have hsub : {x : Fin s → M | ¬ Function.Injective fun i => g (x i)} ⊆
       {x | ∃ i j, f (x i) = f (x j) ∧ x i ≠ x j} ∪ {x | ¬ Function.Injective x} := by
     intro x hx
-    simp only [Set.mem_ofPred_eq, Function.Injective, not_forall] at hx
-    obtain ⟨i, j, hij, hne⟩ := hx
+    obtain ⟨i, j, hij, hne⟩ := Function.not_injective_iff.1 hx
     by_cases hm : x i = x j
     · exact Or.inr fun hinj => hne (hinj hm)
     · exact Or.inl ⟨i, j, congrArg Subtype.val hij, hm⟩
@@ -153,10 +151,7 @@ theorem one_eighth_le_iid_uniformOfFintype_exists_collision (f : M → β)
   let N := D.card
   let s := Nat.sqrt N
   refine le_trans ?_ (one_sub_exp_neg_sub_choose_le_iid_uniformOfFintype_exists_collision f D hf s)
-  change (1 / 8 : ℝ) ≤
-    1 - Real.exp (-(s * (s - 1) / (2 * N))) - s.choose 2 * (Fintype.card M : ℝ)⁻¹
-  have hs : 4 ≤ s := Nat.le_sqrt'.mpr hcard
-  have hs' : (4 : ℝ) ≤ s := by exact_mod_cast hs
+  have hs' : (4 : ℝ) ≤ s := by exact_mod_cast Nat.le_sqrt'.mpr hcard
   have hN : (16 : ℝ) ≤ N := by exact_mod_cast hcard
   have hNpos : (0 : ℝ) < N := by linarith
   have hsize : (N : ℝ) * N ≤ Fintype.card M := by exact_mod_cast hdomain

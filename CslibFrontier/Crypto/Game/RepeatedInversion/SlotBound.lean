@@ -113,19 +113,13 @@ private theorem exists_slotHit {idx : Q → ℕ} {f : X → X} {n d : ℕ} (hd :
   have hP : ∃ m, m + 1 = d ∨ ∃ r ∈ log, idx r.1 / d = idx q / d ∧ idx r.1 % d = m + 1 :=
     ⟨d - 1, Or.inl (by omega)⟩
   have hp := Nat.find_spec hP
-  have hmin : ∀ m < Nat.find hP,
-      ¬ (m + 1 = d ∨ ∃ r ∈ log, idx r.1 / d = idx q / d ∧ idx r.1 % d = m + 1) :=
-    fun _ => Nat.find_min hP
+  have hmin := fun m => Nat.find_min hP (m := m)
   generalize Nat.find hP = p at hp hmin
-  have hpd : p < d := by
-    rcases hp with hp | ⟨r, -, -, hr⟩
-    · omega
-    · have := Nat.mod_lt (idx r.1) hd
-      omega
-  have hbp : idx q % d ≤ p := by
+  have ⟨hpd, hbp⟩ : p < d ∧ idx q % d ≤ p := by
     rcases hp with hp | ⟨r, hr, hra, hrp⟩
     · omega
-    · have := (hcons' r hr hra).1
+    · have := Nat.mod_lt (idx r.1) hd
+      have := (hcons' r hr hra).1
       omega
   have hgd : (idx q / d * d + p) / d = idx q / d := by
     rw [Nat.add_comm, Nat.add_mul_div_right _ _ hd, Nat.div_eq_of_lt hpd, zero_add]
@@ -168,9 +162,8 @@ private theorem chainSlot_eq_of_not_below {idx : Q → ℕ} {f : X → X} {d g :
     rw [← hfront] at h
     rcases Nat.lt_or_gt_of_ne h with h | h
     · simp [List.getD_eq_getElem?_getD, List.getElem?_append_left h]
-    · obtain ⟨k, hk⟩ : ∃ k, idx q / d = front.length + (k + 1) :=
-        ⟨idx q / d - front.length - 1, by omega⟩
-      simp [List.getD_eq_getElem?_getD, hk, List.getElem?_append_right]
+    · rw [show idx q / d = front.length + ((idx q / d - front.length - 1) + 1) by omega]
+      simp [List.getD_eq_getElem?_getD, List.getElem?_append_right]
 
 omit [Inhabited X] [DecidableEq X] in
 /-- The public key that `slotInverter` builds from the challenge above slot `g` is the public key
@@ -178,10 +171,8 @@ of the seeds `front ++ x₀ :: back`. -/
 private theorem slotKey_eq {f : X → X} {d p : ℕ} (hp : p < d) (front back : List X) (x₀ : X) :
     front.map f^[d] ++ f^[d - 1 - p] (f (f^[p] x₀)) :: back.map f^[d] =
       (front ++ x₀ :: back).map f^[d] := by
-  have e : f^[d - 1 - p] (f (f^[p] x₀)) = f^[d] x₀ := by
-    rw [← Function.iterate_succ_apply' f, ← Function.iterate_add_apply]
-    exact congrArg (fun k => f^[k] x₀) (by omega)
-  rw [e, List.map_append, List.map_cons]
+  rw [← Function.iterate_succ_apply' f, ← Function.iterate_add_apply,
+    show d - 1 - p + (p + 1) = d by omega, List.map_append, List.map_cons]
 
 /-- An event of one law whose outcomes are at least as likely under a second law, and satisfy a
 second event, is at most as likely as the second event under the second law. -/
@@ -191,8 +182,7 @@ private theorem map_true_le_map_true_of_le {α : Type} (μ ν : PMF α) {E F : �
   refine tsum_le_tsum fun a => ?_
   cases hE : E a
   · simp
-  · obtain ⟨hle, hF⟩ := h a hE
-    simp [hF, hle]
+  · simp [(h a hE).1, (h a hE).2]
 
 /-- **The plug-and-pray step.** A win of the repeated game names a chain and, on it, the highest
 slot below everything revealed; planting the challenge above that slot inverts `f` on the law of
@@ -213,12 +203,10 @@ theorem succProbability_repeatedIterateExperiment_le_sum (idx : Q → ℕ) (samp
     rintro ⟨xs, z⟩ hw
     simp only [hD, PMF.mem_support_bind_iff, PMF.mem_support_map_iff, Prod.mk.injEq] at hw
     obtain ⟨xs', hxs', z', hz', rfl, rfl⟩ := hw
-    refine ⟨((ProbComp.mem_support_replicate_iff _ _ _).mp hxs').1, ?_⟩
     rw [← ProbOracleComp.runLogWith_some] at hz'
-    exact ProbOracleComp.forall_mem_runLogWith
-      (P := fun p => p.2 = chainSlot f d xs' (idx p.1)) (fun log q program hprog r hr => by
-        cases hprog
-        simpa using hr) _ hz'
+    exact ⟨((ProbComp.mem_support_replicate_iff _ _ _).mp hxs').1,
+      ProbOracleComp.forall_mem_runLogWith (P := fun p => p.2 = chainSlot f d xs' (idx p.1))
+        (fun _ _ _ hprog _ hr => by simpa [← Option.some.inj hprog] using hr) _ hz'⟩
   have hreal : ProbComp.eval (repeatedIterateExperiment idx sample f n d A) =
       D.map fun w => chainVerify f d (w.1.map f^[d]) (idx w.2.1.1) w.2.1.2 &&
         chainConsistent idx f d w.2.1.1 w.2.1.2 w.2.2 := by
@@ -229,61 +217,33 @@ theorem succProbability_repeatedIterateExperiment_le_sum (idx : Q → ℕ) (samp
       (D.map fun w => slotHit idx f d g w.1 w.2) true ≤ ProbComp.eval (inversionExperiment
         (f^[g % d] <$> sample) f (slotInverter idx sample f n d g A)) true := by
     intro g hg
-    have hgn : g / d < n :=
-      Nat.div_lt_of_lt_mul (by rw [Nat.mul_comm]; exact Finset.mem_range.mp hg)
+    have hgn : g / d < n := Nat.div_lt_of_lt_mul (Nat.mul_comm n d ▸ Finset.mem_range.mp hg)
     have hpd : g % d < d := Nat.mod_lt _ hd
-    have hrep := ProbComp.eval_replicate_splice sample (g / d) (n - g / d - 1)
-    rw [show g / d + (n - g / d - 1 + 1) = n by omega] at hrep
-    have hL : (D.map fun w => slotHit idx f d g w.1 w.2) =
-        (ProbComp.eval sample).bind fun x₀ =>
-        (ProbComp.eval (OracleComp.replicate (g / d) sample)).bind fun front =>
-        (ProbComp.eval (OracleComp.replicate (n - g / d - 1) sample)).bind fun back =>
-        (ProbComp.eval ((A ((front ++ x₀ :: back).map f^[d])).runLog fun q =>
-          pure (chainSlot f d (front ++ x₀ :: back) (idx q)))).map
-            (slotHit idx f d g (front ++ x₀ :: back)) := by
-      rw [hD, ← hrep]
-      simp only [pmf_norm]
-    have hR : ProbComp.eval (inversionExperiment (f^[g % d] <$> sample) f
-          (slotInverter idx sample f n d g A)) =
-        (ProbComp.eval sample).bind fun x₀ =>
-        (ProbComp.eval (OracleComp.replicate (g / d) sample)).bind fun front =>
-        (ProbComp.eval (OracleComp.replicate (n - g / d - 1) sample)).bind fun back =>
-        (ProbComp.eval ((A (front.map f^[d] ++ f^[d - 1 - g % d] (f (f^[g % d] x₀)) ::
-            back.map f^[d])).runLog fun q =>
-          pure (if idx q / d = g / d then
-              if g % d < idx q % d then f^[idx q % d - g % d - 1] (f (f^[g % d] x₀)) else default
-            else chainSlot f d (front ++ default :: back) (idx q)))).map fun z =>
-          f (if idx z.1.1 / d = g / d ∧ idx z.1.1 % d ≤ g % d then
-            f^[g % d - idx z.1.1 % d] z.1.2 else default) == f (f^[g % d] x₀) := by
-      simp only [inversionExperiment, slotInverter, ← ProbOracleComp.map_fst_eval_runLog, pmf_norm]
-      rfl
-    rw [hL, hR]
+    have hgn_add : g / d + (n - g / d - 1 + 1) = n := by omega
+    have hrep := hgn_add ▸ ProbComp.eval_replicate_splice sample (g / d) (n - g / d - 1)
+    rw [hD, ← hrep]
+    simp only [inversionExperiment, slotInverter, ← ProbOracleComp.map_fst_eval_runLog, pmf_norm,
+      Function.comp_def]
     refine PMF.bind_apply_mono_on_support _ _ fun x₀ _ => ?_
     refine PMF.bind_apply_mono_on_support _ _ fun front hfront => ?_
     refine PMF.bind_apply_mono_on_support _ _ fun back _ => ?_
     have hlen : front.length = g / d := ((ProbComp.mem_support_replicate_iff _ _ _).mp hfront).1
     rw [slotKey_eq hpd]
     refine map_true_le_map_true_of_le _ _ fun z hz => ?_
-    simp only [slotHit, decide_eq_true_eq] at hz
-    obtain ⟨hza, hzb, hzlog, hzf⟩ := hz
+    obtain ⟨hza, hzb, hzlog, hzf⟩ := of_decide_eq_true hz
     refine ⟨le_of_eq (ProbOracleComp.eval_runLog_apply_eq_of_agree
-      (bad := fun q => idx q / d = g / d ∧ idx q % d ≤ g % d) (fun q hq => ?_) _ hzlog), ?_⟩
-    · rw [chainSlot_eq_of_not_below hlen back x₀ hq]
-    · rw [← hlen, show (front ++ x₀ :: back).getD front.length default = x₀ by simp] at hzf
-      simpa [hza, hzb] using hzf
+      (bad := fun q => idx q / d = g / d ∧ idx q % d ≤ g % d)
+      (fun q hq => by rw [chainSlot_eq_of_not_below hlen back x₀ hq]) _ hzlog), ?_⟩
+    simpa [← hlen, hza, hzb] using hzf
   have htop : ∀ g ∈ Finset.range (n * d), ProbComp.eval (inversionExperiment (f^[g % d] <$> sample)
       f (slotInverter idx sample f n d g A)) true ≠ ⊤ := fun g _ => PMF.apply_ne_top _ _
-  have hsum : ProbComp.eval (repeatedIterateExperiment idx sample f n d A) true ≤
-      ∑ g ∈ Finset.range (n * d), ProbComp.eval (inversionExperiment (f^[g % d] <$> sample) f
-        (slotInverter idx sample f n d g A)) true := by
-    rw [hreal]
-    exact (PMF.map_true_le_sum D (Finset.range (n * d))
-      (F := fun g w => slotHit idx f d g w.1 w.2) fun ⟨xs, ⟨q, x⟩, log⟩ hw hE =>
-        exists_slotHit hd (hsupp _ hw).1 (hsupp _ hw).2 hE).trans (Finset.sum_le_sum hstep)
   calc Experiment.succProbability (repeatedIterateExperiment idx sample f n d A)
       ≤ (∑ g ∈ Finset.range (n * d), ProbComp.eval (inversionExperiment (f^[g % d] <$> sample) f
           (slotInverter idx sample f n d g A)) true).toNNReal :=
-        ENNReal.toNNReal_mono (ENNReal.sum_ne_top.mpr htop) hsum
+        ENNReal.toNNReal_mono (ENNReal.sum_ne_top.mpr htop) <| hreal ▸
+          (PMF.map_true_le_sum D (Finset.range (n * d))
+            (F := fun g w => slotHit idx f d g w.1 w.2) fun ⟨xs, ⟨q, x⟩, log⟩ hw hE =>
+              exists_slotHit hd (hsupp _ hw).1 (hsupp _ hw).2 hE).trans (Finset.sum_le_sum hstep)
     _ = _ := ENNReal.toNNReal_sum htop
 
 /-- The slot sum behind (13.6): the `d = 1` case. -/
@@ -292,9 +252,8 @@ theorem succProbability_repeatedInversionExperiment_le_sum (idx : Q → ℕ) (sa
     Experiment.succProbability (repeatedInversionExperiment idx sample f t A) ≤
       ∑ g ∈ Finset.range t, Experiment.succProbability
         (inversionExperiment sample f (slotInverter idx sample f t 1 g A)) := by
-  have h := succProbability_repeatedIterateExperiment_le_sum idx sample f t Nat.one_pos A
-  simpa only [repeatedIterateExperiment_one, mul_one, Nat.mod_one, Function.iterate_zero,
-    id_map] using h
+  simpa only [repeatedIterateExperiment_one, mul_one, Nat.mod_one, Function.iterate_zero, id_map]
+    using succProbability_repeatedIterateExperiment_le_sum idx sample f t Nat.one_pos A
 
 /-- The adversary `B` in the proof of [BonehShoup2023], Lemma 13.5, on the typed game: plant the
 challenge at an exactly uniform index below `t`. It has no efficiency certificate, since a strict
@@ -324,21 +283,15 @@ theorem succProbability_repeatedInversionExperiment_le (idx : Q → ℕ) (sample
         (t : ℝ≥0∞)⁻¹ * ∑ g ∈ Finset.range t, ProbComp.eval (inversionExperiment sample f
           (slotInverter idx sample f t 1 g A)) true := by
       simp only [ProbComp.eval_inversionExperiment, plantInverter, ProbComp.eval_bind,
-        ProbComp.eval_unifFin]
-      rw [inversionExperiment_bind, PMF.bind_apply, tsum_fintype]
+        ProbComp.eval_unifFin, inversionExperiment_bind, PMF.bind_apply, tsum_fintype]
       simp only [← ProbComp.eval_inversionExperiment, PMF.uniformOfFintype_apply, Fintype.card_fin]
       rw [← Finset.mul_sum, Fin.sum_univ_eq_sum_range (fun g => ProbComp.eval
         (inversionExperiment sample f (slotInverter idx sample f t 1 g A)) true),
         Nat.sub_add_cancel ht]
     have htop : ∀ g ∈ Finset.range t, ProbComp.eval (inversionExperiment sample f
         (slotInverter idx sample f t 1 g A)) true ≠ ⊤ := fun g _ => PMF.apply_ne_top _ _
-    have hsucc : Experiment.succProbability
-          (inversionExperiment sample f (plantInverter idx sample f t A)) =
-        (t : ℝ≥0)⁻¹ * ∑ g ∈ Finset.range t, Experiment.succProbability
-          (inversionExperiment sample f (slotInverter idx sample f t 1 g A)) := by
-      change (ProbComp.eval _ true).toNNReal = _
-      rw [key, ENNReal.toNNReal_mul, ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast,
-        ENNReal.toNNReal_sum htop]
-    rw [hsucc, mul_inv_cancel_left₀ (Nat.cast_ne_zero.mpr ht.ne')]
+    simpa only [Experiment.succProbability, Game.succProbability, key, ENNReal.toNNReal_mul,
+      ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast, ENNReal.toNNReal_sum htop,
+      mul_inv_cancel_left₀ ((Nat.cast_ne_zero (R := ℝ≥0)).mpr ht.ne')] using le_rfl
 
 end Cslib.Crypto

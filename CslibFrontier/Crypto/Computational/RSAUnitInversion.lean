@@ -107,9 +107,7 @@ theorem rsaUnitInversionGame_eq (gen : RSAGen) (inverter : RSAInverter) (n : ℕ
       let x ← PMF.uniformOfFintype (ZMod desc.modulus)ˣ
       let x' ← ProbComp.eval (inverter n desc.publicKey (desc.publicKey.eval (desc.unitResidue x)))
       return decide (x' = desc.unitResidue x)) := by
-  unfold rsaUnitInversionGame
-  congr 1
-  funext desc
+  refine congrArg (Bind.bind (gen n)) (funext fun desc => ?_)
   rw [inversionExperiment_eq_of_injective _ (rsaEval_bijective_fin desc).injective]
   simp only [ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_uniform, ProbComp.eval_pure,
     PMF.bind_map, Function.comp_def]
@@ -248,9 +246,7 @@ private theorem inv_card_mul_sum_comp_le {α β : Type*} [Fintype α] [Fintype �
     simpa [Finset.mem_compl] using ha
   have hφ0 : (Fintype.card β : ℝ≥0∞) ≠ 0 := by simp [Fintype.card_ne_zero]
   have hφtop : (Fintype.card β : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
-  have hN0 : (Fintype.card α : ℝ≥0∞) ≠ 0 := by
-    have : Nonempty α := ⟨r (Classical.arbitrary β)⟩
-    simp [Fintype.card_ne_zero]
+  have hN0 : (Fintype.card α : ℝ≥0∞) ≠ 0 := mod_cast (Fintype.card_pos.trans_le hle).ne'
   have hNtop : (Fintype.card α : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
   have hS : S ≤ Fintype.card β :=
     (Finset.sum_le_sum fun b _ => hw (r b)).trans (by simp)
@@ -265,10 +261,8 @@ private theorem inv_card_mul_sum_comp_le {α β : Type*} [Fintype α] [Fintype �
     _ = (Fintype.card α : ℝ≥0∞)⁻¹ * (S + ((Fintype.card α - Fintype.card β : ℕ) : ℝ≥0∞) *
           ((Fintype.card β : ℝ≥0∞)⁻¹ * S)) := by
         congr 1
-        rw [show (Fintype.card α : ℝ≥0∞) =
-            Fintype.card β + ((Fintype.card α - Fintype.card β : ℕ) : ℝ≥0∞) by
-          rw [← Nat.cast_add, Nat.add_sub_cancel' hle], add_mul, ← mul_assoc,
-          ENNReal.mul_inv_cancel hφ0 hφtop, one_mul]
+        conv_lhs => rw [← Nat.add_sub_cancel' hle]
+        rw [Nat.cast_add, add_mul, ← mul_assoc, ENNReal.mul_inv_cancel hφ0 hφtop, one_mul]
     _ ≤ _ := by
         gcongr
         exact mul_le_of_le_one_right zero_le hfrac
@@ -295,13 +289,10 @@ theorem succProbability_rsaUnitInversionGame_le (gen : RSAGen) (A : RSAInverter)
     simp only [hw_def, unitRSAToRSA, ite_eq_left hcop]
   have hnonunit (x : Fin desc.modulus) (hx : x ∉ Set.range desc.unitResidue) : w x = 1 := by
     rw [desc.mem_range_unitResidue_iff] at hx
-    have hcop : ¬ Nat.Coprime (desc.publicKey.eval x : ℕ) desc.modulus := by
-      rwa [RSAPublicKey.val_eval, coprime_rsaEval_iff]
     have hroot : (⟨rsaNonUnitRoot desc.modulus desc.e (rsaEval desc.modulus desc.e x),
         rsaNonUnitRoot_lt desc.modulus_pos _ _⟩ : Fin desc.modulus) = x :=
       Fin.ext (rsaNonUnitRoot_rsaEval desc x.isLt hx)
-    simp only [hw_def, unitRSAToRSA, ite_eq_right hcop]
-    simp [hroot]
+    simp [hw_def, unitRSAToRSA, coprime_rsaEval_iff, hx, hroot]
   simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
     PMF.bind_apply (PMF.uniformOfFintype _), PMF.uniformOfFintype_apply, tsum_fintype,
     ← Finset.mul_sum]

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Basic
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Privacy
+import CslibFrontier.Foundations.Data.Finset.BiUnionFinTwo
 import CslibFrontier.Probability.PMF.Map
 import Mathlib.Data.Fin.Embedding
 
@@ -250,16 +251,11 @@ unverified directly). -/
 abbrev ThresholdDesign (t n t' n' : ℕ) :=
   ThresholdDesignOn (Fin n) (Fin n') t t'
 
-private theorem biUnion_fin_two {α : Type*} [DecidableEq α] (f : Fin 2 → Finset α) :
-    (Finset.univ : Finset (Fin 2)).biUnion f = f 0 ∪ f 1 := by
-  ext x
-  simp only [Finset.mem_biUnion, Finset.mem_univ, true_and, Fin.exists_fin_two, Finset.mem_union]
-
 private theorem biUnion_fin_two_ite {α : Type*} [DecidableEq α] (a b : Finset α) :
     (Finset.univ : Finset (Fin 2)).biUnion (fun i => if i = 0 then a else b) = a ∪ b := by
   have h0 : (if (0 : Fin 2) = 0 then a else b) = a := by simp
   have h1 : (if (1 : Fin 2) = 0 then a else b) = b := by simp
-  rw [biUnion_fin_two, h0, h1]
+  rw [Finset.biUnion_univ_fin_two, h0, h1]
 
 namespace ThresholdDesignOn
 

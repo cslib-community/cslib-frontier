@@ -33,9 +33,8 @@ namespace Cslib.Complexity.Graph.RotationSystem
 open Equiv RotationCertificate Perm.CycleSurgery
 
 private theorem faceNext_reverse {G : Graph} (r : RotationSystem G) (d : Dart G) :
-    r.faceNext d.reverse = r.rotate.symm d := by
-  change r.rotate.symm d.reverse.reverse = _
-  rw [Dart.reverse_reverse]
+    r.faceNext d.reverse = r.rotate.symm d :=
+  congrArg r.rotate.symm (Dart.reverse_reverse d)
 
 private theorem vertex_rotate_symm {G : Graph} (r : RotationSystem G) (d : Dart G) :
     (r.rotate.symm d).vertex = d.vertex := by
@@ -52,12 +51,9 @@ private theorem mergeDartEquiv_reverse_vertices {G : Graph} (r : RotationSystem 
     let k := r.faceNext b.reverse
     let e := mergeDartEquiv h k
     (e a.reverse).vertex = a.reverse.vertex ∧ (e b.reverse).vertex = b.reverse.vertex := by
-  let h := r.faceNext a.reverse
-  let k := r.faceNext b.reverse
   have unchanged (d : Dart G) (hd : d.vertex ≠ b.vertex) :
-      (mergeDartEquiv h k d).vertex = d.vertex := by
-    rw [vertex_mergeDartEquiv, faceNext_reverse_vertex r b, Function.update_of_ne hd]
-    rfl
+      (mergeDartEquiv (r.faceNext a.reverse) (r.faceNext b.reverse) d).vertex = d.vertex := by
+    simp only [vertex_mergeDartEquiv, faceNext_reverse_vertex, Function.update_of_ne hd, id_eq]
   exact ⟨unchanged a.reverse (fun he => hsep (he ▸ sameComponent_reverse hG a)),
     unchanged b.reverse hb.symm⟩
 
@@ -68,10 +64,8 @@ private theorem sameCycle_after_join_swap {α : Type} [Finite α] [DecidableEq �
   by_contra hn
   have joined := (card_orbits_swap_mul f x y hne).2 hsep
   have undo := (card_orbits_swap_mul g x y hne).2 hn
-  have he : Equiv.swap x y * g = f := by simp [g, ← mul_assoc]
-  change Nat.card (Quotient (Perm.SameCycle.setoid g)) + 1 =
-    Nat.card (Quotient (Perm.SameCycle.setoid f)) at joined
-  rw [he] at undo
+  rw [Equiv.swap_mul_self_mul] at undo
+  change Nat.card (Quotient (Perm.SameCycle.setoid g)) + 1 = _ at joined
   omega
 
 /-- Identify corresponding ends of two nonloop marker edges in different components. The
@@ -102,55 +96,41 @@ theorem numericalGenusZero_mergeEdgeEnds {G : Graph} (r : RotationSystem G)
   let b' := e b.reverse
   have hh : h.vertex = a.vertex := faceNext_reverse_vertex r a
   have hk : k.vertex = b.vertex := faceNext_reverse_vertex r b
-  have hnot : ¬SameComponent G h.vertex k.vertex := by
-    rwa [hh, hk]
-  have h₁ : h.vertex ≠ k.vertex := by
-    intro he
-    apply hnot
-    rw [← he]
-    exact .refl (vertex_mem hG h)
+  have hnot : ¬SameComponent G h.vertex k.vertex := hh.symm ▸ hk.symm ▸ hsep
+  have h₁ : h.vertex ≠ k.vertex := fun he => hnot (he ▸ .refl (vertex_mem hG h))
   have differentFaces : ¬r.faceNext.SameCycle h k :=
     fun he => hnot (r.sameComponent_of_sameFace hG he)
-  have farNe : a.reverse.vertex ≠ b.reverse.vertex := by
-    intro he
-    exact hsep ((sameComponent_reverse hG a).trans
-      (he.symm ▸ (sameComponent_reverse hG b).symm))
   obtain ⟨av, bv⟩ := mergeDartEquiv_reverse_vertices r hG a b hb hsep
-  have h₂ : a'.vertex ≠ b'.vertex := by rwa [av, bv]
+  have h₂ : a'.vertex ≠ b'.vertex := fun he => hsep ((sameComponent_reverse hG a).trans
+    ((av.symm.trans (he.trans bv)).symm ▸ (sameComponent_reverse hG b).symm))
   let s := r.mergeVertices h k h₁
   let g := Equiv.swap h k * r.faceNext
   have hg : g.SameCycle h k :=
     sameCycle_after_join_swap r.faceNext (fun he => h₁ (congrArg Dart.vertex he)) differentFaces
   have semiconj : Function.Semiconj e g s.faceNext :=
     fun d => (r.faceNext_mergeVertices h k h₁ d).symm
-  have fa : s.faceNext a' = e k := by
-    rw [← semiconj a.reverse]; exact congrArg e (Equiv.swap_apply_left h k)
-  have fb : s.faceNext b' = e h := by
-    rw [← semiconj b.reverse]; exact congrArg e (Equiv.swap_apply_right h k)
   have cofacial : s.faceNext.SameCycle a' b' := by
-    apply Equiv.Perm.sameCycle_apply_right.mp
-    apply Equiv.Perm.sameCycle_apply_left.mp
-    rw [fa, fb]
-    exact (hg.map_of_semiconj semiconj).symm
-  have genus : s.NumericalGenusZero :=
-    r.numericalGenusZero_mergeVertices_of_not_sameComponent hG hr h k h₁ hnot
+    have fa : s.faceNext a' = e k :=
+      (semiconj a.reverse).symm.trans (congrArg e (swap_apply_left h k))
+    have fb : s.faceNext b' = e h :=
+      (semiconj b.reverse).symm.trans (congrArg e (swap_apply_right h k))
+    exact Perm.sameCycle_apply_right.mp <| Perm.sameCycle_apply_left.mp <|
+      fa.symm ▸ fb.symm ▸ (hg.map_of_semiconj semiconj).symm
   have endpoint := vertex_mergeDartEquiv a' b'
   refine ⟨h₁, h₂, s.numericalGenusZero_mergeVertices (mergeGraph_endpoints_declared h k hG)
-    genus a' b' h₂ cofacial, ?_, ?_, ?_⟩
-  · have he : (e a).vertex = (e b).vertex := by
-      simp only [e, vertex_mergeDartEquiv, ← hh, ← hk, Function.update_self,
-        Function.update_of_ne h₁, id_eq]
-    rw [Equiv.trans_apply, Equiv.trans_apply, endpoint, endpoint, he]
+    (r.numericalGenusZero_mergeVertices_of_not_sameComponent hG hr h k h₁ hnot) a' b' h₂ cofacial,
+    ?_, ?_, ?_⟩
+  · rw [Equiv.trans_apply, Equiv.trans_apply, endpoint, endpoint,
+      vertex_mergeDartEquiv h k a, vertex_mergeDartEquiv h k b, ← hh, ← hk,
+      Function.update_self, Function.update_of_ne h₁, id_eq]
   · rw [Equiv.trans_apply, Equiv.trans_apply, endpoint, endpoint,
       Function.update_self, Function.update_of_ne h₂, id_eq]
   · have frontA : (e a).vertex = a.vertex := by
-      simp only [e, vertex_mergeDartEquiv,
-        Function.update_of_ne (fun he => h₁ (hh.trans he)), id_eq]
+      simp only [e, vertex_mergeDartEquiv, Function.update_of_ne (mt hh.trans h₁), id_eq]
     have otherB : a.vertex ≠ b'.vertex :=
       bv.symm ▸ fun he => hsep (he.symm ▸ (sameComponent_reverse hG b).symm)
-    rw [Equiv.trans_apply, Equiv.trans_apply, endpoint, endpoint, frontA,
+    rwa [Equiv.trans_apply, Equiv.trans_apply, endpoint, endpoint, frontA,
       Function.update_of_ne otherB, Function.update_of_ne h₂, id_eq, av]
-    exact ha
 
 private theorem lifted_rotationWord_eq {G H : Graph} (s : RotationSystem H)
     (lift : Dart H ↪ Dart G) (root : Dart H) (tail : List ℕ)
@@ -166,9 +146,8 @@ private theorem lifted_rotationWord_eq {G H : Graph} (s : RotationSystem H)
     | zero => rfl
     | succ n ih =>
       rw [pow_succ', Perm.mul_apply, ih, Function.iterate_succ_apply']
-      apply hstep
-      rw [Perm.iterate_eq_pow]
-      exact (s.sameCycle_iff _ _).mp ((Perm.SameCycle.refl s.rotate root).pow_left (n := n))
+      exact hstep _ (Perm.iterate_eq_pow s.rotate n ▸
+        (s.sameCycle_iff _ _).mp ((Perm.SameCycle.refl s.rotate root).pow_left (n := n)))
   have hi : Function.Injective (fun d => (lift d).index) := fun _ _ h =>
     lift.injective ((Dart.indexEquiv G).injective (Fin.ext h))
   have hrecur (n : ℕ) : s.rotate^[n] root = root ↔ word.length ∣ n := by
@@ -182,12 +161,9 @@ private theorem lifted_rotationWord_eq {G H : Graph} (s : RotationSystem H)
       (Function.isPeriodicPt_iff_minimalPeriod_dvd.mp ((hrecur word.length).mpr dvd_rfl))
       ((hrecur _).mp Function.iterate_minimalPeriod)
   change _ = word
-  apply List.ext_getElem
-  · simp only [List.length_map, List.length_range, hlen]
-  · intro n hn₁ hn₂
-    simp only [List.getElem_map, List.getElem_range, ← hpow n]
-    rw [List.formPerm_pow_apply_head _ _ hn]
-    simp only [word, Nat.mod_eq_of_lt hn₂]
+  refine List.ext_getElem (by simp [hlen]) fun n hn₁ hn₂ => ?_
+  simp only [List.getElem_map, List.getElem_range, ← hpow n,
+    List.formPerm_pow_apply_head _ _ hn, word, Nat.mod_eq_of_lt hn₂]
 
 private theorem lifted_rotationWord_of_skip {G H : Graph} (s : RotationSystem H)
     (lift : Dart H ↪ Dart G) {names : ℕ → ℕ} {splice f : Perm (Dart G)}
@@ -275,34 +251,23 @@ theorem exists_numericalGenusZero_glueMarkerEdges {G : Graph} (r : RotationSyste
     change (G.relabel (Function.update id k.vertex h.vertex)).relabel
       (Function.update id b'.vertex a'.vertex) = G.relabel names
     rw [hh, hk, av, bv]
-    apply Graph.ext
-    · simp only [Graph.relabel, List.map_map, names]
-    · simp only [Graph.relabel, List.map_map, names]
-      exact List.map_congr_left fun ⟨_, _⟩ _ => rfl
+    exact Graph.ext (by simp [Graph.relabel, names])
+      (by simp [Graph.relabel, names, Function.comp_def])
   have hcoords (d : Dart G) : (f d).vertex = names d.vertex := by
-    rw [Equiv.trans_apply, vertex_mergeDartEquiv a' b' (e d), vertex_mergeDartEquiv h k d,
-      av, bv, hh, hk]
-    rfl
-  have hswap (d : Dart G) :
-      swap a' b' (e d) = e (swap a.reverse b.reverse d) :=
-    (e.injective.map_swap a.reverse b.reverse d).symm
+    simp [f, e, vertex_mergeDartEquiv, av, bv, hh, hk, names]
   have hrotate (d : Dart G) : t.rotate (f d) = f (splice d) := by
     change ((r.mergeVertices h k h₁).mergeVertices a' b' h₂).rotate
       (mergeDartEquiv a' b' (e d)) = mergeDartEquiv a' b' (e (splice d))
-    rw [rotate_mergeVertices, permCongr_apply, symm_apply_apply, Perm.mul_apply, hswap,
+    rw [rotate_mergeVertices, permCongr_apply, symm_apply_apply, Perm.mul_apply,
+      (e.injective.map_swap a.reverse b.reverse d).symm,
       rotate_mergeVertices, permCongr_apply, symm_apply_apply]
     rfl
-  have hb' : (f b).vertex ≠ (f b.reverse).vertex := by
-    change (f a).vertex = (f b).vertex at hfront
-    change (f a.reverse).vertex = (f b.reverse).vertex at hback
-    rwa [← hfront, ← hback]
+  have hb' : (f b).vertex ≠ (f b.reverse).vertex := hfront ▸ hback ▸ hnonloop
   have htag (tag : Bool) : f (b.1, tag) = ((f b).1, tag) := by cases tag <;> rfl
   have hnb : Dart.vertex (G := mergeGraph a' b') ((f b).1, false) ≠
       Dart.vertex ((f b).1, true) := by
     rw [← htag false, ← htag true]
-    rcases b with ⟨i, _ | _⟩
-    · exact hb'
-    · exact hb'.symm
+    rcases b with ⟨i, _ | _⟩ <;> first | exact hb' | exact hb'.symm
   obtain ⟨H, s, e', hV, hEdges, hz, he', hstep⟩ := t.exists_numericalGenusZero_deleteNonloopEdge
     (mergeGraph_endpoints_declared a' b' (mergeGraph_endpoints_declared h k hG))
     hgenus (f b).1 hnb
@@ -313,73 +278,48 @@ theorem exists_numericalGenusZero_glueMarkerEdges {G : Graph} (r : RotationSyste
     have hc := he' d
     rw [← hLift d, hcoords] at hc
     exact ⟨hc.1.symm, hc.2.1, hc.2.2⟩
-  have hEdges' : H.edges = (G.relabel names).edges.eraseIdx b.1.val := by
-    change H.edges = (mergeGraph a' b').edges.eraseIdx b.1.val at hEdges
-    rwa [hgraph] at hEdges
+  have hEdges' : H.edges = (G.relabel names).edges.eraseIdx b.1.val := hgraph ▸ hEdges
   have hSize : H.edges.length + 1 = G.edges.length := by
-    have hbnd := b.1.isLt
-    rw [hEdges', List.length_eraseIdx_of_lt (by simpa only [Graph.relabel, List.length_map]
-      using hbnd)]
-    simp only [Graph.relabel, List.length_map]
-    omega
+    have := b.1.isLt
+    rw [hEdges', List.length_eraseIdx_of_lt (by simp [Graph.relabel])]
+    simp only [Graph.relabel, List.length_map]; omega
   let castIndex := finCongr hSize.symm
   let removed := castIndex b.1
   have hskipIndex (d : Dart H) : castIndex (lift d).1 = removed.succAbove d.1 := by
-    apply Fin.ext
-    change (lift d).1.val = (removed.succAbove d.1).val
-    rw [(coords d).2.2]
-    split_ifs with hd
-    · exact (Fin.succAbove_of_castSucc_lt _ _ (show d.1.castSucc < removed from hd)).symm ▸ rfl
-    · exact (Fin.succAbove_of_le_castSucc _ _
-        (show removed ≤ d.1.castSucc from Nat.le_of_not_gt hd)).symm ▸ rfl
+    ext
+    simp only [castIndex, finCongr_apply, Fin.val_cast, (coords d).2.2, Fin.succAbove,
+      Fin.lt_def, Fin.val_castSucc, removed]
+    split_ifs <;> rfl
   have hrange (d : Dart G) : d ∈ Set.range lift ↔ d.1 ≠ b.1 := by
     have hsurvivor : castIndex d.1 ∈ Set.range removed.succAbove ↔ d.1 ≠ b.1 := by
-      rw [Fin.range_succAbove, Set.mem_compl_iff, Set.mem_singleton_iff]
-      exact not_congr castIndex.injective.eq_iff
+      simp [Fin.range_succAbove, removed]
     rw [← hsurvivor]
-    constructor
-    · rintro ⟨x, rfl⟩
-      exact ⟨x.1, (hskipIndex x).symm⟩
-    · rintro ⟨j, hj⟩
-      exact ⟨(j, d.2), Prod.ext (castIndex.injective ((hskipIndex (j, d.2)).trans hj))
-        (coords (j, d.2)).2.1⟩
+    exact ⟨fun ⟨x, hx⟩ => ⟨x.1, hx ▸ (hskipIndex x).symm⟩, fun ⟨j, hj⟩ =>
+      ⟨(j, d.2), Prod.ext (castIndex.injective ((hskipIndex (j, d.2)).trans hj))
+        (coords (j, d.2)).2.1⟩⟩
   have hstep (x y : Dart H) : s.rotate x = y ↔ splice (lift x) = lift y ∨
       ∃ tag, splice (lift x) = (b.1, tag) ∧ splice (b.1, tag) = lift y := by
-    have heq (d c : Dart G) : t.rotate (f d) = f c ↔ splice d = c := by
-      rw [hrotate, f.injective.eq_iff]
-    simpa only [← hLift, ← htag, heq] using hstep x y
+    simpa only [← hLift, ← htag, hrotate, f.injective.eq_iff] using hstep x y
   -- Each swap acts only at one of the two pairs of endpoint fibers.
   have differentEnds {x y : Dart G} (hx : SameComponent G a.vertex x.vertex)
       (hy : SameComponent G b.vertex y.vertex) : x.vertex ≠ y.vertex :=
     fun he => hsep (hx.trans (he.symm ▸ hy.symm))
-  have ca := SameComponent.refl (vertex_mem hG a)
-  have cb := SameComponent.refl (vertex_mem hG b)
-  have car := sameComponent_reverse hG a
-  have cbr := sameComponent_reverse hG b
-  have hab := differentEnds ca cb
-  have hab' := differentEnds ca cbr
-  have ha'b := differentEnds car cb
-  have ha'b' := differentEnds car cbr
+  have hab := differentEnds (.refl (vertex_mem hG a)) (.refl (vertex_mem hG b))
+  have hab' := differentEnds (.refl (vertex_mem hG a)) (sameComponent_reverse hG b)
+  have ha'b := differentEnds (sameComponent_reverse hG a) (.refl (vertex_mem hG b))
+  have ha'b' := differentEnds (sameComponent_reverse hG a) (sameComponent_reverse hG b)
   let front (d : Dart G) := d.vertex = a.vertex ∨ d.vertex = b.vertex
   let back (d : Dart G) := d.vertex = a.reverse.vertex ∨ d.vertex = b.reverse.vertex
   have disjoint (d : Dart G) (hf : front d) (hb' : back d) : False := by
     rcases hf with he | he <;> rcases hb' with hr' | hr'
-    · exact ha (he.symm.trans hr')
-    · exact hab' (he.symm.trans hr')
-    · exact ha'b (hr'.symm.trans he)
-    · exact hb (he.symm.trans hr')
+    exacts [ha (he.symm.trans hr'), hab' (he.symm.trans hr'),
+      ha'b (hr'.symm.trans he), hb (he.symm.trans hr')]
   have nameFront (d : Dart G) : names d.vertex = a.vertex ↔ front d := by
-    by_cases hf : d.vertex = b.vertex
-    · simp [names, front, hf, hab']
-    by_cases hb' : d.vertex = b.reverse.vertex
-    · simp [names, front, hb', hb.symm, ha.symm, hab'.symm]
-    · simp [names, front, hf, hb']
+    by_cases hf : d.vertex = b.vertex <;> by_cases hb' : d.vertex = b.reverse.vertex <;>
+      simp [names, front, hf, hb', hb.symm, ha.symm, hab', hab'.symm]
   have nameBack (d : Dart G) : names d.vertex = a.reverse.vertex ↔ back d := by
-    by_cases hf : d.vertex = b.vertex
-    · simp [names, back, hf, hab', ha, ha'b.symm, hb]
-    by_cases hb' : d.vertex = b.reverse.vertex
-    · simp [names, back, hb', hb.symm]
-    · simp [names, back, hf, hb']
+    by_cases hf : d.vertex = b.vertex <;> by_cases hb' : d.vertex = b.reverse.vertex <;>
+      simp [names, back, hf, hb', hab', ha, ha'b.symm, hb, hb.symm]
   let before := r.rotate * swap (r.rotate.symm a) (r.rotate.symm b)
   let after := r.rotate * swap a.reverse b.reverse
   have hswapMem (p : Dart G → Prop) (d x y : Dart G)
@@ -411,10 +351,8 @@ theorem exists_numericalGenusZero_glueMarkerEdges {G : Graph} (r : RotationSyste
   obtain ⟨u, hu⟩ := (hrange a).mpr ret
   have hv : lift u.reverse = a.reverse := by
     rw [← hu]
-    refine Prod.ext (Fin.ext ((coords u.reverse).2.2.trans (coords u).2.2.symm)) ?_
-    change (lift u.reverse).2 = !(lift u).2
-    rw [(coords u.reverse).2.1, (coords u).2.1]
-    rfl
+    exact Prod.ext (Fin.ext ((coords u.reverse).2.2.trans (coords u).2.2.symm))
+      ((coords u.reverse).2.1.trans (congrArg Bool.not (coords u).2.1.symm))
   let word (d : Dart G) := cycleWord (ofRotation r) d.index
   have hc : verifyRotation G (ofRotation r) = true := verifyRotation_ofRotation r hG
   have nodupHeads (x y : Dart G) (hxy : x.vertex ≠ y.vertex) :

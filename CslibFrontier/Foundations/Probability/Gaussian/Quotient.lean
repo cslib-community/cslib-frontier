@@ -136,14 +136,9 @@ theorem tvDist_gaussian_quotient_le (s : ℝ) (hs : 0 < s) {F : Set E}
   have : IsProbabilityMeasure U := isProbabilityMeasure_normalized_quotient L volume hF
   have hmap : Measure.map q ν = U.withDensity f := map_gaussianWeight_eq_withDensity L s hs hF
   have : IsProbabilityMeasure (U.withDensity f) := by rw [← hmap]; infer_instance
-  have hA : Measurable A := by
-    apply QuotientAddGroup.measurable_from_quotient.mpr
-    change Measurable (fun x : E ↦ covolume L / s ^ finrank ℝ E *
-      QuotientAddGroup.automorphize (gaussianWeight s)
-        (QuotientAddGroup.mk x : E ⧸ L.toAddSubgroup))
-    simp only [automorphize_gaussianWeight_coe]
-    exact (continuous_const.mul
-      ((continuous_gaussianMass L s hs).comp continuous_neg)).measurable
+  have hA : Measurable A := QuotientAddGroup.measurable_from_quotient.mpr <| by
+    simpa only [Function.comp_def, A, automorphize_gaussianWeight_coe] using
+      (((continuous_gaussianMass L s hs).comp continuous_neg).const_mul _).measurable
   have hf : Measurable f := hA.ennreal_ofReal
   have hlin : ∫⁻ y, f y ∂U = 1 := by
     simpa only [withDensity_apply f MeasurableSet.univ, Measure.restrict_univ] using
@@ -153,15 +148,10 @@ theorem tvDist_gaussian_quotient_le (s : ℝ) (hs : 0 < s) {F : Set E}
   have hbound (y : E ⧸ L.toAddSubgroup) : |1 - (f y).toReal| ≤
       gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ E) L) (1 / s) 0 - 1 := by
     induction y using Quotient.inductionOn with | _ x
-    have hpos : 0 ≤ A (QuotientAddGroup.mk x : E ⧸ L.toAddSubgroup) := by
-      dsimp only [A]
-      rw [automorphize_gaussianWeight_coe]
+    have hpos : 0 ≤ covolume L / s ^ finrank ℝ E * gaussianMass L s (-x) := by
       positivity [covolume_pos L volume, gaussianMass_pos L s hs (-x)]
-    rw [show (f (QuotientAddGroup.mk x : E ⧸ L.toAddSubgroup)).toReal =
-      A (QuotientAddGroup.mk x : E ⧸ L.toAddSubgroup) from ENNReal.toReal_ofReal hpos,
-      abs_sub_comm]
-    simpa only [A, automorphize_gaussianWeight_coe] using
-      abs_gaussianMass_normalized_sub_one_le L s hs (-x)
+    simpa only [f, A, automorphize_gaussianWeight_coe, ENNReal.toReal_ofReal hpos, abs_sub_comm]
+      using abs_gaussianMass_normalized_sub_one_le L s hs (-x)
   change tvDist (Measure.map q ν) U ≤ _
   rw [hmap, tvDist_withDensity_self_eq_integral hfi]
   refine (integral_mono ((integrable_const (1 : ℝ)).sub

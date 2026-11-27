@@ -215,10 +215,10 @@ private theorem realize_prefixEnd {a : EncodedStructure} (ha : v.WellFormed a)
   | succ m ih =>
     have hm' : m < v.count := by omega
     let i : Fin v.count := ⟨m, hm'⟩
+    have hi : m + 1 = i.val + 1 := rfl
     have hp := v.prefix_length_lt ha hB (Nat.le_of_lt hm')
     have hs := v.prefix_length_lt ha hB hm
-    rw [show m + 1 = i.val + 1 from rfl, encStructurePrefix_succ, List.length_append,
-      length_frame] at hs
+    rw [hi, v.encStructurePrefix_succ, List.length_append, length_frame] at hs
     have hlen : (v.table a (v.symbol i)).length < B := by omega
     have hdom (j : Fin B) : (v.tableDomain i).Realize ![j] ↔
         j.val < (v.table a (v.symbol i)).length := by rw [ha.length_table]; exact Iff.rfl
@@ -228,20 +228,16 @@ private theorem realize_prefixEnd {a : EncodedStructure} (ha : v.WellFormed a)
       have hb := (ih (Nat.le_of_lt hm') _ (Sum.elim env u)).mp hu
       have he := (realize_frameEnd _ _ _ _ _ hlen hlt hdom).mp hf
       fo_simp at hb he
-      change (u ()).val + 2 * (v.table a (v.symbol i)).length + 1 =
-        (last.realize env).val at he
-      rw [show m + 1 = i.val + 1 from rfl, encStructurePrefix_succ, List.length_append,
-        length_frame]
-      change (v.encStructurePrefix a m).length +
-        (2 * (v.table a (v.symbol i)).length + 1) = (last.realize env).val
-      omega
+      simpa only [hi, v.encStructurePrefix_succ, List.length_append, length_frame, Nat.add_assoc,
+        ← (hb : (v.encStructurePrefix a i.val).length = (u ()).val)] using
+        (he : (u ()).val + 2 * (v.table a (v.symbol i)).length + 1 = (last.realize env).val)
     · intro he
       refine ⟨fun _ => ⟨(v.encStructurePrefix a m).length, hp⟩,
         (ih (Nat.le_of_lt hm') _ _).mpr rfl,
         (realize_frameEnd _ _ _ _ _ hlen hlt hdom).mpr ?_⟩
       fo_simp
-      simpa only [show m + 1 = i.val + 1 from rfl, encStructurePrefix_succ,
-        List.length_append, length_frame, Nat.add_assoc] using he
+      simpa only [hi, v.encStructurePrefix_succ, List.length_append, length_frame, Nat.add_assoc]
+        using he
 
 /-- The direct first-order length formula equals the length of the native machine input.
 The endpoint must be an element of the canonical power universe. -/
@@ -265,8 +261,7 @@ private theorem realize_prefixBit {a : EncodedStructure} (ha : v.WellFormed a)
   induction m generalizing α with
   | zero =>
     have hdom (j : Fin B) : v.elementDomain.Realize ![j] ↔ j.val < (encUnary a.1).length := by
-      simp only [encUnary_apply, List.length_replicate]
-      rfl
+      simp only [encUnary_apply, List.length_replicate]; rfl
     have hbit (j : Fin B) (hj : j.val < (encUnary a.1).length) :
         (⊤ : v.inputLanguage.Formula (Fin 1)).Realize ![j] ↔
           (encUnary a.1)[j.val]? = some true := by
@@ -280,6 +275,7 @@ private theorem realize_prefixBit {a : EncodedStructure} (ha : v.WellFormed a)
   | succ m ih =>
     have hm' : m < v.count := by omega
     let i : Fin v.count := ⟨m, hm'⟩
+    have hi : m + 1 = i.val + 1 := rfl
     have hp := v.prefix_length_lt ha hB (Nat.le_of_lt hm')
     have hdom (j : Fin B) : (v.tableDomain i).Realize ![j] ↔
         j.val < (v.table a (v.symbol i)).length := by rw [ha.length_table]; exact Iff.rfl
@@ -287,10 +283,9 @@ private theorem realize_prefixBit {a : EncodedStructure} (ha : v.WellFormed a)
         (v.tableBit i).Realize ![j] ↔ (v.table a (v.symbol i))[j.val]? = some true := by
       change (j.val < a.1 ^ (v.symbol i).1 ∧
         (v.table a (v.symbol i)).getD j.val false = true) ↔ _
-      rw [← WellFormed.length_table v ha (v.symbol i)]
-      simp [hj]
+      simp [← ha.length_table, hj]
     fo_simp [prefixBit, dite_eq_left hm']
-    rw [show m + 1 = i.val + 1 from rfl, encStructurePrefix_succ, append_true_iff]
+    rw [hi, v.encStructurePrefix_succ, append_true_iff]
     refine or_congr (ih (Nat.le_of_lt hm') pos env) ⟨?_, fun hf => ?_⟩
     · rintro ⟨u, hu, hf⟩
       have hb := (v.realize_prefixEnd ha hB (Nat.le_of_lt hm') _ _).mp hu

@@ -70,10 +70,7 @@ def restrict (C : SemiCircuit) (x : ℕ) (ℓ : Lit) : SemiCircuit :=
 /-- Any live node of `C` distinct from `x` remains live in `C.restrict x ℓ`. -/
 theorem mem_live_restrict {x : ℕ} {ℓ : Lit} {i : ℕ} (hi : i ∈ C.live) (hix : i ≠ x) :
     i ∈ (C.restrict x ℓ).live := by
-  simp only [live, Finset.mem_union] at hi ⊢
-  change (i ∈ C.params.erase x ∨ i ∈ C.aux) ∨ i ∈ C.gates
-  rw [Finset.mem_erase]
-  tauto
+  simp only [live, restrict, subst, Finset.mem_union, Finset.mem_erase] at hi ⊢; tauto
 
 /-- Restricting a parameter to a literal reading at most another parameter preserves
 well-formedness. -/
@@ -166,10 +163,7 @@ private theorem eqnsHold_deleteGate (hC : C.WellFormed) {J : ℕ} {ℓ : Lit} (h
 /-- Any live node of `C` distinct from `J` remains live in `C.deleteGate J ℓ`. -/
 theorem mem_live_deleteGate {J : ℕ} {ℓ : Lit} {i : ℕ} (hi : i ∈ C.live) (hiJ : i ≠ J) :
     i ∈ (C.deleteGate J ℓ).live := by
-  simp only [live, Finset.mem_union] at hi ⊢
-  change (i ∈ C.params ∨ i ∈ C.aux) ∨ i ∈ C.gates.erase J
-  rw [Finset.mem_erase]
-  tauto
+  simp only [live, deleteGate, subst, Finset.mem_union, Finset.mem_erase] at hi ⊢; tauto
 
 /-- Deleting a gate whose replacement literal reads only inputs of `J` preserves well-formedness. -/
 theorem WellFormed.deleteGate_of_reads (hC : C.WellFormed) {J : ℕ} {ℓ : Lit}
@@ -189,13 +183,11 @@ theorem WellFormed.deleteGate_of_reads (hC : C.WellFormed) {J : ℕ} {ℓ : Lit}
       reads_lt := fun K hK i hi hr => ?_
       reads_live := fun K hK i hr => ?_
       terms_subset := fun e he => by
-        change ((C.eqn e).subst J ℓ).terms ⊆ _
-        rw [heqn e he]; exact hC.terms_subset e he
+        simpa only [deleteGate, subst, heqn e he] using hC.terms_subset e he
       card_terms_le := fun e he => Equation.card_subst_le.trans (hC.card_terms_le e he)
       out_live := fun i hi => ?_
-      solvable := fun u => by
-        obtain ⟨val, hu, heq⟩ := hC.solvable u
-        exact ⟨val, hu, (eqnsHold_deleteGate hC hJ val).2 heq⟩
+      solvable := fun u => (hC.solvable u).imp fun val h =>
+        ⟨h.1, (eqnsHold_deleteGate hC hJ val).2 h.2⟩
       unique := fun val val' hagree heq heq' =>
         hC.unique val val' hagree ((eqnsHold_deleteGate hC hJ val).1 heq)
           ((eqnsHold_deleteGate hC hJ val').1 heq') }
@@ -231,10 +223,8 @@ theorem DeleteGateOK.liftsTo (hC : C.WellFormed) {J : ℕ} {ℓ : Lit} (h : C.De
   · refine (Equation.holds_congr fun i hi => hw i fun he' => ?_).2
       ((eqnsHold_deleteGate hC h.mem val).1 hval.1 e he)
     exact hC.notMem_terms_of_mem_gates h.mem he (he' ▸ hi)
-  · by_cases hKJ : K = J
-    · subst hKJ
-      rw [hwJval]
-      exact Gate.eval_congr fun i hi =>
+  · rcases eq_or_ne K J with rfl | hKJ
+    · exact hwJval.trans <| Gate.eval_congr fun i hi =>
         (hw i fun he => hC.not_reads_self h.mem (he ▸ hi)).symm
     · rw [hw K hKJ, hval.2 K (Finset.mem_erase.2 ⟨hKJ, hK⟩)]
       change ((C.gate K).subst J ℓ).eval val = _
@@ -269,10 +259,7 @@ structure DeleteEqnOK (C : SemiCircuit) (e v : ℕ) (ℓ : Lit) : Prop where
 /-- Any live node of `C` distinct from `v` remains live in `C.deleteEqn e v ℓ`. -/
 theorem mem_live_deleteEqn {e v : ℕ} {ℓ : Lit} {i : ℕ} (hi : i ∈ C.live) (hiv : i ≠ v) :
     i ∈ (C.deleteEqn e v ℓ).live := by
-  simp only [live, Finset.mem_union] at hi ⊢
-  change (i ∈ C.params ∨ i ∈ C.aux.erase v) ∨ i ∈ C.gates
-  rw [Finset.mem_erase]
-  tauto
+  simp only [live, deleteEqn, subst, Finset.mem_union, Finset.mem_erase] at hi ⊢; tauto
 
 /-- A solution of the affine system after deleting `v = ℓ` extends to a solution of the original
 system by giving `v` the value of `ℓ`. -/
@@ -325,12 +312,10 @@ theorem WellFormed.deleteEqn (hC : C.WellFormed) {e v : ℕ} {ℓ : Lit} (h : C.
     have hv : val v = ℓ.eval val := (h.holds val).1 (heq e h.mem)
     exact ⟨val, hu, fun e' he' =>
       (Equation.holds_subst hv).2 (heq e' (Finset.mem_of_mem_erase he'))⟩
-  · have := hC.unique _ _ (fun j hj => by
-        have hjv : j ≠ v := fun he => hvp (he ▸ hj)
-        rw [Function.update_of_ne hjv, Function.update_of_ne hjv]
-        exact hagree j hj) (h.eqnsHold heq) (h.eqnsHold heq') a (Finset.mem_of_mem_erase ha)
-    rwa [Function.update_of_ne (Finset.ne_of_mem_erase ha),
-      Function.update_of_ne (Finset.ne_of_mem_erase ha)] at this
+  · simpa only [Function.update_of_ne (Finset.ne_of_mem_erase ha)] using
+      hC.unique _ _ (fun j hj => by
+        simpa only [Function.update_of_ne fun he : j = v => hvp (he ▸ hj)] using hagree j hj)
+        (h.eqnsHold heq) (h.eqnsHold heq') a (Finset.mem_of_mem_erase ha)
 
 /-- A consistent assignment after deleting `v = ℓ` lifts, by giving `v` the value of `ℓ`. -/
 theorem DeleteEqnOK.liftsTo (hC : C.WellFormed) {e v : ℕ} {ℓ : Lit} (h : C.DeleteEqnOK e v ℓ) :
@@ -399,22 +384,19 @@ theorem WellFormed.dropEqn (hC : C.WellFormed) {e v : ℕ} (h : C.DropEqnOK e v)
       terms_subset := fun e' he' z hz => ?_
       card_terms_le := fun e' he' => hC.card_terms_le e' (Finset.mem_of_mem_erase he')
       out_live := fun i hi => hlive i (hC.out_live i hi) fun he => h.out (he ▸ hi)
-      solvable := fun u => by
-        obtain ⟨val, hu, heq⟩ := hC.solvable u
-        exact ⟨val, hu, fun e' he' => heq e' (Finset.mem_of_mem_erase he')⟩
+      solvable := fun u => (hC.solvable u).imp fun _ h =>
+        ⟨h.1, fun e' he' => h.2 e' (Finset.mem_of_mem_erase he')⟩
       unique := fun val val' hagree heq heq' a ha => ?_ }
   · have := hC.terms_subset e' (Finset.mem_of_mem_erase he') hz
     have hzv : z ≠ v := fun he =>
       h.only e' (Finset.mem_of_mem_erase he') (Finset.ne_of_mem_erase he') (he ▸ hz)
     change z ∈ C.params ∪ C.aux.erase v
-    simp only [Finset.mem_union, Finset.mem_erase] at this ⊢
-    tauto
-  · have hext : ∀ w : ℕ → Bool, ∀ i, i ≠ v → C.dropEqnValue e v w i = w i :=
-      fun w i hi => Function.update_of_ne hi _ _
-    have := hC.unique _ _ (fun j hj => by
-        rw [hext val j fun he => hvp (he ▸ hj), hext val' j fun he => hvp (he ▸ hj)]
-        exact hagree j hj) (h.eqnsHold heq) (h.eqnsHold heq') a (Finset.mem_of_mem_erase ha)
-    rwa [hext val a (Finset.ne_of_mem_erase ha), hext val' a (Finset.ne_of_mem_erase ha)] at this
+    simp only [Finset.mem_union, Finset.mem_erase] at this ⊢; tauto
+  · have hext (w : ℕ → Bool) {i : ℕ} (hi : i ≠ v) : C.dropEqnValue e v w i = w i :=
+      Function.update_of_ne hi _ _
+    simpa only [hext _ (Finset.ne_of_mem_erase ha)] using hC.unique _ _
+      (fun j hj => by simpa only [hext _ fun he => hvp (he ▸ hj)] using hagree j hj)
+      (h.eqnsHold heq) (h.eqnsHold heq') a (Finset.mem_of_mem_erase ha)
 
 /-- A consistent assignment after dropping an equation lifts, by solving the equation for the
 dropped auxiliary variable. -/

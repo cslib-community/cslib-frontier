@@ -263,23 +263,15 @@ theorem isOraclePPTOn_targetForgerWordOf {Message : Type} {encM : Message ↪ Li
       (fun p => targetForgerWordOf D sigBound target A p.1 p.2) := by
   have hdec : ComputableInPolyTime (payloadDecoderOf D).decode encBits (encPayloadOf encM) :=
     (payloadDecoderOf D).computableInPolyTime
-  let callIn := encPair encPublicInput (encPair (encFinEnum Unit) encBits)
   have hprep : ComputableInPolyTime
       (fun p : ℕ × List Bool × List Bool => (p.1, encWordPair p.2))
       encPublicInput (encPair encUnary encBits) := by
     unfold encPublicInput encWordPair
     fun_prop
-  have hn : ComputableInPolyTime
-      (fun p : (ℕ × List Bool × List Bool) × Unit × List Bool => p.1.1) callIn encUnary := by
-    dsimp only [callIn, encPublicInput, encWordPair]
-    fun_prop
-  have hck : ComputableInPolyTime
-      (fun p : (ℕ × List Bool × List Bool) × Unit × List Bool => p.1.2.2) callIn encBits := by
-    dsimp only [callIn, encPublicInput, encWordPair]
-    fun_prop
-  have hreq := computableInPolyTime_target_comp htarget hn hck
+  have hcaller := ComputableInPolyTime.fst encPublicInput (encPair (encFinEnum Unit) encBits)
+  have hreq := computableInPolyTime_target_comp htarget hcaller.fst' hcaller.snd'.snd'
     (hdec.comp (ComputableInPolyTime.snd _ _).snd')
-  have hlim := hsigBound.comp (hn.prod (ComputableInPolyTime.length_bits.comp hreq))
+  have hlim := hsigBound.comp (hcaller.fst'.prod (ComputableInPolyTime.length_bits.comp hreq))
   -- The resource bound reads only the request word, so it factors through `callIn`.
   have hres : ComputableInPolyTime
       (fun p : (ℕ × List Bool × List Bool) × List Bool =>
@@ -288,37 +280,23 @@ theorem isOraclePPTOn_targetForgerWordOf {Message : Type} {encM : Message ↪ Li
       (encPair encPublicInput encBits) encUnary :=
     hlim.comp ((ComputableInPolyTime.fst _ _).prod
       ((ComputableInPolyTime.const ()).prod (ComputableInPolyTime.snd _ _)))
-  have hhandler : IsOraclePPTOn callIn encBits
-      (fun p : (ℕ × List Bool × List Bool) × Unit × List Bool =>
-        let payload := (payloadDecoderOf D).decode p.2.2
-        let msg := target p.1.1 p.1.2.2 payload.message payload.opening
-        List.take (sigBound p.1.1 msg.length) <$> ProbOracleComp.query ((), msg)) :=
-    IsOraclePPTOn.query_take () hreq hlim
   have hinterp := hA.on.interpret_preprocess_open'
     (operationEncoding := encFinEnum Unit)
     (handler := fun (p : ℕ × List Bool × List Bool) (request : Unit × List Bool) =>
       let payload := (payloadDecoderOf D).decode request.2
       let msg := target p.1 p.2.2 payload.message payload.opening
       List.take (sigBound p.1 msg.length) <$> ProbOracleComp.query ((), msg))
-    (prepare := fun p : ℕ × List Bool × List Bool => (p.1, encWordPair p.2))
     (resources := fun p w =>
       let payload := (payloadDecoderOf D).decode w
       sigBound p.1 (target p.1 p.2.2 payload.message payload.opening).length)
-    hprep hhandler hres fun p request reply hreply => by
+    hprep (IsOraclePPTOn.query_take () hreq hlim) hres fun p request reply hreply => by
       obtain ⟨raw, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
       exact List.length_take_le _ _
-  have hpost : ComputableInPolyTime
-      (fun p : (ℕ × List Bool × List Bool) × Token Message (List Bool) (List Bool) =>
-        (target p.1.1 p.1.2.2 p.2.payload.message p.2.payload.opening, p.2.signature))
-      (encPair encPublicInput (encTokenOf encM)) encWordPair := by
-    have hpay := encTokenOf_payload_polyTime encM (ComputableInPolyTime.snd encPublicInput _)
-    refine (computableInPolyTime_target_comp htarget ?_ ?_ hpay).prod
-      (encTokenOf_signature_polyTime encM (ComputableInPolyTime.snd _ _)) <;>
-    · dsimp only [encPublicInput, encWordPair]
-      fun_prop
-  simpa only [targetForgerWordOf, bind_pure_comp] using
-    hinterp.map_with (f := fun p tok =>
-      (target p.1 p.2.2 tok.payload.message tok.payload.opening, tok.signature)) hpost
+  have hfst := ComputableInPolyTime.fst encPublicInput (encTokenOf encM)
+  have hsnd := ComputableInPolyTime.snd encPublicInput (encTokenOf encM)
+  have hpost := (computableInPolyTime_target_comp htarget hfst.fst' hfst.snd'.snd'
+    (encTokenOf_payload_polyTime encM hsnd)).prod (encTokenOf_signature_polyTime encM hsnd)
+  simpa only [targetForgerWordOf, bind_pure_comp] using hinterp.map_with hpost
 
 /-- Running a generic word-level forger with `sigBound`-truncation against
 `SignatureScheme.signingOracleOf` along an encoding `tag : Target → List Bool` preserves the joint
@@ -357,42 +335,19 @@ private theorem eval_signingOracle_take_eq_targetForger_runLog_of
           log)).map
         fun ⟨res, acc⟩ => (res, (acc.map (fun e => tag e.1)).reverse) := by
   subst hlog
-  rw [ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_interpret_sumHandler]
-  rw [ProbOracleComp.eval_runState]
-  have hsim : ∀ (prog' : WordOracleComp Unit α),
-      ProbOracleComp.simulate
-        (fun payload => ProbOracleComp.query (target payload.message payload.opening))
-        (ProbOracleComp.simulate
-          (fun req : Unit × List Bool =>
-            ProbOracleComp.query ((payloadDecoderOf D).decode req.2))
-          prog') =
-        OracleComp.interpret
-          (OracleComp.sumHandler
-            (fun k => ProbOracleComp.sample (ProbComp.unifFin k))
-            (fun req : Unit × List Bool =>
-              let payload := (payloadDecoderOf D).decode req.2
-              ProbOracleComp.query (spec := fun _ : Target => List Bool)
-                (target payload.message payload.opening)))
-          prog' := by
-    intro prog'
-    rw [ProbOracleComp.simulate, OracleComp.substitute_eq_interpret,
-      ProbOracleComp.interpret_simulate]
-    simp only [ProbOracleComp.interpret_query]
-  rw [hsim, ProbOracleComp.runWith_interpret_sumHandler]
+  rw [ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_interpret_sumHandler,
+    ProbOracleComp.eval_runState, ProbOracleComp.simulate, OracleComp.substitute_eq_interpret,
+    ProbOracleComp.interpret_simulate]
+  simp only [ProbOracleComp.interpret_query, ProbOracleComp.runWith_interpret_sumHandler]
   symm
   refine ProbOracleComp.runWith_map_state _ _ (fun acc => (acc.map (fun e => tag e.1)).reverse)
     (fun req acc => ?_) prog log
-  dsimp only
   simp only [ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
     SignatureScheme.signingOracleOf, SignatureScheme.signingOracleOn, ↓reduceIte,
     ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure, pmf_norm, PMF.map,
     Function.comp_def]
   refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun sig hsig => ?_
-  have htake : List.take (sigBound
-      (tag (target ((payloadDecoderOf D).decode req.2).message
-        ((payloadDecoderOf D).decode req.2).opening)).length) sig = sig :=
-    List.take_of_length_le (hbound _ sig hsig)
-  simp [htake, List.map_append, List.reverse_append]
+  simp [List.take_of_length_le (hbound _ sig hsig), List.map_append, List.reverse_append]
 
 /-- Word-level target-forgery reduction corresponding to `targetForger`: specializes
 `targetForgerWordOf Decoder.bits`. -/
@@ -434,20 +389,16 @@ theorem eval_eufCmaGame_targetForgerWord_eq (S : WordSignatureScheme)
     WordSignatureScheme.toScheme_verify, ProbComp.eval_bind, ProbComp.eval_pure]
   refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ⟨pk, sk⟩ hkeys => ?_
   dsimp only
-  have hs : Signer.ofSign S.sign sk = fun _ msg => some (S.sign sk msg) := by
-    funext _ msg
-    exact Signer.ofSign_apply _ _ _ _
-  rw [hs, ProbOracleComp.runLogWith_some]
+  rw [funext fun l => funext (Signer.ofSign_apply S.sign sk l), ProbOracleComp.runLogWith_some]
   simp only [targetForgerWord, targetForgerWordOf, targetForger, WordExtractedForgerOf.toTyped,
     WordExtractedForgerOf.atKey, ProbOracleComp.runLog, bind_pure_comp, OracleComp.interpret_map,
     StateT.run_map, ProbComp.eval_map, ProbOracleComp.runState_map]
   change (PMF.map _ (ProbComp.eval ((OracleComp.interpret
       (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
         (SignatureScheme.signingOracleOf S.sign sk)) _).run []))).bind _ = _
-  have hrun := eval_signingOracle_take_eq_targetForger_runLog_of Decoder.bits S.sign sk
-    (target n ck) id (sigBound n) (hbound n pk sk hkeys) (A n (encWordPair (pk, ck))) [] [] rfl
-  dsimp only [id_eq] at hrun
-  rw [hrun]
+  rw [eval_signingOracle_take_eq_targetForger_runLog_of Decoder.bits S.sign sk
+    (target n ck) (fun x => x) (sigBound n) (hbound n pk sk hkeys)
+    (A n (encWordPair (pk, ck))) [] [] rfl]
   simp only [PMF.bind_map, Function.comp_def, freshMessage, List.contains_reverse]
   refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ⟨tok, log⟩ _ => ?_
   simp [Bool.and_comm]
@@ -536,17 +487,15 @@ theorem isPPTOn_runExtractedWord {Message : Type} {encM : Message ↪ List Bool}
     let msgL := tc * (4 * B + 2 * decL + 10) ^ td
     let sigL := sc * (2 * B + msgL + 2) ^ sd
     2 * (2 * decL + 2 * sigL + 4) + 2
-  have hpolyB : PolynomiallyBounded polyB := by
-    dsimp only [polyB]
-    fun_prop
   let growth (c : (ℕ × List Bool) × (List Bool × List Bool)) (w : List Bool) : ℕ :=
     polyB (encPair encExtractedCaller encBits (c, w)).length
   have hgrowth : PolyBounded
       (fun p : ((ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
         (encPair encExtractedCaller encBits p).length)
-      (fun ⟨c, w⟩ => growth c w) := by
-    dsimp only [growth]
-    exact PolyBounded.of_polynomiallyBounded_comp (p := polyB) hpolyB
+      (fun ⟨c, w⟩ => growth c w) :=
+    PolyBounded.of_polynomiallyBounded_comp (p := polyB) (by
+      dsimp only [polyB]
+      fun_prop)
       (PolyBounded.self (size := fun p => (encPair encExtractedCaller encBits p).length))
   have hrun := hA.run_interpret_preprocess_of_bounded_growth
     (stateEncoding := encPayloadLogOf encM)
@@ -561,23 +510,20 @@ theorem isPPTOn_runExtractedWord {Message : Type} {encM : Message ↪ List Bool}
       obtain ⟨sig, hsig, rfl⟩ := hres
       refine ⟨trivial, ?_⟩
       let B := (encPair encExtractedCaller encBits (caller, req.2)).length
-      have hB : req.2.length ≤ B ∧ caller.1.1 ≤ B ∧ caller.1.2.length ≤ B ∧
-          caller.2.2.length ≤ B := by
+      obtain ⟨hB_w, hB_n, hB_ck, hB_sk⟩ :
+          req.2.length ≤ B ∧ caller.1.1 ≤ B ∧ caller.1.2.length ≤ B ∧ caller.2.2.length ≤ B := by
         dsimp only [B, encExtractedCaller, encParamInput, encWordPair]
         refine ⟨?_, ?_, ?_, ?_⟩ <;> enc_len
-      obtain ⟨hB_w, hB_n, hB_ck, hB_sk⟩ := hB
       let payload := (payloadDecoderOf D).decode req.2
       let msg := target caller.1.1 caller.1.2 payload.message payload.opening
-      have hplen : (encPayloadOf encM payload).length ≤ dc * (B + 1) ^ dd := by
-        have hd := hdecBound req.2
-        simp only [encBits_apply] at hd
-        exact hd.trans (Nat.mul_le_mul_left dc (Nat.pow_le_pow_left (by omega) dd))
+      have hplen : (encPayloadOf encM payload).length ≤ dc * (B + 1) ^ dd :=
+        le_trans (by simpa only [encBits_apply] using hdecBound req.2)
+          (Nat.mul_le_mul_left dc (Nat.pow_le_pow_left (by omega) dd))
       have hmlen : msg.length ≤ tc * (4 * B + 2 * (dc * (B + 1) ^ dd) + 10) ^ td := by
         have hm := htBound (caller.1.1, caller.1.2, payload.message, payload.opening)
-        simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply] at hm
-        have hpenc : (encPayloadOf encM payload).length =
-            2 * (encM payload.message).length + 1 + payload.opening.length := by
-          simp [encPayloadOf_apply, encBits_apply]
+        have hpenc := congrArg List.length (encPayloadOf_apply encM payload)
+        simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
+          at hm hpenc
         exact hm.trans (Nat.mul_le_mul_left tc (Nat.pow_le_pow_left (by omega) td))
       have hslen : sig.length ≤
           sc * (2 * B + tc * (4 * B + 2 * (dc * (B + 1) ^ dd) + 10) ^ td + 2) ^ sd := by
@@ -586,25 +532,17 @@ theorem isPPTOn_runExtractedWord {Message : Type} {encM : Message ↪ List Bool}
         exact hs.trans (Nat.mul_le_mul_left sc (Nat.pow_le_pow_left (by omega) sd))
       change (encPayloadLogOf encM (acc ++ [(payload, sig)])).length ≤
         (encPayloadLogOf encM acc).length + growth caller req.2
-      have hlen : (encPayloadLogOf encM (acc ++ [(payload, sig)])).length =
-          (encPayloadLogOf encM acc).length +
-            (2 * (encPayloadLogEntryOf encM (payload, sig)).length + 1) := by
-        simp [encPayloadLogOf, encList_append, encList_cons, encList_nil, length_frame]
-      have hentry : (encPayloadLogEntryOf encM (payload, sig)).length ≤
-          2 * (dc * (B + 1) ^ dd) +
-            sc * (2 * B + tc * (4 * B + 2 * (dc * (B + 1) ^ dd) + 10) ^ td + 2) ^ sd + 2 := by
-        simp only [encPayloadLogEntryOf, length_encPair, encBits_apply]
-        omega
-      dsimp only [growth, polyB, B] at hlen hentry ⊢
+      simp only [encPayloadLogOf, encList_append, encList_cons, encList_nil, List.length_append,
+        List.length_nil, length_frame, encPayloadLogEntryOf, length_encPair, encBits_apply,
+        growth, polyB, B] at hplen hslen ⊢
       omega)
-  have hkeys : IsPPTOn encParamInput (encPair encBits encBits)
-      (fun p : ℕ × List Bool => S.keyGen p.1) :=
-    S.keyGen_ppt.preprocess (ComputableInPolyTime.fst encUnary encBits)
   have hres' := ComputableInPolyTime.snd encExtractedCaller
     (encPair (encTokenOf encM) (encPayloadLogOf encM))
   have hpost := encExecutionOf_mk_polyTime encM
     (ComputableInPolyTime.fst encExtractedCaller _).snd'.fst' hres'.fst' hres'.snd'
-  simpa only [runExtractedWord, bind_pure_comp] using hkeys.bind_with (hrun.map_with hpost)
+  simpa only [runExtractedWord, bind_pure_comp] using
+    (S.keyGen_ppt.preprocess (ComputableInPolyTime.fst encUnary encBits)).bind_with
+      (hrun.map_with hpost)
 
 /-- `runExtractedWord` agrees in `PMF` law with `Basic.runExtracted` on `S.toScheme n` and
 `WordExtractedForgerOf.toTyped`. -/
@@ -618,14 +556,11 @@ theorem eval_runExtractedWord_eq {Message : Type} {encM : Message ↪ List Bool}
   simp only [runExtractedWord, runExtracted, WordSignatureScheme.toScheme_keyGen,
     WordSignatureScheme.toScheme_sign, ProbComp.eval_bind, ProbComp.eval_pure]
   refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ⟨pk, sk⟩ _ => ?_
-  dsimp only
-  congr 1
   simp only [WordExtractedForgerOf.toTyped, WordExtractedForgerOf.atKey, ProbOracleComp.runLog,
-    ProbOracleComp.runState]
-  rw [ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.eval_run_interpret_eq_runWith,
+    ProbOracleComp.runState, ProbOracleComp.eval_run_interpret_eq_runWith,
     ProbOracleComp.simulate, OracleComp.substitute_eq_interpret,
     ProbOracleComp.runWith_interpret_sumHandler]
-  congr 1
+  congr 2
   funext q state
   rw [ProbOracleComp.runWith_query]
 
@@ -643,36 +578,14 @@ theorem computableInPolyTime_findBindingWitness {Message : Type} {encM : Message
       (encPair encParamInput (encPair (encPayloadOf encM) (encPayloadLogOf encM)))
       (encOption (encBindingWitnessOf encM)) := by
   let E := encPair encParamInput (encPair (encPayloadOf encM) (encPayloadLogOf encM))
-  let ETy := (ℕ × List Bool) × Payload Message (List Bool) ×
-    List (Payload Message (List Bool) × List Bool)
-  have he1 : ComputableInPolyTime (fun p : ETy => p.1) E encParamInput :=
-    ComputableInPolyTime.fst _ _
-  have he2 : ComputableInPolyTime (fun p : ETy => p.2)
-      E (encPair (encPayloadOf encM) (encPayloadLogOf encM)) := ComputableInPolyTime.snd _ _
-  have hlog : ComputableInPolyTime (fun p : ETy => p.2.2) E (encPayloadLogOf encM) := he2.snd'
-  have hq1 : ComputableInPolyTime (fun q : ETy × (Payload Message (List Bool) × List Bool) => q.1)
-      (encPair E (encPayloadLogEntryOf encM)) E := ComputableInPolyTime.fst _ _
-  have hq2 : ComputableInPolyTime (fun q : ETy × (Payload Message (List Bool) × List Bool) => q.2)
-      (encPair E (encPayloadLogEntryOf encM)) (encPayloadLogEntryOf encM) :=
-    ComputableInPolyTime.snd _ _
-  have hn := (he1.comp hq1).fst'
-  have hck := (he1.comp hq1).snd'
-  have hpay1 := hq2.fst'
-  have hpay2 := (he2.comp hq1).fst'
-  have htest : ComputableInPolyTime
-      (fun q : ETy × (Payload Message (List Bool) × List Bool) =>
-        decide (target q.1.1.1 q.1.1.2 q.2.1.message q.2.1.opening =
-          target q.1.1.1 q.1.1.2 q.1.2.1.message q.1.2.1.opening))
-      (encPair E (encPayloadLogEntryOf encM)) encBool :=
-    ComputableInPolyTime.decide_eq' (computableInPolyTime_target_comp htarget hn hck hpay1)
-      (computableInPolyTime_target_comp htarget hn hck hpay2)
-  have hfind := ComputableInPolyTime.findWithInput
-    (test := fun p entry =>
-      decide (target p.1.1 p.1.2 entry.1.message entry.1.opening =
-        target p.1.1 p.1.2 p.2.1.message p.2.1.opening))
-    hlog htest
-  exact ComputableInPolyTime.optionMapWithInput hfind
-    (encBindingWitnessOf_mk_polyTime encM hpay2 hpay1)
+  have hp := ComputableInPolyTime.id' (encIn := encPair E (encPayloadLogEntryOf encM))
+  have htest := ComputableInPolyTime.decide_eq'
+    (computableInPolyTime_target_comp htarget hp.fst'.fst'.fst' hp.fst'.fst'.snd' hp.snd'.fst')
+    (computableInPolyTime_target_comp htarget hp.fst'.fst'.fst' hp.fst'.fst'.snd'
+      hp.fst'.snd'.fst')
+  exact ComputableInPolyTime.optionMapWithInput
+    (ComputableInPolyTime.findWithInput (ComputableInPolyTime.snd encParamInput _).snd' htest)
+    (encBindingWitnessOf_mk_polyTime encM hp.fst'.snd'.fst' hp.snd'.fst')
 
 /-- Word-level binding reduction corresponding to `Basic.bindingReduction`: executes
 `runExtractedWord` and searches the transcript for a target collision with the output payload. -/
@@ -695,17 +608,13 @@ theorem isPPTOn_bindingReductionWord {Message : Type} {encM : Message ↪ List B
     (D : Decoder encM) {A : WordExtractedForgerOf Message} (hA : IsOraclePPT (encTokenOf encM) A) :
     IsPPTOn encParamInput (encOption (encBindingWitnessOf encM))
       (fun p => bindingReductionWord S target D A p.1 p.2) := by
-  have hrun := isPPTOn_runExtractedWord S htarget D hA
-  have hfind := computableInPolyTime_findBindingWitness htarget
-  have hpost : ComputableInPolyTime
-      (fun q : (ℕ × List Bool) × Execution (List Bool) Message (List Bool) (List Bool) =>
-        findBindingWitness (target q.1.1 q.1.2) q.2.output.payload q.2.log)
-      (encPair encParamInput (encExecutionOf encM)) (encOption (encBindingWitnessOf encM)) := by
-    have hq := ComputableInPolyTime.snd encParamInput (encExecutionOf encM)
-    exact hfind.comp ((ComputableInPolyTime.fst _ _).prod
+  have hq := ComputableInPolyTime.snd encParamInput (encExecutionOf encM)
+  have hpost := (computableInPolyTime_findBindingWitness htarget).comp
+    ((ComputableInPolyTime.fst _ _).prod
       ((encTokenOf_payload_polyTime encM (encExecutionOf_output_polyTime encM hq)).prod
         (encExecutionOf_log_polyTime encM hq)))
-  simpa only [bindingReductionWord] using hrun.map_with hpost
+  simpa only [bindingReductionWord] using
+    (isPPTOn_runExtractedWord S htarget D hA).map_with hpost
 
 /-- `bindingReductionWord` has the exact `PMF` law of `Basic.bindingReduction` on `S.toScheme n`
 and `WordExtractedForgerOf.toTyped`. -/
@@ -744,16 +653,14 @@ private theorem isOraclePPT_sampleList_bind
     IsOraclePPT (encPair encBits encBits) (fun n pk => do
       let ck ← ProbOracleComp.sample (BitString.sampleList n)
       B n (pk, ck)) := by
-  have hsamp : IsOraclePPTOn (encPair encUnary encBits) encBits
-      (fun p : ℕ × List Bool => ProbOracleComp.sample (BitString.sampleList p.1)) :=
-    (isPPTOn_sampleList.preprocess (ComputableInPolyTime.fst encUnary encBits)).isOraclePPTOn
-      (Operation := Unit)
   have hprep : ComputableInPolyTime
       (fun q : (ℕ × List Bool) × List Bool => (q.1.1, (q.1.2, q.2)))
       (encPair (encPair encUnary encBits) encBits) encPublicInput := by
     dsimp only [encPublicInput, encWordPair]
     fun_prop
-  exact (hsamp.bind_with (hB.preprocess hprep)).isOraclePPT
+  exact (((isPPTOn_sampleList.preprocess
+    (ComputableInPolyTime.fst encUnary encBits)).isOraclePPTOn).bind_with
+      (hB.preprocess hprep)).isOraclePPT
 
 private theorem eval_eufCmaGame_sampleList_bind_eq (S : WordSignatureScheme)
     (B : ℕ → List Bool × List Bool → WordOracleComp Unit (List Bool × List Bool)) (n : ℕ) :
@@ -813,8 +720,6 @@ theorem isPPT_targetCollisionFinder (S : WordSignatureScheme)
       (encPair encBits encBits) encBits)
     {A : WordExtractedForgerOf (List Bool)} (hA : IsOraclePPT encWordToken A) :
     IsPPT (encPair encBits encBits) (targetCollisionFinder S H A) := by
-  have hbr := isPPTOn_bindingReductionWord S (computableInPolyTime_wordPayloadTarget hH)
-    Decoder.bits hA
   have hbody : ComputableInPolyTime
       (fun q : ((ℕ × List Bool) × Option (BindingWitness (List Bool) (List Bool))) ×
           BindingWitness (List Bool) (List Bool) =>
@@ -827,14 +732,10 @@ theorem isPPT_targetCollisionFinder (S : WordSignatureScheme)
       ComputableInPolyTime.of_eq (f := encWordPayload) (encOut := encBits) fun _ => rfl
     exact (henc.comp (encBindingWitnessOf_first_polyTime encBits hw)).prod
       (henc.comp (encBindingWitnessOf_second_polyTime encBits hw))
-  have hpost : ComputableInPolyTime
-      (fun q : (ℕ × List Bool) × Option (BindingWitness (List Bool) (List Bool)) =>
-        q.2.elim ([], []) fun w => (encWordPayload w.first, encWordPayload w.second))
-      (encPair encParamInput encOptionWordBindingWitness) (encPair encBits encBits) :=
-    ComputableInPolyTime.optionElimWithInput
+  exact ((isPPTOn_bindingReductionWord S (computableInPolyTime_wordPayloadTarget hH)
+    Decoder.bits hA).map_with (ComputableInPolyTime.optionElimWithInput
       (ComputableInPolyTime.snd encParamInput encOptionWordBindingWitness)
-      (ComputableInPolyTime.const ([], [])) hbody
-  exact (hbr.map_with hpost).isPPT
+      (ComputableInPolyTime.const ([], [])) hbody)).isPPT
 
 private theorem bindingExperiment_le_collision (S : WordSignatureScheme)
     (H : List Bool → List Bool → List Bool)
@@ -876,24 +777,14 @@ private theorem negligible_sampleList_add_bound (S : WordSignatureScheme)
             return isCollision H (fun _ _ => true) n ck pair.1 pair.2)) true) :
     Negligible (fun n => Game.succProbability (ProbComp.eval (game n))) := by
   refine negligible_of_le (hforgeNeg.add_fun hcollNeg) fun n => ?_
-  have hcoll : ProbComp.eval (collisionGame H (fun _ _ => true) collFinder n) =
-      (ProbComp.eval (BitString.sampleList n)).bind fun ck =>
-        ProbComp.eval (do
-          let pair ← collFinder n ck
-          return isCollision H (fun _ _ => true) n ck pair.1 pair.2) := by
-    simp only [collisionGame, ProbComp.eval_bind, ProbComp.eval_pure]
   have hbind : (ProbComp.eval (game n)) true ≤
       (ProbComp.eval (S.eufCmaGame forger n)) true +
         (ProbComp.eval (collisionGame H (fun _ _ => true) collFinder n)) true := by
-    rw [hgame n, hforge n, hcoll]
+    rw [hgame n, hforge n, collisionGame, ProbComp.eval_bind]
     exact Cslib.Probability.PMF.bind_apply_le_add_on_support _ true fun ck _ => hpt n ck
-  have hsucc : (ProbComp.eval (game n) true).toNNReal ≤
-      ((ProbComp.eval (S.eufCmaGame forger n) true) +
-        (ProbComp.eval (collisionGame H (fun _ _ => true) collFinder n) true)).toNNReal :=
-    ENNReal.toNNReal_mono (ENNReal.add_ne_top.mpr ⟨PMF.apply_ne_top _ _, PMF.apply_ne_top _ _⟩)
-      hbind
   simpa only [Game.succProbability, ENNReal.toNNReal_add (PMF.apply_ne_top _ _)
-    (PMF.apply_ne_top _ _)] using hsucc
+    (PMF.apply_ne_top _ _)] using ENNReal.toNNReal_mono
+      (ENNReal.add_ne_top.mpr ⟨PMF.apply_ne_top _ _, PMF.apply_ne_top _ _⟩) hbind
 
 /-- Word-level extracted anonymous-token game: sample `ck ← BitString.sampleList n`, run
 `runExtractedWord` with `wordPayloadTarget H`, and accept when `extractedAccept` holds. Every
@@ -916,11 +807,9 @@ theorem eval_extractedTokenWordGame_eq (S : WordSignatureScheme)
       (ProbComp.eval (BitString.sampleList n)).bind fun ck =>
         ProbComp.eval (extractedExperiment (S.toScheme n) (wordPayloadTarget H n ck)
           (WordExtractedForgerOf.toTyped Decoder.bits (A.atKey ck) n)) := by
-  simp only [extractedTokenWordGame, extractedExperiment, ProbComp.eval_bind,
-    ProbComp.eval_map, ProbComp.eval_pure]
-  refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ck _ => ?_
-  rw [eval_runExtractedWord_eq]
-  exact PMF.bind_pure_comp _ _
+  simp only [extractedTokenWordGame, extractedExperiment, ProbComp.eval_bind, ProbComp.eval_map,
+    ProbComp.eval_pure, eval_runExtractedWord_eq]
+  rfl
 
 /-- Word-level unforgeability of extracted anonymous tokens: assuming only `S.EUFCMA`,
 `CollisionResistant H`, and efficient `H` and `A` (with the signature length bound obtained
@@ -952,9 +841,8 @@ theorem negligible_extractedTokenWordGame (S : WordSignatureScheme) (hS : S.EUFC
     (eval_extractedTokenWordGame_eq S H A)
     (eval_eufCmaGame_sampledTargetForger_eq S sigBound H A) ?_
   intro n ck
-  have hle := extracted_succProbability_le (S.toScheme n) (wordPayloadTarget H n ck)
-    (WordExtractedForgerOf.toTyped Decoder.bits (A.atKey ck) n)
-  have hle_enn := ENNReal.coe_le_coe.mpr hle
+  have hle_enn := ENNReal.coe_le_coe.mpr (extracted_succProbability_le (S.toScheme n)
+    (wordPayloadTarget H n ck) (WordExtractedForgerOf.toTyped Decoder.bits (A.atKey ck) n))
   simp only [Experiment.succProbability, Game.succProbability, ENNReal.coe_add,
     ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)] at hle_enn
   rw [← eval_eufCmaGame_targetForgerWord_eq S (wordPayloadTarget H) sigBound
@@ -1170,21 +1058,14 @@ private theorem computableInPolyTime_requestOutputPayload :
       (fun r : IssueRequest (List Bool) (List Bool) (List Bool) (List Bool) =>
         (⟨⟨r.nullifier, r.ctx, r.amount, 0⟩, r.opening⟩ :
           Payload (Credit.Note (List Bool) (List Bool)) (List Bool)))
-      encIssueRequest encNotePayload := by
-    have h0 : ComputableInPolyTime
-        (fun _ : IssueRequest (List Bool) (List Bool) (List Bool) (List Bool) => (0 : ℕ))
-        encIssueRequest encNat := ComputableInPolyTime.const 0
-    fun_prop
+      encIssueRequest encNotePayload := by fun_prop
   have hsp : ComputableInPolyTime
       (fun s : SpendRequest (List Bool) (List Bool) (List Bool) (List Bool) (List Bool) =>
         (⟨⟨s.newNullifier, s.ctx, s.newCredit, s.refund⟩, s.newOpening⟩ :
           Payload (Credit.Note (List Bool) (List Bool)) (List Bool)))
       encSpendRequest encNotePayload := by
     fun_prop
-  have h := (ComputableInPolyTime.sumElim his hsp).comp heq
-  refine h.of_enc_eq ?_
-  intro r
-  cases r <;> rfl
+  exact ((ComputableInPolyTime.sumElim his hsp).comp heq).of_enc_eq fun r => by cases r <;> rfl
 
 private theorem computableInPolyTime_requestElim {γ δ : Type}
     {encG : γ ↪ List Bool} {encD : δ ↪ List Bool}
@@ -1271,17 +1152,13 @@ private theorem computableInPolyTime_acceptLocal
       ((ComputableInPolyTime.bool_and.comp (hv.prod hc2)).prod hbal)
   dsimp only [encP] at his hsp
   exact computableInPolyTime_requestElim
-    (fun q : (PIn × Request (List Bool) (List Bool) (List Bool) (List Bool) (List Bool)) =>
-      fun i : IssueRequest (List Bool) (List Bool) (List Bool) (List Bool) =>
-        decide (com q.1.1.1 q.1.1.2 i.nullifier i.ctx i.amount i.opening = i.commitment))
-    (fun q : (PIn × Request (List Bool) (List Bool) (List Bool) (List Bool) (List Bool)) =>
-      fun s : SpendRequest (List Bool) (List Bool) (List Bool) (List Bool) (List Bool) =>
-        S.verify q.1.2
-            (tag (com q.1.1.1 q.1.1.2 s.nullifier s.ctx s.oldCredit s.oldOpening) s.oldRefund)
-            s.signature &&
-          decide (com q.1.1.1 q.1.1.2 s.newNullifier s.ctx s.newCredit s.newOpening =
-            s.changeCommitment) &&
-          decide (s.oldCredit + s.oldRefund = s.newCredit + s.debit))
+    (fun q i => decide (com q.1.1.1 q.1.1.2 i.nullifier i.ctx i.amount i.opening = i.commitment))
+    (fun q s =>
+      S.verify q.1.2 (tag (com q.1.1.1 q.1.1.2 s.nullifier s.ctx s.oldCredit s.oldOpening)
+          s.oldRefund) s.signature &&
+        decide (com q.1.1.1 q.1.1.2 s.newNullifier s.ctx s.newCredit s.newOpening =
+          s.changeCommitment) &&
+        decide (s.oldCredit + s.oldRefund = s.newCredit + s.debit))
     (ComputableInPolyTime.snd _ _) his hsp fun p => by
       cases p.2 <;>
         simp [acceptLocal, Credit.target, SpendRequest.inputNote, pairScheme, requestEquiv]
@@ -1320,12 +1197,8 @@ private theorem computableInPolyTime_hasSpentNullifier :
       (ComputableInPolyTime.snd (encPair encRequestLog encWordPair) encWordRequest)
       (ComputableInPolyTime.const false) hr
       fun q => by cases q.2 <;> rfl
-  refine (ComputableInPolyTime.anyWithInput (encA := encWordRequest) hlist htest).of_enc_eq
-    fun p => congrArg encBool ?_
-  simp only [hasSpentNullifier]
-  congr 1
-  funext r
-  cases r <;> rfl
+  exact (ComputableInPolyTime.anyWithInput (encA := encWordRequest) hlist htest).of_enc_eq
+    fun ⟨reqs, _⟩ => congrArg (fun f => encBool (reqs.any f)) (funext fun r => by cases r <;> rfl)
 
 private theorem computableInPolyTime_acceptRequest
     (com : ℕ → List Bool → List Bool → List Bool → ℕ → List Bool → List Bool)
@@ -1380,13 +1253,7 @@ private theorem computableInPolyTime_acceptRequest
           (encSpendRequest_nullifier_polyTime (ComputableInPolyTime.snd _ _))))
     exact ComputableInPolyTime.bool_and.comp (hl'.prod (ComputableInPolyTime.bool_not.comp hs))
   dsimp only [encE] at hl hr
-  exact computableInPolyTime_requestElim
-    (fun q i =>
-      acceptLocal (com q.1.1.1 q.1.1.2) Prod.mk (pairScheme S tag q.1.1.1) q.1.2 (.issue i))
-    (fun q s =>
-      acceptLocal (com q.1.1.1 q.1.1.2) Prod.mk (pairScheme S tag q.1.1.1) q.1.2 (.spend s) &&
-        !hasSpentNullifier q.2.1 s.ctx s.nullifier)
-    hreq hl hr fun p => by cases p.2.2 <;> rfl
+  exact computableInPolyTime_requestElim _ _ hreq hl hr fun p => by cases p.2.2 <;> rfl
 
 private theorem findNoteForgery_eq_find
     (reqs : List (Request (List Bool) (List Bool) (List Bool) (List Bool) (List Bool)))
@@ -1474,10 +1341,9 @@ private theorem computableInPolyTime_findNoteForgery :
         (encPayloadOf_mk_polyTime encCreditNote hnote (encSpendRequest_oldOpening_polyTime hq2))
         (encSpendRequest_signature_polyTime hq2)))
       fun q => by cases q.2 <;> rfl
-  have helim := ComputableInPolyTime.optionElimWithInput (body := bodyForged) hfind
-    (ComputableInPolyTime.const none) hbody
-  refine helim.of_enc_eq fun reqs => congrArg (encOption encNoteToken) ?_
-  rw [findNoteForgery, findNoteForgery_eq_find]
+  exact (ComputableInPolyTime.optionElimWithInput (body := bodyForged) hfind
+    (ComputableInPolyTime.const none) hbody).of_enc_eq fun reqs =>
+      congrArg (encOption encNoteToken) (findNoteForgery_eq_find reqs _)
 
 /-- Stateful handler used by `noteForgerWord`: decodes each `Request`, checks `acceptRequest`
 against `pairScheme S tag`, queries the external note signing oracle with `sigBound`-truncation on
@@ -1538,14 +1404,6 @@ private theorem isOraclePPTOn_noteForgerHandlerWord (sigBound : ℕ → ℕ → 
     (encCreditNote_credit_polyTime hnote) (encPayloadOf_opening_polyTime encCreditNote hout)))).prod
     (encCreditNote_refund_polyTime hnote))
   have hlim := hsigBound.comp (hn.prod (ComputableInPolyTime.length_bits.comp htgt))
-  have hq : IsOraclePPTOn encRequestCall encBits
-      (fun p : CallTy =>
-        let ck := (wordPairDecoder.decode p.1.2).2
-        let out := (wordRequestDecoder.decode p.2.1.2).outputPayload
-        let tgt := tag (com p.1.1 ck out.message.nullifier out.message.context
-          out.message.credit out.opening) out.message.refund
-        List.take (sigBound p.1.1 tgt.length) <$> ProbOracleComp.query ((), encNotePayload out)) :=
-    IsOraclePPTOn.query_take () hreq hlim
   have hpost : ComputableInPolyTime
       (fun q : CallTy × List Bool =>
         (encOption encBits (some q.2), q.1.2.2 ++ [wordRequestDecoder.decode q.1.2.1.2]))
@@ -1560,11 +1418,9 @@ private theorem isOraclePPTOn_noteForgerHandlerWord (sigBound : ℕ → ℕ → 
       ((hdecReq.comp hq1).prod (ComputableInPolyTime.const []))
     exact hopt.prod ((ComputableInPolyTime.listAppend encWordRequest).comp
       ((hacc.comp hq1).prod hentry))
-  have hnone : ComputableInPolyTime
-      (fun p : CallTy => (encOption encBits none, p.2.2)) encRequestCall encRequestReply :=
-    (ComputableInPolyTime.const (encOption encBits none)).prod hacc
   simpa only [bind_pure_comp, Function.comp_def] using
-    IsOraclePPTOn.cond hcond (hq.map_with hpost) hnone.isOraclePPTOn
+    IsOraclePPTOn.cond hcond ((IsOraclePPTOn.query_take () hreq hlim).map_with hpost)
+      ((ComputableInPolyTime.const (encOption encBits none)).prod hacc).isOraclePPTOn
 
 /-- Execution phase of `noteForgerWord`, running `A n keys` under `noteForgerHandlerWord`. -/
 def noteForgerRun (sigBound : ℕ → ℕ → ℕ)
@@ -1616,17 +1472,12 @@ private theorem mem_support_noteForgerHandlerWord_length_le
     obtain ⟨sig, -, rfl⟩ := by
       simpa only [OracleComp.supportWith_map, Set.mem_image, OracleComp.supportWith_pure,
         Set.mem_singleton_iff, exists_eq_right] using hres
-    have hlen : (encRequestLog (accepted ++ [wordRequestDecoder.decode req.2])).length =
-        (encRequestLog accepted).length +
-          (2 * (encWordRequest (wordRequestDecoder.decode req.2)).length + 1) := by
-      simp [encRequestLog, encList_append, encList_cons, encList_nil, length_frame]
-    have hd := hdecBound req.2
     have hBw : req.2.length ≤ (encPair encParamInput encBits (caller, req.2)).length := by
       enc_len
-    have hd' : (encWordRequest (wordRequestDecoder.decode req.2)).length ≤
-        dc * ((encPair encParamInput encBits (caller, req.2)).length + 1) ^ dd :=
-      hd.trans (Nat.mul_le_mul_left dc (Nat.pow_le_pow_left (by omega) dd))
-    rw [hlen]
+    have hd' := (hdecBound req.2).trans
+      (Nat.mul_le_mul_left dc (Nat.pow_le_pow_left (Nat.add_le_add_right hBw 1) dd))
+    simp only [encRequestLog, encList_append, encList_cons, encList_nil, List.length_append,
+      List.length_nil, length_frame]
     omega
   · simp only [OracleComp.supportWith_pure, Set.mem_singleton_iff] at hres
     subst hres
@@ -1648,21 +1499,15 @@ private theorem isOraclePPTOn_noteForgerRun {sigBound : ℕ → ℕ → ℕ}
   have hhandler := isOraclePPTOn_noteForgerHandlerWord sigBound hsigBound com hcom tag htag S
   have hdec := wordRequestDecoder.computableInPolyTime
   obtain ⟨dc, dd, hdecBound⟩ := hdec.polyBounded_length.exists_le
-  have hdecBound' : ∀ w : List Bool, (encWordRequest (wordRequestDecoder.decode w)).length ≤
+  have hdecBound' (w : List Bool) : (encWordRequest (wordRequestDecoder.decode w)).length ≤
       dc * (w.length + 1) ^ dd := by
-    intro w
     simpa only [encBits_apply] using hdecBound w
-  have hpolyG : PolynomiallyBounded (fun B : ℕ => 2 * (dc * (B + 1) ^ dd) + 2) := by
-    fun_prop
   have hgrowth : PolyBounded
       (fun pair : (ℕ × List Bool) × List Bool => (encPair encParamInput encBits pair).length)
       (fun ⟨c, w⟩ => 2 * (dc * ((encPair encParamInput encBits (c, w)).length + 1) ^ dd) + 2) :=
     PolyBounded.of_polynomiallyBounded_comp
-      (p := fun B : ℕ => 2 * (dc * (B + 1) ^ dd) + 2) hpolyG
+      (p := fun B : ℕ => 2 * (dc * (B + 1) ^ dd) + 2) (by fun_prop)
       (PolyBounded.self (size := fun pair => (encPair encParamInput encBits pair).length))
-  have hprep : ComputableInPolyTime (fun p : ℕ × List Bool => (p.1, p.2))
-      encParamInput (encPair encUnary encBits) := by
-    fun_prop
   dsimp only [noteForgerRun]
   refine hA.run_interpret_preprocess_open_of_bounded_growth
     (input := encParamInput) (stateEncoding := encRequestLog)
@@ -1672,7 +1517,7 @@ private theorem isOraclePPTOn_noteForgerRun {sigBound : ℕ → ℕ → ℕ}
     (initial := fun _ => [])
     (growth := fun c w =>
       2 * (dc * ((encPair encParamInput encBits (c, w)).length + 1) ^ dd) + 2)
-    hprep hhandler (ComputableInPolyTime.const [])
+    (by fun_prop) hhandler (ComputableInPolyTime.const [])
     (fun _ _ => True) (fun _ => trivial) hgrowth
     (fun caller req accepted _ res hres =>
       ⟨trivial, mem_support_noteForgerHandlerWord_length_le hdecBound' caller req accepted res
@@ -1693,16 +1538,11 @@ theorem isOraclePPTOn_noteForgerWord {sigBound : ℕ → ℕ → ℕ}
     {A : WordExtractedAdversary} (hA : IsOraclePPT encBits A) :
     IsOraclePPTOn encParamInput encNoteToken
       (fun p => noteForgerWord sigBound com tag S A p.1 p.2) := by
-  have hinterp := isOraclePPTOn_noteForgerRun hsigBound hcom htag S hA
-  have hfind : ComputableInPolyTime
-      (fun st : List Bool ×
-          List (Request (List Bool) (List Bool) (List Bool) (List Bool) (List Bool)) =>
-        (findNoteForgery st.2).getD ⟨⟨⟨default, default, 0, 0⟩, default⟩, default⟩)
-      (encPair encBits encRequestLog) encNoteToken :=
-    ComputableInPolyTime.optionGetDWithInput
-      (computableInPolyTime_findNoteForgery.comp (ComputableInPolyTime.snd _ _))
-      (ComputableInPolyTime.const _)
-  simpa only [noteForgerWord] using hinterp.map hfind
+  simpa only [noteForgerWord, Function.comp_def] using
+    (isOraclePPTOn_noteForgerRun hsigBound hcom htag S hA).map
+      (ComputableInPolyTime.optionGetDWithInput
+        (computableInPolyTime_findNoteForgery.comp (ComputableInPolyTime.snd _ _))
+        (ComputableInPolyTime.const _))
 
 private theorem eval_noteForgerWord_runState_eq (S : WordSignatureScheme)
     (sigBound : ℕ → ℕ → ℕ)
@@ -1775,10 +1615,9 @@ private theorem eval_noteForgerWord_runState_eq (S : WordSignatureScheme)
       rw [List.take_of_length_le (hbound _ sig hsig)]
       rfl
     · simp only [ProbOracleComp.runWith_pure, PMF.pure_map, Prod.map_apply, id_eq]
-  have hinner' := congrArg (PMF.map fun ⟨⟨_, accepted⟩, log⟩ =>
-      ((findNoteForgery accepted).getD ⟨⟨⟨default, default, 0, 0⟩, default⟩, default⟩, log))
-    hinner
-  simpa only [ProbComp.eval_map, PMF.map, Function.comp_def, Prod.map, id_eq] using hinner'
+  simpa only [ProbComp.eval_map, PMF.map, Function.comp_def, Prod.map, id_eq] using
+    congrArg (PMF.map fun ⟨⟨_, accepted⟩, log⟩ =>
+      ((findNoteForgery accepted).getD ⟨⟨⟨default, default, 0, 0⟩, default⟩, default⟩, log)) hinner
 
 /-- Under `runExtractedWord`, `noteForgerWord` agrees in `PMF` law with `Conservation.noteForger`
 on `pairScheme S tag n` and `WordExtractedAdversary.toTyped`, provided `sigBound` bounds supported
@@ -1942,11 +1781,10 @@ theorem isPPTOn_commitmentBindingReductionWord {sigBound : ℕ → ℕ → ℕ}
     {A : WordExtractedAdversary} (hA : IsOraclePPT encBits A) :
     IsPPTOn encParamInput encWordBindingCollision
       (fun p => commitmentBindingReductionWord sigBound com tag S A p.1 p.2) := by
-  have hnf := (isOraclePPTOn_noteForgerWord hsigBound hcom htag S hA).isOraclePPT
-  have hbr := isPPTOn_bindingReductionWord S (computableInPolyTime_noteTarget hcom htag)
-    creditNoteDecoder hnf
-  have hpost := computableInPolyTime_noteBindingCollisionOrTrivial hcom
-  simpa only [commitmentBindingReductionWord] using hbr.map_with hpost
+  simpa only [commitmentBindingReductionWord] using
+    (isPPTOn_bindingReductionWord S (computableInPolyTime_noteTarget hcom htag) creditNoteDecoder
+      (isOraclePPTOn_noteForgerWord hsigBound hcom htag S hA).isOraclePPT).map_with
+      (computableInPolyTime_noteBindingCollisionOrTrivial hcom)
 
 private theorem findBindingWitness_noteTarget_eq
     (com : ℕ → List Bool → List Bool → List Bool → ℕ → List Bool → List Bool)
@@ -1977,18 +1815,11 @@ theorem eval_commitmentBindingReductionWord_eq {K : Type} (S : WordSignatureSche
     ProbComp.eval (commitmentBindingReductionWord sigBound com tag S A n ck) =
       ProbComp.eval (Conservation.commitmentBindingReduction (com n ck)
         (pairScheme S tag n) (A.toTyped n ck) k) := by
-  rw [Conservation.commitmentBindingReduction_eq]
-  simp only [commitmentBindingReductionWord, bindingReductionWord,
-    bindingReduction, ProbComp.eval_map, PMF.map_comp, Function.comp_def]
-  have hrun : ProbComp.eval (runExtractedWord S (noteTarget com tag) creditNoteDecoder
-        (noteForgerWord sigBound com tag S A) n ck) =
-      ProbComp.eval (runExtracted (pairScheme S tag n) (Credit.target (com n ck) Prod.mk)
-        (noteForger (com n ck) Prod.mk (pairScheme S tag n) (A.toTyped n ck))) :=
-    eval_runExtracted_noteForgerWord_eq S sigBound hbound com tag A n ck
-  rw [hrun]
-  congr 1
-  funext run
-  rw [findBindingWitness_noteTarget_eq com tag htag n ck run.output.payload run.log]
+  simp only [Conservation.commitmentBindingReduction_eq, commitmentBindingReductionWord,
+    bindingReductionWord, bindingReduction, ProbComp.eval_map, PMF.map_comp, Function.comp_def,
+    findBindingWitness_noteTarget_eq com tag htag n ck]
+  exact congrArg (PMF.map _)
+    (eval_runExtracted_noteForgerWord_eq S sigBound hbound com tag A n ck)
 
 private theorem eval_targetForger_noteForgerWord_runState_eq (S : WordSignatureScheme)
     (sigBound : ℕ → ℕ → ℕ)
@@ -2015,8 +1846,7 @@ private theorem eval_targetForger_noteForgerWord_runState_eq (S : WordSignatureS
   rw [ProbOracleComp.eval_runState, ProbOracleComp.eval_runState, ProbOracleComp.simulate,
     OracleComp.substitute_eq_interpret, ProbOracleComp.interpret_simulate,
     ProbOracleComp.simulate, OracleComp.substitute_eq_interpret]
-  simp only [ProbOracleComp.interpret_query]
-  rw [ProbOracleComp.runWith_interpret_sumHandler, ProbOracleComp.runWith_interpret_sumHandler]
+  simp only [ProbOracleComp.interpret_query, ProbOracleComp.runWith_interpret_sumHandler]
   have h := eval_noteForgerWord_runState_eq S sigBound com tag A n ck pk sk hbound
     (fun msg sig acc => acc ++ [(Credit.target (com n ck) Prod.mk msg.message msg.opening, sig)]) []
   simp only [ProbOracleComp.eval_run_interpret_eq_runWith] at h
@@ -2045,38 +1875,30 @@ theorem eval_eufCmaGame_noteForgerWord_eq (S : WordSignatureScheme)
     ProbComp.eval_bind, ProbComp.eval_pure]
   refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ⟨pk, sk⟩ hkeys => ?_
   dsimp only
-  have hs' : Signer.ofSign (pairScheme S tag n).sign sk =
-      fun _ msg => some (S.sign sk (tag msg.1 msg.2)) := by
-    funext _ msg
-    exact Signer.ofSign_apply _ _ _ _
-  rw [hs', ProbOracleComp.runLogWith_some]
+  rw [funext fun l => funext (Signer.ofSign_apply (pairScheme S tag n).sign sk l),
+    ProbOracleComp.runLogWith_some]
   simp only [targetForgerWordOf, targetForger, ProbOracleComp.runLog, bind_pure_comp,
     OracleComp.interpret_map, StateT.run_map, ProbComp.eval_map, ProbOracleComp.runState_map]
   change (PMF.map _ (ProbComp.eval ((OracleComp.interpret
       (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
         (SignatureScheme.signingOracleOf S.sign sk)) _).run []))).bind _ = _
-  have hrun := eval_signingOracle_take_eq_targetForger_runLog_of creditNoteDecoder S.sign sk
+  have hrun' := (eval_signingOracle_take_eq_targetForger_runLog_of creditNoteDecoder S.sign sk
     (Credit.target (com n ck) Prod.mk) (fun p : List Bool × ℕ => tag p.1 p.2)
     (sigBound n) (hbound n pk sk hkeys)
-    (noteForgerWord sigBound com tag S A n (encWordPair (pk, ck))) [] [] rfl
-  have hrun' := hrun.trans (congrArg (PMF.map _)
-    (eval_targetForger_noteForgerWord_runState_eq S sigBound com tag A n ck pk sk
-      (hbound n pk sk hkeys)))
+    (noteForgerWord sigBound com tag S A n (encWordPair (pk, ck))) [] [] rfl).trans
+    (congrArg (PMF.map _) (eval_targetForger_noteForgerWord_runState_eq S sigBound com tag A n ck
+      pk sk (hbound n pk sk hkeys)))
   dsimp only [noteTarget, Credit.target] at hrun' ⊢
   rw [hrun']
   simp only [PMF.bind_map, Function.comp_def, freshMessage, List.contains_reverse, pairScheme]
   refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ⟨tok, acc⟩ _ => ?_
-  have hcontains :
-      decide (tag (com n ck tok.payload.message.nullifier tok.payload.message.context
-        tok.payload.message.credit tok.payload.opening) tok.payload.message.refund ∈
-        acc.map fun e : (List Bool × ℕ) × List Bool => tag e.1.1 e.1.2) =
-      decide ((com n ck tok.payload.message.nullifier tok.payload.message.context
+  have hcontains : _ ∈ (acc.map Prod.fst).map (fun p => tag p.1 p.2) ↔
+      (com n ck tok.payload.message.nullifier tok.payload.message.context
         tok.payload.message.credit tok.payload.opening, tok.payload.message.refund) ∈
-        acc.map Prod.fst) := by
-    refine decide_eq_decide.mpr ?_
-    rw [← List.mem_map_of_injective htag (l := acc.map Prod.fst), List.map_map]
-    rfl
-  simp [hcontains, Bool.and_comm]
+        acc.map Prod.fst :=
+    List.mem_map_of_injective htag
+  simp only [List.map_map, Function.comp_def] at hcontains
+  simp [decide_eq_decide.mpr hcontains, Bool.and_comm]
 
 /-- Keyed hash-based note commitment applying `H ck` to the framed `ComInput` word
 `encComInput ⟨nullifier, ctx, credit, opening⟩`. -/
@@ -2091,15 +1913,10 @@ private theorem computableInPolyTime_wordNoteCom
     ComputableInPolyTime
       (fun p : (ℕ × List Bool) × ComInput =>
         wordNoteCom H p.1.1 p.1.2 p.2.nullifier p.2.context p.2.credit p.2.opening)
-      encComArgs encBits := by
-  have hck : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × ComInput => p.1.2) encComArgs encBits :=
-    (ComputableInPolyTime.fst _ _).snd'
-  have hmsg : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × ComInput => encComInput p.2) encComArgs encBits :=
-    (ComputableInPolyTime.of_eq (f := encComInput) (encOut := encBits) fun _ => rfl).comp
-      (ComputableInPolyTime.snd _ _)
-  exact hH.comp (hck.prod hmsg)
+      encComArgs encBits :=
+  hH.comp (((ComputableInPolyTime.fst encParamInput encComInput).snd').prod
+    ((ComputableInPolyTime.of_eq (f := encComInput) (encOut := encBits) fun _ => rfl).comp
+      (ComputableInPolyTime.snd _ _)))
 
 /-- Key-sampling EUF-CMA wrapper around `noteForgerWord` using `wordNoteCom H` and `wordTag`. -/
 noncomputable def sampledConservationForger (sigBound : ℕ → ℕ → ℕ)
@@ -2163,33 +1980,22 @@ theorem isPPT_noteCollisionFinder {sigBound : ℕ → ℕ → ℕ}
     IsPPT (encPair encBits encBits) (noteCollisionFinder sigBound S H A) := by
   have hbr := isPPTOn_commitmentBindingReductionWord hsigBound
     (computableInPolyTime_wordNoteCom hH) computableInPolyTime_wordTag S hA
-  have hmk : ∀ (msg : Crypto.Commitment.BindingCollision
+  have hmk (msg : Crypto.Commitment.BindingCollision
         (List Bool × List Bool × ℕ) (List Bool) (List Bool) → List Bool × List Bool × ℕ)
       (op : Crypto.Commitment.BindingCollision
-        (List Bool × List Bool × ℕ) (List Bool) (List Bool) → List Bool),
-      ComputableInPolyTime msg encWordBindingCollision
-        (encPair encBits (encPair encBits encNat)) →
-      ComputableInPolyTime op encWordBindingCollision encBits →
+        (List Bool × List Bool × ℕ) (List Bool) (List Bool) → List Bool)
+      (hmsg : ComputableInPolyTime msg encWordBindingCollision encWordComMessage)
+      (hop : ComputableInPolyTime op encWordBindingCollision encBits) :
       ComputableInPolyTime
         (fun col => encComInput ⟨(msg col).1, (msg col).2.1, (msg col).2.2, op col⟩)
         encWordBindingCollision encBits :=
-    fun _ _ hmsg hop =>
-      (ComputableInPolyTime.of_eq (f := encComInput) (encOut := encBits) fun _ => rfl).comp
-        (encComInput_mk_polyTime hmsg.fst' hmsg.snd'.fst' hmsg.snd'.snd' hop)
+    (ComputableInPolyTime.of_eq (f := encComInput) (encOut := encBits) fun _ => rfl).comp
+      (encComInput_mk_polyTime hmsg.fst' hmsg.snd'.fst' hmsg.snd'.snd' hop)
   have hpair0 := hmk _ _ (encWordBindingCollision_msg₀_polyTime ComputableInPolyTime.id')
     (encWordBindingCollision_opening₀_polyTime ComputableInPolyTime.id')
   have hpair1 := hmk _ _ (encWordBindingCollision_msg₁_polyTime ComputableInPolyTime.id')
     (encWordBindingCollision_opening₁_polyTime ComputableInPolyTime.id')
-  have hpost : ComputableInPolyTime
-      (fun col : Crypto.Commitment.BindingCollision
-          (List Bool × List Bool × ℕ) (List Bool) (List Bool) =>
-        let (nf₀, ctx₀, cr₀) := col.msg₀
-        let (nf₁, ctx₁, cr₁) := col.msg₁
-        (encComInput ⟨nf₀, ctx₀, cr₀, col.opening₀⟩,
-         encComInput ⟨nf₁, ctx₁, cr₁, col.opening₁⟩))
-      encWordBindingCollision (encPair encBits encBits) := by
-    convert hpair0.prod hpair1
-  exact (hbr.map hpost).isPPT
+  exact (hbr.map (hpair0.prod hpair1)).isPPT
 
 private noncomputable def wordNoteCommitmentScheme
     (H : List Bool → List Bool → List Bool) (n : ℕ) (ck : List Bool) :
@@ -2244,10 +2050,10 @@ theorem negligible_extractedConservationWordGame (S : WordSignatureScheme) (hS :
     (fun n => by simp only [extractedConservationWordGame, ProbComp.eval_bind])
     (eval_eufCmaGame_sampledConservationForger_eq S sigBound H A) ?_
   intro n ck
-  have hle := extractedConservationExperiment_succProbability_le_prod_mk (wordNoteCom H n ck)
-    (wordNoteCommitmentScheme H n ck) (fun _ _ _ _ _ _ => rfl) (pairScheme S wordTag n)
-    (A.toTyped n ck)
-  have hle_enn := ENNReal.coe_le_coe.mpr hle
+  have hle_enn := ENNReal.coe_le_coe.mpr
+    (extractedConservationExperiment_succProbability_le_prod_mk (wordNoteCom H n ck)
+      (wordNoteCommitmentScheme H n ck) (fun _ _ _ _ _ _ => rfl) (pairScheme S wordTag n)
+      (A.toTyped n ck))
   simp only [Experiment.succProbability, Game.succProbability, ENNReal.coe_add,
     ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)] at hle_enn
   rw [← eval_eufCmaGame_noteForgerWord_eq S sigBound
@@ -2258,8 +2064,7 @@ theorem negligible_extractedConservationWordGame (S : WordSignatureScheme) (hS :
     noteCollisionFinder, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
     PMF.pure_bind, ← eval_commitmentBindingReductionWord_eq S sigBound
       (fun m pk sk hkeys msg sig hsig => hsigBound m (pk, sk) hkeys msg sig hsig)
-      (wordNoteCom H) wordTag wordTag_injective A n ck ck]
-  simp only [PMF.bind_map, Function.comp_def]
+      (wordNoteCom H) wordTag wordTag_injective A n ck ck, PMF.bind_map, Function.comp_def]
   refine Cslib.Probability.PMF.map_true_mono _ fun col _ hcol => ?_
   simp only [Crypto.Commitment.Scheme.isBindingCollision, Bool.and_eq_true, decide_eq_true_eq]
     at hcol

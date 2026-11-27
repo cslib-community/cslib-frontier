@@ -102,34 +102,26 @@ theorem channelHolders_of_target_eq_done (hh : 0 < h) {x : Relay T m A} (hx : x.
     {β : Bool} (hd : x.target R ch β = .done) (hne : moveCount lhat n o (.relay x hx) ≠ 0) :
     channelHolders (⟨.relay x hx, β⟩ : MoveChannel R ch FL) =
       s(x.child R ch β, (x.child R ch β).parent hh (edgeLoads (load lhat n o))) := by
-  have hpar {j : Fin J} (c : T.X j) : (Tower.Node.ofChamber j.2.le c).parent hh
-      (edgeLoads (load lhat n o)) =
-        .ofChamber j.2 (T.parentChamber hh (edgeLoads (load lhat n o)) c) :=
-    dite_eq_left j.2
+  set L := edgeLoads (load lhat n o)
+  have hpar {j : Fin J} (c : T.X j) : (Tower.Node.ofChamber j.2.le c).parent hh L =
+      .ofChamber j.2 (T.parentChamber hh L c) := dite_eq_left j.2
   rcases x with ⟨a, c, γ, s⟩ | ⟨j, i, e⟩ | ⟨j, e, s⟩ | e
   · exact absurd hd (start_target_ne_done hx β)
-  · obtain rfl : i = T.chosenType hh (edgeLoads (load lhat n o)) j := by
-      by_contra hi
-      apply hne
-      rw [moveCount_eq, countOfLoad]
-      exact ite_eq_right fun h => hi ((Tower.isChosenType_iff hh).1 h)
-    have h1 : T.vx (T.chosenType hh (edgeLoads (load lhat n o)) j) (T.e0 e) =
-        T.vx (T.chosenType hh (edgeLoads (load lhat n o)) j) (T.e1 e) :=
+  · obtain rfl : i = T.chosenType hh L j := Decidable.byContradiction fun hi => hne <|
+      (moveCount_eq _).trans (ite_eq_right fun h => hi ((Tower.isChosenType_iff hh).1 h))
+    have h1 : T.vx (T.chosenType hh L j) (T.e0 e) = T.vx (T.chosenType hh L j) (T.e1 e) :=
       (T.nr_vx0 j.2.le _ ⟨e, hx⟩).trans (T.nr_vx1 j.2.le _ ⟨e, hx⟩).symm
     cases β <;> simp [channelHolders, Relay.child, Relay.party, Move.party, Move.law, relayLaw,
       relayChannelEnd, RelayRole.elim, hpar, Tower.parentChamber, Tower.hostOf, h1, Sym2.eq_swap]
-  · have ht : T.ty e = T.chosenType hh (edgeLoads (load lhat n o)) j := by
-      by_contra ht
-      have := moveCount_middle_le (lhat := lhat) (n := n) (o := o) hx
-      rw [ite_eq_right fun h => ht ((Tower.isChosenType_iff hh).1 h)] at this
-      omega
+  · have ht : T.ty e = T.chosenType hh L j :=
+      Decidable.byContradiction fun ht => hne <| Nat.eq_zero_of_le_zero <|
+        (moveCount_middle_le hx).trans_eq
+          (ite_eq_right fun h => ht ((Tower.isChosenType_iff hh).1 h))
     cases β <;> fin_cases s <;> simp only [Relay.target] at hd <;> (try split_ifs at hd) <;>
       simp_all [channelHolders, Relay.child, Relay.party, Move.party, Move.law, relayLaw,
         relayChannelEnd, RelayRole.elim, Tower.parentChamber, Sym2.eq_swap]
-  · have hJ : (.ofChamber le_rfl (T.e0 e) : T.Node).parent hh (edgeLoads (load lhat n o)) =
-        .root ∧ (.ofChamber le_rfl (T.e1 e) : T.Node).parent hh (edgeLoads (load lhat n o)) =
-          .root :=
-      ⟨dite_eq_right (Nat.not_succ_le_self J), dite_eq_right (Nat.not_succ_le_self J)⟩
+  · have hJ (c : T.X J) : (Tower.Node.ofChamber le_rfl c).parent hh L = .root :=
+      dite_eq_right (Nat.not_succ_le_self J)
     cases β <;> simp [channelHolders, Relay.child, Relay.party, Move.party, Move.law, relayLaw,
       relayChannelEnd, RelayRole.elim, hJ, Sym2.eq_swap]
 
@@ -157,12 +149,9 @@ private theorem sum_done_le_load (j : Fin J) (e : T.Ed j) (β : Bool) :
   have h3 : T.π (T.e1 e) = T.hostOf (T.ty e) (T.e1 e) →
       relayAlive lhat n o (.middle j e 3) β = 0 := fun hq =>
     relayAlive_of_not_occurs (fun hx : (Relay.middle j e 3).Occurs R ch => hx.2 rfl hq) β
-  have := hM 0
-  have := hM 2
-  have := hM 3
   rw [Fin.sum_univ_four]
   cases β <;> simp only [Relay.target, Fin.isValue, Matrix.cons_val] <;> split_ifs at * <;>
-    simp_all
+    simp_all [hM 0, hM 2, hM 3]
 
 /-- The done channels of the relays of an edge at the node `P`: at most the units on the edge if an
 end of the edge is `P`, and none otherwise. -/
@@ -181,13 +170,11 @@ private theorem sum_done_le (P : T.Node) (j : Fin J) (e : T.Ed j) (β : Bool) :
         Tower.Node.ofChamber j.2.le (bif β then T.e1 e else T.e0 e) := by
     cases β <;> fin_cases s <;> simp [Relay.target, Relay.child, Relay.party, RelayRole.elim]
   split_ifs with hP
-  · refine le_trans (add_le_add (sum_le_sum fun i _ => ?_) (sum_le_sum fun s _ => ?_))
-      (sum_done_le_load j e β)
-    · split_ifs <;> simp
-    · split_ifs with h1 h2 <;> simp_all
-  · refine Nat.le_zero.2 (Nat.add_eq_zero_iff.2 ⟨sum_eq_zero fun i _ => ite_eq_right fun h =>
-      hP (h.2 ▸ hI i).symm, sum_eq_zero fun s _ => ite_eq_right fun h => hP ?_⟩)
-    exact (hM s h.1).symm.trans h.2
+  · refine (add_le_add (sum_le_sum fun i _ => by split_ifs <;> simp)
+      (sum_le_sum fun s _ => by split_ifs <;> simp_all)).trans (sum_done_le_load j e β)
+  · exact Nat.le_zero.2 (Nat.add_eq_zero_iff.2 ⟨sum_eq_zero fun i _ => ite_eq_right fun h =>
+      hP (h.2 ▸ hI i).symm, sum_eq_zero fun s _ => ite_eq_right fun h =>
+        hP ((hM s h.1).symm.trans h.2)⟩)
 
 /-- The alive units of the child channels of a node are at most the units between the node and
 its parent. -/
@@ -222,19 +209,16 @@ private theorem sum_isChild_le (P : T.Node) :
     rw [Tower.sum_ite_incidentSum, sum_comm, ← sum_add_distrib]
     refine sum_le_sum fun e _ => (congrArg₂ (· + ·) sum_comm sum_comm).trans_le ?_
     rw [← sum_add_distrib]
-    refine (sum_le_sum fun β _ => sum_done_le P j e β).trans_eq ?_
-    rw [Fintype.sum_bool, add_comm]
-    rfl
+    exact (sum_le_sum fun β _ => sum_done_le P j e β).trans_eq
+      (by simp only [Fintype.sum_bool, Bool.cond_false, Bool.cond_true, add_comm])
   have hF : ∑ e : T.Ed J, ∑ β, (if (Relay.final e : Relay T m A).target R ch β = .done ∧
       (Relay.final e).child R ch β = P then relayAlive lhat n o (.final e) β else 0) ≤
       ∑ c : T.X J, if Tower.Node.ofChamber le_rfl c = P then
         T.parentUnits (edgeLoads (load lhat n o)) J c else 0 := by
     rw [Tower.sum_ite_incidentSum]
     refine sum_le_sum fun e _ => ?_
-    have h (β : Bool) := relayAlive_final_le (lhat := lhat) (n := n) (o := o) (R := R) (ch := ch)
-      e β
-    have h0 := h false
-    have h1 := h true
+    have h0 := relayAlive_final_le (lhat := lhat) (n := n) (o := o) (R := R) (ch := ch) e false
+    have h1 := relayAlive_final_le (lhat := lhat) (n := n) (o := o) (R := R) (ch := ch) e true
     simp only [Fintype.sum_bool, Relay.target, Relay.child, Relay.party, RelayRole.elim, true_and,
       Bool.cond_true, Bool.cond_false]
     split_ifs <;> omega
@@ -300,10 +284,7 @@ private theorem exists_mem_givenUnits {u : PlanUnit R FL Pl U0 U1}
       cases u with
       | init a c k => exact occurs_of_initialTarget_eq_relay hτ L
       | new ν k =>
-        revert hτ
-        simp only [unitTarget]
-        generalize moveChannelEquiv R FL Pl ν = w
-        rcases w with ⟨⟨x, hx⟩ | l, d⟩ <;> intro hτ
+        rcases hw : moveChannelEquiv R FL Pl ν with ⟨⟨x, hx⟩ | l, d⟩ <;> rw [unitTarget, hw] at hτ
         · exact Relay.occurs_of_target_eq_relay hx hτ L
         · cases hτ
     exact relay hy₁ hy₂ (hτ.trans hy₃.symm)
@@ -314,10 +295,7 @@ private theorem exists_mem_givenUnits {u : PlanUnit R FL Pl U0 U1}
         split_ifs at hτ
         simp at hτ
       | new ν k =>
-        revert hτ
-        simp only [unitTarget]
-        generalize moveChannelEquiv R FL Pl ν = w
-        rcases w with ⟨⟨x, hx⟩ | l, d⟩ <;> intro hτ
+        rcases hw : moveChannelEquiv R FL Pl ν with ⟨⟨x, hx⟩ | l, d⟩ <;> rw [unitTarget, hw] at hτ
         · obtain ⟨-, e, rfl, ⟨rfl, -, rfl⟩ | ⟨rfl, -, rfl⟩⟩ := Relay.of_target_eq_segment hτ
           exacts [not_isDiag_segment j.2 (hx.1 rfl), not_isDiag_segment j.2 (hx.2 rfl).symm]
         · cases hτ
@@ -325,22 +303,20 @@ private theorem exists_mem_givenUnits {u : PlanUnit R FL Pl U0 U1}
     obtain ⟨d, hd⟩ := VertexMove.exists_isPicked L (⟨j, i, ω, d₀⟩ : VertexMove FL)
     set t := (⟨j, i, ω, d⟩ : VertexMove FL).minUnits L
     have ht :
-        moveCount lhat (initialCounts n) (outcomeOf R FL Pl o) (.vertex ⟨j, i, ω, d⟩) = t := by
-      rw [moveCount_eq, countOfLoad]
-      exact ite_eq_left hd
+        moveCount lhat (initialCounts n) (outcomeOf R FL Pl o) (.vertex ⟨j, i, ω, d⟩) = t :=
+      (moveCount_eq _).trans (ite_eq_left hd)
     have hrk : unitRank R FL Pl lhat n o u < FL.slotCount d q * t := by
-      refine lt_of_lt_of_le ?_ (hd.1 q hq)
-      have := rk_lt (idx := unitIndex R FL Pl) (key := unitTarget R FL Pl)
-        (mem_aliveUnits.2 hu)
-      rwa [hτ, ← load_eq_card] at this
+      have h := rk_lt (idx := unitIndex R FL Pl) (key := unitTarget R FL Pl) (mem_aliveUnits.2 hu)
+      rw [hτ, ← load_eq_card] at h
+      exact h.trans_le (hd.1 q hq)
     have htpos : 0 < t := Nat.pos_of_ne_zero fun h0 => by simp [h0] at hrk
     obtain ⟨e, -, he1, he2⟩ := exists_rk (idx := fun e => (Fintype.equivFin (FL.law d).Slot e : ℕ))
       (key := FL.slotPair d) (fun _ _ h => (Fintype.equivFin _).injective (Fin.ext h)) univ q
       (w := unitRank R FL Pl lhat n o u / t) ((Nat.div_lt_iff_lt_mul htpos).2 hrk)
+    have he2' : FL.slotRank d e = unitRank R FL Pl lhat n o u / t := he2
     refine ⟨⟨.vertex ⟨j, i, ω, d⟩, e⟩, mem_givenUnits_vertex.2 ⟨hd, hu, by rw [hτ, he1], ?_, ?_⟩⟩
-    · rw [ht]
-      exact (Nat.mul_le_mul_right t (le_of_eq he2)).trans (Nat.div_mul_le_self _ _)
-    · rw [ht, show FL.slotRank d e = _ from he2, add_mul, one_mul]
+    · exact ht ▸ (Nat.mul_le_mul_right t he2.le).trans (Nat.div_mul_le_self _ _)
+    · rw [ht, he2', add_mul, one_mul]
       exact Nat.lt_div_mul_add htpos
 
 /-- **The current units in the end** ([AnthropicVPVNP2026], Theorem H.2(b), p. 46): an alive unit
@@ -350,10 +326,9 @@ theorem unitTarget_eq_done_of_mem_cur {u : PlanUnit R FL Pl U0 U1}
     (ha : IsAlive R FL Pl lhat n o u) : unitTarget R FL Pl u = .done := by
   by_contra hd
   obtain ⟨z, hz⟩ := exists_mem_givenUnits ha hd
-  refine (Plan.mem_cur.1 hu).2 ((moveSlotEquiv R FL Pl).symm z) ((moveSlotEquiv R FL Pl).symm z).1.2
-    ?_
-  change u ∈ givenUnits R FL Pl lhat n o (moveSlotEquiv R FL Pl ((moveSlotEquiv R FL Pl).symm z))
-  rwa [Equiv.apply_symm_apply]
+  exact (Plan.mem_cur.1 hu).2 ((moveSlotEquiv R FL Pl).symm z)
+    ((moveSlotEquiv R FL Pl).symm z).1.2
+    (show u ∈ givenUnits R FL Pl lhat n o _ by rwa [Equiv.apply_symm_apply])
 
 /-! ### The units between the nodes and their parents -/
 
@@ -391,10 +366,8 @@ theorem card_assignedUnits_le (P : T.Node) :
   calc (assignedUnits R FL Pl lhat n o P).card ≤ ((univ.filter fun ν => IsChild P (e ν)).biUnion
         fun ν => (univ.filter fun k : Fin U1 => (k : ℕ) < al (e ν)).image (.new ν)).card :=
         card_le_card fun u hu => by
-          obtain ⟨-, ν, k, rfl, -⟩ := mem_filter.1 hu
-          have := new_mem_assignedUnits.1 hu
-          simp only [mem_biUnion, mem_filter, mem_univ, true_and, mem_image]
-          exact ⟨ν, this.2, k, this.1, rfl⟩
+          obtain ⟨-, ν, k, rfl, -⟩ := mem_filter.mp hu
+          simpa using (new_mem_assignedUnits.mp hu).symm
     _ ≤ ∑ ν ∈ univ.filter fun ν => IsChild P (e ν), al (e ν) :=
         card_biUnion_le.trans (sum_le_sum fun ν _ => card_image_le.trans
           (by rw [Fin.card_filter_val_lt]; exact min_le_right _ _))
@@ -463,11 +436,7 @@ theorem towerPlan_good_of_possible {ub : ℕ} (hub : 0 < ub) {x : Fin (Fintype.c
     (hp : (towerPlan R FL Pl lhat U0 U1).Possible n o ub x) :
     (towerPlan R FL Pl lhat U0 U1).Good n o x := by
   obtain ⟨ι, hι⟩ := hp
-  refine goodOutcome_of_length hub ι fun ν => ?_
-  change (o ((moveChannelEquiv R FL Pl).symm ⟨moveOrder R ch FL x, ν⟩) : ℕ) = _
-  rw [show (moveChannelEquiv R FL Pl).symm ⟨moveOrder R ch FL x, ν⟩ = ⟨x, ν⟩ from
-    (Equiv.symm_apply_eq _).2 rfl]
-  exact hι ν
+  exact goodOutcome_of_length hub ι fun ν => (outcomeOf_moveOrder o x ν).trans (hι ν)
 
 /-- For a good outcome, all units of a channel but the last are alive. -/
 theorem alive_eq_of_goodOutcome {n : Fin A → Fin A → ℕ} {o : MoveChannel R ch FL → ℕ}

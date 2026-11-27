@@ -70,13 +70,9 @@ theorem Clause.length_excluding (v : Fin ℓ → Bool) : (Clause.excluding v).le
 /-- `Clause.excluding v` holds exactly at the assignments other than `v`. -/
 theorem Clause.eval_excluding_eq_true_iff (σ v : Fin ℓ → Bool) :
     (Clause.excluding v).eval σ = true ↔ σ ≠ v := by
-  simp only [Clause.eval_eq_true_iff, Clause.excluding, List.mem_ofFn, ne_eq, funext_iff,
-    not_forall]
-  constructor
-  · rintro ⟨_, ⟨i, rfl⟩, h⟩
-    exact ⟨i, by revert h; cases σ i <;> cases v i <;> simp⟩
-  · rintro ⟨i, h⟩
-    exact ⟨_, ⟨i, rfl⟩, by revert h; cases σ i <;> cases v i <;> simp⟩
+  simp only [Clause.eval_eq_true_iff, Clause.excluding, List.mem_ofFn, exists_exists_eq_and,
+    ne_eq, funext_iff, not_forall]
+  exact exists_congr fun i => by cases σ i <;> cases v i <;> simp
 
 /-- The truth-table CNF of `f`: a clause `Clause.excluding v` for each zero `v` of `f`. -/
 noncomputable def CNF.ofTruthTable (f : (Fin ℓ → Bool) → Bool) : CNF (Fin ℓ) :=
@@ -88,19 +84,15 @@ theorem CNF.eval_ofTruthTable (f : (Fin ℓ → Bool) → Bool) (σ : Fin ℓ �
   rw [Bool.eq_iff_iff, CNF.ofTruthTable, CNF.eval_map_eq_true_iff]
   simp only [Finset.mem_toList, Finset.mem_filter, Finset.mem_univ, true_and,
     Clause.eval_excluding_eq_true_iff]
-  constructor
-  · intro h
-    by_contra hf
-    exact h σ (by simpa using hf) rfl
-  · rintro hf v hv rfl
-    simp [hf] at hv
+  cases h : f σ
+  · exact iff_of_false (fun H => H σ h rfl) Bool.false_ne_true
+  · exact iff_of_true (fun _ hv he => by simp [← he, h] at hv) rfl
 
 /-- The truth-table CNF has at most `2 ^ ℓ` clauses. -/
 theorem CNF.length_ofTruthTable_le (f : (Fin ℓ → Bool) → Bool) :
     (CNF.ofTruthTable f).length ≤ 2 ^ ℓ := by
   rw [CNF.ofTruthTable, List.length_map, Finset.length_toList]
-  refine (Finset.card_filter_le _ _).trans_eq ?_
-  simp
+  simpa using Finset.card_filter_le Finset.univ (fun v : Fin ℓ → Bool => f v = false)
 
 /-- Every clause of the truth-table CNF has exactly `ℓ` literals. -/
 theorem CNF.length_of_mem_ofTruthTable {f : (Fin ℓ → Bool) → Bool} {c : Clause (Fin ℓ)}

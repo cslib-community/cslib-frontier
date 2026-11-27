@@ -158,9 +158,7 @@ private def stretchLen (γ n : ℕ) : ℕ := n + γ * Nat.log 2 n
 private theorem stretchLen_succ_le (γ n : ℕ) :
     stretchLen γ (n + 1) ≤ stretchLen γ n + γ + 1 := by
   dsimp [stretchLen]
-  have h := Nat.mul_le_mul_left γ (Nat.log_add_one_le 2 n)
-  rw [mul_add, mul_one] at h
-  omega
+  linarith [Nat.mul_le_mul_left γ (Nat.log_add_one_le 2 n)]
 
 private def seedLen (γ m : ℕ) : ℕ :=
   Nat.findGreatest (fun k => stretchLen γ k ≤ m) m + 1
@@ -175,23 +173,17 @@ private theorem lt_stretchLen_seedLen (γ m : ℕ) :
     rcases hn₀_le_m.lt_or_eq with hlt | heq
     · exact Nat.lt_of_not_ge (Nat.findGreatest_is_greatest
         (P := fun k => stretchLen γ k ≤ m) (Nat.lt_succ_self n₀) (by omega))
-    · rw [heq]
-      dsimp [stretchLen]
-      omega
+    · simp only [heq, stretchLen]; omega
   exact ⟨hgt, (stretchLen_succ_le γ n₀).trans (by omega)⟩
 
 private theorem seedLen_bound (γ m : ℕ) : m < (γ + 1) * seedLen γ m := by
   have hgt := (lt_stretchLen_seedLen γ m).1
-  have hlog : Nat.log 2 (seedLen γ m) ≤ seedLen γ m := Nat.log_le_self 2 _
   dsimp [stretchLen] at hgt
-  nlinarith
+  nlinarith [Nat.log_le_self 2 (seedLen γ m)]
 
 private theorem tendsto_seedLen (γ : ℕ) : Tendsto (seedLen γ) atTop atTop := by
-  rw [tendsto_atTop_atTop]
-  refine fun N => ⟨(γ + 1) * N, fun m hm => by_contra fun hlt => ?_⟩
-  have := seedLen_bound γ m
-  have := Nat.mul_le_mul_left (γ + 1) (Nat.le_of_not_ge hlt)
-  omega
+  refine tendsto_atTop_atTop.mpr fun N => ⟨(γ + 1) * N, fun m hm => by_contra fun hlt => ?_⟩
+  nlinarith [seedLen_bound γ m]
 
 /-! ### Truncated generator and threshold distinguisher for Theorem 5.2 -/
 
@@ -214,11 +206,10 @@ private theorem computableInPolyTime_thresholdValue (γ d c : ℕ) :
   unfold thresholdValue
   have hlog := ComputableInPolyTime.unary_log_two
   have hm := ComputableInPolyTime.unary_sub'
-    (ComputableInPolyTime.unary_add' .id' (ComputableInPolyTime.unary_mul' (.const γ) hlog))
-    (.const c)
+    (.unary_add' .id' (.unary_mul' (.const γ) hlog)) (.const c)
   exact ComputableInPolyTime.unary_sub'
-    (hm.unary_sub' (ComputableInPolyTime.unary_add' (.unary_mul' (.const 2) hlog) (.const 3)))
-    (ComputableInPolyTime.unary_mul' (.const d) (.unary_add' (hlog.comp hm) (.const 1)))
+    (hm.unary_sub' (.unary_add' (.unary_mul' (.const 2) hlog) (.const 3)))
+    (.unary_mul' (.const d) (.unary_add' (hlog.comp hm) (.const 1)))
 
 private theorem computableInPolyTime_mul_log_two_succ (d : ℕ) :
     ComputableInPolyTime (fun x : List Bool => d * (Nat.log 2 x.length + 1)) encBits encNat :=
@@ -232,26 +223,19 @@ private noncomputable def thresholdDistinguisher (γ d c : ℕ) (H : List Bool �
 private theorem isPPT_thresholdDistinguisher (γ d c : ℕ) {H : List Bool → ProbComp ℕ}
     (hH : IsPPTOn encBits encNat H) :
     IsPPT encBool (thresholdDistinguisher γ d c H) := by
-  change IsPPTOn (encPair encUnary encBits) encBool
-    (fun p : ℕ × List Bool =>
-      (fun v => decide (thresholdValue γ d c p.1 ≤ v)) <$>
-        H (p.2.take (p.1 + γ * Nat.log 2 p.1 - c)))
   have hp1 := ComputableInPolyTime.fst encUnary encBits
-  have hlog := ComputableInPolyTime.unary_log_two.comp hp1
   have hprep : ComputableInPolyTime
       (fun p : ℕ × List Bool => p.2.take (p.1 + γ * Nat.log 2 p.1 - c))
       (encPair encUnary encBits) encBits :=
-    ComputableInPolyTime.bitsTakeWithInput (ComputableInPolyTime.snd encUnary encBits)
-      (ComputableInPolyTime.unary_sub'
-        (ComputableInPolyTime.unary_add' hp1
-          (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const γ) hlog))
-        (ComputableInPolyTime.const c))
+    ComputableInPolyTime.bitsTakeWithInput (.snd encUnary encBits)
+      (.unary_sub' (.unary_add' hp1 (.unary_mul' (.const γ) (ComputableInPolyTime.unary_log_two.comp
+        hp1))) (.const c))
   have hthr : ComputableInPolyTime
       (fun pair : (ℕ × List Bool) × ℕ => thresholdValue γ d c pair.1.1)
       (encPair (encPair encUnary encBits) encNat) encUnary :=
-    (computableInPolyTime_thresholdValue γ d c).comp (hp1.comp (ComputableInPolyTime.fst _ _))
+    (computableInPolyTime_thresholdValue γ d c).comp (hp1.comp (.fst _ _))
   refine (hH.preprocess hprep).map_with ?_
-  simpa using hthr.unary_le' (hthr.binary_min_unary' (ComputableInPolyTime.snd _ _))
+  simpa using hthr.unary_le' (hthr.binary_min_unary' (.snd _ _))
 
 /-! ### Theorem 5.2: Conditional EP-PRGs imply $K^t$ is mildly hard on average
 (M2a polynomial-threshold form) -/
@@ -264,7 +248,6 @@ private theorem threshold_arith_bounds {γ d C₀ n c m : ℕ}
       n + C₀ < m - (2 * Nat.log 2 n + 3) - d * (Nat.log 2 m + 1) ∧
       4 * (m : ℝ) ≤ (n : ℝ) ^ 2 := by
   set m₀ := n + γ * Nat.log 2 n with hm₀_def
-  have hγ_log_ge : γ + 1 ≤ γ * Nat.log 2 n := by nlinarith
   have hm_le_m₀ : m ≤ m₀ := by omega
   have hlog_le : Nat.log 2 n ≤ n := Nat.log_le_self 2 n
   have hm₀_le : m ≤ (γ + 1) * n := by nlinarith only [hm_le_m₀, hm₀_def, hlog_le]
@@ -282,12 +265,11 @@ private theorem threshold_arith_bounds {γ d C₀ n c m : ℕ}
           Nat.mul_lt_mul'' hn_lt_pow hn_lt_pow
         _ = 2 ^ (2 * Nat.log 2 n + 2) := by rw [← pow_add]; congr 1; omega
     exact Nat.le_of_lt_succ (Nat.log_lt_of_lt_pow (by omega) hm_lt_pow)
-  have hd_log : d * (Nat.log 2 m + 1) ≤ 2 * d * Nat.log 2 n + 2 * d := by
-    nlinarith only [hlog_m_le]
-  have hγ_split : 2 * d * Nat.log 2 n + 2 * Nat.log 2 n + Nat.log 2 n ≤ γ * Nat.log 2 n := by
-    nlinarith only [hγ]
-  refine ⟨by omega, by omega, by omega, by omega, ?_⟩
-  simpa only [sq] using (show (4 : ℝ) * m ≤ n * n by exact_mod_cast hm_le_nat)
+  have hbound_log :
+      n + C₀ + (2 * Nat.log 2 n + 3) + d * (Nat.log 2 m + 1) + c < n + γ * Nat.log 2 n := by
+    nlinarith only [hγ, hc_le, hlog_n_ge, hlog_m_le]
+  refine ⟨by omega, hm_le_m₀, by omega, by omega, ?_⟩
+  exact_mod_cast hm_le_nat.trans_eq (sq n).symm
 
 private theorem condEPPRG_real_threshold_accept_le
     {G : List Bool → List Bool} {γ α d : ℕ}
@@ -319,8 +301,7 @@ private theorem condEPPRG_real_threshold_accept_le
   set k := 2 * Nat.log 2 n + 3 with hk_def
   set g_err := d * (Nat.log 2 m + 1) with hg_err_def
   have hthr_eq : thresholdValue γ d c n = m - k - g_err := by
-    dsimp [thresholdValue]
-    rw [← hm_def, ← hk_def, ← hg_err_def]
+    simp only [thresholdValue, ← hm₀_def, ← hm_def, ← hk_def, ← hg_err_def]
   let p_full : PMF (BitString m₀) :=
     (PMF.uniformOfFinset E_n hE_n).map fun x => BitString.ofList m₀ (G (List.ofFn x))
   let pG_dist : PMF (BitString m) :=
@@ -330,25 +311,21 @@ private theorem condEPPRG_real_threshold_accept_le
         (((PMF.uniformOfFinset E_n hE_n).map List.ofFn).map G).map (List.take m) := by
     simp only [pG_dist, p_full, PMF.map_comp, Function.comp_def]
     congr 1 with x : 1
-    have hlen_Gx : (G (List.ofFn x)).length = m₀ := by
-      simpa [hm₀_def] using hG_len (List.ofFn x)
-    simp [BitString.ofFn_ofList, hlen_Gx, hm_le_m₀]
+    simp [BitString.ofFn_ofList, hG_len, ← hm₀_def, hm_le_m₀]
   have hreal_eq :
       ((((PMF.uniformOfFinset E_n hE_n).map List.ofFn).map G).bind fun y =>
         ProbComp.eval (thresholdDistinguisher γ d c H n y)) =
       (pG_dist.map List.ofFn).bind fun y =>
         (ProbComp.eval (H y)).map fun v => decide (m - k - g_err ≤ v) := by
-    rw [hpG_map]
-    simp only [pmf_norm, thresholdDistinguisher, ← hm₀_def, ← hm_def, hthr_eq]
+    simp only [hpG_map, pmf_norm, thresholdDistinguisher, ← hm₀_def, ← hm_def, hthr_eq]
   set B : ℝ := (n : ℝ) - (α : ℝ) * (Nat.log 2 n : ℝ) - (c : ℝ) with hB_def
   have hB3 : 3 ≤ B := by
-    have hlog_real : ((γ : ℝ) + 5) + (α : ℝ) * (Nat.log 2 n : ℝ) ≤ n := by
-      exact_mod_cast hlog_bound
-    have hc_real : (c : ℝ) ≤ γ + 1 := by exact_mod_cast hc_le
+    have hlog_real : ((γ : ℝ) + 5) + (α : ℝ) * (Nat.log 2 n : ℝ) ≤ n := mod_cast hlog_bound
+    have hc_real : (c : ℝ) ≤ γ + 1 := mod_cast hc_le
     linarith only [hB_def, hlog_real, hc_real]
   have hent_pG : B ≤ PMF.entropy pG_dist := by
     have htake := entropy_ofList_take_ge hm_le_m₀ p_full
-    have hsub : ((m₀ - m : ℕ) : ℝ) = c := by exact_mod_cast (show m₀ - m = c by omega)
+    have hsub : ((m₀ - m : ℕ) : ℝ) = c := mod_cast (by omega : m₀ - m = c)
     linarith only [hB_def, hn_ent, htake, hsub]
   have hlow : ∀ y ∈ pG_dist.support, timeBoundedNat t (List.ofFn y) < m - k - g_err := by
     intro y hy
@@ -356,30 +333,19 @@ private theorem condEPPRG_real_threshold_accept_le
       (PMF.mem_support_map_iff _ _ _).mpr ⟨y, hy, rfl⟩
     rw [hpG_map] at hy'
     supp_cases hy' with ⟨_, ⟨_, ⟨x, -, rfl⟩, rfl⟩, hwy⟩
-    have hlen_Gx : (G (List.ofFn x)).length = m₀ := by
-      simpa [hm₀_def] using hG_len (List.ofFn x)
     have htrunc_eq : truncGen G (c, List.ofFn x) = List.ofFn y := by
       dsimp [truncGen]
-      rw [hlen_Gx, ← hm_def, hwy]
-    have hlen_enc : (encPair encUnary encBits (c, List.ofFn x)).length ≤ m + (2 * γ + 3) := by
+      rw [hG_len, List.length_ofFn, ← hm₀_def, ← hm_def, hwy]
+    have hlen_enc : (encPair encUnary encBits (c, List.ofFn x)).length ≤ n + (2 * γ + 3) := by
       rw [length_encPair, encUnary_apply, List.length_replicate, encBits_apply, List.length_ofFn]
       omega
-    have hstep : p₀.eval (encPair encUnary encBits (c, List.ofFn x)).length ≤
-        t (truncGen G (c, List.ofFn x)).length := by
+    have hKt := hbound₀ (c, List.ofFn x) (by
       rw [htrunc_eq, List.length_ofFn]
-      exact (hp₀_mono hlen_enc).trans ht_p₀
-    have hKt := hbound₀ (c, List.ofFn x) hstep
+      exact (hp₀_mono (by omega)).trans ht_p₀)
     rw [htrunc_eq] at hKt
-    have hne : timeBounded t (List.ofFn y) ≠ ⊤ :=
-      timeBounded_ne_top (by simpa [List.length_ofFn] using ht_ge_m)
-    have hKt_nat : timeBoundedNat t (List.ofFn y) ≤
-        (encPair encUnary encBits (c, List.ofFn x)).length + c_sim :=
-      (timeBoundedNat_le_iff hne).mpr hKt
-    have hlen_enc_n :
-        (encPair encUnary encBits (c, List.ofFn x)).length + c_sim ≤ n + (2 * γ + 3 + c_sim) := by
-      rw [length_encPair, encUnary_apply, List.length_replicate, encBits_apply, List.length_ofFn]
-      omega
-    exact (hKt_nat.trans hlen_enc_n).trans_lt hKt_low
+    exact (((timeBoundedNat_le_iff (timeBounded_ne_top
+      (by simpa [List.length_ofFn] using ht_ge_m))).mpr hKt).trans
+      ((Nat.add_le_add_right hlen_enc _).trans_eq (Nat.add_assoc _ _ _))).trans_lt hKt_low
   rw [hreal_eq]
   exact generator_threshold_accept_le hm_pos hB3 hent_pG k g_err hlow (fun y => ProbComp.eval (H y))
 
@@ -406,9 +372,8 @@ private theorem oneSided_succ_le_of_threshold_bounds
         _ ≤ 2 * (2 ^ (Nat.log 2 n + 1) * 2 ^ (Nat.log 2 n + 1)) :=
           Nat.mul_le_mul_left 2 (Nat.mul_le_mul hn_lt.le hn_lt.le)
         _ = 2 ^ (2 * Nat.log 2 n + 3) := by rw [← pow_add, ← pow_succ']; congr 1; omega
-    have hsq_real : 2 * (n : ℝ) ^ 2 ≤ (2 : ℝ) ^ (2 * Nat.log 2 n + 3) := by exact_mod_cast hsq
-    rw [Real.rpow_neg (by norm_num : (0 : ℝ) ≤ 2), Real.rpow_natCast, one_div]
-    exact inv_anti₀ (by positivity) hsq_real
+    rw [Real.rpow_neg (by norm_num), Real.rpow_natCast, one_div]
+    exact inv_anti₀ (by positivity) (mod_cast hsq)
   set B : ℝ := (n : ℝ) - (α : ℝ) * (Nat.log 2 n : ℝ) - (c : ℝ) with hB_def
   have hexp_eq : (m : ℝ) - (B - 3) = (((γ + α) * Nat.log 2 n + 3 : ℕ) : ℝ) := by
     have hm_real : (m : ℝ) + (c : ℝ) = (n : ℝ) + (γ : ℝ) * (Nat.log 2 n : ℝ) := by
@@ -444,10 +409,8 @@ private theorem oneSided_succ_le_of_threshold_bounds
         1 / ((m + 1 : ℕ) : ℝ) ^ 2 := by ring
     linarith only [hclaim1, hclaim2, hadv_diff, hk_pow, hprod_le, hfail_le_sq, hdiv_add, hdiv_m]
   have h1_lt : 1 / ((m + 1 : ℕ) : ℝ) ^ 2 < 1 / (2 * (m : ℝ)) := by
-    apply one_div_lt_one_div_of_lt (by positivity)
-    push_cast
-    have hm4_r : (4 : ℝ) ≤ (m : ℝ) := by exact_mod_cast hm4
-    nlinarith only [hm4_r]
+    have h2m : 2 * m < (m + 1) ^ 2 := by nlinarith only [hm4]
+    exact one_div_lt_one_div_of_lt (by positivity) (by exact_mod_cast h2m)
   have h2_le : 3 / (2 * (n : ℝ) ^ 2) ≤ 1 / (2 * (m : ℝ)) := by
     rw [div_le_div_iff₀ (by positivity) (by positivity)]
     nlinarith only [hm_le_nsq]
@@ -474,10 +437,8 @@ theorem CondEPPRG.exists_mildlyHardOnAverageToOneSidedApprox_timeBoundedNat_log_
     exists_timeBounded_of_computableInPolyTime (computableInPolyTime_truncGen hG_poly)
   let pG : Polynomial ℕ := p₀.comp (Polynomial.X + Polynomial.C (2 * γ + 3))
   have hpG_eval (m : ℕ) : pG.eval m = p₀.eval (m + (2 * γ + 3)) := by simp [pG]
-  have hpG_ge (m : ℕ) : m + 1 ≤ pG.eval m := by
-    rw [hpG_eval]
-    have h := hp₀_ge (m + (2 * γ + 3))
-    omega
+  have hpG_ge (m : ℕ) : m + 1 ≤ pG.eval m :=
+    (Nat.succ_le_succ (Nat.le_add_right m _)).trans ((hp₀_ge _).trans_eq (hpG_eval m).symm)
   refine ⟨pG, hpG_ge, fun {t} ht => ?_⟩
   let q : Polynomial ℕ := Polynomial.C 16 * (Polynomial.X + 1) ^ (γ + α + 2)
   have hq_eval (m : ℕ) : q.eval m = 16 * (m + 1) ^ (γ + α + 2) := by simp [q]
@@ -507,17 +468,15 @@ theorem CondEPPRG.exists_mildlyHardOnAverageToOneSidedApprox_timeBoundedNat_log_
     have hc_le : c.val ≤ γ + 1 := Nat.le_of_lt_succ c.isLt
     obtain ⟨hm_ge_n, hm_le_m₀, hm4, hKt_low, hm_le_nsq⟩ :=
       threshold_arith_bounds hγ hc_le hn_4γ hlog_n_ge hm_def
-    have hthr_eq :
-        thresholdValue γ d c.val n = m - (2 * Nat.log 2 n + 3) - d * (Nat.log 2 m + 1) := by
-      dsimp [thresholdValue]; rw [← hm_def]
     have hideal_eq :
         ((BitString.uniformList (n + γ * Nat.log 2 n)).bind fun y =>
           ProbComp.eval (thresholdDistinguisher γ d c.val H n y)) =
         (BitString.uniformList m).bind fun y =>
           (ProbComp.eval (H y)).map fun v =>
             decide (m - (2 * Nat.log 2 n + 3) - d * (Nat.log 2 m + 1) ≤ v) := by
-      simp only [thresholdDistinguisher, ProbComp.eval_map, ← hm_def, hthr_eq]
-      rw [← BitString.uniformList_take hm_le_m₀, PMF.bind_map]; rfl
+      simp only [thresholdDistinguisher, thresholdValue, ProbComp.eval_map, ← hm_def,
+        ← BitString.uniformList_take hm_le_m₀, PMF.bind_map]
+      rfl
     have ht_ge_m : m + 1 ≤ t m := (hpG_ge m).trans (ht m)
     have hclaim1 := uniformList_threshold_accept_ge ht_ge_m (2 * Nat.log 2 n + 3)
       (d * (Nat.log 2 m + 1)) (fun y => ProbComp.eval (H y))
@@ -532,9 +491,8 @@ theorem CondEPPRG.exists_mildlyHardOnAverageToOneSidedApprox_timeBoundedNat_log_
       (toReal_apply_le_one _ _)
       hclaim1 hclaim2 ((le_abs_self _).trans hadv)
   filter_upwards [(tendsto_seedLen γ).eventually h_ev_n] with m hm
-  have hseed := lt_stretchLen_seedLen γ m
-  let c : Fin (γ + 2) := ⟨stretchLen γ (seedLen γ m) - m, by omega⟩
-  exact hm c m (by change m = stretchLen γ (seedLen γ m) - (stretchLen γ (seedLen γ m) - m); omega)
+  obtain ⟨hseed_lt, hseed_le⟩ := lt_stretchLen_seedLen γ m
+  exact hm ⟨stretchLen γ (seedLen γ m) - m, by omega⟩ m (Nat.sub_sub_self hseed_lt.le).symm
 
 /-- One-sided $(d \lfloor \log_2 n \rfloor)$-approximation corollary of
 `CondEPPRG.exists_mildlyHardOnAverageToOneSidedApprox_timeBoundedNat_log_succ`
@@ -566,11 +524,9 @@ theorem CondEPPRG.exists_mildlyHardOnAverageToApprox_timeBoundedNat_log_succ
           (fun n => d * (Nat.log 2 n + 1)) (timeBoundedNat t) := by
   obtain ⟨pG, hpG, h⟩ :=
     hG.exists_mildlyHardOnAverageToOneSidedApprox_timeBoundedNat_log_succ (2 * d) (by omega)
-  refine ⟨pG, hpG, fun {t} ht => ?_⟩
-  have h2 : MildlyHardOnAverageToOneSidedApprox
-      (fun n => 2 * (d * (Nat.log 2 n + 1))) (timeBoundedNat t) := by
-    simpa only [mul_assoc] using h ht
-  exact h2.mildlyHardOnAverageToApprox (computableInPolyTime_mul_log_two_succ d)
+  refine ⟨pG, hpG, fun ht => MildlyHardOnAverageToOneSidedApprox.mildlyHardOnAverageToApprox
+    (computableInPolyTime_mul_log_two_succ d) ?_⟩
+  simpa only [mul_assoc] using h ht
 
 /-- **[Liu and Pass, Theorem 5.2, §5.2, p. 11 of arXiv:2009.11514v1][LiuPass2020] (M2a
 polynomial-threshold form, ceiling log window `d * Nat.clog 2 n`):**

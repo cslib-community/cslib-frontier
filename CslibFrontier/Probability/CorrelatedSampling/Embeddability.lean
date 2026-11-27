@@ -101,16 +101,14 @@ replaced by the pair of strategies `(fA · r, fB · r)` that it selects. -/
 theorem IsEmbeddable.of_dist_le {R : Type*} {P₀ : PMF (X × Y)} {P₁ : PMF ((X × Y) × (S × T))}
     {ε : ℝ} (ρ : PMF R) (fA : X → R → S) (fB : Y → R → T)
     (h : dist (P₀.bind fun xy => ρ.map fun r => (xy, (fA xy.1 r, fB xy.2 r))) P₁ ≤ ε) :
-    IsEmbeddable P₀ P₁ ε := by
-  refine ⟨(X → S) × (Y → T), ρ.map fun r => (fun x => fA x r, fun y => fB y r),
-    fun x g => g.1 x, fun y g => g.2 y, ?_⟩
-  simpa only [PMF.map_comp, Function.comp_def] using h
+    IsEmbeddable P₀ P₁ ε :=
+  ⟨(X → S) × (Y → T), ρ.map fun r => (fun x => fA x r, fun y => fB y r),
+    fun x g => g.1 x, fun y g => g.2 y, by simpa only [PMF.map_comp, Function.comp_def] using h⟩
 
 /-- Local embeddability is monotone in the error. -/
 theorem IsEmbeddable.mono {P₀ : PMF (X × Y)} {P₁ : PMF ((X × Y) × (S × T))} {ε ε' : ℝ}
-    (h : IsEmbeddable P₀ P₁ ε) (hε : ε ≤ ε') : IsEmbeddable P₀ P₁ ε' := by
-  obtain ⟨R, ρ, fA, fB, hd⟩ := h
-  exact ⟨R, ρ, fA, fB, hd.trans hε⟩
+    (h : IsEmbeddable P₀ P₁ ε) (hε : ε ≤ ε') : IsEmbeddable P₀ P₁ ε' :=
+  h.imp fun _ ⟨ρ, fA, fB, hd⟩ => ⟨ρ, fA, fB, hd.trans hε⟩
 
 /-- **Local post-processing.** If `P₀` embeds in `P₁`, Alice and Bob can apply local maps `gA` and
 `gB` to their outputs, for instance to forget part of them, with the same error. -/
@@ -143,9 +141,8 @@ theorem IsEmbeddable.trans {U V : Type*} [Fintype U] [Fintype V] {P₀ : PMF (X 
       (gA (z.1.1, z.2.1) r, gB (z.1.2, z.2.2) r))
   let M₁ := P₀.bind fun xy => ρ₁.map fun r => (xy, (fA xy.1 r, fB xy.2 r))
   have hM₂ : ((P₁.map fun ((x, y), (s, t)) => ((x, s), (y, t))).bind fun w =>
-      ρ₂.map fun r => (w, (gA w.1 r, gB w.2 r))) = P₁.bind Φ := by
-    rw [PMF.bind_map]
-    rfl
+      ρ₂.map fun r => (w, (gA w.1 r, gB w.2 r))) = P₁.bind Φ :=
+    PMF.bind_map _ _ _
   -- Independent shared strings for the two protocols; each party runs both.
   let ρ := ρ₁.bind fun r₁ => ρ₂.map (r₁, ·)
   let hA : X → R₁ × R₂ → S × U := fun x r => (fA x r.1, gA (x, fA x r.1) r.2)
@@ -199,8 +196,7 @@ theorem isEmbeddable_withKernel (P₀ : PMF (X × Y)) (KX : X → PMF S) (KY : Y
   refine IsEmbeddable.of_dist_le (shared (embedFamily KX KY K))
     (fun x => sample (embedFamily KX KY K) (.inl x))
     (fun y => sample (embedFamily KX KY K) (.inr (.inl y))) ?_
-  rw [← localSample_eq]
-  exact dist_embed_le P₀ KX KY K
+  exact localSample_eq P₀ KX KY K ▸ dist_embed_le P₀ KX KY K
 
 /-- **Holenstein's Lemma 5.2** [Holenstein, Lemma 5.2][Holenstein2009]: a joint law `J` of
 `((x, y), s)` embeds its marginal in `((x, y), (s, s))` with error `2 ε₁ + 2 ε₂`, where `ε₁` and
@@ -211,8 +207,7 @@ theorem isEmbeddable_diag (J : PMF ((X × Y) × S)) :
         2 * dist J (withKernel (J.map Prod.fst) fun xy => condY J xy.2)) := by
   have h := isEmbeddable_withKernel (J.map Prod.fst) (condX J) (condY J) (conditionalSnd J)
   have hJ : withKernel (J.map Prod.fst) (conditionalSnd J) = J := bind_conditionalSnd J
-  rw [hJ, ← diag_eq, dist_comm (withKernel _ _) J, dist_comm (withKernel _ _) J] at h
-  exact h
+  rwa [hJ, ← diag_eq, dist_comm (withKernel _ _) J, dist_comm (withKernel _ _) J] at h
 
 /-- **Holenstein's Corollary 5.3** [Holenstein, Corollary 5.3][Holenstein2009], with the constant
 `7 ε₁ + 2 ε₂` of this proof: if `J` is within `ε₁` of `P₀ P_{S | X}` and within `ε₂` of
@@ -226,29 +221,22 @@ theorem isEmbeddable_diag_of_dist_le (J : PMF ((X × Y) × S)) (P₀ : PMF (X ×
   refine ⟨R, ρ, fA, fB, ?_⟩
   set P := J.map Prod.fst
   set K := conditionalSnd J
-  have hJ : withKernel P K = J := bind_conditionalSnd J
   -- The input laws are within `ε₁`.
   have hP : dist P P₀ ≤ ε₁ := by
     simpa only [withKernel, Cslib.Probability.PMF.map_fst_bind_pair] using
       (dist_map_le J (withKernel P₀ fun xy => condX J xy.1) Prod.fst).trans h₁
-  have hK : dist J (withKernel P₀ K) ≤ ε₁ := by
-    rw [← hJ]
-    exact (dist_bind_le P P₀ _).trans hP
+  have hK : dist J (withKernel P₀ K) ≤ ε₁ :=
+    bind_conditionalSnd J ▸ (dist_bind_le P P₀ _).trans hP
   set A := withKernel P₀ fun xy => condX J xy.1
   set B := withKernel P₀ fun xy => condY J xy.2
   set C := withKernel P₀ K
-  have hX := dist_triangle_left A C J
-  have hY := dist_triangle_left B C J
   set E := P₀.bind fun xy => ((K xy).map fun s => (s, s)).map (xy, ·)
   set Out := P₀.bind fun xy => ρ.map fun r => (xy, (fA xy.1 r, fB xy.2 r))
   set Tgt := J.map fun z => (z.1, (z.2, z.2))
   have hdiag : dist E Tgt ≤ ε₁ := by
-    change dist E (J.map fun z => (z.1, (z.2, z.2))) ≤ ε₁
-    rw [diag_eq, dist_comm]
-    exact (dist_bind_le P P₀ _).trans hP
-  have := dist_triangle Out E Tgt
-  have hemb' : dist Out E ≤ 2 * dist A C + 2 * dist B C := hemb
-  linarith
+    simpa only [Tgt, diag_eq, dist_comm] using (dist_bind_le P P₀ _).trans hP
+  linarith [dist_triangle_left A C J, dist_triangle_left B C J, dist_triangle Out E Tgt,
+    (hemb : dist Out E ≤ 2 * dist A C + 2 * dist B C)]
 
 /-- **Holenstein's Lemma 5.4** [Holenstein, Lemma 5.4][Holenstein2009], for the factorized law it
 characterizes: if `s` is drawn from `KS x` and `t` from `KT y`, independently, then `P₀` embeds
@@ -290,11 +278,9 @@ theorem isEmbeddable_map_fst_of_apply_eq_mul (J : PMF ((X × Y) × (S × T)))
     IsEmbeddable (J.map Prod.fst) J 0 := by
   classical
   have hF (x : X) : ∑' s, f x s ≠ ∞ := by
-    rw [tsum_fintype]
-    exact ENNReal.sum_ne_top.mpr fun s _ => hf x s
+    simpa only [tsum_fintype] using ENNReal.sum_ne_top.mpr fun s _ => hf x s
   have hG (y : Y) : ∑' t, g y t ≠ ∞ := by
-    rw [tsum_fintype]
-    exact ENNReal.sum_ne_top.mpr fun t _ => hg y t
+    simpa only [tsum_fintype] using ENNReal.sum_ne_top.mpr fun t _ => hg y t
   -- Normalize `f x` and `g y`. Where a normalizer vanishes, `J` has no mass and any law works.
   let KS : X → PMF S := fun x =>
     if h : ∑' s, f x s = 0 then J.map fun z => z.2.1 else PMF.normalize (f x) h (hF x)
@@ -311,11 +297,9 @@ theorem isEmbeddable_map_fst_of_apply_eq_mul (J : PMF ((X × Y) × (S × T)))
     ext ⟨⟨x, y⟩, s, t⟩
     rw [bind_prod_apply, hmarg, hJ]
     by_cases hF0 : ∑' s, f x s = 0
-    · rw [tsum_eq_zero_iff.mp hF0 s, hF0]
-      simp only [mul_zero, zero_mul]
+    · simp only [tsum_eq_zero_iff.mp hF0 s, hF0, mul_zero, zero_mul]
     by_cases hG0 : ∑' t, g y t = 0
-    · rw [tsum_eq_zero_iff.mp hG0 t, hG0]
-      simp only [mul_zero, zero_mul]
+    · simp only [tsum_eq_zero_iff.mp hG0 t, hG0, mul_zero, zero_mul]
     simp only [KS, KT, dite_eq_right hF0, dite_eq_right hG0, PMF.normalize_apply]
     calc c x y * (∑' s, f x s) * (∑' t, g y t) *
           (f x s * (∑' s, f x s)⁻¹ * (g y t * (∑' t, g y t)⁻¹))
@@ -324,8 +308,7 @@ theorem isEmbeddable_map_fst_of_apply_eq_mul (J : PMF ((X × Y) × (S × T)))
       _ = c x y * f x s * g y t := by
         rw [ENNReal.mul_inv_cancel hF0 (hF x), ENNReal.mul_inv_cancel hG0 (hG y), mul_one,
           mul_one]
-  have h := isEmbeddable_bind_prod (J.map Prod.fst) KS KT
-  rwa [hfactor] at h
+  simpa only [hfactor] using isEmbeddable_bind_prod (J.map Prod.fst) KS KT
 
 /-- **Holenstein's Claim 6.1** [Holenstein, Claim 6.1][Holenstein2009]: conditioning two
 distributions on an event of probability `1 / 2` under both at most doubles their statistical
@@ -341,10 +324,8 @@ theorem dist_filter_le_two_mul {Z : Type*} [Fintype Z] (p q : PMF Z) (E : Set Z)
   rw [Cslib.Probability.PMF.filter_apply_toReal, Cslib.Probability.PMF.filter_apply_toReal,
     hp, hq]
   split_ifs
-  · rw [← sub_div, abs_div]
-    norm_num [div_eq_mul_inv, mul_comm]
-  · simp only [sub_self, abs_zero]
-    positivity
+  · rw [← sub_div, abs_div]; norm_num [div_eq_mul_inv, mul_comm]
+  · simp only [sub_self, abs_zero]; positivity
 
 /-! ### The hypotheses of Corollary 5.3 from a redrawn input -/
 
@@ -370,16 +351,11 @@ private theorem dist_withKernel_cond_le {A B : Type*} [Fintype A]
     conv_lhs => rw [← hK]
     simp only [withKernel, PMF.bind_bind, PMF.bind_map, Function.comp_def, hproj, Λ]
     pmf_swap
-  have hM : M.map Prod.fst = (J.map Prod.fst).map proj := by
-    simp only [M, PMF.map_comp]
-    rfl
+  have hM : M.map Prod.fst = (J.map Prod.fst).map proj := by simp only [M, PMF.map_comp]; rfl
   rw [hR, hT]
   calc _ ≤ dist J ((M.map Prod.fst).bind Λ) +
         dist ((M.map Prod.fst).bind Λ) ((P₀.map proj).bind Λ) := dist_triangle _ _ _
-    _ ≤ _ := by
-      gcongr
-      rw [hM]
-      exact dist_bind_le _ _ _
+    _ ≤ _ := add_le_add le_rfl (hM ▸ dist_bind_le _ _ _)
 
 /-- **The triangle step of Holenstein's (6.13)–(6.15)** [Holenstein, proof of Lemma 6.4,
 (6.13)–(6.15)][Holenstein2009]. Let `K` draw `x` given `y` under `P₀`, so that `P₀ = P_Y K`. A

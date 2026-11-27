@@ -185,16 +185,14 @@ theorem initialPilotScore_error
   refine ⟨La + Lb, add_nonneg ha hb, ?_⟩
   intro P J inst D R bin ks kt kb ss st cutoff h C steps X Y input mean
   have hNu : 0 ≤ (P : ℝ) * rate ks := by positivity
-  have hs := PilotRowRecipe.score_row_moment HP.toHierarchyParams X Y HP.ρ_nonneg
-    ha hb hϕ hρ (FourthRootHierarchyParams.NormalizedRow.rank_pos HP)
-    (rate_pos kt) hNu
-    (initialPilotWalk HP D R bin ks kt kb ss st cutoff h C steps) (fun _ => mean)
-  have hn := noise R.source R.terminal R.source_terminal (side P ks) (side P kt)
-    (side_le P ks) (side_le P kt) (CopyPadding.identifier D ss)
-    (CopyPadding.identifier D st) hNu steps input
-  apply hs.trans
+  refine (PilotRowRecipe.score_row_moment HP.toHierarchyParams X Y HP.ρ_nonneg ha hb hϕ hρ
+    (FourthRootHierarchyParams.NormalizedRow.rank_pos HP) (rate_pos kt) hNu
+    (initialPilotWalk HP D R bin ks kt kb ss st cutoff h C steps) (fun _ => mean)).trans ?_
   simp only [ZMod.card]
-  exact mul_le_mul_of_nonneg_left hn (by positivity)
+  exact mul_le_mul_of_nonneg_left
+    (noise R.source R.terminal R.source_terminal (side P ks) (side P kt) (side_le P ks)
+      (side_le P kt) (CopyPadding.identifier D ss) (CopyPadding.identifier D st) hNu steps input)
+    (by positivity)
 
 /-- Positive finite walk allocation for the computed lower child. The budget is the
 literal finite fourth moment of the base-derived dense sample, multiplied by the
@@ -243,8 +241,8 @@ theorem initialPilotScore_allocated
   have hr : 0 < 1 - 1 / (155648 * (J + 1) * (4 : ℝ) ^ 4) :=
     sub_pos.mpr ((div_lt_one (by linarith)).mpr hden)
   have hp := spectralWalkLength_payment hr (sub_lt_self _ (by positivity))
-    (show 0 ≤ (P : ℝ) * (L / rate kt) ^ 4 * 32 * rowNormPow 4 P (rate ks) X Y input by
-      positivity) hε 0 steps (Nat.le_max_right _ _)
+    (show 0 ≤ (P : ℝ) * (L / rate kt) ^ 4 * 32 * rowNormPow 4 P (rate ks) X Y input by positivity)
+    hε 0 steps (Nat.le_max_right _ _)
   simp only [pow_zero, mul_one] at hp
   exact ((herr P J D R bin ks kt kb ss st cutoff h C steps).trans_eq (by ring)).trans hp
 
@@ -274,15 +272,13 @@ theorem initialPilotScore_allocated_of_single_bin
         PilotRowRecipe.score HP.toHierarchyParams Y (rate kb) C σ x y) ≤ ε ^ 4 := by
   obtain ⟨L, hL, ha⟩ := initialPilotScore_allocated HP
   refine ⟨L, hL, ?_⟩
-  intro P J inst D hD R H bin ks kb hks hkb ss st cutoff h C hkh η hη hρη hK hC hC1
-    hcover ε hε X Y steps
-  have hm : rowSliceMean X Y (initialPilotRaw HP D R bin ks kb kb ss st cutoff h C) = C := by
-    funext x y
-    exact (initialPilotRaw_mean HP D hD R H bin ks kb hks hkb ss st cutoff h C hkh hη
-      hρη hK hC hC1 x y).trans (hcover x y)
+  intro P J inst D hD R H bin ks kb hks hkb ss st cutoff h C hkh η hη hρη hK hC
+    hC1 hcover ε hε X Y steps
+  have hm : rowSliceMean X Y (initialPilotRaw HP D R bin ks kb kb ss st cutoff h C) = C :=
+    funext fun x => funext fun y => (initialPilotRaw_mean HP D hD R H bin ks kb hks hkb ss st
+      cutoff h C hkh hη hρη hK hC hC1 x y).trans (hcover x y)
   have hp := ha P J D R bin ks kb kb ss st cutoff h C ε hε
   dsimp only at hp
-  rw [hm] at hp
-  exact hp
+  rwa [hm] at hp
 
 end Matrix.HierarchyParams.H4RankEnvironment

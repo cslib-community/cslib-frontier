@@ -232,23 +232,11 @@ theorem realizes_whpStepPureGen :
               (s := s)
             cases hfsp : fastStepPure c U n_max θ fs op with
             | some p =>
-              rw [hfsp] at hfs_m
-              have hout1 : ((Memory.spec 0).clientResult s
-                  (fastStepPureGenProg
-                    ((mkWhpParams c U V w n_max, base), (opTag, uv)))).1 = 1 := by
-                rw [← hop_enc, hfs_m.1]
-              have hne1 : ((Memory.spec 0).clientResult s
-                  (fastStepPureGenProg
-                    ((mkWhpParams c U V w n_max, base), (opTag, uv)))).1 ≠ 1 := by assumption
-              exact False.elim (hne1 hout1)
+              rw [hfsp, hop_enc] at hfs_m
+              exact False.elim (‹_ ≠ 1› (congrArg Prod.fst hfs_m.1))
             | none =>
-              rw [hfsp] at hfs_m
-              have hs_eq : (Memory.spec 0).clientState s
-                  (fastStepPureGenProg ((mkWhpParams c U V w n_max, base), (opTag, uv))) = s := by
-                rw [← hop_enc]; exact hfs_m.2
-              rw [hs_eq]
-              simp only [Prod.mk.eta]
-              rw [hwp1]
+              rw [hfsp, hop_enc] at hfs_m
+              rw [hfs_m.2, Prod.mk.eta, hwp1]
               obtain ⟨hseed_fc, hrep_fc, _, _, _⟩ := fastToCsrGenProg_spec henv_lg hseed hfs_rep
                 hv (s := s)
               obtain ⟨hcsr_fc, hqv_fc⟩ := hv.fastToCsr_spec
@@ -308,8 +296,7 @@ theorem whpStepPureGenProg_spec {c U V w n_max base : ℕ}
   cases st with
   | small sm =>
     obtain ⟨hsm_lt, hsm_rep⟩ := hrep
-    have hsp_eq : whpSpace c U V w n_max = smallSpaceWhp U V w n_max := by
-      unfold whpSpace; exact ite_eq_left hsm_lt
+    have hsp_eq : whpSpace c U V w n_max = smallSpaceWhp U V w n_max := ite_eq_left hsm_lt
     have hm0 : s.mem base = 0 := by simpa only [hdrMode, Nat.add_zero] using hsm_rep.1
     have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       unfold mkWhpParams; exact congrArg Prod.fst (ite_eq_left hsm_lt)
@@ -329,23 +316,20 @@ theorem whpStepPureGenProg_spec {c U V w n_max base : ℕ}
           (smallStepOpGenProg
             (((mkWhpCoreParams c U V w n_max, base), (encodeOpWhp op).1), (encodeOpWhp op).2)))
         (encodeOptRes p_sm.2) := by
-      dsimp only [prog]; unfold whpStepPureGenProg; simp only [pure_bind, hwp1]
+      simp only [prog, whpStepPureGenProg, pure_bind, hwp1]
       refine (StepSpec.read hbase_lt).bind ?_
-      rw [hm0]; simp only [↓reduceIte, hsp_eq]
+      simp only [hm0, ↓reduceIte, hsp_eq]
       exact ⟨rfl, hsm_res, hsm_vp⟩
-    refine ⟨?_, hstep.2.1, ?_, hstep.2.2, fun a ha => ?_, fun _ _ _ => ?_⟩
-    · rw [hstep.1]; exact ⟨hsm_lt, hsm_out_rep⟩
-    · rw [hstep.1]; exact hsm_fr
-    · rw [hstep.1]; rw [hsp_eq] at ha; exact hsm_out a ha
-    · unfold whpStepPureGenProg
-      simp only [pure_bind, hwp1, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hmc_r, hcs_r, hcr_r, hm0]; simp only [↓reduceIte]
-      rw [Nat.add_comm 1]
-      exact (Nat.add_le_add_right hsm_mc 1).trans (le_max_left _ _)
+    rw [hstep.1]
+    refine ⟨⟨hsm_lt, hsm_out_rep⟩, hstep.2.1, hsm_fr, hstep.2.2,
+      fun a ha => hsm_out a (hsp_eq ▸ ha), fun _ _ _ => ?_⟩
+    unfold whpStepPureGenProg
+    simp only [pure_bind, hwp1, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hmc_r, hcs_r,
+      hcr_r, hm0, ↓reduceIte, Nat.add_comm 1]
+    exact (Nat.add_le_add_right hsm_mc 1).trans (le_max_left _ _)
   | fast fs =>
     obtain ⟨hth, hseed, hfs_rep⟩ := hrep
-    have hsp_eq : whpSpace c U V w n_max = largeSpaceWhp c U V w n_max := by
-      unfold whpSpace; exact ite_eq_right (Nat.not_lt.mpr hth)
+    have hsp_eq : whpSpace c U V w n_max = largeSpaceWhp c U V w n_max := ite_eq_right hth.not_gt
     have hm1 : s.mem base = 1 := by simpa only [hdrMode, Nat.add_zero] using hfs_rep.2.1
     have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       unfold mkWhpParams; rw [ite_eq_right (Nat.not_lt.mpr hth)]
@@ -353,36 +337,28 @@ theorem whpStepPureGenProg_spec {c U V w n_max base : ℕ}
       ⟨hc, hw, rfl, hth, hnU, hU, hV, hfit_sp⟩
     obtain ⟨hfs_mc, hfs_vp, hfs_m⟩ :=
       fastStepPureGenProg_spec henv_lg hseed hfs_rep hv hval_op (s := s)
-    have hop_eta : ((encodeOpWhp op).1, (encodeOpWhp op).2) = encodeOpWhp op := Prod.mk.eta
     dsimp only [whpStepPure]
     cases hfsp : fastStepPure c U n_max θ fs op with
     | some p =>
       rcases p with ⟨fs', res⟩
       rw [hfsp] at hfs_m
-      dsimp only
       set s_fs := (Memory.spec 0).clientState s
         (fastStepPureGenProg ((mkWhpParams c U V w n_max, base), encodeOpWhp op))
       have hstep : StepSpec w (base + whpSpace c U V w n_max) s prog s_fs (encodeOptRes res) := by
-        dsimp only [prog]; unfold whpStepPureGenProg; simp only [pure_bind, hop_eta]
+        simp only [prog, whpStepPureGenProg, pure_bind, Prod.mk.eta]
         refine (StepSpec.read hbase_lt).bind ?_
-        rw [hm1]; simp only [Nat.one_ne_zero, ↓reduceIte, hsp_eq]
-        refine StepSpec.bind ⟨rfl, hfs_m.1, hfs_vp⟩ ?_
-        simp only [↓reduceIte]
-        exact StepSpec.pure _ _
-      refine ⟨?_, hstep.2.1, ?_, hstep.2.2, fun a ha => ?_, fun _ _ _ => ?_⟩
-      · rw [hstep.1]; exact ⟨hth, hfs_m.2.2.1, hfs_m.2.2.2.1⟩
-      · rw [hstep.1]; exact hfs_m.2.1
-      · rw [hstep.1]; rw [hsp_eq] at ha; exact hfs_m.2.2.2.2 a ha
-      · unfold whpStepPureGenProg
-        simp only [pure_bind, hop_eta, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        rw [hmc_r, hcs_r, hcr_r, hm1]
-        simp only [Nat.one_ne_zero, ↓reduceIte, memoryCost_bind, hfs_m.1]
-        have hmc_pure : memoryCost (pure (encodeOptRes res) : Memory.Prog (ℕ × ℕ)) s_fs = 0 := rfl
-        rw [hmc_pure, Nat.add_zero, Nat.add_comm 1]
-        exact (Nat.add_le_add_right hfs_mc 1).trans (le_max_right _ _)
+        simp only [hm1, Nat.one_ne_zero, ↓reduceIte, hsp_eq]
+        exact StepSpec.bind ⟨rfl, hfs_m.1, hfs_vp⟩ (ite_eq_left rfl ▸ StepSpec.pure _ _)
+      rw [hstep.1]
+      refine ⟨⟨hth, hfs_m.2.2.1, hfs_m.2.2.2.1⟩, hstep.2.1, hfs_m.2.1, hstep.2.2,
+        fun a ha => hfs_m.2.2.2.2 a (hsp_eq ▸ ha), fun _ _ _ => ?_⟩
+      unfold whpStepPureGenProg
+      simp only [pure_bind, Prod.mk.eta, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hmc_r,
+        hcs_r, hcr_r, hm1, Nat.one_ne_zero, ↓reduceIte, hfs_m.1, memoryCost_pure, Nat.add_zero,
+        Nat.add_comm 1]
+      exact (Nat.add_le_add_right hfs_mc 1).trans (le_max_right _ _)
     | none =>
       rw [hfsp] at hfs_m
-      dsimp only
       obtain ⟨hseed_fc, hrep_fc, hfr_fc, hvp_fc, hout_fc⟩ :=
         fastToCsrGenProg_spec henv_lg hseed hfs_rep hv (s := s)
       obtain ⟨hcsr_fc, hqv_fc⟩ := hv.fastToCsr_spec
@@ -395,24 +371,21 @@ theorem whpStepPureGenProg_spec {c U V w n_max base : ℕ}
           (((mkWhpParams c U V w n_max, base), (encodeOpWhp op).1), (encodeOpWhp op).2))
       have hstep : StepSpec w (base + whpSpace c U V w n_max) s prog s_fh
           (encodeOptRes (csrStepOp c U n_max θ.1 (fastToCsr n_max fs) op).2) := by
-        dsimp only [prog]; unfold whpStepPureGenProg; simp only [pure_bind, hop_eta, hwp1]
+        simp only [prog, whpStepPureGenProg, pure_bind, Prod.mk.eta, hwp1]
         refine (StepSpec.read hbase_lt).bind ?_
-        rw [hm1]; simp only [Nat.one_ne_zero, ↓reduceIte, hsp_eq]
+        simp only [hm1, Nat.one_ne_zero, ↓reduceIte, hsp_eq]
         refine StepSpec.bind ⟨hfs_m.2, hfs_m.1, hfs_vp⟩ ?_
         simp only [Nat.zero_ne_one, ↓reduceIte]
         exact StepSpec.bind ⟨rfl, rfl, hvp_fc⟩ ⟨rfl, hfh_res, hfh_vp⟩
-      refine ⟨?_, hstep.2.1, ?_, hstep.2.2, fun a ha => ?_, fun _ hst_run hhit => ?_⟩
-      · rw [hstep.1]; exact hfh_rep
-      · rw [hstep.1]; exact hfh_fr.trans hfr_fc
-      · rw [hstep.1]; rw [hsp_eq] at ha; exact (hfh_out a ha).trans (hout_fc a ha)
-      · dsimp only [IsFastStepHit] at hhit
-        rw [← hst_run] at hhit; dsimp only at hhit
-        rw [hfsp] at hhit; cases hhit
+      rw [hstep.1]
+      refine ⟨hfh_rep, hstep.2.1, hfh_fr.trans hfr_fc, hstep.2.2,
+        fun a ha => (hfh_out a (hsp_eq ▸ ha)).trans (hout_fc a (hsp_eq ▸ ha)),
+        fun _ hst_run hhit => ?_⟩
+      simp only [IsFastStepHit, ← hst_run, hfsp, Option.isSome_none, Bool.false_eq_true] at hhit
   | fallback csr =>
     obtain ⟨hth, hseed, hcsr_rep⟩ := hrep
     obtain ⟨_, hcsr, hqv⟩ := hv
-    have hsp_eq : whpSpace c U V w n_max = largeSpaceWhp c U V w n_max := by
-      unfold whpSpace; exact ite_eq_right (Nat.not_lt.mpr hth)
+    have hsp_eq : whpSpace c U V w n_max = largeSpaceWhp c U V w n_max := ite_eq_right hth.not_gt
     have hm2 : s.mem base = 2 := by simpa only [hdrMode, Nat.add_zero] using hcsr_rep.1
     have henv_lg : WhpLargeEnv c U V w n_max w base :=
       ⟨hc, hw, rfl, hth, hnU, hU, hV, hfit_sp⟩
@@ -424,17 +397,13 @@ theorem whpStepPureGenProg_spec {c U V w n_max base : ℕ}
         (((mkWhpParams c U V w n_max, base), (encodeOpWhp op).1), (encodeOpWhp op).2))
     have hstep : StepSpec w (base + whpSpace c U V w n_max) s prog s_fh
         (encodeOptRes (csrStepOp c U n_max θ.1 csr op).2) := by
-      dsimp only [prog]; unfold whpStepPureGenProg; simp only [pure_bind]
+      simp only [prog, whpStepPureGenProg, pure_bind]
       refine (StepSpec.read hbase_lt).bind ?_
-      rw [hm2]
-      simp only [show ¬((2 : ℕ) = 0) by decide, show ¬((2 : ℕ) = 1) by decide, ↓reduceIte, hsp_eq]
+      simp only [hm2, Nat.reduceEqDiff, ↓reduceIte, hsp_eq]
       exact ⟨rfl, hfh_res, hfh_vp⟩
-    refine ⟨?_, hstep.2.1, ?_, hstep.2.2, fun a ha => ?_, fun _ hst_run hhit => ?_⟩
-    · rw [hstep.1]; exact hfh_rep
-    · rw [hstep.1]; exact hfh_fr
-    · rw [hstep.1]; rw [hsp_eq] at ha; exact hfh_out a ha
-    · dsimp only [IsFastStepHit] at hhit
-      rw [← hst_run] at hhit; exact False.elim hhit
+    rw [hstep.1]
+    exact ⟨hfh_rep, hstep.2.1, hfh_fr, hstep.2.2, fun a ha => hfh_out a (hsp_eq ▸ ha),
+      fun _ hst_run hhit => False.elim (by rwa [IsFastStepHit, ← hst_run] at hhit)⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

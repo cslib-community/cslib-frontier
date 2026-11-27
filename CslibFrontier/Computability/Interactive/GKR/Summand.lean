@@ -63,13 +63,10 @@ theorem degreeOf_indicatorAt_le [Nontrivial R] (e : Fin k → Fin n) (a : Fin k 
     (indicatorAt e a : MvPolynomial (Fin n) R).degreeOf v ≤ ∑ j, if e j = v then 1 else 0 := by
   classical
   refine (degreeOf_prod_le _ _ _).trans (Finset.sum_le_sum fun j _ => ?_)
-  have hX : (X (e j) : MvPolynomial (Fin n) R).degreeOf v ≤ if e j = v then 1 else 0 := by
+  cases a j <;> simp only [Bool.false_eq_true, ↓reduceIte]
+  · refine (degreeOf_sub_le _ _ _).trans (max_le (by simp [degreeOf_one]) ?_)
     grind [degreeOf_X]
-  by_cases ha : a j = true
-  · rw [ite_eq_left ha]
-    exact hX
-  · rw [ite_eq_right ha]
-    exact (degreeOf_sub_le _ _ _).trans (max_le (by simp [degreeOf_one]) hX)
+  · grind [degreeOf_X]
 
 end Indicator
 
@@ -78,20 +75,12 @@ theorem sum_castAdd_add_sum_natAdd {k : ℕ} (v : Fin (k + k)) :
     ((∑ j : Fin k, if Fin.castAdd k j = v then 1 else 0) +
       ∑ j : Fin k, if Fin.natAdd k j = v then 1 else 0) = 1 := by
   refine Fin.addCases (fun j₀ => ?_) (fun j₀ => ?_) v
-  · rw [Finset.sum_eq_single j₀, Finset.sum_eq_zero]
-    · simp
-    · intro j _
-      exact ite_eq_right (by fin_index)
-    · intro j _ hj
-      exact ite_eq_right (by fin_index)
-    · simp
-  · rw [Finset.sum_eq_zero, Finset.sum_eq_single j₀]
-    · simp
-    · intro j _ hj
-      exact ite_eq_right (by fin_index)
-    · simp
-    · intro j _
-      exact ite_eq_right (by fin_index)
+  · rw [Finset.sum_eq_single_of_mem j₀ (Finset.mem_univ _) fun _ _ _ => ite_eq_right (by fin_index),
+      Finset.sum_eq_zero fun _ _ => ite_eq_right (by fin_index)]
+    simp
+  · rw [Finset.sum_eq_zero fun _ _ => ite_eq_right (by fin_index),
+      Finset.sum_eq_single_of_mem j₀ (Finset.mem_univ _) fun _ _ _ => ite_eq_right (by fin_index)]
+    simp
 
 /-- A bit string of length `k + k` is a pair of bit strings of length `k`. -/
 def splitEquiv (k : ℕ) : (Fin (k + k) → Bool) ≃ (Fin k → Bool) × (Fin k → Bool) where

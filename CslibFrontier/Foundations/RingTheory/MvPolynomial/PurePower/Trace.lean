@@ -73,22 +73,16 @@ theorem trace_eq_residue (d : ℕ) (hd : 1 ≤ d)
     exact (Algebra.smul_def (residue (d + 1) r (monomial e 1 * q)) (K.coeff e)).trans (mul_comm _ _)
   have hJac : Matrix.det (Matrix.of (fun i j => eval x (pderiv j (X i ^ (d + 1) - r' i)))) =
       π (jacobian (d + 1) r) := calc
-    _ = eval x (jacobian (d + 1) r') := by
-      unfold jacobian
-      exact ((eval x).map_det (Matrix.of fun i j => pderiv j (X i ^ (d + 1) - r' i))).symm
-    _ = _ := by
-      change eval x (jacobian (d + 1) fun i => (r i).map φ) = _
-      rw [← jacobian_map φ (d + 1) r, heval]
+    _ = eval x (jacobian (d + 1) r') :=
+      ((eval x).map_det (Matrix.of fun i j => pderiv j (X i ^ (d + 1) - r' i))).symm
+    _ = _ := by rw [← jacobian_map φ (d + 1) r, heval]
   have heuler : (∑ e ∈ K.support, c e * m e) = π (jacobian (d + 1) r) := by
     calc
       _ = eval x K := by
         conv_rhs => rw [K.as_sum]
         rw [map_sum]
         refine Finset.sum_congr rfl fun e _ => ?_
-        have hm := heval (monomial e 1)
-        simp only [map_monomial, map_one] at hm
-        rw [show m e = eval x (monomial e 1) from hm.symm]
-        simp only [c, eval_monomial, one_mul]
+        simp [c, m, ← heval, eval_monomial]
       _ = _ := hdiag.trans hJac
   let b : Basis (NormalIndex n (d + 1)) S A := normalBasis hell r hrS
   let : Module.Free S A := Module.Free.of_basis b

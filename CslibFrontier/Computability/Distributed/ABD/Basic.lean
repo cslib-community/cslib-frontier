@@ -682,28 +682,22 @@ theorem deliverHistory_entry_preserves {P V : Type*} (hist : List (OpRecord P V)
     (deliverHistory hist resp step pend?)[i].invStep = hist[i].invStep ∧
     (∀ r, (deliverHistory hist resp step pend?)[i].status.respStep? = some r →
       hist[i].status.respStep? = some r ∨ r = step) := by
-  have hsame (h : (deliverHistory hist resp step pend?)[i] = hist[i]) :
-      (deliverHistory hist resp step pend?)[i].caller = hist[i].caller ∧
-      (deliverHistory hist resp step pend?)[i].kind = hist[i].kind ∧
-      (deliverHistory hist resp step pend?)[i].invStep = hist[i].invStep ∧
-      (∀ r, (deliverHistory hist resp step pend?)[i].status.respStep? = some r →
-        hist[i].status.respStep? = some r ∨ r = step) := by
-    rw [h]; exact ⟨rfl, rfl, rfl, fun _ hr => Or.inl hr⟩
-  rcases pend? with _ | pend
-  · exact hsame rfl
-  · cases hm : matchCompletion pend.kind resp step with
-    | none => exact hsame (by simp only [deliverHistory, hm])
-    | some stDone =>
-      cases hrec : hist[pend.opId]? with
-      | none => exact hsame (by simp only [deliverHistory, hm, hrec])
-      | some rec =>
-        obtain ⟨hp_lt, rfl⟩ := List.getElem?_eq_some_iff.mp hrec
-        by_cases hip : pend.opId = i
-        · subst hip
-          simp only [deliverHistory, hm, hrec, List.getElem_set_self, true_and]
-          exact fun r hr =>
-            Or.inr (Option.some.inj ((respStep?_of_matchCompletion hm).symm.trans hr)).symm
-        · exact hsame (by simp only [deliverHistory, hm, hrec, List.getElem_set_ne hip])
+  by_cases h : (deliverHistory hist resp step pend?)[i] = hist[i]
+  · exact h ▸ ⟨rfl, rfl, rfl, fun _ => Or.inl⟩
+  · rcases pend? with _ | pend
+    · exact absurd rfl h
+    · cases hm : matchCompletion pend.kind resp step with
+      | none => exact absurd (by simp only [deliverHistory, hm]) h
+      | some stDone =>
+        cases hrec : hist[pend.opId]? with
+        | none => exact absurd (by simp only [deliverHistory, hm, hrec]) h
+        | some rec =>
+          obtain ⟨_, rfl⟩ := List.getElem?_eq_some_iff.mp hrec
+          obtain rfl : pend.opId = i := by_contra fun hip =>
+            h (by simp only [deliverHistory, hm, hrec, List.getElem_set_ne hip])
+          simp only [deliverHistory, hm, hrec, List.getElem_set_self,
+            respStep?_of_matchCompletion hm, Option.some.injEq, true_and]
+          exact fun _ hr => Or.inr hr.symm
 
 private lemma getElem?_deliverHistory_of_ne {P V : Type*} (hist : List (OpRecord P V))
     (resp : Option (OpResp V)) (step : ℕ) (pend? : Option (PendingOp V)) {i : ℕ}
@@ -817,10 +811,8 @@ theorem reachable_start [Fintype P] : π.Reachable π.start :=
 
 /-- Reachability from `π.start` composes with `π.lts.CanReach`. -/
 theorem Reachable.trans [Fintype P] {π : Protocol P S M V} {s s' : State P S M V}
-    (hs : π.Reachable s) (hreach : π.lts.CanReach s s') : π.Reachable s' := by
-  obtain ⟨xl, hxl⟩ := hs
-  obtain ⟨yl, hyl⟩ := hreach
-  exact ⟨xl ++ yl, LTS.MTr.comp π.lts hxl hyl⟩
+    (hs : π.Reachable s) (hreach : π.lts.CanReach s s') : π.Reachable s' :=
+  hs.elim fun xl hxl => hreach.elim fun yl hyl => ⟨xl ++ yl, LTS.MTr.comp π.lts hxl hyl⟩
 
 /-! ### Structural invariants of `history` and `msgs` -/
 
@@ -849,9 +841,8 @@ private lemma tr_history_entry_preserves {s s' : State P S M V} {a : Action P M 
     simp [doInvoke, List.getElem_append_left hi]
   | deliver e =>
     obtain ⟨_, rfl⟩ := htr
-    obtain ⟨hc, hk, hv, _⟩ :=
-      deliverHistory_entry_preserves s.history _ s.step (s.proc e.dest).pending hi hi'
-    exact ⟨hc, hk, hv⟩
+    have h := deliverHistory_entry_preserves s.history _ s.step (s.proc e.dest).pending hi hi'
+    exact ⟨h.1, h.2.1, h.2.2.1⟩
   | stutter =>
     obtain rfl := htr
     exact ⟨rfl, rfl, rfl⟩
@@ -889,11 +880,10 @@ theorem tr_history_completed_stable {s s' : State P S M V} {a : Action P M V}
     exact getElem_deliverHistory_of_ne s.history _ s.step (s.proc e.dest).pending hi
       fun pend hp heq => by
         obtain ⟨_, hppend⟩ := hpend e.dest pend hp
-        subst heq
-        rw [hppend] at hcomp
-        cases hcomp
+        cases heq
+        exact Bool.noConfusion (hppend ▸ hcomp)
   | stutter =>
-    obtain rfl := htr
+    cases htr
     rfl
 
 /-- An in-flight envelope `e` stays in `msgs` across any transition other than `.deliver e`. -/
@@ -903,16 +893,12 @@ theorem tr_notDelivered_mem {s s' : State P S M V} {a : Action P M V}
   cases a with
   | invoke caller kind =>
     obtain ⟨_, rfl⟩ := htr
-    simp only [doInvoke, Multiset.mem_add]
-    exact Or.inl he
+    exact Multiset.mem_add.mpr (Or.inl he)
   | deliver m =>
     obtain ⟨_, rfl⟩ := htr
-    have hne : e ≠ m := fun h => ha (by rw [h])
-    simp only [doDeliver, Multiset.mem_add]
-    exact Or.inl ((Multiset.mem_erase_of_ne hne).mpr he)
-  | stutter =>
-    obtain rfl := htr
-    exact he
+    exact Multiset.mem_add.mpr
+      (Or.inl ((Multiset.mem_erase_of_ne fun h => ha (congrArg Action.deliver h.symm)).mpr he))
+  | stutter => exact htr ▸ he
 
 private lemma mTr_notDelivered_mem {s t : State P S M V} {xl : List (Action P M V)}
     {e : Envelope P M} (h : π.lts.MTr s xl t) (he : e ∈ s.msgs)
@@ -978,15 +964,13 @@ private lemma drainList_spec {F : Finset P} (s : State P S M V) (es : List (Enve
   induction es generalizing s with
   | nil => exact ⟨LTS.MTr.refl, rfl⟩
   | cons e es ih =>
-    have hmem : e ∈ s.msgs := Multiset.mem_of_le hle (by simp)
     have hcons : e ::ₘ Multiset.ofList es ≤ s.msgs := by simpa using hle
-    have hes_le : Multiset.ofList es ≤ s.msgs.erase e := by
-      simpa using Multiset.erase_le_erase e hcons
     have hle' : Multiset.ofList es ≤ (π.doDeliver e s).msgs :=
-      hes_le.trans (Multiset.le_add_right _ _)
-    obtain ⟨hmtr, hmap⟩ := ih (π.doDeliver e s) hle'
-      (fun x hx => hdest x (List.mem_cons_of_mem e hx))
-    exact ⟨.stepL ⟨hmem, rfl⟩ hmtr, by simp only [drainList, hmap, List.map_cons]⟩
+      le_trans (by simpa using Multiset.erase_le_erase e hcons) (Multiset.le_add_right _ _)
+    obtain ⟨hmtr, hmap⟩ := ih (π.doDeliver e s) hle' fun x hx =>
+      hdest x (List.mem_cons_of_mem e hx)
+    exact ⟨.stepL ⟨Multiset.mem_of_le hle (by simp), rfl⟩ hmtr,
+      by simp only [drainList, hmap, List.map_cons]⟩
 
 private noncomputable def drainPhase (F : Finset P) (s : State P S M V) :
     List (Action P M V) × State P S M V :=
@@ -1001,26 +985,22 @@ private lemma drainPhase_spec (F : Finset P) (s : State P S M V) :
   dsimp only [drainPhase]
   set pending := s.msgs.filter (fun e => e.dest ∉ F)
   by_cases h0 : pending = 0
-  · simp only [h0, ↓reduceIte, List.length_singleton, zero_lt_one, true_and]
-    refine ⟨LTS.MTr.single π.lts (show π.lts.Tr s Action.stutter s from rfl), ?_, ?_⟩
-    · simp only [List.mem_singleton, forall_eq]; trivial
-    · intro e he hdest
-      have hmem : e ∈ pending := Multiset.mem_filter.mpr ⟨he, hdest⟩
-      simp [h0] at hmem
+  · simp only [h0, ↓reduceIte, List.length_singleton, zero_lt_one, true_and,
+      List.mem_singleton, forall_eq]
+    exact ⟨LTS.MTr.single π.lts (show π.lts.Tr s Action.stutter s from rfl), trivial,
+      fun e he hdest => absurd (show e ∈ pending from Multiset.mem_filter.mpr ⟨he, hdest⟩)
+        (by simp [h0])⟩
   · simp only [h0, ↓reduceIte]
-    have hle : Multiset.ofList pending.toList ≤ s.msgs := by
-      rw [Multiset.coe_toList]; exact Multiset.filter_le _ _
     have hdest : ∀ e ∈ pending.toList, e.dest ∉ F := fun e he =>
       (Multiset.mem_filter.mp (Multiset.mem_toList.mp he)).2
-    obtain ⟨hmtr, hmap⟩ := π.drainList_spec s pending.toList hle hdest
-    refine ⟨hmtr, ?_, ?_, ?_⟩
-    · rw [hmap, List.length_map]
-      obtain ⟨e, he⟩ := Multiset.exists_mem_of_ne_zero h0
-      exact List.length_pos_of_mem (Multiset.mem_toList.mpr he)
-    · rw [hmap, List.forall_mem_map]; exact hdest
-    · intro e he hed
-      rw [hmap, List.mem_map]
-      exact ⟨e, Multiset.mem_toList.mpr (Multiset.mem_filter.mpr ⟨he, hed⟩), rfl⟩
+    obtain ⟨hmtr, hmap⟩ := π.drainList_spec s pending.toList
+      (by simpa only [Multiset.coe_toList] using Multiset.filter_le _ _) hdest
+    obtain ⟨e, he⟩ := Multiset.exists_mem_of_ne_zero h0
+    refine ⟨hmtr, ?_, ?_, fun d hd hed => ?_⟩
+    · simpa only [hmap, List.length_map] using List.length_pos_of_mem (Multiset.mem_toList.mpr he)
+    · simpa only [hmap, List.forall_mem_map, IsDrainAction] using hdest
+    · simp only [hmap, List.mem_map]
+      exact ⟨d, Multiset.mem_toList.mpr (Multiset.mem_filter.mpr ⟨hd, hed⟩), rfl⟩
 
 private noncomputable def drainSeq (F : Finset P) (s₀ : State P S M V) :
     ℕ → List (Action P M V) × State P S M V
@@ -1034,10 +1014,7 @@ theorem exists_fair_omegaExecution (F : Finset P) (s₀ : State P S M V) :
       ∀ k, IsDrainAction F (xs k) := by
   let ts : ωSequence (State P S M V) := ωSequence.mk fun k => (π.drainSeq F s₀ k).2
   let xls : ωSequence (List (Action P M V)) := (ωSequence.mk fun k => (π.drainSeq F s₀ k).1).tail
-  have hseg : ∀ k, π.lts.MTr (ts k) (xls k) (ts (k + 1)) ∧ 0 < (xls k).length ∧
-      (∀ a ∈ xls k, IsDrainAction F a) ∧
-      (∀ e ∈ (ts k).msgs, e.dest ∉ F → .deliver e ∈ xls k) := fun k => by
-    simpa [ts, xls, drainSeq] using π.drainPhase_spec F (π.drainSeq F s₀ k).2
+  have hseg (k : ℕ) := π.drainPhase_spec F (ts k)
   have hpos : ∀ k, 0 < (xls k).length := fun k => (hseg k).2.1
   have : Inhabited (Action P M V) := ⟨.stutter⟩
   obtain ⟨ss, hexec, hts⟩ := LTS.OmegaExecution.flatten_mTr (fun k => (hseg k).1) hpos
@@ -1046,14 +1023,11 @@ theorem exists_fair_omegaExecution (F : Finset P) (s₀ : State P S M V) :
   · intro e hdest k he
     by_contra! hnot
     have hk_le : k ≤ xls.cumLen k := (cumLen_strictMono hpos).id_le k
-    have hmem_cum : e ∈ (ts k).msgs := by
-      rw [← hts k]
-      exact π.omega_notDelivered_mem hexec he hnot (xls.cumLen k) hk_le
-    have hact : .deliver e ∈ xls k := (hseg k).2.2.2 e hmem_cum hdest
-    obtain ⟨i, hi, heq⟩ := List.getElem_of_mem hact
-    have hget : xls.flatten (xls.cumLen k + i) = .deliver e := by
-      rw [flatten_get_add xls hi hpos, heq]
-    exact hnot (xls.cumLen k + i) (hk_le.trans (Nat.le_add_right _ _)) hget
+    have hmem_cum : e ∈ (ts k).msgs :=
+      hts k ▸ π.omega_notDelivered_mem hexec he hnot (xls.cumLen k) hk_le
+    obtain ⟨i, hi, heq⟩ := List.getElem_of_mem ((hseg k).2.2.2 e hmem_cum hdest)
+    exact hnot (xls.cumLen k + i) (hk_le.trans (Nat.le_add_right _ _))
+      ((flatten_get_add xls hi hpos).trans heq)
   · rw [forall_flatten_iff hpos]
     exact fun k => List.forall_iff_forall_mem.mpr (hseg k).2.2.1
 
@@ -1072,17 +1046,16 @@ theorem Reachable.exists_admissibleRun [Fintype P] {π : Protocol P S M V}
     · by_cases hdel : .deliver e ∈ (xl ++ω xs').extract k xl.length
       · obtain ⟨i, hi, hget⟩ := List.getElem_of_mem hdel
         have hi' : i < xl.length - k := by simpa [ωSequence.length_extract] using hi
-        refine ⟨k + i, Nat.le_add_right k i, ?_⟩
-        rw [← (xl ++ω xs').get_extract hi', hget]
-      · have he_end : e ∈ (ss xl.length).msgs :=
-          π.mTr_notDelivered_mem (hω.extract_mTr hkl) he hdel
-        obtain ⟨j, _, hj⟩ := hfair e hdest 0 (by rw [← hdrop, get_drop, add_zero]; exact he_end)
-        refine ⟨xl.length + j, hkl.trans (Nat.le_add_right _ _), ?_⟩
-        simpa [get_append_right] using hj
-    · obtain ⟨j, _, hj⟩ := hfair e hdest (k - xl.length)
+        exact ⟨k + i, Nat.le_add_right k i, ((xl ++ω xs').get_extract hi').symm.trans hget⟩
+      · have he_end : e ∈ (ss' 0).msgs := by
+          simpa only [← hdrop, get_drop, add_zero] using
+            π.mTr_notDelivered_mem (hω.extract_mTr hkl) he hdel
+        obtain ⟨j, hj0, hj⟩ := hfair e hdest 0 he_end
+        exact ⟨xl.length + j, hkl.trans (Nat.le_add_right _ _),
+          (get_append_right j xl xs').trans hj⟩
+    · obtain ⟨j, hj0, hj⟩ := hfair e hdest (k - xl.length)
         (by simpa [← hdrop, get_drop, Nat.add_sub_cancel' (Nat.le_of_not_le hkl)] using he)
-      refine ⟨xl.length + j, by omega, ?_⟩
-      simpa [get_append_right] using hj
+      exact ⟨xl.length + j, by omega, (get_append_right j xl xs').trans hj⟩
   · obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hle
     simpa [get_append_right] using hdrain d
 
@@ -1124,12 +1097,9 @@ theorem linearizable_iff_admissible [Fintype P] (v₀ : V) (t : ℕ) :
     (∀ (F : Finset P), F.card ≤ t →
       ∀ (ss : ωSequence (State P S M V)) (xs : ωSequence (Action P M V)),
       π.AdmissibleRun F ss xs → ∀ k, Linearizable v₀ (ss k).history) := by
-  constructor
-  · intro h F _ ss xs ha k
-    exact h (ss k) (π.admissibleRun_reachable ha k)
-  · intro h s hr
-    obtain ⟨ss, xs, k, ha, hsk, _⟩ := hr.exists_admissibleRun ∅
-    exact hsk ▸ h ∅ (Nat.zero_le t) ss xs ha k
+  refine ⟨fun h F _ ss xs ha k => h (ss k) (π.admissibleRun_reachable ha k), fun h s hr => ?_⟩
+  obtain ⟨ss, xs, k, ha, rfl, _⟩ := hr.exists_admissibleRun ∅
+  exact h ∅ (Nat.zero_le t) ss xs ha k
 
 end Protocol
 
@@ -1180,23 +1150,17 @@ private lemma localInv_snoc {P V : Type*} {s : State P V PUnit V}
     (∀ (i j : ℕ) (hij : i < j) (hj : j < hist'.length),
       (hist'[i]'(hij.trans hj)).invStep < hist'[j].invStep) := by
   intro hist'
-  refine ⟨?_, ?_⟩
-  · intro i hi
-    have hi_len : i < s.history.length + 1 := by simpa [hist'] using hi
-    by_cases hlt : i < s.history.length
+  refine ⟨fun i hi => ?_, fun i j hij hj => ?_⟩
+  · by_cases hlt : i < s.history.length
     · simp only [hist', List.getElem_append_left hlt]
-      obtain ⟨hc, hr, hs⟩ := hcomp i hlt
-      exact ⟨hc, hr, Nat.lt_succ_of_lt hs⟩
-    · obtain rfl : i = s.history.length := by omega
+      exact ⟨(hcomp i hlt).1, (hcomp i hlt).2.1, Nat.lt_succ_of_lt (hcomp i hlt).2.2⟩
+    · obtain rfl : i = s.history.length := by simp [hist'] at hi; omega
       simp only [hist', List.getElem_append_right le_rfl, Nat.sub_self, List.getElem_singleton]
       exact ⟨hrec_comp, hrec_resp.trans (congrArg some hrec_inv.symm), by omega⟩
-  · intro i j hij hj
-    have hj_len : j < s.history.length + 1 := by simpa [hist'] using hj
-    by_cases hjl : j < s.history.length
-    · have hil : i < s.history.length := hij.trans hjl
-      simp only [hist', List.getElem_append_left hil, List.getElem_append_left hjl]
+  · by_cases hjl : j < s.history.length
+    · simp only [hist', List.getElem_append_left (hij.trans hjl), List.getElem_append_left hjl]
       exact hmono i j hij hjl
-    · obtain rfl : j = s.history.length := by omega
+    · obtain rfl : j = s.history.length := by simp [hist'] at hj; omega
       simp only [hist', List.getElem_append_left hij, List.getElem_append_right le_rfl,
         Nat.sub_self, List.getElem_singleton, hrec_inv]
       exact (hcomp i hij).2.2
@@ -1207,19 +1171,14 @@ private lemma localInv_tr {P V : Type*} [Fintype P] [DecidableEq P]
   have hsub : Subsingleton P := Fintype.card_le_one_iff_subsingleton.mp hcard
   intro s a s' htr ⟨hpend, hcomp, hmono, hvalid, hstate⟩
   cases a with
-  | stutter =>
-    obtain rfl := htr
-    exact ⟨hpend, hcomp, hmono, hvalid, hstate⟩
+  | stutter => exact htr ▸ ⟨hpend, hcomp, hmono, hvalid, hstate⟩
   | deliver e =>
     obtain ⟨_, rfl⟩ := htr
     rw [(localRegisterProtocol P V v₀).doDeliver_of_resp_eq_none rfl]
-    have hproc_eq : Function.update s.proc e.dest
-        ⟨(s.proc e.dest).state, (s.proc e.dest).pending⟩ = s.proc :=
-      Function.update_eq_self e.dest s.proc
-    refine ⟨fun p => hproc_eq.symm ▸ hpend p, fun i hi => ?_, hmono, hvalid,
-      fun p => hproc_eq.symm ▸ hstate p⟩
-    obtain ⟨hc, hr, hlt⟩ := hcomp i hi
-    exact ⟨hc, hr, Nat.lt_succ_of_lt hlt⟩
+    have hproc_eq := Function.update_eq_self e.dest s.proc
+    exact ⟨fun p => hproc_eq.symm ▸ hpend p,
+      fun i hi => ⟨(hcomp i hi).1, (hcomp i hi).2.1, Nat.lt_succ_of_lt (hcomp i hi).2.2⟩,
+      hmono, hvalid, fun p => hproc_eq.symm ▸ hstate p⟩
   | invoke caller kind =>
     obtain ⟨_, rfl⟩ := htr
     let nextVal : V := match kind with
@@ -1239,8 +1198,7 @@ private lemma localInv_tr {P V : Type*} [Fintype P] [DecidableEq P]
         registerValAfter v₀ s.history (List.range s.history.length) :=
       registerValAfter_append_hist v₀ s.history [rec'] fun _ hx => List.mem_range.mp hx
     refine ⟨?_, ?_, ?_, ?_, ?_⟩
-    · intro p
-      rw [hproc, Subsingleton.elim p caller, Function.update_self]
+    · exact fun p => by rw [hproc, Subsingleton.elim p caller, Function.update_self]
     · change ∀ (i : ℕ)
           (hi : i < ((localRegisterProtocol P V v₀).doInvoke caller kind s).history.length),
         _ ∧ _ ∧ _ < s.step + 1
@@ -1273,15 +1231,12 @@ theorem implementsAtomicRegister_local_of_card_le_one {P V : Type*} [Fintype P] 
     · intro i hi j hj ⟨hi_lt, hj_lt, r, hr_step, hlt⟩
       have hidx {k : ℕ} (hk : k < s.history.length) :
           (List.range s.history.length).idxOf k = k := by
-        have hlen : k < (List.range s.history.length).length := by simpa using hk
-        simpa [List.getElem_range hlen] using List.Nodup.idxOf_getElem List.nodup_range k hlen
+        simpa using List.Nodup.idxOf_getElem List.nodup_range k (hk.trans_eq List.length_range.symm)
       rw [hidx hi_lt, hidx hj_lt]
       obtain ⟨_, hr', _⟩ := hcomp i hi_lt
       cases hr'.symm.trans hr_step
       rcases lt_trichotomy i j with hij | rfl | hji
-      · exact hij
-      · exact False.elim (Nat.lt_irrefl _ hlt)
-      · exact False.elim (Nat.lt_asymm hlt (hmono j i hji hi_lt))
+      exacts [hij, (Nat.lt_irrefl _ hlt).elim, (Nat.lt_asymm hlt (hmono j i hji hi_lt)).elim]
   terminates _ _ ss xs ha k i hi _ := by
     obtain ⟨xl, hxl⟩ := (localRegisterProtocol P V v₀).admissibleRun_reachable ha k
     have hinv := LTS.mtrInv_of_trInv (localInv_tr hcard v₀) _ _ _ hxl (localInv_start v₀)

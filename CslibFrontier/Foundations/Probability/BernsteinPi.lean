@@ -160,42 +160,40 @@ theorem measure_sum_ge_le_bernstein_pi {b ε : ℝ} {s2 : ι → ℝ} (hb : 0 �
       exp (-ε ^ 2 / (2 * ((∑ i, s2 i) + b * ε / 3))) := by
   rcases eq_or_lt_of_le hε with rfl | hε_pos
   · simp
-  · rcases isEmpty_or_nonempty ι with hι | hι
-    · have hempty : {v : ∀ i, α i | ε ≤ ∑ i, Y i v} = ∅ := by
-        ext v
-        simpa using hε_pos
-      rw [hempty, measureReal_empty]
+  · by_cases hne : Nonempty ι ∧ 0 < b
+    · obtain ⟨_, hb_pos⟩ := hne
+      set V := ∑ i, s2 i
+      have hV_nn : 0 ≤ V := Finset.sum_nonneg fun i _ => hσ i
+      rcases eq_or_lt_of_le hV_nn with hV_zero | hV_pos
+      · have hcard_pos : (0 : ℝ) < Fintype.card ι := Nat.cast_pos.mpr Fintype.card_pos
+        have hfor_eta (η : ℝ) (hη : 0 < η) : (Measure.pi μ).real {v | ε ≤ ∑ i, Y i v} ≤
+            exp (-ε ^ 2 / (2 * (η + b * ε / 3))) := by
+          have hsum_σ' : ∑ _ : ι, η / Fintype.card ι = η := by
+            simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+            field_simp [hcard_pos.ne']
+          have hben := measure_sum_ge_le_bennett_pi hb_pos (hsum_σ'.symm ▸ hη) hε
+            hY hadapted hint1 hint2 hmean hupper fun i v => (hvar i v).trans
+              ((Finset.single_le_sum (fun k _ => hσ k) (Finset.mem_univ i)).trans
+                (hV_zero.symm.le.trans (by positivity)))
+          rw [hsum_σ'] at hben
+          exact hben.trans (Cslib.Probability.exp_neg_klFun_le_exp_bernstein hb_pos hη hε)
+        have hden0 : (2 : ℝ) * (0 + b * ε / 3) ≠ 0 := by positivity
+        have hcont : ContinuousAt (fun η : ℝ => exp (-ε ^ 2 / (2 * (η + b * ε / 3)))) 0 := by
+          fun_prop (disch := exact hden0)
+        rw [← hV_zero]
+        exact ge_of_tendsto (hcont.tendsto.mono_left (nhdsWithin_le_nhds (s := Set.Ioi 0)))
+          (Filter.eventually_of_mem self_mem_nhdsWithin hfor_eta)
+      · exact (measure_sum_ge_le_bennett_pi hb_pos hV_pos hε hY hadapted hint1 hint2 hmean
+          hupper hvar).trans
+          (Cslib.Probability.exp_neg_klFun_le_exp_bernstein hb_pos hV_pos hε)
+    · have hle0 (v : ∀ i, α i) : ∑ i, Y i v ≤ 0 := by
+        rcases not_and_or.mp hne with h | h
+        · simp [not_nonempty_iff.mp h]
+        · obtain rfl := (le_of_not_gt h).antisymm hb
+          exact Finset.sum_nonpos fun i _ => hupper i v
+      rw [Set.eq_empty_of_forall_notMem (s := {v | ε ≤ ∑ i, Y i v}) fun v hv =>
+        (hle0 v).not_gt (hε_pos.trans_le hv), measureReal_empty]
       exact (exp_pos _).le
-    · rcases eq_or_lt_of_le hb with rfl | hb_pos
-      · have hempty : {v : ∀ i, α i | ε ≤ ∑ i, Y i v} = ∅ := by
-          ext v
-          simpa using (Finset.sum_nonpos fun i _ => hupper i v).trans_lt hε_pos
-        rw [hempty, measureReal_empty]
-        exact (exp_pos _).le
-      · set V := ∑ i, s2 i
-        have hV_nn : 0 ≤ V := Finset.sum_nonneg fun i _ => hσ i
-        rcases eq_or_lt_of_le hV_nn with hV_zero | hV_pos
-        · have hcard_pos : (0 : ℝ) < Fintype.card ι := Nat.cast_pos.mpr Fintype.card_pos
-          have hfor_eta (η : ℝ) (hη : 0 < η) : (Measure.pi μ).real {v | ε ≤ ∑ i, Y i v} ≤
-              exp (-ε ^ 2 / (2 * (η + b * ε / 3))) := by
-            have hsum_σ' : ∑ _ : ι, η / Fintype.card ι = η := by
-              simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
-              field_simp [hcard_pos.ne']
-            have hben := measure_sum_ge_le_bennett_pi hb_pos (by rw [hsum_σ']; exact hη) hε
-              hY hadapted hint1 hint2 hmean hupper fun i v => (hvar i v).trans
-                ((Finset.single_le_sum (fun k _ => hσ k) (Finset.mem_univ i)).trans
-                  (hV_zero.symm.le.trans (by positivity)))
-            rw [hsum_σ'] at hben
-            exact hben.trans (Cslib.Probability.exp_neg_klFun_le_exp_bernstein hb_pos hη hε)
-          have hden0 : (2 : ℝ) * (0 + b * ε / 3) ≠ 0 := by positivity
-          have hcont : ContinuousAt (fun η : ℝ => exp (-ε ^ 2 / (2 * (η + b * ε / 3)))) 0 := by
-            fun_prop (disch := exact hden0)
-          rw [← hV_zero]
-          exact ge_of_tendsto (hcont.tendsto.mono_left (nhdsWithin_le_nhds (s := Set.Ioi 0)))
-            (Filter.eventually_of_mem self_mem_nhdsWithin hfor_eta)
-        · exact (measure_sum_ge_le_bennett_pi hb_pos hV_pos hε hY hadapted hint1 hint2 hmean
-            hupper hvar).trans
-            (Cslib.Probability.exp_neg_klFun_le_exp_bernstein hb_pos hV_pos hε)
 
 /-- **Confidence-`δ` product-filtration Bernstein bound**: under the hypotheses of
 `measure_sum_ge_le_bernstein_pi`, for every `δ ∈ (0, 1]`,
@@ -230,10 +228,8 @@ theorem measure_sum_gt_sqrt_add_le_pi {b δ : ℝ} {s2 : ι → ℝ} (hb : 0 ≤
     · push Not at hvb
       have hε0 : √(2 * V * L) + 2 * b * L / 3 = 0 := by
         simp [le_antisymm hvb.1 hV_nn, le_antisymm hvb.2 hb]
-      have hempty : {v : ∀ i, α i | 0 < ∑ i, Y i v} = ∅ := by
-        ext v
-        simpa using Finset.sum_nonpos fun i _ => (hupper i v).trans hvb.2
-      rw [hε0, hempty, measureReal_empty]
+      rw [hε0, Set.eq_empty_of_forall_notMem (s := {v | 0 < ∑ i, Y i v}) fun v hv =>
+        (Finset.sum_nonpos fun i _ => (hupper i v).trans hvb.2).not_gt hv, measureReal_empty]
       exact hδ.le
 
 end ProbabilityTheory

@@ -92,17 +92,10 @@ private theorem swapVerifier_apply {L P q : ℕ} (g' : List (AMMove × ℕ)) (k 
       majority g' k (fun u => V (s ++ (List.ofFn y ++ u))) (List.ofFn R ++ t) := by
   have e2 : ((s ++ (List.ofFn R ++ (List.ofFn y ++ t))).drop (L + P)).take q = List.ofFn y := by
     rw [← List.append_assoc, List.drop_left' (by simp [hs]), List.take_left' List.length_ofFn]
-  have e3 : ((s ++ (List.ofFn R ++ (List.ofFn y ++ t))).drop L).take P = List.ofFn R := by
-    rw [List.drop_left' hs, List.take_left' List.length_ofFn]
   have e4 : (s ++ (List.ofFn R ++ (List.ofFn y ++ t))).drop (L + P + q) = t := by
     rw [← List.append_assoc, ← List.append_assoc, List.drop_left' (by simp [hs]; omega)]
-  rw [swapVerifier, List.take_left' hs, e2, e3, e4]
-
-private theorem value_repeatShape_cons_arthur (b : Bool) (k p : ℕ) (τ : List (AMMove × ℕ))
-    (f : List Bool → ℚ) :
-    value b (repeatShape k ((.arthur, p) :: τ)) f =
-      (∑ R : Fin (k * p) → Bool, value b (repeatShape k τ) fun t => f (List.ofFn R ++ t)) /
-        2 ^ (k * p) := rfl
+  rw [swapVerifier, List.take_left' hs, e2, List.drop_left' hs, List.take_left' List.length_ofFn,
+    e4]
 
 /-- The pointwise upper bound behind the swap: the union bound over Merlin's message. -/
 private theorem swap_pointwise_le (τ : List (AMMove × ℕ)) (q p k : ℕ)
@@ -135,12 +128,10 @@ private theorem swap_pointwise_le (τ : List (AMMove × ℕ)) (q p k : ℕ)
         _ = _ := by simp
     exact this.trans (by linarith)
   · push Not at hc
-    have hF (y : Fin q → Bool) : (∑ R, H R y) / 2 ^ (2 * k * p) ≤ (8 / 9) ^ k / 2 := by
-      have := value_majority_le ((.arthur, p) :: τ) k (W y) (by
-        have := le_sup' (fun y : Fin q → Bool =>
-          value true ((.arthur, p) :: τ) fun u => ((W y u).toNat : ℚ)) (mem_univ y)
-        linarith)
-      rwa [value_repeatShape_cons_arthur] at this
+    have hF (y : Fin q → Bool) : (∑ R, H R y) / 2 ^ (2 * k * p) ≤ (8 / 9) ^ k / 2 :=
+      value_majority_le ((.arthur, p) :: τ) k (W y) (by
+        linarith [le_sup' (fun y : Fin q → Bool =>
+          value true ((.arthur, p) :: τ) fun u => ((W y u).toNat : ℚ)) (mem_univ y)])
     calc (∑ R, univ.sup' univ_nonempty (H R)) / 2 ^ (2 * k * p)
         ≤ (∑ R, ∑ y, H R y) / 2 ^ (2 * k * p) := by
           gcongr with R
@@ -175,13 +166,10 @@ private theorem swap_pointwise_ge (τ : List (AMMove × ℕ)) (q p k : ℕ)
     value_le_one _ _ fun t => by cases W y₀ t <;> norm_num
   have hpow : (0 : ℚ) ≤ (8 / 9) ^ k := by positivity
   by_cases hc : 2 ≤ 3 * value true ((.arthur, p) :: τ) (fun u => ((W y₀ u).toNat : ℚ))
-  · have hF := value_majority_ge ((.arthur, p) :: τ) k (W y₀) hc
-    rw [value_repeatShape_cons_arthur] at hF
-    have : (∑ R, H R y₀) / 2 ^ (2 * k * p) ≤
-        (∑ R, univ.sup' univ_nonempty (H R)) / 2 ^ (2 * k * p) := by
-      gcongr with R
-      exact le_sup' (H R) (mem_univ y₀)
-    linarith
+  · have hF : _ ≤ (∑ R, H R y₀) / 2 ^ (2 * k * p) :=
+      value_majority_ge ((.arthur, p) :: τ) k (W y₀) hc
+    linarith [div_le_div_of_nonneg_right
+      (sum_le_sum (s := univ) fun R _ => le_sup' (s := univ) (f := H R) (mem_univ y₀)) hP.le]
   · linarith [not_le.mp hc]
 
 /-- **The swap, upper bound.** -/
@@ -247,7 +235,6 @@ private theorem swap_game_bounds (σ τ : List (AMMove × ℕ)) (q p k : ℕ)
   rw [hrep] at hle hge
   have hε : (2 : ℚ) ^ (2 * 24 * q) * ((8 / 9) ^ k / 2) ≤ 1 / 32 := by
     rw [hk]; exact two_pow_mul_eight_ninths_le _
-  have hε0 : (0 : ℚ) ≤ (8 / 9) ^ k := by positivity
   have hε1 : (8 / 9 : ℚ) ^ k ≤ 1 / 16 := by
     rw [hk]
     calc _ ≤ (1 / 2 : ℚ) ^ (2 * 24 * q + 4) := eight_ninths_pow_le _
@@ -265,10 +252,8 @@ theorem AMGameClass_swap {enc : α ↪ List Bool} (σ τ : List AMMove) :
       AMGameClass enc (σ ++ .arthur :: .merlin :: τ) := by
   rintro A ⟨G, V, hG, hV, hA⟩
   obtain ⟨Gσ, G', rfl, hσ, h'⟩ := List.map_eq_append_iff.1 hG
-  obtain ⟨⟨x₁, qM⟩, G'', rfl, hx₁, h''⟩ := List.map_eq_cons_iff.1 h'
-  obtain ⟨⟨x₂, pA⟩, Gτ, rfl, hx₂, hτ⟩ := List.map_eq_cons_iff.1 h''
-  dsimp only at hx₁ hx₂
-  subst hx₁ hx₂
+  obtain ⟨⟨_, qM⟩, G'', rfl, rfl, h''⟩ := List.map_eq_cons_iff.1 h'
+  obtain ⟨⟨_, pA⟩, Gτ, rfl, rfl, hτ⟩ := List.map_eq_cons_iff.1 h''
   rw [isAMGameVerifier_iff_value] at hA
   set M₀ : Polynomial ℕ := Polynomial.C 48 with hM₀def
   set V₁ := amplifiedVerifier enc (Gσ ++ (.merlin, qM) :: (.arthur, pA) :: Gτ) 24 V with hV₁def
@@ -287,8 +272,6 @@ theorem AMGameClass_swap {enc : α ↪ List Bool} (σ τ : List AMMove) :
     have hev (P : Polynomial ℕ) : ComputableInPolyTime
         (fun x : α × List Bool => P.eval (enc x.1).length) (encPair enc encBits) encUnary :=
       (ComputableInPolyTime.unary_eval P).comp hlen
-    have hV₁ : ComputableInPolyTime V₁ (encPair enc encBits) encBool :=
-      computableInPolyTime_amplifiedVerifier _ _ hV
     have hx2 : ComputableInPolyTime (fun x : α × List Bool => x.2) (encPair enc encBits)
         encBits := .snd _ _
     have hL := hev (transcriptLengthPoly (repeatShapePoly M₀ Gσ))
@@ -305,7 +288,8 @@ theorem AMGameClass_swap {enc : α ↪ List Bool} (σ τ : List AMMove) :
         (encPair (encPair enc encBits) encBits) encBool := by
       have hf : ComputableInPolyTime (fun p : (α × List Bool) × List Bool => p.1)
           (encPair (encPair enc encBits) encBits) (encPair enc encBits) := .fst _ _
-      refine hV₁.comp (((ComputableInPolyTime.fst _ _).comp hf).prod ?_)
+      refine (computableInPolyTime_amplifiedVerifier _ _ hV).comp
+        (((ComputableInPolyTime.fst _ _).comp hf).prod ?_)
       exact .bitsAppend (.bitsTakeWithInput (hx2.comp hf) (hL.comp hf))
         (.bitsAppend (.bitsTakeWithInput (.bitsDropWithInput (hx2.comp hf) (hLP.comp hf))
           (hq.comp hf)) (.snd _ _))
@@ -317,32 +301,11 @@ theorem AMGameClass_swap {enc : α ↪ List Bool} (σ τ : List AMMove) :
     have hM : M₀.eval (enc a).length = 48 := Polynomial.eval_C
     have hK : K.eval (enc a).length = 6 * (2 * 24 * qM.eval (enc a).length + 4) := by
       simp only [hKdef, Polynomial.eval_mul, Polynomial.eval_add, Polynomial.eval_ofNat, hM]
-    have h3 : evalShape (repeatShapePoly M₀ Gσ ++ (.arthur, 2 * K * (M₀ * pA)) ::
-        (.merlin, M₀ * qM) ::
-        repeatShapePoly (2 * K) (repeatShapePoly M₀ Gτ)) (enc a).length =
-        repeatShape (2 * 24) (evalShape Gσ (enc a).length) ++
-          (.arthur, 2 * K.eval (enc a).length * (2 * 24 * pA.eval (enc a).length)) ::
-          (.merlin, 2 * 24 * qM.eval (enc a).length) ::
-          repeatShape (2 * K.eval (enc a).length)
-            (repeatShape (2 * 24) (evalShape Gτ (enc a).length)) := by
-      simp only [evalShape_append, evalShape_cons, evalShape_repeatShapePoly, Polynomial.eval_mul,
-        Polynomial.eval_ofNat, hM]
-    have hV₃ (t : List Bool) : V₃ (a, t) =
-        swapVerifier (transcriptLength (repeatShape (2 * 24) (evalShape Gσ (enc a).length)))
-          (2 * K.eval (enc a).length * (2 * 24 * pA.eval (enc a).length))
-          (2 * 24 * qM.eval (enc a).length)
-          ((.arthur, 2 * 24 * pA.eval (enc a).length) ::
-            repeatShape (2 * 24) (evalShape Gτ (enc a).length)) (K.eval (enc a).length)
-          (majority (evalShape Gσ (enc a).length ++ (.merlin, qM.eval (enc a).length) ::
-            (.arthur, pA.eval (enc a).length) :: evalShape Gτ (enc a).length) 24
-            fun t => V (a, t)) t := by
-      simp only [hV₃def, hV₁def, amplifiedVerifier, ← transcriptLength_evalShape,
-        evalShape_repeatShapePoly,
-        evalShape_append, evalShape_cons, evalShape_repeatShapePoly, Polynomial.eval_mul,
-        Polynomial.eval_ofNat, hM]
     have hA' := hA a
     rw [evalShape_append, evalShape_cons, evalShape_cons] at hA'
-    simp only [h3, hV₃]
+    simp only [hV₃def, hV₁def, amplifiedVerifier, ← transcriptLength_evalShape,
+      evalShape_append, evalShape_cons, evalShape_repeatShapePoly, Polynomial.eval_mul,
+      Polynomial.eval_ofNat, hM]
     exact swap_game_bounds _ _ _ _ _ hK _ _ hA'.1 hA'.2
 
 private theorem AMGameClass_arthur_merlin_append_subset {enc : α ↪ List Bool} (τ : List AMMove) :

@@ -74,13 +74,10 @@ private theorem portLoop_contact_forward {a b : ℝ} (hab : a ≠ b)
   · left; linarith [hs.2, ht.1, hta]
   · exfalso; linarith [hs.2, abs_nonneg (a - b)]
   · have hs1 : s = 1 := by linarith [hs.2, ht.2, ht'a]
-    exfalso
-    apply hab
-    simpa only [hs1, one_mul] using hx
+    exact absurd (by simpa only [hs1, one_mul] using hx) hab
   · rw [← hy] at hx
     have hs0 := hfactor s (by linear_combination hx)
-    right
-    constructor <;> linarith
+    exact Or.inr ⟨by linarith, by linarith⟩
   · have hst := hheight (s - t) (by linear_combination hy)
     left; linarith
   · have ht0 := hfactor t (by linear_combination hx)
@@ -88,9 +85,7 @@ private theorem portLoop_contact_forward {a b : ℝ} (hab : a ≠ b)
     left; linarith
   · exact False.elim (hab hx)
   · have ht0 : t = 0 := by linarith [hs.1, ht.1, hsa]
-    exfalso
-    apply hab
-    simpa only [ht0, sub_zero, one_mul] using hx
+    exact absurd (by simpa only [ht0, sub_zero, one_mul] using hx) hab
   · have hst := hfactor (s - t) (by linear_combination -hx)
     left; linarith
   · have hs1 := hfactor (s - 1) (by linear_combination -hx)
@@ -123,8 +118,7 @@ theorem eval_portLoop_cases (a b : ℝ) (i : Fin 5) {t : ℝ} (ht : t ∈ Set.Ic
   have ht'a := mul_nonneg (sub_nonneg.mpr ht.2) (abs_nonneg (a - b))
   fin_cases i <;> dsimp
   · exact Or.inl ⟨ht, Or.inl rfl⟩
-  · right
-    refine ⟨by linarith [ht.1, hta], min_le_left _ _, le_max_left _ _,
+  · exact Or.inr ⟨by linarith [ht.1, hta], min_le_left _ _, le_max_left _ _,
       by linarith [ht.2, ht'a], Or.inl rfl⟩
   · right
     refine ⟨by linarith [abs_nonneg (a - b)], ?_, ?_, le_rfl, Or.inr (Or.inr rfl)⟩
@@ -132,11 +126,9 @@ theorem eval_portLoop_cases (a b : ℝ) (i : Fin 5) {t : ℝ} (ht : t ∈ Set.Ic
         mul_nonneg (sub_nonneg.mpr ht.2) (sub_nonneg.mpr (min_le_left a b))]
     · linarith [mul_nonneg ht.1 (sub_nonneg.mpr (le_max_right a b)),
         mul_nonneg (sub_nonneg.mpr ht.2) (sub_nonneg.mpr (le_max_left a b))]
-  · right
-    refine ⟨by linarith [ht.2, ht'a], min_le_right _ _, le_max_right _ _,
+  · exact Or.inr ⟨by linarith [ht.2, ht'a], min_le_right _ _, le_max_right _ _,
       by linarith [ht.1, hta], Or.inr (Or.inl rfl)⟩
-  · left
-    exact ⟨⟨by linarith [ht.2], by linarith [ht.1]⟩, Or.inr rfl⟩
+  · exact Or.inl ⟨⟨sub_nonneg.mpr ht.2, sub_le_self 1 ht.1⟩, Or.inr rfl⟩
 
 private theorem radial_contact {a b : ℝ} (hab : a ≠ b) {z : ℂ}
     (ha : z.re = z.im * a) (hb : z.re = z.im * b) : z = 0 := by
@@ -167,11 +159,9 @@ private theorem upper_nested_ne {a b c d : ℝ} {z : ℂ}
       abs_sub_comm a b, ← max_sub_min_eq_abs a b]
     linarith
   rcases le_total a b with hab | hab
-  · rw [min_eq_left hab] at hl
-    rw [max_eq_right hab] at hu
+  · simp only [min_eq_left hab, max_eq_right hab] at hl hu
     rcases hz.2.2.2.2 with ha | hb | hy <;> linarith [hw.2.1, hw.2.2.1, hw.2.2.2.1]
-  · rw [min_eq_right hab] at hl
-    rw [max_eq_left hab] at hu
+  · simp only [min_eq_right hab, max_eq_left hab] at hl hu
     rcases hz.2.2.2.2 with ha | hb | hy <;> linarith [hw.2.1, hw.2.2.1, hw.2.2.2.1]
 
 /-- Disjoint or strictly nested port intervals give loops meeting only at the origin.

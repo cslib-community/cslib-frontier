@@ -102,9 +102,8 @@ private theorem exists_polynomial_POVM_of_decoding {n d : ℕ}
     ((C.bob q).map fun a => MvPolynomial.eval u (f a).val).effect b)).re) = _
   simp only [hread, mul_sum, map_sum, Complex.re_sum]
   rw [← sum_fiberwise univ (fun g : BoundedPolynomial F (n + 1) d => MvPolynomial.eval u g.val)]
-  refine sum_congr rfl fun b _ => sum_congr rfl fun g hg => ?_
-  rw [(mem_filter.mp hg).2]
-  exact congrArg (fun x => (C.state x).re)
+  refine sum_congr rfl fun b _ => sum_congr rfl fun g hg => (mem_filter.mp hg).2 ▸ congrArg
+    (fun x => (C.state x).re)
     (Measurement.commute_map_map _ _ (C.commute (.point u) q) decodePoint (some ∘ f) _ _).eq
 
 /-- On the one-coordinate test, Bob's line measurement yields a local polynomial POVM
@@ -129,10 +128,7 @@ theorem exists_one_coordinate_polynomial_POVM
   have hscore := acceptScore_one_le_pointAgreement C d u
   simp only [← two_mul, mul_div_cancel_left₀ _ (by norm_num : (2 : ℝ) ≠ 0)]
   rw [Measurement.map_map] at hscore
-  change acceptScore C d (.point u) (.axis univ) ≤
-    Measurement.agreement C.state (decodedPoint C.alice u)
-      ((C.bob (.axis univ)).map fun a => MvPolynomial.eval u (f a).val)
-  simpa only [f, hp, decodedPoint, Function.comp_def] using hscore
+  simpa only [C, f, hp, decodedPoint, Function.comp_def] using hscore
 
 section DegreeZero
 
@@ -156,26 +152,23 @@ private theorem degreeZero_pointVariance
   let W (i : Fin (n + 1)) (a : F) (u : Pt) : φ.toPositiveLinearMap.GNS := φ.toPreGNS (R i u a)
   have hd (x y : Joint) :
       ‖(φ.toPreGNS x : φ.toPositiveLinearMap.GNS) - φ.toPreGNS y‖ = φ.norm (x - y) := by
-    rw [← UniformSpace.Completion.coe_sub, UniformSpace.Completion.norm_coe, ← map_sub]
-    rfl
+    rw [← UniformSpace.Completion.coe_sub, UniformSpace.Completion.norm_coe, ← map_sub]; rfl
   have hglobal (a : F) :=
     Fintype.expect_expect_norm_sub_sq_le_sum_expect_expect_norm_sub_update_sq (V a)
   simp only [V, hd] at hglobal
   have hlocal (i : Fin (n + 1)) (a : F) :
       (𝔼 u : Pt, 𝔼 t : F, φ.norm (A u a - A (update u i t) a) ^ 2) ≤
         2 * (𝔼 u : Pt, φ.norm (A u a - R i u a) ^ 2) := by
-    have h := Fintype.expect_expect_norm_sub_update_sq_le_two i (V a) (W i a)
-      (fun u t => by simp only [W, R, decodedCoordinate_update])
-    have hs (u : Pt) (t : F) := φ.norm_sub_comm (A (update u i t) a) (A u a)
-    simpa only [V, W, hd, hs] using h
+    simpa only [V, W, hd, fun u t => φ.norm_sub_comm (A (update u i t) a) (A u a)] using
+      Fintype.expect_expect_norm_sub_update_sq_le_two i (V a) (W i a)
+        fun u t => by simp only [W, R, decodedCoordinate_update]
   have haxis :
       (𝔼 u : Pt, 𝔼 i : Fin (n + 1), ∑ a, φ.norm (A u a - R i u a) ^ 2) ≤
         4 * (1 - (branchGame (F := F) n 0 .axis).commutingWinProb C) :=
     (expect_le_expect fun u _ => expect_le_expect fun i _ => by
       dsimp only [φ, A, R]
-      have hval : (fun f : PolynomialFunction F 0 => f.value 0) = fun f => f.value (u i) :=
-        funext fun f => f.value_eq_of_degree_zero _ _
-      rw [hval]).trans (axisPointStateDist_le C 0)
+      rw [funext fun f : PolynomialFunction F 0 => f.value_eq_of_degree_zero 0 (u i)]).trans
+      (axisPointStateDist_le C 0)
   change (𝔼 u : Pt, 𝔼 v : Pt, ∑ a, φ.norm (A u a - A v a) ^ 2) ≤ _
   calc
     _ ≤ ∑ a, ∑ i : Fin (n + 1),
@@ -188,8 +181,7 @@ private theorem degreeZero_pointVariance
         (𝔼 u : Pt, 𝔼 i : Fin (n + 1), ∑ a, φ.norm (A u a - R i u a) ^ 2) := by
       simp only [← mul_sum, expect_sum_comm]
       rw [sum_comm]
-      simp only [← expect_sum_comm]
-      rw [mul_assoc]
+      simp only [← expect_sum_comm, mul_assoc]
       congr 1
       rw [mul_expect]
       exact expect_congr rfl fun u _ => by
@@ -216,10 +208,7 @@ theorem exists_degree_zero_polynomial_POVM
           (C.state ((QuantumStrategy.rightMeasurement (ι := ι) G).effect (some g) *
             (decodedPoint C.alice u).effect (MvPolynomial.eval u g.val))).re := by
   classical
-  dsimp only
-  let C := S.toCommuting
-  let ε := 1 - (branchGame (F := F) n 0 .axis).commutingWinProb C
-  let δ := 1 - (branchGame (F := F) n 0 .consistency).commutingWinProb C
+  intro C ε δ
   let P := decodedPoint C.alice
   let R := decodedPoint C.bob
   let dist (M N : Measurement F Joint) : ℝ := ∑ a, C.state.norm (M.effect a - N.effect a) ^ 2

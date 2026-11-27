@@ -63,9 +63,8 @@ private theorem exists_adj_endpoints {S : κ → Finset ι} {u v : ι ⊕ κ}
 theorem adj_inl_inr (S : κ → Finset ι) (i : ι) (j : κ) :
     (graph S).toSimpleGraph.Adj (.inl i) (.inr j) ↔ i ∈ S j :=
   ⟨fun h => by
-      rcases exists_adj_endpoints h with ⟨_, _, hij, ⟨h1, h2⟩ | ⟨h1, _⟩⟩
-      · cases h1; cases h2; exact hij
-      · exact (Sum.inl_ne_inr h1).elim,
+      rcases exists_adj_endpoints h with ⟨_, _, hij, ⟨⟨⟩, ⟨⟩⟩ | ⟨h1, _⟩⟩
+      exacts [hij, (Sum.inl_ne_inr h1).elim],
     fun hij => Multigraph.toSimpleGraph_adj.mpr ⟨Sum.inl_ne_inr, ⟨(i, j), hij⟩, rfl⟩⟩
 
 /-- Two input vertices are never adjacent in an incidence graph. -/
@@ -92,7 +91,7 @@ theorem card_edges [Fintype κ] (S : κ → Finset ι) :
       left_inv := fun p => by cases p; rfl
       right_inv := fun p => by cases p; rfl }
   rw [Nat.card_congr e, Nat.card_eq_fintype_card, Fintype.card_sigma]
-  simp
+  simp only [Fintype.card_coe]
 
 /-- Input-vertex degree is the number of supports containing that input. -/
 theorem ncard_incidence_inl [DecidableEq ι] [Fintype κ] (S : κ → Finset ι) (i : ι) :
@@ -152,10 +151,8 @@ theorem inputPrefix_zero (π : Layout (ι ⊕ κ)) : inputPrefix π 0 = ∅ := b
 
 /-- The full layout prefix contains every input. -/
 theorem inputPrefix_last (π : Layout (ι ⊕ κ)) :
-    inputPrefix π (Nat.card (ι ⊕ κ)) = univ := by
-  ext i
-  simp only [mem_inputPrefix, mem_univ, iff_true]
-  exact (π (.inl i)).isLt
+    inputPrefix π (Nat.card (ι ⊕ κ)) = univ :=
+  eq_univ_iff_forall.mpr fun i => (mem_inputPrefix π _ i).mpr (π (.inl i)).isLt
 
 /-- Input prefixes grow with the layout position. -/
 theorem inputPrefix_mono (π : Layout (ι ⊕ κ)) : Monotone (inputPrefix π) := by
@@ -167,21 +164,13 @@ theorem card_inputPrefix_succ_le (π : Layout (ι ⊕ κ)) (t : ℕ) :
     (inputPrefix π (t + 1)).card ≤ (inputPrefix π t).card + 1 := by
   classical
   let A := univ.filter fun i => (π (.inl i) : ℕ) = t
-  have hA : A.card ≤ 1 := by
-    apply card_le_one.mpr
-    intro i hi j hj
-    apply Sum.inl.inj
-    apply π.injective
-    apply Fin.ext
-    exact (mem_filter.mp hi).2.trans (mem_filter.mp hj).2.symm
-  have hsub : inputPrefix π (t + 1) ⊆ inputPrefix π t ∪ A := by
-    intro i hi
-    have hi' := (mem_inputPrefix π (t + 1) i).mp hi
-    by_cases hit : (π (.inl i) : ℕ) < t
-    · exact mem_union_left _ ((mem_inputPrefix π t i).mpr hit)
-    · exact mem_union_right _ (mem_filter.mpr ⟨mem_univ _, by omega⟩)
-  exact (card_le_card hsub).trans
-    ((card_union_le _ _).trans (Nat.add_le_add_left hA _))
+  have hA : A.card ≤ 1 := card_le_one.mpr fun _ hi _ hj => Sum.inl.inj <| π.injective <|
+    Fin.ext ((mem_filter.mp hi).2.trans (mem_filter.mp hj).2.symm)
+  have hsub : inputPrefix π (t + 1) ⊆ inputPrefix π t ∪ A := fun i hi => by
+    rcases Nat.lt_succ_iff_lt_or_eq.mp ((mem_inputPrefix π (t + 1) i).mp hi) with hit | hit
+    exacts [mem_union_left _ ((mem_inputPrefix π t i).mpr hit),
+      mem_union_right _ (mem_filter.mpr ⟨mem_univ _, hit⟩)]
+  exact (card_le_card hsub).trans ((card_union_le _ _).trans (Nat.add_le_add_left hA _))
 
 variable [DecidableEq ι] [Fintype κ]
 
@@ -205,10 +194,8 @@ theorem card_crossing_le_width (S : κ → Finset ι) (π : Layout (ι ⊕ κ)) 
       exact ⟨i, hiS, fun h => hj (h.mp hi')⟩
   let edge (j : C) : (graph S).frontier π t :=
     ⟨⟨((hw j).choose, j.val), (hw j).choose_spec.1⟩, (hw j).choose_spec.2⟩
-  have hinj : Function.Injective edge := by
-    intro j j' h
-    apply Subtype.ext
-    exact congrArg (fun e : (graph S).frontier π t => e.val.val.2) h
+  have hinj : Function.Injective edge := fun _ _ h =>
+    Subtype.ext (congrArg (fun e : (graph S).frontier π t => e.val.val.2) h)
   calc
     C.card = Nat.card C := (Nat.card_eq_finsetCard C).symm
     _ ≤ Nat.card ((graph S).frontier π t) := Nat.card_le_card_of_injective edge hinj

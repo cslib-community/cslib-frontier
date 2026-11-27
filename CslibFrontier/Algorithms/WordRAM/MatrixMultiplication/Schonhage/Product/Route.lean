@@ -58,15 +58,9 @@ public theorem exec_wanted {w L m N : ℕ} (hm : m ≤ L) (qs : List (Fin N × F
   obtain ⟨y, he, ⟨zp, zv, zo, zlast, zframe⟩, outside⟩ :=
     ExecWithin.rename_post bank_injective (Wanted.exec_program hm (Wanted.inputPairs qs)
       (Wanted.inputPairs_lt qs) (x.comap bank) hL hmemory hN hQ hinput (producer_fits hfit).2)
-  have hf (i : Fin 160) (hi : 96 ≤ i.val) : y.regs i = x.regs i := by
-    apply outside
-    intro j hj
-    have hv := congrArg (fun r : Fin 160 => r.val) hj
-    change j.val = i.val at hv
-    omega
-  refine ⟨y, he, hp.reframe hf, ?_, ?_, zo, zlast, zframe⟩
-  · exact zp
-  · intro i
-    simpa only [Data.comap_mem, Wanted.inputPairs_get] using zv i.val i.isLt
+  refine ⟨y, he, hp.reframe fun i hi => outside i fun j hj =>
+      not_lt_of_ge hi (congrArg Fin.val hj ▸ j.isLt),
+    zp, fun i => by simpa only [Data.comap_mem, Wanted.inputPairs_get] using zv i.val i.isLt,
+    zo, zlast, zframe⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct

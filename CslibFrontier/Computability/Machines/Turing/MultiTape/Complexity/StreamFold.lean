@@ -71,7 +71,7 @@ theorem ComputableInTimeAndSpace.streamFold_pair_list {α σ β γ : Type}
         ((Nat.pow_le_pow_right (by omega) he).trans_eq (Nat.mul_pow _ _ _))
     exact ⟨Nat.mul_le_mul_left _ (hpow_le (by omega)),
       Nat.mul_le_mul_left _ (hpow_le (by omega))⟩
-  have hsf := ComputableTidilyInTimeAndSpace.streamFold_pair_sum
+  obtain ⟨c, hc⟩ := ComputableTidilyInTimeAndSpace.streamFold_pair_sum
     (g := g) (encOut := encList encB) (encF := encUnit)
     frameValueReader (fun a => frame (encA a)) (fun a => frame_ne_nil (encA a))
     (fun a rest => read_frameValueReader (encA a) rest)
@@ -84,15 +84,12 @@ theorem ComputableInTimeAndSpace.streamFold_pair_list {α σ β γ : Type}
     (sMax := fun x => K * (lMax x + 1) ^ d)
     (lMax := lMax)
     (fun x j hj => by
-      have hs0 := hS x j hj.le
-      have hs1 := hS x (j + 1) hj
-      have ha := hA x j hj
       obtain ⟨h1, h2⟩ := hstep_pow x j hj
       have hl1 : lMax x + 1 ≤ (lMax x + 1) ^ d := Nat.le_self_pow (by omega) _
       have h3mul : 3 * (lMax x + 1) ^ d ≤ 3 ^ d * (lMax x + 1) ^ d :=
         Nat.mul_le_mul_right _ (Nat.le_self_pow (by omega) 3)
       dsimp only [K]
-      linarith only [hs0, hs1, ha, h1, h2, hl1, h3mul])
+      linarith [hS x j hj.le, hS x (j + 1) hj, hA x j hj, h1, h2, hl1, h3mul])
     (fun x j hj => by
       obtain ⟨h1, h2⟩ := hstep_pow x j hj
       calc _ ≤ cn * (3 ^ d * (lMax x + 1) ^ d) + ce * (3 ^ d * (lMax x + 1) ^ d) :=
@@ -101,15 +98,9 @@ theorem ComputableInTimeAndSpace.streamFold_pair_list {α σ β γ : Type}
         _ ≤ K * (lMax x + 1) ^ d := Nat.mul_le_mul_right _
             ((Nat.mul_le_mul_left (3 ^ d) (Nat.le_succ (cn + ce))).trans (Nat.le_add_right _ 4)))
     hS hA
-  obtain ⟨c, hc⟩ := hsf
-  have hc' : ComputableInTimeAndSpace g encIn (encList encB)
-      (fun x => c * (2 * cf + 2 + (encIn x).length +
-        ∑ j ∈ Finset.range (elems x).length, K * (lMax x + 1) ^ d + lMax x + 1))
-      (fun x => c * (0 + K * (lMax x + 1) ^ d + lMax x + 1)) :=
-    ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hc
   have hl (x : γ) : lMax x ≤ (lMax x + 1) ^ d :=
     (Nat.le_succ _).trans (Nat.le_self_pow (by omega) _)
-  refine ⟨c * (2 * cf + K + 4), d, hc'.mono (fun x => ?_) (fun x => ?_)⟩
+  refine ⟨c * (2 * cf + K + 4), d, hc.computableInTimeAndSpace.mono (fun x => ?_) (fun x => ?_)⟩
   · simp only [Finset.sum_const, Finset.card_range, smul_eq_mul]
     have hl := hl x
     set A := (encIn x).length

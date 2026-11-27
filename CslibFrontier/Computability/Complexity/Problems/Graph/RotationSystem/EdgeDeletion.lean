@@ -46,9 +46,8 @@ open Equiv Perm.CycleSurgery
 /-- The last two actual endpoints are exactly the supplied names. -/
 @[simp] theorem vertex_lastEdgeDart (G : Graph) (u v : ℕ) (b : Bool) :
     (lastEdgeDart G u v b).vertex = if b then v else u := by
-  cases b
-  · exact (by simp : ((G.edges ++ [(u, v)]).getD G.edges.length (0, 0)).1 = u)
-  · exact (by simp : ((G.edges ++ [(u, v)]).getD G.edges.length (0, 0)).2 = v)
+  have h : (G.edges ++ [(u, v)]).getD G.edges.length (0, 0) = (u, v) := by simp
+  exact Bool.rec (congrArg Prod.fst h) (congrArg Prod.snd h) b
 
 /-- Reversal interchanges the two last indexed ends. -/
 theorem reverse_lastEdgeDart (G : Graph) (u v : ℕ) (b : Bool) :
@@ -77,14 +76,11 @@ theorem _root_.Cslib.Complexity.Graph.exists_lastEdge_reindex (G : Graph) (i : F
     let u := (f i).1
     let v := (f i).2
     have hlenH : H.edges.length + 1 = E.length + 1 := by
-      change ((edge :: E).eraseIdx i.val).length + 1 = E.length + 1
-      rw [List.length_eraseIdx_of_lt i.isLt, List.length_cons]; omega
+      simp [H, List.length_eraseIdx_of_lt i.isLt]
     have hσi : σ i = Fin.last E.length := by
-      change (finSuccEquiv' (Fin.last E.length)).symm (finSuccEquiv' i i) = _
-      rw [finSuccEquiv'_eq_none.mpr rfl, finSuccEquiv'_symm_none]
+      simp [σ, finSuccEquiv'_eq_none.mpr rfl]
     have hσ (j : Fin E.length) : σ (i.succAbove j) = j.castSucc := by
-      change (finSuccEquiv' (Fin.last E.length)).symm (finSuccEquiv' i (i.succAbove j)) = _
-      rw [finSuccEquiv'_succAbove, ← finSuccEquiv'_last_apply_castSucc j, symm_apply_apply]
+      simp [σ, ← finSuccEquiv'_last_apply_castSucc j]
     have hlist : (lastEdgeGraph H u v).edges = List.ofFn (f ∘ σ.symm) := by
       have hrest : H.edges = List.ofFn (fun j => f (i.succAbove j)) := by
         change ((edge :: E).eraseIdx i.val) = _
@@ -115,13 +111,9 @@ theorem _root_.Cslib.Complexity.Graph.exists_lastEdge_reindex (G : Graph) (i : F
       · rw [Fin.succAbove_of_le_castSucc _ _ (le_of_not_gt hk),
           ite_eq_right (not_lt_of_ge (le_trans (le_of_not_gt hk) (Fin.castSucc_le_succ _)))]
         simp only [Fin.val_castSucc, Fin.val_succ, Nat.add_sub_cancel]
-    · change (σ i).val = H.edges.length
-      rw [hσi]
-      exact Nat.add_right_cancel (by simpa only [Fin.val_last] using hlenH.symm)
-    · change (f i).1 = ((edge :: E).getD i.val (0, 0)).1
-      rw [List.getD_eq_getElem _ _ i.isLt]; rfl
-    · change (f i).2 = ((edge :: E).getD i.val (0, 0)).2
-      rw [List.getD_eq_getElem _ _ i.isLt]; rfl
+    · exact (congrArg Fin.val hσi).trans (Nat.add_right_cancel hlenH.symm)
+    · exact congrArg Prod.fst (List.getD_eq_getElem _ _ i.isLt).symm
+    · exact congrArg Prod.snd (List.getD_eq_getElem _ _ i.isLt).symm
 
 /-- Retain an old dart, without changing its edge-list index or end. -/
 @[expose] def retainedLastEdgeDart (G : Graph) (u v : ℕ) (d : Dart G) :
@@ -131,12 +123,10 @@ theorem _root_.Cslib.Complexity.Graph.exists_lastEdge_reindex (G : Graph) (i : F
 @[simp] theorem vertex_retainedLastEdgeDart (G : Graph) (u v : ℕ) (d : Dart G) :
     (retainedLastEdgeDart G u v d).vertex = d.vertex := by
   rcases d with ⟨⟨i, hi⟩, b⟩
-  have hi' : i < (G.edges ++ [(u, v)]).length := by
-    simpa only [List.length_append, List.length_singleton] using Nat.lt_succ_of_lt hi
   change (if b then ((G.edges ++ [(u, v)]).getD i (0, 0)).2
     else ((G.edges ++ [(u, v)]).getD i (0, 0)).1) =
     if b then (G.edges.getD i (0, 0)).2 else (G.edges.getD i (0, 0)).1
-  rw [List.getD_eq_getElem _ _ hi', List.getElem_append_left hi, List.getD_eq_getElem _ _ hi]
+  rw [List.getD_eq_getElem?_getD, List.getElem?_append_left hi, ← List.getD_eq_getElem?_getD]
 
 /-- Delete the last two indexed ends from their vertex cycles. The construction works when
 either endpoint becomes isolated and when there are no remaining edges. -/
@@ -193,15 +183,11 @@ theorem rotate_deleteLastEdge_eq_iff {G : Graph} {u v : ℕ}
   -- When a retained dart reaches a removed end, injectivity excludes revisiting it,
   -- and preservation of the vertex excludes reaching the other removed end.
   have between : f (some none) ≠ none ∧ f none ≠ some none := by
-    refine ⟨fun h => ?_, fun h => ?_⟩
-    · have h' := r.vertex_rotate (lastEdgeDart G u v false)
-      rw [show r.rotate (lastEdgeDart G u v false) = lastEdgeDart G u v true from
-        (hstep _ _).mp h] at h'
-      exact huv (by simpa using h'.symm)
-    · have h' := r.vertex_rotate (lastEdgeDart G u v true)
-      rw [show r.rotate (lastEdgeDart G u v true) = lastEdgeDart G u v false from
-        (hstep _ _).mp h] at h'
-      exact huv (by simpa using h')
+    refine ⟨fun h => huv ?_, fun h => huv ?_⟩
+    · have h' : r.rotate (lastEdgeDart G u v false) = lastEdgeDart G u v true := (hstep _ _).mp h
+      simpa [h'] using (r.vertex_rotate (lastEdgeDart G u v false)).symm
+    · have h' : r.rotate (lastEdgeDart G u v true) = lastEdgeDart G u v false := (hstep _ _).mp h
+      simpa [h'] using r.vertex_rotate (lastEdgeDart G u v true)
   refine ⟨fun h => ?_, ?_⟩
   · rcases h₁ : f (some (some a)) with _ | (_ | d)
     · rcases h₂ : f none with _ | (_ | d)
@@ -223,12 +209,9 @@ theorem rotate_deleteLastEdge_eq_iff {G : Graph} {u v : ℕ}
 theorem lastEdgeDartEquiv_reversal (G : Graph) (u v : ℕ) :
     (lastEdgeDartEquiv G u v).permCongr (Dart.reversal (lastEdgeGraph G u v)) =
       (Dart.reversal G).optionCongr.optionCongr * swap (some none) none := by
-  ext z
-  rcases z with _ | (_ | ⟨i, b⟩)
-  · simp [lastEdgeDartEquiv, appendedDartEquiv, Dart.reverse, Dart.reversal]
-  · simp [lastEdgeDartEquiv, appendedDartEquiv, Dart.reverse, Dart.reversal]
-  · cases b <;> simp [lastEdgeDartEquiv, appendedDartEquiv, Dart.reverse, i.isLt,
-      swap_apply_def, Dart.reversal]
+  ext (_ | _ | ⟨i, _ | _⟩) <;>
+    simp [lastEdgeDartEquiv, appendedDartEquiv, Dart.reverse, Fin.is_lt, swap_apply_def,
+      Dart.reversal]
 
 /-- Deletion splices face successors with the original chirality. The preliminary outgoing
 swap cancels reversal on the two deleted ends; it is essential even for a loop. -/
@@ -272,7 +255,6 @@ theorem card_faces_deleteLastEdge_balance {G : Graph} {u v : ℕ}
     r.faceNext_deleteLastEdge.trans (congrArg (fun q => removeNone (removeNone q)) hf)
   have hc : Nat.card (Quotient (Perm.SameCycle.setoid f)) =
       Nat.card (Quotient (Perm.SameCycle.setoid r.rotate)) := by
-    dsimp only [f]
     rw [card_orbits_inv, card_orbits_permCongr]
   rw [removeNone_mul_optionCongr, ← hf, hc] at h₁
   have hσ : removeNone (removeNone f) = r.deleteLastEdge.rotate⁻¹ := rfl

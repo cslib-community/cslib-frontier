@@ -401,9 +401,7 @@ private theorem childDecision_update_eq {i p : ι} {A : Type} {instF : Fintype A
     (fun j => (Function.update s i σ' j).childDecision a) =
       Function.update (fun j => (s j).childDecision a) i (σ'.childDecision a) := by
   funext j
-  rcases eq_or_ne j i with rfl | hj
-  · simp
-  · simp [hj]
+  rcases eq_or_ne j i with rfl | hj <;> simp [*]
 
 private theorem childChance_update_eq {i : ι} {C : Type} {instF : Fintype C} {prob : C → ℝ}
     {hprob : IsMixedStrategy prob} {next : C → PerfectInfoTree ι}
@@ -426,12 +424,10 @@ theorem isPureSPE_iff_oneShot :
   | @PerfectInfoTree.decision _ p A instF instN next, s => by
     refine ⟨fun ⟨hnash, hsub⟩ => ⟨fun a => ?_, fun a => isPureSPE_iff_oneShot.1 (hsub a)⟩,
       fun ⟨hroot, hsub⟩ => ?_⟩
-    · let σ' : PureStrategy p (@PerfectInfoTree.decision ι p A instF instN next) :=
-        .decision (fun _ => a) fun a' => (s p).childDecision a'
-      have hdev := hnash p σ'
+    · have hdev := hnash p (.decision (fun _ => a) fun a' => (s p).childDecision a')
       simp only [toCostGame, neg_le_neg_iff, expectedPayoff_decision] at hdev
-      rw [Function.update_self, show σ'.headChoice = a from rfl] at hdev
-      simpa [σ', childDecision_update_eq] using hdev
+      rw [Function.update_self, PureStrategy.headChoice_decision] at hdev
+      simpa [childDecision_update_eq] using hdev
     · have hspe := fun a => isPureSPE_iff_oneShot.2 (hsub a)
       refine ⟨fun i σ' => ?_, hspe⟩
       simp only [toCostGame, neg_le_neg_iff, expectedPayoff_decision, childDecision_update_eq]
@@ -472,10 +468,9 @@ theorem isPureSPE_backwardInduction :
       exact (isPureSPE_iff_oneShot).1 (isPureSPE_backwardInduction (next a))
   | @PerfectInfoTree.chance _ C instF prob hprob next => by
     let _ := instF
-    rw [isPureSPE_iff_oneShot]
-    intro c
-    simp only [backwardInduction, PureStrategy.childChance_chance]
-    exact (isPureSPE_iff_oneShot).1 (isPureSPE_backwardInduction (next c))
+    exact isPureSPE_iff_oneShot.2 fun c => by
+      simpa only [backwardInduction, PureStrategy.childChance_chance] using
+        isPureSPE_iff_oneShot.1 (isPureSPE_backwardInduction (next c))
 
 /-- **Zermelo's theorem** ([vonStengel2007], Section 3.8, Algorithm 3.9): every finite game tree
 of perfect information (with arbitrary finite player set and optional chance nodes) possesses a
@@ -588,8 +583,7 @@ payoffs for the deciding player, every pure subgame-perfect equilibrium coincide
 theorem eq_backwardInduction_of_isPureSPE [DecidableEq ι] :
     ∀ {T : PerfectInfoTree ι} {s : ∀ i, PureStrategy i T},
       T.HasNoContinuationTies → T.IsPureSPE s → s = T.backwardInduction.strategy
-  | .leaf _, s, _, _ => by
-    funext i
+  | .leaf _, s, _, _ => funext fun i => by
     cases s i
     rfl
   | @PerfectInfoTree.decision _ p A instF instN next, s, ⟨htie, hsub⟩, hspe => by

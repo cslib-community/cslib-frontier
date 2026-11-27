@@ -238,12 +238,11 @@ private theorem doubleJointOracle_planted {S : IndexedSignatureScheme} {b : Bool
       (ProbComp.eval (S.sign challengeSk 0 (requestDecoder.decode w).2)).bind fun σ =>
         PMF.pure (List.take (bound n (requestDecoder.decode w).2.length) σ,
           requestDecoder.decode w :: signed, (0, (requestDecoder.decode w).2) :: ext) := by
-  have hpos : 0 < S.capacity n := hcap
   have hnot0 : 0 ∉ ext.map Prod.fst := fun h0 => hfresh.2 (hslot ▸ hinv.1.mp h0)
   simp only [doubleJointOracle, doubleHandler, hfresh.1, hfresh.2, not_false_eq_true, and_self,
     ↓reduceIte]
-  simp only [hslot, ↓reduceIte, indexedSigningOracle, requestDecoder.decode_enc, hpos, hnot0,
-    not_false_eq_true, and_self, runWith_norm, pmf_norm]
+  simp only [hslot, ↓reduceIte, indexedSigningOracle, requestDecoder.decode_enc,
+    Nat.succ_le_iff.mp hcap, hnot0, not_false_eq_true, and_self, runWith_norm, pmf_norm]
 
 private theorem doubleJointOracle_unplanted {S : IndexedSignatureScheme} {b : Bool}
     {challengeSk otherSk : List Bool} {bound : ℕ → ℕ → ℕ} {n : ℕ}
@@ -280,18 +279,12 @@ private theorem doubleLogInv_preserve {S : IndexedSignatureScheme} {b : Bool}
       (requestDecoder.decode w).1 < 2 ∧ (requestDecoder.decode w).1 ∉ signed.map Prod.fst
   · by_cases hslot : (requestDecoder.decode w).1 = b.toNat
     · supp_cases hmem [doubleJointOracle_planted hcap hinv hfresh hslot]
-      refine ⟨?_, ?_⟩
-      · simp only [List.map_cons, List.mem_cons, true_or, hslot.symm]
-      · intro m hm
-        rcases List.mem_cons.mp hm with heq | hm
-        · rcases Prod.mk.inj heq with ⟨-, rfl⟩
-          exact List.mem_cons.mpr (Or.inl (Prod.ext hslot.symm rfl))
-        · exact List.mem_cons_of_mem _ (hinv.2 m hm)
+      refine ⟨by simp [hslot.symm], fun m hm => ?_⟩
+      rcases List.mem_cons.mp hm with ⟨-, rfl⟩ | hm
+      exacts [List.mem_cons.mpr (.inl (Prod.ext hslot.symm rfl)), .tail _ (hinv.2 m hm)]
     · supp_cases hmem [doubleJointOracle_unplanted hfresh hslot]
-      have hne : b.toNat ≠ (requestDecoder.decode w).1 := Ne.symm hslot
-      refine ⟨?_, ?_⟩
-      · simpa only [doubleLogInv, List.map_cons, List.mem_cons, hne, false_or] using hinv.1
-      · exact fun m hm => List.mem_cons_of_mem _ (hinv.2 m hm)
+      exact ⟨by simpa [Ne.symm hslot] using hinv.1,
+        fun m hm => List.mem_cons_of_mem _ (hinv.2 m hm)⟩
   · supp_cases hmem [doubleJointOracle_refused hfresh]
     exact hinv
 
@@ -317,12 +310,10 @@ private theorem map_run_doubleJointOracle {S : IndexedSignatureScheme}
   intro bundledSk
   refine ⟨?_, fun r hr => ProbOracleComp.runWith_invariant
     (oracle := doubleJointOracle S b challengeSk otherSk bound n) (invariant := doubleLogInv b)
-    (fun q st hst a next hmem => doubleLogInv_preserve (hcap n) q st hst a next hmem)
-    program ([], []) ⟨by simp, by simp⟩ r.1 r.2 hr⟩
+    (doubleLogInv_preserve (hcap n)) program ([], []) ⟨by simp, by simp⟩ r.1 r.2 hr⟩
   rw [ProbOracleComp.eval_run_interpret_eq_runWith]
   refine ProbOracleComp.runWith_map_state_of_invariant _ _ Prod.fst (doubleLogInv b)
-    (fun q st hst a next hmem => doubleLogInv_preserve (hcap n) q st hst a next hmem)
-    ?_ program ([], []) ⟨by simp, by simp⟩
+    (doubleLogInv_preserve (hcap n)) ?_ program ([], []) ⟨by simp, by simp⟩
   rintro ⟨⟨⟩, w⟩ ⟨signed, ext⟩ hinv
   by_cases hfresh :
       (requestDecoder.decode w).1 < 2 ∧ (requestDecoder.decode w).1 ∉ signed.map Prod.fst
@@ -379,21 +370,18 @@ theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
     Game.succProbability (ProbComp.eval ((S.double hcap).indexedEufCmaGame adversary n)) ≤
       2 * Game.succProbability
         (ProbComp.eval (S.indexedEufCmaGame (S.doubleForger bound adversary) n)) := by
-  have hsplit :
-      ProbComp.eval (S.indexedEufCmaGame (S.doubleForger bound adversary) n) =
-        (ProbComp.eval (ProbComp.uniform Bool)).bind fun b =>
-          ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary b) n) := by
-    simp only [indexedEufCmaGame, doubleForger, runWith_norm, pmf_norm]
-    exact PMF.bind_comm _ _ _
+  have hsplit : ProbComp.eval (S.indexedEufCmaGame (S.doubleForger bound adversary) n) =
+      (ProbComp.eval (ProbComp.uniform Bool)).bind fun b =>
+        ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary b) n) := by
+    simpa only [indexedEufCmaGame, doubleForger, runWith_norm, pmf_norm] using PMF.bind_comm _ _ _
   have htwo :
       (2 : ℝ≥0∞) * (ProbComp.eval (S.indexedEufCmaGame (S.doubleForger bound adversary) n)) true =
         (ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary false) n)) true +
           (ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary true) n)) true := by
     rw [hsplit, PMF.bind_apply, tsum_fintype, Fintype.sum_bool]
-    have hunif (b : Bool) : (ProbComp.eval (ProbComp.uniform Bool)) b = (2 : ℝ≥0∞)⁻¹ := by
-      simp [ProbComp.eval_uniform, PMF.uniformOfFintype_apply]
-    rw [hunif false, hunif true, ← mul_add, ← mul_assoc,
-      ENNReal.mul_inv_cancel (by norm_num) (by norm_num), one_mul, add_comm]
+    simp only [ProbComp.eval_uniform, PMF.uniformOfFintype_apply, Fintype.card_bool, Nat.cast_ofNat]
+    rw [← mul_add, ← mul_assoc, ENNReal.mul_inv_cancel two_ne_zero ENNReal.ofNat_ne_top,
+      one_mul, add_comm]
   let slotEvent (b : Bool) (k₀ k₁ : List Bool × List Bool) : PMF Bool :=
     (ProbComp.eval ((OracleComp.interpret
       (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
@@ -410,14 +398,11 @@ theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
     cases hwin : !r.2.1.contains (r.1.1, r.1.2.1) && (r.1.1 == b.toNat) &&
         S.verify vk 0 r.1.2.1 r.1.2.2
     · simp
-    · simp only [Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true, beq_iff_eq,
-        ← Bool.not_eq_true, List.contains_iff_mem] at hwin
-      obtain ⟨⟨hfresh, hu⟩, hv⟩ := hwin
-      have hwin' : (!r.2.2.contains (0, r.1.2.1) && S.verify vk 0 r.1.2.1 r.1.2.2) = true := by
-        simp only [Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true,
-          ← Bool.not_eq_true, List.contains_iff_mem]
-        exact ⟨fun hmem => hfresh (hu ▸ hinv.2 _ hmem), hv⟩
-      rw [hwin']
+    · simp only [Bool.and_eq_true, beq_iff_eq, Bool.not_eq_true', ← Bool.not_eq_true,
+        List.contains_iff_mem] at hwin
+      suffices (!r.2.2.contains (0, r.1.2.1) && S.verify vk 0 r.1.2.1 r.1.2.2) = true by rw [this]
+      simpa [← Bool.not_eq_true, List.contains_iff_mem, hwin.2] using
+        fun hm => hwin.1.1 (hwin.1.2 ▸ hinv.2 _ hm)
   have hslot_pair (b : Bool) (kc ko : List Bool × List Bool)
       (hkc : kc ∈ (ProbComp.eval (S.keyGen n)).support) :
       slotEvent b (if b then ko else kc) (if b then kc else ko) true ≤
@@ -426,26 +411,20 @@ theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
             !r.2.2.contains (0, r.1.2.1) && S.verify kc.1 0 r.1.2.1 r.1.2.2) true := by
     obtain ⟨heq, hinv⟩ := map_run_doubleJointOracle hcap b (otherSk := ko.2) (hbound kc hkc)
       (adversary n (doublePlantPk b kc.1 ko.1))
-    cases b
-    · simp only [slotEvent, doublePlantPk, Bool.false_eq_true, ↓reduceIte] at heq ⊢
-      rw [← heq, PMF.map_comp, ← PMF.bind_pure_comp, ← PMF.bind_pure_comp]
-      exact PMF.bind_apply_mono_on_support _ _ fun r hr => hslot_step false (hinv r hr)
-    · simp only [slotEvent, doublePlantPk, ↓reduceIte] at heq ⊢
-      rw [← heq, PMF.map_comp, ← PMF.bind_pure_comp, ← PMF.bind_pure_comp]
-      exact PMF.bind_apply_mono_on_support _ _ fun r hr => hslot_step true (hinv r hr)
+    cases b <;> simp only [slotEvent, doublePlantPk, Bool.false_eq_true, ↓reduceIte] at heq ⊢ <;>
+      rw [← heq, PMF.map_comp, ← PMF.bind_pure_comp, ← PMF.bind_pure_comp] <;>
+      exact PMF.bind_apply_mono_on_support _ _ fun r hr => hslot_step _ (hinv r hr)
   have hslot (b : Bool) :
       ((ProbComp.eval (S.keyGen n)).bind fun k₀ =>
         (ProbComp.eval (S.keyGen n)).bind fun k₁ => slotEvent b k₀ k₁) true ≤
       (ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary b) n)) true := by
     rw [eval_indexedEufCmaGame_doubleForgerAt _ _ _ _ (hcap n)]
     cases b
-    · apply PMF.bind_apply_mono_on_support; intro k₀ hk₀
-      apply PMF.bind_apply_mono_on_support; intro k₁ _
-      exact hslot_pair false k₀ k₁ hk₀
+    · refine PMF.bind_apply_mono_on_support _ _ fun k₀ hk₀ =>
+        PMF.bind_apply_mono_on_support _ _ fun k₁ _ => hslot_pair false k₀ k₁ hk₀
     · conv_rhs => rw [PMF.bind_comm]
-      apply PMF.bind_apply_mono_on_support; intro k₀ _
-      apply PMF.bind_apply_mono_on_support; intro k₁ hk₁
-      exact hslot_pair true k₁ k₀ hk₁
+      refine PMF.bind_apply_mono_on_support _ _ fun k₀ _ =>
+        PMF.bind_apply_mono_on_support _ _ fun k₁ hk₁ => hslot_pair true k₁ k₀ hk₁
   have hgame :
       (ProbComp.eval ((S.double hcap).indexedEufCmaGame adversary n)) true ≤
         ((ProbComp.eval (S.keyGen n)).bind fun k₀ =>
@@ -493,25 +472,23 @@ private theorem isOraclePPTOn_doubleHandler (S : IndexedSignatureScheme) {bound 
         decide ((requestDecoder.decode pair.2.1.2).1 < 2 ∧
           (requestDecoder.decode pair.2.1.2).1 ∉ pair.2.2.map Prod.fst))
       encDoubleHandlerIn encBool := by
-    have heq : (fun pair : DoubleHandlerIn =>
-        decide ((requestDecoder.decode pair.2.1.2).1 < 2 ∧
-          (requestDecoder.decode pair.2.1.2).1 ∉ pair.2.2.map Prod.fst)) =
-      fun pair =>
-        decide ((requestDecoder.decode pair.2.1.2).1 < 2) &&
-          !(pair.2.2.any fun e => (requestDecoder.decode pair.2.1.2).1 == e.1) := by
-      funext pair; rw [Bool.eq_iff_iff]
+    convert (?_ : ComputableInPolyTime (fun pair : DoubleHandlerIn =>
+      decide ((requestDecoder.decode pair.2.1.2).1 < 2) &&
+        !(pair.2.2.any fun e => (requestDecoder.decode pair.2.1.2).1 == e.1))
+      encDoubleHandlerIn encBool) using 1
+    · funext pair
+      rw [Bool.eq_iff_iff]
       simp only [decide_eq_true_eq, Bool.and_eq_true, Bool.not_eq_true', List.any_eq_false,
         List.mem_map, not_exists, not_and, beq_iff_eq, eq_comm (a := (requestDecoder.decode _).1)]
-    rw [heq]; polytime
+    · polytime
   have hslotDec : ComputableInPolyTime
       (fun pair : DoubleHandlerIn =>
         decide ((requestDecoder.decode pair.2.1.2).1 = pair.1.1.2.toNat))
       encDoubleHandlerIn encBool := by
-    have heq : (fun pair : DoubleHandlerIn =>
-        decide ((requestDecoder.decode pair.2.1.2).1 = pair.1.1.2.toNat)) =
-      fun pair => (requestDecoder.decode pair.2.1.2).1 == (if pair.1.1.2 then 1 else 0) := by
-      funext pair; rw [Bool.eq_iff_iff]; cases pair.1.1.2 <;> simp
-    rw [heq]; polytime
+    convert (by polytime : ComputableInPolyTime (fun p : DoubleHandlerIn =>
+        (requestDecoder.decode p.2.1.2).1 == if p.1.1.2 then 1 else 0)
+      encDoubleHandlerIn encBool) using 1
+    exact funext fun p => Bool.eq_iff_iff.mpr (by cases p.1.1.2 <;> simp)
   ppt [doubleHandler]
 
 /-- `S.doubleForger bound adversary` is uniformly strict oracle PPT for every strict oracle-PPT
@@ -569,14 +546,12 @@ theorem IndexedEUFCMA.double {S : IndexedSignatureScheme} (hS : S.IndexedEUFCMA)
     (hcap : ∀ n, 1 ≤ S.capacity n) :
     (S.double hcap).IndexedEUFCMA := by
   obtain ⟨bound, hboundPoly, hbound⟩ := S.exists_sign_length_bound
-  apply IndexedEUFCMA.of_negligible
-  intro adversary hadversary
-  have hneg := hS.negligible (S.doubleForger bound adversary)
-    (isOraclePPT_doubleForger S hboundPoly hadversary)
-  refine negligible_of_le (hneg.const_mul 2) fun n => ?_
-  simpa only [Pi.mul_apply] using
-    succProbability_indexedEufCmaGame_double_le hcap
-      (fun keys hkeys => hbound n keys hkeys 0 (hcap n)) adversary
+  refine IndexedEUFCMA.of_negligible fun adversary hadversary => ?_
+  refine negligible_of_le
+    ((hS.negligible (S.doubleForger bound adversary)
+      (isOraclePPT_doubleForger S hboundPoly hadversary)).const_mul 2) fun n => ?_
+  simpa only [Pi.mul_apply] using succProbability_indexedEufCmaGame_double_le hcap
+    (fun keys hkeys => hbound n keys hkeys 0 (hcap n)) adversary
 
 end IndexedSignatureScheme
 

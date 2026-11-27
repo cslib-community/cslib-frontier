@@ -81,12 +81,8 @@ theorem mem_contents {S Γ : Type*} [Fintype S] [DecidableEq S] [Finite Γ]
     W ∈ contents S Γ t ↔ ∑ s, (W s).length ≤ t := by
   classical
   simp only [contents, Finset.mem_filter, Fintype.mem_piFinset, List.mem_wordsLe]
-  constructor
-  · exact fun h => h.2
-  · intro h
-    refine ⟨fun s => ?_, h⟩
-    exact (Finset.single_le_sum (f := fun s => (W s).length) (fun _ _ => Nat.zero_le _)
-      (Finset.mem_univ s)).trans h
+  exact ⟨And.right, fun h => ⟨fun s => (Finset.single_le_sum (fun _ _ => Nat.zero_le _)
+    (Finset.mem_univ s)).trans h, h⟩⟩
 
 section Val
 
@@ -104,14 +100,8 @@ variable {S J : Type*} [Fintype S] [DecidableEq S] [Fintype J] [DecidableEq J]
 theorem val_eq_of_bdd {t t' : ℕ} {P : Series F (Ch S J × Γ)} {u : J → List Γ}
     (h : Bdd t P u) (ht : t ≤ t') : val t' P u = val t P u := by
   classical
-  symm
-  apply Finset.sum_subset
-  · intro W hW
-    rw [mem_contents] at hW ⊢
-    exact hW.trans ht
-  · intro W _ hW
-    by_contra hne
-    exact hW (mem_contents.2 (h W hne))
+  refine (Finset.sum_subset (fun W hW => mem_contents.2 ((mem_contents.1 hW).trans ht)) ?_).symm
+  exact fun W _ hW => Decidable.byContradiction fun hne => hW (mem_contents.2 (h W hne))
 
 end Val
 

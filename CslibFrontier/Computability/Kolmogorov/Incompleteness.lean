@@ -199,21 +199,21 @@ theorem chaitin_berry_bound {read : σ → Option (α × ℕ)} {f : List Bool �
   obtain ⟨y₀, hy₀⟩ := Part.dom_iff_mem.mp ((hT t).mp ht)
   obtain ⟨s, hs⟩ := Code.evaln_complete.mp hy₀
   -- The search succeeds on `p`, at the sentence `t`.
+  have hBn : p.length + k < n := by omega
   have hsearch : x ∈ chaitinSearch read (encode e) (p.length + k) (encode (t, s)) := by
-    simp [chaitinSearch, Option.mem_def.mp hs, hxn, show p.length + k < n by omega]
+    simp [chaitinSearch, Option.mem_def.mp hs, hxn, hBn]
   obtain ⟨z, hz⟩ := Part.dom_iff_mem.mp (Nat.rfindOpt_dom.mpr ⟨_, x, hsearch⟩)
   -- Its output `z` comes with a true sentence `n' ≤ C_U(z)` of the theory with `n' > B p`.
   obtain ⟨j, hj⟩ := Nat.rfindOpt_spec hz
   simp only [chaitinSearch, ofNat_encode, Option.mem_def, Option.bind_eq_some_iff] at hj
   obtain ⟨⟨t', s'⟩, -, ⟨x', n'⟩, ⟨w, hw, hread'⟩, hcond⟩ := hj
-  by_cases hc : p.length + k < n'
-  · simp only [hc, decide_true, Bool.cond_true, Option.some.injEq] at hcond
-    subst hcond
-    have hn' := hsound t' ((hT t').mpr (Part.dom_iff_mem.mpr ⟨w, Code.evaln_sound hw⟩)) x' n' hread'
-    have hk' := hk p x' (by simpa only [hpidx, hpdrop] using Part.mem_bind hr hz)
-    have : n' ≤ p.length + k := by exact_mod_cast hn'.trans hk'
-    omega
-  · simp [hc] at hcond
+  obtain ⟨hc, rfl⟩ : p.length + k < n' ∧ x' = z := by
+    cases h : decide (p.length + k < n') <;> simp only [h, Bool.cond_true, Bool.cond_false,
+      Option.some.injEq, reduceCtorEq] at hcond
+    exact ⟨of_decide_eq_true h, hcond⟩
+  have hn' := hsound t' ((hT t').mpr (Part.dom_iff_mem.mpr ⟨w, Code.evaln_sound hw⟩)) x' n' hread'
+  have hk' := hk p x' (by simpa only [hpidx, hpdrop] using Part.mem_bind hr hz)
+  exact absurd (Nat.cast_le.mp (hn'.trans hk')) hc.not_ge
 
 /-! ### Chaitin's theorem -/
 
@@ -253,8 +253,8 @@ theorem MinorizesPartrec.exists_forall_le_complexity_universal_add
       ∀ x n, (x, n) ∈ S → n ≤ universal.complexity (encode e) + c := by
   obtain ⟨c, hc⟩ := hU.exists_forall_le_complexity_universal_add_of_read (σ := α × ℕ)
     Computable.option_some
-  exact ⟨c, fun e S hS hsound x n hxn => hc e (· ∈ S) hS
-    (fun t ht x n h => by cases Option.some.inj h; exact hsound _ _ ht) (x, n) hxn x n rfl⟩
+  exact ⟨c, fun e S hS hsound x n hxn =>
+    hc e (· ∈ S) hS (fun t ht y m h => hsound y m (Option.some.inj h ▸ ht)) (x, n) hxn x n rfl⟩
 
 /-- **Chaitin's incompleteness theorem** for theories: a sound r.e. theory proves `n ≤ C_U(x)` only
 for boundedly many `n`. -/
@@ -297,9 +297,9 @@ theorem MinorizesPartrec.finite_of_rePred
     (hsound : ∀ x ∈ A, (ℓ x : ℕ∞) ≤ U.ecomplexity x) : A.Finite := by
   have hread : Computable fun x : α => some (x, ℓ x) :=
     Computable.option_some.comp (Computable.id.pair hℓ)
-  obtain ⟨c, hc⟩ := hU.exists_forall_le_of_rePred_of_read hread hA fun x hx y n h => by
-    cases Option.some.inj h
-    exact hsound x hx
+  obtain ⟨c, hc⟩ := hU.exists_forall_le_of_rePred_of_read hread hA fun x hx y n h =>
+    let ⟨hy, hn⟩ := Prod.mk.inj (Option.some.inj h)
+    hn ▸ hy ▸ hsound x hx
   exact (hfin c).subset fun x hx => hc x hx x (ℓ x) rfl
 
 /-- For every description method of binary strings, the incompressible strings, `|x| ≤ C(x)`,
@@ -336,15 +336,13 @@ theorem infinite_setOf_size_le_complexity_universal :
     {x : ℕ | x.size ≤ universal.complexity x}.Infinite := by
   refine Set.infinite_of_forall_exists_gt fun a => ?_
   obtain ⟨b, hb⟩ := ((Set.finite_le_nat a).image universal.complexity).bddAbove
-  obtain ⟨x, hx, hxc⟩ := universal.exists_mem_le_ecomplexity (s := {x | x < 2 ^ (b + 1)})
+  obtain ⟨x, hx, hxc⟩ := universal.exists_mem_le_ecomplexity (s := Set.Iio (2 ^ (b + 1)))
     (r := b + 1) (by
-      rw [show {x | x < 2 ^ (b + 1)} = ((Finset.range (2 ^ (b + 1)) : Finset ℕ) : Set ℕ) by
-        ext; simp, Set.encard_coe_eq_coe_finsetCard, Finset.card_range]
+      rw [← Finset.coe_range, Set.encard_coe_eq_coe_finsetCard, Finset.card_range]
       norm_cast)
   rw [← natCast_complexity_universal, Nat.cast_le] at hxc
-  refine ⟨x, (Nat.size_le.mpr hx).trans hxc, lt_of_not_ge fun hxa => ?_⟩
-  have := hb ⟨x, hxa, rfl⟩
-  omega
+  exact ⟨x, (Nat.size_le.mpr hx).trans hxc,
+    lt_of_not_ge fun hxa => (Nat.lt_of_succ_le hxc).not_ge (hb ⟨x, hxa, rfl⟩)⟩
 
 /-- **Immunity for natural numbers.** Every r.e. set of natural numbers whose binary length is at
 most their plain complexity is finite. -/
@@ -352,8 +350,6 @@ theorem finite_of_rePred_of_subset_size_le_complexity_universal {A : Set ℕ}
     (hA : REPred (· ∈ A)) (hsub : A ⊆ {x | x.size ≤ universal.complexity x}) : A.Finite :=
   minorizesPartrec_universal.finite_of_rePred computable_size
     (fun n => (Set.finite_lt_nat (2 ^ n)).subset fun _ hx => Nat.size_le.mp hx) hA
-    fun x hx => by
-      rw [← natCast_complexity_universal]
-      exact_mod_cast hsub hx
+    fun x hx => natCast_complexity_universal x ▸ Nat.cast_le.mpr (hsub hx)
 
 end Cslib.Kolmogorov.DescriptionMethod

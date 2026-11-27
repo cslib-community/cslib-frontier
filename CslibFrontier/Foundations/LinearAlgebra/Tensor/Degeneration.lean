@@ -182,19 +182,13 @@ theorem IsSLDegen.toIsDegen [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq 
 theorem IsDegen.of_isRestriction [Fintype X'] [Fintype Y'] [Fintype Z'] {T : Tensor K X Y Z}
     {S : Tensor K X' Y' Z'} (h : IsRestriction T S) : IsDegen 0 T S := by
   obtain ⟨α, β, γ, rfl⟩ := h
-  refine ⟨α.map C, β.map C, γ.map C, 0, ?_⟩
-  rw [← map_restrict]
-  ext x y z
-  simp
+  exact ⟨α.map C, β.map C, γ.map C, 0, by simp [← map_restrict]⟩
 
 /-- A shared-left restriction is a shared-left degeneration of order `0`. -/
 theorem IsSLDegen.of_restrict_incl [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X']
     {f : X → X'} {T : Tensor K X Y Z} {S : Tensor K X' Y' Z'} (β : Matrix Y' Y K)
     (γ : Matrix Z Z' K) (h : restrict (incl f) β γ S = T) : IsSLDegen f 0 T S := by
-  refine ⟨β.map C, γ.map C, 0, ?_⟩
-  rw [← map_incl (C : K →+* K[X]) f, ← map_restrict, h]
-  ext x y z
-  simp
+  exact ⟨β.map C, γ.map C, 0, by simp [← h, map_restrict]⟩
 
 /-- Raising the order of a degeneration: multiply the decoder by `ε`. -/
 theorem IsDegen.mono [Fintype X'] [Fintype Y'] [Fintype Z'] {h h' : ℕ} {T : Tensor K X Y Z}
@@ -202,10 +196,8 @@ theorem IsDegen.mono [Fintype X'] [Fintype Y'] [Fintype Z'] {h h' : ℕ} {T : Te
   obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hh
   obtain ⟨α, β, γ, E, hE⟩ := hT
   refine ⟨α, β, (Polynomial.X ^ d : K[X]) • γ, E, ?_⟩
-  rw [restrict_smul_decoder, hE]
-  funext x y z
-  simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
-  ring
+  rw [restrict_smul_decoder, hE, smul_add, smul_smul, smul_smul, ← pow_add, ← pow_add,
+    ← Nat.add_assoc, Nat.add_comm d h]
 
 theorem IsSLDegen.mono [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X'] {f : X → X'}
     {h h' : ℕ} {T : Tensor K X Y Z} {S : Tensor K X' Y' Z'} (hT : IsSLDegen f h T S)
@@ -213,10 +205,8 @@ theorem IsSLDegen.mono [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X'] {
   obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hh
   obtain ⟨β, γ, E, hE⟩ := hT
   refine ⟨β, (Polynomial.X ^ d : K[X]) • γ, E, ?_⟩
-  rw [restrict_smul_decoder, hE]
-  funext x y z
-  simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
-  ring
+  rw [restrict_smul_decoder, hE, smul_add, smul_smul, smul_smul, ← pow_add, ← pow_add,
+    ← Nat.add_assoc, Nat.add_comm d h]
 
 /-- Substituting `ε ↦ ε ^ N` in a degeneration witness of order `k` gives a witness of order
 `N k` whose error is divisible by `ε ^ (N k + N)`. -/
@@ -280,9 +270,7 @@ private theorem exists_restrict_incl_eq_of_isSLDegen [Fintype X'] [Fintype Y'] [
       restrict (incl f) β γ (S.map C) =
         (Polynomial.X ^ (N * k) : K[X]) • T.map C + (Polynomial.X ^ (N * k + N) : K[X]) • E := by
   obtain ⟨β, γ, E, hE⟩ := hT
-  have := restrict_map_expand hE N
-  rw [map_incl] at this
-  exact ⟨_, _, _, this⟩
+  exact ⟨_, _, _, by simpa only [map_incl] using restrict_map_expand hE N⟩
 
 /-- Composition of shared-left degenerations, the injections composing; the inner witness is
 taken at `ε ^ (h + 1)` as in `IsDegen.trans`. -/
@@ -388,11 +376,9 @@ theorem IsSLDegen.reindex_source [Fintype X'] [Fintype Y'] [Fintype Z'] [Decidab
   classical
   obtain ⟨β, γ, E, hE⟩ := hT
   refine ⟨incl e₂ * β, γ * (incl e₃)ᵀ, E, ?_⟩
-  rw [incl_comp, ← restrict_restrict, restrict_incl]
-  have h₁ : (fun x y z => (reindex e₁ e₂ e₃ S).map C (e₁ x) (e₂ y) (e₃ z)) = S.map C := by
-    funext x y z
-    simp
-  rwa [h₁]
+  have h₁ : (fun x y z => (reindex e₁ e₂ e₃ S).map C (e₁ x) (e₂ y) (e₃ z)) = S.map C :=
+    funext fun _ => funext fun _ => funext fun _ => by simp
+  rwa [incl_comp, ← restrict_restrict, restrict_incl, h₁]
 
 /-- Removing a reindexing of the target of a shared-left degeneration. -/
 theorem IsSLDegen.of_reindex_target [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X']
@@ -435,14 +421,9 @@ private theorem exists_tprodPi_eq {ι : Type*} [Fintype ι] (h : ι → ℕ) (T 
   refine ⟨fun x y z => Polynomial.divX (∏ i, (C (T i (x i) (y i) (z i)) +
     Polynomial.X * E i (x i) (y i) (z i)) - ∏ i, C (T i (x i) (y i) (z i))), ?_⟩
   funext x y z
-  simp only [tprodPi_apply, Pi.add_apply, Pi.smul_apply, smul_eq_mul, Tensor.map_apply, map_prod]
-  have : ∀ i, Polynomial.X ^ h i * C (T i (x i) (y i) (z i)) +
-      Polynomial.X ^ (h i + 1) * E i (x i) (y i) (z i) =
-      Polynomial.X ^ h i * (C (T i (x i) (y i) (z i)) + Polynomial.X * E i (x i) (y i) (z i)) :=
-    fun i => by ring
-  simp only [this, Finset.prod_mul_distrib, Finset.prod_pow_eq_pow_sum]
+  simp only [tprodPi_apply, Pi.add_apply, Pi.smul_apply, smul_eq_mul, Tensor.map_apply, map_prod,
+    pow_succ, mul_assoc, ← mul_add, Finset.prod_mul_distrib, Finset.prod_pow_eq_pow_sum]
   conv_lhs => rw [prod_add_X_mul]
-  ring
 
 theorem IsDegen.tprodPi {ι : Type*} [Fintype ι] [DecidableEq ι] [Fintype X'] [Fintype Y']
     [Fintype Z'] {h : ι → ℕ} {T : ι → Tensor K X Y Z} {S : ι → Tensor K X' Y' Z'}
@@ -455,8 +436,7 @@ theorem IsDegen.tprodPi {ι : Type*} [Fintype ι] [DecidableEq ι] [Fintype X'] 
 theorem IsDegen.tpow [Fintype X'] [Fintype Y'] [Fintype Z'] {h : ℕ} {T : Tensor K X Y Z}
     {S : Tensor K X' Y' Z'} (hT : IsDegen h T S) (d : ℕ) :
     IsDegen (d * h) (tpow d T) (tpow d S) := by
-  have := IsDegen.tprodPi (h := fun _ : Fin d => h) fun _ => hT
-  rwa [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul] at this
+  simpa [Tensor.tpow, smul_eq_mul] using IsDegen.tprodPi (h := fun _ : Fin d => h) fun _ => hT
 
 theorem IsDegen.dsum {ι : Type*} [Fintype ι] [DecidableEq ι] [Fintype X'] [Fintype Y']
     [Fintype Z'] {h : ℕ} {T : ι → Tensor K X Y Z} {S : ι → Tensor K X' Y' Z'}
@@ -514,8 +494,7 @@ theorem IsSLDegen.tprodPi {ι : Type*} [Fintype ι] [DecidableEq ι] [Fintype X'
 theorem IsSLDegen.tpow [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X'] {f : X → X'}
     {h : ℕ} {T : Tensor K X Y Z} {S : Tensor K X' Y' Z'} (hT : IsSLDegen f h T S) (d : ℕ) :
     IsSLDegen (fun x i => f (x i)) (d * h) (tpow d T) (tpow d S) := by
-  have := IsSLDegen.tprodPi (h := fun _ : Fin d => h) fun _ => hT
-  rwa [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul] at this
+  simpa [Tensor.tpow, smul_eq_mul] using IsSLDegen.tprodPi (h := fun _ : Fin d => h) fun _ => hT
 
 private theorem restrict_incl_slSum_map {ι κ : Type*} [Fintype ι] [DecidableEq ι] [DecidableEq κ]
     [Fintype X] [Fintype Y] [Fintype Z] [DecidableEq X] [DecidableEq Y] [DecidableEq Z]
@@ -531,10 +510,8 @@ theorem IsSLDegen.slSum_comp {ι κ : Type*} [Finite ι] [DecidableEq ι] [Decid
     [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X'] {f : X → X'} {h : ℕ}
     {G : ι → Tensor K X Y Z} {S : Tensor K X' Y' Z'} (hT : IsSLDegen f h (Tensor.slSum G) S)
     (e : κ → ι) (he : Function.Injective e) : IsSLDegen f h (Tensor.slSum (G ∘ e)) S := by
-  cases nonempty_fintype ι
-  cases nonempty_fintype X
-  cases nonempty_fintype Y
-  cases nonempty_fintype Z
+  rcases nonempty_fintype ι, nonempty_fintype X, nonempty_fintype Y, nonempty_fintype Z with
+    ⟨⟨_⟩, ⟨_⟩, ⟨_⟩, ⟨_⟩⟩
   classical
   obtain ⟨β, γ, E, hE⟩ := hT
   refine ⟨β * incl (Prod.map e id), (incl (Prod.map e id))ᵀ * γ,
@@ -559,10 +536,8 @@ theorem IsDegen.dsum_comp {ι κ : Type*} [Finite ι] [DecidableEq ι] [Decidabl
     [Fintype Y'] [Fintype Z'] {h : ℕ} {G : ι → Tensor K X Y Z} {S : Tensor K X' Y' Z'}
     (hT : IsDegen h (Tensor.dsum G) S) (e : κ → ι) (he : Function.Injective e) :
     IsDegen h (Tensor.dsum (G ∘ e)) S := by
-  cases nonempty_fintype ι
-  cases nonempty_fintype X
-  cases nonempty_fintype Y
-  cases nonempty_fintype Z
+  rcases nonempty_fintype ι, nonempty_fintype X, nonempty_fintype Y, nonempty_fintype Z with
+    ⟨⟨_⟩, ⟨_⟩, ⟨_⟩, ⟨_⟩⟩
   exact (isRestriction_dsum_comp G e he).trans_isDegen hT
 
 end Degenerations
@@ -597,9 +572,7 @@ theorem IsDegen.rank_of_natDegree_le [Finite X] [Finite Y] [Finite Z] {h D r : �
       (Polynomial.X ^ h : K[X]) • T.map C + (Polynomial.X ^ (h + 1) : K[X]) • E)
     (hD : ∀ x y z, (restrict α β γ ((unit r).map C) x y z).natDegree ≤ D) :
     Rank ((D + 1) * r) T := by
-  cases nonempty_fintype X
-  cases nonempty_fintype Y
-  cases nonempty_fintype Z
+  rcases nonempty_fintype X, nonempty_fintype Y, nonempty_fintype Z with ⟨⟨_⟩, ⟨_⟩, ⟨_⟩⟩
   classical
   obtain ⟨c, hc⟩ := exists_coeff_eq_sum_eval (K := K) h D
   have hT : T = ∑ k : Fin (D + 1), c k •
@@ -615,9 +588,8 @@ theorem IsDegen.rank_of_natDegree_le [Finite X] [Finite Y] [Finite Z] {h D r : �
     refine ⟨α.map ev, β.map ev, γ.map ev, ?_⟩
     rw [map_restrict]
     congr 1
-    funext i j l
-    simp only [Tensor.map_apply, unit_apply, Polynomial.coe_evalRingHom]
-    split_ifs <;> simp
+    ext i j l
+    simp only [Tensor.map_apply, Polynomial.coe_evalRingHom, Polynomial.eval_C]
   rw [hT]
   exact Rank.of_isRestriction ((isRestriction_sum_dsum c _).trans (IsRestriction.dsum h₁))
     (Rank.dsum (D + 1) (IsRestriction.refl _))
@@ -628,17 +600,11 @@ bound `D` depending only on the degeneration. -/
 theorem IsDegen.exists_rank_tpow [Finite X] [Finite Y] [Finite Z] {h r : ℕ}
     {T : Tensor K X Y Z} (hT : IsDegen h T (unit r)) :
     ∃ D : ℕ, ∀ m : ℕ, Rank ((D * m + 1) * r ^ m) (Tensor.tpow m T) := by
-  cases nonempty_fintype X
-  cases nonempty_fintype Y
-  cases nonempty_fintype Z
+  rcases nonempty_fintype X, nonempty_fintype Y, nonempty_fintype Z with ⟨⟨_⟩, ⟨_⟩, ⟨_⟩⟩
   classical
   obtain ⟨α, β, γ, E, hw⟩ := hT
-  obtain ⟨D, hD⟩ : ∃ D : ℕ, ∀ x y z, (restrict α β γ ((unit r).map C) x y z).natDegree ≤ D :=
-    ⟨univ.sup fun p : X × Y × Z => (restrict α β γ ((unit r).map C) p.1 p.2.1 p.2.2).natDegree,
-      fun x y z => Finset.le_sup (f := fun p : X × Y × Z =>
-        (restrict α β γ ((unit r).map C) p.1 p.2.1 p.2.2).natDegree) (b := (x, y, z))
-        (Finset.mem_univ _)⟩
-  refine ⟨D, fun m => ?_⟩
+  let f : X × Y × Z → ℕ := fun ⟨x, y, z⟩ => (restrict α β γ ((unit r).map C) x y z).natDegree
+  refine ⟨univ.sup f, fun m => ?_⟩
   obtain ⟨R, hR⟩ := exists_tprodPi_eq (fun _ : Fin m => h) (fun _ => T) fun _ => E
   rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul] at hR
   obtain ⟨α₁, β₁, γ₁, h₁⟩ := Rank.tpow (IsRestriction.refl (unit r : Tensor K _ _ _)) m
@@ -647,15 +613,15 @@ theorem IsDegen.exists_rank_tpow [Finite X] [Finite Y] [Finite Z] {h r : ℕ}
         (restrict (α₁.map C) (β₁.map C) (γ₁.map C) ((unit (r ^ m)).map C)) =
       Tensor.tprodPi fun _ => restrict α β γ ((unit r).map C) := by
     rw [← map_restrict, h₁, Tensor.tpow, tprodPi_map, ← restrict_tprodPi]
-  refine IsDegen.rank_of_natDegree_le (h := m * h) (D := D * m)
+  refine IsDegen.rank_of_natDegree_le (h := m * h) (D := univ.sup f * m)
     (α₁.map C * piKronecker fun _ => α) (β₁.map C * piKronecker fun _ => β)
     ((piKronecker fun _ => γ) * γ₁.map C) R ?_ ?_
   · rwa [← restrict_restrict, h₂, hw]
   · intro x y z
     rw [← restrict_restrict, h₂, tprodPi_apply]
-    refine (Polynomial.natDegree_prod_le _ _).trans ?_
-    refine (Finset.sum_le_card_nsmul _ _ D fun _ _ => hD _ _ _).trans_eq ?_
-    rw [Finset.card_univ, Fintype.card_fin, smul_eq_mul, mul_comm]
+    exact (Polynomial.natDegree_prod_le _ _).trans <|
+      (Finset.sum_le_card_nsmul _ _ (univ.sup f) fun i _ =>
+        Finset.le_sup (f := f) (Finset.mem_univ (x i, y i, z i))).trans_eq (by simp [mul_comm])
 
 end Bini
 

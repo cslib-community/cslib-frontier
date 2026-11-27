@@ -142,18 +142,16 @@ theorem hgt_eq_of_smul_eq {v w : Fin 3 → k[X]} (hv : IsPrimTriple v) (hw : IsP
   have hab : IsCoprime t.num t.denom := RatFunc.isCoprime_num_denom t
   have key (i) : t.num * v i = t.denom * w i := by
     have hi := congrFun h i
-    simp only [Pi.smul_apply, smul_eq_mul] at hi
-    rw [← RatFunc.num_div_denom t, div_mul_eq_mul_div, div_eq_iff hb] at hi
-    apply RatFunc.algebraMap_injective k
-    rw [map_mul, map_mul, hi, mul_comm]
+    rw [Pi.smul_apply, smul_eq_mul, ← RatFunc.num_div_denom t, div_mul_eq_mul_div,
+      div_eq_iff hb, mul_comm _ (algebraMap _ _ t.denom), ← map_mul, ← map_mul] at hi
+    exact RatFunc.algebraMap_injective k hi
   have hbu : IsUnit t.denom := isPrimTriple_iff.1 hv _ fun i ↦
     hab.symm.dvd_of_dvd_mul_left ⟨_, key i⟩
   have hau : IsUnit t.num := isPrimTriple_iff.1 hw _ fun i ↦
     hab.dvd_of_dvd_mul_left ⟨_, (key i).symm⟩
-  unfold hgt
-  congr 1
-  funext i
-  rw [← natDegree_mul_of_isUnit hau, key i, natDegree_mul_of_isUnit hbu]
+  have hdeg (i) : (v i).natDegree = (w i).natDegree := by
+    rw [← natDegree_mul_of_isUnit hau, key i, natDegree_mul_of_isUnit hbu]
+  simp_rw [hgt, hdeg]
 
 /-! ### The symmetric product of two coprime pairs -/
 
@@ -207,14 +205,12 @@ theorem hgt_sym2Pair {r s r' s' : k[X]} (h : IsCoprime r s) (h' : IsCoprime r' s
   · fin_cases i
     exacts [hmul hr hr', natDegree_add_le_of_degree_le (hmul hr hs') (hmul hs hr'), hmul hs hs']
   · rcases coeffs_mul_ne_zero (coeff_max_ne_zero h) (coeff_max_ne_zero h') with h0 | h1 | h2
-    · exact ⟨0, le_natDegree_of_ne_zero
-        (show (r * r').coeff _ ≠ 0 by rwa [coeff_mul_add_eq_of_natDegree_le hr hr'])⟩
-    · exact ⟨1, le_natDegree_of_ne_zero
-        (show (r * s' + s * r').coeff _ ≠ 0 by
-          rwa [coeff_add, coeff_mul_add_eq_of_natDegree_le hr hs',
-            coeff_mul_add_eq_of_natDegree_le hs hr'])⟩
-    · exact ⟨2, le_natDegree_of_ne_zero
-        (show (s * s').coeff _ ≠ 0 by rwa [coeff_mul_add_eq_of_natDegree_le hs hs'])⟩
+    · exact ⟨0, le_natDegree_of_ne_zero ((coeff_mul_add_eq_of_natDegree_le hr hr').symm ▸ h0)⟩
+    · have h1' : (r * s' + s * r').coeff (n + n') ≠ 0 := by
+        rwa [coeff_add, coeff_mul_add_eq_of_natDegree_le hr hs',
+          coeff_mul_add_eq_of_natDegree_le hs hr']
+      exact ⟨1, le_natDegree_of_ne_zero h1'⟩
+    · exact ⟨2, le_natDegree_of_ne_zero ((coeff_mul_add_eq_of_natDegree_le hs hs').symm ▸ h2)⟩
 
 /-! ### The add-sub map doubles the height -/
 
@@ -276,17 +272,11 @@ theorem hgt_addSubMap (E : WeierstrassCurve k) (hΔ : E.Δ ≠ 0) {w : Fin 3 →
     (hw : IsPrimTriple w) :
     hgt (fun j ↦ MvPolynomial.eval w ((E.map C).addSubMap j)) = 2 * hgt w := by
   have : E.IsElliptic := ⟨isUnit_iff_ne_zero.2 hΔ⟩
-  have hA : ∀ j, MvPolynomial.eval w ((E.map C).addSubMap j) =
-      MvPolynomial.eval₂ C w (E.addSubMap j) := fun j ↦ by
-    rw [addSubMap_map, MvPolynomial.eval_map]
-  apply hgt_eq_of_le_of_le
-  · intro j
-    rw [hA]
-    exact natDegree_eval₂_C_le (isHomogeneous_addSubMap E j) w
-  · obtain ⟨j, hj⟩ := Function.ne_iff.1 (addSubMap_ne_zero E (coeff_hgt_ne_zero hw))
-    refine ⟨j, le_natDegree_of_ne_zero ?_⟩
-    rw [hA, coeff_eval₂_C_of_isHomogeneous (isHomogeneous_addSubMap E j) (natDegree_le_hgt w)]
-    exact hj
+  simp_rw [addSubMap_map, MvPolynomial.eval_map]
+  refine hgt_eq_of_le_of_le (fun j ↦ natDegree_eval₂_C_le (isHomogeneous_addSubMap E j) w) ?_
+  obtain ⟨j, hj⟩ := Function.ne_iff.1 (addSubMap_ne_zero E (coeff_hgt_ne_zero hw))
+  rw [← coeff_eval₂_C_of_isHomogeneous (isHomogeneous_addSubMap E j) (natDegree_le_hgt w)] at hj
+  exact ⟨j, le_natDegree_of_ne_zero hj⟩
 
 end Manin
 

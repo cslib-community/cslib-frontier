@@ -89,10 +89,7 @@ theorem realNetOut_smul (c : K) (f : V × V → K) (v : V) :
 /-- `c` units on the single arc `(a, b)` leave `a` and enter `b`. -/
 theorem realNetOut_single [DecidableEq V] (a b : V) (c : K) (v : V) :
     realNetOut (Pi.single (a, b) c) v = (if v = a then c else 0) - (if v = b then c else 0) := by
-  simp only [realNetOut, Pi.single_apply, Prod.mk.injEq]
-  congr 1
-  · by_cases hv : v = a <;> simp [hv]
-  · by_cases hv : v = b <;> simp [hv]
+  simp [realNetOut, Pi.single_apply, ite_and]
 
 variable [LinearOrder K]
 
@@ -181,16 +178,13 @@ private theorem flowMatrix_mulVec_le_iff :
     · exact inflow_dotProduct v f
   simp only [flowMatrix, flowBound, fromRows_mulVec, one_mulVec, neg_mulVec, Sum.elim_le_elim_iff]
   simp only [Pi.le_def, Pi.neg_apply, Pi.zero_apply, neg_nonpos, Prod.forall, hC]
-  constructor
-  · rintro ⟨hcap, hnn, hle, hge⟩
-    refine ⟨hnn, hcap, fun v hs ht => sub_eq_zero.mp ?_⟩
-    simpa [hs, ht] using le_antisymm (hle v) (hge v)
-  · rintro ⟨hnn, hcap, hcons⟩
-    have h0 (v : V) : (if v = s ∨ v = t then (0 : K) else ∑ u, f (u, v) - ∑ w, f (v, w)) = 0 := by
+  refine ⟨fun ⟨hcap, hnn, hle, hge⟩ => ⟨hnn, hcap, fun v hs ht => sub_eq_zero.mp ?_⟩,
+    fun ⟨hnn, hcap, hcons⟩ => ?_⟩
+  · simpa [hs, ht] using le_antisymm (hle v) (hge v)
+  · have h0 (v : V) : (if v = s ∨ v = t then (0 : K) else ∑ u, f (u, v) - ∑ w, f (v, w)) = 0 := by
       split_ifs with h
       · rfl
-      · rw [not_or] at h
-        rw [hcons v h.1 h.2, sub_self]
+      · rw [hcons v (not_or.1 h).1 (not_or.1 h).2, sub_self]
     exact ⟨hcap, hnn, fun v => (h0 v).le, fun v => (h0 v).ge⟩
 
 /-- The value `realNetOut f s` as a linear objective. -/
@@ -216,11 +210,11 @@ theorem exists_isMaxRealFlow (hW : ∀ u v, 0 ≤ W u v) (s t : V) :
   have hbdd : BddAbove ((valueCoeff s ⬝ᵥ ·) '' {x | flowMatrix s t *ᵥ x ≤ flowBound W}) := by
     refine ⟨∑ w, W s w, ?_⟩
     rintro _ ⟨x, hx, rfl⟩
-    have hx' := flowMatrix_mulVec_le_iff.mp hx
+    obtain ⟨hnn, hcap, -⟩ := flowMatrix_mulVec_le_iff.mp hx
     dsimp only
     rw [valueCoeff_dotProduct, realNetOut]
-    linarith [sum_le_sum (s := univ) fun w _ => hx'.2.1 s w,
-      sum_nonneg (s := univ) fun u _ => hx'.1 u s]
+    linarith [sum_le_sum (s := univ) fun w _ => hcap s w,
+      sum_nonneg (s := univ) fun u _ => hnn u s]
   obtain ⟨f, hf, hmax⟩ := exists_isGreatest_of_bddAbove (flowMatrix s t) (flowBound W)
     (valueCoeff s) ⟨0, flowMatrix_mulVec_le_iff.mpr ⟨fun _ _ => le_rfl, hW, fun _ _ _ => by simp⟩⟩
     hbdd
@@ -322,24 +316,20 @@ theorem isMaxRealFlow_minRealCutBetween (hW : ∀ u v, 0 ≤ W u v) (hst : s ≠
       (fun e => hf.2.1 e.1 e.2) (mem_filter.mp htX).2
     have hfeas : IsFeasibleRealFlow W s t (f + μ • d) := by
       refine ⟨fun u v => (hb (u, v)).1, fun u v => (hb (u, v)).2, fun v hvs hvt => ?_⟩
-      have h : realNetOut (f + μ • d) v = 0 := by
-        simp [realNetOut_add, realNetOut_smul, hnet, hf.realNetOut_eq_zero hvs hvt, hvs, hvt]
-      rw [realNetOut, sub_eq_zero] at h
-      exact h.symm
-    have hgt : realNetOut f s < realNetOut (f + μ • d) s := by
-      rw [realNetOut_add, realNetOut_smul, hnet, ite_eq_left rfl, ite_eq_right hst]
-      linarith
-    exact (hmax.2 ⟨_, hfeas, rfl⟩).not_gt hgt
+      rw [eq_comm, ← sub_eq_zero, ← realNetOut]
+      simp [realNetOut_add, realNetOut_smul, hnet, hf.realNetOut_eq_zero hvs hvt, hvs, hvt]
+    have := hmax.2 ⟨_, hfeas, rfl⟩
+    simp only [realNetOut_add, realNetOut_smul, hnet, ↓reduceIte, hst] at this
+    linarith
   have hsat : ∀ u ∈ X, ∀ v ∈ univ \ X, f (u, v) = W u v ∧ f (v, u) = 0 := by
     intro u hu v hv
     have hres : ¬ Residual W f u v := fun h =>
       (mem_sdiff.mp hv).2 (mem_filter.mpr ⟨mem_univ v, (mem_filter.mp hu).2.tail h⟩)
     simp only [Residual, not_or, not_lt] at hres
     exact ⟨le_antisymm (hf.2.1 u v) hres.1, le_antisymm hres.2 (hf.1 v u)⟩
-  have hval : realNetOut f s = cutWeight W X := by
-    rw [hf.realNetOut_eq_sub hsX htX, cutWeight,
-      sum_congr rfl fun u hu => sum_congr rfl fun v hv => (hsat u hu v hv).1,
-      sum_eq_zero fun u hu => sum_eq_zero fun v hv => (hsat u hu v hv).2, sub_zero]
-  exact hval ▸ minRealCutBetween_le_cutWeight W hsX htX
+  rw [hf.realNetOut_eq_sub hsX htX,
+    sum_congr rfl fun u hu => sum_congr rfl fun v hv => (hsat u hu v hv).1,
+    sum_eq_zero fun u hu => sum_eq_zero fun v hv => (hsat u hu v hv).2, sub_zero, ← cutWeight]
+  exact minRealCutBetween_le_cutWeight W hsX htX
 
 end Cslib.Algorithms.Lean.MaxFlow

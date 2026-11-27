@@ -84,10 +84,8 @@ theorem runFrom_entry (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s)
   dsimp only
   rw [QueryMachine.runFrom_succ, runFrom_initializer_prefix M e (N, b, σ, q) w
     (((k * 3 + 1) + 1) * chunkCount (k * 3 + 1) (Encoding.width k s b)) le_rfl]
-  change (if (Initializer.machine k).halted
-    ((Initializer.machine k).runFrom w (Initializer.prepare k s (N, b, σ, q))
-      (((k * 3 + 1) + 1) * chunkCount (k * 3 + 1) (Encoding.width k s b))) then _ else _) = _
-  simp only [Initializer.halted_prepare, ↓reduceIte]
+  simp only [QueryMachine.step, machine, Sum.elim_inl, Initializer.halted_prepare,
+    Bool.false_eq_true, ↓reduceIte]
 
 /-- One metadata-only allowance covers initialization and every evaluator subroutine clock. -/
 @[expose] noncomputable def allowance (k s : ℕ) (Q : Type) (N b σ q : ℕ) : ℕ :=
@@ -115,19 +113,15 @@ theorem length_runFrom_entry_le [Finite Q]
       Initializer.space k ((Initializer.prepare k s args).1) + C + 2 := by
   let cells := Initializer.bankCells k ((Initializer.prepare k s args).1)
   by_cases hinit : t ≤ cells
-  · have hbound : (Initializer.encState ((Initializer.machine k).runFrom w
-        (Initializer.prepare k s args) t)).length ≤
-        Initializer.space k ((Initializer.prepare k s args).1) :=
-      Initializer.length_runFrom_prepare_le k s args w t
+  · have hbound := Initializer.length_runFrom_prepare_le k s args w t
     rw [runFrom_initializer_prefix M e args w t hinit]
     change (Initializer.encState ((Initializer.machine k).runFrom w
       (Initializer.prepare k s args) t)).length + 1 ≤ _
     omega
-  · have htge : cells + 1 ≤ t := by omega
-    obtain ⟨u, rfl⟩ := Nat.exists_eq_add_of_le htge
-    have hu : u ≤ T := by change cells + 1 + u ≤ cells + 1 + T at ht; omega
+  · obtain ⟨u, rfl⟩ := Nat.exists_eq_add_of_le (Nat.not_le.mp hinit)
+    dsimp only [cells] at ht
+    have hbound := hspace u (by omega)
     rw [QueryMachine.runFrom_add, hentry, runFrom_inr]
-    have hbound := hspace u hu
     change (ConcreteEvaluator.encState
       ((ConcreteEvaluator.machine M e).runFrom w active u)).length + 1 ≤ _
     omega
@@ -179,18 +173,13 @@ theorem exists_runFrom_decode_root [Finite Q] (M : MultiTapeTM k Bool Q) (e : Q 
   have hentry : (machine M e).runFrom w (start k s (w.length, b, σ, q)) (cells + 1) =
       .inr (.inl (ctx, (p, d, r), RawController.ofCfg
         (Iter.initialCfg (0 : Cslib.TreeEval.Ary.State (ZMod p) d r) 1 (0 : Fin (d + 1))))) := by
-    rw [runFrom_entry]
-    unfold resume
-    rw [Initializer.result_runFrom_prepare]
-  have hafter (u : ℕ) :
-      (machine M e).runFrom w (start k s (w.length, b, σ, q)) ((cells + 1) + u) =
-        .inr ((ConcreteEvaluator.machine M e).runFrom w
-          (.inl (ctx, (p, d, r), RawController.ofCfg
-            (Iter.initialCfg (0 : Cslib.TreeEval.Ary.State (ZMod p) d r) 1 0))) u) := by
-    rw [QueryMachine.runFrom_add, hentry, runFrom_inr]
-  refine ⟨cells + 1 + T, bank, ?_, hdecode, ?_, ?_⟩
-  · rw [hafter, hrun]
-  · rw [hafter, hrun]
+    simp only [cells, d, r, B, m, p, limit, ctx, runFrom_entry, resume,
+      Initializer.result_runFrom_prepare]
+  have hfin : (machine M e).runFrom w (start k s (w.length, b, σ, q)) (cells + 1 + T) =
+      .inr (.inl (ctx, (p, d, r), bank, [], none)) := by
+    rw [QueryMachine.runFrom_add, hentry, runFrom_inr, hrun]
+  refine ⟨cells + 1 + T, bank, hfin, hdecode, ?_, ?_⟩
+  · rw [hfin]
     change !RawController.validBank p d r bank || (true && true) = true
     simp
   · exact length_runFrom_entry_le M e (w.length, b, σ, q) w

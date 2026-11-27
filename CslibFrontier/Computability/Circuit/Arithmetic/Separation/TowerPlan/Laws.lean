@@ -33,6 +33,8 @@ need.
 
 * `RelayRole.elim_injective`, `RelayRole.prod_univ`, `RelayRole.sum_univ`: three different values
   give an injective function on the roles, and a product and a sum over the roles.
+* `VertexLaws.exists_channelEnd`: every role of a law at a vertex is at an end of a channel, if
+  every place is an end of a near pair.
 
 ## References
 
@@ -177,6 +179,17 @@ variable {F : Type*} [CommSemiring F] {T : Tower h b D J r} (FL : VertexLaws F T
 /-- The number of slots on a pair of places. -/
 @[expose] def slotCount (d : FL.Kind) (q : Sym2 T.Fl) : ℕ :=
   (univ.filter fun e : (FL.law d).Slot => FL.slotPair d e = q).card
+
+/-- Every role of a law at a vertex is at an end of one of its channels, if every place is an end
+of a near pair. -/
+theorem exists_channelEnd (hnr : ∀ f : T.Fl, ∃ ν, T.cN ν = f ∨ T.dN ν = f)
+    (d : FL.Kind) (p : (FL.law d).Role) : ∃ ν b, (FL.law d).channelEnd ν b = p := by
+  obtain ⟨ν, hν⟩ := hnr (FL.place d p)
+  have h2 : FL.place d p ∈ s(T.cN ν, T.dN ν) := by rcases hν with hν | hν <;> simp [hν]
+  rw [← Equiv.apply_symm_apply (FL.nearPair d) ν, ← FL.place_channelEnd, Sym2.mem_iff] at h2
+  rcases h2 with h2 | h2
+  exacts [⟨_, false, (FL.place d).injective h2.symm⟩,
+    ⟨_, true, (FL.place d).injective h2.symm⟩]
 
 end VertexLaws
 

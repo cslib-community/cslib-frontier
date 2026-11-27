@@ -99,13 +99,11 @@ private theorem card_filter_swap_mul_two_pow_le {m k : ℕ} (a b : Fin m → Boo
   · simp [h]
   obtain ⟨h0, hk⟩ := (Finset.mem_filter.1 hσ₀).2
   have hfilt : (Finset.univ.filter fun i => (if σ₀ i then a i else b i) = true) =
-      Finset.univ.filter fun i => (a i || b i) = true := by
-    refine Finset.filter_congr fun i _ => ?_
-    have hlabels : ((if σ₀ i then a i else b i) || (if σ₀ i then b i else a i)) =
-        (a i || b i) := by
-      cases σ₀ i <;> simp [Bool.or_comm]
-    rw [h0 i, Bool.or_false] at hlabels
-    rw [hlabels]
+      Finset.univ.filter fun i => (a i || b i) = true :=
+    Finset.filter_congr fun i _ => by
+      have := h0 i
+      revert this
+      cases σ₀ i <;> cases a i <;> cases b i <;> decide
   rw [hfilt] at hk
   -- Count the swaps compatible with the first sample coordinate by coordinate.
   let A (i : Fin m) : Finset Bool := Finset.univ.filter fun bit =>
@@ -153,10 +151,8 @@ private theorem card_filter_swapSamples_mem_mul_two_pow_le (G : ConceptClass Z B
   -- Each good swap determines a labeling of the `2m` points realized by `G`.
   let v : (Fin m → Bool) → (Fin (m + m) → Bool) := fun σ =>
     if hσ : σ ∈ Good then fun j => (hw σ hσ).choose (x j) else fun _ => false
-  have hvR : ∀ σ ∈ Good, v σ ∈ restriction G x := by
-    intro σ hσ
-    rw [mem_restriction]
-    exact ⟨(hw σ hσ).choose, (hw σ hσ).choose_spec.1,
+  have hvR : ∀ σ ∈ Good, v σ ∈ restriction G x := fun σ hσ =>
+    mem_restriction.2 ⟨(hw σ hσ).choose, (hw σ hσ).choose_spec.1,
       fun j => by simp only [v, hσ, ↓reduceDIte]⟩
   -- Each labeling is compatible with at most `2 ^ (m - k)` swaps.
   have hfib : ∀ w ∈ Good.image v, (Good.filter fun σ => v σ = w).card * 2 ^ k ≤ 2 ^ m := by
@@ -167,19 +163,12 @@ private theorem card_filter_swapSamples_mem_mul_two_pow_le (G : ConceptClass Z B
     intro σ hσ
     obtain ⟨hσG, rfl⟩ := Finset.mem_filter.1 hσ
     obtain ⟨-, h1, h2⟩ := (hw σ hσG).choose_spec
-    have hva : ∀ i, v σ (Fin.castAdd m i) = (hw σ hσG).choose (z.1 i) := fun i => by
-      simp only [v, hσG, ↓reduceDIte, x, Fin.append_left]
-    have hvb : ∀ i, v σ (Fin.natAdd m i) = (hw σ hσG).choose (z.2 i) := fun i => by
-      simp only [v, hσG, ↓reduceDIte, x, Fin.append_right]
-    generalize (hw σ hσG).choose = g at h1 h2 hva hvb
-    refine Finset.mem_filter.2 ⟨Finset.mem_univ _, fun i => ?_, ?_⟩
-    · have := h1 i
-      rw [fst_swapSamples_apply] at this
-      rw [hva, hvb]
-      cases hσi : σ i <;> simpa [hσi] using this
-    · refine h2.trans_eq (congrArg Finset.card (Finset.filter_congr fun i _ => ?_))
-      rw [hva, hvb, snd_swapSamples_apply]
-      cases σ i <;> rfl
+    refine Finset.mem_filter.2 ⟨Finset.mem_univ _, fun i => ?_,
+      h2.trans_eq (congrArg Finset.card (Finset.filter_congr fun i _ => ?_))⟩
+    · simpa only [v, hσG, ↓reduceDIte, x, Fin.append_left, Fin.append_right,
+        fst_swapSamples_apply, apply_ite (hw σ hσG).choose] using h1 i
+    · simp only [v, hσG, ↓reduceDIte, x, Fin.append_left, Fin.append_right,
+        snd_swapSamples_apply, apply_ite (hw σ hσG).choose]
   have himg : (Good.image v).card ≤ growthFunction G (m + m) := by
     calc (Good.image v).card = ((Good.image v : Finset _) : Set (Fin (m + m) → Bool)).ncard :=
           (Set.ncard_coe_finset _).symm
@@ -208,19 +197,19 @@ theorem le_of_vcSampleSize_le {d m : ℕ} {ε δ N : ℝ} (hε : 0 < ε) (hε1 :
     (hδ1 : δ ≤ 1) (hm : vcSampleSize d ε δ ≤ m)
     (hN : N ≤ Real.exp (((m + m : ℕ) : ℝ) / (48 / ε)) * (48 / ε) ^ d) :
     8 ≤ ε * m ∧ 2 * N ≤ δ * 2 ^ ⌈ε * m / 2⌉₊ := by
-  have hT : 1 ≤ 48 / ε := by rw [le_div_iff₀ hε]; linarith
-  have hlogT : 0 ≤ Real.log (48 / ε) := Real.log_nonneg hT
   have hlog4 : 1 ≤ Real.log (4 / δ) := by
     rw [Real.le_log_iff_exp_le (by positivity)]
     calc Real.exp 1 ≤ 4 := by linarith [Real.exp_one_lt_d9]
       _ ≤ 4 / δ := by rw [le_div_iff₀ hδ]; nlinarith
   rw [vcSampleSize, div_mul_eq_mul_div, div_le_iff₀ hε] at hm
-  have hdlog : 0 ≤ (d : ℝ) * Real.log (48 / ε) := mul_nonneg (Nat.cast_nonneg d) hlogT
+  have hdlog : 0 ≤ (d : ℝ) * Real.log (48 / ε) :=
+    mul_nonneg (Nat.cast_nonneg d) (Real.log_nonneg (by rw [le_div_iff₀ hε]; linarith))
   have h8 : 8 ≤ ε * m := by linarith
   refine ⟨h8, ?_⟩
   have hexp : ((m + m : ℕ) : ℝ) / (48 / ε) = ε * m / 24 := by push_cast; field_simp; ring
   have hlog2 : ε * m / 3 ≤ ε * m / 2 * Real.log 2 := by nlinarith [Real.log_two_gt_d9]
-  rw [Real.log_div (by norm_num) hδ.ne', show (4 : ℝ) = 2 ^ 2 by norm_num, Real.log_pow] at hm
+  have h4 : (4 : ℝ) = 2 ^ 2 := by norm_num
+  rw [Real.log_div (by norm_num) hδ.ne', h4, Real.log_pow] at hm
   calc 2 * N
       ≤ 2 * (Real.exp (((m + m : ℕ) : ℝ) / (48 / ε)) * (48 / ε) ^ d) := by gcongr
     _ ≤ δ * (2 : ℝ) ^ (ε * m / 2) := by
@@ -286,38 +275,31 @@ private theorem measure_pi_card_lt_le_half (μ : Measure Z) [IsProbabilityMeasur
     Cslib.Probability.PMF.map_measurePi_eq_toMeasure_pi _ fun _ =>
       (measurable_of_countable g).aemeasurable
   have hgm : Measurable fun (T : Fin m → Z) i => g (T i) := measurable_of_countable _
-  have hpre : {T : Fin m → Z | ((Finset.univ.filter fun i => g (T i) = true).card : ℝ) <
-      ε * m / 2} = (fun T i => g (T i)) ⁻¹'
-        {b : Fin m → Bool | ((Finset.univ.filter fun i => b i = true).card : ℝ) < ε * m / 2} :=
-    rfl
-  rw [hpre, ← Measure.map_apply hgm (Set.toFinite _).measurableSet, hmap,
+  change Measure.pi _ ((fun T i => g (T i)) ⁻¹'
+    {b : Fin m → Bool | ((Finset.univ.filter fun i => b i = true).card : ℝ) < ε * m / 2}) ≤ _
+  rw [← Measure.map_apply hgm (Set.toFinite _).measurableSet, hmap,
     PMF.toMeasure_apply_eq_toOuterMeasure]
   set score : Fin m → Bool → ℝ := fun _ b => if b = true then 1 else 0
   have hscore : ∀ i b, b ∈ q.support → score i b ∈ Set.Icc (0 : ℝ) 1 := fun i b _ => by
     cases b <;> simp [score]
-  have hqt : q true = μ {z | g z = true} := by
-    rw [Measure.toPMF_apply, Measure.map_apply (measurable_of_countable g)
-      (measurableSet_singleton _)]
-    rfl
+  have hqt : q true = μ {z | g z = true} :=
+    (Measure.toPMF_apply _ _).trans
+      (Measure.map_apply (measurable_of_countable g) (measurableSet_singleton _))
   have hεq : ε ≤ (q true).toReal := by
     rw [hqt]
     ennreal_to_real using hε
   have hmean : ε * m ≤ ∑ i : Fin m, ∑ a, (q a).toReal * score i a := by
     simp only [score, Fintype.sum_bool, ite_true, mul_one, Bool.false_eq_true, ite_false,
       mul_zero, add_zero, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
-    rw [mul_comm]
-    exact mul_le_mul_of_nonneg_left hεq (Nat.cast_nonneg _)
+    nlinarith
   -- The Chernoff lower tail at relative deviation `1 / 2`.
   have hch := Cslib.Probability.PMF.pi_sum_le_one_sub_mul (fun _ : Fin m => q) score hscore
     hmean (by norm_num : (0 : ℝ) ≤ 1 / 2)
   have hsub : {b : Fin m → Bool | ((Finset.univ.filter fun i => b i = true).card : ℝ) <
       ε * m / 2} ⊆ {b | ∑ i, score i (b i) ≤ (1 - 1 / 2) * (ε * m)} := by
     intro b hb
-    simp only [Set.mem_ofPred_eq] at hb ⊢
-    have hcount : ((Finset.univ.filter fun i => b i = true).card : ℝ) =
-        ∑ i, score i (b i) := by
-      simp only [score, Finset.card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one,
-        Nat.cast_zero]
+    simp only [Set.mem_ofPred_eq, score, Finset.card_filter, Nat.cast_sum, Nat.cast_ite,
+      Nat.cast_one, Nat.cast_zero] at hb ⊢
     linarith
   have hexp : Real.exp (-((1 / 2) ^ 2 * (ε * m) / 2)) < 1 / 2 := by
     calc Real.exp (-((1 / 2) ^ 2 * (ε * m) / 2)) ≤ Real.exp (-1) :=
@@ -369,17 +351,13 @@ theorem measure_pi_not_isEpsNet_mul_two_pow_le (μ : Measure Z) [IsProbabilityMe
       simp only [Set.mem_compl_iff, Set.mem_ofPred_eq, not_le, hk, Nat.lt_ceil]
     have hlow := measure_pi_card_lt_le_half μ g hgε hm
     rw [← hcompl, prob_compl_eq_one_sub .of_discrete] at hlow
-    refine le_trans ?_ (measure_mono hsub)
-    refine ENNReal.le_of_add_le_add_left (a := 1 / 2) (by simp) ?_
+    refine (ENNReal.le_of_add_le_add_left (a := 1 / 2) (by simp) ?_).trans (measure_mono hsub)
     rw [ENNReal.add_halves]
     exact tsub_le_iff_right.1 hlow
-  have hJB : ν B ≤
-      2 * ((Measure.pi fun _ : Fin m => μ).prod (Measure.pi fun _ : Fin m => μ) J) :=
-    measure_le_two_mul_measure_prod ν ν B .of_discrete hfib
+  have hJB := measure_le_two_mul_measure_prod ν ν B .of_discrete hfib
   have hρJ := measure_doubleSampleEvent_mul_two_pow_le μ G m k
   calc ν B * 2 ^ k
-      ≤ 2 * ((Measure.pi fun _ : Fin m => μ).prod (Measure.pi fun _ : Fin m => μ) J) *
-          2 ^ k := by gcongr
+      ≤ 2 * (ν.prod ν J) * 2 ^ k := by gcongr
     _ ≤ 2 * growthFunction G (m + m) := by rw [mul_assoc]; gcongr
 
 /-- The ε-net theorem in `δ` form: if `8 ≤ εm` and `2 Π_G(2m) ≤ δ 2 ^ ⌈εm/2⌉`, then `m` i.i.d.
@@ -389,10 +367,9 @@ theorem measure_pi_not_isEpsNet_le_of_growthFunction_le (μ : Measure Z) [IsProb
     (hG : 2 * (growthFunction G (m + m) : ℝ) ≤ δ * 2 ^ ⌈ε * m / 2⌉₊) :
     Measure.pi (fun _ : Fin m => μ) {S | ¬ IsEpsNet μ G ε S} ≤ ENNReal.ofReal δ := by
   have h2 : (2 : ℝ≥0∞) * growthFunction G (m + m) ≤ ENNReal.ofReal δ * 2 ^ ⌈ε * m / 2⌉₊ := by
-    have := ENNReal.ofReal_le_ofReal hG
-    rwa [ENNReal.ofReal_mul (by norm_num : (0 : ℝ) ≤ 2), ENNReal.ofReal_ofNat,
-      ENNReal.ofReal_natCast, ENNReal.ofReal_mul' (by positivity),
-      ENNReal.ofReal_pow (by norm_num : (0 : ℝ) ≤ 2), ENNReal.ofReal_ofNat] at this
+    simpa only [ENNReal.ofReal_mul zero_le_two, ENNReal.ofReal_ofNat,
+      ENNReal.ofReal_natCast, ENNReal.ofReal_mul' (pow_nonneg zero_le_two _),
+      ENNReal.ofReal_pow zero_le_two] using ENNReal.ofReal_le_ofReal hG
   exact (ENNReal.mul_le_mul_iff_left (pow_ne_zero _ two_ne_zero)
     (ENNReal.pow_ne_top ENNReal.ofNat_ne_top)).1
     ((measure_pi_not_isEpsNet_mul_two_pow_le μ G hm).trans h2)

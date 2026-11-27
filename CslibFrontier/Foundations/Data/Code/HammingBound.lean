@@ -108,9 +108,7 @@ theorem card_filter_hammingDist_eq (x : ∀ i, β i) (r : ℕ) :
   rw [← sum_congr rfl fun S _ => card_filter_filter_ne_eq x S, ← card_biUnion
     fun S _ T _ hST => disjoint_left.2 fun y hS hT =>
       hST ((mem_filter.1 hS).2.symm.trans (mem_filter.1 hT).2)]
-  congr 1
-  ext y
-  simp [hammingDist, mem_powersetCard]
+  exact congrArg card (Finset.ext fun y => by simp [hammingDist, mem_powersetCard])
 
 /-- Over an alphabet of `q` letters at each of `n` positions, a Hamming sphere of radius `r` has
 `C(n, r) (q - 1) ^ r` words. -/
@@ -127,9 +125,7 @@ theorem card_filter_hammingDist_le_eq_sum (x : ∀ i, β i) (r : ℕ) :
       ∑ j ∈ range (r + 1), #{y : ∀ i, β i | hammingDist x y = j} := by
   rw [← card_biUnion fun i _ j _ hij => disjoint_left.2 fun y hi hj =>
     hij ((mem_filter.1 hi).2.symm.trans (mem_filter.1 hj).2)]
-  congr 1
-  ext y
-  simp
+  exact congrArg card (Finset.ext fun y => by simp)
 
 /-- Over an alphabet of `q` letters at each of `n` positions, a Hamming ball of radius `r` has at
 most `(n (q - 1) + 1) ^ r` words: by the binomial theorem this dominates
@@ -153,9 +149,8 @@ theorem card_mul_card_filter_hammingDist_le_le_prod {C : Finset (∀ i, β i)} {
     #C * #{y : ∀ i, β i | hammingDist x₀ y ≤ r} ≤ ∏ i, Fintype.card (β i) := by
   -- the balls around the codewords are disjoint, and have the same size
   have hdisj : (C : Set (∀ i, β i)).PairwiseDisjoint
-      fun x => ({y : ∀ i, β i | hammingDist x y ≤ r} : Finset (∀ i, β i)) := by
-    intro x hx y hy hxy
-    exact disjoint_left.2 fun z hzx hzy =>
+      fun x => ({y : ∀ i, β i | hammingDist x y ≤ r} : Finset (∀ i, β i)) :=
+    fun _ hx _ hy hxy => disjoint_left.2 fun _ hzx hzy =>
       hxy (eq_of_hammingDist_le_of_two_mul_lt_minDist hC hx hy (mem_filter.1 hzx).2
         (mem_filter.1 hzy).2)
   have hsize (x : ∀ i, β i) : #{y : ∀ i, β i | hammingDist x y ≤ r} =
@@ -210,8 +205,7 @@ theorem exists_subset_pairwise_lt_hammingDist_forall_exists_le (L : Finset (∀ 
   have hyC : y ∉ C := fun h => by simpa using hfar y h
   have := hmax (insert y C) (mem_filter.2 ⟨mem_powerset.2 (insert_subset hy (mem_powerset.1 hCL)),
     coe_insert y C ▸ hCr.insert fun x hx _ => ⟨hammingDist_comm x y ▸ hfar x hx, hfar x hx⟩⟩)
-  rw [card_insert_of_notMem hyC] at this
-  omega
+  rw [card_insert_of_notMem hyC] at this; omega
 
 /-- **The Gilbert–Varshamov bound** [Gilbert1952]: for `d ≥ 1` there is a code of minimum distance
 at least `d` which has at least `∏ i, |β i| / V` words, where `V` is the size of a ball of radius
@@ -250,9 +244,7 @@ theorem exists_le_minDist_and_pow_le_card_mul_sum_choose {q : ℕ}
   classical
   have hprod : ∏ i, Fintype.card (β i) = q ^ Fintype.card ι := by simp [hq]
   rcases isEmpty_or_nonempty (∀ i, β i) with hempty | hne
-  · refine ⟨∅, by simp, ?_⟩
-    rw [← hprod, ← Fintype.card_pi, Fintype.card_eq_zero]
-    exact Nat.zero_le _
+  · exact ⟨∅, by simp, by simp [← hprod, ← Fintype.card_pi]⟩
   obtain ⟨x₀⟩ := hne
   obtain ⟨C, hCd, hC⟩ := exists_le_minDist_and_prod_le_card_mul_card_filter_hammingDist_lt hd x₀
   exact ⟨C, hCd, by rwa [card_filter_hammingDist_lt_eq_sum hd, sum_congr rfl fun j _ =>
@@ -287,7 +279,8 @@ theorem exists_two_pow_le_card_and_le_two_mul_hammingDist (L : ℕ) :
   obtain ⟨C, hCd, hC⟩ := exists_le_minDist_and_pow_le_card_mul_sum_choose
     (ι := Fin L) (β := fun _ => Fin 16) (q := 16) (fun _ => Fintype.card_fin 16)
     (d := (L + 1) / 2) (by omega)
-  rw [Fintype.card_fin, show (16 : ℕ) ^ L = 2 ^ L * 8 ^ L by rw [← mul_pow]; norm_num] at hC
+  have h16 : (16 : ℕ) ^ L = 2 ^ L * 8 ^ L := by rw [← mul_pow]; norm_num
+  rw [Fintype.card_fin, h16] at hC
   refine ⟨C, Nat.le_of_mul_le_mul_right
     (hC.trans (Nat.mul_le_mul_left #C (sum_range_choose_mul_fifteen_pow_le L))) (by positivity),
     fun x hx y hy hxy => ?_⟩

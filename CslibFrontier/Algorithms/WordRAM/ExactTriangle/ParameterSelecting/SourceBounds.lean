@@ -201,8 +201,7 @@ theorem admissionWidth_le_log {n F b ap bp cp P κ β : ℕ} (values : List ℤ)
   have hb1 : 1 ≤ B := by dsimp only [B]; omega
   have he : envelope n F b ap bp cp values ≤ B ^ e :=
     envelope_le_pow values hlen hv le_rfl hF hb ha hc hd
-  have hP' := hP.trans (Nat.pow_le_pow_right hb1
-    (show β ≤ e by dsimp only [e]; omega))
+  have hP' := hP.trans (Nat.pow_le_pow_right (j := e) hb1 (by dsimp only [e]; omega))
   have hunit : 1 ≤ B ^ e := Nat.one_le_pow _ _ hb1
   have h3 : 3 ≤ B ^ 2 := le_pow_of_le_two_pow (by dsimp only [B]; omega) (by decide)
   have hsum : envelope n F b ap bp cp values + P + 1 ≤ B ^ (e + 2) := by
@@ -212,8 +211,7 @@ theorem admissionWidth_le_log {n F b ap bp cp P κ β : ℕ} (values : List ℤ)
       _ = _ := by rw [← pow_add, Nat.add_comm]
   have hl := clog_le_mul_clog hsum
   have hp : 1 ≤ Nat.clog 2 B := Nat.clog_pos (by decide) (by dsimp only [B]; omega)
-  dsimp only [admissionWidth]
-  dsimp only [e, B] at hl hp
+  dsimp only [admissionWidth, e, B] at hl hp ⊢
   nlinarith only [hl, hp]
 
 /-- Original polynomial hypotheses give a polynomial word/support envelope, independent of W. -/
@@ -228,8 +226,8 @@ theorem wordBound_le_pow {n F b ap bp cp P κ β : ℕ} (values : List ℤ)
   have hb2 : 2 ≤ B := by dsimp only [B]; omega
   have he : envelope n F b ap bp cp values ≤ B ^ e :=
     envelope_le_pow values hlen hv le_rfl hF hb ha hc hd
-  have hP' := hP.trans (Nat.pow_le_pow_right (by omega : 1 ≤ B)
-    (show β ≤ e by dsimp only [e]; omega))
+  have hP' := hP.trans
+    (Nat.pow_le_pow_right (j := e) (Nat.one_le_of_lt hb2) (by dsimp only [e]; omega))
   have hunit : 1 ≤ B ^ e := Nat.one_le_pow _ _ (by omega)
   have h48 : 48 ≤ B ^ 6 := le_pow_of_le_two_pow hb2 (by decide)
   calc
@@ -270,10 +268,7 @@ theorem bounded_reachable_polynomial {W n F κ k : ℕ} (values : List ℤ)
       (3 + 2 * (n * n)) values ≤ (n + 2) ^ (12332 * (κ + 9) + 41) := by
     calc
       _ ≤ (n + 2) ^ 4 * (n + 2) ^ (12332 * (κ + 9) + 4 + 33) := Nat.mul_le_mul hc he
-      _ = _ := by
-        rw [← pow_add]
-        exact congrArg (fun q : ℕ => (n + 2) ^ q)
-          (by omega : 4 + (12332 * (κ + 9) + 4 + 33) = 12332 * (κ + 9) + 41)
+      _ = _ := (pow_add (n + 2) 4 _).symm.trans (congrArg ((n + 2) ^ ·) (by omega))
   exact ⟨fun i => (regs i).trans_le bound, fun q => (memory q).trans_le bound,
     fun q hq => support q (bound.trans hq)⟩
 

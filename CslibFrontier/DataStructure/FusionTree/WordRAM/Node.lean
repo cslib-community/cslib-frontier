@@ -67,9 +67,7 @@ def code (w : ℕ) : Code .standard registers := .seq readHeader (.seq initial (
 private theorem size_sketchQuery (strict : Bool) : (sketchQuery strict).size = 119 := by
   have hcomp : compress.size = 102 := by
     simp only [compress, Code.size, Code.size_rename, size_moves, CompressProgram.size_code]; rfl
-  have hrank : (rank strict).size = 17 := by
-    cases strict <;> simp only [rank, Code.size, Code.size_rename, size_moves] <;> rfl
-  simp only [sketchQuery, Code.size, hcomp, hrank]
+  cases strict <;> simp [sketchQuery, rank, Code.size, size_moves, hcomp] <;> rfl
 
 /-- One width-independent code-size bound includes both branches of every conditional. -/
 theorem size_code (w : ℕ) : (code w).size ≤ 201000 := by
@@ -159,7 +157,7 @@ private theorem exec_correction {w n q a : ℕ} {keys : Fin n → ℕ} (p : Node
   have hrv := hru.frame hfv
   have hvzero : v.regs zero = 0 := by regs_frame
   obtain ⟨hlfit, hhfit⟩ := boundary_fits hq hdw
-  by_cases hbit : q.testBit d = false
+  by_cases hbit : q.testBit (highestDiff w (keys j) q) = false
   · have htest : (Cond.eq (boundaryBank 9) zero).Holds v := by
       simpa only [Cond.holds_eq, hb, hvzero, bit_eq_zero_iff] using hbit
     obtain ⟨y, hey, hy, hry, hym⟩ := exec_secondQuery p true (boundaryBank 8)
@@ -167,8 +165,7 @@ private theorem exec_correction {w n q a : ℕ} {keys : Fin n → ℕ} (p : Node
     refine ⟨y, heu.seq (hev.within.seq
       ((ExecWithin.branch_pos (neg := secondQuery false (boundaryBank 7)) htest hey.within).mono
         (by decide : 122 ≤ 123))), ?_, hry, hym.trans (hfv.1.trans hum)⟩
-    have hb0 : q.testBit (highestDiff w (keys j) q) = false := hbit
-    simpa [sketchCut, boundaryRank, hb0] using hy
+    simpa [sketchCut, boundaryRank, hbit] using hy
   · have htest : ¬(Cond.eq (boundaryBank 9) zero).Holds v := by
       simpa only [Cond.holds_eq, hb, hvzero, bit_eq_zero_iff] using hbit
     obtain ⟨y, hey, hy, hry, hym⟩ := exec_secondQuery p false (boundaryBank 7)
@@ -176,8 +173,7 @@ private theorem exec_correction {w n q a : ℕ} {keys : Fin n → ℕ} (p : Node
     refine ⟨y, heu.seq (hev.within.seq
       (ExecWithin.branch_neg (pos := secondQuery true (boundaryBank 8)) htest hey.within)),
       ?_, hry, hym.trans (hfv.1.trans hum)⟩
-    have hb1 : q.testBit (highestDiff w (keys j) q) = true := Bool.eq_true_of_ne_false hbit
-    simpa [sketchCut, boundaryRank, hb1, sketchRank] using hy
+    simpa [sketchCut, boundaryRank, Bool.eq_true_of_ne_false hbit, sketchRank] using hy
 
 /-- Every bounded query receives its true inclusive full-key rank. The physical program
 depends only on `w`, and 201000 bounds the actual instruction count uniformly in `w`, `n`,
@@ -207,9 +203,8 @@ theorem exec {w n q a : ℕ} {keys : Fin n → ℕ} (p : NodeParameters w keys)
     let y := v.set out (sketchRank w keys q)
     have hey : Exec (B := .standard) w (.op (.copy out cut)) v y 1 := by
       simpa only [hcut] using (Exec.copy (B := .standard) (w := w) (d := out) (s := cut) (x := v))
-    have hefinish := Exec.branch_pos (neg := correction w) htest hey
     have hry : Ready p q a y := hrv.set_scratch out _ (by decide) (by decide)
-    refine ⟨y, (heu.within.seq (hev.seq hefinish.within)).mono (by decide), ?_,
+    refine ⟨y, (heu.within.seq (hev.seq (Exec.branch_pos htest hey).within)).mono (by decide), ?_,
       hvm.trans hum, hry.query_eq, hry.pointer_eq⟩
     simpa only [y, Data.set_regs, Function.update_self, hhit, ↓reduceIte] using hcorrect
   · have htest : ¬(Cond.eq divergence zero).Holds v := by
@@ -217,8 +212,7 @@ theorem exec {w n q a : ℕ} {keys : Fin n → ℕ} (p : NodeParameters w keys)
       exact fun h => hhit (Nat.xor_eq_zero_iff.mp h)
     obtain ⟨y, hey, hy, hry, hym⟩ := exec_correction p hw hn0 hs hk hnB hlarge v hrv hq j
       hhit hd hz
-    have hefinish := ExecWithin.branch_neg (pos := .op (.copy out cut)) htest hey
-    refine ⟨y, (heu.within.seq (hev.seq hefinish)).mono (by decide), ?_,
+    refine ⟨y, (heu.within.seq (hev.seq (ExecWithin.branch_neg htest hey))).mono (by decide), ?_,
       hym.trans (hvm.trans hum), hry.query_eq, hry.pointer_eq⟩
     exact hy.trans (by simpa only [ite_eq_right hhit] using hcorrect)
 

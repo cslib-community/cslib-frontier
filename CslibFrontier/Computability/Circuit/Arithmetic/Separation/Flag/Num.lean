@@ -27,16 +27,10 @@ namespace Cslib.Circuits.Arithmetic.Separation.Flag
 
 theorem exists_log_large {ρ ε : ℝ} (h0 : 0 < ρ) (h1 : ρ < 1) (hε : 0 < ε) :
     ∃ L0 : ℕ, ∀ L ≥ L0, ((L : ℝ) + 1) ^ 4 * ρ ^ L ≤ ε := by
-  have h := tendsto_pow_const_mul_const_pow_of_abs_lt_one 4 (r := ρ)
-      (by rw [abs_of_pos h0]; exact h1)
-  have h2 := (h.eventually (gt_mem_nhds (show (0 : ℝ) < ε * ρ by positivity)))
-  obtain ⟨N, hN⟩ := eventually_atTop.1 h2
-  refine ⟨N, fun L hL => ?_⟩
-  have h3 := hN (L + 1) (by omega)
-  push_cast at h3
-  have h4 : ((L : ℝ) + 1) ^ 4 * ρ ^ L * ρ < ε * ρ := by
-    calc _ = ((L : ℝ) + 1) ^ 4 * ρ ^ (L + 1) := by rw [pow_succ]; ring
-      _ < _ := h3
-  exact (lt_of_mul_lt_mul_right h4 h0.le).le
+  have h := tendsto_pow_const_mul_const_pow_of_abs_lt_one 4 (r := ρ) ((abs_of_pos h0).trans_lt h1)
+  obtain ⟨N, hN⟩ := eventually_atTop.1 (h.eventually (gt_mem_nhds (mul_pos hε h0)))
+  refine ⟨N, fun L hL => le_of_lt (lt_of_mul_lt_mul_right ?_ h0.le)⟩
+  calc ((L : ℝ) + 1) ^ 4 * ρ ^ L * ρ = ((L : ℝ) + 1) ^ 4 * ρ ^ (L + 1) := by rw [pow_succ]; ring
+    _ < ε * ρ := by simpa using hN (L + 1) (Nat.le_add_right_of_le hL)
 
 end Cslib.Circuits.Arithmetic.Separation.Flag

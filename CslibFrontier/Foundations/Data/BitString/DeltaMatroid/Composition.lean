@@ -52,10 +52,7 @@ variable {ι κ τ : Type u} [DecidableEq ι] [DecidableEq κ] [DecidableEq τ]
 /-- Direct products preserve one-sided exchange. -/
 theorem IsDeltaMatroid.sumProd {R : Set (ι → Bool)} {S : Set (κ → Bool)}
     (hR : IsDeltaMatroid R) (hS : IsDeltaMatroid S) : IsDeltaMatroid (sumProd R S) where
-  nonempty := by
-    obtain ⟨x, hx⟩ := hR.nonempty
-    obtain ⟨y, hy⟩ := hS.nonempty
-    exact ⟨Sum.elim x y, hx, hy⟩
+  nonempty := hR.nonempty.elim fun x hx => hS.nonempty.elim fun y hy => ⟨Sum.elim x y, hx, hy⟩
   exchange := by
     rintro x y ⟨hxR, hxS⟩ ⟨hyR, hyS⟩ (i | k) hi
     · obtain ⟨j, hj, hf⟩ := hR.exchange hxR hyR hi
@@ -77,8 +74,7 @@ theorem IsEvenDeltaMatroid.sumProd [Fintype ι] [Fintype κ]
     (hR : IsEvenDeltaMatroid R) (hS : IsEvenDeltaMatroid S) :
     IsEvenDeltaMatroid (sumProd R S) where
   isDeltaMatroid := hR.isDeltaMatroid.sumProd hS.isDeltaMatroid
-  parity_eq := by
-    rintro x y ⟨hxR, hxS⟩ ⟨hyR, hyS⟩
+  parity_eq := fun _ _ ⟨hxR, hxS⟩ ⟨hyR, hyS⟩ => by
     rw [parityOn_univ_sum, parityOn_univ_sum, hR.parity_eq hxR hyR, hS.parity_eq hxS hyS]
 
 /-- Identify two coordinates, indexed by `Bool`, and remove both. -/
@@ -109,11 +105,9 @@ theorem IsDeltaMatroid.tracePair {R : Set ((ι ⊕ Bool) → Bool)}
       obtain ⟨k, hk, hff⟩ := hR.exchange hf hy hnext
       rcases k with k | d
       · have hki : k ≠ i := by
-          intro he
-          subst k
-          simp only [flipOn, mem_insert, mem_singleton, true_or,
-            ite_true, Sum.elim_inl] at hk
-          cases hx : x i <;> cases hy : y i <;> simp_all
+          rintro rfl
+          simp only [flipOn, mem_insert, mem_singleton, true_or, ite_true, Sum.elim_inl] at hk
+          cases hx : x k <;> cases hy : y k <;> simp_all
         have hk' : x k ≠ y k := by simpa [flipOn, hki] using hk
         refine ⟨k, hk', c, ?_⟩
         convert hff using 1
@@ -121,10 +115,8 @@ theorem IsDeltaMatroid.tracePair {R : Set ((ι ⊕ Bool) → Bool)}
         · by_cases hti : t = i <;> by_cases htk : t = k <;> simp_all [flipOn]
         · cases a <;> cases t <;> cases b <;> cases c <;> simp_all [flipOn]
       · have hda : d ≠ a := by
-          intro he
-          subst d
-          simp only [flipOn, mem_insert, mem_singleton, or_true,
-            ite_true, Sum.elim_inr] at hk
+          rintro rfl
+          simp only [flipOn, mem_insert, mem_singleton, or_true, ite_true, Sum.elim_inr] at hk
           cases b <;> cases c <;> simp_all
         refine ⟨i, hi, c, ?_⟩
         convert hff using 1
@@ -136,18 +128,15 @@ theorem IsDeltaMatroid.tracePair {R : Set ((ι ⊕ Bool) → Bool)}
 omit [DecidableEq ι] in
 private theorem parityOn_pair_extension [Fintype ι] (x : ι → Bool) (b : Bool) :
     parityOn univ (Sum.elim x (fun _ : Bool => b)) = parityOn univ x := by
-  rw [parityOn_univ_sum]
-  have hb : parityOn (univ : Finset Bool) (fun _ => b) = false := by
-    cases b <;> decide
-  simp only [Sum.elim_inl, Sum.elim_inr, hb, Bool.xor_false]
+  have hpar : parityOn (univ : Finset Bool) (fun _ => b) = false := by cases b <;> decide
+  simp only [parityOn_univ_sum, Sum.elim_inl, Sum.elim_inr, hpar, Bool.xor_false]
 
 /-- An eliminated equal pair contributes zero parity. -/
 theorem IsEvenDeltaMatroid.tracePair [Fintype ι] {R : Set ((ι ⊕ Bool) → Bool)}
     (hR : IsEvenDeltaMatroid R) (hne : (tracePair R).Nonempty) :
     IsEvenDeltaMatroid (tracePair R) where
   isDeltaMatroid := hR.isDeltaMatroid.tracePair hne
-  parity_eq := by
-    rintro x y ⟨b, hx⟩ ⟨c, hy⟩
+  parity_eq := fun _ _ ⟨_, hx⟩ ⟨_, hy⟩ => by
     simpa only [parityOn_pair_extension] using hR.parity_eq hx hy
 
 /-- Identify and eliminate a finite family of disjoint equal pairs. -/
@@ -170,17 +159,10 @@ omit [DecidableEq ι] [DecidableEq κ] in
 private theorem trace_option (R : Set ((ι ⊕ (Option κ × Bool)) → Bool)) :
     trace (tracePair {x | (fun i => x (optionPairEquiv i)) ∈ R}) = trace R := by
   ext x
-  constructor
-  · rintro ⟨z, b, hz⟩
-    refine ⟨fun k => Option.elim k b z, ?_⟩
-    change _ ∈ R at hz ⊢
-    convert hz using 1
-    ext (i | ⟨_ | k, a⟩) <;> rfl
-  · rintro ⟨z, hz⟩
-    refine ⟨fun k => z (some k), z none, ?_⟩
-    change _ ∈ R at hz ⊢
-    convert hz using 1
-    ext (i | ⟨_ | k, a⟩) <;> rfl
+  refine ⟨fun ⟨z, b, hz⟩ => ⟨fun k => Option.elim k b z, ?_⟩,
+    fun ⟨z, hz⟩ => ⟨fun k => z (some k), z none, ?_⟩⟩
+  · exact (congrArg (· ∈ R) (by ext (i | ⟨_ | k, a⟩) <;> rfl)).mp hz
+  · exact (congrArg (· ∈ R) (by ext (i | ⟨_ | k, a⟩) <;> rfl)).mpr hz
 
 /-- Finite equal-pair elimination preserves exchange. The output must have a witness. -/
 theorem IsDeltaMatroid.trace [Finite κ] {R : Set ((ι ⊕ (κ × Bool)) → Bool)}
@@ -205,8 +187,7 @@ theorem IsDeltaMatroid.trace [Finite κ] {R : Set ((ι ⊕ (κ × Bool)) → Boo
         simp only [BitString.trace, U, Set.mem_ofPred_eq]
         exact ⟨fun ⟨z, hz⟩ => ⟨z ∘ e.symm, hfun z ▸ hz⟩,
           fun ⟨z, hz⟩ => ⟨z ∘ e, (hfun (z ∘ e)).symm ▸ by simpa [Function.comp_def] using hz⟩⟩
-      rw [← he]
-      exact ih β U (hT.reindex E) (he.symm ▸ hn)
+      exact he ▸ ih β U (hT.reindex E) (he.symm ▸ hn)
     · intro _ β _ T hT hn
       let E : (β ⊕ (PEmpty × Bool)) ≃ β :=
         { toFun := Sum.elim id (fun p => p.1.elim)
@@ -217,46 +198,35 @@ theorem IsDeltaMatroid.trace [Finite κ] {R : Set ((ι ⊕ (κ × Bool)) → Boo
           Sum.elim x (fun p : PEmpty × Bool => z p.1) = fun i => x (E i) := by
         ext (i | ⟨⟨⟩, _⟩)
         rfl
-      have he : BitString.trace T = {x | (fun i => x (E i)) ∈ T} := by
-        ext x
-        simp only [BitString.trace, Set.mem_ofPred_eq]
-        exact ⟨fun ⟨z, hz⟩ => hfun x z ▸ hz,
-          fun hx => ⟨PEmpty.elim, (hfun x PEmpty.elim).symm ▸ hx⟩⟩
-      rw [he]
-      exact hT.reindex E
+      convert hT.reindex E using 1
+      ext x
+      simp only [BitString.trace, Set.mem_ofPred_eq]
+      exact ⟨fun ⟨z, hz⟩ => hfun x z ▸ hz, fun hx => ⟨PEmpty.elim, (hfun x PEmpty.elim).symm ▸ hx⟩⟩
     · intro α _ ih _ β _ T hT hn
       let U : Set (((β ⊕ (α × Bool)) ⊕ Bool) → Bool) :=
         {x | (fun i => x (optionPairEquiv i)) ∈ T}
       have he : BitString.trace (BitString.tracePair U) = BitString.trace T := trace_option T
       have hn' : (BitString.trace (BitString.tracePair U)).Nonempty := he.symm ▸ hn
-      have hpair : (BitString.tracePair U).Nonempty := by
-        obtain ⟨x, z, hz⟩ := hn'
-        exact ⟨_, hz⟩
-      rw [← he]
-      exact ih β (BitString.tracePair U)
-        ((hT.reindex optionPairEquiv).tracePair hpair) hn'
+      obtain ⟨_, _, hz⟩ := id hn'
+      exact he ▸ ih β (BitString.tracePair U)
+        ((hT.reindex optionPairEquiv).tracePair ⟨_, hz⟩) hn'
   exact h κ ι R hR hne
 
 omit [DecidableEq ι] [DecidableEq κ] in
 private theorem parityOn_trace_extension [Fintype ι] [Fintype κ]
     (x : ι → Bool) (z : κ → Bool) :
     parityOn univ (Sum.elim x (fun p : κ × Bool => z p.1)) = parityOn univ x := by
-  rw [parityOn_univ_sum]
   have hz : parityOn univ (fun p : κ × Bool => z p.1) = false := by
-    simp only [parityOn_eq_sum, Fintype.sum_prod_type]
-    have he (k : κ) : ∑ _ : Bool, z k = (0 : Bool) := by
-      rw [Fintype.sum_bool]; cases z k <;> rfl
-    simp_rw [he]
-    exact Finset.sum_const_zero
-  simp only [Sum.elim_inl, Sum.elim_inr, hz, Bool.xor_false]
+    rw [parityOn_eq_sum, Fintype.sum_prod_type]
+    exact Finset.sum_eq_zero fun k _ => (Fintype.sum_bool _).trans (by cases z k <;> rfl)
+  simp only [parityOn_univ_sum, Sum.elim_inl, Sum.elim_inr, hz, Bool.xor_false]
 
 /-- Eliminating equal pairs preserves common parity. -/
 theorem IsEvenDeltaMatroid.trace [Fintype ι] [Fintype κ]
     {R : Set ((ι ⊕ (κ × Bool)) → Bool)} (hR : IsEvenDeltaMatroid R)
     (hne : (trace R).Nonempty) : IsEvenDeltaMatroid (trace R) where
   isDeltaMatroid := hR.isDeltaMatroid.trace hne
-  parity_eq := by
-    rintro x y ⟨z, hx⟩ ⟨w, hy⟩
+  parity_eq := fun _ _ ⟨_, hx⟩ ⟨_, hy⟩ => by
     simpa only [parityOn_trace_extension] using hR.parity_eq hx hy
 
 /-- Composition by existential equality of the shared coordinates `κ`.
@@ -284,32 +254,24 @@ omit [DecidableEq ι] [DecidableEq κ] [DecidableEq τ] in
 private theorem comp_eq_trace (R : Set ((ι ⊕ κ) → Bool)) (S : Set ((κ ⊕ τ) → Bool)) :
     comp R S = trace {x | (fun i => x (compEquiv i)) ∈ sumProd R S} := by
   ext x
-  refine exists_congr fun z => ?_
-  change (_ ∈ R ∧ _ ∈ S) ↔ (_ ∈ R ∧ _ ∈ S)
-  have hR : (fun i => Sum.elim x (fun p => z p.1) (compEquiv (.inl i))) =
-      Sum.elim (fun i => x (.inl i)) z := by
-    ext (i | k) <;> rfl
-  have hS : (fun i => Sum.elim x (fun p => z p.1) (compEquiv (.inr i))) =
-      Sum.elim z (fun i => x (.inr i)) := by
-    ext (k | i) <;> rfl
-  rw [hR, hS]
+  exact exists_congr fun z => and_congr
+    (iff_of_eq (congrArg (· ∈ R) (by ext (i | k) <;> rfl)))
+    (iff_of_eq (congrArg (· ∈ S) (by ext (k | i) <;> rfl)))
 
 /-- Proposition 6 of [KazdaKolmogorovRolinek2018], with compatibility explicit.
 Neither input nonemptiness nor nonempty external coordinates imply compatibility. -/
 theorem IsDeltaMatroid.comp [Finite κ]
     {R : Set ((ι ⊕ κ) → Bool)} {S : Set ((κ ⊕ τ) → Bool)}
     (hR : IsDeltaMatroid R) (hS : IsDeltaMatroid S) (hne : (comp R S).Nonempty) :
-    IsDeltaMatroid (comp R S) := by
-  rw [comp_eq_trace] at hne ⊢
-  exact ((hR.sumProd hS).reindex compEquiv).trace hne
+    IsDeltaMatroid (comp R S) :=
+  (comp_eq_trace R S).symm ▸ ((hR.sumProd hS).reindex compEquiv).trace (comp_eq_trace R S ▸ hne)
 
 /-- The parity corollary after Proposition 6, with nonempty output explicit. -/
 theorem IsEvenDeltaMatroid.comp [Fintype ι] [Fintype κ] [Fintype τ]
     {R : Set ((ι ⊕ κ) → Bool)} {S : Set ((κ ⊕ τ) → Bool)}
     (hR : IsEvenDeltaMatroid R) (hS : IsEvenDeltaMatroid S)
-    (hne : (comp R S).Nonempty) : IsEvenDeltaMatroid (comp R S) := by
-  rw [comp_eq_trace] at hne ⊢
-  exact ((hR.sumProd hS).reindex compEquiv).trace hne
+    (hne : (comp R S).Nonempty) : IsEvenDeltaMatroid (comp R S) :=
+  (comp_eq_trace R S).symm ▸ ((hR.sumProd hS).reindex compEquiv).trace (comp_eq_trace R S ▸ hne)
 
 /-- The relation with exactly one true coordinate. The coordinate type must be inhabited
 for this relation to be a delta-matroid. -/
@@ -325,25 +287,21 @@ theorem isEvenDeltaMatroid_oneHotRelation [Fintype ι] [Nonempty ι] :
     nonempty := Set.range_nonempty _
     exchange := by
       rintro x y ⟨a, rfl⟩ ⟨b, rfl⟩ i hi
-      have hab : a ≠ b := by intro h; subst b; exact hi rfl
+      have hab : a ≠ b := fun h => hi (h ▸ rfl)
       have hiab : i = a ∨ i = b := by
-        by_contra hn
-        push Not at hn
+        by_contra! hn
         simp [hn.1, hn.2] at hi
-      have hf : flipOn {a, b} (fun j => decide (j = a)) =
-          (fun j => decide (j = b)) := by
+      have hf : flipOn {a, b} (fun j => decide (j = a)) = fun j => decide (j = b) := by
         ext j
         by_cases hja : j = a <;> by_cases hjb : j = b <;> simp_all [flipOn]
-      rcases hiab with hi | hi
-      · subst i
-        exact ⟨b, by simp [hab.symm], b, hf.symm⟩
-      · subst i
-        exact ⟨a, by simp [hab], b, by simpa only [pair_comm] using hf.symm⟩ }
+      rcases hiab with rfl | rfl
+      · exact ⟨b, by simp [hab.symm], b, hf.symm⟩
+      · exact ⟨a, by simp [hab], i, by simpa only [pair_comm] using hf.symm⟩ }
   parity_eq := by
-    rintro x y ⟨a, rfl⟩ ⟨b, rfl⟩
-    have hp (a : ι) : parityOn univ (fun j => decide (j = a)) = true := by
-      have he : {j ∈ (univ : Finset ι) | j = a} = {a} := by ext j; simp
-      simp only [parityOn, decide_eq_true_eq, he, card_singleton]
+    rintro _ _ ⟨a, rfl⟩ ⟨b, rfl⟩
+    have hp (c : ι) : parityOn univ (fun j => decide (j = c)) = true := by
+      have he : {j ∈ (univ : Finset ι) | j = c} = {c} := Finset.ext fun _ => by simp
+      simp [parityOn, he]
     rw [hp, hp]
 
 /-- The even star gadget in Section 5.3 of [KazdaKolmogorovRolinek2018], printed p. 12.
@@ -368,10 +326,8 @@ theorem mem_star_iff {x : (κ ⊕ Unit) → Bool} : x ∈ star κ ↔
     · exact .inl ⟨fun j => by simpa [flipOn] using (congrFun hk (.inl j)).symm,
         by simpa [flipOn] using (congrFun hk (.inr ())).symm⟩
   · rintro (⟨hx, hc⟩ | ⟨k, hx, hc⟩)
-    · refine ⟨.inr (), ?_⟩
-      ext (j | u) <;> simp [flipOn, hx, hc]
-    · refine ⟨.inl k, ?_⟩
-      ext (j | u) <;> simp [flipOn, hx, hc]
+    · exact ⟨.inr (), by ext (j | _) <;> simp [flipOn, hx, hc]⟩
+    · exact ⟨.inl k, by ext (j | _) <;> simp [flipOn, hx, hc]⟩
 
 /-- The star gadget based at an arbitrary internal reference tuple; its connector reference
 is false. Only the internal coordinates are twisted. -/
@@ -389,16 +345,13 @@ theorem mem_starAt_iff [Fintype κ] (reference : κ → Bool) {x : (κ ⊕ Unit)
       ((∀ k, (x (.inl k) != reference k) = false) ∧ x (.inr ()) = false) ∨
         ∃ k, (∀ j, (x (.inl j) != reference j) = decide (j = k)) ∧
           x (.inr ()) = true := by
-  change flipOn _ x ∈ star κ ↔ _
+  let S : Finset (κ ⊕ Unit) :=
+    univ.filter fun i => Sum.elim reference (fun _ : Unit => false) i = true
+  change flipOn S x ∈ star κ ↔ _
   rw [mem_star_iff]
-  have hi (k : κ) :
-      flipOn (univ.filter
-        (fun i => Sum.elim reference (fun _ : Unit => false) i = true)) x (.inl k) =
-        (x (.inl k) != reference k) := by
-    cases hr : reference k <;> cases hx : x (.inl k) <;> simp [flipOn, hr, hx]
-  have hc : flipOn (univ.filter
-      (fun i => Sum.elim reference (fun _ : Unit => false) i = true)) x
-      (.inr ()) = x (.inr ()) := by simp [flipOn]
+  have hi (k : κ) : flipOn S x (.inl k) = (x (.inl k) != reference k) := by
+    cases hr : reference k <;> cases hx : x (.inl k) <;> simp [S, flipOn, hr, hx]
+  have hc : flipOn S x (.inr ()) = x (.inr ()) := by simp [S, flipOn]
   simp only [hi, hc]
 
 end Cslib.BitString

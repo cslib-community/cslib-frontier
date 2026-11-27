@@ -175,15 +175,11 @@ theorem flip_reference_connectors (f : OccurrenceLabeling F Bool) (vs : List ℕ
       p.flip (reference f vs) o = reference f vs o := by
     simp [Walk.flip, BitString.flipOn_apply, show o ∉ p.edges from fun he => hno o he ho]
   refine ⟨fun i hi => ?_, fun k => ?_⟩
-  · have hmem : (connectorPort f vs i hi).var ∈ connectors F vs := by
-      rw [connectorPort_var]
-      exact List.mem_map.mpr ⟨i, hi, rfl⟩
-    rw [hunchanged _ hmem, reference_connectorPort]
-  · have hmem : (centralPort f vs k).var ∈ connectors F vs := by
-      rw [centralPort_var]
-      exact List.getElem_mem k.isLt
-    rw [hunchanged _ hmem, reference_centralPort, List.getD_eq_getElem _ _
-      (by simpa only [listSingle, List.length_map, List.length_range] using k.isLt)]
+  · rw [hunchanged _ (by simp [connectors, List.mem_map.mpr ⟨i, hi, rfl⟩]),
+      reference_connectorPort]
+  · rw [hunchanged _ (by simp [List.getElem_mem k.isLt]), reference_centralPort,
+      List.getD_eq_getElem _ _
+        (by simpa only [listSingle, List.length_map, List.length_range] using k.isLt)]
     simp [listSingle]
 
 /-- Every connector-free contracted f-prefix restores to an original f-prefix. Each actual

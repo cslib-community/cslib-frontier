@@ -66,9 +66,7 @@ theorem exists_plane_eq {f : ℤ → ℤ → WangTile}
     (hf : ∀ x y, f x y ∈ tileSet ∧ (f x y).right = (f (x + 1) y).left ∧
       (f x y).top = (f x (y + 1)).bottom) :
     ∃ P : IndexPlane, ∀ x y, tile (components (P.index x y)) = f x y := by
-  have hm : ∀ x y, ∃ p : Index, tile (components p) = f x y :=
-    fun x y => mem_tileSet.mp (hf x y).1
-  choose p hp using hm
+  choose p hp using fun x y => mem_tileSet.mp (hf x y).1
   exact ⟨⟨p, by simpa only [hp] using fun x y => (hf x y).2.1,
     by simpa only [hp] using fun x y => (hf x y).2.2⟩, hp⟩
 
@@ -139,11 +137,8 @@ theorem nonempty_parent (fine : IndexPlane) : Nonempty (Parent fine) := by
           (fun x y => thin_east (fine.horizontal x y))
           (fun x y => thin_north (fine.vertical x y)) ox.val oy.val x y).trans hphase))
     refine ⟨p, fun i j => ?_⟩
-    fin_cases i <;> fin_cases j
-    · simpa [neighborhood, add_sub_assoc] using hp.1
-    · simpa [neighborhood, add_sub_assoc] using hp.2.2.1
-    · simpa [neighborhood, add_sub_assoc] using hp.2.1
-    · simpa [neighborhood, add_sub_assoc] using hp.2.2.2
+    fin_cases i <;> fin_cases j <;>
+      simp [neighborhood, add_sub_assoc, hp.1, hp.2.1, hp.2.2.1, hp.2.2.2]
   choose coarse hc using hlocal
   refine ⟨⟨⟨coarse, fun x y => (horizontal_iff_children _ _).mpr fun j => ?_,
     fun x y => (vertical_iff_children _ _).mpr fun i => ?_⟩, ox, oy, hc⟩⟩
@@ -208,9 +203,8 @@ private theorem expansion_occurs {base : IndexPlane} (t : Tower base)
     ∃ u v : ℤ, (t.plane level).index u v =
       iterateRefine depth (fun _ _ => (t.plane (level + depth)).index x y) i j := by
   obtain ⟨u, v, patch⟩ := t.refined_patch depth level x y
-  refine ⟨u + i, v + j, ?_⟩
-  rw [congrFun (congrFun patch i) j]
-  exact iterateRefine_eq_of_root_eq (by simp) depth i j hi hj
+  exact ⟨u + i, v + j, (congrFun (congrFun patch i) j).trans
+    (iterateRefine_eq_of_root_eq (by simp) depth i j hi hj)⟩
 
 /-- Every tile reaches tile `0` along the same path: its southwest child is a phase-`a` tile,
 whose northeast child is tile `4`, whose southwest child is tile `0`. -/

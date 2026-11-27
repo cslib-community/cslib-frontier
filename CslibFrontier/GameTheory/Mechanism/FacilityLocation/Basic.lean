@@ -180,10 +180,7 @@ theorem le_mul_optSocialCost [Nonempty G] {x : ι → G} {α c : ℝ} (hα : 0 �
   rcases hα.eq_or_lt with rfl | hpos
   · obtain ⟨y⟩ := ‹Nonempty G›
     simpa only [zero_mul] using h y
-  · rw [mul_comm, ← div_le_iff₀ hpos, le_optSocialCost_iff]
-    intro y
-    rw [div_le_iff₀ hpos, mul_comm]
-    exact h y
+  · simpa only [mul_comm α, ← div_le_iff₀ hpos, le_optSocialCost_iff] using h
 
 /-- The optimal extended social cost is at most the extended social cost at any location `y`. -/
 theorem optSocialECost_le_socialECost (x : ι → G) (y : G) :
@@ -451,9 +448,7 @@ theorem isStrategyProof_iff [DecidableEq ι] {M : Mechanism ι G} :
       expectedECost (M x) (x i) ≤ expectedECost (M y) (x i) := by
   refine ⟨fun h x y i hxy => ?_, fun h x i z =>
     h x (Function.update x i z) i fun j hj => (Function.update_of_ne hj _ _).symm⟩
-  have hy : y = Function.update x i (y i) := funext fun j => by
-    by_cases hj : j = i <;> simp [Function.update, hj, hxy]
-  rw [hy]
+  rw [← Function.update_eq_iff.mpr ⟨rfl, hxy⟩]
   exact h x i (y i)
 
 /-- Weak group strategyproofness stated in negated form: no nonempty coalition `A` can deviate so
@@ -462,11 +457,7 @@ theorem isWeakGroupStrategyProof_iff_not_forall_lt [DecidableEq ι] {M : Mechani
     M.IsWeakGroupStrategyProof ↔ ∀ (x z : ι → G) (A : Finset ι),
       ¬ (A.Nonempty ∧
         ∀ i ∈ A, expectedECost (M (A.piecewise z x)) (x i) < expectedECost (M x) (x i)) := by
-  refine ⟨fun h x z A ⟨hA, hlt⟩ => ?_, fun h x z A hA => ?_⟩
-  · obtain ⟨i, hi, hle⟩ := h x z A hA
-    exact (hlt i hi).not_ge hle
-  · by_contra! hne
-    exact h x z A ⟨hA, hne⟩
+  simp only [IsWeakGroupStrategyProof, not_and, not_forall, exists_prop, not_lt]
 
 /-- Strong group strategyproofness restated as an implication: any coalitional deviation leaving no
 member of `A` strictly worse off must keep every member's expected cost unchanged. -/
@@ -474,10 +465,9 @@ theorem isGroupStrategyProof_iff_forall_eq [DecidableEq ι] {M : Mechanism ι G}
     M.IsGroupStrategyProof ↔ ∀ (x z : ι → G) (A : Finset ι),
       (∀ i ∈ A, expectedECost (M (A.piecewise z x)) (x i) ≤ expectedECost (M x) (x i)) →
       ∀ i ∈ A, expectedECost (M (A.piecewise z x)) (x i) = expectedECost (M x) (x i) := by
-  refine ⟨fun h x z A hle i hi => le_antisymm (hle i hi) ?_,
+  refine ⟨fun h x z A hle i hi => le_antisymm (hle i hi)
+      (not_lt.1 fun hlt => h x z A ⟨hle, i, hi, hlt⟩),
     fun h x z A ⟨hle, i, hi, hlt⟩ => hlt.ne (h x z A hle i hi)⟩
-  by_contra! hlt
-  exact h x z A ⟨hle, i, hi, hlt⟩
 
 /-- Strong group strategyproofness implies weak group strategyproofness. -/
 theorem IsGroupStrategyProof.isWeakGroupStrategyProof [DecidableEq ι] {M : Mechanism ι G}
@@ -584,9 +574,7 @@ variable {ι G : Type*} [MeasurableSpace G]
 theorem deterministic_eq_ofPMF_pure (f : (ι → G) → G) :
     deterministic f = ofPMF (fun x => PMF.pure (f x)) := by
   funext x
-  apply ProbabilityMeasure.toMeasure_injective
-  change Measure.dirac (f x) = (PMF.pure (f x)).toMeasure
-  exact (PMF.toMeasure_pure (f x)).symm
+  exact ProbabilityMeasure.toMeasure_injective (PMF.toMeasure_pure (f x)).symm
 
 @[simp]
 theorem deterministic_apply_toMeasure (f : (ι → G) → G) (x : ι → G) :
@@ -734,9 +722,7 @@ theorem hasFiniteCost_ofPMF_of_finite_support (p : PMF G) (hp : p.support.Finite
 /-- A mapped `PMF` over a `Finite` type has finite expected cost. -/
 theorem hasFiniteCost_ofPMF_map_finite {α : Type*} [Finite α] (q : PMF α) (g : α → G) :
     HasFiniteCost ((q.map g).toMeasure.toProbabilityMeasure) := by
-  refine hasFiniteCost_ofPMF_of_finite_support _ ?_
-  rw [PMF.support_map]
-  exact (Set.toFinite q.support).image g
+  exact hasFiniteCost_ofPMF_of_finite_support _ (PMF.support_map g q ▸ (Set.toFinite _).image g)
 
 /-- Evaluate the real-valued expected distance cost of a `PMF` as a `tsum` when the weighted
 distances are summable. -/

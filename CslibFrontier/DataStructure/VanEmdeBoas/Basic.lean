@@ -184,9 +184,7 @@ theorem valid_empty (d : ℕ) : (empty d).Valid := by
   | succ d ih =>
     refine ⟨?_, ih, fun _ => ih, ?_, ?_⟩
     · simp [Extrema, bounds, Contains]
-    · intro i
-      simp
-    · simp
+    all_goals simp
 
 /-- Membership lookup on the empty tree at depth `d` always returns `false`. -/
 @[simp] theorem member_empty (d x : ℕ) : (empty d).member x = false := by
@@ -214,9 +212,7 @@ theorem Valid.contains_lt {t : Tree d} (h : t.Valid) {x : ℕ} (hx : t.Contains 
 /-- An empty local header has no represented elements. -/
 theorem not_contains_of_bounds_none {t : Tree d} (hb : t.bounds = none) (x : ℕ) :
     ¬t.Contains x := by
-  cases t with
-  | leaf b => simp only [bounds] at hb; simp [Contains, hb]
-  | node b s c => simp only [bounds] at hb; simp [Contains, hb]
+  cases t <;> simp_all [bounds, Contains]
 
 /-- A node that represents some key has an occupied local header. -/
 theorem bounds_isSome_of_contains {t : Tree d} {x : ℕ} (hx : t.Contains x) :

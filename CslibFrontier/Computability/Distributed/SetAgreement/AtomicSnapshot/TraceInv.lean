@@ -198,12 +198,9 @@ theorem TraceInv.of_actor_step {τ : SnapshotTrace ord dInit} {t : ℕ}
       have hkeep := τ.lastIdleStep_keep p (by rw [hp_old]; nofun) (by rw [hp]; nofun)
       obtain ⟨hId₀, hrec₀, hlt₀, hloop⟩ := inv.proc_scan p st hp_old
       have hId₁ : st.opId < (τ.stateAt (t + 1)).history.length := lt_of_lt_of_le hId₀ hhist_len
-      have hne_mod : st.opId ≠ modId := by
-        intro heq
-        have hidx : (τ.stateAt t).history[st.opId]'hId₀ =
-            (τ.stateAt t).history[modId]'(heq ▸ hId₀) := _root_.getElem_congr_idx heq
-        exact hpi ((congrArg SnapshotOpRecord.caller (hrec₀.symm.trans hidx)).trans
-          (hmod_old (heq ▸ hId₀)).1)
+      have hne_mod : st.opId ≠ modId := fun heq => by
+        subst heq
+        exact hpi ((congrArg SnapshotOpRecord.caller hrec₀).symm.trans (hmod_old hId₀).1)
       refine ⟨hId₁, ?_, by omega, hkeep ▸ hloop.mono_hi (Nat.le_succ t)⟩
       rw [hhist_unchanged st.opId hId₁ hId₀ hne_mod, hkeep]; exact hrec₀
   hist_pending id hId₁ hpend := by
@@ -222,16 +219,14 @@ theorem TraceInv.of_actor_step {τ : SnapshotTrace ord dInit} {t : ℕ}
   hist_doneScan id hId₁ resp snap hdone := by
     by_cases hid : id = modId
     · subst hid; exact hdoneScan_mod hId₁ resp snap hdone
-    · have hId₀ := hbound_unchanged id hId₁ hid
-      rw [hhist_unchanged id hId₁ hId₀ hid] at hdone ⊢
-      obtain ⟨hk, hi, hr, v, hv⟩ := inv.hist_doneScan id hId₀ resp snap hdone
+    · rw [hhist_unchanged id hId₁ (hbound_unchanged id hId₁ hid) hid] at hdone ⊢
+      obtain ⟨hk, hi, hr, v, hv⟩ := inv.hist_doneScan id _ resp snap hdone
       exact ⟨hk, hi, by omega, v, hv⟩
   hist_doneUpdate id hId₁ resp hdone := by
     by_cases hid : id = modId
     · subst hid; exact hdoneUpdate_mod hId₁ resp hdone
-    · have hId₀ := hbound_unchanged id hId₁ hid
-      rw [hhist_unchanged id hId₁ hId₀ hid] at hdone ⊢
-      obtain ⟨val', hk, hi, hr, hw, hd⟩ := inv.hist_doneUpdate id hId₀ resp hdone
+    · rw [hhist_unchanged id hId₁ (hbound_unchanged id hId₁ hid) hid] at hdone ⊢
+      obtain ⟨val', hk, hi, hr, hw, hd⟩ := inv.hist_doneUpdate id _ resp hdone
       exact ⟨val', hk, hi, by omega, hw, hd⟩
   writeStep_in_hist j w hw hwrite := by
     rcases Nat.lt_succ_iff_lt_or_eq.mp hw with hw' | rfl

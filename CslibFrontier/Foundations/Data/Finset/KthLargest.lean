@@ -74,16 +74,14 @@ theorem kthLargest_congr {f g : α → R} (hfg : ∀ x ∈ s, f x = g x) :
     kthLargest k s f = kthLargest k s g := by
   unfold kthLargest
   have hflt : (s.filter fun x => k ≤ #{w ∈ s | f x ≤ f w}) =
-      s.filter fun x => k ≤ #{w ∈ s | g x ≤ g w} := by
-    refine filter_congr fun x hx => ?_
-    have hinner : ({w ∈ s | f x ≤ f w} : Finset α) = {w ∈ s | g x ≤ g w} := by
-      refine filter_congr fun w hw => ?_
-      rw [hfg x hx, hfg w hw]
-    rw [hinner]
-  have himg : ((s.filter fun x => k ≤ #{w ∈ s | f x ≤ f w}).image f) =
-      (s.filter fun x => k ≤ #{w ∈ s | g x ≤ g w}).image g := by
-    rw [hflt]
-    exact image_congr fun x hx => hfg x (mem_filter.mp hx).1
+      s.filter fun x => k ≤ #{w ∈ s | g x ≤ g w} :=
+    filter_congr fun x hx => by
+      have hw : ({w ∈ s | f x ≤ f w} : Finset α) = {w ∈ s | g x ≤ g w} :=
+        filter_congr fun w hw => by rw [hfg x hx, hfg w hw]
+      rw [hw]
+  have himg : (s.filter fun x => k ≤ #{w ∈ s | f x ≤ f w}).image f =
+      (s.filter fun x => k ≤ #{w ∈ s | g x ≤ g w}).image g :=
+    hflt ▸ image_congr fun x hx => hfg x (mem_filter.mp hx).1
   simp_rw [himg]
 
 /-- A value of `s` reached or exceeded by at least `k` values is at most the `k`-th largest. -/
@@ -153,13 +151,9 @@ theorem kthLargest_eq_of_eq_or_gt {f g : α → R}
     exact (hx'.2.trans_le (le_kthLargest_of_le_card hx (Nat.zero_le _))).not_ge hg
   have ht : 0 ≤ t := kthLargest_nonneg.trans hg
   have hfilter (a : R) (ha : a ≤ t) :
-      ({x ∈ s | a < f x} : Finset α) = {x ∈ s | a < g x} := by
-    ext x
-    by_cases hx : x ∈ s
-    · rcases h x hx with heq | ⟨hf, hg⟩
-      · simp [heq]
-      · simp [hx, ha.trans_lt hf, ha.trans_lt hg]
-    · simp [hx]
+      ({x ∈ s | a < f x} : Finset α) = {x ∈ s | a < g x} :=
+    filter_congr fun x hx => (h x hx).elim (fun heq => by rw [heq])
+      fun ⟨hf, hg⟩ => iff_of_true (ha.trans_lt hf) (ha.trans_lt hg)
   have hf : kthLargest k s f ≤ t := kthLargest_le_of_lt_imp hk le_rfl ht
     (fun x hx hfx => (h x hx).elim (fun he => he ▸ hfx) And.right) hg
   have hle {u v : α → R} (huv : ({x ∈ s | kthLargest k s v < u x} : Finset α) =

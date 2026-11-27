@@ -86,11 +86,9 @@ with `ρ₀ ≤ 2 q / (1 + q ^ 2) - 3 (2 q ^ 2) ^ R`. -/
 private theorem exists_decay_radius {ρ₀ : ℝ} (hρ₀ : ρ₀ < 2 * √2 / 3) :
     ∃ (q : ℝ) (R : ℕ), 0 ≤ q ∧ ρ₀ ≤ 2 * q / (1 + q ^ 2) - 3 * (2 * q ^ 2) ^ R := by
   have h3 : vertexCorrelation 3 = 2 * √2 / 3 := by norm_num [vertexCorrelation]
-  obtain ⟨q, R, hq, hρ⟩ := exists_decay_radius_degree (by norm_num : 2 ≤ 3) (ρ := ρ₀)
-    (by rw [h3]; exact hρ₀)
-  refine ⟨q, R, hq, ?_⟩
+  obtain ⟨q, R, hq, hρ⟩ := exists_decay_radius_degree (by norm_num : 2 ≤ 3) (h3.symm ▸ hρ₀)
   norm_num at hρ
-  exact hρ
+  exact ⟨q, R, hq, hρ⟩
 
 /-- **Parameters.** For every `ξ > 0`, some admissible parameters bring the width per vertex of
 a good sample within `ξ` of `gaussianCoefficient`. -/
@@ -107,9 +105,7 @@ theorem exists_parameters {ξ : ℝ} (hξ : 0 < ξ) :
   set ρ₀ := g - min η (1 / 4) / 2 with hρ₀
   have hmin : 0 < min η (1 / 4) := lt_min hη (by norm_num)
   have hρ₀g : ρ₀ < g := by grind
-  have hρ₀low : 1 / 8 ≤ ρ₀ := by
-    rw [hρ₀, hg]
-    linarith [min_le_right η (1 / 4)]
+  have hρ₀low : 1 / 8 ≤ ρ₀ := by linarith [min_le_right η (1 / 4)]
   have hbound : straddleBound ρ₀ ≤ gaussianCoefficient + ξ / 4 := by
     have hdist : dist ρ₀ g < η := by
       rw [Real.dist_eq, hρ₀, abs_of_neg (by linarith)]
@@ -132,28 +128,24 @@ theorem exists_parameters {ξ : ℝ} (hξ : 0 < ξ) :
   have hεpos : 0 < ε := lt_min (by positivity) (by norm_num)
   set M : ℕ := ⌈720 / ξ⌉₊ + 1 with hM
   have hMpos : 0 < M := Nat.succ_pos _
-  have hMR : 720 / ξ ≤ M := by
-    rw [hM]
-    cast_linarith [Nat.le_ceil (720 / ξ)]
+  have hMR : 720 / ξ ≤ M := by cast_linarith [Nat.le_ceil (720 / ξ)]
   refine ⟨q, R, ρ₀, 20, ε, M, hq0, hρ₀low, hρ, by norm_num, hεpos, hMpos, ?_⟩
   have hcoef := gaussianCoefficient_ge
   have hMpos' : (0 : ℝ) < M := by exact_mod_cast hMpos
-  refine max_le ?_ ?_
-  · have : ε ≤ 1 / 100 := min_le_right _ _
-    linarith
-  · have hεξ : ε ≤ ξ / 12 := min_le_left _ _
-    have hsqrtpi : 2 ≤ √(2 * π) :=
-      (le_sqrt (by norm_num) (by positivity)).mpr (by nlinarith [two_le_pi])
-    have hgrid : 9 / 2 * (2 * 20 / M) / √(2 * π) ≤ ξ / 4 := by
-      rw [div_le_iff₀ (by positivity)]
-      calc 9 / 2 * (2 * 20 / (M : ℝ)) = 180 / M := by ring
-        _ ≤ ξ / 2 := by
-            rw [div_le_iff₀ hMpos']
-            have := mul_le_mul_of_nonneg_left hMR hξ.le
-            rw [mul_div_cancel₀ _ hξ.ne'] at this
-            linarith
-        _ ≤ ξ / 4 * √(2 * π) := by nlinarith
-    linarith
+  refine max_le (by linarith [min_le_right (ξ / 12) (1 / 100)]) ?_
+  have hεξ : ε ≤ ξ / 12 := min_le_left _ _
+  have hsqrtpi : 2 ≤ √(2 * π) :=
+    (le_sqrt (by norm_num) (by positivity)).mpr (by nlinarith [two_le_pi])
+  have hgrid : 9 / 2 * (2 * 20 / M) / √(2 * π) ≤ ξ / 4 := by
+    rw [div_le_iff₀ (by positivity)]
+    calc 9 / 2 * (2 * 20 / (M : ℝ)) = 180 / M := by ring
+      _ ≤ ξ / 2 := by
+          rw [div_le_iff₀ hMpos']
+          have := mul_le_mul_of_nonneg_left hMR hξ.le
+          rw [mul_div_cancel₀ _ hξ.ne'] at this
+          linarith
+      _ ≤ ξ / 4 * √(2 * π) := by nlinarith
+  linarith
 
 /-! ### The layout bounds -/
 
@@ -169,9 +161,8 @@ theorem exists_width_le_gaussianCoefficient {ξ : ℝ} (hξ : 0 < ξ) :
   have large : (3 * M + 3) * (vertexOverlap 3 R : ℝ) / ε ^ 2 < Nat.card V :=
     (Nat.le_ceil _).trans_lt (by exact_mod_cast hN)
   obtain ⟨σ, hσ⟩ := exists_good_sample hloop h3 hq R (by linarith) hρ hT hε hM large
-  refine ⟨σ, hσ.trans ?_⟩
-  rw [mul_comm]
-  exact mul_le_mul_of_nonneg_right hbound (Nat.cast_nonneg _)
+  exact ⟨σ, hσ.trans ((mul_le_mul_of_nonneg_left hbound (Nat.cast_nonneg _)).trans_eq
+    (mul_comm _ _))⟩
 
 /-- **Gaussian layouts of cubic graphs.** For every `ξ > 0`, every large enough cubic graph on
 `h` vertices has a layout of width at most `(gaussianCoefficient + ξ) h`, where

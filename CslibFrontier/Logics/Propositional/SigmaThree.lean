@@ -84,8 +84,7 @@ def CNF.minterm (x : BitString N) : CNF (Fin N) :=
 /-- `CNF.minterm x` evaluates to `true` on `y` iff `y = x`. -/
 theorem CNF.eval_minterm_eq_true_iff (x y : BitString N) :
     (CNF.minterm x).eval y = true ↔ y = x := by
-  rw [funext_iff]
-  simp [CNF.minterm, CNF.eval_map_eq_true_iff]
+  simp [funext_iff, CNF.minterm, CNF.eval_map_eq_true_iff]
 
 /-- Every function has a `Σ₃^k` formula for `k ≥ 1`: the OR of the minterms of its true
 inputs. -/
@@ -96,7 +95,7 @@ theorem exists_isSigmaThree {k : ℕ} (hk : 1 ≤ k) (f : BitString N → Bool) 
   · obtain ⟨x, -, rfl⟩ := List.mem_map.mp hF
     obtain ⟨i, -, rfl⟩ := List.mem_map.mp hc
     simpa using hk
-  · rw [Bool.eq_iff_iff, List.any_eq_true]
+  · rw [Bool.eq_iff_iff]
     simp [CNF.eval_minterm_eq_true_iff]
 
 /-- For `k ≥ 1`, there exists a `Σ₃^k` formula for `f` attaining `sigmaThreeSize k f`. -/
@@ -157,17 +156,13 @@ private theorem IsSigmaThree.card_filter_le_length_mul (k : ℕ) (hk : 1 ≤ k) 
   have hsub : ({x | f x = true} : Finset (BitString N)) ⊆
       Fs.toFinset.biUnion fun F => {x | F.eval x = true} := by
     intro x hx
-    have hfx := (mem_filter.mp hx).2
-    rw [hFs.2 x, List.any_eq_true] at hfx
-    obtain ⟨F, hF, hFx⟩ := hfx
+    obtain ⟨F, hF, hFx⟩ := List.any_eq_true.mp ((hFs.2 x).symm.trans (mem_filter.mp hx).2)
     exact mem_biUnion.mpr ⟨F, List.mem_toFinset.mpr hF, mem_filter.mpr ⟨mem_univ _, hFx⟩⟩
   have hpiece : ∀ F ∈ Fs.toFinset, (#{x | F.eval x = true} : ℝ) ≤ 2 ^ E := by
     intro F hF
     have hF' := List.mem_toFinset.mp hF
     refine hA N F D (hFs.1 F hF') fun h => hfree (h.mono fun x hx => ?_)
-    change f x = true
-    rw [hFs.2 x, List.any_eq_true]
-    exact ⟨F, hF', hx⟩
+    exact (hFs.2 x).trans (List.any_eq_true.mpr ⟨F, hF', hx⟩)
   calc (#{x | f x = true} : ℝ)
       ≤ #(Fs.toFinset.biUnion fun F => ({x | F.eval x = true} : Finset (BitString N))) := by
         exact_mod_cast card_le_card hsub
@@ -188,8 +183,7 @@ theorem card_filter_le_sigmaThreeSize_mul (k : ℕ) (hk : 1 ≤ k) {ε : ℝ} (h
   obtain ⟨C, hC, hbound⟩ := IsSigmaThree.card_filter_le_length_mul k hk hε
   refine ⟨C, hC, fun N f D hfree => ?_⟩
   obtain ⟨Fs, hFs, hlen⟩ := exists_isSigmaThree_length_eq_sigmaThreeSize hk f
-  rw [← hlen]
-  exact hbound N f D Fs hFs hfree
+  exact hlen ▸ hbound N f D Fs hFs hfree
 
 /-- **Subcube dispersers need many formulas**: if the true inputs of `f n` eventually contain no
 subcube of dimension `D n = o(n)` and number `2 ^ (n - o(n))`, then for every `k ≥ 1` and `ε > 0`,

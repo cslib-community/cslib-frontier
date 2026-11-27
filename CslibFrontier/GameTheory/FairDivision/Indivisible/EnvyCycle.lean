@@ -314,21 +314,17 @@ private theorem eliminateCyclesAux_spec (hn : 0 < n) :
         res.cycleSwaps ≤ fuel
   | 0, A, hfuel, hEF1 => by
     dsimp only [eliminateCyclesAux]
-    by_cases h : (Finset.univ.filter fun s => V.IsUnenvied A s).Nonempty
-    · rw [dite_eq_left h]
-      exact ⟨(Finset.mem_filter.1 ((Finset.univ.filter fun s => V.IsUnenvied A s).min'_mem h)).2,
+    split_ifs with h
+    · exact ⟨(Finset.mem_filter.1 ((Finset.univ.filter fun s => V.IsUnenvied A s).min'_mem h)).2,
         hEF1, rfl, le_rfl⟩
     · obtain ⟨himp, hne⟩ := V.envyCyclePerm_spec hn A h
-      have := V.envyEdgeCount_relabel_lt himp hne
-      omega
+      exact absurd (V.envyEdgeCount_relabel_lt himp hne) (by omega)
   | k + 1, A, hfuel, hEF1 => by
     dsimp only [eliminateCyclesAux]
-    by_cases h : (Finset.univ.filter fun s => V.IsUnenvied A s).Nonempty
-    · rw [dite_eq_left h]
-      exact ⟨(Finset.mem_filter.1 ((Finset.univ.filter fun s => V.IsUnenvied A s).min'_mem h)).2,
+    split_ifs with h
+    · exact ⟨(Finset.mem_filter.1 ((Finset.univ.filter fun s => V.IsUnenvied A s).min'_mem h)).2,
         hEF1, rfl, Nat.zero_le _⟩
-    · rw [dite_eq_right h]
-      obtain ⟨himp, hne⟩ := V.envyCyclePerm_spec hn A h
+    · obtain ⟨himp, hne⟩ := V.envyCyclePerm_spec hn A h
       have hlt := V.envyEdgeCount_relabel_lt himp hne
       have hEF1' : V.IsEF1 (A.relabel (V.envyCyclePerm hn A h)) :=
         hEF1.relabel_of_le fun i => (himp i).elim (fun h => by rw [h]) le_of_lt
@@ -385,16 +381,13 @@ private theorem lmmsSteps_spec (hn : 0 < n) :
     obtain ⟨hUn, hEF1_cyc, halloc_cyc, hswaps_cyc⟩ := V.eliminateCycles_spec hn hEF1_prev
     let g : Fin m := ⟨k, hk⟩
     have hg : g ∉ (V.eliminateCycles hn prev.alloc).alloc.allocatedGoods := by
-      rw [halloc_cyc, halloc_prev]
-      exact Nat.lt_irrefl k
+      simp [g, halloc_cyc, halloc_prev]
     dsimp only [lmmsSteps]
     rw [dite_eq_left hg]
     refine ⟨hEF1_cyc.giveGood_of_isUnenvied hUn hg, fun x => ?_, ?_⟩
-    · rw [BundleAllocation.allocatedGoods_giveGood, halloc_cyc, Finset.mem_insert, halloc_prev,
-        Fin.ext_iff]
-      dsimp only [g]
-      exact ⟨fun h => h.elim (fun heq => by omega) Nat.lt_succ_of_lt,
-        fun hlt => (Nat.lt_succ_iff_lt_or_eq.1 hlt).symm⟩
+    · simp +zetaDelta only [BundleAllocation.allocatedGoods_giveGood, halloc_cyc, Finset.mem_insert,
+        halloc_prev, Fin.ext_iff]
+      omega
     · calc
         prev.totalCycleSwaps + (V.eliminateCycles hn prev.alloc).cycleSwaps
             ≤ k * (n * (n - 1)) + n * (n - 1) := Nat.add_le_add hswaps_prev hswaps_cyc
@@ -412,10 +405,8 @@ algorithm ([LiptonMarkakisMosselSaberi2004]). -/
 /-- `V.lmmsAllocate hn` allocates all `m` goods. -/
 theorem isComplete_lmmsAllocate (hn : 0 < n) : (V.lmmsAllocate hn).IsComplete := by
   rw [BundleAllocation.isComplete_iff_allocatedGoods_eq_univ]
-  ext x
-  have hx : x ∈ (V.lmmsAllocate hn).allocatedGoods ↔ x.val < m :=
-    (V.lmmsSteps_spec hn m le_rfl).2.1 x
-  simp [hx, x.isLt]
+  exact Finset.ext fun x =>
+    by simp [lmmsAllocate, lmmsRun, (V.lmmsSteps_spec hn m le_rfl).2.1 x, x.isLt]
 
 /-- **Lipton–Markakis–Mossel–Saberi (`EF1` existence & algorithm for monotone valuations)**
 ([LiptonMarkakisMosselSaberi2004]; [Budish2011]): for every monotone valuation profile with `0 < n`,

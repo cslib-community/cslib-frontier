@@ -164,9 +164,8 @@ private theorem qValue_le_bellmanValue (env : DynamicEnv ι S K) (r : ℕ → S 
 private theorem exists_bellman_argmax (env : DynamicEnv ι S K) (r : ℕ → S → K → ℝ)
     (t h : ℕ) (s : S) :
     ∃ k : K, env.qValue r t h s k = env.bellmanValue r t (h + 1) s := by
-  obtain ⟨k, _, hk⟩ :=
-    Finset.exists_mem_eq_sup' Finset.univ_nonempty (env.qValue r t h s)
-  exact ⟨k, hk.symm⟩
+  exact (Finset.exists_mem_eq_sup' Finset.univ_nonempty (env.qValue r t h s)).imp
+    fun _ hk => hk.2.symm
 
 /-- An optimal Markov action achieving the Bellman maximum for reward `r` at `(t, h + 1, s)`. -/
 noncomputable def bellmanAction (env : DynamicEnv ι S K) (r : ℕ → S → K → ℝ)
@@ -301,20 +300,14 @@ primary PDF). -/
 /-- Per-period No Positive Transfers: the dynamic pivot payment is always nonnegative. -/
 theorem pivotPayment_nonneg (env : DynamicEnv ι S K) (i : ι) (t h : ℕ) (s : S) (k : K) :
     0 ≤ env.pivotPayment i t h s k := by
-  unfold pivotPayment optimalValueWithout
-  have := env.qValue_le_bellmanValue (env.othersVal i) t h s k
-  unfold qValue at this
-  linarith
+  exact sub_nonneg.mpr (env.qValue_le_bellmanValue (env.othersVal i) t h s k)
 
 /-- When the without-`i` optimal action is played, agent `i`'s marginal externality payment is `0`.
 -/
 theorem pivotPayment_optimalActionWithout (env : DynamicEnv ι S K) (i : ι)
     (t h : ℕ) (s : S) :
     env.pivotPayment i t h s (env.bellmanAction (env.othersVal i) t h s) = 0 := by
-  unfold pivotPayment optimalValueWithout
-  have := env.qValue_bellmanAction (env.othersVal i) t h s
-  unfold qValue at this
-  linarith
+  exact sub_eq_zero.mpr (env.qValue_bellmanAction (env.othersVal i) t h s).symm
 
 /-- After `e` steps from `(t₀, h₀, len₀)`, `optimalPolicyWithout` incurs zero pivot payment. -/
 theorem pivotPayment_optimalPolicyWithout (env : DynamicEnv ι S K) (i : ι)
@@ -359,10 +352,8 @@ theorem isTruthful (env : DynamicEnv ι S K) (i : ι) (σ : List S → K)
     (t₀ h₀ : ℕ) (hist : List S) (s : S) :
     env.agentUtility i σ t₀ h₀ hist s ≤
       env.agentUtility i (env.optimalPolicy t₀ h₀ hist.length) t₀ h₀ hist s := by
-  rw [env.agentUtility_eq_totalVal_sub i σ t₀ h₀ hist s,
-    env.agentUtility_eq_totalVal_sub i (env.optimalPolicy t₀ h₀ hist.length) t₀ h₀ hist s,
-    env.evalFrom_optimalPolicy t₀ h₀ hist s]
-  linarith [env.evalFrom_le_optimalValue σ t₀ h₀ hist s]
+  simp only [agentUtility_eq_totalVal_sub, evalFrom_optimalPolicy, sub_le_sub_iff_right]
+  exact env.evalFrom_le_optimalValue σ t₀ h₀ hist s
 
 /-- When agent `i`'s per-period valuations are nonnegative, total optimal welfare is at least
 without-`i` optimal welfare (`W*_{-i} ≤ W*`). -/
@@ -425,22 +416,19 @@ theorem delayedUtility_le_truthful (env : DynamicEnv ι S K) (i : ι)
         env.bellmanAction (env.othersVal i) (t₀ + elapsed) (h₀ - elapsed - 1) s'
       else
         σ (s' :: rest)
-  have hle_stitched :
-      ∀ (d' : ℕ) (e : ℕ) (hs : List S) (s' : S),
+  have hle_stitched (d' : ℕ) :
+      ∀ (e : ℕ) (hs : List S) (s' : S),
         hs.length = len₀ + e → e + d' = d → e ≤ h₀ →
         env.delayedUtility i σ d' (t₀ + e) (h₀ - e) hs s' ≤
           env.agentUtility i stitched (t₀ + e) (h₀ - e) hs s' := by
-    intro d'
     induction d' with
     | zero =>
       intro e hs s' hlen hed _
-      have hagree (rem : ℕ) : ∀ (t : ℕ) (hs' : List S) (s'' : S),
-          len₀ + d ≤ hs'.length →
+      have hagree (rem t : ℕ) (hs' : List S) (s'' : S) (hlen' : len₀ + d ≤ hs'.length) :
           env.agentUtility i σ t rem hs' s'' = env.agentUtility i stitched t rem hs' s'' := by
-        induction rem with
-        | zero => intro _ _ _ _; rfl
+        induction rem generalizing t hs' s'' with
+        | zero => rfl
         | succ rem ihr =>
-          intro t hs' s'' hlen'
           have hst : stitched (s'' :: hs') = σ (s'' :: hs') := ite_eq_right (by omega)
           simp only [agentUtility, hst, ihr (t + 1) (s'' :: hs') _ (by simp; omega)]
       exact (hagree (h₀ - e) (t₀ + e) hs s' (by omega)).le

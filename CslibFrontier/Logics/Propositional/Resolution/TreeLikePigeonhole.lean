@@ -184,11 +184,8 @@ private theorem potential_none {h : ℕ} (hh : h ≤ m) :
 private theorem card_occupied_le {ρ : Fin m × Fin n → Option Bool} (hρ : IsMatching ρ) :
     #(occupied ρ) ≤ #(matched ρ) := by
   refine card_le_card_of_forall_subsingleton (r := fun j i => ρ (i, j) = some true) ?_ ?_
-  · intro j hj
-    obtain ⟨i, hi⟩ := mem_occupied.1 hj
-    exact ⟨i, mem_matched.2 ⟨j, hi⟩, hi⟩
-  · intro i _ j₁ hj₁ j₂ hj₂
-    exact hρ.1 i j₁ j₂ hj₁.2 hj₂.2
+  · exact fun j hj => (mem_occupied.1 hj).imp fun i hi => ⟨mem_matched.2 ⟨j, hi⟩, hi⟩
+  · exact fun i _ j₁ hj₁ j₂ hj₂ => hρ.1 i j₁ j₂ hj₁.2 hj₂.2
 
 /-- **A partial assignment falsifying a clause of `PHP^m_n` has potential at most `1`.** -/
 private theorem μ_le_one {h : ℕ} (hhn : h ≤ n) (hnm : n < m) (ρ : Fin m × Fin n → Option Bool)
@@ -209,9 +206,7 @@ private theorem μ_le_one {h : ℕ} (hhn : h ≤ n) (hnm : n < m) (ρ : Fin m ×
       simp [mem_excluded, hfalse]
     have hocc := card_occupied_le hρ
     by_cases hk : h ≤ #(matched ρ)
-    · refine (potential_le (U := ∅) (empty_subset _) ?_).trans_eq prod_empty
-      rw [card_empty]
-      omega
+    · exact (potential_le (empty_subset _) (by simp [Nat.sub_eq_zero_of_le hk])).trans_eq prod_empty
     · obtain ⟨U, hiU, hU, hcard⟩ := exists_subsuperset_card_eq
         (s := {i}) (t := (matched ρ)ᶜ) (n := h - #(matched ρ))
         (singleton_subset_iff.2 (mem_compl.2 hi)) (by rw [card_singleton]; omega)
@@ -219,9 +214,8 @@ private theorem μ_le_one {h : ℕ} (hhn : h ≤ n) (hnm : n < m) (ρ : Fin m ×
       have hzero : weight h ρ i = 0 := by
         rw [weight, hex, card_compl, Fintype.card_fin]
         omega
-      have := potential_le hU hcard
-      rw [prod_eq_zero (singleton_subset_iff.1 hiU) hzero] at this
-      omega
+      exact Nat.le_trans ((potential_le hU hcard).trans_eq
+        (prod_eq_zero (singleton_subset_iff.1 hiU) hzero)) (Nat.zero_le _)
   · -- a matching falsifies no hole clause
     have h₁ : ρ (i, j) = some true := hρc ((i, j), false) (by simp [holeClause])
     have h₂ : ρ (i', j) = some true := hρc ((i', j), false) (by simp [holeClause])
@@ -358,10 +352,8 @@ private theorem potential_split {h : ℕ} (hhm : h ≤ m) {ρ : Fin m × Fin n �
     obtain ⟨W, hW, hcardW, heqW⟩ := exists_potential_eq (update ρ (i, j) (some true)) hhm
     rw [matched_update_true hv] at hW hcardW
     have hiW : i ∉ W := fun hiW => mem_compl.1 (hW hiW) (mem_insert_self i _)
-    have hW' : insert i W ⊆ (matched ρ)ᶜ := by
-      intro a ha
-      rcases mem_insert.1 ha with rfl | ha
-      exacts [mem_compl.2 hi, mem_compl.2 fun hm => mem_compl.1 (hW ha) (mem_insert_of_mem hm)]
+    have hW' : insert i W ⊆ (matched ρ)ᶜ := insert_subset (mem_compl.2 hi) fun a ha =>
+      mem_compl.2 fun hm => mem_compl.1 (hW ha) (mem_insert_of_mem hm)
     have hcardW' : #(insert i W) = h - #(matched ρ) := by
       rw [card_insert_of_notMem hiW, hcardW, card_insert_of_notMem hi]
       omega
@@ -410,12 +402,9 @@ theorem pow_le_leafCount_pigeonhole (h : ℕ) (hnm : n < m) (d : (pigeonhole m n
     (n + 1 - h) ^ h ≤ d.toDecisionTree.leafCount := by
   by_cases hhn : h ≤ n
   swap
-  · rw [Nat.sub_eq_zero_of_le (by omega), zero_pow (by omega)]
-    exact Nat.zero_le _
-  have hroot : μ h (fun _ : Fin m × Fin n => none) = (n + 1 - h) ^ h := by
-    rw [μ_of_isMatching isMatching_none, potential_none (by omega)]
-  rw [← hroot]
-  exact potential_le_leafCount (μ h) (μ_split (by omega)) (μ_le_one hhn hnm) d
+  · simp [Nat.sub_eq_zero_of_le (not_le.1 hhn), zero_pow (Nat.ne_zero_of_lt (not_le.1 hhn))]
+  rw [← potential_none (hhn.trans hnm.le), ← μ_of_isMatching isMatching_none]
+  exact potential_le_leafCount (μ h) (μ_split (hhn.trans hnm.le)) (μ_le_one hhn hnm) d
     (Clause.falsifiedBy_nil _)
 
 /-- **Tree-like resolution lower bound for the pigeonhole principle.** For `m > n` and every `h`,

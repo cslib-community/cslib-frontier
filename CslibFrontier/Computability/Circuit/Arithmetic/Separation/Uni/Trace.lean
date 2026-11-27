@@ -31,6 +31,7 @@ From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Uni.Trace`.
 
 ## Main results
 
+* `Uni.closed_σi`: the initial configuration is closed.
 * `Uni.cols_ext`, `Uni.unb_proj`, `Uni.unb_bv`: column-slice representation lemmas.
 * `Uni.chain_len`, `Uni.chain_val`: length and value invariants along matched chains.
 * `Uni.MX.len_cn`, `Uni.MX.len`, `Uni.MX.length_eq`, `Uni.MX.vals`, `Uni.MX.size_eq`.
@@ -52,9 +53,7 @@ theorem cols_ext {q : ℕ} {c c' : List (Fin (q + 1) → Bool)}
     (h : ∀ j, c.map (fun v => v j) = c'.map fun v => v j) : c = c' := by
   refine List.ext_getElem (by simpa using congrArg List.length (h 0)) fun i h1 h2 => ?_
   funext j
-  have h3 : (c.map fun v => v j)[i]'(by simpa using h1) =
-      (c'.map fun v => v j)[i]'(by simpa using h2) := by simp only [h j]
-  simpa using h3
+  simpa [h1, h2] using congrArg (·[i]?) (h j)
 
 /-- Column-major `L`-bit big-endian slices of a `q`-tuple of natural numbers (reduced modulo
 `2 ^ L` so every column has unconditional length `L`). -/
@@ -66,11 +65,9 @@ theorem cols_ext {q : ℕ} {c c' : List (Fin (q + 1) → Bool)}
 theorem length_unb (L : ℕ) {q : ℕ} (a : Fin q → ℕ) : (unb L a).length = L := by simp [unb]
 
 theorem unb_proj (L : ℕ) {q : ℕ} (a : Fin q → ℕ) (j : Fin q) :
-    (unb L a).map (fun v => v j) = binaryWord L (a j % 2 ^ L) := by
-  refine List.ext_getElem
-    (by simp [length_unb, length_binaryWord (Nat.mod_lt (a j) (by positivity))])
-    fun i h1 h2 => ?_
-  simp [unb]
+    (unb L a).map (fun v => v j) = binaryWord L (a j % 2 ^ L) :=
+  List.ext_getElem (by simp [length_unb, length_binaryWord (Nat.mod_lt (a j) (by positivity))])
+    fun _ _ _ => by simp [unb]
 
 /-- Re-encoding the decoded big-endian column values recovers the column list. -/
 theorem unb_bv {q : ℕ} (w : List (Fin (q + 1) → Bool)) :
@@ -133,6 +130,14 @@ variable {A M K : Type}
 @[expose] def σi (P : Mach A M K) (bits : List Bool) : Mach.State M K :=
   ⟨P.m0, fun _ => 0, [(P.kN, ![0, 0, 0, 0])], 0, bits⟩
 
+/-- The initial configuration is closed: its counter, its registers and the entries of its only
+record `(P.kN, ![0, 0, 0, 0])` are `0`. -/
+theorem closed_σi (P : Mach A M K) (bits : List Bool) : Mach.Closed (σi P bits) := by
+  refine ⟨fun c hc i => ?_, fun j hj => ⟨_, List.mem_singleton_self _, (Nat.le_zero.1 hj).symm⟩,
+    fun _ => le_rfl⟩
+  rw [List.mem_singleton.1 hc]
+  fin_cases i <;> exact le_rfl
+
 /-- Key-letter content list of an `L`-bit numeric record `ρ : Rec K`. -/
 @[expose] def cN (L : ℕ) (ρ : Rec K) : List (Bl K) := cont ρ.1 (unb L ρ.2)
 
@@ -143,10 +148,8 @@ theorem length_cN (L : ℕ) (ρ : Rec K) : (cN L ρ).length = L + 1 := by
 @[expose] def kyN (L : ℕ) (ρ : Rec K) : Fin (L + 1) → Bl K :=
   fun i => (cN L ρ).get (i.cast (length_cN L ρ).symm)
 
-theorem ofFn_kyN (L : ℕ) (ρ : Rec K) : List.ofFn (kyN L ρ) = cN L ρ := by
-  refine List.ext_getElem (by rw [List.length_ofFn, length_cN]) fun i _ _ => ?_
-  rw [List.getElem_ofFn]
-  rfl
+theorem ofFn_kyN (L : ℕ) (ρ : Rec K) : List.ofFn (kyN L ρ) = cN L ρ :=
+  List.ext_getElem (by rw [List.length_ofFn, length_cN]) fun _ _ _ => List.getElem_ofFn _
 
 theorem kyN_inj {L : ℕ} {ρ ρ' : Rec K} (h : ∀ j, ρ.2 j < 2 ^ L)
     (h' : ∀ j, ρ'.2 j < 2 ^ L) (e : kyN L ρ = kyN L ρ') : ρ = ρ' := by
@@ -165,8 +168,7 @@ theorem bv_cn (r : List Bool × List Unit) : binaryValue (cn1 r) = binaryValue (
   binaryValue_succ_carry _ _
 
 theorem bv_i1 (l : List Unit) : binaryValue (i1 l) = 1 := by
-  rw [i1, binaryValue_append, binaryValue_replicate_false]
-  rfl
+  simp only [i1, binaryValue_append, binaryValue_replicate_false]; rfl
 
 theorem length_i1 (l : List Unit) : (i1 l).length = l.length + 1 := by simp [i1]
 
@@ -181,8 +183,7 @@ private theorem cols_four_eq_unb {L : ℕ} {w : List (Fin 9 → Bool)} (hl : w.l
         binaryValue (cw w i2), binaryValue (cw w i3)] := by
   have key : ∀ i, cw w i = binaryWord L (binaryValue (cw w i) % 2 ^ L) := fun i => by
     have hlen : (cw w i).length = L := by simp [cw, hl]
-    have hlt : binaryValue (cw w i) < 2 ^ L := by rw [← hlen]; exact binaryValue_lt_two_pow _
-    rw [Nat.mod_eq_of_lt hlt, ← hlen, binaryWord_binaryValue]
+    rw [Nat.mod_eq_of_lt (hlen ▸ binaryValue_lt_two_pow _), ← hlen, binaryWord_binaryValue]
   refine cols_ext fun j => ?_
   rw [unb_proj, List.map_map]
   fin_cases j <;> exact key _
@@ -205,15 +206,11 @@ include hx
 theorem MX.len_cn :
     (∀ r ∈ x.counter, (cn r).length = x.init.length + 1) ∧
       x.finalCounter.length + 1 = x.init.length + 1 := by
-  have h := chain_len x.counter cn1 cn _ _ hx.cp fun r _ => length_cn r
-  rw [length_i1] at h
-  exact ⟨h.1, by simpa using h.2⟩
+  simpa [length_i1] using chain_len x.counter cn1 cn _ _ hx.cp fun r _ => length_cn r
 
 theorem MX.len : ∀ s ∈ x.steps, s.2.length = x.init.length + 1 := fun s hs => by
   obtain ⟨r, hr, e⟩ := List.mem_map.1 (hx.fr ▸ List.mem_map.2 ⟨s, hs, rfl⟩)
-  have h2 := hx.len_cn.1 r hr
-  rw [e] at h2
-  simpa [cw] using h2
+  simpa [cw, e] using hx.len_cn.1 r hr
 
 theorem MX.length_eq : x.counter.length = x.steps.length := by
   simpa using congrArg List.length hx.fr
@@ -224,18 +221,15 @@ theorem MX.vals :
       binaryValue (true :: x.finalCounter) = 1 + x.steps.length := by
   have h1 := chain_val x.counter cn1 cn _ _ hx.cp fun r _ => bv_cn r
   rw [bv_i1, hx.length_eq] at h1
-  refine ⟨?_, h1.2⟩
-  rw [← h1.1]
   have h2 := congrArg (List.map binaryValue) hx.fr
   rw [List.map_map, List.map_map] at h2
-  exact h2.symm
+  exact ⟨h2.symm.trans h1.1, h1.2⟩
 
 theorem MX.size_eq : Nat.size (x.steps.length + 1) = x.init.length + 1 := by
   have h1 := hx.vals.2
-  have h2 := hx.len_cn.2
   have h3 := binaryValue_lt_two_pow x.finalCounter
-  rw [binaryValue_cons, Bool.toNat_true, one_mul] at h1
-  rw [show x.finalCounter.length = x.init.length by omega] at h1 h3
+  rw [binaryValue_cons, Bool.toNat_true, one_mul, Nat.succ.inj hx.len_cn.2] at h1
+  rw [Nat.succ.inj hx.len_cn.2] at h3
   exact le_antisymm (Nat.size_le.2 (by rw [pow_succ]; omega))
     (Nat.succ_le_iff.2 (Nat.lt_size.2 (by omega)))
 
@@ -260,11 +254,8 @@ theorem recs_lsN {P : Mach A M K} (L : ℕ) (tr : List P.Step) :
 theorem lsN_ne {P : Mach A M K} (L : ℕ) (tr : List P.Step) : lsN L tr ≠ [] := by
   simp [lsN, dfN]
 
-theorem unb_zero (L : ℕ) : unb L ![0, 0, 0, 0] = List.replicate L fun _ : Fin 4 => false := by
-  refine cols_ext fun j => ?_
-  rw [unb_proj, List.map_replicate]
-  have h : (![0, 0, 0, 0] : Fin 4 → ℕ) j = 0 := by fin_cases j <;> rfl
-  rw [h, Nat.zero_mod, binaryWord_zero]
+theorem unb_zero (L : ℕ) : unb L ![0, 0, 0, 0] = List.replicate L fun _ : Fin 4 => false :=
+  cols_ext fun j => by fin_cases j <;> simp [unb_proj, binaryWord_zero]
 
 theorem block_of {P : Mach A M K} {x : XP P}
     (hx : ∀ s ∈ x.steps, s.2.length = x.init.length + 1) :
@@ -289,8 +280,7 @@ theorem MX.block [Fintype K] [DecidableEq K] {P : Mach A M K} {x : XP P} {bits :
 theorem nst_lt [Fintype K] [DecidableEq K] {P : Mach A M K} {x : XP P} {bits : List Bool}
     (hx : MX x bits) {s : P.Rl × List (Fin 9 → Bool)} (hs : s ∈ x.steps) (i : Fin 9) :
     (nst s).2 i < 2 ^ (x.init.length + 1) := by
-  have h := binaryValue_lt_two_pow (cw s.2 i)
-  rwa [cw, List.length_map, hx.len s hs] at h
+  simpa only [nst, cw, List.length_map, hx.len s hs] using binaryValue_lt_two_pow (cw s.2 i)
 
 private theorem four_lt {a b c d n : ℕ} (ha : a < n) (hb : b < n) (hc : c < n) (hd : d < n)
     (j : Fin 4) : (![a, b, c, d] : Fin 4 → ℕ) j < n := by
@@ -300,15 +290,13 @@ private theorem four_lt {a b c d n : ℕ} (ha : a < n) (hb : b < n) (hc : c < n)
 theorem MX.gv [Fintype K] [DecidableEq K] {P : Mach A M K} {x : XP P} {bits : List Bool}
     (hx : MX x bits) : Mach.GV (σi P bits) (x.steps.map nst) := by
   refine ⟨?_, fun i => ⟨binaryValue (x.finalRegs.map fun v => v i), ?_⟩, ?_, ?_, ?_⟩
-  · rw [List.map_map, List.map_map]
-    exact hx.md
+  · simpa only [List.map_map, Function.comp_def, nst, σi] using hx.md
   · have h := congrArg (List.map binaryValue) (hx.rg i)
     rw [List.map_cons, List.map_append, List.map_map, List.map_map, bv_i0] at h
     rwa [List.map_map, List.map_map]
   · rw [List.map_map, List.length_map]
     exact hx.vals.1.trans (List.map_congr_left fun j _ => by simp [σi])
-  · rw [List.flatMap_map]
-    exact hx.inp
+  · simpa only [List.flatMap_map, nst, σi] using hx.inp
   · have h2 := (imu_table (M := M)
       ((dfN (x.steps.map nst)).map (kyN (x.init.length + 1)))
       (((x.steps.map nst).map Mach.ld).map (kyN (x.init.length + 1)))
@@ -334,23 +322,17 @@ theorem MX.unique [Fintype K] [DecidableEq K] {P : Mach A M K} {x x' : XP P}
     {bits : List Bool} (hx : MX x bits) (hx' : MX x' bits)
     (e : x.steps.map nst = x'.steps.map nst) : x = x' := by
   have hT : x.steps.length = x'.steps.length := by simpa using congrArg List.length e
-  have hL : x.init.length = x'.init.length := by
-    have h1 := hx.size_eq
-    have h2 := hx'.size_eq
-    rw [hT] at h1
-    omega
+  have hL : x.init.length = x'.init.length :=
+    Nat.succ.inj ((hx.size_eq.symm.trans (congrArg (fun n => Nat.size (n + 1)) hT)).trans
+      hx'.size_eq)
   have e1 : x.init = x'.init := unit_list hL
   have e3 : x.steps = x'.steps :=
     List.ext_getElem hT fun i h1 h2 => by
-      have h3 : (x.steps.map nst)[i]'(by simpa using h1) =
-          (x'.steps.map nst)[i]'(by simpa using h2) := by simp only [e]
-      simp only [List.getElem_map] at h3
-      have h4 := congrArg Prod.fst h3
-      have h5 := congrArg Prod.snd h3
-      refine Prod.ext h4 ?_
+      have h3 : nst x.steps[i] = nst x'.steps[i] := by simpa [h1, h2] using congrArg (·[i]?) e
+      refine Prod.ext (Prod.mk.inj h3).1 ?_
       rw [← unb_bv (x.steps[i]).2, ← unb_bv (x'.steps[i]).2,
         hx.len _ (List.getElem_mem h1), hx'.len _ (List.getElem_mem h2), hL]
-      exact congrArg (unb _) h5
+      exact congrArg (unb _) (Prod.mk.inj h3).2
   have e2 : x.counter = x'.counter :=
     (List.map_injective_iff (f := cn)).2
       (fun ⟨u, k⟩ ⟨u', k'⟩ h =>
@@ -358,17 +340,11 @@ theorem MX.unique [Fintype K] [DecidableEq K] {P : Mach A M K} {x x' : XP P}
         Prod.ext a1 (unit_list a2))
       (by rw [hx.fr, hx'.fr, e3])
   have e4r : x.finalRegs = x'.finalRegs := cols_ext fun i => by
-    have h1 := hx.rg i
-    rw [e1, e3] at h1
-    simpa using List.append_cancel_left (h1.symm.trans (hx'.rg i))
+    simpa [e1, e3, hx'.rg i] using (hx.rg i).symm
   have e4c : x.finalCounter = x'.finalCounter := by
-    have h1 := hx.cp
-    rw [e1, e2] at h1
-    simpa using List.append_cancel_left (h1.symm.trans hx'.cp)
-  have e6 : x.sort = x'.sort := by
-    have h1 := hx.block ▸ hx.ls
-    rw [e1, e3] at h1
-    exact imu_unique (lsN_ne _ _) h1 (hx'.block ▸ hx'.ls)
+    simpa [e1, e2, hx'.cp] using hx.cp.symm
+  have e6 : x.sort = x'.sort :=
+    imu_unique (lsN_ne _ _) (e1 ▸ e3 ▸ hx.block ▸ hx.ls) (hx'.block ▸ hx'.ls)
   exact XP.ext e1 e2 e3 e4r e4c (by rw [hx.lk, hx'.lk, lks, lks, e3]) e6
 
 end Trace

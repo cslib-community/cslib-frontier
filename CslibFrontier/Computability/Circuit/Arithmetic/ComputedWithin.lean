@@ -51,6 +51,8 @@ gates for each input, hence at most a factor five (`ComputedWithin.of_isAffinePr
   affine polynomials have degree at most `1` and are closed under affine substitutions.
 * `Cslib.Circuits.Arithmetic.ComputedWithin.of_isAffineProjection`: affine projections cost at
   most a factor five.
+* `Cslib.Circuits.Arithmetic.ComputedWithin.exists_steps`: the gate list of a circuit, each entry a
+  variable, a constant, or the sum or product of two earlier entries.
 * `Cslib.Circuits.Arithmetic.mem_VP_iff`: `VP` in terms of `ComputedWithin`.
 
 ## References
@@ -90,6 +92,12 @@ theorem Circuit.rename_polynomial {σ : Type*} (c : Circuit (arithSignature K) n
     | .mul => .mul
     | .const a => .const (f a)
   arity_eq op := by cases op <;> rfl
+
+omit [CommSemiring K] in
+/-- Mapping constants twice is mapping them along the composite. -/
+theorem ArithOp.map_comp {L M : Type*} (f : K → L) (f' : L → M) :
+    (ArithOp.map f').comp (ArithOp.map f) = ArithOp.map (f' ∘ f) :=
+  Signature.Hom.ext fun op => by cases op <;> rfl
 
 /-- Mapping constants along `f` and interpreting them by `constant` means interpreting them by
 `constant ∘ f`. -/
@@ -250,6 +258,116 @@ theorem prod {ι : Type*} (A : Finset ι) {f : ι → MvPolynomial σ K}
     refine ((h i (Finset.mem_insert_self i A)).mul
       (ih fun j hj => h j (Finset.mem_insert_of_mem hj))).mono (le_of_eq ?_)
     ring
+
+/-- A polynomial computed within `s` nodes is entry `k < s` of a list in which every entry below
+`s` is a variable, a constant, or the sum or product of two earlier entries. The list holds the
+values of the wires of the circuit in program order, inputs first, and `0` after them. -/
+theorem exists_steps (h : ComputedWithin P s) :
+    ∃ l : ℕ → MvPolynomial σ K, (∀ k < s, (∃ i, l k = X i) ∨ (∃ a, l k = C a) ∨
+      (∃ i < k, ∃ j < k, l k = l i + l j) ∨ (∃ i < k, ∃ j < k, l k = l i * l j)) ∧
+      ∃ k < s, l k = P := by
+  classical
+  obtain ⟨n, x, c, hs, rfl⟩ := h
+  set v := c.program.trace (arithInterpretationWith K C) (X : Fin n → MvPolynomial (Fin n) K)
+    with hv
+  let pos : Wire n c.size → ℕ := fun
+    | .input i => i
+    | .gate j => n + j
+  let l : ℕ → MvPolynomial σ K := fun k =>
+    if h : k < n then MvPolynomial.rename x (v (.input ⟨k, h⟩))
+    else if h' : k - n < c.size then MvPolynomial.rename x (v (.gate ⟨k - n, h'⟩)) else 0
+  have hl : ∀ w, l (pos w) = MvPolynomial.rename x (v w) := by
+    intro w
+    cases w with
+    | input i => simp [l, pos, i.2]
+    | gate j =>
+      have h1 : ¬ n + (j : ℕ) < n := by omega
+      have h2 : n + (j : ℕ) - n = j := by omega
+      simp only [l, pos, dite_eq_right h1, h2, j.2, dite_true]
+  have hpos : ∀ w, pos w < n + c.size := by
+    intro w
+    cases w with
+    | input i => exact lt_of_lt_of_le i.2 (Nat.le_add_right _ _)
+    | gate j => exact Nat.add_lt_add_left j.2 n
+  refine ⟨l, fun k hk => ?_, pos (c.outputs 0), (hpos _).trans_le hs, ?_⟩
+  · by_cases hkn : k < n
+    · left
+      exact ⟨x ⟨k, hkn⟩, by simp [l, hkn, v]⟩
+    by_cases hkg : k - n < c.size
+    swap
+    · exact Or.inr (Or.inl ⟨0, by simp [l, hkn, hkg]⟩)
+    set j : Fin c.size := ⟨k - n, hkg⟩
+    have hk : k = pos (.gate j) := by simp only [pos, j]; omega
+    have hlt : ∀ a, pos ((c.program.lines j).wires a) < k := by
+      intro a
+      rw [hk]
+      cases hw : (c.program.lines j).wires a with
+      | input i => simp only [pos]; omega
+      | gate j' =>
+        have := c.program.lt_of_lines_wires_eq_gate j a j' hw
+        simp only [pos]
+        omega
+    have hg : l k = MvPolynomial.rename x (arithInterpretationWith K C (c.program.lines j).op
+        fun a => v ((c.program.lines j).wires a)) := by
+      rw [hk]
+      refine (hl (.gate j)).trans ?_
+      rw [hv, Program.trace_gate]
+    have hval : ∀ a, MvPolynomial.rename x (v ((c.program.lines j).wires a)) =
+        l (pos ((c.program.lines j).wires a)) := fun a => (hl _).symm
+    generalize c.program.lines j = L at hg hval hlt
+    obtain ⟨op, ws⟩ := L
+    cases op with
+    | add =>
+      refine Or.inr (Or.inr (Or.inl ⟨_, hlt 0, _, hlt 1, ?_⟩))
+      rw [hg, ← hval 0, ← hval 1]
+      simp [arithInterpretationWith]
+    | mul =>
+      refine Or.inr (Or.inr (Or.inr ⟨_, hlt 0, _, hlt 1, ?_⟩))
+      rw [hg, ← hval 0, ← hval 1]
+      simp [arithInterpretationWith]
+    | const a =>
+      exact Or.inr (Or.inl ⟨a, by rw [hg]; simp [arithInterpretationWith]⟩)
+  · rw [hl, Circuit.polynomial_def]
+    rfl
+
+/-- A polynomial computed within `s` nodes has a finite set of constants: along any ring
+homomorphism whose range contains them, it is the image of a polynomial computed within `s` nodes.
+The set holds the constants of the gates of a circuit for `P`, with `0` for the gates
+that are not constants. -/
+theorem exists_finset_lift (h : ComputedWithin P s) :
+    ∃ S : Finset K, ∀ {B : Type*} [CommSemiring B] (ι : B →+* K), (S : Set K) ⊆ Set.range ι →
+      ∃ Q : MvPolynomial σ B, ComputedWithin Q s ∧ MvPolynomial.map ι Q = P := by
+  classical
+  obtain ⟨n, x, c, hs, rfl⟩ := h
+  let cst : ArithOp K → K := fun
+    | .const a => a
+    | _ => 0
+  refine ⟨Finset.univ.image fun k : Fin c.size => cst (c.program.lines k).op, fun {B} _ ι hS => ?_⟩
+  let g : K → B := fun t => if h : t ∈ Set.range ι then h.choose else 0
+  have hg : ∀ k : Fin c.size, ∀ a, (c.program.lines k).op = .const a → ι (g a) = a := by
+    intro k a hk
+    have ha : a ∈ Set.range ι := hS (Finset.mem_coe.2 (Finset.mem_image.2 ⟨k, Finset.mem_univ _,
+      by rw [hk]⟩))
+    simp only [g, ha, ↓reduceDIte]
+    exact ha.choose_spec
+  refine ⟨MvPolynomial.rename x ((c.mapOp (ArithOp.map g)).polynomial 0), ⟨n, x, _, hs, rfl⟩, ?_⟩
+  rw [MvPolynomial.map_rename, ← Circuit.polynomial_mapOp_ringHom, ← Circuit.mapOp_comp,
+    ArithOp.map_comp, Circuit.polynomial_mapOp, Circuit.polynomial_def]
+  congr 1
+  -- the two circuits agree gate by gate, since `ι ∘ g` fixes the constants of `c`
+  have htr : c.program.trace (arithInterpretationWith K (C ∘ (ι ∘ g)))
+      (X : Fin n → MvPolynomial (Fin n) K) = c.program.trace (arithInterpretationWith K C) X := by
+    refine Program.eq_trace_of_forall_gate (fun i => by simp) fun k => ?_
+    rw [Program.trace_gate]
+    generalize hL : c.program.lines k = L
+    obtain ⟨op, ws⟩ := L
+    cases op with
+    | add => rfl
+    | mul => rfl
+    | const a =>
+      have := hg k a (by rw [hL])
+      simp [arithInterpretationWith, this]
+  simp only [Circuit.eval, Function.comp_apply, htr]
 
 end ComputedWithin
 

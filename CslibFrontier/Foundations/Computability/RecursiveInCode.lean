@@ -298,11 +298,10 @@ theorem evaln_mono {σ₁ σ₂ : List ℕ} (hσ : σ₁ <+: σ₂) {k₁ k₂ c
 
 /-- The use of a stage-`k` computation is below `k`: it reads only the first `k` oracle values. -/
 theorem evaln_take (σ : List ℕ) (k : ℕ) (c : Code) (n : ℕ) :
-    evaln (σ.take k) k c n = evaln σ k c n := by
-  refine Option.ext fun x => ⟨fun h => ?_, fun h => ?_⟩
-  · exact evaln_mono (List.take_prefix k σ) le_rfl h
-  · refine evaln_mono_of_agree (K := k) (fun i hi y hy => ?_) le_rfl le_rfl h
-    rwa [List.getElem?_take_of_lt hi]
+    evaln (σ.take k) k c n = evaln σ k c n :=
+  Option.ext fun _ => ⟨evaln_mono (List.take_prefix k σ) le_rfl,
+    evaln_mono_of_agree (K := k) (fun _ hi _ hy => (List.getElem?_take_of_lt hi).trans hy)
+      le_rfl le_rfl⟩
 
 -- As in Mathlib's `Nat.Partrec.Code.evaln_sound`: the `simp` calls unfold `PFun` coercions.
 set_option backward.isDefEq.respectTransparency false in
@@ -373,15 +372,12 @@ theorem getElem_prefixOf (f : ℕ → ℕ) {N i : ℕ} (h : i < (prefixOf f N).l
 
 theorem prefixOf_prefix (f : ℕ → ℕ) {N₁ N₂ : ℕ} (h : N₁ ≤ N₂) :
     prefixOf f N₁ <+: prefixOf f N₂ := by
-  rw [List.prefix_iff_eq_take]
-  simp [prefixOf, ← List.map_take, List.take_range, min_eq_left h]
+  simp [List.prefix_iff_eq_take, prefixOf, ← List.map_take, List.take_range, min_eq_left h]
 
 /-- Every total oracle extends each of its prefixes. -/
 theorem prefixOf_mem (f : ℕ → ℕ) (N : ℕ) :
-    ∀ i (h : i < (prefixOf f N).length), (prefixOf f N)[i] ∈ (f : ℕ →. ℕ) i := by
-  intro i h
-  rw [getElem_prefixOf]
-  exact Part.mem_some _
+    ∀ i (h : i < (prefixOf f N).length), (prefixOf f N)[i] ∈ (f : ℕ →. ℕ) i :=
+  fun _ _ => by simp [PFun.coe_val]
 
 -- As in Mathlib's `Nat.Partrec.Code.evaln_complete`: the `simp` calls unfold `PFun` coercions.
 set_option backward.isDefEq.respectTransparency false in
@@ -394,10 +390,8 @@ theorem evaln_complete {f : ℕ → ℕ} {c n x} :
   · exact ⟨N, k + 1, h⟩
   induction c generalizing n x with
   | oracle =>
-    refine ⟨n + 1, n, ?_⟩
     simp only [eval, PFun.coe_val, Part.mem_some_iff] at h
-    subst h
-    simp [evaln, prefixOf]
+    exact ⟨n + 1, n, by simp [evaln, prefixOf, ← h]⟩
   | pair cf cg hf hg =>
     simp only [eval, Seq.seq, Part.map_eq_map, Part.mem_bind_iff, Part.mem_map_iff,
       evaln, Option.map_eq_map, Option.bind_eq_bind, Option.mem_def, Option.bind_eq_some_iff,
@@ -436,17 +430,14 @@ theorem evaln_complete {f : ℕ → ℕ} {c n x} :
       intro y hy hx
       rcases IH hy with ⟨N₁, k₁, nk₁, hk₁⟩
       rcases hg hx with ⟨N₂, k₂, hk₂⟩
-      refine
-        ⟨max N₁ N₂, (max k₁ k₂).succ,
-          Nat.le_succ_of_le <| le_max_of_le_left <|
-            le_trans (le_max_left _ (Nat.pair n₁ m)) nk₁, y,
-          evaln_mono (prefixOf_prefix f (le_max_left _ _))
-            (Nat.succ_le_succ <| le_max_left _ _) ?_,
-          evaln_mono (prefixOf_prefix f (le_max_right _ _))
-            (Nat.succ_le_succ <| Nat.le_succ_of_le <| le_max_right _ _) hk₂⟩
-      simp only [evaln, bind, unpaired, unpair_pair, Option.mem_def, Option.bind_eq_some_iff,
-        Option.guard_eq_some', exists_and_left, exists_const]
-      exact ⟨le_trans (le_max_right _ _) nk₁, hk₁⟩
+      refine ⟨max N₁ N₂, (max k₁ k₂).succ,
+        Nat.le_succ_of_le (le_max_of_le_left ((le_max_left _ (Nat.pair n₁ m)).trans nk₁)), y,
+        evaln_mono (prefixOf_prefix f (le_max_left _ _)) (Nat.succ_le_succ (le_max_left _ _)) ?_,
+        evaln_mono (prefixOf_prefix f (le_max_right _ _))
+          (Nat.succ_le_succ (Nat.le_succ_of_le (le_max_right _ _))) hk₂⟩
+      simpa only [evaln, bind, unpaired, unpair_pair, Option.mem_def, Option.bind_eq_some_iff,
+        Option.guard_eq_some', exists_and_left, exists_const] using
+        ⟨(le_max_right _ _).trans nk₁, hk₁⟩
   | rfind' cf hf =>
     simp only [eval, Part.map_eq_map, Part.mem_map_iff, Nat.mem_rfind,
       decide_eq_false_iff_not] at h ⊢
@@ -454,9 +445,7 @@ theorem evaln_complete {f : ℕ → ℕ} {c n x} :
     suffices ∃ N k, y + n.unpair.2 ∈
         evaln (prefixOf f N) (k + 1) (rfind' cf) (Nat.pair n.unpair.1 n.unpair.2) by
       simpa [evaln, Option.bind_eq_some_iff]
-    revert hy₁ hy₂
-    generalize n.unpair.2 = m
-    intro hy₁ hy₂
+    generalize n.unpair.2 = m at hy₁ hy₂
     induction y generalizing m with simp only [evaln, unpair_pair, Option.bind_eq_bind,
       Option.mem_def, Option.bind_eq_some_iff, Option.guard_eq_some', exists_const]
     | zero =>
@@ -470,21 +459,16 @@ theorem evaln_complete {f : ℕ → ℕ} {c n x} :
         fun {i} hi ↦ by
           simpa [Nat.succ_eq_add_one, add_comm, add_left_comm] using
             hy₂ (Nat.succ_lt_succ hi) with ⟨N₂, k₂, hk₂⟩
-      use max N₁ N₂, (max k₁ k₂).succ
       rw [zero_add] at hk₁
-      use Nat.le_succ_of_le <| le_max_of_le_left <| Nat.le_of_lt_succ <| evaln_bound hk₁
-      use a
-      use evaln_mono (prefixOf_prefix f (le_max_left _ _))
-        (Nat.succ_le_succ <| Nat.le_succ_of_le <| le_max_left _ _) hk₁
-      simpa [a0, add_comm, add_left_comm] using
-        evaln_mono (prefixOf_prefix f (le_max_right _ _)) (Nat.succ_le_succ <| le_max_right _ _)
-          hk₂
+      exact ⟨max N₁ N₂, (max k₁ k₂).succ,
+        Nat.le_succ_of_le <| le_max_of_le_left <| Nat.le_of_lt_succ <| evaln_bound hk₁, a,
+        evaln_mono (prefixOf_prefix f (le_max_left _ _))
+          (Nat.succ_le_succ <| Nat.le_succ_of_le <| le_max_left _ _) hk₁,
+        by simpa [a0, add_comm, add_left_comm] using
+          evaln_mono (prefixOf_prefix f (le_max_right _ _)) (Nat.succ_le_succ <| le_max_right _ _)
+            hk₂⟩
   | _ =>
-    refine ⟨0, ?_⟩
-    simp only [eval, evaln, pure, PFun.pure, PFun.coe_val, Part.mem_some_iff, Option.bind_eq_bind,
-      Option.mem_def, Option.bind_eq_some_iff, Option.guard_eq_some', Option.some.injEq,
-      exists_const, exists_and_right] at h ⊢
-    exact ⟨⟨_, le_rfl⟩, h.symm⟩
+    exact ⟨0, n, by simpa [eval, evaln, pure, PFun.pure, PFun.coe_val, eq_comm] using h⟩
 
 /-- Completeness with a single stage parameter: a convergent computation relative to the total
 oracle `f` converges at some stage `s` against the prefix of `f` of length `s`. -/
@@ -497,10 +481,9 @@ theorem mem_eval_iff_exists_evaln {f : ℕ → ℕ} {c n x} :
 /-- Evaluation relative to a total oracle is the limit of the stage-bounded approximations. -/
 theorem eval_eq_rfindOpt (f : ℕ → ℕ) (c : Code) (n : ℕ) :
     eval (f : ℕ →. ℕ) c n = Nat.rfindOpt fun s => evaln (prefixOf f s) s c n :=
-  Part.ext fun x => by
-    refine mem_eval_iff_exists_evaln.trans (Nat.rfindOpt_mono ?_).symm
-    intro a m n hl
-    exact evaln_mono (prefixOf_prefix f hl) hl
+  Part.ext fun _ =>
+    mem_eval_iff_exists_evaln.trans
+      (Nat.rfindOpt_mono fun hl => evaln_mono (prefixOf_prefix f hl) hl).symm
 
 /-- The use principle: if a computation relative to the total oracle `f` converges, then there is
 a bound `N` such that the computation converges to the same value relative to every total oracle
@@ -509,9 +492,7 @@ theorem exists_use {f : ℕ → ℕ} {c n x} (h : x ∈ eval (f : ℕ →. ℕ) 
     ∃ N, ∀ g : ℕ → ℕ, (∀ i < N, g i = f i) → x ∈ eval (g : ℕ →. ℕ) c n := by
   obtain ⟨N, k, hk⟩ := evaln_complete.1 h
   refine ⟨N, fun g hg => evaln_sound (fun i hi => ?_) hk⟩
-  have hiN : i < N := by simpa using hi
-  rw [getElem_prefixOf, ← hg i hiN]
-  exact Part.mem_some _
+  simp [← hg i (length_prefixOf f N ▸ hi), PFun.coe_val]
 
 end Code
 
@@ -584,8 +565,7 @@ theorem TuringDegree.countable_Iic (d : TuringDegree) : (Set.Iic d).Countable :=
   induction d using Antisymmetrization.ind with
   | _ g =>
   refine ((Nat.RecursiveIn.countable_setOf_turingReducible g).image
-    (toAntisymmetrization _)).mono ?_
-  intro d hd
+    (toAntisymmetrization _)).mono fun d hd => ?_
   induction d using Antisymmetrization.ind with
   | _ f => exact ⟨f, hd, rfl⟩
 

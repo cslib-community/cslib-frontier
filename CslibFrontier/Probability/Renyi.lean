@@ -155,15 +155,10 @@ private theorem mul_div_rpow_tsum_le {α : ℝ} (hα : 1 < α) {u v : X → ℝ�
   · obtain ⟨x₀, hu₀, hv₀⟩ := hsupp
     have htop : u x₀ * (u x₀ / v x₀) ^ t = ⊤ := by
       rw [hv₀, ENNReal.div_zero hu₀, ENNReal.top_rpow_of_pos ht, ENNReal.mul_top hu₀]
-    have hle := le_tsum (fun x => u x * (u x / v x) ^ t) x₀
-    rw [htop, top_le_iff] at hle
-    exact le_top.trans_eq hle.symm
+    exact le_top.trans (htop ▸ le_tsum (fun x => u x * (u x / v x) ^ t) x₀)
   have hsupp' (x : X) (hu : u x ≠ 0) : v x ≠ 0 := fun hv => hsupp ⟨x, hu, hv⟩
-  have hV0 : V ≠ 0 := by
-    intro h0
-    apply hU0
-    rw [tsum_eq_zero_iff] at h0 ⊢
-    exact fun x => by_contra fun hu => hsupp' x hu (h0 x)
+  have hV0 : V ≠ 0 := fun h0 => hU0 <|
+    tsum_eq_zero_iff.mpr fun x => by_contra fun hu => hsupp' x hu (tsum_eq_zero_iff.mp h0 x)
   set M : ℝ≥0∞ := ∑' x, u x * (u x / v x) ^ t
   rcases eq_or_ne M ⊤ with hM_top | hM_top
   · exact hM_top ▸ le_top
@@ -171,8 +166,7 @@ private theorem mul_div_rpow_tsum_le {α : ℝ} (hα : 1 < α) {u v : X → ℝ�
   have hv_top (x : X) : v x ≠ ⊤ := ne_top_of_le_ne_top hV (le_tsum v x)
   have hUV0 : U / V ≠ 0 := ENNReal.div_ne_zero.mpr ⟨hU0, hV⟩
   have hUV_top : U / V ≠ ⊤ := ENNReal.div_ne_top hU hV0
-  set R : ℝ := (U / V).toReal
-  have hR : 0 < R := by dsimp only [R]; ennreal_to_real using pos_iff_ne_zero.mpr hUV0
+  have hR : 0 < U.toReal / V.toReal := by ennreal_to_real using pos_iff_ne_zero.mpr hUV0
   have hUV_rpow_t : (U / V) ^ t ≠ ⊤ := ENNReal.rpow_ne_top_of_nonneg ht.le hUV_top
   have hUV_rpow_α : (U / V) ^ α ≠ ⊤ := ENNReal.rpow_ne_top_of_nonneg hα0.le hUV_top
   have hpt (x : X) :
@@ -188,12 +182,7 @@ private theorem mul_div_rpow_tsum_le {α : ℝ} (hα : 1 < α) {u v : X → ℝ�
     have hb : 0 < (v x).toReal := by ennreal_to_real using pos_iff_ne_zero.mpr hvx0
     have huv_rpow : (u x / v x) ^ t ≠ ⊤ :=
       ENNReal.rpow_ne_top_of_nonneg ht.le (ENNReal.div_ne_top hux_top hvx0)
-    have hyoung : (u x).toReal * ((U / V).toReal) ^ t ≤
-        1 / α * ((u x).toReal * ((u x).toReal / (v x).toReal) ^ t) +
-          t / α * ((v x).toReal * ((U / V).toReal) ^ α) := young_mul_rpow hα ha hb hR
-    ennreal_to_real
-    ennreal_to_real at hyoung
-    exact hyoung
+    ennreal_to_real using young_mul_rpow hα ha hb hR
   have hsum_ineq :
       U * (U / V) ^ t ≤
         ENNReal.ofReal (1 / α) * M + ENNReal.ofReal (t / α) * (V * (U / V) ^ α) := by
@@ -258,9 +247,7 @@ theorem one_le_renyiMoment {α : ℝ} (hα : 1 < α) (p q : PMF X) :
   have hmom : renyiMoment α p p = 1 := by
     rw [renyiMoment, ← p.tsum_coe]
     refine tsum_congr fun x => ?_
-    rcases eq_or_ne (p x) 0 with hx0 | hx0
-    · simp [hx0]
-    · rw [ENNReal.div_self hx0 (p.apply_ne_top x), ENNReal.one_rpow, mul_one]
+    by_cases hx0 : p x = 0 <;> simp [hx0, ENNReal.div_self, p.apply_ne_top x]
   simp [renyiDiv, hmom]
 
 /-- Finite-bound characterization of Rényi divergence: for `1 < α` and `0 ≤ ε`,
@@ -297,10 +284,8 @@ theorem renyiMoment_bind_le {α : ℝ} (hα : 1 ≤ α) (p q : PMF X) (K : X →
   have hstep (y : Y) :
       (p.bind K) y * ((p.bind K) y / (q.bind K) y) ^ (α - 1) ≤
         ∑' x, p x * (p x / q x) ^ (α - 1) * K x y := by
-    have hp_ne : ∑' x, p x * K x y ≠ ⊤ := by
-      simpa only [_root_.PMF.bind_apply] using (p.bind K).apply_ne_top y
-    have hq_ne : ∑' x, q x * K x y ≠ ⊤ := by
-      simpa only [_root_.PMF.bind_apply] using (q.bind K).apply_ne_top y
+    have hp_ne : ∑' x, p x * K x y ≠ ⊤ := _root_.PMF.bind_apply p K y ▸ (p.bind K).apply_ne_top y
+    have hq_ne : ∑' x, q x * K x y ≠ ⊤ := _root_.PMF.bind_apply q K y ▸ (q.bind K).apply_ne_top y
     calc (p.bind K) y * ((p.bind K) y / (q.bind K) y) ^ (α - 1)
         = (∑' x, p x * K x y) * ((∑' x, p x * K x y) / (∑' x, q x * K x y)) ^ (α - 1) := by
           simp only [_root_.PMF.bind_apply]
@@ -312,27 +297,18 @@ theorem renyiMoment_bind_le {α : ℝ} (hα : 1 ≤ α) (p q : PMF X) (K : X →
   calc renyiMoment α (p.bind K) (q.bind K)
       ≤ ∑' y, ∑' x, p x * (p x / q x) ^ (α - 1) * K x y := tsum_le_tsum hstep
     _ = ∑' x, ∑' y, p x * (p x / q x) ^ (α - 1) * K x y := tsum_comm
-    _ = renyiMoment α p q := by
-        rw [renyiMoment]
-        refine tsum_congr fun x => ?_
-        rw [ENNReal.tsum_mul_left, (K x).tsum_coe, mul_one]
+    _ = renyiMoment α p q :=
+        tsum_congr fun x => by rw [ENNReal.tsum_mul_left, (K x).tsum_coe, mul_one]
 
 /-- **Data-processing inequality** for Rényi divergence [Mironov2017, Section III]: for `1 < α`,
 applying a Markov kernel `K : X → PMF Y` cannot increase `renyiDiv α`. -/
 theorem renyiDiv_bind_le {α : ℝ} (hα : 1 < α) (p q : PMF X) (K : X → PMF Y) :
     renyiDiv α (p.bind K) (q.bind K) ≤ renyiDiv α p q := by
-  classical
-  by_cases htop : renyiMoment α p q = ⊤
-  · simp [renyiDiv, htop]
-  have hmom := renyiMoment_bind_le hα.le p q K
-  have htop_bind : renyiMoment α (p.bind K) (q.bind K) ≠ ⊤ := ne_top_of_le_ne_top htop hmom
-  have h1_bind : 1 ≤ (renyiMoment α (p.bind K) (q.bind K)).toReal := by
-    ennreal_to_real using one_le_renyiMoment hα (p.bind K) (q.bind K)
-  have hle_real : (renyiMoment α (p.bind K) (q.bind K)).toReal ≤ (renyiMoment α p q).toReal := by
-    ennreal_to_real using hmom
-  simp only [renyiDiv, htop, htop_bind, ↓reduceIte]
-  refine ENNReal.ofReal_le_ofReal (div_le_div_of_nonneg_right ?_ (sub_pos.mpr hα).le)
-  exact Real.log_le_log (zero_lt_one.trans_le h1_bind) hle_real
+  rcases eq_or_ne (renyiDiv α p q) ⊤ with hp | hp
+  · simp [hp]
+  rw [← ENNReal.ofReal_toReal hp, renyiDiv_le_ofReal_iff hα _ _ ENNReal.toReal_nonneg]
+  exact (renyiMoment_bind_le hα.le p q K).trans
+    ((renyiDiv_le_ofReal_iff hα p q ENNReal.toReal_nonneg).mp (ENNReal.ofReal_toReal hp).ge)
 
 /-- Deterministic post-processing cannot increase Rényi divergence [Mironov2017, Section III]. -/
 theorem renyiDiv_map_le {α : ℝ} (hα : 1 < α) (p q : PMF X) (f : X → Y) :
@@ -362,22 +338,20 @@ theorem renyiDiv_bind_pair_le {α : ℝ} (hα : 1 < α) (p q : PMF X) {K L : X �
     (renyiDiv_le_ofReal_iff hα p q hε₁_nn).mp (le_of_eq hp_eq)
   rw [hp_eq, hB_eq, ← ENNReal.ofReal_add hε₁_nn hε₂_nn,
     renyiDiv_le_ofReal_iff hα _ _ (add_nonneg hε₁_nn hε₂_nn)]
-  set P₂ := p.bind fun x => (K x).bind fun y => _root_.PMF.pure (x, y)
-  set Q₂ := q.bind fun x => (L x).bind fun y => _root_.PMF.pure (x, y)
-  have hP₂ : (P₂ : X × Y → ℝ≥0∞) = fun z => p z.1 * K z.1 z.2 :=
-    funext fun ⟨x, y⟩ => bind_pair_apply p K x y
-  have hQ₂ : (Q₂ : X × Y → ℝ≥0∞) = fun z => q z.1 * L z.1 z.2 :=
-    funext fun ⟨x, y⟩ => bind_pair_apply q L x y
-  rw [hP₂, hQ₂,
-    renyiMoment_mul_prod (p₁ := p) (q₁ := q) (p₂ := fun x y => K x y) (q₂ := fun x y => L x y)
-      hα.le (fun x => q.apply_ne_top x) (fun x y => (L x).apply_ne_top y)]
+  have hPQ (r : PMF X) (M : X → PMF Y) :
+      ((r.bind fun x => (M x).bind fun y => _root_.PMF.pure (x, y) : PMF (X × Y)) :
+        X × Y → ℝ≥0∞) = fun z => r z.1 * M z.1 z.2 :=
+    funext fun ⟨x, y⟩ => bind_pair_apply r M x y
+  rw [hPQ p K, hPQ q L, renyiMoment_mul_prod (p₁ := p) (q₁ := q)
+    (p₂ := fun x y => K x y) (q₂ := fun x y => L x y) hα.le
+    q.apply_ne_top fun x => (L x).apply_ne_top]
   calc ∑' x, p x * (p x / q x) ^ (α - 1) * renyiMoment α (K x) (L x)
       ≤ ∑' x, p x * (p x / q x) ^ (α - 1) * ENNReal.ofReal (Real.exp ((α - 1) * ε₂)) := by
         refine tsum_le_tsum fun x => ?_
         classical
         by_cases hx : x ∈ p.support
-        · refine mul_le_mul_right ?_ _
-          exact (renyiDiv_le_ofReal_iff hα (K x) (L x) hε₂_nn).mp (hB_eq ▸ hKL x hx)
+        · exact mul_le_mul_right
+            ((renyiDiv_le_ofReal_iff hα (K x) (L x) hε₂_nn).mp (hB_eq ▸ hKL x hx)) _
         · rw [(p.apply_eq_zero_iff x).mpr hx, zero_mul, zero_mul, zero_mul]
     _ = renyiMoment α p q * ENNReal.ofReal (Real.exp ((α - 1) * ε₂)) := by
         rw [ENNReal.tsum_mul_right, renyiMoment]
@@ -404,11 +378,8 @@ theorem hockeyStick_le_of_renyiDiv_le {α ε δ : ℝ} (hα : 1 < α) (hε : 0 �
           ENNReal.ofReal (Real.exp ((α - 1) * ε)) := mul_le_mul_right hmom _
     _ = ENNReal.ofReal δ := by
         rw [← ENNReal.ofReal_mul (Real.exp_pos _).le, ← Real.exp_add]
-        have hexp : -((α - 1) * (ε + Real.log (1 / δ) / (α - 1))) + (α - 1) * ε =
-            Real.log δ := by
-          rw [one_div, Real.log_inv]
-          field_simp [ht.ne']
-          ring
+        have hexp : -((α - 1) * (ε + Real.log (1 / δ) / (α - 1))) + (α - 1) * ε = Real.log δ := by
+          rw [one_div, Real.log_inv, mul_add, mul_div_cancel₀ _ ht.ne']; ring
         rw [hexp, Real.exp_log hδ]
 
 end PMF

@@ -93,10 +93,7 @@ private theorem toReal_avgUniform (X : PMF (BitString n)) (x : BitString n) :
     (avgUniform X x).toReal =
       ((X x).toReal + (Cslib.Probability.PMF.uniformOfFintype (BitString n) x).toReal) / 2 := by
   rw [avgUniform, Cslib.Probability.PMF.bind_apply_toReal, Fintype.sum_bool]
-  simp only [Cslib.Probability.PMF.uniformOfFintype_apply, Fintype.card_bool, Bool.cond_true,
-    Bool.cond_false]
-  norm_num
-  ring
+  simp [Cslib.Probability.PMF.uniformOfFintype_apply]; ring
 
 /-- The probability of an event is the expectation of its indicator. -/
 private theorem sum_filter_toReal (p : PMF (BitString n)) (E : BitString n → Bool) :
@@ -158,9 +155,8 @@ theorem fools_of_isKWiseIndependent_of_tail {X : PMF (BitString n)} {ℓ s r d t
   have hUE : 𝔼 x, bitVal ℝ (E x) ≤ 2 * ((41 / 50) ^ s * C.size) := by
     rw [← sum_uniformOfFintype_mul]
     linarith
-  have h := hX.fools_bitVal_of_witness (lowDegree_mono hD hf) he hk hWf hL (by linarith) hUE
-    heq.le
-  refine h.mono ?_
+  refine (hX.fools_bitVal_of_witness (lowDegree_mono hD hf) he hk hWf hL (by linarith) hUE
+    heq.le).mono ?_
   have hτ := mul_le_mul_of_nonneg_left (htail W hWs (by omega))
     (sq_nonneg ((2 : ℝ) ^ (2 * (ℓ + 1) * ((ℓ * s) ^ d - 1)) + 1))
   linarith
@@ -185,12 +181,8 @@ theorem independence_le {q : ℕ} (hq : 1 ≤ q) (d : ℕ) :
   set A := q * (8 * q + 16) with hAdef
   set σ := level d q
   have hB : 64 ≤ B := by omega
-  have hA : A ≤ B ^ 2 := by
-    rw [hAdef, hBdef]
-    nlinarith
-  have hAd : A ^ d ≤ B ^ (2 * d) := by
-    rw [pow_mul]
-    exact Nat.pow_le_pow_left hA d
+  have hA : A ≤ B ^ 2 := by dsimp only [A, B]; nlinarith
+  have hAd : A ^ d ≤ B ^ (2 * d) := pow_mul B 2 d ▸ Nat.pow_le_pow_left hA d
   have hBd : 1 ≤ B ^ (2 * d) := Nat.one_le_pow _ _ (by omega)
   have hσ : σ ≤ B ^ (2 * d + 2) := by
     have e1 : 4 * (q + 1) * A ^ d ≤ 8 * q ^ 2 * B ^ (2 * d) :=
@@ -203,10 +195,9 @@ theorem independence_le {q : ℕ} (hq : 1 ≤ q) (d : ℕ) :
     change 4 * (q + 1) * A ^ d + A + 4 * q + 5 ≤ _
     rw [pow_add B, mul_comm (B ^ (2 * d))]
     linarith
-  have hB1 : 1 ≤ B ^ (2 * d + 2) := Nat.one_le_pow _ _ (by omega)
   have hσ5 : 5 ≤ σ := Nat.le_add_left _ _
   have hBσ : 64 * σ ≤ B ^ (2 * d + 3) := by
-    rw [show 2 * d + 3 = (2 * d + 2) + 1 by ring, pow_succ B, mul_comm _ B]
+    rw [pow_succ B, mul_comm _ B]
     exact Nat.mul_le_mul hB hσ
   have h16 : 16 * σ + 1 ≤ B ^ (2 * d + 3) := by omega
   have h4 : 4 * σ ≤ B ^ (2 * d + 3) := by omega

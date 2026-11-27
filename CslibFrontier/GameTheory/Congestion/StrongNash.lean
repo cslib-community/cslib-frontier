@@ -120,29 +120,23 @@ private theorem coalitionPotential_eq [Fintype E] {A : Finset ι} {i : ι} (hi :
   rw [← Fintype.sum_ite_mem (C.resources i (t i)), ← Finset.sum_add_distrib]
   refine Finset.sum_congr rfl fun e _ => ?_
   rw [C.coalitionLoad_eq hi t e]
-  split_ifs
-  · rw [Finset.sum_range_succ]
-  · rw [add_zero, add_zero]
+  split_ifs <;> simp [Finset.sum_range_succ]
 
 variable [Fintype ι]
 
 /-- Only the members of `A` that use `e` at `t` are counted, so the coalition's load is at most the
 load at the profile in which `A` plays `t` and the other players play `s`. -/
 private theorem coalitionLoad_le_load (A : Finset ι) (t s : ∀ i, S i) (e : E) :
-    C.coalitionLoad A t e ≤ C.load (A.piecewise t s) e := by
-  unfold coalitionLoad load
-  refine Finset.card_le_card fun i hi => ?_
-  rw [Finset.mem_filter] at hi ⊢
-  refine ⟨Finset.mem_univ i, ?_⟩
-  rw [Finset.piecewise_eq_of_mem _ _ _ hi.1]
-  exact hi.2
+    C.coalitionLoad A t e ≤ C.load (A.piecewise t s) e :=
+  Finset.card_le_card fun i hi =>
+    let ⟨hiA, hie⟩ := Finset.mem_filter.1 hi
+    Finset.mem_filter.2 ⟨Finset.mem_univ i, by rwa [Finset.piecewise_eq_of_mem _ _ _ hiA]⟩
 
 omit [DecidableEq ι] in
 /-- The potential of the grand coalition is Rosenthal's potential. -/
 private theorem coalitionPotential_univ [Fintype E] (t : ∀ i, S i) :
     C.coalitionPotential Finset.univ t = C.rosenthalPotential t := by
-  rw [coalitionPotential, rosenthalPotential_def]
-  rfl
+  rw [coalitionPotential, rosenthalPotential_def]; rfl
 
 /-- **Positive externalities** ([Roughgarden2013CS364A], Lecture #15, (7)): with latencies
 nonincreasing on loads `≥ 1`, a member `i ∈ A` pays at most as much at `A.piecewise t s` as at `t`
@@ -258,11 +252,9 @@ theorem socialCost_fairCostSharing_le_of_isStrongNash [DecidableEq ι] [Finite E
     (hs : (fairCostSharing (fun (_ : ι) => R) c).toCostGame.IsStrongNash s) (t : ι → P) :
     (fairCostSharing (fun (_ : ι) => R) c).toCostGame.socialCost s
       ≤ (fairCostSharing (fun (_ : ι) => R) c).toCostGame.socialCost t := by
-  by_contra hlt
-  push Not at hlt
+  by_contra! hlt
   have ⟨j₀⟩ : Nonempty ι := by_contra fun h => by
-    rw [not_nonempty_iff] at h
-    simp only [CostGame.socialCost, Finset.univ_eq_empty, Finset.sum_empty, lt_irrefl] at hlt
+    simp [not_nonempty_iff.mp h, CostGame.socialCost] at hlt
   have : Nonempty ι := ⟨j₀⟩
   classical
   obtain ⟨q, -, hq⟩ := (Finset.univ.image s ∪ Finset.univ.image t).exists_min_image
@@ -276,8 +268,7 @@ theorem socialCost_fairCostSharing_le_of_isStrongNash [DecidableEq ι] [Finite E
       (Nat.cast_nonneg _)).trans
       (sum_div_card_le_cost_fairCostSharing (fun (_ : ι) => R) c hc s i)
   refine hs.not_pareto (fun _ => q) ⟨hlow, ?_⟩
-  by_contra hno
-  push Not at hno
+  by_contra! hno
   have heq : (fairCostSharing (fun (_ : ι) => R) c).toCostGame.socialCost (fun _ => q) =
       (fairCostSharing (fun (_ : ι) => R) c).toCostGame.socialCost s :=
     Finset.sum_congr rfl fun i _ => le_antisymm (hlow i) (hno i)
@@ -375,19 +366,16 @@ theorem isStrongNash_optOut_true (hε : 0 < ε) :
 A strong Nash equilibrium is a pure Nash equilibrium, and the pure Nash equilibrium is unique
 (`isPureNash_optOut_iff`). -/
 theorem isStrongNash_optOut_iff (hε : 0 < ε) (s : Fin k → Bool) :
-    (optOut k ε).toCostGame.IsStrongNash s ↔ s = fun _ => true := by
-  refine ⟨fun hs => (isPureNash_optOut_iff hε s).1 hs.isPureNash, ?_⟩
-  rintro rfl
-  exact isStrongNash_optOut_true hε
+    (optOut k ε).toCostGame.IsStrongNash s ↔ s = fun _ => true :=
+  ⟨fun hs => (isPureNash_optOut_iff hε s).1 hs.isPureNash, fun h => h ▸ isStrongNash_optOut_true hε⟩
 
 /-- **The opt-out game has a unique strong equilibrium** for `ε > 0`: every player opts out. A
 strong equilibrium is a pure Nash equilibrium, and the pure Nash equilibrium is unique
 (`isPureNash_optOut_iff`). -/
 theorem isStrongEquilibrium_optOut_iff (hε : 0 < ε) (s : Fin k → Bool) :
-    (optOut k ε).toCostGame.IsStrongEquilibrium s ↔ s = fun _ => true := by
-  refine ⟨fun hs => (isPureNash_optOut_iff hε s).1 hs.isPureNash, ?_⟩
-  rintro rfl
-  exact (isStrongNash_optOut_true hε).isStrongEquilibrium
+    (optOut k ε).toCostGame.IsStrongEquilibrium s ↔ s = fun _ => true :=
+  ⟨fun hs => (isPureNash_optOut_iff hε s).1 hs.isPureNash,
+    fun h => h ▸ (isStrongNash_optOut_true hε).isStrongEquilibrium⟩
 
 /-- **The bound `H k` is tight for strong Nash equilibria** ([Roughgarden2013CS364A], Lecture #15,
 Section 3: the opt-out game has a strong Nash equilibrium of cost `H k` times the optimum): for

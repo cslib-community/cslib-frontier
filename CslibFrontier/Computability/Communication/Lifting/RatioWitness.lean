@@ -68,10 +68,8 @@ theorem exists_ratio_parityTest_of_not_isSafe [NeZero m]
     have hcount : (#{S : Finset I | S.card < order J a} + 1 : ℝ) ≤ (n : ℝ) ^ order J a := by
       exact_mod_cast card_filter_card_lt_add_one_le_pow_of_card_le (α := I) hn
         (by simpa only [Fintype.card_coe, Fintype.card_fin] using card_le_univ I) (order J a)
-    have hApos : (0 : ℝ) < #(agreeOn Y J (ParityTest.extendAssignment J a)) := by
-      exact_mod_cast card_pos.mpr hA
-    have hd : 0 < σ ^ #J * #(agreeOn Y J (ParityTest.extendAssignment J a)) := by positivity
-    have hRnonneg : 0 ≤ ratio J a := by dsimp [ratio]; positivity
+    have hd : 0 < σ ^ #J * #(agreeOn Y J (ParityTest.extendAssignment J a)) :=
+      mul_pos (pow_pos hσ _) (Nat.cast_pos.mpr (card_pos.mpr hA))
     have htwo : 2 * (#{S : Finset I | S.card < order J a} + 1 : ℝ) ≤ ratio J a := by linarith
     simpa only [mul_assoc] using (le_div_iff₀ hd).mp htwo
   obtain ⟨I, w, _, hcan, _, hPne, helig, hbias⟩ :=
@@ -86,13 +84,10 @@ theorem exists_ratio_parityTest_of_not_isSafe [NeZero m]
       simpa only [a, ParityTest.agreeOn_extend_restrict] using w.supported
     have hR := hratio w.conditioned w.conditioned_subset hJne
       (ParityTest.extendAssignment w.conditioned a) hA
-    have hpow := (hord w.conditioned a hR).2.2
-    have hmono : (n : ℝ) ^ (2 * order w.conditioned a) ≤ (n : ℝ) ^ (2 * w.parity.card) :=
-      pow_le_pow_right₀ (by linarith) (by dsimp [a]; omega)
-    have hupper := hpow.trans hmono
-    have hApos : (0 : ℝ) < #(agreeOn Y w.conditioned w.assignment) := by
-      exact_mod_cast card_pos.mpr w.supported
-    have hd : 0 < σ ^ w.conditioned.card * #(agreeOn Y w.conditioned w.assignment) := by positivity
+    have hd : 0 < σ ^ w.conditioned.card * #(agreeOn Y w.conditioned w.assignment) :=
+      mul_pos (pow_pos hσ _) (Nat.cast_pos.mpr (card_pos.mpr w.supported))
+    have hupper := (hord w.conditioned a hR).2.2.trans
+      (pow_le_pow_right₀ (one_le_two.trans hnR) (Nat.mul_le_mul_left 2 horder))
     simp only [ratio, a, ParityTest.agreeOn_extend_restrict] at hupper
     simpa only [mul_assoc] using (div_le_iff₀ hd).mp hupper
 

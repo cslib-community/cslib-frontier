@@ -116,12 +116,8 @@ theorem agrees_iff {k : ℕ} {w : List Bool} {i : ℕ} :
   simp only [agrees, List.all_eq_true, List.mem_range, Bool.or_eq_true, decide_eq_true_eq,
     beq_iff_eq]
   refine forall_congr' fun j => ⟨fun h hj hij => ?_, fun h hj => ?_⟩
-  · rw [← List.getD_eq_getElem _ false hj]
-    exact (h hj).resolve_left (by omega)
-  · by_cases hij : j < i
-    · exact Or.inl hij
-    · rw [List.getD_eq_getElem _ false hj]
-      exact Or.inr (h hj (by omega))
+  · exact (List.getD_eq_getElem w false hj).symm.trans ((h hj).resolve_left (not_lt.mpr hij))
+  · exact (lt_or_ge j i).imp_right fun hij => (List.getD_eq_getElem w false hj).trans (h hj hij)
 
 /-- Extending `w` by a bit keeps the agreement of machine `i < |w|` exactly when the bit is its
 prediction. -/
@@ -152,9 +148,10 @@ theorem num_append_add (k : ℕ) (w : List Bool) :
   simp only [num, List.length_append, List.length_singleton, List.range_succ, List.map_append,
     List.map_singleton, List.sum_append, List.sum_singleton]
   -- the machine `|w|` starts betting and contributes `4` to one extension and `0` to the other
+  have hagree_self : agrees k w w.length = true :=
+    agrees_iff.mpr fun _ hj hij => absurd hj (not_lt_of_ge hij)
   have hlast : term k (w ++ [false]) w.length + term k (w ++ [true]) w.length = 4 := by
-    rw [term_append_add le_rfl, Nat.sub_self]
-    simp [show agrees k w w.length = true from agrees_iff.mpr fun _ hj hij => absurd hj (by omega)]
+    simp [term_append_add le_rfl, hagree_self]
   -- the machines below `|w|` contribute four times as much
   have hmid : ((List.range w.length).map (term k (w ++ [false]))).sum +
       ((List.range w.length).map (term k (w ++ [true]))).sum =
@@ -167,9 +164,7 @@ theorem num_append_add (k : ℕ) (w : List Bool) :
 
 /-- **The martingale is a martingale.** -/
 theorem isMartingale (k : ℕ) : IsMartingale (martingale k) where
-  nonneg _ := by
-    unfold martingale
-    positivity
+  nonneg _ := div_nonneg (Nat.cast_nonneg _) (by positivity)
   average w := by
     have h' : (num k (w ++ [false]) : ℝ) + num k (w ++ [true]) = 4 * num k w := by
       exact_mod_cast num_append_add k w
@@ -207,14 +202,12 @@ theorem computableInPolyTime_approx (k : ℕ) :
 theorem abs_approx_sub_le (k r : ℕ) (w : List Bool) :
     |(approx k (r, w) : ℝ) / 2 ^ r - martingale k w| ≤ 1 / 2 ^ r := by
   set q := approx k (r, w)
-  have hq₁' : (q : ℝ) * 2 ^ w.length ≤ num k w * 2 ^ r := by
-    exact_mod_cast Nat.div_mul_le_self _ _
-  have hq₂' : (num k w : ℝ) * 2 ^ r < (q + 1) * 2 ^ w.length := by
-    exact_mod_cast (Nat.add_one_mul q (2 ^ w.length)).symm ▸ Nat.lt_div_mul_add (by positivity)
   have hP : (0 : ℝ) < 2 ^ r := by positivity
   have hL : (0 : ℝ) < 2 ^ w.length := by positivity
-  have h₁ : (q : ℝ) ≤ num k w * 2 ^ r / 2 ^ w.length := (le_div_iff₀ hL).mpr hq₁'
-  have h₂ : (num k w : ℝ) * 2 ^ r / 2 ^ w.length < q + 1 := (div_lt_iff₀ hL).mpr hq₂'
+  have h₁ : (q : ℝ) ≤ num k w * 2 ^ r / 2 ^ w.length :=
+    (le_div_iff₀ hL).mpr (by exact_mod_cast Nat.div_mul_le_self _ _)
+  have h₂ : (num k w : ℝ) * 2 ^ r / 2 ^ w.length < q + 1 := (div_lt_iff₀ hL).mpr <| by
+    exact_mod_cast (Nat.add_one_mul q (2 ^ w.length)).symm ▸ Nat.lt_div_mul_add (by positivity)
   have hm : martingale k w = (num k w : ℝ) * 2 ^ r / 2 ^ w.length / 2 ^ r := by
     rw [martingale]; field_simp
   rw [hm, ← sub_div, abs_div, abs_of_pos hP, div_le_div_iff_of_pos_right hP, abs_le]
@@ -273,19 +266,18 @@ theorem DTIME_subset_successSet (k : ℕ) :
       rw [Bool.eq_iff_iff, getElem_charPrefix_eq_true_iff, hi j hij]
   obtain ⟨m, hm⟩ := exists_nat_gt (C * 2 ^ i)
   refine ⟨i + m + 1, ?_⟩
+  have hsub : i + m + 1 - i = m + 1 := by omega
   have hnum : 2 ^ (2 * (m + 1)) ≤ num k (charPrefix A (i + m + 1)) := by
-    simpa only [term, ite_eq_left (hagree _), length_charPrefix,
-      show i + m + 1 - i = m + 1 by omega] using
+    simpa only [term, ite_eq_left (hagree _), length_charPrefix, hsub] using
       term_le_num k (w := charPrefix A (i + m + 1)) (i := i) (by simp)
   have hnum' : (2 : ℝ) ^ (2 * (m + 1)) ≤ num k (charPrefix A (i + m + 1)) := by exact_mod_cast hnum
   have hmpow : (m : ℝ) < 2 ^ m := by exact_mod_cast Nat.lt_two_pow_self
   rw [martingale, length_charPrefix, lt_div_iff₀ (by positivity)]
   have h₁ : C * 2 ^ (i + m + 1) < 2 ^ m * 2 ^ (m + 1) := by
-    rw [show i + m + 1 = i + (m + 1) by ring, pow_add, ← mul_assoc]
+    rw [add_assoc i m 1, pow_add, ← mul_assoc]
     exact mul_lt_mul_of_pos_right (hm.trans hmpow) (by positivity)
-  have h₂ : (2 : ℝ) ^ m * 2 ^ (m + 1) ≤ 2 ^ (2 * (m + 1)) := by
-    rw [← pow_add]
-    exact pow_le_pow_right₀ (by norm_num) (by omega)
+  have h₂ : (2 : ℝ) ^ m * 2 ^ (m + 1) ≤ 2 ^ (2 * (m + 1)) :=
+    pow_add (2 : ℝ) m (m + 1) ▸ pow_le_pow_right₀ (by norm_num) (by omega)
   linarith
 
 end TimeMartingale
@@ -306,11 +298,9 @@ theorem hasMeasureZeroInE_DTIME (k : ℕ) :
 
 /-- **`DTIME (2 ^ (k * n))` is a proper subclass of `E`**, by the Measure Conservation Theorem.
 -/
-theorem DTIME_ssubset_E (k : ℕ) : DTIME encBits (fun n => 2 ^ (k * n)) ⊂ E encBits := by
-  refine (Set.subset_iUnion (fun k => DTIME encBits fun n => 2 ^ (k * n)) k).ssubset_of_ne
-    fun h => not_hasPMeasureZero_E ?_
-  rw [E, ← h]
-  exact hasPMeasureZero_DTIME k
+theorem DTIME_ssubset_E (k : ℕ) : DTIME encBits (fun n => 2 ^ (k * n)) ⊂ E encBits :=
+  (Set.subset_iUnion (fun k => DTIME encBits fun n => 2 ^ (k * n)) k).ssubset_of_ne fun h =>
+    not_hasPMeasureZero_E ((hasPMeasureZero_DTIME k).mono h.superset)
 
 /-- **Every singleton of a language in `E` has p-measure zero** [Lutz, Lemma 3.12][Lutz1992]. -/
 theorem hasPMeasureZero_singleton {A : Set (List Bool)} (hA : A ∈ E encBits) :
@@ -321,18 +311,17 @@ theorem hasPMeasureZero_singleton {A : Set (List Bool)} (hA : A ∈ E encBits) :
 /-- **Every finite set of languages in `E` has p-measure zero** [Lutz, Lemma 3.12(a)][Lutz1992].
 -/
 theorem _root_.Set.Finite.hasPMeasureZero {X : Set (Set (List Bool))} (hX : X.Finite)
-    (hXE : X ⊆ E encBits) : HasPMeasureZero X := by
-  have h := hasPMeasureZero_biUnion hX fun A hA => hasPMeasureZero_singleton (hXE hA)
-  rwa [Set.biUnion_of_singleton] at h
+    (hXE : X ⊆ E encBits) : HasPMeasureZero X :=
+  Set.biUnion_of_singleton X ▸
+    hasPMeasureZero_biUnion hX fun _ hA => hasPMeasureZero_singleton (hXE hA)
 
 /-- **`P` has p-measure zero**: it is within `DTIME (2 ^ n)`. -/
 theorem hasPMeasureZero_P : HasPMeasureZero (P encBits) := by
   refine (hasPMeasureZero_DTIME 1).mono fun A hA => ?_
   obtain ⟨k, hk⟩ := mem_P_iff_exists_mem_DTIME.mp hA
   refine DTIME_mono_of_eventually_le ?_ hk
-  filter_upwards [PolynomiallyBounded.eventually_lt_two_pow (f := (· ^ k)) (by fun_prop)]
-    with n hn
-  simpa only [one_mul] using hn.le
+  exact (PolynomiallyBounded.eventually_lt_two_pow (f := (· ^ k)) (by fun_prop)).mono
+    fun _ hn => by simpa only [one_mul] using hn.le
 
 /-- **`P` has measure zero in `E`.** -/
 theorem hasMeasureZeroInE_P : HasMeasureZeroInE (P encBits) :=

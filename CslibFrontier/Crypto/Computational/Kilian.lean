@@ -208,11 +208,9 @@ theorem kilianCheck_kilianOpen {x : α} {table : List Bool}
     (hlen : ∀ y, (H k y).length = ℓ) {ρ : List Bool} (hρ : ρ.length = V.coins x) :
     kilianCheck H V k x (kilianCommit H V k x table) ρ (kilianOpen H V k x table ρ) = true := by
   have hverdict := List.all_eq_true.mp htable ρ (BitString.mem_enumList.mpr hρ)
-  have hzip (g : ℕ → MerkleOpening Bool) : (V.queries (x, ρ)).zip ((V.queries (x, ρ)).map g) =
-      (V.queries (x, ρ)).map fun a => (a, g a) := by
-    simpa only [List.map_id, id] using List.zip_map' (f := id) (g := g) (l := V.queries (x, ρ))
-  simp only [kilianCheck, MerkleOpening.verify, kilianOpen, hzip, Bool.and_eq_true, beq_iff_eq,
-    List.length_map, List.all_map, List.all_eq_true, Function.comp_def, List.map_map, true_and]
+  simp only [kilianCheck, MerkleOpening.verify, kilianOpen, List.zip_eq_zipWith,
+    List.zipWith_map_right, List.zipWith_self, Bool.and_eq_true, beq_iff_eq, List.length_map,
+    List.all_map, List.all_eq_true, Function.comp_def, List.map_map, true_and]
   refine ⟨fun a ha => ?_, ?_⟩
   · have hpos := kilianPosition_lt hρ ha
     have hleaf : (kilianLeaves (kilianTable V x table)).getD (kilianPosition V x a) [] =
@@ -233,12 +231,9 @@ theorem kilianVerify_kilianRespond {x : α} {table : List Bool}
     (hρs : ∀ ρ ∈ ρs, ρ.length = V.coins x) :
     kilianVerify H V k x (kilianCommit H V k x table) ρs (kilianRespond H V k x table ρs) =
       true := by
-  have hzip : ρs.zip (ρs.map (kilianOpen H V k x table)) =
-      ρs.map fun ρ => (ρ, kilianOpen H V k x table ρ) := by
-    simpa only [List.map_id, id] using
-      List.zip_map' (f := id) (g := kilianOpen H V k x table) (l := ρs)
-  simp only [kilianVerify, kilianRespond, hzip, List.length_map, beq_self_eq_true,
-    Bool.true_and, List.all_map, List.all_eq_true, Function.comp_def]
+  simp only [kilianVerify, kilianRespond, List.zip_eq_zipWith, List.zipWith_map_right,
+    List.zipWith_self, List.length_map, beq_self_eq_true, Bool.true_and, List.all_map,
+    List.all_eq_true, Function.comp_def]
   exact fun ρ hρ => kilianCheck_kilianOpen htable k hlen (hρs ρ hρ)
 
 variable (H V) in

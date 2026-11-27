@@ -176,10 +176,7 @@ theorem isSome_decodeCertificate_iff (r s : ℕ) (w : List Bool) :
     (decodeCertificate r s w).isSome ↔
       codeCheck signature r (readCertificate r s w).1 = true ∧
         (readCertificate r s w).2 < r + (readCertificate r s w).1.length := by
-  change (Circuit.ofCode r 1 ((readCertificate r s w).1,
-    [(readCertificate r s w).2]) : Option (Circuit signature r 1)).isSome ↔ _
-  rw [Circuit.isSome_ofCode_iff, codeCheck_eq_true_iff]
-  simp
+  simp [decodeCertificate, Circuit.isSome_ofCode_iff, codeCheck_eq_true_iff]
 
 /-- The complete certificate-to-checker compiler on raw data, including the invalid-certificate
 branch. The constant-true output uses the first gate wire, numbered by the input count `q`. -/
@@ -194,24 +191,18 @@ branch. The constant-true output uses the first gate wire, numbered by the input
 theorem certificateCircuitCode_code {q r : ℕ} (D : Circuit signature q (3 * (r + 1)))
     (s : ℕ) (w : List Bool) :
     certificateCircuitCode q r s D.code w = (certificateCircuit D s w).code := by
+  have hiff := isSome_decodeCertificate_iff r s w
   cases h : decodeCertificate r s w with
   | none =>
-    have hcheck : ¬(codeCheck signature r (readCertificate r s w).1 = true ∧
-        (readCertificate r s w).2 < r + (readCertificate r s w).1.length) := by
-      rw [← isSome_decodeCertificate_iff, h]
-      simp
+    have hcheck := mt hiff.mpr (by simp [h])
     simp only [certificateCircuitCode, Bool.and_eq_true, decide_eq_true_eq,
       ite_eq_right hcheck, certificateCircuit, h]
     rfl
   | some W =>
-    have hcheck : codeCheck signature r (readCertificate r s w).1 = true ∧
-        (readCertificate r s w).2 < r + (readCertificate r s w).1.length := by
-      rw [← isSome_decodeCertificate_iff, h]
-      simp
-    have hcode : W.code = ((readCertificate r s w).1, [(readCertificate r s w).2]) :=
-      Circuit.code_of_ofCode_eq_some h
+    have hcheck := hiff.mp (by simp [h])
     simp only [certificateCircuitCode, Bool.and_eq_true, decide_eq_true_eq, ite_eq_left hcheck]
-    rw [← hcode, badClauseCode_code, certificateCircuit_of_decode_eq_some D h]
+    rw [certificateCircuit_of_decode_eq_some D h, ← badClauseCode_code]
+    exact congrArg _ (Circuit.code_of_ofCode_eq_some h).symm
 
 open Turing.MultiTapeTM ComputableInPolyTime
 

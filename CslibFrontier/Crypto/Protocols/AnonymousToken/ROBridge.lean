@@ -125,14 +125,12 @@ private theorem isCostBounded_sample_ite_query {ι R S : Type} {spec : OracleSpe
     IsCostBounded (Sum.elim (fun _ => 0) (fun _ => 1))
       (ProbOracleComp.sample m >>= fun (ok, s') =>
         if ok then ProbOracleComp.query q >>= fun r => pure (f s' r) else pure (g s')) 1 := by
-  rw [show (1 : ℕ) = 0 + 1 from rfl]
-  refine (ProbOracleComp.isCostBounded_sample _ _).bind fun (ok, s') => ?_
+  change IsCostBounded _ _ (0 + 1)
+  refine (ProbOracleComp.isCostBounded_sample _ m).bind fun (ok, s') => ?_
   cases ok
   · exact OracleComp.IsCostBounded.pure _ 1
-  · dsimp only
-    simp only [↓reduceIte]
-    rw [show (1 : ℕ) = 1 + 0 from rfl]
-    exact (OracleComp.IsCostBounded.query (spec := probOracleSpec _) (Sum.inr _)).bind
+  · change IsCostBounded _ (ProbOracleComp.query q >>= fun r => pure (f s' r)) (1 + 0)
+    exact (OracleComp.IsCostBounded.query (spec := probOracleSpec _) (Sum.inr q)).bind
       fun _ => OracleComp.IsCostBounded.pure _ 0
 
 
@@ -173,8 +171,7 @@ private theorem eval_runState_voleithMemoizeProg {d sdLen comLen rowLen : ℕ}
       ProbOracleComp.runWith voleithMemoize prog roSt := by
   change ProbComp.eval ((ProbOracleComp.runState prog voleithMemoizeProg).run roSt) = _
   rw [ProbOracleComp.eval_runState]
-  congr 2
-  exact funext fun q' => funext fun s' => eval_voleithMemoizeProg q' s'
+  exact congrArg (ProbOracleComp.runWith · prog roSt) (funext₂ eval_voleithMemoizeProg)
 
 /-! ### Bridge to `AnonymousToken.Basic` -/
 
@@ -421,11 +418,9 @@ theorem unextractedTokenExperiment_succProbability_le_extracted {d sdLen comLen 
               Token.valid S targetFn keys.1 tok && decide (tok.payload.message ∉ msgs) := by
     simp only [romUnextractedTokenExperiment, runROMUnextractedToken, ProbComp.eval_map,
       ProbComp.eval_bind, ProbComp.eval_pure, ProbOracleComp.eval_runState, PMF.map_bind]
-    congr 1
-    funext keys
-    dsimp only [romH]
-    simp_rw [verifyGatedHandlerProg_eval]
-    simp only [PMF.map, Function.comp_def, PMF.pure_bind, romTokenAccept]
+    congr 1 with keys : 1
+    simp only [romH, verifyGatedHandlerProg_eval, PMF.map, Function.comp_def, PMF.pure_bind,
+      romTokenAccept]
   have hext_eval :
       ProbComp.eval (extractedExperiment S targetFn
         (extractedForgerOfROM expand decWit chalToIdx checkRel A)) =
@@ -436,33 +431,23 @@ theorem unextractedTokenExperiment_succProbability_le_extracted {d sdLen comLen 
     simp only [extractedExperiment, runExtracted, extractedForgerOfROM, ProbComp.eval_map,
       ProbComp.eval_bind, ProbComp.eval_pure, PMF.map, PMF.bind_bind, Function.comp_def,
       PMF.pure_bind]
-    congr 1
-    funext keys
+    congr 1 with keys : 1
     let signO : Payload Message Opening → ProbComp Sig := fun p =>
       S.sign keys.2 (targetFn p.message p.opening)
     let signH : Payload Message Opening → StateT (List (Payload Message Opening × Sig)) PMF Sig :=
       fun p log => (ProbComp.eval (signO p)).map fun sig => (sig, log ++ [(p, sig)])
+    let extRun := (OracleComp.interpret
+      (OracleComp.sumHandler
+        (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+        (romToExtractedInner expand decWit chalToIdx checkRel))
+      (A keys.1)).run ([], [])
     have hlog_map :
-        ProbComp.eval ((Prod.fst <$> (OracleComp.interpret
-            (OracleComp.sumHandler
-              (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
-              (romToExtractedInner expand decWit chalToIdx checkRel))
-            (A keys.1)).run ([], [])).runLog signO) =
-          (ProbOracleComp.runWith signH ((OracleComp.interpret
-              (OracleComp.sumHandler
-                (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
-                (romToExtractedInner expand decWit chalToIdx checkRel))
-              (A keys.1)).run ([], [])) []).map (Prod.map Prod.fst id) := by
+        ProbComp.eval ((Prod.fst <$> extRun).runLog signO) =
+          (ProbOracleComp.runWith signH extRun []).map (Prod.map Prod.fst id) := by
       simp only [ProbOracleComp.runLog, ProbOracleComp.runState_map, StateT.run_map,
         ProbOracleComp.eval_runState, ProbComp.eval_map]
       congr 2
-    change (ProbComp.eval (ProbOracleComp.runLog (Prod.fst <$>
-      (OracleComp.interpret
-        (OracleComp.sumHandler
-          (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
-          (romToExtractedInner expand decWit chalToIdx checkRel))
-        (A keys.1)).run ([], [])) signO)).bind _ = _
-    rw [hlog_map]
+    erw [hlog_map]
     have hrun := ProbOracleComp.runWith_run_interpret
       (romToExtractedInner expand decWit chalToIdx checkRel) signH (A keys.1) ([], []) []
     let repMsg : VOLEITHTraceState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal ×
@@ -487,8 +472,7 @@ theorem unextractedTokenExperiment_succProbability_le_extracted {d sdLen comLen 
           ProbOracleComp.runWith_sample, extH, verifyGatedHandler,
           eval_runState_voleithMemoizeProg, PMF.map, PMF.bind_bind, Function.comp_def,
           PMF.pure_bind]
-        congr 1
-        funext ⟨ok, roSt'⟩
+        congr 1 with ⟨ok, roSt'⟩ : 1
         cases ok
         · simp only [Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure, PMF.pure_bind,
             repMsg]
@@ -504,29 +488,16 @@ theorem unextractedTokenExperiment_succProbability_le_extracted {d sdLen comLen 
     simp only [PMF.map, PMF.bind_bind, Function.comp_def, PMF.pure_bind, extractedAccept,
       repMsg, Prod.map]
     rfl
-  have hkey_le : ∀ keys : PK × SK,
-      ((ProbOracleComp.runWith (romH keys) (A keys.1) (([], []), [])).map
-        fun (tok, (_, msgs)) =>
-          Token.valid S targetFn keys.1 tok && decide (tok.payload.message ∉ msgs)) true ≤
-      ((ProbOracleComp.runWith (extH keys) (A keys.1) (([], []), [])).map
-        fun (tok, (_, msgs)) =>
-          Token.valid S targetFn keys.1 tok && decide (tok.payload.message ∉ msgs)) true +
-        (voleithKSBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel : ℝ≥0∞) := by
-    intro keys
-    refine toOuterMeasure_runWith_verifyGatedHandler_le expand decWit chalToIdx
+  exact bind_tsum_add_voleithKSBound_toNNReal _ _ (ProbComp.eval S.keyGen) _ _ _
+    (fun keys => toOuterMeasure_runWith_verifyGatedHandler_le expand decWit chalToIdx
       (romTokenRel targetFn) ROMTokenRequest.stmt ROMTokenRequest.proof checkRel hSound none
       (romTokenAcceptReal S keys) (romTokenAcceptExt expand decWit targetFn S keys)
       (fun tr req _ hrel => by
-        have htarget :
-            targetFn req.message (extractWitnessFromTrace expand decWit tr req.proof) =
-              req.target := by
-          simp only [romTokenRel, ROMTokenRequest.stmt] at hrel
-          exact of_decide_eq_true hrel
-        simp [romTokenAcceptReal, romTokenAcceptExt, htarget])
+        simp [romTokenAcceptReal, romTokenAcceptExt,
+          of_decide_eq_true (p := targetFn req.message _ = req.target) hrel])
       [] (A keys.1) (hm keys.1) (hleaf keys.1) (hfs keys.1)
-        (fun (tok, (_, msgs)) =>
-          Token.valid S targetFn keys.1 tok && decide (tok.payload.message ∉ msgs))
-  exact bind_tsum_add_voleithKSBound_toNNReal _ _ (ProbComp.eval S.keyGen) _ _ _ hkey_le
+      (fun (tok, (_, msgs)) =>
+        Token.valid S targetFn keys.1 tok && decide (tok.payload.message ∉ msgs)))
     hrom_eval hext_eval
 
 /-- Concrete query-bounded advantage bound (not an asymptotic PPT security theorem):
@@ -752,14 +723,10 @@ private theorem acceptLocal_toExtractedRequest_of_rel
     (wit : ROMConservationWitness Nullifier Opening Sig)
     (hrel : romConservationRel com tag S ⟨pk, req.query⟩ wit = true) :
     Conservation.acceptLocal com tag S pk (romConservationToExtractedRequest req wit) = true := by
-  rcases req with ⟨q, proof⟩
+  rcases req with ⟨q, _⟩
   cases q <;> cases wit <;>
-    simp only [romConservationRel, romConservationToExtractedRequest, Conservation.acceptLocal,
-      Conservation.SpendRequest.inputNote] at hrel ⊢
-  · exact hrel
-  · cases hrel
-  · cases hrel
-  · exact hrel
+    simp_all [romConservationRel, romConservationToExtractedRequest, Conservation.acceptLocal,
+      Conservation.SpendRequest.inputNote]
 
 /-- Nullifier spend check on public conservation queries. -/
 @[expose] def romHasSpentNullifier {Nullifier Context Commitment : Type}
@@ -806,9 +773,7 @@ private theorem romHasSpentNullifier_map {Nullifier Context Opening Commitment S
     romHasSpentNullifier (reqs.map romConservationToPublicQuery) ctx nf =
       Conservation.hasSpentNullifier reqs ctx nf := by
   simp only [romHasSpentNullifier, Conservation.hasSpentNullifier, List.any_map]
-  congr 1
-  funext x
-  cases x <;> rfl
+  exact congrArg _ (funext fun x => by cases x <;> rfl)
 
 private theorem romIssuedAmount_map {Nullifier Context Opening Commitment Sig : Type}
     [DecidableEq Context]
@@ -816,16 +781,10 @@ private theorem romIssuedAmount_map {Nullifier Context Opening Commitment Sig : 
     (ctx : Context) :
     romIssuedAmount (reqs.map romConservationToPublicQuery) ctx =
       Conservation.issuedAmount reqs ctx := by
-  induction reqs with
-  | nil => rfl
-  | cons r rs ih =>
-    cases r with
-    | issue ir =>
-      simp only [List.map_cons, romConservationToPublicQuery, romIssuedAmount,
-        Conservation.issuedAmount, Conservation.issuesIn, List.filterMap_cons, List.filterMap_map,
-        Function.comp_def] at ih ⊢
-      split_ifs <;> simp [ih]
-    | spend _ => exact ih
+  simp only [romIssuedAmount, Conservation.issuedAmount, Conservation.issuesIn,
+    List.filterMap_map, List.map_filterMap]
+  exact congrArg (fun f => (reqs.filterMap f).sum) (funext fun r => by
+    cases r <;> simp [romConservationToPublicQuery, apply_ite])
 
 private theorem romGrantedRefund_map {Nullifier Context Opening Commitment Sig : Type}
     [DecidableEq Context]
@@ -833,16 +792,10 @@ private theorem romGrantedRefund_map {Nullifier Context Opening Commitment Sig :
     (ctx : Context) :
     romGrantedRefund (reqs.map romConservationToPublicQuery) ctx =
       Conservation.grantedRefund reqs ctx := by
-  induction reqs with
-  | nil => rfl
-  | cons r rs ih =>
-    cases r with
-    | issue _ => exact ih
-    | spend sr =>
-      simp only [List.map_cons, romConservationToPublicQuery, romGrantedRefund,
-        List.filterMap_cons, List.filterMap_map, Function.comp_def, Conservation.grantedRefund,
-        Conservation.spendsIn, Conservation.spends, List.filter_cons, decide_eq_true_eq] at ih ⊢
-      split_ifs <;> simp [ih]
+  simp only [romGrantedRefund, Conservation.grantedRefund, Conservation.spendsIn,
+    Conservation.spends, List.filterMap_map, List.filter_filterMap, List.map_filterMap]
+  exact congrArg (fun f => (reqs.filterMap f).sum) (funext fun r => by
+    cases r <;> simp [romConservationToPublicQuery, Option.filter, apply_ite])
 
 private theorem romSpentDebit_map {Nullifier Context Opening Commitment Sig : Type}
     [DecidableEq Context]
@@ -850,16 +803,10 @@ private theorem romSpentDebit_map {Nullifier Context Opening Commitment Sig : Ty
     (ctx : Context) :
     romSpentDebit (reqs.map romConservationToPublicQuery) ctx =
       Conservation.spentDebit reqs ctx := by
-  induction reqs with
-  | nil => rfl
-  | cons r rs ih =>
-    cases r with
-    | issue _ => exact ih
-    | spend sr =>
-      simp only [List.map_cons, romConservationToPublicQuery, romSpentDebit, List.filterMap_cons,
-        List.filterMap_map, Function.comp_def, Conservation.spentDebit, Conservation.spendsIn,
-        Conservation.spends, List.filter_cons, decide_eq_true_eq] at ih ⊢
-      split_ifs <;> simp [ih]
+  simp only [romSpentDebit, Conservation.spentDebit, Conservation.spendsIn,
+    Conservation.spends, List.filterMap_map, List.filter_filterMap, List.map_filterMap]
+  exact congrArg (fun f => (reqs.filterMap f).sum) (funext fun r => by
+    cases r <;> simp [romConservationToPublicQuery, Option.filter, apply_ite])
 
 /-- Signing oracle specification returning `some sig` on accepted ROM conservation requests and
 `none` otherwise. -/
@@ -1128,11 +1075,9 @@ theorem unextractedConservationExperiment_succProbability_le_extracted {d sdLen 
     simp only [romUnextractedConservationExperiment, runROMUnextractedConservation,
       ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure, ProbOracleComp.eval_runState,
       PMF.map_bind]
-    congr 1
-    funext keys
-    dsimp only [romH]
-    simp_rw [verifyGatedHandlerProg_eval]
-    simp only [PMF.map, Function.comp_def, PMF.pure_bind, romConservationAccept]
+    congr 1 with keys : 1
+    simp only [romH, verifyGatedHandlerProg_eval, PMF.map, Function.comp_def, PMF.pure_bind,
+      romConservationAccept]
   have hext_eval :
       ProbComp.eval (Conservation.extractedConservationExperiment com tag S
         (extractedAdversaryOfROM expand decWit chalToIdx checkRel A)) =
@@ -1145,8 +1090,7 @@ theorem unextractedConservationExperiment_succProbability_le_extracted {d sdLen 
       Conservation.runExtractedConservation, extractedAdversaryOfROM, ProbComp.eval_map,
       ProbComp.eval_bind, ProbComp.eval_pure, PMF.map, PMF.bind_bind, Function.comp_def,
       PMF.pure_bind]
-    congr 1
-    funext keys
+    congr 1 with keys : 1
     let issuerH : Conservation.Request Nullifier Context Opening Commitment Sig →
         StateT (List (Conservation.Request Nullifier Context Opening Commitment Sig × Option Sig))
           PMF (Option Sig) := fun q log =>
@@ -1155,36 +1099,24 @@ theorem unextractedConservationExperiment_succProbability_le_extracted {d sdLen 
           (some sig, log ++ [(q, some sig)])
       else
         PMF.pure (none, log)
+    let extRun := (OracleComp.interpret
+      (OracleComp.sumHandler
+        (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+        (consToExtractedInner expand decWit chalToIdx checkRel keys.1))
+      (A keys.1)).run ([], [])
     have hlog_map :
-        ProbComp.eval ((Prod.fst <$> (OracleComp.interpret
-            (OracleComp.sumHandler
-              (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
-              (consToExtractedInner expand decWit chalToIdx checkRel keys.1))
-            (A keys.1)).run ([], [])).runLogWith
+        ProbComp.eval ((Prod.fst <$> extRun).runLogWith
             (Conservation.extractedIssuerOracle com tag S keys)) =
-          (ProbOracleComp.runWith issuerH ((OracleComp.interpret
-              (OracleComp.sumHandler
-                (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
-                (consToExtractedInner expand decWit chalToIdx checkRel keys.1))
-              (A keys.1)).run ([], [])) []).map (Prod.map Prod.fst id) := by
+          (ProbOracleComp.runWith issuerH extRun []).map (Prod.map Prod.fst id) := by
       simp only [ProbOracleComp.runLogWith, ProbOracleComp.runState_map, StateT.run_map,
         ProbOracleComp.eval_runState, ProbComp.eval_map]
-      congr 2
-      funext q log
+      congr 2 with q log
       simp only [ProbOracleComp.logOracle, Conservation.extractedIssuerOracle, issuerH]
-      by_cases hacc : Conservation.acceptRequest com tag S keys.1 (log.map Prod.fst) q
-      · simp only [hacc, ↓reduceIte, ProbComp.eval_map, PMF.map_comp]
+      cases Conservation.acceptRequest com tag S keys.1 (log.map Prod.fst) q
+      · simp only [Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure]
         rfl
-      · simp only [hacc, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure]
-        rfl
-    change (ProbComp.eval (ProbOracleComp.runLogWith (Prod.fst <$>
-      (OracleComp.interpret
-        (OracleComp.sumHandler
-          (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
-          (consToExtractedInner expand decWit chalToIdx checkRel keys.1))
-        (A keys.1)).run ([], []))
-        (Conservation.extractedIssuerOracle com tag S keys))).bind _ = _
-    rw [hlog_map]
+      · simp only [↓reduceIte, ProbComp.eval_map, PMF.map_comp, Function.comp_def]
+    erw [hlog_map]
     have hrun := ProbOracleComp.runWith_run_interpret
       (consToExtractedInner expand decWit chalToIdx checkRel keys.1) issuerH (A keys.1) ([], []) []
     let repCons : VOLEITHTraceState d sdLen comLen rowLen
@@ -1211,13 +1143,11 @@ theorem unextractedConservationExperiment_succProbability_le_extracted {d sdLen 
           ProbOracleComp.runWith_sample, extH, verifyGatedHandler,
           eval_runState_voleithMemoizeProg, PMF.map, PMF.bind_bind, Function.comp_def,
           PMF.pure_bind]
-        congr 1
-        funext ⟨ok, roSt'⟩
+        congr 1 with ⟨ok, roSt'⟩ : 1
         cases ok
         · simp only [Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure, PMF.pure_bind,
             repCons]
-        · dsimp only
-          simp only [↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
+        · simp only [↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
             ProbOracleComp.runWith_pure, issuerH, repCons, Function.comp_def]
           set extReq := romConservationToExtractedRequest req
             (extractWitnessFromTrace expand decWit roSt.1 req.proof)
@@ -1238,16 +1168,15 @@ theorem unextractedConservationExperiment_succProbability_le_extracted {d sdLen 
                 simp [Conservation.acceptRequest, romAcceptQuery, ← romHasSpentNullifier_map,
                   List.map_map, Function.comp_def]
           rw [hacc_eq]
-          by_cases hacc :
+          cases hacc :
               Conservation.acceptLocal com tag S keys.1 extReq &&
-                romAcceptQuery
-                  (log.map fun x => romConservationToPublicQuery x.1) req.query
+                romAcceptQuery (log.map fun x => romConservationToPublicQuery x.1) req.query
+          · simp only [romConsAcceptExt, extReq, hacc, Bool.false_eq_true, ↓reduceIte,
+              ProbComp.eval_pure, PMF.pure_bind]
           · simp only [hacc, ↓reduceIte, PMF.map, PMF.bind_bind, Function.comp_def,
-              PMF.pure_bind, List.map_append, List.map_cons, List.map_nil,
-              extReq, romConservationToPublicQuery_toExtractedRequest, romConsAcceptExt,
+              PMF.pure_bind, List.map_append, List.map_cons, List.map_nil, extReq,
+              romConservationToPublicQuery_toExtractedRequest, romConsAcceptExt,
               ProbComp.eval_freeMMap]
-          · simp only [romConsAcceptExt, extReq, Bool.eq_false_iff.mpr hacc, Bool.false_eq_true,
-              ↓reduceIte, ProbComp.eval_pure, PMF.pure_bind]
       · simp only [consToExtractedInner, StateT.run, ProbOracleComp.runWith_bind,
           ProbOracleComp.runWith_sample, ProbOracleComp.runWith_pure, repCons, extH,
           verifyGatedHandler, PMF.map, PMF.bind_bind, Function.comp_def, PMF.pure_bind,
@@ -1255,36 +1184,22 @@ theorem unextractedConservationExperiment_succProbability_le_extracted {d sdLen 
     rw [hrun, ← hjoint_eq]
     simp only [PMF.map, PMF.bind_bind, Function.comp_def, PMF.pure_bind,
       Conservation.extractedConservationAccept, repCons, Prod.map, id_eq]
-    congr 1
-    funext ⟨ctx, roSt, log⟩
+    congr 1 with ⟨ctx, roSt, log⟩ : 1
     rw [← romIssuedAmount_map, ← romGrantedRefund_map, ← romSpentDebit_map, List.map_map]
     rfl
-  have hkey_le : ∀ keys : PK × SK,
-      ((ProbOracleComp.runWith (romH keys) (A keys.1) (([], []), [])).map
-        fun (ctx, (_, accepted)) =>
-          decide (romIssuedAmount accepted ctx + romGrantedRefund accepted ctx <
-            romSpentDebit accepted ctx)) true ≤
-      ((ProbOracleComp.runWith (extH keys) (A keys.1) (([], []), [])).map
-        fun (ctx, (_, accepted)) =>
-          decide (romIssuedAmount accepted ctx + romGrantedRefund accepted ctx <
-            romSpentDebit accepted ctx)) true +
-        (voleithKSBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel : ℝ≥0∞) := by
-    intro keys
-    refine toOuterMeasure_runWith_verifyGatedHandler_le expand decWit chalToIdx
+  exact bind_tsum_add_voleithKSBound_toNNReal _ _ (ProbComp.eval S.keyGen) _ _ _
+    (fun keys => toOuterMeasure_runWith_verifyGatedHandler_le expand decWit chalToIdx
       (romConservationRel com tag S) (fun req => ⟨keys.1, req.query⟩)
       ROMConservationRequest.proof checkRel hSound none (romConsAcceptReal tag S keys)
       (romConsAcceptExt expand decWit com tag S keys)
       (fun tr req accepted hrel => by
-        have hloc := acceptLocal_toExtractedRequest_of_rel com tag S keys.1 req
-          (extractWitnessFromTrace expand decWit tr req.proof) hrel
-        have hmsg := signedMessage_toExtractedRequest tag req
-          (extractWitnessFromTrace expand decWit tr req.proof)
-        simp [romConsAcceptReal, romConsAcceptExt, hloc, hmsg])
+        simp [romConsAcceptReal, romConsAcceptExt,
+          acceptLocal_toExtractedRequest_of_rel com tag S keys.1 req _ hrel,
+          signedMessage_toExtractedRequest tag req])
       [] (A keys.1) (hm keys.1) (hleaf keys.1) (hfs keys.1)
-        (fun (ctx, (_, accepted)) =>
-          decide (romIssuedAmount accepted ctx + romGrantedRefund accepted ctx <
-            romSpentDebit accepted ctx))
-  exact bind_tsum_add_voleithKSBound_toNNReal _ _ (ProbComp.eval S.keyGen) _ _ _ hkey_le
+      (fun (ctx, (_, accepted)) =>
+        decide (romIssuedAmount accepted ctx + romGrantedRefund accepted ctx <
+          romSpentDebit accepted ctx)))
     hrom_eval hext_eval
 
 /-- Concrete query-bounded advantage bound (not an asymptotic PPT security theorem):

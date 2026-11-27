@@ -138,13 +138,10 @@ def foldTable (x₀ : α) (B : (α → Bool) → Bool) (f : α → Bool) : Bool 
 /-- Folding any table produces an odd table. -/
 theorem isOdd_foldTable (x₀ : α) (B : (α → Bool) → Bool) : IsOdd (foldTable x₀ B) := by
   intro f
-  have h1 : (f + fun _ : α => true) x₀ = !f x₀ := by
-    change (f x₀ + true) = !f x₀
-    cases f x₀ <;> rfl
-  have h2 : (f + fun _ : α => true) + (fun _ : α => true) = f := by
-    funext x
-    change (f x + true) + true = f x
-    cases f x <;> rfl
+  have h1 : (f + fun _ : α => true) x₀ = !f x₀ := isOdd_longCode x₀ f
+  have h2 : (f + fun _ : α => true) + (fun _ : α => true) = f := funext fun x => by
+    simpa [longCode] using (isOdd_longCode x (f + fun _ => true)).trans
+      (congrArg not (isOdd_longCode x f))
   simp only [foldTable, h1, h2]
   cases f x₀ <;> simp
 
@@ -158,22 +155,11 @@ theorem IsOdd.foldTable_eq {B : (α → Bool) → Bool} (hB : IsOdd B) (x₀ : �
 theorem IsOdd.fourierCoeff_of_even [Fintype α] [DecidableEq α] {B : (α → Bool) → Bool}
     (hB : IsOdd B) {S : Finset α} (hS : Even #S) :
     fourierCoeff (fun f => signVal (B f)) S = 0 := by
-  rw [fourierCoeff]
-  have hchi : chi ℝ S (fun _ : α => true) = 1 := by
-    rw [chi_eq_prod_signVal, prod_const]
-    obtain ⟨m, hm⟩ := hS
-    rw [hm, pow_add, ← mul_pow]
-    norm_num
-  have h1 : (𝔼 f : α → Bool, signVal (B f) * chi ℝ S f) =
-      𝔼 f : α → Bool, signVal (B ((fun _ => true) + f)) * chi ℝ S ((fun _ => true) + f) :=
-    (Fintype.expect_add_left (fun f : α → Bool => signVal (B f) * chi ℝ S f)
-      (fun _ => true)).symm
-  have h2 (f : α → Bool) :
-      signVal (B ((fun _ => true) + f)) * chi ℝ S ((fun _ => true) + f) =
-        -(signVal (B f) * chi ℝ S f) := by
-    rw [add_comm (fun _ => true) f, hB f, signVal_not, chi_add, hchi]
-    ring
-  simp only [h2, expect_neg_distrib] at h1
+  have h := fourierCoeff_comp_add (fun f => signVal (B f)) (fun _ => true) S
+  simp only [hB _, signVal_not, chi_const_true, hS.neg_one_pow, one_mul] at h
+  have hneg : (fun f => -signVal (B f)) = fun f => -1 * signVal (B f) :=
+    funext fun _ => (neg_one_mul _).symm
+  rw [hneg, fourierCoeff_const_mul] at h
   linarith
 
 /-- **An odd function has zero empty Fourier coefficient**: its `±1` values at `f` and
@@ -245,13 +231,11 @@ theorem expect_and_eq_expect_filter_le (f : α → Bool) (φ : (α → Bool) →
   set T : Finset (α → Bool) := {k : α → Bool | ∀ i, k i ≤ !f i}
   have hmaps : ∀ h ∈ (univ : Finset (α → Bool)), (fun i => f i && h i) ∈ S := fun h _ =>
     mem_filter.2 ⟨mem_univ _, fun i => by
-      change (f i && h i) ≤ f i
+      dsimp only
       cases f i <;> cases h i <;> decide⟩
-  have hfiber : ∀ g ∈ S, #{h : α → Bool | (fun i => f i && h i) = g} = #T := by
-    intro g hg
+  have hfiber : ∀ g ∈ S, #{h : α → Bool | (fun i => f i && h i) = g} = #T := fun g hg => by
     have hg' : ∀ i, g i ≤ f i := (mem_filter.1 hg).2
-    have hiff : ∀ h : α → Bool, (fun i => f i && h i) = g ↔ h + g ∈ T := by
-      intro h
+    have hiff (h : α → Bool) : (fun i => f i && h i) = g ↔ h + g ∈ T := by
       rw [funext_iff, mem_filter, and_iff_right (mem_univ _)]
       refine forall_congr' fun i => ?_
       have hgi := hg' i
@@ -259,7 +243,7 @@ theorem expect_and_eq_expect_filter_le (f : α → Bool) (φ : (α → Bool) →
       change g i ≤ f i → ((f i && h i) = g i ↔ (h i + g i) ≤ !f i)
       cases f i <;> cases g i <;> cases h i <;> decide
     have hkg (k : α → Bool) : k + g + g = k := funext fun i => by
-      change (k i + g i) + g i = k i
+      dsimp only [Pi.add_apply]
       cases k i <;> cases g i <;> rfl
     exact Finset.card_bij (fun h _ => h + g) (fun h hh => (hiff h).1 (mem_filter.1 hh).2)
       (fun _ _ _ _ h12 => add_right_cancel h12)
@@ -268,17 +252,12 @@ theorem expect_and_eq_expect_filter_le (f : α → Bool) (φ : (α → Bool) →
     rw [← sum_const_nat hfiber, sum_card_fiberwise_eq_card_filter]
     exact congrArg Finset.card (filter_true_of_mem hmaps)
   have hsum : (∑ h : α → Bool, φ (fun i => f i && h i)) = (#T : ℝ) * ∑ g ∈ S, φ g := by
-    rw [← sum_fiberwise_of_maps_to hmaps]
-    have hinner : ∀ g ∈ S,
-        (∑ h ∈ {h : α → Bool | (fun i => f i && h i) = g}, φ (fun i => f i && h i)) =
-          (#T : ℝ) * φ g := by
-      intro g hg
-      rw [sum_congr rfl (fun h hh => congrArg φ (mem_filter.1 hh).2), sum_const, hfiber g hg,
-        nsmul_eq_mul]
-    rw [sum_congr rfl hinner, ← mul_sum]
-  have hT0 : (#T : ℝ) ≠ 0 := by
-    have h0 : (0 : α → Bool) ∈ T := mem_filter.2 ⟨mem_univ _, fun _ => Bool.false_le _⟩
-    exact Nat.cast_ne_zero.2 (card_pos.2 ⟨0, h0⟩).ne'
+    rw [← sum_fiberwise_of_maps_to hmaps, mul_sum]
+    refine sum_congr rfl fun g hg => ?_
+    rw [sum_congr rfl fun h hh => congrArg φ (mem_filter.1 hh).2, sum_const, hfiber g hg,
+      nsmul_eq_mul]
+  have hT0 : (#T : ℝ) ≠ 0 :=
+    Nat.cast_ne_zero.2 (card_pos.2 ⟨0, mem_filter.2 ⟨mem_univ _, fun _ => Bool.false_le _⟩⟩).ne'
   rw [expect_eq_sum_div_card, expect_eq_sum_div_card, hsum, ← hcard, Nat.cast_mul,
     mul_comm (#S : ℝ) (#T : ℝ), mul_div_mul_left _ _ hT0]
 
@@ -288,10 +267,8 @@ theorem expect_and_eq_expect_filter_le (f : α → Bool) (φ : (α → Bool) →
 theorem longCodeSubcubeProb_eq_expect_filter_le (B : (α → Bool) → Bool) :
     longCodeSubcubeProb B =
       𝔼 f : α → Bool, 𝔼 g ∈ ({g : α → Bool | ∀ i, g i ≤ f i} : Finset (α → Bool)),
-        bitVal ℝ (B f || !B g) := by
-  unfold longCodeSubcubeProb
-  refine expect_congr rfl fun f _ => ?_
-  exact expect_and_eq_expect_filter_le f (fun g => bitVal ℝ (B f || !B g))
+        bitVal ℝ (B f || !B g) :=
+  expect_congr rfl fun f _ => expect_and_eq_expect_filter_le f fun g => bitVal ℝ (B f || !B g)
 
 /-- Averaging `chi ℝ S (fun i => f i && h i)` over independent uniform `f, h : α → Bool` yields
 `(1 / 2) ^ #S`, the probability that `f` vanishes on `S`. -/
@@ -309,39 +286,26 @@ the Hadamard codeword `hadamardCode s` passes the subcube test with probability
 theorem longCodeSubcubeProb_hadamardCode {s : α → Bool} (hs : s ≠ 0) :
     longCodeSubcubeProb (hadamardCode s) = 3 / 4 + (1 / 2 : ℝ) ^ (#{i | s i} + 1) := by
   set S : Finset α := {i | s i}
-  have hS : S ≠ ∅ := by
-    intro h0
-    apply hs
-    funext i
-    by_contra hi
-    exact notMem_empty i (h0 ▸ mem_filter.2 ⟨mem_univ i, Bool.eq_true_of_not_eq_false hi⟩)
-  have hinner : ∀ f : α → Bool,
+  have hS : S ≠ ∅ := fun h0 => hs (funext fun i =>
+    Bool.eq_false_iff.2 (filter_eq_empty_iff.1 h0 (mem_univ i)))
+  have hinner (f : α → Bool) :
       (𝔼 h : α → Bool, bitVal ℝ (longCodeSubcubeAccept (hadamardCode s) f h)) =
         (3 : ℝ) / 4 - (1 / 4 : ℝ) * chi ℝ S f +
           (1 / 2 : ℝ) * (if {i ∈ S | f i} = ∅ then 1 else 0) := by
-    intro f
-    have hstep : ∀ h : α → Bool,
+    have hstep (h : α → Bool) :
         bitVal ℝ (longCodeSubcubeAccept (hadamardCode s) f h) =
           (3 : ℝ) / 4 - (1 / 4 : ℝ) * chi ℝ S f +
             (1 / 4 : ℝ) * (1 + chi ℝ S f) * chi ℝ {i ∈ S | f i} h := by
-      intro h
-      rw [← chi_and_eq_chi_filter S f h, chi_eq_signVal_parityOn, chi_eq_signVal_parityOn]
-      unfold longCodeSubcubeAccept
-      rw [hadamardCode_eq_parityOn s]
+      rw [← chi_and_eq_chi_filter S f h, chi_eq_signVal_parityOn, chi_eq_signVal_parityOn,
+        longCodeSubcubeAccept, hadamardCode_eq_parityOn s]
       change bitVal ℝ (parityOn S f || !parityOn S (fun i => f i && h i)) = _
       cases parityOn S f <;> cases parityOn S (fun i => f i && h i) <;>
         simp [bitVal, signVal] <;> ring
     simp only [hstep, expect_add_distrib, expect_const univ_nonempty, mul_assoc, ← mul_expect,
       expect_chi]
     split_ifs with h0
-    · have hchi1 : chi ℝ S f = 1 := by
-        rw [chi_eq_prod_signVal]
-        refine prod_eq_one fun i hi => ?_
-        have hfi : f i = false := by
-          by_contra htrue
-          exact notMem_empty i (h0 ▸ mem_filter.2 ⟨hi, Bool.eq_true_of_not_eq_false htrue⟩)
-        simp [hfi]
-      rw [hchi1]
+    · rw [chi_eq_prod_signVal, prod_eq_one fun i hi => by
+        simp [Bool.eq_false_iff.2 (filter_eq_empty_iff.1 h0 hi)]]
       ring
     · ring
   unfold longCodeSubcubeProb
@@ -357,9 +321,7 @@ theorem longCodeSubcubeProb_hadamardCode {s : α → Bool} (hs : s ≠ 0) :
 `hadamardCode s` passes the subcube test with probability at most `7 / 8`. -/
 theorem longCodeSubcubeProb_hadamardCode_le {s : α → Bool}
     (hs : 2 ≤ #{i | s i}) : longCodeSubcubeProb (hadamardCode s) ≤ 7 / 8 := by
-  have hs0 : s ≠ 0 := by
-    rintro rfl
-    simp [Bool.zero_eq_false] at hs
+  have hs0 : s ≠ 0 := fun h => by simp [h, Bool.zero_eq_false] at hs
   rw [longCodeSubcubeProb_hadamardCode hs0]
   have hpow : (1 / 2 : ℝ) ^ (#{i | s i} + 1) ≤ (1 / 2 : ℝ) ^ (2 + 1) :=
     pow_le_pow_of_le_one (by norm_num) (by norm_num) (Nat.add_le_add_right hs 1)
@@ -376,23 +338,18 @@ theorem longCodeSubcubeProb_le_of_linear {B : (α → Bool) → Bool}
   refine longCodeSubcubeProb_hadamardCode_le ?_
   obtain ⟨x, hx⟩ : ∃ x, s x = true := by
     by_contra! h
-    have hs : s = 0 := funext fun x => Bool.eq_false_iff.2 (h x)
-    exact hB0 (hs ▸ funext zero_dotProduct)
+    exact hB0 (funext (fun x => Bool.eq_false_iff.2 (h x)) ▸ funext zero_dotProduct)
   obtain ⟨y, hyx, hy⟩ : ∃ y, y ≠ x ∧ s y = true := by
     by_contra! h
-    apply hnotLC x
+    refine hnotLC x ?_
     rw [longCode_eq_hadamardCode]
-    congr 1
-    funext y
-    by_cases hyx : y = x
-    · subst hyx
-      simp [hx]
-    · simp [Pi.single_eq_of_ne hyx, Bool.zero_eq_false, Bool.eq_false_iff.2 (h y hyx)]
+    refine congrArg hadamardCode (funext fun y => ?_)
+    rcases eq_or_ne y x with rfl | hyx
+    · simp [hx]
+    · simp [Pi.single_eq_of_ne hyx, Bool.zero_eq_false, h y hyx]
   rw [← card_pair hyx.symm]
-  refine card_le_card fun z hz => mem_filter.2 ⟨mem_univ _, ?_⟩
-  rcases mem_insert.1 hz with rfl | hz
-  · exact hx
-  · exact mem_singleton.1 hz ▸ hy
+  exact card_le_card fun z hz => by
+    rcases mem_insert.1 hz with rfl | hz <;> simp_all
 
 end SubcubeTest
 

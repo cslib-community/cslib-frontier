@@ -61,6 +61,8 @@ power `h` (`bernoulliAverage_lowerSet_pow_le`). This transference principle appe
   restricting the coordinates of a random mask.
 * `Cslib.BitString.bernoulliAverage_zero`, `Cslib.BitString.bernoulliWeight_one_half`,
   `Cslib.BitString.bernoulliAverage_one_half`: sampling at rates `0` and `1 / 2`.
+* `Cslib.BitString.expect_fin_lt_eq_bernoulliAverage`: a mask of rational rate `a / q` from
+  uniform digits in `Fin q`.
 * `Cslib.BitString.bernoulliAverage_one_sub`: complementing the mask exchanges the rates `p` and
   `1 - p`.
 * `Cslib.BitString.bernoulliAverage_coordinate`,
@@ -322,6 +324,44 @@ theorem bernoulliAverage_one_half (f : (ι → Bool) → ℝ) :
     Fintype.expect_eq_sum_div_card, Fintype.card_fun, Fintype.card_bool, Nat.cast_pow,
     Nat.cast_ofNat]
   rw [one_div, inv_pow, div_eq_inv_mul]
+
+/-- **A mask of rational rate from uniform digits**: selecting each coordinate `i` exactly when an
+independent uniformly random digit `m i ∈ Fin q` is below `a ≤ q` gives a random mask of rate
+`a / q`. -/
+theorem expect_fin_lt_eq_bernoulliAverage {q a : ℕ} (hq : 0 < q) (ha : a ≤ q)
+    (f : (ι → Bool) → ℝ) :
+    𝔼 m : ι → Fin q, f (fun i => decide ((m i : ℕ) < a)) = bernoulliAverage (a / q) f := by
+  have hq' : (q : ℝ) ≠ 0 := Nat.cast_ne_zero.2 hq.ne'
+  have hdigit (b : Bool) : ∑ r : Fin q, (if decide ((r : ℕ) < a) = b then (1 : ℝ) else 0) =
+      q * if b then (a : ℝ) / q else 1 - a / q := by
+    have hlt : ∑ r : Fin q, (if (r : ℕ) < a then (1 : ℝ) else 0) = a := by
+      rw [sum_boole, Fin.card_filter_val_lt, min_eq_right ha]
+    cases b
+    · have hnot (r : Fin q) : (if decide ((r : ℕ) < a) = false then (1 : ℝ) else 0) =
+          1 - if (r : ℕ) < a then 1 else 0 := by
+        by_cases h : (r : ℕ) < a <;> simp [h]
+      simp only [hnot, sum_sub_distrib, hlt, sum_const, card_univ, Fintype.card_fin,
+        nsmul_eq_mul, mul_one, Bool.false_eq_true, ite_false]
+      field_simp
+    · simp only [decide_eq_true_eq, hlt, ite_true]
+      field_simp
+  have hmask (P : ι → Bool) : ∑ m : ι → Fin q,
+      (if (fun i => decide ((m i : ℕ) < a)) = P then (1 : ℝ) else 0) =
+        q ^ Fintype.card ι * bernoulliWeight (a / q) P := by
+    simp only [funext_iff, ← Fintype.prod_boole, bernoulliWeight]
+    rw [← Fintype.prod_sum fun i (r : Fin q) => if decide ((r : ℕ) < a) = P i then (1 : ℝ) else 0]
+    simp only [hdigit, prod_mul_distrib, prod_const, card_univ]
+  have hfiber : ∑ m : ι → Fin q, f (fun i => decide ((m i : ℕ) < a)) =
+      ∑ P, (∑ m : ι → Fin q,
+        if (fun i => decide ((m i : ℕ) < a)) = P then (1 : ℝ) else 0) * f P := by
+    simp only [sum_mul, ite_mul, one_mul, zero_mul]
+    rw [sum_comm]
+    exact sum_congr rfl fun m _ => by rw [sum_ite_eq, ite_eq_left (mem_univ _)]
+  rw [Fintype.expect_eq_sum_div_card, hfiber, Fintype.card_fun, Fintype.card_fin, Nat.cast_pow,
+    div_eq_mul_inv, sum_mul, bernoulliAverage]
+  refine sum_congr rfl fun P _ => ?_
+  rw [hmask]
+  field_simp
 
 /-- **Complementing the mask** exchanges the rates `p` and `1 - p`: the expectation of `f` at
 rate `1 - p` is the expectation of `f` of the complemented mask at rate `p`. -/

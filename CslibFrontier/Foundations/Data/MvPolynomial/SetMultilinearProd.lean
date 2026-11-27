@@ -26,6 +26,8 @@ the product of the variables `(i, y i)` with `i ∈ S`.
 * `MvPolynomial.BlockChoice.ofProd_injective`: on all blocks, the choice determines the family.
 * `MvPolynomial.blockMonomial_ofProd`, `MvPolynomial.prod_X_eq_monomial_blockMonomial_ofProd`: the
   monomial of the choice of a family.
+* `MvPolynomial.coeff_mul_blockMonomial_ofProd`: the coefficient of a product of set-multilinear
+  polynomials on a set of blocks and on its complement, at the monomial of a family.
 -/
 
 @[expose] public section
@@ -58,5 +60,25 @@ theorem prod_X_eq_monomial_blockMonomial_ofProd [CommSemiring K] (S : Finset (Fi
       monomial (blockMonomial Prod.fst S (BlockChoice.ofProd S y)) 1 := by
   rw [blockMonomial_ofProd, monomial_sum_one]
   rfl
+
+/-- Restricting the choice of a family to fewer blocks gives the choice of the family there. -/
+private theorem BlockChoice.restrict_ofProd {S T : Finset (Fin d)} (hTS : T ⊆ S) (y : Fin d → ι) :
+    BlockChoice.restrict hTS (BlockChoice.ofProd S y) = BlockChoice.ofProd T y :=
+  rfl
+
+/-- The coefficient of the product of a set-multilinear polynomial on `S` and one on the
+complement of `S`, at the monomial of a family `y` on all blocks, is the product of their
+coefficients at the monomials of `y` on `S` and on the complement. -/
+theorem coeff_mul_blockMonomial_ofProd [CommSemiring K] {S : Finset (Fin d)}
+    {f g : MvPolynomial (Fin d × ι) K} (hf : IsSetMultilinear Prod.fst S f)
+    (hg : IsSetMultilinear Prod.fst Sᶜ g) (y : Fin d → ι) :
+    (f * g).coeff (blockMonomial Prod.fst Finset.univ (BlockChoice.ofProd Finset.univ y)) =
+      f.coeff (blockMonomial Prod.fst S (BlockChoice.ofProd S y)) *
+        g.coeff (blockMonomial Prod.fst Sᶜ (BlockChoice.ofProd Sᶜ y)) := by
+  simpa only [BlockChoice.restrict_ofProd, blockMonomial_ofProd, Finset.inter_self,
+    Finset.inter_comm Sᶜ S, Finset.inter_compl, Finset.sum_empty, add_zero, zero_add,
+    Finset.sum_add_sum_compl] using coeff_mul_blockMonomial hf hg disjoint_compl_right
+      Finset.subset_union_left Finset.subset_union_right (BlockChoice.ofProd S y)
+      (BlockChoice.ofProd Sᶜ y)
 
 end MvPolynomial

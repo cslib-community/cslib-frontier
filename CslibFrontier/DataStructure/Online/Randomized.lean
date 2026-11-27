@@ -112,10 +112,8 @@ def IsCompetitive (μ : RandStrategy P) (c b : ℝ≥0∞) : Prop :=
 @[simp]
 theorem expectedCost_pure (A : DetStrategy P) (s₀ : P.State) (reqs : List P.Req) :
     expectedCost (PMF.pure A) s₀ reqs = A.cost s₀ reqs := by
-  rw [expectedCost, tsum_eq_single A]
-  · rw [PMF.pure_apply_self, one_mul]
-  · intro A' hA'
-    rw [PMF.pure_apply_of_ne _ _ hA', zero_mul]
+  rw [expectedCost, tsum_eq_single A fun _ hA' => by simp [hA']]
+  simp
 
 /-- For natural coefficients, the point mass at `A` is `(c, b)`-competitive exactly when `A` is. -/
 theorem isCompetitive_pure_iff (A : DetStrategy P) (c b : ℕ) :
@@ -136,10 +134,7 @@ theorem expectedCost_map {α : Type*} (ν : PMF α) (f : α → DetStrategy P) (
   simp only [expectedCost, PMF.map_apply, ← ENNReal.tsum_mul_right]
   rw [tsum_comm]
   refine tsum_congr fun a => ?_
-  rw [tsum_eq_single (f a)]
-  · rw [ite_eq_left rfl]
-  · intro A hA
-    rw [ite_eq_right hA, zero_mul]
+  rw [tsum_eq_single (f a) fun _ hA => by simp [hA], ite_eq_left rfl]
 
 /-- **The easy direction of Yao's principle** [Yao1977] for online lower bounds against an
 oblivious adversary. Let `ν` be a distribution on indices `i`, each naming a request sequence
@@ -173,12 +168,8 @@ theorem exists_le_mul_expectedCost {ι : Type*} (ν : PMF ι) (s₀ : P.State)
     ENNReal.tsum_lt_tsum (ne_top_of_le_ne_top hg (tsum_le_tsum hle)) hle
       (ENNReal.mul_lt_mul_right ((PMF.mem_support_iff ν i₀).mp hi₀) (PMF.apply_ne_top ν i₀)
         (hlt i₀ hi₀))
-  have h3 : ∑' i, ν i * (b * expectedCost μ s₀ (reqs i)) =
-      b * ∑' i, ν i * expectedCost μ s₀ (reqs i) := by
-    rw [← ENNReal.tsum_mul_left]
-    exact tsum_congr fun i => by ring
-  rw [h3] at h2
-  exact absurd h1 (not_le.mpr h2)
+  simp only [mul_left_comm _ b, ENNReal.tsum_mul_left] at h2
+  exact h2.not_ge h1
 
 end RandStrategy
 

@@ -299,11 +299,7 @@ The canonical seam certificates use the same coding as the scaffold's shade laye
 /-- The shade edge code retains absence and both shades. -/
 theorem Shade.code_injective : Function.Injective Shade.code := by
   intro a b h
-  rcases a with _ | a <;> rcases b with _ | b
-  · rfl
-  · cases b <;> simp [Shade.code] at h
-  · cases a <;> simp [Shade.code] at h
-  · cases a <;> cases b <;> simp_all [Shade.code]
+  rcases a with _ | ⟨_ | _⟩ <;> rcases b with _ | ⟨_ | _⟩ <;> cases h <;> rfl
 
 namespace ShadedSite
 
@@ -397,8 +393,7 @@ theorem corner_iff (s : ShadedSite) :
       s.signal = SignalState.clear ∧ s.quarter = ⟨0, .northeast⟩ := by
   rcases s with ⟨q, sh, ⟨w, e, so, no⟩⟩
   rw [routeRole_tile]
-  simp only [SignalState.clear, SignalState.mk.injEq]
-  split_ifs <;> simp_all
+  split_ifs <;> simp_all [SignalState.clear]
 
 /-- Horizontal wire cells have clear horizontal signals and a blocked vertical direction. -/
 theorem horizontal_iff_role (s : ShadedSite) :
@@ -422,8 +417,7 @@ theorem crossing_iff (s : ShadedSite) :
       s.signal = SignalState.clear := by
   rcases s with ⟨q, sh, ⟨w, e, so, no⟩⟩
   rw [routeRole_tile]
-  simp only [SignalState.clear, SignalState.mk.injEq]
-  split_ifs <;> simp_all
+  split_ifs <;> simp_all [SignalState.clear]
 
 end ShadedSite
 
