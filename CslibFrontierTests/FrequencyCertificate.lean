@@ -25,6 +25,10 @@ statements come from the public soundness theorems.
   is attained at `ω = 0` with a double root of `Q - N` in `u` and is rejected, as documented.
 * Rejections: a passband or stopband that is too wide, a `dB` witness on the wrong side, and an
   undamped LC resonator (`ω = 1` is an eigenvalue) whose `Q` vanishes in the band.
+* Verdicts: a Sallen–Key passband to `5000 rad/s` is violated at `ω = 5000` (`-0.97 dB`), its
+  stopband from `60000 rad/s` at `ω = 60000`, and an RC stopband from `997 rad/s` at `ω = 997`;
+  the exact `0 dB` Sallen–Key bound is inconclusive, not violated; on the LC band the witness
+  avoids the pole at `ω = 1`.
 -/
 
 set_option linter.privateModule false
@@ -128,5 +132,59 @@ def lc : RatLTI 2 1 1 := ⟨[[0, 1], [-1, 0]], [[0], [1]], [[1, 0]], [[0]]⟩
 on a band away from it a bound is accepted. -/
 example : lc.gainLe 0 0 ⟨0, some 2⟩ 1000000 = false := by decide +kernel
 example : lc.gainLe 0 0 ⟨2, none⟩ (1 / 9) = true := by decide +kernel
+
+/-! ### Violation witnesses -/
+
+/-- **A passband to `5000 rad/s` is too wide for `-0.5 dB`.** The verdict names `ω = 5000`, where
+`|H|² = 1 / (1 + (5000 / ω₀)⁴) = 4/5`, about `-0.97 dB`. -/
+theorem sk_wide_pass : sk.dbGeVerdict 0 0 ⟨0, some 5000⟩ (8913 / 10000) (-1 / 2) = .violated 5000 :=
+  by decide +kernel
+
+example : ¬ (-1 / 2 : ℝ) ≤ 20 * Real.logb 10 ‖sk.toSystem.transferFunction (5000 * I) 0 0‖ := by
+  have h := sk.dbGeVerdict_holds 0 0 ⟨0, some 5000⟩ (8913 / 10000) (-1 / 2)
+  rw [sk_wide_pass] at h
+  simp only [GainVerdict.Holds] at h
+  have h' := h.2.2
+  push_cast at h'
+  exact h'
+
+/-- The same through `γ²`, and the exact squared gain at `ω = 5000` from the witness-point check
+alone, without the search. -/
+example : sk.gainGeVerdict 0 0 ⟨0, some 5000⟩ (8913 / 10000) = .violated 5000 := by decide +kernel
+theorem sk_point : sk.pointOk ⟨0, some 5000⟩ 5000 = true := by decide +kernel
+example : ‖sk.toSystem.transferFunction (5000 * I) 0 0‖ ^ 2 = 4 / 5 := by
+  have h := (sk.sq_norm_eq_sqGainAt sk_point 0 0).2.2
+  rw [show sk.sqGainAt 0 0 5000 = 4 / 5 by decide +kernel] at h
+  push_cast at h
+  exact h
+
+/-- **The exact `0 dB` bound is inconclusive, not violated**: `Q - N = u²` is never negative, so
+no witness exists, while the check rejects the double root at `u = 0`. -/
+example : sk.gainLeVerdict 0 0 ⟨0, some 4000⟩ 1 = .inconclusive := by decide +kernel
+example : sk.dbLeVerdict 0 0 ⟨0, some 4000⟩ 1 0 = .inconclusive := by decide +kernel
+/-- A slightly looser bound is proved. -/
+example : sk.gainLeVerdict 0 0 ⟨0, some 4000⟩ (10001 / 10000) = .proved := by decide +kernel
+/-- A stopband from `60000 rad/s` is too close to the corner for `-40 dB`. -/
+example : sk.dbLeVerdict 0 0 ⟨60000, none⟩ (1 / 10000) (-40) = .violated 60000 := by
+  decide +kernel
+
+/-- **An RC stopband from `997 rad/s` is too close to the corner for `-3 dB`.** -/
+theorem rc_near_stop : rc.dbLeVerdict 0 0 ⟨997, none⟩ (50118 / 100000) (-3) = .violated 997 := by
+  decide +kernel
+
+example : (10 : ℝ) ^ ((-3 : ℝ) / 20) < ‖rc.toSystem.transferFunction (997 * I) 0 0‖ := by
+  have h := rc.dbLeVerdict_holds 0 0 ⟨997, none⟩ (50118 / 100000) (-3)
+  rw [rc_near_stop] at h
+  simp only [GainVerdict.Holds] at h
+  have h' := not_le.1 h.2.2
+  push_cast at h'
+  exact h'
+
+/-- **A pole in the band.** `Q` vanishes at `ω = 1`, where `H (I)` is only the junk value of the
+matrix inverse: `ω = 1` is not a witness point. The verdict names a rational `ω` just below `1`
+where `|h| > 1000` and `i ω I - A` is invertible. -/
+example : lc.pointOk ⟨0, some 2⟩ 1 = false := by decide +kernel
+example : lc.gainLeVerdict 0 0 ⟨0, some 2⟩ 1000000 = .violated (8585638551 / 8589934592) := by
+  decide +kernel
 
 end CslibFrontierTests.FrequencyCertificate

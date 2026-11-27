@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.LinearAlgebra.ImpulseCertificate
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.IntervalSign
+public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.Isolation
 public import CslibFrontier.Foundations.Analysis.ODE.TransferFunction
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
@@ -71,6 +72,23 @@ gives `‖H (ω * I) i j‖ ≤ 10 ^ (L / 20)`, the statement `20 log₁₀ ‖H
 `log 0 = 0`. Lower bounds are stated as `L ≤ 20 * Real.logb 10 ‖H (ω * I) i j‖`
 (`RatLTI.db_le_of_gainGe`).
 
+## Violation witnesses
+
+A rejected check does not by itself tell a violated specification from a certificate that is
+only too tight, such as a bound that the gain touches. `RatLTI.gainLeVerdict`,
+`RatLTI.gainGeVerdict`, `RatLTI.dbLeVerdict` and `RatLTI.dbGeVerdict` return a
+`Cslib.LinearAlgebra.GainVerdict`: `proved` when the check accepts, `violated ω` for a rational
+`ω` in the band at which the specification fails, or `inconclusive`. The witness is searched
+(untrusted) where the checked polynomial `P (ω²)` is negative, at the band's edges and near the
+roots of `P (ω²)` from `Cslib.RealRoot.isolateRoots` (`Cslib.LinearAlgebra.witnessCandidates`).
+Only the final check is trusted: `RatLTI.pointOk` checks that `ω` is in the band and
+`Q (ω²) ≠ 0`, and then `i ω I - A` is invertible and `‖H (ω * I) i j‖² = N (ω²) / Q (ω²)` is
+the rational `RatLTI.sqGainAt i j ω` (`RatLTI.sq_norm_eq_sqGainAt`), which is compared with `γ²`,
+or with the decibel level through `dbLe` and `dbGe`, exactly. At a root of `Q` the matrix
+inverse in `H` is a junk value, so no witness is reported there. `GainVerdict.Holds` states what
+each outcome means. A bound attained exactly, like the `0 dB` bound of a low-pass at `ω = 0`, has
+no witness and is reported `inconclusive`.
+
 ## DC gain
 
 `RatLTI.dcGain` is `D + c₀⁻¹ C Y₀ B`, which is `D - C A⁻¹ B` since `-A Y₀ = c₀ I`.
@@ -85,6 +103,9 @@ gives `‖H (ω * I) i j‖ ≤ 10 ^ (L / 20)`, the statement `20 log₁₀ ‖H
 * `Cslib.LinearAlgebra.RatLTI.numCoeffs`, `RatLTI.gainNum`, `RatLTI.gainDen`.
 * `Cslib.LinearAlgebra.FreqBand`, `RatLTI.gainLe`, `RatLTI.gainGe`, `Cslib.LinearAlgebra.dbLe`,
   `Cslib.LinearAlgebra.dbGe`, `RatLTI.dcGain`, `RatLTI.dcCheck`.
+* `Cslib.LinearAlgebra.GainVerdict`, `GainVerdict.Holds`, `RatLTI.sqGainAt`, `RatLTI.pointOk`,
+  `RatLTI.gainLeVerdict`, `RatLTI.gainGeVerdict`, `RatLTI.dbLeVerdict`, `RatLTI.dbGeVerdict`, and
+  the untrusted search `Cslib.LinearAlgebra.witnessCandidates`.
 
 ## Main results
 
@@ -97,6 +118,11 @@ gives `‖H (ω * I) i j‖ ≤ 10 ^ (L / 20)`, the statement `20 log₁₀ ‖H
   `RatLTI.le_norm_of_gainGe`: gain bounds on a band.
 * `RatLTI.norm_le_db_of_gainLe`, `RatLTI.rpow_le_norm_of_gainGe`, `RatLTI.db_le_of_gainGe`:
   decibel forms.
+* `Cslib.LinearAlgebra.dbLe_eq_true_iff`, `Cslib.LinearAlgebra.dbGe_eq_true_iff`: the decibel
+  checks decide `x ≤ 10 ^ (L / 10)` and `10 ^ (L / 10) ≤ x`.
+* `RatLTI.sq_norm_eq_sqGainAt`: the exact squared gain at an accepted rational frequency.
+* `RatLTI.gainLeVerdict_holds`, `RatLTI.gainGeVerdict_holds`, `RatLTI.dbLeVerdict_holds`,
+  `RatLTI.dbGeVerdict_holds`: each verdict is correct.
 * `RatLTI.dcGain_eq`, `RatLTI.transferFunction_zero_eq`: the DC gain.
 -/
 
@@ -679,47 +705,49 @@ private theorem ten_rpow_num_div (L : ℚ) :
   push_cast
   field_simp
 
-private theorem pow_le_ten_rpow {x : ℝ} {L : ℚ} (hx : 0 ≤ x)
-    (h : x ^ (10 * L.den) ≤ (10 : ℝ) ^ (L.num : ℝ)) : x ≤ (10 : ℝ) ^ ((L : ℝ) / 10) := by
+private theorem pow_le_ten_rpow_iff {x : ℝ} {L : ℚ} (hx : 0 ≤ x) :
+    x ^ (10 * L.den) ≤ (10 : ℝ) ^ (L.num : ℝ) ↔ x ≤ (10 : ℝ) ^ ((L : ℝ) / 10) := by
   have hN : (10 * L.den : ℕ) ≠ 0 := by positivity
-  rw [← ten_rpow_num_div, ← Real.pow_rpow_inv_natCast hx hN]
-  exact Real.rpow_le_rpow (by positivity) h (by positivity)
+  conv_rhs => rw [← ten_rpow_num_div, ← Real.pow_rpow_inv_natCast hx hN]
+  exact (Real.rpow_le_rpow_iff (by positivity) (by positivity)
+    (inv_pos.2 (by exact_mod_cast Nat.pos_of_ne_zero hN : (0 : ℝ) < ((10 * L.den : ℕ) : ℝ)))).symm
 
-private theorem ten_rpow_le_pow {x : ℝ} {L : ℚ} (hx : 0 ≤ x)
-    (h : (10 : ℝ) ^ (L.num : ℝ) ≤ x ^ (10 * L.den)) : (10 : ℝ) ^ ((L : ℝ) / 10) ≤ x := by
+private theorem ten_rpow_le_pow_iff {x : ℝ} {L : ℚ} (hx : 0 ≤ x) :
+    (10 : ℝ) ^ (L.num : ℝ) ≤ x ^ (10 * L.den) ↔ (10 : ℝ) ^ ((L : ℝ) / 10) ≤ x := by
   have hN : (10 * L.den : ℕ) ≠ 0 := by positivity
-  rw [← ten_rpow_num_div, ← Real.pow_rpow_inv_natCast hx hN]
-  exact Real.rpow_le_rpow (by positivity) h (by positivity)
+  conv_rhs => rw [← ten_rpow_num_div, ← Real.pow_rpow_inv_natCast hx hN]
+  exact (Real.rpow_le_rpow_iff (by positivity) (by positivity)
+    (inv_pos.2 (by exact_mod_cast Nat.pos_of_ne_zero hN : (0 : ℝ) < ((10 * L.den : ℕ) : ℝ)))).symm
 
-/-- Soundness of `dbLe`: `x ≤ 10 ^ (L / 10)`. -/
-theorem le_rpow_of_dbLe {x L : ℚ} (h : dbLe x L = true) :
-    0 ≤ (x : ℝ) ∧ (x : ℝ) ≤ (10 : ℝ) ^ ((L : ℝ) / 10) := by
-  simp only [dbLe, Bool.and_eq_true, decide_eq_true_eq] at h
-  obtain ⟨hx, h⟩ := h
+/-- **`dbLe` decides** `0 ≤ x ≤ 10 ^ (L / 10)`. -/
+theorem dbLe_eq_true_iff {x L : ℚ} :
+    dbLe x L = true ↔ 0 ≤ (x : ℝ) ∧ (x : ℝ) ≤ (10 : ℝ) ^ ((L : ℝ) / 10) := by
+  rw [Rat.cast_nonneg]
+  simp only [dbLe, Bool.and_eq_true, decide_eq_true_eq]
+  refine and_congr_right fun hx => ?_
   have hx' : (0 : ℝ) ≤ x := by exact_mod_cast hx
-  refine ⟨hx', pow_le_ten_rpow hx' ?_⟩
-  rw [ten_zpow_num]
-  split_ifs at h ⊢ with hL
-  · exact_mod_cast (decide_eq_true_iff.1 h)
-  · have h' := decide_eq_true_iff.1 h
-    have hpos : (0 : ℝ) < ((10 ^ (-L.num).toNat : ℚ) : ℝ) := by positivity
-    rw [← one_div, le_div_iff₀ hpos]
-    exact_mod_cast h'
+  rw [← pow_le_ten_rpow_iff hx', ten_zpow_num]
+  split_ifs with hL
+  · rw [decide_eq_true_iff]
+    constructor <;> intro h <;> exact_mod_cast h
+  · have hpos : (0 : ℝ) < ((10 ^ (-L.num).toNat : ℚ) : ℝ) := by positivity
+    rw [decide_eq_true_iff, ← one_div, le_div_iff₀ hpos]
+    constructor <;> intro h <;> exact_mod_cast h
 
-/-- Soundness of `dbGe`: `10 ^ (L / 10) ≤ x`. -/
-theorem rpow_le_of_dbGe {x L : ℚ} (h : dbGe x L = true) :
-    0 < (x : ℝ) ∧ (10 : ℝ) ^ ((L : ℝ) / 10) ≤ (x : ℝ) := by
-  simp only [dbGe, Bool.and_eq_true, decide_eq_true_eq] at h
-  obtain ⟨hx, h⟩ := h
-  have hx' : (0 : ℝ) < x := by exact_mod_cast hx
-  refine ⟨hx', ten_rpow_le_pow hx'.le ?_⟩
-  rw [ten_zpow_num]
-  split_ifs at h ⊢ with hL
-  · exact_mod_cast (decide_eq_true_iff.1 h)
-  · have h' := decide_eq_true_iff.1 h
-    have hpos : (0 : ℝ) < ((10 ^ (-L.num).toNat : ℚ) : ℝ) := by positivity
-    rw [inv_le_iff_one_le_mul₀ hpos]
-    exact_mod_cast h'
+/-- **`dbGe` decides** `0 < x` and `10 ^ (L / 10) ≤ x`. -/
+theorem dbGe_eq_true_iff {x L : ℚ} :
+    dbGe x L = true ↔ 0 < (x : ℝ) ∧ (10 : ℝ) ^ ((L : ℝ) / 10) ≤ (x : ℝ) := by
+  rw [Rat.cast_pos]
+  simp only [dbGe, Bool.and_eq_true, decide_eq_true_eq]
+  refine and_congr_right fun hx => ?_
+  have hx' : (0 : ℝ) ≤ x := by exact_mod_cast hx.le
+  rw [← ten_rpow_le_pow_iff hx', ten_zpow_num]
+  split_ifs with hL
+  · rw [decide_eq_true_iff]
+    constructor <;> intro h <;> exact_mod_cast h
+  · have hpos : (0 : ℝ) < ((10 ^ (-L.num).toNat : ℚ) : ℝ) := by positivity
+    rw [decide_eq_true_iff, inv_le_iff_one_le_mul₀ hpos]
+    constructor <;> intro h <;> exact_mod_cast h
 
 namespace RatLTI
 
@@ -738,7 +766,7 @@ theorem norm_le_db_of_gainLe {i : Fin p} {j : Fin m} {B : FreqBand} {γsq L : �
     (h : G.gainLe i j B γsq = true) (hdb : dbLe γsq L = true) {ω : ℝ} (hω : B.Mem ω) :
     ‖G.toSystem.transferFunction ((ω : ℂ) * I) i j‖ ≤ (10 : ℝ) ^ ((L : ℝ) / 20) := by
   have h1 := G.sq_norm_le_of_gainLe h hω
-  have h2 := (le_rpow_of_dbLe hdb).2
+  have h2 := (dbLe_eq_true_iff.1 hdb).2
   rw [← sq_ten_rpow] at h2
   exact (pow_le_pow_iff_left₀ (norm_nonneg _) (by positivity) two_ne_zero).1 (h1.trans h2)
 
@@ -748,7 +776,7 @@ theorem rpow_le_norm_of_gainGe {i : Fin p} {j : Fin m} {B : FreqBand} {γsq L : 
     (h : G.gainGe i j B γsq = true) (hdb : dbGe γsq L = true) {ω : ℝ} (hω : B.Mem ω) :
     (10 : ℝ) ^ ((L : ℝ) / 20) ≤ ‖G.toSystem.transferFunction ((ω : ℂ) * I) i j‖ := by
   have h1 := G.le_sq_norm_of_gainGe h hω
-  have h2 := (rpow_le_of_dbGe hdb).2
+  have h2 := (dbGe_eq_true_iff.1 hdb).2
   rw [← sq_ten_rpow] at h2
   exact (pow_le_pow_iff_left₀ (by positivity) (norm_nonneg _) two_ne_zero).1 (h2.trans h1)
 
@@ -841,6 +869,242 @@ theorem transferFunction_zero_eq (h : G.dcCheck = true) :
     cplx_toSystem_D, zero_smul, zero_sub, hinv, Matrix.mul_neg, Matrix.neg_mul, add_comm,
     ← sub_eq_add_neg, cplx, cplx, cplx, map_dcGain]
   ext; simp [ratMat]
+
+end RatLTI
+
+/-! ### Violation witnesses -/
+
+namespace FreqBand
+
+/-- Whether a rational frequency lies in the band. -/
+@[expose] def memRat (B : FreqBand) (ω : ℚ) : Bool :=
+  decide (B.lo ≤ |ω|) && B.hi.all fun b => decide (|ω| ≤ b)
+
+private theorem mem_of_memRat {B : FreqBand} {ω : ℚ} (h : B.memRat ω = true) :
+    B.Mem (ω : ℝ) := by
+  simp only [memRat, Bool.and_eq_true, decide_eq_true_eq, Option.all_eq_true] at h
+  obtain ⟨h1, h2⟩ := h
+  refine ⟨by rw [← Rat.cast_abs]; exact_mod_cast h1, fun b hb => ?_⟩
+  rw [← Rat.cast_abs]
+  exact_mod_cast (by simpa using h2 b hb)
+
+end FreqBand
+
+/-- The outcome of a gain check on a band: the specification is proved on the whole band, it is
+violated at a stated rational frequency, or neither is established. -/
+inductive GainVerdict
+  /-- The specification holds on the whole band. -/
+  | proved
+  /-- The specification fails at the rational frequency `ω` of the band. -/
+  | violated (ω : ℚ)
+  /-- Neither a proof nor a violation was found. -/
+  | inconclusive
+  deriving @[expose] DecidableEq, Repr
+
+namespace GainVerdict
+
+variable {n m p : ℕ}
+
+/-- What a verdict asserts about a specification `spec ω` of the frequency response of `G` on the
+band `B`. `proved`: `spec` holds on the whole band. `violated ω`: `ω` is in the band,
+`i ω I - A` is invertible (so `H (ω * I)` is the value of the transfer function, not a junk value
+of the matrix inverse), and `spec` fails at `ω`. `inconclusive`: nothing. -/
+@[expose] def Holds (v : GainVerdict) (G : RatLTI n m p) (B : FreqBand) (spec : ℝ → Prop) :
+    Prop :=
+  match v with
+  | proved => ∀ ω, B.Mem ω → spec ω
+  | violated ω => B.Mem ω ∧
+      IsUnit ((((ω : ℝ) : ℂ) * I) • (1 : Matrix (Fin n) (Fin n) ℂ) -
+        G.toSystem.A.map (algebraMap ℝ ℂ)) ∧ ¬ spec ω
+  | inconclusive => True
+
+/-- `proved` if the check `ok` accepts, otherwise `violated ω` for a found witness `ω`, otherwise
+`inconclusive`. -/
+@[expose] def ofCheck (ok : Bool) (w : Option ℚ) : GainVerdict :=
+  if ok then proved else match w with
+    | some ω => violated ω
+    | none => inconclusive
+
+end GainVerdict
+
+/-- The coefficient list of `ω ↦ P (ω²)` from that of `P`. -/
+@[expose] def spreadSq : List ℚ → List ℚ
+  | [] => []
+  | a :: l => a :: 0 :: spreadSq l
+
+/-- Sign bisection of `[a, b]` for the polynomial with coefficient list `P`: while the values at the
+ends have strictly opposite signs, keep the half on which they still do, for at most `fuel`
+steps; the result is the final pair of ends. -/
+@[expose] def bisectSign (P : List ℚ) : ℕ → ℚ → ℚ → List ℚ
+  | 0, a, b => [a, b]
+  | fuel + 1, a, b =>
+    let m := (a + b) / 2
+    let sm := Cslib.RealRoot.evalAt P m
+    if Cslib.RealRoot.evalAt P a * sm < 0 then bisectSign P fuel a m
+    else if sm * Cslib.RealRoot.evalAt P b < 0 then bisectSign P fuel m b
+    else [a, b]
+
+/-- **Candidate witnesses** (untrusted search). Rational frequencies at which to look for a
+negative value of `P (ω²)` on the band `B`: the band's edges (for a half-line, a point beyond the
+Cauchy bound of `P (ω²)`, past which its sign is constant), the ends inside the band of the
+isolating intervals of the real roots of `P (ω²)` (`Cslib.RealRoot.isolateRoots`), each refined
+by `32` steps of `bisectSign`, and the midpoints of consecutive such points. Between consecutive
+roots `P (ω²)` has constant sign, so these points sample every sign of `P (ω²)` on the band, and
+the refined ends lie close to the roots, which matters where the negative values are confined
+near a pole of the gain. Nothing about the list is proved: every candidate is checked by
+`RatLTI.pointOk`. -/
+@[expose] def witnessCandidates (P : List ℚ) (B : FreqBand) : List ℚ :=
+  let Pω := spreadSq P
+  let lo := max B.lo 0
+  let hi := B.hi.getD (max (lo + 1) (Cslib.RealRoot.cauchyBoundNat Pω))
+  let ends := ((Cslib.RealRoot.isolateRoots Pω).flatMap fun I =>
+    bisectSign Pω 32 I.lower I.upper).filter fun x => decide (lo < x ∧ x < hi)
+  let pts := lo :: ends ++ [hi]
+  lo :: hi :: List.zipWith (fun a b => (a + b) / 2) pts pts.tail ++ ends
+
+namespace RatLTI
+
+open Cslib.RealRoot
+
+variable {n m p : ℕ} (G : RatLTI n m p)
+
+/-- The squared gain `N (ω²) / Q (ω²)` at a rational frequency, computed in `ℚ`. -/
+@[expose] def sqGainAt (i : Fin p) (j : Fin m) (ω : ℚ) : ℚ :=
+  evalAt (G.gainNum i j) (ω * ω) / evalAt G.gainDen (ω * ω)
+
+/-- **Witness-point check.** The resolvent check, `ω` in the band `B`, and `Q (ω²) ≠ 0`, so that
+`i ω I - A` is invertible. -/
+@[expose] def pointOk (B : FreqBand) (ω : ℚ) : Bool :=
+  G.resolventOk && B.memRat ω && evalAt G.gainDen (ω * ω) != 0
+
+private theorem aeval_sq_ratCast (cs : List ℚ) (ω : ℚ) :
+    aeval ((ω : ℝ) ^ 2) (ofCoeffList cs) = ((evalAt cs (ω * ω) : ℚ) : ℝ) := by
+  rw [show ((ω : ℝ)) ^ 2 = algebraMap ℚ ℝ (ω * ω) by
+    rw [eq_ratCast, Rat.cast_mul, sq], aeval_algebraMap_apply,
+    coe_aeval_eq_eval, eval_ofCoeffList]
+  rfl
+
+/-- **Soundness of the witness-point check.** At an accepted rational `ω`: `ω` is in the band,
+`i ω I - A` is invertible, and `‖H (ω * I) i j‖² = sqGainAt i j ω` exactly. -/
+theorem sq_norm_eq_sqGainAt {B : FreqBand} {ω : ℚ} (h : G.pointOk B ω = true) (i : Fin p)
+    (j : Fin m) :
+    B.Mem ω ∧ IsUnit ((((ω : ℝ) : ℂ) * I) • (1 : Matrix (Fin n) (Fin n) ℂ) -
+        G.toSystem.A.map (algebraMap ℝ ℂ)) ∧
+      ‖G.toSystem.transferFunction (((ω : ℝ) : ℂ) * I) i j‖ ^ 2 = G.sqGainAt i j ω := by
+  simp only [pointOk, Bool.and_eq_true, bne_iff_ne, ne_eq] at h
+  obtain ⟨⟨hc, hB⟩, hQ⟩ := h
+  have hQ' : aeval ((ω : ℝ) ^ 2) (ofCoeffList G.gainDen) ≠ 0 := by
+    rw [aeval_sq_ratCast]; exact_mod_cast hQ
+  have hU := (G.gainDen_ne_zero_iff hc ω).1 hQ'
+  refine ⟨FreqBand.mem_of_memRat hB, hU, ?_⟩
+  rw [G.sq_norm_transferFunction hc i j hU, aeval_sq_ratCast, aeval_sq_ratCast, sqGainAt,
+    Rat.cast_div]
+
+/-- The first candidate `ω` of `witnessCandidates P B` that passes `pointOk` and at which the
+squared gain satisfies `bad`. -/
+@[expose] def findWitness (i : Fin p) (j : Fin m) (P : List ℚ) (B : FreqBand)
+    (bad : ℚ → Bool) : Option ℚ :=
+  (witnessCandidates P B).find? fun ω => G.pointOk B ω && bad (G.sqGainAt i j ω)
+
+/-- The common part of the verdict theorems: an accepting check proves the specification, and a
+found witness violates it if `bad` at an accepted point refutes it. -/
+private theorem holds_ofCheck {i : Fin p} {j : Fin m} {B : FreqBand} {ok : Bool} {P : List ℚ}
+    {bad : ℚ → Bool} {spec : ℝ → Prop} (hok : ok = true → ∀ ω, B.Mem ω → spec ω)
+    (hbad : ∀ ω : ℚ, G.pointOk B ω = true → bad (G.sqGainAt i j ω) = true → ¬ spec ω) :
+    (GainVerdict.ofCheck ok (G.findWitness i j P B bad)).Holds G B spec := by
+  unfold GainVerdict.ofCheck
+  split_ifs with h
+  · exact hok h
+  · rcases hw : G.findWitness i j P B bad with _ | ω
+    · trivial
+    · have hf := List.find?_some hw
+      simp only [Bool.and_eq_true] at hf
+      obtain ⟨hB, hU, -⟩ := G.sq_norm_eq_sqGainAt hf.1 i j
+      exact ⟨hB, hU, hbad ω hf.1 hf.2⟩
+
+/-- **Upper gain verdict**: `gainLe`, or a rational `ω` in the band with `γ² < N (ω²) / Q (ω²)`,
+searched where `γ² Q - N` is negative. -/
+@[expose] def gainLeVerdict (i : Fin p) (j : Fin m) (B : FreqBand) (γsq : ℚ) : GainVerdict :=
+  .ofCheck (G.gainLe i j B γsq) (G.findWitness i j
+    (CoeffList.sub (CoeffList.smul γsq G.gainDen) (G.gainNum i j)) B fun g => decide (γsq < g))
+
+/-- **Lower gain verdict**: `gainGe`, or a rational `ω` in the band with `N (ω²) / Q (ω²) < γ²`,
+searched where `N - γ² Q` is negative. -/
+@[expose] def gainGeVerdict (i : Fin p) (j : Fin m) (B : FreqBand) (γsq : ℚ) : GainVerdict :=
+  .ofCheck (G.gainGe i j B γsq) (G.findWitness i j
+    (CoeffList.sub (G.gainNum i j) (CoeffList.smul γsq G.gainDen)) B fun g => decide (g < γsq))
+
+/-- **Upper decibel verdict** for the level `L`: `gainLe` with `γ²` and `dbLe γ² L`, or a
+rational `ω` in the band whose squared gain `g` fails `dbLe g L`, that is `10 ^ (L / 10) < g`,
+searched as in `gainLeVerdict`. -/
+@[expose] def dbLeVerdict (i : Fin p) (j : Fin m) (B : FreqBand) (γsq L : ℚ) : GainVerdict :=
+  .ofCheck (G.gainLe i j B γsq && dbLe γsq L) (G.findWitness i j
+    (CoeffList.sub (CoeffList.smul γsq G.gainDen) (G.gainNum i j)) B fun g => !dbLe g L)
+
+/-- **Lower decibel verdict** for the level `L`: `gainGe` with `γ²` and `dbGe γ² L`, or a
+rational `ω` in the band whose squared gain `g > 0` fails `dbGe g L`, that is
+`g < 10 ^ (L / 10)`, searched as in `gainGeVerdict`. -/
+@[expose] def dbGeVerdict (i : Fin p) (j : Fin m) (B : FreqBand) (γsq L : ℚ) : GainVerdict :=
+  .ofCheck (G.gainGe i j B γsq && dbGe γsq L) (G.findWitness i j
+    (CoeffList.sub (G.gainNum i j) (CoeffList.smul γsq G.gainDen)) B
+    fun g => decide (0 < g) && !dbGe g L)
+
+/-- **The upper gain verdict is correct**: proved means `‖H (ω * I) i j‖² ≤ γ²` on the band;
+`violated ω` means `γ² < ‖H (ω * I) i j‖²` at `ω` in the band, where `i ω I - A` is invertible. -/
+theorem gainLeVerdict_holds (i : Fin p) (j : Fin m) (B : FreqBand) (γsq : ℚ) :
+    (G.gainLeVerdict i j B γsq).Holds G B
+      fun ω => ‖G.toSystem.transferFunction ((ω : ℂ) * I) i j‖ ^ 2 ≤ γsq :=
+  G.holds_ofCheck (fun h _ hω => G.sq_norm_le_of_gainLe h hω) fun ω hω hg => by
+    rw [(G.sq_norm_eq_sqGainAt hω i j).2.2, not_le]
+    exact_mod_cast of_decide_eq_true hg
+
+/-- **The lower gain verdict is correct**: proved means `γ² ≤ ‖H (ω * I) i j‖²` on the band;
+`violated ω` means `‖H (ω * I) i j‖² < γ²` at `ω` in the band, where `i ω I - A` is invertible. -/
+theorem gainGeVerdict_holds (i : Fin p) (j : Fin m) (B : FreqBand) (γsq : ℚ) :
+    (G.gainGeVerdict i j B γsq).Holds G B
+      fun ω => (γsq : ℝ) ≤ ‖G.toSystem.transferFunction ((ω : ℂ) * I) i j‖ ^ 2 :=
+  G.holds_ofCheck (fun h _ hω => G.le_sq_norm_of_gainGe h hω) fun ω hω hg => by
+    rw [(G.sq_norm_eq_sqGainAt hω i j).2.2, not_le]
+    exact_mod_cast of_decide_eq_true hg
+
+/-- **The upper decibel verdict is correct**: proved means `‖H (ω * I) i j‖ ≤ 10 ^ (L / 20)` on
+the band; `violated ω` means `10 ^ (L / 20) < ‖H (ω * I) i j‖` at `ω` in the band, where
+`i ω I - A` is invertible. -/
+theorem dbLeVerdict_holds (i : Fin p) (j : Fin m) (B : FreqBand) (γsq L : ℚ) :
+    (G.dbLeVerdict i j B γsq L).Holds G B
+      fun ω => ‖G.toSystem.transferFunction ((ω : ℂ) * I) i j‖ ≤ (10 : ℝ) ^ ((L : ℝ) / 20) := by
+  refine G.holds_ofCheck (fun h _ hω => ?_) fun ω hω hg hle => ?_
+  · simp only [Bool.and_eq_true] at h
+    exact G.norm_le_db_of_gainLe h.1 h.2 hω
+  · have hsq := (G.sq_norm_eq_sqGainAt hω i j).2.2
+    have hg' : dbLe (G.sqGainAt i j ω) L = false := by simpa using hg
+    refine Bool.false_ne_true (hg' ▸ dbLe_eq_true_iff.2 ⟨hsq ▸ sq_nonneg _, ?_⟩)
+    rw [← hsq, ← sq_ten_rpow]
+    exact pow_le_pow_left₀ (norm_nonneg _) hle 2
+
+/-- **The lower decibel verdict is correct**: proved means `L ≤ 20 log₁₀ ‖H (ω * I) i j‖` on the
+band; `violated ω` means that this fails at `ω` in the band, where `i ω I - A` is invertible and
+the gain is nonzero, so that `‖H (ω * I) i j‖ < 10 ^ (L / 20)`. -/
+theorem dbGeVerdict_holds (i : Fin p) (j : Fin m) (B : FreqBand) (γsq L : ℚ) :
+    (G.dbGeVerdict i j B γsq L).Holds G B
+      fun ω => (L : ℝ) ≤ 20 * Real.logb 10 ‖G.toSystem.transferFunction ((ω : ℂ) * I) i j‖ := by
+  refine G.holds_ofCheck (fun h _ hω => ?_) fun ω hω hg hle => ?_
+  · simp only [Bool.and_eq_true] at h
+    exact G.db_le_of_gainGe h.1 h.2 hω
+  · have hsq := (G.sq_norm_eq_sqGainAt hω i j).2.2
+    simp only [Bool.and_eq_true, decide_eq_true_eq, Bool.not_eq_true'] at hg
+    obtain ⟨hpos, hg'⟩ := hg
+    have hpos' : (0 : ℝ) < G.sqGainAt i j ω := by exact_mod_cast hpos
+    have hH : 0 < ‖G.toSystem.transferFunction (((ω : ℝ) : ℂ) * I) i j‖ := by
+      by_contra h0
+      rw [not_lt, norm_le_zero_iff] at h0
+      rw [h0, norm_zero] at hsq
+      linarith [hsq ▸ hpos']
+    have h1 := (Real.le_logb_iff_rpow_le (b := 10) (by norm_num) hH).1
+      (show (L : ℝ) / 20 ≤ _ by linarith)
+    refine Bool.false_ne_true (hg' ▸ dbGe_eq_true_iff.2 ⟨hpos', ?_⟩)
+    rw [← hsq, ← sq_ten_rpow]
+    exact pow_le_pow_left₀ (by positivity) h1 2
 
 end RatLTI
 
