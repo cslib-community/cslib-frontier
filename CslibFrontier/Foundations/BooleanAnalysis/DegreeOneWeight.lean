@@ -60,8 +60,8 @@ Proposition 2.50 bound is stated on `0 ≤ ρ ≤ 1`, the book's on `0 < ρ < 1`
 keeps the open interval, since every unbiased `f` has `Stab_0 = 0` and every `f` has
 `Stab_1 = 1`. At negative rates no unbiasedness is needed; at `ρ = 0` equality holds for every
 unbiased `f`, and at `ρ = -1` for every function with only odd-degree weight, such as the
-majority of three bits. Theorem 2.56, the Condorcet formula `3/4 - 3/4 Stab_{-1/3}[f]`, is not
-part of this module.
+majority of three bits. Theorem 2.56, the Condorcet formula `3/4 - 3/4 Stab_{-1/3}[f]`, and
+Arrow's Theorem are proved in `CslibFrontier.Foundations.BooleanAnalysis.CondorcetElection`.
 
 The checked clients in
 [CslibFrontierTests/BooleanAnalysisDegreeOneWeight.lean](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/BooleanAnalysisDegreeOneWeight.lean)
