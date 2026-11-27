@@ -9532,6 +9532,7 @@ public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.
 public import CslibFrontier.Crypto.Computational.Encryption.NonceBased
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.Initialized
 public import CslibFrontier.DataStructure.AVLTree.Side
+public import CslibFrontier.Languages.Electrical.NetlistPrint
 public import CslibFrontier.Crypto.Primitives.IdealCipher.CompressionVariants
 public import CslibFrontier.Computability.PolyTime.CSP.BoundaryRotation
 public import CslibFrontier.Computability.Circuit.Arithmetic.HittingSet.ConcentratingMonomial
