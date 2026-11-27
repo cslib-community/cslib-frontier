@@ -3205,6 +3205,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Rep
 public import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
 public import CslibFrontier.Foundations.Data.BitString.AgreeExpect
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Decision.VisitorLive
+public import CslibFrontier.Computability.Complexity.Classes.Time.QuantitativeReduction
 public import CslibFrontier.Computability.Circuit.Boolean.Lupanov.FormulaAsymptotics
 public import CslibFrontier.Computability.Automata.MPDA.SeparationAutomaton
 public import CslibFrontier.Crypto.Protocols.FAEST.Conversion
