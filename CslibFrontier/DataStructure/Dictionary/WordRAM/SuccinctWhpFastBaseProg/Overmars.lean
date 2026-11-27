@@ -614,8 +614,9 @@ private theorem checkCoordInLiveGenProg_spec {c U V w n_max base b loc : ℕ}
   dsimp only
   unfold checkCoordInLiveGenProg
   exact ReadSpec.toAnd ((ReadSpec.of hst).bind <|
-    .bind (.of (readOldEpProg_spec (by dsimp only [largeSpaceWhp, hdrCurEp]; omega) hce_or
-      hrep.2.2.2.1)) <|
+    .bind (.of (readOldEpProg_spec (Nat.add_lt_add_left
+      ((by decide : hdrCurEp < 32).trans_le (headerWords_le_largeSpaceWhp c U V w n_max)) base)
+      hce_or hrep.2.2.2.1)) <|
     .bind (.of (readBktFieldGenProg_spec henv hb (by decide : 8 < 10) hrep)) <|
     .bind (.of (readFastLocGenProg_spec henv hb hloc hrep)) <| .of inLiveTreeProg_spec) rfl rfl
 

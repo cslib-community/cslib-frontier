@@ -1093,8 +1093,10 @@ private theorem inEpochDeleteHitTailCode_exec {U V w N n n' n_init base L_peak :
   have hL_sh : x₁₁.frontier ≤ L_peak := by
     rw [hx₁₁_ff]
     exact (Nat.add_le_add_left (compactedEpochWords_mono (by omega : n' ≤ n)) base).trans hL
-  have hfit_n' : Fits w n' := lt_of_le_of_lt
-    (by rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, _⟩ <;> omega : n' ≤ U) hltU
+  have hnN := (epochValid_iff_capacity_bounds.mp hev).1
+  have hfit_n' : Fits w n' := by
+    rw [hn'_eq]
+    exact ((Nat.sub_le n 1).trans (hnN.trans hNU)).trans_lt hltU
   have hn1 : 1 ≤ n := hn
   set x₁₂ := x₁₁.set rOne 1
   set x₁₃ := x₁₂.set rCnt n'
@@ -1542,13 +1544,10 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
       dsimp only [n', s_abs']
       rw [Dynamic.card_dom_delete_eq_of_isSome hsome, hsplit.card_eq]
     have hn'_pos : 0 < n' := by
-      have hev' := hval.2
-      change EpochValid U n' N at hev'
-      rcases hev' with ⟨hn0, hN0⟩ | ⟨hn1, _, _, _⟩
-      · rcases hev with ⟨rfl, _⟩ | ⟨_, _, hN4, _⟩
-        · exact absurd rfl hn.ne'
-        · exfalso; subst hN0; exact absurd (Nat.eq_zero_of_le_zero (by omega : n ≤ 0)) hn.ne'
-      · exact hn1
+      have hnN := (epochValid_iff_capacity_bounds.mp hev).1
+      have hNn' := (epochValid_iff_capacity_bounds.mp
+        (show EpochValid U n' N from hval.2)).2.1
+      lia
     have hcond_pos : (Cond.eq rFound rOne).Holds x₉.toData := by
       change x₉.regs rFound = x₉.regs rOne
       rw [hx₉_found, hhit]
