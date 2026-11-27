@@ -35,22 +35,26 @@ register_result "odonnell-majority-level-weight-limit" where
       locator := "arXiv:2105.10386v1, §5.3, printed p. 123" }
   ]
   theorems := [Cslib.BitString.tendsto_levelWeight_signVal_majority,
-    Cslib.BitString.le_levelWeight_signVal_majority]
+    Cslib.BitString.le_levelWeight_signVal_majority,
+    Cslib.BitString.levelWeight_signVal_majority_le]
   scope := "For each j, W^(2j+1) of majority of 2m + 1 bits tends to (2/π) C(2j, j)/(4^j (2j + 1)) \
-    as m → ∞, and is at least this limit for every m ≥ j (the lower half of (5.15)). The upper \
-    half of (5.15), W^k ≤ (1 + 2k/n) times the limit, is not covered."
+    as m → ∞; it is at least this limit for every m ≥ j and at most (1 + 2k/n) times it for \
+    k = 2j + 1 < n/2 = (2m + 1)/2, the error bound (5.15). The book also states that the \
+    weights decrease in n (Corollary 5.21, registered separately)."
 
-register_result "odonnell-majority-noise-stability-lower-bound" where
-  title := "The noise stability of majority is at least (2/π) arcsin ρ"
+register_result "odonnell-majority-noise-stability-bounds" where
+  title := "The noise stability of majority is within O(1/√((1 − ρ²) n)) above (2/π) arcsin ρ"
   topic := "analysis of Boolean functions"
   sources := [
-    { paper := ODonnell2014, theorem := "Theorem 5.18 (lower bound)",
-      locator := "arXiv:2105.10386v1, §5.3, printed p. 121" }
+    { paper := ODonnell2014, theorem := "Theorem 5.18 (bounds)",
+      locator := "arXiv:2105.10386v1, §5.2, printed p. 121" }
   ]
-  theorems := [Cslib.BitString.le_noiseStability_signVal_majority]
-  scope := "For 0 ≤ ρ ≤ 1 and every m, (2/π) arcsin ρ ≤ Stab_ρ of majority of 2m + 1 bits, the \
-    closed interval containing the book's [0, 1). The upper bound \
-    (2/π) arcsin ρ + O(1/√(1 − ρ²) · 1/√n) is not covered."
+  theorems := [Cslib.BitString.le_noiseStability_signVal_majority,
+    Cslib.BitString.noiseStability_signVal_majority_le]
+  scope := "For majority of n = 2m + 1 bits read as signs: (2/π) arcsin ρ ≤ Stab_ρ for \
+    0 ≤ ρ ≤ 1, and Stab_ρ ≤ (2/π) arcsin ρ + 3/√((1 − ρ²) n) for 0 ≤ ρ < 1, the book's \
+    O(1/(√(1 − ρ²) √n)) with the constant 3. The monotonicity in n is registered separately \
+    (Theorem 5.18, monotonicity in n)."
 
 register_result "odonnell-arcsin-series" where
   title := "The Maclaurin series of arcsin"
