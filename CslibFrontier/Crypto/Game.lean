@@ -405,6 +405,12 @@ theorem advantage_le_of_apply_le {game1 game2 : Game} {B : ℝ≥0∞} (hB : B �
   rw [ENNReal.toReal_add (PMF.apply_ne_top _ _) hB] at ht1 ht2
   exact abs_sub_le_iff.mpr ⟨sub_le_iff_le_add'.mpr ht1, sub_le_iff_le_add'.mpr ht2⟩
 
+private lemma le_add_ofReal_of_toReal_le {x y : ENNReal} {ε : ℝ} (hx : x ≠ ⊤) (hy : y ≠ ⊤)
+    (hε0 : 0 ≤ ε) (hle : x.toReal ≤ y.toReal + ε) : x ≤ y + ENNReal.ofReal ε := by
+  have hof := ENNReal.ofReal_le_ofReal hle
+  rwa [ENNReal.ofReal_add ENNReal.toReal_nonneg hε0, ENNReal.ofReal_toReal hx,
+    ENNReal.ofReal_toReal hy] at hof
+
 open scoped ENNReal in
 /-- Averaging two families of games over a common first stage preserves any uniform real-valued
 advantage bound. -/
@@ -417,21 +423,13 @@ theorem advantage_bind_le {α : Type*} (d : PMF α) (game1 game2 : α → Game) 
   have h1 (a : α) : game1 a true ≤ game2 a true + ENNReal.ofReal ε := by
     have ha := h a
     rw [coe_advantage, coe_succProbability, coe_succProbability] at ha
-    have hle : (game1 a true).toReal ≤ (game2 a true).toReal + ε :=
-      sub_le_iff_le_add'.mp (abs_sub_le_iff.mp ha).1
-    have hof := ENNReal.ofReal_le_ofReal hle
-    rwa [ENNReal.ofReal_add ENNReal.toReal_nonneg hε0,
-      ENNReal.ofReal_toReal (PMF.apply_ne_top _ _),
-      ENNReal.ofReal_toReal (PMF.apply_ne_top _ _)] at hof
+    exact le_add_ofReal_of_toReal_le (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _) hε0
+      (sub_le_iff_le_add'.mp (abs_sub_le_iff.mp ha).1)
   have h2 (a : α) : game2 a true ≤ game1 a true + ENNReal.ofReal ε := by
     have ha := h a
     rw [coe_advantage, coe_succProbability, coe_succProbability] at ha
-    have hle : (game2 a true).toReal ≤ (game1 a true).toReal + ε :=
-      sub_le_iff_le_add'.mp (abs_sub_le_iff.mp ha).2
-    have hof := ENNReal.ofReal_le_ofReal hle
-    rwa [ENNReal.ofReal_add ENNReal.toReal_nonneg hε0,
-      ENNReal.ofReal_toReal (PMF.apply_ne_top _ _),
-      ENNReal.ofReal_toReal (PMF.apply_ne_top _ _)] at hof
+    exact le_add_ofReal_of_toReal_le (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _) hε0
+      (sub_le_iff_le_add'.mp (abs_sub_le_iff.mp ha).2)
   have hsum1 : (d.bind game1) true ≤ (d.bind game2) true + ENNReal.ofReal ε := by
     rw [PMF.bind_apply, PMF.bind_apply]
     calc ∑' a, d a * game1 a true
