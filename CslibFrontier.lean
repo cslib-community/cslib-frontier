@@ -9511,6 +9511,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Prices.L
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Product.Header
 public import CslibFrontier.Computability.BlumComplexity.Union
 public import CslibFrontier.Crypto.Primitives.SLHDSA.HashCalls
+public import CslibFrontier.Computability.Complexity.Classes.MIP.SuccinctDecoder
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.DyadicParameters.Program
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.QueryCompiler
 public import CslibFrontier.Foundations.Data.Nat.Choose.Ratio
