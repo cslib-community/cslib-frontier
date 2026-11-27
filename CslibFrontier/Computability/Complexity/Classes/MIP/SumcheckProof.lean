@@ -114,7 +114,7 @@ theorem natDegree_rowPolynomial_le (π : List Bool → Bool) (p : ℕ) (external
 
 /-- Read the polynomial for the current public history and advance at the given challenge.
 The row address depends only on the earlier challenges. -/
-def advance (p : ℕ) (external : List ℕ) (d width r : ℕ) (s : Interactive.Sumcheck.WordState) :
+@[expose] def advance (p : ℕ) (external : List ℕ) (d width r : ℕ) (s : Interactive.Sumcheck.WordState) :
     WordOracleComp Unit Interactive.Sumcheck.WordState :=
   (fun cs => s.advance p cs r) <$> readRow external s.challenges d width
 
