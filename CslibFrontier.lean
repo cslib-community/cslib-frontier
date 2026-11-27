@@ -7766,6 +7766,7 @@ public import CslibFrontier.Crypto.Computational.SIS.MLKEM.SeedExpansion
 public import CslibFrontier.MachineLearning.PACLearning.Compression.Thresholds
 public import CslibFrontier.Foundations.Analysis.Normed.Ring.PowSub
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Size
+public import CslibFrontier.Computability.Complexity.Classes.BPPpath.ApproximateCounting
 public import CslibFrontier.Computability.QueryComplexity.SensitivitySeparation.Internal.TournamentCyclic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Normalization.Zero
