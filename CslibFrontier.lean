@@ -1712,6 +1712,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Prices.N
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.ExpectedTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 public import CslibFrontier.Computability.Complexity.HardnessEncoding.PolyTime
+public import CslibFrontier.Crypto.Computational.SIS.MLKEM.CiphertextEncoding
 public import CslibFrontier.Computability.Communication.Lifting.WitnessCounting
 public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n.RefuterAffineRep
 public import CslibFrontier.DataStructure.OrderedSet.Spec
