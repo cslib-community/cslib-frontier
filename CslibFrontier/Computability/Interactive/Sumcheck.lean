@@ -168,7 +168,7 @@ private theorem natDegree_aeval_le (k : Fin n) (φ : Fin n → Polynomial F)
 
 omit [Fintype F] [DecidableEq F] in
 /-- The round polynomial has degree at most `d`. -/
-private theorem natDegree_roundPoly_le (hP : ∀ j, P.degreeOf j ≤ d) {i : ℕ} (hi : i < n)
+theorem natDegree_roundPoly_le (hP : ∀ j, P.degreeOf j ≤ d) {i : ℕ} (hi : i < n)
     (r : Fin i → F) : (roundPoly P r).natDegree ≤ d :=
   Polynomial.natDegree_sum_le_of_forall_le _ _ fun _ _ =>
     (natDegree_aeval_le P ⟨i, hi⟩ _

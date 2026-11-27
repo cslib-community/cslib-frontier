@@ -3233,6 +3233,7 @@ public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Germs
 public import CslibFrontier.Algorithms.Lean.StableMatching.Core
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Encoding
+public import CslibFrontier.Computability.Complexity.Classes.MIP.SumcheckProof
 public import CslibFrontier.Computability.Complexity.Classes.Ladner.Density
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CertificateReindex
 public import CslibFrontier.Logics.SecondOrder.Existential

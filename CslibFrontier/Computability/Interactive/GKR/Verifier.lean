@@ -2769,42 +2769,6 @@ private theorem suppSub_gkrSamplers (C : LayeredCircuit) {p cw : ℕ} [Fact p.Pr
       (ProbComp.uniform _, ()) (C.descend x C.depth).verifier.samplers)
   exact suppSub_perChallenge_append ⟨hunif _, trivial⟩ (hdesc C.depth)
 
-private theorem natDegree_roundPoly_le_of_complete {p n j : ℕ} [Fact p.Prime]
-    (P : MvPolynomial (Fin n) (ZMod p)) (hP : ∀ v, P.degreeOf v ≤ 2) (hj : j < n)
-    (r : Fin j → ZMod p) : (Sumcheck.roundPoly P r).natDegree ≤ 2 := by
-  let x : Sumcheck.Claim (ZMod p) j := ⟨r, Sumcheck.partialSum P r⟩
-  have hcomp := Sumcheck.round_complete 2 P hP hj x () rfl
-  let bad : Set (Execution (Sumcheck.roundSpec (ZMod p)) (Sumcheck.Claim (ZMod p) (j + 1))
-      (Sumcheck.Claim (ZMod p) (j + 1) × Unit)) :=
-    {e | ¬ (e.output = some e.result.1 ∧ Sumcheck.rel P (j + 1) e.result.1 e.result.2)}
-  let z0 : ZMod p := 0
-  let g := Sumcheck.roundPoly P r
-  let res : Sumcheck.Claim (ZMod p) (j + 1) × Unit := (⟨Fin.snoc r z0, g.eval z0⟩, ())
-  let τ : Transcript (Sumcheck.roundSpec (ZMod p)) := (g, (z0, ()))
-  let out := (Sumcheck.round 2 P j).verifier.outputOn x τ
-  have hsupp : (τ, out, res) ∈ (World.plain.eval ((Sumcheck.round 2 P j).run x ())).support := by
-    rw [Reduction.run, World.plain_eval_execute, PMF.support_map]
-    refine ⟨(τ, res), ?_, rfl⟩
-    simp only [Sumcheck.round, runStrategy, plainLaw_bind, plainLaw_pure, plainLaw_sample,
-      PMF.bind_bind, PMF.pure_bind, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff]
-    refine ⟨z0, ?_, ?_⟩
-    · rw [ProbComp.eval_uniform, PMF.mem_support_iff, PMF.uniformOfFintype_apply]
-      exact ENNReal.inv_ne_zero.mpr (ENNReal.natCast_ne_top _)
-    · rfl
-  have hgood : out = some res.1 := by
-    by_contra hnot
-    have hmem : (τ, out, res) ∈ bad := fun h => hnot h.1
-    have hzero : World.plain.eval ((Sumcheck.round 2 P j).run x ()) (τ, out, res) = 0 := by
-      rw [← PMF.toOuterMeasure_apply_singleton]
-      exact le_antisymm
-        ((MeasureTheory.OuterMeasure.mono _ (Set.singleton_subset_iff.mpr hmem)).trans hcomp)
-        zero_le
-    exact (PMF.mem_support_iff _ _).mp hsupp hzero
-  have houtDef : out = if Sumcheck.accepts 2 x.value g then some res.1 else none := rfl
-  rw [houtDef] at hgood
-  split_ifs at hgood with hacc
-  exact hacc.1
-
 private theorem validStrat_protocol (C : LayeredCircuit) {p : ℕ} [Fact p.Prime]
     (x : (Fin (C.width 0) → Bool) → ZMod p)
     (D : (Fin (C.width C.depth) → Bool) → ZMod p) :
@@ -2845,7 +2809,7 @@ private theorem validStrat_protocol (C : LayeredCircuit) {p : ℕ} [Fact p.Prime
       refine ⟨?_, fun _ _ _ => trivial⟩
       simp only [polyProverCodec, ProverCodec.ofTotal]
       congr 1
-      exact decodePoly_take_encodePoly (natDegree_roundPoly_le_of_complete P hP (by omega) _)
+      exact decodePoly_take_encodePoly (Sumcheck.natDegree_roundPoly_le 2 P hP (by omega) _)
   have hLayer : ∀ i (claim : LayerClaim C (ZMod p) (i + 1)) st,
         st ∈ OracleComp.support ((C.layer x i).prover claim ()) →
       ValidStrat (fun _ => True) (C.layerSpec (F := ZMod p) i) (layerCodecs C p i) st := by
