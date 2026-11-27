@@ -38,3 +38,31 @@ example (h : SolvesWithErrorInPowerExpTime (ofSet ThreeSAT) encCNF ErrorModel.bo
     (r := id) (ComputableInPolyTime.id' : ComputableInPolyTime id encCNF encCNF)
     (A := ofSet ThreeSAT) (fun _ ha => ha) (fun _ ha => ha) (K := 0) hsize zero_le_one
     (by norm_num)
+
+example (h : rSH) :
+    ¬SolvesWithErrorInPowerExpTime (ofSet (KSAT 4)) encCNF ErrorModel.bounded
+      (fun φ => φ.numVars + φ.length) (1 / 2) :=
+  (rSH_iff_KSAT (k := 4) (by decide)).mp h _ (by norm_num) (by norm_num)
+
+example (h : ∀ p : ℝ, 0 < p → p < 1 →
+    ¬SolvesWithErrorInPowerExpTime (ofSet ThreeSAT) encCNF ErrorModel.bounded
+      (fun φ => φ.numVars + φ.length) p) : rSH :=
+  (rSH_iff_KSAT (k := 3) le_rfl).mpr h
+
+-- The general transfer applies at a fixed exponent to a concrete deterministic reduction.
+example (h : rSH) :
+    ¬SolvesWithErrorInPowerExpTime (ofSet ThreeSAT) encCNF ErrorModel.bounded
+      (fun φ => φ.numVars + φ.length) (1 / 2) := by
+  have hpoly : ComputableInPolyTime id encCNF encCNF := ComputableInPolyTime.id'
+  obtain ⟨e, he⟩ := ComputableInExpTime.of_computableInPolyTime (μ := fun _ => 0) hpoly
+  refine h.not_solvesWithErrorInPowerExpTime_of_reduction (f := id) (q := 0) (b := 1)
+    zero_lt_one zero_lt_one (by norm_num) (by norm_num)
+    ⟨0, e, by simpa only [Nat.cast_zero, zero_mul] using he⟩
+    (fun _ hφ => hφ) (fun _ hφ => hφ) ?_
+  intro η hη
+  refine ⟨0, fun φ => ?_⟩
+  have hbase : (1 : ℝ) ≤ ((φ.numVars + φ.length : ℕ) + 1 : ℝ) :=
+    le_add_of_nonneg_left (Nat.cast_nonneg _)
+  rw [Nat.cast_zero, zero_add, one_mul]
+  simpa only [id_eq, Real.rpow_one] using
+    Real.rpow_le_rpow_of_exponent_le hbase (show (1 : ℝ) ≤ 1 + η from le_add_of_nonneg_right hη.le)

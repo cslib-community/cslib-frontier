@@ -68,6 +68,30 @@ bits of the offset vector are the next `n` bits. -/
 def hashSeedOfNat (n z o : ℕ) : (Fin (n + n - 1) → Bool) × BitString n :=
   (fun t => z.testBit (o + t), fun i => z.testBit (o + (n + n - 1) + i))
 
+/-- Equality of all packed Toeplitz hashes in a consecutive run determines every bit in
+that run, including both diagonal and shift fields. -/
+theorem testBit_eq_of_hashSeeds_eq {n k o z z' i : ℕ} (hi : i < k * (3 * n - 1))
+    (h : ∀ l : Fin k, hashSeedOfNat n z (o + l * (3 * n - 1)) =
+      hashSeedOfNat n z' (o + l * (3 * n - 1))) : z.testBit (o + i) = z'.testBit (o + i) := by
+  let m := 3 * n - 1
+  have hm : 0 < m := by
+    by_contra! he
+    change i < k * m at hi
+    simp [Nat.eq_zero_of_le_zero he] at hi
+  have hl : i / m < k := (Nat.div_lt_iff_lt_mul hm).mpr hi
+  have hseed := h ⟨i / m, hl⟩
+  change hashSeedOfNat n z (o + i / m * m) = hashSeedOfNat n z' (o + i / m * m) at hseed
+  have heq : i / m * m + i % m = i := (Nat.mul_comm _ _ ▸ Nat.div_add_mod i m)
+  have hr := Nat.mod_lt i hm
+  change i % m < 3 * n - 1 at hr
+  by_cases hd : i % m < n + n - 1
+  · have hx := congrFun (congrArg Prod.fst hseed) ⟨_, hd⟩
+    simpa only [hashSeedOfNat, Nat.add_assoc, heq] using hx
+  · have hx := congrFun (congrArg Prod.snd hseed)
+      ⟨i % m - (n + n - 1), by omega⟩
+    have hidx : o + i / m * m + (n + n - 1) + (i % m - (n + n - 1)) = o + i := by omega
+    simpa only [hashSeedOfNat, hidx] using hx
+
 /-- Output bit `i` of the Toeplitz hash with seed `hashSeedOfNat n z o` on the bits of `x`: the
 offset bit, then the bits `a (i + (n - 1 - j)) ∧ x j` of the columns `j < n` added by `xor`. -/
 def toeplitzHashBitNat (n z o x i : ℕ) : Bool :=

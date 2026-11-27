@@ -40,6 +40,9 @@ without mentioning a machine or error model.
 * `Cslib.Complexity.le_two_mul_mul_of_le_mul_add`: absorb an additive constant into an envelope.
 * `Cslib.Complexity.reduction_add_time_le`: combine reduction and target runtimes while
   retaining the target's exponential envelope and the polynomial input-length factor.
+* `Cslib.Complexity.power_reduction_envelope_le`,
+  `Cslib.Complexity.two_rpow_mul_rpow_le_of_le_mul_rpow`: combine power bounds and
+  account for polynomial parameter blowup.
 -/
 
 public section
@@ -177,5 +180,13 @@ theorem power_reduction_envelope_le {x y R q r : ℝ} {C d e : ℕ}
   nlinarith [mul_le_mul_of_nonneg_left hq (show 0 ≤ (C : ℝ) * (e + 1) by positivity),
     mul_le_mul_of_nonneg_left hr hR,
     mul_le_mul_of_nonneg_right hceil (show 0 ≤ x ^ max q r by positivity)]
+
+/-- A strict power saving absorbs a sufficiently small increase in the blowup exponent. -/
+theorem exists_pos_add_mul_lt_one {b p : ℝ} (hp : 0 < p) (hbp : b * p < 1) :
+    ∃ η : ℝ, 0 < η ∧ (b + η) * p < 1 := by
+  obtain ⟨c, hbc, hc⟩ := exists_between ((lt_div_iff₀ hp).mpr hbp)
+  exact ⟨c - b, sub_pos.mpr hbc, by
+    rw [show b + (c - b) = c by ring]
+    exact (lt_div_iff₀ hp).mp hc⟩
 
 end Cslib.Complexity
