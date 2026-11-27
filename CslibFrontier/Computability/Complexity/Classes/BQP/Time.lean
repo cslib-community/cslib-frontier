@@ -134,12 +134,12 @@ theorem EQTIME_subset_BQTIME (t : ℕ → ℕ) : EQTIME enc t ⊆ BQTIME enc t :
 theorem BQTIME_subset_BQP (t : ℕ → ℕ) : BQTIME enc t ⊆ BQP enc :=
   fun _ ⟨F, _, _, _, hF⟩ => ⟨F, hF⟩
 
-/-- **`BQP` is the union of the polynomial quantum time classes** `BQTIME[n ^ k]`: the circuits of
-a polynomial-time uniform family have polynomially many gates. -/
-theorem BQP_eq_iUnion_BQTIME : BQP enc = ⋃ k : ℕ, BQTIME enc fun n => n ^ k := by
-  refine Set.Subset.antisymm (fun A ⟨F, hF⟩ => ?_) (Set.iUnion_subset fun _ => BQTIME_subset_BQP _)
+/-- The gate count of a polynomial-time uniform circuit family has a polynomial bound in the
+length of the input. -/
+theorem _root_.Cslib.Quantum.UniformCircuitFamily.exists_polynomial_gate_bound
+    (F : UniformCircuitFamily) : ∃ d c₁ c₂ : ℕ, ∀ n, (F.gates n).length ≤ c₁ * n ^ d + c₂ := by
   obtain ⟨c, d, hc⟩ := F.computableInPolyTime_gates.polyBounded_length.exists_le
-  refine Set.mem_iUnion.mpr ⟨d, F, c * 2 ^ d, c, fun n => ?_, hF⟩
+  refine ⟨d, c * 2 ^ d, c, fun n => ?_⟩
   have h1 := (Turing.MultiTapeTM.length_le_length_encList encGateCode (F.gates n)).trans (hc n)
   rw [encUnary_apply, List.length_replicate] at h1
   have h2 : (n + 1) ^ d ≤ 2 ^ d * n ^ d + 1 := by
@@ -153,5 +153,12 @@ theorem BQP_eq_iUnion_BQTIME : BQP enc = ⋃ k : ℕ, BQTIME enc fun n => n ^ k 
   calc (F.gates n).length ≤ c * (n + 1) ^ d := h1
     _ ≤ c * (2 ^ d * n ^ d + 1) := Nat.mul_le_mul_left _ h2
     _ = c * 2 ^ d * n ^ d + c := by ring
+
+/-- **`BQP` is the union of the polynomial quantum time classes** `BQTIME[n ^ k]`: the circuits of
+a polynomial-time uniform family have polynomially many gates. -/
+theorem BQP_eq_iUnion_BQTIME : BQP enc = ⋃ k : ℕ, BQTIME enc fun n => n ^ k := by
+  refine Set.Subset.antisymm (fun A ⟨F, hF⟩ => ?_) (Set.iUnion_subset fun _ => BQTIME_subset_BQP _)
+  obtain ⟨d, c₁, c₂, hg⟩ := F.exists_polynomial_gate_bound
+  exact Set.mem_iUnion.mpr ⟨d, F, c₁, c₂, hg, hF⟩
 
 end Cslib.Complexity

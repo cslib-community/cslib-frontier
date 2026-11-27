@@ -89,10 +89,31 @@ public theorem SavedGroups.span_bounds {L m N Q : ℕ} {old μ : ℕ → ℕ}
     hoffsets (t + 1) (by omega)]
   exact ⟨Nat.count_mono_left (fun k _ hk => by omega), Nat.count_le _⟩
 
-/-- A typed view of the actual saved code span requests exactly the original finite tile
-set. This uses the existing router's span theorem; the native caller constructs the view
-by decoding its real words, rather than receiving a query-set or routing certificate. -/
-public theorem SavedGroups.span_queries {L m N : ℕ} (hm : m ≤ L)
+/-- The length of a saved tile span is the number of input positions with that tile's key. -/
+public theorem SavedGroups.span_length {L m N Q : ℕ} {old μ : ℕ → ℕ}
+    (h : SavedGroups L m N Q old μ) (key : ℕ → ℕ)
+    (hoffsets : ∀ t ≤ numBands L m N ^ 2,
+      old (Wanted.offsetAddress L m N Q + t) = Nat.count (fun k => key k < t) Q)
+    {t : ℕ} (ht : t < numBands L m N ^ 2) :
+    μ (offsetBase L m N Q + t + 1) - μ (offsetBase L m N Q + t) =
+      Nat.count (fun k => key k = t) Q := by
+  rw [Nat.add_assoc, h.offsets _ ht, h.offsets _ ht.le, hoffsets _ ht, hoffsets _ ht.le,
+    CountingSort.count_lt_succ, Nat.add_sub_cancel_left]
+
+/-- Earlier-key positions precede a tile's saved lower offset. -/
+public theorem SavedGroups.position_lt_span {L m N Q : ℕ} {old μ : ℕ → ℕ}
+    (h : SavedGroups L m N Q old μ) (key : ℕ → ℕ)
+    (hoffsets : ∀ t ≤ numBands L m N ^ 2,
+      old (Wanted.offsetAddress L m N Q + t) = Nat.count (fun k => key k < t) Q)
+    {t i : ℕ} (ht : t ≤ numBands L m N ^ 2) (hi : i < Q) (hk : key i < t) :
+    CountingSort.position key Q i < μ (offsetBase L m N Q + t) := by
+  rw [h.offsets t ht, hoffsets t ht]
+  exact (CountingSort.position_mem key hi).2.trans_le
+    (Nat.count_mono_left fun k _ hkt => hkt.trans_le hk)
+
+/-- Decode the protected words at a tile's actual saved offsets. The decoded queries have
+exactly the original tile's finite request set, including when its span is empty. -/
+public theorem SavedGroups.decode_span {L m N t : ℕ} (hm : m ≤ L)
     (qs : List (Fin N × Fin N)) {old μ : ℕ → ℕ} (h : SavedGroups L m N qs.length old μ)
     (hvalues : ∀ i : Fin qs.length,
       old (Wanted.codeAddress L m N qs.length +
@@ -102,56 +123,59 @@ public theorem SavedGroups.span_queries {L m N : ℕ} (hm : m ≤ L)
     (hoffsets : ∀ t ≤ numBands L m N ^ 2,
       old (Wanted.offsetAddress L m N qs.length + t) =
         Nat.count (fun k => (Wanted.tileKey L m N ∘ Wanted.inputPairs qs) k < t) qs.length)
-    (T : ℕ × ℕ) (hT : T ∈ tiles L m N) (a b : ℕ)
-    (ha : μ (offsetBase L m N qs.length + (T.1 * numBands L m N + T.2)) = a)
-    (hb : μ (offsetBase L m N qs.length + (T.1 * numBands L m N + T.2 + 1)) = b)
-    (queries : Fin (b - a) → OutStr L)
-    (hinput : ∀ i, μ (codeBase L m N qs.length + (a + i.val)) =
-      (PrunedQuery.queryIndex (queries i)).val) :
-    Finset.univ.image queries = wantedStrings (MaskTable.layout hm) qs.toFinset T.1 T.2 := by
-  have hband : T.1 < numBands L m N ∧ T.2 < numBands L m N := by
-    simpa only [tiles, Finset.mem_product, Finset.mem_range] using hT
-  have ht : T.1 * numBands L m N + T.2 < numBands L m N ^ 2 := by
-    nlinarith only [Nat.mul_le_mul_right (numBands L m N) (Nat.succ_le_of_lt hband.1), hband.2]
-  have has : old (Wanted.offsetAddress L m N qs.length +
-      (T.1 * numBands L m N + T.2)) = a := (h.offsets _ ht.le).symm.trans ha
-  have hbs : old (Wanted.offsetAddress L m N qs.length +
-      (T.1 * numBands L m N + T.2 + 1)) = b :=
-    (h.offsets _ (by omega)).symm.trans hb
-  have habQ : a ≤ b ∧ b ≤ qs.length := by
-    have hs := h.span_bounds (Wanted.tileKey L m N ∘ Wanted.inputPairs qs) hoffsets ht
-    simpa only [ha, show offsetBase L m N qs.length +
-      (T.1 * numBands L m N + T.2) + 1 = offsetBase L m N qs.length +
-        (T.1 * numBands L m N + T.2 + 1) by omega, hb] using hs
+    (ht : t < numBands L m N ^ 2) :
+    let B := numBands L m N
+    let T := (t / B, t % B)
+    let a := μ (offsetBase L m N qs.length + t)
+    let b := μ (offsetBase L m N qs.length + t + 1)
+    T ∈ tiles L m N ∧ T.1 * B + T.2 = t ∧ (a ≤ b ∧ b ≤ qs.length) ∧
+      ∃ queries : Fin (b - a) → OutStr L,
+        (∀ i, μ (codeBase L m N qs.length + (a + i.val)) =
+          (PrunedQuery.queryIndex (queries i)).val) ∧
+        Finset.univ.image queries = wantedStrings (MaskTable.layout hm) qs.toFinset T.1 T.2 := by
+  intro B T a b
+  have hB : 0 < B := Nat.pos_of_ne_zero fun h₀ : numBands L m N = 0 => by simp [h₀] at ht
+  have hT : T ∈ tiles L m N :=
+    Finset.mem_product.mpr ⟨Finset.mem_range.mpr ((Nat.div_lt_iff_lt_mul hB).mpr (by
+      simpa only [B, pow_two] using ht)), Finset.mem_range.mpr (Nat.mod_lt t hB)⟩
+  have hnum : T.1 * numBands L m N + T.2 = t := by
+    simpa only [T, Nat.mul_comm] using Nat.div_add_mod t B
+  have habQ : a ≤ b ∧ b ≤ qs.length :=
+    h.span_bounds (Wanted.tileKey L m N ∘ Wanted.inputPairs qs) hoffsets ht
+  have hpos (i : Fin (b - a)) : a + i.val < qs.length := by
+    have hi := i.isLt
+    lia
+  let queries (i : Fin (b - a)) := PrunedQuery.queryAt
+    ⟨μ (codeBase L m N qs.length + (a + i.val)), by
+      rw [h.codes _ (hpos i)]
+      exact router_code_lt hm qs old hvalues _ (hpos i)⟩
+  have hinput (i : Fin (b - a)) : μ (codeBase L m N qs.length + (a + i.val)) =
+      (PrunedQuery.queryIndex (queries i)).val := by
+    simp only [queries, PrunedQuery.queryIndex_queryAt]
+  refine ⟨hT, hnum, habQ, queries, hinput, ?_⟩
+  have hspan := Wanted.code_span_eq_wantedStrings hm qs old T hT hvalues hoffsets
+  have ha : old (Wanted.offsetAddress L m N qs.length + t) = a := (h.offsets _ ht.le).symm
+  have hb : old (Wanted.offsetAddress L m N qs.length + (t + 1)) = b := by
+    simpa only [b, Nat.add_assoc] using (h.offsets (t + 1) ht).symm
+  rw [hnum, ha, hb] at hspan
   have hword (i : Fin (b - a)) : old (Wanted.codeAddress L m N qs.length + (a + i.val)) =
       (PrunedQuery.queryIndex (queries i)).val :=
-    (h.codes (a + i.val) (by have hi := i.isLt; omega)).symm.trans (hinput i)
-  have hspan := Wanted.code_span_eq_wantedStrings hm qs old T hT hvalues hoffsets
-  rw [has, hbs] at hspan
+    (h.codes _ (hpos i)).symm.trans (hinput i)
   have hinj : Function.Injective (fun v : OutStr L => (PrunedQuery.queryIndex v).val) :=
     fun u v he => by
       simpa only [PrunedQuery.queryAt_queryIndex] using congrArg PrunedQuery.queryAt (Fin.ext he)
-  ext w
+  apply Finset.image_injective hinj
+  rw [Finset.image_image, ← hspan]
+  ext word
+  simp only [Finset.mem_image, Function.comp_apply]
   constructor
-  · intro hw
-    obtain ⟨i, _, rfl⟩ := Finset.mem_image.mp hw
-    have hcode : (PrunedQuery.queryIndex (queries i)).val ∈
-        (wantedStrings (MaskTable.layout hm) qs.toFinset T.1 T.2).image
-          (fun w => (PrunedQuery.queryIndex w).val) := by
-      rw [← hspan]
-      exact Finset.mem_image.mpr ⟨a + i.val, Finset.mem_Ico.mpr
-        ⟨by omega, by have hi := i.isLt; omega⟩, hword i⟩
-    obtain ⟨v, hv, he⟩ := Finset.mem_image.mp hcode
-    exact hinj he ▸ hv
-  · intro hw
-    have hcode : (PrunedQuery.queryIndex w).val ∈
-        (Finset.Ico a b).image (fun j => old (Wanted.codeAddress L m N qs.length + j)) := by
-      rw [hspan]
-      exact Finset.mem_image.mpr ⟨w, hw, rfl⟩
-    obtain ⟨j, hj, he⟩ := Finset.mem_image.mp hcode
-    have hj' := Finset.mem_Ico.mp hj
-    have hread := hword ⟨j - a, by omega⟩
-    rw [show a + (j - a) = j by omega] at hread
-    exact Finset.mem_image.mpr ⟨_, Finset.mem_univ _, hinj (hread.symm.trans he)⟩
+  · rintro ⟨i, _, rfl⟩
+    exact ⟨a + i.val, Finset.mem_Ico.mpr ⟨Nat.le_add_right _ _, by have hi := i.isLt; lia⟩,
+      hword i⟩
+  · rintro ⟨j, hj, rfl⟩
+    obtain ⟨hlo, hhi⟩ := Finset.mem_Ico.mp hj
+    let i : Fin (b - a) := ⟨j - a, by lia⟩
+    refine ⟨i, Finset.mem_univ _, ?_⟩
+    rw [← hword i, show a + i.val = j from Nat.add_sub_of_le hlo]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct

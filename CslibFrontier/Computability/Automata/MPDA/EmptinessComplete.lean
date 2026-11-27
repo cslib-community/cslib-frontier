@@ -435,32 +435,35 @@ end Block
 section Invariant
 
 open Classical in
-theorem chainFrom_lt_blockEnd {w : List (α × Op n Γ)} {i : Fin n} :
-    ∀ q, q < w.length → ∀ r ∈ chainFrom w i q, r < blockEnd w i q
-  | q, hq, r, hr => by
-    rw [chainFrom_eq] at hr
-    rw [blockEnd]
-    split_ifs at hr ⊢ with h
-    · obtain ⟨hlt, ⟨hp, -⟩, -⟩ := Nat.find_spec h
-      rcases List.mem_cons.mp hr with hqr | hr
-      · exact hqr ▸ hlt.trans (chainFrom_lt_blockEnd (Nat.find h) hp.lt_length _ mem_chainFrom_self)
-      · exact chainFrom_lt_blockEnd (Nat.find h) hp.lt_length r hr
-    · obtain rfl := List.mem_singleton.mp hr
-      exact Nat.lt_of_succ_le (wnEnd_spec (w := w) (p := r + 1) hq).1
-termination_by q => w.length - q
-decreasing_by all_goals exact Ext.find_sub_lt h
-
-open Classical in
-theorem blockEnd_event {w : List (α × Op n Γ)} {i : Fin n} :
-    ∀ q, q < w.length → blockEnd w i q < w.length →
-      (¬∃ a, w[blockEnd w i q]? = some (a, .nop)) ∧ ¬WellMatched w (blockEnd w i q)
-  | q, hq, hlt => by
-    rw [blockEnd] at hlt ⊢
-    split_ifs at hlt ⊢ with h
-    · exact blockEnd_event (Nat.find h) (Nat.find_spec h).2.1.1.lt_length hlt
-    · exact wnEnd_event (by omega) hlt
+/-- The block ends after the longest well-nested factor following the last chain position. -/
+private theorem exists_chainLast_blockEnd {w : List (α × Op n Γ)} {i : Fin n} :
+    ∀ q, q < w.length →
+      ∃ p ∈ chainFrom w i q, p < w.length ∧ (∀ r ∈ chainFrom w i q, r ≤ p) ∧
+        blockEnd w i q = wnEnd w (p + 1)
+  | q, hq => by
+    rw [chainFrom_eq (q := q), blockEnd]
+    split_ifs with h
+    · obtain ⟨hqr, ⟨hp, -⟩, -⟩ := Nat.find_spec h
+      obtain ⟨p, hpchain, hpw, hmax, hend⟩ := exists_chainLast_blockEnd (Nat.find h) hp.lt_length
+      exact ⟨p, List.mem_cons_of_mem _ hpchain, hpw,
+        List.forall_mem_cons.mpr ⟨hqr.le.trans (hmax _ mem_chainFrom_self), hmax⟩, hend⟩
+    · exact ⟨q, List.mem_singleton_self q, hq, fun _ hr => (List.mem_singleton.mp hr).le, rfl⟩
 termination_by q => w.length - q
 decreasing_by exact Ext.find_sub_lt h
+
+theorem chainFrom_lt_blockEnd {w : List (α × Op n Γ)} {i : Fin n} :
+    ∀ q, q < w.length → ∀ r ∈ chainFrom w i q, r < blockEnd w i q := by
+  intro q hq r hr
+  obtain ⟨p, -, hp, hmax, hend⟩ := exists_chainLast_blockEnd (i := i) q hq
+  exact hend ▸ (hmax r hr).trans_lt (Nat.lt_of_succ_le (wnEnd_spec hp).1)
+
+theorem blockEnd_event {w : List (α × Op n Γ)} {i : Fin n} :
+    ∀ q, q < w.length → blockEnd w i q < w.length →
+      (¬∃ a, w[blockEnd w i q]? = some (a, .nop)) ∧ ¬WellMatched w (blockEnd w i q) := by
+  intro q hq hlt
+  obtain ⟨p, -, hp, -, hend⟩ := exists_chainLast_blockEnd (i := i) q hq
+  rw [hend] at hlt ⊢
+  exact wnEnd_event hp hlt
 
 theorem eq_nil_of_stacksOf_eq_empty {C : List (HoleChain n Γ)} (hne : ∀ c ∈ C, c.pushes ≠ [])
     (h : stacksOf C = Stacks.empty) : C = [] := by
@@ -794,16 +797,11 @@ end HoleStep
 
 section Complete
 
-open Classical in
 theorem blockEnd_le_length {w : List (α × Op n Γ)} {i : Fin n} :
-    ∀ q, q < w.length → blockEnd w i q ≤ w.length
-  | q, hq => by
-    rw [blockEnd]
-    split_ifs with h
-    · exact blockEnd_le_length (Nat.find h) (Nat.find_spec h).2.1.1.lt_length
-    · exact (wnEnd_spec (by omega)).2.1
-termination_by q => w.length - q
-decreasing_by exact Ext.find_sub_lt h
+    ∀ q, q < w.length → blockEnd w i q ≤ w.length := by
+  intro q hq
+  obtain ⟨p, -, hp, -, hend⟩ := exists_chainLast_blockEnd (i := i) q hq
+  exact hend ▸ (wnEnd_spec hp).2.1
 
 variable {State Symbol : Type*} [Fintype State] [DecidableEq State] [Fintype Symbol] [Fintype Γ]
   [DecidableEq Γ] {M : MPDA n State Symbol Γ} [∀ s μ s', Decidable (M.Tr s μ s')]

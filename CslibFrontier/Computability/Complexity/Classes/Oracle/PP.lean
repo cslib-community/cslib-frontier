@@ -55,8 +55,10 @@ oracle substitution (`Cslib.Probability.IsOraclePPTOn.interpret_preprocess_open'
 the code of `b` and the position `i` from the request without decoding `b`, and runs for
 `r (n) + 1` rounds, for the length `n` of the request and `f b ≤ 2 ^ r (|b|)`.
 
-With Toda's theorem `PH ⊆ P^#P` (`Cslib.Complexity.PH_subset_PWithSharpPOracle`), this gives
-**Toda's theorem `PH ⊆ P^PP`** [Toda][Toda1991] (`Cslib.Complexity.PH_subset_PWithPPOracle`).
+A problem in `⊕P` is decided by bit `0` of a function in `#P`, so `⊕P ⊆ P^PP`
+(`Cslib.Complexity.ParityP_subset_PWithPPOracle`). With Toda's theorem `PH ⊆ P^#P`
+(`Cslib.Complexity.PH_subset_PWithSharpPOracle`), `P^#P ⊆ P^PP` gives **Toda's theorem
+`PH ⊆ P^PP`** [Toda][Toda1991] (`Cslib.Complexity.PH_subset_PWithPPOracle`).
 The classes do not count queries.
 
 ## Main definitions
@@ -79,6 +81,7 @@ The classes do not count queries.
   `Cslib.Complexity.BinarySearch.isOraclePPTOn_search`: binary search with an oracle is correct
   and strict oracle PPT.
 * `Cslib.Complexity.mem_PWithPPOracle_of_testBit`: one bit of a `#P` value is in `P^PP`.
+* `Cslib.Complexity.ParityP_subset_PWithPPOracle`: `⊕P ⊆ P^PP`, by the parity bit.
 * `Cslib.Complexity.PWithSharpPOracle_subset_PWithPPOracle`: `P^#P ⊆ P^PP`.
 * `Cslib.Complexity.BPOp_ParityP_subset_PWithPPOracle`: `BP·⊕P ⊆ P^PP`.
 * `Cslib.Complexity.PH_subset_PWithPPOracle`: **Toda's theorem, `PH ⊆ P^PP`**.
@@ -258,6 +261,15 @@ theorem mem_PWithPPOracle_of_testBit {f : α → ℕ} (hf : f ∈ SharpP enc)
     {p : Polynomial ℕ} (h : ∀ a, a ∈ L ↔ (f a).testBit (p.eval (enc a).length)) :
     L ∈ PWithPPOracle enc :=
   PWithSharpPOracle_subset_PWithPPOracle (mem_PWithSharpPOracle_of_testBit hf h)
+
+/-- **`⊕P ⊆ P^PP`**: a problem in `⊕P` is decided by bit `0`, the parity, of a function in `#P`,
+found by binary search with a `PP` oracle. The inclusion is elementary. It sits in the setting of
+Toda's theorem [Toda][Toda1991], whose step `BP·⊕P ⊆ P^PP`
+(`BPOp_ParityP_subset_PWithPPOracle`) allows a bounded-error randomized reduction first. -/
+theorem ParityP_subset_PWithPPOracle : ParityP enc ⊆ PWithPPOracle enc := fun _ hL =>
+  let ⟨_, hf, h⟩ := mem_ParityP_iff_exists_SharpP.1 hL
+  mem_PWithPPOracle_of_testBit (p := 0) hf fun a => by
+    rw [h a, Polynomial.eval_zero, Nat.testBit_zero, Nat.odd_iff, decide_eq_true_iff]
 
 /-- **`BP·⊕P ⊆ P^PP`**: a problem decided with bounded error by a problem in `⊕P` about pairs of
 an instance and a random string is decided by one bit of a function in `#P`, found by binary

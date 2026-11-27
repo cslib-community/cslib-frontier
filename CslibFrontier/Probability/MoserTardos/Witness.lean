@@ -403,14 +403,13 @@ private theorem properRel_push {R : ι → ι → Prop} [DecidableRel R] [Decida
 /-- Witness structures for a symmetric relation `R` are `R`-proper. -/
 theorem proper_witnessRel (R : ι → ι → Prop) [DecidableRel R] [DecidableEq ι]
     (hRs : ∀ {i j}, R i j → R j i) (i : ι) (w : List ι) : ProperRel R (witnessRel R i w) := by
-  unfold witnessRel
   induction w using List.reverseRecOn with
   | nil =>
     intro p hp q hq hpq
-    rw [List.foldl_nil, mem_singleton] at hp hq
-    exact absurd (hp.trans hq.symm) hpq
+    rw [witnessRel_nil, mem_singleton] at hp hq
+    exact (hpq (hp.trans hq.symm)).elim
   | append_singleton w j ih =>
-    rw [List.foldl_append, List.foldl_cons, List.foldl_nil]
+    rw [witnessRel_append_singleton]
     exact properRel_push hRs ih
 
 /-- Witness structures are proper, in the level-independence sense of `Proper`
@@ -462,13 +461,10 @@ private theorem labelCount_pushRel_ne {R : ι → ι → Prop} [DecidableRel R] 
 private theorem labelCount_witnessRel {R : ι → ι → Prop} [DecidableRel R] [DecidableEq ι]
     (hRr : ∀ i, R i i) (i : ι) (w : List ι) :
     labelCount i (witnessRel R i w) = w.count i + 1 := by
-  unfold witnessRel
   induction w using List.reverseRecOn with
-  | nil =>
-    simp only [List.foldl_nil, List.count_nil, zero_add, labelCount]
-    rw [filter_singleton, ite_eq_left rfl, card_singleton]
+  | nil => simp [witnessRel_nil, labelCount, filter_singleton]
   | append_singleton w j ih =>
-    rw [List.foldl_append, List.foldl_cons, List.foldl_nil, List.count_append]
+    rw [witnessRel_append_singleton, List.count_append]
     by_cases hj : j = i
     · subst hj
       rw [labelCount_pushRel_self hRr (by omega), ih, List.count_singleton_self]
@@ -555,15 +551,13 @@ theorem exists_of_levelRel_ne_zero {R : ι → ι → Prop} [DecidableRel R] {j 
 
 theorem rooted_witnessRel (R : ι → ι → Prop) [DecidableRel R] [DecidableEq ι]
     (i : ι) (w : List ι) : RootedRel R i (witnessRel R i w) := by
-  unfold witnessRel
   induction w using List.reverseRecOn with
   | nil =>
-    refine ⟨by simp, fun p hp _ => by simpa using hp, fun p hp hp0 => ?_⟩
-    rw [List.foldl_nil, mem_singleton] at hp
-    exact absurd (by rw [hp]) hp0
+    rw [witnessRel_nil]
+    exact ⟨mem_singleton_self _, fun _ hp _ => mem_singleton.1 hp,
+      fun p hp hp0 => (hp0 (congrArg Prod.snd (mem_singleton.1 hp))).elim⟩
   | append_singleton w j ih =>
-    rw [List.foldl_append, List.foldl_cons, List.foldl_nil]
-    unfold pushRel
+    rw [witnessRel_append_singleton, pushRel]
     split_ifs with h0
     · exact ih
     refine ⟨mem_insert_of_mem ih.root, fun p hp hp0 => ?_, fun p hp hp0 => ?_⟩
@@ -576,17 +570,11 @@ theorem rooted_witnessRel (R : ι → ι → Prop) [DecidableRel R] [DecidableEq
 
 theorem witnessRel_le (R : ι → ι → Prop) [DecidableRel R] [DecidableEq ι] (i : ι) (w : List ι) :
     ∀ p ∈ witnessRel R i w, p.2 ≤ w.length := by
-  unfold witnessRel
   induction w using List.reverseRecOn with
-  | nil =>
-    intro p hp
-    rw [List.foldl_nil, mem_singleton] at hp
-    rw [hp, List.length_nil]
+  | nil => simp [witnessRel_nil]
   | append_singleton w j ih =>
-    rw [List.foldl_append, List.foldl_cons, List.foldl_nil, List.length_append,
-      List.length_singleton]
+    rw [witnessRel_append_singleton, pushRel, List.length_append, List.length_singleton]
     intro p hp
-    unfold pushRel at hp
     split_ifs at hp
     · exact (ih p hp).trans (Nat.le_succ _)
     · rcases mem_insert.1 hp with rfl | hp

@@ -11,8 +11,8 @@ public import CslibFrontier.Computability.Circuit.Prefix.Basic
 public import CslibFrontier.Computability.Circuit.Prefix.OptimalDepth.Trees
 -- `import all`: reads private zero-deficiency DAG helpers (`programWord`, `ancMul`, `stripId`,
 -- `leftSpine`, `universal_mul_sets`) from `Prefix.Basic` and private `programWord`-indexed
--- segment-tree helpers (`exists_wireIntervalTree`, `spine_decomposition`, `wireState`,
--- `buildSegTree`, `buildSegTree_counts`) from `OptimalDepth.SegmentTree`.
+-- segment-tree helpers (`gateWord_range_split`, `exists_wireIntervalTree`, `spine_decomposition`,
+-- `wireState`, `buildSegTree`, `buildSegTree_counts`) from `OptimalDepth.SegmentTree`.
 import all CslibFrontier.Computability.Circuit.Prefix.Basic
 import all CslibFrontier.Computability.Circuit.Prefix.OptimalDepth.SegmentTree
 import CslibFrontier.Computability.Circuit.Basic
@@ -232,19 +232,16 @@ theorem optimal_segment_decomposition {N k : ℕ} (hN : 1 ≤ N)
   obtain ⟨v, u, T, hv0, hT0, hvD, hTD, hseg, hanc_part⟩ :=
     spine_decomposition c.program hN wLast N hN hwLast (hspine_len.trans hwLast_d.symm)
   rw [hwLast_d] at hvD hTD hseg hanc_part
-  have hT_mono : ∀ d₁ d₂, d₁ ≤ d₂ → d₂ ≤ D → T d₁ ≤ T d₂ := by
-    intro d₁ d₂ h12 h2D
-    induction d₂, h12 using Nat.le_induction with
-    | base => exact le_rfl
-    | succ n _ ih => exact (ih (by omega)).trans (hseg n (by omega)).1.le
-  have hT_strict : ∀ d₁ d₂, d₁ < d₂ → d₂ ≤ D → T d₁ < T d₂ := fun d₁ d₂ hlt h2D =>
-    (hseg d₁ (by omega)).1.trans_le (hT_mono (d₁ + 1) d₂ hlt h2D)
+  have hchain : StrictMono (fun i : Fin (D + 1) => T i) :=
+    Fin.strictMono_iff_lt_succ.mpr fun i => (hseg i i.isLt).1
+  have hT_strict : StrictMonoOn T (Set.Iic D) := fun i hi j hj hij =>
+    hchain (a := ⟨i, Nat.lt_succ_of_le hi⟩) (b := ⟨j, Nat.lt_succ_of_le hj⟩) hij
+  have hT_mono := hT_strict.monotoneOn
   -- Multiplication gates computing a prefix are the gates `lastMul`.
-  have hmul_unique : ∀ (g : Fin c.size) (s : ℕ) (_ : 2 ≤ s) (_ : s ≤ N),
-      (c.program.lines g).op = .mul →
-      programWord c.program (.gate g) = List.range' 0 s →
-      g = lastMul ⟨s - 2, by omega⟩ := by
-    intro g s hs2 hsN hop hgw
+  have hmul_unique (g : Fin c.size) (s : ℕ) (hs2 : 2 ≤ s) (hsN : s ≤ N)
+      (hop : (c.program.lines g).op = .mul)
+      (hgw : programWord c.program (.gate g) = List.range' 0 s) :
+      g = lastMul ⟨s - 2, by lia⟩ := by
     have hgB : g ∈ F ∪ OutMul := hB_eq ▸ Finset.mem_filter.mpr ⟨Finset.mem_univ g, hop⟩
     have hgOut : g ∈ OutMul := by
       rcases Finset.mem_union.mp hgB with hgF | hgO
@@ -263,14 +260,15 @@ theorem optimal_segment_decomposition {N k : ℕ} (hN : 1 ≤ N)
   set a := T d
   set b := T (d + 1)
   set root := v d
-  have ha1 : 1 ≤ a := by have := hT_mono 0 d (Nat.zero_le d) (by omega); omega
-  have hbN : b ≤ N := by have := hT_mono (d + 1) D (by omega) le_rfl; omega
+  have ha1 : 1 ≤ a := hT0 ▸ hT_mono (Nat.zero_le D) hd.le (Nat.zero_le d)
+  have hbN : b ≤ N := hTD ▸ hT_mono hd (Set.mem_Iic.mpr le_rfl) hd
   obtain ⟨I, hI_d, hI_anc⟩ := exists_wireIntervalTree c.program (u d) a b hTd_lt hud_w
   have hroot_zero : a = 1 → root = .input ⟨0, hN⟩ := by
     intro ha_eq
     rcases Nat.eq_zero_or_pos d with hd0 | hd0
     · dsimp only [root]; rw [hd0, hv0]
-    · have := hT_strict 0 d hd0 (by omega); omega
+    · have ha2 : 1 < a := hT0 ▸ hT_strict (Nat.zero_le D) hd.le hd0
+      exact (ha2.ne ha_eq.symm).elim
   -- The segment root is the only multiplication gate at state `a`.
   have hroot_unique : ∀ g : Fin c.size,
       (c.program.lines g).op = .mul →
@@ -283,11 +281,10 @@ theorem optimal_segment_decomposition {N k : ℕ} (hN : 1 ≤ N)
         cases op with
         | id => rw [hline] at hop; cases hop
         | mul =>
-          rw [programWord_gate_mul c.program g wires hline, ha_eq] at hgw
-          have := range_split_of_append (programWord_ne_nil c.program (wires 0))
-            (programWord_ne_nil c.program (wires 1)) hgw
-          omega
-    · have ha2 : 2 ≤ a := by have := hT_strict 0 d hd0 (by omega); omega
+          obtain ⟨p, hp, hp1, _⟩ := gateWord_range_split c.program g wires hline
+            (a := 0) (b := 1) (by simpa only [ha_eq, Nat.sub_zero] using hgw)
+          exact (Nat.not_lt_of_ge hp hp1).elim
+    · have ha2 : 1 < a := hT0 ▸ hT_strict (Nat.zero_le D) hd.le hd0
       obtain ⟨_, ⟨sg_prev, _, hv_prev_succ, _, hprev_line, _, _⟩, _, _, _, _⟩ :=
         hseg (d - 1) (by omega)
       have hv_eq : root = .gate sg_prev := by
@@ -308,14 +305,11 @@ theorem optimal_segment_decomposition {N k : ℕ} (hN : 1 ≤ N)
       cases op with
       | id => rw [hline] at hop; cases hop
       | mul =>
-        rw [programWord_gate_mul c.program g wires hline] at hgw
-        obtain ⟨hp_pos, hps_pos, hw0, hw1⟩ := range_split_of_append
-          (programWord_ne_nil c.program (wires 0)) (programWord_ne_nil c.program (wires 1)) hgw
-        set p := (programWord c.program (wires 0)).length
+        obtain ⟨p, hp_pos, hps, hw0, hw1⟩ := gateWord_range_split c.program g wires hline
+          (a := 0) (b := s) (by simpa only [Nat.sub_zero] using hgw)
         suffices h : a ≤ p ∧ (p, s) ∈ I.intervals from
-          ⟨p, h.1, by omega, by simpa only [firstInput] using hw0,
-            Finset.mem_erase_of_ne_of_mem (by simp only [ne_eq, Prod.mk.injEq]; omega) h.2⟩
-        rw [Nat.zero_add] at hw1
+          ⟨p, h.1, hps, by simpa only [firstInput, Nat.sub_zero] using hw0,
+            Finset.mem_erase_of_ne_of_mem (fun he => hsb.ne (congrArg Prod.snd he)) h.2⟩
         obtain ⟨hsw, _, hs_op⟩ := stripId_spec c.program (wires 1)
         rw [hw1] at hsw
         cases hs_id : stripId c.program (wires 1) with
@@ -344,9 +338,11 @@ theorem optimal_segment_decomposition {N k : ℕ} (hN : 1 ≤ N)
             obtain ⟨rfl, hlen⟩ := range'_eq_range'_iff (by omega) (hg₁_w.symm.trans hg₁_pq)
             obtain rfl : r = d := by
               rcases lt_trichotomy r d with h | h | h
-              · have := hT_mono (r + 1) d h (by omega); omega
+              · have hsep : T (r + 1) ≤ a := hT_mono (h.trans_le hd.le) hd.le h
+                omega
               · exact h
-              · have := hT_mono (d + 1) r h (by omega); omega
+              · have hsep : b ≤ T r := hT_mono (h.trans_le hrD.le) hrD.le h
+                omega
             exact ⟨hp₀, hI_anc g₁ hg₁_ur p s (by omega) hg₁_w⟩
   have hreach_out : ∀ (s : ℕ) (_ : a ≤ s) (_ : s < b),
       segHasOut c a b (c.outputs ⟨s - 1, by omega⟩) = true ∧
@@ -361,16 +357,13 @@ theorem optimal_segment_decomposition {N k : ℕ} (hN : 1 ≤ N)
   have hroot_act : segActive c a b root root = true := by
     obtain ⟨hhas_a, hr_a⟩ := hreach_out a le_rfl hTd_lt
     rcases hr_a.top_inversion with heq | ⟨g, hg, _⟩
-    · rw [heq] at hhas_a
-      exact (segActive_iff c a b root root).mpr (Or.inl hhas_a)
+    · exact (segActive_iff c a b root root).mpr (Or.inl (heq ▸ hhas_a))
     · exact (segActive_iff c a b root root).mpr (Or.inr ⟨g, hg⟩)
   have hprops := buildSegTree_props c a b D root I hfan houtWord
     (fun j => c.outputDepths_le_depth j) hroot_unique hmul_seg
   let t := buildSegTree c a b root root
   obtain ⟨⟨s_r, _, _, hpw_r, hst_r⟩, hmax_t, hfan_t, hval_t, hd_t⟩ := hprops root hroot_act
   have hsr_eq : s_r = a := (List.range'_inj.mp (hpw_r.symm.trans hvd_w)).1
-  have hsg_fi : firstInput (c.program.lines sg) = root := by
-    simp only [hsg_line, firstInput, hsg_w0]
   have hsg_not : sg ∉ segChildren c a b root root := by
     intro hsg_mem
     obtain ⟨⟨s_sg, _, hs_sg_lt, hpw_sg, _⟩, _⟩ :=
@@ -387,7 +380,8 @@ theorem optimal_segment_decomposition {N k : ℕ} (hN : 1 ≤ N)
   have hroot_bud : t.rootBudget + 1 ≤ k := by
     dsimp only [t]
     rw [buildSegTree_eq]
-    exact (seg_root_fanout_bound c a b root sg hsg_fi hsg_not).trans (hfan root)
+    exact (seg_root_fanout_bound c a b root sg
+      (by simp only [hsg_line, firstInput, hsg_w0]) hsg_not).trans (hfan root)
   obtain ⟨hout_cnt, hout_at, hmul_cnt⟩ := buildSegTree_counts c a b root root
   refine ⟨I, t, hI_d.trans hud_d, hst_r.trans hsr_eq, hmax_t, hroot_bud, hfan_t,
     by rw [hvd_d] at hd_t; exact hd_t, hval_t, fun s => ?_, fun m => ?_, ?_⟩

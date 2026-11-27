@@ -22,6 +22,7 @@ import CslibFrontier.Computability.Circuit.Simulation
 import Mathlib.Algebra.Order.Floor.Div
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Internal stage-step synthesis for `{⊕, ∧, 1}` circuits
@@ -222,10 +223,9 @@ private theorem synth_intra_loop (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < 
         · have hge : k ≤ i₀.1 := Nat.le_of_not_lt hik
           have h0_mem : d.gFn i₀ ∈ midSet d s p q₀ ∪ intraSet d s q₀ b := by
             rw [d.gFn_ge i₀ hge]
-            have h0 : constZero n ∈ ({constZero n, constOne n} : Set (BooleanFunction n)) :=
-              Or.inl rfl
             simp only [midSet, stageSet, Set.mem_union]
-            tauto
+            lrat_tauto
+              [(Or.inl rfl : constZero n ∈ ({constZero n, constOne n} : Set (BooleanFunction n)))]
           exact (CostSynthesis.of_mem h0_mem).mono Set.Subset.rfl Set.Subset.rfl
             (by omega) (by simp [hik])
       have htot := ih.comp hg_step

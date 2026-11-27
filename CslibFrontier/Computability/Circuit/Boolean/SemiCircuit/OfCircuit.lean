@@ -37,6 +37,7 @@ circuit's output on every consistent assignment (`SemiCircuit.out_eval_ofCircuit
 
 * `Cslib.Circuits.Boolean.SemiCircuit.cost_binaryB2Cost_le_size`,
   `Cslib.Circuits.Boolean.SemiCircuit.size_ofCircuitBinary`,
+  `Cslib.Circuits.Boolean.SemiCircuit.mem_gates_ofCircuitBinary`,
   `Cslib.Circuits.Boolean.SemiCircuit.wellFormed_ofCircuitBinary`,
   `Cslib.Circuits.Boolean.SemiCircuit.out_eval_ofCircuitBinary`.
 
@@ -106,14 +107,23 @@ private def lineBinaryLit {g : ℕ} (wLit : Wire n g → Lit) :
     else
       Lit.node (n + g) false
 
-/-- Propagate literals along a `fullSignature 2 Bool` program: constant and unary lines fold into
-a `Lit` of an input or an earlier binary gate, while genuinely binary lines introduce `n + g`. -/
-private def programGateLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Fin g → Lit :=
+/-- Propagate literals along a `fullSignature 2 Bool` program, in program order: constant and
+unary lines fold into a `Lit` of an input or an earlier binary gate, while genuinely binary lines
+introduce `n + g`. Each line reads the literals of earlier gates by index from the vector built so
+far, instead of recomputing them. -/
+private def programGateLitVector {g : ℕ} (p : Program (fullSignature 2 Bool) n g) :
+    Vector Lit g :=
   match p with
-  | .empty => Fin.elim0
+  | .empty => #v[]
   | @Program.gate _ _ _ p line =>
-    let prior := programGateLit p
-    Fin.lastCases (lineBinaryLit (Wire.elim (fun i => Lit.node i false) prior) line) prior
+    let prior := programGateLitVector p
+    prior.push (lineBinaryLit (Wire.elim (fun i => Lit.node i false) prior.get) line)
+
+/-- The folded literal of each gate of `p`, read from `programGateLitVector p`. Separate calls
+may rebuild the vector; each rebuild is one pass over the program. This module does not certify a
+running-time bound. -/
+private def programGateLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Fin g → Lit :=
+  (programGateLitVector p).get
 
 /-- The literal carried by any wire of `p` when constant and unary lines are folded. -/
 private def programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Wire n g → Lit :=
@@ -122,12 +132,12 @@ private def programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : 
 private theorem programWireLit_gate_last {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
     (line : Line (fullSignature 2 Bool) n g) :
     programWireLit (p.gate line) (.gate (Fin.last g)) = lineBinaryLit (programWireLit p) line := by
-  simp [programWireLit, programGateLit]
+  exact Vector.getElem_push_last
 
 private theorem programWireLit_gate_castSucc {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
     (line : Line (fullSignature 2 Bool) n g) (j : Fin g) :
     programWireLit (p.gate line) (.gate j.castSucc) = programWireLit p (.gate j) := by
-  simp [programWireLit, programGateLit]
+  exact Vector.getElem_push_lt j.isLt
 
 /-- The indices `n + k` of genuinely binary gates in `p`. -/
 private def programBinaryGates {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Finset ℕ :=
@@ -322,6 +332,11 @@ def ofCircuitBinary (C : Circuit (fullSignature 2 Bool) n 1) : SemiCircuit where
     (ofCircuitBinary C).size = C.program.cost binaryB2Cost := by
   change (programBinaryGates C.program).card + (∅ : Finset ℕ).card = C.program.cost binaryB2Cost
   rw [Finset.card_empty, add_zero, card_programBinaryGates]
+
+/-- Every gate of `ofCircuitBinary C` is named `n + j` for a program line `j < C.size`. -/
+theorem mem_gates_ofCircuitBinary {C : Circuit (fullSignature 2 Bool) n 1} {J : ℕ}
+    (hJ : J ∈ (ofCircuitBinary C).gates) : n ≤ J ∧ J < n + C.size :=
+  mem_programBinaryGates_bounds hJ
 
 /-- The binary-gate semi-circuit `ofCircuitBinary C` is well formed. -/
 theorem wellFormed_ofCircuitBinary (C : Circuit (fullSignature 2 Bool) n 1) :

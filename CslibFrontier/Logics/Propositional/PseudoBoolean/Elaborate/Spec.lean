@@ -47,7 +47,7 @@ edition.
 
 References are absolute or relative (`-k`, §5); labels, the deletion by specification
 `del spec` (VeriPB 2's `del find`) and the rest of the format are outside the fragment, and a
-proof using them has no derivation here.
+proof using them has no derivation here (#8782).
 
 **Soundness from the kernel's.** A derivation of `AugValid` is simulated step by step by the
 kernel checker `Cslib.Logic.PL.VeriPB.checkRed`, with the same constraint numbers
@@ -281,15 +281,6 @@ private structure Sim (A : AState) (s : State) : Prop where
   dbound : s.dbound = none
   tcb : s.tcb = false
   order : s.order = none
-
-private theorem runTop_append (F : List PBConstr) (obj : Option Objective) (s : State)
-    (ts us : List TopStep) :
-    runTop F obj s (ts ++ us) = (runTop F obj s ts).bind fun s' => runTop F obj s' us := by
-  induction ts generalizing s with
-  | nil => simp [runTop_nil]
-  | cons t ts ih =>
-    simp only [List.cons_append, runTop_cons]
-    cases stepTop F obj s t <;> simp [ih]
 
 private theorem all_lookup_isSome {db : List (ℕ × PBConstr)} {ids : List ℕ}
     (h : ∀ i ∈ ids, (lookup db i).isSome) : ids.all (fun i => (lookup db i).isSome) = true :=

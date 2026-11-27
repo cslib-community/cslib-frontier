@@ -71,6 +71,17 @@ example (p : Equiv.Perm (Fin 2)) (cmp : Fin 2 → Fin 2 → Bool)
     · exact holdsCompleteTree_leaf.mpr ⟨by decide, by decide, by simp [mem]⟩
   simpa using walkCompleteTree_eval p cmp hcmp hhold
 
+-- `dtPrecompCost_iterLog_le_of_ge_24` bounds `dtPrecompCost k` inside the triple-exponential tower.
+example (k : ℕ) (hk : 24 ≤ k) :
+    Nat.iterLog 3 (2 ^ 2 ^ 2 ^ k) = k ∧ dtPrecompCost k ≤ 2 ^ 2 ^ 2 ^ k := by
+  have hlog : Nat.iterLog 3 (2 ^ 2 ^ 2 ^ k) = k := by
+    rw [Nat.iterLog_succ, Nat.iterLog_succ, Nat.iterLog_succ, Nat.iterLog_zero,
+      Nat.log_pow (by decide : 1 < 2), Nat.log_pow (by decide : 1 < 2),
+      Nat.log_pow (by decide : 1 < 2)]
+  have hle := dtPrecompCost_iterLog_le_of_ge_24 (by rw [hlog]; exact hk)
+  rw [hlog] at hle
+  exact ⟨hlog, hle⟩
+
 /-! ## `DecisionTree.PrecompKruskal`: Enumeration, Power Table, Decoding, and Kruskal -/
 
 -- `dtFillAllPairsProg_spec`, `realizes_dtFillAllPairsProg`, and empty `numV = 0` boundary.

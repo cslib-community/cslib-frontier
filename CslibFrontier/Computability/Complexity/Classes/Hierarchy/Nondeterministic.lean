@@ -81,33 +81,24 @@ theorem not_NEXP_subset_NP : ¬ (NEXP encBits ⊆ NP encBits) := by
   intro hSub
   let J (n : ℕ) : ℕ := 2 ^ (2 ^ n)
   let L : Set (List Bool) := {x | timeDiagonal J x = true}
-  obtain ⟨c₁, c₂, k, State, hfinite, ntm, hdec⟩ := timeDiagonal_two_pow_two_pow_mem_NTIME
-  set c := Nat.card (Turing.Action k Bool State) * (c₁ + c₂)
+  obtain ⟨B, hB, hLB⟩ :=
+    exists_mem_NP_frame_append_mem_iff_of_mem_NTIME timeDiagonal_two_pow_two_pow_mem_NTIME
   let h₁ (y : List Bool) : List Bool := y ++ List.replicate (2 ^ y.length) true
   let g₂ (x : List Bool) : List Bool := frame x ++ List.replicate (2 ^ (x.length + 4)) true
-  have hB₁ : h₁ ⁻¹' ntm.padded c ∈ NP encBits :=
-    hSub (preimage_append_two_pow_mem_NEXP (ntm.padded_mem_NP c))
+  have hB₁ : h₁ ⁻¹' B ∈ NP encBits := hSub (preimage_append_two_pow_mem_NEXP hB)
   have hf_add : ComputableInPolyTime (fun n : ℕ => n + 4) encUnary encUnary :=
     ComputableInPolyTime.unary_add.comp (.prod .id' (.const 4))
   have hB₂ := preimage_pad_mem_NEXP (enc := encBits) (f := fun n => n + 4) hB₁ hf_add
     fun n => Nat.le_add_right n 4
-  have hL_eq : L = g₂ ⁻¹' (h₁ ⁻¹' ntm.padded c) := Set.ext fun x => by
-    change x ∈ L ↔ h₁ (g₂ x) ∈ ntm.padded c
-    simp only [h₁, g₂, List.append_assoc]
-    refine (hdec.frame_append_mem_padded_iff (a := x) ?_).symm
+  have hL_eq : L = g₂ ⁻¹' (h₁ ⁻¹' B) := Set.ext fun x => by
+    change x ∈ L ↔ h₁ (g₂ x) ∈ B
     have hM : 2 ^ (x.length + 4) ≤ (g₂ x).length := by
       simp only [g₂, List.length_append, length_frame, List.length_replicate]; omega
-    have hlen_ge : 2 ^ (2 ^ (x.length + 4)) + 1 ≤
-        (frame x ++ (List.replicate (2 ^ (x.length + 4)) true ++
-          List.replicate (2 ^ (g₂ x).length) true)).length := by
-      have : 2 ^ (2 ^ (x.length + 4)) ≤ 2 ^ (g₂ x).length := by gcongr
-      have := Nat.zero_le (2 ^ (x.length + 4))
-      simp only [List.length_append, length_frame, List.length_replicate]; omega
-    dsimp only [c]
-    rw [Nat.mul_assoc]
-    exact Nat.mul_le_mul_left _ ((Nat.add_le_add (Nat.mul_le_mul_left c₁ (Nat.le_succ _))
-      (Nat.le_mul_of_pos_right c₂ (Nat.succ_pos _))).trans
-        ((Nat.add_mul _ _ _).symm ▸ Nat.mul_le_mul_left _ hlen_ge))
+    have hpow : 2 ^ (2 ^ (x.length + 4)) ≤ 2 ^ (g₂ x).length := by gcongr
+    simp only [h₁, g₂, List.append_assoc] at hpow ⊢
+    refine (hLB x _ ?_).symm
+    simp only [encBits_apply, List.length_append, List.length_replicate] at hpow ⊢
+    exact hpow.trans (Nat.le_add_left _ _)
   obtain ⟨d, hd⟩ := mem_EXP_iff.mp (hL_eq ▸ NP_subset_EXP (hSub hB₂))
   refine setOf_timeDiagonal_notMem_DTIME (f := fun n => 2 ^ n ^ d) (J := J) (fun C => ?_) hd
   filter_upwards [(by fun_prop : PolynomiallyBounded fun n => n ^ d + n + 1).eventually_lt_two_pow,

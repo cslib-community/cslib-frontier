@@ -12,20 +12,19 @@ public import CslibFrontier.Algorithms.Lean.CSP.VariableElimination
 public import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 public import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
 public import CslibFrontier.Computability.WordRAM.Realization.WordEncoding.Equiv
-public import CslibFrontier.Computability.WordRAM.ListArray
+public import CslibFrontier.Computability.WordRAM.Realization.PrefixFrame
 import CslibFrontier.Tactic.Realize
 
 /-!
 # Monotone Memory Predicates, `memScan`, and `writeDesc`
 
-Core Word-RAM heap invariants (`PreservesBelow`, `HoldsIn`, `HoldsFactor`, `HoldsFactorList`,
-`AllDataBelow`) together with the shared linear membership scanner `memScan` and 4-word descriptor
-writer `writeDesc`.
+Factor descriptor invariants over allocated Word-RAM list blocks, together with the shared linear
+membership scanner `memScan` and 4-word descriptor writer `writeDesc`.
 
 ## Main definitions
 
-* `Cslib.Algorithms.WordRAM.VariableElimination.PreservesBelow`, `HoldsIn`, `HoldsFactor`,
-  `HoldsFactorList`, `AllDataBelow`: append-only memory layout predicates.
+* `Cslib.Algorithms.WordRAM.VariableElimination.HoldsFactor`, `HoldsFactorList`, `AllDataBelow`:
+  append-only memory layout predicates for factor descriptors.
 * `Cslib.Algorithms.WordRAM.VariableElimination.memScan`: linear array membership scan.
 * `Cslib.Algorithms.WordRAM.VariableElimination.writeDesc`: 4-word factor descriptor writer.
 -/
@@ -40,38 +39,7 @@ open Cslib.DataStructure
 open Cslib.WordRAM
 open Cslib.WordRAM.Realization
 
-/-! ### Monotone append-only memory preservation and descriptors -/
-
-/-- Append-only frame predicate: `s₁` agrees with `s₀` strictly below `F`. -/
-@[expose] def PreservesBelow (F : ℕ) (s₀ s₁ : Memory.State) : Prop :=
-  F ≤ s₀.frontier ∧ s₀.frontier ≤ s₁.frontier ∧ ∀ a < F, s₁.mem a = s₀.mem a
-
-theorem PreservesBelow.refl {F : ℕ} {s : Memory.State} (hF : F ≤ s.frontier) :
-    PreservesBelow F s s :=
-  ⟨hF, le_rfl, fun _ _ => rfl⟩
-
-theorem PreservesBelow.mono_bound {F₁ F₂ : ℕ} {s₀ s₁ : Memory.State}
-    (h : PreservesBelow F₂ s₀ s₁) (hle : F₁ ≤ F₂) : PreservesBelow F₁ s₀ s₁ :=
-  ⟨hle.trans h.1, h.2.1, fun a ha => h.2.2 a (lt_of_lt_of_le ha hle)⟩
-
-theorem PreservesBelow.trans {F : ℕ} {s₀ s₁ s₂ : Memory.State}
-    (h₁ : PreservesBelow F s₀ s₁) (h₂ : PreservesBelow F s₁ s₂) :
-    PreservesBelow F s₀ s₂ :=
-  ⟨h₁.1, h₁.2.1.trans h₂.2.1, fun a ha => (h₂.2.2 a ha).trans (h₁.2.2 a ha)⟩
-
-/-- Word-array slice `xs` sits contiguously starting at `base` inside `s`. -/
-@[expose] def HoldsIn (base : ℕ) (xs : List ℕ) (s : Memory.State) : Prop :=
-  base + xs.length ≤ s.frontier ∧ Block.HoldsList base xs s.mem
-
-theorem HoldsIn.mono {base : ℕ} {xs : List ℕ} {F : ℕ} {s₀ s₁ : Memory.State}
-    (h : HoldsIn base xs s₀) (hF : base + xs.length ≤ F) (hp : PreservesBelow F s₀ s₁) :
-    HoldsIn base xs s₁ :=
-  ⟨h.1.trans hp.2.1, h.2.frame fun a _ hhi => hp.2.2 a (lt_of_lt_of_le hhi hF)⟩
-
-theorem HoldsIn.mono_frontier {base : ℕ} {xs : List ℕ} {s₀ s₁ : Memory.State}
-    (h : HoldsIn base xs s₀) (hp : PreservesBelow s₀.frontier s₀ s₁) :
-    HoldsIn base xs s₁ :=
-  h.mono h.1 hp
+/-! ### Factor descriptors -/
 
 /-- A 4-word factor descriptor at `descAddr` points to `f`'s scope and entries. -/
 @[expose] def HoldsFactor (descAddr : ℕ) (f : FactorTable ℕ ℕ) (s : Memory.State) : Prop :=
@@ -241,22 +209,6 @@ theorem memScan_realizes :
     · exact h.2.of_le (by omega)
   · change (st.cur + 1) + j = d.base + d.len
     omega
-
-theorem holdsIn_cons_shift {base : ℕ} {x : ℕ} {xs : List ℕ} {s : Memory.State}
-    (h : HoldsIn base (x :: xs) s) :
-    base < s.frontier ∧ s.mem base = x ∧ HoldsIn (base + 1) xs s := by
-  obtain ⟨hb, hl⟩ := h
-  simp only [List.length_cons] at hb
-  obtain ⟨hx, hxs⟩ := Block.holdsList_cons_iff.mp hl
-  exact ⟨by omega, hx, by omega, hxs⟩
-
-theorem holdsIn_append_split {base : ℕ} {xs ys : List ℕ} {s : Memory.State}
-    (h : HoldsIn base (xs ++ ys) s) :
-    HoldsIn base xs s ∧ HoldsIn (base + xs.length) ys s := by
-  obtain ⟨hb, hl⟩ := h
-  simp only [List.length_append] at hb
-  obtain ⟨hx, hy⟩ := Block.holdsList_append_iff.mp hl
-  exact ⟨⟨by omega, hx⟩, ⟨by omega, hy⟩⟩
 
 /-! ### Descriptor writer (`writeDesc`), live partitioning (`partitionLive`), and `buildOutScope` -/
 

@@ -78,8 +78,9 @@ each round consumes a token or a trail entry, so the fuel does not run out. Its 
 the lexer and of the propagation engine included, is a value threaded through a state monad and
 updated in place while it is uniquely referenced, not a mutable reference in `ST`, whose
 operations are opaque to proofs. So `Cslib.Logic.PL.VeriPB.Elab.elaborate` is a function with
-equations, as a proof that it is faithful to the declarative semantics of the augmented format
-(`Cslib.Logic.PL.VeriPB.Elab.AugValid`, for the clausal and `pol` fragment) needs.
+equations, as proofs of its faithfulness and completeness against the declarative semantics of
+the augmented format (`Cslib.Logic.PL.VeriPB.Elab.AugValid`, for the clausal and `pol` fragment)
+need; both remain open (#8782).
 
 **Not elaborated**: `rup` without hints inside `def_order` (the kernel checker accepts it, as
 `Cslib.Logic.PL.VeriPB.Step.rupSearch`; CakePB does not), solutions with shrunk variables

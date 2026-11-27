@@ -80,21 +80,20 @@ structure IsMarkovianCoupling (P : MarkovChain S) (Q : MarkovChain (S × S)) : P
 
 variable {P : MarkovChain S} {Q : MarkovChain (S × S)}
 
-theorem IsMarkovianCoupling.map_fst_pow (h : P.IsMarkovianCoupling Q) (t : ℕ) (z : S × S) :
-    ((Q ^ t) z).map Prod.fst = (P ^ t) z.1 := by
+private theorem map_pow_of_map {T : Type*} {R : MarkovChain T} (f : T → S)
+    (h : ∀ z, (R z).map f = P (f z)) (t : ℕ) (z : T) :
+    ((R ^ t) z).map f = (P ^ t) (f z) := by
   induction t with
   | zero => simp [PMF.pure_map]
   | succ t ih =>
     rw [pow_succ_apply, pow_succ_apply, PMF.map_bind, ← ih, PMF.bind_map]
-    exact congrArg _ (funext fun w => h.map_fst w)
+    exact congrArg _ (funext h)
+
+theorem IsMarkovianCoupling.map_fst_pow (h : P.IsMarkovianCoupling Q) (t : ℕ) (z : S × S) :
+    ((Q ^ t) z).map Prod.fst = (P ^ t) z.1 := map_pow_of_map Prod.fst h.map_fst t z
 
 theorem IsMarkovianCoupling.map_snd_pow (h : P.IsMarkovianCoupling Q) (t : ℕ) (z : S × S) :
-    ((Q ^ t) z).map Prod.snd = (P ^ t) z.2 := by
-  induction t with
-  | zero => simp [PMF.pure_map]
-  | succ t ih =>
-    rw [pow_succ_apply, pow_succ_apply, PMF.map_bind, ← ih, PMF.bind_map]
-    exact congrArg _ (funext fun w => h.map_snd w)
+    ((Q ^ t) z).map Prod.snd = (P ^ t) z.2 := map_pow_of_map Prod.snd h.map_snd t z
 
 /-- After `t` steps, a Markovian coupling started at `(x, y)` couples `Pᵗ(x, ·)` with `Pᵗ(y, ·)`
 within the probability that the copies differ. -/

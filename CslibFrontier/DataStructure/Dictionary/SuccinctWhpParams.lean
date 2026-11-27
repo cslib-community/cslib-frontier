@@ -723,6 +723,11 @@ per-slot and per-bucket metadata, shared backyard slab pools, SWAR B+-tree slice
   packedWords n_max (valBits V) w +
   auxWords
 
+/-- The large-regime layout reserves its first 32 words for the header. -/
+theorem headerWords_le_largeSpaceWhp (c U V w n_max : ℕ) : 32 ≤ largeSpaceWhp c U V w n_max := by
+  dsimp only [largeSpaceWhp]
+  lia
+
 /-- Total `w`-bit word footprint of the WHP succinct dictionary across all `n_max`. -/
 @[expose] def whpSpace (c U V w n_max : ℕ) : ℕ :=
   if n_max < whpThreshold c then

@@ -175,53 +175,47 @@ separator introduces. -/
   by_cases h : s ≤ k <;>
     simp [succ?, succM, leI, h, min?_def, apply_ite Id.run, Option.or_eq_ite]
 
-private theorem neighbors_eq_of (ht : 2 ≤ t) (k : α) :
-    ∀ tr : BPlusTree α β, Separated tr → tr.toList.IsSortedAssoc →
-      (∀ c ∈ tr.children, Occupied t c) →
+private theorem neighbors_eq_of (k : α) :
+    ∀ tr : BPlusTree α β, SearchInvariant t tr →
       pred? k tr = SortedAssoc.pred? k tr.toList ∧
         succ? k tr = SortedAssoc.succ? k tr.toList
-  | .leaf entries, _, hs, _ => by
+  | .leaf entries, h => by
     rw [pred?_leaf, succ?_leaf, toList_leaf]
-    exact ⟨SortedAssoc.idRun_predM (by simpa using hs) k, SortedAssoc.idRun_succM k entries⟩
-  | .node first [], hp, hs, ho => by
-    have hf : Occupied t first := ho first (by simp)
-    simpa using neighbors_eq_of ht k first hp.first (by simpa using hs)
-      (fun c hc => hf.of_mem_children hc)
-  | .node first ((s, c) :: rest), hp, hs, ho => by
-    have hf : Occupied t first := ho first (by simp)
-    have hc : Occupied t c := ho c (by simp)
-    have hs' := List.isSortedAssoc_append_iff.1 (toList_node_cons ▸ hs)
+    exact ⟨SortedAssoc.idRun_predM (by simpa using h.sorted) k, SortedAssoc.idRun_succM k entries⟩
+  | .node first [], h => by
+    simpa using neighbors_eq_of k first (h.child List.mem_cons_self)
+  | .node first ((s, c) :: rest), h => by
     rw [pred?_node_cons, succ?_node_cons, toList_node_cons, SortedAssoc.pred?_append,
       SortedAssoc.succ?_append]
     by_cases hk : s ≤ k
-    · obtain ⟨hpred, hsucc⟩ :=
-        neighbors_eq_of ht k (.node c rest) hp.tail hs'.2.1 (fun d hd => ho d (.tail _ hd))
-      have hlt : ∀ p ∈ first.toList, p.1 < k := fun p hp' =>
-        lt_of_lt_of_le (hp.lt_of_mem_first (e := (s, c)) List.mem_cons_self hp') hk
+    · obtain ⟨hpred, hsucc⟩ := neighbors_eq_of k (.node c rest) h.tail
+      have hf := h.occupied first List.mem_cons_self
+      have hlt : ∀ p ∈ first.toList, p.1 < k := fun p hp =>
+        (h.separated.lt_of_mem_first (e := (s, c)) List.mem_cons_self hp).trans_le hk
       simp only [hk, ↓reduceIte, hpred, hsucc]
       constructor
-      · rw [hf.max?_eq ht, SortedAssoc.pred?_def (l := first.toList),
+      · rw [hf.max?_eq h.two_le, SortedAssoc.pred?_def (l := first.toList),
           List.filter_eq_self.2 fun p hp' => by simpa using hlt p hp']
       · rw [SortedAssoc.succ?_eq_none_iff.2 (fun p hp' => (hlt p hp').le), Option.none_or]
-    · obtain ⟨hpred, hsucc⟩ :=
-        neighbors_eq_of ht k first hp.first hs'.1 (fun d hd => hf.of_mem_children hd)
+    · obtain ⟨hpred, hsucc⟩ := neighbors_eq_of k first (h.child List.mem_cons_self)
+      have hc := h.occupied c (by simp)
       have hgt : ∀ q ∈ (BPlusTree.node c rest).toList, k < q.1 := fun q hq =>
-        lt_of_lt_of_le (lt_of_not_ge hk) (hp.le_of_mem_tail hs (hc.size_pos ht) hq)
+        (lt_of_not_ge hk).trans_le (h.separated.le_of_mem_tail h.sorted (hc.size_pos h.two_le) hq)
       simp only [hk, ↓reduceIte, hpred, hsucc]
       constructor
       · rw [SortedAssoc.pred?_eq_none_iff.2 (fun q hq => (hgt q hq).le), Option.none_or]
-      · rw [hc.min?_eq ht, SortedAssoc.succ?_def (l := (BPlusTree.node c rest).toList),
+      · rw [hc.min?_eq h.two_le, SortedAssoc.succ?_def (l := (BPlusTree.node c rest).toList),
           List.filter_eq_self.2 fun q hq => by simpa using hgt q hq, toList_node,
-          List.head?_append_of_ne_nil _ (hc.toList_ne_nil ht)]
+          List.head?_append_of_ne_nil _ (hc.toList_ne_nil h.two_le)]
 termination_by tr => sizeOf tr
 
 /-- Model equation of the predecessor on well-formed trees. -/
 theorem pred?_eq (h : IsWF t tr) (k : α) : pred? k tr = SortedAssoc.pred? k tr.toList :=
-  (neighbors_eq_of h.two_le k tr h.separated h.sorted h.occupied_of_mem_children).1
+  (neighbors_eq_of k tr h.searchInvariant).1
 
 /-- Model equation of the successor on well-formed trees. -/
 theorem succ?_eq (h : IsWF t tr) (k : α) : succ? k tr = SortedAssoc.succ? k tr.toList :=
-  (neighbors_eq_of h.two_le k tr h.separated h.sorted h.occupied_of_mem_children).2
+  (neighbors_eq_of k tr h.searchInvariant).2
 
 end Pure
 

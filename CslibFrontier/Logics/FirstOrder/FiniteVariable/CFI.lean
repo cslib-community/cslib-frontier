@@ -125,7 +125,8 @@ private theorem isBijPebbleBackAndForth_cfiInvariant {d m : ℕ} (hm : 2 * d + 4
       simpa [not_or] using And.intro hw_mem hw'_mem
     have hother {z : Fin m} (hz : z ∉ T) (i : Fin (d + 1)) (hij : i ≠ j) : z ∉ (a i).support :=
       fun hzi => hz (Finset.mem_biUnion.2 ⟨i, Finset.mem_erase.2 ⟨hij, Finset.mem_univ i⟩, hzi⟩)
-    refine ⟨(cfiBaseEquiv u w hwu).trans φ.toEquiv, fun c => ?_⟩
+    let response := (cfiBaseEquiv u w hwu).trans φ.toEquiv
+    refine ⟨response, fun c => ?_⟩
     -- the support condition for the updated position
     have hsupp' {u' : Fin m} (hc : u' ∉ c.support) (ho : ∀ i ∈ S, i ≠ j → u' ∉ (a i).support) :
         ∀ i ∈ insert j S, u' ∉ (Function.update a j c i).support := fun i hiS => by
@@ -133,41 +134,37 @@ private theorem isBijPebbleBackAndForth_cfiInvariant {d m : ℕ} (hm : 2 * d + 4
       · rwa [Function.update_self]
       · rw [Function.update_of_ne hij]
         exact ho i (Set.mem_of_mem_insert_of_ne hiS hij) hij
-    -- the old positions, after flipping the twist from `u` to a fresh `u'`
-    have hflip {u' : Fin m} (hu' : u' ≠ u) (hT : u' ∉ T) {i : Fin (d + 1)} (hiS : i ∈ insert j S)
-        (hij : i ≠ j) (hi : u' ∉ (Function.update a j c i).support) :
-        Function.update b j (((cfiBaseEquiv u w hwu).trans φ.toEquiv) c) i =
-          ((cfiSingleFlipIso hu'.symm).trans φ)
-            ((Function.update a j c i).castAway u' (cfiZeroAway u') hi) := by
-      have hiS' : i ∈ S := Set.mem_of_mem_insert_of_ne hiS hij
-      have hui : u ∉ (a i).support := hsupp i hiS'
-      rw [Function.update_of_ne hij, RelIso.trans_apply,
-        castAway_congr (Function.update_of_ne hij c a) hi (hother hT i hij), hmap i hiS' hui]
-      exact congrArg φ (cfiSingleFlipIso_castAway_of_notMem hu'.symm (cfiZeroAway u')
-        (cfiZeroAway u) (a i) hui (hother hT i hij)).symm
+    -- Moving the twist to a fresh vertex needs a check at the new pebble.
+    -- The cast-away flip law handles every other placed pebble.
+    have moveTwist {u' : Fin m} (hu' : u' ≠ u) (hT : u' ∉ T) (hc : u' ∉ c.support)
+        (hnew : cfiSingleFlipIso hu'.symm (c.castAway u' (cfiZeroAway u') hc) =
+          cfiBaseEquiv u w hwu c) :
+        cfiInvariant u₀ (insert j S) (Function.update a j c)
+          (Function.update b j (response c)) := by
+      refine ⟨u', (cfiSingleFlipIso hu'.symm).trans φ, hsupp' hc fun i _ hij => hother hT i hij,
+        fun i hiS hi => ?_⟩
+      rcases eq_or_ne i j with rfl | hij
+      · rw [Function.update_self, RelIso.trans_apply,
+          castAway_congr (Function.update_self i c a) hi hc]
+        exact congrArg φ hnew.symm
+      · have hiS' : i ∈ S := Set.mem_of_mem_insert_of_ne hiS hij
+        have hui : u ∉ (a i).support := hsupp i hiS'
+        rw [Function.update_of_ne hij, RelIso.trans_apply,
+          castAway_congr (Function.update_of_ne hij c a) hi (hother hT i hij), hmap i hiS' hui]
+        exact congrArg φ (cfiSingleFlipIso_castAway_of_notMem hu'.symm (cfiZeroAway u')
+          (cfiZeroAway u) (a i) hui (hother hT i hij)).symm
     by_cases huc : u ∈ c.support
     · by_cases hwc : w ∈ c.support
       · have hw'c : w' ∉ c.support :=
           c.notMem_support_of_mem_mem_ne huc hwc hwu.symm hw'u hww'.symm
-        refine ⟨w', (cfiSingleFlipIso hw'u.symm).trans φ,
-          hsupp' hw'c fun i _ hij => hother hw'T i hij, fun i hiS hi => ?_⟩
-        rcases eq_or_ne i j with rfl | hij
-        · rw [Function.update_self, Equiv.trans_apply, RelIso.trans_apply,
-            castAway_congr (Function.update_self i c a) hi hw'c]
-          exact congrArg φ (cfiSingleFlipIso_castAway_eq_cfiBaseEquiv_of_mem hwu.symm hw'u.symm
-            hww' (cfiZeroAway w') c huc hwc hw'c).symm
-        · exact hflip hw'u hw'T hiS hij hi
-      · refine ⟨w, (cfiSingleFlipIso hwu.symm).trans φ,
-          hsupp' hwc fun i _ hij => hother hwT i hij, fun i hiS hi => ?_⟩
-        rcases eq_or_ne i j with rfl | hij
-        · rw [Function.update_self, Equiv.trans_apply, RelIso.trans_apply,
-            castAway_congr (Function.update_self i c a) hi hwc]
-          exact congrArg φ
-            (cfiSingleFlipIso_castAway_eq_cfiBaseEquiv hwu.symm (cfiZeroAway w) c hwc).symm
-        · exact hflip hwu hwT hiS hij hi
+        exact moveTwist hw'u hw'T hw'c
+          (cfiSingleFlipIso_castAway_eq_cfiBaseEquiv_of_mem hwu.symm hw'u.symm
+            hww' (cfiZeroAway w') c huc hwc hw'c)
+      · exact moveTwist hwu hwT hwc
+          (cfiSingleFlipIso_castAway_eq_cfiBaseEquiv hwu.symm (cfiZeroAway w) c hwc)
     · refine ⟨u, φ, hsupp' huc fun i hiS _ => hsupp i hiS, fun i hiS hi => ?_⟩
       rcases eq_or_ne i j with rfl | hij
-      · rw [Function.update_self, Equiv.trans_apply,
+      · rw [Function.update_self,
           castAway_congr (Function.update_self i c a) hi huc]
         exact congrArg φ (cfiBaseEquiv_eq_castAway hwu (cfiZeroAway u) c huc)
       · have hiS' : i ∈ S := Set.mem_of_mem_insert_of_ne hiS hij

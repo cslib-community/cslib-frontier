@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.Analysis.InnerProductSpace.MetricProjection
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 public import Mathlib.Analysis.SpecialFunctions.Sqrt
+import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import Mathlib.NumberTheory.Harmonic.Bounds
@@ -153,6 +154,20 @@ theorem norm_ogd_sub_le (hP : IsPythagoreanProjection K proj) (hx₀ : x₀ ∈ 
           rw [sub_sub_cancel_left, norm_neg, norm_smul, Real.norm_of_nonneg (hη t)]
       _ ≤ G * ∑ s ∈ range t, η s + G * η t := by linarith
 
+/-- One projected gradient step decreases the squared distance to a feasible comparator,
+up to the inner-product loss and the squared step length. -/
+theorem projected_step_two_mul_inner_le (hP : IsPythagoreanProjection K proj)
+    {x g u : E} (hu : u ∈ K) {c : ℝ} (hc : 0 < c) :
+    2 * ⟪g, x - u⟫ ≤ (‖x - u‖ ^ 2 - ‖proj (x - c • g) - u‖ ^ 2) / c + c * ‖g‖ ^ 2 := by
+  have hproj := pow_le_pow_left₀ (norm_nonneg _) (hP.norm_sub_le (x - c • g) u hu) 2
+  have hexpand : ‖x - c • g - u‖ ^ 2 =
+      ‖x - u‖ ^ 2 - 2 * ⟪g, x - u⟫ * c + c * ‖g‖ ^ 2 * c := by
+    rw [sub_right_comm, norm_sub_sq_real, norm_smul, real_inner_smul_right, real_inner_comm,
+      Real.norm_of_nonneg hc.le]
+    ring
+  rw [div_add' _ _ _ hc.ne', le_div_iff₀ hc]
+  linarith only [hproj, hexpand]
+
 /-- One step of online gradient descent against a comparator `u ∈ K`:
 `2 ⟪g, x t - u⟫ ≤ (‖x t - u‖ ^ 2 - ‖x (t + 1) - u‖ ^ 2) / η t + η t ‖g‖ ^ 2` with
 `g = grad t (x t)` [Hazan2022, proof of Theorem 3.1]. -/
@@ -161,17 +176,8 @@ theorem ogd_two_mul_inner_le (hP : IsPythagoreanProjection K proj) {u : E} (hu :
     2 * ⟪grad t (ogd proj η grad x₀ t), ogd proj η grad x₀ t - u⟫ ≤
       (‖ogd proj η grad x₀ t - u‖ ^ 2 - ‖ogd proj η grad x₀ (t + 1) - u‖ ^ 2) / η t +
         η t * ‖grad t (ogd proj η grad x₀ t)‖ ^ 2 := by
-  set x := ogd proj η grad x₀ t
-  set g := grad t x
-  have hstep : ‖ogd proj η grad x₀ (t + 1) - u‖ ^ 2 ≤ ‖x - η t • g - u‖ ^ 2 :=
-    pow_le_pow_left₀ (norm_nonneg _) (hP.norm_sub_le _ u hu) 2
-  have hexp : ‖x - η t • g - u‖ ^ 2 =
-      ‖x - u‖ ^ 2 - 2 * ⟪g, x - u⟫ * η t + η t * ‖g‖ ^ 2 * η t := by
-    rw [sub_right_comm, norm_sub_sq_real, norm_smul, real_inner_smul_right, real_inner_comm,
-      Real.norm_of_nonneg hη.le]
-    ring
-  rw [div_add' _ _ _ hη.ne', le_div_iff₀ hη]
-  linarith
+  rw [ogd_succ]
+  exact projected_step_two_mul_inner_le hP hu hη
 
 /-- The generic bound for online gradient descent with positive nonincreasing step sizes on a set
 of diameter at most `D`: against every `u ∈ K`,
@@ -183,28 +189,24 @@ theorem ogd_sum_inner_le (hP : IsPythagoreanProjection K proj) (hx₀ : x₀ ∈
     ∑ t ∈ range (T + 1), ⟪grad t (ogd proj η grad x₀ t), ogd proj η grad x₀ t - u⟫ ≤
       D ^ 2 / (2 * η T) +
         (∑ t ∈ range (T + 1), η t * ‖grad t (ogd proj η grad x₀ t)‖ ^ 2) / 2 := by
-  have hd : ∀ t, ‖ogd proj η grad x₀ t - u‖ ^ 2 ≤ D ^ 2 := fun t =>
+  set x := ogd proj η grad x₀
+  let a (t : ℕ) := ‖x t - u‖ ^ 2
+  let w (t : ℕ) := 1 / η t
+  have hcap (t : ℕ) : a t ≤ D ^ 2 :=
     pow_le_pow_left₀ (norm_nonneg _) (hD _ (ogd_mem hP hx₀ t) _ hu) 2
-  -- Telescoping, keeping the final distance term.
-  have key : 2 * ∑ t ∈ range (T + 1),
-      ⟪grad t (ogd proj η grad x₀ t), ogd proj η grad x₀ t - u⟫ ≤
-      D ^ 2 / η T - ‖ogd proj η grad x₀ (T + 1) - u‖ ^ 2 / η T +
-        ∑ t ∈ range (T + 1), η t * ‖grad t (ogd proj η grad x₀ t)‖ ^ 2 := by
-    induction T with
-    | zero =>
-      have h := ogd_two_mul_inner_le (x₀ := x₀) (grad := grad) hP hu 0 (hη 0)
-      simp only [zero_add, range_one, sum_singleton]
-      rw [sub_div] at h
-      linarith [div_le_div_of_nonneg_right (hd 0) (hη 0).le]
-    | succ T ih =>
-      have h := ogd_two_mul_inner_le (x₀ := x₀) (grad := grad) hP hu (T + 1) (hη (T + 1))
-      have hmono := div_le_div_of_nonneg_left (sub_nonneg.2 (hd (T + 1))) (hη (T + 1))
-        (hanti (Nat.le_succ T))
-      simp only [sub_div] at h hmono
-      rw [sum_range_succ, sum_range_succ (fun t => η t * _)]
-      linarith
+  have htel := Fin.sum_range_mul_sub_le_of_adjacent w a (fun t => a (t + 1)) (fun _ => 0)
+    (D ^ 2) T
+    (fun t _ => mul_le_mul_of_nonneg_right
+      (one_div_le_one_div_of_le (hη (t + 1)) (hanti (Nat.le_succ t))) (sub_nonneg.mpr (hcap _)))
+    (fun _ _ => by rw [sub_self, mul_zero])
+  have hsum := sum_le_sum (s := range (T + 1)) fun t _ =>
+    ogd_two_mul_inner_le (x₀ := x₀) (grad := grad) hP hu t (hη t)
+  rw [← mul_sum, sum_add_distrib] at hsum
+  have hinitial := div_nonneg (sub_nonneg.mpr (hcap 0)) (hη 0).le
+  have hfinal := div_nonneg (sq_nonneg ‖x (T + 1) - u‖) (hη T).le
+  simp only [a, w, one_div_mul_eq_div, sum_const_zero, add_zero, sub_div] at htel hinitial hsum
   rw [mul_comm 2 (η T), ← div_div]
-  linarith [key, div_nonneg (sq_nonneg ‖ogd proj η grad x₀ (T + 1) - u‖) (hη T).le]
+  linarith only [hsum, htel, hinitial, hfinal]
 
 /-- Online gradient descent with a constant step size `c > 0`: against every `u ∈ K`,
 `∑ t < T, ⟪grad t (x t), x t - u⟫ ≤ ‖x₀ - u‖ ^ 2 / (2 c) + c (∑ t < T, ‖grad t (x t)‖ ^ 2) / 2`.
@@ -214,19 +216,16 @@ theorem ogd_sum_inner_le_of_const (hP : IsPythagoreanProjection K proj) {c : ℝ
     ∑ t ∈ range T, ⟪grad t (ogd proj (fun _ => c) grad x₀ t), ogd proj (fun _ => c) grad x₀ t - u⟫ ≤
       ‖x₀ - u‖ ^ 2 / (2 * c) +
         c * (∑ t ∈ range T, ‖grad t (ogd proj (fun _ => c) grad x₀ t)‖ ^ 2) / 2 := by
-  -- Telescoping, keeping the final distance term.
-  have key : 2 * ∑ t ∈ range T, ⟪grad t (ogd proj (fun _ => c) grad x₀ t),
-      ogd proj (fun _ => c) grad x₀ t - u⟫ + ‖ogd proj (fun _ => c) grad x₀ T - u‖ ^ 2 / c ≤
-      ‖x₀ - u‖ ^ 2 / c + c * ∑ t ∈ range T, ‖grad t (ogd proj (fun _ => c) grad x₀ t)‖ ^ 2 := by
-    induction T with
-    | zero => simp
-    | succ T ih =>
-      have h := ogd_two_mul_inner_le (η := fun _ => c) (x₀ := x₀) (grad := grad) hP hu T hc
-      rw [sum_range_succ, sum_range_succ, mul_add, mul_add]
-      rw [sub_div] at h
-      linarith
+  let x := ogd proj (fun _ => c) grad x₀
+  have hsum := sum_le_sum (s := range T) fun t _ =>
+    ogd_two_mul_inner_le (η := fun _ => c) (x₀ := x₀) (grad := grad) hP hu t hc
+  change (∑ t ∈ range T, 2 * ⟪grad t (x t), x t - u⟫) ≤
+    ∑ t ∈ range T, ((‖x t - u‖ ^ 2 - ‖x (t + 1) - u‖ ^ 2) / c +
+      c * ‖grad t (x t)‖ ^ 2) at hsum
+  rw [← mul_sum, sum_add_distrib, ← sum_div, sum_range_sub', ← mul_sum] at hsum
   rw [mul_comm 2 c, ← div_div]
-  linarith [key, div_nonneg (sq_nonneg ‖ogd proj (fun _ => c) grad x₀ T - u‖) hc.le]
+  simp only [x, ogd_zero, sub_div] at hsum
+  linarith only [hsum, div_nonneg (sq_nonneg ‖x T - u‖) hc.le]
 
 /-- `∑ t < T + 1, 1 / √(t + 1) ≤ 2 √(T + 1) - 1`. -/
 theorem sum_range_one_div_sqrt_succ_le (T : ℕ) :
