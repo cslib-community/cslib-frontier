@@ -18,8 +18,10 @@ import all CslibFrontier.DataStructure.PriorityQueue.WordRAM.SoftHeap.Model
 import CslibFrontier.Foundations.Data.Nat.HalvingRecurrence
 import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.DataStructure.Memory.Frame
+import all CslibFrontier.DataStructure.Memory.TripleFrame
 import Mathlib.Data.Rat.Cast.Order
 import Mathlib.Data.Rat.Lemmas
+import Mathlib.Tactic.IntervalCases
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
@@ -46,6 +48,28 @@ namespace Cslib.DataStructure.PriorityQueue.WordRAM.SoftHeap
 
 open Cslib.WordRAM Cslib.WordRAM.Realization Cslib.DataStructure Cslib.DataStructure.Memory
 
+private theorem pure_unit_eq : (fun _ : Unit => (pure () : Memory.Prog Unit)) = pure :=
+  funext fun u => congrArg pure (Subsingleton.elim () u)
+
+-- The item, singleton node, and combined parent occupy consecutive memory cells.
+private theorem writeRecord_spec (w base : ℕ) (words : List ℕ) (s : Memory.State)
+    (hbound : base + words.length ≤ s.frontier) (hfits : ∀ v ∈ words, Fits w v) :
+    let p := Block.writeList base words
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s p) ∧
+    memoryCost p s = words.length ∧
+    let s' := (Memory.spec 0).clientState s p
+    s'.frontier = s.frontier ∧
+    (∀ a, s'.mem a ≠ s.mem a → ∃ j < words.length, a = base + j) ∧
+    Block.HoldsList base words s'.mem := by
+  refine ⟨Block.validHistory_writeList w base words s hbound hfits,
+    Block.totalCost_writeList 0 base words s, Block.clientState_writeList_frontier 0 base words s,
+    ?_, Block.holdsList_writeList 0 base words s⟩
+  intro a ha
+  have ha' : a ∈ Set.Ico base (base + words.length) :=
+    not_not.mp (fun h => ha (Block.mem_writeList_of_not_mem 0 base words s h))
+  obtain ⟨hlo, hhi⟩ := ha'
+  exact ⟨a - base, by lia, by lia⟩
+
 private theorem shInsertInit_spec {rt w itemBase nodeBase itemIdx nodeIdx val origKey : ℕ}
     {s : Memory.State} (h16 : Fits w 16) (_hwf : Memory.WellFormed w s)
     (hi_pos : 0 < itemIdx) (hn_pos : 0 < nodeIdx)
@@ -69,151 +93,57 @@ private theorem shInsertInit_spec {rt w itemBase nodeBase itemIdx nodeIdx val or
     s'.mem (nodeBase + 12 * nodeIdx + 9) = 0 ∧
     s'.mem (nodeBase + 12 * nodeIdx + 10) = 0 ∧
     s'.mem (nodeBase + 12 * nodeIdx + 11) = nodeIdx := by
-  have h0_fit : Fits w 0 := h16.of_le (by omega)
-  have h1_fit : Fits w 1 := h16.of_le (by omega)
-  let p_it : Memory.Prog Unit := do
-    Memory.write (itemBase + 3 * itemIdx) val
-    Memory.write (itemBase + 3 * itemIdx + 1) origKey
-    Memory.write (itemBase + 3 * itemIdx + 2) 0
-  let p_nd : Memory.Prog Unit := do
-    Memory.write (nodeBase + 12 * nodeIdx) origKey
-    Memory.write (nodeBase + 12 * nodeIdx + 1) 0
-    Memory.write (nodeBase + 12 * nodeIdx + 2) 1
-    Memory.write (nodeBase + 12 * nodeIdx + 3) 1
-    Memory.write (nodeBase + 12 * nodeIdx + 4) itemIdx
-    Memory.write (nodeBase + 12 * nodeIdx + 5) itemIdx
-    Memory.write (nodeBase + 12 * nodeIdx + 6) 0
-    Memory.write (nodeBase + 12 * nodeIdx + 7) 0
-    Memory.write (nodeBase + 12 * nodeIdx + 8) 0
-    Memory.write (nodeBase + 12 * nodeIdx + 9) 0
-    Memory.write (nodeBase + 12 * nodeIdx + 10) 0
-    Memory.write (nodeBase + 12 * nodeIdx + 11) nodeIdx
+  have h0_fit : Fits w 0 := h16.of_le (by lia)
+  have h1_fit : Fits w 1 := h16.of_le (by lia)
+  let itWords := [val, origKey, 0]
+  let nodeWords := [origKey, 0, 1, 1, itemIdx, itemIdx, 0, 0, 0, 0, 0, nodeIdx]
+  let p_it := Block.writeList (itemBase + 3 * itemIdx) itWords
+  let p_nd := Block.writeList (nodeBase + 12 * nodeIdx) nodeWords
   have hsplit : shInsertInit ![itemBase, nodeBase, itemIdx, nodeIdx, val, origKey] =
       (p_it >>= fun _ => p_nd) := by
-    dsimp only [shInsertInit, p_it, p_nd]
+    dsimp only [shInsertInit]
     simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
-    rfl
-  have hv_it : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s p_it) := by
-    dsimp only [p_it]
-    exact validHistory_write_bind (by omega) he_fit (validHistory_write_bind (by dsimp; omega)
-      hk_fit (validHistory_write (by dsimp; omega) h0_fit))
-  have hm_it : memoryCost p_it s = 3 := by
-    dsimp only [p_it]
-    rw [memoryCost_bind', memoryCost_write, clientState_write, memoryCost_bind',
-      memoryCost_write, clientState_write, memoryCost_write]
-  obtain ⟨s₁, hs₁_eq⟩ : ∃ s₁, s₁ = (Memory.spec 0).clientState s p_it := ⟨_, rfl⟩
-  have hs₁_form : s₁ = ⟨Function.update (Function.update (Function.update s.mem
-      (itemBase + 3 * itemIdx) val) (itemBase + 3 * itemIdx + 1) origKey)
-      (itemBase + 3 * itemIdx + 2) 0, s.frontier⟩ := by
-    rw [hs₁_eq]; dsimp only [p_it]
-    rw [clientState_bind_write, clientState_bind_write, clientState_write]
-  have hfr₁ : s₁.frontier = s.frontier := by rw [hs₁_form]
-  have hs₁_mem : ∀ a, s₁.mem a ≠ s.mem a →
-      ∃ j < 3, a = itemBase + 3 * itemIdx + j := by
-    intro a ha
-    rw [hs₁_form] at ha
-    by_cases h2 : a = itemBase + 3 * itemIdx + 2
-    · exact ⟨2, by decide, h2⟩
-    · by_cases h1 : a = itemBase + 3 * itemIdx + 1
-      · exact ⟨1, by decide, h1⟩
-      · by_cases h0 : a = itemBase + 3 * itemIdx
-        · exact ⟨0, by decide, h0⟩
-        · simp only [Function.update_of_ne h2, Function.update_of_ne h1,
-            Function.update_of_ne h0] at ha
-          exact absurd rfl ha
-  have hs₁_item0 : s₁.mem (itemBase + 3 * itemIdx) = val := by
-    rw [hs₁_form]; dsimp only
-    rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega), Function.update_self]
-  have hs₁_item1 : s₁.mem (itemBase + 3 * itemIdx + 1) = origKey := by
-    rw [hs₁_form]; dsimp only
-    rw [Function.update_of_ne (by omega), Function.update_self]
-  have hs₁_item2 : s₁.mem (itemBase + 3 * itemIdx + 2) = 0 := by
-    rw [hs₁_form]; dsimp only; rw [Function.update_self]
-  have hv_nd : (Memory.spec w).ValidHistory s₁ ((Memory.spec w).clientHistory s₁ p_nd) := by
-    dsimp only [p_nd]
-    refine validHistory_write_bind (by omega) hk_fit ?_
-    refine validHistory_write_bind (by dsimp; omega) h0_fit ?_
-    refine validHistory_write_bind (by dsimp; omega) h1_fit ?_
-    refine validHistory_write_bind (by dsimp; omega) h1_fit ?_
-    refine validHistory_write_bind (by dsimp; omega) hi_fit ?_
-    refine validHistory_write_bind (by dsimp; omega) hi_fit ?_
-    refine validHistory_write_bind (by dsimp; omega) h0_fit ?_
-    refine validHistory_write_bind (by dsimp; omega) h0_fit ?_
-    refine validHistory_write_bind (by dsimp; omega) h0_fit ?_
-    refine validHistory_write_bind (by dsimp; omega) h0_fit ?_
-    refine validHistory_write_bind (by dsimp; omega) h0_fit ?_
-    exact validHistory_write (by dsimp; omega) hn_fit
-  have hm_nd : memoryCost p_nd s₁ = 12 := by
-    dsimp only [p_nd]
-    repeat (rw [memoryCost_bind', memoryCost_write, clientState_write])
-    rw [memoryCost_write]
-  obtain ⟨s₂, hs₂_eq⟩ : ∃ s₂, s₂ = (Memory.spec 0).clientState s₁ p_nd := ⟨_, rfl⟩
-  have hs₂_form : s₂ = ⟨Function.update (Function.update (Function.update (Function.update
-      (Function.update (Function.update (Function.update (Function.update (Function.update
-      (Function.update (Function.update (Function.update s₁.mem
-        (nodeBase + 12 * nodeIdx) origKey)
-        (nodeBase + 12 * nodeIdx + 1) 0)
-        (nodeBase + 12 * nodeIdx + 2) 1)
-        (nodeBase + 12 * nodeIdx + 3) 1)
-        (nodeBase + 12 * nodeIdx + 4) itemIdx)
-        (nodeBase + 12 * nodeIdx + 5) itemIdx)
-        (nodeBase + 12 * nodeIdx + 6) 0)
-        (nodeBase + 12 * nodeIdx + 7) 0)
-        (nodeBase + 12 * nodeIdx + 8) 0)
-        (nodeBase + 12 * nodeIdx + 9) 0)
-        (nodeBase + 12 * nodeIdx + 10) 0)
-        (nodeBase + 12 * nodeIdx + 11) nodeIdx, s₁.frontier⟩ := by
-    rw [hs₂_eq]
-    dsimp only [p_nd]
-    repeat rw [clientState_bind_write]
-    rw [clientState_write]
-  have hfr₂ : s₂.frontier = s₁.frontier := by rw [hs₂_form]
-  have hs₂_mem : ∀ a, s₂.mem a ≠ s₁.mem a →
-      ∃ j < 12, a = nodeBase + 12 * nodeIdx + j := by
-    intro a ha
-    rw [hs₂_form] at ha
-    dsimp only at ha
-    by_cases h_out : ∃ j < 12, a = nodeBase + 12 * nodeIdx + j
-    · exact h_out
-    · exfalso
-      apply ha
-      rw [Function.update_of_ne (fun h => h_out ⟨11, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨10, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨9, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨8, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨7, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨6, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨5, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨4, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨3, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨2, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨1, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨0, by decide, by simpa using h⟩)]
-  have hs₂_nd : ∀ j < 12, s₂.mem (nodeBase + 12 * nodeIdx + j) =
+    simp only [p_it, p_nd, itWords, nodeWords, Block.writeList_cons, Block.writeList_nil,
+      bind_assoc, pure_unit_eq, bind_pure, Nat.add_assoc, Nat.reduceAdd]
+  have hi_bound : itemBase + 3 * itemIdx + itWords.length ≤ s.frontier := by
+    change itemBase + 3 * itemIdx + 3 ≤ s.frontier
+    lia
+  have hi_fits : ∀ v ∈ itWords, Fits w v := by
+    simp only [itWords, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
+      implies_true, and_true, he_fit, hk_fit, h0_fit]
+  let s₁ := (Memory.spec 0).clientState s p_it
+  obtain ⟨hv_it, hm_it, hfr₁, hs₁_mem, hs₁_hold⟩ :=
+    writeRecord_spec w (itemBase + 3 * itemIdx) itWords s hi_bound hi_fits
+  have hn_bound : nodeBase + 12 * nodeIdx + nodeWords.length ≤ s₁.frontier := by
+    change nodeBase + 12 * nodeIdx + 12 ≤ s₁.frontier
+    rw [show s₁.frontier = s.frontier from hfr₁]
+    lia
+  have hn_fits : ∀ v ∈ nodeWords, Fits w v := by
+    simp only [nodeWords, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
+      implies_true, and_true, hk_fit, h0_fit, h1_fit, hi_fit, hn_fit]
+  let s₂ := (Memory.spec 0).clientState s₁ p_nd
+  obtain ⟨hv_nd, hm_nd, hfr₂, hs₂_mem, hs₂_hold⟩ :=
+    writeRecord_spec w (nodeBase + 12 * nodeIdx) nodeWords s₁ hn_bound hn_fits
+  have hs₂_nd (j : ℕ) (hj : j < 12) : s₂.mem (nodeBase + 12 * nodeIdx + j) =
       match j with
       | 0 => origKey | 1 => 0 | 2 => 1 | 3 => 1 | 4 => itemIdx | 5 => itemIdx
       | 6 => 0 | 7 => 0 | 8 => 0 | 9 => 0 | 10 => 0 | 11 => nodeIdx | _ => 0 := by
-    intro j hj
-    rw [hs₂_form]; dsimp only
-    rcases (by omega : j = 0 ∨ j = 1 ∨ j = 2 ∨ j = 3 ∨ j = 4 ∨ j = 5 ∨ j = 6 ∨ j = 7 ∨
-        j = 8 ∨ j = 9 ∨ j = 10 ∨ j = 11) with
-      rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
-      repeat (first | exact Function.update_self _ _ _ | rw [Function.update_of_ne (by omega)])
-  have hs₂_item : ∀ k < 3, s₂.mem (itemBase + 3 * itemIdx + k) =
-      s₁.mem (itemBase + 3 * itemIdx + k) := by
-    intro k hk
+    have hget := hs₂_hold.get j hj
+    interval_cases j <;> exact hget
+  have hs₂_item (k : ℕ) (hk : k < 3) :
+      s₂.mem (itemBase + 3 * itemIdx + k) = itWords[k]'hk := by
+    refine Eq.trans ?_ (hs₁_hold.get k hk)
     by_contra hne
     rcases hs₂_mem _ hne with ⟨j, hj, heq⟩
     exact hdisj j hj k hk heq.symm
   have hs_eq : (Memory.spec 0).clientState s
       (shInsertInit ![itemBase, nodeBase, itemIdx, nodeIdx, val, origKey]) = s₂ := by
-    rw [hsplit, StateTransitionSpec.clientState_bind, ← hs₁_eq, ← hs₂_eq]
+    rw [hsplit, StateTransitionSpec.clientState_bind]
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [hsplit]
-    refine validHistory_bind_step hv_it ?_
-    rw [← hs₁_eq]
-    exact hv_nd
-  · rw [hsplit, memoryCost_bind', ← hs₁_eq, hm_it, hm_nd]
+    exact validHistory_bind_step hv_it hv_nd
+  · rw [hsplit, memoryCost_bind']
+    exact congrArg₂ (· + ·) hm_it hm_nd
   · rw [hs_eq]; exact hfr₂.trans hfr₁
   · intro a ha
     rw [hs_eq] at ha
@@ -231,8 +161,8 @@ private theorem shInsertInit_spec {rt w itemBase nodeBase itemIdx nodeIdx val or
       (by simpa using hs₂_nd 7 (by decide))
       (fun _ h => by cases h) (fun _ h => by cases h)
     rw [hs₂_nd 4 (by decide), hs₂_nd 5 (by decide)]
-    exact ⟨rfl, rfl, by dsimp; omega, hs₂_item 0 (by decide) ▸ hs₁_item0,
-      hs₂_item 1 (by decide) ▸ hs₁_item1, hs₂_item 2 (by decide) ▸ hs₁_item2⟩
+    exact ⟨rfl, rfl, by dsimp; lia, hs₂_item 0 (by decide), hs₂_item 1 (by decide),
+      hs₂_item 2 (by decide)⟩
   · rw [hs_eq]; exact hs₂_nd 8 (by decide)
   · rw [hs_eq]; exact hs₂_nd 9 (by decide)
   · rw [hs_eq]; exact hs₂_nd 10 (by decide)
@@ -252,75 +182,28 @@ private theorem combineWriteParent_spec {w nodeBase z y p rank target : ℕ} {s 
       match j with
       | 0 => 0 | 1 => rank | 2 => target | 3 => 0 | 4 => 0 | 5 => 0
       | 6 => z | 7 => y | 8 => 0 | 9 => 0 | 10 => 0 | 11 => 0 | _ => 0) := by
-  have h0_fit : Fits w 0 := h16.of_le (by omega)
-  have hv : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
-      (combineWriteParent ![nodeBase, z, y, p, rank, target])) := by
+  have h0_fit : Fits w 0 := h16.of_le (by lia)
+  let words := [0, rank, target, 0, 0, 0, z, y, 0, 0, 0, 0]
+  have hp_eq : combineWriteParent ![nodeBase, z, y, p, rank, target] =
+      Block.writeList (nodeBase + 12 * p) words := by
     dsimp only [combineWriteParent]
     simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
-    refine validHistory_write_bind (by omega) h0_fit ?_
-    refine validHistory_write_bind (by dsimp; omega) hrk_fit ?_
-    refine validHistory_write_bind (by dsimp; omega) htg_fit ?_
-    refine validHistory_write_bind (by dsimp; omega) h0_fit ?_
-    refine validHistory_write_bind (by dsimp; omega) h0_fit ?_
-    refine validHistory_write_bind (by dsimp; omega) h0_fit ?_
-    refine validHistory_write_bind (by dsimp; omega) hz_fit ?_
-    refine validHistory_write_bind (by dsimp; omega) hy_fit ?_
-    refine validHistory_write_bind (by dsimp; omega) h0_fit ?_
-    refine validHistory_write_bind (by dsimp; omega) h0_fit ?_
-    refine validHistory_write_bind (by dsimp; omega) h0_fit ?_
-    exact validHistory_write (by dsimp; omega) h0_fit
-  have hm : memoryCost (combineWriteParent ![nodeBase, z, y, p, rank, target]) s = 12 := by
-    dsimp only [combineWriteParent]
-    simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
-    repeat (rw [memoryCost_bind', memoryCost_write, clientState_write])
-    rw [memoryCost_write]
-  obtain ⟨s', hs'_eq⟩ : ∃ s', s' = (Memory.spec 0).clientState s
-      (combineWriteParent ![nodeBase, z, y, p, rank, target]) := ⟨_, rfl⟩
-  have hs'_form : s' = ⟨Function.update (Function.update (Function.update (Function.update
-      (Function.update (Function.update (Function.update (Function.update (Function.update
-      (Function.update (Function.update (Function.update s.mem
-        (nodeBase + 12 * p) 0)
-        (nodeBase + 12 * p + 1) rank)
-        (nodeBase + 12 * p + 2) target)
-        (nodeBase + 12 * p + 3) 0)
-        (nodeBase + 12 * p + 4) 0)
-        (nodeBase + 12 * p + 5) 0)
-        (nodeBase + 12 * p + 6) z)
-        (nodeBase + 12 * p + 7) y)
-        (nodeBase + 12 * p + 8) 0)
-        (nodeBase + 12 * p + 9) 0)
-        (nodeBase + 12 * p + 10) 0)
-        (nodeBase + 12 * p + 11) 0, s.frontier⟩ := by
-    rw [hs'_eq]; dsimp only [combineWriteParent]
-    simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
-    repeat rw [clientState_bind_write]
-    rw [clientState_write]
-  refine ⟨hv, hm, ?_, ?_, ?_⟩
-  · rw [← hs'_eq, hs'_form]
-  · intro a ha
-    rw [← hs'_eq, hs'_form] at ha
-    dsimp only at ha
-    by_cases h_out : ∃ j < 12, a = nodeBase + 12 * p + j
-    · exact h_out
-    · exfalso; apply ha
-      rw [Function.update_of_ne (fun h => h_out ⟨11, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨10, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨9, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨8, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨7, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨6, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨5, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨4, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨3, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨2, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨1, by decide, h⟩),
-        Function.update_of_ne (fun h => h_out ⟨0, by decide, by simpa using h⟩)]
-  · intro j hj
-    rw [← hs'_eq, hs'_form]; dsimp only
-    rcases (by omega : j = 0 ∨ j = 1 ∨ j = 2 ∨ j = 3 ∨ j = 4 ∨ j = 5 ∨ j = 6 ∨ j = 7 ∨
-        j = 8 ∨ j = 9 ∨ j = 10 ∨ j = 11) with
-      rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
-      repeat (first | exact Function.update_self _ _ _ | rw [Function.update_of_ne (by omega)])
+    simp only [words, Block.writeList_cons, Block.writeList_nil, pure_unit_eq, bind_pure,
+      Nat.add_assoc, Nat.reduceAdd]
+  have hp_bound : nodeBase + 12 * p + words.length ≤ s.frontier := by
+    change nodeBase + 12 * p + 12 ≤ s.frontier
+    lia
+  have hp_fits : ∀ v ∈ words, Fits w v := by
+    simp only [words, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
+      implies_true, and_true, h0_fit, hrk_fit, htg_fit, hz_fit, hy_fit]
+  obtain ⟨hv, hm, hfr, hmod, hhold⟩ :=
+    writeRecord_spec w (nodeBase + 12 * p) words s hp_bound hp_fits
+  change _ ∧ _ ∧ _
+  simp only [hp_eq]
+  refine ⟨hv, hm, hfr, hmod, ?_⟩
+  intro j hj
+  have hget := hhold.get j hj
+  interval_cases j <;> exact hget
 
 private theorem combineInitParent_spec {rt w nodeBase z y p zRank : ℕ} {s : Memory.State}
     (h16 : Fits w 16) (hwf : Memory.WellFormed w s)
