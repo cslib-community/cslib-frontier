@@ -352,6 +352,31 @@ theorem code_pi_bundle {σ : Signature.{v}} {k n : ℕ} (cs : Fin k → Circuit 
   obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hc
   exact (length_code_fst _).trans (hs j)
 
+/-- A parallel layer of single-gate circuits lists their gate rows in output order. Since each
+component returns its gate, its output is relocated past the preceding gates. -/
+theorem code_pi_singleton {σ : Signature.{v}} {n m : ℕ} (cs : Fin m → Circuit σ n 1)
+    (rows : Fin m → σ.Op × List ℕ)
+    (hc : ∀ i, (cs i).code = ([rows i], [n])) :
+    (Circuit.pi cs).code = (List.ofFn rows, (List.range m).map (n + ·)) := by
+  have hw (i : Fin m) : ∀ j ∈ (rows i).2, j < n := by
+    have hvalid := (isSome_ofCode_iff (σ := σ) (n := n) (m := 1)).mp
+      (show (ofCode n 1 (cs i).code).isSome by simp)
+    rw [hc] at hvalid
+    exact hvalid.1.1.2
+  induction m with
+  | zero => rfl
+  | succ m ih =>
+    rw [Circuit.pi, Circuit.code_append, ih _ (fun i => rows i.castSucc)
+      (fun i => hc i.castSucc) (fun i => hw i.castSucc), hc (Fin.last m)]
+    rw [List.ofFn_succ', List.range_succ, List.map_append]
+    simp only [Circuit.appendCode, List.length_ofFn, List.map_cons,
+      List.map_nil, Circuit.shiftCodeWire, lt_self_iff_false, ite_false]
+    congr 3
+    have hmap : (rows (Fin.last m)).2.map (Circuit.shiftCodeWire n m) = (rows (Fin.last m)).2 := by
+      exact (List.map_congr_left (g := id) fun j hj => by
+        simp [Circuit.shiftCodeWire, hw (Fin.last m) j hj]).trans (List.map_id _)
+    simp [hmap, List.concat_eq_append]
+
 /-! ### Sequential composition -/
 
 /-- Route a later circuit's inputs through `c`'s outputs and shift its gates past `c`'s gates. -/

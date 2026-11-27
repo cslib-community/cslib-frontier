@@ -1597,6 +1597,7 @@ public import CslibFrontier.Probability.IID.FirstSome
 public import CslibFrontier.Computability.PolyTime.BooleanAnalysis.IncidenceBranching
 public import CslibFrontier.Algorithms.Lean.GomoryHu.Gusfield
 public import CslibFrontier.Computability.Communication.NOF.GeneralizedInnerProduct
+public import CslibFrontier.Computability.Circuit.Boolean.UniformDepth
 public import CslibFrontier.Crypto.Primitives.Garbling.Games
 public import CslibFrontier.Languages.Probabilistic.Sampling.F4
 public import CslibFrontier.Foundations.BooleanAnalysis.LargeCoefficient
@@ -3781,6 +3782,7 @@ public import CslibFrontier.Algorithms.Lean.EdgeCSP.Blossom.Contraction
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Step
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Linear
 public import CslibFrontier.Algorithms.Lean.EdgeCSP.Blossom.ExternalPrefix
+public import CslibFrontier.Computability.Circuit.Boolean.UniformFanIn
 public import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.Sparse
 public import CslibFrontier.Probability.BitString.AffineHash
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.ExplicitBlockNetwork.Table
