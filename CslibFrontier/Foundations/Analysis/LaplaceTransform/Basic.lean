@@ -69,6 +69,26 @@ order here, so it does not apply.
 
 ## References
 
+* [Widder1941], Chapter II. Widder transforms a function `α` of bounded variation on every
+  `[0, R]` by the Laplace–Stieltjes integral `∫₀^∞ e^{-st} dα(t)`, taken as an improper Riemann–
+  Stieltjes integral that may converge only conditionally; `laplace` is a Lebesgue (Bochner)
+  integral over `(0, ∞)` and converges only absolutely. Compare:
+  * §1, Corollaries 1a and 1b, p. 37: the integral converges for `re s > σ_c` and diverges for
+    `re s < σ_c`, where `σ_c` is the abscissa of convergence.
+  * §3, Theorem 3.1, p. 46: absolute convergence at `s₀` gives absolute convergence on
+    `re s ≥ re s₀` (`LaplaceConvergent.of_re_le`).
+  * §2, Theorem 2.1 and its proof, pp. 38–39: if `α(t) = O(e^{γt})`, then `∫₀^∞ e^{-st} α(t) dt`
+    converges absolutely for `re s > γ` (`laplaceConvergent_of_norm_le_exp`).
+  * §5, Theorem 5a, p. 57: the transform is analytic for `re s > σ_c`, with
+    `f^{(k)}(s) = ∫₀^∞ e^{-st} (-t)^k dα(t)` (`hasDerivAt_laplace`, `differentiableOn_laplace`).
+    Widder's proof uses uniform convergence on discs and Weierstrass's theorem; here the
+    hypothesis is the exponential-order bound and the proof is by dominated differentiation.
+  * §14, Theorem 14a, p. 94, and the example `φ(t) = e^{2t}`, `f(s) = 1/(s - 2)` on p. 95
+    (`laplace_cexp`): if `f(s) = Σ aₙ n!/s^{n+1}` for `|s| > c`, then `f` is the transform of
+    `Σ aₙ tⁿ` on `re s > c`.
+  * §5, p. 58, equation (2), in the proof of Theorem 5b: a real shift of a Laplace–Stieltjes
+    integral, `f(s + σ_c) = ∫₀^∞ e^{-st} dβ(t)` with `β(t) = ∫₀^t e^{-σ_c u} dα(u)`
+    (`laplace_cexp_smul`).
 * S. Boyd, *EE263: Introduction to Linear Dynamical Systems*, Stanford, lecture notes
   "Solution via Laplace transform and matrix exponential" (Stanford Engineering Everywhere
   handout `10-expm.pdf`), slide 10–2: the transform of a matrix-valued function, taken entrywise,
