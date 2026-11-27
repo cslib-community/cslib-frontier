@@ -10,6 +10,7 @@ module
 import CslibFrontier.Computability.WordRAM.Power.Rename
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Memory
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Charged initialization and encoding-array size
@@ -69,7 +70,7 @@ theorem exec_powers {w L Q : ℕ} (x : Data registers) (hL : x.regs inputDepth =
     exact (hd' : y.regs inputDepth = L).trans hL.symm
   · simp only [PowersLocal, not_or] at hi
     rcases hi with ⟨h1, h2, h3, h4, h5, h6, h7, h8⟩
-    rw [hframe i fun j => by fin_cases j <;> simp [powerRegisters] <;> tauto]
+    rw [hframe i fun j => by fin_cases j <;> simp [powerRegisters] <;> lrat_tauto]
     wram_simp
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery
