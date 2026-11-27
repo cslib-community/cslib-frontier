@@ -14,13 +14,14 @@ public meta import CslibFrontier.Algorithms.WordRAM.DFS
 meta import CslibFrontier.Computability.WordRAM.Structured.FastEval
 
 /-!
-# Depth-first search and topological sort: worked examples
+# Depth-first search, topological sort and block dominance
 
 Kernel-checked examples (no `native_decide`) of depth-first search and topological sort: a DAG
 with its topological order, a cyclic graph and a self-loop, on which topological sort is not a
 topological order, reachability from a single root, and the standard-basis word-RAM topological
 sort `Cslib.Algorithms.WordRAM.DFS.topoProgram` on the CSR encoding, including the edgeless graph,
-the empty graph, a self-loop and parallel arcs.
+the empty graph, a self-loop and parallel arcs. The block dominance examples check the Boolean
+query and use its walk specification on the diamond and the directed triangle.
 -/
 
 public section
@@ -69,6 +70,24 @@ def triangle : Fin 3 → List (Fin 3)
   | 0 => [1]
   | 1 => [2]
   | 2 => [0]
+
+-- Every walk from 0 to 2 visits 1. Apply the computed proof to the walk 0 → 1 → 2.
+example : (1 : Fin 3) ∈ [0, 1, 2] := by
+  have h : Dominates triangle 0 1 2 := dominatesB_eq_true_iff.mp (by decide +kernel)
+  exact h [1, 2] (by decide +kernel) rfl
+
+-- Deleting the mandatory block also witnesses the loss of reachability.
+example : ¬ Relation.ReflTransGen (Edge (deleteVertex triangle 1)) 0 2 := by
+  apply (dominates_iff_not_reachable_delete (by decide : (0 : Fin 3) ≠ 1)).mp
+  exact dominatesB_eq_true_iff.mp (by decide +kernel)
+
+-- The length-zero walk from the entry to itself avoids 1 even though the cycle visits it.
+example : dominatesB triangle 0 1 0 = false := by decide +kernel
+
+example : ¬ Dominates triangle 0 1 0 := by
+  intro h
+  have ht := dominatesB_eq_true_iff.mpr h
+  exact (by decide +kernel : dominatesB triangle 0 1 0 ≠ true) ht
 
 theorem not_acyclic_triangle : ¬ Relation.Acyclic (Edge triangle) := fun h =>
   h.irrefl 0

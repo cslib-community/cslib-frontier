@@ -13,10 +13,26 @@ public import Mathlib.Data.List.Chain
 /-!
 # Block dominance by depth-first search
 
-`Dominates adj entry d v` says that every walk from the entry to `v` visits `d`,
-following [Zhao and Zdancewic, Definition 1][ZhaoZdancewic2012].
-`dominatesB` answers one query by searching for a walk avoiding the candidate.
-`dominatesB_eq_true_iff` includes unreachable targets, which every vertex dominates.
+Block dominance asks whether every walk from the entry to a target visits a candidate block.
+The executable query tests reachability after deleting the candidate's incident edges.
+
+## Main definitions
+
+* `Cslib.Algorithms.Lean.DFS.Dominates` expresses dominance over walks, including both endpoints.
+* `Cslib.Algorithms.Lean.DFS.deleteVertex` removes the incident edges of a vertex.
+* `Cslib.Algorithms.Lean.DFS.dominatesB` checks a single dominance query by depth-first search.
+
+## Main results
+
+* `Cslib.Algorithms.Lean.DFS.dominates_iff_not_reachable_delete` characterizes dominance by
+  loss of reachability after deletion when the candidate differs from the entry.
+* `Cslib.Algorithms.Lean.DFS.dominatesB_eq_true_iff` proves that the query agrees with the
+  walk specification, including for unreachable targets.
+
+## References
+
+* [J. Zhao and S. Zdancewic, *Mechanized Verification of Computing Dominators for Formalizing
+  Compilers*, Definition 1][ZhaoZdancewic2012]
 -/
 
 public section
@@ -26,7 +42,7 @@ namespace Cslib.Algorithms.Lean.DFS
 variable {V : Type*} (adj : V → List V)
 
 /-- Every walk from `entry` to `v` contains `d`, counting both endpoints. -/
-def Dominates (entry d v : V) : Prop :=
+@[expose] def Dominates (entry d v : V) : Prop :=
   ∀ tail : List V, (entry :: tail).IsChain (Edge adj) →
     (entry :: tail).getLast (by simp) = v → d ∈ entry :: tail
 
@@ -48,6 +64,13 @@ private theorem chain_delete_iff (d u : V) (hu : u ≠ d) (tail : List V) :
     · rw [List.isChain_cons_cons, List.isChain_cons_cons, ih w hw]
       simp [Edge, deleteVertex, hu, hw, Ne.symm hw, and_assoc]
 
+/-- Check dominance with one DFS, or immediately accept either endpoint. -/
+@[expose] def dominatesB [Fintype V] (entry d v : V) : Bool :=
+  if entry = d ∨ v = d then true else
+    decide (v ∉ (dfs (deleteVertex adj d) (Fintype.card V) [entry]).visited)
+
+variable {adj}
+
 /-- A candidate distinct from the entry dominates exactly when its deletion destroys
 reachability. This also covers targets already unreachable in the original graph. -/
 theorem dominates_iff_not_reachable_delete {entry d v : V} (he : entry ≠ d) :
@@ -63,13 +86,8 @@ theorem dominates_iff_not_reachable_delete {entry d v : V} (he : entry ≠ d) :
       ((chain_delete_iff adj d entry he tail).mpr
         ⟨hp, fun hm => ha (List.mem_cons_of_mem _ hm)⟩) hl)
 
-/-- Check dominance with one DFS, or immediately accept either endpoint. -/
-@[expose] def dominatesB [Fintype V] (entry d v : V) : Bool :=
-  if entry = d ∨ v = d then true else
-    decide (v ∉ (dfs (deleteVertex adj d) (Fintype.card V) [entry]).visited)
-
 /-- The executable query agrees with the all-walks specification on every target. -/
-theorem dominatesB_eq_true_iff [Fintype V] (entry d v : V) :
+@[simp] theorem dominatesB_eq_true_iff [Fintype V] {entry d v : V} :
     dominatesB adj entry d v = true ↔ Dominates adj entry d v := by
   by_cases he : entry = d
   · subst d
@@ -79,7 +97,7 @@ theorem dominatesB_eq_true_iff [Fintype V] (entry d v : V) :
     rw [dominatesB, ite_eq_left (Or.inr rfl), eq_self, true_iff]
     intro tail _ hl
     exact hl ▸ List.getLast_mem (l := entry :: tail) (by simp)
-  · rw [dominates_iff_not_reachable_delete adj he]
+  · rw [dominates_iff_not_reachable_delete he]
     simp [dominatesB, he, hv, mem_dfs_visited_iff (adj := deleteVertex adj d) (le_refl _)]
 
 end Cslib.Algorithms.Lean.DFS
