@@ -3948,7 +3948,6 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Sp
 public import CslibFrontier.Computability.WordRAM.Call
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.DyadicCost.Asymptotics
 public import CslibFrontier.Foundations.Data.Nat.MultiplyHigh
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space.MidpointCertificates
 public import CslibFrontier.Computability.MCSP.HardnessConsequences
 public import CslibFrontier.Logics.Propositional.QBF.Blocks
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.ShortDesc
@@ -10329,6 +10328,7 @@ public import CslibFrontier.Computability.WordRAM.ExactNotation
 public import CslibFrontier.Computability.Circuit.Iteration
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Rank
 public import CslibFrontier.Computability.Complexity.FineGrained.CountingSparsifyContext
+public import CslibFrontier.Computability.Complexity.Classes.Alternation.MidpointCertificates
 public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability
 public import CslibFrontier.Algorithms.Lean.Karger.Memory
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Planar.Embedding.Bundle
