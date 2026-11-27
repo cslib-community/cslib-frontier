@@ -21,6 +21,17 @@ component. Out-of-range identifiers return zero.
 
 ## Main definitions
 
+* `SaksZhouEntry` stores a seed and two binary compact identifiers.
+* `saksZhouEntryValue` is the final rounded numerator requested by the query.
+
+## Main results
+
+* `sum_saksZhouBaseCounts_le` bounds the row numerators on the entire compact box.
+* `saksZhouEntryValue_div` expresses the real rounded entry as the packed query's answer divided
+  by its fixed-point denominator.
+
+## Main definitions
+
 * `SaksZhouEntry` contains the packed seed, row and column of a query.
 * `saksZhouEntryValue` evaluates the final integer numerator for a query.
 
@@ -62,6 +73,27 @@ its successor. This matrix counts both outcomes when they have the same successo
     Matrix (Fin (vertexBound (k := k) B)) (Fin (vertexBound (k := k) B)) ℕ :=
   fun i j => coinCountWithSymbol M B w.length i j w[queryIndex (k := k) B i]? * 2 ^ (d - 1)
 
+/-- With at least one fractional bit, the integer base counts at denominator `2 ^ d` represent
+the normalized compact-configuration transition matrix. -/
+theorem compactCoinMatrix_eq_saksZhouBaseCounts_div {d : ℕ} (hd : 0 < d) (B : ℕ) (w : List Bool)
+    (u v : Fin (vertexBound (k := k) B)) :
+    compactCoinMatrix M ℝ B w u v = (saksZhouBaseCounts M d B w u v : ℝ) / 2 ^ d := by
+  have he : d - 1 + 1 = d := by omega
+  simp only [compactCoinMatrix, saksZhouBaseCounts, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]
+  rw [← he, pow_succ]
+  simp only [Nat.add_sub_cancel]
+  field_simp
+
+/-- The dyadic base counts have total numerator at most `2 ^ d` for every compact identifier,
+including unreachable or malformed identifiers. -/
+theorem sum_saksZhouBaseCounts_le {d : ℕ} (hd : 0 < d) (B : ℕ) (w : List Bool)
+    (u : Fin (vertexBound (k := k) B)) : ∑ v, saksZhouBaseCounts M d B w u v ≤ 2 ^ d := by
+  have h := compactCoinMatrix_mulVec_one_le (machine := M) (R := ℝ) B w u
+  simp only [Matrix.mulVec, dotProduct, Pi.one_apply, mul_one] at h
+  simp_rw [compactCoinMatrix_eq_saksZhouBaseCounts_div M hd B w] at h
+  rw [← Finset.sum_div, div_le_one (by positivity)] at h
+  exact_mod_cast h
+
 /-- Final integer numerator of the rounded Saks–Zhou iteration on the enumerated configuration
 box, extended by zero to IDs beyond the box. -/
 @[expose] noncomputable def saksZhouEntryValue (c clk : ℕ) (q : SaksZhouEntry × List Bool) : ℕ :=
@@ -92,17 +124,11 @@ theorem saksZhouEntryValue_div (c clk z : ℕ) (w : List Bool) :
         (compactCoinMatrix M ℝ B w) s seed.2 i j =
           (saksZhouEntryValue M c clk (⟨z, i, j⟩, w) : ℝ) / 2 ^ d := by
   intro B s d b seed i j
-  have hbase (u v : Fin (vertexBound (k := k) B)) :
-      compactCoinMatrix M ℝ B w u v = (saksZhouBaseCounts M d B w u v : ℝ) / 2 ^ d := by
-    have hd : d - 1 + 1 = d := by simp only [d, saksZhouPrecision]; omega
-    simp only [compactCoinMatrix, saksZhouBaseCounts, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]
-    rw [← hd, pow_succ]
-    simp only [Nat.add_sub_cancel]
-    field_simp
+  have hd : 0 < d := by simp only [d, saksZhouPrecision]; omega
   simp only [saksZhouEntryValue]
   split_ifs with hi hj
   · exact snapIter_bitNisanPow_eq_counts (Equiv.refl _) (by dsimp only [b]; omega : d ≤ b) seed.1
-      _ _ hbase s seed.2 i j
+      _ _ (compactCoinMatrix_eq_saksZhouBaseCounts_div M hd B w) s seed.2 i j
   · exact (hj j.isLt).elim
   · exact (hi i.isLt).elim
 

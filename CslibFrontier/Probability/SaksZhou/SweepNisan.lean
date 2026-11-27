@@ -18,6 +18,11 @@ import CslibFrontier.Foundations.Data.List.OfFn
 For a matrix of integer transition counts with an absorbing sink, the seven-register sweep
 can evaluate an entry of Nisan powering. The sweep accepts a numbered-letter function, which
 on a valid seed and position must give the corresponding Nisan block.
+
+## Main results
+
+* `sweepHits_eq_nisanHits` identifies the sweep's counter with the number of Nisan starting blocks
+  taking a given source to a given destination.
 -/
 
 public section

@@ -3129,6 +3129,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Probability.BitString
 public import CslibFrontier.Foundations.NumberTheory.AKS.Criterion
 public import CslibFrontier.Computability.Complexity.Problems.SharpDNF.KarpLubyMadras
+public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.SaksZhou.SweepSpace
 public import CslibFrontier.Crypto.Computational.Encryption.Hybrid.DEMCCA
 public import CslibFrontier.Computability.Circuit.Boolean.ACC0.Basic
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxBatch.Width
@@ -3149,6 +3150,7 @@ public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Initia
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Support
 public import CslibFrontier.Foundations.Quantum.Algebra.RelabelAgreement
 public import CslibFrontier.DataStructure.ListUpdate.MoveToFront
+public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.SaksZhou.SweepCorrectness
 public import CslibFrontier.DataStructure.Queue.WordRAM.RegisterDynamic
 public import CslibFrontier.DataStructure.FusionTree.WordRAM.Node.Header
 public import CslibFrontier.DataStructure.PrefixSums.WordRAM.Update
@@ -3933,6 +3935,7 @@ public import CslibFrontier.Foundations.Data.Nat.MultiplyHigh
 public import CslibFrontier.Computability.MCSP.HardnessConsequences
 public import CslibFrontier.Logics.Propositional.QBF.Blocks
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.ShortDesc
+public import CslibFrontier.Probability.SaksZhou.SweepNisan
 public import CslibFrontier.Probability.BitString.List.All
 public import CslibFrontier.Computability.Streaming.Basic
 public import CslibFrontier.Foundations.NumberTheory.Primality.StrongLiars
@@ -4992,6 +4995,7 @@ public import CslibFrontier.Foundations.Analysis.LpNormMeasure
 public import CslibFrontier.Computability.Interactive.Efficient
 public import CslibFrontier.Computability.WordRAM.MemoryWindow
 public import CslibFrontier.Computability.LogSpaceDerandomization.PilotCorrection
+public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.SaksZhou.Entry
 public import CslibFrontier.MachineLearning.Boosting.Margin
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunProp
 public import CslibFrontier.Logics.Propositional.CNF.Branching
