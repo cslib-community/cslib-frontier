@@ -5811,6 +5811,7 @@ public import CslibFrontier.Computability.Complexity.Classes.SBP.Amplification
 public import CslibFrontier.Foundations.BooleanAnalysis.CoordinateOperators
 public import CslibFrontier.Algorithms.WordRAM.TwoSAT.EquivDFS
 public import CslibFrontier.Logics.Propositional.LineProof
+public import CslibFrontier.Algorithms.WordRAM.XORSATDense
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.Exec.InitFirst
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.Encoding
 public import CslibFrontier.Computability.Complexity.Classes.PH.KarpLipton
