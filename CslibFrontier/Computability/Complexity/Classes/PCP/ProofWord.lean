@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Un
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Complexity.Classes.SharpP.MetricOracle
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+import CslibFrontier.Computability.Probabilistic.Oracle.Traverse
 import CslibFrontier.Languages.Probabilistic.Oracle.EvalPure
 
 /-!
@@ -69,6 +70,31 @@ theorem isOraclePPTOn_readValue {α : Type} {enc : α ↪ List Bool}
   simpa only [readValue, OracleComp.interpret_map] using
     hread.map_with (f := fun _ bits => ofBits bits) (ComputableInPolyTime.bitsToNat.comp (.snd _ _))
 
+/-- Read a list of proof keys at one common bit width, preserving the order of the keys. -/
+def readValues (keys : List (List Bool)) (width : ℕ) : WordOracleComp Unit (List ℕ) :=
+  keys.mapM fun key => readValue key width
+
+/-- Reading a polynomially generated list of keys at a common unary width is strict oracle PPT.
+Every possible reply contributes just its head bit, even for a stateful prover returning long
+strings. -/
+theorem isOraclePPTOn_readValues {α : Type} {enc : α ↪ List Bool}
+    {keys : α → List (List Bool)} {width : α → ℕ}
+    (hk : ComputableInPolyTime keys enc (encList encBits))
+    (hw : ComputableInPolyTime width enc encUnary) :
+    IsOraclePPTOn enc (encList encNat)
+      (fun a => readValues (keys a) (width a)) := by
+  apply IsOraclePPTOn.mapM_with_of_bounded_output [] hk
+    (isOraclePPTOn_readValue (.snd _ _) (hw.comp (.fst _ _))) hw
+  intro a key r hr
+  change r ∈ OracleComp.supportWith _ (OracleComp.interpret _ _) at hr
+  rw [OracleComp.supportWith_interpret] at hr
+  obtain ⟨bits, hb, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hr
+  refine (length_encNat_ofBits_le bits).trans (le_of_eq ?_)
+  apply OracleComp.iterate_invariant (fun i (xs : List Bool) => xs.length = i) rfl _ bits hb
+  intro i xs _ hi ys hys
+  obtain ⟨b, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hys
+  simp [hi]
+
 /-- Reading a fixed proof table returns its value with certainty, including when the key is
 queried repeatedly from different verifier histories. -/
 theorem run_readValue (π : List Bool → Bool) (key : List Bool) (width : ℕ) :
@@ -94,6 +120,17 @@ theorem run_readValue (π : List Bool → Bool) (key : List Bool) (width : ℕ) 
   apply congrArg List.ofFn
   funext i
   exact Bool.eq_iff_iff.mpr (@decide_eq_true_iff _ (Classical.propDecidable _))
+
+/-- A traversal of fixed keys obtains the corresponding values of the same proof table. -/
+theorem run_readValues (π : List Bool → Bool) (keys : List (List Bool)) (width : ℕ) :
+    (Prover.ofProof π).run (readValues keys width) () =
+      PMF.pure (keys.map (fun key => value π key width), ()) := by
+  unfold readValues
+  induction keys with
+  | nil => rfl
+  | cons key keys ih =>
+    rw [List.mapM_cons, Prover.run_bind, run_readValue, PMF.pure_bind, Prover.run_bind, ih,
+      PMF.pure_bind, Prover.run_pure, List.map_cons]
 
 /-- One static bit proof realizes the low bits of every entry of any natural-valued table,
 simultaneously for all access widths. -/
