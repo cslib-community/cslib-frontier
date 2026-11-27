@@ -14,6 +14,7 @@ public import Mathlib.Data.Finset.Card
 public import Mathlib.Data.Fintype.Card
 public import Mathlib.Data.Fintype.Option
 public import Mathlib.Data.Fintype.Prod
+import Batteries.Data.Vector.Lemmas
 import Mathlib.Data.List.Nodup
 
 /-!
@@ -35,6 +36,14 @@ node to the target that an input switches on is defined by structural recursion 
 modes of acceptance: a nondeterministic program accepts when the count is nonzero (`NBP.Accepts`),
 and a parity branching program when it is odd (`NBP.AcceptsParity`).
 
+The recursion for `NBP.paths` recomputes the counts of earlier nodes at every use. `NBP.pathsVector`
+instead stores the count of each node in a vector, in topological order, and the compiler uses it
+for `NBP.paths` and `NBP.pathCount` (`NBP.paths_eq_pathsImpl`, `NBP.pathCount_eq_pathCountImpl`).
+The kernel definitions, their simplification rules and kernel reduction (`decide`, `rfl`) are
+unchanged. Separate calls may recompute the vector. Compiler replacements apply to callers compiled
+with this module imported, not previously compiled callers. This module does not certify a runtime
+bound.
+
 A deterministic branching program is a nondeterministic one in which every input switches on
 exactly one way out of each query node: a query node has a contact for each letter and an accepting
 sink has a rectifier to the target (`BranchingProgram.toNBP`). Its path count is `1` on the inputs
@@ -50,6 +59,9 @@ it accepts and `0` on the others (`BranchingProgram.pathCount_toNBP`), and it ha
 * `Cslib.BranchingPrograms.NBP.size`: its number of contacts.
 * `Cslib.BranchingPrograms.NBP.pathCount`: the number of source-to-target paths an input switches
   on.
+* `Cslib.BranchingPrograms.NBP.pathsVector`, `Cslib.BranchingPrograms.NBP.pathsImpl`,
+  `Cslib.BranchingPrograms.NBP.pathCountImpl`: the path counts of all nodes stored in a vector, and
+  compiler implementations of `NBP.paths` and `NBP.pathCount` that read it.
 * `Cslib.BranchingPrograms.NBP.Accepts`, `Cslib.BranchingPrograms.NBP.AcceptsParity`:
   nondeterministic and parity acceptance.
 * `Cslib.BranchingPrograms.BranchingProgram.toNBP`: a deterministic program as a nondeterministic
@@ -57,6 +69,9 @@ it accepts and `0` on the others (`BranchingProgram.pathCount_toNBP`), and it ha
 
 ## Main results
 
+* `Cslib.BranchingPrograms.NBP.get_pathsVector`: the stored counts agree with `NBP.paths`.
+* `Cslib.BranchingPrograms.NBP.paths_eq_pathsImpl`,
+  `Cslib.BranchingPrograms.NBP.pathCount_eq_pathCountImpl`: proved compiler replacements.
 * `Cslib.BranchingPrograms.BranchingProgram.pathCount_toNBP`: a deterministic program switches on
   one path on the inputs it accepts and none on the others.
 * `Cslib.BranchingPrograms.BranchingProgram.size_toNBP_le`: it has at most `Fintype.card α`
@@ -154,6 +169,50 @@ def paths (x : ι → α) : {n : ℕ} → NBP ι α n → Fin n → ℕ
 def pathCount : {n : ℕ} → NBP ι α n → (ι → α) → ℕ
   | _, target, _ => 1
   | _, node P wires, x => ((wires.filter (·.on x)).map fun w => P.paths x w.head).sum
+
+/-- The number of paths from each node to the target on which `x` switches every wire on, computed
+node by node in topological order and stored in a vector. -/
+def pathsVector (x : ι → α) : {n : ℕ} → NBP ι α n → Vector ℕ n
+  | _, target => #v[1]
+  | _, node P wires =>
+    let prior := P.pathsVector x
+    prior.push ((wires.filter (·.on x)).map fun w => prior.get w.head).sum
+
+/-- The stored counts agree with `NBP.paths`. -/
+@[simp] theorem get_pathsVector (x : ι → α) :
+    ∀ {n : ℕ} (P : NBP ι α n), (P.pathsVector x).get = P.paths x
+  | _, target => by
+    funext v
+    rw [Fin.fin_one_eq_zero v]
+    rfl
+  | _, node P wires => by
+    funext v
+    refine Fin.lastCases ?_ (fun v => ?_) v
+    · simp [pathsVector, get_pathsVector x P]
+    · simp [pathsVector, get_pathsVector x P]
+
+/-- Compiler implementation of `NBP.paths` reading the stored counts. -/
+def pathsImpl (x : ι → α) {n : ℕ} (P : NBP ι α n) : Fin n → ℕ :=
+  (P.pathsVector x).get
+
+/-- Proved compiler replacement of `NBP.paths` by `NBP.pathsImpl`. -/
+@[csimp] theorem paths_eq_pathsImpl : @paths = @pathsImpl := by
+  funext ι α _ x n P
+  exact (get_pathsVector x P).symm
+
+/-- Compiler implementation of `NBP.pathCount`: the stored count of the source, the last node. -/
+def pathCountImpl : {n : ℕ} → NBP ι α n → (ι → α) → ℕ
+  | _, target, _ => 1
+  | _, node P wires, x => ((node P wires).pathsVector x).get (Fin.last _)
+
+/-- Proved compiler replacement of `NBP.pathCount` by `NBP.pathCountImpl`. -/
+@[csimp] theorem pathCount_eq_pathCountImpl : @pathCount = @pathCountImpl := by
+  funext ι α _ n P x
+  cases P with
+  | target => rfl
+  | node P wires =>
+    rw [pathCountImpl, get_pathsVector, paths_node_last]
+    rfl
 
 /-- A nondeterministic branching program *accepts* an input that switches on some path from the
 source to the target. -/
