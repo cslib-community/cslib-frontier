@@ -10339,6 +10339,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.LinearMeasurements
 public import CslibFrontier.Computability.Complexity.Classes.PP.Oracle
 public import CslibFrontier.Crypto.Computational.Lattice.MR07Shorten
 public import CslibFrontier.Computability.Communication.Newman
+public import CslibFrontier.Computability.Complexity.Classes.MIP.AxisTest
 public import CslibFrontier.Languages.SQL.Row
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Pi
 public import CslibFrontier.Foundations.Data.MvPolynomial.SetPartitioned
