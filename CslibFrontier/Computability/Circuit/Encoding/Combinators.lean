@@ -516,6 +516,17 @@ theorem code_oneGate {σ : Signature.{v}} {n : ℕ} (op : σ.Op) (args : Fin (σ
     (oneGate op args).code = ([(op, List.ofFn fun a => (args a).val)], [n]) := by
   simp [oneGate, Circuit.code, Line.code]
 
+/-- Serializing one gate per output lists those gates in output order. They use only input
+wires, so block relocation leaves every gate argument unchanged. -/
+theorem code_pi_oneGate {σ : Signature.{v}} {n k : ℕ} (op : Fin k → σ.Op)
+    (wire : (i : Fin k) → Fin (σ.Arity (op i)) → Fin n) :
+    (pi fun i => oneGate (op i) (wire i)).code =
+      (List.ofFn fun i => (op i, List.ofFn fun j => (wire i j).val),
+        List.ofFn fun i : Fin k => n + i.val) := by
+  simpa only [List.map_range_eq_ofFn] using
+    code_pi_singleton (fun i => oneGate (op i) (wire i))
+      (fun i => (op i, List.ofFn fun j => (wire i j).val)) (fun i => code_oneGate (op i) (wire i))
+
 /-- Instantiate a formula `F` over `σ` at raw wire numbers. Total even when a selected wire is
 outside the declared input count; typed correctness holds on `Fin n`-valued wires. -/
 @[expose] def formulaCode {σ : Signature.{v}} {m : ℕ} (n : ℕ) (F : Formula σ m)
