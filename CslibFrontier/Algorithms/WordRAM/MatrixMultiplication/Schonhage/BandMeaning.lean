@@ -146,16 +146,26 @@ theorem parts_mask_right {L : ℕ} (a : Fin (7 ^ L)) :
       rightAt_isInner, h, not_true_eq_false, not_false_eq_true, ↓reduceIte,
       Fin.val_zero, Fin.val_one]
 
+private theorem parts_outer_eq_ofDigits {L : ℕ} (a : Fin (7 ^ L)) :
+    (parts L a.val).outer = Nat.ofDigits 3
+      ((List.ofFn fun ℓ => (finFunctionFinEquiv.symm a ℓ).val).filter (fun d => d < 3)) := by
+  rw [(parts_lists L a.val).2.1, sevenDigits_eq_ofFn]
+  rfl
+
+private theorem parts_inner_eq_ofDigits {L : ℕ} (a : Fin (7 ^ L)) :
+    (parts L a.val).inner = Nat.ofDigits 4
+      (((List.ofFn fun ℓ => (finFunctionFinEquiv.symm a ℓ).val).filter
+        (fun d => ¬d < 3)).map fun d => d - 3) := by
+  rw [(parts_lists L a.val).2.2, sevenDigits_eq_ofFn]
+  rfl
+
 /-- Native left outer offset, with the exact public mathematical string interface. -/
 theorem parts_outer_left {L m : ℕ} (a : Fin (7 ^ L))
     (h : (innerSetL (fun ℓ => leftAt (finFunctionFinEquiv.symm a ℓ))).card = m) :
     (parts L a.val).outer =
       (finFunctionFinEquiv
         (outerPartL (fun ℓ => leftAt (finFunctionFinEquiv.symm a ℓ)) h)).val := by
-  rw [(parts_lists L a.val).2.1, sevenDigits_eq_ofFn]
-  change Nat.ofDigits 3 ((List.ofFn fun ℓ => (finFunctionFinEquiv.symm a ℓ).val).filter
-    (fun d => d < 3)) = _
-  rw [outer_digits_left _ h, Nat.ofDigits_finFunctionFinEquiv]
+  rw [parts_outer_eq_ofDigits, outer_digits_left _ h, Nat.ofDigits_finFunctionFinEquiv]
 
 /-- Native right outer offset in the same least-significant-first convention. -/
 theorem parts_outer_right {L m : ℕ} (a : Fin (7 ^ L))
@@ -163,30 +173,21 @@ theorem parts_outer_right {L m : ℕ} (a : Fin (7 ^ L))
     (parts L a.val).outer =
       (finFunctionFinEquiv
         (outerPartR (fun ℓ => rightAt (finFunctionFinEquiv.symm a ℓ)) h)).val := by
-  rw [(parts_lists L a.val).2.1, sevenDigits_eq_ofFn]
-  change Nat.ofDigits 3 ((List.ofFn fun ℓ => (finFunctionFinEquiv.symm a ℓ).val).filter
-    (fun d => d < 3)) = _
-  rw [outer_digits_right _ h, Nat.ofDigits_finFunctionFinEquiv]
+  rw [parts_outer_eq_ofDigits, outer_digits_right _ h, Nat.ofDigits_finFunctionFinEquiv]
 
 /-- Native left thin-dimension offset agrees with the row-major pair digits of `Layout`. -/
 theorem parts_inner_left {L m : ℕ} (a : Fin (7 ^ L))
     (h : (innerSetL (fun ℓ => leftAt (finFunctionFinEquiv.symm a ℓ))).card = m) :
     (parts L a.val).inner = (finFunctionFinEquiv fun k =>
       finProdFinEquiv (innerPartL (fun ℓ => leftAt (finFunctionFinEquiv.symm a ℓ)) h k)).val := by
-  rw [(parts_lists L a.val).2.2, sevenDigits_eq_ofFn]
-  change Nat.ofDigits 4 (((List.ofFn fun ℓ => (finFunctionFinEquiv.symm a ℓ).val).filter
-    (fun d => ¬d < 3)).map fun d => d - 3) = _
-  rw [inner_digits_left _ h, Nat.ofDigits_finFunctionFinEquiv]
+  rw [parts_inner_eq_ofDigits, inner_digits_left _ h, Nat.ofDigits_finFunctionFinEquiv]
 
 /-- Native right thin-dimension offset uses the same `Layout` equivalence. -/
 theorem parts_inner_right {L m : ℕ} (a : Fin (7 ^ L))
     (h : (innerSetR (fun ℓ => rightAt (finFunctionFinEquiv.symm a ℓ))).card = m) :
     (parts L a.val).inner = (finFunctionFinEquiv fun k =>
       finProdFinEquiv (innerPartR (fun ℓ => rightAt (finFunctionFinEquiv.symm a ℓ)) h k)).val := by
-  rw [(parts_lists L a.val).2.2, sevenDigits_eq_ofFn]
-  change Nat.ofDigits 4 (((List.ofFn fun ℓ => (finFunctionFinEquiv.symm a ℓ).val).filter
-    (fun d => ¬d < 3)).map fun d => d - 3) = _
-  rw [inner_digits_right _ h, Nat.ofDigits_finFunctionFinEquiv]
+  rw [parts_inner_eq_ofDigits, inner_digits_right _ h, Nat.ofDigits_finFunctionFinEquiv]
 
 /-- Numeric specification of one guarded band-array read. `matrix r k` denotes an original
 matrix cell (or the transposed indexing of the right matrix); the native implementation
