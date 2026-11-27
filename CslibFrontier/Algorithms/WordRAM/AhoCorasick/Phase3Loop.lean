@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.AhoCorasick.Phase3Mem
+-- The breadth-first loop uses the private `fits_matrix_cell` address bound.
 import all CslibFrontier.Algorithms.WordRAM.AhoCorasick.Layout
 import CslibFrontier.Computability.WordRAM.SymbolicExec
 

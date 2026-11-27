@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.AhoCorasick.Phase1Setup
+-- Trie writes use the private `fits_matrix_cell`, `read_update_array_cell`,
+-- and `read_update_matrix_cell` lemmas.
 import all CslibFrontier.Algorithms.WordRAM.AhoCorasick.Layout
 import CslibFrontier.Computability.WordRAM.SymbolicExec
 

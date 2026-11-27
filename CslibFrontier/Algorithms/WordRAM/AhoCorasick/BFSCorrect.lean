@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.AhoCorasick.BFSModel
+-- The inner step uses the private `queue_push_inv` and `delta_row_update` lemmas.
 import all CslibFrontier.Algorithms.WordRAM.AhoCorasick.BFSModel
 
 /-!

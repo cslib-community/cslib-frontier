@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.AhoCorasick.BFSCorrect
 public import CslibFrontier.Algorithms.WordRAM.AhoCorasick.Phase1Setup
+-- Table updates use the private `read_update_array_cell` and `read_update_matrix_cell` lemmas.
 import all CslibFrontier.Algorithms.WordRAM.AhoCorasick.Layout
 import CslibFrontier.Computability.WordRAM.SymbolicExec
 

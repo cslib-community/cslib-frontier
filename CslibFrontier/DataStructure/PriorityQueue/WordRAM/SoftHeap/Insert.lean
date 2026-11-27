@@ -18,6 +18,7 @@ import all CslibFrontier.DataStructure.PriorityQueue.WordRAM.SoftHeap.Model
 import CslibFrontier.Foundations.Data.Nat.HalvingRecurrence
 import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.DataStructure.Memory.Frame
+-- Record writes use the private `Block.mem_writeList_of_not_mem` frame lemma.
 import all CslibFrontier.DataStructure.Memory.TripleFrame
 import Mathlib.Data.Rat.Cast.Order
 import Mathlib.Data.Rat.Lemmas
