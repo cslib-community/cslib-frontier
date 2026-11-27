@@ -1292,6 +1292,76 @@ private theorem toReal_one_sub_ofReal {v : ℝ} (h0 : 0 ≤ v) (h1 : v ≤ 1) :
   rw [ENNReal.toReal_sub_of_le (ENNReal.ofReal_le_one.2 h1) ENNReal.one_ne_top,
     ENNReal.toReal_one, ENNReal.toReal_ofReal h0]
 
+/-- The acceptance bound of `accept_ge` for a whole run from the empty history, in real
+numbers. -/
+private theorem accept_run_toReal (law : List Bool → PMF Bool) (P : Params) [NeZero P.grid]
+    (B : Challenger P.grid) {c qc vc : ℝ} (hqc : 0 ≤ qc) (hvc0 : 0 ≤ vc) (hvc1 : vc ≤ 1)
+    (hfar : ∀ bits, (countLaw (law bits) P.grid).toOuterMeasure
+      {k | c ≤ |(k.val : ℝ) / P.grid - (law bits true).toReal|} ≤ ENNReal.ofReal qc)
+    (hver : ∀ bits (k : Fin (P.grid + 1)),
+      |(k.val : ℝ) / P.grid - (law bits true).toReal| ≤ c →
+        ev law (verdict P bits k) false ≤ ENNReal.ofReal vc) :
+    (1 - vc) * (ev law (output P.rounds) true).toReal - (1 - vc) * P.rounds * qc ≤
+      (ev law (run P (honestProposer P) B) true).toReal := by
+  have hacc := accept_ge law P B hfar hver P.rounds [] (honestProposer P).init B.init
+  change _ * lawFrom law P.rounds [] true ≤ ev law (run P (honestProposer P) B) true + _ at hacc
+  have hfin := PMF.apply_ne_top (ev law (run P (honestProposer P) B)) true
+  have hreal := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hfin, by
+    simp [ENNReal.mul_eq_top]⟩) hacc
+  rw [ENNReal.toReal_add hfin (by simp [ENNReal.mul_eq_top]), ENNReal.toReal_mul,
+    ENNReal.toReal_mul, ENNReal.toReal_mul, toReal_one_sub_ofReal hvc0 hvc1,
+    ENNReal.toReal_ofReal hqc, ENNReal.toReal_natCast, ← ev_output] at hreal
+  linarith
+
+/-- The rejection bound of `reject_ge` for a whole run of `n + 1` rounds from the empty history,
+in real numbers, when the output is `K`-Lipschitz in the whole step law: every proposer is
+rejected with probability at least `(1 - vc) (1 - (n + 1) qc) (P[output = false] - K b)`. -/
+private theorem reject_run_toReal (law : List Bool → PMF Bool) (P : Params) [NeZero P.grid]
+    (A : Proposer P.grid) {n : ℕ} (hn : P.rounds = n + 1) {K : ℝ≥0} {s b qc vc : ℝ}
+    (hsb : s ≤ b) (hb : 0 ≤ b) (hqc0 : 0 ≤ qc) (hqc1 : ((n : ℝ) + 1) * qc ≤ 1) (hvc0 : 0 ≤ vc)
+    (hvc1 : vc ≤ 1)
+    (h1 : ∀ bits (k : Fin (P.grid + 1)), |(k.val : ℝ) / P.grid - (law bits true).toReal| ≤ s →
+      abortLaw P (law bits) k true ≤ ENNReal.ofReal qc)
+    (h2 : ∀ bits (k : Fin (P.grid + 1)), b ≤ |(k.val : ℝ) / P.grid - (law bits true).toReal| →
+      abortLaw P (law bits) k false ≤ ENNReal.ofReal qc)
+    (h3 : ∀ bits (k : Fin (P.grid + 1)), s ≤ |(k.val : ℝ) / P.grid - (law bits true).toReal| →
+      ev law (verdict P bits k) true ≤ ENNReal.ofReal vc)
+    (hL : LipschitzAt K law (output (n + 1))) :
+    (1 - vc) * (1 - ((n : ℝ) + 1) * qc) * ((ev law (output (n + 1)) false).toReal - K * b) ≤
+      (ev law (run P A (honestChallenger P)) false).toReal := by
+  have hrej := reject_ge law P A hsb h1 h2 h3 (n + 1) [] A.init (honestChallenger P).init
+  change _ ≤ (ev law (runFrom P A (honestChallenger P) P.rounds [] A.init
+    (honestChallenger P).init) false).toReal
+  rw [hn]
+  have hclose := hL (bestLaw law b n) (ENNReal.ofReal b)
+    (fun bits => closeTo_bestLaw law hb n bits) {false}
+  rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton] at hclose
+  change ev law (output (n + 1)) false ≤ ev (bestLaw law b n) (output (n + 1)) false + _ at hclose
+  rw [ev_output (bestLaw law b n), lawFrom_bestLaw law b n (n + 1) [] (by simp)] at hclose
+  have hUtop : rejectValue law b (n + 1) [] ≠ ⊤ :=
+    ne_top_of_le_ne_top ENNReal.one_ne_top (rejectValue_le_one law _ (n + 1) [])
+  have hclose' := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hUtop,
+    ENNReal.mul_ne_top ENNReal.coe_ne_top ENNReal.ofReal_ne_top⟩) hclose
+  rw [ENNReal.toReal_add hUtop (ENNReal.mul_ne_top ENNReal.coe_ne_top ENNReal.ofReal_ne_top),
+    ENNReal.toReal_mul, ENNReal.coe_toReal, ENNReal.toReal_ofReal hb] at hclose'
+  have hqc1' : qc ≤ 1 := by
+    have : (0 : ℝ) ≤ n := Nat.cast_nonneg n
+    nlinarith
+  have hrej' := ENNReal.toReal_mono (PMF.apply_ne_top _ _) hrej
+  rw [ENNReal.toReal_mul, ENNReal.toReal_mul, ENNReal.toReal_pow, toReal_one_sub_ofReal hvc0 hvc1,
+    toReal_one_sub_ofReal hqc0 hqc1'] at hrej'
+  have hbern : 1 - ((n : ℝ) + 1) * qc ≤ (1 - qc) ^ (n + 1) := by
+    have h := one_add_mul_le_pow (a := -qc) (by linarith) (n + 1)
+    rw [show (1 : ℝ) + -qc = 1 - qc by ring] at h
+    push_cast at h
+    linarith
+  have hU0 : 0 ≤ (rejectValue law b (n + 1) []).toReal := ENNReal.toReal_nonneg
+  calc (1 - vc) * (1 - ((n : ℝ) + 1) * qc) * ((ev law (output (n + 1)) false).toReal - K * b)
+      ≤ (1 - vc) * (1 - ((n : ℝ) + 1) * qc) * (rejectValue law b (n + 1) []).toReal :=
+        mul_le_mul_of_nonneg_left (by linarith) (mul_nonneg (by linarith) (by linarith))
+    _ ≤ (1 - vc) * (1 - qc) ^ (n + 1) * (rejectValue law b (n + 1) []).toReal := by gcongr
+    _ ≤ _ := hrej'
+
 private theorem completeness_figure1_of_one_le (hK : 0 < K) {T : ℕ} (hT : 1 ≤ T)
     {law : List Bool → PMF Bool}
     (hyes : 2 / 3 ≤ OracleComp.evalWith (sumHandler ProbComp.unifOracle law) (output T) true)
@@ -1300,30 +1370,20 @@ private theorem completeness_figure1_of_one_le (hK : 0 < K) {T : ℕ} (hT : 1 �
       (run (Params.figure1 K T) (honestProposer (Params.figure1 K T)) B) true := by
   have : NeZero (Params.figure1 K T).grid := ⟨(figure1_grid_pos hK hT).ne'⟩
   have hT' : (1 : ℝ) ≤ T := by exact_mod_cast hT
-  have hacc := accept_ge law (Params.figure1 K T) B
-    (c := 1 / (10 * (⌈150 * (K : ℝ)⌉₊ : ℝ)))
+  have hacc := accept_run_toReal law (Params.figure1 K T) B
+    (c := 1 / (10 * (⌈150 * (K : ℝ)⌉₊ : ℝ))) (by positivity) (by norm_num) (by norm_num)
     (fun bits => figure1_claim_tail hK hT (law bits))
-    (fun bits k h => figure1_verdict_false_le hK T law bits k h) T []
-    (honestProposer (Params.figure1 K T)).init B.init
-  change _ * lawFrom law T [] true ≤
-    ev law (run (Params.figure1 K T) (honestProposer (Params.figure1 K T)) B) true + _ at hacc
-  change 3 / 5 ≤ ev law (run (Params.figure1 K T) (honestProposer (Params.figure1 K T)) B) true
-  have hfin := PMF.apply_ne_top
-    (ev law (run (Params.figure1 K T) (honestProposer (Params.figure1 K T)) B)) true
-  have hyes' : (2 / 3 : ℝ) ≤ (lawFrom law T [] true).toReal := by
-    rw [← ev_output]
-    simpa [ev] using ENNReal.toReal_mono (PMF.apply_ne_top _ _) hyes
-  have hreal := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hfin, by
-    simp [ENNReal.mul_eq_top]⟩) hacc
-  rw [ENNReal.toReal_add hfin (by simp [ENNReal.mul_eq_top]), ENNReal.toReal_mul,
-    ENNReal.toReal_mul, ENNReal.toReal_mul, toReal_one_sub_ofReal (by norm_num) (by norm_num),
-    ENNReal.toReal_ofReal (by positivity), ENNReal.toReal_natCast] at hreal
+    (fun bits k h => figure1_verdict_false_le hK T law bits k h)
+  change (1 - 1 / 50) * (ev law (output T) true).toReal -
+    (1 - 1 / 50) * (T : ℝ) * (1 / (50 * T)) ≤ _ at hacc
   have hslack : (1 - 1 / 50 : ℝ) * T * (1 / (50 * T)) = 49 / 2500 := by
     field_simp
     ring
-  rw [hslack] at hreal
-  rw [← ENNReal.toReal_le_toReal (ENNReal.div_ne_top (by simp) (by simp)) hfin, ENNReal.toReal_div,
-    ENNReal.toReal_ofNat, ENNReal.toReal_ofNat]
+  have hyes' : (2 / 3 : ℝ) ≤ (ev law (output T) true).toReal := by
+    simpa [ev] using ENNReal.toReal_mono (PMF.apply_ne_top _ _) hyes
+  change 3 / 5 ≤ ev law (run (Params.figure1 K T) (honestProposer (Params.figure1 K T)) B) true
+  rw [← ENNReal.toReal_le_toReal (ENNReal.div_ne_top (by simp) (by simp)) (PMF.apply_ne_top _ _),
+    ENNReal.toReal_div, ENNReal.toReal_ofNat, ENNReal.toReal_ofNat]
   linarith
 
 private theorem soundness_figure1_succ (hK : 0 < K) (T : ℕ) {law : List Bool → PMF Bool}
@@ -1339,59 +1399,31 @@ private theorem soundness_figure1_succ (hK : 0 < K) (T : ℕ) {law : List Bool �
   obtain ⟨hd, hKd⟩ := figure1_d hK
   have hK' : (0 : ℝ) < K := by exact_mod_cast hK
   have hT : (0 : ℝ) < (T : ℝ) + 1 := by positivity
-  have hrej := reject_ge law (Params.figure1 K (T + 1)) A
+  have hq : ((T : ℝ) + 1) * (1 / (50 * ((T + 1 : ℕ) : ℝ))) = 1 / 50 := by
+    push_cast
+    field_simp
+  have hrej := reject_run_toReal law (Params.figure1 K (T + 1)) A (n := T) rfl
     (s := 3 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ))) (b := 5 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ)))
-    (by gcongr; norm_num)
+    (by gcongr; norm_num) (by positivity) (by positivity) (by rw [hq]; norm_num) (by norm_num)
+    (by norm_num)
     (fun bits k h => figure1_abort_true_le hK hT1 (law bits) k h)
     (fun bits k h => figure1_abort_false_le hK hT1 (law bits) k h)
-    (fun bits k h => figure1_verdict_true_le hK (T + 1) law bits k h) (T + 1) [] A.init
-    (honestChallenger (Params.figure1 K (T + 1))).init
-  change _ * rejectValue law (5 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ))) (T + 1) [] ≤
-    ev law (run (Params.figure1 K (T + 1)) A (honestChallenger (Params.figure1 K (T + 1))))
-      false at hrej
-  change ev law (run (Params.figure1 K (T + 1)) A
-    (honestChallenger (Params.figure1 K (T + 1)))) true ≤ 2 / 5
-  have hclose := hL (bestLaw law (5 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ))) T)
-    (ENNReal.ofReal (5 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ))))
-    (fun bits => closeTo_bestLaw law (by positivity) T bits) {false}
-  rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton] at hclose
-  change ev law (output (T + 1)) false ≤
-    ev (bestLaw law (5 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ))) T) (output (T + 1)) false + _ at hclose
-  rw [ev_output (bestLaw law (5 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ))) T),
-    lawFrom_bestLaw law (5 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ))) T (T + 1) [] (by simp)] at hclose
-  have hUtop : rejectValue law (5 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ))) (T + 1) [] ≠ ⊤ :=
-    ne_top_of_le_ne_top ENNReal.one_ne_top (rejectValue_le_one law _ (T + 1) [])
+    (fun bits k h => figure1_verdict_true_le hK (T + 1) law bits k h) hL
+  rw [hq] at hrej
+  -- `K b ≤ 1 / 240`, since `d ≥ 150 K`.
+  have hKb : (K : ℝ) * (5 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ))) ≤ 1 / 240 := by
+    rw [mul_div_assoc', div_le_div_iff₀ (by positivity) (by norm_num)]
+    linarith
   have hno' : ((ev law (output (T + 1))) true).toReal ≤ 1 / 3 := by
     simpa [ev] using ENNReal.toReal_mono (ENNReal.div_ne_top (by simp) (by simp)) hno
   have hout := Probability.PMF.toReal_true_add_toReal_false (ev law (output (T + 1)))
   have hrun := Probability.PMF.toReal_true_add_toReal_false
     (ev law (run (Params.figure1 K (T + 1)) A (honestChallenger (Params.figure1 K (T + 1)))))
-  have hclose' := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hUtop,
-    ENNReal.mul_ne_top ENNReal.coe_ne_top ENNReal.ofReal_ne_top⟩) hclose
-  rw [ENNReal.toReal_add hUtop (ENNReal.mul_ne_top ENNReal.coe_ne_top ENNReal.ofReal_ne_top),
-    ENNReal.toReal_mul, ENNReal.coe_toReal, ENNReal.toReal_ofReal (by positivity)] at hclose'
-  -- `K b ≤ 1 / 240`, since `d ≥ 150 K`.
-  have hKb : (K : ℝ) * (5 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ))) ≤ 1 / 240 := by
-    rw [mul_div_assoc', div_le_div_iff₀ (by positivity) (by norm_num)]
-    linarith
-  have h1 : 1 / (50 * ((T : ℝ) + 1)) ≤ 1 := (div_le_one (by positivity)).2 (by linarith)
-  have hrej' := ENNReal.toReal_mono (PMF.apply_ne_top _ _) hrej
-  rw [ENNReal.toReal_mul, ENNReal.toReal_mul, ENNReal.toReal_pow,
-    toReal_one_sub_ofReal (by norm_num) (by norm_num), Nat.cast_add, Nat.cast_one,
-    toReal_one_sub_ofReal (by positivity) h1] at hrej'
-  have hbern : (49 / 50 : ℝ) ≤ (1 - 1 / (50 * ((T : ℝ) + 1))) ^ (T + 1) := by
-    have h := one_add_mul_le_pow (a := -(1 / (50 * ((T : ℝ) + 1)))) (by linarith [h1]) (T + 1)
-    have hcancel : ((T : ℝ) + 1) * -(1 / (50 * ((T : ℝ) + 1))) = -(1 / 50) := by field_simp
-    rw [Nat.cast_add, Nat.cast_one, hcancel, ← sub_eq_add_neg, ← sub_eq_add_neg] at h
-    linarith
-  set U := (rejectValue law (5 / (8 * (⌈150 * (K : ℝ)⌉₊ : ℝ))) (T + 1) []).toReal with hU
-  set B := (1 - 1 / (50 * ((T : ℝ) + 1))) ^ (T + 1) with hB
-  have hU0 : (2 / 3 : ℝ) - 1 / 240 ≤ U := by linarith
-  have hBU : (49 / 50 : ℝ) * (2 / 3 - 1 / 240) ≤ B * U :=
-    mul_le_mul hbern hU0 (by norm_num) (by positivity)
+  change ev law (run (Params.figure1 K (T + 1)) A
+    (honestChallenger (Params.figure1 K (T + 1)))) true ≤ 2 / 5
   rw [← ENNReal.toReal_le_toReal (PMF.apply_ne_top _ _) (by finiteness), ENNReal.toReal_div,
     ENNReal.toReal_ofNat, ENNReal.toReal_ofNat]
-  nlinarith [hBU]
+  linarith
 
 end Proofs
 
@@ -1413,29 +1445,21 @@ theorem completeness_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ) {law : List Bo
       (run (Params.default K T) (honestProposer (Params.default K T)) B) true := by
   have : NeZero (Params.default K T).grid := ⟨(Params.default_pos hK T).1.ne'⟩
   have hT : (0 : ℝ) < (T : ℝ) + 1 := by positivity
-  have hacc := accept_ge law (Params.default K T) B
-    (fun bits => default_claim_tail hK T (law bits))
-    (fun bits k h => default_verdict_false_le hK T law bits k h) (T + 1) []
-    (honestProposer (Params.default K T)).init B.init
-  change _ * lawFrom law (T + 1) [] true ≤
-    ev law (run (Params.default K T) (honestProposer (Params.default K T)) B) true + _ at hacc
-  change 3 / 5 ≤ ev law (run (Params.default K T) (honestProposer (Params.default K T)) B) true
-  have hfin := PMF.apply_ne_top
-    (ev law (run (Params.default K T) (honestProposer (Params.default K T)) B)) true
-  have hyes' : (2 / 3 : ℝ) ≤ (lawFrom law (T + 1) [] true).toReal := by
-    rw [← ev_output]
+  have hacc := accept_run_toReal law (Params.default K T) B (by positivity) (by norm_num)
+    (by norm_num) (fun bits => default_claim_tail hK T (law bits))
+    (fun bits k h => default_verdict_false_le hK T law bits k h)
+  change (1 - 1 / 100) * (ev law (output (T + 1)) true).toReal -
+    (1 - 1 / 100) * ((T + 1 : ℕ) : ℝ) * (1 / (100 * ((T : ℝ) + 1))) ≤ _ at hacc
+  have hslack : (1 - 1 / 100 : ℝ) * ((T + 1 : ℕ) : ℝ) * (1 / (100 * ((T : ℝ) + 1))) =
+      99 / 10000 := by
+    push_cast
+    field_simp
+    ring
+  have hyes' : (2 / 3 : ℝ) ≤ (ev law (output (T + 1)) true).toReal := by
     simpa [ev] using ENNReal.toReal_mono (PMF.apply_ne_top _ _) hyes
-  have hreal := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hfin, by
-    simp [ENNReal.mul_eq_top]⟩) hacc
-  rw [ENNReal.toReal_add hfin (by simp [ENNReal.mul_eq_top]), ENNReal.toReal_mul,
-    ENNReal.toReal_mul, ENNReal.toReal_mul, toReal_one_sub_ofReal (by norm_num) (by norm_num),
-    ENNReal.toReal_ofReal (by positivity), ENNReal.toReal_natCast, Nat.cast_add, Nat.cast_one]
-    at hreal
-  have hslack : (1 - 1 / 100 : ℝ) * ((T : ℝ) + 1) * (1 / (100 * (T + 1))) = 99 / 10000 := by
-    field_simp; ring
-  rw [hslack] at hreal
-  rw [← ENNReal.toReal_le_toReal (ENNReal.div_ne_top (by simp) (by simp)) hfin, ENNReal.toReal_div,
-    ENNReal.toReal_ofNat, ENNReal.toReal_ofNat]
+  change 3 / 5 ≤ ev law (run (Params.default K T) (honestProposer (Params.default K T)) B) true
+  rw [← ENNReal.toReal_le_toReal (ENNReal.div_ne_top (by simp) (by simp)) (PMF.apply_ne_top _ _),
+    ENNReal.toReal_div, ENNReal.toReal_ofNat, ENNReal.toReal_ofNat]
   linarith
 
 /-- **Soundness, as a step.** A step toward [BrownCohenIrvingPiliouras2024, Theorem 6.2], not
@@ -1458,47 +1482,24 @@ theorem soundness_of_lipschitzAt_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ)
   have : NeZero (Params.default K T).grid := ⟨(Params.default_pos hK T).1.ne'⟩
   have hK' : (0 : ℝ) < K := by exact_mod_cast hK
   have hT : (0 : ℝ) < (T : ℝ) + 1 := by positivity
-  have hrej := reject_ge law (Params.default K T) A (s := 2 / (100 * (K : ℝ)))
-    (b := 5 / (100 * (K : ℝ))) (by gcongr; norm_num)
+  have hq : ((T : ℝ) + 1) * (1 / (100 * ((T : ℝ) + 1))) = 1 / 100 := by field_simp
+  have hrej := reject_run_toReal law (Params.default K T) A (n := T) rfl
+    (s := 2 / (100 * (K : ℝ))) (b := 5 / (100 * (K : ℝ))) (by gcongr; norm_num) (by positivity)
+    (by positivity) (by rw [hq]; norm_num) (by norm_num) (by norm_num)
     (fun bits k h => default_abort_true_le hK T (law bits) k h)
     (fun bits k h => default_abort_false_le hK T (law bits) k h)
-    (fun bits k h => default_verdict_true_le hK T law bits k h) (T + 1) [] A.init
-    (honestChallenger (Params.default K T)).init
-  change _ * rejectValue law (5 / (100 * (K : ℝ))) (T + 1) [] ≤
-    ev law (run (Params.default K T) A (honestChallenger (Params.default K T))) false at hrej
-  change ev law (run (Params.default K T) A (honestChallenger (Params.default K T))) true ≤ 2 / 5
-  have hclose := hL (bestLaw law (5 / (100 * (K : ℝ))) T) (ENNReal.ofReal (5 / (100 * (K : ℝ))))
-    (fun bits => closeTo_bestLaw law (by positivity) T bits) {false}
-  rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton] at hclose
-  change ev law (output (T + 1)) false ≤
-    ev (bestLaw law (5 / (100 * (K : ℝ))) T) (output (T + 1)) false + _ at hclose
-  rw [ev_output (bestLaw law (5 / (100 * (K : ℝ))) T),
-    lawFrom_bestLaw law (5 / (100 * (K : ℝ))) T (T + 1) [] (by simp)] at hclose
-  have hUtop : rejectValue law (5 / (100 * (K : ℝ))) (T + 1) [] ≠ ⊤ :=
-    ne_top_of_le_ne_top ENNReal.one_ne_top (rejectValue_le_one law _ (T + 1) [])
+    (fun bits k h => default_verdict_true_le hK T law bits k h) hL
+  have hK20 : (K : ℝ) * (5 / (100 * (K : ℝ))) = 1 / 20 := by field_simp; ring
+  rw [hq, hK20] at hrej
   have hno' : ((ev law (output (T + 1))) true).toReal ≤ 1 / 3 := by
     simpa [ev] using ENNReal.toReal_mono (ENNReal.div_ne_top (by simp) (by simp)) hno
   have hout := Probability.PMF.toReal_true_add_toReal_false (ev law (output (T + 1)))
   have hrun := Probability.PMF.toReal_true_add_toReal_false
     (ev law (run (Params.default K T) A (honestChallenger (Params.default K T))))
-  have hclose' := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hUtop,
-    ENNReal.mul_ne_top ENNReal.coe_ne_top ENNReal.ofReal_ne_top⟩) hclose
-  have hK20 : (K : ℝ) * (5 / (100 * (K : ℝ))) = 1 / 20 := by field_simp; ring
-  rw [ENNReal.toReal_add hUtop (ENNReal.mul_ne_top ENNReal.coe_ne_top ENNReal.ofReal_ne_top),
-    ENNReal.toReal_mul, ENNReal.coe_toReal, ENNReal.toReal_ofReal (by positivity), hK20] at hclose'
-  have h1 : 1 / (100 * ((T : ℝ) + 1)) ≤ 1 := (div_le_one (by positivity)).2 (by linarith)
-  have hrej' := ENNReal.toReal_mono (PMF.apply_ne_top _ _) hrej
-  rw [ENNReal.toReal_mul, ENNReal.toReal_mul, ENNReal.toReal_pow,
-    toReal_one_sub_ofReal (by norm_num) (by norm_num),
-    toReal_one_sub_ofReal (by positivity) h1] at hrej'
-  have hbern : (99 / 100 : ℝ) ≤ (1 - 1 / (100 * ((T : ℝ) + 1))) ^ (T + 1) := by
-    have h := one_add_mul_le_pow (a := -(1 / (100 * ((T : ℝ) + 1)))) (by linarith [h1]) (T + 1)
-    have hcancel : ((T : ℝ) + 1) * -(1 / (100 * ((T : ℝ) + 1))) = -(1 / 100) := by field_simp
-    rw [Nat.cast_add, Nat.cast_one, hcancel, ← sub_eq_add_neg, ← sub_eq_add_neg] at h
-    linarith
+  change ev law (run (Params.default K T) A (honestChallenger (Params.default K T))) true ≤ 2 / 5
   rw [← ENNReal.toReal_le_toReal (PMF.apply_ne_top _ _) (by finiteness), ENNReal.toReal_div,
     ENNReal.toReal_ofNat, ENNReal.toReal_ofNat]
-  nlinarith [hbern]
+  linarith
 
 /-- **Completeness at the constants of Figure 1, as a step.** A step toward
 [BrownCohenIrvingPiliouras2024, Theorem 6.2], not that theorem: if the output of a `T`-step
