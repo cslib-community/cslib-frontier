@@ -149,8 +149,8 @@ noncomputable abbrev composite (j : ℕ) (P : Fin 2 → Prover Unit) : Prover Un
   State := CompositeState (Prover.independent P).State
   init := ⟨⟨0, false⟩, (Prover.independent P).init⟩
   respond q := StateT.mk fun st =>
-    ((Prover.independent P).run (handler j q st.check) st.provers).map fun x =>
-      (x.1.1, CompositeState.mk x.1.2 x.2)
+    ((Prover.independent P).run (handler j q st.check) st.provers).map
+      fun ⟨⟨reply, check⟩, provers⟩ => (reply, CompositeState.mk check provers)
 
 /-- **The checked run is a run against the composite prover.** -/
 private theorem run_checked (V : WordOracleComp Unit Bool) (j : ℕ) (P : Fin 2 → Prover Unit)
