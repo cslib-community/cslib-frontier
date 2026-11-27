@@ -16,6 +16,7 @@ import CslibFrontierResults.Entries.ODonnellLargeCoefficient
 import CslibFrontierResults.Entries.ODonnellBribery
 import CslibFrontierResults.Entries.NetworkFormation
 import CslibFrontierResults.Entries.DeterminantalUniversality
+import CslibFrontierResults.Entries.StatisticalDifference
 import CslibFrontierResults.Entries.SponsoredSearch
 import CslibFrontierResults.Entries.AdWords
 import CslibFrontierResults.Entries.DistributedVectorClock
@@ -34,6 +35,7 @@ import CslibFrontierResults.Entries.HastadInapproximability
 import CslibFrontierResults.Entries.RandomOracleKDF
 import CslibFrontierResults.Entries.BoostingMargin
 import CslibFrontierResults.Entries.ODonnellTribes
+import CslibFrontierResults.Entries.CountingContainments
 import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Registry
 import CslibFrontierResults.Entries.PolynomialHashing
