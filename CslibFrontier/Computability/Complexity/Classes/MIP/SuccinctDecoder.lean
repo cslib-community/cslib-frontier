@@ -25,6 +25,10 @@ circuit is supplied as a list of gates and output wire numbers. This encoding le
 check circuit syntax and read the gate and output counts before running a proof protocol.
 The gate count and both widths also determine the sumcheck dimensions and prime search bound.
 
+[Proposition 4.2 of Babai, Fortnow and Lund][BabaiFortnowLund1991] encodes tableau consistency
+as a Boolean formula with three oracle values. This formulation represents a three-literal clause
+by the decoder's three address/sign pairs.
+
 ## Main definitions
 
 * `Succinct3CNFInstance` contains the two address widths and the raw De Morgan circuit code.
@@ -37,6 +41,11 @@ The gate count and both widths also determine the sumcheck dimensions and prime 
 * `Succinct3CNFInstance.signWires_eq` and `addressWires_eq` recover the typed decoder outputs.
 * `polyTimeHard_positiveLabelSuccinct3SAT` reduces every native `NEXP` language to succinct
   satisfiability with positive label width.
+
+## References
+
+* [L. Babai, L. Fortnow and C. Lund, *Non-deterministic exponential time has two-prover
+  interactive protocols*, §4.2, Proposition 4.2][BabaiFortnowLund1991]
 -/
 
 public section

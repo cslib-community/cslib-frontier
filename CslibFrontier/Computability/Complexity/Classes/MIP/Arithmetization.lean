@@ -34,9 +34,12 @@ import Mathlib.Algebra.MvPolynomial.Rename
 /-!
 # Arithmetization of `NEXP` via succinct tableau decoding
 
-This module develops the arithmetization and uniform succinct-decoder bridge needed for
-$\mathsf{NEXP} \subseteq \mathsf{MIP}_2$ (`#892` M5a)
-[Babai, Fortnow, Lund, §6][BabaiFortnowLund1991], [Williams, Theorem 6.1][Williams2010]:
+The tableau argument in [Babai, Fortnow and Lund, §4.2, Proposition 4.2][BabaiFortnowLund1991]
+reduces a nondeterministic exponential-time computation to a formula tested with three assignment
+oracle calls. Here a circuit returns the three signed variable addresses of an indexed tableau
+clause. For the circuit indexing local clauses, see the proof sketch of Theorem 6.1 in
+[Williams, p. 20][Williams2010]. The construction provides the following parts of the
+two-prover simulation:
 
 1. **Unconditional `NEXP` to succinct tableau CNF reduction** (`exists_succinctCNF_of_mem_NEXP`):
    every language `A ∈ NEXP enc` reduces to satisfiability of the uniform bit-field tableau CNF
@@ -57,11 +60,7 @@ $\mathsf{NEXP} \subseteq \mathsf{MIP}_2$ (`#892` M5a)
    on unsatisfiable formulas induces a nonzero multilinear polynomial detected by Schwartz–Zippel
    and `Cslib.Interactive.Sumcheck.proof`.
 
-*Note on citations*: primary PDFs for [BabaiFortnowLund1991] and [Williams2010] were not
-re-verified on disk here; theorem/section citations follow `Cslib.Circuits.Boolean.Tableau.Succinct`
-and `Cslib.Complexity.MIP` (`NEXP.lean`) (locator not re-verified against primary PDF).
-This module provides M5a infrastructure (`Refs #892`); assembling the full two-prover protocol
-`NEXP ⊆ MIP₂` (M5b) remains open on `#892`.
+The class containment and the assembled verifier are tracked in #892.
 
 ## Main definitions
 
@@ -112,7 +111,8 @@ open scoped BigOperators ENNReal
 /-- **Unconditional `NEXP` to succinct tableau CNF reduction**: every `A ∈ NEXP enc` is decided
 by satisfiability of `Tableau.succinctCNF tm (frame (enc a)) (n a) (T a)` for one deterministic
 multi-tape machine `tm` and binary polynomial-time bounds `n, T : α → ℕ` whose bit-widths are
-polynomially bounded in `(enc a).length` [Babai, Fortnow, Lund, §6][BabaiFortnowLund1991]. -/
+polynomially bounded in `(enc a).length`. This is the tableau step from the proof of
+[Babai, Fortnow and Lund, §4.2, Proposition 4.2][BabaiFortnowLund1991]. -/
 theorem exists_succinctCNF_of_mem_NEXP {α : Type} {enc : α ↪ List Bool} {A : Set α}
     (hA : A ∈ NEXP enc) :
     ∃ (k : ℕ) (State : Type) (_ : Fintype State) (_ : DecidableEq State)
@@ -797,10 +797,9 @@ theorem computableInPolyTime_decoderCode {k : ℕ} {State : Type} [Fintype State
   rcases a with ⟨x, n, T⟩
   rw [Decoder.decoderCode]
 
-/-- **Bundled `NEXP` succinct-decoder reduction**: combines `exists_succinctCNF_of_mem_NEXP` with
-`computableInPolyTime_decoderCode` to yield a fixed deterministic machine `tm`, binary
-polynomial-time parameters `(n, T)`, and a uniform polynomial-time succinct decoder circuit for
-`succinctCNF`. -/
+/-- Every native `NEXP` language has a polynomial-time succinct decoder. The gate code and both
+unary address widths are computable in polynomial time. The frame length and clock bounds let
+the caller relate the decoded clauses to the satisfiable tableau of the fixed machine. -/
 theorem exists_succinctDecoder_of_mem_NEXP {α : Type} {enc : α ↪ List Bool} {A : Set α}
     (hA : A ∈ NEXP enc) :
     ∃ (k : ℕ) (State : Type) (_ : Fintype State) (_ : DecidableEq State)
