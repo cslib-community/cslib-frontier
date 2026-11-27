@@ -66,7 +66,8 @@ theorem isOraclePPTOn_readValue {α : Type} {enc : α ↪ List Bool}
     .encoding_comp (((ComputableInPolyTime.fst _ _).comp (.fst _ _)).prod
       (ComputableInPolyTime.unary_to_binary.comp (.snd _ _)))
   have hread := isOraclePPTOn_readBitsProgram (req := req) hreq (ComputableInPolyTime.snd _ _)
-  apply IsOraclePPTOn.preprocess (program := fun p : List Bool × ℕ => readValue p.1 p.2) _ (hk.prod hw)
+  apply IsOraclePPTOn.preprocess (program := fun p : List Bool × ℕ => readValue p.1 p.2) _
+    (hk.prod hw)
   simpa only [readValue, OracleComp.interpret_map] using
     hread.map_with (f := fun _ bits => ofBits bits) (ComputableInPolyTime.bitsToNat.comp (.snd _ _))
 
