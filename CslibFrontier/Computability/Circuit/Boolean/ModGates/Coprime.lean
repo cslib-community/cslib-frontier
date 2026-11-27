@@ -8,29 +8,26 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Boolean.ModGates
-import CslibFrontier.Computability.Circuit.Boolean.Combinators
-public import CslibFrontier.Computability.Circuit.Boolean.Synthesis
 import Mathlib.Algebra.GCDMonoid.Nat
 import Mathlib.RingTheory.Coprime.Lemmas
 
 /-!
 # Modular gates at coprime factors
 
-For Frontier's nonzero-residue MOD convention, divisibility by the product of pairwise
-coprime factors is equivalent to divisibility by each factor. At the gate level this gives
-a disjunction of the factor gates, including for an empty family.
+The gate `modGate` outputs true when the Hamming weight is not divisible by the
+modulus. For a product of pairwise coprime moduli, this gives a disjunction of
+the factor gates, including for an empty family.
 
 ## Main results
 
-* `modGate_coprime_factors` handles two factors.
-* `modGate_prod_eq_true_iff` handles a finite family with pairwise coprime moduli.
+* `Cslib.Circuits.Boolean.modGate_coprime_factors` gives the disjunction for two factors.
+* `Cslib.Circuits.Boolean.modGate_prod_eq_true_iff` handles a finite pairwise coprime family.
 -/
 
 public section
 
 namespace Cslib.Circuits.Boolean
 
-open Cslib.Circuits
 open scoped BigOperators
 
 /-- A product-modulus gate is an OR of both factor tests when the factors are coprime. -/
@@ -60,15 +57,5 @@ theorem modGate_prod_eq_true_iff {ι : Type*} (s : Finset ι) (q : ι → ℕ)
   simp only [modGate, decide_eq_true_eq]
   change w % (∏ i ∈ s, q i) ≠ 0 ↔ ∃ i ∈ s, w % q i ≠ 0
   simp only [ne_eq, ← Nat.dvd_iff_mod_eq_zero, dvd, not_forall, exists_prop]
-
-/-- Combining circuits for two coprime factor tests uses one additional Boolean OR gate. -/
-theorem complexity_modGate_coprime_factors_le {a b m : ℕ} (h : a.Coprime b) :
-    complexity interpretation (single (modGate (a * b) m)) ≤
-      complexity interpretation (single (modGate a m)) +
-      complexity interpretation (single (modGate b m)) + 1 := by
-  have eq : modGate (a * b) m = fun x => modGate a m x || modGate b m x :=
-    funext (modGate_coprime_factors h)
-  rw [eq]
-  exact complexity_or_le (modGate a m) (modGate b m)
 
 end Cslib.Circuits.Boolean

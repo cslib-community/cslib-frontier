@@ -32,7 +32,6 @@ example {m : ℕ} (x : Fin m → Bool) : modGate 1 m x = false := by
   have hfalse : ¬ modGate 1 m x = true := by simpa using h
   exact Bool.eq_false_iff.mpr hfalse
 
-
 -- All three factors participate. The same factor tests reject a multiple of 30.
 example {m : ℕ} (x : Fin m → Bool) :
     modGate 30 m x = true ↔ ∃ i : Fin 3, modGate (![2, 3, 5] i) m x = true := by
