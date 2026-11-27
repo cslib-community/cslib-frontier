@@ -95,62 +95,33 @@ private theorem budget_bounds (n D g p : ℕ) :
 private theorem budget_le_pow {n D g p : ℕ} (hn : 1 ≤ n)
     (hD : D ≤ n) (hg : g ≤ n) (hp : p ≤ n) :
     Instances.budget n D g p ≤ 286 * n ^ 6 := by
-  have h1 : 1 ≤ n ^ 6 := Nat.one_le_pow _ _ hn
-  have hn6 : n ≤ n ^ 6 := by
-    simpa only [pow_one] using Nat.pow_le_pow_right hn (by decide : 1 ≤ 6)
-  have h2 : n ^ 2 ≤ n ^ 6 := Nat.pow_le_pow_right hn (by decide)
-  have h3 : n ^ 3 ≤ n ^ 6 := Nat.pow_le_pow_right hn (by decide)
-  have h4 : n ^ 4 ≤ n ^ 6 := Nat.pow_le_pow_right hn (by decide)
-  have hhigh : p * D * n ^ 4 ≤ n ^ 6 := by
-    calc
-      _ ≤ (n * n) * n ^ 4 := Nat.mul_le_mul_right _ (Nat.mul_le_mul hp hD)
-      _ = n ^ 6 := by ring
-  have hpn3 : p * n ^ 3 ≤ n ^ 6 := by
-    calc
-      _ ≤ n * n ^ 3 := Nat.mul_le_mul_right _ hp
-      _ = n ^ 4 := by ring
-      _ ≤ n ^ 6 := h4
-  have hpn2 : p * n ^ 2 ≤ n ^ 6 := by
-    calc
-      _ ≤ n * n ^ 2 := Nat.mul_le_mul_right _ hp
-      _ = n ^ 3 := by ring
-      _ ≤ n ^ 6 := h3
-  have hnD : n * D ≤ n ^ 6 := by
-    calc
-      _ ≤ n * n := Nat.mul_le_mul_left _ hD
-      _ = n ^ 2 := by ring
-      _ ≤ n ^ 6 := h2
-  have hD6 := hD.trans hn6
-  have hg6 := hg.trans hn6
-  have hp6 := hp.trans hn6
-  have heq : Instances.budget n D g p =
-      2 * (p * D * n ^ 4) + 4 * n ^ 4 + 7 * (p * n ^ 3) + 30 * (p * n ^ 2) +
-        62 * n ^ 2 + 2 * (n * D) + 8 * D + 8 * g + 12 * n + 13 * p + 138 := by
+  have hmono : Instances.budget n D g p ≤ Instances.budget n n n n := by
+    dsimp only [Instances.budget, Catalogue.budget]
+    gcongr
+  have heq : Instances.budget n n n n =
+      2 * n ^ 6 + 11 * n ^ 4 + 30 * n ^ 3 + 64 * n ^ 2 + 41 * n + 138 := by
     dsimp only [Instances.budget, Catalogue.budget]
     ring
-  rw [heq]
-  omega
+  have hpow (k : ℕ) (hk : k ≤ 6) : n ^ k ≤ n ^ 6 := Nat.pow_le_pow_right hn hk
+  have h1 : n ≤ n ^ 6 := Nat.le_self_pow (by decide) n
+  linarith [Nat.one_le_pow 6 n hn, h1, hpow 2 (by decide), hpow 3 (by decide), hpow 4 (by decide)]
 
 private theorem envelope_le_pow {n D g p A κ : ℕ} (hn : 1 ≤ n)
     (hD : D ≤ n) (hg : g ≤ n) (hp : p ≤ n) (hA : A ≤ (n + 2) ^ κ) :
     envelope n D g p A ≤ (n + 2) ^ (κ + 15) := by
   let b := n + 2
-  have hb : 1 ≤ b := by dsimp only [b]; omega
+  have hb : 1 ≤ b := by omega
   have hpow : n ^ 6 ≤ b ^ (κ + 6) :=
-    (Nat.pow_le_pow_left (by dsimp only [b]; omega : n ≤ b) 6).trans
-      (Nat.pow_le_pow_right hb (by omega))
+    (Nat.pow_le_pow_left (by omega : n ≤ b) 6).trans (Nat.pow_le_pow_right hb (by omega))
   have hbudget := (budget_le_pow hn hD hg hp).trans (Nat.mul_le_mul_left 286 hpow)
   have hAval : A ≤ b ^ (κ + 6) := hA.trans (Nat.pow_le_pow_right hb (by omega))
-  have hbpow : b ≤ b ^ (κ + 6) := Nat.le_self_pow (by omega) b
-  have hpval : p ≤ b ^ (κ + 6) := hp.trans ((by dsimp only [b]; omega : n ≤ b).trans hbpow)
-  have hunit : 1 ≤ b ^ (κ + 6) := by have := pow_pos (by omega : 0 < b) (κ + 6); omega
-  have hsum : envelope n D g p A ≤ 290 * b ^ (κ + 6) := by
-    dsimp only [envelope]
-    omega
-  have hcoef : 290 ≤ b ^ 9 := (show 290 ≤ 2 ^ 9 from by decide).trans
-    (Nat.pow_le_pow_left (by dsimp only [b]; omega : 2 ≤ b) 9)
+  have hpval : p ≤ b ^ (κ + 6) :=
+    hp.trans ((by omega : n ≤ b).trans (Nat.le_self_pow (by omega) b))
+  have hunit : 1 ≤ b ^ (κ + 6) := Nat.one_le_pow _ _ hb
+  have hcoef : 290 ≤ b ^ 9 :=
+    (by decide : 290 ≤ 2 ^ 9).trans (Nat.pow_le_pow_left (by omega : 2 ≤ b) 9)
   calc
-    envelope n D g p A ≤ 290 * b ^ (κ + 6) := hsum
+    envelope n D g p A ≤ 290 * b ^ (κ + 6) := by dsimp only [envelope]; omega
     _ ≤ b ^ 9 * b ^ (κ + 6) := Nat.mul_le_mul_right _ hcoef
     _ = b ^ (κ + 15) := by rw [← Nat.pow_add]; congr 1; omega
 
@@ -243,10 +214,8 @@ theorem exec_at {n D g p A W : ℕ} (values : List ℤ)
     hmag.of_natAbs_le ((hv (values.getD q 0) (List.getD_mem 0 (by omega))).trans
       (by omega : A ≤ A + p + 1))
   obtain ⟨y, hy, hout⟩ := Instances.exec_at n D g p (fun q => values.getD q 0)
-    initial hDHeader hgHeader hnHeader hpHeader hinput
-    hD hDn hg hp hmod hvalues hbudget
-  have hew := ExecWithin.mono_width Instances.program_fixed.2 hy hw
-  exact ⟨y, hew, hout⟩
+    initial hDHeader hgHeader hnHeader hpHeader hinput hD hDn hg hp hmod hvalues hbudget
+  exact ⟨y, ExecWithin.mono_width Instances.program_fixed.2 hy hw, hout⟩
 
 /-- Structured initialized execution for real native caller composition. The budget excludes
 only the final halt; all existing original-input, width and exact readback hypotheses remain.
@@ -282,22 +251,12 @@ theorem runs_input {n D g p A W : ℕ} (values : List ℤ)
       Instances.Output n D g p (fun q => values.getD q 0)
         (.init (input n D g p values)) y ∧
       InputFits W (input n D g p values) ∧ y.Bounded W := by
-  obtain ⟨y, hew, hout, hi, hybounded⟩ := exec_input values hlen hD hDn hg hp hv hw
-  obtain ⟨t, ht, he⟩ := hew
-  have hr := he.runs (pc := 0) (p := flatProgram) (Program.Contains.self _).append_left
-  refine ⟨y, t + 1, ?_, ?_, ?_, hout, hi, hybounded⟩
-  · let T := Instances.timeBound n D p
-      (ChunkCatalogue.before
-        (fun rho => Nat.count (fun q => (values.getD q 0 % (p : ℤ)).toNat = rho) (n * n))
-        (queryCap n D) p) (numPieces n D g)
-    change t ≤ T - 1 at ht
-    change t + 1 ≤ T
-    have hpos : 1 ≤ T := by
-      dsimp only [T, Instances.timeBound]
-      omega
-    omega
-  · simpa only [State.init, Nat.zero_add, Nat.add_sub_cancel] using hr
-  · simpa only [flatProgram, State.init] using he.executes Instances.output
+  obtain ⟨y, ⟨t, ht, he⟩, hout, hi, hybounded⟩ := exec_input values hlen hD hDn hg hp hv hw
+  refine ⟨y, t + 1, by dsimp only [Instances.timeBound] at ht ⊢; omega, ?_,
+    by simpa only [flatProgram, State.init] using he.executes Instances.output,
+    hout, hi, hybounded⟩
+  simpa only [State.init, Nat.zero_add, Nat.add_sub_cancel] using
+    he.runs (pc := 0) (p := flatProgram) (Program.Contains.self _).append_left
 
 private theorem pow_width_lt (n D g p A : ℕ) :
     2 ^ width n D g p A < wordBound n D g p A := by

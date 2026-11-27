@@ -90,7 +90,9 @@ theorem divisorPasses_inSpace :
       (fun p => (encDivisorInput p).length) := of_inO ComputableInO.id'
   have hm := encDivisorInput_candidate_budget hid
   have hd := encDivisorInput_divisor_budget hid
-  have htwo := budget_const (encIn := encDivisorInput) (encB := encNat) 2 (.refl _)
+  have htwo :=
+    budget_const (Bs := fun a => (encDivisorInput a).length) (encIn := encDivisorInput)
+      (encB := encNat) 2
   have hsmall := budget_natLt hd htwo
   have hdegree := budget_natLt
     (budget_natDiv (budget_comp_linear binaryLog_inSpace hm) htwo)
@@ -162,9 +164,7 @@ private theorem trial_fields (m d k : ℕ) :
   | zero => simp
   | succ k ih =>
     rw [Function.iterate_succ_apply']
-    change (trialStep^[k] ⟨m, d, true⟩).candidate = m ∧
-      (trialStep^[k] ⟨m, d, true⟩).divisor + 1 = d + (k + 1)
-    exact ⟨ih.1, by rw [ih.2]; omega⟩
+    exact ⟨ih.1, by simp only [trialStep, ih.2]; omega⟩
 
 /-- Every tested divisor contributes the exact original predicate, including out-of-range and
 zero codes; there are no monicity or candidate-size preconditions on this iteration contract. -/
@@ -177,15 +177,8 @@ theorem trialRun_good_iff (p : TrialInput) :
   | zero => simp
   | succ k ih =>
     rw [Function.iterate_succ_apply']
-    simp only [trialStep, (trial_fields m d k).1, (trial_fields m d k).2, Bool.and_eq_true]
-    rw [ih]
-    constructor
-    · rintro ⟨hold, hlast⟩ i hi
-      rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hi) with hlt | rfl
-      · exact hold i hlt
-      · exact hlast
-    · intro h
-      exact ⟨fun i hi => h i (by omega), h k (by omega)⟩
+    simp only [trialStep, (trial_fields m d k).1, (trial_fields m d k).2, Bool.and_eq_true, ih,
+      ← Nat.forall_lt_succ_right]
 
 /-- Uniform native counted trial space, linear in the binary candidate/start/count words.
 The cursor is at most first + count at every prefix; the step certificate includes binary
@@ -198,7 +191,7 @@ theorem trialRun_inSpace :
   have hm := encTrialInput_candidate_budget hid
   have hd := encTrialInput_first_budget hid
   have hk := encTrialInput_count_budget hid
-  have hi := encTrialState_mk_budget hm hd (budget_const (encB := encBool) true (.refl _))
+  have hi := encTrialState_mk_budget hm hd (budget_const (encB := encBool) true)
   apply budget_iterate hk hi trialStep_inSpace
     (B := fun p => 16 * ((encTrialInput p).length + 1))
   · intro p k hkp
@@ -227,11 +220,11 @@ theorem isIrreducibleCode_inSpace :
   have hid : ComputableInSpace (fun m : ℕ => m) encNat encNat
       (fun m => (encNat m).length) := of_inO ComputableInO.id'
   have hinit := encTrialInput_mk_budget hid
-    (budget_const (encB := encNat) 0 (.refl _)) hid
+    (budget_const (encB := encNat) 0) hid
   have hrun := budget_comp_linear trialRun_inSpace hinit
   have hgood := encTrialState_good_budget hrun
   have hlower := budget_finite (encC := encBool) not
-    (budget_natLt hid (budget_const (encB := encNat) 2 (.refl _)))
+    (budget_natLt hid (budget_const (encB := encNat) 2))
   refine (budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
     (budget_prod hlower hgood)).of_enc_eq fun m => ?_
   rw [← trialRun_isIrreducibleCode]

@@ -92,11 +92,8 @@ theorem lazyRandomWalk_apply_comm (x y : ι → Bool) :
   change ((PMF.uniformOfFintype (ι × Bool)).map _) y = ((PMF.uniformOfFintype (ι × Bool)).map _) x
   rw [uniformOfFintype_map_apply, uniformOfFintype_map_apply]
   congr 2
-  refine Nat.card_congr
-    { toFun := fun p => ⟨(p.1.1, x p.1.1), ?_⟩
-      invFun := fun p => ⟨(p.1.1, y p.1.1), ?_⟩
-      left_inv := fun p => ?_
-      right_inv := fun p => ?_ } <;>
+  refine Nat.card_congr ⟨fun p => ⟨(p.1.1, x p.1.1), ?_⟩, fun p => ⟨(p.1.1, y p.1.1), ?_⟩,
+    fun p => ?_, fun p => ?_⟩ <;>
   · obtain ⟨⟨i, b⟩, hp⟩ := p
     simp only at hp ⊢
     subst hp
@@ -122,9 +119,7 @@ theorem isMarkovianCoupling_lazyRandomWalkCoupling :
 /-- The coordinate-refresh coupling is sticky. -/
 theorem isSticky_lazyRandomWalkCoupling : IsSticky (lazyRandomWalkCoupling ι) := by
   intro x w hw
-  change w ∈ (PMF.map _ _).support at hw
-  rw [PMF.support_map] at hw
-  obtain ⟨_, -, rfl⟩ := hw
+  obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hw
   rfl
 
 /-- One step of the coordinate-refresh coupling leaves an unmatched coordinate unmatched with
@@ -133,27 +128,22 @@ theorem lazyRandomWalkCoupling_toOuterMeasure_ne (i : ι) (z : (ι → Bool) × 
     (lazyRandomWalkCoupling ι z).toOuterMeasure {w | w.1 i ≠ w.2 i} =
       if z.1 i ≠ z.2 i then ((Fintype.card ι - 1 : ℕ) : ℝ≥0∞) / Fintype.card ι else 0 := by
   change ((PMF.uniformOfFintype (ι × Bool)).map _).toOuterMeasure _ = _
-  rw [PMF.toOuterMeasure_map_apply]
   have hpre : (fun ib : ι × Bool =>
       (Function.update z.1 ib.1 ib.2, Function.update z.2 ib.1 ib.2)) ⁻¹'
         {w | w.1 i ≠ w.2 i} = {ib | ib.1 ≠ i ∧ z.1 i ≠ z.2 i} := by
     ext ⟨j, b⟩
-    by_cases hj : j = i
-    · subst hj
-      simp
+    rcases eq_or_ne j i with rfl | hj
+    · simp
     · simp [Function.update_of_ne (Ne.symm hj), hj]
-  rw [hpre]
+  rw [PMF.toOuterMeasure_map_apply, hpre]
   split_ifs with hz
-  · have hfst : {ib : ι × Bool | ib.1 ≠ i ∧ z.1 i ≠ z.2 i} = Prod.fst ⁻¹' {j | j ≠ i} := by
-      ext ⟨j, b⟩
-      simp [hz]
+  · have hfst : {ib : ι × Bool | ib.1 ≠ i ∧ z.1 i ≠ z.2 i} = Prod.fst ⁻¹' {j | j ≠ i} :=
+      Set.ext fun _ => by simp [hz]
+    have hfin : Finset.univ.filter (· ∈ {j : ι | j ≠ i}) = Finset.univ.erase i :=
+      Finset.ext fun _ => by simp
     rw [hfst, ← PMF.toOuterMeasure_map_apply, uniformOfFintype_prod_map_fst,
-      toOuterMeasure_uniformOfFintype, div_eq_mul_inv]
-    congr 2
-    have hfin : Finset.univ.filter (· ∈ {j : ι | j ≠ i}) = Finset.univ.erase i := by
-      ext j
-      simp
-    rw [hfin, Finset.card_erase_of_mem (Finset.mem_univ i), Finset.card_univ]
+      toOuterMeasure_uniformOfFintype, div_eq_mul_inv, hfin,
+      Finset.card_erase_of_mem (Finset.mem_univ i), Finset.card_univ]
   · simp only [hz, and_false, Set.ofPred_false, PMF.toOuterMeasure_apply_eq_zero_iff,
       Set.disjoint_empty]
 
@@ -164,26 +154,22 @@ theorem lazyRandomWalkCoupling_pow_toOuterMeasure_ne_le (i : ι) (t : ℕ)
     (((lazyRandomWalkCoupling ι ^ t) z).toOuterMeasure {w | w.1 i ≠ w.2 i}).toReal ≤
       (1 - (Fintype.card ι : ℝ)⁻¹) ^ t := by
   have hn : (1 : ℝ) ≤ Fintype.card ι := by exact_mod_cast Fintype.card_pos
-  have hstep : ((((Fintype.card ι - 1 : ℕ) : ℝ≥0∞) / Fintype.card ι)).toReal =
+  have hstep : (((Fintype.card ι - 1 : ℕ) : ℝ≥0∞) / Fintype.card ι).toReal =
       1 - (Fintype.card ι : ℝ)⁻¹ := by
     rw [ENNReal.toReal_div, ENNReal.toReal_natCast, ENNReal.toReal_natCast,
       Nat.cast_sub Fintype.card_pos, Nat.cast_one]
     field_simp
   induction t generalizing z with
-  | zero =>
-    rw [pow_zero]
-    exact toOuterMeasure_toReal_le_one _ _
+  | zero => simpa only [pow_zero] using toOuterMeasure_toReal_le_one _ _
   | succ t ih =>
     rw [pow_succ_apply]
     have hle := toOuterMeasure_bind_le_mul_ennreal ((lazyRandomWalkCoupling ι ^ t) z)
       (lazyRandomWalkCoupling ι) {w | w.1 i ≠ w.2 i} {w | w.1 i ≠ w.2 i} le_rfl
       (q₂ := ((Fintype.card ι - 1 : ℕ) : ℝ≥0∞) / Fintype.card ι)
       (fun a _ ha => by
-        have ha' : a.1 i ≠ a.2 i := ha
-        rw [lazyRandomWalkCoupling_toOuterMeasure_ne, ite_eq_left ha'])
+        rw [lazyRandomWalkCoupling_toOuterMeasure_ne, ite_eq_left (show a.1 i ≠ a.2 i from ha)])
       (fun a _ ha => by
-        have ha' : ¬a.1 i ≠ a.2 i := ha
-        rw [lazyRandomWalkCoupling_toOuterMeasure_ne, ite_eq_right ha'])
+        rw [lazyRandomWalkCoupling_toOuterMeasure_ne, ite_eq_right (show ¬a.1 i ≠ a.2 i from ha)])
     refine (ENNReal.toReal_mono (ENNReal.mul_ne_top (toOuterMeasure_ne_top _ _)
       (ENNReal.div_ne_top (ENNReal.natCast_ne_top _) (by simp))) hle).trans ?_
     rw [ENNReal.toReal_mul, hstep, pow_succ]
@@ -195,9 +181,8 @@ theorem lazyRandomWalkCoupling_pow_toOuterMeasure_le (t : ℕ) (z : (ι → Bool
     (((lazyRandomWalkCoupling ι ^ t) z).toOuterMeasure {w | w.1 ≠ w.2}).toReal ≤
       Fintype.card ι * (1 - (Fintype.card ι : ℝ)⁻¹) ^ t := by
   have hsub : {w : (ι → Bool) × (ι → Bool) | w.1 ≠ w.2} =
-      ⋃ i ∈ Finset.univ, {w | w.1 i ≠ w.2 i} := by
-    ext w
-    simp [Function.ne_iff]
+      ⋃ i ∈ Finset.univ, {w | w.1 i ≠ w.2 i} :=
+    Set.ext fun _ => by simp [Function.ne_iff]
   rw [hsub]
   calc (((lazyRandomWalkCoupling ι ^ t) z).toOuterMeasure
         (⋃ i ∈ Finset.univ, {w | w.1 i ≠ w.2 i})).toReal
@@ -222,14 +207,10 @@ theorem distToStationary_lazyRandomWalk_le_exp (t : ℕ) :
       Fintype.card ι * Real.exp (-(t / Fintype.card ι)) := by
   have hn : (1 : ℝ) ≤ Fintype.card ι := by exact_mod_cast Fintype.card_pos
   refine (distToStationary_lazyRandomWalk_le t).trans ?_
+  rw [show -(t / (Fintype.card ι : ℝ)) = t * -(Fintype.card ι : ℝ)⁻¹ by ring, Real.exp_nat_mul]
   gcongr
-  calc (1 - (Fintype.card ι : ℝ)⁻¹) ^ t ≤ Real.exp (-(Fintype.card ι : ℝ)⁻¹) ^ t := by
-        refine pow_le_pow_left₀ (by linarith [inv_le_one_of_one_le₀ hn]) ?_ t
-        linarith [Real.add_one_le_exp (-(Fintype.card ι : ℝ)⁻¹)]
-    _ = Real.exp (-(t / Fintype.card ι)) := by
-        rw [← Real.exp_nat_mul]
-        congr 1
-        ring
+  · linarith [inv_le_one_of_one_le₀ hn]
+  · linarith [Real.add_one_le_exp (-(Fintype.card ι : ℝ)⁻¹)]
 
 /-- **Mixing time of the lazy hypercube walk** ([LevinPeres2017], (5.6), with the ceiling
 made explicit): `t_mix(ε) ≤ ⌈n log n + n log ε⁻¹⌉` for every `ε > 0`, where `n = |ι|`. -/
@@ -237,15 +218,13 @@ theorem mixingTime_lazyRandomWalk_le {ε : ℝ} (hε : 0 < ε) :
     (lazyRandomWalk ι).mixingTime (PMF.uniformOfFintype _) ε ≤
       (⌈Fintype.card ι * Real.log (Fintype.card ι) +
         Fintype.card ι * Real.log ε⁻¹⌉₊ : ℕ) := by
-  set n : ℝ := (Fintype.card ι : ℝ) with hn_def
-  have hn : 0 < n := by rw [hn_def]; exact_mod_cast Fintype.card_pos
+  set n : ℝ := (Fintype.card ι : ℝ)
+  have hn : 0 < n := Nat.cast_pos.mpr (Fintype.card_pos (α := ι))
   set t := ⌈n * Real.log n + n * Real.log ε⁻¹⌉₊
-  refine mixingTime_le_of_distToStationary_le ?_
-  refine (distToStationary_lazyRandomWalk_le_exp t).trans ?_
-  have ht : n * Real.log n + n * Real.log ε⁻¹ ≤ t := Nat.le_ceil _
+  refine mixingTime_le_of_distToStationary_le ((distToStationary_lazyRandomWalk_le_exp t).trans ?_)
   have hdiv : Real.log n + Real.log ε⁻¹ ≤ t / n := by
     rw [le_div_iff₀ hn]
-    linarith
+    linarith [Nat.le_ceil (n * Real.log n + n * Real.log ε⁻¹)]
   calc n * Real.exp (-(t / n)) ≤ n * Real.exp (-(Real.log n + Real.log ε⁻¹)) := by
         gcongr
     _ = ε := by

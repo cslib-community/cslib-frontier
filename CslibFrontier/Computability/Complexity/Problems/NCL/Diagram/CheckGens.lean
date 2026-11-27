@@ -65,8 +65,7 @@ theorem checkGens_and (test₁ test₂ : ∀ {a b : List Color}, Γ a b → Bool
   induction D with
   | gen _ | id _ | swap _ _ => rfl
   | comp _ _ ih₁ ih₂ | tensor _ _ ih₁ ih₂ =>
-    simp only [checkGens, ih₁, ih₂]
-    simp [Bool.and_assoc, Bool.and_left_comm]
+    simp [checkGens, ih₁, ih₂, Bool.and_assoc, Bool.and_left_comm]
 
 /-- Moving a wire across a bundle introduces no generators. -/
 theorem checkGens_moveLeft (test : ∀ {a b : List Color}, Γ a b → Bool)
@@ -85,20 +84,11 @@ theorem isAndOr_of_checkGens (I : Interp Γ) (D : Diagram Γ a b)
     intro i
     exact (Vertex.checkAndOr_eq_true_iff _).1 ((List.all_eq_true.1 h) _ (List.get_mem _ i))
   | id _ | swap _ _ => exact fun v => v.elim
-  | comp D₁ D₂ ih₁ ih₂ =>
+  | comp _ _ ih₁ ih₂ | tensor _ _ ih₁ ih₂ =>
     simp only [checkGens, Bool.and_eq_true] at h
-    obtain ⟨h₁, h₂⟩ := h
-    intro v
-    cases v with
-    | inl v => exact (ih₁ h₁ v).map _
-    | inr v => exact (ih₂ h₂ v).map _
-  | tensor D₁ D₂ ih₁ ih₂ =>
-    simp only [checkGens, Bool.and_eq_true] at h
-    obtain ⟨h₁, h₂⟩ := h
-    intro v
-    cases v with
-    | inl v => exact (ih₁ h₁ v).map _
-    | inr v => exact (ih₂ h₂ v).map _
+    rintro (v | v)
+    · exact (ih₁ h.1 v).map _
+    · exact (ih₂ h.2 v).map _
 
 /-- Checked local incidence lists imply loop-freedom of the whole graph. -/
 theorem loopFree_of_checkGens (I : Interp Γ) (D : Diagram Γ a b)
@@ -111,17 +101,13 @@ theorem loopFree_of_checkGens (I : Interp Γ) (D : Diagram Γ a b)
   | id _ | swap _ _ => exact fun v => v.elim
   | comp D₁ D₂ ih₁ ih₂ =>
     simp only [checkGens, Bool.and_eq_true] at h
-    obtain ⟨h₁, h₂⟩ := h
-    intro v
-    cases v with
-    | inl v => exact ((ih₁ h₁).map (compLeft_injective D₁ D₂)) v
-    | inr v => exact ((ih₂ h₂).map (compRight_injective D₁ D₂ (bottom_injective D₁))) v
+    rintro (v | v)
+    · exact ((ih₁ h.1).map (compLeft_injective D₁ D₂)) v
+    · exact ((ih₂ h.2).map (compRight_injective D₁ D₂ (bottom_injective D₁))) v
   | tensor D₁ D₂ ih₁ ih₂ =>
     simp only [checkGens, Bool.and_eq_true] at h
-    obtain ⟨h₁, h₂⟩ := h
-    intro v
-    cases v with
-    | inl v => exact ((ih₁ h₁).map (tensorLeft_injective D₁ D₂)) v
-    | inr v => exact ((ih₂ h₂).map (tensorRight_injective D₁ D₂)) v
+    rintro (v | v)
+    · exact ((ih₁ h.1).map (tensorLeft_injective D₁ D₂)) v
+    · exact ((ih₂ h.2).map (tensorRight_injective D₁ D₂)) v
 
 end Cslib.Complexity.NCL.Diagram

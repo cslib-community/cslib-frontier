@@ -81,20 +81,13 @@ theorem exec {w M : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ) (hM : 0 
   have hprod (j : Fin 3) :
       Fits (w + 2) (a.regs (CountCall.result j) * a.regs CollisionTest.card) := by
     rw [hav j, hac]
-    apply (hproduct j).of_le
-    apply Nat.mul_le_mul_right
-    have hcard : ((Finset.range (x.regs (CountCall.length j))).image (values j)).card ≤
-        x.regs (CountCall.length j) :=
-      Finset.card_image_le.trans_eq (Finset.card_range _)
-    exact (coll_le_sq _ _).trans (by simpa only [pow_two] using Nat.mul_self_le_mul_self hcard)
-  obtain ⟨b, hb, hbg, hbm, hbr⟩ := CollisionTest.exec a h1
-    (by regs_frame) hprod
+    refine (hproduct j).of_le (Nat.mul_le_mul_right _ ((coll_le_sq _ _).trans ?_))
+    simpa only [pow_two] using
+      Nat.mul_self_le_mul_self (Finset.card_image_le.trans_eq (Finset.card_range _))
+  obtain ⟨b, hb, hbg, hbm, hbr⟩ := CollisionTest.exec a h1 (by regs_frame) hprod
   refine ⟨b, (ha.seq hb).mono (by omega), ?_, ?_, ?_⟩
   · simpa only [hav, hac, hat] using hbg
-  · intro i hi hs hg
-    exact (hbr i hs hg).trans (har i hi)
-  · intro i hi
-    rw [hbm]
-    exact ham i hi
+  · exact fun i hi hs hg => (hbr i hs hg).trans (har i hi)
+  · exact fun i hi => hbm ▸ ham i hi
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Query

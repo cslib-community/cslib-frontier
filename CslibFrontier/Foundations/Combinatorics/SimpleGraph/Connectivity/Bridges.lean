@@ -34,21 +34,14 @@ theorem Preconnected.eq_of_forall_isBridge
     (hH : H.Preconnected) (hHG : H ≤ G)
     (hbridge : ∀ e ∈ H.edgeSet, G.IsBridge e) : H = G := by
   classical
-  apply le_antisymm hHG
-  intro u v huv
-  by_contra hnot
+  refine le_antisymm hHG fun u v huv => by_contra fun hnot => ?_
   obtain ⟨p, hp⟩ := hH.exists_isPath u v
-  have hmiss : s(v, u) ∉ (p.mapLe hHG).edges := by
-    rw [Walk.edges_mapLe_eq_edges]
-    intro he
-    exact hnot (H.mem_edgeSet.mp (p.edges_subset_edgeSet he)).symm
-  have hc : (Walk.cons huv.symm (p.mapLe hHG)).IsCycle :=
-    Path.cons_isCycle ⟨p.mapLe hHG, hp.mapLe hHG⟩ huv.symm hmiss
-  obtain ⟨e, he⟩ := p.edges.exists_mem_of_ne_nil (by
-    intro hempty
-    exact huv.ne (Walk.Nil.eq (Walk.edges_eq_nil.mp hempty)))
-  apply (hbridge e (p.edges_subset_edgeSet he)).notMem_edges_of_isCycle hc
-  simp only [Walk.edges_cons, List.mem_cons, Walk.edges_mapLe_eq_edges]
-  exact Or.inr he
+  have hmiss : s(v, u) ∉ (p.mapLe hHG).edges := fun he =>
+    hnot (H.mem_edgeSet.mp (p.edges_subset_edgeSet (Walk.edges_mapLe_eq_edges hHG p ▸ he))).symm
+  obtain ⟨e, he⟩ := p.edges.exists_mem_of_ne_nil fun hempty =>
+    huv.ne (Walk.Nil.eq (Walk.edges_eq_nil.mp hempty))
+  exact (hbridge e (p.edges_subset_edgeSet he)).notMem_edges_of_isCycle
+    (Path.cons_isCycle ⟨p.mapLe hHG, hp.mapLe hHG⟩ huv.symm hmiss)
+    (List.mem_cons_of_mem _ ((Walk.edges_mapLe_eq_edges hHG p).symm ▸ he : e ∈ (p.mapLe hHG).edges))
 
 end SimpleGraph

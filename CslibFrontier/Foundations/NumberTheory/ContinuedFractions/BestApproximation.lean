@@ -10,10 +10,6 @@ module
 public import CslibFrontier.Init
 public import Mathlib.NumberTheory.DiophantineApproximation.ContinuedFractions
 import Mathlib.Algebra.ContinuedFractions.Computation.Approximations
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
-import Mathlib.Tactic.Ring
 
 /-!
 # Strict best approximation by continued-fraction convergents
@@ -67,12 +63,8 @@ private theorem best_of_tail {p q a b c d : ℤ} {t x : ℝ}
   have hC : x - (c : ℝ) / d =
       - (t * z - w) / (d * ((q : ℝ) + t * b)) := by
     rw [hx]; dsimp [z, w]; push_cast; field_simp; ring
-  have hz : z ≠ 0 := by
-    intro hz
-    apply hne
-    apply (div_eq_div_iff (ne_of_gt hd') (ne_of_gt hb')).mpr
-    have : c * b = d * a := sub_eq_zero.mp hz
-    exact_mod_cast this.trans (mul_comm d a)
+  have hz : z ≠ 0 := fun hz => hne <| (div_eq_div_iff hd'.ne' hb'.ne').mpr <| by
+    exact_mod_cast (sub_eq_zero.mp hz).trans (mul_comm d a)
   have hden : (d : ℝ) * ((p * b - q * a : ℤ) : ℝ) = z * q + w * b := by
     dsimp [z, w]; push_cast; ring
   have hs : |((p * b - q * a : ℤ) : ℝ)| = 1 := by exact_mod_cast hdet
@@ -86,25 +78,18 @@ private theorem best_of_tail {p q a b c d : ℤ} {t x : ℝ}
   -- Their denominator would then have magnitude at least `q + b > b`.
   have hzsign : z ≤ -1 ∨ 1 ≤ z := by omega
   have hlarge : (b : ℝ) < |(z : ℝ) * q + w * b| := by
-    rcases hzsign with hzneg | hzpos
-    · have hzneg' : (z : ℝ) ≤ -1 := by exact_mod_cast hzneg
-      have hw : w ≤ -1 := by
-        have : (w : ℝ) < 0 := by nlinarith [(abs_le.mp hsmall).1]
-        have : w < 0 := by exact_mod_cast this
-        omega
-      have hw' : (w : ℝ) ≤ -1 := by exact_mod_cast hw
+    rcases hzsign with hz | hz
+    · have hz' : (z : ℝ) ≤ -1 := by exact_mod_cast hz
+      have hw : w < 0 := by exact_mod_cast (show (w : ℝ) < 0 by nlinarith [(abs_le.mp hsmall).1])
+      have hw' : (w : ℝ) ≤ -1 := by exact_mod_cast (show w ≤ -1 by omega)
       have hsum : (z : ℝ) * q + w * b < -(b : ℝ) := by nlinarith
       rw [abs_of_neg (by linarith)]
       linarith
-    · have hzpos' : (1 : ℝ) ≤ z := by exact_mod_cast hzpos
-      have hw : 1 ≤ w := by
-        have : (0 : ℝ) < w := by nlinarith [(abs_le.mp hsmall).2]
-        have : 0 < w := by exact_mod_cast this
-        omega
-      have hw' : (1 : ℝ) ≤ w := by exact_mod_cast hw
+    · have hz' : (1 : ℝ) ≤ z := by exact_mod_cast hz
+      have hw : 0 < w := by exact_mod_cast (show (0 : ℝ) < w by nlinarith [(abs_le.mp hsmall).2])
+      have hw' : (1 : ℝ) ≤ w := by exact_mod_cast (show 1 ≤ w by omega)
       have hsum : (b : ℝ) < (z : ℝ) * q + w * b := by nlinarith
-      rw [abs_of_pos (by linarith)]
-      exact hsum
+      exact hsum.trans_le (le_abs_self _)
   rw [← hden, abs_mul, abs_of_pos hd', hs, mul_one] at hlarge
   linarith
 
@@ -124,11 +109,9 @@ private theorem contsAux_int (x : ℝ) (n : ℕ) :
       rw [contsAux_recurrence hs hab hab', ha, hk]
       simp
 
-private theorem den_pos (x : ℝ) (n : ℕ) : 0 < (of x).dens n := by
-  have hm : Monotone (of x).dens := monotone_nat_of_le_succ fun _ => of_den_mono
-  have h := hm (Nat.zero_le n)
-  rw [zeroth_den_eq_one] at h
-  exact lt_of_lt_of_le zero_lt_one h
+private theorem den_pos (x : ℝ) (n : ℕ) : 0 < (of x).dens n :=
+  zero_lt_one.trans_le <| zeroth_den_eq_one.symm.trans_le <|
+    monotone_nat_of_le_succ (f := (of x).dens) (fun _ => of_den_mono) n.zero_le
 
 /-- Every convergent after the zeroth is strictly closer than any distinct fraction with a
 positive denominator at most its continuant denominator. No irrationality assumption is needed;
@@ -152,21 +135,15 @@ theorem GenContFract.abs_sub_convs_lt (x : ℝ) {n : ℕ} (hn : 1 ≤ n) {c d : 
   have hbp : 0 < b := by exact_mod_cast (hb ▸ den_pos x n)
   obtain ⟨m, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : n ≠ 0)
   have hqp : 0 < q := by
-    have h := den_pos x m
-    change 0 < ((of x).contsAux (m + 1)).b at h
-    rw [hpq] at h
-    dsimp only at h
-    exact_mod_cast h
+    have h : 0 < ((of x).contsAux (m + 1)).b := den_pos x m
+    simpa [hpq] using h
   have hdet := (SimpContFract.of x).determinant
     (mt (terminated_stable (Nat.le_succ m)) hterm)
   change ((of x).contsAux (m + 1)).a * ((of x).contsAux (m + 2)).b -
     ((of x).contsAux (m + 1)).b * ((of x).contsAux (m + 2)).a = _ at hdet
   rw [hpq, hab] at hdet
   have hdeta : |p * b - q * a| = 1 := by
-    dsimp only at hdet
-    have := congrArg abs hdet
-    rw [abs_neg_one_pow] at this
-    exact_mod_cast this
+    dsimp only at hdet; exact_mod_cast (congrArg abs hdet).trans (abs_neg_one_pow _)
   have hfr : 0 < f.fr := lt_of_le_of_ne (IntFractPair.nth_stream_fr_nonneg hf) hf0.symm
   have ht : 1 < f.fr⁻¹ := (one_lt_inv₀ hfr).mpr (IntFractPair.nth_stream_fr_lt_one hf)
   have hx := compExactValue_correctness_of_stream_eq_some hf

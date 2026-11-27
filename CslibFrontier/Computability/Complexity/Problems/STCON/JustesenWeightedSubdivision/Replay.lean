@@ -81,16 +81,13 @@ theorem configurationJustesenSubdivisionEdge_readReply_iff
   · rintro ⟨callBits, hbits, hfirst, hret⟩
     have hsome : (M.replay w callBits entry).isSome := by
       simpa only [Option.isSome_map, Option.isSome_some] using congrArg Option.isSome hret
-    have hword := (configurationJustesenSubdivisionEdge_firstHalting_iff
+    obtain rfl := (configurationJustesenSubdivisionEdge_firstHalting_iff
       ntm c w seed u v callBits).mp ⟨hfirst, hsome⟩
-    subst callBits
     rw [hcanonical] at hret
-    have heq : callbackVerdict (D.runFrom w start 3) = hit := Option.some.inj hret
-    exact ⟨hbits, heq ▸ hadj⟩
+    exact ⟨hbits, Option.some.inj hret ▸ hadj⟩
   · rintro ⟨rfl, hhit⟩
-    have hfirst := (configurationJustesenSubdivisionEdge_firstHalting_iff
-      ntm c w seed u v [false, false, false]).mpr rfl
-    refine ⟨[false, false, false], rfl, hfirst.1, ?_⟩
+    refine ⟨[false, false, false], rfl, ((configurationJustesenSubdivisionEdge_firstHalting_iff
+      ntm c w seed u v [false, false, false]).mpr rfl).1, ?_⟩
     rw [hcanonical]
     exact congrArg some (Bool.eq_iff_iff.mpr (hadj.trans hhit.symm))
 
@@ -118,8 +115,7 @@ theorem configurationJustesenSubdivisionEdge_choice_bounds
   let M := justesenWeightedSubdivisionCallback ntm
   let B := M.withRejectingChoice
   change B.HaltsFrom w (some start) 3 ∧ _
-  have hclock : B.HaltsFrom w (some start) 3 := by
-    intro bits hlen
+  have hclock : B.HaltsFrom w (some start) 3 := fun bits hlen => by
     rcases M.withRejectingChoice_replay_eq_none_or_runFrom w start bits with hr | hr
     · rw [hr]
       rfl
@@ -131,14 +127,10 @@ theorem configurationJustesenSubdivisionEdge_choice_bounds
   change (encOption encJustesenSubdivisionState (B.replay w bits (some start))).length ≤ _
   rw [← htake]
   rcases M.withRejectingChoice_replay_eq_none_or_runFrom w start (bits.take 3) with hr | hr
-  · rw [hr, encOption_none, List.length_nil]
+  · rw [hr, encOption_none]
     exact Nat.zero_le _
   · rw [hr, encOption_some, List.length_cons, Nat.add_mul, Nat.one_mul]
-    have hlen : (bits.take 3).length ≤ 3 :=
-      List.length_take .. ▸ Nat.min_le_left 3 bits.length
-    have hbound :
-        (encJustesenSubdivisionState (M.runFrom w start (bits.take 3).length)).length ≤
-          C * (Nat.log2 w.length + 1) := hstate _ hlen
+    have hbound := hstate _ (List.length_take .. ▸ Nat.min_le_left 3 bits.length)
     exact (Nat.add_le_add_right hbound 1).trans (by omega)
 
 open MultiTapeTM.ComputableInSpace
@@ -157,8 +149,7 @@ theorem justesenWeightedSubdivisionChoice_parts_inSpace (ntm : MultiTapeNTM k Bo
       (fun s => (enc s).length) := by
   obtain ⟨hq, hn, hh, _, _⟩ := justesenWeightedSubdivisionCallback_parts_inSpace ntm
   obtain ⟨hq, hn, hh⟩ := QueryMachine.withRejectingChoice_parts_inSpace _ _ hq hn hh
-  refine ⟨hq, hn, hh, ?_⟩
-  exact (optionElim none (budget_optionSome (callbackVerdict_inSpace _ _))).of_enc_eq
-    fun s => by cases s <;> rfl
+  exact ⟨hq, hn, hh, (optionElim none (budget_optionSome
+    (callbackVerdict_inSpace _ _))).of_enc_eq fun s => by cases s <;> rfl⟩
 
 end Cslib.Complexity.STCON

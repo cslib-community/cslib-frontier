@@ -665,26 +665,15 @@ private theorem tapesCode_spec (act : Action k Bool Q) :
     obtain ⟨y, h₂, hT₂, hr₂, hm₂⟩ := tapesCode_spec act L hL hT₁ hc₁ h2 (fun j hj => by
       have hji : j ≠ i := fun h => hiL (h ▸ hj)
       simpa [Function.update_of_ne hji] using hfit j (List.mem_cons_of_mem i hj))
-    have eT : (fun j => if j ∈ L then
-          newTape (Function.update T i (newTape (T i) (P i) (act.workTapes i).1) j)
-            (Function.update P i (P i + (act.workTapes i).2) j) (act.workTapes j).1
-        else Function.update T i (newTape (T i) (P i) (act.workTapes i).1) j) =
-        fun j => if j ∈ i :: L then newTape (T j) (P j) (act.workTapes j).1 else T j := by
-      funext j
-      by_cases hji : j = i
-      · subst hji; simp [hiL]
-      · simp [hji]
-    have eP : (fun j => if j ∈ L then Function.update P i (P i + (act.workTapes i).2) j +
-          (act.workTapes j).2 else Function.update P i (P i + (act.workTapes i).2) j) =
-        fun j => if j ∈ i :: L then P j + (act.workTapes j).2 else P j := by
-      funext j
-      by_cases hji : j = i
-      · subst hji; simp [hiL]
-      · simp [hji]
-    refine ⟨y, (h₁.seq h₂).mono (by simp only [List.length_cons]; omega), ?_, ?_, ?_⟩
-    · rw [← eT, ← eP]; exact hT₂
-    · intro d hd ht; rw [hr₂ d hd ht, hr₁ d (by fin_index) (by fin_index) ht]
-    · intro b hb; rw [hm₂ b hb, hm₁ b hb]
+    refine ⟨y, (h₁.seq h₂).mono (by simp only [List.length_cons]; omega), ?_, ?_,
+      fun b hb => (hm₂ b hb).trans (hm₁ b hb)⟩
+    · convert hT₂ using 1 <;>
+        (funext j
+         by_cases hji : j = i <;> simp [hji, hiL])
+    · intro d hd ht
+      refine (hr₂ d hd ht).trans (hr₁ d ?_ ?_ ht)
+      · fin_index
+      · fin_index
 
 private theorem TapesRel.of_eq {x y : Data (regs k)} {T : Fin k → ℤ → Option Bool} {P : Fin k → ℤ}
     (h : TapesRel n x T P) (hr : ∀ d : Fin (regs k), 12 ≤ d.val → y.regs d = x.regs d)
@@ -1076,11 +1065,6 @@ theorem executes_simProgram (hδ : ∀ q a s, tm.tr q a s = δ q a s) (e : Q ≃
     ∃ n ≤ simTime k m t, Executes w (simProgram δ tm.q₀ e) (State.init (inp.map Bool.toNat))
       (BitString.lsbValue (tm.runFrom (tm.initCfg inp) t).output) n := by
   obtain ⟨t₀, ht₀, hhalts⟩ := MultiTapeTM.exists_haltsAt ht
-  have hhalt : (tm.runFrom (tm.initCfg inp) t₀).state = none := hhalts.halted
-  have hrun : ∀ j < t₀, (tm.runFrom (tm.initCfg inp) j).state ≠ none :=
-    fun j hj => hhalts.not_halted hj
-  have hsame : tm.runFrom (tm.initCfg inp) t = tm.runFrom (tm.initCfg inp) t₀ :=
-    hhalts.runFrom_eq ht₀
   have hk : 2 * k ≤ 2 * k * (t + 1) := Nat.le_mul_of_pos_right _ (by omega)
   have hbound : inp.length + 2 * k + m + 2 < 2 ^ w := by wram_omega [hw]
   have hfit : ∀ j ≤ t₀, ∀ i,
@@ -1093,16 +1077,15 @@ theorem executes_simProgram (hδ : ∀ q a s, tm.tr q a s = δ q a s) (e : Q ≃
   have hout' : ∀ j ≤ t₀, (tm.runFrom (tm.initCfg inp) j).output.length < w :=
     fun j hj => lt_of_le_of_lt (length_output_runFrom_mono _ (hj.trans ht₀)) hout
   obtain ⟨x, hx₁, hsx⟩ := setupCode_spec (e := e) (w := w) tm.q₀ inp hbound
-  obtain ⟨y, hy₁, hsy⟩ := loop_spec (δ := δ) hδ e hrun hhalt hfit hbound hout' (t₀) 0 x
-    (by omega) hsx
+  obtain ⟨y, hy₁, hsy⟩ := loop_spec (δ := δ) hδ e (fun _ => hhalts.not_halted) hhalts.halted hfit
+    hbound hout' t₀ 0 x (by omega) hsx
   obtain ⟨n, hn, hexec⟩ := hx₁.seq hy₁
   refine ⟨n + 1, ?_, ?_⟩
   · unfold simTime
     have := Nat.mul_le_mul_right (stepCost k m + 2) ht₀
     omega
   · have h := hexec.executes rVal
-    rw [hsy.val, ← hsame] at h
-    exact h
+    rwa [hsy.val, ← hhalts.runFrom_eq ht₀] at h
 
 end Run
 

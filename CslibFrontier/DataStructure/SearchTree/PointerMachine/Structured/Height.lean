@@ -65,11 +65,7 @@ private theorem loadData_cache {x : State M (layout extra regs)} {t : BinaryTree
       heightValue, record]
 
 private theorem one_ne_two : (1 : Fin (regs + 1 + 2)) ≠ 2 := by
-  intro h
-  have hv := congrArg Fin.val h
-  change 1 = 2 % (regs + 1 + 2) at hv
-  rw [Nat.mod_eq_of_lt (show 2 < regs + 1 + 2 by omega)] at hv
-  omega
+  simp [Fin.ext_iff, Nat.mod_eq_of_lt (show 2 < regs + 1 + 2 by omega)]
 
 /-- Reading the child caches takes six instructions and preserves the heap and client
 registers. -/
@@ -167,5 +163,31 @@ theorem recomputeHeight_correct (zero maxSucc : M.Op) (encode : ℕ → M.Value)
       data i h1 h2
   · intro i h2
     simpa [Op.effect, Op.instr, Instr.effect, State.setData, State.modify, tc] using ptr i h2
+
+/-! Frames of `readHeights` and `recomputeHeight`, for the programs that call them. -/
+
+@[simp] theorem readHeights_keepsSize (zero : M.Op) (field : Fin (extra + 1)) (base : Fin 7) :
+    (readHeights (regs := regs) zero field base).KeepsSize := by
+  pm_frame
+
+@[simp] theorem readHeights_dataDests (zero : M.Op) (field : Fin (extra + 1)) (base : Fin 7) :
+    (readHeights (regs := regs) zero field base).dataDests = [1, 2, 1, 2] :=
+  rfl
+
+@[simp] theorem readHeights_fieldDests (zero : M.Op) (field : Fin (extra + 1)) (base : Fin 7) :
+    (readHeights (regs := regs) zero field base).fieldDests = [] :=
+  rfl
+
+@[simp] theorem recomputeHeight_keepsSize (zero maxSucc : M.Op) (field : Fin (extra + 1)) :
+    (recomputeHeight (regs := regs) zero maxSucc field).KeepsSize := by
+  simp [recomputeHeight, Op.creates]
+
+@[simp] theorem recomputeHeight_dataDests (zero maxSucc : M.Op) (field : Fin (extra + 1)) :
+    (recomputeHeight (regs := regs) zero maxSucc field).dataDests = [1, 2, 1, 2, 1] :=
+  rfl
+
+@[simp] theorem recomputeHeight_fieldDests (zero maxSucc : M.Op) (field : Fin (extra + 1)) :
+    (recomputeHeight (regs := regs) zero maxSucc field).fieldDests = [field] :=
+  rfl
 
 end Cslib.DataStructure.SearchTree.PointerMachine.Structured

@@ -148,8 +148,7 @@ theorem log_two_mul_le_of_hammingDist_le (h : DifferentiallyPrivate HammingAdjac
   have hle := h.card_mul_le_of_hammingDist_le_of_pure Finset.univ (x 0) x
     (fun j _ => hx j 0) (fun i _ j _ hij => hB hij) (fun j _ => hp j)
   rw [Finset.card_univ, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat] at hle
-  have := sub_one_mul_log_two_le_of_two_pow_mul_inv_two_le_ofReal_exp hle
-  linarith
+  linarith [sub_one_mul_log_two_le_of_two_pow_mul_inv_two_le_ofReal_exp hle]
 
 end DifferentiallyPrivate
 
@@ -188,12 +187,9 @@ theorem mem_accurateMarginals {x : ι → κ → Bool} {a : κ → ℝ} :
 marginals in the sup metric. -/
 theorem accurateMarginals_eq_ball [Fintype κ] [Nonempty ι] (x : ι → κ → Bool) :
     accurateMarginals x = Metric.ball (oneWayMarginals x) (Fintype.card ι / 2) := by
-  have hr : (0 : ℝ) < Fintype.card ι / 2 := by
-    have : (0 : ℝ) < Fintype.card ι := by exact_mod_cast Fintype.card_pos
-    positivity
+  have hr : (0 : ℝ) < Fintype.card ι / 2 := half_pos (Nat.cast_pos.mpr Fintype.card_pos)
   ext a
-  rw [Metric.mem_ball, dist_pi_lt_iff hr, mem_accurateMarginals]
-  simp only [Real.dist_eq]
+  simp [Metric.mem_ball, dist_pi_lt_iff hr, mem_accurateMarginals, Real.dist_eq]
 
 /-- The accuracy events of two different constant datasets are disjoint. -/
 theorem disjoint_accurateMarginals_const {w w' : κ → Bool} (hw : w ≠ w') :
@@ -203,10 +199,9 @@ theorem disjoint_accurateMarginals_const {w w' : κ → Bool} (hw : w ≠ w') :
   have h1 := ha j
   have h2 := ha' j
   rw [oneWayMarginals_const] at h1 h2
-  have hn : (0 : ℝ) ≤ Fintype.card ι := Nat.cast_nonneg _
   cases hwj : w j <;> cases hwj' : w' j <;>
     simp only [hwj, hwj', ne_eq, not_true_eq_false, Bool.false_eq_true, ↓reduceIte, sub_zero,
-      abs_lt] at h1 h2 hj ⊢ <;> linarith
+      abs_lt] at h1 h2 hj <;> linarith
 
 end Marginals
 

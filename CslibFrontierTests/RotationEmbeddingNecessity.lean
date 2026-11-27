@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDra
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.VertexPlacement
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.VertexTransport
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReferencePaths
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceRouteMoves
 import CslibFrontier.Foundations.Geometry.Polygonal.AttachmentParameters
 import Mathlib.Topology.MetricSpace.Bounded
 import Mathlib.Tactic.FinCases
@@ -425,5 +426,70 @@ example :
     simp only [hfalse d, Bool.false_eq_true] at hd
   obtain ⟨E, hE, hV, _⟩ := exists_subdivision_embedding_at_reference input_valid hD hcenter hfreeze
   exact ⟨D, hD, hpos 2 (by decide +kernel), hpos 3 (by decide +kernel), E, hE, hV⟩
+
+private def fixedLoop : FixedRotationInput := ⟨⟨[0], [(0, 0)]⟩, [some [0, 1]]⟩
+
+private def loopMoves : Moves (frame fixedLoop) :=
+  fun e v => decide (e.val = 1 ∧ v.val = 0)
+
+-- The free edge winds oddly around the original vertex while a spoke stays literal.
+-- Its protected initial segment can meet the literal spoke only at the shared vertex.
+example :
+    let f : Fin (subdivisionGraph fixedLoop).edges.length := ⟨0, by decide⟩
+    let e : Fin (subdivisionGraph fixedLoop).edges.length := ⟨1, by decide⟩
+    let ref := referenceDrawing fixedLoop
+    ∃ δ > (0 : ℝ), ∃ D : PolygonalDrawing (subdivisionGraph fixedLoop), D.route f = ref.route f ∧
+      D.vertex 0 ∉ (D.route e).support ∧
+      (D.route e).rayParity 1 (D.vertex 0) = (ref.route e).rayParity 1 (ref.vertex 0) + true ∧
+      let a := D.vertex (Dart.vertex (e, false))
+      let b := D.vertex (Dart.vertex (e, true))
+      let m := AffineMap.lineMap a b (1 / 2 : ℝ)
+      let c := AffineMap.lineMap a m δ
+      let d := AffineMap.lineMap m b (1 - δ)
+      c ≠ d ∧ c ≠ D.vertex 0 ∧
+      ∃ middle : Polygonal.Route,
+        2 ≤ middle.segments ∧
+        D.route e = ((Polygonal.Route.line a c).concat middle).concat
+          (Polygonal.Route.line d b) ∧
+        (∀ v : Fin (frame fixedLoop).vertexCount, D.vertex v.val ∉ middle.support) ∧
+        ∀ z ∈ (Polygonal.Route.line a c).support, z ∈ (D.route f).support → z = a := by
+  dsimp only
+  have hvalid : Valid fixedLoop := (validate_eq_true_iff fixedLoop).mp (by decide +kernel)
+  have hfixed : FrozenMoves (frame fixedLoop) loopMoves := by
+    unfold FrozenMoves
+    decide +kernel
+  let f : Fin (subdivisionGraph fixedLoop).edges.length := ⟨0, by decide⟩
+  let e : Fin (subdivisionGraph fixedLoop).edges.length := ⟨1, by decide⟩
+  obtain ⟨ρ, -, δ, hδ, -, hcontact, hstub⟩ := exists_reference_move_stub_isolation hvalid
+  obtain ⟨hcut, hinj, hportAvoid⟩ := hstub δ ⟨hδ.1, le_rfl⟩
+  obtain ⟨D, hD, hkeep, -, havoid, hpar, hmiddle⟩ :=
+    exists_reference_drawing_with_move_rayParity hvalid loopMoves hfixed hδ (u := 1) one_ne_zero
+  have hf := hkeep f (by decide +kernel)
+  refine ⟨δ, hδ.1, D, hf, havoid e ⟨0, by decide⟩ (by decide +kernel), ?_, ?_, ?_, ?_⟩
+  · have h := hpar e ⟨0, by decide⟩
+    have hbit : readMove (frame fixedLoop) loopMoves e.val 0 = true := by decide +kernel
+    simpa only [hbit] using h
+  · rw [hD, AffineMap.lineMap_apply_one_sub]
+    have hne : (e, false) ≠ (e, true) := fun h => Bool.false_ne_true (congrArg Prod.snd h)
+    exact hinj.ne hne
+  · rw [hD]
+    intro h
+    exact hportAvoid (e, false) ⟨0, by decide +kernel, h.symm⟩
+  · obtain ⟨middle, -, -, hsegments, hroute, hvertices⟩ := hmiddle e (by decide +kernel)
+    refine ⟨middle, hsegments, hroute, hvertices, ?_⟩
+    intro z hz hfz
+    rw [hf] at hfz
+    let ref := referenceDrawing fixedLoop
+    let a := ref.vertex (Dart.vertex (e, false))
+    let b := ref.vertex (Dart.vertex (e, true))
+    rw [hD, Route.support_line] at hz
+    have hz' : z ∈ Metric.closedBall a ρ ∩ (ref.route e).support := by
+      apply hcut (e, false)
+      change z ∈ segment ℝ a (AffineMap.lineMap a ((Route.line a b).eval 0 _) δ)
+      rw [Route.eval_line]
+      exact hz
+    rw [hD]
+    exact hcontact (Dart.vertex (e, false)) (by decide +kernel) e f (by decide +kernel)
+      z hz'.1 hz'.2 hfz
 
 end CslibFrontierTests.RotationEmbeddingNecessity

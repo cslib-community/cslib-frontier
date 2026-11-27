@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Anthropic
 -/
 
 module
@@ -29,6 +29,9 @@ concatenation, prefixes and the lexicographic order of words of equal length.
   equal length, the numeric order is the lexicographic order.
 * `Cslib.BitString.isPrefix_iff_binaryValue`: the words with prefix `h` among the words of length
   `N` are those whose values lie in the block `[v(h) 2^(N-|h|), (v(h) + 1) 2^(N-|h|))`.
+* `Cslib.BitString.binaryValue_succ_carry`, `Cslib.BitString.exists_carry_cut`,
+  `Cslib.BitString.carry_cut_unique`: big-endian `+ 1` carry-cut decomposition before the rightmost
+  `false` bit (adapted from *VP ≠ VNP over every field* [AnthropicVPVNP2026], `Nc.Uni.Bin`).
 -/
 
 @[expose] public section
@@ -90,38 +93,17 @@ whose value lies in `[v(h) 2^(N-|h|), (v(h) + 1) 2^(N-|h|))`, for `N` their leng
 theorem isPrefix_iff_binaryValue {h r : List Bool} (hlen : h.length ≤ r.length) :
     h <+: r ↔ binaryValue h * 2 ^ (r.length - h.length) ≤ binaryValue r ∧
       binaryValue r < (binaryValue h + 1) * 2 ^ (r.length - h.length) := by
-  have hr : r = r.take h.length ++ r.drop h.length := (List.take_append_drop _ _).symm
-  have hlt : (r.take h.length).length = h.length := by simp [hlen]
-  have hld : (r.drop h.length).length = r.length - h.length := by simp
-  have hbv : binaryValue r = binaryValue (r.take h.length) * 2 ^ (r.length - h.length) +
-      binaryValue (r.drop h.length) := by
-    conv_lhs => rw [hr]
-    rw [binaryValue_append, hld]
-  have hv : binaryValue (r.drop h.length) < 2 ^ (r.length - h.length) := by
-    have := binaryValue_lt_two_pow (r.drop h.length)
-    rwa [hld] at this
-  rw [hbv]
-  generalize hu : r.take h.length = u at hlt ⊢
-  generalize 2 ^ (r.length - h.length) = P at hv ⊢
-  generalize binaryValue (r.drop h.length) = v at hv ⊢
-  constructor
-  · intro hp
-    have huh : u = h := by rw [← hu]; exact (List.prefix_iff_eq_take.mp hp).symm
-    rw [huh, add_mul, one_mul]
-    constructor <;> omega
-  · rintro ⟨h1, h2⟩
-    have huh : binaryValue u = binaryValue h := by
-      apply le_antisymm
-      · by_contra hc
-        have := Nat.mul_le_mul_right P (Nat.succ_le_of_lt (not_le.mp hc))
-        rw [Nat.succ_eq_add_one] at this
-        omega
-      · by_contra hc
-        have := Nat.mul_le_mul_right P (Nat.succ_le_of_lt (not_le.mp hc))
-        rw [Nat.succ_mul] at this
-        omega
-    rw [List.prefix_iff_eq_take, hu]
-    exact (binaryValue_injective_of_length_eq hlt huh).symm
+  have hP : 0 < 2 ^ (r.length - h.length) := Nat.two_pow_pos _
+  have hdiv : binaryValue r / 2 ^ (r.length - h.length) = binaryValue (r.take h.length) := by
+    have hv : binaryValue (r.drop h.length) < 2 ^ (r.length - h.length) :=
+      List.length_drop ▸ binaryValue_lt_two_pow (r.drop h.length)
+    have hsplit : binaryValue r = binaryValue (r.take h.length ++ r.drop h.length) :=
+      congrArg binaryValue (List.take_append_drop h.length r).symm
+    rw [hsplit, binaryValue_append, List.length_drop, mul_comm, Nat.mul_add_div hP,
+      Nat.div_eq_of_lt hv, add_zero]
+  rw [← Nat.le_div_iff_mul_le hP, ← Nat.div_lt_iff_lt_mul hP, hdiv, List.prefix_iff_eq_take]
+  exact ⟨fun hp => by rw [← hp]; omega,
+    fun heq => binaryValue_injective_of_length_eq (by simp [hlen]) (by omega)⟩
 
 /-- The word of the same length as `x` whose value is one less (`x` itself when its value is
 `0`). -/
@@ -134,5 +116,71 @@ theorem length_predWord (x : List Bool) : (predWord x).length = x.length :=
 @[simp]
 theorem binaryValue_predWord (x : List Bool) : binaryValue (predWord x) = binaryValue x - 1 :=
   binaryValue_binaryWord _ _
+
+/-- An all-`false` binary word has value `0`. -/
+@[simp]
+theorem binaryValue_replicate_false (k : ℕ) :
+    binaryValue (List.replicate k false) = 0 := by
+  simpa [binaryValue] using binaryValue_replicate_false_append k []
+
+/-- Re-encoding a word's `binaryValue` at its own width recovers the word. -/
+@[simp]
+theorem binaryWord_binaryValue (w : List Bool) : binaryWord w.length (binaryValue w) = w :=
+  binaryValue_injective_of_length_eq (length_binaryWord (binaryValue_lt_two_pow w))
+    (binaryValue_binaryWord _ _)
+
+/-- Zero padded to width `L` is `List.replicate L false`. -/
+@[simp]
+theorem binaryWord_zero (L : ℕ) : binaryWord L 0 = List.replicate L false := by
+  have h := binaryWord_binaryValue (List.replicate L false)
+  rwa [List.length_replicate, binaryValue_replicate_false] at h
+
+/-- Adding `1` to a big-endian word flips trailing `false :: true^k` to `true :: false^k`. -/
+theorem binaryValue_succ_carry (u : List Bool) (k : ℕ) :
+    binaryValue (u ++ true :: List.replicate k false) =
+      binaryValue (u ++ false :: List.replicate k true) + 1 := by
+  have h := binaryValue_append_replicate_true (u ++ [false]) k
+  simp only [List.append_assoc, List.singleton_append] at h
+  rw [binaryValue_append, binaryValue_cons, binaryValue_replicate_false, List.length_cons,
+    List.length_replicate, Bool.toNat_true, one_mul, add_zero, h, binaryValue_snoc,
+    Bool.toNat_false, add_zero]
+  ring
+
+/-- Every non-maximal big-endian word ends with `false` followed by `true`s. -/
+theorem exists_carry_cut {w : List Bool} (h : binaryValue w + 1 < 2 ^ w.length) :
+    ∃ u k, w = u ++ false :: List.replicate k true := by
+  induction w using List.reverseRecOn with
+  | nil => simp [binaryValue] at h
+  | append_singleton w b ih =>
+    cases b
+    · exact ⟨w, 0, rfl⟩
+    · rw [binaryValue_snoc, List.length_append, List.length_singleton, pow_succ] at h
+      simp only [Bool.toNat_true] at h
+      obtain ⟨u, k, rfl⟩ := ih (by omega)
+      refine ⟨u, k + 1, ?_⟩
+      rw [List.replicate_succ', List.append_assoc]
+      rfl
+
+/-- Uniqueness of the decomposition `u ++ false :: true^k` before the rightmost `false`. -/
+theorem carry_cut_unique {u u' : List Bool} {k k' : ℕ}
+    (h : u ++ false :: List.replicate k true = u' ++ false :: List.replicate k' true) :
+    u = u' ∧ k = k' := by
+  have h1 := congrArg List.reverse h
+  simp only [List.reverse_append, List.reverse_cons, List.reverse_replicate,
+    List.append_assoc, List.singleton_append] at h1
+  have key {k k' : ℕ} {a b : List Bool}
+      (e : List.replicate k true ++ false :: a = List.replicate k' true ++ false :: b) :
+      k = k' ∧ a = b := by
+    induction k generalizing k' with
+    | zero =>
+      cases k' with
+      | zero => simpa using e
+      | succ _ => simp [List.replicate_succ] at e
+    | succ k ih =>
+      cases k' with
+      | zero => simp [List.replicate_succ] at e
+      | succ k' => simpa using ih (by simpa [List.replicate_succ] using e)
+  obtain ⟨h2, h3⟩ := key h1
+  exact ⟨List.reverse_injective h3, h2⟩
 
 end Cslib.BitString

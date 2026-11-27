@@ -42,18 +42,17 @@ theorem computableInPolyTime_reindex {α : Type} {input : α ↪ List Bool}
       (encPair input encNat) encNat) :
     ComputableInPolyTime (fun x => reindex (table x) (count x) (forward x) (back x))
       input encRotationCertificate := by
-  have hw : ComputableInPolyTime (fun x => (List.range (count x)).map
-      (fun i => forward x ((table x).successor.getD (back x i) 0))) input (encList encNat) := by
-    apply ComputableInPolyTime.mapWithInput (encA := encUnary)
-      (ComputableInPolyTime.range.comp hn)
-    have hx := ComputableInPolyTime.fst input encUnary
-    have hi := ComputableInPolyTime.unary_to_binary.comp
-      (ComputableInPolyTime.snd input encUnary)
-    have hback := hb.comp (hx.prod hi)
-    have htable := computableInPolyTime_successor.comp (hc.comp hx)
-    have hread := ComputableInPolyTime.listGetD_binary (encA := encNat) 0 htable hback
-    exact hf.comp (hx.prod hread)
-  exact encRotationCertificate_mk_deg.computableInPolyTime.comp hw
+  unfold reindex
+  apply encRotationCertificate_mk_polyTime
+  apply ComputableInPolyTime.mapWithInput (encA := encUnary) (by fun_prop)
+  have hback : ComputableInPolyTime (fun p : α × ℕ => back p.1 p.2)
+      (encPair input encUnary) encNat :=
+    hb.comp ((ComputableInPolyTime.fst input encUnary).prod
+      (ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.snd input encUnary)))
+  have hread : ComputableInPolyTime
+      (fun p : α × ℕ => (table p.1).successor.getD (back p.1 p.2) 0)
+      (encPair input encUnary) encNat := by fun_prop
+  exact hf.comp ((ComputableInPolyTime.fst input encUnary).prod hread)
 
 /-- Exchange two computed binary-indexed outgoing entries. Even invalid corner indices
 are only compared and read; the actual table length funds the iteration. -/
@@ -64,18 +63,11 @@ theorem computableInPolyTime_swapSuccessors {α : Type} {input : α ↪ List Boo
     (hr : ComputableInPolyTime right input encNat) :
     ComputableInPolyTime (fun x => (table x).swapSuccessors (left x) (right x))
       input encRotationCertificate := by
-  have hn : ComputableInPolyTime (fun x => (table x).successor.length) input encUnary := by
-    have hs := computableInPolyTime_successor.comp hc
-    exact (ComputableInPolyTime.length_list encNat).comp hs
   have hl' := hl.comp (ComputableInPolyTime.fst input encNat)
   have hr' := hr.comp (ComputableInPolyTime.fst input encNat)
-  have hb : ComputableInPolyTime (fun p : α × ℕ =>
-      if p.2 = left p.1 then right p.1 else if p.2 = right p.1 then left p.1 else p.2)
-      (encPair input encNat) encNat := by fun_prop
-  have h := computableInPolyTime_reindex
+  simpa only [swapSuccessors, reindex] using computableInPolyTime_reindex
     (forward := fun _ i => i)
     (back := fun x i => if i = left x then right x else if i = right x then left x else i)
-    hc hn (ComputableInPolyTime.snd input encNat) hb
-  simpa only [swapSuccessors, reindex] using h
+    hc (by fun_prop) (ComputableInPolyTime.snd input encNat) (by fun_prop)
 
 end Cslib.Complexity.Graph.RotationCertificate

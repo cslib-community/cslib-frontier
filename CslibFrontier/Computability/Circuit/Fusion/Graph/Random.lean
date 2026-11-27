@@ -128,13 +128,9 @@ private theorem codeBits_add_le_sq {N : ℕ} (hN : 16 ≤ N) :
 /-- A linear budget `N/16` fails except with probability at most `2⁻ᴺ`, once `N ≥ 16`. -/
 theorem smallCoverProbability_le_half_pow {N : ℕ} (hN : 16 ≤ N) :
     smallCoverProbability N (N / 16) ≤ (1 / 2 : ℝ) ^ N := by
-  apply (smallCoverProbability_le N (N / 16)).trans
-  apply (div_le_iff₀ (by positivity : (0 : ℝ) < 2 ^ (N ^ 2))).mpr
-  rw [div_pow, one_pow]
-  rw [div_mul_eq_mul_div, one_mul]
-  apply (le_div_iff₀ (by positivity : (0 : ℝ) < 2 ^ N)).mpr
-  rw [← pow_add]
-  exact pow_le_pow_right₀ (by norm_num : (1 : ℝ) ≤ 2) (codeBits_add_le_sq hN)
+  refine (smallCoverProbability_le N (N / 16)).trans ((div_le_iff₀ (by positivity)).mpr ?_)
+  rw [div_pow, one_pow, div_mul_eq_mul_div, one_mul, le_div_iff₀ (by positivity), ← pow_add]
+  exact pow_le_pow_right₀ one_le_two (codeBits_add_le_sq hN)
 
 /-- **Random graph cover complexity is linear.** With probability at least `1 - 2⁻ᴺ`,
 a uniform labelled `N`-by-`N` bipartite graph has cover complexity strictly above `⌊N/16⌋`
@@ -152,13 +148,9 @@ theorem random_cover_complexity {N : ℕ} (hN : 16 ≤ N) :
       {graph | ((N / 16 : ℕ) : ℕ∞) < pairCoverComplexity graph sources ∧
         pairCoverComplexity graph sources ≤ N} := by
     ext graph
-    have upper : pairCoverComplexity graph sources ≤ (N : ℕ∞) := by
-      simpa only [Fintype.card_fin] using pairCoverComplexity_le_card graph
-    simp only [Set.mem_compl_iff, Set.mem_ofPred_eq, not_le, upper, and_true]
+    simpa [not_le] using fun _ => pairCoverComplexity_le_card graph
   rw [heq] at h
   have hb := smallCoverProbability_le_half_pow hN
-  change _ + _ = 1 at h
-  unfold smallCoverProbability at hb
-  linarith
+  linarith [show smallCoverProbability N (N / 16) + _ = 1 from h]
 
 end Cslib.Circuits.Fusion.Graph

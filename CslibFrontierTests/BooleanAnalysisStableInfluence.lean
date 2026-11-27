@@ -4,17 +4,24 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Vincent Liew
 -/
 
-import CslibFrontier.Foundations.BooleanAnalysis.CoordinateOperators
-import CslibFrontier.Foundations.BooleanAnalysis.StableInfluence
+module
+-- upstream: local-only (test driver)
+
+public import CslibFrontier.Foundations.BooleanAnalysis.CoordinateOperators
+public import CslibFrontier.Foundations.BooleanAnalysis.StableInfluence
 
 /-! # Coordinate operators and stable influences on small cubes
 
 The character `χ_{0,1}` of two of three coordinates is killed by the expectation over coordinate
 `0` and kept by the coordinate Laplacian, and the Laplacian scales it by two, so
 `⟨χ, L χ⟩ = I[χ] = 2`. Its `ρ`-stable influence at coordinate `0` is `ρ`, interpolating between
-zero at `ρ = 0` and its influence one at `ρ = 1`. Proposition 2.54 applies to a dictator at
-`δ = ε = 1 / 2`.
+zero at `ρ = 0` and its influence one at `ρ = 1`. Its noise stability `ρ ^ 2` has derivative
+`2ρ`, which is its total `ρ`-stable influence (Fact 2.53): zero, its level-one weight, at `ρ = 0`
+and two, its total influence, at `ρ = 1` (Proposition 2.51). Proposition 2.54 applies to a
+dictator at `δ = ε = 1 / 2`.
 -/
+
+public section
 
 namespace CslibFrontierTests.BooleanAnalysisStableInfluence
 
@@ -48,5 +55,44 @@ example : (1 / 2 : ℝ) * (1 / 2) *
     #{i | (1 / 2 : ℝ) ≤ stableInfluence (1 - 1 / 2) i (fun x : Fin 3 → Bool => signVal (x 0))} ≤
       1 :=
   mul_card_filter_le_stableInfluence_signVal_le_one (by norm_num) (by norm_num) _ _
+
+-- The noise stability of `χ_{0,1}` is `ρ ^ 2`.
+example (ρ : ℝ) : noiseStability ρ χ₀₁ = ρ ^ 2 := by
+  rw [noiseStability_eq_sum, sum_eq_single ({0, 1} : Finset (Fin 3))]
+  · simp [fourierCoeff_chi, show #({0, 1} : Finset (Fin 3)) = 2 from rfl]
+  · intro S _ hS
+    simp [fourierCoeff_chi, Ne.symm hS]
+  · simp
+
+/-- The total `ρ`-stable influence of `χ_{0,1}` is `2ρ`. -/
+theorem totalStableInfluence_χ₀₁ (ρ : ℝ) : totalStableInfluence ρ χ₀₁ = 2 * ρ := by
+  have hc : #({0, 1} : Finset (Fin 3)) = 2 := rfl
+  rw [totalStableInfluence_eq_sum, sum_eq_single ({0, 1} : Finset (Fin 3))]
+  · simp [fourierCoeff_chi, hc]
+  · intro S _ hS
+    simp [fourierCoeff_chi, Ne.symm hS]
+  · simp
+
+/-- `χ_{0,1}` has no Fourier weight at degree one. -/
+theorem levelWeight_one_χ₀₁ : levelWeight 1 χ₀₁ = 0 := by
+  rw [levelWeight]
+  refine sum_eq_zero fun S hS => ?_
+  have hS' : ({0, 1} : Finset (Fin 3)) ≠ S := by
+    rintro rfl
+    simp at hS
+  simp [fourierCoeff_chi, hS']
+
+-- Fact 2.53 for `χ_{0,1}`: `d/dρ Stab_ρ[χ_{0,1}] = 2ρ`, in `deriv` form.
+example (ρ : ℝ) : deriv (fun r => noiseStability r χ₀₁) ρ = 2 * ρ := by
+  rw [(hasDerivAt_noiseStability χ₀₁ ρ).deriv, totalStableInfluence_χ₀₁]
+
+-- Proposition 2.51 for `χ_{0,1}`: the derivative is `W¹ = 0` at `0` and `I = 2` at `1`.
+example : HasDerivAt (fun r => noiseStability r χ₀₁) 0 0 :=
+  levelWeight_one_χ₀₁ ▸ hasDerivAt_noiseStability_zero χ₀₁
+
+example : HasDerivAt (fun r => noiseStability r χ₀₁) 2 1 := by
+  have h := hasDerivAt_noiseStability_one χ₀₁
+  rw [totalInfluence_chi] at h
+  exact_mod_cast h
 
 end CslibFrontierTests.BooleanAnalysisStableInfluence

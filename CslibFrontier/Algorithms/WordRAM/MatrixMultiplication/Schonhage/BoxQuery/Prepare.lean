@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery.InputLayout
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery.Memory
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Actual query preparation from original input words
@@ -33,21 +33,9 @@ theorem exec_inputHeaders {w L m t Q : ℕ} (x : Data registers)
     ∃ y, ExecWithin w inputHeaders x y 8 ∧ y.regs BoxTable.Reg.levels = L ∧
       y.regs BoxTable.Reg.inner = m ∧ y.regs BoxTable.Reg.threshold = t ∧
       y.regs Reg.query = Q ∧ y.mem = x.mem := by
-  have h1 : Fits w 1 := hfit.of_le (by decide)
-  have h2 : Fits w 2 := hfit.of_le (by decide)
-  have h3 : Fits w 3 := hfit.of_le (by decide)
-  let a := (((((x.set BoxTable.Reg.address 1).set BoxTable.Reg.levels L).set
-    BoxTable.Reg.address 2).set BoxTable.Reg.inner m).set BoxTable.Reg.address 3).set
-      BoxTable.Reg.threshold t
-  let y := (a.set BoxTable.Reg.address 4).set Reg.query Q
-  have he : ExecWithin w inputHeaders x y 8 := by
-    ram_eval [inputHeaders, y, a, hL, hm, ht, hQ, h1, h2, h3, hfit,
-      BoxTable.Reg.address, BoxTable.Reg.levels, BoxTable.Reg.inner,
-      BoxTable.Reg.threshold, Reg.query, Fin.mk.injEq]
-  exact ⟨y, he, by simp [y, a, BoxTable.Reg.levels, BoxTable.Reg.inner,
-      BoxTable.Reg.threshold, BoxTable.Reg.address, Reg.query],
-    by simp [y, a, BoxTable.Reg.inner, BoxTable.Reg.threshold, BoxTable.Reg.address, Reg.query],
-    by simp [y, a, BoxTable.Reg.threshold, BoxTable.Reg.address, Reg.query], by simp [y], rfl⟩
+  unfold inputHeaders
+  wram_exec [hL, hm, ht, hQ]
+  wram_simp
 
 /-- Complete original-input adaptation computes the actual span and array/directory pointers. -/
 theorem exec_loadInput {w L m t Q : ℕ} (x : Data registers)
@@ -58,34 +46,20 @@ theorem exec_loadInput {w L m t Q : ℕ} (x : Data registers)
       y.regs BoxTable.Reg.threshold = t ∧ y.regs Reg.query = Q ∧
       y.regs BoxTable.Reg.arrayA = 5 ∧ y.regs BoxTable.Reg.arrayB = 5 + 10 ^ L ∧
       y.regs BoxTable.Reg.directory = directoryBase L ∧ y.mem = x.mem := by
-  obtain ⟨a, ha, aL, am, ath, aQ, haμ⟩ := exec_inputHeaders x hL hm ht hQ
-    (hfit.of_le (by omega))
-  obtain ⟨b, hb, _, _, b10, _, _, hbμ, bf⟩ := BoxTable.exec_constants a
-    (hfit.of_le ((by decide : 10 ≤ 16).trans (Nat.le_add_left _ _)))
-  have bL : b.regs BoxTable.Reg.levels = L := by regs_frame
-  obtain ⟨c, hc, cT, _, hcμ, cf⟩ := BoxTable.exec_span b bL b10 (hfit.of_le (by omega))
-  have cL : c.regs BoxTable.Reg.levels = L := by regs_frame
-  have cm : c.regs BoxTable.Reg.inner = m := by regs_frame
-  have ct : c.regs BoxTable.Reg.threshold = t := by regs_frame
-  have cQ : c.regs Reg.query = Q := by regs_frame
-  have hfD : Fits w (5 + 10 ^ L + 10 ^ L) := hfit.of_le (by omega)
-  let y := ((c.set BoxTable.Reg.arrayA 5).set BoxTable.Reg.arrayB (5 + 10 ^ L)).set
-    BoxTable.Reg.directory (5 + 10 ^ L + 10 ^ L)
-  have hd : ExecWithin w inputPointers c y 3 := by
-    ram_eval [inputPointers, y, cT, hfD, BoxTable.Reg.arrayA,
-      BoxTable.Reg.arrayB, BoxTable.Reg.directory, BoxTable.Reg.span, Fin.mk.injEq]
-  refine ⟨y, (ha.seq (hb.seq (hc.seq hd))).mono (by omega), ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · simpa [y, BoxTable.Reg.levels, BoxTable.Reg.arrayA,
-      BoxTable.Reg.arrayB, BoxTable.Reg.directory] using cL
-  · simpa [y, BoxTable.Reg.inner, BoxTable.Reg.arrayA,
-      BoxTable.Reg.arrayB, BoxTable.Reg.directory] using cm
-  · simpa [y, BoxTable.Reg.threshold, BoxTable.Reg.arrayA,
-      BoxTable.Reg.arrayB, BoxTable.Reg.directory] using ct
-  · simpa [y, Reg.query, BoxTable.Reg.arrayA, BoxTable.Reg.arrayB, BoxTable.Reg.directory] using cQ
-  · simp [y, BoxTable.Reg.arrayA, BoxTable.Reg.arrayB, BoxTable.Reg.directory]
-  · simp [y, BoxTable.Reg.arrayB, BoxTable.Reg.directory]
-  · simp [y, directoryBase]; omega
-  · exact hcμ.trans (hbμ.trans haμ)
+  refine WP.exists_execWithin ?_
+  unfold loadInput inputPointers
+  wram_call (exec_inputHeaders x hL hm ht hQ (hfit.of_le (by omega)))
+    with a ⟨aL, am, ath, aQ, haμ⟩
+  wram_call (BoxTable.exec_constants a (hfit.of_le (by omega)))
+    with b ⟨_, _, b10, _, _, hbμ, bf⟩
+  wram_call (BoxTable.exec_span b (by regs_frame) b10 (hfit.of_le (by omega)))
+    with c ⟨cT, _, hcμ, cf⟩
+  wram_exec [*]
+  refine ⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+    by wram_simp, by wram_simp, ?_, by wram_simp; exact hcμ.trans (hbμ.trans haμ)⟩
+  wram_simp
+  unfold directoryBase
+  omega
 
 /-- Prepare the real query table from original caller words and canonical signed leaf arrays. -/
 theorem exec_prepare {w L m t A B : ℕ} (hmL : m ≤ L) (x : Data registers)

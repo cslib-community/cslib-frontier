@@ -30,24 +30,18 @@ variable {Rel : Type} (arity : Rel → ℕ) (sem : Rel → List Bool → Bool) (
 theorem mem_vars_blackConstraints (v : ℕ) :
     v ∈ (blackConstraints arity sem F).vars ↔ v < F.occurrences.length := by
   simp only [CSP.vars, blackConstraints, List.mem_flatMap, List.mem_map]
-  constructor
-  · rintro ⟨constraint, ⟨entry, he, rfl⟩, hv⟩
+  refine ⟨?_, fun hv => ?_⟩
+  · rintro ⟨_, ⟨entry, he, rfl⟩, hv⟩
     obtain ⟨hi, hr⟩ := List.getElem?_eq_some_iff.mp
       (List.mem_zipIdx_iff_getElem?.mp (List.mem_filter.mp he).1)
-    have hb := (blackScope_bounds (F := F) ⟨entry.2, hi⟩).2
-    apply hb v
-    simpa only [hr] using hv
-  · intro hv
-    obtain ⟨o, ho⟩ := exists_incidenceEdgeIndex (F := F) v (by
-      simpa only [incidenceGraph_edges, List.length_map] using hv)
-    refine ⟨⟨differenceTable arity sem F[o.1.val].rel,
-      blackScope F o.1 F[o.1.val].scope⟩, ?_, ?_⟩
-    · refine ⟨(F[o.1.val], o.1.val), List.mem_filter.mpr ⟨?_, ?_⟩, rfl⟩
-      · exact List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_getElem o.1.isLt)
-      · have hp := Nat.zero_lt_of_lt o.2.isLt
-        simpa using (List.ne_nil_of_length_pos hp)
-    · rw [blackScope_eq_ofFn]
-      exact List.mem_ofFn.mpr ⟨o.2, ho⟩
+    exact (blackScope_bounds (F := F) ⟨entry.2, hi⟩).2 v (by simpa only [hr] using hv)
+  · obtain ⟨o, ho⟩ := exists_incidenceEdgeIndex (F := F) v
+      (by simpa only [incidenceGraph_edges, List.length_map] using hv)
+    refine ⟨⟨differenceTable arity sem F[o.1.val].rel, blackScope F o.1 F[o.1.val].scope⟩,
+      ⟨(F[o.1.val], o.1.val), List.mem_filter.mpr
+        ⟨List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_getElem o.1.isLt),
+          by simpa using List.ne_nil_of_length_pos (Nat.zero_lt_of_lt o.2.isLt)⟩, rfl⟩, ?_⟩
+    simpa only [blackScope_eq_ofFn, List.mem_ofFn] using ⟨o.2, ho⟩
 
 /-- Each actual black constraint has a duplicate-free scope. -/
 theorem blackConstraints_scopes_nodup (constraint : Constraint Table ℕ)
@@ -60,26 +54,18 @@ theorem blackConstraints_scopes_nodup (constraint : Constraint Table ℕ)
 /-- Different original constraint positions have disjoint black scopes. -/
 theorem nodup_vars_blackConstraints : (blackConstraints arity sem F).vars.Nodup := by
   let entries := F.zipIdx.filter fun entry => !entry.1.scope.isEmpty
-  have hz : F.zipIdx.Nodup := (List.nodup_zipIdx_map_snd F).of_map
-  have hnd : entries.Nodup := hz.filter _
+  have hnd : entries.Nodup := ((List.nodup_zipIdx_map_snd F).of_map).filter _
   simp only [blackConstraints, CSP.vars, List.flatMap_map]
   change (entries.flatMap (fun entry => blackScope F entry.2 entry.1.scope)).Nodup
-  rw [List.nodup_flatMap]
-  constructor
-  · intro entry he
-    obtain ⟨hi, hr⟩ := List.getElem?_eq_some_iff.mp
+  refine List.nodup_flatMap.mpr ⟨fun entry he => ?_,
+    List.pairwise_iff_getElem.mpr fun i j hi hj hij => List.disjoint_left.mpr fun v hvi hvj => ?_⟩
+  · obtain ⟨hi, hr⟩ := List.getElem?_eq_some_iff.mp
       (List.mem_zipIdx_iff_getElem?.mp (List.mem_filter.mp he).1)
     simpa only [hr] using (blackScope_bounds (F := F) ⟨entry.2, hi⟩).1
-  · apply List.pairwise_iff_getElem.mpr
-    intro i j hi hj hij
-    have hei := List.mem_filter.mp (List.getElem_mem hi : entries[i] ∈ entries)
-    have hej := List.mem_filter.mp (List.getElem_mem hj : entries[j] ∈ entries)
-    obtain ⟨hci, hri⟩ := List.getElem?_eq_some_iff.mp
-      (List.mem_zipIdx_iff_getElem?.mp hei.1)
+  · obtain ⟨hci, hri⟩ := List.getElem?_eq_some_iff.mp
+      (List.mem_zipIdx_iff_getElem?.mp (List.mem_filter.mp (List.getElem_mem hi)).1)
     obtain ⟨hcj, hrj⟩ := List.getElem?_eq_some_iff.mp
-      (List.mem_zipIdx_iff_getElem?.mp hej.1)
-    apply List.disjoint_left.mpr
-    intro v hvi hvj
+      (List.mem_zipIdx_iff_getElem?.mp (List.mem_filter.mp (List.getElem_mem hj)).1)
     have hvi' : v ∈ blackScope F (entries[i]).2 F[(entries[i]).2].scope := by
       simpa only [hri] using hvi
     have hvj' : v ∈ blackScope F (entries[j]).2 F[(entries[j]).2].scope := by
@@ -89,13 +75,9 @@ theorem nodup_vars_blackConstraints : (blackConstraints arity sem F).vars.Nodup 
     obtain ⟨a, ha⟩ := List.mem_ofFn.mp hvi'
     obtain ⟨b, hb⟩ := List.mem_ofFn.mp hvj'
     have he := incidenceEdgeIndex_injective (ha.trans hb.symm)
-    have hindex := congrArg (fun o => o.1.val) he
-    change (entries[i]).2 = (entries[j]).2 at hindex
-    have hcEq : F[(entries[i]).2] = F[(entries[j]).2] :=
-      congrArg F.get (Fin.ext hindex)
-    have hrecord : entries[i] = entries[j] :=
-      Prod.ext (hri.symm.trans (hcEq.trans hrj)) hindex
-    have := hnd.getElem_inj_iff.mp hrecord
+    have hindex : (entries[i]).2 = (entries[j]).2 := congrArg (fun o => o.1.val) he
+    have := hnd.getElem_inj_iff.mp
+      (Prod.ext (hri.symm.trans ((congrArg F.get (Fin.ext hindex)).trans hrj)) hindex)
     omega
 
 /-- Each old edge position occurs exactly once on the black side, including malformed sources. -/
@@ -106,6 +88,6 @@ theorem count_vars_blackConstraints (v : ℕ) :
     exact List.count_eq_one_of_mem (nodup_vars_blackConstraints arity sem F)
       ((mem_vars_blackConstraints arity sem F v).mpr hv)
   · rw [ite_eq_right hv]
-    exact List.count_eq_zero.mpr (fun hm => hv ((mem_vars_blackConstraints arity sem F v).mp hm))
+    exact List.count_eq_zero.mpr fun hm => hv ((mem_vars_blackConstraints arity sem F v).mp hm)
 
 end Cslib.Complexity.CSP.CyclicCompiler

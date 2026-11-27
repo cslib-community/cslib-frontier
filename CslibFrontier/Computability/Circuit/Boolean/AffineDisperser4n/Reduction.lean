@@ -54,9 +54,7 @@ theorem Reduction.wt_le {S S' : State n} {F : Finset ℕ} {D T : List (ℕ ⊕ �
   by_cases hu : u ∈ S.unpaired
   · by_cases h0 : S.deg u = 0
     · have hempty : S.children u = ∅ := Finset.card_eq_zero.1 h0
-      have hT : ∀ N ∈ T, N ∉ S.children u := fun N _ hNu => by
-        rw [hempty] at hNu; exact Finset.notMem_empty N hNu
-      have hwt := h.wt_le_weight hT
+      have hwt := h.wt_le_weight (u := u) fun N _ => hempty ▸ Finset.notMem_empty N
       rw [hempty, Finset.empty_sdiff, Finset.card_empty,
         show config.weight 0 = 0 from rfl] at hwt
       exact hwt.trans (Nat.zero_le _)
@@ -90,16 +88,12 @@ theorem Valid.reduction_restrict {S : State n} (hS : S.Valid f) {x : ℕ} (hx : 
   Valid.reduction_restrict_of hS hx hℓ
     (hS.phi_affine.comp (isAffine_update isAffine_id x (isAffine_lit_eval isAffine_id ℓ)))
     fun val hlocus pr hpr => by
-      by_cases hprP : pr ∈ S.pairsAvoid x
-      · have hav : ¬ pr.Contains x := (Finset.mem_filter.1 hprP).2
-        have h1 : pr.fst ≠ x := fun he => hav (Or.inl he)
-        have h2 : pr.snd ≠ x := fun he => hav (Or.inr he)
-        exact (ZeroPair.holds_congr (Function.update_of_ne h1 (ℓ.eval val) val)
-          (Function.update_of_ne h2 (ℓ.eval val) val)).2 (hlocus pr hprP)
-      · have hprx : pr.Contains x := by
-          by_contra hc
-          exact hprP (Finset.mem_filter.2 ⟨hpr, hc⟩)
-        exact hdrop pr hpr hprx val
+      by_cases hprx : pr.Contains x
+      · exact hdrop pr hpr hprx val
+      · exact (ZeroPair.holds_congr
+          (Function.update_of_ne (fun he => hprx (Or.inl he)) _ _)
+          (Function.update_of_ne (fun he => hprx (Or.inr he)) _ _)).2
+          (hlocus pr (Finset.mem_filter.2 ⟨hpr, hprx⟩))
 
 private theorem restrictOK_fixConst {S : State n} {w : ℕ} (hw : w ∈ S.params) {b : Bool}
     (hb : ∀ pr ∈ S.pairs, pr.Contains w → b = pr.bias w) :
@@ -109,9 +103,7 @@ private theorem restrictOK_fixConst {S : State n} {w : ℕ} (hw : w ∈ S.params
   subset := Finset.filter_subset _ _
   avoid pr hpr := (Finset.mem_filter.1 hpr).2
   drop pr hpr hP val := by
-    have hprw : pr.Contains w := by
-      by_contra hc
-      exact hP (Finset.mem_filter.2 ⟨hpr, hc⟩)
+    have hprw : pr.Contains w := of_not_not fun hc => hP (Finset.mem_filter.2 ⟨hpr, hc⟩)
     exact ZeroPair.holds_of_eq_bias hprw (by simp [Lit.eval_const, hb pr hpr hprw])
 
 /-- Fixing a parameter to a constant preserves validity when any pair containing it has matching

@@ -277,12 +277,69 @@ class GuideSelectionTests(unittest.TestCase):
             "import CslibFrontier.Example«extra»\n",
             "import«CslibFrontier»\n",
             "scoped import CslibFrontier.Core\n",
+            "public public import CslibFrontier.Core\n",
+            "meta meta import CslibFrontier.Core\n",
+            "public scoped import CslibFrontier.Core\n",
+            "prelude\nmodule\nimport CslibFrontier.Core\n",
             "/- unterminated comment\nimport CslibFrontier.Core\n",
             "meta public import CslibFrontier.Core\n",
         ):
             with self.subTest(bad_header=bad_header):
                 with self.assertRaises(select_guide.AmbiguousHeader):
                     select_guide.parse_header_imports_text(bad_header)
+
+    def test_parse_header_details_modifiers_comments_and_module_flag(self):
+        header = (
+            "/- outer /- nested -/ header comment -/\n"
+            "module -- inline comment\n"
+            "prelude\n"
+            "import A.Plain\n"
+            "public\n  import\n  B.Pub\n"
+            "private import C.Priv\n"
+            "meta /- mid -/ import D.Meta\n"
+            "public meta import E.PubMeta\n"
+            "private meta import F.PrivMeta\n"
+            "import -- between import and all\n  all G.All\n"
+            "public import all H.PubAll\n"
+            "meta import all I.MetaAll\n"
+            "public meta import all J.PubMetaAll\n"
+            "/-! Module docstring terminates header scanning:\n"
+            "public import ShouldNotParse\n"
+            "-/\n"
+            "public section\n"
+        )
+        has_module, details = select_guide.parse_header_details_text(header)
+        self.assertTrue(has_module)
+        self.assertEqual(
+            details,
+            [
+                select_guide.HeaderImport("A.Plain", is_public=False, is_meta=False, is_all=False),
+                select_guide.HeaderImport("B.Pub", is_public=True, is_meta=False, is_all=False),
+                select_guide.HeaderImport("C.Priv", is_public=False, is_meta=False, is_all=False),
+                select_guide.HeaderImport("D.Meta", is_public=False, is_meta=True, is_all=False),
+                select_guide.HeaderImport("E.PubMeta", is_public=True, is_meta=True, is_all=False),
+                select_guide.HeaderImport("F.PrivMeta", is_public=False, is_meta=True, is_all=False),
+                select_guide.HeaderImport("G.All", is_public=False, is_meta=False, is_all=True),
+                select_guide.HeaderImport("H.PubAll", is_public=True, is_meta=False, is_all=True),
+                select_guide.HeaderImport("I.MetaAll", is_public=False, is_meta=True, is_all=True),
+                select_guide.HeaderImport("J.PubMetaAll", is_public=True, is_meta=True, is_all=True),
+            ],
+        )
+        self.assertEqual(
+            select_guide.parse_header_imports_text(header),
+            [imp.module for imp in details],
+        )
+
+        legacy_has_module, legacy_details = select_guide.parse_header_details_text(
+            "-- classic file without `module`\n"
+            "import CslibFrontier.Core\n"
+            "public meta def bodyDecl := 1\n"
+        )
+        self.assertFalse(legacy_has_module)
+        self.assertEqual(
+            legacy_details,
+            [select_guide.HeaderImport("CslibFrontier.Core", False, False, False)],
+        )
 
     def test_primed_module_with_unprimed_sibling_tracks_transitive_leaf(self):
         tree = {

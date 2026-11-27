@@ -76,10 +76,9 @@ private theorem length_of_walkWeight_tripartite_ne_zero {A B : Matrix ι ι (Min
   | _, [], _ => rfl
   | u, v :: l, h => by
     rw [walkWeight_cons] at h
-    have h1 : tripartite A B u v ≠ 0 := fun h0 => h (by rw [h0, zero_mul])
-    have h2 : walkWeight (tripartite A B) v l ≠ 0 := fun h0 => h (by rw [h0, mul_zero])
-    rw [List.getLastD_cons, length_of_walkWeight_tripartite_ne_zero v l h2,
-      tripartite_ne_zero h1, List.length_cons]
+    rw [List.getLastD_cons,
+      length_of_walkWeight_tripartite_ne_zero v l fun h0 => h (by rw [h0, mul_zero]),
+      tripartite_ne_zero fun h0 => h (by rw [h0, zero_mul]), List.length_cons]
     omega
 
 /-- The tripartite graph has no negative cycles: its only closed walks of finite weight are the
@@ -88,12 +87,10 @@ theorem noNegCycle_tripartite (A B : Matrix ι ι (MinTropical R)) :
     NoNegCycle (tripartite A B) := by
   intro u l hl
   by_cases h0 : walkWeight (tripartite A B) u l = 0
-  · rw [h0]
-    exact le_zero _
+  · exact h0 ▸ le_zero _
   · have := length_of_walkWeight_tripartite_ne_zero u l h0
     rw [hl] at this
-    have hl0 : l = [] := List.length_eq_zero_iff.1 (by omega)
-    subst hl0
+    obtain rfl : l = [] := List.length_eq_zero_iff.1 (by omega)
     exact le_rfl
 
 variable [Fintype ι]
@@ -103,33 +100,23 @@ variable [Fintype ι]
 theorem isGLB_tripartite (A B : Matrix ι ι (MinTropical R)) (i k : ι) :
     IsGLB {x | ∃ l : List (Fin 3 × ι), l.getLastD (0, i) = (2, k) ∧
       walkWeight (tripartite A B) (0, i) l = x} ((A * B) i k) := by
-  constructor
+  refine ⟨?_, fun x hx => ?_⟩
   · rintro _ ⟨l, hl, rfl⟩
     by_cases h0 : walkWeight (tripartite A B) (0, i) l = 0
-    · rw [h0]
-      exact le_zero _
+    · exact h0 ▸ le_zero _
     have hlen := length_of_walkWeight_tripartite_ne_zero _ l h0
     rw [hl] at hlen
-    have hlen' : l.length = 2 := by simpa using hlen.symm
-    obtain ⟨⟨b, j⟩, w, rfl⟩ := List.length_eq_two.1 hlen'
+    obtain ⟨⟨b, j⟩, w, rfl⟩ := List.length_eq_two.1 (by simpa using hlen.symm)
     simp only [List.getLastD_cons, List.getLastD_nil] at hl
     subst hl
     rw [walkWeight_cons, walkWeight_cons, walkWeight_nil, mul_one, Matrix.mul_apply]
     by_cases hb : b = 1
     · subst hb
-      simp only [tripartite, Matrix.of_apply]
-      exact sum_le_of_mem (fun j => A i j * B j k) (Finset.mem_univ j)
-    · have : tripartite A B (0, i) (b, j) = 0 := by
-        simp [tripartite, hb]
-      rw [this, zero_mul]
-      exact le_zero _
-  · intro x hx
-    rw [Matrix.mul_apply]
-    obtain ⟨j, -, hj⟩ := exists_sum_eq (Finset.univ_nonempty_iff.2 ⟨i⟩)
-      (fun j => A i j * B j k)
-    rw [hj]
-    have := hx ⟨[(1, j), (2, k)], rfl, rfl⟩
-    simpa [tripartite] using this
+      simpa [tripartite] using sum_le_of_mem (fun j => A i j * B j k) (Finset.mem_univ j)
+    · simp [tripartite, hb, le_zero]
+  · obtain ⟨j, -, hj⟩ := exists_sum_eq (Finset.univ_nonempty_iff.2 ⟨i⟩) fun j => A i j * B j k
+    rw [Matrix.mul_apply, hj]
+    simpa [tripartite] using hx ⟨[(1, j), (2, k)], rfl, rfl⟩
 
 /-- If `D` is the shortest-distance matrix of any relabelling `e` of the tripartite graph of
 `A` and `B`, then its block from layer `0` to layer `2` is the (min,+) product `A * B`. -/

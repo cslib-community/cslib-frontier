@@ -40,18 +40,10 @@ private def lexLe (x y : List Bool) : Bool :=
 
 private theorem lexLe_eq_decide (x y : List Bool) : lexLe x y = decide (x ≤ y) := by
   induction x generalizing y with
-  | nil =>
-    simp only [lexLe, List.zip_nil_left, List.find?_nil, Option.elim_none, List.length_nil,
-      Nat.zero_le, decide_true]
-    exact (decide_eq_true (List.isPrefix_le List.nil_prefix)).symm
+  | nil => simp [lexLe, List.isPrefix_le List.nil_prefix]
   | cons a x ih =>
     cases y with
-    | nil =>
-      simp only [lexLe, List.zip_nil_right, List.find?_nil, Option.elim_none, List.length_cons,
-        List.length_nil, Nat.le_zero, Nat.add_one_ne_zero, decide_false]
-      symm
-      rw [decide_eq_false_iff_not, not_le]
-      exact List.Lex.nil
+    | nil => simp [lexLe, not_le.mpr (show [] < a :: x from List.Lex.nil)]
     | cons b y =>
       rw [Bool.eq_iff_iff, decide_eq_true_iff, List.cons_le_cons_iff',
         ← decide_eq_true_iff (p := x ≤ y), ← ih y]

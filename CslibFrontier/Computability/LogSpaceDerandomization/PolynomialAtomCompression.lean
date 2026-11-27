@@ -93,7 +93,7 @@ theorem exists_compression_root_bound (hθ : 0 < θ) :
   intro ι S n Δ a truth K m heavy hK ha hfirst hsecond hcapacity ε hε herr
     εfinal hεfinal herrfinal hfalse y hy
   exact le_of_noOverflow_of_firstOverflow S n (fun _ => K) (dyadicFloor η m) Δ a m heavy ε
-    (dyadicFloor_nonneg hη.le m) hε hεfinal hAt hCf hCt hfalse
+    (fun _ => by positivity) hε hεfinal hAt hCf hCt hfalse
     (fun hnone => hn S n Δ a truth K hK ha m hnone hfirst hsecond ε hε
       (fun i hi z hz _ => herr i hi z hz) εfinal hεfinal herrfinal y hy)
     (fun j hjm hjover => ht S n Δ a truth K hK ha m j hjm hjover hfirst hsecond

@@ -71,17 +71,13 @@ theorem Indistinguishable.of_uniformOracleCircuits {inputLength : ℕ → ℕ}
     PolynomiallyBounded (fun n => (r n).descriptionBits)) ?_ ?_
   · intro family _
     obtain ⟨B, _, hB, hbound⟩ := family.exists_computable_resource_bound hinput
-    refine ⟨fun n => ⟨B n, B n, B n, B n⟩, ⟨hB, hB, hB, hB⟩,
-      fun n ℓ hℓ => ?_⟩
-    have hdescription := hbound n ℓ hℓ
-    have htotal := (family.description n ℓ).width_add_length_le_encoding_length.trans hdescription
+    refine ⟨fun n => ⟨B n, B n, B n, B n⟩, ⟨hB, hB, hB, hB⟩, fun n ℓ hℓ => ?_⟩
+    have hdesc := hbound n ℓ hℓ
+    have htotal := (family.description n ℓ).width_add_length_le_encoding_length.trans hdesc
     have hcounts := (family.description n ℓ).instructions.gateCount_add_queryCount
     change _ ≤ B n ∧ _ ≤ B n ∧ _ ≤ B n ∧ _ ≤ B n
     omega
-  · intro r hr
-    exact hneg (fun n => (r n).qubits) (fun n => (r n).gates)
-      (fun n => (r n).queries) (fun n => (r n).descriptionBits)
-      hr.1 hr.2.1 hr.2.2.1 hr.2.2.2
+  · exact fun r ⟨hq, hg, hqr, hd⟩ => hneg _ _ _ _ hq hg hqr hd
 
 /-- A concrete success bound along independent polynomial resource schedules yields asymptotic
 indistinguishability from failure, using the existing success/advantage equivalence. -/

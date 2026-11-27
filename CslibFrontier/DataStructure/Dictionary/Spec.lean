@@ -129,7 +129,7 @@ theorem notMem_dom_iff {U : ℕ} {s : State U} {u : Fin U} :
 /-- The empty dictionary has empty domain. -/
 @[simp]
 theorem dom_empty (U : ℕ) : dom (empty U) = ∅ := by
-  ext u
+  ext
   simp [dom, empty]
 
 /-- The empty dictionary stores `0` keys. -/
@@ -141,9 +141,7 @@ theorem card_dom_empty (U : ℕ) : (dom (empty U)).card = 0 := by
 theorem dom_insert {U : ℕ} (s : State U) (u : Fin U) (v : ℕ) :
     dom (Function.update s u (some v)) = insert u (dom s) := by
   ext x
-  by_cases hxu : x = u
-  · subst hxu; simp [dom]
-  · simp [dom, hxu]
+  by_cases hxu : x = u <;> simp [dom, hxu]
 
 /-- Updating a key `u` already in `dom s` preserves `dom s`. -/
 theorem dom_insert_of_mem {U : ℕ} {s : State U} {u : Fin U} (hu : u ∈ dom s) (v : ℕ) :
@@ -157,9 +155,8 @@ theorem dom_insert_of_isSome {U : ℕ} {s : State U} {u : Fin U} (hu : (s u).isS
 
 /-- Updating `u` to `some v` increases `(dom s).card` by at most `1`. -/
 theorem card_dom_insert_le {U : ℕ} (s : State U) (u : Fin U) (v : ℕ) :
-    (dom (Function.update s u (some v))).card ≤ (dom s).card + 1 := by
-  rw [dom_insert]
-  exact Finset.card_insert_le u (dom s)
+    (dom (Function.update s u (some v))).card ≤ (dom s).card + 1 :=
+  dom_insert s u v ▸ Finset.card_insert_le u (dom s)
 
 /-- Updating a present key `u` (`(s u).isSome`) leaves `(dom s).card` unchanged. -/
 theorem card_dom_insert_eq_of_isSome {U : ℕ} {s : State U} {u : Fin U}
@@ -181,13 +178,11 @@ theorem card_dom_step_le_of_valid {U V n_max : ℕ} {s : State U} {o : Op U}
   cases o with
   | query u => exact hs
   | insert u v =>
+    dsimp only [spec, StateTransitionSpec.stepFn, step]
     rcases hval.1 with hlt | hisSome
-    · have hle := card_dom_insert_le s u v
-      dsimp only [spec, StateTransitionSpec.stepFn, step]
+    · have := card_dom_insert_le s u v
       omega
-    · dsimp only [spec, StateTransitionSpec.stepFn, step]
-      rw [card_dom_insert_eq_of_isSome hisSome]
-      exact hs
+    · rwa [card_dom_insert_eq_of_isSome hisSome]
 
 /-- Any admissible operation history preserves `(dom s).card ≤ n_max`. -/
 theorem card_dom_run_le_of_validHistory {U V n_max : ℕ} {s : State U} {os : List (Op U)}
@@ -207,7 +202,7 @@ theorem card_dom_run_empty_le {U V n_max : ℕ} {os : List (Op U)}
 
 /-- The empty dictionary satisfies `ValuesBounded V`. -/
 theorem valuesBounded_empty (U V : ℕ) : ValuesBounded V (empty U) := by
-  intro u v h
+  intro _ _ h
   simp [empty] at h
 
 /-- Any single admissible dictionary operation preserves `ValuesBounded V`. -/
@@ -219,14 +214,10 @@ theorem valuesBounded_step_of_valid {U V n_max : ℕ} {s : State U} {o : Op U}
   | insert u v =>
     intro x w hxw
     dsimp only [spec, StateTransitionSpec.stepFn, step] at hxw
-    by_cases hxu : x = u
-    · subst hxu
-      rw [Function.update_self] at hxw
-      injection hxw with hvw
-      subst hvw
-      exact hval.2
-    · rw [Function.update_of_ne hxu] at hxw
-      exact hs x w hxw
+    rcases eq_or_ne x u with rfl | hxu
+    · simp only [Function.update_self, Option.some.injEq] at hxw
+      exact hxw ▸ hval.2
+    · exact hs x w (by rwa [Function.update_of_ne hxu] at hxw)
 
 /-- Any admissible operation history preserves `ValuesBounded V`. -/
 theorem valuesBounded_run_of_validHistory {U V n_max : ℕ} {s : State U} {os : List (Op U)}

@@ -62,12 +62,8 @@ theorem ofReal_two_mul_sq_measureReal_sub_le_klDiv {mα : MeasurableSpace α}
   have hXmem (x : α) : X x ∈ Set.Icc (0 : ℝ) 1 := by
     by_cases hx : x ∈ s <;> simp [X, hx]
   have hexp : Integrable (fun x => Real.exp (t * X x)) ν :=
-    Integrable.of_bound (by fun_prop) (Real.exp |t|) (ae_of_all _ fun x => by
-      rw [Real.norm_eq_abs, abs_of_pos (Real.exp_pos _), Real.exp_le_exp]
-      calc t * X x ≤ |t * X x| := le_abs_self _
-        _ = |t| * X x := by rw [abs_mul, abs_of_nonneg (hXmem x).1]
-        _ ≤ |t| * 1 := mul_le_mul_of_nonneg_left (hXmem x).2 (abs_nonneg t)
-        _ = |t| := mul_one _)
+    ((integrable_const 1).add ((integrable_const (Real.exp t - 1)).indicator hs)).congr
+      (ae_of_all _ fun x => by by_cases hx : x ∈ s <;> simp [X, hx])
   have hfμ : Integrable (fun x => t * X x) μ := ((integrable_const 1).indicator hs).const_mul t
   have hgibbs := integral_le_toReal_klDiv_add_log_integral_exp hkl hfμ hexp
   -- Hoeffding's lemma for the indicator of `s` under `ν`.
@@ -103,11 +99,9 @@ theorem ofReal_tvDist_sq_div_two_le_klDiv {mα : MeasurableSpace α}
     (μ ν : Measure α) [IsProbabilityMeasure μ] [IsProbabilityMeasure ν] :
     ENNReal.ofReal (tvDist μ ν ^ 2 / 2) ≤ klDiv μ ν := by
   obtain ⟨s, hs⟩ := exists_isHahnDecomposition μ ν
-  have h := ofReal_two_mul_sq_measureReal_sub_le_klDiv (μ := μ) (ν := ν) hs.measurableSet.compl
+  have h := ofReal_two_mul_sq_measureReal_sub_le_klDiv (μ := μ) (ν := ν) hs.measurableSet
   rw [hs.tvDist_eq, probReal_compl_eq_one_sub hs.measurableSet,
     probReal_compl_eq_one_sub (μ := ν) hs.measurableSet]
-  rw [probReal_compl_eq_one_sub hs.measurableSet,
-    probReal_compl_eq_one_sub (μ := ν) hs.measurableSet] at h
   convert h using 2
   ring
 

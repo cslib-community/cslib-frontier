@@ -107,11 +107,7 @@ def toSTCONInstance : STCONInstance := ⟨I.n, I.adj, I.s, I.t⟩
 /-- Distinct instances have distinct directed graphs, since the adjacency matrix determines the
 proofs of symmetry and looplessness. -/
 theorem toSTCONInstance_injective : Function.Injective toSTCONInstance := by
-  rintro ⟨n, adj, symm, loopless, s, t⟩ ⟨n', adj', symm', loopless', s', t'⟩ h
-  simp only [toSTCONInstance, STCONInstance.mk.injEq] at h
-  obtain ⟨rfl, h⟩ := h
-  simp only [heq_eq_eq] at h
-  obtain ⟨rfl, rfl, rfl⟩ := h
+  rintro ⟨_, _, _, _, _, _⟩ ⟨_, _, _, _, _, _⟩ ⟨⟩
   rfl
 
 /-- The encoding of an instance, that of its directed graph (`Cslib.Complexity.encSTCON`): the
@@ -190,18 +186,13 @@ theorem edgeTwo_mem_USTCON : edgeTwo ∈ USTCON :=
 
 /-- The edgeless graph on two vertices does not belong to `USTCON`. -/
 theorem emptyTwo_notMem_USTCON : emptyTwo ∉ USTCON := by
-  rintro ⟨p⟩
-  cases p with
-  | cons hadj _ =>
-    have h := (graph_adj emptyTwo).1 hadj
-    contradiction
+  rintro ⟨_ | ⟨hadj, _⟩⟩
+  cases hadj
 
 /-- `USTCONInstance.ofBool b` belongs to `USTCON` if and only if `b = true`. -/
 @[simp]
 theorem ofBool_mem_USTCON {b : Bool} : ofBool b ∈ USTCON ↔ b = true := by
-  cases b
-  · simp [ofBool, emptyTwo_notMem_USTCON]
-  · simp [ofBool, edgeTwo_mem_USTCON]
+  cases b <;> simp [ofBool, emptyTwo_notMem_USTCON, edgeTwo_mem_USTCON]
 
 end USTCONInstance
 

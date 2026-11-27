@@ -13,6 +13,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.StreamFold
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Comp
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.SelectTapes
 import CslibFrontier.Foundations.Data.Fin.Embedding
 import CslibFrontier.Foundations.Data.List.Flatten
 import Mathlib.Tactic.Linarith
@@ -412,17 +413,14 @@ public theorem ComputableTidilyInTimeAndSpace.streamFold_sum_after {α : Type u}
   let V : Fin (M + 3) := ⟨M, by omega⟩
   let N : Fin (M + 3) := ⟨M + 1, by omega⟩
   let F : Fin (M + 3) := ⟨M + 2, by omega⟩
-  have hVN : V ≠ N := by simp [V, N, Fin.ext_iff]
-  have hVF : V ≠ F := by simp [V, F, Fin.ext_iff]
-  have hNF : N ≠ F := by simp [N, F, Fin.ext_iff]
+  have ⟨hVN, hVF, hNF⟩ : V ≠ N ∧ V ≠ F ∧ N ≠ F := by simp [V, N, F, Fin.ext_iff]
   obtain ⟨eI, heI⟩ := Fin.exists_embedding_eq (K := M + 3) (by omega) (Fin.last kI) V
-  obtain ⟨eE, heE⟩ := Fin.exists_embedding_eq (K := M + 3) (by omega)
-    (Fin.natAdd kE (0 : Fin 2)) V
-  obtain ⟨eN, heN, heN'⟩ := Fin.exists_embedding_eq₂ (K := M + 3) (by omega)
-    (i := Fin.natAdd (kN + 1) (0 : Fin 2)) (o := (Fin.last kN).castAdd 2)
-    (by simp [Fin.ext_iff]) hVN
-  obtain ⟨eF, heF⟩ := Fin.exists_embedding_eq (K := M + 3) (by omega)
-    (Fin.natAdd kF (0 : Fin 2)) V
+  obtain ⟨eE, hE⟩ := TransformsTapes.exists_extendTapes_self (K := M + 3)
+    (tmE.inputFromWord true) (by omega) V fun a => (htmE a).inputFromWord true
+  obtain ⟨eN, hN⟩ := TransformsTapes.exists_extendTapes_pair (K := M + 3)
+    (tmN.onWords true) (by simp [Fin.ext_iff]) (by omega) hVN fun a => (htmN a).onWords true
+  obtain ⟨eF, hF⟩ := TransformsTapes.exists_extendTapes_self (K := M + 3)
+    (tmF.inputFromWord true) (by omega) V fun a => (htmF a).inputFromWord true
   refine ⟨(40 * M + 200) * (cfr + cN + cuf + cF + M + 100), _, _, inferInstance,
     streamTM r (I eI) ((tmE.inputFromWord true).extendTapes eE)
       ((tmN.onWords true).extendTapes eN) ((tmF.inputFromWord true).extendTapes eF)
@@ -434,8 +432,6 @@ public theorem ComputableTidilyInTimeAndSpace.streamFold_sum_after {α : Type u}
   have hSj (j : ℕ) (hj : j ≤ n) : (encS (st j)).length ≤ L := hS x j hj
   have hI := hinit eI x
   rw [heI] at hI
-  have hE := fun p => (htmE p).inputFromWord_extendTapes true heE
-  have hN := fun p => (htmN p).onWords_extendTapes true heN heN'
   have hloop := transformsTapesAt_streamLoop_encoded_after r tok htok hread hVN hVF hNF (pre x)
     (init x) l next (fun p => encE (emit p)) hE hN
     (roundCost := fun j => (cfr + cN + 60) * roundCost x j)
@@ -445,7 +441,7 @@ public theorem ComputableTidilyInTimeAndSpace.streamFold_sum_after {α : Type u}
     have h := computesTidily_streamTM_after (r := r) hVN hVF hNF (encIn x) (pre x)
       (frame (encS (init x))) (frame (encS (st n)))
       (streamEmit next (fun p => encE (emit p)) (init x) l) (encF (finish (st n)))
-      hI hloop ((htmF (st n)).inputFromWord_extendTapes true heF)
+      hI hloop (hF (st n))
     rw [hg x]
     have hSn : (encS (st n)).length ≤ L := hSj n le_rfl
     set D := cfr + cN + cuf + cF + M + 100 with hD

@@ -8,10 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.Encryption.Hybrid
-import CslibFrontier.Computability.Probabilistic.PPT.Capture
-import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Tactic.PPT
 
 /-!
 # Key encapsulation from public-key encryption
@@ -78,16 +77,7 @@ open Probability Turing.MultiTapeTM
       (fun p => encrypt p.1 p.2.1 p.2.2)) :
     IsPPTOn (encPair encUnary encBits) (encPair encBits encBits)
       (fun p => encryptKeyEncaps keyLen encrypt p.1 p.2) := by
-  let E0 := encPair encUnary encBits
-  let E1 := encPair E0 encBits
-  let hp1 := ComputableInPolyTime.fst encUnary encBits
-  let hq1 := ComputableInPolyTime.fst E0 encBits
-  let hq2 := ComputableInPolyTime.snd E0 encBits
-  let hr1 := ComputableInPolyTime.fst E1 encBits
-  let hr2 := ComputableInPolyTime.snd E1 encBits
-  exact ((hkeyLen.comp' hp1).sampleList).bind_with
-    ((hencrypt.preprocess (hq1.fst'.prod (hq1.snd'.prod hq2))).bind_with
-      ((hq2.comp' hr1).prod hr2).isPPTOn)
+  ppt [encryptKeyEncaps]
 
 /-- The original total decryptor recovers every supported encapsulated key when it correctly
 decrypts supported encryptions of words of length `keyLen n`. -/
@@ -128,30 +118,15 @@ schedule is computable in polynomial time in unary. -/
     (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary) :
     IsPPTOn (encPair encUnary encBits) (encPair (encPair encBits encBits) encBits)
       (fun p => kemToPKEChoose keyLen p.1 p.2) := by
-  let E0 := encPair encUnary encBits
-  let E1 := encPair E0 encBits
-  let hp1 := ComputableInPolyTime.fst encUnary encBits
-  let hq1 := ComputableInPolyTime.fst E0 encBits
-  let hq2 := ComputableInPolyTime.snd E0 encBits
-  let hr1 := ComputableInPolyTime.fst E1 encBits
-  let hr2 := ComputableInPolyTime.snd E1 encBits
-  exact ((hkeyLen.comp' hp1).sampleList).bind_with
-    (((hkeyLen.comp' hq1.fst').sampleList).bind_with
-      (((hq2.comp' hr1).prod hr2).prod
-        (((hq1.snd'.comp' hr1).prod (hq2.comp' hr1)).encoding_comp)).isPPTOn)
+  ppt [kemToPKEChoose]
 
 /-- The KEM-to-PKE reduction is native uniform strict PPT, including its saved public key and
 symmetric key, when the distinguisher and the unary key-length schedule are. -/
 theorem isPPT_kemToPKEAdversary {keyLen : ℕ → ℕ} {distinguisher : Distinguisher}
     (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary)
     (hdist : IsPPT encBool distinguisher) :
-    (kemToPKEAdversary keyLen distinguisher).IsPPT := by
-  refine ⟨isPPTOn_kemToPKEChoose hkeyLen, ?_⟩
-  let hg1 := ComputableInPolyTime.fst encUnary (encPair encBits encBits)
-  let hg2 := ComputableInPolyTime.snd encUnary (encPair encBits encBits)
-  exact hdist.on.preprocess
-    (hg1.prod (((ComputableInPolyTime.unframe.comp' hg2.fst').prod
-      ((ComputableInPolyTime.dropFrame.comp' hg2.fst').prod hg2.snd')).encoding_comp))
+    (kemToPKEAdversary keyLen distinguisher).IsPPT :=
+  ⟨isPPTOn_kemToPKEChoose hkeyLen, by ppt [kemToPKEAdversary]⟩
 
 private theorem eval_gameOn_kemToPKEAdversary (keyLen : ℕ → ℕ)
     (keyGen : ℕ → ProbComp (List Bool × List Bool))

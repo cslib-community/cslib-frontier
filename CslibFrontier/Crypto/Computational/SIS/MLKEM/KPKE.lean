@@ -206,16 +206,10 @@ theorem decrypt_encrypt_phase (P : Params) (A : Matrix (Fin P.k) (Fin P.k) (Fin 
   have hphase := moduleLWEDecrypt_phase_eq A s e r e₁ e₂ (fun _ => false)
   rw [encodePolyMsg_false, zero_add] at hphase
   have hct : ct = decompressCiphertext P (compressCiphertext P raw) := rfl
-  have h₁ : raw.1 = (moduleLWEEncrypt (moduleLWEKeyGen A s e) r e₁ e₂ fun _ => false).1 := by
-    rw [hraw, encryptRaw_eq_moduleLWEEncrypt_add]
-    simp
-  have h₂ : raw.2 = (moduleLWEEncrypt (moduleLWEKeyGen A s e) r e₁ e₂ fun _ => false).2 +
-      messagePoly P m := by
-    rw [hraw, encryptRaw_eq_moduleLWEEncrypt_add]
-    simp
   simp only [decryptionNoise, ← hraw, ← hct]
-  rw [← hphase, innerPoly_sub_left, h₂, h₁]
-  abel
+  rw [← hphase, innerPoly_sub_left]
+  simp only [hraw, encryptRaw_eq_moduleLWEEncrypt_add, Prod.fst_add, Prod.snd_add]
+  abel_nf
 
 /-- **Bounded-noise correctness of K-PKE**: if every coefficient of `decryptionNoise` has centered
 magnitude at most `B` and `4 * B + 2 < q`, decryption of an honest encryption recovers the

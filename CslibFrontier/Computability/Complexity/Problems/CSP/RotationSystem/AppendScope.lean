@@ -39,17 +39,12 @@ theorem argumentSuccessor_appendOfFnOccurrenceEquiv_inl (F : CSP Rel V) (r : Rel
   have ha := record_appendOfFnOccurrenceEquiv_inl F r scope o
   have hb := record_appendOfFnOccurrenceEquiv_inl F r scope (argumentSuccessor o)
   have hac : a.1.val = o.1.val := congrArg Prod.fst ha
-  have hbc : b.1.val = o.1.val := congrArg Prod.fst hb
-  have haj : a.2.val = o.2.val := congrArg (fun record => record.2.1) ha
-  have hbj : b.2.val = (finRotate _ o.2).val := congrArg (fun record => record.2.1) hb
-  have hw : (F ++ [Constraint.mk r (List.ofFn scope)])[a.1.val].scope.length =
-    F[o.1.val].scope.length := by
-    simp only [hac, List.getElem_append_left o.1.isLt]
-  apply Occurrence.eq_of_positions
-  · change a.1.val = b.1.val
-    exact hac.trans hbc.symm
-  · change (finRotate _ a.2).val = b.2.val
-    rw [val_finRotate, hbj, val_finRotate, haj, hw]
+  have haj : a.2.val = o.2.val := congrArg (·.2.1) ha
+  have hbj : b.2.val = (finRotate _ o.2).val := congrArg (·.2.1) hb
+  refine Occurrence.eq_of_positions (hac.trans (congrArg Prod.fst hb).symm) ?_
+  change (finRotate _ a.2).val = b.2.val
+  rw [val_finRotate, hbj, val_finRotate, haj]
+  simp only [hac, List.getElem_append_left o.1.isLt]
 
 /-- The appended scope's actual cyclic successor is the positive `finRotate` permutation
 on its original argument positions. No condition on repeated variable labels is used. -/
@@ -62,16 +57,12 @@ theorem argumentSuccessor_appendOfFnOccurrenceEquiv_inr (F : CSP Rel V) (r : Rel
   have ha := record_appendOfFnOccurrenceEquiv_inr F r scope j
   have hb := record_appendOfFnOccurrenceEquiv_inr F r scope (finRotate n j)
   have hac : a.1.val = F.length := congrArg Prod.fst ha
-  have hbc : b.1.val = F.length := congrArg Prod.fst hb
-  have haj : a.2.val = j.val := congrArg (fun record => record.2.1) ha
-  have hbj : b.2.val = (finRotate n j).val := congrArg (fun record => record.2.1) hb
-  have hw : (F ++ [Constraint.mk r (List.ofFn scope)])[a.1.val].scope.length = n := by
-    simp only [hac, List.getElem_append_right (le_refl F.length), Nat.sub_self,
-      List.getElem_cons_zero, List.length_ofFn]
-  apply Occurrence.eq_of_positions
-  · change a.1.val = b.1.val
-    exact hac.trans hbc.symm
-  · change (finRotate _ a.2).val = b.2.val
-    rw [val_finRotate, hbj, val_finRotate, haj, hw]
+  have haj : a.2.val = j.val := congrArg (·.2.1) ha
+  have hbj : b.2.val = (finRotate n j).val := congrArg (·.2.1) hb
+  refine Occurrence.eq_of_positions (hac.trans (congrArg Prod.fst hb).symm) ?_
+  change (finRotate _ a.2).val = b.2.val
+  rw [val_finRotate, hbj, val_finRotate, haj]
+  simp only [hac, List.getElem_append_right (le_refl F.length), Nat.sub_self,
+    List.getElem_cons_zero, List.length_ofFn]
 
 end Cslib.Complexity.CSP

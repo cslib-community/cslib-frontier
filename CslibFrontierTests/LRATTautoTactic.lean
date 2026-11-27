@@ -27,24 +27,29 @@ open Std.Tactic.BVDecide (LRAT.IntAction)
 
 /-! ### Contraposition -/
 
-/-- A refutation of the numbered Tseitin transformation of the negated contraposition. -/
+/-- A refutation of the numbered Plaisted–Greenbaum transformation of the negated
+contraposition. -/
 private def contrapositionCert : Array LRAT.IntAction := #[
-  .addRup 23 #[-5, -2] #[18, 19],
-  .addRup 24 #[-3, -1, -5] #[22, 23],
-  .addRup 25 #[7, -3, -5] #[12, 24],
-  .addRup 26 #[-3, -5, 8] #[25, 10],
-  .addRup 27 #[8, -3] #[9, 26],
-  .addRup 28 #[-3, 9] #[27, 7],
-  .addRup 29 #[9] #[6, 28],
-  .addRup 30 #[-11, 10] #[29, 4],
-  .addRup 31 #[-11] #[30, 5],
-  .addEmpty 32 #[1, 31]]
+  .addRup 13 #[-9, 10] #[1, 2],
+  .addRup 14 #[-9] #[3, 13],
+  .addRup 15 #[3] #[14, 4],
+  .addRup 16 #[-8] #[14, 5],
+  .addRup 17 #[5] #[16, 6],
+  .addRup 18 #[-7] #[16, 7],
+  .addRup 19 #[1] #[18, 8],
+  .addRup 20 #[-6] #[18, 9],
+  .addRup 21 #[-2, 4] #[17, 10],
+  .addRup 22 #[-2] #[11, 21],
+  .addEmpty 23 #[15, 19, 22, 12]]
 
 theorem contraposition : ∀ p q : Prop, (p → q) → ¬q → ¬p := by
   lrat_tauto using contrapositionCert
 
-/-- info: 'CslibFrontierTests.LRATTautoTactic.contraposition' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
+/--
+info: 'CslibFrontierTests.LRATTautoTactic.contraposition' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs (whitespace := lax) in
 #print axioms contraposition
 
 /-- The atoms may be any propositions, here those of the local context. -/
@@ -53,31 +58,21 @@ example (a b : Prop) : (a → b) → ¬b → ¬a := by
 
 -- The formula the certificate refutes, with the atoms `p` and `q` as the variables 1 and 2.
 /--
-info: The numbered Tseitin transformation of the negated goal, in DIMACS form:
+info: The numbered Plaisted–Greenbaum transformation of the negated goal, in DIMACS form:
 c 1 := p
 c 2 := q
-p cnf 11 22
+p cnf 11 12
 11 0
-11 9 0
-11 -10 0
 -11 -9 10 0
 -10 0
 9 3 0
 9 -8 0
--9 -3 8 0
 8 5 0
 8 -7 0
--8 -5 7 0
 7 1 0
 7 -6 0
--7 -1 6 0
--6 0
-5 2 0
-5 -4 0
 -5 -2 4 0
 -4 0
-3 1 0
-3 -2 0
 -3 -1 2 0
 -/
 #guard_msgs in
@@ -85,13 +80,14 @@ example : ∀ p q : Prop, (p → q) → ¬q → ¬p := by
   lrat_tauto?
   lrat_tauto using contrapositionCert
 
--- A certificate with a wrong hint, 20 for 19 in its first step, is rejected.
+-- A certificate with a wrong hint, 3 for 2 in its first step, is rejected.
 /--
-error: lrat_tauto: the LRAT checker rejected the certificate. It must refute the numbered Tseitin transformation of the negated goal, which `lrat_tauto?` prints.
+error: lrat_tauto: the LRAT checker rejected the certificate. It must refute the numbered
+Plaisted–Greenbaum transformation of the negated goal, which `lrat_tauto?` prints.
 -/
-#guard_msgs in
+#guard_msgs (whitespace := lax) in
 example : ∀ p q : Prop, (p → q) → ¬q → ¬p := by
-  lrat_tauto using contrapositionCert.set! 0 (.addRup 23 #[-5, -2] #[18, 20])
+  lrat_tauto using contrapositionCert.set! 0 (.addRup 13 #[-9, 10] #[1, 3])
 
 -- A certificate the kernel cannot evaluate is reported as such.
 /--
@@ -112,79 +108,63 @@ example : ∀ p q : Prop, (p → q) → p → q := by
 
 /-- A refutation for `iffGoal`. -/
 private def iffCert : Array LRAT.IntAction := #[
-  .addRup 41 #[-17, 18] #[1, 4],
-  .addRup 42 #[-17] #[5, 41],
-  .addRup 43 #[5] #[42, 6],
-  .addRup 44 #[-16] #[42, 7],
-  .addRup 45 #[7] #[44, 9],
-  .addRup 46 #[-15] #[44, 10],
-  .addRup 47 #[-13] #[46, 12],
-  .addRup 48 #[-14] #[46, 13],
-  .addRup 49 #[-9, -12] #[47, 18],
-  .addRup 50 #[12] #[23, 19],
-  .addRup 51 #[-9] #[50, 49],
-  .addRup 52 #[1] #[51, 24],
-  .addRup 53 #[-8] #[51, 25],
-  .addRup 54 #[-2, 6] #[45, 30],
-  .addRup 55 #[-2] #[31, 54],
-  .addRup 56 #[3] #[43, 32],
-  .addRup 57 #[4] #[43, 33],
-  .addEmpty 58 #[56, 52, 55, 40]]
+  .addRup 22 #[-17, 18] #[1, 2],
+  .addRup 23 #[-17] #[3, 22],
+  .addRup 24 #[5] #[23, 4],
+  .addRup 25 #[-16] #[23, 5],
+  .addRup 26 #[7] #[25, 6],
+  .addRup 27 #[-15] #[25, 7],
+  .addRup 28 #[-13] #[27, 8],
+  .addRup 29 #[-14] #[27, 9],
+  .addRup 30 #[-9, -12] #[28, 10],
+  .addRup 31 #[12] #[13, 11],
+  .addRup 32 #[-9] #[31, 30],
+  .addRup 33 #[1] #[32, 14],
+  .addRup 34 #[-8] #[32, 15],
+  .addRup 35 #[-2, 6] #[26, 16],
+  .addRup 36 #[-2] #[17, 35],
+  .addRup 37 #[3] #[24, 18],
+  .addRup 38 #[4] #[24, 19],
+  .addEmpty 39 #[37, 33, 36, 21]]
 
 /-- The atoms are `n < 3` and `f n = y`; `3 > n` is `n < 3` at reducible transparency. -/
 theorem iffGoal : ∀ (n y : ℕ) (f : ℕ → ℕ),
     (n < 3 ↔ f n = y) → ¬f n = y → (3 > n → False) ∧ True ∨ False := by
   lrat_tauto using iffCert
 
-/-- info: 'CslibFrontierTests.LRATTautoTactic.iffGoal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
+/--
+info: 'CslibFrontierTests.LRATTautoTactic.iffGoal' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs (whitespace := lax) in
 #print axioms iffGoal
 
 -- The goal has two atoms, and `¬`, `↔` and `True` are encoded with `imp` and `and`.
 /--
-info: The numbered Tseitin transformation of the negated goal, in DIMACS form:
+info: The numbered Plaisted–Greenbaum transformation of the negated goal, in DIMACS form:
 c 1 := n < 3
 c 2 := f n = y
-p cnf 19 40
+p cnf 19 21
 19 0
-19 17 0
-19 -18 0
 -19 -17 18 0
 -18 0
 17 5 0
 17 -16 0
--17 -5 16 0
 16 7 0
 16 -15 0
--16 -7 15 0
 15 -13 0
 15 -14 0
--15 13 14 0
--14 0
--13 9 0
--13 12 0
 13 -9 -12 0
 12 10 0
 12 -11 0
--12 -10 11 0
--11 0
 -10 0
 9 1 0
 9 -8 0
--9 -1 8 0
--8 0
-7 2 0
-7 -6 0
 -7 -2 6 0
 -6 0
 -5 3 0
 -5 4 0
-5 -3 -4 0
-4 2 0
-4 -1 0
 -4 -2 1 0
-3 1 0
-3 -2 0
 -3 -1 2 0
 -/
 #guard_msgs in
@@ -195,139 +175,126 @@ example : ∀ (n y : ℕ) (f : ℕ → ℕ),
 
 /-! ### The pigeonhole principle for four pigeons and three holes -/
 
-/-- A refutation for `pigeonhole`, of 130 RUP steps. -/
+/-- A refutation for `pigeonhole`, of 117 RUP steps. -/
 private def pigeonholeCert : Array LRAT.IntAction := #[
-  .addRup 147 #[-59, 60] #[1, 4],
-  .addRup 148 #[-59] #[5, 147],
-  .addRup 149 #[14] #[148, 6],
-  .addRup 150 #[-58] #[148, 7],
-  .addRup 151 #[16] #[150, 9],
-  .addRup 152 #[-57] #[150, 10],
-  .addRup 153 #[18] #[152, 12],
-  .addRup 154 #[-56] #[152, 13],
-  .addRup 155 #[20] #[154, 15],
-  .addRup 156 #[-55] #[154, 16],
-  .addRup 157 #[-21] #[156, 18],
-  .addRup 158 #[-54] #[156, 19],
-  .addRup 159 #[-22] #[158, 21],
-  .addRup 160 #[-53] #[158, 22],
-  .addRup 161 #[-23] #[160, 24],
-  .addRup 162 #[-52] #[160, 25],
-  .addRup 163 #[-24] #[162, 27],
-  .addRup 164 #[-51] #[162, 28],
-  .addRup 165 #[-25] #[164, 30],
-  .addRup 166 #[-50] #[164, 31],
-  .addRup 167 #[-26] #[166, 33],
-  .addRup 168 #[-49] #[166, 34],
-  .addRup 169 #[-27] #[168, 36],
-  .addRup 170 #[-48] #[168, 37],
-  .addRup 171 #[-28] #[170, 39],
-  .addRup 172 #[-47] #[170, 40],
-  .addRup 173 #[-29] #[172, 42],
-  .addRup 174 #[-46] #[172, 43],
-  .addRup 175 #[-30] #[174, 45],
-  .addRup 176 #[-45] #[174, 46],
-  .addRup 177 #[-31] #[176, 48],
-  .addRup 178 #[-44] #[176, 49],
-  .addRup 179 #[-32] #[178, 51],
-  .addRup 180 #[-43] #[178, 52],
-  .addRup 181 #[-33] #[180, 54],
-  .addRup 182 #[-42] #[180, 55],
-  .addRup 183 #[-34] #[182, 57],
-  .addRup 184 #[-41] #[182, 58],
-  .addRup 185 #[-35] #[184, 60],
-  .addRup 186 #[-40] #[184, 61],
-  .addRup 187 #[-36] #[186, 63],
-  .addRup 188 #[-39] #[186, 64],
-  .addRup 189 #[-37] #[188, 66],
-  .addRup 190 #[-38] #[188, 67],
-  .addRup 191 #[-9, -12] #[190, 71],
-  .addRup 192 #[-6, -12] #[189, 74],
-  .addRup 193 #[-6, -9] #[187, 77],
-  .addRup 194 #[-3, -12] #[185, 80],
-  .addRup 195 #[-3, -9] #[183, 83],
-  .addRup 196 #[-3, -6] #[181, 86],
-  .addRup 197 #[-8, -11] #[179, 89],
-  .addRup 198 #[-5, -11] #[177, 92],
-  .addRup 199 #[-5, -8] #[175, 95],
-  .addRup 200 #[-2, -11] #[173, 98],
-  .addRup 201 #[-2, -8] #[171, 101],
-  .addRup 202 #[-2, -5] #[169, 104],
-  .addRup 203 #[-7, -10] #[167, 107],
-  .addRup 204 #[-4, -10] #[165, 110],
-  .addRup 205 #[-4, -7] #[163, 113],
-  .addRup 206 #[-1, -10] #[161, 116],
-  .addRup 207 #[-1, -7] #[159, 119],
-  .addRup 208 #[-1, -4] #[157, 122],
-  .addRup 209 #[10, 19] #[155, 125],
-  .addRup 210 #[7, 17] #[153, 131],
-  .addRup 211 #[4, 15] #[151, 137],
-  .addRup 212 #[1, 13] #[149, 143],
-  .addRup 213 #[13, -10] #[206, 212],
-  .addRup 214 #[13, -7] #[207, 212],
-  .addRup 215 #[13, -4] #[208, 212],
-  .addRup 216 #[15, -10] #[204, 211],
-  .addRup 217 #[15, -7] #[205, 211],
-  .addRup 218 #[15, 13] #[215, 211],
-  .addRup 219 #[17, -10] #[203, 210],
-  .addRup 220 #[17, 13] #[214, 210],
-  .addRup 221 #[17, 15] #[217, 210],
-  .addRup 222 #[19, 13] #[213, 209],
-  .addRup 223 #[19, 15] #[216, 209],
-  .addRup 224 #[19, 17] #[219, 209],
-  .addRup 225 #[-11, -13, 3] #[146, 200],
-  .addRup 226 #[-8, -13, 3] #[146, 201],
-  .addRup 227 #[-5, -13, 3] #[146, 202],
-  .addRup 228 #[-11, -15, 6] #[140, 198],
-  .addRup 229 #[-8, -15, 6] #[140, 199],
-  .addRup 230 #[-15, 6, -13, 3] #[227, 140],
-  .addRup 231 #[-11, -17, 9] #[134, 197],
-  .addRup 232 #[-17, 9, -13, 3] #[226, 134],
-  .addRup 233 #[-17, 9, -15, 6] #[229, 134],
-  .addRup 234 #[12, -19, -13, 3] #[225, 128],
-  .addRup 235 #[12, -19, -15, 6] #[228, 128],
-  .addRup 236 #[12, -19, -17, 9] #[231, 128],
-  .addRup 237 #[-12, -15, 6, -13] #[230, 194],
-  .addRup 238 #[-9, -15, 6, -13] #[230, 195],
-  .addRup 239 #[-12, -17, 9, -13] #[232, 194],
-  .addRup 240 #[-6, -17, 9, -13] #[232, 196],
-  .addRup 241 #[-9, 12, -19, -13] #[234, 195],
-  .addRup 242 #[-6, 12, -19, -13] #[234, 196],
-  .addRup 243 #[13, -17, 9, 6] #[233, 218],
-  .addRup 244 #[13, 12, -19, 6] #[235, 218],
-  .addRup 245 #[17, 12, -19, 6] #[235, 221],
-  .addRup 246 #[17, -12, 6, -13] #[237, 221],
-  .addRup 247 #[17, -9, 6, -13] #[238, 221],
-  .addRup 248 #[19, -17, 9, 6] #[233, 223],
-  .addRup 249 #[19, -12, 6, -13] #[237, 223],
-  .addRup 250 #[19, -9, 6, -13] #[238, 223],
-  .addRup 251 #[-12, -17, -13] #[239, 191],
-  .addRup 252 #[-6, -17, -13] #[240, 193],
-  .addRup 253 #[-6, 12, -19, -17] #[236, 193],
-  .addRup 254 #[12, -19, -17, -13] #[241, 236],
-  .addRup 255 #[-12, 13, -17, 6] #[243, 191],
-  .addRup 256 #[-12, 19, -17, 6] #[248, 191],
-  .addRup 257 #[19, -17, 6, -13] #[250, 248],
-  .addRup 258 #[17, -12, -13] #[246, 192],
-  .addRup 259 #[19, -12, -13] #[249, 192],
-  .addRup 260 #[-12, 13, -17] #[255, 192],
-  .addRup 261 #[-12, 19, -17] #[256, 192],
-  .addRup 262 #[19, -17, -13] #[257, 252],
-  .addRup 263 #[12, -19, -13, 17] #[245, 242],
-  .addRup 264 #[12, -19, -17, 13] #[244, 253],
-  .addRup 265 #[12, -19, -13] #[254, 263],
-  .addRup 266 #[12, -19, -17] #[264, 265],
-  .addRup 267 #[-19, -13, -17] #[251, 265],
-  .addRup 268 #[-19, -13, 17] #[258, 265],
-  .addRup 269 #[-19, -17, -13] #[251, 266],
-  .addRup 270 #[-19, -17, 13] #[260, 266],
-  .addRup 271 #[-19, -13] #[268, 267],
-  .addRup 272 #[-19, -17] #[270, 267],
-  .addRup 273 #[17, -19] #[271, 220],
-  .addRup 274 #[19, -17] #[262, 222],
-  .addRup 275 #[17] #[224, 273],
-  .addRup 276 #[-19] #[275, 272],
-  .addEmpty 277 #[276, 275, 274]]
+  .addRup 72 #[-59, 60] #[1, 2],
+  .addRup 73 #[-59] #[3, 72],
+  .addRup 74 #[14] #[73, 4],
+  .addRup 75 #[-58] #[73, 5],
+  .addRup 76 #[16] #[75, 6],
+  .addRup 77 #[-57] #[75, 7],
+  .addRup 78 #[18] #[77, 8],
+  .addRup 79 #[-56] #[77, 9],
+  .addRup 80 #[20] #[79, 10],
+  .addRup 81 #[-55] #[79, 11],
+  .addRup 82 #[-21] #[81, 12],
+  .addRup 83 #[-54] #[81, 13],
+  .addRup 84 #[-22] #[83, 14],
+  .addRup 85 #[-53] #[83, 15],
+  .addRup 86 #[-23] #[85, 16],
+  .addRup 87 #[-52] #[85, 17],
+  .addRup 88 #[-24] #[87, 18],
+  .addRup 89 #[-51] #[87, 19],
+  .addRup 90 #[-25] #[89, 20],
+  .addRup 91 #[-50] #[89, 21],
+  .addRup 92 #[-26] #[91, 22],
+  .addRup 93 #[-49] #[91, 23],
+  .addRup 94 #[-27] #[93, 24],
+  .addRup 95 #[-48] #[93, 25],
+  .addRup 96 #[-28] #[95, 26],
+  .addRup 97 #[-47] #[95, 27],
+  .addRup 98 #[-29] #[97, 28],
+  .addRup 99 #[-46] #[97, 29],
+  .addRup 100 #[-30] #[99, 30],
+  .addRup 101 #[-45] #[99, 31],
+  .addRup 102 #[-31] #[101, 32],
+  .addRup 103 #[-44] #[101, 33],
+  .addRup 104 #[-32] #[103, 34],
+  .addRup 105 #[-43] #[103, 35],
+  .addRup 106 #[-33] #[105, 36],
+  .addRup 107 #[-42] #[105, 37],
+  .addRup 108 #[-34] #[107, 38],
+  .addRup 109 #[-41] #[107, 39],
+  .addRup 110 #[-35] #[109, 40],
+  .addRup 111 #[-40] #[109, 41],
+  .addRup 112 #[-36] #[111, 42],
+  .addRup 113 #[-39] #[111, 43],
+  .addRup 114 #[-37] #[113, 44],
+  .addRup 115 #[-38] #[113, 45],
+  .addRup 116 #[-9, -12] #[115, 46],
+  .addRup 117 #[-6, -12] #[114, 47],
+  .addRup 118 #[-6, -9] #[112, 48],
+  .addRup 119 #[-3, -12] #[110, 49],
+  .addRup 120 #[-3, -9] #[108, 50],
+  .addRup 121 #[-3, -6] #[106, 51],
+  .addRup 122 #[-8, -11] #[104, 52],
+  .addRup 123 #[-5, -11] #[102, 53],
+  .addRup 124 #[-5, -8] #[100, 54],
+  .addRup 125 #[-2, -11] #[98, 55],
+  .addRup 126 #[-2, -8] #[96, 56],
+  .addRup 127 #[-2, -5] #[94, 57],
+  .addRup 128 #[-7, -10] #[92, 58],
+  .addRup 129 #[-4, -10] #[90, 59],
+  .addRup 130 #[-4, -7] #[88, 60],
+  .addRup 131 #[-1, -10] #[86, 61],
+  .addRup 132 #[-1, -7] #[84, 62],
+  .addRup 133 #[-1, -4] #[82, 63],
+  .addRup 134 #[10, 19] #[80, 64],
+  .addRup 135 #[7, 17] #[78, 66],
+  .addRup 136 #[4, 15] #[76, 68],
+  .addRup 137 #[1, 13] #[74, 70],
+  .addRup 138 #[1, 2, 3] #[71, 137],
+  .addRup 139 #[4, 5, 6] #[69, 136],
+  .addRup 140 #[7, 8, 9] #[67, 135],
+  .addRup 141 #[10, 11, 12] #[65, 134],
+  .addRup 142 #[-10, 2, 3] #[138, 131],
+  .addRup 143 #[-7, 2, 3] #[138, 132],
+  .addRup 144 #[-4, 2, 3] #[138, 133],
+  .addRup 145 #[-10, 5, 6] #[139, 129],
+  .addRup 146 #[-7, 5, 6] #[139, 130],
+  .addRup 147 #[5, 6, 2, 3] #[144, 139],
+  .addRup 148 #[-10, 8, 9] #[140, 128],
+  .addRup 149 #[8, 9, 2, 3] #[143, 140],
+  .addRup 150 #[8, 9, 5, 6] #[146, 140],
+  .addRup 151 #[11, 12, 2, 3] #[142, 141],
+  .addRup 152 #[11, 12, 5, 6] #[145, 141],
+  .addRup 153 #[11, 12, 8, 9] #[148, 141],
+  .addRup 154 #[-11, 5, 6, 3] #[147, 125],
+  .addRup 155 #[-8, 5, 6, 3] #[147, 126],
+  .addRup 156 #[-11, 8, 9, 3] #[149, 125],
+  .addRup 157 #[-5, 8, 9, 3] #[149, 127],
+  .addRup 158 #[-8, 11, 12, 3] #[151, 126],
+  .addRup 159 #[-5, 11, 12, 3] #[151, 127],
+  .addRup 160 #[-11, 6, 3] #[154, 123],
+  .addRup 161 #[-8, 6, 3] #[155, 124],
+  .addRup 162 #[-11, 8, 9, 6] #[150, 123],
+  .addRup 163 #[8, 9, 6, 3] #[157, 150],
+  .addRup 164 #[8, 9, 6, 11, 12, 3] #[159, 150],
+  .addRup 165 #[-8, 11, 12, 6] #[152, 124],
+  .addRup 166 #[11, 12, 6, 8, 9, 3] #[157, 152],
+  .addRup 167 #[11, 12, 6, 3] #[159, 152],
+  .addRup 168 #[-12, -11, 8, 3] #[156, 116],
+  .addRup 169 #[-12, -11, 8, 6] #[162, 116],
+  .addRup 170 #[-12, 8, 6, 3] #[163, 116],
+  .addRup 171 #[-6, 11, 12, 8] #[153, 118],
+  .addRup 172 #[-6, -11, 8, 3] #[156, 118],
+  .addRup 173 #[-3, 11, 12, 8] #[153, 120],
+  .addRup 174 #[-3, -11, 8, 6] #[162, 120],
+  .addRup 175 #[-6, 11, 8] #[171, 117],
+  .addRup 176 #[-3, 11, 8] #[173, 119],
+  .addRup 177 #[-6, -8, 11, 3] #[158, 117],
+  .addRup 178 #[-3, -8, 11, 6] #[165, 119],
+  .addRup 179 #[11, 6, 3, 8] #[170, 167],
+  .addRup 180 #[-6, -11, 8] #[172, 121],
+  .addRup 181 #[-6, -8, 11] #[177, 121],
+  .addRup 182 #[11, 6, 8] #[179, 176],
+  .addRup 183 #[-11, 8, 6] #[174, 160],
+  .addRup 184 #[-8, 11, 6] #[178, 161],
+  .addRup 185 #[11, 8] #[175, 182],
+  .addRup 186 #[-11, 8] #[180, 183],
+  .addRup 187 #[-8, 11] #[181, 184],
+  .addRup 188 #[11] #[187, 185],
+  .addEmpty 189 #[188, 122, 186]]
 
 /-- If each of four pigeons sits in one of three holes, two share a hole. -/
 theorem pigeonhole : ∀ p : Fin 4 → Fin 3 → Prop,
@@ -346,8 +313,11 @@ theorem pigeonhole : ∀ p : Fin 4 → Fin 3 → Prop,
 theorem contraposition_solved : ∀ p q : Prop, (p → q) → ¬q → ¬p := by
   lrat_tauto
 
-/-- info: 'CslibFrontierTests.LRATTautoTactic.contraposition_solved' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
+/--
+info: 'CslibFrontierTests.LRATTautoTactic.contraposition_solved' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs (whitespace := lax) in
 #print axioms contraposition_solved
 
 /-- The goal of `iffGoal`, with its compound atoms. -/
@@ -372,24 +342,316 @@ example : ∀ p : Fin 3 → Fin 2 → Prop,
     (p 0 1 ∧ p 1 1) ∨ (p 0 1 ∧ p 2 1) ∨ (p 1 1 ∧ p 2 1) := by
   lrat_tauto
 
+/-- If each of five pigeons sits in one of four holes, two share a hole. The kernel check of the
+solver's certificate took about 8 seconds with the checker on lists, and takes about 1 with the
+kernel checker. -/
+example : ∀ p : Fin 5 → Fin 4 → Prop,
+    (p 0 0 ∨ p 0 1 ∨ p 0 2 ∨ p 0 3) → (p 1 0 ∨ p 1 1 ∨ p 1 2 ∨ p 1 3) →
+    (p 2 0 ∨ p 2 1 ∨ p 2 2 ∨ p 2 3) → (p 3 0 ∨ p 3 1 ∨ p 3 2 ∨ p 3 3) →
+    (p 4 0 ∨ p 4 1 ∨ p 4 2 ∨ p 4 3) →
+    (p 0 0 ∧ p 1 0) ∨ (p 0 0 ∧ p 2 0) ∨ (p 0 0 ∧ p 3 0) ∨ (p 0 0 ∧ p 4 0) ∨ (p 1 0 ∧ p 2 0) ∨
+    (p 1 0 ∧ p 3 0) ∨ (p 1 0 ∧ p 4 0) ∨ (p 2 0 ∧ p 3 0) ∨ (p 2 0 ∧ p 4 0) ∨ (p 3 0 ∧ p 4 0) ∨
+    (p 0 1 ∧ p 1 1) ∨ (p 0 1 ∧ p 2 1) ∨ (p 0 1 ∧ p 3 1) ∨ (p 0 1 ∧ p 4 1) ∨ (p 1 1 ∧ p 2 1) ∨
+    (p 1 1 ∧ p 3 1) ∨ (p 1 1 ∧ p 4 1) ∨ (p 2 1 ∧ p 3 1) ∨ (p 2 1 ∧ p 4 1) ∨ (p 3 1 ∧ p 4 1) ∨
+    (p 0 2 ∧ p 1 2) ∨ (p 0 2 ∧ p 2 2) ∨ (p 0 2 ∧ p 3 2) ∨ (p 0 2 ∧ p 4 2) ∨ (p 1 2 ∧ p 2 2) ∨
+    (p 1 2 ∧ p 3 2) ∨ (p 1 2 ∧ p 4 2) ∨ (p 2 2 ∧ p 3 2) ∨ (p 2 2 ∧ p 4 2) ∨ (p 3 2 ∧ p 4 2) ∨
+    (p 0 3 ∧ p 1 3) ∨ (p 0 3 ∧ p 2 3) ∨ (p 0 3 ∧ p 3 3) ∨ (p 0 3 ∧ p 4 3) ∨ (p 1 3 ∧ p 2 3) ∨
+    (p 1 3 ∧ p 3 3) ∨ (p 1 3 ∧ p 4 3) ∨ (p 2 3 ∧ p 3 3) ∨ (p 2 3 ∧ p 4 3) ∨ (p 3 3 ∧ p 4 3) := by
+  lrat_tauto
+
 -- A goal that is not a tautology is refuted by an assignment to its atoms.
 /--
-error: lrat_tauto: the goal is not a propositional tautology. It is false under this assignment to its atoms, read as independent propositions:
-  p := False
-  q := True
+error: lrat_tauto: the goal is not a propositional tautology. It is false under this assignment
+to its atoms, read as independent propositions: p := False q := True
 -/
-#guard_msgs in
+#guard_msgs (whitespace := lax) in
 example : ∀ p q : Prop, (p → q) → q → p := by
   lrat_tauto
 
--- The assignment is to the atoms as opaque propositions: `n = n` is one atom, assigned `False`,
--- though the goal holds.
+-- The assignment is to the atoms as opaque propositions: `0 + n = n` is one atom, assigned
+-- `False`, though the goal holds.
 /--
-error: lrat_tauto: the goal is not a propositional tautology. It is false under this assignment to its atoms, read as independent propositions:
-  n = n := False
+error: lrat_tauto: the goal is not a propositional tautology. It is false under this assignment
+to its atoms, read as independent propositions: 0 + n = n := False
+-/
+#guard_msgs (whitespace := lax) in
+example : ∀ n : ℕ, 0 + n = n := by
+  lrat_tauto
+
+/-! ### Hypotheses of the context -/
+
+/-- Modus ponens and modus tollens from the context. -/
+theorem hyps_solved (p q r : Prop) (hpq : p → q) (hqr : q → r) (hnr : ¬r) : ¬p := by
+  lrat_tauto
+
+/--
+info: 'CslibFrontierTests.LRATTautoTactic.hyps_solved' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs (whitespace := lax) in
+#print axioms hyps_solved
+
+/-- The hypotheses are used with the goal's own premises, over shared atoms. -/
+example (p q r : Prop) (h : p ∨ q) (hp : p → r) : (q → r) → r := by
+  lrat_tauto
+
+/-- A contradiction in the context proves any goal, even one that is a single atom. -/
+example (p : Prop) (n : ℕ) (h₁ : p) (h₂ : ¬p) : n = 37 := by
+  lrat_tauto
+
+/-- Hypotheses that are not propositional formulas are atoms: here `∀ x, f x = 0` and
+`f 1 = 0`, the latter shared with the goal. -/
+example (f : ℕ → ℕ) (h : ∀ x, f x = 0) (h₁ : f 1 = 0 → f 2 = 0) (h₂ : f 1 = 0) :
+    f 2 = 0 ∧ (∀ x, f x = 0) := by
+  lrat_tauto
+
+/-- Hypotheses whose types depend on other hypotheses and on variables of the context. -/
+example (p : Prop) (f : p → ℕ) (hp : p) (h : f hp = 0 ∨ f hp = 1) (h₀ : f hp ≠ 0) :
+    f hp = 1 := by
+  lrat_tauto
+
+/-- `-hyps` turns the hypotheses off. -/
+example (p q : Prop) (hp : p) (hpq : p → q) : q := by
+  fail_if_success lrat_tauto -hyps
+  lrat_tauto
+
+-- Unknown options are rejected.
+/-- error: lrat_tauto: unknown option; the only option is `-hyps` -/
+#guard_msgs in
+example (p : Prop) (hp : p) : p := by
+  lrat_tauto -zeta
+
+-- Only the hypotheses whose clauses the certificate uses reach the kernel, so the unused
+-- variables linter flags the others.
+/--
+warning: Variable name `hq` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively,
+prefix the name with `_` to silence this warning:
+  [apply] _hq
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+---
+warning: Variable name `hpq` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively,
+prefix the name with `_` to silence this warning:
+  [apply] _hpq
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+-/
+#guard_msgs (whitespace := lax) in
+example (p q r : Prop) (hq : q) (hpq : p → q) (hr : r) (hrp : r → p) : p := by
+  lrat_tauto
+
+/-- Twenty irrelevant hypotheses, none of which reaches the kernel. -/
+example (a b : Fin 20 → Prop) (p q : Prop)
+    (_h0 : a 0 ∨ b 0) (_h1 : a 1 ∨ b 1) (_h2 : a 2 ∨ b 2) (_h3 : a 3 ∨ b 3) (_h4 : a 4 ∨ b 4)
+    (_h5 : a 5 ∨ b 5) (_h6 : a 6 ∨ b 6) (_h7 : a 7 ∨ b 7) (_h8 : a 8 ∨ b 8) (_h9 : a 9 ∨ b 9)
+    (_h10 : a 10 → b 10) (_h11 : a 11 → b 11) (_h12 : a 12 → b 12) (_h13 : a 13 → b 13)
+    (_h14 : a 14 → b 14) (_h15 : a 15 → b 15) (_h16 : a 16 → b 16) (_h17 : a 17 → b 17)
+    (_h18 : a 18 → b 18) (_h19 : a 19 → b 19)
+    (hp : p) (hpq : p → q) (hq : q → a 0) : a 0 := by
+  lrat_tauto
+
+-- When the goal does not follow, the error names the hypotheses used and the assignment.
+/--
+error: lrat_tauto: the goal does not follow propositionally from the hypotheses hpq, hq. It is
+false, and the hypotheses are true, under this assignment to the atoms of the goal and the
+hypotheses, read as independent propositions: p := False q := True
+-/
+#guard_msgs (whitespace := lax) in
+example (p q : Prop) (hpq : p → q) (hq : q) : p := by
+  lrat_tauto
+
+/-- A certificate supplied with `using` refutes the goal alone, so the hypotheses are ignored. -/
+example (p q : Prop) (_hpq : p → q) (_hnq : ¬q) : (p → q) → ¬q → ¬p := by
+  lrat_tauto using contrapositionCert
+
+/-! ### Terms as premises -/
+
+/-- Terms are premises like the hypotheses: here an instance of the universally quantified `h`,
+which is an atom as a hypothesis, and of the lemma `Nat.le_total`. -/
+private theorem terms_used (f : ℕ → ℕ) (h : ∀ a, f a = 0 ∨ f a = 1) (a x y : ℕ) (hne : f a ≠ 0)
+    (hxy : ¬x ≤ y) : f a = 1 ∧ y ≤ x := by
+  fail_if_success lrat_tauto
+  lrat_tauto [h a, Nat.le_total x y]
+
+/-- Terms that the certificate does not need are dropped with the unused hypotheses. -/
+private theorem terms_dropped (p q : ℕ → Prop) (h : ∀ n, p n → q n) (h₀ : p 0) : q 0 := by
+  lrat_tauto [Nat.le_total 0 1, h 0, Nat.lt_irrefl 2]
+
+-- The proof of `terms_used` cites both terms, that of `terms_dropped` neither of the unused ones.
+open Lean in
+run_meta do
+  -- The bodies of theorems are not exported, so they are read from the private view.
+  let env := (← getEnv).setExporting false
+  let usedIn (n : Name) : MetaM NameSet := do
+    let some (.thmInfo ci) := env.find? n | throwError "no theorem {n}"
+    return ci.value.getUsedConstantsAsSet
+  unless (← usedIn ``terms_used).contains ``Nat.le_total do
+    throwError "`Nat.le_total` is missing from the proof of `terms_used`"
+  let used ← usedIn ``terms_dropped
+  if used.contains ``Nat.le_total || used.contains ``Nat.lt_irrefl then
+    throwError "an unused term reached the proof of `terms_dropped`"
+
+-- Of the two hypotheses and three terms, the hypothesis `h₀` and the term `h 0` are used.
+/-- [lrat_tauto] 2 of the 5 premises are used; the formula is read again from them -/
+#guard_msgs (substring := true) in
+example (p q : ℕ → Prop) (h : ∀ n, p n → q n) (h₀ : p 0) : q 0 := by
+  set_option trace.lrat_tauto true in
+  lrat_tauto [Nat.le_total 0 1, h 0, Nat.lt_irrefl 2]
+
+/-- A type ascription gives the premise its type, as `have h : T := t` would: the type inferred
+for `Or.inl rfl` is `3 = 3 ∨ 3 ∈ {4}`, which is not the atom `3 ∈ {3, 4}` at reducible
+transparency. -/
+example : 3 ∈ ({3, 4} : Set ℕ) ∨ False := by
+  lrat_tauto [(Or.inl rfl : 3 ∈ ({3, 4} : Set ℕ))]
+
+/-- The ascribed type is elaborated as for `have h : T := t`: a hole in it may be filled by
+elaborating the term. -/
+example : 3 ∈ ({3, 4} : Set ℕ) ∨ False := by
+  lrat_tauto [(Or.inl rfl : _ ∈ ({3, 4} : Set ℕ))]
+
+/-- With `-hyps`, the terms are still premises. -/
+example (p q : Prop) (hp : p) (hpq : p → q) : q := by
+  fail_if_success lrat_tauto -hyps
+  lrat_tauto -hyps [hp, hpq]
+
+-- When the goal does not follow, the error names the terms.
+/--
+error: lrat_tauto: the goal does not follow propositionally from the terms hpq. It is false, and
+the terms are true, under this assignment to the atoms of the goal and the terms, read as
+independent propositions: p := False q := False
+-/
+#guard_msgs (whitespace := lax) in
+example (p q : Prop) (hpq : p → q) : p := by
+  lrat_tauto -hyps [hpq]
+
+-- A supplied certificate refutes the goal with the terms as premises, in the order given, and
+-- without the hypotheses. Here that is the formula of `contraposition`.
+/--
+info: The numbered Plaisted–Greenbaum transformation of the negated goal, with the terms as
+premises, in DIMACS form:
+c 1 := p
+c 2 := q
+p cnf 11 12
+11 0
+-11 -9 10 0
+-10 0
+9 3 0
+9 -8 0
+8 5 0
+8 -7 0
+7 1 0
+7 -6 0
+-5 -2 4 0
+-4 0
+-3 -1 2 0
+-/
+#guard_msgs (whitespace := lax) in
+example (p q : Prop) (hpq : p → q) (hnq : ¬q) : ¬p := by
+  lrat_tauto? [hpq, hnq]
+  lrat_tauto [hpq, hnq] using contrapositionCert
+
+-- A term with metavariables left after elaboration is rejected.
+/-- error: lrat_tauto: the term `h _` must elaborate fully, but it has metavariables: -/
+#guard_msgs (substring := true) in
+example (p q : ℕ → Prop) (h : ∀ n, p n → q n) (h₀ : p 0) : q 0 := by
+  lrat_tauto [h _]
+
+-- A term that is not a proof is rejected.
+/--
+error: lrat_tauto: the term `x` is not a proof of a proposition: its type is
+  ℕ
 -/
 #guard_msgs in
+example (x : ℕ) (h : x = x) : x = x := by
+  lrat_tauto [x]
+
+-- So is a type ascription that is not a proposition.
+/--
+error: lrat_tauto: the term `(x : ℕ)` is not a proof of a proposition: its type is
+  ℕ
+-/
+#guard_msgs in
+example (x : ℕ) (h : x = x) : x = x := by
+  lrat_tauto [(x : ℕ)]
+
+-- An ascription that is not a type is an elaboration error.
+/-- error: type expected, got -/
+#guard_msgs (substring := true) in
+example (x : ℕ) (h : x = x) : x = x := by
+  lrat_tauto [(h : x)]
+
+-- An ill-typed term is an error, not a premise elaborated with `sorry`, also for `lrat_tauto?`,
+-- which would otherwise discard the error with the rest of its state.
+/-- error: Application type mismatch -/
+#guard_msgs (substring := true) in
+example (p q : Prop) (h : ℕ → p → q) : p → q := by
+  lrat_tauto? [h "bad"]
+  exact h 0
+
+/-- error: Application type mismatch -/
+#guard_msgs (substring := true) in
+example (p q : Prop) (h : ℕ → p → q) (hp : p) : q := by
+  lrat_tauto [h "bad"]
+
+/-! ### Leaves closed by `rfl` and by a hypothesis -/
+
+/-- `n = n` is one atom, which `rfl` proves. -/
 example : ∀ n : ℕ, n = n := by
+  lrat_tauto
+
+/-- An atom proved by `rfl` at reducible transparency, here `HEq`, closes one side of a
+disjunction. -/
+example (p : Prop) (x : ℕ) : p ∨ HEq x x := by
+  lrat_tauto
+
+/-- `rfl` is tried at reducible transparency only: `0 + n = n` is not proved. -/
+example (n : ℕ) : 0 + n = n ∨ False := by
+  fail_if_success lrat_tauto
+  simp
+
+/-- An atom of the goal that is a hypothesis, as `assumption` closes it. -/
+example (s : Set ℕ) (h : 3 ∈ s) : (3 ∈ s → False) → 4 ∈ s := by
+  lrat_tauto
+
+/-- An atom whose negation is a hypothesis. -/
+example (x y : ℕ) (h : ¬x < y) : x < y → x = 7 := by
+  lrat_tauto
+
+/-! ### `≠` -/
+
+/-- `a ≠ b` is read as `¬a = b`, so the hypothesis fixes the atom `a = b`. -/
+example (a b : ℕ) (h : a ≠ b) : ¬a = b := by
+  lrat_tauto
+
+/-- `≠` and `=` over the same sides share their atom. -/
+example (a b : ℕ) : a ≠ b ∨ a = b := by
+  lrat_tauto
+
+-- Equations are atoms: `a ≠ b → b = c → a ≠ c` needs `b = c` to be used as a rewrite, so it is
+-- not propositional over the atoms `a = b`, `b = c` and `a = c`.
+/--
+error: lrat_tauto: the goal is not a propositional tautology. It is false under this assignment
+to its atoms, read as independent propositions: a = b := False b = c := True a = c := True
+-/
+#guard_msgs (whitespace := lax) in
+example (a b c : ℕ) : a ≠ b → b = c → a ≠ c := by
+  lrat_tauto
+
+/-- `a ≠ a` is `¬a = a`, and `rfl` proves the atom `a = a`. -/
+example (p : Prop) (a : ℕ) : a ≠ a → p := by
+  lrat_tauto
+
+/-- The same from a hypothesis. -/
+example (p : Prop) (a : ℕ) (h : a ≠ a) : p := by
+  lrat_tauto
+
+/-- A β-redex is reduced before it is read, so it is a formula over the atoms `a ∈ s` and
+`a ∈ t`. -/
+example (s t : Set ℕ) (a : ℕ) : (fun x => x ∈ s → x ∈ t) a ↔ ¬a ∈ s ∨ a ∈ t := by
   lrat_tauto
 
 end CslibFrontierTests.LRATTautoTactic

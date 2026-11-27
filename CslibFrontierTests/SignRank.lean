@@ -4,15 +4,22 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+-- upstream: local-only (regression tests)
+
 import CslibFrontier.Computability.Communication.Equality
 import CslibFrontier.Computability.Communication.PaturiSimon
+import Mathlib.Tactic.FinCases
 
 /-!
-Regression clients for sign-rank and unbounded-error communication: sign-representations that
-hold and fail, the exact sign-rank of equality on two and three inputs, protocols that solve and
-fail to solve with unbounded error, both directions of the Paturi–Simon theorem on concrete
-functions, and the gap between deterministic and unbounded-error equality.
+Regression clients for sign-rank and unbounded-error communication under module encapsulation:
+sign-representations that hold and fail, the exact sign-rank of equality across input sizes,
+protocols that solve and fail to solve with unbounded error, both directions of the Paturi–Simon
+theorem (including the sharpened leaf-output lower bound), and the exact unbounded-error cost of
+equality (`2` on two inputs, `3` on three or more).
 -/
+
+set_option linter.privateModule false
 
 open Cslib Cslib.Communication Finset
 
@@ -63,6 +70,13 @@ theorem signRank_equality_fin_three : signRank (equality (X := Fin 3)) = 2 := by
     fin_cases x <;> fin_cases y <;>
       simp [U, V, Matrix.mul_apply, Fin.sum_univ_two, equality] <;> norm_num
   simpa using signRank_le_card_of_mul h
+
+-- On four or more inputs, equality has sign-rank exactly three.
+theorem signRank_equality_fin_four : signRank (equality (X := Fin 4)) = 3 :=
+  signRank_equality_eq_three (by decide)
+
+example : signRank (equality (X := Fin 1024)) = 3 :=
+  signRank_equality_eq_three (by simp)
 
 -- Sign-rank is at most rank: equality on `Fin 5` has sign-rank at most `5`, and at most `3`.
 example : signRank (equality (X := Fin 5)) ≤ 5 := by
@@ -125,20 +139,92 @@ example : ¬fairCoin.SolvesUnbounded (fun x y z => equality x y = z) Set.univ Se
 
 /-! ### The Paturi–Simon theorem -/
 
--- The upper bound: equality on any finite set costs at most three bits with unbounded error.
+-- The upper bound: equality on any finite set costs at most three bits with unbounded error,
+-- and on three or more inputs it costs exactly three bits.
 example : PrivateCoin.uppComplexityFun (equality (X := Fin 1024)) ≤ 3 :=
   PrivateCoin.uppComplexityFun_equality_le_three
+
+example : PrivateCoin.uppComplexityFun (equality (X := Fin 3)) = 3 :=
+  PrivateCoin.uppComplexityFun_equality_eq_three (by decide)
+
+example : PrivateCoin.uppComplexityFun (equality (X := Fin 4)) = 3 :=
+  PrivateCoin.uppComplexityFun_equality_eq_three (by decide)
+
+example : PrivateCoin.uppComplexityFun (equality (X := Fin 1024)) = 3 :=
+  PrivateCoin.uppComplexityFun_equality_eq_three (by simp)
+
+-- Sharpness of `2 < Fintype.card X`: on two inputs (`Bool`), equality costs exactly two bits.
+example : PrivateCoin.uppComplexityFun (equality (X := Bool)) = 2 := by
+  refine le_antisymm ?_ (PrivateCoin.le_uppComplexityFun_iff.mpr fun a b P hP => ?_)
+  · have hsol : eqBool.SolvesUnbounded (fun x y z => equality x y = z) Set.univ Set.univ := by
+      intro x _ y _
+      classical
+      rw [PrivateCoin.errorProb_eq_card]
+      simp [eqBool_run]
+    exact (PrivateCoin.uppComplexityFun_le_depth hsol).trans (by decide)
+  · by_contra! hd
+    have hd' : P.depth ≤ 1 := by
+      have : P.depth < 2 := by exact_mod_cast hd
+      omega
+    have htt := (PrivateCoin.errorProb_lt_half_iff P equality true true).mp
+      (hP true trivial true trivial)
+    have htf := (PrivateCoin.errorProb_lt_half_iff P equality true false).mp
+      (hP true trivial false trivial)
+    have hft := (PrivateCoin.errorProb_lt_half_iff P equality false true).mp
+      (hP false trivial true trivial)
+    simp only [signMatrix_apply, equality, decide_true, ite_true, Bool.true_eq_false,
+      Bool.false_eq_true, decide_false, ite_false, neg_one_mul, one_mul, neg_pos] at htt htf hft
+    rcases P with z | ⟨sA, q₀, q₁⟩ | ⟨sB, q₀, q₁⟩
+    · simp only [Protocol.run_output] at htt htf
+      linarith
+    · simp only [Protocol.depth_alice] at hd'
+      rcases q₀ with z₀ | _ | _ <;>
+        try (simp only [Protocol.depth_alice, Protocol.depth_bob] at hd'; omega)
+      rcases q₁ with z₁ | _ | _ <;>
+        try (simp only [Protocol.depth_alice, Protocol.depth_bob] at hd'; omega)
+      simp only [Protocol.run_alice, Protocol.run_output] at htt htf
+      linarith
+    · simp only [Protocol.depth_bob] at hd'
+      rcases q₀ with z₀ | _ | _ <;>
+        try (simp only [Protocol.depth_alice, Protocol.depth_bob] at hd'; omega)
+      rcases q₁ with z₁ | _ | _ <;>
+        try (simp only [Protocol.depth_alice, Protocol.depth_bob] at hd'; omega)
+      simp only [Protocol.run_bob, Protocol.run_output] at htt hft
+      linarith
+
+-- Sharpness of `2 ≤ signRank f` in `clog_signRank_add_one_le_uppComplexityFun`: a constant
+-- function on `Bool` has sign-rank `1` and unbounded-error complexity `0`.
+example : signRank (fun _ _ : Bool => false) = 1 ∧
+    PrivateCoin.uppComplexityFun (fun _ _ : Bool => false) = 0 := by
+  refine ⟨le_antisymm ?_ (signRank_pos _), nonpos_iff_eq_zero.mp ?_⟩
+  · simpa [communicationMatrix] using
+      (signRank_le_rank_communicationMatrix_add_one (fun _ _ : Bool => false)).trans
+        (by simp [show communicationMatrix ℝ (fun _ _ : Bool => false) = 0 by ext; simp])
+  · have h0 : PrivateCoin.SolvesUnbounded (X := Bool) (Y := Bool) (a := 0) (b := 0)
+        (Protocol.output false) (fun _ _ z => false = z) Set.univ Set.univ := by
+      intro x _ y _
+      classical
+      rw [PrivateCoin.errorProb_eq_card]
+      simp
+    exact (PrivateCoin.uppComplexityFun_le_depth h0).trans (by simp)
 
 -- Deterministically, equality on `Fin 1024` costs `⌈log₂ 1024⌉ + 1 = 11` bits.
 example : Protocol.ecomplexityFun (equality (X := Fin 1024)) = 11 := by
   rw [ecomplexityFun_equality (by simp), Fintype.card_fin]
   rfl
 
--- The lower bound on a concrete function: equality on `Fin 3` has sign-rank two, so every
--- unbounded-error protocol for it sends at least one bit.
+-- The lower bounds on a concrete function: equality on `Fin 3` has sign-rank two, so
+-- `clog_signRank_le_uppComplexityFun` gives `1` bit and `clog_signRank_add_one_le_uppComplexityFun`
+-- sharpens this to `2` bits.
 example : (1 : ℕ∞) ≤ PrivateCoin.uppComplexityFun (equality (X := Fin 3)) := by
   have h := PrivateCoin.clog_signRank_le_uppComplexityFun (equality (X := Fin 3))
   rwa [signRank_equality_fin_three, show Nat.clog 2 2 = 1 by decide, Nat.cast_one] at h
+
+example : (2 : ℕ∞) ≤ PrivateCoin.uppComplexityFun (equality (X := Fin 3)) := by
+  have h := PrivateCoin.clog_signRank_add_one_le_uppComplexityFun
+    (f := equality (X := Fin 3)) (by rw [signRank_equality_fin_three])
+  rwa [signRank_equality_fin_three, show Nat.clog 2 2 = 1 by decide, Nat.cast_one,
+    show (1 : ℕ∞) + 1 = 2 by rfl] at h
 
 -- Both directions at once, on an arbitrary function on finite sets.
 example (f : Fin 4 → Fin 6 → Bool) :

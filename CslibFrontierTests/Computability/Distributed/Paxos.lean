@@ -7,10 +7,10 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.Distributed.Paxos.Liveness
+public import CslibFrontier.Computability.Distributed.Paxos.Liveness
 
-/-! Crash-stop Single-Decree Synod protocol step (checked as a `module` client with ordinary
-imports): strict-majority quorum checks on `Fin 3` (`t = 1`), computable `decide`-checked execution
+/-! Crash-stop Single-Decree Synod protocol step: strict-majority quorum checks on `Fin 3`
+(`t = 1`), computable `decide`-checked execution
 traces for (a) single-ballot consensus with packet loss, duplicate redelivery, and an acceptor
 crash, (b) mid-flight ballot preemption `b₁ < b₂` where quorum intersection forces proposer `1` to
 carry proposer `0`'s chosen value forward into `b₂`, and (c) a 2-round (22-step) finite prefix of
@@ -20,7 +20,7 @@ duelling proposers, together with instantiations of crash-stop safety (`paxos_ag
 (`exists_duelling_proposers_livelock`), conditional sole-leader progress
 (`paxos_liveness_of_sole_leader_crashStop`, `exists_sole_leader_execution_crashStop`),
 disjoint-quorum split-brain impossibility (`not_synod_safe_of_disjoint_quorums`,
-`not_safeSingleQuorum_of_card_le_two_mul`), and `synodQuorumProtocol_safeSingleQuorum_crashStop`. -/
+`not_safeSingleQuorum_of_card_le_two_mul`), and `synodQuorumProtocol_safeCohort_crashStop`. -/
 set_option linter.privateModule false
 
 namespace CslibFrontierTests.Distributed.Paxos
@@ -30,7 +30,7 @@ open Cslib Cslib.Distributed.Paxos
 /-! ### Computable trace checker for `synodLts` -/
 
 /-- Computable Boolean checker verifying that every action in `xl` is enabled along `synodStep`. -/
-def validTrace {Proposer Acceptor Learner V : Type*}
+@[expose] public def validTrace {Proposer Acceptor Learner V : Type*}
     [LinearOrder Proposer] [DecidableEq Acceptor] [DecidableEq Learner] [DecidableEq V]
     (qs : QuorumSystem Acceptor) (s : SynodState Proposer Acceptor Learner V) :
     List (SynodAction Proposer Acceptor Learner V) → Bool
@@ -38,14 +38,14 @@ def validTrace {Proposer Acceptor Learner V : Type*}
   | act :: rest => decide (synodEnabled s act) && validTrace qs (synodStep qs s act) rest
 
 /-- Run a finite list of Synod actions from `s`. -/
-def runTrace {Proposer Acceptor Learner V : Type*}
+@[expose] public def runTrace {Proposer Acceptor Learner V : Type*}
     [LinearOrder Proposer] [DecidableEq Acceptor] [DecidableEq Learner] [DecidableEq V]
     (qs : QuorumSystem Acceptor) (s : SynodState Proposer Acceptor Learner V)
     (xl : List (SynodAction Proposer Acceptor Learner V)) :
     SynodState Proposer Acceptor Learner V :=
   xl.foldl (synodStep qs) s
 
-theorem mTr_of_validTrace {Proposer Acceptor Learner V : Type*}
+public theorem mTr_of_validTrace {Proposer Acceptor Learner V : Type*}
     [LinearOrder Proposer] [DecidableEq Acceptor] [DecidableEq Learner] [DecidableEq V]
     (qs : QuorumSystem Acceptor) (s : SynodState Proposer Acceptor Learner V)
     (xl : List (SynodAction Proposer Acceptor Learner V))
@@ -59,13 +59,13 @@ theorem mTr_of_validTrace {Proposer Acceptor Learner V : Type*}
 
 /-! ### Quorum checks on `Fin 3` (`t = 1`) -/
 
-example : ({0, 1} : Finset (Fin 3)) ∈ majorityQuorumsFin3.quorums := by decide
-example : ({1, 2} : Finset (Fin 3)) ∈ majorityQuorumsFin3.quorums := by decide
-example : ({0, 2} : Finset (Fin 3)) ∈ majorityQuorumsFin3.quorums := by decide
-example : ({0} : Finset (Fin 3)) ∉ majorityQuorumsFin3.quorums := by decide
+example : ({0, 1} : Finset (Fin 3)) ∈ majorityQuorumsFin3.prepareQuorums := by decide
+example : ({1, 2} : Finset (Fin 3)) ∈ majorityQuorumsFin3.prepareQuorums := by decide
+example : ({0, 2} : Finset (Fin 3)) ∈ majorityQuorumsFin3.prepareQuorums := by decide
+example : ({0} : Finset (Fin 3)) ∉ majorityQuorumsFin3.prepareQuorums := by decide
 
-example (Q : Finset (Fin 3)) (hQ : Q ∈ majorityQuorumsFin3.quorums) : Q.Nonempty :=
-  majorityQuorumsFin3.quorum_nonempty hQ
+example (Q : Finset (Fin 3)) (hQ : Q ∈ majorityQuorumsFin3.prepareQuorums) : Q.Nonempty :=
+  majorityQuorumsFin3.prepareQuorum_nonempty hQ
 
 /-! ### Trace (a): Clean 1-ballot consensus with crash, drop, and duplicate delivery -/
 
@@ -325,14 +325,18 @@ example {S L M : Type*} [DecidableEq M] (π : AsyncQuorumProtocol (Fin 4) S L M 
 -- Crash-stop counterpart on strict-majority quorums (`Fin 3, t = 1` and `Fin 5, t = 2`):
 example :
     (synodQuorumProtocol (V := Bool) majorityQuorumsFin3).SafeConsensus ∧
-      ∀ Q ∈ majorityQuorumsFin3.quorums,
+      ∀ Q ∈ majorityQuorumsFin3.prepareQuorums,
         (synodQuorumProtocol (V := Bool) majorityQuorumsFin3).CanDecideIn Q :=
-  synodQuorumProtocol_safeSingleQuorum_crashStop majorityQuorumsFin3
+  ⟨(synodQuorumProtocol_safeCohort_crashStop majorityQuorumsFin3).1, fun Q hQ =>
+    (synodQuorumProtocol_safeCohort_crashStop majorityQuorumsFin3).2 Q
+      ⟨⟨Q, hQ, Finset.Subset.rfl⟩, ⟨Q, hQ, Finset.Subset.rfl⟩⟩⟩
 
 example :
     let qs := majorityQuorums (P := Fin 5) (t := 2) (by decide)
     (synodQuorumProtocol (V := ℕ) qs).SafeConsensus ∧
-      ∀ Q ∈ qs.quorums, (synodQuorumProtocol (V := ℕ) qs).CanDecideIn Q :=
-  synodQuorumProtocol_safeSingleQuorum_crashStop _
+      ∀ Q ∈ qs.prepareQuorums, (synodQuorumProtocol (V := ℕ) qs).CanDecideIn Q :=
+  ⟨(synodQuorumProtocol_safeCohort_crashStop _).1, fun Q hQ =>
+    (synodQuorumProtocol_safeCohort_crashStop _).2 Q
+      ⟨⟨Q, hQ, Finset.Subset.rfl⟩, ⟨Q, hQ, Finset.Subset.rfl⟩⟩⟩
 
 end CslibFrontierTests.Distributed.Paxos

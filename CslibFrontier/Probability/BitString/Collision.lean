@@ -43,17 +43,12 @@ theorem map_evalPoints_uniformOfFintype {ι : Type*} [Fintype ι] [DecidableEq �
     (PMF.uniformOfFintype (BitString n → BitString n)).map (fun g i => g (pts i)) =
       PMF.uniformOfFintype (ι → BitString n) := by
   classical
-  let φ : (BitString n → BitString n) →+ (ι → BitString n) :=
-    { toFun := fun g i => g (pts i)
-      map_zero' := rfl
-      map_add' := fun _ _ => rfl }
-  apply PMF.uniformOfFintype_map_addHom φ
-  intro y
-  refine ⟨fun x => if h : ∃ i, pts i = x then y (Classical.choose h) else 0, ?_⟩
-  funext i
+  refine PMF.uniformOfFintype_map_addHom
+    ({ toFun := fun g i => g (pts i), map_zero' := rfl, map_add' := fun _ _ => rfl } :
+      (BitString n → BitString n) →+ (ι → BitString n)) fun y => ?_
+  refine ⟨fun x => if h : ∃ i, pts i = x then y h.choose else 0, funext fun i => ?_⟩
   have hex : ∃ j, pts j = pts i := ⟨i, rfl⟩
-  simp only [φ, AddMonoidHom.coe_mk, ZeroHom.coe_mk, hex, ↓reduceDIte]
-  rw [hpts (Classical.choose_spec hex)]
+  simp [hex, hpts hex.choose_spec]
 /-- **Distinct-point masked uniformity**: when the evaluation points `pts : ι → BitString n` are
   pairwise distinct, XORing `g (pts i)` with any fixed vector `m : ι → BitString n` under a uniform
   random function `g` produces the uniform distribution on `ι → BitString n`, independent of `m`. -/
@@ -72,12 +67,9 @@ theorem toOuterMeasure_addRight_mem_finset_eq (S : Finset (BitString n)) (b : Bi
     (PMF.uniformOfFintype (BitString n)).toOuterMeasure {u | u + b ∈ S} =
       (S.card : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹ := by
   classical
-  have hmap :
-      (PMF.uniformOfFintype (BitString n)).toOuterMeasure {u | u + b ∈ S} =
-        ((PMF.uniformOfFintype (BitString n)).map (Equiv.addRight b)).toOuterMeasure (S : Set _) :=
-    (PMF.toOuterMeasure_map_apply (Equiv.addRight b) (PMF.uniformOfFintype (BitString n))
-      (S : Set (BitString n))).symm
-  rw [hmap, PMF.uniformOfFintype_map_equiv, PMF.toOuterMeasure_uniformOfFintype]
+  rw [show {u : BitString n | u + b ∈ S} = Equiv.addRight b ⁻¹' (S : Set _) from rfl,
+    ← PMF.toOuterMeasure_map_apply, PMF.uniformOfFintype_map_equiv,
+    PMF.toOuterMeasure_uniformOfFintype]
   simp
 /-- List-cache version of `toOuterMeasure_addRight_mem_finset_eq`: for any list
   `ks : List (BitString n)` and offset `b : BitString n`, a uniform block `u` satisfies

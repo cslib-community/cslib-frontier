@@ -118,16 +118,13 @@ theorem eval_fill_of_queried_eq_nil (h : F.queried ρ = []) (x : ι → Bool) :
   unfold queried at h
   cases hf : F.firstTerm ρ with
   | none =>
-    rw [firstTerm, List.find?_eq_none] at hf
     rw [Option.isSome_none, Bool.eq_false_iff, ne_eq, DNF.eval_eq_true_iff, not_exists]
-    intro t ⟨ht, hte⟩
-    exact absurd hte (by simp [Term.eval_fill_of_falsifiedBy (by simpa using hf t ht)])
+    exact fun t ⟨ht, hte⟩ => absurd hte <| by
+      simp [Term.eval_fill_of_falsifiedBy (by simpa using List.find?_eq_none.1 hf t ht)]
   | some t =>
     simp only [hf, Option.map_some, Option.getD_some] at h
-    have ht := List.mem_of_find?_eq_some hf
-    have hnf : ¬ t.FalsifiedBy ρ := by simpa using List.find?_some hf
-    rw [Option.isSome_some, DNF.eval_eq_true_iff]
-    exact ⟨t, ht, Term.eval_fill_of_freeVars_eq_nil hnf h x⟩
+    exact (DNF.eval_eq_true_iff _ _).2 ⟨t, List.mem_of_find?_eq_some hf,
+      Term.eval_fill_of_freeVars_eq_nil (by simpa using List.find?_some hf) h x⟩
 
 variable [Fintype ι] [DecidableEq ι]
 

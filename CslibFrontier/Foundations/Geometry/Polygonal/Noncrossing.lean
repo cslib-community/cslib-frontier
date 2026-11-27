@@ -71,47 +71,39 @@ private theorem portLoop_contact_forward {a b : ℝ} (hab : a ≠ b)
     norm_num only [Nat.cast_zero, Nat.cast_one, Nat.cast_ofNat, zero_add] <;>
     try omega
   · left; linarith
-  · left; nlinarith [hs.2, ht.1]
+  · left; linarith [hs.2, ht.1, hta]
   · exfalso; linarith [hs.2, abs_nonneg (a - b)]
-  · have hs1 : s = 1 := by nlinarith [hs.2, ht.2]
-    exfalso
-    apply hab
-    simpa only [hs1, one_mul] using hx
+  · have hs1 : s = 1 := by linarith [hs.2, ht.2, ht'a]
+    exact absurd (by simpa only [hs1, one_mul] using hx) hab
   · rw [← hy] at hx
-    have hs0 := hfactor s (by nlinarith only [hx])
-    right
-    constructor <;> linarith
-  · have hst := hheight (s - t) (by nlinarith only [hy])
+    have hs0 := hfactor s (by linear_combination hx)
+    exact Or.inr ⟨by linarith, by linarith⟩
+  · have hst := hheight (s - t) (by linear_combination hy)
     left; linarith
-  · have ht0 := hfactor t (by nlinarith only [hx])
-    have hs1 := hheight (s - 1) (by nlinarith only [hy])
+  · have ht0 := hfactor t (by linear_combination hx)
+    have hs1 := hheight (s - 1) (by linear_combination hy)
     left; linarith
   · exact False.elim (hab hx)
-  · have ht0 : t = 0 := by nlinarith [hs.1, ht.1]
-    exfalso
-    apply hab
-    simpa only [ht0, sub_zero, one_mul] using hx
-  · have hst := hfactor (s - t) (by nlinarith only [hx])
+  · have ht0 : t = 0 := by linarith [hs.1, ht.1, hsa]
+    exact absurd (by simpa only [ht0, sub_zero, one_mul] using hx) hab
+  · have hst := hfactor (s - t) (by linear_combination -hx)
     left; linarith
-  · have hs1 := hfactor (s - 1) (by nlinarith only [hx])
-    have ht0 := hheight t (by nlinarith only [hy])
+  · have hs1 := hfactor (s - 1) (by linear_combination -hx)
+    have ht0 := hheight t (by linear_combination hy)
     left; linarith
   · exfalso; linarith [ht.1, abs_nonneg (a - b)]
-  · have hst := hheight (s - t) (by nlinarith only [hy])
+  · have hst := hheight (s - t) (by linear_combination -hy)
     left; linarith
-  · left; nlinarith [hs.2, ht.1]
+  · left; linarith [hs.2, ht.1, hs'a]
   · left; linarith
 
 /-- The five-segment loop is simple whenever its two ports are distinct. -/
 theorem isSimple_portLoop {a b : ℝ} (hab : a ≠ b) : (portLoop a b).IsSimple := by
   intro i j s t hs ht heq
   by_cases hij : i.val ≤ j.val
-  · rcases portLoop_contact_forward hab i j s t hs ht heq hij with h | h
-    · exact Or.inl h
-    · exact Or.inr (Or.inl h)
-  · rcases portLoop_contact_forward hab j i t s ht hs heq.symm (by omega) with h | h
-    · exact Or.inl h.symm
-    · exact Or.inr (Or.inr ⟨h.2, h.1⟩)
+  · exact (portLoop_contact_forward hab i j s t hs ht heq hij).imp id Or.inl
+  · exact (portLoop_contact_forward hab j i t s ht hs heq.symm (by omega)).imp Eq.symm
+      fun h => Or.inr ⟨h.2, h.1⟩
 
 /-- Every point is either on a radial segment below the ports, or on the three-sided
 upper arc. The latter lies in its bounding rectangle and on its two sides or its top. -/
@@ -126,28 +118,24 @@ theorem eval_portLoop_cases (a b : ℝ) (i : Fin 5) {t : ℝ} (ht : t ∈ Set.Ic
   have ht'a := mul_nonneg (sub_nonneg.mpr ht.2) (abs_nonneg (a - b))
   fin_cases i <;> dsimp
   · exact Or.inl ⟨ht, Or.inl rfl⟩
-  · right
-    refine ⟨by nlinarith [ht.1], min_le_left _ _, le_max_left _ _, ?_, Or.inl rfl⟩
-    nlinarith [ht.2]
+  · exact Or.inr ⟨by linarith [ht.1, hta], min_le_left _ _, le_max_left _ _,
+      by linarith [ht.2, ht'a], Or.inl rfl⟩
   · right
     refine ⟨by linarith [abs_nonneg (a - b)], ?_, ?_, le_rfl, Or.inr (Or.inr rfl)⟩
-    · nlinarith [mul_nonneg ht.1 (sub_nonneg.mpr (min_le_right a b)),
+    · linarith [mul_nonneg ht.1 (sub_nonneg.mpr (min_le_right a b)),
         mul_nonneg (sub_nonneg.mpr ht.2) (sub_nonneg.mpr (min_le_left a b))]
-    · nlinarith [mul_nonneg ht.1 (sub_nonneg.mpr (le_max_right a b)),
+    · linarith [mul_nonneg ht.1 (sub_nonneg.mpr (le_max_right a b)),
         mul_nonneg (sub_nonneg.mpr ht.2) (sub_nonneg.mpr (le_max_left a b))]
-  · right
-    refine ⟨by nlinarith [ht.2], min_le_right _ _, le_max_right _ _, ?_, Or.inr (Or.inl rfl)⟩
-    nlinarith [ht.1]
-  · left
-    exact ⟨⟨by linarith [ht.2], by linarith [ht.1]⟩, Or.inr rfl⟩
+  · exact Or.inr ⟨by linarith [ht.2, ht'a], min_le_right _ _, le_max_right _ _,
+      by linarith [ht.1, hta], Or.inr (Or.inl rfl)⟩
+  · exact Or.inl ⟨⟨sub_nonneg.mpr ht.2, sub_le_self 1 ht.1⟩, Or.inr rfl⟩
 
 private theorem radial_contact {a b : ℝ} (hab : a ≠ b) {z : ℂ}
     (ha : z.re = z.im * a) (hb : z.re = z.im * b) : z = 0 := by
-  have hprod : z.im * (a - b) = 0 := by nlinarith only [ha, hb]
-  have him : z.im = 0 := (mul_eq_zero.mp hprod).resolve_right (sub_ne_zero.mpr hab)
-  apply Complex.ext
-  · simpa only [him, zero_mul, Complex.zero_re] using ha
-  · exact him
+  have him : z.im = 0 :=
+    (mul_eq_zero.mp (by linear_combination hb - ha : z.im * (a - b) = 0)).resolve_right
+      (sub_ne_zero.mpr hab)
+  exact Complex.ext (by simpa [him] using ha) him
 
 private theorem radial_upper_ne {a b c : ℝ} (hab : a ≠ b) (hac : a ≠ c) {z : ℂ}
     (hz : z.im ≤ 1) (hr : z.re = z.im * a)
@@ -170,18 +158,11 @@ private theorem upper_nested_ne {a b c d : ℝ} {z : ℂ}
     rw [abs_sub_comm c d, ← max_sub_min_eq_abs c d,
       abs_sub_comm a b, ← max_sub_min_eq_abs a b]
     linarith
-  rcases hz.2.2.2.2 with ha | hb | hy
-  · rcases le_total a b with hab | hab
-    · rw [min_eq_left hab] at hl
-      linarith [hw.2.1]
-    · rw [max_eq_left hab] at hu
-      linarith [hw.2.2.1]
-  · rcases le_total a b with hab | hab
-    · rw [max_eq_right hab] at hu
-      linarith [hw.2.2.1]
-    · rw [min_eq_right hab] at hl
-      linarith [hw.2.1]
-  · linarith [hw.2.2.2.1]
+  rcases le_total a b with hab | hab
+  · simp only [min_eq_left hab, max_eq_right hab] at hl hu
+    rcases hz.2.2.2.2 with ha | hb | hy <;> linarith [hw.2.1, hw.2.2.1, hw.2.2.2.1]
+  · simp only [min_eq_right hab, max_eq_left hab] at hl hu
+    rcases hz.2.2.2.2 with ha | hb | hy <;> linarith [hw.2.1, hw.2.2.1, hw.2.2.2.1]
 
 /-- Disjoint or strictly nested port intervals give loops meeting only at the origin.
 The four port coordinates must be distinct, but neither their spacing nor the loop
@@ -232,14 +213,10 @@ theorem re_eval_portLoop_mem {a b B : ℝ} (ha : a ∈ Set.Icc 0 B) (hb : b ∈ 
 theorem atEnd_of_eval_portLoop_eq_zero {a b : ℝ} (hab : a ≠ b) (i : Fin 5) {t : ℝ}
     (ht : t ∈ Set.Icc 0 1) (heq : (portLoop a b).eval i t = 0) :
     ∃ c, (portLoop a b).AtEnd i t c := by
-  have h := isSimple_portLoop hab i 0 t 0 ht (by simp) (by
-    rw [heq]
-    change (0 : ℂ) = AffineMap.lineMap (0 : ℂ) (⟨a, 1⟩ : ℂ) 0
-    simp)
-  rcases h with h | ⟨h, _⟩ | ⟨h, _⟩
-  · refine ⟨false, ?_⟩
-    simpa only [Route.AtEnd, Route.position, Fin.val_zero, Nat.cast_zero, zero_add,
-      Bool.false_eq_true, ↓reduceIte] using h
+  have h0 : (portLoop a b).eval i t = (portLoop a b).eval 0 0 :=
+    heq.trans (AffineMap.lineMap_apply_zero (0 : ℂ) ⟨a, 1⟩).symm
+  rcases isSimple_portLoop hab i 0 t 0 ht (by simp) h0 with h | ⟨h, _⟩ | ⟨h, _⟩
+  · exact ⟨false, by simpa [Route.AtEnd, Route.position] using h⟩
   · exact ⟨false, h⟩
   · exact ⟨true, h⟩
 

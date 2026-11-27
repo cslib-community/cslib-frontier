@@ -62,7 +62,7 @@ parameter.
   complexity?*][ImpagliazzoPaturiZane2001]
 -/
 
-@[expose] public section
+public section
 
 open Turing.MultiTapeTM ComputableInPolyTime
 
@@ -96,28 +96,22 @@ abbrev encCandidate {V : Type} (encV : V ↪ List Bool) : ℕ × Clause V ↪ Li
 
 variable {V : Type} [DecidableEq V] (encV : V ↪ List Bool)
 
-/-- The framed encoding of clauses. -/
-local notation "encC" => encClause encV
-
-/-- The framed encoding of formulas. -/
-local notation "encF" => encCNFOver encV
-
 /-- The list-level reduction is polynomial-time. -/
 theorem computableInPolyTime_reduce :
-    ComputableInPolyTime (reduce (V := V)) encF encF := by
+    ComputableInPolyTime (reduce (V := V)) (encCNFOver encV) (encCNFOver encV) := by
   unfold reduce subclause
   fun_prop
 
 /-- Removing duplicate clauses with identical literal sets is polynomial-time. -/
 theorem computableInPolyTime_dedupClauses :
-    ComputableInPolyTime (dedupClauses (V := V)) encF encF := by
+    ComputableInPolyTime (dedupClauses (V := V)) (encCNFOver encV) (encCNFOver encV) := by
   unfold dedupClauses subclause
   fun_prop
 
 /-- Computing the flower of a clause size and heart is polynomial-time. -/
 theorem computableInPolyTime_flower :
     ComputableInPolyTime (fun p : CNF V × (ℕ × Clause V) => flower p.1 p.2.1 p.2.2)
-      (encPair encF (encCandidate encV)) encF := by
+      (encPair (encCNFOver encV) (encCandidate encV)) (encCNFOver encV) := by
   unfold flower subclause
   fun_prop
 
@@ -128,16 +122,16 @@ theorem computableInPolyTime_heavyWith {P : Type} {encP : P ↪ List Bool} {θ :
     (hθ : ComputableInPolyTime (fun x : P × ℕ × ℕ => decide (θ x.1 x.2.1 ≤ x.2.2))
       (encUnaryComparison encP) encBool) :
     ComputableInPolyTime (fun x : P × (CNF V × (ℕ × Clause V)) => heavy (θ x.1) x.2.1 x.2.2)
-      (encPair encP (encPair encF (encCandidate encV))) encBool := by
+      (encPair encP (encPair (encCNFOver encV) (encCandidate encV))) encBool := by
   have := computableInPolyTime_flower encV
   have h₁ : ComputableInPolyTime (fun x : P × (CNF V × (ℕ × Clause V)) =>
       decide (1 ≤ x.2.2.2.length) && decide (x.2.2.2.length < x.2.2.1))
-      (encPair encP (encPair encF (encPair encUnary encC))) encBool := by
+      (encPair encP (encPair (encCNFOver encV) (encCandidate encV))) encBool := by
     fun_prop
   have h₂ : ComputableInPolyTime (fun x : P × (CNF V × (ℕ × Clause V)) =>
       (x.1, (x.2.2.1 - x.2.2.2.length, (flower x.2.1 x.2.2.1 x.2.2.2).length)))
-      (encPair encP (encPair encF (encPair encUnary encC)))
-      (encPair encP (encPair encUnary encUnary)) := by
+      (encPair encP (encPair (encCNFOver encV) (encCandidate encV)))
+      (encUnaryComparison encP) := by
     fun_prop
   exact bool_and.comp (h₁.prod (hθ.comp h₂))
 
@@ -155,7 +149,7 @@ theorem computableInPolyTime_heavy {θ : ℕ → ℕ}
     (hθ : ComputableInPolyTime (fun p : ℕ × ℕ => decide (θ p.1 ≤ p.2))
       (encPair encUnary encUnary) encBool) :
     ComputableInPolyTime (fun p : CNF V × (ℕ × Clause V) => heavy θ p.1 p.2)
-      (encPair encF (encCandidate encV)) encBool := by
+      (encPair (encCNFOver encV) (encCandidate encV)) encBool := by
   have h := computableInPolyTime_heavyWith encV (P := ℕ) (encP := encUnary) (θ := fun _ => θ)
     (computableInPolyTime_const_threshold hθ)
   simpa only [Function.comp_def] using h.comp ((const (encOut := encUnary) 0).prod id')
@@ -163,8 +157,10 @@ theorem computableInPolyTime_heavy {θ : ℕ → ℕ}
 omit [DecidableEq V] in
 /-- Listing the candidate pairs `(c, H)` of a formula is polynomial-time. -/
 theorem computableInPolyTime_candidates (k : ℕ) :
-    ComputableInPolyTime (candidates (V := V) k) encF (encList (encCandidate encV)) := by
-  have : ComputableInPolyTime (hearts (V := V) k) encC (encList encC) := by
+    ComputableInPolyTime (candidates (V := V) k) (encCNFOver encV)
+      (encList (encCandidate encV)) := by
+  have : ComputableInPolyTime (hearts (V := V) k) (encClause encV)
+      (encList (encClause encV)) := by
     unfold hearts
     refine mapWithInput (const (encOut := encList (encList encUnary)) _) ?_
     fun_prop
@@ -177,31 +173,31 @@ theorem computableInPolyTime_choiceWith {P : Type} {encP : P ↪ List Bool} {θ 
     (hθ : ComputableInPolyTime (fun x : P × ℕ × ℕ => decide (θ x.1 x.2.1 ≤ x.2.2))
       (encUnaryComparison encP) encBool) (k : ℕ) :
     ComputableInPolyTime (fun x : P × CNF V => choice (θ x.1) k x.2)
-      (encPair encP encF) (encCandidate encV) := by
+      (encPair encP (encCNFOver encV)) (encCandidate encV) := by
   have hheavy := computableInPolyTime_heavyWith encV hθ
   have hc : ComputableInPolyTime
       (fun x : P × CNF V => (candidates k x.2).filter (heavy (θ x.1) x.2))
-      (encPair encP encF) (encList (encPair encUnary encC)) :=
+      (encPair encP (encCNFOver encV)) (encList (encCandidate encV)) :=
     filterWithInput ((computableInPolyTime_candidates encV k).comp (snd _ _))
       (hheavy.comp ((fst _ _).fst'.prod ((fst _ _).snd'.prod (snd _ _))))
-  have hr : ComputableInPolyTime (fun x : ℕ × Clause V => rank k x) (encPair encUnary encC)
+  have hr : ComputableInPolyTime (fun x : ℕ × Clause V => rank k x) (encCandidate encV)
       encUnary := by
     unfold rank
     fun_prop
   have hb : ComputableInPolyTime (fun x : P × CNF V =>
       (List.range ((k + 1) * (k + 1) + 1)).flatMap fun r =>
         ((candidates k x.2).filter (heavy (θ x.1) x.2)).filter fun x => rank k x == r)
-      (encPair encP encF) (encList (encPair encUnary encC)) :=
+      (encPair encP (encCNFOver encV)) (encList (encCandidate encV)) :=
     flatMapWithInput (const (encOut := encList encUnary) _)
       (filterWithInput (hc.comp (fst _ _)) ((hr.comp (snd _ _)).beq (fst _ _).snd'))
-  exact optionGetDWithInput ((head? (encPair encUnary encC)
-    (encL := encList (encPair encUnary encC))).comp hb) (const (0, []))
+  exact optionGetDWithInput ((head? (encCandidate encV)
+    (encL := encList (encCandidate encV))).comp hb) (const (0, []))
 
 /-- The computed choice is polynomial-time. -/
 theorem computableInPolyTime_choice {θ : ℕ → ℕ}
     (hθ : ComputableInPolyTime (fun p : ℕ × ℕ => decide (θ p.1 ≤ p.2))
       (encPair encUnary encUnary) encBool) (k : ℕ) :
-    ComputableInPolyTime (choice (V := V) θ k) encF (encCandidate encV) := by
+    ComputableInPolyTime (choice (V := V) θ k) (encCNFOver encV) (encCandidate encV) := by
   have h := computableInPolyTime_choiceWith encV (P := ℕ) (encP := encUnary) (θ := fun _ => θ)
     (computableInPolyTime_const_threshold hθ) k
   simpa only [Function.comp_def] using h.comp ((const (encOut := encUnary) 0).prod id')
@@ -212,7 +208,7 @@ theorem computableInPolyTime_isSparseWith {P : Type} {encP : P ↪ List Bool} {�
     (hθ : ComputableInPolyTime (fun x : P × ℕ × ℕ => decide (θ x.1 x.2.1 ≤ x.2.2))
       (encUnaryComparison encP) encBool) (k : ℕ) :
     ComputableInPolyTime (fun x : P × CNF V => isSparse (θ x.1) k x.2)
-      (encPair encP encF) encBool := by
+      (encPair encP (encCNFOver encV)) encBool := by
   have hheavy := computableInPolyTime_heavyWith encV hθ
   unfold isSparse
   exact bool_not.comp (anyWithInput ((computableInPolyTime_candidates encV k).comp (snd _ _))
@@ -222,7 +218,7 @@ theorem computableInPolyTime_isSparseWith {P : Type} {encP : P ↪ List Bool} {�
 theorem computableInPolyTime_isSparse {θ : ℕ → ℕ}
     (hθ : ComputableInPolyTime (fun p : ℕ × ℕ => decide (θ p.1 ≤ p.2))
       (encPair encUnary encUnary) encBool) (k : ℕ) :
-    ComputableInPolyTime (isSparse (V := V) θ k) encF encBool := by
+    ComputableInPolyTime (isSparse (V := V) θ k) (encCNFOver encV) encBool := by
   have h := computableInPolyTime_isSparseWith encV (P := ℕ) (encP := encUnary) (θ := fun _ => θ)
     (computableInPolyTime_const_threshold hθ) k
   simpa only [Function.comp_def] using h.comp ((const (encOut := encUnary) 0).prod id')
@@ -237,24 +233,26 @@ theorem computableInPolyTime_childAtChoiceWith {P : Type} {encP : P ↪ List Boo
       (encUnaryComparison encP) encBool) (k : ℕ) {f : CNF V → ℕ → Clause V → Bool → CNF V}
     (hf : ComputableInPolyTime
       (fun x : CNF V × ((ℕ × Clause V) × Bool) => f x.1 x.2.1.1 x.2.1.2 x.2.2)
-      (encPair encF (encPair (encCandidate encV) encBool)) encF) :
+      (encPair (encCNFOver encV) (encPair (encCandidate encV) encBool)) (encCNFOver encV)) :
     ComputableInPolyTime
       (fun x : P × (CNF V × Bool) =>
         f x.2.1 (choice (θ x.1) k x.2.1).1 (choice (θ x.1) k x.2.1).2 x.2.2)
-      (encPair encP (encPair encF encBool)) encF := by
+      (encPair encP (encPair (encCNFOver encV) encBool)) (encCNFOver encV) := by
   have hchoice : ComputableInPolyTime
       (fun x : P × (CNF V × Bool) => choice (θ x.1) k x.2.1)
-      (encPair encP (encPair encF encBool)) (encCandidate encV) := by
+      (encPair encP (encPair (encCNFOver encV) encBool)) (encCandidate encV) := by
     simpa only [Function.comp_def] using (computableInPolyTime_choiceWith encV hθ k).comp
-      ((fst encP (encPair encF encBool)).prod (snd encP (encPair encF encBool)).fst')
-  simpa only [Function.comp_def] using hf.comp ((snd encP (encPair encF encBool)).fst'.prod
-    (hchoice.prod (snd encP (encPair encF encBool)).snd'))
+      ((fst encP (encPair (encCNFOver encV) encBool)).prod
+        (snd encP (encPair (encCNFOver encV) encBool)).fst')
+  simpa only [Function.comp_def] using hf.comp
+    ((snd encP (encPair (encCNFOver encV) encBool)).fst'.prod
+      (hchoice.prod (snd encP (encPair (encCNFOver encV) encBool)).snd'))
 
 /-- A child of a branching node, for a supplied choice, is polynomial-time. -/
 private theorem computableInPolyTime_child :
     ComputableInPolyTime
       (fun x : CNF V × ((ℕ × Clause V) × Bool) => child x.1 x.2.1.1 x.2.1.2 x.2.2)
-      (encPair encF (encPair (encCandidate encV) encBool)) encF := by
+      (encPair (encCNFOver encV) (encPair (encCandidate encV) encBool)) (encCNFOver encV) := by
   have := computableInPolyTime_reduce encV
   have := computableInPolyTime_flower encV
   unfold child intro petals
@@ -266,7 +264,7 @@ theorem computableInPolyTime_nextWith {P : Type} {encP : P ↪ List Bool} {θ : 
     (hθ : ComputableInPolyTime (fun x : P × ℕ × ℕ => decide (θ x.1 x.2.1 ≤ x.2.2))
       (encUnaryComparison encP) encBool) (k : ℕ) :
     ComputableInPolyTime (fun x : P × (CNF V × Bool) => next (θ x.1) k x.2.1 x.2.2)
-      (encPair encP (encPair encF encBool)) encF :=
+      (encPair encP (encPair (encCNFOver encV) encBool)) (encCNFOver encV) :=
   computableInPolyTime_childAtChoiceWith encV hθ k (f := child) (computableInPolyTime_child encV)
 
 /-- **The list-level step is polynomial-time.** -/
@@ -274,17 +272,17 @@ theorem computableInPolyTime_next {θ : ℕ → ℕ}
     (hθ : ComputableInPolyTime (fun p : ℕ × ℕ => decide (θ p.1 ≤ p.2))
       (encPair encUnary encUnary) encBool) (k : ℕ) :
     ComputableInPolyTime (fun p : CNF V × Bool => next θ k p.1 p.2)
-      (encPair encF encBool) encF := by
+      (encPair (encCNFOver encV) encBool) (encCNFOver encV) := by
   have h := computableInPolyTime_nextWith encV (P := ℕ) (encP := encUnary) (θ := fun _ => θ)
     (computableInPolyTime_const_threshold hθ) k
   simpa only [Function.comp_def] using h.comp ((const (encOut := encUnary) 0).prod id')
 
 /-- Normalization is polynomial-time. -/
 theorem computableInPolyTime_normalize :
-    ComputableInPolyTime (normalize (V := V)) encF encF := by
+    ComputableInPolyTime (normalize (V := V)) (encCNFOver encV) (encCNFOver encV) := by
   have := computableInPolyTime_reduce encV
   have := computableInPolyTime_dedupClauses encV
-  have hdedup : ComputableInPolyTime (dedup (V := V)) encC encC := by
+  have hdedup : ComputableInPolyTime (dedup (V := V)) (encClause encV) (encClause encV) := by
     unfold dedup
     fun_prop
   unfold normalize
