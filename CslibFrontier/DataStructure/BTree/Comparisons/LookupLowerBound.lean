@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Jesse Alama. All rights reserved.
+Copyright (c) 2026 Jesse Alama, Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Jesse Alama
+Authors: Jesse Alama, Samuel Schlesinger
 -/
 
 module
@@ -14,8 +14,9 @@ import Mathlib.SetTheory.Cardinal.Order
 /-!
 # Comparison lower bound for B-tree lookup
 
-Information-theoretic `⌈log₂(n + 1)⌉` comparison lower bound for lookup on B-trees over an
-infinite key type, in CSLib's `FreeM (LEQuery α)` query-complexity framework. The argument is an
+Information-theoretic `⌈log₂(n + 1)⌉` comparison lower bound for lookup on B-trees with distinct
+values over an infinite key type, in CSLib's `FreeM (LEQuery α)` query-complexity framework; sets
+(`β = Unit`), whose values are not distinct, are not covered (`#3674`). The argument is an
 adaptation of the rank lower bound of
 `CslibFrontier.DataStructure.BTree.Comparisons.LowerBound`: information-theoretic counting over
 `n + 1` oracles that force `n + 1` distinct outcomes. The formulation through oracles with ties
@@ -37,8 +38,8 @@ comparisons, stated in the shape of the rank bound.
    `fun k tree => pure (tree.toList.lookup k)` is correct under every linear-order oracle and asks
    nothing, and no lower bound holds. A lower bound needs equality to be the oracle's business,
    so the oracle must be able to answer both `k ≤ x` and `x ≤ k` for `k ≠ x`. `IsLookup`
-   therefore quantifies over the key oracles `LEQuery.keyOracle key`, which are exactly the total
-   preorders on `α`, ties included.
+   therefore quantifies over the key oracles `LEQuery.keyOracle key`, which have ties: every
+   total preorder on `α` is the comparison of such a key function (its quotient by ties).
 2. **Distinct values.** The `n + 1` distinct answers that force the bound are the `n` stored
    values and absence, so the per-tree bound `lookup_lowerBound_infinite` assumes that the values
    of the tree are distinct, and the `Cslib.Query.LowerBound` forms assume `[Infinite β]`. Sets
@@ -70,10 +71,11 @@ This module covers comparisons in `FreeM (LEQuery α)`, not machine-instruction 
 * `Cslib.DataStructure.BTree.lookup_lowerBound_infinite`: on any tree of size `n` with distinct
   keys and distinct values over an infinite key type, any `IsLookup` program makes at least
   `⌈log₂(n + 1)⌉` comparisons on some query key and comparison oracle.
-* `Cslib.DataStructure.BTree.IsLookup.lowerBound_infinite`: `Cslib.Query.LowerBound` of
-  `⌈log₂(n + 1)⌉` over `BTree α β × α` with size `p.1.size`.
-* `Cslib.DataStructure.BTree.IsLookup.lowerBound_wfInput_infinite`: `Cslib.Query.LowerBound` of
-  `⌈log₂(n + 1)⌉` over well-formed inputs `WFInput α β t` (`2 ≤ t`) with size `p.val.1.size`.
+* `Cslib.DataStructure.BTree.IsLookup.lowerBound_infinite`: for `[Infinite α] [Infinite β]`,
+  `Cslib.Query.LowerBound` of `⌈log₂(n + 1)⌉` over `BTree α β × α` with size `p.1.size`.
+* `Cslib.DataStructure.BTree.IsLookup.lowerBound_wfInput_infinite`: for
+  `[Infinite α] [Infinite β]`, `Cslib.Query.LowerBound` of `⌈log₂(n + 1)⌉` over well-formed inputs
+  `WFInput α β t` (`2 ≤ t`) with size `p.val.1.size`.
 -/
 
 public section
@@ -92,11 +94,12 @@ function `key : α → W` into a linear order under which the keys of `tree.toLi
 increasing, `prog k tree` evaluates to the lookup of `key k` in the entries of `tree` with keys
 mapped by `key`: the value of the entry whose key `key` identifies with `k`, or `none`.
 
-The key oracles are exactly the total preorders on `α`, ties included. Quantifying over linear
-orders instead, as `IsRank` does, would leave equality outside the oracle: for `α = ℕ` the
-program `fun k tree => pure (tree.toList.lookup k)` would be correct and ask nothing. With ties
-the oracle can answer both `k ≤ x` and `x ≤ k` for `k ≠ x`, so whether the query key is present
-is decided by comparisons, and the lower bound `lookup_lowerBound_infinite` holds. That bound also
+The key oracles have ties: every total preorder on `α` is the comparison of such a key function
+(its quotient by ties). Quantifying over linear orders instead, as `IsRank` does, would leave
+equality outside the oracle: for `α = ℕ` the program `fun k tree => pure (tree.toList.lookup k)`
+would be correct and ask nothing. With ties the oracle can answer both `k ≤ x` and `x ≤ k` for
+`k ≠ x`, so whether the query key is present is decided by comparisons, and the lower bound
+`lookup_lowerBound_infinite` holds. That bound also
 needs distinct values, since its `n + 1` distinct answers are the `n` stored values and absence;
 sets (`β = Unit`) are not covered, and the bound for them, which needs a counting argument over
 distinct comparison transcripts rather than distinct results, is open under `#3674`. -/

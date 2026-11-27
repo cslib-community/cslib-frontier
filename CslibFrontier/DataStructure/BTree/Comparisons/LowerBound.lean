@@ -43,10 +43,12 @@ increasing keys; the form over arbitrary inputs follows from the well-formed one
 order on `α`.
 
 This module covers comparison-based `rank` in `FreeM (LEQuery α)` (not machine-instruction lower
-bounds). The companion comparison lower bound for `lookup` is in
-`CslibFrontier/DataStructure/BTree/Comparisons/LookupLowerBound.lean`. It needs total preorders
-with ties, because under linear orders alone equality is outside the oracle and a lookup program
-can be correct without asking.
+bounds). The companion comparison lower bound for `lookup`, in
+`CslibFrontier.DataStructure.BTree.Comparisons.LookupLowerBound`, is proved for trees with
+distinct values (its `Cslib.Query.LowerBound` forms assume an infinite value type); sets, whose
+values are not distinct, are not covered and remain open under `#3674`. It needs oracles with
+ties, because under linear orders alone equality is outside the oracle and a lookup program can
+be correct without asking.
 
 ## Main definitions
 

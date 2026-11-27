@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Jesse Alama. All rights reserved.
+Copyright (c) 2026 Jesse Alama, Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Jesse Alama
+Authors: Jesse Alama, Samuel Schlesinger
 -/
 
 module
