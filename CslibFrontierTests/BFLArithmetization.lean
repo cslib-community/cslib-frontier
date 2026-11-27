@@ -6,7 +6,7 @@ Authors: Samuel Schlesinger
 
 module
 
-import CslibFrontier.Computability.Complexity.Classes.MIP.Arithmetization
+import CslibFrontier.Computability.Complexity.Classes.MIP.SuccinctDecoder
 import CslibFrontier.Computability.Complexity.Problems.NEXPBoundedAcceptance
 import Mathlib.Algebra.Field.ZMod
 import Mathlib.Tactic.NormNum.Prime
@@ -254,6 +254,22 @@ private def acceptAct : Universal.Act := ⟨0, [], some 1, none⟩
 private def acceptDesc : Universal.Desc :=
   ⟨0, 0, [(⟨0, none, []⟩, acceptAct), (⟨0, some 0, []⟩, acceptAct), (⟨0, some 1, []⟩, acceptAct)]⟩
 
+-- An external verifier extracts the typed decoder from membership and runs its raw syntax check.
+example {x : Succinct3CNFInstance} (h : x ∈ Succinct3SAT) : x.valid = true := by
+  unfold Succinct3SAT at h
+  obtain ⟨c, hc, _⟩ := h
+  exact x.valid_eq_true_iff.mpr ⟨c, hc⟩
+
+-- A decoder with one clause, two-bit variable addresses and repeated literals.
+-- Output positions alternate between two constant gates in each literal block.
+example :
+    let x : Succinct3CNFInstance :=
+      ⟨0, 2, ([(.const false, []), (.const true, [])], [0, 1, 1, 1, 0, 0, 0, 1, 1])⟩
+    x.valid = true ∧ x.signWires = [1, 0, 1] ∧ x.addressWires 1 = [1, 0] ∧
+      ({x with code := (x.code.1, [0])}).valid = false ∧
+      ({x with code := (x.code.1, [3, 1, 1, 1, 0, 0, 0, 1, 1])}).valid = false := by
+  decide
+
 -- Concrete `NEXPBoundedAcceptance` accepting and rejecting instances routed through
 -- `exists_succinctDecoder_of_mem_NEXP`.
 example :
@@ -264,8 +280,10 @@ example :
       ComputableInPolyTime (fun a =>
         Tableau.Decoder.decoderCode tm (frame (encNEXPBoundedAcceptanceInstance a), n a, T a))
         encNEXPBoundedAcceptanceInstance encCode ∧
-      PolyBounded (fun a => (encNEXPBoundedAcceptanceInstance a).length)
-        (fun a => Tableau.clauseBits k State (T a) + Tableau.labelBits k State (T a)) ∧
+      ComputableInPolyTime (fun a => Tableau.clauseBits k State (T a))
+        encNEXPBoundedAcceptanceInstance encUnary ∧
+      ComputableInPolyTime (fun a => Tableau.labelBits k State (T a))
+        encNEXPBoundedAcceptanceInstance encUnary ∧
       (Tableau.succinctCNF tm (frame (encNEXPBoundedAcceptanceInstance aAcc))
           (n aAcc) (T aAcc)).Satisfiable ∧
       ¬ (Tableau.succinctCNF tm (frame (encNEXPBoundedAcceptanceInstance aRej))
@@ -276,7 +294,7 @@ example :
           (Tableau.colBits (T aAcc) + Tableau.timeBits (T aAcc) +
             (frame (encNEXPBoundedAcceptanceInstance aAcc)).length + 1)) := by
   dsimp only
-  obtain ⟨k, State, hfin, hdecEq, tm, n, T, hcode, hwidths, hmem⟩ :=
+  obtain ⟨k, State, hfin, hdecEq, tm, n, T, hcode, hQ, hL, hmem⟩ :=
     exists_succinctDecoder_of_mem_NEXP NEXPBoundedAcceptance.mem_NEXP
   let aAcc : NEXPBoundedAcceptanceInstance := ⟨acceptDesc, [true], 1⟩
   let aRej : NEXPBoundedAcceptanceInstance := ⟨acceptDesc, [true], 0⟩
@@ -286,9 +304,9 @@ example :
     intro h
     obtain ⟨c, -, hc⟩ := NEXPBoundedAcceptance.mem_iff.mp h
     exact Bool.false_ne_true (congrArg Prod.snd hc)
-  obtain ⟨hsat_acc, cAcc, _, hsize_acc, _⟩ := hmem aAcc
-  obtain ⟨hsat_rej, _⟩ := hmem aRej
-  exact ⟨k, State, hfin, hdecEq, tm, n, T, hcode, hwidths, hsat_acc.mp haAcc,
+  obtain ⟨_, _, hsat_acc, cAcc, _, hsize_acc, _⟩ := hmem aAcc
+  obtain ⟨_, _, hsat_rej, _⟩ := hmem aRej
+  exact ⟨k, State, hfin, hdecEq, tm, n, T, hcode, hQ, hL, hsat_acc.mp haAcc,
     fun h => haRej (hsat_rej.mpr h), ⟨cAcc, hsize_acc⟩⟩
 
 -- Routing `NEXPBoundedAcceptance` through `exists_succinctCNF_of_mem_NEXP`,

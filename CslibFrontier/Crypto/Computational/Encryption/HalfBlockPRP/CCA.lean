@@ -242,15 +242,14 @@ private theorem isQueryBounded_ccaToStrongPRPHandler (n : ℕ) (bit : Bool)
     (ccaToStrongPRPHandler n bit request s).IsQueryBounded 1 := by
   unfold ccaToStrongPRPHandler
   cases hreq : request.1
-  · simp only [Bool.false_eq_true, ↓reduceIte]
-    by_cases hlenEq : ((unframe request.2).length == n &&
+  · by_cases hlenEq : ((unframe request.2).length == n &&
         (dropFrame request.2).length == n) = true
-    · simp only [hlenEq, ↓reduceIte]
+    · simp only [Bool.false_eq_true, hlenEq, ↓reduceIte]
       simpa only [Nat.zero_add] using
-        (ProbOracleComp.IsQueryBounded.sample (BitString.sampleList n)).bind fun r => by
+        (ProbOracleComp.IsQueryBounded.sample (BitString.sampleList n)).bind fun _ => by
           simp only [OracleComp.isCostBounded_map_iff]
           exact ProbOracleComp.IsQueryBounded.query _
-    · simp only [hlenEq, Bool.false_eq_true, ↓reduceIte]
+    · simp only [Bool.false_eq_true, hlenEq, ↓reduceIte]
       exact OracleComp.IsCostBounded.pure _ 1
   · simp only [↓reduceIte]
     split_ifs
@@ -298,33 +297,30 @@ theorem isOraclePPT_ccaToStrongPRPAdversary {adversary : CCAAdversary}
     intro caller request queried _ result hresult
     unfold ccaToStrongPRPHandler at hresult
     cases hreq : request.1
-    · simp only [hreq, Bool.false_eq_true, ↓reduceIte] at hresult
-      by_cases hlenEq : ((unframe request.2).length == caller.1 &&
+    · by_cases hlenEq : ((unframe request.2).length == caller.1 &&
           (dropFrame request.2).length == caller.1) = true
-      · simp only [hlenEq, ↓reduceIte] at hresult
-        obtain ⟨r, hr, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
+      · simp only [hreq, Bool.false_eq_true, hlenEq, ↓reduceIte] at hresult
+        obtain ⟨r, _, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
         obtain ⟨ct, hct, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
         obtain ⟨raw, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hct
-        have htake : (List.take (2 * caller.1) raw).length ≤ 2 * caller.1 :=
-          List.length_take_le _ _
+        have := List.length_take_le (2 * caller.1) raw
         refine ⟨trivial, by lia, ?_⟩
         simp only [encList_cons, List.length_append, length_frame, encBits_apply]
         lia
-      · simp only [hlenEq, Bool.false_eq_true, ↓reduceIte] at hresult
-        cases OracleComp.eq_of_mem_supportWith_pure hresult
+      · simp only [hreq, Bool.false_eq_true, hlenEq, ↓reduceIte] at hresult
+        rw [OracleComp.eq_of_mem_supportWith_pure hresult]
         exact ⟨trivial, by simp, by lia⟩
     · simp only [hreq, ↓reduceIte] at hresult
-      split_ifs at hresult with hmem hlen
-      · cases OracleComp.eq_of_mem_supportWith_pure hresult
+      split_ifs at hresult
+      · rw [OracleComp.eq_of_mem_supportWith_pure hresult]
         exact ⟨trivial, by simp, by lia⟩
       · obtain ⟨block, hblock, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
         obtain ⟨raw, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hblock
-        have htake : (List.take (2 * caller.1) raw).length ≤ 2 * caller.1 :=
-          List.length_take_le _ _
+        have := List.length_take_le (2 * caller.1) raw
         refine ⟨trivial, ?_, by lia⟩
         simp only [encOption_some, encBits_apply, List.length_cons, List.length_drop]
         lia
-      · cases OracleComp.eq_of_mem_supportWith_pure hresult
+      · rw [OracleComp.eq_of_mem_supportWith_pure hresult]
         exact ⟨trivial, by simp, by lia⟩
   unfold ccaToStrongPRPAdversary
   simpa only [bind_pure_comp] using (hrun.map (ComputableInPolyTime.fst _ _)).isOraclePPT
@@ -666,10 +662,7 @@ private theorem coupledHandler_map_coupledCache (n : ℕ) (bit : Bool) (request 
               (r ++ if bit = true then dropFrame request.2 else unframe request.2))
             (fun t ht heq => hmem (List.mem_map.mpr ⟨t, ht, by
               rw [take_ofFn_ofList_append hrLen hmbLen] at heq
-              cases bit
-              · simpa using heq
-              · rw [← (hs t ht).2]
-                simpa using heq⟩))
+              cases bit <;> simpa [(hs t ht).2] using heq⟩))
           simp [hnone] at hlk
         simp only [coupledStep, h1, h2, hmem, hlk, Bool.false_eq_true, ↓reduceIte,
           ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, hW, PermQuery.ofBoolProd,

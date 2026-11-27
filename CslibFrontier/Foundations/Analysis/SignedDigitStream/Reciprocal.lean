@@ -148,14 +148,13 @@ theorem abs_recipBeta_le_one {x : ℕ → ℤ} (hx : IsSignedStream x)
     (hx_mem : streamVal x ∈ Set.Icc (1 / 4 : ℝ) 1) (t : ℕ) :
     |recipBeta x t| ≤ 1 := by
   have hmem := (recipPrefixRat_mem_Icc hx hx_mem t).1
-  have hreal : |(recipBeta x t : ℝ)| ≤ 1 := by
-    unfold recipBeta
-    push_cast
-    have hsq : (3 / 16 : ℝ) ^ 2 ≤ (recipPrefixRat x t : ℝ) ^ 2 :=
-      pow_le_pow_left₀ (by norm_num) hmem 2
-    rw [neg_div, abs_neg, abs_of_pos (one_div_pos.2 (by linarith)), div_le_one (by linarith)]
-    linarith
-  exact_mod_cast hreal
+  suffices |(recipBeta x t : ℝ)| ≤ 1 by exact_mod_cast this
+  unfold recipBeta
+  push_cast
+  have hsq : (3 / 16 : ℝ) ^ 2 ≤ (recipPrefixRat x t : ℝ) ^ 2 :=
+    pow_le_pow_left₀ (by norm_num) hmem 2
+  rw [neg_div, abs_neg, abs_of_pos (one_div_pos.2 (by linarith)), div_le_one (by linarith)]
+  linarith
 
 private theorem abs_recipProdVal_le {x : ℕ → ℤ} (hx : IsSignedStream x)
     (hx_mem : streamVal x ∈ Set.Icc (1 / 4 : ℝ) 1) (t : ℕ) :
@@ -405,15 +404,13 @@ theorem dyadicSwitch_eq_of_norm {m r : ℕ} {w : ℝ} (hr : r ≤ m) (hw0 : 0 �
   have hscale : (2 : ℝ) ^ ((m : ℤ) - (r : ℤ)) * (w / (2 : ℝ) ^ (m + 1)) =
       w / (2 : ℝ) ^ (r + 1) := by
     have hm1 : (m + 1 : ℕ) = (m - r) + (r + 1) := by omega
-    have hsub : ((m : ℤ) - (r : ℤ)) = ((m - r : ℕ) : ℤ) := by omega
-    rw [hsub, zpow_natCast, hm1, pow_add]
+    rw [← Nat.cast_sub hr, zpow_natCast, hm1, pow_add]
     field_simp
   set q := w / (2 : ℝ) ^ (r + 1)
   have hq0 : 0 ≤ q := by positivity
   have hy : shiftClipVal ((m : ℤ) - (r : ℤ)) (w / (2 : ℝ) ^ (m + 1)) = min 1 q := by
     unfold shiftClipVal
-    rw [hscale, max_eq_right]
-    exact le_min (by norm_num) (by linarith)
+    rw [hscale, max_eq_right (le_min (by norm_num) (by linarith))]
   rw [hy]
   have hmin_mem : min 1 q ∈ Set.Icc (0 : ℝ) 1 :=
     ⟨le_min zero_le_one hq0, min_le_left _ _⟩
@@ -429,31 +426,28 @@ theorem dyadicSwitch_eq_of_norm {m r : ℕ} {w : ℝ} (hr : r ≤ m) (hw0 : 0 �
     field_simp; ring
   rw [harg_eq]
   unfold Cslib.polynomialTransition4
-  congr 1
-  by_cases hq1 : 1 ≤ q
-  · rw [min_eq_left hq1, show (2 : ℝ) * 1 - 1 = 1 by norm_num, min_self,
-      min_eq_left (by linarith : (1 : ℝ) ≤ 2 * q - 1)]
-  · rw [min_eq_right (not_le.mp hq1).le]
+  congr 2
+  rcases le_total 1 q with hq1 | hq1
+  · have h2q : 1 ≤ 2 * q - 1 := by linarith
+    rw [min_eq_left hq1, min_eq_left h2q]
+    norm_num
+  · rw [min_eq_right hq1]
 
 theorem sum_dyadicWeight (m : ℕ) (w : ℝ) :
     ∑ r ∈ range (m + 1), dyadicWeight m r w = 1 := by
   rcases Nat.eq_zero_or_pos m with rfl | hm
   · simp [dyadicWeight]
-  · have hlast : dyadicWeight m m w = dyadicSwitch (m - 1) w := by
-      simp [dyadicWeight, hm.ne']
-    have htel (k : ℕ) (hk1 : 1 ≤ k) (hkm : k ≤ m) :
+  · have htel (k : ℕ) (hk1 : 1 ≤ k) (hkm : k ≤ m) :
         ∑ r ∈ range k, dyadicWeight m r w = 1 - dyadicSwitch (k - 1) w := by
-      induction k with
-      | zero => omega
-      | succ k ih =>
-        rcases Nat.eq_zero_or_pos k with rfl | hk_pos
-        · simp [dyadicWeight, hm.ne']
-        · rw [sum_range_succ, ih hk_pos (by omega)]
-          have hwk : dyadicWeight m k w = dyadicSwitch (k - 1) w - dyadicSwitch k w := by
-            simp [dyadicWeight, hm.ne', hk_pos.ne', show k < m by omega]
-          rw [hwk, Nat.add_sub_cancel]
-          ring
-    rw [sum_range_succ, htel m hm le_rfl, hlast]
+      induction k, hk1 using Nat.le_induction with
+      | base => simp [dyadicWeight, hm.ne']
+      | succ k hk1 ih =>
+        rw [sum_range_succ, ih (Nat.le_of_succ_le hkm)]
+        simp only [dyadicWeight, hm.ne', Nat.ne_of_gt hk1, Nat.lt_of_succ_le hkm,
+          Nat.add_sub_cancel, ↓reduceIte]
+        ring
+    rw [sum_range_succ, htel m hm le_rfl]
+    simp only [dyadicWeight, hm.ne', lt_irrefl, ↓reduceIte]
     ring
 
 theorem dyadicWeight_mem_Icc (m r : ℕ) (w : ℝ) :

@@ -219,21 +219,20 @@ theorem forall_holds_isoConstraints_iff (P : SimpleGraph (Fin p)) [DecidableRel 
   rw [forall_holds_isoConstraints_iff_aux]
   constructor
   · rintro ⟨hal1, ham1, hinj, hedge⟩
-    have hone : ∀ a, (Finset.univ.filter fun u => σ (isoVar t a u) = true).card = 1 := fun a => by
-      have := card_true_add_card_false fun u => σ (isoVar t a u)
-      have := hal1 a
-      have := ham1 a
-      omega
-    choose f hf using fun a => Finset.card_eq_one.1 (hone a)
-    have hσ : ∀ a u, σ (isoVar t a u) = decide (f a = u) := fun a u => by
+    choose f hf using fun (a : Fin p) =>
+      (Finset.card_eq_one (s := Finset.univ.filter fun u => σ (isoVar t a u) = true)).1 <| by
+        have := card_true_add_card_false fun u => σ (isoVar t a u)
+        have := hal1 a
+        have := ham1 a
+        omega
+    have hσ (a : Fin p) (u : Fin t) : σ (isoVar t a u) = decide (f a = u) := by
       rw [Bool.eq_iff_iff, decide_eq_true_eq]
       simpa using (Finset.ext_iff.1 (hf a) u).trans (Finset.mem_singleton.trans eq_comm)
     have hinj' : Function.Injective f := fun a b hab => by
-      have hle : (Finset.univ.filter fun a : Fin p => σ (isoVar t a (f b)) = true).card ≤ 1 := by
-        have := card_true_add_card_false fun a : Fin p => σ (isoVar t a (f b))
-        have := hinj (f b)
-        omega
-      exact Finset.card_le_one.1 hle a (by simp [hσ, hab]) b (by simp [hσ])
+      have := card_true_add_card_false fun a : Fin p => σ (isoVar t a (f b))
+      have := hinj (f b)
+      exact (Finset.card_le_one (s := Finset.univ.filter fun a => σ (isoVar t a (f b)) = true)).1
+        (by omega) a (by simp [hσ, hab]) b (by simp [hσ])
     refine ⟨⟨⟨f, fun {a b} hab => ?_⟩, hinj'⟩, hσ⟩
     obtain ⟨v, hv, hσv⟩ := hedge (f a) a b hab (by simp [hσ])
     rw [hσ, decide_eq_true_eq] at hσv
@@ -246,9 +245,7 @@ theorem forall_holds_isoConstraints_iff (P : SimpleGraph (Fin p)) [DecidableRel 
       rw [hS, Finset.card_singleton] at this
       omega
     · have hle : (Finset.univ.filter fun a : Fin p => σ (isoVar t a u) = true).card ≤ 1 :=
-        Finset.card_le_one.2 fun a ha b hb => by
-          simp only [Finset.mem_filter, Finset.mem_univ, true_and, hσ, decide_eq_true_eq] at ha hb
-          exact f.injective (ha.trans hb.symm)
+        Finset.card_le_one.2 fun a ha b hb => f.injective (by simp_all)
       have := card_true_add_card_false fun a : Fin p => σ (isoVar t a u)
       omega
     · rw [hσ, decide_eq_true_eq] at ha
@@ -260,11 +257,10 @@ theorem exists_holds_isoConstraints_iff (P : SimpleGraph (Fin p)) [DecidableRel 
     (T : SimpleGraph (Fin t)) [DecidableRel T.Adj] :
     (∃ σ : ℕ → Bool, ∀ c ∈ isoConstraints P T, c.Holds σ) ↔ P.IsContained T := by
   simp only [forall_holds_isoConstraints_iff]
-  refine ⟨fun ⟨_, f, _⟩ => ⟨f⟩, fun ⟨f⟩ =>
+  exact ⟨fun ⟨_, f, _⟩ => ⟨f⟩, fun ⟨f⟩ =>
     ⟨fun i => decide (∃ a u, isoVar t a u = i ∧ f a = u), f, fun a u =>
-      decide_eq_decide.2 ⟨fun ⟨_, _, h, hfu⟩ => ?_, fun h => ⟨a, u, rfl, h⟩⟩⟩⟩
-  obtain ⟨rfl, rfl⟩ := isoVar_inj h
-  exact hfu
+      decide_eq_decide.2 ⟨fun ⟨_, _, h, hfu⟩ => (isoVar_inj h).1 ▸ (isoVar_inj h).2 ▸ hfu,
+        fun h => ⟨a, u, rfl, h⟩⟩⟩⟩
 
 /-! ### CakePB's variable names -/
 

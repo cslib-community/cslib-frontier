@@ -60,19 +60,15 @@ private theorem realizes_stage1EnterStage2 :
           fs.rebSliceIdx (fs.dirtyBuckets 0) < 3 * numBucketsWhp n_max)
       (fun _ _ => 0) := by
   unfold stage1EnterStage2Prog
-  have hrd := realizes_readDirtyBucketGen
-  have hrs := realizes_readRebSliceIdxGen
-  have hrb := realizes_resetBTreeSliceGen
-  have hwh := realizes_writeHdr
-  have hzh := realizes_resetRebScanHdrs
-  realize
+  realize [realizes_readDirtyBucketGen, realizes_readRebSliceIdxGen,
+    realizes_resetBTreeSliceGen, realizes_writeHdr, realizes_resetRebScanHdrs]
   all_goals (
     rcases d with ⟨cp, base⟩
     dsimp only at *
     obtain ⟨c, U, V, w₀, n_max, fs, henv, rfl, hrep, hdc0, hb0, hr0⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     obtain ⟨hd_st, hd_res, _, _⟩ := readDirtyBucketGenProg_spec henv hdc0 hrep (s := s)
     obtain ⟨hr_st, hr_res, _, _⟩ := readRebSliceIdxGenProg_spec henv hb0 hrep (s := s)
     simp only [hd_st, hd_res, hr_st, hr_res] at *
@@ -172,10 +168,7 @@ private theorem realizes_stage1FinishGen :
             fs.rebSliceIdx (fs.dirtyBuckets 0) < 3 * numBucketsWhp n_max))
       (fun _ _ => 0) := by
   unfold stage1FinishGenProg
-  have hrh := realizes_readHdr
-  have ht3 := realizes_tickToStage3
-  have he2 := realizes_stage1EnterStage2
-  realize
+  realize [realizes_readHdr, realizes_tickToStage3, realizes_stage1EnterStage2]
   all_goals (
     rcases d with ⟨cp, base⟩
     dsimp only at *
@@ -183,10 +176,9 @@ private theorem realizes_stage1FinishGen :
     have hw_eq := henv.2.2.1; subst hw_eq
     have hh := fastMemHdrs hrep
     have h2w := henv.two_le_w
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
-    obtain ⟨hdc_st, hdc_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrDirtyCount)
-      (by dsimp [hdrDirtyCount]; omega) (s := s)
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
+    obtain ⟨hdc_st, hdc_res, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrDirtyCount) (s := s) (by decide)
     rw [hh.dirtyCount] at hdc_res
     simp only [hdc_st, hdc_res] at *
     first
@@ -213,11 +205,10 @@ private theorem stage1FinishGenProg_fastStep {c U V w n_max base : ℕ}
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ (epochTickStage1Finish fs) s s' := by
   have hh := fastMemHdrs hrep
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   set cp := mkWhpCoreParams c U V w n_max
-  obtain ⟨hdc_st, hdc_res, hdc_mc, hdc_vp⟩ := readHdrProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrDirtyCount)
-    (by dsimp [hdrDirtyCount]; omega) (s := s)
+  obtain ⟨hdc_st, hdc_res, hdc_mc, hdc_vp⟩ := readHdrProg_large_spec c U V w n_max
+    (base := base) (hdrOff := hdrDirtyCount) (s := s) (by decide)
   rw [hh.dirtyCount] at hdc_res
   unfold stage1FinishGenProg
   simp only [pure_bind, epochTickStage1Finish]
@@ -264,10 +255,7 @@ private theorem realizes_stage1QueueBucket :
           fs.dirtyCount < qEpochWhp n_max)
       (fun _ _ => 0) := by
   unfold stage1QueueBucketProg
-  have hrb := realizes_readBktFieldGen
-  have hwb := realizes_writeBktFieldGen
-  have hpd := realizes_pushDirtyBucketGen
-  realize
+  realize [realizes_readBktFieldGen, realizes_writeBktFieldGen, realizes_pushDirtyBucketGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -430,14 +418,9 @@ theorem realizes_epochTickStage1Gen :
           fs.rebStage = 1)
       (fun _ _ => 0) := by
   unfold epochTickStage1GenProg
-  have hro := realizes_readOldEp
-  have hra := realizes_readBufAllocs
-  have hrh := realizes_readHdr
-  have hcs := realizes_bufCheckSlotGen
-  have hqb := realizes_stage1QueueBucket
-  have hwh := realizes_writeHdr
-  have hfn := realizes_stage1FinishGen
-  realize
+  realize [realizes_readOldEp, realizes_readBufAllocs, realizes_readHdr,
+    realizes_bufCheckSlotGen, realizes_stage1QueueBucket, realizes_writeHdr,
+    realizes_stage1FinishGen]
   all_goals (
     rcases d with ⟨cp, base⟩
     dsimp only at *
@@ -445,7 +428,7 @@ theorem realizes_epochTickStage1Gen :
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
     have h2w := henv.two_le_w
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     obtain ⟨hold_or, hia_lt, hsc_le, hdc_lt_q, hpos_init, oldMap, hv_o, hrel_o⟩ :=
       stage1_unpack_pre hth hcore hpre hs1
     have hr := stageCursorReads_spec henv hcore.curEp_or hold_or hrep (s := s)
@@ -542,7 +525,7 @@ theorem epochTickStage1GenProg_fastStep {c U V w n_max base : ℕ}
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ (epochTickStage1 fs) s s' := by
   have hth := henv.2.2.2.1
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   set cp := mkWhpCoreParams c U V w n_max
   obtain ⟨hold_or, hia_lt, _, hdc_lt_q, hpos_init, oldMap, hv_o, hrel_o⟩ :=
     stage1_unpack_pre hth hc hpre hs1

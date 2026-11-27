@@ -139,13 +139,13 @@ theorem adjSteps_exactAdj_eq {n : ℕ} (N : Network (Fin n)) :
         (Finset.univ.filter fun v => (u, v) ∈ N.symArcs).image (Prod.mk u) := by
     ext ⟨u, v⟩
     simp
-  conv_rhs => rw [hpart, Finset.card_biUnion (fun a _ b _ hab =>
-    Finset.disjoint_left.mpr fun x hx hy => by
-      obtain ⟨_, _, rfl⟩ := Finset.mem_image.mp hx
-      obtain ⟨_, _, heq⟩ := Finset.mem_image.mp hy
-      exact hab (Prod.mk.inj heq).1.symm)]
+  conv_rhs => rw [hpart, Finset.card_biUnion fun a _ b _ hab =>
+    Finset.disjoint_left.mpr fun _ hx hy =>
+      let ⟨_, _, h1⟩ := Finset.mem_image.mp hx
+      let ⟨_, _, h2⟩ := Finset.mem_image.mp hy
+      hab (Prod.mk.inj (h1.trans h2.symm)).1]
   exact Finset.sum_congr rfl fun u _ =>
-    (Finset.card_image_of_injective _ fun _ _ h => (Prod.mk.inj h).2).symm
+    (Finset.card_image_of_injective _ (Prod.mk_right_injective u)).symm
 
 end Adjacency
 
@@ -1310,15 +1310,11 @@ theorem relabelToFrontWith_correct {vs : List V} (hnodup : vs.Nodup)
       (RTFState.init N adj vs)).2.ca.pr.flow.IsActive v := fun v hv =>
     hfinInv.done_inactive v (by simpa [htodo] using (hfinInv.mem_iff v).mpr ⟨hv.1, hv.2.1⟩) hv
   have hz := excess_eq_zero_of_forall_not_isActive _ hnot_act
-  have hmax := hfinInv.caInv.prInv.valid.isMaxFlow_toFlow hz
   obtain ⟨hmin, hval⟩ := hfinInv.caInv.prInv.valid.isMinCut_gapCut hz
-  unfold relabelToFrontWith
-  rw [ite_eq_right hst]
-  simp only [RelabelToFrontOutput.ofState]
-  rw [dite_eq_left hz]
-  exact ⟨hmax, hmin, hval, hrun, hdis.trans_eq ((Nat.zero_add _).trans hmeas0),
-    hns.trans_eq (Nat.sub_zero _), (Nat.le_add_right _ _).trans
-      (hadv.trans_eq ((Nat.zero_add _).trans (advPotential_init adj)))⟩
+  simp only [relabelToFrontWith, ite_eq_right hst, RelabelToFrontOutput.ofState, dite_eq_left hz]
+  exact ⟨hfinInv.caInv.prInv.valid.isMaxFlow_toFlow hz, hmin, hval, hrun,
+    hdis.trans_eq ((Nat.zero_add _).trans hmeas0), hns.trans_eq (Nat.sub_zero _),
+    (Nat.le_add_right _ _).trans (hadv.trans_eq ((Nat.zero_add _).trans (advPotential_init adj)))⟩
 
 private theorem card_sub_two_bound (n : ℕ) (hn : 2 ≤ n) :
     (n - 2) * ((n - 2) * (2 * n - 1) + 1) ≤ 2 * n ^ 3 := by
@@ -1387,11 +1383,9 @@ theorem relabelToFrontWith_totalSteps_le {vs : List V} (hnodup : vs.Nodup)
     relabelToFrontWith_correct hnodup hmem hadj hcaNorm hstNorm hst
   obtain ⟨_, _, hdis, _, hlen⟩ :=
     relabelToFrontWith_bounds hnodup hmem hadj hcaNorm hstNorm hst
-  have hsub : ∑ v ∈ (Finset.univ.erase N.s).erase N.t, (adj v).length ≤ ∑ v, (adj v).length :=
-    Finset.sum_le_sum_of_subset (Finset.subset_univ _)
   have hadv' : (relabelToFrontWith N vs adj caNorm stNorm).advances ≤
       2 * Fintype.card V * ∑ v, (adj v).length :=
-    hadv.trans (Nat.mul_le_mul_left _ hsub)
+    hadv.trans (Nat.mul_le_mul_left _ (Finset.sum_le_sum_of_subset (Finset.subset_univ _)))
   refine ⟨by omega, fun hnd => ?_⟩
   have hsum_le : ∑ v, (adj v).length ≤ Fintype.card V * Fintype.card V :=
     calc ∑ v : V, (adj v).length
@@ -1468,17 +1462,15 @@ theorem relabelToFront_correct {n : ℕ} {N : Network (Fin n)} {adj : Fin n → 
       out.advances ≤ 2 * n * adjSteps adj ∧
       ((∀ v, (adj v).Nodup) →
         out.discharges + out.ops.length + out.advances ≤ 8 * n ^ 3) := by
-  have h1 := relabelToFrontWith_correct (nodup_nonTermFin N) (mem_nonTermFin N)
-    hadj tabulateCA_eq tabulateRTF_eq hst
-  have h2 := relabelToFrontWith_bounds (nodup_nonTermFin N) (mem_nonTermFin N)
-    hadj tabulateCA_eq tabulateRTF_eq hst
+  obtain ⟨hmax, hmin, hval, hrun, -, -, hadv⟩ := relabelToFrontWith_correct (nodup_nonTermFin N)
+    (mem_nonTermFin N) hadj tabulateCA_eq tabulateRTF_eq hst
+  obtain ⟨hrel, hsat, hdis, hns, hlen⟩ := relabelToFrontWith_bounds (nodup_nonTermFin N)
+    (mem_nonTermFin N) hadj tabulateCA_eq tabulateRTF_eq hst
   have ht := (relabelToFrontWith_totalSteps_le (nodup_nonTermFin N) (mem_nonTermFin N)
     hadj tabulateCA_eq tabulateRTF_eq hst).2
-  simp only [Fintype.card_fin] at h1 h2 ht
-  have hsub : ∑ v ∈ (Finset.univ.erase N.s).erase N.t, (adj v).length ≤ adjSteps adj :=
-    Finset.sum_le_sum_of_subset (Finset.subset_univ _)
-  exact ⟨h1.1, h1.2.1, h1.2.2.1, h1.2.2.2.1, h2.1, h2.2.1, h2.2.2.1, h2.2.2.2.1, h2.2.2.2.2,
-    h1.2.2.2.2.2.2.trans (Nat.mul_le_mul_left _ hsub), ht⟩
+  simp only [Fintype.card_fin] at hadv hrel hsat hdis hns hlen ht
+  exact ⟨hmax, hmin, hval, hrun, hrel, hsat, hdis, hns, hlen,
+    hadv.trans (Nat.mul_le_mul_left _ (Finset.sum_le_sum_of_subset (Finset.subset_univ _))), ht⟩
 
 /-- **Correctness and `O(n³)` push/relabel operation, discharge, and current-arc advance count
 bounds for `relabelToFrontDense`.** -/

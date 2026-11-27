@@ -444,8 +444,7 @@ theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
         (Fin qTok → IV) → (H5Query IV nMult lam → Fin nMask → ZMod 2) →
         (Fin qTok → Fin nMult → Fin nMask → ZMod 2) → PMF α) (g : α → β),
       (fullSetup f).map g =
-        fullSetup fun ck r d iv h5 cmult => (f ck r d iv h5 cmult).map g := by
-    intro α β f g
+        fullSetup fun ck r d iv h5 cmult => (f ck r d iv h5 cmult).map g := fun _ _ => by
     simp only [fullSetup, outerSetup, PMF.map_bind]
   have hvec (v : Fin lam → ZMod 2) : v + v = 0 :=
     funext fun k => CharTwo.add_self_eq_zero (v k)
@@ -522,11 +521,8 @@ theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
     · simp only [B, hInj, ↓reduceIte]
       have hphiInj :
           Function.Injective (fun p : Fin qTok × Fin nMult =>
-            badH5Key setup ck iv d r p.1 p.2) := by
-        intro p₁ p₂ hp
-        have hiv : iv p₁.1 = iv p₂.1 := congrArg H5Query.iv hp
-        have hgate : p₁.2 = p₂.2 := congrArg H5Query.gate hp
-        exact Prod.ext (hInj hiv) hgate
+            badH5Key setup ck iv d r p.1 p.2) := fun _ _ hp =>
+        Prod.ext (hInj (congrArg H5Query.iv hp)) (congrArg H5Query.gate hp)
       let φ : Fin qTok × Fin nMult → H5Query IV nMult lam :=
         fun p => badH5Key setup ck iv d r p.1 p.2
       classical
@@ -682,8 +678,7 @@ theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
         g85Game setup true =
           (fullSetup fun ck r d iv h5 cmult => (badRun ck h5 r d iv cmult).map Prod.fst) true := by
       rw [g85Game, hg85_reorder, hfullMap]
-      refine congrArg (fun p : PMF Bool => p true) (hfullCongr _ _ fun ck r d iv h5 cmult => ?_)
-      rw [PMF.map_comp]; rfl
+      exact congrArg (· true) (hfullCongr _ _ fun _ _ _ _ _ _ => PMF.map_comp _ _ _)
     have hsum_bad :
         badFullProb + ivFullProb =
           (fullSetup fun ck r d iv h5 cmult => (badRun ck h5 r d iv cmult).map Prod.snd) true +
@@ -691,14 +686,12 @@ theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
       simp only [badFullProb, ivFullProb, hg85_reorder]
       congr 1
       · rw [hfullMap]
-        refine congrArg (fun p : PMF Bool => p true) (hfullCongr _ _ fun _ _ _ _ _ _ => ?_)
-        rw [PMF.map_comp]; rfl
+        exact congrArg (· true) (hfullCongr _ _ fun _ _ _ _ _ _ => PMF.map_comp _ _ _)
       · simp only [fullSetup, outerSetup, PMF.map_bind]
-        refine congrArg (fun p : PMF Bool => p true) ?_
-        refine Probability.PMF.bind_congr_on_support _ _ _ fun ck _ =>
-          Probability.PMF.bind_congr_on_support _ _ _ fun r _ =>
-            Probability.PMF.bind_congr_on_support _ _ _ fun d _ =>
-              Probability.PMF.bind_congr_on_support _ _ _ fun iv _ => ?_
+        refine congrArg (· true) (Probability.PMF.bind_congr_on_support _ _ _ fun _ _ =>
+          Probability.PMF.bind_congr_on_support _ _ _ fun _ _ =>
+            Probability.PMF.bind_congr_on_support _ _ _ fun _ _ =>
+              Probability.PMF.bind_congr_on_support _ _ _ fun _ _ => ?_)
         simp [PMF.map, Function.comp_def, PMF.bind_const]
     rw [hg8_eq, hg85_fst, hsum_bad]
     simp only [fullSetup, outerSetup, PMF.bind_apply]
@@ -804,11 +797,10 @@ theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
           (fullSetup fun ck r d iv h5 cmult =>
             (logRun ck h5 r d iv cmult).bind fun res =>
               PMF.pure (res.2.any (isBadH5Query setup ck iv d r))) true := by
-      simp only [badFullProb, hg85_reorder]
-      rw [hfullMap]
-      refine congrArg (fun p : PMF Bool => p true) (hfullCongr _ _ fun ck r d iv h5 cmult => ?_)
-      rw [← hlog_to_bad ck h5 r d iv cmult]
-      simp only [PMF.map, Function.comp_def, PMF.bind_bind, PMF.pure_bind]
+      simp only [badFullProb, hg85_reorder, hfullMap]
+      refine congrArg (· true) (hfullCongr _ _ fun ck r d iv h5 cmult => ?_)
+      simp only [← hlog_to_bad ck h5 r d iv cmult, PMF.map, Function.comp_def, PMF.bind_bind,
+        PMF.pure_bind]
     rw [hbad_eq]
     have hpoint_hit (ck : CommitKey) (r d : Fin qTok → Fin lam → ZMod 2)
         (iv : Fin qTok → IV) (qs : List (H5Query IV nMult lam)) :

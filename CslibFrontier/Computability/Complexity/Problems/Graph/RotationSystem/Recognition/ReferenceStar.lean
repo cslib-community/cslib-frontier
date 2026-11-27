@@ -72,40 +72,27 @@ theorem frozen_iff_exists_subdivisionDart (I : FixedRotationInput)
     let i := (subdivisionEdgeIndex I e).original
     let k := (subdivisionEdgeIndex I e).piece
     have hlookup := subdivide_getElem? I i k
-    have hindex : 3 * i.val + k.val = e.val := (subdivisionEdgeIndex_val I e).symm
-    rw [hindex] at hlookup
-    have hget := Option.some.inj ((List.getElem?_eq_getElem he).symm.trans hlookup)
+    have hev := subdivisionEdgeIndex_val I e
+    rw [← hev] at hlookup
+    rw [Option.some.inj ((List.getElem?_eq_getElem he).symm.trans hlookup)] at hf
     have hk : k.val = 0 ∨ k.val = 1 ∨ k.val = 2 := by have := k.isLt; omega
     rcases hk with hk | hk | hk
-    · refine ⟨(i, false), Fin.ext ?_, ?_⟩
-      · change e.val = 3 * i.val + 0
-        omega
-      · rw [hget] at hf
-        simpa only [Fin.getElem_fin, hk, List.getElem_cons_zero, Segment.frozen,
-          Dart.vertex, Graph.edgeEndpoint, Bool.false_eq_true, ↓reduceIte,
-          List.getD_eq_getElem _ _ i.isLt] using hf
-    · rw [hget] at hf
-      simp only [Fin.getElem_fin, hk, List.getElem_cons_succ, List.getElem_cons_zero,
+    · refine ⟨(i, false), Fin.ext (hev.trans (congrArg (3 * i.val + ·) hk)), ?_⟩
+      simpa only [Fin.getElem_fin, hk, List.getElem_cons_zero, Segment.frozen,
+        Dart.vertex, Graph.edgeEndpoint, Bool.false_eq_true, ↓reduceIte,
+        List.getD_eq_getElem _ _ i.isLt] using hf
+    · simp only [Fin.getElem_fin, hk, List.getElem_cons_succ, List.getElem_cons_zero,
         Segment.frozen, Bool.false_eq_true] at hf
-    · refine ⟨(i, true), Fin.ext ?_, ?_⟩
-      · change e.val = 3 * i.val + 2
-        omega
-      · rw [hget] at hf
-        simpa only [Fin.getElem_fin, hk, List.getElem_cons_succ, List.getElem_cons_zero,
-          Segment.frozen, Dart.vertex, Graph.edgeEndpoint, ↓reduceIte,
-          List.getD_eq_getElem _ _ i.isLt] using hf
+    · refine ⟨(i, true), Fin.ext (hev.trans (congrArg (3 * i.val + ·) hk)), ?_⟩
+      simpa only [Fin.getElem_fin, hk, List.getElem_cons_succ, List.getElem_cons_zero,
+        Segment.frozen, Dart.vertex, Graph.edgeEndpoint, ↓reduceIte,
+        List.getD_eq_getElem _ _ i.isLt] using hf
   · rintro ⟨⟨i, b⟩, rfl, hf⟩
     cases b
-    · have hbound : 3 * i.val < (subdivide I).length := by rw [length_subdivide]; omega
-      have hget := Option.some.inj ((List.getElem?_eq_getElem hbound).symm.trans
-        (by simpa using subdivide_getElem? I i 0))
-      simpa [subdivisionDart, hget, Dart.vertex, Graph.edgeEndpoint,
-        List.getD_eq_getElem _ _ i.isLt] using hf
-    · have hbound : 3 * i.val + 2 < (subdivide I).length := by rw [length_subdivide]; omega
-      have hget := Option.some.inj
-        ((List.getElem?_eq_getElem hbound).symm.trans (subdivide_getElem? I i 2))
-      simpa [subdivisionDart, hget, Dart.vertex, Graph.edgeEndpoint,
-        List.getD_eq_getElem _ _ i.isLt] using hf
+    · rw [Option.some.inj ((List.getElem?_eq_getElem he).symm.trans (subdivide_getElem? I i 0))]
+      simpa [Dart.vertex, Graph.edgeEndpoint, List.getD_eq_getElem _ _ i.isLt] using hf
+    · rw [Option.some.inj ((List.getElem?_eq_getElem he).symm.trans (subdivide_getElem? I i 2))]
+      simpa [Dart.vertex, Graph.edgeEndpoint, List.getD_eq_getElem _ _ i.isLt] using hf
 
 /-- The actual outgoing first/last route vector points from the original center to its leaf. -/
 theorem referenceDrawing_subdivisionDart_germ (I : FixedRotationInput) (d : Dart I.graph) :

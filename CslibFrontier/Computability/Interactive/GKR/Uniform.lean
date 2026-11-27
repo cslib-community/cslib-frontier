@@ -475,11 +475,10 @@ private theorem prod_maskWeight {R : Type*} [CommRing R] {kOut : ℕ} (cl : Wiri
   · rw [ite_eq_left h]
     simp only [matchesVec, List.all_eq_true, List.mem_finRange, true_implies] at h
     exact Finset.prod_eq_one fun j _ => by simp [maskWeight, -List.getD_eq_getElem?_getD, h j]
-  · rw [ite_eq_right h]
-    simp only [matchesVec, Bool.not_eq_true, List.all_eq_false] at h
-    obtain ⟨j, _, hj⟩ := h
-    exact Finset.prod_eq_zero (Finset.mem_univ j) (by
-      simp [maskWeight, -List.getD_eq_getElem?_getD, hj])
+  · obtain ⟨j, _, hj⟩ := List.all_eq_false.mp (Bool.eq_false_iff.mpr h)
+    rw [ite_eq_right h]
+    exact Finset.prod_eq_zero (Finset.mem_univ j)
+      (by simp [maskWeight, -List.getD_eq_getElem?_getD, hj])
 
 /-- Coordinate-`j` factor when `a j = b` in the factored MLE of `cl`. -/
 def bitTerm {R : Type*} [CommRing R] {kOut kIn : ℕ} (cl : WiringClause)
@@ -586,12 +585,9 @@ private theorem sum_list_of_unique {R : Type*} [AddCommMonoid R] {α : Type*}
       simp [hc, sum_list_of_unique f h hfind]
     · simp only [List.find?, hc, Option.some.injEq, ↓reduceIte] at h hfind
       subst hfind
-      have h0 := List.countP_eq_zero.mp (show cs.countP p = 0 by omega)
-      have hsum0 : (List.map (fun c => if p c then f c else 0) cs).sum = 0 :=
-        List.sum_eq_zero fun r hr => by
-          obtain ⟨d, hd, rfl⟩ := List.mem_map.mp hr
-          simp [h0 d hd]
-      rw [List.map_cons, List.sum_cons, ite_eq_left hc, hsum0, add_zero]
+      have h0 := List.countP_eq_zero.mp (Nat.add_right_cancel h)
+      rw [List.map_cons, List.sum_cons, ite_eq_left hc, List.sum_eq_zero, add_zero]
+      simpa using fun d hd => by simp [h0 d hd]
 
 /-- **Product factorization of wiring multilinear extensions** for `LayeredCircuit.ofClauses`:
 when `clauses i` partitions `{0, 1}^{width (i + 1)}`, the multilinear extension of `wiringPred g i`
@@ -714,8 +710,7 @@ def evalClausesMod (p kOut kIn : ℕ) (g : Gate) (clauses : List WiringClause)
 private theorem evalClausesMod_lt {p : ℕ} (hp : 0 < p) (kOut kIn : ℕ) (g : Gate)
     (clauses : List WiringClause) (zs ys ws : List ℕ) :
     evalClausesMod p kOut kIn g clauses zs ys ws < p := by
-  simp only [evalClausesMod, hp.ne', ↓reduceIte]
-  exact Nat.mod_lt _ hp
+  simpa only [evalClausesMod, hp.ne', ↓reduceIte] using Nat.mod_lt _ hp
 
 private theorem natCast_evalClauseNat {p : ℕ} [NeZero p] (kOut kIn : ℕ) (cl : WiringClause)
     (zs ys ws : List ℕ) :
@@ -734,9 +729,7 @@ private theorem natCast_evalClauseNat {p : ℕ} [NeZero p] (kOut kIn : ℕ) (cl 
   rw [← List.prod_toFinset _ List.nodup_range, ← List.prod_toFinset _ List.nodup_range,
     ← List.prod_toFinset _ List.nodup_range]
   simp only [List.toFinset_range, Nat.cast_prod, Finset.prod_range, ZMod.natCast_mod,
-    natCast_constWeightNat, WiringClause.evalFactor, vecOfList]
-  exact congrArg _ (Finset.prod_congr rfl fun j _ => by
-    rw [Nat.cast_add, hbit j false, hbit j true])
+    natCast_constWeightNat, WiringClause.evalFactor, vecOfList, Nat.cast_add, hbit]
 
 private theorem natCast_evalClausesMod {p : ℕ} [NeZero p] (kOut kIn : ℕ) (g : Gate)
     (clauses : List WiringClause) (zs ys ws : List ℕ) :
@@ -1039,9 +1032,8 @@ def powerSumCircuit (P : PowerSumParams) : LayeredCircuit :=
 
 private theorem clausesPartition_singleton_unmasked (kOut : ℕ) (g : Gate)
     (litsL litsR : List WireLit) :
-    ClausesPartition kOut [⟨g, [], litsL, litsR⟩] := by
-  intro a
-  simp [WiringClause.matchesVec, WiringClause.matchOpt]
+    ClausesPartition kOut [⟨g, [], litsL, litsR⟩] :=
+  fun _ => by simp [WiringClause.matchesVec, WiringClause.matchOpt]
 
 private theorem clausesPartition_powerSum (P : PowerSumParams) (i : ℕ) :
     ClausesPartition (P.width (i + 1)) (P.layerClauses i) := by
@@ -1113,62 +1105,53 @@ private theorem listOfFn_eval_snoc {kOut kIn : ℕ} (hk : kIn = kOut + 1) (b : B
 /-- **`powerSumCircuit` is log-space uniform.** -/
 theorem isLogSpaceUniform_powerSumCircuit :
     LayeredCircuit.IsLogSpaceUniform encPowerSumParams powerSumCircuit := by
+  open ComputableInLogSpace in
   have hPFields : ComputableInLogSpace
       (fun P : PowerSumParams => (P.inWidth, P.midWidth, P.sqDepth))
       encPowerSumParams encPowerSumParamsFields :=
-    ComputableInLogSpace.of_eq encPowerSumParams_apply
-  have hInW := ComputableInLogSpace.fst' hPFields
-  have hMidW := ComputableInLogSpace.fst' (ComputableInLogSpace.snd' hPFields)
-  have hSqD := ComputableInLogSpace.snd' (ComputableInLogSpace.snd' hPFields)
+    of_eq encPowerSumParams_apply
+  have hInW := fst' hPFields
+  have hMidW := fst' (snd' hPFields)
+  have hSqD := snd' (snd' hPFields)
   have hDepth : ComputableInLogSpace (fun P => (powerSumCircuit P).depth)
       encPowerSumParams encUnary :=
-    ComputableInLogSpace.unaryAdd
-      (ComputableInLogSpace.unaryAdd (ComputableInLogSpace.const 1) hSqD) hMidW
+    unaryAdd (unaryAdd (const 1) hSqD) hMidW
   have hWidth : ComputableInLogSpace (fun q : PowerSumParams × ℕ => (powerSumCircuit q.1).width q.2)
       (encPair encPowerSumParams encUnary) encUnary := by
     change ComputableInLogSpace (fun q : PowerSumParams × ℕ => q.1.width q.2) _ _
     unfold PowerSumParams.width
-    have hP := ComputableInLogSpace.fst encPowerSumParams encUnary
-    have hi := ComputableInLogSpace.snd encPowerSumParams encUnary
+    have hP := fst encPowerSumParams encUnary
+    have hi := snd encPowerSumParams encUnary
     have hMidW' := hMidW.comp' hP
-    have h1Sq := ComputableInLogSpace.unaryAdd (ComputableInLogSpace.const 1) (hSqD.comp' hP)
-    exact ComputableInLogSpace.ite_decide
-      (ComputableInLogSpace.unaryEq hi (ComputableInLogSpace.const 0)) (hInW.comp' hP)
-      (ComputableInLogSpace.ite_decide (ComputableInLogSpace.unaryLe hi h1Sq) hMidW'
-        (ComputableInLogSpace.unarySub hMidW' (ComputableInLogSpace.unarySub hi h1Sq)))
+    have h1Sq := unaryAdd (const 1) (hSqD.comp' hP)
+    exact ite_decide (unaryEq hi (const 0)) (hInW.comp' hP)
+      (ite_decide (unaryLe hi h1Sq) hMidW' (unarySub hMidW' (unarySub hi h1Sq)))
   have hGqFields : ComputableInLogSpace
       (fun q : GateQuery PowerSumParams => (q.index, q.layer, q.outGate))
       (encGateQuery PowerSumParams encPowerSumParams)
       (encGateQueryFields PowerSumParams encPowerSumParams) :=
-    ComputableInLogSpace.of_eq (encGateQuery_apply PowerSumParams encPowerSumParams)
-  have hqP := ComputableInLogSpace.fst' hGqFields
-  have hqI := ComputableInLogSpace.fst' (ComputableInLogSpace.snd' hGqFields)
-  have hqA := ComputableInLogSpace.snd' (ComputableInLogSpace.snd' hGqFields)
+    of_eq (encGateQuery_apply PowerSumParams encPowerSumParams)
+  have hqP := fst' hGqFields
+  have hqI := fst' (snd' hGqFields)
+  have hqA := snd' (snd' hGqFields)
   let gateAt : GateQuery PowerSumParams → Gate := fun q =>
     if q.layer = 0 then .add else if q.layer ≤ q.index.sqDepth then .mul else .add
   let sideAt (b : Bool) : GateQuery PowerSumParams → List Bool := fun q =>
     if q.layer = 0 then padOrTakeBits q.index.inWidth q.outGate
     else if q.layer ≤ q.index.sqDepth then q.outGate
     else q.outGate ++ [b]
-  have hCond0 := ComputableInLogSpace.unaryEq hqI (ComputableInLogSpace.const 0)
-  have hCondSq := ComputableInLogSpace.unaryLe hqI (hSqD.comp' hqP)
+  have hCond0 := unaryEq hqI (const 0)
+  have hCondSq := unaryLe hqI (hSqD.comp' hqP)
   have hPadTake : ComputableInLogSpace
       (fun q : GateQuery PowerSumParams => padOrTakeBits q.index.inWidth q.outGate)
       (encGateQuery PowerSumParams encPowerSumParams) encBits :=
-    ComputableInLogSpace.bitsTake'
-      (ComputableInLogSpace.bitsAppend hqA
-        (ComputableInLogSpace.bitsReplicate (hInW.comp' hqP) (ComputableInLogSpace.const false)))
-      (hInW.comp' hqP)
+    bitsTake' (bitsAppend hqA (bitsReplicate (hInW.comp' hqP) (const false))) (hInW.comp' hqP)
   have hGateAt : ComputableInLogSpace gateAt
       (encGateQuery PowerSumParams encPowerSumParams) encGate :=
-    ComputableInLogSpace.ite_decide hCond0 (ComputableInLogSpace.const Gate.add)
-      (ComputableInLogSpace.ite_decide hCondSq
-        (ComputableInLogSpace.const Gate.mul) (ComputableInLogSpace.const Gate.add))
+    ite_decide hCond0 (const Gate.add) (ite_decide hCondSq (const Gate.mul) (const Gate.add))
   have hSideAt : ∀ b, ComputableInLogSpace (sideAt b)
       (encGateQuery PowerSumParams encPowerSumParams) encBits := fun b =>
-    ComputableInLogSpace.ite_decide hCond0 hPadTake
-      (ComputableInLogSpace.ite_decide hCondSq hqA
-        (ComputableInLogSpace.bitsAppend hqA (ComputableInLogSpace.const [b])))
+    ite_decide hCond0 hPadTake (ite_decide hCondSq hqA (bitsAppend hqA (const [b])))
   have hmUnmasked : ∀ {k : ℕ} (g : Gate) (l1 l2 : List WireLit) (a : Fin k → Bool),
       (⟨g, [], l1, l2⟩ : WiringClause).matchesVec a = true := fun _ _ _ _ => by
     simp [WiringClause.matchesVec, WiringClause.matchOpt]
@@ -1186,13 +1169,11 @@ theorem isLogSpaceUniform_powerSumCircuit :
       cases b <;> simp only [↓reduceIte, List.find?_singleton, hmUnmasked, Option.elim_some] <;>
         exact padOrTakeBits_ofFn hw1 a
     · by_cases hsq : i ≤ P.sqDepth
-      · have hi1 : i ≤ 1 + P.sqDepth := by omega
-        have hi2 : i + 1 ≤ 1 + P.sqDepth := by omega
-        have hwi : P.width i = P.midWidth := by simp [PowerSumParams.width, h0, hi1]
-        have hwi1 : P.width (i + 1) = P.midWidth := by simp [PowerSumParams.width, hi2]
+      · have hwi : P.width i = P.midWidth := by simp [PowerSumParams.width, h0]; omega
+        have hwi1 : P.width (i + 1) = P.midWidth := by simp [PowerSumParams.width]; omega
         cases b <;>
           simp only [h0, hsq, ↓reduceIte, List.find?_singleton, hmUnmasked, Option.elim_some] <;>
-          exact listOfFn_eval_id (by omega) hwi1.symm a
+          exact listOfFn_eval_id (hwi.trans hwi1.symm) hwi1.symm a
       · have hrel := powerSum_width_tree_succ P hi hsq
         cases b <;>
           simp only [h0, hsq, ↓reduceIte, List.find?_singleton, hmUnmasked, Option.elim_some] <;>

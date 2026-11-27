@@ -250,12 +250,10 @@ theorem cbcWordDecrypt_cbcWordEncrypt {encFamily decFamily : List Bool → List 
       length_cbcChainWords, BitString.length_listRows,
       Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)]
   refine ivModeDecrypt_ivModeEncrypt hbodyLen (fun iv hivLen => ?_) hmsg hct
-  set cs := cbcChainWords (encFamily k) n iv ms
-  have hcsLen : cs.length = msg.length / n := by simp [cs, length_cbcChainWords, ms]
-  have hbodyEq : cbcWordBody encFamily n k iv msg = cs.flatten :=
-    cbcWordBody_eq_flatten_cbcChainWords encFamily n k iv msg
-  rw [cbcWordDecBody, hbodyLen iv hivLen, hbodyEq, ← hcsLen,
-    BitString.listRows_flatten cs (hcs iv hivLen),
+  rw [cbcWordDecBody, hbodyLen iv hivLen, cbcWordBody_eq_flatten_cbcChainWords]
+  nth_rw 1 [← BitString.length_listRows (msg.length / n) n msg,
+    ← length_cbcChainWords (g := encFamily k) iv ms]
+  rw [BitString.listRows_flatten _ (hcs iv hivLen),
     foldl_cbcDecStep_cbcChainWords hlen hinv hivLen [] hms, List.nil_append]
   exact BitString.flatten_listRows_of_length
     (Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)).symm
@@ -552,8 +550,7 @@ private theorem isOraclePPTOn_cbcBodyQueries :
 private theorem length_le_of_mem_support_cbcBodyQueries (n : ℕ) (iv msg reply : List Bool)
     (hreply : reply ∈ OracleComp.support (cbcBodyQueries n iv msg)) :
     reply.length ≤ msg.length := by
-  unfold cbcBodyQueries at hreply
-  dsimp only at hreply
+  dsimp only [cbcBodyQueries] at hreply
   obtain ⟨⟨_, _, acc⟩, hstate, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
   have hinv := OracleComp.iterate_invariant
     (invariant := fun i (_, _, a) => a.length ≤ i * n)
@@ -734,12 +731,8 @@ theorem BlockCipher.advantage_cbcEncrypt_le (E : BlockCipher) (adversary : Oracl
   let A' : OracleDistinguisher := fun _ _ => adversary n []
   have hperm := advantage_cbcCpaGame_randomPermutation_le L
     (isCostBounded_blockModeWordAdversary (adversary := A') (n := E.blockLen n) hQ L)
-  have hideal (bit : Bool) :
-      ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary bit) n) =
-        cbcCpaGame (fun π : Equiv.Perm (BitString (E.blockLen n)) => ⇑π) L bit
-          (blockModeWordAdversary A' (E.blockLen n)) :=
-    eval_prpIdealGame_cbcToPrfDistinguisher A' bit hL
-  rw [← hideal false, ← hideal true] at hperm
+  rw [← eval_prpIdealGame_cbcToPrfDistinguisher A' false hL,
+    ← eval_prpIdealGame_cbcToPrfDistinguisher A' true hL] at hperm
   have htri₁ := NNReal.coe_le_coe.mpr (Game.advantage_triangle
     (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary false) n))
     (ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary false) n))
@@ -749,6 +742,7 @@ theorem BlockCipher.advantage_cbcEncrypt_le (E : BlockCipher) (adversary : Oracl
     (ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary false) n))
     (ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary true) n))
     (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary true) n))
+  dsimp only [prpIdealGame, BlockCipher.cbcToPrpDistinguisher, id_eq, A'] at hperm htri₁ htri₂ ⊢
   linarith
 
 /-! ### Asymptotic CPA security (Theorem 5.4) -/

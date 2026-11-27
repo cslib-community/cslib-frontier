@@ -748,11 +748,10 @@ theorem IsLayeredFamily.compat (hM : IsMatching G M) {l : List (L × R)}
     · rintro (hu | hu)
       · obtain ⟨v', hv'⟩ := mem_matchedLeft.mp hu
         rcases hp.mem_left (u, v') (List.mem_toFinset.mp hv') with hur | ⟨e', he', hM'⟩
-        · have hr := isLayer_zero.mp hp.isLayer
-          rw [← hur] at hr
-          exact absurd (mem_matchedLeft.mpr ⟨v, huv⟩) hr
-        · have : e'.2 = v := hM.2.1 _ _ _ hM' huv
-          exact .inl (mem_matchedRight.mpr ⟨e'.1, List.mem_toFinset.mpr (this ▸ he')⟩)
+        · exact absurd (mem_matchedLeft.mpr ⟨v, huv⟩)
+            ((show u = r from hur) ▸ isLayer_zero.mp hp.isLayer)
+        · exact .inl (mem_matchedRight.mpr ⟨e'.1,
+            List.mem_toFinset.mpr (hM.2.1 _ _ _ hM' huv ▸ he')⟩)
       · exact .inr ((ih u v huv).mp hu)
     · rintro (hv | hv)
       · exact .inl ((hp.isAugmentingPath hM).compat hM u v huv hv)
@@ -764,27 +763,22 @@ theorem IsLayeredFamily.isMatching (hM : IsMatching G M) {l : List (L × R)}
   | nil => exact ⟨by simp, by simp, by simp⟩
   | @cons r p l hl hr hp ih =>
     have hP := (hp.isAugmentingPath hM).isMatching_toFinset
-    have hc := hl.compat hM
-    have hU := hp.notMem
     rw [List.toFinset_append]
-    refine ⟨fun e he => ?_, fun u v₁ v₂ h₁ h₂ => ?_, fun u₁ u₂ v h₁ h₂ => ?_⟩
-    · rcases Finset.mem_union.mp he with he | he
-      · exact hP.1 e he
-      · exact ih.1 e he
+    refine ⟨fun e he => (Finset.mem_union.mp he).elim (hP.1 e) (ih.1 e),
+      fun u v₁ v₂ h₁ h₂ => ?_, fun u₁ u₂ v h₁ h₂ => ?_⟩
     · -- a left vertex of `p` is not a left vertex of `l`
       have key : ∀ v v', (u, v) ∈ p.toFinset → (u, v') ∈ l.toFinset → False := by
         intro v v' hp' hl'
         rcases hp.mem_left (u, v) (List.mem_toFinset.mp hp') with hur | ⟨e', he', hM'⟩
         · exact hr (List.mem_map.mpr ⟨(u, v'), List.mem_toFinset.mp hl', hur⟩)
-        · have := (hc u e'.2 hM').mp (mem_matchedLeft.mpr ⟨v', hl'⟩)
-          exact hU e' he' this
+        · exact hp.notMem e' he' ((hl.compat hM u e'.2 hM').mp (mem_matchedLeft.mpr ⟨v', hl'⟩))
       rcases Finset.mem_union.mp h₁ with h₁ | h₁ <;> rcases Finset.mem_union.mp h₂ with h₂ | h₂
       · exact hP.2.1 u v₁ v₂ h₁ h₂
       · exact (key _ _ h₁ h₂).elim
       · exact (key _ _ h₂ h₁).elim
       · exact ih.2.1 u v₁ v₂ h₁ h₂
     · have key : ∀ u u', (u, v) ∈ p.toFinset → (u', v) ∈ l.toFinset → False := fun u u' hp' hl' =>
-        hU (u, v) (List.mem_toFinset.mp hp') (mem_matchedRight.mpr ⟨u', hl'⟩)
+        hp.notMem (u, v) (List.mem_toFinset.mp hp') (mem_matchedRight.mpr ⟨u', hl'⟩)
       rcases Finset.mem_union.mp h₁ with h₁ | h₁ <;> rcases Finset.mem_union.mp h₂ with h₂ | h₂
       · exact hP.2.2 u₁ u₂ v h₁ h₂
       · exact (key _ _ h₁ h₂).elim
@@ -956,8 +950,7 @@ theorem exists_free_of_mem (hM : IsMatching G M) (hN : IsMaximalLayeredAugmentat
   have hall : ∀ u ∈ matchedLeft N, u ∈ matchedLeft M := fun u hu => by
     by_contra h
     exact hall ⟨u, hu, h⟩
-  have key : ∀ i u v, IsLayer G M u i → (u, v) ∉ N := by
-    intro i
+  have key (i : ℕ) : ∀ u v, IsLayer G M u i → (u, v) ∉ N := by
     induction i with
     | zero =>
       intro u v hui huv
@@ -970,9 +963,8 @@ theorem exists_free_of_mem (hM : IsMatching G M) (hN : IsMaximalLayeredAugmentat
       obtain ⟨i', hi', hr⟩ := hN.layered u' vM hu'
       rcases hr with ⟨hfree, _⟩ | ⟨w, hw, hwl⟩
       · exact hfree (mem_matchedRight.mpr ⟨u, hvM⟩)
-      · have hwu : w = u := hM.2.2 _ _ _ hw hvM
-        have hi'eq : i' = i := Nat.succ.inj ((hwu ▸ hwl).unique hui)
-        exact ih u' vM (hi'eq ▸ hi') hu'
+      · obtain rfl : w = u := hM.2.2 _ _ _ hw hvM
+        exact ih u' vM (Nat.succ.inj (hwl.unique hui) ▸ hi') hu'
   obtain ⟨i, hi, _⟩ := hN.layered e.1 e.2 he
   exact key i e.1 e.2 hi he
 
@@ -1039,9 +1031,7 @@ theorem IsPhaseRun.add_card_le_and_add_le_two_mul_sqrt (hM : IsMatching G M) {n 
   | done =>
     exact ⟨by simpa using hM'.2 _ hM, fun h => by omega⟩
   | @step M N k n x hk hx hfree hN _ ih =>
-    have htk : t ≤ k := by
-      by_contra hlt
-      exact hfree (ht k (by omega) hx)
+    have htk : t ≤ k := not_lt.mp fun hlt => hfree (ht k hlt hx)
     have hM₁ := hN.isMatching_augment hM
     have hlt := hN.card_lt_card_augment_of_mem_altRight hM hk hx hfree
     have hk₁ : NoShortAug G (augment M N) (t + 1) :=
@@ -1049,15 +1039,13 @@ theorem IsPhaseRun.add_card_le_and_add_le_two_mul_sqrt (hM : IsMatching G M) {n 
     obtain ⟨ih₁, ih₂⟩ := ih hM₁ hk₁
     refine ⟨by omega, fun hts => ?_⟩
     rcases Nat.lt_or_eq_of_le hts with hts | hts
-    · have := ih₂ (by omega)
+    · have := ih₂ hts
       omega
     · -- `t = ⌊√ν⌋`: the deficit of `M` is below `t + 1`.
       have hdef := mul_card_sub_le_of_noShortAug hM hM'.1 ht
       have hsq : M'.card < (t + 1) * (t + 1) := hts ▸ Nat.lt_succ_sqrt M'.card
-      have h2 : M.card ≤ M'.card := hM'.2 _ hM
       have hg : (t + 1) * (M'.card - M.card) < (t + 1) * (t + 1) := by
-        rw [Nat.add_mul, Nat.one_mul]
-        omega
+        rw [Nat.add_mul, Nat.one_mul]; omega
       have := Nat.lt_of_mul_lt_mul_left hg
       omega
 

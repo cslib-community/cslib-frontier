@@ -69,9 +69,8 @@ theorem prob_true_le_pauliBraidingDiagonal {𝒜 : Type*} [Fintype A] [Ring 𝒜
   let pair : (Bool × Bool) ⊕ A → Bool × Bool := Sum.elim id (fun _ => (false, false))
   let pointRead (c : Fin n → Bool) (ans : (Bool × Bool) ⊕ A) : Bool :=
     (cond (lexSwap c dummy) Prod.swap id (pair ans)).1
-  have hread : pointRead 0 = pauliBraidingZeroBit := by
-    funext ans
-    cases ans <;> simp [pointRead, pair, pauliBraidingZeroBit]
+  have hread : pointRead 0 = pauliBraidingZeroBit :=
+    funext fun ans => by cases ans <;> simp [pointRead, pair, pauliBraidingZeroBit]
   have htie : lexSwap a a = false := by simp [lexSwap]
   have hquery (k : Fin 3) : game.query (k, a, dummy) =
       cond roles Prod.swap id (x, point (linearityQuery k a a)) := by
@@ -191,11 +190,8 @@ theorem weighted_prob_true_second_pauliBraidingZero_tie_le {𝒜 : Type*} [Finty
     (fun a _ => if a = 0 then probability else 0) fun a dummy => by
       rcases eq_or_ne a 0 with rfl | ha
       · have h0 := prob_true_second_le_pauliBraidingZero_tie G special decode roles basis S dummy
-        dsimp only [probability] at h0 ⊢
-        simp only [ite_true]
-        linarith only [h0, hnn 0 dummy 1]
-      · simp only [ha, ite_false]
-        linarith only [hnn a dummy 0, hnn a dummy 1, hnn a dummy 2]
+        simp only [ite_true]; linarith only [h0, hnn 0 dummy 1]
+      · simp only [ha, ite_false]; linarith only [hnn a dummy 0, hnn a dummy 1, hnn a dummy 2]
   simp only [Fintype.expect_const, Fintype.expect_ite_eq', NNRat.smul_def, NNRat.cast_inv,
     NNRat.cast_natCast] at h
   simpa only [sq, ← div_div, ← inv_mul_eq_div, mul_inv_rev, mul_assoc] using h
@@ -233,8 +229,7 @@ theorem expect_prob_true_pauliBraidingConsistencyZero_le {𝒜 : Type*} [Fintype
     by_cases h : dummy ≠ 0 ∨ basis = false
     · obtain ⟨hq, hread⟩ :=
         PauliConsistencyQuestion.ofChecked_braiding (Q := Q) basis 0 dummy h
-      unfold consistency linearity
-      dsimp only at hq hread ⊢
+      dsimp only [consistency, linearity] at hq hread ⊢
       rw [hq, hread, lexSwap_zero_left]
       exact le_add_of_nonneg_right (by split_ifs <;> positivity)
     · obtain ⟨rfl, rfl⟩ : dummy = 0 ∧ basis = true := by simpa using h
@@ -291,12 +286,10 @@ private theorem weighted_norm_zero_sub_one_le
     rw [Finset.mul_expect]
     exact (logical.state.norm_expect_sub_sq_le univ univ_nonempty _ _).trans
       (expect_le_expect fun d _ => (M d).norm_observable_sub_one_sq_le logical.state)
-  have h := expect_prob_true_pauliBraidingConsistencyZero_le G special decode roles basis S
-  change (𝔼 d, (M d).prob logical.state true) / (Fintype.card (Fin n → Bool) : ℝ) ≤ _ at h
-  have hscaled := div_le_div_of_nonneg_right hnorm
-    (Nat.cast_nonneg (α := ℝ) (Fintype.card (Fin n → Bool)))
-  rw [mul_div_assoc] at hscaled
-  exact hscaled.trans (by linarith only [h])
+  have h : (𝔼 d, (M d).prob logical.state true) / (Fintype.card (Fin n → Bool) : ℝ) ≤ _ :=
+    expect_prob_true_pauliBraidingConsistencyZero_le G special decode roles basis S
+  refine (div_le_div_of_nonneg_right hnorm (Nat.cast_nonneg _)).trans ?_
+  rw [mul_div_assoc]; linarith only [h]
 
 /-- The full uniform average of squared consistency distances of the basis observables
 is controlled by consistency rejection on the nonzero strings and linearity rejection at
@@ -322,7 +315,7 @@ theorem expect_norm_pauliBraidingBasisObservable_sub_sq_le
   change S.state.norm (bZero - 1) ^ 2 / size ≤ _ at hb
   have htri := S.state.norm_sub_sq_le_through aZero 1 bZero
   rw [← neg_sub bZero 1, S.state.norm_neg] at htri
-  have hscaled := div_le_div_of_nonneg_right htri (show 0 ≤ size by positivity)
+  have hscaled := div_le_div_of_nonneg_right htri (c := size) (by positivity)
   rw [add_div, mul_div_assoc, mul_div_assoc] at hscaled
   have havg := expect_norm_pauliBraidingBasisObservable_sub_sq_le_add_zero G special decode basis S
   change _ ≤ _ + S.state.norm (aZero - bZero) ^ 2 / size at havg

@@ -407,7 +407,7 @@ theorem expectedStepsWithinAdv_running_succ (w : ℕ) (adv : RAdv r) (p : RProgr
         (expectedStepsWithinAdv w (adv.shift 1) p N) := by
   rw [expectedStepsWithinAdv, Finset.sum_range_succ', add_comm]
   simp only [runRandResizable_zero, ProbComp.eval_pure, PMF.toOuterMeasure_pure_apply,
-    show RCfg.running s ∈ RCfg.runningSet r from ⟨s, rfl⟩, ↓reduceIte,
+    RCfg.mem_runningSet_iff, RCfg.running.injEq, exists_eq', ↓reduceIte,
     runRandResizable_succ, ProbComp.eval_bind, PMF.toOuterMeasure_bind_apply]
   rw [← Summable.tsum_finsetSum (fun _ _ => CompleteLattice.summable)]
   simp only [ProbComp.expect, expectedStepsWithinAdv, Finset.mul_sum]
@@ -431,7 +431,7 @@ theorem expectedStepsFromAdv_running (w : ℕ) (adv : RAdv r) (p : RProgram B r)
         (expectedStepsFromAdv w (adv.shift 1) p) := by
   rw [expectedStepsFromAdv, tsum_eq_zero_add' CompleteLattice.summable]
   simp only [runRandResizable_zero, ProbComp.eval_pure, PMF.toOuterMeasure_pure_apply,
-    show RCfg.running s ∈ RCfg.runningSet r from ⟨s, rfl⟩, ↓reduceIte,
+    RCfg.mem_runningSet_iff, RCfg.running.injEq, exists_eq', ↓reduceIte,
     runRandResizable_succ, ProbComp.eval_bind, PMF.toOuterMeasure_bind_apply,
     ProbComp.expect, expectedStepsFromAdv]
   rw [tsum_comm]
@@ -496,19 +496,14 @@ theorem iSup_evalRandDemonic_halted_eq {w L_peak : ℕ} {p : RProgram B r} {out 
     {x : RData r} {μ : PMF (RData r)} {T : ℝ≥0∞}
     (h : ExecRProgramDist w p out x μ T L_peak) (adv : RAdv r) (y₀ : RData r) :
     (⨆ t : ℕ, evalRandDemonic w adv p t ⟨0, x⟩ (.halted (y₀.regs out) y₀)) = μ y₀ := by
-  classical
   let f : RData r → ℝ≥0∞ := fun y => ⨆ t, evalRandDemonic w adv p t ⟨0, x⟩ (.halted (y.regs out) y)
-  have htsum_f : ∑' y, f y ≤ 1 := (tsum_iSup_halted_le w adv p out x).trans
-    (iSup_le fun _ => Cslib.Probability.PMF.toOuterMeasure_le_one _ _)
-  refine le_antisymm ?_ (h.halted_le adv y₀)
-  have hμ : μ y₀ + (∑' y, if y = y₀ then (0 : ℝ≥0∞) else μ y) = 1 :=
-    (tsum_eq_add_tsum_ite (f := μ) y₀).symm.trans μ.tsum_coe
-  have hrest : (∑' y, if y = y₀ then (0 : ℝ≥0∞) else μ y) ≤ ∑' y, if y = y₀ then 0 else f y :=
-    tsum_le_tsum fun y => by split_ifs <;> [exact le_rfl; exact h.halted_le adv y]
-  exact (ENNReal.add_le_add_iff_right
-    (ne_top_of_le_ne_top ENNReal.one_ne_top (le_add_self.trans_eq hμ))).mp
-    ((add_le_add le_rfl hrest).trans ((tsum_eq_add_tsum_ite y₀).symm.trans_le htsum_f |>.trans_eq
-      hμ.symm))
+  have hsub : ∑' y, (f y - μ y) = 0 := by
+    refine nonpos_iff_eq_zero.mp ((ENNReal.add_le_add_iff_left ENNReal.one_ne_top).mp ?_)
+    rw [← μ.tsum_coe, ← tsum_add, μ.tsum_coe, add_zero,
+      tsum_congr fun y => add_tsub_cancel_of_le (h.halted_le adv y)]
+    exact (tsum_iSup_halted_le w adv p out x).trans
+      (iSup_le fun _ => Cslib.Probability.PMF.toOuterMeasure_le_one _ _)
+  exact le_antisymm (tsub_eq_zero_iff_le.mp (tsum_eq_zero_iff.mp hsub y₀)) (h.halted_le adv y₀)
 
 /-- Every `ExecRProgramDist` halts almost surely under every adaptive adversary. -/
 theorem almostSurelyHaltsDemonic {w L_peak : ℕ} {p : RProgram B r} {out : Fin r}

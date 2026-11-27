@@ -7,8 +7,8 @@ Authors: Matthew Doty
 module
 -- upstream: local-only (tests of transfer functions)
 
-import CslibFrontier.Algorithms.LinearAlgebra.LyapunovCertificate
-import CslibFrontier.Foundations.Analysis.ODE.TransferFunction
+public import CslibFrontier.Algorithms.LinearAlgebra.LyapunovCertificate
+public import CslibFrontier.Foundations.Analysis.ODE.TransferFunction
 
 /-! # Tests for transfer functions
 
@@ -20,7 +20,12 @@ A `module` client using the public statements only.
   Hurwitz; but with `B = (0, 1, 1)ᵀ` and `C = (0, 1, -2)` the transfer function is
   `H s = (1 - s) / ((s + 1) (s + 3))` wherever `s ≠ -1, -3`, including at the cancelled
   eigenvalue `s = 1`, so `H` is holomorphic on `re s > -1`.
+
+The systems and their transfer functions are public, so that
+`CslibFrontierTests.LaplaceTransform` reuses them.
 -/
+
+@[expose] public section
 
 set_option linter.privateModule false
 
@@ -109,15 +114,20 @@ theorem transferFunction_hidden {s : ℂ} (h1 : s + 1 ≠ 0) (h3 : s + 3 ≠ 0) 
     field_simp
     ring
 
+theorem ne_zero_of_re {s : ℂ} (hs : -1 < s.re) : s + 1 ≠ 0 ∧ s + 3 ≠ 0 := by
+  constructor <;> intro h <;> have := congrArg Complex.re h <;> simp at this <;> linarith
+
 /-- **Hidden-mode warning.** The transfer function of `hidden` is holomorphic on `re s > -1`, in
 particular on the closed right half-plane, although `hidden.A` is not Hurwitz. -/
-example : DifferentiableOn ℂ (fun s => hidden.transferFunction s 0 0) {s | -1 < s.re} := by
-  have hne : ∀ s ∈ {s : ℂ | -1 < s.re}, s + 1 ≠ 0 ∧ s + 3 ≠ 0 := fun s hs => by
-    constructor <;> intro h <;> have := congrArg Complex.re h <;> simp at this hs <;> linarith
+theorem differentiableOn_transferFunction_hidden :
+    DifferentiableOn ℂ (fun s => hidden.transferFunction s 0 0) {s | -1 < s.re} := by
   refine DifferentiableOn.congr (f := g) (fun s hs => ?_) fun s hs =>
-    transferFunction_hidden (hne s hs).1 (hne s hs).2
+    transferFunction_hidden (ne_zero_of_re hs).1 (ne_zero_of_re hs).2
   have hg : DifferentiableAt ℂ (fun z : ℂ => (1 - z) / ((z + 1) * (z + 3))) s := by
-    apply DifferentiableAt.div <;> first | fun_prop | exact mul_ne_zero (hne s hs).1 (hne s hs).2
+    apply DifferentiableAt.div <;> first | fun_prop |
+      exact mul_ne_zero (ne_zero_of_re hs).1 (ne_zero_of_re hs).2
   exact hg.differentiableWithinAt
 
 end CslibFrontierTests.TransferFunction
+
+end

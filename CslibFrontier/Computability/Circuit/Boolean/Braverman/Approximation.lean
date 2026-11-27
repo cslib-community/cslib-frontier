@@ -98,11 +98,9 @@ private noncomputable abbrev tr (w : Wire n g) : (BitString n → Bool) × (BitS
 /-- The true functions of the pair evaluation are the gate functions of the program. -/
 private theorem fst_tr (w : Wire n g) (x : BitString n) :
     (tr ℓ s ν P w).1 x = P.trace Unbounded.interpretation x w := by
-  let h : Homomorphism (pairInterpretation ℓ s ν)
-      (Unbounded.interpretation.pointwise (BitString n)) :=
-    ⟨Prod.fst, fun _ _ => rfl⟩
-  exact (congrFun (congrFun (P.map_trace h Smolensky.inputPair) w) x).trans
-    (P.trace_pointwise_apply _ _ w x)
+  exact (congrFun (congrFun (P.map_trace (⟨Prod.fst, fun _ _ => rfl⟩ :
+    Homomorphism (pairInterpretation ℓ s ν) (Unbounded.interpretation.pointwise (BitString n)))
+    Smolensky.inputPair) w) x).trans (P.trace_pointwise_apply _ _ w x)
 
 /-- The arguments of gate `k`, as functions of the input. -/
 private noncomputable abbrev args (k : Fin g) :
@@ -158,9 +156,8 @@ private theorem abs_snd_tr_le (h : 2 ≤ ℓ * s) (hfan : ∀ k, (P.lines k).op.
     |(tr ℓ s ν P w).2 x| ≤ 2 ^ (2 * (ℓ + 1) * ((ℓ * s) ^ P.wireDepths w - 1)) := by
   refine P.wire_induction (P := fun w => |(tr ℓ s ν P w).2 x| ≤
     2 ^ (2 * (ℓ + 1) * ((ℓ * s) ^ P.wireDepths w - 1))) (fun i => ?_) (fun k ih => ?_) w
-  · simp only [Program.wireDepths_input, pow_zero, Nat.sub_self, mul_zero]
-    change |bitVal ℝ (x i)| ≤ 1
-    cases x i <;> simp
+  · dsimp only [tr, Program.trace_input, Smolensky.inputPair]
+    cases x i <;> simp [Program.wireDepths_input]
   · rw [Program.wireDepths_gateWire, snd_tr_gate]
     have hargs (a : Fin (P.lines k).op.arity) : |(tr ℓ s ν P ((P.lines k).wires a)).2 x| ≤
         2 ^ (2 * (ℓ + 1) * ((ℓ * s) ^ (P.depths k - 1) - 1)) :=
@@ -183,9 +180,8 @@ private theorem snd_tr_eq {D : ℕ} {x : BitString n} (hx : ∀ k, P.depths k �
     (tr ℓ s ν P w).2 x = bitVal ℝ ((tr ℓ s ν P w).1 x)) (fun i _ => rfl)
     (fun k ih hk => ?_) w hw
   rw [Program.wireDepths_gateWire] at hk
-  rw [tr_gate]
-  simpa only [pairInterpretation, fun a => ih a (by have := P.wireDepths_lines_lt k a; omega)] using
-    gateApprox_bitVal (hx k hk)
+  have hargs (a : Fin (P.lines k).op.arity) := ih a (by have := P.wireDepths_lines_lt k a; omega)
+  simpa only [tr_gate, pairInterpretation, hargs] using gateApprox_bitVal (hx k hk)
 
 end Pairs
 

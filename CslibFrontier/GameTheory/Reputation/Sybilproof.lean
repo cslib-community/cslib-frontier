@@ -199,10 +199,9 @@ theorem contract_weight_of_ne {V' V : Type*} [Fintype V'] [DecidableEq V] (π : 
 theorem contract_id {V : Type*} [Fintype V] [DecidableEq V] (G : TrustGraph V) :
     G.contract id = G := by
   ext u v
-  by_cases huv : u = v
-  · subst huv; simp [contract, G.weight_diag]
-  · rw [contract_weight_of_ne id G huv]
-    simp [Finset.filter_eq']
+  rcases eq_or_ne u v with rfl | huv
+  · simp [contract, G.weight_diag]
+  · simp [contract_weight_of_ne id G huv, Finset.filter_eq']
 
 private theorem sum_filter_comp {X Y Z : Type*} [Fintype X] [Fintype Y] [DecidableEq Y]
     [DecidableEq Z] (p : X → Y) (z₀ : Z) (q : Y → Z) (H : X → ℝ) :
@@ -330,9 +329,8 @@ def honest (w : V) (hw : w ≠ v) : S.Vertex :=
 theorem collapse_honest (w : V) (hw : w ≠ v) : S.collapse (S.honest w hw) = w :=
   S.collapse_honestEmbed ⟨w, hw⟩
 
-theorem honest_notMem_sybils (w : V) (hw : w ≠ v) : S.honest w hw ∉ S.sybils := by
-  rw [S.mem_sybils, S.collapse_honest]
-  exact hw
+theorem honest_notMem_sybils (w : V) (hw : w ≠ v) : S.honest w hw ∉ S.sybils :=
+  fun h => hw (S.collapse_honest w hw ▸ S.mem_sybils.mp h)
 
 theorem fiber_honest {w : V} (hw : w ≠ v) :
     univ.filter (fun x : S.Vertex => S.collapse x = w) = {S.honest w hw} := by
@@ -345,12 +343,10 @@ theorem fiber_honest {w : V} (hw : w ≠ v) :
 
 theorem weight_honest_honest {w₁ w₂ : V} (hw₁ : w₁ ≠ v) (hw₂ : w₂ ≠ v) :
     S.graph.weight (S.honest w₁ hw₁) (S.honest w₂ hw₂) = G.weight w₁ w₂ := by
-  by_cases h12 : w₁ = w₂
-  · subst h12
-    rw [S.graph.weight_diag, G.weight_diag]
+  rcases eq_or_ne w₁ w₂ with rfl | h12
+  · rw [S.graph.weight_diag, G.weight_diag]
   · conv_rhs => rw [← S.contract_eq]
-    rw [TrustGraph.contract_weight_of_ne _ _ h12, S.fiber_honest hw₁, S.fiber_honest hw₂]
-    simp
+    simp [TrustGraph.contract_weight_of_ne _ _ h12, S.fiber_honest hw₁, S.fiber_honest hw₂]
 
 theorem sum_weight_honest_sybils {w : V} (hw : w ≠ v) :
     ∑ u ∈ S.sybils, S.graph.weight (S.honest w hw) u = G.weight w v := by
@@ -521,13 +517,15 @@ theorem not_isKRankSybilproof_of_isSymmetric {K : ℕ} (hK : 1 ≤ K) {F : Globa
               rcases w with i | j
               · rfl
               · have hne : j.1 ≠ m - 1 := fun hv => hw (congrArg Sum.inr (Fin.ext hv))
-                simp [πStep, stepFin, Nat.min_eq_left (by omega : j.1 ≤ m - 1)]
+                have hjm : j.1 ≤ m - 1 := by omega
+                simp [πStep, stepFin, Nat.min_eq_left hjm]
             honestEmbed_collapse := fun x hx => by
               rcases x with i | j
               · rfl
               · simp only [πStep, Sum.map_inr, stepFin, target, ne_eq, Sum.inr.injEq,
                   Fin.ext_iff] at hx
-                simp [πStep, stepFin, Nat.min_eq_left (by omega : j.1 ≤ m - 1)]
+                have hjm : j.1 ≤ m - 1 := by omega
+                simp [πStep, stepFin, Nat.min_eq_left hjm]
             contract_eq := by
               have hcomp : (H (m + 1) (by omega)).contract (stepFin hm_ge1) = H m hm_ge1 := by
                 simp only [H, TrustGraph.contract_contract, stepFin_comp_clampFin]
@@ -536,13 +534,12 @@ theorem not_isKRankSybilproof_of_isSymmetric {K : ℕ} (hK : 1 ≤ K) {F : Globa
               · subst hab; rw [TrustGraph.weight_diag, (G.disjointUnion (H m hm_ge1)).weight_diag]
               · rw [TrustGraph.contract_weight_of_ne _ _ hab]
                 rcases a with a₁ | a₂ <;> rcases b with b₁ | b₂
-                · simp [sum_filter, Fintype.sum_sum_type, πStep, TrustGraph.disjointUnion]
-                · simp [sum_filter, Fintype.sum_sum_type, πStep, TrustGraph.disjointUnion]
-                · simp [sum_filter, Fintype.sum_sum_type, πStep, TrustGraph.disjointUnion]
-                · have hab' : a₂ ≠ b₂ := fun h => hab (by simp [h])
-                  dsimp only [TrustGraph.disjointUnion]
-                  rw [← hcomp, TrustGraph.contract_weight_of_ne (stepFin hm_ge1) _ hab']
-                  simp [sum_filter, Fintype.sum_sum_type, πStep] }
+                all_goals try solve | simp [sum_filter, Fintype.sum_sum_type, πStep,
+                  TrustGraph.disjointUnion]
+                have hab' : a₂ ≠ b₂ := fun h => hab (by simp [h])
+                dsimp only [TrustGraph.disjointUnion]
+                rw [← hcomp, TrustGraph.contract_weight_of_ne (stepFin hm_ge1) _ hab']
+                simp [sum_filter, Fintype.sum_sum_type, πStep] }
         have hcard : Sk.sybils.card ≤ 2 :=
           (card_le_card (t := {Sum.inr ⟨m - 1, by omega⟩, Sum.inr ⟨m, by omega⟩}) fun
             | .inl _, hx => absurd (Sk.mem_sybils.mp hx) (by simp [Sk, πStep, target])
@@ -555,9 +552,9 @@ theorem not_isKRankSybilproof_of_isSymmetric {K : ℕ} (hK : 1 ≤ K) {F : Globa
           (Sum.inr ⟨m, by omega⟩) (by simp [Sk, SybilStrategy.sybils, πStep, target, stepFin])
           (Sum.inl lastIdx) (by simp [target]) hprev
   have hfinal := hind n (by omega) le_rfl
-  have hHn : H n (by omega) = G := by
-    simp [H, (funext fun i => Fin.ext (Nat.min_eq_left (by omega)) :
-      clampFin (n := n) (k := n) (by omega) = id)]
+  have hclamp : clampFin (n := n) (k := n) (by omega) = id :=
+    funext fun i => Fin.ext (Nat.min_eq_left (by omega))
+  have hHn : H n (by omega) = G := by simp [H, hclamp]
   rw [hHn] at hfinal
   have hrelabel : (G.disjointUnion G).relabel (Equiv.sumComm _ _) = G.disjointUnion G := by
     ext (_ | _) (_ | _) <;> rfl
@@ -756,11 +753,9 @@ noncomputable def maxFlowCounterexampleSybil : SybilStrategy maxFlowCounterexamp
 
 private theorem weight_le_cutWeight {V : Type*} [Fintype V] [DecidableEq V] (G : TrustGraph V)
     {X : Finset V} {u v : V} (hu : u ∈ X) (hv : v ∉ X) :
-    G.weight u v ≤ cutWeight G.weight X := by
-  rw [cutWeight]
-  have h1 : G.weight u v ≤ ∑ w ∈ univ \ X, G.weight u w :=
-    single_le_sum (fun w _ => G.weight_nonneg u w) (mem_sdiff.mpr ⟨mem_univ v, hv⟩)
-  exact h1.trans (single_le_sum (fun x _ => sum_nonneg fun w _ => G.weight_nonneg x w) hu)
+    G.weight u v ≤ cutWeight G.weight X :=
+  (single_le_sum (fun w _ => G.weight_nonneg u w) (mem_sdiff.mpr ⟨mem_univ v, hv⟩)).trans
+    (single_le_sum (fun x _ => sum_nonneg fun w _ => G.weight_nonneg x w) hu)
 
 private theorem maxFlowRep_eq_of_cut {V : Type} [Fintype V] [DecidableEq V] (G : TrustGraph V)
     {s t : V} (hst : s ≠ t) {X₀ : Finset V} (hs₀ : s ∈ X₀) (ht₀ : t ∉ X₀) {c : ℝ}
@@ -860,9 +855,8 @@ ChengFriedman2005, §4.2, Theorem 5, p. 131]. -/
   ((1 + pathrankDist G s v)⁻¹).toReal
 
 @[simp]
-theorem pathrankDist_self {V : Type*} (G : TrustGraph V) (s : V) : pathrankDist G s s = 0 := by
-  refine le_antisymm ?_ zero_le
-  exact iInf₂_le [s] ⟨rfl, rfl⟩ |>.trans_eq (walkInvTrustLen_singleton G s)
+theorem pathrankDist_self {V : Type*} (G : TrustGraph V) (s : V) : pathrankDist G s s = 0 :=
+  le_antisymm ((iInf₂_le [s] ⟨rfl, rfl⟩).trans_eq (walkInvTrustLen_singleton G s)) zero_le
 
 @[simp]
 theorem pathrankRep_self {V : Type*} (G : TrustGraph V) (s : V) : pathrankRep G s s = 1 := by
@@ -894,19 +888,16 @@ theorem pathrankRep_le_iff {V W : Type*} (G₁ : TrustGraph V) (G₂ : TrustGrap
 
 private theorem pathrankDist_le_invTrustLen_add {V : Type*} (G : TrustGraph V) (x y z : V) :
     pathrankDist G x z ≤ invTrustLen G x y + pathrankDist G y z := by
-  unfold pathrankDist
-  rw [ENNReal.add_iInf]
+  simp only [pathrankDist, ENNReal.add_iInf]
   refine le_iInf fun q => ?_
   by_cases hq : q.head? = some y ∧ q.getLast? = some z
-  · rw [iInf_pos hq]
-    rcases q with _ | ⟨y', rest⟩
+  · rcases q with _ | ⟨y', rest⟩
     · simp at hq
-    · rcases hq with ⟨hy_eq, hlast⟩
-      cases Option.some.inj hy_eq
-      exact (iInf₂_le (x :: y :: rest) ⟨rfl, by simpa using hlast⟩).trans_eq
+    · rw [iInf_pos hq]
+      cases Option.some.inj hq.1
+      exact (iInf₂_le (x :: y :: rest) ⟨rfl, by simpa using hq.2⟩).trans_eq
         (walkInvTrustLen_cons_cons G x y rest)
-  · rw [iInf_neg hq, add_top]
-    exact le_top
+  · simp [hq]
 
 private theorem invTrustLen_anti {V₁ V₂ : Type*} {G₁ : TrustGraph V₁} {G₂ : TrustGraph V₂}
     {u₁ v₁ : V₁} {u₂ v₂ : V₂} (hle : G₁.weight u₁ v₁ ≤ G₂.weight u₂ v₂) :
@@ -923,24 +914,19 @@ private theorem minEdgeStep_pos {V : Type*} [Fintype V] (G : TrustGraph V) :
 private theorem minEdgeStep_le_invTrustLen {V : Type*} [Fintype V] (G : TrustGraph V) (x y : V) :
     minEdgeStep G ≤ invTrustLen G x y := by
   rw [minEdgeStep, invTrustLen, ENNReal.inv_le_inv]
-  apply ENNReal.ofReal_le_ofReal
-  have h1 : G.weight x y ≤ ∑ y' : V, G.weight x y' :=
-    single_le_sum (fun y' _ => G.weight_nonneg x y') (mem_univ y)
-  have h2 : ∑ y' : V, G.weight x y' ≤ ∑ x' : V, ∑ y' : V, G.weight x' y' :=
-    single_le_sum (fun x' _ => sum_nonneg fun y' _ => G.weight_nonneg x' y') (mem_univ x)
-  linarith
+  refine ENNReal.ofReal_le_ofReal (le_trans ?_ (le_add_of_nonneg_right zero_le_one))
+  exact (single_le_sum (fun y' _ => G.weight_nonneg x y') (mem_univ y)).trans
+    (single_le_sum (fun x' _ => sum_nonneg fun y' _ => G.weight_nonneg x' y') (mem_univ x))
 
 private theorem pathrankDist_le_of_walk {V : Type*} (G : TrustGraph V) {s v : V} {p : List V}
     (hp : p.head? = some s ∧ p.getLast? = some v) :
-    pathrankDist G s v ≤ walkInvTrustLen G p := by
-  rw [pathrankDist]
-  exact iInf₂_le p hp
+    pathrankDist G s v ≤ walkInvTrustLen G p :=
+  iInf₂_le p hp
 
 private theorem le_pathrankDist_iff {V : Type*} (G : TrustGraph V) {s v : V} {d : ℝ≥0∞} :
     d ≤ pathrankDist G s v ↔
-      ∀ p : List V, (p.head? = some s ∧ p.getLast? = some v) → d ≤ walkInvTrustLen G p := by
-  rw [pathrankDist]
-  exact le_iInf₂_iff
+      ∀ p : List V, (p.head? = some s ∧ p.getLast? = some v) → d ≤ walkInvTrustLen G p :=
+  le_iInf₂_iff
 
 private theorem exists_walk_lt_of_pathrankDist_lt {V : Type*} (G : TrustGraph V) {s v : V}
     {b : ℝ≥0∞} (hlt : pathrankDist G s v < b) :
@@ -1034,10 +1020,8 @@ theorem isRankSybilproof_pathrankRep :
   intro V _ _ G s v hsv S u hu w hw hlt
   rw [pathrankRep_lt_iff] at hlt ⊢
   obtain ⟨p, hp_valid, hp⟩ := exists_walk_lt_of_pathrankDist_lt G hlt
-  have hv_not_mem : v ∉ p := by
-    intro hmem
-    have hle := pathrankDist_add_minEdgeStep_le_of_mem G hw.symm p s hp_valid.1 hp_valid.2 hmem
-    exact hp.not_ge (le_self_add.trans hle)
+  have hv_not_mem : v ∉ p := fun hmem => hp.not_ge <| le_self_add.trans <|
+    pathrankDist_add_minEdgeStep_le_of_mem G hw.symm p s hp_valid.1 hp_valid.2 hmem
   have hlift := liftWalk_sybil S p s w hsv.symm hw hp_valid.1 hp_valid.2 hv_not_mem
   have hval : pathrankDist G s v ≤ pathrankDist S.graph (S.honest s hsv.symm) u :=
     (pathrankRep_le_iff S.graph G (S.honest s hsv.symm) u s v).mp
@@ -1052,9 +1036,8 @@ private theorem pathrankDist_le_of_out_congr {V : Type*} {G G' : TrustGraph V}
   | [z], x, hh, hl => by simp [← Option.some.inj hh, ← Option.some.inj hl]
   | z :: y :: rest', x, hh, hl => by
       cases Option.some.inj hh
-      by_cases hzv : z = v
-      · subst hzv
-        simp
+      rcases eq_or_ne z v with rfl | hzv
+      · simp
       · rw [walkInvTrustLen_cons_cons]
         calc pathrankDist G z v
             ≤ invTrustLen G z y + pathrankDist G y v := pathrankDist_le_invTrustLen_add G z y v

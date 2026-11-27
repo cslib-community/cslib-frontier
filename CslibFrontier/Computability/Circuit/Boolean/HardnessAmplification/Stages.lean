@@ -168,13 +168,9 @@ theorem BitSynthesis.lineListDecode {enc : F ≃ BitString w} {G : (Fin m → F)
     exact (hconst.trans hdec).mono Set.Subset.rfl (by rintro _ ⟨u, rfl⟩; rfl) le_rfl
   let φC : Fin (q + 1) → (Fin n → Bool) → F :=
     Fin.lastCases (fun x => ΨA none fun i => φ i x) fun k x => G fun i => pt (e.symm k) i x
-  have hφC : ∀ k j, bitsOf enc (φC k) j ∈ (S ∪ TA) ∪ TB := by
-    intro k j
-    refine Fin.lastCases ?_ (fun k => ?_) k
-    · simp only [φC, Fin.lastCases_last]
-      exact Set.mem_union_left _ (Set.mem_union_right _ ⟨(none, j), rfl⟩)
-    · simp only [φC, Fin.lastCases_castSucc]
-      exact Set.mem_union_right _ (Set.mem_iUnion.2 ⟨e.symm k, j, rfl⟩)
+  have hφC : ∀ k j, bitsOf enc (φC k) j ∈ (S ∪ TA) ∪ TB := fun k j =>
+    Fin.lastCases (Set.mem_union_left _ (Set.mem_union_right _ ⟨(none, j), by simp [φC]⟩))
+      (fun k => Set.mem_union_right _ (Set.mem_iUnion.2 ⟨e.symm k, j, by simp [φC]⟩)) k
   have hC' := Synthesis.bitBlast_synthesis enc enc.symm enc.symm_apply_apply
     ΨC hC φC hφC
   refine (hA'.trans (hB.comp hC')).mono Set.Subset.rfl ?_ ?_
@@ -182,8 +178,7 @@ theorem BitSynthesis.lineListDecode {enc : F ≃ BitString w} {G : (Fin m → F)
     refine Or.inr ⟨((), j), funext fun x => ?_⟩
     simp only [bitsOf, ΨC, φC, Fin.lastCases_last, Fin.lastCases_castSucc, Equiv.symm_apply_apply,
       Code.lineListDecode, pt, ΨA]
-  · unfold lineCost
-    nlinarith
+  · simp only [lineCost]; nlinarith
 
 /-! ### The self-correction stage -/
 
@@ -238,18 +233,14 @@ theorem BitSynthesis.selfCorrect {enc : F ≃ BitString w} {C1 : (Fin m → F) �
     majTree L fun τ => ∑ i, lagrangeWeight ν i * v (finProdFinEquiv (τ, i))
   have hC : Synthesis (fullInterpretation (k := 2)) (inputs (3 ^ L * (d + 1))) (Set.range ΨC)
       (3 ^ L * (2 * (d + 1) + 1) + (2 * 3 ^ L - 2)) := by
+    let fSum : Fin (3 ^ L) → (Fin (3 ^ L * (d + 1)) → F) → F :=
+      fun τ v => ∑ i, lagrangeWeight ν i * v (finProdFinEquiv (τ, i))
     have hsums := Synthesis.family (I := fullInterpretation (k := 2))
-      (s := inputs (3 ^ L * (d + 1)))
-      (fun τ v => ∑ i, lagrangeWeight ν i * v (finProdFinEquiv (τ, i)))
-      (fun _ => 2 * (d + 1) + 1)
-      (fun τ => by
+      (s := inputs (3 ^ L * (d + 1))) fSum (fun _ => 2 * (d + 1) + 1) fun τ => by
         simpa using Synthesis.full_weightedSum (s := inputs (3 ^ L * (d + 1))) (lagrangeWeight ν)
-          (fun i v => v (finProdFinEquiv (τ, i))) (fun i => ⟨_, rfl⟩))
-    have htree := Synthesis.full_majTree (s := inputs (3 ^ L * (d + 1)) ∪
-        Set.range fun τ (v : Fin (3 ^ L * (d + 1)) → F) =>
-          ∑ i, lagrangeWeight ν i * v (finProdFinEquiv (τ, i))) L
-      (fun τ v => ∑ i, lagrangeWeight ν i * v (finProdFinEquiv (τ, i)))
-      (fun τ => Set.mem_union_right _ ⟨τ, rfl⟩)
+          (fun i v => v (finProdFinEquiv (τ, i))) (fun i => ⟨_, rfl⟩)
+    have htree := Synthesis.full_majTree (s := inputs (3 ^ L * (d + 1)) ∪ Set.range fSum) L fSum
+      fun τ => Set.mem_union_right _ ⟨τ, rfl⟩
     exact (hsums.trans htree).mono Set.Subset.rfl (by rintro _ ⟨u, rfl⟩; rfl)
       (by simp only [sum_const, card_univ, Fintype.card_fin, smul_eq_mul, le_refl])
   let φC : Fin (3 ^ L * (d + 1)) → (Fin n → Bool) → F := fun k x =>
@@ -263,7 +254,6 @@ theorem BitSynthesis.selfCorrect {enc : F ≃ BitString w} {C1 : (Fin m → F) �
     refine Or.inr ⟨((), j), funext fun x => ?_⟩
     simp only [bitsOf, ΨC, φC, Equiv.symm_apply_apply, lagrangeDecode, pt, ΨA]
     rfl
-  · unfold selfCorrectCost
-    nlinarith
+  · simp only [selfCorrectCost]; nlinarith
 
 end Cslib.Circuits.Boolean

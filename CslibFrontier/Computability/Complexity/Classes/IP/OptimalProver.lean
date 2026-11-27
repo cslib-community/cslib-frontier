@@ -134,8 +134,7 @@ private theorem outcome_eq_ask_of_after_append_singleton {p : WordQueryComp Unit
   rcases hah : after p h with _ | ⟨b⟩ | ⟨q, next⟩ <;> rw [hah] at hp
   · cases hp
   · cases hp
-  · dsimp only [Option.bind, after] at hp
-    by_cases hm : m = q.2 <;> simp [hm] at hp ⊢
+  · by_cases hm : m = q.2 <;> simp [Option.bind, after, hm] at hp ⊢
 
 /-! ### Acceptance against a prover -/
 
@@ -273,16 +272,14 @@ so a prover makes it accept exactly when it has already accepted. -/
 private theorem acceptFrom_after_of_le (hF : IsBounded F D L) (P : Prover Unit) (s : P.State)
     (r : R) {h : History} (hD : D ≤ h.length) :
     acceptFrom P s (after (F r) h) = if outcome (F r) h = .done true then 1 else 0 := by
-  rw [acceptFrom_after_eq P s (F r) h (fun m hm => hF.message r h m hm)]
-  have hnil : ∀ m, outcome (F r) h ≠ .ask m := fun m hm => by
-    have := hF.rounds r h m hm
-    lia
-  rw [Finset.sum_eq_zero fun m _ => tsum_eq_zero_iff.mpr fun ys => ?_, add_zero]
-  rw [after_append]
-  unfold outcome at hnil
+  unfold outcome
   match hah : after (F r) h with
-  | none | some (.pure _) => simp
-  | some (.liftBind q _) => exact (hnil q.2 (by rw [hah])).elim
+  | none => simp
+  | some (.pure b) =>
+    change acceptFrom P s (some (pure b)) = _
+    cases b <;> simp [acceptFrom_pure]
+  | some (.liftBind q _) =>
+    exact absurd (hF.rounds r h q.2 (by rw [outcome, hah])) (not_lt.mpr hD)
 
 private theorem sum_ite_outcome_eq_accepted (h : History) :
     (∑ r : R, if outcome (F r) h = .done true then (1 : ENNReal) else 0) = accepted F h := by
@@ -437,12 +434,10 @@ theorem outcome_eq_replay (p : WordQueryComp Unit Bool) (h : History) :
     cases h with
     | nil => rfl
     | cons x h =>
-      obtain ⟨m', y⟩ := x
       change outcome _ _ = replayOutcome ((replayAnswer ((), m) >>= fun u => replay (next u)).run _)
       rw [StateT.run_bind]
-      by_cases hm : m' = m <;>
-        simp only [outcome, after, StateT.run, replayAnswer, hm, ↓reduceIte]
-      · exact ih y h
+      by_cases hm : x.1 = m <;> simp only [outcome, after, StateT.run, replayAnswer, hm, ↓reduceIte]
+      · exact ih x.2 h
       · rfl
 
 end Cslib.Complexity.Interaction

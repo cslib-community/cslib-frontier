@@ -90,9 +90,8 @@ theorem le_augmentByBottleneck_of_slackNet (hanti : ∀ u v, 0 < L.cap u v → L
   unfold augmentFun
   split_ifs with huv hvu
   · omega
-  · have hslack : 0 < L.cap v u - g v u := resCap_zero_slackNet (g := g) v u ▸ hp.pos_resCap hvu
-    have hcap : L.cap u v = 0 := hanti v u (by omega)
-    have hle := g.le_cap u v
+  · have hvu_lt := Nat.lt_of_sub_pos (resCap_zero_slackNet (g := g) v u ▸ hp.pos_resCap hvu)
+    have := hanti v u (Nat.zero_le _ |>.trans_lt hvu_lt) ▸ g.le_cap u v
     omega
   · exact le_rfl
 
@@ -107,11 +106,9 @@ theorem exists_saturated_augmentByBottleneck_of_slackNet (hst : L.s ≠ L.t) {g 
   have hres := g.resCap_augment hp'.nodup hp'.head? hp'.getLast? (g.bottleneck p)
     (fun _ he => g.bottleneck_le_resCap he) e.1 e.2
   simp only [Prod.mk.eta, he, ↓reduceIte] at hres
-  have hslack : 0 < L.cap e.1 e.2 - g e.1 e.2 :=
-    resCap_zero_slackNet (g := g) e.1 e.2 ▸ hp.pos_resCap he
-  unfold resCap at hres heq
-  unfold augmentByBottleneck
-  exact ⟨e, by omega, by omega⟩
+  have hslack := Nat.lt_of_sub_pos (resCap_zero_slackNet (g := g) e.1 e.2 ▸ hp.pos_resCap he)
+  dsimp only [resCap, augmentByBottleneck] at hres heq ⊢
+  exact ⟨e, hslack, by omega⟩
 
 /-- Each bottleneck push along unsaturated arcs saturates a new arc and keeps saturated arcs
 saturated. -/
@@ -143,14 +140,12 @@ theorem card_unsatArcs_zero_levelNet_le (f : N.Flow) (d : V → ℕ) :
     let ⟨hne, hpos⟩ := hsym x hx
     Finset.mem_filter.mpr ⟨Finset.mem_univ _, hne.symm, Nat.add_comm _ _ ▸ hpos⟩
   have hdisj : Disjoint A (A.image Prod.swap) := Finset.disjoint_left.mpr fun _ he he' => by
-    obtain ⟨x, hx, rfl⟩ := Finset.mem_image.mp he'
-    have h₁ := ((hmem x).mp hx).1
-    have h₂ : d x.1 = d x.2 + 1 := ((hmem x.swap).mp he).1
-    omega
-  have hcard := Finset.card_le_card (Finset.union_subset hA hB)
-  rw [Finset.card_union_of_disjoint hdisj,
-    Finset.card_image_of_injective _ Prod.swap_injective] at hcard
-  have := N.card_symArcs_le_two_mul_posArcs
+    obtain ⟨⟨u, v⟩, hx, rfl⟩ := Finset.mem_image.mp he'
+    exact (Nat.lt_succ_of_lt (Nat.lt_succ_self (d v))).ne
+      (((hmem (u, v)).mp hx).1.trans (congrArg (· + 1) ((hmem (v, u)).mp he).1))
+  have hcard := (Finset.card_union_of_disjoint hdisj).symm.trans_le
+    ((Finset.card_le_card (Finset.union_subset hA hB)).trans N.card_symArcs_le_two_mul_posArcs)
+  rw [Finset.card_image_of_injective _ Prod.swap_injective] at hcard
   omega
 
 end Flow
@@ -223,13 +218,13 @@ theorem greedyBlockingFlow_spec {n : ℕ} {L : Network (Fin n)} {adj : Fin n →
     · rename_i hnone
       exact ⟨Flow.isBlocking_of_not_exists_slackNet (hbfs.2 hnone).1, Nat.le_add_right _ _⟩
     · rename_i p hp
-      have hp' := (bfs _ adj _).augPath_valid p hp
-      have hlt := Flow.card_unsatArcs_augmentByBottleneck_lt hanti hst hp'
-      have hfun := augmentFlowMatrix_toFlow G p (Flow.isAugmentingPath_of_slackNet hp')
-      obtain ⟨hblk, hpush⟩ := greedyBlockingFlow_spec hadj hanti hst fuel
-        (augmentFlowMatrix G p (Flow.isAugmentingPath_of_slackNet hp')) (k + 1)
-        (by rw [hfun]; omega)
-      exact ⟨hblk, by rw [hfun] at hpush; omega⟩
+      set hp' := Flow.isAugmentingPath_of_slackNet ((bfs _ adj _).augPath_valid p hp)
+      set G' := augmentFlowMatrix G p hp'
+      have hlt : G'.toFlow.unsatArcs.card < G.toFlow.unsatArcs.card :=
+        (augmentFlowMatrix_toFlow G p hp').symm ▸
+          Flow.card_unsatArcs_augmentByBottleneck_lt hanti hst ((bfs _ adj _).augPath_valid p hp)
+      obtain ⟨hblk, hpush⟩ := greedyBlockingFlow_spec hadj hanti hst fuel G' (k + 1) (by omega)
+      exact ⟨hblk, by omega⟩
 
 /-- Output of Dinitz's algorithm on `N : Network (Fin n)`. -/
 structure DinitzOutput {n : ℕ} (N : Network (Fin n)) where

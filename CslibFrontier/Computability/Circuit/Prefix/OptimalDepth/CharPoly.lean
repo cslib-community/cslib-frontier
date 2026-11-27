@@ -70,11 +70,9 @@ private theorem sub_one_mul_prefixCharPoly {k : ℕ} (hk : 2 ≤ k) (x : ℝ) :
     ring
   | @step m hm ih =>
     have hm2 : 2 ≤ m := hm
-    have hdiff := sub_eq_iff_eq_add'.mp (prefixCharPoly_succ_sub hm2 x)
-    obtain ⟨j, rfl⟩ : ∃ j, m = j + 1 := ⟨m - 1, by omega⟩
-    change (x - 1) * prefixCharPoly (j + 1 + 1) x = x - 2 + x ^ (j + 1) * (1 + x - x ^ 2)
-    simp only [Nat.add_sub_cancel] at ih hdiff
-    rw [hdiff, mul_add, ih]
+    have hpow : x ^ m = x * x ^ (m - 1) := by
+      rw [← pow_succ', Nat.sub_add_cancel (by omega)]
+    rw [sub_eq_iff_eq_add'.mp (prefixCharPoly_succ_sub hm2 x), mul_add, ih, Nat.succ_sub_one, hpow]
     ring
 
 private theorem prefixCharPoly_continuous (k : ℕ) : Continuous (prefixCharPoly k) := by
@@ -109,16 +107,13 @@ private theorem pow_mul_invPoly {k : ℕ} {x : ℝ} (hx : 0 < x) :
     x ^ k * invPoly k x = prefixCharPoly k x := by
   unfold invPoly prefixCharPoly
   have hne : x ≠ 0 := hx.ne'
-  have h1 : x ^ k * (2 * (x⁻¹) ^ k) = 2 := by
-    rw [← mul_assoc, mul_comm (x ^ k) 2, mul_assoc, ← mul_pow, mul_inv_cancel₀ hne,
-      one_pow, mul_one]
+  have h1 : x ^ k * (x⁻¹) ^ k = 1 := by rw [← mul_pow, mul_inv_cancel₀ hne, one_pow]
   have h2 : x ^ k * (∑ i ∈ Finset.Ico 1 (k - 1), (x⁻¹) ^ (k - i)) =
       ∑ i ∈ Finset.Ico 1 (k - 1), x ^ i := by
     rw [Finset.mul_sum]
     refine Finset.sum_congr rfl fun i hi => ?_
-    simp only [Finset.mem_Ico] at hi
     have hxk : x ^ k = x ^ i * x ^ (k - i) := by
-      rw [← pow_add, Nat.add_sub_of_le (by omega)]
+      rw [← pow_add, Nat.add_sub_of_le ((Finset.mem_Ico.mp hi).2.le.trans (Nat.sub_le k 1))]
     rw [hxk, mul_assoc, ← mul_pow, mul_inv_cancel₀ hne, one_pow, mul_one]
   linarith
 
@@ -209,13 +204,9 @@ theorem three_halves_lt_alphaRoot {k : ℕ} (hk : 3 ≤ k) :
 
 /-- At fanout `k = 2`, `alphaRoot 2 = √2`, immediate from `P_2(x) = 2 - x^2`
 ([Sergeev2025PrefixDepth], p. 2). -/
-theorem alphaRoot_two : alphaRoot 2 = Real.sqrt 2 := by
-  symm
-  refine eq_alphaRoot_of_pos_of_prefixCharPoly_eq_zero le_rfl (Real.sqrt_pos.mpr (by norm_num)) ?_
-  unfold prefixCharPoly
-  simp only [Nat.reduceSub, Finset.Ico_self, Finset.sum_empty, add_zero]
-  rw [Real.sq_sqrt (by norm_num)]
-  ring
+theorem alphaRoot_two : alphaRoot 2 = Real.sqrt 2 :=
+  (eq_alphaRoot_of_pos_of_prefixCharPoly_eq_zero le_rfl (Real.sqrt_pos.mpr zero_lt_two) <| by
+    simp [prefixCharPoly]).symm
 
 /-- The positive roots `alphaRoot k` form a strictly increasing sequence on `k ≥ 2`, immediate from
 the definition of `P_k(x)` ([Sergeev2025PrefixDepth], p. 2). -/
@@ -281,6 +272,5 @@ private theorem pow_recurrence_sub {k D : ℕ} (hk : 2 ≤ k) (hD : k ≤ D) (x 
     rw [← pow_add, Nat.sub_add_cancel hD]
   rw [hsum, hpow]
   ring
-
 
 end Cslib.Circuits.Prefix

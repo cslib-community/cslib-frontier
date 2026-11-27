@@ -83,9 +83,7 @@ private theorem sum_signVal_dotProduct (c : ι → Bool) :
   have h := sum_signVal_dotProduct_mul_signVal_dotProduct c 0
   have h0 : signVal (0 : Bool) = 1 := signVal_false
   simp only [zero_dotProduct, h0, mul_one] at h
-  have h' := congrArg (fun r : ℝ => (r : ℂ)) h
-  simp only [Complex.ofReal_sum] at h'
-  rw [h']
+  rw [← Complex.ofReal_sum, h]
   split_ifs <;> push_cast <;> rfl
 
 namespace PauliRep
@@ -99,10 +97,8 @@ theorem X_mul_self (a : ι → Bool) : R.X a * R.X a = 1 := by
 omit [DecidableEq ι] in
 theorem X_mul_Z (a b : ι → Bool) : R.X a * R.Z b = (signVal (a ⬝ᵥ b) : ℂ) • (R.Z b * R.X a) := by
   have h := congrArg (fun M => R.X a * M * R.X a) (R.Z_mul_X a b)
-  simp only [Matrix.mul_assoc, R.X_mul_self, Matrix.mul_one, Matrix.mul_smul, Matrix.smul_mul]
-    at h
-  rw [← Matrix.mul_assoc, R.X_mul_self, Matrix.one_mul] at h
-  rw [← h]
+  simp only [Matrix.mul_assoc, R.X_mul_self, Matrix.mul_one, Matrix.mul_smul, Matrix.smul_mul] at h
+  rwa [← Matrix.mul_assoc, R.X_mul_self, Matrix.one_mul] at h
 
 /-- The projection `Π = 2^{-n} ∑_b Z(b)` onto the joint `+1` eigenspace of the `Z(b)`. -/
 noncomputable def codeProj : Matrix κ κ ℂ :=
@@ -122,9 +118,7 @@ theorem codeProj_mul_Z (b : ι → Bool) : R.codeProj * R.Z b = R.codeProj := by
 
 theorem isHermitian_codeProj : R.codeProj.IsHermitian := by
   rw [codeProj, IsHermitian, conjTranspose_smul, conjTranspose_sum]
-  congr 1
-  · simp
-  · exact sum_congr rfl fun b _ => (R.isHermitian_Z b).eq
+  simp [fun b => (R.isHermitian_Z b).eq]
 
 theorem codeProj_mul_self : R.codeProj * R.codeProj = R.codeProj := by
   nth_rewrite 1 [codeProj]
@@ -140,14 +134,9 @@ theorem codeProj_mul_X_mul_codeProj (c : ι → Bool) :
   have h1 : R.codeProj * R.X c =
       R.X c * (((2 : ℂ) ^ Fintype.card ι)⁻¹ • ∑ b, (signVal (c ⬝ᵥ b) : ℂ) • R.Z b) := by
     rw [codeProj, Matrix.smul_mul, Matrix.sum_mul, Matrix.mul_smul, Matrix.mul_sum]
-    congr 1
-    refine sum_congr rfl fun b _ => ?_
-    rw [R.Z_mul_X, Matrix.mul_smul]
-  have h2 : (∑ b, (signVal (c ⬝ᵥ b) : ℂ) • R.Z b) * R.codeProj =
-      (∑ b, (signVal (c ⬝ᵥ b) : ℂ)) • R.codeProj := by
-    rw [Matrix.sum_mul, Finset.sum_smul]
-    simp only [Matrix.smul_mul, R.Z_mul_codeProj]
-  rw [h1, Matrix.mul_assoc, Matrix.smul_mul, h2, sum_signVal_dotProduct]
+    simp only [R.Z_mul_X, Matrix.mul_smul]
+  rw [h1, Matrix.mul_assoc, Matrix.smul_mul, Matrix.sum_mul]
+  simp only [Matrix.smul_mul, R.Z_mul_codeProj, ← Finset.sum_smul, sum_signVal_dotProduct]
   split_ifs with hc
   · subst hc
     rw [smul_smul, inv_mul_cancel₀ (pow_ne_zero _ two_ne_zero), one_smul, R.X_zero,
@@ -156,20 +145,16 @@ theorem codeProj_mul_X_mul_codeProj (c : ι → Bool) :
 
 /-- `∑_z X(z) Π X(z) = 1`. -/
 theorem sum_X_mul_codeProj_mul_X : ∑ z, R.X z * R.codeProj * R.X z = 1 := by
-  have h1 : ∀ z b, R.X z * R.Z b * R.X z = (signVal (z ⬝ᵥ b) : ℂ) • R.Z b := fun z b => by
+  have h1 (z b : ι → Bool) : R.X z * R.Z b * R.X z = (signVal (z ⬝ᵥ b) : ℂ) • R.Z b := by
     rw [R.X_mul_Z, Matrix.smul_mul, Matrix.mul_assoc, R.X_mul_self, Matrix.mul_one]
-  have h2 : ∀ z, R.X z * R.codeProj * R.X z =
-      ((2 : ℂ) ^ Fintype.card ι)⁻¹ • ∑ b, (signVal (z ⬝ᵥ b) : ℂ) • R.Z b := fun z => by
+  have h2 (z : ι → Bool) : R.X z * R.codeProj * R.X z =
+      ((2 : ℂ) ^ Fintype.card ι)⁻¹ • ∑ b, (signVal (b ⬝ᵥ z) : ℂ) • R.Z b := by
     rw [codeProj, Matrix.mul_smul, Matrix.smul_mul, Matrix.mul_sum, Matrix.sum_mul]
-    simp only [h1]
+    simp only [h1, dotProduct_comm]
   simp only [h2, ← Finset.smul_sum]
   rw [Finset.sum_comm]
-  simp only [← Finset.sum_smul]
-  have h3 : ∀ b : ι → Bool, ∑ z : ι → Bool, (signVal (z ⬝ᵥ b) : ℂ) =
-      ∑ z : ι → Bool, (signVal (b ⬝ᵥ z) : ℂ) := fun b =>
-    sum_congr rfl fun z _ => by rw [dotProduct_comm]
-  simp only [h3, sum_signVal_dotProduct, ite_smul, zero_smul, sum_ite_eq', mem_univ, ite_true,
-    R.Z_zero, smul_smul]
+  simp only [← Finset.sum_smul, sum_signVal_dotProduct, ite_smul, zero_smul, sum_ite_eq',
+    mem_univ, ite_true, R.Z_zero, smul_smul]
   rw [inv_mul_cancel₀ (pow_ne_zero _ two_ne_zero), one_smul]
 
 omit [Fintype ι] [DecidableEq ι] in
@@ -210,31 +195,28 @@ theorem exists_unitary_eq_pauli : ∃ (L : Finset κ) (Φ : Matrix κ ((ι → B
   have hΦΦ : Φᴴ * Φ = 1 := by
     ext ⟨z, l⟩ ⟨z', l'⟩
     have h := congrFun (congrFun (R.isometry_X_mul_X hEE hPE z z') l) l'
-    have e : (Φᴴ * Φ) (z, l) (z', l') = ((R.X z * E)ᴴ * (R.X z' * E)) l l' := rfl
-    rw [e, conjTranspose_mul, (R.isHermitian_X z).eq,
-      show Eᴴ * R.X z * (R.X z' * E) = Eᴴ * (R.X z * R.X z') * E by simp only [Matrix.mul_assoc],
-      h]
+    change ((R.X z * E)ᴴ * (R.X z' * E)) l l' = _
+    rw [conjTranspose_mul, (R.isHermitian_X z).eq, ← Matrix.mul_assoc, Matrix.mul_assoc Eᴴ, h]
     by_cases hz : z = z'
     · subst hz; simp [Matrix.one_apply]
     · simp [hz]
   have hΦΦ' : Φ * Φᴴ = 1 := by
-    have e : Φ * Φᴴ = ∑ z, R.X z * R.codeProj * R.X z := by
-      have hz : ∀ z, R.X z * R.codeProj * R.X z = (R.X z * E) * (R.X z * E)ᴴ := fun z => by
-        rw [← hEP, conjTranspose_mul, (R.isHermitian_X z).eq]; simp only [Matrix.mul_assoc]
-      simp only [hz]
-      ext i j
-      rw [Matrix.mul_apply, Fintype.sum_prod_type, Matrix.sum_apply]
-      exact sum_congr rfl fun z _ => rfl
-    rw [e, sum_X_mul_codeProj_mul_X]
+    rw [← R.sum_X_mul_codeProj_mul_X]
+    ext i j
+    rw [Matrix.mul_apply, Fintype.sum_prod_type, Matrix.sum_apply]
+    refine sum_congr rfl fun z _ => ?_
+    have hz : R.X z * R.codeProj * R.X z = (R.X z * E) * (R.X z * E)ᴴ := by
+      rw [← hEP, conjTranspose_mul, (R.isHermitian_X z).eq, Matrix.mul_assoc, Matrix.mul_assoc,
+        ← Matrix.mul_assoc (R.X z)]
+    rw [hz]; rfl
   have hΦ_kron (A : Matrix (ι → Bool) (ι → Bool) ℂ) (i : κ) (z : ι → Bool) (l : L) :
       (Φ * (A ⊗ₖ (1 : Matrix L L ℂ))) i (z, l) = ∑ z', (R.X z' * E) i l * A z' z := by
     rw [Matrix.mul_apply, Fintype.sum_prod_type]
-    refine sum_congr rfl fun z' _ => ?_
-    simp [Φ, Matrix.one_apply]
+    exact sum_congr rfl fun z' _ => by simp [Φ, Matrix.one_apply]
   have hX (a : ι → Bool) : R.X a * Φ = Φ * (pauliXPow a ⊗ₖ (1 : Matrix L L ℂ)) := by
     ext i ⟨z, l⟩
     rw [hΦ_kron]
-    have hiff : ∀ z', (z = z' + a) ↔ (z' = z + a) := fun z' => by
+    have hiff (z' : ι → Bool) : (z = z' + a) ↔ (z' = z + a) := by
       constructor <;> rintro rfl <;> simp
     simp only [pauliXPow_apply, hiff, mul_ite, mul_one, mul_zero, sum_ite_eq', mem_univ, ite_true]
     change (R.X a * (R.X z * E)) i l = _
@@ -246,9 +228,8 @@ theorem exists_unitary_eq_pauli : ∃ (L : Finset κ) (Φ : Matrix κ ((ι → B
     change (R.Z b * (R.X z * E)) i l = _
     rw [← Matrix.mul_assoc, R.Z_mul_X, Matrix.smul_mul, Matrix.mul_assoc, hZE,
       Matrix.smul_apply, smul_eq_mul, dotProduct_comm, mul_comm]
-  refine ⟨L, Φ, hΦΦ, hΦΦ', fun a => ?_, fun b => ?_⟩
-  · rw [← hX, Matrix.mul_assoc, hΦΦ', Matrix.mul_one]
-  · rw [← hZ, Matrix.mul_assoc, hΦΦ', Matrix.mul_one]
+  exact ⟨L, Φ, hΦΦ, hΦΦ', fun a => by rw [← hX, Matrix.mul_assoc, hΦΦ', Matrix.mul_one],
+    fun b => by rw [← hZ, Matrix.mul_assoc, hΦΦ', Matrix.mul_one]⟩
 
 end PauliRep
 

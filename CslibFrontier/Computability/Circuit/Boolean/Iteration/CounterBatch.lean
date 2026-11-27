@@ -141,8 +141,7 @@ to `counterBlock x member`. -/
     (member : Fin r) :
     counterBlock (counterBatchPower T x) member =
       ModulusCounter.power T (counterBlock x member) := by
-  funext bit
-  simp [counterBlock]
+  exact funext fun bit => by simp [counterBlock]
 
 /-- The batched power is the `T`-th iterate of the single-step batched update. -/
 theorem iterate_counterBatchPower (T : ℕ) :
@@ -194,10 +193,9 @@ theorem residueKeys_injective (k : ℕ) : Function.Injective (residueKeys k) := 
 
 private theorem clog_two_pow_add_le (hr : r ≤ 2 ^ (k + k)) :
     Nat.clog 2 (r + (2 ^ k - 1)) ≤ 2 * k + 1 := by
-  apply Nat.clog_le_of_le_pow
+  refine Nat.clog_le_of_le_pow ?_
   have h1 : 2 ^ k ≤ 2 ^ (k + k) := Nat.pow_le_pow_right (by decide) (by omega)
-  rw [show 2 * k + 1 = (k + k) + 1 by omega, pow_succ]
-  omega
+  rw [two_mul, pow_succ]; omega
 
 /-- **Batched modular-counter upper bound.** Using one shared residue dictionary, `r` independent
 `2 k`-bit modular counters can be advanced by `T` steps in size at most
@@ -240,8 +238,7 @@ theorem batched_counter_power (T r : ℕ) (hr : r ≤ 2 ^ (k + k)) :
     have hj1 : j.val + 1 = (a member x).toNat := Nat.sub_add_cancel hpos
     have hkey : residueKeys k j = queries x member :=
       funext fun bit => by simp [residueKeys, queries, hj1, a, ModulusCounter.leftWord]
-    dsimp only [rem]
-    rw [lookupOr_of_eq _ (residueKeys_injective k) hkey]
+    simp only [rem, lookupOr_of_eq _ (residueKeys_injective k) hkey]
     unfold residueValues
     rw [BitString.equivBitVec_getLsbD, hj1, BitVec.toNat_ofNat,
       Nat.mod_eq_of_lt ((Nat.mod_lt _ hpos).trans (a member x).isLt)]
@@ -328,9 +325,8 @@ theorem counterBatch_size_ge_of_ne_id (T : ℕ) (hT : ModulusCounter.power (k :=
     funext fun b => by simp [xe, counterBlock, h]
   let o : Fin r → Fin (r * (k + k)) := fun member => finProdFinEquiv (member, Fin.natAdd k j)
   have heval (member : Fin r) (x : BitString (r * (k + k))) :
-      c.program.trace interpretation x (c.outputs (o member)) = g (counterBlock x member) := by
-    change c.eval interpretation x (o member) = _
-    rw [hc, counterBatchPower_apply]
+      c.program.trace interpretation x (c.outputs (o member)) = g (counterBlock x member) :=
+    (congrFun (hc x) (o member)).trans (counterBatchPower_apply T x member (Fin.natAdd k j))
   have hgate (member : Fin r) : ∃ γ, c.outputs (o member) = Wire.gate γ := by
     cases hw : c.outputs (o member) with
     | gate γ => exact ⟨γ, rfl⟩

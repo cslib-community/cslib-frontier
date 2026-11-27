@@ -169,7 +169,7 @@ private theorem realizes_matchesKeyGen :
     rcases d with ⟨⟨⟨cp, base⟩, ⟨b, q_val⟩⟩, ⟨b_cand, loc⟩⟩
     dsimp only at *
     obtain ⟨c, U, V, w₀, n_max, fs, henv, rfl, hrep, hb, hcnt_le, hbp_v⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq
+    obtain rfl := henv.2.2.1
     have hth := henv.2.2.2.1
     obtain ⟨hrb_st, hrb_res, _, _⟩ := readBktFieldGenProg_spec henv hb (by decide : 0 < 10)
       hrep (s := s)
@@ -261,7 +261,7 @@ private theorem realizes_probeBufCandGen :
     rcases d with ⟨⟨⟨⟨cp, base⟩, ep⟩, ⟨b, q_val⟩⟩, rKey⟩
     try dsimp only at *
     obtain ⟨c, U, V, w₀, n_max, fs, mapFn, henv, rfl, hrep, hep, hv, hb, hcnt_le, hbp_v⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq
+    obtain rfl := henv.2.2.1
     obtain ⟨hbl_st, _, _, _⟩ :=
       bufLookupGenProg_spec henv hep (hrep.buf_rep hep) hv (rKey := rKey) (s := s)
     simp only [hbl_st] at *
@@ -526,12 +526,13 @@ private theorem realizes_probeOldBufCandGen :
     obtain ⟨c, U, V, w₀, n_max, fs, henv, rfl, hrep, hce_or, hbo_fn, hb, hcnt_le, hbp_v⟩ := h
     obtain rfl := henv.2.2.1
     have hth := henv.2.2.2.1
-    obtain ⟨hst_st, hst_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage) (s := s)
-      (by dsimp only [largeSpaceWhp, hdrRebStage]; omega)
+    obtain ⟨hst_st, hst_res, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrRebStage) (s := s) (by decide)
     obtain ⟨hro_st, hro_res, _, _⟩ := readOldEpProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max)
-      (by dsimp [largeSpaceWhp, hdrCurEp]; omega) hce_or hrep.2.2.2.1 (s := s)
+      (Nat.add_lt_add_left
+        ((by decide : hdrCurEp < 32).trans_le (headerWords_le_largeSpaceWhp c U V w n_max)) base)
+      hce_or hrep.2.2.2.1 (s := s)
     simp only [hst_st, hst_res, hrep.2.2.2.2.2.1, hro_st, hro_res] at *
     first
     | exact henv.fits_const (by decide)
@@ -559,9 +560,8 @@ private theorem probeOldBufCandGenProg_spec {c U V w n_max base b q_val rKey : �
           (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey) else none) with
        | some loc => (1, loc) | none => (0, 0))
       (2 * cTabWhp c + 16) := by
-  have hst := ReadSpec.of_eq (readHdrProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max)
-    (base := base) (hdrOff := hdrRebStage) (s := s)
-    (by dsimp only [largeSpaceWhp, hdrRebStage]; omega))
+  have hst := ReadSpec.of_eq (readHdrProg_large_spec c U V w n_max
+    (base := base) (hdrOff := hdrRebStage) (s := s) (by decide))
   rw [hrep.2.2.2.2.2.1] at hst
   unfold probeOldBufCandGenProg
   simp only [pure_bind]
@@ -569,7 +569,9 @@ private theorem probeOldBufCandGenProg_spec {c U V w n_max base b q_val rKey : �
   · obtain ⟨oldMap, hv_old⟩ := hbo_fn hle3
     have hro := ReadSpec.of_eq (readOldEpProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max)
-      (by dsimp only [largeSpaceWhp, hdrCurEp]; omega) hce_or hrep.2.2.2.1 (s := s))
+      (Nat.add_lt_add_left
+        ((by decide : hdrCurEp < 32).trans_le (headerWords_le_largeSpaceWhp c U V w n_max)) base)
+      hce_or hrep.2.2.2.1 (s := s))
     exact .weaken (hst.bind (.if_pos hle3 (hro.bind (probeBufCandGenProg_spec henv
       (fs.oldEp_or hce_or) hrep hv_old hb hcnt_le hbp_v)))) (by rw [ite_eq_left hle3]) (by omega)
   · exact .weaken (hst.bind (.if_neg hle3 (.pure _))) (by rw [ite_eq_right hle3]) (by omega)
@@ -618,9 +620,8 @@ theorem realizes_fastFindLocBqGen :
     obtain ⟨hmh_st, hmh_res, _, _⟩ :=
       mkHashRtGenProg_spec (U := U) (V := V) (w := w) (base := base) hth s
     obtain ⟨hrk_st, _, _, _⟩ := fpReducedKeyOptRtProg_spec (kv := u_val) henv hseed (s := s)
-    obtain ⟨hce_st, hce_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrCurEp) (s := s)
-      (by dsimp only [largeSpaceWhp, hdrCurEp]; omega)
+    obtain ⟨hce_st, hce_res, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrCurEp) (s := s) (by decide)
     obtain ⟨_, _, curMap, hv_cur, _⟩ := hv.bufCur_valid
     have hcnt_le := hv.bktCount_le b hb
     have hbp_v : ∀ k < fs.bktCount b - capFrontWhp n_max, fs.backPtr b k < poolSizeWhp n_max :=
@@ -644,9 +645,8 @@ theorem realizes_fastFindLocBqGen :
     | exact ⟨c, U, V, w, n_max, fs, henv, rfl, hrep, hv.curEp_or, hbo_fn, hb, hcnt_le, hbp_v⟩
     | (obtain ⟨liveMap, hv_live, _⟩ := hv.live_valid b hb
        have hins := liveInsCount_le_eight hv.toCore hb (hv.overmars_valid b hb)
-       have hl_role := (hv.roles_valid b hb).1
        exact ⟨c, U, V, w, n_max, θ, fs, liveMap, henv, rfl, hseed, hrep,
-         hb, hl_role, hins, hv_live, hcnt_le, hbp_v⟩)
+         hb, (hv.roles_valid b hb).1, hins, hv_live, hcnt_le, hbp_v⟩)
   )
 
 theorem fastFindLocBqGenProg_spec {c U V w n_max base : ℕ}
@@ -674,8 +674,8 @@ theorem fastFindLocBqGenProg_spec {c U V w n_max base : ℕ}
     fun k hk => (hv.backPtr_valid b hb k hk).1
   have hrk := ReadSpec.of_le (fpReducedKeyOptRtProg_spec (V := V) (kv := u.val) henv hseed (s := s))
   simp only [u.isLt, ↓reduceDIte, Fin.eta] at hrk
-  have hce := ReadSpec.of_eq (readHdrProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max)
-    (base := base) (hdrOff := hdrCurEp) (s := s) (by dsimp only [largeSpaceWhp, hdrCurEp]; omega))
+  have hce := ReadSpec.of_eq (readHdrProg_large_spec c U V w n_max
+    (base := base) (hdrOff := hdrCurEp) (s := s) (by decide))
   rw [hrep.2.2.2.1] at hce
   obtain ⟨_, _, curMap, hv_cur, _⟩ := hv.bufCur_valid
   have hbo_fn : fs.rebStage ≤ 3 → ∃ oldMap,
@@ -694,8 +694,7 @@ theorem fastFindLocBqGenProg_spec {c U V w n_max base : ℕ}
     .ite (.pure _) <|
     probeLiveCandGenProg_spec henv hseed hrep hb (hv.roles_valid b hb).1 hins hv_live hcnt_le
       hbp_v u) ?_ (by omega)
-  unfold fastFindLoc evalBufCand
-  dsimp only
+  dsimp only [fastFindLoc, evalBufCand]
   generalize bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp)
     (fpReducedKey c U n_max θ.2 u) = o1
   generalize bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp)
@@ -743,8 +742,7 @@ theorem realizes_fastQueryGen :
     have hth := henv.2.2.2.1
     have hu : u_val < U := by rwa [mkWhpParams_fst, wp_large_U hth] at hu_wp
     set u : Fin U := ⟨u_val, hu⟩
-    have hb : feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u_val < numBucketsWhp n_max :=
-      feistelBucket_lt _ _ _
+    have hb := feistelBucket_lt (bWhp n_max) (bktHash c U n_max θ.1) u_val
     obtain ⟨hmh_st, hmh_res, _, _⟩ :=
       mkHashRtGenProg_spec (U := U) (V := V) (w := w) (base := base) hth s
     obtain ⟨hfs_st, hfs_res, _, _⟩ := feistelSplitRtProg_spec (u_val := u_val) henv hseed (s := s)
@@ -762,13 +760,10 @@ theorem realizes_fastQueryGen :
        cases hfind : fastFindLoc c U n_max θ fs u with
        | none => simp [u, hfind] at *
        | some loc =>
-         rw [hfind] at hspec
          simp only [u, hfind] at *
          have hloc : loc < totalLocalCoordsWhp n_max := hspec.1.trans_le (hv.bktCount_le _ hb)
-         have hbp : capFrontWhp n_max ≤ loc →
-             fs.backPtr (feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u_val)
-               (loc - capFrontWhp n_max) < poolSizeWhp n_max :=
-           fun hcf => (hv.backPtr_valid _ hb _ (by omega)).1
+         have hbp (hcf : capFrontWhp n_max ≤ loc) :=
+           (hv.backPtr_valid _ hb (loc - capFrontWhp n_max) (by omega)).1
          first
          | exact ⟨c, U, V, w, n_max, fs, henv, rfl, hrep, hb, hloc, hbp⟩
          | (obtain ⟨hps_st, hps_res, hps_lt, _, _⟩ :=
@@ -792,8 +787,7 @@ theorem fastQueryGenProg_spec {c U V w n_max base : ℕ}
        | none => (0, 0)) ∧
     memoryCost prog s ≤ 4 * cTabWhp c + 2 * hashEvalCostWhp c + 308 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  have hb : feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val < numBucketsWhp n_max :=
-    feistelBucket_lt _ _ _
+  have hb := feistelBucket_lt (bWhp n_max) (bktHash c U n_max θ.1) u.val
   have hmh := ReadSpec.of_eq
     (mkHashRtGenProg_spec (U := U) (V := V) (w := w) (base := base) henv.2.2.2.1 s)
   have hfs := ReadSpec.of_le (feistelSplitRtProg_spec (u_val := u.val) henv hseed (s := s))

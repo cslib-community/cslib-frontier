@@ -132,17 +132,15 @@ theorem deterministic_calError_ge_half (f : List Bool → ℝ) {T : ℕ} (hT : 0
       ((range T).filter fun t => p t = q).card * (1 / 2 : ℝ) ≤
         |∑ t ∈ (range T).filter fun t => p t = q, (outcome (y t) - q)| := fun q => by
     -- On the bucket `p t = q` the adversary's bit is `decide (q < 1 / 2)`.
-    have hterm : ∀ t ∈ (range T).filter fun t => p t = q,
-        outcome (y t) - q = outcome (decide (q < 1 / 2)) - q := fun t ht => by
-      obtain ⟨-, rfl⟩ := mem_filter.mp ht
-      rfl
+    have hterm (t : ℕ) (ht : t ∈ (range T).filter fun t => p t = q) :
+        outcome (y t) - q = outcome (decide (q < 1 / 2)) - q := by
+      rw [← (mem_filter.mp ht).2]
     rw [sum_congr rfl hterm, sum_const, nsmul_eq_mul, abs_mul, Nat.abs_cast]
     refine mul_le_mul_of_nonneg_left ?_ (Nat.cast_nonneg _)
-    by_cases hq : q < 1 / 2
-    · simp only [hq, decide_true, outcome_true]
-      exact le_abs.mpr (Or.inl (by linarith))
-    · simp only [hq, decide_false, outcome_false]
-      exact le_abs.mpr (Or.inr (by linarith))
+    by_cases hq : q < 1 / 2 <;>
+      simp only [hq, decide_true, decide_false, outcome_true, outcome_false]
+    · exact le_abs.mpr (.inl (by linarith))
+    · exact le_abs.mpr (.inr (by linarith))
   have hcard : (T : ℝ) =
       ∑ q ∈ (range T).image p, (((range T).filter fun t => p t = q).card : ℝ) := by
     rw [← Nat.cast_sum, ← card_eq_sum_card_image, card_range]
@@ -399,8 +397,6 @@ theorem fosterVohraDist_inner_le {K : ℕ} (hK : 0 < K)
         simp_rw [hp_eq]
         rw [Fintype.sum_eq_add _ _ hne fun k hk => by simp [hk.1, hk.2]]
         simp only [↓reduceIte, hne.symm]
-        have hwi : w i.succ = -c := (neg_neg _).symm
-        rw [hwi]
         linear_combination (a * c / (a + c)) * gridPoint_succ_sub i
       have hbasis (j : Fin (K + 1)) (sgn : ℝ) (hsgn : |sgn| = 1) :
           ∃ e ∈ l1Ball (K + 1) (1 / (2 * (K : ℝ))), ⟪w, e⟫ = sgn * w j / (2 * (K : ℝ)) := by
@@ -472,8 +468,7 @@ theorem fosterVohra_expected_calError_le {K : ℕ} (hK : 0 < K)
       Real.sqrt (K + 1 : ℕ) * distToSet S ((T : ℝ)⁻¹ • sumPayoff (calPayoff K) adv h))
     fun h hh => by
       have hlen : h.length = T := by simpa using hh
-      rw [empiricalCalError, hlen]
-      exact sum_abs_le_add_sqrt_mul_distToSet hrnn _
+      exact hlen ▸ sum_abs_le_add_sqrt_mul_distToSet hrnn _
   rw [expectHistory_add, expectHistory_const, expectHistory_smul] at hbound
   have hdist := blackwell_expect_dist_le (l1Ball_isComplete (K + 1) _) (l1Ball_convex (K + 1) _)
     (zero_mem_l1Ball hrnn) (calPayoff K) zero_le_one
@@ -514,17 +509,15 @@ theorem fosterVohra_prob_calError_ge_le {K : ℕ} (hK : 0 < K)
     · exact le_rfl
     · have htri : empiricalCalError K adv h ≤
           1 / (2 * (K : ℝ)) + Real.sqrt (K + 1 : ℕ) *
-            distToSet S ((T : ℝ)⁻¹ • sumPayoff (calPayoff K) adv h) := by
-        rw [empiricalCalError, hlen]
-        exact sum_abs_le_add_sqrt_mul_distToSet hrnn _
-      have hlt : distToSet S ((T : ℝ)⁻¹ • sumPayoff (calPayoff K) adv h) < η := lt_of_not_ge h2
+            distToSet S ((T : ℝ)⁻¹ • sumPayoff (calPayoff K) adv h) :=
+        hlen ▸ sum_abs_le_add_sqrt_mul_distToSet hrnn _
       have hmul : Real.sqrt (K + 1 : ℕ) *
           distToSet S ((T : ℝ)⁻¹ • sumPayoff (calPayoff K) adv h) < gap := by
         have hpos : 0 < Real.sqrt ((K + 1 : ℕ) : ℝ) := Real.sqrt_pos.mpr hK1pos
         calc Real.sqrt (K + 1 : ℕ) *
               distToSet S ((T : ℝ)⁻¹ • sumPayoff (calPayoff K) adv h)
             < Real.sqrt (K + 1 : ℕ) * (gap / Real.sqrt (K + 1 : ℕ)) :=
-              mul_lt_mul_of_pos_left hlt hpos
+              mul_lt_mul_of_pos_left (lt_of_not_ge h2) hpos
           _ = gap := mul_div_cancel₀ _ hpos.ne'
       linarith
     · exact zero_le_one
@@ -570,17 +563,16 @@ theorem exists_calibrated_forecaster {ε δ : ℝ} (hε : 0 < ε) (hδ : 0 < δ)
       (Nat.le_ceil _).trans (Nat.cast_le.mpr ((le_max_left _ _).trans hT))
     have hsqrt : Real.sqrt (((K + 1 : ℕ) : ℝ) / (T : ℝ)) ≤ ε / 4 := by
       rw [Real.sqrt_le_left (by positivity), div_le_iff₀ hTr]
-      have hmul := (div_le_iff₀ (sq_pos_of_pos hε)).mp hT_bd
-      nlinarith
+      nlinarith [(div_le_iff₀ (sq_pos_of_pos hε)).mp hT_bd]
     linarith [fosterVohra_expected_calError_le hK adv hTpos]
   · have hT_bd : 16 * ((K + 1 : ℕ) : ℝ) / (δ * ε ^ 2) ≤ (T : ℝ) :=
       (Nat.le_ceil _).trans (Nat.cast_le.mpr ((le_max_right _ _).trans hT))
     have hgap_sq : (9 / 16 : ℝ) * ε ^ 2 ≤ (ε - 1 / (2 * (K : ℝ))) ^ 2 := by nlinarith
     refine (fosterVohra_prob_calError_ge_le hK adv hTpos hgrid_lt).trans
       ((div_le_iff₀ (mul_pos hTr (sq_pos_of_pos (sub_pos.mpr hgrid_lt)))).mpr ?_)
-    have hmul := (div_le_iff₀ (mul_pos hδ (sq_pos_of_pos hε))).mp hT_bd
     have hδT : 0 ≤ δ * (T : ℝ) := by positivity
-    nlinarith [mul_le_mul_of_nonneg_left hgap_sq hδT]
+    nlinarith [(div_le_iff₀ (mul_pos hδ (sq_pos_of_pos hε))).mp hT_bd,
+      mul_le_mul_of_nonneg_left hgap_sq hδT]
 
 end GridCalibration
 

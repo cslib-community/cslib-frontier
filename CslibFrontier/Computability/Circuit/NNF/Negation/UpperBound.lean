@@ -93,8 +93,7 @@ theorem mem_of_mem_cyclePairsTail {v₀ u : V} :
     rcases h with rfl | h
     · simp
     · have := mem_of_mem_cyclePairsTail (u := v) h
-      simp only [List.mem_cons] at this ⊢
-      tauto
+      grind
 
 theorem mem_of_mem_cyclePairs {l : List V} {p : V × V} (h : p ∈ cyclePairs l) :
     p.1 ∈ l ∧ p.2 ∈ l := by
@@ -262,9 +261,7 @@ theorem runList_flatMap_cycleItems (x : V → Bool) :
     obtain ⟨f₁, p₁, h₁⟩ := M.runList_cycleItems α β x b f p s d
     obtain ⟨f₂, p₂, h₂⟩ := runList_flatMap_cycleItems x blocks f₁ p₁
       (s || (cyclePairs b).any (M.pairHas α x)) (d || (cyclePairs b).any (M.pairHas β x))
-    refine ⟨f₂, p₂, ?_⟩
-    rw [List.flatMap_cons, cycleRun_append, h₁, h₂]
-    simp only [List.flatMap_cons, List.any_append, Bool.or_assoc]
+    exact ⟨f₂, p₂, by simp [cycleRun_append, h₁, h₂, Bool.or_assoc]⟩
 
 /-- **The cycle program** accepts exactly when some cyclically consecutive pair of a block is
 joined by an edge of colour `α` with both bits true, and none by an edge of colour `β`. -/
@@ -494,8 +491,7 @@ theorem cycleBlock_pairs (x : V) : ∀ v ∈ M.cycleBlock α β x, ∀ γ, (γ =
   · rw [cycleVertex_odd]
     rcases hγ with rfl | rfl
     · refine ⟨_, hcons (2 * i) (by omega), ?_, .inr ?_⟩ <;>
-        rw [cycleVertex_even, cycleVertex_odd]
-      rw [M.mate_mate]
+        simp only [cycleVertex_even, cycleVertex_odd, M.mate_mate]
     · by_cases hi : i + 1 < P
       · refine ⟨_, hcons (2 * i + 1) (by omega), ?_, .inl ?_⟩ <;>
           simp only [add_assoc, ← Nat.mul_succ, cycleVertex_odd, cycleVertex_even,
@@ -529,9 +525,7 @@ theorem exists_isCycleCover_of_closed : ∀ W : Finset V,
     have hσ : ∀ i, (M.cycleStepMap α β)^[i] x ∈ W := fun i => by
       induction i with
       | zero => exact hx
-      | succ i ih' =>
-        rw [Function.iterate_succ_apply']
-        exact (hclosed _ (hclosed _ ih').1).2
+      | succ i ih' => exact Function.iterate_succ_apply' _ i x ▸ (hclosed _ (hclosed _ ih').1).2
     have hbW : ∀ v ∈ b, v ∈ W := fun v hv => by
       obtain ⟨j, -, rfl⟩ := mem_cycleBlock.mp hv
       by_cases hj : j % 2 = 0 <;> simp [cycleVertex, hj, hσ, fun i => (hclosed _ (hσ i)).1]
@@ -545,10 +539,8 @@ theorem exists_isCycleCover_of_closed : ∀ W : Finset V,
       · simpa [M.mate_mate] using mate_mem_cycleBlock h (γ := β) (.inr rfl)
     obtain ⟨blocks, hnd, hmem, hpairs⟩ := ih _ hlt W' rfl hclosed'
     refine ⟨b :: blocks, ?_, fun v => ?_, ?_⟩
-    · rw [List.flatten_cons, List.nodup_append]
-      refine ⟨nodup_cycleBlock x, hnd, fun a ha a' ha' h => ?_⟩
-      subst h
-      exact (mem_filter.mp ((hmem a).mp ha')).2 ha
+    · refine List.nodup_append.mpr ⟨nodup_cycleBlock x, hnd, fun a ha _ ha' h => ?_⟩
+      exact (mem_filter.mp ((hmem a).mp (h ▸ ha'))).2 ha
     · rw [List.flatten_cons, List.mem_append, hmem, mem_filter]
       exact ⟨fun h => h.elim (hbW v) And.left, fun h => (em (v ∈ b)).imp_right (⟨h, ·⟩)⟩
     · exact List.forall_mem_cons.2 ⟨cycleBlock_pairs x, hpairs⟩

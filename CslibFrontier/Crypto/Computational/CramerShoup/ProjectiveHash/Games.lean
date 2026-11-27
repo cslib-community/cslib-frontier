@@ -145,37 +145,25 @@ theorem universalDistExperiment_false_eq_true {State₀ State₁ : Type} (d : F.
     (A : UniversalDistAdversary F d State₀ State₁) (hA : A.Admissible) :
     universalDistExperiment F d A false = universalDistExperiment F d A true := by
   dsimp only [universalDistExperiment, PMF.monad_bind_eq_bind]
-  refine PMF.bind_congr_on_support (ProbComp.eval A.chooseU) _ _ fun u_st hsupp => ?_
-  rcases u_st with ⟨u, st₀⟩
+  refine PMF.bind_congr_on_support (ProbComp.eval A.chooseU) _ _ fun ⟨u, st₀⟩ hsupp => ?_
   obtain ⟨hpreQ, hpost⟩ := hA u st₀ hsupp
   obtain ⟨α, rfl⟩ := F.smul_generator_surjective d u
   rw [← PMF.uniformOfFintype_bind_bind_sub_right _ (fun τ => α * τ)]
   conv_rhs => rw [← PMF.uniformOfFintype_bind_bind_sub_right _ (fun τ => α * τ)]
   refine congrArg _ (funext fun δ => ?_)
   simp only [projHashAux_fiber_eq]
-  have hpre_congr (τ : ZMod (F.order d)) :
-      ProbComp.eval ((A.chooseChallenge st₀ (δ • F.generator d)).run
-        (fun (v', w') => pure (projHash F d (δ - α * τ) τ v' w'))) =
-      ProbComp.eval ((A.chooseChallenge st₀ (δ • F.generator d)).run
-        (fun (v', w') => pure (projHash F d δ 0 v' w'))) :=
-    (hpreQ (δ • F.generator d)).eval_run_congr fun (v', w') hq => by
-      dsimp only at hq ⊢
-      rw [projHash_fiber_eq_of_isDHTriple F d hq]
-  simp only [hpre_congr]
+  have hrun_congr {β : Type} {prog : ProbOracleComp (UniversalEvalSpec F d) β}
+      (hQ : prog.QueriesSatisfy fun (v', w') => IsDHTriple F d (α • F.generator d) v' w')
+      (τ : ZMod (F.order d)) := hQ.eval_run_congr
+    (oracle := fun (v', w') => pure (projHash F d (δ - α * τ) τ v' w'))
+    (oracle' := fun (v', w') => pure (projHash F d δ 0 v' w')) fun (v', w') hq =>
+      congrArg (ProbComp.eval ∘ pure) (projHash_fiber_eq_of_isDHTriple F d hq)
+  simp only [hrun_congr (hpreQ (δ • F.generator d))]
   rw [PMF.bind_comm]; conv_rhs => rw [PMF.bind_comm]
-  refine PMF.bind_congr_on_support _ _ _ fun chal hchal => ?_
-  rcases chal with ⟨v, w, st₁⟩
+  refine PMF.bind_congr_on_support _ _ _ fun ⟨v, w, st₁⟩ hchal => ?_
   obtain ⟨hvw, hpostQ⟩ := hpost δ 0 v w st₁
     (by simpa only [projHashAux_generator_smul, mul_zero, add_zero] using hchal)
-  have hpost_congr (τ : ZMod (F.order d)) (z : F.Carrier d) :
-      ProbComp.eval ((A.guess st₁ z).run
-        (fun (v', w') => pure (projHash F d (δ - α * τ) τ v' w'))) =
-      ProbComp.eval ((A.guess st₁ z).run
-        (fun (v', w') => pure (projHash F d δ 0 v' w'))) :=
-    (hpostQ z).eval_run_congr fun (v', w') hq => by
-      dsimp only at hq ⊢
-      rw [projHash_fiber_eq_of_isDHTriple F d hq]
-  simp only [hpost_congr]
+  simp only [fun τ z => hrun_congr (hpostQ z) τ]
   obtain ⟨β, rfl⟩ := F.smul_generator_surjective d v
   obtain ⟨γ, rfl⟩ := F.smul_generator_surjective d w
   have hγ : γ ≠ α * β := fun heq => hvw ((isDHTriple_generator_smul_iff F d α β γ).mpr heq)
@@ -301,11 +289,10 @@ private theorem uniform_universal2Wins_le (d : F.Desc)
     refine List.any_congr rfl fun ⟨zHat, vHat, wHat, ρHat⟩ => ?_
     simp only [Function.comp_def, toTuple, hchoose, ← Bool.decide_and, and_assoc, @eq_comm _ _ zHat]
   simp_rw [hpoint]
-  refine (uniform_projHash2_fiber_any_le F d α ρ δ₁ δ₂ ξ tuples hq).trans ?_
-  have hlen_tuples : tuples.length ≤ Q := by
-    simpa only [tuples, List.length_map, badGuesses] using
-      (List.length_filter_le _ guesses).trans hlen
-  gcongr
+  exact (uniform_projHash2_fiber_any_le F d α ρ δ₁ δ₂ ξ tuples hq).trans <|
+    ENNReal.div_le_div_right (Nat.cast_le.mpr (by
+      simpa only [tuples, List.length_map, badGuesses] using
+        (List.length_filter_le _ guesses).trans hlen)) _
 
 /-- **Lemma 12.8 / Exercise 12.26(b)** ([BonehShoup2023], Section 12.5.2, printed p. 488, and
 Exercise 12.26(b), printed p. 521): in `universal2GuessGame`, every admissible adversary that
@@ -317,8 +304,7 @@ theorem succProbability_universal2GuessGame_le {State₀ State₁ : Type} (d : F
   have hbound :
       (universal2GuessGame F d A) true ≤ (Q : ℝ≥0∞) / (F.order d : ℝ≥0∞) := by
     dsimp only [universal2GuessGame, PMF.monad_bind_eq_bind]
-    refine PMF.bind_apply_le_on_support _ fun u_st hsupp => ?_
-    rcases u_st with ⟨u, st₀⟩
+    refine PMF.bind_apply_le_on_support _ fun ⟨u, st₀⟩ hsupp => ?_
     obtain ⟨hpreQ, hpost⟩ := hA u st₀ hsupp
     obtain ⟨α, rfl⟩ := F.smul_generator_surjective d u
     rw [← PMF.uniformOfFintype_bind_bind_sub_right _ (fun τ => α * τ)]
@@ -328,20 +314,18 @@ theorem succProbability_universal2GuessGame_le {State₀ State₁ : Type} (d : F
     rw [PMF.bind_comm]
     refine PMF.bind_apply_le_on_support _ fun δ₂ _ => ?_
     simp only [projHash2Aux_fiber_eq]
-    have hpre_congr (τ₁ τ₂ : ZMod (F.order d)) :
-        ProbComp.eval ((A.chooseChallenge st₀ (δ₁ • F.generator d, δ₂ • F.generator d)).run
-          (fun ((v', w'), ρ') =>
-            pure (projHash2 F d (δ₁ - α * τ₁) τ₁ (δ₂ - α * τ₂) τ₂ ρ' v' w'))) =
-        ProbComp.eval ((A.chooseChallenge st₀ (δ₁ • F.generator d, δ₂ • F.generator d)).run
-          (fun ((v', w'), ρ') => pure (projHash2 F d δ₁ 0 δ₂ 0 ρ' v' w'))) :=
-      (hpreQ (δ₁ • F.generator d, δ₂ • F.generator d)).eval_run_congr fun ((v', w'), _) hq => by
-        dsimp only at hq ⊢
-        rw [projHash2_fiber_eq_of_isDHTriple F d hq]
-    simp only [hpre_congr]
+    have hrun_congr {β : Type} {prog : ProbOracleComp (Universal2EvalSpec F d) β}
+        (hQ : prog.QueriesSatisfy fun ((v', w'), _) => IsDHTriple F d (α • F.generator d) v' w')
+        (t₁ t₂ : ZMod (F.order d)) := hQ.eval_run_congr
+      (oracle := fun ((v', w'), ρ') =>
+        pure (projHash2 F d (δ₁ - α * t₁) t₁ (δ₂ - α * t₂) t₂ ρ' v' w'))
+      (oracle' := fun ((v', w'), ρ') => pure (projHash2 F d δ₁ 0 δ₂ 0 ρ' v' w'))
+      fun ((v', w'), _) hq =>
+        congrArg (ProbComp.eval ∘ pure) (projHash2_fiber_eq_of_isDHTriple F d hq)
+    simp only [hrun_congr (hpreQ (δ₁ • F.generator d, δ₂ • F.generator d))]
     conv_lhs => enter [1, 2, τ₁]; rw [PMF.bind_comm]
     rw [PMF.bind_comm]
-    refine PMF.bind_apply_le_on_support _ fun chal hchal => ?_
-    rcases chal with ⟨v, w, ρ, st₁⟩
+    refine PMF.bind_apply_le_on_support _ fun ⟨v, w, ρ, st₁⟩ hchal => ?_
     have hpost_z := hpost δ₁ 0 δ₂ 0 v w ρ st₁
       (by simpa only [projHash2Aux, projHashAux_generator_smul, mul_zero, add_zero] using hchal)
     rw [PMF.bind_comm]
@@ -353,22 +337,11 @@ theorem succProbability_universal2GuessGame_le {State₀ State₁ : Type} (d : F
     obtain ⟨γ, rfl⟩ := F.smul_generator_surjective d w
     simp only [projHash2_fiber_challenge_eq F d α β γ δ₁ δ₂ ξ]
     set z : F.Carrier d := (β * (δ₁ + ρ * δ₂) + (γ - α * β) * ξ) • F.generator d
-    have hpost_congr (τ₂ : ZMod (F.order d)) :
-        ProbComp.eval ((A.guess st₁ z).run
-          (fun ((v', w'), ρ') =>
-            pure (projHash2 F d (δ₁ - α * (ξ - ρ * τ₂)) (ξ - ρ * τ₂)
-              (δ₂ - α * τ₂) τ₂ ρ' v' w'))) =
-        ProbComp.eval ((A.guess st₁ z).run
-          (fun ((v', w'), ρ') => pure (projHash2 F d δ₁ 0 δ₂ 0 ρ' v' w'))) :=
-      (hpost_z z).1.eval_run_congr fun ((v', w'), _) hq => by
-        dsimp only at hq ⊢
-        rw [projHash2_fiber_eq_of_isDHTriple F d hq]
-    simp only [hpost_congr]
+    simp only [fun τ₂ => hrun_congr (hpost_z z).1 (ξ - ρ * τ₂) τ₂]
     rw [PMF.bind_comm]
     refine PMF.bind_apply_le_on_support _ fun guesses hguesses => ?_
-    have hlen : guesses.length ≤ Q := (hpost_z z).2 δ₁ 0 δ₂ 0 guesses hguesses
     simpa only [PMF.map, Function.comp_def, PMF.monad_pure_eq_pure] using
-      uniform_universal2Wins_le F d α δ₁ δ₂ ξ ρ Q guesses hlen
+      uniform_universal2Wins_le F d α δ₁ δ₂ ξ ρ Q guesses ((hpost_z z).2 δ₁ 0 δ₂ 0 guesses hguesses)
   have hne : ((Q : ℝ≥0∞) / (F.order d : ℝ≥0∞)) ≠ ⊤ :=
     ENNReal.div_ne_top (ENNReal.natCast_ne_top Q) (Nat.cast_ne_zero.mpr (F.prime_order d).ne_zero)
   simpa only [Game.succProbability, ENNReal.toNNReal_div, ENNReal.toNNReal_natCast] using

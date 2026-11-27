@@ -911,18 +911,11 @@ theorem isPPT_ddhAmplifiedDecider {distinguisher : F.DDHDistinguisher} (hD : dis
     ((hself.comp (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)).countTrue
       (hN (by fun_prop))) ?_
   refine IsPPTOn.bind_with
-    ((hself.comp (by fun_prop) (by fun_prop) (computableInPolyTime_encode_zero (by fun_prop))
-      (computableInPolyTime_encode_zero (by fun_prop))
-      (computableInPolyTime_encode_zero (by fun_prop))).countTrue (hN (by fun_prop))) ?_
+    ((hself.comp (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)).countTrue
+      (hN (by fun_prop))) ?_
   refine IsPPTOn.bind_with
-    ((hself.comp (by fun_prop) (by fun_prop) (computableInPolyTime_encode_zero (by fun_prop))
-      (computableInPolyTime_encode_zero (by fun_prop))
-      (computableInPolyTime_encode_generator (by fun_prop))).countTrue (hN (by fun_prop))) ?_
-  exact (show ComputableInPolyTime
-      (fun p : ((F.DDHInput × ℕ) × ℕ) × ℕ =>
-        decide ((p.1.1.2 - p.1.2) + (p.1.2 - p.1.1.2) ≤ (p.1.1.2 - p.2) + (p.2 - p.1.1.2)))
-      (encPair (encPair (encPair F.encDDHInput encUnary) encUnary) encUnary) encBool by
-    fun_prop).isPPTOn
+    ((hself.comp (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)).countTrue
+      (hN (by fun_prop))) (ComputableInPolyTime.isPPTOn (by fun_prop))
 
 private theorem cast_sub_add_sub_eq_abs (a b : ℕ) :
     (((a - b) + (b - a) : ℕ) : ℝ) = |(a : ℝ) - (b : ℝ)| := by
@@ -1002,12 +995,12 @@ theorem ddhAmplifiedDecider_error_le_pow (distinguisher : F.DDHDistinguisher)
     (ProbComp.eval (ddhRandomExperiment (F.order d) (F.generator d) (distinguisher n d))
       true).toReal
   let ε : ℝ := 1 / (invEps n : ℝ)
-  have h12eq : 1 / (12 * (invEps n : ℝ)) = ε / 12 := by dsimp [ε]; ring
   have h7eq' : 1 / ((7 * invEps n : ℕ) : ℝ) = ε / 7 := by dsimp [ε]; push_cast; ring
   have hadv' : ε ≤ |pReal - pRandom| := by
     simpa only [ddhAdvantage, Game.coe_advantage, Game.succProbability,
       ENNReal.coe_toNNReal_eq_toReal, pReal, pRandom, ε] using hadv
-  have hmod' : 3 / (2 ^ n : ℝ) ≤ ε / 12 := h12eq ▸ hmod
+  have hmod' : 3 / (2 ^ n : ℝ) ≤ ε / 12 :=
+    hmod.trans_eq (by dsimp only [ε]; ring)
   have hRealClose (α' β' : ZMod (F.order d)) :
       |(ProbComp.eval (trial (α' • F.generator d) (β' • F.generator d)
         ((α' * β') • F.generator d)) true).toReal - pReal| ≤ ε / 12 := by

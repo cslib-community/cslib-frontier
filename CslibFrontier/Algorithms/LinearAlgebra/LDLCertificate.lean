@@ -146,12 +146,11 @@ theorem rowDot_eq_sum [NonUnitalNonAssocSemiring α] {n : ℕ} {r : List α} (s 
   | zero => simp [List.eq_nil_of_length_eq_zero (Nat.le_zero.1 hr), rowDot]
   | succ n ih =>
     rw [Fin.sum_univ_succ]
-    rcases r with _ | ⟨a, r⟩ <;> rcases s with _ | ⟨b, s⟩
-    · simp [rowDot]
-    · simp [rowDot]
-    · simp [rowDot]
-    · simp only [rowDot, Fin.val_zero, List.getD_cons_zero, Fin.val_succ, List.getD_cons_succ,
+    match r, s with
+    | a :: r, b :: s =>
+      simp only [rowDot, Fin.val_zero, List.getD_cons_zero, Fin.val_succ, List.getD_cons_succ,
         ih _ (Nat.le_of_succ_le_succ hr)]
+    | [], _ | _, [] => simp [rowDot]
 
 /-- The product of `A`, read as `l × m`, and `B`, read as `m × n`, as `l` rows of `n` entries:
 Mathlib's `Mathlib.Tactic.Matrix.ListMatrix.mul` with `rowDot` in place of its sealed dot
@@ -301,13 +300,13 @@ theorem cast_getD_scaleRow {s : ℕ} {r : List ℚ} (hs : ∀ q ∈ r, q.den ∣
 theorem map_ofLists_scaleRow {m n s : ℕ} {A : List (List ℚ)} (hs : ∀ q ∈ A.flatten, q.den ∣ s) :
     (ofLists m n (A.map (scaleRow s))).map ((↑) : ℤ → ℚ) = (s : ℚ) • ofLists m n A := by
   ext i j
-  have hrow : (A.map (scaleRow s)).getD i [] = scaleRow s (A.getD i []) := by
-    cases hA : A[(i : ℕ)]? <;> simp [List.getD_eq_getElem?_getD, scaleRow, hA]
   have hs' : ∀ q ∈ A.getD i [], q.den ∣ s := by
-    rcases Nat.lt_or_ge i A.length with hi | hi
-    · exact fun q hq => hs q (List.mem_flatten.2 ⟨_, List.getElem_mem hi,
-        by rwa [List.getD_eq_getElem _ _ hi] at hq⟩)
-    · simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none hi]
+    rw [List.getD_eq_getElem?_getD]
+    rcases h : A[i]? with _ | r
+    · simp
+    · exact fun q hq => hs q (List.mem_flatten.2 ⟨r, List.mem_of_getElem? h, hq⟩)
+  have hrow : (A.map (scaleRow s)).getD i [] = scaleRow s (A.getD i []) :=
+    List.getD_map _ [] _
   simp only [map_apply, Matrix.smul_apply, smul_eq_mul, ofLists_apply, ofList_apply, hrow,
     cast_getD_scaleRow hs']
 
@@ -694,16 +693,14 @@ theorem exists_checkPosSemidef_iff {rows : List (List ℚ)} :
   · rintro ⟨c, h⟩
     refine ⟨?_, c.posSemidef_of_checkPosSemidef h⟩
     simp only [checkPosSemidef, factors, factorsLower, Bool.and_eq_true] at h
-    exact h.1.2.1.1.1.1
+    obtain ⟨⟨-, ⟨⟨⟨⟨hshape, -⟩, -⟩, -⟩, -⟩⟩, -⟩ := h
+    exact hshape
   · rintro ⟨hshape, hM⟩
     obtain ⟨L, d, hL, h1, hd, hLd⟩ := exists_LDL_of_posSemidef (posSemidef_of_map_ratCast hM)
     obtain ⟨hlen, hdlen, hl, hLL, hdd⟩ := ofFactors_spec (d := d) hL h1
-    refine ⟨ofFactors L d, ?_⟩
-    simp only [checkPosSemidef, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq]
-    refine ⟨(ofFactors L d).factors_of_eq hshape hlen hdlen hl (by rw [hLL, hdd, hLd]),
-      fun x hx => ?_⟩
-    obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hx
-    exact hd i
+    exact ⟨ofFactors L d, Bool.and_eq_true_iff.2
+      ⟨(ofFactors L d).factors_of_eq hshape hlen hdlen hl (by rw [hLL, hdd, hLd]),
+        by simp [ofFactors, hd]⟩⟩
 
 /-- **Completeness for `≻ 0`.** Some witness is accepted exactly when `rows` lists `n` rows of
 `n` entries and the matrix is positive definite over `ℝ` (`Matrix.exists_LDL_of_posDef`). -/
@@ -714,16 +711,14 @@ theorem exists_checkPosDef_iff {rows : List (List ℚ)} :
   · rintro ⟨c, h⟩
     refine ⟨?_, c.posDef_of_checkPosDef h⟩
     simp only [checkPosDef, factors, factorsLower, Bool.and_eq_true] at h
-    exact h.1.2.1.1.1.1
+    obtain ⟨⟨-, ⟨⟨⟨⟨hshape, -⟩, -⟩, -⟩, -⟩⟩, -⟩ := h
+    exact hshape
   · rintro ⟨hshape, hM⟩
     obtain ⟨L, d, hL, h1, hd, hLd⟩ := exists_LDL_of_posDef (posDef_of_map_ratCast hM)
     obtain ⟨hlen, hdlen, hl, hLL, hdd⟩ := ofFactors_spec (d := d) hL h1
-    refine ⟨ofFactors L d, ?_⟩
-    simp only [checkPosDef, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq]
-    refine ⟨(ofFactors L d).factors_of_eq hshape hlen hdlen hl (by rw [hLL, hdd, hLd]),
-      fun x hx => ?_⟩
-    obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hx
-    exact hd i
+    exact ⟨ofFactors L d, Bool.and_eq_true_iff.2
+      ⟨(ofFactors L d).factors_of_eq hshape hlen hdlen hl (by rw [hLL, hdd, hLd]),
+        by simp [ofFactors, hd]⟩⟩
 
 end LDLCert
 
@@ -756,13 +751,10 @@ rows of `A` and `P` scaled by the lcm of all their denominators. It is
 theorem map_ofLists_scaledLyapunovResidual (n : ℕ) (A P : List (List ℚ)) :
     (ofLists n n (scaledLyapunovResidual n A P)).map ((↑) : ℤ → ℚ) =
       (lyapunovScale A P : ℚ) • ofLists n n (lyapunovResidual n A P) := by
-  have hA := map_ofLists_scaleRow (m := n) (n := n) (s := denLcm A.flatten) (A := A)
-    fun _ hq => den_dvd_denLcm hq
-  have hP := map_ofLists_scaleRow (m := n) (n := n) (s := denLcm P.flatten) (A := P)
-    fun _ hq => den_dvd_denLcm hq
   rw [scaledLyapunovResidual, ofLists_lyapunovResidual, ofLists_lyapunovResidual,
     Matrix.map_neg _ Int.cast_neg, Matrix.map_add _ Int.cast_add, Matrix.map_mul_intCast,
-    Matrix.map_mul_intCast, transpose_map, hA, hP, lyapunovScale]
+    Matrix.map_mul_intCast, transpose_map, map_ofLists_scaleRow fun _ => den_dvd_denLcm,
+    map_ofLists_scaleRow fun _ => den_dvd_denLcm, lyapunovScale]
   simp only [transpose_smul, Matrix.smul_mul, Matrix.mul_smul, smul_smul, smul_add, smul_neg,
     Nat.cast_mul]
   rw [mul_comm (denLcm P.flatten : ℚ)]
@@ -809,11 +801,10 @@ theorem posDef_of_check {c : LyapunovCert} {n : ℕ} {A P : List (List ℚ)}
       R i j * lyapunovScale A P := by
     simpa only [map_apply, Matrix.smul_apply, smul_eq_mul, ofLists_apply, ofList_apply, hR,
       mul_comm] using congrFun (congrFun (map_ofLists_scaledLyapunovResidual n A P) i) j
-  have hM := c.Q.eq_of_factorsLower (num := id) (den := fun _ => lyapunovScale A P)
-    (rows := scaledLyapunovResidual n A P) (fun i j => by simpa only [id] using hval i j)
-    (fun _ _ => hσ) hsymm hQ
-  have hs := c.Q.shape_of_factorsLower hQ
-  have hQpos := c.Q.posDef_of_eq hs.1 hs.2.1 hs.2.2 hd hM
+  obtain ⟨hl, hdl, hu⟩ := c.Q.shape_of_factorsLower hQ
+  have hQpos := c.Q.posDef_of_eq hl hdl hu hd <|
+    c.Q.eq_of_factorsLower (num := id) (den := fun _ => lyapunovScale A P)
+      (rows := scaledLyapunovResidual n A P) hval (fun _ _ => hσ) hsymm hQ
   rwa [hR, ofLists_lyapunovResidual, Matrix.map_neg _ Rat.cast_neg, Matrix.map_add _ Rat.cast_add,
     Matrix.map_mul_ratCast, Matrix.map_mul_ratCast, transpose_map] at hQpos
 

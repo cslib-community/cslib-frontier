@@ -269,7 +269,8 @@ private theorem sum_update_bool (f : S → Bool) (s₀ : S) (b : Bool) :
   rw [← Finset.add_sum_erase _ _ (Finset.mem_univ s₀),
     ← Finset.add_sum_erase _ f (Finset.mem_univ s₀), Function.update_self,
     Finset.sum_congr rfl fun s hs => Function.update_of_ne (Finset.ne_of_mem_erase hs) b f]
-  nth_rw 1 [show b = f s₀ + (b + f s₀) by cases b <;> cases f s₀ <;> decide]
+  have hb : b = f s₀ + (b + f s₀) := by cases b <;> cases f s₀ <;> decide
+  nth_rw 1 [hb]
   abel
 
 /-- In `Bool` (`BooleanRing`), `decide (a + δ ≠ a) = δ`. -/
@@ -347,11 +348,10 @@ theorem isDeterministicAttack_rows [DecidableEq ρ] (hcorrect : P.IsCorrect)
   rw [hxor', sum_update_bool,
     ← hxor' i r (fun s => P.answer s (fun i' => x (j, i')) (q s)),
     hcorrect.reconstruct_eq (fun i' => x (j, i')) i hrq, decide_add_ne_self_bool]
-  rcases eq_or_ne j j₀ with rfl | hj
-  · simp only [rowsFlipAttack, Function.update_self, answer_rows, decide_true]
-    cases P.answer s₀ (fun i' => x (j, i')) (q s₀) <;> decide
-  · simp only [rowsFlipAttack, Function.update_of_ne hj, answer_rows, hj, decide_false]
-    cases P.answer s₀ (fun i' => x (j, i')) (q s₀) <;> decide
+  by_cases hj : j = j₀ <;>
+    simp only [rowsFlipAttack, Function.update_apply, answer_rows, hj, ↓reduceIte,
+      decide_true, decide_false] <;>
+    generalize P.answer s₀ _ (q s₀) = a <;> cases a <;> decide
 
 /-- Flipping row `j₀` in `P.rows ρ` distinguishes any query `(j₀, i₀)` in row `j₀` from any query
 `(j₁, i₁)` in row `j₁ ≠ j₀` with selective-failure advantage `1`. -/
@@ -399,13 +399,10 @@ theorem isDeterministicAttack_toBlock_toBitScheme [DecidableEq κ] (hcorrect : P
   rw [hxor', sum_update_bool,
     ← hxor' i r (fun s => P.answer s (fun i' => x (i', b)) (q s)),
     hcorrect.reconstruct_eq (fun i' => x (i', b)) i hrq, decide_add_ne_self_bool]
-  rcases eq_or_ne b b₀ with rfl | hb
-  · simp only [toBlockBitFlipAttack, Function.update_self, answer_toBitScheme, answer_toBlock,
-      decide_true]
-    cases P.answer s₀ (fun i' => x (i', b)) (q s₀) <;> decide
-  · simp only [toBlockBitFlipAttack, Function.update_of_ne hb, answer_toBitScheme, answer_toBlock,
-      hb, decide_false]
-    cases P.answer s₀ (fun i' => x (i', b)) (q s₀) <;> decide
+  by_cases hb : b = b₀ <;>
+    simp only [toBlockBitFlipAttack, Function.update_apply, answer_toBitScheme, answer_toBlock, hb,
+      ↓reduceIte, decide_true, decide_false] <;>
+    generalize P.answer s₀ _ (q s₀) = a <;> cases a <;> decide
 
 /-- Block-lifted bit retrieval `(P.toBlock κ).toBitScheme` is not selective-failure free whenever
 `S` and `ι` are nonempty and the block coordinate type `κ` has at least two coordinates. -/
@@ -501,12 +498,10 @@ private theorem readAnswer_update_coverFlipAttack_self (x : (D → ι) → Bool)
       K.readAnswer i (K.cover w₀) (fun s => (K.scheme ι).answer s x (q s)) +
         decide (i (K.dir s₀ r₀) = k₀) := by
   rw [hw₀]
-  by_cases hik : i (K.dir s₀ r₀) = k₀
-  · simp only [readAnswer, Function.update_self, coverFlipAttack, hik, decide_true]
-    cases ((K.scheme ι).answer s₀ x (q s₀)).2 r₀ k₀ <;> rfl
-  · simp only [readAnswer, Function.update_self, coverFlipAttack, hik, decide_false,
-      Function.update_of_ne hik]
-    exact (add_zero _).symm
+  by_cases hik : i (K.dir s₀ r₀) = k₀ <;>
+    simp only [readAnswer, Function.update_self, coverFlipAttack, Function.update_apply, hik,
+      ↓reduceIte, decide_true, decide_false] <;>
+    generalize ((K.scheme ι).answer s₀ x (q s₀)).2 r₀ _ = a <;> cases a <;> decide
 
 /-- **Deterministic selective failure on `RadiusOneCover.scheme` (CGKS Section 3.3, Theorem 1).**
 Whenever server `s₀` emulates cube vertex `w₀` along direction `r₀` (`K.cover w₀ = (s₀, some r₀)`),

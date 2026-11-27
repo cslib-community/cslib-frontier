@@ -74,9 +74,9 @@ private theorem measurePreserving_dot2_unit {u : ℝ × ℝ} (hu : u.1 ^ 2 + u.2
     (measurePreserving_finTwoArrow (gaussianReal 0 1)).symm) using 1
   funext p
   simp only [Function.comp_apply, PiLp.inner_apply, Fin.sum_univ_two, v,
-    Matrix.cons_val_zero, Matrix.cons_val_one, RCLike.inner_apply, conj_trivial]
-  change u.1 * p.1 + u.2 * p.2 = p.1 * u.1 + p.2 * u.2
-  ring
+    Matrix.cons_val_zero, Matrix.cons_val_one, RCLike.inner_apply, conj_trivial, dot2]
+  rw [mul_comm u.1, mul_comm u.2]
+  rfl
 
 /-- Any orthogonal `2 × 2` map given by two orthogonal unit vectors preserves `gauss2`. -/
 private theorem measurePreserving_ortho2 {u₀ u₁ : ℝ × ℝ}
@@ -103,9 +103,8 @@ private theorem measurePreserving_ortho2 {u₀ u₁ : ℝ × ℝ}
   funext p
   ext <;> simp only [Function.comp_apply, MeasurableEquiv.finTwoArrow_apply, PiLp.inner_apply,
       Fin.sum_univ_two, v, Matrix.cons_val_zero, Matrix.cons_val_one,
-      RCLike.inner_apply, conj_trivial]
-  exacts [(by ring : u₀.1 * p.1 + u₀.2 * p.2 = p.1 * u₀.1 + p.2 * u₀.2),
-    (by ring : u₁.1 * p.1 + u₁.2 * p.2 = p.1 * u₁.1 + p.2 * u₁.2)]
+      RCLike.inner_apply, conj_trivial, dot2] <;>
+    rw [mul_comm _ p.1, mul_comm _ p.2] <;> rfl
 
 private theorem measurePreserving_rot120 : MeasurePreserving rot120 gauss2 gauss2 := by
   convert measurePreserving_ortho2 (u₀ := (-1 / 2, -√3 / 2)) (u₁ := (√3 / 2, -1 / 2))
@@ -156,7 +155,7 @@ private theorem measurePreserving_negSample :
 private theorem gaussTie_not_injective_zero :
     gaussTie.real {τ : Fin 3 → ℝ | ¬Function.Injective τ} = 0 := by
   have hpair (c₁ c₂ : Fin 3) (hne : c₁ ≠ c₂) :
-      gaussTie.real {τ : Fin 3 → ℝ | τ c₁ = τ c₂} = 0 := by
+      gaussTie {τ : Fin 3 → ℝ | τ c₁ = τ c₂} = 0 := by
     let e₁ : EuclideanSpace ℝ (Fin 3) := EuclideanSpace.single c₁ 1
     let e₂ : EuclideanSpace ℝ (Fin 3) := EuclideanSpace.single c₂ 1
     let u : EuclideanSpace ℝ (Fin 3) := (1 / √2 : ℝ) • (e₁ - e₂)
@@ -168,21 +167,15 @@ private theorem gaussTie_not_injective_zero :
       rw [norm_smul, ← sqrt_sq (norm_nonneg (e₁ - e₂)), hsub_sq,
         Real.norm_of_nonneg (by positivity)]
       exact one_div_mul_cancel (by positivity)
-    have hsub : {τ : Fin 3 → ℝ | τ c₁ = τ c₂} ⊆
-        {τ : Fin 3 → ℝ | ⟪u, WithLp.toLp 2 τ⟫ = 0} := fun τ (hτ : τ c₁ = τ c₂) => by
-      simp [u, e₁, e₂, real_inner_smul_left, inner_sub_left, EuclideanSpace.inner_single_left, hτ]
-    exact (measureReal_eq_zero_iff (measure_ne_top _ _)).mpr (measure_mono_null hsub
+    refine measure_mono_null (fun τ (hτ : τ c₁ = τ c₂) => ?_)
       ((measureReal_eq_zero_iff (measure_ne_top _ _)).mp
-        (measureReal_pi_gaussianReal_inner_eq_zero hu)))
-  have hcov : {τ : Fin 3 → ℝ | ¬Function.Injective τ} ⊆
-      {τ | τ 0 = τ 1} ∪ ({τ | τ 1 = τ 2} ∪ {τ | τ 2 = τ 0}) := fun τ hτ => by
-    obtain ⟨c₁, c₂, heq, hne⟩ := Function.not_injective_iff.mp hτ
-    fin_cases c₁ <;> fin_cases c₂ <;> simp only [mem_union, mem_ofPred_eq] <;> grind
-  have h (c₁ c₂ : Fin 3) (hne : c₁ ≠ c₂) :=
-    (measureReal_eq_zero_iff (measure_ne_top _ _)).mp (hpair c₁ c₂ hne)
-  exact (measureReal_eq_zero_iff (measure_ne_top _ _)).mpr (measure_mono_null hcov
-    (measure_union_null (h 0 1 (by decide))
-      (measure_union_null (h 1 2 (by decide)) (h 2 0 (by decide)))))
+        (measureReal_pi_gaussianReal_inner_eq_zero hu))
+    simp [u, e₁, e₂, real_inner_smul_left, inner_sub_left, EuclideanSpace.inner_single_left, hτ]
+  refine (measureReal_eq_zero_iff (measure_ne_top _ _)).mpr (measure_mono_null
+    (fun τ hτ => ?_) (measure_iUnion_null fun c₁ => measure_iUnion_null fun c₂ =>
+      measure_iUnion_null fun hne => hpair c₁ c₂ hne))
+  obtain ⟨c₁, c₂, heq, hne⟩ := Function.not_injective_iff.mp hτ
+  exact mem_iUnion.mpr ⟨c₁, mem_iUnion.mpr ⟨c₂, mem_iUnion.mpr ⟨hne, heq⟩⟩⟩
 
 /-- Under two independent copies of `gauss2`, `{((a₀, a₁), (b₀, b₁)) | a₀ * b₁ = b₀ * a₁}` has
 measure zero. -/

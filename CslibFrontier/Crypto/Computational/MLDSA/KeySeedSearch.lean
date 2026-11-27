@@ -151,10 +151,9 @@ private theorem signDecoded_plant (H : Xofs) (s : Level) (seed : FixedBytes 32)
     signDecoded (H.withKeySeedExpansion s seed out) s m r {v with key := K.toList} =
       signDecoded H s m r v := by
   let μ := H.representativeFromTr v.tr m
-  have rep : (H.withKeySeedExpansion s seed out).representativeFromTr v.tr m = μ := by
-    refine congrArg Keccak.bytesToBitsLE (plant_off _ _ _ _ ?_ _)
-    simp only [representativeInput, List.length_append, Keccak.length_bytesToBitsLE, ht]
-    lia
+  have rep : (H.withKeySeedExpansion s seed out).representativeFromTr v.tr m = μ :=
+    congrArg Keccak.bytesToBitsLE <| plant_off _ _ _ _
+      (by simp [representativeInput, Keccak.length_bytesToBitsLE, ht]; omega) _
   have hμ : μ.length = 512 := by
     simp [μ, Xofs.representativeFromTr, Keccak.length_bytesToBitsLE, H.h256.length_read]
   dsimp only [signDecoded, Xofs.runSigning, Xofs.startDecodedSigning]
@@ -219,30 +218,27 @@ private theorem rowSigner_plant (H : Xofs) (s : Level) (p : FixedBytes 96)
     simp [happ, rho, rho', List.take_append, List.drop_append, List.take_left' rh',
       List.drop_left' (FixedBytes.length_toList p)]
   let G (seed K : FixedBytes 32) := H.withKeySeedExpansion s seed (Fin.append p K)
-  have short seed K i : (G seed K).secretPoly s rho' i = H.secretPoly s rho' i :=
+  have short (u v : FixedBytes 32) i :
+      (H.withKeySeedExpansion s u (Fin.append p v)).secretPoly s rho' i = H.secretPoly s rho' i :=
     congrArg (rejBoundedPoly s)
       (plant_off _ _ _ _ (by simp [Keccak.length_bytesToBitsLE, nonceInput, rh']) _)
-  have pkHash seed K (t : Fin s.params.k → Poly) :
-      (G seed K).h256.readBytes (encodePublic s rho t) 64 =
+  have pkHash (seed K : FixedBytes 32) (t : Fin s.params.k → Poly) :
+      (H.withKeySeedExpansion s seed (Fin.append p K)).h256.readBytes (encodePublic s rho t) 64 =
         H.h256.readBytes (encodePublic s rho t) 64 :=
     plant_off _ _ _ _ (by
       rw [Keccak.length_bytesToBitsLE, length_encodePublic, rh]
       cases s <;> decide) _
   change rowSigner (G seed K) s seed = rowSigner (G z z) s z
-  have expansion (u v : FixedBytes 32) :
-      (G u v).expandKeySeed s u = FixedBytes.toList (n := 128) (Fin.append p v) :=
-    Xofs.expandKeySeed_withKeySeedExpansion H s u _
-  simp only [rowSigner, Xofs.keyGen, Xofs.expandS, expansion, (fields K).1, (fields K).2.1,
-    (fields K).2.2, (fields z).1, (fields z).2.1, (fields z).2.2,
-    Xofs.expandA_congr (H := H) (K := G seed K) rfl,
-    Xofs.expandA_congr (H := H) (K := G z z) rfl, short, pkHash,
-    Option.pure_def, Option.bind_eq_bind]
-  rcases eqA : H.expandA s rho with _ | A
+  simp only [G, rowSigner, Xofs.keyGen, Xofs.expandS, Xofs.expandKeySeed_withKeySeedExpansion,
+    (fields K).1, (fields K).2.1, (fields K).2.2, (fields z).1, (fields z).2.1, (fields z).2.2,
+    Xofs.expandA_congr (H := H) (K := H.withKeySeedExpansion s seed (Fin.append p K)) rfl,
+    Xofs.expandA_congr (H := H) (K := H.withKeySeedExpansion s z (Fin.append p z)) rfl,
+    short, pkHash, Option.pure_def, Option.bind_eq_bind]
+  rcases H.expandA s rho with _ | A
   · rfl
-  rcases eqU : tabulate _ (fun i : Fin s.params.ℓ => H.secretPoly s rho' i.val) with _ | u
+  rcases tabulate _ (fun i : Fin s.params.ℓ => H.secretPoly s rho' i.val) with _ | u
   · rfl
-  rcases eqV :
-    tabulate _ (fun i : Fin s.params.k => H.secretPoly s rho' (s.params.ℓ + i.val)) with _ | v
+  rcases tabulate _ (fun i : Fin s.params.k => H.secretPoly s rho' (s.params.ℓ + i.val)) with _ | v
   · rfl
   simp only [Option.bind_some, Option.map_some, pkHash]
   let t := fun i => (Vector.ofFn (fun i => Vector.ofFn ((moduleSISMap A u + v) i))).get i |>.get

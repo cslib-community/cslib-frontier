@@ -88,8 +88,7 @@ private theorem sum_map_le_mul {ts : List Tm} {X a b u : ℕ} (hu : 1 ≤ u)
 
 private theorem size_listTm_le_mul {ts : List Tm} {X a u : ℕ} (hu : 1 ≤ u) (hl : ts.length ≤ X)
     (h : ∀ t ∈ ts, t.tree.size ≤ a * u) : (listTm ts).tree.size ≤ (a + 7) * (X * u) + 3 := by
-  rw [size_listTm]
-  exact Nat.add_le_add_right (sum_map_le_mul hu hl h) 3
+  exact size_listTm ts ▸ Nat.add_le_add_right (sum_map_le_mul hu hl h) 3
 
 variable {F : Type} [CommSemiring F] {K A' E U0 U1 D nI pS mm : ℕ}
   {M : Moves F (K + K + A') E} {S Q : Type} [Fintype S] [Fintype Q] {C : Codes S M U0 U1 D pS}
@@ -101,8 +100,7 @@ include H
 private theorem size_valueTm (y : PlanName S M U0 U1 pS) : (C.valueTm y).tree.size ≤ 9 * Lc := by
   have := H.size_ofBits_le (H.name y)
   have := H.one_le_Lc
-  simp only [Codes.valueTm, Tm.tree, Tree.size, num]
-  omega
+  simp only [Codes.valueTm, Tm.tree, Tree.size, num]; omega
 
 private theorem size_basesTm (p : Fin (K + K)) : (C.basesTm p).tree.size ≤ 140 * (X * Lc) := by
   have hLc := H.one_le_Lc
@@ -122,14 +120,12 @@ private theorem size_basesTm (p : Fin (K + K)) : (C.basesTm p).tree.size ≤ 140
   | left κ =>
     have := hv (.state κ.castSucc)
     have := hv (.state κ.succ)
-    simp only [Codes.basesTm, Codes.baseTm, Fin.addCases_left, Codes.bodyTm, Tm.tree, Tree.size,
-      num] at *
-    omega
+    rw [Codes.basesTm, Codes.baseTm, Fin.addCases_left]
+    simp only [Codes.bodyTm, Tm.tree, Tree.size, num] at *; omega
   | right κ =>
     have := hv (.part κ)
-    simp only [Codes.basesTm, Codes.baseTm, Fin.addCases_right, Codes.bodyTm, Tm.tree, Tree.size,
-      num] at *
-    omega
+    rw [Codes.basesTm, Codes.baseTm, Fin.addCases_right]
+    simp only [Codes.bodyTm, Tm.tree, Tree.size, num] at *; omega
 
 private theorem size_ifTm_le {k : Fin pS} {t : Tree} {a : Tm} (ht : t.size ≤ 5 * Lc) :
     (ifTm (C.name (.gate k)) t a).tree.size ≤ a.tree.size + 10 * Lc + 14 := by
@@ -175,15 +171,14 @@ private theorem size_roleTm (r : M.Role) : (C.roleTm tab tg hD r).tree.size ≤
 
 private theorem size_endTm (hmm : mm ≤ D) (g : Fin mm) (u : UnitId (K + K) U0 M.Channel U1) :
     (C.endTm tab hD hmm g u).tree.size ≤ 300 * Lc := by
-  have hd := size_digitTree H
   have := H.size_ofBits_le (H.name (.gate (tab.curGate u)))
   have := H.size_ofBits_le (H.name (.gate (tab.groupGate (UnitId.holder M.channelParty u false))))
   have := H.size_ofBits_le (H.name (.gate (tab.groupGate (UnitId.holder M.channelParty u true))))
   have := H.size_ofBits_le (H.key ⟨UnitId.holder M.channelParty u false, u⟩)
   have := H.size_ofBits_le (H.key ⟨UnitId.holder M.channelParty u true, u⟩)
   have := size_valueTm H (.content u)
-  have := hd ⟨1, hD⟩
-  have := hd (Fin.castLE hmm g)
+  have := size_digitTree H ⟨1, hD⟩
+  have := size_digitTree H (Fin.castLE hmm g)
   have := H.one_le_Lc
   simp only [Codes.endTm, ifTm, Codes.fixedTm, listTm, Tm.tree, Tree.size, Instruction.enc, listT,
     num] at *
@@ -198,10 +193,8 @@ private theorem size_pieceTm {bT bub : List Bool} (hbT : bT.length ≤ Lc) (hbub
   have a2 := H.le_mul_X (X * Lc)
   have a3 := H.le_mul_X (X * (X * Lc))
   have a4 : X ≤ X * Lc := Nat.le_mul_of_pos_right X hLc
-  have hR : ((allRoles M).map fun r => ifTm (C.name (.gate (tab.groupGate (M.roleParty r))))
-      (C.digitTree (Fin.castLE hmm g)) (listTm [C.roleTm tab tg hD r])).length ≤ X := by
-    simpa using (show (allRoles M).Nodup from
-      (pairwise_allRoles M).imp And.left).length_le_card.trans H.roles
+  have hR : (allRoles M).length ≤ X :=
+    (List.Nodup.length_le_card ((pairwise_allRoles M).imp And.left)).trans H.roles
   have s1 := sum_map_le_mul (a := 164) (b := 11) (a1.trans' hLc)
     (ts := (List.finRange (K + K)).map fun p => ifTm (C.name (.gate (tab.groupGate
       (Fin.castAdd A' p)))) (C.digitTree (Fin.castLE hmm g)) (C.basesTm p))
@@ -215,7 +208,8 @@ private theorem size_pieceTm {bT bub : List Bool} (hbT : bT.length ≤ Lc) (hbub
   have s2 := sum_map_le_mul (a := 154) (b := 11) (a2.trans' (a1.trans' hLc))
     (ts := (allRoles M).map fun r => ifTm (C.name (.gate (tab.groupGate (M.roleParty r))))
       (C.digitTree (Fin.castLE hmm g)) (listTm [C.roleTm tab tg hD r]))
-    hR fun t ht => by
+    (by simpa using hR)
+    fun t ht => by
       obtain ⟨r, -, rfl⟩ := List.mem_map.1 ht
       have := size_ifTm_le H (k := tab.groupGate (M.roleParty r))
         (a := listTm [C.roleTm tab tg hD r])

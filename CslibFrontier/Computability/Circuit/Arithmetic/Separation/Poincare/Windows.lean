@@ -113,23 +113,22 @@ theorem fix_P_window {p n p' n' : ℕ} (hd : p + n ≤ p') (hp' : p' + n' ≤ h)
 theorem dist_P_window_sq_le (hμ : 2 ≤ μ) (hs : 1 ≤ s) (hA : ∀ z, Contr (A.len z) μ s)
     {n p : ℕ} (hp : p + n ≤ h) (z : Z) :
     dist z ((A.W p n).P z) ^ 2 ≤ kappa μ s n ^ 2 * n * ∑ j ∈ Ico p (p + n - 1), A.e j z ^ 2 := by
-  have h1 := bd_kappa hμ hs n _ ((hA z).comp (wh h p n))
+  have hS : Len.S ((A.len z).comp (wh h p n)) = ∑ j : Fin (n - 1), A.e (p + j) z :=
+    sum_congr rfl fun j _ => by
+      rw [GroupSeminorm.comp_apply, IsoAct.len_apply, wh_eq hp, win_x, IsoAct.e,
+        dite_eq_left (by omega)]
+      rfl
+  have h1 := hS ▸ bd_kappa hμ hs n _ ((hA z).comp (wh h p n))
   have h2 : dist z ((A.W p n).P z) ^ 2 ≤ (Len.rms ((A.len z).comp (wh h p n))) ^ 2 :=
     (dist_P_sq_le (A.W p n) z).trans_eq (by
       simp only [Len.rms_sq, GroupSeminorm.comp_apply, IsoAct.len_apply, IsoAct.W,
         MonoidHom.comp_apply])
-  have hS : Len.S ((A.len z).comp (wh h p n)) = ∑ j : Fin (n - 1), A.e (p + j) z := by
-    refine sum_congr rfl fun j _ => ?_
-    have hj : p + j.1 < h - 1 := by omega
-    rw [GroupSeminorm.comp_apply, IsoAct.len_apply, wh_eq hp, win_x, IsoAct.e, dite_eq_left hj]
-    rfl
   have h3 : (∑ j : Fin (n - 1), A.e (p + j) z) ^ 2 ≤ n * ∑ j ∈ Ico p (p + n - 1), A.e j z ^ 2 := by
     rw [sum_Ico_eq_sum_range, Nat.sub_right_comm, Nat.add_sub_cancel_left,
       ← Fin.sum_univ_eq_sum_range (fun j => A.e (p + j) z ^ 2)]
     exact (sq_sum_le_card_mul_sum_sq (s := univ)
       (f := fun j : Fin (n - 1) => A.e (p + j) z)).trans
         (mul_le_mul_of_nonneg_right (by simp) (sum_nonneg fun _ _ => sq_nonneg _))
-  rw [hS] at h1
   calc _ ≤ (Len.rms ((A.len z).comp (wh h p n))) ^ 2 := h2
     _ ≤ (kappa μ s n * ∑ j : Fin (n - 1), A.e (p + j) z) ^ 2 :=
       pow_le_pow_left₀ (Len.rms_nonneg _) h1 2
@@ -205,19 +204,16 @@ private theorem dist_P_ge (hμ : 2 ≤ μ) (hs : 1 ≤ s) (hA : ∀ z, Contr (A.
   have hde : ∀ t < 3 * u - 1, (((u : ℝ) - 1) * A.e (p + t) b) ^ 2 ≤
       if u ≤ t ∧ t + 1 < 2 * u then 4 * (dist a (B t) ^ 2 - dist a (B (t + 1)) ^ 2) else 0 :=
     fun t ht => by
-      have h1 := mul_e_le A hb (p + t)
-      rw [hw] at h1
+      have h1 := hw ▸ mul_e_le A hb (p + t)
       have h0 : 0 ≤ ((u : ℝ) - 1) * A.e (p + t) b := mul_nonneg (by linarith) (A.e_nonneg _ _)
       split_ifs with hc
       · have hlt_tu : t - u < u - 1 := by omega
-        have hne_i (i : Fin (u - 1)) (hi : i ≠ ⟨t - u, hlt_tu⟩) : u + 1 + i.1 ≠ t + 1 :=
-          fun e => hi (Fin.ext (by dsimp; omega))
         rw [sum_eq_single (⟨t - u, hlt_tu⟩ : Fin (u - 1))
-          (fun i _ hi => he t ht _ (by omega) (by omega) (hne_i i hi)) (by simp),
-          Nat.add_right_comm u 1, Nat.add_sub_of_le hc.1] at h1
-        have h2 := h1.trans (A.e_le (hBfix t) (by omega) (by omega) (by omega) _)
-        rw [dist_comm] at h2
-        have h3 := (pow_le_pow_left₀ h0 h2 2).trans_eq
+          (fun i _ hi => he t ht _ (by omega) (by omega)
+            fun e => hi (Fin.ext (by dsimp; omega)))
+          (by simp), Nat.add_right_comm u 1, Nat.add_sub_of_le hc.1] at h1
+        have h3 := (pow_le_pow_left₀ h0 (dist_comm (B (t + 1)) (B t) ▸
+          h1.trans (A.e_le (hBfix t) (by omega) (by omega) (by omega) _)) 2).trans_eq
           (by ring : (2 * dist (B t) (B (t + 1))) ^ 2 = 4 * dist (B t) (B (t + 1)) ^ 2)
         linarith [hstep t (by omega)]
       · rw [sum_eq_zero fun i _ => he t ht _ (by omega) (by omega)
@@ -272,11 +268,9 @@ theorem dist_P_P_sq_le_of_fix {G₁ G₂ : Type*} [Group G₁] [Fintype G₁] [G
   · simp [← dist_eq_zero.1 h0.symm, dist_comm a z]
   have hpos : 0 ≤ 2 * c * (dist z a * dist z a') := by positivity
   rcases (dist_nonneg (x := v) (y := a)).eq_or_lt with h0 | hα
-  · rw [dist_eq_zero.1 h0.symm] at hA2
-    linarith [sq_nonneg (dist z a')]
+  · rw [dist_eq_zero.1 h0.symm] at hA2; linarith [sq_nonneg (dist z a')]
   rcases (dist_nonneg (x := v) (y := a')).eq_or_lt with h0 | hβ
-  · rw [dist_eq_zero.1 h0.symm, dist_comm a' a] at hA1
-    linarith [sq_nonneg (dist z a)]
+  · rw [dist_eq_zero.1 h0.symm, dist_comm a' a] at hA1; linarith [sq_nonneg (dist z a)]
   set α := dist v a
   set β := dist v a'
   -- (F.2), from the points `q` at `σ` on `[v, a]` and `q'` at `τ` on `[v, a']`, `τβ = cσα`

@@ -7,7 +7,9 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CharacteristicCoefficients
-import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
+import CslibFrontier.Foundations.Data.MvPolynomial.LowestComponent
+import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueCoeffNorm
+import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueParameterDegree
 import Mathlib.Tactic.NormNum
 
 /-! # Characteristic-coefficient evaluator edge cases and uniform certificates -/
@@ -19,6 +21,50 @@ open Cslib Cslib.Complexity Cslib.Complexity.RealAlgebraic Turing.MultiTapeTM Po
 
 private instance : Fact (Nat.Prime 2) := ⟨by decide⟩
 private instance : Fact (Nat.Prime 3) := ⟨by decide⟩
+
+-- The relation and the multiplier carry different parameters through the binary norm bound.
+open MvPolynomial.PurePower in
+example :
+    let r : Fin 1 → MvPolynomial (Fin 1) (MvPolynomial (Fin 2) ℤ) :=
+      fun _ => MvPolynomial.C (MvPolynomial.X 0)
+    let v : MvPolynomial (Fin 1) (MvPolynomial (Fin 2) ℤ) :=
+      MvPolynomial.C (MvPolynomial.X 1) * MvPolynomial.X 0
+    (multiplicationMatrix (by decide : 1 ≤ 2) r (by intro i; simp [r]) v).charpoly.sum
+      (fun _ a => a.coeffNorm1) ≤ 2 ^ multiplicationMatrixCharpolyCoeffNormExponent 1 2 1 0 0 := by
+  let r : Fin 1 → MvPolynomial (Fin 1) (MvPolynomial (Fin 2) ℤ) :=
+    fun _ => MvPolynomial.C (MvPolynomial.X 0)
+  let v : MvPolynomial (Fin 1) (MvPolynomial (Fin 2) ℤ) :=
+    MvPolynomial.C (MvPolynomial.X 1) * MvPolynomial.X 0
+  have hr (i : Fin 1) : (r i).totalDegree < 2 := by simp [r]
+  have hR (i : Fin 1) : (r i).coeff.sum (fun _ a => a.coeffNorm1) ≤ 2 ^ 0 := by
+    dsimp only [r]
+    rw [MvPolynomial.sum_C MvPolynomial.coeffNorm1_zero, MvPolynomial.coeffNorm1_X, pow_zero]
+  have hdeg : v.totalDegree ≤ 1 := by
+    dsimp only [v]
+    exact (MvPolynomial.totalDegree_mul _ _).trans
+      (by rw [MvPolynomial.totalDegree_C, MvPolynomial.totalDegree_X, zero_add])
+  have hV : v.coeff.sum (fun _ a => a.coeffNorm1) ≤ 2 ^ 0 := by
+    dsimp only [v]
+    rw [MvPolynomial.C_mul_X_eq_monomial, MvPolynomial.sum_monomial_eq MvPolynomial.coeffNorm1_zero,
+      MvPolynomial.coeffNorm1_X, pow_zero]
+  exact sum_multiplicationMatrix_charpoly_le_pow_two MvPolynomial.coeffNorm1_zero
+    MvPolynomial.coeffNorm1_one.le MvPolynomial.coeffNorm1_add_le MvPolynomial.coeffNorm1_mul_le
+    MvPolynomial.coeffNorm1_neg MvPolynomial.coeffNorm1_nsmul (by decide) r hr hR v hdeg hV
+
+-- The flattened relative critical-value polynomial keeps the source norm and degree bounds.
+open MvPolynomial.CriticalSystem in
+example :
+    let F : MvPolynomial (Fin 1 ⊕ Fin 1) ℤ := MvPolynomial.X (.inl 0) * MvPolynomial.X (.inr 0)
+    let hF : F.totalDegree ≤ 2 := (MvPolynomial.totalDegree_mul _ _).trans (by simp)
+    let p := flattenedRelativeValuePolynomial (by decide : 1 ≤ 2) F hF
+    p.coeffNorm1 ≤ 2 ^ relativeValueCoeffNormExponent 1 2 0 ∧
+      p.totalDegree ≤ 2 * (6 * (F.totalDegree + 1)) := by
+  dsimp only
+  constructor
+  · apply coeffNorm1_flattenedRelativeValuePolynomial_le (by decide)
+    exact (MvPolynomial.coeffNorm1_mul_le _ _).trans
+      (by simp only [MvPolynomial.coeffNorm1_X, one_mul, pow_zero, le_refl])
+  · exact totalDegree_flattenedRelativeValuePolynomial_le (by decide) _ _
 
 -- The logarithm's zero slot is masked before inversion, including at the smallest prime.
 example (t : ℕ) : traceLogarithmResidue 2 0 t = 0 := by
@@ -80,6 +126,23 @@ example (u x : ℤ) :
   intro F hF
   simpa [F] using relativeValuePolynomial_map (by decide : 1 ≤ 2) F hF u (fun _ => x)
 
+-- The flattened variable slots agree with specialization in a modular coefficient ring.
+open MvPolynomial.CriticalSystem in
+example (y u x : ZMod 5) :
+    let F : MvPolynomial (Fin 1 ⊕ Fin 1) ℤ := MvPolynomial.X (.inl 0) + MvPolynomial.X (.inr 0)
+    let hF : F.totalDegree ≤ 2 := (MvPolynomial.totalDegree_add _ _).trans (by simp)
+    MvPolynomial.eval₂ (Int.castRingHom (ZMod 5))
+      (fun i : Option (Option (Fin 1)) => i.elim y (fun j => j.elim u (fun _ => x)))
+      (flattenedRelativeValuePolynomial (by decide : 1 ≤ 2) F hF) =
+    (valuePolynomial (by decide : 1 ≤ 2) (fun _ => 0) u
+      (MvPolynomial.X (0 : Fin 1) + MvPolynomial.C x)
+      ((MvPolynomial.totalDegree_add _ _).trans (by
+        have : Fact (1 < 5) := ⟨by decide⟩
+        rw [MvPolynomial.totalDegree_X, MvPolynomial.totalDegree_C]
+        decide))).eval y := by
+  intro F hF
+  simpa [F] using eval₂_flattenedRelativeValuePolynomial (by decide : 1 ≤ 2) F hF y u (fun _ => x)
+
 -- A parameter variable remains in the constant coefficient of the witness polynomial.
 open MvPolynomial in
 open MvPolynomial.CriticalSystem in
@@ -91,5 +154,65 @@ example :
   refine ⟨?_, ?_⟩
   · simp [F, relativeSource]
   · simpa [F] using coeffNorm1_relativeSource_le F
+
+-- One witness variable and one retained parameter give a parameter degree bound of two.
+open MvPolynomial in
+open MvPolynomial.CriticalSystem in
+example :
+    let F : MvPolynomial (Fin 1 ⊕ Fin 1) ℤ := X (.inl 0) + X (.inr 0)
+    ((criticalLower 2 (fun _ => 0) (X none) (relativeSource F) 0).coeff 0).totalDegree ≤ 2 ∧
+      ((deformedPolynomial 2 (fun _ => 0) (X none)
+        (relativeSource F)).coeff 0).totalDegree ≤ 2 := by
+  intro F
+  have hF : F.totalDegree ≤ 1 := (totalDegree_add _ _).trans (by simp)
+  exact ⟨(totalDegree_coeff_relativeCriticalLower_le (by decide) F 0 0).trans
+      (Nat.add_le_add_right hF 1),
+    (totalDegree_coeff_relativeDeformedPolynomial_le 2 F 0).trans (Nat.add_le_add_right hF 1)⟩
+
+-- Scaling a retained parameter records its degree and keeps it in the coefficient ring.
+open MvPolynomial in
+open MvPolynomial.CriticalSystem in
+example :
+    let F : MvPolynomial (Fin 1 ⊕ Fin 1) ℤ := X (.inr 0)
+    let p := (relativeSource F).coeff 0
+    let scaled := MvPolynomial.aeval
+      (fun i => (Polynomial.X : Polynomial (MvPolynomial (Option (Fin 1)) ℤ)) *
+        Polynomial.C (X i)) p
+    scaled.coeff 1 = X (some 0) ∧ scaled.natDegree = 1 := by
+  intro F p scaled
+  have hp : p = X (some 0) := by simp [p, F, relativeSource]
+  dsimp only [scaled]
+  constructor
+  · rw [coeff_aeval_scale_X, hp]
+    exact homogeneousComponent_eq_self (isHomogeneous_X ℤ (some 0))
+  · rw [natDegree_aeval_scale_X, hp, totalDegree_X]
+
+-- At the quotient dimension the reversed index vanishes, so the top coefficient
+-- has degree zero even when the source contains a retained parameter.
+open MvPolynomial in
+open MvPolynomial.CriticalSystem in
+example :
+    let F : MvPolynomial (Fin 1 ⊕ Fin 1) ℤ := X (.inl 0) + X (.inr 0)
+    let hF : F.totalDegree ≤ 2 := (totalDegree_add _ _).trans (by simp)
+    ((relativeValuePolynomial (by decide : 1 ≤ 2) F hF).coeff 2).totalDegree = 0 := by
+  intro F hF
+  apply Nat.eq_zero_of_le_zero
+  simpa using totalDegree_relativeValuePolynomial_coeff_le (ell := 2) (by decide) F hF 2
+
+-- The lower relation and objective retain their norm bounds with both blocks present.
+open MvPolynomial in
+open MvPolynomial.CriticalSystem in
+example :
+    let F : MvPolynomial (Fin 1 ⊕ Fin 1) ℤ := X (.inl 0) + X (.inr 0)
+    let e := sumRingEquiv ℤ (Fin 1) (Option (Fin 1))
+    (e.symm (criticalLower 2 (fun _ => 0) (X none) (relativeSource F) 0)).coeffNorm1 ≤ 2 ∧
+      (e.symm (deformedPolynomial 2 (fun _ => 0) (X none) (relativeSource F))).coeffNorm1 ≤ 7 := by
+  intro F e
+  have hdegree : F.totalDegree ≤ 1 := (totalDegree_add _ _).trans (by simp)
+  have hnorm : F.coeffNorm1 ≤ 2 := (MvPolynomial.coeffNorm1_add_le _ _).trans (by simp)
+  refine ⟨(coeffNorm1_relativeCriticalLower_le (ell := 2) (by decide) F 0).trans ?_,
+    (coeffNorm1_relativeDeformedPolynomial_le (ell := 2) (by decide) F).trans ?_⟩
+  · exact Nat.mul_le_mul hdegree hnorm
+  · exact Nat.add_le_add_left (Nat.mul_le_mul_left 3 hnorm) 1
 
 end CslibFrontierTests.RealAlgebraicCharacteristic

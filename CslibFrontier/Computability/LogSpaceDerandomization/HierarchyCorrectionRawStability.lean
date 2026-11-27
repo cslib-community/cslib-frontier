@@ -91,10 +91,10 @@ theorem incoming_root_stability_constants (HP : FourthRootHierarchyParams 16 1 1
         (4⁻¹ : ℝ)| ≤ Lτ * (LI * (Ec + Er) / f) := by
   obtain ⟨LI, hLI, hI⟩ := HP.auxiliary_stability_constants
   obtain ⟨Lτ, hτ⟩ := HP.incomingCutoff_root
-  refine ⟨LI, Lτ, hLI, Lτ.coe_nonneg, fun V Kc hKc f hf A B S T y Ec Er hEc hEr hc hr => ?_⟩
-  exact incomingGate_stability hLI Lτ.coe_nonneg hI
-    (fun a b => by simpa only [Real.dist_eq] using hτ.dist_le_mul a b)
-    (NormalizedRow.rank_pos HP) hKc hf A B S T y hEc hEr hc hr
+  exact ⟨LI, Lτ, hLI, Lτ.coe_nonneg, fun _ _ hKc _ hf =>
+    incomingGate_stability hLI Lτ.coe_nonneg hI
+      (fun a b => by simpa only [Real.dist_eq] using hτ.dist_le_mul a b)
+      (NormalizedRow.rank_pos HP) hKc hf⟩
 
 /-- The selected actual correction preparation responds to changing signed raw children.
 Both ranks retain the original source and terminal sets. The same estimate is usable
@@ -117,15 +117,14 @@ theorem correction_preparation_stability_constants
     HierarchyParams.H4RankEnvironment.NormalizedMoments.preparation_stability_constants HP
   obtain ⟨LI, hLI, hI⟩ := HP.auxiliary_stability_constants
   obtain ⟨Lτ, hτ⟩ := HP.incomingCutoff_root
-  refine ⟨Lh, Lρ, LI, 4 * Lτ, hLh, hLρ, hLI, by positivity, ?_⟩
-  intro V Kc hKc f hf A B S T x y Ec Er hEc hEr hc hr
-  exact correctionPrep_stability hLI (by positivity) hLρ
-    (fun z => ⟨polynomialPrepCutoff4_nonneg _ _, polynomialPrepCutoff4_le_one _ _⟩)
-    (fun z => ⟨HP.ρ_nonneg z, HP.ρ_le_one z⟩)
-    (fun z => ⟨HP.incomingCutoff_nonneg z, HP.incomingCutoff_le_one z⟩) hI
-    (abs_sub_le_four_mul_root_lipschitz
-      (fun z => ⟨HP.incomingCutoff_nonneg z, HP.incomingCutoff_le_one z⟩) hτ)
-    hh hρ (NormalizedRow.rank_pos HP) hKc hf A B S T x y hEc hEr hc hr
+  exact ⟨Lh, Lρ, LI, 4 * Lτ, hLh, hLρ, hLI, by positivity, fun _ _ hKc _ hf =>
+    correctionPrep_stability hLI (by positivity) hLρ
+      (fun z => ⟨polynomialPrepCutoff4_nonneg _ _, polynomialPrepCutoff4_le_one _ _⟩)
+      (fun z => ⟨HP.ρ_nonneg z, HP.ρ_le_one z⟩)
+      (fun z => ⟨HP.incomingCutoff_nonneg z, HP.incomingCutoff_le_one z⟩) hI
+      (abs_sub_le_four_mul_root_lipschitz
+        (fun z => ⟨HP.incomingCutoff_nonneg z, HP.incomingCutoff_le_one z⟩) hτ)
+      hh hρ (NormalizedRow.rank_pos HP) hKc hf⟩
 
 /-- The pre-walk incoming preparation is paid entirely by actual RAW error.
 A full source by terminal maximum incurs the explicit width squared and inverse-rate
@@ -342,19 +341,13 @@ theorem correctionRequest_children_root_stability_of_bounds
   obtain ⟨Lγ, hLγ, hmax⟩ := correctionRequest_maximum_root_stability HP
   refine ⟨C, LI, Lτ, Lγ, hC, hLI, hLτ, hLγ, fun P J _ V _ k D ident r hr hf Kc hKc
       raw raw' prep prep' maximum maximum' σ x y Ec Er hEc hEr hc hrank => ?_⟩
+  let split := Equiv.piSplitAt r.terminal.role (fun _ : Fin J => FrameChannel P 4 1)
   have hd := hraw V _ _
     (fun rest z => coordinate D r.source (rest ⟨r.source.role, hr.1⟩) (ident z))
     (fun A z => coordinate D r.terminal A (ident z))
-    (fun A z => coordinate D r.usage A (ident z)) Kc hKc r.terminal.rate hf
-    (raw σ) (raw' σ)
-    (fun p => prep ((Equiv.piSplitAt r.terminal.role
-      (fun _ : Fin J => FrameChannel P 4 1)).symm (p.2, p.1)))
-    (fun p => prep' ((Equiv.piSplitAt r.terminal.role
-      (fun _ : Fin J => FrameChannel P 4 1)).symm (p.2, p.1)))
-    (maximum σ) (((Equiv.piSplitAt r.terminal.role
-      (fun _ : Fin J => FrameChannel P 4 1)) σ).2,
-      ((Equiv.piSplitAt r.terminal.role (fun _ : Fin J => FrameChannel P 4 1)) σ).1)
-    x y Ec Er hEc hEr hc hrank
+    (fun A z => coordinate D r.usage A (ident z)) Kc hKc r.terminal.rate hf (raw σ) (raw' σ)
+    (fun p => prep (split.symm (p.2, p.1))) (fun p => prep' (split.symm (p.2, p.1)))
+    (maximum σ) ((split σ).2, (split σ).1) x y Ec Er hEc hEr hc hrank
   have he := normalizer_full D ident r hr (fun τ a b => |prep τ a b - prep' τ a b|) x y
   dsimp only [CorrectionRowRecipe.normalizer] at he
   rw [he] at hd

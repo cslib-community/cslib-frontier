@@ -304,18 +304,11 @@ theorem renyiMoment_bind_le {α : ℝ} (hα : 1 ≤ α) (p q : PMF X) (K : X →
 applying a Markov kernel `K : X → PMF Y` cannot increase `renyiDiv α`. -/
 theorem renyiDiv_bind_le {α : ℝ} (hα : 1 < α) (p q : PMF X) (K : X → PMF Y) :
     renyiDiv α (p.bind K) (q.bind K) ≤ renyiDiv α p q := by
-  classical
-  by_cases htop : renyiMoment α p q = ⊤
-  · simp [renyiDiv, htop]
-  have hmom := renyiMoment_bind_le hα.le p q K
-  have htop_bind : renyiMoment α (p.bind K) (q.bind K) ≠ ⊤ := ne_top_of_le_ne_top htop hmom
-  have h1_bind : 1 ≤ (renyiMoment α (p.bind K) (q.bind K)).toReal := by
-    ennreal_to_real using one_le_renyiMoment hα (p.bind K) (q.bind K)
-  have hle_real : (renyiMoment α (p.bind K) (q.bind K)).toReal ≤ (renyiMoment α p q).toReal := by
-    ennreal_to_real using hmom
-  simp only [renyiDiv, htop, htop_bind, ↓reduceIte]
-  refine ENNReal.ofReal_le_ofReal (div_le_div_of_nonneg_right ?_ (sub_pos.mpr hα).le)
-  exact Real.log_le_log (zero_lt_one.trans_le h1_bind) hle_real
+  rcases eq_or_ne (renyiDiv α p q) ⊤ with hp | hp
+  · simp [hp]
+  rw [← ENNReal.ofReal_toReal hp, renyiDiv_le_ofReal_iff hα _ _ ENNReal.toReal_nonneg]
+  exact (renyiMoment_bind_le hα.le p q K).trans
+    ((renyiDiv_le_ofReal_iff hα p q ENNReal.toReal_nonneg).mp (ENNReal.ofReal_toReal hp).ge)
 
 /-- Deterministic post-processing cannot increase Rényi divergence [Mironov2017, Section III]. -/
 theorem renyiDiv_map_le {α : ℝ} (hα : 1 < α) (p q : PMF X) (f : X → Y) :
@@ -345,15 +338,13 @@ theorem renyiDiv_bind_pair_le {α : ℝ} (hα : 1 < α) (p q : PMF X) {K L : X �
     (renyiDiv_le_ofReal_iff hα p q hε₁_nn).mp (le_of_eq hp_eq)
   rw [hp_eq, hB_eq, ← ENNReal.ofReal_add hε₁_nn hε₂_nn,
     renyiDiv_le_ofReal_iff hα _ _ (add_nonneg hε₁_nn hε₂_nn)]
-  set P₂ := p.bind fun x => (K x).bind fun y => _root_.PMF.pure (x, y)
-  set Q₂ := q.bind fun x => (L x).bind fun y => _root_.PMF.pure (x, y)
-  have hP₂ : (P₂ : X × Y → ℝ≥0∞) = fun z => p z.1 * K z.1 z.2 :=
-    funext fun ⟨x, y⟩ => bind_pair_apply p K x y
-  have hQ₂ : (Q₂ : X × Y → ℝ≥0∞) = fun z => q z.1 * L z.1 z.2 :=
-    funext fun ⟨x, y⟩ => bind_pair_apply q L x y
-  rw [hP₂, hQ₂,
-    renyiMoment_mul_prod (p₁ := p) (q₁ := q) (p₂ := fun x y => K x y) (q₂ := fun x y => L x y)
-      hα.le (fun x => q.apply_ne_top x) (fun x y => (L x).apply_ne_top y)]
+  have hPQ (r : PMF X) (M : X → PMF Y) :
+      ((r.bind fun x => (M x).bind fun y => _root_.PMF.pure (x, y) : PMF (X × Y)) :
+        X × Y → ℝ≥0∞) = fun z => r z.1 * M z.1 z.2 :=
+    funext fun ⟨x, y⟩ => bind_pair_apply r M x y
+  rw [hPQ p K, hPQ q L, renyiMoment_mul_prod (p₁ := p) (q₁ := q)
+    (p₂ := fun x y => K x y) (q₂ := fun x y => L x y) hα.le
+    q.apply_ne_top fun x => (L x).apply_ne_top]
   calc ∑' x, p x * (p x / q x) ^ (α - 1) * renyiMoment α (K x) (L x)
       ≤ ∑' x, p x * (p x / q x) ^ (α - 1) * ENNReal.ofReal (Real.exp ((α - 1) * ε₂)) := by
         refine tsum_le_tsum fun x => ?_

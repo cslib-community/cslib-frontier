@@ -202,13 +202,11 @@ private theorem sum_clinchAmt_le {d : ι → ℝ} (hd : ∀ k, 0 ≤ d k) {S : �
         linarith [(min_le_right (d k) _).trans_eq (max_eq_right (Finset.mem_filter.mp hk).2.le)]
       have hsub_sum : ∑ k ∈ A, d k ≤ D :=
         Finset.sum_le_sum_of_subset_of_nonneg (Finset.filter_subset _ _) fun k _ _ => hd k
-      have hmul : 1 * (D - S) ≤ (A.card : ℝ) * (D - S) :=
-        mul_le_mul_of_nonneg_right hcard (sub_nonneg.mpr (lt_of_not_ge hDS).le)
       calc ∑ k ∈ A, clinchAmt d S k
           ≤ ∑ k ∈ A, (d k - (D - S)) := Finset.sum_le_sum hterm
         _ = (∑ k ∈ A, d k) - (A.card : ℝ) * (D - S) := by
             rw [Finset.sum_sub_distrib, Finset.sum_const, nsmul_eq_mul]
-        _ ≤ S := by linarith
+        _ ≤ S := by nlinarith
 
 omit [Fintype ι] in
 private theorem clinchDemands_nonneg (rule : DemandRule ι) (B v : ι → ℝ) {p : ℝ} (hp : 0 < p)
@@ -349,17 +347,14 @@ private theorem clinchRun_dsic [DecidableEq ι] (rule : DemandRule ι) (B : ι �
     · have hdem : clinchDemands rule B (Function.update b i v) p s =
           clinchDemands rule B b p s := funext fun k => by
         by_cases hki : k = i <;> simp [clinchDemands, hpb, hpv, hki]
-      have hstep : clinchStep rule B (Function.update b i v) p s = clinchStep rule B b p s := by
-        rw [clinchStep, clinchStep, hdem]
-      rw [clinchRun, clinchRun, hstep]
+      simp only [clinchRun, clinchStep, hdem]
       exact clinchRun_dsic rule B i b v ps (List.pairwise_cons.mp hsort).2
         (fun q hq => hpos q (List.mem_cons_of_mem p hq))
         (clinchStep rule B b p s) (clinchStep_payment_le rule B b hp s hbf)
     · have hv_lt (q : ℝ) (hq : q ∈ p :: ps) : v < q := (lt_of_not_ge hpv).trans_le (hps_ge q hq)
       obtain ⟨hfa, hfp⟩ := clinchRun_frozen rule B (Function.update b i v) i (p :: ps) hpos
         (fun q hq => by simpa using hv_lt q hq) s hbf
-      rw [hfa, hfp]
-      exact clinchRun_util_le rule B b i v (p :: ps) hpos hv_lt s hbf
+      simpa only [hfa, hfp] using clinchRun_util_le rule B b i v (p :: ps) hpos hv_lt s hbf
     · have hb_lt (q : ℝ) (hq : q ∈ p :: ps) : b i < q := (lt_of_not_ge hpb).trans_le (hps_ge q hq)
       obtain ⟨hfa, hfp⟩ := clinchRun_frozen rule B b i (p :: ps) hpos hb_lt s hbf
       simpa only [hfa, hfp, Function.update_self] using

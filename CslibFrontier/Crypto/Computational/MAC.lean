@@ -1555,13 +1555,11 @@ private theorem prfIdealLogOracle_inv (adversary : Forger) (n : ℕ)
     rcases Prod.mk.inj hpair with ⟨-, rfl, rfl⟩
     cases hcache : cache (BitString.ofList n msg) with
     | some v0 =>
-      rw [RandomOracle.answer_of_some _ _ _ _ hcache] at hans
-      simp only [PMF.mem_support_pure_iff, Prod.mk.injEq] at hans
-      rcases hans with ⟨_, rfl⟩
+      rw [RandomOracle.answer_of_some _ _ _ _ hcache, PMF.mem_support_pure_iff] at hans
+      rcases Prod.mk.inj hans with ⟨_, rfl⟩
       exact fun x hx => List.mem_cons_of_mem _ (hstate x hx)
     | none =>
-      rw [RandomOracle.answer_of_none _ _ _ hcache] at hans
-      simp only [PMF.mem_support_map_iff] at hans
+      rw [RandomOracle.answer_of_none _ _ _ hcache, PMF.mem_support_map_iff] at hans
       obtain ⟨v1, -, hupd⟩ := hans
       rcases Prod.mk.inj hupd with ⟨_, rfl⟩
       exact fun x hx => List.mem_cons.mpr <| (eq_or_ne x (BitString.ofList n msg)).imp
@@ -2084,14 +2082,11 @@ theorem succProbability_eufCmaGame_le_sufCmaGame (M : NonceMACScheme)
   simp only [eufCmaGame, sufCmaGame, ProbComp.eval_bind, ProbComp.eval_pure]
   refine PMF.bind_apply_mono_on_support _ _ fun sk _ => ?_
   refine PMF.bind_apply_mono_on_support _ _ fun ⟨⟨⟨msg, nonce⟩, tag⟩, tr⟩ _ => ?_
-  dsimp only
-  by_cases hmsg : (tr.map (fun ⟨⟨qmsg, _⟩, _⟩ => qmsg)).contains msg = true
-  · rw [hmsg]
-    simp
-  · have hpair : tr.contains ((msg, nonce), tag) = false :=
-      Bool.eq_false_iff.mpr fun h => hmsg (List.contains_iff_mem.mpr
-        (List.mem_map_of_mem (f := fun ⟨⟨qmsg, _⟩, _⟩ => qmsg) (List.contains_iff_mem.mp h)))
-    rw [Bool.eq_false_iff.mpr hmsg, hpair]
+  cases h : tr.contains ((msg, nonce), tag)
+  · cases (tr.map (fun ⟨⟨qmsg, _⟩, _⟩ => qmsg)).contains msg <;> simp
+  · have hmsg : (tr.map (fun ⟨⟨qmsg, _⟩, _⟩ => qmsg)).contains msg = true :=
+      List.contains_iff_mem.mpr (List.mem_map_of_mem (List.contains_iff_mem.mp h))
+    rw [hmsg]
 
 /-- Strong unforgeability (`SUFCMA`) implies fresh-message unforgeability (`EUFCMA`) for every
 `NonceMACScheme`. -/

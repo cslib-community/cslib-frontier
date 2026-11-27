@@ -59,13 +59,11 @@ private lemma allocation_max_le (m : ℕ) {a b ε : ℝ} (ha : 0 ≤ a) (hb : 0 
         hfrac hb (by linarith : b ≤ 1 + b)])
   apply (mul_le_mul_of_nonneg_left hp (Nat.cast_nonneg m)).trans
   change (m : ℝ) * (16 * (ε / (2 * (m + 1))) ^ 4) ≤ ε ^ 4
-  have hm : (0 : ℝ) ≤ m := Nat.cast_nonneg m
-  have hm2 : (m : ℝ) + 1 ≤ ((m : ℝ) + 1) ^ 2 := by nlinarith
-  have hm4 : (m : ℝ) ≤ ((m : ℝ) + 1) ^ 4 := by nlinarith [sq_nonneg (((m : ℝ) + 1) ^ 2 - 1)]
+  have hm4 : (m : ℝ) ≤ ((m : ℝ) + 1) ^ 4 := by
+    nlinarith [Nat.cast_nonneg (α := ℝ) m, sq_nonneg ((m : ℝ) ^ 2)]
   calc
     _ = (m : ℝ) * ε ^ 4 / ((m : ℝ) + 1) ^ 4 := by
-      rw [div_pow, mul_pow]
-      field_simp
+      rw [div_mul_eq_div_div, div_pow]
       ring
     _ ≤ ε ^ 4 := (div_le_iff₀ (by positivity)).mpr
       (by nlinarith [mul_le_mul_of_nonneg_right hm4 (pow_nonneg hε 4)])
@@ -103,10 +101,9 @@ theorem actualEstimatedResidual_output_from_cost_reserves
   have htol : 0 < ctx.tolerance ε := by dsimp only [ReserveOutputContext.tolerance]; positivity
   have hamp : 0 ≤ ctx.amplification ζ := by
     dsimp only [ReserveOutputContext.amplification]; positivity
-  have hden : (1 : ℝ) < 155648 * (J + 1) * (4 : ℝ) ^ 4 := by
-    have : (0 : ℝ) ≤ J := Nat.cast_nonneg J
-    nlinarith
-  have hr : 0 < reserveOutputContraction J := sub_pos.mpr ((div_lt_one (by linarith)).mpr hden)
+  have hr : 0 < reserveOutputContraction J := sub_pos.mpr
+    ((div_lt_one (by positivity)).mpr
+      (by linarith [Nat.cast_nonneg (α := ℝ) J]))
   have hr1 : reserveOutputContraction J < 1 := sub_lt_self _ (by positivity)
   let B := commonMeanEnvelope ctx.roles ctx.direction ctx.sourceSuffix ctx.terminalSuffix
     ctx.sourceExponent ctx.terminalExponent ctx.usageExponent ctx.prefixLength
@@ -167,10 +164,8 @@ theorem actualEstimatedResidual_output_from_cost_reserves
           actualNoiseEntry ctx.roles.source ctx.roles.terminal
             (side P ctx.sourceExponent) (side P ctx.terminalExponent) (side P ctx.terminalExponent)
             ctx.direction ctx.sourceSuffix ctx.terminalSuffix ctx.terminalExponent ctx.residual
-            (ctx.increment children ζ ε) (fun _ _ _ _ => 0) 0 i := by
-        funext σ x y
-        simp [actualNoiseEntry, twoMaskMean]
-      dsimp only
+            (ctx.increment children ζ ε) (fun _ _ _ _ => 0) 0 i :=
+        funext₃ fun _ _ _ => by simp [actualNoiseEntry, twoMaskMean]
       rw [Fin.zero_eta, hnoise_eq]
       simpa only [↓reduceIte, one_div] using
         actualEstimatedFirstSignal_noise_le_dyadic HP hHPK ctx.direction

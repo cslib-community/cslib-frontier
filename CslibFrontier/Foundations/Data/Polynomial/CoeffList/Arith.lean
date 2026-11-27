@@ -86,8 +86,7 @@ theorem IsTrimmed.exists_append_singleton {p : List R} (hp : IsTrimmed p) (hne :
 
 /-- Mapping along a zero-reflecting function preserves `IsTrimmed`. -/
 theorem IsTrimmed.map {S : Type*} [Zero S] {p : List R} (hp : IsTrimmed p) (f : R → S)
-    (hf : ∀ a, f a = 0 → a = 0) : IsTrimmed (p.map f) := by
-  rintro h
+    (hf : ∀ a, f a = 0 → a = 0) : IsTrimmed (p.map f) := fun h => by
   obtain ⟨a, hp', hfa⟩ := Option.map_eq_some_iff.mp (List.getLast?_map.symm.trans h)
   exact hp (hp'.trans (congrArg some (hf a hfa)))
 
@@ -124,15 +123,11 @@ theorem isTrimmed_trim (p : List R) : IsTrimmed (trim p) := by
 /-- A list ending in a nonzero element is unchanged by `trim`. -/
 theorem trim_append_singleton (l : List R) {a : R} (ha : a ≠ 0) :
     trim (l ++ [a]) = l ++ [a] := by
-  induction l with
-  | nil => simp [trim_cons, ha]
-  | cons b l ih => simp [trim_cons, ih]
+  induction l <;> simp [trim_cons, *]
 
 /-- Appending a trailing zero does not change `trim`. -/
 @[simp] theorem trim_append_zero (l : List R) : trim (l ++ [0]) = trim l := by
-  induction l with
-  | nil => simp [trim_cons]
-  | cons b l ih => simp [trim_cons, ih]
+  induction l <;> simp [trim_cons, *]
 
 /-- `trim p = p` if and only if `p` is already trimmed. -/
 @[simp] theorem trim_eq_self_iff {p : List R} : trim p = p ↔ IsTrimmed p := by
@@ -323,8 +318,8 @@ theorem length_add_le (p q : List R) : (add p q).length ≤ max p.length q.lengt
 
 /-- `add` represents polynomial addition under `ofCoeffList`. -/
 @[simp] theorem ofCoeffList_add (p q : List R) :
-    ofCoeffList (add p q) = ofCoeffList p + ofCoeffList q := by
-  rw [add, ofCoeffList_trim, ofCoeffList_zipWithAll_add]
+    ofCoeffList (add p q) = ofCoeffList p + ofCoeffList q :=
+  (ofCoeffList_trim _).trans (ofCoeffList_zipWithAll_add p q)
 
 /-- Left scalar multiplication of a coefficient list by `c : R`, trimmed. -/
 @[expose] def smul (c : R) (p : List R) : List R :=
@@ -344,8 +339,8 @@ theorem length_smul_le (c : R) (p : List R) : (smul c p).length ≤ p.length :=
 
 /-- `smul` represents multiplication by `C c` under `ofCoeffList`. -/
 @[simp] theorem ofCoeffList_smul (c : R) (p : List R) :
-    ofCoeffList (smul c p) = C c * ofCoeffList p := by
-  rw [smul, ofCoeffList_trim, ofCoeffList_map_mul]
+    ofCoeffList (smul c p) = C c * ofCoeffList p :=
+  (ofCoeffList_trim _).trans (ofCoeffList_map_mul c p)
 
 /-- Monomial shift `X ^ k * ·` by prepending `k` low-degree zeros and trimming. -/
 @[expose] def shift (k : ℕ) (p : List R) : List R :=
@@ -468,8 +463,8 @@ theorem length_neg_le (p : List R) : (neg p).length ≤ p.length :=
 
 /-- `neg` represents polynomial negation under `ofCoeffList`. -/
 @[simp] theorem ofCoeffList_neg (p : List R) :
-    ofCoeffList (neg p) = -ofCoeffList p := by
-  rw [neg, ofCoeffList_trim, ofCoeffList_map_neg]
+    ofCoeffList (neg p) = -ofCoeffList p :=
+  (ofCoeffList_trim _).trans (ofCoeffList_map_neg p)
 
 /-- Subtraction of coefficient lists, returning a trimmed list. -/
 @[expose] def sub (p q : List R) : List R :=
@@ -489,8 +484,8 @@ theorem length_sub_le (p q : List R) : (sub p q).length ≤ max p.length q.lengt
 
 /-- `sub` represents polynomial subtraction under `ofCoeffList`. -/
 @[simp] theorem ofCoeffList_sub (p q : List R) :
-    ofCoeffList (sub p q) = ofCoeffList p - ofCoeffList q := by
-  rw [sub, ofCoeffList_trim, ofCoeffList_zipWithAll_sub]
+    ofCoeffList (sub p q) = ofCoeffList p - ofCoeffList q :=
+  (ofCoeffList_trim _).trans (ofCoeffList_zipWithAll_sub p q)
 
 end Ring
 

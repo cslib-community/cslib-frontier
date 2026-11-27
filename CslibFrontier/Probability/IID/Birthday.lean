@@ -225,11 +225,9 @@ theorem iid_injective_le_descFactorial_div_pow [Fintype α] (μ : PMF α) (k : �
     ((iid μ k).toOuterMeasure {x | Function.Injective x}).toReal ≤
       (Fintype.card α).descFactorial k / (Fintype.card α : ℝ) ^ k := by
   classical
-  rw [iid_injective_toReal]
-  have h := distinctMass_le (fun a => (μ a).toReal) Finset.univ
-    (fun a _ => ENNReal.toReal_nonneg) k
-  rw [sum_toReal, Finset.card_univ, one_div, inv_pow] at h
-  rwa [div_eq_mul_inv]
+  simpa only [iid_injective_toReal, sum_toReal, Finset.card_univ, div_eq_mul_inv, one_mul,
+    inv_pow] using distinctMass_le (fun a => (μ a).toReal) Finset.univ
+      (fun _ _ => ENNReal.toReal_nonneg) k
 
 /-- `k` independent uniform samples from a finite type with `n` elements are distinct with
 probability `(n)_k / n ^ k`. -/
@@ -237,10 +235,9 @@ theorem iid_uniformOfFintype_injective [Fintype α] [Nonempty α] (k : ℕ) :
     ((iid (PMF.uniformOfFintype α) k).toOuterMeasure {x | Function.Injective x}).toReal =
       (Fintype.card α).descFactorial k / (Fintype.card α : ℝ) ^ k := by
   classical
-  rw [iid_injective_toReal]
-  have : (fun a => ((PMF.uniformOfFintype α) a).toReal) = fun _ => ((Fintype.card α : ℝ))⁻¹ := by
-    funext a; simp [PMF.uniformOfFintype_apply]
-  rw [this, distinctMass_const, Finset.card_univ, inv_pow, div_eq_mul_inv]
+  have h : (fun a => ((PMF.uniformOfFintype α) a).toReal) = fun _ => (Fintype.card α : ℝ)⁻¹ :=
+    funext fun _ => by simp [PMF.uniformOfFintype_apply]
+  rw [iid_injective_toReal, h, distinctMass_const, Finset.card_univ, inv_pow, div_eq_mul_inv]
 
 /-- [BonehShoup2023], Theorem B.1(i) and Corollary B.2, first inequality: `k` independent samples
 of any law `μ` on a finite type with `n` elements contain two equal samples with probability at
@@ -250,10 +247,9 @@ theorem one_sub_exp_neg_le_iid_not_injective [Fintype α] (μ : PMF α) (k : ℕ
     1 - Real.exp (-(k * (k - 1) / (2 * Fintype.card α))) ≤
       ((iid μ k).toOuterMeasure {x | ¬ Function.Injective x}).toReal := by
   have hc := toOuterMeasure_toReal_add_compl (iid μ k) {x | Function.Injective x}
-  change _ + ((iid μ k).toOuterMeasure {x | ¬ Function.Injective x}).toReal = 1 at hc
-  have := (iid_injective_le_descFactorial_div_pow μ k).trans
-    (Nat.descFactorial_div_pow_le_exp _ k)
-  linarith
+  simp only [Set.compl_ofPred] at hc
+  linarith [(iid_injective_le_descFactorial_div_pow μ k).trans
+    (Nat.descFactorial_div_pow_le_exp _ k)]
 
 /-- [BonehShoup2023], Theorem B.1(i) and Corollary B.2, second inequality: `k` independent samples
 of any law on a finite type with `n` elements contain two equal samples with probability at least
@@ -262,16 +258,14 @@ of any law on a finite type with `n` elements contain two equal samples with pro
 theorem min_le_iid_not_injective [Fintype α] (μ : PMF α) (k : ℕ) :
     min ((k : ℝ) * (k - 1) / (4 * Fintype.card α)) 0.63 ≤
       ((iid μ k).toOuterMeasure {x | ¬ Function.Injective x}).toReal := by
-  refine le_trans ?_ (one_sub_exp_neg_le_iid_not_injective μ k)
   have h0 : (0 : ℝ) ≤ k * (k - 1) / (2 * Fintype.card α) := by
-    rcases Nat.eq_zero_or_pos k with h | h
-    · simp [h]
-    · have h1 : (1 : ℝ) ≤ k := by exact_mod_cast h
-      exact div_nonneg (mul_nonneg (Nat.cast_nonneg k) (by linarith)) (by positivity)
+    rcases k with _ | k
+    · simp
+    · simp only [Nat.cast_succ, add_sub_cancel_right]
+      positivity
   have e : (k : ℝ) * (k - 1) / (4 * Fintype.card α) = k * (k - 1) / (2 * Fintype.card α) / 2 := by
     ring
-  rw [e]
-  exact min_div_two_le_one_sub_exp_neg h0
+  exact (e ▸ min_div_two_le_one_sub_exp_neg h0).trans (one_sub_exp_neg_le_iid_not_injective μ k)
 
 /-- [BonehShoup2023], Theorem B.1(ii): `k` independent uniform samples from a finite type with `n`
 elements contain two equal samples with probability at most `1 - exp (-k (k - 1) / n)` when
@@ -282,9 +276,7 @@ theorem iid_uniformOfFintype_not_injective_le_one_sub_exp_neg [Fintype α] [None
       1 - Real.exp (-(k * (k - 1) / Fintype.card α)) := by
   have hc := toOuterMeasure_toReal_add_compl (iid (PMF.uniformOfFintype α) k)
     {x | Function.Injective x}
-  change _ + ((iid (PMF.uniformOfFintype α) k).toOuterMeasure
-    {x | ¬ Function.Injective x}).toReal = 1 at hc
-  rw [iid_uniformOfFintype_injective] at hc
+  simp only [Set.compl_ofPred, iid_uniformOfFintype_injective] at hc
   linarith [Nat.exp_le_descFactorial_div_pow (n := Fintype.card α) Fintype.card_pos hk]
 
 end Cslib.Probability.PMF

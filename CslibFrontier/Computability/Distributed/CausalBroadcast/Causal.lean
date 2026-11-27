@@ -433,12 +433,12 @@ private theorem bssRun_append (s₀ : BSSState P V) (xl yl : List (BSSAction P V
 
 private theorem bssStateAt_append_of_le (xl : List (BSSAction P V)) (act : BSSAction P V)
     {i : ℕ} (hi : i ≤ xl.length) :
-    bssStateAt (xl ++ [act]) i = bssStateAt xl i := by
-  simp only [bssStateAt, List.take_append_of_le_length hi]
+    bssStateAt (xl ++ [act]) i = bssStateAt xl i :=
+  congrArg (bssRun (bssInit P V)) (List.take_append_of_le_length hi)
 
 private theorem bssStateAt_length (xl : List (BSSAction P V)) :
-    bssStateAt xl xl.length = bssRun (bssInit P V) xl := by
-  simp only [bssStateAt, List.take_length]
+    bssStateAt xl xl.length = bssRun (bssInit P V) xl :=
+  congrArg (bssRun (bssInit P V)) List.take_length
 
 private theorem bssAppendSingleton_at (xl : List (BSSAction P V)) (act : BSSAction P V)
     {i : ℕ} (hi : i < (xl ++ [act]).length) :
@@ -637,23 +637,20 @@ private theorem bssInv_of_append_delivered {F : Set P} {xl : List (BSSAction P V
       b₁.sender = b₂.sender → b₁.ts < b₂.ts ∧ b₁.ts b₁.sender < b₂.ts b₂.sender) :
     BSSInv F (xl ++ [act]) s' where
   halted_mem q hq := by
-    rw [hs'_proc] at hq
-    rcases eq_or_ne q p with rfl | hqp
-    · simp only [Function.update_self] at hq; exact hhalted hq
-    · rw [Function.update_of_ne hqp] at hq; exact hinv.halted_mem q hq
+    rw [hs'_proc, Function.update_apply] at hq
+    split_ifs at hq with hqp
+    exacts [hqp ▸ hhalted hq, hinv.halted_mem q hq]
   inFlight_wf := hinFlight
   pending_wf q b hb := by
-    rw [hs'_proc] at hb
-    rcases eq_or_ne q p with rfl | hqp
-    · simp only [Function.update_self] at hb; exact hpend b hb
-    · rw [Function.update_of_ne hqp] at hb
-      exact ⟨hB_sub (hinv.pending_wf q b hb).1, (hinv.pending_wf q b hb).2⟩
+    rw [hs'_proc, Function.update_apply] at hb
+    split_ifs at hb with hqp
+    exacts [hqp ▸ hpend b hb, ⟨hB_sub (hinv.pending_wf q b hb).1, (hinv.pending_wf q b hb).2⟩]
   delivered_mem q b hb := by
-    rw [hs'_proc] at hb
-    rcases eq_or_ne q p with rfl | hqp
-    · simp only [Function.update_self, List.mem_append, List.mem_singleton] at hb
-      exact hb.elim (fun h => hB_sub (hinv.delivered_mem q b h)) (· ▸ hpkt_mem)
-    · rw [Function.update_of_ne hqp] at hb; exact hB_sub (hinv.delivered_mem q b hb)
+    rw [hs'_proc, Function.update_apply] at hb
+    split_ifs at hb with hqp
+    · exact (List.mem_append.mp hb).elim (fun h => hB_sub (hinv.delivered_mem p b h))
+        fun h => List.mem_singleton.mp h ▸ hpkt_mem
+    · exact hB_sub (hinv.delivered_mem q b hb)
   ts_le_vt q b hb := by
     rw [hs'_proc] at hb ⊢
     rcases eq_or_ne q p with rfl | hqp
@@ -841,9 +838,9 @@ private theorem bssInv_of_validTrace {F : Set P} {xl : List (BSSAction P V)}
         hinv.halted_mem hinv.inFlight_wf hinv.pending_wf
 
 private theorem bssInv_of_mTr {F : Set P} {xl : List (BSSAction P V)} {s : BSSState P V}
-    (hmtr : (bssLTS F).MTr (bssInit P V) xl s) : BSSInv F xl s := by
-  obtain ⟨hv, rfl⟩ := (bssLTS_mTr_iff F (bssInit P V) xl s).mp hmtr
-  exact bssInv_of_validTrace hv
+    (hmtr : (bssLTS F).MTr (bssInit P V) xl s) : BSSInv F xl s :=
+  let ⟨hv, hs⟩ := (bssLTS_mTr_iff F (bssInit P V) xl s).mp hmtr
+  hs ▸ bssInv_of_validTrace hv
 
 /-! ### Integrity and duplicate freedom -/
 
@@ -874,18 +871,16 @@ private theorem validTrace_take {F : Set P} {s₀ : BSSState P V} {xl : List (BS
   induction xl generalizing s₀ i with
   | nil => simp [bssValidTrace]
   | cons act xl ih =>
-    cases i with
-    | zero => simp [bssValidTrace]
-    | succ i =>
-      exact ⟨hv.1, ih hv.2 i⟩
+    cases i
+    exacts [trivial, ⟨hv.1, ih hv.2 _⟩]
 
 private theorem broadcastIn_take_subset (xl : List (BSSAction P V)) (j : ℕ) :
     BroadcastIn (xl.take j) ⊆ BroadcastIn xl := by
   rintro b ⟨u, hu, hbu⟩
   simp only [List.length_take] at hu
-  have htake_eq : (xl.take j).take u = xl.take u :=
-    List.take_take.trans (by simp [Nat.min_eq_left (by omega : u ≤ j)])
-  exact ⟨u, by omega, by simpa [bssStateAt, htake_eq, List.getElem_take] using hbu⟩
+  have huj : u ≤ j := by omega
+  exact ⟨u, by omega,
+    by simpa [bssStateAt, List.take_take, Nat.min_eq_left huj, List.getElem_take] using hbu⟩
 
 /-- If `q`'s clock after the prefix `xl.take j` covers the sender coordinate of a broadcast packet,
 then `q` had delivered that packet by then. -/
@@ -1077,8 +1072,8 @@ private theorem extract_take_eq {α : Type*} (xs : ωSequence α) {i N : ℕ} (h
 private theorem omega_mTr_prefix {F : Set P} {ss : ωSequence (BSSState P V)}
     {xs : ωSequence (BSSAction P V)} (hinit : ss 0 = bssInit P V)
     (he : (bssLTS F).OmegaExecution ss xs) (n : ℕ) :
-    (bssLTS F).MTr (bssInit P V) (xs.extract 0 n) (ss n) := by
-  exact hinit ▸ he.extract_mTr (Nat.zero_le n)
+    (bssLTS F).MTr (bssInit P V) (xs.extract 0 n) (ss n) :=
+  hinit ▸ he.extract_mTr (Nat.zero_le n)
 
 private theorem omega_vt_mono {F : Set P} {ss : ωSequence (BSSState P V)}
     {xs : ωSequence (BSSAction P V)} (he : (bssLTS F).OmegaExecution ss xs)
@@ -1143,7 +1138,7 @@ theorem deliverable_stable_until_delivered {F : Set P} {ss : ωSequence (BSSStat
   have hlt := vt_sender_lt_of_not_delivered hinit he
     ((bssInv_of_mTr (omega_mTr_prefix hinit he j)).pending_wf q pkt hpend_j).1 hnot_del
   have hle : ((ss k).proc q).vt pkt.sender ≤ ((ss j).proc q).vt pkt.sender := hvt_le pkt.sender
-  have h1 := hdeliv.1
+  have hd : pkt.ts pkt.sender = ((ss k).proc q).vt pkt.sender + 1 := hdeliv.1
   omega
 
 private theorem broadcastIn_extract_mono (xs : ωSequence (BSSAction P V)) {M N : ℕ}
@@ -1253,8 +1248,8 @@ theorem bss_live_of_packetSentTo {F : Set P} {ss : ωSequence (BSSState P V)}
     (broadcastIn_extract_mono xs (by omega) hb_in) hdel_K
   refine (hfair.fair_deliver q hq b K (omega_pending_persist he hk₁_le_K hb_pend hdel_K)
     ⟨?_, fun r hr => ?_⟩).imp fun _ h => h.2
-  · have := hvt b.sender
-    rw [hb_ts, bssNextTimestamp, Function.update_self] at hlt ⊢
+  · rw [hb_ts, bssNextTimestamp, Function.update_self] at hlt ⊢
+    have := hvt b.sender
     omega
   · simpa only [hb_ts, bssNextTimestamp, Function.update_of_ne hr] using hvt r
 

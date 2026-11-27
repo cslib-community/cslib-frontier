@@ -240,14 +240,12 @@ theorem hkDfsLevel_pure_props {inst : SparseInstance}
           have hmono_step (x : Fin inst.r) (hx : vget vis x = true) := hmono_w x (hvset x hx)
           cases hrw : (dfsNext inst.graph inst.adj mate dist f d w₀ (vset vis v true) []).2 with
           | some qw =>
-            rw [hrw] at hres_w
-            dsimp only
+            simp only [hrw] at hres_w ⊢
             exact ⟨hmono_step, by omega,
               by simpa [List.append_assoc] using hres_w.1,
               by simp only [List.length_cons, hres_w.2]⟩
           | none =>
-            rw [hrw] at hres_w
-            dsimp only
+            simp only [hrw] at hres_w ⊢
             obtain ⟨hm2, hp2, hr2⟩ := ih _ ps (hcovers.mono hmono_step)
             exact ⟨fun x hx => hm2 x (hmono_step x hx), by omega, hr2⟩
         · exact ih vis ps hcovers
@@ -274,9 +272,7 @@ theorem hkDfs_pure_props {inst : SparseInstance}
       u (inst.adj u) vis ps hcovers
   | f + 1, d, u, vis, ps, hcovers => by
     rw [hkDfs_eq_dfsLevel]
-    exact hkDfsLevel_pure_props (f + 1) d
-      (fun w₀ vis₀ ps₀ hc => hkDfs_pure_props f (d + 1) w₀ vis₀ ps₀ hc)
-      u (inst.adj u) vis ps hcovers
+    exact hkDfsLevel_pure_props (f + 1) d (hkDfs_pure_props f (d + 1)) u (inst.adj u) vis ps hcovers
 
 theorem hkDfsRoots_nodup_snd {inst : SparseInstance}
     (mate : Vector (Option (Fin inst.m)) inst.r) (dist : Vector (Option ℕ) inst.m) (k : ℕ) :
@@ -284,23 +280,19 @@ theorem hkDfsRoots_nodup_snd {inst : SparseInstance}
       (acc₀ : List (Fin inst.m × Fin inst.r)),
       VisCovers vis acc₀ →
       ((hkDfsRoots inst.graph inst.adj mate dist k us vis acc₀).map Prod.snd).Nodup := by
-  intro us
-  induction us with
-  | nil => intro _ _ hc; exact hc.1
+  intro us vis acc₀ hc
+  induction us generalizing vis acc₀ with
+  | nil => exact hc.1
   | cons u us ih =>
-    intro vis acc₀ hc
     simp only [hkDfsRoots]
     split_ifs with hd
     · rw [hkDfs_acc]
       obtain ⟨_, _, hres⟩ := hkDfs_pure_props (inst := inst) (mate := mate) (dist := dist)
         k 0 u vis acc₀ hc
       cases hr : (hkDfs inst.graph inst.adj mate dist k 0 u vis []).2 with
-      | none =>
-        rw [hr] at hres
-        exact ih _ acc₀ hres
+      | none => exact ih _ acc₀ (by simpa only [hr] using hres)
       | some q =>
         rw [hr] at hres
-        dsimp only [Option.map, Option.getD]
         have hperm : (q ++ acc₀).Perm (acc₀ ++ q) := List.perm_append_comm
         exact ih _ (q ++ acc₀)
           ⟨(hperm.map Prod.snd).nodup_iff.mpr hres.1.1, fun e he => hres.1.2 e (hperm.subset he)⟩
@@ -734,9 +726,7 @@ theorem exec_dfsStep_skip {w bOff k d : ℕ} {inst : SparseInstance}
       hrd := hrd₁
       hal := hal₁
       hact := hact₁ },
-    fun a ha => by
-      simp only [DfsSubtreeOutside] at ha
-      exact hout a (by omega),
+    fun a ha => hout a (by simp only [DfsSubtreeOutside] at ha; omega),
     fun a _ => hout a (by omega)⟩
 
 theorem exec_dfsStep_accept {w bOff k : ℕ} {inst : SparseInstance}

@@ -92,9 +92,6 @@ theorem compQueryWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items : 
   obtain ⟨hst_qb, hres_qb, hcost_qb⟩ := compQueryBodyGenProg_spec (q_target := q)
     henv hcpl hslot hm_items hb_lt hm_lt hchain hc_lt
   obtain ⟨hlen_pr, hovf_pr, _⟩ := chain_and_overflow_le_probeExcess θ hb_inv u
-  have hprog_eq : prog =
-      (compFeistelCoordsProg (mkCompParams U V w N, (u.val, h_q)) >>= fun c =>
-        compQueryBodyGenProg (((mkCompParams U V w N, (metaBase, itemBase)), c.1), c.2)) := rfl
   have hc_res : (Memory.spec 0).clientResult s
       (compFeistelCoordsProg (mkCompParams U V w N, (u.val, h_q))) = ((b, q), m) :=
     clientResult_compFeistelCoordsProg U V w N u.val h_q s
@@ -102,16 +99,17 @@ theorem compQueryWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items : 
       (queryWithHashProg U V (ghostW w) N ((0, u.val), h_q)) =
       (Memory.spec 0).clientResult s_fix
         (queryBodyProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (((0, b), q), m)) := by
-    unfold queryWithHashProg queryWithHashGenProg
-    simp only [p_bucketBits_mk, p_bucketMask_mk, queryBodyGenProg_mk, pure_bind]
+    simp only [queryWithHashProg, queryWithHashGenProg, p_bucketBits_mk, p_bucketMask_mk,
+      queryBodyGenProg_mk, pure_bind]
     rw [and_mask_xor_eq_feistelBucket (bucketBits N) u.val h_q,
       Nat.shiftRight_eq_div_pow u.val (bucketBits N)]
     rfl
+  dsimp only [prog, d, compQueryWithHashGenProg]
   refine ⟨hpre, ?_, ?_, ?_⟩
-  · rwa [hprog_eq, StateTransitionSpec.clientState_bind, clientState_compFeistelCoordsProg, hc_res]
-  · rw [hprog_eq, StateTransitionSpec.clientResult_bind, clientState_compFeistelCoordsProg,
+  · rwa [StateTransitionSpec.clientState_bind, clientState_compFeistelCoordsProg, hc_res]
+  · rw [StateTransitionSpec.clientResult_bind, clientState_compFeistelCoordsProg,
       hc_res, hres_qb, ← hfix_eq, hfix_spec.2.2.1]
-  · rw [hprog_eq, memoryCost_bind_of_clientState_eq (clientState_compFeistelCoordsProg _ s) _,
+  · rw [memoryCost_bind_of_clientState_eq (clientState_compFeistelCoordsProg _ s) _,
       memoryCost_compFeistelCoordsProg, hc_res, zero_add]
     have heh : epochHashSpace U (ghostW w) N = hashSpace U (ghostW w) N := rfl
     rw [hcpl.gm_eq, heh] at hcost_qb
@@ -165,10 +163,6 @@ theorem compInsertSearchWithHashGenProg_dict_spec {metaBase itemBase U V w N m_i
       (compFeistelCoordsProg (mkCompParams U V w N, (u.val, h_q))) = ((b, q), m) :=
     clientResult_compFeistelCoordsProg U V w N u.val h_q s
   obtain ⟨hlen_pr, hovf_pr, _⟩ := chain_and_overflow_le_probeExcess θ hb_inv u
-  have hprog_eq : prog =
-      (compFeistelCoordsProg (mkCompParams U V w N, (u.val, h_q)) >>= fun c =>
-        compSearchBucketGenProg (((mkCompParams U V w N, (metaBase, itemBase)), c.1), c.2) >>=
-          fun res => compPackInsertSearchResProg (res, c)) := rfl
   have hhit : (sbFound res_sb = 1 ↔ (s_abs u).isSome) ∧
       (sbFound res_sb = 1 →
         ∃ j < bCount N (compGmAt metaBase U w N s.mem) b,
@@ -184,13 +178,14 @@ theorem compInsertSearchWithHashGenProg_dict_spec {metaBase itemBase U V w N m_i
       change sbFound res_sb = 0 at hres_branch
       exact ⟨⟨by omega, fun hs => (hex ((hb_inv.hmap_dom b hb_lt q).mp (hbm ▸ hs))).elim⟩,
         by omega⟩
+  dsimp only [prog, d, compInsertSearchWithHashGenProg]
   refine ⟨hpre, ?_, ?_, hhit.1, hhit.2, ?_⟩
-  · rw [hprog_eq, StateTransitionSpec.clientState_bind, clientState_compFeistelCoordsProg, hc_res,
+  · rw [StateTransitionSpec.clientState_bind, clientState_compFeistelCoordsProg, hc_res,
       StateTransitionSpec.clientState_bind, hst_sb, clientState_compPackInsertSearchResProg]
-  · rw [hprog_eq, StateTransitionSpec.clientResult_bind, clientState_compFeistelCoordsProg, hc_res,
+  · rw [StateTransitionSpec.clientResult_bind, clientState_compFeistelCoordsProg, hc_res,
       StateTransitionSpec.clientResult_bind, hst_sb, hres_sb,
       clientResult_compPackInsertSearchResProg]
-  · rw [hprog_eq, memoryCost_bind_of_clientState_eq (clientState_compFeistelCoordsProg _ s) _,
+  · rw [memoryCost_bind_of_clientState_eq (clientState_compFeistelCoordsProg _ s) _,
       memoryCost_compFeistelCoordsProg, hc_res, zero_add,
       memoryCost_bind_of_clientState_eq hst_sb _, memoryCost_compPackInsertSearchResProg, add_zero]
     have heh : epochHashSpace U (ghostW w) N = hashSpace U (ghostW w) N := rfl

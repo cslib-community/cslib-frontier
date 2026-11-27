@@ -155,9 +155,7 @@ theorem isMixedStrategy_behaviorToMixed {i : ι} [Fintype (H i)] [DecidableEq (H
     [∀ h, Fintype (Act i h)] {β : ∀ h : H i, Act i h → ℝ} (hβ : IsBehaviorStrategy β) :
     IsMixedStrategy (behaviorToMixed β) := by
   refine isMixedStrategy_iff.2 ⟨fun s => prod_nonneg fun h _ => (hβ h).nonneg (s h), ?_⟩
-  simp only [behaviorToMixed]
-  rw [← Fintype.prod_sum (fun h a => β h a)]
-  exact prod_eq_one fun h _ => (hβ h).sum_eq_one
+  simpa only [behaviorToMixed, ← Fintype.prod_sum] using prod_eq_one fun h _ => (hβ h).sum_eq_one
 
 /-- Pure strategy `s` matches sequence `σ` if `s h = a` for every `(h, a)` in `σ`. -/
 @[expose] def MatchesSeq {i : ι} (s : PureStrategy H Act i) (σ : Seq H Act i) : Prop :=
@@ -253,8 +251,7 @@ theorem realizationProbMixed_single_eq {i : ι} [Fintype (H i)] [DecidableEq (H 
     [∀ h, Fintype (Act i h)] [∀ h, DecidableEq (Act i h)]
     (s : PureStrategy H Act i) (σ : Seq H Act i) :
     realizationProbMixed (Pi.single s (1 : ℝ)) σ = if MatchesSeq s σ then 1 else 0 := by
-  simp only [realizationProbMixed]
-  rw [sum_eq_single s (fun t _ ht => by simp [Pi.single_eq_of_ne ht])
+  rw [realizationProbMixed, sum_eq_single s (fun t _ ht => by simp [Pi.single_eq_of_ne ht])
     (by simp)]
   simp
 
@@ -572,8 +569,7 @@ theorem terminalProbPure_eq [Fintype ι] [DecidableEq ι] [∀ i h, DecidableEq 
         z.chanceWeight * ∏ i, if MatchesSeq (s i) (z.seq i) then 1 else 0
   | .leaf _, .leaf => by simp
   | @ExtensiveTree.chance _ _ _ _ _ prob _ _, .chance c sub => by
-    rw [terminalProbPure_chance, terminalProbPure_eq s sub, Terminal.chanceWeight_chance, mul_assoc]
-    simp only [Terminal.seq_chance]
+    simp [terminalProbPure_chance, terminalProbPure_eq s sub, mul_assoc]
   | .decision j h _, .decision a sub => by
     have hother (k : ι) (hk : k ∈ univ.erase j) :
         (if MatchesSeq (s k) ((Terminal.decision a sub).seq k) then (1 : ℝ) else 0) =
@@ -592,9 +588,7 @@ theorem terminalProbBehavior_eq [Fintype ι] [DecidableEq ι]
         z.chanceWeight * ∏ i, realizationProbBehavior (β i) (z.seq i)
   | .leaf _, .leaf => by simp
   | @ExtensiveTree.chance _ _ _ _ _ prob _ _, .chance c sub => by
-    rw [terminalProbBehavior_chance, terminalProbBehavior_eq β sub, Terminal.chanceWeight_chance,
-      mul_assoc]
-    simp only [Terminal.seq_chance]
+    simp [terminalProbBehavior_chance, terminalProbBehavior_eq β sub, mul_assoc]
   | .decision j h _, .decision a sub => by
     have hother (k : ι) (hk : k ∈ univ.erase j) :
         realizationProbBehavior (β k) ((Terminal.decision a sub).seq k) =
@@ -712,8 +706,7 @@ private theorem sum_terminal_leaf [∀ i h, Fintype (Act i h)] (w : ι → ℝ)
       invFun := fun _ => PUnit.unit
       left_inv := fun _ => rfl
       right_inv := fun | .leaf => rfl }
-  rw [← e.sum_comp]
-  simp [e]
+  simpa [e] using (e.sum_comp f).symm
 
 private theorem sum_terminal_chance [∀ i h, Fintype (Act i h)] {C : Type} [Fintype C]
     {prob : C → ℝ} {hprob : IsMixedStrategy prob} {next : C → ExtensiveTree ι H Act}
@@ -726,8 +719,7 @@ private theorem sum_terminal_chance [∀ i h, Fintype (Act i h)] {C : Type} [Fin
       invFun := fun | .chance c sub => ⟨c, sub⟩
       left_inv := fun ⟨_, _⟩ => rfl
       right_inv := fun | .chance _ _ => rfl }
-  rw [← e.sum_comp, Fintype.sum_sigma]
-  rfl
+  exact (e.sum_comp f).symm.trans (Fintype.sum_sigma _)
 
 private theorem sum_terminal_decision [∀ i h, Fintype (Act i h)] (i : ι) (h : H i)
     (next : Act i h → ExtensiveTree ι H Act)
@@ -739,8 +731,7 @@ private theorem sum_terminal_decision [∀ i h, Fintype (Act i h)] (i : ι) (h :
       invFun := fun | .decision a sub => ⟨a, sub⟩
       left_inv := fun ⟨_, _⟩ => rfl
       right_inv := fun | .decision _ _ => rfl }
-  rw [← e.sum_comp, Fintype.sum_sigma]
-  rfl
+  exact (e.sum_comp f).symm.trans (Fintype.sum_sigma _)
 
 theorem ExtensiveTree.evalPure_eq_sum_terminal [∀ i h, Fintype (Act i h)]
     [∀ i h, DecidableEq (Act i h)] (s : ∀ i, PureStrategy H Act i) :
@@ -884,9 +875,8 @@ terminal-leaf reach probabilities on nonempty-action finite trees. -/
 theorem RealizationEquivFactor.of_forall_terminal_eq [Fintype ι] [DecidableEq ι]
     {T : ExtensiveTree ι H Act} {i : ι} {r₁ r₂ : Seq H Act i → ℝ}
     (h : ∀ z : Terminal T, r₁ (z.seq i) = r₂ (z.seq i)) :
-    T.RealizationEquivFactor i r₁ r₂ := by
-  intro s z
-  simp only [terminalProbWithFactor, h z]
+    T.RealizationEquivFactor i r₁ r₂ :=
+  fun _ z => by simp only [terminalProbWithFactor, h z]
 
 /-- Realization equivalence implies identical terminal-node probabilities against arbitrary
 mixed opponent strategies. -/
@@ -909,25 +899,19 @@ theorem RealizationEquivFactor.terminalProbMixed_eq [Fintype ι] [DecidableEq ι
         ∑ s : (∀ j, PureStrategy H Act j),
           (∏ j, g j (s j)) * terminalProbWithFactor i r s z := by
     intro r
-    have hfactor : ∀ s : (∀ j, PureStrategy H Act j),
+    have hfactor (s : ∀ j, PureStrategy H Act j) :
         (∏ j, g j (s j)) * terminalProbWithFactor i r s z =
           z.chanceWeight * r (z.seq i) *
             ∏ j, (if hj : j = i then if s j = hj ▸ s₀ then 1 else 0
               else if MatchesSeq (s j) (z.seq j) then μ j (s j) else 0) := by
-      intro s
-      simp only [terminalProbWithFactor]
-      have hlhs : (∏ j, g j (s j)) *
-          (∏ j ∈ univ.erase i, if MatchesSeq (s j) (z.seq j) then (1 : ℝ) else 0) =
-          ∏ j, (if hj : j = i then if s j = hj ▸ s₀ then 1 else 0
-            else if MatchesSeq (s j) (z.seq j) then μ j (s j) else 0) := by
-        rw [← mul_prod_erase univ _ (mem_univ i), mul_assoc, ← prod_mul_distrib]
-        conv_rhs => rw [← mul_prod_erase univ _ (mem_univ i)]
-        simp only [g, ↓reduceDIte]
-        refine congrArg (_ * ·) (prod_congr rfl fun j hj => ?_)
-        simp only [ne_of_mem_erase hj, ↓reduceDIte]
-        split_ifs <;> simp
-      rw [← hlhs]
-      ring
+      rw [terminalProbWithFactor, mul_left_comm (∏ j, g j (s j)),
+        ← mul_prod_erase univ (fun j => g j (s j)) (mem_univ i), mul_assoc (g i (s i)),
+        ← prod_mul_distrib]
+      conv_rhs => rw [← mul_prod_erase univ _ (mem_univ i)]
+      refine congrArg (z.chanceWeight * r (z.seq i) * ·)
+        (congrArg₂ (· * ·) (by simp [g]) (prod_congr rfl fun j hj => ?_))
+      simp only [g, ne_of_mem_erase hj, ↓reduceDIte]
+      split_ifs <;> simp
     simp_rw [hfactor, ← mul_sum]
     congr 1
     rw [(Fintype.prod_sum fun j (s_j : PureStrategy H Act j) =>
@@ -1153,10 +1137,8 @@ theorem PerfectRecall.noRepeatedInfoSet [DecidableEq ι] :
         simpa using hpr (v₁ := .chance c v₁) (v₂ := .chance c v₂) hv₁ hv₂) sub
   | .decision j h' next, i, hpr, .decision a sub => by
       have hsub : (next a).PerfectRecall i := fun h v₁ v₂ hv₁ hv₂ => by
-        have := hpr (v₁ := .decision a v₁) (v₂ := .decision a v₂) hv₁ hv₂
-        rcases eq_or_ne j i with rfl | hij
-        · simpa using this
-        · simpa [hij] using this
+        by_cases hij : j = i <;> simpa [Node.playerSeq, hij] using
+          hpr (v₁ := .decision a v₁) (v₂ := .decision a v₂) hv₁ hv₂
       have hnodup := PerfectRecall.noRepeatedInfoSet hsub sub
       by_cases hij : j = i
       · subst hij

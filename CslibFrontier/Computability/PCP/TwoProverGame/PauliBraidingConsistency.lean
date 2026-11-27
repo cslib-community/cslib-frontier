@@ -94,13 +94,10 @@ private theorem rejection_consistencyLaw_le
   let index := (swapRoles, basis, specialRound)
   have h := game.weighted_rejection_le_of_bind_seed (Probability.PMF.uniformOfFintype _)
     law answer index
-  have hmass : ((Probability.PMF.uniformOfFintype (Bool × Bool × Bool)) index).toReal =
-      (8 : ℝ)⁻¹ := by
-    rw [Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv]
-    norm_num [Fintype.card_prod]
-  rw [hmass] at h
+  rw [Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv] at h
+  norm_num [Fintype.card_prod] at h
   dsimp only
-  change (8 : ℝ)⁻¹ * (1 - ({ game with seed := law index }).answersWinProb answer) ≤
+  change 1 / 8 * (1 - ({ game with seed := law index }).answersWinProb answer) ≤
     1 - (pauliBraidingBranchGame n G special decode 2).answersWinProb answer at h
   linarith
 
@@ -114,13 +111,8 @@ theorem rejection_pauliBraidingSameBasisGame_le
     1 - (pauliBraidingSameBasisGame n G special decode swapRoles basis).answersWinProb answer ≤
       8 * (1 - (pauliBraidingBranchGame n G special decode 2).answersWinProb answer) := by
   let := oddPairs_nonempty (ι := Fin n)
-  let game := pauliBraidingGame n G special decode
-  have h := rejection_consistencyLaw_le G special decode swapRoles basis false answer
-  have hpull := game.answersWinProb_pullbackSeed (Probability.PMF.uniformOfFintype
-    (↥(oddPairs (Fin n)) × (Fin n → Bool))) (fun (p, dummy) =>
-      PauliBraidingSeed.sameBasis swapRoles basis p dummy) answer
-  change 1 - (game.pullbackSeed _ _).answersWinProb answer ≤ _
-  rwa [hpull]
+  rw [pauliBraidingSameBasisGame, SeededGame.answersWinProb_pullbackSeed]
+  exact rejection_consistencyLaw_le G special decode swapRoles basis false answer
 
 /-- The matched-question rejection probability, weighted by its probability in the
 second-question marginal, costs at most eight times the consistency-branch rejection. -/
@@ -133,15 +125,11 @@ theorem weighted_rejection_pauliBraidingMatchedGame_le [Finite Q]
         (1 - (pauliBraidingMatchedGame n G special decode swapRoles basis).answersWinProb answer) ≤
       8 * (1 - (pauliBraidingBranchGame n G special decode 2).answersWinProb answer) := by
   let := oddPairs_nonempty (ι := Fin n)
-  let game := pauliBraidingGame n G special decode
   let odd := Probability.PMF.uniformOfFintype ↥(oddPairs (Fin n))
   let seed (y : Q) (p : ↥(oddPairs (Fin n))) := PauliBraidingSeed.special swapRoles basis p y
-  have hpull := game.answersWinProb_pullbackSeed odd (seed (special basis)) answer
-  change ((G.questions.map Prod.snd) (special basis)).toReal *
-    (1 - (game.pullbackSeed odd (seed (special basis))).answersWinProb answer) ≤ _
-  rw [hpull]
-  exact (game.weighted_rejection_le_of_bind_seed (G.questions.map Prod.snd)
-    (fun y => odd.map (seed y)) answer (special basis)).trans
+  rw [pauliBraidingMatchedGame, SeededGame.answersWinProb_pullbackSeed]
+  exact ((pauliBraidingGame n G special decode).weighted_rejection_le_of_bind_seed
+    (G.questions.map Prod.snd) (fun y => odd.map (seed y)) answer (special basis)).trans
     (rejection_consistencyLaw_le G special decode swapRoles basis true answer)
 
 variable [Fintype A] [Ring 𝒜] [StarRing 𝒜] [PartialOrder 𝒜] [StarOrderedRing 𝒜]
@@ -176,10 +164,8 @@ theorem sum_norm_sub_sq_le_of_pauliBraidingSameBasisGame
     cases a <;> cases b <;> first | exact h | exact False.elim h
   refine (test.sum_norm_sub_sq_le_of_accepts_imp_eq
     (fun r => read (questions r).1) (fun r => read (questions r).2) haccept S).trans ?_
-  have h := rejection_pauliBraidingSameBasisGame_le G special decode swapRoles basis S.answers
-  change 4 * (1 - test.answersWinProb S.answers) ≤ _
-  unfold SeededGame.commutingWinProb
-  linarith
+  dsimp only [SeededGame.commutingWinProb]
+  linarith [rejection_pauliBraidingSameBasisGame_le G special decode swapRoles basis S.answers]
 
 /-- Rejection in the consistency branch bounds the mean squared distance between the decoded
 basis marginal and special observable, weighted by the probability of the matching question. -/
@@ -205,12 +191,9 @@ theorem weighted_sum_norm_sub_sq_le_of_pauliBraidingMatchedGame [Finite Q]
   refine (mul_le_mul_of_nonneg_left
     (test.sum_norm_sub_sq_le_of_accepts_imp_eq
       (fun p => (read p).1) (fun p => (read p).2) haccept S) ENNReal.toReal_nonneg).trans ?_
-  have h := weighted_rejection_pauliBraidingMatchedGame_le G special decode swapRoles basis
-    S.answers
-  change ((G.questions.map Prod.snd) (special basis)).toReal *
-    (4 * (1 - test.answersWinProb S.answers)) ≤ _
-  unfold SeededGame.commutingWinProb
-  linarith only [h]
+  dsimp only [SeededGame.commutingWinProb]
+  linarith only [weighted_rejection_pauliBraidingMatchedGame_le G special decode swapRoles basis
+    S.answers]
 
 /-- The binary measurement of a checked string and dummy in the consistency verifier.
 Malformed answers are decoded as `false`. -/

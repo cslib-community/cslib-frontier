@@ -130,9 +130,7 @@ theorem evalOne_inheritedClause (τ : Variable V → Bool) (i : ℕ) (c : Clause
   rw [List.countP_map]
   calc
     _ = c.zipIdx.countP (fun a => Literal.eval (fun v => τ (.inl v)) a.1) :=
-      List.countP_congr (fun a ha => by
-        change Literal.eval τ (positiveLiteral i a.2 a.1) = true ↔ _
-        rw [heval a ha])
+      List.countP_congr fun ⟨l, j⟩ ha => by simp only [Function.comp_apply, heval (l, j) ha]
     _ = c.countP (Literal.eval (fun v => τ (.inl v))) := by
       simpa only [List.countP_map, Function.comp_def] using
         congrArg (List.countP (Literal.eval (fun v => τ (.inl v)))) (List.zipIdx_map_fst 0 c)
@@ -178,12 +176,10 @@ theorem oneSatisfiable_formula_iff (φ : CNF V) :
 theorem evalOne_complementBlock_of_formula (φ : CNF V) (τ : Variable V → Bool)
     (hτ : CNF.evalOne τ (formula φ) = true) {i j : ℕ} {c : Clause V} {l : Literal V}
     (hc : φ[i]? = some c) (hl : c[j]? = some l) :
-    CNF.evalOne τ (complementBlock i j l) = true := by
-  have hblock := (CNF.evalOne_flatMap_eq_true_iff τ φ.zipIdx
-    (fun (c, i) => clauseClauses i c)).mp hτ (c, i)
-      (List.mem_zipIdx_iff_getElem?.mpr hc)
-  exact (evalOne_clauseClauses_iff τ i c).mp hblock |>.2 (l, j)
-    (List.mem_zipIdx_iff_getElem?.mpr hl)
+    CNF.evalOne τ (complementBlock i j l) = true :=
+  ((evalOne_clauseClauses_iff τ i c).mp ((CNF.evalOne_flatMap_eq_true_iff τ φ.zipIdx
+    fun (c, i) => clauseClauses i c).mp hτ (c, i)
+    (List.mem_zipIdx_iff_getElem?.mpr hc))).2 (l, j) (List.mem_zipIdx_iff_getElem?.mpr hl)
 
 /-- Every source variable remains present, even when all its occurrences are negative. -/
 theorem sourceVariable_mem_formula {φ : CNF V} {v : V} (hv : v ∈ φ.vars) :
@@ -206,11 +202,8 @@ theorem complementBlock_assignments_agree (σ τ : Variable V → Bool) (i j : �
     (hτ : CNF.evalOne τ (complementBlock i j l) = true)
     (hsource : σ (.inl l.1) = τ (.inl l.1)) :
     ∀ v ∈ (complementBlock i j l).vars, σ v = τ v := by
-  rcases l with ⟨a, b⟩
-  cases b with
-  | true => simp [complementBlock, CNF.vars]
-  | false =>
-    have hs := (evalOne_complementClauses_iff σ _ _ _ _ _ _).mp hσ
+  rcases l with ⟨a, false | true⟩
+  · have hs := (evalOne_complementClauses_iff σ _ _ _ _ _ _).mp hσ
     have ht := (evalOne_complementClauses_iff τ _ _ _ _ _ _).mp hτ
     have hy : σ (auxiliary i j 0) = τ (auxiliary i j 0) := by
       simpa using congrArg Bool.not (hs.1.symm.trans (hsource.trans ht.1))
@@ -221,6 +214,7 @@ theorem complementBlock_assignments_agree (σ τ : Variable V → Bool) (i j : �
       or_false] at hv
     rcases hv with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
       simp [hsource, hy, hs.2, ht.2]
+  · simp [complementBlock, CNF.vars]
 
 /-- Satisfying output assignments agree exactly when their source restrictions agree. -/
 theorem assignments_agree_iff {φ : CNF V} {σ τ : Variable V → Bool}
@@ -363,10 +357,7 @@ theorem nodup_inheritedClause (i : ℕ) (c : Clause V) (hc : (c.map Prod.fst).No
 /-- Every complement clause has three distinct variables, regardless of its source literal. -/
 theorem nodup_complementBlock (i j : ℕ) (l : Literal V) :
     ∀ c ∈ complementBlock i j l, (c.map Prod.fst).Nodup := by
-  unfold complementBlock
-  split
-  · simp
-  · simp [complementClauses, forceFalseClauses, auxiliary]
+  cases hb : l.2 <;> simp [complementBlock, hb, complementClauses, forceFalseClauses, auxiliary]
 
 /-- Distinct variables in every source clause give distinct variables in every output clause. -/
 theorem nodup_formula {φ : CNF V} (hn : ∀ c ∈ φ, (c.map Prod.fst).Nodup) :

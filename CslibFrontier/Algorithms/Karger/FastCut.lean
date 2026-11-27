@@ -185,8 +185,7 @@ theorem fastCutThreshold_min {k : ℕ} (hk : 7 ≤ k) :
   have h6 := fastCutThreshold_ge_six hk
   have hm := fastCutThreshold_lt_of_lt (k := k) (m := fastCutThreshold k - 1)
     (by omega) (by omega) (by omega)
-  have hsub : fastCutThreshold k - 1 - 1 = fastCutThreshold k - 2 := by omega
-  rwa [hsub] at hm
+  simpa only [Nat.sub_sub] using hm
 
 /-- **Quadratic potential halving (`Φ(k) = (k - 4) ^ 2`):** for every `k ≥ 7`,
 `2 * (fastCutThreshold k - 4) ^ 2 ≤ (k - 4) ^ 2`.
@@ -199,16 +198,14 @@ theorem two_mul_pot_threshold_le {k : ℕ} (hk : 7 ≤ k) :
   have h6 := fastCutThreshold_ge_six hk
   obtain ⟨a, ha⟩ : ∃ a, fastCutThreshold k = a + 4 := ⟨fastCutThreshold k - 4, by omega⟩
   obtain ⟨b, rfl⟩ : ∃ b, k = b + 4 := ⟨k - 4, by omega⟩
-  rw [ha, show a + 4 - 1 = a + 3 by omega, show a + 4 - 2 = a + 2 by omega,
-    show b + 4 - 1 = b + 3 by omega] at hmin
-  rw [ha, Nat.add_sub_cancel, Nat.add_sub_cancel]
-  by_contra hgt
-  have h7b : 7 * b < 10 * a := (Nat.pow_lt_pow_iff_left (by decide : 2 ≠ 0)).mp (by
-    have : 4 ≤ a ^ 2 := Nat.pow_le_pow_left (by omega : 2 ≤ a) 2
-    rw [Nat.mul_pow, Nat.mul_pow]; omega)
-  rw [show 2 * (a + 3) * (a + 2) = 2 * a ^ 2 + 10 * a + 12 by ring,
-    show (b + 4) * (b + 3) = b ^ 2 + 7 * b + 12 by ring] at hmin
-  omega
+  rw [ha] at hmin ⊢
+  change 2 * (a + 3) * (a + 2) < (b + 4) * (b + 3) at hmin
+  rw [Nat.add_sub_cancel, Nat.add_sub_cancel]
+  have ha2 : 2 ≤ a := by omega
+  by_contra! hgt
+  have h7b : 7 * b < 10 * a :=
+    (Nat.pow_lt_pow_iff_left two_ne_zero).mp (by nlinarith only [hgt, ha2])
+  nlinarith only [hmin, hgt, h7b]
 
 /-- For every `k ≥ 7`, `k ^ 2 ≤ 6 * (k - 4) ^ 2`. -/
 theorem sq_le_six_mul_pot {k : ℕ} (hk : 7 ≤ k) :
@@ -226,15 +223,9 @@ theorem two_mul_add_two_le_three_mul_threshold {k : ℕ} (hk : 7 ≤ k) :
   obtain ⟨a, ha⟩ : ∃ a, fastCutThreshold k = a + 6 := ⟨fastCutThreshold k - 6, by omega⟩
   obtain ⟨b, rfl⟩ : ∃ b, k = b + 7 := ⟨k - 7, by omega⟩
   rw [ha] at hspec ⊢
-  rw [show b + 7 - 1 = b + 6 by omega, show a + 6 - 1 = a + 5 by omega,
-    show (b + 7) * (b + 6) = b ^ 2 + 13 * b + 42 by ring,
-    show 2 * (a + 6) * (a + 5) = 2 * ((a + 6) * (a + 5)) by ring] at hspec
-  by_contra hgt
-  have hm := Nat.mul_le_mul (show 3 * (a + 6) ≤ 2 * b + 15 by omega)
-    (show 3 * (a + 5) ≤ 2 * b + 12 by omega)
-  rw [show (3 * (a + 6)) * (3 * (a + 5)) = 9 * ((a + 6) * (a + 5)) by ring,
-    show (2 * b + 15) * (2 * b + 12) = 4 * b ^ 2 + 54 * b + 180 by ring] at hm
-  omega
+  change (b + 7) * (b + 6) ≤ 2 * (a + 6) * (a + 5) at hspec
+  by_contra! hgt
+  nlinarith only [hspec, hgt]
 
 
 /-! ### Recursion depth, stack workspace, query count, and time recurrences -/

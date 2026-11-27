@@ -210,10 +210,8 @@ theorem card_between_le {p : Fin (A + A')} (hp : p ≠ Pl.party .root) :
   rw [he, treeParent] at he'
   rcases Sym2.eq_iff.1 he' with ⟨h1, -⟩ | ⟨h1, h2⟩
   · rwa [Pl.party.symm_apply_eq.2 h1]
-  · have a1 := Tower.Node.stage_parent hh L hQ
-    have a2 := Tower.Node.stage_parent hh L hp'
-    rw [Pl.party.injective h2] at a2
-    rw [← Pl.party.symm_apply_eq.2 h1] at a1
+  · have a1 := Pl.party.symm_apply_eq.2 h1 ▸ Tower.Node.stage_parent hh L hQ
+    have a2 := Pl.party.injective h2 ▸ Tower.Node.stage_parent hh L hp'
     omega
 
 end End
@@ -255,10 +253,10 @@ theorem sum_treeUnits_le (hρ1 : ρ < 1) :
   rw [← Pl.party.sum_comp]
   simp only [treeUnits, Equiv.symm_apply_apply]
   rw [← (proxy_equiv% T.Node).sum_comp, Fintype.sum_sum_type, Fintype.sum_unique, Fintype.sum_sigma]
-  refine le_of_eq_of_le ?_
+  exact le_of_eq_of_le
+    ((zero_add _).trans
+      (Fin.sum_univ_eq_sum_range (fun j => ∑ c : T.X j, T.parentUnits _ j c) (J + 1)))
     (sum_parentUnits_le (n := initialCounts n) (o := outcomeOf R FL Pl o) hρ hρ1)
-  rw [← Fin.sum_univ_eq_sum_range (fun j => ∑ c : T.X j, T.parentUnits _ j c)]
-  exact zero_add _
 
 omit hρ
 
@@ -291,14 +289,13 @@ theorem sum_count_le_card_seenAt (hg : ∀ x, (towerPlan R FL Pl lhat U0 U1).Goo
     (moves R FL Pl).channelParty y.1 y.2 = p ∧
       (towerPlan R FL Pl lhat U0 U1).count n o y.1.1 ≤ o y.1
   calc _ ≤ ∑ r ∈ S.image ψ, (towerPlan R FL Pl lhat U0 U1).count n o r.1 := by
-        refine sum_le_sum_of_subset ?_
-        rintro ⟨x, q⟩ hr
+        refine sum_le_sum_of_subset fun ⟨x, q⟩ hr => ?_
         obtain ⟨hp, hv⟩ := (mem_filter.1 hr).2
         obtain ⟨c, d, hcd, hle⟩ := key _ hv q
-        refine mem_image.2 ⟨(⟨x, c⟩, d), mem_filter.2 ⟨mem_univ _, ?_, ?_⟩, ?_⟩
+        refine mem_image.2 ⟨(⟨x, c⟩, d), mem_filter.2 ⟨mem_univ _, ?_, ?_⟩,
+          congrArg (Sigma.mk x) hcd⟩
         · exact (congrArg ((moves R FL Pl).party x) hcd).trans hp
         · exact (hle _ (goodOutcome_of_good hg _)).trans_eq (outcomeOf_moveOrder o x c)
-        · exact congrArg (Sigma.mk x) hcd
     _ ≤ ∑ y ∈ S, (towerPlan R FL Pl lhat U0 U1).count n o (ψ y).1 :=
         sum_image_le_of_nonneg fun _ _ => Nat.zero_le _
     _ ≤ ∑ y ∈ univ.filter (fun y : (moves R FL Pl).Channel × Bool =>
@@ -355,12 +352,11 @@ theorem card_held_add_le (hr : 0 < r) (hb : 0 < b) (hh : 0 < h)
   simp only [exists_base_iff (Pl := Pl)] at h0
   rw [sum_filter]
   refine h0.trans ?_
-  have h1 := lift_le hh (edgeLoads (load lhat (initialCounts n) (outcomeOf R FL Pl o))) P
   rw [sum_children_eq hh]
   simp only [treeUnits, Equiv.symm_apply_apply]
-  have h2 := channelEndCount_le (U0 := U0) (R := R) (FL := FL) (o := o) (Pl.party P)
-  have h3 := Nat.mul_le_mul_left
-    (4 + (2 * Fintype.card T.Nr * FL.lengthBound + 1 + Sm) * Fintype.card FL.Kind) h1
-  linarith
+  have h1 := Nat.mul_le_mul_left
+    (4 + (2 * Fintype.card T.Nr * FL.lengthBound + 1 + Sm) * Fintype.card FL.Kind)
+    (lift_le hh (edgeLoads (load lhat (initialCounts n) (outcomeOf R FL Pl o))) P)
+  linarith [channelEndCount_le (U0 := U0) (R := R) (FL := FL) (o := o) (Pl.party P)]
 
 end Cslib.Circuits.Arithmetic.Separation.Trees

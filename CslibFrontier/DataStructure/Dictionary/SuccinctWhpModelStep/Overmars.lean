@@ -34,9 +34,8 @@ namespace Cslib.DataStructure.Dictionary.SuccinctWhp
 open Cslib.DataStructure.Dictionary
 open Cslib.DataStructure.Dictionary.FeistelQuotient
 
-private theorem ValidEpochStage.of_rebSlice_eq {c U n_max : ℕ} {θ : SeedWhp c U n_max}
+private theorem epochStages_of_rebSlice_eq {c U n_max : ℕ} {θ : SeedWhp c U n_max}
     {fs fs' : FastState}
-    (h : ValidEpochStage c U n_max θ fs)
     (hq : fs'.quotArr = fs.quotArr) (hbp : fs'.backPtr = fs.backPtr)
     (hcnt : fs'.bktCount = fs.bktCount) (hls : fs'.locState = fs.locState)
     (hep : fs'.curEp = fs.curEp) (hst : fs'.rebStage = fs.rebStage)
@@ -47,50 +46,23 @@ private theorem ValidEpochStage.of_rebSlice_eq {c U n_max : ℕ} {θ : SeedWhp c
     (hri : fs'.rebInsCount = fs.rebInsCount) (hbuf : fs'.buf = fs.buf)
     (hsl : ∀ bc < numBucketsWhp n_max,
       fs'.slices (fs'.rebSliceIdx bc) = fs.slices (fs.rebSliceIdx bc)) :
-    ValidEpochStage c U n_max θ fs' := by
+    (ValidEpochStage c U n_max θ fs → ValidEpochStage c U n_max θ fs') ∧
+    (ValidEpochStagePreTick c U n_max θ fs → ValidEpochStagePreTick c U n_max θ fs') := by
   have hold : fs'.oldEp = fs.oldEp := by dsimp only [FastState.oldEp]; rw [hep]
-  dsimp only [ValidEpochStage] at h ⊢
-  rw [hst, hold, hbuf, hsc, hdc, hdb, hdi, hdn, hrq, hcnt, hls, hcs, hrc, hri]
-  split_ifs at h ⊢ with hs0 hs1 hs2 hs3
-  · exact h
-  · exact h
-  · rcases h with ⟨hd1, hd2, hd3, hd4, hd5, hd6, hreb⟩
-    refine ⟨hd1, hd2, hd3, hd4, hd5, hd6, fun hlt => ?_⟩
-    obtain ⟨hcur_r, hinj_r, rm, hvr, hrr⟩ := hreb hlt
-    have hbc : fs.dirtyBuckets fs.dirtyIdx < numBucketsWhp n_max := hd3 fs.dirtyIdx hd2
-    rw [fpAt_eq_of_fields hq hbp fs.rebCandSalt (fs.dirtyBuckets fs.dirtyIdx)]
-    refine ⟨hcur_r, hinj_r, rm, ?_, hrr⟩
-    rwa [hsl _ hbc]
-  · exact h
-
-private theorem ValidEpochStagePreTick.of_rebSlice_eq {c U n_max : ℕ} {θ : SeedWhp c U n_max}
-    {fs fs' : FastState}
-    (h : ValidEpochStagePreTick c U n_max θ fs)
-    (hq : fs'.quotArr = fs.quotArr) (hbp : fs'.backPtr = fs.backPtr)
-    (hcnt : fs'.bktCount = fs.bktCount) (hls : fs'.locState = fs.locState)
-    (hep : fs'.curEp = fs.curEp) (hst : fs'.rebStage = fs.rebStage)
-    (hsc : fs'.stageCursor = fs.stageCursor) (hdc : fs'.dirtyCount = fs.dirtyCount)
-    (hdb : fs'.dirtyBuckets = fs.dirtyBuckets) (hdi : fs'.dirtyIdx = fs.dirtyIdx)
-    (hdn : fs'.rebDoneFlag = fs.rebDoneFlag) (hrq : fs'.rebQueued = fs.rebQueued)
-    (hcs : fs'.rebCandSalt = fs.rebCandSalt) (hrc : fs'.rebScanCursor = fs.rebScanCursor)
-    (hri : fs'.rebInsCount = fs.rebInsCount) (hbuf : fs'.buf = fs.buf)
-    (hsl : ∀ bc < numBucketsWhp n_max,
-      fs'.slices (fs'.rebSliceIdx bc) = fs.slices (fs.rebSliceIdx bc)) :
-    ValidEpochStagePreTick c U n_max θ fs' := by
-  have hold : fs'.oldEp = fs.oldEp := by dsimp only [FastState.oldEp]; rw [hep]
-  dsimp only [ValidEpochStagePreTick] at h ⊢
-  rw [hst, hold, hbuf, hsc, hdc, hdb, hdi, hdn, hrq, hcnt, hls, hcs, hrc, hri]
-  split_ifs at h ⊢ with hs0 hs1 hs2 hs3
-  · exact h
-  · exact h
-  · rcases h with ⟨hd1, hd2, hd3, hd4, hd5, hd6, hreb⟩
-    refine ⟨hd1, hd2, hd3, hd4, hd5, hd6, fun hlt => ?_⟩
-    obtain ⟨hcur_r, hinj_r, rm, hvr, hrr⟩ := hreb hlt
-    have hbc : fs.dirtyBuckets fs.dirtyIdx < numBucketsWhp n_max := hd3 fs.dirtyIdx hd2
-    rw [fpAt_eq_of_fields hq hbp fs.rebCandSalt (fs.dirtyBuckets fs.dirtyIdx)]
-    refine ⟨hcur_r, hinj_r, rm, ?_, hrr⟩
-    rwa [hsl _ hbc]
-  · exact h
+  constructor <;> intro h <;>
+    dsimp only [ValidEpochStage, ValidEpochStagePreTick] at h ⊢ <;>
+    rw [hst, hold, hbuf, hsc, hdc, hdb, hdi, hdn, hrq, hcnt, hls, hcs, hrc, hri] <;>
+    (split_ifs at h ⊢
+     · exact h
+     · exact h
+     · obtain ⟨hd1, hd2, hd3, hd4, hd5, hd6, hreb⟩ := h
+       refine ⟨hd1, hd2, hd3, hd4, hd5, hd6, fun hlt => ?_⟩
+       obtain ⟨hcur_r, hinj_r, rm, hvr, hrr⟩ := hreb hlt
+       have hbc := hd3 fs.dirtyIdx hd2
+       rw [fpAt_eq_of_fields hq hbp fs.rebCandSalt (fs.dirtyBuckets fs.dirtyIdx)]
+       refine ⟨hcur_r, hinj_r, rm, ?_, hrr⟩
+       rwa [hsl _ hbc]
+     · exact h)
 
 /-- Bounded-fuel invariant for `overmarsScanSteps` over `rem` coordinates of bucket `b`. -/
 private theorem overmarsScanSteps_spec {c U n_max b : ℕ} (hth : whpThreshold c ≤ n_max)
@@ -270,7 +242,7 @@ private theorem overmarsStep_post_scan {c U V n_max b cur1 ins1 : ℕ}
       overmarsInsCount := Function.update fs.overmarsInsCount b ins1
       slices := Function.update fs.slices (fs.overmarsSliceIdx b) sl1 }
   have hne_lo : fs.overmarsSliceIdx b ≠ fs.liveSliceIdx b := by
-    dsimp only [FastState.overmarsSliceIdx, FastState.liveSliceIdx]; omega
+    exact fun heq => hro_ne (Nat.add_left_cancel heq.symm)
   have hne_reb_all : ∀ b' < numBucketsWhp n_max, fs.overmarsSliceIdx b ≠ fs.rebSliceIdx b' := by
     intro b' hb'
     obtain ⟨hlr', hor', hne'⟩ := hc.roles_valid b' hb'
@@ -287,6 +259,9 @@ private theorem overmarsStep_post_scan {c U V n_max b cur1 ins1 : ℕ}
     dsimp only [FastState.overmarsSliceIdx]
     exact ⟨fun heq => hbb (sliceIdx_inj (hc.roles_valid b' hb').1 hor_lt heq).1,
       fun heq => hbb (sliceIdx_inj (hc.roles_valid b' hb').2.1 hor_lt heq).1⟩
+  have hreb_eq : ∀ bc < numBucketsWhp n_max,
+      fs1.slices (fs1.rebSliceIdx bc) = fs.slices (fs.rebSliceIdx bc) :=
+    fun bc hbc => Function.update_of_ne (hne_reb_all bc hbc).symm _ _
   by_cases hdone : fs1.bktCount b ≤ fs1.overmarsCursor b
   · rw [ite_eq_left hdone]
     dsimp only [fs1] at hdone
@@ -300,23 +275,16 @@ private theorem overmarsStep_post_scan {c U V n_max b cur1 ins1 : ℕ}
         overmarsActive := Function.update fs1.overmarsActive b 0
         overmarsCursor := Function.update fs1.overmarsCursor b 0
         overmarsInsCount := Function.update fs1.overmarsInsCount b 0 }
-    have hreb_eq : ∀ bc < numBucketsWhp n_max,
-        fsSwap.slices (fsSwap.rebSliceIdx bc) = fs.slices (fs.rebSliceIdx bc) := by
-      intro bc hbc
-      have hridx_eq : fsSwap.rebSliceIdx bc = fs.rebSliceIdx bc := by
-        dsimp only [FastState.rebSliceIdx, FastState.rebRole, fsSwap, fs1]
-        by_cases hbb : bc = b
-        · subst hbb; simp only [Function.update_self]; omega
-        · simp [hbb]
-      rw [hridx_eq]
-      dsimp only [fsSwap, fs1]
-      exact Function.update_of_ne (hne_reb_all bc hbc).symm _ _
-    refine ⟨?_, ?_,
-      fun hst => hst.of_rebSlice_eq rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
-        rfl rfl hreb_eq,
-      fun hst => hst.of_rebSlice_eq rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
-        rfl rfl hreb_eq,
-      rfl, rfl, rfl, rfl⟩
+    have hridx_eq (bc : ℕ) : fsSwap.rebSliceIdx bc = fs1.rebSliceIdx bc := by
+      dsimp only [FastState.rebSliceIdx, FastState.rebRole, fsSwap, fs1]
+      by_cases hbb : bc = b
+      · simp only [hbb, Function.update_self, Nat.sub_sub, Nat.add_comm (fs.overmarsRole b)]
+      · simp only [Function.update_of_ne hbb]
+    obtain ⟨hstage, hpreTick⟩ :=
+      epochStages_of_rebSlice_eq (θ := θ) (fs := fs) (fs' := fsSwap)
+        rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
+        (fun bc hbc => (congrArg fs1.slices (hridx_eq bc)).trans (hreb_eq bc hbc))
+    refine ⟨?_, ?_, hstage, hpreTick, rfl, rfl, rfl, rfl⟩
     · refine { hc with
         roles_valid := fun b' hb' => by
           by_cases hbb : b' = b
@@ -349,17 +317,10 @@ private theorem overmarsStep_post_scan {c U V n_max b cur1 ins1 : ℕ}
     rw [Function.update_self] at hdone
     have hcur_lt_b : cur1 < fs.bktCount b := Nat.lt_of_not_le hdone
     rw [Nat.min_eq_right hcur_lt_b.le] at hrel1
-    have hreb_eq : ∀ bc < numBucketsWhp n_max,
-        fs1.slices (fs1.rebSliceIdx bc) = fs.slices (fs.rebSliceIdx bc) := by
-      intro bc hbc
-      dsimp only [fs1, FastState.rebSliceIdx, FastState.rebRole]
-      exact Function.update_of_ne (hne_reb_all bc hbc).symm _ _
-    refine ⟨?_, ?_,
-      fun hst => hst.of_rebSlice_eq rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
-        rfl rfl hreb_eq,
-      fun hst => hst.of_rebSlice_eq rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
-        rfl rfl hreb_eq,
-      rfl, rfl, rfl, rfl⟩
+    obtain ⟨hstage, hpreTick⟩ :=
+      epochStages_of_rebSlice_eq (θ := θ) (fs := fs) (fs' := fs1)
+        rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl hreb_eq
+    refine ⟨?_, ?_, hstage, hpreTick, rfl, rfl, rfl, rfl⟩
     · refine { hc with
         live_valid := fun b' hb' => by
           obtain ⟨lm, hvl, hrl⟩ := hc.live_valid b' hb'

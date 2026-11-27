@@ -197,9 +197,7 @@ theorem formulaSize_le_of_andreevBlock_nonempty {h : BooleanFunction b}
     (hblocks : ∀ j : Fin b, (ρ.free ∩ andreevBlock b m j).Nonempty) :
     formulaSize h ≤ formulaSize (andreev b m ∘ ρ.fill) := by
   have hpivot (j : Fin b) : ∃ t : Fin m, andreevBlockVar b m j t ∈ ρ.free := by
-    obtain ⟨_, hi⟩ := hblocks j
-    obtain ⟨t, -, rfl⟩ := mem_image.1 (mem_inter.1 hi).2
-    exact ⟨t, (mem_inter.1 hi).1⟩
+    simpa [andreevBlock, Finset.Nonempty, and_comm] using hblocks j
   choose t_fn ht_fn using hpivot
   set y₀ : Fin b → BitString m :=
     fun j t => ρ.fill (fun _ => false) (andreevBlockVar b m j t)
@@ -213,13 +211,15 @@ theorem formulaSize_le_of_andreevBlock_nonempty {h : BooleanFunction b}
         const false
   obtain ⟨F, hF, hFL⟩ := exists_computes_leafSize_eq (andreev b m ∘ ρ.fill)
   have hσ_leaf (i : Fin (2 ^ b + b * m)) : (σ i).leafSize ≤ 1 := by
-    refine Fin.addCases (fun _ => by simp [σ]) (fun u => ?_) i
+    refine Fin.addCases (fun _ => by simp [σ]) (fun _ => ?_) i
     simp only [σ, Fin.addCases_right]
     split_ifs <;> simp
   have hbind_computes : (F.bind σ).Computes interpretation h := by
     intro z
     rw [eval_bind, hF, comp_apply, andreev_fill_of_extends hext]
     congr 1 with j : 1
+    have hfree : ρ (andreevBlockVar b m j (t_fn j)) = none :=
+      PartialAssignment.mem_free.1 (ht_fn j)
     have hblock_eq :
         (fun t => ρ.fill (fun i => (σ i).eval interpretation z) (andreevBlockVar b m j t)) =
           update (y₀ j) (t_fn j) (z j ^^ r j) := by
@@ -229,16 +229,12 @@ theorem formulaSize_le_of_andreevBlock_nonempty {h : BooleanFunction b}
             if t = t_fn j then (z j ^^ r j) else false := by
         simp only [σ, andreevBlockVar, Fin.addCases_right, Equiv.symm_apply_apply]
         split_ifs with ht hr <;> cases hzj : z j <;> simp [*]
-      by_cases ht : t = t_fn j
-      · subst ht
-        rw [PartialAssignment.fill_of_eq_none (PartialAssignment.mem_free.1 (ht_fn j)), hσ_val,
-          ite_eq_left rfl, update_self]
+      rcases eq_or_ne t (t_fn j) with rfl | ht
+      · rw [PartialAssignment.fill_of_eq_none hfree, hσ_val, ite_eq_left rfl, update_self]
       · rw [update_of_ne ht]
         cases hρ : ρ (andreevBlockVar b m j t) <;> simp [y₀, PartialAssignment.fill, hρ, hσ_val, ht]
-    have hy₀_false : y₀ j (t_fn j) = false :=
-      PartialAssignment.fill_of_eq_none (PartialAssignment.mem_free.1 (ht_fn j)) (fun _ => false)
-    rw [hblock_eq, parity_update_of_eq_false hy₀_false, Bool.xor_assoc, Bool.xor_self,
-      Bool.xor_false]
+    rw [hblock_eq, parity_update_of_eq_false (PartialAssignment.fill_of_eq_none hfree _),
+      Bool.xor_assoc, Bool.xor_self, Bool.xor_false]
   exact (formulaSize_le hbind_computes).trans ((F.leafSize_bind_le hσ_leaf).trans (by omega))
 
 /-! ### Andreev's reduction and explicit formula lower bound -/
@@ -332,9 +328,8 @@ theorem pow_two_mul_pow_three_le_formulaSize_andreev_sq :
         144 * b ^ 2 * (Nat.log 2 b + 2) ^ 3 * formulaSize (andreev b m) ^ 2 := by
   obtain ⟨B₀, hB₀⟩ := exists_hard_function_formulaSize
   refine ⟨max B₀ 16, fun b hb m hm => ?_⟩
-  have hb₀ : B₀ ≤ b := (le_max_left B₀ 16).trans hb
   have hb16 : 16 ≤ b := (le_max_right B₀ 16).trans hb
-  obtain ⟨h, hh⟩ := hB₀ b hb₀
+  obtain ⟨h, hh⟩ := hB₀ b ((le_max_left B₀ 16).trans hb)
   set r := Nat.log 2 b + 2
   have handreev := formulaSize_sub_sq_mul_pow_three_le_andreev_log h (by omega) hm
   have hlog : Nat.log 2 b ≤ b := Nat.log_le_self 2 b

@@ -77,30 +77,15 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
   let V := valueBase L m t N qs.length
   let K := (boxes L m t).card
   let O := resultBase L m t N qs.length
-  have habQ := hg.span_bounds (Wanted.tileKey L m N ∘ Wanted.inputPairs qs) hoffsets hj
-  have hB : 0 < B := by dsimp only [B] at *; nlinarith only [hj, Nat.zero_le j]
-  have hβ : β < B := (Nat.div_lt_iff_lt_mul hB).mpr (by simpa [B, pow_two] using hj)
-  have hγ : γ < B := Nat.mod_lt j hB
-  have hT : (β, γ) ∈ tiles L m N :=
-    Finset.mem_product.mpr ⟨Finset.mem_range.mpr hβ, Finset.mem_range.mpr hγ⟩
-  have hnum : β * numBands L m N + γ = j := by
-    simpa only [β, γ, B, Nat.mul_comm] using Nat.div_add_mod j B
-  have hcode (k : ℕ) (hk : k < qs.length) :
-      x.mem (QueriedProduct.codeBase L m N qs.length + k) < 10 ^ L := by
-    rw [hg.codes k hk]
-    exact QueriedProduct.router_code_lt hm qs old hvalues k hk
-  let queries : Fin (b - a) → OutStr L := fun i => PrunedQuery.queryAt
-    ⟨x.mem (QueriedProduct.codeBase L m N qs.length + (a + i.val)),
-      hcode _ (by have := i.isLt; omega)⟩
+  obtain ⟨hT, hnum, habQ, queries, hinput, hset⟩ := hg.decode_span hm qs hvalues hoffsets hj
+  change β * numBands L m N + γ = j at hnum
+  change (Fin (b - a) → OutStr L) at queries
+  change (∀ i, x.mem (QueriedProduct.codeBase L m N qs.length + (a + i.val)) =
+    (PrunedQuery.queryIndex (queries i)).val) at hinput
+  change Finset.univ.image queries = wantedStrings (MaskTable.layout hm) qs.toFinset β γ at hset
+  have ⟨hβ, hγ⟩ : β < B ∧ γ < B := by
+    simpa only [tiles, Finset.mem_product, Finset.mem_range] using hT
   let wanted := List.ofFn queries
-  have hinput (i : Fin (b - a)) :
-      x.mem (QueriedProduct.codeBase L m N qs.length + (a + i.val)) =
-        (PrunedQuery.queryIndex (queries i)).val := by
-    simp only [queries, PrunedQuery.queryIndex_queryAt]
-  have hset : Finset.univ.image queries =
-      wantedStrings (MaskTable.layout hm) qs.toFinset β γ :=
-    hg.span_queries hm qs hvalues hoffsets (β, γ) hT a b (by rw [hnum])
-      (by rw [hnum]; rfl) queries hinput
   have hinner : ∀ η ∈ wanted, (innerSetO η).card = m := by
     intro η hη
     obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hη

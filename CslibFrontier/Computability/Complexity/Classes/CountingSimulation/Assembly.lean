@@ -93,10 +93,8 @@ time is at most `2 ^ paddedTime t`, the residue of the sum of the network values
 theorem simulate_eq (F : NetworkFamily encN value Admissible count) {x : List Bool} {t : ℕ}
     (hx : x.length ≤ t) (ht : 2 ≤ t) (hcount : count x (paddedTime t) ≤ 2 ^ paddedTime t) :
     simulate F (x, t) = count x (paddedTime t) := by
-  rw [simulate, ite_eq_left_of_eq_true _ _ (eq_true (⟨hx, ht⟩ : x.length ≤ t ∧ 2 ≤ t)),
-    modSum_eq_sum_mod]
-  simp only [scheduleResidue]
-  rw [← Finset.sum_nat_mod, F.sum_value x t hx ht]
+  rw [simulate, ite_eq_left ⟨hx, ht⟩, modSum_eq_sum_mod]
+  simp only [scheduleResidue, ← Finset.sum_nat_mod, F.sum_value x t hx ht]
   exact Nat.mod_eq_of_lt (hcount.trans_lt (Nat.pow_lt_pow_right one_lt_two (Nat.lt_succ_self _)))
 
 /-! ### Polynomial-time parameters -/
@@ -338,8 +336,8 @@ theorem exists_computableInO_countPair (F : NetworkFamily encN value Admissible 
   refine ⟨(a + 1) * (C + 1), a * c ^ e + 2 * e,
     (ctotal.computes.of_enc_eq fun x => congrArg (encPair encUnary encNat) ?_).mono_le
       (fun x => ?_) fun x => ?_⟩
-  · obtain ⟨hnt, h2t⟩ := hclock x.length
-    simp only [Function.comp_apply, simulate_eq F hnt h2t (hcount x _)]
+  · simp only [Function.comp_apply,
+      simulate_eq F (hclock x.length).1 (hclock x.length).2 (hcount x _)]
   · set n := x.length
     have h2T : 2 ≤ T n := (le_max_right _ _).trans (hTn n)
     calc ctotal.time x ≤ W (c * T n) * scheduleCount F.heads (c * T n) *
@@ -353,18 +351,15 @@ theorem exists_computableInO_countPair (F : NetworkFamily encN value Admissible 
           ring
       _ ≤ a * 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) + 0 :=
           Nat.mul_le_mul_left _ (hC (T n) h2T)
-      _ ≤ _ := by
-          simpa only [Nat.add_zero] using
-            Nat.mul_two_pow_div_sqrt_log_two_add_le (a := a) (b := 0) (C := C) h2T
+      _ ≤ _ := Nat.mul_two_pow_div_sqrt_log_two_add_le (a := a) (b := 0) (C := C) h2T
   · set n := x.length
     have h2T : 2 ≤ T n := (le_max_right _ _).trans (hTn n)
     have hct : c * T n + 1 ≤ c * (T n + 1) := by nlinarith
     calc ctotal.space x ≤ a * (c * T n + 1) ^ e := (hcost x).2.trans (hWa (c * T n))
       _ ≤ a * (c * (T n + 1)) ^ e := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hct _)
       _ = a * c ^ e * (T n + 1) ^ e + 0 := by rw [mul_pow, Nat.mul_assoc, add_zero]
-      _ ≤ T n ^ (a * c ^ e + 2 * e) := by
-          simpa only [Nat.add_zero] using
-            Nat.mul_add_one_pow_add_le_pow (a := a * c ^ e) (b := 0) (d := e) h2T
+      _ ≤ T n ^ (a * c ^ e + 2 * e) :=
+          Nat.mul_add_one_pow_add_le_pow (a := a * c ^ e) (b := 0) (d := e) h2T
 
 /-- Any polynomial-time function of the exact count and its padded clock has the same
 subexponential time and polynomial-space scale. This is postprocessing of
@@ -398,13 +393,12 @@ theorem exists_computableInO_countWith (F : NetworkFamily encN value Admissible 
       ((bp (g x)).1.trans (mp (hlen x))).trans ((Nat.le_add_left _ _).trans (hPe _))
     have hmain := by
       simpa only [Nat.zero_mul, pow_zero, Nat.one_mul] using hC' (T x.length) h2
-    have h1 := (Nat.le_mul_of_pos_left _ (Nat.one_le_pow _ _ (by omega))).trans hmain
     have hcr := hpost.trans
       (Nat.mul_le_mul_left a ((Nat.le_mul_of_pos_right _ Nat.one_le_two_pow).trans hmain))
     calc ctotal.time x = 2 ^ (C * T x.length / Nat.sqrt (Nat.log 2 (T x.length))) +
           cr.time (g x) := rfl
       _ ≤ (a + 1) * 2 ^ (C' * T x.length / Nat.sqrt (Nat.log 2 (T x.length))) := by
-        linarith
+        linarith [(Nat.le_mul_of_pos_left _ (Nat.one_le_pow _ _ (Nat.succ_pos _))).trans hmain]
       _ ≤ _ := by
         simpa only [Nat.add_zero, Nat.add_assoc] using
           Nat.mul_two_pow_div_sqrt_log_two_add_le (a := a + 1) (b := 0) (C := C') h2

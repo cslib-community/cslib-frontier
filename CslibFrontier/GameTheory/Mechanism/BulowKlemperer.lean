@@ -122,12 +122,11 @@ private theorem measurable_auxAllocation {n : ℕ} {φ : ℝ → ℝ} (hφ : Mea
     (i : Fin (n + 1)) : Measurable fun v : Fin (n + 1) → ℝ => auxAllocation φ v i := by
   have hproj : Measurable fun (v : Fin (n + 1) → ℝ) (j : Fin n) => v j.castSucc :=
     measurable_pi_iff.2 fun j => measurable_pi_apply j.castSucc
-  refine Fin.lastCases ?_ ?_ i
+  refine Fin.lastCases ?_ (fun j => ?_) i
   · simp only [auxAllocation, Fin.snoc_last]
     exact measurable_const.sub
       (Finset.measurable_sum Finset.univ fun j _ => (measurable_reserveAllocation hφ j).comp hproj)
-  · intro j
-    simp only [auxAllocation, Fin.snoc_castSucc]
+  · simp only [auxAllocation, Fin.snoc_castSucc]
     exact (measurable_reserveAllocation hφ j).comp hproj
 
 private theorem auxAllocation_abs_le_one {n : ℕ} (φ : ℝ → ℝ) (v : Fin (n + 1) → ℝ)
@@ -138,12 +137,9 @@ private theorem auxAllocation_abs_le_one {n : ℕ} (φ : ℝ → ℝ) (v : Fin (
 private theorem ae_pos {ι : Type*} [Fintype ι] {μ : Measure ℝ} [IsProbabilityMeasure μ]
     {f : ℝ → NNReal} {h : ℝ} (hμ : HasValueDensity μ f h) :
     ∀ᵐ v ∂Measure.pi (fun _ : ι => μ), ∀ i, 0 < v i := by
-  rw [ae_all_iff]
-  intro i
   have := hμ.nullSingletonClass
-  have hne : ∀ᵐ x ∂μ, x ≠ 0 := by
-    rw [ae_iff]; simp only [ne_eq, not_not, ofPred_eq_eq_singleton, measure_singleton]
-  refine (Measure.quasiMeasurePreserving_eval (fun _ : ι => μ) i).ae ?_
+  have hne : ∀ᵐ x ∂μ, x ≠ 0 := by simp [ae_iff]
+  refine ae_all_iff.2 fun i => (Measure.quasiMeasurePreserving_eval (fun _ : ι => μ) i).ae ?_
   filter_upwards [hμ.ae_mem, hne] with x hx hne
   exact lt_of_le_of_ne hx.1 hne.symm
 
@@ -276,17 +272,13 @@ theorem integral_sum_payment_le_vickrey_succ_of_isBayesNash
       (fun i => measurable_reserveAllocation hμ.measurable_virtualValue i) hB_res]
     have hmax := isVirtualWelfareMaximizing_reserveAllocation (ι := Fin n)
       (hreg.strictMonoOn_Ioi hμ).monotoneOn (virtualValue_le μ f 0)
-    have hIntL : Integrable (fun v : Fin n → ℝ =>
-        ∑ i : Fin n, φ (v i) * M.allocation (fun j => β j (v j)) i)
-        (Measure.pi fun _ : Fin n => μ) :=
-      integrable_finsetSum _ fun i _ => Integrable.mono'
-        ((integrable_comp_eval hμ.integrable_virtualValue).norm.mul_const 1)
+    refine integral_mono_ae
+      (integrable_finsetSum _ fun i _ => Integrable.mono'
+        (integrable_comp_eval hμ.integrable_virtualValue).norm
         ((hμ.measurable_virtualValue.comp (measurable_pi_apply i)).mul (hx i)).aestronglyMeasurable
-        (by
-          filter_upwards [ae_mem_box fun _ : Fin n => hμ] with v hv
-          rw [norm_mul, mul_one]
-          exact mul_le_of_le_one_right (norm_nonneg _) (hB _ (fun j => hBN.nonneg (hv j)) i))
-    refine integral_mono_ae hIntL
+        ((ae_mem_box fun _ : Fin n => hμ).mono fun v hv => by
+          simp only [norm_mul, Real.norm_eq_abs]
+          exact mul_le_of_le_one_right (abs_nonneg _) (hB _ (fun j => hBN.nonneg (hv j)) i)))
       (integrable_finsetSum _ fun i _ => integrable_virtualValue_mul (fun _ => hμ) i
         (measurable_reserveAllocation hμ.measurable_virtualValue i) (fun v hv => hB_res v hv i)) ?_
     filter_upwards [ae_mem_box fun _ : Fin n => hμ] with v hv

@@ -100,12 +100,9 @@ omit [Fintype W] in
 
 /-- The phase oracle preserves norms. -/
 theorem norm_phaseOracle (x : Fin N → Bool) (ψ : State N W) : ‖phaseOracle x ψ‖ = ‖ψ‖ := by
-  have h : ‖phaseOracle x ψ‖ ^ 2 = ‖ψ‖ ^ 2 := by
-    rw [EuclideanSpace.norm_sq_eq, EuclideanSpace.norm_sq_eq]
-    refine sum_congr rfl fun p _ => ?_
-    rw [phaseOracle_apply, norm_mul]
-    split_ifs <;> simp
-  exact (sq_eq_sq₀ (norm_nonneg _) (norm_nonneg _)).mp h
+  refine (sq_eq_sq₀ (norm_nonneg _) (norm_nonneg _)).mp ?_
+  simp only [EuclideanSpace.norm_sq_eq, phaseOracle_apply, norm_mul]
+  exact sum_congr rfl fun p _ => by split_ifs <;> simp
 
 omit [Fintype W] in
 /-- The oracle of the all-zero input is the identity. -/
@@ -140,8 +137,7 @@ theorem regProb_eq_sum (ψ : State N W) (i : Fin N) :
     ext ⟨j, w⟩
     simp only [mem_filter, mem_univ, true_and, mem_map]
     exact ⟨fun h => ⟨w, h ▸ rfl⟩, fun ⟨_, h⟩ => (Prod.mk.inj h).1.symm⟩
-  rw [regProb, measureProb, h, sum_map]
-  rfl
+  rw [regProb, measureProb, h, sum_map]; rfl
 
 /-- The projection `Π_z` onto query index `z`. -/
 noncomputable def proj (z : Fin N) (ψ : State N W) : State N W :=
@@ -160,17 +156,13 @@ theorem proj_sub (z : Fin N) (ψ φ : State N W) : proj z (ψ - φ) = proj z ψ 
   split_ifs <;> simp
 
 theorem norm_proj_le (z : Fin N) (ψ : State N W) : ‖proj z ψ‖ ≤ ‖ψ‖ := by
-  have h : ‖proj z ψ‖ ^ 2 ≤ ‖ψ‖ ^ 2 := by
-    rw [EuclideanSpace.norm_sq_eq, EuclideanSpace.norm_sq_eq]
-    refine sum_le_sum fun p _ => ?_
-    simp only [proj, PiLp.toLp_apply]
-    split_ifs <;> simp
-  exact (sq_le_sq₀ (norm_nonneg _) (norm_nonneg _)).mp h
+  refine (sq_le_sq₀ (norm_nonneg _) (norm_nonneg _)).mp ?_
+  simp only [EuclideanSpace.norm_sq_eq, proj]
+  exact sum_le_sum fun p _ => by split_ifs <;> simp
 
 /-- The measurement probabilities of all query indices sum to `‖ψ‖²`. -/
 theorem sum_regProb (ψ : State N W) : ∑ i, regProb ψ i = ‖ψ‖ ^ 2 := by
-  simp only [regProb_eq_sum]
-  rw [EuclideanSpace.norm_sq_eq, Fintype.sum_prod_type]
+  simp only [regProb_eq_sum, EuclideanSpace.norm_sq_eq, Fintype.sum_prod_type]
 
 /-- The projection onto query index `z` with control bit `1`: the part of the state the oracle
 of `e_z` acts on. -/
@@ -196,7 +188,8 @@ theorem phaseOracle_marked_sub (z : Fin N) (ψ : State N W) :
   simp only [PiLp.sub_apply, phaseOracle_apply, marked, PiLp.smul_apply, ctrlProj, smul_eq_mul]
   cases p.2.1
   · simp
-  · by_cases h : p.1 = z <;> simp [h]; ring
+  · by_cases h : p.1 = z <;> simp [h]
+    ring
 
 /-- **The hybrid argument** for one marked item: on the inputs `e_z` and `0`, the states after `t`
 queries differ by at most `2 ∑_{s < t} ‖Π_z φ_s‖`, where `φ_s` is the state on the all-zero input
@@ -298,9 +291,7 @@ theorem card_sub_two_le (U : ℕ → State N W →ₗᵢ[ℂ] State N W) {ψ₀ 
     intro z hz
     have hz' : regProb φ z ≤ 1 / 3 := by simpa [B] using hz
     have hd := regProb_sub_le (by rw [norm_run, hψ₀]) hφ z (ψ := run U ψ₀ (marked z) T)
-    have h6 : (1 / 6 : ℝ) ≤ ‖run U ψ₀ (marked z) T - φ‖ := by linarith [hsucc z]
-    simpa only [show (1 / 6 : ℝ) ^ 2 = 1 / 36 by norm_num] using
-      pow_le_pow_left₀ (by norm_num) h6 2
+    nlinarith [hsucc z, norm_nonneg (run U ψ₀ (marked z) T - φ)]
   have hsum := sum_sq_norm_run_sub_le U hψ₀ T
   have hcompl : ((univ \ B).card : ℝ) * (1 / 36) ≤
       ∑ z, ‖run U ψ₀ (marked z) T - φ‖ ^ 2 := by
@@ -311,10 +302,9 @@ theorem card_sub_two_le (U : ℕ → State N W →ₗᵢ[ℂ] State N W) {ψ₀ 
         sum_le_sum fun z hz => hfar z (mem_sdiff.mp hz).2
       _ ≤ ∑ z, ‖run U ψ₀ (marked z) T - φ‖ ^ 2 :=
         sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => by positivity
-  have hcard : (N : ℝ) - 2 ≤ (univ \ B).card := by
-    rw [card_sdiff_of_subset (subset_univ _), card_univ, Fintype.card_fin,
-      Nat.cast_sub (card_le_univ B |>.trans_eq (Fintype.card_fin N))]
-    linarith [show (B.card : ℝ) ≤ 2 by exact_mod_cast hB]
+  have hB' : (B.card : ℝ) ≤ 2 := Nat.cast_le.mpr hB
+  rw [card_sdiff_of_subset (subset_univ _), card_univ, Fintype.card_fin,
+    Nat.cast_sub ((card_le_univ B).trans_eq (Fintype.card_fin N))] at hcompl
   linarith
 
 end Cslib.Quantum

@@ -344,8 +344,7 @@ theorem toOuterMeasure_uniform_friBatchChal_batchCoeffs {F : Type} [Fintype F] [
     (PMF.uniformOfFintype (FRIBatchChal F d q t)).toOuterMeasure
         {c | c.batchCoeffs ∈ S} =
       (PMF.uniformOfFintype (Fin t → F)).toOuterMeasure S := by
-  rw [← uniformOfFintype_friBatchChal_map_batchCoeffs (F := F) d q t, PMF.toOuterMeasure_map_apply]
-  rfl
+  rw [← uniformOfFintype_friBatchChal_map_batchCoeffs d q t, PMF.toOuterMeasure_map_apply]; rfl
 
 /-- Outer-measure marginal identity for `FRIBatchChal.toFRIChal` under the uniform distribution. -/
 theorem toOuterMeasure_uniform_friBatchChal_toFRIChal {F : Type} [Fintype F] [Nonempty F]
@@ -353,8 +352,7 @@ theorem toOuterMeasure_uniform_friBatchChal_toFRIChal {F : Type} [Fintype F] [No
     (PMF.uniformOfFintype (FRIBatchChal F d q t)).toOuterMeasure
         {c | c.toFRIChal ∈ S} =
       (PMF.uniformOfFintype (FRIChal F d q)).toOuterMeasure S := by
-  rw [← uniformOfFintype_friBatchChal_map_toFRIChal (F := F) d q t, PMF.toOuterMeasure_map_apply]
-  rfl
+  rw [← uniformOfFintype_friBatchChal_map_toFRIChal d q t, PMF.toOuterMeasure_map_apply]; rfl
 
 variable {F : Type} [Field F]
 
@@ -372,8 +370,7 @@ theorem toOuterMeasure_not_friSmoothBatchGoodStep_cons [Fintype F] [DecidableEq 
         {c' | ¬ friSmoothGoodStep params B (stmt.eval c₀.batchCoeffs)
           (friBatchTailTranscript rest) π c'} := by
   simp only [friSmoothBatchGoodStep_cons]
-  rw [← toOuterMeasure_uniform_friBatchChal_toFRIChal (t := t)]
-  rfl
+  rw [← toOuterMeasure_uniform_friBatchChal_toFRIChal (t := t)]; rfl
 
 /-- **Unconditional query-round escape bound for `friSmoothBatchIOP`**: when
 `pref.length = params.m + 1` and `pref` is doomed at threshold `B`, the probability over a uniform
@@ -544,11 +541,9 @@ private theorem smoothBatchRound0Escape_of_real_density [Fintype F] [DecidableEq
         let ⟨c, hc, hc_gt⟩ := (Finset.mem_filter.mp hx).2
         ⟨c, hc, (lt_card_filter_eq_iff_hammingDist_le he_lt (stmt.eval x) c).mp hc_gt⟩
     exact hnot ⟨D', by rwa [Fintype.card_fin] at hD'_card, v₀, hv₀, v, hv, hagree⟩
-  have hne_top : (PMF.uniformOfFintype (Fin t → F)).toOuterMeasure S ≠ ⊤ :=
-    PMF.toOuterMeasure_uniformOfFintype S ▸
-      ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) (by simp)
-  rw [← ENNReal.ofReal_toReal hne_top, PMF.toOuterMeasure_uniformOfFintype_toReal]
-  simpa only [Fintype.card_fun, Fintype.card_fin, Nat.cast_pow] using ENNReal.ofReal_le_ofReal hle_R
+  exact PMF.toOuterMeasure_uniformOfFintype_le_of_dens_le S _
+    (fun _ hx => Finset.mem_coe.mpr (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hx⟩))
+    (by simpa [Finset.dens_eq_card_div_card] using hle_R)
 
 /-- **Unconditional unique-decoding `SmoothBatchRound0GapBound`** for `(t + 1)`-word smooth batched
 FRI (applying [BenSassonCarmonIshaiKoppartySaraf2020], Theorems 1.6 and 4.1). -/
@@ -642,14 +637,11 @@ theorem smoothBatchRound0GapBound_of_johnson [Fintype F] [DecidableEq F]
       using params.dim_le_domainSize (Nat.zero_le params.m)
   obtain ⟨hk_sub, hinterp, hroot, hjb⟩ := ProximityGap.johnson_line_params_bound
     (params.one_le_dim 0) hk₀_le_n₀ hmJ (by simpa only [Nat.cast_pow, Nat.cast_ofNat] using he)
-  have hmul := mul_le_mul_of_nonneg_right hjb (Nat.cast_nonneg (params.dim 0))
-  have hrhs : (1800 * ((mJ + 1 : ℝ) ^ 6) * (((2 ^ params.d : ℕ) : ℝ) ^ 2) /
-      ((params.dim 0 : ℝ) / ((2 ^ params.d : ℕ) : ℝ))) * (params.dim 0 : ℝ) =
-      1800 * ((mJ + 1 : ℝ) ^ 6) * (((2 ^ params.d : ℕ) : ℝ) ^ 3) := by
-    have := params.one_le_dim 0
-    field_simp
+  have hd : (0 : ℝ) < params.dim 0 := Nat.cast_pos.mpr (params.one_le_dim 0)
+  rw [le_div_iff₀ (div_pos hd (by positivity)), ← mul_div_assoc, div_le_iff₀ (by positivity),
+    mul_assoc (_ * _), ← pow_succ] at hjb
   exact smoothBatchRound0GapBound_of_johnson_discrete params t (by omega) hk_sub hinterp hroot
-    ((Nat.le_div_iff_mul_le (params.one_le_dim 0)).mpr (by exact_mod_cast hrhs ▸ hmul))
+    ((Nat.le_div_iff_mul_le (params.one_le_dim 0)).mpr (by exact_mod_cast hjb))
 
 /-- **Original explicit-constant Johnson `SmoothBatchRound0Escape` upper bound** for `(t + 1)`-word
 smooth batched FRI up to `(e : ℝ) / 2 ^ d ≤ 1 - √ρ - √ρ / (2 * mJ)` (in the setting of
@@ -730,8 +722,8 @@ theorem friSmoothBatchRBREscape_of_escape (params : FRISmoothParams F) (t : ℕ)
       · exact (friSmoothBatchQueryRound_escape_le params t (2 ^ params.d - e - 1) stmt
           (head :: rest) heq π hdoomed).trans ((le_max_right _ _).trans (le_max_right _ _))
       · have hgt : ¬ (head :: rest).length ≤ params.m + 1 := by omega
-        simp only [friSmoothBatchGoodStep, hgt, ↓reduceIte, not_true_eq_false, Set.ofPred_false]
-        exact (MeasureTheory.OuterMeasure.empty _).trans_le zero_le
+        simp only [friSmoothBatchGoodStep, hgt, ↓reduceIte, not_true_eq_false, Set.ofPred_false,
+          MeasureTheory.measure_empty, zero_le]
 
 /-- **Conditional step (adaptive two-channel BCS-FRI ROM soundness for `friSmoothBatchIOP` assuming
 `SmoothBatchRound0Escape` and `WeightedCurveGapBound`)**
@@ -1071,9 +1063,8 @@ theorem batchRound0GapBound_of_johnson [Fintype F] [DecidableEq F]
       1 - Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) -
         Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / (2 * (mJ : ℝ))) :
     BatchRound0GapBound params t e (friBatchJohnsonRound0Bound params mJ) := by
-  rw [batchRound0GapBound_iff_smooth]
-  exact smoothBatchRound0GapBound_of_johnson params.toSmooth t hmJ
-    (by simpa only [params.toSmooth_dim (Nat.zero_le _)] using he)
+  simpa only [batchRound0GapBound_iff_smooth] using smoothBatchRound0GapBound_of_johnson
+    params.toSmooth t hmJ (by simpa only [params.toSmooth_dim (Nat.zero_le _)] using he)
 
 /-- **Original explicit-constant Johnson `BatchRound0Escape` upper bound** (corollary of
 `smoothBatchRound0Escape_of_johnson`). -/

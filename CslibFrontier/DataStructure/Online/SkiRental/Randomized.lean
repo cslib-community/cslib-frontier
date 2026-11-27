@@ -115,9 +115,9 @@ theorem ofReal_randomizedRatio {B : ℕ} (hB : 1 ≤ B) :
 
 private theorem one_div_one_sub_exp_neg_one :
     1 / (1 - Real.exp (-1)) = Real.exp 1 / (Real.exp 1 - 1) := by
-  have h1 : 1 < Real.exp 1 := Real.one_lt_exp_iff.mpr one_pos
+  have hne : Real.exp 1 - 1 ≠ 0 := sub_ne_zero.mpr (Real.one_lt_exp_iff.mpr one_pos).ne'
   rw [Real.exp_neg]
-  field_simp [show Real.exp 1 - 1 ≠ 0 by linarith]
+  field_simp
 
 /-- `randomizedRatio B ≤ e/(e-1)`, from `(1 - 1/B)^B ≤ e⁻¹`. -/
 theorem randomizedRatio_le {B : ℕ} (hB : 1 ≤ B) :
@@ -238,13 +238,11 @@ private theorem le_sum_adv_mul_cost_aux (m t : ℕ) :
     exact hb ▸ le_of_eq (by ring)
   · -- the strategy rents through every short sequence: it pays at least `2B - 1` on the long one
     have hb := sum_adv_mul_aux m m le_rfl
-    rw [Nat.sub_self, pow_zero, mul_one] at hb
-    rw [Finset.sum_congr rfl (g := fun k => m ^ k * (m + 1) ^ (m - 1 - k) * (k + 1))
-        (fun k hk => by rw [ite_eq_left (by rw [Finset.mem_range] at hk; omega)])]
-    set c := if 2 * m + 1 ≤ t then 2 * m + 1 else t + (m + 1) with hc
-    have hc' : 2 * m + 1 ≤ c := by rw [hc]; split_ifs <;> omega
-    have h1 := Nat.mul_le_mul_left (m ^ m) hc'
-    have h2 : (m + m + 1) * m ^ m = m ^ m * (2 * m + 1) := by ring
+    rw [Nat.sub_self, pow_zero, mul_one, ← Nat.two_mul, mul_comm (2 * m + 1)] at hb
+    rw [Finset.sum_congr rfl fun k hk =>
+      congrArg (_ * ·) (ite_eq_left (Nat.succ_le_of_lt ((Finset.mem_range.mp hk).trans_le hmt)))]
+    have hc : m ^ m * (2 * m + 1) ≤ m ^ m * if 2 * m + 1 ≤ t then 2 * m + 1 else t + (m + 1) :=
+      Nat.mul_le_mul_left _ (by split_ifs <;> omega)
     omega
 
 private theorem sum_natCast_div {ι : Type*} [Fintype ι] (w : ι → ℕ) {D : ℕ}
@@ -256,8 +254,7 @@ private theorem sum_natCast_div {ι : Type*} [Fintype ι] (w : ι → ℕ) {D : 
 private theorem tsum_natCast_div_mul {ι : Type*} [Fintype ι] (w f : ι → ℕ) (D : ℕ) :
     ∑' i, ((w i : ℕ) : ℝ≥0∞) / D * (f i : ℝ≥0∞) = ((∑ i, w i * f i : ℕ) : ℝ≥0∞) / D := by
   rw [tsum_fintype, Nat.cast_sum, ENNReal.sum_div]
-  refine Finset.sum_congr rfl fun i _ => ?_
-  rw [Nat.cast_mul, ENNReal.mul_div_right_comm]
+  exact Finset.sum_congr rfl fun i _ => by rw [Nat.cast_mul, ENNReal.mul_div_right_comm]
 
 /-! ### The equalizing randomized strategy -/
 
@@ -344,9 +341,8 @@ theorem expectedCost_randomRentThenBuy_le {B : ℕ} [NeZero B] {reqs : List Unit
 no additive constant. -/
 theorem randomRentThenBuy_isCompetitive (B : ℕ) [NeZero B] :
     RandStrategy.IsCompetitive (randomRentThenBuy B) (ENNReal.ofReal (randomizedRatio B)) 0 := by
-  rintro s₀ rfl reqs states hv
-  rw [add_zero]
-  exact expectedCost_randomRentThenBuy_le hv
+  rintro _ rfl _ _ hv
+  simpa only [add_zero] using expectedCost_randomRentThenBuy_le hv
 
 /-- `randomRentThenBuy B` is `e/(e-1)`-competitive against an oblivious adversary, for every
 purchase price `B ≥ 1`. -/
@@ -375,12 +371,9 @@ def advWeight (B : ℕ) : Option (Fin (B - 1)) → ℕ
 private theorem sum_adv_eq (m : ℕ) (g : ℕ → ℕ) :
     ∑ o, advWeight (m + 1) o * g (advDays (m + 1) o) =
       m ^ m * g (2 * m + 1) + ∑ k ∈ range m, m ^ k * (m + 1) ^ (m - 1 - k) * g (k + 1) := by
-  have h2 : ∑ i : Fin (m + 1 - 1), advWeight (m + 1) (some i) * g (advDays (m + 1) (some i)) =
-      ∑ k ∈ range (m + 1 - 1), m ^ k * (m + 1) ^ (m - 1 - k) * g (k + 1) := by
-    rw [← Fin.sum_univ_eq_sum_range]
-    exact Finset.sum_congr rfl fun i _ => by simp only [advWeight, advDays, Nat.add_sub_cancel]
-  rw [Fintype.sum_option, h2]
-  congr 1
+  rw [Fintype.sum_option, ← Fin.sum_univ_eq_sum_range]
+  exact congrArg₂ (· + ·) rfl (Finset.sum_congr rfl fun i _ => by
+    simp only [advWeight, advDays, Nat.add_sub_cancel])
 
 /-- The adversary weights sum to `B^(B-1)`. -/
 theorem sum_advWeight (B : ℕ) [NeZero B] : ∑ o, advWeight B o = B ^ (B - 1) := by
@@ -394,16 +387,12 @@ theorem sum_advWeight (B : ℕ) [NeZero B] : ∑ o, advWeight B o = B ^ (B - 1) 
 theorem sum_advWeight_mul_min (B : ℕ) [NeZero B] :
     ∑ o, advWeight B o * min (advDays B o) B = B ^ B - (B - 1) ^ B := by
   obtain ⟨m, rfl⟩ : ∃ m, B = m + 1 := ⟨B - 1, by have := NeZero.pos B; omega⟩
-  rw [sum_adv_eq m (fun n => min n (m + 1))]
   have hb := sum_adv_mul_aux m m le_rfl
   rw [Nat.sub_self, pow_zero, mul_one] at hb
-  have hmin : ∑ k ∈ range m, m ^ k * (m + 1) ^ (m - 1 - k) * min (k + 1) (m + 1) =
-      ∑ k ∈ range m, m ^ k * (m + 1) ^ (m - 1 - k) * (k + 1) :=
-    Finset.sum_congr rfl fun k hk => by
-      rw [Finset.mem_range] at hk
-      rw [Nat.min_eq_left (by omega)]
-  simp only [Nat.add_sub_cancel]
-  rw [hmin, Nat.min_eq_right (by omega)]
+  simp only [sum_adv_eq m (fun n => min n (m + 1)), Nat.add_sub_cancel]
+  rw [Finset.sum_congr rfl fun k hk =>
+      congrArg (_ * ·) (Nat.min_eq_left (Nat.add_le_add_right (Finset.mem_range.mp hk).le 1)),
+    Nat.min_eq_right (Nat.add_le_add_right (Nat.le_mul_of_pos_left m two_pos) 1)]
   have : (m + m + 1) * m ^ m = m ^ m * (m + 1) + m ^ (m + 1) := by ring
   omega
 
@@ -412,12 +401,8 @@ least `randomizedRatio B` times the weighted optimum `B^B - (B-1)^B`. -/
 theorem le_sum_advWeight_mul_cost (B : ℕ) [NeZero B] (A : DetStrategy (problem B)) :
     B ^ B ≤ ∑ o, advWeight B o * A.cost false (List.replicate (advDays B o) ()) := by
   obtain ⟨t, ht⟩ := exists_rentThenBuy_cost_eq A (2 * B - 1)
-  have hle : ∀ o, advDays B o ≤ 2 * B - 1 := by
-    rintro (_ | k) <;> simp only [advDays] <;> omega
-  have hcost : ∀ o, A.cost false (List.replicate (advDays B o) ()) =
-      if advDays B o ≤ t then advDays B o else t + B := fun o => by
-    rw [ht _ (hle o), cost_rentThenBuy, List.length_replicate]
-  simp only [hcost]
+  have hle (o) : advDays B o ≤ 2 * B - 1 := by cases o <;> simp only [advDays] <;> omega
+  simp_rw [fun o => ht _ (hle o), cost_rentThenBuy, List.length_replicate]
   obtain ⟨m, rfl⟩ : ∃ m, B = m + 1 := ⟨B - 1, by have := NeZero.pos B; omega⟩
   rw [sum_adv_eq m (fun n => if n ≤ t then n else t + (m + 1))]
   exact le_sum_adv_mul_cost_aux m t
@@ -455,9 +440,8 @@ theorem exists_randomized_witness (B : ℕ) (μ : RandStrategy (problem B)) :
     (fun o => List.replicate (advDays B o) ())
     (fun o => ((B ^ B * min (advDays B o) B : ℕ) : ℝ≥0∞))
     ((B ^ B - (B - 1) ^ B : ℕ) : ℝ≥0∞)
-    (by
-      simp only [adversary_apply, tsum_natCast_div_mul]
-      exact ENNReal.div_ne_top (ENNReal.natCast_ne_top _) hV0)
+    (by simpa only [adversary_apply, tsum_natCast_div_mul] using
+      ENNReal.div_ne_top (ENNReal.natCast_ne_top _) hV0)
     (fun A => by
       simp only [adversary_apply, tsum_natCast_div_mul, ← mul_div_assoc, ← Nat.cast_mul]
       have key : ∑ o, advWeight B o * (B ^ B * min (advDays B o) B) ≤

@@ -8,9 +8,9 @@ module
 -- upstream: candidate (Mathlib, `Mathlib/Probability/Distributions/Gaussian/Multivariate.lean`)
 
 public import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
+import CslibFrontier.Foundations.Probability.Gaussian.Polar
 import CslibFrontier.Foundations.Probability.Gaussian.Real
 import Mathlib.Analysis.InnerProductSpace.Orthonormal
-import Mathlib.Analysis.SpecialFunctions.PolarCoord
 import Mathlib.MeasureTheory.Constructions.Pi
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus
 import Mathlib.Probability.Distributions.Gaussian.Fernique
@@ -333,70 +333,36 @@ private theorem measureReal_prod_gaussianReal_disk {a : ℝ} (ha : 0 < a) :
       {z : ℝ × ℝ | z.1 ^ 2 + z.2 ^ 2 ≤ a ^ 2} = 1 - exp (-(a ^ 2) / 2) := by
   let D : Set (ℝ × ℝ) := {z | z.1 ^ 2 + z.2 ^ 2 ≤ a ^ 2}
   have hDm : MeasurableSet D := measurableSet_le (by fun_prop) measurable_const
-  let rad : ℝ → ℝ := fun r => (2 * π)⁻¹ * (r * exp (-(r ^ 2) / 2))
-  have hdens : ∀ r φ,
-      gaussianPDFReal 0 1 (r * cos φ) * gaussianPDFReal 0 1 (r * sin φ) =
-        (2 * π)⁻¹ * exp (-(r ^ 2) / 2) := by
-    intro r φ
-    simp only [gaussianPDFReal_def, sub_zero, NNReal.coe_one, mul_one]
-    rw [mul_mul_mul_comm, ← mul_inv, mul_self_sqrt (by positivity), ← exp_add]
-    congr 2
-    linear_combination (-2⁻¹ * r ^ 2) * sin_sq_add_cos_sq φ
-  rw [← integral_indicator_one hDm]
-  change ∫ z, D.indicator (fun _ => (1 : ℝ)) z ∂((gaussianReal 0 1).prod (gaussianReal 0 1)) = _
-  rw [gaussianReal_of_var_ne_zero 0 one_ne_zero,
-    prod_withDensity (measurable_gaussianPDF 0 1) (measurable_gaussianPDF 0 1)]
-  rw [integral_withDensity_eq_integral_toReal_smul]
-  · rw [← Measure.volume_eq_prod, ← integral_comp_polarCoord_symm]
-    have hcongr : ∫ p in polarCoord.target, p.1 •
-        ((gaussianPDF 0 1 (polarCoord.symm p).1 * gaussianPDF 0 1 (polarCoord.symm p).2).toReal •
-          D.indicator (fun _ => (1 : ℝ)) (polarCoord.symm p)) =
-        ∫ p in Ioi (0 : ℝ) ×ˢ Ioo (-π) π,
-          (Iic a).indicator rad p.1 * (fun _ : ℝ => (1 : ℝ)) p.2 := by
-      rw [polarCoord_target]
-      refine setIntegral_congr_fun (measurableSet_Ioi.prod measurableSet_Ioo) fun p hp => ?_
-      have hD_iff : polarCoord.symm p ∈ D ↔ p.1 ≤ a := by
-        simp only [D, polarCoord_symm_apply, mem_ofPred_eq]
-        have hsq : (p.1 * cos p.2) ^ 2 + (p.1 * sin p.2) ^ 2 = p.1 ^ 2 := by
-          linear_combination p.1 ^ 2 * sin_sq_add_cos_sq p.2
-        rw [hsq]
-        have hp1 : 0 < p.1 := hp.1
-        exact ⟨fun h => le_of_sq_le_sq h ha.le, fun h => sq_le_sq' (by linarith) h⟩
-      simp only [ENNReal.toReal_mul, toReal_gaussianPDF, polarCoord_symm_apply, hdens, smul_eq_mul,
-        mul_one]
-      by_cases hra : p.1 ≤ a
-      · have hmem : (p.1 * cos p.2, p.1 * sin p.2) ∈ D := hD_iff.mpr hra
-        simp only [indicator_of_mem hmem, indicator_of_mem (mem_Iic.mpr hra), rad]
-        ring
-      · have hnmem : (p.1 * cos p.2, p.1 * sin p.2) ∉ D := mt hD_iff.mp hra
-        simp [hnmem, hra]
-    rw [hcongr, Measure.volume_eq_prod,
-      setIntegral_prod_mul (f := (Iic a).indicator rad) (g := fun _ : ℝ => (1 : ℝ))]
-    have hang : ∫ _φ in Ioo (-π) π, (1 : ℝ) = 2 * π := by
-      rw [setIntegral_const, smul_eq_mul, mul_one, Measure.real, Real.volume_Ioo,
-        ENNReal.toReal_ofReal (by linarith [pi_pos])]
-      ring
-    rw [hang, integral_indicator measurableSet_Iic, Measure.restrict_restrict measurableSet_Iic,
-      Iic_inter_Ioi, ← intervalIntegral.integral_of_le ha.le]
-    have hftc : ∫ r in (0 : ℝ)..a, rad r = (2 * π)⁻¹ * (1 - exp (-(a ^ 2) / 2)) := by
-      dsimp [rad]
-      rw [intervalIntegral.integral_const_mul]
-      congr 1
-      have hderiv : ∀ r ∈ uIcc 0 a,
-          HasDerivAt (fun x : ℝ => -exp (-(x ^ 2) / 2)) (r * exp (-(r ^ 2) / 2)) r := by
-        intro r _
-        have h1 : HasDerivAt (fun x : ℝ => -(x ^ 2) / 2) (-r) r :=
-          (((hasDerivAt_pow 2 r).neg).div_const 2).congr_deriv (by ring)
-        exact (h1.exp.neg).congr_deriv (by ring)
-      rw [intervalIntegral.integral_eq_sub_of_hasDerivAt hderiv
-        ((by fun_prop : Continuous fun r : ℝ => r * exp (-(r ^ 2) / 2)).intervalIntegrable 0 a)]
-      simp only [sq, mul_zero, neg_zero, zero_div, exp_zero]
-      ring
-    rw [hftc]
-    field_simp [pi_pos.ne']
-  · exact ((measurable_gaussianPDF 0 1).comp measurable_fst).mul
-      ((measurable_gaussianPDF 0 1).comp measurable_snd)
-  · exact ae_of_all _ fun _ => ENNReal.mul_lt_top gaussianPDF_lt_top gaussianPDF_lt_top
+  rw [measureReal_prod_gaussianReal_polar hDm]
+  have hD_iff (r φ : ℝ) (hr : 0 < r) :
+      (r * cos φ, r * sin φ) ∈ D ↔ r ≤ a := by
+    change (r * cos φ) ^ 2 + (r * sin φ) ^ 2 ≤ a ^ 2 ↔ r ≤ a
+    rw [mul_pow, mul_pow, ← mul_add, add_comm (cos φ ^ 2), sin_sq_add_cos_sq, mul_one]
+    exact sq_le_sq₀ hr.le ha.le
+  have hangular (r : ℝ) (hr : 0 < r) :
+      ∫ φ in Ioo (-π) π, D.indicator (fun _ => (1 : ℝ)) (r * cos φ, r * sin φ) =
+        if r ≤ a then 2 * π else 0 := by
+    simp only [indicator_apply, hD_iff r _ hr]
+    by_cases h : r ≤ a
+    · simp only [h, ite_true, setIntegral_const, smul_eq_mul, mul_one, Measure.real,
+        Real.volume_Ioo, ENNReal.toReal_ofReal (by linarith [pi_pos] : 0 ≤ π - -π)]
+      rw [sub_neg_eq_add, two_mul]
+    · simp [h]
+  calc
+    _ = ∫ r in Ioi (0 : ℝ), (Iic a).indicator
+        (fun r => planarGaussianRadialWeight r * (2 * π)) r :=
+      setIntegral_congr_fun measurableSet_Ioi fun r hr => by
+        rw [hangular r hr]
+        simp only [indicator_apply, mem_Iic, mul_ite, mul_zero]
+    _ = _ := by
+      have htail := intervalIntegral.integral_Ioi_sub_Ioi
+        integrable_planarGaussianRadialWeight.integrableOn ha.le
+      rw [setIntegral_indicator measurableSet_Iic, Ioi_inter_Iic,
+        ← intervalIntegral.integral_of_le ha.le, intervalIntegral.integral_mul_const, ← htail,
+        integral_Ioi_planarGaussianRadialWeight, integral_Ioi_planarGaussianRadialWeight]
+      simp only [zero_pow two_ne_zero, neg_zero, zero_div, exp_zero, mul_one]
+      rw [sub_mul, mul_right_comm (2 * π)⁻¹, inv_mul_cancel₀ (by positivity : (2 * π) ≠ 0),
+        one_mul]
 
 /-- Single 3D standard Gaussian double-cone probability:
 `P3Measure.real {x | x ≠ 0 ∧ κ ^ 2 * normSq3 x ≤ (x 0) ^ 2} = 1 - κ` for `0 < κ ≤ 1`. -/

@@ -291,9 +291,8 @@ theorem nodePrec_pos (hM : 1 ≤ x.edges) (i : ℕ) : 0 < nodePrec x i := by
 
 /-- Every weight is positive. -/
 theorem weights_pos (i : ℕ) : ∀ w ∈ weights x i, 0 < w := by
-  intro w hw
-  simp only [weights, modeWeights, List.mem_map] at hw
-  obtain ⟨j, -, rfl⟩ := hw
+  rintro w hw
+  obtain ⟨j, -, rfl⟩ := List.mem_map.1 hw
   omega
 
 /-- An active call has an edge. -/
@@ -313,13 +312,11 @@ theorem pow_slots_le_edges_of_active (h : active x = true) : 64 ^ slots x ≤ x.
   have hsL : 2 ^ L ≤ x.scale := Nat.pow_log_le_self 2 hs0
   have ha : slots x ≤ L / 32768 := slotBits_le _ _
   -- `⌊√λ⌋ ≤ 2 ^ ((λ + 1) / 2)`.
-  have hsq : Nat.sqrt L ≤ 2 ^ ((L + 1) / 2) := by
-    have h1 : Nat.sqrt L ^ 2 ≤ (2 ^ ((L + 1) / 2)) ^ 2 := by
-      calc Nat.sqrt L ^ 2 ≤ L := Nat.sqrt_le' L
-        _ ≤ 2 ^ L := Nat.lt_two_pow_self.le
-        _ ≤ 2 ^ (2 * ((L + 1) / 2)) := Nat.pow_le_pow_right (by norm_num) (by omega)
-        _ = (2 ^ ((L + 1) / 2)) ^ 2 := by rw [mul_comm, pow_mul]
-    exact (Nat.pow_le_pow_iff_left (by norm_num)).mp h1
+  have hsq : Nat.sqrt L ≤ 2 ^ ((L + 1) / 2) := (Nat.pow_le_pow_iff_left (by norm_num : 2 ≠ 0)).mp <|
+    calc Nat.sqrt L ^ 2 ≤ L := Nat.sqrt_le' L
+      _ ≤ 2 ^ L := Nat.lt_two_pow_self.le
+      _ ≤ 2 ^ (2 * ((L + 1) / 2)) := Nat.pow_le_pow_right (by norm_num) (by omega)
+      _ = (2 ^ ((L + 1) / 2)) ^ 2 := by rw [mul_comm, pow_mul]
   have hsqpos : 0 < Nat.sqrt L := Nat.sqrt_pos.mpr hL1
   have h64 : 64 ^ slots x ≤ 2 ^ (6 * (L / 32768)) := by
     calc 64 ^ slots x = 2 ^ (6 * slots x) := by rw [pow_mul]; norm_num
@@ -383,8 +380,8 @@ theorem walk {x : Call T} (h : active x = true) (vals : State → List ℕ) :
         exact hstep c hc'
       · have hc'' : c = (cursorList (weights x) (nodePrec x) (nodes x).length (numPoints x)
             64).length - 1 := by omega
-        simp only [List.getElem?_eq_none (show (cursorList (weights x) (nodePrec x)
-          (nodes x).length (numPoints x) 64).length ≤ c + 1 by omega)]
+        have hge := Nat.not_lt.mp hc'
+        simp only [List.getElem?_eq_none hge]
         exact hc'' ▸ hlast
     · rw [List.take_add_one, List.getElem?_eq_getElem hc]
       simp only [runAcc, Option.toList_some, List.foldl_append, List.foldl_cons, List.foldl_nil]
@@ -439,12 +436,10 @@ theorem getElem_flatMap_range {α : Type*} (f : ℕ → ℕ → α) {T n t k : �
     simp only [List.range_succ, List.flatMap_append, List.flatMap_singleton]
     have hlen : ((List.range T).flatMap fun t => (List.range n).map (f t)).length = T * n := by
       simp
-    rcases Nat.lt_or_ge t T with htT | htT
-    · rw [List.getElem_append_left (by rw [hlen]; nlinarith only [htT, hk])]
-      exact ih htT
-    · have htT' : t = T := by omega
-      subst htT'
-      rw [List.getElem_append_right (by rw [hlen]; omega)]
+    rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.mp ht) with htT | rfl
+    · have htn : t * n + k < T * n := by nlinarith only [htT, hk]
+      exact (List.getElem_append_left (hlen.symm ▸ htn)).trans (ih htT)
+    · rw [List.getElem_append_right (by omega)]
       simp [hlen]
 
 variable {x}

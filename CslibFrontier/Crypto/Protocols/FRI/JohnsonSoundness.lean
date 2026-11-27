@@ -548,7 +548,7 @@ private theorem round_rate_eq (params : FRISmoothParams F) (i : Fin params.m) :
       ((2 ^ params.d : ℕ) : ℝ) := mod_cast params.two_pow_cumLog_mul_domainSize i.isLt
   have hMk : (2 ^ params.cumLog (i.val + 1) : ℝ) * (params.dim (i.val + 1) : ℝ) =
       (params.dim 0 : ℝ) := mod_cast params.two_pow_cumLog_mul_dim i.isLt
-  rw [← hMk, ← hMN, mul_div_mul_left _ _ (by positivity : (2 ^ params.cumLog (i.val + 1) : ℝ) ≠ 0)]
+  rw [← hMk, ← hMN, mul_div_mul_left _ _ (pow_ne_zero _ two_ne_zero)]
 
 /-- Flooring the round-`0` error parameter across a factor `2 ^ cumLog (i + 1)` never increases
 the relative error rate. -/
@@ -604,16 +604,12 @@ theorem weightedCurveGapPerRound_of_johnson [DecidableEq F]
         Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / (2 * (mJ : ℝ))) :
     WeightedCurveGapPerRound params (2 ^ params.d - e - 1)
       (friSmoothJohnsonRoundBound params mJ) := by
-  have he' : (e : ℝ) / ((2 ^ params.d : ℕ) : ℝ) ≤
-      1 - Real.sqrt ((params.dim 0 : ℝ) / ((2 ^ params.d : ℕ) : ℝ)) -
-        Real.sqrt ((params.dim 0 : ℝ) / ((2 ^ params.d : ℕ) : ℝ)) / (2 * (mJ : ℝ)) := by
-    simpa only [Nat.cast_pow, Nat.cast_ofNat] using he
   have he_lt : e < 2 ^ params.d := by
     have hk₀R : (0 : ℝ) < params.dim 0 := mod_cast params.one_le_dim 0
-    have hsq : 0 < Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℕ)) := by positivity
-    have hdiv : 0 ≤ Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℕ)) / (2 * mJ) := by positivity
-    exact_mod_cast (div_lt_one (by positivity : (0 : ℝ) < (2 ^ params.d : ℕ))).mp
-      (by linarith : (e : ℝ) / (2 ^ params.d : ℕ) < 1)
+    have hsq : 0 < Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) := by positivity
+    have hdiv : 0 ≤ Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / (2 * mJ) := by positivity
+    have hlt : (e : ℝ) < 2 ^ params.d := (div_lt_one (by positivity)).mp (by linarith)
+    exact_mod_cast hlt
   let DRound (i : Fin params.m) : ℕ :=
     (mJ + 1) * ⌈(1 + 1 / (2 * (mJ : ℝ))) *
       Real.sqrt ((params.domainSize (i.val + 1) : ℝ) * (params.dim (i.val + 1) : ℝ))⌉₊ - 1
@@ -622,7 +618,8 @@ theorem weightedCurveGapPerRound_of_johnson [DecidableEq F]
     (e := e / 2 ^ params.cumLog (i.val + 1)) (m := mJ) (r := params.arity i - 1)
     (params.one_le_dim (i.val + 1)) (params.dim_le_domainSize i.isLt) hmJ
     (by have := params.two_le_arity i; omega)
-    (round_rate_eq params i ▸ (round_err_ratio_le params i e).trans he')
+    (round_rate_eq params i ▸ (round_err_ratio_le params i e).trans
+      (by simpa only [Nat.cast_pow, Nat.cast_ofNat] using he))
   refine (weightedCurveGapPerRound_of_johnson_discrete params he_lt (fun _ => mJ + 1) DRound
     (fun _ => by omega) (fun i => (hparams i).1) (fun i => (hparams i).2.1)
     (fun i => (hparams i).2.2.1)).mono fun i =>
@@ -833,11 +830,9 @@ theorem sum_friUniqueRoundEscape_eq [Fintype F] (params : FRIParams F) :
     (∑ i : Fin params.m,
       ((2 ^ (params.d - (i.val + 1)) : ℕ) : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) =
     ENNReal.ofReal (friUniqueCommitError params) := by
-  have h := sum_friSmoothUniqueRoundEscape_eq params.toSmooth
-  simp only [params.toSmooth_arity, Nat.reduceSub, one_mul, friSmoothUniqueCommitError,
-    params.toSmooth_totalLog] at h
-  refine (Finset.sum_congr rfl fun i _ => ?_).trans h
-  rw [params.toSmooth_domainSize i.isLt, FRIParams.domainSize]
+  simpa only [params.toSmooth_arity, Nat.reduceSub, one_mul, friSmoothUniqueCommitError,
+    friUniqueCommitError, params.toSmooth_totalLog, params.toSmooth_domainSize (Fin.is_lt _),
+    FRIParams.domainSize] using sum_friSmoothUniqueRoundEscape_eq params.toSmooth
 
 /-- **Unconditional summed commit-phase soundness of single-word `friIOP` in the unique-decoding
 regime** (corollary of `friSmoothCommitGame_le_of_unique`). -/

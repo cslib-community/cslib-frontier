@@ -241,9 +241,8 @@ private theorem State.adjointSum_accumulate (s : State C n g m) (w : Wire n g)
         if u = w then s.program.trace I x t • D (v w) else 0 := by
     rw [State.trace_adjoint_accumulate, add_smul]
     rcases eq_or_ne u w with rfl | hu <;> simp [*]
-  rw [State.adjointSum, Finset.sum_congr rfl fun u _ => h u, Finset.sum_add_distrib,
-    Finset.sum_ite_eq' Finset.univ w, ite_eq_left (Finset.mem_univ w)]
-  rfl
+  rw [State.adjointSum, State.adjointSum, Finset.sum_congr rfl fun u _ => h u,
+    Finset.sum_add_distrib, Finset.sum_ite_eq' Finset.univ w, ite_eq_left (Finset.mem_univ w)]
 
 private theorem sum_wire_succ {N : Type*} [AddCommMonoid N] (f : Wire n (g + 1) → N) :
     ∑ w, f w = ∑ w : Wire n g, f w.castSucc + f (.gate (Fin.last g)) := by
@@ -380,9 +379,8 @@ private theorem cost_backwardCost {g : ℕ} (p : Program (arithSignature C) n g)
     p.cost (backwardCost cost) =
       2 * cost .add * p.cost ArithOp.addCost +
         2 * (cost .mul + cost .add) * p.cost ArithOp.mulCost := by
-  have h : ∀ op : ArithOp C, backwardCost cost op =
+  have h (op : ArithOp C) : backwardCost cost op =
       2 * cost .add * op.addCost + 2 * (cost .mul + cost .add) * op.mulCost := by
-    intro op
     cases op <;> simp only [backwardCost, ArithOp.addCost, ArithOp.mulCost] <;> ring
   simp only [Program.cost_eq_sum, h, Finset.sum_add_distrib, ← Finset.mul_sum]
 
@@ -412,10 +410,9 @@ theorem Circuit.eval_withGradient_castAdd (c : Circuit (arithSignature C) n m) (
     (seed zero : C) (x : Fin n → R) (k : Fin m) :
     (c.withGradient j seed zero).eval (arithInterpretationWith C constant) x (k.castAdd n) =
       c.eval (arithInterpretationWith C constant) x k := by
-  have h := backward_represents (constant := constant) (x := x) c.program
-    (init_represents (constant := constant) (x := x) c j seed zero)
-  simp only [Circuit.eval, Circuit.withGradient, Function.comp_apply, Fin.append_left]
-  exact congrFun h.2 k
+  simpa only [Circuit.eval, Circuit.withGradient, Function.comp_apply, Fin.append_left] using
+    congrFun (backward_represents (constant := constant) (x := x) c.program
+      (init_represents c j seed zero)).2 k
 
 /-- **Adjoints.** For every additive map `D` obeying the Leibniz rule and vanishing on the
 constants, the new outputs of reverse-mode differentiation, weighted by `D` of the inputs, sum to
@@ -433,9 +430,7 @@ theorem Circuit.sum_eval_withGradient_natAdd {M : Type*} [AddCommMonoid M] [Modu
     (init_represents (constant := constant) (x := x) c j seed zero)
   rw [init_adjointSum (constant := constant) (x := x) (D := D) c j seed zero hzero,
     State.adjointSum, sum_wire_zero] at h
-  rw [← h]
-  simp only [Circuit.eval, Circuit.withGradient, Function.comp_apply, Fin.append_right]
-  rfl
+  simpa [Circuit.eval, Circuit.withGradient] using h
 
 end Evaluation
 
@@ -521,8 +516,7 @@ theorem Circuit.exists_gradient (c : Circuit (arithSignature K) n m) (j : Fin m)
   exact ⟨⟨e.program, Fin.cons (e.outputs (j.castAdd n)) fun i => e.outputs (Fin.natAdd m i)⟩,
     c.size_withGradient_le j 1 0, c.mulCost_withGradient j 1 0,
     c.polynomial_withGradient_castAdd j 1 0 j, fun i => by
-      have h := c.polynomial_withGradient_natAdd j 1 i
-      rwa [map_one, one_mul] at h⟩
+      simpa [Circuit.polynomial, Circuit.eval] using c.polynomial_withGradient_natAdd j 1 i⟩
 
 /-- **Lower-bound transfer for size.** If every circuit computing the gradient of `f` has at least
 `S` gates, then every circuit computing `f` has at least `(S - 2) / 5` gates. -/

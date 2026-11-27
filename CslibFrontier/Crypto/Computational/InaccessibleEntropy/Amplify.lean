@@ -243,9 +243,8 @@ theorem computableInPolyTime_ampRepEvalWord (F : AdversaryInaccessibleEntropyFam
   exact .ite_decide (by fun_prop) (by fun_prop) (by fun_prop)
 
 private theorem le_ampSlack (F : AdversaryInaccessibleEntropyFamily) (n : ℕ) :
-    3 * (n + 2) ≤ ampSlack F n := by
-  have := F.denom_pos n
-  exact (Nat.le_mul_of_pos_right _ (by positivity)).trans
+    3 * (n + 2) ≤ ampSlack F n :=
+  (Nat.le_mul_of_pos_right _ (F.denom_pos n)).trans
     (Nat.le_mul_of_pos_right _ (by positivity))
 
 private theorem le_ampRepInLen (F : AdversaryInaccessibleEntropyFamily) (n : ℕ) :
@@ -253,10 +252,9 @@ private theorem le_ampRepInLen (F : AdversaryInaccessibleEntropyFamily) (n : ℕ
   unfold ampRepInLen ampReps
   split_ifs with h0
   · exact le_rfl
-  · have := Nat.pos_of_ne_zero h0
-    have := F.denom_pos n
-    exact (by have := le_ampSlack F n; omega : n + 2 ≤ ampSlack F n).trans
-      ((Nat.le_mul_of_pos_left _ (by positivity)).trans (Nat.le_mul_of_pos_right _ (by positivity)))
+  · have hpos : 1 ≤ 6 * F.denom n * F.inLen n := by
+      nlinarith [Nat.pos_of_ne_zero h0, F.denom_pos n]
+    nlinarith [le_ampSlack F n]
 
 private theorem add_ampShrinkLen_le_inputHashInLen (F : AdversaryInaccessibleEntropyFamily)
     (n : ℕ) : n + 1 + ampShrinkLen n ≤ inputHashInLen (ampRepInLen F n) := by
@@ -287,15 +285,13 @@ private theorem ampGoodIdx_lt_ampGridCount (F : AdversaryInaccessibleEntropyFami
     have hD_pos : (0 : ℝ) < F.denom n := Nat.cast_pos.2 (F.denom_pos n)
     have hΔ_pos : (0 : ℝ) < ampSlack F n :=
       Nat.cast_pos.2 (lt_of_lt_of_le (by omega) (le_ampSlack F n))
-    have hfl : Nat.floor (((ampReps F n : ℝ) * accessibleSetExpectation (accSet n)) /
-        (ampSlack F n : ℝ)) ≤ 6 * F.denom n * F.inLen n := by
-      refine Nat.floor_le_of_le ?_
-      simp only [ampReps, Nat.cast_mul, Nat.cast_ofNat]
+    refine Nat.lt_of_le_of_lt
+      (Nat.add_le_add_right (Nat.floor_le_of_le (n := 6 * F.denom n * F.inLen n) ?_) 3) ?_
+    · simp only [ampReps, Nat.cast_mul, Nat.cast_ofNat]
       rw [mul_assoc, mul_comm (ampSlack F n : ℝ), ← mul_assoc, mul_div_cancel_right₀ _ hΔ_pos.ne']
       gcongr
       linarith [hN₀ n (not_lt.mp hlt), div_pos zero_lt_one hD_pos]
-    unfold ampGridCount
-    nlinarith [F.denom_pos n]
+    · rw [ampGridCount, mul_add]; linarith [F.denom_pos n]
 
 private theorem amp_hoeffding_exponent_le (F : AdversaryInaccessibleEntropyFamily) {n : ℕ}
     (hw₀_pos : 1 ≤ F.inLen n) :
@@ -304,7 +300,7 @@ private theorem amp_hoeffding_exponent_le (F : AdversaryInaccessibleEntropyFamil
   have hw : (1 : ℝ) ≤ F.inLen n := by exact_mod_cast hw₀_pos
   have hΔ : (0 : ℝ) < ampSlack F n := Nat.cast_pos.2 (lt_of_lt_of_le (by omega) (le_ampSlack F n))
   have ht : (ampReps F n : ℝ) = 6 * (F.denom n : ℝ) * (ampSlack F n : ℝ) := by
-    simp only [ampReps, Nat.cast_mul, Nat.cast_ofNat]
+    push_cast [ampReps]; rfl
   rw [div_le_iff₀ (by rw [ht]; positivity)]
   have hkey :=
     calc (n : ℝ) * ((ampReps F n : ℝ) * (F.inLen n : ℝ) ^ 2)
@@ -340,19 +336,16 @@ private theorem amp_randomCollisionGame_succProbability_le
       ((4 * n + 6 : ℕ) : ℝ≥0) * (1 / 2 : ℝ≥0) ^ n := by
   let n₁True (k : ℕ) : ℕ := ampReps F k * F.inLen k
   let m₁True (k : ℕ) : ℕ := ampReps F k * F.outLen k
-  let B₁ := shrunkHashEscapeInverter n₁True m₁True ampShrinkLen B
   let w₀ := F.inLen n
-  let m₀ := F.outLen n
-  let D := F.denom n
   let t := ampReps F n
   let Δ := ampSlack F n
-  let f₀ := wordToFinMap w₀ m₀ (F.evalWord n)
   let a₀ := accessibleSetExpectation (accSet n)
-  let k₀ := PMF.conditionalEntropy ((PMF.uniformOfFintype (BitString w₀)).map fun z => (f₀ z, z))
+  let k₀ := PMF.conditionalEntropy ((PMF.uniformOfFintype (BitString w₀)).map fun z =>
+    (wordToFinMap w₀ (F.outLen n) (F.evalWord n) z, z))
   have ha₀_nonneg : 0 ≤ a₀ := accessibleSetExpectation_nonneg _
   have hk₀_le : k₀ ≤ (w₀ : ℝ) :=
     (PMF.conditionalEntropy_le_log_card _).trans_eq (by simp [Real.logb_pow])
-  have hD_pos : (0 : ℝ) < D := by exact_mod_cast F.denom_pos n
+  have hD_pos : (0 : ℝ) < F.denom n := by exact_mod_cast F.denom_pos n
   have hw₀_ne_zero : w₀ ≠ 0 := fun h0 => by
     linarith [hN₀ n hn, div_pos zero_lt_one hD_pos, (Nat.cast_eq_zero (R := ℝ)).mpr h0]
   have hn₁_eq : ampRepInLen F n = n₁True n := ite_eq_right hw₀_ne_zero
@@ -369,13 +362,13 @@ private theorem amp_randomCollisionGame_succProbability_le
     (fun k => repBitAccessibleSet (ampReps F k) (F.inLen k) (accSet k))
     B n hs_le (fun u _ => length_repEvalWord (F.length_evalWord n) u) A_max K_min
   have hrep_esc := repEscape_le_dyadicSize_mul_escape (ampReps F) F.inLen F.outLen F.evalWord
-    accSet B₁ n (F.length_evalWord n)
+    accSet (shrunkHashEscapeInverter n₁True m₁True ampShrinkLen B) n (F.length_evalWord n)
   have hΔ_ge : (3 * (n + 2) : ℝ) ≤ (Δ : ℝ) := by exact_mod_cast le_ampSlack F n
   have hΔ_pos : (0 : ℝ) < Δ := by linarith
-  have ht_real : (t : ℝ) = 6 * (D : ℝ) * (Δ : ℝ) := by dsimp only [t, ampReps]; push_cast; ring
   have hgap_scaled : 6 * (Δ : ℝ) ≤ (t : ℝ) * k₀ - (t : ℝ) * a₀ := by
     rw [← mul_sub]
-    calc 6 * (Δ : ℝ) = (t : ℝ) * (1 / (D : ℝ)) := by rw [ht_real]; field_simp [hD_pos.ne']
+    calc 6 * (Δ : ℝ) = (t : ℝ) * (1 / (F.denom n : ℝ)) := by
+          simp only [t, Δ, ampReps, Nat.cast_mul, Nat.cast_ofNat]; field_simp [hD_pos.ne']
       _ ≤ (t : ℝ) * (k₀ - a₀) :=
         mul_le_mul_of_nonneg_left (by linarith [hN₀ n hn]) (Nat.cast_nonneg t)
   let qFloor := Nat.floor (((t : ℝ) * a₀) / (Δ : ℝ))
@@ -386,10 +379,9 @@ private theorem amp_randomCollisionGame_succProbability_le
   let j₀ : ℕ := ampGoodIdx F accSet N₀ n * Δ
   have hj₀_real : (j₀ : ℝ) = ((qFloor : ℝ) + 3) * (Δ : ℝ) := by
     simp only [j₀, ampGoodIdx, not_lt.mpr hn, ↓reduceIte, t, a₀, Δ, qFloor]; push_cast; ring
-  have hmin_eq : (min j₀ (n₁True n) : ℝ) = (j₀ : ℝ) := by
-    have htw : (t : ℝ) * k₀ ≤ (n₁True n : ℝ) := by
-      dsimp only [n₁True]; rw [Nat.cast_mul]; gcongr
-    rw [← Nat.cast_min, Nat.min_eq_left (by exact_mod_cast (show (j₀ : ℝ) ≤ n₁True n by linarith))]
+  have hmin_eq : (min j₀ (n₁True n) : ℝ) = (j₀ : ℝ) := min_eq_left <| by
+    push_cast [n₁True]
+    linarith [mul_le_mul_of_nonneg_left hk₀_le (Nat.cast_nonneg t)]
   have hhoeff_exp := amp_hoeffding_exponent_le F (Nat.pos_of_ne_zero hw₀_ne_zero)
   have htail_acc := (repBitAccessibleSet_logb_card_ge_prob t w₀ (accSet n) (hself n)
     hΔ_pos.le).trans (Real.exp_le_half_pow n hhoeff_exp)
@@ -405,7 +397,7 @@ private theorem amp_randomCollisionGame_succProbability_le
       (by ring : _ = 4 * ((n : ℝ) + 1) * (1 / 2 : ℝ) ^ n)
   simp only [randomCollisionGame, hn₁_eq, hm₁_eq, heval₁_eq, t, w₀]
   rw [← NNReal.coe_le_coe]
-  dsimp only [randomCollisionGame, n₁True, m₁True, B₁, t, w₀, m₀, j₀, Δ]
+  dsimp only [randomCollisionGame, n₁True, m₁True, t, w₀, j₀, Δ]
     at hcoll hrep_esc htail_acc hpow_in hout_term ⊢
   push_cast at hcoll hrep_esc hpow_in hout_term ⊢
   linarith [hcoll, hrep_esc, htail_acc, hpow_in, hout_term]
@@ -439,21 +431,19 @@ theorem AdversaryInaccessibleEntropyFamily.exists_shrinkingCollisionGrid_log
       (Nat.le_of_add_left_le (add_ampShrinkLen_le_inputHashInLen F n)) _
     length_evalGrid := fun _ _ _ => length_shrunkHashEvalWord _ _ _ _ _ _
     exists_good_candidate := fun B hB => by
-      have hB₀_ppt := isPPT_repEscapeInverter (t := ampReps F) (inLen₀ := F.inLen)
-        (by fun_prop) (by fun_prop)
-        (isPPT_shrunkHashEscapeInverter (n₁ := fun k => ampReps F k * F.inLen k)
-          (m₁ := fun k => ampReps F k * F.outLen k) (s := ampShrinkLen)
-          (by fun_prop) (by fun_prop) (by fun_prop) hB)
-      obtain ⟨accSet, hself, _, ⟨N₀, hN₀⟩, hesc_neg⟩ := F.exists_accessibleSet _ hB₀_ppt
+      obtain ⟨accSet, hself, _, ⟨N₀, hN₀⟩, hesc_neg⟩ := F.exists_accessibleSet _
+        (isPPT_repEscapeInverter (t := ampReps F) (inLen₀ := F.inLen) (by fun_prop) (by fun_prop)
+          (isPPT_shrunkHashEscapeInverter (n₁ := fun k => ampReps F k * F.inLen k)
+            (m₁ := fun k => ampReps F k * F.outLen k) (s := ampShrinkLen)
+            (by fun_prop) (by fun_prop) (by fun_prop) hB))
       refine ⟨ampGoodIdx F accSet N₀, ampGoodIdx_lt_ampGridCount F accSet hN₀, ?_⟩
-      have hdyad_pb := dyadicSize_polynomiallyBounded.comp
-        (computableInPolyTime_ampReps F).polynomiallyBounded
-      have hgeom_neg := (negligible_geometric (ratio := (1 / 2 : ℝ≥0))
-        (by norm_num)).polynomiallyBounded_mul (p := fun n => 4 * n + 6) (by fun_prop)
       refine negligible_of_eventually_le
-        ((hesc_neg.polynomiallyBounded_mul hdyad_pb).add hgeom_neg) ?_
-      filter_upwards [Filter.eventually_ge_atTop N₀] with n hn
-      exact amp_randomCollisionGame_succProbability_le F accSet hself hN₀ B hn
+        ((hesc_neg.polynomiallyBounded_mul (dyadicSize_polynomiallyBounded.comp
+            (computableInPolyTime_ampReps F).polynomiallyBounded)).add
+          ((negligible_geometric (ratio := (1 / 2 : ℝ≥0)) (by norm_num)).polynomiallyBounded_mul
+            (p := fun n => 4 * n + 6) (by fun_prop)))
+        (Filter.eventually_atTop.mpr ⟨N₀, fun n hn =>
+          amp_randomCollisionGame_succProbability_le F accSet hself hN₀ B hn⟩)
   }, fun _ => rfl⟩
 
 /-- Specialization of `AdversaryInaccessibleEntropyFamily.exists_shrinkingCollisionGrid_log` to a

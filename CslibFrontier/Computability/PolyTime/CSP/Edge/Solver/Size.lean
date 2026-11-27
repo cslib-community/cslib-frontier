@@ -88,8 +88,7 @@ theorem encoded_body_le (F : CSP Table ℕ) (f : OccurrenceLabeling F Bool)
         7 + (4 * B + 10) * c.scope.length + 4 * (6 * F.vars.length + 1) * c.rel.rows.length := by
     obtain ⟨hw, ha⟩ := htable c hc
     have hb : (encNat c.rel.arity).length ≤ c.scope.length := by
-      simp only [encNat_apply, Nat.size_eq_bits_len]
-      exact (Nat.size_le_self _).trans_eq ha
+      simpa only [encNat_apply, Nat.size_eq_bits_len, ha] using c.scope.length.size_le_self
     have hn : c.scope.length ≤ F.vars.length := by
       simpa only [vars, List.length_flatMap] using
         List.le_sum_of_mem (List.mem_map.mpr ⟨c, hc, rfl⟩ :
@@ -262,10 +261,7 @@ theorem encoded_walk_le {H : CSP Table ℕ} (w : Walk H) (hw : w.IsWalk) (B : �
       w.steps.length * (6 * (incidenceList H).length + 3) := by
     calc
       _ ≤ (w.steps.map fun _ => 6 * (incidenceList H).length + 3).sum :=
-        List.sum_le_sum fun s _ => by
-          have ha := hindex s.1
-          have hb := hindex s.2
-          omega
+        List.sum_le_sum fun s _ => by linarith [hindex s.1, hindex s.2]
       _ = _ := by simp [Nat.mul_comm]
   have hmul := Nat.mul_le_mul_right (6 * (incidenceList H).length + 3) hsteps
   omega
@@ -273,11 +269,10 @@ theorem encoded_walk_le {H : CSP Table ℕ} (w : Walk H) (hw : w.IsWalk) (B : �
 /-- Every actual descended occurrence buffer fits twice the original actual occurrence count. -/
 theorem Chain.width_le (h : Chain F k G) (hF : EdgeInstance F) :
     (incidenceList G).length ≤ 2 * F.vars.length := by
-  have he := congrArg List.length (occurrences_eq_map_incidenceList (F := G))
-  have hv : (G.map fun c => c.scope.length).sum = G.vars.length := by
-    simp [vars, List.length_flatMap]
-  rw [← List.length_map (f := Occurrence.record), ← he, CSP.length_occurrences, hv,
-    (h.edge hF).length_vars_eq_two_mul_numVars]
+  have hlen : (incidenceList G).length = G.vars.length := by
+    simpa [occurrences_eq_map_incidenceList, vars, List.length_flatMap,
+      Function.comp_def] using CSP.length_occurrences (F := G)
+  rw [hlen, (h.edge hF).length_vars_eq_two_mul_numVars]
   exact Nat.mul_le_mul_left 2 ((h.numVars_le hF).trans (List.toFinset_card_le _))
 
 end Cslib.Complexity.CSP.EdgeSolver.Size

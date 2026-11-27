@@ -213,10 +213,7 @@ private theorem exists_isLittleO_of_forall_exp_bound {t : α → ℕ} {enc : α 
     have hlog := Real.logb_le_logb_of_le one_lt_two (hRpos n) (hR_le n)
     rwa [Real.logb_mul hKpos.ne' (by positivity), Real.logb_rpow two_pos (by norm_num)] at hlog
   refine eventually_atTop.mpr ⟨⌈2 * L / ε⌉₊, fun n hn => ?_⟩
-  have hLn : L ≤ (ε / 2) * n := by
-    have hceil : 2 * L / ε ≤ (n : ℝ) := (Nat.le_ceil _).trans (by exact_mod_cast hn)
-    rw [div_le_iff₀ hε] at hceil
-    linarith
+  have hceil := (div_le_iff₀ hε).mp ((Nat.le_ceil _).trans (Nat.cast_le.mpr hn))
   rw [Real.norm_of_nonneg (hnn n), Real.norm_of_nonneg (Nat.cast_nonneg n)]
   linarith [hs_le n]
 
@@ -242,8 +239,7 @@ theorem computableInSingleSubexpTime_iff_exists_machine {f : α → β} {encIn :
     push_cast; linarith
   · rintro ⟨t, sp, e, hcomp, h⟩
     obtain ⟨s, hnn, hs_o, hbound⟩ := exists_isLittleO_of_forall_exp_bound h
-    refine ⟨s, e, hnn, hs_o, 1, t, sp, fun a => ?_, hcomp⟩
-    push_cast; linarith [hbound a]
+    exact ⟨s, e, hnn, hs_o, 1, t, sp, fun a => by push_cast; linarith [hbound a], hcomp⟩
 
 /-- **Machine-quantifier characterization of `DecidableInSingleSubexpTime`.** Single-machine
 `2 ^ o(μ)` decision is equivalent to having *one* machine (`DecidableInTimeAndSpace A enc t sp`)
@@ -420,11 +416,7 @@ theorem ComputableInSingleSubexpTime.of_uniformFamily {f : α → β} {μ : α �
   obtain ⟨cs, ds, hs_len⟩ := hsched.polyBounded_length.exists_le
   have hcomp_eq : (evalAt ∘ fun a : α => PrecisionInput.mk (sched a) a) = f :=
     funext fun a => hcorrect (sched a) a
-  have hfO : ComputableInO f encIn encOut
-      (fun a => ((encIn a).length + 1) ^ dp + T { precision := sched a, input := a })
-      (fun a => ((encIn a).length + 1) ^ dp + S { precision := sched a, input := a }) := by
-    rw [← hcomp_eq]
-    exact heval.comp hmk_deg.inO
+  have hfO := hcomp_eq ▸ heval.comp hmk_deg.inO
   have hforall : ∀ δ : ℝ, 0 < δ → ∃ C : ℕ, ∀ a : α,
       ((((encIn a).length + 1) ^ dp + T { precision := sched a, input := a } : ℕ) : ℝ) ≤
         C * (2 ^ (δ * μ a) * ((encIn a).length + 1) ^ (dp + ds * d + e)) + C := by

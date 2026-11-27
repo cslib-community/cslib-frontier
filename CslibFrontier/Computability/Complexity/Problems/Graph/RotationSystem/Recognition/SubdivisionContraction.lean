@@ -190,17 +190,10 @@ private theorem joined_segments {I : FixedRotationInput}
 private theorem joined_support {I : FixedRotationInput}
     (F : PolygonalDrawing (subdivisionGraph I)) (i : Edge I.graph) :
     (joinedRoute F i).support = ⋃ k : Fin 3, (F.route (pieceEdge I i k)).support := by
-  let p := F.route (pieceEdge I i 0)
-  let q := F.route (pieceEdge I i 1)
-  let r := F.route (pieceEdge I i 2)
   obtain ⟨_, hpq, hj, _⟩ := piece_endpoints F i
-  change ((p.concat q).concat r).support = _
-  rw [Route.support_concat _ _ hj, Route.support_concat _ _ hpq]
+  rw [joinedRoute, Route.support_concat _ _ hj, Route.support_concat _ _ hpq]
   ext x
-  simp only [Set.mem_union, Set.mem_iUnion]
-  refine ⟨by rintro ((h | h) | h) <;> exact ⟨_, h⟩, fun ⟨k, hk⟩ => ?_⟩
-  fin_cases k
-  exacts [.inl (.inl hk), .inl (.inr hk), .inr hk]
+  simp [Fin.exists_fin_succ, or_assoc]
 
 /-- Undo the indexed twice subdivision of an actual embedding. Original vertex points and
 outgoing germs are retained, and each original route has exactly its three-piece support.
@@ -254,7 +247,7 @@ theorem exists_contracted_subdivision_embedding {I : FixedRotationInput} (hI : V
       · exact (he.trans hc).symm ▸ hevertex (j, false)
       · exact (he.trans hc).symm ▸ hevertex (j, true)
       · rw [hb, hc] at he
-        exact (hne (Fin.ext (by cases d <;> cases a <;> simp at he <;> omega))).elim
+        exact absurd (Fin.ext (by cases d <;> cases a <;> simp at he <;> omega)) hne
   refine ⟨D, ⟨fun u hu v hv => hF.vertices_injective (hsub u hu) (hsub v hv),
     joined_simple hI hF, hvertex, ?_⟩, rfl, joined_support F, ?_⟩
   · intro i j hne a b s t hs ht he
@@ -262,12 +255,11 @@ theorem exists_contracted_subdivision_embedding {I : FixedRotationInput} (hI : V
     obtain ⟨l, b', _, hb⟩ := joined_trace F j b t
     obtain ⟨c, d, hc, _, hcd⟩ := hF.edge_contacts _ _ (piece_ne (Or.inl hne))
       a' b' s t hs ht (ha.symm.trans (he.trans hb))
-    let v := Dart.vertex (pieceEdge I i k, c)
     have hv := hshared hne k l c d hcd
-    have hx : (D.route i).eval a s = D.vertex v :=
+    have hx : (D.route i).eval a s = D.vertex (Dart.vertex (pieceEdge I i k, c)) :=
       ha.trans (((F.route (pieceEdge I i k)).at_eq_endpoint a' hs c hc).trans (F.endpoint_eq _ c))
-    obtain ⟨u, hu, huv⟩ := hvertex i a s hs v hv hx
-    obtain ⟨w, hw, hwv⟩ := hvertex j b t ht v hv (he.symm.trans hx)
+    obtain ⟨u, hu, huv⟩ := hvertex i a s hs _ hv hx
+    obtain ⟨w, hw, hwv⟩ := hvertex j b t ht _ hv (he.symm.trans hx)
     exact ⟨u, w, hu, hw, huv.trans hwv.symm⟩
   · rintro ⟨i, b⟩
     obtain ⟨_, hpq, hjoin, _⟩ := piece_endpoints F i

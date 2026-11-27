@@ -455,20 +455,19 @@ theorem seed_uniform_checkNonceSUF_le {seed : PMF K} {hash : K → M → Y} {ε 
       have valid := (verify_eq_true_iff _ _ _ _ _).mp hv
       have hne : out.1.1 ≠ m := by
         rintro rfl
-        have hv' := (add_recovered_offset_eq_iff _ _ t out.2).mp valid
-        obtain rfl : out.2 = t := sub_eq_zero.mp (by simpa only [sub_self] using hv'.symm)
+        obtain rfl : t = out.2 := by simpa only [add_neg_cancel_left] using valid
         exact hnotmem he
       simp [hne, valid]
     · rw [PMF.bind_apply]
       refine (tsum_mul_le_of_forall_le seed fun k => ?_).trans (le_max_right _ _)
       refine (bind_apply_mono_on_support (PMF.uniformOfFintype (N → Y))
         (g := fun table => PMF.pure (verify hash k (table out.1.2) out.1.1 out.2)) true
-        fun table _ => ?_).trans (le_of_eq ?_)
+        fun table _ => ?_).trans_eq ?_
       · simp only [checkNonceSUF, reconstructPadFn_apply_of_not_mem hash k hx]
         cases decide (tr.map (fun e => e.1.2)).Nodup && !tr.contains out <;> simp
       rw [PMF.bind_uniformOfFintype_update out.1.2]
-      simp only [Function.update_self, PMF.bind_const]
-      exact uniform_bind_verify_apply_true hash k out.1.1 out.2
+      simpa only [Function.update_self, PMF.bind_const] using
+        uniform_bind_verify_apply_true hash k out.1.1 out.2
   · simp [checkNonceSUF, hnodup]
 
 /-- The ideal nonce-based Carter–Wegman SUF-CMA experiment ([BonehShoup2023], Section 7.5.1,
@@ -773,17 +772,12 @@ private theorem cwNonceAccept_imp_checkNonceSUF (msgLen : ℕ → ℕ)
         hsub.map (fun e => e.1.2)))
   have htr_notmem : toBitTriple (msgLen n) n cand ∉ tr := fun hmem =>
     hnotmem (List.mem_reverse.mp (hsub.subset (hround ▸ List.mem_map_of_mem hmem)))
-  have hverify :
-      verify (fun k (m : BitString (msgLen n)) => BitString.ofList n (hash n k (List.ofFn m)))
-        k (table (toBitTriple (msgLen n) n cand).1.2)
-        (toBitTriple (msgLen n) n cand).1.1
-        (toBitTriple (msgLen n) n cand).2 = true := by
-    simpa only [verify, toBitTriple, BitString.ofFn_ofList hmsg, decide_eq_true_eq,
-      randomFunctionOracle, hnonce, ↓reduceIte, BitString.listXor_pair,
-      BitString.ofList_take, BitString.ofList_ofFn] using congrArg (BitString.ofList n) htag_eq
   simp only [checkNonceSUF, Bool.and_eq_true, Bool.not_eq_true', List.contains_eq_mem,
     decide_eq_true_eq, decide_eq_false_iff_not]
-  exact ⟨⟨htr_nodup, htr_notmem⟩, hverify⟩
+  refine ⟨⟨htr_nodup, htr_notmem⟩, ?_⟩
+  simpa only [verify, toBitTriple, BitString.ofFn_ofList hmsg, decide_eq_true_eq,
+    randomFunctionOracle, hnonce, ↓reduceIte, BitString.listXor_pair,
+    BitString.ofList_take, BitString.ofList_ofFn] using congrArg (BitString.ofList n) htag_eq
 
 private theorem step_cwNonceLogHandler_randomFunctionOracle
     (msgLen : ℕ → ℕ) (hash : ℕ → List Bool → List Bool → List Bool)

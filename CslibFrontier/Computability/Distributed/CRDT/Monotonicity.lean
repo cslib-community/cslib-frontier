@@ -291,16 +291,12 @@ private theorem foldl_hops_achieves_pairs (emit : S → Finset Fact)
     ∀ src dst, (src, dst) ∈ hops →
       st.replica src ≤ (hops.foldl (gossipEmitStep emit) st).replica dst := by
   induction hops generalizing st with
-  | nil => intro _ _ h; cases h
+  | nil => simp
   | cons hd tl ih =>
-    obtain ⟨u, v⟩ := hd
-    intro src dst hmem
-    let st₁ := gossipEmitStep emit st (u, v)
-    rcases List.mem_cons.mp hmem with hhd | htl
-    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj hhd
-      exact le_trans (by simp [st₁, gossipEmitStep, le_sup_right])
-        ((foldl_gossipEmitStep_mono emit st₁ tl).1 dst)
-    · exact le_trans ((foldl_gossipEmitStep_mono emit st [(u, v)]).1 src) (ih st₁ src dst htl)
+    rintro src dst (_ | ⟨_, htl⟩)
+    · exact le_trans (by simp [gossipEmitStep, le_sup_right])
+        ((foldl_gossipEmitStep_mono emit _ tl).1 dst)
+    · exact le_trans ((foldl_gossipEmitStep_mono emit st [hd]).1 src) (ih _ src dst htl)
 
 /-- Under `Monotone emit`, any gossip schedule `hops` that covers every ordered pair `(src, dst)`
 (`∀ src dst, (src, dst) ∈ hops`) converges every replica `p`'s state to `globalMergedState cfg` and
@@ -424,12 +420,9 @@ def gsetFilterImage {α β : Type*} [DecidableEq β] (pred : α → Bool) (f : �
   (s.filter (fun a => pred a = true)).image f
 
 theorem monotone_gcounterThresholdEmit {Q : Type*} [Fintype Q] (k : ℕ) :
-    Monotone (gcounterThresholdEmit (Q := Q) k) := by
-  intro c₁ c₂ hc u hu
-  simp only [gcounterThresholdEmit] at hu ⊢
-  split_ifs at hu with h₁
-  · simp [h₁.trans (GCounter.mono_value hc)]
-  · cases hu
+    Monotone (gcounterThresholdEmit (Q := Q) k) := fun c₁ c₂ hc _ hu => by
+  by_cases h₁ : k ≤ c₁.value <;> simp [gcounterThresholdEmit, h₁] at hu
+  simp [gcounterThresholdEmit, h₁.trans (GCounter.mono_value hc)]
 
 theorem semilatticeCoordinationFreeConsistent_gcounterThreshold
     (P : Type*) [Fintype P] [DecidableEq P] [Nonempty P]
@@ -438,10 +431,9 @@ theorem semilatticeCoordinationFreeConsistent_gcounterThreshold
   (monotone_gcounterThresholdEmit k).semilatticeCoordinationFreeConsistent
 
 theorem monotone_gcounterThresholdBool {Q : Type*} [Fintype Q] (k : ℕ) :
-    Monotone (gcounterThresholdBool (Q := Q) k) := by
-  intro c₁ c₂ hc
-  simp only [gcounterThresholdBool, Bool.le_iff_imp, decide_eq_true_eq]
-  exact fun h => h.trans (GCounter.mono_value hc)
+    Monotone (gcounterThresholdBool (Q := Q) k) := fun _ _ hc => by
+  simpa only [gcounterThresholdBool, Bool.le_iff_imp, decide_eq_true_eq] using
+    fun h => h.trans (GCounter.mono_value hc)
 
 theorem semilatticeObservableConsistent_gcounterThresholdBool
     (P : Type*) [Fintype P] [DecidableEq P] [Nonempty P]
@@ -450,12 +442,9 @@ theorem semilatticeObservableConsistent_gcounterThresholdBool
   (monotone_gcounterThresholdBool k).semilatticeObservableConsistent
 
 theorem monotone_gsetMemEmit {α : Type*} [DecidableEq α] (x : α) :
-    Monotone (gsetMemEmit x) := by
-  intro s₁ s₂ hs u hu
-  simp only [gsetMemEmit] at hu ⊢
-  split_ifs at hu with hx
-  · simp [hs hx]
-  · cases hu
+    Monotone (gsetMemEmit x) := fun s₁ _ hs _ hu => by
+  by_cases hx : x ∈ s₁ <;> simp [gsetMemEmit, hx] at hu
+  simp [gsetMemEmit, hs hx]
 
 theorem semilatticeCoordinationFreeConsistent_gsetMem
     (P : Type*) [Fintype P] [DecidableEq P] [Nonempty P]

@@ -292,11 +292,9 @@ theorem isPureNash_of_bestResponseStep_eq [DecidableEq V] {s : V → Bool}
     simpa only [mem_bestResponseStep_iff, ← p.payoff_update_false G v s,
       ← p.payoff_update_true G v s, Set.mem_ofPred_eq] using Set.ext_iff.mp h v
   conv_rhs => rw [← Function.update_eq_self v s]
-  cases a <;> cases hsv : s v
-  · exact le_rfl
+  cases a <;> cases hsv : s v <;> try exact le_rfl
   · exact hiff.mpr hsv
   · exact le_of_not_ge (mt hiff.mp (by simp [hsv]))
-  · exact le_rfl
 
 end GraphPayoffs
 
@@ -587,13 +585,13 @@ theorem exists_finset_isContagious_bestResponseStep_iff_progressiveStep {q : ℝ
             bestResponseStep_sdiff_isolated]
           exact (hstep_eq ℓ le_rfl).symm
       | succ m ih =>
-          rw [Function.iterate_succ_apply', ih, ← hstep_eq (ℓ + m + 1) (by omega)]
-          rfl
+          have hle_m : ℓ ≤ ℓ + m + 1 := by omega
+          rw [Function.iterate_succ_apply', ih, ← hstep_eq (ℓ + m + 1) hle_m]; rfl
     refine ⟨T, fun w => ?_⟩
     obtain ⟨k, hk⟩ := hS w
     refine ⟨k + 1, fun j hj => ?_⟩
     obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le' hj
-    rw [show m + (k + 1) = (m + k) + 1 by omega, hiter (m + k)]
+    rw [← Nat.add_assoc, hiter (m + k)]
     exact hk (ℓ + (m + k) + 1) (by omega)
 
 /-- Progressive and nonprogressive contagion have the exact same contagion threshold on every
@@ -602,11 +600,8 @@ theorem contagionThreshold_eq_sSup_progressive :
     contagionThreshold G =
       sSup {q ∈ Set.Icc (0 : ℝ) 1 |
         ∃ S : Finset V, IsContagious (progressiveStep G q) (S : Set V)} := by
-  unfold contagionThreshold
-  congr 1
-  ext q
-  exact and_congr_right fun hq =>
-    exists_finset_isContagious_bestResponseStep_iff_progressiveStep G hq.2
+  exact congrArg sSup (Set.ext fun _ => and_congr_right fun hq =>
+    exists_finset_isContagious_bestResponseStep_iff_progressiveStep G hq.2)
 
 /-! ## Theorem 24.2: Morris's 1/2 contagion threshold bound -/
 
@@ -622,12 +617,11 @@ private theorem sum_card_inter_neighborFinset_comm [DecidableEq V] (X D : Finset
       ∑ v ∈ A, (G.neighborFinset v ∩ B).card = ∑ v ∈ A, ∑ u ∈ B, if G.Adj v u then 1 else 0 :=
     Finset.sum_congr rfl fun v _ => by
       rw [← Finset.card_filter]
-      congr 1
-      ext u
-      simp only [Finset.mem_inter, SimpleGraph.mem_neighborFinset, Finset.mem_filter, and_comm]
+      exact congrArg Finset.card (Finset.ext fun u => by
+        simp only [Finset.mem_inter, SimpleGraph.mem_neighborFinset, Finset.mem_filter, and_comm])
   rw [hcard X D, hcard D X, Finset.sum_comm]
-  refine Finset.sum_congr rfl fun u _ => Finset.sum_congr rfl fun v _ => ?_
-  simp only [SimpleGraph.adj_comm]
+  exact Finset.sum_congr rfl fun u _ => Finset.sum_congr rfl fun v _ => by
+    simp only [SimpleGraph.adj_comm]
 
 private theorem edgeBoundaryCard_union_add [DecidableEq V] {X D : Finset V} (hdisj : Disjoint X D) :
     edgeBoundaryCard G (X ∪ D) + ∑ u ∈ D, (G.neighborFinset u ∩ X).card =
@@ -636,17 +630,14 @@ private theorem edgeBoundaryCard_union_add [DecidableEq V] {X D : Finset V} (hdi
   rw [Finset.sum_union hdisj, ← sum_card_inter_neighborFinset_comm G X D]
   have hsplit : ∀ v ∈ X,
       (G.neighborFinset v \ (X ∪ D)).card + (G.neighborFinset v ∩ D).card =
-        (G.neighborFinset v \ X).card := by
-    intro v _
+        (G.neighborFinset v \ X).card := fun v _ => by
     have hdisj' : Disjoint (G.neighborFinset v \ (X ∪ D)) (G.neighborFinset v ∩ D) :=
       Finset.disjoint_left.2 fun w hw1 hw2 =>
         (Finset.mem_sdiff.1 hw1).2 (Finset.mem_union_right _ (Finset.mem_inter.1 hw2).2)
     rw [← Finset.card_union_of_disjoint hdisj']
-    congr 1
-    ext w
-    simp only [Finset.mem_union, Finset.mem_sdiff, Finset.mem_inter]
+    refine congrArg Finset.card (Finset.ext fun w => ?_)
     have hd : w ∈ X → w ∉ D := fun hwX => Finset.disjoint_left.mp hdisj hwX
-    tauto
+    simp only [Finset.mem_union, Finset.mem_sdiff, Finset.mem_inter]; tauto
   have := Finset.sum_congr rfl hsplit
   rw [Finset.sum_add_distrib] at this
   omega
@@ -670,10 +661,9 @@ theorem not_isContagious_progressiveStep_of_half_lt [Infinite V]
   let Sfin : ℕ → Finset V := fun j => (progressiveStep_iterate_finite G hq0 hdeg S j).toFinset
   have hSfin_coe : ∀ j, (Sfin j : Set V) = (progressiveStep G q)^[j] (S : Set V) :=
     fun j => (progressiveStep_iterate_finite G hq0 hdeg S j).coe_toFinset
-  have hSfin_sub : ∀ j, Sfin j ⊆ Sfin (j + 1) := by
-    intro j
-    rw [← Finset.coe_subset, hSfin_coe, hSfin_coe]
-    exact progressiveStep_iterate_mono G q (S : Set V) (Nat.le_succ j)
+  have hSfin_sub : ∀ j, Sfin j ⊆ Sfin (j + 1) := fun j => by
+    simpa only [← Finset.coe_subset, hSfin_coe] using
+      progressiveStep_iterate_mono G q (S : Set V) (Nat.le_succ j)
   have hdec : ∀ j, Sfin j ≠ Sfin (j + 1) →
       edgeBoundaryCard G (Sfin (j + 1)) < edgeBoundaryCard G (Sfin j) := by
     intro j hne
@@ -691,10 +681,8 @@ theorem not_isContagious_progressiveStep_of_half_lt [Infinite V]
         have h1 : u ∈ (progressiveStep G q)^[j + 1] (S : Set V) := hSfin_coe (j + 1) ▸ huD.1
         rw [Function.iterate_succ_apply', progressiveStep] at h1
         exact h1.resolve_left (hSfin_coe j ▸ huD.2)
-      rw [mem_bestResponseStep_iff, ← hSfin_coe] at hbr
-      have hncard : (G.neighborSet u ∩ (X : Set V)).ncard = (G.neighborFinset u ∩ X).card := by
-        rw [← G.coe_neighborFinset, ← Finset.coe_inter, Set.ncard_coe_finset]
-      rw [hncard] at hbr
+      rw [mem_bestResponseStep_iff, ← hSfin_coe, ← G.coe_neighborFinset, ← Finset.coe_inter,
+        Set.ncard_coe_finset] at hbr
       have hdu : 0 < (G.degree u : ℝ) := Nat.cast_pos.mpr (hdeg u)
       have hmaj : G.degree u < 2 * (G.neighborFinset u ∩ X).card := by
         have := mul_lt_mul_of_pos_right hq hdu
@@ -721,11 +709,8 @@ theorem not_isContagious_progressiveStep_of_half_lt [Infinite V]
       intro n
       induction n with
       | zero => omega
-      | succ n ih =>
-        have := hdec n (hno n)
-        omega
-    have := hbound (edgeBoundaryCard G (Sfin 0) + 1)
-    omega
+      | succ n ih => linarith [hdec n (hno n)]
+    linarith [hbound (edgeBoundaryCard G (Sfin 0) + 1)]
   obtain ⟨k, hk⟩ := hstop
   have hconst : ∀ m, (progressiveStep G q)^[k + m] (S : Set V) = (Sfin k : Set V) := by
     intro m
@@ -903,10 +888,9 @@ theorem isContagious_progressiveStep_intPathGraph_half_singleton :
 
 /-- **Tightness of Theorem 24.2** ([Kleinberg2007], Section 24.2, p. 616):
 the contagion threshold of the two-way infinite path on `ℤ` is exactly `1 / 2`. -/
-theorem contagionThreshold_intPathGraph : contagionThreshold intPathGraph = 1 / 2 := by
-  refine le_antisymm ?_ ?_
-  · exact contagionThreshold_le_half intPathGraph (fun x => by rw [intPathGraph_degree]; omega)
-  · exact le_contagionThreshold intPathGraph (by norm_num) (by norm_num) {0, 1}
-      isContagious_intPathGraph_half_pair
+theorem contagionThreshold_intPathGraph : contagionThreshold intPathGraph = 1 / 2 :=
+  le_antisymm (contagionThreshold_le_half intPathGraph fun x => by simp)
+    (le_contagionThreshold intPathGraph (by norm_num) (by norm_num) {0, 1}
+      isContagious_intPathGraph_half_pair)
 
 end Cslib.GameTheory.Network

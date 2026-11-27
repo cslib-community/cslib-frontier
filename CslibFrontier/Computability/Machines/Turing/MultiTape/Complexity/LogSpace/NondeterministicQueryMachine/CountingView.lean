@@ -76,10 +76,9 @@ theorem toNTM_countingMachine : (countingMachine I P F C).toNTM = machine I P F 
 theorem countingMachine_haltsWithin {input : List Bool} {fuel : ℕ}
     (h : (machine I P F C).RunsInTime input fuel) :
     (countingMachine I P F C).HaltsWithin fuel
-      (Cfg.init (.init I.q₀) input) := by
-  apply MultiTapeCTM.haltsWithin_of_paths (countingMachine_nonblocking I P F C)
-  rw [toNTM_countingMachine]
-  exact fun p hp hlen => h ⟨p, hp⟩ hlen
+      (Cfg.init (.init I.q₀) input) :=
+  MultiTapeCTM.haltsWithin_of_paths (countingMachine_nonblocking I P F C)
+    ((toNTM_countingMachine I P F C).symm ▸ fun p hp hlen => h ⟨p, hp⟩ hlen)
 
 private def atChoice {input : List Bool} (cfg : Cfg k Bool (State SI SP SF) input) : Bool :=
   match cfg.state with
@@ -199,9 +198,8 @@ theorem replayChoices_replicate_zero {input : List Bool}
   induction p using RelSeries.inductionOn' with
   | singleton cfg => rfl
   | snoc p next hs ih =>
-    have hlast : p.last.state ≠ some .choose := by
-      change (p (Fin.last p.length)).state ≠ some .choose
-      exact (RelSeries.snoc_castSucc p next hs (Fin.last p.length)) ▸
+    have hlast : (p (Fin.last p.length)).state ≠ some .choose :=
+      (RelSeries.snoc_castSucc p next hs (Fin.last p.length)) ▸
         (h ⟨p.length, by simp⟩ : (p.snoc next hs (Fin.last p.length).castSucc).state ≠ some .choose)
     rw [RelSeries.snoc_length, List.replicate_succ', RelSeries.head_snoc, replayChoices_append,
       ih fun i => (RelSeries.snoc_castSucc p next hs i.castSucc) ▸
@@ -209,7 +207,7 @@ theorem replayChoices_replicate_zero {input : List Bool}
     simpa only [Option.bind, List.nil_append, RelSeries.last_snoc, replayChoices_nil,
       Option.map_some] using
       congrArg (Option.map (fun p => (([] : List Bool) ++ p.1, p.2)))
-        (replayChoices_step_zero I P F C hlast hs.1 hs.2 [])
+        (replayChoices_step_zero I P F C (cfg := p.last) hlast hs.1 hs.2 [])
 
 
 /-- Among successful replays from the same configuration, a shorter replay whose
@@ -237,10 +235,8 @@ theorem prefix_occurrences_of_replayChoices {input : List Bool}
         cases hc : atChoice cfg
         · simp only [hc, Bool.false_eq_true, ↓reduceIte] at hi hj hprefix
           exact ⟨by omega, hprefix⟩
-        · simp only [hc, ↓reduceIte, List.cons_prefix_cons] at hi hj hprefix
-          refine ⟨by_contra fun hne => ?_, hprefix.2⟩
-          rcases (show (i = 0 ∧ j = 1) ∨ (i = 1 ∧ j = 0) by omega) with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;>
-            simp at hprefix
+        · simp only [hc, ↓reduceIte, List.cons_prefix_cons, beq_eq_beq] at hi hj hprefix
+          exact ⟨by omega, hprefix.2⟩
       obtain rfl : x = y := Option.some.inj (hx.symm.trans hy)
       obtain ⟨suffix, hs⟩ := ih hxs hys (by simpa using hlen) htail
       exact ⟨suffix, congrArg (i :: ·) hs⟩

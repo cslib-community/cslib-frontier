@@ -206,16 +206,12 @@ private theorem synthesis_windowFlags (s : Set (BooleanFunction a))
     Set.range fun j x => decide (v x ≤ hi j)) ∪ ((Set.range fun j x => decide (floor j ≤ d x)) ∪
     Set.range fun j x => decide (d x ≤ height j)))
   have row (j : Fin M) : Synthesis interpretation src
-      {fun x => windowFlags (v x) (d x) lo hi floor height j} 3 := by
-    have h₁ : Synthesis interpretation src {fun x => decide (lo j ≤ v x)} 0 :=
-      Synthesis.of_mem (Or.inr (Or.inl (Or.inl ⟨j, rfl⟩)))
-    have h₂ : Synthesis interpretation src {fun x => decide (v x ≤ hi j)} 0 :=
-      Synthesis.of_mem (Or.inr (Or.inl (Or.inr ⟨j, rfl⟩)))
-    have h₃ : Synthesis interpretation src {fun x => decide (floor j ≤ d x)} 0 :=
-      Synthesis.of_mem (Or.inr (Or.inr (Or.inl ⟨j, rfl⟩)))
-    have h₄ : Synthesis interpretation src {fun x => decide (d x ≤ height j)} 0 :=
-      Synthesis.of_mem (Or.inr (Or.inr (Or.inr ⟨j, rfl⟩)))
-    exact (h₁.and (h₂.and (h₃.and h₄))).congr_iff (by simp [windowFlags])
+      {fun x => windowFlags (v x) (d x) lo hi floor height j} 3 :=
+    ((Synthesis.of_mem (Or.inr (Or.inl (Or.inl ⟨j, rfl⟩))) :
+        Synthesis interpretation src {fun x => decide (lo j ≤ v x)} 0).and <|
+      (Synthesis.of_mem (Or.inr (Or.inl (Or.inr ⟨j, rfl⟩)))).and <|
+      (Synthesis.of_mem (Or.inr (Or.inr (Or.inl ⟨j, rfl⟩)))).and
+      (Synthesis.of_mem (Or.inr (Or.inr (Or.inr ⟨j, rfl⟩))))).congr_iff (by simp [windowFlags])
   apply (tests.trans (Synthesis.family (s := src) _ _ row)).mono Set.Subset.rfl Set.Subset.rfl
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul]
   have h₁ := Nat.pow_le_pow_right (by decide : 0 < 2) (show b / 2 ≤ (b + 1) / 2 by lia)
@@ -227,9 +223,8 @@ private def chosenWord (flags : Fin M → Bool) (rows : Fin M → BitString b) :
 
 private theorem chosenWord_eq (flags : Fin M → Bool) (j : Fin M)
     (huniq : ∀ i, firstFlag flags i = true ↔ i = j) (rows : Fin M → BitString b) :
-    chosenWord flags rows = rows j := by
-  funext bit
-  simp [chosenWord, huniq]
+    chosenWord flags rows = rows j :=
+  funext fun bit => by simp [chosenWord, huniq]
 
 attribute [local instance] lexOrder
 
@@ -326,16 +321,16 @@ private theorem transient_from_labels (s : Set (BooleanFunction a)) (c : Circuit
   have flag_iff (i : Fin M) : flags x i = true ↔
       (∃ j ≤ transientDepth f (start x), f^[j] (start x) = marks i) ∧
       (target x).val ≤ (dep i).val ∧ (dep i).val ≤ (target x).val + K := by
-    simp only [flags, windowFlags, decide_eq_true_eq, hpre]
-    have hz := forest_interval_spec f (start x) (marks i)
-    change ((lo i).val ≤ (rankCode f (start x)).val ∧
-      (rankCode f (start x)).val ≤ (hi i).val ∧ (dep i).val - K ≤ (target x).val ∧
-      (target x).val ≤ (dep i).val) ↔ _
-    change ((lo i).val ≤ (rankCode f (start x)).val ∧
-      (rankCode f (start x)).val ≤ (hi i).val) ↔ _ at hz
-    refine ⟨fun ⟨h₁, h₂, h₃, h₄⟩ => ⟨hz.mp ⟨h₁, h₂⟩, h₄, by lia⟩, fun ⟨ha, h₁, h₂⟩ => ?_⟩
-    obtain ⟨h₃, h₄⟩ := hz.mpr ha
-    exact ⟨h₃, h₄, by lia, h₁⟩
+    simp only [flags, windowFlags, decide_eq_true_eq, hpre, Fin.le_def, lo, hi, dep, floor,
+      rankCode, upperCode, depthCode]
+    have hz : (forestRank f (marks i)).val ≤ (forestRank f (start x)).val ∧
+        (forestRank f (start x)).val ≤ (forestUpper f (marks i)).val ↔
+        ∃ j ≤ transientDepth f (start x), f^[j] (start x) = marks i :=
+      forest_interval_spec f (start x) (marks i)
+    rw [← and_assoc, hz]
+    exact and_congr_right fun _ =>
+      ⟨fun ⟨_, h₂⟩ => ⟨h₂, by lia⟩,
+        fun ⟨h₁, _⟩ => ⟨by lia, h₁⟩⟩
   obtain ⟨i, hi, huniq⟩ := firstFlag_spec _ ⟨hit, (flag_iff hit).mpr hhit⟩
   obtain ⟨hanc, hlo, hhi⟩ := (flag_iff i).mp hi
   have hdepth : transientDepth f (f^[t] (start x)) = (target x).val :=

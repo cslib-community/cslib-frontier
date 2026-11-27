@@ -225,7 +225,8 @@ theorem entry_eq_opt_of_scanInv {w : ℕ → ℕ → β} {n d : ℕ} {T : Table 
     rw [Table.candidate, splitCost, hT i (k - 1) (by omega) (by omega),
       hT k (i + d + 1) hj (by omega)]
   obtain ⟨e₁, e₂, e₃, e₄, e₅⟩ := he
-  have hopt := mem_Ioc.1 (optRoot_mem w (show i < i + d + 1 by omega))
+  have hlt_id : i < i + d + 1 := Nat.lt_add_of_pos_right (Nat.succ_pos d)
+  have hopt := mem_Ioc.1 (optRoot_mem w hlt_id)
   have her : e.root ∈ Ioc i (i + d + 1) := mem_Ioc.2 ⟨h₁.trans_le e₁, e₂.trans h₄⟩
   have hecost : e.cost = splitCost w i (i + d + 1) e.root :=
     e₃.trans (hc _ (h₁.trans_le e₁) (e₂.trans h₄))
@@ -238,9 +239,7 @@ theorem entry_eq_opt_of_scanInv {w : ℕ → ℕ → β} {n d : ℕ} {T : Table 
   have heq : e.root = optRoot w i (i + d + 1) := le_antisymm (le_optRoot w her hmin)
     (not_lt.1 fun hlt => (hc _ hopt.1 hopt.2 ▸ hecost ▸ e₅ _ hlt h₃).not_ge
       (splitCost_optRoot_le w her))
-  ext
-  · rw [optCost_eq_optRoot w (by omega), ← heq, hecost]
-  · exact heq
+  exact Entry.ext (by rw [optCost_eq_optRoot w hlt_id, ← heq, hecost]) heq
 
 /-- A scan over a window containing the largest optimal root computes the correct entry. -/
 theorem cell_eq_opt {w : ℕ → ℕ → β} {n d : ℕ} {T : Table β} (hT : Agrees w n d T) {i lo hi : ℕ}
@@ -268,8 +267,8 @@ theorem agrees_table {w : ℕ → ℕ → β} {W : Window β} {n : ℕ} (hW : W.
 
 theorem Window.valid_plain (w : ℕ → ℕ → β) (n : ℕ) : (Window.plain : Window β).Valid w n := by
   intro d T i _ _
-  have := mem_Ioc.1 (optRoot_mem w (show i < i + d + 1 by omega))
-  exact ⟨Nat.lt_succ_self i, by simp only [Window.plain]; omega, this.2, le_rfl⟩
+  obtain ⟨hlo, hhi⟩ := mem_Ioc.1 (optRoot_mem w (Nat.lt_add_of_pos_right (Nat.succ_pos d)))
+  exact ⟨Nat.lt_succ_self i, hlo, hhi, le_rfl⟩
 
 theorem solve_eq {w : ℕ → ℕ → β} {W : Window β} {n : ℕ} (hW : W.Valid w n) :
     solve w W n = ⟨optCost w 0 n, optTree w 0 n⟩ := by
@@ -298,16 +297,15 @@ theorem Window.valid_knuth {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w)
     (hmono : MonotoneOnIntervals w) (n : ℕ) : (Window.knuth : Window β).Valid w n := by
   intro d T i hT hj
   rcases d with _ | e
-  · have hopt := mem_Ioc.1 (optRoot_mem w (Nat.lt_add_one i))
-    simp only [Window.knuth, add_zero, lt_irrefl, ↓reduceIte] at hopt ⊢
-    omega
+  · obtain ⟨h₁, h₂⟩ := mem_Ioc.1 (optRoot_mem w (Nat.lt_add_one i))
+    simpa only [Window.knuth, add_zero, lt_irrefl, ↓reduceIte] using
+      ⟨Nat.lt_add_one i, h₁, h₂, le_rfl⟩
   · have hij : i + 1 < i + (e + 1) + 1 := by omega
     have hmon := optRoot_mono hqi hmono hij
-    have h₁ := mem_Ioc.1 (optRoot_mem w (show i < i + (e + 1) by omega))
-    have h₂ := mem_Ioc.1 (optRoot_mem w hij)
     simp only [Window.knuth, hij, ↓reduceIte, Nat.add_sub_cancel] at hmon ⊢
     rw [hT i (i + (e + 1)) (by omega) (by omega), hT (i + 1) (i + (e + 1) + 1) hj (by omega)]
-    exact ⟨h₁.1, hmon.1, hmon.2, h₂.2⟩
+    exact ⟨(mem_Ioc.1 (optRoot_mem w (Nat.lt_add_of_pos_right (Nat.succ_pos e)))).1,
+      hmon.1, hmon.2, (mem_Ioc.1 (optRoot_mem w hij)).2⟩
 
 /-- **Correctness of Knuth's algorithm** when the weight satisfies the quadrangle inequality and
 is monotone on intervals. -/
@@ -336,27 +334,25 @@ theorem sum_knuth_window_le {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w)
       sum_const, card_range, Nat.nsmul_eq_mul, mul_one]
     omega
   · set m := n + 1 - (e + 1 + 1)
-    let a : ℕ → ℕ := fun i => optRoot w i (i + e + 1)
-    have hsub (i : ℕ) : (i + 1) + e + 1 - 1 = i + e + 1 := by omega
+    let a : ℕ → ℕ := fun i => optRoot w i (i + (e + 1))
+    have hsub (i : ℕ) : (i + 1) + (e + 1) - 1 = i + (e + 1) := by omega
+    have hij (i : ℕ) : i + 1 < (i + 1) + (e + 1) := by omega
     have hterm (i : ℕ) (hi : i ∈ range m) :
         (Window.knuth : Window β).hi T i (i + (e + 1 + 1)) -
           (Window.knuth : Window β).lo T i (i + (e + 1 + 1)) + 1 = a (i + 1) - a i + 1 := by
       rw [mem_range] at hi
-      have heq : i + (e + 1 + 1) = (i + 1) + e + 1 := by omega
-      have hij : i + 1 < (i + 1) + e + 1 := by omega
-      simp only [Window.knuth, heq, hij, ↓reduceIte, hsub]
-      rw [hT i (i + e + 1) (by omega) (by omega),
-        hT (i + 1) ((i + 1) + e + 1) (by omega) (by omega)]
+      have heq : i + (e + 1 + 1) = (i + 1) + (e + 1) := by omega
+      simp only [Window.knuth, heq, hij i, ↓reduceIte, hsub]
+      rw [hT i (i + (e + 1)) (by omega) (by omega),
+        hT (i + 1) ((i + 1) + (e + 1)) (by omega) (by omega)]
     rw [sum_congr rfl hterm]
-    have ha : ∀ i < m, a i ≤ a (i + 1) := fun i _ => by
-      have hmon := optRoot_mono hqi hmono (show i + 1 < (i + 1) + e + 1 by omega)
+    have htel := sum_telescope a m fun i _ => by
+      have hmon := optRoot_mono hqi hmono (hij i)
       exact (hsub i ▸ hmon.1).trans hmon.2
-    have htel := sum_telescope a m ha
     rcases eq_or_ne m 0 with hm0 | _
-    · simp only [hm0, sum_range_zero, Nat.zero_le]
-    · have h₀ := mem_Ioc.1 (optRoot_mem w (show 0 < 0 + e + 1 by omega))
-      have hm' := mem_Ioc.1 (optRoot_mem w (show m < m + e + 1 by omega))
-      dsimp only [a] at htel ⊢
+    · simp [hm0]
+    · have h₀ : 0 < a 0 := (mem_Ioc.1 (optRoot_mem w (by omega))).1
+      have hm' : a m ≤ m + (e + 1) := (mem_Ioc.1 (optRoot_mem w (by omega))).2
       omega
 
 end Knuth
@@ -416,9 +412,8 @@ theorem isOptimal_optTree (w : ℕ → ℕ → β) (n : ℕ) :
     fun _ ht => optCost_le_treeCost w ht⟩
 
 /-- The cubic dynamic program returns an optimal binary search tree, for every weight. -/
-theorem isOptimal_plainBST (w : ℕ → ℕ → β) (n : ℕ) : (plainBST w n).IsOptimal w n := by
-  rw [plainBST_eq]
-  exact isOptimal_optTree w n
+theorem isOptimal_plainBST (w : ℕ → ℕ → β) (n : ℕ) : (plainBST w n).IsOptimal w n :=
+  plainBST_eq w n ▸ isOptimal_optTree w n
 
 end OrderedBound
 
@@ -431,9 +426,8 @@ variable [AddCommMonoid β] [LinearOrder β] [IsOrderedCancelAddMonoid β]
 /-- Knuth's algorithm returns an optimal binary search tree when the weight satisfies the
 quadrangle inequality and is monotone on intervals. -/
 theorem isOptimal_knuthBST {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w)
-    (hmono : MonotoneOnIntervals w) (n : ℕ) : (knuthBST w n).IsOptimal w n := by
-  rw [knuthBST_eq hqi hmono]
-  exact isOptimal_optTree w n
+    (hmono : MonotoneOnIntervals w) (n : ℕ) : (knuthBST w n).IsOptimal w n :=
+  knuthBST_eq hqi hmono n ▸ isOptimal_optTree w n
 
 /-- **Knuth's theorem** for nonnegative access weights `p` and failure weights `q`: the window
 algorithm returns an optimal binary search tree. -/

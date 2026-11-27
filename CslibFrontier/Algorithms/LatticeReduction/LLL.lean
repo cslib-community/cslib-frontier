@@ -472,8 +472,6 @@ theorem lllLoop_spec {δ : ℚ} (hδ0 : 0 < δ) : ∀ (fuel : ℕ) (B : Vector (
       set B₁ := reduceStep (gramSchmidtRows B) B ⟨k, hk⟩ ⟨k - 1, by omega⟩ with hB₁
       have hG₁ : IsGramSchmidtRows (gramSchmidtRows B) B₁ := hG.of_isSizeStep hstep
       have hli₁ := hstep.linearIndependent hli
-      have hrow₁ : ∀ i : Fin n, i ≠ ⟨k, hk⟩ → rows B₁ i = rows B i := fun i hi =>
-        rows_reduceStep_of_ne _ _ hi
     · -- Case 2: the exchange condition holds; reduce the rest of row `k` and advance.
       obtain ⟨h1, h2, h3, h4⟩ :=
         reduceRow_spec (gramSchmidtRows B) ⟨k, hk⟩ (k - 1) B₁ (by simp only; omega) hG₁ hli₁
@@ -483,7 +481,7 @@ theorem lllLoop_spec {δ : ℚ} (hδ0 : 0 < δ) : ∀ (fuel : ℕ) (B : Vector (
       have hpre' : PrefixReduced (δ : ℝ) (realRows B') k :=
         hpre.congr fun i hi => by
           have hne : i ≠ ⟨k, hk⟩ := Fin.ne_of_lt hi
-          simp only [realRows, Function.comp_apply, h2 i hne, hrow₁ i hne]
+          simp only [realRows, Function.comp_apply, h2 i hne, hB₁, rows_reduceStep_of_ne _ _ hne]
       have hmu : gramSchmidtCoeff ℝ (realRows B') ⟨k, hk⟩ ⟨k - 1, by omega⟩ =
           gramSchmidtCoeff ℝ (realRows B₁) ⟨k, hk⟩ ⟨k - 1, by omega⟩ :=
         h4 _ (by simp only; omega) hk1
@@ -508,7 +506,7 @@ theorem lllLoop_spec {δ : ℚ} (hδ0 : 0 < δ) : ∀ (fuel : ℕ) (B : Vector (
         have hne1 : i ≠ ⟨k - 1, by omega⟩ := Fin.ne_of_lt hi
         have hne2 : i ≠ ⟨k, hk⟩ := Fin.ne_of_lt (Fin.lt_def.2 (by simp only; omega))
         rw [realRows_swapRows, Function.comp_apply, Equiv.swap_apply_of_ne_of_ne hne1 hne2]
-        simp only [realRows, Function.comp_apply, hrow₁ i hne2]
+        simp only [realRows, Function.comp_apply, hB₁, rows_reduceStep_of_ne _ _ hne2]
       · calc potential (realRows (swapRows B₁ ⟨k - 1, by omega⟩ ⟨k, hk⟩))
             < (δ : ℝ) * potential (realRows B₁) := hswap.potential_lt hli₁
           _ = (δ : ℝ) * potential (realRows B) := by rw [hstep.potential_eq]
@@ -546,8 +544,7 @@ def swapBudgetOf (δ : ℚ) (n B : ℕ) : ℕ :=
   swapFactor δ * (Nat.log 2 B + 1) * (n * (n - 1) / 2)
 
 theorem swapFactor_three_div_four : swapFactor (3 / 4) = 3 := by
-  have h : (3 / 4 : ℚ) / (1 - 3 / 4) = ((3 : ℕ) : ℚ) := by norm_num
-  rw [swapFactor, h, Nat.ceil_natCast]
+  norm_num [swapFactor]
 
 theorem swapBudgetOf_three_div_four (n B : ℕ) : swapBudgetOf (3 / 4) n B = swapBudget n B := by
   rw [swapBudgetOf, swapFactor_three_div_four, swapBudget]
@@ -666,8 +663,7 @@ theorem dotProduct_lll_zero_le (B : Vector (Vector ℤ m) (n + 1))
     (hx : x ∈ Submodule.span ℤ (Set.range (rows B))) (hx0 : x ≠ 0) :
     dotProduct (rows (lll B) 0) (rows (lll B) 0) ≤ 2 ^ n * dotProduct x x := by
   have h := dotProduct_lllWith_zero_le (δ := 3 / 4) (by norm_num) (by norm_num) B hB hx hx0
-  have hq : (4 : ℚ) / (4 * (3 / 4) - 1) = 2 := by norm_num
-  rw [← lll_eq_lllWith, hq] at h
+  norm_num [← lll_eq_lllWith] at h
   exact_mod_cast h
 
 /-- A decidable criterion for the hypothesis of `isReduced_lll`: the integer Gram determinant
@@ -675,10 +671,10 @@ is nonzero. -/
 theorem linearIndependent_realRows_iff (B : Vector (Vector ℤ m) n) :
     LinearIndependent ℝ (realRows B) ↔
       (Matrix.of fun i j => dotProduct (rows B i) (rows B j)).det ≠ 0 := by
-  rw [← Matrix.det_gram_ne_zero_iff_linearIndependent (𝕜 := ℝ)]
   have h : Matrix.gram ℝ (realRows B) =
       (Int.castRingHom ℝ).mapMatrix (Matrix.of fun i j => dotProduct (rows B i) (rows B j)) :=
-    Matrix.ext fun i j => inner_realRows B i j
-  rw [h, ← RingHom.map_det, eq_intCast, Int.cast_ne_zero]
+    Matrix.ext (inner_realRows B)
+  rw [← Matrix.det_gram_ne_zero_iff_linearIndependent (𝕜 := ℝ), h, ← RingHom.map_det, eq_intCast,
+    Int.cast_ne_zero]
 
 end Cslib.Algorithms.LatticeReduction

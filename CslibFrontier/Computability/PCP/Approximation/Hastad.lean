@@ -215,13 +215,11 @@ theorem graphLinearCorr_sq_le (g : Graph (β → γ)) {δ : ℝ} (hδ0 : 0 ≤ �
   have hρ0 : 0 ≤ 1 - 2 * δ := by linarith
   have hunsat1 : (g.toGraph projectionEval).unsatVal ≤ 1 :=
     (g.toGraph projectionEval).unsatVal_le_one
-  rcases g.edges.eq_nil_or_concat with hnil | ⟨l, d, hconcat⟩
-  · have hempty : IsEmpty (Fin g.edges.length) := by simp [hnil]
-    rw [show graphLinearCorr g δ B A = 0 by simp [graphLinearCorr], sq, mul_zero]
-    positivity
-  · have hm_pos : (0 : ℝ) < g.edges.length := by
-      rw [hconcat, List.length_concat]
-      positivity
+  rcases eq_or_ne g.edges [] with hnil | hne
+  · have : IsEmpty (Fin g.edges.length) := by simp [hnil]
+    have h0 : graphLinearCorr g δ B A = 0 := by simp [graphLinearCorr]
+    rw [h0, sq, mul_zero]; positivity
+  · have hm_pos : (0 : ℝ) < g.edges.length := Nat.cast_pos.2 (List.length_pos_of_ne_nil hne)
     refine (sq_expect_le_expect_sq univ _).trans ?_
     rw [Fintype.expect_eq_sum_div_card, Fintype.card_fin, div_le_iff₀ hm_pos]
     calc (∑ i : Fin g.edges.length,
@@ -257,13 +255,12 @@ private theorem graphLinearCorr_le_of_unsatVal (g : Graph (β → γ)) {δ : ℝ
     (hparam : (1 - 2 * δ) ^ (2 * k) + (k : ℝ) ^ 2 * η ≤ (8 * ε) ^ 2)
     {B : ℕ → (γ → Bool) → Bool} (hB : ∀ w, IsOdd (B w)) (A : ℕ → (β → Bool) → Bool) :
     graphLinearCorr g δ B A ≤ 8 * ε := by
-  have hsq : graphLinearCorr g δ B A ^ 2 ≤ (8 * ε) ^ 2 := by
-    calc graphLinearCorr g δ B A ^ 2
-      _ ≤ (1 - 2 * δ) ^ (2 * k) + (k : ℝ) ^ 2 * (1 - (g.toGraph projectionEval).unsatVal) :=
-        graphLinearCorr_sq_le g hδ0 hδ1 k hB A
-      _ ≤ (1 - 2 * δ) ^ (2 * k) + (k : ℝ) ^ 2 * η := by gcongr
-      _ ≤ (8 * ε) ^ 2 := hparam
-  exact (abs_le_of_sq_le_sq' hsq (by positivity)).2
+  refine (abs_le_of_sq_le_sq' ?_ (by positivity)).2
+  calc graphLinearCorr g δ B A ^ 2
+    _ ≤ (1 - 2 * δ) ^ (2 * k) + (k : ℝ) ^ 2 * (1 - (g.toGraph projectionEval).unsatVal) :=
+      graphLinearCorr_sq_le g hδ0 hδ1 k hB A
+    _ ≤ (1 - 2 * δ) ^ (2 * k) + (k : ℝ) ^ 2 * η := by gcongr
+    _ ≤ (8 * ε) ^ 2 := hparam
 
 /-- For every `ε > 0` and `0 < δ < 1 / 2`, there exist a degree cutoff `k : ℕ` and a Label Cover
 soundness threshold `η > 0` such that `(1 - 2 * δ) ^ (2 * k) + k ^ 2 * η ≤ (8 * ε) ^ 2`. -/
@@ -318,8 +315,7 @@ theorem gapLabelCover_dichotomy_lt_one {ε δ : ℝ} (hε : 0 < ε) (hδ0 : 0 < 
     obtain ⟨ℓ, r, hℓr⟩ := (satisfiable_toGraph_projectionEval_iff g).1
       ((g.toGraph projectionEval).unsatVal_eq_zero_iff.1
         (le_antisymm (by linarith) (g.toGraph projectionEval).unsatVal_nonneg))
-    obtain ⟨hfold, hlin⟩ := graphLinearProb_longCode_of_satisfies hg δ hℓr
-    exact ⟨fun w => longCode (r w), fun u => longCode (ℓ u), hfold, hlin⟩
+    exact ⟨_, _, graphLinearProb_longCode_of_satisfies hg δ hℓr⟩
   · simp only [GapLabelCover, PromiseProblem.mem_no_gapMax] at hno
     linarith [graphLinearCorr_le_of_unsatVal g hδ0.le hδ1.le k hε.le hno.1 hparam' hB A,
       graphLinearProb_eq_add_graphLinearCorr hg δ B A]
@@ -336,8 +332,7 @@ theorem gapLabelCover_dichotomy {ε δ : ℝ} (hε : 0 < ε) (hδ0 : 0 < δ) (h�
       (g ∈ (GapLabelCover β γ 1 η).no →
         ∀ (B : ℕ → (γ → Bool) → Bool) (A : ℕ → (β → Bool) → Bool),
           (∀ w, IsOdd (B w)) →
-            graphLinearProb g δ B A ≤ 1 / 2 + 4 * ε) := by
-  obtain ⟨η, hη, _, h⟩ := gapLabelCover_dichotomy_lt_one hε hδ0 hδ1
-  exact ⟨η, hη, h⟩
+            graphLinearProb g δ B A ≤ 1 / 2 + 4 * ε) :=
+  (gapLabelCover_dichotomy_lt_one hε hδ0 hδ1).imp fun _ ⟨hη, _, h⟩ => ⟨hη, h⟩
 
 end Cslib.PCP.Hastad

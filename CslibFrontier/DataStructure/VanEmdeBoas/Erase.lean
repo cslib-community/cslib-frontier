@@ -186,9 +186,8 @@ private theorem valid_node_of_clusterMax {newMin : ℕ} {s' : Tree d}
     (node (some (newMin, clusterMax newMin s' c')) s' c').Valid := by
   refine ⟨?_, hs', hc', ho', hexcl⟩
   rcases hbs : s'.bounds with _ | ⟨sm, sM⟩
-  · have hmax : clusterMax newMin s' c' = newMin := by simp [clusterMax, maximum, hbs]
-    rw [hmax]
-    simp only [Extrema, bounds, contains_node_some]
+  · rw [clusterMax, maximum, hbs]
+    simp only [Option.map_none, Extrema, bounds, contains_node_some]
     refine ⟨le_rfl, hmin_lt, .inl trivial, .inl trivial, ?_⟩
     rintro z (rfl | ⟨k, y, hy, _⟩)
     · exact ⟨le_rfl, le_rfl⟩
@@ -206,8 +205,7 @@ private theorem valid_node_of_clusterMax {newMin : ℕ} {s' : Tree d}
       simpa only [universeSize_succ, Nat.add_zero] using index_lt_index hce.2.1 hse.2.1 (b := 0)
     refine ⟨hgt.le, hM_lt, ⟨newMin, _, rfl, .inl rfl⟩,
       ⟨newMin, _, rfl, .inr ⟨j, cM, hce.2.2.2.1, rfl⟩⟩, fun z hz => ?_⟩
-    simp only [contains_node_some] at hz
-    rcases hz with rfl | ⟨k, y, hy, rfl⟩
+    rcases (contains_node_some ..).mp hz with rfl | ⟨k, y, hy, rfl⟩
     · exact ⟨le_rfl, hgt.le⟩
     · refine ⟨(hexcl k y hy).le, ?_⟩
       have hk_le : k.val ≤ sM :=
@@ -293,15 +291,14 @@ private theorem erase_cluster_branch {s : Tree d} {c : Fin (universeSize d) → 
         node (some (newMin, clusterMax newMin s c')) s c'
     t'.Valid ∧ ∀ y, t'.Contains y ↔ y ≠ x ∧ (node (some (m, M)) s c).Contains y) := by
   dsimp only
-  have finish : ∀ (s' ti : Tree d), s'.Valid → ti.Valid →
-      (∀ y, ti.Contains y ↔ y ≠ low ∧ (c i).Contains y) →
-      (∀ k, s'.Contains k.val ↔ (Function.update c i ti k).bounds.isSome = true) →
+  have finish (s' ti : Tree d) (hsv : s'.Valid) (hti_val : ti.Valid)
+      (hti_set : ∀ y, ti.Contains y ↔ y ≠ low ∧ (c i).Contains y)
+      (ho' : ∀ k, s'.Contains k.val ↔ (Function.update c i ti k).bounds.isSome = true) :
       (node (some (newMin, clusterMax newMin s' (Function.update c i ti))) s'
         (Function.update c i ti)).Valid ∧
       ∀ y, (node (some (newMin, clusterMax newMin s' (Function.update c i ti))) s'
         (Function.update c i ti)).Contains y ↔
         y ≠ x ∧ (node (some (m, M)) s c).Contains y := by
-    intro s' ti hsv hti_val hti_set ho'
     obtain ⟨hcv, hcs⟩ := update_cluster_erase_spec hc hti_val hti_set
     exact ⟨valid_node_of_clusterMax hmin_lt hsv hcv ho' fun k y hy =>
         let ⟨hne, hyc⟩ := (hcs k y).mp hy; hexcl' k y hne hyc,
@@ -359,8 +356,7 @@ private theorem erase_spec {t : Tree d} (ht : t.Valid) (x : ℕ) :
     rcases t with ⟨_ | ⟨m, M⟩⟩
     · exact spec_of_not_contains ht (not_contains_of_bounds_none rfl x)
     · have he := ht.extrema_of_bounds rfl
-      have hMlt : M < 2 := by simpa only [universeSize_zero] using he.2.1
-      have hmM : m ≤ M := he.1
+      have hMlt : M < 2 := he.2.1
       have leaf_valid (a : ℕ) (ha : a < 2) : (leaf (some (a, a))).Valid := by
         simp only [Valid, Extrema, bounds, contains_leaf_some, universeSize_zero]
         exact ⟨le_rfl, ha, .inl trivial, .inl trivial, fun _ _ => by omega⟩
@@ -371,7 +367,8 @@ private theorem erase_spec {t : Tree d} (ht : t.Valid) (x : ℕ) :
             contains_leaf_some, false_iff, not_and]
           omega⟩
       · exact ⟨leaf_valid M hMlt, fun _ => by simp only [contains_leaf_some]; omega⟩
-      · exact ⟨leaf_valid m (hmM.trans_lt hMlt), fun _ => by simp only [contains_leaf_some]; omega⟩
+      · exact ⟨leaf_valid m (he.1.trans_lt hMlt),
+          fun _ => by simp only [contains_leaf_some]; omega⟩
       · exact ⟨ht, fun _ => by simp only [contains_leaf_some]; omega⟩
   | succ d ih =>
     cases t with
@@ -386,8 +383,7 @@ private theorem erase_spec {t : Tree d} (ht : t.Valid) (x : ℕ) :
         · rw [erase, ite_eq_right hout, ite_eq_left heq]
           have hxm : x = m := by omega
           subst M
-          obtain ⟨hv, -, -⟩ := empty_of_bounds_eq ht (m := m) rfl
-          exact ⟨hv, fun y => by
+          exact ⟨(empty_of_bounds_eq ht (m := m) rfl).1, fun y => by
             simp [singleton_contains_of_bounds_eq ht (m := m) rfl y, hxm,
               not_contains_of_bounds_none (t := node none s c) rfl y]⟩
         · have ⟨_, hs, hc, ho, hmin⟩ := ht

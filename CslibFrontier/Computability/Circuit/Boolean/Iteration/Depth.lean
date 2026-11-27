@@ -180,8 +180,6 @@ theorem depth_from_checkpoints (c : Circuit signature n n) (L : ℕ) (hL : 0 < L
         · exact ⟨⟨t, by omega⟩, by omega, decide_eq_true ⟨i, hi.symm, rfl⟩⟩
       obtain ⟨j, -, hj, hchosen⟩ := chooseRecord_spec (flags x)
         (fun j (bit : Fin W) => (corrected j x).getLsbD bit.val) (fun _ => false) (K + 1) hex
-      dsimp only [selected]
-      rw [hchosen, BitString.equivBitVec_getLsbD]
       obtain ⟨i, hi, -⟩ := (decide_eq_true_iff.mp hj : ∃ i, cp i = _ ∧ stored i 0 = true)
       have hrecord : (BitString.equivBitVec fun bit : Fin W => result x j bit.succ) =
           BitVec.ofNat W (transientDepth f (f^[j.val] x)) := by
@@ -190,11 +188,10 @@ theorem depth_from_checkpoints (c : Circuit signature n n) (L : ℕ) (hL : 0 < L
         simp only [result, queries, lookupOr_of_eq stored hcp hi, stored, depthBits,
           Fin.cons_succ, hi]
       have hjμ : j.val ≤ transientDepth f x := by have := j.isLt; omega
-      dsimp only [corrected]
-      rw [hrecord, transientDepth_iterate, ← BitVec.ofNat_add, Nat.sub_add_cancel hjμ]
+      simp only [selected, hchosen, BitString.equivBitVec_getLsbD, corrected, hrecord,
+        transientDepth_iterate, ← BitVec.ofNat_add, Nat.sub_add_cancel hjμ, W, f]
   · simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul,
-      depthCost, K, W] at hs ⊢
-    have hps' : project.size ≤ 40000 * powerBudget n c.size (2 ^ n) L := by simpa using hps
+      depthCost, K, W] at hs hps ⊢
     nlinarith
 
 /-- The depth construction is within `50000` times the fixed-power tradeoff. -/
@@ -206,9 +203,7 @@ private theorem depthCost_le (n s M L : ℕ) (hL : 0 < L) (hLN : L ≤ 2 ^ n) (h
   set P := (n + 1) ^ 3
   have hN : 1 ≤ N := Nat.one_le_two_pow
   have hMN : M ≤ N := hM.trans (Nat.div_le_self _ _)
-  have hd : d ≤ n + 2 := Nat.clog_le_of_le_pow (by
-    have h4 : 2 ^ (n + 2) = 4 * N := by rw [hNdef, pow_add]; ring
-    omega)
+  have hd : d ≤ n + 2 := Nat.clog_le_of_le_pow (by rw [pow_add, ← hNdef]; omega)
   have hn1 : n + 1 ≤ P := Nat.le_self_pow (by decide) _
   have hdict : 48 * ((2 * L + 1) + M + 1) * (d + 1) ^ 2 * (n + (n + 3) + 1) ≤
       6912 * P * (L + N / L + 1) := calc
@@ -217,8 +212,7 @@ private theorem depthCost_le (n s M L : ℕ) (hL : 0 < L) (hLN : L ≤ 2 ^ n) (h
     _ = 6912 * P * (L + N / L + 1) := by simp only [P]; ring
   have hscan : (2 * L + 1) * (26 * n + 42) + 4 * (n + 2) + 2 ≤ 200 * (P * (L + N / L + 1)) := by
     have e1 : (2 * L + 1) * (26 * n + 42) ≤ 3 * L * (42 * P) := by gcongr <;> omega
-    have hLP : L * P ≤ P * (L + N / L + 1) := by nlinarith
-    nlinarith
+    nlinarith [Nat.zero_le (N / L)]
   nlinarith [Nat.zero_le (L * s)]
 
 /-- **Transient depths.** For every `0 < L ≤ 2 ^ n`, some circuit of size at most

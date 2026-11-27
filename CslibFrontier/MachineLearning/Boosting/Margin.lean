@@ -549,9 +549,6 @@ theorem marginCount_normalizedScore_le_prod (S : Fin m → α × Bool)
         mul_neg, mul_comm] at hi
       exact Real.exp_le_exp.mpr (by linarith)
     · simpa only [Nat.cast_zero, zero_mul] using (weight_pos (fun _ _ _ => exp_pos _) i).le
-  have hpot : potential exp (lossSeq S A) T =
-      m * ∏ t ∈ range T, 2 * √((rounds S A t).error S * (1 - (rounds S A t).error S)) :=
-    potential_lossSeq_eq S A hz hε₁
   have hfac : exp (ρ * totalVote S A T) *
       ∏ t ∈ range T, 2 * √((rounds S A t).error S * (1 - (rounds S A t).error S)) =
       ∏ t ∈ range T, 2 * (rounds S A t).error S ^ ((1 - ρ) / 2) *
@@ -571,7 +568,7 @@ theorem marginCount_normalizedScore_le_prod (S : Fin m → α × Bool)
         mul_le_mul_of_nonneg_right hcount (exp_pos _).le
     _ = (exp (ρ * totalVote S A T) *
           ∏ t ∈ range T, 2 * √((rounds S A t).error S * (1 - (rounds S A t).error S))) * m := by
-        rw [hpot]; ring
+        rw [potential_lossSeq_eq S A hz hε₁]; ring
 
 /-- **AdaBoost empirical margin distribution bound, edge form**
 [SchapireFreundBartlettLee1998, Theorem 5]: if every round `t < T` has weighted error at most
@@ -625,11 +622,9 @@ theorem marginCount_normalizedScore_le_pow (S : Fin m → α × Bool)
   calc ∏ t ∈ range T, 2 * (rounds S A t).error S ^ ((1 - ρ) / 2) *
         (1 - (rounds S A t).error S) ^ ((1 + ρ) / 2)
       ≤ ∏ _t ∈ range T, √((1 - 2 * γ) ^ (1 - ρ) * (1 + 2 * γ) ^ (1 + ρ)) :=
-        prod_le_prod₀ (fun t ht => by
-          have he0 : 0 ≤ (rounds S A t).error S := rounds_error_nonneg S A t
-          have he1 : 0 ≤ 1 - (rounds S A t).error S := by linarith [hε t (mem_range.mp ht)]
-          exact mul_nonneg (mul_nonneg zero_le_two (Real.rpow_nonneg he0 _))
-            (Real.rpow_nonneg he1 _)) hterm
+        prod_le_prod₀ (fun t ht => mul_nonneg
+          (mul_nonneg zero_le_two (Real.rpow_nonneg (rounds_error_nonneg S A t) _))
+          (Real.rpow_nonneg (by linarith [hε t (mem_range.mp ht)]) _)) hterm
     _ = (√((1 - 2 * γ) ^ (1 - ρ) * (1 + 2 * γ) ^ (1 + ρ))) ^ T := by
         rw [prod_const, card_range]
 
@@ -680,10 +675,10 @@ theorem adaBoost_generalization_bound_of_edge {α : Type*} [Finite α] (D : PMF 
   refine (Probability.PMF.toOuterMeasure_toReal_mono _ ?_).trans
     (adaBoost_uniform_margin_bound_vc D hm hC hdm hδ)
   rintro S ⟨A, T, γ, ρ, hT, hγ₀, hγ₁, hρ₀, hργ, hmem, hε, hlt⟩
-  have hε_lt : ∀ t < T, (rounds S A t).error S < 1 / 2 := fun t ht => by linarith [hε t ht]
   have hloss := (empiricalMarginLoss_le_count_div hρ₀ (normalizedScore S A T) S).trans
     (marginCount_normalizedScore_le_exp S A hT hγ₀ hγ₁ hρ₀.le hργ hε)
-  refine ⟨A, T, hT, hmem, hε_lt, ρ, ⟨hρ₀, by linarith⟩, ?_⟩
+  refine ⟨A, T, hT, hmem, fun t ht => by linarith [hε t ht],
+    ρ, ⟨hρ₀, le_trans hργ (by linarith)⟩, ?_⟩
   linarith
 
 end TrainingMargin

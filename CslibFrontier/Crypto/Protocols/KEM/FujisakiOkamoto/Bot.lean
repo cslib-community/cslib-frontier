@@ -289,18 +289,16 @@ private theorem eagerBotHandler_coupledH (S : Scheme PK SK M R CT K) (G : M → 
     S.eagerBotHandler G (S.coupledH G Hq Hraw pk sk) pk sk cStar q =
       S.eagerCoupledBotHandler G Hq Hraw pk sk cStar q := by
   cases q with
-  | G m => rfl
-  | H x => rfl
+  | G _ | H _ => rfl
   | decaps c =>
     simp only [eagerBotHandler, eagerCoupledBotHandler, decapsBot_eq, ROQuery.dispatch]
     by_cases hc : c = cStar
     · simp [hc]
-    · simp only [hc, ↓reduceIte]
-      cases hd : decT S.pke G pk sk c with
-      | none => rfl
+    · cases hd : decT S.pke G pk sk c with
+      | none => simp [hc]
       | some m' =>
         have henc : S.pke.encDet pk m' (G m') = c := encT_of_decT_eq_some hd
-        simp [coupledH, henc, dec_of_decT_eq_some hd]
+        simp [hc, coupledH, henc, dec_of_decT_eq_some hd]
 
 /-- **Re-indexing the random oracle `H` of `FO^⊥`**: `eagerCoupledBotGame` and
 `eagerIndCcaBotGame` have the exact same output distribution. -/
@@ -358,8 +356,7 @@ private theorem closeTo_coupledCache_cachedCoupledBotHandler (S : Scheme PK SK M
     S.eval_coupledLazyOracle_map_coupledCache]
   simp only [interpret_coupledProgram]
   cases q with
-  | G m => exact (CloseTo.refl _).mono zero_le
-  | H x => exact (CloseTo.refl _).mono zero_le
+  | G _ | H _ => exact (CloseTo.refl _).mono zero_le
   | decaps c =>
     simp only [ROQuery.dCost, Nat.cast_one, one_mul]
     dsimp only [eagerCoupledBotHandler, ROQuery.dispatch]
@@ -392,8 +389,7 @@ private theorem closeTo_coupledCache_cachedCoupledBotHandler (S : Scheme PK SK M
               hlook, Option.elim_none]
           refine le_of_eq_of_le ?_ ((ENNReal.le_ofReal_iff_toReal_le
             (PMF.toOuterMeasure_ne_top _ _) (by positivity)).mpr (hγ pk sk hpk m' c))
-          rw [← hmap, PMF.toOuterMeasure_map_apply]
-          rfl
+          rw [← hmap, PMF.toOuterMeasure_map_apply]; rfl
 
 /-- Running a decapsulation-bounded program under the handler of `cachedCoupledBotGame` is within
 `d · 2^{-γ}` of completing the three caches into tables `G`, `Hraw` and `Hq` and running it under
@@ -456,24 +452,12 @@ theorem closeTo_cachedCoupledBotGame_eagerCoupledBotGame
     congr 1 with ⟨pk, sk⟩ : 1
     congr 1 with mStar : 1
     congr 1 with rStar : 1
-    set cStar := S.pke.encDet pk mStar rStar
-    have hP (kRand : K) :
-        (ProbComp.eval ((OracleComp.interpret
-          (S.coupledFilterHandler (cachedCoupledBotCheck S.pke pk sk) pk sk cStar)
-          (OracleComp.query (spec := ROResp (M := M) (CT := CT) R K)
-            (ROQuery.H (false, mStar, cStar)) >>= fun k =>
-              A ⟨pk, cStar, if b then kRand else k⟩)).run
-          { gCache := [(mStar, rStar)] })).map Prod.fst =
-        (ProbComp.eval ((S.coupledHashH pk sk (false, mStar, cStar)).run
-          { gCache := [(mStar, rStar)] })).bind (fun z =>
-          (ProbComp.eval ((OracleComp.interpret
-            (S.coupledFilterHandler (cachedCoupledBotCheck S.pke pk sk) pk sk cStar)
-            (A ⟨pk, cStar, if b then kRand else z.1⟩)).run z.2)).bind fun a => PMF.pure a.1) := by
-      rw [OracleComp.run_interpret_bind, OracleComp.run_interpret_query]
-      simp only [pmf_norm]
-      rfl
     rw [PMF.bind_comm]
-    simp only [← hP]
+    congr 1 with kRand : 1
+    symm
+    rw [OracleComp.run_interpret_bind, OracleComp.run_interpret_query]
+    simp only [pmf_norm]
+    rfl
   have hR : S.eagerCoupledBotGame A b =
       (ProbComp.eval S.pke.keyGen).bind fun keys =>
       (ProbComp.eval S.sampleMsg).bind fun mStar =>
@@ -617,9 +601,8 @@ private theorem simBotCheck_ens (S : Scheme PK SK M R CT K) (pk : PK) (mStar : M
   simp only [simBotCheck_eq_true_iff, lookup_ens]
   constructor
   · rintro ⟨m, r, hlook, henc⟩
-    by_cases hm : m = mStar
-    · subst hm
-      simp only [↓reduceIte, Option.some.injEq] at hlook
+    rcases eq_or_ne m mStar with rfl | hm
+    · simp only [↓reduceIte, Option.some.injEq] at hlook
       exact absurd (hlook ▸ henc).symm hc
     · exact ⟨m, r, by simpa only [hm, ↓reduceIte] using hlook, henc⟩
   · rintro ⟨m, r, hlook, henc⟩

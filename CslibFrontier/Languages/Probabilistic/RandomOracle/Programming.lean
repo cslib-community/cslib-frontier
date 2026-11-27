@@ -101,10 +101,9 @@ theorem toOuterMeasure_exists_mem_fst_eq_le {α Query Value : Type*}
     {μ : PMF α} {f : α → Query} {δ : ℝ≥0∞}
     (hμ : ∀ q, (μ.map f) q ≤ δ) (cache : List (Query × Value)) :
     μ.toOuterMeasure {a | ∃ e ∈ cache, e.1 = f a} ≤ cache.length * δ := by
-  have hpoint (q : Query) : μ.toOuterMeasure {a | f a = q} ≤ δ := by
-    rw [show {a : α | f a = q} = f ⁻¹' {q} from rfl, ← PMF.toOuterMeasure_map_apply,
-      PMF.toOuterMeasure_apply_singleton]
-    exact hμ q
+  have hpoint (q : Query) : μ.toOuterMeasure {a | f a = q} ≤ δ :=
+    (PMF.toOuterMeasure_map_apply f μ {q}).symm.trans_le
+      ((PMF.toOuterMeasure_apply_singleton (μ.map f) q).le.trans (hμ q))
   simpa only [Set.ofPred_mem_eq, List.mem_map, List.length_map] using
     (PMF.toOuterMeasure_mem_list_le μ f hpoint (cache.map Prod.fst))
 
@@ -128,8 +127,7 @@ theorem map_comp_apply_le_of_injective {α β Query : Type*} {μ : PMF α}
   · obtain ⟨b, rfl⟩ := hq
     have hpre : emb ⁻¹' {emb b} = {b} := Set.ext fun _ => hemb.eq_iff
     simpa only [hpre, PMF.toOuterMeasure_apply_singleton] using hμ b
-  · rw [show emb ⁻¹' {q} = ∅ from Set.eq_empty_iff_forall_notMem.mpr fun b hb => hq ⟨b, hb⟩]
-    simp
+  · simp [Set.preimage, not_exists.mp hq]
 
 end MinEntropyLookup
 
@@ -668,22 +666,13 @@ theorem closeTo_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two
       (ProbOracleComp.runWith
         (overwriteProgramHandler dist active inactive samplePre point finish) program (cache, log))
       ((q_S * cache.length + q_S * q_H + q_S.choose 2 : ℕ) * δ) := by
-  have hiub := ProbOracleComp.identicalUntilBad_withBadFlag
-    (lazyProgramStep dist active inactive samplePre point finish)
-    (overwriteProgramStep dist active inactive samplePre point finish)
-    (lazyProgramStep_agree_overwriteProgramStep dist active inactive samplePre point finish)
-  have hl := ProbOracleComp.runWith_withBadFlag_map_fst
-    (lazyProgramStep dist active inactive samplePre point finish)
-    (lazyProgramHandler dist active inactive samplePre point finish)
-    (lazyProgramStep_map_fst dist active inactive samplePre point finish)
-    program (cache, log) false
-  have hr := ProbOracleComp.runWith_withBadFlag_map_fst
-    (overwriteProgramStep dist active inactive samplePre point finish)
-    (overwriteProgramHandler dist active inactive samplePre point finish)
-    (overwriteProgramStep_map_fst dist active inactive samplePre point finish)
-    program (cache, log) false
-  rw [← hl, ← hr]
-  refine ((hiub.closeTo_run program ((cache, log), false)).map (Prod.map id Prod.fst)).mono ?_
+  rw [← ProbOracleComp.runWith_withBadFlag_map_fst _ _
+      (lazyProgramStep_map_fst dist active inactive samplePre point finish) _ _ false,
+    ← ProbOracleComp.runWith_withBadFlag_map_fst _ _
+      (overwriteProgramStep_map_fst dist active inactive samplePre point finish) _ _ false]
+  refine (((ProbOracleComp.identicalUntilBad_withBadFlag _ _
+    (lazyProgramStep_agree_overwriteProgramStep dist active inactive samplePre point
+      finish)).closeTo_run program ((cache, log), false)).map (Prod.map id Prod.fst)).mono ?_
   exact ProbOracleComp.toOuterMeasure_bad_choose_two_cost_le
     (Sum.elim (fun _ => 1) (fun _ => 0)) (Sum.elim (fun _ => 0) (fun _ => 1))
     (fun st : (List (Query × Digest) × Log) × Bool => st.1.1.length) δ
@@ -775,12 +764,11 @@ private theorem step_not_nodup_snd_memoize_le {Query Digest : Type} [BEq Query]
   have hnodup := not_not.mp hgood
   cases hlookup : cache.lookup key with
   | some v =>
-    rw [memoize_of_some _ _ _ _ hlookup]
-    simp [PMF.monad_pure_eq_pure, PMF.toOuterMeasure_pure_apply, hnodup]
+    simp [memoize_of_some _ _ _ _ hlookup, PMF.monad_pure_eq_pure, hnodup]
   | none =>
-    rw [memoize_of_none _ _ _ hlookup, show dist >>= (fun y => pure (y, (key, y) :: cache)) =
-        dist.map (fun y => (y, (key, y) :: cache)) from PMF.bind_pure_comp _ dist,
-      PMF.toOuterMeasure_map_apply]
+    have hmap : (dist >>= fun y => pure (y, (key, y) :: cache)) =
+        dist.map fun y => (y, (key, y) :: cache) := PMF.bind_pure_comp _ dist
+    rw [memoize_of_none _ _ _ hlookup, hmap, PMF.toOuterMeasure_map_apply]
     have hsub : (fun y => (y, (key, y) :: cache)) ⁻¹' {x | ¬(x.2.map Prod.snd).Nodup} ⊆
         {y | ∃ e' ∈ cache.map Prod.swap, e'.1 = id y} := fun y hy => by
       obtain ⟨e, he, rfl⟩ := List.mem_map.mp

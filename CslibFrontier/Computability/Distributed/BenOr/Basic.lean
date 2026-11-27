@@ -228,8 +228,7 @@ theorem stage1Proposal_eq_none_iff {P : Type*} [Fintype P] (st : P → ProcState
     (S : Finset P) :
     stage1Proposal st S = none ↔
       ∀ b : Bool, reportCount st S b < majorityThreshold (Fintype.card P) := by
-  rw [Option.eq_none_iff_forall_ne_some]
-  simp only [ne_eq, stage1Proposal_eq_some_iff, not_le]
+  simp only [Option.eq_none_iff_forall_ne_some, ne_eq, stage1Proposal_eq_some_iff, not_le]
 
 /-- **Stage-1 proposal uniqueness:** across the entire network, no two Stage-1 quorums `S₁` and
 `S₂` can produce conflicting `some` proposals from the same state `st`, because two strict
@@ -405,9 +404,8 @@ theorem phaseStep_of_est_eq {P : Type*} [Fintype P] {t : ℕ} {sched : PhaseSche
 theorem IsUnanimous.phaseStep {P : Type*} [Fintype P] {t : ℕ} {sched : PhaseSchedule P}
     {st : P → ProcState} (hu : IsUnanimous st) (ht : 2 * t < Fintype.card P)
     (hv : sched.Valid t) (coins : P → Bool) :
-    IsUnanimous (BenOr.phaseStep t sched coins st) := by
-  obtain ⟨b, hb⟩ := hu
-  exact ⟨b, fun p => (phaseStep_of_est_eq ht hv coins hb p).1⟩
+    IsUnanimous (BenOr.phaseStep t sched coins st) :=
+  hu.imp fun _ hb p => (phaseStep_of_est_eq ht hv coins hb p).1
 
 /-- **Single-phase lock-in:** if process `p` newly decides `b` in Stage 2 of a valid phase (when
 `2 * t < |P|`), then **every** process `q` adopts next estimate `b` in that phase, regardless of
@@ -519,10 +517,9 @@ theorem run_agreement {P : Type*} [Fintype P] {t : ℕ} {sched : ℕ → PhaseSc
     (hd₁ : (run t sched coins inp r₁ p₁).decided = some b₁)
     (hd₂ : (run t sched coins inp r₂ p₂).decided = some b₂) :
     b₁ = b₂ := by
-  have hd₁' := run_decided_stable (Nat.le_max_left r₁ r₂) hd₁
-  have hd₂' := run_decided_stable (Nat.le_max_right r₁ r₂) hd₂
   have hlock := estimateLocked_run ht coins inp (max r₁ r₂) hv
-  exact (hlock p₁ b₁ hd₁' p₁).symm.trans (hlock p₂ b₂ hd₂' p₁)
+  exact (hlock p₁ b₁ (run_decided_stable (Nat.le_max_left r₁ r₂) hd₁) p₁).symm.trans
+    (hlock p₂ b₂ (run_decided_stable (Nat.le_max_right r₁ r₂) hd₂) p₁)
 
 /-- **Input integrity (strong binary validity):** whenever any process decides `b` in any phase,
 at least one process started with initial input `b`. -/
@@ -643,18 +640,13 @@ theorem crashRun_eq_run {P : Type*} [Fintype P] [DecidableEq P] {t : ℕ} {cs : 
     (hv : cs.Valid t) (coins : ℕ → P → Bool) (inp : P → Bool) :
     (∀ p, crashRun t cs coins inp 0 p = run t cs.toSchedule coins inp 0 p) ∧
     ∀ r, ∀ p ∉ cs.crashed2 r,
-      crashRun t cs coins inp (r + 1) p = run t cs.toSchedule coins inp (r + 1) p := by
-  refine ⟨fun _ => rfl, fun r => ?_⟩
-  induction r with
-  | zero =>
-    exact fun p hp2 =>
-      crashStep_eq_phaseStep_toSchedule hp2 (hv.disjoint_q2 0 p hp2) rfl (fun _ _ _ _ => rfl)
-  | succ r ih =>
-    intro p hp2
-    have hpPrev : p ∉ cs.crashed2 r :=
-      fun h => hp2 (hv.crashed1_subset (r + 1) (hv.crashed2_subset r h))
-    exact crashStep_eq_phaseStep_toSchedule hp2 (hv.disjoint_q2 (r + 1) p hp2) (ih p hpPrev)
-      (fun j hj1 k hk => ih k (Finset.disjoint_left.mp (hv.disjoint_q1 r j hj1) hk))
+      crashRun t cs coins inp (r + 1) p = run t cs.toSchedule coins inp (r + 1) p :=
+  ⟨fun _ => rfl, Nat.rec
+    (fun p hp2 => crashStep_eq_phaseStep_toSchedule hp2 (hv.disjoint_q2 0 p hp2)
+      rfl fun _ _ _ _ => rfl)
+    fun r ih p hp2 => crashStep_eq_phaseStep_toSchedule hp2 (hv.disjoint_q2 (r + 1) p hp2)
+      (ih p fun h => hp2 (hv.crashed1_subset (r + 1) (hv.crashed2_subset r h)))
+      fun j hj1 k hk => ih k (Finset.disjoint_left.mp (hv.disjoint_q1 r j hj1) hk)⟩
 
 private lemma crashRun_decided_origin {P : Type*} [Fintype P] [DecidableEq P] {t : ℕ}
     {cs : CrashSchedule P} (hv : cs.Valid t) {coins : ℕ → P → Bool} {inp : P → Bool}

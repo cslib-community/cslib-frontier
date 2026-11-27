@@ -504,14 +504,11 @@ private theorem run_corruptRouter_stripCorruptHandler {n : ℕ}
       (corruptRouter C P).run prog := by
   refine Machine.run_interpret_stripNoop (corruptRouter C P) (stripCorruptHandler C)
     (fun q s => ?_) prog
-  rcases q with ⟨i, x⟩ | ⟨⟨i, x⟩ | q⟩ <;> dsimp only [stripCorruptHandler]
-  · by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte]
-    · simp only [corruptRouter, hi, ↓reduceIte]; rfl
-    · exact Machine.runFrom_query _ _ _
-  · by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte]
-    · exact Machine.runFrom_query _ _ _
-    · simp only [corruptRouter, hi, ↓reduceIte]; rfl
-  · exact Machine.runFrom_query _ _ _
+  rcases q with ⟨i, x⟩ | ⟨⟨i, x⟩ | q⟩ <;> dsimp only [stripCorruptHandler] <;>
+    (try split_ifs with hi) <;> try exact Machine.runFrom_query _ _ _
+  all_goals
+    simp only [corruptRouter, hi, ↓reduceIte]
+    rfl
 
 private theorem handle_corruptRouter_multiSession_inl {m n : ℕ}
     {SubIn SubOut BackQ BackR : Type}
@@ -575,30 +572,20 @@ private theorem eval_run_multiSession_relabel {m n : ℕ}
           (stripCorruptHandler C)) (relabelSessionProg prog) := by
       dsimp only [relabelSessionProg, stripProg]
       erw [OracleComp.interpret_interpret, OracleComp.interpret_interpret]
-      congr 1 with q; rcases q with k | ⟨j, ⟨i, x⟩ | ⟨i, x⟩ | bq⟩
+      congr 1 with (k | ⟨j, q⟩)
       · rfl
-      · dsimp only [sumHandler, stripHandler, relabelSessionHandler]
-        erw [OracleComp.interpret_query]; dsimp only [sumHandler, stripCorruptHandler]
-        by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte]
-        · rfl
-        · erw [OracleComp.interpret_query]; rfl
-      · dsimp only [sumHandler, stripHandler, relabelSessionHandler]
-        erw [OracleComp.interpret_query]; dsimp only [sumHandler, stripCorruptHandler]
-        by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte]
-        · erw [OracleComp.interpret_query]; rfl
-        · rfl
-      · dsimp only [sumHandler, stripHandler, relabelSessionHandler]
-        erw [OracleComp.interpret_query]
-    rw [hcomm]; exact (run_corruptRouter_stripCorruptHandler C _ _).symm
+      · rcases q with ⟨i, x⟩ | ⟨i, x⟩ | bq <;>
+          dsimp only [sumHandler, stripHandler, relabelSessionHandler] <;>
+          erw [OracleComp.interpret_query] <;>
+          dsimp only [sumHandler, stripCorruptHandler] <;>
+          split_ifs <;> rfl
+    rw [hcomm]
+    exact (run_corruptRouter_stripCorruptHandler C _ _).symm
   have hLazy : P₂.run (relabelSessionProg stripProg) = P₁.run stripProg := by
     simp only [Machine.run, Machine.link]
     refine congrArg Machine.closeProgram ?_
-    change (ProbOracleComp.sample (pure (rep fun _ => none)) >>= fun s₂ =>
-        Prod.fst <$> P₂.runFrom (relabelSessionProg stripProg) s₂) =
-      (ProbOracleComp.sample (pure fun _ => none) >>= fun s₁ =>
-        Prod.fst <$> P₁.runFrom stripProg s₁)
-    rw [ProbOracleComp.sample_pure, ProbOracleComp.sample_pure, pure_bind, pure_bind,
-      ← bind_pure_comp, ← bind_pure_comp]
+    erw [ProbOracleComp.sample_pure, ProbOracleComp.sample_pure, pure_bind, pure_bind]
+    rw [← bind_pure_comp, ← bind_pure_comp]
     dsimp only [relabelSessionProg, stripProg]
     rw [OracleComp.interpret_interpret, OracleComp.interpret_sumHandler]
     refine Machine.runFrom_interpret_intertwine P₂ P₁ _ stripHandler
@@ -626,16 +613,12 @@ private theorem eval_run_multiSession_relabel {m n : ℕ}
       exact bind_congr fun ⟨r, s'⟩ => hcont r _ _ rfl
   have hEager : (SSP.parFin M).run stripProg = (SSP.parFin M).run prog := by
     refine Machine.run_interpret_stripNoop (SSP.parFin M) stripHandler (fun ⟨j, q⟩ s => ?_) prog
-    rcases q with ⟨i, x⟩ | ⟨i, x⟩ | bq <;> dsimp only [stripHandler]
-    · by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte]
-      · simp only [SSP.parFin, M, corruptRouter, hi, ↓reduceIte,
-          StateT.run_pure, map_pure, Function.update_eq_self]; rfl
-      · exact Machine.runFrom_query _ _ _
-    · by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte]
-      · exact Machine.runFrom_query _ _ _
-      · simp only [SSP.parFin, M, corruptRouter, hi, ↓reduceIte,
-          StateT.run_pure, map_pure, Function.update_eq_self]; rfl
-    · exact Machine.runFrom_query _ _ _
+    rcases q with ⟨i, x⟩ | ⟨i, x⟩ | bq <;> dsimp only [stripHandler] <;>
+      (try split_ifs with hi) <;> try exact Machine.runFrom_query _ _ _
+    all_goals
+      simp only [SSP.parFin, M, corruptRouter, hi, ↓reduceIte,
+        StateT.run_pure, map_pure, Function.update_eq_self]
+      rfl
   rw [hP₂, hLazy, SSP.run_parFinLazy_eq_parFin, hEager]
 
 private theorem jointDemux_jointMux {m n : ℕ}
@@ -645,20 +628,20 @@ private theorem jointDemux_jointMux {m n : ℕ}
     jointDemux (m := m) (n := n) (In := In) (Out := Out) (NetQ := NetQ) (NetR := NetR)
       (SubIn := SubIn) (SubOut := SubOut) (BackQ := BackQ) (BackR := BackR)
       (jointMux A) = A := by
-  funext κ C; dsimp only [jointDemux, jointMux, mapNetMachine]
+  funext κ C
+  dsimp only [jointDemux, jointMux, mapNetMachine]
   cases hA : A κ C with
   | mk State init handle =>
-    congr 1; funext q s
-    change OracleComp.interpret _ (OracleComp.interpret _ ((handle q).run s)) = (handle q).run s
+    congr 1
+    funext q s
     erw [OracleComp.interpret_interpret]
     refine (congrFun (congrArg OracleComp.interpret ?_) ((handle q).run s)).trans
       (OracleComp.interpret_query_eq_self _)
-    funext r; cases r with
-    | inl k => rfl
-    | inr nq =>
-      dsimp only [sumHandler]; erw [OracleComp.interpret_query]
-      change ProbOracleComp.query (demuxNetQuery (muxNetQuery nq)) = _
-      rw [demuxNetQuery_muxNetQuery]; rfl
+    ext (_ | nq)
+    · rfl
+    · dsimp only [sumHandler]
+      erw [OracleComp.interpret_query]
+      exact congrArg ProbOracleComp.query (demuxNetQuery_muxNetQuery nq)
 
 end DemuxProof
 

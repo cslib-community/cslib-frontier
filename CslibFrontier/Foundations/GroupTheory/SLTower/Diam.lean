@@ -131,24 +131,21 @@ theorem lay_diag (i : Fin h) (hi : i ≠ 0) :
   have hbc : b * c = 0 := Matrix.single_mul_single_of_ne _ _ _ _ hi.symm _
   have hcc : c * c = 0 := Matrix.single_mul_single_of_ne _ _ _ _ hi.symm _
   rw [← hab, ← hba]
-  have e2 : (1 + a) * (1 + b) * ((1 + a) * (1 + b)) = 1 + (b * a + c + a * b) := by
-    have e3 : (1 + a) * (1 + b) * ((1 + a) * (1 + b)) = 1 + ((a + b + a * b) + (a + b + a * b)) +
-        (b * a + b * a * b +
-      a * b) + (a * a + a * a * b + b * b + a * b * a + a * b * a * b + a * (b * b)) := by
-      noncomm_ring
-    rw [e3, two_nsmul_mat, haa, hbb, haba, hbab]
-    simp
+  have e3 : (1 + a) * (1 + b) * ((1 + a) * (1 + b)) = 1 + ((a + b + a * b) + (a + b + a * b)) +
+      (b * a + b * a * b + a * b) +
+      (a * a + a * a * b + b * b + a * b * a + a * b * a * b + a * (b * b)) := by noncomm_ring
   have e4 : (1 + (b * a + c + a * b)) * (1 + c) = 1 + (b * a + a * b) + (c + c) +
       (b * (a * c) + c * c + a * (b * c)) := by noncomm_ring
-  rw [e2, e4, two_nsmul_mat, hac, hcc, hbc]
+  rw [e3, two_nsmul_mat, haa, hbb, haba, hbab]
+  simp only [add_zero, zero_mul, mul_zero]
+  rw [e4, two_nsmul_mat, hac, hcc, hbc]
   simp
 
 theorem PL.diag (h3 : 3 ≤ h) (i : Fin h) : PL h2 n (Matrix.single i i 1 + Matrix.single 0 0 1)
     (5 * bQ h n) := by
   by_cases hi : i = 0
   · subst hi
-    have h11 : (1 + 1 : ZMod 2) = 0 := rfl
-    rw [← Matrix.single_add, h11, Matrix.single_zero]
+    rw [← Matrix.single_add, CharTwo.add_self_eq_zero, Matrix.single_zero]
     exact PL.zero _
   · refine ⟨trace_diag i, ?_⟩
     rw [lay_diag i hi]
@@ -206,8 +203,7 @@ theorem PL.all (h3 : 3 ≤ h) (A : Matrix (Fin h) (Fin h) (ZMod 2)) (hA : A.trac
       · exact PL.diag h3 i
       · obtain ⟨a1, a2⟩ := PL.single (h2 := h2) (n := n) h3 i j hij
         exact ⟨a1, a2.mono (by omega)⟩)
-  rw [sum_layer A hA] at h4
-  simpa using h4
+  simpa only [card_univ, Fintype.card_prod, Fintype.card_fin, sum_layer A hA] using h4
 
 theorem red_tt (k : Fin h) : red (n + 1) (tt (n + 1) k) = tt n k := by
   rw [tt, tt]
@@ -226,13 +222,12 @@ theorem WL.lift (h3 : 3 ≤ h) {N : ℕ} (hN : ∀ g : G h n, WL h2 g N) (g : G 
   obtain ⟨l, h1, h4⟩ := hN (redG g)
   have h5 : redG ((l.map (Cslib.SLTower.gen h2)).prod : G h (n + 1)) = redG g := by
     rw [map_list_prod, List.map_map, ← h4]
-    congr 1
-    exact List.map_congr_left fun k _ => redG_gen k
+    exact congrArg List.prod (List.map_congr_left fun k _ => redG_gen k)
   have h6 : redG (((l.map (Cslib.SLTower.gen h2)).prod : G h (n + 1))⁻¹ * g) = 1 := by
     rw [map_mul, map_inv, h5, inv_mul_cancel]
   obtain ⟨A, hA, h7⟩ := exists_lay h6
   obtain ⟨hA', h8⟩ := PL.all (h2 := h2) (n := n) h3 A hA
   rw [eq_mul_of_inv_mul_eq h7]
-  exact (show WL h2 ((l.map (Cslib.SLTower.gen h2)).prod : G h (n + 1)) N from ⟨l, h1, rfl⟩).mul h8
+  exact WL.mul ⟨l, h1, rfl⟩ h8
 
 end Cslib.SLTower

@@ -200,25 +200,19 @@ theorem forwardDFSCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → List (Fin 
     simp [foldEmpty, ord, topologicalSort, dfs]
   have hlen_ord : ord.length = N := length_topologicalSort_finRange adj
   have hout_ord : outDegreeSum adj ord = csrOffset adj N := by
-    rw [csrOffset_eq_outDegreeSum]
-    unfold outDegreeSum
-    rw [← List.sum_toFinset _ (nodup_topologicalSort List.mem_finRange),
+    rw [csrOffset_eq_outDegreeSum, outDegreeSum, outDegreeSum,
+      ← List.sum_toFinset _ (nodup_topologicalSort List.mem_finRange),
       ← List.sum_toFinset _ (List.nodup_finRange N)]
     congr 1
-    ext v
-    simp [mem_topologicalSort List.mem_finRange v]
-  rw [hfold_eq] at hy_ex hy_ord hy_out
-  rw [hlen_ord, hout_ord] at hy_ex
-  simp only [List.length_finRange, Nat.add_zero] at hy_ex hy_ord hy_out
+    simp [Finset.ext_iff, mem_topologicalSort List.mem_finRange]
+  simp only [hfold_eq, hlen_ord, hout_ord, List.length_finRange, Nat.add_zero]
+    at hy_ex hy_ord hy_out
   refine ⟨y, (hx₁_ex.seq (hprep.seq hy_ex)).mono (by omega), hlen_ord,
     fun idx hidx => ?_, hy_csr, fun a ha => ?_, fun r hr => ?_⟩
-  · rw [hy_ord (N - 1 - idx) (by simp [hlen_ord]; omega)]
-    congr 1
-    rw [List.getElem_reverse]
-    congr 1
+  · rw [hy_ord (N - 1 - idx) (by simp [hlen_ord]; omega), List.getElem_reverse]
+    congr 2
     omega
-  · rw [hlen_ord] at hy_out
-    exact (hy_out a ha).trans (hx₁_out a (by omega))
+  · exact (hy_out a ha).trans (hx₁_out a (by omega))
   · rw [hy_fr r hr]
     wram_simp [x₂, hx₁_fr r hr]
 

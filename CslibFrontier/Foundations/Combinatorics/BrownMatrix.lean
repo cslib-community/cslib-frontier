@@ -135,12 +135,10 @@ private theorem card_circleSet_of_ne_zero (hp : p % 4 = 3) {c : ZMod p} (hc : c 
   rw [← add_sum_erase _ _ (mem_univ 0), card_circleSet_zero hp,
     sum_congr rfl fun d hd => card_circleSet_eq_of_ne_zero (ne_of_mem_erase hd), sum_const,
     smul_eq_mul, card_erase_of_mem (mem_univ _), card_univ, ZMod.card] at hpart
-  have hident : 1 + (p - 1) * (p + 1) = p ^ 2 := by
-    zify [show 1 ≤ p by omega]
-    ring
-  have hp1 : 0 < p - 1 := by omega
   rw [card_circleSet_eq_of_ne_zero hc]
-  exact Nat.eq_of_mul_eq_mul_left hp1 (by omega)
+  obtain ⟨k, rfl⟩ : ∃ k, p = k + 1 + 1 := ⟨p - 2, by omega⟩
+  simp only [Nat.add_sub_cancel] at hpart
+  nlinarith
 
 private theorem card_unitSphere_three (hp : p % 4 = 3) :
     #(univ.filter fun z : Fin 3 → ZMod p => z 0 ^ 2 + z 1 ^ 2 + z 2 ^ 2 = 1) = p * (p - 1) := by
@@ -172,10 +170,9 @@ private theorem card_unitSphere_three (hp : p % 4 = 3) :
   rw [hbij, ← add_sum_erase _ _ (mem_univ 1), ← add_sum_erase _ _ hmem_neg1,
     sum_congr rfl fun z₂ hz₂ => card_circleSet_of_ne_zero hp (hne z₂ hz₂), sum_const, smul_eq_mul,
     card_erase_of_mem hmem_neg1, card_erase_of_mem (mem_univ _), card_univ, ZMod.card,
-    show (1 : ZMod p) - 1 ^ 2 = 0 by ring, show (1 : ZMod p) - (-1) ^ 2 = 0 by ring,
-    card_circleSet_zero hp]
-  zify [show 1 ≤ p - 1 by omega, show 1 ≤ p by omega]
-  ring
+    one_pow, neg_one_sq, sub_self, card_circleSet_zero hp]
+  obtain ⟨k, rfl⟩ : ∃ k, p = k + 1 + 1 := ⟨p - 2, by omega⟩
+  simp only [Nat.add_sub_cancel]; ring
 
 /-- Every row of `brownMatrix p` (`p` prime, `p ≡ 3 (mod 4)`) has exact weight `p * (p - 1)`
 ([Brown1966], §2, p. 282). -/
@@ -221,9 +218,9 @@ private theorem cross3_cross3 (u v w : Fin 3 → ZMod p) :
     cross3 (cross3 u v) w = dot3 u w • v - dot3 v w • u := by
   ext i
   fin_cases i <;>
-    · simp only [Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk, cross3, dot3, Pi.sub_apply,
-        Pi.smul_apply, smul_eq_mul, Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
-      ring
+    simp only [Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk, cross3, dot3, Pi.sub_apply,
+      Pi.smul_apply, smul_eq_mul, Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val] <;>
+    ring
 
 private theorem collinear_of_cross3_eq_zero {v w : Fin 3 → ZMod p} (hv : v ≠ 0)
     (hc : cross3 v w = 0) : ∃ t : ZMod p, w = t • v := by
@@ -252,8 +249,7 @@ private theorem no_three_collinear_on_unit_sphere (hp : p % 4 = 3)
     False := by
   have hexpand (s : ZMod p) :
       normSq3 (u + s • w) - normSq3 u = s * (2 * dot3 u w + s * normSq3 w) := by
-    simp only [normSq3, dot3, Pi.add_apply, Pi.smul_apply, smul_eq_mul]
-    ring
+    simp only [normSq3, dot3, Pi.add_apply, Pi.smul_apply, smul_eq_mul]; ring
   have heq {s : ZMod p} (hs : s ≠ 0) (h : normSq3 (u + s • w) = 1) :
       2 * dot3 u w + s * normSq3 w = 0 :=
     (mul_eq_zero.mp (by rw [← hexpand s, h, h0, sub_self])).resolve_left hs
@@ -294,19 +290,15 @@ theorem isRectangleFreeMatrix_brownMatrix (hp : p % 4 = 3) :
   set c₁ := b₁ - b₀
   set c₂ := b₂ - b₀
   have hr₁ : r₁ ≠ 0 := sub_ne_zero.mpr ha₀₁.symm
-  have hr₂ : r₂ ≠ 0 := sub_ne_zero.mpr ha₀₂.symm
-  have hr₁₂ : r₁ ≠ r₂ := fun h => ha₁₂ (sub_left_injective h)
-  have hc₁ : c₁ ≠ 0 := sub_ne_zero.mpr hb₀₁.symm
-  have hc₂ : c₂ ≠ 0 := sub_ne_zero.mpr hb₀₂.symm
-  have hc₁₂ : c₁ ≠ c₂ := fun h => hb₁₂ (sub_left_injective h)
   by_cases hcross : cross3 r₁ r₂ = 0
   · obtain ⟨t, ht⟩ := collinear_of_cross3_eq_zero hr₁ hcross
-    have ht0 : t ≠ 0 := fun h => hr₂ (by simp [ht, h])
-    have ht1 : (1 : ZMod p) ≠ t := fun h => hr₁₂ (by simp [ht, ← h])
-    refine no_three_collinear_on_unit_sphere hp hr₁ one_ne_zero ht0 ht1
-      (hdist ha₀ hb₀) ?_ ?_
-    · simpa only [one_smul, r₁, sub_add_sub_cancel'] using hdist ha₁ hb₀
-    · simpa only [← ht, r₂, sub_add_sub_cancel'] using hdist ha₂ hb₀
+    exact no_three_collinear_on_unit_sphere hp hr₁ one_ne_zero
+      (fun (h : t = 0) => sub_ne_zero.mpr ha₀₂.symm (ht.trans (by simp [h])))
+      (fun (h : (1 : ZMod p) = t) =>
+        ha₁₂ (sub_left_injective (ht.trans (by rw [← h, one_smul])).symm))
+      (hdist ha₀ hb₀)
+      (by simpa only [one_smul, r₁, sub_add_sub_cancel'] using hdist ha₁ hb₀)
+      (by simpa only [← ht, r₂, sub_add_sub_cancel'] using hdist ha₂ hb₀)
   · set n := cross3 r₁ r₂
     have hnc {b : Fin 3 → ZMod p} (hb : b ∈ ({b₀, b₁, b₂} : Finset _)) :
         cross3 n (b - b₀) = 0 := by
@@ -317,13 +309,13 @@ theorem isRectangleFreeMatrix_brownMatrix (hp : p % 4 = 3) :
           (hdist ha₂ hb₀) (hdist ha₂ hb), zero_smul, zero_smul, sub_zero]
     obtain ⟨s₁, hs₁⟩ := collinear_of_cross3_eq_zero (w := c₁) hcross (hnc hb₁)
     obtain ⟨s₂, hs₂⟩ := collinear_of_cross3_eq_zero (w := c₂) hcross (hnc hb₂)
-    have hs₁0 : s₁ ≠ 0 := fun h => hc₁ (by simp [hs₁, h])
-    have hs₂0 : s₂ ≠ 0 := fun h => hc₂ (by simp [hs₂, h])
-    have hs₁₂ : s₁ ≠ s₂ := fun h => hc₁₂ (by rw [hs₁, hs₂, h])
-    refine no_three_collinear_on_unit_sphere hp hcross hs₁0 hs₂0 hs₁₂
-      (hdist_symm ha₀ hb₀) ?_ ?_
-    · simpa only [← hs₁, c₁, sub_add_sub_cancel'] using hdist_symm ha₀ hb₁
-    · simpa only [← hs₂, c₂, sub_add_sub_cancel'] using hdist_symm ha₀ hb₂
+    exact no_three_collinear_on_unit_sphere hp hcross
+      (fun (h : s₁ = 0) => sub_ne_zero.mpr hb₀₁.symm (hs₁.trans (by simp [h])))
+      (fun (h : s₂ = 0) => sub_ne_zero.mpr hb₀₂.symm (hs₂.trans (by simp [h])))
+      (fun (h : s₁ = s₂) => hb₁₂ (sub_left_injective (by rw [hs₁, hs₂, h] : c₁ = c₂)))
+      (hdist_symm ha₀ hb₀)
+      (by simpa only [← hs₁, c₁, sub_add_sub_cancel'] using hdist_symm ha₀ hb₁)
+      (by simpa only [← hs₂, c₂, sub_add_sub_cancel'] using hdist_symm ha₀ hb₂)
 
 end PrimeThreeModFour
 

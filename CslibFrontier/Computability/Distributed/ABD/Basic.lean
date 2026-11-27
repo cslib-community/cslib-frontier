@@ -695,9 +695,9 @@ theorem deliverHistory_entry_preserves {P V : Type*} (hist : List (OpRecord P V)
           obtain ⟨_, rfl⟩ := List.getElem?_eq_some_iff.mp hrec
           obtain rfl : pend.opId = i := by_contra fun hip =>
             h (by simp only [deliverHistory, hm, hrec, List.getElem_set_ne hip])
-          simp only [deliverHistory, hm, hrec, List.getElem_set_self, true_and]
-          exact fun r hr =>
-            Or.inr (Option.some.inj ((respStep?_of_matchCompletion hm).symm.trans hr)).symm
+          simp only [deliverHistory, hm, hrec, List.getElem_set_self,
+            respStep?_of_matchCompletion hm, Option.some.injEq, true_and]
+          exact fun _ hr => Or.inr hr.symm
 
 private lemma getElem?_deliverHistory_of_ne {P V : Type*} (hist : List (OpRecord P V))
     (resp : Option (OpResp V)) (step : ℕ) (pend? : Option (PendingOp V)) {i : ℕ}
@@ -883,7 +883,7 @@ theorem tr_history_completed_stable {s s' : State P S M V} {a : Action P M V}
         cases heq
         exact Bool.noConfusion (hppend ▸ hcomp)
   | stutter =>
-    obtain rfl := htr
+    cases htr
     rfl
 
 /-- An in-flight envelope `e` stays in `msgs` across any transition other than `.deliver e`. -/
@@ -1014,10 +1014,7 @@ theorem exists_fair_omegaExecution (F : Finset P) (s₀ : State P S M V) :
       ∀ k, IsDrainAction F (xs k) := by
   let ts : ωSequence (State P S M V) := ωSequence.mk fun k => (π.drainSeq F s₀ k).2
   let xls : ωSequence (List (Action P M V)) := (ωSequence.mk fun k => (π.drainSeq F s₀ k).1).tail
-  have hseg : ∀ k, π.lts.MTr (ts k) (xls k) (ts (k + 1)) ∧ 0 < (xls k).length ∧
-      (∀ a ∈ xls k, IsDrainAction F a) ∧
-      (∀ e ∈ (ts k).msgs, e.dest ∉ F → .deliver e ∈ xls k) := fun k => by
-    simpa [ts, xls, drainSeq] using π.drainPhase_spec F (π.drainSeq F s₀ k).2
+  have hseg (k : ℕ) := π.drainPhase_spec F (ts k)
   have hpos : ∀ k, 0 < (xls k).length := fun k => (hseg k).2.1
   have : Inhabited (Action P M V) := ⟨.stutter⟩
   obtain ⟨ss, hexec, hts⟩ := LTS.OmegaExecution.flatten_mTr (fun k => (hseg k).1) hpos
@@ -1049,17 +1046,16 @@ theorem Reachable.exists_admissibleRun [Fintype P] {π : Protocol P S M V}
     · by_cases hdel : .deliver e ∈ (xl ++ω xs').extract k xl.length
       · obtain ⟨i, hi, hget⟩ := List.getElem_of_mem hdel
         have hi' : i < xl.length - k := by simpa [ωSequence.length_extract] using hi
-        refine ⟨k + i, Nat.le_add_right k i, ?_⟩
-        rw [← (xl ++ω xs').get_extract hi', hget]
-      · have he_end : e ∈ (ss xl.length).msgs :=
-          π.mTr_notDelivered_mem (hω.extract_mTr hkl) he hdel
-        obtain ⟨j, _, hj⟩ := hfair e hdest 0 (by rw [← hdrop, get_drop, add_zero]; exact he_end)
-        refine ⟨xl.length + j, hkl.trans (Nat.le_add_right _ _), ?_⟩
-        simpa [get_append_right] using hj
-    · obtain ⟨j, _, hj⟩ := hfair e hdest (k - xl.length)
+        exact ⟨k + i, Nat.le_add_right k i, ((xl ++ω xs').get_extract hi').symm.trans hget⟩
+      · have he_end : e ∈ (ss' 0).msgs := by
+          simpa only [← hdrop, get_drop, add_zero] using
+            π.mTr_notDelivered_mem (hω.extract_mTr hkl) he hdel
+        obtain ⟨j, hj0, hj⟩ := hfair e hdest 0 he_end
+        exact ⟨xl.length + j, hkl.trans (Nat.le_add_right _ _),
+          (get_append_right j xl xs').trans hj⟩
+    · obtain ⟨j, hj0, hj⟩ := hfair e hdest (k - xl.length)
         (by simpa [← hdrop, get_drop, Nat.add_sub_cancel' (Nat.le_of_not_le hkl)] using he)
-      refine ⟨xl.length + j, by omega, ?_⟩
-      simpa [get_append_right] using hj
+      exact ⟨xl.length + j, by omega, (get_append_right j xl xs').trans hj⟩
   · obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hle
     simpa [get_append_right] using hdrain d
 

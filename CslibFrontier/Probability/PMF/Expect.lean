@@ -37,6 +37,8 @@ into the vocabulary of `Finset.expect` (`𝔼`) and `Finset.dens`.
 * `Cslib.Probability.PMF.toReal_uniformOfFintype_bind_apply`: a uniform first stage averages the
   second stages.
 * `Cslib.Probability.PMF.toReal_uniformOfFintype_map_apply`: output probabilities are densities.
+* `Cslib.Probability.PMF.sum_uniformOfFintype_map_mul`: an expectation under the image of a
+  uniform sample is an average.
 * `Cslib.Probability.PMF.toReal_uniformOfFintype_map_apply_true`: the probability that a Boolean
   function of a uniform sample is `true` is a density.
 -/
@@ -204,6 +206,13 @@ theorem toReal_uniformOfFintype_map_apply [DecidableEq β] (f : α → β) (b : 
     split_ifs <;> rfl
   simp only [h]
   exact Fintype.expect_boole _
+
+/-- The expectation of `F` under the image of a uniform sample by `g` is the average of `F ∘ g`. -/
+theorem sum_uniformOfFintype_map_mul [Fintype β] (g : α → β) (F : β → ℝ) :
+    ∑ b, ((uniformOfFintype α).map g b).toReal * F b = 𝔼 a, F (g a) := by
+  rw [sum_map_mul]
+  simp only [uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
+    Fintype.expect_eq_sum_div_card, inv_mul_eq_div, sum_div]
 
 /-- A Boolean function `g` of a uniform sample is `true` with probability the density of the set
 where `g` is `true`. -/

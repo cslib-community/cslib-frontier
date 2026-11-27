@@ -269,10 +269,8 @@ theorem ComputesMonotoneShift.injective_and_isAntichain {n q m : ℕ}
   fun k i => decide (i = k)
 
 private theorem eq_of_oneHotShiftAntichain_le {n : ℕ} {k₁ k₂ : Fin n}
-    (h : oneHotShiftAntichain n k₁ ≤ oneHotShiftAntichain n k₂) : k₁ = k₂ := by
-  have hk := h k₁
-  simp only [oneHotShiftAntichain, decide_true] at hk
-  exact of_decide_eq_true (Bool.eq_true_of_true_le hk)
+    (h : oneHotShiftAntichain n k₁ ≤ oneHotShiftAntichain n k₂) : k₁ = k₂ :=
+  of_decide_eq_true (Bool.eq_true_of_true_le (by simpa [oneHotShiftAntichain] using h k₁))
 
 /-- `oneHotShiftAntichain n` is injective. -/
 theorem injective_oneHotShiftAntichain (n : ℕ) :
@@ -356,9 +354,7 @@ private theorem shiftByNat_coe {n q : ℕ} (X : Fin (n * q) → Bool) (k : Fin n
   funext idx
   obtain ⟨⟨j, b⟩, rfl⟩ := finProdFinEquiv.surjective idx
   let : NeZero n := ⟨k.pos.ne'⟩
-  have hk : Fin.ofNat n k.val = k := Fin.ext (Nat.mod_eq_of_lt k.isLt)
-  simp only [shiftByNat, Equiv.symm_apply_apply, cyclicShiftVec, permuteVec_finProdFinEquiv, hk]
-  rfl
+  simp [shiftByNat, cyclicShiftVec, cyclicShiftPerm]
 
 /-- Three-gate monotone multiplexer `(v 0 && v 1) || (v 2 && v 3)` implementing Sergeev's
 `Y^{i,1} a ∨ Y^{i,0} b` ([Sergeev2020MonotoneShift], pp. 3–4). -/
@@ -402,11 +398,9 @@ private theorem jShift_eq_sub_ofNat {n i : ℕ} (j : Fin n) :
     letI : NeZero n := ⟨j.pos.ne'⟩
     (⟨(j.val + n - (2 ^ i) % n) % n, Nat.mod_lt _ j.pos⟩ : Fin n) = j - Fin.ofNat n (2 ^ i) := by
   let : NeZero n := ⟨j.pos.ne'⟩
-  ext
-  simp only [Fin.sub_def, Fin.ofNat]
-  have hlt : 2 ^ i % n < n := Nat.mod_lt _ j.pos
-  congr 1
-  omega
+  have := Nat.mod_lt (2 ^ i) j.pos
+  simp only [Fin.ext_iff, Fin.sub_def, Fin.ofNat]
+  exact congrArg (· % n) (by omega)
 
 private theorem eval_barrelStage (n q L i : ℕ) (hi : i < L)
     (X : Fin (n * q) → Bool) (R : Fin (2 * L) → Bool) (bit : Bool)
@@ -636,11 +630,7 @@ theorem computesMonotoneShift_oneHotShiftCircuit (n q : ℕ) :
   refine computesMonotoneShift_monotoneShiftCircuit (injective_oneHotShiftAntichain n)
     (isAntichain_range_oneHotShiftAntichain n) fun Y => funext fun r => ?_
   change Y r = decide (oneHotShiftAntichain n r ≤ Y)
-  apply Bool.eq_iff_iff.mpr
-  simp only [decide_eq_true_eq]
-  refine ⟨fun hYr i => ?_, fun hle => ?_⟩
-  · by_cases hir : i = r <;> simp [oneHotShiftAntichain, hir, hYr]
-  · exact Bool.eq_true_of_true_le (by simpa [oneHotShiftAntichain] using hle r)
+  simp [Pi.le_def, oneHotShiftAntichain, Bool.le_iff_imp]
 
 /-- `oneHotShiftCircuit n q` uses at most `4 * q * n * Nat.clog 2 n` binary monotone gates
 ([Sergeev2020MonotoneShift], p. 3). -/
@@ -696,8 +686,7 @@ theorem eq_proj_or_eq_proj_of_or {N : ℕ} {f g : (Fin N → Bool) → Bool} {i 
     · exact hfalse x hxi
     · have hle : ei ≤ x := fun r => by by_cases hri : r = i <;> simp [ei, hri, hxi]
       exact Bool.eq_true_of_true_le (htrue ▸ hh hle)
-  have hei : (f ei || g ei) = true := by simpa [ei] using hor ei
-  rcases Bool.or_eq_true_iff.mp hei with hfi | hgi
+  rcases Bool.or_eq_true_iff.mp (by simpa [ei] using hor ei) with hfi | hgi
   · exact Or.inl (one_side hf (fun x hxi => (Bool.or_eq_false_iff.mp (hxi ▸ hor x)).1) hfi)
   · exact Or.inr (one_side hg (fun x hxi => (Bool.or_eq_false_iff.mp (hxi ▸ hor x)).2) hgi)
 
@@ -715,8 +704,7 @@ theorem eq_proj_or_eq_proj_of_and {N : ℕ} {f g : (Fin N → Bool) → Bool} {i
     · have hle : x ≤ ci := fun r => by by_cases hri : r = i <;> simp [ci, hri, hxi]
       exact Bool.eq_false_of_le_false (hfalse ▸ hh hle)
     · exact htrue x hxi
-  have hci : (f ci && g ci) = false := by simpa [ci] using hand ci
-  rcases Bool.and_eq_false_iff.mp hci with hfi | hgi
+  rcases Bool.and_eq_false_iff.mp (by simpa [ci] using hand ci) with hfi | hgi
   · exact Or.inl (one_side hf (fun x hxi => (Bool.and_eq_true_iff.mp ((hand x).trans hxi)).1) hfi)
   · exact Or.inr (one_side hg (fun x hxi => (Bool.and_eq_true_iff.mp ((hand x).trans hxi)).2) hgi)
 
@@ -791,19 +779,13 @@ private theorem exists_projection_path {D m G : ℕ} (p : Program signature (D +
         (∀ j, w = .gate j → ∀ g ∈ S, g ≤ j) ∧
         (∀ v, w = .input v → S = ∅) := by
   refine p.wire_induction (fun v hv => ?_) (fun g ih hg => ?_)
-  · have hv_eq : v = Fin.castAdd m u := by
+  · obtain rfl : Fin.castAdd m u = v := by
       revert hv
       refine Fin.addCases (fun u' hv => ?_) (fun t hv => ?_) v
-      · by_contra hne
-        have hu' : u' ≠ u := fun h => hne (congrArg (Fin.castAdd m) h)
-        have hval := hv (fun r => decide (r = u))
-        simp only [Program.trace, Wire.elim_input, Fin.append_left, decide_true] at hval
-        exact hu' (of_decide_eq_true hval)
-      · have h0 := hv (fun _ => false)
-        have h1 := hv (fun _ => true)
-        simp only [Program.trace, Wire.elim_input, Fin.append_right] at h0 h1
-        exact False.elim (Bool.false_ne_true (h0.symm.trans h1))
-    subst hv_eq
+      · exact congrArg (Fin.castAdd m)
+          (Eq.symm (of_decide_eq_true (by simpa [Program.trace] using hv fun r => decide (r = u))))
+      · simp only [Program.trace, Wire.elim_input, Fin.append_right] at hv
+        exact nomatch (hv fun _ => false).symm.trans (hv fun _ => true)
     refine ⟨∅, by simp [inputsWithin], by simp, (fun _ hj => nomatch hj), fun _ _ => rfl⟩
   · have hmono_arg (a) : Monotone fun X : Fin D → Bool =>
         p.trace interpretation (Fin.append X Y) ((p.lines g).wires a) := fun _ _ hle =>

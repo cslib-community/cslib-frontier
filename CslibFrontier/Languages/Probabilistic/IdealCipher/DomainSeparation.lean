@@ -375,10 +375,8 @@ private lemma game1Step_preserve_isPartialBijection {f : U → V} (q : IdealCiph
     (hmem : (a, st') ∈ (withBadFlag (game1Step f) q st).support)
     (ν : V) : IsPartialBijection (fiberCache f st'.1 ν) := by
   simp only [withBadFlag, PMF.mem_support_map_iff] at hmem
-  obtain ⟨⟨a', u', b'⟩, hmem', heq⟩ := hmem
-  cases heq
-  change IsPartialBijection (fiberCache f u' ν)
-  dsimp only [game1Step] at hmem'
+  obtain ⟨⟨a', u', b'⟩, hmem', rfl, rfl⟩ := hmem
+  dsimp only [game1Step] at hmem' ⊢
   cases hqu : cachedAnswer (st.1 q.1) q.2 with
   | some b =>
     simp only [hqu, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem'
@@ -397,12 +395,11 @@ private lemma game1Step_preserve_isPartialBijection {f : U → V} (q : IdealCiph
       obtain ⟨c, _, hc⟩ := hmem'
       by_cases hcS : c ∈ freshAnswers (fiberCache f st.1 (f q.1)) q.2
       · simp only [hcS, ↓reduceIte, PMF.mem_support_pure_iff, Prod.mk.injEq] at hc
-        rcases hc with ⟨_, rfl, _⟩
+        obtain ⟨-, rfl, -⟩ := hc
         exact isPartialBijection_fiber_update hst hqv hcS ν
-      · simp only [hcS, ↓reduceIte, hv_ne, ↓reduceDIte, PMF.mem_support_map_iff] at hc
-        obtain ⟨c', hc', heq'⟩ := hc
-        rw [PMF.mem_support_uniformOfFinset_iff] at hc'
-        rcases Prod.mk.inj heq' with ⟨_, rfl, _⟩
+      · simp only [hcS, ↓reduceIte, hv_ne, ↓reduceDIte, PMF.mem_support_map_iff,
+          PMF.mem_support_uniformOfFinset_iff, Prod.mk.injEq] at hc
+        obtain ⟨c', hc', -, rfl, -⟩ := hc
         exact isPartialBijection_fiber_update hst hqv hc' ν
 
 private lemma game1Step_simulate {f : U → V} (q : IdealCipher.Query U X)
@@ -417,15 +414,12 @@ private lemma game1Step_simulate {f : U → V} (q : IdealCipher.Query U X)
   dsimp only [game1Step]
   cases hqu : cachedAnswer (st.1 q.1) q.2 with
   | some a =>
-    rw [answer_eq_pure_of_cachedAnswer_eq_some (q := (f q.1, q.2))
-      (cachedAnswer_fiber_of_uCache hst hqu), PMF.pure_bind, PMF.pure_bind]
-    rfl
+    simp [answer_eq_pure_of_cachedAnswer_eq_some (q := (f q.1, q.2))
+      (cachedAnswer_fiber_of_uCache hst hqu)]
   | none =>
     cases hqv : cachedAnswer (fiberCache f st.1 (f q.1)) q.2 with
     | some a =>
-      rw [answer_eq_pure_of_cachedAnswer_eq_some (q := (f q.1, q.2)) hqv, PMF.pure_bind,
-        PMF.pure_bind]
-      rfl
+      simp [answer_eq_pure_of_cachedAnswer_eq_some (q := (f q.1, q.2)) hqv]
     | none =>
       have hv_ne := (hst (f q.1)).freshAnswers_nonempty hqv
       have hu_ne : (freshAnswers (st.1 q.1) q.2).Nonempty :=
@@ -579,33 +573,28 @@ private lemma game2_bad_iff_domainOverlap_inv (f : U → V) (q : IdealCipher.Que
     (∀ μ, IsPartialBijection (st'.1 μ)) ∧
       (FlagBad st' ↔ DomainOverlap f (fun μ => cacheDomains (st'.1 μ))) := by
   simp only [withBadFlag, game2Step, PMF.mem_support_map_iff] at hmem
-  obtain ⟨⟨a₁, u₁, b₁⟩, ⟨⟨a₂, u₂⟩, hans, h2⟩, h1⟩ := hmem
-  cases h2; cases h1
-  have hmem_ans : (a₂, u₂) ∈ (IdealCipher.answer q st.1).support := hans
+  obtain ⟨⟨a₁, u₁, b₁⟩, ⟨⟨a₂, u₂⟩, hmem_ans, rfl, rfl, rfl⟩, rfl, rfl⟩ := hmem
   rcases hst with ⟨hbij, hiff⟩
   refine ⟨IdealCipher.answer_preserve_isPartialBijection q st.1 hbij a₂ u₂ hmem_ans, ?_⟩
   cases hhit : cachedAnswer (st.1 q.1) q.2 with
   | some b₀ =>
-    rw [answer_eq_pure_of_cachedAnswer_eq_some hhit, PMF.mem_support_pure_iff,
+    simp only [answer_eq_pure_of_cachedAnswer_eq_some hhit, PMF.mem_support_pure_iff,
       Prod.mk.injEq] at hmem_ans
     rcases hmem_ans with ⟨rfl, rfl⟩
     simpa [FlagBad] using hiff
   | none =>
     have hne := (hbij q.1).freshAnswers_nonempty hhit
-    rw [answer_eq_map_of_cachedAnswer_eq_none hhit hne, PMF.mem_support_map_iff] at hmem_ans
-    obtain ⟨c, hc_mem, heq⟩ := hmem_ans
-    rw [PMF.mem_support_uniformOfFinset_iff] at hc_mem
-    rcases Prod.mk.inj heq with ⟨rfl, rfl⟩
+    simp only [answer_eq_map_of_cachedAnswer_eq_none hhit hne, PMF.mem_support_map_iff,
+      PMF.mem_support_uniformOfFinset_iff, Prod.mk.injEq] at hmem_ans
+    obtain ⟨c, hc_mem, rfl, rfl⟩ := hmem_ans
     by_cases hprev : st.2 = true
     · have hsub (μ : U) : (cacheDomains (st.1 μ)).1 ⊆ (cacheDomains (Function.update st.1 q.1
             (PermQuery.toCacheEntry ⟨q.2, c⟩ :: st.1 q.1) μ)).1 ∧
           (cacheDomains (st.1 μ)).2 ⊆ (cacheDomains (Function.update st.1 q.1
             (PermQuery.toCacheEntry ⟨q.2, c⟩ :: st.1 q.1) μ)).2 := by
-        by_cases hμ : μ = q.1
-        · rw [hμ, Function.update_self, cacheDomains_cons]
-          exact ⟨Finset.subset_insert _ _, Finset.subset_insert _ _⟩
-        · rw [Function.update_of_ne hμ]
-          exact ⟨subset_rfl, subset_rfl⟩
+        rcases eq_or_ne μ q.1 with rfl | hμ
+        · simp [Function.update_self, cacheDomains_cons, Finset.subset_insert]
+        · simp [Function.update_of_ne hμ]
       obtain ⟨μ₁, μ₂, hne, hf, hov⟩ := hiff.mp hprev
       have hdom_new : DomainOverlap f (fun μ => cacheDomains
           (Function.update st.1 q.1 (PermQuery.toCacheEntry ⟨q.2, c⟩ :: st.1 q.1) μ)) :=

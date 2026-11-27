@@ -87,11 +87,9 @@ theorem IsCut.cutProg {H v τ s P t : ℕ} {G : Tree}
     exact ⟨h1, (Nat.mul_le_mul_right _ h2).trans ht,
       (Nat.mul_le_mul_right _ (hQ q hq).1).trans hP, (hQ q hq).2⟩
   · obtain ⟨Q, hD, hQ, hv⟩ := h z hz
-    refine ⟨fun r hr y hy => ?_, ?_⟩
-    · obtain ⟨-, -, q, hq, h3⟩ := hD.evl.1 r hr
-      exact (hv hp).1 q hq y (h3 ▸ hy)
-    · rw [(hv hp).2, ← hD.evl.2 (pvProd θ)]
-      rfl
+    refine ⟨fun r hr y hy => ?_, (hv hp).2.trans (hD.evl.2 (pvProd θ)).symm⟩
+    obtain ⟨-, -, q, hq, h3⟩ := hD.evl.1 r hr
+    exact (hv hp).1 q hq y (h3 ▸ hy)
 
 /-! ### The pieces of the pieces -/
 
@@ -167,13 +165,11 @@ private theorem cutStep_does {G : Tree} {R : Tree → List (A × Tree)} {x : Tre
       intro q hq
       simp only [List.mem_flatMap, List.map_cons, List.map_nil, List.mem_singleton] at hq
       obtain ⟨q1, hq1, rfl⟩ := hq
-      refine (appF_gives (ca := 2) (cb := 2) (xs := q1.2.toList) ?_ ?_).mono ?_
-      · rw [listT_toList]
-        exact (Gives.id _).hd
-      · rw [listT_toList]
-        exact (Gives.id _).tl
-      · have := hP q1 hq1
-        omega)
+      refine (appF_gives (ca := 2) (cb := 2) (xs := q1.2.toList)
+        ((listT_toList _).symm ▸ (Gives.id _).hd)
+        ((listT_toList _).symm ▸ (Gives.id _).tl)).mono ?_
+      have := hP q1 hq1
+      omega)
   refine (e2.congr ?_ fun φ => ?_).mono (by omega)
   · intro q hq
     simp only [List.mem_map, List.mem_flatMap, List.map_cons, List.map_nil,
@@ -216,11 +212,9 @@ theorem IsCut.comp {τ s τ₁ s₁ P₁ t₁ τ₂ s₂ P₂ t₂ : ℕ} {G₁ 
     obtain ⟨q, hq, r, hr, h1, -⟩ := mem_bindW hp
     obtain ⟨h2, h3⟩ := mem_foldW_cutStepW (P := P₂)
       (fun x hx q' hq' => ((hR x (hs₁ q hq x hx)).2.1 q' hq').1) hr
-    refine ⟨q, hq, ?_, fun y hy => (h3 y (h1 ▸ hy)).resolve_left (by simp [toList])⟩
-    have := Nat.mul_le_mul_right P₂ (hQ₁ q hq).1
-    simp only [toList, List.length_nil, zero_add] at h2
-    rw [h1]
-    omega
+    refine ⟨q, hq, h1 ▸ (Nat.mul_le_mul_right P₂ (hQ₁ q hq).1).trans'
+      (by simpa [toList] using h2),
+      fun y hy => (h3 y (h1 ▸ hy)).resolve_left (by simp [toList])⟩
   refine ⟨bindW Q₁ fun o => foldW (cutStepW R) o.toList .nil, ?_, fun p hp => ?_,
     fun hp => ⟨fun p hp' y hy => ?_, ?_⟩⟩
   · rw [Fm.ofTree_code]

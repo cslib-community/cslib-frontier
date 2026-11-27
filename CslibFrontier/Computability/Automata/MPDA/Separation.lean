@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Computability.Automata.MPDA.Underapprox
 public import Mathlib.Computability.Language
-import CslibFrontier.Computability.Automata.MPDA.OneHole
 import CslibFrontier.Foundations.Data.List.Extract
 import CslibFrontier.Foundations.Data.List.Flatten
 
@@ -128,40 +127,41 @@ private theorem wellNested_of_replicate {c c' : Config 2 State Γ} {v : List (Le
     (h : M.configLTS.MTr c v c') (hv : ∀ μ ∈ v, μ.2.kind = kind μ.1) {x y : Letter} {i : Fin 2}
     (hx : kind x = .push i) (hy : kind y = .pop i) {p : ℕ}
     (hvp : v.map Prod.fst = List.replicate p x ++ List.replicate p y) : WellNested v := by
-  refine wellNested_of_not_crossing h (fun j => ⟨?_, fun k => ?_⟩) ?_
+  have hctx : IsContextOf i v := by
+    intro μ hμ
+    right
+    rw [Op.stack_eq_kind_stack, hv μ hμ]
+    have hmem := hvp ▸ List.mem_map_of_mem (f := Prod.fst) hμ
+    simp only [List.mem_append, List.mem_replicate] at hmem
+    rcases hmem with ⟨-, rfl⟩ | ⟨-, rfl⟩ <;> simp [hx, hy, OpKind.stack]
+  refine hctx.wellNested h ?_ fun k => ?_
   · rw [net_eq_of_kind hv, hvp]
-    simp only [List.map_append, List.map_replicate, List.sum_append, List.sum_replicate, hx, hy,
-      OpKind.net]
-    split_ifs <;> simp
+    simp [hx, hy, OpKind.net]
   · rw [net_eq_of_kind (fun μ hμ => hv μ (List.mem_of_mem_take hμ)), List.map_take, hvp]
-    simp only [List.take_append, List.take_replicate, List.map_append, List.map_replicate,
-      List.sum_append, List.sum_replicate, List.length_replicate, hx, hy, OpKind.net]
-    split_ifs <;> simp
-  · rintro ⟨i₁, i₂, p₁, p₂, z, hne, -, -, ⟨a₁, γ₁, h₁⟩, ⟨a₂, γ₂, h₂⟩, -⟩
-    have hstack {i' : Fin 2} {t : ℕ} {l : Letter} {γ : Γ}
-        (ht : v[t]? = some (l, Op.push i' γ)) : i' = i := by
-      have hk := hv _ (List.mem_of_getElem? ht)
-      have hmem := hvp ▸ List.mem_map.mpr ⟨_, List.mem_of_getElem? ht, rfl⟩
-      simp only [List.mem_append, List.mem_replicate] at hmem
-      rcases hmem with ⟨-, rfl⟩ | ⟨-, rfl⟩
-      · simpa [hx, Op.kind, eq_comm] using hk
-      · simp [hy, Op.kind] at hk
-    exact hne ((hstack h₁).trans (hstack h₂).symm)
+    simp [List.take_append, hx, hy, OpKind.net]
 
-/-- In a run, a push inside a factor reading `xᵖ yᵖ`, where `x` pushes on stack `i` and `y` pops
-from it, is closed by a well-nested continuation. -/
+/-- Every push in a factor reading `xᵖ yᵖ⁺¹` is matched within the balanced prefix `xᵖ yᵖ`
+when `x` pushes and `y` pops on the same stack. -/
 private theorem wellMatched_of_replicate {c c' : Config 2 State Γ}
-    {u v u' : List (Letter × Op 2 Γ)} (h : M.configLTS.MTr c (u ++ v ++ u') c')
-    (hv : ∀ μ ∈ u ++ v ++ u', μ.2.kind = kind μ.1) {x y : Letter} {i : Fin 2}
+    {u v w u' : List (Letter × Op 2 Γ)} (h : M.configLTS.MTr c (u ++ v ++ w ++ u') c')
+    (hv : ∀ μ ∈ u ++ v ++ w ++ u', μ.2.kind = kind μ.1) {x y : Letter} {i : Fin 2}
     (hx : kind x = .push i) (hy : kind y = .pop i) {p : ℕ}
-    (hvp : v.map Prod.fst = List.replicate p x ++ List.replicate p y) {k : ℕ} (hk : k < p) :
-    WellMatched (u ++ v ++ u') (u.length + k) := by
-  obtain ⟨c₁, -, h₁⟩ := LTS.MTr.split (List.append_assoc u v u' ▸ h)
+    (hvp : v.map Prod.fst = List.replicate p x)
+    (hwp : w.map Prod.fst = List.replicate (p + 1) y) {k : ℕ} (hk : k < p) :
+    WellMatched (u ++ v ++ w ++ u') (u.length + k) := by
+  have hsplit : u ++ (v ++ w.take p) ++ (w.drop p ++ u') = u ++ v ++ w ++ u' := by
+    conv_rhs => rw [← List.take_append_drop p w]
+    simp only [List.append_assoc]
+  rw [← hsplit] at h hv ⊢
+  obtain ⟨c₁, -, h₁⟩ := LTS.MTr.split (List.append_assoc _ _ _ ▸ h)
   obtain ⟨c₂, hrun, -⟩ := LTS.MTr.split h₁
-  have hv' : ∀ μ ∈ v, μ.2.kind = kind μ.1 := fun μ hμ => hv μ (by simp [hμ])
-  refine WellMatched.append ((wellNested_of_replicate hrun hv' hx hy hvp).exists_wellMatched
-    (isPushOn_of_letter hv' ?_ hx)) u u'
-  rw [hvp, List.getElem?_append_left (by simpa using hk), List.getElem?_replicate_of_lt hk]
+  have hv' : ∀ μ ∈ v ++ w.take p, μ.2.kind = kind μ.1 := fun μ hμ =>
+    hv μ (List.mem_append_left _ (List.mem_append_right _ hμ))
+  have hbalanced : (v ++ w.take p).map Prod.fst = List.replicate p x ++ List.replicate p y := by
+    rw [List.map_append, hvp, List.map_take, hwp, List.take_replicate, min_eq_left (Nat.le_succ p)]
+  refine WellMatched.append ((wellNested_of_replicate hrun hv' hx hy hbalanced).exists_wellMatched
+    (isPushOn_of_letter hv' ?_ hx)) u _
+  rw [hbalanced, List.getElem?_append_left (by simpa using hk), List.getElem?_replicate_of_lt hk]
 
 /-- In a run, every push inside a sequence of groups is closed by a well-nested continuation. -/
 private theorem wellMatched_of_groups {c c' : Config 2 State Γ} :
@@ -193,14 +193,11 @@ private theorem wellMatched_of_groups {c c' : Config 2 State Γ} :
       have hlc' : lc.length = p + 1 := by simpa using congrArg List.length hlc
       by_cases hka : k < p
       · -- A push in `aᵖ`: it lies in the factor `aᵖ cᵖ`.
-        have heq : u ++ (la ++ lc.take p) ++ (lc.drop p ++ lb ++ ld ++ vr ++ u') =
-            u ++ (la ++ lc ++ lb ++ ld ++ vr) ++ u' := by
-          conv_rhs => rw [← List.take_append_drop p lc]
-          simp only [List.append_assoc]
-        have := wellMatched_of_replicate (x := .a) (y := .c) (i := 0) (heq ▸ h) (heq ▸ hkind)
-          rfl rfl (by rw [List.map_append, hla, List.map_take, hlc, List.take_replicate,
-            min_eq_left (Nat.le_succ p)]) hka
-        rwa [heq] at this
+        simpa only [List.append_assoc] using
+          wellMatched_of_replicate (u := u) (u' := lb ++ ld ++ vr ++ u')
+            (by simpa only [List.append_assoc] using h)
+            (by simpa only [List.append_assoc] using hkind)
+            (x := .a) (y := .c) (i := 0) rfl rfl hla hlc hka
       by_cases hkc : k < p + (p + 1)
       · -- A letter `c` is a pop.
         rw [List.getElem?_append_left (by simp; omega), List.getElem?_append_left (by simp; omega),
@@ -210,15 +207,12 @@ private theorem wellMatched_of_groups {c c' : Config 2 State Γ} :
         simp [kind] at hkind'
       by_cases hkb : k < p + (p + 1) + q
       · -- A push in `b^q`: it lies in the factor `b^q d^q`.
-        have heq : u ++ la ++ lc ++ (lb ++ ld.take q) ++ (ld.drop q ++ vr ++ u') =
-            u ++ (la ++ lc ++ lb ++ ld ++ vr) ++ u' := by
-          conv_rhs => rw [← List.take_append_drop q ld]
-          simp only [List.append_assoc]
-        have hk_off : u.length + p + (p + 1) + (k - (p + (p + 1))) = u.length + k := by omega
-        have := wellMatched_of_replicate (x := .b) (y := .d) (i := 1) (heq ▸ h) (heq ▸ hkind)
-          rfl rfl (by rw [List.map_append, hlb, List.map_take, hld, List.take_replicate,
-            min_eq_left (Nat.le_succ q)]) (k := k - (p + (p + 1))) (by omega)
-        rwa [heq, List.length_append, List.length_append, hla', hlc', hk_off] at this
+        have hk_off : u.length + (p + (p + 1)) + (k - (p + (p + 1))) = u.length + k := by lia
+        simpa only [List.append_assoc, List.length_append, hla', hlc', hk_off] using
+          wellMatched_of_replicate (u := u ++ la ++ lc) (u' := vr ++ u')
+            (by simpa only [List.append_assoc] using h)
+            (by simpa only [List.append_assoc] using hkind)
+            (x := .b) (y := .d) (i := 1) rfl rfl hlb hld (k := k - (p + (p + 1))) (by lia)
       · -- A letter `d` is a pop.
         rw [List.getElem?_append_right (by simp; omega), List.getElem?_replicate] at hsym
         obtain ⟨-, ⟨rfl⟩⟩ := Option.ite_none_right_eq_some.mp hsym
@@ -245,8 +239,6 @@ theorem holeBounded_two (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
   have hkind := hM.kind_eq h
   obtain ⟨wab, wg, rfl, hwab, hwg⟩ := List.map_eq_append_iff.mp hwn
   have hwab' : wab.length = n + n := by simpa using congrArg List.length hwab
-  have hlet : ∀ t : ℕ, ((wab ++ wg).map Prod.fst)[t]? = (List.replicate n Letter.a ++
-      List.replicate n Letter.b ++ gs.flatten)[t]? := fun t => by rw [hwn]
   intro x _
   have hsub : {q | OpenHolePush (wab ++ wg) x q ∧ ¬∃ p, SameHole (wab ++ wg) x p q} ⊆
       ({0, n} : Set ℕ) := by
@@ -264,18 +256,15 @@ theorem holeBounded_two (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
     · -- Every other pending `a` or `b` belongs to the hole of the push before it.
       simp only [Set.mem_insert_iff, Set.mem_singleton_iff]
       by_contra! hq0
-      have hsame : ∀ (x' : Letter) (j : Fin 2), kind x' = .push j →
-          (List.replicate n Letter.a ++ List.replicate n Letter.b ++ gs.flatten)[q - 1]? = some x' →
-          (List.replicate n Letter.a ++ List.replicate n Letter.b ++ gs.flatten)[q]? = some x' →
-          False := by
-        intro x' j hx' h₁ h₂
-        exact hns ⟨q - 1, OpenHolePush.sameHole_pred hq (by omega)
-          (isPushOn_of_letter hkind (by rw [hlet, h₁]) hx')
-          (isPushOn_of_letter hkind (by rw [hlet, h₂]) hx')⟩
+      have hsame (x' : Letter) {j : Fin 2} (hx' : kind x' = .push j)
+          (h₁ : ((wab ++ wg).map Prod.fst)[q - 1]? = some x')
+          (h₂ : ((wab ++ wg).map Prod.fst)[q]? = some x') : False :=
+        hns ⟨q - 1, OpenHolePush.sameHole_pred hq (by omega)
+          (isPushOn_of_letter hkind h₁ hx') (isPushOn_of_letter hkind h₂ hx')⟩
       by_cases hqn : q < n
-      · refine hsame .a 0 rfl ?_ ?_ <;> rw [List.append_assoc,
+      · refine hsame .a rfl ?_ ?_ <;> rw [hwn, List.append_assoc,
           List.getElem?_append_left (by simp; omega), List.getElem?_replicate_of_lt (by omega)]
-      · refine hsame .b 1 rfl ?_ ?_ <;> rw [List.getElem?_append_left (by simp; omega),
+      · refine hsame .b rfl ?_ ?_ <;> rw [hwn, List.getElem?_append_left (by simp; omega),
           List.getElem?_append_right (by simp; omega),
           List.getElem?_replicate_of_lt (by simp; omega)]
   calc openHoles (wab ++ wg) x ≤ ({0, n} : Set ℕ).ncard :=
@@ -379,8 +368,7 @@ theorem not_scopeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
     obtain ⟨μc, hμc, -, hkc⟩ := hpos (t := 4 * m - 2) (x := .c)
       (by simpa [hm2, hmod] using hword_cd (k := 2 * m - 2) (by omega))
     obtain ⟨γa, hγa⟩ := Op.kind_eq_push.mp hka
-    obtain ⟨γc, hγc⟩ : ∃ γ, μc.2 = .pop 0 γ := by
-      rcases hop : μc.2 with _ | ⟨i, γ⟩ | ⟨i, γ⟩ <;> rw [hop] at hkc <;> simp_all [Op.kind, kind]
+    obtain ⟨γc, hγc⟩ := Op.kind_eq_pop.mp hkc
     have hsub : ∀ μ ∈ w.extract 1 (4 * m - 2), μ.2.kind = kind μ.1 := fun μ hμ =>
       hkind μ ((List.extract_isInfix w _ _).subset hμ)
     have hfst : (w.extract 1 (4 * m - 2)).map Prod.fst =

@@ -106,9 +106,7 @@ theorem length_edges_preprocess (fallback truth : C) (rotate : ℕ × (ℕ × D)
       2 * g.edges.length * (2 + 2 * labels.length) := by
   simp only [preprocess, length_edges_addLoops, length_edges_addTrivial, length_rotationEdges,
     length_edges_degreeReduce]
-  change 2 * g.edges.length * (1 + labels.length) +
-    2 * g.edges.length * labels.length + 2 * g.edges.length = _
-  ring
+  dsimp only [addTrivial, degreeReduce]; ring
 
 /-- Consecutive half-edge numbers identify the actual vertex set with `Fin (2 |E|)`. -/
 def halfEdgeEquiv (edges : ℕ) : Fin edges × Bool ≃ Fin (2 * edges) :=
@@ -312,19 +310,12 @@ theorem unsatVal_preprocess (labels : List D) :
   have htrue (a b : α) : degreeReduceEval eval (some (false, truth)) a b = true := htruth a b
   rw [preprocess, unsatVal_addLoops _ _ _ htrue, unsatVal_addTrivial _ _ _ htrue]
   simp only [length_edges_addTrivial, length_rotationEdges, length_edges_degreeReduce]
-  change
-    ((2 * g.edges.length * (1 + labels.length) + 2 * g.edges.length * labels.length : ℕ) : ℝ) /
-        ((2 * g.edges.length * (1 + labels.length) + 2 * g.edges.length * labels.length : ℕ) +
-          (2 * g.edges.length : ℕ)) *
-      (((2 * g.edges.length * (1 + labels.length) : ℕ) : ℝ) /
-        ((2 * g.edges.length * (1 + labels.length) : ℕ) +
-          (2 * g.edges.length * labels.length : ℕ)) * _) = _
   rcases g.edges.length.eq_zero_or_pos with hzero | hpos
   · simp [ConstraintGraph.unsatVal, ConstraintGraph.unsatFrac, length_edges_degreeReduce, hzero]
   · have : (0 : ℝ) < g.edges.length := by exact_mod_cast hpos
+    dsimp only [addTrivial, degreeReduce]
     push_cast
-    field_simp
-    ring
+    field_simp; ring
 
 include hrotate htruth in
 /-- The computed graph has exactly the value of the regular preprocessing construction. -/

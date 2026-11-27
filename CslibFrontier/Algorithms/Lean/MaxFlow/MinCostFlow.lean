@@ -474,13 +474,8 @@ theorem isMinCost_of_compSlackness [AddCommGroup W] [PartialOrder W] [IsOrderedA
       · rw [heq]
       · rw [← Nat.sub_add_cancel hgt.le, add_nsmul]
         exact add_le_of_nonpos_left (nsmul_nonpos (hcs.2 u v (by omega)) _)
-  have hdecomp (h : M.Flow) :
-      (∑ u : V, ∑ v : V, h u v • (M.cost u v + π u - π v)) =
-        h.totalCost + ∑ u : V, M.balance u • π u := by
-    simp only [add_sub_assoc, nsmul_add, Finset.sum_add_distrib, sum_balance_smul_potential]
-    rfl
-  rw [hdecomp f, hdecomp g] at hsum
-  exact le_of_add_le_add_right hsum
+  simpa only [Flow.totalCost, add_sub_assoc, nsmul_add, Finset.sum_add_distrib,
+    sum_balance_smul_potential, add_le_add_iff_right] using hsum
 
 end PotentialSufficiency
 
@@ -829,8 +824,7 @@ theorem findNegCycleOrPotential_spec [AddCommGroup W] [LinearOrder W] [IsOrdered
     (mem_allResArcs.mp ha).2.2
   have hall : ∀ a, 0 < f.resCap a → a ∈ allResArcs M vs f := fun a ha =>
     mem_allResArcs.mpr ⟨hvs a.src, hvs a.dst, ha⟩
-  unfold findNegCycleOrPotential
-  dsimp only
+  dsimp only [findNegCycleOrPotential]
   set arcs := allResArcs M vs f
   set d := dpRelax M arcs (vs.length - 1)
   cases hfind : arcs.find? (fun a => decide ((d a.src).1 + M.resCost a < (d a.dst).1)) with
@@ -846,12 +840,12 @@ theorem findNegCycleOrPotential_spec [AddCommGroup W] [LinearOrder W] [IsOrdered
       simp only [resCost, Bool.false_eq_true, ↓reduceIte, ← sub_eq_add_neg] at hle
       exact sub_nonpos.mpr (add_comm (M.cost u v) (d u).1 ▸ le_sub_iff_add_le.mp hle)
   | some a =>
-    have ha_mem : a ∈ arcs := List.mem_of_find?_eq_some hfind
     have ha_lt : (d a.src).1 + M.resCost a < (d a.dst).1 := by
       simpa only [decide_eq_true_eq] using List.find?_some hfind
     obtain ⟨⟨u, hw_src⟩, hcost_src, _⟩ := dpRelax_inv harcs (vs.length - 1) a.src
     have htrail : IsArcWalk (fun x => 0 < f.resCap x) u a.dst ((d a.src).2 ++ [a]) :=
-      isArcWalk_split_append.mpr ⟨(isArcWalk_pos_resCap_iff f).mpr hw_src, harcs a ha_mem, rfl⟩
+      isArcWalk_split_append.mpr
+        ⟨(isArcWalk_pos_resCap_iff f).mpr hw_src, harcs a (List.mem_of_find?_eq_some hfind), rfl⟩
     have htrail_cost : M.walkCost ((d a.src).2 ++ [a]) < (d a.dst).1 := by
       rwa [walkCost_append, walkCost_cons, walkCost_nil, add_zero, hcost_src]
     have hcard_le : Fintype.card V ≤ vs.length :=
@@ -865,7 +859,7 @@ theorem findNegCycleOrPotential_spec [AddCommGroup W] [LinearOrder W] [IsOrdered
         ((isArcWalk_pos_resCap_iff f).mp hwq) (by omega)
     obtain ⟨hne, ⟨x, hx, hnd⟩, hwc⟩ := peelNegCycle_spec M hbound htrail htrail_cost
     obtain ⟨c, cs, hcyc⟩ := List.exists_cons_of_ne_nil hne
-    dsimp only
+    dsimp only at hx hnd hwc ⊢
     rw [hcyc] at hx hnd hwc ⊢
     exact ⟨⟨hx.1 ▸ (isArcWalk_pos_resCap_iff f).mp hx, hnd⟩, hwc⟩
 
@@ -896,19 +890,14 @@ negative-cost simple cycle. -/
 theorem isMinCost_iff_not_exists_negCycle [AddCommGroup W] [LinearOrder W] [IsOrderedAddMonoid W]
     (f : M.Flow) :
     f.IsMinCost ↔ ¬ ∃ arcs : List (ResArc V), f.IsResCycle arcs ∧ M.walkCost arcs < 0 := by
-  constructor
-  · intro hmin ⟨arcs, hc, hneg⟩
-    classical
-    let δ := f.cycleBottleneck arcs
-    have hδ_pos : 0 < δ :=
-      Flow.cycleBottleneck_pos (Flow.isResCycle_ne_nil hc)
-        (fun _ ha => Flow.pos_resCap_of_mem_isResCycle hc ha)
-    have hlt : (f.cancelCycle arcs hc δ fun _ ha => Flow.cycleBottleneck_le ha).totalCost <
-        f.totalCost :=
-      Flow.totalCost_cancelCycle_lt f hc hδ_pos (fun _ ha => Flow.cycleBottleneck_le ha) hneg
-    exact absurd (hmin _) (not_le.mpr hlt)
-  · intro hno
-    exact (exists_compSlackness_of_not_exists_negCycle hno).elim fun _ => isMinCost_of_compSlackness
+  refine ⟨fun hmin ⟨arcs, hc, hneg⟩ => ?_, fun hno =>
+    (exists_compSlackness_of_not_exists_negCycle hno).elim fun _ => isMinCost_of_compSlackness⟩
+  classical
+  have hδ_pos : 0 < f.cycleBottleneck arcs :=
+    Flow.cycleBottleneck_pos (Flow.isResCycle_ne_nil hc) fun _ =>
+      Flow.pos_resCap_of_mem_isResCycle hc
+  exact (Flow.totalCost_cancelCycle_lt f hc hδ_pos
+    (fun _ => Flow.cycleBottleneck_le) hneg).not_ge (hmin _)
 
 /-- **Complementary slackness optimality theorem** ([Schrijver2003], Chapter 12, locator not
 re-verified against primary PDF): a feasible flow has minimum cost if and only if it admits
@@ -1308,15 +1297,14 @@ theorem minCostMaxFlow_correct {n : ℕ} (N : Network (Fin n)) (cost : Fin n →
     · exact fun g => by rw [Network.Flow.value_zero, g.value_eq_zero_of_s_eq_t hst]
     · exact (dinitzDense_correct hst).1
   let M := CostNetwork.ofNetwork N cost f₀.value
-  have hvs : ∀ v : Fin n, v ∈ List.finRange n := List.mem_finRange
-  obtain ⟨_, hcs, _, _⟩ := CostNetwork.cycleCancelInt_correct (M := M) hvs (f₀.toCostFlow cost)
+  obtain ⟨hmin_c, hcs, _, _⟩ :=
+    CostNetwork.cycleCancelInt_correct (M := M) List.mem_finRange (f₀.toCostFlow cost)
   set outC := CostNetwork.cycleCancelInt M (List.finRange n) (f₀.toCostFlow cost)
   have hval : outC.flow.toNetworkFlow.value = f₀.value := by
     by_cases hst : N.s = N.t <;> simp [hst, Network.Flow.value_eq_zero_of_s_eq_t]
   have hmax : outC.flow.toNetworkFlow.IsMaxFlow := fun g => hval.symm ▸ hf₀_max g
   have hmin_val : outC.flow.toNetworkFlow.IsMinCostOfValue cost :=
-    (outC.flow.toNetworkFlow.isMinCostOfValue_iff_exists_compSlackness cost).mpr
-      ⟨outC.potential, hcs⟩
+    fun g hg => hmin_c (g.toCostFlowOfVal cost (hg.trans hval))
   exact ⟨hmax, hmin_val,
     fun g hg => hmin_val g (le_antisymm (hmax g) (hg outC.flow.toNetworkFlow)), hcs⟩
 

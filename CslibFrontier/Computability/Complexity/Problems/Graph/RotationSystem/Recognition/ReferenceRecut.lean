@@ -78,13 +78,11 @@ theorem exists_subdivision_embedding_with_scaled_reference_spokes
       exact ⟨c, hc, fun _ => (hAgerm d).trans h⟩
     · exact ⟨1, zero_lt_one, fun h => (hd h).elim⟩
   choose factor hfactor_pos hfactor_eq using hfactor
-  have hsmall : ∀ᶠ s in 𝓝 (0 : ℝ), ∀ d, s < factor d / 2 :=
-    Filter.eventually_all.mpr fun d => eventually_lt_nhds (half_pos (hfactor_pos d))
-  obtain ⟨ε, hε, hball⟩ := Metric.mem_nhds_iff.mp hsmall
+  obtain ⟨ε, hε, hball⟩ := Metric.mem_nhds_iff.mp
+    (Filter.eventually_all.mpr fun d => eventually_lt_nhds (half_pos (hfactor_pos d)))
   refine ⟨min ε 1, ⟨lt_min hε zero_lt_one, min_le_right _ _⟩, fun s hs => ?_⟩
-  have hsε := hs.2.trans_le (min_le_left ε 1)
-  have hsball : s ∈ Metric.ball (0 : ℝ) ε :=
-    Metric.mem_ball.mpr (by simpa only [Real.dist_eq, sub_zero, abs_of_pos hs.1] using hsε)
+  have hsball : s ∈ Metric.ball (0 : ℝ) ε := Metric.mem_ball.mpr
+    (by simpa only [Real.dist_eq, sub_zero, abs_of_pos hs.1] using hs.2.trans_le (min_le_left ε 1))
   have htime (d : Dart I.graph) : s / factor d ∈ Set.Ioo (0 : ℝ) (1 / 2) :=
     ⟨div_pos hs.1 (hfactor_pos d),
       (div_lt_iff₀ (hfactor_pos d)).mpr (by linarith [hball hsball d])⟩
@@ -132,7 +130,6 @@ theorem exists_subdivision_embedding_with_frozen_reference_routes
     let b := (Q.route f).finish
     let o := referencePoint I d.vertex
     let T : ℂ →ᵃ[ℝ] ℂ := AffineMap.homothety o s
-    have hQ : Q.route f = Route.line a b := rfl
     have hT (z : ℂ) : T z = o + s • (z - o) :=
       (AffineMap.homothety_apply o s z).trans (add_comm _ _)
     have hFt (t : ℝ) (ht : t ∈ Set.Icc 0 1) :
@@ -145,9 +142,8 @@ theorem exists_subdivision_embedding_with_frozen_reference_routes
       simpa only [AffineMap.lineMap_apply_one] using hFt 1 ⟨zero_le_one, le_rfl⟩
     have ho : (Q.route f).endpoint d.2 = o :=
       (Q.endpoint_eq f d.2).trans (congrArg (referencePoint I) (subdivisionDart_endpoints I d).1)
-    have hg : Q.germ (subdivisionDart I d) = if d.2 then a - b else b - a := by
-      change (Q.route f).germ d.2 = _
-      rw [hQ, Route.germ_line]
+    have hg : Q.germ (subdivisionDart I d) = if d.2 then a - b else b - a :=
+      Route.germ_line a b d.2
     refine ⟨?_, fun t ht => ?_⟩
     · have hp := (hspoke d hd).2
       change P.route f = _ at hp ⊢

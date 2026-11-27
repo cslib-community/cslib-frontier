@@ -261,10 +261,9 @@ theorem CFIVertex.notMem_support_of_mem_mem_ne {u w w' : Fin m} {x : CFIVertex m
     (hu : u ∈ x.support) (hw : w ∈ x.support) (huw : u ≠ w) (huw' : w' ≠ u) (hww' : w' ≠ w) :
     w' ∉ x.support := by
   intro hw'
-  have h3 := Finset.card_le_card (s := {u, w, w'}) (t := x.support)
-    (by simp [Finset.insert_subset_iff, *])
-  rw [Finset.card_eq_three.2 ⟨u, w, w', huw, huw'.symm, hww'.symm, rfl⟩] at h3
-  exact absurd (h3.trans x.card_support_le_two) (by omega)
+  have h3 := (Finset.card_le_card (s := {u, w, w'})
+    (by simp [Finset.insert_subset_iff, *])).trans x.card_support_le_two
+  simp [huw, huw'.symm, hww'.symm] at h3
 
 /-- Retype a CFI vertex from twist `f` to twist `g` when `f` and `g` agree outside `u` and
 `u ∉ x.support`. -/
@@ -490,8 +489,8 @@ theorem cfiBaseEquiv_eq_castAway {u w : Fin m} (hwu : w ≠ u)
     cfiBaseEquiv u w hwu x = x.castAway u hfg hu := by
   cases x with
   | gadget v α hα =>
-    have hvu : v ≠ u := by rintro rfl; simp at hu
-    simp only [cfiBaseEquiv, Equiv.coe_fn_mk, cfiBaseMap, dite_eq_right hvu, CFIVertex.castAway]
+    simp only [CFIVertex.support_gadget, Finset.mem_singleton] at hu
+    simp [cfiBaseEquiv, cfiBaseMap, CFIVertex.castAway, Ne.symm hu]
   | edge _ _ _ | apex _ _ => rfl
 
 /-- On vertices whose support avoids both `u` and `w`, `cfiSingleFlipIso huw` commutes with
@@ -503,14 +502,11 @@ theorem cfiSingleFlipIso_castAway_of_notMem {u w : Fin m} (huw : u ≠ w)
     cfiSingleFlipIso huw (x.castAway w hfw hw) = x.castAway u hfu hu := by
   cases x with
   | gadget v α hα =>
-    have hvu : v ≠ u := by rintro rfl; simp at hu
-    have hvw : v ≠ w := by rintro rfl; simp at hw
-    simp only [cfiSingleFlipIso, cfiFlipIso, RelIso.coe_fn_mk, Equiv.coe_fn_mk,
-      CFIVertex.castAway, cfiFlipMap, dite_eq_right hvu, dite_eq_right hvw]
+    simp only [CFIVertex.support_gadget, Finset.mem_singleton] at hu hw
+    simp [cfiSingleFlipIso, cfiFlipIso, CFIVertex.castAway, cfiFlipMap, Ne.symm hu, Ne.symm hw]
   | edge e he b =>
-    have hne : e ≠ s(u, w) := by rintro rfl; simp at hu
-    simp only [cfiSingleFlipIso, cfiFlipIso, RelIso.coe_fn_mk, Equiv.coe_fn_mk,
-      CFIVertex.castAway, cfiFlipMap, ite_eq_right hne]
+    have hne : e ≠ s(u, w) := fun h => hu (by simp [h])
+    simp [cfiSingleFlipIso, cfiFlipIso, CFIVertex.castAway, cfiFlipMap, hne]
   | apex _ _ => rfl
 
 /-- On any vertex `x` with `w ∉ x.support`, `cfiSingleFlipIso huw` carries `x.castAway w` to
@@ -521,16 +517,14 @@ theorem cfiSingleFlipIso_castAway_eq_cfiBaseEquiv {u w : Fin m} (huw : u ≠ w)
     cfiSingleFlipIso huw (x.castAway w hfw hw) = cfiBaseEquiv u w huw.symm x := by
   cases x with
   | gadget v α hα =>
-    by_cases hvu : v = u
-    · simp only [cfiSingleFlipIso, cfiFlipIso, cfiBaseEquiv, RelIso.coe_fn_mk, Equiv.coe_fn_mk,
-        CFIVertex.castAway, cfiFlipMap, cfiBaseMap, dite_eq_left hvu]
-    · have hvw : v ≠ w := by rintro rfl; simp at hw
-      simp only [cfiSingleFlipIso, cfiFlipIso, cfiBaseEquiv, RelIso.coe_fn_mk, Equiv.coe_fn_mk,
-        CFIVertex.castAway, cfiFlipMap, cfiBaseMap, dite_eq_right hvu, dite_eq_right hvw]
+    simp only [CFIVertex.support_gadget, Finset.mem_singleton] at hw
+    by_cases hvu : v = u <;>
+      simp [cfiSingleFlipIso, cfiFlipIso, cfiBaseEquiv, CFIVertex.castAway, cfiFlipMap,
+        cfiBaseMap, hvu, Ne.symm hw]
   | edge e he b =>
-    have hne : e ≠ s(u, w) := by rintro rfl; simp at hw
-    simp only [cfiSingleFlipIso, cfiFlipIso, cfiBaseEquiv, RelIso.coe_fn_mk, Equiv.coe_fn_mk,
-      CFIVertex.castAway, cfiFlipMap, cfiBaseMap, ite_eq_right hne]
+    have hne : e ≠ s(u, w) := fun h => hw (by simp [h])
+    simp [cfiSingleFlipIso, cfiFlipIso, cfiBaseEquiv, CFIVertex.castAway, cfiFlipMap,
+      cfiBaseMap, hne]
   | apex _ _ => rfl
 
 /-- When both `u` and `w` (`u ≠ w`) lie in `x.support` and `w'` is distinct from `u` and `w`,

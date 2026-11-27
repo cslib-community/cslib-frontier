@@ -124,23 +124,25 @@ theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
       (∀ i : Fin 36, y.regs (mNewCp i) = mkCompParams U V w N_new i) := by
   intro N_new newMeta offNew iwOld iwNew arenaW arenaB peakF
   obtain ⟨hw, hU, hV⟩ := rootHeaderValid_bounds hs₈b hsplit₈.root_hdr
-  have hNU_old : N_old ≤ U := by rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
-  have hn_old : n ≤ N_old := by rcases hev with ⟨rfl, _⟩ | ⟨_, hnN, _, _⟩ <;> omega
+  obtain ⟨hn_old, _, hNU_old⟩ := epochValid_iff_capacity_bounds.mp hev
   have hnU : n ≤ U := hn_old.trans hNU_old
   obtain ⟨hN_new_pos, hn_new, hN_new_2n, hNU_new⟩ := targetCap_bounds_of_pos hn hnU
   have hce_old : compactedEpochWords U V w N_old n = offCompItems U w N_old + iwOld := by
     unfold compactedEpochWords; rw [ite_eq_right (by omega)]
   have h225_old : 225 ≤ offCompItems U w N_old := le_offCompItems_225 U w N_old
   have h225_new : 225 ≤ offNew := le_offCompItems_225 U w N_new
-  have hpeak_eq : peakF = arenaB + arenaW := by
-    dsimp only [peakF, migratePeakWords, arenaB, arenaW, newMeta, offNew, N_new, iwOld, iwNew]; ring
+  have hpeak_eq : peakF = arenaB + arenaW :=
+    base_add_migratePeakWords base U V w N_old n
   have hfit_ar : Fits w (arenaB + arenaW) := hpeak_eq ▸ hfit_peak
   have hiwo_le_aw : iwOld ≤ arenaW := (le_max_left _ _).trans (Nat.le_add_right _ 6)
   have hfr_le_peak : x.frontier ≤ peakF := by
     rw [hfr, hce_old, hpeak_eq]; dsimp only [arenaB, newMeta]
     linarith only [hiwo_le_aw]
-  have hfit1 : Fits w 1 := hfit_ar.of_le (by dsimp only [arenaB]; linarith only [h225_new])
-  have hfit225 : Fits w 225 := hfit_ar.of_le (by dsimp only [arenaB]; linarith only [h225_new])
+  have hfit_off : Fits w offNew := by
+    rw [← (show s₈.regs mOffNew = offNew from hs₈_off)]
+    exact hs₈b.regs_fits _
+  have hfit225 : Fits w 225 := hfit_off.of_le h225_new
+  have hfit1 : Fits w 1 := hfit225.of_le (by decide)
   have hfit_n : Fits w n := hsplit₈.root_hdr.fits_U.of_le hnU
   -- 7. `growZeroCode` + `mFr := mPeakFront`
   have hsum_grow : s₈.frontier + s₈.regs mK = peakF := by
@@ -171,12 +173,11 @@ theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
       s₁₀.regs reg = s₈.regs reg := fun reg h1 h =>
     (Function.update_of_ne h1 _ _).trans (hs₉_keep8 reg h)
   have hs₁₀_nm : s₁₀.regs mNewMeta = newMeta := (hs₁₀_keep _ (by simp) (by simp)).trans hs₈_nm
-  have hs₁₀_oid : s₁₀.regs mOldItemDst = oldItemDst :=
-    (hs₁₀_keep _ (by simp) (by simp)).trans hs₈_oid
-  have hs₁₀_iwo : s₁₀.regs mIwOld = iwOld := (hs₁₀_keep _ (by simp) (by simp)).trans hs₈_iwo
   have hin_cr : s₁₀.regs ∘ srcCopyRight = WordEncoding.encode ((newMeta, oldItemDst), iwOld) :=
-    (regs_pairSrc (regs_pairSrc (regs_reg1_eq mNewMeta hs₁₀_nm)
-      (regs_reg1_eq mOldItemDst hs₁₀_oid)) (regs_reg1_eq mIwOld hs₁₀_iwo)).eq
+    (regs_pairSrc
+      (regs_pairSrc (regs_reg1_eq mNewMeta hs₁₀_nm)
+        (regs_reg1_eq mOldItemDst ((hs₁₀_keep _ (by simp) (by simp)).trans hs₈_oid)))
+      (regs_reg1_eq mIwOld ((hs₁₀_keep _ (by simp) (by simp)).trans hs₈_iwo))).eq
   obtain ⟨hpre_cr, hv_cr, hc_cr, hfr_cr, hcp_cr, hout_cr⟩ :=
     copyRightwardProg_spec (w := w) (srcBase := newMeta) (dstBase := oldItemDst) (len := iwOld)
       (s₀ := ⟨s₈.mem, peakF⟩) (fun a _ => hs₈b.mem_fits a)
@@ -315,26 +316,20 @@ theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
   have hiwo_lin := compactedItemWords_le_linear (U := U) (V := V) (w := w) (N := N_old) (n := n)
     hw hU.le hV
   have hf1 := one_le_migFactor
-  have hc_cr_mul : migFactor * (memoryCost
-      (copyRightwardProg ((newMeta, oldItemDst), iwOld)) ⟨s₈.mem, peakF⟩ + 1) ≤
-      migFactor * (4 * n + 5) :=
-    Nat.mul_le_mul_left migFactor (by dsimp only [iwOld] at hc_cr; linarith only [hc_cr, hiwo_lin])
-  have hc_wp2_mul : migFactor * (memoryCost
-      (writeEpochParamsGenProg ((base, newMeta), (N_new, (n, n)))) ⟨s₁₁.mem, peakF⟩ + 1) ≤
-      migFactor * (22 * n + 101) :=
-    Nat.mul_le_mul_left migFactor
-      (by dsimp only [N_new] at hc_wp2; linarith only [hc_wp2, hN_new_2n])
   have hc_gz : 5 * (peakF - x.frontier) + 6 ≤ 7570 * n + 4436 := by
     have hsub : peakF - x.frontier ≤ migratePeakWords U V w N_old n := by
       rw [hfr]; dsimp only [peakF]
       rw [Nat.add_sub_add_left]; exact Nat.sub_le _ _
     linarith only [hsub, hpeak_lin]
-  have hex_shift :=
+  refine ⟨y, _,
     (hex_gz.mono hc_gz (fun _ h => h)).seq_eq (hex_fr10.seq_eq
-      ((hex_cr.mono hc_cr_mul (fun _ h => h)).seq_eq (hex_cp12.seq_eq
-        ((hex_wp2.mono hc_wp2_mul (fun _ h => h)).seq_eq
-          (hex_c225.seq_eq hex_hb)))))
-  refine ⟨y, _, hex_shift, by nlinarith only [hn, hf1], hyb, hs₁₃f_eq, ?_, ?_,
+      ((hex_cr.mono (Nat.mul_le_mul_left migFactor
+          (by dsimp only [iwOld] at hc_cr; linarith only [hc_cr, hiwo_lin] : _ ≤ 4 * n + 5))
+        (fun _ h => h)).seq_eq (hex_cp12.seq_eq
+        ((hex_wp2.mono (Nat.mul_le_mul_left migFactor
+            (by dsimp only [N_new] at hc_wp2; linarith only [hc_wp2, hN_new_2n] : _ ≤ 22 * n + 101))
+          (fun _ h => h)).seq_eq (hex_c225.seq_eq hex_hb))))),
+    by nlinarith only [hn, hf1], hyb, hs₁₃f_eq, ?_, ?_,
     hs₁₃_mem_eq.symm ▸ hhdr_wp2, hs₁₃_mem_eq.symm ▸ hpar_wp2, hrep_old_y,
     ⟨s_fix_old, hinv_old, (congrArg (totalSlots N_old) hgm_old_y).trans htot_old, hcpl_old_y⟩,
     ?_, ?_, ?_, hs₁₃_nm, ?_, ?_, ?_, ?_, ?_, ?_,

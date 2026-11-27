@@ -122,9 +122,8 @@ theorem Clause.length_eraseDupLits (c : Clause V) : c.eraseDupLits.length = c.to
 
 /-- Removing repeated literals does not change the value of a clause. -/
 @[simp] theorem Clause.eval_eraseDupLits (σ : V → Bool) (c : Clause V) :
-    c.eraseDupLits.eval σ = c.eval σ := by
-  rw [Bool.eq_iff_iff, Clause.eval_eq_true_iff, Clause.eval_eq_true_iff]
-  simp only [Clause.mem_eraseDupLits]
+    c.eraseDupLits.eval σ = c.eval σ :=
+  Bool.eq_iff_iff.2 (by simp [Clause.eval_eq_true_iff])
 
 /-- Removing repeated literals does not change the number of falsified clauses. -/
 @[simp] theorem CNF.countUnsat_eraseDupLits (σ : V → Bool) (φ : CNF V) :
@@ -223,9 +222,8 @@ omit [DecidableEq V] in
 /-- A formula without variables has weight `2 ^ L` per clause, all of them falsified. -/
 theorem CNF.johnsonWeight_of_vars_eq_nil {L : ℕ} {ψ : CNF V} (hψ : ∀ v, v ∉ ψ.vars)
     (σ : V → Bool) : ψ.johnsonWeight L = 2 ^ L * ψ.countUnsat σ := by
-  have hnil : ψ = List.replicate ψ.length [] := List.eq_replicate_length.2 fun c hc =>
-    List.eq_nil_iff_forall_not_mem.2 fun l hl => hψ l.1 (CNF.mem_vars.2 ⟨c, hc, l.2, hl⟩)
-  rw [hnil]
+  rw [List.eq_replicate_length.2 fun c hc =>
+    List.eq_nil_iff_forall_not_mem.2 fun l hl => hψ l.1 (CNF.mem_vars.2 ⟨c, hc, l.2, hl⟩)]
   simp [CNF.johnsonWeight, CNF.countUnsat, List.countP_replicate, Nat.mul_comm]
 
 /-! ### Johnson's algorithm -/
@@ -277,11 +275,9 @@ theorem two_pow_mul_countUnsat_johnsonAssignment_le (φ : CNF V) :
     · have hw : w = r ∨ w ∈ T := by cases b; exacts [.inr hw, List.mem_cons.1 hw]
       rcases hw with rfl | hw
       exacts [hr, fun h => hT w hw (List.mem_cons_of_mem _ h)]
-    · have hrσ : σ r = b := by
-        rw [hσ r hr]
-        cases b
-        · exact decide_eq_false (fun h => hT r h List.mem_cons_self)
-        · simp [johnsonBranch]
+    · have hrσ : σ r = b := (hσ r hr).trans
+        (Bool.rec (decide_eq_false fun h => hT r h List.mem_cons_self)
+          (decide_eq_true List.mem_cons_self) b)
       rw [johnsonBranch, CNF.countUnsat_restrict hrσ]
       refine hcount σ fun v hv => ?_
       rw [List.mem_cons, not_or] at hv
@@ -300,9 +296,8 @@ theorem two_pow_mul_countUnsat_johnsonAssignment_le (φ : CNF V) :
       exact CNF.mem_distinctVars.2 (CNF.mem_vars.2 ⟨c, hc, b, Clause.mem_eraseDupLits.1 hb⟩)
   obtain ⟨⟨-, -, hvars, -, hcount⟩, hle⟩ :=
     greedy_spec_of_add_le johnsonBranch (fun s => s.1.johnsonWeight L) Inv hbranch havg _ _ hinit
-  have hcount := hcount (johnsonAssignment φ) fun v _ => rfl
-  rwa [CNF.johnsonWeight_of_vars_eq_nil (fun v hv => by simpa using hvars v hv)
-    (johnsonAssignment φ), hcount] at hle
+  rwa [CNF.johnsonWeight_of_vars_eq_nil (fun v hv => List.not_mem_nil (hvars v hv))
+    (johnsonAssignment φ), hcount (johnsonAssignment φ) fun _ _ => rfl] at hle
 
 /-! ### Corollaries -/
 
@@ -319,10 +314,8 @@ theorem countUnsat_johnsonAssignment_le_sum (φ : CNF V) :
     (φ.countUnsat (johnsonAssignment φ) : ℝ) ≤
       (φ.map fun c => (2 : ℝ)⁻¹ ^ c.toFinset.card).sum := by
   set L := φ.vars.length
-  have h : ((2 ^ L * φ.countUnsat (johnsonAssignment φ) : ℕ) : ℝ) ≤
-      (((φ.map fun c => 2 ^ (L - c.toFinset.card)).sum : ℕ) : ℝ) := by
-    exact_mod_cast CNF.johnsonWeight_eraseDupLits L φ ▸
-      two_pow_mul_countUnsat_johnsonAssignment_le φ
+  have h := Nat.cast_le (α := ℝ).2 (CNF.johnsonWeight_eraseDupLits L φ ▸
+    two_pow_mul_countUnsat_johnsonAssignment_le φ)
   have hterm : ∀ c ∈ φ, ((2 ^ (L - c.toFinset.card) : ℕ) : ℝ) =
       2 ^ L * (2 : ℝ)⁻¹ ^ c.toFinset.card := by
     intro c hc

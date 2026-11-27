@@ -214,15 +214,13 @@ theorem language_eq_setOf_check {VS : List Bool × List Bool → Bool} {pS : Pol
       ⟨by rwa [hmap], by rwa [hmap], fun sc hsc => ?_,
         fun h => by simpa only [h, ↓reduceDIte, hmap] using (hw h).choose_spec⟩⟩
     obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hsc
-    have hsS := (hmem s hs).1
-    simp only [cert, hsS, ↓reduceDIte]
-    exact ⟨(hmem s hs).2, (hcert s hsS).choose_spec.1, (hcert s hsS).choose_spec.2⟩
+    simp only [cert, (hmem s hs).1, ↓reduceDIte]
+    exact ⟨(hmem s hs).2, (hcert s (hmem s hs).1).choose_spec⟩
   · rintro ⟨⟨pairs, w⟩, hy⟩
     obtain ⟨hnd, hlen, hpairs, hw⟩ := check_eq_true_iff.mp hy
     refine ⟨pairs.map Prod.fst, hnd, hlen, fun s hs => ?_, fun h => ⟨w, hw h⟩⟩
     obtain ⟨sc, hsc, rfl⟩ := List.mem_map.mp hs
-    obtain ⟨hlenS, hc, hV⟩ := hpairs sc hsc
-    exact ⟨(hSV sc.1).2 ⟨sc.2, hc, hV⟩, hlenS⟩
+    exact ⟨(hSV sc.1).2 ⟨sc.2, (hpairs sc hsc).2⟩, (hpairs sc hsc).1⟩
 
 /-- The check of a witness is polynomial-time. -/
 theorem computableInPolyTime_check {VS : List Bool × List Bool → Bool} {pS : Polynomial ℕ}
@@ -270,8 +268,7 @@ theorem language_mem_NP (hS : S ∈ NP encBits) (hsparse : S ∈ SPARSE encBits)
     refine (length_le_length_shortMembers (S := S) (n := m.eval n) hnd fun s hs => ?_).trans
       (hcensus _)
     obtain ⟨sc, hsc, rfl⟩ := List.mem_map.mp hs
-    obtain ⟨hlenS, hc, hV⟩ := hpairs sc hsc
-    exact ⟨(hSV sc.1).2 ⟨sc.2, hc, hV⟩, hlenS⟩
+    exact ⟨(hSV sc.1).2 ⟨sc.2, (hpairs sc hsc).2⟩, (hpairs sc hsc).1⟩
   have hpair (sc : List Bool × List Bool) (hsc : sc ∈ pairs) :
       2 * (encPair encBits encBits sc).length + 1 ≤
         4 * m.eval n + 2 * pS.eval (m.eval n) + 3 := by
@@ -478,26 +475,18 @@ theorem SigmaP_two_subset_PNPLog_of_sparse (hsparse : S ∈ SPARSE encBits) (hS 
       ⟨prog, KadinCensus.isOraclePPTOn_program (hreqb false) (hreqb true) hN hcount,
         fun a => ⟨rfl, ?_⟩⟩, fun a => ?_⟩
   · refine (KadinCensus.length_queriesWith_program_le _ _ _ _ _ a).trans ?_
-    have := hK (enc a).length
-    simp only [N, count] at this ⊢
-    nlinarith [Nat.zero_le (Nat.log 2 (enc a).length)]
+    dsimp only [N, count]
+    nlinarith [hK (enc a).length, Nat.zero_le (Nat.log 2 (enc a).length)]
   -- correctness: binary search finds the census, and the last request decides `L`
-  have hP : (fun k => decide (encCNF (red (a, k, false)) ∈ encCNF '' SAT)) =
-      fun k => decide (k ≤ KadinCensus.census S enc m a) := by
-    funext k
-    rw [Bool.eq_iff_iff, decide_eq_true_iff, decide_eq_true_iff, hmemA,
-      KadinCensus.mem_language_false_iff]
   have hcen : KadinCensus.census S enc m a ≤ N a := hcensus _
   have hlt : N a < 2 ^ count a := Nat.lt_of_succ_le (Nat.le_pow_clog (by norm_num) _)
   have hlast := KadinCensus.mem_language_census_true_iff (S := S) (enc := enc) (m := m) (p := p)
     (G := G) (a := a) (g := g) fun w ℓ hw hℓ => hGg (a, w) ℓ fun s hs =>
       hℓ s (by simpa [m, length_encPair, hw] using hs)
-  dsimp only [prog]
-  rw [KadinCensus.interpret_program, decide_eq_true_iff]
-  dsimp only
-  rw [hmemA, hP, KadinCensus.fst_iterate_searchStep hcen hlt, hlast, hLB a]
-  refine exists_congr fun w => and_congr_right fun _ => ?_
-  rw [← Bool.not_eq_true, ← hgB, Set.mem_compl_iff, not_not]
+  simp only [prog, KadinCensus.interpret_program, decide_eq_true_iff, hmemA,
+    KadinCensus.mem_language_false_iff, KadinCensus.fst_iterate_searchStep hcen hlt, hlast, hLB a]
+  exact exists_congr fun w => and_congr_right fun _ => by
+    rw [← Bool.not_eq_true, ← hgB, Set.mem_compl_iff, not_not]
 
 /-- **Kadin's theorem** [Kadin][Kadin1989] [Hemaspaandra and Ogihara, Theorem 1.14]
 [HemaspaandraOgihara2002]: if `NP` has a sparse polynomial-time Turing-complete set, that is a

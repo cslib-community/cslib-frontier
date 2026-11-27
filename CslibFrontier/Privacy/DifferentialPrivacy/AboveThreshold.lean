@@ -169,11 +169,10 @@ theorem DifferentiallyPrivate.aboveThresholdMechanism {D : Type*} {Adj : D → D
   conv_rhs => rw [← (Equiv.addRight s).tsum_eq]
   rw [← ENNReal.tsum_mul_left]
   refine tsum_le_tsum fun r => ?_
-  simp only [Equiv.coe_addRight]
   have hT : T + ((r + s : ℤ) : ℝ) = T + r + s := by push_cast; ring
-  rw [hT]
-  exact (mul_le_mul' (hρ r) (aboveThresholdAux_apply_le hc hν hab (T + r) o)).trans_eq
-    (mul_mul_mul_comm _ _ _ _)
+  simpa only [Equiv.coe_addRight, hT] using
+    (mul_le_mul' (hρ r) (aboveThresholdAux_apply_le hc hν hab (T + r) o)).trans_eq
+      (mul_mul_mul_comm _ _ _ _)
 
 private theorem discreteLaplace_pair_shift {s₁ s₂ a : ℝ} (hs₁ : 0 < s₁) (hs₂ : 0 < s₂)
     {Δ : ℕ} (h₁ : (Δ : ℝ) / s₁ = a) (h₂ : (2 * Δ : ℝ) / s₂ = a) :
@@ -233,10 +232,7 @@ theorem aboveThresholdAux_toOuterMeasure_not_thresholdAccurate_le (ν : PMF ℤ)
       as.length * ν.toOuterMeasure {v | α₂ < |(v : ℝ)|} := by
   classical
   induction as with
-  | nil =>
-    rw [aboveThresholdAux]
-    simp only [ThresholdAccurate, not_true_eq_false, Set.ofPred_false,
-      PMF.toOuterMeasure_pure_apply, Set.mem_empty_iff_false, ↓reduceIte, zero_le]
+  | nil => simp [aboveThresholdAux, ThresholdAccurate]
   | cons a as ih =>
     rw [aboveThresholdAux]
     refine (Probability.PMF.toOuterMeasure_bind_failure_le ν _ {v : ℤ | α₂ < |(v : ℝ)|}ᶜ _
@@ -288,14 +284,12 @@ theorem aboveThreshold_discreteLaplace_toOuterMeasure_not_thresholdAccurate_le {
   have hsplit : 8 * L / ε = 4 * L / ε + 4 * L / ε := by ring
   rw [hsplit]
   refine (aboveThreshold_toOuterMeasure_not_thresholdAccurate_le _ _ T as).trans ?_
-  have h₁ := discreteLaplace_toOuterMeasure_lt_abs_le (2 / ε) (by positivity)
-    (a := 4 * L / ε) (by positivity)
-  have h₂ := discreteLaplace_toOuterMeasure_lt_abs_le (4 / ε) (by positivity)
-    (a := 4 * L / ε) (by positivity)
   have he₁ : -(4 * L / ε) / (2 / ε) = -(2 * L) := by field_simp; ring
-  rw [he₁] at h₁
   have he₂ : -(4 * L / ε) / (4 / ε) = -L := by field_simp
-  rw [he₂] at h₂
+  have h₁ := he₁ ▸ discreteLaplace_toOuterMeasure_lt_abs_le (2 / ε) (by positivity)
+    (a := 4 * L / ε) (by positivity)
+  have h₂ := he₂ ▸ discreteLaplace_toOuterMeasure_lt_abs_le (4 / ε) (by positivity)
+    (a := 4 * L / ε) (by positivity)
   have hexpL : Real.exp (-L) = β / (2 * (k + 1)) := by
     rw [hL, neg_add, Real.exp_add, Real.exp_neg, Real.exp_neg, Real.exp_log hk,
       Real.exp_log (by positivity)]

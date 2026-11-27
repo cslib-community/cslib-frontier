@@ -246,9 +246,6 @@ theorem exec {w : ℕ} (x : Data 32) (C : ℕ → ℕ)
   let b := x.regs queries
   let c := x.regs counts
   let P := before C Q
-  change ∀ r < p, x.mem (c + r) = C r at hread
-  change ∀ r < p, C r ≤ N at hC
-  change 0 < Q at hcap
   change c + p ≤ d at hcounts
   change b + 2 * p * N ≤ d at hqueries
   change Fits w (d + 5 * p * N + c + p + b + 2 * N + 5) at hfit
@@ -275,11 +272,9 @@ theorem exec {w : ℕ} (x : Data 32) (C : ℕ → ℕ)
     have hnext : P (y.regs cursor + 1) = P (y.regs cursor) + C (y.regs cursor) ⌈/⌉ Q :=
       before_succ C Q (y.regs cursor)
     have hbefore := hP (y.regs cursor) hyi
-    have hnew := hC (y.regs cursor) hlt
+    have hnew : C (y.regs cursor) ≤ N := hC (y.regs cursor) hlt
     have hstep : P (y.regs cursor) + C (y.regs cursor) ≤ p * N := by
-      have := Nat.mul_le_mul_right N (Nat.succ_le_of_lt hlt)
-      rw [Nat.succ_mul] at this
-      omega
+      nlinarith only [hbefore, hnew, Nat.mul_le_mul_right N hlt]
     have hreadY : y.mem (y.regs counts + y.regs cursor) = C (y.regs cursor) := by
       rw [hyc, hyframe _ (by omega), hread _ hlt]
     obtain ⟨z, he, hzi, hzw, hzh, hzcells, hzframe⟩ := exec_body y (C (y.regs cursor))
@@ -287,9 +282,7 @@ theorem exec {w : ℕ} (x : Data 32) (C : ℕ → ℕ)
       (hfit.of_le (by rw [hyh]; nlinarith only [hstep]))
       (hfit.of_le (by
         rw [hyb, hys]
-        have := Nat.mul_le_mul_right (2 * N) (Nat.succ_le_of_lt hlt)
-        rw [Nat.succ_mul] at this
-        nlinarith only [this, hnew]))
+        nlinarith only [hqueries, hnew, Nat.mul_le_mul_right N hlt]))
       (hfit.of_le (by rw [hyc]; omega))
       (hfit.of_le (by omega))
       (hfit.of_le (by rw [hyw]; nlinarith only [hstep]))

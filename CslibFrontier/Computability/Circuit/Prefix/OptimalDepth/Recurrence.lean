@@ -337,9 +337,8 @@ theorem W_mono_left (k : ℕ) :
         W_succ_eq hr d.add_one_ne_zero (Nat.min_eq_left hsmall), Nat.sub_self, Nat.sub_self,
         V_zero_left, sum_Ico_one_succ_shift (l := d) (by omega) d (fun x => V k x h)]
       linarith [V_nonneg k d h]
-    · have hmono (x : ℕ) (hx : x ≤ d) : V k (d - x) h ≤ V k (d + 1 - x) h := by
-        rw [show d + 1 - x = d - x + 1 by omega]
-        exact V_mono_left k _ h
+    · have hmono (x : ℕ) (hx : x ≤ d) : V k (d - x) h ≤ V k (d + 1 - x) h :=
+        (Nat.succ_sub hx).symm ▸ V_mono_left k (d - x) h
       rw [W_succ_eq hr hd0.ne' (Nat.min_eq_right (by omega)),
         W_succ_eq hr d.add_one_ne_zero (Nat.min_eq_right (by omega))]
       gcongr with i hi
@@ -350,22 +349,19 @@ theorem W_mono_left (k : ℕ) :
 theorem W_split_depth_one {k r d h : ℕ} (hr : 2 ≤ r) :
     W k (r - 1) d (h + 1) + V k d h = W k r (d + 1) (h + 1) := by
   obtain ⟨hr0, hr1⟩ : r ≠ 0 ∧ r ≠ 1 := by omega
-  by_cases hr2 : r = 2
-  · subst hr2
-    simp only [W, Nat.add_sub_cancel, ↓reduceIte, hr0, hr1, Nat.succ_ne_zero,
+  obtain rfl | hr3 : r = 2 ∨ 3 ≤ r := by omega
+  · simp only [W, Nat.add_sub_cancel, ↓reduceIte, hr0, hr1, Nat.succ_ne_zero,
       Nat.min_eq_right (Nat.succ_pos d), Finset.Ico_self, Finset.sum_empty, zero_add]
     ring
-  · obtain ⟨hr_m1_0, hr_m1_1⟩ : r - 1 ≠ 0 ∧ r - 1 ≠ 1 := by omega
+  · obtain ⟨u, rfl⟩ : ∃ u, r = u + 3 := ⟨r - 3, by omega⟩
     cases d with
-    | zero =>
-      norm_num [W, hr_m1_0, hr_m1_1, hr0, hr1, Nat.succ_ne_zero,
-        Nat.min_eq_left (Nat.pos_of_ne_zero hr_m1_0), V_zero_left]
+    | zero => norm_num [W, Nat.succ_ne_zero, V_zero_left]
     | succ m =>
-      set l := min (m + 1) (r - 1 - 1)
-      rw [W_succ_eq (r := r - 1) (by omega) m.add_one_ne_zero rfl,
-        W_succ_eq hr (by omega) (by omega : min (m + 1 + 1) (r - 1) = l + 1),
-        show m + 1 + 1 - (l + 1) = m + 1 - l by omega,
-        sum_Ico_one_succ_shift (by omega : 1 ≤ l) (m + 1) (fun x => V k x h)]
+      set l := min (m + 1) (u + 1)
+      have hl : 1 ≤ l := by omega
+      rw [W_succ_eq (r := u + 3 - 1) (Nat.le_add_left 2 u) m.add_one_ne_zero (rfl : _ = l),
+        W_succ_eq hr m.succ.add_one_ne_zero (Nat.add_min_add_right (m + 1) (u + 1) 1),
+        Nat.succ_sub_succ_eq_sub (m + 1) l, sum_Ico_one_succ_shift hl (m + 1) (fun x => V k x h)]
       ring
 
 /-- Splitting off a proper descendant subtree at depth `≥ 2` satisfies
@@ -401,19 +397,17 @@ theorem W_split_depth_two {k r d h : ℕ} (hk : 3 ≤ k) (hr : 2 ≤ r) (_hrk : 
             Finset.sum_Ico_succ_top (Nat.le_add_left 1 u') (fun i => V k (m + 1 - i) (h + 1)),
             hsub]
           ring
-      set a := m - u
+      obtain ⟨a, rfl⟩ : ∃ a, m = a + u := ⟨m - u, by omega⟩
       have hchain (w : ℕ) :
           2 * (V k (a + w + 1) (h + 1) - V k (a + w) (h + 1)) ≤
             V k (a + w + 1) (h + 1) + V k (a + 1) (h + 1) - 2 * V k a (h + 1) := by
         induction w with
         | zero => simp only [Nat.add_zero]; linarith
         | succ w ih =>
-          have h3 := V_three_term hk (a + w) (h + 1)
-          rw [show a + w + 2 = a + w + 1 + 1 by omega] at h3
           rw [← Nat.add_assoc a w 1]
-          linarith
-      rw [show m + 2 - (u + 1) = a + 1 by omega, show m + 1 - (u + 1) = a by omega,
-        show m + 1 = a + u + 1 by omega] at htel_sum ⊢
+          linarith [V_three_term hk (a + w) (h + 1)]
+      obtain ⟨ha1, ha0⟩ : a + u + 2 - (u + 1) = a + 1 ∧ a + u + 1 - (u + 1) = a := by omega
+      rw [ha1, ha0] at htel_sum ⊢
       linarith [hchain u, V_step_ineq hk (a + u) h]
 
 

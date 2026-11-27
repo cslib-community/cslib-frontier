@@ -93,16 +93,13 @@ theorem card_filter_card_filter_agree_lt_le (G : Finset (Fin k → U)) (P : Fins
     simpa [ρ, P.piecewise_eq_of_mem _ _ hi] using congrFun h i
   set B := G.filter fun b => (#{y ∈ G | ∀ i ∈ P, y i = b i} : ℝ) < t
   have himage : #(B.image ρ) ≤ Fintype.card U ^ #P := by
-    have hinj : Set.InjOn (fun z : Fin k → U => fun i : P => z i)
-        (Set.range ρ) := by
-      rintro _ ⟨a, rfl⟩ _ ⟨b, rfl⟩ h
-      funext i
-      by_cases hi : i ∈ P
-      · exact congrFun h ⟨i, hi⟩
-      · simp [ρ, P.piecewise_eq_of_notMem _ _ hi]
+    have hinj : Set.InjOn (fun (z : Fin k → U) (i : P) => z i) (B.image ρ) :=
+      fun _ hz₁ _ hz₂ h => by
+        obtain ⟨a, -, rfl⟩ := mem_image.1 hz₁
+        obtain ⟨b, -, rfl⟩ := mem_image.1 hz₂
+        exact funext fun i => if hi : i ∈ P then congrFun h ⟨i, hi⟩ else by simp [ρ, hi]
     calc #(B.image ρ) = #((B.image ρ).image fun z : Fin k → U => fun i : P => z i) :=
-          (card_image_of_injOn (hinj.mono fun z hz => by
-            obtain ⟨b, -, rfl⟩ := mem_image.1 hz; exact ⟨b, rfl⟩)).symm
+          (card_image_of_injOn hinj).symm
       _ ≤ Fintype.card (P → U) := card_le_univ _
       _ = Fintype.card U ^ #P := by simp
   have hfib : ∀ z ∈ B.image ρ, (#{b ∈ B | ρ b = z} : ℝ) ≤ t := fun _ hz => by
@@ -234,9 +231,7 @@ theorem sum_card_filter_good_ge (C' : (Fin k → U) → Fin k → V) (f : U → 
   have hsparse : ∀ P ∈ univ.powersetCard s,
       (#{b₀ ∈ agreeing C' f | ¬δ / 2 * Fintype.card U ^ #Pᶜ ≤ #(consistent C' P b₀)} : ℝ) ≤
         δ / 2 * Fintype.card U ^ k := by
-    intro P hPs
-    have hPs' : #P = s := (mem_powersetCard.1 hPs).2
-    have hPc : #Pᶜ = k - s := by rw [card_compl, Fintype.card_fin, hPs']
+    intro P _
     have hA := card_filter_card_filter_agree_lt_le (agreeing C' f) P
       (t := δ / 2 * Fintype.card U ^ #Pᶜ) (by positivity)
     refine le_trans (Nat.cast_le.2 (card_le_card fun b hb => ?_)) (hA.trans_eq ?_)
@@ -244,7 +239,7 @@ theorem sum_card_filter_good_ge (C' : (Fin k → U) → Fin k → V) (f : U → 
       refine ⟨hb.1, lt_of_le_of_lt (Nat.cast_le.2 (card_le_card fun y hy => ?_)) hb.2⟩
       simp only [mem_filter, mem_agreeing] at hy
       exact mem_consistent.2 ⟨hy.2, fun i hi => by rw [hy.1, hb.1, hy.2 i hi]⟩
-    · rw [hPc, hPs', mul_left_comm, ← pow_add, Nat.add_sub_of_le hsk]
+    · rw [mul_left_comm, ← pow_add, card_add_card_compl, Fintype.card_fin]
   -- dense seeds with a heavy tail: Markov against `sum_sum_card_heavy_le`
   have hheavy : ∀ P ∈ univ.powersetCard s,
       (#{b₀ ∈ agreeing C' f | δ / 2 * Fintype.card U ^ #Pᶜ ≤ #(consistent C' P b₀) ∧

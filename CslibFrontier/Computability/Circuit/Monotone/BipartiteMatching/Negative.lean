@@ -135,10 +135,7 @@ theorem card_filter_bipartitePerfectMatching_ofColoring_le :
           simp only [Bool.not_eq_true, card_univ, Fintype.card_fin] at hsplit
           rw [mem_coe, mem_powersetCard, hf, card_disjSum]
           exact ⟨subset_univ _, by omega⟩
-        · have hv := congrArg (v ∈ ·) h
-          simp only [f, mem_filter, mem_univ, true_and, eq_iff_iff] at hv
-          revert hv
-          cases c v <;> cases c' v <;> cases v.isLeft <;> decide
+        · cases hL : v.isLeft <;> simpa [f, hL] using congrArg (v ∈ ·) h
     _ = n.centralBinom := by
         rw [card_powersetCard, card_univ, Fintype.card_sum, Fintype.card_fin, ← two_mul,
           Nat.centralBinom_eq_two_mul_choose]
@@ -171,21 +168,22 @@ half of the colourings in `S`: flipping that endpoint toggles the edge and keeps
 private theorem two_mul_card_filter_edge {U V : Finset (Fin n)} {S : Finset (Coloring n)}
     (hS : Determined U V S) {e : Fin n × Fin n} (he : e.1 ∉ U ∨ e.2 ∉ V) :
     2 * #{c ∈ S | c (.inl e.1) = c (.inr e.2)} = #S := by
+  have hmem {w : Fin n ⊕ Fin n} (hU : ∀ u ∈ U, .inl u ≠ w) (hV : ∀ v ∈ V, .inr v ≠ w)
+      (c : Coloring n) (hc : c ∈ S) : flipOn {w} c ∈ S :=
+    hS c _ (fun u hu => (flipOn_singleton_of_ne (hU u hu) c).symm)
+      (fun v hv => (flipOn_singleton_of_ne (hV v hv) c).symm) hc
   obtain ⟨w, hwS, hw⟩ : ∃ w : Fin n ⊕ Fin n, (∀ c ∈ S, flipOn {w} c ∈ S) ∧
       ∀ c, (flipOn {w} c (.inl e.1) = flipOn {w} c (.inr e.2) ↔
         ¬c (.inl e.1) = c (.inr e.2)) := by
     rcases he with he | he
-    · refine ⟨.inl e.1, fun c hc => hS c _ (fun u hu => ?_)
-        (fun _ _ => (flipOn_singleton_of_ne Sum.inr_ne_inl c).symm) hc, fun c => ?_⟩
-      · exact (flipOn_singleton_of_ne (Sum.inl_injective.ne (ne_of_mem_of_not_mem hu he)) c).symm
-      · rw [flipOn_singleton_self, flipOn_singleton_of_ne Sum.inr_ne_inl]
-        cases c (.inl e.1) <;> cases c (.inr e.2) <;> decide
-    · refine ⟨.inr e.2, fun c hc => hS c _
-        (fun _ _ => (flipOn_singleton_of_ne Sum.inl_ne_inr c).symm) (fun v hv => ?_) hc,
-        fun c => ?_⟩
-      · exact (flipOn_singleton_of_ne (Sum.inr_injective.ne (ne_of_mem_of_not_mem hv he)) c).symm
-      · rw [flipOn_singleton_self, flipOn_singleton_of_ne Sum.inl_ne_inr]
-        cases c (.inl e.1) <;> cases c (.inr e.2) <;> decide
+    · refine ⟨.inl e.1, hmem (fun _ hu => Sum.inl_injective.ne (ne_of_mem_of_not_mem hu he))
+        fun _ _ => Sum.inr_ne_inl, fun c => ?_⟩
+      rw [flipOn_singleton_self, flipOn_singleton_of_ne Sum.inr_ne_inl]
+      cases c (.inl e.1) <;> simp
+    · refine ⟨.inr e.2, hmem (fun _ _ => Sum.inl_ne_inr)
+        fun _ hv => Sum.inr_injective.ne (ne_of_mem_of_not_mem hv he), fun c => ?_⟩
+      rw [flipOn_singleton_self, flipOn_singleton_of_ne Sum.inl_ne_inr]
+      cases c (.inr e.2) <;> simp
   have hbij : #{c ∈ S | c (.inl e.1) = c (.inr e.2)} = #{c ∈ S | ¬c (.inl e.1) = c (.inr e.2)} :=
     card_nbij' (flipOn {w}) (flipOn {w})
       (fun c hc => mem_filter.2 ⟨hwS c (mem_filter.1 hc).1,
@@ -225,9 +223,7 @@ private theorem card_filter_contains_mul_two_pow_of_determined {U V : Finset (Fi
     have h2 := two_mul_card_filter_edge hS' hfresh'
     have hfilter : S.filter (fun c => Contains (ofColoring c) (insert e D)) =
         S'.filter fun c => c (.inl e.1) = c (.inr e.2) := by
-      ext c
-      simp only [S', mem_filter, contains_ofColoring_iff, mem_insert, forall_eq_or_imp]
-      lrat_tauto
+      simp [S', filter_filter, contains_ofColoring_iff, and_comm]
     rw [hfilter, card_insert_of_notMem he, pow_succ, ← ih', ← h2]
     ring
 
@@ -329,9 +325,7 @@ theorem card_filter_forall_not_contains_mul_le {𝒟 : Finset (Finset (Fin n × 
           exact contains_ofColoring_iff.1 hc' e he⟩
     have hfilter : univ.filter (fun c : Coloring n => ∀ D' ∈ insert D 𝒞,
         ¬Contains (ofColoring c) D') = S.filter fun c => ¬Contains (ofColoring c) D := by
-      ext c
-      simp only [S, mem_filter, mem_univ, true_and, mem_insert, forall_eq_or_imp]
-      lrat_tauto
+      simp [S, filter_filter, and_comm]
     have hstep := card_filter_not_contains_mul_le hS (hmatch D hD) hfresh (hcard D hD)
     rw [hfilter]
     calc #(S.filter fun c => ¬Contains (ofColoring c) D) * 2 ^ (s * (k + 1))

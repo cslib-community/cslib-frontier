@@ -317,12 +317,10 @@ theorem replayCoins_inSpace [Finite State] (machine : MultiTapePTM k Bool State)
           ((w b).length + 2) ^ 1 := by
       have hpos := (replayView machine w coin b j).inputPos.isLt
       have hlen := congrArg List.length (hinput b j)
-      simp only [queryIndex, readRegisters_vertexID (hfit b j), registers, pow_one]
-      omega
+      simp only [queryIndex, readRegisters_vertexID (hfit b j), registers, pow_one]; omega
     have h₆ : _ ≤ K * (S b + 2) := (length_encNat_le_of_le_pow_add_two hq).trans
       (Nat.mul_le_mul (by omega) (Nat.add_le_add_right hℓ 2))
-    simp only [replayRegsAt, encReplayRegs_apply, encReplayRegsFields, length_encPair]
-    omega
+    simp only [replayRegsAt, encReplayRegs_apply, encReplayRegsFields, length_encPair]; omega
   have hloop := ComputableInSpace.loopWith (step := replayStep machine w coin)
     (T := fun q => (encReplayRegs q.1).length + S q.2)
     (B := fun b => 11 * (K * (S b + 2)) + 5 + S b)
@@ -350,8 +348,7 @@ theorem replayCoins_inSpace [Finite State] (machine : MultiTapePTM k Bool State)
       List.ext_getElem (by simp) fun i _ _ => by simp
     rw [Bool.eq_iff_iff, decide_eq_true_iff, hofn, stepCoins_accepts_iff_foldl_viewCoinStep]
     exact hacc.symm
-  · dsimp only
-    nlinarith [Nat.zero_le (K * S b), Nat.zero_le (K * Nat.log2 (encB b).length)]
+  · dsimp only; nlinarith [Nat.zero_le (K * S b), Nat.zero_le (K * Nat.log2 (encB b).length)]
 
 /-- **Replaying a fair-coin machine on computed coins, with a stored seed.** The case of
 `Turing.MultiTapePTM.replayCoins_inSpace` whose input is a stored number `z` (such as a seed)
@@ -390,15 +387,12 @@ theorem replayCoins_inSpace_context [Finite State] (machine : MultiTapePTM k Boo
       (S := fun q : ℕ × α => 2 * (encNat q.1).length + S q.2 + 2)
       (ComputableInLogSpace.pair (ComputableInLogSpace.fst _ _)
         ((ComputableInLogSpace.snd encNat enc).comp' (ComputableInLogSpace.snd _ _)))
-      (.of_le fun q => by
-        dsimp only
-        linarith [hlogS q.2.2])
+      (.of_le fun q => by dsimp only; linarith [hlogS q.2.2])
       fun q => (hlogP q).trans (by linarith [hlogS q.2]))
   refine (replayCoins_inSpace machine c (w := fun q => enc q.2) (fun q => hs q.2) hlen hbit
     (hL.mono_le fun q => by omega) (hcoin.mono_le fun q => by omega)
     (fun q => (hlogP q).trans (by linarith [hlogS q.2]))
     (fun q => by linarith [hlogS q.2])).weaken ⟨8, fun q => ?_⟩
-  dsimp only
-  linarith [hlogP q, hlogS q.2]
+  dsimp only; linarith [hlogP q, hlogS q.2]
 
 end Turing.MultiTapePTM

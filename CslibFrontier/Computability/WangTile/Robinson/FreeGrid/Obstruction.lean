@@ -200,19 +200,12 @@ private theorem CycleShade.clear_at_free_row
     have h := valid.horizontal_allowed (if b then quarterWest west else quarterEast east) y
     rw [shaded.vertical_selected cycle valid b hs hn] at h
     exact h
-  refine flow_clear_between (fun x => (signalGrid x y).west)
+  exact flow_clear_between (fun x => (signalGrid x y).west)
     (fun x => (signalGrid x y).east) hw he (fun x => valid.horizontal x y)
     (fun x hxw hxe => flow_transmits (by
       simpa only [free x hxw hxe, SignalState.horizontalAllowed, horizontalInteriorCode]
-        using valid.horizontal_allowed x y)) ?_ ?_
-  · have h := hend true
-    simp only [↓reduceIte, SignalState.horizontalAllowed, horizontalInteriorCode, flowAllowed,
-      decide_eq_true_eq] at h
-    exact h.2
-  · have h := hend false
-    simp only [Bool.false_eq_true, ↓reduceIte, SignalState.horizontalAllowed,
-      horizontalInteriorCode, flowAllowed, decide_eq_true_eq] at h
-    exact h.2
+        using valid.horizontal_allowed x y))
+    (of_decide_eq_true (hend true)).2 (of_decide_eq_true (hend false)).2
 
 /-- Both vertical signal edges vanish at each strict interior point of a free board column. -/
 private theorem CycleShade.clear_at_free_column
@@ -227,19 +220,12 @@ private theorem CycleShade.clear_at_free_column
     have h := valid.vertical_allowed x (if b then quarterSouth south else quarterNorth north)
     rw [shaded.horizontal_selected cycle valid b hw he] at h
     exact h
-  refine flow_clear_between (fun y => (signalGrid x y).south)
+  exact flow_clear_between (fun y => (signalGrid x y).south)
     (fun y => (signalGrid x y).north) hs hn (fun y => valid.vertical x y)
     (fun y hys hyn => flow_transmits (by
       simpa only [free y hys hyn, SignalState.verticalAllowed, verticalInteriorCode]
-        using valid.vertical_allowed x y)) ?_ ?_
-  · have h := hend true
-    simp only [↓reduceIte, SignalState.verticalAllowed, verticalInteriorCode, flowAllowed,
-      decide_eq_true_eq] at h
-    exact h.2
-  · have h := hend false
-    simp only [Bool.false_eq_true, ↓reduceIte, SignalState.verticalAllowed,
-      verticalInteriorCode, flowAllowed, decide_eq_true_eq] at h
-    exact h.2
+        using valid.vertical_allowed x y))
+    (of_decide_eq_true (hend true)).2 (of_decide_eq_true (hend false)).2
 
 /-- Every crossing of free rows and columns has all four obstruction signals absent. -/
 private theorem CycleShade.clear_at_free_crossing

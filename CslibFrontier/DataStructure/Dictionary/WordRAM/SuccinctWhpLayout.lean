@@ -309,11 +309,9 @@ theorem largeOffsetChain (c U V w n_max : ℕ) :
     offTrieItems1 c U V w n_max +
         packedWords (6 * qEpochWhp n_max + 6) (globalPtrBits n_max) w =
       largeSpaceWhp c U V w n_max := by
-  have hb_pos : 0 < bktHashWords c w n_max := by
-    unfold bktHashWords BitPackedDoubleTabulation.space
-    omega
-  exact ⟨rfl, hb_pos, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-    rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, largeOffsets_eq c U V w n_max⟩
+  exact ⟨rfl, by dsimp only [bktHashWords, BitPackedDoubleTabulation.space]; omega, rfl, rfl, rfl,
+    rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
+    largeOffsets_eq c U V w n_max⟩
 
 /-! ## Section 2: Threshold, bit-width, and word-fit inequalities -/
 
@@ -381,10 +379,8 @@ theorem large_bounds_lt_n_max {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) :
     (Nat.mul_le_mul_right _ hM_ge).trans hML12
   have hL12_pos : 1 ≤ (slabScale n_max) ^ 12 := Nat.one_le_pow 12 _ (by omega)
   have hnslice : nSliceWhp n_max < n_max := by
-    have hd : 32 * (slabScale n_max) ^ 12 / (tMinWhp n_max - 1) ≤ 32 * (slabScale n_max) ^ 12 :=
-      Nat.div_le_self _ _
-    unfold nSliceWhp
-    omega
+    have hd := Nat.div_le_self (32 * (slabScale n_max) ^ 12) (tMinWhp n_max - 1)
+    dsimp only [nSliceWhp]; omega
   have htotLoc : totalLocalCoordsWhp n_max < n_max := by
     have hcf : capFrontWhp n_max ≤ n_max / 1024 :=
       (Nat.sub_le _ _).trans (Nat.div_le_div_left hM_ge (by decide))
@@ -595,6 +591,10 @@ private theorem bufTrieMemRep_congr {base c U V w n_max ep : ℕ} {tr : BufTrie}
     BufTrieMemRep base c U V w n_max ep tr mem₂ := by
   have hch := largeOffsetChain c U V w n_max
   let rp := @readPacked_eq_of_mem_eq base (largeSpaceWhp c U V w n_max)
+  let rpM {off} := @readPacked_eq_of_mem_eq base (largeSpaceWhp c U V w n_max) off
+    (6 * maxTrieNodesWhp c n_max)
+  let rpQ {off} := @readPacked_eq_of_mem_eq base (largeSpaceWhp c U V w n_max) off
+    (6 * qEpochWhp n_max + 6)
   dsimp only [BufTrieMemRep] at hrep ⊢
   obtain ⟨hna, hia, hhdr_na, hhdr_ia, hch, hpar, hleaf, hitems⟩ := hrep
   rcases hep with rfl | rfl
@@ -612,19 +612,13 @@ private theorem bufTrieMemRep_congr {base c U V w n_max ep : ℕ} {tr : BufTrie}
           _ = (u + 1) * 2 ^ bCharWhp n_max := by ring
           _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hu
       exact rp hw hmem (hch u hu ch hch_lt) hidx (by omega)
-    · exact ⟨rp hw hmem (hpar u hu1 hu).1 (show 4 * u + 0 < 6 * maxTrieNodesWhp c n_max by omega)
-          (by omega),
-        rp hw hmem (hpar u hu1 hu).2 (show 4 * u + 1 < 6 * maxTrieNodesWhp c n_max by omega)
-          (by omega)⟩
-    · exact ⟨rp hw hmem (hleaf u hu).1 (show 4 * u + 2 < 6 * maxTrieNodesWhp c n_max by omega)
-          (by omega),
-        fun hnz => rp hw hmem ((hleaf u hu).2 hnz)
-          (show 4 * u + 3 < 6 * maxTrieNodesWhp c n_max by omega) (by omega)⟩
-    · exact ⟨rp hw hmem (hitems id hid).1 (show id < 6 * qEpochWhp n_max + 6 by omega) (by omega),
-        rp hw hmem (hitems id hid).2.1
-          (show qEpochWhp n_max + id < 6 * qEpochWhp n_max + 6 by omega) (by omega),
-        rp hw hmem (hitems id hid).2.2
-          (show 2 * qEpochWhp n_max + id < 6 * qEpochWhp n_max + 6 by omega) (by omega)⟩
+    · exact ⟨rpM hw hmem (hpar u hu1 hu).1 (by omega) (by omega),
+        rpM hw hmem (hpar u hu1 hu).2 (by omega) (by omega)⟩
+    · exact ⟨rpM hw hmem (hleaf u hu).1 (by omega) (by omega),
+        fun hnz => rpM hw hmem ((hleaf u hu).2 hnz) (by omega) (by omega)⟩
+    · obtain ⟨hi1, hi2, hi3⟩ := hitems id hid
+      exact ⟨rpQ hw hmem hi1 (by omega) (by omega), rpQ hw hmem hi2 (by omega) (by omega),
+        rpQ hw hmem hi3 (by omega) (by omega)⟩
 
 /-- Pure footprint invariance of `WhpMemRep`: depends only on memory words in
 `[base, base + whpSpace c U V w n_max)`. -/
@@ -642,11 +636,10 @@ theorem WhpMemRep.congr_footprint {base c U V w n_max : ℕ} {θ : SeedWhp c U n
   | small sm =>
     obtain ⟨hsm, hm0, hfields⟩ := hrep
     rw [whpSpace, ite_eq_left hsm] at hmem
-    have hs0 : hdrMode = 0 := rfl
     have hend := smallOffsets_eq U V w n_max
     dsimp only [offSmallVals, offSmallKeys, offSmallPres] at hend
     let rp := @readPacked_eq_of_mem_eq base (smallSpaceWhp U V w n_max)
-    refine ⟨hsm, (hmem _ (by omega) (by omega)).trans hm0, fun i hi => ?_⟩
+    refine ⟨hsm, (hmem base (Nat.le_refl _) (by omega)).trans hm0, fun i hi => ?_⟩
     obtain ⟨hp, hk, hv⟩ := hfields i hi
     exact ⟨rp hw hmem hp hi (by dsimp only [offSmallPres]; omega),
       rp hw hmem hk hi (by dsimp only [offSmallKeys, offSmallPres]; omega),
@@ -655,10 +648,9 @@ theorem WhpMemRep.congr_footprint {base c U V w n_max : ℕ} {θ : SeedWhp c U n
     obtain ⟨hth, hseed, hm0, hfb, hqv⟩ := hrep
     rw [whpSpace, ite_eq_right (Nat.not_lt.mpr hth)] at hmem
     let rp := @readPacked_eq_of_mem_eq base (largeSpaceWhp c U V w n_max)
-    have hs0 : hdrMode = 0 := rfl
     refine ⟨hth,
       hseed.congr_hash hw (fun a ha1 ha2 => (hmem a (by omega) (by omega)).symm),
-      (hmem _ (by omega) (by omega)).trans hm0,
+      (hmem base (Nat.le_refl _) (by omega)).trans hm0,
       fun b hb => rp hw hmem (hfb b hb) (Nat.lt_add_one_of_le hb) (by omega),
       fun i hi => ⟨rp hw hmem (hqv i hi).1 hi (by omega), rp hw hmem (hqv i hi).2 hi (by omega)⟩⟩
   | fast fs =>
@@ -696,8 +688,7 @@ theorem WhpMemRep.congr_footprint {base c U V w n_max : ℕ} {θ : SeedWhp c U n
       fun sIdx hsIdx => ?_,
       bufTrieMemRep_congr hw (Or.inl rfl) hmemL hbuf0,
       bufTrieMemRep_congr hw (Or.inr rfl) hmemL hbuf1,
-      fun j hj => rp hw hmemL (hdirty j hj)
-        (show 3 * qEpochWhp n_max + j < 6 * qEpochWhp n_max + 6 by omega) (by omega)⟩
+      fun j hj => rp (N := 6 * qEpochWhp n_max + 6) hw hmemL (hdirty j hj) (by omega) (by omega)⟩
     · have hidx : b * totalLocalCoordsWhp n_max + loc <
           numBucketsWhp n_max * totalLocalCoordsWhp n_max := by
         calc b * totalLocalCoordsWhp n_max + loc
@@ -706,20 +697,13 @@ theorem WhpMemRep.congr_footprint {base c U V w n_max : ℕ} {θ : SeedWhp c U n
           _ = (b + 1) * totalLocalCoordsWhp n_max := by ring
           _ ≤ numBucketsWhp n_max * totalLocalCoordsWhp n_max := Nat.mul_le_mul_right _ hb
       exact rp hw hmemL (hloc b hb loc hloc_lt) hidx (by omega)
-    · have hm := hbmeta b hb
-      have hbm_le : offBktMeta c U V w n_max +
-          packedWords (16 * numBucketsWhp n_max) (globalPtrBits n_max) w ≤
-          largeSpaceWhp c U V w n_max := by omega
-      exact ⟨rp hw hmemL hm.1 (hle := hbm_le) (by omega),
-        rp hw hmemL hm.2.1 (hle := hbm_le) (by omega),
-        rp hw hmemL hm.2.2.1 (hle := hbm_le) (by omega),
-        rp hw hmemL hm.2.2.2.1 (hle := hbm_le) (by omega),
-        rp hw hmemL hm.2.2.2.2.1 (hle := hbm_le) (by omega),
-        rp hw hmemL hm.2.2.2.2.2.1 (hle := hbm_le) (by omega),
-        rp hw hmemL hm.2.2.2.2.2.2.1 (hle := hbm_le) (by omega),
-        rp hw hmemL hm.2.2.2.2.2.2.2.1 (hle := hbm_le) (by omega),
-        rp hw hmemL hm.2.2.2.2.2.2.2.2.1 (hle := hbm_le) (by omega),
-        rp hw hmemL hm.2.2.2.2.2.2.2.2.2 (hle := hbm_le) (by omega)⟩
+    · obtain ⟨m0, m1, m2, m3, m4, m5, m6, m7, m8, m9⟩ := hbmeta b hb
+      let rpB {idx val}
+          (h : readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w mem₁ idx = val)
+          (hi : idx < 16 * numBucketsWhp n_max) := rp hw hmemL h hi (by omega)
+      exact ⟨rpB m0 (by omega), rpB m1 (by omega), rpB m2 (by omega), rpB m3 (by omega),
+        rpB m4 (by omega), rpB m5 (by omega), rpB m6 (by omega), rpB m7 (by omega),
+        rpB m8 (by omega), rpB m9 (by omega)⟩
     · have hidx : b * capBackWhp n_max + k < numBucketsWhp n_max * capBackWhp n_max := by
         calc b * capBackWhp n_max + k < b * capBackWhp n_max + capBackWhp n_max :=
               Nat.add_lt_add_left hk _
@@ -730,12 +714,8 @@ theorem WhpMemRep.congr_footprint {base c U V w n_max : ℕ} {θ : SeedWhp c U n
       have hb_lt : sIdx / 3 < numBucketsWhp n_max := by omega
       have hrole_lt : sIdx % 3 < 3 := Nat.mod_lt _ (by decide)
       refine ⟨ha_le,
-        rp hw hmemL halloc_r
-          (show 16 * (sIdx / 3) + 10 + 2 * (sIdx % 3) < 16 * numBucketsWhp n_max by omega)
-          (by omega),
-        rp hw hmemL hroot_r
-          (show 16 * (sIdx / 3) + 11 + 2 * (sIdx % 3) < 16 * numBucketsWhp n_max by omega)
-          (by omega),
+        rp (N := 16 * numBucketsWhp n_max) hw hmemL halloc_r (by omega) (by omega),
+        rp (N := 16 * numBucketsWhp n_max) hw hmemL hroot_r (by omega) (by omega),
         fun u hu => ?_⟩
       have hu_ns : u < nSliceWhp n_max := hu.trans_le ha_le
       have hidx : sIdx * nSliceWhp n_max + u < totalBTreeNodesWhp n_max := by
@@ -744,9 +724,9 @@ theorem WhpMemRep.congr_footprint {base c U V w n_max : ℕ} {θ : SeedWhp c U n
               Nat.add_lt_add_left hu_ns _
           _ = (sIdx + 1) * nSliceWhp n_max := by ring
           _ ≤ (3 * numBucketsWhp n_max) * nSliceWhp n_max := Nat.mul_le_mul_right _ hsIdx
-      exact ⟨rp hw hmemL (hnodes_r u hu).1 hidx (by omega),
-        rp hw hmemL (hnodes_r u hu).2.1 hidx (by omega),
-        rp hw hmemL (hnodes_r u hu).2.2 hidx (by omega)⟩
+      obtain ⟨hn1, hn2, hn3⟩ := hnodes_r u hu
+      exact ⟨rp hw hmemL hn1 hidx (by omega), rp hw hmemL hn2 hidx (by omega),
+        rp hw hmemL hn3 hidx (by omega)⟩
 
 /-! ## Section 5: Precomputed runtime parameter block `WhpParams` (`68 + 16 + 16 = 100` words) -/
 
@@ -1120,6 +1100,11 @@ theorem fits_mkWhpParams {base c U V w n_max : ℕ}
       exact (Nat.le_mul_of_pos_right _ hL12).trans (numBucketsWhp_mul_scale_pow12_le hth)
     have hch := largeOffsetChain c U V w n_max
     have hkl_pos : 0 < keyLaneBitsWhp n_max := Nat.succ_pos _
+    have hfp_w : fpBitsWhp n_max < w := by dsimp only [fpBitsWhp]; omega
+    have hkw_w : keysWordBitsWhp n_max < w := by omega
+    have hkl_w : keyLaneBitsWhp n_max < w := by omega
+    have hvl_w : valLaneBitsWhp n_max < w := by omega
+    have h2t_w : 2 * tMinWhp n_max < w := (Nat.le_mul_of_pos_right _ hkl_pos).trans_lt hkw_w
     refine ⟨fun i => ?_, fun j => ?_⟩
     · dsimp only [mkWhpCoreParams]
       rw [ite_eq_right hsm]
@@ -1138,8 +1123,8 @@ theorem fits_mkWhpParams {base c U V w n_max : ℕ}
       · exact hM_le_n.trans_lt hn_lt
       · exact (Nat.sub_le _ _).trans_lt (hM_le_n.trans_lt hn_lt)
       · exact ((Nat.sub_le _ _).trans (keyBits_le_w hU)).trans_lt hw_lt
-      · exact (by unfold fpBitsWhp; omega : fpBitsWhp n_max < w).trans hw_lt
-      · exact Nat.pow_lt_pow_right (by decide) (by unfold fpBitsWhp; omega : fpBitsWhp n_max < w)
+      · exact hfp_w.trans hw_lt
+      · exact Nat.pow_lt_pow_right (by decide) hfp_w
       · exact ((Nat.div_le_self _ 4).trans_lt hlog_w).trans hw_lt
       · exact hpbc_lt.trans hn_lt
       · exact (Nat.sub_le _ _).trans_lt (hpbc_lt.trans hn_lt)
@@ -1169,22 +1154,15 @@ theorem fits_mkWhpParams {base c U V w n_max : ℕ}
           unfold tMinWhp
           exact max_le (by omega) (Nat.div_le_self _ _)
         exact (ht.trans_lt hlog_w).trans hw_lt
-      · exact ((Nat.le_mul_of_pos_right _ hkl_pos).trans_lt
-          (by omega : keysWordBitsWhp n_max < w)).trans hw_lt
-      · exact (((Nat.sub_le _ _).trans (Nat.le_mul_of_pos_right _ hkl_pos)).trans_lt
-          (by omega : keysWordBitsWhp n_max < w)).trans hw_lt
-      · exact (by omega : keyLaneBitsWhp n_max < w).trans hw_lt
-      · exact (Nat.sub_lt (Nat.two_pow_pos _) one_pos).trans
-          (Nat.pow_lt_pow_right (by decide) (by omega : keyLaneBitsWhp n_max < w))
-      · exact (swarOnes_lt_two_pow (keyLaneBitsWhp n_max) (2 * tMinWhp n_max)).trans
-          (Nat.pow_lt_pow_right (by decide) (by
-            have : 2 * tMinWhp n_max * keyLaneBitsWhp n_max = keysWordBitsWhp n_max := rfl
-            omega))
+      · exact h2t_w.trans hw_lt
+      · exact ((Nat.sub_le _ _).trans_lt h2t_w).trans hw_lt
+      · exact hkl_w.trans hw_lt
+      · exact (Nat.sub_le _ 1).trans_lt (Nat.pow_lt_pow_right (by decide) hkl_w)
+      · exact (swarOnes_lt_two_pow _ _).trans (Nat.pow_lt_pow_right (by decide) hkw_w)
       · exact (by omega : valsWordBitsWhp n_max < w).trans hw_lt
-      · exact (by omega : keysWordBitsWhp n_max < w).trans hw_lt
-      · exact (by omega : valLaneBitsWhp n_max < w).trans hw_lt
-      · exact (Nat.sub_lt (Nat.two_pow_pos _) one_pos).trans
-          (Nat.pow_lt_pow_right (by decide) (by omega : valLaneBitsWhp n_max < w))
+      · exact hkw_w.trans hw_lt
+      · exact hvl_w.trans hw_lt
+      · exact (Nat.sub_le _ 1).trans_lt (Nat.pow_lt_pow_right (by decide) hvl_w)
       · exact (by unfold nodeMetaBitsWhp; omega : nodeMetaBitsWhp n_max < w).trans hw_lt
       · exact hns_lt.trans hn_lt
       all_goals exact hfit.of_le (by omega)

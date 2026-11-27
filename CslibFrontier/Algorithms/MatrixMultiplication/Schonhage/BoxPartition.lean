@@ -86,9 +86,8 @@ theorem order_eq_sub_card_P0LevelsWithin (m : ℕ) (η : OutStr L) (τ : Leaf L)
     order m τ = (m : ℤ) - ((P0LevelsWithin (innerSetO η) τ).card : ℤ) := by
   rw [order]
   congr 3
-  ext ℓ
-  rw [P0LevelsWithin, mem_filter, mem_P0Levels]
-  exact ⟨fun h => ⟨P0Levels_subset hτ (mem_P0Levels.2 h), h⟩, fun h => h.2⟩
+  exact Finset.ext fun ℓ => ⟨fun h => mem_filter.2 ⟨P0Levels_subset hτ h, mem_P0Levels.1 h⟩,
+    fun h => mem_P0Levels.2 (mem_filter.1 h).2⟩
 
 private lemma card_P0LevelsWithin_le {m t : ℕ} {η : OutStr L} {τ : Leaf L} (hτ : Leaf.Contributes
   τ η)
@@ -164,27 +163,24 @@ private lemma level_cases (Q V : Finset (Fin L)) (ℓ : Fin L) :
 
 /-- The stars of a family member are exactly its initial levels. -/
 theorem boxesAt_starLevels (hπ : π ∈ boxesAt η V) : Cube.starLevels π = initialLevels (innerSetO
-  η) V := by
-  ext ℓ
-  rw [Cube.mem_starLevels]
-  refine ⟨fun h => ?_, boxesAt_star hπ⟩
-  rcases level_cases (innerSetO η) V ℓ with hℓ | hℓ | hℓ | hℓ
-  · exact hℓ
-  · simp [boxesAt_P0 hπ hℓ] at h
-  · exact (boxesAt_nine hπ hℓ).elim fun _ ⟨_, hij⟩ => by simp [hij] at h
-  · simp [boxesAt_outside hπ hℓ] at h
+  η) V :=
+  Finset.ext fun ℓ => Cube.mem_starLevels.trans ⟨fun h => by
+    rcases level_cases (innerSetO η) V ℓ with hℓ | hℓ | hℓ | hℓ
+    · exact hℓ
+    · simp [boxesAt_P0 hπ hℓ] at h
+    · exact (boxesAt_nine hπ hℓ).elim fun _ ⟨_, hij⟩ => by simp [hij] at h
+    · simp [boxesAt_outside hπ hℓ] at h, boxesAt_star hπ⟩
 
 /-- Fixed P0 coordinates occupy the rest of the selected levels. -/
 theorem boxesAt_P0Levels (hπ : π ∈ boxesAt η V) : Cube.P0Levels π = V \ initialLevels (innerSetO
-  η) V := by
-  ext ℓ
-  rw [Cube.mem_P0Levels]
-  refine ⟨fun h => ?_, boxesAt_P0 hπ⟩
-  rcases level_cases (innerSetO η) V ℓ with hℓ | hℓ | hℓ | hℓ
-  · simp [boxesAt_star hπ hℓ] at h
-  · exact hℓ
-  · exact (boxesAt_nine hπ hℓ).elim fun _ ⟨_, hij⟩ => by simp [hij] at h
-  · exact absurd (CubeSymbol.term.inj (boxesAt_outside hπ hℓ ▸ h)) (privateLeaf_ne_P0 hℓ)
+  η) V :=
+  Finset.ext fun ℓ => Cube.mem_P0Levels.trans ⟨fun h => by
+    rcases level_cases (innerSetO η) V ℓ with hℓ | hℓ | hℓ | hℓ
+    · simp [boxesAt_star hπ hℓ] at h
+    · exact hℓ
+    · exact (boxesAt_nine hπ hℓ).elim fun _ ⟨_, hij⟩ => by simp [hij] at h
+    · exact absurd (CubeSymbol.term.inj (boxesAt_outside hπ hℓ ▸ h)) (privateLeaf_ne_P0 hℓ),
+    boxesAt_P0 hπ⟩
 
 /-- A family member recovers its indexing set from its stars and P0 symbols. -/
 theorem boxesAt_starLevels_union_P0Levels (hπ : π ∈ boxesAt η V) :
@@ -394,9 +390,9 @@ theorem card_low_add_box_leaves (m t : ℕ) (ht : t ≤ m) (η : OutStr L)
     (hη : (innerSetO η).card = m) :
     (lowLeaves m t η).card + ∑ π ∈ (boxLevelSets m t η).biUnion (boxesAt η), (Cube.leaves π).card
       = 10 ^ m := by
-  have hsplit := sum_contributing_eq_low_add_boxes m t ht η hη fun _ => 1
-  rw [← card_eq_sum_ones, card_filter_contributes η hη] at hsplit
-  rw [hsplit, sum_biUnion (boxesAt_pairwiseDisjoint η _)]
+  conv_rhs => rw [← card_filter_contributes η hη, card_eq_sum_ones,
+    sum_contributing_eq_low_add_boxes m t ht η hη]
+  rw [sum_biUnion (boxesAt_pairwiseDisjoint η _)]
   simp only [card_eq_sum_ones]
 
 /-- The exact query counts are given by the existing alpha function. -/

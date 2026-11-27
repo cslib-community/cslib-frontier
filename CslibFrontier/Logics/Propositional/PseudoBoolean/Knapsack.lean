@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.DynamicProgramming
+import CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackDP
+import CslibFrontier.Algorithms.Lean.Knapsack.ProfitDP
 import Mathlib.Algebra.BigOperators.Fin
 
 /-!
@@ -19,7 +21,8 @@ weight `∑ i ∈ S, w i ≤ B`. This file writes it as a pseudo-Boolean problem
 program that writes, with its answer, a proof in the kernel format of VeriPB that the answer is
 optimal, following §3.1 of [Demirović, McCreesh, McIlree, Nordström, Oertel and
 Sidorov][DemirovicMcCreeshMcIlreeNordstromOertelSidorov2024]. The proof is checked by
-`Cslib.Logic.PL.VeriPB.checkRed`; nothing about the dynamic program is proved.
+`Cslib.Logic.PL.VeriPB.checkRed`; that the checker accepts it on every instance is proved in
+`CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackCertify`.
 
 **The encoding** (equations (1)–(3) of the paper). Item `i` is the variable `i`, true when the
 item is taken; an assignment `σ` takes the items `Cslib.Logic.PL.VeriPB.chosen n σ`.
@@ -40,8 +43,12 @@ whoever wrote it.
 `(w, p)`: the weight and profit of a selection among the first `i` items, of weight at most `B`.
 Layer `i + 1` takes the states of layer `i` and those with item `i` added, if they fit, and keeps
 only the states that no other state *dominates*, by weighing no more and earning no less. The
-answer is the largest profit in the last layer. The proof follows §3.1 of the paper:
-* it logs an optimal selection with `soli`, which adds the objective-improving constraint
+layers and their proof are written by the state-graph emitter of
+`CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackDP`, shared with the knapsack propagator,
+with dominance merging and pruning on (`Cslib.Logic.PL.VeriPB.Knapsack.Mode`). The answer is the
+profit of the selection of `Cslib.Algorithms.Lean.Knapsack.profitDP`. The proof follows §3.1 of
+the paper:
+* it logs that selection with `soli`, which adds the objective-improving constraint
   `∑ pᵢ xᵢ ≥ k + 1` for the answer `k`;
 * for each state of layer `i` it reifies, by `Cslib.Logic.PL.VeriPB.reify`, the extension
   variables `W ⇔ ∑_{j<i} wⱼ xⱼ ≥ w`, `P ⇔ ∑_{j<i} pⱼ xⱼ ≤ p` and `S ⇔ W + P ≥ 2` (equations
@@ -54,7 +61,7 @@ answer is the largest profit in the last layer. The proof follows §3.1 of the p
   and derives `S ⇒ ¬xᵢ` by RUP (equations (14)–(15));
 * it derives `S ⇒ S'₀ ∨ S'₁` for the successors of `S` by RUP (equations (16) and (20)), and from
   these and the at-least-one constraint of layer `i`, that of layer `i + 1` (equations
-  (22)–(23)), and then deletes the constraints of layer `i`;
+  (22)–(23)); the layers are not deleted;
 * each state of the last layer has profit at most `k`, so the forward half of its `P` plus the
   improving constraint gives `¬P`, and the at-least-one constraint of the last layer is refuted
   by RUP.
@@ -66,10 +73,10 @@ the same addition and RUP, as the paper allows ("we could instead derive the app
 implication whenever the maximum rule is used"). The conclusion is `BOUNDS -k : q -k`.
 
 The proof has three extension variables for each state and a constant number of steps for each
-state and transition. That the checker accepts it is not proved, nor that the claimed optimum is
-right: both are checked when the proof is run, and the theorem
-`Cslib.Logic.PL.VeriPB.Knapsack.isGreatest_of_checkRed_certify` turns acceptance into
-optimality.
+state and transition. The theorem `Cslib.Logic.PL.VeriPB.Knapsack.isGreatest_of_checkRed_certify`
+turns acceptance into optimality; acceptance itself holds on every instance
+(`Cslib.Logic.PL.VeriPB.Knapsack.checkRed_certify`, in
+`CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackCertify`).
 
 ## Main definitions
 
@@ -77,7 +84,8 @@ optimality.
   encoding, with the objective `Cslib.Logic.PL.VeriPB.negProfit`; an assignment takes the items
   `Cslib.Logic.PL.VeriPB.chosen n σ`, shared with the clique encoding.
 * `Cslib.Logic.PL.VeriPB.Knapsack.certify`: the proof-logging dynamic program, which returns a
-  `Cslib.Logic.PL.VeriPB.Certificate`: a claimed optimum and a candidate proof.
+  `Cslib.Logic.PL.VeriPB.Certificate`: a claimed optimum and a candidate proof, written on the
+  shared emitter.
 
 ## Main results
 
@@ -140,142 +148,39 @@ theorem encodes (w p : Fin n → ℕ) (B : ℕ) :
 
 /-! ### The proof-logging dynamic program -/
 
-/-- A state of the dynamic program on a layer: the weight and the profit of a selection of the
-items so far, and the selection, latest item first. -/
-private structure St where
-  w : ℕ
-  p : ℕ
-  sel : List ℕ
+/-- The options of the optimization: merge the dominated states and drop the transitions that
+overflow the capacity. -/
+private def optMode : Mode := ⟨true, true⟩
 
-/-- Add the state `s` to a list of states none of which dominates another: drop `s` if a state
-weighs no more and earns no less, and otherwise drop the states that `s` dominates. -/
-private def insertSt (K : List St) (s : St) : List St :=
-  if K.any fun t => decide (t.w ≤ s.w) && decide (s.p ≤ t.p) then K
-  else s :: K.filter fun t => !(decide (s.w ≤ t.w) && decide (t.p ≤ s.p))
+/-- The ℕ-indexed instance of the optimization: all items free, no profit bound. -/
+private def optInst (w p : Fin n → ℕ) (B : ℕ) : Inst := Inst.ofFin w p B 0 fun _ => none
 
-/-- A state together with its extension variable `S` and the numbers of the forward and backward
-halves of the reifications of `W`, `P` and `S`. -/
-private structure Node where
-  st : St
-  S : ℕ
-  wf : ℕ
-  wb : ℕ
-  pf : ℕ
-  pb : ℕ
-  sf : ℕ
-  sb : ℕ
-
-/-- A placeholder node, never reached on the dynamic program's own layers. -/
-private def noNode : Node := ⟨⟨0, 0, []⟩, 0, 0, 0, 0, 0, 0, 0⟩
-
-/-- The numbers of the constraints of a node. -/
-private def Node.ids (u : Node) : List ℕ := [u.wf, u.wb, u.pf, u.pb, u.sf, u.sb]
-
-/-- The prefix sums of layer `i`: the terms `wⱼ xⱼ` and `pⱼ ¬xⱼ` of the items `j < i`, without
-zero coefficients, and the total profit. -/
-private structure Pre where
-  wTerms : List (ℕ × Literal ℕ)
-  pTerms : List (ℕ × Literal ℕ)
-  pTot : ℕ
-
-/-- Create the node of a state: reify `W ⇔ ∑ wⱼ xⱼ ≥ w`, `P ⇔ ∑ pⱼ ¬xⱼ ≥ ∑ pⱼ - p` and
-`S ⇔ W + P ≥ 2`. -/
-private def mkNode (pre : Pre) (e : ProofLog) (s : St) : ProofLog × Node :=
-  let (e, a, wf, wb) := e.reify ⟨pre.wTerms, s.w⟩
-  let (e, c, pf, pb) := e.reify ⟨pre.pTerms, pre.pTot - s.p⟩
-  let (e, S, sf, sb) := e.reify ⟨[(1, (a, true)), (1, (c, true))], 2⟩
-  (e, ⟨s, S, wf, wb, pf, pb, sf, sb⟩)
-
-/-- Create the nodes of a layer. -/
-private def mkLayer (pre : Pre) (e : ProofLog) (ss : List St) : ProofLog × List Node :=
-  ss.foldl (fun (e, L) s => let (e, u) := mkNode pre e s; (e, u :: L)) (e, [])
-
-/-- The node of the layer `L` that dominates the state `(w, p)`. -/
-private def domNode (L : List Node) (w p : ℕ) : Node :=
-  (L.find? fun t => decide (t.st.w ≤ w) && decide (p ≤ t.st.p)).getD noNode
-
-/-- The transition implication `S_u ∧ x ⇒ S_t` (equations (11)–(13) and (17)–(19)), with the
-numbers of the constraints it adds, the implication last. -/
-private def transition (e : ProofLog) (u t : Node) (x : Literal ℕ) : ProofLog × List ℕ :=
-  let (e, A) := e.pol [.id u.wf, .id t.wb, .add]
-  let (e, P) := e.pol [.id u.pf, .id t.pb, .add]
-  let (e, τ) := e.rup (Clause.toPB [(u.S, false), (x.1, !x.2), (t.S, true)])
-    [.neg, .id u.sf, .id A, .id P, .id t.sb]
-  (e, [A, P, τ])
-
-/-- The transitions out of the node `u` for the item `j` of weight `wj` and profit `pj`, into the
-layer `L`: returns the number of `S_u ⇒ ⋁ S_t` over the successors `t`, and the numbers of all the
-constraints added. -/
-private def successors (B j wj pj : ℕ) (L : List Node) (e : ProofLog) (u : Node) :
-    ProofLog × ℕ × List ℕ :=
-  let t₀ := domNode L u.st.w u.st.p
-  let (e, ids₀) := transition e u t₀ (j, false)
-  let τ₀ := ids₀.getLastD 0
-  if u.st.w + wj ≤ B then
-    let t₁ := domNode L (u.st.w + wj) (u.st.p + pj)
-    let (e, ids₁) := transition e u t₁ (j, true)
-    let τ₁ := ids₁.getLastD 0
-    let ts := if t₀.S = t₁.S then [(t₀.S, true)] else [(t₁.S, true), (t₀.S, true)]
-    let (e, c) := e.rup (Clause.toPB ((u.S, false) :: ts)) [.neg, .id τ₁, .id τ₀]
-    (e, c, ids₀ ++ ids₁ ++ [c])
-  else
-    let (e, A) := e.pol [.id u.wf, .id 1, .add]
-    let (e, τ₁) := e.rup (Clause.toPB [(u.S, false), (j, false)]) [.neg, .id u.sf, .id A]
-    let (e, c) := e.rup (Clause.toPB [(u.S, false), (t₀.S, true)]) [.neg, .id τ₁, .id τ₀]
-    (e, c, ids₀ ++ [A, τ₁, c])
-
-/-- The states of the next layer: those of `L`, and those with the item `j` added if they fit,
-without dominated states. -/
-private def nextStates (B j wj pj : ℕ) (L : List Node) : List St :=
-  L.foldl (fun K u =>
-    let K := insertSt K u.st
-    if u.st.w + wj ≤ B then insertSt K ⟨u.st.w + wj, u.st.p + pj, j :: u.st.sel⟩ else K) []
-
-/-- The state of the dynamic program between layers: the nodes of the current layer, the number
-of its at-least-one constraint, its prefix sums and the proof so far. -/
-private structure Layer where
-  nodes : List Node
-  alo : ℕ
-  pre : Pre
-  acc : ProofLog
-
-/-- One layer of the dynamic program, for the item `j` of weight `wj` and profit `pj`: create the
-next layer, derive its transitions and its at-least-one constraint, and delete the current
-layer. -/
-private def step (B : ℕ) (X : Layer) (item : ℕ × ℕ × ℕ) : Layer :=
-  let (j, wj, pj) := item
-  let pre : Pre :=
-    ⟨if wj = 0 then X.pre.wTerms else X.pre.wTerms ++ [(wj, (j, true))],
-      if pj = 0 then X.pre.pTerms else X.pre.pTerms ++ [(pj, (j, false))], X.pre.pTot + pj⟩
-  let (e, L) := mkLayer pre X.acc (nextStates B j wj pj X.nodes)
-  let (e, cs, dead) := X.nodes.foldl (fun (e, cs, dead) u =>
-    let (e, c, ids) := successors B j wj pj L e u
-    (e, c :: cs, ids ++ dead)) (e, [], [])
-  let (e, alo) := e.rup (Clause.toPB (L.map fun t => (t.S, true)))
-    (.neg :: cs.map .id ++ [.id X.alo])
-  let dead := X.alo :: X.nodes.flatMap Node.ids ++ dead
-  ⟨L, alo, pre, e.deld dead⟩
+/-- The steps of the dynamic program after the solution: the layers, then for each state of the
+last layer the forward half of `P` plus the improving constraint `2`, then the contradiction by
+RUP. Returns the proof and the number of the contradiction. -/
+private def optSteps (I : Inst) : ProofLog × ℕ :=
+  let f := I.forward optMode
+  let rn := f.2.headD ⟨0, [], [], 0⟩
+  let e₂ := f.1.push (rn.nodes.map fun u => .step (.pol [.id u.pf, .id 2, .add]))
+    rn.nodes.length 0
+  let ks := (List.range rn.nodes.length).map (f.1.next + ·)
+  (e₂.push [.step (.rup ⟨[], 1⟩ (ks.map .id ++ rn.nodes.map (.id ·.sf) ++ [.id rn.alo]))] 1 0,
+    e₂.next)
 
 /-- **The proof-logging dynamic program** for the items of weights `w` and profits `p` and the
-capacity `B`. It returns a claimed optimum, the largest profit in the last layer of the dynamic
-program, and a candidate VeriPB proof with the conclusion `BOUNDS -optimum : q -optimum` for the
-knapsack formula and objective. No theorem says that the checker accepts the proof or that the
-claimed optimum is right; when `Cslib.Logic.PL.VeriPB.checkRed` accepts the proof on an
-instance, the claimed optimum is the optimum there
-(`Cslib.Logic.PL.VeriPB.Knapsack.isGreatest_of_checkRed_certify`). -/
+capacity `B`. It returns a claimed optimum, the profit of the selection of
+`Cslib.Algorithms.Lean.Knapsack.profitDP`, and a VeriPB proof with the conclusion
+`BOUNDS -optimum : q -optimum` for the knapsack formula and objective. When
+`Cslib.Logic.PL.VeriPB.checkRed` accepts the proof, the claimed optimum is the optimum
+(`Cslib.Logic.PL.VeriPB.Knapsack.isGreatest_of_checkRed_certify`), and it always accepts it
+(`Cslib.Logic.PL.VeriPB.Knapsack.checkRed_certify`). -/
 def certify (w p : Fin n → ℕ) (B : ℕ) : Certificate ℕ :=
   -- The solution is logged first, so its improving constraint is `2`; the rest starts at `3`.
-  let (e, L₀) := mkLayer ⟨[], [], 0⟩ ⟨[], 3, n⟩ [⟨0, 0, []⟩]
-  let u₀ := L₀.headD noNode
-  let (e, alo₀) := e.rup (Clause.toPB [(u₀.S, true)]) [.neg, .id u₀.wb, .id u₀.pb, .id u₀.sb]
-  let X := ((List.finRange n).map fun i => (i.val, w i, p i)).foldl (step B)
-    ⟨L₀, alo₀, ⟨[], [], 0⟩, e⟩
-  let best := X.nodes.foldl (fun b u => if b.p < u.st.p then u.st else b) ⟨0, 0, []⟩
-  let (e, ks) := X.nodes.foldl (fun (e, ks) u =>
-    let (e, k) := e.pol [.id u.pf, .id 2, .add]; (e, k :: ks)) (X.acc, [])
-  let (e, q) := e.rup ⟨[], 1⟩ (ks.map .id ++ X.nodes.map (.id ·.sf) ++ [.id X.alo])
-  ⟨best.p, e.proof [.soli ((List.finRange n).map fun i => (i.val, decide (i.val ∈ best.sel)))]
-      (.bounds (some (-best.p)) q (some (-best.p)) none)⟩
+  let sel := Cslib.Algorithms.Lean.Knapsack.profitDP w p B (List.finRange n)
+  let k := (sel.map p).sum
+  let r := optSteps (optInst w p B)
+  ⟨k, ⟨.soli ((List.finRange n).map fun i => (i.val, decide (i ∈ sel))) :: r.1.steps.reverse,
+    .bounds (some (-k)) r.2 (some (-k)) none⟩⟩
 
 /-- **If the checker accepts the proof of the dynamic program, its answer is the optimum**: the
 largest profit of a set of items that fits. -/

@@ -72,19 +72,16 @@ private theorem scanned_snoc {C : QuantumSigningForger} (s : Level) (G : Xofs) (
   | signing q k =>
     by_cases h : 255 < q.context.length
     · simp [scanned, preparedPrefix, h, nextPreparation]
-    · let m := G.representativeFromTr sk.tr (formatMessage q.message q.context)
+    · simp only [scanned, preparedPrefix, h, ↓reduceIte, List.findSome?_append]
+      set m := G.representativeFromTr sk.tr (formatMessage q.message q.context)
       have bits : List.ofFn (BitString.ofList 512 m) = m := BitString.ofFn_ofList
         (by simp only [m, Xofs.representativeFromTr, Keccak.length_bytesToBitsLE,
           G.h256.length_read])
-      simp only [scanned, preparedPrefix, h, ↓reduceIte, List.findSome?_append]
       cases ys.findSome? (fun y => terminalReply (G.attemptWithMask s sk A m y)) with
       | some r => rfl
       | none =>
-        dsimp only [m] at bits
-        simp only [Option.none_or, List.findSome?_cons, List.findSome?_nil,
-          nextPreparation, bits]
-        cases terminalReply (G.attemptWithMask s sk A
-          (G.representativeFromTr sk.tr (formatMessage q.message q.context)) y) <;> rfl
+        simp only [Option.none_or, List.findSome?_cons, List.findSome?_nil, nextPreparation, bits]
+        cases terminalReply (G.attemptWithMask s sk A m y) <;> rfl
 
 -- Conditional on its initial table and representative, the remaining randomized retry loop
 -- induces a measurement on every possible incoming device state.
@@ -104,16 +101,15 @@ private theorem retries_readout (C : QuantumSigningForger) (s : Level) (H : Xofs
     let μ := signingMaskLaw s.params (by cases s <;> decide)
     let V := PMF.uniformOfFintype (Digest s)
     have branch (v : Digest s) (y : Mask s) :
-        let T := Function.update D (maskCommitmentAddress s A m y) v
         ∃ M : Test C, ∀ d, (match installedAttempt s H A sk m D y v with
-          | some r => done T r d
+          | some r => done (Function.update D (maskCommitmentAddress s A m y) v) r d
           | none => runRegisterRetries μ V (maskCommitmentAddress s A m)
               (installedAttempt s H A sk m) (fun T r => done T r d) keep fuel
-                (if keep then T else D)) = observe M d := by
-      intro T
-      cases installedAttempt s H A sk m D y v with
-      | some r => exact test T r
-      | none => exact ih _
+                (if keep then Function.update D (maskCommitmentAddress s A m y) v else D)) =
+                  observe M d :=
+      match installedAttempt s H A sk m D y v with
+      | some r => test _ r
+      | none => ih _
     choose M law using branch
     refine ⟨POVM.mixture V (fun v => POVM.mixture μ (M v)), fun d => ?_⟩
     simp only [runRegisterRetries, PMF.monad_bind_eq_bind, observe, POVM.measureDensity_mixture]
@@ -190,8 +186,7 @@ private theorem stage_run (C : QuantumSigningForger) (s : Level) (H A keys sk)
         C.resumeRetries s H A next sk T fuel x (nextPreparation s (H.withDigestRegister s T)
           A sk y p) l t dev := by
   simp only [stage, before, scored, cutInteraction, prefixInteraction]
-  apply congrArg (PMF.bind _ ·)
-  funext ⟨x, ⟨d,l⟩, t⟩
+  refine congrArg (PMF.bind _ ·) (funext fun ⟨x, ⟨d, l⟩, t⟩ => ?_)
   rw [eval_scanMasks]
   exact ((C.resume_readout ..).choose_spec d).symm
 
@@ -259,10 +254,8 @@ private theorem window_step (C : QuantumSigningForger) (s : Level) (H : Xofs)
     rw [PMF.bind_comm μ U]
     exact congrArg (PMF.bind U ·) (funext fun D =>
       (PMF.bind_comm μ V _).trans (C.write_stage s H A keys sk next i rows ys fuel D))
-  have r D y : V.bind (go D false y) =
-      C.callWindow s H A keys sk next i rows (ys ++ [y]) fuel D := by
-    simp only [go, prog, probe, test, read_stage, PMF.bind_const]
-  simpa only [w, r, Nat.cast_add, Nat.cast_one] using h
+  rw [w] at h
+  simpa only [go, prog, probe, test, read_stage, PMF.bind_const, Nat.cast_add, Nat.cast_one] using h
 
 -- Draw a fixed number of native masks without inspecting the digest table. The resulting
 -- list is ordered as the signer will inspect it, including masks left unused on early return.
@@ -417,19 +410,15 @@ private theorem cut_cost_after {C : QuantumSigningForger} {cost : Request C → 
     have earlier (left : ℕ) (move : cut (C := C) (.liftBind cmd k) i =
         .liftBind cmd (fun b => cut (C := C) (k b) left)) :
         OracleComp.IsCostBounded cost (next r) K := by
-      rw [move] at reached
-      simp only [OracleComp.supportWith, Set.mem_iUnion, Set.mem_univ, exists_prop,
+      simp only [move, OracleComp.supportWith, Set.mem_iUnion, Set.mem_univ, exists_prop,
         true_and] at reached
       obtain ⟨b, hb⟩ := reached
       exact ih b (sub b) left hb
-    rcases cmd with _ | _ | ask
-    · exact earlier i rfl
-    · exact earlier i rfl
-    · cases i with
-      | zero =>
-        cases Set.mem_singleton_iff.mp reached
-        exact sub r
-      | succ i => exact earlier i rfl
+    match cmd, i with
+    | .inl _, _ | .inr (.inl _), _ | .inr (.inr _), i + 1 => exact earlier _ rfl
+    | .inr (.inr _), 0 =>
+      cases Set.mem_singleton_iff.mp reached
+      exact sub r
 
 -- Average a bound at an adaptive signing boundary over the native execution which reaches it.
 private theorem cut_bind_gap (C : QuantumSigningForger) (s : Level) (G : Xofs) (keys : KeyPair)
@@ -492,9 +481,8 @@ private theorem conditioned_call_gap (C : QuantumSigningForger) (s : Level) (H :
         814 * (2 * (4 * qH * √δ + (815 * i.val + 814) * δ)) := by
   intro rows U native programmed δ
   let fresh := rows.bind fun rs => U.bind fun D => C.chosenCall s H A keys i D true (List.ofFn rs)
-  have erase : |prob programmed - prob fresh| ≤ 814 * (4 * qH * √δ + (815 * n + 2) * δ) := by
-    rw [abs_sub_comm]
-    exact abs_common_bind rows _ _ fun rs =>
+  have erase : |prob programmed - prob fresh| ≤ 814 * (4 * qH * √δ + (815 * n + 2) * δ) :=
+    abs_sub_comm (prob fresh) (prob programmed) ▸ abs_common_bind rows _ _ fun rs =>
       abs_common_bind U _ _ fun D => C.erase_at_cut s H keys sk A key mat hash calls i D _
   have refresh : |prob fresh - prob native| ≤
       814 * (2 * (4 * qH * √δ + (815 * i.val + 814) * δ)) := by

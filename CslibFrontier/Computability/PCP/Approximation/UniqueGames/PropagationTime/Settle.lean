@@ -140,9 +140,8 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
             simp only [htake_succ, List.find?_append, hok, Option.some_or]
           unfold pickChosenBody
           wram_exec [hzC.zero, hzC.one, hk_reg, hzOpt.1]
-          refine ⟨⟨by wram_simp [hzC], by wram_simp [hzCL], by wram_simp [hzIdx],
-            by wram_simp [hzMem], ?_⟩, by wram_simp⟩
-          rw [hnext]; exact ⟨by wram_simp [hzOpt.1], by wram_simp [hzOpt.2]⟩
+          simp only [Ppick, hnext]
+          and_intros <;> wram_simp [hzC, hzCL, hzIdx, hzMem, hzOpt.1, hzOpt.2]
         | none =>
           rw [hok] at hzOpt
           have hck_mem : z.mem (candBase g + k) = (S.cand ⟨k, hk⟩).toNat := by
@@ -154,14 +153,11 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
             cases S.cand ⟨k, hk⟩ <;> rfl
           unfold pickChosenBody
           cases hck : S.cand ⟨k, hk⟩ <;>
-            simp only [hck, Bool.toNat_true, Bool.toNat_false, ite_true,
+          · simp only [hck, Bool.toNat_true, Bool.toNat_false, ite_true,
               Bool.false_eq_true, ite_false] at hck_mem hnext
-          · wram_exec [hzC.zero, hzC.one, hzC.candB, hk_reg, hzOpt.1, hck_mem]
+            wram_exec [hzC.zero, hzC.one, hzC.candB, hk_reg, hzOpt.1, hck_mem]
             simp only [Ppick, hnext]
-            and_intros <;> wram_simp [hzC, hzCL, hzIdx, hzMem, hzOpt.1, hzOpt.2]
-          · wram_exec [hzC.zero, hzC.one, hzC.candB, hk_reg, hzOpt.1, hck_mem]
-            simp only [Ppick, hnext]
-            and_intros <;> wram_simp [hzC, hzCL, hzIdx, hzMem])
+            and_intros <;> wram_simp [hzC, hzCL, hzIdx, hzMem, hzOpt.1, hzOpt.2])
       (by rw [hlab1]; exact Nat.zero_le _)
       (by rw [hlab1]; refine ⟨hc1, hcl1, hidx1, hm1, ?_⟩
           simp only [optAt, List.take_zero, List.find?_nil, ht3_1, hch1, and_self])
@@ -228,8 +224,6 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
           have hvis0 : z.mem (visBase g + v) = 0 := hzT.vis_none v hv_lt hgv
           have hc_br : ¬ (Cond.eq rTmp1 rOne).Holds z1 := by
             simp only [Cond.holds_eq, hz1T1, hvis0, hz1C.one, Nat.zero_ne_one, not_false_eq_true]
-          have hnop_rem : ExecWithin w (.op (.copy rRem rRem)) z1 z1 1 :=
-            ⟨1, le_rfl, exec_nop rRem z1⟩
           obtain ⟨z2, hz2_ex, hz2C, hz2Ch, hz2Rem, hz2CL, hz2Idx, hz2m⟩ :=
             execWithin_inc_rRem (g := g) (z := z1) (by rwa [hz1Rem]) hz1C
           have hz2m' : z2.mem = z.mem := hz2m.trans hz1m
@@ -242,11 +236,10 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
             · subst hiv
               simpa [List.getD_eq_getElem?_getD, hi2] using hgv'.symm
             · rfl
-          refine ⟨z2, (hz1_ex.seq ((ExecWithin.branch_neg hc_br hnop_rem).seq hz2_ex)).mono
-              (by omega),
-            ⟨?_, hz1Ch ▸ hz2Ch, hz1CL ▸ hz2CL, hz1Idx ▸ hz2Idx, hz2m' ▸ hzCM⟩, hz1Rem ▸ hz2Rem⟩
-          rw [hsame_tab]
-          exact hzT.of_eq hz2C hz2m'
+          exact ⟨z2, (hz1_ex.seq ((ExecWithin.branch_neg hc_br
+              ⟨1, le_rfl, exec_nop rRem z1⟩).seq hz2_ex)).mono (by omega),
+            ⟨hsame_tab ▸ hzT.of_eq hz2C hz2m', hz1Ch ▸ hz2Ch, hz1CL ▸ hz2CL, hz1Idx ▸ hz2Idx,
+              hz2m' ▸ hzCM⟩, hz1Rem ▸ hz2Rem⟩
         | some fn =>
           obtain ⟨hvis1, htab_fn⟩ := hzT.vis_some v hv_lt fn hgv
           have hc_br : (Cond.eq rTmp1 rOne).Holds z1 := by
@@ -289,11 +282,11 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
                   (rfl : Function.update w0.mem (tabBase g + v * L + a) (fn chosen).val = _)
                 unfold freezeSlotBody
                 wram_exec [hwC.one, hwT2, hwT3, ha_reg]
-                refine ⟨⟨by wram_simp [hwC], by wram_simp [hwT2], by wram_simp [hwT3],
-                  by wram_simp [hwCh], by wram_simp [hwRem], by wram_simp [hwCL],
-                  by wram_simp [hwIdx], ?_, ?_⟩, by wram_simp⟩
-                · simp only [Data.write_mem, Data.set_mem]; exact hpws.1
-                · simp only [Data.write_mem, Data.set_mem]; exact hpws.2)
+                simp only [Pslot, Data.write_mem, Data.set_mem]
+                and_intros <;> first
+                  | wram_simp [hwC, hwT2, hwT3, hwCh, hwRem, hwCL, hwIdx]
+                  | exact hpws.1
+                  | exact hpws.2)
               (by rw [hz2Lab]; exact Nat.zero_le _)
               (by rw [hz2Lab]; exact ⟨hz2C, hz2T2, hz2T3, hz2Ch, hz2Rem, hz2CL, hz2Idx,
                 fun _ h => by omega, fun addr _ => congrFun hz2m addr⟩)

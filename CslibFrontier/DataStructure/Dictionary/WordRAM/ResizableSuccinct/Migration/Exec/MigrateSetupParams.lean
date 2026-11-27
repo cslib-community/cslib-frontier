@@ -77,10 +77,8 @@ noncomputable def migrateSetupParamsCode : RCode .exact rResize :=
        migrateComputeArenaCode
 
 private theorem not_readsWidth_migrateLoadOldCode : ¬migrateLoadOldCode.ReadsWidth := by
-  have hb1 := not_readsWidth_loadBlockUpTo mBase mCur mOldHp offHashParams 18 (by decide)
-  have hb2 := not_readsWidth_loadBlockUpTo mBase mCur mOldCp offCompParams 35 (by decide)
   simp [migrateLoadOldCode, RCode.ReadsWidth, Op.ReadsWidth, Op.exactBin,
-    not_readsWidth_loadAtOffCode, hb1, hb2]
+    not_readsWidth_loadAtOffCode, not_readsWidth_loadBlockUpTo]
 
 private theorem not_readsWidth_migrateComputeArenaCode : ¬migrateComputeArenaCode.ReadsWidth := by
   simp [migrateComputeArenaCode, RCode.ReadsWidth, Op.ReadsWidth, Op.exactBin]
@@ -125,8 +123,7 @@ private theorem migrateLoadOldCode_exec {U V w N_old n n_init base L_peak : ℕ}
         mkHashParams w (epochQBits U N_old) (epochHashB N_old) (totalMicroBits N_old) 3 i) ∧
       (∀ i : Fin 36, y.regs (mOldCp i) = mkCompParams U V w N_old i) := by
   obtain ⟨hw, hU, hV⟩ := rootHeaderValid_bounds hx hsplit.root_hdr
-  have hNU_old : N_old ≤ U := by rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
-  have hn_old : n ≤ N_old := by rcases hev with ⟨rfl, _⟩ | ⟨_, hnN, _, _⟩ <;> omega
+  obtain ⟨hn_old, _, hNU_old⟩ := epochValid_iff_capacity_bounds.mp hev
   have hnU : n ≤ U := hn_old.trans hNU_old
   have hce_old : compactedEpochWords U V w N_old n =
       offCompItems U w N_old + compactedItemWords U V w N_old n := by
@@ -181,25 +178,23 @@ private theorem migrateLoadOldCode_exec {U V w N_old n n_init base L_peak : ℕ}
   have hex_zfr := RDemonicExec.const (B := .exact) (d := mFr) (x := x₃)
     (hx₃f_eq.le.trans hL) (fits_zero w)
   have hx₄b : x₄.Bounded w := hx₃b.set (fits_zero w)
-  have hin_iw : x₄.regs ∘ srcOldIw = WordEncoding.encode (mkCompParams U V w N_old, n) := by
-    refine (regs_pairSrc (regs_cp_eq fun i => ?_) (regs_reg1_eq mCnt ?_)).eq
-    · dsimp only [x₄, RData.set]
-      rw [Function.update_of_ne (mOldCp_ne_mReg i (c := 1) (Or.inl (by decide)))]
-      exact hx₃_cp_all i
-    · simp [x₄, RData.set, hx₃_cnt]
+  have hin_iw : x₄.regs ∘ srcOldIw = WordEncoding.encode (mkCompParams U V w N_old, n) :=
+    (regs_pairSrc (regs_cp_eq fun i => (Function.update_of_ne
+      (mOldCp_ne_mReg i (c := 1) (Or.inl (by decide))) _ _).trans (hx₃_cp_all i))
+      (regs_reg1_eq mCnt (by simp [x₄, RData.set, hx₃_cnt]))).eq
   have hfit_iw4 : Fits w (4 + compactedItemWords U V w N_old n) :=
     hfit_fr.of_le (by rw [hfr, hce_old]; omega)
   have hsafe_iw : CompItemWordsPre w (mkCompParams U V w N_old, n) (memoryState mFr x₄.toData) :=
     ⟨U, V, N_old, hw, hNU_old, hU, hV, rfl, fits_wOffQ_add_three_of_itemWords hw hfit_iw4⟩
   have hv_iw := validProg_compItemWordsGen (mkCompParams U V w N_old, n)
     (memoryState mFr x₄.toData) ⟨wellFormed_memoryState hx₄b.1, Nat.zero_le _⟩
-  have hnoalloc_iw : ((Memory.spec 0).clientState (memoryState mFr x₄.toData)
-      (compItemWordsGenProg (mkCompParams U V w N_old, n))).frontier ≤ x₄.frontier := by
-    rw [clientState_compItemWordsGenProg]; change 0 ≤ x₄.frontier; omega
   obtain ⟨x₅, hex_iw, hx₅b, hx₅f, hm_iw, hout_iw, hframe_iw⟩ :=
     execWitness wItemWords factor_mItemWords_le mFr srcOldIw tmpOldIw
       tmpOldIw_inj srcOldIw_ne_tmp tmpOldIw_ne_mFr srcOldIw_ne_mFr
-      (mkCompParams U V w N_old, n) hx₄b (hx₃f_eq.le.trans hL) hin_iw hsafe_iw hv_iw hnoalloc_iw
+      (mkCompParams U V w N_old, n) hx₄b (hx₃f_eq.le.trans hL) hin_iw hsafe_iw hv_iw
+      (by
+        rw [clientState_compItemWordsGenProg]
+        exact Nat.zero_le _)
   rw [memoryCost_compItemWordsGenProg, zero_add, mul_one] at hex_iw
   rw [clientState_compItemWordsGenProg] at hm_iw
   have hx₅m : x₅.mem = x.mem := (congrArg Memory.State.mem hm_iw).trans hx₃m_eq
@@ -237,14 +232,13 @@ private theorem migrateLoadOldCode_exec {U V w N_old n n_init base L_peak : ℕ}
   obtain ⟨hpre_tc, hv_tc, hst_tc, hres_tc, hc_tc⟩ :=
     computeTargetCapProg_spec (s := ⟨x.mem, x.frontier⟩) hsplit.root_hdr
       (by change base < x.frontier; rw [hfr, hce_old]; omega) hnU hfit1
-  have hnoalloc_tc : ((Memory.spec 0).clientState (memoryState mFr x₇.toData)
-      (computeTargetCapProg (base, n))).frontier ≤ x₇.frontier := by
-    rw [hms₇, hst_tc]
-    exact hx₅f_eq.symm.le
   obtain ⟨y, hex_tc, hyb, hyf, hm_tc, hout_tc, hframe_tc⟩ :=
     execWitness wTargetCap factor_wTargetCap_le mFr srcTargetCap tmpTargetCap
       tmpTargetCap_inj srcTargetCap_ne_tmp tmpTargetCap_ne_mFr srcTargetCap_ne_mFr
-      (base, n) hx₇b (hx₅f_eq.le.trans hL) hin_tc (hms₇ ▸ hpre_tc) (hms₇ ▸ hv_tc) hnoalloc_tc
+      (base, n) hx₇b (hx₅f_eq.le.trans hL) hin_tc (hms₇ ▸ hpre_tc) (hms₇ ▸ hv_tc)
+      (by
+        rw [hms₇, hst_tc]
+        exact hx₅f_eq.symm.le)
   simp only [hms₇, hst_tc, hres_tc] at hm_tc hout_tc
   have hym : y.mem = x.mem := congrArg Memory.State.mem hm_tc
   have hy_fr_reg : y.regs mFr = x.frontier := congrArg Memory.State.frontier hm_tc
@@ -398,17 +392,15 @@ theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
       (∀ i : Fin 36, s₈.regs (mNewCp i) = mkCompParams U V w N_new i) := by
   intro N_new newMeta offNew iwOld iwNew arenaW arenaB peakF
   obtain ⟨hw, hU, hV⟩ := rootHeaderValid_bounds hx hsplit.root_hdr
-  have hNU_old : N_old ≤ U := by rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
-  have hn_old : n ≤ N_old := by rcases hev with ⟨rfl, _⟩ | ⟨_, hnN, _, _⟩ <;> omega
+  obtain ⟨hn_old, _, hNU_old⟩ := epochValid_iff_capacity_bounds.mp hev
   have hnU : n ≤ U := hn_old.trans hNU_old
   obtain ⟨hN_new_pos, hn_new, hN_new_2n, hNU_new⟩ := targetCap_bounds_of_pos hn hnU
   have hce_old : compactedEpochWords U V w N_old n = offCompItems U w N_old + iwOld := by
     unfold compactedEpochWords; rw [ite_eq_right (by omega)]
   have h225_old : 225 ≤ offCompItems U w N_old := le_offCompItems_225 U w N_old
   have h225_new : 225 ≤ offNew := le_offCompItems_225 U w N_new
-  have hpeak_eq : peakF = arenaB + arenaW := by
-    dsimp only [peakF, arenaB, arenaW, newMeta, offNew, N_new, iwOld, iwNew, migratePeakWords]
-    omega
+  have hpeak_eq : peakF = arenaB + arenaW :=
+    base_add_migratePeakWords base U V w N_old n
   have hfit_ar : Fits w (arenaB + arenaW) := hpeak_eq ▸ hfit_peak
   have haw_def : arenaW = max iwOld iwNew + 6 := rfl
   have hiwn_le_aw : iwNew ≤ arenaW := (le_max_right _ _).trans (Nat.le_add_right _ 6)

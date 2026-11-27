@@ -259,10 +259,8 @@ theorem isWelfareMaximizing_allocation (k : ℕ) :
   have hy01 : ∀ i, 0 ≤ y i ∧ y i ≤ 1 := fun i => by
     rcases hy.1 i with h | h <;> rw [h] <;> exact ⟨by norm_num, by norm_num⟩
   rcases le_or_gt (Fintype.card ι) k with hnk | hkn
-  · have hall : ∀ i, allocation k b i = 1 := fun i =>
-      allocation_eq_one_iff.2 ((rank_lt_card b i).trans_le hnk)
-    refine Finset.sum_le_sum fun i _ => ?_
-    rw [hall i]
+  · refine Finset.sum_le_sum fun i _ => ?_
+    rw [allocation_eq_one_iff.2 ((rank_lt_card b i).trans_le hnk)]
     exact mul_le_mul_of_nonneg_left (hy01 i).2 (hb i)
   · obtain ⟨ik, hik⟩ := exists_rank_eq (b := b) hkn
     set p := b ik
@@ -283,8 +281,7 @@ theorem isWelfareMaximizing_allocation (k : ℕ) :
     have hexp : ∀ z : ι → ℝ, ∑ i, (b i - p) * z i = (∑ i, b i * z i) - p * ∑ i, z i := fun z => by
       simp only [sub_mul, Finset.sum_sub_distrib, ← Finset.mul_sum]
     rw [hexp, hexp, sum_allocation, min_eq_left hkn.le] at hsum_shift
-    have hp_sum : p * ∑ i, y i ≤ p * k := mul_le_mul_of_nonneg_left hy.2 hp0
-    linarith
+    linarith [mul_le_mul_of_nonneg_left hy.2 hp0]
 
 /-- `allocation k` is monotone on nonnegative bids. -/
 theorem isMonotone_allocation (k : ℕ) : IsMonotone (allocation (ι := ι) k) :=
@@ -348,18 +345,15 @@ theorem criticalBid_allocation_of_wins {k : ℕ} {b : ι → ℝ} (hb : 0 ≤ b)
     have hS_card : S.card = k - 1 := by rw [Finset.card_erase_of_mem hi_mem, ← hik]; rfl
     have hk_pos : 1 ≤ k := Nat.one_le_iff_ne_zero.2 fun h0 => Nat.not_lt_zero _ (h0 ▸ hw)
     refine criticalBid_eq_of_threshold (hb ik) (fun z hz => ?_) (fun z hz hwin => ?_)
-    · apply allocation_eq_one_iff.2
-      have hsub : (Finset.univ.filter fun j => Beats (Function.update b i z) j i) ⊆ S := by
+    · have hsub : (Finset.univ.filter fun j => Beats (Function.update b i z) j i) ⊆ S := by
         intro j hj
         have hjb : Beats (Function.update b i z) j i := (Finset.mem_filter.1 hj).2
         have hj_ne_i : j ≠ i := fun h => beats_irrefl _ i (h ▸ hjb)
         refine Finset.mem_erase.2 ⟨hj_ne_i, Finset.mem_filter.2 ⟨Finset.mem_univ j, Or.inl ?_⟩⟩
-        have hle := le_of_beats hjb
-        simp only [Function.update_self, Function.update_of_ne hj_ne_i] at hle
-        exact hz.trans_le hle
-      have hcard := Finset.card_le_card hsub
-      rw [Wins, rank]
-      omega
+        exact hz.trans_le <| by
+          simpa only [Function.update_self, Function.update_of_ne hj_ne_i] using le_of_beats hjb
+      exact allocation_eq_one_iff.2
+        ((Finset.card_le_card hsub).trans_lt (hS_card ▸ Nat.sub_lt hk_pos zero_lt_one))
     · by_contra! hlt
       have hik_not_S : ik ∉ S := fun hm =>
         beats_irrefl b ik (Finset.mem_filter.1 (Finset.mem_of_mem_erase hm)).2
@@ -464,9 +458,7 @@ open Classical in
 theorem rank_eq_zero_of_gt {b : ι → ℝ} {i : ι} (h : ∀ j, j ≠ i → b j < b i) :
     rank b i = 0 := by
   rw [rank, Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-  intro j _ hjb
-  have hj : j ≠ i := fun he => beats_irrefl b i (he ▸ hjb)
-  exact (le_of_beats hjb).not_gt (h j hj)
+  exact fun j _ hjb => (le_of_beats hjb).not_gt (h j fun he => beats_irrefl b i (he ▸ hjb))
 
 open Classical in
 /-- If `top` strictly outbids `second` and `second` strictly outbids everyone else,
@@ -492,50 +484,42 @@ bids `2`, and any remaining bidders bid `0`, bidding truthfully gives `i₀` ran
 theorem not_isDSIC_nextBidMechanism {k : ℕ} (hk : 2 ≤ k) (hn : 2 ≤ Fintype.card ι) :
     ¬ (nextBidMechanism (ι := ι) k).IsDSIC := by
   intro hDSIC
-  obtain ⟨i₀, i₁, hne⟩ := Fintype.one_lt_card_iff.1 (by omega : 1 < Fintype.card ι)
+  obtain ⟨i₀, i₁, hne⟩ := Fintype.one_lt_card_iff.1 hn
   let b : ι → ℝ := fun m => if m = i₀ then 1 else if m = i₁ then 2 else 0
   have hb0 : 0 ≤ b := fun m => by dsimp only [b]; split_ifs <;> norm_num
-  have hbi₀ : b i₀ = 1 := by simp only [b, ↓reduceIte]
-  have hbi₁ : b i₁ = 2 := by simp only [b, ite_eq_right hne.symm, ↓reduceIte]
-  have hb_other : ∀ m, m ≠ i₀ → m ≠ i₁ → b m = 0 := fun m hm0 hm1 => by
-    simp only [b, ite_eq_right hm0, ite_eq_right hm1]
   have hrank_b_i₀ : rank b i₀ = 1 :=
-    rank_eq_one_of_between (top := i₁) (by rw [hbi₀, hbi₁]; norm_num) fun j hj0 hj1 => by
-      rw [hb_other j hj0 hj1, hbi₀]; norm_num
+    rank_eq_one_of_between (top := i₁) (by norm_num [b, hne.symm])
+      fun j hj0 hj1 => by norm_num [b, hj0, hj1]
   have hrank_b_i₁ : rank b i₁ = 0 := rank_eq_zero_of_gt fun j hj1 => by
-    rcases eq_or_ne j i₀ with rfl | hj0
-    · rw [hbi₀, hbi₁]; norm_num
-    · rw [hb_other j hj0 hj1, hbi₁]; norm_num
+    rcases eq_or_ne j i₀ with rfl | hj0 <;> norm_num [b, hne.symm, *]
   have hpay_shaded : bidAtRank 2 b = 0 := by
     by_cases hex : ∃ m, rank b m = 2
     · obtain ⟨m, hm⟩ := hex
-      rw [bidAtRank_eq_of_rank_nonneg hb0 hm, hb_other m
-        (fun h => by simp [h, hrank_b_i₀] at hm)
-        (fun h => by simp [h, hrank_b_i₁] at hm)]
+      have hm0 : m ≠ i₀ := fun h => by simp [h, hrank_b_i₀] at hm
+      have hm1 : m ≠ i₁ := fun h => by simp [h, hrank_b_i₁] at hm
+      simpa [b, hm0, hm1] using bidAtRank_eq_of_rank_nonneg hb0 hm
     · exact dite_eq_right hex
   -- At truthful profile `b* = update b i₀ 3`, `i₀` has rank `0` and `i₁` has rank `1`.
   let bStar := Function.update b i₀ 3
   have hbStar0 : 0 ≤ bStar := update_nonneg hb0 i₀ (by norm_num)
-  have hbStar_i₀ : bStar i₀ = 3 := Function.update_self i₀ 3 b
-  have hbStar_i₁ : bStar i₁ = 2 := by
-    simp only [bStar, Function.update_of_ne hne.symm, hbi₁]
-  have hbStar_other : ∀ m, m ≠ i₀ → m ≠ i₁ → bStar m = 0 := fun m hm0 hm1 => by
-    simp only [bStar, Function.update_of_ne hm0, hb_other m hm0 hm1]
   have hrank_bStar_i₀ : rank bStar i₀ = 0 := rank_eq_zero_of_gt fun j hj0 => by
     rcases eq_or_ne j i₁ with rfl | hj1
-    · rw [hbStar_i₁, hbStar_i₀]; norm_num
-    · rw [hbStar_other j hj0 hj1, hbStar_i₀]; norm_num
+    · norm_num [bStar, Function.update_self, Function.update_of_ne hj0, b, hj0]
+    · norm_num [bStar, Function.update_self, Function.update_of_ne hj0, b, hj0, hj1]
   have hrank_bStar_i₁ : rank bStar i₁ = 1 :=
-    rank_eq_one_of_between (top := i₀) (by rw [hbStar_i₁, hbStar_i₀]; norm_num) fun j hj1 hj0 => by
-      rw [hbStar_other j hj0 hj1, hbStar_i₁]; norm_num
+    rank_eq_one_of_between (top := i₀)
+      (by norm_num [bStar, Function.update_self, Function.update_of_ne hne.symm, b, hne.symm])
+      fun j hj1 hj0 => by
+        norm_num [bStar, Function.update_of_ne hj0, Function.update_of_ne hne.symm, b, hj0, hj1,
+          hne.symm]
   have hwin_shaded : allocation k b i₀ = 1 :=
     allocation_eq_one_iff.2 (by rw [Wins, hrank_b_i₀]; omega)
   have hwin_truth : allocation k bStar i₀ = 1 :=
     allocation_eq_one_iff.2 (by rw [Wins, hrank_bStar_i₀]; omega)
   have hpay_truth : bidAtRank 1 bStar = 2 := by
-    rw [bidAtRank_eq_of_rank_nonneg hbStar0 hrank_bStar_i₁, hbStar_i₁]
-  have hineq := hDSIC i₀ b 3 hb0 (by norm_num)
-  change (nextBidMechanism k).utility i₀ 3 b ≤ (nextBidMechanism k).utility i₀ 3 bStar at hineq
+    simpa [bStar, b, hne.symm] using bidAtRank_eq_of_rank_nonneg hbStar0 hrank_bStar_i₁
+  have hineq : (nextBidMechanism k).utility i₀ 3 b ≤ (nextBidMechanism k).utility i₀ 3 bStar :=
+    hDSIC i₀ b 3 hb0 (by norm_num)
   simp only [Mechanism.utility, nextBidMechanism, hrank_b_i₀, hrank_bStar_i₀,
     hwin_shaded, hwin_truth, hpay_shaded, hpay_truth] at hineq
   norm_num at hineq

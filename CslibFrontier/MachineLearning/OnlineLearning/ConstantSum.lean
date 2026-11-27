@@ -85,7 +85,7 @@ private theorem sum_mul_sum_comm (p : I → ℝ) (q : J → ℝ) (M : I → J �
     ∑ j, q j * ∑ i, p i * M i j = ∑ i, p i * ∑ j, q j * M i j := by
   simp only [mul_sum]
   rw [sum_comm]
-  exact sum_congr rfl fun _ _ => sum_congr rfl fun _ _ => by ring
+  exact sum_congr rfl fun _ _ => sum_congr rfl fun _ _ => mul_left_comm _ _ _
 
 private theorem sum_mul_mem_Icc {K : Type*} [Fintype K] {w f : K → ℝ} (hw0 : ∀ k, 0 ≤ w k)
     (hw1 : ∑ k, w k = 1) (hf : ∀ k, f k ∈ Set.Icc (0 : ℝ) 1) :
@@ -105,9 +105,9 @@ theorem isMinimaxValue_swap_of_add_eq {s₁ s₂ : I → J → ℝ} {c v₁ : �
   obtain ⟨⟨p, hp⟩, q, hq⟩ := hv₁
   refine ⟨⟨q, fun i => ?_⟩, p, fun j => ?_⟩
   · simp only [swap, hsub, mul_sub, sum_sub_distrib, ← sum_mul, q.total_of_fintype, one_mul]
-    linarith [hq i]
+    exact sub_le_sub_left (hq i) c
   · simp only [swap, hsub, mul_sub, sum_sub_distrib, ← sum_mul, p.total_of_fintype, one_mul]
-    linarith [hp j]
+    exact sub_le_sub_left (hp j) c
 
 /-- **Average loss of an external-regret row learner against an arbitrary opponent**
 [BlumMansour2007AGT, §4.4.2, Theorem 4.9, p. 89]: if `M` has minimax value `v`, `q` is any sequence
@@ -122,16 +122,11 @@ theorem average_loss_le_of_isMinimaxValue {M : I → J → ℝ} {v R : ℝ} (hv 
     (∑ t ∈ range T, ∑ i, p t i * ∑ j, q t j * M i j) / T ≤ v + R / T := by
   have hT' : (0 : ℝ) < T := Nat.cast_pos.mpr hT
   obtain ⟨i_star, hi_star⟩ := hv.exists_ge (averageProb_nonneg hq0) (sum_averageProb hT hq1)
-  have hcum : (∑ t ∈ range T, ∑ j, q t j * M i_star j) / T =
-      ∑ j, averageProb q T j * M i_star j := by
-    simp only [averageProb_apply, div_mul_eq_mul_div, ← sum_div, sum_mul]
-    rw [sum_comm]
   calc (∑ t ∈ range T, ∑ i, p t i * ∑ j, q t j * M i j) / T
       ≤ ((∑ t ∈ range T, ∑ j, q t j * M i_star j) + R) / T :=
         div_le_div_of_nonneg_right (hreg i_star) hT'.le
-    _ = (∑ t ∈ range T, ∑ j, q t j * M i_star j) / T + R / T := add_div _ _ _
-    _ = ∑ j, averageProb q T j * M i_star j + R / T := by rw [hcum]
-    _ ≤ v + R / T := by linarith
+    _ = ∑ j, averageProb q T j * M i_star j + R / T := by rw [add_div, sum_averageProb_mul]
+    _ ≤ v + R / T := add_le_add hi_star le_rfl
 
 /-- **Average loss of an external-regret column learner in a constant-sum game**
 [BlumMansour2007AGT, §4.4.2, Theorem 4.9, p. 89]: if `∀ i j, s₁ i j + s₂ i j = c` and `s₁` has
@@ -190,40 +185,35 @@ section OnlineMinimax
 
 variable [Nonempty I] [Nonempty J]
 
+private theorem abs_sum_weights_mul_le {K : Type*} [Fintype K]
+    (p : StdSimplex ℝ K) (f : K → ℝ) : |∑ k, p.weights k * f k| ≤ ∑ k, |f k| := by
+  refine (abs_sum_le_sum_abs _ _).trans (sum_le_sum fun k _ => ?_)
+  rw [abs_mul, abs_of_nonneg (p.weights_nonneg k)]
+  exact mul_le_of_le_one_left (abs_nonneg _) (p.weights_apply_le_one k)
+
 omit [Fintype J] [Nonempty I] in
 private theorem bddBelow_range_ciSup_loss [Finite J] (M : I → J → ℝ) :
     BddBelow (Set.range fun p : StdSimplex ℝ I => ⨆ j : J, ∑ i, p.weights i * M i j) := by
   cases nonempty_fintype J
   obtain ⟨j₀⟩ := ‹Nonempty J›
-  let B := ∑ i : I, |M i j₀|
-  refine ⟨-B, ?_⟩
+  refine ⟨-(∑ i : I, |M i j₀|), ?_⟩
   rintro _ ⟨p, rfl⟩
   dsimp only
   rw [← sup'_univ_eq_ciSup]
-  refine le_trans ?_ (le_sup' (fun j => ∑ i, p.weights i * M i j) (mem_univ j₀))
-  have hle : ∀ i, p.weights i ≤ 1 := fun i =>
-    (single_le_sum (fun i' _ => p.weights_nonneg i') (mem_univ i)).trans_eq p.total_of_fintype
-  calc -B = -(∑ i, |M i j₀|) := rfl
-    _ = ∑ i, -|M i j₀| := by rw [sum_neg_distrib]
-    _ ≤ ∑ i, p.weights i * M i j₀ := sum_le_sum fun i _ => by
-        nlinarith [neg_abs_le (M i j₀), p.weights_nonneg i, hle i, abs_nonneg (M i j₀)]
+  exact (neg_le_of_abs_le (abs_sum_weights_mul_le p (fun i => M i j₀))).trans
+    (le_sup' (fun j => ∑ i, p.weights i * M i j) (mem_univ j₀))
 
 omit [Fintype I] [Nonempty J] in
 private theorem bddAbove_range_ciInf_loss [Finite I] (M : I → J → ℝ) :
     BddAbove (Set.range fun q : StdSimplex ℝ J => ⨅ i : I, ∑ j, q.weights j * M i j) := by
   cases nonempty_fintype I
   obtain ⟨i₀⟩ := ‹Nonempty I›
-  let B := ∑ j : J, |M i₀ j|
-  refine ⟨B, ?_⟩
+  refine ⟨∑ j : J, |M i₀ j|, ?_⟩
   rintro _ ⟨q, rfl⟩
   dsimp only
   rw [← inf'_univ_eq_ciInf]
-  refine (inf'_le (fun i => ∑ j, q.weights j * M i j) (mem_univ i₀)).trans ?_
-  have hle : ∀ j, q.weights j ≤ 1 := fun j =>
-    (single_le_sum (fun j' _ => q.weights_nonneg j') (mem_univ j)).trans_eq q.total_of_fintype
-  calc ∑ j, q.weights j * M i₀ j ≤ ∑ j, |M i₀ j| := sum_le_sum fun j _ => by
-        nlinarith [le_abs_self (M i₀ j), q.weights_nonneg j, hle j, abs_nonneg (M i₀ j)]
-    _ = B := rfl
+  exact (inf'_le (fun i => ∑ j, q.weights j * M i j) (mem_univ i₀)).trans
+    (le_of_abs_le (abs_sum_weights_mul_le q (M i₀)))
 
 /-- Coupled horizon-`T` multiplicative-weights self-play on `[0, 1]` matrices: running
 `prob (mwFactor η₁)` against `prob (mwFactor η₂)` produces empirical mixed strategies whose
@@ -300,12 +290,10 @@ private theorem coupledMW_gap_le {M₀ : I → J → ℝ} (hM₀ : ∀ i j, M₀
     rw [← sum_add_distrib, sum_congr rfl fun t _ => hround_sum t]
     simp only [sum_const, card_range, nsmul_eq_mul, mul_one]
   have hcum₁ : ∑ t ∈ range T, ℓ₁ t i = (T : ℝ) * ∑ j', averageProb q T j' * M₀ i j' := by
-    simp only [hℓ₁_eq, averageProb_apply, div_mul_eq_mul_div, ← sum_div, sum_mul]
-    rw [sum_comm, mul_div_cancel₀ _ hT_pos.ne']
+    simp only [hℓ₁_eq, sum_averageProb_mul, mul_div_cancel₀ _ hT_pos.ne']
   have hcum₂ : ∑ t ∈ range T, ℓ₂ t j = (T : ℝ) - (T : ℝ) * ∑ i', averageProb p T i' * M₀ i' j := by
     simp only [hℓ₂_eq, sum_sub_distrib, sum_const, card_range, nsmul_eq_mul, mul_one,
-      averageProb_apply, div_mul_eq_mul_div, ← sum_div, sum_mul]
-    rw [sum_comm, mul_div_cancel₀ _ hT_pos.ne']
+      sum_averageProb_mul, mul_div_cancel₀ _ hT_pos.ne']
   have hsum_reg : (T : ℝ) * ∑ i', averageProb p T i' * M₀ i' j ≤
       (T : ℝ) * ∑ j', averageProb q T j' * M₀ i j' +
         (2 * √(T * log (Fintype.card I)) + 2 * √(T * log (Fintype.card J))) := by
@@ -379,12 +367,8 @@ theorem ciSup_ciInf_eq_ciInf_ciSup (M : I → J → ℝ) :
           ∑ i', p_bar i' * M i' j ≤ ∑ j', q_bar j' * M i j' + C / √(T : ℝ) := fun i j => by
         have hM_eq (i' : I) (j' : J) : M i' j' = 2 * B * M₀ i' j' - B := by
           simp only [M₀, mul_div_cancel₀ _ (mul_pos zero_lt_two hB).ne', add_sub_cancel_right]
-        have hlhs : ∑ i', p_bar i' * M i' j = 2 * B * (∑ i', p_bar i' * M₀ i' j) - B := by
-          simp only [hM_eq, mul_sub, mul_left_comm _ (2 * B), sum_sub_distrib, ← mul_sum,
-            ← sum_mul, hp1, one_mul]
-        have hrhs : ∑ j', q_bar j' * M i j' = 2 * B * (∑ j', q_bar j' * M₀ i j') - B := by
-          simp only [hM_eq, mul_sub, mul_left_comm _ (2 * B), sum_sub_distrib, ← mul_sum,
-            ← sum_mul, hq1, one_mul]
+        simp only [hM_eq, mul_sub, mul_left_comm _ (2 * B), sum_sub_distrib, ← mul_sum,
+          ← sum_mul, hp1, hq1, one_mul]
         have hmul := mul_le_mul_of_nonneg_left (hle₀ i j) (mul_nonneg zero_le_two hB.le)
         rw [mul_add (2 * B), ← mul_div_assoc] at hmul
         linarith
@@ -433,19 +417,14 @@ theorem isMinimaxValue_ciInf_ciSup (M : I → J → ℝ) :
     isCompact_univ.exists_isMinOn Set.univ_nonempty hcont_row.continuousOn
   obtain ⟨q_opt, -, hq_max⟩ :=
     isCompact_univ.exists_isMaxOn Set.univ_nonempty hcont_col.continuousOn
-  have hp_val : (⨆ j : J, ∑ i, p_opt.weights i * M i j) =
-      ⨅ p : StdSimplex ℝ I, ⨆ j : J, ∑ i, p.weights i * M i j :=
-    le_antisymm (le_ciInf fun p => hp_min (Set.mem_univ p))
-      (ciInf_le (bddBelow_range_ciSup_loss M) p_opt)
-  have hq_val : (⨅ i : I, ∑ j, q_opt.weights j * M i j) =
-      ⨆ q : StdSimplex ℝ J, ⨅ i : I, ∑ j, q.weights j * M i j :=
-    le_antisymm (le_ciSup (bddAbove_range_ciInf_loss M) q_opt)
-      (ciSup_le fun q => hq_max (Set.mem_univ q))
   refine ⟨⟨p_opt, fun j => ?_⟩, q_opt, fun i => ?_⟩
-  · rw [← hp_val, ← sup'_univ_eq_ciSup]
-    exact le_sup' (fun j' => ∑ i, p_opt.weights i * M i j') (mem_univ j)
-  · rw [← ciSup_ciInf_eq_ciInf_ciSup M, ← hq_val, ← inf'_univ_eq_ciInf]
-    exact inf'_le (fun i' => ∑ j, q_opt.weights j * M i' j) (mem_univ i)
+  · refine (le_sup' (fun j' => ∑ i, p_opt.weights i * M i j') (mem_univ j)).trans ?_
+    rw [sup'_univ_eq_ciSup]
+    exact le_ciInf fun p => hp_min (Set.mem_univ p)
+  · rw [← ciSup_ciInf_eq_ciInf_ciSup M]
+    refine (ciSup_le fun q => hq_max (Set.mem_univ q)).trans ?_
+    simpa only [← inf'_univ_eq_ciInf] using
+      inf'_le (fun i' => ∑ j, q_opt.weights j * M i' j) (mem_univ i)
 
 end OnlineMinimax
 

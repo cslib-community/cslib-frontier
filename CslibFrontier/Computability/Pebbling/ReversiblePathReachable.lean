@@ -149,15 +149,13 @@ theorem PathAvailable.exists_mTr_place {n x : ℕ} {C : Finset ℕ} (hx : x ∈ 
     have hle : ∀ z ∈ D, z < x → z ≤ y := fun z hz hzx =>
       Finset.le_max' _ z (Finset.mem_filter.2 ⟨hz, hzx⟩)
     refine exists_mTr_insert_pathDigraph f (a := y + 1) (by omega) ?_ (fun z hz => ?_)
-      (fun u hu => ?_)
+      fun u hu => Nat.add_right_cancel (pathDigraph_adj.1 hu) ▸ hyD
     · rcases havail' with h | ⟨w, hw, hwx, hxw⟩
       · omega
       · have := hle w hw hwx; omega
     · by_cases hzx : z < x
       · exact .inl (by have := hle z hz hzx; omega)
       · exact .inr (by have : z ≠ x := fun h => hx' (h ▸ hz); omega)
-    · rw [pathDigraph_adj] at hu
-      exact Nat.add_right_cancel hu ▸ hyD
   · have hnone : ∀ z ∈ D, ¬ z < x := fun z hz hzx => hlow ⟨z, Finset.mem_filter.2 ⟨hz, hzx⟩⟩
     refine exists_mTr_insert_pathDigraph f (a := 0) (Nat.zero_le x) ?_ (fun z hz => ?_)
       (fun u hu => absurd hu pathDigraph_source)
@@ -180,10 +178,9 @@ namespace IsPathRemovalNumbering
 
 variable {n : ℕ} {C : Finset ℕ} {σ : ℕ → ℕ}
 
-theorem card_le (h : IsPathRemovalNumbering n C σ) : C.card ≤ n := by
-  have := Finset.card_le_card_of_injOn σ (t := Finset.range n)
-    (fun x hx => Finset.mem_range.2 (h.lt x hx)) h.injOn
-  rwa [Finset.card_range] at this
+theorem card_le (h : IsPathRemovalNumbering n C σ) : C.card ≤ n :=
+  (Finset.card_le_card_of_injOn σ (t := Finset.range n)
+    (fun x hx => Finset.mem_range.2 (h.lt x hx)) h.injOn).trans_eq (Finset.card_range n)
 
 /-- Some pebble carries the least number `n - #C`. -/
 private theorem exists_eq (h : IsPathRemovalNumbering n C σ) (hne : C.Nonempty) :
@@ -200,10 +197,8 @@ private theorem exists_eq (h : IsPathRemovalNumbering n C σ) (hne : C.Nonempty)
 
 /-- The pebble with the least number is available. -/
 theorem pathAvailable (h : IsPathRemovalNumbering n C σ) {x : ℕ} (hx : x ∈ C)
-    (hσx : σ x = n - C.card) : PathAvailable C (n - C.card) x := by
-  rcases h.near x hx with h' | ⟨y, hy, hyx, -, hxy⟩
-  · exact .inl (hσx ▸ h')
-  · exact .inr ⟨y, hy, hyx, hσx ▸ hxy⟩
+    (hσx : σ x = n - C.card) : PathAvailable C (n - C.card) x :=
+  (h.near x hx).imp (fun h' => hσx ▸ h') fun ⟨y, hy, hyx, _, hxy⟩ => ⟨y, hy, hyx, hσx ▸ hxy⟩
 
 /-- Removing the pebble with the least number leaves a removal numbering. -/
 theorem erase (h : IsPathRemovalNumbering n C σ) {x : ℕ} (hx : x ∈ C)
@@ -238,15 +233,14 @@ private theorem update {x : ℕ} (h : IsPathRemovalNumbering n (C.erase x) σ) (
     · exact absurd e (hold w hw hwx).ne
     · exact absurd e (hold z hz hzx).ne'
     · exact h.injOn (Finset.mem_erase.2 ⟨hzx, hz⟩) (Finset.mem_erase.2 ⟨hwx, hw⟩) e
-  · by_cases hzx : z = x
-    · simp [hzx]
-    · simpa [hzx] using (hold z hz hzx).le
-  · by_cases hzx : z = x
-    · simp only [hzx, Function.update_self]; omega
-    · simpa [hzx] using h.lt z (Finset.mem_erase.2 ⟨hzx, hz⟩)
-  · by_cases hzx : z = x
-    · subst hzx
-      rw [Function.update_self]
+  · rw [Function.update_apply]
+    split_ifs with hzx
+    exacts [le_rfl, (hold z hz hzx).le]
+  · rw [Function.update_apply]
+    split_ifs with hzx
+    exacts [by omega, h.lt z (Finset.mem_erase.2 ⟨hzx, hz⟩)]
+  · rcases eq_or_ne z x with rfl | hzx
+    · rw [Function.update_self]
       exact havail.imp_right fun ⟨y, hy, hyz, hzy⟩ =>
         ⟨y, hy, hyz, by simpa [hyz.ne] using hold y hy hyz.ne, hzy⟩
     · rw [Function.update_of_ne hzx]
@@ -276,10 +270,8 @@ theorem chain (h : IsPathRemovalNumbering n C σ) {j : ℕ} :
 
 /-- A pebble numbered `i` lies at a vertex `y` with `y + 1 + 2 ^ i ≤ 2 ^ n`. -/
 theorem add_one_add_two_pow_le (h : IsPathRemovalNumbering n C σ) {y : ℕ} (hy : y ∈ C) :
-    y + 1 + 2 ^ σ y ≤ 2 ^ n := by
-  rcases h.chain y hy (h.lt y hy) with h' | ⟨w, hw, -, hnw, -⟩
-  · exact h'
-  · exact absurd (h.lt w hw) (by omega)
+    y + 1 + 2 ^ σ y ≤ 2 ^ n :=
+  (h.chain y hy (h.lt y hy)).resolve_right fun ⟨w, hw, _, hnw, _⟩ => (h.lt w hw).not_ge hnw
 
 /-- **The key step of [LiTrompVitanyi1998], Theorem 1.** Removing any available pebble `x`
 leaves a removal numbering: the pebbles numbered below `x` move up by one. -/
@@ -296,45 +288,39 @@ theorem erase_of_pathAvailable (h : IsPathRemovalNumbering n C σ) {x : ℕ} (hx
   have hgn : g < n := h.lt x hx
   have hne : ∀ z ∈ C.erase x, σ z ≠ g := fun z hz e =>
     Finset.ne_of_mem_erase hz (h.injOn (Finset.mem_of_mem_erase hz) hx e)
-  have hσ'lt : ∀ z, σ z < g → σ' z = σ z + 1 := fun z hz => ite_eq_left hz
-  have hσ'ge : ∀ z, ¬ σ z < g → σ' z = σ z := fun z hz => ite_eq_right hz
   refine ⟨fun z hz w hw e => ?_, fun z hz => ?_, fun z hz => ?_, fun z hz => ?_⟩
-  · simp only [Finset.mem_coe] at hz hw
-    have hzg := hne z hz
-    have hwg := hne w hw
-    refine h.injOn (Finset.mem_of_mem_erase hz) (Finset.mem_of_mem_erase hw) ?_
+  · have := hne z hz
+    have := hne w hw
     simp only [hσ'] at e
-    split_ifs at e <;> omega
+    split_ifs at e <;>
+      exact h.injOn (Finset.mem_of_mem_erase hz) (Finset.mem_of_mem_erase hw) (by omega)
   · have := h.le z (Finset.mem_of_mem_erase hz)
     have := hne z hz
-    simp only [hσ']
+    dsimp only [σ']
     split_ifs <;> omega
   · have := h.lt z (Finset.mem_of_mem_erase hz)
-    simp only [hσ']
+    dsimp only [σ']
     split_ifs <;> omega
   · have hzC := Finset.mem_of_mem_erase hz
     have hzx := Finset.ne_of_mem_erase hz
     have hzg := hne z hz
-    by_cases h1 : σ z < g
-    · rw [hσ'lt z h1]
-      have hpj : 2 ^ (σ z + 1) = 2 ^ σ z + 2 ^ σ z := by rw [pow_succ]; omega
+    dsimp only [σ']
+    split_ifs with h1
+    · have hpj : 2 ^ (σ z + 1) = 2 ^ σ z + 2 ^ σ z := by rw [pow_succ]; omega
       have hpf : 2 ^ f ≤ 2 ^ σ z := Nat.pow_le_pow_right Nat.two_pos (h.le z hzC)
       -- A pebble numbered above `z`, other than `x`, is numbered above `σ z + 1` afterwards.
       have hup : ∀ w ∈ C, w ≠ x → σ z < σ w → σ z + 1 < σ' w := by grind
       rcases h.near z hzC with h' | ⟨y, hy, hyz, hσ, hzy⟩
       · exact .inl (by omega)
-      by_cases hyx : y = x
-      · subst hyx
-        rcases havail with h' | ⟨x', hx', hx'y, hyx'⟩
+      rcases eq_or_ne y x with rfl | hyx
+      · rcases havail with h' | ⟨x', hx', hx'y, hyx'⟩
         · exact .inl (by omega)
         have hx'y' : x' ≠ y := by omega
         have hpf' : 2 ^ f ≤ 2 ^ σ x' := Nat.pow_le_pow_right Nat.two_pos (h.le x' hx')
         rcases lt_trichotomy (σ x') (σ z) with hlt | heq | hgt
         · rcases h.chain x' hx' hlt with h'' | ⟨w, hw, hwx', hjw, hx'w⟩
           · exact .inl (by omega)
-          · have hwz : σ w ≠ σ z := fun e => by
-              have := h.injOn hw hzC e
-              omega
+          · have hwz : σ w ≠ σ z := fun e => absurd (h.injOn hw hzC e) (by omega)
             exact .inr ⟨w, Finset.mem_erase.2 ⟨by omega, hw⟩, by omega,
               hup w hw (by omega) (by omega), by omega⟩
         · exact absurd (h.injOn hx' hzC heq) (by omega)
@@ -342,10 +328,9 @@ theorem erase_of_pathAvailable (h : IsPathRemovalNumbering n C σ) {x : ℕ} (hx
             by omega⟩
       · exact .inr ⟨y, Finset.mem_erase.2 ⟨hyx, hy⟩, hyz, hup y hy hyx hσ, by omega⟩
     · -- Pebbles numbered above `x` keep their numbers and their witnesses.
-      rw [hσ'ge z h1]
       exact (h.near z hzC).imp_right fun ⟨y, hy, hyz, hσ, hzy⟩ =>
         ⟨y, Finset.mem_erase.2 ⟨ne_of_apply_ne σ (by omega), hy⟩, hyz,
-          (hσ'ge y (by omega)).symm ▸ hσ, hzy⟩
+          (ite_eq_right ((not_lt.1 h1).trans_lt hσ).not_gt).symm ▸ hσ, hzy⟩
 
 end IsPathRemovalNumbering
 
@@ -447,11 +432,10 @@ theorem PathWeaklySolvable.exists_mTr {n : ℕ} {C : Finset ℕ} (h : PathWeakly
 
 /-- A pebble whose predecessor is pebbled, or the source, is available. -/
 theorem pathAvailable_of_forall_adj {C : Finset ℕ} {x : ℕ} (f : ℕ)
-    (h : ∀ u, pathDigraph.Adj u x → u ∈ C) : PathAvailable C f x := by
-  cases x with
-  | zero => exact .inl (Nat.one_le_two_pow)
-  | succ y =>
-    exact .inr ⟨y, h y (pathDigraph_adj.2 rfl), Nat.lt_succ_self y,
+    (h : ∀ u, pathDigraph.Adj u x → u ∈ C) : PathAvailable C f x :=
+  match x with
+  | 0 => .inl Nat.one_le_two_pow
+  | y + 1 => .inr ⟨y, h y (pathDigraph_adj.2 rfl), Nat.lt_succ_self y,
       Nat.add_le_add_left Nat.one_le_two_pow y⟩
 
 /-- One move of the game keeps a configuration weakly solvable. -/

@@ -105,32 +105,30 @@ lemma upperContourSum_add {n : ℕ} (π : Equiv.Perm (Fin n)) (x y : Fin n → �
 
 lemma upperContourSum_eq_sum_filter {n : ℕ} (π : Equiv.Perm (Fin n)) (x : Fin n → ℝ)
     (k : Fin n) :
-    upperContourSum π x k = ∑ o : Fin n with π.symm o ≤ k, x o := by
-  exact Finset.sum_nbij' π π.symm (by simp) (by simp) (by simp) (by simp) (by simp)
+    upperContourSum π x k = ∑ o : Fin n with π.symm o ≤ k, x o :=
+  Finset.sum_nbij' π π.symm (by simp) (by simp) (by simp) (by simp) (by simp)
 
 lemma upperContourSum_succ {n : ℕ} (π : Equiv.Perm (Fin n)) (x : Fin n → ℝ)
     {k : Fin n} (hk : 0 < k.val) :
     upperContourSum π x k =
       upperContourSum π x ⟨k.val - 1, by omega⟩ + x (π k) := by
-  unfold upperContourSum
   have hsub : Finset.Iic k =
       insert k (Finset.Iic (⟨k.val - 1, by omega⟩ : Fin n)) := by
     ext r
     simp only [Finset.mem_Iic, Finset.mem_insert, Fin.le_def, Fin.ext_iff]
     omega
-  rw [hsub, Finset.sum_insert, add_comm]
-  simp only [Finset.mem_Iic, Fin.le_def]
-  omega
+  rw [upperContourSum, hsub, Finset.sum_insert, add_comm]
+  · rfl
+  · simp only [Finset.mem_Iic, Fin.le_def]; omega
 
 lemma upperContourSum_zero {n : ℕ} (π : Equiv.Perm (Fin n)) (x : Fin n → ℝ)
     {k : Fin n} (hk : k.val = 0) :
     upperContourSum π x k = x (π k) := by
-  unfold upperContourSum
   have hsub : Finset.Iic k = {k} := by
     ext r
     simp only [Finset.mem_Iic, Finset.mem_singleton, Fin.le_def, Fin.ext_iff]
     omega
-  rw [hsub, Finset.sum_singleton]
+  rw [upperContourSum, hsub, Finset.sum_singleton]
 
 private lemma apply_eq_of_upperContourSum_eq {n : ℕ} (π : Equiv.Perm (Fin n)) {x y : Fin n → ℝ}
     {r : Fin n} (hr : upperContourSum π x r = upperContourSum π y r)
@@ -174,8 +172,7 @@ lemma SDDominates.antisymm {n : ℕ} {π : Equiv.Perm (Fin n)} {x y : Fin n → 
 
 lemma SDDominates.add {n : ℕ} {π : Equiv.Perm (Fin n)} {x₁ y₁ x₂ y₂ : Fin n → ℝ}
     (h₁ : SDDominates π x₁ y₁) (h₂ : SDDominates π x₂ y₂) :
-    SDDominates π (x₁ + x₂) (y₁ + y₂) := by
-  intro k
+    SDDominates π (x₁ + x₂) (y₁ + y₂) := fun k => by
   rw [upperContourSum_add, upperContourSum_add]
   exact add_le_add (h₁ k) (h₂ k)
 
@@ -188,19 +185,15 @@ lemma sdDominatesStrict_iff_ne {n : ℕ} (π : Equiv.Perm (Fin n)) (x y : Fin n 
     exact hne (hdom.antisymm hle)
 
 lemma SDDominatesStrict.not_reverse {n : ℕ} {π : Equiv.Perm (Fin n)} {x y : Fin n → ℝ}
-    (h : SDDominatesStrict π x y) : ¬ SDDominates π y x := by
-  intro hrev
-  obtain ⟨_, k, hk⟩ := h
-  exact hk.not_ge (hrev k)
+    (h : SDDominatesStrict π x y) : ¬ SDDominates π y x :=
+  fun hrev => match h with | ⟨_, k, hk⟩ => hk.not_ge (hrev k)
 
 lemma sdDominates_single_iff {n : ℕ} (π : Equiv.Perm (Fin n)) (a b : Fin n)
     {c : ℝ} (hc : 0 < c) :
     SDDominates π (fun o => if o = a then c else 0) (fun o => if o = b then c else 0) ↔
       π.symm a ≤ π.symm b := by
-  have heval : ∀ (z k : Fin n),
-      upperContourSum π (fun o => if o = z then c else 0) k =
-        if π.symm z ≤ k then c else 0 := by
-    intro z k
+  have heval (z k : Fin n) : upperContourSum π (fun o => if o = z then c else 0) k =
+      if π.symm z ≤ k then c else 0 := by
     simp [upperContourSum_eq_sum_filter]
   constructor
   · intro h
@@ -278,9 +271,8 @@ every other agent's lottery under that agent's strict preference order. -/
   ∀ i j : Fin n, SDDominates (p i) (P i) (P j)
 
 lemma IsSDEnvyFree.equalTreatmentOfEquals {n : ℕ} {p : Profile n} {P : Matrix (Fin n) (Fin n) ℝ}
-    (hef : IsSDEnvyFree p P) : IsEqualTreatmentOfEquals p P := by
-  intro i j hij
-  exact SDDominates.antisymm (hef i j) (hij.symm ▸ hef j i)
+    (hef : IsSDEnvyFree p P) : IsEqualTreatmentOfEquals p P :=
+  fun i j hij => SDDominates.antisymm (hef i j) (hij.symm ▸ hef j i)
 
 /-- Ordinal (`sd`-) efficiency of a random assignment `P`: `P` is doubly stochastic and no other
 doubly stochastic matrix `Q` weakly `sd`-dominates `P` for every agent and strictly for at least
@@ -330,12 +322,11 @@ theorem IsSDStrategyProof.upperContour_eq {n : ℕ} {φ : AssignmentRule n}
     (k : Fin n) (hset : ∀ o : Fin n, (p i).symm o ≤ k ↔ π'.symm o ≤ k) :
     upperContourSum (p i) (φ p i) k =
       upperContourSum (p i) (φ (Function.update p i π') i) k := by
-  have h2 := hsp (Function.update p i π') i (p i) k
-  simp only [Function.update_idem, Function.update_eq_self, Function.update_self] at h2
   have hcongr (x : Fin n → ℝ) : upperContourSum π' x k = upperContourSum (p i) x k := by
     simp only [upperContourSum_eq_sum_filter, ← hset]
-  rw [hcongr, hcongr] at h2
-  exact le_antisymm h2 (hsp p i π' k)
+  refine le_antisymm ?_ (hsp p i π' k)
+  simpa only [Function.update_idem, Function.update_eq_self, Function.update_self, hcongr] using
+    hsp (Function.update p i π') i (p i) k
 
 /-- Swapping two adjacent ranks `k` and `k + 1` in agent `i`'s preference leaves the probability of
 every other object unchanged and preserves the sum of the two swapped objects' probabilities. -/
@@ -364,15 +355,12 @@ theorem IsSDStrategyProof.adjSwap_invariance {n : ℕ} {φ : AssignmentRule n}
     · subst h2; simp only [Fin.le_def]; omega
     · exact Iff.rfl
   refine ⟨fun r hr1 hr2 => ?_, ?_⟩
-  · refine (apply_eq_of_upperContourSum_eq (p i) (huc r hr1) fun _ => huc _ ?_).symm
-    intro heq
-    have hv : r.val - 1 = k.val := congrArg Fin.val heq
-    exact hr2 (Fin.ext (by dsimp; omega))
-  · have htop := huc ⟨k.val + 1, hk⟩ (by simp [Fin.ext_iff])
-    have hk1pos : 0 < (⟨k.val + 1, hk⟩ : Fin n).val := Nat.succ_pos k.val
-    have hsub_eq : (⟨(⟨k.val + 1, hk⟩ : Fin n).val - 1, by omega⟩ : Fin n) = k :=
-      Fin.ext (Nat.add_sub_cancel k.val 1)
-    rw [upperContourSum_succ (p i) _ hk1pos, upperContourSum_succ (p i) _ hk1pos, hsub_eq] at htop
+  · refine (apply_eq_of_upperContourSum_eq (p i) (huc r hr1) fun hr => huc _ fun heq => ?_).symm
+    exact hr2 (Fin.ext ((Nat.sub_eq_iff_eq_add hr).mp (congrArg Fin.val heq)))
+  · have htop := huc ⟨k.val + 1, hk⟩ (Fin.ne_of_val_ne k.val.succ_ne_self)
+    rw [upperContourSum_succ (p i) (φ p i) (Nat.succ_pos k.val),
+      upperContourSum_succ (p i) (φ (Function.update p i π') i) (Nat.succ_pos k.val)] at htop
+    simp only [Nat.add_sub_cancel, Fin.eta] at htop
     by_cases hk0 : k.val = 0
     · rw [upperContourSum_zero (p i) _ hk0, upperContourSum_zero (p i) _ hk0] at htop
       linarith
@@ -490,14 +478,12 @@ theorem isSDEfficient_iff_isAcyclicTrade {n : ℕ} (p : Profile n) (P : Matrix (
       rw [Finset.sum_comm]
       simp only [Finset.sum_sub_distrib, ite_and, Finset.sum_ite_irrel, Finset.sum_ite_eq,
         Finset.mem_filter, Finset.mem_univ, true_and, Finset.sum_const_zero]
-    have hterm_nonneg : ∀ (i k : Fin n) (j : Fin m),
+    have hterm_nonneg (i k : Fin n) (j : Fin m) :
         0 ≤ (if agent j = i ∧ (p i).symm (next j) ≤ k then ε else 0) -
             (if agent j = i ∧ (p i).symm (c j) ≤ k then ε else 0) := by
-      intro i k j
       by_cases hck : agent j = i ∧ (p i).symm (c j) ≤ k
       · obtain ⟨rfl, h⟩ := hck
-        have hnext : (p (agent j)).symm (next j) ≤ k := (hpref j).le.trans h
-        simp [hnext, h]
+        simp only [next, true_and, (hpref j).le.trans h, h, ↓reduceIte, sub_self, le_refl]
       · simp only [hck, ↓reduceIte, sub_zero]
         split_ifs <;> linarith
     have hweak : ∀ i : Fin n, SDDominates (p i) (Q i) (P i) := fun i k =>
@@ -506,8 +492,7 @@ theorem isSDEfficient_iff_isAcyclicTrade {n : ℕ} (p : Profile n) (P : Matrix (
     have h := Finset.single_le_sum
       (fun j _ => hterm_nonneg (agent j₀) ((p (agent j₀)).symm (next j₀)) j) (Finset.mem_univ j₀)
     rw [← hdiff] at h
-    have hnot : ¬ (p (agent j₀)).symm (c j₀) ≤ (p (agent j₀)).symm (next j₀) := (hpref j₀).not_ge
-    simp only [true_and, le_refl, ↓reduceIte, hnot, sub_zero] at h
+    simp only [next, true_and, le_refl, ↓reduceIte, (hpref j₀).not_ge, sub_zero] at h
     linarith
   · rintro ⟨hP, hacyc⟩
     refine ⟨hP, ?_⟩

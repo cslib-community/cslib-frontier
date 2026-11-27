@@ -376,8 +376,7 @@ theorem mkTmp_injective {r baseOff l s : ℕ} {outs : Fin l → Fin r}
   rw [val_mkTmp, val_mkTmp] at hv
   by_cases h₁ : j₁.val < l <;> by_cases h₂ : j₂.val < l <;>
     simp only [h₁, h₂, ↓reduceDIte] at hv
-  · have hi := hinj (Fin.ext hv)
-    exact Fin.ext (congrArg (Fin.val (n := l)) hi)
+  · exact Fin.ext (congrArg (Fin.val (n := l)) (hinj (Fin.ext hv)))
   · have := hlt ⟨j₁.val, h₁⟩; omega
   · have := hlt ⟨j₂.val, h₂⟩; omega
   · exact Fin.ext (by omega)
@@ -1009,11 +1008,10 @@ theorem execWitness {r k l : ℕ} {δ α : Type}
         output ((Memory.spec 0).clientResult (memoryState rFr x.toData) (p d)) i) ∧
       ∀ reg, reg ≠ rFr → (∀ j, tmp j ≠ reg) → y.regs reg = x.regs reg := by
   obtain ⟨_, hrun⟩ := W.code_spec rFr src tmp hi hd hf hs
-  obtain ⟨yd, hy_eb, hm, hout, hframe⟩ := hrun w d x.toData hx.1 hin hsafe hv
+  obtain ⟨yd, ⟨n_st, hn_st, hy_ex⟩, hm, hout, hframe⟩ := hrun w d x.toData hx.1 hin hsafe hv
   rw [clientState_width] at hm
   rw [clientResult_width] at hout
   have hy_fr : yd.regs rFr ≤ x.frontier := (congrArg Memory.State.frontier hm).le.trans hnoalloc
-  obtain ⟨n_st, hn_st, hy_ex⟩ := hy_eb
   have hy_bdd : (⟨yd.regs, yd.mem, x.frontier⟩ : RData r).Bounded w :=
     ⟨hy_ex.bounded hx.1, hx.2.1, fun a ha =>
       (execBoundedExact_mem_eq_of_ge hy_ex (hy_fr.trans ha)).trans (hx.zero_above ha)⟩
@@ -1104,12 +1102,10 @@ theorem loadBlockUpTo_exec {r m w L_peak base : ℕ}
         simp only [RData.set_regs, Function.update_self, hy₁m]
         congr 1; omega
       · have hne_d : dst i ≠ dst ⟨k + 1, hk⟩ := fun h => hik (congrArg Fin.val (hinj h))
-        simp only [RData.set_regs, Function.update_of_ne hne_d,
-          Function.update_of_ne (hne_cur i)]
-        exact hy₁d i (by omega)
-    · simp only [RData.set_regs, Function.update_of_ne (hrd ⟨k + 1, hk⟩).symm,
-        Function.update_of_ne hrc]
-      exact hy₁r reg hrc hrd
+        simpa only [RData.set_regs, Function.update_of_ne hne_d,
+          Function.update_of_ne (hne_cur i)] using hy₁d i (by omega)
+    · simpa only [RData.set_regs, Function.update_of_ne (hrd ⟨k + 1, hk⟩).symm,
+        Function.update_of_ne hrc] using hy₁r reg hrc hrd
 
 /-! ## Section 7: `CompactedSplitRep` Frame Lemmas (Scratch, `CompOpFrame`, Shrink, Header `n`) -/
 
@@ -1272,11 +1268,10 @@ theorem loadActiveCtxCode_exec {U V w N n n_init base L_peak : ℕ}
         mkHashParams w (epochQBits U N) (epochHashB N) (totalMicroBits N) 3 i) ∧
       (∀ i : Fin 36, y.regs (cpReg i) = mkCompParams U V w N i) := by
   obtain ⟨hw, hU, hV⟩ := rootHeaderValid_bounds hx hsplit.root_hdr
-  have hNU : N ≤ U := by rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
+  have hNU := (epochValid_iff_capacity_bounds.mp hev).2.2
   have hfr_pos : x.frontier = base + offCompItems U w N + compactedItemWords U V w N n := by
-    rw [hfr]; unfold compactedEpochWords; rw [ite_eq_right hn.ne']; omega
-  have hoff_ge : 225 ≤ offCompItems U w N := by
-    unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM epochHdrWords; omega
+    simp only [hfr, compactedEpochWords, ite_eq_right hn.ne', Nat.add_assoc]
+  have hoff_ge := le_offCompItems_225 U w N
   have hfit_fr : Fits w x.frontier := hx.frontier_fits
   obtain ⟨x₁, hex₁, hx₁b, hx₁m, hx₁f, hx₁_hp, hx₁_reg⟩ :=
     loadBlockUpTo_exec rBase rCur (eReg_ne (by decide)) hpReg hpReg_inj
@@ -1335,24 +1330,22 @@ theorem loadActiveCtxCode_exec {U V w N n n_init base L_peak : ℕ}
     have h0 := hout_iw 0
     rwa [tmpItemWords_out, clientResult_compItemWordsGenProg hw] at h0
   have hpres₄_eReg : ∀ {c : Fin 88}, c.val < 32 → c ≠ 1 → c ≠ 9 →
-      x₄.regs (eReg c) = x.regs (eReg c) := fun {c} hc hne1 hne9 => by
-    rw [hframe_iw (eReg c) (eReg_ne hne1)
-      (mkTmp_ne_reg _ (eReg_lt_88 _) (fun a => by fin_cases a; exact eReg_ne hne9.symm))]
-    simp only [x₃, RData.set_regs, Function.update_of_ne (eReg_ne hne1)]
-    exact hpres₂ hc hne9
+      x₄.regs (eReg c) = x.regs (eReg c) := fun {c} hc hne1 hne9 =>
+    (hframe_iw (eReg c) (eReg_ne hne1)
+      (mkTmp_ne_reg _ (eReg_lt_88 _)
+        (fun a : Fin 1 => Subsingleton.elim a 0 ▸ eReg_ne hne9.symm))).trans
+      ((Function.update_of_ne (eReg_ne hne1) 0 x₂.regs).trans (hpres₂ hc hne9))
   have hx₄_hp : ∀ i : Fin 19, x₄.regs (hpReg i) =
-      mkHashParams w (epochQBits U N) (epochHashB N) (totalMicroBits N) 3 i := fun i => by
-    rw [hframe_iw (hpReg i) (hpReg_ne_eReg i (by decide))
+      mkHashParams w (epochQBits U N) (epochHashB N) (totalMicroBits N) 3 i := fun i =>
+    (hframe_iw (hpReg i) (hpReg_ne_eReg i (by decide))
       (mkTmp_ne_reg _ (hpReg_lt_88 i) (fun a => by fin_cases a; exact (hpReg_ne_eReg i
-        (by decide)).symm))]
-    simp only [x₃, RData.set_regs, Function.update_of_ne (hpReg_ne_eReg (c := 1) i (by decide))]
-    exact hx₂_hp i
-  have hx₄_cp : ∀ i : Fin 36, x₄.regs (cpReg i) = mkCompParams U V w N i := fun i => by
-    rw [hframe_iw (cpReg i) (cpReg_ne_eReg i (by decide))
+        (by decide)).symm))).trans
+      ((Function.update_of_ne (hpReg_ne_eReg (c := 1) i (by decide)) 0 x₂.regs).trans (hx₂_hp i))
+  have hx₄_cp : ∀ i : Fin 36, x₄.regs (cpReg i) = mkCompParams U V w N i := fun i =>
+    (hframe_iw (cpReg i) (cpReg_ne_eReg i (by decide))
       (mkTmp_ne_reg _ (cpReg_lt_88 i) (fun a => by fin_cases a; exact (cpReg_ne_eReg i
-        (by decide)).symm))]
-    simp only [x₃, RData.set_regs, Function.update_of_ne (cpReg_ne_eReg (c := 1) i (by decide))]
-    exact hx₂_cp' i
+        (by decide)).symm))).trans
+      ((Function.update_of_ne (cpReg_ne_eReg (c := 1) i (by decide)) 0 x₂.regs).trans (hx₂_cp' i))
   have hx₄_base : x₄.regs rBase = base :=
     (hpres₄_eReg (c := 0) (by decide) (by decide) (by decide)).trans hbase
   have hx₄_ff : x₄.frontier = x.frontier := hx₄f.trans (hx₂f.trans hx₁f)
@@ -1419,11 +1412,10 @@ theorem runEvalHashAtQuot {U V w N n n_init base L_peak q : ℕ}
       (∀ a, (a < base + offScratch ∨ base + epochHdrWords ≤ a) → y.mem a = x.mem a) ∧
       ∀ reg, reg ≠ rFr → reg.val < 88 → reg ≠ rHashOut → y.regs reg = x.regs reg := by
   obtain ⟨hw, hU, _⟩ := rootHeaderValid_bounds hx hsplit.root_hdr
-  have hNU : N ≤ U := by rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
+  have hNU := (epochValid_iff_capacity_bounds.mp hev).2.2
   have hfr_pos : x.frontier = base + offCompItems U w N + compactedItemWords U V w N n := by
-    rw [hfr]; unfold compactedEpochWords; rw [ite_eq_right hn.ne']; omega
-  have hoff_ge : 225 ≤ offCompItems U w N := by
-    unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM epochHdrWords; omega
+    simp only [hfr, compactedEpochWords, ite_eq_right hn.ne', Nat.add_assoc]
+  have hoff_ge := le_offCompItems_225 U w N
   have hfit_fr : Fits w x.frontier := hx.frontier_fits
   have hw2 : 2 ≤ w := by
     by_contra h
@@ -1481,9 +1473,8 @@ theorem runEvalHashAtQuot {U V w N n n_init base L_peak q : ℕ}
     have hu_eq : u_q = ⟨q % 2 ^ quotientBits U N, Nat.mod_lt _ (Nat.two_pow_pos _)⟩ :=
       Fin.ext (Nat.mod_eq_of_lt hq_lt).symm
     have h0 := hout_reg 0
-    rw [tmpEvalHash_out, hres_eh] at h0
-    unfold hValOfSeed evalQuotHash
-    rwa [← hu_eq]
+    rw [tmpEvalHash_out, hres_eh, hu_eq] at h0
+    exact h0
   have hy_out_mem : ∀ a, (a < base + offScratch ∨ base + epochHdrWords ≤ a) →
       y.mem a = x.mem a := fun a ha =>
     (congrFun (congrArg Memory.State.mem hm_eh) a).trans (hout_eh a ha)
@@ -1517,9 +1508,9 @@ theorem evalKeyHashCode_exec {U V w N n n_init base L_peak : ℕ}
       ∀ reg, reg ≠ rFr → reg.val < 88 → reg ≠ rQuot → reg ≠ rHashOut →
         y.regs reg = x.regs reg := by
   obtain ⟨hw, hU, hV⟩ := rootHeaderValid_bounds hx hsplit.root_hdr
-  have hNU : N ≤ U := by rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
+  have hNU := (epochValid_iff_capacity_bounds.mp hev).2.2
   have hfr_pos : x.frontier = base + offCompItems U w N + compactedItemWords U V w N n := by
-    rw [hfr]; unfold compactedEpochWords; rw [ite_eq_right hn.ne']; omega
+    simp only [hfr, compactedEpochWords, ite_eq_right hn.ne', Nat.add_assoc]
   have hfit_off : Fits w (base + offCompItems U w N) := hx.frontier_fits.of_le (by omega)
   have hcp_fit := fits_mkCompParams (U := U) (V := V) (w := w) (N := N) hw hNU hU hV hfit_off
   have hin_eq : x.regs ∘ srcExtractQuot = WordEncoding.encode (mkCompParams U V w N, u.val) :=
@@ -1574,12 +1565,11 @@ theorem compEpochEnv_of_split {U V w N n n_init base : ℕ}
     CompEpochEnv U V w N base (base + offCompItems U w N) n ⟨x.mem, x.frontier⟩ ∧
     Fits w (base + offCompItems U w N) := by
   obtain ⟨hw, hU, hV⟩ := rootHeaderValid_bounds hx hsplit.root_hdr
-  rcases hev with ⟨rfl, _⟩ | ⟨_, hnN, _, hNU⟩
-  · omega
-  · have hfr_pos : x.frontier = base + offCompItems U w N + compactedItemWords U V w N n := by
-      rw [hfr]; unfold compactedEpochWords; rw [ite_eq_right hn.ne']; omega
-    exact ⟨⟨hw, by omega, hNU, hU, hV, le_rfl, by change _ ≤ x.frontier; omega⟩,
-      hx.frontier_fits.of_le (by omega)⟩
+  obtain ⟨hnN, _, hNU⟩ := epochValid_iff_capacity_bounds.mp hev
+  have hfr_pos : x.frontier = base + offCompItems U w N + compactedItemWords U V w N n := by
+    simp only [hfr, compactedEpochWords, ite_eq_right hn.ne', Nat.add_assoc]
+  exact ⟨⟨hw, hn.trans_le hnN, hNU, hU, hV, le_rfl, hfr_pos.ge⟩,
+    hx.frontier_fits.of_le (hfr_pos ▸ Nat.le_add_right _ _)⟩
 
 theorem compGmAt_eq_of_scratch_mod {U w N base : ℕ} (hw : 0 < w) {mem₁ mem₂ : ℕ → ℕ}
     (hout : ∀ a, (a < base + offScratch ∨ base + epochHdrWords ≤ a) → mem₁ a = mem₂ a) :

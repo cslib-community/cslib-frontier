@@ -198,11 +198,8 @@ private theorem unmarked_nonempty_of_full {k : ℕ} (hk : 0 < k) {m : MarkMem α
     (m.cache \ (if m.cache ⊆ m.marked then ∅ else m.marked)).Nonempty := by
   have hcard : m.cache.card = k := le_antisymm hm.1 (Nat.not_lt.mp hnotlt)
   by_cases hsub : m.cache ⊆ m.marked
-  · simp only [hsub, ↓reduceIte, Finset.sdiff_empty]
-    exact Finset.card_pos.mp (hcard ▸ hk)
-  · simp only [hsub, ↓reduceIte]
-    obtain ⟨e, he_cache, he_not_marked⟩ := Finset.not_subset.mp hsub
-    exact ⟨e, Finset.mem_sdiff.mpr ⟨he_cache, he_not_marked⟩⟩
+  · simpa only [hsub, ↓reduceIte, Finset.sdiff_empty] using Finset.card_pos.mp (hcard ▸ hk)
+  · simpa only [hsub, ↓reduceIte] using Finset.sdiff_nonempty.mpr hsub
 
 /-- **The randomized marking online strategy** ([FiatKarpLubyMcGeochSleatorYoung1991], Section 3)
 for `Paging.problem α k` (`0 < k`). Marks are initialized to the initial cache `s₀`; hits mark the
@@ -504,8 +501,7 @@ theorem stepExpectedCost_markLaw {k : ℕ} (hk : 0 < k) {tr : MarkTracker α}
               (uniformOfFinset (tr.stale.powersetCard tr.staleCached) hne).toOuterMeasure
                 {U | p ∉ U} := by
           rw [PMF.toOuterMeasure_apply]
-          refine tsum_congr fun U => ?_
-          by_cases hpU : p ∈ U <;> simp [hpU, hpM]
+          exact tsum_congr fun U => by by_cases hpU : p ∈ U <;> simp [hpU, hpM]
         rw [hind, toOuterMeasure_uniformOfFinset_powersetCard_notMem hpS hst]
         have hSpos : (0 : ℝ) < (tr.stale.card : ℝ) := by
           exact_mod_cast Finset.card_pos.mpr ⟨p, hpS⟩
@@ -680,9 +676,8 @@ private theorem cleanCount_active_bound {k : ℕ} (hk : 0 < k) {tr : MarkTracker
         omega
       · by_cases ht0 : tr.staleCached = 0
         · have hM_card : tr.marked.card = k := by omega
-          have hnotlt : ¬ tr.marked.card < k := by omega
           have hstep_tr : stepTracker k tr p = ⟨{p}, tr.marked, k - 1⟩ := by
-            simp [stepTracker, hpM, ht0, hnotlt]
+            simp [stepTracker, hpM, ht0, hM_card]
           simp only [isCleanReq, hpM, not_false_eq_true, ht0, true_or, and_self, decide_true,
             hstep_tr, ↓reduceIte]
           obtain ⟨B_new, hs_off'_new, hp_new, hB_new_card⟩ : ∃ B_new : Finset α,
@@ -712,9 +707,8 @@ private theorem cleanCount_active_bound {k : ℕ} (hk : 0 < k) {tr : MarkTracker
               (show tr.stale.erase p = P_prev \ insert p tr.marked by finset_card)
               (show (insert p tr.marked).card + (tr.staleCached - 1) = k by finset_card)
               hs_start hs_off'_sub hM'_sub hrest
-            have hd : insert p tr.marked \ P_prev = tr.marked \ P_prev := by finset_card
+            have : (insert p tr.marked \ P_prev).card = (tr.marked \ P_prev).card := by finset_card
             dsimp only at hih
-            rw [hd] at hih
             omega
           · have hstep_tr :
                 stepTracker k tr p = ⟨insert p tr.marked, tr.stale, tr.staleCached - 1⟩ := by

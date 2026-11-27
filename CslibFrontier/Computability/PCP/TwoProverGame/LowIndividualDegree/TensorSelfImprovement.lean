@@ -270,7 +270,6 @@ theorem exists_symmetricSelfImprovement
   have hδt : √δ ≤ t := by dsimp only [t]; linarith only [Real.sqrt_nonneg ε, Real.sqrt_nonneg r]
   have hrt : √r ≤ t := by dsimp only [t]; linarith only [Real.sqrt_nonneg ε, Real.sqrt_nonneg δ]
   have hδmt := hδt.trans hmt
-  have hrmt' := hrt.trans hmt
   have hz : ζ = 100 * (m * t) := mul_assoc _ _ _
   have hL (q : Q) : (C.alice q).IsProjective :=
     QuantumStrategy.leftMeasurement_isProjective (S.alice q) (hprojective q)
@@ -288,8 +287,7 @@ theorem exists_symmetricSelfImprovement
       (QuantumStrategy.leftMeasurement T) = L := sandwichedPolynomial_left S.alice T
   have hright : sandwichedPolynomialMeasurement (decodedPoint S.toCommuting.bob)
       (QuantumStrategy.rightMeasurement T) = R := by
-    dsimp only [QuantumStrategy.toCommuting]
-    rw [hM, sandwichedPolynomial_right]
+    simpa only [QuantumStrategy.toCommuting, hM] using sandwichedPolynomial_right S.alice T
   have hswap (X Y : Local) : C.state (X ⊗ₖ Y) = C.state (Y ⊗ₖ X) :=
     AlgState.vector_kronecker_swap S.state S.norm_state hψ X Y
   have htrace : C.state R.successfulEffect = C.state L.successfulEffect := by
@@ -356,18 +354,15 @@ theorem exists_symmetricSelfImprovement
     · have hrs : r ≤ √r :=
         (Real.le_sqrt hr hr).2 (by nlinarith only [mul_nonneg hr (sub_nonneg.mpr hsmall)])
       have hrmt : m * r ≤ m * t := mul_le_mul_of_nonneg_left (hrs.trans hrt) (by linarith)
-      refine hstrong.trans ?_
-      change 5 * √(2 * δ) + 5 * √ξ + 2 * √ξ + m * d / Fintype.card F ≤ ζ
-      rw [mul_div_assoc, hz]
-      linarith only [hδsqrt, hξsqrt, hδmt, hrmt, hmt, ht]
+      exact hstrong.trans
+        (by rw [mul_div_assoc, hz]; linarith only [hδsqrt, hξsqrt, hδmt, hrmt, hmt, ht])
     · have hmass_le : (C.state L.successfulEffect).re ≤ 1 :=
         C.state.re_apply_le_one (sub_nonneg.mp
           (L.effect_none_eq_one_sub_successfulEffect ▸ L.nonneg none))
       have hagree : 0 ≤ ∑ g, (C.state (L.effect (some g) * R.effect (some g))).re :=
         sum_nonneg fun g _ => C.state.re_apply_nonneg
           ((hxy g).mul_nonneg (L.nonneg _) (R.nonneg _))
-      have hrone : 1 ≤ √r := Real.one_le_sqrt.mpr (le_of_not_ge hsmall)
-      rw [hz]
-      linarith only [hmass_le, hagree, hrone, hrmt']
+      linarith only [hz, hmass_le, hagree, Real.one_le_sqrt.mpr (le_of_not_ge hsmall),
+        hrt.trans hmt]
 
 end Cslib.PCP.LowIndividualDegree

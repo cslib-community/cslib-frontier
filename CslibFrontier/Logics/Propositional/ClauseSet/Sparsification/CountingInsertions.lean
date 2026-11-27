@@ -179,9 +179,8 @@ theorem sum_counting_deleted_marked_le {θ : ℕ → ℕ} (hθ : ∀ r, 1 ≤ θ
   calc
     _ ≤ ∑ m ∈ range N, ∑ i ∈ Ico 1 j, 2 * θ (j - i) *
         ((countingIntro (ψ m) (c m) (H m) (b m) \ (ψ m ∪ ψ 0)).filter
-          fun C => C.card = i).card := by
-      refine sum_le_sum fun m hm => ?_
-      exact card_counting_deleted_marked_le hθ N ψ c H b hstep hchoice hred (mem_range.mp hm) j
+          fun C => C.card = i).card := sum_le_sum fun m hm =>
+      card_counting_deleted_marked_le hθ N ψ c H b hstep hchoice hred (mem_range.mp hm) j
     _ = 2 * ∑ i ∈ Ico 1 j, θ (j - i) * countingInsertionCount N ψ c H b i := by
       rw [sum_comm]
       simp only [countingInsertionCount, mul_sum, mul_assoc]
@@ -219,15 +218,10 @@ theorem countingInsertionCount_le_pow {M : ℕ} (hM : 2 ≤ M)
   have hθ : ∀ r, 1 ≤ M ^ r := fun r => Nat.one_le_pow r M (by omega)
   induction j using Nat.strong_induction_on with
   | _ j ih =>
-    by_cases hj1 : j = 1
-    · subst j
-      have hunit := countingInsertionCount_one_le hθ N ψ c H b hstep
-        (fun i hi => (hchoice i hi).1) hred declared hsupport
-      simp only [Nat.sub_self, pow_zero, mul_one]
-      omega
-    have hj2 : 2 ≤ j := by omega
-    have hrec := countingInsertionCount_le_rec hθ N ψ c H b hstep hchoice hred hnt
-      declared hsupport hj2
+    obtain rfl | hj2 : j = 1 ∨ 2 ≤ j := by omega
+    · simpa using (countingInsertionCount_one_le hθ N ψ c H b hstep
+        (fun i hi => (hchoice i hi).1) hred declared hsupport).trans
+        (Nat.mul_le_mul_right _ (Nat.le_add_left 2 2))
     have hterm (i : ℕ) (hi : i ∈ Ico 1 j) :
         M ^ (j - i) * countingInsertionCount N ψ c H b i ≤
           (4 * declared.card * M ^ (j - 1)) * 3 ^ (i - 1) := by
@@ -246,7 +240,8 @@ theorem countingInsertionCount_le_pow {M : ℕ} (hM : 2 ≤ M)
         using geom_sum_mul_add (2 : ℕ) (j - 1)
     calc
       _ ≤ 4 * declared.card * M ^ (j - 1) +
-          2 * ∑ i ∈ Ico 1 j, M ^ (j - i) * countingInsertionCount N ψ c H b i := hrec
+          2 * ∑ i ∈ Ico 1 j, M ^ (j - i) * countingInsertionCount N ψ c H b i :=
+        countingInsertionCount_le_rec hθ N ψ c H b hstep hchoice hred hnt declared hsupport hj2
       _ ≤ 4 * declared.card * M ^ (j - 1) +
           2 * ∑ i ∈ Ico 1 j, (4 * declared.card * M ^ (j - 1)) * 3 ^ (i - 1) :=
         Nat.add_le_add_left (Nat.mul_le_mul_left 2 (sum_le_sum hterm)) _

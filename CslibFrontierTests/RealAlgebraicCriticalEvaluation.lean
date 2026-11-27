@@ -12,18 +12,27 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBoundedSum
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledIndexedFeasibility
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPositivity
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPowerSection
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledRelativeCoefficient
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledRelativeValue
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateFingerprintWitness
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateSelection
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCandidates
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficients
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficientSign
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalPolynomialEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.WordCoordinateFingerprintLabels
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchGrowth
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.DegreePieceSeparation
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateCriticalLimit
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
+import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
+import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.RelativeValueSection
 import Mathlib.LinearAlgebra.Matrix.Charpoly.Coeff
+import Mathlib.Order.Filter.AtTopBot.Ring
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
 
@@ -228,6 +237,18 @@ example : (criticalObjectiveValue 7 2 3 1 [2, 3] inputValue : ZMod 7) = 3 := by
     Fin.sum_univ_succ]
   decide
 
+example : (zeroObjectiveValue 7 2 3 1 [2, 3] inputValue : ZMod 7) = 4 := by
+  rw [zeroObjectiveValue_cast inputPolynomial 3 1 (by decide) [2, 3] inputValue input_correct]
+  norm_num [deformedPolynomial, potentialPolynomial, inputPolynomial, Fin.sum_univ_succ]
+  decide
+
+example : (fun p : ℕ => zeroObjectiveValue p 2 3 1 [2, 3] (fun _ => 0)) ∈
+    CountingFunction 0 encNat encNat := by
+  have hv : (fun _ : ℕ × List ℕ => 0) ∈ CountingFunction 0 (encInstancePoint encNat) encNat :=
+    CountingFunction.of_polyTime (ComputableInPolyTime.const 0)
+  exact zeroObjectiveValue_mem (ComputableInPolyTime.id') (.const 2) (.const 3) (.const 1)
+    (.const [2, 3]) hv
+
 -- One certificate handles all binary moduli and powers, including total default inputs.
 theorem uniform_jacobian_mem :
     (fun w : ℕ × ℕ => criticalJacobianValue w.1 0 w.2 1 [] (fun _ => 0)) ∈
@@ -256,6 +277,51 @@ example : criticalCoordinateCoefficientValue 11 1 1 1 0 2 (fun z => z[0]?.getD 0
       _ = 1 := by
         rw [Polynomial.coeff_natDegree, (Matrix.charpoly_monic A).leadingCoeff, ZMod.val_one]
   exact hleading _
+
+example : (fun q : ℕ × ℕ => zeroObjectiveCoefficientValue 19 1 1 q.1 q.2 (fun _ => 0)) ∈
+    CountingFunction 9 (encPair encNat encNat) encNat := by
+  exact zeroObjectiveCoefficientValue_mem (a := 0) (Decoder.pair Decoder.nat Decoder.nat)
+    (.const 19) (.const 1) (.const 1) (by fun_prop) (by fun_prop)
+    (CountingFunction.of_polyTime (.const 0))
+
+-- With no variables and zero input, the quotient has rank one and the multiplier is zero.
+example : zeroObjectiveCoefficientValue 11 0 1 0 0 (fun _ => 0) = 0 := by
+  let : Fact (Nat.Prime 11) := ⟨by decide⟩
+  rw [zeroObjectiveCoefficientValue_eq 1 (by decide) 0 0 (0 : MvPolynomial (Fin 0) (ZMod 11))
+    (by simp) (by decide) (by decide) (fun _ => 0) (by simp)]
+  simp [deformedPolynomial, potentialPolynomial, Matrix.charpoly_zero]
+
+-- The retained coordinate of a two-variable source is fixed while the coefficient address varies.
+example :
+    let C : Controlled (fun _ : ℕ => (X 1 : MvPolynomial (Fin (1 + 1)) ℤ)) encNat 0 :=
+      Controlled.coordinate (.const 2) (fun _ => 1) (.const 1)
+    C.relativeCoefficientValue (n := fun _ => 1) (m := fun _ => 1) (fun _ => 19)
+      (fun _ => 1) (fun _ => 1) id (fun _ => [2]) ∈ CountingFunction 9 encNat encNat := by
+  intro C
+  exact C.relativeCoefficientValue_mem Decoder.nat (.const 1) (.const 19) (.const 1)
+    (.const 1) ComputableInPolyTime.id' (.const [2])
+
+-- The relative polynomial of the empty zero source is the critical-value variable itself.
+example :
+    let C : Controlled (fun _ : ℕ => (MvPolynomial.C 0 : MvPolynomial (Fin (0 + 0)) ℤ))
+        encNat 0 := Controlled.constant (.const 0) (fun _ => 0) (.const 0)
+    C.relativeValue (n := fun _ => 0) (m := fun _ => 0) (fun _ => 1) (0, 11, [3]) = 3 := by
+  intro C
+  rw [C.relativeValue_eq (fun _ => 1) 0 11 [3] (by decide)
+    (by change 0 < 11; decide) (by decide) (by simp) (by decide) (by decide)]
+  have hresidue : (3 : ZMod 11).val = 3 := by decide
+  simp [flattenedRelativeValuePolynomial, relativeValuePolynomial, relativeSource, valuePolynomial,
+    deformedPolynomial, potentialPolynomial, Matrix.charpoly_zero, NormalIndex, hresidue]
+
+-- The packaged evaluator has one retained coordinate and the two distinguished slots.
+example :
+    let C : Controlled (fun _ : ℕ => (X 1 : MvPolynomial (Fin (1 + 1)) ℤ)) encNat 0 :=
+      Controlled.coordinate (.const 2) (fun _ => 1) (.const 1)
+    let Q : Controlled (n := fun _ => 3) _ encNat 10 :=
+      C.relativeValueFamily (n := fun _ => 1) (m := fun _ => 1) Decoder.nat (.const 1) (.const 1)
+    Q.evaluate ∈ CountingFunction 10 (encEvaluation encNat) encNat := by
+  intro C Q
+  exact Q.evaluate_mem
 
 -- At u = 1, the equation for F = X is X² + 1 = 0. The value t = 5 is a root mod 13.
 example : (criticalCoordinatePolynomialValue 13 1 1 1 0 5 (fun z => z[0]?.getD 0) :
@@ -669,5 +735,85 @@ example (P : MvPolynomial (Fin (2 + 1)) ℤ) (a : ℕ)
     (C.counterexampleOrder (n := fun _ => 2) (m := fun _ => 1) (.const 2) (.const 1)).evaluate ∈
       CountingFunction a (encEvaluation encBits) encNat :=
   (C.counterexampleOrder (n := fun _ => 2) (m := fun _ => 1) (.const 2) (.const 1)).evaluate_mem
+
+-- The penalty becomes a power of the value, and the parameter retains its own coordinate.
+example :
+    let P : MvPolynomial (Fin (1 + 2)) ℤ := X (Fin.succ 0) + X (Fin.succ (Fin.succ 0))
+    eval₂ (RingHom.id ℤ) (Fin.cons 2 (fun _ => 5)) (MvPolynomial.powerSection 3 P) = 13 := by
+  intro P
+  rw [eval₂_powerSection]
+  simp only [P, eval₂_add, eval₂_X, Fin.cons_succ, Fin.cons_zero]
+  norm_num
+
+-- Taking the fixed-power section of a relative family drops an arity slot at the same level.
+example (P : MvPolynomial (Fin (1 + 1)) ℤ)
+    (C : Controlled (fun _ : ℕ => P) encNat 0) :
+    let Q : Controlled (n := fun _ => 2) _ encNat 10 :=
+      C.relativeValueSection (n := fun _ => 1) (m := fun _ => 1) Decoder.nat (.const 1) (.const 1)
+    Q.evaluate ∈ CountingFunction 10 (encEvaluation encNat) encNat := by
+  intro Q
+  exact Q.evaluate_mem
+
+-- The degree-two coefficient survives specialization to a finite field, including at zero.
+example (x : ZMod 7) :
+    let F : MvPolynomial (Fin (1 + 1)) ℤ := X 1 ^ 2
+    let hF : F.totalDegree ≤ 2 := (totalDegree_pow _ _).trans (by simp)
+    let Q := specializedRelativeValueSection (ell := 2) (n := 1) (m := 1) (by decide)
+      F hF (fun _ => x)
+    Q.coeff 2 = 1 ∧ Q ≠ 0 := by
+  intro F hF Q
+  exact ⟨coeff_specializedRelativeValueSection _ F hF _, specializedRelativeValueSection_ne_zero
+    _ F hF _⟩
+
+-- The test x * v vanishes only at v = 0 and has both eventual signs as x varies.
+example : IsClopen {x : {x : ℝ // x ≠ 0} | 0 < x.val} := by
+  let P : {x : ℝ // x ≠ 0} → Polynomial ℝ := fun _ => Polynomial.X
+  refine Polynomial.eventualSign_isClopen_of_fixed_degree P 1
+    (fun _ => continuous_const) (fun _ => by simp [P]) (fun _ => by simp [P])
+    (fun x v => x.val * v) ((continuous_subtype_val.comp continuous_fst).mul continuous_snd)
+    (fun x => 0 < x.val) ?_ ?_ ?_
+  · intro x v hz
+    have hv : v = 0 := (mul_eq_zero.mp hz).resolve_left x.property
+    simp [P, hv]
+  · intro x hx
+    filter_upwards [Filter.eventually_gt_atTop (0 : ℝ)] with v hv
+    exact mul_pos hx hv
+  · intro x hx
+    filter_upwards [Filter.eventually_gt_atTop (0 : ℝ)] with v hv
+    exact mul_neg_of_neg_of_pos (lt_of_le_of_ne (le_of_not_gt hx) x.property) hv
+
+-- The root branch of the relation u - t = 0 is t = v² at parameter u = v².
+example : ∀ᶠ v : ℝ in Filter.atTop, v < v ^ 2 := by
+  let P : Polynomial (Polynomial ℝ) := Polynomial.X - Polynomial.C Polynomial.X
+  have hP : P ≠ 0 := by
+    intro hz
+    simpa [P] using congrArg (fun Q : Polynomial (Polynomial ℝ) => Q.coeff 1) hz
+  have hdegree (j : ℕ) : (P.coeff j).natDegree ≤ 1 := by
+    by_cases h0 : j = 0
+    · subst j
+      simp [P]
+    by_cases h1 : j = 1
+    · subst j
+      simp [P]
+    · simp [P, Polynomial.coeff_X, Polynomial.coeff_C, h0, Ne.symm h1]
+  refine Polynomial.eventually_lt_of_eval₂_pow_eq_zero P hP hdegree Filter.tendsto_id
+    (Filter.tendsto_pow_atTop (by decide : (2 : ℕ) ≠ 0)) ?_
+  exact Filter.Eventually.of_forall fun v => by simp [P]
+
+-- For the constant input r², the minimum varies jointly and diverges exactly when r is nonzero.
+example :
+    let F (r : ℝ) : MvPolynomial (Fin 1) ℝ := C (r ^ 2)
+    let a : Fin 1 → ℝ := fun _ => 0
+    Continuous (fun q : ℝ × Set.Ici (0 : ℝ) => criticalMinimumValue 1 a (F q.1) q.2.val) ∧
+      ∀ r, r ≠ 0 ↔ Filter.Tendsto (criticalMinimumValue 1 a (F r)) Filter.atTop Filter.atTop := by
+  intro F a
+  have hFn (r : ℝ) (z : Fin 1 → ℝ) : 0 ≤ eval z (F r) := by simp [F, sq_nonneg]
+  refine ⟨continuous_criticalMinimumValue (by decide) (by decide) a (fun _ => le_rfl)
+    F ?_ hFn, ?_⟩
+  · simp only [F, eval_C]
+    fun_prop
+  · intro r
+    simpa [F] using (not_exists_zero_iff_tendsto_criticalMinimumValue
+      (by decide : 1 ≤ 1) (by decide) a (fun _ => le_rfl) (F r) (hFn r))
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

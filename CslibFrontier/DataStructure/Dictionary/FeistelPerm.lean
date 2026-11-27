@@ -445,9 +445,8 @@ theorem card_image_snd_filter_feistelHead_eq {s : ℕ} {α : Type*} [DecidableEq
 /-- Bucket loads partition `#S` across all `2 ^ s` child buckets. -/
 theorem sum_bucketLoad_eq_card {s : ℕ} {α : Type*}
     (f : α → Fin (2 ^ s)) (S : Finset (Fin (2 ^ s) × α)) :
-    ∑ b : Fin (2 ^ s), bucketLoad f S b = #S := by
-  unfold bucketLoad
-  exact (card_eq_sum_card_fiberwise (f := feistelHead f) (t := univ) fun _ _ => mem_univ _).symm
+    ∑ b : Fin (2 ^ s), bucketLoad f S b = #S :=
+  (card_eq_sum_card_fiberwise (f := feistelHead f) (t := univ) fun _ _ => mem_univ _).symm
 
 private def bucketInd {s : ℕ} {α : Type*} [DecidableEq α]
     (S : Finset (Fin (2 ^ s) × α)) (b : Fin (2 ^ s)) (z : α) (y : Fin (2 ^ s)) : ℝ :=
@@ -484,9 +483,7 @@ private theorem expect_bucketInd_eq {s : ℕ} {α : Type*} [DecidableEq α]
   · intro x hx
     rcases mem_filter.mp hx with ⟨hxS, hxz⟩
     exact mem_filter.mpr ⟨mem_univ _, by rwa [xor_cancel_left, ← hxz, Prod.mk.eta]⟩
-  · intro x hx
-    dsimp only
-    rw [xor_cancel_left, ← (mem_filter.mp hx).2, Prod.mk.eta]
+  · exact fun x hx => by simp only [xor_cancel_left, ← (mem_filter.mp hx).2, Prod.mk.eta]
 
 private theorem sum_expect_bucketInd_eq {s : ℕ} {α : Type*} [DecidableEq α]
     (S : Finset (Fin (2 ^ s) × α)) (b : Fin (2 ^ s)) :
@@ -618,8 +615,8 @@ theorem childRouterMixedPerm_apply (c q b s T : ℕ) (θ : ChildRouterSeed c q b
 
 @[simp]
 theorem childRouterMixedPerm_symm (c q b s T : ℕ) (θ : ChildRouterSeed c q b s) :
-    (childRouterMixedPerm c q b s T θ).symm = childRouterMixedPerm c q b s T θ := by
-  exact feistelMixedEquiv_symm (childRouterRound c q b s T θ)
+    (childRouterMixedPerm c q b s T θ).symm = childRouterMixedPerm c q b s T θ :=
+  feistelMixedEquiv_symm (childRouterRound c q b s T θ)
 
 /-- Flat child-router Feistel permutation on `Fin (2 ^ L)` for `s ≤ L` (`Lemma 5.1`). -/
 def childRouterBitPerm {s L : ℕ} (hsL : s ≤ L) (c q b : ℕ) (θ : ChildRouterSeed c q b s) :
@@ -636,8 +633,8 @@ theorem childRouterBitPerm_apply {s L : ℕ} (hsL : s ≤ L) (c q b : ℕ)
 @[simp]
 theorem childRouterBitPerm_symm {s L : ℕ} (hsL : s ≤ L) (c q b : ℕ)
     (θ : ChildRouterSeed c q b s) :
-    (childRouterBitPerm hsL c q b θ).symm = childRouterBitPerm hsL c q b θ := by
-  exact feistelBitEquiv_symm hsL (childRouterRound c q b s (2 ^ (L - s)) θ)
+    (childRouterBitPerm hsL c q b θ).symm = childRouterBitPerm hsL c q b θ :=
+  feistelBitEquiv_symm hsL (childRouterRound c q b s (2 ^ (L - s)) θ)
 
 /-- **Unconditional Double-Tabulation Feistel concentration (`Corollary B.5(c)` parametric form)**:
 bounds the seed density on `ChildRouterSeed c q b s` where any child bucket deviates from
@@ -659,11 +656,9 @@ theorem dens_childRouter_exists_bucketLoad_sub_ge_le {c q b s T m : ℕ}
   have hdt : (dens {T₁ : DoubleTabTopSeed c (2 * q * c) b | T₁ ∉ G} : ℝ) ≤
       2 * (doubleTabCodeBound c (2 * q * c) q (2 * m) : ℝ) ^ 2 /
         (2 ^ (2 * (q - 1) * b) : ℝ) := by
-    have hnotG : ({T₁ : DoubleTabTopSeed c (2 * q * c) b | T₁ ∉ G} : Finset _) =
-        univ.filter fun T₁ => ¬ IsKUnique (2 * m) (simpleTabTuple T₁) := by
-      ext T₁; simp [G]
     have hexp : 2 * (q - 1) * b = (q - 1) * b * 2 := by ring
-    rw [hnotG, dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast,
+    simp only [G, mem_filter, mem_univ, true_and]
+    rw [dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast,
       div_le_div_iff₀ (Nat.cast_pos.mpr Fintype.card_pos) (by positivity), hexp, pow_mul]
     exact_mod_cast (mul_comm _ _).trans_le (card_not_isKUnique_le hc hq rfl hcode)
   calc (dens {θ : ChildRouterSeed c q b s | ∃ bucket : Fin (2 ^ s),
@@ -910,19 +905,21 @@ theorem childRouterSeedBits_pow_le (ε_inv α_inv s : ℕ) {T : ℕ} (hT : 1 ≤
   have hc : 2 ≤ c := by omega
   have hLT1 : 1 ≤ LT := Nat.clog_pos Nat.one_lt_two (by omega)
   have hb_eq : b = (LT + c - 1) / c := by
+    have hc1 : 1 ≤ c := by omega
     dsimp only [b, childRouterCharBits]
-    rw [max_eq_left (by omega : 1 ≤ c)]
+    rw [max_eq_left hc1]
     exact max_eq_right (Nat.le_div_iff_mul_le (by omega) |>.mpr (by omega))
   have hcb_le : c * b ≤ LT + c - 1 := hb_eq ▸ Nat.mul_div_le (LT + c - 1) c
   have hpow_LT : 2 ^ LT ≤ 4 * T :=
     (Nat.pow_clog_le_mul Nat.one_lt_two (by omega)).trans (by omega)
   have hfac1 : ((2 ^ b) ^ E) ^ 2 ≤ 2 ^ (c + 1) * (2 ^ s * T) := by
+    have hce : c + 1 = c - 1 + 2 := by omega
     calc ((2 ^ b) ^ E) ^ 2 = 2 ^ (c * b) := by
           rw [← Nat.pow_mul, ← Nat.pow_mul]; congr 1; rw [hc_eq]; ring
       _ ≤ 2 ^ (LT + c - 1) := Nat.pow_le_pow_right (by decide) hcb_le
       _ = 2 ^ (c - 1) * 2 ^ LT := by rw [← Nat.pow_add]; congr 1; omega
       _ ≤ 2 ^ (c - 1) * (4 * T) := Nat.mul_le_mul_left _ hpow_LT
-      _ = 2 ^ (c + 1) * T := by rw [show c + 1 = c - 1 + 2 by omega, pow_add]; ring
+      _ = 2 ^ (c + 1) * T := by rw [hce, pow_add]; ring
       _ ≤ 2 ^ (c + 1) * (2 ^ s * T) :=
           Nat.mul_le_mul_left _ (Nat.le_mul_of_pos_left T (Nat.two_pow_pos s))
   have hfac2 : ((c * b + s) ^ E) ^ 2 ≤ 2 ^ (4 * c ^ 2 + 2) * (2 ^ s * T) := by
@@ -1037,8 +1034,8 @@ theorem dens_childRouter_bucketLoad_outside_le_of_threshold {ε_inv α_inv s T :
           (bucketLoad (childRouterRound c q b s T θ) S bucket : ℝ) ≤
             (#S : ℝ) / (2 ^ s : ℝ) + ((1 : ℝ) / 5) * ((#S : ℝ) / (2 ^ s : ℝ)) ^ ((2 : ℝ) / 3)} :
       ℝ) ≤ 1 / (4 * (#S : ℝ) ^ 2) := by
-  have hc : 1 ≤ childRouterChars ε_inv := by
-    dsimp [childRouterChars]; have := le_max_right ε_inv 1; omega
+  have hc : 1 ≤ childRouterChars ε_inv :=
+    (le_max_right ε_inv 1).trans (Nat.le_mul_of_pos_left _ (by decide))
   have hq : 1 ≤ childRouterRep ε_inv α_inv := by wram_omega
   exact dens_childRouter_bucketLoad_outside_le hc hq
     (le_two_pow_mul_childRouterCharBits hc) S
@@ -1086,7 +1083,8 @@ theorem childRouter_conc_of_two_pow_mul_pow_four_le {s n : ℕ}
   have hs_val : 2100 ^ 3 ≤ s := hs
   have hs4_x : s ^ 4 ≤ x :=
     (Nat.le_div_iff_mul_le (Nat.two_pow_pos s)).mpr (by rwa [Nat.mul_comm])
-  have hx2 : 2 ≤ x := by have := Nat.pow_le_pow_left (show 2 ≤ s by omega) 4; omega
+  have hs2 : 2 ≤ s := by omega
+  have hx2 : 2 ≤ x := le_trans (by decide) ((Nat.pow_le_pow_left hs2 4).trans hs4_x)
   set Lx := Nat.clog 2 (max x 2)
   have hmax_x : max x 2 = x := max_eq_left hx2
   have hn_le_pow : max n 2 ≤ 2 ^ (s + 1 + Lx) := by
@@ -1216,10 +1214,8 @@ theorem card_idCompressorSeed (s T : ℕ) :
 `IdCompressorSeed s T` uses
 `2 * trinomialDeg T s ≤ 6 * max ⌈log₂ max(T, 2)⌉ (max s 1) = O(s + log T)` bits. -/
 theorem idCompressorSeedBits_le (s T : ℕ) :
-    idCompressorSeedBits s T ≤ 6 * max (Nat.clog 2 (max T 2)) (max s 1) := by
-  dsimp only [idCompressorSeedBits]
-  have h := trinomialDeg_le_three_mul T s
-  omega
+    idCompressorSeedBits s T ≤ 6 * max (Nat.clog 2 (max T 2)) (max s 1) :=
+  (Nat.mul_le_mul_left 2 (trinomialDeg_le_three_mul T s)).trans_eq (Nat.mul_assoc 2 3 _).symm
 
 /-- `2`-wise trinomial polynomial round function `Fin T → Fin (2 ^ s)`. -/
 noncomputable def idCompressorRound (s T : ℕ) (θ : IdCompressorSeed s T) : Fin T → Fin (2 ^ s) :=
@@ -1262,13 +1258,13 @@ theorem idCompressorPerm_symm (s T : ℕ) (θ : IdCompressorSeed s T) :
   rfl
 
 theorem idCompressorPerm_involutive (s T : ℕ) (θ : IdCompressorSeed s T) :
-    Function.Involutive (idCompressorPerm s T θ) := by
-  exact feistelPair_involutive (idCompressorRound s T θ)
+    Function.Involutive (idCompressorPerm s T θ) :=
+  feistelPair_involutive (idCompressorRound s T θ)
 
 theorem recoverLeft_idCompressorHead (s T : ℕ) (θ : IdCompressorSeed s T)
     (x : Fin (2 ^ s) × Fin T) :
-    recoverLeft (idCompressorRound s T θ) (idCompressorHead s T θ x) x.2 = x.1 := by
-  exact recoverLeft_feistelHead (idCompressorRound s T θ) x
+    recoverLeft (idCompressorRound s T θ) (idCompressorHead s T θ x) x.2 = x.1 :=
+  recoverLeft_feistelHead (idCompressorRound s T θ) x
 
 /-- Flat mixed-domain ID-compressor Feistel permutation on `Fin (2 ^ s * T)`. -/
 noncomputable def idCompressorMixedPerm (s T : ℕ) (θ : IdCompressorSeed s T) :
@@ -1283,8 +1279,8 @@ theorem idCompressorMixedPerm_apply (s T : ℕ) (θ : IdCompressorSeed s T)
 
 @[simp]
 theorem idCompressorMixedPerm_symm (s T : ℕ) (θ : IdCompressorSeed s T) :
-    (idCompressorMixedPerm s T θ).symm = idCompressorMixedPerm s T θ := by
-  exact feistelMixedEquiv_symm (idCompressorRound s T θ)
+    (idCompressorMixedPerm s T θ).symm = idCompressorMixedPerm s T θ :=
+  feistelMixedEquiv_symm (idCompressorRound s T θ)
 
 /-- Flat `Fin (2 ^ L)` ID-compressor Feistel permutation for `s ≤ L` (`Lemma 5.2`). -/
 noncomputable def idCompressorBitPerm {s L : ℕ} (hsL : s ≤ L)
@@ -1301,13 +1297,13 @@ theorem idCompressorBitPerm_apply {s L : ℕ} (hsL : s ≤ L)
 @[simp]
 theorem idCompressorBitPerm_symm {s L : ℕ} (hsL : s ≤ L)
     (θ : IdCompressorSeed s (2 ^ (L - s))) :
-    (idCompressorBitPerm hsL θ).symm = idCompressorBitPerm hsL θ := by
-  exact feistelBitEquiv_symm hsL (idCompressorRound s (2 ^ (L - s)) θ)
+    (idCompressorBitPerm hsL θ).symm = idCompressorBitPerm hsL θ :=
+  feistelBitEquiv_symm hsL (idCompressorRound s (2 ^ (L - s)) θ)
 
 /-- `idCompressorRound s T` is unconditionally `2`-wise independent for all `s, T : ℕ`. -/
 theorem isKWiseIndependentHash_idCompressorRound (s T : ℕ) :
-    IsKWiseIndependentHash 2 (idCompressorRound s T) := by
-  exact isKWiseIndependentHash_trinomialPolyHash (le_two_pow_trinomialDeg T s)
+    IsKWiseIndependentHash 2 (idCompressorRound s T) :=
+  isKWiseIndependentHash_trinomialPolyHash (le_two_pow_trinomialDeg T s)
     (le_trinomialDeg T s)
 
 /-- **Unconditional mixed-domain ID-compressor pairwise-collision bound** ([LiLiangYuZhou2024],
@@ -1359,18 +1355,9 @@ theorem dens_not_injOn_idCompressorBit_le {s L : ℕ} (hsL : s ≤ L) (S : Finse
       ¬ Set.InjOn (fun u => idCompressorHead s (2 ^ (L - s)) θ (bitDomainEquiv hsL u))
         (S : Set (Fin (2 ^ L)))} : ℝ) ≤
       (#S : ℝ) ^ 2 / (2 * (2 ^ s : ℝ)) := by
-  let S' := S.map (bitDomainEquiv hsL).toEmbedding
-  have hinj_iff (θ : IdCompressorSeed s (2 ^ (L - s))) :
-      Set.InjOn (fun u => idCompressorHead s (2 ^ (L - s)) θ (bitDomainEquiv hsL u)) ↑S ↔
-        Set.InjOn (idCompressorHead s (2 ^ (L - s)) θ) ↑S' :=
-    ⟨fun h _ hx _ hy heq => by
-      obtain ⟨u, hu, rfl⟩ := mem_map.mp hx
-      obtain ⟨v, hv, rfl⟩ := mem_map.mp hy
-      exact congrArg _ (h hu hv heq),
-     fun h _ hu _ hv heq =>
-      (bitDomainEquiv hsL).injective (h (mem_map_of_mem _ hu) (mem_map_of_mem _ hv) heq)⟩
-  have hcard : #S' = #S := card_map _
-  simpa only [hinj_iff, hcard] using dens_not_injOn_idCompressorHead_le s (2 ^ (L - s)) S'
+  have hinj := (bitDomainEquiv hsL).injective.injOn (s := ↑S)
+  simpa only [coe_map, Equiv.coe_toEmbedding, ← hinj.comp_iff, Function.comp_def, card_map] using
+    dens_not_injOn_idCompressorHead_le s (2 ^ (L - s)) (S.map (bitDomainEquiv hsL).toEmbedding)
 
 end IdCompressor
 

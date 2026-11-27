@@ -113,12 +113,10 @@ theorem RatLe.letter [DecidableEq Ω] (a : Ω) :
     fun q => if q then 1 else 0⟩, by simp, ?_⟩
   ext o
   match o with
-  | [] => simp [Rep.series, Rep.tail, Series.letter, dotProduct]
+  | [] | _ :: _ :: _ => simp [Rep.series, Rep.tail, Series.letter, dotProduct, Matrix.mulVec]
   | [b] =>
     by_cases h : b = a <;>
       simp [Rep.series, Rep.tail, Series.letter, dotProduct, Matrix.mulVec, h]
-  | b :: c :: o =>
-    simp [Rep.series, Rep.tail, Series.letter, dotProduct, Matrix.mulVec]
 
 /-- Normal form: one initial and one final state, giving the same values at non-empty words. -/
 theorem RatLe.normal {n : ℕ} {f : Series F Ω} (hf : RatLe n f) :
@@ -209,15 +207,11 @@ theorem idle_apply (P : Series F Ω) (w : List Ω) (j : ℕ) :
     · have hmem : some w[k] ∈ (w.map some ++ List.replicate j none).drop k := by
         rw [List.drop_append_of_le_length (by simp; omega), List.mem_append, ← List.map_drop]
         exact Or.inl (List.mem_map.2 ⟨w[k], List.drop_eq_getElem_cons h ▸ List.mem_cons_self, rfl⟩)
-      have hn : ¬((w.map some ++ List.replicate j none).drop k).all Option.isNone :=
-        fun hall => by simpa using List.all_eq_true.1 hall _ hmem
-      simp only [hn, ↓reduceIte, mul_zero]
+      simp [(List.all_eq_false (p := Option.isNone)).2 ⟨_, hmem, nofun⟩]
     · have hmem : none ∈ (w.map some ++ List.replicate j none).take k := by
         rw [List.take_append, List.mem_append, List.length_map, List.take_replicate]
         exact Or.inr (List.mem_replicate.2 ⟨by omega, rfl⟩)
-      have hn : ¬((w.map some ++ List.replicate j none).take k).all Option.isSome :=
-        fun hall => by simpa using List.all_eq_true.1 hall _ hmem
-      simp only [hn, ↓reduceIte, zero_mul]
+      simp [(List.all_eq_false (p := Option.isSome)).2 ⟨_, hmem, nofun⟩]
   · exact fun h => absurd (mem_range.2 (by simp; omega)) h
 
 theorem idle_ne_zero (P : Series F Ω) (o : List (Option Ω)) (h : Series.idle P o ≠ 0) :
@@ -229,21 +223,13 @@ theorem idle_ne_zero (P : Series F Ω) (o : List (Option Ω)) (h : Series.idle P
     by_contra fun hn => hk (by rw [ite_eq_right hn, zero_mul])
   have h2 : (o.drop k).all Option.isNone = true :=
     by_contra fun hn => hk (by rw [ite_eq_right hn, mul_zero])
-  have e1 (l : List (Option Ω)) (hl : l.all Option.isSome = true) :
-      l.reduceOption.map some = l := by
-    induction l with
-    | nil => rfl
-    | cons a l ih =>
-      cases a with
-      | none => simp at hl
-      | some a =>
-        simp only [List.all_cons, Option.isSome_some, Bool.true_and] at hl
-        rw [List.reduceOption_cons_of_some, List.map_cons, ih hl]
-  have e2 (l : List (Option Ω)) (hl : l.all Option.isNone = true) :
-      List.replicate l.length none = l :=
-    (List.eq_replicate_iff.2 ⟨rfl, fun a ha => by simpa using List.all_eq_true.1 hl a ha⟩).symm
+  have hprefix : (o.take k).reduceOption.map some = o.take k := by
+    rw [List.reduceOption, List.map_filterMap_some_eq_filter_map_isSome, List.map_id]
+    exact List.filter_eq_self.mpr (List.all_eq_true.mp h1)
+  have hsuffix : o.drop k = List.replicate (o.drop k).length none :=
+    List.eq_replicate_iff.mpr ⟨rfl, fun a ha => by simpa using List.all_eq_true.mp h2 a ha⟩
   exact ⟨(o.take k).reduceOption, (o.drop k).length,
-    by rw [e1 _ h1, e2 _ h2, List.take_append_drop]⟩
+    by rw [hprefix, ← hsuffix, List.take_append_drop]⟩
 
 end Idle
 

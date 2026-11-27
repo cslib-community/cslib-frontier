@@ -103,13 +103,10 @@ theorem commutingWinProb_pauliBraidingCHSHGame_le [Nonempty (Fin n)]
   let q₁ (x : Bool) : PauliBraidingQuestion n Bool := .anticommutation false x p
   let q₂ (y : Bool) : PauliBraidingQuestion n Bool := .anticommutation true y p
   let read : (Bool × Bool) ⊕ Bool → Bool := Sum.elim (fun _ => false) id
-  change game.commutingWinProb S ≤ _
-  rw [SeededGame.commutingWinProb_eq_sum]
-  unfold TwoProverGame.commutingWinProb
-  change _ ≤ TwoProverGame.chsh.toSeeded.commutingWinProb _
+  change game.commutingWinProb S ≤ TwoProverGame.chsh.toSeeded.commutingWinProb _
   let : ∀ q a b, Decidable (TwoProverGame.chsh.toSeeded.accepts q a b) :=
     fun q a b => inferInstanceAs (Decidable (TwoProverGame.chsh.accepts q.1 q.2 a b))
-  rw [SeededGame.commutingWinProb_eq_sum]
+  rw [SeededGame.commutingWinProb_eq_sum, SeededGame.commutingWinProb_eq_sum]
   refine sum_le_sum fun ⟨x, y⟩ _ =>
     mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
   change (∑ a, ∑ b, if game.accepts (x, y) a b then
@@ -117,15 +114,14 @@ theorem commutingWinProb_pauliBraidingCHSHGame_le [Nonempty (Fin n)]
       (∑ a, ∑ b, if TwoProverGame.chsh.accepts x y a b then
         (logical.map q₁ q₂ (fun _ => read) (fun _ => read)).prob x y a b else 0)
   rw [logical.sum_ite_prob_map]
-  have hquery : game.query (x, y) = cond roles Prod.swap id (q₁ x, q₂ y) := rfl
   have hswap : (∑ a, ∑ b, if game.accepts (x, y) a b then
       S.prob (game.query (x, y)).1 (game.query (x, y)).2 a b else 0) =
       ∑ a, ∑ b, if game.accepts (x, y) (cond roles b a) (cond roles a b) then
         logical.prob (q₁ x) (q₂ y) a b else 0 := by
-    rw [hquery]
     cases roles
     · rfl
-    · simp only [logical, Bool.cond_true, Prod.swap_prod_mk, S.prob_swap]
+    · change (∑ a, ∑ b, if game.accepts (x, y) a b then S.prob (q₂ y) (q₁ x) a b else 0) = _
+      simp only [logical, Bool.cond_true, S.prob_swap]
       exact sum_comm
   rw [hswap]
   refine sum_le_sum fun a _ => sum_le_sum fun b _ => ?_
@@ -196,20 +192,15 @@ theorem expect_chshDeficit_pauliBraiding_le
     Finset.expect_nonneg fun p _ => sub_nonneg.mpr <|
       (commutingWinProb_pauliBraidingCHSHGame_le S r p).trans
         (TwoProverGame.commutingWinProb_chsh_le _)
-  have hcompare :
-      (𝔼 p : ↥(oddPairs (Fin n)), (Real.cos (π / 8) ^ 2 -
-        TwoProverGame.chsh.commutingWinProb (pauliBraidingCHSHStrategy S roles p))) ≤
-      deficit roles :=
-    Finset.expect_le_expect fun p _ => sub_le_sub_left
-      (commutingWinProb_pauliBraidingCHSHGame_le S roles p) _
-  refine hcompare.trans ?_
+  refine (Finset.expect_le_expect fun p _ => sub_le_sub_left
+    (commutingWinProb_pauliBraidingCHSHGame_le S roles p) _ : _ ≤ deficit roles).trans ?_
   rw [commutingWinProb_pauliBraidingAnticommutation_eq_expect]
   have hdef : (𝔼 r : Bool, deficit r) = Real.cos (π / 8) ^ 2 -
       (𝔼 r : Bool, 𝔼 p : ↥(oddPairs (Fin n)),
         (pauliBraidingCHSHGame n r p).commutingWinProb S) := by
     let := oddPairs_nonempty (ι := Fin n)
     simp only [deficit, Finset.expect_sub_distrib, Fintype.expect_const]
-  rw [← hdef, Fintype.expect_eq_sum_div_card, Fintype.sum_bool, Fintype.card_bool]
+  rw [← hdef, Fintype.expect_eq_sum_div_card (ι := Bool), Fintype.sum_bool, Fintype.card_bool]
   cases roles <;> push_cast <;> linarith [hnonneg false, hnonneg true]
 
 omit [IsOrderedAddMonoid 𝒜] [StarModule ℂ 𝒜] [SelfAdjointDecompose 𝒜] in
@@ -303,12 +294,9 @@ theorem expect_norm_pauliBraidingBasis_anticomm_sq_le
     (hspecial false) (hspecial true)
     (fun p => hcomm false true p.val.1 p) (fun p => hcomm true false p.val.2 p) (by simp)
   simp only [neg_one_smul, sub_neg_eq_add, add_comm (Z _ * X _)] at h
-  have hx := hclose false
-  have hz := hclose true
-  have hac := expect_norm_pauliBraidingSpecial_anticomm_sq_le S roles
-  change (𝔼 p : P, S.state.norm (X p.val.1 - special false id p) ^ 2) ≤ _ at hx
-  change (𝔼 p : P, S.state.norm (Z p.val.2 - special true id p) ^ 2) ≤ _ at hz
-  linarith only [h, hx, hz, hac]
+  have hx : (𝔼 p : P, S.state.norm (X p.val.1 - special false id p) ^ 2) ≤ _ := hclose false
+  have hz : (𝔼 p : P, S.state.norm (Z p.val.2 - special true id p) ^ 2) ≤ _ := hclose true
+  linarith only [h, hx, hz, expect_norm_pauliBraidingSpecial_anticomm_sq_le S roles]
 
 end Scores
 

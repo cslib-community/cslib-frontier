@@ -295,9 +295,7 @@ theorem shortenSteps_lt_bound {E : Type*} [NormedAddCommGroup E] [InnerProductSp
         ≤ ((13 / 16 : ℝ) ^ 2) ^ k * sqNormProd (seq 0) := hchain k le_rfl
       _ ≤ ((13 / 16 : ℝ) ^ 2) ^ (shortenRoundBound n B) * (B : ℝ) ^ n :=
           mul_le_mul hpow_le (sqNormProd_le_pow hB) (sqNormProd_nonneg _) (by positivity)
-  have hlt1 := pow_shortenRoundBound_mul_lt_one (B := B) hn
-  have hone : (1 : ℝ) ≤ sqNormProd (seq k) := one_le_sqNormProd hli hGram
-  linarith
+  linarith [pow_shortenRoundBound_mul_lt_one (B := B) hn, one_le_sqNormProd hli hGram]
 
 /-! ### 3. Exact Executable Rational Orthogonal Target (`BareissElimination.ratKernelBasis`) -/
 
@@ -635,16 +633,11 @@ private theorem shortenLoopFrom_invariant (L : Submodule ℤ E)
       by_cases hvalid : u ∈ L ∧ ‖u - (stepTarget S).2‖ ≤ (1 / 4 : ℝ) * ‖S‖
       · dsimp only
         rw [shortenLoopFrom_succ_some_pos L stepTarget oracles r fuel S hcall hvalid]
-        have hli' : LinearIndependent ℝ (Function.update S (stepTarget S).1 u) :=
-          shortenStep_linearIndependent hli horth hlo hvalid.2
-        have hmem' : ∀ j, Function.update S (stepTarget S).1 u j ∈ L :=
-          (Function.forall_update_iff S fun _ v => v ∈ L).2 ⟨hvalid.1, fun j _ => hmem j⟩
-        have hpot' : sqNormProd (Function.update S (stepTarget S).1 u) ≤
-            (13 / 16 : ℝ) ^ 2 * sqNormProd S :=
-          shortenStep_sqNormProd_le hi hhi hvalid.2
+        obtain ⟨hli', hmem', hnorm', hpot'⟩ := shortenStep_of_incGDD hli hmem hi horth hlo hhi
+          ⟨hvalid.1, by linarith [hvalid.2]⟩
         obtain ⟨hli_o, hmem_o, hnorm_o, hor⟩ :=
           shortenLoopFrom_invariant L stepTarget oracles hTarget fuel (r + 1) _ hli' hmem'
-        refine ⟨hli_o, hmem_o, hnorm_o.trans (shortenStep_pi_norm_le hhi hvalid.2), ?_⟩
+        refine ⟨hli_o, hmem_o, hnorm_o.trans hnorm', ?_⟩
         rcases hor with ⟨k, hk, heq, hhalt⟩ | hpot_o
         · left
           have hrk : r + (k + 1) = r + 1 + k := by omega
@@ -707,10 +700,9 @@ theorem shortenLoop_isSolution_givp (φ : Submodule ℤ E → ℝ) (γ : ℝ)
         exact False.elim (hhalt ⟨hsol.mem, by linarith [hsol.dist_le]⟩)
     · have h1 : (1 : ℝ) ≤ sqNormProd (shortenLoop L stepTarget oracles K S₀) :=
         one_le_sqNormProd hli_o fun i j => hL_gram _ (hmem_o i) _ (hmem_o j)
-      have hlt1 := pow_shortenRoundBound_mul_lt_one (B := B) hnpos
       have hleB := mul_le_mul_of_nonneg_left (sqNormProd_le_pow hB)
         (pow_nonneg (sq_nonneg (13 / 16 : ℝ)) K)
-      linarith
+      linarith [pow_shortenRoundBound_mul_lt_one (B := B) hnpos]
 
 /-- Unconditional guarded shortening step for fixed-iteration loops (`IsPPTOn.iterateWith_spec`):
 replaces `S i` by `u` when `u ∈ L`, `‖u‖ < ‖S i‖`, and `Function.update S i u` is linearly

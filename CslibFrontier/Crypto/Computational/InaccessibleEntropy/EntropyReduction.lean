@@ -453,16 +453,14 @@ theorem shrunkHashFin_false_positive_le {n₁ m₁ : ℕ} (f₁ : BitString n₁
             (Fin (outHashLen n₁ s) → BitString (inputHashOutLen n₁ m₁))) outRows).toReal
         else 0) ≤
       (#(univ.image (inputHashFin f₁ j)) : ℝ) / (2 : ℝ) ^ (outHashLen n₁ s) := by
-  have hcard : (2 : ℝ) ^ outHashLen n₁ s = Fintype.card (BitString (outHashLen n₁ s)) := by
-    simp [BitString]
-  rw [hcard]
-  exact IsTwoUniversal.sum_ite_toReal_le_card_div_of_imp
-    ((Cslib.BitString.LinearHash.isTwoUniversal
-      (inputHashOutLen n₁ m₁) (outHashLen n₁ s)).precompose
-      (inputHashedOutputEquiv n₁ m₁).injective)
-    (univ.image (inputHashFin f₁ j)) (inputHashFin f₁ j w) fun _ ⟨w', hne, heq⟩ =>
-      ⟨inputHashFin f₁ j w', mem_image_of_mem _ (mem_univ w'), hne,
-        congrArg ShrunkHashOutput.outDigest heq⟩
+  simpa only [Cslib.BitString.card, Nat.cast_pow, Nat.cast_ofNat] using
+    IsTwoUniversal.sum_ite_toReal_le_card_div_of_imp
+      ((Cslib.BitString.LinearHash.isTwoUniversal
+        (inputHashOutLen n₁ m₁) (outHashLen n₁ s)).precompose
+        (inputHashedOutputEquiv n₁ m₁).injective)
+      (univ.image (inputHashFin f₁ j)) (inputHashFin f₁ j w) fun _ ⟨w', hne, heq⟩ =>
+        ⟨inputHashFin f₁ j w', mem_image_of_mem _ (mem_univ w'), hne,
+          congrArg ShrunkHashOutput.outDigest heq⟩
 
 /-! ### Word-level evaluators and polynomial-time certificates -/
 
@@ -707,28 +705,25 @@ private theorem shrunkCollPred_imp_shrunkEscPred {w₁ out₁ j₀ s : ℕ}
     shrunkEscPred w₁ evalWord₁ L z raw := by
   let f₁ := wordToFinMap w₁ out₁ evalWord₁
   rcases hcoll with ⟨hlen_raw, hne_raw, heval_raw⟩
-  let v : ShrunkHashInput w₁ out₁ s := ⟨⟨z, iRows⟩, oRows⟩
-  have hpack' := ShrunkHashInput.packWord_unpackWord hlen_raw
   rcases hup : ShrunkHashInput.unpackWord w₁ out₁ s raw with ⟨⟨z', iRows'⟩, oRows'⟩
-  rw [hup] at hpack'
-  have hf₃_eq : shrunkHashFin f₁ j₀ s ⟨⟨z', iRows'⟩, oRows'⟩ = shrunkHashFin f₁ j₀ s v := by
+  obtain rfl : raw = (ShrunkHashInput.mk ⟨z', iRows'⟩ oRows').packWord := by
+    rw [← hup, ShrunkHashInput.packWord_unpackWord hlen_raw]
+  rw [shrunkHashEvalWord_packWord, shrunkHashEvalWord_packWord] at heval_raw
+  have hf₃_eq : shrunkHashFin f₁ j₀ s ⟨⟨z', iRows'⟩, oRows'⟩ =
+      shrunkHashFin f₁ j₀ s ⟨⟨z, iRows⟩, oRows⟩ := by
     simpa only [ShrunkHashOutput.unpackWord_packWord] using
-      congrArg (ShrunkHashOutput.unpackWord w₁ out₁ s)
-        (((shrunkHashEvalWord_packWord evalWord₁ j₀ ⟨⟨z', iRows'⟩, oRows'⟩).symm.trans
-          (hpack'.symm ▸ heval_raw)).trans (shrunkHashEvalWord_packWord evalWord₁ j₀ v))
+      congrArg (ShrunkHashOutput.unpackWord w₁ out₁ s) heval_raw
   obtain rfl : oRows' = oRows := congrArg ShrunkHashOutput.outRows hf₃_eq
   have hf₂_eq : inputHashFin f₁ j₀ ⟨z', iRows'⟩ = inputHashFin f₁ j₀ ⟨z, iRows⟩ :=
     Classical.byContradiction fun hne₂ => hnot_out ⟨⟨z', iRows'⟩, hne₂, hf₃_eq⟩
   obtain rfl : iRows' = iRows := congrArg InputHashedOutput.inRows hf₂_eq
-  have hz_ne : z' ≠ z := fun h => hne_raw (h ▸ hpack'.symm)
-  have htake_eq : raw.take w₁ = List.ofFn z' := by
-    rw [← hpack', ShrunkHashInput.packWord, InputHashedInput.packWord, List.append_assoc,
-      List.take_left' List.length_ofFn]
+  have hz_ne : z' ≠ z := fun h => hne_raw (h ▸ rfl)
   have heval₁_eq : evalWord₁ (List.ofFn z') = evalWord₁ (List.ofFn z) := by
     rw [← Cslib.BitString.ofFn_ofList (hlen₁ _ List.length_ofFn),
       ← Cslib.BitString.ofFn_ofList (hlen₁ (List.ofFn z) List.length_ofFn)]
     exact congrArg List.ofFn (congrArg InputHashedOutput.baseOut hf₂_eq)
-  simpa only [shrunkEscPred, htake_eq, List.length_ofFn, heval₁_eq, Cslib.BitString.ofList_ofFn,
+  simpa only [shrunkEscPred, ShrunkHashInput.packWord, InputHashedInput.packWord, List.append_assoc,
+    List.take_left' List.length_ofFn, List.length_ofFn, heval₁_eq, Cslib.BitString.ofList_ofFn,
     true_and] using fun hmem => hnot_in ⟨z', hmem, hz_ne, hf₂_eq⟩
 
 open Classical in

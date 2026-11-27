@@ -210,21 +210,13 @@ theorem portMultiset_vertexList (I : Interp Γ) {a b : List Color}
   change (D.graph I).portMultiset = listedPorts (D.vertexList I)
   induction D with
   | gen g => exact ConstraintGraph.portMultiset_get _
-  | id _ | swap _ _ =>
-    change (∑ v : Empty, _) = 0
-    simp
+  | id _ | swap _ _ => exact Finset.sum_empty
   | comp D₁ D₂ ih₁ ih₂ =>
-    change ConstraintGraph.portMultiset
-      (Sum.elim ((D₁.graph I).map (compLeft D₁ D₂))
-        ((D₂.graph I).map (compRight D₁ D₂))) = _
-    rw [ConstraintGraph.portMultiset_sumElim_map, ih₁, ih₂]
-    simp only [vertexList, listedPorts_append, listedPorts_map]
+    exact (ConstraintGraph.portMultiset_sumElim_map (D₁.graph I) (D₂.graph I) _ _).trans
+      (by simp only [ih₁, ih₂, vertexList, listedPorts_append, listedPorts_map])
   | tensor D₁ D₂ ih₁ ih₂ =>
-    change ConstraintGraph.portMultiset
-      (Sum.elim ((D₁.graph I).map (tensorLeft D₁ D₂))
-        ((D₂.graph I).map (tensorRight D₁ D₂))) = _
-    rw [ConstraintGraph.portMultiset_sumElim_map, ih₁, ih₂]
-    simp only [vertexList, listedPorts_append, listedPorts_map]
+    exact (ConstraintGraph.portMultiset_sumElim_map (D₁.graph I) (D₂.graph I) _ _).trans
+      (by simp only [ih₁, ih₂, vertexList, listedPorts_append, listedPorts_map])
 
 /-- A threshold generator has precisely the declared boundary ports. -/
 theorem ports_genVertex (a b : List Color) (need : ℕ) :

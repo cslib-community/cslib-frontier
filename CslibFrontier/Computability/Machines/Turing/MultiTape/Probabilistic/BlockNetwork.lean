@@ -320,9 +320,7 @@ private theorem intervalHolds_congr {i : Fin q} {x y : BlockEdge k q → BlockLe
     unfold inWindow
     cases hlast : lastBefore (InWindow σ h (portBlock σ i h d)) i with
     | none => rfl
-    | some i' =>
-      simp only [Option.elim_some]
-      rw [hxy _ (Or.inl (edgeTarget_inWindow σ hlast).symm)]
+    | some i' => simp [hxy _ (Or.inl (edgeTarget_inWindow σ hlast).symm)]
   have hctrl : x (.inl i) = y (.inl i) := hxy _ (Or.inr rfl)
   have hblock : ∀ h d, x (.inr (i, h, d)) = y (.inr (i, h, d)) := fun h d => hxy _ (Or.inr rfl)
   simp only [IntervalHolds, hcontrol, hwindow, hctrl, hblock]
@@ -452,17 +450,14 @@ private theorem inView_eq (y : Fin (q * b) → Bool) {x : BlockEdge k q → Bloc
     unfold inWindow
     cases hlast : lastBefore (InWindow σ h j) i with
     | none =>
-      simp only [Option.elim_none]
-      rw [huntouched 0 (Nat.zero_le _) fun i'' _ hi'' =>
-        lastBefore_eq_none_iff.mp hlast i'' hi'', trueRun, intervalStart_zero]
+      rw [Option.elim_none, huntouched 0 (Nat.zero_le _) fun i'' _ =>
+        lastBefore_eq_none_iff.mp hlast i'', trueRun, intervalStart_zero]
       rfl
     | some i' =>
       obtain ⟨hlt, hin, hbetween⟩ := lastBefore_eq_some_iff.mp hlast
-      simp only [Option.elim_some]
-      rw [(hx i' hlt).2.2, huntouched (i' + 1) hlt fun i'' h₁ h₂ => hbetween i'' h₁ h₂]
-      change (trueRun machine input b y (i' + 1)).workTapes h
-          (b * portBlock σ i' h (portOf σ i' h j) + r.val) = _
-      rw [portBlock_portOf hin]
+      rw [Option.elim_some, (hx i' hlt).2.2, huntouched (i' + 1) hlt hbetween]
+      exact congrArg ((trueRun machine input b y (i' + 1)).workTapes h <| b * · + r.val)
+        (portBlock_portOf hin)
 
 /-- `SignType` casts to `ℤ` injectively. -/
 private theorem signType_cast_inj {s t : SignType} (h : (s : ℤ) = t) : s = t := by
@@ -715,26 +710,21 @@ private theorem injOn_inEdges (i : Fin q) :
     simp only [Set.mem_ofPred_eq, edgeTarget] at he₁ he₂
     split_ifs at he₁ he₂
     cases he₁
-    simp only [Sum.inl.injEq, Fin.mk.injEq] at he₂
-    congr 1
-    omega
+    exact congrArg Sum.inl (Fin.ext (by simp only [Sum.inl.injEq, Fin.mk.injEq] at he₂; omega))
   · simp at heq
   · simp at heq
-  · simp only [Option.some.injEq, Prod.mk.injEq, Sum.elim_inr] at heq
-    obtain ⟨rfl, hport⟩ := heq
-    simp only [Set.mem_ofPred_eq, edgeTarget] at he₁ he₂
+  · obtain ⟨rfl, hport⟩ : h₁ = h₂ ∧ _ = _ := by simpa using heq
     -- Both are previous appearances of the same block, read at the same window entry of `i`.
     have hf₁ := eq_some_of_elim_eq_inl he₁
     have hf₂ := eq_some_of_elim_eq_inl he₂
-    have hw₁ := (firstAfter_eq_some_iff.mp hf₁).2.1
-    have hw₂ := (firstAfter_eq_some_iff.mp hf₂).2.1
+    obtain ⟨-, hw₁, -⟩ := firstAfter_eq_some_iff.mp hf₁
+    obtain ⟨-, hw₂, -⟩ := firstAfter_eq_some_iff.mp hf₂
     have hj : portBlock σ i₁ h₁ d₁ = portBlock σ i₂ h₁ d₂ := by
       rw [← portBlock_portOf hw₁, ← portBlock_portOf hw₂, hport]
     obtain rfl : i₁ = i₂ := Option.some.inj
       ((hj ▸ lastBefore_of_firstAfter (inWindow_portBlock σ i₁ h₁ d₁) hf₁).symm.trans
         (lastBefore_of_firstAfter (inWindow_portBlock σ i₂ h₁ d₂) hf₂))
-    simp only [portBlock] at hj
-    exact congrArg (fun d => Sum.inr (i₁, h₁, d)) (Fin.ext (by omega))
+    exact congrArg (fun d => Sum.inr (i₁, h₁, d)) (Fin.ext (by simp [portBlock] at hj; omega))
 
 omit [NeZero b] in
 /-- **The degree bound.** An interval has its `3 k + 1` leaving edges and at most `3 k + 1`
@@ -778,15 +768,12 @@ theorem maxDegreeLE_blockNetwork :
       _ ≤ 2 * (3 * k + 1) := by omega
   · have hsub : (machine.blockNetwork input b σ).incidenceSet (.inr e) ⊆ {e} := by
       rintro e' (he' | he')
-      · rw [blockNetwork_src] at he'
-        cases he'
+      · cases (blockNetwork_src machine input b σ e').symm.trans he'
       · rw [blockNetwork_tgt] at he'
-        rcases e' with i' | ⟨i', h, d⟩
-        · simp only [edgeTarget] at he'
-          split_ifs at he'
+        rcases e' with i' | ⟨i', h, d⟩ <;> simp only [edgeTarget] at he'
+        · split_ifs at he'
           exact Set.mem_singleton_of_eq (Sum.inr.inj he')
-        · simp only [edgeTarget] at he'
-          cases hc : firstAfter (InWindow σ h (portBlock σ i' h d)) i' <;> simp_all
+        · cases hc : firstAfter (InWindow σ h (portBlock σ i' h d)) i' <;> simp_all
     calc _ ≤ ({e} : Set (BlockEdge k q)).ncard := Set.ncard_le_ncard hsub (Set.toFinite _)
       _ = 1 := Set.ncard_singleton e
       _ ≤ 2 * (3 * k + 1) := by omega

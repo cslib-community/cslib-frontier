@@ -66,9 +66,7 @@ theorem candidateCode_eq_code (width bits n offset : ℕ) :
     candidateCode width bits n offset = (candidateCircuit width bits n offset).code := by
   have hh : (Circuit.wiring signature (Fin.natAdd width : Fin bits → Fin (width + bits))).code =
       ([], (List.range bits).map (width + ·)) := Circuit.code_wiring_eq_map fun _ => rfl
-  have hi : (Circuit.id signature width).code = ([], List.range width) :=
-    Circuit.code_wiring_id
-  rw [candidateCode, ← hh, ← hi]
+  rw [candidateCode, ← hh, ← Circuit.code_wiring_id (σ := signature)]
   simp only [wordConstCode_eq_bits, Nat.zero_testBit, appendCode_code, compCode_code]
   rfl
 
@@ -246,9 +244,9 @@ dimensions. -/
     have hpar := fst enc encUnary
     exact computableInPolyTime_supportValueCode (hbits.comp hpar) (hcount.comp hpar)
       (unary_to_binary.comp (snd enc encUnary))
-  have hcode := computableInPolyTime_appendCodes hinput hvalues
-  change ComputableInPolyTime
-    (fun a => supportIndicatorCode (bits a) (n a) (count a)) enc encCode at hcode
+  have hcode : ComputableInPolyTime
+      (fun a => supportIndicatorCode (bits a) (n a) (count a)) enc encCode :=
+    computableInPolyTime_appendCodes hinput hvalues
   simpa only [supportIndicatorCode_eq_code] using hcode
 
 /-- Native uniform generation of the complete candidate circuit from unary parameters.
@@ -358,19 +356,17 @@ unary dimensions. The bounded fold charges the complete encoded prefix circuit. 
         candidateCode (width a) (bits a) (n a) j) enc (encList encCode) := by
     apply mapWithInput (range.comp hcount)
     have hpar := fst enc encUnary
-    have hcandidate := computableInPolyTime_candidateCircuit
-      (hwidth.comp hpar) (hbits.comp hpar) (hn.comp hpar) (snd enc encUnary)
-    simpa only [candidateCode_eq_code, Function.comp_def] using hcandidate
+    simpa only [candidateCode_eq_code, Function.comp_def] using
+      computableInPolyTime_candidateCircuit
+        (hwidth.comp hpar) (hbits.comp hpar) (hn.comp hpar) (snd enc encUnary)
   have hfold := foldlWith (step := parallelFamilyCodeStep)
     (hwidth.prod hbits) hlist
     (const (encOut := stateEnc) ((0, ([], [])) : ℕ × Code))
     computableInPolyTime_parallelFamilyCodeStep
     (polyBounded_supportCandidateStateBound hwidth hbits hcount) fun a i hi =>
       length_supportCandidateFold_le (width a) (bits a) (n a) (count a) i hi
-  have hcode := hfold.snd'
-  change ComputableInPolyTime
-    (fun a => supportCandidateCode (width a) (bits a) (n a) (count a)) enc encCode at hcode
-  simpa only [supportCandidateCode_eq_code] using hcode
+  simpa only [← supportCandidateCode_eq_code, supportCandidateCode, parallelFamilyCode] using
+    hfold.snd'
 
 /-- Native uniform generation of the complete support sampler from arbitrary unary parameter
 schedules. -/

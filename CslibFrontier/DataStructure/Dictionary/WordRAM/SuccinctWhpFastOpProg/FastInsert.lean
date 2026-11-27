@@ -63,12 +63,9 @@ private theorem bind_read_post {α : Type} {c U V w n_max base C₀ C B r : ℕ}
       ValidProg w (base + largeSpaceWhp c U V w n_max) s (p >>= k) ∧
       ((Memory.spec 0).clientResult s (p >>= k) = r ∧
         S ((Memory.spec 0).clientState s (p >>= k))) := by
-  refine ⟨?_, validProg_bind hp_vp (hp_st.symm ▸ hp_res.symm ▸ hk.2.1), ?_⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hp_st, hp_res]
-    have := hk.1
-    omega
-  · rw [clientResult_bind, clientState_bind, hp_st, hp_res]
-    exact hk.2.2
+  obtain ⟨hst, hres, hcost, hvp⟩ := bind_of_readOnly hp_st hp_res hp_vp ℕ k
+  rw [hst, hres, hcost, hvp, ← Nat.add_assoc]
+  exact ⟨(Nat.add_le_add_right (Nat.add_le_add_left hp_mc _) _).trans hk.1, hk.2⟩
 
 private theorem pure_zero_opt {c U V w n_max base C₀ B : ℕ}
     {s : Memory.State} (hB : C₀ ≤ B) :
@@ -145,8 +142,7 @@ private theorem realizes_insAfterRKeyGen :
     obtain ⟨hck_st, _, _, _⟩ :=
       insCheckFpCapOptGenProg_spec hasFpCollision henv hv.curEp_or hv_cur hrep (rKey := rKey)
         (s := s)
-    simp only [hcp_eq] at *
-    simp only [hrf_st, hrf_res, hck_st] at *
+    simp only [hcp_eq, hrf_st, hrf_res, hck_st] at *
     first
     | exact henv.fits_const (by decide)
     | exact ⟨c, U, V, w, n_max, θ, fs, liveMap, henv, rfl, hseed, hrep, hb, hlr_lt, hlic, hv_live⟩
@@ -256,18 +252,16 @@ private theorem realizes_insAfterCapGen :
       simp [mkWhpParams, Nat.not_lt.mpr hth]
     set u : Fin U := ⟨u_val, hu⟩
     obtain ⟨_, _, curMap, hv_cur, _⟩ := hv.bufCur_valid
-    have hbo_fn : fs.rebStage ≤ 3 →
+    have hbo_fn (hle3 : fs.rebStage ≤ 3) :
         ∃ oldMap, ValidBufTrie (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) oldMap := by
-      intro hle3
-      have hbo := hv.bufOld_valid; rw [ite_eq_left hle3] at hbo
-      obtain ⟨_, _, oldMap, hv_old, _⟩ := hbo; exact ⟨oldMap, hv_old⟩
+      obtain ⟨_, _, oldMap, hv_old, _⟩ := ite_eq_left hle3 ▸ hv.bufOld_valid
+      exact ⟨oldMap, hv_old⟩
     obtain ⟨her_st, her_res, _, _⟩ := insEvalRKeyGenProg_spec u henv hseed (s := s)
     dsimp only [u] at her_st her_res
     obtain ⟨hcg_st, _, _, _⟩ :=
       insCheckRKeyGuardsGenProg_spec henv hv.curEp_or hv_cur hbo_fn hrep
         (rKey := fpReducedKey c U n_max θ.2 ⟨u_val, hu⟩) (s := s)
-    simp only [hcp_eq] at *
-    simp only [her_st, her_res, hcg_st] at *
+    simp only [hcp_eq, her_st, her_res, hcg_st] at *
     first
     | exact henv.fits_const (by decide)
     | exact ⟨c, U, V, w, n_max, θ, henv, rfl, hseed⟩
@@ -318,8 +312,7 @@ private theorem realizes_fastInsertMissGen :
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       simp [mkWhpParams, Nat.not_lt.mpr hth]
     obtain ⟨hcp_st, hcp_res, _, _⟩ := insCheckCapPoolGenProg_spec henv hb hrep (s := s)
-    simp only [hcp_eq] at *
-    rw [hcp_st] at *
+    simp only [hcp_eq, hcp_st] at *
     first
     | exact henv.fits_const (by decide)
     | exact ⟨c, U, V, w, n_max, henv, rfl⟩
@@ -402,44 +395,35 @@ private theorem fastInsertMissGenProg_spec {c U V w n_max base b q_val v_val : �
     refine bind_read_post (S := (· = s)) hcp_st hcp_res hcp_mc hcp_vp ?_
     simpa only [zero_ne_one, ↓reduceIte] using pure_zero_opt (by omega)
   · rw [ite_eq_right hbad1] at hcp_res ⊢
-    let post (opt : Option FastState) (q : Memory.Prog ℕ) : Prop :=
-      match opt with
-      | some fs' => (Memory.spec 0).clientResult s q = 1 ∧
-          FastStateStep base c U V w n_max θ fs' s ((Memory.spec 0).clientState s q)
-      | none => (Memory.spec 0).clientResult s q = 0 ∧ (Memory.spec 0).clientState s q = s
-    have step {α : Type} {C₀ C B : ℕ} {opt : Option FastState}
-        {p : Memory.Prog α} {k : α → Memory.Prog ℕ} {a : α}
-        (hp_st : (Memory.spec 0).clientState s p = s)
-        (hp_res : (Memory.spec 0).clientResult s p = a)
-        (hp_mc : memoryCost p s ≤ C)
-        (hp_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s p)
-        (hk : C₀ + C + memoryCost (k a) s ≤ B ∧
-          ValidProg w (base + largeSpaceWhp c U V w n_max) s (k a) ∧ post opt (k a)) :
-        C₀ + memoryCost (p >>= k) s ≤ B ∧
-          ValidProg w (base + largeSpaceWhp c U V w n_max) s (p >>= k) ∧ post opt (p >>= k) := by
-      cases opt with
-      | none => exact bind_read_post (S := (· = s)) hp_st hp_res hp_mc hp_vp hk
-      | some _ => exact bind_read_post hp_st hp_res hp_mc hp_vp hk
+    have toMatch {opt : Option FastState} {q : Memory.Prog ℕ} :
+        ((Memory.spec 0).clientResult s q = opt.elim 0 (fun _ => 1) ∧
+          opt.elim (· = s) (FastStateStep base c U V w n_max θ · s)
+            ((Memory.spec 0).clientState s q)) →
+        match opt with
+        | some fs' => (Memory.spec 0).clientResult s q = 1 ∧
+            FastStateStep base c U V w n_max θ fs' s ((Memory.spec 0).clientState s q)
+        | none => (Memory.spec 0).clientResult s q = 0 ∧ (Memory.spec 0).clientState s q = s := by
+      cases opt <;> exact id
+    refine And.imp_right (And.imp_right toMatch) ?_
     have hX_tl : X < totalLocalCoordsWhp n_max := by omega
     have hpos_fn : cf ≤ X → 0 < fs.poolFreeTop := fun _ => by omega
     obtain ⟨_, _, curMap, hv_cur, _⟩ := hv.bufCur_valid
-    have hbo_fn : fs.rebStage ≤ 3 →
+    have hbo_fn (hle3 : fs.rebStage ≤ 3) :
         ∃ oldMap, ValidBufTrie (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) oldMap := by
-      intro hle3
       obtain ⟨_, _, oldMap, hv_old, _⟩ := ite_eq_left hle3 ▸ hv.bufOld_valid
       exact ⟨oldMap, hv_old⟩
     obtain ⟨her_st, her_res, her_mc, her_vp⟩ := insEvalRKeyGenProg_spec u henv hseed (s := s)
     obtain ⟨hcg_st, hcg_res, hcg_mc, hcg_vp⟩ :=
       insCheckRKeyGuardsGenProg_spec henv hv.curEp_or hv_cur hbo_fn hrep (rKey := rKey) (s := s)
-    refine step hcp_st hcp_res hcp_mc hcp_vp ?_
-    simp only [↓reduceIte, post, insAfterCapGenProg.eq_1, hwp1, pure_bind]
-    refine step her_st her_res her_mc her_vp (step hcg_st hcg_res hcg_mc hcg_vp ?_)
-    dsimp only [post]
+    refine bind_read_post hcp_st hcp_res hcp_mc hcp_vp ?_
+    simp only [↓reduceIte, insAfterCapGenProg.eq_1, hwp1, pure_bind]
+    refine bind_read_post her_st her_res her_mc her_vp
+      (bind_read_post hcg_st hcg_res hcg_mc hcg_vp ?_)
     by_cases hbad2 : (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey).isSome ∨
         (fs.rebStage ≤ 3 ∧
           (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey).isSome)
     · rw [ite_eq_left hbad2, ite_eq_left hbad2]
-      simpa only [zero_ne_one, ↓reduceIte] using pure_zero_opt (by omega)
+      simpa only [zero_ne_one, ↓reduceIte, Option.elim_none] using pure_zero_opt (by omega)
     · simp only [ite_eq_right hbad2, ↓reduceIte, insAfterRKeyGenProg.eq_1, hwp1, pure_bind]
       obtain ⟨liveMap, hv_live, _⟩ := hv.live_valid b hb
       have hlic := liveInsCount_le_eight hv.toCore hb (hv.overmars_valid b hb)
@@ -449,14 +433,14 @@ private theorem fastInsertMissGenProg_spec {c U V w n_max base b q_val v_val : �
       obtain ⟨hck_st, hck_res, hck_mc, hck_vp⟩ :=
         insCheckFpCapOptGenProg_spec hasFpCollision henv hv.curEp_or hv_cur hrep
           (rKey := rKey) (s := s)
-      refine step hrf_st hrf_res hrf_mc hrf_vp (step hck_st hck_res hck_mc hck_vp ?_)
-      dsimp only [post]
+      refine bind_read_post hrf_st hrf_res hrf_mc hrf_vp
+        (bind_read_post hck_st hck_res hck_mc hck_vp ?_)
       by_cases hbad3 : hasFpCollision ∧
           !bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey ∧
           2 * sMaxWhp c n_max ≤ (fs.buf fs.curEp).itemAlloc
       · rw [ite_eq_left hbad3, ite_eq_left hbad3]
-        simpa only [zero_ne_one, ↓reduceIte] using pure_zero_opt (by omega)
-      · simp only [ite_eq_right hbad3, ↓reduceIte]
+        simpa only [zero_ne_one, ↓reduceIte, Option.elim_none] using pure_zero_opt (by omega)
+      · simp only [ite_eq_right hbad3, ↓reduceIte, Option.elim_some]
         have hfp_lt : fp < 2 ^ fpBitsWhp n_max := by
           dsimp only [fp, fpOfSalt]
           split_ifs with hs
@@ -525,15 +509,10 @@ private theorem realizes_fastInsertBodyGen :
     | exact ⟨c, U, V, w, n_max, θ, fs, dict, henv, rfl, hseed, hrep, hv, hu, hb, hq_lt, hv_v⟩
     | (have hspec := hv.fastFindLoc_spec u
        cases hfind : fastFindLoc c U n_max θ fs u with
-       | none =>
-         have hhit : ((Memory.spec 0).clientResult s
-           (fastFindLocBqGenProg (((mkWhpParams c U V w n_max, base),
-             (feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u_val,
-              keyQuotient (bWhp n_max) u_val)), u_val))).1 = 1 := by assumption
-         rw [hfind] at hfl_res; rw [hfl_res] at hhit; cases hhit
+       | none => simp_all [u]
        | some loc =>
          rw [hfind] at hfl_res hspec
-         rw [hfl_res]; dsimp only
+         rw [hfl_res]
          exact ⟨c, U, V, w, n_max, θ, fs, dict, henv, rfl, hseed, hrep, hv, hb, hspec.1, hv_v⟩)
   )
 
@@ -631,8 +610,7 @@ theorem fastInsertGenProg_spec {c U V w n_max base : ℕ}
   refine bind_read_post hfl_st hfl_res hfl_mc hfl_vp ?_
   cases hfind : fastFindLoc c U n_max θ fs u with
   | some loc =>
-    rw [hopt]
-    unfold fastInsert
+    rw [hopt, fastInsert]
     rw [hfind] at hfl_res hspec ⊢
     simp only [↓reduceIte, Option.elim_some]
     obtain ⟨hov_res, hov_mc, hov_vp, hov_step⟩ :=

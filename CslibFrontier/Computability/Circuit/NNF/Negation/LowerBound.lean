@@ -367,13 +367,12 @@ theorem sum_pow_card_filter_not_isFree_le (hS : M.IsSeparatedCrossing A c S) :
           have hcard : #(I.filter fun y => clearOn T y = b) ≤ 16 :=
             (card_filter_clearOn_le I T b).trans
               ((Nat.pow_le_pow_right (by norm_num) (card_otherNbrs_le c u)).trans (by norm_num))
-          have hle : ∀ y, a y ≤ 3 / 2 := fun y => by simp only [a]; split_ifs <;> norm_num
-          rw [← add_sum_erase _ _ hbF, hab]
-          have h1 := card_erase_add_one hbF
           have hsum : ∑ y ∈ (I.filter fun y => clearOn T y = b).erase b, a y ≤
               #((I.filter fun y => clearOn T y = b).erase b) * (3 / 2 : ℝ) := by
-            rw [← nsmul_eq_mul, ← sum_const]; exact sum_le_sum fun y _ => hle y
-          cast_nlinarith [hcard, h1]
+            simpa only [nsmul_eq_mul] using sum_le_card_nsmul _ a (3 / 2) fun y _ => by
+              by_cases hf : M.IsFree c u y <;> simp only [a, hf, ↓reduceIte] <;> norm_num
+          rw [← add_sum_erase _ _ hbF, hab]
+          cast_nlinarith [hcard, card_erase_add_one hbF]
       _ = 47 / 32 * ∑ x ∈ I, g x := by rw [mul_sum]
       _ ≤ 47 / 32 * ((47 / 32 : ℝ) ^ #J * #I) := by gcongr; exact ih hJS
       _ = (47 / 32 : ℝ) ^ #(insert u J) * #I := by rw [card_insert_of_notMem hu, pow_succ]; ring
@@ -475,23 +474,19 @@ theorem sum_witness_le (hS : M.IsSeparatedCrossing A c S) :
                         ⟨fun h => (mem_filter.mp (mem_filter.mp hz).1).2 c u (Prod.mk.inj h),
                           mem_univ _⟩
                     · intro z hz z' hz' hzz
-                      simp only [Prod.mk.injEq] at hzz
+                      obtain ⟨h1, h2⟩ := Prod.mk.inj hzz
                       funext t
                       by_cases ht : t ∈ T
-                      · simp only [T, mem_insert, mem_singleton] at ht
-                        rcases ht with rfl | rfl
-                        exacts [hzz.1, hzz.2]
-                      · exact eq_of_clearOn_eq ((mem_filter.mp hz).2.trans
-                          (mem_filter.mp hz').2.symm) ht
+                      · exact (mem_insert.mp ht).elim (· ▸ h1) fun h => (mem_singleton.mp h) ▸ h2
+                      · exact eq_of_clearOn_eq
+                          ((mem_filter.mp hz).2.trans (mem_filter.mp hz').2.symm) ht
                 _ = 3 := by simp
             rw [← add_sum_erase _ _ hyF, hay, zero_add]
             cast_linarith [hcard, card_erase_add_one hyF, hale (F.erase y)]
           · simp only [k, ite_eq_right hfree, one_mul]
             exact hale F
-      _ = ∑ x ∈ I, (if P x then (1 : ℝ) else 0) * (k x * h x) := by
-        refine sum_congr rfl fun x _ => ?_
-        simp only [k, g, hfreeT]
-        ring
+      _ = ∑ x ∈ I, (if P x then (1 : ℝ) else 0) * (k x * h x) :=
+        sum_congr rfl fun x _ => by simp only [k, g, hfreeT]; ring
       _ ≤ ∑ x ∈ I, (2 / 3 : ℝ) ^ #(J.filter fun u => M.IsFree c u x) * (k x * h x) := by
         refine ih hJS _ (fun x => mul_nonneg (by simp only [k]; split_ifs <;> norm_num) (h0 x))
           fun x y hxy => ?_
@@ -567,10 +562,8 @@ private theorem exists_subset_pairwise_not {α : Type*} (r : α → α → Prop)
       · exact (mem_filter.mp (hSU hv')).2
       · exact fun h => (mem_filter.mp (hSU hv)).2 (hsymm _ _ h)
       · exact hS v hv v' hv' hne
-    · have := card_filter_add_card_filter_not (s := U) (r u)
-      rw [card_insert_of_notMem huS]
-      have := hK u hu
-      nlinarith
+    · rw [card_insert_of_notMem huS]
+      nlinarith [card_filter_add_card_filter_not (s := U) (r u), hK u hu]
 
 /-- The vertices `u'` whose edge of colour `c` has `t` in its neighbourhood. -/
 private def nbhdPre (c : Fin 3) (t : V) : Finset V :=

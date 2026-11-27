@@ -121,10 +121,9 @@ theorem IsIIA.prefers_iff (hF : F.IsIIA) {P Q : Profile V A} {a b : A}
 involving `b`. -/
 private theorem prefers_iff_of_extremal {r s : Ranking A} {b x y : A}
     (hrs : (r.IsTop b ∧ s.IsTop b) ∨ (r.IsBottom b ∧ s.IsBottom b))
-    (hxy : x = b ∨ y = b) : r.Prefers x y ↔ s.Prefers x y := by
-  rcases hrs with ⟨hr, hs⟩ | ⟨hr, hs⟩
-  · exact r.prefers_iff_of_isTop hr hs hxy
-  · exact r.prefers_iff_of_isBottom hr hs hxy
+    (hxy : x = b ∨ y = b) : r.Prefers x y ↔ s.Prefers x y :=
+  hrs.elim (fun ⟨hr, hs⟩ => r.prefers_iff_of_isTop hr hs hxy)
+    fun ⟨hr, hs⟩ => r.prefers_iff_of_isBottom hr hs hxy
 
 /-- There is a third alternative distinct from any two given ones. -/
 private theorem exists_ne_ne (h3 : ∃ a b c : A, a ≠ b ∧ a ≠ c ∧ b ≠ c) (x y : A) :
@@ -289,8 +288,7 @@ theorem isPareto_dictatorship (i : V) : (dictatorship (A := A) i).IsPareto :=
 /-- A dictatorship satisfies independence of irrelevant alternatives. -/
 theorem isIIA_dictatorship (i : V) : (dictatorship (A := A) i).IsIIA := by
   intro P Q a b h
-  change a = b ∨ (P i).Prefers a b ↔ a = b ∨ (Q i).Prefers a b
-  rw [h i]
+  exact or_congr_right (h i)
 
 /-- Voter `i` is a dictator exactly when `F` is the dictatorship of `i`: society's weak ranking
 is then `i`'s ranking, with no ties. -/
@@ -314,10 +312,8 @@ theorem IsDictator.unique [Nontrivial A] {i j : V} (hi : F.IsDictator i) (hj : F
   obtain ⟨s, hs⟩ : ∃ s : Ranking A, s.Prefers a b :=
     (r.total a b hab).elim (⟨r, ·⟩) fun h => ⟨r.reverse, r.reverse_prefers.2 h⟩
   let P : Profile V A := fun k => if k = i then s else s.reverse
-  have h1 : (F P).Prefers a b := hi P a b (by simp only [P, ite_true]; exact hs)
-  have h2 : (F P).Prefers b a := hj P b a (by
-    simp only [P, Ne.symm hij, ite_false]; exact s.reverse_prefers.2 hs)
-  exact (F P).prefers_asymm h1 h2
+  exact (F P).prefers_asymm (hi P a b (by simp [P, hs]))
+    (hj P b a (by simp [P, Ne.symm hij, hs]))
 
 /-- **Arrow's impossibility theorem** ([Arrow1951], [Geanakoplos2005]): with finitely many
 voters and at least three alternatives, every weakly Pareto social welfare function satisfying
@@ -351,10 +347,9 @@ theorem existsUnique_isDictator_of_isPareto_of_isIIA [Finite V] (hP : F.IsPareto
 functions satisfying IIA are exactly the dictatorships. -/
 theorem isPareto_and_isIIA_iff [Finite V] (h3 : ∃ a b c : A, a ≠ b ∧ a ≠ c ∧ b ≠ c) :
     F.IsPareto ∧ F.IsIIA ↔ ∃ i, F = dictatorship i := by
-  refine ⟨fun ⟨hP, hI⟩ => Exists.imp (fun _ => isDictator_iff_eq_dictatorship.1)
-    (isDictatorial_of_isPareto_of_isIIA hP hI h3), ?_⟩
-  rintro ⟨i, rfl⟩
-  exact ⟨isPareto_dictatorship i, isIIA_dictatorship i⟩
+  refine ⟨fun ⟨hP, hI⟩ => (isDictatorial_of_isPareto_of_isIIA hP hI h3).imp
+      fun _ => isDictator_iff_eq_dictatorship.1,
+    fun ⟨i, h⟩ => h ▸ ⟨isPareto_dictatorship i, isIIA_dictatorship i⟩⟩
 
 end SocialWelfareFunction
 

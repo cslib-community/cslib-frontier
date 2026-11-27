@@ -298,9 +298,8 @@ private theorem lookup_offTargetKeyCache [DecidableEq (JointInput JointPrefix M 
     · have hne : input ≠ cached := by rintro rfl; exact hinput hcached
       simp only [ite_eq_right hinput, List.lookup_cons, beq_eq_false_iff_ne.mpr hne]
   | case3 cached reply rest hcached ih => -- off-target entry: kept
-    by_cases heq : input = cached
-    · subst cached
-      simp only [ite_eq_right hcached, List.lookup_cons, beq_self_eq_true, Option.map_some]
+    rcases eq_or_ne input cached with rfl | heq
+    · simp only [ite_eq_right hcached, List.lookup_cons, beq_self_eq_true, Option.map_some]
     · simp only [List.lookup_cons, beq_eq_false_iff_ne.mpr heq, ih]
 
 /-- Construct the source-shaped `J(H(ekPKE) ∥ σ ∥ cKEM)` input. -/
@@ -971,9 +970,7 @@ private theorem dispatch_map_completionCache
   · simpa only [Query.dispatch, OracleComp.run_interpret_query] using
       S.rejection_map_completionCache pk input st
   · by_cases hc : ciphertext = challenge
-    · simp only [Query.dispatch, hc, ↓reduceIte, OracleComp.interpret_pure,
-        StateT.run_pure, PMF.monad_pure_eq_pure]
-      exact PMF.pure_map _ _
+    · simp [Query.dispatch, hc, StateT.run_pure, StateT.pure_apply, PMF.monad_pure_eq_pure]
     · simpa only [Query.dispatch, hc, ↓reduceIte] using hdecaps ciphertext st hlinked
 
 private theorem run_completionHandler_eq_pi
@@ -1135,8 +1132,7 @@ private theorem toOuterMeasure_notGood_eq_zero
     (hsub : ∀ x ∈ μ.support, ∀ entry ∈ x.2.jointCache, entry ∈ st.jointCache) :
     μ.toOuterMeasure {x | ¬S.GoodCache pk sk x.2} = 0 := by
   rw [PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
-  intro x hx hbad
-  exact hbad (hs.of_subset (hsub x hx))
+  exact fun x hx hbad => hbad (hs.of_subset (hsub x hx))
 
 /-! ### Direct joint-query bad-event bounds -/
 
@@ -1489,11 +1485,9 @@ private theorem realHandler_bad_le [Fintype M] [Nonempty M]
   rcases q with input | input | ciphertext
   · simpa only [realHandler, Query.dispatch, Query.jointCost, Query.decapsCost, Nat.cast_one,
       Nat.cast_zero, one_mul, zero_mul, add_zero] using S.realJoint_bad_le pk sk input hs
-  · simp only [Query.jointCost, Query.decapsCost, Nat.cast_zero, zero_mul, add_zero]
-    exact (S.realHandler_rejection_bad_eq_zero pk sk challenge input hs).le
-  · by_cases hc : ciphertext = challenge
-    · subst hc
-      simp [hs]
+  · simp [S.realHandler_rejection_bad_eq_zero pk sk challenge input hs]
+  · rcases eq_or_ne ciphertext challenge with rfl | hc
+    · simp [hs]
     · simpa only [realHandler, Query.dispatch, hc, ↓reduceIte, Query.jointCost,
         Query.decapsCost, Nat.cast_zero, Nat.cast_one, zero_mul, one_mul, zero_add] using
         S.realDecaps_bad_le pk sk ciphertext hs

@@ -112,10 +112,8 @@ theorem isQueryBounded_xorHashWordMultiQueryReduction (ℓ blockWidth width Q : 
     (xorHashWordMultiQueryReduction ℓ blockWidth width Q A n aux).IsQueryBounded (Q n * ℓ n) := by
   rw [xorHashWordMultiQueryReduction, ← Nat.zero_add (Q n * ℓ n)]
   refine (ProbOracleComp.IsQueryBounded.sample _).bind fun guesses => ?_
-  let ms := (guesses.take (Q n)).filter (xorHashWordValid (ℓ n) (blockWidth n))
-  have htraverse := OracleComp.IsCostBounded.mapM (inputs := ms) fun m _ =>
-    isQueryBounded_xorHashWordQueries (ℓ n) (width n) m
-  refine (htraverse.bind fun _ => OracleComp.IsCostBounded.pure _ 0).mono ?_
+  refine ((OracleComp.IsCostBounded.mapM fun m _ =>
+    isQueryBounded_xorHashWordQueries (ℓ n) (width n) m).bind fun _ => .pure _ 0).mono ?_
   simpa only [Nat.add_zero] using
     Nat.mul_le_mul_right (ℓ n) ((List.length_filter_le _ _).trans (List.length_take_le _ _))
 
@@ -343,9 +341,8 @@ private theorem prfOracle_xorHashTaggedWord {ℓ blockWidth width : ℕ}
     let req := xorHashTaggedWord ℓ (List.ofFn block) i.val
     prfOracle family (ℓ + blockWidth) key req =
       List.ofFn (BitString.ofList width (family key req)) := by
-  have hreq : (xorHashTaggedWord ℓ (List.ofFn block) i.val).length = ℓ + blockWidth :=
-    taggedRequest_length (block, i)
-  simp only [prfOracle, hreq, ite_true, BitString.ofFn_ofList (hlength _ hreq)]
+  simp only [prfOracle, taggedRequest_length (block, i), ite_true,
+    BitString.ofFn_ofList (hlength _ (taggedRequest_length (block, i)))]
 
 /-- With the security parameter as public setup, running the reduction in the real PRF game gives
 exactly the computational collision game's law. The length hypothesis is the PRF's
@@ -395,11 +392,9 @@ theorem eval_prfRealGame_xorHashWordMultiQueryReduction {ℓ blockWidth width Q 
   rw [PMF.bind_comm]
   refine Probability.PMF.bind_congr_on_support _ _ _ fun ms hms => ?_
   rw [List.take_of_length_le (hQ ms hms)]
-  refine congrArg (fun f => (PMF.uniformOfFintype (BitString n)).bind f)
+  refine congrArg ((PMF.uniformOfFintype (BitString n)).bind ·)
     (funext fun key => congrArg PMF.pure (decide_eq_decide.mpr ?_))
-  simp only [List.mem_filter]
-  exact ⟨fun ⟨m, ⟨hm, hv⟩, m', ⟨hm', hv'⟩, hne, heq⟩ => ⟨m, hm, m', hm', hne, hv, hv', heq⟩,
-    fun ⟨m, hm, m', hm', hne, hv, hv', heq⟩ => ⟨m, ⟨hm, hv⟩, m', ⟨hm', hv'⟩, hne, heq⟩⟩
+  simp only [List.mem_filter]; grind
 
 private def taggedRequestEmbedding (ℓ blockWidth : ℕ) :
     BitString blockWidth × Fin ℓ ↪ BitString (ℓ + blockWidth) where
@@ -419,11 +414,9 @@ private theorem isUniversalHash_taggedRequest (ℓ blockWidth width : ℕ) :
     IsUniversalHash (PMF.uniformOfFintype (BitString (ℓ + blockWidth) → BitString width))
       (fun f m => xorHash (fun p => f (taggedRequestEmbedding ℓ blockWidth p)) m)
       (Fintype.card (BitString width) : ℝ≥0∞)⁻¹ := by
-  let seed := PMF.uniformOfFintype (BitString (ℓ + blockWidth) → BitString width)
-  let e := taggedRequestEmbedding ℓ blockWidth
-  refine IsUniversalHash.precompose_seed seed (fun f p => f (e p)) ?_
-  simp only [seed, Probability.PMF.uniformOfFintype_pi_map_comp_embedding e]
-  exact isDeltaUniversalHash_xorHash.isUniversalHash
+  exact IsUniversalHash.precompose_seed _ _ <| by
+    simpa only [Probability.PMF.uniformOfFintype_pi_map_comp_embedding] using
+      isDeltaUniversalHash_xorHash.isUniversalHash
 
 private theorem eval_prfIdealGame_xorHashWordCollisionReduction_le
     (ℓ blockWidth width : ℕ → ℕ)
@@ -440,17 +433,13 @@ private theorem eval_prfIdealGame_xorHashWordCollisionReduction_le
   simp only [prfIdealGame, ProbComp.eval_bind, ProbComp.eval_uniform, hrun, ProbComp.eval_pure]
   rw [PMF.bind_comm]
   refine Probability.PMF.bind_apply_le_on_support _ fun guess _ => ?_
-  by_cases h₁ : xorHashWordValid (ℓ n) (blockWidth n) guess.first = true
-  · by_cases h₂ : xorHashWordValid (ℓ n) (blockWidth n) guess.second = true
-    · by_cases hne : guess.first = guess.second
-      · simp [hne]
-      · let decode := decodeWordMessage (ℓ n) (blockWidth n)
-        rw [Probability.PMF.bind_pure_decide_apply_true]
-        simp only [ne_eq, hne, not_false_eq_true, h₁, h₂, true_and]
-        exact hU (decode guess.first) (decode guess.second)
-          fun heq => hne (eq_of_decodeWordMessage_eq h₁ h₂ heq)
-    · simp [h₂]
-  · simp [h₁]
+  rw [Probability.PMF.bind_pure_decide_apply_true]
+  let decode := decodeWordMessage (ℓ n) (blockWidth n)
+  by_cases hd : decode guess.first = decode guess.second
+  · refine (MeasureTheory.measure_mono (t := ∅) ?_).trans (by simp)
+    exact fun _ ⟨hne, h₁, h₂, _⟩ => hne (eq_of_decodeWordMessage_eq h₁ h₂ hd)
+  · refine (MeasureTheory.measure_mono ?_).trans (hU (decode guess.first) (decode guess.second) hd)
+    exact fun _ ⟨_hne, _h₁, _h₂, heq⟩ => heq
 
 private theorem eval_prfIdealGame_xorHashWordMultiQueryReduction_le
     (ℓ blockWidth width Q : ℕ → ℕ)

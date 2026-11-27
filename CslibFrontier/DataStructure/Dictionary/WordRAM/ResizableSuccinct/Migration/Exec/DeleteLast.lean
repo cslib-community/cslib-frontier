@@ -121,8 +121,8 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
   obtain ⟨_, h1N, _, hNU⟩ := hev.resolve_left (by simp)
   set off := offCompItems U w N
   set iw := compactedItemWords U V w N 1
-  have hce : compactedEpochWords U V w N 1 = off + iw := by simp [compactedEpochWords, off, iw]
-  have hfr_eq : x.frontier = base + off + iw := by rw [hfr, hce, Nat.add_assoc]
+  have hfr_eq : x.frontier = base + off + iw := by
+    simp [hfr, compactedEpochWords, off, iw, Nat.add_assoc]
   have h225 : 225 ≤ off := le_offCompItems_225 U w N
   have hfit_fr : Fits w x.frontier := hx.frontier_fits
   have hfit_off : Fits w (base + off) := hfit_fr.of_le (by rw [hfr_eq]; linarith only)
@@ -187,11 +187,11 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
     (by simp [x₃, RData.set] : x₃.regs mBase = x₂.regs mBase).trans <|
     (hx₂_r mBase (mReg_ne (by decide)) (fun i => mOldCp_ne_mReg i (Or.inl (by decide)))).trans
       hx₁_base
-  have hx₄_cp34 : x₄.regs (mOldCp ⟨34, by decide⟩) = off := by
-    rw [hx₄_keep3 _ (by simp [Fin.ext_iff]) (mOldCp_lt_160 _) (by simp [Fin.ext_iff]),
-      show x₃.regs (mOldCp ⟨34, by decide⟩) = x₂.regs (mOldCp ⟨34, by decide⟩) by
-        simp [x₃, RData.set, Fin.ext_iff], hx₂_cp_all]
-    exact cpOffItems_mk U V w N
+  have hx₄_cp34 : x₄.regs (mOldCp ⟨34, by decide⟩) = off :=
+    (hx₄_keep3 _ (by simp [Fin.ext_iff]) (mOldCp_lt_160 _)
+      (by simp [Fin.ext_iff])).trans <|
+    (by simp [x₃, RData.set, Fin.ext_iff] : x₃.regs _ = x₂.regs _).trans <|
+    (hx₂_cp_all _).trans (cpOffItems_mk U V w N)
   set x₅ := x₄.set mItemBase (base + off)
   have hex_ib := RDemonicExec.exactBin (f := .add) (d := mItemBase) (i := mBase)
     (j := mOldCp ⟨34, by decide⟩) (w := w) (L_peak := x.frontier) (x := x₄) hx₄f_eq.le
@@ -216,9 +216,7 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
       x₇.regs reg = x₂.regs reg := fun reg h160 h => by
     simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at h
     obtain ⟨hz, hfr', hib, hiw, hcnt⟩ := h
-    rw [show x₇.regs reg = x₄.regs reg by simp [x₇, x₆, x₅, RData.set, hz, hfr', hib],
-      hx₄_keep3 reg hfr' h160 hiw]
-    simp [x₃, RData.set, hfr', hcnt]
+    simp [x₇, x₆, x₅, x₃, RData.set, hz, hfr', hib, hx₄_keep3 reg hfr' h160 hiw, hcnt]
   have hin_ro : x₇.regs ∘ srcReadOldKV = WordEncoding.encode d_ro := by
     refine (regs_pairSrc
       (regs_pairSrc
@@ -298,8 +296,8 @@ private theorem deleteLastHitTailCode_exec {U V w N n_init base : ℕ} {x y : RD
   obtain ⟨_, _, hN4, hNU⟩ := hev.resolve_left (by simp)
   set off := offCompItems U w N
   set iw := compactedItemWords U V w N 1
-  have hce : compactedEpochWords U V w N 1 = off + iw := by simp [compactedEpochWords, off, iw]
-  have hfr_eq : x.frontier = base + off + iw := by rw [hfr, hce, Nat.add_assoc]
+  have hfr_eq : x.frontier = base + off + iw := by
+    simp [hfr, compactedEpochWords, off, iw, Nat.add_assoc]
   have h225 : 225 ≤ off := le_offCompItems_225 U w N
   have hfit_fr : Fits w x.frontier := hyf ▸ hyb.frontier_fits
   have hfit8 : Fits w 8 := hfit_fr.of_le (by rw [hfr_eq]; linarith only [h225])
@@ -357,7 +355,6 @@ private theorem deleteLastHitTailCode_exec {U V w N n_init base : ℕ} {x y : RD
   rw [hy₇_k] at hex_sh
   set z := shrinkPost mK mIdx mZero mOne y₇
   have hzb : z.Bounded w := shrinkPost_bounded hy₇b hfit1 hk_le_fr
-  have hzf : z.frontier = base + 8 := hfr_sub
   have hz_lt8 : ∀ a < base + 8, z.mem a = y₄.mem a := fun a ha => by
     change clear y₄.mem (y₇.frontier - y₇.regs mK) (y₇.regs mK) a = y₄.mem a
     rw [hfr_sub]
@@ -388,7 +385,7 @@ private theorem deleteLastHitTailCode_exec {U V w N n_init base : ℕ} {x y : RD
     hex_z0.seq_eq (hex_st5.seq_eq (hex_st6.seq_eq (hex_st7.seq_eq
       (hex_c8.seq_eq (hex_add.seq_eq (hex_sub.seq_eq
         (hex_sh.mono hc_sh (fun _ h => h))))))))
-  exact ⟨z, _, hex_tail, by linarith only, compactedRep_empty hzb hzf hhdr_z,
+  exact ⟨z, _, hex_tail, by linarith only, compactedRep_empty hzb hfr_sub hhdr_z,
     by simp [z, shrinkPost, y₇, RData.set, hy₄_base],
     fun addr haddr => (hz_lt8 addr (by omega)).trans (hy₄_lt5 addr (by omega))⟩
 
@@ -437,35 +434,26 @@ theorem deleteLastOneCode_demonicExec {U V w N n_init base : ℕ}
     obtain rfl : d = 0 := Nat.lt_one_iff.mp hd
     change u₀ = u.val at hd_eq
     have hc_eq : (Cond.eq mU0 mArgU).Holds y.toData := by
-      change y.regs mU0 = y.regs mArgU
-      rw [hy_u0, hy_argu, hu_reg]
-      exact hd_eq
+      simpa only [Cond.Holds, RData.toData, hy_u0, hy_argu, hu_reg] using hd_eq
     obtain ⟨z, steps_h, hex_h, hc_h, hrep_z, hz_base, hbelow_z⟩ :=
       deleteLastHitTailCode_exec hev hfr hsplit.root_hdr hyb hyf hy_fr_reg hy_base hy_mem
-    have hs_empty : Function.update s_abs u none = Dictionary.empty U := by
-      funext k
+    have hs_empty : Function.update s_abs u none = Dictionary.empty U := funext fun k => by
       by_cases hku : k = u
       · simp [hku, Dictionary.empty]
       · rw [Function.update_of_ne hku]
-        cases hk_eq : s_abs k with
-        | none => rfl
-        | some val =>
-          obtain ⟨d', hd', hd'_eq⟩ := hrec_surj k (by simp [hk_eq])
-          obtain rfl : d' = 0 := Nat.lt_one_iff.mp hd'
-          exact absurd (Fin.ext (hd'_eq.symm.trans hd_eq)) hku
+        exact Option.not_isSome_iff_eq_none.mp fun hk => by
+          obtain ⟨d', hd', hd'_eq⟩ := hrec_surj k hk
+          rw [Nat.lt_one_iff.mp hd'] at hd'_eq
+          exact hku (Fin.ext (hd'_eq.symm.trans hd_eq))
     refine ⟨z, _, hex_r.seq_eq (RDemonicExec.branch_pos hc_eq hex_h),
       hrep_z.bounded, hz_base, hbelow_z, ?_⟩
     rw [ite_eq_left hsome]
     refine ⟨hs_empty, hrep_z, ?_⟩
     unfold deleteLastOneCharge
     linarith only [hc_r, hc_h, hf1]
-  · have hne_u : u₀ ≠ u.val := fun heq => by
-      have hu : u = ⟨u₀, hu₀_lt⟩ := Fin.ext heq.symm
-      rw [hu, hs₀] at hsome
-      exact hsome rfl
-    have hnc_eq : ¬(Cond.eq mU0 mArgU).Holds y.toData := by
-      change y.regs mU0 ≠ y.regs mArgU
-      rwa [hy_u0, hy_argu, hu_reg]
+  · have hnc_eq : ¬(Cond.eq mU0 mArgU).Holds y.toData := fun h =>
+      hsome ((Fin.ext (hy_u0.symm.trans (h.trans (hy_argu.trans hu_reg))) :
+        (⟨u₀, hu₀_lt⟩ : Fin U) = u) ▸ hs₀ ▸ rfl)
     have hex_nop := RDemonicExec.copy (B := .exact) (w := w) (L_peak := x.frontier)
       (d := mZero) (s := mZero) (x := y) hyf.le
     set z := y.set mZero (y.regs mZero)

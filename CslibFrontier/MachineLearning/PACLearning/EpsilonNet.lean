@@ -197,19 +197,19 @@ theorem le_of_vcSampleSize_le {d m : ℕ} {ε δ N : ℝ} (hε : 0 < ε) (hε1 :
     (hδ1 : δ ≤ 1) (hm : vcSampleSize d ε δ ≤ m)
     (hN : N ≤ Real.exp (((m + m : ℕ) : ℝ) / (48 / ε)) * (48 / ε) ^ d) :
     8 ≤ ε * m ∧ 2 * N ≤ δ * 2 ^ ⌈ε * m / 2⌉₊ := by
-  have hT : 1 ≤ 48 / ε := by rw [le_div_iff₀ hε]; linarith
-  have hlogT : 0 ≤ Real.log (48 / ε) := Real.log_nonneg hT
   have hlog4 : 1 ≤ Real.log (4 / δ) := by
     rw [Real.le_log_iff_exp_le (by positivity)]
     calc Real.exp 1 ≤ 4 := by linarith [Real.exp_one_lt_d9]
       _ ≤ 4 / δ := by rw [le_div_iff₀ hδ]; nlinarith
   rw [vcSampleSize, div_mul_eq_mul_div, div_le_iff₀ hε] at hm
-  have hdlog : 0 ≤ (d : ℝ) * Real.log (48 / ε) := mul_nonneg (Nat.cast_nonneg d) hlogT
+  have hdlog : 0 ≤ (d : ℝ) * Real.log (48 / ε) :=
+    mul_nonneg (Nat.cast_nonneg d) (Real.log_nonneg (by rw [le_div_iff₀ hε]; linarith))
   have h8 : 8 ≤ ε * m := by linarith
   refine ⟨h8, ?_⟩
   have hexp : ((m + m : ℕ) : ℝ) / (48 / ε) = ε * m / 24 := by push_cast; field_simp; ring
   have hlog2 : ε * m / 3 ≤ ε * m / 2 * Real.log 2 := by nlinarith [Real.log_two_gt_d9]
-  rw [Real.log_div (by norm_num) hδ.ne', show (4 : ℝ) = 2 ^ 2 by norm_num, Real.log_pow] at hm
+  have h4 : (4 : ℝ) = 2 ^ 2 := by norm_num
+  rw [Real.log_div (by norm_num) hδ.ne', h4, Real.log_pow] at hm
   calc 2 * N
       ≤ 2 * (Real.exp (((m + m : ℕ) : ℝ) / (48 / ε)) * (48 / ε) ^ d) := by gcongr
     _ ≤ δ * (2 : ℝ) ^ (ε * m / 2) := by
@@ -354,13 +354,10 @@ theorem measure_pi_not_isEpsNet_mul_two_pow_le (μ : Measure Z) [IsProbabilityMe
     refine (ENNReal.le_of_add_le_add_left (a := 1 / 2) (by simp) ?_).trans (measure_mono hsub)
     rw [ENNReal.add_halves]
     exact tsub_le_iff_right.1 hlow
-  have hJB : ν B ≤
-      2 * ((Measure.pi fun _ : Fin m => μ).prod (Measure.pi fun _ : Fin m => μ) J) :=
-    measure_le_two_mul_measure_prod ν ν B .of_discrete hfib
+  have hJB := measure_le_two_mul_measure_prod ν ν B .of_discrete hfib
   have hρJ := measure_doubleSampleEvent_mul_two_pow_le μ G m k
   calc ν B * 2 ^ k
-      ≤ 2 * ((Measure.pi fun _ : Fin m => μ).prod (Measure.pi fun _ : Fin m => μ) J) *
-          2 ^ k := by gcongr
+      ≤ 2 * (ν.prod ν J) * 2 ^ k := by gcongr
     _ ≤ 2 * growthFunction G (m + m) := by rw [mul_assoc]; gcongr
 
 /-- The ε-net theorem in `δ` form: if `8 ≤ εm` and `2 Π_G(2m) ≤ δ 2 ^ ⌈εm/2⌉`, then `m` i.i.d.
@@ -370,10 +367,9 @@ theorem measure_pi_not_isEpsNet_le_of_growthFunction_le (μ : Measure Z) [IsProb
     (hG : 2 * (growthFunction G (m + m) : ℝ) ≤ δ * 2 ^ ⌈ε * m / 2⌉₊) :
     Measure.pi (fun _ : Fin m => μ) {S | ¬ IsEpsNet μ G ε S} ≤ ENNReal.ofReal δ := by
   have h2 : (2 : ℝ≥0∞) * growthFunction G (m + m) ≤ ENNReal.ofReal δ * 2 ^ ⌈ε * m / 2⌉₊ := by
-    have := ENNReal.ofReal_le_ofReal hG
-    rwa [ENNReal.ofReal_mul (by norm_num : (0 : ℝ) ≤ 2), ENNReal.ofReal_ofNat,
-      ENNReal.ofReal_natCast, ENNReal.ofReal_mul' (by positivity),
-      ENNReal.ofReal_pow (by norm_num : (0 : ℝ) ≤ 2), ENNReal.ofReal_ofNat] at this
+    simpa only [ENNReal.ofReal_mul zero_le_two, ENNReal.ofReal_ofNat,
+      ENNReal.ofReal_natCast, ENNReal.ofReal_mul' (pow_nonneg zero_le_two _),
+      ENNReal.ofReal_pow zero_le_two] using ENNReal.ofReal_le_ofReal hG
   exact (ENNReal.mul_le_mul_iff_left (pow_ne_zero _ two_ne_zero)
     (ENNReal.pow_ne_top ENNReal.ofNat_ne_top)).1
     ((measure_pi_not_isEpsNet_mul_two_pow_le μ G hm).trans h2)

@@ -169,11 +169,8 @@ theorem updateEntry_eq_self_of_three_mul_le {u b : ℝ} {v : Fin 2 → ℝ}
   have hr : radius u v = 7 * (entrySize v - 2 * u) := by
     rw [radius, max_eq_left (by linarith)]
   funext ν
-  have hd : |defaultEntry b ν| ≤ 3 * u := by
-    unfold defaultEntry
-    split_ifs
-    · simpa [abs_of_nonneg hb] using hb'
-    · simpa using mul_nonneg (by norm_num : (0 : ℝ) ≤ 3) hu
+  have hd : |defaultEntry b ν| ≤ 3 * u :=
+    (abs_apply_le_entrySize _ ν).trans ((entrySize_defaultEntry hb).trans_le hb')
   have hdiff : |v ν - defaultEntry b ν| ≤ radius u v := by
     calc |v ν - defaultEntry b ν| ≤ |v ν| + |defaultEntry b ν| := abs_sub _ _
       _ ≤ radius u v := by rw [hr]; linarith [abs_apply_le_entrySize v ν]
@@ -232,13 +229,9 @@ theorem abs_update_sub_le_six_mul (y : ι) (ν : Fin 2) :
   by_cases hy : 3 * threshold s n ρ z w ≤ entrySize (w y)
   · rw [update_eq_self_of_three_mul_le hy, sub_self, abs_zero]
     exact mul_nonneg (by norm_num) threshold_nonneg
-  have hb : |defaultEntry (newDefault s n K ρ z w) ν| ≤ 3 * threshold s n ρ z w := by
-    unfold defaultEntry
-    split_ifs
-    · rw [abs_of_nonneg newDefault_nonneg]
-      exact newDefault_le_three_mul
-    · simpa using mul_nonneg (by norm_num : (0 : ℝ) ≤ 3)
-        (threshold_nonneg (s := s) (n := n) (ρ := ρ) (z := z) (w := w))
+  have hb : |defaultEntry (newDefault s n K ρ z w) ν| ≤ 3 * threshold s n ρ z w :=
+    (abs_apply_le_entrySize _ ν).trans
+      ((entrySize_defaultEntry newDefault_nonneg).trans_le newDefault_le_three_mul)
   calc |update s n K ρ z w y ν - w y ν|
       ≤ |w y ν - defaultEntry (newDefault s n K ρ z w) ν| := abs_updateEntry_sub_le _ _ _ _
     _ ≤ |w y ν| + |defaultEntry (newDefault s n K ρ z w) ν| := abs_sub _ _
