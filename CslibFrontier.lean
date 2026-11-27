@@ -10211,6 +10211,7 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.D
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxBatch.Prepare
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BinaryModulus
 public import CslibFrontier.Foundations.Data.List.OrderStatistic
+public import CslibFrontier.Crypto.Primitives.HQC.ByteField
 public import CslibFrontier.Logics.Propositional.CNF.Restrict
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted.CountStep
 public import CslibFrontier.GameTheory.UtilityGame.CompetitiveFacilityLocation
@@ -10274,6 +10275,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Crypto.Protocols.FRI.Soundness.Transcript
 public import CslibFrontier.Foundations.Data.List.DotProduct
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.Succinct
+public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryField.Native
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.ProducerQueries
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.OutputToTape
 public import CslibFrontier.Foundations.RelationAlgebra.Game

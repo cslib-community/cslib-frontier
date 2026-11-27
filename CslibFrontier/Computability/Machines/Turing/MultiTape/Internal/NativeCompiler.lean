@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Ker
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bit
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bound
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
 import Mathlib.Data.Finset.Sort
 import Mathlib.Data.List.Lex
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Correct
@@ -64,6 +65,8 @@ existential computability proof can be extracted into a `NativeCompiler`.
 * `Turing.MultiTapeTM.Internal.NativeCompiler.staticBits`: exact encoded compiler-machine length.
 * `Turing.MultiTapeTM.Internal.NativeCompiler.stateBound`: numeric range of the recorded state
   encoding, computed from its actual codes rather than from state cardinality.
+* `Turing.MultiTapeTM.Internal.NativeCompiler.maxEntryBits`: largest encoded transition-row
+  length in the compiler description.
 * `Turing.MultiTapeTM.Internal.NativeCompiler.transducerMachineStateEncoding`: constructive
   encoding of the full control state produced by `Transducer.toTM`.
 * `Turing.MultiTapeTM.Internal.NativeCompiler.inputBits`: exact encoded input length.
@@ -80,6 +83,10 @@ existential computability proof can be extracted into a `NativeCompiler`.
 
 * `Turing.MultiTapeTM.Internal.NativeCompiler.description_holds`: the recorded description
   contains every transition of the packaged machine under its recorded encodings.
+* `Turing.MultiTapeTM.Internal.NativeCompiler.description_table_length`: the exact number of
+  transition rows.
+* `Turing.MultiTapeTM.Internal.NativeCompiler.staticBits_le`: a symbolic whole-description bound
+  in the tape count, state-code bound, row count and maximum encoded row length.
 * `Turing.MultiTapeTM.Internal.NativeCompiler.computableInTimeAndSpace`: forget the named
   construction into the existing plain existential calculus.
 -/
@@ -274,6 +281,44 @@ theorem stateEncoding_lt_stateBound {α β : Type*} {f : α → β}
     compiler.stateEncoding state < compiler.stateBound :=
   letI := compiler.stateFintype
   stateEncoding_lt_stateEncodingBound compiler.stateEncoding state
+
+/-- The retained description has one row for every control state, input symbol and tuple of work
+tape symbols. -/
+theorem description_table_length {α β : Type*} {f : α → β}
+    {encIn : α ↪ List Bool} {encOut : β ↪ List Bool}
+    (compiler : NativeCompiler f encIn encOut) :
+    compiler.description.table.length =
+      @Fintype.card compiler.State compiler.stateFintype *
+        3 ^ (compiler.tapeCount + 1) := by
+  simp [description, Nat.pow_succ, Nat.mul_comm]
+
+/-- Largest encoded transition-row length in the retained compiler description. -/
+@[expose] def maxEntryBits {α β : Type*} {f : α → β}
+    {encIn : α ↪ List Bool} {encOut : β ↪ List Bool}
+    (compiler : NativeCompiler f encIn encOut) : ℕ :=
+  listMax (fun entry => (encPair eKey eAct entry).length) compiler.description.table
+
+/-- A concrete upper bound on the full unary-encoded description of a retained compiler.  It
+charges every transition row and every state code; clients can substitute exact row counts while
+keeping large finite tables symbolic. -/
+theorem staticBits_le {α β : Type*} {f : α → β}
+    {encIn : α ↪ List Bool} {encOut : β ↪ List Bool}
+    (compiler : NativeCompiler f encIn encOut) :
+    compiler.staticBits ≤
+      2 * compiler.tapeCount + 2 * compiler.stateBound + 2 +
+        compiler.description.table.length *
+          (2 * compiler.maxEntryBits + 1) := by
+  have htable := length_encList_le (encPair eKey eAct) compiler.description.table
+    (fun _ hentry => le_listMax
+      (f := fun entry : Key × Act => (encPair eKey eAct entry).length) hentry)
+  have hinitial := compiler.stateEncoding_lt_stateBound compiler.table.initial
+  have htapes : compiler.description.tapes = compiler.tapeCount := by rw [description]
+  have hq₀ : compiler.description.q₀ = compiler.stateEncoding compiler.table.initial := by
+    rw [description]
+  simp only [staticBits, descLen, eDesc_apply, length_encPair, encUnary_apply,
+    List.length_replicate, htapes, hq₀]
+  simp only [maxEntryBits] at htable ⊢
+  omega
 
 /-- Forget tidiness while retaining the same named machine and independent bounds. -/
 theorem computesInTimeAndSpace {α β : Type*} {f : α → β} {encIn : α ↪ List Bool}

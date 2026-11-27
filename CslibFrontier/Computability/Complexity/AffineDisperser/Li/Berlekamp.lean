@@ -112,15 +112,6 @@ private theorem polyOfBits_map_bitEquiv (l : List (ZMod 2)) :
     polyOfBits (l.map bitEquiv) = ofCoeffList l := by
   simp [polyOfBits_eq_ofCoeffList]
 
-/-- The `i`-th coefficient of `polyOfBits l` is `l.getD i false`. -/
-theorem coeff_polyOfBits (l : List Bool) (i : ℕ) :
-    (polyOfBits l).coeff i = bitEquiv.symm (l.getD i false) := by
-  rw [polyOfBits_eq_ofCoeffList, coeff_ofCoeffList]
-  rcases Nat.lt_or_ge i l.length with hi | hi
-  · rw [List.getD_eq_getElem _ _ (by simpa using hi), List.getElem_map, List.getD_eq_getElem _ _ hi]
-  · rw [List.getD_eq_default _ _ (by simpa using hi), List.getD_eq_default _ _ hi,
-      bitEquiv_symm_false]
-
 /-- Strip trailing `false` entries from a bit-coefficient list. -/
 @[expose] def polyTrim (p : List Bool) : List Bool :=
   p.foldr (fun b acc => if b || !acc.isEmpty then b :: acc else []) []
