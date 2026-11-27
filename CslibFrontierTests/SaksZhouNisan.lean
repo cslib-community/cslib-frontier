@@ -158,34 +158,22 @@ example :
   refine h.trans_eq ?_
   norm_num
 
--- Non-vacuity of `exists_saksZhouSeeds_of_mem_BPL` on undirected connectivity `USTCON ∈ L ⊆ BPL`.
+-- The compact-ID estimate decides USTCON by a strict majority of the seeds.
 example :
-    ∃ (k : ℕ) (State : Type) (_ : Finite State) (M : Turing.MultiTapePTM k Bool State)
-      (c clk : ℕ),
-      (∀ a, M.toNTM.RunsInSpace (encUSTCON a) (c * (Nat.log2 (encUSTCON a).length + 1))) ∧
-      ∀ a,
-        let R := clk * (Nat.log2 (encUSTCON a).length + 2) + 1
-        let s := Nat.sqrt R + 1
-        let d := 5 * R + 5
-        let m := 5 * d
-        ∃ (V : Finset (Turing.FiniteCfg k Bool State)) (hinit : M.toNTM.initView (encUSTCON a) ∈ V),
-          (∀ finite ∈ V, ∀ bit, M.viewCoinStep finite bit ∈ V) ∧
-          V.card ≤ 2 ^ R ∧
-          s * (3 * (2 * m) - 1) + s * d ≤
-            155 * (2 * clk + 2) ^ 2 * (Nat.log2 (encUSTCON a).length + 1) *
-              (Nat.sqrt (Nat.log2 (encUSTCON a).length + 1) + 1) ∧
-          (Finset.dens (Finset.univ.filter fun
-              p : NisanShiftSeed (2 * m) s s d =>
-              (1 : ℝ) / 16 <
-                |M.saksZhouAcceptEst V hinit m s d p -
-                  (M.acceptCoins (encUSTCON a) (2 ^ (s * s)) : ℝ) / 2 ^ (2 ^ (s * s))|) : ℝ) ≤
-            1 / 8 ∧
-          (a ∈ USTCON → (1 : ℝ) / 2 < (Finset.dens (Finset.univ.filter fun
-              p : NisanShiftSeed (2 * m) s s d =>
-              (1 : ℝ) / 2 < M.saksZhouAcceptEst V hinit m s d p) : ℝ)) ∧
-          (a ∉ USTCON → (Finset.dens (Finset.univ.filter fun
-              p : NisanShiftSeed (2 * m) s s d =>
-              (1 : ℝ) / 2 < M.saksZhouAcceptEst V hinit m s d p) : ℝ) < 1 / 2) :=
-  exists_saksZhouSeeds_of_mem_BPL (L_subset_BPL USTCON_mem_L)
+    ∃ (k : ℕ) (State : Type) (_ : Fintype State) (M : Turing.MultiTapePTM k Bool State)
+      (c clk : ℕ), ∀ a,
+        ∃ hs : M.toNTM.RunsInSpace (encUSTCON a) (c * (Nat.log2 (encUSTCON a).length + 1)),
+          let R := clk * (Nat.log2 (encUSTCON a).length + 2) + 1
+          let s := Nat.sqrt R + 1
+          let d := 5 * R + 5
+          let m := 5 * d
+          a ∈ USTCON ↔ (1 : ℝ) / 2 < (Finset.dens (Finset.univ.filter fun
+            p : NisanShiftSeed (2 * m) s s d =>
+            (1 : ℝ) / 2 < M.saksZhouAcceptEst c hs m s d p) : ℝ) := by
+  obtain ⟨k, State, hfin, M, c, clk, h⟩ :=
+    exists_saksZhouSeeds_of_mem_BPL (L_subset_BPL USTCON_mem_L)
+  refine ⟨k, State, hfin, M, c, clk, fun a => ?_⟩
+  obtain ⟨hs, _, _, _, hmem, hnot⟩ := h a
+  exact ⟨hs, hmem, fun h₁ => by_contra fun h₂ => (hnot h₂).asymm h₁⟩
 
 end CslibFrontierTests.SaksZhouNisan
