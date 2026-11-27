@@ -113,13 +113,20 @@ theorem averageProb_nonneg {p : ℕ → I → ℝ} {T : ℕ} (hp : ∀ t < T, �
     0 ≤ averageProb p T i :=
   div_nonneg (sum_nonneg fun t ht => hp t (mem_range.mp ht) i) (Nat.cast_nonneg _)
 
+/-- Taking the expectation of a fixed function under the average distribution gives the
+average of its expectations under the individual distributions. -/
+theorem sum_averageProb_mul (p : ℕ → I → ℝ) (T : ℕ) (f : I → ℝ) :
+    ∑ i, averageProb p T i * f i = (∑ t ∈ range T, ∑ i, p t i * f i) / T := by
+  simp only [averageProb_apply, div_mul_eq_mul_div, ← sum_div, sum_mul]
+  rw [sum_comm]
+
 /-- The average of `T > 0` distributions is a distribution. -/
 theorem sum_averageProb {p : ℕ → I → ℝ} {T : ℕ} (hT : 0 < T) (hp : ∀ t < T, ∑ i, p t i = 1) :
     ∑ i, averageProb p T i = 1 := by
-  simp only [averageProb, ← sum_div]
-  rw [sum_comm, sum_congr rfl fun t ht => hp t (mem_range.mp ht)]
-  simp only [sum_const, card_range, nsmul_eq_mul, mul_one]
-  exact div_self (by exact_mod_cast hT.ne')
+  have h := sum_averageProb_mul p T (fun _ => 1)
+  simp only [mul_one] at h
+  rw [h, sum_congr rfl fun t ht => hp t (mem_range.mp ht)]
+  simp [hT.ne']
 
 /-- The expectation of `f` under the empirical distribution is the average of `f` along the
 sequence. -/
@@ -220,10 +227,7 @@ theorem sum_averageProb_mul_le_sum_empirical_mul_add [DecidableEq J]
   set p := prob (mwFactor (ε / 2)) (fun s i => M i (col s)) with hpdef
   have hreg := game_regret (col := col) hM hε hε' hT i
   rw [sum_empirical_mul]
-  have hlhs : ∑ k, averageProb p T k * M k j = (∑ t ∈ range T, ∑ k, p t k * M k j) / T := by
-    simp only [averageProb, div_mul_eq_mul_div, ← sum_div, sum_mul]
-    rw [sum_comm]
-  rw [hlhs, div_add' _ _ _ hT'.ne', div_le_div_iff_of_pos_right hT']
+  rw [sum_averageProb_mul, div_add' _ _ _ hT'.ne', div_le_div_iff_of_pos_right hT']
   calc ∑ t ∈ range T, ∑ k, p t k * M k j ≤ ∑ t ∈ range T, ∑ k, p t k * M k (col t) :=
         sum_le_sum fun t ht => hbr t (mem_range.mp ht) j
     _ ≤ _ := hreg
