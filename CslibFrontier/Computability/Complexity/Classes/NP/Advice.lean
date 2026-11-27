@@ -7,7 +7,9 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Circuit.Boolean.PPoly
 public import CslibFrontier.Computability.Complexity.Classes.NP.Witness
+import CslibFrontier.Computability.Circuit.Boolean.Advice
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
@@ -26,7 +28,11 @@ length and a problem `B ∈ NP` of pairs, for the encoding `frame u ++ enc a` of
 `a ∈ A` exactly when `(adv (enc a).length, a) ∈ B`. `coNP/poly` consists of the complements
 (`Cslib.Complexity.coNPPoly`).
 
-`NP ⊆ NP/poly` with empty advice (`Cslib.Complexity.NP_subset_NPPoly`). `NP/poly` is closed under
+`NP ⊆ NP/poly` with empty advice (`Cslib.Complexity.NP_subset_NPPoly`), and
+`P/poly ⊆ NP/poly ∩ coNP/poly` (`Cslib.Complexity.PPolyOn_subset_NPPoly`,
+`Cslib.Complexity.PPolyOn_subset_coNPPoly`): the advice lists the circuits, which are evaluated in
+polynomial time (`Cslib.Circuits.Boolean.PPoly.exists_evalAdvice`), and `P/poly` is closed under
+complement. `NP/poly` is closed under
 polynomial-time reductions (`Cslib.Complexity.PolyTimeReducible.mem_NPPoly`): the advice for
 instances of length `n` lists the advice of the target problem for every length up to a polynomial
 bound on the length of the reduced instances, and the verifier selects the entry for the length of
@@ -47,6 +53,8 @@ theorem that it collapses the polynomial hierarchy to its third level [Yap][Yap1
 ## Main results
 
 * `Cslib.Complexity.NP_subset_NPPoly`, `Cslib.Complexity.coNP_subset_coNPPoly`.
+* `Cslib.Complexity.PPolyOn_subset_NPPoly`, `Cslib.Complexity.PPolyOn_subset_coNPPoly`:
+  `P/poly ⊆ NP/poly` and `P/poly ⊆ coNP/poly`.
 * `Cslib.Complexity.PolyTimeReducible.mem_NPPoly`,
   `Cslib.Complexity.PolyTimeReducible.mem_coNPPoly`: closure under polynomial-time reductions.
 * `Cslib.Complexity.coNP_subset_NPPoly_of_coNPComplete`: a `coNP`-complete problem in `NP/poly`
@@ -89,6 +97,24 @@ theorem NP_subset_NPPoly : NP enc ⊆ NPPoly enc := by
 
 /-- **`coNP ⊆ coNP/poly`**. -/
 theorem coNP_subset_coNPPoly : coNP enc ⊆ coNPPoly enc := fun _ hA => NP_subset_NPPoly hA
+
+open Circuits.Boolean in
+/-- **`P/poly ⊆ NP/poly`**: the advice for length `n` lists circuits of polynomial size for the
+encoded instances of length `n`, and evaluating them is in `P`
+(`Cslib.Circuits.Boolean.PPoly.exists_evalAdvice`), hence in `NP`. -/
+theorem PPolyOn_subset_NPPoly : PPolyOn enc ⊆ NPPoly enc := by
+  rintro A ⟨L, hL, hAL⟩
+  obtain ⟨S, W, -, adv, -, hadv, heval⟩ := PPoly.exists_evalAdvice hL Polynomial.X
+  refine ⟨adv, hadv, {p | evalAdvice (S.eval (enc p.2).length) (W.eval (enc p.2).length) p.1
+    (enc p.2) = true}, P_subset_NP ⟨_, computableInPolyTime_evalAdvice_eval S W
+      ((encoding_length enc).comp (snd _ _)) (fst _ _)
+      ((of_eq (encIn := enc) (encOut := encBits) fun _ => rfl).comp (snd _ _)), fun _ => .rfl⟩,
+    fun a => (hAL a).trans (heval _ _ (by simp)).symm⟩
+
+open Circuits.Boolean in
+/-- **`P/poly ⊆ coNP/poly`**: `P/poly` is closed under complement. -/
+theorem PPolyOn_subset_coNPPoly : PPolyOn enc ⊆ coNPPoly enc := fun _ hA =>
+  PPolyOn_subset_NPPoly (PPolyOn.compl hA)
 
 /-- The sum of `2 * |w| + 1` over the advice strings for the lengths below `N` is at most
 `N * (2 * M + 1)` when each of them has length at most `M`. -/
