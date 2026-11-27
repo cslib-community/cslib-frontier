@@ -101,6 +101,8 @@ parameter uniformity and the native subexponential counting endpoint remain sepa
   the same invariant-restricted correctness contract for declared-variable counting, with either
   occurring-variable or declared-variable leaf counts. These are semantic extensions; native
   totality and resource certificates remain separate requirements.
+* `Cslib.Complexity.CountingSparsify.searchDeclaredWith_pos_iff_of_normalized`: search
+  positivity is a satisfiability test when the leaf routine only detects satisfiability.
 * `Cslib.Complexity.CountingSparsify.exists_computableInO_search`: native `ComputableInO ... T T`
   time-and-space transfer certificate for `CountingSparsify.search`.
 * `Cslib.Complexity.CountingSparsify.exists_computableInO_search_polySpace`: the same time envelope
@@ -114,6 +116,7 @@ parameter uniformity and the native subexponential counting endpoint remain sepa
 
 * [OpenAI, *The Exponential Time Hypothesis is False*][OpenAI2026ETH], Section 6.4,
   Lemma 6.3 and Proposition 6.4 (pp. 43–44) and Appendix A (pp. 44–47).
+* [MITHardnessGroup2026SH], v2, §2.2, Corollary 2.3.
 -/
 
 @[expose] public section
@@ -505,6 +508,34 @@ theorem search_eq_modelCount (hM2 : 2 ≤ M) {k B L_coeff : ℕ} (hkK : k ≤ K)
   rw [search_eq_ite_modelCount hM hK hM2 hkK hTB hg φ,
     ite_eq_left_iff.mpr fun h =>
       absurd (List.all_eq_true.mpr fun c hc => decide_eq_true (hφ c hc)) h]
+
+include hM hK in
+private theorem search_pos_iff_of_normalized (hM2 : 2 ≤ M) {k B L_coeff : ℕ} (hkK : k ≤ K)
+    (hTB : CountingTreeBound M K B L_coeff hM hK) {g : CNF ℕ → ℕ} {φ : CNF ℕ}
+    (hφ : ∀ c ∈ φ, c.length ≤ k)
+    (hg : ∀ ψ : CNF ℕ, CountingNormalized K ψ → (∀ c ∈ ψ, c.length ≤ k) →
+      isSparse (countingThreshold M) K ψ = true →
+      ψ.vars.toFinset ⊆ φ.vars.toFinset →
+      ψ.length ≤ occBound K M * φ.numVars + 1 → (0 < g ψ ↔ ψ.Satisfiable)) :
+    0 < search M K k B g φ ↔ φ.Satisfiable := by
+  classical
+  have hcount : search M K k B CNF.modelCount φ = φ.modelCount :=
+    search_eq_modelCount hM hK hM2 hkK hTB (fun _ _ _ => rfl) hφ
+  rw [← CNF.modelCount_pos_iff, ← hcount]
+  obtain ⟨⟨W, hW, hfin⟩, -⟩ := iterate_step hM hK hM2 hkK hTB g φ
+  obtain ⟨⟨V, hV, hfin'⟩, -⟩ := iterate_step hM hK hM2 hkK hTB CNF.modelCount φ
+  have hVW : V = W := Finset.ext fun w => (hV w).trans (hW w).symm
+  subst V
+  simp only [search, hfin, hfin', lt_min_iff, Nat.two_pow_pos, true_and, Finset.sum_pos_iff,
+    leafWeight, CanonicallyOrderedAdd.mul_pos]
+  refine exists_congr fun w => and_congr_right fun hw => ?_
+  let ψ := (rule hM hK).tree.walk (rootState hkK φ) w
+  have hleaf := (hW w).mp hw
+  have hsp : isSparse (countingThreshold M) K ψ.1 = true :=
+    (isSparse_eq_true_iff (one_le_countingThreshold hM) ψ.2.toNormalized).mpr hleaf.isLeaf_walk
+  exact (hg ψ.1 ψ.2 (fun _ hc => length_le_of_mem_walk hM hK hkK hleaf.isNodeWord hc)
+    hsp (vars_walk_subset hM hK hkK w)
+    (length_walk_le_of_isSparse hM hK hkK hsp)).trans CNF.modelCount_pos_iff.symm
 
 /-! ### Polynomial-time parts -/
 
@@ -1085,6 +1116,34 @@ theorem searchDeclaredWith_eq_ite_mul (NOf MOf BOf : P → ℕ) (K k : ℕ) (g :
       else 0 := by
   rw [searchDeclaredWith, searchWith_eq_search, Nat.shiftLeft_eq, CNF.length_distinctVars,
     Nat.mul_comm]
+
+/-- The declared search detects satisfiability if the leaf routine returns a positive value
+exactly on satisfiable normalized sparse leaves within the declared support and clause bound.
+An invalid width or support fails the test. This gives the semantic step for using a leaf
+decision routine toward the decision transfer in
+[MITHardnessGroup2026SH, v2, §2.2, Corollary 2.3], tracked in #8457. -/
+theorem searchDeclaredWith_pos_iff_of_normalized
+    {NOf MOf BOf : P → ℕ} {K k L_coeff : ℕ}
+    {p : P} (hM : 1 ≤ MOf p) (hK : 1 ≤ K) (hM2 : 2 ≤ MOf p) (hkK : k ≤ K)
+    (hTB : CountingTreeBound (MOf p) K (BOf p) L_coeff hM hK)
+    {g : P × CNF ℕ → ℕ}
+    (hg : ∀ ψ : CNF ℕ, CountingNormalized K ψ → (∀ c ∈ ψ, c.length ≤ k) →
+      isSparse (countingThreshold (MOf p)) K ψ = true →
+      ψ.vars.toFinset ⊆ Finset.range (NOf p) →
+      ψ.length ≤ occBound K (MOf p) * NOf p + 1 → (0 < g (p, ψ) ↔ ψ.Satisfiable))
+    (φ : CNF ℕ) :
+    0 < searchDeclaredWith NOf MOf BOf K k g p φ ↔
+      validDeclaredInput k (NOf p) φ = true ∧ φ.Satisfiable := by
+  rw [searchDeclaredWith_eq_ite_mul]
+  by_cases hvalid : validDeclaredInput k (NOf p) φ = true
+  · obtain ⟨hw, hsub⟩ := validDeclaredInput_eq_true_iff.mp hvalid
+    have hn : φ.numVars ≤ NOf p := by
+      simpa only [CNF.numVars, Finset.card_range] using Finset.card_le_card hsub
+    simp only [hvalid, ↓reduceIte, CanonicallyOrderedAdd.mul_pos, Nat.two_pow_pos, true_and]
+    exact search_pos_iff_of_normalized hM hK hM2 hkK hTB hw
+      (fun ψ hnorm hψw hsp hψsub hlen => hg ψ hnorm hψw hsp (hψsub.trans hsub)
+        (hlen.trans (Nat.add_le_add_right (Nat.mul_le_mul_left _ hn) 1)))
+  · simp [hvalid]
 
 /-- **Declared-variable correctness from normalized bounded leaves.** The occurring-variable
 counter need only be exact on normalized sparse width-`≤ k` formulas supported on the declared

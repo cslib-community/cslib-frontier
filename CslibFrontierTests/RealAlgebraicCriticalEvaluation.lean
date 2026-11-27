@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCa
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficients
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficientSign
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalPolynomialEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.WordCoordinateFingerprintLabels
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateCriticalLimit
@@ -227,6 +228,18 @@ example : (criticalObjectiveValue 7 2 3 1 [2, 3] inputValue : ZMod 7) = 3 := by
   norm_num [deformedPolynomial, potentialPolynomial, separatedCenters, inputPolynomial,
     Fin.sum_univ_succ]
   decide
+
+example : (zeroObjectiveValue 7 2 3 1 [2, 3] inputValue : ZMod 7) = 4 := by
+  rw [zeroObjectiveValue_cast inputPolynomial 3 1 (by decide) [2, 3] inputValue input_correct]
+  norm_num [deformedPolynomial, potentialPolynomial, inputPolynomial, Fin.sum_univ_succ]
+  decide
+
+example : (fun p : ℕ => zeroObjectiveValue p 2 3 1 [2, 3] (fun _ => 0)) ∈
+    CountingFunction 0 encNat encNat := by
+  have hv : (fun _ : ℕ × List ℕ => 0) ∈ CountingFunction 0 (encInstancePoint encNat) encNat :=
+    CountingFunction.of_polyTime (ComputableInPolyTime.const 0)
+  exact zeroObjectiveValue_mem (ComputableInPolyTime.id') (.const 2) (.const 3) (.const 1)
+    (.const [2, 3]) hv
 
 -- One certificate handles all binary moduli and powers, including total default inputs.
 theorem uniform_jacobian_mem :

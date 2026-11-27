@@ -7,12 +7,12 @@ Authors: Matthew Doty
 module
 -- upstream: local-only (tests)
 
--- `import all`: the kernel evaluates `stepTop` and `runTop`, and the dynamic program `certify` with
--- its private helpers (`mkLayer`, `step`, `successors`, `transition`, …), whose bodies are not
--- exposed.
+-- `import all`: the kernel evaluates `stepTop` and `runTop`, the dynamic program `certify` with its
+-- private `optSteps` and `optInst`, and the emitter's `Inst.forward`, `Inst.fwd`, `Inst.mkLayer`,
+-- `Inst.trans`, …, whose bodies are not exposed.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
-import all CslibFrontier.Logics.Propositional.PseudoBoolean.DynamicProgramming
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Knapsack
+import all CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackDP
 import CslibFrontier.Algorithms.Lean.Knapsack.ProfitDP
 import Mathlib.Data.Fin.VecNotation
 

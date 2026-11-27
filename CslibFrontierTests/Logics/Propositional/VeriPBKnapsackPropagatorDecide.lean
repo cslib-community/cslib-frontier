@@ -7,9 +7,12 @@ Authors: Matthew Doty
 module
 -- upstream: local-only (tests)
 
--- `import all`: the kernel evaluates `stepTop` and `runTop`, and the propagator `propagate` with
--- its private helpers (`Inst.run`, `Inst.emit`, `Inst.fwd`, …), whose bodies are not exposed.
+-- `import all`: the kernel evaluates `stepTop` and `runTop`, the propagator `propagate` with its
+-- private `Inst.run`, `Inst.emit`, `Inst.backAll`, `Inst.remAll`, …, and the emitter's
+-- `Inst.forward`, `Inst.fwd`, `Inst.mkLayer`, …, whose bodies are not exposed; the test also names
+-- the private `clause`.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
+import all CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackDP
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackPropagator
 import Mathlib.Data.Fin.VecNotation
 

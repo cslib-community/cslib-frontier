@@ -10,10 +10,11 @@ public import CslibFrontier.Computability.Complexity.FineGrained.CountingPowerSe
 import CslibFrontier.Computability.Complexity.FineGrained.CountingNativeModelCount
 import CslibFrontier.Computability.Complexity.FineGrained.SharpSatisfiabilityHypothesis
 import CslibFrontier.Computability.Complexity.FineGrained.SparseCountingScale
+import CslibFrontier.Computability.Complexity.FineGrained.WeakExponentialTimeHypothesis
 import CslibFrontier.Tactic.EncLen
 
 /-! Exercise the power-budget search on a native counter with a superpolynomial allowance
-and use the size-to-variable transfer for a counting lower bound. -/
+and use the variable-count formulations of the decision and counting hypotheses. -/
 
 section
 
@@ -23,6 +24,12 @@ open Cslib Cslib.Complexity Cslib.Logic.PL Turing.MultiTapeTM
 example (h : SH) :
     ¬ ComputableInPowerExpTime SharpThreeSAT encCNF encNat CNF.numVars (1 / 2) :=
   (SharpSH_iff_WeakSharpETH.mp h.sharpSH) _ (by norm_num) (by norm_num)
+
+example (h : SH) : ¬ DecidableInPowerExpTime ThreeSAT encCNF CNF.numVars (1 / 2) :=
+  (SH_iff_WeakETH.mp h) _ (by norm_num) (by norm_num)
+
+example {k : ℕ} (hk : 3 ≤ k) : WeakETH ↔ WeakKETH k :=
+  SH_iff_WeakETH.symm.trans (SH_iff_WeakKETH hk)
 
 end
 
@@ -136,5 +143,14 @@ example (hhard : ∀ q : ℝ, 0 < q → q < 1 →
   obtain ⟨q, hq, hq1, hcount⟩ :=
     hthree.SharpKSAT_numVars_of_size (by decide) (by norm_num) (by norm_num)
   exact hhard q hq hq1 (by simpa only [SharpKSAT_three] using hcount)
+
+-- The decision transfer gives a size lower bound from the corresponding variable hypothesis.
+example (hhard : ∀ q : ℝ, 0 < q → q < 1 →
+    ¬ DecidableInPowerExpTime (KSAT 3) encCNF CNF.numVars q) :
+    ¬ DecidableInPowerExpTime (KSAT 3) encCNF (fun φ => φ.numVars + φ.length) (1 / 2) := by
+  intro h
+  obtain ⟨q, hq, hq1, hdec⟩ :=
+    h.KSAT_numVars_of_size (by decide) (by norm_num) (by norm_num)
+  exact hhard q hq hq1 hdec
 
 end CslibFrontierTests.CountingPowerSearch

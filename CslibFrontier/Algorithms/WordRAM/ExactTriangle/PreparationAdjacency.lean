@@ -77,7 +77,7 @@ theorem instance_adjacency {n D g p : ℕ} (values : ℕ → ℤ)
     ⟨5 + 5 * N, base + 6, n, D, p, idx.piece * B, min B (n - idx.piece * B), idx.residue.val⟩
   let A' := { A with src := 5 + 4 * N, dst := base + 6 + n * D }
   have hp0 : p ≠ 0 := (Nat.mem_sqrtPrimeWindow_iff_sq.mp hp).1.ne_zero
-  obtain ⟨-, hL, hR⟩ := instance_readback values wAB hp0 hAB hD hDn hg h idx hidx
+  obtain ⟨-, hL, hR, -⟩ := instance_readback values wAB hp0 hAB hD hDn hg h idx hidx
   change (Block.mk A.dst (n * D)).Realizes y.mem
     (fun j => WriteMatrices.entry false A (fun q => R (2 * N + q)) j) at hL
   change (Block.mk A'.dst (n * D)).Realizes y.mem

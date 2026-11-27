@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Complexity.FineGrained.CountingExponen
 public import CslibFrontier.Computability.Complexity.FineGrained.PowerTime
 public import CslibFrontier.Computability.Complexity.FineGrained.CountingSparsificationUniform
 public import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.CountingQuantitative
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.CountingParametersPolyTime
 import CslibFrontier.Logics.Propositional.CNF.ModelCount.DenseRelabel
 import CslibFrontier.Tactic.EncLen
@@ -23,9 +24,9 @@ For a fixed width and inverse saving denominator, one deterministic multitape se
 the disjoint sparse-leaf sum over the original declared variables. The certificate charges
 the encoded input, including the unary declared size, and the supplied leaf computation.
 Its round factor uses the power saving from [MITHardnessGroup2026SH, Lemma 2.2, §2.2].
-A size-bounded counter therefore yields a counter with a fixed power saving in the
-occurring variable count after polynomial-time dense relabeling. The decision transfer and
-its variable-count equivalences remain open in #8457.
+A size-based power saving transfers to the occurring variable count for both counting
+and decision after polynomial-time dense relabeling. The decision hypothesis
+equivalences remain open in #8457.
 
 ## Main results
 
@@ -34,6 +35,8 @@ its variable-count equivalences remain open in #8457.
   and workspace bounds from a certified leaf counter.
 * `ComputableInPowerExpTime.SharpKSAT_numVars_of_size`: transfer a size-based power saving
   to a power saving in occurring variables.
+* `DecidableInPowerExpTime.KSAT_numVars_of_size`: the decision transfer using positive
+  answers from the same sparse-leaf traversal.
 
 ## References
 
@@ -106,20 +109,20 @@ private theorem rounds_bound {d : ℕ} (hd : 1 ≤ d) {φ : CNF ℕ} {n : ℕ}
       exact mul_le_mul_of_nonneg_left (Real.rpow_le_rpow_of_exponent_le one_le_two hq)
         (by norm_num)
 
-/-- For unary declared variable counts, a fixed power budget gives a native counter from
-a certified leaf counter exact on sparse, supported leaves. The time bound holds on all inputs:
-a polynomial-time guard rejects invalid formulas before incurring traversal costs. Workspace is
-polynomial whenever the leaf workspace allowance is polynomial. -/
-theorem exists_computableInO_searchDeclared_powerBudget {C : Type} (encC : C ↪ List Bool)
+private abbrev declaredSearch {C : Type} (k d : ℕ) (g : (C × ℕ) × CNF ℕ → ℕ)
+    (x : C × ℕ × CNF ℕ) : ℕ :=
+  searchDeclaredWith Prod.snd (base k d) (budget d) k k g (x.1, x.2.1) x.2.2
+
+private theorem declaredSearch_resources {C : Type} (encC : C ↪ List Bool)
     {k d : ℕ} (hk : 2 ≤ k) (hd : 1 ≤ d)
     {g t s : (C × ℕ) × CNF ℕ → ℕ} {R Q : C × ℕ × CNF ℕ → ℕ}
     (hcounter : ComputableInO g (encPair (encPair encC encUnary) encCNF) encNat t s)
-    (hcorrect : ∀ (p : C × ℕ) (ψ : CNF ℕ),
+    (hcap : ∀ (p : C × ℕ) (ψ : CNF ℕ),
       let (_, declared) := p
       let M := countingThresholdBase k (countingPowerBudget d declared)
       (∀ c ∈ ψ, c.length ≤ k) → isSparse (countingThreshold M) k ψ = true →
       ψ.vars.toFinset ⊆ Finset.range declared → ψ.length ≤ occBound k M * declared + 1 →
-      g (p, ψ) = ψ.modelCount)
+      g (p, ψ) ≤ 2 ^ ψ.numVars)
     (hresources : ∀ (x : C × ℕ × CNF ℕ) (ψ : CNF ℕ),
       let (context, declared, formula) := x
       let M := countingThresholdBase k (countingPowerBudget d declared)
@@ -128,13 +131,10 @@ theorem exists_computableInO_searchDeclared_powerBudget {C : Type} (encC : C ↪
       (encCNF ψ).length ≤ nodeBound k (countingDepthCoeff k M) formula →
       t ((context, declared), ψ) ≤ R x ∧ s ((context, declared), ψ) ≤ Q x) :
     let encInput := encPair encC (encPair encUnary encCNF)
-    ∃ (count T S : C × ℕ × CNF ℕ → ℕ) (c e : ℕ),
-      ComputableInO count encInput encNat T S ∧
+    ∃ (T S : C × ℕ × CNF ℕ → ℕ) (c e : ℕ),
+      ComputableInO (declaredSearch k d g) encInput encNat T S ∧
       (PolyBounded (fun x => (encInput x).length) Q →
         PolyBounded (fun x => (encInput x).length) S) ∧
-      (∀ x, let (_, declared, formula) := x
-        count x = if validDeclaredInput k declared formula then
-          formula.modelCountOn (Finset.range declared) else 0) ∧
       ∀ x, let (_, declared, _) := x
         (T x : ℝ) ≤ 6 * 2 ^ (3 * (declared + 1 : ℝ) ^ (1 - (d : ℝ)⁻¹)) *
           (c * (((encInput x).length : ℝ) + 1) ^ e + R x) := by
@@ -170,47 +170,90 @@ theorem exists_computableInO_searchDeclared_powerBudget {C : Type} (encC : C ↪
       (hM p) hK (hM2 p) le_rfl (htree p) (fun ψ => g (p, ψ)) x.2.2 i).2.2.2 hactive
     have hsupport := hv.trans (validDeclaredInput_eq_true_iff.mp hx).2
     have hclause := hl.trans (Nat.add_le_add_right (Nat.mul_le_mul_left _ (hvars x hx)) 1)
-    refine ⟨?_, hresources x ψ hw hactive.2 hsupport hclause hlen⟩
-    rw [hcorrect p ψ hw hactive.2 hsupport hclause]
-    exact CNF.modelCount_le_two_pow_numVars ψ
+    exact ⟨hcap p ψ hw hactive.2 hsupport hclause,
+      hresources x ψ hw hactive.2 hsupport hclause hlen⟩
   obtain ⟨c, e, hc, hs⟩ := exists_computableInO_searchDeclaredWith (MOf := base k d) hB hθ
     hM hK hM2 le_rfl htree (depth_polyBounded encC hk d) hcounter
     (fun x hx i _ hi => (hleaf x hx i hi).1)
     (fun x hx i _ hi => (hleaf x hx i hi).2.1)
     (fun x hx i _ hi => (hleaf x hx i hi).2.2)
-  refine ⟨_, _, _, c, e, hc, hs, ?_, ?_⟩
-  · rintro ⟨context, declared, formula⟩
-    exact searchDeclaredWith_eq_ite_modelCountOn_of_normalized
-      (hM _) hK (hM2 _) le_rfl (htree _)
-      (fun ψ _ hw hsp hsub hlen => hcorrect _ ψ hw hsp hsub hlen) formula
-  · rintro ⟨context, declared, formula⟩
-    let x : C × ℕ × CNF ℕ := (context, declared, formula)
-    let W := c * ((encInput x).length + 1) ^ e
-    let Y : ℝ := 2 ^ (3 * (declared + 1 : ℝ) ^ (1 - (d : ℝ)⁻¹))
-    let E : ℝ := (W : ℝ) + R x
-    have hY : 1 ≤ Y := Real.one_le_rpow one_le_two (by positivity)
-    have hE : 0 ≤ E := by dsimp [E]; positivity
-    have hfirst : (W : ℝ) ≤ Y * E :=
-      (le_add_of_nonneg_right (Nat.cast_nonneg (R x))).trans (le_mul_of_one_le_left hE hY)
-    have hE_eq : E = (c : ℝ) * (((encInput x).length : ℝ) + 1) ^ e + R x := by
-      dsimp only [E, W]
-      push_cast
-      rfl
-    change ((W + (if validDeclaredInput k declared formula then
-      (rounds (budget d (context, declared)) formula + 1) * (W + R x) else 0) : ℕ) : ℝ) ≤
-      6 * Y * _
-    rw [← hE_eq]
-    by_cases hx : validDeclaredInput k declared formula = true
-    · have hr := rounds_bound hd (hvars x hx)
-      let q := rounds (budget d (context, declared)) formula + 1
-      rw [ite_eq_left hx, Nat.cast_add W (q * (W + R x)), Nat.cast_mul q (W + R x),
-        Nat.cast_add W (R x)]
-      calc
-        _ ≤ Y * E + 5 * Y * E := add_le_add hfirst
-          (mul_le_mul hr (show (W : ℝ) + R x ≤ E from le_rfl) (by positivity) (by positivity))
-        _ = _ := by ring
-    · rw [ite_eq_right hx, Nat.add_zero]
-      exact hfirst.trans (by nlinarith [mul_nonneg (zero_le_one.trans hY) hE])
+  refine ⟨_, _, c, e, hc, hs, ?_⟩
+  rintro ⟨context, declared, formula⟩
+  let x : C × ℕ × CNF ℕ := (context, declared, formula)
+  let W := c * ((encInput x).length + 1) ^ e
+  let Y : ℝ := 2 ^ (3 * (declared + 1 : ℝ) ^ (1 - (d : ℝ)⁻¹))
+  let E : ℝ := (W : ℝ) + R x
+  have hY : 1 ≤ Y := Real.one_le_rpow one_le_two (by positivity)
+  have hE : 0 ≤ E := by dsimp [E]; positivity
+  have hfirst : (W : ℝ) ≤ Y * E :=
+    (le_add_of_nonneg_right (Nat.cast_nonneg (R x))).trans (le_mul_of_one_le_left hE hY)
+  have hE_eq : E = (c : ℝ) * (((encInput x).length : ℝ) + 1) ^ e + R x := by
+    dsimp only [E, W]
+    push_cast
+    rfl
+  change ((W + (if validDeclaredInput k declared formula then
+    (rounds (budget d (context, declared)) formula + 1) * (W + R x) else 0) : ℕ) : ℝ) ≤
+    6 * Y * _
+  rw [← hE_eq]
+  by_cases hx : validDeclaredInput k declared formula = true
+  · have hr := rounds_bound hd (hvars x hx)
+    let q := rounds (budget d (context, declared)) formula + 1
+    rw [ite_eq_left hx, Nat.cast_add W (q * (W + R x)), Nat.cast_mul q (W + R x),
+      Nat.cast_add W (R x)]
+    calc
+      _ ≤ Y * E + 5 * Y * E := add_le_add hfirst
+        (mul_le_mul hr (show (W : ℝ) + R x ≤ E from le_rfl) (by positivity) (by positivity))
+      _ = _ := by ring
+  · rw [ite_eq_right hx, Nat.add_zero]
+    exact hfirst.trans (by nlinarith [mul_nonneg (zero_le_one.trans hY) hE])
+
+/-- For unary declared variable counts, a fixed power budget gives a native counter from
+a certified leaf counter exact on sparse, supported leaves. The time bound holds on all inputs:
+a polynomial-time guard rejects invalid formulas before incurring traversal costs. Workspace is
+polynomial whenever the leaf workspace allowance is polynomial. -/
+theorem exists_computableInO_searchDeclared_powerBudget {C : Type} (encC : C ↪ List Bool)
+    {k d : ℕ} (hk : 2 ≤ k) (hd : 1 ≤ d)
+    {g t s : (C × ℕ) × CNF ℕ → ℕ} {R Q : C × ℕ × CNF ℕ → ℕ}
+    (hcounter : ComputableInO g (encPair (encPair encC encUnary) encCNF) encNat t s)
+    (hcorrect : ∀ (p : C × ℕ) (ψ : CNF ℕ),
+      let (_, declared) := p
+      let M := countingThresholdBase k (countingPowerBudget d declared)
+      (∀ c ∈ ψ, c.length ≤ k) → isSparse (countingThreshold M) k ψ = true →
+      ψ.vars.toFinset ⊆ Finset.range declared → ψ.length ≤ occBound k M * declared + 1 →
+      g (p, ψ) = ψ.modelCount)
+    (hresources : ∀ (x : C × ℕ × CNF ℕ) (ψ : CNF ℕ),
+      let (context, declared, formula) := x
+      let M := countingThresholdBase k (countingPowerBudget d declared)
+      (∀ c ∈ ψ, c.length ≤ k) → isSparse (countingThreshold M) k ψ = true →
+      ψ.vars.toFinset ⊆ Finset.range declared → ψ.length ≤ occBound k M * declared + 1 →
+      (encCNF ψ).length ≤ nodeBound k (countingDepthCoeff k M) formula →
+      t ((context, declared), ψ) ≤ R x ∧ s ((context, declared), ψ) ≤ Q x) :
+    let encInput := encPair encC (encPair encUnary encCNF)
+    ∃ (count T S : C × ℕ × CNF ℕ → ℕ) (c e : ℕ),
+      ComputableInO count encInput encNat T S ∧
+      (PolyBounded (fun x => (encInput x).length) Q →
+        PolyBounded (fun x => (encInput x).length) S) ∧
+      (∀ x, let (_, declared, formula) := x
+        count x = if validDeclaredInput k declared formula then
+          formula.modelCountOn (Finset.range declared) else 0) ∧
+      ∀ x, let (_, declared, _) := x
+        (T x : ℝ) ≤ 6 * 2 ^ (3 * (declared + 1 : ℝ) ^ (1 - (d : ℝ)⁻¹)) *
+          (c * (((encInput x).length : ℝ) + 1) ^ e + R x) := by
+  intro encInput
+  obtain ⟨T, S, c, e, h, hs, ht⟩ := declaredSearch_resources encC hk hd
+    (g := g) (t := t) (s := s) (R := R) (Q := Q) hcounter
+    (fun p ψ hw hsp hsub hlen => by
+      rw [hcorrect p ψ hw hsp hsub hlen]
+      exact CNF.modelCount_le_two_pow_numVars ψ) hresources
+  refine ⟨declaredSearch k d g, T, S, c, e, h, hs, ?_, ht⟩
+  rintro ⟨context, declared, formula⟩
+  have hK : 1 ≤ k := by omega
+  have hM2 := two_le_countingThresholdBase k (countingPowerBudget d declared)
+  exact searchDeclaredWith_eq_ite_modelCountOn_of_normalized
+    (NOf := Prod.snd) (MOf := base k d) (BOf := budget d) (p := (context, declared)) (g := g)
+    ((by decide : 1 ≤ 2).trans hM2) hK hM2 le_rfl
+    (countingTreeBound_countingThresholdBase hK (one_le_countingPowerBudget d declared))
+    (fun ψ _ hw hsp hsub hlen => hcorrect _ ψ hw hsp hsub hlen) formula
 
 private theorem exists_budget_power_lt_one {p : ℝ} (hp1 : p < 1) (k : ℕ) :
     ∃ d : ℕ, 1 ≤ d ∧ (1 + (2 * k : ℝ) / d) * p < 1 := by
@@ -224,22 +267,14 @@ private theorem exists_budget_power_lt_one {p : ℝ} (hp1 : p < 1) (k : ℕ) :
   rw [add_mul, one_mul, div_mul_eq_mul_div]
   linarith
 
-/-- A power-saving counter for fixed-width CNF measured by variables plus clauses gives a
-power-saving counter measured by the unary declared variable count. The formula may omit
-declared variables. Invalid width or support yields zero, with the same time bound.
-
-This is the declared-input counting step of [MITHardnessGroup2026SH, §2.2, Corollary 2.3].
-The polynomial factor uses the complete binary encoding with a unary declared count. -/
-private theorem computableInPowerExpTime_declaredCount_of_size {k : ℕ} (hk : 2 ≤ k) {p : ℝ}
-    (hp : 0 < p) (hp1 : p < 1)
-    (h : ComputableInPowerExpTime (SharpKSAT k) encCNF encNat (fun φ => φ.numVars + φ.length) p) :
-    ∃ q : ℝ, 0 < q ∧ q < 1 ∧ ComputableInPowerExpTime
-      (fun x : Unit × ℕ × CNF ℕ =>
-        let (_, declared, formula) := x
-        if validDeclaredInput k declared formula then formula.modelCountOn (Finset.range declared)
-        else 0)
-      (encPair encUnit (encPair encUnary encCNF)) encNat
-      (fun x : Unit × ℕ × CNF ℕ => x.2.1) q := by
+private theorem computableInPowerExpTime_declaredSearch_of_size {k : ℕ} (hk : 2 ≤ k)
+    {p : ℝ} (hp : 0 < p) (hp1 : p < 1) {g : CNF ℕ → ℕ}
+    (hcap : ∀ φ, g φ ≤ 2 ^ φ.numVars)
+    (h : ComputableInPowerExpTime g encCNF encNat (fun φ => φ.numVars + φ.length) p) :
+    ∃ (d : ℕ) (q : ℝ), 1 ≤ d ∧ 0 < q ∧ q < 1 ∧
+      ComputableInPowerExpTime (declaredSearch k d (g ∘ Prod.snd))
+        (encPair encUnit (encPair encUnary encCNF)) encNat
+        (fun x : Unit × ℕ × CNF ℕ => x.2.1) q := by
   let encInput := encPair encUnit (encPair encUnary encCNF)
   let encLeaf := encPair (encPair encUnit encUnary) encCNF
   obtain ⟨d, hd, hdensity⟩ := exists_budget_power_lt_one hp1 k
@@ -247,11 +282,11 @@ private theorem computableInPowerExpTime_declaredCount_of_size {k : ℕ} (hk : 2
   let q : ℝ := max (1 - (d : ℝ)⁻¹) (b * p)
   have hb : (1 : ℝ) ≤ b := le_add_of_nonneg_right (by positivity)
   have hd0 : (0 : ℝ) < d := zero_lt_one.trans_le (by exact_mod_cast hd)
-  refine ⟨q, (mul_pos (zero_lt_one.trans_le hb) hp).trans_le (le_max_right _ _),
+  refine ⟨d, q, hd, (mul_pos (zero_lt_one.trans_le hb) hp).trans_le (le_max_right _ _),
     max_lt_iff.mpr ⟨sub_lt_self _ (inv_pos.mpr hd0), hdensity⟩, ?_⟩
   have hproj : ComputableInPolyTime (Prod.snd : (Unit × ℕ) × CNF ℕ → CNF ℕ) encLeaf encCNF :=
     ComputableInPolyTime.snd _ _
-  have hleaf : ComputableInPowerExpTime ((SharpKSAT k) ∘ Prod.snd) encLeaf encNat
+  have hleaf : ComputableInPowerExpTime (g ∘ Prod.snd) encLeaf encNat
       (fun x => x.2.numVars + x.2.length) p := by
     simpa only [one_mul] using h.comp_polyTime hproj (K := 0) (b := 1)
       (μA := fun x => x.2.numVars + x.2.length) (fun _ => by simp) zero_le_one hp.le
@@ -283,9 +318,9 @@ private theorem computableInPowerExpTime_declaredCount_of_size {k : ℕ} (hk : 2
     Real.one_le_rpow one_le_two (by positivity)
   have hX (x : Unit × ℕ × CNF ℕ) : 1 ≤ X x :=
     le_add_of_nonneg_left (Nat.cast_nonneg _)
-  obtain ⟨count, T, S, c, f, hm, _, hspec, htime⟩ :=
-    exists_computableInO_searchDeclared_powerBudget encUnit hk hd (R := R) (Q := R)
-      hclock (fun _ ψ hw _ _ _ => SharpKSAT_of_width hw) (by
+  obtain ⟨T, S, c, f, hm, _, htime⟩ :=
+    declaredSearch_resources encUnit hk hd (R := R) (Q := R)
+      hclock (fun _ ψ _ _ _ _ => hcap ψ) (by
         rintro ⟨context, declared, formula⟩ ψ _ _ hsupport hclauses hbits
         let x : Unit × ℕ × CNF ℕ := (context, declared, formula)
         have hvars : ψ.numVars ≤ declared := by
@@ -369,10 +404,107 @@ private theorem computableInPowerExpTime_declaredCount_of_size {k : ℕ} (hk : 2
         push_cast
         exact mul_le_mul_of_nonneg_left
           (mul_le_mul_of_nonneg_right hYZ (by positivity)) (by positivity)
-  have hm' := hm.of_enc_eq (fun x => congrArg encNat (hspec x).symm)
   refine ⟨3 + D, f', ?_⟩
-  exact (ComputableInTimeO.of_computableInO hm' htime').mono (6 * m)
+  exact (ComputableInTimeO.of_computableInO hm htime').mono (6 * m)
     (fun x => by push_cast; exact le_add_of_nonneg_right (by positivity)) (fun _ => by positivity)
+
+/-- A power-saving counter for fixed-width CNF measured by variables plus clauses gives a
+power-saving counter measured by the unary declared variable count. The formula may omit
+declared variables. Invalid width or support yields zero, with the same time bound.
+
+This is the declared-input counting step of [MITHardnessGroup2026SH, §2.2, Corollary 2.3].
+The polynomial factor uses the complete binary encoding with a unary declared count. -/
+private theorem computableInPowerExpTime_declaredCount_of_size {k : ℕ} (hk : 2 ≤ k) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1)
+    (h : ComputableInPowerExpTime (SharpKSAT k) encCNF encNat (fun φ => φ.numVars + φ.length) p) :
+    ∃ q : ℝ, 0 < q ∧ q < 1 ∧ ComputableInPowerExpTime
+      (fun x : Unit × ℕ × CNF ℕ =>
+        let (_, declared, formula) := x
+        if validDeclaredInput k declared formula then formula.modelCountOn (Finset.range declared)
+        else 0)
+      (encPair encUnit (encPair encUnary encCNF)) encNat
+      (fun x : Unit × ℕ × CNF ℕ => x.2.1) q := by
+  obtain ⟨d, q, _, hq, hq1, hsearch⟩ :=
+    computableInPowerExpTime_declaredSearch_of_size hk hp hp1 (SharpKSAT_le_two_pow_numVars k) h
+  refine ⟨q, hq, hq1, ?_⟩
+  have hK : 1 ≤ k := by omega
+  have hcorrect : declaredSearch k d (SharpKSAT k ∘ Prod.snd) =
+      (fun x : Unit × ℕ × CNF ℕ =>
+        let (_, declared, formula) := x
+        if validDeclaredInput k declared formula then formula.modelCountOn (Finset.range declared)
+        else 0) := by
+    funext x
+    obtain ⟨context, declared, formula⟩ := x
+    have hM2 := two_le_countingThresholdBase k (countingPowerBudget d declared)
+    exact searchDeclaredWith_eq_ite_modelCountOn
+      (NOf := Prod.snd) (MOf := base k d) (BOf := budget d) (p := (context, declared))
+      (g := SharpKSAT k ∘ Prod.snd) ((by decide : 1 ≤ 2).trans hM2) hK hM2 le_rfl
+      (countingTreeBound_countingThresholdBase hK (one_le_countingPowerBudget d declared))
+      (fun _ hw _ _ => SharpKSAT_of_width hw) formula
+  rwa [hcorrect] at hsearch
+
+private abbrev declaredSat (k : ℕ) : Set (Unit × ℕ × CNF ℕ) :=
+  {x | let (_, declared, formula) := x
+       validDeclaredInput k declared formula = true ∧ formula.Satisfiable}
+
+private theorem decidableInPowerExpTime_declaredSat_of_size {k : ℕ} (hk : 2 ≤ k) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1)
+    (h : DecidableInPowerExpTime (KSAT k) encCNF (fun φ => φ.numVars + φ.length) p) :
+    ∃ q : ℝ, 0 < q ∧ q < 1 ∧ DecidableInPowerExpTime (declaredSat k)
+      (encPair encUnit (encPair encUnary encCNF)) (fun x => x.2.1) q := by
+  let encInput := encPair encUnit (encPair encUnary encCNF)
+  obtain ⟨C, e, h⟩ := h
+  obtain ⟨answer, hanswer, ha⟩ := decidableInTimeO_iff_exists_computableInTimeO.mp h
+  have hb : ComputableInPowerExpTime answer encCNF encBool
+      (fun φ => φ.numVars + φ.length) p := ⟨C, e, ha⟩
+  have hnat : ComputableInPowerExpTime Bool.toNat encBool encNat (fun _ => 0) 0 := by
+    have hc : ComputableInPolyTime Bool.toNat encBool encNat := .of_finite _
+    obtain ⟨f, hf⟩ := ComputableInExpTime.of_computableInPolyTime (μ := fun _ => 0) hc
+    exact ⟨0, f, by simpa [ComputableInExpTime] using hf⟩
+  let g := Bool.toNat ∘ answer
+  have hg : ComputableInPowerExpTime g encCNF encNat (fun φ => φ.numVars + φ.length) p := by
+    simpa only [mul_zero, max_eq_left hp.le] using
+      hnat.comp hb (K := 0) (b := 0) (fun _ => by norm_num) le_rfl
+  have hcap (φ : CNF ℕ) : g φ ≤ 2 ^ φ.numVars :=
+    (Bool.toNat_le (answer φ)).trans Nat.one_le_two_pow
+  have hpos (φ : CNF ℕ) : 0 < g φ ↔ φ ∈ KSAT k := by
+    rw [hanswer φ]
+    change 0 < (answer φ).toNat ↔ answer φ = true
+    cases answer φ <;> decide
+  obtain ⟨d, q, _, hq, hq1, hsearch⟩ :=
+    computableInPowerExpTime_declaredSearch_of_size hk hp hp1 hcap hg
+  let search := declaredSearch (C := Unit) k d (g ∘ Prod.snd)
+  have hK : 1 ≤ k := by omega
+  have hlen : PolyBounded (fun x => (encInput x).length)
+      (fun x => (encNat (search x)).length) := by
+    refine (PolyBounded.self.add (.const 1)).mono ?_
+    rintro ⟨context, declared, formula⟩
+    have hM2 := two_le_countingThresholdBase k (countingPowerBudget d declared)
+    apply (length_encNat_searchDeclaredWith_le
+      (NOf := Prod.snd) (MOf := base k d) (BOf := budget d) (p := (context, declared))
+      ((by decide : 1 ≤ 2).trans hM2) hK hM2 le_rfl
+      (countingTreeBound_countingThresholdBase hK (one_le_countingPowerBudget d declared))
+      (g ∘ Prod.snd) formula).trans
+    enc_len [encInput]
+  have hset : {x | decide (0 < search x) = true} = declaredSat k := by
+    ext x
+    obtain ⟨context, declared, formula⟩ := x
+    change (decide (0 < search (context, declared, formula)) = true) ↔
+      validDeclaredInput k declared formula = true ∧ formula.Satisfiable
+    rw [decide_eq_true_eq]
+    have hM2 := two_le_countingThresholdBase k (countingPowerBudget d declared)
+    refine searchDeclaredWith_pos_iff_of_normalized
+      (NOf := Prod.snd) (MOf := base k d) (BOf := budget d) (p := (context, declared))
+      ((by decide : 1 ≤ 2).trans hM2) hK hM2 le_rfl
+      (countingTreeBound_countingThresholdBase hK (one_le_countingPowerBudget d declared))
+      (g := g ∘ Prod.snd) ?_ formula
+    intro ψ _ hw _ _ _
+    exact (hpos ψ).trans (and_iff_right hw)
+  obtain ⟨D, f, hsearch⟩ := hsearch
+  obtain ⟨f', hdec⟩ := DecidableInTimeO.of_computableInTimeO_polyBounded
+    (fun _ => by positivity) hsearch hlen ComputableInPolyTime.binary_pos
+  rw [hset] at hdec
+  exact ⟨q, hq, hq1, D, f', hdec⟩
 
 end Cslib.Complexity.CountingSparsify
 
@@ -380,13 +512,26 @@ namespace Cslib.Complexity
 
 open Cslib.Logic.PL Turing.MultiTapeTM
 
+private abbrev prepareDense (φ : CNF ℕ) : Unit × ℕ × CNF ℕ :=
+  ((), φ.numVars, φ.denseRelabel)
+
+private theorem computableInPolyTime_prepareDense :
+    ComputableInPolyTime prepareDense encCNF (encPair encUnit (encPair encUnary encCNF)) :=
+  (ComputableInPolyTime.const ()).prod
+    (SAT.computableInPolyTime_numVars.prod SAT.computableInPolyTime_denseRelabel)
+
+private theorem valid_dense_iff_width {k : ℕ} (φ : CNF ℕ) :
+    CNF.validDeclaredInput k φ.numVars φ.denseRelabel = true ↔
+      ∀ c ∈ φ, c.length ≤ k := by
+  rw [CNF.validDeclaredInput_eq_true_iff, CNF.vars_denseRelabel_toFinset,
+    and_iff_left (Finset.Subset.refl _), CNF.all_length_le_denseRelabel]
+
 /-- The contrapositive size-to-variable counting step of
 [MITHardnessGroup2026SH, v2, §2.2, Corollary 2.3], extended to fixed widths `k ≥ 2`.
 A power saving in variables plus clauses yields a power saving in occurring variables.
 
 Polynomial-time dense relabeling preserves clause width and model count. The polynomial factor
-charges the original encoded length, including large labels and repeated clauses. The decision
-transfer and its variable-count equivalences remain open in #8457. -/
+charges the original encoded length, including large labels and repeated clauses. -/
 theorem ComputableInPowerExpTime.SharpKSAT_numVars_of_size {k : ℕ} (hk : 2 ≤ k) {p : ℝ}
     (hp : 0 < p) (hp1 : p < 1)
     (h : ComputableInPowerExpTime (SharpKSAT k) encCNF encNat (fun φ => φ.numVars + φ.length) p) :
@@ -394,27 +539,40 @@ theorem ComputableInPowerExpTime.SharpKSAT_numVars_of_size {k : ℕ} (hk : 2 ≤
       ComputableInPowerExpTime (SharpKSAT k) encCNF encNat CNF.numVars q := by
   obtain ⟨q, hq, hq1, hcount⟩ := CountingSparsify.computableInPowerExpTime_declaredCount_of_size
     hk hp hp1 h
-  let prepare (φ : CNF ℕ) : Unit × ℕ × CNF ℕ := ((), φ.numVars, φ.denseRelabel)
-  have hprep : ComputableInPolyTime prepare encCNF (encPair encUnit (encPair encUnary encCNF)) :=
-    (ComputableInPolyTime.const ()).prod
-      (SAT.computableInPolyTime_numVars.prod SAT.computableInPolyTime_denseRelabel)
-  have hcomp := hcount.comp_polyTime hprep (K := 0) (b := 1) (μA := CNF.numVars)
-    (fun φ => by simp [prepare]) zero_le_one hq.le
+  have hcomp := hcount.comp_polyTime computableInPolyTime_prepareDense
+    (K := 0) (b := 1) (μA := CNF.numVars) (fun _ => by simp) zero_le_one hq.le
   have hcount_eq : (fun x : Unit × ℕ × CNF ℕ =>
       let (_, declared, formula) := x
       if CNF.validDeclaredInput k declared formula then
-        formula.modelCountOn (Finset.range declared) else 0) ∘ prepare = SharpKSAT k := by
+        formula.modelCountOn (Finset.range declared) else 0) ∘ prepareDense = SharpKSAT k := by
     funext φ
     change (if CNF.validDeclaredInput k φ.numVars φ.denseRelabel then
       φ.denseRelabel.modelCountOn (Finset.range φ.numVars) else 0) = SharpKSAT k φ
-    have hv : CNF.validDeclaredInput k φ.numVars φ.denseRelabel = true ↔
-        ∀ c ∈ φ, c.length ≤ k := by
-      rw [CNF.validDeclaredInput_eq_true_iff, CNF.vars_denseRelabel_toFinset,
-        and_iff_left (Finset.Subset.refl _), CNF.all_length_le_denseRelabel]
+    have hv := valid_dense_iff_width (k := k) φ
     by_cases hw : ∀ c ∈ φ, c.length ≤ k
     · rw [ite_eq_left (hv.mpr hw), CNF.modelCountOn_denseRelabel, SharpKSAT_of_width hw]
     · rw [ite_eq_right (fun hvalid => hw (hv.mp hvalid)), SharpKSAT_of_not_width hw]
   refine ⟨q, hq, hq1, ?_⟩
   simpa only [one_mul, hcount_eq] using hcomp
+
+/-- The contrapositive size-to-variable decision step of
+[MITHardnessGroup2026SH, v2, §2.2, Corollary 2.3], for fixed widths `k ≥ 2`.
+A solver with a fixed power saving in occurring variables plus clauses yields a solver with a
+fixed power saving in occurring variables. The polynomial factor charges the original encoded
+length. -/
+theorem DecidableInPowerExpTime.KSAT_numVars_of_size {k : ℕ} (hk : 2 ≤ k) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1)
+    (h : DecidableInPowerExpTime (KSAT k) encCNF (fun φ => φ.numVars + φ.length) p) :
+    ∃ q : ℝ, 0 < q ∧ q < 1 ∧ DecidableInPowerExpTime (KSAT k) encCNF CNF.numVars q := by
+  obtain ⟨q, hq, hq1, hdec⟩ := CountingSparsify.decidableInPowerExpTime_declaredSat_of_size
+    hk hp hp1 h
+  have hmem (φ : CNF ℕ) : φ ∈ KSAT k ↔ prepareDense φ ∈ CountingSparsify.declaredSat k := by
+    change ((∀ c ∈ φ, c.length ≤ k) ∧ φ.Satisfiable) ↔
+      (CNF.validDeclaredInput k φ.numVars φ.denseRelabel = true ∧ φ.denseRelabel.Satisfiable)
+    rw [valid_dense_iff_width, CNF.satisfiable_denseRelabel]
+  refine ⟨q, hq, hq1, ?_⟩
+  simpa only [one_mul] using DecidableInPowerExpTime.of_polyTime_reduction
+    (μA := CNF.numVars) computableInPolyTime_prepareDense hmem (K := 0) (b := 1)
+    (fun _ => by simp) zero_le_one hq.le hdec
 
 end Cslib.Complexity

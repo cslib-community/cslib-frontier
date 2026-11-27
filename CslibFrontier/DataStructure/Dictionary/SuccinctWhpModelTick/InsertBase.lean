@@ -462,37 +462,29 @@ theorem fastInsertFresh_base {c U V n_max : ℕ} (hnU : n_max ≤ U)
   set lIdx := fs.liveSliceIdx b
   set fsAlloc := fastInsertAlloc n_max b X fs
   set fsIns := fastInsertFresh c n_max b X q_val v rKey fp lIdx hasFpCollision fsAlloc
-  have hfsIns_bkt : fsIns.bktCount = Function.update fs.bktCount b (X + 1) := by
-    dsimp only [fsIns, fastInsertFresh, fsAlloc, fastInsertAlloc]; split_ifs <;> rfl
-  have hfsIns_stk : fsIns.poolFreeStack = fs.poolFreeStack := by
-    dsimp only [fsIns, fastInsertFresh, fsAlloc, fastInsertAlloc]; split_ifs <;> rfl
-  have hfsIns_top : fsIns.poolFreeTop =
-      if cf ≤ X then fs.poolFreeTop - 1 else fs.poolFreeTop := by
-    dsimp only [fsIns, fastInsertFresh, fsAlloc, fastInsertAlloc]; split_ifs <;> rfl
-  have hfsIns_bp : fsIns.backPtr =
-      if cf ≤ X then
+  set p_new := fsAlloc.physSlot n_max b X
+  obtain ⟨hfsIns_bkt, hfsIns_stk, hfsIns_top, hfsIns_bp, hfsIns_own, hp_new_eq, hfsIns_q,
+      hfsIns_v⟩ :
+      fsIns.bktCount = Function.update fs.bktCount b (X + 1) ∧
+      fsIns.poolFreeStack = fs.poolFreeStack ∧
+      fsIns.poolFreeTop = (if cf ≤ X then fs.poolFreeTop - 1 else fs.poolFreeTop) ∧
+      fsIns.backPtr = (if cf ≤ X then
         Function.update fs.backPtr b
           (Function.update (fs.backPtr b) (X - cf) (fs.poolFreeStack (fs.poolFreeTop - 1)))
-      else fs.backPtr := by
-    dsimp only [fsIns, fastInsertFresh, fsAlloc, fastInsertAlloc]; split_ifs <;> rfl
-  have hfsIns_own : fsIns.poolOwner =
-      if cf ≤ X then
+        else fs.backPtr) ∧
+      fsIns.poolOwner = (if cf ≤ X then
         Function.update fs.poolOwner (fs.poolFreeStack (fs.poolFreeTop - 1))
           (b * capBackWhp n_max + (X - cf))
-      else fs.poolOwner := by
-    dsimp only [fsIns, fastInsertFresh, fsAlloc, fastInsertAlloc]; split_ifs <;> rfl
+        else fs.poolOwner) ∧
+      fsIns.physSlot n_max b X = p_new ∧
+      fsIns.quotArr = Function.update fs.quotArr p_new q_val ∧
+      fsIns.valArr = Function.update fs.valArr p_new v := by
+    dsimp only [fsIns, fastInsertFresh, p_new, FastState.physSlot, fsAlloc, fastInsertAlloc, cf]
+    by_cases hc : hasFpCollision = true <;> by_cases hcap : capFrontWhp n_max ≤ X <;>
+      simp only [hc, hcap, Bool.false_eq_true, ↓reduceIte, true_and]
   obtain ⟨hphys_pair, hpoolTop', hbp_val', hfree_lt', hbp_inj', hfree_inj', hdisj', hcons'⟩ :=
     pool_alloc_new hv.toCore hb hX_lt htop_pos hfsIns_bkt hfsIns_stk hfsIns_top hfsIns_bp
       hfsIns_own
-  set p_new := fsAlloc.physSlot n_max b X
-  have hp_new_eq : fsIns.physSlot n_max b X = p_new := by
-    dsimp only [fsIns, fastInsertFresh, p_new, FastState.physSlot]; split_ifs <;> rfl
-  have hfsIns_q : fsIns.quotArr = Function.update fs.quotArr p_new q_val := by
-    have hqa : fsAlloc.quotArr = fs.quotArr := rfl
-    dsimp only [fsIns, fastInsertFresh]; rw [hqa]; split_ifs <;> rfl
-  have hfsIns_v : fsIns.valArr = Function.update fs.valArr p_new v := by
-    have hva : fsAlloc.valArr = fs.valArr := rfl
-    dsimp only [fsIns, fastInsertFresh]; rw [hva]; split_ifs <;> rfl
   have hqv_pres : ∀ b' < numBucketsWhp n_max, ∀ loc < fs.bktCount b',
       fsIns.quotArr (fsIns.physSlot n_max b' loc) = fs.quotArr (fs.physSlot n_max b' loc) ∧
       fsIns.valArr (fsIns.physSlot n_max b' loc) = fs.valArr (fs.physSlot n_max b' loc) := by

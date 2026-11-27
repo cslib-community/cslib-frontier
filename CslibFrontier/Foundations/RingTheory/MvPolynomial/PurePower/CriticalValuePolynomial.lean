@@ -15,6 +15,7 @@ public import Mathlib.Algebra.MvPolynomial.Equiv
 public import Mathlib.Algebra.MvPolynomial.Rename
 public import Mathlib.LinearAlgebra.Matrix.Charpoly.Basic
 public import Mathlib.Algebra.Polynomial.Eval.Defs
+import CslibFrontier.Foundations.Data.MvPolynomial.LastVariable
 
 /-!
 # Characteristic polynomial of the critical-value quotient
@@ -28,6 +29,7 @@ With a symbolic integer parameter, evaluating the coefficients gives the charact
 polynomial of the corresponding normalized quotient over the target ring.
 The relative construction retains a whole parameter block in the coefficients, so
 specialization gives the critical-value polynomial for an individual witness fiber.
+Evaluation of the flattened relative polynomial agrees with evaluation in that fiber.
 The lower relations and deformed objective have parameter degree at most the source degree
 plus one in each coefficient of the witness variables.
 
@@ -200,6 +202,13 @@ the penalty variable at `none` and the original parameters at `some i`. -/
   valuePolynomial hell (fun _ => 0) (X none) (relativeSource F)
     ((totalDegree_relativeSource_le F).trans hF)
 
+/-- The relative critical-value polynomial as one multivariate polynomial. The critical value
+is indexed by `none`, the penalty by `some none`, and parameter `i` by `some (some i)`. -/
+@[expose] noncomputable def flattenedRelativeValuePolynomial (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin n ⊕ κ) ℤ) (hF : F.totalDegree ≤ ell) :
+    MvPolynomial (Option (Option κ)) ℤ :=
+  (optionEquivLeft ℤ (Option κ)).symm (relativeValuePolynomial hell F hF)
+
 private theorem relativeSource_map (F : MvPolynomial (Fin n ⊕ κ) ℤ) (u : T) (x : κ → T) :
     (relativeSource F).map (eval₂Hom (Int.castRingHom T) (fun i => i.elim u x)) =
       (sumRingEquiv ℤ (Fin n) κ F).map (eval₂Hom (Int.castRingHom T) x) := by
@@ -228,6 +237,19 @@ theorem relativeValuePolynomial_map (hell : 1 ≤ ell) (F : MvPolynomial (Fin n 
   simpa only [map_zero, hu, φ, relativeSource_map] using
     valuePolynomial_map φ hell (fun _ => 0) (X none) (relativeSource F)
       ((totalDegree_relativeSource_le F).trans hF)
+
+/-- Evaluating the flattened relative critical-value polynomial agrees with evaluating the
+characteristic polynomial of the specialized fiber at the chosen critical value.
+This applies over any commutative target ring, including modular coefficient rings. -/
+theorem eval₂_flattenedRelativeValuePolynomial (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin n ⊕ κ) ℤ) (hF : F.totalDegree ≤ ell) (y u : T) (x : κ → T) :
+    eval₂ (Int.castRingHom T) (fun i : Option (Option κ) => i.elim y (fun j => j.elim u x))
+      (flattenedRelativeValuePolynomial hell F hF) =
+    (valuePolynomial hell (fun _ => 0) u
+      ((sumRingEquiv ℤ (Fin n) κ F).map (eval₂Hom (Int.castRingHom T) x))
+      ((totalDegree_map_le _ _).trans ((totalDegree_sumRingEquiv_le F).trans hF))).eval y := by
+  rw [flattenedRelativeValuePolynomial, eval₂_optionEquivLeft_symm, ← Polynomial.eval_map,
+    relativeValuePolynomial_map]
 
 end Relative
 

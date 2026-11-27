@@ -9,7 +9,8 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.QueryValues
 public import CslibFrontier.Algorithms.ExactTriangle.PieceBounds
-import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.QuerySpan
+import CslibFrontier.Algorithms.WordRAM.ExactTriangle.PreparationLocality
+import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.Readback
 
 /-!
 # Protected original data for a real record consumer
@@ -44,50 +45,12 @@ theorem record_view {n D g p : ℕ} (values : ℕ → ℤ) (initial y : Data 64)
         ![idx.residue.val, idx.piece, q, Q, base + 6, base + 6 + n * D] j) ∧
       (∀ j < Q, y.mem (q + 2 * j) < n ∧ y.mem (q + 2 * j + 1) < n) ∧
       (∀ j < 5 + 3 * (n * n), y.mem j = initial.mem j) := by
-  let wAB := fun a b : Fin n => values (pairIndex (a, b))
-  let N := n * n
-  let C := fun rho => Nat.count (fun q => (values q % (p : ℤ)).toNat = rho) N
-  let H := numPieces n D g
-  let K := ChunkCatalogue.before C (queryCap n D) p
-  let ord := RecordProduct.recordOrdinal n D g p values idx
-  let base := y.regs Instances.output + ord * (6 + 2 * (n * D))
-  let q := RecordProduct.recordQueries n D p idx
-  let Q := RecordProduct.recordQueryCount n D p values idx
-  obtain ⟨hk, hj⟩ := (mem_instanceIndices wAB idx).mp hidx
-  have hcard : (residueClass wAB p idx.residue).card = C idx.residue.val :=
-    QuerySpec.card_residueClass wAB hp _ (by intro pair; rfl) idx.residue
-  have hchunk : idx.chunk < C idx.residue.val ⌈/⌉ queryCap n D := by
-    simpa only [numChunks, hcard] using hk
-  have hord := ChunkCatalogue.before_add_lt C (queryCap n D) idx.residue.isLt hchunk
-  have hiCount : ord < K * H := by
-    have hh := Nat.mul_le_mul_right H (Nat.succ_le_of_lt hord)
-    change (ChunkCatalogue.before C (queryCap n D) idx.residue.val + idx.chunk) * H + idx.piece <
-      K * H
-    change (ChunkCatalogue.before C (queryCap n D) idx.residue.val + idx.chunk + 1) * H ≤ K * H
-      at hh
-    change idx.piece < H at hj
-    rw [Nat.add_mul, Nat.one_mul] at hh
-    omega
-  have hout : y.regs Instances.output = 5 + 6 * N + p + 2 * N * p + 3 * K := h.2.2.2.1
-  have hheap : y.regs Instances.heap = y.regs Instances.output + K * H * (6 + 2 * (n * D)) :=
-    h.2.2.2.2.2.1.trans (congrArg (fun v => v + K * H * (6 + 2 * (n * D))) hout.symm)
-  have hbase : base + 6 ≤ y.regs Instances.heap := by
-    have hh := Nat.mul_le_mul_right (6 + 2 * (n * D)) (Nat.succ_le_of_lt hiCount)
-    rw [hheap]; dsimp only [base]; nlinarith only [hh]
-  have hqEnd : q + 2 * Q ≤ y.regs Instances.heap := by
-    have hq := RecordProduct.query_end_le_output values hp (by omega) hDn idx hidx
-    change q + 2 * Q ≤ 5 + 6 * N + p + 2 * N * p + 3 * K at hq
-    rw [hheap, hout]; omega
-  have hfirst : idx.piece * pieceSize D g ≤ n := (piece_start_lt hD hg hj).le
-  obtain ⟨hdr, -, -⟩ := PreparationSpec.instance_readback values wAB hp
-    (by intro a b; rfl) hD hDn hg h idx hidx
-  have hcoord := (RecordProduct.output_query_coordinates values wAB hp (by intro a b; rfl)
-    (by omega) hDn h idx.residue idx.chunk hk).1
-  rw [hcard] at hcoord
-  dsimp only
-  refine ⟨by rw [hheap, hout]; dsimp only [N]; omega, hbase, hqEnd, hfirst, ?_, hcoord,
+  have record := RecordProduct.prepared_record values h hD hDn hg hp idx hidx
+  have hpiece := ((mem_instanceIndices _ idx).mp hidx).2
+  exact ⟨h.inputEnd_le_heap,
+    le_trans (Nat.le_add_right _ _) record.recordEnd,
+    record.queryEnd.trans h.output_le_heap, (piece_start_lt hD hg hpiece).le,
+    record.descriptor, record.queryCoordinates,
     fun j hj => h.2.2.2.2.2.2.2.2.2.2.2 j (Or.inl hj)⟩
-  simpa only [base, ord, RecordProduct.recordOrdinal, Q, RecordProduct.recordQueryCount,
-    q, RecordProduct.recordQueries, hout, N, K, C, hcard, Block.Realizes, Block.read] using hdr
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness
