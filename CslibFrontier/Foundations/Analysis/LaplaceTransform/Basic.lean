@@ -73,8 +73,8 @@ order here, so it does not apply.
   `[0, R]` by the Laplace–Stieltjes integral `∫₀^∞ e^{-st} dα(t)`, taken as an improper Riemann–
   Stieltjes integral that may converge only conditionally; `laplace` is a Lebesgue (Bochner)
   integral over `(0, ∞)` and converges only absolutely. Compare:
-  * §1, Corollaries 1a and 1b, p. 37: the integral converges for `re s > σ_c` and diverges for
-    `re s < σ_c`, where `σ_c` is the abscissa of convergence.
+  * §1, Theorem 1, p. 36, and Corollaries 1a and 1b, p. 37: the integral converges for
+    `re s > σ_c` and diverges for `re s < σ_c`, where `σ_c` is the abscissa of convergence.
   * §3, Theorem 3.1, p. 46: absolute convergence at `s₀` gives absolute convergence on
     `re s ≥ re s₀` (`LaplaceConvergent.of_re_le`).
   * §2, Theorem 2.1 and its proof, pp. 38–39: if `α(t) = O(e^{γt})`, then `∫₀^∞ e^{-st} α(t) dt`
