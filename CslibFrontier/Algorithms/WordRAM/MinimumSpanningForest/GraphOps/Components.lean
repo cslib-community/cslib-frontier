@@ -2057,83 +2057,6 @@ theorem compactVertices_isSimple {nOut n : ℕ} {lift : Fin nOut → Fin n}
       rw [hu₁, hv₁, hu₂, hv₂]; exact congrArg (Sym2.map lift) hij
     exact Fin.ext (Fin.mk.inj (hsimp.2 hij_es))
 
-private theorem edgePartition_contractEdgeList_rel {nOut n : ℕ}
-    (lift : Fin nOut → Fin n) (hlift : Function.Injective lift) (L : List (WeightedEdge nOut ℕ)) :
-    (∀ x y : Fin nOut,
-      (edgePartition (contractEdgeList lift L)).rel (lift x) (lift y) = (edgePartition L).rel x y) ∧
-    (∀ u v : Fin n, (∀ x : Fin nOut, lift x ≠ u) →
-      (edgePartition (contractEdgeList lift L)).rel u v = decide (u = v)) := by
-  let R : Fin n → Fin n → Prop := fun a b =>
-    a = b ∨ ∃ x y : Fin nOut, lift x = a ∧ lift y = b ∧ (edgePartition L).rel x y = true
-  have hR_equiv : Equivalence R := ⟨fun _ => .inl rfl,
-    by rintro _ _ (rfl | ⟨x, y, rfl, rfl, hr⟩) <;>
-         [exact .inl rfl; exact .inr ⟨y, x, rfl, rfl, (edgePartition L).symm hr⟩],
-    by rintro _ _ _ (rfl | ⟨x₁, y₁, hx₁, hy₁, hr₁⟩) (rfl | ⟨x₂, y₂, hx₂, hy₂, hr₂⟩)
-       · exact .inl rfl
-       · exact .inr ⟨x₂, y₂, hx₂, hy₂, hr₂⟩
-       · exact .inr ⟨x₁, y₁, hx₁, hy₁, hr₁⟩
-       · obtain rfl : y₁ = x₂ := hlift (hy₁.trans hx₂.symm)
-         exact .inr ⟨x₁, y₂, hx₁, hy₂, (edgePartition L).trans hr₁ hr₂⟩⟩
-  have hiff_R : ∀ u v : Fin n,
-      Relation.EqvGen (fun a b => ∃ e ∈ contractEdgeList lift L, a = e.u ∧ b = e.v) u v ↔ R u v :=
-    fun u v => ⟨fun h => by
-      induction h with
-      | rel _ _ hab =>
-        rcases hab with ⟨e, he, rfl, rfl⟩; obtain ⟨e', he', rfl⟩ := List.mem_map.mp he
-        exact .inr ⟨e'.u, e'.v, rfl, rfl,
-          (rel_edgePartition_iff_eqvGen L e'.u e'.v).mpr (.rel _ _ ⟨e', he', rfl, rfl⟩)⟩
-      | refl => exact .inl rfl
-      | symm _ _ _ ih => exact hR_equiv.symm ih
-      | trans _ _ _ _ _ ih1 ih2 => exact hR_equiv.trans ih1 ih2,
-    fun h => by
-      rcases h with rfl | ⟨x, y, rfl, rfl, hr⟩
-      · exact .refl _
-      · have hxy := (rel_edgePartition_iff_eqvGen L x y).mp hr; clear hr
-        induction hxy with
-        | rel _ _ hab =>
-          rcases hab with ⟨e, he, rfl, rfl⟩
-          exact .rel _ _ ⟨contractEdge lift e, List.mem_map.mpr ⟨e, he, rfl⟩, rfl, rfl⟩
-        | refl => exact .refl _
-        | symm _ _ _ ih => exact .symm _ _ ih
-        | trans _ _ _ _ _ ih1 ih2 => exact .trans _ _ _ ih1 ih2⟩
-  refine ⟨fun x y => ?_, fun u v hnot => ?_⟩
-  · rw [Bool.eq_iff_iff, rel_edgePartition_iff_eqvGen, hiff_R]
-    exact ⟨by rintro (heq | ⟨x', y', hx', hy', hr'⟩)
-              · obtain rfl : x = y := hlift heq; exact (edgePartition L).refl x
-              · obtain rfl : x' = x := hlift hx'; obtain rfl : y' = y := hlift hy'; exact hr',
-      fun hr => .inr ⟨x, y, rfl, rfl, hr⟩⟩
-  · rw [Bool.eq_iff_iff, rel_edgePartition_iff_eqvGen, hiff_R, decide_eq_true_eq]
-    exact ⟨by rintro (rfl | ⟨x, _, hux, _⟩) <;> [rfl; exact absurd hux (hnot x)], fun h => .inl h⟩
-
-private theorem isAcyclic_contractEdgeList_of_injective {nOut n : ℕ}
-    {lift : Fin nOut → Fin n} (hlift : Function.Injective lift)
-    {L : List (WeightedEdge nOut ℕ)} (hL : IsAcyclic L) : IsAcyclic (contractEdgeList lift L) := by
-  induction L with
-  | nil => simp [contractEdgeList, isAcyclic_iff, edgePartition,
-      DisjointSet.Partition.numComponents_discrete]
-  | cons e rest ih =>
-    have hrest_ac := isAcyclic_sublist (List.sublist_cons_self _ _) hL; have hih := ih hrest_ac
-    have hL' := (Perm.isAcyclic_iff (List.perm_append_comm (l₁ := [e]) (l₂ := rest))).mp hL
-    rw [isAcyclic_iff] at hL' hrest_ac hih
-    rw [edgePartition, edgePartitionFrom_append, edgePartitionFrom_cons] at hL'
-    change ((edgePartition rest).merge e.u e.v).numComponents + (rest ++ [e]).length = nOut at hL'
-    have hnot : (edgePartition rest).rel e.u e.v = false := by
-      cases hr : (edgePartition rest).rel e.u e.v <;> [rfl; exfalso]
-      rw [DisjointSet.Partition.merge_of_rel hr] at hL'
-      simp only [List.length_append, List.length_singleton] at hL'; omega
-    have hnot_c : (edgePartition (contractEdgeList lift rest)).rel (lift e.u) (lift e.v) = false :=
-      (edgePartition_contractEdgeList_rel lift hlift rest).1 e.u e.v ▸ hnot
-    have hc_perm : (contractEdgeList lift (e :: rest)).Perm
-        (contractEdgeList lift rest ++ [contractEdge lift e]) := by
-      simpa only [contractEdgeList, List.map_cons, List.singleton_append] using
-        List.perm_append_comm (l₁ := [contractEdge lift e]) (l₂ := contractEdgeList lift rest)
-    rw [Perm.isAcyclic_iff hc_perm, isAcyclic_iff, edgePartition, edgePartitionFrom_append,
-      edgePartitionFrom_cons]
-    change ((edgePartition (contractEdgeList lift rest)).merge (lift e.u) (lift e.v)).numComponents
-      + (contractEdgeList lift rest ++ [contractEdge lift e]).length = n
-    have := DisjointSet.Partition.numComponents_merge_of_not_rel hnot_c
-    simp only [List.length_append, List.length_singleton] at hih ⊢; omega
-
 /-- Vertex compaction along an injective `lift` lifts any MSF `L_out` of the compacted edge list
 to an MSF `contractEdgeList lift L_out` of `es`. -/
 theorem compactVertices_isMinSpanningForest {nOut n : ℕ}
@@ -2154,21 +2077,21 @@ theorem compactVertices_isMinSpanningForest {nOut n : ℕ}
     by_cases hu : ∃ x : Fin nOut, lift x = u
     · obtain ⟨x, rfl⟩ := hu; by_cases hv : ∃ y : Fin nOut, lift y = v
       · obtain ⟨y, rfl⟩ := hv
-        rw [(edgePartition_contractEdgeList_rel lift hlift L₁).1 x y,
-          (edgePartition_contractEdgeList_rel lift hlift L₂).1 x y, heq]
+        rw [edgePartition_contractEdgeList_rel_inj hlift L₁ x y,
+          edgePartition_contractEdgeList_rel_inj hlift L₂ x y, heq]
       · have hsym : ∀ (p : DisjointSet.Partition n) a b, p.rel a b = p.rel b a :=
           fun p a b => Bool.eq_iff_iff.mpr ⟨p.symm, p.symm⟩
         have hn : ∀ y : Fin nOut, lift y ≠ v := fun y hy => hv ⟨y, hy⟩
         rw [hsym _ (lift x) v, hsym _ (lift x) v,
-          (edgePartition_contractEdgeList_rel lift hlift L₁).2 v (lift x) hn,
-          (edgePartition_contractEdgeList_rel lift hlift L₂).2 v (lift x) hn]
+          edgePartition_contractEdgeList_rel_of_not_mem lift L₁ hn,
+          edgePartition_contractEdgeList_rel_of_not_mem lift L₂ hn]
     · have hn : ∀ x : Fin nOut, lift x ≠ u := fun x hx => hu ⟨x, hx⟩
-      rw [(edgePartition_contractEdgeList_rel lift hlift L₁).2 u v hn,
-        (edgePartition_contractEdgeList_rel lift hlift L₂).2 u v hn]
+      rw [edgePartition_contractEdgeList_rel_of_not_mem lift L₁ hn,
+        edgePartition_contractEdgeList_rel_of_not_mem lift L₂ hn]
   rw [isMinSpanningForest_iff_threshold_partition] at hL ⊢
   refine ⟨⟨by rcases hL.1.1 with ⟨L', hperm, hsub⟩; rw [← hcon_es]
               exact ⟨L'.map (contractEdge lift), hperm.map _, hsub.map _⟩,
-    isAcyclic_contractEdgeList_of_injective hlift hL.1.2.1,
+    (isAcyclic_contractEdgeList_iff_of_injective hlift L_out).mpr hL.1.2.1,
     hcon_es ▸ hpart_con_eq L_out (esOut.map IndexedEdge.toWeighted) hL.1.2.2⟩, fun t => by
       have hfilt (M : List (WeightedEdge nOut ℕ)) :
           (contractEdgeList lift M).filter (fun e => decide (e.weight ≤ t)) =
