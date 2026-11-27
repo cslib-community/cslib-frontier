@@ -214,16 +214,14 @@ theorem edgeCut_union_of_inter_singleton {V E : Type*} {G : Multigraph V E}
         {e | G.src e ∈ S₁ ∧ G.tgt e ∈ S₁} ∪ {e | G.src e ∈ S₂ ∧ G.tgt e ∈ S₂} ∪ {f} := by
   have hmem_f (e : E) : e = f ↔ e ∈ G.edgeCut S₁ ∧ e ∈ G.edgeCut S₂ := by
     rw [← mem_singleton_iff, ← hint, mem_inter_iff]
+  have hdv (v : V) : v ∈ S₁ → v ∉ S₂ := fun hv => disjoint_left.mp hd hv
   constructor
   · ext e
-    have hd_src : ¬(G.src e ∈ S₁ ∧ G.src e ∈ S₂) := fun ⟨h1, h2⟩ => disjoint_left.mp hd h1 h2
-    have hd_tgt : ¬(G.tgt e ∈ S₁ ∧ G.tgt e ∈ S₂) := fun ⟨h1, h2⟩ => disjoint_left.mp hd h1 h2
     simp only [mem_union, mem_sdiff, mem_singleton_iff, hmem_f, Multigraph.mem_edgeCut]
-    tauto
+    lrat_tauto [hdv (G.src e), hdv (G.tgt e)]
   · ext e
     simp only [mem_union, mem_singleton_iff, hmem_f, Multigraph.mem_edgeCut, mem_ofPred_eq]
-    lrat_tauto [(fun ⟨h1, h2⟩ => disjoint_left.mp hd h1 h2 : ¬(G.src e ∈ S₁ ∧ G.src e ∈ S₂)),
-      (fun ⟨h1, h2⟩ => disjoint_left.mp hd h1 h2 : ¬(G.tgt e ∈ S₁ ∧ G.tgt e ∈ S₂))]
+    lrat_tauto [hdv (G.src e), hdv (G.tgt e)]
 
 /-- Glue local wire-patching witnesses across two disjoint vertex sets joined by `f`. -/
 theorem patch_union {c : Circuit σ m_in m_out} {I : Interpretation σ Bool}
