@@ -10857,6 +10857,7 @@ public import CslibFrontier.Foundations.Data.MvPolynomial.ConsecutiveLayers
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.GateSweep.Uniform
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.NodeSlackBounds
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Instance.Step
+public import CslibFrontier.Foundations.Probability.Gaussian.Polar
 public import CslibFrontier.Foundations.Data.List.Filter
 public import CslibFrontier.Algorithms.ShortestPaths.Walk
 public import CslibFrontier.Languages.Probabilistic.Traverse.SupportWith
