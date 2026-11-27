@@ -9,9 +9,10 @@ import CslibFrontier.Computability.Complexity.Classes.IP.Shamir
 import CslibFrontier.Computability.Complexity.Classes.MIP
 import CslibFrontier.Languages.Probabilistic.UniformNat
 import CslibFrontier.Computability.Complexity.Classes.MIP.Correction
+import CslibFrontier.Computability.Complexity.Problems.NEXPBoundedAcceptance
 
 /-! Multiprover interactive proofs (`MIP₂` and `MIP`), non-communicating provers, deterministic
-prover optimality, transcript consistency, the upper bound `MIP ⊆ NEXP`,
+prover optimality, transcript consistency, the characterization `MIP₂ = NEXP`,
 and consistency checks
 for proof-oracle verifiers. -/
 
@@ -183,5 +184,10 @@ example : (Prover.ofProof correctionProof).run (correctAt 5 1 [0] [0]) () =
   simpa only [ha, show (List.ofFn fun j => (z j).val) = [0] by decide] using h
 
 end
+
+-- The native NEXP-complete bounded machine acceptance problem has a two-prover protocol
+-- on its original encoding, including the binary clock.
+example : NEXPBoundedAcceptance ∈ MIP₂ encNEXPBoundedAcceptanceInstance :=
+  NEXP_subset_MIP₂ NEXPBoundedAcceptance.mem_NEXP
 
 end CslibFrontierTests.MIP

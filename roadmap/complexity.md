@@ -83,7 +83,7 @@ Containments, separations, closure properties, complete problems and reductions 
 
 ### Interactive proofs
 
-- **MIP = NEXP** ([#892](https://github.com/cslib-community/cslib-frontier/issues/892)): `NEXP ⊆ MIP₂` through the BFL multilinearity test and arithmetization of exponential-time tableaux; an efficient GKR verifier under log-space uniformity.
+- **GKR verifier under log-space uniformity** ([#892](https://github.com/cslib-community/cslib-frontier/issues/892)): certify the running time of the uniform verifier.
 - **Arthur–Merlin classes:** the Babai–Moran speedup `AM[2 t(n)] = AM[t(n)]` for polynomially many rounds (patterns that depend on the input length), interactive-machine characterizations of Arthur–Merlin classes, and perfect zero knowledge.
 - **Debate protocols** ([#7579](https://github.com/cslib-community/cslib-frontier/issues/7579)): competing provers with bounded honest strategies, starting from doubly-efficient debate with a stochastic oracle (Brown-Cohen, Irving and Piliouras, arXiv:2311.14125, Section 6).
   The endpoint is the cross-examination protocol for encoded machines, with prover time, verifier time and verifier query bounds, under a Lipschitz hypothesis whose exact form is settled in the issue.
