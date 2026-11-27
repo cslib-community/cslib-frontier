@@ -5284,6 +5284,7 @@ public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Lyubashevsky.Signatur
 public import CslibFrontier.Computability.TreeEval.Ary.Packed.RawController
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.CoeffNormBound
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SliceSelfImprovement
+public import CslibFrontier.Crypto.Protocols.UC.PPT.Composition
 public import CslibFrontier.Crypto.Protocols.SSP.Hybrid
 public import CslibFrontier.Probability.EntropyConcentration
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelTick.InsertCollision
