@@ -20,7 +20,17 @@ For two sets of words of length `n`, count the full seeds whose affine hash to `
 hits zero on both sets. Two independent copies of this test give a constant-factor estimate of
 the size of the smaller set after weighting level `j` by `2 ^ j`. Applied to the two preimage
 fibers of each sampler output, this estimates their statistical overlap using existential
-certificates. This argument is original to the formalization of #3205.
+certificates. This argument is original to the formalization of
+[#3205](https://github.com/cslib-community/cslib-frontier/issues/3205).
+
+## Main definitions
+
+* `Cslib.BitString.LinearHash.commonHashHits` collects the full-length seeds that hit both sets.
+
+## Main results
+
+* `Cslib.BitString.LinearHash.commonHashHits_overlap_bounds` bounds the weighted count of
+  successful seed pairs above and below in terms of the smaller set's cardinality.
 -/
 
 public section

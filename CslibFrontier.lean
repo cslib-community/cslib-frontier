@@ -10681,6 +10681,7 @@ public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Contract
 public import CslibFrontier.Foundations.Combinatorics.Multidigraph.Arborescence
 public import CslibFrontier.Computability.Circuit.Boolean.CodeTemplate
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
+public import CslibFrontier.Computability.Complexity.Classes.SZK.CoArthurMerlin
 public import CslibFrontier.Computability.Circuit.Monotone.Clique.LowerBound
 public import CslibFrontier.Computability.Circuit.Boolean.CodeReplication
 public import CslibFrontier.Computability.Communication.Discrepancy

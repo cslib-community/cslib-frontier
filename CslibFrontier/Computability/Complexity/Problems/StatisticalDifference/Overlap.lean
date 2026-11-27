@@ -20,6 +20,18 @@ of the two uniform-output laws, normalized by the number of input words. Weighti
 hash seeds as in `commonHashHits_overlap_bounds` estimates this overlap by counting objects with
 short witnesses. For the polarized Statistical Difference thresholds `1/2048` and `2047/2048`,
 the count, multiplied by `64`, has a factor-two gap around a power of two.
+
+## Main definitions
+
+* `Cslib.Complexity.SDInstance.affineOverlapCount` counts pairs of successful affine hash seeds
+  for the two circuit output fibers, weighted by the size of the hash range.
+
+## Main results
+
+* `Cslib.Complexity.SDInstance.le_mul_affineOverlapCount_of_close` lower-bounds the count
+  when the output distributions are close.
+* `Cslib.Complexity.SDInstance.mul_affineOverlapCount_le_of_far` upper-bounds the count
+  when the output distributions are far apart.
 -/
 
 public section

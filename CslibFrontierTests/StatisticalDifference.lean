@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+import CslibFrontier.Computability.Complexity.Classes.SZK.ArthurMerlin
+import CslibFrontier.Computability.Complexity.Classes.SZK.CoArthurMerlin
 import CslibFrontier.Computability.Complexity.Problems.StatisticalDifference.Overlap
 import CslibFrontier.Probability.StatisticalDistance.ClosedForm
 import CslibFrontier.Probability.StatisticalDistance.Event
@@ -21,6 +23,9 @@ namespace CslibFrontierTests.StatisticalDifference
 
 open Cslib Cslib.BitString Cslib.Circuits Cslib.Circuits.Boolean Cslib.Complexity
 open Cslib.Probability.PMF
+
+example {α : Type} (enc : α ↪ List Bool) : SZK enc ⊆ AM enc ∩ coAM enc :=
+  Set.subset_inter SZK_subset_AM SZK_subset_coAM
 
 /-! ### Completion to a parity -/
 

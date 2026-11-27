@@ -94,6 +94,14 @@ open Finset
 
 /-! ### Counting words -/
 
+/-- Sum a weight over words by separating a fixed-width prefix and suffix. -/
+theorem sum_ofFn_append {A : Type*} [AddCommMonoid A] (n m : ℕ) (F : List Bool → A) :
+    (∑ z : BitString (n + m), F (List.ofFn z)) =
+      ∑ u : BitString n, ∑ v : BitString m, F (List.ofFn u ++ List.ofFn v) := by
+  rw [← (Fin.appendEquiv n m).sum_comp, Fintype.sum_prod_type]
+  change (∑ u : BitString n, ∑ v : BitString m, F (List.ofFn (Fin.append u v))) = _
+  simp only [List.ofFn_fin_append]
+
 /-- **Counting words by their prefixes**: the words of length `m + n` are the words `u ++ w`
 with `u` of length `m` and `w` of length `n`. -/
 theorem card_filter_ofFn_add (m n : ℕ) (g : List Bool → List Bool → Prop)
@@ -102,19 +110,8 @@ theorem card_filter_ofFn_add (m n : ℕ) (g : List Bool → List Bool → Prop)
       g ((List.ofFn v).take m) ((List.ofFn v).drop m)).card =
       ∑ u : Fin m → Bool,
         (univ.filter fun w : Fin n → Bool => g (List.ofFn u) (List.ofFn w)).card := by
-  classical
-  rw [← card_map (Fin.appendEquiv m n).symm.toEmbedding]
-  have hmap : (univ.filter fun v : Fin (m + n) → Bool =>
-      g ((List.ofFn v).take m) ((List.ofFn v).drop m)).map
-        (Fin.appendEquiv m n).symm.toEmbedding =
-      univ.filter fun x : (Fin m → Bool) × (Fin n → Bool) => g (List.ofFn x.1) (List.ofFn x.2) := by
-    ext x
-    simp only [mem_map_equiv, Equiv.symm_symm, mem_filter, mem_univ, true_and]
-    change g ((List.ofFn (Fin.append x.1 x.2)).take m)
-      ((List.ofFn (Fin.append x.1 x.2)).drop m) ↔ _
-    rw [List.ofFn_fin_append, List.take_left' List.length_ofFn, List.drop_left' List.length_ofFn]
-  rw [hmap, card_filter, Fintype.sum_prod_type]
-  simp only [card_filter]
+  simpa only [card_filter, List.take_left' List.length_ofFn, List.drop_left' List.length_ofFn] using
+    sum_ofFn_append m n (fun w => if g (w.take m) (w.drop m) then 1 else 0)
 
 /-- **Counting words by a prefix.** For `k ≤ K`, the words of `K` bits whose prefix of length `k`
 satisfies `g` are `2 ^ (K - k)` times as many as the words of `k` bits satisfying `g`. -/
