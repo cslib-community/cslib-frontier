@@ -19,18 +19,21 @@ and output maps of the reduced system and a sparse equilibrium check, so that a 
 certificate gives the same proper realization `ẋ = A x + B u`, `y - y₀ = C x + D u` as a dense
 `Cslib.LinearAlgebra.DecouplingCert` (`DecouplingCert.realization_toDecoupling`).
 
-For the decoupling of `ofSchur`, the blocks of `P` and `Q` are (`P₁_ofSchur`, `P₂_ofSchur`,
-`Q₁_ofSchur`, `Q₂_ofSchur`)
+For the decoupling of `ofSchur`, the blocks of `P` and `Q` are
 
   `P₁ = E₁₁⁻¹ (T₁ - F₁₂ F₂₂⁻¹ T₂)`,  `P₂ = F₂₂⁻¹ T₂`,  `Q₁ = U₁ - U₂ K`,  `Q₂ = U₂`,
 
 with `T₁`, `T₂` the first `k` and the last `r` rows of `T` and `U₁`, `U₂` the first `k` and the
-last `r` columns of `U`. The input matrix `B = P₁ G` and the algebraic response `P₂ G` again
-involve inverses. A `Cslib.LinearAlgebra.SparseRealizationCert` supplies them as sparse
-solutions instead, `W = P₂ G` and `B = P₁ G`, and its checker `SparseRealizationCert.check`
-verifies, with sparse rational products,
+last `r` columns of `U` (`DescriptorSystem.IndexOneDecoupling.P₁_ofSchur`, `P₂_ofSchur`,
+`Q₁_ofSchur`, `Q₂_ofSchur`, in `CslibFrontier.Foundations.Analysis.ODE.Descriptor`). The input
+matrix `B = P₁ G` and the algebraic response `P₂ G` again involve inverses. A
+`Cslib.LinearAlgebra.SparseRealizationCert` supplies them as sparse solutions instead,
+`W = P₂ G` and `B = P₁ G`, and its checker `SparseRealizationCert.check` verifies, with sparse
+rational products,
 
-  `F₂₂ W = T₂ G`  and  `E₁₁ B = T₁ G - F₁₂ W`.
+  `F₂₂ W = T₂ G`  and  `E₁₁ B = T₁ G - F₁₂ W`,
+
+which give `P₂ G = W` and `P₁ G = B` (`DescriptorSystem.IndexOneDecoupling.P₂_G_B_ofSchur`).
 
 Given these, everything else is a product of checked sparse rows, computed rather than
 supplied: for output rows `H`, the reconstruction `z = z₀ + Q₁ x - (U₂ W) u` with
@@ -51,7 +54,6 @@ output matrix `C = H Q₁` and the direct feedthrough `D = -H U₂ W`
 
 ## Main results
 
-* `DescriptorSystem.IndexOneDecoupling.P₁_ofSchur`, `P₂_ofSchur`, `Q₁_ofSchur`, `Q₂_ofSchur`.
 * `Cslib.LinearAlgebra.SparseRealizationCert.realization_toDecoupling`,
   `Cslib.LinearAlgebra.SparseRealizationCert.Q₂_P₂_G_toDecoupling`,
   `Cslib.LinearAlgebra.SparseDecouplingCert.Q₁_toDecoupling`.
@@ -61,77 +63,6 @@ output matrix `C = H Q₁` and the direct feedthrough `D = -H U₂ W`
 public section
 
 open Matrix Mathlib.Tactic.Matrix
-
-namespace DescriptorSystem
-
-namespace IndexOneDecoupling
-
-variable {ι m κ ρ : Type*} [Fintype ι] [Fintype m] [Fintype κ] [Fintype ρ] [DecidableEq ι]
-  [DecidableEq κ] [DecidableEq ρ] {S : DescriptorSystem ι m}
-  (e : ι ≃ κ ⊕ ρ) (T : Matrix (κ ⊕ ρ) ι ℝ) (Tᵢ : Matrix ι (κ ⊕ ρ) ℝ) (U : Matrix ι (κ ⊕ ρ) ℝ)
-  (Uᵢ : Matrix (κ ⊕ ρ) ι ℝ) (E₁₁ F₁₁ : Matrix κ κ ℝ) (F₁₂ : Matrix κ ρ ℝ) (F₂₁ K : Matrix ρ κ ℝ)
-  (F₂₂ : Matrix ρ ρ ℝ) (hT : Tᵢ * T = 1) (hU : U * Uᵢ = 1)
-  (hE : T * S.E * U = fromBlocks E₁₁ 0 0 0) (hF : T * S.F * U = fromBlocks F₁₁ F₁₂ F₂₁ F₂₂)
-  (hE₁₁ : IsUnit E₁₁.det) (hF₂₂ : IsUnit F₂₂.det) (hK : F₂₂ * K = F₂₁)
-
-omit [Fintype m] in
-/-- The differential rows of `P` in the Schur-form decoupling. -/
-theorem P₁_ofSchur :
-    (ofSchur e T Tᵢ U Uᵢ E₁₁ F₁₁ F₁₂ F₂₁ K F₂₂ hT hU hE hF hE₁₁ hF₂₂ hK).P₁ =
-      E₁₁⁻¹ * (T.toRows₁ - F₁₂ * F₂₂⁻¹ * T.toRows₂) := by
-  have h : (fromBlocks E₁₁⁻¹ (-(E₁₁⁻¹ * F₁₂ * F₂₂⁻¹)) 0 F₂₂⁻¹ * T).toRows₁ =
-      fromCols E₁₁⁻¹ (-(E₁₁⁻¹ * F₁₂ * F₂₂⁻¹)) * fromRows T.toRows₁ T.toRows₂ := by
-    rw [fromRows_toRows]
-    ext i j
-    simp [toRows₁_apply, Matrix.mul_apply, Fintype.sum_sum_type]
-  refine h.trans ?_
-  rw [fromCols_mul_fromRows, Matrix.mul_sub, ← Matrix.mul_assoc, ← Matrix.mul_assoc,
-    Matrix.neg_mul, ← sub_eq_add_neg]
-
-omit [Fintype m] in
-/-- The algebraic rows of `P` in the Schur-form decoupling. -/
-theorem P₂_ofSchur :
-    (ofSchur e T Tᵢ U Uᵢ E₁₁ F₁₁ F₁₂ F₂₁ K F₂₂ hT hU hE hF hE₁₁ hF₂₂ hK).P₂ =
-      F₂₂⁻¹ * T.toRows₂ := by
-  ext i j
-  simp [ofSchur, ofPartitioned, toRows₂_apply, Matrix.mul_apply, Fintype.sum_sum_type]
-
-omit [Fintype m] in
-/-- The differential columns of `Q` in the Schur-form decoupling. -/
-theorem Q₁_ofSchur :
-    (ofSchur e T Tᵢ U Uᵢ E₁₁ F₁₁ F₁₂ F₂₁ K F₂₂ hT hU hE hF hE₁₁ hF₂₂ hK).Q₁ =
-      U.toCols₁ - U.toCols₂ * K := by
-  ext i j
-  simp [ofSchur, ofPartitioned, toCols₁_apply, toCols₂_apply, Matrix.mul_apply,
-    Fintype.sum_sum_type, Matrix.one_apply, sub_eq_add_neg]
-
-omit [Fintype m] in
-/-- The algebraic columns of `Q` in the Schur-form decoupling. -/
-theorem Q₂_ofSchur :
-    (ofSchur e T Tᵢ U Uᵢ E₁₁ F₁₁ F₁₂ F₂₁ K F₂₂ hT hU hE hF hE₁₁ hF₂₂ hK).Q₂ = U.toCols₂ := by
-  ext i j
-  simp [ofSchur, ofPartitioned, toCols₂_apply, Matrix.mul_apply, Fintype.sum_sum_type,
-    Matrix.one_apply]
-
-omit [Fintype m] in
-/-- **Input maps of the Schur-form decoupling from solutions.** If `F₂₂ W = T₂ G` and
-`E₁₁ B = T₁ G - F₁₂ W`, then `P₂ G = W` and the input matrix `P₁ G` of the reduced system is
-`B`. -/
-theorem P₂_G_B_ofSchur {W : Matrix ρ m ℝ} {B : Matrix κ m ℝ}
-    (hW : F₂₂ * W = T.toRows₂ * S.G) (hB : E₁₁ * B = T.toRows₁ * S.G - F₁₂ * W) :
-    (ofSchur e T Tᵢ U Uᵢ E₁₁ F₁₁ F₁₂ F₂₁ K F₂₂ hT hU hE hF hE₁₁ hF₂₂ hK).P₂ * S.G = W ∧
-      (ofSchur e T Tᵢ U Uᵢ E₁₁ F₁₁ F₁₂ F₂₁ K F₂₂ hT hU hE hF hE₁₁ hF₂₂ hK).B = B := by
-  have hW' : F₂₂⁻¹ * (T.toRows₂ * S.G) = W := by
-    rw [← hW, ← Matrix.mul_assoc, nonsing_inv_mul _ hF₂₂, Matrix.one_mul]
-  refine ⟨by rw [P₂_ofSchur, Matrix.mul_assoc, hW'], ?_⟩
-  rw [IndexOneDecoupling.B, P₁_ofSchur, Matrix.mul_assoc, Matrix.sub_mul,
-    show F₁₂ * F₂₂⁻¹ * T.toRows₂ * S.G = F₁₂ * (F₂₂⁻¹ * (T.toRows₂ * S.G)) by
-      simp only [Matrix.mul_assoc],
-    hW', ← hB, ← Matrix.mul_assoc, nonsing_inv_mul _ hE₁₁, Matrix.one_mul]
-
-end IndexOneDecoupling
-
-end DescriptorSystem
 
 namespace Cslib.LinearAlgebra
 
