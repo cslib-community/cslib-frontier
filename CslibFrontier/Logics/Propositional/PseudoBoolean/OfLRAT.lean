@@ -154,6 +154,13 @@ def hintCount : List Step → ℕ
 
 end
 
+private theorem not_slack_lt_of_degree_eq_zero {c : PBConstr} (h : c.degree = 0)
+    {ρ : List (Literal ℕ)} {t : ℕ × Literal ℕ} (ht : t ∈ c.terms) (hf : (!falsified ρ t) = true) :
+    ¬ slack ρ c < t.1 := by
+  have := le_coeffSum_of_mem ((List.mem_filter (p := fun t => !falsified ρ t)).2 ⟨ht, hf⟩)
+  simp only [slack, h, Nat.cast_zero, sub_zero]
+  omega
+
 /-- **A constraint of degree `0` propagates nothing**: it never conflicts, and a term it could
 force has a coefficient within the slack. -/
 theorem propagate_of_degree_eq_zero {c : PBConstr} (h : c.degree = 0) (ρ : List (Literal ℕ)) :
@@ -163,9 +170,7 @@ theorem propagate_of_degree_eq_zero {c : PBConstr} (h : c.degree = 0) (ρ : List
     refine List.filter_eq_nil_iff.2 fun t ht hp => ?_
     have hf : (!falsified ρ t) = true := by revert hp; cases falsified ρ t <;> simp
     have hlt : slack ρ c < t.1 := by revert hp; simp
-    have := le_coeffSum_of_mem ((List.mem_filter (p := fun t => !falsified ρ t)).2 ⟨ht, hf⟩)
-    simp only [slack, h, Nat.cast_zero, sub_zero] at hlt
-    omega
+    exact not_slack_lt_of_degree_eq_zero h ht hf hlt
   have hs : ¬ slack ρ c < 0 := by simp [slack, h]
   unfold propagate
   rw [hnil, ite_eq_right hs]
@@ -408,9 +413,7 @@ theorem asserting_of_degree_eq_zero {c : PBConstr} (h : c.degree = 0) (ρ : List
   refine List.any_eq_false.2 fun t ht hp => ?_
   have hf : (!falsified ρ t) = true := by revert hp; cases falsified ρ t <;> simp
   have hlt : slack ρ c < t.1 := by revert hp; simp
-  have := le_coeffSum_of_mem ((List.mem_filter (p := fun t => !falsified ρ t)).2 ⟨ht, hf⟩)
-  simp only [slack, h, Nat.cast_zero, sub_zero] at hlt
-  omega
+  exact not_slack_lt_of_degree_eq_zero h ht hf hlt
 
 /-- **An asserting constraint of degree `1` leaves exactly one literal not false**: the asserting
 term is not falsified, and with positive coefficients, two terms not falsified give a slack at
