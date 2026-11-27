@@ -427,6 +427,38 @@ theorem realizesBounded_initNewEpochMeta :
     dsimp only [offCompLM, epochHdrWords] at hlm_le
     omega
 
+private theorem hashTable_fits {w U N metaBase : ℕ} {s₀ : Memory.State}
+    (hNU : N ≤ U) (hU : Fits w U)
+    (hfr : metaBase + offCompItems U w N ≤ s₀.frontier)
+    (hfit : Fits w (metaBase + offCompItems U w N)) :
+    (metaBase + 225) +
+        ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3 ≤ s₀.frontier ∧
+      Fits w ((metaBase + 225) +
+        ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3) ∧
+      2 * reducedChunkBits
+        (reducedTrinomialStep (qBits U N) (hashB N) (totalMicroBits N)) < w := by
+  have h225 : Fits w 225 := fits_const_of_offCompItems hfit le_rfl
+  have hw2 : 2 ≤ w := by
+    by_contra hlt2
+    have hw1 : w ≤ 1 := by omega
+    have := Nat.pow_le_pow_right two_pos hw1
+    change 225 < 2 ^ w at h225; omega
+  have hlm_le : offCompLM U w N ≤ offCompItems U w N := by
+    unfold offCompItems offDenseToTail offTailToDense offCompGM; omega
+  have hfr_h : (metaBase + 225) +
+      ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3 ≤ s₀.frontier := by
+    dsimp only [offCompLM, epochHdrWords, epochHashSpace, epochQBits, epochHashB, qBits,
+      hashB] at hlm_le ⊢; omega
+  have hfit_h : Fits w ((metaBase + 225) +
+      ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3) := hfit.of_le (by
+    dsimp only [offCompLM, epochHdrWords, epochHashSpace, epochQBits, epochHashB, qBits,
+      hashB] at hlm_le ⊢; omega)
+  have hc_lt : 2 * reducedChunkBits
+      (reducedTrinomialStep (qBits U N) (hashB N) (totalMicroBits N)) < w :=
+    ReducedKWise.two_mul_reducedChunkBits_lt_of_fits_space
+      (two_mul_reducedChunkBits_hash_le hw2 hNU hU.le) hfit_h
+  exact ⟨hfr_h, hfit_h, hc_lt⟩
+
 theorem initNewEpochMetaProg_spec {w U V N newMetaBase arenaBase : ℕ}
     {θ_new : QuotHashSeed U N} {s₀ : Memory.State}
     (hw : 0 < w) (hN : 1 ≤ N) (hNU : N ≤ U) (hU : Fits w U) (hV : V ≤ 2 ^ w)
@@ -452,26 +484,9 @@ theorem initNewEpochMetaProg_spec {w U V N newMetaBase arenaBase : ℕ}
     (∀ a, ¬(newMetaBase + epochHdrWords ≤ a ∧ a < newMetaBase + offCompItems U w N) →
       s'.mem a = s₀.mem a) := by
   intro d prog s'
-  have h225 : Fits w 225 := fits_const_of_offCompItems hfit le_rfl
-  have hw2 : 2 ≤ w := by
-    by_contra hlt2
-    have hw1 : w ≤ 1 := by omega
-    have := Nat.pow_le_pow_right two_pos hw1
-    change 225 < 2 ^ w at h225; omega
+  obtain ⟨hfr_h, hfit_h, hc_lt⟩ := hashTable_fits hNU hU hfr hfit
   have hlm_le : offCompLM U w N ≤ offCompItems U w N := by
     unfold offCompItems offDenseToTail offTailToDense offCompGM; omega
-  have hfr_h : (newMetaBase + 225) +
-      ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3 ≤ s₀.frontier := by
-    dsimp only [offCompLM, epochHdrWords, epochHashSpace, epochQBits, epochHashB, qBits,
-      hashB] at hlm_le ⊢; omega
-  have hfit_h : Fits w ((newMetaBase + 225) +
-      ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3) := hfit.of_le (by
-    dsimp only [offCompLM, epochHdrWords, epochHashSpace, epochQBits, epochHashB, qBits,
-      hashB] at hlm_le ⊢; omega)
-  have hc_lt : 2 * reducedChunkBits
-      (reducedTrinomialStep (qBits U N) (hashB N) (totalMicroBits N)) < w :=
-    ReducedKWise.two_mul_reducedChunkBits_lt_of_fits_space
-      (two_mul_reducedChunkBits_hash_le hw2 hNU hU.le) hfit_h
   obtain ⟨_, hv_tab, hc_tab, hfr_tab, htab_rep, hframe_tab⟩ :=
     initTableGenProg_spec (k := 3) (s₀ := s₀) hc_lt hfr_h hfit_h
   set s₁ := (Memory.spec 0).clientState s₀
@@ -722,26 +737,9 @@ private theorem evalHashAtQuot_spec {w U N metaBase q : ℕ} {θ : QuotHashSeed 
     s'.frontier = s₀.frontier ∧
     (∀ a, ¬(metaBase + 63 ≤ a ∧ a < metaBase + 225) → s'.mem a = s₀.mem a) := by
   intro hp d prog s'
-  have h225 : Fits w 225 := fits_const_of_offCompItems hfit le_rfl
-  have hw2 : 2 ≤ w := by
-    by_contra hlt2
-    have hw1 : w ≤ 1 := by omega
-    have := Nat.pow_le_pow_right two_pos hw1
-    change 225 < 2 ^ w at h225; omega
+  obtain ⟨hfr_h, hfit_h, hc_lt⟩ := hashTable_fits hNU hU hfr hfit
   have hlm_le : offCompLM U w N ≤ offCompItems U w N := by
     unfold offCompItems offDenseToTail offTailToDense offCompGM; omega
-  have hfr_h : (metaBase + 225) +
-      ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3 ≤ s₀.frontier := by
-    dsimp only [offCompLM, epochHdrWords, epochHashSpace, epochQBits, epochHashB, qBits,
-      hashB] at hlm_le ⊢; omega
-  have hfit_h : Fits w ((metaBase + 225) +
-      ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3) := hfit.of_le (by
-    dsimp only [offCompLM, epochHdrWords, epochHashSpace, epochQBits, epochHashB, qBits,
-      hashB] at hlm_le ⊢; omega)
-  have hc_lt : 2 * reducedChunkBits
-      (reducedTrinomialStep (qBits U N) (hashB N) (totalMicroBits N)) < w :=
-    ReducedKWise.two_mul_reducedChunkBits_lt_of_fits_space
-      (two_mul_reducedChunkBits_hash_le hw2 hNU hU.le) hfit_h
   have hfr_s : (metaBase + 63) + scratchWords ≤ s₀.frontier := by
     dsimp only [scratchWords]; unfold offCompLM epochHdrWords at hlm_le; omega
   have hfit_s : Fits w ((metaBase + 63) + scratchWords) := hfit.of_le (by
