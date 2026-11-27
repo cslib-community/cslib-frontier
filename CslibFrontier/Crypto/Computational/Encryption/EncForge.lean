@@ -236,6 +236,31 @@ theorem eval_run_ciEncryptionOracle_eq_map_snd_ciPairOracle (E : SymmetricCipher
       split_ifs <;> simp [ProbComp.eval_pure, PMF.pure_map, PMF.map_comp, Function.comp_def])
     prog []).symm
 
+private theorem mem_support_of_logsEncryptions (E : SymmetricCipher) (n : ℕ) (k : List Bool)
+    (oracle : Unit × List Bool → StateT (List (List Bool × List Bool)) ProbComp (List Bool))
+    (hstep : ∀ msg s a s', (a, s') ∈ (ProbComp.eval (oracle ((), msg) s)).support →
+      s' = s ∨ msg.length = n ∧
+        ∃ ct ∈ (ProbComp.eval (E.encrypt n k msg)).support, s' = (msg, ct) :: s)
+    (prog : WordOracleComp Unit (List Bool))
+    (result : List Bool) (queriedPairs : List (List Bool × List Bool))
+    (hmem : (result, queriedPairs) ∈ (ProbComp.eval ((OracleComp.interpret
+      (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifFin m)) oracle)
+        prog).run [])).support) :
+    ∀ pair ∈ queriedPairs,
+      pair.1.length = n ∧ pair.2 ∈ (ProbComp.eval (E.encrypt n k pair.1)).support := by
+  rw [ProbOracleComp.eval_run_interpret] at hmem
+  refine ProbOracleComp.run_interpret_invariant
+    (fun q s => ProbComp.eval (oracle q s))
+    (fun s => ∀ pair ∈ s,
+      pair.1.length = n ∧ pair.2 ∈ (ProbComp.eval (E.encrypt n k pair.1)).support)
+    ?_ prog [] (by simp) result queriedPairs hmem
+  intro ⟨⟨⟩, msg⟩ s hs a s' hmemStep pair hpair
+  rcases hstep msg s a s' hmemStep with rfl | ⟨hlen, ct, hct, rfl⟩
+  · exact hs pair hpair
+  · rcases List.mem_cons.mp hpair with rfl | htail
+    · exact ⟨hlen, hct⟩
+    · exact hs pair htail
+
 private theorem mem_support_ciPairOracle (E : SymmetricCipher) (n : ℕ) (k : List Bool)
     (prog : WordOracleComp Unit (List Bool))
     (result : List Bool) (queriedPairs : List (List Bool × List Bool))
@@ -244,25 +269,18 @@ private theorem mem_support_ciPairOracle (E : SymmetricCipher) (n : ℕ) (k : Li
         (E.ciPairOracle n k)) prog).run [])).support) :
     ∀ pair ∈ queriedPairs,
       pair.1.length = n ∧ pair.2 ∈ (ProbComp.eval (E.encrypt n k pair.1)).support := by
-  rw [ProbOracleComp.eval_run_interpret] at hmem
-  refine ProbOracleComp.run_interpret_invariant
-    (fun q s => ProbComp.eval (E.ciPairOracle n k q s))
-    (fun s => ∀ pair ∈ s,
-      pair.1.length = n ∧ pair.2 ∈ (ProbComp.eval (E.encrypt n k pair.1)).support)
-    ?_ prog [] (by simp) result queriedPairs hmem
-  intro ⟨⟨⟩, msg⟩ s hs a s' hstep pair hpair
+  refine mem_support_of_logsEncryptions E n k (E.ciPairOracle n k) (fun msg s a s' hstep => ?_)
+    prog result queriedPairs hmem
   unfold ciPairOracle at hstep
   split_ifs at hstep with hlen
   · simp only [ProbComp.eval_bind, ProbComp.eval_pure,
       PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hstep
     obtain ⟨ct, hct, hpairEq⟩ := hstep
     cases hpairEq
-    rcases List.mem_cons.mp hpair with rfl | htail
-    · exact ⟨beq_iff_eq.mp hlen, hct⟩
-    · exact hs pair htail
+    exact Or.inr ⟨beq_iff_eq.mp hlen, _, hct, rfl⟩
   · simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hstep
     cases hstep
-    exact hs pair hpair
+    exact Or.inl rfl
 
 /-- **Quantitative `EncForge` vs. `CiphertextIntegrity` bound**: for every `SymmetricCipher`,
 adaptive adversary, and security parameter `n`, the fresh-message forgery probability in
@@ -421,25 +439,18 @@ private theorem mem_support_etmForgeJointOracle (E : SymmetricCipher) (M : MACSc
         (etmForgeJointOracle E M n ke km)) prog).run [])).support) :
     ∀ pair ∈ queriedPairs,
       pair.1.length = n ∧ pair.2 ∈ (ProbComp.eval (E.encrypt n ke pair.1)).support := by
-  rw [ProbOracleComp.eval_run_interpret] at hmem
-  refine ProbOracleComp.run_interpret_invariant
-    (fun q s => ProbComp.eval (etmForgeJointOracle E M n ke km q s))
-    (fun s => ∀ pair ∈ s,
-      pair.1.length = n ∧ pair.2 ∈ (ProbComp.eval (E.encrypt n ke pair.1)).support)
-    ?_ prog [] (by simp) result queriedPairs hmem
-  intro ⟨⟨⟩, msg⟩ s hs a s' hstep pair hpair
+  refine SymmetricCipher.mem_support_of_logsEncryptions E n ke (etmForgeJointOracle E M n ke km)
+    (fun msg s a s' hstep => ?_) prog result queriedPairs hmem
   unfold etmForgeJointOracle at hstep
   split_ifs at hstep with hlen
   · simp only [ProbComp.eval_bind, ProbComp.eval_pure,
       PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hstep
     obtain ⟨c, hc, tag, _, hpairEq⟩ := hstep
     cases hpairEq
-    rcases List.mem_cons.mp hpair with rfl | htail
-    · exact ⟨beq_iff_eq.mp hlen, hc⟩
-    · exact hs pair htail
+    exact Or.inr ⟨beq_iff_eq.mp hlen, _, hc, rfl⟩
   · simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hstep
     cases hstep
-    exact hs pair hpair
+    exact Or.inl rfl
 
 /-- **Quantitative `EncForge` to `EUFCMA` bound for Encrypt-then-MAC**
 ([KatzLindell2020], Exercise 5.5, printed p. 165): when `tagBound n` bounds all MAC tag lengths on
