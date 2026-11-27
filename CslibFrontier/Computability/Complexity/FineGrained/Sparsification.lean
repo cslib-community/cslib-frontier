@@ -11,7 +11,6 @@ public import CslibFrontier.Computability.Complexity.FineGrained.Exponents
 public import CslibFrontier.Computability.Complexity.FineGrained.SparsificationRounds
 public import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.Tree
 public import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.PolyTime
-public import CslibFrontier.Computability.Complexity.AcceptCount
 import CslibFrontier.Computability.Complexity.FineGrained.Bounds
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Foundations.Data.List.Fold
@@ -62,7 +61,6 @@ on the empty stack, for `ε = 1 / M`.
 ## Main results
 
 * `Cslib.Complexity.Sparsify.search_eq_true_iff`: the search decides satisfiability.
-* `Cslib.Complexity.Sparsify.acceptCount_search_error_le`: the error bound with a shared seed.
 * `Cslib.Complexity.Sparsify.decidableInExpTime_search`: the time of the search.
 * `Cslib.Complexity.exists_decidableInExpTime_numVars_of_length`: from clauses to variables.
 * `Cslib.Complexity.DecidableInSubexpTime.numVars_of_length`: subexponential time in the number of
@@ -273,13 +271,11 @@ private theorem iterate_step {k M : ℕ} (hkK : k ≤ K) (hM : LeafBound K α M)
     (step K α g)^[rounds M φ] ([root k φ], false) =
       ([], decide (∃ w, (rule hK hα).tree.IsLeafWord (rootState hkK φ) w ∧
         g ((rule hK hα).tree.walk (rootState hkK φ) w).1 = true)) ∧
-    (∀ i, ∃ (stk : List {ψ : CNF ℕ // Normalized K ψ}) (acc : Bool),
+    ∀ i, ∃ (stk : List {ψ : CNF ℕ // Normalized K ψ}) (acc : Bool),
       (step K α g)^[i] ([root k φ], false) = (stk.map Subtype.val, acc) ∧
       stk.length ≤ φ.numVars * (K * base K α ^ (2 * K)) + 1 ∧
       ∀ t ∈ stk, ∃ w, (rule hK hα).tree.IsNodeWord (rootState hkK φ) w ∧
-        (rule hK hα).tree.walk (rootState hkK φ) w = t) ∧
-    ∃ paths : Finset (List Bool), paths.card ≤ 2 ^ (φ.numVars / M + 1) ∧
-      ∀ w, w ∈ paths ↔ (rule hK hα).tree.IsLeafWord (rootState hkK φ) w := by
+        (rule hK hα).tree.walk (rootState hkK φ) w = t := by
   set R := rule hK hα
   set s₀ := rootState hkK φ
   have hred := s₀.2.reduced
@@ -305,7 +301,7 @@ private theorem iterate_step {k M : ℕ} (hkK : k ≤ K) (hM : LeafBound K α M)
       g (R.tree.walk s₀ w).1 = true)) := by
     rw [hinit, iterate_step_map hK hα, hfin, hacc]
     simp
-  refine ⟨?_, (fun i => ?_), L.toFinset, ?_, ?_⟩
+  refine ⟨?_, fun i => ?_⟩
   · rw [show rounds M φ = (rounds M φ - N) + N by omega, Function.iterate_add_apply, hN',
       iterate_step_nil]
   · by_cases hi : i ≤ N
@@ -320,9 +316,6 @@ private theorem iterate_step {k M : ℕ} (hkK : k ≤ K) (hM : LeafBound K α M)
         by simp, by simp⟩
       rw [show i = (i - N) + N by omega, Function.iterate_add_apply, hN', iterate_step_nil]
       rfl
-  · rwa [List.toFinset_card_of_nodup hnd]
-  · intro w
-    exact List.mem_toFinset.trans (hL w)
 
 include hK hα in
 /-- **The search decides satisfiability.** If the decider decides satisfiability on formulas of
@@ -349,85 +342,6 @@ theorem search_eq_true_iff {k M : ℕ} (hkK : k ≤ K) (hM : LeafBound K α M) {
     fun ⟨x, hx⟩ => let ⟨w, hw, hwx⟩ := (BranchingRule.exists_isLeafWord_sat_iff
       (one_le_threshold hK hα) s₀ x).mpr ((hsat₀ x).mpr hx)
     ⟨w, hw, (hleaf hw).mpr ⟨x, hwx⟩⟩⟩
-
-include hK hα in
-/-- Collect the leaf formulas of the search, identifying duplicate formulas. This set is used
-in the correctness proof and need not be enumerated by the machine. -/
-private theorem exists_search_leaves {k M : ℕ} (hkK : k ≤ K) (hM : LeafBound K α M)
-    {φ : CNF ℕ} (hφ : ∀ c ∈ φ, c.length ≤ k) :
-    ∃ leaves : Finset (CNF ℕ), leaves.card ≤ 2 ^ (φ.numVars / M + 1) ∧
-      (∀ ψ ∈ leaves, (∀ c ∈ ψ, c.length ≤ k) ∧ ψ.length ≤ occBound K α * φ.numVars + 1) ∧
-      ∀ g : CNF ℕ → Bool, search K α k M g φ = true ↔ ∃ ψ ∈ leaves, g ψ = true := by
-  classical
-  obtain ⟨paths, hcard, hpaths⟩ := (iterate_step hK hα hkK hM (fun _ => false) φ).2.2
-  let leaf (w : List Bool) := ((rule hK hα).tree.walk (rootState hkK φ) w).1
-  refine ⟨paths.image leaf, Finset.card_image_le.trans hcard, ?_, ?_⟩
-  · intro ψ hψ
-    obtain ⟨w, hw, rfl⟩ := Finset.mem_image.mp hψ
-    have hleaf := (hpaths w).mp hw
-    have hs := (isSparse_eq_true_iff (one_le_threshold hK hα)
-      ((rule hK hα).tree.walk (rootState hkK φ) w).2).mpr hleaf.isLeaf_walk
-    exact ⟨fun c hc => length_le_of_mem_walk hK hα hkK hφ hleaf.isNodeWord hc,
-      length_walk_le_of_isSparse hK hα hkK hleaf.isNodeWord hs⟩
-  · intro g
-    rw [search, (iterate_step hK hα hkK hM g φ).1, decide_eq_true_iff]
-    exact ⟨fun ⟨w, hw, hg⟩ => ⟨leaf w, Finset.mem_image_of_mem leaf ((hpaths w).mpr hw), hg⟩,
-      fun ⟨ψ, hψ, hg⟩ => by
-        obtain ⟨w, hw, rfl⟩ := Finset.mem_image.mp hψ
-        exact ⟨w, (hpaths w).mp hw, hg⟩⟩
-
-include hK hα in
-/-- The sparsification search with a shared seed errs on at most
-`2 ^ (φ.numVars / M + 1) * ε` of the seeds if each leaf call errs on at most an `ε` fraction.
-Each leaf verifier reads its own prefix of the seed. The width and error assumptions only
-concern formulas within the search's leaf width and clause bounds. -/
-theorem acceptCount_search_error_le {k M : ℕ} (hkK : k ≤ K) (hM : LeafBound K α M)
-    {φ : CNF ℕ} (hφ : ∀ c ∈ φ, c.length ≤ k)
-    (V : CNF ℕ × List Bool → Bool) (width : CNF ℕ → ℕ) (n : ℕ) {ε : ℝ} (hε : 0 ≤ ε)
-    (hwidth : ∀ ψ : CNF ℕ, (∀ c ∈ ψ, c.length ≤ k) →
-      ψ.length ≤ occBound K α * φ.numVars + 1 → width ψ ≤ n)
-    (herror : ∀ ψ : CNF ℕ, (∀ c ∈ ψ, c.length ≤ k) →
-      ψ.length ≤ occBound K α * φ.numVars + 1 →
-      (acceptCount (fun p => V p != BruteForce.search p.1) ψ (width ψ) : ℝ) ≤
-        ε * (2 : ℝ) ^ width ψ) :
-    (acceptCount (fun p => search K α k M (fun ψ => V (ψ, p.2.take (width ψ))) p.1 !=
-      BruteForce.search p.1) φ n : ℝ) ≤
-      (2 : ℝ) ^ (φ.numVars / M + 1) * (ε * (2 : ℝ) ^ n) := by
-  classical
-  obtain ⟨leaves, hcard, hleaves, hsearch⟩ := exists_search_leaves hK hα hkK hM hφ
-  let bad (ψ : CNF ℕ) (p : CNF ℕ × List Bool) := V (ψ, p.2) != BruteForce.search ψ
-  let W (p : CNF ℕ × List Bool) :=
-    search K α k M (fun ψ => V (ψ, p.2.take (width ψ))) p.1 != BruteForce.search p.1
-  have hcover (w : List Bool) (_hw : w.length = n) (hW : W (φ, w) = true) :
-      ∃ ψ ∈ leaves, bad ψ (φ, w.take (width ψ)) = true := by
-    by_contra hnone
-    let g (ψ : CNF ℕ) := V (ψ, w.take (width ψ))
-    have heq (ψ : CNF ℕ) (hψ : ψ ∈ leaves) : g ψ = BruteForce.search ψ := by
-      by_contra hne
-      exact hnone ⟨ψ, hψ, bne_iff_ne.mpr hne⟩
-    have hsearch_eq : search K α k M g φ = true ↔ search K α k M BruteForce.search φ = true := by
-      rw [hsearch g, hsearch BruteForce.search]
-      exact exists_congr fun ψ => and_congr_right fun hψ => by rw [heq ψ hψ]
-    have htruth : search K α k M BruteForce.search φ = true ↔ BruteForce.search φ = true :=
-      (search_eq_true_iff hK hα hkK hM
-        (fun ψ _ => (BruteForce.search_eq_true_iff ψ).trans mem_SAT) hφ).trans
-        ((BruteForce.search_eq_true_iff φ).trans mem_SAT).symm
-    exact (bne_iff_ne.mp hW) (Bool.eq_iff_iff.mpr (hsearch_eq.trans htruth))
-  have hwide (ψ : CNF ℕ) (hψ : ψ ∈ leaves) : width ψ ≤ n :=
-    hwidth ψ (hleaves ψ hψ).1 (hleaves ψ hψ).2
-  have hcnt := acceptCount_le_sum_of_take_cover leaves bad width W φ n hwide hcover
-  change (acceptCount W φ n : ℝ) ≤ _
-  calc
-    _ ≤ ∑ ψ ∈ leaves, (2 : ℝ) ^ (n - width ψ) * (acceptCount (bad ψ) φ (width ψ) : ℝ) := by
-      exact_mod_cast hcnt
-    _ ≤ ∑ _ψ ∈ leaves, ε * (2 : ℝ) ^ n := by
-      refine Finset.sum_le_sum fun ψ hψ => ?_
-      calc
-        _ ≤ (2 : ℝ) ^ (n - width ψ) * (ε * (2 : ℝ) ^ width ψ) :=
-          mul_le_mul_of_nonneg_left (herror ψ (hleaves ψ hψ).1 (hleaves ψ hψ).2) (by positivity)
-        _ = ε * (2 : ℝ) ^ n := by rw [mul_left_comm, ← pow_add, Nat.sub_add_cancel (hwide ψ hψ)]
-    _ = (leaves.card : ℝ) * (ε * (2 : ℝ) ^ n) := by simp only [Finset.sum_const, nsmul_eq_mul]
-    _ ≤ _ := mul_le_mul_of_nonneg_right (by exact_mod_cast hcard) (by positivity)
 
 /-! ### Polynomial-time parts -/
 
@@ -585,7 +499,7 @@ private theorem exists_computableInO_search {k M : ℕ} (hkK : k ≤ K) (hM : Le
           t (s.1.headD []) else 0) ((step K α g)^[i] ([root k φ], false)) ≤
         (stateBound K α φ + 1) ^ d + leafTime K α δ c e φ := by
     intro φ i _
-    obtain ⟨stk, acc, heq, hstk, hmem⟩ := (iterate_step hK hα hkK hM g φ).2.1 i
+    obtain ⟨stk, acc, heq, hstk, hmem⟩ := (iterate_step hK hα hkK hM g φ).2 i
     rw [heq]
     have hS := length_encState_le hK hα hkK hstk hmem (acc := acc)
     refine Nat.add_le_add (Nat.pow_le_pow_left (by omega) d) ?_
@@ -612,7 +526,7 @@ private theorem exists_computableInO_search {k M : ℕ} (hkK : k ≤ K) (hM : Le
   have hstate : ∀ φ, ∀ i ≤ rounds M φ,
       (encState ((step K α g)^[i] ([root k φ], false))).length ≤ stateBound K α φ := by
     intro φ i _
-    obtain ⟨stk, acc, heq, hstk, hmem⟩ := (iterate_step hK hα hkK hM g φ).2.1 i
+    obtain ⟨stk, acc, heq, hstk, hmem⟩ := (iterate_step hK hα hkK hM g φ).2 i
     rw [heq]
     exact length_encState_le hK hα hkK hstk hmem
   exact ⟨d, dn, di, (ComputableInO.iterate hn.inO hi.inO
