@@ -25,8 +25,18 @@ import CslibFrontier.Foundations.Data.List.Lookup
 The verifier reads the coefficient word of a line through the requested point, then checks the
 values of the point table at its first `n + 1` positive nodes. It returns the polynomial value
 at zero when all comparisons succeed. Each coordinate of the direction comes from bounded fair
-coins. The coefficient word, the point values and the random direction belong to the same
-static bit-oracle experiment.
+coins. The verifier reads both tables from the same static bit proof.
+
+## Main definitions
+
+* `correctAt` checks the requested point along a supplied direction.
+* `correctPoint` draws the direction and returns the checked value or `none` on rejection.
+
+## Main results
+
+* `run_correctAt` identifies the verifier's answer on every fixed proof and field direction.
+* `isOraclePPTOn_correctPoint` certifies strict polynomial running time for unary modulus,
+  dimension, and sampling precision.
 -/
 
 public section

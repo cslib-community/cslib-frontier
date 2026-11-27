@@ -22,7 +22,7 @@ import CslibFrontier.Computability.Probabilistic.UniformNat.ModIndex
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Repeat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryLog
-import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.Support
 import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Data.List.GetD
 import CslibFrontier.Probability.StatisticalDistance.CloseTo
@@ -37,14 +37,20 @@ bit proof supplies three field values, the point value and the two coefficients 
 Zeroing the selected coordinate before querying the line prevents the proof from supplying
 different affine functions for different positions on that line.
 
-The strict polynomial-time oracle verifier `axisRound` samples an axis and point with fair bits
-and reads three binary integers. Every multilinear polynomial has a proof that passes every
-round. For any static proof, the verifier rejection probability differs from the uniform field
-test by at most `2 / 2^precision`. With a uniform axis and point and a field of size at least
-`1000 (n+1)^3`, rejection below `1/(10^6 (n+1)^7)` gives an individual-degree-one polynomial
-whose evaluations differ from the point table on fewer than a `1/(100 (n+1))` fraction of the
-cube. These constants specialize the approximate-line estimate from
-`Cslib.Code.exists_isMultilinear_hammingDist_lt_of_lineOracle`.
+## Main definitions
+
+* `checkAxis` compares a point value with the affine function reported for its axis line.
+* `axisRound` samples the axis and point with fair bits and reads the three binary numbers.
+
+## Main results
+
+* `isOraclePPTOn_axisRound` certifies the strict polynomial running time of the verifier.
+* `closeTo_axisRound` bounds the difference from the uniform field test by `2 / 2^precision`.
+* `exists_assignment_of_axisRound` gives a multilinear polynomial differing from the point table
+  on less than a `1/(100 (n+1))` fraction of the cube when the field has at least `1000 (n+1)^3`
+  elements and rejection plus the sampling error is below `1/(10^6 (n+1)^7)`.
+* `exists_axisTable_of_mem_restrictDegree` supplies an axis table for each multilinear polynomial
+  that passes every round.
 -/
 
 public section
@@ -438,9 +444,7 @@ private theorem run_axisRound_of_checkAxis (π : List Bool → Bool) {n p : ℕ}
     (precision : ℕ) :
     (Prover.ofProof π).run (axisRound n p precision) () = PMF.pure (true, ()) := by
   simp only [axisRound, Prover.run_bind, Prover.run_sample, PMF.bind_map]
-  refine (Probability.PMF.bind_congr_on_support _ _ (fun _ => PMF.pure (true, ()))
-    fun c hc => ?_).trans
-    (PMF.bind_const _ _)
+  refine Probability.PMF.bind_eq_pure_of_forall_mem_support fun c hc => ?_
   obtain ⟨i, x, rfl⟩ := valid_of_mem_axisChallenge hc
   change (Prover.ofProof π).run (checkAxisAt p i (List.ofFn fun j => (x j).val)) () = _
   rw [run_checkAxisAt, hall]
