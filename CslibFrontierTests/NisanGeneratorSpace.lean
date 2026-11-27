@@ -8,6 +8,7 @@ module
 -- upstream: local-only (tests)
 
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.NisanSpace
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.SaksZhouSeed
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.USTCON
 
 /-! Nisan's generator on seeds packed into naturals: the Toeplitz hash on packed blocks follows the
@@ -53,6 +54,19 @@ example : ∀ j : Fin (2 ^ 2 * 2),
 -- Boundary `k = 0`: the generator outputs its seed block.
 example (z : ℕ) : bitGeneratorNat 3 0 z 1 = z.testBit 1 := by
   simp [bitGeneratorNat, blockNat]
+
+-- Bits 0 and 1 carry the one-bit Toeplitz diagonal and offset. The following four bits
+-- encode shifts 2 and 1, least significant bit first in each two-bit field.
+example :
+    let s := SaksZhou.nisanShiftSeedOfNat 1 1 2 2 25
+    (s.1 0).1 0 = true ∧ (s.1 0).2 0 = false ∧ s.2 0 = 2 ∧ s.2 1 = 1 := by
+  decide
+
+-- Zero-width hashes consume no counter bits. With zero-width shifts as well, there is
+-- exactly one counter value, even when several rounds have been requested.
+example :
+    (List.range (2 ^ (2 * (3 * 0 - 1) + 3 * 0))).countP
+      (fun z => (SaksZhou.nisanShiftSeedOfNat 0 2 3 0 z).2 2 == 0) = 1 := by decide
 
 -- `BPL ⊆ DSPACE(log² n)` has only class membership as hypothesis, and it is met: undirected
 -- connectivity is in `L ⊆ BPL`, so it is decided within `O(log² n)` work cells.

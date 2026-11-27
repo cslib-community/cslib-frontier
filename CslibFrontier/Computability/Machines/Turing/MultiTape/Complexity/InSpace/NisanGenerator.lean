@@ -78,22 +78,9 @@ private theorem seedOfNat_injOn (n k : ℕ) :
   by_cases hi : i < n + k * (3 * n - 1)
   · by_cases hin : i < n
     · exact congrFun (congrArg Prod.fst heq) ⟨i, hin⟩
-    · have hpos : 0 < 3 * n - 1 := by
-        rcases n with _ | n
-        · simp at hi
-        · omega
-      set m := 3 * n - 1 with hm
-      have hℓ : (i - n) / m < k := (Nat.div_lt_iff_lt_mul hpos).mpr (by omega)
-      have hdm := Nat.div_add_mod (i - n) m
-      have hr := Nat.mod_lt (i - n) hpos
-      have hseed := congrFun (congrArg Prod.snd heq) ⟨(i - n) / m, hℓ⟩
-      simp only [seedOfNat, hashSeedOfNat, Prod.mk.injEq, ← hm] at hseed
-      have hmul := Nat.mul_comm ((i - n) / m) m
-      by_cases hr' : (i - n) % m < n + n - 1
-      · have hi' : n + (i - n) / m * m + (i - n) % m = i := by omega
-        simpa only [hi'] using congrFun hseed.1 ⟨_, hr'⟩
-      · have hi' : n + (i - n) / m * m + (n + n - 1) + ((i - n) % m - (n + n - 1)) = i := by omega
-        simpa only [hi'] using congrFun hseed.2 ⟨(i - n) % m - (n + n - 1), by omega⟩
+    · have hbit := testBit_eq_of_hashSeeds_eq (o := n) (i := i - n) (by omega)
+        (fun l => congrFun (congrArg Prod.snd heq) l)
+      simpa only [Nat.add_sub_cancel' (by omega : n ≤ i)] using hbit
   · have hle : 2 ^ (n + k * (3 * n - 1)) ≤ 2 ^ i := Nat.pow_le_pow_right two_pos (by omega)
     rw [Nat.testBit_lt_two_pow (hz.trans_le hle), Nat.testBit_lt_two_pow (hz'.trans_le hle)]
 
