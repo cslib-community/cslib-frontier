@@ -63,7 +63,7 @@ decreases as `n` grows (`BitString.levelWeight_signVal_majority_succ_lt`)
 (`BitString.noiseStability_signVal_majority_succ_lt`): the weight lost on the levels up to `n`
 moves to the new top level `n + 2`, where `ρ ^ k` is smaller
 [O'Donnell, Theorem 5.18][ODonnell2014]. The limits of the level weights and of the noise
-stability (Theorems 5.22 and 2.45) and the lower bound of Theorem 5.18 are in
+stability (Theorems 5.22 and 2.45) and the bounds of Theorem 5.18 are in
 `CslibFrontier.Foundations.BooleanAnalysis.MajorityStability`.
 
 ## Usage
@@ -414,8 +414,9 @@ theorem levelWeight_signVal_majority_succ_lt (m j : ℕ) (hj : j ≤ m) :
 /-- **The noise stability of majority decreases in `n`** [O'Donnell, Theorem 5.18][ODonnell2014]:
 for `0 < ρ < 1`, `Stab_ρ[Maj_n]` is strictly smaller on `n + 2 = 2 m + 3` bits than on
 `n = 2 m + 1` bits. At the endpoints the two agree: both are `0` at `ρ = 0` (majority is
-unbiased) and `1` at `ρ = 1`. The lower bound of Theorem 5.18 by `(2 / π) arcsin ρ` is
-`BitString.le_noiseStability_signVal_majority`. The levels up to `n` lose weight, which the new
+unbiased) and `1` at `ρ = 1`. The bounds of Theorem 5.18 by `(2 / π) arcsin ρ` are
+`BitString.le_noiseStability_signVal_majority` and
+`BitString.noiseStability_signVal_majority_le`. The levels up to `n` lose weight, which the new
 top level `n + 2` gains, and `ρ ^ k ≥ ρ ^ n > ρ ^ (n + 2)` there. -/
 theorem noiseStability_signVal_majority_succ_lt (m : ℕ) {ρ : ℝ} (h0 : 0 < ρ) (h1 : ρ < 1) :
     noiseStability ρ (fun x => signVal (majority (2 * (m + 1) + 1) x)) <
