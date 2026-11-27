@@ -83,24 +83,18 @@ theorem hypothesisError_eq_of_inter_eq {α : Type*} [MeasurableSpace α]
     {P : Measure α} {W : Set α} (hP_supp : P Wᶜ = 0)
     {h₀ c₁ c₂ : Set α} (hinter : c₁ ∩ W = c₂ ∩ W) :
     hypothesisError P h₀ c₁ = hypothesisError P h₀ c₂ := by
-  simp only [hypothesisError]
-  have hP_restrict : ∀ A : Set α, P A = P (A ∩ W) := by
-    intro A
-    have h1 : P A ≤ P (A ∩ W ∪ Wᶜ) :=
-      measure_mono (fun x hx => by_cases (fun hxW : x ∈ W => Or.inl ⟨hx, hxW⟩)
-        (fun hxW => Or.inr hxW))
-    exact le_antisymm ((h1.trans (measure_union_le _ _)).trans (by rw [hP_supp, add_zero]))
-      (measure_mono Set.inter_subset_left)
-  rw [hP_restrict (symmDiff h₀ c₁), hP_restrict (symmDiff h₀ c₂)]
-  have : symmDiff h₀ c₁ ∩ W = symmDiff h₀ c₂ ∩ W := by
-    ext x
-    simp only [Set.mem_inter_iff, Set.mem_symmDiff, and_congr_left_iff]
-    intro hxW
-    have hc_iff : x ∈ c₁ ↔ x ∈ c₂ :=
-      ⟨fun h => ((Set.ext_iff.mp hinter x).mp ⟨h, hxW⟩).1,
-       fun h => ((Set.ext_iff.mp hinter x).mpr ⟨h, hxW⟩).1⟩
-    tauto
-  rw [this]
+  have hP_restrict (A : Set α) : P A = P (A ∩ W) := by
+    have hsub : A ⊆ A ∩ W ∪ Wᶜ := fun x hx =>
+      by_cases (fun hxW : x ∈ W => Or.inl ⟨hx, hxW⟩) Or.inr
+    exact le_antisymm ((measure_mono hsub).trans ((measure_union_le _ _).trans
+      (by rw [hP_supp, add_zero]))) (measure_mono Set.inter_subset_left)
+  rw [hypothesisError, hypothesisError, hP_restrict (symmDiff h₀ c₁), hP_restrict (symmDiff h₀ c₂)]
+  congr 1
+  ext x
+  simp only [Set.mem_inter_iff, Set.mem_symmDiff, and_congr_left_iff]
+  intro hxW
+  have hx : x ∈ c₁ ↔ x ∈ c₂ := by simpa [hxW] using Set.ext_iff.mp hinter x
+  tauto
 
 /-- If a measure `P` on `α` gives zero mass to the complement of a finite set
 `W`, then the product measure `P^m` gives zero mass to the complement of

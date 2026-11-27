@@ -121,12 +121,9 @@ theorem exists_traceSymBits_ne [Finite F] {n s t : ℕ} (hn : finrank (ZMod 2) F
     ∃ x ∈ A, ∃ y ∈ A, traceSymBits μ r t b pos x ≠ traceSymBits μ r t b pos y := by
   classical
   have hcard : Fintype.card ι = n := (finrank_eq_card_basis b).symm.trans hn
-  have hAne : (A : Set (BitString N)).Nonempty := by
-    rw [AffineSubspace.nonempty_iff_ne_bot]
-    rintro rfl
-    rw [AffineSubspace.direction_bot, finrank_bot] at hA
+  obtain ⟨p, hp⟩ := A.nonempty_iff_ne_bot.2 fun h => by
+    rw [h, AffineSubspace.direction_bot, finrank_bot] at hA
     exact Nat.not_lt_zero _ hA
-  obtain ⟨p, hp⟩ := hAne
   set W := A.direction
   set E := toZModSpace (Fin N)
   set WZ := submoduleZModIso (Fin N) W
@@ -142,22 +139,19 @@ theorem exists_traceSymBits_ne [Finite F] {n s t : ℕ} (hn : finrank (ZMod 2) F
       rw [LinearMap.ker_domRestrict, ← Submodule.finrank_map_subtype_eq,
         Submodule.map_comap_subtype]
       exact Submodule.finrank_mono inf_le_right
-    have h3 : finrank (ZMod 2) (LinearMap.ker ψ) ≤ N - r * n := by
-      have := finrank_ker_readLinear_le b hpos
-      rwa [hcard] at this
+    have h3 : finrank (ZMod 2) (LinearMap.ker ψ) ≤ N - r * n :=
+      hcard ▸ finrank_ker_readLinear_le b hpos
     omega
   obtain ⟨x', hx', y', hy', hne⟩ := exists_traceSym_ne hn hs hμ ht A' (by omega)
   -- the points of `A'` are read from points of `A`
-  have hlift : ∀ z ∈ A', ∃ x ∈ A, readField b pos x = z := by
-    intro z hz
-    rw [AffineSubspace.mem_mk'] at hz
-    obtain ⟨wZ, hwZ, hwz⟩ := Submodule.mem_map.mp hz
+  have hlift {z} (hz : z ∈ A') : ∃ x ∈ A, readField b pos x = z := by
+    obtain ⟨wZ, hwZ, hwz⟩ := Submodule.mem_map.mp (AffineSubspace.mem_mk'.mp hz)
     refine ⟨E.symm wZ +ᵥ p,
       AffineSubspace.vadd_mem_of_mem_direction (mem_submoduleZModIso.mp hwZ) hp, ?_⟩
     rw [readField_eq, vadd_eq_add, map_add, E.apply_symm_apply, map_add, hwz, vsub_eq_sub,
       sub_add_cancel]
-  obtain ⟨x, hx, rfl⟩ := hlift x' hx'
-  obtain ⟨y, hy, rfl⟩ := hlift y' hy'
+  obtain ⟨x, hx, rfl⟩ := hlift hx'
+  obtain ⟨y, hy, rfl⟩ := hlift hy'
   exact ⟨x, hx, y, hy, fun h => hne (bitEquiv.injective h)⟩
 
 end Cslib.AffineDisperser

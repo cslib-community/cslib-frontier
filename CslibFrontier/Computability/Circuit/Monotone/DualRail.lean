@@ -73,10 +73,7 @@ def railBits (x : List Bool) : List Bool := true :: x.flatMap fun b => [b, !b]
 @[simp] theorem length_railBits (x : List Bool) : (railBits x).length = 2 * x.length + 1 := by
   induction x with
   | nil => rfl
-  | cons b x ih =>
-    simp only [railBits, List.length_cons, List.flatMap_cons] at ih ⊢
-    simp only [List.length_append, List.length_cons, List.length_nil]
-    omega
+  | cons b x ih => simp [railBits] at ih ⊢; omega
 
 theorem railBits_append (x : List Bool) (v : Bool) :
     railBits (x ++ [v]) = railBits x ++ [v, !v] := by
@@ -97,23 +94,19 @@ private theorem getD_flatMap_pair (x : List Bool) {w : ℕ} (hw : w < x.length) 
   | cons b x ih =>
     rcases w with _ | w
     · simp
-    · have := ih (w := w) (by simpa using hw)
-      rw [List.flatMap_cons, show 2 * (w + 1) = 2 * w + 1 + 1 by omega,
-        show 2 * w + 1 + 1 + 1 = 2 * w + 1 + 1 + 1 from rfl]
-      simpa [List.getD_cons_succ] using this
+    · have hmul : 2 * (w + 1) = 2 * w + 1 + 1 := by omega
+      rw [List.flatMap_cons, hmul]
+      simpa [List.getD_cons_succ] using ih (by simpa using hw)
 
 /-- The positive rail of a value. -/
 theorem getD_railBits_true (x : List Bool) {w : ℕ} (hw : w < x.length) :
-    (railBits x).getD (railWire true w) false = x.getD w false := by
-  simp only [railBits, railWire, ↓reduceIte, List.getD_cons_succ]
-  exact (getD_flatMap_pair x hw).1
+    (railBits x).getD (railWire true w) false = x.getD w false :=
+  (getD_flatMap_pair x hw).1
 
 /-- The negative rail of a value. -/
 theorem getD_railBits_false (x : List Bool) {w : ℕ} (hw : w < x.length) :
-    (railBits x).getD (railWire false w) false = !x.getD w false := by
-  simp only [railBits, railWire, Bool.false_eq_true, ↓reduceIte,
-    show 2 * w + 2 = 2 * w + 1 + 1 from rfl, List.getD_cons_succ]
-  exact (getD_flatMap_pair x hw).2
+    (railBits x).getD (railWire false w) false = !x.getD w false :=
+  (getD_flatMap_pair x hw).2
 
 /-! ### Gates -/
 
@@ -160,9 +153,8 @@ private theorem sum_andCost_dualCode (gates : List (Boolean.Op × List ℕ)) :
       simpa [dualCode, dualGates, andCost, Boolean.binaryCost] using ih
 
 private theorem getD_lt_of_isCode {l : List ℕ} {B j : ℕ} (hj : j < l.length) (h : ∀ i ∈ l, i < B) :
-    l.getD j 0 < B := by
-  rw [List.getD_eq_getElem _ _ hj]
-  exact h _ (List.getElem_mem hj)
+    l.getD j 0 < B :=
+  List.getD_eq_getElem _ _ hj ▸ h _ (List.getElem_mem hj)
 
 private theorem isCodeFrom_pair {N K : ℕ} {o₁ o₂ : Op} {l₁ l₂ : List ℕ}
     (h₁ : l₁.length = signature.Arity o₁) (h₂ : l₂.length = signature.Arity o₂)
@@ -185,35 +177,13 @@ theorem isCodeFrom_dualCode {n : ℕ} :
     have hw (j : ℕ) (hj : j < g.2.length) : g.2.getD j 0 < n + k := getD_lt_of_isCode hj hlt
     rcases g with ⟨_ | _ | _ | _, args⟩ <;> simp only at hlen hw
     · exact isCodeFrom_pair rfl rfl (by simp) (by simp)
-    · have h₀ := hw 0 (by omega)
-      exact isCodeFrom_pair rfl rfl (by
-          simp only [railWire, Bool.false_eq_true, ↓reduceIte, List.mem_cons,
-            List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
-          omega)
-        (by
-          simp only [railWire, ↓reduceIte, List.mem_cons,
-            List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
-          omega)
-    · have h₀ := hw 0 (by omega)
-      have h₁ := hw 1 (by omega)
-      exact isCodeFrom_pair rfl rfl (by
-          simp only [railWire, ↓reduceIte, List.mem_cons,
-            List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
-          omega)
-        (by
-          simp only [railWire, Bool.false_eq_true, ↓reduceIte, List.mem_cons,
-            List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
-          omega)
-    · have h₀ := hw 0 (by omega)
-      have h₁ := hw 1 (by omega)
-      exact isCodeFrom_pair rfl rfl (by
-          simp only [railWire, ↓reduceIte, List.mem_cons,
-            List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
-          omega)
-        (by
-          simp only [railWire, Bool.false_eq_true, ↓reduceIte, List.mem_cons,
-            List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
-          omega)
+    all_goals
+      have h₀ := hw 0 (by omega)
+      try have h₁ := hw 1 (by omega)
+      refine isCodeFrom_pair rfl rfl ?_ ?_ <;>
+        simp only [railWire, Bool.false_eq_true, ↓reduceIte, List.mem_cons, List.not_mem_nil,
+          or_false, forall_eq_or_imp, forall_eq] <;>
+        omega
 
 /-- Evaluating two gates, the second reading only wires computed before the first. -/
 private theorem evalCode_pair {σ : Signature} {U : Type*} (I : Interpretation σ U)
@@ -253,10 +223,7 @@ private theorem evalCode_dualGates_binary (vs : List Bool) {a b : ℕ} (ha : a <
   rw [railBits_append, railBits_append]
   constructor <;>
     (simp only [dualGates, List.getD_cons_zero, List.getD_cons_succ]
-     rw [evalCode_pair _ _ _ _ _ (by
-       simp only [railWire, Bool.false_eq_true, ↓reduceIte, List.mem_cons,
-         List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
-       omega)]
+     rw [evalCode_pair _ _ _ _ _ (by simp [railWire]; omega)]
      simp [interpretation, Boolean.interpretation, hTa, hFa, hTb, hFb])
 
 /-- **The translated gate list computes the dual-rail values**: on the dual-rail inputs, the
@@ -288,13 +255,10 @@ theorem evalCode_dualCode (x : List Bool) {gates : List (Boolean.Op × List ℕ)
       have ha : a < vs.length := by simpa using hw 0 (by simp)
       have hTa := getD_railBits_true vs ha
       have hFa := getD_railBits_false vs ha
+      simp only [List.getD_eq_getElem?_getD] at hTa hFa
       rw [railBits_append]
       simp only [dualGates, List.getD_cons_zero]
-      rw [evalCode_pair _ _ _ _ _ (by
-          simp only [railWire, ↓reduceIte, List.mem_cons,
-            List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
-          omega)]
-      simp only [List.getD_eq_getElem?_getD] at hTa hFa
+      rw [evalCode_pair _ _ _ _ _ (by simp [railWire]; omega)]
       simp [interpretation, Boolean.interpretation, hTa, hFa]
     · obtain ⟨a, b, rfl⟩ := List.length_eq_two.1 hlen
       exact (evalCode_dualGates_binary vs (by simpa using hw 0 (by simp))
@@ -315,10 +279,9 @@ def railBitString (x : BitString n) : BitString (2 * n + 1) :=
 
 /-- Listing the bits of `railBitString x` gives `railBits (List.ofFn x)`. -/
 theorem ofFn_railBitString (x : BitString n) :
-    List.ofFn (railBitString x) = railBits (List.ofFn x) := by
-  refine List.ext_getElem (by simp) fun i h₁ h₂ => ?_
-  rw [List.getElem_ofFn]
-  exact List.getD_eq_getElem _ _ h₂
+    List.ofFn (railBitString x) = railBits (List.ofFn x) :=
+  List.ext_getElem (by simp) fun _ _ h₂ =>
+    (List.getElem_ofFn _).trans (List.getD_eq_getElem _ _ h₂)
 
 /-- The dual-rail code of a De Morgan circuit `c` is a valid monotone circuit code. -/
 theorem isSome_ofCode_dualRail (c : Circuit Boolean.signature n m) :
@@ -359,24 +322,17 @@ theorem cost_dualRail (c : Circuit Boolean.signature n m) :
 
 private theorem toNat_outputs_dualRail (c : Circuit Boolean.signature n m) (j : Fin m) :
     ((dualRail c).outputs j).toNat = railWire true (c.outputs j).toNat := by
-  have h := congrArg Prod.snd (code_dualRail c)
-  simp only [Circuit.code] at h
-  have := congrArg (fun l => l[j.val]?) h
-  simpa using this
+  simpa [Circuit.code] using congrArg (fun code => code.2[j.val]?) (code_dualRail c)
 
 /-- **The dual-rail translation computes the same function** on the dual-rail inputs. -/
 theorem eval_dualRail (c : Circuit Boolean.signature n m) (x : BitString n) (j : Fin m) :
     (dualRail c).eval interpretation (railBitString x) j = c.eval Boolean.interpretation x j := by
   rw [Circuit.eval_eq_getD _ _ false, Circuit.eval_eq_getD _ _ false, code_dualRail,
-    toNat_outputs_dualRail, ofFn_railBitString]
-  have hc : Program.IsCodeFrom Boolean.signature (List.ofFn x).length 0 c.code.1 := by
-    simpa using c.isCodeFrom_code
-  rw [evalCode_dualCode _ hc]
-  apply getD_railBits_true
+    toNat_outputs_dualRail, ofFn_railBitString,
+    evalCode_dualCode _ (by simpa using c.isCodeFrom_code)]
   have := (c.outputs j).toNat_lt
   have hl := Circuit.length_code_fst c
-  simp only [length_evalCode, List.length_ofFn]
-  omega
+  exact getD_railBits_true _ (by simp only [length_evalCode, List.length_ofFn]; omega)
 
 end Circuit
 

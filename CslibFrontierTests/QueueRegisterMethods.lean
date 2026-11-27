@@ -35,7 +35,7 @@ theorem native_enqueue {w : ℕ} {d : Input} {s : Memory.State}
         (Backend.install family false d (Backend.data family s)) y n ∧
       n ≤ Backend.factor family * 2 ∧
       y.mem = Function.update s.mem (d 2 + d 3 + d 1) (d 4) ∧
-      ∀ i, y.regs (result false i) = counts (d 0, d 1 + 1) i := by
+      ∀ i, y.regs (result false i) = counts ⟨d 0, d 1 + 1⟩ i := by
   obtain ⟨y, n, he, hn, hm, hout, _⟩ := Backend.exists_exec family false d
     (Backend.bounded_data family hw) hwords
     (by simpa only [Backend.memoryState_data] using h)
@@ -67,6 +67,15 @@ theorem native_dequeue {w : ℕ} {d : Input} {s : Memory.State}
   rw [Backend.memoryState_data, clientState_width w] at hmem
   rw [Backend.memoryState_data, clientResult_width w] at hout
   exact ⟨y, n, he, hn, hmem, hout⟩
+
+-- Dequeue's four-word output encoding (`Counts × Option ℕ`) preserves the exact word layout of
+-- `(ℕ × ℕ) × Option ℕ`.
+example (front rear : ℕ) (opt : Option ℕ) :
+    appendWords counts optionWords (⟨front, rear⟩, opt) =
+      appendWords
+        (appendWords (Equiv.funUnique (Fin 1) ℕ).symm.toEmbedding
+          (Equiv.funUnique (Fin 1) ℕ).symm.toEmbedding)
+        optionWords ((front, rear), opt) := rfl
 
 -- The old decisive small-width domain admits a maximum-word enqueue with only two cells.
 example : ∃ y n, Exec 2 (Backend.code family false)

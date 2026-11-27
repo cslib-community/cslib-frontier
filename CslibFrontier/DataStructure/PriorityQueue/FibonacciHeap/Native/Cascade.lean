@@ -10,6 +10,7 @@ module
 public import CslibFrontier.DataStructure.PriorityQueue.FibonacciHeap.Native.Domain
 public import CslibFrontier.DataStructure.PriorityQueue.FibonacciHeap.Native.Source
 public import CslibFrontier.Computability.WordRAM.Realization.WhileAbsorb
+import CslibFrontier.DataStructure.Memory.RecordLink
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -37,35 +38,6 @@ namespace Cslib.DataStructure.PriorityQueue.FibonacciHeap.Native
 open Cslib.WordRAM Cslib.WordRAM.Realization
 open Cslib.DataStructure.PriorityQueue.WordRAM.FibonacciHeap
 
-private def cascadeBody (d : Fin 3 → ℕ) : Memory.Prog (Option ℕ) := do
-  let pz ← Memory.read (d 1 + d 0 + d 2)
-  if pz = 0 then pure none
-  else
-    let mk ← Memory.read (d 1 + 6 * d 0 + d 2)
-    if mk = 0 then
-      Memory.write (d 1 + 6 * d 0 + d 2) 1
-      let c ← Memory.read (d 1 + 9 * d 0 + 3)
-      Memory.write (d 1 + 9 * d 0 + 3) (c + 1)
-      pure none
-    else
-      let p ← pure (pz - 1)
-      DataStructure.link (E := Memory.spec 0) ((layout (d 0) (d 1)).methods 0) (cut (d 2) p)
-      pure (some p)
-
-private theorem cascadeBody_eq (d : Fin 3 → ℕ) : cascadeBody d =
-    DataStructure.link (E := Memory.spec 0) ((layout (d 0) (d 1)).methods 0)
-      (cascadeStep (d 2)) := by
-  simp only [cascadeBody, cascadeStep, DataStructure.link, PFunctor.FreeM.liftM_bind]
-  congr 1 with pz : 1
-  by_cases hp : pz = 0
-  · simp only [hp, ite_true, PFunctor.FreeM.liftM_pure]
-  · simp only [hp, ite_false]
-    congr 1 with mk : 1
-    by_cases hm : mk = 0 <;>
-      simp only [hm, ite_true, ite_false, PFunctor.FreeM.liftM_bind,
-        PFunctor.FreeM.liftM_pure, pure_bind, PFunctor.FreeM.pure_bind]
-    rfl
-
 /-- The marked branch uses the existing cut's actual intermediate-state domain. All other
 arithmetic overflow obligations remain part of the original admissible source history. -/
 @[expose] def cascadeStepSafe (w : ℕ) (d : Fin 3 → ℕ) (s : Memory.State) : Prop :=
@@ -73,41 +45,28 @@ arithmetic overflow obligations remain part of the original admissible source hi
     (s.mem (d 1 + d 0 + d 2) ≠ 0 → s.mem (d 1 + 6 * d 0 + d 2) ≠ 0 →
       cutSafe w ![d 0, d 1, d 2, s.mem (d 1 + d 0 + d 2) - 1] s)
 
-private theorem realizes_cutNext : Realizes .exact
-    (fun d : ((ℕ × ℕ) × ℕ) × ℕ => do
-      DataStructure.link (E := Memory.spec 0) ((layout d.1.1.1 d.1.1.2).methods 0)
-        (cut d.1.2 d.2)
-      pure (some d.2))
-    (WordEncoding.encode (α := ((ℕ × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := Option ℕ))
-    (fun w d s => cutSafe w ![d.1.1.1, d.1.1.2, d.1.2, d.2] s ∧ Fits w 1) (fun _ _ => 0) := by
-  have hRet : Realizes .exact (fun d : (Fin 4 → ℕ) × Unit => pure (some (d.1 3)))
-      (appendWords (.refl _) (WordEncoding.encode (α := Unit)))
-      (WordEncoding.encode (α := Option ℕ)) (fun w _ _ => Fits w 1) (fun _ _ => 0) := by
-    realize; exact h
-  exact (realizes_cut.bind₀ hRet).reindex
-    (fun d : ((ℕ × ℕ) × ℕ) × ℕ => ![d.1.1.1, d.1.1.2, d.1.2, d.2])
-    (WordEncoding.encode (α := ((ℕ × ℕ) × ℕ) × ℕ)) ![0, 1, 2, 3]
-    fun _ i => by fin_cases i <;> rfl
-
-private theorem realizes_cascadeBody_history : Realizes .exact cascadeBody
+private theorem realizes_cascadeStep_history : Realizes .exact
+    (fun d : Fin 3 → ℕ => DataStructure.link (E := Memory.spec 0)
+      ((layout (d 0) (d 1)).methods 0) (cascadeStep (d 2)))
     (.refl _) (WordEncoding.encode (α := Option ℕ))
     (fun w d s => cascadeStepSafe w d s ∧
-      (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (cascadeBody d)))
+      (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
+        (DataStructure.link (E := Memory.spec 0) ((layout (d 0) (d 1)).methods 0)
+          (cascadeStep (d 2)))))
     (fun _ _ => 0) := by
-  have hNext := realizes_cutNext
-  unfold cascadeBody
-  realize
+  realize [realizes_cut]
   all_goals try first
     | exact h.1.1.of_le (by have := h.1.2.1; omega)
     | exact h.1.2.2 (by assumption) (by assumption)
     | omega
   have hv := h.2
-  clear hNext h
+  clear h
+  simp only [DataStructure.link, cascadeStep, rd, wr, PFunctor.FreeM.liftM_bind,
+    Record.Layout.lift_read, Record.Layout.lift_write, Record.lift_ite, layout] at hv
   simp_all only [StateTransitionSpec.clientHistory, StateTransitionSpec.runClient_lift_bind',
-    StateTransitionSpec.validHistory_cons, StateTransitionSpec.validHistory_nil,
-    StateTransitionSpec.runClient_pure', StateTransitionSpec.stepFn,
-    Memory.read, Memory.write, Memory.step_read, Memory.step_write, Memory.valid,
-    ite_true, ite_false]
+    StateTransitionSpec.validHistory_cons, StateTransitionSpec.stepFn,
+    Memory.read, Memory.write, Memory.step_read, Memory.step_write,
+    Memory.valid, ite_true, ite_false]
 
 /-- The same original cascading-cut source step, without an added source-history hypothesis.
 Its intrinsic admissibility premise supplies fitting values for the mark/count writes. -/
@@ -115,8 +74,7 @@ theorem realizes_cascadeStep : Realizes .exact
     (fun d : Fin 3 → ℕ => DataStructure.link (E := Memory.spec 0)
       ((layout (d 0) (d 1)).methods 0) (cascadeStep (d 2)))
     (.refl _) (WordEncoding.encode (α := Option ℕ)) cascadeStepSafe (fun _ _ => 0) :=
-  (realizes_cascadeBody_history.congr cascadeBody_eq).consequence_valid
-    (fun _ _ _ _ _ hv h => ⟨h, by simpa only [cascadeBody_eq] using hv⟩)
+  realizes_cascadeStep_history.consequence_valid (fun _ _ _ _ _ hv h => ⟨h, hv⟩)
 
 /-- The existing forest supplies the actual cut domain whenever the body reaches its cut
 branch. No additional numeric parent or subtraction hypothesis is assumed. -/
@@ -193,23 +151,13 @@ original cutoff does not truncate a continuing branch. -/
       (fun w a mem => cascadeStepSafe w ![d 0, d 1, optionWords a.2 1] mem)
       w () (d 0 + 1) (some (d 2)) mem
 
-private theorem realizes_cascadeStep_tuple : Realizes .exact
-    (fun d : (ℕ × ℕ) × ℕ => DataStructure.link (E := Memory.spec 0)
-      ((layout d.1.1 d.1.2).methods 0) (cascadeStep d.2))
-    (WordEncoding.encode (α := (ℕ × ℕ) × ℕ)) (WordEncoding.encode (α := Option ℕ))
-    (fun w d mem => cascadeStepSafe w ![d.1.1, d.1.2, d.2] mem) (fun _ _ => 0) :=
-  realizes_cascadeStep.reindex (fun d : (ℕ × ℕ) × ℕ => ![d.1.1, d.1.2, d.2])
-    (WordEncoding.encode (α := (ℕ × ℕ) × ℕ)) ![0, 1, 2] fun _ i => by fin_cases i <;> rfl
-
 /-- The complete original cascade, compiled with the shared native while rule. The cutoff is
 only a proof bound: the emitted loop tests the pending tag and never executes a fuel counter. -/
 theorem realizes_cascade : Realizes .exact
     (fun d : Fin 3 → ℕ => DataStructure.link (E := Memory.spec 0)
       ((layout (d 0) (d 1)).methods 0) (cascade (d 0 + 1) (d 2)))
     (.refl _) (WordEncoding.encode (α := Unit)) cascadeSafe (fun _ _ => 0) := by
-  have hStep := realizes_cascadeStep_tuple
-  conv => arg 2; ext d; rw [link_cascade_eq_boundedWhile]
-  realize
+  realize [realizes_cascadeStep] rewriting [link_cascade_eq_boundedWhile]
   all_goals first
     | exact h.1.of_le (by omega)
     | exact fun _ => h.2.2

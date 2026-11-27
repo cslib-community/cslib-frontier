@@ -40,6 +40,8 @@ import Mathlib.Data.List.OfFn
 * `List.lookup_map_snd`, `List.lookup_map_of_injective`: mapping stored values, and re-encoding
   keys injectively, commute with `List.lookup`.
 * `List.lookup_eq_map_find?`: `List.lookup` is the value of the first entry with a matching key.
+* `List.lookup_cons_eq_ite`, `List.lookup_filter_not_contains`: looking up in an association list
+  extended by an entry, or with the entries of some keys removed.
 -/
 
 public section
@@ -208,3 +210,32 @@ theorem List.lookup_eq_map_find? {α β : Type*} [BEq α] (k : α) (l : List (α
   simp only [List.lookup_eq_findSome?, List.find?_eq_findSome?_guard, List.map_findSome?]
   congr 1 with e : 1
   cases h : k == e.1 <;> simp [Option.guard, h]
+
+/-- Looking up in an association list extended by an entry. -/
+theorem List.lookup_cons_eq_ite {α β : Type*} [BEq α] [LawfulBEq α] [DecidableEq α] (k a : α)
+    (b : β) (l : List (α × β)) :
+    ((k, b) :: l).lookup a = if a = k then some b else l.lookup a := by
+  by_cases h : a = k
+  · subst h
+    simp
+  · simp [List.lookup_cons, h, beq_eq_false_iff_ne.mpr h]
+
+/-- Looking up in an association list with the entries of the keys `ks` removed. -/
+theorem List.lookup_filter_not_contains {α β : Type*} [BEq α] [LawfulBEq α] (l : List (α × β))
+    (ks : List α) (a : α) :
+    (l.filter fun e => !ks.contains e.1).lookup a = if ks.contains a then none else l.lookup a := by
+  induction l with
+  | nil => simp
+  | cons e l ih =>
+    rcases e with ⟨k, b⟩
+    by_cases hk : k ∈ ks
+    · rw [List.filter_cons_of_neg (by simpa using hk), ih]
+      by_cases h : a = k
+      · subst h
+        simp [hk]
+      · simp [List.lookup_cons, beq_eq_false_iff_ne.mpr h]
+    · rw [List.filter_cons_of_pos (by simpa using hk), List.lookup_cons, List.lookup_cons, ih]
+      by_cases h : a = k
+      · subst h
+        simp [hk]
+      · simp [beq_eq_false_iff_ne.mpr h]

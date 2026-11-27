@@ -25,9 +25,6 @@ namespace CslibFrontierTests.Computability.Circuit.Frontier.TensorNetwork.LocalD
 
 open Cslib.Circuits.Frontier TensorNetwork Polynomial
 
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
-
 /-- The two-edge network over `ℤ_(2)`, with tensor `(1, 2)` on the bit of the edge at each
 vertex. -/
 noncomputable def net : TensorNetwork ℤ₍₂₎ Bool (Fin 4) (Fin 2) where

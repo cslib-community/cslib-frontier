@@ -57,14 +57,9 @@ theorem exec_input {W n D A : ℕ} (values : List ℤ)
           CountPrime.memoryEnd n (Nat.sqrt D) (Nat.clog 2 n) (3 + 3 * (n * n)) ≤ d →
         y.mem d = (Data.init (CountPrime.inputWords n D values) : Data 160).mem d := by
   obtain ⟨hmag, haddr⟩ := CountPrime.admission_fits n (Nat.sqrt D) A
-  have hc : CountPrime.admissionWidth n (Nat.sqrt D) A ≤ W :=
-    (Nat.le_add_right _ _).trans hW
-  have hsquare : Fits (Nat.clog 2 (4 * (D + 2) * (D + 2) + 5))
-      (4 * (D + 2) * (D + 2) + 4) :=
-    fits_of_lt_clog_le (Nat.lt_succ_self _) (le_refl _)
   exact exec_input_at values hlen hD hv hmag
     (by simpa only [CountPrime.admissionWidth, Nat.add_assoc] using haddr)
-    (by simpa only [CountPrime.admissionWidth, Nat.add_assoc] using hc)
-    (hsquare.mono ((Nat.le_add_left _ _).trans hW))
+    (by simpa only [CountPrime.admissionWidth, Nat.add_assoc] using (Nat.le_add_right _ _).trans hW)
+    ((fits_of_lt_clog_le (Nat.lt_succ_self _) le_rfl).mono ((Nat.le_add_left _ _).trans hW))
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.PrimeSelection

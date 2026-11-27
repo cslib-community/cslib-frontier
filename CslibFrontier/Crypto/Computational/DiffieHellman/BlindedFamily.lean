@@ -180,47 +180,14 @@ theorem isPPT_blindedCDHToCDHAdversary {adversary : F.BlindedCDHAdversary}
       rightBlind := (p.2 : ZMod (F.order p.1.1.groupParameters)) • F.generator _
       leftPublic := p.1.1.leftPublic
       rightPublic := p.1.1.rightPublic }
-  have hx : ComputableInPolyTime (fun p : (F.CDHInput × ℕ) × ℕ => p.1.1) E F.encCDHInput := by
-    fun_prop
-  have hd := F.encCDHInput_groupParameters_polyTime hx
-  have hg := computableInPolyTime_encode_generator hd
-  have hprep : ComputableInPolyTime prep E F.encBlindedCDHInput :=
-    F.encBlindedCDHInput_mk_polyTime (F.encCDHInput_secParam_polyTime hx) hd
-      (computableInPolyTime_encode_natCast_smul hd
-        (show ComputableInPolyTime (fun p : (F.CDHInput × ℕ) × ℕ => p.1.2) E encNat by fun_prop)
-        hg)
-      (computableInPolyTime_encode_natCast_smul hd
-        (show ComputableInPolyTime (fun p : (F.CDHInput × ℕ) × ℕ => p.2) E encNat by fun_prop)
-        hg)
-      (F.encCDHInput_leftPublic_polyTime hx) (F.encCDHInput_rightPublic_polyTime hx)
+  have hprep : ComputableInPolyTime prep E F.encBlindedCDHInput := by
+    dsimp only [prep, E]; fun_prop
   -- the output, computed from that input and the adversary's encoded answer
-  let E' := encPair E (encPair encNat encBits)
-  have hx' : ComputableInPolyTime
-      (fun p : ((F.CDHInput × ℕ) × ℕ) × ℕ × List Bool => p.1.1.1) E' F.encCDHInput := by fun_prop
-  have hd' := F.encCDHInput_groupParameters_polyTime hx'
-  have hμ : ComputableInPolyTime
-      (fun p : ((F.CDHInput × ℕ) × ℕ) × ℕ × List Bool => p.1.1.2) E' encNat := by fun_prop
-  have hν : ComputableInPolyTime
-      (fun p : ((F.CDHInput × ℕ) × ℕ) × ℕ × List Bool => p.1.2) E' encNat := by fun_prop
-  have hγ : ComputableInPolyTime
-      (fun p : ((F.CDHInput × ℕ) × ℕ) × ℕ × List Bool => p.2.1) E' encNat := by fun_prop
-  have hw : ComputableInPolyTime
-      (fun p : ((F.CDHInput × ℕ) × ℕ) × ℕ × List Bool => p.2.2) E' encBits := by fun_prop
-  have hcorr : ComputableInPolyTime
-      (fun p : ((F.CDHInput × ℕ) × ℕ) × ℕ × List Bool => F.encode p.1.1.1.groupParameters
+  have hout : ComputableInPolyTime (fun p : ((F.CDHInput × ℕ) × ℕ) × ℕ × List Bool =>
+      F.add (p.1.1.1.groupParameters, p.2.2, F.encode p.1.1.1.groupParameters
         (F.blindedCDHCorrection p.1.1.1.groupParameters p.1.1.2 p.1.2 p.2.1
-          p.1.1.1.leftPublic p.1.1.1.rightPublic)) E' encBits :=
-    computableInPolyTime_encode_add hd'
-      (computableInPolyTime_encode_add hd'
-        (computableInPolyTime_encode_natCast_smul hd' (hγ.binary_mul' hν)
-          (F.encCDHInput_leftPublic_polyTime hx'))
-        (computableInPolyTime_encode_natCast_smul hd' (hγ.binary_mul' hμ)
-          (F.encCDHInput_rightPublic_polyTime hx')))
-      (computableInPolyTime_encode_natCast_smul hd'
-        (((F.computableInPolyTime_order.comp hd').binary_sub' (.const 1)).binary_mul'
-          (((hγ.binary_mul' hγ).binary_mul' hμ).binary_mul' hν))
-        (computableInPolyTime_encode_generator hd'))
-  have hout := F.computableInPolyTime_add.comp (hd'.prod (hw.prod hcorr))
+          p.1.1.1.leftPublic p.1.1.1.rightPublic))) (encPair E (encPair encNat encBits)) encBits :=
+    F.computableInPolyTime_add.comp (by dsimp only [blindedCDHCorrection, E]; fun_prop)
   have hprog : IsPPTOn F.encCDHInput encBits (fun x : F.CDHInput =>
       F.sampleExp x.secParam x.groupParameters >>= fun μ =>
         F.sampleExp x.secParam x.groupParameters >>= fun ν =>
@@ -251,21 +218,16 @@ theorem advantage_blindedCDHGame_cdhGame_le (setup : ℕ → PMF F.Desc)
     Game.advantage (F.blindedCDHGame setup adversary n)
       (F.cdhGame setup (F.blindedCDHToCDHAdversary adversary) n) ≤ 2 / 2 ^ n := by
   refine Game.advantage_withSetup_le _ _ _ fun d _ => ?_
-  have hred : ProbComp.eval (cdhExperiment (F.order d) (F.generator d)
-        (F.blindedCDHToCDHAdversary adversary n d)) =
-      (ProbComp.eval (F.sampleExp n d)).bind fun μ =>
-        (ProbComp.eval (F.sampleExp n d)).bind fun ν =>
-          ProbComp.eval (cdhExperiment (F.order d) (F.generator d)
-            (blindedCDHToCDHWith (F.order d) (F.generator d) (adversary n d)
-              (μ : ZMod (F.order d)) (ν : ZMod (F.order d)))) := by
-    refine (eval_cdhExperiment_bind _ _ (F.sampleExp n d) fun μ s t => do
-      let ν ← F.sampleExp n d
-      blindedCDHToCDHWith (F.order d) (F.generator d) (adversary n d) (μ : ZMod (F.order d))
-        (ν : ZMod (F.order d)) s t).trans ?_
-    refine congrArg (PMF.bind _) (funext fun μ => ?_)
-    exact eval_cdhExperiment_bind _ _ (F.sampleExp n d) fun ν =>
-      blindedCDHToCDHWith (F.order d) (F.generator d) (adversary n d) (μ : ZMod (F.order d))
-        (ν : ZMod (F.order d))
+  have hred := (eval_cdhExperiment_bind (F.order d) (F.generator d) (F.sampleExp n d)
+      fun μ s t => do
+        let ν ← F.sampleExp n d
+        blindedCDHToCDHWith (F.order d) (F.generator d) (adversary n d) (μ : ZMod (F.order d))
+          (ν : ZMod (F.order d)) s t).trans
+    (congrArg (PMF.bind _) (funext fun μ =>
+      eval_cdhExperiment_bind _ _ (F.sampleExp n d) fun ν =>
+        blindedCDHToCDHWith (F.order d) (F.generator d) (adversary n d) (μ : ZMod (F.order d))
+          (ν : ZMod (F.order d))))
+  unfold blindedCDHToCDHAdversary
   rw [Experiment.advantage, eval_blindedCDHExperiment, hred, Game.advantage_comm]
   exact F.advantage_bind_sampleExp_pair_le n d fun μ ν =>
     ProbComp.eval (cdhExperiment (F.order d) (F.generator d)
@@ -413,83 +375,51 @@ theorem isPPTOn_blindedCDHPairToCDHWith {adversary : F.BlindedCDHPairAdversary}
       leftBlind := (p.2 : ZMod (F.order p.1.groupParameters)) • F.generator _
       rightBlind := p.1.leftPublic
       leftPublic := p.1.rightPublic }
-  have hx : ComputableInPolyTime (fun p : F.CDHInput × ℕ => p.1) E F.encCDHInput := by fun_prop
-  have hd := F.encCDHInput_groupParameters_polyTime hx
-  have hprep : ComputableInPolyTime prep E F.encBlindedCDHPairInput :=
-    F.encBlindedCDHPairInput_mk_polyTime (F.encCDHInput_secParam_polyTime hx) hd
-      (computableInPolyTime_encode_natCast_smul hd
-        (show ComputableInPolyTime (fun p : F.CDHInput × ℕ => p.2) E encNat by fun_prop)
-        (computableInPolyTime_encode_generator hd))
-      (F.encCDHInput_leftPublic_polyTime hx) (F.encCDHInput_rightPublic_polyTime hx)
+  have hprep : ComputableInPolyTime prep E F.encBlindedCDHPairInput := by
+    dsimp only [prep, E]; fun_prop
   -- the output, computed from that input and the adversary's written answer
-  let E' := encPair E encBlindedCDHPairAnswerWords
-  have hx' : ComputableInPolyTime
-      (fun p : (F.CDHInput × ℕ) × BlindedCDHPairAnswerWords => p.1.1) E' F.encCDHInput := by
-    fun_prop
-  have hd' := F.encCDHInput_groupParameters_polyTime hx'
-  have hm := (F.computableInPolyTime_order.comp hd').binary_sub' (.const 1)
-  have hμ : ComputableInPolyTime
-      (fun p : (F.CDHInput × ℕ) × BlindedCDHPairAnswerWords => p.1.2) E' encNat := by fun_prop
-  have hans : ComputableInPolyTime
-      (fun p : (F.CDHInput × ℕ) × BlindedCDHPairAnswerWords => p.2) E'
-      encBlindedCDHPairAnswerWords := by fun_prop
-  have hγ₁ := encBlindedCDHPairAnswerWords_exponent₁_polyTime hans
-  have hγ₂ := encBlindedCDHPairAnswerWords_exponent₂_polyTime hans
-  have hex := computableInPolyTime_extractNat hd' hγ₁ (.const 1) hγ₂ (.const 0)
   have hinv : ComputableInPolyTime
       (fun p : (F.CDHInput × ℕ) × BlindedCDHPairAnswerWords =>
-        invSubNat (F.order p.1.1.groupParameters) p.2.exponent₁ p.2.exponent₂) E' encNat :=
-    hex.binary_mul' ((hγ₁.binary_add' (hm.binary_mul' hγ₂)).binary_mul' hex)
-  have hout := F.computableInPolyTime_add.comp (hd'.prod
-    ((F.computableInPolyTime_add.comp (hd'.prod
-      ((F.computableInPolyTime_add.comp (hd'.prod
-        ((F.computableInPolyTime_smul.comp (hd'.prod (hinv.prod
-          (encBlindedCDHPairAnswerWords_value₂_polyTime hans)))).prod
-        (F.computableInPolyTime_smul.comp (hd'.prod ((hinv.binary_mul' hm).prod
-          (encBlindedCDHPairAnswerWords_value₁_polyTime hans))))))).prod
-      (F.computableInPolyTime_smul.comp (hd'.prod ((hm.binary_mul' hμ).prod
-        (encBlindedCDHPairAnswerWords_right_polyTime hans))))))).prod
-    (computableInPolyTime_encode_natCast_smul hd' ((hγ₁.binary_add' hγ₂).binary_mul' hμ)
-      (F.encCDHInput_leftPublic_polyTime hx'))))
-  have hprog : IsPPTOn E encBits (fun p : F.CDHInput × ℕ =>
-      (fun o : BlindedCDHPairAnswerWords => F.add (p.1.groupParameters,
+        invSubNat (F.order p.1.1.groupParameters) p.2.exponent₁ p.2.exponent₂)
+      (encPair E encBlindedCDHPairAnswerWords) encNat := by
+    unfold invSubNat; fun_prop
+  have hadd := F.computableInPolyTime_add
+  have hsmul := F.computableInPolyTime_smul
+  refine ((hA.preprocess hprep).map_with
+    (f := fun (p : F.CDHInput × ℕ) (o : BlindedCDHPairAnswerWords) =>
+      F.add (p.1.groupParameters,
+        F.add (p.1.groupParameters,
           F.add (p.1.groupParameters,
-            F.add (p.1.groupParameters,
-              F.smul (p.1.groupParameters,
-                invSubNat (F.order p.1.groupParameters) o.exponent₁ o.exponent₂, o.value₂),
-              F.smul (p.1.groupParameters,
-                invSubNat (F.order p.1.groupParameters) o.exponent₁ o.exponent₂ *
-                  (F.order p.1.groupParameters - 1), o.value₁)),
-            F.smul (p.1.groupParameters, (F.order p.1.groupParameters - 1) * p.2, o.right)),
-          F.encode p.1.groupParameters
-            ((((o.exponent₁ + o.exponent₂) * p.2 : ℕ) : ZMod (F.order p.1.groupParameters)) •
-              p.1.leftPublic))) <$>
-        (F.blindedCDHPairAnswerWords p.1.groupParameters <$>
-          adversary p.1.secParam p.1.groupParameters
-            ((p.2 : ZMod (F.order p.1.groupParameters)) • F.generator p.1.groupParameters)
-            p.1.leftPublic p.1.rightPublic)) :=
-    (hA.preprocess hprep).map_with hout
-  refine hprog.congr fun p => ?_
-  simp only [blindedCDHPairToCDHWith, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
-    PMF.map_bind, PMF.map_comp, PMF.pure_map, Function.comp_def, blindedCDHPairAnswerWords,
-    F.smul_encode, F.add_encode, pairSolve_eq]
+            F.smul (p.1.groupParameters,
+              invSubNat (F.order p.1.groupParameters) o.exponent₁ o.exponent₂, o.value₂),
+            F.smul (p.1.groupParameters,
+              invSubNat (F.order p.1.groupParameters) o.exponent₁ o.exponent₂ *
+                (F.order p.1.groupParameters - 1), o.value₁)),
+          F.smul (p.1.groupParameters, (F.order p.1.groupParameters - 1) * p.2, o.right)),
+        F.encode p.1.groupParameters
+          ((((o.exponent₁ + o.exponent₂) * p.2 : ℕ) : ZMod (F.order p.1.groupParameters)) •
+            p.1.leftPublic)))
+    (by
+      dsimp only [E]
+      fun_prop)).congr fun p => ?_
+  simp only [prep, blindedCDHPairToCDHWith, ProbComp.eval_bind, ProbComp.eval_map,
+    ProbComp.eval_pure, PMF.map_bind, PMF.map_comp, PMF.pure_map, Function.comp_def,
+    blindedCDHPairAnswerWords, F.smul_encode, F.add_encode, pairSolve_eq]
   rfl
 
 variable {F} in
 /-- **The reduction of [BonehShoup2023], Lemma 21.8, is efficient**: it is uniform strict PPT
 whenever the adversary is. -/
 theorem isPPT_blindedCDHPairToCDHAdversary {adversary : F.BlindedCDHPairAdversary}
-    (hA : adversary.IsPPT) : (F.blindedCDHPairToCDHAdversary adversary).IsPPT := by
-  have hprog : IsPPTOn F.encCDHInput encBits (fun x : F.CDHInput =>
-      F.sampleExp x.secParam x.groupParameters >>= fun μ =>
-        F.encode x.groupParameters <$>
-          blindedCDHPairToCDHWith (F.order x.groupParameters) (F.generator x.groupParameters)
-            (adversary x.secParam x.groupParameters) (μ : ZMod (F.order x.groupParameters))
-            x.leftPublic x.rightPublic) :=
-    IsPPTOn.bind_with (F.isPPTOn_sampleExp (by fun_prop) (by fun_prop))
-      (isPPTOn_blindedCDHPairToCDHWith hA)
-  refine hprog.congr fun x => ?_
-  simp only [blindedCDHPairToCDHAdversary, map_bind]
+    (hA : adversary.IsPPT) : (F.blindedCDHPairToCDHAdversary adversary).IsPPT :=
+  ((F.isPPTOn_sampleExp (encIn := F.encCDHInput) (n := CDHInput.secParam)
+      (d := CDHInput.groupParameters) (by fun_prop) (by fun_prop)).bind_with
+    (second := fun x μ => F.encode x.groupParameters <$>
+      blindedCDHPairToCDHWith (F.order x.groupParameters) (F.generator x.groupParameters)
+        (adversary x.secParam x.groupParameters) (μ : ZMod (F.order x.groupParameters))
+        x.leftPublic x.rightPublic)
+    (isPPTOn_blindedCDHPairToCDHWith hA)).congr fun _ => by
+      simp only [blindedCDHPairToCDHAdversary, map_bind]
 
 /-- **Sampling loss of the reduction of [BonehShoup2023], Lemma 21.8**: the two-point blinded CDH
 game is won at most as often as the CDH game of the reduction, up to `1 / 2 ^ n` for its one
@@ -499,33 +429,16 @@ theorem succProbability_blindedCDHPairGame_le (setup : ℕ → PMF F.Desc)
     Game.succProbability (F.blindedCDHPairGame setup adversary n) ≤
       Game.succProbability (F.cdhGame setup (F.blindedCDHPairToCDHAdversary adversary) n) +
         1 / 2 ^ n := by
-  have h₁ : Game.succProbability (F.blindedCDHPairGame setup adversary n) ≤
-      Game.succProbability ((setup n).bind fun d =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun μ =>
-          ProbComp.eval (cdhExperiment (F.order d) (F.generator d)
-            (blindedCDHPairToCDHWith (F.order d) (F.generator d) (adversary n d) μ))) :=
-    Game.succProbability_mono (PMF.bind_apply_mono_on_support _ _ fun d _ =>
-      eval_blindedCDHPairExperiment_true_le _ _ _)
-  have h₂ : Game.advantage ((setup n).bind fun d =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun μ =>
-          ProbComp.eval (cdhExperiment (F.order d) (F.generator d)
-            (blindedCDHPairToCDHWith (F.order d) (F.generator d) (adversary n d) μ)))
-      (F.cdhGame setup (F.blindedCDHPairToCDHAdversary adversary) n) ≤ 1 / 2 ^ n := by
-    refine Game.advantage_bind_le_of_support (setup n) _ _ fun d _ => ?_
-    have hred : ProbComp.eval (cdhExperiment (F.order d) (F.generator d)
-          (F.blindedCDHPairToCDHAdversary adversary n d)) =
-        (ProbComp.eval (F.sampleExp n d)).bind fun μ =>
-          ProbComp.eval (cdhExperiment (F.order d) (F.generator d)
-            (blindedCDHPairToCDHWith (F.order d) (F.generator d) (adversary n d)
-              (μ : ZMod (F.order d)))) :=
-      eval_cdhExperiment_bind _ _ (F.sampleExp n d) fun μ =>
-        blindedCDHPairToCDHWith (F.order d) (F.generator d) (adversary n d)
-          (μ : ZMod (F.order d))
-    rw [hred, Game.advantage_comm]
-    exact F.advantage_bind_sampleExp_le n d fun μ =>
-      ProbComp.eval (cdhExperiment (F.order d) (F.generator d)
-        (blindedCDHPairToCDHWith (F.order d) (F.generator d) (adversary n d) μ))
-  exact h₁.trans (Game.succProbability_le_add_of_advantage_le h₂)
+  refine (Game.succProbability_mono (PMF.bind_apply_mono_on_support _ _ fun d _ =>
+    eval_blindedCDHPairExperiment_true_le _ _ _)).trans
+    (Game.succProbability_le_add_of_advantage_le ?_)
+  refine Game.advantage_bind_le_of_support (setup n) _ _ fun d _ => ?_
+  erw [eval_cdhExperiment_bind _ _ (F.sampleExp n d) fun μ =>
+    blindedCDHPairToCDHWith (F.order d) (F.generator d) (adversary n d) (μ : ZMod (F.order d)),
+    Game.advantage_comm]
+  exact F.advantage_bind_sampleExp_le n d fun μ =>
+    ProbComp.eval (cdhExperiment (F.order d) (F.generator d)
+      (blindedCDHPairToCDHWith (F.order d) (F.generator d) (adversary n d) μ))
 
 /-- **[BonehShoup2023], Lemma 21.8**, Section 21.11.5, p. 911: under the CDH assumption, every PPT
 adversary wins the two-point blinded CDH game with negligible probability. -/

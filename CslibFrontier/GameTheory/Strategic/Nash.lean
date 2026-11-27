@@ -11,6 +11,7 @@ public import CslibFrontier.GameTheory.MixedStrategy
 public import CslibFrontier.GameTheory.Strategic.Mixed
 public import CslibFrontier.GameTheory.Strategic.Smooth
 public import Mathlib.Dynamics.FixedPoints.Defs
+public import Mathlib.Topology.Instances.Real.Lemmas
 import CslibFrontier.Foundations.Analysis.Brouwer.Simplex
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
@@ -33,8 +34,9 @@ equilibrium. Nash's proof applies Brouwer's fixed-point theorem to the map that 
 strategy towards the pure strategies that would lower the player's cost: with
 `nashGain G p i a = max 0 (expectedCost G p i - deviationCost G p i a)`,
 `nashMap G p i a = (p i a + nashGain G p i a) / (1 + ∑ b, nashGain G p i b)`.
-It maps the product of simplices continuously into itself, and its fixed points are exactly the
-mixed Nash equilibria (`isFixedPt_nashMap_iff`). Brouwer's theorem for products of simplices is
+It maps the product of simplices continuously into itself (`continuous_nashMap`,
+`isMixedStrategy_nashMap`), and its fixed points are exactly the mixed Nash equilibria
+(`isFixedPt_nashMap_iff`). Brouwer's theorem for products of simplices is
 `Cslib.Brouwer.exists_isFixedPt_pi_simplex`.
 
 Pure Nash equilibria are exactly the mixed Nash equilibria in which every player uses a point
@@ -131,18 +133,18 @@ pure strategies that would lower its cost, in proportion to the gain, and renorm
 noncomputable def nashMap (p : ∀ i, S i → ℝ) (i : ι) (a : S i) : ℝ :=
   (p i a + G.nashGain p i a) / (1 + ∑ b, G.nashGain p i b)
 
+/-- Nash's map in closed form; the bodies of `nashMap` and `nashGain` are not exposed. -/
+theorem nashMap_apply (p : ∀ i, S i → ℝ) (i : ι) (a : S i) :
+    G.nashMap p i a = (p i a + max 0 (G.expectedCost p i - G.deviationCost p i a)) /
+      (1 + ∑ b, max 0 (G.expectedCost p i - G.deviationCost p i b)) := by
+  simp only [nashMap, nashGain]
+
 private theorem nashGain_nonneg (p : ∀ i, S i → ℝ) (i : ι) (a : S i) : 0 ≤ G.nashGain p i a :=
   le_max_left _ _
 
 private theorem nashGain_eq_zero_iff (p : ∀ i, S i → ℝ) (i : ι) (a : S i) :
     G.nashGain p i a = 0 ↔ G.expectedCost p i ≤ G.deviationCost p i a := by
-  unfold nashGain
-  constructor
-  · intro h
-    have := le_max_right 0 (G.expectedCost p i - G.deviationCost p i a)
-    linarith
-  · intro h
-    exact max_eq_left (by linarith)
+  simp only [nashGain, max_eq_left_iff, sub_nonpos]
 
 private theorem nashDenom_pos (p : ∀ i, S i → ℝ) (i : ι) :
     0 < 1 + ∑ b, G.nashGain p i b :=
@@ -152,14 +154,16 @@ private theorem continuous_nashGain (i : ι) (a : S i) :
     Continuous fun p : ∀ i, S i → ℝ => G.nashGain p i a :=
   continuous_const.max ((G.continuous_expectedCost i).sub (G.continuous_deviationCost i a))
 
-private theorem continuous_nashMap : Continuous G.nashMap := by
+/-- Nash's map is continuous. -/
+theorem continuous_nashMap : Continuous G.nashMap := by
   refine continuous_pi fun i => continuous_pi fun a => ?_
   unfold nashMap
   exact (((continuous_apply a).comp (continuous_apply i)).add (G.continuous_nashGain i a)).div₀
     (continuous_const.add (continuous_finsetSum _ fun b _ => G.continuous_nashGain i b))
     fun p => (G.nashDenom_pos p i).ne'
 
-private theorem isMixedStrategy_nashMap {p : ∀ i, S i → ℝ} (hp : ∀ i, IsMixedStrategy (p i))
+/-- Nash's map sends profiles of mixed strategies to profiles of mixed strategies. -/
+theorem isMixedStrategy_nashMap {p : ∀ i, S i → ℝ} (hp : ∀ i, IsMixedStrategy (p i))
     (i : ι) : IsMixedStrategy (G.nashMap p i) := by
   refine isMixedStrategy_iff.2 ⟨fun a => ?_, ?_⟩
   · exact div_nonneg (add_nonneg ((hp i).nonneg a) (G.nashGain_nonneg p i a))
@@ -174,37 +178,29 @@ theorem isFixedPt_nashMap_iff {p : ∀ i, S i → ℝ} (hp : ∀ i, IsMixedStrat
   constructor
   · intro h
     refine ⟨hp, fun i => ?_⟩
-    have hg : ∀ b, G.nashGain p i b = p i b * ∑ c, G.nashGain p i c := by
-      intro b
+    have hg (b) : G.nashGain p i b = p i b * ∑ c, G.nashGain p i c := by
       have hb : G.nashMap p i b = p i b := congrFun (congrFun h i) b
-      unfold nashMap at hb
-      rw [div_eq_iff (G.nashDenom_pos p i).ne'] at hb
+      rw [nashMap, div_eq_iff (G.nashDenom_pos p i).ne'] at hb
       linear_combination hb
     -- Some pure strategy in the support of `p i` does not beat the mixed strategy `p i`.
     obtain ⟨c, hc, hEc⟩ : ∃ c, 0 < p i c ∧ G.expectedCost p i ≤ G.deviationCost p i c := by
-      by_contra hne
-      push Not at hne
+      by_contra! hne
       obtain ⟨c, hc⟩ := (hp i).exists_pos
-      have hlt : ∑ b, p i b * G.deviationCost p i b < ∑ b, p i b * G.expectedCost p i := by
-        refine sum_lt_sum (fun b _ => ?_) ⟨c, mem_univ c, ?_⟩
-        · rcases ((hp i).nonneg b).lt_or_eq with hb | hb
-          · exact (mul_lt_mul_of_pos_left (hne b hb) hb).le
-          · simp [← hb]
-        · exact mul_lt_mul_of_pos_left (hne c hc) hc
+      have hlt : ∑ b, p i b * G.deviationCost p i b < ∑ b, p i b * G.expectedCost p i :=
+        sum_lt_sum (fun b _ => ((hp i).nonneg b).lt_or_eq.elim
+          (fun hb => (mul_lt_mul_of_pos_left (hne b hb) hb).le) (fun hb => by simp [← hb]))
+          ⟨c, mem_univ c, mul_lt_mul_of_pos_left (hne c hc) hc⟩
       rw [← sum_mul, (hp i).sum_eq_one, one_mul,
         G.sum_mul_deviationCost_eq_expectedCost p (hp i).sum_eq_one] at hlt
       exact lt_irrefl _ hlt
-    have hT : ∑ b, G.nashGain p i b = 0 := by
-      have h0 := hg c
-      rw [(G.nashGain_eq_zero_iff p i c).2 hEc] at h0
-      exact (mul_eq_zero.1 h0.symm).resolve_left hc.ne'
-    intro a
-    refine (G.nashGain_eq_zero_iff p i a).1 ?_
-    rw [hg a, hT, mul_zero]
+    have h0 := hg c
+    rw [(G.nashGain_eq_zero_iff p i c).2 hEc] at h0
+    have hT : ∑ b, G.nashGain p i b = 0 := (mul_eq_zero.1 h0.symm).resolve_left hc.ne'
+    exact fun a => (G.nashGain_eq_zero_iff p i a).1 (by rw [hg a, hT, mul_zero])
   · intro h
-    have hg : ∀ i a, G.nashGain p i a = 0 := fun i a => (G.nashGain_eq_zero_iff p i a).2 (h.2 i a)
     funext i a
-    simp only [nashMap, hg, add_zero, sum_const_zero, div_one]
+    simp only [nashMap, (G.nashGain_eq_zero_iff p i _).2 (h.2 i _), add_zero, sum_const_zero,
+      div_one]
 
 /-- **Nash's theorem** ([Nash1951], Theorem 1; [Roughgarden2013CS364A], Lecture 13, §3.3): every
 finite game has a mixed Nash equilibrium. -/
@@ -290,18 +286,15 @@ expected cost against the other players' strategies. -/
 theorem isTotallyMixedNash_iff {p : ∀ i, S i → ℝ} :
     G.IsTotallyMixedNash p ↔ (∀ i a, 0 < p i a) ∧ (∀ i, ∑ a, p i a = 1) ∧
       ∀ i a b, G.deviationCost p i a = G.deviationCost p i b := by
-  constructor
-  · rintro ⟨h, hpos⟩
-    exact ⟨hpos, fun i => (h.1 i).sum_eq_one, fun i a b => by
-      rw [h.deviationCost_eq_of_pos i (hpos i a), h.deviationCost_eq_of_pos i (hpos i b)]⟩
-  · rintro ⟨hpos, hsum, heq⟩
-    refine ⟨⟨fun i => isMixedStrategy_iff.2 ⟨fun a => (hpos i a).le, hsum i⟩, fun i a => ?_⟩,
-      hpos⟩
-    rw [← G.sum_mul_deviationCost_eq_expectedCost p (hsum i)]
-    refine le_of_eq ?_
-    calc ∑ b, p i b * G.deviationCost p i b = ∑ b, p i b * G.deviationCost p i a :=
-          sum_congr rfl fun b _ => by rw [heq i b a]
-      _ = G.deviationCost p i a := by rw [← sum_mul, hsum i, one_mul]
+  refine ⟨fun ⟨h, hpos⟩ => ⟨hpos, fun i => (h.1 i).sum_eq_one, fun i a b => by
+    rw [h.deviationCost_eq_of_pos i (hpos i a), h.deviationCost_eq_of_pos i (hpos i b)]⟩, ?_⟩
+  rintro ⟨hpos, hsum, heq⟩
+  refine ⟨⟨fun i => isMixedStrategy_iff.2 ⟨fun a => (hpos i a).le, hsum i⟩, fun i a => ?_⟩, hpos⟩
+  refine le_of_eq <| calc
+    G.expectedCost p i = ∑ b, p i b * G.deviationCost p i b :=
+      (G.sum_mul_deviationCost_eq_expectedCost p (hsum i)).symm
+    _ = ∑ b, p i b * G.deviationCost p i a := sum_congr rfl fun b _ => by rw [heq i b a]
+    _ = G.deviationCost p i a := by rw [← sum_mul, hsum i, one_mul]
 
 /-- The product distribution of a mixed Nash equilibrium is a coarse correlated equilibrium. -/
 theorem IsMixedNash.isCoarseCorrelatedEquilibrium {p : ∀ i, S i → ℝ} (h : G.IsMixedNash p) :

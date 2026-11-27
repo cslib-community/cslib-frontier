@@ -54,21 +54,14 @@ be empty. Noncanonical and malformed words are rejected. -/
 Omitting the ambient dimension from the word does not change satisfiability. -/
 @[simp] theorem encFormula_mem_ETR {n : ℕ} (p : Formula n) :
     encFormula n p ∈ ETR ↔ p.solutionSet.Nonempty := by
-  constructor
-  · intro hp
-    obtain ⟨m, q, hq, heq⟩ := Set.mem_iUnion.mp hp
-    let f := Fin.castLE (Nat.le_max_left n m)
-    let g := Fin.castLE (Nat.le_max_right n m)
-    have hwords : encFormula (max n m) (p.rename f) =
-        encFormula (max n m) (q.rename g) := by
-      rw [encFormula_rename f (fun _ => rfl), encFormula_rename g (fun _ => rfl), heq]
-    have hpq := (encFormula (max n m)).injective hwords
-    rw [← Formula.solutionSet_nonempty_rename (Fin.castLE_injective (Nat.le_max_left n m)) p,
-      hpq]
-    exact (Formula.solutionSet_nonempty_rename
-      (Fin.castLE_injective (Nat.le_max_right n m)) q).mpr hq
-  · intro hp
-    exact Set.mem_iUnion.mpr ⟨n, Set.mem_image_of_mem (encFormula n) hp⟩
+  refine ⟨fun hp => ?_, fun hp => Set.mem_iUnion.mpr ⟨n, Set.mem_image_of_mem _ hp⟩⟩
+  obtain ⟨m, q, hq, heq⟩ := Set.mem_iUnion.mp hp
+  let f := Fin.castLE (Nat.le_max_left n m)
+  let g := Fin.castLE (Nat.le_max_right n m)
+  have hpq : p.rename f = q.rename g := (encFormula (max n m)).injective <| by
+    rw [encFormula_rename f (fun _ => rfl), encFormula_rename g (fun _ => rfl), heq]
+  rwa [← Formula.solutionSet_nonempty_rename (Fin.castLE_injective (Nat.le_max_left n m)) p,
+    hpq, Formula.solutionSet_nonempty_rename (Fin.castLE_injective (Nat.le_max_right n m)) q]
 
 /-- ETR membership agrees with satisfiability of the total formula view, on every bit word.
 In particular the view rejects malformed inputs by assigning them an empty solution set. -/
@@ -77,43 +70,27 @@ theorem mem_ETR_iff_ofWord (word : List Bool) :
   by_cases h : validFormulaWord word = true
   · have heq : encFormula word.length (Formula.ofWord word) = word := by
       rw [encFormula_ofWord, normalizeFormulaWord, ite_eq_left h]
-    exact (congrArg (· ∈ ETR) heq.symm).to_iff.trans (encFormula_mem_ETR _)
-  · have hno : word ∉ ETR := by
-      intro hw
-      obtain ⟨n, p, _, hp⟩ := Set.mem_iUnion.mp hw
-      exact h (hp ▸ validFormulaWord_encFormula (n := n) p)
-    rw [Formula.ofWord_of_not_valid h, Formula.solutionSet]
-    simp [hno]
+    simpa only [heq] using encFormula_mem_ETR (Formula.ofWord word)
+  · rw [Formula.ofWord_of_not_valid h, Formula.solutionSet]
+    simp [show word ∉ ETR from fun hw =>
+      let ⟨n, p, _, hp⟩ := Set.mem_iUnion.mp hw
+      h (hp ▸ validFormulaWord_encFormula (n := n) p)]
 
 /-- The two-block encoding has exactly the advertised truth condition, including when a
 representing formula has extra unused universal coordinates. -/
 theorem encFormula_mem_ExistsForallTheory {r s : ℕ} (p : Formula (r + s)) :
     encPair encUnary encBits (r, encFormula (r + s) p) ∈ ExistsForallTheory ↔
       p.existsForallSolutionSet.Nonempty := by
-  constructor
-  · intro hp
-    obtain ⟨r', hp⟩ := Set.mem_iUnion.mp hp
-    obtain ⟨t, q, hq, heq⟩ := Set.mem_iUnion.mp hp
-    have hpair := (encPair encUnary encBits).injective heq
-    have hr : r' = r := congrArg Prod.fst hpair
-    subst r'
-    have hword : encFormula (r + t) q = encFormula (r + s) p := congrArg Prod.snd hpair
-    let f := Fin.castLE (Nat.add_le_add_left (Nat.le_max_left s t) r)
-    let g := Fin.castLE (Nat.add_le_add_left (Nat.le_max_right s t) r)
-    have hwords : encFormula (r + max s t) (p.rename f) =
-        encFormula (r + max s t) (q.rename g) := by
-      rw [encFormula_rename f (fun _ => rfl), encFormula_rename g (fun _ => rfl), hword]
-    have hpq := (encFormula (r + max s t)).injective hwords
-    have heqsets : p.existsForallSolutionSet (r := r) (s := s) =
-        q.existsForallSolutionSet (r := r) (s := t) := by
-      rw [← Formula.existsForallSolutionSet_rename_castLE (Nat.le_max_left s t) p,
-        ← Formula.existsForallSolutionSet_rename_castLE (Nat.le_max_right s t) q]
-      exact congrArg (fun a : Formula (r + max s t) =>
-        a.existsForallSolutionSet (r := r) (s := max s t)) hpq
-    rw [heqsets]
-    exact hq
-  · intro hp
-    exact Set.mem_iUnion.mpr ⟨r, Set.mem_iUnion.mpr
-      ⟨s, Set.mem_image_of_mem (fun q => encPair encUnary encBits (r, encFormula (r + s) q)) hp⟩⟩
+  refine ⟨fun hp => ?_, fun hp => Set.mem_iUnion.mpr ⟨r, Set.mem_iUnion.mpr
+    ⟨s, Set.mem_image_of_mem (fun q => encPair encUnary encBits (r, encFormula (r + s) q)) hp⟩⟩⟩
+  obtain ⟨r', hp⟩ := Set.mem_iUnion.mp hp
+  obtain ⟨t, q, hq, heq⟩ := Set.mem_iUnion.mp hp
+  obtain ⟨rfl, hword⟩ := Prod.mk.inj ((encPair encUnary encBits).injective heq.symm)
+  let f := Fin.castLE (Nat.add_le_add_left (Nat.le_max_left s t) r)
+  let g := Fin.castLE (Nat.add_le_add_left (Nat.le_max_right s t) r)
+  have hpq : p.rename f = q.rename g := (encFormula (r + max s t)).injective <| by
+    rw [encFormula_rename f (fun _ => rfl), encFormula_rename g (fun _ => rfl), hword]
+  rwa [← Formula.existsForallSolutionSet_rename_castLE (Nat.le_max_left s t) p, hpq,
+    Formula.existsForallSolutionSet_rename_castLE (Nat.le_max_right s t) q]
 
 end Cslib.Complexity

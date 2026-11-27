@@ -121,46 +121,35 @@ theorem range_node_cons (lo hi s : α) (first c : BPlusTree α β) (rest : List 
         if s ≤ hi then range lo hi (.node c rest) else [] := by
   by_cases h₁ : s ≤ lo <;> by_cases h₂ : s ≤ hi <;> simp [range, rangeM, leI, h₁, h₂]
 
-/-- Range restriction against the model, under what the walk uses: the separator convention,
-sorted entries, and occupied children at `2 ≤ t`. -/
-private theorem range_eq_of (ht : 2 ≤ t) (lo hi : α) :
-    ∀ tr : BPlusTree α β, Separated tr → tr.toList.IsSortedAssoc →
-      (∀ c ∈ tr.children, Occupied t c) → range lo hi tr = SortedAssoc.range lo hi tr.toList
-  | .leaf entries, _, hs, _ => by
+/-- Range restriction against the model under the search invariant. -/
+private theorem range_eq_of (lo hi : α) :
+    ∀ tr : BPlusTree α β, SearchInvariant t tr →
+      range lo hi tr = SortedAssoc.range lo hi tr.toList
+  | .leaf entries, h => by
     rw [range_leaf, toList_leaf]
-    exact SortedAssoc.idRun_rangeM (by simpa using hs) lo hi
-  | .node first [], hp, hs, ho => by
-    have hf : Occupied t first := ho first (by simp)
-    rw [range_node_nil,
-      range_eq_of ht lo hi first hp.first (by simpa using hs) fun c hc => hf.of_mem_children hc]
+    exact SortedAssoc.idRun_rangeM (by simpa using h.sorted) lo hi
+  | .node first [], h => by
+    rw [range_node_nil, range_eq_of lo hi first (h.child List.mem_cons_self)]
     simp
-  | .node first ((s, c) :: rest), hp, hs, ho => by
-    have hf : Occupied t first := ho first (by simp)
-    have hc : Occupied t c := ho c (by simp)
-    have hs' := hs
-    rw [toList_node_cons, List.isSortedAssoc_append_iff] at hs'
+  | .node first ((s, c) :: rest), h => by
     rw [range_node_cons, toList_node_cons, SortedAssoc.range_append]
     congr 1
-    · by_cases h₁ : s ≤ lo
-      · simp only [h₁, ↓reduceIte]
-        exact (SortedAssoc.range_eq_nil_iff.2 fun p hp' => Or.inl (lt_of_lt_of_le
-          (hp.lt_of_mem_first (e := (s, c)) List.mem_cons_self hp') h₁)).symm
-      · simp only [h₁, ↓reduceIte]
-        exact range_eq_of ht lo hi first hp.first hs'.1 fun d hd => hf.of_mem_children hd
-    · by_cases h₂ : s ≤ hi
-      · simp only [h₂, ↓reduceIte]
-        exact range_eq_of ht lo hi (.node c rest) hp.tail hs'.2.1 fun d hd => ho d (by
-          simp only [children_node, List.map_cons, List.mem_cons] at hd ⊢
-          exact Or.inr hd)
-      · simp only [h₂, ↓reduceIte]
-        exact (SortedAssoc.range_eq_nil_iff.2 fun q hq => Or.inr (lt_of_lt_of_le
-          (lt_of_not_ge h₂) (hp.le_of_mem_tail hs (hc.size_pos ht) hq))).symm
+    · split_ifs with h₁
+      · exact (SortedAssoc.range_eq_nil_iff.2 fun p hp => Or.inl
+          ((h.separated.lt_of_mem_first (e := (s, c)) List.mem_cons_self hp).trans_le h₁)).symm
+      · exact range_eq_of lo hi first (h.child List.mem_cons_self)
+    · split_ifs with h₂
+      · exact range_eq_of lo hi (.node c rest) h.tail
+      · have hc := h.occupied c (by simp)
+        exact (SortedAssoc.range_eq_nil_iff.2 fun q hq => Or.inr
+          ((lt_of_not_ge h₂).trans_le
+            (h.separated.le_of_mem_tail h.sorted (hc.size_pos h.two_le) hq))).symm
 termination_by tr => sizeOf tr
 
 /-- Model equation of range restriction on well-formed trees. -/
 theorem range_eq (h : IsWF t tr) (lo hi : α) :
     range lo hi tr = SortedAssoc.range lo hi tr.toList :=
-  range_eq_of h.two_le lo hi tr h.separated h.sorted h.occupied_of_mem_children
+  range_eq_of lo hi tr h.searchInvariant
 
 omit [LinearOrder α] in
 /-- An occupied tree has no empty leaf when `2 ≤ t`. -/
@@ -168,20 +157,16 @@ theorem Occupied.ne_nil_of_mem_leaves (ht : 2 ≤ t) (ho : Occupied t tr) :
     ∀ l ∈ tr.leaves, l ≠ [] := by
   induction tr with
   | leaf entries =>
-    intro l hl
     have := ho.le_width
-    simp only [leaves_leaf, List.mem_singleton] at hl
-    simp only [width_leaf] at this
-    subst hl
+    simp only [leaves_leaf, List.mem_singleton, width_leaf] at *
+    rintro _ rfl
     exact List.ne_nil_of_length_pos (by omega)
   | node first rest ih₁ ih₂ =>
-    intro l hl
-    simp only [leaves_node, leavesRest_eq_flatMap, List.mem_append, List.mem_flatMap] at hl
-    rcases hl with hl | ⟨e, he, hl⟩
+    simp only [leaves_node, leavesRest_eq_flatMap, List.mem_append, List.mem_flatMap]
+    rintro l (hl | ⟨e, he, hl⟩)
     · exact ih₁ ho.first l hl
-    · exact ih₂ e he (ho.of_mem_children (by
-        simp only [children_node, List.mem_cons, List.mem_map]
-        exact Or.inr ⟨e, he, rfl⟩)) l hl
+    · exact ih₂ e he
+        (ho.of_mem_children (List.mem_cons_of_mem _ (List.mem_map_of_mem he))) l hl
 
 /-- On a well-formed tree, the output of a range query is the restriction of a contiguous run of
 leaves in which every leaf contributes and every leaf other than the first and last is returned
@@ -192,21 +177,15 @@ theorem range_eq_flatten_run (h : IsWF t tr) (lo hi : α) :
       (∀ l ∈ run, SortedAssoc.range lo hi l ≠ []) ∧
       ∀ l ∈ (run.drop 1).dropLast, SortedAssoc.range lo hi l = l := by
   rw [range_eq h]
-  by_cases hne : ∀ l ∈ tr.leaves, l ≠ []
-  · exact SortedAssoc.exists_run_range_flatten h.sorted hne lo hi
-  · cases tr with
-    | leaf entries =>
-      have he : entries = [] := by simpa using hne
-      subst he
-      exact ⟨[[]], [], [], by simp, by simp, by simp, by simp⟩
-    | node first rest =>
-      refine absurd (fun l hl => ?_) hne
-      simp only [leaves_node, leavesRest_eq_flatMap, List.mem_append, List.mem_flatMap] at hl
-      rcases hl with hl | ⟨e, he, hl⟩
-      · exact (h.occupied_of_mem_children first (by simp)).ne_nil_of_mem_leaves h.two_le l hl
-      · exact (h.occupied_of_mem_children e.child (by
-          simp only [children_node, List.mem_cons, List.mem_map]
-          exact Or.inr ⟨e, he, rfl⟩)).ne_nil_of_mem_leaves h.two_le l hl
+  rcases tr with (_ | ⟨p, entries⟩) | ⟨first, rest⟩
+  · exact ⟨[[]], [], [], by simp, by simp, by simp, by simp⟩
+  · exact SortedAssoc.exists_run_range_flatten h.sorted (by simp) lo hi
+  · refine SortedAssoc.exists_run_range_flatten h.sorted ?_ lo hi
+    simp only [leaves_node, leavesRest_eq_flatMap, List.mem_append, List.mem_flatMap]
+    rintro l (hl | ⟨e, he, hl⟩)
+    · exact (h.occupied_of_mem_children first List.mem_cons_self).ne_nil_of_mem_leaves h.two_le l hl
+    · exact (h.occupied_of_mem_children e.child
+        (List.mem_cons_of_mem _ (List.mem_map_of_mem he))).ne_nil_of_mem_leaves h.two_le l hl
 
 end Pure
 

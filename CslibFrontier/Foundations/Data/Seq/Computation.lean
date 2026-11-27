@@ -83,9 +83,7 @@ theorem mem_runFor_iff_exists_results : a ∈ s.runFor n ↔ ∃ m ≤ n, s.Resu
 steps is `a` exactly when `m ≤ n`. -/
 theorem Results.mem_runFor_iff (h : s.Results a m) : a' ∈ s.runFor n ↔ a' = a ∧ m ≤ n := by
   rw [mem_runFor_iff_exists_results]
-  refine ⟨fun ⟨k, hk, h'⟩ => ⟨h'.val_unique h, h.len_unique h' ▸ hk⟩, ?_⟩
-  rintro ⟨rfl, hm⟩
-  exact ⟨m, hm, h⟩
+  exact ⟨fun ⟨_, hk, h'⟩ => ⟨h'.val_unique h, h.len_unique h' ▸ hk⟩, fun ⟨rfl, hm⟩ => ⟨m, hm, h⟩⟩
 
 /-- `map` takes no steps of its own. -/
 @[simp]

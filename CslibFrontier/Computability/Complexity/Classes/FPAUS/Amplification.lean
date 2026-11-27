@@ -60,10 +60,7 @@ theorem SelfReducible.isFPAUS_atWitnessPrecision (R : SelfReducible enc W)
     rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton,
       uniformWitness_none hW] at h
     simp only [ENNReal.toReal_zero, sub_zero, abs_of_nonneg ENNReal.toReal_nonneg] at h
-    refine h.trans ?_
-    calc (1 / 2 : ℝ) ^ (q + 2 + R.len x) ≤ (1 / 2 : ℝ) ^ 1 :=
-          pow_le_pow_of_le_one (by norm_num) (by norm_num) (by lia)
-      _ = _ := pow_one _
+    exact h.trans ((pow_le_pow_of_le_one (by norm_num) (by norm_num) (by lia)).trans_eq (pow_one _))
   · intro x
     rcases (W x).eq_empty_or_nonempty with hW | hW
     · exact ⟨1, by simp, fun q w hw => by simp [hW] at hw⟩
@@ -114,8 +111,7 @@ private theorem retrySampler_masses (S : α → ℕ → ProbComp (Option (List B
     (OracleComp.retry (fun o : Option (List Bool) => o.isSome) (S x (q + 2)) (q + 2))
   have hbad : p.toOuterMeasure {o | ¬ o.isSome = true} = p none := by
     have heq : {o : Option (List Bool) | ¬ o.isSome = true} = {none} := by
-      ext o
-      cases o <;> simp
+      ext (_ | o) <;> simp
     rw [heq, PMF.toOuterMeasure_apply_singleton]
   have hnone : r none = p none ^ (q + 2) := by
     dsimp only [r, p] at *
@@ -139,8 +135,7 @@ private theorem retrySampler_masses (S : α → ℕ → ProbComp (Option (List B
     · rintro (_ | _ | v) hv
       · simp
       · simp
-      · have hne : w ≠ v := fun e => hv (by simp [e])
-        simp [hne]
+      · simp [show w ≠ v from fun e => hv (by simp [e])]
 
 /-- Retrying turns JVV's per-witness relative accuracy and bounded failure into an additive
 total-variation guarantee. -/
@@ -160,14 +155,16 @@ theorem IsFPAUS.closeTo_retrySampler (hS : IsFPAUS enc W S) (x : α) (q : ℕ) :
   set ε := (1 / 2 : ℝ) ^ q
   have he : 0 ≤ ε := by positivity
   have hf : (μ none).toReal ≤ ε / 4 := by
-    rw [hnone, ENNReal.toReal_pow]
+    rw [hnone]
+    ennreal_to_real
     calc _ ≤ (1 / 2 : ℝ) ^ (q + 2) := by gcongr
       _ = _ := by rw [pow_add]; ring
   obtain ⟨φ, -, hφ⟩ := hS.pointwise x
-  let K := (∑ i ∈ Finset.range (q + 2), p none ^ i).toReal
-  have hK : 0 ≤ K := ENNReal.toReal_nonneg
+  let K := ∑ i ∈ Finset.range (q + 2), (p none).toReal ^ i
+  have hK : 0 ≤ K := Finset.sum_nonneg fun _ _ => pow_nonneg ENNReal.toReal_nonneg _
   have hm (v : List Bool) : (μ (some v)).toReal = (p (some v)).toReal * K := by
-    rw [hsome, ENNReal.toReal_mul]
+    dsimp only [K]
+    ennreal_to_real using hsome v
   have hε' : (1 / 2 : ℝ) ^ (q + 2 + 1) = ε / 8 := by rw [pow_add, pow_add]; ring
   have hp (v : List Bool) (hv : v ∈ W x) := hφ (q + 2) v hv
   have hl := (hp w hw).1
@@ -184,8 +181,8 @@ theorem IsFPAUS.closeTo_retrySampler (hS : IsFPAUS enc W S) (x : α) (q : ℕ) :
   rw [nsmul_eq_mul] at hsum
   have htotal := μ.tsum_coe
   rw [Probability.tsum_option_eq, tsum_eq_sum (s := W x) hvalid] at htotal
-  ennreal_to_real at htotal
-  rw [ENNReal.ofReal_le_iff_le_toReal (PMF.apply_ne_top _ _), div_le_iff₀ hN]
+  ennreal_to_real at htotal ⊢
+  rw [div_le_iff₀ hN]
   have hc : (1 - ε) * (1 + ε / 8) ^ 2 ≤ 1 - ε / 4 := by
     nlinarith [sq_nonneg ε, mul_nonneg (sq_nonneg ε) he]
   have hge : 1 - ε / 4 ≤ ((μ (some w)).toReal * (W x).card) * (1 + ε / 8) ^ 2 := by

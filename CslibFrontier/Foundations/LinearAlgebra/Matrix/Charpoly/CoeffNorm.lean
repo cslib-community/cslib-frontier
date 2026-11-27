@@ -46,28 +46,29 @@ private theorem weight_charpolyRev_coeff_le {S : Type*} [CommRing S] {w : S → 
     (M : Matrix ι ι S) (A : ℕ)
     (ht : ∀ j, 1 ≤ j → j ≤ Fintype.card ι → w ((M ^ j).trace) ≤ A ^ j)
     (k : ℕ) (hk : k ≤ Fintype.card ι) : w (M.charpolyRev.coeff k) ≤ A ^ k := by
-  induction k using Nat.strong_induction_on with
-  | ind k ih =>
-    cases k with
-    | zero =>
-      rwa [coeff_zero_eq_eval_zero, eval_charpolyRev, pow_zero]
-    | succ k =>
-      have hrec : (k + 1) • M.charpolyRev.coeff (k + 1) =
-          -(∑ j ∈ Finset.range (k + 1), M.charpolyRev.coeff (k - j) * (M ^ (j + 1)).trace) := by
-        simpa only [nsmul_eq_mul] using charpolyRev_newton M k
-      have h : (k + 1) * w (M.charpolyRev.coeff (k + 1)) ≤ (k + 1) * A ^ (k + 1) := by
-        rw [← hnsmul, hrec, hneg]
-        refine (Finset.le_sum_of_subadditive w hzero.le hadd _ _).trans ?_
-        calc
-          _ ≤ ∑ _j ∈ Finset.range (k + 1), A ^ (k + 1) := by
-            apply Finset.sum_le_sum
-            intro j hj
-            have hjk := Finset.mem_range.mp hj
-            exact (hmul _ _).trans
-              ((Nat.mul_le_mul (ih (k - j) (by omega) (by omega))
-                (ht (j + 1) (by omega) (by omega))).trans_eq (by rw [← pow_add]; congr 1; omega))
-          _ = _ := by simp
-      exact Nat.le_of_mul_le_mul_left h (by omega)
+  cases k with
+  | zero =>
+    rwa [coeff_zero_eq_eval_zero, eval_charpolyRev, pow_zero]
+  | succ k =>
+    have hrec : (k + 1) • M.charpolyRev.coeff (k + 1) =
+        -(∑ j ∈ Finset.range (k + 1), M.charpolyRev.coeff (k - j) * (M ^ (j + 1)).trace) := by
+      simpa only [nsmul_eq_mul] using charpolyRev_newton M k
+    have h : (k + 1) * w (M.charpolyRev.coeff (k + 1)) ≤ (k + 1) * A ^ (k + 1) := by
+      rw [← hnsmul, hrec, hneg]
+      refine (Finset.le_sum_of_subadditive w hzero.le hadd _ _).trans ?_
+      calc
+        _ ≤ ∑ _j ∈ Finset.range (k + 1), A ^ (k + 1) := by
+          apply Finset.sum_le_sum
+          intro j hj
+          have hjk := Finset.mem_range.mp hj
+          have hprev := weight_charpolyRev_coeff_le hzero hone hadd hmul hneg hnsmul
+            M A ht (k - j) (by omega)
+          exact (hmul _ _).trans
+            ((Nat.mul_le_mul hprev
+              (ht (j + 1) (by omega) (by omega))).trans_eq (by rw [← pow_add]; congr 1; omega))
+        _ = _ := by simp
+    exact Nat.le_of_mul_le_mul_left h (by omega)
+termination_by k
 
 /-- When each positive power trace through the matrix dimension `D` has weight at most
 `A ^ j`, the `k`th characteristic coefficient has weight at most `A ^ (D - k)`. -/

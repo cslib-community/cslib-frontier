@@ -143,8 +143,7 @@ def toFormula {n : ℕ} : {m : ℕ} → (wordLanguage α).BoundedFormula Empty m
 /-- The translation lands in the first-order fragment. -/
 theorem isFO_toFormula {n : ℕ} :
     ∀ {m : ℕ} (φ : (wordLanguage α).BoundedFormula Empty m), (toFormula φ : Formula α m n).IsFO
-  | _, .falsum => by simp [toFormula]
-  | _, .equal _ _ => by simp [toFormula]
+  | _, .falsum | _, .equal _ _ => by simp [toFormula]
   | _, .rel R _ => by cases R <;> simp [toFormula, relFormula]
   | _, .imp φ ψ => by simpa [toFormula] using ⟨isFO_toFormula φ, isFO_toFormula ψ⟩
   | _, .all φ => by simpa [toFormula] using isFO_toFormula φ
@@ -170,9 +169,7 @@ theorem realize_toFormula (w : List α) {n : ℕ} (V : Fin n → Set (Fin w.leng
     let := wordStructure w
     change _ ↔ RelMap R (fun i => (ts i).realize (Sum.elim Empty.elim xs))
     simp only [FO.realize_termVar, sumElim_eq_var]
-    cases R with
-    | lt => exact Iff.rfl
-    | letter a => exact Iff.rfl
+    cases R <;> exact Iff.rfl
   | _, .imp φ ψ, xs => by
     simp only [toFormula, Formula.realize_imp, realize_toFormula w V φ xs,
       realize_toFormula w V ψ xs]
@@ -190,12 +187,11 @@ structure satisfies it. -/
 theorem toFormula_language (φ : (wordLanguage α).Sentence) :
     Sentence.language (toFormula φ) = language φ := by
   refine Set.ext fun w => ?_
-  have hdef : (default : Empty → Fin w.length) = Empty.elim := funext fun e => e.elim
-  have hdef' : (default : Fin 0 → Fin w.length) = Fin.elim0 := funext fun x => x.elim0
   change (toFormula φ : Sentence α).Realize (fun i : Fin w.length => w[i]) Fin.elim0 Fin.elim0 ↔
     (let := wordStructure w;
       BoundedFormula.Realize φ (default : Empty → Fin w.length) default)
-  rw [hdef, hdef']
+  rw [Subsingleton.elim (default : Empty → Fin w.length) Empty.elim,
+    Subsingleton.elim (default : Fin 0 → Fin w.length) Fin.elim0]
   exact realize_toFormula w Fin.elim0 φ Fin.elim0
 
 /-- The language of a Mathlib first-order sentence over the word vocabulary is first-order
@@ -244,12 +240,11 @@ theorem realize_toWordFO (w : List α) :
 theorem language_toWordFO {φ : Sentence α} (hφ : φ.IsFO) :
     WordFO.language (toWordFO φ) = φ.language := by
   refine Set.ext fun w => ?_
-  have hdef : (default : Empty → Fin w.length) = Empty.elim := funext fun e => e.elim
-  have hdef' : (default : Fin 0 → Fin w.length) = Fin.elim0 := funext fun x => x.elim0
   change (let := wordStructure w;
       BoundedFormula.Realize (toWordFO φ) (default : Empty → Fin w.length) default) ↔
     φ.Realize (fun i : Fin w.length => w[i]) Fin.elim0 Fin.elim0
-  rw [hdef, hdef']
+  rw [Subsingleton.elim (default : Empty → Fin w.length) Empty.elim,
+    Subsingleton.elim (default : Fin 0 → Fin w.length) Fin.elim0]
   exact realize_toWordFO w φ hφ Fin.elim0 Fin.elim0
 
 end Formula

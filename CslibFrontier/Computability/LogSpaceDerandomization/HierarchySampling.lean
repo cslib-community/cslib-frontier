@@ -59,14 +59,11 @@ theorem correctionInput_count_le
   by_cases hV : ∃ w : V, w ≠ z
   · obtain ⟨w, hw⟩ := hV
     have hpair : 0 ≤ Cpair := by
-      have hp := hch.pair w z hw
-      rw [hch.dens_Y z] at hp
-      have h0 : (0 : ℝ) ≤ ({t | Y t w ∧ Y t z} : Finset κ).dens := NNRat.cast_nonneg _
-      nlinarith [mul_pos hf hpi_pos]
+      have hp := hch.dens_Y z ▸ hch.pair w z hw
+      nlinarith [mul_pos hf hpi_pos, (NNRat.cast_nonneg _ :
+        (0 : ℝ) ≤ ({t | Y t w ∧ Y t z} : Finset κ).dens)]
     have hct (t : ℝ) (ht : 0 ≤ t) : P.cutoff f t ≤ t :=
-      (P.cutoff_le hf t).trans (max_le (by
-        have := mul_nonneg P.θ_pos.le hf.le
-        linarith) ht)
+      (P.cutoff_le hf t).trans (max_le (by linarith [mul_nonneg P.θ_pos.le hf.le]) ht)
     have hpos : 0 < P.γ (P.pilot X Y f C z) := lt_of_le_of_ne (P.γ_nonneg _) hg.symm
     rw [P.pilot_eq] at hpos
     simp only [correctionInput, correctionIter, P.pilot_eq]
@@ -75,14 +72,10 @@ theorem correctionInput_count_le
       hC hC1 (P.cutoff_nonneg hf) hct (P.cutoff_mono hf) P.γ_nonneg P.γ_le_one
       P.γ_antitone P.γ_zero P.gate P.J_pos P.R_rank P.R_var hpos hi
   · push Not at hV
-    have hsub : ({w | P.δ₁ * f ≤ P.correctionInput X Y f C i w z} : Finset V) ⊆ {z} :=
-      fun w _ => mem_singleton.mpr (hV w)
-    have hcard : (#({w | P.δ₁ * f ≤ P.correctionInput X Y f C i w z} : Finset V) : ℝ) ≤ 1 := by
-      exact_mod_cast (card_le_card hsub).trans (card_singleton z).le
-    have hpi_le : π ≤ 1 := by
-      rw [← hch.dens_Y z]
-      exact_mod_cast Finset.dens_le_one
-    have hJ1 : (1 : ℝ) ≤ P.J := by exact_mod_cast P.J_pos
+    have hcard : (#({w | P.δ₁ * f ≤ P.correctionInput X Y f C i w z} : Finset V) : ℝ) ≤ 1 :=
+      mod_cast (card_le_card fun w _ => mem_singleton.mpr (hV w)).trans (card_singleton z).le
+    have hpi_le : π ≤ 1 := hch.dens_Y z ▸ mod_cast Finset.dens_le_one
+    have hJ1 : (1 : ℝ) ≤ P.J := mod_cast P.J_pos
     have hcπf : cπ * f ≤ cπ * P.R := (hch.lower.trans hpi_le).trans (by linarith [P.R_rank])
     exact hcard.trans ((one_le_div hf).mpr (le_of_mul_le_mul_left hcπf hcπ))
 

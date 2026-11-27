@@ -128,21 +128,12 @@ theorem coeff_aeval_X_mul_of_mem_supported {S : Set (Fin n)} {i : Fin n} (hi : i
       Polynomial.coeff_monomial]
     by_cases he : e = m i
     · subst he
-      have hle : Finsupp.single i (m i) ≤ m := Finsupp.single_le_iff.2 le_rfl
-      have herase : m - Finsupp.single i (m i) = m.erase i := by
-        ext j
-        by_cases hj : j = i
-        · subst hj
-          simp
-        · simp [Finsupp.erase_ne hj, Finsupp.single_eq_of_ne hj]
-      simp [hle, herase]
+      have herase : m - Finsupp.single i (m i) = m.erase i := Finsupp.ext fun j => by
+        by_cases hj : j = i <;> simp [hj, Finsupp.erase_ne, Finsupp.single_eq_of_ne]
+      simp [Finsupp.single_le_iff.2 le_rfl, herase]
     · by_cases hle : Finsupp.single i e ≤ m
-      · have hlt : m i - e ≠ 0 := by
-          have h := Finsupp.single_le_iff.1 hle
-          omega
-        have hq0 : q.coeff (m - Finsupp.single i e) = 0 :=
-          h0 _ (by rwa [Finsupp.tsub_apply, Finsupp.single_eq_same])
-        simp [he, hq0]
+      · have hlt : m i - e ≠ 0 := by have := Finsupp.single_le_iff.1 hle; omega
+        simp [he, h0 (m - Finsupp.single i e) (by rwa [Finsupp.tsub_apply, Finsupp.single_eq_same])]
       · simp [he, hle]
 
 /-- The coefficient of a monomial in an entry of a branching program is the entry of the product
@@ -151,28 +142,23 @@ theorem coeff_roabpProd (M : Fin n → Matrix (Fin w) (Fin w) F[X]) :
     ∀ {l : List (Fin n)}, l.Nodup → ∀ m : Fin n →₀ ℕ, (∀ i ∉ l, m i = 0) → ∀ s t : Fin w,
       (roabpProd M l s t).coeff m = (l.map fun i => layerCoeff M i (m i)).prod s t
   | [], _, m, hm, s, t => by
-    have hm0 : m = 0 := Finsupp.ext fun i => hm i (List.not_mem_nil)
-    rw [roabpProd, List.map_nil, List.prod_nil, List.map_nil, List.prod_nil, hm0,
-      Matrix.one_apply, Matrix.one_apply]
+    rw [roabpProd, List.map_nil, List.prod_nil, List.map_nil, List.prod_nil,
+      (Finsupp.ext fun i => hm i List.not_mem_nil : m = 0), Matrix.one_apply, Matrix.one_apply]
     split_ifs <;> simp
   | i :: l, hl, m, hm, s, t => by
-    have hil : i ∉ l := (List.nodup_cons.1 hl).1
+    obtain ⟨hil, hl'⟩ := List.nodup_cons.1 hl
     have hm' : ∀ j ∉ l, (m.erase i) j = 0 := fun j hj => by
       by_cases hji : j = i
-      · rw [hji, Finsupp.erase_same]
-      · rw [Finsupp.erase_ne hji]
-        exact hm j fun h => (List.mem_cons.1 h).elim hji hj
+      · simp [hji]
+      · exact (Finsupp.erase_ne hji).trans (hm j (List.not_mem_cons_of_ne_of_not_mem hji hj))
     have hmap : (l.map fun j => layerCoeff M j ((m.erase i) j)) =
         l.map fun j => layerCoeff M j (m j) :=
-      List.map_congr_left fun j hj => by
-        rw [Finsupp.erase_ne fun h : j = i => hil (h ▸ hj)]
-    have hprod : roabpProd M (i :: l) = (M i).map (Polynomial.aeval (X i)) * roabpProd M l := by
-      rw [roabpProd, List.map_cons, List.prod_cons, roabpProd]
-    rw [hprod, List.map_cons, List.prod_cons, Matrix.mul_apply, Matrix.mul_apply, coeff_sum]
+      List.map_congr_left fun j hj => by rw [Finsupp.erase_ne fun h : j = i => hil (h ▸ hj)]
+    rw [roabpProd, List.map_cons, List.prod_cons, ← roabpProd, List.map_cons, List.prod_cons,
+      Matrix.mul_apply, Matrix.mul_apply, coeff_sum]
     refine sum_congr rfl fun k _ => ?_
     rw [Matrix.map_apply, coeff_aeval_X_mul_of_mem_supported (S := {j | j ∈ l}) hil _
-      (roabpProd_mem_supported M l (fun j hj => hj) k t),
-      coeff_roabpProd M (List.nodup_cons.1 hl).2 _ hm' k t, hmap]
+      (roabpProd_mem_supported M l (fun _ h => h) k t), coeff_roabpProd M hl' _ hm' k t, hmap]
     rfl
 
 /-- A monomial with a variable outside the list has coefficient zero in a branching program that
@@ -181,8 +167,7 @@ theorem coeff_roabpProd_eq_zero (M : Fin n → Matrix (Fin w) (Fin w) F[X]) (l :
     {m : Fin n →₀ ℕ} {i : Fin n} (hi : i ∉ l) (hm : m i ≠ 0) (s t : Fin w) :
     (roabpProd M l s t).coeff m = 0 := by
   by_contra hne
-  have hsup := roabpProd_mem_supported M l (S := {j | j ∈ l}) (fun j hj => hj) s t
-  exact hi (mem_supported.1 hsup
+  exact hi (mem_supported.1 (roabpProd_mem_supported M l (S := {j | j ∈ l}) (fun _ h => h) s t)
     (mem_coe.2 ((mem_vars_iff_mem_support i).2
       ⟨m, mem_support_iff.2 hne, Finsupp.mem_support_iff.2 hm⟩)))
 

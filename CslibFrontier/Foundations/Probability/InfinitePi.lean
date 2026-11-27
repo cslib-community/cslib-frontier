@@ -58,14 +58,11 @@ theorem indepSet_infinitePi_of_dependsOn {A B : Set (Π i, Ω i)} (hA : Measurab
     (hB : MeasurableSet B) {S T : Finset ι} (hAS : DependsOn (· ∈ A) (S : Set ι))
     (hBT : DependsOn (· ∈ B) (T : Set ι)) (hST : Disjoint S T) :
     IndepSet A B (Measure.infinitePi P) := by
-  have h := (indepFun_infinitePi_of_dependsOn (P := P) (measurable_mem.2 hA)
+  have hpre (C : Set (Π i, Ω i)) : (· ∈ C) ⁻¹' {True} = C := Set.ext fun _ => by simp
+  refine (indepSet_iff_measure_inter_eq_mul hA hB _).2 ?_
+  simpa only [hpre] using (indepFun_infinitePi_of_dependsOn (P := P) (measurable_mem.2 hA)
     (measurable_mem.2 hB) hAS hBT hST).measure_inter_preimage_eq_mul {True} {True}
       (measurableSet_singleton _) (measurableSet_singleton _)
-  have hpre : ∀ C : Set (Π i, Ω i), (· ∈ C) ⁻¹' {True} = C := fun C => by
-    ext
-    simp
-  rw [hpre, hpre] at h
-  exact (indepSet_iff_measure_inter_eq_mul hA hB _).2 h
 
 end ProbabilityTheory
 
@@ -78,12 +75,8 @@ variable {ι : Type*} {Ω : ι → Type*} [∀ i, MeasurableSpace (Ω i)] [∀ i
 measurable. -/
 theorem measurableSet_of_dependsOn {A : Set (∀ i, Ω i)} {S : Finset ι}
     (h : DependsOn (· ∈ A) (S : Set ι)) : MeasurableSet A := by
-  have hA : A = S.restrict ⁻¹' (S.restrict '' A) := by
-    ext x
-    refine ⟨fun hx => ⟨x, hx, rfl⟩, fun ⟨y, hy, hxy⟩ => ?_⟩
-    have := h (x := y) (y := x) fun i hi => congrFun hxy ⟨i, hi⟩
-    simpa [this] using hy
-  rw [hA]
-  exact Finset.measurable_restrict S (Set.to_countable _).measurableSet
+  have hA : A = S.restrict ⁻¹' (S.restrict '' A) := Set.ext fun x =>
+    ⟨fun hx => ⟨x, hx, rfl⟩, fun ⟨y, hy, hxy⟩ => Eq.mp (h fun i hi => congrFun hxy ⟨i, hi⟩) hy⟩
+  exact hA ▸ Finset.measurable_restrict S (Set.to_countable _).measurableSet
 
 end MeasureTheory

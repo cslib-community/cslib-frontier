@@ -62,13 +62,8 @@ theorem sq_sum_sum_abs_fourierCoeff_fiber_le [Fintype Γ] [DecidableEq Γ]
       Fintype.card ι * (Fintype.card Γ - 1) := by
   set μ : Γ → ℝ := fun σ => 𝔼 y, (if f y = σ then 1 else 0 : ℝ)
   have hinner (σ : Γ) : (∑ i, |fourierCoeff (fun x => if f x = σ then 1 else 0) {i}|) ^ 2 ≤
-      Fintype.card ι * (μ σ - μ σ ^ 2) := by
-    refine (sq_sum_le_card_mul_sum_sq (s := univ)).trans ?_
-    rw [card_univ]
-    refine mul_le_mul_of_nonneg_left ?_ (Nat.cast_nonneg _)
-    simp only [sq_abs]
-    refine (sum_fourierCoeff_singleton_sq_le _).trans_eq ?_
-    exact expect_boole_sub_sq fun x => f x = σ
+      Fintype.card ι * (μ σ - μ σ ^ 2) :=
+    (sq_sum_abs_fourierCoeff_singleton_le _).trans_eq (congrArg _ (expect_boole_sub_sq _))
   have hμ : ∑ σ, μ σ = 1 := by
     rw [← Finset.expect_sum_comm]
     simp only [Fintype.sum_ite_eq, Fintype.expect_const]

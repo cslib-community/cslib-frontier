@@ -114,18 +114,12 @@ theorem gramSchmidtRowsAux_spec (bq : Vector (Vector ℚ m) n) : ∀ (t : ℕ) (
       · obtain rfl : i = ⟨t, h⟩ := Fin.ext hi
         simp only [gramSchmidtRowsAux, h, dite_true, Fin.getElem_fin, Vector.getElem_set_self,
           Vector.getElem_ofFn]
-        rw [ratToEuclidean_sub_sum]
-        have hdef :=
-          gramSchmidt_def'' ℝ (fun l : Fin n => ratToEuclidean fun k : Fin m => bq[l][k]) ⟨t, h⟩
-        simp only [Fin.getElem_fin] at hdef
-        rw [eq_sub_of_add_eq hdef.symm]
+        rw [ratToEuclidean_sub_sum, gramSchmidt_def]
         congr 1
         refine Finset.sum_congr rfl fun j hj => ?_
-        have hj' : (j : ℕ) < t := Fin.lt_def.1 (Finset.mem_Iio.1 hj)
-        have hj'' := ih j hj'
-        simp only [Fin.getElem_fin] at hj''
-        rw [cast_projCoeff, hj'']
-        simp
+        have hj' := ih j (Fin.lt_def.1 (Finset.mem_Iio.1 hj))
+        simp only [Fin.getElem_fin] at hj'
+        simp [Submodule.starProjection_singleton, cast_projCoeff, hj']
     · simp only [gramSchmidtRowsAux, h, dite_false]
       exact ih i (by omega)
 

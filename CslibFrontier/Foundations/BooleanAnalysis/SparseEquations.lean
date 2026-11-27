@@ -845,29 +845,11 @@ theorem coeffNorm1_parityBaseDigitCleared_le (ℓ j : ℕ) (Δ : ℤ) {A_i : Pol
   have hcast : ∀ c : ℤ, (c : Polynomial ℤ) = Polynomial.C c := fun c =>
     (eq_intCast Polynomial.C c).symm
   rw [hcast, hcast]
-  let a₀ := ((Polynomial.parityBaseDigit ℓ j).coeff 0).natAbs
-  let a₁ := ((Polynomial.parityBaseDigit ℓ j).coeff 1).natAbs
-  have h0 : Polynomial.coeffNorm1
-      (Polynomial.C ((Polynomial.parityBaseDigit ℓ j).coeff 0) * Polynomial.C Δ) ≤
-      a₀ * Δ.natAbs := by
-    refine (Polynomial.coeffNorm1_C_mul_le _ _).trans ?_
-    rw [Polynomial.coeffNorm1_C]
-  have h1 : Polynomial.coeffNorm1
-      (Polynomial.C ((Polynomial.parityBaseDigit ℓ j).coeff 1) * A_i) ≤ a₁ * B :=
-    (Polynomial.coeffNorm1_C_mul_le _ _).trans (Nat.mul_le_mul_left a₁ hA)
-  have ha0 : a₀ ≤ Polynomial.coeffNorm1 (Polynomial.parityBaseDigit ℓ j) :=
-    Polynomial.natAbs_coeff_le_coeffNorm1 _ 0
-  have ha1 : a₁ ≤ Polynomial.coeffNorm1 (Polynomial.parityBaseDigit ℓ j) :=
-    Polynomial.natAbs_coeff_le_coeffNorm1 _ 1
-  calc
-    Polynomial.coeffNorm1
-        (Polynomial.C ((Polynomial.parityBaseDigit ℓ j).coeff 0) * Polynomial.C Δ +
-          Polynomial.C ((Polynomial.parityBaseDigit ℓ j).coeff 1) * A_i)
-      ≤ a₀ * Δ.natAbs + a₁ * B := (Polynomial.coeffNorm1_add_le _ _).trans (add_le_add h0 h1)
-    _ ≤ Polynomial.coeffNorm1 (Polynomial.parityBaseDigit ℓ j) * Δ.natAbs +
-          Polynomial.coeffNorm1 (Polynomial.parityBaseDigit ℓ j) * B :=
-        add_le_add (Nat.mul_le_mul_right _ ha0) (Nat.mul_le_mul_right _ ha1)
-    _ = Polynomial.coeffNorm1 (Polynomial.parityBaseDigit ℓ j) * (B + Δ.natAbs) := by ring
+  refine (Polynomial.coeffNorm1_add_le _ _).trans <| (add_le_add
+    (Polynomial.coeffNorm1_C_mul_le _ _)
+    ((Polynomial.coeffNorm1_C_mul_le _ _).trans (Nat.mul_le_mul_left _ hA))).trans ?_
+  rw [Polynomial.coeffNorm1_C, add_comm B, mul_add]
+  gcongr <;> exact Polynomial.natAbs_coeff_le_coeffNorm1 _ _
 
 /-- **Appendix B.2 (`∥A_i (A_i - Δ)∥₁` bound)**: if `coeffNorm1 A_i ≤ B`, then
 `coeffNorm1 (hPolyCleared (C Δ) A_i) ≤ B * (B + Δ.natAbs)`. -/
@@ -875,15 +857,10 @@ theorem coeffNorm1_hPolyCleared_le (Δ : ℤ) {A_i : Polynomial ℤ} {B : ℕ}
     (hA : Polynomial.coeffNorm1 A_i ≤ B) :
     Polynomial.coeffNorm1 (hPolyCleared (Polynomial.C Δ) A_i) ≤ B * (B + Δ.natAbs) := by
   unfold hPolyCleared
-  calc
-    Polynomial.coeffNorm1 (A_i * (A_i - Polynomial.C Δ))
-      ≤ Polynomial.coeffNorm1 A_i * Polynomial.coeffNorm1 (A_i - Polynomial.C Δ) :=
-        Polynomial.coeffNorm1_mul_le _ _
-    _ ≤ B * (Polynomial.coeffNorm1 A_i + Polynomial.coeffNorm1 (Polynomial.C Δ)) :=
-        Nat.mul_le_mul hA (Polynomial.coeffNorm1_sub_le A_i (Polynomial.C Δ))
-    _ ≤ B * (B + Δ.natAbs) := by
-        rw [Polynomial.coeffNorm1_C]
-        exact Nat.mul_le_mul_left B (add_le_add hA le_rfl)
+  refine (Polynomial.coeffNorm1_mul_le _ _).trans <|
+    Nat.mul_le_mul hA <| (Polynomial.coeffNorm1_sub_le _ _).trans ?_
+  rw [Polynomial.coeffNorm1_C]
+  exact Nat.add_le_add_right hA _
 
 /-- **Appendix B.2 (`∥[V ^ s] (Γ B_i)∥₁` bound)**: if `coeffNorm1 A_i ≤ B`, then every `V ^ s`-
 coefficient of `parityFactorCleared ℓ (C Δ) A_i` has `coeffNorm1` at most
@@ -900,48 +877,15 @@ theorem coeffNorm1_coeff_parityFactorCleared_le (ℓ : ℕ) (Δ : ℤ) {A_i : Po
       refine (Polynomial.coeffNorm1_pow_le (Polynomial.C Δ) _).trans ?_
       rw [Polynomial.coeffNorm1_C]
       exact Nat.pow_le_pow_left (Nat.le_add_left Δ.natAbs B) _
-    have he :
-        Polynomial.coeffNorm1 (parityBaseDigitCleared ℓ s (Polynomial.C Δ) A_i) ≤
-          Polynomial.coeffNorm1 (Polynomial.parityBaseDigit ℓ s) * (B + Δ.natAbs) :=
-      coeffNorm1_parityBaseDigitCleared_le ℓ s Δ hA
-    have hh :
-        Polynomial.coeffNorm1 (hPolyCleared (Polynomial.C Δ) A_i ^ s) ≤
-          (B + Δ.natAbs) ^ (2 * s) := by
-      calc
-        Polynomial.coeffNorm1 (hPolyCleared (Polynomial.C Δ) A_i ^ s)
-          ≤ Polynomial.coeffNorm1 (hPolyCleared (Polynomial.C Δ) A_i) ^ s :=
-            Polynomial.coeffNorm1_pow_le _ s
-        _ ≤ (B * (B + Δ.natAbs)) ^ s :=
-            Nat.pow_le_pow_left (coeffNorm1_hPolyCleared_le Δ hA) s
-        _ ≤ ((B + Δ.natAbs) * (B + Δ.natAbs)) ^ s :=
-            Nat.pow_le_pow_left (Nat.mul_le_mul_right _ (Nat.le_add_right B Δ.natAbs)) s
-        _ = (B + Δ.natAbs) ^ (2 * s) := by
-            rw [← sq, ← pow_mul]
-    have hexp : 2 * (ℓ - 1 - s) + 1 + 2 * s = 2 * ℓ - 1 := by omega
-    calc
-      Polynomial.coeffNorm1
-          ((Polynomial.C Δ) ^ (2 * (ℓ - 1 - s)) *
-            parityBaseDigitCleared ℓ s (Polynomial.C Δ) A_i *
-            hPolyCleared (Polynomial.C Δ) A_i ^ s)
-        ≤ Polynomial.coeffNorm1
-            ((Polynomial.C Δ) ^ (2 * (ℓ - 1 - s)) *
-              parityBaseDigitCleared ℓ s (Polynomial.C Δ) A_i) *
-            Polynomial.coeffNorm1 (hPolyCleared (Polynomial.C Δ) A_i ^ s) :=
-          Polynomial.coeffNorm1_mul_le _ _
-      _ ≤ (Polynomial.coeffNorm1 ((Polynomial.C Δ) ^ (2 * (ℓ - 1 - s))) *
-            Polynomial.coeffNorm1 (parityBaseDigitCleared ℓ s (Polynomial.C Δ) A_i)) *
-            Polynomial.coeffNorm1 (hPolyCleared (Polynomial.C Δ) A_i ^ s) :=
-          Nat.mul_le_mul_right _ (Polynomial.coeffNorm1_mul_le _ _)
-      _ ≤ ((B + Δ.natAbs) ^ (2 * (ℓ - 1 - s)) *
-            (Polynomial.coeffNorm1 (Polynomial.parityBaseDigit ℓ s) * (B + Δ.natAbs))) *
-            (B + Δ.natAbs) ^ (2 * s) :=
-          Nat.mul_le_mul (Nat.mul_le_mul hpowΔ he) hh
-      _ = Polynomial.coeffNorm1 (Polynomial.parityBaseDigit ℓ s) *
-            ((B + Δ.natAbs) ^ (2 * (ℓ - 1 - s)) * (B + Δ.natAbs) ^ 1 *
-              (B + Δ.natAbs) ^ (2 * s)) := by ring
-      _ = Polynomial.coeffNorm1 (Polynomial.parityBaseDigit ℓ s) *
-            (B + Δ.natAbs) ^ (2 * ℓ - 1) := by
-          rw [← pow_add, ← pow_add, hexp]
+    have hh : Polynomial.coeffNorm1 (hPolyCleared (Polynomial.C Δ) A_i ^ s) ≤
+        ((B + Δ.natAbs) * (B + Δ.natAbs)) ^ s :=
+      (Polynomial.coeffNorm1_pow_le _ s).trans <| Nat.pow_le_pow_left
+        ((coeffNorm1_hPolyCleared_le Δ hA).trans (Nat.mul_le_mul_right _ (Nat.le_add_right _ _))) s
+    refine (Polynomial.coeffNorm1_mul_le _ _).trans <| (Nat.mul_le_mul
+      ((Polynomial.coeffNorm1_mul_le _ _).trans
+        (Nat.mul_le_mul hpowΔ (coeffNorm1_parityBaseDigitCleared_le ℓ s Δ hA))) hh).trans_eq ?_
+    rw [← show 2 * (ℓ - 1 - s) + 1 + 2 * s = 2 * ℓ - 1 by omega, ← sq, ← pow_mul]
+    ring
   · simp only [Polynomial.coeffNorm1_zero, zero_le]
 
 /-- **Appendix B.2 (explicit `∥[V ^ s] (Γ B_i)∥₁` bound)**: combining

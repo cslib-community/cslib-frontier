@@ -56,37 +56,26 @@ theorem pow_dvd_iff_forall_dvd_choose {p : ℕ} (hp : p.Prime) (e c : ℕ) :
   induction e generalizing c with
   | zero => simp
   | succ e ih =>
-    have hsplit : p ^ (e + 1) ∣ c ↔ p ∣ c ∧ p ^ e ∣ c / p := by
-      constructor
-      · intro h
-        have hpc : p ∣ c := (dvd_pow_self p e.succ_ne_zero).trans h
-        refine ⟨hpc, ?_⟩
-        rw [Nat.dvd_div_iff_mul_dvd hpc, ← pow_succ']
-        exact h
-      · rintro ⟨hpc, h⟩
-        rw [Nat.dvd_div_iff_mul_dvd hpc, ← pow_succ'] at h
-        exact h
+    have hsplit : p ^ (e + 1) ∣ c ↔ p ∣ c ∧ p ^ e ∣ c / p :=
+      ⟨fun h => ⟨(dvd_pow_self p e.succ_ne_zero).trans h,
+        by rwa [Nat.dvd_div_iff_mul_dvd ((dvd_pow_self p e.succ_ne_zero).trans h), ← pow_succ']⟩,
+       fun ⟨hpc, h⟩ => by rwa [Nat.dvd_div_iff_mul_dvd hpc, ← pow_succ'] at h⟩
     rw [hsplit, ih]
-    constructor
-    · rintro ⟨h0, hrest⟩ i hi
-      rcases i with _ | i
-      · simpa using h0
-      · exact ((choose_pow_succ_modEq hp c i).dvd_iff dvd_rfl).2 (hrest i (by omega))
-    · intro h
-      refine ⟨by simpa using h 0 (by omega), fun i hi => ?_⟩
-      exact ((choose_pow_succ_modEq hp c i).dvd_iff dvd_rfl).1 (h (i + 1) (by omega))
+    exact ⟨fun ⟨h0, hrest⟩ i hi => by
+        rcases i with _ | i
+        · simpa using h0
+        · exact ((choose_pow_succ_modEq hp c i).dvd_iff dvd_rfl).2 (hrest i (by omega)),
+      fun h => ⟨by simpa using h 0 (by omega), fun i hi =>
+        ((choose_pow_succ_modEq hp c i).dvd_iff dvd_rfl).1 (h (i + 1) (by omega))⟩⟩
 
 /-- **Non-divisibility through prime-power binomial coefficients.** For `m > 0`, `c` is not
 divisible by `m` exactly when some prime `p` and some `i` with `p ^ (i + 1) ∣ m` have
 `p ∤ C(c, p ^ i)`. Such `p` and `i` satisfy `p ≤ m` and `i < m`. -/
 theorem mod_ne_zero_iff_exists_not_dvd_choose {m : ℕ} (hm : 0 < m) (c : ℕ) :
     c % m ≠ 0 ↔ ∃ p i, p.Prime ∧ p ^ (i + 1) ∣ m ∧ ¬ p ∣ c.choose (p ^ i) := by
-  constructor
-  · intro hc
-    have hmc : ¬ m ∣ c := fun h => hc (Nat.mod_eq_zero_of_dvd h)
-    have hc0 : c ≠ 0 := by
-      rintro rfl
-      exact hmc (dvd_zero m)
+  refine ⟨fun hc => ?_, ?_⟩
+  · have hmc : ¬ m ∣ c := fun h => hc (Nat.mod_eq_zero_of_dvd h)
+    have hc0 : c ≠ 0 := fun h => hmc (h ▸ dvd_zero m)
     have hle : ¬ m.factorization ≤ c.factorization := fun h =>
       hmc ((Nat.factorization_le_iff_dvd hm.ne' hc0).1 h)
     rw [Finsupp.le_def] at hle
@@ -95,16 +84,14 @@ theorem mod_ne_zero_iff_exists_not_dvd_choose {m : ℕ} (hm : 0 < m) (c : ℕ) :
     have hp : p.Prime := Nat.prime_of_mem_primeFactors (by
       rw [← Nat.support_factorization]
       exact Finsupp.mem_support_iff.2 ((Nat.zero_le _).trans_lt hlt).ne')
-    have hpm : p ^ m.factorization p ∣ m := Nat.ordProj_dvd m p
-    have hpc : ¬ p ^ m.factorization p ∣ c := by
-      rw [hp.pow_dvd_iff_le_factorization hc0]
+    have hpc : ¬ ∀ i < m.factorization p, p ∣ c.choose (p ^ i) := by
+      rw [← pow_dvd_iff_forall_dvd_choose hp, hp.pow_dvd_iff_le_factorization hc0]
       omega
-    rw [pow_dvd_iff_forall_dvd_choose hp] at hpc
     push Not at hpc
     obtain ⟨i, hi, hndvd⟩ := hpc
-    exact ⟨p, i, hp, (pow_dvd_pow p hi).trans hpm, hndvd⟩
+    exact ⟨p, i, hp, (pow_dvd_pow p hi).trans (Nat.ordProj_dvd m p), hndvd⟩
   · rintro ⟨p, i, hp, hpm, hpc⟩ hc
-    have hmc : m ∣ c := Nat.dvd_of_mod_eq_zero hc
-    exact hpc ((pow_dvd_iff_forall_dvd_choose hp (i + 1) c).1 (hpm.trans hmc) i (by omega))
+    exact hpc ((pow_dvd_iff_forall_dvd_choose hp (i + 1) c).1
+      (hpm.trans (Nat.dvd_of_mod_eq_zero hc)) i (by omega))
 
 end Nat

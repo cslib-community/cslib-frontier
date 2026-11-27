@@ -84,8 +84,7 @@ def CNF.minterm (x : BitString N) : CNF (Fin N) :=
 /-- `CNF.minterm x` evaluates to `true` on `y` iff `y = x`. -/
 theorem CNF.eval_minterm_eq_true_iff (x y : BitString N) :
     (CNF.minterm x).eval y = true ↔ y = x := by
-  rw [funext_iff]
-  simp [CNF.minterm, CNF.eval_map_eq_true_iff]
+  simp [funext_iff, CNF.minterm, CNF.eval_map_eq_true_iff]
 
 /-- Every function has a `Σ₃^k` formula for `k ≥ 1`: the OR of the minterms of its true
 inputs. -/
@@ -96,13 +95,8 @@ theorem exists_isSigmaThree {k : ℕ} (hk : 1 ≤ k) (f : BitString N → Bool) 
   · obtain ⟨x, -, rfl⟩ := List.mem_map.mp hF
     obtain ⟨i, -, rfl⟩ := List.mem_map.mp hc
     simpa using hk
-  · rw [Bool.eq_iff_iff, List.any_eq_true]
-    simp only [List.mem_map, mem_toList, mem_filter, mem_univ, true_and]
-    constructor
-    · intro hy
-      exact ⟨CNF.minterm y, ⟨y, hy, rfl⟩, (CNF.eval_minterm_eq_true_iff y y).mpr rfl⟩
-    · rintro ⟨F, ⟨x, hx, rfl⟩, hFy⟩
-      rwa [(CNF.eval_minterm_eq_true_iff x y).mp hFy]
+  · rw [Bool.eq_iff_iff]
+    simp [CNF.eval_minterm_eq_true_iff]
 
 /-- For `k ≥ 1`, there exists a `Σ₃^k` formula for `f` attaining `sigmaThreeSize k f`. -/
 theorem exists_isSigmaThree_length_eq_sigmaThreeSize {k : ℕ} (hk : 1 ≤ k)
@@ -132,13 +126,7 @@ theorem isPiThree_iff_isSigmaThree_map_negate {k : ℕ} {f : BitString N → Boo
     cases f x <;> cases Gs.all fun G => G.eval x <;> simp
 
 private theorem DNF.negate_negate (G : CNF (Fin N)) : DNF.negate (CNF.negate G) = G := by
-  simp only [DNF.negate, CNF.negate, List.map_map]
-  conv_rhs => rw [← List.map_id G]
-  congr 1 with c : 1
-  simp only [Function.comp_apply, Term.negate, Clause.negate, List.map_map, id]
-  conv_rhs => rw [← List.map_id c]
-  congr 1 with l : 1
-  simp
+  simp [DNF.negate, CNF.negate, Term.negate, Clause.negate, Function.comp_def]
 
 /-- `Π₃^k(f) = Σ₃^k(¬f)`. -/
 theorem piThreeSize_eq_sigmaThreeSize_not (k : ℕ) (f : BitString N → Bool) :
@@ -168,17 +156,13 @@ private theorem IsSigmaThree.card_filter_le_length_mul (k : ℕ) (hk : 1 ≤ k) 
   have hsub : ({x | f x = true} : Finset (BitString N)) ⊆
       Fs.toFinset.biUnion fun F => {x | F.eval x = true} := by
     intro x hx
-    have hfx := (mem_filter.mp hx).2
-    rw [hFs.2 x, List.any_eq_true] at hfx
-    obtain ⟨F, hF, hFx⟩ := hfx
+    obtain ⟨F, hF, hFx⟩ := List.any_eq_true.mp ((hFs.2 x).symm.trans (mem_filter.mp hx).2)
     exact mem_biUnion.mpr ⟨F, List.mem_toFinset.mpr hF, mem_filter.mpr ⟨mem_univ _, hFx⟩⟩
   have hpiece : ∀ F ∈ Fs.toFinset, (#{x | F.eval x = true} : ℝ) ≤ 2 ^ E := by
     intro F hF
     have hF' := List.mem_toFinset.mp hF
     refine hA N F D (hFs.1 F hF') fun h => hfree (h.mono fun x hx => ?_)
-    change f x = true
-    rw [hFs.2 x, List.any_eq_true]
-    exact ⟨F, hF', hx⟩
+    exact (hFs.2 x).trans (List.any_eq_true.mpr ⟨F, hF', hx⟩)
   calc (#{x | f x = true} : ℝ)
       ≤ #(Fs.toFinset.biUnion fun F => ({x | F.eval x = true} : Finset (BitString N))) := by
         exact_mod_cast card_le_card hsub
@@ -199,8 +183,7 @@ theorem card_filter_le_sigmaThreeSize_mul (k : ℕ) (hk : 1 ≤ k) {ε : ℝ} (h
   obtain ⟨C, hC, hbound⟩ := IsSigmaThree.card_filter_le_length_mul k hk hε
   refine ⟨C, hC, fun N f D hfree => ?_⟩
   obtain ⟨Fs, hFs, hlen⟩ := exists_isSigmaThree_length_eq_sigmaThreeSize hk f
-  rw [← hlen]
-  exact hbound N f D Fs hFs hfree
+  exact hlen ▸ hbound N f D Fs hFs hfree
 
 /-- **Subcube dispersers need many formulas**: if the true inputs of `f n` eventually contain no
 subcube of dimension `D n = o(n)` and number `2 ^ (n - o(n))`, then for every `k ≥ 1` and `ε > 0`,
@@ -221,11 +204,10 @@ theorem eventually_two_rpow_le_sigmaThreeSize {f : (n : ℕ) → BitString n →
     filter_upwards [hD.bound hc] with n hn
     simp only [Real.norm_natCast] at hn
     calc C * D n ≤ C * (ε / (3 * (C + 1)) * n) := mul_le_mul_of_nonneg_left hn hC
-      _ ≤ ε / 3 * n := by
-          rw [← mul_assoc]
-          refine mul_le_mul_of_nonneg_right ?_ (Nat.cast_nonneg n)
-          rw [mul_div_assoc', div_le_div_iff₀ (by positivity) (by norm_num)]
-          nlinarith
+      _ = C / (C + 1) * (ε / 3 * n) := by field_simp
+      _ ≤ 1 * (ε / 3 * n) :=
+        mul_le_mul_of_nonneg_right ((div_le_one (by positivity)).mpr (by linarith)) (by positivity)
+      _ = ε / 3 * n := one_mul _
   have h2 : ∀ᶠ n : ℕ in atTop,
       (n : ℝ) * Real.log 2 - Real.log (#{x | f n x = true} : ℕ) ≤ δ * Real.log 2 * n := by
     filter_upwards [hdense.bound (mul_pos hδ0 hlog2)] with n hn
@@ -235,7 +217,8 @@ theorem eventually_two_rpow_le_sigmaThreeSize {f : (n : ℕ) → BitString n →
   set s := #{x | f n x = true}
   have hnR : (1 : ℝ) ≤ n := by exact_mod_cast hn
   -- the true inputs are many
-  have hlogs : (1 - δ) * n * Real.log 2 ≤ Real.log s := by nlinarith
+  have hlogs : (1 - δ) * n * Real.log 2 ≤ Real.log s := by
+    linarith [show (1 - δ) * (n : ℝ) * Real.log 2 = n * Real.log 2 - δ * Real.log 2 * n by ring]
   have hspos : (0 : ℝ) < s := by
     rcases Nat.eq_zero_or_pos s with h0 | hpos
     · rw [h0, Nat.cast_zero, Real.log_zero] at hlogs
@@ -252,9 +235,12 @@ theorem eventually_two_rpow_le_sigmaThreeSize {f : (n : ℕ) → BitString n →
     rw [Real.rpow_sub (by norm_num), div_le_iff₀ (by positivity)]
     exact hsbig.trans hbound
   refine le_trans (Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_) hlow
-  have : δ ≤ ε / 3 := min_le_left _ _
+  have hδn : δ * (n : ℝ) ≤ ε / 3 * n :=
+    mul_le_mul_of_nonneg_right (min_le_left _ _) (Nat.cast_nonneg n)
   simp only [E]
-  nlinarith
+  linarith [show (1 - δ) * (n : ℝ) = n - δ * n by ring,
+    show (1 - 1 / (k : ℝ) + ε / 3) * n = n - (1 / (k : ℝ)) * n + ε / 3 * n by ring,
+    show (1 / (k : ℝ) - ε) * n = (1 / (k : ℝ)) * n - ε * n by ring]
 
 /-- **Dually for `Π₃^k`**: if the false inputs of `f n` eventually contain no subcube of dimension
 `o(n)` and number `2 ^ (n - o(n))`, then `Π₃^k(f n) ≥ 2 ^ ((1 / k - ε) n)` for all large `n`. -/
@@ -265,13 +251,9 @@ theorem eventually_two_rpow_le_piThreeSize {f : (n : ℕ) → BitString n → Bo
       =o[atTop] (fun n => (n : ℝ)))
     {k : ℕ} (hk : 1 ≤ k) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n : ℕ in atTop, (2 : ℝ) ^ ((1 / (k : ℝ) - ε) * n) ≤ piThreeSize k (f n) := by
-  have hset (n : ℕ) : {x : BitString n | (!f n x) = true} = {x | f n x = false} := by
-    ext x
-    simp
-  have hfin (n : ℕ) : (#{x : BitString n | (!f n x) = true} : ℕ) = #{x | f n x = false} := by
-    simp
-  have h := eventually_two_rpow_le_sigmaThreeSize (f := fun n x => !f n x) hD
-    (by simpa only [hset] using hfree) (by simpa only [hfin] using hdense) hk hε
-  simpa only [piThreeSize_eq_sigmaThreeSize_not] using h
+  simpa only [piThreeSize_eq_sigmaThreeSize_not] using
+    eventually_two_rpow_le_sigmaThreeSize (f := fun n x => !f n x) hD
+      (by simpa only [Bool.not_eq_true'] using hfree)
+      (by simpa only [Bool.not_eq_true'] using hdense) hk hε
 
 end Cslib.Logic.PL

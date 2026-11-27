@@ -157,11 +157,9 @@ theorem succProbability_repeatedIterateExperiment_le_unrevealed (idx : Q → ℕ
     Experiment.succProbability (repeatedIterateExperiment idx sample f n d A) ≤
       Experiment.succProbability (repeatedIterateUnrevealedExperiment idx sample f n d A) :=
   succProbability_forgeExperiment_mono (fun q x log h => by
-    simp only [chainConsistent, chainUnrevealed, List.all_eq_true] at h ⊢
-    intro r hr
-    have := h r hr
-    simp only [Bool.or_eq_true, Bool.and_eq_true] at this ⊢
-    exact this.imp id And.left) A
+    simp only [chainConsistent, chainUnrevealed, List.all_eq_true, Bool.or_eq_true,
+      Bool.and_eq_true] at h ⊢
+    exact fun r hr => (h r hr).imp id And.left) A
 
 /-- For an injective `f`, a verified claim is the slot value itself, so it leads to every value
 revealed above it: on a log of true slot values the two winning conditions agree. -/
@@ -174,24 +172,21 @@ private theorem chainUnrevealed_eq_chainConsistent {idx : Q → ℕ} {f : X → 
   have hx : x = f^[idx q % d] (xs.getD (idx q / d) default) := by
     simp only [chainVerify, beq_iff_eq, List.getElem?_map, Option.map_eq_some_iff] at hver
     obtain ⟨y, hy, hfy⟩ := hver
-    have hget : xs.getD (idx q / d) default = y := by
-      rw [List.getD_eq_getElem?_getD, hy]
-      rfl
     apply hf.iterate (d - idx q % d)
-    rw [← Function.iterate_add_apply, hget, ← hfy]
+    simp only [← Function.iterate_add_apply, List.getD_eq_getElem?_getD, hy, Option.getD_some,
+      ← hfy]
     exact congrArg (fun k => f^[k] y) (by omega)
   rw [Bool.eq_iff_iff]
   simp only [chainUnrevealed, chainConsistent, List.all_eq_true, Bool.or_eq_true, bne_iff_ne,
     ne_eq, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq]
   constructor
   · intro h r hr
-    rcases h r hr with h1 | h2
-    · exact Or.inl h1
-    · by_cases hra : idx r.1 / d = idx q / d
-      · refine Or.inr ⟨h2, ?_⟩
-        rw [hlog r hr, chainSlot, hra, hx, ← Function.iterate_add_apply]
-        exact congrArg (fun k => f^[k] (xs.getD (idx q / d) default)) (by omega)
-      · exact Or.inl hra
+    by_cases hra : idx r.1 / d = idx q / d
+    · have hlt := (h r hr).resolve_left (not_not.mpr hra)
+      refine Or.inr ⟨hlt, ?_⟩
+      rw [hlog r hr, chainSlot, hra, hx, ← Function.iterate_add_apply]
+      exact congrArg (fun k => f^[k] _) (by omega)
+    · exact Or.inl hra
   · intro h r hr
     exact (h r hr).imp id And.left
 
@@ -220,10 +215,9 @@ theorem succProbability_repeatedIterateUnrevealedExperiment_of_injective (idx : 
           simpa using hr) _ hz
     simp only [Function.comp_apply]
     congr 1
-    rcases Bool.eq_false_or_eq_true (chainVerify f d (xs.map f^[d]) (idx q) x) with hv | hv
-    · rw [hv, Bool.true_and, Bool.true_and]
-      exact chainUnrevealed_eq_chainConsistent hf hd hlog hv
-    · rw [hv, Bool.false_and, Bool.false_and]
+    cases hv : chainVerify f d (xs.map f^[d]) (idx q) x
+    · rfl
+    · simpa using chainUnrevealed_eq_chainConsistent hf hd hlog hv
   rw [Experiment.succProbability, Experiment.succProbability, h]
 
 end Cslib.Crypto

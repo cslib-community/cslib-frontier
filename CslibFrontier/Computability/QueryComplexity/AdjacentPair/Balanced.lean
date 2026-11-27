@@ -63,21 +63,13 @@ theorem two_le_sqrtBlockSizes {n : ℕ} (hn : 4 ≤ n) (i : Fin (Nat.sqrt n)) :
 theorem sqrtBlockSizes_le (n : ℕ) (i : Fin (Nat.sqrt n)) :
     sqrtBlockSizes n i ≤ 3 * Nat.sqrt n := by
   unfold sqrtBlockSizes Fin.balancedBlockSize
-  have hk : 0 < Nat.sqrt n := Fin.pos i
-  have hs : n < Nat.sqrt n * (Nat.sqrt n + 2) + 1 := by
-    have := Nat.lt_succ_sqrt n
-    simp only [Nat.succ_eq_add_one] at this
-    nlinarith
-  have hdm := Nat.div_add_mod n (Nat.sqrt n)
-  split_ifs with hi
-  · have hq : n / Nat.sqrt n < Nat.sqrt n + 2 :=
-      Nat.lt_of_mul_lt_mul_left (a := Nat.sqrt n) (by omega)
-    omega
-  · have hq : n / Nat.sqrt n < Nat.sqrt n + 3 :=
-      Nat.lt_of_mul_lt_mul_left (a := Nat.sqrt n) (by
-        have : Nat.sqrt n * (Nat.sqrt n + 3) = Nat.sqrt n * (Nat.sqrt n + 2) + Nat.sqrt n := by
-          ring
-        omega)
-    omega
+  have hk : 0 < n.sqrt := Fin.pos i
+  have hs : n < n.sqrt * (n.sqrt + 2) + 1 :=
+    (show n < (n.sqrt + 1) * (n.sqrt + 1) from Nat.lt_succ_sqrt n).trans_eq (by ring)
+  have hdm := Nat.div_add_mod n n.sqrt
+  have h3 : n.sqrt * (n.sqrt + 3) = n.sqrt * (n.sqrt + 2) + n.sqrt := by ring
+  have hq : n / n.sqrt < n.sqrt + 3 := Nat.lt_of_mul_lt_mul_left (a := n.sqrt) (by omega)
+  have hmod := Nat.mod_lt n hk
+  split_ifs <;> omega
 
 end Cslib.BitString

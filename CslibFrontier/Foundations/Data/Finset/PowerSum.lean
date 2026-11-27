@@ -80,8 +80,7 @@ theorem sum_mul_sum_pow_le (s : Finset ι) {c : ι → α} (hc : ∀ i ∈ s, 0 
           (((s.sup' hs c) ^ (k + 1)) ^ k * (∑ i ∈ s, c i ^ (k + 1)) ^ (k + 1)) := by ring
     _ ≤ #s ^ k * (∑ i ∈ s, c i ^ (k + 1)) *
           ((∑ i ∈ s, c i ^ (k + 1)) ^ k * (∑ i ∈ s, c i ^ (k + 1)) ^ (k + 1)) :=
-        mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right
-          (pow_le_pow_left₀ (pow_nonneg hM0 _) hMk k) (pow_nonneg hF _)) (mul_nonneg hs0 hF)
+        by gcongr
     _ = #s ^ k * (∑ i ∈ s, c i ^ (k + 1)) ^ (2 * (k + 1)) := by ring
 
 end Finset

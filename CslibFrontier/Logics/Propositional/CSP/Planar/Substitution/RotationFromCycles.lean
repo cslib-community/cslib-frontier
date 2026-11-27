@@ -37,21 +37,17 @@ theorem ofRotation_rotationOfVariableCycles_eq (F : CSP Rel ℕ) (cycles : List 
         o.var = p.var) (hn : cycles.flatten.Nodup) :
     RotationCertificate.ofRotation (rotationOfVariableCycles F cycles hcover hfibers) =
       certificate F cycles := by
-  apply (RotationCertificate.ofRotation_eq_iff _ _).mpr
-  refine ⟨?_, ?_⟩
-  · simpa only [incidenceGraph_edges, List.length_map] using length_certificate F cycles
-  · intro d
-    obtain ⟨o, ho⟩ := exists_incidenceDart d
-    rw [← ho, getD_certificate_incidenceDart]
-    cases hside : d.2
-    · simp only [Bool.false_eq_true, ite_false]
-      rw [rotate_rotationOfVariableCycles_false]
-      change _ = 2 * (List.finiteCyclePermutation cycles hcover
-        ⟨incidenceEdgeIndex o, incidenceEdgeIndex_lt o⟩).val + 0
-      rw [List.val_finiteCyclePermutation_eq_nextInCycles cycles hcover hn, Nat.add_zero]
-    · simp only [ite_true]
-      rw [rotate_rotationOfVariableCycles_true]
-      rfl
+  refine (RotationCertificate.ofRotation_eq_iff _ _).mpr
+    ⟨by simpa only [incidenceGraph_edges, List.length_map] using length_certificate F cycles,
+      fun d => ?_⟩
+  obtain ⟨o, ho⟩ := exists_incidenceDart d
+  rw [← ho, getD_certificate_incidenceDart]
+  cases d.2
+  · simp only [Bool.false_eq_true, ite_false, rotate_rotationOfVariableCycles_false]
+    change _ = 2 * (List.finiteCyclePermutation cycles hcover
+      ⟨incidenceEdgeIndex o, incidenceEdgeIndex_lt o⟩).val + 0
+    rw [List.val_finiteCyclePermutation_eq_nextInCycles cycles hcover hn, Nat.add_zero]
+  · rw [ite_eq_left rfl, rotate_rotationOfVariableCycles_true]; rfl
 
 /-- The complete original raw rotation checker accepts this table once its actual
 positional partition and endpoint fibers have been established. Genus is a separate theorem. -/

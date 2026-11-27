@@ -65,11 +65,10 @@ theorem eventually_add_mul_log_add_le (a c d : ℕ) {b : ℕ} (hb : 1 < b) :
     eventually_ge_atTop (max d (b ^ (a + c)))] with n hlog hn
   have hnd : d ≤ n := le_of_max_le_left hn
   have hpow : b ^ (a + c) ≤ n := le_of_max_le_right hn
-  have hn0 : 0 < n := (Nat.pow_pos (by omega)).trans_le hpow
   have hac : a + c ≤ log b n := le_log_of_pow_le hb hpow
   have hlog_add : log b (n + d) ≤ log b n + 1 := by
     calc log b (n + d) ≤ log b (n * b) := log_mono_right (by nlinarith)
-      _ = log b n + 1 := log_mul_base hb hn0.ne'
+      _ = log b n + 1 := log_mul_base hb ((Nat.pow_pos (by omega)).trans_le hpow).ne'
   nlinarith
 
 /-- Every affine function `a + c * log b n` is eventually at most `n` for `1 < b`. -/
@@ -82,8 +81,8 @@ and `0 < m`. -/
 theorem eventually_mul_add_one_pow_le_pow_div (c k m : ℕ) {b : ℕ} (hb : 1 < b) (hm : 0 < m) :
     ∀ᶠ n : ℕ in atTop, c * (n + 1) ^ k ≤ b ^ (n / m) := by
   have htend : Tendsto (fun n : ℕ => n / m) atTop atTop :=
-    tendsto_atTop_atTop.mpr fun j => ⟨m * j, fun n hn =>
-      (Nat.le_div_iff_mul_le hm).mpr (by rw [mul_comm]; exact hn)⟩
+    tendsto_atTop_atTop.mpr fun j =>
+      ⟨m * j, fun n hn => (Nat.le_div_iff_mul_le hm).mpr (mul_comm j m ▸ hn)⟩
   filter_upwards [htend.eventually (eventually_mul_pow_le_pow (c * (2 * m) ^ k) k hb),
     eventually_ge_atTop m] with n hn hmn
   have hk : n + 1 ≤ 2 * m * (n / m) := by
@@ -109,9 +108,7 @@ theorem eventually_mul_pow_le_pow_div (c k m : ℕ) {b : ℕ} (hb : 1 < b) (hm :
 theorem eventually_add_one_pow_mul_lt_pow (k : ℕ) {b : ℕ} (hb : 1 < b) :
     ∀ᶠ n : ℕ in atTop, (n + 1) ^ k * n < b ^ n := by
   filter_upwards [eventually_mul_add_one_pow_le_pow 1 (k + 1) hb] with n hn
-  have hlt : (n + 1) ^ k * n < 1 * (n + 1) ^ (k + 1) := by
-    rw [one_mul, pow_succ]
-    exact Nat.mul_lt_mul_of_pos_left (Nat.lt_succ_self n) (Nat.pow_pos n.succ_pos)
-  exact hlt.trans_le hn
+  rw [one_mul, pow_succ] at hn
+  exact (Nat.mul_lt_mul_of_pos_left (Nat.lt_succ_self n) (Nat.pow_pos n.succ_pos)).trans_le hn
 
 end Nat

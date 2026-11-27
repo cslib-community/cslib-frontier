@@ -36,7 +36,7 @@ private theorem next_space : ComputableInSpace reader.next (encStateRead encBool
 
 example : ComputableInSpace reader.withOffset.query (encLocated Bool encBool) encNat
     (fun q => (encLocated Bool encBool q).length) :=
-  reader.withOffset_query_inSpace encBool (budget_const 0 (.refl _))
+  reader.withOffset_query_inSpace encBool (budget_const 0)
 
 example : ComputableInSpace reader.withOffset.next (encStateRead (encLocated Bool encBool))
     (encLocated Bool encBool) (fun p => (encStateRead (encLocated Bool encBool) p).length) :=
@@ -44,7 +44,7 @@ example : ComputableInSpace reader.withOffset.next (encStateRead (encLocated Boo
 
 example : ComputableInSpace reader.withOffset.emit (encStateRead (encLocated Bool encBool))
     encBits (fun p => (encStateRead (encLocated Bool encBool) p).length) :=
-  reader.withOffset_emit_inSpace encBool (budget_const [] (.refl _))
+  reader.withOffset_emit_inSpace encBool (budget_const [])
 
 example : ComputableInSpace reader.withOffset.halted (encLocated Bool encBool) encBool
     (fun q => (encLocated Bool encBool q).length) :=

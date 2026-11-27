@@ -132,13 +132,10 @@ theorem embedState_apply (e : Fin p ↪ Fin N) (x : Fin N → Bool) (ψ : Qubits
   rw [embedState_apply, ket_apply, ket_apply]
   by_cases hy : AgreeOff e y x
   · simp only [hy, ↓reduceIte]
-    refine if_congr ⟨fun h => ?_, fun h => ?_⟩ rfl rfl
-    · rw [← glue_comp_of_agreeOff hy, h]
-    · rw [h, glue_comp]
+    exact if_congr ⟨fun h => h ▸ (glue_comp_of_agreeOff hy).symm,
+      fun h => h.symm ▸ glue_comp e z x⟩ rfl rfl
   · simp only [hy, ↓reduceIte]
-    refine (ite_eq_right_iff.mpr fun h => absurd ?_ hy).symm
-    rw [h]
-    exact agreeOff_glue e z x
+    exact (ite_eq_right_iff.mpr fun h : y = glue e z x => (hy (h ▸ agreeOff_glue e z x)).elim).symm
 
 theorem embedState_eq_sum (e : Fin p ↪ Fin N) (x : Fin N → Bool) (ψ : Qubits p) :
     embedState e x ψ = ∑ z, ψ.ofLp z • ket (glue e z x) := by
@@ -150,17 +147,13 @@ qubits retain their fixed basis string. -/
 theorem Circuit.eval_mapWires_embedState (C : Circuit p) (e : Fin p ↪ Fin N)
     (x : Fin N → Bool) (ψ : Qubits p) :
     (Circuit.mapWires e C).eval (embedState e x ψ) = embedState e x (C.eval ψ) := by
-  have hket (z : Fin p → Bool) :
-      (Circuit.mapWires e C).eval (embedState e x (ket z)) = embedState e x (C.eval (ket z)) := by
-    rw [embedState_ket]
-    ext y
-    rw [Circuit.eval_ket_apply, Circuit.matrix_mapWires, embedState_apply,
-      Circuit.eval_ket_apply, glue_comp]
-    exact if_congr
-      ⟨fun h => h.trans (agreeOff_glue e z x), fun h => h.trans (agreeOff_glue e z x).symm⟩
-      rfl rfl
   rw [← sum_smul_ket ψ]
-  simp only [map_sum, map_smul, hket]
+  simp only [map_sum, map_smul, embedState_ket]
+  refine Finset.sum_congr rfl fun z _ => congrArg (ψ.ofLp z • ·) ?_
+  ext y
+  rw [Circuit.eval_ket_apply, Circuit.matrix_mapWires, embedState_apply,
+    Circuit.eval_ket_apply, glue_comp]
+  exact if_congr ⟨(·.trans (agreeOff_glue e z x)), (·.trans (agreeOff_glue e z x).symm)⟩ rfl rfl
 
 /-- A classical circuit mapping `|glue e z x⟩` to `|glue e' z x'⟩` for every `z` maps the state
 `ψ` on the qubits `e` to `ψ` on the qubits `e'`. -/

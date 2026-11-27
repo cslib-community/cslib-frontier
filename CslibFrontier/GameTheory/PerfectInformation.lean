@@ -126,14 +126,7 @@ theorem not_canWin_iff {k : ℕ} {x : List M} : ¬ G.CanWin b k x ↔ G.CanWin (
     · rw [canWin_iff_of_isOver hx, canWin_iff_of_isOver hx]
       cases b <;> simp
     · simp only [CanWin, hx, false_implies, true_and, not_false_eq_true, true_implies]
-      have hturn : (G.turn x = !b) ↔ ¬ G.turn x = b := by cases b <;> simp
-      split_ifs with ht ht' ht'
-      · exact absurd ht (hturn.1 ht')
-      · push Not
-        simp only [ih]
-      · push Not
-        simp only [ih]
-      · exact absurd (hturn.2 ht) ht'
+      cases b <;> cases G.turn x <;> simp [ih]
 
 private theorem Strategy.move_congr (σ : G.Strategy b) {x y : List M} (e : x = y) (hx hy) :
     σ.move x hx = σ.move y hy := by
@@ -146,13 +139,11 @@ theorem Strategy.follows_append_singleton {σ : G.Strategy b} {x : List M} {a : 
   rw [List.length_append, List.length_singleton] at hk
   rcases Nat.lt_succ_iff_lt_or_eq.1 hk with hk | rfl
   · have e := List.take_append_of_le_length (l₂ := [a]) hk.le
-    rw [e] at ht
     rw [List.getElem_append_left hk, σ.move_congr e h (e ▸ h)]
-    exact hx k hk ht _
+    exact hx k hk (e ▸ ht) _
   · have e : (x ++ [a]).take x.length = x := List.take_left
-    rw [e] at ht
     rw [σ.move_congr e h (e ▸ h)]
-    simpa using ha ht _
+    simpa using ha (e ▸ ht) _
 
 /-- Under a move bound `n`, a winning strategy of `b` lets `b` force a win by backward induction
 from every legal position that follows it, with enough moves left. -/
@@ -165,18 +156,14 @@ theorem Strategy.IsWinning.canWin {σ : G.Strategy b} (hσ : σ.IsWinning) {n : 
     intro x hx hf hle
     have hover : G.IsOver x := fun a ha => by
       have := hn _ ha
-      simp only [List.length_append, List.length_singleton] at this
-      omega
+      simp only [List.length_append, List.length_singleton] at this; omega
     exact (canWin_iff_of_isOver hover).2 (hσ x hx hover hf)
   | succ k ih =>
-    intro x hx hf hle
-    refine ⟨fun hover => hσ x hx hover hf, fun hover => ?_⟩
-    have hne : ∃ a, x ++ [a] ∈ G.tree := by
-      simpa [IsOver] using hover
+    refine fun x hx hf hle => ⟨fun hover => hσ x hx hover hf, fun hover => ?_⟩
+    have hne : ∃ a, x ++ [a] ∈ G.tree := by simpa [IsOver] using hover
     split_ifs with ht
-    · exact ⟨σ.move x hne, σ.move_mem x hne,
-        ih _ (σ.move_mem x hne) (σ.follows_append_singleton hf fun _ _ => rfl)
-          (by simp; omega)⟩
+    · exact ⟨_, σ.move_mem x hne, ih _ (σ.move_mem x hne)
+        (σ.follows_append_singleton hf fun _ _ => rfl) (by simp; omega)⟩
     · exact fun a ha => ih _ ha (σ.follows_append_singleton hf fun h => absurd h ht)
         (by simp; omega)
 
@@ -206,25 +193,20 @@ theorem exists_isWinning_iff_canWin {n : ℕ} (hn : ∀ x ∈ G.tree, x.length �
       have hj' : j < p.length := hj
       have htake : p.take (j + 1) = p.take j ++ [p[j]] := by
         rw [List.take_add_one, List.getElem?_eq_getElem hj', Option.toList_some]
-      have hmem : p.take j ++ [p[j]] ∈ G.tree := htake ▸
-        Descriptive.Tree.mem_of_prefix (List.take_prefix _ _) hp
+      have hmem : p.take j ++ [p[j]] ∈ G.tree :=
+        htake ▸ Descriptive.Tree.mem_of_prefix (List.take_prefix _ _) hp
       have hlen := hn _ hmem
       simp only [List.length_append, List.length_take, List.length_singleton,
         Nat.min_eq_left hj'.le] at hlen
-      have hcan := ih hj'.le
-      rw [show n - j = (n - (j + 1)) + 1 by omega] at hcan
-      have hnot : ¬ G.IsOver (p.take j) := fun hov => hov _ hmem
-      have hcan := hcan.2 hnot
+      have hsub : n - j = (n - (j + 1)) + 1 := by omega
+      have hcan := (hsub ▸ ih hj'.le).2 fun hov => hov _ hmem
       rw [htake]
       split_ifs at hcan with ht
-      · have hgood : good (p.take j) := by
-          obtain ⟨a, ha, hwin⟩ := hcan
-          refine ⟨a, ha, ?_⟩
-          simpa [Nat.min_eq_left hj'.le, Nat.sub_sub] using hwin
-        have hpj : p[j] = hgood.choose := by
-          rw [hf j hj' ht ⟨_, hmem⟩]
-          simp [σ, hgood]
-        rw [hpj]
+      · obtain ⟨a, ha, hwin⟩ := hcan
+        have hgood : good (p.take j) :=
+          ⟨a, ha, by simpa [Nat.min_eq_left hj'.le, Nat.sub_sub] using hwin⟩
+        have hmove : σ.move (p.take j) ⟨_, hmem⟩ = hgood.choose := by simp [σ, hgood]
+        rw [hf j hj' ht ⟨_, hmem⟩, hmove]
         simpa [Nat.min_eq_left hj'.le, Nat.sub_sub] using hgood.choose_spec.2
       · exact hcan _ hmem
   simpa using (canWin_iff_of_isOver hover).1 (by simpa using key p.length le_rfl)
