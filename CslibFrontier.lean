@@ -5783,6 +5783,7 @@ public import CslibFrontier.Algorithms.WordRAM.Kruskal
 public import CslibFrontier.Computability.Complexity.Classes.PP
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.Width
 public import CslibFrontier.Foundations.BooleanAnalysis.SpectralSample
+public import CslibFrontier.Crypto.Protocols.UC.DistributedProtocol
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRouting
 public import CslibFrontier.Logics.Propositional.Algebraic.PolynomialCalculus.Nullstellensatz
 public import CslibFrontier.Computability.Complexity.Classes.PP.TruthTable
