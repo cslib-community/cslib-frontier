@@ -35,8 +35,9 @@ canonical bitmask reindexing (`dtGraphMask`) over `Cslib.Query.MinimumSpanningFo
 
 ## Main results
 
-* `dtPrecompCost_dtThreshold_le`, `dtThreshold_eq_iterLog_of_large`: budget containment and
-  asymptotic equality `dtThreshold n₀ = Nat.iterLog 3 n₀`.
+* `dtPrecompCost_dtThreshold_le`, `dtPrecompCost_iterLog_le_of_ge_24`,
+  `dtThreshold_eq_iterLog_of_large`: budget containment and asymptotic equality
+  `dtThreshold n₀ = Nat.iterLog 3 n₀`.
 * `walkCompleteTree_eval`, `holdsDTTable_for_le`: evaluation and bitmask table specialization.
 * `holdsCompleteTree_skelToTree`, `exists_skelCode_of_complete_correct`: complete-tree skeleton
   decoding and separating-skeleton existence.
@@ -150,10 +151,10 @@ private theorem poly_le_two_pow_of_ge_24 {r : ℕ} (hr : 24 ≤ r) :
     have hpow : 2 ^ (k + 1) = 2 * 2 ^ k := by ring
     omega
 
-/-- For all sufficiently large `n₀`, `dtThreshold n₀` equals `Nat.iterLog 3 n₀`. -/
-theorem dtThreshold_eq_iterLog_of_large :
-    ∃ R₀ : ℕ, ∀ n₀ : ℕ, R₀ ≤ Nat.iterLog 3 n₀ → dtThreshold n₀ = Nat.iterLog 3 n₀ := by
-  refine ⟨24, fun n₀ hr => ?_⟩
+/-- When `24 ≤ Nat.iterLog 3 n₀`, the double-exponential decision-tree precomputation target
+`dtPrecompCost (Nat.iterLog 3 n₀)` fits inside `n₀`. -/
+theorem dtPrecompCost_iterLog_le_of_ge_24 {n₀ : ℕ} (hr : 24 ≤ Nat.iterLog 3 n₀) :
+    dtPrecompCost (Nat.iterLog 3 n₀) ≤ n₀ := by
   set r := Nat.iterLog 3 n₀
   have hL2_pos : 0 < Nat.log 2 (Nat.log 2 n₀) := by
     by_contra h0
@@ -174,12 +175,17 @@ theorem dtThreshold_eq_iterLog_of_large :
     (Nat.pow_le_pow_right (by decide) hp1).trans (Nat.pow_log_le_self 2 (Nat.ne_of_gt hL1_pos))
   have hp3 : 2 ^ (2 ^ (2 ^ r)) ≤ n₀ :=
     (Nat.pow_le_pow_right (by decide) hp2).trans (Nat.pow_log_le_self 2 (Nat.ne_of_gt hn₀_pos))
-  have hpoly : 4 * r ^ 4 + 16 ≤ 2 ^ r := poly_le_two_pow_of_ge_24 hr
-  have hcost : dtPrecompCost r ≤ n₀ := by
-    have hr_gt1 : ¬ (r ≤ 1) := by omega
-    simp only [dtPrecompCost, hr_gt1, ↓reduceIte]
-    exact (Nat.pow_le_pow_right (by decide)
-      (Nat.pow_le_pow_right (by decide) hpoly)).trans hp3
+  have hr_gt1 : ¬ (r ≤ 1) := by omega
+  simp only [dtPrecompCost, hr_gt1, ↓reduceIte]
+  exact (Nat.pow_le_pow_right (by decide)
+    (Nat.pow_le_pow_right (by decide) (poly_le_two_pow_of_ge_24 hr))).trans hp3
+
+/-- For all sufficiently large `n₀`, `dtThreshold n₀` equals `Nat.iterLog 3 n₀`. -/
+theorem dtThreshold_eq_iterLog_of_large :
+    ∃ R₀ : ℕ, ∀ n₀ : ℕ, R₀ ≤ Nat.iterLog 3 n₀ → dtThreshold n₀ = Nat.iterLog 3 n₀ := by
+  refine ⟨24, fun n₀ hr => ?_⟩
+  set r := Nat.iterLog 3 n₀
+  have hcost : dtPrecompCost r ≤ n₀ := dtPrecompCost_iterLog_le_of_ge_24 hr
   have hmax : max 1 r = r := max_eq_right (by omega)
   have hmem : r ∈ (List.range (max 1 r + 1)).filter fun k =>
       decide (1 ≤ k ∧ dtPrecompCost k ≤ n₀) := by

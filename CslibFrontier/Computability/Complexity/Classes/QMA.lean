@@ -48,8 +48,8 @@ formalized here. The verifiers are uniform circuit families over the gate set of
 
 `NP ⊆ QMA` is `Cslib.Complexity.NP_subset_QMA`, `MA ⊆ QMA` is
 `Cslib.Complexity.MA_subset_QMA`, error reduction is
-`Cslib.Complexity.mem_QMA_iff_forall_errorExponent`, and `QMA ⊆ PP` is
-`Cslib.Complexity.QMA_subset_PP`.
+`Cslib.Complexity.mem_QMA_iff_forall_errorExponent`, and `QMA ⊆ A₀PP` is
+`Cslib.Complexity.QMA_subset_A0PP`.
 
 ## References
 
