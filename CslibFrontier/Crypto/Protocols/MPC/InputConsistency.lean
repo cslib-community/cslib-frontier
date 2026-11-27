@@ -11,14 +11,13 @@ public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Crypto.Protocols.MPC.SPDZ
 public import CslibFrontier.Languages.Probabilistic.Notation
-public import CslibFrontier.Probability.LinearCombination
 public import Mathlib.Data.ZMod.Basic
-import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Probability.LinearCombination
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.Uniform
-import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Algebra.Field.ZMod
+import Mathlib.Tactic.LinearCombination
 
 /-!
 # Input Consistency in Two-Party Arithmetic MPC: Additive-Shift Attack and MAC Repair
@@ -42,33 +41,45 @@ vulnerabilities in unauthenticated two-party additive secret sharing over a prim
    distinguishing advantage `1` (versus `0` for any ideal-world observer) and hidden-bit recovery
    probability `1` (versus `1 / 2` in the ideal world).
 
-2. **Random-MAC and Random-Linear-Combination Input-Authentication Repair (`AuthShare2`,
-   `macSingleCheckGame`, `LinearCombAuthVec2`, `vecLinearCombCheckGame`,
-   `vecBatchMacCheckGame`):**
-   - *Single authenticated share:* given a uniform MAC key `α ← $ᵗ ZMod q` unknown to `P₁` and an
-     authentic additive sharing `(x, t)` with `t = α * x` (`x = x₀ + x₁`, `t = t₀ + t₁`), if a
-     corrupt `P₁` submits tampered shares `(x₁ + δ_x, t₁ + δ_t)`, the reconstructed verification
-     check `t' = α * x'` passes if and only if `δ_t = α * δ_x`. For any nonzero input shift
-     `δ_x ≠ 0`, this holds with exact probability `1 / q`. `AuthShare2.toSPDZ` embeds `AuthShare2`
-     as a two-party `SPDZ.AuthShare q 2` with public modifier `δ = 0`.
+2. **Random-MAC and Random-Linear-Combination Input-Authentication Repair
+   (`SPDZ.AuthShare.tamperParty`, `mkAuthShare2`, `macSingleCheckGame`, `LinearCombAuthVec2`,
+   `vecLinearCombCheckGame`, `vecBatchMacCheckGame`):**
+   - *Single authenticated share:* authenticated inputs are two-party SPDZ shares
+     `SPDZ.AuthShare q 2` with public modifier `δ = 0` (`mkAuthShare2`). Given a uniform MAC key
+     `α ← $ᵗ ZMod q` unknown to `P₁` and a valid sharing of `(x, t)` with `t = α * x`, if a corrupt
+     `P₁` adds `(δ_x, δ_t)` to its value and MAC shares (`SPDZ.AuthShare.tamperParty`), the
+     reconstructed check `SPDZ.AuthShare.Valid α` passes if and only if `α * δ_x = δ_t`. For any
+     nonzero input shift `δ_x ≠ 0`, this holds with exact probability `1 / q`
+     (via `SPDZ.eval_macKey_guess_eq`).
    - *Vector of `k` input shares:* we package both (i) a batched vector-MAC / linear-code validity
      check (`LinearCombAuthVec2`) under a fresh uniform linear-combination key
      `r ← $ᵗ (Fin k → ZMod q)`, where honest shares pass with probability `1` and any nonzero
      tampering vector `δ ≠ 0` passes with exact probability `1 / q` (via
      `Cslib.Probability.toOuterMeasure_uniform_linearComb_eq`), and (ii) a batched check
-     (`vecBatchMacCheckGame`) of `k` scalar-MAC shares under independent random weights
+     (`vecBatchMacCheckGame`) of `k` SPDZ-authenticated shares under independent random weights
      `r ← $ᵗ (Fin k → ZMod q)` and scalar MAC key `α ← $ᵗ ZMod q`, passing with probability `1`
-     when honest and at most `2 / q` when `δ_x ≠ 0` (via `SPDZ.eval_macKey_guess_le`).
+     when honest and at most `2 / q` when `δ_x ≠ 0`; the tampered check has the distribution of
+     `SPDZ.macCheckSoundnessGame`, so the bound is `SPDZ.probability_macCheckSoundnessGame_le`.
 
-## Source & Framing Notes
+## Source mapping
 
-* Motivated by the active-security input-consistency / MAC-checking discussion in
-  [BonehShoup2023], Section 23.4.1 (page/section locators not verified from the rendered PDF).
-* The concrete 2-world distinguishing games (`naiveBitCheckRealExp`, `naiveBitCheckIdealExp`,
-  `naiveBitCheckRealLRGame`, `naiveBitCheckRealGuessGame`), the standalone tampering games
-  (`macSingleCheckGame`, `vecLinearCombCheckGame`, `vecBatchMacCheckGame`), and the
-  `q > 2` characterization for `f(x) = x * (x - 1)` are original framing derived directly from
-  the underlying field algebra.
+* Sections 1–2 formalize the attack in [BonehShoup2023], Section 23.4.1, paragraph "Processing
+  inputs: a first idea" (printed p. 1035): `Q_j` shares `x = x₁ + x₂`, a corrupt `P₁` adds one to
+  its share, and the published output of `f(x) = x(x - 1)` then reveals a binary `x`. The source's
+  input owner `Q_j` and parties `P₁, P₂` become `P₀`'s secret and the corrupt share holder here.
+  The `q > 2` hypothesis (needed for `2 ≠ 0`) and the `ProbComp` real/ideal distinguishing and
+  bit-guessing games are original framing.
+* The source's repair, "Processing inputs: a second idea" (printed pp. 1035–1036), authenticates
+  each input by `E = A * x` but checks it inside the circuit through validity codes `D` and `F`
+  built from shared triples. That in-circuit check, and a PPT-adversary treatment of the attack,
+  are not formalized here; they remain open under #5829.
+* Section 3's single-share relation `α * δ_x = δ_t` is the authentication-code check
+  `K^{(i)} δ = δ^{(i)}` of [BonehShoup2023], Section 23.2.4.1, equation (23.2) (printed p. 1012),
+  phrased on the SPDZ representation of [DamgardPastroSmartZakarias2012]. The batched scalar-MAC
+  check of Section 4 is the `MACCheck` cheating equation of
+  [DamgardKellerLarraiaPastroSchollSmart2013] (see `CslibFrontier.Crypto.Protocols.MPC.SPDZ`).
+  The standalone tampering games (`macSingleCheckGame`, `vecLinearCombCheckGame`,
+  `vecBatchMacCheckGame`) and the linear-combination code `LinearCombAuthVec2` are original.
 
 ## Main definitions
 
@@ -89,13 +100,11 @@ vulnerabilities in unauthenticated two-party additive secret sharing over a prim
   `Cslib.Crypto.Protocols.MPC.InputConsistency.naiveBitCheckRealGuessGame`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.naiveBitCheckIdealGuessGame`: `ProbComp` real and
   ideal experiments and distinguishing games for the `δ = 1` attack.
-* `Cslib.Crypto.Protocols.MPC.InputConsistency.AuthShare2`,
-  `Cslib.Crypto.Protocols.MPC.InputConsistency.AuthShare2.IsAuthentic`,
-  `Cslib.Crypto.Protocols.MPC.InputConsistency.AuthShare2.tamper1`,
-  `Cslib.Crypto.Protocols.MPC.InputConsistency.AuthShare2.toSPDZ`,
-  `Cslib.Crypto.Protocols.MPC.InputConsistency.macSingleForgeGame`,
-  `Cslib.Crypto.Protocols.MPC.InputConsistency.macSingleCheckGame`: two-party MAC-authenticated
-  additive shares, SPDZ embedding, and single-input tampering check games.
+* `Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare.tamperParty`,
+  `Cslib.Crypto.Protocols.MPC.InputConsistency.mkAuthShare2`,
+  `Cslib.Crypto.Protocols.MPC.InputConsistency.macSingleCheckGame`: corrupt-party tampering of a
+  SPDZ authenticated share, two-party authenticated sharings with `δ = 0`, and the single-input
+  tampering check game.
 * `Cslib.Crypto.Protocols.MPC.InputConsistency.LinearCombAuthVec2`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.LinearCombAuthVec2.IsValidFor`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.LinearCombAuthVec2.tamper1`,
@@ -119,24 +128,27 @@ vulnerabilities in unauthenticated two-party additive secret sharing over a prim
   `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_naiveBitCheckIdealGuessGame`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.advantage_naiveBitCheckGuessGame`: exact
   distinguishing advantages (`1` vs `0`) and bit-recovery probabilities (`1` vs `1 / 2`).
-* `Cslib.Crypto.Protocols.MPC.InputConsistency.AuthShare2.toSPDZ_valid_iff`,
-  `Cslib.Crypto.Protocols.MPC.InputConsistency.AuthShare2.tamper1_isAuthentic_iff`,
+* `Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare.valid_tamperParty_iff`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_macSingleCheckGame_honest`,
-  `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_macSingleForgeGame_eq`,
-  `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_macSingleCheckGame_eq`: SPDZ
-  compatibility, single-share MAC check equivalence `δ_t = α * δ_x`, and exact `1 / q` soundness.
+  `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_macSingleCheckGame_eq`: single-share
+  MAC check equivalence `α * δ_x = δ_t`, completeness, and exact `1 / q` soundness.
 * `Cslib.Crypto.Protocols.MPC.InputConsistency.LinearCombAuthVec2.tamper1_isValidFor_iff`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_vecLinearCombCheckGame_honest`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_vecLinearCombCheckGame_eq`,
-  `Cslib.Crypto.Protocols.MPC.InputConsistency.tamper1_batchMacCheckPasses_iff`,
+  `Cslib.Crypto.Protocols.MPC.InputConsistency.batchMacCheckPasses_tamperParty_iff`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_vecBatchMacCheckGame_honest`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_vecBatchMacCheckGame_le`: completeness
   (`1`) and soundness (`1 / q` and `2 / q`) for `k`-element input vectors.
 
 ## References
 
-* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], Section
-  23.4.1 (page/section locators not verified from the rendered PDF).
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], Version 0.6,
+  Section 23.2.4.1 (equation (23.2), p. 1012) and Section 23.4.1 (pp. 1035–1036).
+* [I. Damgård, V. Pastro, N. P. Smart, S. Zakarias, *Multiparty Computation from Somewhat
+  Homomorphic Encryption*][DamgardPastroSmartZakarias2012].
+* [I. Damgård, M. Keller, E. Larraia, V. Pastro, P. Scholl, N. P. Smart, *Practical Covertly
+  Secure MPC for Dishonest Majority — Or: Breaking the SPDZ
+  Limits*][DamgardKellerLarraiaPastroSchollSmart2013].
 -/
 
 public section
@@ -429,159 +441,96 @@ theorem advantage_naiveBitCheckGuessGame {q : ℕ} [Fact (Nat.Prime q)] (hq : 2 
     probability_naiveBitCheckRealGuessGame hq, probability_naiveBitCheckIdealGuessGame q A]
   norm_num
 
-/-! ### 3. Random-MAC input-authentication repair (single input & vector of `k` inputs) -/
+/-! ### 3. Random-MAC input-authentication repair on `SPDZ.AuthShare` -/
 
-/-- Two-party MAC-authenticated additive sharing `(x, t)` over `R`: `x` is additively shared as
-`(x₀, x₁)` and its MAC tag `t` is additively shared as `(t₀, t₁)`. -/
-@[ext] structure AuthShare2 (R : Type) where
-  /-- Additive sharing `(x₀, x₁)` of the secret input `x`. -/
-  val : AdditiveShare2 R
-  /-- Additive sharing `(t₀, t₁)` of the MAC tag `t`. -/
-  tag : AdditiveShare2 R
-  deriving DecidableEq, Fintype, Inhabited, Repr
+end Cslib.Crypto.Protocols.MPC.InputConsistency
 
-namespace AuthShare2
+namespace Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare
 
-/-- Reconstructed secret input `x = x₀ + x₁`. -/
-@[expose] def secret {R : Type} [Add R] (s : AuthShare2 R) : R :=
-  s.val.reconstruct
+/-- Corrupt party `i` submits tampered shares: it adds `δ_x` to its value share `a_i` and `δ_t` to
+its MAC share `γ_i`, leaving the public modifier `δ` and every other party's shares unchanged. -/
+@[expose] def tamperParty {p n : ℕ} (s : AuthShare p n) (i : Fin n) (δ_x δ_t : ZMod p) :
+    AuthShare p n where
+  delta := s.delta
+  valShares := s.valShares + Pi.single i δ_x
+  macShares := s.macShares + Pi.single i δ_t
 
-/-- Reconstructed MAC tag `t = t₀ + t₁`. -/
-@[expose] def macTag {R : Type} [Add R] (s : AuthShare2 R) : R :=
-  s.tag.reconstruct
+@[simp] theorem secret_tamperParty {p n : ℕ} (s : AuthShare p n) (i : Fin n) (δ_x δ_t : ZMod p) :
+    (s.tamperParty i δ_x δ_t).secret = s.secret + δ_x := by
+  simp [tamperParty, secret, Finset.sum_add_distrib]
 
-/-- MAC authenticity invariant `t = α * x` under global MAC key `α`. -/
-@[expose] def IsAuthentic {R : Type} [Add R] [Mul R] (alpha : R) (s : AuthShare2 R) : Prop :=
-  s.macTag = alpha * s.secret
+@[simp] theorem macSum_tamperParty {p n : ℕ} (s : AuthShare p n) (i : Fin n) (δ_x δ_t : ZMod p) :
+    (s.tamperParty i δ_x δ_t).macSum = s.macSum + δ_t := by
+  simp [tamperParty, macSum, Finset.sum_add_distrib]
 
-/-- Corrupt party `P₁` submits tampered shares `(x₁ + δ_x, t₁ + δ_t)`. -/
-@[expose] def tamper1 {R : Type} [Add R] (s : AuthShare2 R) (δ_x δ_t : R) : AuthShare2 R :=
-  ⟨s.val.shiftShare1 δ_x, s.tag.shiftShare1 δ_t⟩
+@[simp] theorem delta_tamperParty {p n : ℕ} (s : AuthShare p n) (i : Fin n) (δ_x δ_t : ZMod p) :
+    (s.tamperParty i δ_x δ_t).delta = s.delta :=
+  rfl
 
-/-- Embed a two-party authenticated share over `ZMod q` as a two-party `SPDZ.AuthShare q 2` with
-public modifier `δ = 0`. -/
-@[expose] def toSPDZ {q : ℕ} (s : AuthShare2 (ZMod q)) : SPDZ.AuthShare q 2 where
+/-- **Single-share MAC check characterization:** when `s` is valid under `α`, party `i`'s tampered
+submission `(a_i + δ_x, γ_i + δ_t)` is valid under `α` if and only if `α * δ_x = δ_t`. -/
+theorem valid_tamperParty_iff {p n : ℕ} {alpha : ZMod p} {s : AuthShare p n} (hs : s.Valid alpha)
+    (i : Fin n) (δ_x δ_t : ZMod p) :
+    (s.tamperParty i δ_x δ_t).Valid alpha ↔ alpha * δ_x = δ_t := by
+  rw [Valid, macSum_tamperParty, secret_tamperParty, delta_tamperParty, hs]
+  exact ⟨fun h => by linear_combination -h, fun h => by linear_combination -h⟩
+
+end Cslib.Crypto.Protocols.MPC.SPDZ.AuthShare
+
+namespace Cslib.Crypto.Protocols.MPC.InputConsistency
+
+open Cslib.Probability Cslib.ProbComp Cslib.Crypto
+open scoped ENNReal NNReal
+
+/-- The two-party SPDZ authenticated sharing of `x` under MAC key `alpha` with public modifier
+`δ = 0`, determined by party `0`'s value share `x₀` and MAC share `t₀`: party `0` holds
+`(x₀, t₀)` and party `1` holds `(x - x₀, alpha * x - t₀)`. -/
+@[expose] def mkAuthShare2 {q : ℕ} (alpha x x0 t0 : ZMod q) : SPDZ.AuthShare q 2 where
   delta := 0
-  valShares := ![s.val.share0, s.val.share1]
-  macShares := ![s.tag.share0, s.tag.share1]
+  valShares := ![x0, x - x0]
+  macShares := ![t0, alpha * x - t0]
 
-theorem toSPDZ_secret {q : ℕ} (s : AuthShare2 (ZMod q)) :
-    s.toSPDZ.secret = s.secret := by
-  simp [toSPDZ, SPDZ.AuthShare.secret, secret, AdditiveShare2.reconstruct, Fin.sum_univ_two]
+theorem valid_mkAuthShare2 {q : ℕ} (alpha x x0 t0 : ZMod q) :
+    (mkAuthShare2 alpha x x0 t0).Valid alpha := by
+  simp [mkAuthShare2, SPDZ.AuthShare.Valid, SPDZ.AuthShare.macSum, SPDZ.AuthShare.secret,
+    Fin.sum_univ_two]
 
-theorem toSPDZ_macSum {q : ℕ} (s : AuthShare2 (ZMod q)) :
-    s.toSPDZ.macSum = s.macTag := by
-  simp [toSPDZ, SPDZ.AuthShare.macSum, macTag, AdditiveShare2.reconstruct, Fin.sum_univ_two]
-
-theorem toSPDZ_valid_iff {q : ℕ} (alpha : ZMod q) (s : AuthShare2 (ZMod q)) :
-    s.toSPDZ.Valid alpha ↔ s.IsAuthentic alpha := by
-  rw [SPDZ.AuthShare.Valid, toSPDZ_macSum, toSPDZ_secret]
-  simp [toSPDZ, IsAuthentic]
-
-/-- **Single-share MAC check characterization:** when `s` is authentic under `α`, the tampered
-submission `(x₁ + δ_x, t₁ + δ_t)` satisfies `t' = α * x'` if and only if `δ_t = α * δ_x`. -/
-theorem tamper1_isAuthentic_iff {R : Type} [CommRing R] {alpha : R} {s : AuthShare2 R}
-    (hauth : s.IsAuthentic alpha) (δ_x δ_t : R) :
-    (s.tamper1 δ_x δ_t).IsAuthentic alpha ↔ δ_t = alpha * δ_x := by
-  dsimp only [IsAuthentic, tamper1, macTag, secret] at hauth ⊢
-  rw [s.tag.reconstruct_shiftShare1, s.val.reconstruct_shiftShare1, hauth, mul_add]
-  exact ⟨fun h => add_left_cancel h, fun h => by rw [h]⟩
-
-end AuthShare2
-
-/-- Sample fresh uniform additive shares of `(x, α * x)` over `ZMod q`. -/
-noncomputable def sampleAuthShare2 (q : ℕ) [NeZero q] (alpha x : ZMod q) :
-    ProbComp (AuthShare2 (ZMod q)) := do
-  let val ← sampleAdditiveShare2 q x
-  let tag ← sampleAdditiveShare2 q (alpha * x)
-  return ⟨val, tag⟩
-
-/-- Every sharing in the support of `sampleAuthShare2 q alpha x` satisfies `IsAuthentic alpha`. -/
-theorem isAuthentic_of_mem_support_sampleAuthShare2 {q : ℕ} [NeZero q]
-    {alpha x : ZMod q} {s : AuthShare2 (ZMod q)}
-    (hs : s ∈ (ProbComp.eval (sampleAuthShare2 q alpha x)).support) :
-    s.IsAuthentic alpha := by
-  simp only [sampleAuthShare2, bind_pure_comp, ProbComp.eval_bind, ProbComp.eval_map,
-    PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at hs
-  rcases hs with ⟨val, hval, tag, htag, rfl⟩
-  have hv := isValidFor_of_mem_support_sampleAdditiveShare2 hval
-  have ht := isValidFor_of_mem_support_sampleAdditiveShare2 htag
-  dsimp only [AuthShare2.IsAuthentic, AuthShare2.macTag, AuthShare2.secret]
-  rw [ht, hv]
-
-/-- Algebraic MAC-forgery game for fixed adversarial offsets `(δ_x, δ_t)` against a fresh
-uniform MAC key `α ← $ᵗ ZMod q`. -/
-noncomputable def macSingleForgeGame (q : ℕ) [NeZero q] (δ_x δ_t : ZMod q) :
-    ProbComp Bool := do
-  let alpha ← $ᵗ ZMod q
-  return decide (δ_t = alpha * δ_x)
-
-/-- Full single-input MAC verification game: samples `α ← $ᵗ ZMod q` and an authentic sharing
-`s` of `x`, applies `P₁`'s tampering `(δ_x, δ_t)`, and checks `t' = α * x'`. -/
+/-- Full single-input MAC verification game: samples a uniform MAC key `α ← $ᵗ ZMod q` and a
+uniform two-party authenticated sharing of `x` (`mkAuthShare2` with uniform `x₀`, `t₀`), lets
+corrupt party `1` add `(δ_x, δ_t)` to its value and MAC shares, and checks the SPDZ MAC relation
+`SPDZ.AuthShare.Valid α` (here `t' = α * x'`, since `δ = 0`). -/
 noncomputable def macSingleCheckGame (q : ℕ) [NeZero q] (x δ_x δ_t : ZMod q) :
     ProbComp Bool := do
   let alpha ← $ᵗ ZMod q
-  let s ← sampleAuthShare2 q alpha x
-  let s' := s.tamper1 δ_x δ_t
-  return decide (s'.macTag = alpha * s'.secret)
+  let x0 ← $ᵗ ZMod q
+  let t0 ← $ᵗ ZMod q
+  return decide (((mkAuthShare2 alpha x x0 t0).tamperParty 1 δ_x δ_t).Valid alpha)
 
-/-- `macSingleCheckGame q x δ_x δ_t` has the exact same output distribution as
-`macSingleForgeGame q δ_x δ_t`. -/
-theorem eval_macSingleCheckGame_eq_forge (q : ℕ) [NeZero q] (x δ_x δ_t : ZMod q) :
+/-- `macSingleCheckGame` accepts exactly when the uniform key solves `α * δ_x = δ_t`. -/
+private theorem eval_macSingleCheckGame (q : ℕ) [NeZero q] (x δ_x δ_t : ZMod q) :
     ProbComp.eval (macSingleCheckGame q x δ_x δ_t) =
-      ProbComp.eval (macSingleForgeGame q δ_x δ_t) := by
-  simp only [macSingleCheckGame, macSingleForgeGame, bind_pure_comp, ProbComp.eval_bind,
-    ProbComp.eval_map]
-  refine congrArg _ (funext fun alpha => ?_)
-  calc (ProbComp.eval (sampleAuthShare2 q alpha x)).map
-        (fun s => decide ((s.tamper1 δ_x δ_t).macTag = alpha * (s.tamper1 δ_x δ_t).secret))
-      = (ProbComp.eval (sampleAuthShare2 q alpha x)).map
-          (fun _ => decide (δ_t = alpha * δ_x)) := by
-          refine Cslib.Probability.PMF.map_congr_on_support _ _ _ fun s hs => ?_
-          have hauth := isAuthentic_of_mem_support_sampleAuthShare2 hs
-          exact decide_eq_decide.mpr (AuthShare2.tamper1_isAuthentic_iff hauth δ_x δ_t)
-    _ = PMF.pure (decide (δ_t = alpha * δ_x)) := PMF.map_const _ _
+      (PMF.uniformOfFintype (ZMod q)).map fun alpha => decide (alpha * δ_x = δ_t) := by
+  simp only [macSingleCheckGame, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
+  have hbody (alpha x0 t0 : ZMod q) :
+      decide (((mkAuthShare2 alpha x x0 t0).tamperParty 1 δ_x δ_t).Valid alpha) =
+        decide (alpha * δ_x = δ_t) :=
+    decide_eq_decide.mpr (SPDZ.AuthShare.valid_tamperParty_iff (valid_mkAuthShare2 ..) 1 δ_x δ_t)
+  simp_rw [hbody, PMF.bind_const]
+  rfl
 
 /-- Honest single-input shares (`δ_x = 0`, `δ_t = 0`) pass `macSingleCheckGame` with probability
 `1`. -/
 theorem probability_macSingleCheckGame_honest (q : ℕ) [NeZero q] (x : ZMod q) :
     Pr[macSingleCheckGame q x 0 0] = 1 := by
-  have heval : ProbComp.eval (macSingleCheckGame q x 0 0) = PMF.pure true := by
-    rw [eval_macSingleCheckGame_eq_forge]
-    simp only [macSingleForgeGame, bind_pure_comp, ProbComp.eval_map, mul_zero, decide_true]
-    exact PMF.map_const _ true
-  rw [heval]
-  simp
+  simp [eval_macSingleCheckGame]
 
-/-- **Exact `1 / q` single-input MAC soundness (`ℝ≥0∞`):** for prime `q` and any nonzero input
-shift `δ_x ≠ 0`, `macSingleForgeGame q δ_x δ_t` accepts with exact probability `q⁻¹`. -/
-theorem eval_macSingleForgeGame_eq {q : ℕ} [Fact (Nat.Prime q)] {δ_x δ_t : ZMod q}
-    (hδ : δ_x ≠ 0) :
-    (ProbComp.eval (macSingleForgeGame q δ_x δ_t)) true = (q : ℝ≥0∞)⁻¹ := by
-  simp only [macSingleForgeGame, bind_pure_comp, ProbComp.eval_map, ProbComp.eval_uniform,
-    ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
-    ← Cslib.Probability.PMF.uniformOfFintype_map_equiv (Equiv.funUnique Unit (ZMod q))]
-  have hpre :
-      (Equiv.funUnique Unit (ZMod q) ⁻¹'
-        ((fun alpha : ZMod q => decide (δ_t = alpha * δ_x)) ⁻¹' {true})) =
-      {r : Unit → ZMod q | ∑ i : Unit, r i * δ_x = δ_t} := by
-    ext r
-    simp [eq_comm]
-  rw [hpre, toOuterMeasure_uniform_linearComb_eq (d := fun _ => δ_x) (i₀ := ()) hδ δ_t,
-    ZMod.card, one_div]
-
-/-- Real-valued exact `1 / q` soundness for `macSingleForgeGame`. -/
-theorem probability_macSingleForgeGame_eq {q : ℕ} [Fact (Nat.Prime q)] {δ_x δ_t : ZMod q}
-    (hδ : δ_x ≠ 0) :
-    Pr[macSingleForgeGame q δ_x δ_t] = 1 / q := by
-  rw [eval_macSingleForgeGame_eq hδ, ENNReal.toReal_inv, ENNReal.toReal_natCast, one_div]
-
-/-- Real-valued exact `1 / q` soundness for `macSingleCheckGame` when `δ_x ≠ 0`. -/
+/-- **Exact `1 / q` single-input MAC soundness:** for prime `q` and any nonzero input shift
+`δ_x ≠ 0`, `macSingleCheckGame q x δ_x δ_t` accepts with probability exactly `1 / q`. -/
 theorem probability_macSingleCheckGame_eq {q : ℕ} [Fact (Nat.Prime q)] (x : ZMod q)
     {δ_x δ_t : ZMod q} (hδ : δ_x ≠ 0) :
     Pr[macSingleCheckGame q x δ_x δ_t] = 1 / q := by
-  rw [eval_macSingleCheckGame_eq_forge]
-  exact probability_macSingleForgeGame_eq hδ
+  rw [eval_macSingleCheckGame, SPDZ.eval_macKey_guess_eq hδ, ENNReal.toReal_inv,
+    ENNReal.toReal_natCast, one_div]
 
 /-! ### 4. Vector of `k` input shares: random-linear-combination and batched MAC checks -/
 
@@ -741,161 +690,87 @@ theorem probability_vecLinearCombCheckGame_eq {q k : ℕ} [Fact (Nat.Prime q)]
     Pr[vecLinearCombCheckGame q k x δ δ_t] = 1 / q := by
   rw [eval_vecLinearCombCheckGame_eq x hδ δ_t, ENNReal.toReal_inv, ENNReal.toReal_natCast, one_div]
 
-/-- Batched MAC verification predicate for `k` individually authenticated shares under global
-scalar MAC key `α` and random linear-combination weights `r : Fin k → R`:
-`∑ j, r j * t_j = α * ∑ j, r j * x_j`. -/
-@[expose] def batchMacCheckPasses {R : Type} [Semiring R] {k : ℕ}
-    (alpha : R) (r : Fin k → R) (s : Fin k → AuthShare2 R) : Prop :=
-  (∑ j : Fin k, r j * (s j).macTag) = alpha * (∑ j : Fin k, r j * (s j).secret)
+/-- Batched MAC verification predicate for `k` SPDZ authenticated shares under global MAC key `α`
+and random linear-combination weights `r : Fin k → ZMod p`:
+`∑ j, r j * γ_j = α * ∑ j, r j * (a_j + δ_j)`, the MAC relation `SPDZ.AuthShare.Valid α` of the
+`r`-weighted combination of the shares. -/
+@[expose] def batchMacCheckPasses {p n k : ℕ} (alpha : ZMod p) (r : Fin k → ZMod p)
+    (s : Fin k → SPDZ.AuthShare p n) : Prop :=
+  ∑ j : Fin k, r j * (s j).macSum = alpha * ∑ j : Fin k, r j * ((s j).secret + (s j).delta)
 
-/-- **Batched scalar-MAC tampering equivalence:** when every `s j` is authentic under `α`,
+instance {p n k : ℕ} (alpha : ZMod p) (r : Fin k → ZMod p) (s : Fin k → SPDZ.AuthShare p n) :
+    Decidable (batchMacCheckPasses alpha r s) :=
+  inferInstanceAs (Decidable (_ = _))
+
+/-- **Batched scalar-MAC tampering equivalence:** when every `s j` is valid under `α`, party `i`'s
 tampering by `(δ_x, δ_t)` passes `batchMacCheckPasses alpha r` if and only if
 `α * ∑ j, r j * δ_x j = ∑ j, r j * δ_t j`. -/
-theorem tamper1_batchMacCheckPasses_iff {R : Type} [CommRing R] {k : ℕ}
-    {alpha : R} {s : Fin k → AuthShare2 R}
-    (hauth : ∀ j : Fin k, (s j).IsAuthentic alpha)
-    (r δ_x δ_t : Fin k → R) :
-    batchMacCheckPasses alpha r (fun j => (s j).tamper1 (δ_x j) (δ_t j)) ↔
-      alpha * (∑ j : Fin k, r j * δ_x j) = ∑ j : Fin k, r j * δ_t j := by
-  dsimp only [batchMacCheckPasses, AuthShare2.tamper1, AuthShare2.macTag, AuthShare2.secret]
-  have htag :
-      (∑ j : Fin k, r j * ((s j).tag.shiftShare1 (δ_t j)).reconstruct) =
-        (∑ j : Fin k, r j * (s j).macTag) + ∑ j : Fin k, r j * δ_t j := by
-    simp only [AdditiveShare2.reconstruct_shiftShare1, mul_add, Finset.sum_add_distrib]
-    rfl
-  have hval :
-      (∑ j : Fin k, r j * ((s j).val.shiftShare1 (δ_x j)).reconstruct) =
-        (∑ j : Fin k, r j * (s j).secret) + ∑ j : Fin k, r j * δ_x j := by
-    simp only [AdditiveShare2.reconstruct_shiftShare1, mul_add, Finset.sum_add_distrib]
-    rfl
-  have hsum_auth :
-      (∑ j : Fin k, r j * (s j).macTag) = alpha * (∑ j : Fin k, r j * (s j).secret) := by
-    have hterm : ∀ j : Fin k, r j * (s j).macTag = alpha * (r j * (s j).secret) := by
-      intro j
-      rw [hauth j]
-      ring
-    simp_rw [hterm, ← Finset.mul_sum]
-  rw [htag, hval, hsum_auth, mul_add]
-  exact ⟨fun h => (add_left_cancel h).symm, fun h => by rw [h]⟩
+theorem batchMacCheckPasses_tamperParty_iff {p n k : ℕ} {alpha : ZMod p}
+    {s : Fin k → SPDZ.AuthShare p n} (hs : ∀ j : Fin k, (s j).Valid alpha) (i : Fin n)
+    (r δ_x δ_t : Fin k → ZMod p) :
+    batchMacCheckPasses alpha r (fun j => (s j).tamperParty i (δ_x j) (δ_t j)) ↔
+      alpha * ∑ j : Fin k, r j * δ_x j = ∑ j : Fin k, r j * δ_t j := by
+  have hsum : ∑ j : Fin k, r j * (s j).macSum =
+      alpha * ∑ j : Fin k, r j * ((s j).secret + (s j).delta) := by
+    rw [Finset.mul_sum]
+    exact Finset.sum_congr rfl fun j _ => by rw [hs j]; ring
+  have htag : ∑ j : Fin k, r j * ((s j).macSum + δ_t j) =
+      ∑ j : Fin k, r j * (s j).macSum + ∑ j : Fin k, r j * δ_t j := by
+    simp only [mul_add, Finset.sum_add_distrib]
+  have hval : alpha * ∑ j : Fin k, r j * ((s j).secret + δ_x j + (s j).delta) =
+      alpha * ∑ j : Fin k, r j * ((s j).secret + (s j).delta) +
+        alpha * ∑ j : Fin k, r j * δ_x j := by
+    rw [← mul_add, ← Finset.sum_add_distrib]
+    exact congrArg _ (Finset.sum_congr rfl fun j _ => by ring)
+  simp only [batchMacCheckPasses, SPDZ.AuthShare.macSum_tamperParty,
+    SPDZ.AuthShare.secret_tamperParty, SPDZ.AuthShare.delta_tamperParty]
+  rw [htag, hval, hsum]
+  exact ⟨fun h => by linear_combination -h, fun h => by linear_combination -h⟩
 
 /-- Batched `k`-share MAC check game: samples a fresh uniform MAC key `α ← $ᵗ ZMod q` and fresh
-uniform linear-combination weights `r ← $ᵗ (Fin k → ZMod q)`, generates authentic shares for
-`x : Fin k → ZMod q`, applies `P₁`'s tampering `(δ_x, δ_t)`, and checks
-`batchMacCheckPasses alpha r`. -/
+uniform linear-combination weights `r ← $ᵗ (Fin k → ZMod q)`, generates uniform two-party
+authenticated sharings `mkAuthShare2` of each `x j`, lets corrupt party `1` add `(δ_x j, δ_t j)` to
+its shares of the `j`-th input, and checks `batchMacCheckPasses alpha r`. -/
 noncomputable def vecBatchMacCheckGame (q k : ℕ) [NeZero q]
     (x δ_x δ_t : Fin k → ZMod q) : ProbComp Bool := do
   let alpha ← $ᵗ ZMod q
   let r ← $ᵗ (Fin k → ZMod q)
   let x0 ← $ᵗ (Fin k → ZMod q)
   let t0 ← $ᵗ (Fin k → ZMod q)
-  let s : Fin k → AuthShare2 (ZMod q) := fun j =>
-    ⟨⟨x0 j, x j - x0 j⟩, ⟨t0 j, alpha * x j - t0 j⟩⟩
-  let s' : Fin k → AuthShare2 (ZMod q) := fun j =>
-    (s j).tamper1 (δ_x j) (δ_t j)
-  return decide ((∑ j : Fin k, r j * (s' j).macTag) = alpha * (∑ j : Fin k, r j * (s' j).secret))
+  return decide (batchMacCheckPasses alpha r fun j =>
+    (mkAuthShare2 alpha (x j) (x0 j) (t0 j)).tamperParty 1 (δ_x j) (δ_t j))
+
+/-- `vecBatchMacCheckGame` has the output distribution of the standalone `MACCheck`
+cheating-equation game `SPDZ.macCheckSoundnessGame` with opening errors `δ_x` and residual shift
+`r ↦ ∑ j, r j * δ_t j`. -/
+private theorem eval_vecBatchMacCheckGame (q k : ℕ) [NeZero q] (x δ_x δ_t : Fin k → ZMod q) :
+    ProbComp.eval (vecBatchMacCheckGame q k x δ_x δ_t) =
+      ProbComp.eval (SPDZ.macCheckSoundnessGame q k δ_x fun r => ∑ j : Fin k, r j * δ_t j) := by
+  simp only [vecBatchMacCheckGame, SPDZ.macCheckSoundnessGame, ProbComp.eval_bind,
+    ProbComp.eval_uniform, ProbComp.eval_pure]
+  have hbody (alpha : ZMod q) (r x0 t0 : Fin k → ZMod q) :
+      decide (batchMacCheckPasses alpha r fun j =>
+          (mkAuthShare2 alpha (x j) (x0 j) (t0 j)).tamperParty 1 (δ_x j) (δ_t j)) =
+        decide (alpha * linearCombAddHom δ_x r = ∑ j : Fin k, r j * δ_t j) := by
+    rw [linearCombAddHom_apply]
+    exact decide_eq_decide.mpr
+      (batchMacCheckPasses_tamperParty_iff (fun j => valid_mkAuthShare2 ..) 1 r δ_x δ_t)
+  simp_rw [hbody, PMF.bind_const]
 
 /-- Honest shares (`δ_x = 0`, `δ_t = 0`) pass `vecBatchMacCheckGame` with probability `1`. -/
 theorem probability_vecBatchMacCheckGame_honest (q k : ℕ) [NeZero q]
     (x : Fin k → ZMod q) :
     Pr[vecBatchMacCheckGame q k x 0 0] = 1 := by
-  have heval : ProbComp.eval (vecBatchMacCheckGame q k x 0 0) = PMF.pure true := by
-    simp only [vecBatchMacCheckGame, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
-    have hbody : ∀ (alpha : ZMod q) (r x0 t0 : Fin k → ZMod q),
-        PMF.pure (decide
-          ((∑ j : Fin k, r j *
-              ((⟨⟨x0 j, x j - x0 j⟩, ⟨t0 j, alpha * x j - t0 j⟩⟩ :
-                AuthShare2 (ZMod q)).tamper1 ((0 : Fin k → ZMod q) j)
-                  ((0 : Fin k → ZMod q) j)).macTag) =
-            alpha * (∑ j : Fin k, r j *
-              ((⟨⟨x0 j, x j - x0 j⟩, ⟨t0 j, alpha * x j - t0 j⟩⟩ :
-                AuthShare2 (ZMod q)).tamper1 ((0 : Fin k → ZMod q) j)
-                  ((0 : Fin k → ZMod q) j)).secret))) =
-        PMF.pure true := by
-      intro alpha r x0 t0
-      have hauth : ∀ j : Fin k,
-          (⟨⟨x0 j, x j - x0 j⟩, ⟨t0 j, alpha * x j - t0 j⟩⟩ :
-            AuthShare2 (ZMod q)).IsAuthentic alpha := by
-        intro j
-        simp [AuthShare2.IsAuthentic, AuthShare2.macTag, AuthShare2.secret,
-          AdditiveShare2.reconstruct]
-      have hiff := tamper1_batchMacCheckPasses_iff hauth r 0 0
-      simp only [batchMacCheckPasses, Pi.zero_apply, mul_zero, Finset.sum_const_zero,
-        iff_true] at hiff
-      exact congrArg PMF.pure (decide_eq_true hiff)
-    simp_rw [hbody]
-    simp only [PMF.bind_const]
-  rw [heval]
-  simp
+  simp [eval_vecBatchMacCheckGame, SPDZ.macCheckSoundnessGame]
 
 /-- **Batched `k`-share scalar-MAC soundness (`≤ 2 / q`):** for prime `q` and any nonzero input
 tampering vector `δ_x ≠ 0`, `vecBatchMacCheckGame q k x δ_x δ_t` passes with probability at most
-`2 / q`. Reuses `SPDZ.eval_macKey_guess_le` for the per-`r` key-guessing bound (since
-`SPDZ.macCheckSoundnessGame` is an unexposed definition in `SPDZ.lean`). -/
+`2 / q`; this is `SPDZ.probability_macCheckSoundnessGame_le` applied to the cheating equation the
+tampering induces. -/
 theorem probability_vecBatchMacCheckGame_le {q k : ℕ} [Fact (Nat.Prime q)]
     (x : Fin k → ZMod q) {δ_x : Fin k → ZMod q} (hδ : δ_x ≠ 0) (δ_t : Fin k → ZMod q) :
     Pr[vecBatchMacCheckGame q k x δ_x δ_t] ≤ 2 / q := by
-  obtain ⟨j₀, hj₀⟩ := Function.ne_iff.mp hδ
-  have heval_eq :
-      ProbComp.eval (vecBatchMacCheckGame q k x δ_x δ_t) =
-        (PMF.uniformOfFintype (ZMod q)).bind fun alpha =>
-          (PMF.uniformOfFintype (Fin k → ZMod q)).map fun r =>
-            decide (alpha * (∑ j : Fin k, r j * δ_x j) = ∑ j : Fin k, r j * δ_t j) := by
-    simp only [vecBatchMacCheckGame, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
-    refine congrArg ((PMF.uniformOfFintype (ZMod q)).bind) (funext fun alpha => ?_)
-    refine congrArg ((PMF.uniformOfFintype (Fin k → ZMod q)).bind) (funext fun r => ?_)
-    have hbody : ∀ (x0 t0 : Fin k → ZMod q),
-        PMF.pure (decide
-          ((∑ j : Fin k, r j *
-              ((⟨⟨x0 j, x j - x0 j⟩, ⟨t0 j, alpha * x j - t0 j⟩⟩ :
-                AuthShare2 (ZMod q)).tamper1 (δ_x j) (δ_t j)).macTag) =
-            alpha * (∑ j : Fin k, r j *
-              ((⟨⟨x0 j, x j - x0 j⟩, ⟨t0 j, alpha * x j - t0 j⟩⟩ :
-                AuthShare2 (ZMod q)).tamper1 (δ_x j) (δ_t j)).secret))) =
-        PMF.pure (decide (alpha * (∑ j : Fin k, r j * δ_x j) = ∑ j : Fin k, r j * δ_t j)) := by
-      intro x0 t0
-      have hauth : ∀ j : Fin k,
-          (⟨⟨x0 j, x j - x0 j⟩, ⟨t0 j, alpha * x j - t0 j⟩⟩ :
-            AuthShare2 (ZMod q)).IsAuthentic alpha := by
-        intro j
-        simp [AuthShare2.IsAuthentic, AuthShare2.macTag, AuthShare2.secret,
-          AdditiveShare2.reconstruct]
-      exact congrArg PMF.pure
-        (decide_eq_decide.mpr (tamper1_batchMacCheckPasses_iff hauth r δ_x δ_t))
-    simp_rw [hbody]
-    simp only [PMF.bind_const]
-    rfl
-  have heval_le :
-      (ProbComp.eval (vecBatchMacCheckGame q k x δ_x δ_t)) true ≤ 2 / (q : ℝ≥0∞) := by
-    rw [heval_eq]
-    simp only [PMF.map]
-    rw [PMF.bind_comm, PMF.bind_apply]
-    let μ := PMF.uniformOfFintype (Fin k → ZMod q)
-    let S : Set (Fin k → ZMod q) := {r | ∑ j, r j * δ_x j = 0}
-    have hstep : ∀ r : Fin k → ZMod q,
-        μ r * ((PMF.uniformOfFintype (ZMod q)).map
-          (fun alpha => decide (alpha * (∑ j, r j * δ_x j) = ∑ j, r j * δ_t j))) true ≤
-        S.indicator μ r + μ r * (q : ℝ≥0∞)⁻¹ := by
-      intro r
-      have hkey := SPDZ.eval_macKey_guess_le (∑ j, r j * δ_x j) (∑ j, r j * δ_t j)
-      refine (mul_le_mul_right hkey (μ r)).trans ?_
-      by_cases hr : r ∈ S
-      · have hr0 : ∑ j, r j * δ_x j = 0 := hr
-        simp [hr, hr0, mul_add]
-      · have hr0 : ∑ j, r j * δ_x j ≠ 0 := hr
-        simp [hr, hr0]
-    calc ∑' r, μ r * ((PMF.uniformOfFintype (ZMod q)).map
-          (fun alpha => decide (alpha * (∑ j, r j * δ_x j) = ∑ j, r j * δ_t j))) true
-        ≤ ∑' r, (S.indicator μ r + μ r * (q : ℝ≥0∞)⁻¹) := tsum_le_tsum hstep
-      _ = μ.toOuterMeasure S + (q : ℝ≥0∞)⁻¹ := by
-          rw [tsum_add, ← PMF.toOuterMeasure_apply, ENNReal.tsum_mul_right,
-            PMF.tsum_coe, one_mul]
-      _ = (q : ℝ≥0∞)⁻¹ + (q : ℝ≥0∞)⁻¹ := by
-          rw [toOuterMeasure_uniform_linearComb_eq_zero hj₀, ZMod.card, one_div]
-      _ = 2 / (q : ℝ≥0∞) := by rw [div_eq_mul_inv, two_mul]
-  have hne_top : (2 : ℝ≥0∞) / (q : ℝ≥0∞) ≠ ⊤ := by
-    rw [div_eq_mul_inv]
-    refine ENNReal.mul_ne_top ENNReal.ofNat_ne_top (ENNReal.inv_ne_top.mpr ?_)
-    exact Nat.cast_ne_zero.mpr (Fact.out : Nat.Prime q).pos.ne'
-  ennreal_to_real using heval_le
+  rw [eval_vecBatchMacCheckGame]
+  exact SPDZ.probability_macCheckSoundnessGame_le hδ _
 
 end Cslib.Crypto.Protocols.MPC.InputConsistency

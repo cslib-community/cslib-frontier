@@ -23,9 +23,10 @@ Non-vacuous concrete evaluations and theorem instantiations exercising
    - Demonstrates why `q > 2` is necessary for the `δ = 1` shift attack: in `ZMod 2`, `2 = 0`, so
      `f(0 + 1) = 0` and `f(1 + 1) = 0`, leaving the shifted output invariant on `{0, 1}`.
 3. **Random-MAC and random-linear-combination input-authentication repair (`q = 5` and `q = 7`):**
-   - Non-vacuous `AuthShare2` witness over `ZMod 5` (including its `SPDZ.AuthShare` embedding),
-     verifying honest check acceptance, detection of an unauthenticated shift `(δ_x = 1, δ_t = 2)`,
-     and exact `1 / q` forgery probability (`Pr = 1 / 5` for `q = 5`, `Pr = 1 / 7` for `q = 7`).
+   - Non-vacuous two-party `SPDZ.AuthShare (ZMod 5) 2` witness built by `mkAuthShare2`,
+     verifying honest check acceptance, detection of an unauthenticated shift `(δ_x = 1, δ_t = 2)`
+     by `SPDZ.AuthShare.tamperParty`, and exact `1 / q` forgery probability (`Pr = 1 / 5` for
+     `q = 5`, `Pr = 1 / 7` for `q = 7`).
    - Non-vacuous `k = 3` vector witness `LinearCombAuthVec2 (ZMod 5) 3`, verifying honest
      completeness (`Pr = 1`), exact `1 / q` soundness (`Pr = 1 / 5` for `q = 5`, `Pr = 1 / 7`
      for `q = 7`), and `≤ 2 / 5` batched scalar-MAC soundness.
@@ -36,7 +37,7 @@ public section
 namespace CslibFrontierTests.Crypto.MPCInputConsistency
 
 open Cslib Cslib.Probability Cslib.ProbComp Cslib.Crypto
-open Cslib.Crypto.Protocols.MPC.InputConsistency
+open Cslib.Crypto.Protocols.MPC Cslib.Crypto.Protocols.MPC.InputConsistency
 open scoped ENNReal NNReal
 
 local instance : Fact (Nat.Prime 5) := ⟨by decide⟩
@@ -119,36 +120,27 @@ example :
 
 /-! ### 3. Random-MAC and random-linear-combination repair (`q = 5` and `q = 7`) -/
 
-/-- Authentic sharing of `x = 1` under MAC key `α = 3` in `ZMod 5`:
-`x = 2 + 4 = 1`, `t = 1 + 2 = 3 = 3 * 1`. -/
-def authShareMod5 : AuthShare2 (ZMod 5) :=
-  ⟨⟨2, 4⟩, ⟨1, 2⟩⟩
+/-- Authentic two-party SPDZ sharing of `x = 1` under MAC key `α = 3` in `ZMod 5`:
+value shares `(2, 1 - 2) = (2, 4)` and MAC shares `(1, 3 - 1) = (1, 2)`, so `x = 1` and
+`t = 3 = 3 * 1`. -/
+def authShareMod5 : SPDZ.AuthShare 5 2 := mkAuthShare2 3 1 2 1
 
-example : authShareMod5.IsAuthentic 3 := by
-  dsimp [AuthShare2.IsAuthentic, AuthShare2.macTag, AuthShare2.secret,
-    AdditiveShare2.reconstruct, authShareMod5]
-  decide
+example : authShareMod5.valShares = ![2, 4] ∧ authShareMod5.macShares = ![1, 2] := by decide
 
-example : authShareMod5.toSPDZ.Valid 3 :=
-  (authShareMod5.toSPDZ_valid_iff 3).mpr (by
-    dsimp [AuthShare2.IsAuthentic, AuthShare2.macTag, AuthShare2.secret,
-      AdditiveShare2.reconstruct, authShareMod5]
-    decide)
+example : authShareMod5.Valid 3 := valid_mkAuthShare2 3 1 2 1
 
-/-- Tampering with `(δ_x = 1, δ_t = 2)` fails the MAC check under `α = 3` (`2 ≠ 3 * 1` in `ZMod 5`).
--/
-example : ¬ (authShareMod5.tamper1 1 2).IsAuthentic 3 := by
-  dsimp [AuthShare2.IsAuthentic, AuthShare2.tamper1,
-    AuthShare2.macTag, AuthShare2.secret, AdditiveShare2.shiftShare1,
-    AdditiveShare2.reconstruct, authShareMod5]
-  decide
+/-- Tampering with `(δ_x = 1, δ_t = 2)` fails the MAC check under `α = 3` (`3 * 1 ≠ 2` in
+`ZMod 5`). -/
+example : ¬ (authShareMod5.tamperParty 1 1 2).Valid 3 := by decide
 
-/-- Tampering with `(δ_x = 1, δ_t = 3)` passes only because `δ_t = α * δ_x`. -/
-example : (authShareMod5.tamper1 1 3).IsAuthentic 3 := by
-  dsimp [AuthShare2.IsAuthentic, AuthShare2.tamper1,
-    AuthShare2.macTag, AuthShare2.secret, AdditiveShare2.shiftShare1,
-    AdditiveShare2.reconstruct, authShareMod5]
-  decide
+/-- Tampering with `(δ_x = 1, δ_t = 3)` passes only because `α * δ_x = δ_t`. -/
+example : (authShareMod5.tamperParty 1 1 3).Valid 3 := by decide
+
+/-- The same conclusions through `SPDZ.AuthShare.valid_tamperParty_iff`. -/
+example : ¬ (authShareMod5.tamperParty 1 1 2).Valid 3 ∧ (authShareMod5.tamperParty 1 1 3).Valid 3 :=
+  ⟨fun h => absurd ((SPDZ.AuthShare.valid_tamperParty_iff (valid_mkAuthShare2 3 1 2 1) 1 1 2).mp h)
+      (by decide),
+    (SPDZ.AuthShare.valid_tamperParty_iff (valid_mkAuthShare2 3 1 2 1) 1 1 3).mpr (by decide)⟩
 
 example : Pr[macSingleCheckGame 5 1 0 0] = 1 :=
   probability_macSingleCheckGame_honest 5 1

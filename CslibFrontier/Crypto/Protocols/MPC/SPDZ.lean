@@ -81,7 +81,7 @@ Locators refer to the IACR ePrint full versions: [DamgardPastroSmartZakarias2012
    most $2 / p$ ([DamgardKellerLarraiaPastroSchollSmart2013], §5.1, Lemma 1; App. D.3):
    - Stage 1 (`eval_linearCombZeroGame_eq`): $\Pr_e[\sum_\ell e_\ell \cdot \mathrm{err}_\ell = 0]
      = 1 / p$, proved via `Cslib.Probability.toOuterMeasure_uniform_linearComb_eq_zero`.
-   - Stage 2 (`eval_macKey_guess_le`): whenever
+   - Stage 2 (`eval_macKey_guess_eq`, `eval_macKey_guess_le`): whenever
      $L = \sum_\ell e_\ell \cdot \mathrm{err}_\ell \neq 0$, a uniform key
      $\alpha \in \mathbb{Z}_p$ satisfies $\alpha \cdot L = \Delta(e)$ with probability $1 / p$,
      proved via `Cslib.Probability.toOuterMeasure_uniform_linearComb_eq` on `Unit`.
@@ -152,7 +152,9 @@ $2 / p$ bound to an arbitrary finite field and removing the `AddCommMonoid` requ
   `Cslib.Crypto.Protocols.MPC.SPDZ.eval_linearCombZeroGame_le`,
   `Cslib.Crypto.Protocols.MPC.SPDZ.probability_linearCombZeroGame_le`: Stage 1 weight-cancellation
   probability $1 / p$.
-* `Cslib.Crypto.Protocols.MPC.SPDZ.eval_macKey_guess_le`: Stage 2 key-guessing probability bound.
+* `Cslib.Crypto.Protocols.MPC.SPDZ.eval_macKey_guess_eq`,
+  `Cslib.Crypto.Protocols.MPC.SPDZ.eval_macKey_guess_le`: Stage 2 key-guessing probability
+  (exact `1 / p` for `L ≠ 0`) and bound.
 * `Cslib.Crypto.Protocols.MPC.SPDZ.eval_macCheckSoundnessGame_le`,
   `Cslib.Crypto.Protocols.MPC.SPDZ.probability_macCheckSoundnessGame_le`,
   `Cslib.Crypto.Protocols.MPC.SPDZ.eval_macCheckSoundnessAdvGame_le`: concrete $2 / p$ bound for the
@@ -599,7 +601,7 @@ samples an independent uniform MAC key `alpha ← $ᵗ ZMod p` and public weight
 `e ← $ᵗ (Fin T → ZMod p)`, and tests whether the adversary's (possibly `e`-adaptive)
 residual shift `deltaShift e` satisfies the cheating equation
 `alpha * linearCombAddHom err e = deltaShift e`. -/
-noncomputable def macCheckSoundnessGame (p T : ℕ) [NeZero p]
+@[expose] noncomputable def macCheckSoundnessGame (p T : ℕ) [NeZero p]
     (err : Fin T → ZMod p) (deltaShift : (Fin T → ZMod p) → ZMod p) : ProbComp Bool := do
   let alpha ← $ᵗ ZMod p
   let e ← $ᵗ (Fin T → ZMod p)
@@ -642,9 +644,25 @@ theorem probability_linearCombZeroGame_le {p T : ℕ} [Fact (Nat.Prime p)]
     Pr[linearCombZeroGame p T err] ≤ 1 / p := by
   rw [eval_linearCombZeroGame_eq herr, ENNReal.toReal_inv, ENNReal.toReal_natCast, one_div]
 
+/-- Stage-2 exact key-guessing probability: for any `L ≠ 0` and `d : ZMod p`, a uniform key
+`alpha : ZMod p` satisfies `alpha * L = d` with probability exactly `p⁻¹` (via
+`toOuterMeasure_uniform_linearComb_eq` on `Unit`). -/
+theorem eval_macKey_guess_eq {p : ℕ} [Fact (Nat.Prime p)] {L : ZMod p} (hL : L ≠ 0)
+    (d : ZMod p) :
+    ((PMF.uniformOfFintype (ZMod p)).map fun alpha => decide (alpha * L = d)) true =
+      (p : ℝ≥0∞)⁻¹ := by
+  rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
+    ← Cslib.Probability.PMF.uniformOfFintype_map_equiv (Equiv.funUnique Unit (ZMod p)),
+    PMF.toOuterMeasure_map_apply]
+  have hpre : (Equiv.funUnique Unit (ZMod p) ⁻¹'
+      ((fun alpha : ZMod p => decide (alpha * L = d)) ⁻¹' {true})) =
+      {r : Unit → ZMod p | ∑ i : Unit, r i * L = d} := Set.ext fun _ => by simp
+  rw [hpre, toOuterMeasure_uniform_linearComb_eq (d := fun _ => L) (i₀ := ()) hL d,
+    ZMod.card, one_div]
+
 /-- Stage-2 pointwise key-guessing bound: for any `L, d : ZMod p`, a uniform key `alpha : ZMod p`
-satisfies `alpha * L = d` with probability at most `(if L = 0 then 1 else 0) + p⁻¹` (proved in the
-`L ≠ 0` branch via `toOuterMeasure_uniform_linearComb_eq` on `Unit`). -/
+satisfies `alpha * L = d` with probability at most `(if L = 0 then 1 else 0) + p⁻¹` (the
+`L ≠ 0` branch is `eval_macKey_guess_eq`). -/
 theorem eval_macKey_guess_le {p : ℕ} [Fact (Nat.Prime p)] (L d : ZMod p) :
     ((PMF.uniformOfFintype (ZMod p)).map fun alpha => decide (alpha * L = d)) true ≤
       (if L = 0 then (1 : ℝ≥0∞) else 0) + (p : ℝ≥0∞)⁻¹ := by
@@ -652,14 +670,7 @@ theorem eval_macKey_guess_le {p : ℕ} [Fact (Nat.Prime p)] (L d : ZMod p) :
   · simp only [hL, ↓reduceIte]
     exact (PMF.coe_le_one _ _).trans le_self_add
   · simp only [hL, ↓reduceIte, zero_add]
-    rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
-      ← Cslib.Probability.PMF.uniformOfFintype_map_equiv (Equiv.funUnique Unit (ZMod p)),
-      PMF.toOuterMeasure_map_apply]
-    have hpre : (Equiv.funUnique Unit (ZMod p) ⁻¹'
-        ((fun alpha : ZMod p => decide (alpha * L = d)) ⁻¹' {true})) =
-        {r : Unit → ZMod p | ∑ i : Unit, r i * L = d} := Set.ext fun _ => by simp
-    rw [hpre, toOuterMeasure_uniform_linearComb_eq (d := fun _ => L) (i₀ := ()) hL d,
-      ZMod.card, one_div]
+    exact (eval_macKey_guess_eq hL d).le
 
 /-- Concrete $2 / p$ bound for the standalone `MACCheck` cheating-equation game
 ([DamgardKellerLarraiaPastroSchollSmart2013], §5.1, Lemma 1; App. D.3): for prime `p`, any
