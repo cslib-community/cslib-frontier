@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Copyright (c) 2026 Christian Reitwiessner, Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Christian Reitwiessner, Samuel Schlesinger
 -/
 
 module
@@ -157,12 +157,7 @@ theorem budget_nisanBlockValue {α : Type} {enc : α ↪ List Bool} {B b k z x t
     (hz : ComputableInSpace z enc encNat B) (hx : ComputableInSpace x enc encNat B)
     (ht : ComputableInSpace t enc encNat B) (hwidth : b ≼ B) :
     ComputableInSpace (fun a => nisanBlockValue (b a) (k a) (z a) (x a) (t a)) enc encNat B := by
-  have hlen : (fun a => (b a + 1) * (encNat 2).length + (encNat (b a)).length + 1) ≼ b :=
-    .of_le_linear 3 3 fun a => by
-      have := length_encNat_le_self (b a)
-      rw [show (encNat 2).length = 2 from rfl]
-      omega
-  have hp := budget_natPow_variable (budget_const (encB := encNat) 2) hb (hlen.trans hwidth)
+  have hp := budget_twoPow hb hwidth
   exact budget_natModTwoPow (budget_blockNat hb hk (budget_natAdd (budget_natMul hz hp) hx) ht) hb
 
 end Cslib.Probability.SaksZhou

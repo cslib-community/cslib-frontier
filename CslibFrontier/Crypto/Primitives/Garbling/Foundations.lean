@@ -20,10 +20,10 @@ obliviousness of [BellareHoangRogaway2012], Section 4, by explicit reductions at
 parameter. These are the advantage relations (1)–(4) in the proofs of Propositions 2 and 3
 (pp. 13–15), as equalities. They are steps toward the propositions, not the cited results: the
 propositions relate the asymptotic notions, security against every polynomial-time adversary
-(Sections 3.4, 3.5 and 3.7), and need the reductions and simulators to run in polynomial time. The
-library has no asymptotic `prv.ind`, `obv.ind` or `obv.sim` notion (only `Scheme.PrvSimSecure`),
-and no running-time bound for the reductions and simulators here is proved. The propositions stay
-open (#5293); the reductions' missing certificates are entries of the reduction-witness baseline.
+(Sections 3.4, 3.5 and 3.7), and need the reductions and simulators to run in polynomial time.
+`CslibFrontier.Crypto.Primitives.Garbling.FoundationsAsymptotic` defines those notions, proves that
+the reductions and simulators here are strict PPT, and derives the propositions from these
+equalities.
 
 * From simulation to indistinguishability, with a factor of two: from a
   `prv.ind` adversary `A` the reduction `prvIndToSim` builds a `prv.sim` adversary that picks a

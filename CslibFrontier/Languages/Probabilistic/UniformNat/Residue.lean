@@ -108,6 +108,17 @@ theorem closeTo_replicate_sampleModIndex (count width q : ℕ) [NeZero q] :
   simpa only [ENNReal.ofReal_pow (by norm_num : 0 ≤ (2 : ℝ)), ENNReal.ofReal_ofNat,
     mul_div_assoc] using h.map (fun v => List.ofFn fun j => (v j).val)
 
+/-- Every supported list of modular samples consists of the canonical representatives of a residue
+vector of the requested dimension. -/
+theorem exists_vector_of_mem_support_replicate_sampleModIndex {count width q : ℕ} [NeZero q]
+    {xs : List ℕ} (hx : xs ∈ (eval (OracleComp.replicate count (sampleModIndex width q))).support) :
+    ∃ v : Fin count → ZMod q, xs = List.ofFn fun j => (v j).val := by
+  rw [sampleModIndex_eq_sampleModNat _ (NeZero.pos q),
+    eval_replicateFin_map (eval_sampleModNat_eq_map_val width q),
+    _root_.PMF.mem_support_map_iff] at hx
+  obtain ⟨v, _, hv⟩ := hx
+  exact ⟨v, hv.symm⟩
+
 open scoped ENNReal in
 /-- Using the bit lengths of the count and modulus plus `precision` bits per sample gives
 statistical error at most `2 ^ (-precision)` for the whole list. -/

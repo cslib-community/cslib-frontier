@@ -89,6 +89,8 @@ promise-problem runtime bounds:
   `Cslib.Complexity.solvesWithErrorInTimeO_oneSidedRP_iff`,
   `Cslib.Complexity.SolvesWithErrorInTimeO.oneSidedRP_to_twoSided`: rate-preserving threshold
   invariance.
+* `Cslib.Complexity.computableInO_amplifySeededMajority`: a seed-length certificate, verifier
+  clock, and pointwise error bound for input-dependent repetition.
 * `Cslib.Complexity.SolvesWithErrorInTimeO.of_promiseReduction`: preserve the error profile
   along a deterministic promise reduction, including the cost of the reduced encoded input.
 * `Cslib.Complexity.rSatExponent_le_rpSatExponent`,
@@ -1275,6 +1277,63 @@ theorem solvesWithErrorInExpTime_oneSidedRP_iff {Q : PromiseProblem α} {μ : α
       SolvesWithErrorInExpTime Q enc (ErrorModel.oneSidedRP ε₂ h0₂.le h1₂) μ δ :=
   exists_congr fun _ => solvesWithErrorInTimeO_oneSidedRP_iff (fun _ => by positivity)
     h0₁ h1₁ h0₂ h1₂
+
+/-! ### Input-dependent seeded amplification -/
+
+/-- Certify the seed length and verifier for strict majority of `2 * r a` independent
+runs. The unary repetition schedule and seed width depend on the instance alone. The verifier
+clock needs a bound only on seeds of the original width. For either expected answer, the
+fraction of wrong amplified answers is at most `(4 * ε * (1 - ε)) ^ r a` whenever a single run
+errs with probability at most `ε < 1 / 2`. -/
+theorem computableInO_amplifySeededMajority {ℓ r : α → ℕ} {V : α × List Bool → Bool}
+    {Tℓ Sℓ Tr Sr R : α → ℕ} {Tv Sv : α × List Bool → ℕ}
+    (hℓ : ComputableInO ℓ enc encUnary Tℓ Sℓ)
+    (hr : ComputableInO r enc encUnary Tr Sr)
+    (hV : ComputableInO V (encPair enc encBits) encBool Tv Sv)
+    (hR : ∀ a w, w.length = ℓ a → Tv (a, w) ≤ R a) :
+    let amplified (p : α × List Bool) :=
+      BitString.listStrictMajority (repeatVotes (2 * r p.1) (ℓ p.1) V p)
+    ∃ d e f Sseed Sverify,
+      ComputableInO (fun a => (2 * r a) * ℓ a) enc encUnary
+        (fun a => (enc a).length + 2 * Tr a + Tℓ a + (4 * r a + ℓ a + 2) ^ d) Sseed ∧
+      ComputableInO amplified (encPair enc encBits) encBool
+        (fun p => (2 * r p.1 + 1) *
+          ((4 * (encPair enc encBits p).length + 2 * Tr p.1 + Tℓ p.1 + 1) ^ e + R p.1) +
+          (2 * r p.1 + 1) ^ f) Sverify ∧
+      ∀ a truth {ε : ℝ}, 0 ≤ ε → ε < 1 / 2 →
+        (acceptCount (fun p => V p != truth) a (ℓ a) : ℝ) ≤ ε * (2 : ℝ) ^ ℓ a →
+        (acceptCount (fun p => amplified p != truth) a ((2 * r a) * ℓ a) : ℝ) ≤
+          (4 * ε * (1 - ε)) ^ r a * (2 : ℝ) ^ ((2 * r a) * ℓ a) := by
+  obtain ⟨T₂, S₂, h₂, hT₂⟩ := computableInO_const_mul_unary 2 hr
+  have h₂ : ComputableInO (fun a => 2 * r a) enc encUnary
+      (fun a => (enc a).length + 2 * Tr a) S₂ :=
+    (funext hT₂) ▸ h₂
+  obtain ⟨d, _, hmul⟩ := ComputableInPolyTime.unary_mul.exists_degree
+  have hseed := hmul.inO.comp (h₂.prod hℓ)
+  have hfst := ComputableInO.fst enc encBits
+  obtain ⟨e, _, hvotes⟩ := computableInO_repeatVotes hV (h₂.comp hfst) (hℓ.comp hfst)
+    (fun p w hw => hR p.1 w hw)
+  obtain ⟨f, _, hmajority⟩ := ComputableInPolyTime.bitsStrictMajority.exists_degree
+  have hsize (a : α) :
+      (encPair encUnary encUnary (2 * r a, ℓ a)).length + 1 = 4 * r a + ℓ a + 2 := by
+    simp only [length_encPair, encUnary_apply, List.length_replicate]
+    omega
+  simp only [hsize] at hseed
+  have hcert := hmajority.inO.comp hvotes
+  refine ⟨d, e, f, _, _, hseed, hcert.mono_time 1 (fun p => ?_), ?_⟩
+  · have hlen := length_le_encPair_left enc encBits p
+    have hsetup :
+        (encPair enc encBits p).length +
+              ((encPair enc encBits p).length + ((enc p.1).length + 2 * Tr p.1)) +
+              ((encPair enc encBits p).length + Tℓ p.1) + 1 ≤
+            4 * (encPair enc encBits p).length + 2 * Tr p.1 + Tℓ p.1 + 1 := by omega
+    have hclock := Nat.mul_le_mul_left (2 * r p.1 + 1)
+      (Nat.add_le_add_right (Nat.pow_le_pow_left hsetup e) (R p.1))
+    simp only [Function.comp_def, encBits, Function.Embedding.refl_apply, length_repeatVotes,
+      Nat.one_mul]
+    exact (Nat.add_le_add_right hclock _).trans (Nat.le_succ _)
+  · intro a truth ε hε0 hε1 herr
+    exact acceptCount_listStrictMajority_ne_le V a (ℓ a) (r a) truth hε0 hε1 herr
 
 end RandomizedPromise
 

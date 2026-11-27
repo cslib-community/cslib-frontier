@@ -54,6 +54,7 @@ represent sets of words.
 * `Cslib.BitString.card_filter_binaryValue_lt`: exact counts below a binary threshold.
 * `Cslib.BitString.card_filter_ofFn_add`, `Cslib.BitString.card_filter_ofFn_succ`: counting
   words by a prefix or by their first bit.
+* `Cslib.BitString.sum_ofFn_first_true`: counting nonzero words by their first true bit.
 * `Cslib.BitString.card_filter_take`: counting words by a condition on a prefix.
 * `Cslib.BitString.card_filter_take_drop`: independent prefix/suffix tests give a product.
 * `Cslib.BitString.two_mul_two_pow_le_of_four_mul_card_filter_not_le`: a quarter of failures leaves
@@ -93,6 +94,14 @@ open Finset
 
 /-! ### Counting words -/
 
+/-- Sum a weight over words by separating a fixed-width prefix and suffix. -/
+theorem sum_ofFn_append {A : Type*} [AddCommMonoid A] (n m : ℕ) (F : List Bool → A) :
+    (∑ z : BitString (n + m), F (List.ofFn z)) =
+      ∑ u : BitString n, ∑ v : BitString m, F (List.ofFn u ++ List.ofFn v) := by
+  rw [← (Fin.appendEquiv n m).sum_comp, Fintype.sum_prod_type]
+  change (∑ u : BitString n, ∑ v : BitString m, F (List.ofFn (Fin.append u v))) = _
+  simp only [List.ofFn_fin_append]
+
 /-- **Counting words by their prefixes**: the words of length `m + n` are the words `u ++ w`
 with `u` of length `m` and `w` of length `n`. -/
 theorem card_filter_ofFn_add (m n : ℕ) (g : List Bool → List Bool → Prop)
@@ -101,19 +110,8 @@ theorem card_filter_ofFn_add (m n : ℕ) (g : List Bool → List Bool → Prop)
       g ((List.ofFn v).take m) ((List.ofFn v).drop m)).card =
       ∑ u : Fin m → Bool,
         (univ.filter fun w : Fin n → Bool => g (List.ofFn u) (List.ofFn w)).card := by
-  classical
-  rw [← card_map (Fin.appendEquiv m n).symm.toEmbedding]
-  have hmap : (univ.filter fun v : Fin (m + n) → Bool =>
-      g ((List.ofFn v).take m) ((List.ofFn v).drop m)).map
-        (Fin.appendEquiv m n).symm.toEmbedding =
-      univ.filter fun x : (Fin m → Bool) × (Fin n → Bool) => g (List.ofFn x.1) (List.ofFn x.2) := by
-    ext x
-    simp only [mem_map_equiv, Equiv.symm_symm, mem_filter, mem_univ, true_and]
-    change g ((List.ofFn (Fin.append x.1 x.2)).take m)
-      ((List.ofFn (Fin.append x.1 x.2)).drop m) ↔ _
-    rw [List.ofFn_fin_append, List.take_left' List.length_ofFn, List.drop_left' List.length_ofFn]
-  rw [hmap, card_filter, Fintype.sum_prod_type]
-  simp only [card_filter]
+  simpa only [card_filter, List.take_left' List.length_ofFn, List.drop_left' List.length_ofFn] using
+    sum_ofFn_append m n (fun w => if g (w.take m) (w.drop m) then 1 else 0)
 
 /-- **Counting words by a prefix.** For `k ≤ K`, the words of `K` bits whose prefix of length `k`
 satisfies `g` are `2 ^ (K - k)` times as many as the words of `k` bits satisfying `g`. -/
@@ -213,23 +211,38 @@ theorem five_mul_card_filter_card_filter_block_le {m q : ℕ} (g : BitString m �
   rwa [Fintype.card_fun, Fintype.card_fin, Fintype.card_bool, ← pow_mul, Nat.mul_comm m,
     ← card_filter_card_filter_block_le] at h
 
+/-- Sum a weight over words by splitting on their first bit. -/
+theorem sum_ofFn_succ {A : Type*} [AddCommMonoid A] (n : ℕ) (g : List Bool → A) :
+    (∑ v : BitString (n + 1), g (List.ofFn v)) =
+      (∑ w : BitString n, g (true :: List.ofFn w)) +
+        ∑ w : BitString n, g (false :: List.ofFn w) := by
+  let e := Fin.consEquiv (fun _ : Fin (n + 1) => Bool)
+  rw [← e.sum_comp (fun v => g (List.ofFn v)), Fintype.sum_prod_type, Fintype.sum_bool]
+  simp [e, Fin.consEquiv]
+
 /-- **Counting words by their first bit.** -/
 theorem card_filter_ofFn_succ (n : ℕ) (g : List Bool → Prop) [DecidablePred g] :
     (univ.filter fun v : Fin (n + 1) → Bool => g (List.ofFn v)).card =
       (univ.filter fun w : Fin n → Bool => g (true :: List.ofFn w)).card +
         (univ.filter fun w : Fin n → Bool => g (false :: List.ofFn w)).card := by
-  classical
-  rw [← card_map (Fin.consEquiv fun _ => Bool).symm.toEmbedding]
-  have hmap : (univ.filter fun v : Fin (n + 1) → Bool => g (List.ofFn v)).map
-      (Fin.consEquiv fun _ => Bool).symm.toEmbedding =
-      univ.filter fun x : Bool × (Fin n → Bool) => g (x.1 :: List.ofFn x.2) := by
-    ext x
-    simp only [mem_map_equiv, Equiv.symm_symm, mem_filter, mem_univ, true_and]
-    change g (List.ofFn (Fin.cons x.1 x.2 : Fin (n + 1) → Bool)) ↔ _
-    rw [List.ofFn_succ]
+  simpa only [card_filter] using sum_ofFn_succ n (fun l => if g l then 1 else 0)
+
+/-- Summing over nonzero words by the first true bit gives weight `2 ^ j` to the level with
+`j` trailing bits, since those bits can be chosen freely. -/
+theorem sum_ofFn_first_true (n : ℕ) (F : ℕ → ℕ) :
+    (∑ r : BitString (n + 1), if (List.ofFn r).any id then
+      F (n - (List.ofFn r).idxOf true) else 0) = ∑ j ∈ range (n + 1), 2 ^ j * F j := by
+  induction n with
+  | zero =>
+    rw [sum_ofFn_succ 0 (fun l => if l.any id then F (0 - l.idxOf true) else 0)]
     simp
-  rw [hmap, card_filter, Fintype.sum_prod_type, Fintype.sum_bool]
-  simp only [card_filter]
+  | succ n ih =>
+    rw [sum_ofFn_succ (n + 1) (fun l => if l.any id then F (n + 1 - l.idxOf true) else 0)]
+    simp only [List.any_cons, id_eq, Bool.true_or, Bool.false_or, ite_true, List.idxOf_cons_self,
+      Nat.sub_zero, List.idxOf_cons_ne _ Bool.false_ne_true, Nat.succ_sub_succ_eq_sub, ih]
+    rw [sum_const, card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_bool, nsmul_eq_mul,
+      sum_range_succ _ (n + 1), add_comm]
+    norm_cast
 
 /-- A bit string `w` has no `true` bits in `List.ofFn w` if and only if `w = 0`. -/
 theorem not_any_ofFn_eq_true_iff {n : ℕ} (w : Fin n → Bool) :
