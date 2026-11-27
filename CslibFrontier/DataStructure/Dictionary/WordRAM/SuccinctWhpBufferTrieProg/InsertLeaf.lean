@@ -331,15 +331,6 @@ theorem realizes_bufInsertLeafRt :
        | exact ⟨c, U, V, w, n_max, base, ep, henv, hep, rfl⟩
        | omega)
 
-private theorem trieChildIdx_lt {c n_max u ch : ℕ} (hu : u < maxTrieNodesWhp c n_max)
-    (hch : ch < 2 ^ bCharWhp n_max) :
-    u * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max := by
-  unfold trieChildEntriesWhp
-  calc u * 2 ^ bCharWhp n_max + ch < u * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max :=
-        Nat.add_lt_add_left hch _
-    _ = (u + 1) * 2 ^ bCharWhp n_max := by ring
-    _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hu
-
 theorem bufInsertLeafRtProg_spec {c U V w n_max base ep leaf b loc : ℕ}
     {tr1 : BufTrie} {s1 : Memory.State}
     (henv : WhpLargeEnv c U V w n_max w base) (hep : ep = 0 ∨ ep = 1)
@@ -516,7 +507,7 @@ theorem bufInsertLeafRtProg_spec {c U V w n_max base ep leaf b loc : ℕ}
           readPacked (base + brOffChild rt) (globalPtrBits n_max) w s1.mem
             (u * 2 ^ bCharWhp n_max + c') := by
       intro u hu c' hc'
-      have hidx_c := trieChildIdx_lt hu hc'
+      have hidx_c := mul_add_lt_trieChildEntriesWhp hu hc'
       have h_dc : readPacked (base + brOffChild rt) (globalPtrBits n_max) w sd.mem
           (u * 2 ^ bCharWhp n_max + c') =
           readPacked (base + brOffChild rt) (globalPtrBits n_max) w sc.mem
@@ -666,7 +657,7 @@ theorem bufInsertLeafRtProg_spec {c U V w n_max base ep leaf b loc : ℕ}
           readPacked (base + brOffChild rt) (globalPtrBits n_max) w s1.mem
             (u * 2 ^ bCharWhp n_max + c') := by
       intro u hu c' hc'
-      have hidx_c := trieChildIdx_lt hu hc'
+      have hidx_c := mul_add_lt_trieChildEntriesWhp hu hc'
       exact (readPacked_writePacked_disjoint hw hidx_c hiL (Or.inl (by omega))).trans
         ((readPacked_writePacked_disjoint hw hidx_c hiB (Or.inl (by omega))).trans
           (readPacked_writePacked_disjoint hw hidx_c hidx3 (Or.inl (by omega))))

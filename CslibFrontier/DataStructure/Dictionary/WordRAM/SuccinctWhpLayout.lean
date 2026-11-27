@@ -199,6 +199,16 @@ trie. -/
 @[expose] def trieChildEntriesWhp (c n_max : ℕ) : ℕ :=
   maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max
 
+/-- Child slot `ch` of trie node `u` indexes inside the `trieChildEntriesWhp` array. -/
+theorem mul_add_lt_trieChildEntriesWhp {c n_max u ch : ℕ} (hu : u < maxTrieNodesWhp c n_max)
+    (hch : ch < 2 ^ bCharWhp n_max) :
+    u * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max := by
+  unfold trieChildEntriesWhp
+  calc u * 2 ^ bCharWhp n_max + ch < u * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max :=
+        Nat.add_lt_add_left hch _
+    _ = (u + 1) * 2 ^ bCharWhp n_max := (Nat.succ_mul u _).symm
+    _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hu
+
 /-- Epoch buffer `0` `trieChild` array (`trieChildEntriesWhp c n_max` entries of
 `globalPtrBits n_max` bits). -/
 @[expose] def offTrieChild0 (c U V w n_max : ℕ) : ℕ :=
@@ -605,13 +615,7 @@ private theorem bufTrieMemRep_congr {base c U V w n_max ep : ℕ} {tr : BufTrie}
       (hmem _ (by omega) (by omega)).trans hhdr_na,
       (hmem _ (by omega) (by omega)).trans hhdr_ia,
       fun u hu ch hch_lt => ?_, fun u hu1 hu => ?_, fun u hu => ?_, fun id hid => ?_⟩
-    · have hidx : u * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max := by
-        unfold trieChildEntriesWhp
-        calc u * 2 ^ bCharWhp n_max + ch < u * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max :=
-              Nat.add_lt_add_left hch_lt _
-          _ = (u + 1) * 2 ^ bCharWhp n_max := by ring
-          _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hu
-      exact rp hw hmem (hch u hu ch hch_lt) hidx (by omega)
+    · exact rp hw hmem (hch u hu ch hch_lt) (mul_add_lt_trieChildEntriesWhp hu hch_lt) (by omega)
     · exact ⟨rpM hw hmem (hpar u hu1 hu).1 (by omega) (by omega),
         rpM hw hmem (hpar u hu1 hu).2 (by omega) (by omega)⟩
     · exact ⟨rpM hw hmem (hleaf u hu).1 (by omega) (by omega),

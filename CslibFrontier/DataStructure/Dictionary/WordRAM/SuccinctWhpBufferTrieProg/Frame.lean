@@ -62,15 +62,6 @@ theorem BufEpFrame.mem_outside {base c U V w n_max ep a : ℕ} {m₁ m₂ : ℕ 
        (by dsimp [mkBufRt, brOffMeta]; omega)
        (by dsimp [mkBufRt, brOffItems]; omega))
 
-private theorem trieChildIdx_lt {c n_max u ch : ℕ} (hu : u < maxTrieNodesWhp c n_max)
-    (hch : ch < 2 ^ bCharWhp n_max) :
-    u * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max := by
-  unfold trieChildEntriesWhp
-  calc u * 2 ^ bCharWhp n_max + ch < u * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max :=
-        Nat.add_lt_add_left hch _
-    _ = (u + 1) * 2 ^ bCharWhp n_max := by ring
-    _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hu
-
 /-- `BufEpFrame` on `ep` preserves `BufTrieMemRep` on the opposite buffer `1 - ep`. -/
 theorem BufEpFrame.other_bufTrieMemRep {base c U V w n_max ep : ℕ} {tr : BufTrie}
     {m₁ m₂ : ℕ → ℕ} (hw : 0 < w) (hep : ep = 0 ∨ ep = 1)
@@ -117,7 +108,7 @@ theorem BufEpFrame.other_bufTrieMemRep {base c U V w n_max ep : ℕ} {tr : BufTr
         by dsimp [mkBufRt, brHdrNA, hdrBuf0NodeAlloc, hdrBuf1ItemAlloc]; omega,
         by dsimp [mkBufRt, brHdrIA, hdrBuf0ItemAlloc, hdrBuf1ItemAlloc]; omega⟩)).trans hhdr_ia,
       fun u hu ch hch_lt => ?_, fun u hu1 hu => ?_, fun u hu => ?_, fun id hid => ?_⟩
-    · exact (readPacked_congr hw (hidx := trieChildIdx_lt hu hch_lt) (fun a ⟨ha1,
+    · exact (readPacked_congr hw (hidx := mul_add_lt_trieChildEntriesWhp hu hch_lt) (fun a ⟨ha1,
         ha2⟩ => hmem_c1 a ha1 ha2)).trans (hch u hu ch hch_lt)
     · exact ⟨(readPacked_congr hw (hidx := show 4 * u + 0 < 6 * maxTrieNodesWhp c n_max by omega)
           (fun a ⟨ha1, ha2⟩ => hmem_m1 a ha1 ha2)).trans (hpar u hu1 hu).1,
@@ -172,7 +163,7 @@ theorem BufEpFrame.other_bufTrieMemRep {base c U V w n_max ep : ℕ} {tr : BufTr
         by dsimp [mkBufRt, brHdrNA, hdrBuf0ItemAlloc, hdrBuf1NodeAlloc]; omega,
         by dsimp [mkBufRt, brHdrIA, hdrBuf0ItemAlloc, hdrBuf1ItemAlloc]; omega⟩)).trans hhdr_ia,
       fun u hu ch hch_lt => ?_, fun u hu1 hu => ?_, fun u hu => ?_, fun id hid => ?_⟩
-    · exact (readPacked_congr hw (hidx := trieChildIdx_lt hu hch_lt) (fun a ⟨ha1,
+    · exact (readPacked_congr hw (hidx := mul_add_lt_trieChildEntriesWhp hu hch_lt) (fun a ⟨ha1,
         ha2⟩ => hmem_c0 a ha1 ha2)).trans (hch u hu ch hch_lt)
     · exact ⟨(readPacked_congr hw (hidx := show 4 * u + 0 < 6 * maxTrieNodesWhp c n_max by omega)
           (fun a ⟨ha1, ha2⟩ => hmem_m0 a ha1 ha2)).trans (hpar u hu1 hu).1,
