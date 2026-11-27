@@ -32,7 +32,9 @@ product, which tends to `π/2`. From one odd level to the next the weights chang
 `(2j + 1)² / ((2j + 2)(2j + 3))` of consecutive coefficients of `(2/π) arcsin`. The weights
 decrease in `n` (`BitString.levelWeight_signVal_majority_succ_lt`, Corollary 5.21), so each is at
 least its limit (`BitString.le_levelWeight_signVal_majority`), the lower half of the book's error
-bound (5.15).
+bound (5.15). For the upper half, the weight at level `k = 2j + 1` is `(π/2) n c_{m-j} c_m` times
+its limit, with `c_a = C(2a, a)/4^a`; Wallis's product gives `c_a² ≤ 1/(πa)`, so for `k < n/2` the
+weight is at most `(1 + 2k/n)` times its limit (`BitString.levelWeight_signVal_majority_le`).
 
 Summing over the levels, with the weights bounded by `1` and the geometric bound `|ρ|^k` for
 `|ρ| < 1` (Tannery's theorem), and using the Maclaurin series of `arcsin`
@@ -51,7 +53,8 @@ proves Theorem 5.22 directly); no central limit theorem is used.
 ## Main results
 
 * `Cslib.BitString.tendsto_levelWeight_signVal_majority`: the limit in Theorem 5.22.
-* `Cslib.BitString.le_levelWeight_signVal_majority`: each weight is at least its limit.
+* `Cslib.BitString.le_levelWeight_signVal_majority`,
+  `Cslib.BitString.levelWeight_signVal_majority_le`: the error bound (5.15) of Theorem 5.22.
 * `Cslib.BitString.tendsto_noiseStability_signVal_majority`: Theorem 2.45.
 * `Cslib.BitString.le_noiseStability_signVal_majority`: the lower bound of Theorem 5.18.
 * `Cslib.BitString.tendsto_noiseSensitivity_majority`: Theorem 2.45 in noise-sensitivity form.
@@ -62,9 +65,8 @@ Majority of `2 m + 1` bits read as signs is `fun x => signVal (majority (2 * m +
 limits are along `m → ∞`, the book's `n → ∞` through the odd numbers. The book's sign convention
 differs (`true` reads as `-1`), which changes neither level weights nor noise stability. The book's
 form `(4 / (π k 2^k)) C(k - 1, (k - 1)/2)` of the limiting weight is
-`2 / π * (Nat.centralBinom j / 4 ^ j / (2 * j + 1))` at `k = 2 j + 1`. The upper half of (5.15),
-`W^k[Maj_n] ≤ (1 + 2k/n) [ρ^k] (2/π) arcsin ρ`, the upper bound of Theorem 5.18 and the asymptotics
-of Corollary 5.23 are not formalized ([#2131](https://github.com/cslib-community/cslib-frontier/issues/2131)).
+`2 / π * (Nat.centralBinom j / 4 ^ j / (2 * j + 1))` at `k = 2 j + 1`. The upper bound of
+Theorem 5.18 and the asymptotics of Corollary 5.23 are not formalized ([#2131](https://github.com/cslib-community/cslib-frontier/issues/2131)).
 
 ## References
 
@@ -133,9 +135,9 @@ private theorem levelWeight_signVal_majority_succ_level {m j : ℕ} (hj : j + 1 
 
 /-- **The limit of the spectrum of majority** [O'Donnell, Theorem 5.22][ODonnell2014]: for each
 `j`, the Fourier weight of majority of `2 m + 1` bits, read as signs, at level `k = 2 j + 1`
-tends to `[ρ^k] (2/π) arcsin ρ = (2/π) C(2j, j) / (4^j (2j + 1))` as `m → ∞`. The book's error
-bound (5.15) is not part of this statement; its lower half is
-`BitString.le_levelWeight_signVal_majority`. -/
+tends to `[ρ^k] (2/π) arcsin ρ = (2/π) C(2j, j) / (4^j (2j + 1))` as `m → ∞`. The two halves of
+the book's error bound (5.15) are `BitString.le_levelWeight_signVal_majority` and
+`BitString.levelWeight_signVal_majority_le`. -/
 theorem tendsto_levelWeight_signVal_majority (j : ℕ) :
     Tendsto (fun m : ℕ => levelWeight (2 * j + 1) (fun x => signVal (majority (2 * m + 1) x)))
       atTop (𝓝 (2 / π * ((Nat.centralBinom j : ℝ) / 4 ^ j / (2 * j + 1)))) := by
@@ -201,6 +203,131 @@ theorem le_levelWeight_signVal_majority {m j : ℕ} (hj : j ≤ m) :
     antitone_nat_of_succ_le fun n => (levelWeight_signVal_majority_succ_lt (j + n) j (by omega)).le
   exact hanti.le_of_tendsto ((tendsto_levelWeight_signVal_majority j).comp
     ((tendsto_add_atTop_nat j).congr fun n => add_comm n j)) r
+
+/-- The level weights of majority in terms of `c_a = C(2a, a) / 4^a`:
+`W^{2j+1}[Maj_{2(j+r)+1}] = (2(j+r) + 1)/(2j + 1) · c_j c_r c_{j+r}`. -/
+private theorem levelWeight_signVal_majority_eq_mul (j r : ℕ) :
+    levelWeight (2 * j + 1) (fun x => signVal (majority (2 * (j + r) + 1) x)) =
+      (2 * (j + r) + 1) / (2 * j + 1) * ((Nat.centralBinom j : ℝ) / 4 ^ j) *
+        ((Nat.centralBinom r : ℝ) / 4 ^ r) * ((Nat.centralBinom (j + r) : ℝ) / 4 ^ (j + r)) := by
+  rw [levelWeight_signVal_majority_of_odd,
+    Nat.cast_choose ℝ (by omega : 2 * j + 1 ≤ 2 * (j + r) + 1),
+    Nat.cast_choose ℝ (by omega : j ≤ j + r),
+    Nat.cast_choose ℝ (by omega : 2 * j ≤ 2 * (j + r)),
+    Nat.centralBinom_eq_two_mul_choose, Nat.centralBinom_eq_two_mul_choose,
+    Nat.centralBinom_eq_two_mul_choose,
+    Nat.cast_choose ℝ (by omega : j ≤ 2 * j), Nat.cast_choose ℝ (by omega : r ≤ 2 * r),
+    Nat.cast_choose ℝ (by omega : j + r ≤ 2 * (j + r)),
+    show 2 * (j + r) + 1 - (2 * j + 1) = 2 * r by omega, show j + r - j = r by omega,
+    show 2 * (j + r) - 2 * j = 2 * r by omega, show 2 * j - j = j by omega,
+    show 2 * r - r = r by omega, show 2 * (j + r) - (j + r) = j + r by omega,
+    show 2 * (j + r) + 1 = 2 * (j + r) + 1 from rfl, Nat.factorial_succ (2 * (j + r)),
+    Nat.factorial_succ (2 * j), pow_add]
+  have h1 : ((2 * r).factorial : ℝ) ≠ 0 := by positivity
+  have h2 : ((2 * j).factorial : ℝ) ≠ 0 := by positivity
+  have h3 : (r.factorial : ℝ) ≠ 0 := by positivity
+  have h4 : (j.factorial : ℝ) ≠ 0 := by positivity
+  have h7 : ((2 * (j + r)).factorial : ℝ) ≠ 0 := by positivity
+  have h8 : ((j + r).factorial : ℝ) ≠ 0 := by positivity
+  push_cast
+  field_simp
+
+/-- By Wallis's product, `(C(2a, a) / 4^a)² ≤ 1 / (π a)` for `a ≥ 1`. -/
+private theorem sq_centralBinom_div_four_pow_le {a : ℕ} (ha : 1 ≤ a) :
+    ((Nat.centralBinom a : ℝ) / 4 ^ a) ^ 2 ≤ 1 / (π * a) := by
+  have hle := Real.Wallis.le_W a
+  rw [Real.Wallis.W_eq_factorial_ratio] at hle
+  rw [Nat.centralBinom_eq_two_mul_choose, Nat.cast_choose ℝ (by omega : a ≤ 2 * a),
+    show 2 * a - a = a by omega]
+  have hf : (a.factorial : ℝ) ≠ 0 := by positivity
+  have hf2 : ((2 * a).factorial : ℝ) ≠ 0 := by positivity
+  have h4 : (4 : ℝ) ^ a = 2 ^ (2 * a) := by rw [pow_mul]; norm_num
+  rw [h4]
+  have ha' : (1 : ℝ) ≤ a := by exact_mod_cast ha
+  set X : ℝ := ((2 * a).factorial : ℝ)
+  set Y : ℝ := (a.factorial : ℝ)
+  have hX : 0 < X := by positivity
+  have hY : 0 < Y := by positivity
+  have hP : (0 : ℝ) < 2 ^ (2 * a) := by positivity
+  have h44 : (2 : ℝ) ^ (4 * a) = (2 ^ (2 * a)) ^ 2 := by rw [← pow_mul]; ring_nf
+  rw [h44] at hle
+  set P : ℝ := 2 ^ (2 * a)
+  -- cross-multiplied Wallis bound
+  have hcross : (2 * a + 1) ^ 2 * π * X ^ 2 ≤ (4 * a + 4) * P ^ 2 * Y ^ 4 := by
+    rw [div_mul_eq_mul_div, div_le_div_iff₀ (by positivity) (by positivity)] at hle
+    nlinarith [pi_pos]
+  rw [div_pow, div_pow, mul_pow, le_div_iff₀ (by positivity)]
+  rw [div_div, div_mul_eq_mul_div, div_le_one (by positivity)]
+  have hkey : a * (4 * a + 4) ≤ (2 * (a : ℝ) + 1) ^ 2 := by nlinarith
+  nlinarith [pi_pos, mul_le_mul_of_nonneg_right hkey (by positivity : (0 : ℝ) ≤ P ^ 2 * Y ^ 4),
+    mul_le_mul_of_nonneg_left hcross (by positivity : (0 : ℝ) ≤ a)]
+
+/-- [O'Donnell, Exercise 5.24][ODonnell2014]: `n⁴ ≤ (n + 2k)² (n - k)(n - 1)` for
+`1 ≤ k ≤ n/2`, that is, `n / √((n - k)(n - 1)) ≤ 1 + 2k/n`. -/
+private theorem pow_four_le_mul_sub_mul_sub {n k : ℝ} (hk : 1 ≤ k) (hnk : 2 * k ≤ n) :
+    n ^ 4 ≤ (n + 2 * k) ^ 2 * ((n - k) * (n - 1)) := by
+  have hn : 2 ≤ n := by linarith
+  have h1 : n * (2 * k - 1) ≥ 2 * k := by nlinarith
+  have h2 : n ^ 2 ≥ 4 * k ^ 2 := by nlinarith
+  have h3 : n * (3 * k - 1) - 3 * k ≥ k * (n - 1) := by nlinarith
+  have h4 : n ^ 2 * (n * (3 * k - 1) - 3 * k) ≥ 4 * k ^ 2 * (k * (n - 1)) := by
+    have : 0 ≤ k * (n - 1) := by nlinarith
+    nlinarith
+  nlinarith
+
+/-- **The upper error bound for the spectrum of majority** [O'Donnell, Theorem 5.22, (5.15)]
+[ODonnell2014]: for `k = 2j + 1 < n/2`, with `n = 2m + 1`, the Fourier weight of majority at level
+`k` is at most `(1 + 2k/n)` times its limit `(2/π) C(2j, j) / (4^j (2j + 1))`. The weight is
+`(π/2) n c_{m-j} c_m` times its limit for `c_a = C(2a, a)/4^a`; Wallis's product bounds
+`c_a² ≤ 1/(πa)`, so the factor is at most `n / √((n - k)(n - 1)) ≤ 1 + 2k/n` (Exercise 5.24). -/
+theorem levelWeight_signVal_majority_le {m j : ℕ} (h : 2 * (2 * j + 1) < 2 * m + 1) :
+    levelWeight (2 * j + 1) (fun x => signVal (majority (2 * m + 1) x)) ≤
+      (1 + 2 * (2 * j + 1) / (2 * m + 1)) *
+        (2 / π * ((Nat.centralBinom j : ℝ) / 4 ^ j / (2 * j + 1))) := by
+  obtain ⟨r, rfl⟩ : ∃ r, m = j + r := ⟨m - j, by omega⟩
+  have hr : 1 ≤ r := by omega
+  have hm : 1 ≤ j + r := by omega
+  rw [levelWeight_signVal_majority_eq_mul]
+  set cj : ℝ := (Nat.centralBinom j : ℝ) / 4 ^ j
+  set cr : ℝ := (Nat.centralBinom r : ℝ) / 4 ^ r
+  set cm : ℝ := (Nat.centralBinom (j + r) : ℝ) / 4 ^ (j + r)
+  have hcj : 0 ≤ cj := by positivity
+  have hcr : 0 ≤ cr := by positivity
+  have hcm : 0 ≤ cm := by positivity
+  have hcr2 := sq_centralBinom_div_four_pow_le hr
+  have hcm2 := sq_centralBinom_div_four_pow_le hm
+  set n : ℝ := 2 * ((j : ℝ) + r) + 1 with hn
+  set k : ℝ := 2 * (j : ℝ) + 1 with hk
+  have hk1 : 1 ≤ k := by rw [hk]; linarith [(j.cast_nonneg : (0 : ℝ) ≤ j)]
+  have hnk : 2 * k ≤ n := by
+    have : (2 * j + 1 : ℝ) < 2 * r := by exact_mod_cast (by omega : 2 * j + 1 < 2 * r)
+    rw [hn, hk]
+    linarith
+  -- the factor `A = (π/2) n c_r c_m` is at most `1 + 2k/n`
+  have hA : π / 2 * n * cr * cm ≤ 1 + 2 * k / n := by
+    have hnpos : 0 < n := by linarith
+    have hr' : (1 : ℝ) ≤ r := by exact_mod_cast hr
+    have hm' : (1 : ℝ) ≤ ((j + r : ℕ) : ℝ) := by exact_mod_cast hm
+    have h4rm : (n - k) * (n - 1) = 4 * r * ((j + r : ℕ) : ℝ) := by
+      rw [hn, hk]; push_cast; ring
+    have hsq : (π / 2 * n * cr * cm) ^ 2 ≤ (1 + 2 * k / n) ^ 2 := by
+      have hprod : cr ^ 2 * cm ^ 2 ≤ 1 / (π * r) * (1 / (π * ((j + r : ℕ) : ℝ))) :=
+        mul_le_mul hcr2 hcm2 (by positivity) (by positivity)
+      have hpi := pi_pos
+      calc (π / 2 * n * cr * cm) ^ 2 = π ^ 2 / 4 * n ^ 2 * (cr ^ 2 * cm ^ 2) := by ring
+        _ ≤ π ^ 2 / 4 * n ^ 2 * (1 / (π * r) * (1 / (π * ((j + r : ℕ) : ℝ)))) := by gcongr
+        _ = n ^ 2 / ((n - k) * (n - 1)) := by rw [h4rm]; field_simp
+        _ ≤ (1 + 2 * k / n) ^ 2 := by
+          have hden : 0 < (n - k) * (n - 1) := by nlinarith
+          rw [div_le_iff₀ hden, show (1 + 2 * k / n) = (n + 2 * k) / n by field_simp, div_pow,
+            div_mul_eq_mul_div, le_div_iff₀ (by positivity)]
+          nlinarith [pow_four_le_mul_sub_mul_sub hk1 hnk]
+    exact (pow_le_pow_iff_left₀ (by positivity) (by positivity) two_ne_zero).1 hsq
+  calc n / k * cj * cr * cm = (π / 2 * n * cr * cm) * (2 / π * (cj / k)) := by
+        field_simp
+    _ ≤ (1 + 2 * k / n) * (2 / π * (cj / k)) :=
+        mul_le_mul_of_nonneg_right hA (by positivity)
+    _ = _ := by rw [hn]; push_cast; ring
 
 /-! ### The noise stability of majority -/
 
