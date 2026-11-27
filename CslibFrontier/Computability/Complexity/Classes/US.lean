@@ -63,9 +63,11 @@ theorem coNP_subset_US : coNP enc ⊆ US enc := by
   simpa only [Set.mem_compl_iff, not_not, not_lt, Nat.le_zero, Pi.add_apply, Pi.one_apply,
     Nat.add_eq_right] using not_congr (hA a)
 
-/-- **`US ⊆ DP`** [Blass and Gurevich][BlassGurevich1982]: an accepting count is one exactly when
-it is positive, an NP condition, and its number of two-element subsets `C(f a, 2)` is zero, a coNP
-condition (`SharpP.choose_mem`). -/
+/-- **`US ⊆ DP`** [Blass and Gurevich, Section 1, p. 81][BlassGurevich1982], where US is defined by
+one polynomially bounded witness and `DP` (their `DIFᴾ`) as an NP set intersected with a coNP set.
+The proof here is via counts: an accepting count is one exactly when it is positive, an NP
+condition, and its number of two-element subsets `C(f a, 2)` is zero, a coNP condition
+(`SharpP.choose_mem`). -/
 theorem US_subset_DP : US enc ⊆ DP enc := by
   rintro A ⟨f, hf, hA⟩
   refine ⟨{a | 0 < f a}, mem_NP_iff_exists_SharpP.mpr ⟨f, hf, fun _ => Iff.rfl⟩,
