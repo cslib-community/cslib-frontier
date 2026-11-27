@@ -33,6 +33,8 @@ public section
 
 namespace Cslib.Complexity.MIP
 
+open Polynomial (evalCoeffListMod)
+
 open Cslib.Probability Turing.MultiTapeTM QBFProtocol
 
 /-- The coefficient word for an affine line, with tag `111` and the framed unary coordinate
@@ -51,7 +53,7 @@ lists of its evaluation point and direction. -/
   let word := correctionReply π x v
   let reads := List.ofFn fun i : Fin (n + 1) =>
     (proofPoint π p (x + ((i.val + 1 : ℕ) : ZMod p) • v)).val
-  if checkLineReply p n word reads then some (hornerMod p 0 (decodeReply p n word)) else none
+  if checkLineReply p n word reads then some (evalCoeffListMod p 0 (decodeReply p n word)) else none
 
 private def linePoint (p n t : ℕ) (point direction : List ℕ) : List ℕ :=
   (List.range n).map fun j => (point.getD j 0 + t * direction.getD j 0) % p
@@ -61,7 +63,7 @@ private def pointKeys (p n : ℕ) (point direction : List ℕ) : List (List Bool
 
 private def verdict (p n : ℕ) (word : List Bool) (reads : List ℕ) : Option ℕ :=
   if checkLineReply p n word (reads.map fun r => min p (r % p)) then
-    some (hornerMod p 0 (decodeReply p n word))
+    some (evalCoeffListMod p 0 (decodeReply p n word))
   else none
 
 /-- Read the fixed-width coefficient word and all point values for a supplied direction. -/
@@ -135,7 +137,8 @@ private theorem verdict_polyTime {α : Type} {enc : α ↪ List Bool} {p n : α 
       (ComputableInPolyTime.unary_to_binary.comp hpar))
   exact (computableInPolyTime_checkLineReply hp hn hw hnorm).ite
     ((ComputableInPolyTime.optionSome encUnary).comp
-      (computableInPolyTime_hornerMod hp (.const 0) (computableInPolyTime_decodeReply hp hn hw)))
+      (ComputableInPolyTime.evalCoeffListMod_unary hp (.const 0)
+        (computableInPolyTime_decodeReply hp hn hw)))
     (.const none)
 
 /-- The supplied-direction correction verifier is strict polynomial time for unary field
