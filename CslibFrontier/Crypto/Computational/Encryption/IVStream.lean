@@ -189,6 +189,14 @@ theorem isPPTOn_ivModeEncrypt {body : ℕ → List Bool → List Bool → List B
     ComputableInPolyTime.bitsAppend (by dsimp only [EIn]; fun_prop) (hbody.comp hargs)
   exact (ComputableInPolyTime.sampleList (ComputableInPolyTime.fst _ _)).bind_with hpost.isPPTOn
 
+private theorem computableInPolyTime_keystreamArgs :
+    ComputableInPolyTime
+      (fun p : ℕ × List Bool × List Bool × List Bool =>
+        (p.1, p.2.1, p.2.2.1, p.2.2.2.length / p.1))
+      (encPair encUnary (encPair encBits (encPair encBits encBits)))
+      (encPair encUnary (encPair encBits (encPair encBits encUnary))) := by
+  fun_prop
+
 /-- Stream encryption is uniformly strict PPT in `(n, k, msg)` when the keystream generator is
 computable in polynomial time on `(n, k, iv, blocks)`. -/
 theorem isPPTOn_ivStreamEncrypt {keystream : ℕ → List Bool → List Bool → ℕ → List Bool}
@@ -196,16 +204,11 @@ theorem isPPTOn_ivStreamEncrypt {keystream : ℕ → List Bool → List Bool →
       (fun ((n, k, iv, blocks) : ℕ × List Bool × List Bool × ℕ) => keystream n k iv blocks)
       (encPair encUnary (encPair encBits (encPair encBits encUnary))) encBits) :
     IsPPTOn (encKeyedInput encBits) encBits
-      (fun ((n, k, msg) : ℕ × List Bool × List Bool) => ivStreamEncrypt keystream n k msg) := by
-  let EBody := encPair encUnary (encPair encBits (encPair encBits encBits))
-  have hargs : ComputableInPolyTime
-      (fun p : ℕ × List Bool × List Bool × List Bool =>
-        (p.1, p.2.1, p.2.2.1, p.2.2.2.length / p.1))
-      EBody (encPair encUnary (encPair encBits (encPair encBits encUnary))) := by
-    dsimp only [EBody]; fun_prop
-  exact isPPTOn_ivModeEncrypt
+      (fun ((n, k, msg) : ℕ × List Bool × List Bool) => ivStreamEncrypt keystream n k msg) :=
+  isPPTOn_ivModeEncrypt
     (body := fun n k iv msg => List.zipWith xor (keystream n k iv (msg.length / n)) msg)
-    (ComputableInPolyTime.bitsZipWithInput xor (hkeystream.comp hargs) (by fun_prop))
+    (ComputableInPolyTime.bitsZipWithInput xor
+      (hkeystream.comp computableInPolyTime_keystreamArgs) (by fun_prop))
 
 /-- Stream decryption is computable in polynomial time on `(n, k, ct)` when the keystream
 generator is computable in polynomial time on `(n, k, iv, blocks)`. -/
@@ -216,15 +219,10 @@ theorem computableInPolyTime_ivStreamDecrypt
       (encPair encUnary (encPair encBits (encPair encBits encUnary))) encBits) :
     ComputableInPolyTime
       (fun ((n, k, ct) : ℕ × List Bool × List Bool) => ivStreamDecrypt keystream n k ct)
-      (encKeyedInput encBits) (encOption encBits) := by
-  let EBody := encPair encUnary (encPair encBits (encPair encBits encBits))
-  have hargs : ComputableInPolyTime
-      (fun p : ℕ × List Bool × List Bool × List Bool =>
-        (p.1, p.2.1, p.2.2.1, p.2.2.2.length / p.1))
-      EBody (encPair encUnary (encPair encBits (encPair encBits encUnary))) := by
-    dsimp only [EBody]; fun_prop
-  exact computableInPolyTime_ivModeDecrypt
+      (encKeyedInput encBits) (encOption encBits) :=
+  computableInPolyTime_ivModeDecrypt
     (decBody := fun n k iv body => List.zipWith xor (keystream n k iv (body.length / n)) body)
-    (ComputableInPolyTime.bitsZipWithInput xor (hkeystream.comp hargs) (by fun_prop))
+    (ComputableInPolyTime.bitsZipWithInput xor
+      (hkeystream.comp computableInPolyTime_keystreamArgs) (by fun_prop))
 
 end Cslib.Crypto

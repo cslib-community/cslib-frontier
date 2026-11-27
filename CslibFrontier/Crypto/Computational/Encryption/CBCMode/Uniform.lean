@@ -285,6 +285,17 @@ theorem BlockCipher.cbcDecrypt_cbcEncrypt (E : BlockCipher) {n : ℕ} {k : List 
 
 /-! ### Efficiency of the honest algorithms -/
 
+private theorem computableInPolyTime_listRows_width
+    {α : Type} {input : α ↪ List Bool} {width : α → ℕ} {msg : α → List Bool}
+    (hwidth : ComputableInPolyTime width input encUnary)
+    (hmsg : ComputableInPolyTime msg input encBits) :
+    ComputableInPolyTime
+      (fun a => BitString.listRows ((msg a).length / width a) (width a) (msg a))
+      input (encList encBits) :=
+  ComputableInPolyTime.bitsRowsWithInput
+    (ComputableInPolyTime.unary_div' (ComputableInPolyTime.length_bits.comp hmsg) hwidth)
+    hwidth hmsg
+
 private theorem computableInPolyTime_cbcWordBody_param
     {encFamily : ℕ → List Bool → List Bool → List Bool}
     (hpoly : ComputableInPolyTime (fun ((n, k, x) : ℕ × List Bool × List Bool) => encFamily n k x)
@@ -301,12 +312,7 @@ private theorem computableInPolyTime_cbcWordBody_param
   let EPar := encPair encUnary (encPair encUnary encBits)
   let EState := encPair encBits encBits
   let EFold := encPair (encPair EPar EState) encBits
-  have hblocks : ComputableInPolyTime
-      (fun a => BitString.listRows ((msg a).length / width a) (width a) (msg a))
-      input (encList encBits) :=
-    ComputableInPolyTime.bitsRowsWithInput
-      (ComputableInPolyTime.unary_div' (ComputableInPolyTime.length_bits.comp hmsg) hwidth)
-      hwidth hmsg
+  have hblocks := computableInPolyTime_listRows_width hwidth hmsg
   have hstep : ComputableInPolyTime
       (fun p : ((ℕ × ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
         let c := (encFamily p.1.1.1 p.1.1.2.2 (List.zipWith xor p.1.2.1 p.2)).take p.1.1.2.1
@@ -346,12 +352,7 @@ private theorem computableInPolyTime_cbcWordDecBody_param
   let EPar := encPair encUnary (encPair encUnary encBits)
   let EState := encPair encBits encBits
   let EFold := encPair (encPair EPar EState) encBits
-  have hblocks : ComputableInPolyTime
-      (fun a => BitString.listRows ((body a).length / width a) (width a) (body a))
-      input (encList encBits) :=
-    ComputableInPolyTime.bitsRowsWithInput
-      (ComputableInPolyTime.unary_div' (ComputableInPolyTime.length_bits.comp hbody) hwidth)
-      hwidth hbody
+  have hblocks := computableInPolyTime_listRows_width hwidth hbody
   have hstep : ComputableInPolyTime
       (fun p : ((ℕ × ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
         (p.2, p.1.2.2 ++
