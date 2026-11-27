@@ -99,10 +99,10 @@ The key oracles have ties: every total preorder on `α` is the comparison of suc
 equality outside the oracle: for `α = ℕ` the program `fun k tree => pure (tree.toList.lookup k)`
 would be correct and ask nothing. With ties the oracle can answer both `k ≤ x` and `x ≤ k` for
 `k ≠ x`, so whether the query key is present is decided by comparisons, and the lower bound
-`lookup_lowerBound_infinite` holds. That bound also
-needs distinct values, since its `n + 1` distinct answers are the `n` stored values and absence;
-sets (`β = Unit`) are not covered, and the bound for them, which needs a counting argument over
-distinct comparison transcripts rather than distinct results, is open under `#3674`. -/
+`lookup_lowerBound_infinite` holds. That bound also needs distinct values, since its `n + 1`
+distinct answers are the `n` stored values and absence; sets (`β = Unit`) are not covered, and the
+bound for them, which needs a counting argument over distinct comparison transcripts rather than
+distinct results, is open under `#3674`. -/
 structure IsLookup (prog : α → BTree α β → FreeM (LEQuery α) (Option β)) : Prop where
   /-- Under the oracle of a key function that strictly orders `tree.toList`'s keys, `prog k tree`
   is the lookup of `key k` among the entries with mapped keys. -/

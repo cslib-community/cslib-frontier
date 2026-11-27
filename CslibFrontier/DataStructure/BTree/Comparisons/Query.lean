@@ -37,10 +37,9 @@ resulting bounds, `countQueries_lookupQ_le` and its siblings, hold for every ora
 shape of the tree does not depend on the answers; `lookupQ_upperBound` and its siblings restate
 them as `Cslib.Query.UpperBound` over well-formed inputs; `lookupQ_upperBound_size` and
 `rankQ_upperBound_size` bound the cost in the number of entries instead, a bound monotone in
-that number by `monotone_mul_log_size`. The
-minimum and maximum make no comparisons at all. `countQueries_slotM_le` bounds the within-node
-linear search by one comparison per key. The bound is the comparison analysis of B-TREE-SEARCH
-in [CLRS2009], Section 18.2.
+that number by `monotone_mul_log_size`. The minimum and maximum make no comparisons at all.
+`countQueries_slotM_le` bounds the within-node linear search by one comparison per key. The bound
+is the comparison analysis of B-TREE-SEARCH in [CLRS2009], Section 18.2.
 
 ## Main definitions
 
