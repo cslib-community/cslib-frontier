@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Crypto.Primitives.Garbling.Efficient
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Probabilistic.PPT
 import CslibFrontier.Tactic.PolyTime
 
 /-!
@@ -20,14 +19,17 @@ Following Bellare, Hoang and Rogaway [BellareHoangRogaway2012], Section 4.1, Pro
 module certifies that the conventional-circuit side-information readers and explicit inverters of
 `CslibFrontier.Crypto.Primitives.Garbling.CircuitInverters` run in deterministic strict
 polynomial time (`ComputableInPolyTime`), and hence in uniform strict PPT (`IsPPTOn` via
-`ComputableInPolyTime.isPPTOn`).
+`ComputableInPolyTime.isPPTOn`). These certificates are steps toward the uses of the inverters in
+Propositions 2 and 3 and Corollaries 1 and 2 of [BellareHoangRogaway2012] (#5293); they are not
+Proposition 1's running-time claim.
 
 `CslibFrontier.Crypto.Primitives.Garbling.Efficient` already provides the circuit and topology
 encodings (`encValidCircuit`, `encValidTopo`, `encQuery`) and certificates for circuit evaluation
 (`evalCirc_polyTime`) and topology extraction (`phiTopo_polyTime`). This module supplies:
 
-* `encShapeData` and `encValidShape`: unary word encodings for valid circuit shapes `(n, m, q)`
-  (unary encoding of `q` ensures the `q`-gate circuit built by `mSize` has polynomial length);
+* `encShapeData`, `encValidShape` and `encValidShape_apply`: unary word encodings for valid
+  circuit shapes `(n, m, q)` (unary encoding of `q` ensures the `q`-gate circuit built by `mSize`
+  has polynomial length);
 * `phiSize_polyTime` and `phiCirc_polyTime`: polynomial-time extraction of `phiSize` and `phiCirc`;
 * `sizeTopo_polyTime`, `mTopo_polyTime`, `mSize_polyTime`, `mTopoInv_polyTime`, and
   `mSizeInv_polyTime`: strict polynomial-time certificates for the four Proposition 1 inverters
@@ -35,8 +37,9 @@ encodings (`encValidCircuit`, `encValidTopo`, `encQuery`) and certificates for c
 * `Scheme.IsCircuitScheme.inLen_polyTime`, `.outLen_polyTime`, and `.ev_polyTime`: convenience
   certificates for circuit garbling schemes over `ValidCircuit`.
 
-The paper's Proposition 1 states linear running time in the RAM model; here we prove strict
-polynomial time on multi-tape Turing machines (`ComputableInPolyTime`).
+The paper's Proposition 1 states linear running time in the RAM model; here we prove only strict
+polynomial time on multi-tape Turing machines (`ComputableInPolyTime`). The linear-time bound
+remains open (#5293).
 
 ## Main definitions
 
@@ -45,12 +48,13 @@ polynomial time on multi-tape Turing machines (`ComputableInPolyTime`).
 
 ## Main results
 
-* `Cslib.Crypto.Garbling.phiSize_polyTime`, `Cslib.Crypto.Garbling.phiCirc_polyTime`:
-  `phiSize.phi` and `phiCirc.phi` are polynomial-time computable on `encValidCircuit`.
+* `Cslib.Crypto.Garbling.phiSize_polyTime`: `phiSize.phi` is polynomial-time computable on
+  `encValidCircuit`.
 * `Cslib.Crypto.Garbling.mTopo_polyTime`, `Cslib.Crypto.Garbling.mSize_polyTime`,
-  `Cslib.Crypto.Garbling.mTopoInv_polyTime`, `Cslib.Crypto.Garbling.mSizeInv_polyTime`: the four
-  explicit side-information inverters of [BellareHoangRogaway2012], Section 4.1, Proposition 1 run
-  in strict polynomial time.
+  `Cslib.Crypto.Garbling.mTopoInv_polyTime`, `Cslib.Crypto.Garbling.mSizeInv_polyTime`:
+  polynomial-time certificates for the four explicit side-information inverters from the proof of
+  [BellareHoangRogaway2012], Section 4.1, Proposition 1, as steps toward Propositions 2 and 3 and
+  Corollaries 1 and 2 (#5293). Proposition 1's linear-time bound remains open (#5293).
 
 ## References
 
@@ -61,7 +65,7 @@ public section
 
 namespace Cslib.Crypto.Garbling
 
-open Turing.MultiTapeTM Probability
+open Turing.MultiTapeTM
 
 /-! ## Encodings and side-information readers -/
 
@@ -80,6 +84,10 @@ def encValidShape : ValidShape ↪ List Bool :=
     simp only at hn hm hq
     subst hn hm hq
     rfl⟩
+
+/-- Specification of `encValidShape` in terms of `encShapeData`. -/
+theorem encValidShape_apply (s : ValidShape) : encValidShape s = encShapeData (s.n, s.m, s.q) := by
+  rfl
 
 /-- The data `(n, m, q)` of a valid shape is read from its word in polynomial time. -/
 theorem shapeData_polyTime :
@@ -186,8 +194,10 @@ private theorem gateList_ofTopo_mTopoGates (t : Topo) (y : List Bool) :
       List.getElem_zipIdx, Topo.gateList, Nat.zero_add, mTopoGateData, mTopoGates,
       List.getD_eq_getElem?_getD]
 
-/-- The `(Φ_topo, ev)`-inverter `mTopo` of [BellareHoangRogaway2012], Section 4.1, Proposition 1
-runs in strict polynomial time on `(encValidTopo, encBits)`. -/
+/-- Polynomial-time certificate for the `(Φ_topo, ev)`-inverter `mTopo` from the proof of
+[BellareHoangRogaway2012], Section 4.1, Proposition 1: it runs in strict polynomial time on
+`(encValidTopo, encBits)`. A step toward Propositions 2 and 3 and Corollaries 1 and 2 (#5293); not
+Proposition 1's linear-time bound, which remains open (#5293). -/
 theorem mTopo_polyTime :
     ComputableInPolyTime (fun p : ValidTopo × List Bool => mTopo p.1 p.2)
       (encPair encValidTopo encBits) (encQuery ValidCircuit encValidCircuit) := by
@@ -230,15 +240,14 @@ theorem sizeTopo_polyTime :
       (encList (encPair encNat encNat)) :=
     (ComputableInPolyTime.replicate hd.snd'.snd' (.const (1, 2))).of_enc_eq fun s => by
       refine congrArg (encList (encPair encNat encNat)) ?_
-      apply List.ext_getElem
-      · simp [Topo.gateList, sizeTopo]
-      · intro i hi hi'
-        simp [Topo.gateList, sizeTopo]
+      simp [Topo.gateList, sizeTopo]
   exact (hd.fst'.prod (hd.snd'.fst'.prod hgates)).of_enc_eq fun s =>
     encValidTopo_apply ⟨sizeTopo s, sizeTopo_isValid s⟩
 
-/-- The `(Φ_size, ev)`-inverter `mSize` of [BellareHoangRogaway2012], Section 4.1, Proposition 1
-runs in strict polynomial time on `(encValidShape, encBits)`. -/
+/-- Polynomial-time certificate for the `(Φ_size, ev)`-inverter `mSize` from the proof of
+[BellareHoangRogaway2012], Section 4.1, Proposition 1: it runs in strict polynomial time on
+`(encValidShape, encBits)`. A step toward Proposition 2 and Corollary 1 (#5293); not Proposition
+1's linear-time bound, which remains open (#5293). -/
 theorem mSize_polyTime :
     ComputableInPolyTime (fun p : ValidShape × List Bool => mSize p.1 p.2)
       (encPair encValidShape encBits) (encQuery ValidCircuit encValidCircuit) :=
@@ -246,8 +255,10 @@ theorem mSize_polyTime :
     ((sizeTopo_polyTime.comp (ComputableInPolyTime.fst encValidShape encBits)).prod
       (ComputableInPolyTime.snd encValidShape encBits))).of_enc_eq fun _ => rfl
 
-/-- The `Φ_topo`-inverter `mTopoInv` of [BellareHoangRogaway2012], Section 4.1, Proposition 1 runs
-in strict polynomial time on `encValidTopo`. -/
+/-- Polynomial-time certificate for the `Φ_topo`-inverter `mTopoInv` from the proof of
+[BellareHoangRogaway2012], Section 4.1, Proposition 1: it runs in strict polynomial time on
+`encValidTopo`. A step toward Proposition 3 and Corollary 2 (#5293); not Proposition 1's
+linear-time bound, which remains open (#5293). -/
 theorem mTopoInv_polyTime :
     ComputableInPolyTime mTopoInv encValidTopo encValidCircuit := by
   have hm : ComputableInPolyTime (fun t : ValidTopo => t.1.m) encValidTopo encUnary :=
@@ -260,8 +271,10 @@ theorem mTopoInv_polyTime :
     mTopo_polyTime.comp ((ComputableInPolyTime.id').prod hy)
   exact encQuery_fn_polyTime ValidCircuit encValidCircuit hq
 
-/-- The `Φ_size`-inverter `mSizeInv` of [BellareHoangRogaway2012], Section 4.1, Proposition 1 runs
-in strict polynomial time on `encValidShape`. -/
+/-- Polynomial-time certificate for the `Φ_size`-inverter `mSizeInv` from the proof of
+[BellareHoangRogaway2012], Section 4.1, Proposition 1: it runs in strict polynomial time on
+`encValidShape`. A step toward Proposition 3 and Corollary 2 (#5293); not Proposition 1's
+linear-time bound, which remains open (#5293). -/
 theorem mSizeInv_polyTime :
     ComputableInPolyTime mSizeInv encValidShape encValidCircuit :=
   (mTopoInv_polyTime.comp sizeTopo_polyTime).of_enc_eq fun _ => rfl

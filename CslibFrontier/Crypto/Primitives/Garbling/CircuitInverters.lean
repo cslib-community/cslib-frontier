@@ -38,7 +38,8 @@ table returning the corresponding bit of `y`, and pairs this circuit with `0^n`.
 shape `(n, m, q)` and `y`, `mSize` wires every gate to the first two input wires `A(g) = 1`,
 `B(g) = 2` (which is well-formed because `2 ≤ n` and `m ≤ q` for every valid circuit) and applies
 `mTopo`. These are the inverters of the proof of Proposition 1; the proposition says they run in
-linear time, and no running-time bound for them is proved here (#5293).
+linear time. `CslibFrontier.Crypto.Primitives.Garbling.CircuitInvertersPPT` certifies strict
+polynomial time on multi-tape Turing machines; the linear-time bound remains open (#5293).
 
 Combining these inverters with the reductions of
 `CslibFrontier.Crypto.Primitives.Garbling.Foundations` gives, at a fixed security parameter, the
@@ -72,7 +73,9 @@ polynomial time nor that the simulators built from the inverters do. The corolla
 * `Cslib.Crypto.Garbling.phiTopo_isEvInverter`, `Cslib.Crypto.Garbling.phiSize_isEvInverter`,
   `Cslib.Crypto.Garbling.phiTopo_isInverter`, `Cslib.Crypto.Garbling.phiSize_isInverter`,
   `Cslib.Crypto.Garbling.phiCirc_isInverter`: the inverters of the proof of Proposition 1 of
-  [BellareHoangRogaway2012] are correct (their running time is not bounded, #5293).
+  [BellareHoangRogaway2012] are correct. Their strict polynomial running time on multi-tape
+  Turing machines is certified in `CslibFrontier.Crypto.Primitives.Garbling.CircuitInvertersPPT`;
+  Proposition 1's linear-time bound remains open (#5293).
 
 ## Steps toward Corollaries 1 and 2
 
@@ -344,11 +347,13 @@ def mSizeInv (s : ValidShape) : ValidCircuit := (mSize s (List.replicate s.m fal
     phiSize.phi (mSize s y).fn = s := rfl
 
 /-- `mTopoInv` is a `Φ_topo`-inverter (proof of [BellareHoangRogaway2012], Section 4.1,
-Proposition 1; its running time is not bounded here, #5293). -/
+Proposition 1). Strict polynomial running time is certified in `CircuitInvertersPPT`;
+Proposition 1's linear-time bound remains open (#5293). -/
 theorem phiTopo_isInverter : phiTopo.IsInverter mTopoInv := fun _ => rfl
 
 /-- `mSizeInv` is a `Φ_size`-inverter (proof of [BellareHoangRogaway2012], Section 4.1,
-Proposition 1; its running time is not bounded here, #5293). -/
+Proposition 1). Strict polynomial running time is certified in `CircuitInvertersPPT`;
+Proposition 1's linear-time bound remains open (#5293). -/
 theorem phiSize_isInverter : phiSize.IsInverter mSizeInv := fun _ => rfl
 
 /-- The identity is a `Φ_circ`-inverter (proof of [BellareHoangRogaway2012], Section 4.1,
@@ -393,7 +398,8 @@ theorem evalCirc_ofTopo_mTopoGates (t : Topo) (hm : t.m ≤ t.q) (y : List Bool)
   evalCirc_ofTopo_mTopoGates_any t hm y (List.replicate t.n false) hy List.length_replicate
 
 /-- `mTopo` is a `(Φ_topo, ev)`-inverter for every circuit garbling scheme (proof of
-[BellareHoangRogaway2012], Section 4.1, Proposition 1; its running time is not bounded, #5293). -/
+[BellareHoangRogaway2012], Section 4.1, Proposition 1). Strict polynomial running time is certified
+in `CircuitInvertersPPT`; Proposition 1's linear-time bound remains open (#5293). -/
 theorem phiTopo_isEvInverter {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) :
     phiTopo.IsEvInverter G mTopo := by
   intro f x _
@@ -405,7 +411,8 @@ theorem phiTopo_isEvInverter {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) 
       (f.1.length_evalCirc x f.2.m_le_q)
 
 /-- `mSize` is a `(Φ_size, ev)`-inverter for every circuit garbling scheme (proof of
-[BellareHoangRogaway2012], Section 4.1, Proposition 1; its running time is not bounded, #5293). -/
+[BellareHoangRogaway2012], Section 4.1, Proposition 1). Strict polynomial running time is certified
+in `CircuitInvertersPPT`; Proposition 1's linear-time bound remains open (#5293). -/
 theorem phiSize_isEvInverter {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) :
     phiSize.IsEvInverter G mSize := by
   intro f x _

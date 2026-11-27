@@ -4,15 +4,19 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger, Phillipp Schoppmann
 -/
 
+module
+
 import CslibFrontier.Crypto.Primitives.Garbling.CircuitInvertersPPT
 
 /-!
 # Tests for strict-PPT certification of conventional-circuit inverters
 
 Checked instantiations and boundary tests for
-`CslibFrontier.Crypto.Primitives.Garbling.CircuitInvertersPPT`:
+`CslibFrontier.Crypto.Primitives.Garbling.CircuitInvertersPPT`, as a client under module
+encapsulation:
 
-* concrete `ValidCircuit`, `ValidTopo`, and `ValidShape` encodings, separating circuits by
+* concrete `ValidCircuit`, `ValidTopo`, and `ValidShape` encodings (through the public equation
+  `encValidShape_apply`), separating circuits by
   shape/topology while confirming `phiSize` identifies distinct wirings of the same shape;
 * strict polynomial-time (`ComputableInPolyTime`) and `IsPPTOn` certificates for `phiTopo`,
   `phiSize`, `phiCirc`, `evalCirc`, `mTopo`, `mSize`, `mTopoInv`, `mSizeInv`, and a concrete
@@ -20,6 +24,9 @@ Checked instantiations and boundary tests for
 * negative validity and length-mismatch boundary checks showing why `Topo.IsValid` and
   `y.length = t.m` are necessary for `sizeTopo` and `mTopoGates`.
 -/
+
+-- This regression module checks ordinary imports and exports no test fixtures.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.GarblingCircuitInvertersPPT
 
@@ -59,6 +66,12 @@ def validA : ValidCircuit := ⟨sampleCircuitA, sampleCircuitA_isValid⟩
 def validB : ValidCircuit := ⟨sampleCircuitB, sampleCircuitB_isValid⟩
 def validSmall : ValidCircuit := ⟨smallCircuit, smallCircuit_isValid⟩
 
+/-- `encValidShape` writes a shape `(n, m, q)` as three unary blocks: the shape `(3, 1, 2)` of
+`validA` is the word `encShapeData (3, 1, 2)`. -/
+theorem encValidShape_phiSize_validA :
+    encValidShape (phiSize.phi validA) = encShapeData (3, 1, 2) :=
+  encValidShape_apply _
+
 /-- Two circuits with identical shape `(3, 1, 2)` share `encValidShape` after `phiSize.phi`
 even though their topologies and encodings differ, while a `(2, 1, 1)` circuit has a distinct
 encoded shape. -/
@@ -66,7 +79,7 @@ theorem phiSize_same_and_distinct :
     encValidShape (phiSize.phi validA) = encValidShape (phiSize.phi validB) ∧
       encValidTopo (phiTopo.phi validA) ≠ encValidTopo (phiTopo.phi validB) ∧
       encValidShape (phiSize.phi validA) ≠ encValidShape (phiSize.phi validSmall) := by
-  refine ⟨rfl, ?_, ?_⟩
+  refine ⟨by rw [encValidShape_apply, encValidShape_apply]; rfl, ?_, ?_⟩
   · intro h
     have h' : phiTopo.phi validA = phiTopo.phi validB := encValidTopo.injective h
     have heq : (phiTopo.phi validA).1.gateList = (phiTopo.phi validB).1.gateList :=
