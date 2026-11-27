@@ -11,7 +11,9 @@ public import CslibFrontier.Computability.Complexity.Classes.PCP.Oracle
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Words
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Complexity.Classes.SharpP.MetricOracle
+import CslibFrontier.Computability.Complexity.Classes.Oracle.Counting
+import CslibFrontier.Computability.Complexity.Classes.Oracle.QueryBit
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Traverse
 import CslibFrontier.Languages.Probabilistic.Oracle.EvalPure

@@ -21,8 +21,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Replay.Simulation
-public import CslibFrontier.Languages.Probabilistic.Iteration
 
 /-!
 # Metric reductions as oracle computations
@@ -41,10 +39,6 @@ encoded query, reassembles the number, and applies `post`
 oracle and is correct against every oracle language answering the bits of `g`. Hence
 #P-completeness under metric reductions gives #P-completeness in the sense of Arora and Barak
 (`Cslib.Complexity.SharpPMetricComplete.computableInPolyTimeWithOracle`).
-
-## Main definitions
-
-* `Cslib.Complexity.readBitsProgram`: ask for the first bits of a counting function's value.
 
 ## Main results
 
@@ -69,55 +63,6 @@ namespace Cslib.Complexity
 open Probability Turing.MultiTapeTM
 
 variable {α β Y : Type}
-
-/-- One step of reading bits: ask for the next bit and append it. -/
-def readBitStep (req : α → ℕ → List Bool) (a : α) (bits : List Bool) :
-    WordQueryComp Unit (List Bool) :=
-  (fun b => bits ++ [b]) <$> queryBit (req a bits.length)
-
-/-- Ask for the words `req a 0, …, req a (count a - 1)` in turn and list the answers. -/
-def readBitsProgram (req : α → ℕ → List Bool) (count : α → ℕ) (a : α) :
-    WordQueryComp Unit (List Bool) :=
-  OracleComp.iterate (count a) (readBitStep req a) []
-
-open Classical in
-/-- Against an oracle language, `readBitsProgram` lists the memberships of the requested words. -/
-theorem interpret_readBitsProgram (A : Set (List Bool)) (req : α → ℕ → List Bool)
-    (count : α → ℕ) (a : α) :
-    OracleComp.interpret (m := Id) (languageOracle A) (readBitsProgram req count a) =
-      List.ofFn fun i : Fin (count a) => decide (req a i ∈ A) := by
-  rw [readBitsProgram, OracleComp.interpret_id_iterate]
-  generalize count a = n
-  induction n with
-  | zero => rfl
-  | succ n ih =>
-    rw [Function.iterate_succ_apply', ih, readBitStep, List.ofFn_succ_last, List.length_ofFn]
-    simp [OracleComp.interpret_map, interpret_queryBit]; rfl
-
-open ComputableInPolyTime in
-theorem isOraclePPTOn_readBitsProgram {encA : α ↪ List Bool} {req : α → ℕ → List Bool}
-    {count : α → ℕ}
-    (hreq : ComputableInPolyTime (fun p : α × ℕ => req p.1 p.2) (encPair encA encUnary) encBits)
-    (hcount : ComputableInPolyTime count encA encUnary) :
-    IsOraclePPTOn encA encBits
-      (fun a => OracleComp.interpret ProbOracleComp.query (readBitsProgram req count a)) := by
-  have hstep : IsOraclePPTOn (encPair encA encBits) encBits
-      (fun pair => OracleComp.interpret ProbOracleComp.query (readBitStep req pair.1 pair.2)) :=
-    ((isOraclePPTOn_queryBit (hreq.comp ((fst encA encBits).prod
-      (length_bits.comp (snd encA encBits))))).map_with
-      (f := fun (pair : α × List Bool) (b : Bool) => pair.2 ++ [b])
-      (bitsAppend ((fst _ _).snd') (bitsCons (snd _ _) (const [])))).congr
-      fun _ _ _ _ => by simp only [readBitStep, OracleComp.interpret_map, Function.comp_apply]
-  have hit := IsOraclePPTOn.iterateWith_spec (input := encA) (stateEncoding := encBits)
-    (count := count) (initial := fun _ => []) (step := fun a s =>
-      OracleComp.interpret ProbOracleComp.query (readBitStep req a s))
-    hcount (by fun_prop) hstep (fun _ i s => s.length = i) (fun _ => rfl)
-    (fun _ _ _ _ hs _ hnext => by
-      simp only [readBitStep, OracleComp.interpret_map] at hnext
-      obtain ⟨_, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
-      simp [hs])
-    hcount.polyBounded fun _ _ _ hi hs => by simpa [hs] using hi
-  simpa only [readBitsProgram, OracleComp.interpret_iterate] using hit.1
 
 variable {encA : α ↪ List Bool} {encB : β ↪ List Bool} {encY : Y ↪ List Bool}
 

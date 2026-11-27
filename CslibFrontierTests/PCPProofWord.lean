@@ -4,9 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Computability.Complexity.Classes.MIP.SumcheckVerifier.Tableau
 
-/-! A single nonzero proof bit tests bit order, address framing, and zero-width access. -/
+/-! Static proof words and sumcheck transcripts, including zero-width and prefix-dependent reads. -/
 
 namespace CslibFrontierTests.PCPProofWord
 

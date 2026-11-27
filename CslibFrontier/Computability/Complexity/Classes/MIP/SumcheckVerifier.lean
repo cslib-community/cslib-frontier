@@ -19,6 +19,11 @@ import CslibFrontier.Tactic.EncLen
 The verifier receives its independent challenges on a binary tape. Each coefficient row is
 addressed by the external challenges and the preceding entries of the tape.
 
+## Main definitions
+
+* `Cslib.Complexity.MIP.SumcheckProof.verifyRounds` queries the proof on a supplied challenge tape.
+* `Cslib.Complexity.MIP.SumcheckProof.transcript` computes the same state from an explicit bit table.
+
 ## Main results
 
 * `Cslib.Complexity.MIP.SumcheckProof.isOraclePPTOn_verifyRounds` certifies the strict running time.
