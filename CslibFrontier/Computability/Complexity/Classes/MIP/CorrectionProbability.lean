@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.MIP.Correction
 public import CslibFrontier.Languages.Probabilistic.UniformNat.Residue
-import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.Support
 import CslibFrontier.Probability.PMF.Uniform
 
 /-!
@@ -43,8 +43,7 @@ theorem run_correctPoint_of_forall (π : List Bool → Bool) {p n : ℕ} [Fact p
     (Prover.ofProof π).run (correctPoint p n precision (List.ofFn fun j => (x j).val)) () =
       PMF.pure (some y, ()) := by
   simp only [correctPoint, Prover.run_bind, Prover.run_sample, _root_.PMF.bind_map]
-  refine (Probability.PMF.bind_congr_on_support _ _ (fun _ => PMF.pure (some y, ()))
-    fun xs hxs => ?_).trans (_root_.PMF.bind_const _ _)
+  refine Probability.PMF.bind_eq_pure_of_forall_mem_support fun xs hxs => ?_
   obtain ⟨v, rfl⟩ := ProbComp.exists_vector_of_mem_support_replicate_sampleModIndex hxs
   exact (run_correctAt π x v).trans (by rw [hall])
 
@@ -78,7 +77,7 @@ theorem correctPoint_wrong_le (π : List Bool → Bool) {p n : ℕ} [Fact p.Prim
       _root_.PMF.bind_map, Function.comp_apply, read, point, wrong] using hc wrong
   · change ideal.toOuterMeasure wrong ≤ _
     unfold ideal
-    rw [ _root_.PMF.toOuterMeasure_map_apply,
+    rw [_root_.PMF.toOuterMeasure_map_apply,
       Probability.PMF.toOuterMeasure_uniformOfFintype]
     have hcard := card_checkLineReply_wrong_le hp hf (proofPoint π p) x (correctionReply π x)
     have hsub : (univ.filter fun v => correctionAnswer π x v ∈ wrong) ⊆
