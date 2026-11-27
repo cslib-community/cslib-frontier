@@ -24,7 +24,7 @@ logspace machine (`Turing.MultiTapePTM.ConfigurationGraph.compactCoinMatrix`). F
 language, the full radix box and the halting clock are both bounded by `2 ^ R` with `R = O(log n)`.
 Setting
 `s = ⌊√R⌋ + 1` levels (`2 ^ (s * s) ≥ 2 ^ R`), `d = 5 R + 5` bits of rounding precision, and
-`m = 5 d` gives `bitNisanPow (2 * m) s` iterated `s` times with shared Toeplitz-Nisan hash seeds
+`m = 5 d` gives `s` iterations of `bitNisanPow` with shared Toeplitz-Nisan hash seeds
 and `s` fresh rounding shifts totaling `O(log^{3/2} n)` bits
 (`Cslib.Complexity.exists_saksZhouSeeds_of_mem_BPL`).
 
@@ -85,12 +85,13 @@ variable {k : ℕ} {State : Type} [Fintype State] (machine : MultiTapePTM k Bool
 
 open scoped Classical in
 /-- The rounded Saks–Zhou acceptance estimate on the entire compact configuration box.
-The initial vertex is the native start ID, and the terminal vector selects accepting halts. -/
+Each row is traversed in increasing compact-ID order. The initial vertex is the native start ID,
+and the terminal vector selects accepting halts. -/
 noncomputable def saksZhouAcceptEst (c : ℕ) {w : List Bool}
     (hs : machine.toNTM.RunsInSpace w (c * (Nat.log2 w.length + 1))) (m s d : ℕ)
     (p : NisanShiftSeed (2 * m) s s d) : ℝ :=
   let B := radix (radixExponent State c) w.length
-  (snapIter d (fun Q => bitNisanPow (2 * m) s Q p.1)
+  (snapIter d (fun Q => bitNisanPow (Equiv.refl _) (2 * m) s Q p.1)
     (compactCoinMatrix machine ℝ B w) s p.2 *ᵥ
     compactAcceptVec (k := k) (State := State) ℝ B w.length) (compactStart machine c hs)
 
@@ -131,7 +132,7 @@ theorem dens_saksZhouAcceptEst_far_le (c : ℕ) {w : List Bool}
     rw [hcard]
     simp only [P, compactCoinMatrix, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]
     ring
-  have hsz := dens_snapIter_bitNisanPow_far_le d m s s hs hdm
+  have hsz := dens_snapIter_bitNisanPow_far_le (Equiv.refl _) d m s s hs hdm
     (compactCoinMatrix_nonneg B w) hrow hdy hε (by simpa only [Fintype.card_fin] using herr)
   rw [Fintype.card_fin] at hsz
   refine (NNRat.cast_le.2 (Finset.dens_le_dens fun p hp => ?_)).trans hsz
