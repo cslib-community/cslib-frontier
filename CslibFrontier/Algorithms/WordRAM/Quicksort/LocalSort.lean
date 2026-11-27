@@ -7,7 +7,8 @@ Authors: Stefan Langerman
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.WordRAM.Quicksort.StackInvariant
+public import CslibFrontier.Algorithms.WordRAM.Quicksort.LocalIteration
+import CslibFrontier.Algorithms.WordRAM.Quicksort.StackInvariant
 public import CslibFrontier.Languages.Probabilistic.Expect
 
 /-!
@@ -20,6 +21,22 @@ stack are prepared before execution.
 The loop invariant pairs the live frames with the WordRAM sortedness and permutation invariants.
 Each partition pushes the larger child first, so the smaller child is processed first. The prepared
 stack needs two cells per frame and at most `Nat.log 2 n + 1` frames.
+
+## Main definitions
+
+* `localSortInput`: the finite interval containing the list and its initial work stack.
+* `localSortLoop`: the linked quicksort loop.
+* `pointerSortOutput`: read the input payload cells from the pointer-machine heap.
+
+## Main results
+
+* `localSort_exec`: sorting and cost guarantees for the local-address implementation.
+* `pointerSort_exec`: the corresponding guarantees for the compiled pointer machine.
+
+## References
+
+[CLRS2009], §7.3 and Problems 7-2–7-3, for randomized quicksort and equal-key partitioning.
+This implementation reuses the native WordRAM partition invariant and expected-cost recurrence.
 -/
 
 public section
@@ -33,7 +50,7 @@ private abbrev SortState (n : ℕ) := Local.Data localModel n 16 16
 private abbrev sortSet (n : ℕ) := Local.instructionSet localModel n 16 16
 
 /-- A frame at depth `i` from the bottom has length at most `n / 2^i`. -/
-def DepthBound (n : ℕ) (S : List (ℕ × ℕ)) : Prop :=
+private def DepthBound (n : ℕ) (S : List (ℕ × ℕ)) : Prop :=
   ∀ i (hi : i < S.length), (S[i].2 - S[i].1) * 2 ^ i ≤ n
 
 private theorem depth_append {n : ℕ} {S : List (ℕ × ℕ)} {a b : ℕ}
@@ -74,7 +91,7 @@ private theorem input_lt_capacity (n : ℕ) : n + 4 < preparedCapacity n := by
   omega
 
 /-- The prepared stack and the partial sorting invariant. -/
-structure LocalSortInv {n : ℕ} (input : List ℕ) (x : Local.Data localModel n 16 16)
+private structure LocalSortInv {n : ℕ} (input : List ℕ) (x : Local.Data localModel n 16 16)
     (pending : List (ℕ × ℕ)) : Prop where
   stack : StackRealizes x (input.length + 2) pending
   valid : ValidStack input.length pending
@@ -142,12 +159,18 @@ private theorem phase_preserves {n w : ℕ} {input : List ℕ} {S : List (ℕ ×
       let data := memSlice start.val stop.val (partitionView x).mem
       let pivot := x.values ⟨start.val + rank, hrank.trans stop.isLt⟩
       l - start.val = data.countP (· < pivot) ∧ stop.val - r = data.countP (pivot < ·) := by
-  obtain ⟨z, left, right, hinv, hmeet, hleft, hright, hstrict, hsp, hbase, hzero, hrefs,
-    hcounts, rfl⟩ := hphase
+  rw [hphase.output_eq]
+  let z := hphase.partitioned
+  let left := hphase.left
+  let right := hphase.right
+  have hinv := hphase.invariant
+  have hleft : left.val = (partitionView z).regs lt := hphase.left_eq
+  have hright : right.val = (partitionView z).regs gt := hphase.right_eq
+  have hstrict : left.val < right.val := hphase.pivotZone
   let base := input.length + 2
   let measured := countedChildren z start left right stop
   let out := scheduledChildren z start left right stop slot hroom
-  have hspz : z.addr sp = some slot := by simpa [rankedFrame] using hsp
+  have hspz : z.addr sp = some slot := by simpa [rankedFrame] using hphase.stackCursor_eq
   have hspm : measured.addr sp = some slot := by simp [measured, countedChildren, hspz]
   have hinput : input.length + 2 < n := by
     obtain ⟨b, _, hb⟩ := hs.base
@@ -163,7 +186,7 @@ private theorem phase_preserves {n w : ℕ} {input : List ℕ} {S : List (ℕ ×
   have hsz : StackRealizes z base S := by
     have hpop := hs.stack.pop (y := rankedFrame x start stop slot rank) slot hslot
       (by simp [rankedFrame]) rfl rfl
-    refine hpop.frames_congr hsp ?_ (fun a _ _ => congrFun hrefs a)
+    refine hpop.frames_congr hphase.stackCursor_eq ?_ (fun a _ _ => congrFun hphase.refs_eq a)
     intro a ha _
     rw [← partitionView_mem z a, ← partitionView_mem (rankedFrame x start stop slot rank) a]
     exact (hinv.modifies a.val (by
@@ -172,10 +195,8 @@ private theorem phase_preserves {n w : ℕ} {input : List ℕ} {S : List (ℕ ×
       omega))
   have hsm : StackRealizes measured base S :=
     hsz.frames_congr (hspm.trans hspz.symm) (fun _ _ _ => rfl) (fun _ _ _ => rfl)
-  have hout : StackRealizes out base (replaceRange S start.val left.val right.val stop.val) ∧
-      (∀ j : Fin n, j.val < slot.val → out.values j = measured.values j) ∧
-      out.addr stackHi = measured.addr stackHi ∧ out.scalars zero = measured.scalars zero ∧
-      out.scalars one = measured.scalars one := by
+  have hout : StackExtension measured out base
+      (replaceRange S start.val left.val right.val stop.val) slot := by
     by_cases h : left.val - start.val < stop.val - right.val
     · simpa only [out, scheduledChildren, replaceRange, ite_eq_left h, measured] using
         hsm.enqueuePair right stop start left slot hroom hspm
@@ -193,7 +214,7 @@ private theorem phase_preserves {n w : ℕ} {input : List ℕ} {S : List (ℕ ×
     have ha : a.val < slot.val := by dsimp [a]; omega
     change (partitionView out).mem a.val = (partitionView z).mem a.val
     rw [partitionView_mem, partitionView_mem]
-    exact (hout.2.1 a ha).trans (by simp [measured, countedChildren])
+    exact (hout.valuesBelow a ha).trans (by simp [measured, countedChildren])
   have hp := perm_full_of_subslice (n := input.length) ⟨hstart, by omega, hstop⟩
     hinv.perm hinv.modifies
   have hp' : (memSlice 1 (input.length + 1) (partitionView out).mem).Perm input := by
@@ -204,7 +225,7 @@ private theorem phase_preserves {n w : ℕ} {input : List ℕ} {S : List (ℕ ×
   have heq : ∀ i, left.val ≤ i → i < right.val →
       (partitionView z).mem i = x.values ⟨start.val + rank, hrank.trans stop.isLt⟩ := by
     intro i hi hj
-    exact hinv.eq_zone i (hleft ▸ hi) (hmeet.symm ▸ (hright ▸ hj))
+    exact hinv.eq_zone i (hleft ▸ hi) (hphase.cursorsMeet.symm ▸ (hright ▸ hj))
   have hno : NoExternalInversions input.length (partitionView z).mem
       (queueRange (queueRange S start.val left.val) right.val stop.val) := by
     apply noExternalInversions_after_partition hs.valid hs.ordered
@@ -215,18 +236,19 @@ private theorem phase_preserves {n w : ℕ} {input : List ℕ} {S : List (ℕ ×
     · exact heq
     · simpa only [hright] using hinv.gt_zone
   obtain ⟨b, hb, hbval⟩ := hs.base
-  have hbasez : z.addr stackHi = some b := by simpa [rankedFrame, hb] using hbase
+  have hbasez : z.addr stackHi = some b := by simpa [rankedFrame, hb] using hphase.stackBase_eq
   have honez : z.scalars one = 1 := (partitionView_one z).symm.trans hinv.one_eq
-  have hzeroz : z.scalars zero = 0 := by simpa [rankedFrame, hs.zero] using hzero
+  have hzeroz : z.scalars zero = 0 := by simpa [rankedFrame, hs.zero] using hphase.zero_eq
   refine ⟨left.val, right.val, hleft', hstrict, hright',
-    ⟨hout.1, hvalid', depth_replace hs.depth hleft' hstrict hright', ?_, ?_, ?_, hp', ?_⟩, ?_⟩
-  · exact ⟨b, hout.2.2.1.trans (by simp [measured, countedChildren, hbasez]), hbval⟩
-  · exact hout.2.2.2.1.trans (by simp [measured, countedChildren, hzeroz])
-  · exact hout.2.2.2.2.trans (by simp [measured, countedChildren, honez])
+    ⟨hout.stack, hvalid', depth_replace hs.depth hleft' hstrict hright', ?_, ?_, ?_, hp', ?_⟩, ?_⟩
+  · exact ⟨b, hout.stackBase_eq.trans (by simp [measured, countedChildren, hbasez]), hbval⟩
+  · exact (congrFun hout.scalars_eq zero).trans (by simp [measured, countedChildren, hzeroz])
+  · exact (congrFun hout.scalars_eq one).trans (by simp [measured, countedChildren, honez])
   · intro i j hi hij hj hnot
     rw [hcongr i hi (hij.trans hj), hcongr j (hi.trans hij.le) hj]
     exact hno i j hi hij hj fun p hp => hnot p (horder.mem_iff.mpr hp)
-  · rw [hxmem] at hcounts
+  · have hcounts := hphase.childLengths
+    rw [hxmem] at hcounts
     exact hcounts
 
 private noncomputable def pendingRanges {n : ℕ} (input : List ℕ) (x : SortState n) :
@@ -299,7 +321,7 @@ private noncomputable def potential {n : ℕ} (input : List ℕ) (x : SortState 
   ENNReal.ofReal (stackPotential (pendingRanges input x))
 
 private theorem phase_average (u : List ℕ) {m : ℕ} (hlen : u.length = m) (hm : 2 ≤ m)
-    (t : Fin (m - 1 + 1) → ℕ) (ht : ∀ k, t k ≤ 19 * m + 4 * k.val + 35)
+    (t : Fin (m - 1 + 1) → ℕ) (ht : ∀ k, t k ≤ 15 * m + 4 * k.val + 29)
     (base : ℝ) (hb : 0 ≤ base) :
     ProbComp.expect (ProbComp.unifFin (m - 1)) (fun k =>
       (↑(6 + t k) : ℝ≥0∞) + 2 + ENNReal.ofReal (base +
@@ -361,7 +383,7 @@ private theorem iteration_step {n w : ℕ} {input : List ℕ}
     (x : SortState n) (hx : invariant input x) (hactive : ¬(sortSet n).Holds stackEmpty x) :
     ∃ m, Program.ExecRand (I := sortSet n) (Local.evalRand localKernel) localIteration x m ∧
       (∀ z ∈ m.support, invariant input z.1 ∧ mass input z.1 < mass input x ∧
-        z.2 + 2 ≤ 23 * input.length + 39) ∧
+        z.2 + 2 ≤ 19 * input.length + 33) ∧
       ProbComp.expect m (fun z => (z.2 : ℝ≥0∞) + 2 + potential input z.1) ≤
         potential input x := by
   let pending := pendingRanges input x
@@ -386,23 +408,23 @@ private theorem iteration_step {n w : ℕ} {input : List ℕ}
     hlen hnontrivial hxS.zero hxS.one hstopfit
   have hx' : LocalSortInv input x (S ++ [(start.val, stop.val)]) := by
     simpa only [ha, hb] using hxS
-  have hphase (k : Fin (len - 1 + 1)) :=
-    phase_preserves start stop slot k.val (by
-      have hk := k.isLt
-      change k.val < stop.val - start.val - 1 + 1 at hk
-      omega) hroom hx' hslot (hpost k).2
+  have phasePreserves {k : Fin (len - 1 + 1)} (phase : PartitionResult (w := w)
+      (rankedFrame x start stop slot k.val) (y k) start stop slot k.val
+      (by have := k.isLt; omega) hroom) :=
+    phase_preserves start stop slot k.val _ hroom hx' hslot phase
   have hxpending : pendingRanges input x = S ++ [(start.val, stop.val)] := pending_eq hx'.stack
   refine ⟨_, hrun, ?_, ?_⟩
   · intro z hz
     obtain ⟨k, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
-    obtain ⟨l, r, hal, hlr, hrb, hInv, _⟩ := hphase k
+    obtain ⟨phase⟩ := (hpost k).2
+    obtain ⟨l, r, hal, hlr, hrb, hInv, _⟩ := phasePreserves phase
     have hp := pending_eq hInv.stack
     refine ⟨by simpa only [invariant, hp] using hInv, ?_, ?_⟩
     · simpa only [mass, hp, hxpending] using stackMass_children (S := S) hal hlr hrb
     · have hk := k.isLt
       have hc := (hpost k).1
-      change t k ≤ 19 * len + 4 * k.val + 35 at hc
-      change 6 + t k + 2 ≤ 23 * input.length + 39
+      change t k ≤ 15 * len + 4 * k.val + 29 at hc
+      change 6 + t k + 2 ≤ 19 * input.length + 33
       omega
   · let u := memSlice start.val stop.val (partitionView x).mem
     have hu : u.length = len := length_memSlice _ _ _
@@ -418,7 +440,8 @@ private theorem iteration_step {n w : ℕ} {input : List ℕ}
     rw [heq]
     refine (ProbComp.expect_mono ?_).trans hB'
     intro k
-    obtain ⟨l, r, hal, hlr, hrb, hInv, hleft, hright⟩ := hphase k
+    obtain ⟨phase⟩ := (hpost k).2
+    obtain ⟨l, r, hal, hlr, hrb, hInv, hleft, hright⟩ := phasePreserves phase
     have hp := pending_eq hInv.stack
     have hk : k.val < len := by have := k.isLt; omega
     have hget : u[k.val]'(by omega) =
@@ -587,7 +610,7 @@ private theorem sorted_of_empty {n : ℕ} {input : List ℕ} {x : SortState n}
 
 private theorem rootPotential_bound (input : List ℕ) :
     stackPotential (rootRanges input) ≤
-      256 * (input.length : ℝ) * (Nat.log 2 input.length + 1) := by
+      224 * (input.length : ℝ) * (Nat.log 2 input.length + 1) := by
   by_cases hm : 2 ≤ input.length
   · have hlen : (1 : ℝ) ≤ input.length := by exact_mod_cast (by omega : 1 ≤ input.length)
     have hlog : ((harmonic input.length : ℚ) : ℝ) ≤ Nat.log 2 input.length + 1 := by
@@ -595,9 +618,9 @@ private theorem rootPotential_bound (input : List ℕ) :
     simp only [rootRanges, ite_eq_left hm, stackPotential, List.map_singleton,
       List.sum_singleton, Nat.add_sub_cancel_right]
     calc
-      2 * subCost input.length ≤ 128 * ((input.length : ℝ) + 1) * (harmonic input.length : ℝ) := by
+      2 * subCost input.length ≤ 112 * ((input.length : ℝ) + 1) * (harmonic input.length : ℝ) := by
         linarith [subCost_le_formula input.length]
-      _ ≤ 128 * ((input.length : ℝ) + 1) * (Nat.log 2 input.length + 1) := by gcongr
+      _ ≤ 112 * ((input.length : ℝ) + 1) * (Nat.log 2 input.length + 1) := by gcongr
       _ ≤ _ := by
         apply mul_le_mul_of_nonneg_right _ (by positivity)
         linarith
@@ -611,10 +634,10 @@ theorem localSort_exec (input : List ℕ) :
     ∃ m : ProbComp (Local.Data localModel (preparedCapacity n) 16 16 × ℕ),
       Program.ExecRand (I := Local.instructionSet localModel (preparedCapacity n) 16 16)
         (Local.evalRand localKernel) localSortLoop (localSortInput input) m ∧
-      (∀ z ∈ m.support, z.2 ≤ (23 * n + 39) * n + 1 ∧
+      (∀ z ∈ m.support, z.2 ≤ (19 * n + 33) * n + 1 ∧
         memSlice 1 (n + 1) (partitionView z.1).mem = input.mergeSort) ∧
       ProbComp.expect m (fun z => (z.2 : ℝ≥0∞)) ≤
-        ENNReal.ofReal (256 * (n : ℝ) * (Nat.log 2 n + 1)) + 1 := by
+        ((224 * n * (Nat.log 2 n + 1) + 1 : ℕ) : ℝ≥0∞) := by
   intro n
   let x := localSortInput input
   have hinit := localSortInput_inv input
@@ -622,7 +645,7 @@ theorem localSort_exec (input : List ℕ) :
   have hx : invariant input x := by simpa only [invariant, hpending] using hinit
   have hfit : Fits (logWidth 3 n) (n + 1) :=
     (fits_three_mul_add_three (w := logWidth 3 n) (n := n) le_rfl).of_le (by omega)
-  obtain ⟨m, hrun, hs, he⟩ := loop_with_bound input (23 * n + 39)
+  obtain ⟨m, hrun, hs, he⟩ := loop_with_bound input (19 * n + 33)
     (fun s hs ht => iteration_step (by rfl) hfit s hs ht) x hx
   have hmass : mass input x ≤ n := by
     rw [mass, hpending]
@@ -632,7 +655,9 @@ theorem localSort_exec (input : List ℕ) :
     obtain ⟨hi, hempty, htime⟩ := hs z hz
     have hstack : pendingRanges input z.1 = [] := (stack_empty_iff hi).1 hempty
     exact ⟨htime.trans (by gcongr), sorted_of_empty (hstack ▸ hi)⟩
-  · refine he.trans (add_le_add ?_ le_rfl)
+  · rw [Nat.cast_add, Nat.cast_one, ← ENNReal.ofReal_natCast]
+    push_cast
+    refine he.trans (add_le_add ?_ le_rfl)
     rw [potential, hpending]
     exact ENNReal.ofReal_le_ofReal (rootPotential_bound input)
 
@@ -651,9 +676,15 @@ private theorem pointerSortOutput_encode {n : ℕ} (x : SortState (preparedCapac
   rw [List.getElem?_eq_getElem hh]
   exact (Local.encode_heap_getElem_data x a hh).trans (partitionView_mem x a).symm
 
-/-- The compiled randomized pointer-machine quicksort sorts the payloads on the prepared
-linked interval. Its structured execution witnesses the expected instruction bound, and the
-assembled program reaches the halt within the stated pathwise budget. -/
+/-- Compiled three-way quicksort sorts the payloads in place and reaches the halt within the
+stated pathwise budget. The initial state `Local.encode (localSortInput input)` has
+`preparedCapacity n = n + 2 * (Nat.log 2 n + 1) + 6` doubly linked records. These include two
+records for each of the at most `Nat.log 2 n + 1` stack frames and six boundary and spare records.
+The input and, for a nontrivial range, the root frame `(1, n + 1)` are prepared before execution.
+
+The scalar model uses unbounded natural numbers and charges one instruction per bounded uniform
+draw. The instruction count `z.2` in the encoded execution counts flat steps up to the halt label
+`c.size`. -/
 theorem pointerSort_exec (input : List ℕ) :
     let n := input.length
     let x := Local.encode (localSortInput input)
@@ -662,13 +693,13 @@ theorem pointerSort_exec (input : List ℕ) :
     ∃ m : ProbComp (Local.Data localModel (preparedCapacity n) 16 16 × ℕ),
       Program.ExecRand (I := Cslib.PointerMachine.instructionSet localModel (Local.layout 16 16))
         (Local.evalPointerRand localKernel) c x ((fun z => (Local.encode z.1, z.2)) <$> m) ∧
-      R.run c.program ((23 * n + 39) * n + 1) (R.running 0 x) =
+      R.run c.program ((19 * n + 33) * n + 1) (R.running 0 x) =
         ((fun z => R.running c.size (Local.encode z.1)) <$> m) ∧
-      (∀ cfg ∈ (R.run c.program ((23 * n + 39) * n + 1) (R.running 0 x)).support,
+      (∀ cfg ∈ (R.run c.program ((19 * n + 33) * n + 1) (R.running 0 x)).support,
         ∃ y, cfg = R.running c.size y ∧ pointerSortOutput n y = input.mergeSort ∧
           y.heap.length = preparedCapacity n) ∧
       ProbComp.expect ((fun z => (Local.encode z.1, z.2)) <$> m) (fun z => (z.2 : ℝ≥0∞)) ≤
-        ENNReal.ofReal (256 * (n : ℝ) * (Nat.log 2 n + 1)) + 1 := by
+        ((224 * n * (Nat.log 2 n + 1) + 1 : ℕ) : ℝ≥0∞) := by
   intro n x c R
   obtain ⟨m, h, hs, he⟩ := localSort_exec input
   have hflat := Local.runRand_compile (M := localModel) localKernel h (fun z hz => (hs z hz).1)

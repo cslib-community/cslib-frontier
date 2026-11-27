@@ -22,10 +22,8 @@ and the upper cursor meet. Payload swaps use only the held addresses.
 
 ## Main results
 
-* `localPartition_exec`: partition invariant and charged cost for the local-address loop.
-* `pointerPartition_exec`: the same guarantee after compiling to pointer-machine code.
-* `localPartitionFromPivot_exec`: initialization and loop from a held range and a pivot key.
-* `partitionAtRank_exec`: countdown pivot selection and partition at a supplied rank.
+* `partitionAndEnqueue_exec`: select the pivot by rank, partition the range, measure each strict
+  child once, and push the smaller child last.
 -/
 
 public section
@@ -51,7 +49,7 @@ private def localPartStep : PartCode :=
         (.op (.move .next cur cur))))
 
 /-- Structured local-address three-way partition loop. -/
-def localPartition : Program.Code (Local.Op localModel 16 16)
+private def localPartition : Program.Code (Local.Op localModel 16 16)
     (Local.Test localModel 16 16) :=
   .loopUntil (.addrEq cur gt) localPartStep
 
@@ -298,7 +296,7 @@ private theorem cursors_meet {n : ℕ} (x : LocalData n)
 /-- The local-address three-way partition preserves the WordRAM partition invariant, and finishes
 when the scan and upper cursors meet. The exclusive endpoint has an allocated record, so all
 three cursors remain nonnull throughout the scan. -/
-theorem localPartition_exec {n w vlo vhi vpiv : ℕ}
+private theorem localPartition_exec {n w vlo vhi vpiv : ℕ}
     (x : Local.Data localModel n 16 16)
     (hI : PartInv w vlo vhi vpiv (partitionView x).mem (partitionView x))
     (hcur : (partitionView x).regs cur = vlo) (hgt : (partitionView x).regs gt = vhi)
@@ -330,25 +328,11 @@ theorem localPartition_exec {n w vlo vhi vpiv : ℕ}
     simpa [remaining, hcur, hgt, Nat.mul_comm] using ht
   exact ⟨y, ⟨t, hcost, he⟩, hy, (meet y hy).1 hend⟩
 
-/-- The pointer-machine implementation inherits the partition invariant and linear cost. -/
-theorem pointerPartition_exec {n w vlo vhi vpiv : ℕ}
-    (x : Local.Data localModel n 16 16)
-    (hI : PartInv w vlo vhi vpiv (partitionView x).mem (partitionView x))
-    (hcur : (partitionView x).regs cur = vlo) (hgt : (partitionView x).regs gt = vhi)
-    (hbound : vhi < n) :
-    ∃ y : Local.Data localModel n 16 16,
-      Cslib.PointerMachine.ExecWithin (Local.compile localPartition) (Local.encode x)
-        (Local.encode y) (11 * (vhi - vlo) + 1) ∧
-      PartInv w vlo vhi vpiv (partitionView x).mem (partitionView y) ∧
-      (partitionView y).regs cur = (partitionView y).regs gt := by
-  obtain ⟨y, ⟨t, ht, he⟩, hy, hend⟩ := localPartition_exec x hI hcur hgt hbound
-  exact ⟨y, ⟨t, ht, Local.exec_compile he⟩, hy, hend⟩
-
 private def initPartition : PartCode :=
   .seq (.op (.copyAddr lt lo)) (.seq (.op (.copyAddr cur lo)) (.op (.copyAddr gt hi)))
 
 /-- Set up the three cursors from the held endpoints, then partition around the key in `piv`. -/
-def localPartitionFromPivot : Program.Code (Local.Op localModel 16 16)
+private def localPartitionFromPivot : Program.Code (Local.Op localModel 16 16)
     (Local.Test localModel 16 16) :=
   .seq initPartition localPartition
 
@@ -375,7 +359,7 @@ private theorem partition_frame {n t : ℕ} {x y : LocalData n}
       split <;> simpa using hab
 
 /-- A held range and pivot key suffice to initialize and run the verified partition. -/
-theorem localPartitionFromPivot_exec {n w : ℕ}
+private theorem localPartitionFromPivot_exec {n w : ℕ}
     (x : Local.Data localModel n 16 16)
     (start stop : Fin n) (hlo : x.addr lo = some start) (hhi : x.addr hi = some stop)
     (horder : start.val ≤ stop.val) (hfit : Fits w stop.val) (hone : x.scalars one = 1) :
@@ -414,14 +398,14 @@ theorem localPartitionFromPivot_exec {n w : ℕ}
   exact (Program.ExecWithin.seq ⟨3, le_rfl, hinit⟩ hy).mono (by omega)
 
 /-- Read the pivot at the rank in `tmp`, then partition the held range. -/
-def partitionAtRank : Program.Code (Local.Op localModel 16 16)
+private def partitionAtRank : Program.Code (Local.Op localModel 16 16)
     (Local.Test localModel 16 16) :=
   .seq (.op (.copyAddr cur lo))
     (.seq (pivotWalk cur tmp zero one piv) localPartitionFromPivot)
 
 /-- The countdown and partition share the existing WordRAM invariant. A supplied rank strictly
 inside the range costs at most `11 * length + 4 * rank + 8` instructions. -/
-theorem partitionAtRank_exec {n w : ℕ} (x : Local.Data localModel n 16 16)
+private theorem partitionAtRank_exec {n w : ℕ} (x : Local.Data localModel n 16 16)
     (start stop : Fin n) (rank : ℕ)
     (hlo : x.addr lo = some start) (hhi : x.addr hi = some stop)
     (hoffset : x.scalars tmp = rank) (hzero : x.scalars zero = 0) (hone : x.scalars one = 1)
@@ -469,8 +453,8 @@ private def countChildren : PartCode :=
 
 private def pushLargerFirst : PartCode :=
   .branch (.scalar () val tmp)
-    (.seq (localEnqueue gt hi) (localEnqueue lo lt))
-    (.seq (localEnqueue lo lt) (localEnqueue gt hi))
+    (.seq (localPushIf gt hi tmp) (localPushIf lo lt val))
+    (.seq (localPushIf lo lt val) (localPushIf gt hi tmp))
 
 /-- Partition at the supplied pivot rank and put the smaller nontrivial child on top. -/
 def partitionAndEnqueue : Program.Code (Local.Op localModel 16 16)
@@ -480,8 +464,8 @@ def partitionAndEnqueue : Program.Code (Local.Op localModel 16 16)
 /-- Once given the sampled rank, the entire partition and scheduling phase is deterministic. -/
 theorem partitionAndEnqueue_noDraw : NoDraw partitionAndEnqueue := by
   have hp := pivotWalk_noDraw cur tmp zero one piv
-  have hl := localEnqueue_noDraw lo lt
-  have hr := localEnqueue_noDraw gt hi
+  have hl := localPushIf_noDraw lo lt val
+  have hr := localPushIf_noDraw gt hi tmp
   have hlenl := localRangeLength_noDraw lo lt
   have hlenr := localRangeLength_noDraw gt hi
   intro dst a b hm
@@ -544,49 +528,68 @@ private theorem schedule_exec {n : ℕ} (x : LocalData n) (start left right stop
     (hslot : x.addr sp = some slot) (hroom : slot.val + 4 < n) :
     Program.ExecWithin (Local.instructionSet localModel n 16 16)
       (.seq countChildren pushLargerFirst) x (scheduledChildren x start left right stop slot hroom)
-        (8 * (left.val - start.val) + 8 * (stop.val - right.val) + 27) := by
+        (4 * (left.val - start.val) + 4 * (stop.val - right.val) + 21) := by
   let z := countedChildren x start left right stop
   have he := countChildren_exec x start left right stop hlo hlt hgt hhi h₁ h₂ hzero hone
   have hlo' : z.addr lo = some start := by simp [z, countedChildren, hlo]
   have hlt' : z.addr lt = some left := by simp [z, countedChildren, hlt]
   have hgt' : z.addr gt = some right := by simp [z, countedChildren, hgt]
   have hhi' : z.addr hi = some stop := by simp [z, countedChildren, hhi]
-  have hzero' : z.scalars zero = 0 := by simp [z, countedChildren, hzero]
   have hone' : z.scalars one = 1 := by simp [z, countedChildren, hone]
   have hsp' : z.addr sp = some slot := by simp [z, countedChildren, hslot]
   have htest : (Local.instructionSet localModel n 16 16).Holds (.scalar () val tmp) z ↔
       left.val - start.val < stop.val - right.val := by simp [z, countedChildren]
+  have hlenLeft : z.scalars val = left.val - start.val := by simp [z, countedChildren]
+  have hlenRight : z.scalars tmp = stop.val - right.val := by simp [z, countedChildren]
   by_cases h : left.val - start.val < stop.val - right.val
-  · have hp := localEnqueuePair_exec gt hi lo lt (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) z right stop start left slot
-      hgt' hhi' hlo' hlt' h₂ h₁ hzero' hone' hsp' hroom
+  · have hp := localPushPair_exec gt hi tmp lo lt val (by decide) (by decide) (by decide)
+      z right stop start left slot hgt' hhi' hlo' hlt' hlenRight hlenLeft hone' hsp' hroom
     simp only [scheduledChildren, ite_eq_left h]
     exact (Program.ExecWithin.seq he (Program.ExecWithin.branch_pos (htest.2 h) hp)).mono
       (by omega)
-  · have hp := localEnqueuePair_exec lo lt gt hi (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) z start left right stop slot
-      hlo' hlt' hgt' hhi' h₁ h₂ hzero' hone' hsp' hroom
+  · have hp := localPushPair_exec lo lt val gt hi tmp (by decide) (by decide) (by decide)
+      z start left right stop slot hlo' hlt' hgt' hhi' hlenLeft hlenRight hone' hsp' hroom
     simp only [scheduledChildren, ite_eq_right h]
     exact (Program.ExecWithin.seq he (Program.ExecWithin.branch_neg (fun ht => h (htest.1 ht))
       hp)).mono (by omega)
 
-/-- The result of one ranked phase, including the exact sizes and stack entries of both children. -/
-@[expose] def PartitionResult {n w : ℕ} (x y : Local.Data localModel n 16 16)
+/-- The intermediate partition and final scheduling state of one ranked phase. -/
+structure PartitionResult {n w : ℕ} (x y : Local.Data localModel n 16 16)
     (start stop slot : Fin n) (rank : ℕ) (hrank : start.val + rank < stop.val)
-    (hroom : slot.val + 4 < n) : Prop :=
-  ∃ (z : Local.Data localModel n 16 16) (left right : Fin n),
-    PartInv w start.val stop.val (x.values ⟨start.val + rank, hrank.trans stop.isLt⟩)
-      (partitionView x).mem (partitionView z) ∧
-    (partitionView z).regs cur = (partitionView z).regs gt ∧
-    left.val = (partitionView z).regs lt ∧ right.val = (partitionView z).regs gt ∧
-    left.val < right.val ∧
-    z.addr sp = x.addr sp ∧ z.addr stackHi = x.addr stackHi ∧
-    z.scalars zero = x.scalars zero ∧ z.refs = x.refs ∧
-    (let input := memSlice start.val stop.val (partitionView x).mem
-     let key := x.values ⟨start.val + rank, hrank.trans stop.isLt⟩
-     left.val - start.val = input.countP (· < key) ∧
-       stop.val - right.val = input.countP (key < ·)) ∧
-    y = scheduledChildren z start left right stop slot hroom
+    (hroom : slot.val + 4 < n) where
+  /-- State after partitioning, before measuring or pushing either child. -/
+  partitioned : Local.Data localModel n 16 16
+  /-- Exclusive endpoint of the left child. -/
+  left : Fin n
+  /-- First cell of the right child. -/
+  right : Fin n
+  /-- The numeric partition invariant, evaluated on the linked state. -/
+  invariant : PartInv w start.val stop.val (x.values ⟨start.val + rank, hrank.trans stop.isLt⟩)
+    (partitionView x).mem (partitionView partitioned)
+  /-- The scan has reached the right child. -/
+  cursorsMeet : (partitionView partitioned).regs cur = (partitionView partitioned).regs gt
+  /-- The left endpoint agrees with the numeric view. -/
+  left_eq : left.val = (partitionView partitioned).regs lt
+  /-- The right endpoint agrees with the numeric view. -/
+  right_eq : right.val = (partitionView partitioned).regs gt
+  /-- The pivot zone is nonempty. -/
+  pivotZone : left.val < right.val
+  /-- Partitioning preserves the stack cursor. -/
+  stackCursor_eq : partitioned.addr sp = x.addr sp
+  /-- Partitioning preserves the stack base reference. -/
+  stackBase_eq : partitioned.addr stackHi = x.addr stackHi
+  /-- Partitioning preserves the zero constant. -/
+  zero_eq : partitioned.scalars zero = x.scalars zero
+  /-- Partitioning leaves the references stored in memory unchanged. -/
+  refs_eq : partitioned.refs = x.refs
+  /-- The two strict child lengths count keys below and above the pivot. -/
+  childLengths :
+    let input := memSlice start.val stop.val (partitionView x).mem
+    let key := x.values ⟨start.val + rank, hrank.trans stop.isLt⟩
+    left.val - start.val = input.countP (· < key) ∧
+      stop.val - right.val = input.countP (key < ·)
+  /-- The phase finishes by measuring and enqueuing the children. -/
+  output_eq : y = scheduledChildren partitioned start left right stop slot hroom
 
 /-- A full partition and scheduling phase for a supplied rank. The intermediate state satisfies
 the numeric partition invariant, and the final state is obtained by recording the strict children
@@ -597,8 +600,8 @@ theorem partitionAndEnqueue_exec {n w : ℕ} (x : Local.Data localModel n 16 16)
     (hoffset : x.scalars tmp = rank) (hzero : x.scalars zero = 0) (hone : x.scalars one = 1)
     (hrank : start.val + rank < stop.val) (hfit : Fits w stop.val) (hroom : slot.val + 4 < n) :
     ∃ y, Program.ExecWithin (Local.instructionSet localModel n 16 16)
-        partitionAndEnqueue x y (19 * (stop.val - start.val) + 4 * rank + 35) ∧
-      PartitionResult (w := w) x y start stop slot rank hrank hroom := by
+        partitionAndEnqueue x y (15 * (stop.val - start.val) + 4 * rank + 29) ∧
+      Nonempty (PartitionResult (w := w) x y start stop slot rank hrank hroom) := by
   obtain ⟨z, hz, hinv, hmeet, hsp, hbase, hzero', hrefs⟩ :=
     partitionAtRank_exec x start stop rank hlo hhi hoffset hzero hone hrank hfit
   let left : Fin n := ⟨(partitionView z).regs lt,
@@ -626,7 +629,20 @@ theorem partitionAndEnqueue_exec {n w : ℕ} (x : Local.Data localModel n 16 16)
   have hupper : right.val ≤ stop.val := hinv.gt_le_hi
   refine ⟨scheduledChildren z start left right stop slot hroom, ?_, ?_⟩
   · exact (Program.ExecWithin.seq hz hqueued).mono (by omega)
-  · exact ⟨z, left, right, hinv, hmeet, rfl, rfl, hstrict, hsp, hbase, hzero', hrefs,
-      ⟨hleftCount, hrightCount⟩, rfl⟩
+  · exact ⟨{
+      partitioned := z
+      left := left
+      right := right
+      invariant := hinv
+      cursorsMeet := hmeet
+      left_eq := rfl
+      right_eq := rfl
+      pivotZone := hstrict
+      stackCursor_eq := hsp
+      stackBase_eq := hbase
+      zero_eq := hzero'
+      refs_eq := hrefs
+      childLengths := ⟨hleftCount, hrightCount⟩
+      output_eq := rfl }⟩
 
 end Cslib.Algorithms.WordRAM.Quicksort

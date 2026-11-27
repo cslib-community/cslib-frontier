@@ -24,7 +24,7 @@ public section
 namespace Cslib.Algorithms.WordRAM.Quicksort
 
 open Cslib.WordRAM
-open Local (compile encode instructionSet)
+open Local (instructionSet)
 
 private abbrev pivotModel := localModel
 
@@ -118,18 +118,5 @@ theorem pivotWalk_exec {n p d : ℕ} (cursor : Fin p) (offset zero one dst : Fin
       (.op (.loadData dst cursor)) z y 1 := .op rfl
   have hrun := Program.ExecWithin.seq hz ⟨1, le_rfl, hread⟩
   simpa [pivotWalk, y, z, Local.Op.eval, Nat.add_assoc] using hrun
-
-/-- A compiled countdown walk reads the key at the sampled rank without address arithmetic. -/
-theorem pointerPivot_exec {n p d : ℕ} (cursor : Fin p) (offset zero one dst : Fin d)
-    (hzoff : zero ≠ offset) (hooff : one ≠ offset)
-    (x : Local.Data localModel n p d)
-    (start : Fin n) (rank : ℕ) (haddr : x.addr cursor = some start)
-    (hoffset : x.scalars offset = rank)
-    (hzero : x.scalars zero = 0) (hone : x.scalars one = 1) (hfit : start.val + rank < n) :
-    ∃ y, Cslib.PointerMachine.ExecWithin (compile (pivotWalk cursor offset zero one dst))
-      (encode x) y (4 * rank + 3) ∧ y.data dst = x.values ⟨start.val + rank, hfit⟩ := by
-  obtain ⟨t, ht, h⟩ :=
-    pivotWalk_exec cursor offset zero one dst hzoff hooff x start rank haddr hoffset hzero hone hfit
-  exact ⟨_, ⟨t, ht, Local.exec_compile h⟩, by simp⟩
 
 end Cslib.Algorithms.WordRAM.Quicksort

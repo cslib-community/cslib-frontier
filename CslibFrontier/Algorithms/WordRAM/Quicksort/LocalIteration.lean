@@ -53,7 +53,7 @@ private theorem drawRank_exec {n : ℕ} (x : IterState n) (bound : ℕ)
       some ((fun k : Fin (x.scalars tmp - 1 + 1) =>
         { x with scalars := Function.update x.scalars tmp k.val }) <$>
         ProbComp.unifFin (x.scalars tmp - 1)) := by
-    simp [Local.evalRand, localKernel, Functor.map_map]
+    simp [Local.evalRand, localKernel_draw, Functor.map_map]
   simpa only [drawRank, Functor.map_map] using Program.ExecRand.op (I := iterSet n) hop
 
 private theorem rank_lt_stop {start stop : ℕ} (h : start + 2 ≤ stop)
@@ -76,9 +76,9 @@ theorem localIteration_exec {n w : ℕ} (x : Local.Data localModel n 16 16)
       Program.ExecRand (I := Local.instructionSet localModel n 16 16) (Local.evalRand localKernel)
         localIteration x ((fun k => (y k, 6 + t k)) <$> ProbComp.unifFin (len - 1)) ∧
       ∀ k : Fin (len - 1 + 1),
-        t k ≤ 19 * len + 4 * k.val + 35 ∧
-        PartitionResult (w := w) (rankedFrame x start stop slot k.val) (y k) start stop slot
-          k.val (by have := k.isLt; omega) hroom := by
+        t k ≤ 15 * len + 4 * k.val + 29 ∧
+        Nonempty (PartitionResult (w := w) (rankedFrame x start stop slot k.val) (y k)
+          start stop slot k.val (by have := k.isLt; omega) hroom) := by
   classical
   intro len
   let popped := rankedFrame x start stop slot len
@@ -90,9 +90,9 @@ theorem localIteration_exec {n w : ℕ} (x : Local.Data localModel n 16 16)
   have hphase (k : Fin (len - 1 + 1)) :
       ∃ y t, Program.Exec (iterSet n) partitionAndEnqueue
           (rankedFrame x start stop slot k.val) y t ∧
-        t ≤ 19 * len + 4 * k.val + 35 ∧
-        PartitionResult (w := w) (rankedFrame x start stop slot k.val) y start stop slot
-          k.val (rank_lt_stop hnontrivial k) hroom := by
+        t ≤ 15 * len + 4 * k.val + 29 ∧
+        Nonempty (PartitionResult (w := w) (rankedFrame x start stop slot k.val) y start stop slot
+          k.val (rank_lt_stop hnontrivial k) hroom) := by
     have hk := rank_lt_stop hnontrivial k
     obtain ⟨y, ⟨t, ht, he⟩, hy⟩ := partitionAndEnqueue_exec
       (rankedFrame x start stop slot k.val) start stop slot k.val
@@ -132,59 +132,25 @@ theorem localIteration_exec {n w : ℕ} (x : Local.Data localModel n 16 16)
   simpa only [localIteration, pure_bind, bind_map_left, bind_pure_comp, Functor.map_map,
     ← Nat.add_assoc] using hrun
 
-/-- The assembled pointer-machine iteration reaches its final halt within a linear budget,
-with the same distribution of child stacks as the local-address program. -/
-theorem pointerIteration_exec {n w : ℕ} (x : Local.Data localModel n 16 16)
-    (start stop slot : Fin n) (hroom : slot.val + 4 < n)
-    (hsp : x.addr sp = some ⟨slot.val + 2, by omega⟩)
-    (hfirst : x.refs slot = some start) (hlast : x.refs ⟨slot.val + 1, by omega⟩ = some stop)
-    (hlen : x.values slot = stop.val - start.val) (hnontrivial : start.val + 2 ≤ stop.val)
-    (hzero : x.scalars zero = 0) (hone : x.scalars one = 1) (hfit : Fits w stop.val) :
-    let len := stop.val - start.val
-    let target := Local.randomizedFlatMachine (M := localModel) (p := 16) (d := 16) localKernel
-    let code := Local.compile localIteration
-    ∃ y : Fin (len - 1 + 1) → Local.Data localModel n 16 16,
-      target.run code.program (23 * len + 37) (target.running 0 (Local.encode x)) =
-        ((fun k => target.running code.size (Local.encode (y k))) <$>
-          ProbComp.unifFin (len - 1)) ∧
-      ∀ k : Fin (len - 1 + 1),
-        PartitionResult (w := w) (rankedFrame x start stop slot k.val) (y k) start stop slot
-          k.val (by have := k.isLt; omega) hroom := by
-  intro len target code
-  obtain ⟨y, t, hrun, hpost⟩ :=
-    localIteration_exec x start stop slot hroom hsp hfirst hlast hlen hnontrivial hzero hone hfit
-  have hbound : ∀ z ∈
-      (((fun k : Fin (len - 1 + 1) => (y k, 6 + t k)) <$> ProbComp.unifFin (len - 1))).support,
-        z.2 ≤ 23 * len + 37 := by
-    intro z hz
-    obtain ⟨k, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
-    have htime := (hpost k).1
-    have hk := k.isLt
-    change t k ≤ 19 * len + 4 * k.val + 35 at htime
-    change 6 + t k ≤ 23 * len + 37
-    omega
-  refine ⟨y, ?_, fun k => (hpost k).2⟩
-  simpa only [Functor.map_map] using Local.runRand_compile localKernel hrun hbound
-
 /-- The potential charge for one iteration, including its enclosing loop test and jump.
-Doubling the existing quicksort potential pays for the extra scans. The cost function is the
-partition-and-enqueue instruction count for each rank, after the six pop and draw instructions. -/
+Doubling the existing quicksort potential pays for the pivot walk and child measurements.
+The cost function gives the partition-and-enqueue count after the six pop and draw instructions. -/
 theorem localIteration_average_le (u : List ℕ) (hm : 2 ≤ u.length) (t : Fin u.length → ℕ)
-    (ht : ∀ k, t k ≤ 19 * u.length + 4 * k.val + 35) :
+    (ht : ∀ k, t k ≤ 15 * u.length + 4 * k.val + 29) :
     (∑ k : Fin u.length, (((8 + t k : ℕ) : ℝ) +
       2 * (subCost (u.countP (· < u[k.val])) + subCost (u.countP (u[k.val] < ·))))) /
         (u.length : ℝ) ≤ 2 * subCost u.length := by
   have hden : (0 : ℝ) ≤ u.length := by positivity
   have hsum : (∑ k : Fin u.length, (((8 + t k : ℕ) : ℝ) +
       2 * (subCost (u.countP (· < u[k.val])) + subCost (u.countP (u[k.val] < ·))))) ≤
-      ∑ k : Fin u.length, 2 * (32 * (u.length : ℝ) + 0 +
+      ∑ k : Fin u.length, 2 * (28 * (u.length : ℝ) + 0 +
         (subCost (u.countP (· < u[k.val])) + subCost (u.countP (u[k.val] < ·)))) := by
     refine Finset.sum_le_sum fun k _ => ?_
-    have htime : 8 + t k ≤ 64 * u.length := by
+    have htime : 8 + t k ≤ 56 * u.length := by
       have := ht k
       have := k.isLt
       omega
-    have htime' : ((8 + t k : ℕ) : ℝ) ≤ 64 * (u.length : ℝ) := by exact_mod_cast htime
+    have htime' : ((8 + t k : ℕ) : ℝ) ≤ 56 * (u.length : ℝ) := by exact_mod_cast htime
     linarith
   have havg := div_le_div_of_nonneg_right hsum hden
   rw [← Finset.mul_sum, mul_div_assoc] at havg

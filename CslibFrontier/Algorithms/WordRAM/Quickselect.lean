@@ -266,11 +266,7 @@ def narrowRange : Code .standard 16 := ram[
 
 /-- Partition `[lo, hi)` around the pivot at `lo + tmp` and narrow `[lo, hi)` around `target`. -/
 def partitionAndNarrow : Code .standard 16 := ram[
-  tmp ← lo + tmp;
-  piv ← *tmp;
-  lt ← lo;
-  cur ← lo;
-  gt ← hi;
+  ⟪Quicksort.partInit⟫;
   while cur < gt do [ ⟪Quicksort.partStep⟫ ];
   ⟪narrowRange⟫ ]
 
@@ -468,7 +464,7 @@ private theorem partitionAndNarrow_spec {w vbase n k : ℕ} {s₀ : List ℕ} {m
   have hlo : x.regs Quicksort.Reg.lo = vlo := rfl
   have hhi : x.regs Quicksort.Reg.hi = vhi := rfl
   have hfit_end := hI.fits_end; have hhi_end := hI.hi_le_end; have hbase_lo := hI.base_le_lo
-  unfold partitionAndNarrow
+  unfold partitionAndNarrow Quicksort.partInit
   wram_exec [hlo, hhi, htmp]
   refine WP.Exact.name fun p₀ hp₀ => ?_
   have hp₀_inv : Quicksort.PartInv w vlo vhi (x.mem (vlo + off)) p₀.mem p₀ := by

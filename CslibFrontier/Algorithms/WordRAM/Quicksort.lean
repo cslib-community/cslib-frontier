@@ -31,20 +31,20 @@ Iterative in-place 3-way randomized quicksort over `Cslib.WordRAM.Basis.standard
 `[n + 1, 3 * n + 1)`.
 
 Using Dutch National Flag 3-way partitioning (`< piv`, `= piv`, `> piv`) around a uniformly
-sampled pivot `off ← rand (hi - lo - 1)`, reached by a countdown walk from `lo`, ensures that:
+sampled pivot `off ← rand (hi - lo - 1)` ensures that:
 1. **Pathwise correctness:** every execution path halts cleanly with `Block.mk 1 n` holding
    `input.mergeSort` (a sorted permutation of `input`), modifying memory only within
    `Finset.Ico 1 (3 * n + 1)`;
 2. **Strict worst-case bounds:** only subranges of length `≥ 2` are pushed, and every partition
    strictly eliminates at least the sampled pivot, so stack potential `∑ (hi - lo - 1)` drops on
    every iteration — bounding every path to at most `n - 1` `rand` calls and
-   `22 * n ^ 2 + 8 * n + 32` instructions;
+   `20 * n ^ 2 + 8 * n + 32` instructions;
 3. **Unconditional `O(n log n)` expected running time (including duplicates):** equal elements
    fall into the middle `= piv` region and are never recursed on, so the left and right recursive
    sizes on sorted rank `r` are at most `r` and `m - 1 - r` regardless of duplicate keys.
    Bounding Mathlib's `harmonic` numbers via `harmonic_le_log_add_one`
    (`harmonic n ≤ Nat.log 2 n + 1`) yields
-   `expectedTime w program (.init input) ≤ 136 * n * (Nat.log 2 n + 1) + 32` without
+   `expectedTime w program (.init input) ≤ 120 * n * (Nat.log 2 n + 1) + 32` without
    transcendental analysis.
 
 ## Main definitions
@@ -52,9 +52,9 @@ sampled pivot `off ← rand (hi - lo - 1)`, reached by a countdown walk from `lo
 * `Cslib.Algorithms.WordRAM.Quicksort.code`, `Cslib.Algorithms.WordRAM.Quicksort.program`:
   structured and compiled 16-register randomized quicksort program.
 * `Cslib.Algorithms.WordRAM.Quicksort.worstCaseTime`: quadratic worst-case step bound
-  `22 * n ^ 2 + 8 * n + 32`.
+  `20 * n ^ 2 + 8 * n + 32`.
 * `Cslib.Algorithms.WordRAM.Quicksort.expectedTimeBound`: `O(n log n)` expected step bound
-  `136 * n * (Nat.log 2 n + 1) + 32`.
+  `120 * n * (Nat.log 2 n + 1) + 32`.
 
 ## Main results
 
@@ -65,7 +65,7 @@ sampled pivot `off ← rand (hi - lo - 1)`, reached by a countdown walk from `lo
 Classical background on randomized quicksort, equal-key partitioning and the expected-cost
 recurrence appears in [CLRS2009], Section 7.3, Section 7.4.2 and Problems 7-2–7-3;
 [MitzenmacherUpfal2017], Section 2.5, gives additional expected-cost background. The word-RAM
-implementation and step constants, constant-64 explicit-stack potential, ranked-loop drift
+implementation and step constants, constant-56 explicit-stack potential, ranked-loop drift
 formulation and duplicate-key rank-domination proof are original to this formalization.
 
 ## References
@@ -87,7 +87,7 @@ open Cslib.WordRAM
 
 /-- Potential contribution of a subarray of length `m` in the expected-time drift argument. -/
 noncomputable def subCost (m : ℕ) : ℝ :=
-  if m < 2 then 0 else 64 * ((m : ℝ) + 1) * (harmonic m : ℝ)
+  if m < 2 then 0 else 56 * ((m : ℝ) + 1) * (harmonic m : ℝ)
 
 theorem subCost_of_lt_two {m : ℕ} (h : m < 2) : subCost m = 0 := by
   simp [subCost, h]
@@ -99,7 +99,7 @@ theorem subCost_nonneg (m : ℕ) : 0 ≤ subCost m := by
   · exact mul_nonneg (by positivity) (by exact_mod_cast harmonic_nonneg m)
 
 theorem subCost_le_formula (m : ℕ) :
-    subCost m ≤ 64 * ((m : ℝ) + 1) * (harmonic m : ℝ) := by
+    subCost m ≤ 56 * ((m : ℝ) + 1) * (harmonic m : ℝ) := by
   unfold subCost
   split_ifs
   · exact mul_nonneg (by positivity) (by exact_mod_cast harmonic_nonneg m)
@@ -116,23 +116,23 @@ theorem subCost_mono {a b : ℕ} (hab : a ≤ b) : subCost a ≤ subCost b := by
     have : (0 : ℝ) ≤ harmonic a := by exact_mod_cast harmonic_nonneg a
     gcongr
 
-/-- Key expected-quicksort recurrence: for `m ≥ 2`, `32 * m` plus the average over `r < m` of
+/-- Key expected-quicksort recurrence: for `m ≥ 2`, `28 * m` plus the average over `r < m` of
 `subCost r + subCost (m - 1 - r)` is at most `subCost m`. -/
 theorem subCost_recurrence {m : ℕ} (hm : 2 ≤ m) :
-    32 * (m : ℝ) +
+    28 * (m : ℝ) +
       (∑ r ∈ Finset.range m, (subCost r + subCost (m - 1 - r))) / (m : ℝ) ≤
         subCost m := by
   have hsum_harm : 2 * ∑ r ∈ Finset.range m, ((r : ℝ) + 1) * (harmonic r : ℝ) =
       (m : ℝ) * (m + 1) * (harmonic m : ℝ) - m * (m + 3) / 2 := by
     simpa [Rat.cast_sum] using congrArg (Rat.cast : ℚ → ℝ) (two_mul_sum_add_one_mul_harmonic m)
   have hsum_le : ∑ r ∈ Finset.range m, (subCost r + subCost (m - 1 - r)) ≤
-      64 * ((m : ℝ) * (m + 1) * (harmonic m : ℝ) - m * (m + 3) / 2) := by
+      56 * ((m : ℝ) * (m + 1) * (harmonic m : ℝ) - m * (m + 3) / 2) := by
     rw [Finset.sum_add_distrib, Finset.sum_range_reflect, ← two_mul]
     calc
       2 * ∑ r ∈ Finset.range m, subCost r
-        ≤ 2 * ∑ r ∈ Finset.range m, 64 * ((r : ℝ) + 1) * (harmonic r : ℝ) := by
+        ≤ 2 * ∑ r ∈ Finset.range m, 56 * ((r : ℝ) + 1) * (harmonic r : ℝ) := by
           gcongr; exact subCost_le_formula _
-      _ = 64 * (2 * ∑ r ∈ Finset.range m, ((r : ℝ) + 1) * (harmonic r : ℝ)) := by
+      _ = 56 * (2 * ∑ r ∈ Finset.range m, ((r : ℝ) + 1) * (harmonic r : ℝ)) := by
           simp only [mul_assoc, ← Finset.mul_sum]; ring
       _ = _ := by rw [hsum_harm]
   rw [subCost, ite_eq_right (fun h => by omega), ← le_sub_iff_add_le',
@@ -484,15 +484,11 @@ def popAndSample : Code .standard 16 := ram[
   ⟪popPrefix⟫;
   tmp ← rand tmp ]
 
-/-- Load the pivot by advancing a cursor once per unit of the sampled offset, then initialize
-the partition cursors. -/
+/-- Load pivot at `lo + tmp` and initialize `lt ← lo`, `cur ← lo`, `gt ← hi` (`5`
+instructions). -/
 def partInit : Code .standard 16 := ram[
-  cur ← lo;
-  while zero < tmp do [
-    cur ← cur + one;
-    tmp ← tmp - one
-  ];
-  piv ← *cur;
+  tmp ← lo + tmp;
+  piv ← *tmp;
   lt ← lo;
   cur ← lo;
   gt ← hi ]
@@ -532,13 +528,13 @@ def code : Code .standard 16 := ram[
 def program : Program .standard 16 :=
   code.program zero
 
-/-- Quadratic worst-case instruction budget `22 * n ^ 2 + 8 * n + 32`. -/
+/-- Quadratic worst-case instruction budget `20 * n ^ 2 + 8 * n + 32`. -/
 def worstCaseTime (n : ℕ) : ℕ :=
-  22 * n ^ 2 + 8 * n + 32
+  20 * n ^ 2 + 8 * n + 32
 
-/-- `O(n log n)` expected instruction budget `136 * n * (⌊log₂ n⌋ + 1) + 32`. -/
+/-- `O(n log n)` expected instruction budget `120 * n * (⌊log₂ n⌋ + 1) + 32`. -/
 def expectedTimeBound (n : ℕ) : ℕ :=
-  136 * n * (Nat.log 2 n + 1) + 32
+  120 * n * (Nat.log 2 n + 1) + 32
 
 /-! ## Subroutine executions and partition invariants -/
 
@@ -626,6 +622,7 @@ private theorem PartInv.of_swap {w vlo vhi vpiv p q : ℕ} {mem₀ : ℕ → ℕ
       hI.modifies.trans (modifies_swapMem hp hq x.mem),
     hmem ▸ hlt, hmem ▸ heq, hmem ▸ hgt⟩
 
+/-- One partition step preserves the partition invariant and shrinks the unknown interval. -/
 theorem partStep_spec {w vlo vhi vpiv : ℕ} {mem₀ : ℕ → ℕ} {x : Data 16}
     (hI : PartInv w vlo vhi vpiv mem₀ x) (hcg : x.regs cur < x.regs gt) :
     ∃ y, ExecWithin w partStep x y 9 ∧
@@ -910,49 +907,19 @@ private theorem pushChildren_eq_boundaries {S₀ : List (ℕ × ℕ)} {vlo vlt v
 
 private theorem partInit_spec {w vlo vhi k : ℕ} {x : Data 16}
     (hlo : x.regs lo = vlo) (hhi : x.regs hi = vhi) (htmp : x.regs tmp = k)
-    (hzero : x.regs zero = 0) (hone : x.regs one = 1)
-    (hk : k < vhi - vlo) (hfit : Fits w vhi) :
-    ∃ y, ExecWithin w partInit x y (4 * k + 7) ∧
+    (hone : x.regs one = 1) (hk : k < vhi - vlo) (hfit : Fits w vhi) :
+    ∃ y, ExecWithin w partInit x y 5 ∧
       y.mem = x.mem ∧
       PartInv w vlo vhi (x.mem (vlo + k)) x.mem y ∧
       y.regs lt = vlo ∧ y.regs cur = vlo ∧ y.regs gt = vhi := by
-  let states (i : ℕ) := (x.set cur (vlo + i)).set tmp (k - i)
-  have hstart : states 0 = x.set cur vlo := by
-    apply Data.ext
-    · simp [states, ← htmp]
-    · rfl
-  have hcopy : ExecWithin (B := .standard) w (ram[ cur ← lo ]) x (states 0) 1 := by
-    rw [hstart]
-    apply WP.execWithin
-    wram_exec [hlo]
-    rfl
-  have hwalk : ExecWithin w
-      (ram[ while zero < tmp do [ cur ← cur + one; tmp ← tmp - one ] ])
-      (states 0) (states k) (4 * k + 2) := by
-    rw [Nat.mul_comm 4 k]
-    apply ExecWithin.loop states k 2
-    · intro i hi
-      simp [states, Cond.holds_lt, hzero]
-      omega
-    · simp [states, Cond.holds_lt, hzero]
-    · intro i hi
-      have hfit_next : Fits w (vlo + i + 1) := hfit.of_le (by omega)
-      have hcount : k - i - 1 = k - (i + 1) := by omega
-      apply WP.execWithin
-      wram_exec [states, hone, hfit_next, hcount, ← Nat.add_assoc]
-      simp [states, Data.set, Function.update_comm (show tmp ≠ cur by decide), Nat.add_assoc]
-  have hfinish : ∃ y, ExecWithin (B := .standard) w
-      (ram[ piv ← *cur; lt ← lo; cur ← lo; gt ← hi ]) (states k) y 4 ∧
-      y.mem = x.mem ∧ PartInv w vlo vhi (x.mem (vlo + k)) x.mem y ∧
-      y.regs lt = vlo ∧ y.regs cur = vlo ∧ y.regs gt = vhi := by
-    refine WP.exists_execWithin ?_
-    wram_exec [states, hlo, hhi]
-    refine ⟨rfl, ⟨?_, ?_, ?_, ?_, hfit, ?_, ?_, ?_, ?_, List.Perm.refl _, Modifies.refl _ _,
-        ?_, ?_, ?_⟩, ?_, ?_, ?_⟩
-    all_goals wram_simp [states, hone, hlo, hhi]
-    all_goals omega
-  obtain ⟨y, hy, hpost⟩ := hfinish
-  exact ⟨y, (hcopy.seq (hwalk.seq hy)).mono (by omega), hpost⟩
+  have hfit_k : Fits w (vlo + k) := hfit.of_le (by omega)
+  refine WP.exists_execWithin ?_
+  unfold partInit
+  wram_exec [hlo, hhi, htmp, hfit_k]
+  refine ⟨rfl, ⟨?_, ?_, ?_, ?_, hfit, ?_, ?_, ?_, ?_, List.Perm.refl _, Modifies.refl _ _,
+      ?_, ?_, ?_⟩, ?_, ?_, ?_⟩
+  all_goals wram_simp [hone, hlo, hhi]
+  all_goals omega
 
 private theorem outerInv_mem_after_partition {input : List ℕ} {vlo vlt vgt vhi vpiv : ℕ}
     {S₀ S₂ : List (ℕ × ℕ)} {mem₀ mem₁ mem₂ : ℕ → ℕ}
@@ -1010,14 +977,14 @@ theorem partitionAndPush_spec {w : ℕ} {input : List ℕ} {vlo vhi : ℕ} {S₀
     let m₂ := u.countP (u[k.val]'(by simp [u]) < ·)
     let S₁ := if 2 ≤ m₁ then S₀ ++ [(vlo, vlo + m₁)] else S₀
     let S₂ := if 2 ≤ m₂ then S₁ ++ [(vhi - m₂, vhi)] else S₁
-    ∃ y t, Exec w partitionAndPush x y t ∧ t ≤ 15 * (vhi - vlo) + 21 ∧
+    ∃ y t, Exec w partitionAndPush x y t ∧ t ≤ 11 * (vhi - vlo) + 23 ∧
       OuterInv w input y ∧ readStack input.length y = S₂ := by
   intro u m₁ m₂ S₁ S₂
   set n := input.length
   have hfit_all : Fits w (3 * n + 3) := fits_three_mul_add_three hw
   have hp_hi := hS.1 (vlo, vhi) (by simp)
   obtain ⟨x₅, e_init, hx₅_mem, hPart₀, hlt₅, hcur₅, hgt₅⟩ :=
-    partInit_spec hlo hhi hktmp hzero hone k.isLt (hfit_all.of_le (by omega))
+    partInit_spec hlo hhi hktmp hone k.isLt (hfit_all.of_le (by omega))
   obtain ⟨x₆, e_loop, hPart₆, hcg₆⟩ := partLoop_spec (hx₅_mem ▸ hPart₀) hlt₅ hcur₅ hgt₅
   rw [hx₅_mem] at hPart₆
   set vlt := x₆.regs lt; set vgt := x₆.regs gt
@@ -1050,11 +1017,8 @@ theorem partitionAndPush_spec {w : ℕ} {input : List ℕ} {vlo vhi : ℕ} {S₀
     ⟨hPart₆.lo_le_lt, hlt_gt, hPart₆.gt_le_hi⟩ hPart₆.perm hPart₆.modifies hPart₆.lt_zone
     heq_gt hPart₆.gt_zone (by simpa only [Finset.union_idempotent] using hmod₇.trans hmod_y)
     hS₂_eq.symm
-  have hbudget : (4 * k.val + 7) + (11 * (vhi - vlo) + 2 + (8 + 8)) ≤
-      15 * (vhi - vlo) + 21 := by
-    have := k.isLt
-    omega
-  obtain ⟨t, ht_le, he_all⟩ := (e_init.seq (e_loop.seq (e_push₁.seq e_push₂))).mono hbudget
+  obtain ⟨t, ht_le, he_all⟩ := (e_init.seq (e_loop.seq (e_push₁.seq e_push₂))).mono
+    (show 5 + (11 * (vhi - vlo) + 2 + (8 + 8)) ≤ 11 * (vhi - vlo) + 23 by omega)
   exact ⟨y, t, he_all, ht_le, ⟨hw, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
     by regs_frame, by regs_frame, hread_final ▸ hS₂_eq ▸ hVS₂, hread_final ▸ hno_y,
     hperm_y, hmod_y'⟩, hread_final⟩
@@ -1102,7 +1066,7 @@ private theorem popAndSample_spec {w n k_sp : ℕ} {x : Data 16}
 
 /-- One iteration `outerBody` from an active state (`0 < sp`) pops `(vlo, vhi)`, samples a uniform
 pivot `k ← unifFin (vhi - vlo - 1)` (`1` `rand` call), and runs `partitionAndPush` in at most
-`15 * (vhi - vlo) + 29` total instructions. -/
+`11 * (vhi - vlo) + 31` total instructions. -/
 theorem outerBody_spec {w : ℕ} {input : List ℕ} {x : Data 16}
     (hI : OuterInv w input x) (hc : (Cond.lt zero sp).Holds x) :
     ∃ S₀ vlo vhi,
@@ -1113,7 +1077,7 @@ theorem outerBody_spec {w : ℕ} {input : List ℕ} {x : Data 16}
         ExecRand w outerBody x
           ((fun k => (y k, 8 + t k)) <$> ProbComp.unifFin (vhi - vlo - 1)) ∧
         ∀ k : Fin (vhi - vlo - 1 + 1),
-          t k ≤ 15 * (vhi - vlo) + 21 ∧
+          t k ≤ 11 * (vhi - vlo) + 23 ∧
           OuterInv w input (y k) ∧
           let u := memSlice vlo vhi x.mem
           let m₁ := u.countP (· < u[k.val]'(by have := k.isLt; simp [u]; omega))
@@ -1148,9 +1112,9 @@ theorem outerBody_spec {w : ℕ} {input : List ℕ} {x : Data 16}
     execRand_seq_det_map e_pop fun k => (hspec k).1,
     fun k => by simpa only [Data.set_mem, hpmem, vlo, vhi, n] using (hspec k).2⟩
 
-/-- Quadratic worst-case step potential `∑_{(a,b) ∈ S} 22 * (b - a) ^ 2`. -/
+/-- Quadratic worst-case step potential `∑_{(a,b) ∈ S} 20 * (b - a) ^ 2`. -/
 def stepPotential (n : ℕ) (x : Data 16) : ℕ :=
-  ((readStack n x).map fun p => 22 * (p.2 - p.1) ^ 2).sum
+  ((readStack n x).map fun p => 20 * (p.2 - p.1) ^ 2).sum
 
 /-- `rand`-call potential `∑_{(a,b) ∈ S} (b - a - 1)`. -/
 def callPotential (n : ℕ) (x : Data 16) : ℕ :=
@@ -1203,7 +1167,7 @@ private theorem outerBody_worstCase_step {w : ℕ} {input : List ℕ} {x : Data 
         1 + callPotential input.length y ≤ callPotential input.length x) T_b 1 := by
   obtain ⟨S₀, vlo, vhi, hstack, hge2, y, t, hexec, hspec⟩ := outerBody_spec hI hc
   let m := vhi - vlo
-  refine ⟨15 * m + 29, _, hexec,
+  refine ⟨11 * m + 31, _, hexec,
     (OracleComp.isCostBounded_map_iff _ _ _).mpr (ProbComp.isQueryBounded_unifFin (m - 1)),
     fun z hz => ?_⟩
   obtain ⟨k, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
@@ -1217,11 +1181,11 @@ private theorem outerBody_worstCase_step {w : ℕ} {input : List ℕ} {x : Data 
   have hread_pc : readStack input.length (y k) = pushChildren S₀ vlo vhi
       ((memSlice vlo vhi x.mem).countP (· < (memSlice vlo vhi x.mem)[k.val]'hk_lt))
       ((memSlice vlo vhi x.mem).countP ((memSlice vlo vhi x.mem)[k.val]'hk_lt < ·)) := hread_yk
-  have hstep := sum_childStack_le (fun d => 22 * d ^ 2) (fun _ => Nat.zero_le _)
+  have hstep := sum_childStack_le (fun d => 20 * d ^ 2) (fun _ => Nat.zero_le _)
     (by omega) hread_pc
   have hcall := sum_childStack_le (fun d => d - 1) (fun _ => Nat.zero_le _)
     (by omega) hread_pc
-  have hsq : ∀ a b : ℕ, a + b ≤ m - 1 → 15 * m + 31 + (22 * a ^ 2 + 22 * b ^ 2) ≤ 22 * m ^ 2 := by
+  have hsq : ∀ a b : ℕ, a + b ≤ m - 1 → 11 * m + 33 + (20 * a ^ 2 + 20 * b ^ 2) ≤ 20 * m ^ 2 := by
     intro a b hab
     have : a ^ 2 + b ^ 2 ≤ (m - 1) ^ 2 := by
       have := Nat.pow_le_pow_left hab 2; nlinarith
@@ -1241,7 +1205,7 @@ private theorem list_sum_subCost_nonneg (S : List (ℕ × ℕ)) :
 
 /-- Averaging the charge for one partition and its children is bounded by the parent potential. -/
 theorem avg_subCost_pivot_le (u : List ℕ) (hm : 2 ≤ u.length) (base : ℝ) :
-    (∑ k : Fin u.length, (32 * (u.length : ℝ) + base +
+    (∑ k : Fin u.length, (28 * (u.length : ℝ) + base +
       (subCost (u.countP (· < u[k.val])) + subCost (u.countP (u[k.val] < ·))))) /
       (u.length : ℝ) ≤ base + subCost u.length := by
   have hm_pos : (0 : ℝ) < u.length := by exact_mod_cast (by omega : 0 < u.length)
@@ -1255,14 +1219,14 @@ theorem avg_subCost_pivot_le (u : List ℕ) (hm : 2 ≤ u.length) (base : ℝ) :
 
 private theorem ennreal_avg_subCost_le {m : ℕ} (u : List ℕ) (hlen : u.length = m) (hm : 2 ≤ m)
     {base : ℝ} (hbase : 0 ≤ base) {g : Fin (m - 1 + 1) → ℝ≥0∞}
-    (hg : ∀ k : Fin (m - 1 + 1), g k ≤ ENNReal.ofReal (32 * (m : ℝ) + base +
+    (hg : ∀ k : Fin (m - 1 + 1), g k ≤ ENNReal.ofReal (28 * (m : ℝ) + base +
       (subCost (u.countP (· < u[k.val]'(by have := k.isLt; omega))) +
        subCost (u.countP (u[k.val]'(by have := k.isLt; omega) < ·))))) :
     (∑ k : Fin (m - 1 + 1), g k) / (((m - 1 : ℕ) : ℝ≥0∞) + 1) ≤
       ENNReal.ofReal (base + subCost m) := by
   have hden : ((m - 1 : ℕ) : ℝ≥0∞) + 1 = ENNReal.ofReal (m : ℝ) := by
     rw [ENNReal.ofReal_natCast]; exact_mod_cast (by omega : m - 1 + 1 = m)
-  let rhs : Fin (m - 1 + 1) → ℝ := fun k => 32 * (m : ℝ) + base +
+  let rhs : Fin (m - 1 + 1) → ℝ := fun k => 28 * (m : ℝ) + base +
     (subCost (u.countP (· < u[k.val]'(by have := k.isLt; omega))) +
      subCost (u.countP (u[k.val]'(by have := k.isLt; omega) < ·)))
   calc (∑ k, g k) / (((m - 1 : ℕ) : ℝ≥0∞) + 1)
@@ -1275,7 +1239,7 @@ private theorem ennreal_avg_subCost_le {m : ℕ} (u : List ℕ) (hlen : u.length
         refine ENNReal.ofReal_le_ofReal ?_
         have hm_eq : m - 1 + 1 = u.length := by omega
         have heq := Fintype.sum_equiv (finCongr hm_eq) rhs (fun k : Fin u.length =>
-            32 * (u.length : ℝ) + base +
+            28 * (u.length : ℝ) + base +
               (subCost (u.countP (· < u[k.val])) + subCost (u.countP (u[k.val] < ·))))
           (fun k => by simp only [rhs, hlen, finCongr_apply, Fin.val_cast])
         simpa only [heq, hlen] using avg_subCost_pivot_le u (by omega) base
@@ -1301,8 +1265,8 @@ private theorem outerBody_drift_step {w : ℕ} {input : List ℕ} {x : Data 16}
     have hcost := sum_childStack_le subCost subCost_nonneg
       (List.countP_le_length.trans_eq (length_memSlice vlo vhi x.mem))
       (hread_yk : readStack input.length (y k) = pushChildren S₀ vlo vhi _ _)
-    have hstep : ((8 + t k + 2 : ℕ) : ℝ) ≤ 32 * (vhi - vlo : ℕ) := by
-      exact_mod_cast (by omega : 8 + t k + 2 ≤ 32 * (vhi - vlo))
+    have hstep : ((8 + t k + 2 : ℕ) : ℝ) ≤ 28 * (vhi - vlo : ℕ) := by
+      exact_mod_cast (by omega : 8 + t k + 2 ≤ 28 * (vhi - vlo))
     dsimp only
     rw [show ((8 + t k : ℕ) : ℝ≥0∞) + 2 = ENNReal.ofReal ((8 + t k + 2 : ℕ) : ℝ) by
           rw [ENNReal.ofReal_natCast]; push_cast; rfl,
@@ -1403,7 +1367,7 @@ theorem setup_spec {w : ℕ} {input : List ℕ} (hw : logWidth 3 input.length �
 
 private theorem expPotential_init_le {n : ℕ} {x_init : Data 16}
     (hstack : readStack n x_init = if 2 ≤ n then [(1, n + 1)] else []) :
-    expPotential n x_init ≤ (128 * n * (Nat.log 2 n + 1) : ℕ) := by
+    expPotential n x_init ≤ (112 * n * (Nat.log 2 n + 1) : ℕ) := by
   rw [expPotential, hstack, ← ENNReal.ofReal_natCast]
   split_ifs with hn2
   · simp only [List.map_singleton, List.sum_singleton, Nat.add_sub_cancel_right]
@@ -1412,9 +1376,9 @@ private theorem expPotential_init_le {n : ℕ} {x_init : Data 16}
       exact_mod_cast harmonic_le_log_add_one n
     have hn_le : (n : ℝ) + 1 ≤ 2 * n := by exact_mod_cast (by omega : n + 1 ≤ 2 * n)
     calc subCost n
-        ≤ 64 * ((n : ℝ) + 1) * (harmonic n : ℝ) := subCost_le_formula n
-      _ ≤ 64 * ((n : ℝ) + 1) * ((Nat.log 2 n : ℝ) + 1) := by gcongr
-      _ ≤ ((128 * n * (Nat.log 2 n + 1) : ℕ) : ℝ) := by
+        ≤ 56 * ((n : ℝ) + 1) * (harmonic n : ℝ) := subCost_le_formula n
+      _ ≤ 56 * ((n : ℝ) + 1) * ((Nat.log 2 n : ℝ) + 1) := by gcongr
+      _ ≤ ((112 * n * (Nat.log 2 n + 1) : ℕ) : ℝ) := by
           push_cast; nlinarith [show (0 : ℝ) ≤ Nat.log 2 n + 1 by positivity]
   · simp
 
@@ -1443,14 +1407,14 @@ private theorem halted_sorted_realizes {w : ℕ} {input : List ℕ} {y : Data 16
 `O(n log n)` expected running time.**
 
 For any `input : List ℕ` of length `n` and word size `w ≥ logWidth 3 n` with `InputFits w input`:
-1. `program` halts without faulting within `worstCaseTime n = 22 * n ^ 2 + 8 * n + 32` instructions
+1. `program` halts without faulting within `worstCaseTime n = 20 * n ^ 2 + 8 * n + 32` instructions
    on every execution path (`RandHaltsWithin`);
 2. Every execution path makes at most `n - 1` `rand` calls (`RandCallsBounded`);
 3. On every supported halting configuration `.halted 0 y`, `y.Bounded w` holds,
    `memSlice 1 (n + 1) y.mem` is a sorted permutation of `input`, `Block.mk 1 n` realizes
    `input.mergeSort`, and memory outside `Finset.Ico 1 (3 * n + 1)` is untouched (`Modifies`);
 4. The expected instruction count satisfies
-   `expectedTime w program (.init input) ≤ expectedTimeBound n = 136 * n * (⌊log₂ n⌋ + 1) + 32`
+   `expectedTime w program (.init input) ≤ expectedTimeBound n = 120 * n * (⌊log₂ n⌋ + 1) + 32`
    unconditionally (even when `input` contains duplicate elements). -/
 theorem quicksort_correct_and_bounds {w : ℕ} {input : List ℕ}
     (hw : logWidth 3 input.length ≤ w) (hfit : InputFits w input) :
@@ -1467,18 +1431,18 @@ theorem quicksort_correct_and_bounds {w : ℕ} {input : List ℕ}
     expectedTime w program (.init input) ≤ (expectedTimeBound input.length : ℝ≥0∞) := by
   set n := input.length
   obtain ⟨x_init, t_s, he_setup, hts_le, hI_init, hstack_init⟩ := setup_spec hw
-  have hstep_init : stepPotential n x_init ≤ 22 * n ^ 2 := by
+  have hstep_init : stepPotential n x_init ≤ 20 * n ^ 2 := by
     rw [stepPotential, hstack_init]; split_ifs <;> simp [n]
   have hcall_init : callPotential n x_init ≤ n - 1 := by
     rw [callPotential, hstack_init]; split_ifs <;> simp [n]
   have hloop_wc := (ExecRandWithin.loop_potential (OuterInv w input) (stepPotential n)
     (callPotential n) (fun _ hs hc =>
       let ⟨T_b, h⟩ := outerBody_worstCase_step hs hc; ⟨T_b, 1, h⟩) hI_init).mono
-      (fun _ h => h) (by omega : stepPotential n x_init + 2 ≤ 22 * n ^ 2 + 2) hcall_init
+      (fun _ h => h) (by omega : stepPotential n x_init + 2 ≤ 20 * n ^ 2 + 2) hcall_init
   obtain ⟨hHalts, hCalls, hPost⟩ :=
     ((((ExecWithin.mono he_setup.within hts_le).execRandWithin rfl).seq
       fun _ hy => hy ▸ hloop_wc).mono (fun _ h => h) (by omega) (by omega) :
-      ExecRandWithin w code (Data.init input) _ (22 * n ^ 2 + 8 * n + 31) (n - 1)).program
+      ExecRandWithin w code (Data.init input) _ (20 * n ^ 2 + 8 * n + 31) (n - 1)).program
       zero (T' := worstCaseTime n) (by simp only [worstCaseTime]; omega)
   obtain ⟨⟨m_loop, hm_loop⟩, hloop_exp⟩ := expectedCodeTime_loop_le_of_drift
     (OuterInv w input) (callPotential n) (expPotential n) hI_init
@@ -1498,9 +1462,9 @@ theorem quicksort_correct_and_bounds {w : ℕ} {input : List ℕ}
     calc (t_s : ℝ≥0∞) + expectedCodeTime w _ x_init + 1
         ≤ (t_s : ℝ≥0∞) + (expPotential n x_init + 2) + 1 := by gcongr
       _ ≤ ((8 * n + 29 : ℕ) : ℝ≥0∞) +
-            (((128 * n * (Nat.log 2 n + 1) : ℕ) : ℝ≥0∞) + 2) + 1 := by
+            (((112 * n * (Nat.log 2 n + 1) : ℕ) : ℝ≥0∞) + 2) + 1 := by
           gcongr; exact expPotential_init_le hstack_init
-      _ = ((8 * n + 29 + (128 * n * (Nat.log 2 n + 1) + 2) + 1 : ℕ) : ℝ≥0∞) := by norm_cast
+      _ = ((8 * n + 29 + (112 * n * (Nat.log 2 n + 1) + 2) + 1 : ℕ) : ℝ≥0∞) := by norm_cast
       _ ≤ _ := by
           norm_cast; simp only [expectedTimeBound]; nlinarith [show 1 ≤ Nat.log 2 n + 1 by omega]
 

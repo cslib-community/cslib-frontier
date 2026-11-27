@@ -20,8 +20,8 @@ Concrete non-vacuity and behavioral tests for `Cslib.WordRAM.expectedTime` and
 
 1. Non-monotone input with duplicates `[3, 1, 2, 1]` at `w = 9`: every supported halting path
    preserves `Bounded 9`, outputs `[1, 1, 2, 3]` in `mem[1..4]`, preserves memory outside `[1, 13)`,
-   uses at most `3` `rand` calls, halts within `416` instructions, and satisfies
-   `expectedTime ≤ 1664` and `AlmostSurelyHalts`.
+   uses at most `3` `rand` calls, halts within `384` instructions, and satisfies
+   `expectedTime ≤ 1472` and `AlmostSurelyHalts`.
 2. Six-element non-monotone input with two duplicate groups `[4, 2, 4, 0, 2, 1]` at `w = 9`: every
    supported halting path outputs `[0, 1, 2, 2, 4, 4]` in `memSlice 1 7` within `5` `rand` calls.
 3. Trivial edge cases `[]` and `[5]` at `w = 3`: `0` `rand` calls (`RandCallsBounded ... 0`).
@@ -39,20 +39,20 @@ open scoped ENNReal
 /-! ## 1. Non-monotone input with duplicates: `[3, 1, 2, 1]` at `w = 9` -/
 
 theorem quicksort_dup4 :
-    RandHaltsWithin 9 Quicksort.program (.init [3, 1, 2, 1]) 416 ∧
+    RandHaltsWithin 9 Quicksort.program (.init [3, 1, 2, 1]) 384 ∧
     AlmostSurelyHalts 9 Quicksort.program (.init [3, 1, 2, 1]) ∧
-    RandCallsBounded 9 Quicksort.program (.init [3, 1, 2, 1]) 416 3 ∧
-    (∀ cfg ∈ (runRand 9 Quicksort.program 416 (.running (.init [3, 1, 2, 1]))).support,
+    RandCallsBounded 9 Quicksort.program (.init [3, 1, 2, 1]) 384 3 ∧
+    (∀ cfg ∈ (runRand 9 Quicksort.program 384 (.running (.init [3, 1, 2, 1]))).support,
       ∃ y : Data 16, cfg = .halted 0 y ∧ y.Bounded 9 ∧
         y.mem 1 = 1 ∧ y.mem 2 = 1 ∧ y.mem 3 = 2 ∧ y.mem 4 = 3 ∧
         (∀ a, a = 0 ∨ 13 ≤ a → y.mem a = (Data.init (r := 16) [3, 1, 2, 1]).mem a)) ∧
-    expectedTime 9 Quicksort.program (.init [3, 1, 2, 1]) ≤ 1664 := by
+    expectedTime 9 Quicksort.program (.init [3, 1, 2, 1]) ≤ 1472 := by
   have hw : logWidth 3 ([3, 1, 2, 1] : List ℕ).length ≤ 9 := by decide
   have hfit : InputFits 9 [3, 1, 2, 1] := by decide
   obtain ⟨hHalts, hCalls, hPost, hExp⟩ := Quicksort.quicksort_correct_and_bounds hw hfit
-  have hwc : Quicksort.worstCaseTime ([3, 1, 2, 1] : List ℕ).length = 416 := by decide
+  have hwc : Quicksort.worstCaseTime ([3, 1, 2, 1] : List ℕ).length = 384 := by decide
   have hcalls_n : ([3, 1, 2, 1] : List ℕ).length - 1 = 3 := rfl
-  have hexpb : Quicksort.expectedTimeBound ([3, 1, 2, 1] : List ℕ).length = 1664 := by decide
+  have hexpb : Quicksort.expectedTimeBound ([3, 1, 2, 1] : List ℕ).length = 1472 := by decide
   rw [hwc] at hHalts hCalls hPost
   rw [hcalls_n] at hCalls
   rw [hexpb] at hExp
@@ -120,15 +120,15 @@ theorem quicksort_nil :
   exact ⟨hHalts, hCalls, by simpa [Quicksort.expectedTimeBound] using hExp⟩
 
 theorem quicksort_singleton :
-    RandHaltsWithin 3 Quicksort.program (.init [5]) 62 ∧
-    RandCallsBounded 3 Quicksort.program (.init [5]) 62 0 ∧
-    (∀ cfg ∈ (runRand 3 Quicksort.program 62 (.running (.init [5]))).support,
+    RandHaltsWithin 3 Quicksort.program (.init [5]) 60 ∧
+    RandCallsBounded 3 Quicksort.program (.init [5]) 60 0 ∧
+    (∀ cfg ∈ (runRand 3 Quicksort.program 60 (.running (.init [5]))).support,
       ∃ y : Data 16, cfg = .halted 0 y ∧ y.mem 1 = 5) ∧
-    expectedTime 3 Quicksort.program (.init [5]) ≤ 168 := by
+    expectedTime 3 Quicksort.program (.init [5]) ≤ 152 := by
   have hw : logWidth 3 ([5] : List ℕ).length ≤ 3 := by decide
   have hfit : InputFits 3 [5] := by decide
   obtain ⟨hHalts, hCalls, hPost, hExp⟩ := Quicksort.quicksort_correct_and_bounds hw hfit
-  have hwc : Quicksort.worstCaseTime ([5] : List ℕ).length = 62 := rfl
+  have hwc : Quicksort.worstCaseTime ([5] : List ℕ).length = 60 := rfl
   rw [hwc] at hHalts hCalls hPost
   refine ⟨hHalts, hCalls, fun cfg hcfg => ?_, by simpa [Quicksort.expectedTimeBound] using hExp⟩
   obtain ⟨y, hcfg_eq, -, hperm, -, -, -⟩ := hPost cfg hcfg
@@ -181,8 +181,9 @@ private def pivotInput : Local.Data (Quicksort.localModel) 3 1 4 where
 example : ∃ y, Cslib.PointerMachine.ExecWithin
     (Local.compile (Quicksort.pivotWalk 0 (0 : Fin 4) 1 2 3)) (Local.encode pivotInput) y 11 ∧
     y.data 3 = 7 := by
-  exact Quicksort.pointerPivot_exec 0 0 1 2 3 (by decide) (by decide)
+  obtain ⟨t, ht, hrun⟩ := Quicksort.pivotWalk_exec 0 0 1 2 3 (by decide) (by decide)
     pivotInput 0 2 rfl rfl rfl rfl (by decide)
+  exact ⟨_, ⟨t, ht, Local.exec_compile hrun⟩, by simp [pivotInput]⟩
 
 /-! ## The compiled quicksort sorts duplicates in the heap -/
 
@@ -192,12 +193,18 @@ example :
     let x := Local.encode (localSortInput input)
     let c := Local.compile localSortLoop
     let R := Local.randomizedFlatMachine (M := localModel) (p := 16) (d := 16) localKernel
-    ∀ cfg ∈ (R.run c.program ((23 * input.length + 39) * input.length + 1)
+    ∀ cfg ∈ (R.run c.program ((19 * input.length + 33) * input.length + 1)
         (R.running 0 x)).support,
       ∃ y, cfg = R.running c.size y ∧ pointerSortOutput input.length y = [0, 0, 1, 2, 3, 4, 4] ∧
         y.heap.length = 19 := by
   intro input x c R
-  obtain ⟨_, _, _, hsorted, _⟩ := pointerSort_exec input
+  obtain ⟨m, _, _, hsorted, hcost⟩ := pointerSort_exec input
+  have _expected : ProbComp.expect ((fun z => (Local.encode z.1, z.2)) <$> m)
+      (fun z => (z.2 : ℝ≥0∞)) ≤ 4705 := by
+    convert hcost using 1
+    have hlog : Nat.log 2 input.length = 2 := by decide
+    rw [hlog]
+    norm_num [input]
   have hp : input.Perm [0, 0, 1, 2, 3, 4, 4] := by decide
   have hout := ((List.mergeSort_perm input _).trans hp).eq_of_pairwise'
     (List.pairwise_mergeSort' (· ≤ ·) input)

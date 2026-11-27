@@ -41,9 +41,14 @@ inductive LocalScalar where
 
 /-- Arithmetic is deterministic. A draw uses the first operand as its exclusive upper bound
 and returns zero for an empty interval. -/
-@[expose] def localKernel : LocalScalar → ℕ → ℕ → ProbComp ℕ
+def localKernel : LocalScalar → ℕ → ℕ → ProbComp ℕ
   | .bin op, a, b => pure (op.eval a b)
   | .draw, a, _ => Fin.val <$> ProbComp.unifFin (a - 1)
+
+/-- A draw returns the value of a uniform index below the bound, with zero at bound zero. -/
+theorem localKernel_draw (bound unused : ℕ) :
+    localKernel .draw bound unused = Fin.val <$> ProbComp.unifFin (bound - 1) := by
+  simp [localKernel]
 
 /-- A code fragment whose scalar operations have deterministic meanings under the kernel. -/
 @[expose] def NoDraw {p d : ℕ}

@@ -7,7 +7,7 @@ Authors: Stefan Langerman
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.WordRAM.Quicksort.LocalIteration
+public import CslibFrontier.Algorithms.WordRAM.Quicksort.LocalStack
 
 /-!
 # Representation invariant for the local quicksort stack
@@ -34,12 +34,6 @@ structure StackRealizes {n : ℕ} (x : Local.Data localModel n 16 16) (base : �
 
 variable {n base : ℕ} {x y : Local.Data localModel n 16 16}
 variable {S : List (ℕ × ℕ)}
-
-/-- The empty stack requires just the prepared base cursor. -/
-theorem StackRealizes.nil (slot : Fin n) (hbase : slot.val = base)
-    (hsp : x.addr sp = some slot) : StackRealizes x base [] := by
-  refine ⟨⟨slot, hsp, by simpa using hbase⟩, ?_⟩
-  exact fun i => Fin.elim0 i
 
 /-- The backing cells below the stack top determine the frame contents. -/
 theorem StackRealizes.frames_congr (h : StackRealizes x base S)
@@ -91,7 +85,7 @@ theorem StackRealizes.pop {range : ℕ × ℕ} (h : StackRealizes x base (S ++ [
   · simpa only [List.getElem_append_left i.isLt] using hright
 
 /-- The conditional enqueue extends precisely the live frame sequence. -/
-theorem StackRealizes.enqueue (h : StackRealizes x base S) (start stop slot : Fin n)
+private theorem StackRealizes.enqueue (h : StackRealizes x base S) (start stop slot : Fin n)
     (hroom : slot.val + 2 < n) (hslot : x.addr sp = some slot) :
     StackRealizes (enqueueState x start stop slot hroom) base
       (if 1 < stop.val - start.val then S ++ [(start.val, stop.val)] else S) := by
@@ -129,16 +123,10 @@ theorem StackRealizes.enqueue (h : StackRealizes x base S) (start stop slot : Fi
         exact ⟨slot, start, stop, by omega, by simpa only [his] using hv,
           by simp [his], by simp [his], by simp [enqueueState, hn, he],
           by simp [enqueueState, hn], by simp [enqueueState, hn]⟩
-  · rw [ite_eq_right hn]
-    refine h.frames_congr ?_ ?_ ?_
-    · simpa [hslot, hn] using hslotAdd
-    · intro a _ _
-      simp [enqueueState, hn]
-    · intro a _ _
-      simp [enqueueState, hn]
+  · simpa only [enqueueState, ite_eq_right hn] using h
 
 /-- A stack enqueue preserves all payload cells below the first free frame. -/
-theorem enqueueState_values_below (x : Local.Data localModel n 16 16)
+private theorem enqueueState_values_below (x : Local.Data localModel n 16 16)
     (start stop slot a : Fin n) (hroom : slot.val + 2 < n) (ha : a.val < slot.val) :
     (enqueueState x start stop slot hroom).values a = x.values a := by
   have hne : a ≠ slot := Fin.ne_of_lt ha
@@ -166,15 +154,23 @@ theorem StackRealizes.unique {T : List (ℕ × ℕ)} (hS : StackRealizes x base 
 @[expose] def queueRange (S : List (ℕ × ℕ)) (start stop : ℕ) : List (ℕ × ℕ) :=
   if start + 2 ≤ stop then S ++ [(start, stop)] else S
 
-/-- Two enqueues change only the stack and the two scratch registers. -/
+/-- The new live stack and the data preserved by a pair of conditional pushes. -/
+structure StackExtension (x out : Local.Data localModel n 16 16) (base : ℕ)
+    (pending : List (ℕ × ℕ)) (slot : Fin n) : Prop where
+  /-- The extended sequence of pending ranges. -/
+  stack : StackRealizes out base pending
+  /-- Payloads below the first free slot are untouched. -/
+  valuesBelow : ∀ j : Fin n, j.val < slot.val → out.values j = x.values j
+  /-- The stack base register is unchanged. -/
+  stackBase_eq : out.addr stackHi = x.addr stackHi
+  /-- The measured lengths and other scalar registers are unchanged. -/
+  scalars_eq : out.scalars = x.scalars
+
+/-- Two enqueues change only the stack and its cursor. -/
 theorem StackRealizes.enqueuePair (h : StackRealizes x base S) (a b c d slot : Fin n)
     (hroom : slot.val + 4 < n) (hslot : x.addr sp = some slot) :
-    let out := enqueuePairState x a b c d slot hroom
-    StackRealizes out base (queueRange (queueRange S a.val b.val) c.val d.val) ∧
-    (∀ j : Fin n, j.val < slot.val → out.values j = x.values j) ∧
-    out.addr stackHi = x.addr stackHi ∧ out.scalars zero = x.scalars zero ∧
-    out.scalars one = x.scalars one := by
-  intro out
+    StackExtension x (enqueuePairState x a b c d slot hroom) base
+      (queueRange (queueRange S a.val b.val) c.val d.val) slot := by
   have hroom₁ : slot.val + 2 < n := by omega
   let u := enqueueState x a b slot hroom₁
   let next := afterEnqueue a b slot hroom₁
@@ -186,9 +182,7 @@ theorem StackRealizes.enqueuePair (h : StackRealizes x base S) (a b c d slot : F
   have h₂c : (1 < d.val - c.val) ↔ c.val + 2 ≤ d.val := by omega
   have f₁ := enqueueState_frame x a b slot hroom₁
   have f₂ := enqueueState_frame u c d next hroom₂
-  refine ⟨?_, ?_, (f₂.1 _ (by decide) (by decide)).trans (f₁.1 _ (by decide) (by decide)),
-    (f₂.2 _ (by decide)).trans (f₁.2 _ (by decide)),
-    (f₂.2 _ (by decide)).trans (f₁.2 _ (by decide))⟩
+  refine ⟨?_, ?_, (f₂.1 _ (by decide)).trans (f₁.1 _ (by decide)), f₂.2.trans f₁.2⟩
   · change StackRealizes (enqueueState u c d next hroom₂) base _
     simpa only [queueRange, h₁c, h₂c] using h₂
   · intro j hj
