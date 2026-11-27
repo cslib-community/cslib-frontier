@@ -102,8 +102,8 @@ theorem run_readRow (π : List Bool → Bool) (external challenges : List ℕ) (
   simp [readRow, ProofWord.run_readValues, keys, row, List.map_map, Function.comp_def]
 
 /-- The polynomial over the residue ring obtained from this public history. -/
-@[expose] noncomputable def rowPolynomial (π : List Bool → Bool) (p : ℕ) (external challenges : List ℕ)
-    (d width : ℕ) : Polynomial (ZMod p) :=
+@[expose] noncomputable def rowPolynomial (π : List Bool → Bool) (p : ℕ)
+    (external challenges : List ℕ) (d width : ℕ) : Polynomial (ZMod p) :=
   Polynomial.ofCoeffList ((row π external challenges d width).map Nat.cast)
 
 /-- Even a dishonest proof's polynomial has degree at most the requested degree. -/
@@ -114,8 +114,8 @@ theorem natDegree_rowPolynomial_le (π : List Bool → Bool) (p : ℕ) (external
 
 /-- Read the polynomial for the current public history and advance at the given challenge.
 The row address depends only on the earlier challenges. -/
-@[expose] def advance (p : ℕ) (external : List ℕ) (d width r : ℕ) (s : Interactive.Sumcheck.WordState) :
-    WordOracleComp Unit Interactive.Sumcheck.WordState :=
+@[expose] def advance (p : ℕ) (external : List ℕ) (d width r : ℕ)
+    (s : Interactive.Sumcheck.WordState) : WordOracleComp Unit Interactive.Sumcheck.WordState :=
   (fun cs => s.advance p cs r) <$> readRow external s.challenges d width
 
 /-- The complete static-proof round update is strict oracle PPT for every oracle. -/
