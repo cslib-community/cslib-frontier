@@ -78,28 +78,6 @@ private theorem IsContext.isContextOf {v : List (α × Op n Γ)} (h : IsContext 
   obtain ⟨o, ho⟩ := h
   rwa [← hi.symm.trans ((ho μ hμ).resolve_left (by simp [hi]))] at ho
 
-private theorem net_eq_zero_of_isContextOf {i j : Fin n} (hij : i ≠ j) :
-    ∀ {u : List (α × Op n Γ)}, IsContextOf i u → net j u = 0
-  | [], _ => rfl
-  | (a, op) :: u, h => by
-    rw [net_cons, net_eq_zero_of_isContextOf hij fun μ hμ => h μ (List.mem_cons_of_mem _ hμ)]
-    rcases h (a, op) List.mem_cons_self with h' | h' <;> cases op <;>
-      simp_all [Op.stack, Op.net]
-
-/-- A run that uses one stack, never goes below the initial height of that stack and returns to
-it is well-nested. -/
-private theorem wellNested_of_isContextOf {M : MPDA n State α Γ} {c c' : Config n State Γ}
-    {v : List (α × Op n Γ)} (hrun : M.configLTS.MTr c v c') {i : Fin n} (hv : IsContextOf i v)
-    (hnet : net i v = 0) (hk : ∀ k, 0 ≤ net i (v.take k)) : WellNested v := by
-  refine wellNested_of_not_crossing hrun (fun j => ?_) ?_
-  · rcases eq_or_ne i j with rfl | hij
-    · exact ⟨hnet, hk⟩
-    · exact ⟨net_eq_zero_of_isContextOf hij hv, fun k =>
-        (net_eq_zero_of_isContextOf hij fun μ hμ => hv μ (List.mem_of_mem_take hμ)).symm.le⟩
-  · rintro ⟨i', j', p, q, z, hij, -, -, ⟨a, γ, hp⟩, ⟨b, δ, hq⟩, -, -⟩
-    exact hij ((by simpa [Op.stack] using hv _ (List.mem_of_getElem? hp) : i' = i).trans
-      (by simpa [Op.stack] using hv _ (List.mem_of_getElem? hq) : j' = i).symm)
-
 private theorem IsContextOf.eq_of_isPushOn {w : List (α × Op n Γ)} {i j : Fin n} {a b q : ℕ}
     (hctx : IsContextOf i (w.extract a b)) (haq : a ≤ q) (hqb : q < b) (hj : IsPushOn w j q) :
     j = i := by
@@ -121,7 +99,7 @@ private theorem wellMatched_of_isContextOf {M : MPDA n State α Γ} {c c' : Conf
       ← w.extract_append_extract hpm (Nat.le_succ m),
       List.extract_eq_singleton hppush, List.extract_eq_singleton hmpop]
     rfl
-  refine wellNested_of_isContextOf hrun' hctx ?_ fun k => ?_
+  refine hctx.wellNested hrun' ?_ fun k => ?_
   · simp [e, net_cons, net_append, hnet, net_nil, Op.net]
   · rcases k with _ | k
     · simp [e]
@@ -242,7 +220,7 @@ private theorem not_isContext_extract_holes {M : MPDA n State α Γ} {c c' : Con
     obtain ⟨k, hk₁, hk₂, hk⟩ := List.mem_extract_iff_getElem?.mp hμ
     exact hctx' μ (List.mem_extract_iff_getElem?.mpr ⟨k, by omega, by omega, hk⟩)
   obtain ⟨c₁, c₂, hrunv⟩ := exists_configLTS_mTr_extract hrun (p' + 1) b
-  refine wellNested_of_isContextOf hrunv hctxv ?_ hk
+  refine hctxv.wellNested hrunv ?_ hk
   by_contra hne
   have hpos : 0 < net j (w.extract (p' + 1) b) :=
     lt_of_le_of_ne (by simpa only [List.take_length] using hk (w.extract (p' + 1) b).length)
