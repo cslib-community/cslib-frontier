@@ -18,6 +18,17 @@ A starting block and a sequence of generated letters select a trajectory through
 matrix. The evaluator walks through the blocks, their steps, and the columns of each row in a fixed
 order. Each iteration receives one lower-level entry as its answer and retains seven natural
 registers. The width represents the absorbing sink when its row has zero weight.
+
+## Main definitions
+
+* `SweepState` stores the current seed, generator position, column, current state, candidate,
+  residual label, and number of successful seeds.
+* `sweepStart` initializes the first seed. `sweepUpdate` advances the sweep by one entry query.
+
+## Main results
+
+* `iterate_sweepUpdate_hits` identifies the final count with the number of walks reaching the
+  specified destination.
 -/
 
 public section
@@ -46,9 +57,8 @@ structure SweepState where
 /-- Start the first walk from `source`, before reading its first letter. -/
 @[expose] def sweepStart (n source : ℕ) : SweepState := ⟨0, 0, n + 1, source, 0, 0, 0⟩
 
-/-- Consume one lower-level entry. The marker `n + 1` starts a new block and column `n` ends it;
-the marker `len` ends a seed. Each seed therefore makes exactly `(n + 2) * len + 1` queries. -/
-@[expose] def sweepUpdate (n len scale src dst : ℕ) (label : ℕ → ℕ → ℕ) (s : SweepState)
+/-- Begin the scan of one generated letter at column marker `n + 1` and end it at marker `n`.
+The time marker `len` finalizes a starting seed. Marker iterations ignore the supplied entry. -/@[expose] def sweepUpdate (n len scale src dst : ℕ) (label : ℕ → ℕ → ℕ) (s : SweepState)
     (answer : ℕ) : SweepState :=
   if s.t = len then
     ⟨s.x + 1, 0, n + 1, src, 0, 0, s.hits + if s.current = dst then 1 else 0⟩
