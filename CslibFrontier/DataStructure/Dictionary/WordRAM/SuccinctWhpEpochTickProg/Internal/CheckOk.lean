@@ -196,7 +196,7 @@ theorem realizes_checkEpochTickOkGen :
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
     have hh := fastMemHdrs hrep
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hq_lt := (large_bounds_lt_n_max hth).2.2.2.2.2.2.1
     have hhdr (off) (hoff : base + off < base + largeSpaceWhp c U V w n_max) :=
       readHdrProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max) (base := base)
@@ -229,12 +229,11 @@ theorem checkEpochTickOkGenProg_spec {c U V w n_max base : ℕ}
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
   have hth := henv.2.2.2.1
   have hh := fastMemHdrs hrep
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   have hold_or : fs.oldEp = 0 ∨ fs.oldEp = 1 := by
     rcases hce_or with h01 | h01 <;> simp [FastState.oldEp, h01]
-  obtain ⟨hck_st, hck_res, hck_mc, hck_vp⟩ := readHdrProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrEpochClock)
-    (by dsimp [hdrEpochClock]; omega) (s := s)
+  obtain ⟨hck_st, hck_res, hck_mc, hck_vp⟩ := readHdrProg_large_spec c U V w n_max
+    (base := base) (hdrOff := hdrEpochClock) (s := s) (by decide)
   rw [hh.epochClock] at hck_res
   let Spec (n : ℕ) (q : Memory.Prog ℕ) (r : ℕ) : Prop :=
     (Memory.spec 0).clientState s q = s ∧
@@ -264,9 +263,8 @@ theorem checkEpochTickOkGenProg_spec {c U V w n_max base : ℕ}
   by_cases hlt : fs.epochClock + 1 < qEpochWhp n_max
   · rw [decide_eq_true (Or.inl hlt), ite_eq_left hlt]
     exact hpure 4 1
-  · obtain ⟨hst_st, hst_res, hst_mc, hst_vp⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage)
-      (by dsimp [hdrRebStage]; omega) (s := s)
+  · obtain ⟨hst_st, hst_res, hst_mc, hst_vp⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrRebStage) (s := s) (by decide)
     rw [hh.rebStage] at hst_res
     rw [ite_eq_right hlt]
     refine step hst_st hst_res (by omega) hst_vp (c₁ := 1) (c₂ := 3) (by omega) ?_

@@ -509,7 +509,8 @@ theorem fits_const (h : WhpLargeEnv c U V w₀ n_max w base) {K : ℕ} (hK : K �
 
 theorem fits_hdr_addr (h : WhpLargeEnv c U V w₀ n_max w base) {off : ℕ} (hoff : off < 32) :
     Fits w (base + off) :=
-  h.fits_largeSpace.of_le (by dsimp only [largeSpaceWhp]; omega)
+  h.fits_largeSpace.of_le (Nat.add_le_add_left (hoff.le.trans
+    (headerWords_le_largeSpaceWhp c U V w₀ n_max)) base)
 
 /-- Helper producing the `Realizes` precondition of `readPackedGenProg` / `writePackedGenProg`
 for any array segment inside `largeSpaceWhp`. -/
