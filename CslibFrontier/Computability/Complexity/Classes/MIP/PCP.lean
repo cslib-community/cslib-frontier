@@ -92,10 +92,9 @@ theorem positiveLabelSuccinct3SAT_mem_PCPPoly :
   · rintro x ⟨⟨c, hc, hsat⟩, hpos⟩
     have : NeZero x.labelBits := ⟨hpos.ne'⟩
     have : Fact (prime x).Prime := ⟨(bertrandPrime_spec x.fieldBound_pos.ne').1⟩
-    have hd : 1 + 3 * c.size + 3 * (x.labelBits + 1) ≤ x.sumcheckDegree := by
-      rw [Succinct3CNFInstance.sumcheckDegree, ← hc, Circuit.length_code_fst c]
     obtain ⟨A, _, π, _, haxis, hcorrect, ht⟩ :=
-      exists_honestProof_of_satisfiable (p := prime x) c hsat hd
+      exists_honestProof_of_satisfiable (p := prime x) c hsat
+        (Succinct3CNFInstance.sumcheckDegree_eq c hc).ge
     refine ⟨π, ?_⟩
     change (((Prover.ofProof π).run (decoderRound x) ()).map Prod.fst) true = 1
     simp only [decoderRound, x.valid_eq_true_iff.mpr ⟨c, hc⟩, hpos, decide_true, Bool.and_self,

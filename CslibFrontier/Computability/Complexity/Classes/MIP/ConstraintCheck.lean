@@ -23,6 +23,19 @@ A succinct clause has three literals. The verifier rejects any failed local corr
 substitutes three successful values into the modular evaluator for the tableau polynomial.
 If the sumcheck claim differs from the ideal polynomial evaluation, acceptance requires at
 least one erroneous local correction.
+
+## Main definitions
+
+* `literalPoint` extracts the assignment-table address of one literal from the circuit wires.
+* `verifyConstraint` runs the three corrections and tests the claim with `checkConstraintClaim`.
+
+## Main results
+
+* `isOraclePPTOn_verifyConstraint` certifies the verifier given strict polynomial-time corrections.
+* `run_verifyConstraint_of_correct` identifies the verifier's answer when each correction returns
+  the value of the assignment polynomial at its literal.
+* `acceptProb_verifyConstraint_of_wrong_claim` bounds false acceptance by three times the common
+  error bound for a literal correction.
 -/
 
 public section

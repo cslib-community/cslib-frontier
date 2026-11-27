@@ -25,6 +25,10 @@ The arithmetic verifier draws two independent vectors of residues from fair bits
 Every sampled coordinate is a canonical representative, and the joint event error is
 at most twice the error for one vector.
 
+## Main definitions
+
+* `sampleTableauChallenges` draws the external and sumcheck challenge vectors independently.
+
 ## Main results
 
 * `isPPTOn_sampleTableauChallenges` certifies the sampler for unary parameters.

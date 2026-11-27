@@ -22,6 +22,19 @@ The verifier tests a static transcript at random external and sumcheck challenge
 the last claim against the three values corrected at the actual literal addresses. On an
 unsatisfiable instance, the independent-vector ideal soundness bound, the three local
 correction errors, and the fair-bit approximation bound add.
+
+## Main definitions
+
+* `arithmeticRound` samples both challenge vectors, checks the sumcheck transcript and verifies
+  its final claim against the assignment.
+
+## Main results
+
+* `isOraclePPTOn_arithmeticRound` gives a strict polynomial-time verifier for unary parameters.
+* `run_arithmeticRound_of_honest` gives acceptance with probability one for an honest transcript
+  and correct assignment queries.
+* `acceptProb_arithmeticRound_le` bounds acceptance on an unsatisfiable instance in terms of the
+  distance to a multilinear assignment, the field size and the sampler precision.
 -/
 
 public section
@@ -82,11 +95,6 @@ private theorem sumcheckVars_eq {x : Succinct3CNFInstance}
     x.sumcheckVars = x.clauseBits + c.size := by
   rw [Succinct3CNFInstance.sumcheckVars, ← hc, Circuit.length_code_fst c]
 
-private theorem sumcheckDegree_eq {x : Succinct3CNFInstance}
-    (c : Circuit signature x.clauseBits (3 * (x.labelBits + 1))) (hc : c.code = x.code) :
-    x.sumcheckDegree = 1 + 3 * c.size + 3 * (x.labelBits + 1) := by
-  rw [Succinct3CNFInstance.sumcheckDegree, ← hc, Circuit.length_code_fst c]
-
 /-- A proof with correct correction answers and consistent, accurate sumcheck rows at every
 challenge is accepted on every fair-bit tape, including at zero sampling precision. -/
 theorem run_arithmeticRound_of_honest (π : List Bool → Bool) {p : ℕ} [Fact p.Prime]
@@ -139,7 +147,7 @@ theorem acceptProb_arithmeticRound_le (π : List Bool → Bool) {p : ℕ} [Fact 
   let ε : ENNReal := (x.labelBits + 1 : ℝ≥0∞) *
     hammingDist (proofPoint π p) (fun y => eval y A) / p ^ x.labelBits + 1 / 2 ^ precision
   have htest := SumcheckProof.transcript_sound_of_unsatisfiable c hunsat hA
-    (sumcheckDegree_eq c hc).ge π p.size
+    (Succinct3CNFInstance.sumcheckDegree_eq c hc).ge π p.size
   have hbad : ν.toOuterMeasure bad ≤ (R : ℝ≥0∞) * (x.sumcheckDegree + 1) / p := htest
   have hideal : ((ν.map encode).bind kernel).toOuterMeasure {true} ≤
       ν.toOuterMeasure bad + 3 * ε := by
