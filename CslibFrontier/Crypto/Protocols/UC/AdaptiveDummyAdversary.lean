@@ -206,14 +206,14 @@ lets `S_D.initial` match `C₀`, which `.status` makes observable. -/
             adaptiveAdvantage mode P Q (adaptiveDummyAdversary C₀ NetQ₁ NetR₁) S_D Z κ z ≤ ε pZ κ
 
 /-- Completeness of the adaptive dummy adversary (concrete): simulating the dummy adversary implies
-general adaptive emulation with simulator overhead `X * (pD + 1) + pD` and error evaluated at the
+general adaptive emulation with simulator overhead `compSimPoly pD` and error evaluated at the
 absorbed environment budget `absorbPoly pZ pA`. -/
 theorem AdaptiveEmulatesDummyWithin.emulatesWithin {mode : CorruptionMode}
     {P : AdaptiveProtocol n In Out NetQ₁ NetR₁ View₁}
     {Q : AdaptiveProtocol n In Out NetQ₂ NetR₂ View₂}
     {pD : Polynomial ℕ} {ε : Polynomial ℕ → ℕ → ℝ≥0}
     (h : AdaptiveEmulatesDummyWithin mode P Q pD ε) :
-    AdaptiveEmulatesWithin mode P Q (Polynomial.X * (pD + 1) + pD)
+    AdaptiveEmulatesWithin mode P Q (compSimPoly pD)
       (fun pA pZ => ε (absorbPoly pZ pA)) := by
   intro AdvQ AdvR A pA hA
   obtain ⟨S_D, hS, hadv⟩ := h A.initial
