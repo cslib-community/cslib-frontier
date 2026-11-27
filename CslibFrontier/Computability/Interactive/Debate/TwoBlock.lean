@@ -201,7 +201,7 @@ private theorem map_transcript_succ (M : Machine TwoBlockQuery) (O : TwoBlockQue
 
 /-- The law of the last bit of a block of `j + 1` steps: a query at the empty address and then
 `j` queries at the previous bit. -/
-noncomputable def blockLaw (O : TwoBlockQuery → PMF Bool) : ℕ → PMF Bool
+private noncomputable def blockLaw (O : TwoBlockQuery → PMF Bool) : ℕ → PMF Bool
   | 0 => O (.inl ())
   | j + 1 => (blockLaw O j).bind fun bit => O (.inr (.inl bit))
 
@@ -250,7 +250,7 @@ private theorem map_pair_transcript (O : TwoBlockQuery → PMF Bool) :
 
 /-- **The law of the run.** Against any oracle, the output of the two-block machine is the
 answer at the pair of two independent draws of the block law. -/
-theorem evalWith_run_twoBlockMachine_eq_bind (m : ℕ) (O : TwoBlockQuery → PMF Bool) :
+private theorem evalWith_run_twoBlockMachine_eq_bind (m : ℕ) (O : TwoBlockQuery → PMF Bool) :
     OracleComp.evalWith (sumHandler ProbComp.unifOracle O) ((twoBlockMachine m).run (2 * m + 3)) =
       (blockLaw O m).bind fun u => (blockLaw O m).bind fun v => O (.inr (.inr (u, v))) := by
   rw [Machine.run, OracleComp.evalWith_map, show 2 * m + 3 = (m + 2 + m) + 1 by omega,
